@@ -15,7 +15,7 @@ const generatedPath = resolve(root, "packages/api/account-controller/src/client-
 test("账户 Remote 源合同稳定生成 Host/Client 共用端点和 Schema", async () => {
   const sourceText = await readFile(sourcePath, "utf8");
   const generatedText = generateTypertRemoteContract({ sourceText, sourcePath, contractName: "AccountControllerRemoteContract" });
-  assert.equal(generatedText, await readFile(generatedPath, "utf8"));
+  assert.equal(generatedText.replace(/\r\n/gu, "\n"), (await readFile(generatedPath, "utf8")).replace(/\r\n/gu, "\n"));
   assert.deepEqual(accountControllerRemoteMethods["auth/me"], {
     endpoint: "auth/me",
     namespace: "auth",

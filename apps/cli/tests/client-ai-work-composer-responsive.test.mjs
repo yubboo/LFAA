@@ -147,7 +147,7 @@ test("输入操作与用量指标为鼠标和键盘提供真实状态提示，�
 
   assert.ok(actionsStart >= 0 && actionsEnd > actionsStart);
   assert.doesNotMatch(composerActions, /<Tooltip[^>]*placement="top(?:Left|Right)?"/u);
-  assert.match(composerActions, /Tooltip trigger=\{\["hover", "focus"\]\} placement="bottom" title="添加文件等内容 · 附件功能尚未接入"/u);
+  assert.match(composerActions, /Tooltip trigger=\{\["hover", "focus"\]\} placement="bottom" title=\{attachmentError \?\? "添加图片或文本附件（最多 4 个，单个不超过 8 MiB）"\}/u);
   assert.match(composerActions, /Tooltip trigger=\{\["hover", "focus"\]\} placement="bottom" title=\{`更改权限 · 当前为\$\{permissionModeLabels\[settings\.permissions\.mode\]\}`\}/u);
   assert.match(composerActions, /Tooltip trigger=\{\["hover", "focus"\]\} placement="bottom" title="关联应用、Skill、提示词和专家"/u);
   assert.match(composerActions, /Tooltip trigger=\{\["hover", "focus"\]\} placement="bottom" title=\{activeAccount \? `选择模型/u);

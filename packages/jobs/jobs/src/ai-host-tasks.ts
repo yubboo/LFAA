@@ -8,6 +8,8 @@ import { randomUUID } from "node:crypto";
 import { database } from "lfaa-storage-sqlite/src/database.js";
 import { getDaemonNode, listDaemonNodes } from "lfaa-host-daemon/src/local-daemon.js";
 import type { ApplicationId } from "lfaa-settings/src/preferences/service.js";
+import { EXECUTION_SANDBOX_MODES, type ExecutionSandboxMode } from "lfaa-util-values/src/sandbox-contract.js";
+import { win32 } from "node:path";
 
 const leaseDurationMilliseconds = 30_000;
 const resultRetentionMilliseconds = 24 * 60 * 60 * 1000;
@@ -23,6 +25,14 @@ export interface AiHostTaskResult {
   timedOut: boolean;
   outputTruncated: boolean;
   cancelled?: boolean;
+  sandbox?: {
+    mode: ExecutionSandboxMode;
+    enforcement: "full" | "none";
+    denied: boolean;
+    providerId: string;
+    hostVerified?: boolean;
+    runnerFailed?: boolean;
+  };
 }
 
 export interface AiHostTask {
@@ -32,6 +42,8 @@ export interface AiHostTask {
   appId: ApplicationId;
   shell: AiHostShell;
   workingDirectory: string;
+  sandboxMode: ExecutionSandboxMode;
+  workspaceRoot: string;
   command: string;
   timeoutSeconds: number;
   status: AiHostTaskStatus;
@@ -51,6 +63,8 @@ interface AiHostTaskRow {
   app_id: ApplicationId;
   shell: AiHostShell;
   working_directory: string;
+  sandbox_mode: ExecutionSandboxMode;
+  workspace_root: string;
   command: string;
   timeout_seconds: number;
   status: AiHostTaskStatus;
@@ -72,13 +86,29 @@ function parseResult(value: string | null): AiHostTaskResult | null {
     if (typeof record.stdout !== "string" || typeof record.stderr !== "string"
       || !(typeof record.exitCode === "number" || record.exitCode === null)
       || typeof record.timedOut !== "boolean" || typeof record.outputTruncated !== "boolean") return null;
+    const sandbox = record.sandbox;
+    const sandboxRecord = typeof sandbox === "object" && sandbox !== null && !Array.isArray(sandbox)
+      ? sandbox as Record<string, unknown> : null;
+    if (sandboxRecord && (!EXECUTION_SANDBOX_MODES.includes(sandboxRecord.mode as ExecutionSandboxMode)
+      || (sandboxRecord.enforcement !== "full" && sandboxRecord.enforcement !== "none")
+      || typeof sandboxRecord.denied !== "boolean" || typeof sandboxRecord.providerId !== "string"
+      || (sandboxRecord.hostVerified !== undefined && typeof sandboxRecord.hostVerified !== "boolean")
+      || (sandboxRecord.runnerFailed !== undefined && typeof sandboxRecord.runnerFailed !== "boolean"))) return null;
     return {
       stdout: record.stdout,
       stderr: record.stderr,
       exitCode: record.exitCode,
       timedOut: record.timedOut,
       outputTruncated: record.outputTruncated,
-      cancelled: record.cancelled === true
+      cancelled: record.cancelled === true,
+      ...(sandboxRecord ? { sandbox: {
+        mode: sandboxRecord.mode as ExecutionSandboxMode,
+        enforcement: sandboxRecord.enforcement as "full" | "none",
+        denied: sandboxRecord.denied as boolean,
+        providerId: sandboxRecord.providerId as string,
+        ...(typeof sandboxRecord.hostVerified === "boolean" ? { hostVerified: sandboxRecord.hostVerified } : {}),
+        ...(sandboxRecord.runnerFailed === true ? { runnerFailed: true } : {})
+      } } : {})
     };
   } catch {
     return null;
@@ -93,6 +123,8 @@ function toTask(row: AiHostTaskRow): AiHostTask {
     appId: row.app_id,
     shell: row.shell,
     workingDirectory: row.working_directory,
+    sandboxMode: row.sandbox_mode,
+    workspaceRoot: row.workspace_root,
     command: row.command,
     timeoutSeconds: row.timeout_seconds,
     status: row.status,
@@ -106,7 +138,7 @@ function toTask(row: AiHostTaskRow): AiHostTask {
   };
 }
 
-export function listAiHostNodes(): Array<{ id: string; displayName: string; status: "online" | "offline"; platform: string; architecture: string; version: string; shellSupported: boolean; projectFilesSupported: boolean }> {
+export function listAiHostNodes(): Array<{ id: string; displayName: string; status: "online" | "offline"; platform: string; architecture: string; version: string; shellSupported: boolean; projectFilesSupported: boolean; sandboxSupported: boolean }> {
   return listDaemonNodes().map(({ id, displayName, status, platform, architecture, version, capabilities }) => ({
     id,
     displayName,
@@ -115,7 +147,8 @@ export function listAiHostNodes(): Array<{ id: string; displayName: string; stat
     architecture,
     version,
     shellSupported: capabilities.includes("agent-shell-v1"),
-    projectFilesSupported: capabilities.includes("project-files-v1")
+    projectFilesSupported: capabilities.includes("project-files-v1"),
+    sandboxSupported: platform === "win32" && architecture === "x64" && capabilities.includes("app-sandbox-windows-appcontainer-v1")
   }));
 }
 
@@ -125,6 +158,8 @@ export function createAiHostTask(input: {
   appId: ApplicationId;
   shell: AiHostShell;
   workingDirectory: string;
+  sandboxMode?: ExecutionSandboxMode;
+  workspaceRoot?: string;
   command: string;
   timeoutSeconds: number;
 }): AiHostTask {
@@ -133,12 +168,27 @@ export function createAiHostTask(input: {
   if (!node || node.status !== "online" || Date.parse(node.lastSeenAt) < Date.now() - 20_000 || !node.capabilities.includes(requiredCapability)) {
     throw new Error(`目标 Daemon 节点离线或尚未报告 ${requiredCapability} 能力。请先读取主机节点列表。`);
   }
+  const sandboxMode = input.sandboxMode ?? "danger-full-access";
+  const workspaceRoot = input.workspaceRoot ?? "";
+  if (sandboxMode !== "danger-full-access") {
+    if (input.shell === "project-files") throw new Error("项目文件任务不能借用 Agent Shell 沙箱策略，请使用其专属文件工具。");
+    if (node.platform !== "win32" || node.architecture !== "x64" || !node.capabilities.includes("app-sandbox-windows-appcontainer-v1")) {
+      throw new Error("目标节点未报告可用的 Windows x64 AppContainer Provider；受限命令已拒绝排队。");
+    }
+    if (!workspaceRoot || !win32.isAbsolute(workspaceRoot) || !win32.isAbsolute(input.workingDirectory)) {
+      throw new Error("受限节点命令需要来自当前目标节点项目的绝对工作区与命令目录。");
+    }
+    const relativePath = win32.relative(workspaceRoot, input.workingDirectory);
+    if (relativePath === ".." || relativePath.startsWith(`..${win32.sep}`) || win32.isAbsolute(relativePath)) {
+      throw new Error("节点命令工作目录必须位于当前项目工作区内。");
+    }
+  }
   clearExpiredAiHostTaskResults();
   const id = randomUUID();
   database.prepare(`
-    INSERT INTO ai_host_tasks (id, node_id, created_by, app_id, shell, working_directory, command, timeout_seconds, status, message)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued', '等待 Daemon 节点接收主机命令。')
-  `).run(id, input.nodeId, input.createdBy, input.appId, input.shell, input.workingDirectory, input.command, input.timeoutSeconds);
+    INSERT INTO ai_host_tasks (id, node_id, created_by, app_id, shell, working_directory, sandbox_mode, workspace_root, command, timeout_seconds, status, message)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', '等待 Daemon 节点接收主机命令。')
+  `).run(id, input.nodeId, input.createdBy, input.appId, input.shell, input.workingDirectory, sandboxMode, workspaceRoot, input.command, input.timeoutSeconds);
   return getAiHostTask(id)!;
 }
 
@@ -152,7 +202,7 @@ export function getAiHostTask(taskId: string): AiHostTask | null {
 export function listUserAiHostTasks(userId: string): Array<Omit<AiHostTask, "command" | "result">> {
   failExpiredAiHostTasks();
   // 摘要只读取元数据；禁止先复制/解析所有任务的 MiB 输出再丢弃，正文仍由单任务接口提供。
-  const rows = database.prepare(`SELECT id, node_id, created_by, app_id, shell, working_directory,
+  const rows = database.prepare(`SELECT id, node_id, created_by, app_id, shell, working_directory, sandbox_mode, workspace_root,
     timeout_seconds, status, message, created_at, started_at, finished_at, cancel_requested, output_sequence,
     '' AS command, NULL AS result_json
     FROM ai_host_tasks WHERE created_by = ? ORDER BY created_at DESC LIMIT 50`).all(userId) as unknown as AiHostTaskRow[];
@@ -187,7 +237,7 @@ export function claimNextAiHostTask(nodeId: string): AiHostTask | null {
   database.prepare(`
     UPDATE ai_host_tasks
     SET status = 'failed', message = 'Daemon 命令任务租约已过期，执行结果未知；命令不会自动重放。',
-        command = '', working_directory = '', result_json = '{"stdout":"","stderr":"执行结果未知；请检查节点状态后再决定是否重试。","exitCode":null,"timedOut":false,"outputTruncated":false}',
+        command = '', working_directory = '', workspace_root = '', result_json = '{"stdout":"","stderr":"执行结果未知；请检查节点状态后再决定是否重试。","exitCode":null,"timedOut":false,"outputTruncated":false}',
         finished_at = ?, lease_expires_at = NULL
     WHERE node_id = ? AND status = 'running' AND (lease_expires_at IS NULL OR lease_expires_at <= ?)
   `).run(now, nodeId, now);
@@ -230,14 +280,23 @@ export function completeAiHostTask(input: {
   message: string;
   result: AiHostTaskResult;
 }): boolean {
-  // 执行器必须回传实际退出结果；布尔标志不能把取消/超时/未知结果改成成功。
-  const status: AiHostTaskStatus = input.succeeded && input.result.exitCode === 0 && !input.result.timedOut && !input.result.cancelled ? "succeeded" : "failed";
+  const task = database.prepare("SELECT sandbox_mode FROM ai_host_tasks WHERE id = ? AND node_id = ? AND status = 'running'")
+    .get(input.taskId, input.nodeId) as { sandbox_mode: ExecutionSandboxMode } | undefined;
+  if (!task) return false;
+  const sandboxConfirmed = task.sandbox_mode === "danger-full-access"
+    || (input.result.sandbox?.mode === task.sandbox_mode && input.result.sandbox.enforcement === "full"
+      && input.result.sandbox.denied === false && input.result.sandbox.hostVerified === true && input.result.sandbox.runnerFailed !== true);
+  // 受限结果只有带有当前 Host 的有效回执才可成功；模式、取消或退出码不能替代隔离证据。
+  const status: AiHostTaskStatus = input.succeeded && sandboxConfirmed && input.result.exitCode === 0 && !input.result.timedOut && !input.result.cancelled ? "succeeded" : "failed";
+  const message = input.succeeded && !sandboxConfirmed
+    ? "受限命令缺少有效的 Windows AppContainer Host 回执；执行结果未确认。"
+    : input.message;
   const now = new Date().toISOString();
   const update = database.prepare(`
     UPDATE ai_host_tasks
-    SET status = ?, message = ?, command = '', working_directory = '', result_json = ?, finished_at = ?, lease_expires_at = NULL
+    SET status = ?, message = ?, command = '', working_directory = '', workspace_root = '', result_json = ?, finished_at = ?, lease_expires_at = NULL
     WHERE id = ? AND node_id = ? AND status = 'running' AND lease_expires_at > ?
-  `).run(status, input.message, JSON.stringify(input.result), now, input.taskId, input.nodeId, now);
+  `).run(status, message, JSON.stringify(input.result), now, input.taskId, input.nodeId, now);
   return Number(update.changes) === 1;
 }
 
@@ -247,7 +306,7 @@ export function requestAiHostTaskCancellation(taskId: string, userId: string): b
   if (!task || task.createdBy !== userId) return false;
   if (task.status === "succeeded" || task.status === "failed") return true;
   if (task.status === "queued") {
-    database.prepare("UPDATE ai_host_tasks SET cancel_requested = 1, status = 'failed', command = '', working_directory = '', message = '任务在执行前已取消。', result_json = ?, finished_at = ? WHERE id = ? AND created_by = ? AND status = 'queued'")
+    database.prepare("UPDATE ai_host_tasks SET cancel_requested = 1, status = 'failed', command = '', working_directory = '', workspace_root = '', message = '任务在执行前已取消。', result_json = ?, finished_at = ? WHERE id = ? AND created_by = ? AND status = 'queued'")
       .run(JSON.stringify({ stdout: "", stderr: "", exitCode: null, timedOut: false, outputTruncated: false, cancelled: true }), new Date().toISOString(), taskId, userId);
   } else {
     database.prepare("UPDATE ai_host_tasks SET cancel_requested = 1, message = '已请求节点终止进程树；尚未确认终止结果。' WHERE id = ? AND created_by = ? AND status = 'running'").run(taskId, userId);
@@ -270,7 +329,7 @@ export function updateAiHostTaskOutput(taskId: string, nodeId: string, sequence:
 
 function failExpiredAiHostTasks(): void {
   const now = new Date().toISOString();
-  database.prepare("UPDATE ai_host_tasks SET status = 'failed', message = '节点任务租约已过期，执行结果未知；不会自动重放。', command = '', working_directory = '', finished_at = ?, lease_expires_at = NULL WHERE status = 'running' AND (lease_expires_at IS NULL OR lease_expires_at <= ?)").run(now, now);
+  database.prepare("UPDATE ai_host_tasks SET status = 'failed', message = '节点任务租约已过期，执行结果未知；不会自动重放。', command = '', working_directory = '', workspace_root = '', finished_at = ?, lease_expires_at = NULL WHERE status = 'running' AND (lease_expires_at IS NULL OR lease_expires_at <= ?)").run(now, now);
 }
 
 function clearExpiredAiHostTaskResults(): void {

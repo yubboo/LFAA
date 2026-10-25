@@ -10,6 +10,7 @@
  */
 import { extname } from "node:path";
 import { readFile } from "node:fs/promises";
+import { sniffImageMediaType as sniffAttachmentImageMediaType } from "lfaa-attachment/src/index.js";
 import { FsToolError } from "./error.js";
 
 /** 支持的图片 MIME。 */
@@ -24,27 +25,9 @@ const EXT_MAP: Record<string, ImageMediaType> = {
   ".gif": "image/gif"
 };
 
-const PNG_SIG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
-const JPEG_SIG = [0xff, 0xd8, 0xff];
-
-function startsWith(data: Uint8Array, offset: number, expected: readonly number[]): boolean {
-  if (data.byteLength < offset + expected.length) return false;
-  return expected.every((byte, i) => data[offset + i] === byte);
-}
-
-function asciiStartsWith(data: Uint8Array, offset: number, value: string): boolean {
-  if (data.byteLength < offset + value.length) return false;
-  for (let i = 0; i < value.length; i += 1) if (data[offset + i] !== value.charCodeAt(i)) return false;
-  return true;
-}
-
-/** 按文件魔数识别图片格式；不支持返回 undefined。 */
+/** 魔数嗅探只有一个实现：归 lfaa-attachment 合同包，这里只做转发。 */
 export function sniffImageMediaType(data: Uint8Array): ImageMediaType | undefined {
-  if (startsWith(data, 0, PNG_SIG)) return "image/png";
-  if (startsWith(data, 0, JPEG_SIG)) return "image/jpeg";
-  if (asciiStartsWith(data, 0, "GIF87a") || asciiStartsWith(data, 0, "GIF89a")) return "image/gif";
-  if (asciiStartsWith(data, 0, "RIFF") && asciiStartsWith(data, 8, "WEBP")) return "image/webp";
-  return undefined;
+  return sniffAttachmentImageMediaType(data);
 }
 
 /** 按扩展名得到声明的图片类型；非图片扩展名返回 undefined。 */

@@ -5,7 +5,7 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -71,6 +71,21 @@ test("默认工作区只在动态系统文档目录创建，不复制乱码旧�
     assert.equal(existsSync(join(source, "index.html")), true, "不读取或复制乱码旧目录内容");
     assert.equal(existsSync(join(initialized, ".git", "HEAD")), false, "新默认工作区只创建目录");
     assert.equal(existsSync(join(initialized, "index.html")), false, "新目录不包含旧目录文件");
+  } finally { assert.equal(dirname(resolve(root)), parent); rmSync(root, { recursive: true, force: true }); }
+});
+
+test("批量目录检查只把不存在或非目录路径报告为不可用", async () => {
+  const parent = resolve(tmpdir());
+  const root = mkdtempSync(join(parent, "lfaa-project-directory-inspection-"));
+  const existing = join(root, "existing");
+  const regularFile = join(root, "file.txt");
+  try {
+    mkdirSync(existing);
+    writeFileSync(regularFile, "file");
+    const result = await executeProjectFile({ operation: "inspect_directories", paths: [existing, join(root, "missing"), regularFile] });
+    assert.deepEqual(result, { directories: [true, false, false] });
+    await assert.rejects(executeProjectFile({ operation: "inspect_directories", paths: ["relative/path"] }), /项目目录检查列表无效/u);
+    await assert.rejects(executeProjectFile({ operation: "inspect_directories", paths: new Array(201).fill(existing) }), /项目目录检查列表无效/u);
   } finally { assert.equal(dirname(resolve(root)), parent); rmSync(root, { recursive: true, force: true }); }
 });
 
@@ -164,15 +179,18 @@ test("Skill 文件树只在新目录内原子创建并拒绝路径穿越或覆�
   const parent = resolve(tmpdir());
   const root = mkdtempSync(join(parent, "lfaa-project-skill-tree-"));
   const base = { rootDirectory: root, path: ".agents/skills/reviewer", operation: "create_tree" };
+  const imageBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0xff]);
   try {
     const result = await executeProjectFile({ ...base, files: [
       { path: "SKILL.md", content: "---\nname: reviewer\n---\n审阅项目内容。" },
       { path: "references/checklist.md", content: "逐项核对证据。" },
-      { path: "参考/核对表.md", content: "确认中文目录和文件名。" }
+      { path: "参考/核对表.md", content: "确认中文目录和文件名。" },
+      { path: "assets/preview.png", content: imageBytes.toString("base64"), encoding: "base64" }
     ] });
     assert.equal(result.created, true);
-    assert.equal(result.files.length, 3);
+    assert.equal(result.files.length, 4);
     assert.equal(result.files.find(file => file.path === "SKILL.md").relativePath, ".agents/skills/reviewer/SKILL.md");
+    assert.deepEqual(readFileSync(join(root, ".agents", "skills", "reviewer", "assets", "preview.png")), imageBytes, "二进制资源以原字节安全落盘");
     assert.equal((await executeProjectFile({ rootDirectory: root, path: ".", operation: "discover_skills" })).skills[0].name, "reviewer");
     await assert.rejects(executeProjectFile({ ...base, files: [{ path: "../escape.txt", content: "越界" }] }), /不安全的相对路径/u);
     await assert.rejects(executeProjectFile({ ...base, files: [{ path: "SKILL.md", content: "覆盖" }] }), /目标目录已存在/u);

@@ -1,10 +1,13 @@
 /**
  * 功能：按固定安全顺序组装发送给模型的 LFAA 系统提示词。
  * 作用：集中管理 Harness 身份、输出约定、权限、界面来源、已选择指引和运行上下文。
- * 关联文件：packages/llm/llm/src/completion.ts、prompt/prompt、Agent Loop、设置中心权限模式。
+ * 关联文件：persona.ts（人格核心组合）、packages/llm/llm/src/completion.ts、prompt/prompt、Agent Loop、设置中心权限模式。
  */
 import type { ApplicationId } from "lfaa-settings/src/preferences/service.js";
 import type { PermissionSettings } from "lfaa-settings/src/service.js";
+import { getLfaaPersonaCore } from "./persona.js";
+
+export * from "./persona.js";
 
 interface PromptSection {
   id: string;
@@ -51,12 +54,16 @@ function applicationInstruction(applicationId: ApplicationId): string {
  * 使用稳定优先级拼接提示词。核心权限和 App 约束先于扩展；任务专属指引与运行上下文保持在末尾。
  */
 export function composeLfaaSystemPrompt(input: LfaaSystemPromptInput): string {
+  // 人格核心由内容 Owner 登记；未装配时两段为空，组合结果与既有部署一致。
+  const persona = getLfaaPersonaCore();
   const sections: PromptSection[] = [
     ...commonInstructions.map((text, index) => ({ id: `lfaa.core.${index}`, order: index * 100, text })),
+    { id: "lfaa.persona-prefix", order: 250, text: persona?.prefix ?? "" },
     { id: "lfaa.permission", order: 300, text: permissionInstruction(input.permissionMode) },
     { id: "lfaa.application", order: 400, text: applicationInstruction(input.applicationId) },
     ...input.extensions.map((text, index) => ({ id: `lfaa.extension.${index}`, order: 500 + index, text })),
     { id: "lfaa.agent", order: 10_000, text: input.systemPrompt ?? "" },
+    { id: "lfaa.persona-suffix", order: 19_000, text: persona?.suffix ?? "" },
     { id: "lfaa.runtime-context", order: 20_000, text: input.context ?? "" }
   ];
   return sections

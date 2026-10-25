@@ -8,7 +8,11 @@ import { inflateRawSync } from "node:zlib";
 const MAX_ARCHIVE_BYTES = 64 * 1024 * 1024;
 const MAX_FILE_BYTES = 32 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 128 * 1024 * 1024;
-const MAX_FILES = 512;
+// GitHub 快照是整仓归档：`anthropics/skills` 这类多 Skill 仓库有 541 个目录/文件条目，
+// 旧上限 512 会把合法仓库误判成“多卷/不受支持格式”。这里只放宽归档条目与文件数量，
+// 单文件 32 MiB、解压总量 128 MiB、路径/重解析点/压缩方法校验保持不变；插件和 Skill
+// 适配器仍按各自更小的根目录/文件数上限选择要安装的内容。
+const MAX_FILES = 4096;
 const ZIP_EOCD = 0x06054b50;
 const ZIP_CENTRAL = 0x02014b50;
 const ZIP_LOCAL = 0x04034b50;

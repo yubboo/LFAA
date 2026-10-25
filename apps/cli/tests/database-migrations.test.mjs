@@ -368,8 +368,8 @@ test("版本 27 写作作品迁移后保留内容并归入第一卷，重复启�
   }
 });
 
-test("版本 61 数据库迁移 Steam 专用服务端结构 62，重复启动保留同一结构", () => {
-  const dataDirectory = mkdtempSync(join(resolve(tmpdir()), "lfaa-db-v62-steamcmd-"));
+test("版本 61 数据库依次迁移 Steam、Agent 使用控制、账户快照、受信联系人、DST 集群、沙箱策略与 Skill 安装到 68", () => {
+  const dataDirectory = mkdtempSync(join(resolve(tmpdir()), "lfaa-db-v63-agent-usage-"));
   try {
     const databaseDirectory = join(dataDirectory, "database");
     mkdirSync(databaseDirectory, { recursive: true });
@@ -377,6 +377,32 @@ test("版本 61 数据库迁移 Steam 专用服务端结构 62，重复启动保
     legacyDatabase.exec(`
       CREATE TABLE users (id TEXT PRIMARY KEY NOT NULL) STRICT;
       CREATE TABLE daemon_nodes (id TEXT PRIMARY KEY NOT NULL) STRICT;
+      CREATE TABLE ai_host_tasks (id TEXT PRIMARY KEY NOT NULL) STRICT;
+      INSERT INTO users (id) VALUES ('legacy-steam-user');
+      INSERT INTO daemon_nodes (id) VALUES ('legacy-steam-node');
+      INSERT INTO ai_host_tasks (id) VALUES ('legacy-shell-task');
+      CREATE TABLE steamcmd_servers (
+        id TEXT PRIMARY KEY NOT NULL,
+        node_id TEXT NOT NULL REFERENCES daemon_nodes(id) ON DELETE RESTRICT,
+        created_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+        name TEXT NOT NULL,
+        tool_app_id INTEGER NOT NULL,
+        install_directory TEXT NOT NULL,
+        executable_path TEXT NOT NULL,
+        launch_arguments_json TEXT NOT NULL,
+        stop_command TEXT NOT NULL,
+        stop_timeout_seconds INTEGER NOT NULL,
+        eula_accepted INTEGER NOT NULL,
+        installation_status TEXT NOT NULL,
+        status TEXT NOT NULL,
+        process_id INTEGER,
+        last_seen_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE (node_id, install_directory)
+      ) STRICT;
+      INSERT INTO steamcmd_servers (id, node_id, created_by, name, tool_app_id, install_directory, executable_path, launch_arguments_json, stop_command, stop_timeout_seconds, eula_accepted, installation_status, status, process_id, last_seen_at, created_at, updated_at)
+        VALUES ('legacy-steam-server', 'legacy-steam-node', 'legacy-steam-user', '旧服务端', 123456, 'legacy/server', 'server.exe', '["-dedicated"]', 'quit', 30, 1, 'installed', 'stopped', NULL, '2026-09-20T00:00:00.000Z', '2026-09-19T00:00:00.000Z', '2026-09-20T00:00:00.000Z');
       PRAGMA user_version = 61;
     `);
     legacyDatabase.close();
@@ -385,8 +411,12 @@ test("版本 61 数据库迁移 Steam 专用服务端结构 62，重复启动保
     const databasePath = join(dataDirectory, "database", "lfaa.sqlite");
     const database = new DatabaseSync(databasePath, { readOnly: true });
     try {
-      assert.equal(Number(database.prepare("PRAGMA user_version").get().user_version), 62);
+      assert.equal(Number(database.prepare("PRAGMA user_version").get().user_version), 69);
       assert.ok(database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'steamcmd_servers'").get());
+      assert.deepEqual({ ...database.prepare("SELECT id, name, tool_app_id, install_directory, executable_path, launch_arguments_json, stop_command, stop_timeout_seconds, installation_status, status FROM steamcmd_servers WHERE id = 'legacy-steam-server'").get() }, {
+        id: "legacy-steam-server", name: "旧服务端", tool_app_id: 123456, install_directory: "legacy/server", executable_path: "server.exe",
+        launch_arguments_json: '["-dedicated"]', stop_command: "quit", stop_timeout_seconds: 30, installation_status: "installed", status: "stopped"
+      });
       const columns = database.prepare("PRAGMA table_info(steamcmd_servers)").all().map(column => column.name);
       assert.ok(columns.includes("tool_app_id"));
       assert.ok(columns.includes("install_directory"));
@@ -394,19 +424,41 @@ test("版本 61 数据库迁移 Steam 专用服务端结构 62，重复启动保
       assert.ok(columns.includes("eula_accepted"));
       assert.ok(columns.includes("stop_timeout_seconds"));
       assert.ok(columns.includes("status"));
+      assert.ok(columns.includes("dst_cluster_id"));
+      assert.ok(columns.includes("dst_cluster_name"));
+      assert.ok(columns.includes("dst_shard"));
+      assert.ok(database.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'steamcmd_servers_dst_shard_idx'").get());
+      assert.ok(database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'account_agent_usage_policies'").get());
+      assert.ok(database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'account_agent_usage_daily'").get());
+      assert.ok(database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'account_agent_usage_reservations'").get());
+      assert.ok(database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'account_snapshots'").get());
+      const snapshotColumns = database.prepare("PRAGMA table_info(account_snapshots)").all().map(column => column.name);
+      assert.ok(snapshotColumns.includes("user_id"));
+      assert.ok(snapshotColumns.includes("archive_sha256"));
+      assert.ok(snapshotColumns.includes("manifest_json"));
+      assert.ok(snapshotColumns.includes("payload_gzip"));
+      assert.ok(database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'account_trusted_contacts'").get());
+      assert.ok(database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'account_trusted_contact_invites'").get());
+      assert.ok(database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'account_trusted_recovery_requests'").get());
+      const shellColumns = database.prepare("PRAGMA table_info(ai_host_tasks)").all().map(column => column.name);
+      assert.ok(shellColumns.includes("sandbox_mode"));
+      assert.ok(shellColumns.includes("workspace_root"));
+      assert.deepEqual({ ...database.prepare("SELECT sandbox_mode, workspace_root FROM ai_host_tasks WHERE id = 'legacy-shell-task'").get() }, { sandbox_mode: "danger-full-access", workspace_root: "" });
       assert.deepEqual(database.prepare("PRAGMA foreign_key_check").all(), []);
     } finally { database.close(); }
 
     runDatabaseStartup(dataDirectory);
     const restartedDatabase = new DatabaseSync(databasePath, { readOnly: true });
     try {
-      assert.equal(Number(restartedDatabase.prepare("PRAGMA user_version").get().user_version), 62);
-      assert.equal(Number(restartedDatabase.prepare("SELECT COUNT(*) AS count FROM steamcmd_servers").get().count), 0);
+      assert.equal(Number(restartedDatabase.prepare("PRAGMA user_version").get().user_version), 69);
+      assert.equal(Number(restartedDatabase.prepare("SELECT COUNT(*) AS count FROM steamcmd_servers").get().count), 1);
+      assert.equal(restartedDatabase.prepare("SELECT name FROM steamcmd_servers WHERE id = 'legacy-steam-server'").get().name, "旧服务端");
+      assert.deepEqual({ ...restartedDatabase.prepare("SELECT sandbox_mode, workspace_root FROM ai_host_tasks WHERE id = 'legacy-shell-task'").get() }, { sandbox_mode: "danger-full-access", workspace_root: "" });
     } finally { restartedDatabase.close(); }
   } finally {
     const resolvedDataDirectory = resolve(dataDirectory);
     assert.equal(dirname(resolvedDataDirectory), resolve(tmpdir()));
-    assert.ok(basename(resolvedDataDirectory).startsWith("lfaa-db-v62-steamcmd-"));
+    assert.ok(basename(resolvedDataDirectory).startsWith("lfaa-db-v63-agent-usage-"));
     rmSync(resolvedDataDirectory, { recursive: true, force: true });
   }
 });

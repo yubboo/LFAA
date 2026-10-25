@@ -2,7 +2,7 @@
 
 `lfaa-tool-shell` 登记本机 Shell 与游戏目标节点 Shell 两类真实工具。Provider 模型决定是否调用及选择哪一个；Agent Loop 负责统一权限、派发和结果回传，Daemon 不是 Agent 或通用控制层。
 
-本机 Profile 根据 `general.integratedShell`、`general.taskFolder`、`aiRuntime.commandTimeoutSeconds` 提供 `local_execute_command`；它只在控制端运行。本机应用发现/启动由 computer-use Owner 管理，不能回退到 Daemon 搜索本机程序。`host_execute_command` 只向 Minecraft/SteamCMD App 暴露；只有模型为明确的游戏节点目标选择该工具后，才通过 `agent-shell-v1` 派发到在线 Daemon。节点查询/既有任务状态工具继续遵循各自 App 与账户范围。权限与取消继续沿用现有 Owner；未知退出码不报告成功。
+本机 Profile 根据 `general.integratedShell`、`general.taskFolder`、`aiRuntime.commandTimeoutSeconds` 提供 `local_execute_command`；它只在控制端运行。本机应用发现/启动由 computer-use Owner 管理，不能回退到 Daemon 搜索本机程序。`host_execute_command` 面向已登记应用，可供模型对明确选择的在线 Daemon 节点执行命令；受限模式还要求当前任务绑定到目标节点的项目工作区，并由该节点自身的 Windows x64 AppContainer Provider 执行。节点查询/既有任务状态工具继续遵循各自 App 与账户范围。权限与取消继续沿用现有 Owner；未知退出码不报告成功。
 
 构建输出为根 `dist/packages/shell/tool-shell/`。当前是一次性命令任务，交互式持久 PTY 尚未接入；不能把本包说成已移植 DSH 全部 Shell 模块。
 

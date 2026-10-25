@@ -41,7 +41,7 @@ test("应用工作区复用 Workbench 已有应用菜单数据与打开链路", 
 
 test("AI Work 后台刷新保留账户项目快照，默认目录初始化按账户限于页面会话一次", () => {
   assert.match(workspace, /setWorkspaceProjectsLoadStatus\(cached \? "ready" : "loading"\)/u);
-  assert.match(workspace, /app === "workspace" && !initializedDefaultWorkspaceUsers\.has\(userId\)/u);
+  assert.match(workspace, /app === "workspace" && !voiceMode && !initializedDefaultWorkspaceUsers\.has\(userId\)/u);
   assert.match(workspace, /if \(initializedDefaultWorkspaceUsers\.size > 8\)/u);
   assert.match(workspace, /return \(\) => controller\.abort\(\)/u);
 });
@@ -64,7 +64,7 @@ test("AI Work 将 Git 摘要与变更管理联动到右侧菜单且聊天保持�
   assert.match(workspace, /aria-label="项目摘要"[\s\S]*?module-git-summary__project-card[\s\S]*?module-git-summary__folder-row/u);
   assert.match(workspace, /module-git-summary__operations-trigger[\s\S]*?Git 操作[\s\S]*?gitSummaryActionRepositoryId/u);
   assert.match(workspace, /module-git-summary__operations-menu[\s\S]*?\["commit", "提交"\][\s\S]*?\["push", "推送"\][\s\S]*?\["branch-create", "创建分支"\][\s\S]*?\["branch-switch", "切换分支"\]/u);
-  assert.match(workspaceCss, /module-git-summary__operations-menu\s*\{[^}]*inset-block-start:\s*-14px;[^}]*inset-inline-start:\s*-126px;[^}]*width:\s*min\(112px,\s*calc\(100vw - 24px\)\)/u);
+  assert.match(workspaceCss, /module-git-summary__operations-menu\s*\{[^}]*inset-block-start:\s*-14px;[^}]*inset-inline-start:\s*8px;[^}]*width:\s*min\(112px,\s*calc\(100vw - 24px\)\)/u);
   assert.match(workspace, /closeOnOutsidePointer[\s\S]*?addEventListener\("pointerdown", closeOnOutsidePointer, true\)[\s\S]*?removeEventListener\("pointerdown", closeOnOutsidePointer, true\)/u);
   assert.match(workspace, /closeOnEscape[\s\S]*?event\.key !== "Escape"[\s\S]*?setGitSummaryActionRepositoryId\(null\)/u);
   assert.match(workspace, /setGitSummaryActionRepositoryId\(null\);\s*if \(repositoryId\) openGitManager\(repositoryId, action\)/u);
@@ -99,7 +99,7 @@ test("AI Work 将 Git 摘要与变更管理联动到右侧菜单且聊天保持�
   assert.match(workspace, /if \(metrics\.mode !== "mobile" \|\| !gitSummaryOpen \|\| gitSummaryActionRepositoryId\) return;[\s\S]*?closeSummaryOnEscape[\s\S]*?addEventListener\("keydown", closeSummaryOnEscape, true\)[\s\S]*?removeEventListener\("keydown", closeSummaryOnEscape, true\)/u);
   assert.match(workspaceCss, /\.module-git-summary\.is-embedded\s*\{[^}]*width:\s*100%;[^}]*height:\s*100%;[^}]*max-height:\s*none/u);
   assert.match(workspaceCss, /\.module-sidebar__mobile-summary-content\s*\{[^}]*min-height:\s*0;[^}]*flex:\s*1 1 auto;[^}]*overflow:\s*hidden/u);
-  assert.match(dockkitCss, /--lfaa-mobile-pane-width:\s*min\(calc\(100%\s*-\s*\.75rem\),\s*20rem\);\s*\/\*[^*]*工作台可用宽度减 12px[^*]*\*\//u);
+  assert.match(dockkitCss, /--lfaa-mobile-pane-width:\s*min\(calc\(100%\s*-\s*var\(--lfaa-leading-width\)\s*-\s*\.75rem\),\s*20rem\);\s*\/\*[^*]*图标栏右侧的可用宽度减 12px[^*]*\*\//u);
   assert.match(dockkitCss, /\.lfaa-workbench\[data-layout-mode="mobile"\] \.lfaa-workbench__pane--left\s*\{[^}]*top:\s*0;/u);
   assert.match(dockkitCss, /\.lfaa-workbench\[data-layout-mode="mobile"\]\[data-responsive-right-dock="true"\]\[data-right-layout="dock"\] \.lfaa-workbench__pane--left\s*\{[^}]*top:\s*0;/u);
   assert.match(workspace, /const latestWriteByPath = new Map[\s\S]*?if \(change\.operation !== "read"\) latestWriteByPath\.set[\s\S]*?outputs: \[\.\.\.latestWriteByPath\.values\(\)\]/u);
@@ -113,10 +113,10 @@ test("AI Work 将 Git 摘要与变更管理联动到右侧菜单且聊天保持�
   const center = workspace.slice(workspace.indexOf("const center = ("), workspace.indexOf("const gitManagerPanel ="));
   assert.doesNotMatch(center, /module-git-manager/u);
   assert.match(workspace, /aria-label=\{mode === "ai-work" [?] "小鱼智能体对话"/u);
-  assert.match(workspace, /rightPanelSection === "context" && aiWorkView === "git"/u);
+  assert.match(workspace, /activeRightPanelSection === "context" && aiWorkView === "git"/u);
   assert.match(workspace, /openGitManager\(repository\.id\)/u);
   assert.match(workspace, /module-git-summary__project-header[\s\S]*?module-git-summary__branch/u);
-  assert.match(workspace, /onClick=\{\(\) => openGitManager\(\)\}>变更/u);
+  assert.match(workspace, /<button type="button" aria-label=\{`当前 Agent 的 Git 变更：\$\{gitSummaryText\}`\} aria-pressed=\{aiWorkView === "git"\} className=\{aiWorkView === "git" \? "is-active" : ""\} onClick=\{\(\) => openGitManager\(\)\} title=\{`当前 Agent 的 Git 变更：\$\{gitSummaryText\}`\}>[\s\S]*?变更/u);
   assert.doesNotMatch(workspace, /data-git-open/u);
   assert.doesNotMatch(workspace, /添加本机 Git 仓库|添加仓库/u);
   assert.match(workspace, /<GitChangeSummary[\s\S]*?status=\{visibleGitStatus\.status\}[\s\S]*?onRefresh=\{refreshSelectedGitStatus\}/u);
@@ -138,24 +138,28 @@ test("AI Work 将 Git 摘要与变更管理联动到右侧菜单且聊天保持�
   assert.match(workspaceCss, /\.module-context \.module-git-manager__header\s*\{/u);
 });
 
-test("应用图标打开右侧应用菜单，左侧 Dock 留给会话与项目", () => {
-  assert.match(workspace, /applicationsExpanded=\{rightPanelSection === "applications" && !chrome\.rightCollapsed\} applicationsTargetId="module-context-applications" onToggleApplications=\{toggleApplicationsPanel\}/u);
-  assert.match(workspace, /className="module-context__applications" id="module-context-applications"/u);
-  assert.match(workspace, /rightPanelSection !== "applications" \|\| sidebarRight\.activeId !== null/u);
+test("普通应用的左二承载应用导航，AI Work 左二保留会话与项目", () => {
+  assert.match(workspace, /applicationsExpanded=\{mode === "normal" \? !chrome\.leftCollapsed : activeRightPanelSection === "applications" && !chrome\.rightCollapsed\} applicationsTargetId="module-context-applications" onToggleApplications=\{toggleApplicationsPanel\}/u);
+  assert.match(workspace, /const activeRightPanelSection = mode === "normal" \? "context" : rightPanelSection/u);
+  assert.match(workspace, /mode === "normal" \? <ApplicationNavigationPanel[\s\S]*?hidden=\{false\}/u);
+  assert.match(workspace, /if \(mode === "normal"\) \{\s*toggleLeft\(\);\s*return;/u);
+  assert.match(workspace, /mode === "normal" \? "context" : nextSection/u);
   assert.match(workspace, /className=\{`module-sidebar__sessions\$\{layoutMode === "mobile" && gitSummaryOpen/u);
-  assert.doesNotMatch(workspace, /module-sidebar__application-navigation|module-sidebar__app-menu/u);
+  assert.match(workspace, /module-sidebar__application-navigation/u);
+  assert.doesNotMatch(workspace, /onClick=\{\(\) => showRightPanelSection\("applications"\)\}>应用/u);
   assert.match(workbench, /rightPanelSection=\{workspaceRightPanelSection\}[\s\S]*?onRightPanelSectionChange=\{setWorkspaceRightPanelSection\}/u);
   assert.match(rail, /if \(onToggleApplications\) \{[\s\S]*?onToggleApplications\(\)/u);
-  assert.match(workspace, /<ResizableWorkbench[\s\S]*?left=\{left\}[\s\S]*?center=\{center\}[\s\S]*?right=\{right\}/u);
+  assert.match(workspace, /<ResizableWorkbench[\s\S]*?left=\{left\}[\s\S]*?center=\{center\}[\s\S]*?right=\{voiceMode \? null : right\}/u);
   assert.match(workspace, /return \{ leftCollapsed: false, rightCollapsed: false, terminalOpen: false \}/u);
   assert.doesNotMatch(workspace, /rightSwapped|togglePaneOrder|onSwapPanes/u);
 });
 
 test("AI Work 中心画布按中心列宽度为左右 Dock 留白", () => {
-  assert.match(workspaceCss, /\.module-center__content--ai-work\s+\.module-ai-work-chat\s*>\s*\.ai-work-chat\s*\{[^}]*width:\s*100%[^}]*padding-inline:\s*clamp\(12px,\s*2cqi,\s*24px\)[^}]*background-clip:\s*content-box/u);
-  assert.match(workspaceCss, /\.module-center__content--ai-work\s+\.module-ai-work-chat\s*>\s*\.ai-work-chat\s*>\s*\.ai-work-chat__conversation\s*\{[^}]*width:\s*calc\(100%\s*\+\s*2\s*\*\s*clamp\(12px,\s*2cqi,\s*24px\)\)[^}]*margin-inline:\s*calc\(-1\s*\*\s*clamp\(12px,\s*2cqi,\s*24px\)\)/u);
-  assert.match(workspaceCss, /\.module-center__content--ai-work\s+\.ai-work-chat__messages\s*\{[^}]*width:\s*calc\(100%\s*-\s*2\s*\*\s*clamp\(12px,\s*2cqi,\s*24px\)\)[^}]*margin-inline:\s*auto/u);
-  assert.match(workspaceCss, /\.workbench-shell\[data-background-image="true"\]\s+\.ai-work-chat\s*\{[^}]*background-clip:\s*content-box/u);
+  assert.match(workspaceCss, /\.module-ai-work-chat\s*\{[^}]*--ai-work-chat-inline-gap:\s*clamp\(20px,\s*6cqi,\s*32px\)/u);
+  assert.match(workspaceCss, /\.module-center__content--ai-work\s*>\s*\.module-ai-work-chat\s*\{[^}]*width:\s*calc\(100%\s*-\s*var\(--ai-work-chat-inline-gap\)\)[^}]*align-self:\s*flex-start/u);
+  assert.match(workspaceCss, /\.module-center__content--ai-work \.module-ai-work-chat\s*>\s*\.ai-work-chat\s*>\s*\.ai-work-chat__conversation\s*\{[^}]*width:\s*calc\(100%\s*\+\s*var\(--ai-work-chat-inline-gap\)\)[^}]*padding-inline-start:\s*var\(--ai-work-chat-inline-gap\)/u);
+  assert.match(workspaceCss, /\.module-center__content\.module-center__content--ai-work \.ai-work-chat__messages\s*\{[^}]*width:\s*calc\(100%\s*\+\s*var\(--ai-work-chat-inline-gap\)\)[^}]*padding-inline-end:\s*var\(--ai-work-chat-inline-gap\)/u);
+  assert.match(workspaceCss, /\.module-center__content\.module-center__content--ai-work :is\(\.ai-work-chat__composer, \.ai-work-chat__usage-footer\)\s*\{[^}]*width:\s*min\(calc\(100%\s*-\s*var\(--ai-work-chat-inline-gap\)\),\s*920px\)/u);
   assert.match(aiWorkChatCss, /\.ai-work-chat__anchors\s*\{[^}]*left:\s*0/u);
   assert.match(aiWorkChatCss, /\.ai-work-chat__message-stage\s*\{[^}]*position:\s*relative[^}]*width:\s*100%/u);
 });
@@ -164,6 +168,19 @@ test("设置中心应用图标进入四栏工作区，不使用旧弹出列表",
   assert.match(settingsPage, /onToggleApplications=\{onOpenApplications \?\? \(\(\) => onNavigate\("\/work"\)\)\}/u);
   assert.match(workbench, /const requestApplicationsOpen = useCallback\(\(\) => \{[\s\S]*?setWorkspaceRightPanelSection\("applications"\)[\s\S]*?setApplicationsOpenRequestId\(requestId\)[\s\S]*?onNavigate\(SHARED_WORK_ROUTE\)/u);
   assert.match(workbench, /onOpenApplications=\{requestApplicationsOpen\}/u);
+});
+
+test("跨页应用请求先按 requestId 消费，再执行布局更新，避免 effect 重放", () => {
+  assert.match(workspace, /const handledApplicationsOpenRequestRef = useRef<number \| null>\(null\)/u);
+  const effectStart = workspace.indexOf("if (applicationsOpenRequestId === null || handledApplicationsOpenRequestRef.current === applicationsOpenRequestId) return;");
+  const effectEnd = workspace.indexOf("}, [applicationsOpenRequestId, metrics.mode, mode, onApplicationsOpenRequestHandled, onRightPanelSectionChange, openWorkspaceUtility]);", effectStart);
+  assert.ok(effectStart >= 0 && effectEnd > effectStart, "应用请求消费必须有明确的 effect 范围");
+  const effect = workspace.slice(effectStart, effectEnd);
+  const markConsumed = effect.indexOf("handledApplicationsOpenRequestRef.current = applicationsOpenRequestId;");
+  const acknowledgeRequest = effect.indexOf("onApplicationsOpenRequestHandled(applicationsOpenRequestId);");
+  const runNavigationEffect = effect.indexOf('openWorkspaceUtility("applications")');
+  assert.ok(markConsumed >= 0 && acknowledgeRequest > markConsumed, "先记录 requestId 并清理父级请求");
+  assert.ok(runNavigationEffect > acknowledgeRequest, "副作用只在请求已消费后执行");
 });
 
 test("插件管理应用图标进入四栏工作区，不使用旧弹出列表", () => {
@@ -185,12 +202,14 @@ test("设置、插件与文件页将最近会话请求交给 Workbench", () => {
   assert.match(workspace, /if \(mode !== "ai-work" \|\| recentSessionsOpenRequestId === null\) return;[\s\S]*?showRecentSessions\(\);[\s\S]*?onRecentSessionsOpenRequestHandled\(recentSessionsOpenRequestId\)/u);
 });
 
-test("右侧应用视图沿用共享清单和 SecondaryNavigation，保留应用子菜单", () => {
+test("普通应用左二与 AI Work 右侧应用视图复用共享清单和子菜单", () => {
   assert.match(workspace, /function ApplicationNavigationPanel[\s\S]*?applicationNavigationItems\.map\(\(item\) =>/u);
   assert.match(workspace, /<SecondaryNavigation ariaLabel="应用导航"[\s\S]*?groups=\{applicationNavigationGroups\}/u);
+  assert.match(workspace, /const locationClassName = mode === "normal" \? "module-context__applications module-sidebar__application-navigation" : "module-context__applications"/u);
+  assert.match(workspace, /mode === "ai-work" \? <ApplicationNavigationPanel[\s\S]*?hidden=\{activeRightPanelSection !== "applications"/u);
+  assert.match(workspace, /leftCollapsed: false[\s\S]*?onApplicationsOpenRequestHandled\(applicationsOpenRequestId\)/u);
   assert.match(workspace, /aria-label="Minecraft 工作区菜单"/u);
   assert.match(workspace, /aria-label="LFAA 联机服务菜单"/u);
-  assert.match(workspace, /onClick=\{\(\) => showRightPanelSection\("applications"\)\}>应用/u);
   assert.match(workspace, /onClick=\{\(\) => \{ setAiWorkView\("chat"\); showRightPanelSection\("context"\); \}\}>\{contextLabel\}/u);
   assert.match(workspace, /className=\{`module-sidebar__sessions\$\{layoutMode === "mobile" && gitSummaryOpen/u);
   assert.match(workspaceCss, /\.module-context__applications\s*\{/u);
@@ -206,7 +225,7 @@ test("左一最近会话入口直接展开唯一的左二会话 Dock，不复制
   assert.match(workspace, /onOpenRecentSessions=\{showRecentSessions\}/u);
   assert.match(workspace, /sessions=\{aiSessions\}/u);
   assert.match(workspace, /const aiSessions = aiSessionsState\.userId === userId \? aiSessionsState\.sessions : aiSessionSnapshots\.get\(userId\) \?\? \[\]/u);
-  assert.match(workspace, /onSelectSession: \(sessionId\) => \{ onActiveAiSessionChange\(sessionId\)/u);
+  assert.match(workspace, /onSelectSession: \(sessionId\) => \{\s*onActiveAiSessionChange\(sessionId\)/u);
   assert.match(workspace, /onSessionsChange=\{\(sessions\) => \{\s*updateAiSessions\(\(\) => sessions\)/u);
   assert.match(workspace, /if \(pendingRequest\?\.userId === userId && !pendingRequest\.controller\.signal\.aborted\) return/u);
   assert.match(workspace, /pendingRequest\.controller\.abort\(\)/u);
@@ -269,9 +288,21 @@ test("四个工作区大区域内部按功能盒子各自分组", () => {
   const right = workspace.slice(workspace.indexOf("const right = ("), workspace.indexOf("const bottom ="));
 
   assert.match(rail, /module-navigation-rail__top[\s\S]*?module-navigation-rail__primary[\s\S]*?module-navigation-rail__footer-actions[\s\S]*?module-navigation-rail__status-box[\s\S]*?module-navigation-rail__profile/u);
-  assert.match(sidebar, /module-sidebar__brand-row[\s\S]*?module-sidebar__sessions[\s\S]*?module-sidebar__sessions-heading[\s\S]*?module-sidebar__session-list[\s\S]*?module-sidebar__provider[\s\S]*?module-sidebar__footer/u);
+  assert.match(sidebar, /module-sidebar__brand-row[\s\S]*?<ApplicationNavigationPanel[\s\S]*?module-sidebar__sessions[\s\S]*?module-sidebar__sessions-heading[\s\S]*?module-sidebar__session-list[\s\S]*?module-sidebar__provider[\s\S]*?module-sidebar__footer/u);
+  assert.match(workspace, /module-sidebar__application-navigation/u);
   assert.match(center, /module-center__header[\s\S]*?module-center__heading[\s\S]*?module-center__actions[\s\S]*?module-center__content[\s\S]*?module-ai-work-chat/u);
   assert.match(right, /module-context__shell-actions[\s\S]*?module-context__body[\s\S]*?module-context__side-chat[\s\S]*?module-context__default-content[\s\S]*?module-context__tabs/u);
   assert.match(workspace, /import "\.\/css\/secondary-navigation\.css"[\s\S]*?import "\.\/css\/center-workspace\.css"[\s\S]*?import "\.\/css\/right-menu\.css"/u);
   assert.match(workspaceRegionsCss, /\.module-workbench-region--leading,[\s\S]*?color:\s*var\(--color-text-primary\)/u);
+});
+
+test("普通应用中心区使用与标题对齐的响应式左右留白", () => {
+  assert.match(workspace, /data-module-mode=\{mode\}/u);
+  assert.match(workspace, /mode === "normal" && !writingNormal && !aiVideoNormal \? " module-center__content--application"/u);
+  assert.match(workspaceCss, /\.module-center__header\[data-module-mode="normal"\]\s*\{[^}]*padding-inline:\s*clamp\(20px,\s*2\.5cqi,\s*32px\)/u);
+  assert.match(workspaceCss, /\.module-center__header\[data-layout-mode="mobile"\]:not\(\[data-module-mode="normal"\]\)\s*\{[^}]*padding:\s*5px 9px/u);
+  assert.match(workspaceCss, /\.module-center__content--application\s*\{[^}]*padding-inline:\s*clamp\(20px,\s*2\.5cqi,\s*32px\);[^}]*box-sizing:\s*border-box/u);
+  assert.match(workspaceCss, /@container module-center \(max-width:\s*560px\)[\s\S]*?\.module-center__content--application\s*\{[^}]*padding-inline:\s*16px/u);
+  assert.match(workspaceCss, /@container module-center \(max-width:\s*360px\)[\s\S]*?\.module-center__content--application\s*\{[^}]*padding-inline:\s*12px/u);
+  assert.match(workspaceCss, /\.module-center__content:not\(\.module-center__content--application\)\s*\{\s*padding:\s*0;\s*\}/u);
 });

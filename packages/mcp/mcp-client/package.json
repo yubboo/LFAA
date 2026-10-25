@@ -1,7 +1,7 @@
 {
   "name": "lfaa-mcp-client", "version": "0.1.1", "private": true, "type": "module",
   "exports": { ".": "./src/index.ts", "./src/*": "./src/*", "./package.json": "./package.json" },
-  "dependencies": { "@deepseek-ai/cordis": "4.0.4", "ajv": "^8.20.0", "lfaa-settings": "workspace:*", "lfaa-launch-environment": "workspace:*", "lfaa-util-values": "workspace:*" },
+  "dependencies": { "@deepseek-ai/cordis": "4.0.4", "ajv": "^8.20.0", "lfaa-settings": "workspace:*", "lfaa-launch-environment": "workspace:*", "lfaa-util-values": "workspace:*", "lfaa-win32-process": "workspace:*" },
   "devDependencies": { "@types/node": "^24.0.0", "lfaa-tools": "workspace:*" },
   "scripts": { "build": "node ../../../scripts/build-harness.mjs package" }
 }

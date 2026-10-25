@@ -8,6 +8,7 @@
     "./src/*": "./src/*",
     "./package.json": "./package.json"
   },
+  "dependencies": { "lfaa-util-values": "workspace:*" },
   "scripts": {
     "build": "node ../../../scripts/build-harness.mjs package"
   }

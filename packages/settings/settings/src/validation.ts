@@ -5,7 +5,8 @@
  */
 import Joi from "joi";
 import { BROWSER_PROVIDER_IDS } from "lfaa-util-values/src/browser-provider.js";
-import { AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN, AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN, CARD_MOTION_EFFECT_IDS, UI_MOTION_EFFECT_IDS, DEFAULT_USER_SETTINGS } from "lfaa-util-values/src/settings-contract.js";
+import { EXECUTION_SANDBOX_MODES } from "lfaa-util-values/src/sandbox-contract.js";
+import { AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN, AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN, CARD_MOTION_EFFECT_IDS, UI_MOTION_EFFECT_IDS, DEFAULT_USER_SETTINGS, CANVAS_DEFAULT_MODE_IDS, CANVAS_GRID_STYLE_IDS } from "lfaa-util-values/src/settings-contract.js";
 import { APPLICATION_IDS, APPLICATION_NAVIGATION_IDS } from "lfaa-util-values/src/application-id.js";
 import type { SettingsCategory } from "lfaa-util-values/src/settings-contract.js";
 
@@ -52,6 +53,7 @@ export const generalSettingsSchema = Joi.object({
 }).unknown(false);
 
 export const aiRuntimeSettingsSchema = Joi.object({
+  executionSandboxMode: Joi.string().valid(...EXECUTION_SANDBOX_MODES).default("workspace-write"),
   speed: Joi.string().valid("balanced", "fast", "deep").required(),
   promptSuggestions: Joi.boolean().required(),
   showContextUsage: Joi.boolean().required(),
@@ -143,6 +145,10 @@ export const pluginsSettingsSchema = Joi.object({
       transport: Joi.string().valid("stdio").required(),
       command: Joi.string().trim().min(1).max(1024).custom((value, helpers) => value.includes("\0") ? helpers.error("any.invalid") : value).required(),
       args: Joi.array().max(32).items(Joi.string().max(1024).custom((value, helpers) => value.includes("\0") ? helpers.error("any.invalid") : value)).required(),
+      env: Joi.object().max(64).pattern(/^[A-Za-z_][A-Za-z0-9_]{0,127}$/u, Joi.string().max(4096).custom((value, helpers) => value.includes("\0") ? helpers.error("any.invalid") : value)).custom((value, helpers) => {
+        const reserved = new Set(["PATH", "PATHEXT", "SYSTEMROOT", "WINDIR", "TEMP", "TMP", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "HOMEDRIVE", "HOMEPATH", "HOME", "TMPDIR", "LANG", "LC_ALL", "DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS"]);
+        return Object.keys(value as Record<string, unknown>).some(key => reserved.has(key.toLocaleUpperCase("en-US")) || /(?:password|secret|token|api[-_]?key|credential|authorization)/iu.test(key)) ? helpers.error("any.invalid") : value;
+      }).unknown(false),
       enabled: Joi.boolean().required(),
       applicationIds: Joi.array().unique().items(Joi.string().valid(...APPLICATION_IDS)).max(APPLICATION_IDS.length).default(["workspace"]),
       manifestSha256: Joi.string().pattern(/^[a-f0-9]{64}$/u),
@@ -171,6 +177,22 @@ export const personalizationSettingsSchema = Joi.object({
   memoryFromToolChats: Joi.boolean().required()
 }).unknown(false);
 
+export const miniSettingsSchema = Joi.object({
+  companion: Joi.string().valid("moss", "cloud", "ember").required(),
+  showCompanion: Joi.boolean().required(),
+  alwaysOnTop: Joi.boolean().required(),
+  opacity: Joi.number().integer().min(40).max(100).required()
+}).unknown(false);
+
+/** 画布视图偏好：枚举/布尔严格校验并拒绝未知字段；生成模型继续使用 ai-runtime 分类，不在此复制。 */
+export const canvasSettingsSchema = Joi.object({
+  defaultMode: Joi.string().valid(...CANVAS_DEFAULT_MODE_IDS).required(),
+  gridStyle: Joi.string().valid(...CANVAS_GRID_STYLE_IDS).required(),
+  snapToGrid: Joi.boolean().required(),
+  showMiniMap: Joi.boolean().required(),
+  agentPanelDefaultOpen: Joi.boolean().required()
+}).unknown(false);
+
 export const conversationMemoriesSchema = Joi.object({
   revision: Joi.number().integer().min(0).max(Number.MAX_SAFE_INTEGER).required(),
   memories: Joi.array().items(Joi.string().trim().min(1).max(240)).max(16).required()
@@ -180,13 +202,53 @@ export const computerControlSettingsSchema = Joi.object({
   enabled: Joi.boolean().required()
 }).unknown(false);
 
+const browserSitePermissionOriginSchema = Joi.string().trim().max(2_048).custom((value, helpers) => {
+  try {
+    const url = new URL(value);
+    if ((url.protocol !== "http:" && url.protocol !== "https:") || url.origin !== value || url.username || url.password) return helpers.error("string.uri");
+    return value;
+  } catch { return helpers.error("string.uri"); }
+});
+const browserSitePermissionSchema = Joi.string().valid("camera", "microphone", "geolocation", "notifications");
+const browserSitePermissionOverridesSchema = Joi.array().items(Joi.object({
+  origin: browserSitePermissionOriginSchema.required(),
+  permission: browserSitePermissionSchema.required(),
+  decision: Joi.string().valid("allow", "block").required()
+}).unknown(false)).max(256).default([]).custom((rules, helpers) => {
+  const keys = rules.map((rule: { origin: string; permission: string }) => `${rule.origin}\0${rule.permission}`);
+  return new Set(keys).size === keys.length ? rules : helpers.error("array.unique");
+});
+const browserWebsiteToolOverridesSchema = Joi.array().items(Joi.object({
+  origin: browserSitePermissionOriginSchema.required(),
+  decision: Joi.string().valid("allow", "block").required()
+}).unknown(false)).max(256).default([]).custom((rules, helpers) => {
+  const origins = rules.map((rule: { origin: string }) => rule.origin);
+  return new Set(origins).size === origins.length ? rules : helpers.error("array.unique");
+});
+
 export const browserUseSettingsSchema = Joi.object({
   enabled: Joi.boolean().required(),
+  webUrlOpenLocation: Joi.string().valid("lfaa", "current-browser").default("lfaa"),
+  localUrlOpenLocation: Joi.string().valid("lfaa", "current-browser").default("lfaa"),
   enabledProviderIds: Joi.array().items(Joi.string().valid(...BROWSER_PROVIDER_IDS)).unique().max(BROWSER_PROVIDER_IDS.length).required(),
   showFullUrl: Joi.boolean().required(),
   recordRecentSites: Joi.boolean().default(true),
+  allowAgentHistoryAccess: Joi.boolean().default(false),
+  annotateScreenshots: Joi.string().valid("always", "on-demand", "never").default("on-demand"),
+  useWebsiteToolsByDefault: Joi.boolean().default(false),
+  websiteToolOverrides: browserWebsiteToolOverridesSchema,
+  askBeforeDownload: Joi.boolean().default(true),
+  sitePermissionDefaults: Joi.object({
+    camera: Joi.string().valid("ask", "allow", "block").default("ask"),
+    microphone: Joi.string().valid("ask", "allow", "block").default("ask"),
+    geolocation: Joi.string().valid("ask", "allow", "block").default("ask"),
+    notifications: Joi.string().valid("ask", "allow", "block").default("ask")
+  }).unknown(false).default({}),
+  sitePermissionOverrides: browserSitePermissionOverridesSchema,
+  developerMode: Joi.boolean().default(false),
+  fullCdpAccess: Joi.boolean().default(false),
   searchEngine: Joi.string().valid("bing", "google", "duckduckgo").default("bing")
-}).unknown(false);
+}).unknown(false).custom((value, helpers) => value.fullCdpAccess && !value.developerMode ? helpers.error("object.invalid") : value);
 
 export const appearanceFontsSchema = Joi.object({
   interface: Joi.string().valid("system", "sans", "serif").required(),
@@ -276,7 +338,9 @@ export const settingsSchemas = {
   "plugins": pluginsSettingsSchema,
   "personalization": personalizationSettingsSchema,
   "computer-control": computerControlSettingsSchema,
-  "browser-use": browserUseSettingsSchema
+  "browser-use": browserUseSettingsSchema,
+  "mini": miniSettingsSchema,
+  "canvas": canvasSettingsSchema
 };
 
 /** 写入严格拒绝未知字段和非法值，不将失败保存伪装成成功后回退。 */

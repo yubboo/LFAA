@@ -8,6 +8,7 @@ import { Alert, Button, ConfigProvider, Form, Input, Typography } from "antd";
 import type { CSSProperties } from "react";
 import { browserSupportsPasskeys } from "@simplewebauthn/browser";
 import { loadPasskeyAvailability } from "lfaa-client-connection/src/api.js";
+import type { TrustedAccountRecoveryStartResult } from "lfaa-client-connection/src/api.js";
 import { applyAppearanceThemeBootstrap } from "lfaa-client-ui-theme/src/appearance-theme-bootstrap.js";
 import { appearanceCodeFontStacks, appearanceTextFontStacks } from "lfaa-client-ui-theme/src/fonts.js";
 import { getCachedLoginAppearance, resolveLoginAppearance, resolveLoginBackgroundImage } from "lfaa-client-ui-theme/src/login-appearance.js";
@@ -31,6 +32,9 @@ interface AuthViewProps {
   onSubmit: (username: string, password: string) => void;
   onPasskeyLogin: () => void;
   onRecover: (username: string, recoveryKey: string, newPassword: string) => Promise<boolean>;
+  onStartTrustedRecovery: (username: string, contactUsername: string) => Promise<TrustedAccountRecoveryStartResult | null>;
+  onCheckTrustedRecovery: (code: string) => Promise<"pending" | "approved" | "invalid">;
+  onCompleteTrustedRecovery: (code: string, newPassword: string) => Promise<boolean>;
   onClearMessage: () => void;
 }
 
@@ -40,11 +44,15 @@ interface AuthFormValues {
   recoveryKey?: string;
   newPassword?: string;
   confirmNewPassword?: string;
+  contactUsername?: string;
 }
 
-export function AuthView({ serverState, busy, error, notice, transitionPhase, transitionPluginId, reducedMotion, transitionOnly = false, transitionOverlay = false, transitionExiting = false, transitionSettling = false, onTransitionSettle, onSubmit, onPasskeyLogin, onRecover, onClearMessage }: AuthViewProps) {
+export function AuthView({ serverState, busy, error, notice, transitionPhase, transitionPluginId, reducedMotion, transitionOnly = false, transitionOverlay = false, transitionExiting = false, transitionSettling = false, onTransitionSettle, onSubmit, onPasskeyLogin, onRecover, onStartTrustedRecovery, onCheckTrustedRecovery, onCompleteTrustedRecovery, onClearMessage }: AuthViewProps) {
   const [systemDark, setSystemDark] = useState(() => window.matchMedia("(prefers-color-scheme: dark)").matches);
   const [recoveryMode, setRecoveryMode] = useState(false);
+  const [recoveryMethod, setRecoveryMethod] = useState<"key" | "trusted">("key");
+  const [trustedRecoveryCode, setTrustedRecoveryCode] = useState("");
+  const [trustedRecoveryStatus, setTrustedRecoveryStatus] = useState<"pending" | "approved" | "invalid" | null>(null);
   const [form] = Form.useForm<AuthFormValues>();
   const username = Form.useWatch("username", form) ?? "admin";
   const loginAppearance = useMemo(() => getCachedLoginAppearance(username), [username]);
@@ -103,9 +111,27 @@ export function AuthView({ serverState, busy, error, notice, transitionPhase, tr
 
   async function handleSubmit(values: AuthFormValues): Promise<void> {
     if (recoveryMode) {
-      if (!values.recoveryKey || !values.newPassword) return;
-      if (await onRecover(values.username, values.recoveryKey, values.newPassword)) {
+      if (recoveryMethod === "key") {
+        if (!values.recoveryKey || !values.newPassword) return;
+        if (!(await onRecover(values.username, values.recoveryKey, values.newPassword))) return;
+      } else if (!trustedRecoveryCode) {
+        if (!values.contactUsername) return;
+        const challenge = await onStartTrustedRecovery(values.username, values.contactUsername);
+        if (!challenge) return;
+        setTrustedRecoveryCode(challenge.code);
+        setTrustedRecoveryStatus("pending");
+        return;
+      } else if (trustedRecoveryStatus !== "approved") {
+        setTrustedRecoveryStatus(await onCheckTrustedRecovery(trustedRecoveryCode));
+        return;
+      } else {
+        if (!values.newPassword || !(await onCompleteTrustedRecovery(trustedRecoveryCode, values.newPassword))) return;
+      }
+      {
         setRecoveryMode(false);
+        setRecoveryMethod("key");
+        setTrustedRecoveryCode("");
+        setTrustedRecoveryStatus(null);
         form.resetFields();
       }
       return;
@@ -116,6 +142,9 @@ export function AuthView({ serverState, busy, error, notice, transitionPhase, tr
 
   function toggleRecoveryMode(): void {
     form.resetFields();
+    setRecoveryMethod("key");
+    setTrustedRecoveryCode("");
+    setTrustedRecoveryStatus(null);
     onClearMessage();
     setRecoveryMode((current) => !current);
   }
@@ -173,7 +202,7 @@ export function AuthView({ serverState, busy, error, notice, transitionPhase, tr
               {recoveryMode ? "找回密码" : "登录 LFAA"}
             </Typography.Title>
             <Typography.Paragraph>
-              {recoveryMode ? "使用账户恢复密钥设置新密码。" : "输入用户名和密码以继续。"}
+              {recoveryMode ? recoveryMethod === "key" ? "使用账户恢复密钥设置新密码。" : "由你指定的本机受信联系人确认后，使用恢复码重设密码。" : "输入用户名和密码以继续。"}
             </Typography.Paragraph>
           </div>
 
@@ -211,7 +240,7 @@ export function AuthView({ serverState, busy, error, notice, transitionPhase, tr
               <Input autoComplete="username" placeholder="输入用户名" size="large" />
             </Form.Item>
 
-            {recoveryMode ? (
+            {recoveryMode && recoveryMethod === "key" ? (
               <>
                 <Form.Item label="恢复密钥" name="recoveryKey" rules={[{ required: true, message: "请输入恢复密钥。" }]}>
                   <Input.Password autoComplete="off" placeholder="输入注册时设置的恢复密钥" size="large" />
@@ -246,6 +275,26 @@ export function AuthView({ serverState, busy, error, notice, transitionPhase, tr
                   <Input.Password autoComplete="new-password" placeholder="再次输入新密码" size="large" />
                 </Form.Item>
               </>
+            ) : recoveryMode ? (
+              <>
+                {!trustedRecoveryCode ? <Form.Item label="受信联系人用户名" name="contactUsername" rules={[{ required: true, message: "请输入你此前确认过的联系人用户名。" }, { min: 3, max: 32, message: "用户名长度为 3 到 32 个字符。" }]}>
+                  <Input autoComplete="off" placeholder="输入联系人账户用户名" size="large" />
+                </Form.Item> : <>
+                  <Alert className="auth-page__form-message" type={trustedRecoveryStatus === "approved" ? "success" : "info"} showIcon message={trustedRecoveryStatus === "approved" ? "联系人已批准" : "恢复申请已提交"} description={trustedRecoveryStatus === "approved" ? "现在可设置新密码。" : "请将恢复码安全地交给联系人；联系人可在自己登录后的“受信任联系人”页面批准。"} />
+                  <Form.Item label="一次性恢复码"><Input value={trustedRecoveryCode} readOnly autoComplete="off" /></Form.Item>
+                </>}
+                {trustedRecoveryStatus === "approved" ? <>
+                  <Form.Item label="新密码" name="newPassword" extra={<PasswordStrengthIndicator password={newPassword} />} rules={[
+                    { required: true, message: "请输入新密码。" },
+                    { validator: (_: unknown, value: string | undefined) => !value || isPasswordAcceptable(value) ? Promise.resolve() : Promise.reject(new Error("密码强度不足，请至少使用 8 位和 3 类字符。")) },
+                    { validator: (_: unknown, value: string | undefined) => !value || value !== trustedRecoveryCode ? Promise.resolve() : Promise.reject(new Error("新密码不能与恢复码相同。")) }
+                  ]}><Input.Password autoComplete="new-password" placeholder="至少 8 位并包含 3 类字符" size="large" /></Form.Item>
+                  <Form.Item label="确认新密码" name="confirmNewPassword" dependencies={["newPassword"]} rules={[
+                    { required: true, message: "请再次输入新密码。" },
+                    ({ getFieldValue }) => ({ validator(_, value: string | undefined) { return !value || getFieldValue("newPassword") === value ? Promise.resolve() : Promise.reject(new Error("两次输入的新密码不一致。")); } })
+                  ]}><Input.Password autoComplete="new-password" placeholder="再次输入新密码" size="large" /></Form.Item>
+                </> : null}
+              </>
             ) : (
             <Form.Item
               label="密码"
@@ -271,11 +320,15 @@ export function AuthView({ serverState, busy, error, notice, transitionPhase, tr
               aria-busy={busy}
               disabled={busy || serverState !== "online"}
             >
-              {recoveryMode ? "重置密码" : "登录"}
+              {recoveryMode ? recoveryMethod === "key" ? "重置密码" : !trustedRecoveryCode ? "生成恢复码" : trustedRecoveryStatus === "approved" ? "重置密码" : "检查批准状态" : "登录"}
             </Button>
           </Form>
 
           {passkeyLoginAvailable && !recoveryMode ? <Button block size="large" loading={busy} disabled={busy || serverState !== "online"} onClick={onPasskeyLogin}>使用通行密钥登录</Button> : null}
+
+          {recoveryMode ? <Button type="link" disabled={busy} onClick={() => { form.resetFields(["recoveryKey", "contactUsername", "newPassword", "confirmNewPassword"]); setRecoveryMethod(value => value === "key" ? "trusted" : "key"); setTrustedRecoveryCode(""); setTrustedRecoveryStatus(null); onClearMessage(); }}>
+            {recoveryMethod === "key" ? "改用本机受信联系人恢复" : "改用恢复密钥"}
+          </Button> : null}
 
           <div className="auth-page__form-support-row">
             <ServiceStatus state={serverState} compact />
@@ -293,7 +346,7 @@ export function AuthView({ serverState, busy, error, notice, transitionPhase, tr
           </div>
           {recoveryMode ? (
             <Typography.Paragraph className="auth-page__form-footnote">
-              恢复密钥以加盐哈希保存在本机，不会显示原密码。
+              {recoveryMethod === "key" ? "恢复密钥以加盐哈希保存在本机，不会显示原密码。" : "邀请与恢复码只由你和受信联系人保管；LFAA 只保存摘要，并在本机验证。"}
             </Typography.Paragraph>
           ) : null}
         </section>

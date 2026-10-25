@@ -7,13 +7,14 @@ import Joi from "joi";
 import { ApiError } from "lfaa-util-values/src/http-error.js";
 import { getDaemonNode, listDaemonNodes, recordDaemonHeartbeat } from "lfaa-host-daemon/src/local-daemon.js";
 import { claimNextNodeFileTask, completeNodeFileTask, getNodeFileTask, renewNodeFileTaskLeases } from "lfaa-fs/src/queue.js";
+import { discardNodeFileUploadTransfer, FileTransferLimitError, FileTransferNotFoundError, getNodeFileResultTransfer, getNodeFileUploadTransfer, receiveNodeFileTransfer } from "lfaa-fs/src/file-transfers.mjs";
 import { claimNextAiHostTask, completeAiHostTask, getAiHostTask, renewAiHostTaskLeases, listAiHostCancellationRequests, updateAiHostTaskOutput, type AiHostTaskResult } from "lfaa-jobs/src/ai-host-tasks.js";
 import { claimNextMinecraftTask, appendMinecraftTaskLogs, completeMinecraftTask, getMinecraftTask, renewMinecraftTaskLeases, updateMinecraftTaskProgress } from "lfaa-jobs/src/minecraft-queue.js";
 import { claimNextSteamcmdTask, completeSteamcmdTask, getSteamcmdNodeSettings, renewSteamcmdTaskLeases, steamcmdServerIdsForNode, updateSteamcmdServerStatesFromDaemon, updateSteamcmdTaskProgress } from "lfaa-games-steamcmd/src/service.js";
 import { getMinecraftInstance, getMinecraftNodeStorageDirectories, updateInstanceStatesFromDaemon } from "lfaa-games-minecraft/src/service.js";
 import type { AiPluginHost } from "lfaa-app-boot/src/ai-host.js";
 import type { MinecraftRealtimePublisher } from "lfaa-api-remotes/src/socket-server.js";
-import { parseBody, requireLocalDaemon, daemonHeartbeatSchema, minecraftProgressSchema, minecraftLogBatchSchema, minecraftCompletionSchema, steamcmdProgressSchema, steamcmdCompletionSchema, fileTaskCompletionSchema, aiHostTaskCompletionSchema } from "lfaa-api-remotes/src/route-contracts.js";
+import { asyncHandler, parseBody, requireLocalDaemon, daemonHeartbeatSchema, minecraftProgressSchema, minecraftLogBatchSchema, minecraftCompletionSchema, steamcmdProgressSchema, steamcmdCompletionSchema, fileTaskCompletionSchema, aiHostTaskCompletionSchema } from "lfaa-api-remotes/src/route-contracts.js";
 export function registerRoutes(router: Router, _aiPluginHost: AiPluginHost, realtime: MinecraftRealtimePublisher): void {
 registerRuntimeRoutes(router);
 
@@ -66,13 +67,57 @@ router.post("/daemon/files/tasks/claim", requireLocalDaemon, (request, response)
     response.json({ task: claimNextNodeFileTask(body.nodeId) });
   });
 
+router.get("/daemon/files/tasks/:taskId/input", requireLocalDaemon, asyncHandler(async (request, response) => {
+    const { nodeId } = parseBody<{ nodeId: string }>(Joi.object({ nodeId: Joi.string().guid().required() }).unknown(false), request.query);
+    const task = getNodeFileTask(request.params.taskId);
+    if (!task || task.nodeId !== nodeId || task.status !== "running" || task.operation !== "upload") throw new ApiError(404, "daemon_file_transfer_not_found", "找不到此节点上待接收的文件任务。 ");
+    let transfer: ReturnType<typeof getNodeFileUploadTransfer>;
+    try { transfer = getNodeFileUploadTransfer({ transferId: String(task.payload.transferId ?? ""), task }); }
+    catch (error) { if (error instanceof FileTransferNotFoundError) throw new ApiError(404, "daemon_file_transfer_not_found", error.message); throw error; }
+    response.setHeader("Content-Type", "application/octet-stream");
+    response.setHeader("Content-Length", transfer.size);
+    response.setHeader("Cache-Control", "no-store");
+    response.end(transfer.bytes);
+  }));
+
+router.put("/daemon/files/tasks/:taskId/transfer", requireLocalDaemon, asyncHandler(async (request, response) => {
+    if (!request.is("application/octet-stream")) throw new ApiError(415, "daemon_file_transfer_content_type", "节点文件传输必须使用原始字节流。 ");
+    const { nodeId, name } = parseBody<{ nodeId: string; name: string }>(Joi.object({ nodeId: Joi.string().guid().required(), name: Joi.string().trim().min(1).max(255).required() }).unknown(false), request.query);
+    const task = getNodeFileTask(request.params.taskId);
+    if (!task || task.nodeId !== nodeId || task.status !== "running" || !["download", "preview"].includes(task.operation)) throw new ApiError(404, "daemon_file_transfer_not_found", "找不到此节点上待保存的文件任务。 ");
+    try {
+      const transfer = await receiveNodeFileTransfer({ task, nodeId, name, source: request, contentLength: request.header("content-length") });
+      response.json({ transferId: transfer.id, name: transfer.name, size: transfer.size, sha256: transfer.sha256 });
+    } catch (error) {
+      if (error instanceof FileTransferLimitError) throw new ApiError(error.code === "file_transfer_too_large" ? 413 : 429, error.code, error.message);
+      if (error instanceof FileTransferNotFoundError) throw new ApiError(404, "daemon_file_transfer_not_found", error.message);
+      throw error;
+    }
+  }));
+
 router.post("/daemon/files/tasks/:taskId/complete", requireLocalDaemon, (request, response) => {
     const body = parseBody<{ nodeId: string; succeeded: boolean; message: string; result: Record<string, unknown> }>(fileTaskCompletionSchema, request.body);
     const task = getNodeFileTask(request.params.taskId);
     if (!task || task.nodeId !== body.nodeId) throw new ApiError(404, "daemon_file_task_not_found", "找不到此节点上的文件任务。");
+    const transfersBytes = task.operation === "download" || task.operation === "preview" && ["image", "pdf"].includes(String(body.result.previewKind));
+    if (body.succeeded && transfersBytes) {
+      if (body.result.transferId !== task.id) throw new ApiError(400, "daemon_file_transfer_result_required", "文件任务必须引用其已接收的原始字节传输。 ");
+      try {
+        const transfer = getNodeFileResultTransfer({ task });
+        if (body.result.name !== transfer.name || body.result.size !== transfer.size || body.result.sha256 !== transfer.sha256) {
+          throw new ApiError(400, "daemon_file_transfer_result_mismatch", "文件任务结果元数据与已接收的原始字节不匹配。 ");
+        }
+      } catch (error) {
+        if (error instanceof ApiError) throw error;
+        if (error instanceof FileTransferNotFoundError) throw new ApiError(409, "daemon_file_transfer_result_missing", error.message);
+        throw error;
+      }
+    }
+    if (body.result.transferId !== undefined && body.result.transferId !== task.id) throw new ApiError(400, "daemon_file_transfer_result_invalid", "文件传输与当前任务不匹配。 ");
     if (!completeNodeFileTask({ taskId: task.id, nodeId: body.nodeId, succeeded: body.succeeded, message: body.message, result: body.result })) {
       throw new ApiError(409, "daemon_file_task_not_running", "文件任务已结束或不处于执行状态。");
     }
+    discardNodeFileUploadTransfer(task);
     response.status(204).end();
   });
 
@@ -87,7 +132,7 @@ router.post("/daemon/ai/host-tasks/claim", requireLocalDaemon, (request, respons
   });
 
 router.post("/daemon/ai/host-tasks/:taskId/complete", requireLocalDaemon, (request, response) => {
-    const body = parseBody<{ nodeId: string; succeeded: boolean; message: string; result: { stdout: string; stderr: string; exitCode: number | null; timedOut: boolean; outputTruncated: boolean } }>(aiHostTaskCompletionSchema, request.body);
+    const body = parseBody<{ nodeId: string; succeeded: boolean; message: string; result: AiHostTaskResult }>(aiHostTaskCompletionSchema, request.body);
     const task = getAiHostTask(request.params.taskId);
     if (!task || task.nodeId !== body.nodeId) throw new ApiError(404, "daemon_host_task_not_found", "找不到此节点上的主机命令任务。");
     if (!completeAiHostTask({ taskId: task.id, nodeId: body.nodeId, succeeded: body.succeeded, message: body.message, result: body.result })) {

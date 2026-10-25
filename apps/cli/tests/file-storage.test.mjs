@@ -11,12 +11,22 @@ import { tmpdir } from "node:os";
 import { dirname, resolve, join, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveDataDirectory } from "../../../packages/util/home-paths/src/resolve-data-directory.mjs";
-import { resolveDataPaths, resolveUserDataPaths } from "../../../packages/util/home-paths/src/data-layout.mjs";
+import { resolveDataPaths, resolveUserAccountPaths, resolveUserDataPaths } from "../../../packages/util/home-paths/src/data-layout.mjs";
 
 const cli = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const homesByDataDirectory = new Map();
+test.after(() => {
+  for (const home of homesByDataDirectory.values()) {
+    if (dirname(home) !== resolve(tmpdir()) || !basename(home).startsWith("lfaa-file-storage-home-")) throw new Error("拒绝清理测试临时根以外的 Home。");
+    rmSync(home, { recursive: true, force: true });
+  }
+  homesByDataDirectory.clear();
+});
 function run(dataDirectory, script) {
+  let home = homesByDataDirectory.get(dataDirectory);
+  if (!home) { home = mkdtempSync(join(tmpdir(), "lfaa-file-storage-home-")); homesByDataDirectory.set(dataDirectory, home); }
   return execFileSync(process.execPath, ["--import", "tsx", "--import", "./register-package-loader.mjs", "--input-type=module", "-e", script], {
-    cwd: cli, env: { ...process.env, NODE_ENV: "test", LFAA_DATA_DIR: dataDirectory, JWT_SECRET: "" }, encoding: "utf8", stdio: "pipe"
+    cwd: cli, env: { ...process.env, NODE_ENV: "test", LFAA_HOME: home, LFAA_DATA_DIR: dataDirectory, JWT_SECRET: "" }, encoding: "utf8", stdio: "pipe"
   });
 }
 const imports = `
@@ -37,19 +47,22 @@ test("分类目录使用既有数据根且不改用户级/项目级根解析", (
   const root = resolve("H:\\LFAA-test-data");
   const paths = resolveDataPaths(root);
   assert.equal(paths.root, root);
-  assert.equal(paths.database, join(root, "database"));
+  assert.equal(Object.hasOwn(paths, "database"), false, "SQLite 数据库属于 LFAA_HOME，不属于业务 Data 根");
   assert.equal(paths.users, join(root, "users"));
   assert.equal(paths.models, join(root, "models"));
   assert.equal(paths.games, join(root, "games"));
   const owner = resolveUserDataPaths(root, "owner-id");
-  assert.equal(owner.settings, join(owner.root, "settings"));
-  assert.equal(owner.backgrounds, join(owner.root, "assets", "backgrounds"));
+  assert.equal(Object.hasOwn(owner, "settings"), false, "账户设置由 LFAA_HOME 管理，不属于业务 Data 根");
+  assert.equal(Object.hasOwn(owner, "backgrounds"), false, "账户素材由 LFAA_HOME 管理，不属于业务 Data 根");
   assert.equal(owner.workflows("minecraft"), join(owner.root, "projects", "minecraft", "workflows"));
   assert.notEqual(owner.root, resolveUserDataPaths(root, "other-owner").root);
   assert.throws(() => owner.workflows("../outside"));
-  assert.equal(resolveDataDirectory("H:\\project", "", { platform: "win32", driveType: "Fixed", userProfile: "C:\\Users\\yu" }), "C:\\Users\\yu\\.lfaa");
-  assert.equal(resolveDataDirectory("H:\\project", "", { platform: "win32", driveType: "Removable", userProfile: "C:\\Users\\yu" }), "C:\\Users\\yu\\.lfaa");
-  assert.equal(resolveDataDirectory("/repo", "", { platform: "linux", userProfile: "/home/lfaa" }), "/home/lfaa/.lfaa");
+  const account = resolveUserAccountPaths("H:\\LFAA-test-home", "owner-id");
+  assert.equal(account.settings, join(account.root, "settings"));
+  assert.equal(account.backgrounds, join(account.root, "assets", "backgrounds"));
+  assert.equal(resolveDataDirectory("H:\\project", "", { platform: "win32", driveType: "Fixed", userProfile: "C:\\Users\\yu", lfaaHome: "" }), "C:\\Users\\yu\\.lfaa\\data");
+  assert.equal(resolveDataDirectory("H:\\project", "", { platform: "win32", driveType: "Removable", userProfile: "C:\\Users\\yu", lfaaHome: "" }), "C:\\Users\\yu\\.lfaa\\data");
+  assert.equal(resolveDataDirectory("/repo", "", { platform: "linux", userProfile: "/home/lfaa", lfaaHome: "" }), "/home/lfaa/.lfaa/data");
 });
 
 test("AI Work 回复聚焦虚化外观设置通过账户保存，旧设置补默认并保留其他偏好", () => {
@@ -132,10 +145,10 @@ test("旧外观背景 BLOB 校验后迁入用户素材目录，新图片不在 S
       const old=settings.getUserBackground('background-owner','user-00000000-0000-4000-8000-000000000001');
       assert.ok(old.data.equals(image));
       assert.equal(database.prepare("SELECT length(image_data) AS size FROM appearance_backgrounds WHERE id=?").get('user-00000000-0000-4000-8000-000000000001').size,0);
-      const {resolveUserDataPaths}=await import('lfaa-home-paths/src/data-layout.mjs');
+       const {resolveUserAccountPaths}=await import('lfaa-home-paths/src/data-layout.mjs');
       const {existsSync,readdirSync,readFileSync,writeFileSync}=await import('node:fs');
       const {resolve}=await import('node:path');
-      const directory=resolveUserDataPaths(process.env.LFAA_DATA_DIR,'background-owner').backgrounds;
+       const directory=resolveUserAccountPaths(process.env.LFAA_HOME,'background-owner').backgrounds;
       assert.ok(readdirSync(directory).some(name=>name.endsWith('.png')));
       assert.ok(readdirSync(directory).some(name=>name.endsWith('.meta.json')));
       const uploaded=settings.saveUserBackground('background-owner','data:image/png;base64,'+image.toString('base64'),'新背景');
@@ -175,8 +188,8 @@ test("重复账户设置不刷盘；真实修改仅递增用户文件修订并�
       ${files}
       const {readFileSync,statSync}=await import('node:fs');
       const {JsonStorageBackend}=await import('lfaa-storage-json/src/index.js');
-      const {resolveUserDataPaths}=await import('lfaa-home-paths/src/data-layout.mjs');
-      const path=resolveUserDataPaths(process.env.LFAA_DATA_DIR,'performance-owner').settingsDocument;
+       const {resolveUserAccountPaths}=await import('lfaa-home-paths/src/data-layout.mjs');
+       const path=resolveUserAccountPaths(process.env.LFAA_HOME,'performance-owner').settingsDocument;
       const prefs={user_id:'performance-owner',selected_app:'writing',selected_mode:'normal'};
       configuration.save('user_preferences',prefs);
       const appearance=settings.getUserSettings('performance-owner').appearance;
@@ -332,15 +345,15 @@ test("旧 SQLite/JSON 用户设置迁入账户文件，SQLite 控制数据与 JS
       assert.deepEqual(prefs.getUserPreferences('fixture-owner'),{selectedApp:'writing',selectedMode:'ai-work'});
       assert.equal(sessions.getAiSessionMessages('fixture-owner','fixture-session')[0].content,'保留原文\\n第二行');
       assert.equal(sessions.getAiSessionMessages('different-owner','fixture-session'),null);
-        // 当前 schema 为 v61；用户设置文件与 Session JSONL 均由各自 Owner 管理。
-        assert.equal(database.prepare('PRAGMA user_version').get().user_version,61);
+        // 当前 schema 为 v68；用户设置文件与 Session JSONL 均由各自 Owner 管理。
+        assert.equal(database.prepare('PRAGMA user_version').get().user_version,69);
       assert.ok(database.prepare('PRAGMA table_info(ai_sessions)').all().some(column=>column.name==='jsonl_revision'));
       assert.equal(database.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type='table' AND name IN ('ai_messages','ai_usage','user_settings','ai_accounts','user_preferences')").get().count,0);
       assert.equal(configuration.get('user_preferences',row=>row.user_id==='fixture-owner').selected_mode,'ai-work');
       assert.equal(database.prepare("SELECT COUNT(*) AS count FROM configuration_records WHERE table_name IN ('user_settings','user_preferences')").get().count,0);
-      const {resolveUserDataPaths}=await import('lfaa-home-paths/src/data-layout.mjs');
+       const {resolveUserAccountPaths}=await import('lfaa-home-paths/src/data-layout.mjs');
       const {readFileSync}=await import('node:fs');
-      const userSettingsPath=resolveUserDataPaths(process.env.LFAA_DATA_DIR,'fixture-owner').settingsDocument;
+       const userSettingsPath=resolveUserAccountPaths(process.env.LFAA_HOME,'fixture-owner').settingsDocument;
       assert.equal(JSON.parse(readFileSync(userSettingsPath,'utf8')).preferences.selected_mode,'ai-work');
       const saved=settings.getUserSettings('fixture-owner');
       saved.appearance.theme='dark'; saved.appearance.blur=17; saved.permissions.mode='full_access';
@@ -358,18 +371,19 @@ test("旧 SQLite/JSON 用户设置迁入账户文件，SQLite 控制数据与 JS
       const tableNames=['user_settings','user_preferences','ai_accounts','minecraft_storage_settings_defaults','minecraft_storage_node_settings','steamcmd_configuration_defaults','steamcmd_configuration_node_settings','steamcmd_storage_defaults','steamcmd_storage_node_settings'];
       const state=database.prepare('SELECT revision FROM configuration_storage_state WHERE id=1').get();
       const snapshot={version:1,revision:Number(state.revision),tables:Object.fromEntries(tableNames.map(table=>[table,configuration.all(table)])),credential_records:configuration.listCredentialRecords('fixture-owner')};
-      writeFileSync(resolve(process.env.LFAA_DATA_DIR,'storages/configuration.json'),encode(snapshot));
-        // 合成旧库必须撤回 v51/v52 新增表列，不能只回退版本号后重放 ALTER TABLE。
-        database.exec('DROP TABLE runtime_environment_tasks; ALTER TABLE minecraft_tasks DROP COLUMN cancel_requested; DROP TABLE node_file_audit; DROP TABLE writing_local_file_migrations; ALTER TABLE writing_chapters DROP COLUMN word_count; ALTER TABLE writing_chapter_revisions DROP COLUMN word_count; ALTER TABLE writing_book_outline_revisions DROP COLUMN word_count; DROP INDEX ai_tool_approvals_scope_memory_idx; DROP TABLE ai_tool_permission_memory_state; ALTER TABLE ai_tool_approvals DROP COLUMN decision_mode; ALTER TABLE ai_tool_approvals DROP COLUMN memory_generation; DROP TABLE configuration_storage_state; DROP TABLE configuration_credentials; DROP TABLE configuration_records; PRAGMA user_version = 46;');
+       writeFileSync(resolve(process.env.LFAA_HOME,'storages/configuration.json'),encode(snapshot));
+        // 合成 v46 旧库必须撤回后续迁移新增的表列，不能只回退版本号后重放迁移。
+        database.exec('DROP TABLE knowledge_library_skill_installations; DROP TABLE runtime_environment_tasks; ALTER TABLE minecraft_tasks DROP COLUMN cancel_requested; DROP TABLE node_file_audit; DROP TABLE writing_local_file_migrations; ALTER TABLE writing_chapters DROP COLUMN word_count; ALTER TABLE writing_chapter_revisions DROP COLUMN word_count; ALTER TABLE writing_book_outline_revisions DROP COLUMN word_count; DROP INDEX ai_tool_approvals_scope_memory_idx; DROP TABLE ai_tool_permission_memory_state; ALTER TABLE ai_tool_approvals DROP COLUMN decision_mode; ALTER TABLE ai_tool_approvals DROP COLUMN memory_generation; DROP TABLE workspace_default_projects; DROP TABLE agent_git_session_bindings; DROP TABLE agent_git_repositories; DROP TABLE browser_recent_sites; DROP TABLE steamcmd_servers; DROP TABLE account_agent_usage_reservations; DROP TABLE account_agent_usage_daily; DROP TABLE account_agent_usage_policies; DROP TABLE account_snapshots; DROP TABLE account_trusted_contact_invites; DROP TABLE account_trusted_recovery_requests; DROP TABLE account_trusted_contacts; ALTER TABLE ai_host_tasks DROP COLUMN sandbox_mode; ALTER TABLE ai_host_tasks DROP COLUMN workspace_root; DROP TABLE configuration_storage_state; DROP TABLE configuration_credentials; DROP TABLE configuration_records; PRAGMA user_version = 46;');
       ${close}
     `);
-    const sourcePath = join(data, "storages", "configuration.json");
+    const home = homesByDataDirectory.get(data);
+    const sourcePath = join(home, "storages", "configuration.json");
     const validSource = readFileSync(sourcePath);
     writeFileSync(sourcePath, "{迁移来源损坏");
     assert.throws(() => run(data, `${imports}${files}${close}`));
     writeFileSync(sourcePath, validSource);
     run(data, `${imports}${files}
-        assert.equal(database.prepare('PRAGMA user_version').get().user_version,61);
+        assert.equal(database.prepare('PRAGMA user_version').get().user_version,69);
       assert.equal(settings.getUserSettings('fixture-owner').appearance.theme,'dark');
       assert.equal(settings.getUserSettings('fixture-owner').appearance.blur,17);
       assert.equal(settings.getUserSettings('fixture-owner').permissions.mode,'full_access');
@@ -378,9 +392,9 @@ test("旧 SQLite/JSON 用户设置迁入账户文件，SQLite 控制数据与 JS
       assert.throws(()=>execFileSync(process.execPath,['--import','tsx','--import','./register-package-loader.mjs','--input-type=module','-e',"await import('lfaa-storage-domain/src/configuration.js')"],{cwd:process.cwd(),env:process.env,stdio:'pipe'}));
       ${close}
     `);
-    const directories = readdirSync(join(data, "sessions")).filter(name => /^[a-f0-9]{64}$/u.test(name));
+    const directories = readdirSync(join(home, "sessions")).filter(name => /^[a-f0-9]{64}$/u.test(name));
     assert.equal(directories.length, 1);
-    const log = join(data, "sessions", directories[0], "events.jsonl");
+    const log = join(home, "sessions", directories[0], "events.jsonl");
     const original = readFileSync(log, "utf8");
     appendFileSync(log, '{"未完成末行":');
     run(data, `${imports}${files} assert.equal(sessions.getAiUsageSummary('fixture-owner').requestCount,2); ${close}`);
@@ -405,7 +419,7 @@ test("旧 SQLite/JSON 用户设置迁入账户文件，SQLite 控制数据与 JS
       assert.equal(settings.getUserSettings('fixture-owner').appearance.theme,'dark');
       ${close}
     `);
-    assert.equal(readdirSync(join(data, "credentials", "storage-migration-backups")).filter(name => name.endsWith(".sqlite")).length, 1);
+    assert.equal(readdirSync(join(home, "credentials", "storage-migration-backups")).filter(name => name.endsWith(".sqlite")).length, 1);
   } finally {
     assert.equal(dirname(resolve(data)), parent);
     assert.ok(basename(data).startsWith("lfaa-file-storage-"));
@@ -422,10 +436,10 @@ test("Provider 密文、激活事务、账户删除和 SQLite 写入失败保护
       const {randomBytes,createCipheriv}=await import('node:crypto');
       const {mkdirSync,rmSync,writeFileSync}=await import('node:fs');
       const {resolve}=await import('node:path');
-      const {resolveUserDataPaths}=await import('lfaa-home-paths/src/data-layout.mjs');
+       const {resolveHomePaths}=await import('lfaa-home-paths/src/data-layout.mjs');
       const key=randomBytes(32), iv=randomBytes(12), plaintext='long-term-test-only-secret';
-      mkdirSync(resolve(process.env.LFAA_DATA_DIR,'credentials'),{recursive:true});
-      writeFileSync(resolve(process.env.LFAA_DATA_DIR,'credentials/settings.key'),key);
+       mkdirSync(resolveHomePaths(process.env.LFAA_HOME).credentials,{recursive:true});
+       writeFileSync(resolve(resolveHomePaths(process.env.LFAA_HOME).credentials,'settings.key'),key);
       const cipher=createCipheriv('aes-256-gcm',key,iv);
       const encrypted=Buffer.concat([cipher.update(plaintext,'utf8'),cipher.final()]);
       const account={user_id:'fixture-member',provider_id:'openai',display_name:'长期夹具 A',options_json:'{}',model_id:'fixture-model',models_json:'[{"id":"fixture-model","name":"长期夹具","thinking":null}]',reasoning_mode:'default',secret_ciphertext:encrypted.toString('base64url'),secret_iv:iv.toString('base64url'),secret_tag:cipher.getAuthTag().toString('base64url')};
@@ -444,10 +458,11 @@ test("Provider 密文、激活事务、账户删除和 SQLite 写入失败保护
       sessions.finishAiAssistantMessage('fixture-member',turn.session.id,turn.assistantMessage.id,'夹具回复','complete');
       ${close}
     `);
-    assert.equal(readFileSync(join(data, "storages/configuration.json"), "utf8").includes("long-term-test-only-secret"), false);
+    const home = homesByDataDirectory.get(data);
+    assert.equal(readFileSync(join(home, "storages/configuration.json"), "utf8").includes("long-term-test-only-secret"), false);
     run(data, `${imports}${files}
       const {mkdirSync,rmSync}=await import('node:fs');
-      const {resolveUserDataPaths}=await import('lfaa-home-paths/src/data-layout.mjs');
+       const {resolveUserAccountPaths}=await import('lfaa-home-paths/src/data-layout.mjs');
       assert.equal(settings.resolveActiveAiModelConfiguration('fixture-member').secret,'long-term-test-only-secret');
       const auth=await import('lfaa-identity-auth/src/service.js');
       auth.deleteManagedUser('fixture-admin','fixture-member');
@@ -455,7 +470,7 @@ test("Provider 密文、激活事务、账户删除和 SQLite 写入失败保护
       assert.deepEqual(configuration.all('ai_accounts'),[]);
       assert.deepEqual(sessionRecords.all('ai_sessions'),[]);
       const settingsBefore=settings.getUserSettings('fixture-admin');
-      const settingsPath=resolveUserDataPaths(process.env.LFAA_DATA_DIR,'fixture-admin').settingsDocument;
+       const settingsPath=resolveUserAccountPaths(process.env.LFAA_HOME,'fixture-admin').settingsDocument;
       mkdirSync(settingsPath,{recursive:true});
       assert.throws(()=>settings.saveUserSettings('fixture-admin','appearance',settingsBefore.appearance));
       assert.throws(()=>settings.getUserSettings('fixture-admin'),/必须重启/);
@@ -463,7 +478,7 @@ test("Provider 密文、激活事务、账户删除和 SQLite 写入失败保护
       ${close}
     `);
     run(data, `${imports}${files} assert.equal(settings.getUserSettings('fixture-admin').appearance.theme,'system'); ${close}`);
-    assert.equal(readdirSync(join(data, "sessions")).filter(name => /^[a-f0-9]{64}$/u.test(name)).length, 0);
+    assert.equal(readdirSync(join(home, "sessions")).filter(name => /^[a-f0-9]{64}$/u.test(name)).length, 0);
   } finally {
     assert.equal(dirname(resolve(data)), parent);
     assert.ok(basename(data).startsWith("lfaa-file-storage-"));

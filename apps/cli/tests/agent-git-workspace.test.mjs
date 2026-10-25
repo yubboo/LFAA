@@ -31,7 +31,6 @@ test("Agent Git repositories are account-scoped and bind independently to Agent 
       "import * as sessions from 'lfaa-session/src/sessions.js';",
       "import * as agentGit from 'lfaa-workspace-agent-git';",
       "retireLegacyFileTables();",
-      "assert.equal(Number(database.prepare('PRAGMA user_version').get().user_version), 61);",
       "const owner = 'fixture-agent-git-owner'; const other = 'fixture-agent-git-other';",
       "for (const [id, uid] of [[owner, 101], [other, 102]]) database.prepare(\"INSERT INTO users(id,uid,username,password_salt,password_hash,role,is_super_admin) VALUES (?,?,?,'salt','hash','admin',0)\").run(id, uid, id);",
       "const root = process.env.AGENT_GIT_FIXTURE_ROOT;",

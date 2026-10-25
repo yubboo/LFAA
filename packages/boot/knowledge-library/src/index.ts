@@ -6,11 +6,12 @@
 import type { Context } from "@deepseek-ai/cordis";
 import Joi from "joi";
 import { createHash } from "node:crypto";
-import { getKnowledgeLibraryItem, getKnowledgeLibraryProjectSource, listKnowledgeLibraryProjectSources, searchKnowledgeLibrary, createKnowledgeLibraryItem, KNOWLEDGE_LIBRARY_KINDS, KNOWLEDGE_LIBRARY_LIMITS, type KnowledgeLibraryKind } from "lfaa-knowledge-library/src/index.js";
+import { getKnowledgeLibraryItem, getKnowledgeLibraryProjectSource, listKnowledgeLibraryProjectSources, searchKnowledgeLibrary, createKnowledgeLibraryItem, KNOWLEDGE_LIBRARY_KINDS, KNOWLEDGE_LIBRARY_LIMITS, getKnowledgeLibrarySkillInstallation, listKnowledgeLibrarySkillInstallations, readKnowledgeLibrarySkillResource, type KnowledgeLibraryKind } from "lfaa-knowledge-library/src/index.js";
 import { APPLICATION_IDS, type ApplicationId } from "lfaa-util-values/src/application-id.js";
 import { getWorkspaceProject } from "lfaa-workspace-workspace/src/index.js";
 import { projectFileTool } from "lfaa-tools/src/project-tools.js";
 import type { AiBusinessTool, AiBusinessToolContext } from "lfaa-tools/src/business-tools.js";
+import type { SkillCandidate, SkillDefinition, SkillLookupOptions, SkillProvider, SkillProviderControl, SkillResourceDocument } from "lfaa-skill/src/index.js";
 
 const allApplications = [...APPLICATION_IDS];
 const kindLabels: Record<KnowledgeLibraryKind, string> = { knowledge: "知识", skill: "Skill 方法", prompt: "Prompt 模板", expert: "领域专家方法" };
@@ -167,8 +168,67 @@ async function readProjectMarkdown(context: AiBusinessToolContext, sourceId: str
 }
 
 export function apply(ctx: Context): void {
+  ctx.skills.registerProvider(control => createKnowledgeLibrarySkillProvider(control));
   ctx.lfaaTools.registerTool(ctx, searchTool);
   ctx.lfaaTools.registerTool(ctx, localSearchTool);
   ctx.lfaaTools.registerTool(ctx, readTool);
   ctx.lfaaTools.registerTool(ctx, saveTool);
+}
+
+const accountSkillProviderName = "lfaa-knowledge-library-skills";
+
+function createKnowledgeLibrarySkillProvider(control: SkillProviderControl): SkillProvider {
+  return {
+    name: accountSkillProviderName,
+    async list(options: SkillLookupOptions): Promise<readonly SkillCandidate[]> {
+      if (!options.userId || control.signal.aborted) return [];
+      options.signal?.throwIfAborted();
+      return listKnowledgeLibrarySkillInstallations(options.userId).map(installation => ({
+        name: installation.name,
+        description: installation.description,
+        invocation: { modelInvocable: true, userInvocable: true },
+        source: "user-lfaa",
+        provider: accountSkillProviderName,
+        rank: 400,
+        locator: { installationId: installation.id, contentSha256: installation.contentSha256 }
+      }));
+    },
+    async get(candidate: SkillCandidate, options: SkillLookupOptions): Promise<SkillDefinition | undefined> {
+      options.signal?.throwIfAborted();
+      if (!options.userId || control.signal.aborted) return undefined;
+      const locator = accountSkillLocator(candidate.locator);
+      if (!locator) return undefined;
+      const installation = getKnowledgeLibrarySkillInstallation(options.userId, locator.installationId);
+      if (!installation || installation.name !== candidate.name || installation.contentSha256 !== locator.contentSha256) return undefined;
+      return {
+        name: installation.name,
+        description: installation.description,
+        invocation: candidate.invocation,
+        source: candidate.source,
+        provider: accountSkillProviderName,
+        resourceBase: { kind: "opaque", description: "由 LFAA 当前账户的共享 Skill Owner 管理" },
+        content: stripSkillFrontmatter(installation.contentMarkdown)
+      };
+    },
+    async readResource(candidate: SkillCandidate, resourcePath: string, options: SkillLookupOptions): Promise<SkillResourceDocument | undefined> {
+      options.signal?.throwIfAborted();
+      if (!options.userId || control.signal.aborted) return undefined;
+      const locator = accountSkillLocator(candidate.locator);
+      if (!locator) return undefined;
+      const resource = readKnowledgeLibrarySkillResource(options.userId, locator.installationId, resourcePath);
+      return resource ? { path: resource.path, content: resource.content, bytes: resource.bytes } : undefined;
+    }
+  };
+}
+
+function accountSkillLocator(value: unknown): { installationId: string; contentSha256: string } | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const record = value as Record<string, unknown>;
+  return typeof record.installationId === "string" && typeof record.contentSha256 === "string"
+    ? { installationId: record.installationId, contentSha256: record.contentSha256 }
+    : undefined;
+}
+
+function stripSkillFrontmatter(markdown: string): string {
+  return markdown.replace(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/u, "").trim();
 }

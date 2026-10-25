@@ -26,6 +26,9 @@ export function estimateText(text: string): number {
  * 估算一条 LFAA 消息的 token 数（含角色帧开销）。
  * @param message 模型可见消息，不改写。
  */
+// 图片块的视觉 token 由 Provider 决定；这里给一个保守固定值，避免大图请求完全不进预算。
+const IMAGE_TOKEN_ESTIMATE = 1_200;
+
 export function estimateMessage(message: AiCompletionMessage): number {
   let characters = 0;
   const content = message.content;
@@ -79,7 +82,7 @@ function estimateContextMessage(message: AiCompletionMessage): { tokens: number;
   }
   if (Array.isArray(message.tool_calls)) characters += message.tool_calls.reduce((sum, call) => sum + call.function.name.length + call.function.arguments.length, 0);
   if (typeof message.tool_call_id === "string") characters += message.tool_call_id.length;
-  return { tokens: Math.ceil(characters / CHARS_PER_TOKEN) + ROLE_OVERHEAD, includesImages };
+  return { tokens: Math.ceil(characters / CHARS_PER_TOKEN) + ROLE_OVERHEAD + (includesImages ? IMAGE_TOKEN_ESTIMATE : 0), includesImages };
 }
 
 /**

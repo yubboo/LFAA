@@ -26,15 +26,20 @@ export interface SpillStore {
   spill(input: { sessionId: string; content: string }): Promise<SpillRef>;
   /** 按引用读回内容（模型需要时）。 */
   load(ref: SpillRef): Promise<string>;
+  /** 有界按字符读取；本机 Store 通过稀疏 UTF-8 偏移索引流式回读，不把整份大结果载入内存。 */
+  readRange?(ref: SpillRef, input: { offset: number; limit: number }): Promise<{ text: string; totalCharacters: number }>;
   /** 清理某会话的全部溢出内容。 */
   dropSession(sessionId: string): Promise<void>;
 }
+
+/** 任何单次模型回读最多 16,384 个 Unicode 字符，避免大上下文下单次回读失控。 */
+export const MAX_SPILL_READ_CHARACTERS = 16_384;
 
 /** 把 SpillRef 渲染成发给模型的占位文本。 */
 export function formatSpillReference(ref: SpillRef): string {
   return JSON.stringify({
     spilled: true,
-    note: "这一大段工具结果已被移出上下文并外置存储；需要时可按 location 读回完整内容。",
+    note: "这一大段工具结果已被移出上下文并外置存储；如需原文，请调用 agent_context_read_spill 并使用 location ID 分段读取。",
     backend: ref.backend,
     location: ref.location,
     sizeBytes: ref.sizeBytes

@@ -11,6 +11,7 @@ import type { PluginRuntimeSnapshot } from "./plugin-runtime.js";
 import type { SkillLookupOptions, SkillSummary } from "lfaa-skill";
 import type { AiCompletionMessage } from "lfaa-llm/src/completion.js";
 import type { AiCompletionService } from "lfaa-llm/src/completion.js";
+import type { SpillStore } from "lfaa-spill/src/index.js";
 import { config } from "lfaa-launch-environment/src/config.js";
 import { resolveGitProjectDirectory } from "lfaa-host-git";
 import { isLocalDaemonIdentity } from "lfaa-host-daemon/src/node-credentials.js";
@@ -38,6 +39,8 @@ export interface AiPluginHost {
   /** 当前请求的目录，正文仍由模型按需调用 Skill 工具。 */
   listSkills?: (options: SkillLookupOptions) => Promise<SkillSummary[]>;
   compactContext?: (input: HostCompactionInput) => Promise<{ messages: AiCompletionMessage[] } | null>;
+  /** 为 Agent Loop 创建当前 Run 隔离的本机溢出 Store；Host 只适配已装配的存储 Provider。 */
+  createContextSpillStore?: () => SpillStore | undefined;
   readonly hotReloadEnabled: boolean;
   listPlugins(): AiPluginSnapshot[];
   setPluginEnabled(pluginId: string, enabled: boolean): Promise<void>;
@@ -58,6 +61,8 @@ export function createAiPluginHost(context: Context): AiPluginHost {
   let closed = false;
   const llm = context.get("lfaaLlm") as AiCompletionService | undefined;
   if (!llm) throw new Error("LLM Provider 服务尚未装载。");
+  const spillLocal = context.get("lfaaSpillLocal") as { createLocalSpillStore?: () => SpillStore } | undefined;
+  const createLocalSpillStore = spillLocal?.createLocalSpillStore;
   return {
     llm,
     ...(config.localHostExecution ? {
@@ -74,6 +79,7 @@ export function createAiPluginHost(context: Context): AiPluginHost {
       if (!service) return null;
       return service.createBasicCompactionEngine({ summarize: input.summarize, streamCompletion: llm.streamCompletion }).compactIfNeeded({ messages: input.messages, contextWindow: input.contextWindow, ...(input.signal ? { signal: input.signal } : {}), trigger: { reason: "pressure" } });
     },
+    ...(createLocalSpillStore ? { createContextSpillStore: () => createLocalSpillStore() } : {}),
     get hotReloadEnabled() {
       return Boolean(context.get("lfaaHotReload")) && context.lfaaPluginRuntime.list().some((plugin) => plugin.id === "hmr" && plugin.enabled);
     },

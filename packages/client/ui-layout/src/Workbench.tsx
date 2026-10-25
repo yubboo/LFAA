@@ -1,5 +1,5 @@
 /** 功能：呈现现有工作台。作用：消费已保存设置并组合能力包界面。关联文件：client/connection、ui-settings、ui-theme、ui-commands。 */
-import { APPLICATION_ROUTE_PATTERN, SHARED_WORK_ROUTE, normalizeWorkRoute, type ApplicationNavigationId } from "lfaa-util-values/src/application-id.js";
+import { APP_CANVAS_ROUTE_PATTERN, APPLICATION_ROUTE_PATTERN, SHARED_WORK_ROUTE, normalizeWorkRoute, type ApplicationNavigationId } from "lfaa-util-values/src/application-id.js";
 import { DshSlotOutlet, loadClientModule } from "lfaa-client-modules/src/client/index.js";
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Button, Checkbox, ConfigProvider, Modal, Popover, Tag, Typography, theme as antdTheme } from "antd";
@@ -55,6 +55,8 @@ interface AiWorkUiState {
 
 let settingsPageModulePromise: Promise<typeof import("lfaa-client-ui-settings/src/SettingsPage.js")> | null = null;
 let fileManagerPageModulePromise: Promise<typeof import("lfaa-client-ui-sidebar-files/src/FileManagerPage.js")> | null = null;
+let canvasWorkspaceModulePromise: Promise<typeof import("lfaa-client-ui-workspace/src/CanvasWorkspace.js")> | null = null;
+let canvasHomeModulePromise: Promise<typeof import("lfaa-client-ui-workspace/src/CanvasHome.js")> | null = null;
 let pluginManagerPageModulePromise: Promise<typeof import("lfaa-client-ui-plugin-manager/src/PluginManagerPage.js")> | null = null;
 let aiWorkChatPreloadPromise: Promise<void> | null = null;
 
@@ -78,6 +80,26 @@ function loadFileManagerPageModule() {
     });
   }
   return fileManagerPageModulePromise;
+}
+
+function loadCanvasWorkspaceModule() {
+  if (!canvasWorkspaceModulePromise) {
+    canvasWorkspaceModulePromise = loadClientModule<typeof import("lfaa-client-ui-workspace/src/CanvasWorkspace.js")>("lfaa-client-ui-workspace/src/CanvasWorkspace.js").catch((error: unknown) => {
+      canvasWorkspaceModulePromise = null;
+      throw error;
+    });
+  }
+  return canvasWorkspaceModulePromise;
+}
+
+function loadCanvasHomeModule() {
+  if (!canvasHomeModulePromise) {
+    canvasHomeModulePromise = loadClientModule<typeof import("lfaa-client-ui-workspace/src/CanvasHome.js")>("lfaa-client-ui-workspace/src/CanvasHome.js").catch((error: unknown) => {
+      canvasHomeModulePromise = null;
+      throw error;
+    });
+  }
+  return canvasHomeModulePromise;
 }
 
 function loadPluginManagerPageModule() {
@@ -156,6 +178,8 @@ function gameLibraryApplicationRoute(pathname: string): string[] | null {
 
 const SettingsPage = lazy(() => loadSettingsPageModule().then((module) => ({ default: module.SettingsPage })));
 const FileManagerPage = lazy(() => loadFileManagerPageModule().then((module) => ({ default: module.FileManagerPage })));
+const CanvasWorkspace = lazy(() => loadCanvasWorkspaceModule().then((module) => ({ default: module.CanvasWorkspace })));
+const CanvasHome = lazy(() => loadCanvasHomeModule().then((module) => ({ default: module.CanvasHome })));
 const PluginManagerPage = lazy(() => loadPluginManagerPageModule().then((module) => ({ default: module.PluginManagerPage })));
 const ApplicationWorkspace = lazy(() => loadClientModule<typeof import("lfaa-client-ui-workspace/src/ApplicationWorkspace.js")>("lfaa-client-ui-workspace/src/ApplicationWorkspace.js").then((module) => ({ default: module.ApplicationWorkspace })));
 
@@ -321,9 +345,16 @@ const applicationCards: Array<{
 
 const allApplicationNavigationItems: ApplicationNavigationItem[] = [
   { id: "games", title: "游戏库", description: "运行环境 · Minecraft · SteamCMD", route: "/games" },
+  { id: "canvas", title: "无限画布", description: "系统级创作画布 · 所有 App 可用", route: "/canvas" },
   ...applicationCards
     .filter((application) => application.id !== "steamcmd" && application.id !== "minecraft")
     .map((application) => ({ id: application.id, title: application.title, applicationId: application.id }))
+];
+
+/** 画布首页与 App 切换器使用完整 App 清单（含 SteamCMD/Minecraft/工作区）。 */
+const canvasApplicationItems: ApplicationNavigationItem[] = [
+  ...applicationCards.map((application) => ({ id: application.id, title: application.title, applicationId: application.id })),
+  { id: "workspace", title: "小鱼智能体", applicationId: "workspace" }
 ];
 
 export function Workbench({
@@ -348,6 +379,9 @@ export function Workbench({
   const isGameLibraryRoute = route === "/games" || route.startsWith("/games/");
   const isAiWorkRoute = appRoute?.[1] === "workspace" && appRoute?.[2] === "ai-work";
   const isFileManagerPage = route === "/files";
+  const appCanvasRoute = route.match(APP_CANVAS_ROUTE_PATTERN);
+  const isCanvasHomePage = route === "/canvas";
+  const isCanvasPage = isCanvasHomePage || Boolean(appCanvasRoute);
   const isPluginManagerPage = route === "/plugin-manager";
   const isLegacyAccountsRoute = route === "/admin/users";
   const isSettingsPage = route === "/settings" || isLegacyAccountsRoute;
@@ -363,7 +397,7 @@ export function Workbench({
     if (isAiWorkRoute) void preloadAiWorkChatModule().catch(() => undefined);
   }, [isAiWorkRoute]);
   useScrollRestoration(
-    isSettingsPage || appRoute || isFileManagerPage ? "" : createScrollRestorationKey(user.id, "workbench-page", route),
+    isSettingsPage || appRoute || isFileManagerPage || isCanvasPage ? "" : createScrollRestorationKey(user.id, "workbench-page", route),
     true,
     "window"
   );
@@ -882,6 +916,18 @@ export function Workbench({
         <FileManagerPage user={user} settings={settings} serverState={serverState} homeRoute={fileManagerHomeRoute} applications={allApplicationNavigationItems} navigationApplications={applicationNavigationItems} onOpenApplication={onOpenApplication} onOpenApplications={requestApplicationsOpen} onOpenRecentSessions={requestRecentSessionsOpen} onNavigate={onNavigate} onOpenSettings={() => openSettings()} onLogout={onLogout} />
       </Suspense>
     );
+  } else if (isCanvasHomePage) {
+    pageContent = (
+      <Suspense fallback={<div className="loading-page loading-page--compact"><span className="loading-indicator" aria-hidden="true" /></div>}>
+        <CanvasHome user={user} settings={settings} serverState={serverState} applications={canvasApplicationItems} navigationApplications={applicationNavigationItems} onNavigate={onNavigate} onOpenApplication={onOpenApplication} onOpenApplications={requestApplicationsOpen} onOpenRecentSessions={requestRecentSessionsOpen} onOpenSettings={openSettings} onLogout={onLogout} />
+      </Suspense>
+    );
+  } else if (appCanvasRoute) {
+    pageContent = (
+      <Suspense fallback={<div className="loading-page loading-page--compact"><span className="loading-indicator" aria-hidden="true" /></div>}>
+        <CanvasWorkspace user={user} applicationId={appCanvasRoute[1] as ApplicationId} initialProjectId={appCanvasRoute[2]} settings={settings} serverState={serverState} applications={canvasApplicationItems} navigationApplications={applicationNavigationItems} onNavigate={onNavigate} onOpenApplication={onOpenApplication} onOpenApplications={requestApplicationsOpen} onOpenRecentSessions={requestRecentSessionsOpen} onOpenSettings={openSettings} onLogout={onLogout} />
+      </Suspense>
+    );
   } else if (isPluginManagerPage) {
     pageContent = (
       <Suspense fallback={<div className="loading-page loading-page--compact"><span className="loading-indicator" aria-hidden="true" /></div>}>
@@ -961,7 +1007,7 @@ export function Workbench({
         fontFamily: "var(--font-family-sans)"
       }
     }}>
-    <div ref={workbenchShellRef} className={`workbench-shell${appRoute || isFileManagerPage || isPluginManagerPage ? " workbench-shell--module" : ""}${isSettingsPage ? " workbench-shell--settings" : ""}`} data-theme={resolvedTheme} data-background-image={wallpaperCanvasOwnership.hasWallpaperBackground ? "true" : "false"} data-wallpaper-engine-owner={wallpaperCanvasOwnership.wallpaperEngineOwnsCanvas ? "true" : "false"} data-custom-sidebar-color={customSidebarColor && !wallpaperCanvasOwnership.wallpaperEngineOwnsCanvas ? "true" : "false"} data-reduced-motion={appearanceAdvanced.reducedMotion} data-card-motion-effect={settings.general.cardMotionEffect ?? DEFAULT_USER_SETTINGS.general.cardMotionEffect} data-translucent-sidebar={appearanceAdvanced.translucentSidebar ? "true" : "false"} data-diff-markers={appearanceAdvanced.diffMarkers} data-pointer-cursor={appearanceAdvanced.pointerCursor ? "true" : "false"} data-ai-work-output-focus-blur={appearanceAdvanced.aiWorkOutputFocusBlurEnabled ? "true" : "false"} style={shellStyle as CSSProperties}>
+    <div ref={workbenchShellRef} className={`workbench-shell${appRoute || isFileManagerPage || isCanvasPage || isPluginManagerPage ? " workbench-shell--module" : ""}${isSettingsPage ? " workbench-shell--settings" : ""}`} data-theme={resolvedTheme} data-background-image={wallpaperCanvasOwnership.hasWallpaperBackground ? "true" : "false"} data-wallpaper-engine-owner={wallpaperCanvasOwnership.wallpaperEngineOwnsCanvas ? "true" : "false"} data-custom-sidebar-color={customSidebarColor && !wallpaperCanvasOwnership.wallpaperEngineOwnsCanvas ? "true" : "false"} data-reduced-motion={appearanceAdvanced.reducedMotion} data-card-motion-effect={settings.general.cardMotionEffect ?? DEFAULT_USER_SETTINGS.general.cardMotionEffect} data-translucent-sidebar={appearanceAdvanced.translucentSidebar ? "true" : "false"} data-diff-markers={appearanceAdvanced.diffMarkers} data-pointer-cursor={appearanceAdvanced.pointerCursor ? "true" : "false"} data-ai-work-output-focus-blur={appearanceAdvanced.aiWorkOutputFocusBlurEnabled ? "true" : "false"} style={shellStyle as CSSProperties}>
       {!isSettingsPage ? <header className="topbar">
         <button className="brand-lockup brand-lockup--button" type="button" onClick={() => onNavigate(SHARED_WORK_ROUTE)}>
           <span className="brand-mark" aria-hidden="true">L</span>
@@ -1009,7 +1055,7 @@ export function Workbench({
         </div>
       </header> : null}
 
-      <main className={`workbench-content${appRoute || isFileManagerPage || isPluginManagerPage ? " workbench-content--module" : ""}${isSettingsPage ? " workbench-content--settings" : ""}`}>
+      <main className={`workbench-content${appRoute || isFileManagerPage || isCanvasPage || isPluginManagerPage ? " workbench-content--module" : ""}${isSettingsPage ? " workbench-content--settings" : ""}`}>
         {pageContent}
       </main>
       {desktopUpdateDownloadProgress && downloadProgressOpen ? <Modal
@@ -1199,7 +1245,7 @@ export function Workbench({
         } : null}
       />
       <PasskeySetupPrompt user={user} isSettingsPage={isSettingsPage} notificationPopupsEnabled={settings.general.notificationPopupsEnabled} onOpenSettings={openSettings} onPromptActivityChange={setPasskeyPromptActivity} />
-      {!isSettingsPage ? <footer className={`workbench-footer${appRoute || isFileManagerPage || isPluginManagerPage ? " workbench-footer--module" : ""}`}>
+      {!isSettingsPage ? <footer className={`workbench-footer${appRoute || isFileManagerPage || isCanvasPage || isPluginManagerPage ? " workbench-footer--module" : ""}`}>
         <span>LFAA 本机与远程主机应用工作台</span>
         <span>当前阶段：小鱼智能体工作台</span>
       </footer> : null}

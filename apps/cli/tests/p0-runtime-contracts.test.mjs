@@ -31,7 +31,8 @@ test("受限沙箱拒绝部分执行和模式替换", () => {
     argv: ["tool.exe"], effectiveMode: "danger-full-access", enforcement: "none", providerId: "fallback"
   }), error => error.code === sandbox.SANDBOX_UNAVAILABLE);
   assert.deepEqual(sandbox.assertSandboxResult(["runner.exe", "--", "tool.exe"], policy, {
-    argv: ["runner.exe", "--", "tool.exe"], effectiveMode: "read-only", enforcement: "full", providerId: "windows-acl"
+    argv: ["runner.exe", "--", "tool.exe"], effectiveMode: "read-only", enforcement: "full", providerId: "windows-acl",
+    verificationToken: "00000000-0000-4000-8000-000000000001", requestStop: () => true
   }).argv, ["runner.exe", "--", "tool.exe"]);
 });
 

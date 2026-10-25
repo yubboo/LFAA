@@ -8,6 +8,7 @@
 import type { Context } from "@deepseek-ai/cordis";
 import { spawn, type ChildProcess } from "node:child_process";
 import type { SubagentDriver, SubagentDriverContext, SubagentRunResult, SubagentTask } from "lfaa-subagent";
+import { bindExternalChildCancellation } from "lfaa-subagent/src/out-of-process.js";
 
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_OUTPUT_BYTES = 64 * 1024;
@@ -37,8 +38,10 @@ export function apply(ctx: Context): void {
     name: "codex",
     displayName: "Codex CLI",
     async run(task: SubagentTask, driverCtx: SubagentDriverContext): Promise<SubagentRunResult> {
+      if (!driverCtx.terminateProcessTree) return { runId: "", stopReason: "error", answer: "", diagnostic: "Codex 缺少进程树 Owner，已拒绝启动。" };
       const timeout = AbortSignal.timeout(DEFAULT_TIMEOUT_MS);
       const signal = AbortSignal.any([driverCtx.signal, timeout]);
+      signal.throwIfAborted();
       driverCtx.onProgress(`启动 Codex CLI：${bin}（无交互模式）。`);
 
       let child: ChildProcess;
@@ -55,8 +58,7 @@ export function apply(ctx: Context): void {
       }
 
       let stdout = "", stderr = "";
-      const onAbort = (): void => { if (child.exitCode === null) child.kill(); };
-      signal.addEventListener("abort", onAbort, { once: true });
+      const cancellation = bindExternalChildCancellation(child, signal, driverCtx.terminateProcessTree);
 
       child.stdout?.on("data", chunk => { if (stdout.length < MAX_OUTPUT_BYTES) stdout += chunk.toString("utf8"); });
       child.stderr?.on("data", chunk => { if (stderr.length < 4096) stderr += chunk.toString("utf8"); });
@@ -65,11 +67,13 @@ export function apply(ctx: Context): void {
         child.once("error", () => resolve(-1));
         child.once("close", exitCode => resolve(exitCode));
       });
-      signal.removeEventListener("abort", onAbort);
+      const termination = await cancellation.wait();
+      cancellation.dispose();
 
       if (signal.aborted) {
         const reason: SubagentRunResult["stopReason"] = driverCtx.signal.aborted ? "aborted" : "timeout";
-        return { runId: "", stopReason: reason, answer: extractAnswer(stdout), ...(stderr ? { diagnostic: stderr.slice(0, 2000) } : {}) };
+        const diagnostic = [stderr.slice(0, 2000), termination?.stopped === false ? termination.detail : ""].filter(Boolean).join("\n");
+        return { runId: "", stopReason: reason, answer: extractAnswer(stdout), ...(diagnostic ? { diagnostic: diagnostic.slice(0, 2000) } : {}) };
       }
       if (code !== 0) {
         const detail = `Codex 退出码 ${code}。${stderr}`.trim();

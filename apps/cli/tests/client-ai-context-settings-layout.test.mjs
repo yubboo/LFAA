@@ -31,7 +31,8 @@ test("工作台关闭上下文详情时仍明确提示当前状态和设置位�
   assert.match(usageFooter, /上下文已关闭/u);
   assert.match(usageFooter, /Token 与缓存统计仍会正常显示/u);
   assert.match(usageFooter, /hasAssistantMessage, onOpenContextSettings/u);
-  assert.match(aiWorkChat, /<AiUsageFooter[\s\S]*?onOpenContextSettings=\{\(\) => onOpenSettings\("ai", "ai-context-usage-setting"\)\}/u);
+  assert.match(aiWorkChat, /const openAiContextSettings = useCallback\(\(\) => onOpenSettings\("ai", "ai-context-usage-setting"\), \[onOpenSettings\]\)/u);
+  assert.match(aiWorkChat, /<AiUsageFooter[\s\S]*?onOpenContextSettings=\{openAiContextSettings\}/u);
   assert.match(usageFooter, /打开 AI 与模型设置/u);
   assert.match(settingsPage, /id="ai-context-usage-setting"/u);
   assert.match(settingsPage, /scrollIntoView\(\{ block: "center" \}\)/u);

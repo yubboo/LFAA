@@ -28,7 +28,7 @@ interface GlobalNavigationRailProps {
   role: UserRole;
   serverState: ServiceState;
   shortcuts: UserSettings["shortcuts"];
-  activePage: "home" | "files" | "plugins" | "settings";
+  activePage: "home" | "files" | "plugins" | "settings" | "canvas";
   homeLabel: string;
   applications: ApplicationNavigationItem[];
   navigationApplications?: ApplicationNavigationItem[];
@@ -38,6 +38,7 @@ interface GlobalNavigationRailProps {
   onNavigate: (path: string) => void;
   onOpenApplication: (app: ApplicationId, mode: "normal") => Promise<void>;
   onOpenFiles: () => void;
+  onOpenCanvas?: () => void;
   onOpenWork?: () => void;
   onOpenSettings: () => void;
   onLogout: () => void;
@@ -47,7 +48,7 @@ interface GlobalNavigationRailProps {
   onToggleApplications?: () => void;
 }
 
-export function GlobalNavigationRail({ className, username, role, serverState, shortcuts, activePage, homeLabel, applications, navigationApplications = applications, onOpenRecentSessions, showServiceStatus, onHome, onNavigate, onOpenApplication, onOpenFiles, onOpenWork, onOpenSettings, onLogout, onToggleTools, applicationsExpanded = false, applicationsTargetId = "module-sidebar-applications", onToggleApplications }: GlobalNavigationRailProps) {
+export function GlobalNavigationRail({ className, username, role, serverState, shortcuts, activePage, homeLabel, applications, navigationApplications = applications, onOpenRecentSessions, showServiceStatus, onHome, onNavigate, onOpenApplication, onOpenFiles, onOpenCanvas, onOpenWork, onOpenSettings, onLogout, onToggleTools, applicationsExpanded = false, applicationsTargetId = "module-sidebar-applications", onToggleApplications }: GlobalNavigationRailProps) {
   const [openPopover, setOpenPopover] = useState<"applications" | "menu" | "shortcuts" | "profile" | null>(null);
   const railRef = useRef<HTMLElement>(null);
 
@@ -89,6 +90,7 @@ export function GlobalNavigationRail({ className, username, role, serverState, s
           onOpenRecentSessions();
         }}><WorkbenchIcon name="history" size={19} /></button>
         <button className={`module-navigation-rail__button${activePage === "files" ? " is-active" : ""}`} type="button" aria-label="文件管理" aria-current={activePage === "files" ? "page" : undefined} title="文件管理" onClick={() => { setOpenPopover(null); onOpenFiles(); }}><WorkbenchIcon name="folder" size={19} /></button>
+        <button className={`module-navigation-rail__button${activePage === "canvas" ? " is-active" : ""}`} type="button" aria-label="无限画布" aria-current={activePage === "canvas" ? "page" : undefined} title="无限画布" onClick={() => { setOpenPopover(null); if (onOpenCanvas) onOpenCanvas(); else onNavigate("/canvas"); }}><WorkbenchIcon name="grid" size={19} /></button>
         <button className={`module-navigation-rail__button${activePage === "plugins" ? " is-active" : ""}`} type="button" aria-label="插件" aria-current={activePage === "plugins" ? "page" : undefined} title="插件" onClick={() => { setOpenPopover(null); onNavigate("/plugin-manager"); }}><WorkbenchIcon name="extension" size={19} /></button>
         <button className="module-navigation-rail__button" type="button" aria-label="工具与资源" title={onToggleTools ? "工具与资源" : "当前页面没有工具资源栏"} aria-keyshortcuts="Control+Alt+B Meta+Alt+B" disabled={!onToggleTools} onClick={() => { setOpenPopover(null); onToggleTools?.(); }}><WorkbenchIcon name="tools" size={19} /></button>
         <button className={`module-navigation-rail__button${activePage === "settings" ? " is-active" : ""}`} type="button" aria-label="设置中心" aria-current={activePage === "settings" ? "page" : undefined} title="设置中心" aria-keyshortcuts="Control+, Meta+," onClick={() => { setOpenPopover(null); onOpenSettings(); }}><WorkbenchIcon name="settings" size={19} /></button>
@@ -113,6 +115,7 @@ export function GlobalNavigationRail({ className, username, role, serverState, s
             <button type="button" onClick={onToggleApplications ? toggleApplications : () => setOpenPopover("applications")}><WorkbenchIcon name="grid" size={16} /><span>应用</span></button>
             {onOpenWork ? <button type="button" onClick={() => { setOpenPopover(null); onOpenWork(); }}><WorkbenchIcon name="spark" size={16} /><span>小鱼智能体</span></button> : null}
             <button type="button" onClick={() => { setOpenPopover(null); onOpenFiles(); }}><WorkbenchIcon name="folder" size={16} /><span>文件管理</span></button>
+            {onOpenCanvas ? <button type="button" onClick={() => { setOpenPopover(null); onOpenCanvas(); }}><WorkbenchIcon name="grid" size={16} /><span>无限画布</span></button> : null}
             {onToggleTools ? <button type="button" onClick={() => { setOpenPopover(null); onToggleTools(); }}><WorkbenchIcon name="tools" size={16} /><span>工具与资源</span></button> : null}
             <button type="button" onClick={() => setOpenPopover("shortcuts")}><WorkbenchIcon name="keyboard" size={16} /><span>键盘快捷键</span></button>
           </div>

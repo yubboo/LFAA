@@ -17,7 +17,8 @@ test("所有旧工作入口归一，App 常规路由保持，关联只接受有�
   for (const app of APPLICATION_IDS) {
     assert.equal(normalizeWorkRoute(`/apps/${app}/ai-work`), "/work");
     assert.equal(normalizeWorkRoute(`/apps/${app}/ai-work/history`), "/work");
-    assert.equal(normalizeWorkRoute(`/apps/${app}/normal/overview`), `/apps/${app}/normal/overview`);
+    const normalRoute = app === "steamcmd" || app === "minecraft" ? `/games/${app}/overview` : `/apps/${app}/normal/overview`;
+    assert.equal(normalizeWorkRoute(`/apps/${app}/normal/overview`), normalRoute);
   }
   assert.ok(isAgentAssociations({ applicationIds: [], capabilityIds: [] }));
   assert.ok(!isAgentAssociations({ applicationIds: ["minecraft", "minecraft"], capabilityIds: [] }));

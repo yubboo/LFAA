@@ -70,11 +70,23 @@
       "lfaa-api-ai-video-controller/src/*": [
         "packages/api/ai-video-controller/src/*"
       ],
+      "lfaa-api-attachment-controller": [
+        "packages/api/attachment-controller/src/index.ts"
+      ],
+      "lfaa-api-attachment-controller/src/*": [
+        "packages/api/attachment-controller/src/*"
+      ],
       "lfaa-api-browser-controller": [
         "packages/api/browser-controller/src/index.ts"
       ],
       "lfaa-api-browser-controller/src/*": [
         "packages/api/browser-controller/src/*"
+      ],
+      "lfaa-api-canvas-controller": [
+        "packages/api/canvas-controller/src/index.ts"
+      ],
+      "lfaa-api-canvas-controller/src/*": [
+        "packages/api/canvas-controller/src/*"
       ],
       "lfaa-api-connectivity-controller": [
         "packages/api/connectivity-controller/src/index.ts"
@@ -181,6 +193,18 @@
       "lfaa-app-boot/src/*": [
         "packages/boot/app-boot/src/*"
       ],
+      "lfaa-attachment": [
+        "packages/attachment/attachment/src/index.ts"
+      ],
+      "lfaa-attachment-local": [
+        "packages/attachment/attachment-local/src/index.ts"
+      ],
+      "lfaa-attachment-local/src/*": [
+        "packages/attachment/attachment-local/src/*"
+      ],
+      "lfaa-attachment/src/*": [
+        "packages/attachment/attachment/src/*"
+      ],
       "lfaa-authorization/src/*": [
         "packages/credentials/authorization/src/*"
       ],
@@ -208,6 +232,12 @@
       "lfaa-browser-use/src/*": [
         "packages/browser-use/browser-use/src/*"
       ],
+      "lfaa-canvas": [
+        "packages/canvas/canvas/src/index.ts"
+      ],
+      "lfaa-canvas/src/*": [
+        "packages/canvas/canvas/src/*"
+      ],
       "lfaa-capability-installs": [
         "packages/boot/capability-installs/src/index.ts"
       ],
@@ -234,6 +264,12 @@
       ],
       "lfaa-client-connection/src/*": [
         "packages/client/connection/src/*"
+      ],
+      "lfaa-client-file-upload": [
+        "packages/client/file-upload/src/index.ts"
+      ],
+      "lfaa-client-file-upload/src/*": [
+        "packages/client/file-upload/src/*"
       ],
       "lfaa-client-modules": [
         "packages/client/modules/src/index.ts"
@@ -598,6 +634,12 @@
       "lfaa-permission-presets/src/*": [
         "packages/interaction/permission-presets/src/*"
       ],
+      "lfaa-persona": [
+        "packages/preset/persona/src/index.ts"
+      ],
+      "lfaa-persona/src/*": [
+        "packages/preset/persona/src/*"
+      ],
       "lfaa-plugin-manager": [
         "packages/boot/plugin-manager/src/index.ts"
       ],
@@ -660,6 +702,12 @@
       ],
       "lfaa-sandbox-ssh/src/*": [
         "packages/ssh/sandbox-ssh/src/*"
+      ],
+      "lfaa-sandbox-windows-acl": [
+        "packages/sandbox/sandbox-windows-acl/src/index.ts"
+      ],
+      "lfaa-sandbox-windows-acl/src/*": [
+        "packages/sandbox/sandbox-windows-acl/src/*"
       ],
       "lfaa-sandbox/src/*": [
         "packages/sandbox/sandbox/src/*"
@@ -828,6 +876,12 @@
       ],
       "lfaa-settings": [
         "packages/settings/settings/src/index.ts"
+      ],
+      "lfaa-settings-snapshots": [
+        "packages/settings/settings-snapshots/src/index.ts"
+      ],
+      "lfaa-settings-snapshots/src/*": [
+        "packages/settings/settings-snapshots/src/*"
       ],
       "lfaa-settings/src/*": [
         "packages/settings/settings/src/*"
@@ -1005,6 +1059,12 @@
       ],
       "lfaa-tool-ask-user/src/*": [
         "packages/interaction/tool-ask-user/src/*"
+      ],
+      "lfaa-tool-daemon": [
+        "packages/host/tool-daemon/src/index.ts"
+      ],
+      "lfaa-tool-daemon/src/*": [
+        "packages/host/tool-daemon/src/*"
       ],
       "lfaa-tool-fs": [
         "packages/fs/tool-fs/src/index.ts"

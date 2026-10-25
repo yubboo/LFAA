@@ -1,4 +1,5 @@
 import { isAgentAssociations, type AgentAssociations } from "lfaa-util-values/src/agent-associations.js";
+import { BROWSER_PROVIDER_IDS, type BrowserProviderId } from "lfaa-util-values/src/browser-provider.js";
 /**
  * 文件：sessions.ts
  * 功能：管理按用户隔离的 AI Work 会话、消息和实际 Provider 用量。
@@ -8,6 +9,7 @@ import { isAgentAssociations, type AgentAssociations } from "lfaa-util-values/sr
  * 修改注意事项：查询必须绑定当前 user_id；用量只记录 Provider 返回的 token 数，不估算费用。
  */
 import { randomUUID } from "node:crypto";
+import { APPLICATION_IDS } from "lfaa-util-values/src/application-id.js";
 import { isSessionReplyParts, type SessionReplyPart } from "./kernel.js";
 import { sessionRecords } from "lfaa-session-persistence-jsonl/src/repository.js";
 import type { SessionChange, SessionCommit } from "lfaa-session-persistence-jsonl/src/persistence.js";
@@ -58,6 +60,7 @@ export interface AiSessionBranchMemoryUsage {
   completionTokens: number | null;
 }
 
+export interface AiMessageAttachment { id: string; name: string; mediaType?: string }
 export interface AiMessageView {
   id: string;
   role: "user" | "assistant";
@@ -68,7 +71,20 @@ export interface AiMessageView {
   usage?: AiMessageUsageView;
   parts?: SessionReplyPart[];
   feedback?: AiMessageFeedbackView;
+  /** 该条用户消息携带的附件引用（只有 ID/名称，字节在附件 Owner）。 */
+  attachments?: AiMessageAttachment[];
 }
+
+/** 可导入/导出的公开会话文本；不含工具结果、调用参数、运行快照、项目路径或凭据。 */
+export interface PortableAiSession {
+  id: string;
+  appId: ApplicationId;
+  title: string;
+  createdAt: string;
+  messages: Array<{ role: "user" | "assistant"; content: string; status: "complete" | "interrupted" | "error"; createdAt: string }>;
+}
+
+export interface PortableAiSessionImportResult { imported: number; skipped: number; sessionIds: string[] }
 
 export interface AiMessageUsageView {
   providerId: string;
@@ -100,6 +116,9 @@ export interface AiActivityItem {
   startedAt: string;
   completedAt: string | null;
   durationMs: number | null;
+  /** 仅公开浏览器工具活动的稳定 ID 与 Provider 来源，供共享工作区联动；不包含参数或网页内容。 */
+  toolId?: `browser-use.${string}`;
+  browserProviderId?: BrowserProviderId;
   approvalId?: string;
   approvalQuestion?: string;
   approvalAnswer?: "approved" | "denied" | "expired";
@@ -126,7 +145,8 @@ export interface AiUsageSummary {
 }
 
 type SessionRow = { user_id: string; id: string; app_id: ApplicationId; title: string; archived: number; created_at: string; updated_at: string; workspace_project_id?: string | null; workspace_node_id?: string | null; workspace_directory?: string | null; workspace_title?: string | null };
-type MessageRow = { session_id: string; _order: number; id: string; role: "user" | "assistant"; content: string; status: AiMessageView["status"]; created_at: string; activity_json: string; parts?: SessionReplyPart[]; model_history?: AiModelMessage[]; run_id?: string; kernel_message_id?: string; kernel_run_id?: string };
+type MessageRow = {
+  attachments_json?: string; session_id: string; _order: number; id: string; role: "user" | "assistant"; content: string; status: AiMessageView["status"]; created_at: string; activity_json: string; parts?: SessionReplyPart[]; model_history?: AiModelMessage[]; run_id?: string; kernel_message_id?: string; kernel_run_id?: string };
 
 /** 模型工具协议属于受保护的会话日志，不在消息展示 API 中公开原始参数和输出。 */
 export interface AiModelMessage {
@@ -295,6 +315,26 @@ function parseStoredActivity(value: string): AiActivityItem[] {
   catch { return []; }
 }
 
+function finishInterruptedActivity(activity: readonly AiActivityItem[], completedAt: string): AiActivityItem[] {
+  return activity.map(item => {
+    if (item.status !== "running" && item.status !== "approval_required" && item.status !== "waiting_input") return item;
+    const detail = item.status === "approval_required"
+      ? "进程中断时审批尚未完成；本次操作未获批准，不会继续执行。"
+      : item.status === "waiting_input"
+        ? "进程中断时仍在等待补充信息；请重新发起后再继续。"
+        : "进程中断时该步骤尚无最终结果；若涉及外部副作用，执行状态未确认。请先查询当前状态，不要盲目重试。";
+    const startedAt = Date.parse(item.startedAt);
+    const completedAtMs = Date.parse(completedAt);
+    return {
+      ...item,
+      status: "unavailable",
+      detail,
+      completedAt,
+      durationMs: Number.isFinite(startedAt) && Number.isFinite(completedAtMs) ? Math.max(0, completedAtMs - startedAt) : null
+    };
+  });
+}
+
 function compactSessionStream(stream: readonly string[]): string[] | undefined {
   if (!stream.length) return undefined;
   return stream.length > 4096 ? [stream.join("")] : [...stream];
@@ -395,13 +435,33 @@ function ensureSessionEventLog(session: SessionRow): SessionKernel {
   }
   const latestAssistant = [...messageRows(id, true)].reverse().find(row => row.role === "assistant");
   const needsRecovery = latestAssistant !== undefined && latestAssistant.status !== "complete";
-  if (needsRecovery && !activeSessionRuns.has(id) && kernel.hasOpenTurn(latestAssistant.id)) {
-    const lastAssistant = [...kernel.events].reverse().find((event): event is Extract<SessionEvent, { type: "assistant/message" }> => event.type === "assistant/message");
+  const hasOpenTurn = latestAssistant !== undefined && kernel.hasOpenTurn(latestAssistant.id);
+  const hasInterruptedEnd = latestAssistant !== undefined && kernel.events.some((event): event is Extract<SessionEvent, { type: "turn/end" }> =>
+    event.type === "turn/end" && event.data.turnId === latestAssistant.id && event.data.status === "interrupted"
+  );
+  const hasUnfinishedActivity = latestAssistant !== undefined && parseStoredActivity(latestAssistant.activity_json).some(item =>
+    item.status === "running" || item.status === "approval_required" || item.status === "waiting_input"
+  );
+  const interruptedProjectionNeedsRecovery = hasInterruptedEnd && latestAssistant !== undefined
+    && (latestAssistant.status !== "interrupted" || hasUnfinishedActivity);
+  if (needsRecovery && !activeSessionRuns.has(id) && (hasOpenTurn || interruptedProjectionNeedsRecovery)) {
+    const lastAssistant = [...kernel.events].reverse().find((event): event is Extract<SessionEvent, { type: "assistant/message" }> => event.type === "assistant/message" && event.data.messageId === latestAssistant.id);
     const before = kernel.length;
-    if (lastAssistant && lastAssistant.data.status !== latestAssistant.status) kernel.append("assistant/message", { ...lastAssistant.data, status: latestAssistant.status }, lastAssistant.time);
-    kernel.repairOpenTail("interrupted");
+    const recoveredAt = new Date().toISOString();
+    const recoveredActivity = finishInterruptedActivity(parseStoredActivity(latestAssistant.activity_json), recoveredAt);
+    const activityChanged = JSON.stringify(recoveredActivity) !== latestAssistant.activity_json;
+    const recoveredParts = latestAssistant.parts && isSessionReplyParts(latestAssistant.parts, latestAssistant.content.length) ? latestAssistant.parts : undefined;
+    if (!lastAssistant || lastAssistant.data.status !== "interrupted" || lastAssistant.data.content !== latestAssistant.content) {
+      kernel.append("assistant/message", { messageId: latestAssistant.id, content: latestAssistant.content, status: "interrupted", runId: latestAssistant.id, ...(recoveredParts ? { parts: recoveredParts } : {}) }, recoveredAt);
+    }
+    if (activityChanged) kernel.append("activity/change", { runId: latestAssistant.id, messageId: latestAssistant.id, activity: recoveredActivity }, recoveredAt);
+    if (hasOpenTurn) kernel.repairOpenTail("interrupted");
     const repaired = kernel.eventsAfter(before).map(event => ({ table: "session_events" as const, key: event.id, value: { ...event, session_id: event.sessionId, user_id: session.user_id, app_id: session.app_id } }));
-    if (repaired.length) sessionRecords.commit(id, repaired);
+    const messageChanged = latestAssistant.status !== "interrupted" || activityChanged;
+    if (messageChanged || repaired.length) sessionRecords.commit(id, [
+      ...(messageChanged ? [change("ai_messages", { ...latestAssistant, status: "interrupted", ...(activityChanged ? { activity_json: JSON.stringify(recoveredActivity) } : {}) })] : []),
+      ...repaired
+    ]);
   }
   return kernel;
 }
@@ -788,7 +848,14 @@ function mapMessage(row: MessageRow, feedback?: AiMessageFeedbackView, usage?: A
   } catch {
     // 单条消息的旧版或损坏活动 JSON 回退为空，不影响会话文本读取。
   }
-  return { id: row.id, role: row.role, content: row.content, status: row.status, createdAt: row.created_at, activity, ...(usage && row.role === "assistant" ? { usage } : {}), ...(row.parts && isSessionReplyParts(row.parts, row.content.length) ? { parts: row.parts.map(({ id, start, end, kind }) => ({ id, start, end, kind })) } : {}), ...(feedback ? { feedback } : {}) };
+  let attachments: AiMessageAttachment[] = [];
+  try {
+    const raw: unknown = row.attachments_json ? JSON.parse(row.attachments_json) : [];
+    if (Array.isArray(raw)) attachments = raw.filter((item): item is AiMessageAttachment => typeof item === "object" && item !== null && typeof (item as { id?: unknown }).id === "string");
+  } catch {
+    // 损坏的附件引用回退为空，不影响消息正文读取。
+  }
+  return { id: row.id, role: row.role, content: row.content, status: row.status, createdAt: row.created_at, activity, ...(row.role === "user" && attachments.length ? { attachments } : {}), ...(usage && row.role === "assistant" ? { usage } : {}), ...(row.parts && isSessionReplyParts(row.parts, row.content.length) ? { parts: row.parts.map(({ id, start, end, kind }) => ({ id, start, end, kind })) } : {}), ...(feedback ? { feedback } : {}) };
 }
 
 function mapMessageFeedback(event: Extract<SessionEvent, { type: "message/feedback" }>): AiMessageFeedbackView {
@@ -806,6 +873,8 @@ function isAiActivityItem(value: unknown): value is AiActivityItem {
     && typeof item.startedAt === "string"
     && (item.completedAt === null || typeof item.completedAt === "string")
     && (item.durationMs === null || (typeof item.durationMs === "number" && Number.isFinite(item.durationMs) && item.durationMs >= 0))
+    && (item.toolId === undefined || typeof item.toolId === "string" && /^browser-use\.[a-z0-9-]{1,80}$/u.test(item.toolId))
+    && (item.browserProviderId === undefined || typeof item.toolId === "string" && /^browser-use\.[a-z0-9-]{1,80}$/u.test(item.toolId) && typeof item.browserProviderId === "string" && BROWSER_PROVIDER_IDS.includes(item.browserProviderId as BrowserProviderId))
     && (item.approvalId === undefined || typeof item.approvalId === "string")
     && (item.approvalQuestion === undefined || typeof item.approvalQuestion === "string" && item.approvalQuestion.length <= 1200)
     && (item.approvalAnswer === undefined || ["approved", "denied", "expired"].includes(String(item.approvalAnswer)))
@@ -833,7 +902,7 @@ function sessionRow(userId: string, sessionId: string): SessionRow | undefined {
 
 function messageRows(sessionId: string, displayOnly = false): MessageRow[] {
   // 展示投影不复制 model_history 的内部工具参数/输出；模型恢复继续读取完整权威记录。
-  const fields = displayOnly ? ["id", "session_id", "_order", "role", "content", "status", "created_at", "activity_json", "parts"] : undefined;
+  const fields = displayOnly ? ["id", "session_id", "_order", "role", "content", "status", "created_at", "activity_json", "parts", "attachments_json"] : undefined;
   return (sessionRecords.allForSession("ai_messages", sessionId, fields) as MessageRow[])
     .sort((left, right) => left.created_at.localeCompare(right.created_at) || left._order - right._order);
 }
@@ -845,6 +914,96 @@ function change<T extends { id: string }>(table: SessionChange["table"], record:
 export function listAiSessions(userId: string, archived: boolean, appId?: ApplicationId): AiSessionView[] {
   const rows = sessionRecords.listHeaders(userId, archived, appId) as SessionRow[];
   return rows.map(row => mapSession(row, sessionRecords.planMode(row.id)));
+}
+
+/** 导出账户的可见对话文本；超出有界归档预算时明确失败，不截断会话。 */
+export function exportPortableAiSessions(userId: string): PortableAiSession[] {
+  const headers = sessionRecords.all("ai_sessions", row => row.user_id === userId) as SessionRow[];
+  if (headers.length > 2000) throw new Error("会话数量超过单个账户归档上限 2000；未导出不完整数据。");
+  const result: PortableAiSession[] = [];
+  let totalBytes = 0;
+  for (const header of headers) {
+    const messages = messageRows(header.id, true).flatMap(row => {
+      if ((row.status !== "complete" && row.status !== "interrupted" && row.status !== "error") || !row.content) return [];
+      if (row.role !== "user" && row.role !== "assistant") return [];
+      totalBytes += Buffer.byteLength(row.content, "utf8");
+      if (totalBytes > 64 * 1024 * 1024) throw new Error("会话正文超过单个账户归档上限 64 MiB；未导出不完整数据。");
+      return [{ role: row.role, content: row.content, status: row.status as "complete" | "interrupted" | "error", createdAt: row.created_at }];
+    });
+    if (messages.length > 10000) throw new Error(`会话“${header.title.slice(0, 48)}”超过 10000 条消息；未导出不完整数据。`);
+    result.push({ id: header.id, appId: header.app_id, title: header.title.slice(0, 72), createdAt: header.created_at, messages });
+  }
+  return result;
+}
+
+/**
+ * 恢复可见对话文本为归档会话。已存在的同账户会话按 ID 跳过，避免重复导入；
+ * 导入结果始终归档且不关联旧项目，只有公开用户/助手消息进入新 JSONL。
+ */
+export function validatePortableAiSessions(input: unknown): PortableAiSession[] {
+  if (!Array.isArray(input) || input.length > 2000) throw new Error("导入会话数量无效或超过 2000 条。");
+  let totalBytes = 0;
+  const normalized = input.map((candidate, index): PortableAiSession => {
+    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) throw new Error(`第 ${index + 1} 个会话格式无效。`);
+    const row = candidate as Record<string, unknown>;
+    if (typeof row.id !== "string" || !row.id || row.id.length > 256 || /[\u0000-\u001f\u007f]/u.test(row.id)
+      || typeof row.appId !== "string" || !APPLICATION_IDS.includes(row.appId as ApplicationId)
+      || typeof row.title !== "string" || row.title.length > 512 || typeof row.createdAt !== "string" || !Number.isFinite(Date.parse(row.createdAt))
+      || !Array.isArray(row.messages) || row.messages.length > 10000) throw new Error(`第 ${index + 1} 个会话头无效。`);
+    const messages = row.messages.map((message, messageIndex) => {
+      if (!message || typeof message !== "object" || Array.isArray(message)) throw new Error(`第 ${index + 1} 个会话第 ${messageIndex + 1} 条消息无效。`);
+      const item = message as Record<string, unknown>;
+      if ((item.role !== "user" && item.role !== "assistant") || typeof item.content !== "string" || item.content.length > 2_000_000
+        || !["complete", "interrupted", "error"].includes(String(item.status)) || typeof item.createdAt !== "string" || !Number.isFinite(Date.parse(item.createdAt))) {
+        throw new Error(`第 ${index + 1} 个会话第 ${messageIndex + 1} 条消息格式无效。`);
+      }
+      totalBytes += Buffer.byteLength(item.content, "utf8");
+      if (totalBytes > 64 * 1024 * 1024) throw new Error("导入会话正文超过 64 MiB 限制。");
+      return { role: item.role, content: item.content, status: item.status, createdAt: item.createdAt } as PortableAiSession["messages"][number];
+    });
+    return { id: row.id, appId: row.appId as ApplicationId, title: row.title.trim() || "已导入会话", createdAt: row.createdAt, messages };
+  });
+  return normalized;
+}
+
+export function previewPortableAiSessionImport(userId: string, input: unknown): { sessions: number; messages: number; conflicts: number } {
+  const sessions = validatePortableAiSessions(input);
+  const existing = new Set((sessionRecords.all("ai_sessions", row => row.user_id === userId, ["id"]) as Array<{ id: string }>).map(row => row.id));
+  return { sessions: sessions.length, messages: sessions.reduce((sum, session) => sum + session.messages.length, 0), conflicts: sessions.filter(session => existing.has(session.id)).length };
+}
+
+export function importPortableAiSessions(userId: string, input: unknown): PortableAiSessionImportResult {
+  const normalized = validatePortableAiSessions(input);
+  const sessionIds: string[] = [];
+  let imported = 0, skipped = 0;
+  try {
+    for (const source of normalized) {
+      const existing = sessionRecords.get("ai_sessions", source.id) as SessionRow | undefined;
+      if (existing?.user_id === userId) { skipped++; continue; }
+      const id = existing ? randomUUID() : source.id;
+      const createdAt = new Date(source.createdAt).toISOString();
+      const title = source.title.trim().slice(0, 72) || "已导入会话";
+      const header: SessionRow = { id, user_id: userId, app_id: source.appId, title, archived: 1, created_at: createdAt, updated_at: createdAt, workspace_project_id: null, workspace_node_id: null, workspace_directory: null, workspace_title: null };
+      const specs: SessionEventSpec[] = [
+        eventSpec("session/created", { ownerId: userId, appId: source.appId, createdAt }, createdAt),
+        eventSpec("session/title", { title }, createdAt),
+        eventSpec("session/archived", { archived: true }, createdAt)
+      ];
+      const rows: SessionChange[] = [];
+      for (let index = 0; index < source.messages.length; index++) {
+        const message = source.messages[index]!;
+        const messageId = randomUUID(), time = new Date(message.createdAt).toISOString();
+        rows.push(change("ai_messages", { id: messageId, session_id: id, role: message.role, content: message.content, status: message.status, created_at: time, activity_json: "[]", _order: index + 1 }));
+        specs.push(message.role === "user"
+          ? eventSpec("user/message", { messageId, content: message.content }, time)
+          : eventSpec("assistant/message", { messageId, content: message.content, status: message.status, runId: messageId }, time));
+      }
+      const events = sessionEventChanges(id, specs, { userId, appId: source.appId });
+      sessionRecords.commit(id, [change("ai_sessions", header), ...rows, ...events]);
+      sessionIds.push(id); imported++;
+    }
+  } catch (error) { throw new Error(`会话归档写入中断；已导入 ${sessionIds.length} 个归档会话。未报告为完整导入，请保留原归档并检查会话目录。`, { cause: error }); }
+  return { imported, skipped, sessionIds };
 }
 
 /** 为用户发起的交互工具审批创建真实空会话；不伪造模型回复或启动推理。 */
@@ -1030,7 +1189,7 @@ export interface AiTurnRows {
   history: AiModelMessage[];
 }
 
-export function createAiTurn(userId: string, appId: ApplicationId, sessionId: string | null, content: string, queued = false, project: AiSessionProjectContext | null = null, associations?: AgentAssociations): AiTurnRows {
+export function createAiTurn(userId: string, appId: ApplicationId, sessionId: string | null, content: string, queued = false, project: AiSessionProjectContext | null = null, associations?: AgentAssociations, attachments?: readonly AiMessageAttachment[]): AiTurnRows {
   if (associations && !isAgentAssociations(associations)) throw new Error("关联引用无效。");
   const now = new Date().toISOString();
   const id = sessionId ?? randomUUID();
@@ -1049,7 +1208,7 @@ export function createAiTurn(userId: string, appId: ApplicationId, sessionId: st
   };
   const previous = messageRows(id);
   const ordinal = previous.reduce((max, row) => Math.max(max, row._order), 0);
-  const userMessage: MessageRow = { id: randomUUID(), session_id: id, role: "user", content, status: "complete", created_at: now, activity_json: "[]", _order: ordinal + 1 };
+  const userMessage: MessageRow = { id: randomUUID(), session_id: id, role: "user", content, status: "complete", created_at: now, activity_json: "[]", attachments_json: JSON.stringify(attachments ?? []), _order: ordinal + 1 };
   const assistantMessage: MessageRow = { id: randomUUID(), session_id: id, role: "assistant", content: "", status: queued ? "queued" : "streaming", created_at: now, activity_json: "[]", _order: ordinal + 2 };
   // 一轮输入和预留回复在同一个刷盘事件中提交，不能只留下半轮消息。
   const specs: SessionEventSpec[] = [];
@@ -1167,7 +1326,7 @@ export function finishAiAssistantMessage(userId: string, sessionId: string, mess
   if (status === "complete" || status === "interrupted" || status === "error") {
     const open = kernel.hasOpenTurn(messageId);
     if (open && status === "complete") kernel.append("turn/end", { turnId: messageId, status: "complete" });
-    else if (open) kernel.repairOpenTail("interrupted");
+    else if (open) kernel.repairOpenTail(status === "error" ? "error" : "interrupted");
   }
   const eventChanges = kernel.eventsAfter(before).map(event => ({ table: "session_events" as const, key: event.id, value: { ...event, session_id: event.sessionId, user_id: userId, app_id: session.app_id } }));
   sessionRecords.commit(sessionId, [change("ai_messages", { ...message, content, status, ...(replyParts ? { parts: replyParts } : {}) }), change("ai_sessions", { ...session, updated_at: updatedAt }), ...eventChanges]);

@@ -1,4 +1,4 @@
-﻿param(
+param(
     [Parameter(Mandatory = $true)][string]$SourceRoot,
     [Parameter(Mandatory = $true)][string]$ArchivePath,
     [Parameter(Mandatory = $true)][string]$ManifestPath,
@@ -29,7 +29,7 @@ try {
         $segments = $relative.Split('/')
         if ($segments | Where-Object { $_ -eq '' -or $_ -eq '.' -or $_ -eq '..' }) { throw '业务备份清单包含路径穿越。' }
         $isGames = $relative -eq 'games' -or $relative.StartsWith('games/', [System.StringComparison]::OrdinalIgnoreCase)
-        $isProject = $relative -match '^users/[0-9a-f]{64}/projects/(writing|aivideo)(/|$)'
+        $isProject = $relative -match '^users/[0-9a-f]{64}/projects/(writing|aivideo|canvas)(/|$)'
         if (-not ($isGames -or $isProject)) { throw '业务备份清单包含非业务内容路径。' }
         $full = [System.IO.Path]::GetFullPath([System.IO.Path]::Combine($source, ($relative.Replace('/', [System.IO.Path]::DirectorySeparatorChar))))
         if (-not $full.StartsWith($rootPrefix, [System.StringComparison]::OrdinalIgnoreCase)) { throw '业务备份路径超出当前内容目录。' }

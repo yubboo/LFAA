@@ -20,9 +20,11 @@ import { claimWorkspaceProjectApplication, getWorkspaceProject, type WorkspacePr
 import { bindAgentGitSessionRepository, getAgentGitRepository, getAgentGitSessionRepository, registerAgentGitRepository } from "lfaa-workspace-agent-git";
 import type { SessionReplyPart } from "lfaa-session/src/kernel.js";
 import type { AiCompletionService } from "lfaa-llm/src/completion.js";
+import type { AttachmentStore } from "lfaa-attachment/src/index.js";
 import { resolveAiSessionWorkspaceContext } from "./workspace-context.js";
+import { requestShutdown } from "./shutdown-state.js";
 
-export interface AiRunInput { appId: ApplicationId; sessionId: string | null; content: string; projectId?: string | null; gitRepositoryId?: string | null; associations?: AgentAssociations; planMode?: boolean }
+export interface AiRunInput { appId: ApplicationId; sessionId: string | null; content: string; projectId?: string | null; gitRepositoryId?: string | null; attachmentIds?: string[]; attachments?: Array<{ id: string; name?: string }>; associations?: AgentAssociations; planMode?: boolean }
 interface AiUserQuestion { questionId: string; question: string; options: string[]; resolve: (value: { answer: string; skipped: boolean }) => void; signal: AbortSignal; abort: () => void }
 type Listener = (event: string, data: Record<string, unknown>) => void;
 interface LiveRun { id: string; userId: string; applicationId: ApplicationId; sessionId: string; canAskUser: boolean; controller: AbortController; pauseGate: AiRunPauseGate; children: Set<string>; pendingApprovals: Set<string>; listeners: Set<Listener>; completion: Promise<void>; content: string; parts: SessionReplyPart[]; inbox: AiModelMessage[]; pendingQuestion?: AiUserQuestion }
@@ -32,8 +34,34 @@ let approvalNotifications: UserApprovalNotifications | undefined;
 let userQuestions: UserQuestionService | undefined;
 let unregisterAgentRunQuestionAnswerer: (() => void) | undefined;
 let completionService: AiCompletionService | undefined;
+/** 附件存储由启动装配注入；未装配时附件 ID 只记录"服务未挂载"，不影响本轮。 */
+let attachmentStore: AttachmentStore | undefined;
 
-export function initializeAiRuns(resolver: AgentDefaultModelResolver, approvals: UserApprovalNotifications, questions: UserQuestionService, llm: AiCompletionService): void {
+/**
+ * 等待当前活动 Run 到达完成点；超时后返回剩余数量，由调用方决定是否继续退出。
+ * 不取消 Run、不重放工具，只减少“退出时正在派发新步骤”的窗口。
+ */
+export async function awaitActiveAiRuns(timeoutMilliseconds: number): Promise<{ active: number; timedOut: boolean }> {
+  const pending = [...liveRuns.values()].map((run) => run.completion);
+  if (pending.length === 0) return { active: 0, timedOut: false };
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<"timeout">((resolve) => { timer = setTimeout(() => resolve("timeout"), Math.max(0, timeoutMilliseconds)); });
+  try {
+    const settled = await Promise.race([Promise.allSettled(pending), timeout]);
+    return { active: settled === "timeout" ? liveRuns.size : 0, timedOut: settled === "timeout" };
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/** 退出时由 app-boot 调用：先请求停止新步骤，再在宽限期内等待 Run 收尾。 */
+export async function prepareAgentShutdown(graceMilliseconds: number): Promise<{ active: number; timedOut: boolean }> {
+  requestShutdown();
+  return awaitActiveAiRuns(graceMilliseconds);
+}
+
+export function initializeAiRuns(resolver: AgentDefaultModelResolver, approvals: UserApprovalNotifications, questions: UserQuestionService, llm: AiCompletionService, attachments?: AttachmentStore): void {
+  attachmentStore = attachments;
   modelResolver = resolver;
   approvalNotifications = approvals;
   userQuestions = questions;
@@ -137,7 +165,11 @@ export function startAiRun(userId: string, userRole: UserRole, body: AiRunInput,
     ?? (body.sessionId ? resolveAiSessionWorkspaceContext(userId, body.sessionId) : null);
   const requestedGitRepositoryId = body.sessionId ? null : body.gitRepositoryId ?? runOptions.gitRepositoryId ?? null;
   if (requestedGitRepositoryId && !getAgentGitRepository(userId, requestedGitRepositoryId)) throw new Error("Agent Git 仓库不属于当前账户或已移除。 ");
-  const turn = createAiTurn(userId, body.appId, body.sessionId, body.content, Boolean(previous), workspaceProject, body.associations);
+  // 附件只把 ID 持久化到消息上；名称/字节由附件 Owner 提供，渲染时再取。
+  const attachmentsForTurn = body.attachments?.length
+    ? body.attachments.slice(0, 4).map(item => ({ id: item.id, name: item.name ?? item.id }))
+    : body.attachmentIds?.length ? body.attachmentIds.slice(0, 4).map(id => ({ id, name: id })) : undefined;
+  const turn = createAiTurn(userId, body.appId, body.sessionId, body.content, Boolean(previous), workspaceProject, body.associations, attachmentsForTurn);
   if (!body.sessionId && requestedGitRepositoryId && !bindAgentGitSessionRepository(userId, turn.session.id, requestedGitRepositoryId)) throw new Error("新 Agent 会话未能绑定已登记的 Git 仓库。 ");
   if (body.planMode !== undefined) setAiSessionPlanMode(userId, turn.session.id, body.planMode, { allowActiveRun: true });
   const id = turn.assistantMessage.id;
@@ -188,6 +220,8 @@ export function startAiRun(userId: string, userRole: UserRole, body: AiRunInput,
     return executeAiTurn({ userId, userRole, body, turn, aiPluginHost, abortController: run.controller, pauseGate: run.pauseGate, emit, takeInputs: () => run.inbox.splice(0), modelAccountId: account.accountId, modelResolver: resolver, approvalNotifications: approvals, writeGate, memoryEligible: runOptions.memoryEligible ?? (depth === 0 && !getAiSessionPlanMode(userId, turn.session.id)), planModeEnabled: depth === 0 && !sideChat,
       ...(requestUserInput ? { requestUserInput } : {}),
       ...(runOptions.systemPrompt ? { systemPrompt: runOptions.systemPrompt } : {}),
+      ...(body.attachmentIds?.length ? { attachmentIds: body.attachmentIds } : {}),
+      ...(attachmentStore ? { attachments: attachmentStore } : {}),
       ...(runOptions.allowedToolNames ? { allowedToolNames: runOptions.allowedToolNames } : {}),
       delegate: async (parameters, available, onActivity, execute) => {
         run.controller.signal.throwIfAborted();

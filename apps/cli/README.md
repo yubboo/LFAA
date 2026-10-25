@@ -16,4 +16,4 @@
 
 数据路径由 `packages/util/home-paths` 和启动配置统一解析。菜单 4 显示当前 `LFAA_HOME`、插件安装目录和唯一有效 `LFAA_DATA_DIR`，并标出未选用的默认目录；例如当前 `.env` 选择仓库 `data` 时，`%USERPROFILE%\.lfaa\data` 不会再生成一份空数据。Profile 覆盖、插件源码和清单位于 `<LFAA_HOME>/profiles/<Profile>`，受控适配副本与默认私有运行数据位于该 Profile；插件自有存储配置由对应 Plugin/Runtime Owner 生效。旧 `<LFAA_HOME>/plugins` 与 `<LFAA_DATA_DIR>/plugins` 不再作为入口。系统数据根、插件 Profile 与业务内容根分别管理；权限、用户会话和节点凭据继续由领域 Owner 校验。日志级别读取 `LOG_LEVEL`；成功的节点领取/心跳为 debug，失败保持可见。
 
-长期回归在 `tests/`，通过根 `pnpm test` 执行。全仓维护记录见 [审计](../../docs/archive/audits/workspace-audit.md)，性能合同见 [性能维护](../../docs/development/performance.zh.md)。
+长期回归在 `tests/`，通过根 `pnpm test` 执行；每个 Node 测试进程都会使用独立的临时 `LFAA_HOME`、`LFAA_DATA_DIR` 和系统账户主目录，并在退出时清理自身临时根。测试文件并发数上限为 2，避免浏览器、Daemon 和 Windows 沙盒用例争用本机资源。全仓维护记录见 [审计](../../docs/archive/audits/workspace-audit.md)，性能合同见 [性能维护](../../docs/development/performance.zh.md)。

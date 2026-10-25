@@ -10,9 +10,11 @@ const settingsPage = readFileSync(resolve(repositoryRoot, "packages/client/ui-se
 const settingsStyles = readFileSync(resolve(repositoryRoot, "packages/client/ui-settings/src/SettingsPage.css"), "utf8");
 
 test("设置工具栏按容器宽度成组排列状态和保存操作", () => {
-  assert.match(settingsStyles, /@container settings-main \(max-width: 760px\)[\s\S]*?\.settings-toolbar__actions\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+auto\s+auto;/u);
-  assert.match(settingsStyles, /@container settings-main \(max-width: 380px\)\s*\{[^}]*\.settings-toolbar__actions\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/u);
-  assert.match(settingsStyles, /\.settings-toolbar__actions\s*>\s*small\s*\{[^}]*grid-column:\s*1\s*\/\s*-1;/u);
+  assert.match(settingsStyles, /@container settings-main \(max-width: 760px\)[\s\S]*?\.settings-toolbar\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/u);
+  assert.match(settingsStyles, /\.settings-toolbar__start\s*\{[^}]*grid-column:\s*1;[^}]*grid-row:\s*1;/u);
+  assert.match(settingsStyles, /\.settings-toolbar__status\s*\{[^}]*grid-column:\s*2;[^}]*grid-row:\s*1;/u);
+  assert.match(settingsStyles, /\.settings-toolbar__actions\s*\{[^}]*display:\s*grid;[^}]*grid-column:\s*1\s*\/\s*-1;[^}]*grid-row:\s*2;[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/u);
+  assert.match(settingsStyles, /\.settings-toolbar__actions\s*>\s*\.ant-btn\s*\{[^}]*width:\s*100%;/u);
   assert.match(settingsStyles, /\.settings-toolbar__actions\s*>\s*\.ant-btn\s*\{[^}]*width:\s*100%;/u);
 });
 

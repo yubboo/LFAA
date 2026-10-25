@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@deepseek-ai/cordis": "4.0.4",
+    "lfaa-attachment": "workspace:*",
     "lfaa-tools": "workspace:*",
     "lfaa-fs-local": "workspace:*",
     "lfaa-util-values": "workspace:*"

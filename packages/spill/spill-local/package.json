@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@deepseek-ai/cordis": "4.0.4",
+    "lfaa-home-paths": "workspace:*",
     "lfaa-spill": "workspace:*"
   },
   "scripts": {

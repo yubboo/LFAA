@@ -7,12 +7,12 @@ import { requireAuthentication, requireSuperAdmin, clearSessionCookie } from "lf
 import { createRateLimit } from "lfaa-api-remotes/src/rate-limit.js";
 import type { AiPluginHost } from "lfaa-app-boot/src/ai-host.js";
 import type { MinecraftRealtimePublisher } from "lfaa-api-remotes/src/socket-server.js";
-import { authenticateUser, changeUserPassword, createManagedUser, dismissDefaultCredentialReminder, ensureDefaultAdminAccount, getDefaultCredentialReminder, deleteManagedUser, searchUsers, revokeSession, resetPasswordWithRecoveryKey, setRecoveryKey, transferSuperAdmin, updateManagedUser, updateOwnEmail, updateOwnUsername, verifyUserPassword, type ManagedUserInput, type ManagedUserUpdate, type PublicUser, type UserSearchFilters } from "lfaa-identity-auth/src/service.js";
+import { acceptTrustedContactInvitation, approveTrustedAccountRecovery, authenticateUser, changeUserPassword, completeTrustedAccountRecovery, createManagedUser, createTrustedContactInvitation, dismissDefaultCredentialReminder, ensureDefaultAdminAccount, getDefaultCredentialReminder, getTrustedAccountRecoveryStatus, deleteManagedUser, listTrustedContactSettings, removeTrustedContact, searchUsers, revokeSession, resetPasswordWithRecoveryKey, setRecoveryKey, startTrustedAccountRecovery, transferSuperAdmin, updateManagedUser, updateOwnEmail, updateOwnUsername, verifyUserPassword, type ManagedUserInput, type ManagedUserUpdate, type PublicUser, type UserSearchFilters } from "lfaa-identity-auth/src/service.js";
 import { completePasskeyAuthentication, completePasskeyRegistration, createPasskeyAuthenticationOptions, createPasskeyRegistrationOptions, deleteUserPasskey, getPasskeyAvailability, listUserPasskeys } from "lfaa-identity-auth/src/passkeys.js";
 import { createTypertJsonSchema, defineTypertMethod, type TypertCallContext, type TypertContribution } from "lfaa-typert-protocol/src/index.js";
 import "lfaa-typert-loader/src/index.js";
 import { accountControllerRemoteMethods, accountControllerRemoteSchemas, type AccountControllerRemoteContract } from "./client-contract.generated.js";
-import { asyncHandler, parseBody, issueSession, assertPasskeyRequestOrigin, managedUserCreateSchema, managedUserUpdateSchema, userSearchSchema, loginSchema, passwordRecoverySchema, recoveryKeySchema, passwordChangeSchema, accountEmailSchema, accountUsernameSchema, passkeyRegistrationOptionsSchema, passkeyRegistrationVerificationSchema, passkeyAuthenticationVerificationSchema, passkeyRemovalSchema } from "lfaa-api-remotes/src/route-contracts.js";
+import { asyncHandler, parseBody, issueSession, assertPasskeyRequestOrigin, managedUserCreateSchema, managedUserUpdateSchema, userSearchSchema, loginSchema, passwordRecoverySchema, recoveryKeySchema, passwordChangeSchema, accountEmailSchema, accountUsernameSchema, passkeyRegistrationOptionsSchema, passkeyRegistrationVerificationSchema, passkeyAuthenticationVerificationSchema, passkeyRemovalSchema, trustedContactInvitationSchema, trustedRecoveryStartSchema, trustedRecoveryCodeSchema, trustedRecoveryCompleteSchema } from "lfaa-api-remotes/src/route-contracts.js";
 export function registerRoutes(router: Router, _aiPluginHost: AiPluginHost, realtime: MinecraftRealtimePublisher): void {
 const limitLogin = createRateLimit(30, 15 * 60 * 1000);
 const limitPasswordRecovery = createRateLimit(5, 15 * 60 * 1000);
@@ -33,6 +33,32 @@ router.post("/auth/login", limitLogin, asyncHandler(async (request, response) =>
     issueSession(response, user.id);
     response.json({ user });
   }));
+
+router.get("/auth/trusted-contacts", requireAuthentication, (request, response) => {
+    response.json(listTrustedContactSettings(request.auth!.user.id));
+  });
+
+router.post("/auth/trusted-contacts/invitations", requireAuthentication, (request, response) => {
+    response.status(201).json(createTrustedContactInvitation(request.auth!.user.id));
+  });
+
+router.post("/auth/trusted-contacts/accept", requireAuthentication, (request, response) => {
+    const body = parseBody<{ code: string }>(trustedContactInvitationSchema, request.body);
+    const contact = acceptTrustedContactInvitation(request.auth!.user.id, body.code);
+    if (!contact) throw new ApiError(400, "trusted_contact_invitation_invalid", "邀请无效、已过期或此账户无法接受。请让联系人重新生成邀请。 ");
+    response.status(201).json({ contact });
+  });
+
+router.delete("/auth/trusted-contacts/:contactId", requireAuthentication, (request, response) => {
+    if (!removeTrustedContact(request.auth!.user.id, request.params.contactId)) throw new ApiError(404, "trusted_contact_not_found", "找不到当前账户的受信关系。");
+    response.status(204).end();
+  });
+
+router.post("/auth/trusted-recovery-requests/:requestId/approve", requireAuthentication, (request, response) => {
+    const requestRecord = approveTrustedAccountRecovery(request.auth!.user.id, request.params.requestId);
+    if (!requestRecord) throw new ApiError(404, "trusted_recovery_request_not_found", "恢复请求已过期、已经处理或不属于当前账户。");
+    response.json({ request: requestRecord });
+  });
 
 router.get("/auth/default-credential-reminder", requireAuthentication, (request, response) => {
     response.json(getDefaultCredentialReminder(request.auth!.user.id));
@@ -58,6 +84,26 @@ router.post("/auth/recovery", limitPasswordRecovery, asyncHandler(async (request
     }
     const recoveredUser = database.prepare("SELECT id FROM users WHERE username = ?").get(body.username.trim()) as { id: string } | undefined;
     if (recoveredUser) realtime.disconnectUser(recoveredUser.id);
+    response.json({ message: "密码已重置，请使用新密码登录。" });
+  }));
+
+router.post("/auth/trusted-recovery/start", limitPasswordRecovery, (request, response) => {
+    const body = parseBody<{ username: string; contactUsername: string }>(trustedRecoveryStartSchema, request.body);
+    const challenge = startTrustedAccountRecovery(body.username, body.contactUsername);
+    response.status(202).json({ code: challenge.code, expiresAt: challenge.expiresAt, message: "若账户已将该本机账户设为受信联系人，请把恢复码安全地交给此联系人批准。" });
+  });
+
+router.post("/auth/trusted-recovery/status", limitLogin, asyncHandler(async (request, response) => {
+    const body = parseBody<{ code: string }>(trustedRecoveryCodeSchema, request.body);
+    const status = await getTrustedAccountRecoveryStatus(body.code);
+    response.json({ status: status ?? "invalid" });
+  }));
+
+router.post("/auth/trusted-recovery/complete", limitPasswordRecovery, asyncHandler(async (request, response) => {
+    const body = parseBody<{ code: string; newPassword: string }>(trustedRecoveryCompleteSchema, request.body);
+    const recoveredUserId = await completeTrustedAccountRecovery(body.code, body.newPassword);
+    if (!recoveredUserId) throw new ApiError(400, "trusted_recovery_failed", "恢复请求尚未获批准、已失效，或恢复码不正确。");
+    realtime.disconnectUser(recoveredUserId);
     response.json({ message: "密码已重置，请使用新密码登录。" });
   }));
 

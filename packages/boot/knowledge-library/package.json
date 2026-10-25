@@ -11,7 +11,7 @@
   "lfaa": {
     "server": {
       "entry": "./src/index.ts",
-      "inject": ["lfaaTools"],
+      "inject": ["lfaaTools", "skills"],
       "required": true,
       "capabilities": [],
       "settings": []
@@ -21,6 +21,7 @@
     "@deepseek-ai/cordis": "4.0.4",
     "joi": "^17.0.0",
     "lfaa-knowledge-library": "workspace:*",
+    "lfaa-skill": "workspace:*",
     "lfaa-tools": "workspace:*",
     "lfaa-workspace-workspace": "workspace:*",
     "lfaa-util-values": "workspace:*"

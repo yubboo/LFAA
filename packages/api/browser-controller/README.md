@@ -4,6 +4,10 @@
 
 `/browser/recent-sites` 的 GET/POST/DELETE 只使用认证账户 ID 调用 Browser Owner；Joi 限制网址数量和长度，Owner 再规范化为 HTTP(S) 来源与路径、剥除查询和片段、检查记录开关并执行账户条数上限。此独立路由服务 LFAA Browser Dock 手动访问，因此不要求 `browserUse.enabled` 或 Agent Provider 连接开关；它不能读取系统个人浏览器历史或页面正文。
 
+`DELETE /browser/recent-sites/item` 使用相同认证和写入速率限制，仅删除请求 URL 规范化后的当前账户单条记录；`DELETE /browser/recent-sites` 仍清除当前账户全部记录。用户在设置中心管理自己的历史，不读取其他账户数据。
+
+`/browser/credentials` 只返回 Browser Vault 的条目元数据；密码和联系信息写入/删除仍绑定认证账户并委派 Browser Owner 与 Credentials Owner，密文载荷不经普通设置或列表 API 返回。`/browser/credentials/*/autofill` 只允许已登记的 LFAA 内置 Provider，Browser Owner 会重新校验记录归属、当前页面来源和可唯一匹配的输入字段，不提交表单。`DELETE /browser/data` 清理当前账户的 Browser Owner 页面 Cookie、权限、缓存、站点数据和最近网站记录；Electron 原生 Session 的浏览数据与下载历史另由受信 Desktop IPC 清理。
+
 页面数据只在当前 Agent Run 与浏览器工作区响应中短暂返回；Agent Loop 过滤会话落盘。远程 Web Host 不装配本机浏览器 Controller。构建输出为仓库根 `dist/packages/api/browser-controller/`。
 
 2026-10-23：`/browser/providers` 在认证账户范围内标记 `activeInWorkspace`，便于 Agent 选择用户已经打开的内置 Provider。空白 Dock 的 `/wait` 长连接可等待同一账户内置 Page 创建，断开时取消监听；手动浏览仍不要求启用 Agent 浏览器开关。

@@ -7,3 +7,5 @@ AI Host 的 loadInstruction 仅转发同一 AiExtensionRegistry 的按需正文�
 本机 AI Host 将 Project Files Owner 的只读 HTML 预览入口绑定到当前 Session 的受信任工作区根目录；远程 Daemon 身份不提供该回调。Browser Session 持有并关闭临时预览服务，不由模型提供本机绝对根目录。
 
 AiRuntimeHookRegistry 暴露生命周期观测及可选 `requestRoute` 建议。路由建议只包含已配置模型账户 ID 与思考档位；Agent Loop 在每次 LLM 请求前通过 Settings/凭据 Owner 重验。该合同不会另建 Provider、Session 或权限系统，也不等于任意 DSH bundle 已经可运行。
+
+App Boot 只从 Profile 已装配的 `lfaaSpillLocal` Provider 创建溢出 Store，并通过 AI Host 工厂交给 Agent Loop；本包不决定溢出策略、引用范围或模型工具权限。

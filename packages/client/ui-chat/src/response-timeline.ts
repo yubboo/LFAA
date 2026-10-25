@@ -17,6 +17,8 @@ export function buildResponseTimeline(message: AiMessage): { blocks: ResponseTim
   if (finished && parts) finalPart = [...parts].reverse().find(part => part.kind === "final") ?? parts.at(-1);
   const entries: Array<{ offset: number; order: number; block: Exclude<ResponseTimelineBlock, { kind: "tools" }> | { kind: "activity"; id: string; activity: AiActivityItem } }> = [];
   for (const [order, activity] of message.activity.entries()) {
+    // 这两项是 Agent Loop 的能力/权限说明元数据，不代表本轮执行的工作。
+    if ((activity.kind === "agent" && activity.title === "小鱼主 Agent") || (activity.kind === "tool" && activity.title === "已登记项目工具")) continue;
     if (activity.kind === "status" && activity.title !== "上下文管理" && activity.status !== "error" && activity.status !== "unavailable") continue;
     entries.push({ offset: activity.contentOffset ?? 0, order, block: { kind: activity.kind === "question" || activity.approvalId ? "interaction" : "activity", id: activity.id, activity } });
   }

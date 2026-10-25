@@ -7,6 +7,9 @@ packages:
 
 overrides:
   '@electron/get': 3.1.0
+  body-parser: 1.20.9
+  fast-uri: 3.1.9
+  undici: 6.29.1
   # 统一直接与数学 Markdown 间接依赖，修复继承 trust 属性绕过限制的 GHSA-238p-pmpm-9mq7。
   katex: 0.18.2
 

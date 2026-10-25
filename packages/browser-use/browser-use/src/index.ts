@@ -13,21 +13,31 @@ declare module "@deepseek-ai/cordis" {
   interface Context {
     profileContext: { name: string };
     lfaaBrowser: BrowserSessionManager;
+    lfaaCredentials: import("lfaa-credentials/src/index.js").CredentialRegistry;
     lfaaTools: typeof import("lfaa-tools/src/business-tools.js") & { registerTool: typeof import("lfaa-tools/src/registry.js").registerAiBusinessTool };
   }
 }
 
 export const name = "lfaa-browser-use";
-export const inject = ["profileContext", "lfaaTools"];
+export const inject = ["profileContext", "lfaaTools", "lfaaCredentials"];
 
 export function apply(ctx: Context): void {
   const localHostExecution = process.platform === "win32" || process.platform === "darwin"
     ? ctx.profileContext.name === "desktop" && config.desktopMode || ctx.profileContext.name === "web" && config.localComputerUse
     : false;
-  const manager = new BrowserSessionManager(localHostExecution);
+  const unregisterCredentialOwner = ctx.lfaaCredentials.registerRecordOwner(ctx, ["lfaa-api-browser-controller"]);
+  const credentialConsumer = ctx.lfaaCredentials.createConsumer(ctx);
+  const manager = new BrowserSessionManager(localHostExecution, undefined, {
+    vault: {
+      list: ownerId => ctx.lfaaCredentials.listRecords(ctx, ownerId).filter(item => item.reference.providerId === "lfaa-browser-use"),
+      read: (ownerId, id) => credentialConsumer.readRecord(ownerId, { providerId: "lfaa-browser-use", id }),
+      save: (ownerId, id, record) => ctx.lfaaCredentials.commitRecord(ctx, ownerId, { providerId: "lfaa-browser-use", id }, record),
+      delete: (ownerId, id) => ctx.lfaaCredentials.deleteRecord(ctx, ownerId, { providerId: "lfaa-browser-use", id })
+    }
+  });
   ctx.provide("lfaaBrowser", manager);
   if (localHostExecution) for (const tool of createBrowserTools(manager)) registerAiBusinessTool(ctx, tool);
-  ctx.effect(() => async () => manager.closeAll(), "lfaa-browser-session-lifecycle");
+  ctx.effect(() => async () => { unregisterCredentialOwner(); await manager.closeAll(); }, "lfaa-browser-session-lifecycle");
 }
 
 export { BrowserSessionManager, type BrowserProviderSummary, type BrowserSnapshot } from "./session-manager.js";

@@ -10,6 +10,8 @@ import { randomUUID } from "node:crypto";
 test("EasyTier 安装 API 限管理员提交且任务只对创建账户可见", { timeout: 30000 }, async t => {
   const parent = resolve(tmpdir());
   const data = mkdtempSync(join(parent, "lfaa-connectivity-easytier-api-"));
+  const home = mkdtempSync(join(parent, "lfaa-connectivity-easytier-api-home-"));
+  process.env.LFAA_HOME = home;
   process.env.LFAA_DATA_DIR = data;
   process.env.NODE_ENV = "test";
   process.env.JWT_SECRET = "";
@@ -31,7 +33,9 @@ test("EasyTier 安装 API 限管理员提交且任务只对创建账户可见", 
   t.after(async () => {
     await context.fiber.dispose();
     assert.equal(dirname(resolve(data)), parent);
+    assert.equal(dirname(resolve(home)), parent);
     rmSync(data, { recursive: true, force: true });
+    rmSync(home, { recursive: true, force: true });
   });
 
   const setup = await fetch(`${base}/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: "admin", password: "123456" }) });
@@ -68,7 +72,7 @@ test("EasyTier 安装 API 限管理员提交且任务只对创建账户可见", 
   const taskFile = join(data, "connectivity", "easytier-install-tasks.json");
   assert.equal(existsSync(taskFile), true);
   assert.equal(database.prepare("SELECT count(*) AS count FROM ai_host_tasks WHERE shell = 'connectivity'").get().count, 0);
-  const daemonHeaders = { "Content-Type": "application/json", Authorization: `Bearer ${readFileSync(join(data, "credentials", "daemon-token"), "utf8").trim()}` };
+  const daemonHeaders = { "Content-Type": "application/json", Authorization: `Bearer ${readFileSync(join(home, "credentials", "daemon-token"), "utf8").trim()}` };
   const claim = await fetch(`${base}/connectivity/daemon/easytier/install/claim`, { method: "POST", headers: daemonHeaders, body: JSON.stringify({ nodeId }) });
   assert.equal(claim.status, 200);
   assert.deepEqual(await claim.json(), { task: { id: task.id, version: EASYTIER_RUNTIME_RELEASE.version } });

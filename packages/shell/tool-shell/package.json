@@ -16,6 +16,7 @@
     "lfaa-settings": "workspace:*",
     "lfaa-util-values": "workspace:*",
     "lfaa-shell": "workspace:*",
+    "lfaa-sandbox-policy": "workspace:*",
     "lfaa-launch-environment": "workspace:*"
   },
   "devDependencies": {

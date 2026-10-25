@@ -20,6 +20,7 @@ import type { ApplicationId } from "lfaa-util-values/src/application-id.js";
 import type { BrowserProviderId } from "lfaa-util-values/src/browser-provider.js";
 import type { TypertRemoteCallOptions, TypertRemoteClientContract } from "lfaa-typert-protocol/src/index.js";
 import { accountControllerRemoteMethods, type AccountControllerRemoteContract } from "lfaa-api-account-controller/src/client-contract.generated.js";
+import { maximumNodeFileTransferBytes } from "lfaa-util-values/src/file-transfer-contract.mjs";
 
 export type { ApplicationId } from "lfaa-util-values/src/application-id.js";
 export type { BrowserProviderId } from "lfaa-util-values/src/browser-provider.js";
@@ -123,6 +124,7 @@ export interface BrowserSessionSnapshot {
 }
 export interface BrowserRevision { revision: number; url: string; title: string }
 export interface BrowserRecentSite { url: string; visitedAt: string }
+export interface BrowserVaultEntry { id: string; kind: "password" | "contact"; title: string; origin?: string; username?: string; email?: string; phone?: string; updatedAt: string }
 export interface NativeBrowserTab {
   id: string;
   targetId: string;
@@ -136,6 +138,23 @@ export interface NativeBrowserTab {
   active: boolean;
 }
 export interface NativeBrowserState { tabs: NativeBrowserTab[]; activeTabId: string | null; visible: boolean }
+export interface NativeBrowserDownload {
+  id: string;
+  fileName: string;
+  source: string;
+  startedAt: string;
+  status: "in-progress" | "completed" | "cancelled" | "interrupted";
+}
+export interface NativeBrowserDownloadSettings { directory: string; systemDirectory: string; usingSystemDirectory: boolean }
+export interface NativeBrowserExtension {
+  id: string;
+  name: string;
+  version: string;
+  enabled: boolean;
+  loaded: boolean;
+  configurable: boolean;
+  warning: string | null;
+}
 export interface NativeBrowserInspection {
   url: string;
   title: string;
@@ -707,6 +726,8 @@ export interface WritingWorkspace {
 }
 
 export interface AiMessage {
+  /** 用户消息携带的附件引用（只有 ID/名称，字节从附件内容接口读取）。 */
+  attachments?: Array<{ id: string; name: string; mediaType?: string }>;
   id: string;
   role: "user" | "assistant";
   content: string;
@@ -807,6 +828,8 @@ export interface AiActivityItem {
   startedAt: string;
   completedAt: string | null;
   durationMs: number | null;
+  toolId?: `browser-use.${string}`;
+  browserProviderId?: BrowserProviderId;
   approvalId?: string;
   approvalQuestion?: string;
   approvalAnswer?: "approved" | "denied" | "expired";
@@ -1029,7 +1052,7 @@ export interface SteamcmdTask {
   id: string;
   nodeId: string;
   createdBy: string;
-  kind: "install" | "verify" | "install-server" | "update-server" | "start-server" | "stop-server";
+  kind: "install" | "verify" | "uninstall" | "install-server" | "update-server" | "start-server" | "stop-server";
   status: "queued" | "running" | "succeeded" | "failed";
   progress: number;
   message: string;
@@ -1055,6 +1078,9 @@ export interface SteamcmdServer {
   status: "unknown" | "stopped" | "running" | "starting" | "stopping";
   processId: number | null;
   lastSeenAt: string | null;
+  dstClusterId: string | null;
+  dstClusterName: string | null;
+  dstShard: "Master" | "Caves" | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -1069,6 +1095,16 @@ export interface SteamcmdServerInput {
   stopCommand: string;
   stopTimeoutSeconds: number;
   eulaAccepted: boolean;
+}
+
+export interface SteamcmdDstClusterInput {
+  nodeId: string;
+  clusterName: string;
+  toolAppId: number;
+  installDirectory: string;
+  stopCommand: string;
+  stopTimeoutSeconds: number;
+  eulaAccepted: true;
 }
 
 export interface MinecraftStorageNode extends FileManagerNode {
@@ -1204,12 +1240,28 @@ declare global {
         find: (id: string, text: string, forward: boolean) => Promise<{ matches: number; activeMatch: number } | NativeBrowserState>;
         inspect: (id: string) => Promise<NativeBrowserInspection>;
         clearData: () => Promise<{ cleared: boolean }>;
+        setPreferences: (preferences: UserSettings["browserUse"]) => Promise<{ applied: boolean }>;
+        getDownloadSettings: () => Promise<NativeBrowserDownloadSettings>;
+        chooseDownloadDirectory: () => Promise<NativeBrowserDownloadSettings>;
+        useSystemDownloadDirectory: () => Promise<NativeBrowserDownloadSettings>;
+        getDownloadHistory: () => Promise<NativeBrowserDownload[]>;
+        removeDownloadHistory: (id: string) => Promise<{ deleted: boolean }>;
+        clearDownloadHistory: () => Promise<{ cleared: boolean }>;
+        getBrowserExtensions: () => Promise<NativeBrowserExtension[]>;
+        chooseBrowserExtension: () => Promise<NativeBrowserExtension[]>;
+        setBrowserExtensionEnabled: (id: string, enabled: boolean) => Promise<NativeBrowserExtension[]>;
+        removeBrowserExtension: (id: string) => Promise<{ removed: boolean; extensions: NativeBrowserExtension[] }>;
+        configureBrowserExtension: (id: string) => Promise<NativeBrowserState>;
         setZoom: (id: string, zoom: number) => Promise<NativeBrowserState>;
         print: (id: string) => Promise<void>;
         setBounds: (bounds: { x: number; y: number; width: number; height: number }) => Promise<void>;
         setVisible: (visible: boolean) => Promise<void>;
         onState: (listener: (state: NativeBrowserState) => void) => () => void;
         onShortcut: (listener: (shortcut: "find" | "address") => void) => () => void;
+      };
+      mini: {
+        open: (settings: UserSettings["mini"]) => Promise<{ opened: true }>;
+        close: () => Promise<{ closed: true }>;
       };
       selectDataDirectory: () => Promise<string | null>;
       selectWorkspaceDirectory: () => Promise<string | null>;
@@ -1370,6 +1422,13 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
   return structuredClone(await pending) as T;
 }
 
+export interface UploadedAttachment { id: string; name: string; mediaType: string; bytes: number; sha256: string; createdAt: string }
+
+/** 上传附件字节；与其它写明/写请求共用同一认证与错误处理，不另起 fetch。 */
+export function uploadAttachment(input: { name: string; mediaType: string; dataBase64: string }): Promise<{ attachment: UploadedAttachment }> {
+  return request(`/attachments`, { method: "POST", body: JSON.stringify(input) });
+}
+
 export function loadBrowserProviders(signal?: AbortSignal): Promise<{ providers: BrowserProviderSummary[]; personalBrowsersInspected: false }> {
   return request("/browser/providers", signal ? { signal } : {});
 }
@@ -1384,6 +1443,38 @@ export function recordBrowserRecentSites(urls: string[], signal?: AbortSignal): 
 
 export function clearBrowserRecentSites(): Promise<{ cleared: true }> {
   return request("/browser/recent-sites", { method: "DELETE" });
+}
+
+export function clearBrowserData(): Promise<{ cleared: true; sessionsCleared: number }> {
+  return request("/browser/data", { method: "DELETE" });
+}
+
+export function loadBrowserCredentials(): Promise<{ passwords: BrowserVaultEntry[]; contacts: BrowserVaultEntry[] }> {
+  return request("/browser/credentials");
+}
+
+export function saveBrowserPassword(input: { title: string; origin: string; username: string; password: string }): Promise<{ entry: BrowserVaultEntry }> {
+  return request("/browser/credentials/passwords", { method: "POST", body: JSON.stringify(input) });
+}
+
+export function saveBrowserContact(input: { title: string; name: string; address: string; email: string; phone: string }): Promise<{ entry: BrowserVaultEntry }> {
+  return request("/browser/credentials/contacts", { method: "POST", body: JSON.stringify(input) });
+}
+
+export function deleteBrowserCredential(id: string, kind: "password" | "contact"): Promise<{ deleted: boolean }> {
+  return request(`/browser/credentials/${encodeURIComponent(id)}?${new URLSearchParams({ kind })}`, { method: "DELETE" });
+}
+
+export function autofillBrowserPassword(id: string, providerId: BrowserProviderId): Promise<{ filled: string[]; origin: string }> {
+  return request(`/browser/credentials/passwords/${encodeURIComponent(id)}/autofill`, { method: "POST", body: JSON.stringify({ providerId }) });
+}
+
+export function autofillBrowserContact(id: string, providerId: BrowserProviderId): Promise<{ filled: string[]; origin: string }> {
+  return request(`/browser/credentials/contacts/${encodeURIComponent(id)}/autofill`, { method: "POST", body: JSON.stringify({ providerId }) });
+}
+
+export function deleteBrowserRecentSite(url: string): Promise<{ deleted: boolean }> {
+  return request("/browser/recent-sites/item", { method: "DELETE", body: JSON.stringify({ url }) });
 }
 
 export function loadBrowserSession(sessionId: string, providerId: BrowserProviderId, signal?: AbortSignal): Promise<{ session: BrowserSessionSnapshot | null }> {
@@ -1615,6 +1706,10 @@ export function operateSystemFiles(input: FileOperationInput & { operation: File
 export function downloadSystemFile(path: string): Promise<Blob> {
   return requestBinary(`/files/download?${new URLSearchParams({ path })}`);
 }
+export function downloadFileTransfer(transferId: string): Promise<Blob> {
+  return requestBinary(`/files/transfers/${encodeURIComponent(transferId)}`);
+}
+export { maximumNodeFileTransferBytes };
 export function uploadSystemFile(path: string, file: File, sha256: string): Promise<{ result: Record<string, unknown> }> {
   return request(`/files/upload?${new URLSearchParams({ path, name: file.name, sha256 })}`, { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: file });
 }
@@ -1630,7 +1725,6 @@ export function submitFileManagerTask(input: {
   name?: string;
   destinationPath?: string;
   content?: string;
-  dataBase64?: string;
   sha256?: string;
   expectedSha256?: string;
 }): Promise<{ task: FileManagerTask }> {
@@ -1689,6 +1783,10 @@ export function loadSteamcmdServers(nodeId?: string): Promise<{ servers: Steamcm
 
 export function createSteamcmdServer(input: SteamcmdServerInput): Promise<{ server: SteamcmdServer }> {
   return request("/steamcmd/servers", { method: "POST", body: JSON.stringify(input) });
+}
+
+export function createSteamcmdDstCluster(input: SteamcmdDstClusterInput): Promise<{ clusterId: string; servers: SteamcmdServer[] }> {
+  return request("/steamcmd/dst-clusters", { method: "POST", body: JSON.stringify(input) });
 }
 
 export function updateSteamcmdServer(serverId: string, input: SteamcmdServerInput): Promise<{ server: SteamcmdServer }> {
@@ -1780,7 +1878,7 @@ export async function selectDesktopWorkspaceDirectory(): Promise<string | null> 
   return typeof selectedDirectory === "string" ? selectedDirectory : null;
 }
 
-export function createSteamcmdTask(input: { nodeId: string; kind: "install" | "verify" }): Promise<{ task: SteamcmdTask }> {
+export function createSteamcmdTask(input: { nodeId: string; kind: "install" | "verify" | "uninstall" }): Promise<{ task: SteamcmdTask }> {
   return request("/steamcmd/tasks", { method: "POST", body: JSON.stringify(input) });
 }
 
@@ -1892,6 +1990,58 @@ export function removeAiVideoReferenceImage(canvasId: string, kind: "characters"
 }
 export function deleteAiVideoCanvas(canvasId: string): Promise<void> {
   return request(`/ai-video/canvases/${encodeURIComponent(canvasId)}`, { method: "DELETE" });
+}
+
+
+export interface CanvasProjectSummary { id: string; title: string; applicationId: ApplicationId; nodeCount: number; assetCount: number; createdAt: string; updatedAt: string }
+export interface CanvasNode { id: string; type: string; x: number; y: number; width: number; height: number; data: Record<string, unknown> }
+export interface CanvasEdge { id: string; source: string; target: string; sourceHandle?: string; targetHandle?: string }
+export type CanvasAssetMimeType = "image/png" | "image/jpeg" | "image/webp" | "video/mp4" | "video/webm";
+export interface CanvasAsset { assetId: string; name: string; mimeType: CanvasAssetMimeType; bytes: number; createdAt: string }
+export interface CanvasProject {
+  format: "lfaa-canvas-project";
+  formatVersion: 2;
+  id: string;
+  title: string;
+  applicationId: ApplicationId;
+  viewport: { x: number; y: number; zoom: number };
+  nodes: CanvasNode[];
+  edges: CanvasEdge[];
+  assets: CanvasAsset[];
+  createdAt: string;
+  updatedAt: string;
+}
+function canvasAppPath(applicationId: ApplicationId): string {
+  return `/apps/${encodeURIComponent(applicationId)}/canvas/projects`;
+}
+export function loadCanvasProjects(applicationId?: ApplicationId): Promise<{ projects: CanvasProjectSummary[] }> {
+  return request(applicationId ? canvasAppPath(applicationId) : "/canvas/projects");
+}
+export function createCanvasProject(applicationId: ApplicationId, title: string): Promise<{ project: CanvasProject }> {
+  return request(canvasAppPath(applicationId), { method: "POST", body: JSON.stringify({ title }) });
+}
+export function loadCanvasProject(applicationId: ApplicationId, projectId: string): Promise<{ project: CanvasProject }> {
+  return request(`${canvasAppPath(applicationId)}/${encodeURIComponent(projectId)}`);
+}
+export function saveCanvasProject(applicationId: ApplicationId, projectId: string, expectedUpdatedAt: string, project: CanvasProject): Promise<{ project: CanvasProject }> {
+  return request(`${canvasAppPath(applicationId)}/${encodeURIComponent(projectId)}`, { method: "PUT", body: JSON.stringify({ expectedUpdatedAt, project }) });
+}
+export function deleteCanvasProject(applicationId: ApplicationId, projectId: string): Promise<void> {
+  return request(`${canvasAppPath(applicationId)}/${encodeURIComponent(projectId)}`, { method: "DELETE" });
+}
+export function uploadCanvasAsset(applicationId: ApplicationId, projectId: string, expectedUpdatedAt: string, name: string, file: Blob, mimeType: string): Promise<{ project: CanvasProject }> {
+  const query = new URLSearchParams({ expectedUpdatedAt, name });
+  return request(`${canvasAppPath(applicationId)}/${encodeURIComponent(projectId)}/assets?${query}`, { method: "POST", headers: { "Content-Type": mimeType }, body: file });
+}
+export function deleteCanvasAsset(applicationId: ApplicationId, projectId: string, assetId: string, expectedUpdatedAt: string): Promise<{ project: CanvasProject }> {
+  const query = new URLSearchParams({ expectedUpdatedAt });
+  return request(`${canvasAppPath(applicationId)}/${encodeURIComponent(projectId)}/assets/${encodeURIComponent(assetId)}?${query}`, { method: "DELETE" });
+}
+export function canvasAssetUrl(applicationId: ApplicationId, projectId: string, assetId: string): string {
+  return `/api${canvasAppPath(applicationId)}/${encodeURIComponent(projectId)}/assets/${encodeURIComponent(assetId)}`;
+}
+export async function readCanvasAsset(applicationId: ApplicationId, projectId: string, assetId: string): Promise<Blob> {
+  return requestBinary(`${canvasAppPath(applicationId)}/${encodeURIComponent(projectId)}/assets/${encodeURIComponent(assetId)}`);
 }
 
 const workflowPath = (appId: ApplicationId) => `/apps/${encodeURIComponent(appId)}/workflows`;
@@ -2237,6 +2387,33 @@ export function recoverPassword(input: { username: string; recoveryKey: string; 
   });
 }
 
+export interface TrustedContact { id: string; username: string; role: string; createdAt: string }
+export interface TrustedRecoveryRequest { id: string; requesterUsername: string; createdAt: string; expiresAt: string; approvedAt: string | null }
+export interface TrustedContactSettings { contacts: TrustedContact[]; trustedBy: TrustedContact[]; recoveryRequests: TrustedRecoveryRequest[] }
+export interface TrustedAccountRecoveryStartResult { code: string; expiresAt: string; message: string }
+export function loadTrustedContactSettings(): Promise<TrustedContactSettings> { return request("/auth/trusted-contacts"); }
+export function createTrustedContactInvitation(): Promise<{ code: string; expiresAt: string }> {
+  return request("/auth/trusted-contacts/invitations", { method: "POST", body: "{}" });
+}
+export function acceptTrustedContactInvitation(code: string): Promise<{ contact: TrustedContact }> {
+  return request("/auth/trusted-contacts/accept", { method: "POST", body: JSON.stringify({ code }) });
+}
+export function removeTrustedContact(contactId: string): Promise<void> {
+  return request(`/auth/trusted-contacts/${encodeURIComponent(contactId)}`, { method: "DELETE" });
+}
+export function approveTrustedRecoveryRequest(requestId: string): Promise<{ request: TrustedRecoveryRequest }> {
+  return request(`/auth/trusted-recovery-requests/${encodeURIComponent(requestId)}/approve`, { method: "POST", body: "{}" });
+}
+export function startTrustedAccountRecovery(input: { username: string; contactUsername: string }): Promise<TrustedAccountRecoveryStartResult> {
+  return request("/auth/trusted-recovery/start", { method: "POST", body: JSON.stringify(input) });
+}
+export function getTrustedAccountRecoveryStatus(code: string): Promise<{ status: "pending" | "approved" | "invalid" }> {
+  return request("/auth/trusted-recovery/status", { method: "POST", body: JSON.stringify({ code }) });
+}
+export function completeTrustedAccountRecovery(input: { code: string; newPassword: string }): Promise<{ message: string }> {
+  return request("/auth/trusted-recovery/complete", { method: "POST", body: JSON.stringify(input) });
+}
+
 export function saveRecoveryKey(input: { currentPassword: string; recoveryKey: string }): Promise<{ message: string }> {
   return request<{ message: string }>("/auth/recovery-key", {
     method: "PUT",
@@ -2285,6 +2462,17 @@ export function loadSettings(signal?: AbortSignal): Promise<{ settings: UserSett
   return request<{ settings: UserSettings }>("/settings", signal ? { signal } : {});
 }
 
+export interface UserSettingsSyncStatus {
+  service: "lfaa-self-hosted";
+  categories: string[];
+  lastUpdatedAt: string | null;
+  scope: "same-control-plane";
+}
+
+export function loadUserSettingsSyncStatus(signal?: AbortSignal): Promise<{ status: UserSettingsSyncStatus }> {
+  return request("/settings/sync/status", signal ? { signal } : {});
+}
+
 export function saveSettings<K extends keyof UserSettings>(category: K, value: UserSettings[K]): Promise<{ settings: UserSettings }> {
   const serverCategory = category === "aiRuntime" ? "ai-runtime" : category === "minecraftRuntime" ? "minecraft-runtime" : category === "computerControl" ? "computer-control" : category === "browserUse" ? "browser-use" : category;
   return request<{ settings: UserSettings }>(`/settings/${serverCategory}`, {
@@ -2306,6 +2494,73 @@ export function saveConversationMemories(snapshot: ConversationMemorySnapshot): 
 
 export function deleteConversationMemories(): Promise<void> {
   return request<void>("/settings/memories", { method: "DELETE" });
+}
+
+export interface AccountAgentUsagePolicy {
+  enabled: boolean;
+  timezone: string;
+  dailyLimitMinutes: number;
+  weeklyWindows: Array<{ enabled: boolean; start: string; end: string }>;
+}
+
+export interface AccountAgentUsageControls {
+  account: { id: string; username: string; role: "admin" | "member" };
+  policy: AccountAgentUsagePolicy;
+  updatedAt: string | null;
+  usedSeconds: number;
+  localDate: string;
+  activeReservations: number;
+}
+
+export interface ManagedAgentUsageAccount { id: string; username: string; role: "admin" | "member"; }
+
+export function loadAgentUsageControls(accountId?: string): Promise<{ controls: AccountAgentUsageControls; manageableAccounts: ManagedAgentUsageAccount[] }> {
+  const query = accountId ? `?${new URLSearchParams({ accountId })}` : "";
+  return request(`/settings/parental${query}`);
+}
+
+export function saveAgentUsagePolicy(accountId: string, policy: AccountAgentUsagePolicy): Promise<{ controls: AccountAgentUsageControls }> {
+  return request(`/settings/parental/${encodeURIComponent(accountId)}`, { method: "PUT", body: JSON.stringify(policy) });
+}
+
+export interface AccountSnapshotSummary {
+  id: string; name: string; version: 1; sha256: string; compressedBytes: number; expandedBytes: number; createdAt: string;
+  manifest: { settingsCategories: string[]; memories: number; sessions: number; messages: number };
+}
+export interface AccountArchivePreview {
+  valid: true; version: 1; settingsCategories: string[]; changedSettingsCategories: string[];
+  memories: number; memoryWillChange: boolean; sessions: number; sessionConflicts: number; messages: number;
+}
+export interface AccountArchiveSelection { settings: boolean; memories: boolean; sessions: boolean }
+export interface AccountArchiveRestoreResult {
+  settings: { restored: string[] };
+  memories: { restored: number } | null;
+  sessions: { imported: number; skipped: number } | null;
+}
+
+export function loadAccountSnapshots(): Promise<{ snapshots: AccountSnapshotSummary[] }> { return request("/settings/snapshots"); }
+export function createAccountSnapshot(name: string): Promise<{ snapshot: AccountSnapshotSummary }> {
+  return request("/settings/snapshots", { method: "POST", body: JSON.stringify({ name }) });
+}
+export function deleteAccountSnapshot(snapshotId: string): Promise<void> {
+  return request(`/settings/snapshots/${encodeURIComponent(snapshotId)}`, { method: "DELETE" });
+}
+export function previewAccountSnapshotRestore(snapshotId: string): Promise<{ preview: AccountArchivePreview }> {
+  return request(`/settings/snapshots/${encodeURIComponent(snapshotId)}/preview`, { method: "POST" });
+}
+export function restoreAccountSnapshot(snapshotId: string, selection: AccountArchiveSelection): Promise<{ result: AccountArchiveRestoreResult }> {
+  return request(`/settings/snapshots/${encodeURIComponent(snapshotId)}/restore`, { method: "POST", body: JSON.stringify(selection) });
+}
+export function downloadAccountSnapshot(snapshotId: string): Promise<Blob> {
+  return requestBinary(`/settings/snapshots/${encodeURIComponent(snapshotId)}/download`);
+}
+export function exportCurrentAccountArchive(): Promise<Blob> { return requestBinary("/settings/import/export"); }
+export function previewAccountArchiveFile(file: File): Promise<{ preview: AccountArchivePreview }> {
+  return request("/settings/import/preview", { method: "POST", headers: { "Content-Type": "application/vnd.lfaa.account-snapshot" }, body: file });
+}
+export function restoreAccountArchiveFile(file: File, selection: AccountArchiveSelection): Promise<{ result: AccountArchiveRestoreResult }> {
+  const query = new URLSearchParams({ settings: String(selection.settings), memories: String(selection.memories), sessions: String(selection.sessions) });
+  return request(`/settings/import/restore?${query}`, { method: "POST", headers: { "Content-Type": "application/vnd.lfaa.account-snapshot" }, body: file });
 }
 
 export function loadAppearanceBackgrounds(): Promise<{ backgrounds: AppearanceBackground[] }> {
@@ -2599,6 +2854,14 @@ export function loadWorkspaceProjects(options: { appId?: WorkspaceProjectApplica
   return request<{ projects: WorkspaceProject[]; nodes: WorkspaceDaemonNode[]; truncated: boolean; defaultProjectId?: string | null }>(`/workspace/projects${suffix}`, options.signal ? { signal: options.signal } : {});
 }
 
+export function loadWorkspaceSessionDirectoryAvailability(sessionIds: string[], signal?: AbortSignal): Promise<{ sessions: Record<string, "available" | "missing" | "unknown"> }> {
+  return request<{ sessions: Record<string, "available" | "missing" | "unknown"> }>("/workspace/sessions/directory-availability", {
+    method: "POST",
+    body: JSON.stringify({ sessionIds }),
+    ...(signal ? { signal } : {})
+  });
+}
+
 export function initializeDefaultWorkspace(signal?: AbortSignal): Promise<{ project: WorkspaceProject | null; defaultProjectId: string | null }> {
   return request<{ project: WorkspaceProject | null; defaultProjectId: string | null }>("/workspace/projects/initialize-default", { method: "POST", ...(signal ? { signal } : {}) });
 }
@@ -2838,6 +3101,9 @@ type AiChatStreamInput = {
   sessionId: string | null;
   projectId?: string | null;
   gitRepositoryId?: string | null;
+  /** 附件只传 ID；连接层必须显式转发，否则会被丢弃。 */
+  attachmentIds?: string[];
+  attachments?: Array<{ id: string; name?: string }>;
   content: string;
   planMode?: boolean;
   signal: AbortSignal;
@@ -2944,7 +3210,7 @@ async function streamAiChatAt(input: AiChatStreamInput, streamEndpoint: string):
           method: activeRunId ? "GET" : "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-          ...(!activeRunId ? { body: JSON.stringify({ appId: input.appId, sessionId: input.sessionId, ...(input.associations ? { associations: input.associations } : {}), ...(input.projectId ? { projectId: input.projectId } : {}), ...(!input.sessionId && input.gitRepositoryId ? { gitRepositoryId: input.gitRepositoryId } : {}), ...(input.planMode === undefined ? {} : { planMode: input.planMode }), content: input.content }) } : {}),
+          ...(!activeRunId ? { body: JSON.stringify({ appId: input.appId, sessionId: input.sessionId, ...(input.associations ? { associations: input.associations } : {}), ...(input.attachmentIds?.length ? { attachmentIds: input.attachmentIds } : {}), ...(input.attachments?.length ? { attachments: input.attachments } : {}), ...(input.projectId ? { projectId: input.projectId } : {}), ...(!input.sessionId && input.gitRepositoryId ? { gitRepositoryId: input.gitRepositoryId } : {}), ...(input.planMode === undefined ? {} : { planMode: input.planMode }), content: input.content }) } : {}),
           signal: input.signal
         });
       } catch (error) {

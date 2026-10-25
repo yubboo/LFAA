@@ -6,6 +6,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { mkdirSync } from "node:fs";
+import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { isolateData } from "./isolated-data.mjs";
 isolateData(test, "agent-response-latency");
@@ -25,6 +27,9 @@ const shellTools = await import("lfaa-tool-shell/src/index.js");
 const owner = randomUUID();
 database.prepare("INSERT INTO users(id,uid,username,password_salt,password_hash,role) VALUES(?,1,'fixture-latency','fixture','fixture','admin')").run(owner);
 settings.saveUserSettings(owner, "permissions", { mode: "full_access" });
+const workspaceRoot = join(process.env.LFAA_DATA_DIR, "agent-workspace");
+mkdirSync(workspaceRoot, { recursive: true });
+settings.saveUserSettings(owner, "general", { ...settings.getUserSettings(owner).general, taskFolder: workspaceRoot });
 settings.saveUserSettings(owner, "ai-runtime", { ...settings.defaultSettings.aiRuntime, maxModelRequests: 4, maxToolCalls: 4, requestRetries: 0 });
 const host = { llm: createAiCompletionService(), listPlugins: () => [], listExtensions: () => [], listInstructionExtensions: () => [], getSystemInstructions: () => [], listHooks: () => [], runBeforeInference: () => ({ failedHookIds: [] }), runAfterInference: () => ({ failedHookIds: [] }) };
 const account = { accountId: "fixture-account", providerId: "fixture", modelId: "fixture-selected-model", chatUrl: "https://provider.example.test/chat", secret: "invalid-fixture-key", keyHeader: "Authorization", keyPrefix: "Bearer ", maxTokensField: "max_tokens", reasoningMode: "high", thinking: { kind: "effort", parameter: "reasoning_effort", values: ["high"] } };
@@ -73,6 +78,31 @@ test("简单回答只请求一次；推理、正文阶段真实结束且耗时�
   assert.doesNotMatch(JSON.stringify(result.emitted), /隐藏的合成推理/u);
 });
 
+test("合成 Provider 单次工具调用与结果续接记录当前端到端 P50/P95", async t => {
+  shellResult = { exitCode: 0, timedOut: false, aborted: false, stdout: { text: "合成工具结果", truncated: false }, stderr: { text: "", truncated: false } };
+  const warmupCount = 5, sampleCount = 31, before = shellExecutions, samples = [];
+  for (let index = 0; index < warmupCount + sampleCount; index++) {
+    const startedAt = performance.now();
+    const result = await run((_body, requestCount) => {
+      if (requestCount === 1) return response(call(`perf-${index}`));
+      assert.equal(requestCount, 2, "每轮应在一次工具结果后续接一次 Provider 请求");
+      const toolMessage = _body.messages.findLast(message => message.role === "tool");
+      assert.ok(toolMessage);
+      assert.equal(JSON.parse(toolMessage.content).executionState, "complete");
+      return response({ content: "合成续接完成" });
+    });
+    const elapsedMs = performance.now() - startedAt;
+    assert.equal(result.bodies.length, 2);
+    assert.equal(result.result.status, "complete");
+    assert.equal(result.result.message.content, "合成续接完成");
+    assert.equal(shellExecutions, before + index + 1);
+    if (index >= warmupCount) samples.push(elapsedMs);
+  }
+  samples.sort((left, right) => left - right);
+  const percentile = value => samples[Math.ceil(value * samples.length) - 1];
+  t.diagnostic(`合成 Agent 请求→工具→续接，n=${sampleCount}，P50=${percentile(0.5).toFixed(3)} ms，P95=${percentile(0.95).toFixed(3)} ms；含隔离 Session 写入，不含真实 Provider 网络及真实 Shell 进程`);
+});
+
 test("推理阶段流失败时结束活动，不残留正在思考", async () => {
   const result = await run(() => new Response(new ReadableStream({ async start(controller) {
     controller.enqueue(new TextEncoder().encode(line({ reasoning_content: "合成推理" })));
@@ -100,7 +130,7 @@ test("Shell 非零退出、超时、取消与未知退出码保持事实，并�
       }
       return response(call(`call-${count}`));
     });
-    assert.equal(result.bodies.length, 3);
+    assert.equal(result.bodies.length, 3, JSON.stringify({ status: result.result.status, content: result.result.message.content, toolStates: sessionRecords.allForSession("session_events", result.turn.session.id).filter(event => event.type === "tool/result").map(event => event.data.executionState) }));
     assert.equal(shellExecutions - before, 1);
     assert.equal(result.result.status, "complete");
     const toolResults = sessionRecords.allForSession("session_events", result.turn.session.id).filter(event => event.type === "tool/result");

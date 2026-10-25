@@ -46,6 +46,22 @@ const tabbitConnectSchema = Joi.object({ sourceSessionId: sessionSchema }).unkno
 const nativeActiveTargetSchema = Joi.object({ providerId: providerSchema.valid("lfaa-native-browser"), targetId: Joi.string().trim().min(1).max(128).pattern(/^[A-Za-z0-9_-]+$/u).required() }).unknown(false);
 const recentSitesQuerySchema = Joi.object({ limit: Joi.number().integer().min(1).max(50).default(12) }).unknown(false);
 const recentSitesBodySchema = Joi.object({ urls: Joi.array().items(Joi.string().uri({ scheme: ["http", "https"] }).max(2048)).min(1).max(64).required() }).unknown(false);
+const recentSiteDeleteSchema = Joi.object({ url: Joi.string().uri({ scheme: ["http", "https"] }).max(2048).required() }).unknown(false);
+const browserPasswordSchema = Joi.object({
+  title: Joi.string().trim().min(1).max(120).required(),
+  origin: Joi.string().trim().min(1).max(2_048).required(),
+  username: Joi.string().trim().min(1).max(320).required(),
+  password: Joi.string().min(1).max(4_096).required()
+}).unknown(false);
+const browserContactSchema = Joi.object({
+  title: Joi.string().trim().min(1).max(120).required(),
+  name: Joi.string().max(160).allow("").default(""),
+  address: Joi.string().max(500).allow("").default(""),
+  email: Joi.string().max(320).allow("").default(""),
+  phone: Joi.string().max(80).allow("").default("")
+}).unknown(false);
+const browserVaultIdSchema = Joi.string().guid({ version: ["uuidv4", "uuidv5"] }).required();
+const browserAutofillSchema = Joi.object({ providerId: Joi.string().valid("lfaa-native-browser", "lfaa-managed-edge", "lfaa-managed-chrome").required() }).unknown(false);
 
 function readSessionId(value: unknown): string {
   const result = sessionSchema.validate(value, { convert: false });
@@ -96,10 +112,49 @@ function registerRoutes(router: Router, manager: BrowserSessionManager): void {
     const body = parseBody<{ urls: string[] }>(recentSitesBodySchema, request.body);
     response.json({ recorded: manager.recordRecentSites(request.auth!.user.id, body.urls) });
   }));
+  router.delete("/browser/recent-sites/item", ...auth, actionLimit, (request, response) => {
+    const body = parseBody<{ url: string }>(recentSiteDeleteSchema, request.body);
+    response.json({ deleted: manager.deleteRecentSite(request.auth!.user.id, body.url) });
+  });
   router.delete("/browser/recent-sites", ...auth, actionLimit, (_request, response) => {
     manager.clearRecentSites(_request.auth!.user.id);
     response.json({ cleared: true });
   });
+  router.delete("/browser/data", ...auth, actionLimit, asyncHandler(async (request, response) => {
+    response.json(await manager.clearBrowserData(request.auth!.user.id));
+  }));
+  router.get("/browser/credentials", ...auth, (_request, response) => {
+    response.json(manager.listSavedBrowserCredentials(_request.auth!.user.id));
+  });
+  router.post("/browser/credentials/passwords", ...auth, actionLimit, (request, response) => {
+    const body = parseBody<{ title: string; origin: string; username: string; password: string }>(browserPasswordSchema, request.body);
+    response.json({ entry: manager.saveBrowserPassword(request.auth!.user.id, body) });
+  });
+  router.post("/browser/credentials/contacts", ...auth, actionLimit, (request, response) => {
+    const body = parseBody<{ title: string; name: string; address: string; email: string; phone: string }>(browserContactSchema, request.body);
+    response.json({ entry: manager.saveBrowserContact(request.auth!.user.id, body) });
+  });
+  router.delete("/browser/credentials/:id", ...auth, actionLimit, (request, response) => {
+    const id = browserVaultIdSchema.validate(request.params.id, { convert: false });
+    if (id.error) throw new ApiError(400, "browser_credential_id_invalid", "浏览器凭据记录标识无效。");
+    const kind = request.query.kind;
+    if (kind !== "password" && kind !== "contact") throw new ApiError(400, "browser_credential_kind_invalid", "浏览器凭据记录类型无效。");
+    response.json({ deleted: manager.deleteBrowserVaultEntry(request.auth!.user.id, String(id.value), kind) });
+  });
+  router.post("/browser/credentials/passwords/:id/autofill", ...auth, actionLimit, asyncHandler(async (request, response) => {
+    const id = browserVaultIdSchema.validate(request.params.id, { convert: false });
+    if (id.error) throw new ApiError(400, "browser_credential_id_invalid", "浏览器密码记录标识无效。");
+    const body = parseBody<{ providerId: BrowserProviderId }>(browserAutofillSchema, request.body);
+    assertProviderAvailable(manager, body.providerId);
+    response.json(await manager.fillSavedPassword(request.auth!.user.id, String(id.value), body.providerId));
+  }));
+  router.post("/browser/credentials/contacts/:id/autofill", ...auth, actionLimit, asyncHandler(async (request, response) => {
+    const id = browserVaultIdSchema.validate(request.params.id, { convert: false });
+    if (id.error) throw new ApiError(400, "browser_credential_id_invalid", "联系信息记录标识无效。");
+    const body = parseBody<{ providerId: BrowserProviderId }>(browserAutofillSchema, request.body);
+    assertProviderAvailable(manager, body.providerId);
+    response.json(await manager.fillSavedContact(request.auth!.user.id, String(id.value), body.providerId));
+  }));
   router.get("/browser/providers", ...auth, (request, response) => response.json({ providers: manager.listProviders(request.auth!.user.id), personalBrowsersInspected: false }));
   router.post("/browser/providers/tabbit-personal/connect", ...auth, actionLimit, asyncHandler(async (request, response) => {
     const body = parseBody<{ sourceSessionId: string }>(tabbitConnectSchema, request.body);

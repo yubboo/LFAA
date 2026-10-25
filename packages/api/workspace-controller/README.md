@@ -6,6 +6,8 @@
 
 控制器校验账户、实际项目与会话来源、节点在线状态和 `project-files-v1` 能力；共享调用允许同账户的历史来源记录，专用调用保留相应来源检查。本机默认项目文件操作直接交给 LFAA Host 的 Project Files Owner；显式节点项目才检查节点在线状态并经 Daemon 适配器执行。它不直接访问控制端文件系统，不提供云端节点，也不改变项目权限。项目提供文件夹登记、会话归组和文件上下文，不创建 App 或 Minecraft 实例。登记由 `packages/workspace/workspace` 持久化，会话快照由 Session Owner 持久化；Minecraft 实例和全局管理员文件管理继续由现有 Owner 管理。Wallpaper Engine/DSH Bundle 不属于本控制器或 Daemon 能力。旧项目的空来源标签仅在原登记流程中显式认领，不改写已标记来源。
 
+`POST /workspace/sessions/directory-availability` 仅接受最多 200 个会话 ID；Controller 按认证账户读取 Session 的轻量项目上下文，再调用 Agent Loop 的 `resolveAiSessionWorkspaceContext`，确保检查路径与真实运行 Owner 解析结果一致，不水合完整会话事件日志，并按 App/节点批量委托 Project Files Host。普通 Work UI 只在用户选中项目会话后请求单个 ID；页面加载和消息读取不等待目录检查。响应只返回 `available`、`missing` 或 `unknown`，不暴露路径。只有 Host 明确确认路径不存在或不再是目录才返回 `missing`；节点离线、权限拒绝、超时与 Host 错误都保持 `unknown`。会话解除项目登记不会清除历史快照；若该快照目录仍存在，历史会话仍可正常使用。
+
 本地 Git 路由还要求节点在线并报告 `git-workspace-v1`。显式初始化只在当前已登记目录创建 `.git` 元数据，不自动暂存或提交；stage/unstage 与提交使用项目相对路径，提交仅接受暂存变更，并拒绝提交当前登记子目录之外的暂存文件。分支前缀读取账户 `git` 设置；分支切换/删除只允许仓库根项目，避免通过子目录登记改变仓库其他项目；AI Worktree 的分支名由 Workspace Owner 管理。所有写操作通过 Permission Owner 的显式用户操作授权。恢复和删除只接受账户已登记的工作树，不接收模型/浏览器提供的绝对路径；不提供任意 Git 命令、远端 Git、推送、合并或 PR。GitHub OAuth 仍是只读 API 凭据，不可用于 Git transport。
 
 变更审阅通过 `POST /workspace/projects/:projectId/git/file-diff` 返回单文件 Git 差异；`contextLines` 为 0–1000 的整数并默认为 3，供 Client 按需展开真实未变更上下文。`/files/read` 提供分段 UTF-8 文本读取，`/files/write` 只接受带 SHA-256 的用户主动编辑保存。三条路由均从认证账户、App 项目登记和目标 Daemon 解析真实根目录，不接受任意绝对路径。文件读写继续由 `project-files-v1` 执行器校验路径、符号链接、文本类型、2 MiB 上限和并发摘要；编辑器 API 不加入模型 `project-tools` 的操作合同。

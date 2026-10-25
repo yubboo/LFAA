@@ -16,6 +16,9 @@
 
 .module-center__header { position: relative; z-index: 2; display: grid; min-height: var(--agent-shell-header-h, 3rem); grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 0 14px; border-bottom: 1px solid var(--color-border); background: color-mix(in srgb, var(--color-surface) 82%, transparent); -webkit-backdrop-filter: blur(var(--settings-glass-blur)); backdrop-filter: blur(var(--settings-glass-blur)); }
 
+/* 普通应用的标题栏与正文共用随中心列宽变化的左右留白。 */
+.module-center__header[data-module-mode="normal"] { padding-inline: clamp(20px, 2.5cqi, 32px); }
+
 .module-center__heading { display: flex; min-width: 0; grid-column: 1; align-items: center; gap: 9px; }
 
 .module-center__title { display: flex; min-width: 0; align-items: center; gap: 8px; color: var(--color-text-secondary); }
@@ -54,6 +57,25 @@
 
 /* 中间画布保留滚动能力并隐藏滚动条，同时作为命名宽度容器供内部内容按真实列宽排版。 */
 .module-center__content { position: relative; z-index: 1; display: flex; width: 100%; max-width: none; min-height: 0; flex: 1; flex-direction: column; margin: 0; padding: 0; overflow: auto; container-type: inline-size; container-name: module-center-content; background: transparent; }
+
+/* 普通应用内容与中心列边缘留出统一空间，内容宽度不足时优先收紧留白。 */
+.module-center__content--application { padding-inline: clamp(20px, 2.5cqi, 32px); box-sizing: border-box; }
+
+@container module-center (max-width: 560px) {
+
+  .module-center__header[data-module-mode="normal"] { padding-inline: 16px; }
+
+  .module-center__content--application { padding-inline: 16px; }
+
+}
+
+@container module-center (max-width: 360px) {
+
+  .module-center__header[data-module-mode="normal"] { padding-inline: 12px; }
+
+  .module-center__content--application { padding-inline: 12px; }
+
+}
 
 .module-center__content,
 .module-center__content * { scrollbar-width: none !important; -ms-overflow-style: none !important; }
@@ -257,19 +279,17 @@
 
 .module-center__content.module-center__content--ai-work .ai-work-chat__messages { width: calc(100% + var(--ai-work-chat-inline-gap)); padding-inline-end: var(--ai-work-chat-inline-gap); box-sizing: border-box; }
 
+/* 消息滚动槽进入右侧留白时，延续聊天表面的主题材质，避免画布底色透出形成灰带。 */
+.module-center__content.module-center__content--ai-work .module-ai-work-chat > .ai-work-chat::after { position: absolute; z-index: 0; inset-block: 0; inset-inline-start: 100%; width: var(--ai-work-chat-inline-gap); background: inherit; -webkit-backdrop-filter: inherit; backdrop-filter: inherit; content: ""; pointer-events: none; }
+
 .module-center__content.module-center__content--ai-work .ai-work-chat__message-stage > .ai-work-chat__anchors { left: calc(-1 * var(--ai-work-chat-inline-gap)); }
 
 .module-center__content.module-center__content--ai-work .ai-work-chat__anchor-preview { left: calc(100% + var(--ai-work-chat-inline-gap) - 4px); }
 
 .module-center__content.module-center__content--ai-work :is(.ai-work-chat__composer, .ai-work-chat__usage-footer) { width: min(calc(100% - var(--ai-work-chat-inline-gap)), 920px); align-self: center; position: relative; left: calc(-1 * var(--ai-work-chat-inline-gap-half)); }
 
-/* AI 对话滚动条贴中间区右边缘；默认只留透明轨道，指针移入或键盘聚焦后显出滑块。 */
-.module-center__content.module-center__content--ai-work .ai-work-chat__messages { scrollbar-width: thin !important; scrollbar-color: transparent transparent !important; -ms-overflow-style: auto !important; }
-
-.module-center__content.module-center__content--ai-work .ai-work-chat__message-stage:is(:hover, :focus-within) .ai-work-chat__messages { scrollbar-color: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 55%, transparent) transparent !important; }
-
-/* AI Work 虚化启用时，页面活动态显示滚动条滑块，与消息和刻度同步保持清晰。 */
-.workbench-shell[data-ai-work-output-focus-blur="true"] .module-center__content.module-center__content--ai-work .ai-work-chat[data-output-idle="false"] .ai-work-chat__messages { scrollbar-color: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 55%, transparent) transparent !important; }
+/* AI 对话滚动条贴中间区右边缘并始终使用设置中心强调色；轨道保持透明。 */
+.module-center__content.module-center__content--ai-work .ai-work-chat__messages { scrollbar-width: thin !important; scrollbar-color: var(--settings-accent, var(--color-brand)) transparent !important; -ms-overflow-style: auto !important; }
 
 .module-center__content.module-center__content--ai-work .ai-work-chat__messages::-webkit-scrollbar { display: block !important; width: 7px !important; height: 7px !important; }
 
@@ -284,11 +304,7 @@
 
 .module-center__content.module-center__content--ai-work .ai-work-chat__messages::-webkit-scrollbar-track { background: transparent; }
 
-.module-center__content.module-center__content--ai-work .ai-work-chat__messages::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 999px; background: transparent; background-clip: content-box; }
-
-.module-center__content.module-center__content--ai-work .ai-work-chat__message-stage:is(:hover, :focus-within) .ai-work-chat__messages::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 55%, transparent); background-clip: content-box; }
-
-.workbench-shell[data-ai-work-output-focus-blur="true"] .module-center__content.module-center__content--ai-work .ai-work-chat[data-output-idle="false"] .ai-work-chat__messages::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 55%, transparent); background-clip: content-box; }
+.module-center__content.module-center__content--ai-work .ai-work-chat__messages::-webkit-scrollbar-thumb { border: 0; border-radius: 999px; background: var(--settings-accent, var(--color-brand)); }
 
 .module-center__content:not(.module-center__content--ai-work) > .module-heading--workspace { min-height: 0; height: clamp(180px, 25vh, 280px); flex: 0 0 auto; margin: 0; border-radius: 0; }
 
@@ -312,7 +328,9 @@
 
 @container (max-width: 760px) {
 
-  .module-center__header[data-layout-mode="mobile"] { gap: 2px 8px; padding: 5px 9px; }
+  .module-center__header[data-layout-mode="mobile"] { gap: 2px 8px; }
+
+  .module-center__header[data-layout-mode="mobile"]:not([data-module-mode="normal"]) { padding: 5px 9px; }
 
   .module-center__header[data-layout-mode="mobile"] .module-runtime-state { display: none; }
 
@@ -320,7 +338,7 @@
 
   .module-center__work-tabs button { min-height: 27px; padding-inline: 6px; font-size: 10px; }
 
-  .module-center__content { padding: 0; }
+  .module-center__content:not(.module-center__content--application) { padding: 0; }
 
   .module-center__content--ai-work .ai-work-chat__message-list { padding-inline: clamp(4px, 1.25cqi, 10px); }
 

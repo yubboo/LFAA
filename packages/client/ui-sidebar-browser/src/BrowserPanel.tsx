@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent, type Keyboard
 import { actOnBrowserDock, getErrorMessage, loadBrowserDockSession, loadBrowserProviders, navigateBrowserDock, resizeBrowserDockViewport, streamBrowserDockFrames, waitForBrowserDockRevision, type BrowserDockFrame, type BrowserProviderId, type BrowserProviderSummary, type BrowserSessionSnapshot, type UserSettings } from "lfaa-client-connection/src/api.js";
 import { NativeBrowserPanel } from "./NativeBrowserPanel.js";
 import { resolveBrowserAddress } from "./browser-address.js";
+import { preferCurrentBrowserSnapshot, shouldRestoreBrowserDockPage } from "./browser-snapshot.js";
 import "./browser-panel.css";
 
 type BrowserNavigationRequest = { id: string; url: string };
@@ -16,6 +17,9 @@ type BrowserGesture = { pointerId: number; pointerType: string; start: BrowserPo
 type BrowserPanelProps = {
   sessionId: string | null;
   settings: UserSettings;
+  browserUrl?: string;
+  preferredProviderId?: BrowserProviderId | null;
+  providerSelectionRequestId?: number;
   hidden?: boolean;
   navigationRequest?: BrowserNavigationRequest | null;
   onNavigationRequestHandled?: (requestId: string) => void;
@@ -29,12 +33,14 @@ function displayAddress(value: string, showFullUrl: boolean): string {
   try { return new URL(value).host; } catch { return value; }
 }
 
-function BrowserUsePanel({ sessionId, settings, hidden = false, navigationRequest, onNavigationRequestHandled, actionRequest, onActionRequestHandled, onOpenTabsChange }: BrowserPanelProps) {
+function BrowserUsePanel({ sessionId, settings, browserUrl, preferredProviderId = null, providerSelectionRequestId, hidden = false, navigationRequest, onNavigationRequestHandled, actionRequest, onActionRequestHandled, onOpenTabsChange }: BrowserPanelProps) {
   const [providers, setProviders] = useState<BrowserProviderSummary[]>([]);
   const [providerId, setProviderId] = useState<BrowserProviderId | "">("");
   const [snapshot, setSnapshot] = useState<BrowserSessionSnapshot | null>(null);
+  const [snapshotReady, setSnapshotReady] = useState(false);
   const snapshotRef = useRef<BrowserSessionSnapshot | null>(null);
   const snapshotBindingRef = useRef("");
+  const snapshotWriteRef = useRef(0);
   const [liveStream, setLiveStream] = useState(false);
   const [liveStreamConnecting, setLiveStreamConnecting] = useState(false);
   const [liveStreamError, setLiveStreamError] = useState("");
@@ -65,6 +71,7 @@ function BrowserUsePanel({ sessionId, settings, hidden = false, navigationReques
   const actionCountRef = useRef(0);
   const handledNavigationRequestRef = useRef("");
   const handledActionRequestRef = useRef("");
+  const restoreNavigationRef = useRef("");
   const snapshotRefreshRef = useRef<{ scope: string; promise: Promise<BrowserSessionSnapshot | null> } | null>(null);
   const liveViewRef = useRef<HTMLDivElement | null>(null);
   const providerReady = Boolean(providerId && providers.some(provider => provider.id === providerId && provider.available));
@@ -95,20 +102,30 @@ function BrowserUsePanel({ sessionId, settings, hidden = false, navigationReques
     return () => controller.abort();
   }, []);
 
+  useEffect(() => {
+    if (preferredProviderId !== "lfaa-managed-edge" && preferredProviderId !== "lfaa-managed-chrome") return;
+    if (providers.some(provider => provider.id === preferredProviderId && provider.available)) setProviderId(preferredProviderId);
+  }, [preferredProviderId, providerSelectionRequestId, providers]);
+
   const refreshSnapshot = useCallback((selectedProvider: BrowserProviderId, sourceSession: string, signal?: AbortSignal) => {
     const scope = `${sourceSession}:${selectedProvider}`;
     const existing = snapshotRefreshRef.current;
     if (existing?.scope === scope) return existing.promise;
     if (existing) snapshotRefreshRef.current = null;
+    const writeAtStart = snapshotWriteRef.current;
     const request = loadBrowserDockSession(sourceSession, selectedProvider, signal).then(result => {
       if (snapshotRefreshRef.current?.scope !== scope) return null;
+      setSnapshotReady(true);
+      if (snapshotWriteRef.current !== writeAtStart) return snapshotRef.current;
       const next = result.session;
       if (next) {
         snapshotBindingRef.current = scope;
-        setSnapshot(current => current && current.revision > next.revision ? current : next);
+        snapshotWriteRef.current += 1;
+        setSnapshot(current => preferCurrentBrowserSnapshot(current, next));
       } else {
         snapshotBindingRef.current = "";
         setSnapshot(null);
+        snapshotWriteRef.current += 1;
       }
       return next;
     }).finally(() => {
@@ -121,6 +138,8 @@ function BrowserUsePanel({ sessionId, settings, hidden = false, navigationReques
   useEffect(() => {
     snapshotBindingRef.current = "";
     setSnapshot(null);
+    setSnapshotReady(false);
+    snapshotWriteRef.current += 1;
     snapshotRefreshRef.current = null;
     if (!sessionId || !providerId || !providerReady) return;
     const controller = new AbortController();
@@ -145,7 +164,11 @@ function BrowserUsePanel({ sessionId, settings, hidden = false, navigationReques
         try {
           const response = await waitForBrowserDockRevision(sessionId, providerId, current?.revision ?? 0, request.signal);
           if (cancelled) return;
-          if (!response.session) continue;
+          if (!response.session) {
+            const refreshed = await refreshSnapshot(providerId, sessionId, request.signal);
+            if (!refreshed) return;
+            continue;
+          }
           if (!current || response.session.revision !== current.revision) {
             await refreshSnapshot(providerId, sessionId, request.signal);
           }
@@ -197,7 +220,8 @@ function BrowserUsePanel({ sessionId, settings, hidden = false, navigationReques
         if (!disposed && updated && `${scopeRef.current.sessionId}:${scopeRef.current.providerId}` === binding) {
           lastAppliedSize = nextSize;
           snapshotBindingRef.current = binding;
-          setSnapshot(current => current && current.revision > updated.revision ? current : updated);
+          snapshotWriteRef.current += 1;
+          setSnapshot(current => preferCurrentBrowserSnapshot(current, updated));
         }
       } catch (reason) {
         if (!disposed && !controller.signal.aborted) setError(getErrorMessage(reason));
@@ -243,7 +267,8 @@ function BrowserUsePanel({ sessionId, settings, hidden = false, navigationReques
         const result = await operation();
         if (`${scopeRef.current.sessionId}:${scopeRef.current.providerId}` !== scope) return;
         snapshotBindingRef.current = scope;
-        setSnapshot(current => current && current.revision > result.session.revision ? current : result.session);
+        snapshotWriteRef.current += 1;
+        setSnapshot(current => preferCurrentBrowserSnapshot(current, result.session));
       } catch (reason) {
         if (`${scopeRef.current.sessionId}:${scopeRef.current.providerId}` === scope) setError(getErrorMessage(reason));
       } finally {
@@ -277,6 +302,29 @@ function BrowserUsePanel({ sessionId, settings, hidden = false, navigationReques
     setLiveStream(false);
   }, []);
 
+  useEffect(() => {
+    const sourceSession = sessionId;
+    const selectedProvider = providerId;
+    if (!sourceSession || !selectedProvider || !providerReady || hidden
+      || !shouldRestoreBrowserDockPage(browserUrl, snapshotReady, snapshot?.url, Boolean(navigationRequest))) {
+      if (snapshot) restoreNavigationRef.current = "";
+      return;
+    }
+    const key = `${sourceSession}:${selectedProvider}:${browserUrl}`;
+    if (restoreNavigationRef.current === key) return;
+    restoreNavigationRef.current = key;
+    stopLiveView();
+    setHasRenderedFrame(false);
+    const canvas = canvasRef.current;
+    if (canvas) canvas.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
+    try {
+      const target = resolveBrowserAddress(browserUrl!, settings.browserUse.searchEngine);
+      void runAction(() => navigateBrowserDock(sourceSession, selectedProvider, target));
+    } catch (reason) {
+      setError(getErrorMessage(reason));
+    }
+  }, [browserUrl, hidden, navigationRequest, providerId, providerReady, runAction, sessionId, settings.browserUse.searchEngine, snapshot, snapshotReady, stopLiveView]);
+
   const startLiveView = useCallback(async () => {
     if (streamPendingRef.current || liveStreamRef.current || !sessionId || !providerId) return;
     setLiveStreamError("");
@@ -299,9 +347,19 @@ function BrowserUsePanel({ sessionId, settings, hidden = false, navigationReques
         pendingFrameRef.current = frame;
         drainFramesRef.current();
       });
-      if (!controller.signal.aborted && requestId === streamRequestIdRef.current) setLiveStreamError("网页画面流已结束。重新导航即可连接。");
+      if (!controller.signal.aborted && requestId === streamRequestIdRef.current) {
+        setLiveStreamError("网页画面流已结束。");
+        void refreshSnapshot(providerId, sessionId).catch(reason => {
+          if (!controller.signal.aborted) setError(getErrorMessage(reason));
+        });
+      }
     } catch (reason) {
-      if (!controller.signal.aborted && requestId === streamRequestIdRef.current) setLiveStreamError(getErrorMessage(reason));
+      if (!controller.signal.aborted && requestId === streamRequestIdRef.current) {
+        setLiveStreamError(getErrorMessage(reason));
+        void refreshSnapshot(providerId, sessionId).catch(refreshReason => {
+          if (!controller.signal.aborted) setError(getErrorMessage(refreshReason));
+        });
+      }
     } finally {
       if (requestId === streamRequestIdRef.current) {
         streamPendingRef.current = false;
@@ -318,7 +376,7 @@ function BrowserUsePanel({ sessionId, settings, hidden = false, navigationReques
         }
       }
     }
-  }, [providerId, sessionId, stopLiveView]);
+  }, [providerId, refreshSnapshot, sessionId, stopLiveView]);
 
   drainFramesRef.current = () => {
     if (frameDecodingRef.current || !pendingFrameRef.current) return;
@@ -590,7 +648,8 @@ function BrowserUsePanel({ sessionId, settings, hidden = false, navigationReques
 }
 
 export function BrowserPanel(props: BrowserPanelProps) {
-  if (typeof window !== "undefined" && window.lfaaDesktop?.nativeBrowser) {
+  const managedBrowserPreferred = props.preferredProviderId === "lfaa-managed-edge" || props.preferredProviderId === "lfaa-managed-chrome";
+  if (typeof window !== "undefined" && window.lfaaDesktop?.nativeBrowser && !managedBrowserPreferred) {
     return <NativeBrowserPanel {...props} />;
   }
   return <BrowserUsePanel {...props} />;

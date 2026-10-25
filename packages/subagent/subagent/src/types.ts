@@ -6,6 +6,7 @@
  */
 import type { ApplicationId } from "lfaa-util-values/src/application-id.js";
 import type { UserRole } from "lfaa-identity-auth/src/service.js";
+import type { KillTreeResult } from "lfaa-win32-process";
 
 /** 一次子代理任务的终态原因；非 completed 一律由工具层映射为失败结果。 */
 export type SubagentStopReason = "completed" | "aborted" | "error" | "timeout";
@@ -32,6 +33,8 @@ export interface SubagentDriverContext {
   readonly userRole: UserRole;
   /** 父运行取消信号；触发时驱动必须终止子任务。 */
   readonly signal: AbortSignal;
+  /** 外部进程取消时委托唯一 Process Owner 终止进程树。 */
+  readonly terminateProcessTree?: (pid: number) => Promise<KillTreeResult>;
   /** 运行轨迹进度回报。 */
   readonly onProgress: (detail: string) => void;
 }

@@ -1,21 +1,23 @@
 /**
- * 功能：将 GitHub 项目 Skill 安装适配到现有项目目录与文件 Owner。
- * 作用：固定提交、校验单个 Skill 文件树、仅写入当前选中项目并通过真实目录发现核验。
- * 关联文件：capability-installs、plugin-manager/github-source.ts、core/tools/project-tools.ts、host/project-files/project-files.mjs。
+ * 功能：将固定 GitHub 来源的 Skill 安装到 LFAA 当前账户共享资料库。
+ * 作用：校验完整文件树、精确回读账户记录，并由现有 Skill Registry 跨项目/App 发现。
+ * 关联文件：capability-installs、knowledge-library、skill Registry、plugin-manager/github-source.ts。
  */
 import type { Context } from "@deepseek-ai/cordis";
 import { createHash } from "node:crypto";
-import { isAbsolute } from "node:path";
-import type { AiBusinessToolContext } from "lfaa-tools/src/business-tools.js";
-import { projectFileTool } from "lfaa-tools/src/project-tools.js";
 import type { CapabilityInstallAdapter, CapabilityInstallRegistry, CapabilityApplicationId } from "lfaa-capability-installs/src/index.js";
 import { downloadGithubSnapshot, searchGithubRepositories } from "lfaa-plugin-manager/src/github-source.js";
 import type { PluginArchiveFile } from "lfaa-plugin-manager/src/zip-archive.js";
+import { createKnowledgeLibrarySkillInstallation, deleteKnowledgeLibrarySkillInstallation, getKnowledgeLibrarySkillInstallation, listKnowledgeLibrarySkillInstallations, type KnowledgeLibrarySkillFileInput } from "lfaa-knowledge-library/src/index.js";
+import { APPLICATION_IDS } from "lfaa-util-values/src/application-id.js";
+import { getUserSettings } from "lfaa-settings/src/service.js";
+import { isSkillDisabled, type SkillRegistry } from "lfaa-skill/src/index.js";
 
-const applications: CapabilityApplicationId[] = ["workspace", "minecraft"];
-const skillIdPattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/u;
+const applications: CapabilityApplicationId[] = [...APPLICATION_IDS];
+const skillIdPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 const maximumSkillFiles = 128;
-const maximumSkillBytes = 8 * 1024 * 1024;
+// Base64 expansion must remain below the existing 8 MiB Project Files task envelope.
+const maximumSkillBytes = 5 * 1024 * 1024;
 const maximumSkillFileBytes = 2 * 1024 * 1024;
 
 interface SkillDetails {
@@ -57,16 +59,16 @@ const runtimeRiskLabels: Record<SkillRuntimeRiskSignal, string> = {
   "user-profile-persistence": "用户目录持久配置/数据"
 };
 
-export interface ProjectSkillAdapterDependencies {
+export interface AccountSkillAdapterDependencies {
   searchRepositories?: typeof searchGithubRepositories;
   downloadSnapshot?: typeof downloadGithubSnapshot;
-  runProjectFile?: (input: Record<string, unknown>, context: AiBusinessToolContext) => Promise<unknown>;
+  invalidateSkills?: () => void;
+  skillRegistry?: Pick<SkillRegistry, "list" | "get">;
 }
 
-export function createProjectSkillAdapter(dependencies: ProjectSkillAdapterDependencies = {}): CapabilityInstallAdapter {
+export function createAccountSkillAdapter(dependencies: AccountSkillAdapterDependencies = {}): CapabilityInstallAdapter {
   const search = dependencies.searchRepositories ?? searchGithubRepositories;
   const download = dependencies.downloadSnapshot ?? downloadGithubSnapshot;
-  const runProjectFile = dependencies.runProjectFile ?? runExistingProjectFileTool;
 
   const adapter: CapabilityInstallAdapter = {
     kind: "skill",
@@ -76,35 +78,27 @@ export function createProjectSkillAdapter(dependencies: ProjectSkillAdapterDepen
       properties: { sourcePath: { type: "string", minLength: 1, maxLength: 512 } },
       additionalProperties: false
     },
-    targetDescription: "必须使用当前会话选中的真实项目；sourcePath 是 GitHub 仓库内 Skill 目录的相对路径，仓库根目录用 .；多 Skill 仓库需从检查结果中选择后重新检查。",
-    validateTarget(target, applicationId, context) {
-      if (!applications.includes(applicationId)) throw new Error("项目 Skill 仅接入 Workspace 与 Minecraft 项目会话。");
-      const project = context.workspaceProject;
-      if (!project || project.nodeId !== null && !isUuid(project.nodeId) || !isAbsolute(project.path) || !project.title.trim()) {
-        throw new Error("安装项目 Skill 前，请先在当前会话选择真实项目；不会写入默认任务目录或其他项目。");
-      }
+    targetDescription: "安装到当前 LFAA 账户的共享 Skill 库，可供所有项目与 App 使用；sourcePath 是 GitHub 仓库内 Skill 目录的相对路径，仓库根目录用 .；多 Skill 仓库需从检查结果中选择后重新检查。",
+    validateTarget(target, applicationId) {
+      if (!applications.includes(applicationId)) throw new Error("当前 LFAA App 不支持共享 Skill 安装。");
       const input = target === undefined ? {} : asRecord(target, "Skill target");
       if (Object.keys(input).some(key => key !== "sourcePath")) throw new Error("Skill 只接受仓库内相对 sourcePath 作为类型目标。");
       const sourcePath = input.sourcePath === undefined ? undefined : normalizeSourcePath(input.sourcePath);
-      return { nodeId: project.nodeId, path: project.path, title: safeText(project.title, 120), ...(sourcePath !== undefined ? { sourcePath } : {}) };
+      return sourcePath !== undefined ? { sourcePath } : {};
     },
-    revalidateTarget(target, applicationId, context) {
-      if (!applications.includes(applicationId)) throw new Error("项目 Skill 仅接入 Workspace 与 Minecraft 项目会话。");
-      const project = currentProject(context);
-      const allowedKeys = ["nodeId", "path", "title", "sourcePath"];
-      if (Object.keys(target).some(key => !allowedKeys.includes(key))
-        || target.nodeId !== project.nodeId || target.path !== project.path || target.title !== safeText(project.title, 120)) {
-        throw new Error("检查时绑定的项目目标已变化。");
-      }
+    revalidateTarget(target, applicationId) {
+      if (!applications.includes(applicationId)) throw new Error("当前 LFAA App 不支持共享 Skill 安装。");
+      if (Object.keys(target).some(key => key !== "sourcePath")) throw new Error("Skill 安装目标超出当前账户的共享范围。");
       const sourcePath = target.sourcePath === undefined ? undefined : normalizeSourcePath(target.sourcePath, true);
-      return { nodeId: project.nodeId, path: project.path, title: safeText(project.title, 120), ...(sourcePath !== undefined ? { sourcePath } : {}) };
+      return sourcePath !== undefined ? { sourcePath } : {};
     },
-    targetSummary(target) { return `${safeText(String(target.title ?? "项目"), 120)} 项目`; },
+    targetSummary() { return "当前 LFAA 账户 · 所有项目与 App 的共享 Skill 库"; },
     async search(query) {
       return { candidates: (await search(query)).map(item => ({ ...item, sourceType: "github", requiresInspection: true, warning: item.license ? "仓库搜索只是候选；检查只会选择并复制文本 Skill 文件，不运行仓库脚本。" : "来源许可证未确认；检查前需要先核对许可，仓库内容不会执行。" })) };
     },
-    async inspect(source, ref, _applicationId, target) {
-      const snapshot = await download(source, ref);
+    async inspect(source, ref, _applicationId, target, context) {
+      const snapshot = await download(source, ref, context.signal);
+      context.signal.throwIfAborted();
       const skillRoots = findSkillRoots(snapshot.files);
       const selectedPath = typeof target.sourcePath === "string" ? target.sourcePath : undefined;
       if (selectedPath === undefined && skillRoots.length > 1) throw new Error(`仓库包含多个 Skill；请从下列目录选择一个，并在 target.sourcePath 中指定后重新检查（仓库根目录用 .）：${skillRoots.map(path => path || ".").join("、")}`);
@@ -114,7 +108,7 @@ export function createProjectSkillAdapter(dependencies: ProjectSkillAdapterDepen
       const skillFile = selectedFiles.find(file => file.path.toLocaleLowerCase("en-US") === `${sourcePath ? `${sourcePath}/` : ""}SKILL.md`.toLocaleLowerCase("en-US"));
       if (!skillFile) throw new Error("所选 Skill 缺少 SKILL.md；没有创建安装凭证。");
       const markdown = decodeSkillText(skillFile);
-      const metadata = parseSkillMetadata(markdown, sourcePath || snapshot.repository.name);
+      const metadata = parseSkillMetadata(markdown, sourcePath);
       const files = selectedFiles.map(file => ({ path: relativeSkillPath(file.path, sourcePath), sha256: sha256(file.contents), bytes: file.contents.length }));
       const runtimeAudit = inspectSkillRuntime(selectedFiles, sourcePath);
       const details: SkillDetails = {
@@ -133,75 +127,104 @@ export function createProjectSkillAdapter(dependencies: ProjectSkillAdapterDepen
     },
     async install(source, resolvedRef, _applicationId, _userId, target, details, context) {
       context.signal.throwIfAborted();
-      const project = currentProject(context);
-      if (project.nodeId !== target.nodeId || project.path !== target.path) throw new Error("当前会话项目与检查凭证绑定的项目不同；没有写入，请重新检查来源。");
       const plan = parseDetails(details, resolvedRef);
       if ((typeof target.sourcePath === "string" ? target.sourcePath : "") !== plan.sourcePath) throw new Error("Skill 目录与检查凭证中的选择不一致；没有写入。");
       const snapshot = await download(source, resolvedRef, context.signal);
       context.signal.throwIfAborted();
-      if (snapshot.commit !== resolvedRef || snapshot.archiveSha256 !== plan.archiveSha256) throw new Error("固定提交的源码归档与检查结果摘要不一致；没有写入项目。");
+      if (snapshot.commit !== resolvedRef || snapshot.archiveSha256 !== plan.archiveSha256) throw new Error("固定提交的源码归档与检查结果摘要不一致；没有写入账户 Skill 库。");
       const selectedFiles = selectSkillFiles(snapshot.files, plan.sourcePath);
       const skillFile = selectedFiles.find(file => relativeSkillPath(file.path, plan.sourcePath).toLocaleLowerCase("en-US") === "skill.md");
-      if (!skillFile || decodeSkillText(skillFile).length === 0) throw new Error("固定版本中的 SKILL.md 缺失或为空；没有写入。");
-      const files = selectedFiles.map(file => ({ path: relativeSkillPath(file.path, plan.sourcePath), content: decodeSkillText(file) }));
+      if (!skillFile || decodeSkillText(skillFile).length === 0) throw new Error("固定版本中的 SKILL.md 缺失或为空；没有写入账户 Skill 库。");
+      const files: KnowledgeLibrarySkillFileInput[] = selectedFiles.map(file => ({
+        path: relativeSkillPath(file.path, plan.sourcePath),
+        content: file.contents.toString("base64"),
+        encoding: "base64"
+      }));
       context.signal.throwIfAborted();
-      const ownerResult = await runProjectFile({ operation: "create_tree", path: `.agents/skills/${plan.name}`, files }, context);
-      const created = unwrapProjectFileResult(ownerResult);
-      if (!isRecord(created) || created.created !== true || !Array.isArray(created.files)) throw new Error("项目文件 Owner 未确认目录创建；请重新检查项目状态后再决定是否重试。");
-      return { skill: plan.name, applicationId: context.applicationId, project: safeText(project.title, 120), source: { repository: plan.repository, commit: resolvedRef, archiveSha256: plan.archiveSha256, license: plan.license }, writtenFileCount: created.files.length };
+      const installed = createKnowledgeLibrarySkillInstallation(context.userId, {
+        name: plan.name,
+        description: plan.description,
+        source: { repositoryUrl: plan.repository, commit: resolvedRef, archiveSha256: plan.archiveSha256, sourcePath: plan.sourcePath, license: plan.license },
+        files
+      });
+      dependencies.invalidateSkills?.();
+      return {
+        skill: installed.name, installationId: installed.id, applicationId: "all", accountId: context.userId,
+        source: { repository: installed.repositoryUrl, commit: installed.commit, archiveSha256: installed.archiveSha256, license: installed.license },
+        fileCount: installed.fileCount, totalBytes: installed.totalBytes
+      };
     },
     async verifyInstalled(installation, _source, resolvedRef, applicationId, target, details, context) {
-      const project = currentProject(context);
       const plan = parseDetails(details, resolvedRef);
-      if (project.nodeId !== target.nodeId || project.path !== target.path || !isRecord(installation) || installation.skill !== plan.name || installation.applicationId !== context.applicationId || context.applicationId !== applicationId) {
-        return { status: "unknown", verified: false, summary: "当前会话项目或安装结果与检查凭证不一致，无法确认 Skill 登记状态。" };
+      if (!isRecord(installation) || installation.skill !== plan.name || installation.applicationId !== "all"
+        || installation.accountId !== context.userId || context.applicationId !== applicationId
+        || typeof installation.installationId !== "string") {
+        return { status: "unknown", verified: false, summary: "账户 Skill Owner 返回的安装记录与检查凭证不一致，无法确认登记状态。" };
       }
-      const skills = await adapter.list(applicationId, target, context);
-      const expectedPath = `.agents/skills/${plan.name}/SKILL.md`;
-      const registered = skills.some(item => isRecord(item) && item.name === plan.name
-        && typeof item.path === "string" && item.path.replaceAll("\\", "/") === expectedPath);
-      if (!registered) return { status: "unknown", verified: false, summary: "项目文件 Owner 未在当前项目发现刚安装的 Skill；先查询能力清单，不要重放安装。" };
+      const stored = getKnowledgeLibrarySkillInstallation(context.userId, installation.installationId);
+      if (!stored || stored.name !== plan.name || stored.commit !== resolvedRef || stored.repositoryUrl !== plan.repository || stored.archiveSha256 !== plan.archiveSha256) {
+        return { status: "unknown", verified: false, summary: "账户 Skill Owner 未能按账户和精确记录 ID 回读固定来源与 Skill 正文；未报告可用。" };
+      }
+      const list = await adapter.list(applicationId, target, context);
+      if (!list.some(item => isRecord(item) && item.id === stored.id && item.name === plan.name)) {
+        return { status: "unknown", verified: false, summary: "LFAA 共享 Skill 清单未发现刚安装的精确记录；请先查询清单，不要盲目重放安装。" };
+      }
+      if (!dependencies.skillRegistry) {
+        return { status: "installed", verified: true, summary: "账户 Skill Owner 已回读固定来源、完整文件清单和正文；Registry 当前回合尚未提供可核对的加载结果。" };
+      }
+      const cwd = context.workspaceProject?.path;
+      const lookup = { userId: context.userId, ...(cwd ? { cwd } : {}) };
+      const summaries = await dependencies.skillRegistry.list(lookup);
+      const winner = summaries.find(item => item.name === plan.name);
+      if (winner?.provider !== "lfaa-knowledge-library-skills") {
+        return { status: "installed", verified: true, summary: "Skill 已安装到当前账户的共享库，但当前上下文中存在更高优先级的同名 Skill；不会覆盖它。" };
+      }
+      // 保存到账户资料库不等于进入模型运行时：账户扩展总开关与单项停用都归 Settings Owner，
+      // 关闭时 lfaa_skill_list/lfaa_skill_load 不会返回该 Skill，不能报告 ready。
+      const settings = getUserSettings(context.userId);
+      const disabledBySettings = isSkillDisabled(plan.name, settings.plugins.disabledSkillNames);
+      if (!settings.plugins.enabled || disabledBySettings) {
+        return {
+          status: "installed",
+          verified: true,
+          summary: !settings.plugins.enabled
+            ? "Skill 已保存到当前账户的共享库，并可由 Skill Registry 回读；但 AI Work 扩展总开关当前关闭，模型 Skill 目录不会提供它。按用户目标与当前权限开启扩展后再按需加载，不能报告为当前可用。"
+            : "Skill 已保存到当前账户的共享库，但在设置中心的 Skill 停用名单中；当前不会进入模型 Skill 目录，不能报告为当前可用。",
+          details: {
+            skill: plan.name, installationId: stored.id, applicationId: "all", accountId: context.userId,
+            runtimeEnabled: false, gate: !settings.plugins.enabled ? "plugins.enabled" : "plugins.disabledSkillNames",
+            contentSha256: stored.contentSha256, files: stored.files, state: "account-installed-runtime-gated"
+          }
+        };
+      }
+      const definition = await dependencies.skillRegistry.get(plan.name, lookup);
+      if (!definition || definition.provider !== "lfaa-knowledge-library-skills" || !definition.content.trim()) {
+        return { status: "unknown", verified: false, summary: "Registry 已列出共享 Skill，但无法回读可加载正文；未报告 ready。" };
+      }
       return {
         status: "ready",
         verified: true,
-        summary: `项目文件 Owner 已在“${safeText(project.title, 120)}”发现 ${plan.name}；SKILL.md 可按需加载。此状态只确认 Skill 已发现，不代表附带脚本、依赖或外部服务已运行。`,
+        summary: "LFAA 当前账户的共享 Skill Owner 已保存并由 Registry 回读 " + plan.name + "；所有项目与 App 均可按需发现。附属脚本不执行，依赖或外部运行时仍需按用户目标另行处理。",
         details: {
-          skill: plan.name,
-          path: expectedPath,
-          project: safeText(project.title, 120),
-          state: "installed-and-discovered",
-          fileCount: plan.files.length,
-          scriptFiles: plan.runtimeAudit.scriptFiles,
-          declaredNodeMajor: plan.runtimeAudit.declaredNodeMajor,
-          packageManifest: plan.runtimeAudit.packageManifest,
-          dependencies: plan.runtimeAudit.dependencies,
-          devDependencies: plan.runtimeAudit.devDependencies,
-          packageScriptNames: plan.runtimeAudit.packageScriptNames,
-          riskSignals: plan.runtimeAudit.riskSignals,
-          scriptsExecuted: false,
-          dependenciesInstalled: false,
-          externalRuntimeVerified: false
+          skill: plan.name, installationId: stored.id, applicationId: "all", accountId: context.userId,
+          contentSha256: stored.contentSha256, files: stored.files, state: "account-installed-and-registry-loaded",
+          scriptFiles: plan.runtimeAudit.scriptFiles, declaredNodeMajor: plan.runtimeAudit.declaredNodeMajor,
+          packageManifest: plan.runtimeAudit.packageManifest, dependencies: plan.runtimeAudit.dependencies,
+          devDependencies: plan.runtimeAudit.devDependencies, packageScriptNames: plan.runtimeAudit.packageScriptNames,
+          riskSignals: plan.runtimeAudit.riskSignals, scriptsExecuted: false, dependenciesInstalled: false, externalRuntimeVerified: false
         }
       };
     },
-    async list(_applicationId, target, context) {
-      const project = currentProject(context);
-      if (project.nodeId !== target.nodeId || project.path !== target.path) throw new Error("清单目标与当前会话项目不一致。");
-      const result = unwrapProjectFileResult(await runProjectFile({ operation: "discover_skills", path: "." }, context));
-      return isRecord(result) && Array.isArray(result.skills) ? result.skills : [];
+    async list(_applicationId, _target, context) {
+      return listKnowledgeLibrarySkillInstallations(context.userId);
+    },
+    async remove(id, _applicationId, _target, context) {
+      const removed = deleteKnowledgeLibrarySkillInstallation(context.userId, id);
+      if (removed) dependencies.invalidateSkills?.();
+      return { removed, installationId: id, accountId: context.userId, applicationId: "all", exact: true };
     }
   };
   return adapter;
-}
-
-function currentProject(context: AiBusinessToolContext): { nodeId: string | null; path: string; title: string } {
-  const project = context.workspaceProject;
-  if (!project || project.nodeId !== null && !isUuid(project.nodeId) || !isAbsolute(project.path)) throw new Error("当前会话没有可验证的项目目标。");
-  return { nodeId: project.nodeId, path: project.path, title: project.title };
-}
-
-function isUuid(value: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(value);
 }
 
 function findSkillRoots(files: PluginArchiveFile[]): string[] {
@@ -215,16 +238,16 @@ function selectSkillFiles(files: PluginArchiveFile[], sourcePath: string): Plugi
   let total = 0;
   for (const file of selected) {
     const relative = relativeSkillPath(file.path, sourcePath);
-    if (!relative || relative.length > 512 || file.contents.length > maximumSkillFileBytes || file.contents.includes(0)) throw new Error(`Skill 包含不受支持或过大的文件：${relative || file.path}`);
+    if (!relative || relative.length > 512 || file.contents.length > maximumSkillFileBytes || !isSafeSkillRelativePath(relative)) throw new Error(`Skill 包含不安全或过大的文件：${relative || file.path}`);
     total += file.contents.length;
-    if (total > maximumSkillBytes) throw new Error("Skill 文本文件总大小超过 8 MiB；没有安装。");
+    if (total > maximumSkillBytes) throw new Error("Skill 文件总大小超过 5 MiB 安全限制；没有安装。");
   }
   return selected.sort((a, b) => a.path.localeCompare(b.path));
 }
 
 function inspectSkillRuntime(files: PluginArchiveFile[], sourcePath: string): SkillDetails["runtimeAudit"] {
   const relativeFiles = files.map(file => ({ file, path: relativeSkillPath(file.path, sourcePath) }));
-  const content = relativeFiles.map(({ file }) => decodeSkillText(file)).join("\n");
+  const content = relativeFiles.map(({ file }) => tryDecodeSkillText(file) ?? "").join("\n");
   const riskSignals = runtimeRiskSignals.filter(({ pattern }) => pattern.test(content)).map(({ id }) => id);
   const textualNodeMajors = [...content.matchAll(/\bNode(?:\.js)?\s+(?:v)?(\d+)\s*\+/giu)].map(match => Number(match[1]));
   const scriptFiles = relativeFiles
@@ -234,7 +257,9 @@ function inspectSkillRuntime(files: PluginArchiveFile[], sourcePath: string): Sk
   const manifest = relativeFiles.find(({ path }) => path.toLocaleLowerCase("en-US") === "package.json")?.file;
   if (!manifest) return { scriptFiles, declaredNodeMajor: textualNodeMajors.length ? Math.max(...textualNodeMajors) : null, packageManifest: "absent", dependencies: [], devDependencies: [], packageScriptNames: [], riskSignals };
   try {
-    const value: unknown = JSON.parse(decodeSkillText(manifest));
+    const manifestText = tryDecodeSkillText(manifest);
+    if (manifestText === null) throw new Error("package.json is binary");
+    const value: unknown = JSON.parse(manifestText);
     if (!isRecord(value)) throw new Error("package.json root is not an object");
     const keys = (field: string): string[] => isRecord(value[field]) ? Object.keys(value[field] as Record<string, unknown>).map(name => safeText(name, 120)).filter(Boolean).slice(0, 64) : [];
     const engineNode = isRecord(value.engines) && typeof value.engines.node === "string" ? value.engines.node : "";
@@ -275,17 +300,75 @@ function relativeSkillPath(path: string, sourcePath: string): string {
 }
 
 function decodeSkillText(file: PluginArchiveFile): string {
-  if (file.contents.length > maximumSkillFileBytes || file.contents.includes(0)) throw new Error(`Skill 只支持每个不超过 2 MiB 的 UTF-8 文本文件：${file.path}`);
-  try { return new TextDecoder("utf-8", { fatal: true }).decode(file.contents); }
-  catch { throw new Error(`Skill 包含非 UTF-8 文件：${file.path}；当前项目文件 Owner 只接受 UTF-8 文本。`); }
+  if (file.contents.length > maximumSkillFileBytes) throw new Error(`Skill 文件超过 2 MiB：${file.path}`);
+  const value = tryDecodeSkillText(file);
+  if (value === null) throw new Error(`SKILL.md 必须是 UTF-8 文本：${file.path}`);
+  return value;
 }
 
-function parseSkillMetadata(markdown: string, fallbackName: string): { name: string; description: string } {
-  const frontmatter = markdown.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/u)?.[1] ?? "";
-  const rawName = frontmatter.match(/^name:\s*["']?([^"'\r\n#]+?)["']?\s*$/mu)?.[1]?.trim() ?? fallbackName.split("/").at(-1) ?? "";
-  if (!skillIdPattern.test(rawName)) throw new Error("Skill 名称必须是 1–64 位字母、数字、点、下划线或短横线；没有创建安装凭证。");
-  const description = frontmatter.match(/^description:\s*["']?([^"'\r\n#]+?)["']?\s*$/mu)?.[1]?.trim() ?? "";
-  return { name: rawName, description: safeText(description, 500) };
+function tryDecodeSkillText(file: PluginArchiveFile): string | null {
+  if (file.contents.length > maximumSkillFileBytes || file.contents.includes(0)) return null;
+  try { return new TextDecoder("utf-8", { fatal: true }).decode(file.contents); }
+  catch { return null; }
+}
+
+function parseSkillMetadata(markdown: string, sourcePath: string): { name: string; description: string } {
+  const block = markdown.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/u)?.[1];
+  if (block === undefined) throw new Error("SKILL.md 缺少 YAML frontmatter；必须包含 name 和 description。");
+  const lines = block.split(/\r?\n/u);
+  let name: string | undefined;
+  let description: string | undefined;
+  for (let index = 0; index < lines.length; index += 1) {
+    const match = lines[index].match(/^([A-Za-z][A-Za-z0-9_-]*):(?:\s*(.*))?$/u);
+    if (!match) continue;
+    const key = match[1].toLocaleLowerCase("en-US");
+    if (key !== "name" && key !== "description") continue;
+    if ((key === "name" ? name : description) !== undefined) throw new Error(`SKILL.md 的 ${key} 字段重复。`);
+    let value = (match[2] ?? "").trim();
+    if (key === "description" && (value === ">" || value === "|" || value === ">-" || value === "|-" || value === ">+" || value === "|+")) {
+      const blockLines: string[] = [];
+      for (let next = index + 1; next < lines.length && /^(?:\s+|\s*$)/u.test(lines[next]); next += 1) {
+        blockLines.push(lines[next].trim());
+        index = next;
+      }
+      value = value.startsWith(">") ? blockLines.filter(Boolean).join(" ") : blockLines.join("\n");
+    } else {
+      value = parseFrontmatterScalar(value, key);
+    }
+    if (key === "name") name = value;
+    else description = value;
+  }
+  const expectedDirectoryName = sourcePath.split("/").at(-1);
+  if (!name || name.length > 64 || !skillIdPattern.test(name) || expectedDirectoryName && name !== expectedDirectoryName) {
+    throw new Error("Skill 的 name 必须是 1–64 位小写字母、数字和单个短横线，并与 Skill 目录名一致；没有创建安装凭证。");
+  }
+  if (!description?.trim() || description.length > 1024) throw new Error("Skill 的 description 必须是 1–1024 个字符；没有创建安装凭证。");
+  return { name, description: description.trim() };
+}
+
+function parseFrontmatterScalar(value: string, field: string): string {
+  const withoutComment = value.replace(/\s+#.*$/u, "").trim();
+  if (!withoutComment) return "";
+  if (withoutComment.startsWith('"')) {
+    try {
+      const parsed: unknown = JSON.parse(withoutComment);
+      if (typeof parsed !== "string") throw new Error("not string");
+      return parsed;
+    } catch { throw new Error(`SKILL.md 的 ${field} 字段不是有效的双引号 YAML 字符串。`); }
+  }
+  if (withoutComment.startsWith("'")) {
+    if (!withoutComment.endsWith("'") || withoutComment.length < 2) throw new Error(`SKILL.md 的 ${field} 字段不是有效的单引号 YAML 字符串。`);
+    return withoutComment.slice(1, -1).replace(/''/gu, "'");
+  }
+  if (/^[\[{|>&*!]/u.test(withoutComment)) throw new Error(`SKILL.md 的 ${field} 字段使用了当前安装器不支持的 YAML 类型。`);
+  return withoutComment;
+}
+
+function isSafeSkillRelativePath(path: string): boolean {
+  const parts = path.replaceAll("\\", "/").split("/");
+  return parts.every(part => part.length > 0 && part !== "." && part !== ".." && !/[<>:"|?*\0]/u.test(part)
+    && !/[ .]$/u.test(part) && /^[\p{L}\p{N}\p{M}._ -]+$/u.test(part)
+    && !/^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/iu.test(part));
 }
 
 function normalizeSourcePath(value: unknown, allowRoot = false): string {
@@ -303,24 +386,20 @@ function parseDetails(value: unknown, resolvedRef: string): SkillDetails {
   return plan;
 }
 
-function unwrapProjectFileResult(value: unknown): unknown { return isRecord(value) && "result" in value ? value.result : value; }
 function asRecord(value: unknown, name: string): Record<string, unknown> { if (!isRecord(value)) throw new Error(`${name} 必须是 JSON 对象。`); return value; }
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }
 function safeText(value: string, limit: number): string { return value.replace(/[\r\n\0]/gu, " ").replace(/\s+/gu, " ").trim().slice(0, limit); }
 function sha256(value: Buffer): string { return createHash("sha256").update(value).digest("hex"); }
 
-async function runExistingProjectFileTool(input: Record<string, unknown>, context: AiBusinessToolContext): Promise<unknown> {
-  const prepared = projectFileTool.prepare?.(input, context);
-  if (!prepared) throw new Error("项目文件 Owner 缺少目标解析器。");
-  return projectFileTool.execute(prepared, context);
-}
-
 declare module "@deepseek-ai/cordis" {
-  interface Context { lfaaCapabilityInstalls: CapabilityInstallRegistry }
+  interface Context { lfaaCapabilityInstalls: CapabilityInstallRegistry; skills: SkillRegistry }
 }
 
 export const name = "lfaaCapabilitySkill";
-export const inject = ["lfaaCapabilityInstalls"];
+export const inject = ["lfaaCapabilityInstalls", "skills"];
 export function apply(ctx: Context): void {
-  ctx.lfaaCapabilityInstalls.register(ctx, createProjectSkillAdapter());
+  ctx.lfaaCapabilityInstalls.register(ctx, createAccountSkillAdapter({
+    skillRegistry: ctx.skills,
+    invalidateSkills: () => ctx.skills.invalidate()
+  }));
 }

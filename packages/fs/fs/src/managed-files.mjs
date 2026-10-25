@@ -605,7 +605,7 @@ async function openDownload(pathInput) {
   const path = resolveManagedFilePath(pathInput);
   const info = await assertManagedPathIsSafe(path);
   if (!info.isFile() || info.size > 3 * 1024 * 1024) throw new Error('只支持传输 3 MiB 以内的普通文件。');
-  return {name: basename(path), size: info.size, stream: createReadStream(path)};
+  return {name: basename(path), size: info.size, stream: createReadStream(path, {signal})};
 }
 return {operate, openDownload, resolvePath: resolveManagedFilePath, ensureDirectory: ensureManagedDirectory, assertPath: assertManagedPathIsSafe};
 }

@@ -3,7 +3,7 @@
  * 作用：懒加载模块或页面运行时出错时保留刷新入口，不让工作台静默变成空白。
  * 关联文件：packages/client/ui-renderer/src/render.tsx、packages/client/modules/src/client/stale-chunk-recovery.ts。
  */
-import { Component, type ReactNode } from "react";
+import { Component, type ErrorInfo, type ReactNode } from "react";
 import { Alert, Button } from "antd";
 import { getClientRenderErrorSummary } from "./render-error-summary.js";
 
@@ -19,8 +19,8 @@ export class ClientRenderBoundary extends Component<{ children: ReactNode }, Cli
     return { failed: true, errorSummary: getClientRenderErrorSummary(error) };
   }
 
-  componentDidCatch(error: Error): void {
-    console.error("LFAA 工作区渲染失败。", error);
+  componentDidCatch(error: Error, info: ErrorInfo): void {
+    console.error("LFAA 工作区渲染失败。", error, info.componentStack);
   }
 
   render(): ReactNode {

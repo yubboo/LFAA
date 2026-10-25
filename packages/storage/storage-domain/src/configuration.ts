@@ -129,6 +129,10 @@ export class ConfigurationDomain {
 
   /** 将已验证的账户设置从 v47 配置记录迁入用户目录；无需增加 SQLite schema 版本。 */
   private activateFileBackedUserSettings(): void {
+    // Read the SQLite-only projection. `this.document` also contains settings already
+    // migrated to per-user files, so using it here makes a second startup replay
+    // mistake file-backed rows for legacy SQLite rows and reject its own cleanup.
+    const sqliteDocument = this.readSqliteDocument();
     const accountIds = (database.prepare("SELECT id FROM users ORDER BY id").all() as Array<{ id: string }>).map(row => row.id);
     const accountSet = new Set(accountIds);
     for (const table of ["user_settings", "user_preferences"] as const) {
@@ -138,10 +142,10 @@ export class ConfigurationDomain {
     }
 
     const fileDocuments = new Map<string, UserSettingsFileDocument>();
-    let hasLegacySqlRows = false;
+    const hasLegacySqlRows = sqliteDocument.tables.user_settings.length > 0 || sqliteDocument.tables.user_preferences.length > 0;
     for (const userId of accountIds) {
-      const rows = this.document.tables.user_settings.filter(row => row.user_id === userId);
-      const preference = this.document.tables.user_preferences.find(row => row.user_id === userId) ?? null;
+      const rows = sqliteDocument.tables.user_settings.filter(row => row.user_id === userId);
+      const preference = sqliteDocument.tables.user_preferences.find(row => row.user_id === userId) ?? null;
       const saved = userSettingsFiles.read(userId);
       if (saved && (rows.length > 0 || preference !== null)) {
         if (encode(saved.settings) !== encode(rows) || encode(saved.preferences) !== encode(preference)) {
@@ -152,21 +156,20 @@ export class ConfigurationDomain {
       }
       const loaded = userSettingsFiles.read(userId);
       if (loaded) fileDocuments.set(userId, loaded);
-      if (rows.length > 0 || preference !== null) hasLegacySqlRows = true;
     }
 
     if (hasLegacySqlRows) {
       withControlLock(database, () => {
         const state = database.prepare("SELECT revision FROM configuration_storage_state WHERE id = 1").get() as { revision?: number | bigint } | undefined;
-        if (!state || Number(state.revision) !== this.document.revision) throw new Error("迁移期间 SQLite 配置修订发生变化；请重启后重试。");
+        if (!state || Number(state.revision) !== sqliteDocument.revision) throw new Error("迁移期间 SQLite 配置修订发生变化；请重启后重试。");
         for (const table of ["user_settings", "user_preferences"] as const) {
           const currentRows = (database.prepare("SELECT record_key, value_json FROM configuration_records WHERE table_name = ? ORDER BY record_key").all(table) as Array<{ record_key: string; value_json: string }>)
             .map(row => decode(row.value_json) as ConfigurationRecord);
-          const expectedRows = this.document.tables[table].slice().sort((left, right) => recordKey(table, left).localeCompare(recordKey(table, right)));
+          const expectedRows = sqliteDocument.tables[table].slice().sort((left, right) => recordKey(table, left).localeCompare(recordKey(table, right)));
           if (encode(currentRows) !== encode(expectedRows)) throw new Error(`迁移期间 SQLite 配置域 ${table} 发生变化；拒绝清理来源。`);
         }
         database.prepare("DELETE FROM configuration_records WHERE table_name IN ('user_settings', 'user_preferences')").run();
-        const updated = database.prepare("UPDATE configuration_storage_state SET revision = revision + 1 WHERE id = 1 AND revision = ?").run(this.document.revision);
+        const updated = database.prepare("UPDATE configuration_storage_state SET revision = revision + 1 WHERE id = 1 AND revision = ?").run(sqliteDocument.revision);
         if (Number(updated.changes) !== 1) throw new Error("用户设置文件迁移修订冲突。");
       });
     }
@@ -192,7 +195,7 @@ export class ConfigurationDomain {
         const key = JSON.stringify(keys[table]!.map(field => record[field]));
         if (keys[table]!.some(field => record[field] === null || record[field] === undefined) || seen.has(key)) throw new Error(`配置域 ${table} 的主键缺失或重复。`);
         seen.add(key);
-        if (table === "user_settings" && (!["general", "appearance", "shortcuts", "ai-runtime", "minecraft-runtime", "git", "permissions", "plugins", "personalization", "computer-control", "browser-use"].includes(String(record.category)) || typeof record.value_json !== "string")) throw new Error("用户设置记录无效。");
+        if (table === "user_settings" && (!["general", "appearance", "shortcuts", "ai-runtime", "minecraft-runtime", "git", "permissions", "plugins", "personalization", "computer-control", "browser-use", "mini"].includes(String(record.category)) || typeof record.value_json !== "string")) throw new Error("用户设置记录无效。");
         if (table === "user_preferences" && (!APPLICATION_IDS.includes(String(record.selected_app) as ApplicationId) || !["normal", "ai-work"].includes(String(record.selected_mode)))) throw new Error("应用偏好记录无效。");
         if ("install_mode" in record && !["online", "manual"].includes(String(record.install_mode))) throw new Error("SteamCMD 安装模式无效。");
         if ("id" in record && table.endsWith("defaults") && record.id !== 1) throw new Error("应用默认配置主键无效。");

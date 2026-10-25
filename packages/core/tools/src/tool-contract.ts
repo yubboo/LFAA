@@ -36,6 +36,8 @@ export interface AiBusinessToolContext {
   refreshWritingContext?: () => void;
   /** 仅提供给明确声明问题通道的插件工具，回答仍由当前 Agent Run 管理。 */
   askUser?: (question: string, options: string[]) => Promise<{ answer: string; skipped: boolean }>;
+  /** 读取当前受信任 Runtime 已登记的 AI 生命周期钩子；不暴露回调或插件代码。 */
+  listRuntimeHooks?: () => Array<{ id: string; events: string[] }>;
 }
 
 export interface AiWritingToolTarget {
@@ -56,6 +58,14 @@ export interface AiBusinessTool {
   requiresComputerControl?: boolean;
   /** 浏览器工具只进入显式启用 Browser Use 设置的 Agent Run。 */
   requiresBrowserUse?: boolean;
+  /** 读取浏览历史的工具还须由用户在浏览器设置中单独允许。 */
+  requiresBrowserHistoryAccess?: boolean;
+  /** 网站工具需由账户的默认开关或网站例外显式允许。 */
+  requiresBrowserWebsiteTools?: boolean;
+  /** 开发者浏览器工具只在设置中心开启开发者模式时提供。 */
+  requiresBrowserDeveloperMode?: boolean;
+  /** 完整 CDP 工具需同时开启开发者模式与完整 CDP 权限。 */
+  requiresBrowserFullCdpAccess?: boolean;
   /** 可选角色闸门；默认 false，具体 Owner 仍须在执行时做业务授权。 */
   adminOnly?: boolean;
   description: string;

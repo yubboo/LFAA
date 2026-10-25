@@ -14,8 +14,10 @@ import { fileURLToPath } from "node:url";
 const cli = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 test("v44 Minecraft 工作流保留并迁移到账户文件，SQLite 只保留 App 索引", () => {
-  const data = mkdtempSync(join(tmpdir(), "lfaa-workflow-core-"));
-  const databaseDirectory = join(data, "database");
+  const isolated = mkdtempSync(join(tmpdir(), "lfaa-workflow-core-"));
+  const home = join(isolated, "home");
+  const data = join(isolated, "data");
+  const databaseDirectory = join(home, "database");
   const databasePath = join(databaseDirectory, "lfaa.sqlite");
   mkdirSync(databaseDirectory, { recursive: true });
   const seeded = new DatabaseSync(databasePath);
@@ -23,6 +25,18 @@ test("v44 Minecraft 工作流保留并迁移到账户文件，SQLite 只保留 A
     PRAGMA foreign_keys = ON;
     CREATE TABLE users (id TEXT PRIMARY KEY NOT NULL) STRICT;
     CREATE TABLE daemon_nodes (id TEXT PRIMARY KEY NOT NULL) STRICT;
+    -- v44 已含 v36/v38 的账户项目目录与 App 归属；后续 v60 迁移会重建此表。
+    CREATE TABLE workspace_projects (
+      id TEXT PRIMARY KEY NOT NULL,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      node_id TEXT NOT NULL REFERENCES daemon_nodes(id) ON DELETE RESTRICT,
+      path TEXT NOT NULL,
+      path_key TEXT NOT NULL,
+      title TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      app_id TEXT CHECK (app_id IN ('workspace', 'minecraft'))
+    ) STRICT;
     -- v44 的 Minecraft 执行队列表仍由 Minecraft Owner 持有；后续 v55/v56 迁移会扩展它。
     CREATE TABLE minecraft_instances (id TEXT PRIMARY KEY NOT NULL) STRICT;
     CREATE TABLE minecraft_deployments (id TEXT PRIMARY KEY NOT NULL) STRICT;
@@ -215,7 +229,7 @@ test("v44 Minecraft 工作流保留并迁移到账户文件，SQLite 只保留 A
     const script = [
       "import assert from 'node:assert/strict';",
       "const { database } = await import('lfaa-storage-sqlite/src/database.js');",
-      "assert.equal(Number(database.prepare('PRAGMA user_version').get().user_version), 61);",
+      "assert.equal(Number(database.prepare('PRAGMA user_version').get().user_version), 69);",
       "assert.ok(database.prepare('PRAGMA table_info(workflow_runs)').all().some(column => column.name === 'current_node_id'));",
       "assert.equal(database.prepare('SELECT application_id FROM workflow_definitions WHERE id = ?').get('legacy-minecraft').application_id, 'minecraft');",
       "const { createWorkflow, getWorkflow, listWorkflows, updateWorkflow } = await import('lfaa-workflow/src/service.js');",
@@ -272,12 +286,12 @@ test("v44 Minecraft 工作流保留并迁移到账户文件，SQLite 只保留 A
     ].join("\n");
     execFileSync(process.execPath, ["--import", "tsx", "--import", "./register-package-loader.mjs", "--input-type=module", "-e", script], {
       cwd: cli,
-      env: { ...process.env, NODE_ENV: "test", LFAA_DATA_DIR: data, JWT_SECRET: "" },
+      env: { ...process.env, NODE_ENV: "test", LFAA_HOME: home, LFAA_DATA_DIR: data, JWT_SECRET: "" },
       encoding: "utf8",
       stdio: "pipe",
       timeout: 20_000
     });
   } finally {
-    rmSync(data, { recursive: true, force: true });
+    rmSync(isolated, { recursive: true, force: true });
   }
 });

@@ -3,6 +3,8 @@
 .steamcmd-workspace__node-picker label { grid-column: 1 / -1; color: var(--color-text-secondary); font-size: var(--font-size-sm); }
 .steamcmd-workspace__node-picker .ant-select { min-width: 0; }
 .steamcmd-workspace__alert { margin-block: .75rem; }
+.steamcmd-workspace__alert .ant-alert-description { min-width: 0; overflow-wrap: anywhere; }
+.steamcmd-workspace__alert .ant-alert-description .ant-btn-link { max-width: 100%; height: auto; padding-inline: 0; white-space: normal; overflow-wrap: anywhere; text-align: start; }
 .steamcmd-workspace__task { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .35rem 1rem; margin-block: 1rem; padding: .85rem 1rem; border: 1px solid var(--color-border); border-radius: .8rem; background: var(--color-surface); }
 .steamcmd-workspace__task > div { display: flex; flex-wrap: wrap; gap: .35rem .8rem; min-width: 0; }
 .steamcmd-workspace__task p { width: 100%; margin: 0; color: var(--color-text-secondary); }
@@ -15,6 +17,13 @@
 .steamcmd-workspace__empty h3 { margin-top: 0; font-size: var(--font-size-md); }
 .steamcmd-workspace__empty p, .steamcmd-workspace__hint { margin-bottom: 0; color: var(--color-text-secondary); overflow-wrap: anywhere; }
 .steamcmd-workspace__server-list { display: grid; gap: .75rem; }
+.steamcmd-workspace__dst-card { margin-top: 1rem; }
+.steamcmd-workspace__dst-card > .steamcmd-workspace__hint:first-of-type { margin: -.25rem 0 .9rem; }
+.steamcmd-workspace__dst-form { margin-top: .9rem; }
+.steamcmd-workspace__dst-shards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; }
+.steamcmd-workspace__dst-shard { display: grid; align-content: start; gap: .5rem; min-width: 0; padding: .75rem; border: 1px solid var(--color-border); border-radius: .7rem; }
+.steamcmd-workspace__dst-shard h4 { margin: 0; font-size: var(--font-size-md); }
+.steamcmd-workspace__dst-shard > p { margin: 0; color: var(--color-text-secondary); }
 .steamcmd-workspace__server { display: grid; gap: .65rem; min-width: 0; padding: .95rem; border: 1px solid var(--color-border); border-radius: .8rem; background: color-mix(in srgb, var(--color-text-primary) 3%, transparent); }
 .steamcmd-workspace__server-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: .5rem; min-width: 0; }
 .steamcmd-workspace__server-heading h3 { margin: 0; font-size: var(--font-size-md); overflow-wrap: anywhere; }
@@ -34,7 +43,8 @@
 .workbench-shell[data-background-image="true"] .steamcmd-workspace__servers,
 .workbench-shell[data-background-image="true"] .steamcmd-workspace__form-card,
 .workbench-shell[data-background-image="true"] .steamcmd-workspace__server,
-.workbench-shell[data-background-image="true"] .steamcmd-workspace__task {
+.workbench-shell[data-background-image="true"] .steamcmd-workspace__task,
+.workbench-shell[data-background-image="true"] .steamcmd-workspace__dst-shard {
   background: color-mix(in srgb, var(--color-surface) var(--settings-background-surface-opacity), transparent);
   -webkit-backdrop-filter: blur(var(--settings-glass-blur));
   backdrop-filter: blur(var(--settings-glass-blur));
@@ -42,9 +52,9 @@
 @container (max-width: 58rem) { .steamcmd-workspace__layout { grid-template-columns: minmax(0, 1fr); } }
 @container (max-width: 38rem) {
   .steamcmd-workspace__header { align-items: stretch; }
-  .steamcmd-workspace__node-picker { min-width: 0; grid-template-columns: minmax(0, 1fr); }
-  .steamcmd-workspace__node-picker label { grid-column: auto; }
-  .steamcmd-workspace__node-picker > .ant-btn { width: 100%; }
+  .steamcmd-workspace__node-picker { width: 100%; min-width: 0; grid-template-columns: minmax(0, 1fr) auto; }
+  .steamcmd-workspace__node-picker label { grid-column: 1 / -1; }
   .steamcmd-workspace__form { grid-template-columns: minmax(0, 1fr); }
+  .steamcmd-workspace__dst-shards { grid-template-columns: minmax(0, 1fr); }
   .steamcmd-workspace__wide, .steamcmd-workspace__form > .ant-checkbox-wrapper, .steamcmd-workspace__submit { grid-column: auto; }
 }

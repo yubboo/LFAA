@@ -72,6 +72,9 @@ export interface ShellSandboxInfo {
   enforcement?: SandboxEnforcement;
   /** 沙箱运行器自身失败（命令未运行，属于沙箱问题而非命令失败）。 */
   runnerFailed?: boolean;
+  /** 提供方标识；受限模式只有 Host 回执经验证后才报告 hostVerified=true。 */
+  providerId?: string;
+  hostVerified?: boolean;
 }
 
 /** 一次命令执行的最终结果。 */

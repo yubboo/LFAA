@@ -135,6 +135,8 @@ async function main() {
         const homeIndex = args.indexOf("--home");
         const daemonArgs = [fileURLToPath(import.meta.url), "daemon", ...(homeIndex >= 0 ? ["--home", args[homeIndex + 1]] : [])];
         const supervisor = superviseLocalDaemon({ args: daemonArgs, cwd: process.cwd() });
+        // 同一进程内把受管节点交给控制端：Agent 工具据此“看状态、能起停”，不再需要人工重启。
+        context.provide("lfaaLocalDaemonSupervisor", supervisor);
         context.effect(() => () => supervisor.stop());
       }
     }

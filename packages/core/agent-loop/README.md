@@ -10,7 +10,10 @@ AI Work 每次 Provider 请求的公开正文以稳定 ID 和起止范围标记�
 
 网页活动显示经过校验和有界遮蔽的实际搜索查询，读取 URL 移除身份凭据、查询串与片段；不显示网页正文或原始结果。工具类型只控制展示摘要，不决定调用或权限。
 
-Browser Use 只在设置中心 `browserUse.enabled` 开启后暴露 Agent 工具。当前 Host 可用的 LFAA 内置浏览器自动提供给 Agent；右 Dock 与 Agent 通过相同账户/Session/provider 会话共用当前页面，不单独连接内置 Provider。`browserUse.enabledProviderIds` 只保留个人 Tabbit 的显式选择；Tabbit 还受 `computerControl.enabled` 与 `permissions.mode` 约束。当前会话绑定本机工作区时，Agent Loop 只把 Project Files Owner 的相对路径 HTML 打开回调提供给 Browser Tools；页面通过相同账户/Session 的 Browser Owner 返回，右 Dock 通过页面修订等待同步最新画面。
+Browser Use 只在设置中心 `browserUse.enabled` 开启后暴露 Agent 工具。模型按用户目标、Settings Owner 保存的位置偏好、当前对话/页面与真实工具状态选路：`webUrlOpenLocation` 与 `localUrlOpenLocation` 默认均为 `lfaa`，分别控制公开网页和 localhost/loopback URL；`current-browser` 只在本 Run 实际提供的个人 Browser Adapter 或 Windows CUA、且满足现有能力开关和权限时执行。所选通道不可用时 Agent 不静默改道。LFAA 内置页面的相关 `activeInWorkspace` 状态优先复用；若 Browser Owner 返回 `lfaa-native-browser` 可用且 `activeInWorkspace=true`，沿用 Electron 同一原生标签，使 Dock 由 `WebContentsView` 直接呈现；该 Provider 不可用或未绑定时，按 Host 真实能力选择隔离 Edge/Chrome。普通 Web Host 使用 LFAA Browser Owner 的连续页面流。CUA 操作不镜像到 LFAA Dock；个人 Edge/Chrome Profile 未接入时仍不可冒充 Browser Provider。当前会话绑定本机工作区时，Agent Loop 只把 Project Files Owner 的相对路径 HTML 打开回调提供给 Browser Tools；该文件预览固定使用受限 LFAA Browser Owner 页面，不把本机路径交给用户浏览器。公开活动保留浏览器工具稳定 ID 和已校验 Provider ID；Client 仅在内置浏览器工具成功后切换并展开对应 Dock，不重复导航，也不把个人 Tabbit 页面切入内置 Dock。模型还须区分打开网站与执行站内搜索：没有查询词时打开主页，不得落到任意内容详情；有查询词时核对真实结果页后再报告完成。
+Browser Tools 还按 Browser Settings Owner 检查 WebMCP 网站工具默认值/来源例外，以及开发者模式和完整 CDP 开关；网站提供的定义与结果按不可信网页内容处理，网站工具执行和 CDP 均沿用危险操作及统一 Permission Owner。完整 CDP 只附着当前 LFAA 内置页面，不访问个人 Profile；页面源和用户设置必须再次在 Browser Owner 执行时校验。
+
+当一个产品/品牌名可能同时指本机客户端与官网网页时，Agent 先用本轮文字和对话消歧；仍不明确时必须先独立调用 `lfaa_ask_user`，等用户选择“本机已安装的客户端”或“浏览器里的官网网页”后才搜索、启动或导航。权限审批不承担意图澄清。
 
 `lfaa-agent-loop` 负责 AI Work 的模型与工具循环。对话记忆仍由 `lfaa-conversation-memory` 持有；循环只检查账户设置，把符合条件的根轮次输入发送给已选 Provider，并通过记忆 Owner 保存已校验结果。
 
@@ -42,7 +45,9 @@ AI Work 运行按钮通过认证 Run API 请求暂停或继续同一 Run，旁�
 
 Provider 协议归 `lfaa-llm`，MCP 协议归 `lfaa-mcp-client`。每次模型请求、工具派发及审批返回重新对账工具目录、插件说明和当前账户开关；相同 MCP 配置复用租约，变化关闭旧租约。新增能力同一 Run 的下一次请求即可使用；关闭、卸载或合同变化拒绝旧调用，保留计划工具和子 Agent 的继承范围。异步发现结束后再读最新设置，权限模式变更或记忆授权撤销时拒绝未派发操作。
 
-若 Provider 同批返回需要用户澄清的工具和其他工具，Agent Loop 不派发该批调用；它为每个 `tool_call_id` 记录 `not_started` 并回传配对结果，让当前模型继续选择单独的澄清请求。在整批拒绝或取消路径中，已派发调用保留真实结果或 `unconfirmed`，同批尚未派发的调用记录 `not_started`，每条调用事件都有对应结果。
+若 Provider 同批返回需要用户澄清的工具和其他工具，Agent Loop 不派发该批调用；它为每个 `tool_call_id` 记录 `not_started` 并回传配对结果，让当前模型继续选择单独的澄清请求。在整批拒绝、取消或“重复被拦调用停止”路径中，已派发调用保留真实结果或 `unconfirmed`，同批尚未派发的调用记录 `not_started` 并回传配对结果，每条调用事件都有对应结果（停止前未派发项由 Loop 而非会话修复合成）。
+
+模型臆造或写错本轮未提供的工具名（真实 Provider 已复现：把懒加载工具写成 `capability_status`、`lfaa_browser_open_workspace_file`）时，Loop 不把该调用写进 `tool/call` 证据，也不让会话内核的 request/header 校验把整轮变成致命失败；它只记录本轮正文，向模型回传一条“本轮没有提供这些工具”的可恢复纠正并重新请求。连续 3 轮仍未提供工具时以明确原因停止，避免继续消耗请求预算。`apps/cli/tests/agent-unknown-tool.test.mjs` 用合成 Provider 固化该路径。
 
 能力状态/有限开关工具始终可见，开启仍复用现有三种权限模式。模型不得修改权限模式、凭据或节点范围，开启设置不等于目标已执行。`requestRetries`、`retryDelaySeconds` 控制无输出/无工具调用的可恢复请求；每次尝试计入 maxModelRequests，总 token 用量累计，取消可打断等待。每轮模型请求最多 64 次、工具调用最多 128 次；`aiRuntime.maxModelRequests` 与 `aiRuntime.maxToolCalls` 的 0 使用产品上限，正数可收紧，两项都在 Settings Owner 和共享设置合同中校验。每轮工具响应若整体超出剩余预算，则整批未派发并以预算终态结束。只重复 Provider 请求，不换模型。`tool-outcome.ts` 统一判定顶层与嵌套任务，失败/排队/未知结果不计为成功写入。同参数的失败/未知或成功写调用首次拦截后，将未派发反馈交回模型纠正或交付；继续重复相同被拦调用才停止。仅标明 `retryAfterRecovery` 且实际重验互斥/状态的领域工具，可在另一写工具成功后重试已确认失败；未知结果始终不重放，成功副作用仍不重复。失败签名保存有界，其他签名/修复记录受工具预算约束。工具目录更新活动只在有变化时生成；设置变更事件使 UI 合并刷新权威设置，不按流式 token 发请求。
 
@@ -61,3 +66,11 @@ Provider 请求、隐藏推理与正文接收按当前活动 ID 顺序结束；�
 小鱼沿用唯一模型循环与用户主/子模型配置。关联引用进入每次请求，不自动加载正文或扩大工具范围；子 Agent 项目重验当前账户/节点/路径，原暂停/取消/审批/结果未知防重保持。
 
 构建只写仓库根 dist/packages/core/agent-loop/；当前合同见 [开发提示词](../../../docs/development/xiaoyu-agent.zh.md)。构建、合成模型、浏览器与真实模型/节点验收分别报告。
+
+Settings Center 操作遵循模型→`lfaa_settings_list`/`lfaa_settings_update` 或已登记领域 Tool→Settings/领域 Owner→Permission Owner 的真实链路。目录只向当前账户返回有界、非秘密偏好；写入按 Settings Owner 叶字段校验回读。权限模式始终由用户掌握，设置更新成功后沿用现有 `capability-settings` 事件通知 Client 合并刷新权威设置。模型不得把设置工具派发当成菜单动作或目标能力已执行。
+
+设置中心 AI Runtime Hook 查询只注入 `aiPluginHost.listHooks()` 的读取闭包；不注入插件回调、源码或生命周期写入能力。目录调用继续沿现有工具发现与 Permission Owner 读取流程运行。
+
+Agent 每轮在首个 Provider 请求前通过 Identity/Auth Owner 预留账户使用时长。策略启用时，当前本地时区窗口和每日剩余额度共同决定本轮最大运行时长；同一账户并行 Run 通过 SQLite 事务预留避免超额。限制在 Provider 与工具执行时沿现有取消信号传播，回合结束按实际持续时间结算；用户主动停止与家长控制到限分别如实展示。没有策略或策略关闭时不改变既有运行行为，也不更改 `permissions.mode`。
+
+当设置中心 `aiRuntime.autoCompaction` 开启且上下文压力达到溢出阈值时，Agent Loop 将符合 spill Policy 的较早大型工具结果写入当前 Run 的本机临时 Store，并只把不透明引用放进本次 Provider 请求视图。模型需要原文时，Loop 才向当前 Run 提供 `agent_context_read_spill`，通过 spill-local 的稀疏 UTF-8 字节索引流式回读，按 Unicode 字符偏移返回有界片段；单次最多 16,384 个字符。读取仍经已有 Tool/Permission Owner，引用绑定账户、App、Session 和 Run。成功、失败或取消进入 `finally` 时回收临时会话目录；引用不进入 Session 持久化或跨进程恢复。该能力不改变原始历史/事件记录，也不构成持久化正文的全量裁剪。压缩或溢出钩子失败、取消时不会伪造“已缩减”结果：记录诊断后继续主循环，原始历史与后续 Provider 请求不受影响；用户附件图片只进入用户可见的主请求视图，不随内部摘要请求重复发送。

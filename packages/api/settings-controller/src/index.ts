@@ -1,9 +1,10 @@
 import { config } from "lfaa-launch-environment/src/config.js";
+import { getAgentUsageControls, listManagedAgentUsageAccounts, saveAgentUsagePolicy } from "lfaa-identity-auth/src/account-agent-usage.js";
 import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import { isModelInvocable, isSkillDisabled } from "lfaa-skill";
 /** 功能：登记 settings-controller 的现有接口。作用：保留迁移前的行为并按包维护。关联文件：API Gateway、设置中心或工作台对应入口。 */
-import { Router } from "express";
+import { raw, Router } from "express";
 import { ApiError } from "lfaa-util-values/src/http-error.js";
 import { requireAuthentication, requireRole, requireSuperAdmin } from "lfaa-authorization/src/middleware.js";
 import { authorizeExplicitUserAction } from "lfaa-permission-presets/src/permissions.js";
@@ -12,12 +13,13 @@ import { PluginRuntimeError } from "lfaa-app-boot/src/plugin-runtime.js";
 import type { MinecraftRealtimePublisher } from "lfaa-api-remotes/src/socket-server.js";
 import { getUserPreferences, saveUserPreferences, type ApplicationId, type ApplicationMode } from "lfaa-settings/src/preferences/service.js";
 import { clearConversationMemories, getConversationMemorySnapshot, replaceConversationMemories, validateConversationMemoriesInput } from "lfaa-conversation-memory/src/index.js";
+import { createAccountSnapshot, deleteAccountSnapshot, exportCurrentAccountArchive, listAccountSnapshots, previewAccountArchive, readAccountSnapshot, restoreAccountArchive } from "lfaa-settings-snapshots";
 import { redactConversationMemoryContexts } from "lfaa-session/src/sessions.js";
-import { activateAiAccount, deleteAiAccount, deleteUserBackground, getUserBackground, getUserSettings, listUserBackgrounds, listAiAccounts, listAiProviders, probeAiProvider, testAiProviderModel, refreshAiAccountModelCatalog, testSavedAiAccountModel, saveAiAccount, saveUserBackground, saveUserSettings, updateAiAccountModel, updateAiAccountReasoningMode, type SettingsCategory, type ShortcutSettings } from "lfaa-settings/src/service.js";
+import { activateAiAccount, deleteAiAccount, deleteUserBackground, getUserBackground, getUserSettings, getUserSettingsSyncStatus, listUserBackgrounds, listAiAccounts, listAiProviders, probeAiProvider, testAiProviderModel, refreshAiAccountModelCatalog, testSavedAiAccountModel, saveAiAccount, saveUserBackground, saveUserSettings, updateAiAccountModel, updateAiAccountReasoningMode, type SettingsCategory, type ShortcutSettings } from "lfaa-settings/src/service.js";
 import { cancelDataDirectoryChange, confirmDataDirectoryLocation, recommendDataDirectoryLocation, DataDirectorySettingsError, getDataDirectorySettings, requestDataDirectoryChange } from "lfaa-workspace-data-directory/src/service.js";
 import { confirmProjectContentDirectory, getProjectStorageLocations, saveProjectContentDirectory } from "lfaa-settings/src/project-storage.js";
 import { adoptProjectContentDirectory, compareProjectContentDirectories, copyProjectContentToDirectory, createProjectContentArchive, importProjectContentArchive } from "lfaa-settings/src/content-storage-migration.js";
-import { asyncHandler, parseBody, preferencesSchema, generalSettingsSchema, aiRuntimeSettingsSchema, minecraftRuntimeSettingsSchema, gitSettingsSchema, permissionsSettingsSchema, pluginsSettingsSchema, personalizationSettingsSchema, conversationMemoriesSchema, computerControlSettingsSchema, browserUseSettingsSchema, appearanceSettingsSchema, shortcutsSchema, aiProbeSchema, aiAccountSchema, aiModelSchema, aiReasoningSchema, aiModelTestSchema, backgroundUploadSchema, hasShortcutConflict, dataDirectorySettingsSchema, projectContentStorageSchema, projectContentMigrationSchema, projectContentArchiveImportSchema, pluginRuntimeActionSchema } from "lfaa-api-remotes/src/route-contracts.js";
+import { asyncHandler, parseBody, preferencesSchema, accountAgentUsagePolicySchema, accountSnapshotCreateSchema, accountArchiveRestoreSchema, generalSettingsSchema, aiRuntimeSettingsSchema, minecraftRuntimeSettingsSchema, gitSettingsSchema, permissionsSettingsSchema, pluginsSettingsSchema, personalizationSettingsSchema, conversationMemoriesSchema, computerControlSettingsSchema, browserUseSettingsSchema, miniSettingsSchema, canvasSettingsSchema, appearanceSettingsSchema, shortcutsSchema, aiProbeSchema, aiAccountSchema, aiModelSchema, aiReasoningSchema, aiModelTestSchema, backgroundUploadSchema, hasShortcutConflict, dataDirectorySettingsSchema, projectContentStorageSchema, projectContentMigrationSchema, projectContentArchiveImportSchema, pluginRuntimeActionSchema } from "lfaa-api-remotes/src/route-contracts.js";
 export function registerRoutes(router: Router, aiPluginHost: AiPluginHost, _realtime: MinecraftRealtimePublisher): void {
 
 function authorizeBusinessContentAction(userId: string, action: string, targetDirectory: string): void {
@@ -81,6 +83,11 @@ router.get("/settings", requireAuthentication, (request, response) => {
     response.json({ settings: getUserSettings(request.auth!.user.id) });
   });
 
+router.get("/settings/sync/status", requireAuthentication, (request, response) => {
+  response.setHeader("Cache-Control", "private, no-store");
+  response.json({ status: getUserSettingsSyncStatus(request.auth!.user.id) });
+});
+
 router.put("/settings/:category", requireAuthentication, (request, response) => {
     const category = request.params.category as SettingsCategory;
     const schemas = {
@@ -94,7 +101,9 @@ router.put("/settings/:category", requireAuthentication, (request, response) => 
       plugins: pluginsSettingsSchema,
       personalization: personalizationSettingsSchema,
       "computer-control": computerControlSettingsSchema,
-      "browser-use": browserUseSettingsSchema
+      "browser-use": browserUseSettingsSchema,
+      mini: miniSettingsSchema,
+      canvas: canvasSettingsSchema
     };
     const schema = schemas[category];
     if (!schema) throw new ApiError(404, "settings_category_not_found", "找不到此设置分类。");
@@ -137,6 +146,84 @@ router.delete("/settings/memories", requireAuthentication, (request, response) =
     clearConversationMemories(userId);
     response.status(204).end();
   });
+
+router.get("/settings/parental", requireAuthentication, (request, response) => {
+    const userId = request.auth!.user.id;
+    const targetId = typeof request.query.accountId === "string" ? request.query.accountId : userId;
+    const controls = getAgentUsageControls(userId, targetId);
+    const manageableAccounts = request.auth!.user.role === "admin" || request.auth!.user.role === "super_admin" ? listManagedAgentUsageAccounts(userId) : [];
+    response.json({ controls, manageableAccounts });
+  });
+
+router.put("/settings/parental/:accountId", requireAuthentication, requireRole("admin"), (request, response) => {
+    const policy = parseBody<Record<string, unknown>>(accountAgentUsagePolicySchema, request.body);
+    const controls = saveAgentUsagePolicy(request.auth!.user.id, request.params.accountId, policy);
+    response.json({ controls });
+  });
+
+router.get("/settings/snapshots", requireAuthentication, (request, response) => {
+  response.json({ snapshots: listAccountSnapshots(request.auth!.user.id) });
+});
+
+router.post("/settings/snapshots", requireAuthentication, (request, response) => {
+  const body = parseBody<{ name: string }>(accountSnapshotCreateSchema, request.body);
+  response.status(201).json({ snapshot: createAccountSnapshot(request.auth!.user.id, body.name) });
+});
+
+router.delete("/settings/snapshots/:snapshotId", requireAuthentication, (request, response) => {
+  if (!deleteAccountSnapshot(request.auth!.user.id, request.params.snapshotId)) throw new ApiError(404, "account_snapshot_not_found", "找不到当前账户的快照。");
+  response.status(204).end();
+});
+
+router.get("/settings/snapshots/:snapshotId/download", requireAuthentication, (request, response) => {
+  const snapshot = readAccountSnapshot(request.auth!.user.id, request.params.snapshotId);
+  if (!snapshot) throw new ApiError(404, "account_snapshot_not_found", "找不到当前账户的快照。");
+  response.setHeader("Content-Type", "application/vnd.lfaa.account-snapshot");
+  response.setHeader("Content-Disposition", `attachment; filename="lfaa-account-${snapshot.summary.id}.lfaa-snapshot"`);
+  response.setHeader("Content-Length", String(snapshot.archive.byteLength));
+  response.setHeader("X-Content-Type-Options", "nosniff");
+  response.setHeader("Cache-Control", "private, no-store");
+  response.send(snapshot.archive);
+});
+
+router.post("/settings/snapshots/:snapshotId/preview", requireAuthentication, (request, response) => {
+  const snapshot = readAccountSnapshot(request.auth!.user.id, request.params.snapshotId);
+  if (!snapshot) throw new ApiError(404, "account_snapshot_not_found", "找不到当前账户的快照。");
+  response.json({ preview: previewAccountArchive(request.auth!.user.id, snapshot.archive) });
+});
+
+router.post("/settings/snapshots/:snapshotId/restore", requireAuthentication, (request, response) => {
+  const body = parseBody<{ settings: boolean; memories: boolean; sessions: boolean }>(accountArchiveRestoreSchema, request.body);
+  const snapshot = readAccountSnapshot(request.auth!.user.id, request.params.snapshotId);
+  if (!snapshot) throw new ApiError(404, "account_snapshot_not_found", "找不到当前账户的快照。");
+  response.json({ result: restoreAccountArchive(request.auth!.user.id, snapshot.archive, body) });
+});
+
+const accountArchiveBody = raw({ type: "application/vnd.lfaa.account-snapshot", limit: "32mb" });
+router.get("/settings/import/export", requireAuthentication, (request, response) => {
+  const exported = exportCurrentAccountArchive(request.auth!.user.id);
+  response.setHeader("Content-Type", "application/vnd.lfaa.account-snapshot");
+  response.setHeader("Content-Disposition", `attachment; filename="lfaa-account-${exported.createdAt.slice(0, 10)}.lfaa-snapshot"`);
+  response.setHeader("Content-Length", String(exported.archive.byteLength));
+  response.setHeader("X-Content-Type-Options", "nosniff");
+  response.setHeader("Cache-Control", "private, no-store");
+  response.send(exported.archive);
+});
+
+router.post("/settings/import/preview", requireAuthentication, accountArchiveBody, (request, response) => {
+  if (!Buffer.isBuffer(request.body)) throw new ApiError(415, "account_snapshot_required", "请上传 LFAA 账户快照文件。");
+  try { response.json({ preview: previewAccountArchive(request.auth!.user.id, request.body) }); }
+  catch (error) { throw new ApiError(422, "account_snapshot_invalid", error instanceof Error ? error.message : "账户快照无法校验。"); }
+});
+
+router.post("/settings/import/restore", requireAuthentication, accountArchiveBody, (request, response) => {
+  if (!Buffer.isBuffer(request.body)) throw new ApiError(415, "account_snapshot_required", "请上传 LFAA 账户快照文件。");
+  const body = parseBody<{ settings: boolean; memories: boolean; sessions: boolean }>(accountArchiveRestoreSchema, {
+    settings: request.query.settings, memories: request.query.memories, sessions: request.query.sessions
+  });
+  try { response.json({ result: restoreAccountArchive(request.auth!.user.id, request.body, body) }); }
+  catch (error) { throw new ApiError(422, "account_snapshot_restore_failed", error instanceof Error ? error.message : "账户快照恢复失败。"); }
+});
 
 router.get("/settings/backgrounds", requireAuthentication, (request, response) => {
     response.json({ backgrounds: listUserBackgrounds(request.auth!.user.id) });

@@ -11,7 +11,7 @@ input.on("line", line => {
       protocolVersion: "2025-11-25",
       capabilities: { tools: {} },
       serverInfo: { name: "capability-stdio-fixture", version: "1" },
-      instructions: `测试夹具子进程 PID=${process.pid}`
+      instructions: `测试夹具子进程 PID=${process.pid} TEST_ENV=${process.env.LFAA_MCP_TEST_ENV ?? "(unset)"}`
     };
   } else if (request.method === "tools/list") {
     result = {

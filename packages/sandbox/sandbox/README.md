@@ -4,4 +4,4 @@
 
 `danger-full-access` 表示调用方经授权后明确选择不施加沙箱文件限制。此模式必须保持原始 argv，并报告 `enforcement: "none"`；它不代表本包授予了工具或主机权限。工具调用授权仍由 `packages/interaction/permission-presets` 和目标业务 Owner 执行。
 
-本包是平台实现接口，不包含本机或 Daemon 隔离执行器。`packages/host/daemon/src/process-control.mjs` 当前仅管理 Minecraft 及任务进程，明确不视为通用沙箱提供方。
+Windows x64 的本机及目标节点提供方由 `packages/sandbox/sandbox-windows-acl` 注册，并调用 `native/system` Sandbox Host 执行 AppContainer/Job Object 边界。Daemon 只在目标节点执行其自身 Provider；控制端不把本机 Provider 代理给远程节点。隔离 Control Plane + Daemon 回归已验证本机源码链上的取消、workspace-write、read-only 和 Host 回执；这不表示第二台真实远程节点或真实模型 Provider 已验收。Linux 与 macOS 目前没有通用 OS Provider，受限模式必须 unavailable。`packages/host/daemon/src/process-control.mjs` 仅管理 Minecraft 及任务进程，不是通用沙箱提供方。

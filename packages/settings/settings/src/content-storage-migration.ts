@@ -1,6 +1,6 @@
 /**
  * 功能：迁移、核对和归档游戏/小说/漫剧业务内容。
- * 作用：只处理 games/ 与账户哈希下 Writing/AI Video 项目树，永不复制系统数据或 Profile。
+ * 作用：只处理 games/ 与账户哈希下 Writing/AI Video/Canvas 项目树，永不复制系统数据或 Profile。
  * 关联文件：project-storage.ts、settings-controller、SettingsPage.tsx、scripts/*-business-content-archive.ps1。
  */
 import { createHash, randomUUID } from "node:crypto";
@@ -69,7 +69,7 @@ function normalizeRelativePath(value: string): string {
 function isManagedContentPath(value: string): boolean {
   const path = normalizeRelativePath(value);
   return path === "games" || path.startsWith("games/")
-    || /^users\/[0-9a-f]{64}\/projects\/(?:writing|aivideo)(?:\/|$)/iu.test(path);
+    || /^users\/[0-9a-f]{64}\/projects\/(?:writing|aivideo|canvas)(?:\/|$)/iu.test(path);
 }
 
 function assertBusinessRoot(path: string, sourceDirectory?: string): string {
@@ -163,7 +163,7 @@ export async function collectProjectContentManifest(path: string): Promise<Proje
       const accountInfo = await lstat(accountRoot);
       if (accountInfo.isSymbolicLink()) throw new Error(`账户业务目录包含路径链接：users/${account.name}`);
       if (!accountInfo.isDirectory()) continue;
-      for (const kind of ["writing", "aivideo"] as const) {
+      for (const kind of ["writing", "aivideo", "canvas"] as const) {
         const relativeRoot = `users/${account.name}/projects/${kind}`;
         const contentRoot = resolve(root, ...relativeRoot.split("/"));
         if (!(await assertRegularRoot(contentRoot))) continue;
@@ -249,7 +249,7 @@ async function copyTree(source: string, target: string): Promise<void> {
 }
 
 function contentSubtreeRoots(entries: ProjectContentManifestEntry[]): string[] {
-  return [...new Set(entries.map(entry => entry.path === "games" || entry.path.startsWith("games/") ? "games" : entry.path.match(/^users\/[0-9a-f]{64}\/projects\/(?:writing|aivideo)(?:\/|$)/iu)?.[0].replace(/\/$/u, "")).filter((value): value is string => Boolean(value)))].sort();
+  return [...new Set(entries.map(entry => entry.path === "games" || entry.path.startsWith("games/") ? "games" : entry.path.match(/^users\/[0-9a-f]{64}\/projects\/(?:writing|aivideo|canvas)(?:\/|$)/iu)?.[0].replace(/\/$/u, "")).filter((value): value is string => Boolean(value)))].sort();
 }
 
 async function copyProjectContentTree(sourceDirectory: string, targetDirectory: string, sourceEntries?: ProjectContentManifestEntry[]): Promise<{ copiedFiles: number; copiedBytes: number; backupDirectory: string | null; comparison: ProjectContentComparison }> {

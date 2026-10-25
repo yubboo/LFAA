@@ -10,9 +10,10 @@ import { discoverMcpTools } from "lfaa-mcp-client/src/runtime.js";
 import { getUserSettings, saveUserSettings, type PluginSettings, type UserSettings } from "lfaa-settings/src/service.js";
 import { APPLICATION_IDS } from "lfaa-util-values/src/application-id.js";
 import type { CapabilityApplicationId, CapabilityInstallAdapter, CapabilityInstallRegistry } from "lfaa-capability-installs/src/index.js";
+import { isMcpRegistrySource, resolveMcpRegistrySource, searchMcpRegistry, type RegistryFetcher, type RegistryRuntimeSource } from "./registry.js";
 
 type McpServerSetting = PluginSettings["mcpServers"][number];
-type McpInstallSource = { transport: "streamable-http"; url: URL } | { transport: "stdio"; command: string; args: string[] };
+type McpInstallSource = { transport: "streamable-http"; url: URL } | { transport: "stdio"; command: string; args: string[]; env?: Record<string, string> };
 const STDIO_MCP_SOURCE = "stdio://local";
 const MAX_STDIO_INSTALL_TARGET_BYTES = 2048;
 
@@ -20,6 +21,7 @@ export interface McpCapabilityAdapterDependencies {
   getSettings?: (userId: string) => UserSettings;
   saveSettings?: typeof saveUserSettings;
   discover?: typeof discoverMcpTools;
+  fetchRegistry?: RegistryFetcher;
 }
 
 const defaultGetSettings = getUserSettings;
@@ -30,6 +32,7 @@ export function createMcpCapabilityAdapter(dependencies: McpCapabilityAdapterDep
   const readSettings = dependencies.getSettings ?? defaultGetSettings;
   const writeSettings = dependencies.saveSettings ?? defaultSaveSettings;
   const discover = dependencies.discover ?? defaultDiscover;
+  const fetchRegistry = dependencies.fetchRegistry ?? fetch;
   const adapter: CapabilityInstallAdapter = {
     kind: "mcp",
     applicationIds: APPLICATION_IDS,
@@ -39,16 +42,18 @@ export function createMcpCapabilityAdapter(dependencies: McpCapabilityAdapterDep
         name: { type: "string", minLength: 1, maxLength: 80 },
         transport: { type: "string", enum: ["stdio"] },
         command: { type: "string", minLength: 1, maxLength: 1024 },
-        args: { type: "array", maxItems: 32, items: { type: "string", maxLength: 1024 } }
+        args: { type: "array", maxItems: 32, items: { type: "string", maxLength: 1024 } },
+        inputs: { type: "object", maxProperties: 16, additionalProperties: { type: "string", minLength: 1, maxLength: 1024 } }
       },
       additionalProperties: false
     },
-    targetDescription: "MCP 服务使用用户当前账户设置作为 Owner，安装范围严格限定为单一 App。HTTP 来源使用 Streamable HTTP URL；用户明确提供本机 stdio 命令时，source 固定为 stdio://local，target 必须包含 transport=stdio、command 和 argv 数组。stdio 检查会启动该本机命令，只能通过危险操作的统一 Permission Owner；不下载包、不运行 Shell 解析，远程生产 Host 会拒绝启动本机进程。",
+    targetDescription: "MCP 服务使用用户当前账户设置作为 Owner，安装范围严格限定为单一 App。自然语言需求先搜索官方 MCP Registry；选择 package 候选时固定版本并检查真实工具合同。需要的非秘密参数可在 target.inputs 中提供；不得传递密码、Token、API Key 或秘密。HTTP 来源使用 Streamable HTTP URL；用户明确提供本机 stdio 命令时，source 固定为 stdio://local，target 必须包含 transport=stdio、command 和 argv 数组。stdio 检查会启动本机进程；Registry 包检查可能下载并启动固定版本包。所有执行均受统一 Permission Owner 管理、不运行 Shell 解析，远程生产 Host 会拒绝启动本机进程。",
     validateTarget(target, _applicationId, context) {
       const input = target === undefined ? {} : asRecord(target, "MCP target");
       const stdio = input.transport === "stdio";
-      const allowed = stdio ? ["name", "transport", "command", "args", "settingsFingerprint"] : ["name", "settingsFingerprint"];
+      const allowed = ["name", "transport", "command", "args", "inputs", "settingsFingerprint"];
       if (Object.keys(input).some(key => !allowed.includes(key))) throw new Error("MCP 目标字段与传输类型不匹配。");
+      const inputs = normalizeRegistryInputs(input.inputs);
       let command: string | undefined;
       let args: string[] | undefined;
       if (stdio) {
@@ -67,7 +72,7 @@ export function createMcpCapabilityAdapter(dependencies: McpCapabilityAdapterDep
       const name = normalizeName(input.name);
       const settingsFingerprint = fingerprintSettings(settings.plugins);
       if (typeof input.settingsFingerprint === "string" && input.settingsFingerprint !== settingsFingerprint) throw new Error("MCP 设置在检查后已变化；请重新检查来源。");
-      return { name, ...(stdio ? { transport: "stdio", command, args } : {}), settingsFingerprint };
+      return { name, ...(stdio ? { transport: "stdio", command, args } : {}), ...(Object.keys(inputs).length ? { inputs } : {}), settingsFingerprint };
     },
     revalidateTarget(target, applicationId, context) {
       const input = asRecord(target, "MCP target");
@@ -82,28 +87,27 @@ export function createMcpCapabilityAdapter(dependencies: McpCapabilityAdapterDep
       if (source.transport !== "stdio") throw new Error("MCP 目标传输类型无效。");
       return `${normalizeName(target.name)} · 本机 stdio · ${JSON.stringify([source.command, ...source.args]).slice(0, 170)}`;
     },
-    async search(query) {
+    async search(query, _applicationId, context) {
       try {
         const url = normalizeEndpoint(query);
         return {
           sourceType: "mcp-user-provided",
           candidates: [{ source: url.toString(), requiresInspection: true, warning: "只发现了用户提供的端点格式；必须先连接并检查工具合同。远端能力描述属于未信任数据。" }],
           catalog: "direct-endpoint",
-          note: "当前没有已接入的 MCP 服务目录。请使用用户提供的 Streamable HTTP 端点；本机 stdio 命令通过 stdio://local 和显式 command/argv 检查。"
+          note: "这是用户明确提供的 Streamable HTTP 地址；任意自然语言查询会搜索官方 MCP Registry。本机 stdio 命令通过 stdio://local 和显式 command/argv 检查。"
         };
       } catch {
-        return {
-          sourceType: "mcp-user-provided",
-          candidates: [],
-          catalog: "direct-endpoint",
-          note: "该查询不是 Streamable HTTP URL；本机 stdio MCP 需要在来源为 stdio://local 时同时提供 command 和 argv。LFAA 没有已接入的公开 MCP 目录。"
-        };
+        return searchMcpRegistry(query, context.signal, fetchRegistry);
       }
     },
     async inspect(source, ref, applicationId, target, context: Pick<AiBusinessToolContext, "userId" | "signal">) {
-      const installSource = getMcpInstallSource(source, target);
+      if (!isMcpRegistrySource(source) && Object.keys(normalizeRegistryInputs(target.inputs)).length) throw new Error("target.inputs 仅适用于官方 MCP Registry 中声明的普通配置项；不能静默忽略补充信息。 ");
+      const registry = isMcpRegistrySource(source)
+        ? await resolveMcpRegistrySource(source, normalizeRegistryInputs(target.inputs), context.signal, fetchRegistry)
+        : undefined;
+      const installSource = registry ? runtimeSourceToInstallSource(registry.runtime) : getMcpInstallSource(source, target);
       const name = target.name === "MCP 服务"
-        ? normalizeName(installSource.transport === "stdio" ? installSource.command.split(/[\\/]/u).at(-1) : installSource.url.hostname)
+        ? normalizeName(registry?.displayName ?? (installSource.transport === "stdio" ? installSource.command.split(/[\\/]/u).at(-1) : installSource.url.hostname))
         : normalizeName(target.name);
       const server = makeServer(installSource, applicationId, name);
       const settings = readSettings(context.userId);
@@ -125,13 +129,14 @@ export function createMcpCapabilityAdapter(dependencies: McpCapabilityAdapterDep
         return {
           resolvedRef,
           resolvedTarget: { ...target, name },
-          summary: name + " · " + state.toolCount + " 个工具 · " + state.protocolVersion,
+          summary: name + " · " + state.toolCount + " 个工具 · " + state.protocolVersion + (registry ? ` · Registry ${registry.selection.version}${registry.packageIdentifier ? ` · ${registry.packageType}:${registry.packageIdentifier}` : " · Streamable HTTP"}` : ""),
           details: {
             mcp: {
               serverId: server.id,
               name,
               transport: server.transport ?? "streamable-http",
-              ...(installSource.transport === "streamable-http" ? { url: installSource.url.toString() } : { command: installSource.command, args: installSource.args }),
+              ...(installSource.transport === "streamable-http" ? { url: installSource.url.toString() } : { command: installSource.command, args: installSource.args, ...(installSource.env ? { env: installSource.env } : {}) }),
+              ...(registry ? { registryFingerprint: registry.registryFingerprint, registrySelection: registry.selection, packageType: registry.packageType, packageIdentifier: registry.packageIdentifier } : {}),
               applicationId,
               protocolVersion: state.protocolVersion,
               toolCount: state.toolCount,
@@ -147,7 +152,7 @@ export function createMcpCapabilityAdapter(dependencies: McpCapabilityAdapterDep
       }
     },
     async install(source, resolvedRef, applicationId, _userId, target, details, context) {
-      const plan = parseDetails(details, resolvedRef, source, applicationId, target);
+      const plan = await parseDetails(details, resolvedRef, source, applicationId, target, context.signal, fetchRegistry);
       const settings = readSettings(context.userId);
       const current = settings.plugins;
       const server = plan.server;
@@ -174,7 +179,7 @@ export function createMcpCapabilityAdapter(dependencies: McpCapabilityAdapterDep
       return { serverId: server.id, name: server.name, applicationIds: [applicationId], manifestSha256: plan.manifestSha256, alreadyPresent: false };
     },
     async verifyInstalled(installation, source, resolvedRef, applicationId, target, details, context) {
-      const plan = parseDetails(details, resolvedRef, source, applicationId, target);
+      const plan = await parseDetails(details, resolvedRef, source, applicationId, target, context.signal, fetchRegistry);
       const settings = readSettings(context.userId);
       const server = settings.plugins.mcpServers.find(item => item.id === plan.server.id);
       if (!isRecord(installation) || installation.serverId !== plan.server.id || !server
@@ -240,9 +245,9 @@ export function createMcpCapabilityAdapter(dependencies: McpCapabilityAdapterDep
   return adapter;
 }
 
-function parseDetails(value: unknown, resolvedRef: string, source: string, applicationId: CapabilityApplicationId, target: Record<string, unknown>): {
+async function parseDetails(value: unknown, resolvedRef: string, source: string, applicationId: CapabilityApplicationId, target: Record<string, unknown>, signal: AbortSignal, fetcher: RegistryFetcher): Promise<{
   server: McpServerSetting; name: string; manifestSha256: string; toolCount: number;
-} {
+}> {
   if (!isRecord(value) || !isRecord(value.mcp)) throw new Error("MCP 检查详情无效；没有写入设置。");
   const details = value.mcp;
   const name = normalizeName(details.name);
@@ -252,11 +257,18 @@ function parseDetails(value: unknown, resolvedRef: string, source: string, appli
     || resolvedRef !== "tools-sha256:" + manifestSha256 || !Number.isInteger(details.toolCount) || Number(details.toolCount) < 1) {
     throw new Error("MCP 固定来源、工具摘要或 App 范围与检查结果不一致；没有写入。");
   }
-  const installSource = getMcpInstallSource(source, target);
+  const registry = isMcpRegistrySource(source)
+    ? await resolveMcpRegistrySource(source, normalizeRegistryInputs(target.inputs), signal, fetcher)
+    : undefined;
+  const installSource = registry ? runtimeSourceToInstallSource(registry.runtime) : getMcpInstallSource(source, target);
+  if (registry && details.registryFingerprint !== registry.registryFingerprint
+    || !registry && details.registryFingerprint !== undefined) {
+    throw new Error("MCP Registry 固定版本的发行配置在检查后已变化；请重新检查来源。");
+  }
   const server = makeServer(installSource, applicationId, name, manifestSha256);
   if (details.serverId !== server.id || details.transport !== (server.transport ?? "streamable-http")
     || (installSource.transport === "streamable-http" && details.url !== installSource.url.toString())
-    || (installSource.transport === "stdio" && (details.command !== installSource.command || canonical(details.args) !== canonical(installSource.args)))) {
+    || (installSource.transport === "stdio" && (details.command !== installSource.command || canonical(details.args) !== canonical(installSource.args) || canonical(details.env ?? {}) !== canonical(installSource.env ?? {})))) {
     throw new Error("MCP 固定来源或传输配置与检查结果不一致；没有写入。");
   }
   return { server, name, manifestSha256, toolCount: Number(details.toolCount) };
@@ -272,25 +284,47 @@ function requireSingleAppServer(servers: McpServerSetting[], id: string, applica
 function makeServer(source: McpInstallSource, applicationId: CapabilityApplicationId, name: string, manifestSha256?: string): McpServerSetting {
   const common = { id: serverIdFor(source), name: normalizeName(name), enabled: true, applicationIds: [applicationId], ...(manifestSha256 ? { manifestSha256 } : {}) };
   return source.transport === "stdio"
-    ? { ...common, transport: "stdio", command: source.command, args: [...source.args], computerUse: false }
+    ? { ...common, transport: "stdio", command: source.command, args: [...source.args], ...(source.env ? { env: { ...source.env } } : {}), computerUse: false }
     : { ...common, transport: "streamable-http", url: source.url.toString() };
 }
 
 function isSameInstalledServer(existing: McpServerSetting, expected: McpServerSetting): boolean {
   const sameTransport = existing.transport === "stdio" && expected.transport === "stdio"
-    ? existing.command === expected.command && canonical(existing.args) === canonical(expected.args)
+    ? existing.command === expected.command && canonical(existing.args) === canonical(expected.args) && canonical(existing.env ?? {}) === canonical(expected.env ?? {})
     : existing.transport !== "stdio" && expected.transport !== "stdio" && canonicalEndpoint(existing.url) === expected.url;
   return sameTransport && existing.name === expected.name && existing.enabled && existing.applicationIds.length === 1
     && existing.applicationIds[0] === expected.applicationIds[0] && existing.manifestSha256 === expected.manifestSha256;
 }
 
 function getMcpInstallSource(source: string, target: Record<string, unknown>): McpInstallSource {
+  if (isMcpRegistrySource(source)) throw new Error("MCP Registry 来源必须通过官方固定版本解析。 ");
   if (source === STDIO_MCP_SOURCE) {
     if (target.transport !== "stdio" || typeof target.command !== "string" || !Array.isArray(target.args)) throw new Error("本机 stdio MCP 来源需要 target.transport=stdio、command 和 argv。");
+    if (Object.hasOwn(target, "inputs")) throw new Error("target.inputs 只适用于官方 MCP Registry，不适用于显式 stdio 命令。 ");
     return { transport: "stdio", command: target.command, args: [...target.args] as string[] };
   }
   if (target.transport === "stdio" || target.command !== undefined || target.args !== undefined) throw new Error("stdio MCP 只能使用 stdio://local 来源；HTTP 来源不能包含本机命令字段。");
   return { transport: "streamable-http", url: normalizeEndpoint(source) };
+}
+
+function runtimeSourceToInstallSource(source: RegistryRuntimeSource): McpInstallSource {
+  return source.transport === "stdio"
+    ? { transport: "stdio", command: source.command, args: [...source.args], ...(source.env ? { env: { ...source.env } } : {}) }
+    : { transport: "streamable-http", url: normalizeEndpoint(source.url) };
+}
+
+function normalizeRegistryInputs(value: unknown): Record<string, string> {
+  if (value === undefined) return {};
+  if (!isRecord(value) || Object.keys(value).length > 16) throw new Error("MCP Registry 补充信息必须是最多 16 项的对象。");
+  const result: Record<string, string> = {};
+  for (const [key, input] of Object.entries(value)) {
+    if (!/^[A-Za-z][A-Za-z0-9_. -]{0,79}$/u.test(key) || /(?:password|secret|token|api[-_ ]?key|credential|authorization)/iu.test(key)) {
+      throw new Error("MCP Registry 补充信息名称无效或看起来包含秘密字段；密钥不能通过对话传递。");
+    }
+    if (typeof input !== "string" || !input.trim() || input.length > 1024 || input.includes("\0")) throw new Error(`MCP Registry 补充信息 ${key} 必须是 1–1024 个字符的普通文本。`);
+    result[key] = input;
+  }
+  return result;
 }
 
 function normalizeEndpoint(source: string): URL {
@@ -308,7 +342,7 @@ function canonicalEndpoint(source: string): string {
 }
 
 function serverIdFor(source: McpInstallSource): string {
-  const identity = source.transport === "stdio" ? JSON.stringify(["stdio", source.command, source.args]) : source.url.toString();
+  const identity = source.transport === "stdio" ? JSON.stringify(["stdio", source.command, source.args, source.env ?? {}]) : source.url.toString();
   return "mcp-" + createHash("sha256").update(identity).digest("hex").slice(0, 20);
 }
 

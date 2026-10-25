@@ -79,6 +79,21 @@ async function prepareRuntime() {
   }
   process.stdout.write(`已核验桌面 Profile 运行依赖：@trycua/cua-driver@${cuaManifest.version}\n`);
 
+  // 原生依赖必须真的进入部署树：缺失时打包失败，而不是等用户上传图片才发现在运行期加载不到。
+  const sharpManifestPath = resolve(serverDeployRoot, "node_modules", "sharp", "package.json");
+  const sharpBinaryRoot = resolve(serverDeployRoot, "node_modules", "@img", "sharp-win32-x64");
+  let sharpVersion;
+  try {
+    sharpVersion = JSON.parse(await readFile(sharpManifestPath, "utf8")).version;
+  } catch {
+    throw new Error(`Electron 部署树缺少 sharp（${sharpManifestPath}）；图片重编码会静默退化为不压缩。请在打包前执行完整依赖部署。`);
+  }
+  const sharpBinaryNames = await readdir(resolve(sharpBinaryRoot, "lib")).catch(() => []);
+  if (!sharpBinaryNames.some(name => name.endsWith(".node"))) {
+    throw new Error(`Electron 部署树缺少 Windows x64 的 sharp 原生二进制（${sharpBinaryRoot}/lib/*.node）。`);
+  }
+  process.stdout.write(`已核验桌面图片重编码依赖：sharp@${sharpVersion} + @img/sharp-win32-x64\n`);
+
   // pnpm 11 的部署自链接可能指回源码仓库，打包前解除该链接。
   const workspaceSelfLink = resolve(serverDeployRoot, "node_modules", ".pnpm", "node_modules", "@yubboo/lfaa");
   try {

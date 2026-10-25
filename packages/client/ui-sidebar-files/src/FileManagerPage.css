@@ -36,20 +36,21 @@
 }
 
 .file-manager__header {
-  display: flex;
+  display: grid;
   min-height: 76px;
+  grid-template-columns: minmax(0, .8fr) minmax(280px, 1fr);
   align-items: center;
-  justify-content: space-between;
   gap: 18px;
   padding: 14px 20px;
   border-bottom: 1px solid var(--color-border-subtle);
 }
 
+.file-manager__heading { min-width: 0; overflow-wrap: anywhere; }
 .file-manager__header h2 { margin: 0 0 4px !important; }
-.file-manager__header > div:first-child { min-width: 0; overflow-wrap: anywhere; }
-.file-manager__root-path { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-manager__header-side { display: grid; min-width: 0; justify-items: end; gap: 6px; }
+.file-manager__root-path { display: block; width: 100%; max-width: 100%; overflow: hidden; font-size: .84em; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
 .file-manager__node-label { color: var(--color-text-muted); font-size: 12px; }
-.file-manager__header-controls { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; }
+.file-manager__header-controls { display: flex; width: 100%; min-width: 0; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; }
 .file-manager__node-select { display: flex; min-width: 0; align-items: center; gap: 8px; }
 .file-manager__node-select .ant-select { min-width: 0; }
 .file-manager__header-actions { justify-content: flex-end; }
@@ -110,6 +111,9 @@
 .file-manager__resource-list button[aria-current="page"] { background: var(--color-surface-hover); color: var(--color-accent); }
 .file-manager__resource-list button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
 .file-manager__resource-list button:disabled { opacity: .55; cursor: default; }
+.file-manager__resource-list button > span { display: grid; min-width: 0; gap: 2px; }
+.file-manager__resource-list button small { color: var(--color-text-muted); font-size: .74em; font-weight: 500; line-height: 1.2; overflow-wrap: anywhere; }
+.file-manager__resource-list button small.file-manager__resource-path { display: -webkit-box; max-width: 100%; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .file-manager__resource-context { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 0 0 12px; color: var(--color-text-primary); }
 .file-manager__resource-context > span { min-width: 0; flex: 1; color: var(--color-text-muted); overflow-wrap: anywhere; }
 .file-manager__entry-label { display: flex; min-width: 0; flex-direction: column; gap: 3px; text-align: left; }
@@ -212,10 +216,16 @@
 .file-manager__text-preview.is-markdown a { color: var(--settings-accent, var(--color-brand)); }
 
 @container file-manager (max-width: 980px) {
-  .file-manager__header { align-items: flex-start; flex-direction: column; gap: 12px; padding: 14px 16px; }
-  .file-manager__header-controls { width: 100%; justify-content: flex-start; }
+  .file-manager__header { gap: 12px; padding: 14px 16px; }
   .file-manager__header-actions { flex: 1 1 auto; }
   .file-manager__workspace.is-tree-open .file-manager__tree { position: absolute; inset: 0 auto 0 0; z-index: 3; width: min(280px, 82%); min-width: min(190px, 82%); border-right: 1px solid var(--color-border-subtle); }
+}
+
+@container file-manager (max-width: 680px) {
+  .file-manager__header { grid-template-columns: minmax(0, 1fr); align-items: flex-start; }
+  .file-manager__header-side { justify-items: stretch; }
+  .file-manager__root-path { text-align: left; }
+  .file-manager__header-controls { justify-content: flex-start; }
 }
 
 @container file-manager (max-width: 620px) {
@@ -247,6 +257,7 @@
   .file-manager__offline-state--error { align-items: flex-start; margin: 12px auto; text-align: left; }
   .file-manager__offline-state--empty .ant-btn,
   .file-manager__offline-state--error .ant-btn { align-self: flex-start; }
+  .file-manager__empty { padding-block: clamp(12px, 5cqi, 55px); }
   .file-manager__offline-details { grid-template-columns: minmax(0, 1fr); }
   .file-manager__footer { align-items: flex-start; flex-direction: column; justify-content: center; padding: 8px 14px; }
   .file-manager__body { padding: 8px; }

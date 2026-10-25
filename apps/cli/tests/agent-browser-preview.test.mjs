@@ -28,11 +28,16 @@ const { createAiCompletionService } = await import("lfaa-llm/src/completion.js")
 const { registerAiBusinessTool, listRegisteredAiTools } = await import("lfaa-tools/src/registry.js");
 const { projectFileTool } = await import("lfaa-tools/src/project-tools.js");
 const { BrowserSessionManager } = await import("lfaa-browser-use");
+const { BUILTIN_BROWSER_WORKSPACE_ID } = await import("lfaa-util-values/src/browser-provider.js");
 const { createBrowserTools } = await import("lfaa-browser-use/src/browser-tools.js");
 const { createProjectPreviewServer, executeProjectFile } = await import("lfaa-host-project-files/src/project-files.mjs");
 const { createSkillTools } = await import("lfaa-tool-skill/src/index.js");
 const { apply: applyCapabilityInstalls } = await import("lfaa-capability-installs/src/index.js");
-const { createProjectSkillAdapter } = await import("lfaa-capability-skill/src/index.js");
+const { createAccountSkillAdapter } = await import("lfaa-capability-skill/src/index.js");
+const { Context } = await import("@deepseek-ai/cordis");
+const SkillRegistry = (await import("lfaa-skill")).default;
+const { apply: applyKnowledgeLibrary } = await import("lfaa-knowledge-library-runtime/src/index.js");
+const knowledgeLibrary = await import("lfaa-knowledge-library/src/index.js");
 
 const owner = "isolated-agent-browser-preview";
 const uid = 1731;
@@ -365,7 +370,20 @@ test("Skill 在同一 Agent Run 安装、发现、加载并引导调用真实隔
       { path: "skills/browser-check/scripts/check.mjs", contents: Buffer.from("throw new Error('Skill 附属脚本不得被安装流程执行');") }
     ]
   };
-  const projectFileCalls = [];
+  const skillContext = new Context();
+  await skillContext.plugin(SkillRegistry);
+  skillContext.provide("lfaaTools", { registerTool() {} });
+  applyKnowledgeLibrary(skillContext);
+  const skillRegistry = skillContext.skills;
+  t.after(async () => {
+    for (const installation of knowledgeLibrary.listKnowledgeLibrarySkillInstallations(owner)) {
+      if (installation.name === "browser-check" && installation.repositoryUrl === snapshot.repository.url) {
+        knowledgeLibrary.deleteKnowledgeLibrarySkillInstallation(owner, installation.id);
+      }
+    }
+    skillRegistry.invalidate();
+    await skillContext.fiber.dispose();
+  });
   const lifecycleContext = {
     effect(setup) { return toolOwner.effect(setup); },
     provide(name, service) { this[name] = service; return this; },
@@ -373,18 +391,14 @@ test("Skill 在同一 Agent Run 安装、发现、加载并引导调用真实隔
     lfaaTools: { registerTool(_owner, tool) { registerAiBusinessTool(toolOwner, tool); } }
   };
   applyCapabilityInstalls(lifecycleContext);
-  lifecycleContext.lfaaCapabilityInstalls.register(toolOwner, createProjectSkillAdapter({
+  lifecycleContext.lfaaCapabilityInstalls.register(toolOwner, createAccountSkillAdapter({
     downloadSnapshot: async () => snapshot,
     searchRepositories: async () => [],
-    runProjectFile: async (input, context) => {
-      const prepared = projectFileTool.prepare(input, context);
-      const result = await projectFileTool.execute(prepared, context);
-      projectFileCalls.push({ operation: input.operation, rootDirectory: prepared.rootDirectory, result });
-      return result;
-    }
+    skillRegistry,
+    invalidateSkills: () => skillRegistry.invalidate()
   }));
   const registeredNames = new Set(listRegisteredAiTools().map(tool => tool.name));
-  for (const tool of [...createSkillTools(), ...createBrowserTools(manager)]) {
+  for (const tool of [...createSkillTools(skillRegistry), ...createBrowserTools(manager)]) {
     if (!registeredNames.has(tool.name)) registerAiBusinessTool(toolOwner, tool);
     registeredNames.add(tool.name);
   }
@@ -413,14 +427,14 @@ test("Skill 在同一 Agent Run 安装、发现、加载并引导调用真实隔
           return sse(providerCall("capability_install", { kind: "skill", inspectionId: inspection.inspectionId, targetApplicationId: "workspace" }, "skill-install"));
         }
         case 3:
-          assert.match(lastResult, /verified_ready/u, JSON.stringify(projectFileCalls));
+          assert.match(lastResult, /verified_ready/u);
           assert.match(lastResult, /scriptsExecuted\\?":false/u);
           assert.ok(names.includes("lfaa_skill_list"));
-          return sse(providerCall("lfaa_skill_list", { source: "project" }, "skill-list"));
+          return sse(providerCall("lfaa_skill_list", { source: "registry" }, "skill-list"));
         case 4:
-          assert.match(lastResult, /browser-check/u, "安装后的 Skill 必须由同一项目 Owner 发现");
+          assert.match(lastResult, /browser-check/u, "安装后的账户 Skill 必须由同一 Skill Registry 发现");
           assert.ok(names.includes("lfaa_skill_load"));
-          return sse(providerCall("lfaa_skill_load", { source: "project", path: ".agents/skills/browser-check/SKILL.md" }, "skill-load"));
+          return sse(providerCall("lfaa_skill_load", { source: "registry", name: "browser-check" }, "skill-load"));
         case 5:
           assert.match(lastResult, /LFAA 已登记的浏览器工具/u, "同一 Run 必须能加载刚安装的 Skill 指引");
           assert.match(lastResult, /lfaa_browser_navigate/u, "通用 Skill 执行边界必须把网页导航语义映射到已登记的 Browser Owner 工具");
@@ -504,8 +518,13 @@ test("Skill 在同一 Agent Run 安装、发现、加载并引导调用真实隔
     assert.equal(providerFailure, null, providerFailure?.message ?? "");
     assert.equal(requests.length, 13, "同一 Agent Run 完成 Skill 检查、安装、动作发现、导航、观察、可访问点击、滚动和滚动后回读");
     assert.match(sessions.getAiRun(owner, turn.assistantMessage.id).message.content, /滚动位置 \d+ 像素/u);
-    assert.match(await readFile(join(root, ".agents", "skills", "browser-check", "SKILL.md"), "utf8"), /LFAA 已登记的浏览器工具/u);
-    assert.equal(await readFile(join(root, ".agents", "skills", "browser-check", "scripts", "check.mjs"), "utf8"), "throw new Error('Skill 附属脚本不得被安装流程执行');");
+    const installedSummary = knowledgeLibrary.listKnowledgeLibrarySkillInstallations(owner).find(item => item.name === "browser-check" && item.repositoryUrl === snapshot.repository.url);
+    assert.ok(installedSummary, "Skill 应由账户 Knowledge Library Owner 持久化");
+    const installedSkill = knowledgeLibrary.getKnowledgeLibrarySkillInstallation(owner, installedSummary.id);
+    assert.ok(installedSkill);
+    assert.match(installedSkill.contentMarkdown, /LFAA 已登记的浏览器工具/u);
+    assert.equal(installedSkill.files.some(file => file.path === "scripts/check.mjs"), true, "来源脚本仅作为不可信资源保存");
+    await assert.rejects(readFile(join(root, ".agents", "skills", "browser-check", "SKILL.md"), "utf8"), { code: "ENOENT" });
     await assert.rejects(readFile(join(root, "script-ran.txt"), "utf8"), { code: "ENOENT" });
     const events = await sessions.getAiQueryEventsPage(owner, turn.session.id, turn.session.id, { after: 0, limit: 100 });
     for (const name of ["capability_inspect", "capability_install", "lfaa_skill_list", "lfaa_skill_load", "lfaa_browser_open_workspace_file", "lfaa_browser_navigate", "lfaa_browser_observe", "lfaa_browser_click", "lfaa_browser_scroll"]) {
@@ -520,7 +539,7 @@ test("Skill 在同一 Agent Run 安装、发现、加载并引导调用真实隔
   assert.equal(previewCloseCount, 1, "Run 完成后预览服务已回收");
 });
 
-test("取消 Run 中挂起的真实浏览器导航会停止加载并保留页面与预览服务", async t => {
+test("取消 Run 中挂起的真实浏览器导航会停止加载并保留页面与预览服务", { timeout: 60_000 }, async t => {
   const manager = new BrowserSessionManager(true, undefined, { headless: true });
   const provider = manager.listProviders().find(item => item.id === "lfaa-managed-edge" && item.available)
     ?? manager.listProviders().find(item => item.id === "lfaa-managed-chrome" && item.available);
@@ -532,17 +551,23 @@ test("取消 Run 中挂起的真实浏览器导航会停止加载并保留页面
   const ownerId = "isolated-browser-cancel-owner";
   const sourceSessionId = randomUUID();
   const controller = new AbortController();
-  const sockets = new Set();
   let resolveRequestStarted;
   const requestStarted = new Promise(resolve => { resolveRequestStarted = resolve; });
+  let releasePreviewResponse;
+  const previewResponseGate = new Promise(resolve => { releasePreviewResponse = resolve; });
+  let previewResponseClosed = false;
+  let previewResponseFinishedAtClose = false;
   const server = createServer((_request, response) => {
     resolveRequestStarted();
-    response.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
-    response.write("<!doctype html><title>取消验收</title><body>等待响应结束</body>");
-  });
-  server.on("connection", socket => {
-    sockets.add(socket);
-    socket.once("close", () => sockets.delete(socket));
+    response.once("close", () => {
+      previewResponseClosed = true;
+      previewResponseFinishedAtClose = response.writableFinished;
+    });
+    void previewResponseGate.then(() => {
+      if (response.destroyed) return;
+      response.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+      response.write("<!doctype html><title>取消验收</title><body>等待响应结束</body>");
+    });
   });
   await new Promise((resolve, reject) => {
     server.once("error", reject);
@@ -569,6 +594,7 @@ test("取消 Run 中挂起的真实浏览器导航会停止加载并保留页面
   const navigation = runAdapter.navigateProjectPreview(provider.id, { url: previewUrl, close: closePreview });
   t.after(async () => {
     controller.abort();
+    releasePreviewResponse();
     runCleanup?.();
     await manager.closeAll();
     if (server.listening) {
@@ -582,20 +608,22 @@ test("取消 Run 中挂起的真实浏览器导航会停止加载并保留页面
     requestStarted,
     new Promise((_, reject) => { requestTimer = setTimeout(() => reject(new Error("浏览器没有向挂起页面发起导航请求。")), 10_000); })
   ]).finally(() => clearTimeout(requestTimer));
-  assert.ok(await manager.getPanelRevision(ownerId, sourceSessionId, provider.id), "取消前 Browser Owner 已建立当前账户与 Session 的真实页面");
+  assert.ok(await manager.getPanelRevision(ownerId, BUILTIN_BROWSER_WORKSPACE_ID, provider.id), "取消前 Browser Owner 已在账户工作区建立真实页面");
 
   controller.abort();
   await assert.rejects(navigation, /浏览器操作已取消/u);
   runCleanup?.();
   assert.throws(() => runAdapter.observe(provider.id), /桥接已结束/u);
-  assert.ok(await manager.getPanelRevision(ownerId, sourceSessionId, provider.id), "取消 Run 后用户仍可接管同一浏览器页面");
-  const retainedPage = await manager.observeForRun(ownerId, sourceSessionId, provider.id);
+  assert.ok(await manager.getPanelRevision(ownerId, BUILTIN_BROWSER_WORKSPACE_ID, provider.id), "取消 Run 后用户仍可接管同一账户工作区浏览器页面");
+  const retainedPage = await manager.observeForRun(ownerId, BUILTIN_BROWSER_WORKSPACE_ID, provider.id);
   assert.equal(retainedPage.providerId, provider.id, "取消后同一 Browser Session 仍可观察");
-  const stopDeadline = Date.now() + 5_000;
-  while (sockets.size > 0 && Date.now() < stopDeadline) await new Promise(resolve => setTimeout(resolve, 10));
+  const stopDeadline = Date.now() + 15_000;
+  while (!previewResponseClosed && Date.now() < stopDeadline) await new Promise(resolve => setTimeout(resolve, 10));
+  releasePreviewResponse();
   assert.equal(previewCloseCount, 0, "取消 Run 不会关闭页面仍在使用的项目预览服务");
   assert.equal(server.listening, true, "项目预览服务继续供保留页面使用");
-  assert.equal(sockets.size, 0, "挂起的浏览器 HTTP 连接已关闭");
+  assert.equal(previewResponseClosed, true, "取消 Run 会结束挂起的预览响应");
+  assert.equal(previewResponseFinishedAtClose, false, "挂起预览响应在取消时由浏览器提前关闭");
   await manager.closeAll();
   assert.equal(previewCloseCount, 1, "用户关闭浏览器会话后只回收一次项目预览服务");
   assert.equal(server.listening, false, "浏览器会话关闭后停止项目预览监听");

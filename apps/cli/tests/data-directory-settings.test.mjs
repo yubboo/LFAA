@@ -5,6 +5,7 @@ import { existsSync, lstatSync, mkdtempSync, mkdirSync, readFileSync, readdirSyn
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { resolveDataDirectory } from "../../../packages/util/home-paths/src/resolve-data-directory.mjs";
+import { resolveDataPaths, resolveHomePaths } from "../../../packages/util/home-paths/src/data-layout.mjs";
 const root = mkdtempSync(join(tmpdir(), "lfaa-data-settings-test-"));
 const userProfile = join(root, "user");
 const home = join(root, "home");
@@ -32,22 +33,29 @@ config.repositoryRoot = project;
 config.desktopInstallDirectory = null;
 const projectStorage = await import("lfaa-settings/src/project-storage.js");
 test("空白配置数据根在控制端启动时建立标准分类，不虚构账户、游戏或业务数据", () => {
-  const categories = ["database", "users", "sessions", "credentials", "games", "environments", "lib", "cache", "tmp", "logs", "backups", "models", "connectivity", "storages"];
-  for (const category of categories) {
-    const directory = join(source, category);
+  const homePaths = resolveHomePaths(home);
+  const dataPaths = resolveDataPaths(source);
+  for (const category of ["database", "users", "sessions", "credentials", "storages"]) {
+    const directory = homePaths[category];
     const info = lstatSync(directory);
-    assert.ok(info.isDirectory() && !info.isSymbolicLink(), `${category} 应在启动时建立为真实目录`);
+    assert.ok(info.isDirectory() && !info.isSymbolicLink(), `Home/${category} 应在启动时建立为真实目录`);
   }
-  assert.deepEqual(readdirSync(join(source, "users")), []);
-  assert.deepEqual(readdirSync(join(source, "games")), []);
+  for (const category of ["users", "games", "environments", "lib", "cache", "tmp", "logs", "backups", "models", "input", "output", "connectivity"]) {
+    const directory = dataPaths[category];
+    const info = lstatSync(directory);
+    assert.ok(info.isDirectory() && !info.isSymbolicLink(), `Data/${category} 应在启动时建立为真实目录`);
+  }
+  assert.deepEqual(readdirSync(homePaths.users), []);
+  assert.deepEqual(readdirSync(dataPaths.users), []);
+  assert.deepEqual(readdirSync(dataPaths.games), []);
   assert.equal(existsSync(join(source, "plugins")), false, "插件安装与私有数据由 LFAA_HOME/Profile 管理，不属于系统 data 根");
 });
 let closed = false;
 function closeStorage() { if (!closed) { configuration.close(); sessionRecords.close(); closeDatabase(); closed = true; } }
 after(() => { closeStorage(); assert.ok(root.startsWith(join(tmpdir(), "lfaa-data-settings-test-"))); rmSync(root, { recursive: true, force: true }); });
-test("未配置系统根使用用户 .lfaa Home，不随项目盘符或可移动盘变化；显式路径保持", () => {
-  for (const project of ["C:\\LFAA", "D:\\apps\\LFAA", "H:\\LFAA"]) for (const driveType of ["Fixed", "Removable"]) assert.equal(resolveDataDirectory(project, "", { platform: "win32", userProfile: "C:\\Users\\Administrator", lfaaHome: "", driveType }), "C:\\Users\\Administrator\\.lfaa");
-  assert.equal(resolveDataDirectory("D:\\LFAA", "", { platform: "win32", userProfile: "C:\\Users\\Administrator", lfaaHome: "" }), "C:\\Users\\Administrator\\.lfaa");
+test("未配置业务根使用用户 .lfaa/data，不随项目盘符或可移动盘变化；显式路径保持", () => {
+  for (const project of ["C:\\LFAA", "D:\\apps\\LFAA", "H:\\LFAA"]) for (const driveType of ["Fixed", "Removable"]) assert.equal(resolveDataDirectory(project, "", { platform: "win32", userProfile: "C:\\Users\\Administrator", lfaaHome: "", driveType }), "C:\\Users\\Administrator\\.lfaa\\data");
+  assert.equal(resolveDataDirectory("D:\\LFAA", "", { platform: "win32", userProfile: "C:\\Users\\Administrator", lfaaHome: "" }), "C:\\Users\\Administrator\\.lfaa\\data");
   assert.equal(resolveDataDirectory("D:\\LFAA", "data", { platform: "win32", userProfile: "C:\\Users\\Administrator" }), "D:\\LFAA\\data");
   assert.equal(resolveDataDirectory("D:\\LFAA", "E:\\Storage\\data", { platform: "win32" }), "E:\\Storage\\data");
 });

@@ -36,7 +36,7 @@ import {
   resolveSnapDragFrame,
   resolveRightCenterDragFrame,
 } from "./workbench-interaction.config.ts";
-import { WORKBENCH_LAYOUT_TOKENS, resolveLegacyWorkbenchInitialWidths, resolvePreviousWorkbenchInitialWidths, resolveWorkbenchLayoutMetrics, shouldDockResponsiveLeftPane, shouldDockResponsiveRightPane } from "./workbench-layout.config.ts";
+import { WORKBENCH_LAYOUT_TOKENS, resolveLegacyWorkbenchInitialWidths, resolvePreviousWorkbenchInitialWidths, resolveWorkbenchCenterFloor, resolveWorkbenchLayoutMetrics, shouldDockResponsiveLeftPane, shouldDockResponsiveRightPane } from "./workbench-layout.config.ts";
 import type { ResizableWorkbenchProps, WorkbenchPaneLimits } from "./workbench-layout.types.ts";
 import "./css/common.css";
 
@@ -235,6 +235,7 @@ export function ResizableWorkbench({
   // 工作台与 Settings 可以因此共享同一个左栏宽度事实源，而不是各存一份。
   const setResolvedLeftWidth = useCallback((next: number | ((value: number) => number)) => {
     const resolved = typeof next === "function" ? next(leftWidth) : next;
+    if (Object.is(resolved, leftWidth)) return;
     if (leftWidthProp === undefined) setInternalLeftWidth(resolved);
     onLeftWidthChange?.(resolved);
   }, [leftWidth, leftWidthProp, onLeftWidthChange]);
@@ -332,9 +333,8 @@ export function ResizableWorkbench({
     const handleBudget = rightUsesGrid
       ? rightHandleWidth + leftHandleWidth
       : leftHandleWidth;
-    const centerFloor = side === "right" && (centerCollapsed || (allowCenterCollapse && centerCollapseEnabled && rightUsesGrid))
-      ? 0
-      : minCenterWidth;
+    const centerFloor = resolveWorkbenchCenterFloor(minCenterWidth, centerCollapsed
+      || (side === "right" && allowCenterCollapse && centerCollapseEnabled && rightUsesGrid));
     // 可选前置导航区域存在时，containerWidth 已由观察器扣除该区域；其他 Surface 继续按实际根宽度计算。
     const available = getAvailableContainerWidth() - otherWidth - centerFloor - handleBudget;
     // 中心列可吸附收起时，`available` 表示中心列 + 右 Dock 的总预算；
@@ -344,10 +344,6 @@ export function ResizableWorkbench({
 
   // 响应式计算结果变化时，把历史持久化尺寸重新夹进当前容器允许的范围。
   // 这一步很重要：用户在大屏保存的 340px 侧栏，切到小窗后不能继续拿 340px 挤压主区。
-  useEffect(() => {
-    setResolvedLeftWidth((value) => clamp(value, leftLimits.min, leftLimits.max));
-  }, [leftLimits.max, leftLimits.min, setResolvedLeftWidth]);
-
   useEffect(() => {
     setRightWidth((value) => clamp(value, rightLimits.min, rightLimits.max));
   }, [rightLimits.max, rightLimits.min]);
@@ -359,10 +355,14 @@ export function ResizableWorkbench({
   // 容器变窄时，历史持久化宽度还要继续受“中心区保护”约束。
   // 例如 1440px 保存的左栏宽度，在 760px 小窗里不能原样保留并把中心区挤没。
   useEffect(() => {
-    const dynamicMax = getDynamicMax("left");
+    // 收起的左栏不占 Grid 预算，保留其展开/hover 预览宽度；不能拿右栏填满后的余量压成 0。
+    // 静态与动态约束必须在同一次回写中求交，避免两个 effect 在 min 与不足 min 的预算之间振荡。
+    const dynamicMax = leftCollapsed || !leftUsesGrid
+      ? leftLimits.max
+      : Math.min(leftLimits.max, getDynamicMax("left"));
     const dynamicMin = Math.min(leftLimits.min, dynamicMax);
     setResolvedLeftWidth((value) => clamp(value, dynamicMin, dynamicMax));
-  }, [getDynamicMax, leftLimits.min, setResolvedLeftWidth]);
+  }, [getDynamicMax, leftCollapsed, leftUsesGrid, leftLimits.max, leftLimits.min, setResolvedLeftWidth]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -914,7 +914,7 @@ export function ResizableWorkbench({
     "--lfaa-left-handle-width": `${leftVisible && leftUsesGrid ? HANDLE_WIDTH : 0}px`,
     "--lfaa-right-handle-width": `${rightEnabled && rightUsesGrid ? HANDLE_WIDTH : 0}px`,
     "--lfaa-right-size": `${rightWidthForLayout}px`,
-    "--lfaa-center-column": centerCollapsed ? "0px" : "minmax(0, 1fr)",
+    "--lfaa-center-column": `minmax(0, ${centerCollapsed ? "0fr" : "1fr"})`,
     "--lfaa-left-column": `${leftCollapsed ? 0 : leftWidth}px`,
     "--lfaa-right-column": `${rightEnabled && !rightCollapsed ? rightWidthForLayout : 0}px`,
     "--lfaa-bottom-size": `${bottomHeight}px`,

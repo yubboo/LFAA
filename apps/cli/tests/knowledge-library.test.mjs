@@ -11,7 +11,11 @@ import { executeProjectFile } from "../../../packages/host/project-files/src/pro
 const cli = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 test("资料库迁移、账户/App 隔离、按需读取、显式保存和本地来源权限合同", () => {
-  const dataDirectory = mkdtempSync(join(tmpdir(), "lfaa-knowledge-library-"));
+  const temporaryRoot = mkdtempSync(join(tmpdir(), "lfaa-knowledge-library-"));
+  const homeDirectory = join(temporaryRoot, "home");
+  const dataDirectory = join(temporaryRoot, "data");
+  mkdirSync(homeDirectory, { recursive: true });
+  mkdirSync(dataDirectory, { recursive: true });
   try {
     execFileSync(process.execPath, ["--import", "tsx", "--import", "./register-package-loader.mjs", "--input-type=module", "-e", `
       import assert from 'node:assert/strict';
@@ -29,9 +33,15 @@ test("资料库迁移、账户/App 隔离、按需读取、显式保存和本地
       const { sessionRecords } = await import('lfaa-session-persistence-jsonl/src/repository.js');
       const { retireLegacyFileTables } = await import('lfaa-storage-domain/src/migration.js');
       retireLegacyFileTables();
-      assert.equal(Number(database.prepare('PRAGMA user_version').get().user_version), 61);
+      assert.equal(Number(database.prepare('PRAGMA user_version').get().user_version), 69);
       database.prepare("INSERT INTO users(id,uid,username,password_salt,password_hash,role,is_super_admin) VALUES ('knowledge-owner',8201,'knowledge-owner','salt','hash','member',0),('knowledge-other',8202,'knowledge-other','salt','hash','member',0)").run();
       database.prepare("INSERT INTO daemon_nodes(id,display_name,platform,architecture,daemon_version,status,last_seen_at) VALUES ('knowledge-node','资料测试节点','win32','x64','test','offline','2026-10-04T00:00:00Z')").run();
+      configuration.begin();
+      configuration.save('user_settings', { user_id: 'knowledge-owner', category: 'general', value_json: '{}' });
+      configuration.commit();
+      retireLegacyFileTables();
+      assert.equal(configuration.get('user_settings', row => row.user_id === 'knowledge-owner')?.value_json, '{}');
+      assert.equal(database.prepare("SELECT COUNT(*) AS count FROM configuration_records WHERE table_name = 'user_settings'").get().count, 0);
       const knowledge = await import('lfaa-knowledge-library/src/index.js');
       const { resolveUserDataPaths } = await import('lfaa-home-paths/src/data-layout.mjs');
       const item = knowledge.createKnowledgeLibraryItem('knowledge-owner', { applicationId: 'workspace', kind: 'knowledge', title: 'MCP 权限约束', description: '只在当前 App 使用', contentMarkdown: '# MCP 权限\\n必须遵循当前 App 和现有权限模式。', sourceKind: 'manual' });
@@ -65,9 +75,13 @@ test("资料库迁移、账户/App 隔离、按需读取、显式保存和本地
       assert.equal(knowledge.getKnowledgeLibraryProjectSource('knowledge-owner', source.id, 'minecraft'), null);
       assert.equal(knowledge.getKnowledgeLibraryProjectSource('knowledge-other', source.id, 'workspace'), null);
       assert.throws(() => knowledge.createKnowledgeLibraryProjectSource('knowledge-owner', { applicationId: 'all', projectId: project.id, projectApplicationId: 'workspace', relativePath: '', title: '跨 App 项目' }), /所属 App/u);
-      const { apply } = await import('lfaa-knowledge-library-runtime/src/index.js');
+      const { apply: registerKnowledgeLibrary } = await import('lfaa-knowledge-library-runtime/src/index.js');
       const registered = [];
-      apply({ lfaaTools: { registerTool(_context, tool) { registered.push(tool); } } });
+      const skillProviders = [];
+      registerKnowledgeLibrary({
+        lfaaTools: { registerTool(_context, tool) { registered.push(tool); } },
+        skills: { registerProvider(create) { skillProviders.push(create({ signal: new AbortController().signal, invalidate() {} })); } }
+      });
       const search = registered.find(tool => tool.name === 'knowledge_library_search');
       const localSearch = registered.find(tool => tool.name === 'knowledge_library_search_local');
       const read = registered.find(tool => tool.name === 'knowledge_library_read');
@@ -88,9 +102,40 @@ test("资料库迁移、账户/App 隔离、按需读取、显式保存和本地
       assert.equal(saved.applicationId, 'workspace');
       assert.equal(knowledge.getKnowledgeLibraryUsage('knowledge-owner').resources, 5);
       assert.equal(knowledge.deleteKnowledgeLibraryProjectSource('knowledge-owner', source.id), true);
+      const skillInstallation = knowledge.createKnowledgeLibrarySkillInstallation('knowledge-owner', {
+        name: 'harness-library-check', description: '账户 Skill Provider 回归',
+        source: { repositoryUrl: 'https://github.com/lfaa-harness-test/fixtures', commit: 'a'.repeat(40), archiveSha256: 'b'.repeat(64), sourcePath: 'skills/harness-library-check', license: 'MIT' },
+        files: [
+          { path: 'SKILL.md', content: '---\\nname: harness-library-check\\ndescription: fixture\\n---\\n# Instructions\\nOnly test fixture instructions.' },
+          { path: 'references/guide.md', content: '# Reference\\nOwner-validated resource.' }
+        ]
+      });
+      assert.equal(skillProviders.length, 1);
+      const skillProvider = skillProviders[0];
+      const skillOptions = { userId: 'knowledge-owner', signal: new AbortController().signal };
+      const skillCandidates = await skillProvider.list(skillOptions);
+      const skillCandidate = skillCandidates.find(candidate => candidate.name === 'harness-library-check');
+      assert.ok(skillCandidate);
+      assert.equal(skillCandidate.source, 'user-lfaa');
+      assert.equal('contentMarkdown' in skillCandidate, false);
+      const skillDefinition = await skillProvider.get(skillCandidate, skillOptions);
+      assert.equal(skillDefinition.content, '# Instructions\\nOnly test fixture instructions.');
+      assert.equal(await skillProvider.get(skillCandidate, { ...skillOptions, userId: 'knowledge-other' }), undefined);
+      const skillResource = await skillProvider.readResource(skillCandidate, 'references/guide.md', skillOptions);
+      assert.equal(skillResource.content, '# Reference\\nOwner-validated resource.');
+      assert.equal(await skillProvider.readResource(skillCandidate, 'references/guide.md', { ...skillOptions, userId: 'knowledge-other' }), undefined);
       const { boot } = await import('lfaa-app-boot/src/index.js');
       const app = await boot(['web']);
       try {
+        const runtimeSkillOptions = { userId: 'knowledge-owner', allowHostFilesystem: false, customSkillDirs: [], signal: new AbortController().signal };
+        const runtimeSkillSummaries = await app.skills.list(runtimeSkillOptions);
+        assert.ok(runtimeSkillSummaries.some(skill => skill.name === 'harness-library-check' && skill.provider === 'lfaa-knowledge-library-skills'));
+        const runtimeSkill = await app.skills.get('harness-library-check', runtimeSkillOptions);
+        assert.equal(runtimeSkill.content, '# Instructions\\nOnly test fixture instructions.');
+        const runtimeResource = await app.skills.readResource('harness-library-check', 'references/guide.md', runtimeSkillOptions);
+        assert.equal(runtimeResource.content, '# Reference\\nOwner-validated resource.');
+        const otherRuntimeSkills = await app.skills.list({ ...runtimeSkillOptions, userId: 'knowledge-other' });
+        assert.equal(otherRuntimeSkills.some(skill => skill.name === 'harness-library-check'), false);
         const toolNames = include => app.lfaaTools.listAiBusinessTools('workspace', 'member', null, 'ask', include).map(tool => tool.name);
         assert.equal(toolNames(false).some(name => name.startsWith('knowledge_library_')), false);
         assert.ok(['knowledge_library_search', 'knowledge_library_search_local', 'knowledge_library_read', 'knowledge_library_save'].every(name => toolNames(true).includes(name)));
@@ -114,13 +159,15 @@ test("资料库迁移、账户/App 隔离、按需读取、显式保存和本地
         const oversize = await fetch(base + '/items', { method: 'POST', headers: ownerHeaders, body: JSON.stringify({ applicationId: 'workspace', kind: 'knowledge', title: 'API 超限', contentMarkdown: '中'.repeat(22000), sourceKind: 'upload' }) });
         assert.equal(oversize.status, 400);
         assert.equal((await fetch(base + '/items/' + apiItem.id, { method: 'DELETE', headers: ownerHeaders })).status, 204);
+        assert.equal(knowledge.deleteKnowledgeLibrarySkillInstallation('knowledge-owner', skillInstallation.id), true);
       } finally { await app.fiber.dispose(); }
       configuration.close();
       sessionRecords.close();
-    `], { cwd: cli, env: { ...process.env, NODE_ENV: "test", JWT_SECRET: "", SERVER_HOST: "127.0.0.1", LFAA_DATA_DIR: dataDirectory }, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 25000 });
+    `], { cwd: cli, env: { ...process.env, NODE_ENV: "test", JWT_SECRET: "", SERVER_HOST: "127.0.0.1", LFAA_HOME: homeDirectory, LFAA_DATA_DIR: dataDirectory, USERPROFILE: homeDirectory, HOME: homeDirectory }, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 25000 });
   } finally {
-    const resolved = resolve(dataDirectory);
+    const resolved = resolve(temporaryRoot);
     assert.equal(dirname(resolved), resolve(tmpdir()));
+    assert.equal(resolved.split(/[\\/]/u).at(-1)?.startsWith("lfaa-knowledge-library-"), true);
     rmSync(resolved, { recursive: true, force: true });
   }
 });

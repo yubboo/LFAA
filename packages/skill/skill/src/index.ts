@@ -455,6 +455,11 @@ export class SkillRegistry extends Service {
     return (await this.snapshot(options)).skills;
   }
 
+  /** 账户 Skill 持久层发生受控变更后，失效所有用户/工作区目录投影。 */
+  invalidate(): void {
+    this.invalidateCache();
+  }
+
   /**
    * 观察当前与调用开关无关的目录，以及发现是否在稳定版本内完成。
    * 未完成的观察永不缓存，消费方可保留上次良好状态并在下次请求边界重试。

@@ -20,13 +20,14 @@ import { withControlLock } from "lfaa-storage-domain/src/control-lock.js";
 import { validateSettingsInput } from "./validation.js";
 import { APPLICATION_IDS, APPLICATION_NAVIGATION_IDS, type ApplicationId, type ApplicationNavigationId } from "lfaa-util-values/src/application-id.js";
 import { BROWSER_PROVIDER_IDS, type BrowserProviderId } from "lfaa-util-values/src/browser-provider.js";
+import { EXECUTION_SANDBOX_MODES } from "lfaa-util-values/src/sandbox-contract.js";
 import { credentialReference, normalizeCredentialRecord, type CredentialRecord, type CredentialRecordMetadata } from "lfaa-credentials/src/index.js";
 import { defaultReasoningMode, isSelectableReasoningMode, normalizeAccountReasoningMode, normalizeProviderModelThinking, normalizeStoredModelThinking, PROVIDER_MODEL_CAPABILITY_SOURCE, selectableReasoningValues } from "./model-capabilities.js";
 import type { AiModelCatalogEntry, AiModelThinkingControl } from "./model-capabilities.js";
 export type { AiModelCatalogEntry, AiModelThinkingControl } from "./model-capabilities.js";
 
-import { AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN, AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN, CARD_MOTION_EFFECT_IDS, UI_MOTION_EFFECT_IDS, DEFAULT_USER_SETTINGS, type SettingsCategory, type GeneralSettings, type AppearanceSettings, type AppearanceFonts, type AppearanceAdvancedSettings, type AppearanceBackgroundView, type ShortcutSettings, type UserSettings, type ComputerControlSettings, type BrowserUseSettings, type PersonalizationSettings, type AiRuntimeSettings, type MinecraftRuntimeSettings, type GitSettings, type PermissionSettings, type UserCapabilityPrompt, type PluginSettings } from "lfaa-util-values/src/settings-contract.js";
-export type { SettingsCategory, GeneralSettings, AppearanceSettings, AppearanceFonts, AppearanceAdvancedSettings, AppearanceBackgroundView, ShortcutSettings, UserSettings, ComputerControlSettings, BrowserUseSettings, PersonalizationSettings, AiRuntimeSettings, MinecraftRuntimeSettings, GitSettings, PermissionSettings, UserCapabilityPrompt, PluginSettings } from "lfaa-util-values/src/settings-contract.js";
+import { AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN, AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN, CARD_MOTION_EFFECT_IDS, UI_MOTION_EFFECT_IDS, CANVAS_DEFAULT_MODE_IDS, CANVAS_GRID_STYLE_IDS, DEFAULT_USER_SETTINGS, type SettingsCategory, type GeneralSettings, type AppearanceSettings, type AppearanceFonts, type AppearanceAdvancedSettings, type AppearanceBackgroundView, type ShortcutSettings, type UserSettings, type ComputerControlSettings, type BrowserUseSettings, type PersonalizationSettings, type MiniSettings, type AiRuntimeSettings, type MinecraftRuntimeSettings, type GitSettings, type PermissionSettings, type UserCapabilityPrompt, type PluginSettings, type CanvasSettings } from "lfaa-util-values/src/settings-contract.js";
+export type { SettingsCategory, GeneralSettings, AppearanceSettings, AppearanceFonts, AppearanceAdvancedSettings, AppearanceBackgroundView, ShortcutSettings, UserSettings, ComputerControlSettings, BrowserUseSettings, PersonalizationSettings, MiniSettings, AiRuntimeSettings, MinecraftRuntimeSettings, GitSettings, PermissionSettings, UserCapabilityPrompt, PluginSettings, CanvasSettings } from "lfaa-util-values/src/settings-contract.js";
 export const defaultSettings: UserSettings = structuredClone(DEFAULT_USER_SETTINGS);
 
 const allowedAccentColors = new Set(["#3457d5", "#1687a7", "#27845b", "#8956bb", "#d05b37", "#d64d8f"]);
@@ -51,11 +52,25 @@ export function getUserSettings(userId: string): UserSettings {
     if (row.category === "personalization") result.personalization = readPersonalizationSettings(value);
     if (row.category === "computer-control") result.computerControl = readComputerControlSettings(value);
     if (row.category === "browser-use") result.browserUse = readBrowserUseSettings(value);
+    if (row.category === "mini") result.mini = readMiniSettings(value);
+    if (row.category === "canvas") result.canvas = readCanvasSettings(value);
     } catch {
       // 损坏的单项设置回退到默认值，不影响其他设置分类读取。
     }
   }
   return result;
+}
+
+/** 只返回当前账户在这台自托管控制端已保存的分类与最新时间，不返回设置值或秘密。 */
+export function getUserSettingsSyncStatus(userId: string): { service: "lfaa-self-hosted"; categories: SettingsCategory[]; lastUpdatedAt: string | null; scope: "same-control-plane" } {
+  const rows = configuration.all("user_settings", row => row.user_id === userId) as Array<{ category: SettingsCategory; updated_at?: string }>;
+  const timestamps = rows.map(row => row.updated_at).filter((value): value is string => typeof value === "string" && Number.isFinite(Date.parse(value)));
+  return {
+    service: "lfaa-self-hosted",
+    categories: [...new Set(rows.map(row => row.category))].sort(),
+    lastUpdatedAt: timestamps.sort().at(-1) ?? null,
+    scope: "same-control-plane"
+  };
 }
 
 function readGitSettings(value: Record<string, unknown>): GitSettings {
@@ -112,6 +127,7 @@ function readAiRuntimeSettings(value: Record<string, unknown>): AiRuntimeSetting
   const choose = <T extends string>(candidate: unknown, options: readonly T[], fallback: T): T =>
     typeof candidate === "string" && (options as readonly string[]).includes(candidate) ? candidate as T : fallback;
   return {
+    executionSandboxMode: choose(value.executionSandboxMode, EXECUTION_SANDBOX_MODES, defaultSettings.aiRuntime.executionSandboxMode),
     speed: choose(value.speed, ["fast", "balanced", "deep"], defaultSettings.aiRuntime.speed),
     promptSuggestions: typeof value.promptSuggestions === "boolean" ? value.promptSuggestions : defaultSettings.aiRuntime.promptSuggestions,
     showContextUsage: typeof value.showContextUsage === "boolean" ? value.showContextUsage : defaultSettings.aiRuntime.showContextUsage,
@@ -252,16 +268,77 @@ function readComputerControlSettings(value: Record<string, unknown>): ComputerCo
   return { enabled: typeof value.enabled === "boolean" ? value.enabled : defaultSettings.computerControl.enabled };
 }
 
+function readMiniSettings(value: Record<string, unknown>): MiniSettings {
+  return {
+    companion: value.companion === "cloud" || value.companion === "ember" ? value.companion : "moss",
+    showCompanion: typeof value.showCompanion === "boolean" ? value.showCompanion : defaultSettings.mini.showCompanion,
+    alwaysOnTop: typeof value.alwaysOnTop === "boolean" ? value.alwaysOnTop : defaultSettings.mini.alwaysOnTop,
+    opacity: Number.isInteger(value.opacity) && Number(value.opacity) >= 40 && Number(value.opacity) <= 100 ? Number(value.opacity) : defaultSettings.mini.opacity
+  };
+}
+
+/** 旧账户或缺失字段按共享默认值补齐；非法枚举逐项回落，不静默接受未知值。 */
+function readCanvasSettings(value: Record<string, unknown>): CanvasSettings {
+  const defaults = defaultSettings.canvas;
+  const gridStyle = CANVAS_GRID_STYLE_IDS.includes(value.gridStyle as CanvasSettings["gridStyle"]) ? value.gridStyle as CanvasSettings["gridStyle"] : defaults.gridStyle;
+  return {
+    defaultMode: CANVAS_DEFAULT_MODE_IDS.includes(value.defaultMode as CanvasSettings["defaultMode"]) ? value.defaultMode as CanvasSettings["defaultMode"] : defaults.defaultMode,
+    gridStyle,
+    snapToGrid: typeof value.snapToGrid === "boolean" ? value.snapToGrid : defaults.snapToGrid,
+    showMiniMap: typeof value.showMiniMap === "boolean" ? value.showMiniMap : defaults.showMiniMap,
+    agentPanelDefaultOpen: typeof value.agentPanelDefaultOpen === "boolean" ? value.agentPanelDefaultOpen : defaults.agentPanelDefaultOpen
+  };
+}
+
 function readBrowserUseSettings(value: Record<string, unknown>): BrowserUseSettings {
   const validIds = new Set<string>(BROWSER_PROVIDER_IDS);
   const enabledProviderIds = Array.isArray(value.enabledProviderIds)
     ? [...new Set(value.enabledProviderIds.filter((id): id is BrowserProviderId => typeof id === "string" && validIds.has(id)))].slice(0, BROWSER_PROVIDER_IDS.length)
     : defaultSettings.browserUse.enabledProviderIds;
+  const permissionNames = ["camera", "microphone", "geolocation", "notifications"] as const;
+  const defaultPermissionValue = (name: typeof permissionNames[number]): "ask" | "allow" | "block" => {
+    const candidate = value.sitePermissionDefaults && typeof value.sitePermissionDefaults === "object" && !Array.isArray(value.sitePermissionDefaults)
+      ? (value.sitePermissionDefaults as Record<string, unknown>)[name]
+      : undefined;
+    return candidate === "allow" || candidate === "block" ? candidate : "ask";
+  };
+  const sitePermissionOverrides = Array.isArray(value.sitePermissionOverrides) ? value.sitePermissionOverrides.flatMap((rule): BrowserUseSettings["sitePermissionOverrides"] => {
+    if (!rule || typeof rule !== "object" || Array.isArray(rule)) return [];
+    const candidate = rule as Record<string, unknown>;
+    if (typeof candidate.origin !== "string" || candidate.permission !== "camera" && candidate.permission !== "microphone" && candidate.permission !== "geolocation" && candidate.permission !== "notifications" || candidate.decision !== "allow" && candidate.decision !== "block") return [];
+    try {
+      const origin = new URL(candidate.origin);
+      if ((origin.protocol !== "http:" && origin.protocol !== "https:") || origin.origin !== candidate.origin || origin.username || origin.password) return [];
+    } catch { return []; }
+    return [{ origin: candidate.origin, permission: candidate.permission, decision: candidate.decision }];
+  }).slice(0, 256) : [];
+  const websiteToolOverrides = Array.isArray(value.websiteToolOverrides) ? value.websiteToolOverrides.flatMap((rule): BrowserUseSettings["websiteToolOverrides"] => {
+    if (!rule || typeof rule !== "object" || Array.isArray(rule)) return [];
+    const candidate = rule as Record<string, unknown>;
+    if (typeof candidate.origin !== "string" || candidate.decision !== "allow" && candidate.decision !== "block") return [];
+    try {
+      const origin = new URL(candidate.origin);
+      if ((origin.protocol !== "http:" && origin.protocol !== "https:") || origin.origin !== candidate.origin || origin.username || origin.password) return [];
+    } catch { return []; }
+    return [{ origin: candidate.origin, decision: candidate.decision }];
+  }).slice(0, 256) : [];
+  const developerMode = value.developerMode === true;
   return {
     enabled: typeof value.enabled === "boolean" ? value.enabled : defaultSettings.browserUse.enabled,
+    webUrlOpenLocation: value.webUrlOpenLocation === "current-browser" ? "current-browser" : defaultSettings.browserUse.webUrlOpenLocation,
+    localUrlOpenLocation: value.localUrlOpenLocation === "current-browser" ? "current-browser" : defaultSettings.browserUse.localUrlOpenLocation,
     enabledProviderIds,
     showFullUrl: typeof value.showFullUrl === "boolean" ? value.showFullUrl : defaultSettings.browserUse.showFullUrl,
     recordRecentSites: typeof value.recordRecentSites === "boolean" ? value.recordRecentSites : defaultSettings.browserUse.recordRecentSites,
+    allowAgentHistoryAccess: typeof value.allowAgentHistoryAccess === "boolean" ? value.allowAgentHistoryAccess : defaultSettings.browserUse.allowAgentHistoryAccess,
+    annotateScreenshots: value.annotateScreenshots === "always" || value.annotateScreenshots === "never" ? value.annotateScreenshots : defaultSettings.browserUse.annotateScreenshots,
+    useWebsiteToolsByDefault: typeof value.useWebsiteToolsByDefault === "boolean" ? value.useWebsiteToolsByDefault : defaultSettings.browserUse.useWebsiteToolsByDefault,
+    websiteToolOverrides,
+    askBeforeDownload: typeof value.askBeforeDownload === "boolean" ? value.askBeforeDownload : defaultSettings.browserUse.askBeforeDownload,
+    sitePermissionDefaults: Object.fromEntries(permissionNames.map(name => [name, defaultPermissionValue(name)])) as BrowserUseSettings["sitePermissionDefaults"],
+    sitePermissionOverrides,
+    developerMode,
+    fullCdpAccess: developerMode && value.fullCdpAccess === true,
     searchEngine: value.searchEngine === "google" || value.searchEngine === "duckduckgo" || value.searchEngine === "bing"
       ? value.searchEngine
       : defaultSettings.browserUse.searchEngine
@@ -280,6 +357,7 @@ function readPluginSettings(value: Record<string, unknown>): PluginSettings | nu
       if (typeof item.command !== "string" || !item.command.trim() || item.command.length > 1024 || item.command.includes("\0")
         || !Array.isArray(item.args) || item.args.length > 32
         || item.args.some((argument: unknown) => typeof argument !== "string" || argument.length > 1024 || argument.includes("\0"))) return [];
+      if (item.env !== undefined && !isSafeMcpEnvironment(item.env)) return [];
     } else if (transport === "streamable-http") {
       if (item.computerUse === true || typeof item.url !== "string" || item.url.length > 1024) return [];
       try { const url = new URL(item.url); if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.search || url.hash) return []; } catch { return []; }
@@ -296,7 +374,7 @@ function readPluginSettings(value: Record<string, unknown>): PluginSettings | nu
     }
     const base = { id: item.id, name: item.name.trim(), enabled: item.enabled, applicationIds, ...(typeof item.manifestSha256 === "string" ? { manifestSha256: item.manifestSha256 } : {}) };
     return transport === "stdio"
-      ? [{ ...base, transport, command: item.command as string, args: item.args as string[], computerUse: item.computerUse === true }]
+      ? [{ ...base, transport, command: item.command as string, args: item.args as string[], ...(item.env ? { env: item.env as Record<string, string> } : {}), computerUse: item.computerUse === true }]
       : [{ ...base, transport, url: item.url as string }];
   }).slice(0, 16) : [];
   const prompts = Array.isArray(value.prompts) ? value.prompts.flatMap((item): UserCapabilityPrompt[] => {
@@ -329,10 +407,19 @@ function readPluginSettings(value: Record<string, unknown>): PluginSettings | nu
   return { enabled: value.enabled, mcpServers, prompts, skillDirectories, disabledSkillNames };
 }
 
+function isSafeMcpEnvironment(value: unknown): value is Record<string, string> {
+  if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).length > 64) return false;
+  const reserved = new Set(["PATH", "PATHEXT", "SYSTEMROOT", "WINDIR", "TEMP", "TMP", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "HOMEDRIVE", "HOMEPATH", "HOME", "TMPDIR", "LANG", "LC_ALL", "DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS"]);
+  return Object.entries(value).every(([key, entry]) => /^[A-Za-z_][A-Za-z0-9_]{0,127}$/u.test(key)
+    && !reserved.has(key.toLocaleUpperCase("en-US"))
+    && !/(?:password|secret|token|api[-_]?key|credential|authorization)/iu.test(key)
+    && typeof entry === "string" && entry.length <= 4096 && !entry.includes("\0"));
+}
+
 export function saveUserSettings(
   userId: string,
   category: SettingsCategory,
-  value: GeneralSettings | AppearanceSettings | ShortcutSettings | AiRuntimeSettings | MinecraftRuntimeSettings | GitSettings | PermissionSettings | PluginSettings | PersonalizationSettings | ComputerControlSettings | BrowserUseSettings
+  value: GeneralSettings | AppearanceSettings | ShortcutSettings | AiRuntimeSettings | MinecraftRuntimeSettings | GitSettings | PermissionSettings | PluginSettings | PersonalizationSettings | ComputerControlSettings | BrowserUseSettings | MiniSettings | CanvasSettings
 ): void {
   // 旧客户端提交整类设置时保留后来新增的字段，显式提交仍采用用户新值。
   const submitted = value as unknown as Record<string, unknown>;
@@ -341,7 +428,8 @@ export function saveUserSettings(
   }
   if (category === "plugins") value = { ...getUserSettings(userId).plugins, ...submitted } as PluginSettings;
   if (category === "ai-runtime") value = { ...getUserSettings(userId).aiRuntime, ...submitted } as AiRuntimeSettings;
-  if (category === "browser-use" && !Object.hasOwn(submitted, "recordRecentSites")) value = { ...getUserSettings(userId).browserUse, ...submitted } as BrowserUseSettings;
+  if (category === "browser-use" && Object.keys(defaultSettings.browserUse).some(field => !Object.hasOwn(submitted, field))) value = { ...getUserSettings(userId).browserUse, ...submitted } as BrowserUseSettings;
+  if (category === "canvas" && Object.keys(defaultSettings.canvas).some(field => !Object.hasOwn(submitted, field))) value = { ...getUserSettings(userId).canvas, ...submitted } as CanvasSettings;
   value = validateSettingsInput(category, value) as unknown as typeof value;
   if (category === "appearance") {
     const normalized = readAppearanceSettings(value as unknown as Record<string, unknown>);
@@ -369,6 +457,16 @@ export function saveUserSettings(
   }
   if (category === "browser-use") {
     const normalized = readBrowserUseSettings(value as unknown as Record<string, unknown>);
+    configuration.save("user_settings", { user_id: userId, category, value_json: JSON.stringify(normalized) });
+    return;
+  }
+  if (category === "mini") {
+    const normalized = readMiniSettings(value as unknown as Record<string, unknown>);
+    configuration.save("user_settings", { user_id: userId, category, value_json: JSON.stringify(normalized) });
+    return;
+  }
+  if (category === "canvas") {
+    const normalized = readCanvasSettings(value as unknown as Record<string, unknown>);
     configuration.save("user_settings", { user_id: userId, category, value_json: JSON.stringify(normalized) });
     return;
   }
@@ -480,6 +578,11 @@ export function listUserBackgrounds(userId: string): AppearanceBackgroundView[] 
   const rows = database.prepare("SELECT id, display_name, mime_type, image_data, created_at FROM appearance_backgrounds WHERE user_id = ? ORDER BY created_at DESC").all(userId) as Array<{ id: string; display_name: string; mime_type: string; image_data: Uint8Array; created_at: string }>;
   for (const row of rows) readOrMigrateBackground(userId, row);
   return rows.map((image) => ({ id: image.id, name: image.display_name, mimeType: image.mime_type, url: `/api/settings/backgrounds/${image.id}`, createdAt: image.created_at }));
+}
+
+/** 只读 Agent 选项目录；不触发 UI 图片读取中的旧记录迁移。 */
+export function listUserBackgroundOptionMetadata(userId: string): Array<{ id: string; name: string }> {
+  return database.prepare("SELECT id, display_name AS name FROM appearance_backgrounds WHERE user_id = ? ORDER BY created_at DESC").all(userId) as Array<{ id: string; name: string }>;
 }
 
 const backgroundExtensions: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };

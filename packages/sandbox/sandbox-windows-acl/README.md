@@ -1,0 +1,9 @@
+# Windows ACL Sandbox Provider
+
+此包把 `lfaa-sandbox` 的单次执行合同接到 Windows x64 Sandbox Host。每次受限调用使用独立 AppContainer、无网络能力、受限 Job Object、只读工具链与指定工作区 ACL；Host 先持久化 ACL 回收记录，再修改 ACL。TEMP、HOME、USERPROFILE 与 APPDATA 指向该 AppContainer 的用户数据目录，Windows 自动重定向的 LOCALAPPDATA 也落在同一 Profile 下；工作区不创建临时用户目录。命令退出后 Host 撤销 ACE、回收本次 Profile 数据并删除 Profile。被强制关闭的 Host 会由 Job Object 结束整棵子进程树，下一次启动先按经过校验的回收记录清理 ACL 与 Profile 数据。
+
+仅 `read-only` 与 `workspace-write` 通过 AppContainer 执行。`danger-full-access` 保持调用方 argv 原样并明确报告无文件沙箱；工具授权仍由 Permission Owner 持有。此提供方只适用于 Windows x64，其他平台和缺少 Host 二进制时受限模式失败关闭。
+
+Shell 结果须包含与本次随机令牌匹配的 Host 回执，回执报告命令退出码和实际模式；缺少回执时由 Shell Owner 报告运行器失败且不把命令标为完成。命令取消和超时先写入 LFAA Home 的私有控制目录，由 Host 终止 Job Object 并完成 ACL/Profile 清理。v2 恢复记录只接受按当前用户 `LOCALAPPDATA\Packages\<Profile>\AC` 推导出的绝对路径，并继续读取 v1 记录；不能验证的路径会失败关闭。
+
+AppContainer ACL 准备限制为 100,000 个文件系统对象；工作区链接必须解析回工作区内，运行时目录链接必须解析回原运行时目录。Host 路径校验和当前 OS ACL 是最终边界。提供方只解析本次 Shell 的实际可执行文件，并为它及 Node.js 运行时目录准备只读 ACL；不会递归授权整条 PATH。为了让 Node.js 检查已知绝对路径，外部运行时目录所在的卷根仅授予不继承的目录遍历和元数据读取权限，不授予列目录或写入权限；该 ACE 与运行时 ACL 一样记录并在本次运行结束或恢复时撤销。Host 另外只对从卷根到已授权工作区根的现存父目录授予不继承的目录遍历/元数据读取权限（`FILE_EXECUTE | FILE_READ_ATTRIBUTES`），不授予列目录或文件读写；这些 ACE 进入同一恢复日志并在正常结束或崩溃恢复时撤销。Host 使用工作区、系统目录和获批 Runtime 根构成受限 `PATH`，并设置最小 Windows `PATHEXT`（`.COM;.EXE;.BAT;.CMD`），使 PowerShell 可解析如 `node` 的无扩展名命令。Agent Shell 使用精简自定义环境块；其中只为本次命令工作目录所在盘符加入 Windows 特殊 `=X:=<工作目录>` 项，不继承宿主其他盘符的当前目录或普通用户环境变量。PowerShell 7 由 Shell Owner 用 `-WorkingDirectory` 初始化 Runspace，使 `$PWD`、.NET 当前目录及 Node 子进程与已校验策略工作目录一致，不插入或改写用户命令；Windows PowerShell 5.1 继续使用 Host 进程当前目录及当前盘符项。Windows x64 定向原生回归覆盖读写边界、相对项目路径解析、工作区父目录禁止列举、网络拒绝、取消、强杀后重启回收、工作区/父目录/卷根 DACL 还原、AppContainer 用户数据回收、命令扩展名解析以及 Node/npm 本地版本命令启动；该回归不开放网络，不能证明 npm Registry 安装。隔离 Control Plane + Daemon 真实进程回归另覆盖直接节点取消、工作区写入、只读写入拒绝与 Host 回执。尚未验收第二台真实远程节点、Electron 安装包和其他 OS。

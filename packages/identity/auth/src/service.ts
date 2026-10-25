@@ -3,7 +3,7 @@
  * 作用：安全保存登录密码与恢复密钥哈希，初始化唯一超级管理员，并提供登录、密码找回和会话校验。
  * 关联文件：packages/storage/storage-sqlite/src/database.ts、packages/api/gateway/src/index.ts、packages/credentials/authorization/src/middleware.ts、packages/identity/auth/src/password-policy.ts。
  */
-import { randomBytes, randomUUID, scrypt, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, randomUUID, scrypt, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 import { database } from "lfaa-storage-sqlite/src/database.js";
 import { configuration } from "lfaa-storage-domain/src/configuration.js";
@@ -74,6 +74,10 @@ export interface ActiveSession {
   sessionId: string;
   user: PublicUser;
 }
+
+export interface TrustedContactRecord { id: string; username: string; role: UserRole; createdAt: string }
+export interface TrustedRecoveryRequestRecord { id: string; requesterUsername: string; createdAt: string; expiresAt: string; approvedAt: string | null }
+type TrustedContactUserRow = Pick<AccountRow, "id" | "username" | "role" | "is_super_admin" | "created_at">;
 
 interface RecoveryUserRow {
   id: string;
@@ -420,6 +424,139 @@ export async function resetPasswordWithRecoveryKey(username: string, recoveryKey
     database.exec("ROLLBACK;");
     throw error;
   }
+}
+
+const trustedContactLimit = 10;
+const trustedContactInviteLifetimeMs = 24 * 60 * 60 * 1000;
+const trustedRecoveryLifetimeMs = 30 * 60 * 1000;
+function trustedCodeHash(code: string): string { return createHash("sha256").update(code).digest("hex"); }
+function trustedCodeIsValid(code: string): boolean { return typeof code === "string" && /^[A-Za-z0-9_-]{32,64}$/u.test(code); }
+
+/** 创建仅供用户手动转交的本机联系人邀请；明文 code 只返回一次，不写日志或设置。 */
+export function createTrustedContactInvitation(userId: string): { code: string; expiresAt: string } {
+  if (!database.prepare("SELECT id FROM users WHERE id = ?").get(userId)) throw new ApiError(404, "account_not_found", "找不到当前账户。");
+  const active = Number((database.prepare("SELECT COUNT(*) AS count FROM account_trusted_contacts WHERE owner_user_id = ?").get(userId) as { count: number | bigint }).count);
+  if (active >= trustedContactLimit) throw new ApiError(409, "trusted_contact_limit", `每个账户最多设置 ${trustedContactLimit} 位受信联系人。`);
+  const pending = Number((database.prepare("SELECT COUNT(*) AS count FROM account_trusted_contact_invites WHERE owner_user_id = ? AND accepted_at IS NULL AND expires_at > ?").get(userId, new Date().toISOString()) as { count: number | bigint }).count);
+  if (pending >= 5) throw new ApiError(409, "trusted_contact_invite_limit", "当前账户有 5 个未使用邀请；等待过期或先重新生成邀请。");
+  const code = randomBytes(24).toString("base64url"), createdAt = new Date(), expiresAt = new Date(createdAt.getTime() + trustedContactInviteLifetimeMs).toISOString();
+  database.prepare("INSERT INTO account_trusted_contact_invites (id, owner_user_id, code_sha256, created_at, expires_at) VALUES (?, ?, ?, ?, ?)")
+    .run(randomUUID(), userId, trustedCodeHash(code), createdAt.toISOString(), expiresAt);
+  return { code, expiresAt };
+}
+
+/** 受邀账户通过用户手动输入的一次性 code 接受关系；关系只授权恢复协助，不共享账户内容。 */
+export function acceptTrustedContactInvitation(userId: string, code: string): TrustedContactRecord | null {
+  if (!trustedCodeIsValid(code)) return null;
+  const now = new Date().toISOString();
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    const invite = database.prepare("SELECT id, owner_user_id FROM account_trusted_contact_invites WHERE code_sha256 = ? AND accepted_at IS NULL AND expires_at > ?")
+      .get(trustedCodeHash(code), now) as { id: string; owner_user_id: string } | undefined;
+    if (!invite || invite.owner_user_id === userId || !database.prepare("SELECT id FROM users WHERE id = ?").get(userId)) { database.exec("ROLLBACK;"); return null; }
+    const existing = database.prepare("SELECT owner_user_id FROM account_trusted_contacts WHERE owner_user_id = ? AND contact_user_id = ?").get(invite.owner_user_id, userId);
+    if (!existing) {
+      const count = Number((database.prepare("SELECT COUNT(*) AS count FROM account_trusted_contacts WHERE owner_user_id = ?").get(invite.owner_user_id) as { count: number | bigint }).count);
+      if (count >= trustedContactLimit) { database.exec("ROLLBACK;"); return null; }
+      database.prepare("INSERT INTO account_trusted_contacts (owner_user_id, contact_user_id, created_at) VALUES (?, ?, ?)").run(invite.owner_user_id, userId, now);
+    }
+    database.prepare("UPDATE account_trusted_contact_invites SET accepted_by_user_id = ?, accepted_at = ? WHERE id = ? AND accepted_at IS NULL").run(userId, now, invite.id);
+    const contact = database.prepare("SELECT id, username, role, is_super_admin, created_at FROM users WHERE id = ?").get(userId) as (AccountRow & { id: string }) | undefined;
+    database.exec("COMMIT;");
+    return contact ? { id: contact.id, username: contact.username, role: contact.is_super_admin === 1 ? "super_admin" : contact.role, createdAt: now } : null;
+  } catch (error) { if (database.isTransaction) database.exec("ROLLBACK;"); throw error; }
+}
+
+/** 仅返回此账户主动信任的本机账户及信任此账户的待处理恢复请求，不公开任何 code/hash。 */
+export function listTrustedContactSettings(userId: string): { contacts: TrustedContactRecord[]; trustedBy: TrustedContactRecord[]; recoveryRequests: TrustedRecoveryRequestRecord[] } {
+  const contacts = database.prepare(`SELECT users.id, users.username, users.role, users.is_super_admin, account_trusted_contacts.created_at
+    FROM account_trusted_contacts JOIN users ON users.id = account_trusted_contacts.contact_user_id
+    WHERE account_trusted_contacts.owner_user_id = ? ORDER BY account_trusted_contacts.created_at, users.uid LIMIT ?`).all(userId, trustedContactLimit) as unknown as TrustedContactUserRow[];
+  const recoveryRequests = database.prepare(`SELECT request.id, owner.username AS requester_username, request.created_at, request.expires_at, request.approved_at
+    FROM account_trusted_recovery_requests AS request
+    JOIN users AS owner ON owner.id = request.owner_user_id
+    JOIN account_trusted_contacts AS relation ON relation.owner_user_id = request.owner_user_id AND relation.contact_user_id = request.contact_user_id
+    WHERE request.contact_user_id = ? AND request.completed_at IS NULL AND request.expires_at > ?
+    ORDER BY request.created_at, request.id LIMIT 50`).all(userId, new Date().toISOString()) as Array<{ id: string; requester_username: string; created_at: string; expires_at: string; approved_at: string | null }>;
+  const trustedBy = database.prepare(`SELECT users.id, users.username, users.role, users.is_super_admin, relation.created_at
+    FROM account_trusted_contacts AS relation JOIN users ON users.id = relation.owner_user_id
+    WHERE relation.contact_user_id = ? ORDER BY relation.created_at, users.uid LIMIT 50`).all(userId) as unknown as TrustedContactUserRow[];
+  return {
+    contacts: contacts.map(contact => ({ id: contact.id, username: contact.username, role: contact.is_super_admin === 1 ? "super_admin" : contact.role, createdAt: contact.created_at })),
+    trustedBy: trustedBy.map(contact => ({ id: contact.id, username: contact.username, role: contact.is_super_admin === 1 ? "super_admin" : contact.role, createdAt: contact.created_at })),
+    recoveryRequests: recoveryRequests.map(request => ({ id: request.id, requesterUsername: request.requester_username, createdAt: request.created_at, expiresAt: request.expires_at, approvedAt: request.approved_at }))
+  };
+}
+
+/** 取消一条单向本机恢复关系，同时让其未完成的恢复请求失效。 */
+export function removeTrustedContact(userId: string, contactUserId: string): boolean {
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    const result = database.prepare("DELETE FROM account_trusted_contacts WHERE (owner_user_id = ? AND contact_user_id = ?) OR (owner_user_id = ? AND contact_user_id = ?)").run(userId, contactUserId, contactUserId, userId);
+    if (Number(result.changes) > 0) database.prepare("DELETE FROM account_trusted_recovery_requests WHERE ((owner_user_id = ? AND contact_user_id = ?) OR (owner_user_id = ? AND contact_user_id = ?)) AND completed_at IS NULL").run(userId, contactUserId, contactUserId, userId);
+    database.exec("COMMIT;");
+    return Number(result.changes) === 1;
+  } catch (error) { if (database.isTransaction) database.exec("ROLLBACK;"); throw error; }
+}
+
+/** 公共登录恢复入口总是返回随机 code；只有用户名与指定受信联系人匹配时才持久化挑战。 */
+export function startTrustedAccountRecovery(username: string, contactUsername: string): { code: string; expiresAt: string } {
+  const code = randomBytes(24).toString("base64url"), now = new Date(), expiresAt = new Date(now.getTime() + trustedRecoveryLifetimeMs).toISOString();
+  const account = database.prepare(`SELECT owner.id AS owner_id, contact.id AS contact_id
+    FROM users AS owner JOIN users AS contact ON lower(contact.username) = lower(?)
+    JOIN account_trusted_contacts AS relation ON relation.owner_user_id = owner.id AND relation.contact_user_id = contact.id
+    WHERE lower(owner.username) = lower(?) AND owner.id <> contact.id LIMIT 1`).get(contactUsername.trim(), username.trim()) as { owner_id: string; contact_id: string } | undefined;
+  if (account) {
+    const active = Number((database.prepare("SELECT COUNT(*) AS count FROM account_trusted_recovery_requests WHERE owner_user_id = ? AND contact_user_id = ? AND completed_at IS NULL AND expires_at > ?").get(account.owner_id, account.contact_id, now.toISOString()) as { count: number | bigint }).count);
+    if (active < 3) database.prepare(`INSERT INTO account_trusted_recovery_requests (id, owner_user_id, contact_user_id, code_sha256, created_at, expires_at)
+      VALUES (?, ?, ?, ?, ?, ?)`).run(randomUUID(), account.owner_id, account.contact_id, trustedCodeHash(code), now.toISOString(), expiresAt);
+  }
+  return { code, expiresAt };
+}
+
+/** 用户可用自己保存的 request code 查看审批状态；未知 code 使用伪盐承担同级 scrypt 工作。 */
+export async function getTrustedAccountRecoveryStatus(code: string): Promise<"pending" | "approved" | null> {
+  if (!trustedCodeIsValid(code)) { await scryptAsync(String(code ?? ""), "lfaa-invalid-trusted-recovery-code", passwordKeyLength); return null; }
+  const row = database.prepare("SELECT approved_at FROM account_trusted_recovery_requests WHERE code_sha256 = ? AND completed_at IS NULL AND expires_at > ?")
+    .get(trustedCodeHash(code), new Date().toISOString()) as { approved_at: string | null } | undefined;
+  return row ? row.approved_at ? "approved" : "pending" : null;
+}
+
+/** 当前受信联系人可批准精确的一条仍有效请求；回读不返回挑战 code。 */
+export function approveTrustedAccountRecovery(contactUserId: string, requestId: string): TrustedRecoveryRequestRecord | null {
+  const now = new Date().toISOString();
+  const changed = database.prepare(`UPDATE account_trusted_recovery_requests SET approved_at = ?
+    WHERE id = ? AND contact_user_id = ? AND completed_at IS NULL AND approved_at IS NULL AND expires_at > ?
+      AND EXISTS (SELECT 1 FROM account_trusted_contacts WHERE owner_user_id = account_trusted_recovery_requests.owner_user_id AND contact_user_id = ?)`)
+    .run(now, requestId, contactUserId, now, contactUserId);
+  if (Number(changed.changes) !== 1) return null;
+  const request = database.prepare(`SELECT request.id, owner.username AS requester_username, request.created_at, request.expires_at, request.approved_at
+    FROM account_trusted_recovery_requests AS request JOIN users AS owner ON owner.id = request.owner_user_id WHERE request.id = ? AND request.contact_user_id = ?`)
+    .get(requestId, contactUserId) as { id: string; requester_username: string; created_at: string; expires_at: string; approved_at: string | null } | undefined;
+  return request ? { id: request.id, requesterUsername: request.requester_username, createdAt: request.created_at, expiresAt: request.expires_at, approvedAt: request.approved_at } : null;
+}
+
+/** 仅已批准的 code 可重置指定账户密码；同一 SQLite 事务消费挑战并撤销旧登录会话。 */
+export async function completeTrustedAccountRecovery(code: string, newPassword: string): Promise<string | null | false> {
+  validateStrongCredential(newPassword, "新密码");
+  if (!trustedCodeIsValid(code) || newPassword === code) return null;
+  const now = new Date().toISOString();
+  const request = database.prepare(`SELECT id, owner_user_id FROM account_trusted_recovery_requests
+    WHERE code_sha256 = ? AND approved_at IS NOT NULL AND completed_at IS NULL AND expires_at > ?`)
+    .get(trustedCodeHash(code), now) as { id: string; owner_user_id: string } | undefined;
+  if (!request) { await scryptAsync(code, "lfaa-invalid-trusted-recovery-code", passwordKeyLength); return false; }
+  const credentials = await makePasswordHash(newPassword);
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    const consumed = database.prepare(`UPDATE account_trusted_recovery_requests SET completed_at = ?
+      WHERE id = ? AND approved_at IS NOT NULL AND completed_at IS NULL AND expires_at > ?`).run(now, request.id, now);
+    if (Number(consumed.changes) !== 1) { database.exec("ROLLBACK;"); return null; }
+    const updated = database.prepare("UPDATE users SET password_salt = ?, password_hash = ? WHERE id = ?").run(credentials.salt, credentials.hash, request.owner_user_id);
+    if (Number(updated.changes) !== 1) { database.exec("ROLLBACK;"); return null; }
+    database.prepare("DELETE FROM sessions WHERE user_id = ?").run(request.owner_user_id);
+    database.exec("COMMIT;");
+    return request.owner_user_id;
+  } catch (error) { if (database.isTransaction) database.exec("ROLLBACK;"); throw error; }
 }
 
 export interface UserSearchFilters {

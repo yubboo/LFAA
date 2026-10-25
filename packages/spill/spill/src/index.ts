@@ -7,4 +7,4 @@
  * 作用：spill-local 实现它，spill-policy 与 agent-loop 依赖它。
  */
 export type { SpillRef, SpillStore } from "./types.js";
-export { formatSpillReference } from "./types.js";
+export { formatSpillReference, MAX_SPILL_READ_CHARACTERS } from "./types.js";

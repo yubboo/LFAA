@@ -4,6 +4,8 @@ AI 漫剧生图使用 `aiRuntime.imageGenerationMode` 选择远程 Provider 或 
 
 `registerAiProvider` 是 Provider 设置目录的 Cordis 扩展合同：插件可提供受校验的 Provider 选项、模型发现与真实模型测试处理器，列表 API 返回防篡改副本，注销会移除该插件的目录定义。静态账户凭据仍由本包及 Credentials Owner 管理；Provider 连接 URL 必须使用 HTTPS 且不得内嵌身份信息。该扩展接口不改变当前外部插件 Runtime 的隔离边界。
 
+Agent Shell 的文件访问范围由 `aiRuntime.executionSandboxMode` 设置，默认 `workspace-write`，可选只读、工作区读写或完全访问；该字段不是 Permission Owner 的三种授权模式。设置服务负责默认值、枚举校验与账户持久化；受限模式能否执行仍取决于目标平台实际注册的 Sandbox Provider，缺少完整 OS 隔离时失败关闭。
+
 已保存账户的“更新目录”只重新读取并保存 Provider 官方模型目录，不发起模型推理，也不更改已选模型 ID 或 `reasoning_mode`；若当前型号已从新目录移除，保留原选择并提示用户手动选择。“重测模型”只对当前已选型号发起真实请求，可能产生 Provider 用量。两个动作共用本包的账户隔离、加密凭据与 Provider 目录 Owner，不新增配置。
 
 账户偏好、Provider 凭据引用和权限留在 LFAA Home（默认 `%USERPROFILE%\\.lfaa`，不增加 `system-data` 子目录）。`project-storage.ts` 负责统一业务 Data 根，首次默认 `<LFAA_HOME>/data`（Windows 默认 `%USERPROFILE%\\.lfaa\\data`）；Home Paths 在 Data 根创建共享 `models/`、`input/`、`output/`，模型适配器按自身模态与原生组件格式管理 `models/text/`、`models/image/`、`models/video/`、`models/audio/`、`models/encoders/`、`models/vae/`、`models/adapters/`、`models/acceleration/`、`models/upscalers/`。目录结构由 LFAA 自己定义，和 ComfyUI 权重格式/版本无关；Veo3 是远程 Provider 能力，不当作本机模型。AI Video 的最终项目素材仍由其 Owner 保存于项目目录，避免同时写进共享 `output/`。账户业务文件位于 Data 根的 `users/` 下。系统推荐路径按当前项目或安装根动态解析为其 `data` 子目录；自定义路径把用户所选目录作为父目录，在其中创建 `data/`（所选目录本身名为 `data` 时直接使用）。位置保存在 Home 控制配置；切换时创建新业务分类、保留旧根，控制端与 Daemon 重启后使用新值。游戏、小说和漫剧内容复制/核对/ZIP 仅处理受管业务子树，不复制 Home 系统账户数据。远端环境位置由该节点真实 data 根与平台推导，不能复用控制端盘符。
@@ -28,4 +30,18 @@ AI 漫剧生图使用 `aiRuntime.imageGenerationMode` 选择远程 Provider 或 
 
 外观自定义背景由 Settings Owner 按认证账户保存文件与 MIME 索引；上传声明中的 MIME 只作提示，实际 PNG/JPEG/WebP 类型按文件签名确定，再由唯一尺寸解析和服务端 3 MiB、8192 边长、2000 万像素限制校验。素材文件回读、摘要、读取和删除继续按账户隔离；构建只写根 dist/packages/settings/settings。
 
+`browserUse.webUrlOpenLocation` 与 `browserUse.localUrlOpenLocation` 默认均为 `lfaa`，按账户保存 Agent 打开公开网页与 localhost/loopback 开发 URL 的位置；`current-browser` 仅在本 Run 有可用的个人 Browser Adapter 或 CUA 时可执行。旧客户端省略新字段保存 Browser Use 设置时保留服务端已有偏好，并为缺失账户补共享默认值。工作区 HTML/HTM 预览仍由 Project Files Owner 提供受限临时页面。
+
 `browserUse.recordRecentSites` 默认开启并按账户保存设置；旧客户端保存其他 Browser Use 字段时省略该值不会覆盖已有选择。该开关不控制 Agent 工具连接权限，只由 Browser Owner 用于停止/恢复最近网站元数据的写入与读取。
+
+`browserUse.allowAgentHistoryAccess` 默认关闭，单独控制 Agent 是否可按任务需要读取 Browser Owner 最近网站记录；还须启用 Agent 浏览器主开关、最近网站记录，并通过既有 `permissions.mode`。`browserUse.annotateScreenshots` 默认 `on-demand`，枚举为 `always`、`on-demand`、`never`，只影响 Agent 页面观察工具是否将当前视口截图作为临时图像输入；截图不会持久化。服务端严格校验并为旧客户端保存其他 Browser Use 设置时保留缺失字段。
+
+Browser Use 设置还包括默认 Bing 搜索引擎、默认关闭的完整网址展示、默认关闭的 WebMCP 网站工具与按 HTTP(S) 来源设置的允许/拒绝例外、默认开启的下载前询问、摄像头/麦克风/位置信息/通知四类默认询问策略及来源例外、默认关闭的开发者模式与完整 CDP。所有这些偏好按账户走 UserSettings；完整 CDP 仅当开发者模式和完整 CDP 开关同时启用时有效，读取和更新均保留旧客户端未提交的已有字段。
+
+密码与联系信息的 Browser Vault 秘密值走 Credentials Owner 加密记录，不能进入普通 UserSettings、列表响应或会话记录；Browser Owner 只向设置页返回元数据，并在用户明确点击后对当前 LFAA 内置页面执行来源与字段校验。Electron 下载目录、下载历史、扩展记录留在该 Host 的本地 `native-browser-state.json`；下载前询问和网站权限偏好仍按账户设置保存并同步给 Electron。网站权限由 Electron 原生 Session 执行；普通 Web Host 无这些系统级本机 API 时由 Client 显示不支持。
+
+Agent 设置目录由 `src/agent-settings.ts` 从当前账户 `UserSettings` 与 `settingsSchemas` 生成，只返回有界字段、当前值、默认值和校验选项。`updateAgentSetting` 一次只写精确叶字段，并复用 `saveUserSettings` 的严格类别校验和账户持久化；权限模式只读，电脑操控/Browser Use/扩展总开关改走其真实能力 Tool，个人 Provider 连接、MCP 命令、插件来源目录和提示词正文留在专属 Owner。模型路由目录只返回当前账户真实已配置模型的非秘密元数据。Agent 直接设置不经过 Client/API 旁路；统一 Permission Owner 负责三种模式授权。Browser Recent Sites/数据/凭据/Provider 操作留在 Browser Owner 工具，不并入 Settings Owner 通用 Patch。
+
+`listAgentSettings` 同时返回共享 `settings-menu-catalog.ts` 的完整菜单目录、访问边界、工具搜索词和按 `menuId` 筛选的字段；目录明确区分账户偏好、专属 Owner、只读、用户直接输入、部分接入与未接入状态。字段菜单映射、Joi alternatives 枚举、纯色背景和账户自定义背景选项由 Settings/共享值 Owner 生成；目录读取自定义背景元数据时不触发旧图片迁移。
+
+`mini` 是账户级设置分类，默认伙伴为 `moss`、显示开启、窗口置顶开启、不透明度 100%；读取、严格校验、持久化和 Agent 单字段回读继续归 Settings Owner。`getUserSettingsSyncStatus()` 只返回当前账户已保存的分类和最新更新时间，不返回设置值/秘密；它描述当前自托管 Control Plane，不承诺独立 Control Plane 自动复制。

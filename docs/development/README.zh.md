@@ -56,6 +56,7 @@
 
 ### 应用、客户端与工作区
 
+- [无限画布 MVP（2026-10-25）](infinite-canvas-20261025.md)
 - [应用面板分离交付（2026-10-16）](application-panels-20261016.md)
 - [小鱼首页迁移（2026-10-15）](chat-home-20261015.md)
 - [插件生命周期、会话菜单与响应式验收（2026-10-16）](plugin-lifecycle-session-responsive-20261016.md)
@@ -66,6 +67,7 @@
 ### Harness、包与集成
 
 - [DSH 与 LFAA 扩展方式审计（2026-10-17）](dsh-lfaa-extension-audit-20261017.md)
+- [LFAA 与 DSH 能力差距盘点（2026-10-25）](dsh-parity-gap-20261025.md)
 - [Ekko 能力融合登记](ekko-capability-fusion.md)
 - [Ekko 编程协作核心（2026-10-16）](ekko-fusion-core-20261016.md)
 - [Harness 运行链修复（2026-10-09）](harness-runtime-integration-20261009.md)

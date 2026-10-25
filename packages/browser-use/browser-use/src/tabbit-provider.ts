@@ -7,7 +7,10 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface, type Interface as ReadlineInterface } from "node:readline";
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { mkdir } from "node:fs/promises";
+import { join, resolve } from "node:path";
+import { resolveDataPaths } from "lfaa-home-paths/src/data-layout.mjs";
+import { getProjectStorageLocations } from "lfaa-settings/src/project-storage.js";
 import type { BrowserSnapshot } from "./session-manager.js";
 
 const FRAME_TIMEOUT_MS = 35_000;
@@ -274,7 +277,10 @@ export class TabbitBrowserProvider {
   private async startSession(id: string, ownerId: string, sourceSessionId: string, taskName: string): Promise<TabbitSession> {
     const path = launcherPath();
     if (!path) throw new Error("Tabbit LocalAgent 仅支持当前 Windows/macOS 本机账户。");
-    const child = spawn(path, ["persistent"], { stdio: ["pipe", "pipe", "pipe"], windowsHide: true, shell: false });
+    // Playwright/Tabbit 会把 console/page 快照写在进程 cwd；固定落到 LFAA Data 缓存，避免污染源码仓库。
+    const browserCacheDirectory = resolve(resolveDataPaths(getProjectStorageLocations().settings.contentDirectory).cache, "playwright");
+    await mkdir(browserCacheDirectory, { recursive: true });
+    const child = spawn(path, ["persistent"], { cwd: browserCacheDirectory, stdio: ["pipe", "pipe", "pipe"], windowsHide: true, shell: false });
     const output = createInterface({ input: child.stdout, crlfDelay: Infinity });
     const session: TabbitSession = { id, ownerId, sourceSessionId, taskName, child, output, queuedLines: [], waiters: [], closed: false, closing: false, initialized: false, tabInventory: null, lastUsedAt: Date.now(), revision: 0, pageFingerprint: "", pageUrl: "", pageTitle: "", snapshot: null, operationTail: Promise.resolve(), requestCounter: 0 };
     output.on("line", line => {

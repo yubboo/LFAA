@@ -133,7 +133,7 @@
       required: true
     - id: subagent
       name: lfaa-subagent
-      inject: []
+      inject: ["lfaaWin32Process"]
       required: true
     - id: subagent-in-process-driver
       name: lfaa-subagent-in-process-driver
@@ -190,6 +190,10 @@
     - id: game-connectivity
       name: lfaa-game-connectivity
       inject: ["lfaaCredentials"]
+      required: true
+    - id: attachment-local
+      name: lfaa-attachment-local
+      inject: []
       required: true
     - id: files
       name: lfaa-fs
@@ -298,7 +302,7 @@
       required: true
     - id: knowledge-library
       name: lfaa-knowledge-library-runtime
-      inject: ["lfaaTools"]
+      inject: ["lfaaTools", "skills"]
       required: true
     - id: ask-user
       name: lfaa-tool-ask-user
@@ -320,9 +324,13 @@
       name: lfaa-pwsh-local
       inject: []
       required: true
+    - id: sandbox-windows-acl
+      name: lfaa-sandbox-windows-acl
+      inject: []
+      required: true
     - id: pwsh-sandbox
       name: lfaa-pwsh-sandbox
-      inject: []
+      inject: ["lfaaSandbox"]
       required: true
     - id: bash-local
       name: lfaa-bash-local
@@ -330,7 +338,7 @@
       required: true
     - id: bash-sandbox
       name: lfaa-bash-sandbox
-      inject: []
+      inject: ["lfaaSandbox"]
       required: true
     - id: tool-skill
       name: lfaa-tool-skill
@@ -378,7 +386,7 @@
       required: true
     - id: capability-skill
       name: lfaa-capability-skill
-      inject: ["lfaaCapabilityInstalls"]
+      inject: ["lfaaCapabilityInstalls", "skills"]
       required: true
     - id: capability-mcp
       name: lfaa-capability-mcp
@@ -391,6 +399,10 @@
     - id: agent-preset
       name: lfaa-agent-preset
       inject: ["aiExtensions", "aiRuntimeHooks"]
+      required: true
+    - id: persona
+      name: lfaa-persona
+      inject: []
       required: true
     - id: prompt-minecraft
       name: lfaa-prompt-minecraft
@@ -435,6 +447,10 @@
     - id: tool-writing
       name: lfaa-tool-writing
       inject: ["lfaaTools", "lfaaWriting"]
+      required: true
+    - id: tool-daemon
+      name: lfaa-tool-daemon
+      inject: ["lfaaTools"]
       required: true
     - id: hmr
       name: lfaa-hmr

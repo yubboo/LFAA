@@ -691,13 +691,14 @@ export class SessionKernel {
     return fork;
   }
 
-  /** 崩溃或 fork 在开放工具调用之后结束时，合成 fail-closed 的结果闭合记录。 */
-  repairOpenTail(cause: "interrupted" | "forked"): readonly SessionEvent[] {
+  /** 错误、中断或 fork 在开放工具调用之后结束时，合成 fail-closed 的结果闭合记录。 */
+  repairOpenTail(cause: "error" | "interrupted" | "forked"): readonly SessionEvent[] {
     const before = this.log.length;
     let openTurn: string | undefined;
     let openStep: number | undefined;
     let time = this.log.at(-1)?.time ?? new Date().toISOString();
     const pending = new Map<string, { runId: string; name: string; started: boolean }>();
+    const causeLabel = cause === "forked" ? "分支边界" : cause === "error" ? "本轮失败" : "进程中断";
     for (const event of this.log) {
       time = event.time;
       if (event.type === "turn/start") { openTurn = event.data.turnId; openStep = undefined; pending.clear(); }
@@ -724,15 +725,16 @@ export class SessionKernel {
         runId: call.runId,
         callId,
         content: JSON.stringify({ error: started
-          ? `${cause === "forked" ? "分支边界" : "进程中断"}发生在工具已派发之后；结果未持久化，副作用状态未知，禁止盲目重放。`
-          : `${cause === "forked" ? "分支边界" : "进程中断"}发生在工具派发之前；该工具没有已记录的执行结果。` }),
+          // 中断后不能假装成功，也不能一刀切地禁止一切后续动作：模型需要知道是哪个工具、以及可安全的第一步是读回真实状态。
+          ? `${causeLabel}发生在工具 ${call.name} 已派发之后；结果未持久化，副作用状态未知。不要用原参数重放可能已产生写入的调用；先读取真实状态核对（清单、任务状态或只读查询），确认没有发生副作用后再决定是否重新执行。`
+          : `${causeLabel}发生在工具 ${call.name} 派发之前；该工具没有已记录的执行结果，可以按当前目标重新判断是否需要调用。` }),
         isError: true,
         executionState: started ? "unconfirmed" : "not_started",
         repaired: true
       }, time);
     }
     if (openStep !== undefined) this.append("step/end", { turnId: openTurn, step: openStep }, time);
-    this.append("turn/end", { turnId: openTurn, status: cause === "forked" ? "forked" : "interrupted" }, time);
+    this.append("turn/end", { turnId: openTurn, status: cause }, time);
     return immutableJson(this.log.slice(before));
   }
 

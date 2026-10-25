@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { basename } from "node:path";
+import { basename, join } from "node:path";
+import { readFile, realpath, stat } from "node:fs/promises";
 
 const ALLOWED_PROTOCOLS = new Set(["http:", "https:"]);
 const MAX_BOUNDS = 16_384;
@@ -7,6 +8,7 @@ const MAX_TABS = 32;
 const MAX_PERMISSION_DECISIONS = 256;
 const MAX_PENDING_PERMISSIONS = 16;
 const MAX_ACTIVE_DOWNLOADS = 8;
+const MAX_DOWNLOAD_HISTORY = 200;
 const BROWSER_SESSION_PARTITION = "lfaa-native-browser-v1";
 const PERMISSION_LABELS = new Map([
   ["media", "摄像头或麦克风"], ["geolocation", "位置信息"], ["notifications", "桌面通知"],
@@ -42,13 +44,82 @@ function readBounds(value) {
   return { x: read("x"), y: read("y"), width: read("width"), height: read("height") };
 }
 
+function normalizeDownloadUrl(value) {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return "";
+    return `${url.origin}${url.pathname}`.slice(0, 2048);
+  } catch { return ""; }
+}
+
+function sanitizeDownloadHistory(value) {
+  if (!Array.isArray(value)) return [];
+  return value.slice(-MAX_DOWNLOAD_HISTORY).flatMap(item => {
+    if (!item || typeof item !== "object" || typeof item.id !== "string" || typeof item.fileName !== "string"
+      || typeof item.startedAt !== "string" || !Number.isFinite(Date.parse(item.startedAt))
+      || !["in-progress", "completed", "cancelled", "interrupted"].includes(item.status)) return [];
+    return [{
+      id: item.id.slice(0, 80), fileName: basename(item.fileName).slice(0, 200),
+      source: normalizeDownloadUrl(item.source), startedAt: item.startedAt,
+      status: item.status, ...(typeof item.path === "string" ? { path: item.path.slice(0, 2048) } : {})
+    }];
+  });
+}
+
+function sanitizeBrowserExtensions(value) {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set();
+  return value.slice(0, 64).flatMap(item => {
+    if (!item || typeof item !== "object" || typeof item.id !== "string" || !/^[a-p]{32}$/u.test(item.id)
+      || typeof item.path !== "string" || item.path.length > 2_048 || typeof item.name !== "string" || !item.name.trim()
+      || typeof item.version !== "string" || typeof item.enabled !== "boolean") return [];
+    const path = item.path;
+    const key = path.toLocaleLowerCase();
+    if (seen.has(key)) return [];
+    seen.add(key);
+    return [{ id: item.id, path, name: item.name.slice(0, 160), version: item.version.slice(0, 64), enabled: item.enabled }];
+  });
+}
+
+function permissionKinds(permission, details) {
+  if (permission === "media") {
+    const mediaTypes = Array.isArray(details?.mediaTypes) ? details.mediaTypes : [];
+    return mediaTypes.flatMap(type => type === "video" ? ["camera"] : type === "audio" ? ["microphone"] : []);
+  }
+  if (permission === "geolocation") return ["geolocation"];
+  if (permission === "notifications") return ["notifications"];
+  return [];
+}
+
+function isBrowserPreferenceSnapshot(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const defaults = value.sitePermissionDefaults;
+  return typeof value.askBeforeDownload === "boolean"
+    && defaults && typeof defaults === "object" && ["camera", "microphone", "geolocation", "notifications"].every(key => ["ask", "allow", "block"].includes(defaults[key]))
+    && Array.isArray(value.sitePermissionOverrides) && value.sitePermissionOverrides.length <= 256;
+}
+
 export class NativeBrowserWorkspace {
-  constructor({ window, WebContentsView, session, dialog, onState }) {
+  constructor({ window, WebContentsView, session, dialog, onState, onDownloadHistoryChange, systemDownloadDirectory, downloadDirectory, downloadHistory = [], onDownloadDirectoryChange, extensions = [], onBrowserExtensionsChange }) {
     this.window = window;
     this.WebContentsView = WebContentsView;
     this.session = session;
     this.dialog = dialog;
     this.onState = onState;
+    this.onDownloadHistoryChange = onDownloadHistoryChange;
+    this.onDownloadDirectoryChange = onDownloadDirectoryChange;
+    this.onBrowserExtensionsChange = onBrowserExtensionsChange;
+    this.systemDownloadDirectory = typeof systemDownloadDirectory === "string" ? systemDownloadDirectory : "";
+    this.downloadDirectory = typeof downloadDirectory === "string" && downloadDirectory.length <= 2048 ? downloadDirectory : this.systemDownloadDirectory;
+    this.downloadHistory = sanitizeDownloadHistory(downloadHistory);
+    this.extensionRecords = sanitizeBrowserExtensions(extensions);
+    this.loadedExtensions = new Map();
+    this.extensionWarnings = new Map();
+    this.preferences = {
+      askBeforeDownload: true,
+      sitePermissionDefaults: { camera: "ask", microphone: "ask", geolocation: "ask", notifications: "ask" },
+      sitePermissionOverrides: []
+    };
     // 独立的进程内 Session 保存当前运行期间的登录态；不读取或修改应用默认 Session 与系统浏览器 Profile。
     this.browserSession = session.fromPartition(BROWSER_SESSION_PARTITION);
     this.tabs = new Map();
@@ -65,7 +136,9 @@ export class NativeBrowserWorkspace {
   installSessionHandlers() {
     this.permissionCheckHandler = (_contents, permission, requestingOrigin, details) => {
       const key = permissionKey(details?.securityOrigin || requestingOrigin || details?.requestingUrl || "", permission);
-      return key !== "" && this.permissionDecisions.get(key) === true;
+      if (!key) return false;
+      if (this.permissionDecisions.has(key)) return this.permissionDecisions.get(key) === true;
+      return this.readPermissionDecision(key.split("\0", 1)[0], permission, details) === "allow";
     };
     this.browserSession.setPermissionCheckHandler(this.permissionCheckHandler);
 
@@ -91,6 +164,11 @@ export class NativeBrowserWorkspace {
       const displayOrigin = key.split("\0", 1)[0];
       if (this.permissionDecisions.has(key)) {
         complete(this.permissionDecisions.get(key));
+        return;
+      }
+      const preference = this.readPermissionDecision(displayOrigin, permission, details);
+      if (preference === "allow" || preference === "block") {
+        complete(preference === "allow");
         return;
       }
       const owner = this.window && !this.window.isDestroyed() ? this.window : undefined;
@@ -122,22 +200,248 @@ export class NativeBrowserWorkspace {
         return;
       }
       this.activeDownloads.add(item);
-      item.once("done", () => this.activeDownloads.delete(item));
+      const id = randomUUID();
+      const fileName = basename(String(item.getFilename()).replace(/[<>:"/\\|?*\u0000-\u001f]/gu, "_")).slice(0, 200) || "download";
+      const entry = { id, fileName, source: normalizeDownloadUrl(item.getURL()), startedAt: new Date().toISOString(), status: "in-progress" };
+      this.downloadHistory.push(entry);
+      this.downloadHistory = this.downloadHistory.slice(-MAX_DOWNLOAD_HISTORY);
+      this.persistDownloadHistory();
+      item.once("done", (_event, state) => {
+        this.activeDownloads.delete(item);
+        entry.status = state === "completed" ? "completed" : state === "cancelled" ? "cancelled" : "interrupted";
+        if (state === "completed") entry.path = item.getSavePath().slice(0, 2048);
+        this.persistDownloadHistory();
+      });
+      const defaultPath = this.downloadDirectory ? `${this.downloadDirectory}/${fileName}` : fileName;
+      if (!this.preferences.askBeforeDownload) {
+        item.setSavePath(defaultPath);
+        return;
+      }
       const owner = this.window && !this.window.isDestroyed() ? this.window : undefined;
-      const defaultPath = basename(String(item.getFilename()).replace(/[<>:"/\\|?*\u0000-\u001f]/gu, "_")).slice(0, 200) || "download";
-      void this.dialog.showSaveDialog(owner, {
-        title: "保存下载文件",
-        defaultPath,
-        buttonLabel: "保存"
-      }).then(result => {
-        if (this.disposed || result.canceled || !result.filePath) {
-          item.cancel();
-          return;
-        }
+      void this.dialog.showSaveDialog(owner, { title: "保存下载文件", defaultPath, buttonLabel: "保存" }).then(result => {
+        if (this.disposed || result.canceled || !result.filePath) { item.cancel(); return; }
         item.setSavePath(result.filePath);
       }).catch(() => item.cancel());
     };
     this.browserSession.on("will-download", this.downloadHandler);
+  }
+
+  readPermissionDecision(origin, permission, details) {
+    const kinds = permissionKinds(permission, details);
+    if (!kinds.length) return "ask";
+    const decisions = kinds.map(kind => {
+      const override = this.preferences.sitePermissionOverrides.find(rule => rule.origin === origin && rule.permission === kind);
+      return override?.decision ?? this.preferences.sitePermissionDefaults[kind] ?? "ask";
+    });
+    if (decisions.includes("block")) return "block";
+    return decisions.every(decision => decision === "allow") ? "allow" : "ask";
+  }
+
+  persistDownloadHistory() {
+    this.onDownloadHistoryChange?.(sanitizeDownloadHistory(this.downloadHistory));
+    this.publish();
+  }
+
+  setPreferences(value) {
+    this.assertActive();
+    if (!isBrowserPreferenceSnapshot(value)) throw new Error("浏览器权限设置格式无效。");
+    const overrides = value.sitePermissionOverrides.flatMap(rule => {
+      if (!rule || typeof rule.origin !== "string" || typeof rule.permission !== "string" || !["camera", "microphone", "geolocation", "notifications"].includes(rule.permission) || !["allow", "block"].includes(rule.decision)) return [];
+      try { const url = new URL(rule.origin); if ((url.protocol !== "http:" && url.protocol !== "https:") || url.origin !== rule.origin || url.username || url.password) return []; } catch { return []; }
+      return [{ origin: rule.origin, permission: rule.permission, decision: rule.decision }];
+    });
+    this.preferences = {
+      askBeforeDownload: value.askBeforeDownload,
+      sitePermissionDefaults: { ...value.sitePermissionDefaults },
+      sitePermissionOverrides: overrides.slice(0, 256)
+    };
+    this.permissionDecisions.clear();
+    return { applied: true };
+  }
+
+  getDownloadSettings() {
+    return { directory: this.downloadDirectory || "", systemDirectory: this.systemDownloadDirectory, usingSystemDirectory: this.downloadDirectory === this.systemDownloadDirectory };
+  }
+
+  setDownloadDirectory(value) {
+    this.assertActive();
+    if (typeof value !== "string" || value.length > 2048) throw new Error("下载位置无效。");
+    this.downloadDirectory = value;
+    this.onDownloadDirectoryChange?.(value);
+    return this.getDownloadSettings();
+  }
+
+  async chooseDownloadDirectory() {
+    this.assertActive();
+    const owner = this.window && !this.window.isDestroyed() ? this.window : undefined;
+    const result = await this.dialog.showOpenDialog(owner, { title: "选择下载文件夹", properties: ["openDirectory", "createDirectory"] });
+    if (result.canceled || !result.filePaths?.[0]) return this.getDownloadSettings();
+    return this.setDownloadDirectory(result.filePaths[0]);
+  }
+
+  useSystemDownloadDirectory() { return this.setDownloadDirectory(this.systemDownloadDirectory); }
+
+  getDownloadHistory() { return sanitizeDownloadHistory(this.downloadHistory).map(({ path: _path, ...entry }) => entry); }
+
+  clearDownloadHistory() {
+    this.downloadHistory = [];
+    this.persistDownloadHistory();
+    return { cleared: true };
+  }
+
+  removeDownloadHistory(id) {
+    if (typeof id !== "string" || id.length > 80) throw new Error("下载记录标识无效。");
+    const before = this.downloadHistory.length;
+    this.downloadHistory = this.downloadHistory.filter(entry => entry.id !== id);
+    if (this.downloadHistory.length !== before) this.persistDownloadHistory();
+    return { deleted: this.downloadHistory.length !== before };
+  }
+
+  async restoreBrowserExtensions() {
+    this.assertActive();
+    for (const record of this.extensionRecords.filter(item => item.enabled)) {
+      try { await this.loadBrowserExtension(record.path, record.id, false); }
+      catch (error) {
+        record.enabled = false;
+        this.extensionWarnings.set(record.id, error instanceof Error ? error.message.slice(0, 180) : "未知错误");
+        this.onBrowserExtensionsChange?.(sanitizeBrowserExtensions(this.extensionRecords));
+      }
+    }
+    return this.getBrowserExtensions();
+  }
+
+  getBrowserExtensions() {
+    return sanitizeBrowserExtensions(this.extensionRecords).map(record => ({
+      id: record.id, name: record.name, version: record.version, enabled: record.enabled,
+      loaded: this.loadedExtensions.has(record.id), configurable: this.extensionHasOptions(record),
+      warning: this.extensionWarnings.get(record.id) ?? null
+    }));
+  }
+
+  async chooseBrowserExtension() {
+    this.assertActive();
+    const owner = this.window && !this.window.isDestroyed() ? this.window : undefined;
+    const result = await this.dialog.showOpenDialog(owner, { title: "选择已解压的浏览器扩展目录", properties: ["openDirectory"] });
+    if (result.canceled || !result.filePaths?.[0]) return this.getBrowserExtensions();
+    const selectedPath = await realpath(result.filePaths[0]);
+    const directory = await stat(selectedPath);
+    if (!directory.isDirectory()) throw new Error("所选路径不是扩展目录。");
+    const manifest = await this.readExtensionManifest(selectedPath);
+    const samePath = this.extensionRecords.find(item => item.path.toLocaleLowerCase() === selectedPath.toLocaleLowerCase());
+    if (samePath && samePath.enabled && this.loadedExtensions.has(samePath.id)) return this.getBrowserExtensions();
+    const confirmation = await this.dialog.showMessageBox(owner, {
+      type: "warning", title: "安装浏览器扩展", message: `要在 LFAA 内置浏览器安装“${manifest.name}”吗？`,
+      detail: "扩展会按它声明的权限访问网站。仅支持已解压扩展；LFAA 使用 Electron 支持的 Chromium 扩展 API 子集。",
+      buttons: ["安装扩展", "取消"], defaultId: 1, cancelId: 1, noLink: true
+    });
+    if (confirmation.response !== 0) return this.getBrowserExtensions();
+    const loaded = await this.loadBrowserExtension(selectedPath, samePath?.id ?? "", true);
+    const idConflict = this.extensionRecords.find(item => item.id === loaded.id && item.path.toLocaleLowerCase() !== selectedPath.toLocaleLowerCase());
+    if (idConflict) {
+      if (!samePath) this.browserSession.extensions.removeExtension(loaded.id);
+      this.loadedExtensions.delete(loaded.id);
+      throw new Error("扩展标识已由另一个目录使用，请先移除旧记录。");
+    }
+    if (!samePath) this.extensionRecords.push({ id: loaded.id, path: selectedPath, name: loaded.name, version: loaded.version, enabled: true });
+    else Object.assign(samePath, { id: loaded.id, name: loaded.name, version: loaded.version, enabled: true });
+    this.extensionWarnings.delete(loaded.id);
+    this.extensionRecords = sanitizeBrowserExtensions(this.extensionRecords);
+    this.persistBrowserExtensions();
+    return this.getBrowserExtensions();
+  }
+
+  async setBrowserExtensionEnabled(id, enabled) {
+    this.assertActive();
+    if (typeof id !== "string" || !/^[a-p]{32}$/u.test(id) || typeof enabled !== "boolean") throw new Error("浏览器扩展开关参数无效。");
+    const record = this.extensionRecords.find(item => item.id === id);
+    if (!record) throw new Error("此浏览器扩展没有登记在 LFAA 中。");
+    if (record.enabled === enabled && this.loadedExtensions.has(id) === enabled) return this.getBrowserExtensions();
+    if (enabled) {
+      const loaded = await this.loadBrowserExtension(record.path, record.id, false);
+      Object.assign(record, { id: loaded.id, name: loaded.name, version: loaded.version, enabled: true });
+    } else {
+      this.browserSession.extensions.removeExtension(id);
+      this.loadedExtensions.delete(id);
+      record.enabled = false;
+    }
+    this.extensionRecords = sanitizeBrowserExtensions(this.extensionRecords);
+    this.persistBrowserExtensions();
+    return this.getBrowserExtensions();
+  }
+
+  removeBrowserExtension(id) {
+    this.assertActive();
+    if (typeof id !== "string" || !/^[a-p]{32}$/u.test(id)) throw new Error("浏览器扩展标识无效。");
+    const record = this.extensionRecords.find(item => item.id === id);
+    if (!record) return { removed: false, extensions: this.getBrowserExtensions() };
+    if (this.loadedExtensions.has(id)) this.browserSession.extensions.removeExtension(id);
+    this.loadedExtensions.delete(id);
+    this.extensionRecords = this.extensionRecords.filter(item => item.id !== id);
+    this.persistBrowserExtensions();
+    return { removed: true, extensions: this.getBrowserExtensions() };
+  }
+
+  async configureBrowserExtension(id) {
+    this.assertActive();
+    if (typeof id !== "string" || !/^[a-p]{32}$/u.test(id)) throw new Error("浏览器扩展标识无效。");
+    const extension = this.browserSession.extensions?.getExtension?.(id);
+    if (!extension) throw new Error("请先启用此扩展，再打开它的设置页面。");
+    const manifest = extension.manifest;
+    const optionsPage = typeof manifest?.options_ui?.page === "string" ? manifest.options_ui.page
+      : typeof manifest?.options_page === "string" ? manifest.options_page : "";
+    if (!optionsPage || optionsPage.startsWith("/") || optionsPage.split(/[\\/]/u).some(part => part === "..")) throw new Error("此扩展没有可用的设置页面。");
+    const extensionOrigin = `chrome-extension://${extension.id}`;
+    const optionsUrl = new URL(optionsPage, `${extensionOrigin}/`);
+    if (optionsUrl.protocol !== "chrome-extension:" || optionsUrl.host !== extension.id) throw new Error("扩展设置页面地址不属于该扩展。");
+    const state = await this.createTab();
+    const tab = this.requireTab(state.activeTabId);
+    tab.extensionOrigin = extensionOrigin;
+    await tab.view.webContents.loadURL(optionsUrl.href);
+    this.publish();
+    return this.getState();
+  }
+
+  extensionHasOptions(record) {
+    const extension = this.browserSession.extensions?.getExtension?.(record.id);
+    const manifest = extension?.manifest;
+    return typeof manifest?.options_ui?.page === "string" || typeof manifest?.options_page === "string";
+  }
+
+  async loadBrowserExtension(path, expectedId, isNew) {
+    this.assertActive();
+    if (!this.browserSession.extensions || typeof this.browserSession.extensions.loadExtension !== "function") throw new Error("当前 Electron Host 不提供扩展管理接口。");
+    let selectedPath;
+    try { selectedPath = await realpath(path); }
+    catch { throw new Error("扩展目录已不存在或当前账户无权读取。"); }
+    const directory = await stat(selectedPath);
+    if (!directory.isDirectory()) throw new Error("扩展路径不是目录。");
+    const manifest = await this.readExtensionManifest(selectedPath);
+    const existing = this.browserSession.extensions.getAllExtensions().find(extension => extension.path.toLocaleLowerCase() === selectedPath.toLocaleLowerCase());
+    const extension = existing ?? await this.browserSession.extensions.loadExtension(selectedPath, { allowFileAccess: false });
+    if (!extension || typeof extension.id !== "string" || !/^[a-p]{32}$/u.test(extension.id)) throw new Error("Electron 没有返回有效扩展标识。");
+    if (expectedId && extension.id !== expectedId) throw new Error("扩展目录对应的标识已变化，请重新添加以核对权限。");
+    const loaded = {
+      id: extension.id, path: selectedPath, name: String(extension.name || manifest.name).slice(0, 160),
+      version: String(extension.version || manifest.version).slice(0, 64)
+    };
+    this.loadedExtensions.set(loaded.id, loaded);
+    if (isNew && !loaded.name) throw new Error("扩展清单缺少有效名称。");
+    return loaded;
+  }
+
+  async readExtensionManifest(path) {
+    let manifest;
+    try { manifest = JSON.parse(await readFile(join(path, "manifest.json"), "utf8")); }
+    catch { throw new Error("扩展目录缺少有效 manifest.json。"); }
+    if (!manifest || typeof manifest !== "object" || ![2, 3].includes(manifest.manifest_version)
+      || typeof manifest.name !== "string" || !manifest.name.trim() || manifest.name.length > 160
+      || typeof manifest.version !== "string" || manifest.version.length > 64) throw new Error("扩展清单的名称、版本或 Manifest 版本无效。");
+    return manifest;
+  }
+
+  persistBrowserExtensions() {
+    this.onBrowserExtensionsChange?.(sanitizeBrowserExtensions(this.extensionRecords));
+    this.publish();
   }
 
   async createTab(value = "about:blank") {
@@ -166,6 +470,12 @@ export class NativeBrowserWorkspace {
     });
     const guardNavigation = (event, url) => {
       if (url === "about:blank") return;
+      if (tab.extensionOrigin) {
+        try {
+          const parsed = new URL(url);
+          if (parsed.protocol === "chrome-extension:" && `${parsed.protocol}//${parsed.host}` === tab.extensionOrigin) return;
+        } catch { /* Continue with normal URL validation. */ }
+      }
       try { validateNativeBrowserUrl(url); } catch { event.preventDefault(); }
     };
     contents.on("will-navigate", guardNavigation);
@@ -441,24 +751,13 @@ export class NativeBrowserWorkspace {
   }
   async clearData() {
     this.assertActive();
-    const owner = this.window && !this.window.isDestroyed() ? this.window : undefined;
-    const confirmation = await this.dialog.showMessageBox(owner, {
-      type: "warning",
-      title: "清除浏览器网站数据",
-      message: "清除 LFAA 浏览器中保存的网站登录状态和本地数据？",
-      detail: "这会清除 Cookie、缓存、站点存储和本次运行中的网站权限决定；你可能需要重新登录。不会影响系统 Edge/Chrome 的个人资料。",
-      buttons: ["取消", "清除数据"],
-      defaultId: 0,
-      cancelId: 0,
-      noLink: true
-    });
-    if (confirmation.response !== 1) return { cleared: false };
     await Promise.all([
       this.browserSession.clearStorageData(),
       this.browserSession.clearCache(),
       this.browserSession.clearAuthCache()
     ]);
     this.permissionDecisions.clear();
+    this.clearDownloadHistory();
     this.publish();
     return { cleared: true };
   }

@@ -119,7 +119,7 @@
 
 - 内置领域 Prompt、Skill、专家指引和领域 Tool 描述由对应内容 Owner 维护，使用稳定 ID 和可追踪来源。通用核心指引由核心 Owner 持有；系统消息组合器只负责组合。必须注入的短核心约束与按需读取的领域全文区分，不能把全部正文常驻注入。
 - 通用能力目录/加载器负责发现、筛选、读取及撤销；安装适配器负责来源核验、安装与回读。安装器、注册表、Bundle 和 App 不因装配关系成为内置内容 Owner，不复制正文或另建加载系统。
-- 当前 `boot/capability-prompt` 是外部提示词安装适配器，`boot/capability-skill` 是项目 Skill 安装适配器，`skill/tool-skill` 提供目录/按需加载；`core/agent` 登记扩展，实际模型循环归 `core/agent-loop`。这些是导航事实，不表示全部内置领域内容已经完成按需加载迁移。
+- 当前 `boot/capability-prompt` 是外部提示词安装适配器，`boot/capability-skill` 将外部 Skill 固定来源后交给 Knowledge Library Owner 按账户共享保存，`skill/tool-skill` 复用 Skill Registry 提供目录/按需加载；原项目 Skill 来源仍由本地目录 Provider 发现。`core/agent` 登记扩展，实际模型循环归 `core/agent-loop`。这些是导航事实，不表示全部内置领域内容已经完成按需加载迁移。
 - 用户安装/编辑的内容归现有账户设置、知识库或项目文件 Owner，按真实来源与存储合同分别维护；不能为“统一归属”把用户内容移入源码或把领域正文塞进通用安装包。
 - 模型先看到当前上下文可用的简明目录，再按目标读取适用正文。App 是调用/展示上下文，能力共享不等于账户、项目、App 或节点数据共享。范围筛选是执行合同，不得演变成第二套静态应用白名单或禁止已授权通用工具的权限策略。
 - 资料、来源脚本、MCP instructions 和外部 Skill 都是不可信输入；读取不等于执行、安装依赖或扩大授权。Tool 必须具有真实参数解析、风险描述、权限接入、执行器及结果，目录存在不等于 Tool 可调用。

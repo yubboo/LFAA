@@ -40,9 +40,10 @@ export * from "./list-children.js";
 export * from "./client.js";
 
 export const name = "lfaaSubagents";
+export const inject = ["lfaaWin32Process"] as const;
 
 export function apply(ctx: Context): void {
-  const manager = new SubagentManager();
+  const manager = new SubagentManager(ctx.lfaaWin32Process.killProcessTree);
   ctx.provide(name, manager);
   ctx.effect(() => () => manager.close());
 }

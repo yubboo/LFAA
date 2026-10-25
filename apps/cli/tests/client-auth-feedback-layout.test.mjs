@@ -241,7 +241,7 @@ test("General 设置保存失败恢复到最后一次服务端确认值", () => 
 
 test("SteamCMD 配置并入项目与存储，首次登录只提醒业务内容数据目录", () => {
   assert.doesNotMatch(settings.match(/const sections:[\s\S]*?const SETTINGS_NAV_GROUPS/u)?.[0] ?? "", /id: "configuration", title: "SteamCMD 配置"/u);
-  assert.match(settings, /function resolveSettingsSection\(section: SectionId\): SectionId\s*\{\s*return section === "configuration" \? "workspace" : section;/u);
+  assert.match(settings, /function resolveSettingsSection\(section: SectionId\): SectionId\s*\{\s*if \(section === "configuration"\) return "workspace";\s*if \(section === "plugins"\) return "profilePlugins";\s*return section;/u);
   assert.match(settings, /if \(activeSection === "workspace"\)[\s\S]*?SettingGroup title="SteamCMD 工具配置"[\s\S]*?SettingGroup title="SteamCMD 安装与校验"[\s\S]*?SettingGroup title="游戏节点数据位置"/u);
   assert.match(settings, /saveSteamcmdConfigurationDefaults[\s\S]*saveSteamcmdStorageDefaults[\s\S]*saveSteamcmdNodeStorageSettings/u);
   assert.match(settings, /node\.storageConfigured \? \{ \.\.\.node\.storage \} : \{ \.\.\.steamcmdStorageDefaults \}/u);
@@ -256,13 +256,13 @@ test("SteamCMD 配置并入项目与存储，首次登录只提醒业务内容�
 test("账户安全提醒主按钮进入安全分类，包括已挂载的外观设置页", () => {
   assert.match(renderer, /returnedFromSettings && user && userSettings\) void updateCredentialReminder\(userSettings\)/u);
   assert.match(workbench, /onAction: \(\) => openSettings\("security"\)/u);
-  assert.match(workbench, /const \[settingsSectionRequest, setSettingsSectionRequest\] = useState<\{ section: "ai" \| "permissions" \| "configuration" \| "account" \| "workspace" \| "security"; requestId: number \} \| null>\(null\)/u);
-  assert.match(workbench, /if \(section\) setSettingsSectionRequest\(\{ section, requestId: \+\+settingsSectionRequestSequenceRef\.current \}\)/u);
+  assert.match(workbench, /const \[settingsSectionRequest, setSettingsSectionRequest\] = useState<\{ section: "ai" \| "permissions" \| "configuration" \| "account" \| "workspace" \| "security" \| "plugins"; requestId: number; focusTarget\?: string \} \| null>\(null\)/u);
+  assert.match(workbench, /if \(section\) setSettingsSectionRequest\(\{ section, requestId: \+\+settingsSectionRequestSequenceRef\.current, \...\(focusTarget \? \{ focusTarget \} : \{\}\) \}\)/u);
   assert.match(workbench, /onNavigate\(section \? `\/settings\?section=\$\{encodeURIComponent\(section\)\}` : "\/settings"\)/u);
   assert.match(workbench, /sectionRequest=\{settingsSectionRequest\}/u);
-  assert.match(settings, /sectionRequest\?: \{ section: "ai" \| "permissions" \| "configuration" \| "account" \| "workspace" \| "security"; requestId: number \} \| null/u);
+  assert.match(settings, /sectionRequest\?: \{ section: "ai" \| "permissions" \| "configuration" \| "account" \| "workspace" \| "security" \| "plugins"; requestId: number; focusTarget\?: string \} \| null/u);
   assert.match(settings, /const requestedSection = sectionRequest\?\.section;[\s\S]*?const targetSection = resolveSettingsSection\(requestedSection\);[\s\S]*?setActiveSection\(targetSection\);[\s\S]*?persistSettingsSection\(targetSection, user\.id\);/u);
-  assert.match(settings, /url\.searchParams\.set\("section", section\)/u);
+  assert.match(settings, /url\.searchParams\.set\("section", routeSection\)/u);
 });
 
 test("账户安全提醒弹窗明确提供更改与不更改，并使用统一尺寸和单一标题", () => {

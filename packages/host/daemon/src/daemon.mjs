@@ -5,7 +5,9 @@
  */
 import {createRuntimeExecutor} from "lfaa-runtime-environment/src/executor.mjs";
 import {fetchRuntimeResource} from "lfaa-runtime-environment/src/network.mjs";
-import {promoteSteamcmdInstallation,initializeSteamcmd} from "./steamcmd-installation.mjs";
+import {promoteSteamcmdInstallation,initializeSteamcmd,removeSteamcmdInstallation} from "./steamcmd-installation.mjs";
+import { initializeGameBackupDirectories } from "./minecraft-backup-storage.mjs";
+import { assertSteamcmdDstClusterFiles as verifySteamcmdDstClusterFiles, buildSteamcmdDstLaunchArguments } from "./steamcmd-dst.mjs";
 import { createManagedFileService } from "lfaa-fs/src/managed-files.mjs";
 import { protectedDataDirectories } from "lfaa-home-paths/src/reserved-data-paths.mjs";
 import { assertInstanceFileMutation, assertGameMetadataMutable, createInstanceFileService } from "lfaa-fs/src/instance-files.mjs";
@@ -13,6 +15,10 @@ import { randomUUID, createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { execFile, spawn } from "node:child_process";
 import { startCommand, waitForMinecraftReady, isVanillaReadyLine, terminateProcessTree } from "./process-control.mjs";
+import { WINDOWS_APP_CONTAINER_PROVIDER_ID, WindowsAclSandboxProvider } from "lfaa-sandbox-windows-acl";
+import { assertSandboxResult } from "lfaa-sandbox";
+import { createSandboxExecutionPolicy } from "lfaa-sandbox-policy";
+import { withSandboxResult } from "lfaa-shell";
 import { provisionMinecraftCore, startNativeMinecraftServer, isMinecraftCoreReadyLine, downloadCoreArtifact } from "./minecraft-provisioner.mjs";
 import { validateDaemonConnection } from "./connection-config.mjs";
 import { createDaemonTaskLanes } from "./task-lanes.mjs";
@@ -20,6 +26,7 @@ import { startTerminalChannel } from "./terminal-channel.mjs";
 import { stopManagedProcess } from "./managed-process-shutdown.mjs";
 import { installEasyTierRuntime, readInstalledEasyTierVersion, validateEasyTierInstallRequest } from "./easytier-runtime.mjs";
 import { EASYTIER_RUNTIME_RELEASE } from "lfaa-game-connectivity/src/easytier-release.mjs";
+import { maximumNodeFileTransferBytes } from "lfaa-util-values/src/file-transfer-contract.mjs";
 import { closeSync, createReadStream, createWriteStream, openSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { access, copyFile, lstat, mkdir, opendir, readFile, readdir, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
@@ -107,6 +114,7 @@ let terminalChannel;
 let daemonToken = "";
 let lockNonce = "";
 let sandboxBackendAvailable = false;
+const agentShellSandboxProvider = new WindowsAclSandboxProvider();
 let easyTierRuntimeVersion = null;
 let nextEasyTierRuntimeProbeAt = 0;
 let lastEasyTierRuntimeProbeError = "";
@@ -135,13 +143,20 @@ export async function apply(ctx) {
 async function initialize() {
   ensureHomeDirectories(homeDirectory);
   ensureDataDirectories(dataDirectory);
-  for (const directory of [minecraftDirectory, javaDirectory, backupDirectory, downloadDirectory, sandboxMetadataDirectory]) {
+  for (const directory of [minecraftDirectory, javaDirectory, downloadDirectory, sandboxMetadataDirectory]) {
     await mkdir(directory, { recursive: true });
     const info = await lstat(directory);
     if (info.isSymbolicLink() || !info.isDirectory()) throw new Error("LFAA Daemon 数据目录不能是符号链接或非目录路径。");
   }
   // 菜单可能在节点已运行时再次启动；复用现有进程，避免 Daemon 重复启动让并行开发服务一起退出。
   if (!acquireDaemonLock()) { if (process.connected) process.disconnect(); return; }
+  const backupDirectories = await initializeGameBackupDirectories(dataDirectory);
+  backupDirectory = backupDirectories.minecraftBackupDirectory;
+  if (backupDirectories.legacyMigration?.kind === "removed-empty-legacy-directory") {
+    process.stdout.write("已移除空的遗留 Minecraft 备份目录；游戏目录未发生数据删除。\n");
+  } else if (backupDirectories.legacyMigration?.kind === "moved-legacy-backup-directory") {
+    process.stdout.write(`已保留并迁移遗留 Minecraft 备份目录：${backupDirectories.legacyMigration.targetDirectory}\n`);
+  }
   await rebuildMinecraftInstanceDirectoryIndex();
   for (let attempt = 0; attempt < 30; attempt += 1) {
     try {
@@ -336,9 +351,43 @@ async function apiRequest(path, options = {}) {
   return await response.json();
 }
 
+async function apiRequestBytes(path, timeout = 30_000) {
+  await readToken();
+  const response = await fetch(`${apiBase}${path}`, {
+    method: "GET",
+    redirect: "error",
+    signal: AbortSignal.timeout(timeout),
+    headers: { authorization: `Bearer ${daemonToken}` }
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new Error(body?.message || `控制端请求失败（${response.status}）。`);
+  }
+  const declaredLength = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > maximumNodeFileTransferBytes) throw new Error("控制端返回的文件超过 3 MiB 传输上限。");
+  if (!response.body) return Buffer.alloc(0);
+  const reader = response.body.getReader();
+  const chunks = [];
+  let size = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > maximumNodeFileTransferBytes) {
+        await reader.cancel();
+        throw new Error("控制端返回的文件超过 3 MiB 传输上限。");
+      }
+      chunks.push(Buffer.from(value));
+    }
+  } finally { reader.releaseLock(); }
+  return Buffer.concat(chunks, size);
+}
+
 async function runLoop() {
   // 只取消心跳与领取轮询；现有任务的完成/故障回报仍经过正常认证和校验。
-  const pollRequest = (path, options = {}) => apiRequest(path, { ...options, signal: pollingController.signal });
+  // 领取/心跳请求给控制端更长的响应预算：它可能正忙于会话写入或大附件解析，15 秒会误判成"通信不可用"。
+  const pollRequest = (path, options = {}) => apiRequest(path, { ...options, signal: pollingController.signal, timeout: options.timeout ?? 30_000 });
   while (!shuttingDown) {
     if (!controlPlaneReady) {
       try {
@@ -366,7 +415,7 @@ async function runLoop() {
           .finally(() => { javaDiscoveryPending = null; javaDiscoveryRefreshAt = Date.now() + 60_000; });
       }
       await refreshEasyTierRuntimeVersion();
-      const capabilities = ["minecraft-vanilla", "minecraft-native-v1", "minecraft-multicore-v1", "minecraft-instance-archive-v1", "java-environment-manager-v1", "runtime-environment-v1", javaRuntimeSelectionCapability, "node-filesystem-v1", "node-filesystem-v2", "node-filesystem-directory-size-v1", "node-filesystem-instance-v1", "node-filesystem-game-storage-v1", "agent-shell-v1", "project-files-v1", EASYTIER_RUNTIME_RELEASE.installCapability, ...(easyTierRuntimeVersion === EASYTIER_RUNTIME_RELEASE.version ? [EASYTIER_RUNTIME_RELEASE.runtimeCapability] : []), ...(sandboxBackendAvailable ? [sandboxCapability] : [])];
+      const capabilities = ["minecraft-vanilla", "minecraft-native-v1", "minecraft-multicore-v1", "minecraft-instance-archive-v1", "java-environment-manager-v1", "runtime-environment-v1", javaRuntimeSelectionCapability, "node-filesystem-v1", "node-filesystem-v2", "node-filesystem-directory-size-v1", "node-filesystem-instance-v1", "node-filesystem-game-storage-v1", "node-filesystem-binary-transfer-v1", "agent-shell-v1", "project-files-v1", EASYTIER_RUNTIME_RELEASE.installCapability, ...(easyTierRuntimeVersion === EASYTIER_RUNTIME_RELEASE.version ? [EASYTIER_RUNTIME_RELEASE.runtimeCapability] : []), ...(sandboxBackendAvailable ? [sandboxCapability] : [])];
       if (await steamcmdExecutableReady(steamcmdSettings.steamcmdDirectory)) capabilities.push("steamcmd-ready-v1");
       const heartbeat = await pollRequest("/daemon/heartbeat", {
         method: "POST",
@@ -387,7 +436,10 @@ async function runLoop() {
       if (shuttingDown) break;
       knownSteamcmdServerIds = Array.isArray(heartbeat?.steamcmdServers)
         ? heartbeat.steamcmdServers.map(item => item?.id).filter(id => typeof id === "string" && /^[0-9a-f-]{36}$/iu.test(id)).slice(0, 500) : [];
-      for (const id of heartbeat?.cancelTaskIds ?? []) { const command = activeCommands.get(id); if (command) void command.cancel(); }
+      for (const id of heartbeat?.cancelTaskIds ?? []) {
+        const command = activeCommands.get(id);
+        if (command) void command.cancel();
+      }
       for(const id of heartbeat?.cancelMinecraftTaskIds??[])minecraftTaskControllers.get(id)?.abort(new DOMException("用户取消 Minecraft 任务。","AbortError"));
       if (heartbeat?.steamcmdSettings) steamcmdSettings = validateSteamcmdSettings(heartbeat.steamcmdSettings);
       if (heartbeat?.minecraftStorageSettings) await applyMinecraftStorageSettings(heartbeat.minecraftStorageSettings);
@@ -418,7 +470,8 @@ async function runLoop() {
 }
 
 async function runFileTaskPoller() {
-  const pollRequest = (path, options = {}) => apiRequest(path, { ...options, signal: pollingController.signal });
+  // 领取/心跳请求给控制端更长的响应预算：它可能正忙于会话写入或大附件解析，15 秒会误判成"通信不可用"。
+  const pollRequest = (path, options = {}) => apiRequest(path, { ...options, signal: pollingController.signal, timeout: options.timeout ?? 30_000 });
   let lastFileTaskPollError = "";
   while (!shuttingDown) {
     if (controlPlaneReady) {
@@ -690,7 +743,26 @@ async function executeTask(task) {
 
 async function executeNodeFileTask(task) {
   try {
-    const result = await performNodeFileOperation(task.operation, task.payload ?? {});
+    const payload = { ...(task.payload ?? {}) };
+    if (task.operation === "upload") {
+      payload.bytes = await apiRequestBytes(`/daemon/files/tasks/${task.id}/input?nodeId=${encodeURIComponent(nodeId)}`);
+      delete payload.transferId;
+    }
+    const result = await performNodeFileOperation(task.operation, payload);
+    if (typeof result?.dataBase64 === "string" && ["download", "preview"].includes(task.operation)) {
+      const bytes = Buffer.from(result.dataBase64, "base64");
+      if (bytes.length > maximumNodeFileTransferBytes) throw new Error("目标节点文件超过 3 MiB 传输上限。");
+      const transfer = await apiRequest(`/daemon/files/tasks/${task.id}/transfer?nodeId=${encodeURIComponent(nodeId)}&name=${encodeURIComponent(String(result.name ?? "download"))}`, {
+        method: "PUT",
+        headers: { "content-type": "application/octet-stream" },
+        body: bytes
+      });
+      delete result.dataBase64;
+      result.transferId = transfer.transferId;
+      result.name = transfer.name;
+      result.size = transfer.size;
+      result.sha256 = transfer.sha256;
+    }
     await apiRequest(`/daemon/files/tasks/${task.id}/complete`, {
       method: "POST",
       body: JSON.stringify({ nodeId, succeeded: true, message: "文件操作已完成。", result })
@@ -705,9 +777,50 @@ async function executeNodeFileTask(task) {
 
 const aiHostOutputLimitBytes = 1024 * 1024;
 
+function stripAgentSandboxControls(text, token) {
+  if (!token) return text;
+  const escaped = token.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const complete = new RegExp(`\\u001eLFAA_AGENT_SANDBOX_(?:READY:${escaped}|RESULT:${escaped}:(?:read-only|workspace-write):\\d+)\\u001e\\r?\\n?`, "gu");
+  const cleaned = text.replace(complete, "");
+  const markerStart = cleaned.lastIndexOf("\u001eLFAA_AGENT_SANDBOX_");
+  if (markerStart >= 0 && cleaned.indexOf("\u001e", markerStart + 1) < 0) return cleaned.slice(0, markerStart);
+  return cleaned;
+}
+
+async function verifyAiHostSandboxResult(raw, confined, timeoutSeconds) {
+  const execution = {
+    status: "completed",
+    exitCode: raw.exitCode,
+    signal: null,
+    sandbox: undefined,
+    done: Promise.resolve(),
+    readOutput: () => ({ delta: "", lossy: false }),
+    kill: () => false,
+    result: async () => ({
+      exitCode: raw.exitCode,
+      signal: null,
+      timedOut: raw.timedOut,
+      aborted: raw.cancelled,
+      timeoutMs: timeoutSeconds * 1000,
+      stdout: { text: raw.stdout, truncated: raw.outputTruncated },
+      stderr: { text: raw.stderr, truncated: raw.outputTruncated }
+    })
+  };
+  const verified = await withSandboxResult(execution, confined).result();
+  return {
+    stdout: verified.stdout.text,
+    stderr: verified.stderr.text,
+    exitCode: verified.exitCode,
+    timedOut: verified.timedOut,
+    outputTruncated: verified.stdout.truncated || verified.stderr.truncated,
+    cancelled: verified.aborted,
+    sandbox: verified.sandbox
+  };
+}
+
 async function executeAiHostTask(task) {
   let latest, sequence = 0, dirty = false, sending = Promise.resolve(), flushing = false;
-  let command;
+  let command, confined;
   const flush = async () => {
     if (!dirty || !latest || flushing) return;
     flushing = true;
@@ -722,6 +835,7 @@ async function executeAiHostTask(task) {
   const outputTimer = setInterval(() => { void flush().catch(() => { dirty = true; }); }, 750);
   try {
     const shell = task.shell;
+    const sandboxMode = task.sandboxMode ?? "danger-full-access";
     const executable = shell === 'project-files' ? process.execPath : shell === 'powershell' ? 'powershell.exe' : shell === 'bash' || shell === 'zsh' ? shell : process.env.ComSpec || 'cmd.exe';
     const args = shell === 'project-files' ? [fileURLToPath(new URL('../../project-files/src/project-files.mjs', import.meta.url))]
       : shell === 'powershell' ? ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', `[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); $OutputEncoding = [Console]::OutputEncoding; & { ${task.command}\n }`]
@@ -729,11 +843,40 @@ async function executeAiHostTask(task) {
     // 控制面和模型秘密不继承给命令进程；本机执行仍具有节点 OS 账户的原生权限。
     const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/(?:TOKEN|SECRET|PASSWORD|API_KEY|COOKIE|AUTHORIZATION)/iu.test(key)));
     if (shell === 'project-files') env.LFAA_DAEMON_DATA_ROOT = dataDirectory;
-    command = startCommand({ executable, args, cwd: task.workingDirectory || repositoryRoot,
+    if (shell !== 'project-files') {
+      const requestedArgv = [executable, ...args];
+      if (sandboxMode === "danger-full-access") {
+        confined = { argv: requestedArgv, effectiveMode: sandboxMode, enforcement: "none", providerId: "direct-node" };
+      } else {
+        if (!sandboxBackendAvailable || process.platform !== "win32" || process.arch !== "x64") {
+          throw new Error("目标节点 Windows x64 AppContainer Provider 当前不可用；已拒绝受限命令。");
+        }
+        const policy = createSandboxExecutionPolicy({
+          mode: sandboxMode,
+          platform: "win32",
+          target: { kind: "node", nodeId },
+          workspaceRoot: task.workspaceRoot,
+          workingDirectory: task.workingDirectory
+        });
+        confined = assertSandboxResult(requestedArgv, policy, await agentShellSandboxProvider.confine(requestedArgv, policy));
+      }
+    }
+    const launchArgv = confined?.argv ?? [executable, ...args];
+    command = startCommand({ executable: launchArgv[0], args: launchArgv.slice(1), cwd: task.workingDirectory || repositoryRoot,
       env, input: shell === 'project-files' ? task.command : undefined, timeoutSeconds: task.timeoutSeconds,
-      onOutput: value => { latest = value; dirty = true; }, outputLimitBytes: aiHostOutputLimitBytes });
+      ...(confined?.requestStop ? { requestStop: confined.requestStop } : {}),
+      onOutput: value => {
+        latest = confined ? {
+          ...value,
+          stdout: stripAgentSandboxControls(value.stdout, confined.verificationToken),
+          stderr: stripAgentSandboxControls(value.stderr, confined.verificationToken),
+          sandbox: { mode: confined.effectiveMode, enforcement: confined.enforcement, denied: false, providerId: confined.providerId, hostVerified: false }
+        } : value;
+        dirty = true;
+      }, outputLimitBytes: aiHostOutputLimitBytes });
     activeCommands.set(task.id, command);
-    const result = await command.done;
+    const rawResult = await command.done;
+    const result = confined ? await verifyAiHostSandboxResult(rawResult, confined, task.timeoutSeconds) : rawResult;
     latest = result; dirty = true;
     clearInterval(outputTimer);
     await sending.catch(() => {});
@@ -744,8 +887,11 @@ async function executeAiHostTask(task) {
   } catch (error) {
     const message = safeMessage(error);
     if (command) { await command.cancel(); await command.done; }
+    const failedSandbox = task.shell !== 'project-files' && task.sandboxMode && task.sandboxMode !== 'danger-full-access'
+      ? { mode: task.sandboxMode, enforcement: 'none', denied: true, providerId: WINDOWS_APP_CONTAINER_PROVIDER_ID, hostVerified: false, runnerFailed: true }
+      : undefined;
     await apiRequest(`/daemon/ai/host-tasks/${task.id}/complete`, { method: 'POST', body: JSON.stringify({ nodeId, succeeded: false,
-      message: `命令启动或回传失败：${message.slice(0, 180)}`, result: latest ?? { stdout: '', stderr: message, exitCode: null, timedOut: false, outputTruncated: false } }) }).catch(() => {});
+      message: `命令启动或回传失败：${message.slice(0, 180)}`, result: latest ?? { stdout: '', stderr: message, exitCode: null, timedOut: false, outputTruncated: false, ...(failedSandbox ? { sandbox: failedSandbox } : {}) } }) }).catch(() => {});
   } finally { clearInterval(outputTimer); activeCommands.delete(task.id); }
 }
 
@@ -814,13 +960,14 @@ async function executeSteamcmdTask(task) {
   try {
     const result = task.kind === "install" ? await installSteamcmd(task)
       : task.kind === "verify" ? await verifySteamcmd(task)
+        : task.kind === "uninstall" ? await uninstallSteamcmd(task)
         : task.kind === "install-server" || task.kind === "update-server" ? await installSteamcmdServer(task)
           : task.kind === "start-server" ? await startSteamcmdServer(task)
             : task.kind === "stop-server" ? await stopSteamcmdServer(task)
               : (() => { throw new Error("SteamCMD 任务类型无效。"); })();
     await apiRequest(`/daemon/steamcmd/tasks/${task.id}/complete`, {
       method: "POST",
-      body: JSON.stringify({ nodeId, succeeded: true, message: result.verified ? "SteamCMD 已就绪，游戏存储目录已准备。"
+      body: JSON.stringify({ nodeId, succeeded: true, message: result.uninstalled ? (result.removed ? "SteamCMD 工具目录已完整卸载，游戏目录和服务器文件已保留。" : "SteamCMD 工具目录不存在，已确认无需卸载。") : result.verified ? "SteamCMD 已就绪，游戏存储目录已准备。"
         : result.installed ? `${task.payload?.server?.name ?? "Steam 专用服务端"} 已安装或更新。`
           : result.processStarted ? `${task.payload?.server?.name ?? "游戏服务器"} 进程已启动，真实游戏就绪状态仍需服务器自身确认。`
             : result.stopped ? `${task.payload?.server?.name ?? "游戏服务器"} 进程已停止${result.forced ? "；强制结束，存档完整性未确认" : ""}。`
@@ -964,6 +1111,18 @@ async function verifySteamcmd(task) {
   };
 }
 
+async function uninstallSteamcmd(task) {
+  const settings=validateSteamcmdSettings(task.payload??{});
+  const toolDirectory=resolveManagedFilePath(settings.steamcmdDirectory);
+  const gameDirectory=resolveSteamcmdGameDirectory(settings.gameDirectory);
+  if(pathsOverlap(toolDirectory,gameDirectory))throw new Error("SteamCMD 工具目录与游戏目录冲突，拒绝卸载。");
+  if(activeSteamcmdServers.size)throw new Error("此节点仍有 Steam 游戏服务器由 Daemon 管理为运行状态，不能卸载 SteamCMD。");
+  await postSteamcmdProgress(task.id,35,"正在核对 SteamCMD 工具目录和游戏服务器状态。");
+  const removed=await removeSteamcmdInstallation(toolDirectory,assertManagedPathIsSafe);
+  await postSteamcmdProgress(task.id,92,removed?"SteamCMD 工具目录已删除，正在确认目录状态。":"SteamCMD 工具目录不存在，正在确认无需卸载。");
+  return {steamcmdDirectory:settings.steamcmdDirectory,gameDirectory:settings.gameDirectory,removed,uninstalled:true};
+}
+
 function validateSteamcmdServerTask(task) {
   const value = task?.payload?.server;
   if (!value || typeof value !== "object" || value.nodeId !== nodeId || !/^[0-9a-f-]{36}$/iu.test(value.id ?? "")
@@ -981,6 +1140,14 @@ function validateSteamcmdServerTask(task) {
   if (launchArguments.some(argument => /(?:pass(?:word)?|passwd|token|secret|api[-_]?key|auth[-_]?key|rcon)/iu.test(argument))) throw new Error("Steam 服务端参数不能包含密码、令牌或密钥。");
   if (typeof value.stopCommand !== "string" || value.stopCommand.length > 120 || /[\r\n\u0000-\u001f\u007f]/u.test(value.stopCommand)) throw new Error("Steam 服务端控制台停服指令无效。");
   if (!Number.isSafeInteger(value.stopTimeoutSeconds) || value.stopTimeoutSeconds < 5 || value.stopTimeoutSeconds > 300) throw new Error("Steam 服务端停服等待时间无效。");
+  const dstClusterId = value.dstClusterId ?? null;
+  const dstClusterName = value.dstClusterName ?? null;
+  const dstShard = value.dstShard ?? null;
+  if (dstClusterId !== null && (!/^[0-9a-f-]{36}$/iu.test(dstClusterId) || typeof dstClusterName !== "string"
+    || !/^[A-Za-z0-9_-]{1,32}$/u.test(dstClusterName) || !["Master", "Caves"].includes(dstShard))) {
+    throw new Error("饥荒集群 ID、名称或分片配置无效。");
+  }
+  if (dstClusterId === null && (dstClusterName !== null || dstShard !== null)) throw new Error("普通 Steam 服务端不能携带不完整的饥荒集群设置。");
   return { ...value, installDirectory, executablePath, launchArguments };
 }
 
@@ -992,6 +1159,23 @@ function resolveSteamcmdServerDirectory(settings, server) {
     throw new Error("Steam 服务端安装目录越过已配置的游戏目录。");
   }
   return { gameDirectory, directory };
+}
+
+function resolveSteamcmdDstDataDirectory(settings, server) {
+  if (!server.dstClusterId) return null;
+  const gameDirectory = resolveSteamcmdGameDirectory(settings.gameDirectory);
+  const directory = win32.resolve(gameDirectory, "dst-clusters", server.dstClusterId);
+  const relativeDirectory = win32.relative(gameDirectory, directory);
+  if (!relativeDirectory || relativeDirectory === ".." || relativeDirectory.startsWith(`..${win32.sep}`) || win32.isAbsolute(relativeDirectory)) {
+    throw new Error("饥荒集群数据目录越过已配置的游戏存储目录。");
+  }
+  return directory;
+}
+
+function resolveSteamcmdDstClusterConfigurationDirectory(settings, server) {
+  const root = resolveSteamcmdDstDataDirectory(settings, server);
+  if (!root) return null;
+  return win32.resolve(root, "DoNotStarveTogether", server.dstClusterName);
 }
 
 async function assertSteamcmdServerPathSafe(target, allowMissing = false) {
@@ -1026,6 +1210,8 @@ async function readSteamcmdServerMarker(serverId) {
   if (info.isSymbolicLink() || !info.isFile() || info.nlink > 1) throw new Error("Steam 服务端进程标记文件无效。");
   const marker = JSON.parse(await readFile(markerPath, "utf8"));
   if (!Number.isSafeInteger(marker.pid) || marker.pid < 1 || typeof marker.executable !== "string") throw new Error("Steam 服务端进程标记内容无效。");
+  if (marker.dstClusterId !== undefined && marker.dstClusterId !== null
+    && (!/^[0-9a-f-]{36}$/iu.test(marker.dstClusterId) || typeof marker.serverDataDirectory !== "string")) throw new Error("饥荒集群进程标记内容无效。");
   return { ...marker, markerPath };
 }
 
@@ -1056,10 +1242,44 @@ async function assertSteamcmdServerNotRunning(serverId) {
   await rm(marker.markerPath, { force: true });
 }
 
+async function assertSteamcmdDstClusterNotRunning(server) {
+  if (!server.dstClusterId) return;
+  for (const runtime of activeSteamcmdServers.values()) {
+    if (runtime.dstClusterId === server.dstClusterId) throw new Error("Master 或 Caves 分片仍由本机 Daemon 管理为运行状态，请先停止后再更新共享服务端文件。");
+  }
+  for (const id of knownSteamcmdServerIds) {
+    if (id === server.id) continue;
+    const marker = await readSteamcmdServerMarker(id);
+    if (!marker || marker.dstClusterId !== server.dstClusterId) continue;
+    if (isProcessRunning(marker.pid)) throw new Error("Daemon 重启后发现该饥荒集群仍有分片进程运行，但没有可恢复的控制台；请在目标设备确认停止后再更新。");
+    await rm(marker.markerPath, { force: true });
+  }
+}
+
+async function prepareSteamcmdDstClusterDirectories(settings, server) {
+  const root = resolveSteamcmdDstDataDirectory(settings, server);
+  const configurationDirectory = resolveSteamcmdDstClusterConfigurationDirectory(settings, server);
+  if (!root || !configurationDirectory) return;
+  for (const directory of [root, configurationDirectory, win32.resolve(configurationDirectory, "Master"), win32.resolve(configurationDirectory, "Caves")]) {
+    await ensureStorageDirectory(directory);
+    await assertSteamcmdServerPathSafe(directory);
+  }
+}
+
+async function assertSteamcmdDstClusterFiles(settings, server) {
+  if (!server.dstClusterId) return null;
+  const configurationDirectory = resolveSteamcmdDstClusterConfigurationDirectory(settings, server);
+  if (!configurationDirectory) throw new Error("饥荒集群配置目录无效。");
+  const dataDirectory = resolveSteamcmdDstDataDirectory(settings, server);
+  await verifySteamcmdDstClusterFiles(configurationDirectory, server.dstShard, assertSteamcmdServerPathSafe);
+  return dataDirectory;
+}
+
 async function installSteamcmdServer(task) {
   const settings = validateSteamcmdSettings(task.payload ?? {});
   const server = validateSteamcmdServerTask(task);
   await assertSteamcmdServerNotRunning(server.id);
+  await assertSteamcmdDstClusterNotRunning(server);
   const steamcmdDirectory = resolveManagedFilePath(settings.steamcmdDirectory);
   const steamcmdExecutable = resolve(steamcmdDirectory, "steamcmd.exe");
   const steamcmdInfo = await assertManagedPathIsSafe(steamcmdExecutable);
@@ -1082,6 +1302,7 @@ async function installSteamcmdServer(task) {
   if (!new RegExp(`App\\s+['\"]?${escapedAppId}['\"]?\\s+(?:fully installed|is up to date)`, "iu").test(transcript)) {
     throw new Error(`SteamCMD 没有确认 Tool AppID ${server.toolAppId} 已完整安装；请检查该 AppID 是否为已发布、允许当前账户下载的专用服务端。`);
   }
+  await prepareSteamcmdDstClusterDirectories(settings, server);
   await postSteamcmdProgress(task.id, 95, `${server.name} 的 Steam 专用服务端文件已完成校验。`);
   return { installed: true, toolAppId: server.toolAppId, installDirectory: server.installDirectory };
 }
@@ -1092,13 +1313,17 @@ async function startSteamcmdServer(task) {
   if (!server.executablePath || !server.stopCommand) throw new Error("启动配置不完整；请填写服务端 .exe 与控制台停服指令。");
   await assertSteamcmdServerNotRunning(server.id);
   const { directory } = resolveSteamcmdServerDirectory(settings, server);
+  const serverDataDirectory = await assertSteamcmdDstClusterFiles(settings, server);
   const executable = win32.resolve(directory, ...server.executablePath.split("/"));
   const relativeExecutable = win32.relative(directory, executable);
   if (!relativeExecutable || relativeExecutable === ".." || relativeExecutable.startsWith(`..${win32.sep}`) || win32.isAbsolute(relativeExecutable)) throw new Error("Steam 服务端启动文件越过安装目录。");
   const executableInfo = await assertSteamcmdServerPathSafe(executable);
   if (!executableInfo?.isFile() || !executable.toLocaleLowerCase().endsWith(".exe")) throw new Error("没有在已安装目录中找到配置的服务端 .exe 文件。");
   await postSteamcmdProgress(task.id, 20, `正在启动 ${server.name} 服务端进程。`);
-  const child = spawn(executable, server.launchArguments, { cwd: directory, shell: false, windowsHide: true, stdio: ["pipe", "ignore", "ignore"] });
+  const launchArguments = server.dstClusterId
+    ? buildSteamcmdDstLaunchArguments(serverDataDirectory, server.dstClusterName, server.dstShard)
+    : server.launchArguments;
+  const child = spawn(executable, launchArguments, { cwd: directory, shell: false, windowsHide: true, stdio: ["pipe", "ignore", "ignore"] });
   await new Promise((resolveStarted, rejectStarted) => {
     const onError = error => { child.off("spawn", onSpawn); rejectStarted(error); };
     const onSpawn = () => { child.off("error", onError); resolveStarted(); };
@@ -1108,13 +1333,15 @@ async function startSteamcmdServer(task) {
   await mkdir(steamcmdServerStateDirectory, { recursive: true });
   const markerPath = steamcmdServerMarkerPath(server.id);
   try {
-    await writeFile(markerPath, JSON.stringify({ pid: child.pid, executable, startedAt: new Date().toISOString() }), { encoding: "utf8", flag: "wx" });
+    await writeFile(markerPath, JSON.stringify({ pid: child.pid, executable, startedAt: new Date().toISOString(),
+      ...(server.dstClusterId ? { dstClusterId: server.dstClusterId, serverDataDirectory } : {}) }), { encoding: "utf8", flag: "wx" });
   } catch (error) {
     await terminateProcessTree(child);
     await waitForChildExit(child, 10_000);
     throw new Error(`无法安全记录服务端进程状态：${safeMessage(error)}`);
   }
-  const record = { child, serverId: server.id, serverDirectory: directory, stopCommand: server.stopCommand, stopTimeoutSeconds: server.stopTimeoutSeconds, startedAt: Date.now() };
+  const record = { child, serverId: server.id, serverDirectory: directory, serverDataDirectory, dstClusterId: server.dstClusterId,
+    stopCommand: server.stopCommand, stopTimeoutSeconds: server.stopTimeoutSeconds, startedAt: Date.now() };
   activeSteamcmdServers.set(server.id, record);
   child.once("exit", () => {
     activeSteamcmdServers.delete(server.id);
@@ -1150,6 +1377,21 @@ const nodeFileService = createManagedFileService({root: dataDirectory, protected
   assertCanRead: assertNodeFileReadable, assertCanMutate: assertNoActiveInstanceAffected});
 export async function performNodeFileOperation(operation, payload) {
   if (payload.gameStorageKind !== undefined) {
+    if(payload.gameStorageKind==='steamcmd-runtime') {
+      if(!['list','search','directory-size','preview','read','download'].includes(operation))throw new Error('SteamCMD 工具目录在文件管理中只允许查看。');
+      const root=resolveManagedFilePath(steamcmdSettings.steamcmdDirectory);
+      try {
+        return await createManagedFileService({root,mutationRoot:dataDirectory,assertCanRead:assertNodeFileReadable,assertCanMutate:()=>{throw new Error('SteamCMD 工具目录在文件管理中只允许查看。');}}).operate(operation,payload);
+      } catch(error) {
+        if(operation==='list'&&payload.path===''&&error?.code==='ENOENT') {
+          const configuredPath = win32.isAbsolute(steamcmdSettings.steamcmdDirectory)
+            ? steamcmdSettings.steamcmdDirectory
+            : `data\\${steamcmdSettings.steamcmdDirectory.replace(/[\\/]+/gu, "\\")}`;
+          throw new Error(`SteamCMD 工具目录不存在：${configuredPath}。请在“游戏库 → 运行环境 → SteamCMD”检查此实际目录或重新下载安装；文件管理不会自动创建该目录。`);
+        }
+        throw error;
+      }
+    }
     const root = payload.gameStorageKind === 'minecraft' ? getMinecraftStorageRoot(minecraftDirectoryRelative)
       : payload.gameStorageKind === 'steamcmd' ? resolveSteamcmdGameDirectory(steamcmdSettings.gameDirectory) : null;
     if (!root) throw new Error('节点游戏存储来源无效。');
@@ -1188,11 +1430,13 @@ async function assertNoActiveInstanceAffected(path) {
     if (targetIsInside || instanceIsInside) throw new Error("Minecraft 实例正在运行；请先停止实例，再修改、移动或删除相关文件。");
   }
   for (const runtime of activeSteamcmdServers.values()) {
-    const targetInsideServer = win32.relative(runtime.serverDirectory, win32.resolve(path));
-    const serverInsideTarget = win32.relative(win32.resolve(path), runtime.serverDirectory);
-    const targetIsInside = targetInsideServer === "" || targetInsideServer !== ".." && !targetInsideServer.startsWith(`..${win32.sep}`) && !win32.isAbsolute(targetInsideServer);
-    const serverIsInside = serverInsideTarget === "" || serverInsideTarget !== ".." && !serverInsideTarget.startsWith(`..${win32.sep}`) && !win32.isAbsolute(serverInsideTarget);
-    if (targetIsInside || serverIsInside) throw new Error("Steam 游戏服务器正在运行；请先停止服务器，再修改或删除相关文件。");
+    for (const protectedDirectory of [runtime.serverDirectory, runtime.serverDataDirectory].filter(Boolean)) {
+      const targetInsideServer = win32.relative(protectedDirectory, win32.resolve(path));
+      const serverInsideTarget = win32.relative(win32.resolve(path), protectedDirectory);
+      const targetIsInside = targetInsideServer === "" || targetInsideServer !== ".." && !targetInsideServer.startsWith(`..${win32.sep}`) && !win32.isAbsolute(targetInsideServer);
+      const serverIsInside = serverInsideTarget === "" || serverInsideTarget !== ".." && !serverInsideTarget.startsWith(`..${win32.sep}`) && !win32.isAbsolute(serverInsideTarget);
+      if (targetIsInside || serverIsInside) throw new Error("Steam 游戏服务器或饥荒集群数据正在使用；请先停止相关分片，再修改或删除文件。");
+    }
   }
 }
 

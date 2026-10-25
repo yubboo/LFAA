@@ -67,7 +67,8 @@ export function synthesizeAbortResults(input: {
       role: "tool",
       tool_call_id: callId,
       content: JSON.stringify({
-        error: `${cause}发生在工具派发之后；结果未持久化，副作用状态未知，禁止盲目重放。`,
+        // 不假装成功，也不阻止模型读回真实状态：写入类调用禁止原参数重放，只读核对是允许的第一步。
+        error: `${cause}发生在工具派发之后；结果未持久化，副作用状态未知。不要用原参数重放可能已产生写入的调用；先读取真实状态核对（清单、任务状态或只读查询），确认没有发生副作用后再决定是否重新执行。`,
       }),
     });
   }

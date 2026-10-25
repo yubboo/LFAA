@@ -4,7 +4,9 @@
 
 本包只提供 Control Plane 的有序 Cordis 组合补丁和 workspace 依赖，不持有领域规则、Prompt/Skill/Expert 正文或工具执行器。
 
-`cordis.patch.yml` 装配原存储、身份、设置、权限、Agent、Session、Tools 与领域服务；本轮新增独立 Prompt/Expert/Skill Provider 和领域工具插件。工具声明依赖 `lfaaMinecraft`、`lfaaSteamcmd`、`lfaaRuntimeManager` 或 `lfaaWriting`，领域服务未就绪/卸载时不继续登记其能力。Shared Registry 管理元数据和撤销，模型按目标选择具体方法与工具合同。
+`cordis.patch.yml` 装配原存储、身份、设置、权限、Agent、Session、Tools 与领域服务；本轮新增独立 Prompt/Expert/Skill Provider 和领域工具插件。工具声明依赖 `lfaaMinecraft`、`lfaaSteamcmd`、`lfaaRuntimeManager` 或 `lfaaWriting`，领域服务未就绪/卸载时不继续登记其能力。`pwsh-sandbox` 与 `bash-sandbox` 显式注入 `lfaaSandbox`；缺少真实平台 Provider 时受限命令失败关闭。Shared Registry 管理元数据和撤销，模型按目标选择具体方法和工具合同。
+
+知识库运行适配器显式注入 `skills`，把账户共享 Skill 通过既有 Skill Registry 按需提供；Capability Skill 安装适配器也注入该 Registry，以验证当前 winner 并在受控安装/卸载后失效目录缓存。正文和附属资源仍由 Knowledge Library Owner 按当前账户与摘要校验回读，不复制存储，也不执行脚本。
 
 Profile 决定启动组合，账户和业务设置仍归各原 Owner；本包不覆盖用户偏好，不按界面 App 复制实现，也不扩大权限或节点能力。组合必需性、依赖与卸载使用原 Boot/Loader 合同。构建输出为根 `dist/packages/bundle/base/`。
 

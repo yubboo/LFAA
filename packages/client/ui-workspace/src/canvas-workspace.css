@@ -1,0 +1,773 @@
+/* 功能：无限画布工作区的三栏布局、节点卡片、素材面板与响应式抽屉样式。
+ * 作用：只读取 Workbench 主题变量；按容器宽度切换 ≥1024 三栏、<1024 素材抽屉、<640 项目栏下拉，短屏整体可滚动。
+ * 关联文件：CanvasWorkspace.tsx、CanvasNodeCards.tsx、CanvasAssetPanel.tsx、ui-layout/src/workbench.css、ui-theme/src/tokens.css。
+ */
+
+/* 画布模块外壳：与文件管理一致，左侧全局导航轨与画布内容并排；导轨宽度由导轨自身负责。 */
+.lfaa-canvas-outer {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.lfaa-canvas-workspace {
+  display: block;
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  color: var(--color-text-primary);
+  background: var(--color-canvas);
+  container-type: inline-size;
+  container-name: lfaa-canvas;
+}
+
+.lfaa-canvas-shell {
+  display: flex;
+  min-width: 0;
+  min-height: 100%;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.lfaa-canvas-header {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.lfaa-canvas-header__copy {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+.lfaa-canvas-header .ant-typography {
+  margin: 0;
+}
+
+.lfaa-canvas-status {
+  min-height: 24px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.lfaa-canvas-hidden-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.lfaa-canvas-alert {
+  margin: 0;
+}
+
+.lfaa-canvas-toolbar {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.lfaa-canvas-toolbar__title {
+  flex: 1 1 220px;
+  max-width: 320px;
+  min-width: 140px;
+}
+
+.lfaa-canvas-toolbar__project-select {
+  display: none;
+}
+
+.lfaa-canvas-toolbar__assets-toggle {
+  display: none;
+}
+
+.lfaa-canvas-body {
+  position: relative;
+  display: grid;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 380px;
+  align-items: stretch;
+  gap: var(--space-3);
+  grid-template-columns: 232px minmax(0, 1fr) 292px;
+}
+
+.lfaa-canvas-projects {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface-muted);
+}
+
+.lfaa-canvas-projects__header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 2px 4px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.lfaa-canvas-projects__header span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.lfaa-canvas-projects__list {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 6px;
+  overflow: auto;
+}
+
+.lfaa-canvas-projects__item {
+  display: grid;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 2px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+}
+
+.lfaa-canvas-projects__item:hover,
+.lfaa-canvas-projects__item.is-active {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-hover);
+}
+
+.lfaa-canvas-projects__item.is-active {
+  background: var(--color-surface-selected);
+}
+
+.lfaa-canvas-projects__open {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.lfaa-canvas-projects__open:focus-visible,
+.lfaa-canvas-projects__delete:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+
+.lfaa-canvas-projects__open:disabled,
+.lfaa-canvas-projects__delete:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.lfaa-canvas-projects__name {
+  overflow: hidden;
+  font-size: var(--font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lfaa-canvas-projects__open small {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.lfaa-canvas-projects__delete {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-xs);
+}
+
+.lfaa-canvas-projects__delete:hover,
+.lfaa-canvas-projects__delete:focus-visible {
+  background: var(--color-status-error-surface);
+  color: var(--color-status-error-text);
+}
+
+.lfaa-canvas-projects__empty {
+  margin: 0;
+  padding: 6px 4px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.lfaa-canvas-stage-area {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.lfaa-canvas-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 380px;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-canvas);
+}
+
+.lfaa-canvas-stage__busy {
+  position: absolute;
+  z-index: 9;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  background: color-mix(in srgb, var(--color-canvas) 72%, transparent);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.lfaa-canvas-empty,
+.lfaa-canvas-loading {
+  display: grid;
+  flex: 1 1 auto;
+  min-height: 320px;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface-muted);
+  text-align: center;
+}
+
+.lfaa-canvas-empty .ant-typography {
+  margin: 0;
+}
+
+.lfaa-canvas-loading {
+  border: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+/* 画布内 React Flow 主题映射：连线、手柄、框选、缩略图与点阵背景全部读取 Workbench 主题变量，避免深色模式写死浅色。 */
+.lfaa-canvas-stage .react-flow {
+  --xy-edge-stroke: var(--color-text-muted); /* 连线颜色：中性次要文字灰。 */
+  --xy-edge-stroke-width: 2; /* 连线粗细：2px 视觉宽度。 */
+  --xy-edge-stroke-selected: var(--color-brand); /* 选中连线：品牌蓝。 */
+  --xy-connectionline-stroke: var(--color-brand); /* 拖拽中的待连接线：品牌蓝。 */
+  --xy-handle-background-color: var(--color-brand); /* 连接手柄底色：品牌蓝。 */
+  --xy-handle-border-color: var(--color-surface); /* 连接手柄描边：与画布表面同色。 */
+  --xy-minimap-background-color: var(--color-surface-muted); /* 缩略图底色：次级中性表面。 */
+  --xy-minimap-mask-background-color: color-mix(in srgb, var(--color-surface) 55%, transparent); /* 缩略图视口外遮罩：主题表面色 55% 不透明度。 */
+  --xy-minimap-node-background-color: var(--color-border-strong); /* 缩略图节点色块：较深中性边框灰。 */
+  --xy-selection-background-color: color-mix(in srgb, var(--color-brand) 12%, transparent); /* 框选填充：品牌蓝 12% 不透明度。 */
+  --xy-selection-border: 1px dashed var(--color-brand); /* 框选边框：品牌蓝 1px 虚线。 */
+  --xy-background-pattern-color: color-mix(in srgb, var(--color-text-muted) 34%, transparent); /* 点阵背景圆点：次要文字灰 34% 不透明度。 */
+  color: var(--color-text-primary);
+}
+
+.lfaa-canvas-stage .react-flow__controls {
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  background: var(--color-surface);
+  box-shadow: 0 4px 14px var(--color-shadow-card-soft);
+}
+
+.lfaa-canvas-stage .react-flow__controls-button {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.lfaa-canvas-stage .react-flow__controls-button:hover,
+.lfaa-canvas-stage .react-flow__controls-button:focus-visible {
+  background: var(--color-surface-hover);
+  color: var(--color-brand);
+}
+
+.lfaa-canvas-stage .react-flow__controls-button svg {
+  fill: currentColor;
+}
+
+.lfaa-canvas-stage .react-flow__minimap {
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.lfaa-canvas-stage .react-flow__handle {
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--color-surface);
+  background: var(--color-brand);
+}
+
+.lfaa-canvas-stage .react-flow__handle:hover {
+  background: var(--color-brand-hover);
+}
+
+.lfaa-canvas-stage .react-flow__edge-path {
+  stroke: var(--xy-edge-stroke);
+}
+
+.lfaa-canvas-stage .react-flow__attribution {
+  display: none;
+}
+
+/* 节点卡片：四个节点类型共用一套外框，节点内部区域随固定宽高滚动或缩放。 */
+.lfaa-canvas-node {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 12px;
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  box-shadow: 0 6px 18px var(--color-shadow-card-soft);
+}
+
+.lfaa-canvas-node.is-selected {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-brand) 28%, transparent), 0 6px 18px var(--color-shadow-card-soft);
+}
+
+.lfaa-canvas-node--note {
+  border-left: 3px solid var(--color-status-warning);
+}
+
+.lfaa-canvas-node--image,
+.lfaa-canvas-node--video {
+  background: var(--color-surface-muted);
+}
+
+.lfaa-canvas-node__header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 8px 7px 10px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: var(--color-surface);
+}
+
+.lfaa-canvas-node__kind {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--color-brand-subtle);
+  color: var(--color-brand);
+  font-size: var(--font-size-xs);
+  font-weight: 650;
+}
+
+.lfaa-canvas-node__name {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lfaa-canvas-node__remove.ant-btn {
+  flex: 0 0 auto;
+  padding-inline: 6px;
+  font-size: var(--font-size-xs);
+}
+
+.lfaa-canvas-node__body {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.lfaa-canvas-node__body--media {
+  overflow: hidden;
+  background: color-mix(in srgb, var(--color-text-primary) 6%, transparent);
+}
+
+.lfaa-canvas-node__text.ant-input {
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 0 0 12px 12px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  resize: none;
+}
+
+.lfaa-canvas-node__text.ant-input:hover,
+.lfaa-canvas-node__text.ant-input:focus,
+.lfaa-canvas-node__text.ant-input-focused {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.lfaa-canvas-node__media {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  object-fit: contain;
+}
+
+.lfaa-canvas-node__missing {
+  display: grid;
+  min-height: 0;
+  flex: 1 1 auto;
+  place-content: center;
+  margin: 0;
+  padding: 10px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  text-align: center;
+}
+
+/* 素材面板：宽容器作为第三栏，窄容器由容器查询切换为覆盖画布的抽屉。 */
+.lfaa-canvas-assets {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface-muted);
+}
+
+.lfaa-canvas-assets__header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.lfaa-canvas-assets__heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  margin-right: auto;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.lfaa-canvas-assets__heading span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.lfaa-canvas-assets__upload {
+  position: relative;
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  overflow: hidden;
+  padding: 4px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+}
+
+.lfaa-canvas-assets__upload:hover {
+  background: var(--color-surface-hover);
+}
+
+.lfaa-canvas-assets__upload:focus-within {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+
+.lfaa-canvas-assets__upload input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.lfaa-canvas-assets__upload.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.lfaa-canvas-assets__close {
+  display: none;
+}
+
+.lfaa-canvas-assets__hint,
+.lfaa-canvas-assets__empty {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  line-height: 1.5;
+}
+
+.lfaa-canvas-assets__list {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 6px;
+  overflow: auto;
+}
+
+.lfaa-canvas-asset {
+  display: grid;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+  grid-template-columns: 56px minmax(0, 1fr);
+  padding: 6px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 9px;
+  background: var(--color-surface);
+}
+
+.lfaa-canvas-asset__thumb {
+  display: block;
+  width: 56px;
+  height: 56px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--color-text-primary) 6%, transparent);
+  object-fit: cover;
+}
+
+.lfaa-canvas-asset__meta {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.lfaa-canvas-asset__name {
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lfaa-canvas-asset__detail {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lfaa-canvas-asset__actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  grid-column: 1 / -1;
+}
+
+.lfaa-canvas-scrim {
+  display: none;
+}
+
+.lfaa-canvas-footnote {
+  display: flex;
+  min-width: 0;
+  justify-content: flex-end;
+  font-size: var(--font-size-xs);
+  overflow-wrap: anywhere;
+}
+
+.lfaa-canvas-footnote .ant-typography {
+  margin: 0;
+  text-align: right;
+}
+
+@container lfaa-canvas (max-width: 1023px) {
+  .lfaa-canvas-body {
+    grid-template-columns: 220px minmax(0, 1fr);
+  }
+
+  .lfaa-canvas-toolbar__assets-toggle {
+    display: inline-flex;
+  }
+
+  .lfaa-canvas-assets {
+    position: absolute;
+    z-index: 12;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(320px, 88%);
+    visibility: hidden;
+    transform: translateX(calc(100% + 16px));
+    background: var(--color-surface);
+    box-shadow: 0 10px 30px var(--color-shadow-float);
+  }
+
+  .lfaa-canvas-assets.is-open {
+    visibility: visible;
+    transform: none;
+  }
+
+  .lfaa-canvas-assets__close {
+    display: inline-flex;
+  }
+
+  .lfaa-canvas-scrim {
+    position: absolute;
+    z-index: 11;
+    inset: 0;
+    display: block;
+    padding: 0;
+    border: 0;
+    background: color-mix(in srgb, var(--color-text-primary) 26%, transparent);
+    cursor: pointer;
+  }
+}
+
+@container lfaa-canvas (max-width: 639px) {
+  .lfaa-canvas-shell {
+    gap: var(--space-2);
+    padding: var(--space-2);
+  }
+
+  .lfaa-canvas-header {
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .lfaa-canvas-status {
+    text-align: left;
+  }
+
+  .lfaa-canvas-toolbar {
+    gap: 6px;
+  }
+
+  .lfaa-canvas-toolbar__title {
+    order: -1;
+    flex: 1 0 100%;
+    max-width: none;
+  }
+
+  .lfaa-canvas-toolbar__project-select {
+    display: flex;
+    flex: 1 0 100%;
+    min-width: 0;
+  }
+
+  .lfaa-canvas-projects {
+    display: none;
+  }
+
+  .lfaa-canvas-body {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 320px;
+  }
+
+  .lfaa-canvas-stage {
+    min-height: 320px;
+  }
+
+  .lfaa-canvas-footnote {
+    justify-content: flex-start;
+  }
+
+  .lfaa-canvas-footnote .ant-typography {
+    text-align: left;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .lfaa-canvas-assets {
+    transition: transform 160ms ease, visibility 160ms;
+  }
+}
+
+@media (max-height: 680px) {
+  .lfaa-canvas-shell {
+    gap: var(--space-2);
+    padding-block: var(--space-2);
+  }
+
+  .lfaa-canvas-header__copy .ant-typography-paragraph {
+    display: none;
+  }
+
+  .lfaa-canvas-body {
+    min-height: 280px;
+  }
+
+  .lfaa-canvas-stage {
+    min-height: 280px;
+  }
+
+  .lfaa-canvas-projects,
+  .lfaa-canvas-assets {
+    min-height: 0;
+  }
+}

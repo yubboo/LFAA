@@ -10,6 +10,7 @@ import { isolateData } from "./isolated-data.mjs";
 isolateData(test, "browser-use");
 const { BrowserSessionManager } = await import("lfaa-browser-use/src/session-manager.js");
 const { BUILTIN_BROWSER_WORKSPACE_ID } = await import("lfaa-util-values/src/browser-provider.js");
+const { database } = await import("lfaa-storage-sqlite/src/database.js");
 
 function makePage(state = {}) {
   let currentUrl = state.url ?? "about:blank";
@@ -347,7 +348,7 @@ test("Browser Run adapter is account/session/run bound and released with the Run
     assert.strictEqual(sameRun, runA, "the same account/session/Run reuses one adapter");
     assert.notStrictEqual(nextRun, runA, "a separate Agent Run receives its own adapter");
     assert.notStrictEqual(otherAccount, runA, "another account receives a separate adapter");
-    assert.deepEqual(Object.keys(runA).sort(), ["claimTab", "click", "fill", "listTabs", "navigate", "navigateProjectPreview", "observe", "pressKey", "runId", "scroll"], "the adapter exposes only bounded browser actions");
+    assert.deepEqual(Object.keys(runA).sort(), ["claimTab", "click", "executeWebsiteTool", "fill", "getWebsiteTools", "listTabs", "navigate", "navigateProjectPreview", "observe", "pressKey", "runId", "scroll", "sendCdpCommand"], "the adapter exposes bounded page actions plus separately gated WebMCP and CDP calls");
 
     const manualPage = await manager.navigate("user-a", BUILTIN_BROWSER_WORKSPACE_ID, "lfaa-managed-edge", "http://127.0.0.1:3000/api/health");
     assert.equal(manager.listProviders("user-a").find(provider => provider.id === "lfaa-managed-edge")?.activeInWorkspace, true, "provider directory identifies the manually opened browser for Agent selection");
@@ -380,6 +381,26 @@ test("Browser Run adapter is account/session/run bound and released with the Run
     assert.equal(sharedPage.state.clickedOccurrence, 1, "Agent can target the occurrence reported by its page observation");
     const replacement = manager.createRunAdapter({ ...bindingA, signal: new AbortController().signal, onRunDispose: cleanup => cleanupsA.push(cleanup) });
     assert.notStrictEqual(replacement, runA, "disposed bridge registration is removed");
+  } finally {
+    await manager.closeAll();
+  }
+});
+
+test("full CDP requires the browser, developer, and full-access settings and excludes personal browser sessions", async () => {
+  const { getUserSettings, saveUserSettings } = await import("lfaa-settings/src/service.js");
+  const manager = new BrowserSessionManager(true, undefined, { headless: true });
+  const ownerId = "browser-cdp-gate-user";
+  database.prepare("INSERT INTO users(id,uid,username,password_salt,password_hash,role) VALUES(?, 908, ?, 'fixture', 'fixture', 'admin')").run(ownerId, ownerId);
+  const defaults = getUserSettings(ownerId).browserUse;
+  const invoke = providerId => manager.sendCdpCommand(ownerId, "session-cdp", providerId, "Runtime.evaluate", {});
+  try {
+    await assert.rejects(invoke("lfaa-managed-edge"), /Agent 浏览器控制已在设置中心关闭/u);
+    saveUserSettings(ownerId, "browser-use", { ...defaults, enabled: true });
+    await assert.rejects(invoke("lfaa-managed-edge"), /需要在设置中心开启开发者模式和完整 CDP 权限/u);
+    saveUserSettings(ownerId, "browser-use", { ...defaults, enabled: true, developerMode: true });
+    await assert.rejects(invoke("lfaa-managed-edge"), /需要在设置中心开启开发者模式和完整 CDP 权限/u);
+    saveUserSettings(ownerId, "browser-use", { ...defaults, enabled: true, developerMode: true, fullCdpAccess: true });
+    await assert.rejects(invoke("tabbit-personal"), /不访问个人浏览器会话/u);
   } finally {
     await manager.closeAll();
   }

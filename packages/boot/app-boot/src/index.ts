@@ -121,8 +121,23 @@ export async function boot(args: string[] = []): Promise<Context> {
       throw new Error(`插件未就绪：${diagnostics.join("、")}`);
     }
     let shutdownPromise: Promise<void> | undefined;
+    /** 退出前先让 Agent 循环停止派发新步骤，并在宽限期内等待活动 Run 收尾；不取消已在执行的工具。 */
+    const agentShutdownGrace = Number(process.env.LFAA_SHUTDOWN_RUN_GRACE_MS ?? 15_000);
     const shutdown = () => {
-      shutdownPromise ??= context.fiber.dispose().catch((error: unknown) => { console.error(error); process.exitCode = 1; });
+      shutdownPromise ??= (async () => {
+        const loop = (context as unknown as { lfaaAgentLoop?: { prepareShutdown?: (milliseconds: number) => Promise<unknown> } }).lfaaAgentLoop;
+        if (loop?.prepareShutdown) {
+          try {
+            const result = await loop.prepareShutdown(Number.isFinite(agentShutdownGrace) ? Math.max(0, agentShutdownGrace) : 15_000);
+            if (result && typeof result === "object" && (result as { timedOut?: unknown }).timedOut === true) {
+              console.warn("LFAA 退出等待已达到宽限期，仍有活动 Agent Run；未取消的步骤按会话记录保持真实状态。");
+            }
+          } catch (error) {
+            console.warn("LFAA 退出前的 Agent 收尾失败；继续执行既有卸载流程。", error);
+          }
+        }
+        await context.fiber.dispose().catch((error: unknown) => { console.error(error); process.exitCode = 1; });
+      })();
       return shutdownPromise;
     };
     process.once("SIGINT", shutdown);

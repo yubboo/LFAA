@@ -209,7 +209,7 @@ test('复制的 DSH 示例 Bundle 通过静态来源检查后仍被隔离且不�
   assert.deepEqual(installed.capabilities, ['dsh.bundle']);
   assert.deepEqual(installed.requirements.bundlePatch, ['cordis.patch.yml', 'cordis.extra.patch.yml']);
   assert.deepEqual(new PluginManager('dsh-example', join(data, 'profiles')).get(installed.id).requirements.bundlePatch, ['cordis.patch.yml', 'cordis.extra.patch.yml'], '重启后保留多 patch 的声明顺序');
-  assert.equal(readFileSync(resolve(data, 'profiles/dsh-example/local--fixture-bundle/cordis.extra.patch.yml'), 'utf8'), '# second ordered fixture patch\n');
+  assert.equal(readFileSync(resolve(data, 'profiles/dsh-example/local--fixture-bundle/cordis.extra.patch.yml'), 'utf8').replace(/\r\n/gu, '\n'), '# second ordered fixture patch\n');
   await assert.rejects(manager.setEnabled(installed.id, true), error => error.code === 'plugin_runtime_unsupported');
   assert.equal(manager.get(installed.id).state, 'incompatible');
   await manager.remove(installed.id);
@@ -502,6 +502,15 @@ test('ZIP 解包拒绝路径穿越、符号链接和 CRC 被改写的数据', ()
   assert.throws(() => readGithubZip(corrupted), /安全解压|校验失败/u);
 });
 
+test('ZIP 解包接受多 Skill 仓库的整仓条目数，并仍拒绝超限归档', () => {
+  // anthropics/skills 整仓约 541 个条目：旧 512 上限会把合法 GitHub 快照误报为多卷格式。
+  const multiSkillRepo = Object.fromEntries(Array.from({ length: 600 }, (_, index) => [`skills/skill-${index}/SKILL.md`, `# skill ${index}`]));
+  const files = readGithubZip(makeZip(multiSkillRepo));
+  assert.equal(files.length, 600);
+  const tooMany = Object.fromEntries(Array.from({ length: 4097 }, (_, index) => [`skills/skill-${index}.md`, 'x']));
+  assert.throws(() => readGithubZip(makeZip(tooMany)), /多卷|不受支持|文件数量/u);
+});
+
 test('NPM TAR 解包拒绝路径穿越与符号链接', () => {
   assert.throws(() => readNpmTarGzip(makeNpmTarball({ '../escape.txt': 'bad' })), /路径穿越|路径/u);
   assert.throws(() => readNpmTarGzip(makeNpmTarball({ 'linked.txt': { contents: '', type: '2' } })), /链接或特殊文件/u);
@@ -616,7 +625,7 @@ test('通用能力安装工具跨应用装配，未接入类型明确报告', as
   let restartContext;
   let contextDisposed = false;
   await applyPluginManager(context);
-  const expected = ['capability_catalog', 'capability_search', 'capability_inspect', 'capability_install', 'capability_list', 'capability_set_enabled', 'capability_remove'];
+  const expected = ['capability_catalog', 'capability_search', 'capability_inspect', 'capability_install', 'capability_install_skill', 'capability_list', 'capability_set_enabled', 'capability_remove'];
   try {
     assert.deepEqual(listRegisteredAiTools().filter(tool => tool.coreManaged).map(tool => tool.name), expected);
     for (const application of ['workspace', 'steamcmd', 'minecraft', 'writing']) {

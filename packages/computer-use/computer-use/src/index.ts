@@ -178,7 +178,7 @@ function observeTool(profile: { name: string }, module: CuaDriverModule, runtime
   return makeTool({
     id: "observe",
     name: "computer_use_observe",
-    description: "捕获当前 Windows 主显示器的一张屏幕图像，供本轮模型理解界面；每次输入动作前都必须先调用。",
+    description: "仅当用户目标依赖当前可见桌面/浏览器状态，且需要据此选择或继续用户已打开的浏览器时，捕获当前 Windows 主显示器供本轮模型查看；不要为了普通公开网页浏览或仅因工具存在而查看无关桌面。每次后续输入动作前都必须重新观察。截图只对当前 Provider 请求临时可见。",
     properties: {},
     parser: Joi.object({}).unknown(false),
     risk: "read",
@@ -294,7 +294,7 @@ function localAppTools(profile: { name: string }, runtime: ReturnType<typeof cre
     makeTool({
       id: "local-app-search",
       name: "computer_use_search_local_apps",
-      description: "按名称或常见别名查询本机 Windows 应用和 Steam 游戏；可用 | 一次给出全名和简称。覆盖开始菜单、Windows 应用目录、已安装登记、PATH、Steam 与最多 2.5 秒的有界便携 EXE 查找。支持名称、首字母和文件夹别名，只返回名称与不透明 ID，不返回路径。用户明确要求启动且名称清楚时，直接用启动工具的 query 一次完成查找与启动；仅在需要比较候选时使用本工具。不要为同一目标重复搜索，也不要改用 Shell/文件工具递归扫盘。",
+      description: "按名称或常见别名查询本机 Windows 应用和 Steam 游戏；可用 | 一次给出全名和简称。覆盖开始菜单、Windows 应用目录、已安装登记、PATH、Steam 与最多 2.5 秒的有界便携 EXE 查找。支持名称、首字母和文件夹别名，只返回名称与不透明 ID，不返回路径。用户明确要求启动且名称清楚时，直接用启动工具的 query 一次完成查找与启动；仅在需要比较候选时使用本工具。若产品名也可能指官网网页且当前对话没有明确选择本机客户端，不得调用本工具，先用 lfaa_ask_user 澄清。不要为同一目标重复搜索，也不要改用 Shell/文件工具递归扫盘。",
       properties: { query: { type: "string", minLength: 1, maxLength: 120 } },
       required: ["query"],
       parser: querySchema,
@@ -319,7 +319,7 @@ function localAppTools(profile: { name: string }, runtime: ReturnType<typeof cre
     makeTool({
       id: "local-app-launch",
       name: "computer_use_launch_local_app",
-      description: "启动本机 Windows 应用或游戏。用户明确指定应用名且目标清楚时传 query：Owner 在一次有界发现中解析并启动唯一高置信匹配；无结果或有歧义时只返回安全候选、不启动。若需从候选中选择，传本轮搜索/推荐结果的 id；执行前会重新发现校验。开始菜单和 Windows 应用目录由 Explorer 打开，其他程序使用已发现目标及固定参数，不接受任意路径、命令或模型启动参数。不要为同一目标重复搜索，也不要用 Shell/文件工具递归扫盘。启动后观察桌面；回执只证明系统接收请求，不证明应用已进入可用状态。",
+      description: "启动本机 Windows 应用或游戏。仅当用户明确选择本机客户端，或本轮文字/对话已经明确本机应用目标时，才可使用。若产品名也可能指官网网页且当前上下文没有选择，不得先发现或启动，先用 lfaa_ask_user 澄清本机客户端还是官网网页。目标明确后传 query：Owner 在一次有界发现中解析并启动唯一高置信匹配；无结果或有歧义时只返回安全候选、不启动。若需从候选中选择，传本轮搜索/推荐结果的 id；执行前会重新发现校验。开始菜单和 Windows 应用目录由 Explorer 打开，其他程序使用已发现目标及固定参数，不接受任意路径、命令或模型启动参数。不要为同一目标重复搜索，也不要用 Shell/文件工具递归扫盘。启动后观察桌面；回执只证明系统接收请求，不证明应用已进入可用状态。",
       properties: {
         id: { type: "string", pattern: "^(?:steam:[1-9]\\d{0,9}|(?:shortcut|appsfolder|registered|path|indexed):[a-f\\d]{24})$" },
         query: { type: "string", minLength: 1, maxLength: 120 }

@@ -25,6 +25,16 @@ export {
   sessionLifetimeSeconds
 } from "./service.js";
 export type { AssignableUserRole, DefaultCredentialReminder, ManagedUserInput, ManagedUserUpdate, PublicUser, UserRole, UserSearchFilters } from "./service.js";
+export {
+  DEFAULT_ACCOUNT_AGENT_USAGE_POLICY,
+  finishAgentUsageReservation,
+  getAgentUsageControls,
+  listManagedAgentUsageAccounts,
+  reserveAgentUsage,
+  saveAgentUsagePolicy,
+  validateAccountAgentUsagePolicy
+} from "./account-agent-usage.js";
+export type { AccountAgentUsageAccount, AccountAgentUsagePolicy, AccountAgentUsageWindow, AgentUsageReservation } from "./account-agent-usage.js";
 
 import type { Context } from "@deepseek-ai/cordis";
 import * as capability from "./service.js";

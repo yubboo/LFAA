@@ -11,7 +11,11 @@ const cli = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 test("Conversation Memory Owner 限制记忆内容并让删除胜过并行整理", () => {
   const parent = resolve(cli, "../../dist/.tmp");
   mkdirSync(parent, { recursive: true });
-  const data = mkdtempSync(join(parent, "lfaa-conversation-memory-"));
+  const tempRoot = mkdtempSync(join(parent, "lfaa-conversation-memory-"));
+  const home = join(tempRoot, "home");
+  const data = join(tempRoot, "data");
+  mkdirSync(home, { recursive: true });
+  mkdirSync(data, { recursive: true });
   try {
     execFileSync(process.execPath, ["--import", "tsx", "--import", "./register-package-loader.mjs", "--input-type=module", "-e", `
       import assert from 'node:assert/strict';
@@ -21,7 +25,12 @@ test("Conversation Memory Owner 限制记忆内容并让删除胜过并行整理
       const memory = await import('lfaa-conversation-memory/src/index.js');
       database.exec('PRAGMA user_version = 42');
       migrateConversationMemorySchema();
+      database.prepare("INSERT INTO users(id,uid,username,password_salt,password_hash,role) VALUES ('memory-migration-recovery',9103,'memory-migration-recovery','salt','hash','member')").run();
+      database.prepare("INSERT INTO conversation_memories(user_id,memories_json,revision) VALUES (?,?,?)").run('memory-migration-recovery', JSON.stringify(['保留现有记忆']), 7);
+      database.exec('PRAGMA user_version = 42');
+      migrateConversationMemorySchema();
       assert.equal(Number(database.prepare('PRAGMA user_version').get().user_version), 43);
+      assert.deepEqual({ ...database.prepare('SELECT memories_json, revision FROM conversation_memories WHERE user_id = ?').get('memory-migration-recovery') }, { memories_json: JSON.stringify(['保留现有记忆']), revision: 7 });
       database.prepare("INSERT INTO users(id,uid,username,password_salt,password_hash,role) VALUES ('memory-owner',9101,'memory-owner','salt','hash','member'),('memory-other',9102,'memory-other','salt','hash','member')").run();
       const settings = await import('lfaa-settings/src/service.js');
       assert.deepEqual(settings.getUserSettings('memory-owner').personalization, { memoryEnabled: false, memoryFromToolChats: false });
@@ -48,7 +57,7 @@ test("Conversation Memory Owner 限制记忆内容并让删除胜过并行整理
       const { config } = await import('lfaa-launch-environment/src/config.js');
       const { JsonStorageBackend } = await import('lfaa-storage-json/src/index.js');
       const { join } = await import('node:path');
-      new JsonStorageBackend(join(config.dataDirectory, 'storages')).write('session-migration', { version: 1, sessions: 0, messages: 0, usage: 0, migratedAt: new Date().toISOString() });
+      new JsonStorageBackend(join(config.homeDirectory, 'storages')).write('session-migration', { version: 1, sessions: 0, messages: 0, usage: 0, migratedAt: new Date().toISOString() });
       database.exec('ALTER TABLE ai_sessions ADD COLUMN jsonl_revision TEXT');
       const sessions = await import('lfaa-session/src/sessions.js');
       const { sessionRecords } = await import('lfaa-session-persistence-jsonl/src/repository.js');
@@ -78,7 +87,7 @@ test("Conversation Memory Owner 限制记忆内容并让删除胜过并行整理
       assert.equal(JSON.stringify(ownerEvents).includes('旧账户记忆不可留'), false);
       assert.equal(JSON.stringify(ownerHistory).includes('旧账户记忆不可留'), false);
       assert.equal(JSON.stringify(sessionRecords.allForSession('session_events', otherTurn.session.id)).includes('旧账户记忆不可留'), true);
-      const ownerLog = join(process.env.LFAA_DATA_DIR, 'sessions', (await import('node:crypto')).createHash('sha256').update(ownerTurn.session.id).digest('hex'), 'events.jsonl');
+      const ownerLog = join(config.homeDirectory, 'sessions', (await import('node:crypto')).createHash('sha256').update(ownerTurn.session.id).digest('hex'), 'events.jsonl');
       assert.equal((await import('node:fs')).readFileSync(ownerLog, 'utf8').includes('旧账户记忆不可留'), false);
       sessions.redactConversationMemoryContexts('memory-owner');
       assert.equal(memory.replaceConversationMemories('memory-owner', ['用户偏好简洁回复'], 0), true);
@@ -93,12 +102,13 @@ test("Conversation Memory Owner 限制记忆内容并让删除胜过并行整理
       assert.equal(memory.replaceConversationMemories('memory-owner', ['删除前已开始的整理'], inFlightRevision), false);
       assert.deepEqual(memory.getConversationMemorySnapshot('memory-other').memories, ['另一账户的长期偏好']);
       database.prepare("DELETE FROM users WHERE id = 'memory-owner'").run();
+      database.prepare("DELETE FROM users WHERE id = 'memory-migration-recovery'").run();
       assert.deepEqual(memory.getConversationMemorySnapshot('memory-owner'), { memories: [], revision: 0 });
       sessionRecords.close(); configuration.close(); closeDatabase();
-    `], { cwd: cli, env: { ...process.env, NODE_ENV: "test", LFAA_DATA_DIR: data, JWT_SECRET: "" }, encoding: "utf8", stdio: "pipe", timeout: 15000 });
+    `], { cwd: cli, env: { ...process.env, NODE_ENV: "test", LFAA_HOME: home, LFAA_DATA_DIR: data, JWT_SECRET: "" }, encoding: "utf8", stdio: "pipe", timeout: 15000 });
   } finally {
-    assert.equal(dirname(resolve(data)), parent);
-    assert.ok(basename(data).startsWith("lfaa-conversation-memory-"));
-    rmSync(data, { recursive: true, force: true });
+    assert.equal(dirname(resolve(tempRoot)), parent);
+    assert.ok(basename(tempRoot).startsWith("lfaa-conversation-memory-"));
+    rmSync(tempRoot, { recursive: true, force: true });
   }
 });

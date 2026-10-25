@@ -6,6 +6,7 @@
 import { randomUUID, createHash } from "node:crypto";
 import { database } from "lfaa-storage-sqlite/src/database.js";
 import { assertSystemFileAccess } from "./library.js";
+import { discardFileTransfer, getNodeFileResultTransfer } from "./file-transfers.mjs";
 
 const taskLeaseDurationMilliseconds = 30_000;
 const taskResultRetentionMilliseconds = 24 * 60 * 60 * 1000;
@@ -16,6 +17,22 @@ export type NodeFileTaskStatus = "queued" | "running" | "succeeded" | "failed";
 
 export class NodeFileTaskQueueFullError extends Error {
   constructor() { super("此节点的文件任务队列已满；请等待现有操作完成后再试。"); this.name = "NodeFileTaskQueueFullError"; }
+}
+
+function containsInlineFileBytes(value: unknown): boolean {
+  const pending = [value];
+  const visited = new Set<object>();
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (ArrayBuffer.isView(current) || current instanceof ArrayBuffer) return true;
+    if (!current || typeof current !== "object" || visited.has(current)) continue;
+    visited.add(current);
+    for (const [key, child] of Object.entries(current)) {
+      if (key === "bytes" || key === "dataBase64") return true;
+      pending.push(child);
+    }
+  }
+  return false;
 }
 
 export interface NodeFileTask {
@@ -84,6 +101,8 @@ export function createNodeFileTask(input: {
   payload: Record<string, unknown>;
 }): NodeFileTask {
   assertSystemFileAccess(input.createdBy);
+  if (containsInlineFileBytes(input.payload)) throw new Error("节点文件任务只允许保存文件传输 ID 和元数据，不接受文件字节。 ");
+  if (input.operation === "upload" && typeof input.payload.transferId !== "string") throw new Error("节点上传任务必须引用短期原始字节传输。 ");
   clearExpiredNodeFileTaskResults();
   const queued = database.prepare("SELECT COUNT(*) AS count FROM node_file_tasks WHERE node_id = ? AND status IN ('queued', 'running')").get(input.nodeId) as { count: number };
   if (queued.count >= 100) throw new NodeFileTaskQueueFullError();
@@ -172,10 +191,19 @@ export function completeNodeFileTask(input: {
   message: string;
   result: Record<string, unknown>;
 }): boolean {
+  if (containsInlineFileBytes(input.result)) throw new Error("节点文件任务结果不能保存 Base64 文件字节。 ");
   const status: NodeFileTaskStatus = input.succeeded ? "succeeded" : "failed";
   const now = new Date().toISOString();
   const task = getNodeFileTask(input.taskId);
   if (!task || task.nodeId !== input.nodeId) return false;
+  const transfersBytes = task.operation === "download" || task.operation === "preview" && ["image", "pdf"].includes(String(input.result.previewKind));
+  if (input.succeeded && transfersBytes) {
+    if (input.result.transferId !== task.id) throw new Error("节点二进制文件结果必须引用当前任务的原始字节传输。 ");
+    const transfer = getNodeFileResultTransfer({ task });
+    if (input.result.name !== transfer.name || input.result.size !== transfer.size || input.result.sha256 !== transfer.sha256) {
+      throw new Error("节点文件结果的名称、大小或摘要与已接收传输不一致。 ");
+    }
+  }
   database.exec("BEGIN IMMEDIATE;");
   try {
   const update = database.prepare(`
@@ -201,6 +229,7 @@ export function completeNodeFileTask(input: {
     lastNodeFileAuditTrimAt = Date.now();
   }
   database.exec("COMMIT;");
+  if (!input.succeeded && transfersBytes) discardFileTransfer({ transferId: task.id, taskId: task.id });
   return true;
   } catch (error) {
     if (database.isTransaction) database.exec("ROLLBACK;");
@@ -232,7 +261,7 @@ export function listNodeFileAudit(input: { query?: string; limit?: number } = {}
 }
 
 function clearExpiredNodeFileTaskResults(): void {
-  // 任务可能带有上传内容、预览/下载结果；只保留 24 小时的任务快照，详细操作记录留在有界审计表。
+  // 任务只保留 24 小时的操作元数据和小型结果快照，文件字节由短期传输 Owner 清理。
   const cutoff = new Date(Date.now() - taskResultRetentionMilliseconds).toISOString();
   database.prepare(`
     DELETE FROM node_file_tasks

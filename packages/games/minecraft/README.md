@@ -10,7 +10,7 @@
 
 恢复限于已确认失败且同一摘要的原实例，节点核对目录归属、已有文件与进程标记；租约过期结果未知不能重放。旧 Vanilla 下载/注册接口标注兼容用途，替代位置为自动开服服务，待旧记录和调用方迁移完成后删除。旧 AppContainer 实例保留元数据，显式选择 AppContainer 时仍 fail closed，不自动降级。
 
-账户运行配置来自 settings；节点实例相对根目录来自 storage configuration，既有实例路径不移动。数据库版本 35 保留旧实例、任务、日志与外键，增加核心、构建、执行方式及工件快照。
+账户运行配置来自 settings；节点实例相对根目录来自 storage configuration，既有实例路径不移动。新 Minecraft 备份写入节点 `data/backups/minecraft/<instanceId>/`，不放进 `data/games`；Daemon 在取得本机运行锁后移除空的遗留 `data/games/minecraft-backups`，非空时将整棵目录原子迁入 `data/backups/minecraft/legacy-games-minecraft-backups-<时间>-<ID>/`，不覆盖内容。Daemon 同时确保 `data/backups/steam` 分类目录存在；Steam 备份执行能力仍未接入，不以目录存在冒充可用功能。数据库版本 35 保留旧实例、任务、日志与外键，增加核心、构建、执行方式及工件快照。
 
 Paper 官方构建的最低 Java 字节码版本与官方推荐运行版本共同决定 `javaMajor`，复用同一插件核心规则。Paper 1.12.2 最低为 8，推荐为 11，项目已有 Java 11 时直接复用，不因为 Fill 元数据的 minimum 字段再下载 Java 8。依据为 [Paper 官方运行要求](https://docs.papermc.io/paper/getting-started/#requirements)。
 

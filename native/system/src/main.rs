@@ -5,6 +5,9 @@
  */
 #[cfg(windows)]
 mod windows_host {
+    #[path = "../agent_sandbox.rs"]
+    mod agent_sandbox;
+
     use sha2::{Digest, Sha256};
     use std::ffi::{OsStr, OsString, c_void};
     use std::fs::{self, File};
@@ -70,8 +73,8 @@ mod windows_host {
     const INSTANCE_WRITE_ACCESS: u32 = FILE_GENERIC_READ | FILE_GENERIC_WRITE | FILE_DELETE_CHILD;
     const JAVA_READ_ACCESS: u32 = FILE_GENERIC_READ | FILE_GENERIC_EXECUTE;
     const PLUGIN_READ_ACCESS: u32 = FILE_GENERIC_READ | FILE_GENERIC_EXECUTE;
-    // 插件沿父目录解析已知运行时/入口路径时，只能穿越目录并读取元数据，不能列目录。
-    const PLUGIN_DIRECTORY_TRAVERSE: u32 = 0xA0;
+    // AppContainer 解析已知绝对路径时只可穿越目录并读元数据（FILE_EXECUTE | FILE_READ_ATTRIBUTES），不能列目录或写入。
+    const APP_CONTAINER_DIRECTORY_TRAVERSE: u32 = 0xA0;
     const DIRECTORY_INHERITANCE: u32 = OBJECT_INHERIT_ACE | CONTAINER_INHERIT_ACE;
     const PLUGIN_MAX_FILES: usize = 8192;
     const PLUGIN_MEMORY_LIMIT_MB: usize = 512;
@@ -227,6 +230,7 @@ mod windows_host {
                 let parsed = parse_plugin_launch_args(args)?;
                 launch_plugin(&parsed)
             }
+            "--agent-run" => agent_sandbox::run(args),
             "--plugin-forget-profile" => {
                 let parsed = parse_plugin_forget_args(args)?;
                 forget_plugin_profile(&parsed)
@@ -837,7 +841,7 @@ mod windows_host {
         let mut seen = 0;
         grant_plugin_source_tree(plugin_root, sid, &mut seen)?;
         for directory in plugin_volume_roots(plugin_root, node_path)? {
-            grant_access(&directory, sid, PLUGIN_DIRECTORY_TRAVERSE, 0)?;
+            grant_access(&directory, sid, APP_CONTAINER_DIRECTORY_TRAVERSE, 0)?;
         }
         grant_access(node_path, sid, PLUGIN_READ_ACCESS, 0)?;
         Ok(())

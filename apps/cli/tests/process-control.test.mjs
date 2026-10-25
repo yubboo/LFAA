@@ -22,6 +22,17 @@ test("超时等待进程实际结束后回传失败事实", async () => {
   try { const result = await command.done; assert.equal(result.timedOut, true); assert.notEqual(result.exitCode, 0); assert.ok(command.child.exitCode !== null || command.child.signalCode !== null); }
   finally { await command.cancel(); }
 });
+test("超时先交给沙箱 Host 停止，Host 拒绝后才强制结束", async () => {
+  let command, reason;
+  command = run("setInterval(()=>{},1000)", { timeoutSeconds: 0.2, requestStop: value => { reason = value; command.child.kill(); return true; } });
+  const result = await command.done; assert.equal(reason, "timeout"); assert.equal(result.timedOut, true); assert.notEqual(result.exitCode, 0);
+});
+test("取消先交给沙箱 Host 停止并等待进程关闭", async () => {
+  let command, reason;
+  command = run("setInterval(()=>{},1000)", { requestStop: value => { reason = value; command.child.kill(); return true; } });
+  await delay(30); await command.cancel(); const result = await command.done;
+  assert.equal(reason, "cancel"); assert.equal(result.cancelled, true); assert.ok(command.child.exitCode !== null || command.child.signalCode !== null);
+});
 test("取消结束真实父子进程，不仅停止等待", async () => {
   let childPid;
   const command = run("const {spawn}=require('node:child_process'); const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore'}); console.log(child.pid); setInterval(()=>{},1000)", { onOutput: value => { const pid = Number(value.stdout.trim()); if (Number.isInteger(pid) && pid > 0) childPid = pid; } });

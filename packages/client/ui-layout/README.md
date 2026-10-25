@@ -6,7 +6,7 @@
 
 Workbench 还负责把设置、文件和插件页面的“最近会话”请求送入 `/work`；请求 ID 只在内存中暂存，由 `ApplicationWorkspace` 消费并确认后清除。会话列表、刷新和 Dock 展开仍归工作区 Owner，不由 Workbench 复制。
 
-Workbench 提供唯一的 `applicationNavigationItems` 应用清单。`ApplicationWorkspace` 在右侧 Dock 呈现“应用”视图和原工具/资源视图；设置、文件、插件页的全局“应用”入口向 Workbench 提交一次性打开请求，进入 `/work` 后展开右侧应用视图。当前视图选择由 Workbench 保持，使应用切换路由后仍留在应用菜单；左 Dock 只呈现会话与项目。
+Workbench 提供唯一的 `applicationNavigationItems` 应用清单。`ApplicationWorkspace` 在右侧 Dock 呈现“应用”视图和原工具/资源视图；设置、文件、插件页的全局“应用”入口向 Workbench 提交一次性打开请求，进入 `/work` 后由工作区按 `requestId` 先消费并清理请求、再展开右侧应用视图，防止响应式布局或回调变化重放同一请求。当前视图选择由 Workbench 保持，使应用切换路由后仍留在应用菜单；左 Dock 只呈现会话与项目。
 
 设置页只在 `/settings`、`/admin/users` 直达路由或用户悬停/聚焦设置导航时预热；工作台空闲时不主动下载整页，避免后台模块加载占用首屏资源。
 
@@ -20,7 +20,11 @@ Workbench 提供唯一的 `applicationNavigationItems` 应用清单。`Applicati
 
 ## 游戏库四栏入口（2026-10-23）
 
-Workbench 将 `/games/*` 全部装配到共享 `ApplicationWorkspace` 四栏 Shell。全局应用导航只呈现“游戏库”；运行环境、Minecraft 与 Steam 游戏服务为游戏库内部视图。`GameLibraryPage`、`SteamcmdWorkspace` 是本包的组合适配器；Minecraft 实例/生命周期、Runtime Manager 和 SteamCMD 数据/任务仍归各自领域 Owner。旧 `/apps/{minecraft,steamcmd}/normal/*` 路由映射到 `/games/*`，内部 `ApplicationId`、认证和 Agent 工具合同保留。外观沿用 Settings/Appearance 共享令牌，不新增偏好；窄分栏使用容器断点。
+SteamCMD 未验证提示卡片中的操作链接受提示卡可用宽度约束并允许折行，窄中栏下仍完整可见和可操作；窄栏下目标设备选择器与刷新状态按钮在同一行。
+
+Workbench 将 `/games/*` 全部装配到共享 `ApplicationWorkspace` 四栏 Shell。全局应用导航只呈现“游戏库”；运行环境、Minecraft 与 Steam 游戏服务为游戏库内部视图。`GameLibraryPage`、`SteamcmdWorkspace` 是本包的组合适配器；Minecraft 实例/生命周期、Runtime Manager 和 SteamCMD 数据/任务仍归各自领域 Owner。旧 `/apps/{minecraft,steamcmd}/normal/*` 路由映射到 `/games/*`，内部 `ApplicationId`、认证和 Agent 工具合同保留。外观沿用 Settings/Appearance 共享令牌，不新增偏好；游戏库与运行环境分类使用真实中心容器宽度重排卡片、分类入口及操作控件，不依赖全局窗口宽度。运行环境页标题、返回入口、设备选择和顶部操作保持紧凑对齐；窄中栏将返回、重检和存储操作收为有可访问名称的图标按钮，仍保留设备当前值。
+
+SteamCMD 分类读取设置中心已有节点模式与工具目录；默认选中本机控制端时，首次进入分类会选取在线 Windows x64 Daemon。安装、真实校验和完整卸载经 SteamCMD Owner；文件管理入口以账户限定的资源别名打开同一节点的 `steamcmd-runtime` 只读目录。窄容器将这组运行环境操作收为保留可访问名称的图标按钮。
 
 工作区现存卡片通过 `lfaa-card-motion` 和 `lfaa-card-motion-list` 注册到共享动效；Workbench 将账户 `general.cardMotionEffect` 映射到根节点，并将 `general.dialogMotionEffect`、减少动态效果偏好及当前 Appearance 主题/强调色/字体字号/对比度/壁纸表面令牌同步到 body，供 Ant Design Portal 的 Modal、确认弹窗和 Popconfirm 读取；弹窗外框、标题/正文/操作区留白和响应式滚动基础归 `ui-theme` 集中维护，业务页面只保留内容布局与必要尺寸。
 
@@ -35,3 +39,5 @@ Workbench 把凭据待处理状态（由 `ui-renderer` 从 Account Owner 读取�
 AI Work 的右栏正在拖动时，Workbench 根据 `ResizableWorkbench` 的 `data-dragging` 状态临时关闭大面积聊天/上下文表面的 `backdrop-filter`，减少 Grid 宽度逐帧变化时的重复背景采样；拖动完成、取消或失焦后由共享交互生命周期立即恢复，不改 Appearance 偏好、表面颜色或透明度。
 
 Workbench 的 `allApplicationNavigationItems` 是内置应用菜单项的单一清单。设置中心的 `general.hiddenApplicationNavigationIds` 仅过滤传给应用菜单的可见项，所有页面仍持有完整清单用于设置展示和恢复；清单变化不更改路由、授权、应用运行状态或安装内容。
+
+游戏库 `/games/steamcmd` 的 `SteamcmdWorkspace` 复用 SteamCMD Client Connection 展示真实服务端状态和任务。DST 向导创建共享安装的 Master/Caves 集群，并将配置目录作为一次性位置请求交给 File Manager；UI 不接收、缓存或写入 `cluster_token.txt` 内容，也不把 Daemon PID 存为本地偏好。

@@ -6,9 +6,13 @@ Minecraft 自动部署的 Java 准备继续使用 `resolveMinecraftJavaRuntime`�
 
 Daemon Host 是目标节点本机能力的执行适配器。通用项目文件的唯一受限执行实现位于 `packages/host/project-files`，Daemon 仅接收目标节点任务并调用该实现；LFAA 本机 Agent Host 也调用同一实现，因而 Agent 本机 Git/文件工作不要求 Daemon 在线。读取限定为普通 UTF-8 文本并支持分页；创建不覆盖既有内容，更新按 SHA-256 检查并发修改，删除仅 unlink 普通文件，不递归删除目录。模型可用操作与目标选择仍由 `packages/core/tools/src/project-tools.ts` 和 Agent Loop 决定。
 
+目标节点 Agent Shell 由 Daemon 使用该节点已装配的 `lfaa-sandbox-windows-acl` Provider。Windows x64 `workspace-write` / `read-only` 必须由 AppContainer Host 执行并返回当次回执；本机隔离 Control Plane + Daemon 回归覆盖取消、写入边界与完成校验。受限提供方只授权解析出的 Shell 可执行文件目录和 Node.js 运行时目录，不递归 ACL 整条 PATH；其他 OS 或 Host 缺失均失败关闭。真实远程设备、Electron 安装包和 macOS/Linux 尚未实测。
+
 `project-files` 的默认工作区固定操作只供认证 Workspace Controller 调用：`initialize_default_workspace` 在本机 OS 账户的系统“文档”下创建 `lfaa/default-workspace`；`resolve_default_workspace` 返回动态解析路径及目录是否存在。Windows 从用户 Documents 注册表位置读取，Linux 使用 `xdg-user-dir DOCUMENTS`，macOS 使用账户 Documents；不写死盘符。创建前检查真实路径并禁止落入 `LFAA_DATA_DIR`；初始化只创建文件夹，不复制旧目录内容、不移动或修改会话数据，也不初始化 Git 仓库。
 
 全局管理员文件工作台由 `src/daemon.mjs` 执行。本机与远程节点通用 `node-filesystem-directory-size-v1` 能力只在管理员显式请求目录大小时遍历目标目录；遍历限定为数据根内最多 20,000 项和 64 层，按小批量异步检查文件元数据，拒绝越界路径，不进入数据根的受保护目录，不跟随链接/目录联接，不读取文件内容；预算用尽或目录正在变化时失败且不返回部分总和。列表读取不计算目录大小。
+
+Minecraft/Steam 的备份分类根分别为 `data/backups/minecraft` 与 `data/backups/steam`。Daemon 仅在取得节点运行锁后确保两目录存在，并将旧 `data/games/minecraft-backups` 空目录移除、非空目录原子移入 Minecraft 备份根的唯一遗留子目录；迁移拒绝链接和非目录路径，不覆盖已有备份。Steam 备份目录是存储分类入口，Steam 备份/恢复执行能力仍由 Steam 领域 Owner 接入后才可用。
 
 成功的 `create`、`create_tree`、`write`、`replace` 与 `delete` 结果附带以 `/` 分隔的项目相对 `relativePath`（文件树还为每个文件返回该字段），供 Session 活动和已登记项目 Git 审阅映射；既有 `path`、摘要和内容结果保持原义。此字段不授权额外文件读取，也不替代 Workspace Controller 对项目和节点的认证校验。
 
@@ -32,8 +36,16 @@ Agent Git 管理使用 `packages/host/git`，由 LFAA 本机 Control Plane 执�
 
 `src/easytier-runtime.mjs` 只接受 Connectivity Owner 派发的固定 EasyTier v2.6.4 安装操作，复用 Daemon 的数据根目录围栏、官方 HTTPS 资产摘要/大小验证和 ZIP 路径检查。安装包保存在 `environments/easytier/v2.6.4`，安装任务使用唯一暂存目录、拒绝覆盖无效已有目标，并通过核心程序 `--version` 输出确认后才加入节点心跳能力。该能力不启动 EasyTier、修改虚拟网卡或上报网络/对等连接状态；组网实例管理 RPC 尚未接入。
 
+Daemon 声明 `node-filesystem-binary-transfer-v1` 后，上传从 Control Plane 按运行中节点任务读取原始字节；下载和图片/PDF 预览经认证原始流回传，任务完成消息只带传输 ID、大小、名称和摘要。接收端和发送端都限制为 3 MiB，Control Plane 缓冲与过期策略由 `lfaa-fs` 持有；未实际连接的远程节点验收须单独报告。
+
 ## 游戏文件资源范围（2026-10-14）
 
 节点新增 node-filesystem-instance-v1 与 node-filesystem-game-storage-v1：实例请求只提交已登记实例 ID，目标节点用既有核验索引定位真实目录；Minecraft/SteamCMD 平台目录从节点自己的已保存设置解析，支持原 Owner 允许的绝对自定义位置。实例根、元数据、活动进程或保留进程/安装标记由共享 instance-files 保护。普通 data、实例和平台来源共用文件执行器和串行写锁；回收站命名空间由控制端依据真实账户派生，不能由浏览器覆盖。旧节点不声称支持这些范围。扩展 plugins 目录由 Plugin Manager 生命周期维护，不受通用文件写操作管理。构建和隔离夹具不等于实际节点/游戏进程验收。
 
+SteamCMD 工具目录使用内部 `steamcmd-runtime` 路由只读浏览，文件管理展示节点设置中的实际 `steamcmdDirectory`（默认 `data/lib/steamcmd`）；仅 SteamCMD Owner 的节点租约任务可安装、校验或完整卸载。卸载只作用于已配置的 `steamcmdDirectory`，拒绝重解析目录及仍有运行或状态未确认 Steam 游戏服务端的情况；游戏目录不随工具卸载处理。
+
+文件管理读取 SteamCMD 工具根目录时，若节点目录不存在，错误包含实际路径并引导从运行环境页安装；通用文件服务不自动创建 SteamCMD 目录，也不把缺失目录伪装成空目录。
+
 SteamCMD Dedicated Server 通过 `steamcmd_servers` 配置和现有 SteamCMD 租约任务执行；只从服务端安装目录内启动 `.exe`，参数数组使用 `shell:false`。运行态写入 Daemon 受保护的进程标记并经心跳回报；Daemon 重启后仍运行、但无法恢复控制台的进程标记为未知，拒绝重复启动、更新或假报停止。停服先发送服务端配置的控制台命令，等待秒数读取该服务端配置；超时会终止进程树并报告存档完整性未确认。运行中服务端目录拒绝文件管理写入。真实 Steam 下载、目标游戏就绪、网络可达性和实体节点状态须另行验收。
+
+DST 集群由 Master/Caves 两个记录共享一份 SteamCMD 安装；更新前同时检查两个分片与 Daemon 进程标记。每个分片启动时固定生成 `-persistent_storage_root`、`-conf_dir`、`-cluster`、`-shard`、`-console` 参数，不从客户端接受原始路径参数。开服前逐个检查 `cluster.ini`、`cluster_token.txt` 和本分片 `server.ini` 是非空普通文件；Token 只做存在性检查，不读取正文。进程标记登记集群数据目录，任一分片运行时 File Manager 都不得改写集群文件。心跳只证明 PID 存活，不证明游戏或网络已就绪。

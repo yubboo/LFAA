@@ -26,13 +26,13 @@
 }
 
 .settings-page {
-  --settings-content-max-width: 1092px; /* 设置中心所有分类共用的阅读列宽上限。 */
+  --settings-content-max-width: 760px; /* 所有设置分类共用的居中正文最大宽度，左右留白由同一变量统一控制。 */
   --settings-page-padding-block: 40px; /* 设置分类共用的页面上下留白。 */
-  --settings-page-padding-inline: clamp(14px, 4%, 52px); /* 设置正文按实际中间窗格宽度留出 4% 左右边距，限制在 14px 到 52px。 */
+  --settings-page-padding-inline: clamp(18px, 5%, 64px); /* 设置正文与固定操作栏按中间窗格宽度留出 5% 左右边距，限制在 18px 到 64px。 */
   --settings-section-gap: 24px; /* 页头、分组、提示和操作区之间共用的垂直间距。 */
   --settings-group-title-gap: 12px; /* 分组标题与分组内容之间共用的间距。 */
   --settings-row-min-height: 78px; /* 标准设置行的最小高度，内容变多时允许自然增高。 */
-  --settings-row-inline-padding: 20px; /* 设置行内容与底部操作栏共用的左右内缩距离。 */
+  --settings-row-inline-padding: 24px; /* 所有设置行与底部操作栏共用 24px 左右内缩，让文字和控件远离边缘。 */
   --settings-row-padding: 16px var(--settings-row-inline-padding); /* 标准设置行共用的上下与左右内边距。 */
   --settings-row-gap: 24px; /* 标准设置行说明列与控件列之间共用的间距。 */
   --settings-row-copy-gap: 8px; /* 设置行标题与说明文字之间的共用间距。 */
@@ -42,6 +42,12 @@
   --settings-panel-radius: 14px; /* 设置分组和标准卡片共用的圆角大小。 */
   --settings-panel-padding: 20px; /* 非行式设置卡片共用的内容内边距。 */
   --settings-panel-background: color-mix(in srgb, var(--color-surface) 91%, transparent); /* 标准设置面板使用 91% 主题表面色与 9% 透明层混合。 */
+  --settings-browser-section-gap: 30px; /* 浏览器页各类偏好分组之间的专属留白。 */
+  --settings-browser-section-gap-compact: 24px; /* 窄浏览器面板中分组之间的紧凑留白。 */
+  --settings-browser-row-gap-compact: 12px; /* 窄浏览器面板中设置文案与控件上下排列时的间距。 */
+  --settings-browser-group-title-gap: 8px; /* 浏览器页分组标题与行式设置之间的距离。 */
+  --settings-browser-control-width: 220px; /* 浏览器页桌面下拉控件的最大宽度。 */
+  --settings-browser-control-width-compact: 280px; /* 窄浏览器面板下拉控件的最大宽度。 */
   --settings-card-header-height: 52px; /* AI 与账户类设置卡片共用的标题栏最小高度。 */
   --settings-option-preview-height: 44px; /* 主题与工作台布局选项共用的示意图高度。 */
   --settings-background-card-height: 104px; /* 外观背景图库卡片共用的桌面最小高度。 */
@@ -56,6 +62,27 @@
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+}
+
+/* 所有设置分类共用的断点变量集中维护，避免各分类各自复制左右留白。 */
+@media (max-width: 900px) {
+  .settings-page {
+    --settings-page-padding-block: 26px; /* 中等视口统一设置页上下留白。 */
+    --settings-page-padding-inline: 24px; /* 中等视口统一设置页左右留白。 */
+  }
+}
+
+@media (max-width: 620px) {
+  .settings-page {
+    --settings-page-padding-block: 20px; /* 窄屏统一设置页上下留白。 */
+    --settings-page-padding-inline: 18px; /* 窄屏统一设置页左右留白。 */
+    --settings-row-inline-padding: 18px; /* 窄屏设置行内容和底部操作栏共用左右内缩。 */
+    --settings-row-padding: 14px var(--settings-row-inline-padding); /* 窄屏所有设置行使用相同的上下与左右内边距。 */
+    --settings-row-gap: 12px; /* 窄屏行内说明与控件改为纵向排列并共用间距。 */
+    --settings-control-min-width: 0px; /* 窄屏取消设置控件列的桌面最小宽度。 */
+    --settings-control-width: 100%; /* 窄屏表单控件统一占满行内可用宽度。 */
+    --settings-background-card-height: 90px; /* 窄屏背景卡片使用共同的紧凑最小高度。 */
+  }
 }
 
 /* 插件工作区复用扩展配置表单，但隐藏设置分类导航并把滚动留在自身面板。 */
@@ -755,6 +782,184 @@
   flex-direction: column;
   gap: var(--settings-section-gap);
   margin: 0 auto;
+}
+
+.settings-content--browser {
+  gap: var(--settings-browser-section-gap);
+  container: settings-browser / inline-size;
+}
+
+.settings-content--browser .settings-content__heading h2.ant-typography {
+  margin-bottom: 8px;
+  font-size: clamp(22px, 3cqi, 26px);
+  letter-spacing: -.025em;
+}
+
+.settings-content--browser .settings-content__heading p.ant-typography {
+  max-width: 680px;
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+}
+
+.settings-content--browser .settings-group > h3 {
+  margin-bottom: var(--settings-browser-group-title-gap);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-md);
+  font-weight: 650;
+}
+
+.settings-content--browser .settings-group__rows {
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.settings-content--browser > .settings-group:first-of-type .settings-group__rows {
+  overflow: hidden;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 16px;
+  background: var(--settings-panel-background);
+}
+
+.settings-content--browser .settings-row + .settings-row {
+  border-top-color: var(--color-border-subtle);
+}
+
+.settings-content--browser > .settings-group:not(:first-of-type) .settings-row:last-child {
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.settings-content--browser .settings-row__copy {
+  gap: 5px;
+}
+
+.settings-content--browser .settings-row__copy strong {
+  font-size: var(--font-size-sm);
+  font-weight: 650;
+}
+
+.settings-content--browser .settings-row__copy > span {
+  max-width: 600px;
+  font-size: var(--font-size-xs);
+  line-height: 1.55;
+}
+
+.settings-content--browser .settings-row__control > .ant-select {
+  width: min(100%, var(--settings-browser-control-width));
+}
+
+.settings-browser-history__list {
+  display: grid;
+  max-height: min(60vh, 480px);
+  overflow: auto;
+}
+
+.settings-browser-history__item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.settings-browser-history__details {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.settings-browser-history__details > .ant-typography {
+  min-width: 0;
+}
+
+.settings-browser-history__list--spaced,
+.settings-browser-permissions__empty {
+  margin-block-start: 16px;
+}
+
+.settings-browser-permissions__form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(110px, 0.55fr) minmax(90px, 0.4fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-browser-permissions__form > .ant-select {
+  min-width: 0;
+}
+
+.settings-browser-credentials__form {
+  display: grid;
+  gap: 10px;
+}
+
+.settings-browser-credentials__form > .ant-typography {
+  margin-block-end: 4px;
+  line-height: 1.55;
+}
+
+.settings-browser-credentials__provider {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 240px);
+  align-items: center;
+  gap: 12px;
+  padding-block: 8px;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.settings-browser-modal .ant-modal-content {
+  display: flex;
+  max-height: calc(100dvh - 32px);
+  flex-direction: column;
+}
+
+.settings-browser-modal .ant-modal-body {
+  min-height: 0;
+  overflow: auto;
+}
+
+@container settings-browser (max-width: 620px) {
+  .settings-content--browser {
+    gap: var(--settings-browser-section-gap-compact);
+  }
+
+  .settings-content--browser .settings-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--settings-browser-row-gap-compact);
+  }
+
+  .settings-content--browser .settings-row__control {
+    align-items: flex-start;
+  }
+
+  .settings-content--browser .settings-row__control > .ant-select {
+    width: min(100%, var(--settings-browser-control-width-compact));
+  }
+
+  .settings-content--browser .settings-row__control > small {
+    text-align: left;
+  }
+}
+
+@media (max-width: 640px) {
+  .settings-browser-permissions__form {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .settings-browser-permissions__form > .ant-input {
+    grid-column: 1 / -1;
+  }
+
+  .settings-browser-credentials__provider {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-browser-history__item {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: flex-start;
+  }
 }
 
 .settings-content__heading {
@@ -2350,11 +2555,6 @@
 }
 
 @media (max-width: 900px) {
-  .settings-page {
-    --settings-page-padding-block: 26px; /* 中等视口统一收紧设置页上下留白。 */
-    --settings-page-padding-inline: 20px; /* 中等视口统一设置页左右留白。 */
-  }
-
   .ai-provider-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -2405,17 +2605,6 @@
 
   .settings-sidebar__account {
     display: none;
-  }
-
-  .settings-page {
-    --settings-page-padding-block: 20px; /* 窄屏统一设置页上下留白。 */
-    --settings-page-padding-inline: 14px; /* 窄屏统一设置页左右留白。 */
-    --settings-row-inline-padding: 14px; /* 窄屏设置行内容和底部操作栏共用紧凑左右内缩。 */
-    --settings-row-padding: 14px; /* 窄屏所有设置行使用相同的紧凑内边距。 */
-    --settings-row-gap: 12px; /* 窄屏行内说明与控件改为纵向排列并共用间距。 */
-    --settings-control-min-width: 0px; /* 窄屏取消设置控件列的桌面最小宽度。 */
-    --settings-control-width: 100%; /* 窄屏表单控件统一占满行内可用宽度。 */
-    --settings-background-card-height: 90px; /* 窄屏背景卡片使用共同的紧凑最小高度。 */
   }
 
   .settings-row {
@@ -2480,8 +2669,9 @@
   display: flex;
   min-height: 0;
   flex-direction: column;
-  width: 100%;
-  max-width: none;
+  /* 设置中心内的扩展页与其他分类共用居中正文列；独立插件工作区由宿主规则保留全宽。 */
+  width: min(100%, var(--settings-content-max-width));
+  max-width: var(--settings-content-max-width);
   gap: clamp(18px, 2vw, 26px);
   font-family: var(--settings-interface-font, var(--font-family-sans));
 }
@@ -3805,5 +3995,100 @@
 
   .settings-profile-plugins__category-count {
     display: none;
+  }
+}
+
+.settings-content--parental .settings-parental__window-controls {
+  display: grid;
+  grid-template-columns: auto minmax(6rem, 1fr) auto minmax(6rem, 1fr);
+  align-items: center;
+  gap: var(--space-2);
+  width: min(100%, 28rem);
+}
+
+.settings-content--parental .settings-parental__window-controls .ant-input {
+  min-width: 0;
+}
+
+@container settings-main (max-width: 620px) {
+  .settings-content--parental .settings-parental__window-controls {
+    grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr);
+  }
+}
+
+@container settings-main (max-width: 360px) {
+  .settings-content--parental .settings-parental__window-controls {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+.settings-content--account-snapshots .settings-snapshot-info {
+  margin-bottom: 18px;
+}
+
+.settings-snapshot-file {
+  position: relative;
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.settings-snapshot-file input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.settings-snapshot-create {
+  width: min(100%, 460px);
+}
+
+.settings-snapshot-empty {
+  padding: 18px;
+  color: var(--color-text-secondary);
+}
+
+.settings-snapshot-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 16px 16px;
+}
+
+.settings-snapshot-result {
+  margin-top: 16px;
+}
+
+.settings-trusted-contact-accept {
+  width: min(100%, 30rem);
+}
+
+@media (max-width: 560px) {
+  .settings-trusted-contact-accept {
+    width: 100%;
+  }
+  .settings-content--account-snapshots .settings-row__control {
+    width: 100%;
+    align-items: flex-start;
+  }
+  .settings-snapshot-create {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .settings-snapshot-create .ant-input,
+  .settings-snapshot-create .ant-btn {
+    width: 100%;
+    border-radius: 8px;
   }
 }

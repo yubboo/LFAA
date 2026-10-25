@@ -1,0 +1,24 @@
+{
+  "name": "lfaa-api-attachment-controller",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "4.0.4",
+    "express": "^4.0.0",
+    "joi": "^17.0.0",
+    "lfaa-api-gateway": "workspace:*",
+    "lfaa-api-remotes": "workspace:*",
+    "lfaa-attachment": "workspace:*",
+    "lfaa-authorization": "workspace:*",
+    "lfaa-util-values": "workspace:*"
+  },
+  "scripts": {
+    "build": "node ../../../scripts/build-harness.mjs package"
+  }
+}

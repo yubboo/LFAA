@@ -6,8 +6,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const chatSource = readFileSync(new URL("../../../packages/client/ui-chat/src/AiWorkChat.tsx", import.meta.url), "utf8");
-const chatStyles = readFileSync(new URL("../../../packages/client/ui-chat/src/ai-work-chat.css", import.meta.url), "utf8");
+const chatSource = readFileSync(new URL("../../../packages/client/ui-chat/src/AiWorkChat.tsx", import.meta.url), "utf8").replace(/\r\n/gu, "\n");
+const chatStyles = readFileSync(new URL("../../../packages/client/ui-chat/src/ai-work-chat.css", import.meta.url), "utf8").replace(/\r\n/gu, "\n");
 const branchModalStart = chatSource.indexOf('<Modal\n          className="ai-work-chat__branch-modal"');
 const branchModalEnd = chatSource.indexOf("</Modal>", branchModalStart);
 const branchModal = chatSource.slice(branchModalStart, branchModalEnd);

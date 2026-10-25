@@ -5,7 +5,7 @@
   --lfaa-right-size: 18rem; /* 桌面右侧栏展开宽度；拖拽状态会由布局控制器覆盖。 */
   --lfaa-left-column: var(--lfaa-left-size); /* 左侧栏实际 Grid 列宽，默认跟随展开宽度。 */
   --lfaa-right-column: var(--lfaa-right-size); /* 右侧栏实际 Grid 列宽，默认跟随展开宽度。 */
-  --lfaa-center-column: minmax(0, 1fr); /* 中间聊天列宽；常态占剩余空间，拖动吸附预览可用像素值暂留最小宽或归零，标签收起时为 0。 */
+  --lfaa-center-column: minmax(0, 1fr); /* 中间聊天列宽；展开为1fr、收起为同结构的0fr，使右栏边界可平滑过渡；拖动吸附预览可暂用像素宽。 */
   --lfaa-bottom-size: 15rem; /* 底部 Terminal Dock 展开高度。 */
   --lfaa-bottom-row: 0px; /* 底部 Dock 当前占用的 Grid 行高；关闭时为 0。 */
   --lfaa-handle-width: 1px; /* 左右分隔器只绘制一像素边线，实际拖动热区由伪元素向两侧扩展。 */
@@ -33,7 +33,7 @@
   min-height: 0;
   overflow: hidden;
   transition:
-    grid-template-columns var(--lfaa-snap-settle-duration) cubic-bezier(.16, .82, .24, 1),
+    grid-template-columns var(--lfaa-snap-settle-duration) cubic-bezier(.42, 0, .58, 1),
     grid-template-rows var(--lfaa-snap-settle-duration) cubic-bezier(.16, .82, .24, 1);
 }
 

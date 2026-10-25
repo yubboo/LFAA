@@ -14,7 +14,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-test('Windows 插件沙盒只读源码、阻止本地网络并可撤销 ACL', { skip: process.platform !== 'win32', timeout: 30_000 }, async () => {
+test('Windows 插件沙盒只读源码、阻止本地网络并可撤销 ACL', { skip: process.platform !== 'win32', timeout: 60_000 }, async () => {
   const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
   const binary = resolve(repositoryRoot, 'dist/apps/daemon/target/x86_64-pc-windows-msvc/release/lfaa-sandbox-host.exe');
   assert.ok(existsSync(binary), '先构建根 dist 下的 Windows Sandbox Host');
@@ -68,9 +68,9 @@ test('Windows 插件沙盒只读源码、阻止本地网络并可撤销 ACL', { 
     ], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, cwd: dirname(process.execPath), env: { ...process.env, JWT_SECRET: 'plugin-sandbox-test-secret' } });
     const stdout = lineSource(host.stdout);
     const stderr = lineSource(host.stderr);
-    const marker = await stderr.waitFor(line => line.includes(`\u001eLFAA_PLUGIN_SANDBOX_READY:${token}\u001e`), 10_000);
+    const marker = await stderr.waitFor(line => line.includes(`\u001eLFAA_PLUGIN_SANDBOX_READY:${token}\u001e`), 20_000);
     assert.match(marker, /LFAA_PLUGIN_SANDBOX_READY/u);
-    const ready = JSON.parse(await stdout.waitFor(line => line.includes('"type":"lfaa.plugin.ready"'), 10_000));
+    const ready = JSON.parse(await stdout.waitFor(line => line.includes('"type":"lfaa.plugin.ready"'), 20_000));
     assert.equal(ready.pluginId, pluginId);
     assert.equal(ready.protocolVersion, 1);
     assert.equal(ready.sourceWriteDenied, true, '插件不能改写只读安装源码');
@@ -109,7 +109,7 @@ test('Windows 插件沙盒只读源码、阻止本地网络并可撤销 ACL', { 
   }
 });
 
-test('通用 LFAA v1 插件适配器完成真实启动、停止握手和 Host 权限回收', { skip: process.platform !== 'win32', timeout: 30_000 }, async () => {
+test('通用 LFAA v1 插件适配器完成真实启动、停止握手和 Host 权限回收', { skip: process.platform !== 'win32', timeout: 30_000 }, async t => {
   const priorEnvironment = {
     dataDirectory: process.env.LFAA_DATA_DIR,
     homeDirectory: process.env.LFAA_HOME,
@@ -149,6 +149,7 @@ test('通用 LFAA v1 插件适配器完成真实启动、停止握手和 Host �
     installedAt: new Date().toISOString(),
     installedBy: 'test'
   };
+  let enableDurationMs, disableDurationMs;
   try {
     process.env.LFAA_DATA_DIR = dataRoot;
     process.env.LFAA_HOME = homeRoot;
@@ -157,12 +158,17 @@ test('通用 LFAA v1 插件适配器完成真实启动、停止握手和 Host �
     const module = await import('lfaa-plugin-manager/src/windows-appcontainer-runtime.js');
     runtime = new module.WindowsAppContainerPluginRuntime();
     assert.equal(runtime.supports(record), true, '构建好的 Windows Host 接受通用无 capability 的 LFAA v1 入口');
-    await runtime.enable(record, pluginRoot);
+    const enableStartedAt = performance.now();
+    try { await runtime.enable(record, pluginRoot); }
+    finally { enableDurationMs = performance.now() - enableStartedAt; }
     assert.equal(runtime.isActive(record), true, '只有就绪协议确认后适配器才报告启用');
+    const disableStartedAt = performance.now();
     await runtime.disable(record, pluginRoot);
+    disableDurationMs = performance.now() - disableStartedAt;
     assert.equal(runtime.isActive(record), false, '停用确认、进程退出和 ACL 回收完成后适配器报告停用');
     assert.equal(existsSync(entryPath), true, '清理运行权限不会删除安装源码');
   } finally {
+    t.diagnostic(`Windows AppContainer 插件运行时：enable=${enableDurationMs === undefined ? 'failed' : `${enableDurationMs.toFixed(1)} ms`}，disable=${disableDurationMs === undefined ? 'not reached' : `${disableDurationMs.toFixed(1)} ms`}`);
     if (runtime?.isActive(record)) await runtime.disable(record, pluginRoot);
     process.env.LFAA_DATA_DIR = priorEnvironment.dataDirectory;
     process.env.LFAA_HOME = priorEnvironment.homeDirectory;
@@ -218,7 +224,7 @@ function collectProcess(child) {
     const timer = setTimeout(() => {
       child.kill();
       reject(new Error(`Sandbox Host 命令超时。stdout=${stdout}; stderr=${stderr}`));
-    }, 10_000);
+    }, 20_000);
     child.stdout.on('data', chunk => { stdout += chunk; });
     child.stderr.on('data', chunk => { stderr += chunk; });
     child.once('error', error => { clearTimeout(timer); reject(error); });

@@ -72,6 +72,23 @@
       }
     },
     {
+      "path": "packages/api/attachment-controller",
+      "name": "lfaa-api-attachment-controller",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented",
+      "responsibility": "附件上传、清单与元数据的认证 API，只调用附件 Owner",
+      "evidence": {
+        "entry": "packages/api/attachment-controller/src/index.ts",
+        "readme": "packages/api/attachment-controller/README.md",
+        "consumers": [],
+        "bundleDeclarations": [
+          "packages/bundle/web-app/cordis.patch.yml"
+        ],
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
+      }
+    },
+    {
       "path": "packages/api/browser-controller",
       "name": "lfaa-api-browser-controller",
       "upstreamName": null,
@@ -84,6 +101,23 @@
         "consumers": [],
         "bundleDeclarations": [
           "packages/bundle/desktop-computer-use/cordis.patch.yml"
+        ],
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
+      }
+    },
+    {
+      "path": "packages/api/canvas-controller",
+      "name": "lfaa-api-canvas-controller",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented",
+      "responsibility": "无限画布项目、节点图与素材的认证 API",
+      "evidence": {
+        "entry": "packages/api/canvas-controller/src/index.ts",
+        "readme": "packages/api/canvas-controller/README.md",
+        "consumers": [],
+        "bundleDeclarations": [
+          "packages/bundle/web-app/cordis.patch.yml"
         ],
         "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
       }
@@ -117,6 +151,7 @@
         "readme": "packages/api/gateway/README.md",
         "consumers": [
           "packages/api/account-controller",
+          "packages/api/attachment-controller",
           "packages/api/browser-controller",
           "packages/api/connectivity-controller",
           "packages/api/job-controller",
@@ -257,6 +292,7 @@
           "packages/api/account-controller",
           "packages/api/agent-git-controller",
           "packages/api/ai-video-controller",
+          "packages/api/attachment-controller",
           "packages/api/browser-controller",
           "packages/api/connectivity-controller",
           "packages/api/gateway",
@@ -431,32 +467,40 @@
     },
     {
       "path": "packages/attachment/attachment",
-      "name": null,
+      "name": "lfaa-attachment",
       "upstreamName": "@deepseek-ai/dsh-attachment",
       "upstream": true,
-      "status": "placeholder",
-      "responsibility": "附件描述、引用及模型输入装配合同",
+      "status": "implemented",
+      "responsibility": "附件媒体类型、大小上限、名称与摘要规则的唯一 Owner，不持有文件",
       "evidence": {
-        "entry": null,
-        "readme": null,
-        "consumers": [],
+        "entry": "packages/attachment/attachment/src/index.ts",
+        "readme": "packages/attachment/attachment/README.md",
+        "consumers": [
+          "packages/api/attachment-controller",
+          "packages/attachment/attachment-local",
+          "packages/core/agent-loop",
+          "packages/fs/tool-fs",
+          "packages/llm/llm"
+        ],
         "bundleDeclarations": [],
-        "boundary": "目标职责；占位不可执行"
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
       }
     },
     {
       "path": "packages/attachment/attachment-local",
-      "name": null,
+      "name": "lfaa-attachment-local",
       "upstreamName": "@deepseek-ai/dsh-attachment-local",
       "upstream": true,
-      "status": "placeholder",
-      "responsibility": "本机附件来源读取和资源适配",
+      "status": "implemented",
+      "responsibility": "本机附件存储提供方，按账户隔离、原子写入并在读取时重验摘要",
       "evidence": {
-        "entry": null,
-        "readme": null,
+        "entry": "packages/attachment/attachment-local/src/index.ts",
+        "readme": "packages/attachment/attachment-local/README.md",
         "consumers": [],
-        "bundleDeclarations": [],
-        "boundary": "目标职责；占位不可执行"
+        "bundleDeclarations": [
+          "packages/bundle/base/cordis.patch.yml"
+        ],
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
       }
     },
     {
@@ -560,7 +604,7 @@
       "upstreamName": null,
       "upstream": false,
       "status": "implemented",
-      "responsibility": "项目 Skill 来源核验、Daemon 原子安装与发现回读",
+      "responsibility": "账户共享 Skill 来源核验、Knowledge Library 原子安装与 Skill Registry 回读",
       "evidence": {
         "entry": "packages/boot/capability-skill/src/index.ts",
         "readme": "packages/boot/capability-skill/README.md",
@@ -796,6 +840,25 @@
       }
     },
     {
+      "path": "packages/canvas/canvas",
+      "name": "lfaa-canvas",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented",
+      "responsibility": "无限画布项目、节点图与素材的账户隔离唯一 Owner，不执行生成工作流",
+      "evidence": {
+        "entry": "packages/canvas/canvas/src/index.ts",
+        "readme": "packages/canvas/canvas/README.md",
+        "consumers": [
+          "packages/api/canvas-controller"
+        ],
+        "bundleDeclarations": [
+          "packages/bundle/web-app/cordis.patch.yml"
+        ],
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
+      }
+    },
+    {
       "path": "packages/client/connection",
       "name": "lfaa-client-connection",
       "upstreamName": "@deepseek-ai/dsh-client-connection",
@@ -832,17 +895,17 @@
     },
     {
       "path": "packages/client/file-upload",
-      "name": null,
+      "name": "lfaa-client-file-upload",
       "upstreamName": "@deepseek-ai/dsh-client-file-upload",
       "upstream": true,
-      "status": "placeholder",
+      "status": "implemented",
       "responsibility": "客户端文件上传协议与进度交互",
       "evidence": {
-        "entry": null,
-        "readme": null,
+        "entry": "packages/client/file-upload/src/index.ts",
+        "readme": "packages/client/file-upload/README.md",
         "consumers": [],
         "bundleDeclarations": [],
-        "boundary": "目标职责；占位不可执行"
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
       }
     },
     {
@@ -2220,7 +2283,8 @@
         "readme": "packages/core/conversation-memory/README.md",
         "consumers": [
           "packages/api/settings-controller",
-          "packages/core/agent-loop"
+          "packages/core/agent-loop",
+          "packages/settings/settings-snapshots"
         ],
         "bundleDeclarations": [],
         "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
@@ -2266,6 +2330,7 @@
           "packages/core/agent-loop",
           "packages/sdk/sdk-protocol",
           "packages/session-query/tool-session-query",
+          "packages/settings/settings-snapshots",
           "packages/subagent/tool-subagent",
           "packages/subagent/tool-subagent-control"
         ],
@@ -2287,6 +2352,7 @@
         "readme": "packages/core/system-prompt/README.md",
         "consumers": [
           "packages/llm/llm",
+          "packages/preset/persona",
           "packages/prompt/prompt",
           "packages/skill/tool-skill"
         ],
@@ -2307,7 +2373,6 @@
         "consumers": [
           "packages/boot/capability-installs",
           "packages/boot/capability-mcp",
-          "packages/boot/capability-skill",
           "packages/boot/knowledge-library",
           "packages/browser-use/browser-use",
           "packages/computer-use/computer-use",
@@ -2319,6 +2384,7 @@
           "packages/games/tool-minecraft",
           "packages/games/tool-runtime",
           "packages/games/tool-steamcmd",
+          "packages/host/tool-daemon",
           "packages/interaction/tool-ask-user",
           "packages/mcp/mcp-client",
           "packages/prompt/prompt",
@@ -2354,7 +2420,9 @@
           "packages/api/account-controller",
           "packages/api/agent-git-controller",
           "packages/api/ai-video-controller",
+          "packages/api/attachment-controller",
           "packages/api/browser-controller",
+          "packages/api/canvas-controller",
           "packages/api/connectivity-controller",
           "packages/api/gateway",
           "packages/api/github-connection-controller",
@@ -2407,6 +2475,7 @@
         "readme": "packages/credentials/credentials/README.md",
         "consumers": [
           "packages/api/agent-git-controller",
+          "packages/browser-use/browser-use",
           "packages/core/agent-default-model",
           "packages/credentials/credential-flows",
           "packages/integrations/github",
@@ -3361,6 +3430,7 @@
           "packages/games/steamcmd",
           "packages/games/tool-minecraft",
           "packages/games/tool-steamcmd",
+          "packages/host/tool-daemon",
           "packages/jobs/jobs"
         ],
         "bundleDeclarations": [
@@ -3547,6 +3617,23 @@
       }
     },
     {
+      "path": "packages/host/tool-daemon",
+      "name": "lfaa-tool-daemon",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented",
+      "responsibility": "本机托管节点的状态读取与受控启停工具，只调用启动器 supervisor",
+      "evidence": {
+        "entry": "packages/host/tool-daemon/src/index.ts",
+        "readme": "packages/host/tool-daemon/README.md",
+        "consumers": [],
+        "bundleDeclarations": [
+          "packages/bundle/base/cordis.patch.yml"
+        ],
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
+      }
+    },
+    {
       "path": "packages/host/webserver",
       "name": "lfaa-host-webserver",
       "upstreamName": "@deepseek-ai/dsh-host-webserver",
@@ -3587,12 +3674,13 @@
       "responsibility": "账户身份、认证和账户隔离权威",
       "evidence": {
         "entry": "packages/identity/auth/src/index.ts",
-        "readme": null,
+        "readme": "packages/identity/auth/README.md",
         "consumers": [
           "packages/api/account-controller",
           "packages/api/gateway",
           "packages/api/remotes",
           "packages/api/session-controller",
+          "packages/api/settings-controller",
           "packages/core/agent-loop",
           "packages/core/tools",
           "packages/credentials/authorization",
@@ -3792,6 +3880,7 @@
         "readme": "packages/knowledge/knowledge-library/README.md",
         "consumers": [
           "packages/api/knowledge-controller",
+          "packages/boot/capability-skill",
           "packages/boot/knowledge-library"
         ],
         "bundleDeclarations": [],
@@ -4184,17 +4273,19 @@
     },
     {
       "path": "packages/preset/persona",
-      "name": null,
+      "name": "lfaa-persona",
       "upstreamName": "@deepseek-ai/dsh-persona",
       "upstream": true,
-      "status": "placeholder",
-      "responsibility": "可选 Agent 人格配置与指引",
+      "status": "implemented",
+      "responsibility": "小鱼核心身份、四个真实领域地图与领域工作约定的唯一正文 Owner，只向系统提示词登记",
       "evidence": {
-        "entry": null,
-        "readme": null,
+        "entry": "packages/preset/persona/src/index.ts",
+        "readme": "packages/preset/persona/README.md",
         "consumers": [],
-        "bundleDeclarations": [],
-        "boundary": "目标职责；占位不可执行"
+        "bundleDeclarations": [
+          "packages/bundle/base/cordis.patch.yml"
+        ],
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
       }
     },
     {
@@ -4304,6 +4395,8 @@
         "entry": "packages/sandbox/sandbox/src/index.ts",
         "readme": "packages/sandbox/sandbox/README.md",
         "consumers": [
+          "packages/host/daemon",
+          "packages/sandbox/sandbox-windows-acl",
           "packages/shell/bash-sandbox",
           "packages/shell/pwsh-sandbox",
           "packages/shell/shell"
@@ -4338,10 +4431,13 @@
         "entry": "packages/sandbox/sandbox-policy/src/index.ts",
         "readme": "packages/sandbox/sandbox-policy/README.md",
         "consumers": [
+          "packages/host/daemon",
           "packages/sandbox/sandbox",
+          "packages/sandbox/sandbox-windows-acl",
           "packages/shell/bash-sandbox",
           "packages/shell/pwsh-sandbox",
-          "packages/shell/shell"
+          "packages/shell/shell",
+          "packages/shell/tool-shell"
         ],
         "bundleDeclarations": [],
         "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
@@ -4349,17 +4445,21 @@
     },
     {
       "path": "packages/sandbox/sandbox-windows-acl",
-      "name": null,
+      "name": "lfaa-sandbox-windows-acl",
       "upstreamName": "@deepseek-ai/dsh-sandbox-windows-acl",
       "upstream": true,
-      "status": "placeholder",
+      "status": "implemented",
       "responsibility": "Windows ACL 隔离执行提供方",
       "evidence": {
-        "entry": null,
-        "readme": null,
-        "consumers": [],
-        "bundleDeclarations": [],
-        "boundary": "目标职责；占位不可执行"
+        "entry": "packages/sandbox/sandbox-windows-acl/src/index.ts",
+        "readme": "packages/sandbox/sandbox-windows-acl/README.md",
+        "consumers": [
+          "packages/host/daemon"
+        ],
+        "bundleDeclarations": [
+          "packages/bundle/base/cordis.patch.yml"
+        ],
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
       }
     },
     {
@@ -4904,8 +5004,10 @@
           "packages/api/steamcmd-controller",
           "packages/api/terminal-controller",
           "packages/api/workspace-controller",
+          "packages/attachment/attachment-local",
           "packages/boot/capability-mcp",
           "packages/boot/capability-prompt",
+          "packages/boot/capability-skill",
           "packages/boot/plugin-manager",
           "packages/browser-use/browser-use",
           "packages/compaction/compaction-basic",
@@ -4930,6 +5032,7 @@
           "packages/llm/llm-moss-image",
           "packages/mcp/mcp-client",
           "packages/prompt/prompt",
+          "packages/settings/settings-snapshots",
           "packages/shell/tool-shell",
           "packages/skill/tool-skill",
           "packages/subagent/tool-subagent",
@@ -4941,6 +5044,24 @@
         "bundleDeclarations": [
           "packages/bundle/base/cordis.patch.yml"
         ],
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
+      }
+    },
+    {
+      "path": "packages/settings/settings-snapshots",
+      "name": "lfaa-settings-snapshots",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented",
+      "responsibility": "账户设置、会话记忆与公开会话的版本化快照和安全归档 Owner",
+      "evidence": {
+        "entry": "packages/settings/settings-snapshots/src/index.ts",
+        "readme": "packages/settings/settings-snapshots/README.md",
+        "consumers": [
+          "packages/api/settings-controller",
+          "packages/core/tools"
+        ],
+        "bundleDeclarations": [],
         "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
       }
     },
@@ -4972,7 +5093,7 @@
       "responsibility": "隔离 Bash Shell 提供方",
       "evidence": {
         "entry": "packages/shell/bash-sandbox/src/index.ts",
-        "readme": null,
+        "readme": "packages/shell/bash-sandbox/README.md",
         "consumers": [],
         "bundleDeclarations": [
           "packages/bundle/base/cordis.patch.yml"
@@ -5008,7 +5129,7 @@
       "responsibility": "隔离 PowerShell 提供方",
       "evidence": {
         "entry": "packages/shell/pwsh-sandbox/src/index.ts",
-        "readme": null,
+        "readme": "packages/shell/pwsh-sandbox/README.md",
         "consumers": [],
         "bundleDeclarations": [
           "packages/bundle/base/cordis.patch.yml"
@@ -5027,6 +5148,7 @@
         "entry": "packages/shell/shell/src/index.ts",
         "readme": "packages/shell/shell/README.md",
         "consumers": [
+          "packages/host/daemon",
           "packages/shell/bash-local",
           "packages/shell/bash-sandbox",
           "packages/shell/pwsh-local",
@@ -5181,6 +5303,8 @@
         "consumers": [
           "packages/api/settings-controller",
           "packages/boot/app-boot",
+          "packages/boot/capability-skill",
+          "packages/boot/knowledge-library",
           "packages/skill/minecraft",
           "packages/skill/rea",
           "packages/skill/skill-filesystem",
@@ -5306,6 +5430,8 @@
         "entry": "packages/spill/spill/src/index.ts",
         "readme": null,
         "consumers": [
+          "packages/boot/app-boot",
+          "packages/core/agent-loop",
           "packages/spill/spill-local",
           "packages/spill/spill-policy"
         ],
@@ -5322,7 +5448,7 @@
       "responsibility": "本机大结果留存提供方",
       "evidence": {
         "entry": "packages/spill/spill-local/src/index.ts",
-        "readme": null,
+        "readme": "packages/spill/spill-local/README.md",
         "consumers": [],
         "bundleDeclarations": [
           "packages/bundle/base/cordis.patch.yml"
@@ -5340,7 +5466,9 @@
       "evidence": {
         "entry": "packages/spill/spill-policy/src/index.ts",
         "readme": null,
-        "consumers": [],
+        "consumers": [
+          "packages/core/agent-loop"
+        ],
         "bundleDeclarations": [],
         "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
       }
@@ -5476,6 +5604,7 @@
         "consumers": [
           "packages/boot/app-boot",
           "packages/boot/plugin-manager",
+          "packages/canvas/canvas",
           "packages/document/writing",
           "packages/knowledge/knowledge-library",
           "packages/network/game-connectivity",
@@ -5520,6 +5649,7 @@
           "packages/schedule/schedule",
           "packages/session/session-persistence-jsonl",
           "packages/settings/settings",
+          "packages/settings/settings-snapshots",
           "packages/storage/storage-domain",
           "packages/video/ai-video",
           "packages/workflow/workflow",
@@ -5578,7 +5708,7 @@
       "responsibility": "Claude Code 外部 Agent 驱动",
       "evidence": {
         "entry": "packages/subagent/subagent-claude-code/src/index.ts",
-        "readme": null,
+        "readme": "packages/subagent/subagent-claude-code/README.md",
         "consumers": [],
         "bundleDeclarations": [
           "packages/bundle/base/cordis.patch.yml"
@@ -5595,7 +5725,7 @@
       "responsibility": "Codex 外部 Agent 驱动",
       "evidence": {
         "entry": "packages/subagent/subagent-codex/src/index.ts",
-        "readme": null,
+        "readme": "packages/subagent/subagent-codex/README.md",
         "consumers": [],
         "bundleDeclarations": [
           "packages/bundle/base/cordis.patch.yml"
@@ -5751,6 +5881,8 @@
         "entry": "packages/subprocess/win32-process/src/index.ts",
         "readme": null,
         "consumers": [
+          "packages/mcp/mcp-client",
+          "packages/subagent/subagent",
           "packages/subprocess/subprocess-local"
         ],
         "bundleDeclarations": [
@@ -5843,7 +5975,7 @@
       "responsibility": "模型终端会话工具与真实节点任务适配",
       "evidence": {
         "entry": "packages/terminal/tool-terminal/src/index.ts",
-        "readme": null,
+        "readme": "packages/terminal/tool-terminal/README.md",
         "consumers": [],
         "bundleDeclarations": [
           "packages/bundle/base/cordis.patch.yml"
@@ -6162,6 +6294,9 @@
         "entry": "packages/util/home-paths/src/index.mjs",
         "readme": "packages/util/home-paths/README.md",
         "consumers": [
+          "packages/attachment/attachment-local",
+          "packages/browser-use/browser-use",
+          "packages/canvas/canvas",
           "packages/document/writing",
           "packages/fs/fs",
           "packages/games/minecraft",
@@ -6173,7 +6308,9 @@
           "packages/llm/llm-minimax-h3",
           "packages/llm/llm-moss-image",
           "packages/network/game-connectivity",
+          "packages/sandbox/sandbox-windows-acl",
           "packages/settings/settings",
+          "packages/spill/spill-local",
           "packages/storage/storage-domain",
           "packages/util/launch-environment",
           "packages/video/ai-video",
@@ -6213,6 +6350,7 @@
           "packages/api/settings-controller",
           "packages/api/workspace-files",
           "packages/boot/app-boot",
+          "packages/boot/capability-mcp",
           "packages/boot/hmr",
           "packages/boot/plugin-manager",
           "packages/browser-use/browser-use",
@@ -6229,6 +6367,7 @@
           "packages/knowledge/knowledge-library",
           "packages/mcp/mcp-client",
           "packages/network/game-connectivity",
+          "packages/sandbox/sandbox-windows-acl",
           "packages/session/session-persistence-jsonl",
           "packages/settings/settings",
           "packages/shell/tool-shell",
@@ -6350,7 +6489,9 @@
           "packages/api/account-controller",
           "packages/api/agent-git-controller",
           "packages/api/ai-video-controller",
+          "packages/api/attachment-controller",
           "packages/api/browser-controller",
+          "packages/api/canvas-controller",
           "packages/api/connectivity-controller",
           "packages/api/github-connection-controller",
           "packages/api/job-controller",
@@ -6371,6 +6512,7 @@
           "packages/boot/capability-installs",
           "packages/boot/capability-mcp",
           "packages/boot/capability-prompt",
+          "packages/boot/capability-skill",
           "packages/boot/knowledge-library",
           "packages/boot/plugin-manager",
           "packages/browser-use/browser-use",
@@ -6401,6 +6543,8 @@
           "packages/games/tool-minecraft",
           "packages/games/tool-runtime",
           "packages/games/tool-steamcmd",
+          "packages/host/daemon",
+          "packages/host/tool-daemon",
           "packages/host/webserver",
           "packages/identity/auth",
           "packages/interaction/tool-ask-user",
@@ -6411,6 +6555,7 @@
           "packages/network/game-connectivity",
           "packages/preset/agent-preset",
           "packages/prompt/prompt",
+          "packages/sandbox/sandbox-policy",
           "packages/schedule/schedule",
           "packages/sdk/sdk-protocol",
           "packages/session-query/tool-session-query",

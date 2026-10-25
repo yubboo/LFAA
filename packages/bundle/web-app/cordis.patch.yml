@@ -10,6 +10,9 @@
     - id: api-writing-controller
       name: lfaa-api-writing-controller
       inject: [apiGateway]
+    - id: api-attachment-controller
+      name: lfaa-api-attachment-controller
+      inject: [apiGateway, lfaaAttachments]
     - id: api-knowledge-controller
       name: lfaa-api-knowledge-controller
       inject: [apiGateway]
@@ -43,6 +46,12 @@
     - id: tool-ai-video
       name: lfaa-video-tool-ai-video
       inject: [lfaaAiVideo, lfaaTools]
+    - id: canvas
+      name: lfaa-canvas
+      inject: []
+    - id: api-canvas-controller
+      name: lfaa-api-canvas-controller
+      inject: [apiGateway, lfaaCanvas]
     - id: api-settings-controller
       name: lfaa-api-settings-controller
       inject: [apiGateway]

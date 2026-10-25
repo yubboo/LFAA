@@ -8,7 +8,7 @@ import { createSnapshotCache } from "lfaa-client-store/src/snapshot-cache.js";
 import { Alert, Button, Dropdown, Empty, Input, Modal, Popover, Select, Space, Spin, Table, Tag, Tree, Typography, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import type { DataNode, EventDataNode } from "antd/es/tree";
-import { getErrorMessage, loadSystemFileAudit, loadFileResourceLocations, operateSystemFiles, downloadSystemFile, uploadSystemFile, type ApplicationId, type FileManagerAuditEntry, type FileManagerOperation, type ManagedFileEntry, type FileResourceLocation, type User, type UserSettings } from "lfaa-client-connection/src/api.js";
+import { getErrorMessage, loadSystemFileAudit, loadFileResourceLocations, operateSystemFiles, downloadSystemFile, downloadFileTransfer, maximumNodeFileTransferBytes, uploadSystemFile, type ApplicationId, type FileManagerAuditEntry, type FileManagerOperation, type ManagedFileEntry, type FileResourceLocation, type User, type UserSettings } from "lfaa-client-connection/src/api.js";
 import type { ServiceState } from "lfaa-client-ui-primitives/src/ServiceStatus.js";
 import { GlobalNavigationRail, type ApplicationNavigationItem } from "lfaa-client-ui-sidebar/src/GlobalNavigationRail.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
@@ -27,6 +27,21 @@ interface FileManagerSnapshot {
 }
 
 const fileManagerSnapshots = createSnapshotCache<FileManagerSnapshot>();
+
+const resourceEnglishNames: Record<string, string> = {
+  data: "Data",
+  "game-instances": "Game Instances",
+  "game-storage": "Game Storage",
+  "game-servers": "Node Resources",
+  knowledge: "My Library",
+  backups: "Backups",
+  environments: "Runtime Environments",
+  lib: "Tools",
+  logs: "Logs",
+  cache: "Cache",
+  tmp: "Temporary Files",
+  "local-drives": "Local Drives"
+};
 
 interface FileManagerPageProps {
   user: User;
@@ -180,7 +195,7 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, applic
   const [editorBusy, setEditorBusy] = useState(false);
   const [directorySizes, setDirectorySizes] = useState<Record<string, { totalSize: number; skippedEntries: number }>>({});
   const [calculatingDirectoryPath, setCalculatingDirectoryPath] = useState("");
-  const [preview, setPreview] = useState<{ name: string; kind: "text" | "image" | "pdf"; content?: string; mimeType?: string; dataBase64?: string } | null>(null);
+  const [preview, setPreview] = useState<{ name: string; kind: "text" | "image" | "pdf"; content?: string; mimeType?: string; dataBase64?: string; blob?: Blob } | null>(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
   const [typeFilter, setTypeFilter] = useState("all");
@@ -282,7 +297,7 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, applic
 
   const runTask = useCallback(async (
     operation: FileManagerOperation,
-    input: { path: string; query?: string; name?: string; destinationPath?: string; content?: string; dataBase64?: string; sha256?: string; expectedSha256?: string }, signal?: AbortSignal
+    input: { path: string; query?: string; name?: string; destinationPath?: string; content?: string; sha256?: string; expectedSha256?: string }, signal?: AbortSignal
   ): Promise<Record<string, unknown>> => {
     if (!isOnline) throw new Error("当前账户无权操作 data 文件。");
     const locksWorkspace = operation !== "list" && operation !== "search";
@@ -381,16 +396,19 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, applic
   }, [cacheKey]);
 
   useEffect(() => {
-    if (!preview?.dataBase64 || (preview.kind !== "image" && preview.kind !== "pdf")) {
+    if ((!preview?.dataBase64 && !preview?.blob) || (preview.kind !== "image" && preview.kind !== "pdf")) {
       setPreviewUrl("");
       return;
     }
     let url = "";
     try {
-      const binary = window.atob(preview.dataBase64);
-      const bytes = new Uint8Array(binary.length);
-      for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-      url = URL.createObjectURL(new Blob([bytes], { type: preview.mimeType ?? "application/octet-stream" }));
+      if (preview.blob) url = URL.createObjectURL(preview.blob);
+      else {
+        const binary = window.atob(preview.dataBase64!);
+        const bytes = new Uint8Array(binary.length);
+        for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+        url = URL.createObjectURL(new Blob([bytes], { type: preview.mimeType ?? "application/octet-stream" }));
+      }
       setPreviewUrl(url);
     } catch {
       setPreviewUrl("");
@@ -411,7 +429,12 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, applic
       const result = await runTask("preview", { path: entry.path });
       const kind = result.previewKind;
       if (kind !== "text" && kind !== "image" && kind !== "pdf") throw new Error("文件服务未返回受支持的预览内容。");
-      setPreview({ name: entry.name, kind, content: typeof result.content === "string" ? result.content : undefined, mimeType: typeof result.mimeType === "string" ? result.mimeType : undefined, dataBase64: typeof result.dataBase64 === "string" ? result.dataBase64 : undefined });
+      const transferId = typeof result.transferId === "string" ? result.transferId : "";
+      const receivedBlob = transferId ? await downloadFileTransfer(transferId) : undefined;
+      const blob = receivedBlob ? new Blob([receivedBlob], { type: typeof result.mimeType === "string" ? result.mimeType : "application/octet-stream" }) : undefined;
+      if ((kind === "image" || kind === "pdf") && !blob && typeof result.dataBase64 !== "string") throw new Error("文件服务没有返回预览字节传输。");
+      if (!fileAccessRef.current || accountContextRef.current !== cacheKey) return;
+      setPreview({ name: entry.name, kind, content: typeof result.content === "string" ? result.content : undefined, mimeType: typeof result.mimeType === "string" ? result.mimeType : undefined, dataBase64: typeof result.dataBase64 === "string" ? result.dataBase64 : undefined, blob });
     } catch {
       // 错误由任务提交状态统一显示；预览失败不触发编辑或下载。
     }
@@ -501,10 +524,12 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, applic
       for (const entry of selected) {
         assertFileContext();
         const result = !entry.path.startsWith(".lfaa-library/") ? null : await runTask("download", { path: entry.path });
-        if (result && typeof result.dataBase64 !== "string") throw new Error("文件服务没有返回文件内容。");
         totalBytes += entry.size;
         if (totalBytes > maximumBatchTransferBytes) throw new Error("批量下载总量不能超过 20 MiB；请分批选择。");
-        const bytes = result ? Uint8Array.from(window.atob(result.dataBase64 as string), character => character.charCodeAt(0)) : new Uint8Array(await (await downloadSystemFile(entry.path)).arrayBuffer());
+        const blob = result
+          ? typeof result.transferId === "string" ? await downloadFileTransfer(result.transferId) : (() => { throw new Error("文件服务没有返回原始文件传输。"); })()
+          : await downloadSystemFile(entry.path);
+        const bytes = new Uint8Array(await blob.arrayBuffer());
         assertFileContext();
         files.push({ path: entry.path, bytes });
       }
@@ -616,8 +641,9 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, applic
     try {
       assertFileContext();
       const result = !entry.path.startsWith(".lfaa-library/") ? null : await runTask("download", { path: entry.path });
-      if (result && typeof result.dataBase64 !== "string") throw new Error("文件服务没有返回文件内容。");
-      const blob = result ? new Blob([Uint8Array.from(window.atob(result.dataBase64 as string), character => character.charCodeAt(0))]) : await downloadSystemFile(entry.path);
+      const blob = result
+        ? typeof result.transferId === "string" ? await downloadFileTransfer(result.transferId) : (() => { throw new Error("文件服务没有返回原始文件传输。"); })()
+        : await downloadSystemFile(entry.path);
       assertFileContext();
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -640,19 +666,11 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, applic
       let duplicates = 0;
       for (const file of files) {
         assertFileContext();
-        if (file.size > 3 * 1024 * 1024) throw new Error(`“${file.name}”超过 3 MiB 单文件上传上限。`);
-        const dataUrl = !currentPath.startsWith(".lfaa-library/") ? "" : await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.addEventListener("load", () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("无法读取上传文件。")), { once: true });
-          reader.addEventListener("error", () => reject(new Error("无法读取上传文件。")), { once: true });
-          reader.readAsDataURL(file);
-        });
-        const separator = dataUrl.indexOf(",");
-        if (separator < 0 && currentPath.startsWith(".lfaa-library/")) throw new Error("上传文件编码无效。");
+        if (file.size > maximumNodeFileTransferBytes) throw new Error(`“${file.name}”超过 3 MiB 单文件上传上限。`);
         const digest = await window.crypto.subtle.digest("SHA-256", await file.arrayBuffer());
         const sha256 = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
         assertFileContext();
-        const result = !currentPath.startsWith(".lfaa-library/") ? (await uploadSystemFile(currentPath, file, sha256)).result : await runTask("upload", { path: currentPath, name: file.name, dataBase64: dataUrl.slice(separator + 1), sha256 });
+        const result = (await uploadSystemFile(currentPath, file, sha256)).result;
         assertFileContext();
         uploaded += 1;
         if (result.duplicate === true) duplicates += 1;
@@ -820,7 +838,7 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, applic
     }
   ];
 
-  const crumbs = currentPath ? currentPath.split("/").map((name, index, segments) => ({ name: name === ".lfaa-library" ? "应用资源" : name === ".lfaa-resources" ? "受管资源" : locations.find(location => location.path === segments.slice(0, index + 1).join("/"))?.name ?? (segments[index - 1] === "local-drives" && /^[A-Z]$/iu.test(name) ? `${name}:` : name), path: segments.slice(0, index + 1).join("/") })).filter(crumb => crumb.path !== ".lfaa-resources" && !(crumb.path.startsWith(".lfaa-library/game-storage/") && crumb.path.split("/").length === 3)) : [];
+  const crumbs = currentPath ? currentPath.split("/").map((name, index, segments) => ({ name: name === ".lfaa-library" ? "应用资源" : name === ".lfaa-resources" ? "受管资源" : segments[1] === "game-instances" && index === 2 ? "实例目录" : segments[1] === "game-storage" && name === "minecraft" ? "Minecraft 游戏目录" : segments[1] === "game-storage" && name === "steamcmd" ? "Steam 游戏目录" : name === "steamcmd-runtime" ? "SteamCMD 工具目录" : locations.find(location => location.path === segments.slice(0, index + 1).join("/"))?.name ?? (segments[index - 1] === "local-drives" && /^[A-Z]$/iu.test(name) ? `${name}:` : name), path: segments.slice(0, index + 1).join("/") })).filter(crumb => crumb.path !== ".lfaa-resources" && !(crumb.path.startsWith(".lfaa-library/game-storage/") && crumb.path.split("/").length === 3)) : [];
 
   return (
     <div className="module-workbench-stage file-manager-stage">
@@ -848,17 +866,18 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, applic
       />
       <section className="file-manager-page" aria-labelledby="file-manager-title">
         <header className="file-manager__header">
-          <div>
+          <div className="file-manager__heading">
             <Typography.Title id="file-manager-title" level={2}>文件管理</Typography.Title>
             <Typography.Text type="secondary">管理游戏、备份和运行资源。</Typography.Text>
-            {dataRootLabel ? <Typography.Text className="file-manager__root-path" type="secondary" title={dataRootLabel}>当前存储位置：{dataRootLabel}</Typography.Text> : null}
           </div>
-          <div className="file-manager__header-controls">
-            <Space wrap className="file-manager__header-actions">
-            <Button disabled={!isOnline || busy || !directoryReady || !canOperate("trash-list")} onClick={() => void loadTrash()}>回收站</Button>
-            <Button disabled={!fileAccess} onClick={() => void loadAudit()}>操作记录</Button>
-
-            </Space>
+          <div className="file-manager__header-side">
+            {dataRootLabel ? <Typography.Text className="file-manager__root-path" type="secondary" title={dataRootLabel}>当前存储位置：{dataRootLabel}</Typography.Text> : null}
+            <div className="file-manager__header-controls">
+              <Space wrap className="file-manager__header-actions">
+                <Button disabled={!isOnline || busy || !directoryReady || !canOperate("trash-list")} onClick={() => void loadTrash()}>回收站</Button>
+                <Button disabled={!fileAccess} onClick={() => void loadAudit()}>操作记录</Button>
+              </Space>
+            </div>
           </div>
         </header>
 
@@ -929,7 +948,7 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, applic
         <div className="file-manager__workspace is-resources-open">
           <aside id="file-manager-directory-tree" className="file-manager__tree file-manager__resources" aria-label="资源导航">
             <nav className="file-manager__resource-list" aria-label="资源类别">
-              {locations.map(location => <button type="button" key={location.id} title={location.description} aria-current={activeLocation?.id === location.id ? "page" : undefined} disabled={!isOnline || busy} onClick={() => selectLocation(location.path)}><WorkbenchIcon name="folder" size={16} /><span>{location.name}</span></button>)}
+              {locations.map(location => <button type="button" key={location.id} title={location.description} aria-current={activeLocation?.id === location.id ? "page" : undefined} disabled={!isOnline || busy} onClick={() => selectLocation(location.path)}><WorkbenchIcon name="folder" size={16} /><span>{location.name}<small lang="en">{resourceEnglishNames[location.id] ?? location.id}</small><small className="file-manager__resource-path">{location.description}</small></span></button>)}
             </nav>
             {treeOpen ? <><Typography.Text className="file-manager__tree-title">目录树</Typography.Text>
             <Tree key={cacheKey} blockNode treeData={treeData} loadData={loadTreeChildren} loadedKeys={loadedTreeKeys} onLoad={(keys) => setLoadedTreeKeys(keys)} selectedKeys={[currentPath]} onSelect={(keys) => {

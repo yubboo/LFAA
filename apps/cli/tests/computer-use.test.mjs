@@ -110,7 +110,7 @@ test("电脑操控受 Profile、本机监听、账户开关、逐轮观察和隔
   const { apply: applyBrowserController } = await import("lfaa-api-browser-controller/src/index.js");
   ({ createWindowsProcessLauncher, createLocalAppsRuntime } = await import("lfaa-computer-use/src/local-apps.js"));
   const { database } = await import("lfaa-storage-sqlite/src/database.js");
-  assert.equal(Number(database.prepare("PRAGMA user_version").get().user_version), 61, "数据库必须完成当前产品真实迁移");
+  assert.equal(Number(database.prepare("PRAGMA user_version").get().user_version), 69, "数据库必须完成当前产品真实迁移");
   database.prepare("INSERT INTO users(id,uid,username,password_salt,password_hash,role,is_super_admin) VALUES ('computer-a',1,'computer-a','salt','hash','admin',1),('computer-b',2,'computer-b','salt','hash','member',0)").run();
   assert.equal(getUserSettings("computer-a").computerControl.enabled, false, "new accounts default to disabled");
   saveUserSettings("computer-a", "computer-control", { enabled: true });
@@ -120,8 +120,12 @@ test("电脑操控受 Profile、本机监听、账户开关、逐轮观察和隔
   const browserControllerRoutes = new Map();
   const browserDockCalls = [];
   const browserDockSnapshotCalls = [];
+  const browserHistoryDeleteCalls = [];
+  const browserDataClearCalls = [];
   const browserRouteManager = {
     listProviders: () => [{ id: "lfaa-managed-edge", name: "LFAA Edge", available: true, isolation: "new-profile" }],
+    deleteRecentSite: (...args) => { browserHistoryDeleteCalls.push(args); return true; },
+    clearBrowserData: async (...args) => { browserDataClearCalls.push(args); return { cleared: true, sessionsCleared: 1 }; },
     navigate: async (...args) => { browserDockCalls.push(args); return { sessionId: "browser-session-a", providerId: args[2], revision: 1, url: args[3], title: "Example", pageText: "", controls: [], tabs: [], screenshot: null }; },
     getPanelSnapshot: async (...args) => { browserDockSnapshotCalls.push(args); return null; },
     streamDockFrames: async () => undefined,
@@ -143,6 +147,10 @@ test("电脑操控受 Profile、本机监听、账户开关、逐轮观察和隔
   });
   assert.deepEqual(emptyDockSnapshot, { session: null });
   assert.deepEqual(browserDockSnapshotCalls[0], ["computer-a", "session-a", "lfaa-managed-edge", false, false], "ordinary Dock status reads do not capture screenshots or page text");
+  assert.deepEqual(await invokeBrowserControllerRoute("DELETE /browser/recent-sites/item", { body: { url: "https://example.test/path?private=value" } }), { deleted: true });
+  assert.deepEqual(browserHistoryDeleteCalls, [["computer-a", "https://example.test/path?private=value"]], "single history deletion uses the authenticated account and validated URL");
+  assert.deepEqual(await invokeBrowserControllerRoute("DELETE /browser/data", { body: {} }), { cleared: true, sessionsCleared: 1 });
+  assert.deepEqual(browserDataClearCalls, [["computer-a"]], "browser data cleanup is scoped to the authenticated account");
   assert.equal(browserControllerRoutes.has("GET /browser/dock/sessions/:sourceSessionId/stream"), true, "the authenticated Dock can subscribe to the Browser Owner live page stream");
   assert.equal(browserControllerRoutes.has("POST /browser/dock/sessions/:sourceSessionId/capture-handle"), false, "the Dock no longer requires a browser chooser or capture identity handshake");
   const manualBrowserResponse = await invokeBrowserControllerRoute("POST /browser/dock/sessions/:sourceSessionId/navigate", {
@@ -262,11 +270,14 @@ test("电脑操控受 Profile、本机监听、账户开关、逐轮观察和隔
   const browserManager = new BrowserSessionManager(false);
   assert.equal(browserManager.recordRecentSites("computer-a", ["https://example.test/search?q=private+query#token", "https://example.test/page", "https://user:secret@example.test/private", "javascript:alert(1)"]), 2, "Browser Owner accepts only safe HTTP(S) site URLs");
   assert.deepEqual(browserManager.getRecentSites("computer-a").map(site => site.url).sort(), ["https://example.test/page", "https://example.test/search"], "recent-site persistence strips search queries and fragments");
+  assert.equal(browserManager.deleteRecentSite("computer-a", "https://example.test/search?tracking=removed#fragment"), true, "account owners can remove one normalized history entry");
+  assert.deepEqual(browserManager.getRecentSites("computer-a").map(site => site.url), ["https://example.test/page"], "single-entry deletion leaves other history intact");
   browserManager.recordRecentSites("computer-b", ["https://another.test/account"]);
   assert.deepEqual(browserManager.getRecentSites("computer-b").map(site => site.url), ["https://another.test/account"], "recent websites are isolated by authenticated account");
   saveUserSettings("computer-a", "browser-use", { ...getUserSettings("computer-a").browserUse, recordRecentSites: false });
   assert.equal(browserManager.recordRecentSites("computer-a", ["https://disabled.test/"]), 0, "the Settings Owner switch stops history writes");
   assert.deepEqual(browserManager.getRecentSites("computer-a"), [], "disabled history is not returned to the page");
+  assert.equal(browserManager.deleteRecentSite("computer-a", "https://example.test/page"), false, "history deletion respects the account recording/access setting");
   saveUserSettings("computer-a", "browser-use", { ...getUserSettings("computer-a").browserUse, recordRecentSites: true });
   for (let index = 0; index < 105; index += 1) browserManager.recordRecentSites("computer-a", [`https://bounded.test/${index}`]);
   assert.equal(database.prepare("SELECT COUNT(*) AS count FROM browser_recent_sites WHERE user_id = ?").get("computer-a").count, 100, "recent history is capped at 100 URLs per account");
@@ -275,15 +286,93 @@ test("电脑操控受 Profile、本机监听、账户开关、逐轮观察和隔
   assert.deepEqual(browserManager.listProviders(), [], "remote host does not publish local browser providers");
   const browserTools = createBrowserTools(browserManager);
   assert.ok(browserTools.some(tool => tool.name === "lfaa_browser_list_tabs"), "Tabbit selection has an explicit tab inventory tool");
-  assert.ok(browserTools.every(tool => tool.requiresBrowserUse), "browser tools reuse the Browser Use master setting");
+  const providerDirectoryTool = browserTools.find(tool => tool.name === "lfaa_browser_list_providers");
+  const tabbitTabsTool = browserTools.find(tool => tool.name === "lfaa_browser_list_tabs");
+  assert.match(providerDirectoryTool.description, /不要求用户报 Provider 名称/u, "the model chooses from current intent instead of asking the user to name a provider");
+  assert.match(providerDirectoryTool.description, /activeInWorkspace=true/u, "the model can reuse the active LFAA Browser Owner page");
+  assert.match(tabbitTabsTool.description, /本轮目标或上下文需要/u, "personal browser use is selected from current task context");
+  assert.doesNotMatch(tabbitTabsTool.description, /仅在用户本轮明确要求/u, "personal browser routing is not gated on an exact provider phrase");
+  const browserSettingsTool = browserTools.find(tool => tool.name === "lfaa_browser_manage_settings");
+  assert.ok(browserSettingsTool, "Settings Center Browser Owner cleanup actions are discoverable");
+  assert.equal(browserSettingsTool.requiresBrowserUse, undefined, "browser data cleanup remains available even when Agent Browser Use is disabled");
+  assert.equal(browserSettingsTool.risk({ operation: "clear-data" }), "dangerous", "browser data cleanup uses the Permission Owner dangerous-action path");
+  assert.ok(browserTools.filter(tool => tool !== browserSettingsTool).every(tool => tool.requiresBrowserUse), "browser interaction tools reuse the Browser Use master setting");
+  const agentHistoryTool = browserTools.find(tool => tool.name === "lfaa_browser_read_history");
+  assert.ok(agentHistoryTool);
+  assert.equal(agentHistoryTool.requiresBrowserHistoryAccess, true, "Agent history has a separate Settings Owner gate");
   assert.ok(browserTools.filter(tool => tool.name === "lfaa_browser_list_tabs" || tool.name === "lfaa_browser_claim_tab").every(tool => tool.requiresComputerControl), "personal Tabbit tools additionally reuse the existing computerControl setting");
   assert.ok(browserTools.filter(tool => !["lfaa_browser_list_tabs", "lfaa_browser_claim_tab"].includes(tool.name)).every(tool => !tool.requiresComputerControl), "isolated browser tools are controlled by Browser Use rather than the desktop-control switch");
   assert.equal(browserTools.some(tool => tool.name === "lfaa_browser_set_provider_connection"), false, "built-in LFAA browsers do not expose a separate connect/disconnect tool");
   const browserToolCleanups = [];
   const browserToolOwner = { effect(callback) { const cleanup = callback(); if (typeof cleanup === "function") browserToolCleanups.push(cleanup); return cleanup; } };
   for (const tool of browserTools) registerAiBusinessTool(browserToolOwner, tool);
-  assert.equal(listAiBusinessTools("workspace", "admin", null, "ask", false, false, true).some(tool => tool.id.startsWith("browser-use.")), false, "Agent tools stay hidden while Browser Use is disabled");
+  assert.equal(listAiBusinessTools("workspace", "admin", null, "ask", false, false, true).some(tool => tool.id.startsWith("browser-use.") && tool.id !== "browser-use.settings-manage"), false, "browser interaction tools stay hidden while Browser Use is disabled");
+  assert.ok(listAiBusinessTools("workspace", "admin", null, "ask", false, false, true).some(tool => tool.id === "browser-use.settings-manage"), "Browser Owner settings cleanup remains independently available as a settings action");
+  assert.ok(listAiBusinessTools("workspace", "member", null, "ask").some(tool => tool.id === "browser-use.settings-manage"), "settings-center Browser Owner actions remain discoverable to ordinary accounts in ask mode");
   assert.ok(listAiBusinessTools("workspace", "admin", null, "ask", false, false, false, true).some(tool => tool.id.startsWith("browser-use.")), "enabling Browser Use exposes the registered browser tools independently of computerControl");
+  assert.equal(listAiBusinessTools("workspace", "admin", null, "ask", false, false, false, true, false).some(tool => tool.id === "browser-use.history"), false, "history tool stays hidden until the separate history preference is enabled");
+  assert.ok(listAiBusinessTools("workspace", "admin", null, "ask", false, false, false, true, true).some(tool => tool.id === "browser-use.history"), "enabling history access makes the registered history tool available to Agent");
+  const previousHistorySettings = getUserSettings("computer-a").browserUse;
+  saveUserSettings("computer-a", "browser-use", { ...previousHistorySettings, enabled: true, allowAgentHistoryAccess: false });
+  await assert.rejects(agentHistoryTool.execute({}, runContext("browser-history-disabled", "computer-a")), /浏览历史访问未在设置中心开启/u, "history execution rechecks the explicit user setting");
+  saveUserSettings("computer-a", "browser-use", { ...getUserSettings("computer-a").browserUse, allowAgentHistoryAccess: true });
+  assert.deepEqual(await agentHistoryTool.execute({}, runContext("browser-history-enabled", "computer-a")), { sites: [], personalBrowserHistoryRead: false }, "enabled history access returns only Browser Owner history");
+  browserManager.recordRecentSites("computer-a", ["https://settings-cleanup.test/path?private=value#fragment"]);
+  const cleanupResult = await browserSettingsTool.execute({ operation: "clear-history" }, runContext("browser-settings-cleanup", "computer-a"));
+  assert.deepEqual(cleanupResult, { cleared: true, scope: "lfaa-recent-sites", owner: "browser" }, "history cleanup delegates to the account-scoped Browser Owner");
+  assert.deepEqual(browserManager.getRecentSites("computer-a"), [], "Agent settings cleanup clears only the current account's LFAA recent-site records");
+  assert.deepEqual(await browserSettingsTool.execute({ operation: "clear-data" }, runContext("browser-data-cleanup", "computer-a")), { cleared: true, sessionsCleared: 0, owner: "browser" }, "browser data cleanup returns the Browser Owner result");
+  assert.equal(browserSettingsTool.risk({ operation: "list-credentials" }), "read", "credential metadata uses the existing read path");
+  assert.equal(browserSettingsTool.risk({ operation: "delete-credential", id: "fixture" }), "dangerous", "credential deletion uses the Permission Owner dangerous-action path");
+  const credentialRecords = new Map();
+  const credentialVault = {
+    list: ownerId => [...credentialRecords.entries()].filter(([, row]) => row.ownerId === ownerId).map(([id]) => ({ reference: { providerId: "lfaa-browser-use", id }, updatedAt: "2026-10-24T00:00:00.000Z" })),
+    read: (ownerId, id) => { const row = credentialRecords.get(id); return row?.ownerId === ownerId ? row.record : null; },
+    save: (ownerId, id, record) => credentialRecords.set(id, { ownerId, record }),
+    delete: (ownerId, id) => { const row = credentialRecords.get(id); return row?.ownerId === ownerId && credentialRecords.delete(id); }
+  };
+  const credentialManager = new BrowserSessionManager(false, undefined, { vault: credentialVault });
+  const savedPassword = credentialManager.saveBrowserPassword("computer-a", { title: "Fixture account", origin: "https://credentials.example.test", username: "private-user", password: "private-password" });
+  const credentialTool = createBrowserTools(credentialManager).find(tool => tool.name === "lfaa_browser_manage_settings");
+  const providerCloseCalls = [];
+  credentialManager.listProviders = () => [{ id: "tabbit-personal", name: "Fixture personal browser", available: true, isolation: "user-profile" }];
+  credentialManager.closeProviderSessions = async (...args) => { providerCloseCalls.push(args); };
+  const beforeProviderConnect = getUserSettings("computer-a");
+  const providerConnected = await credentialTool.execute({ operation: "connect-provider", providerId: "tabbit-personal" }, runContext("provider-connect", "computer-a"));
+  assert.deepEqual(providerConnected, { changed: true, connected: true, providerId: "tabbit-personal", owner: "browser", enabledProviderIds: ["tabbit-personal"] }, "Browser Owner connects only the requested available account provider");
+  assert.equal(getUserSettings("computer-a").computerControl.enabled, beforeProviderConnect.computerControl.enabled, "provider connection does not silently change the computer-control master switch");
+  const providerDisconnected = await credentialTool.execute({ operation: "disconnect-provider", providerId: "tabbit-personal" }, runContext("provider-disconnect", "computer-a"));
+  assert.deepEqual(providerDisconnected, { changed: true, connected: false, providerId: "tabbit-personal", closedSessions: true, owner: "browser", enabledProviderIds: [] }, "disconnect closes the account provider session before saving the setting");
+  assert.deepEqual(providerCloseCalls, [["computer-a", "tabbit-personal"]], "Browser Owner closes only the selected account's provider sessions");
+  const credentialList = await credentialTool.execute({ operation: "list-credentials" }, runContext("credential-list", "computer-a"));
+  assert.deepEqual(credentialList.passwords, [{ id: savedPassword.id, kind: "password", title: "Fixture account", origin: "https://credentials.example.test", updatedAt: "2026-10-24T00:00:00.000Z" }], "Agent receives only password entry metadata needed to identify the row");
+  assert.equal(JSON.stringify(credentialList).includes("private-user"), false, "credential manager tools do not disclose the saved username");
+  assert.equal(JSON.stringify(credentialList).includes("private-password"), false, "credential manager tools never disclose the saved password");
+  assert.deepEqual(await credentialTool.execute({ operation: "delete-credential", id: savedPassword.id, kind: "password" }, runContext("credential-delete", "computer-a")), { deleted: true, owner: "browser-credentials" }, "Agent deletion delegates to the account-scoped Browser/Credentials Owner");
+  await credentialManager.closeAll();
+  saveUserSettings("computer-a", "browser-use", previousHistorySettings);
+  const screenshotCalls = [];
+  const screenshotManager = {
+    listProviders: () => [{ id: "lfaa-managed-edge", available: true }],
+    createRunAdapter: () => ({ observe: async (_providerId, includeScreenshot) => {
+      screenshotCalls.push(includeScreenshot);
+      return { sessionId: "screenshot-session", providerId: "lfaa-managed-edge", revision: 1, url: "https://example.test/", title: "Example", loading: false, pageText: "Example", controls: [], tabs: [], screenshot: includeScreenshot ? { mimeType: "image/jpeg", dataBase64: "AQ==", width: 1, height: 1 } : null };
+    } })
+  };
+  const screenshotTool = createBrowserTools(screenshotManager).find(tool => tool.name === "lfaa_browser_observe");
+  assert.ok(screenshotTool);
+  const previousScreenshotSettings = getUserSettings("computer-a").browserUse;
+  const screenshotContext = { ...runContext("browser-screenshot", "computer-a"), sessionId: "screenshot-session" };
+  saveUserSettings("computer-a", "browser-use", { ...previousScreenshotSettings, enabled: true, annotateScreenshots: "on-demand" });
+  const withoutScreenshot = await screenshotTool.execute({ providerId: "lfaa-managed-edge" }, screenshotContext);
+  assert.equal(Object.hasOwn(withoutScreenshot, "images"), false, "on-demand screenshot mode omits images unless requested");
+  const requestedScreenshot = await screenshotTool.execute({ providerId: "lfaa-managed-edge", includeScreenshot: true }, screenshotContext);
+  assert.equal(requestedScreenshot.images.length, 1, "on-demand screenshot mode sends one temporary image when explicitly requested");
+  saveUserSettings("computer-a", "browser-use", { ...getUserSettings("computer-a").browserUse, annotateScreenshots: "never" });
+  const suppressedScreenshot = await screenshotTool.execute({ providerId: "lfaa-managed-edge", includeScreenshot: true }, screenshotContext);
+  assert.equal(Object.hasOwn(suppressedScreenshot, "images"), false, "never mode suppresses even an explicit screenshot request");
+  assert.deepEqual(screenshotCalls, [false, true, false], "the persisted screenshot policy controls the Browser Owner capture call");
+  saveUserSettings("computer-a", "browser-use", previousScreenshotSettings);
   const listBrowserProviders = browserTools.find(tool => tool.name === "lfaa_browser_list_providers");
   assert.ok(listBrowserProviders);
   await assert.rejects(listBrowserProviders.execute({}, runContext("browser-disabled", "computer-a")), /设置中心关闭/u, "execution rechecks the account Browser Use toggle");
@@ -375,6 +464,9 @@ test("电脑操控受 Profile、本机监听、账户开关、逐轮观察和隔
   assert.equal(real.tools.get("computer_use_recommend_games").risk({}), "read");
   assert.equal(real.tools.get("computer_use_launch_local_app").risk({}), "dangerous");
   assert.equal(real.tools.get("computer_use_launch_local_executable").risk({}), "dangerous");
+  assert.match(real.tools.get("computer_use_search_local_apps").description, /官网网页.*当前对话没有明确选择本机客户端.*lfaa_ask_user/u);
+  assert.match(real.tools.get("computer_use_launch_local_app").description, /仅当用户明确选择本机客户端/u);
+  assert.match(real.tools.get("computer_use_launch_local_app").description, /官网网页.*不得先发现或启动/u);
   assert.match(real.tools.get("computer_use_launch_local_app").description, /不要为同一目标重复搜索/u);
   assert.match(real.tools.get("computer_use_launch_local_executable").description, /不要.*递归搜索磁盘/u);
 

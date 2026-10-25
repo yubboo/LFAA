@@ -13,4 +13,6 @@ export function apply(ctx: Context): void {
   ctx.provide("locale", dshLocaleRuntime);
   ctx.effect(() => bindDshThemeEvents(ctx));
   ctx.clientModules.register(ctx, "lfaa-client-ui-workspace/src/ApplicationWorkspace.js", () => import("../ApplicationWorkspace.js"));
+  ctx.clientModules.register(ctx, "lfaa-client-ui-workspace/src/CanvasWorkspace.js", () => import("../CanvasWorkspace.js"));
+  ctx.clientModules.register(ctx, "lfaa-client-ui-workspace/src/CanvasHome.js", () => import("../CanvasHome.js"));
 }

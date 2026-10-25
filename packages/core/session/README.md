@@ -1,10 +1,16 @@
 # LFAA Session 内核
 
+用户消息的附件引用随 JSONL 消息记录保存，普通历史展示读取保留 `attachments_json`；缩略图内容继续从附件 Owner 认证接口读取，不将图片字节写入消息展示投影。
+
 2026-10-16：`subagent/task` 事件保存子任务不可变来源、前台/后台模式、真实状态及有界结果。`listAiSubagentTasks/saveAiSubagentTask` 校验账户与父 Run/会话归属；每会话增量派生最多 64 项索引并优先保留活动项，终态不可回写为运行中。答案上限 64000 字符、诊断 4096 字符是存储合同，不改变模型输出偏好。不记录凭据或复制子任务工具/隐藏推理。重启后结果沿原 JSONL 读取，未完成任务报告中断且不重放。
 
-公开助手消息可携带 `parts`（稳定 ID、连续正文范围及阶段/最终类型），活动可携带首次正文落点及原审批问题/真实决定。内核校验范围数量、连续性和长度，消息投影白名单输出安全字段；正文仍只保存一份。JSONL 重新加载、分页和同账户分支恢复这些展示事实，原记录缺失时不制造分段。Provider 私有续接数据仍不进入公开消息或 SSE。
+公开助手消息可携带 `parts`（稳定 ID、连续正文范围及阶段/最终类型），活动可携带首次正文落点及原审批问题/真实决定。内核校验范围数量、连续性和长度，消息投影白名单输出安全字段；正文仍只保存一份。浏览器工具活动可公开受校验的 `toolId` 与 `browserProviderId`，供 Client 在成功后切换到同一 Browser Owner Dock；不暴露工具参数、网页正文或 Provider 私有数据。JSONL 重新加载、分页和同账户分支恢复这些展示事实，原记录缺失时不制造分段。Provider 私有续接数据仍不进入公开消息或 SSE。
 
 `lfaa-session` 是 LFAA AI Work、Agent Loop 与会话 API 共用的唯一 Session Owner。Session 事件、消息、活动和用量沿用 `lfaa-session-persistence-jsonl` 的账户隔离 JSONL 事务日志；SQLite 继续保存授权查询所需的会话头投影。没有另建服务、数据根或 UI。
+
+进程恢复发现开放 turn 时，Session Owner 在同一 JSONL 事务中将助手消息标记为 `interrupted`，把仍运行、待审批或待回答的活动标记为 `unavailable`，再为开放工具调用记录 `unconfirmed` 或 `not_started` 并结束 turn。未知副作用不标记成功、不盲目重放；重复读取不会重复修复。
+
+若旧恢复已经记录 `turn/end: interrupted`，但消息投影尚未写回，Session Owner 仍会幂等修正助手状态和未结束的活动卡片，不重复创建工具结果或结束事件。Provider/Agent 运行失败则以 `turn/end: error` 结束；开放工具仍按已派发/未派发分别补为 `unconfirmed`/`not_started`，消息状态保持 `error`。
 
 消息页同时读取会话累计 Provider 用量和最新模型上下文快照；所有数值来自 `usage/record`、`request/context` 与模型响应事件，响应上下文总量使用 Provider prompt Token，文本/工具分项保留估算标记。缓存请求数及有缓存读取计数的请求数按 Provider/模型持久化；当前账户所有权仍由 Session Owner 校验。
 

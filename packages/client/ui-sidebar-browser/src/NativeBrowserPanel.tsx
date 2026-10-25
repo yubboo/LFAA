@@ -92,6 +92,13 @@ export function NativeBrowserPanel({ sessionId, settings, hidden = false, naviga
 
   useEffect(() => {
     if (!api) return;
+    void api.setPreferences(settings.browserUse).catch(reason => {
+      setError(getErrorMessage(reason));
+    });
+  }, [api, settings.browserUse]);
+
+  useEffect(() => {
+    if (!api) return;
     void api.setVisible(!hidden).catch(reason => setError(getErrorMessage(reason)));
     return () => { void api.setVisible(false).catch(() => undefined); };
   }, [api, hidden]);

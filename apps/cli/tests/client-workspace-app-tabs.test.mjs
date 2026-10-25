@@ -5,9 +5,11 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { preferCurrentBrowserSnapshot, shouldRestoreBrowserDockPage } from "../../../packages/client/ui-sidebar-browser/src/browser-snapshot.ts";
 
 const read = path => readFileSync(new URL(path, import.meta.url), "utf8");
 const workspace = read("../../../packages/client/ui-workspace/src/ApplicationWorkspace.tsx");
+const aiWorkChat = read("../../../packages/client/ui-chat/src/AiWorkChat.tsx");
 const workbenchSource = read("../../../packages/client/ui-layout/src/Workbench.tsx");
 const browserPanel = read("../../../packages/client/ui-sidebar-browser/src/BrowserPanel.tsx");
 const browserPanelCss = read("../../../packages/client/ui-sidebar-browser/src/browser-panel.css");
@@ -77,7 +79,13 @@ test("AI Work 中心区收起后显示会话、新标签页及动态工具标签
   assert.match(workspace, /onCenterCollapsePreviewChange=\{setCenterCollapsePreview\}/u);
   assert.match(workspace, /setAiWorkView\(tab\.kind === "git" \? "git" : "chat"\)/u);
   assert.match(workspace, /if \(tab === "chat"\) \{\s*setCenterCollapsed\(false\)/u);
-  assert.match(workspace, /activeWorkspaceUtilityTabKind === "new" \? <Suspense[\s\S]*?<BrowserPanel sessionId=\{BUILTIN_BROWSER_WORKSPACE_ID\} settings=\{settings\} hidden=\{!activeWorkspaceUtilityTab\?\.browserUrl\} navigationRequest=\{activeWorkspaceUtilityTab\?\.browserNavigationRequest[^>]*onOpenTabsChange=\{handleBrowserOpenTabsChange\}/u, "内置浏览器独立于 AI 会话，并始终绑定同一个账户工作区");
+  assert.match(workspace, /activeWorkspaceUtilityTabKind === "new" \? <Suspense[\s\S]*?<BrowserPanel sessionId=\{BUILTIN_BROWSER_WORKSPACE_ID\} settings=\{settings\} [^>]*hidden=\{!activeWorkspaceUtilityTab\?\.browserUrl\} navigationRequest=\{activeWorkspaceUtilityTab\?\.browserNavigationRequest[^>]*onOpenTabsChange=\{handleBrowserOpenTabsChange\}/u, "内置浏览器独立于 AI 会话，并始终绑定同一个账户工作区");
+  assert.match(workspace, /preferredProviderId=\{preferredBrowserProvider\?\.providerId\} providerSelectionRequestId=\{preferredBrowserProvider\?\.requestId\}/u, "Browser Dock 使用 Agent 实际选择的内置 Provider");
+  assert.match(aiWorkChat, /activity\.status === "complete" && activity\.toolId\?\.startsWith\("browser-use\."\) && isBuiltinBrowserProvider\(activity\.browserProviderId\)[\s\S]*?onBrowserToolCompleted\?\.\(activity\.browserProviderId\)/u, "仅成功的内置 Browser Tool 活动通知右侧 Dock");
+  assert.match(aiWorkChat, /return providerId === "lfaa-native-browser" \|\| providerId === "lfaa-managed-edge" \|\| providerId === "lfaa-managed-chrome"/u, "个人 Tabbit 浏览器不会切换 LFAA 内置 Dock");
+  const openBrowserDockForAgent = workspace.match(/const openBrowserDockForAgent = useCallback\(\(providerId: BrowserProviderId\) => \{([\s\S]*?)\n  \}, \[activeWorkspaceUtilityTabId/u)?.[1];
+  assert.ok(openBrowserDockForAgent, "Agent Browser Dock 联动逻辑应可定位");
+  assert.match(openBrowserDockForAgent, /setPreferredBrowserProvider\(\{ providerId, requestId \}\)[\s\S]*?!tab\.browserNavigationRequest && !tab\.browserActionRequest[\s\S]*?showWorkspaceUtilityTab\(nextTab\)/u, "切换到无待处理操作的新标签并展开右侧 Dock，不重新导航");
   assert.match(workspace, /<ResizableWorkbench[\s\S]*?centerCollapsed=\{showWorkbenchTabs && centerCollapsed\}/u);
   assert.match(workbenchTypes, /onCenterCollapsePreviewChange\?: \(preview: boolean \| null\) => void/u);
   assert.match(workbench, /if \(previousCenterSnapped !== sideDrag\.centerSnapped\) onCenterCollapsePreviewChange\?\.\(sideDrag\.centerSnapped\)/u, "公共布局仅在进入或退出吸附预览时通知页面");
@@ -119,8 +127,29 @@ test("Web Browser Dock 在 LFAA 内显示 Browser Owner 的连续实时页面流
   assert.match(browserOwner, /Page\.startScreencast/u, "Browser Owner 从真实 Chromium Page 订阅合成器帧事件");
   assert.match(browserOwner, /Page\.screencastFrameAck/u, "每帧发送后向 Chromium 确认，保持有界流控");
   assert.match(browserOwner, /headless \? false|headless: this\.headless/u, "Web Browser Owner 按无窗口隔离模式启动 Chromium");
-  assert.match(workspace, /if \(activeUtilityTab\?\.kind === "new" && activeBrowserTab && \(activeUtilityTab\.browserUrl !== undefined \|\| activeBrowserPageChanged \|\| browserOpenTabs\.length === 0\)\) \{[\s\S]*?tab\.browserUrl !== activeBrowserTab\.url[\s\S]*?browserAddressEditingRef\.current/u, "Agent 首次打开网页时空白新标签显示真实页面，后续导航也同步地址");
-  assert.match(browserPanel, /current && current\.revision > next\.revision \? current : next/u, "较旧状态响应不会覆盖更新的页面导航结果");
+  assert.match(workspace, /keepSavedAddressDuringOwnerRecovery = activeBrowserTab\?\.url === "about:blank"[\s\S]*?if \(activeUtilityTab\?\.kind === "new" && activeBrowserTab && !keepSavedAddressDuringOwnerRecovery && \(activeUtilityTab\.browserUrl !== undefined \|\| activeBrowserPageChanged \|\| browserOpenTabs\.length === 0\)\) \{[\s\S]*?tab\.browserUrl !== activeBrowserTab\.url[\s\S]*?browserAddressEditingRef\.current/u, "Agent 首次打开网页时空白新标签显示真实页面，后续导航也同步地址，并在恢复中保留原地址");
+  assert.equal((browserPanel.match(/setSnapshot\(current => preferCurrentBrowserSnapshot\(current,/gu) ?? []).length, 3, "快照读取、视口更新和浏览器操作都使用 Session 感知的快照接纳规则");
+});
+
+test("Browser Dock 快照只在同一 Browser Owner Session 内按 revision 排序", () => {
+  const previous = { sessionId: "old-session", revision: 42 };
+  const lateOldRevision = { sessionId: "old-session", revision: 41 };
+  const newSession = { sessionId: "new-session", revision: 0 };
+  assert.equal(preferCurrentBrowserSnapshot(previous, lateOldRevision), previous, "同一 Session 的迟到旧响应不能回退页面状态");
+  assert.equal(preferCurrentBrowserSnapshot(previous, newSession), newSession, "重建后的新 Session 可用较低 revision 替换旧快照");
+});
+
+test("Browser Dock 只在 Owner 确认页面丢失后恢复当前标签 URL", () => {
+  assert.equal(shouldRestoreBrowserDockPage("https://www.bing.com/", true, undefined, false), true, "成功读取到空 Owner Session 后恢复当前标签地址");
+  assert.equal(shouldRestoreBrowserDockPage("https://www.bing.com/", true, "about:blank", false), true, "Owner 重启期间新建的空白占位页也恢复原地址");
+  assert.equal(shouldRestoreBrowserDockPage("https://www.bing.com/", false, undefined, false), false, "初始快照仍在读取时不抢先导航");
+  assert.equal(shouldRestoreBrowserDockPage("https://www.bing.com/", true, "https://example.com/", false), false, "Owner 仍有真实页面时不重复导航");
+  assert.equal(shouldRestoreBrowserDockPage("https://www.bing.com/", true, undefined, true), false, "已有用户导航请求时不发起重复恢复");
+  assert.equal(shouldRestoreBrowserDockPage("about:blank", true, undefined, false), false, "空白标签没有可恢复的 HTTP(S) 地址时不创建页面");
+  assert.match(browserPanel, /if \(!response\.session\) \{[\s\S]*?refreshSnapshot\(providerId, sessionId, request\.signal\)[\s\S]*?if \(!refreshed\) return/u, "Owner 页面丢失时刷新快照并结束旧修订等待");
+  assert.match(browserPanel, /shouldRestoreBrowserDockPage\(browserUrl, snapshotReady, snapshot\?\.url, Boolean\(navigationRequest\)\)[\s\S]*?navigateBrowserDock\(sourceSession, selectedProvider, target\)/u, "只有已核实空 Session 或空白占位页且无待处理导航时才从标签 URL 重建页面");
+  assert.match(workspace, /keepSavedAddressDuringOwnerRecovery = activeBrowserTab\?\.url === "about:blank"[\s\S]*?!keepSavedAddressDuringOwnerRecovery/u, "Owner 的空白占位页不能覆盖标签中保存的真实地址");
+  assert.match(workspace, /<BrowserPanel sessionId=\{BUILTIN_BROWSER_WORKSPACE_ID\} settings=\{settings\} browserUrl=\{activeWorkspaceUtilityTab\?\.browserUrl\}/u, "当前工作区标签 URL 传给 Browser Dock 作为恢复地址");
 });
 
 test("实时 Browser Dock 流只保留有界 SSE 缓冲并在取消时撤销读取", () => {

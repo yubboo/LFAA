@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { resolveWorkbenchLayoutMetrics, shouldDockResponsiveLeftPane, shouldDockResponsiveRightPane, WORKBENCH_LAYOUT_TOKENS } from "../../../packages/client/ui-dockkit/src/workbench-layout.config.ts";
+import { resolveWorkbenchCenterFloor, resolveWorkbenchLayoutMetrics, shouldDockResponsiveLeftPane, shouldDockResponsiveRightPane, WORKBENCH_LAYOUT_TOKENS } from "../../../packages/client/ui-dockkit/src/workbench-layout.config.ts";
 import { resolveRightCenterDragFrame, resolveSideDragRawSize, resolveSnapDragFrame, WORKBENCH_INTERACTION_TOKENS } from "../../../packages/client/ui-dockkit/src/workbench-interaction.config.ts";
 
 const readWorkspaceCss = () => [
@@ -21,6 +21,13 @@ test("嵌入式工作台首次绘制前按实际容器尺寸校准响应式布�
 
   assert.match(metricsHook, /useLayoutEffect\(\(\) => \{[\s\S]*?element\.getBoundingClientRect\(\)[\s\S]*?resolveWorkbenchLayoutMetrics\(Math\.max\(0, bounds\.width - leadingInset\), bounds\.height, responsiveRightDock\)[\s\S]*?setMetrics\(/u);
   assert.match(metricsHook, /return observeWorkbenchMetrics\(element, next =>/u, "首次真实测量之后仍由 ResizeObserver 管理容器变化");
+});
+
+test("受控工作台宽度在 clamp 结果不变时不回写父状态", () => {
+  const workbench = readFileSync(new URL("../../../packages/client/ui-dockkit/src/ResizableWorkbench.tsx", import.meta.url), "utf8");
+  const widthSetter = workbench.slice(workbench.indexOf("const setResolvedLeftWidth"), workbench.indexOf("const rootRef"));
+
+  assert.match(widthSetter, /const resolved = typeof next === "function" \? next\(leftWidth\) : next;[\s\S]*?if \(Object\.is\(resolved, leftWidth\)\) return;[\s\S]*?onLeftWidthChange\?\.\(resolved\)/u);
 });
 
 test("AI Work 在所有布局保留 300px 中心下限，通用 Surface 保持原断点", () => {
@@ -106,6 +113,26 @@ test("AI Work 仅外移会话刻度；消息正文与输入区布局保持不变
   assert.match(chatCss, /\.ai-work-chat__messages\s*\{[^}]*scrollbar-gutter:\s*stable/su);
 });
 
+test("AI Work 右侧滚动留白继承聊天表面材质，不透出画布底色", () => {
+  const workspaceCss = readWorkspaceCss();
+  const gutterSurfaceRule = workspaceCss.match(/\.module-center__content\.module-center__content--ai-work \.module-ai-work-chat > \.ai-work-chat::after\s*\{([^}]+)\}/u)?.[1];
+  const accentScrollbarRule = workspaceCss.match(/\.module-center__content\.module-center__content--ai-work \.ai-work-chat__messages\s*\{(?=[^}]*scrollbar-color:)([^}]+)\}/u)?.[1];
+  const accentThumbRule = workspaceCss.match(/\.module-center__content\.module-center__content--ai-work \.ai-work-chat__messages::-webkit-scrollbar-thumb\s*\{([^}]+)\}/u)?.[1];
+
+  assert.ok(gutterSurfaceRule, "AI Work should extend the chat surface behind its right-edge scroll gutter");
+  assert.ok(accentScrollbarRule, "AI Work should retain the Appearance accent color on the message scrollbar");
+  assert.ok(accentThumbRule, "WebKit message scrollbars should retain the Appearance accent color");
+  assert.match(gutterSurfaceRule, /inset-inline-start:\s*100%/u);
+  assert.match(gutterSurfaceRule, /width:\s*var\(--ai-work-chat-inline-gap\)/u);
+  assert.match(gutterSurfaceRule, /background:\s*inherit/u);
+  assert.match(gutterSurfaceRule, /(?:-webkit-)?backdrop-filter:\s*inherit/u);
+  assert.match(gutterSurfaceRule, /pointer-events:\s*none/u);
+  assert.match(accentScrollbarRule, /scrollbar-color:\s*var\(--settings-accent, var\(--color-brand\)\) transparent !important/u);
+  assert.match(accentThumbRule, /border:\s*0(?:px)?;/u);
+  assert.match(accentThumbRule, /background:\s*var\(--settings-accent, var\(--color-brand\)\)/u);
+  assert.doesNotMatch(accentThumbRule, /background-clip:\s*content-box/u);
+});
+
 test("响应式应用工作区仅在中心区和左栏下限都放得下时将二级导航改为 Dock", () => {
   assert.equal(shouldDockResponsiveLeftPane(750, 300, 200, true), true);
   assert.equal(shouldDockResponsiveLeftPane(500, 300, 200, true), false);
@@ -129,6 +156,27 @@ test("Mobile 工作区标题栏只保留一行，并与菜单 Overlay 顶边对�
   assert.doesNotMatch(workspaceCss, /\.module-center__header\[data-layout-mode="mobile"\]\s+\.module-center__(?:heading|actions)/u);
   assert.match(workspaceCss, /\.module-left-preview\s*\{[\s\S]*?top:\s*var\(--agent-shell-header-h\)/u);
   assert.match(workspaceCss, /\.module-sidebar__brand-row\s*\{[\s\S]*?min-height:\s*var\(--agent-shell-header-h,\s*3rem\)/u);
+});
+
+test("中心区收起时左二菜单保留自身可见关闭入口", () => {
+  const workspaceCss = readWorkspaceCss();
+  const workspaceSource = readFileSync(new URL("../../../packages/client/ui-workspace/src/ApplicationWorkspace.tsx", import.meta.url), "utf8");
+
+  assert.match(workspaceCss, /\.lfaa-workbench\[data-center-collapsed="true"\]\s+\.module-sidebar__close\s*\{\s*display:\s*grid;\s*\}/u);
+  assert.match(workspaceSource, /className="module-icon-button module-sidebar__close"[^>]*aria-label="收起应用导航"[\s\S]*?onToggleLeft\(\)/u);
+});
+
+test("中心区横向列变化使用缓入缓出，终端纵向行沿用原曲线", () => {
+  const dockKitCss = readFileSync(new URL("../../../packages/client/ui-dockkit/src/css/common-layout.css", import.meta.url), "utf8");
+
+  assert.match(dockKitCss, /grid-template-columns var\(--lfaa-snap-settle-duration\) cubic-bezier\(\.42,\s*0,\s*\.58,\s*1\)/u);
+  assert.match(dockKitCss, /grid-template-rows:\s*minmax\(0, 1fr\) var\(--lfaa-bottom-row\)[\s\S]*?grid-template-rows var\(--lfaa-snap-settle-duration\) cubic-bezier\(\.16,\s*\.82,\s*\.24,\s*1\)/u);
+});
+
+test("中心区和右栏都收起时关闭左二菜单会恢复中心工作区", () => {
+  const workspaceSource = readFileSync(new URL("../../../packages/client/ui-workspace/src/ApplicationWorkspace.tsx", import.meta.url), "utf8");
+
+  assert.match(workspaceSource, /if\s*\(!chrome\.leftCollapsed\s*&&\s*centerCollapsed\s*&&\s*chrome\.rightCollapsed\)\s*setCenterCollapsed\(false\)/u);
 });
 
 test("窄中心列将操作压缩为图标，同时保留当前对话名", () => {
@@ -327,6 +375,25 @@ test("中心列阈值以容器总预算计算，不会因右 Dock 静态上限�
   assert.equal(beforeCapture.visualCenterSize, 300);
   assert.equal(captured.centerFrame.snapped, true);
   assert.equal(captured.visualCenterSize, 0);
+});
+
+test("中心区折叠后左右栏共享释放中心下限的预算，左栏不会被错误压到 0", () => {
+  const metrics = resolveWorkbenchLayoutMetrics(1878, 906, true);
+  const handleBudget = WORKBENCH_LAYOUT_TOKENS.separator * 2;
+  const collapsedRightWidth = metrics.containerWidth - metrics.left.min - handleBudget;
+  const collapsedCenterFloor = resolveWorkbenchCenterFloor(metrics.minCenterWidth, true);
+  const leftMaxWidth = Math.max(0, metrics.containerWidth - collapsedRightWidth - collapsedCenterFloor - handleBudget);
+  const expandedCenterFloor = resolveWorkbenchCenterFloor(metrics.minCenterWidth, false);
+  const collapsePreviewFloor = resolveWorkbenchCenterFloor(metrics.minCenterWidth, true);
+  const workbench = readFileSync(new URL("../../../packages/client/ui-dockkit/src/ResizableWorkbench.tsx", import.meta.url), "utf8");
+
+  assert.equal(metrics.minCenterWidth, 300);
+  assert.equal(collapsedRightWidth, 1596);
+  assert.equal(leftMaxWidth, metrics.left.min);
+  assert.equal(expandedCenterFloor, 300);
+  assert.equal(collapsePreviewFloor, 0);
+  assert.match(workbench, /resolveWorkbenchCenterFloor\(minCenterWidth, centerCollapsed\s*\|\|\s*\(side === "right" && allowCenterCollapse && centerCollapseEnabled && rightUsesGrid\)\)/u);
+  assert.match(workbench, /"--lfaa-center-column": `minmax\(0, \$\{centerCollapsed \? "0fr" : "1fr"\}\)`/u);
 });
 
 test("仅 AI Work 右 Dock 拖动期间停用大面积毛玻璃，并复用 DockKit 清理恢复", () => {

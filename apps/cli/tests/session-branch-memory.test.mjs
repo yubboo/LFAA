@@ -14,7 +14,7 @@ const cli = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const repository = resolve(cli, "../..");
 function run(dataDirectory, script) {
   return execFileSync(process.execPath, ["--import", "tsx", "--import", "./register-package-loader.mjs", "--input-type=module", "-e", script], {
-    cwd: cli, env: { ...process.env, NODE_ENV: "test", LFAA_DATA_DIR: dataDirectory, JWT_SECRET: "" }, encoding: "utf8", stdio: "pipe"
+    cwd: cli, env: { ...process.env, NODE_ENV: "test", LFAA_HOME: `${dataDirectory}-home`, LFAA_DATA_DIR: dataDirectory, JWT_SECRET: "" }, encoding: "utf8", stdio: "pipe"
   });
 }
 const setup = `
@@ -55,7 +55,7 @@ test("当前 Provider 以无工具请求压缩分支记忆并记录真实用量"
     assert.equal(requests[0].body.messages.filter(message => message.role === "user").length, 1);
     assert.match(requests[0].body.messages[0].content, /不可信的历史资料/u);
     assert.equal(result.summary, "# 当前目标\n继续完成已确定的方案。");
-    assert.deepEqual(result.usage, [{ providerId: "fixture-provider", modelId: "fixture-model", promptTokens: 41, completionTokens: 18 }]);
+    assert.deepEqual(result.usage, [{ providerId: "fixture-provider", modelId: "fixture-model", promptTokens: 41, completionTokens: 18, cacheReadTokens: null }]);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -116,7 +116,10 @@ test("记忆分支只保存摘要和来源，重载及嵌套分支继续携带�
   } finally {
     assert.equal(dirname(resolve(data)), parent);
     assert.ok(basename(data).startsWith("lfaa-session-branch-memory-"));
+    assert.equal(dirname(resolve(`${data}-home`)), parent);
+    assert.ok(basename(`${data}-home`).startsWith("lfaa-session-branch-memory-"));
     rmSync(data, { recursive: true, force: true });
+    rmSync(`${data}-home`, { recursive: true, force: true });
   }
 });
 
@@ -165,7 +168,10 @@ test("Agent Loop 摘要成功才创建分支，Provider 失败或工具调用均
   } finally {
     assert.equal(dirname(resolve(data)), parent);
     assert.ok(basename(data).startsWith("lfaa-agent-branch-memory-"));
+    assert.equal(dirname(resolve(`${data}-home`)), parent);
+    assert.ok(basename(`${data}-home`).startsWith("lfaa-agent-branch-memory-"));
     rmSync(data, { recursive: true, force: true });
+    rmSync(`${data}-home`, { recursive: true, force: true });
   }
 });
 

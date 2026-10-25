@@ -1,14 +1,16 @@
 /** 功能：呈现现有设置中心。作用：消费已保存设置并组合能力包界面。关联文件：client/connection、ui-settings、ui-theme、ui-commands。 */
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createReadPoller } from "lfaa-client-connection/src/read-poller.js";
-import { clearBrowserRecentSites, loadLocalModels, startLocalModelDownload, readLocalModelDownload, cancelLocalModelDownload, unloadLocalModel } from "lfaa-client-connection/src/api.js";
+import { autofillBrowserContact, autofillBrowserPassword, clearBrowserData as clearBrowserSessionData, clearBrowserRecentSites, deleteBrowserCredential, deleteBrowserRecentSite, loadBrowserCredentials, loadBrowserRecentSites, loadLocalModels, saveBrowserContact, saveBrowserPassword, startLocalModelDownload, readLocalModelDownload, cancelLocalModelDownload, unloadLocalModel } from "lfaa-client-connection/src/api.js";
 import { createSnapshotCache } from "lfaa-client-store/src/snapshot-cache.js";
 import { useWorkbenchMetrics } from "lfaa-client-ui-dockkit/src/use-workbench-metrics.js";
 import { lfaaProjectBuildInfo } from "lfaa-client-connection/src/project-version.js";
 import { inspectWebUpdateManifest, type WebUpdateCheckResult } from "./web-update.mjs";
 import { Alert, Button, Card, Input, InputNumber, Modal, Popconfirm, Progress, Radio, Select, Slider, Space, Tag, Typography, message } from "antd";
-import { activateAiAccount, changeCurrentPassword, createSteamcmdTask, deleteAppearanceBackground, deleteAiAccount, deleteConversationMemories, loadConversationMemories, saveConversationMemories, archiveAiSession, decideAiApproval, getErrorMessage, hasAdminAccess, isDesktopApp, loadAiAccounts, loadAiApprovals, loadAiPermissionGrants, loadAiExtensions, loadAiSessions, loadAiUsage, loadAppearanceBackgrounds, loadAiProviders, loadBrowserProviders, closeBrowserProviderSessions, loadHealth, loadMinecraftStorageSettings, loadMinecraftCoreNames, loadSteamcmdSettings, loadSteamcmdTask, loadProjectStorageLocations, compareProjectContentDirectories, copyProjectContentToDirectory, adoptProjectContentDirectory, importProjectContentArchive, downloadProjectContentArchive, loadCapabilityInstallCatalog, manageAiRuntimePlugin, probeAiProvider, refreshAiAccountModelCatalog, testSavedAiAccountModel, saveAiAccount, testAiProviderModel, saveRecoveryKey, saveSettings, saveSteamcmdConfigurationDefaults, saveSteamcmdNodeConfiguration, saveSteamcmdStorageDefaults, saveSteamcmdNodeStorageSettings, selectDesktopDataDirectory, revokeAiPermissionGrant, uploadAppearanceBackground, updateCurrentUserEmail, updateCurrentUserUsername, userRoleLabel, updateAiAccountModel, updateAiAccountReasoningMode, type ApplicationId, type AiModel, type AiModelTestResult, type AiAccount, type AiExtension, type AiRuntimeHookInfo, type AiProvider, type AiProviderProbe, type AiRuntimePlugin, type CapabilityInstallCatalogEntry, type AiSession, type AiUsageSummary, type AiToolApproval, type AiToolPermissionGrant, type AppearanceBackground, type BrowserProviderSummary, type ConversationMemorySnapshot, type ProjectContentComparison, type ProjectStorageLocations, type DesktopUpdateCheckResult, type DesktopUpdatePreferences, type DesktopUpdateRuntimeInfo, type ServerHealth, type MinecraftStorageNode, type MinecraftStorageSettings, type SteamcmdConfigurationValues, type SteamcmdSettingsNode, type SteamcmdStorageValues, type SteamcmdTask, type User, type UserSettings, type LocalModelSummary, type LocalModelDownloadSnapshot } from "lfaa-client-connection/src/api.js";
-import { minecraftSceneBackgrounds } from "lfaa-util-values/src/builtin-backgrounds.js";
+import { activateAiAccount, changeCurrentPassword, createSteamcmdTask, deleteAppearanceBackground, deleteAiAccount, deleteConversationMemories, loadConversationMemories, saveConversationMemories, archiveAiSession, decideAiApproval, getErrorMessage, hasAdminAccess, isDesktopApp, loadAiAccounts, loadAiApprovals, loadAiPermissionGrants, loadAiExtensions, loadAiSessions, loadAiUsage, loadAppearanceBackgrounds, loadAiProviders, loadBrowserProviders, closeBrowserProviderSessions, loadHealth, loadMinecraftStorageSettings, loadMinecraftCoreNames, loadSteamcmdSettings, loadSteamcmdTask, loadProjectStorageLocations, compareProjectContentDirectories, copyProjectContentToDirectory, adoptProjectContentDirectory, importProjectContentArchive, downloadProjectContentArchive, loadCapabilityInstallCatalog, manageAiRuntimePlugin, probeAiProvider, refreshAiAccountModelCatalog, testSavedAiAccountModel, saveAiAccount, testAiProviderModel, saveRecoveryKey, saveSettings, saveSteamcmdConfigurationDefaults, saveSteamcmdNodeConfiguration, saveSteamcmdStorageDefaults, saveSteamcmdNodeStorageSettings, selectDesktopDataDirectory, revokeAiPermissionGrant, uploadAppearanceBackground, updateCurrentUserEmail, updateCurrentUserUsername, userRoleLabel, updateAiAccountModel, updateAiAccountReasoningMode, type ApplicationId, type AiModel, type AiModelTestResult, type AiAccount, type AiExtension, type AiRuntimeHookInfo, type AiProvider, type AiProviderProbe, type AiRuntimePlugin, type CapabilityInstallCatalogEntry, type AiSession, type AiUsageSummary, type AiToolApproval, type AiToolPermissionGrant, type AppearanceBackground, type BrowserProviderSummary, type BrowserRecentSite, type BrowserVaultEntry, type BrowserProviderId, type NativeBrowserDownload, type NativeBrowserDownloadSettings, type NativeBrowserExtension, type ConversationMemorySnapshot, type ProjectContentComparison, type ProjectStorageLocations, type DesktopUpdateCheckResult, type DesktopUpdatePreferences, type DesktopUpdateRuntimeInfo, type ServerHealth, type MinecraftStorageNode, type MinecraftStorageSettings, type SteamcmdConfigurationValues, type SteamcmdSettingsNode, type SteamcmdStorageValues, type SteamcmdTask, type User, type UserSettings, type LocalModelSummary, type LocalModelDownloadSnapshot } from "lfaa-client-connection/src/api.js";
+import { appearanceBackgroundOptions, appearanceBackgroundTargets } from "lfaa-util-values/src/builtin-backgrounds.js";
+import { EXECUTION_SANDBOX_MODES } from "lfaa-util-values/src/sandbox-contract.js";
+import { getSettingsCenterMenu, SETTINGS_CENTER_MENUS, type SettingsMenuId } from "lfaa-util-values/src/settings-menu-catalog.js";
 import { cacheLoginAppearance } from "lfaa-client-ui-theme/src/login-appearance.js";
 import { getBrowserNotificationPermission, playNotificationSound, requestBrowserNotificationPermission, sendBrowserNotification, type BrowserNotificationPermission } from "lfaa-client-resources/src/notification-runtime.js";
 import { createScrollRestorationKey, useScrollRestoration } from "lfaa-client-store/src/scroll-restoration.js";
@@ -22,6 +24,7 @@ import { GLOBAL_NAVIGATION_RAIL_COMPACT_WIDTH, GLOBAL_NAVIGATION_RAIL_WIDTH, Glo
 import { SecondaryNavigation } from "lfaa-client-ui-sidebar/src/SecondaryNavigation.js";
 import { PasskeyManager } from "lfaa-client-ui-settings-account/src/PasskeyManager.js";
 import { McpConnectionsSettings } from "./McpConnectionsSettings.js";
+import { CloudPreferencesSettings } from "./CloudPreferencesSettings.js";
 import "./SettingsPage.css";
 import { hasShortcutConflicts, ShortcutRow } from "lfaa-client-ui-shortcuts/src/settings-shortcuts.js";
 import { defaultReasoningMode, effectiveReasoningMode, reasoningOptions, modelParameterSummary, modelOptionLabel, modelOptionVersionTag, fixedThinkingLabel } from "lfaa-client-ui-settings-models/src/model-options.js";
@@ -44,6 +47,9 @@ import { KnowledgeLibraryPanel } from "./KnowledgeLibraryPanel.js";
 import { isComputerControlEnabled } from "./computer-control-settings.js";
 import { ManagedPluginsSettings } from "./ManagedPluginsSettings.js";
 import { DeveloperHandbook } from "./DeveloperHandbook.js";
+import { AccountAgentUsageSettings } from "./AccountAgentUsageSettings.js";
+import { AccountSnapshotsSettings } from "./AccountSnapshotsSettings.js";
+import { TrustedContactsSettings } from "./TrustedContactsSettings.js";
 
 
 
@@ -101,7 +107,7 @@ function formatStorageBytes(value: number): string {
 
 
 
-type SectionId = "general" | "notifications" | "import" | "profile" | "security" | "appearance" | "wallpaperEngine" | "parental" | "trustedContacts" | "voice" | "about" | "configuration" | "personalization" | "mini" | "shortcuts" | "usage" | "account" | "plugins" | "profilePlugins" | "computerControl" | "snapshots" | "browser" | "hooks" | "connections" | "cloudPreferences" | "codeReview" | "git" | "environment" | "worktrees" | "archived" | "ai" | "minecraft" | "permissions" | "workspace" | "developer";
+type SectionId = SettingsMenuId | "configuration";
 type AccountSettingsSectionId = Extract<SectionId, "profile" | "security" | "account">;
 type PluginWorkspaceTab = "overview" | "catalog" | "knowledge" | "mcp" | "diagnostics";
 export type StandalonePluginWorkspaceView = "all" | "applications" | "tools" | "skills" | "prompts" | "mcp" | "knowledge" | "diagnostics" | "experts";
@@ -138,8 +144,14 @@ function isAccountSettingsSection(section: SectionId): section is AccountSetting
 }
 
 function getSettingsSectionSearchText(section: { id: string; title: string; group: string }): string {
-  const aliases = section.id === "account" ? "账户 个人资料 安全 账号管理" : "";
-  return `${section.title} ${section.group} ${aliases}`.trim();
+  // 分类搜索词与 Agent 设置目录共用 settings-menu-catalog 的别名/工具搜索词，避免两套中文字典。
+  const menu = getSettingsCenterMenu(section.id);
+  const aliases = [
+    ...(menu?.aliases ?? []),
+    ...(menu?.toolSearchTerms ?? []),
+    ...(section.id === "account" ? ["账户", "个人资料", "安全", "账号管理"] : [])
+  ];
+  return `${section.title} ${section.group} ${aliases.join(" ")}`.trim();
 }
 
 function AccountSettingsTabs({ activeSection, onSelect }: { activeSection: AccountSettingsSectionId; onSelect: (section: AccountSettingsSectionId) => void }) {
@@ -172,7 +184,7 @@ function AccountSettingsTabs({ activeSection, onSelect }: { activeSection: Accou
   );
 }
 // 只在进入需要真实数据的分类时请求专属数据，避免首次打开设置就并发加载全部分类。
-const SETTINGS_DATA_SECTIONS = new Set<SectionId>(["appearance", "usage", "plugins", "archived", "ai", "minecraft", "permissions", "workspace", "developer"]);
+const SETTINGS_DATA_SECTIONS = new Set<SectionId>(["appearance", "usage", "plugins", "hooks", "archived", "ai", "minecraft", "permissions", "workspace", "developer"]);
 
 const EXTENSION_CATEGORIES: Array<{ kind: AiExtension["kind"]; label: string; description: string; icon: WorkbenchIconName }> = [
   { kind: "agent", label: "Agent", description: "承担任务规划与执行的 Agent 配置。", icon: "spark" },
@@ -234,42 +246,20 @@ function createEmptySettingsDataSnapshot(): SettingsDataSnapshot {
   };
 }
 
-const sections: Array<{ id: SectionId; title: string; group: string; icon: WorkbenchIconName }> = [
-  { id: "general", title: "常规", group: "个人", icon: "settings" },
-  { id: "notifications", title: "通知", group: "个人", icon: "history" },
-  { id: "import", title: "导入", group: "个人", icon: "file" },
-  { id: "profile", title: "个人资料", group: "个人", icon: "user" },
-  { id: "security", title: "安全", group: "个人", icon: "shield" },
-  { id: "appearance", title: "外观", group: "个人", icon: "sun" },
-  { id: "wallpaperEngine", title: "壁纸引擎", group: "个人", icon: "sun" },
-  { id: "parental", title: "家长控制", group: "个人", icon: "shield" },
-  { id: "trustedContacts", title: "受信任联系人", group: "个人", icon: "user" },
-  { id: "voice", title: "语音", group: "个人", icon: "spark" },
-  { id: "about", title: "关于与更新", group: "个人", icon: "refresh" },
-  { id: "personalization", title: "个性化", group: "个人", icon: "sun" },
-  { id: "mini", title: "Mini 与虚拟宠物", group: "个人", icon: "bolt" },
-  { id: "shortcuts", title: "键盘快捷键", group: "个人", icon: "keyboard" },
-  { id: "usage", title: "使用情况和计费", group: "个人", icon: "bolt" },
-  { id: "account", title: "账号", group: "个人", icon: "user" },
-  { id: "plugins", title: "AI 扩展与 MCP", group: "集成", icon: "grid" },
-  { id: "profilePlugins", title: "插件", group: "集成", icon: "extension" },
-  { id: "computerControl", title: "电脑操控", group: "集成", icon: "tools" },
-  { id: "snapshots", title: "应用快照", group: "集成", icon: "archive" },
-  { id: "browser", title: "浏览器", group: "集成", icon: "browser" },
-  { id: "hooks", title: "钩子", group: "编码", icon: "review" },
-  { id: "connections", title: "MCP 连接", group: "集成", icon: "tools" },
-  { id: "cloudPreferences", title: "云端偏好设置", group: "编码", icon: "browser" },
-  { id: "codeReview", title: "代码审查", group: "编码", icon: "review" },
-  { id: "git", title: "Git", group: "编码", icon: "refresh" },
-  { id: "environment", title: "环境", group: "编码", icon: "terminal" },
-  { id: "worktrees", title: "Worktrees", group: "编码", icon: "folder" },
-  { id: "archived", title: "已归档的聊天", group: "已归档", icon: "archive" },
-  { id: "ai", title: "AI 与模型", group: "LFAA 配置", icon: "spark" },
-  { id: "minecraft", title: "Minecraft 配置", group: "LFAA 配置", icon: "settings" },
-  { id: "permissions", title: "用户与权限", group: "LFAA 配置", icon: "shield" },
-  { id: "workspace", title: "项目与存储", group: "LFAA 配置", icon: "folder" },
-  { id: "developer", title: "开发者", group: "LFAA 配置", icon: "terminal" }
-];
+const SETTINGS_SECTION_ICONS: Record<SettingsMenuId, WorkbenchIconName> = {
+  general: "settings", notifications: "history", import: "file", profile: "user", security: "shield", appearance: "sun",
+  wallpaperEngine: "sun", parental: "shield", trustedContacts: "user", voice: "spark", about: "refresh", personalization: "sun",
+  mini: "bolt", canvas: "grid", shortcuts: "keyboard", usage: "bolt", account: "user", plugins: "grid", profilePlugins: "extension",
+  computerControl: "tools", snapshots: "archive", browser: "browser", hooks: "review", connections: "tools",
+  cloudPreferences: "browser", codeReview: "review", git: "refresh", environment: "terminal", worktrees: "folder",
+  archived: "archive", ai: "spark", minecraft: "settings", permissions: "shield", workspace: "folder", developer: "terminal"
+};
+const sections: Array<{ id: SectionId; title: string; group: string; icon: WorkbenchIconName }> = SETTINGS_CENTER_MENUS.map((section) => ({
+  id: section.id,
+  title: section.label,
+  group: section.group,
+  icon: SETTINGS_SECTION_ICONS[section.id]
+}));
 const LFAA_CONFIGURATION_SECTION_IDS = new Set<SectionId>(["ai", "minecraft", "permissions", "workspace", "developer"]);
 const LFAA_CONFIGURATION_SECTIONS = sections.filter((section) => LFAA_CONFIGURATION_SECTION_IDS.has(section.id));
 const SETTINGS_NAV_GROUPS = [...new Set(sections.map((section) => section.group))];
@@ -305,6 +295,7 @@ function settingsCategoryForSection(section: SectionId): keyof UserSettings | nu
   if (section === "plugins" || section === "connections") return "plugins";
   if (section === "personalization") return "personalization";
   if (section === "git") return "git";
+  if (section === "canvas") return "canvas";
   return null;
 }
 
@@ -390,39 +381,6 @@ function persistSettingsSection(section: SectionId, userId: string): void {
     // URL 更新失败不影响设置分类切换。
   }
 }
-
-const pendingSections: Partial<Record<SectionId, { description: string; status: string }>> = {
-  import: { description: "导入其他工作区的配置和资料。LFAA 当前版本尚未接入导入流程。", status: "导入工具待接入" },
-  parental: { description: "管理家庭成员和使用限制。此类账户能力尚未纳入 LFAA 账户模型。", status: "账户能力待接入" },
-  trustedContacts: { description: "管理账户恢复和信任联系人。当前账户恢复通过管理员与恢复密钥完成。", status: "恢复联系人待接入" },
-  voice: { description: "浏览器语音输入与完成回复播报由账户设置控制；宿主需支持 Web Speech API。", status: "浏览器语音已接入" },
-  mini: { description: "轻量窗口和虚拟宠物尚未进入 LFAA 的桌面产品规划。", status: "桌面能力待接入" },
-  account: { description: "由超级管理员查看和管理本机账号。", status: "账号管理已接入" },
-  snapshots: { description: "应用快照用于保存与恢复工作区状态，当前版本尚未接入快照存储。", status: "快照服务待接入" },
-  browser: { description: "AI Work 浏览器工作区可由你与 Agent 共同操作。Agent 浏览器工具复用设置中心开关与现有权限模式；个人浏览器仅在用户本轮明确指定时使用。", status: "隔离浏览器已接入" },
-  hooks: { description: "此处是编码工作流钩子设置；AI 对话推理生命周期钩子由“插件”管理。编码任务 Runtime 尚未接入。", status: "编码任务 Runtime 待接入" },
-  cloudPreferences: { description: "当前设置由本机控制端保存，暂未提供云端偏好同步。", status: "云端同步待接入" },
-  codeReview: { description: "代码审查工具会在 LFAA 的编码工作台接入后提供。", status: "编码工作台待接入" },
-  environment: { description: "运行环境偏好已保存在“常规”中；主机环境扫描依赖 Daemon 节点。", status: "Daemon 节点待接入" },
-};
-
-const appearanceBackgrounds = [
-  { id: "none", name: "纯色" },
-  { id: "service-room", name: "服务机房", file: "/backgrounds/service-room.jpg" },
-  { id: "steamcmd-world", name: "游戏世界", file: "/backgrounds/steamcmd-world.jpg" },
-  { id: "minecraft-world", name: "方块日落", file: "/backgrounds/minecraft-world.jpg" },
-  { id: "writing-desk", name: "写作桌面", file: "/backgrounds/writing-desk.jpg" },
-  ...minecraftSceneBackgrounds
-];
-
-const backgroundTargets: Array<{ id: keyof UserSettings["appearance"]["backgrounds"]; label: string }> = [
-  { id: "login", label: "登录页（当前设备）" },
-  { id: "appCenter", label: "小鱼智能体工作区" },
-  { id: "steamcmd", label: "SteamCMD 工作区" },
-  { id: "minecraft", label: "Minecraft 工作区（常规与 小鱼智能体）" },
-  { id: "writing", label: "写作工作区" },
-  { id: "settings", label: "设置中心" }
-];
 
 const accentColors = ["#3457d5", "#1687a7", "#27845b", "#8956bb", "#d05b37", "#d64d8f"];
 const textFontOptions = [
@@ -593,12 +551,49 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   const [licensesModalOpen, setLicensesModalOpen] = useState(false);
   const [notificationPermission, setNotificationPermission] = useState<BrowserNotificationPermission>(() => getBrowserNotificationPermission());
   const [browserProviders, setBrowserProviders] = useState<{ status: "idle" | "loading" | "ready" | "error"; providers: BrowserProviderSummary[]; error: string }>({ status: "idle", providers: [], error: "" });
+  const [browserHistoryOpen, setBrowserHistoryOpen] = useState(false);
+  const [browserHistoryLoading, setBrowserHistoryLoading] = useState(false);
+  const [browserHistory, setBrowserHistory] = useState<BrowserRecentSite[]>([]);
+  const [browserHistoryDeletingUrl, setBrowserHistoryDeletingUrl] = useState<string | null>(null);
+  const [nativeBrowserPreferencesError, setNativeBrowserPreferencesError] = useState("");
+  const [browserDownloadHistoryOpen, setBrowserDownloadHistoryOpen] = useState(false);
+  const [browserDownloadHistory, setBrowserDownloadHistory] = useState<NativeBrowserDownload[]>([]);
+  const [browserDownloadSettings, setBrowserDownloadSettings] = useState<NativeBrowserDownloadSettings | null>(null);
+  const [browserDownloadLoading, setBrowserDownloadLoading] = useState(false);
+  const [browserExtensionsOpen, setBrowserExtensionsOpen] = useState(false);
+  const [browserExtensions, setBrowserExtensions] = useState<NativeBrowserExtension[]>([]);
+  const [browserExtensionsLoading, setBrowserExtensionsLoading] = useState(false);
+  const [browserCredentials, setBrowserCredentials] = useState<{ passwords: BrowserVaultEntry[]; contacts: BrowserVaultEntry[] }>({ passwords: [], contacts: [] });
+  const [browserCredentialsLoaded, setBrowserCredentialsLoaded] = useState(false);
+  const [browserCredentialsOpen, setBrowserCredentialsOpen] = useState<"passwords" | "contacts" | null>(null);
+  const [browserCredentialsLoading, setBrowserCredentialsLoading] = useState(false);
+  const [browserVaultProviderId, setBrowserVaultProviderId] = useState<BrowserProviderId>("lfaa-managed-edge");
+  const [browserPasswordDraft, setBrowserPasswordDraft] = useState({ title: "", origin: "", username: "", password: "" });
+  const [browserContactDraft, setBrowserContactDraft] = useState({ title: "", name: "", address: "", email: "", phone: "" });
+  const [browserSitePermissionsOpen, setBrowserSitePermissionsOpen] = useState(false);
+  const [browserSitePermissionOriginDraft, setBrowserSitePermissionOriginDraft] = useState("");
+  const [browserSitePermissionDraft, setBrowserSitePermissionDraft] = useState<"camera" | "microphone" | "geolocation" | "notifications">("camera");
+  const [browserSitePermissionDecisionDraft, setBrowserSitePermissionDecisionDraft] = useState<"allow" | "block">("block");
+  const [browserWebsiteToolsOpen, setBrowserWebsiteToolsOpen] = useState(false);
+  const [browserWebsiteOriginDraft, setBrowserWebsiteOriginDraft] = useState("");
+  const [browserWebsiteDecisionDraft, setBrowserWebsiteDecisionDraft] = useState<"allow" | "block">("block");
   const [providers, setProviders] = useState<AiProvider[]>(() => cachedSettingsData?.providers ?? []);
   const [accounts, setAccounts] = useState<AiAccount[]>(() => cachedSettingsData?.accounts ?? []);
   const [localModels, setLocalModels] = useState<LocalModelSummary[]>([]);
   const [localModelsLoading, setLocalModelsLoading] = useState(false);
   const [localModelsError, setLocalModelsError] = useState("");
   const [localModelDownload, setLocalModelDownload] = useState<LocalModelDownloadSnapshot | null>(null);
+  useEffect(() => {
+    const nativeBrowser = window.lfaaDesktop?.nativeBrowser;
+    if (!nativeBrowser) return;
+    let live = true;
+    void nativeBrowser.setPreferences(settings.browserUse).then(() => {
+      if (live) setNativeBrowserPreferencesError("");
+    }).catch(reason => {
+      if (live) setNativeBrowserPreferencesError(getErrorMessage(reason));
+    });
+    return () => { live = false; };
+  }, [settings.browserUse]);
   const [localModelAction, setLocalModelAction] = useState<string | null>(null);
   const imageGenerationAccounts = accounts.filter(account => account.providerId === "openai" || account.providerId === "doubao");
   const selectedImageGenerationAccount = imageGenerationAccounts.find(account => account.id === settings.aiRuntime.imageGenerationAccountId);
@@ -1203,6 +1198,10 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           case "plugins": {
             const [, capabilityResult] = await Promise.all([loadExtensionsOnce(), loadCapabilityInstallCatalog()]);
             setCapabilityInstallCatalog(capabilityResult.capabilities);
+            break;
+          }
+          case "hooks": {
+            await loadExtensionsOnce();
             break;
           }
           case "usage": {
@@ -2316,7 +2315,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   }
 
   const backgroundChoices: Array<{ id: string; name: string; file?: string; uploadedBackground?: AppearanceBackground }> = [
-    ...appearanceBackgrounds,
+    ...appearanceBackgroundOptions,
     ...uploadedBackgrounds.map((background) => ({ id: background.id, name: `自定义 · ${background.name}`, file: background.url, uploadedBackground: background }))
   ];
   const visibleBackgroundChoices = backgroundTarget === "login"
@@ -2415,6 +2414,37 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   );
 
   const sectionContent = (() => {
+    if (activeSection === "parental") return <AccountAgentUsageSettings user={user} />;
+    if (activeSection === "import") return <AccountSnapshotsSettings mode="import" />;
+    if (activeSection === "snapshots") return <AccountSnapshotsSettings mode="snapshots" />;
+    if (activeSection === "trustedContacts") return <TrustedContactsSettings />;
+    if (activeSection === "cloudPreferences") return <CloudPreferencesSettings user={user} onNavigate={onNavigate} />;
+
+    if (activeSection === "mini") return (
+      <section className="settings-content">
+        <header className="settings-content__heading"><div><span className="settings-eyebrow">个人</span><Typography.Title level={2}>Mini 与虚拟宠物</Typography.Title><Typography.Paragraph>管理 LFAA 桌面 Mini 窗口和伙伴显示偏好。窗口动作由 Electron Host 执行；Web 页面只保存账户偏好，不会伪称打开了原生窗口。</Typography.Paragraph></div></header>
+        <SettingGroup title="虚拟伙伴">
+          <SettingRow title="伙伴外观" description="只改变 Mini 窗口里显示的 LFAA 伙伴造型。" status={settings.mini.companion === "moss" ? "苔影" : settings.mini.companion === "cloud" ? "云朵" : "微光"}>
+            <Select aria-label="虚拟伙伴外观" value={settings.mini.companion} options={[{ value: "moss", label: "苔影" }, { value: "cloud", label: "云朵" }, { value: "ember", label: "微光" }]} onChange={companion => updateSettings("mini", { ...settings.mini, companion })} />
+          </SettingRow>
+          <SettingRow title="显示虚拟伙伴" description="关闭后 Mini 窗口保留轻量控制面板，不绘制伙伴图形。" status={settings.mini.showCompanion ? "显示" : "隐藏"}>
+            <SettingsSwitch label="显示虚拟伙伴" checked={settings.mini.showCompanion} onChange={() => updateSettings("mini", { ...settings.mini, showCompanion: !settings.mini.showCompanion })} />
+          </SettingRow>
+        </SettingGroup>
+        <SettingGroup title="Mini 窗口">
+          <SettingRow title="窗口置顶" description="只影响当前设备的 Electron Mini 窗口层级。" status={settings.mini.alwaysOnTop ? "置顶" : "普通窗口"}>
+            <SettingsSwitch label="Mini 窗口置顶" checked={settings.mini.alwaysOnTop} onChange={() => updateSettings("mini", { ...settings.mini, alwaysOnTop: !settings.mini.alwaysOnTop })} />
+          </SettingRow>
+          <SettingRow title="窗口不透明度" description="降低不透明度可透出下方窗口；范围为 40%–100%。" status={`${settings.mini.opacity}%`}>
+            <div className="settings-slider"><Slider min={40} max={100} value={settings.mini.opacity} onChange={opacity => updateSettings("mini", { ...settings.mini, opacity })} /><output>{settings.mini.opacity}%</output></div>
+          </SettingRow>
+          <SettingRow title="宿主能力" description={window.lfaaDesktop?.mini ? "当前 Electron Host 可创建独立 Mini 窗口。" : "当前是 Web Host；可保存偏好，独立 Mini 窗口需 Electron Host。"} status={window.lfaaDesktop?.mini ? "Electron 已接入" : "Web 不支持原生窗口"}>
+            {window.lfaaDesktop?.mini ? <Button onClick={() => void window.lfaaDesktop?.mini.open(settings.mini)}>打开 Mini 窗口</Button> : <Tag>当前 Host 不支持</Tag>}
+          </SettingRow>
+        </SettingGroup>
+      </section>
+    );
+
     if (activeSection === "profile") return (
       <section className="settings-content settings-content--account" role="tabpanel" id="settings-account-panel" aria-labelledby="settings-account-tab-profile" tabIndex={0}>
         <header className="settings-content__heading"><div><span className="settings-eyebrow">个人与账户</span><Typography.Title level={2}>账号</Typography.Title><Typography.Paragraph>管理个人资料、登录安全和本机账号。</Typography.Paragraph></div></header>
@@ -2683,9 +2713,9 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
         </SettingGroup>
         <SettingGroup title="背景图片">
           <SettingRow title="设置背景位置" description="选择“登录页（当前设备）”并保存后，背景会在本机下一次打开登录页时生效；其他背景保存后用于对应工作区。" status="已接入">
-            <Select value={backgroundTarget} options={backgroundTargets.map((item) => ({ value: item.id, label: item.label }))} onChange={setBackgroundTarget} />
+            <Select value={backgroundTarget} options={appearanceBackgroundTargets.map((item) => ({ value: item.id, label: item.label }))} onChange={setBackgroundTarget} />
           </SettingRow>
-          <div className="settings-background-picker" role="group" aria-label={`${backgroundTargets.find((item) => item.id === backgroundTarget)?.label ?? "工作区"}背景图片`}>
+          <div className="settings-background-picker" role="group" aria-label={`${appearanceBackgroundTargets.find((item) => item.id === backgroundTarget)?.label ?? "工作区"}背景图片`}>
             {visibleBackgroundChoices.map((item) => {
               const selected = selectedBackgroundForTarget === item.id;
               const backgroundToRemove = item.uploadedBackground;
@@ -2694,7 +2724,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
                   type="button"
                   className={`settings-background-card${selected ? " is-selected" : ""}${item.file ? "" : " settings-background-card--plain"}`}
                   aria-pressed={selected}
-                  aria-label={`为${backgroundTargets.find((target) => target.id === backgroundTarget)?.label ?? "工作区"}选择${item.name}`}
+                  aria-label={`为${appearanceBackgroundTargets.find((target) => target.id === backgroundTarget)?.label ?? "工作区"}选择${item.name}`}
                   onClick={() => updateSettings("appearance", { ...settings.appearance, backgrounds: { ...settings.appearance.backgrounds, [backgroundTarget]: item.id } })}
                 >
                   {item.file ? <img className="settings-background-card__image" src={item.file} alt="" aria-hidden="true" loading="lazy" decoding="async" /> : null}
@@ -2707,7 +2737,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
               </div>;
             })}
           </div>
-          <p className="settings-background-hint">图片卡片会显示背景预览；Minecraft 常规与 小鱼智能体 共用同一张 Minecraft 工作区背景，设置中心、小鱼智能体和各应用工作区分别保存。当前图片应用于：{backgroundTargets.find((item) => item.id === backgroundTarget)?.label}。登录页只使用内置图片，自定义上传仍限于登录后的工作区。</p>
+          <p className="settings-background-hint">图片卡片会显示背景预览；Minecraft 常规与 小鱼智能体 共用同一张 Minecraft 工作区背景，设置中心、小鱼智能体和各应用工作区分别保存。当前图片应用于：{appearanceBackgroundTargets.find((item) => item.id === backgroundTarget)?.label}。登录页只使用内置图片，自定义上传仍限于登录后的工作区。</p>
           {backgroundActionError ? <Alert className="settings-inline-alert" type="error" showIcon message="背景图片操作失败" description={backgroundActionError} /> : null}
           {backgroundTarget === "login" ? (
             <SettingRow title="上传背景图片" description="登录页只支持内置图片；切换到其他位置后可上传账户私有背景。" status="仅内置图片">
@@ -3022,6 +3052,18 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           </> : <Alert type="info" showIcon message="本机 MiniMax-H3 会按模型默认生成音频；角色/场景参考图最多合并为一张首帧。" />}
         </SettingGroup>
         <SettingGroup title="推理参数">
+          <SettingRow title="Agent Shell 文件访问限制" description="工作区读写隔离为默认值；只读限制项目文件写入；完全访问仍经现有 Permission Owner 授权。">
+            <Select
+              value={settings.aiRuntime.executionSandboxMode}
+              onChange={value => updateSettings("aiRuntime", { ...settings.aiRuntime, executionSandboxMode: value })}
+              options={[
+                { value: EXECUTION_SANDBOX_MODES[0], label: "只读工作区" },
+                { value: EXECUTION_SANDBOX_MODES[1], label: "工作区读写（默认）" },
+                { value: EXECUTION_SANDBOX_MODES[2], label: "完全访问" },
+              ]}
+              aria-label="Agent Shell 文件访问限制"
+            />
+          </SettingRow>
           <SettingRow title="输出长度策略" description="快速策略最多请求 1024 tokens；平衡/深入遵循所选模型能力或你填写的上限，不改变模型思考力度。">
             <Select value={settings.aiRuntime.speed} options={[{ value: "fast", label: "快速 · 最多 1024" }, { value: "balanced", label: "平衡 · 按模型/自定义上限" }, { value: "deep", label: "深入 · 尽量使用模型上限" }]} onChange={(value) => updateSettings("aiRuntime", { ...settings.aiRuntime, speed: value })} />
           </SettingRow>
@@ -3131,6 +3173,28 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     );
 
     if (activeSection === "profilePlugins") return <ManagedPluginsSettings user={user} applications={applications} settings={settings} onPluginSettingsChange={plugins => updateSettings("plugins", plugins)} onGeneralSettingsChange={general => updateSettings("general", general)} onNavigate={onNavigate} />;
+
+    if (activeSection === "hooks") return (
+      <section className="settings-content">
+        <header className="settings-content__heading"><div><span className="settings-eyebrow">编码</span><Typography.Title level={2}>钩子</Typography.Title><Typography.Paragraph>查看当前 LFAA Host 中受信任插件实际登记的 AI Runtime 生命周期钩子。</Typography.Paragraph></div></header>
+        <SettingGroup title="AI Runtime Hooks">
+          {runtimeHooks.length ? runtimeHooks.map((hook) => <SettingRow key={hook.id} title={hook.id} description={`订阅事件：${hook.events.map((event) => event === "beforeInference" ? "推理前" : event === "afterInference" ? "推理后" : "模型请求路由").join("、")}`} status="受信任插件"><Tag>生命周期钩子</Tag></SettingRow>) : <SettingRow title="暂无已注册钩子" description="钩子仅由当前运行组合中已加载的 Cordis 插件注册；此处不编辑或执行插件代码。Agent 可通过运行时钩子 Owner 读取同一目录。" status="空目录"><Tag>0 项</Tag></SettingRow>}
+        </SettingGroup>
+        {loadingSection === "hooks" ? <div role="status" className="settings-note-card"><strong>正在读取钩子目录</strong><p>状态来自当前 LFAA Host。</p></div> : null}
+        {sectionErrors.hooks ? <Alert type="error" showIcon message="读取钩子目录失败" description={sectionErrors.hooks} /> : null}
+      </section>
+    );
+
+    if (activeSection === "codeReview") {
+      return <section className="settings-content">
+        <header className="settings-content__heading"><div><span className="settings-eyebrow">编码</span><Typography.Title level={2}>代码审查</Typography.Title><Typography.Paragraph>小鱼 Agent 会读取当前会话绑定的真实 Git 工作区差异，并围绕改动检查缺陷、回归风险和验证覆盖。</Typography.Paragraph></div></header>
+        <SettingGroup title="审查入口">
+          <SettingRow title="当前项目变更" description="在 AI 工作区提出“审查当前项目代码”。Agent 只读 Git 差异和必要源码；没有绑定仓库时会说明，审查不会自动修改、提交或推送。" status="Git Owner 已接入">
+            <Button type="primary" onClick={() => onNavigate("/work")}>前往 AI 工作区</Button>
+          </SettingRow>
+        </SettingGroup>
+      </section>;
+    }
 
     if (activeSection === "plugins" || activeSection === "connections") return (
       <section className={`settings-content settings-content--plugin-workspace${standaloneWorkspaceContent ? " settings-content--plugin-workspace-standalone" : ""}`}>
@@ -3639,7 +3703,187 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     );
 
     if (activeSection === "browser") {
-      const selectedSection = sections.find(section => section.id === activeSection);
+      const refreshBrowserHistory = async (): Promise<void> => {
+        setBrowserHistoryLoading(true);
+        try {
+          const result = await loadBrowserRecentSites(50);
+          setBrowserHistory(result.sites);
+        } catch (reason) {
+          messageApi.error(getErrorMessage(reason));
+        } finally {
+          setBrowserHistoryLoading(false);
+        }
+      };
+      const openBrowserHistory = (): void => {
+        setBrowserHistoryOpen(true);
+        void refreshBrowserHistory();
+      };
+      const removeBrowserHistoryItem = async (url: string): Promise<void> => {
+        setBrowserHistoryDeletingUrl(url);
+        try {
+          const result = await deleteBrowserRecentSite(url);
+          if (result.deleted) setBrowserHistory(current => current.filter(site => site.url !== url));
+        } catch (reason) {
+          messageApi.error(getErrorMessage(reason));
+        } finally {
+          setBrowserHistoryDeletingUrl(null);
+        }
+      };
+      const clearBrowserHistory = async (): Promise<void> => {
+        try {
+          await clearBrowserRecentSites();
+          setBrowserHistory([]);
+          messageApi.success("浏览历史已清除。");
+        } catch (reason) {
+          messageApi.error(getErrorMessage(reason));
+        }
+      };
+      const refreshBrowserDownloads = async (): Promise<void> => {
+        const nativeBrowser = window.lfaaDesktop?.nativeBrowser;
+        if (!nativeBrowser) return;
+        setBrowserDownloadLoading(true);
+        try {
+          const [history, location] = await Promise.all([nativeBrowser.getDownloadHistory(), nativeBrowser.getDownloadSettings()]);
+          setBrowserDownloadHistory(history);
+          setBrowserDownloadSettings(location);
+        } catch (reason) {
+          messageApi.error(getErrorMessage(reason));
+        } finally {
+          setBrowserDownloadLoading(false);
+        }
+      };
+      const refreshBrowserExtensions = async (): Promise<void> => {
+        const nativeBrowser = window.lfaaDesktop?.nativeBrowser;
+        if (!nativeBrowser) return;
+        setBrowserExtensionsLoading(true);
+        try { setBrowserExtensions(await nativeBrowser.getBrowserExtensions()); }
+        catch (reason) { messageApi.error(getErrorMessage(reason)); }
+        finally { setBrowserExtensionsLoading(false); }
+      };
+      const openBrowserExtensions = (): void => {
+        setBrowserExtensionsOpen(true);
+        void refreshBrowserExtensions();
+      };
+      const addBrowserExtension = async (): Promise<void> => {
+        const nativeBrowser = window.lfaaDesktop?.nativeBrowser;
+        if (!nativeBrowser) return;
+        setBrowserExtensionsLoading(true);
+        try { setBrowserExtensions(await nativeBrowser.chooseBrowserExtension()); }
+        catch (reason) { messageApi.error(getErrorMessage(reason)); }
+        finally { setBrowserExtensionsLoading(false); }
+      };
+      const setBrowserExtensionEnabled = async (extension: NativeBrowserExtension, enabled: boolean): Promise<void> => {
+        const nativeBrowser = window.lfaaDesktop?.nativeBrowser;
+        if (!nativeBrowser) return;
+        setBrowserExtensionsLoading(true);
+        try { setBrowserExtensions(await nativeBrowser.setBrowserExtensionEnabled(extension.id, enabled)); }
+        catch (reason) { messageApi.error(getErrorMessage(reason)); }
+        finally { setBrowserExtensionsLoading(false); }
+      };
+      const removeBrowserExtension = async (extension: NativeBrowserExtension): Promise<void> => {
+        const nativeBrowser = window.lfaaDesktop?.nativeBrowser;
+        if (!nativeBrowser) return;
+        setBrowserExtensionsLoading(true);
+        try { setBrowserExtensions((await nativeBrowser.removeBrowserExtension(extension.id)).extensions); }
+        catch (reason) { messageApi.error(getErrorMessage(reason)); }
+        finally { setBrowserExtensionsLoading(false); }
+      };
+      const configureBrowserExtension = async (extension: NativeBrowserExtension): Promise<void> => {
+        const nativeBrowser = window.lfaaDesktop?.nativeBrowser;
+        if (!nativeBrowser) return;
+        try { await nativeBrowser.configureBrowserExtension(extension.id); }
+        catch (reason) { messageApi.error(getErrorMessage(reason)); }
+      };
+      const refreshBrowserCredentials = async (): Promise<void> => {
+        setBrowserCredentialsLoading(true);
+        try { setBrowserCredentials(await loadBrowserCredentials()); setBrowserCredentialsLoaded(true); }
+        catch (reason) { messageApi.error(getErrorMessage(reason)); }
+        finally { setBrowserCredentialsLoading(false); }
+      };
+      const openBrowserCredentialManager = (kind: "passwords" | "contacts"): void => {
+        setBrowserCredentialsOpen(kind);
+        void refreshBrowserCredentials();
+      };
+      const createBrowserPassword = async (): Promise<void> => {
+        try {
+          await saveBrowserPassword(browserPasswordDraft);
+          setBrowserPasswordDraft({ title: "", origin: "", username: "", password: "" });
+          await refreshBrowserCredentials();
+          messageApi.success("密码已加密保存到当前账户。");
+        } catch (reason) { messageApi.error(getErrorMessage(reason)); }
+      };
+      const createBrowserContact = async (): Promise<void> => {
+        try {
+          await saveBrowserContact(browserContactDraft);
+          setBrowserContactDraft({ title: "", name: "", address: "", email: "", phone: "" });
+          await refreshBrowserCredentials();
+          messageApi.success("联系信息已加密保存到当前账户。");
+        } catch (reason) { messageApi.error(getErrorMessage(reason)); }
+      };
+      const removeBrowserCredential = async (entry: BrowserVaultEntry): Promise<void> => {
+        try {
+          await deleteBrowserCredential(entry.id, entry.kind);
+          setBrowserCredentials(current => ({
+            passwords: current.passwords.filter(item => item.id !== entry.id),
+            contacts: current.contacts.filter(item => item.id !== entry.id)
+          }));
+          messageApi.success("已删除该加密记录。");
+        } catch (reason) { messageApi.error(getErrorMessage(reason)); }
+      };
+      const autofillBrowserCredential = async (entry: BrowserVaultEntry): Promise<void> => {
+        try {
+          const result = entry.kind === "password"
+            ? await autofillBrowserPassword(entry.id, browserVaultProviderId)
+            : await autofillBrowserContact(entry.id, browserVaultProviderId);
+          messageApi.success(`已在 ${result.origin} 填入${result.filled.join("、")}；未提交表单。`);
+        } catch (reason) { messageApi.error(getErrorMessage(reason)); }
+      };
+      const clearBrowserData = async (): Promise<void> => {
+        const nativeBrowser = window.lfaaDesktop?.nativeBrowser;
+        const outcomes = await Promise.allSettled([
+          clearBrowserSessionData(),
+          nativeBrowser ? nativeBrowser.clearData() : Promise.resolve({ cleared: false })
+        ]);
+        setBrowserHistory([]);
+        const failures = outcomes.filter(result => result.status === "rejected");
+        if (failures.length) messageApi.error(`部分浏览数据未清除：${getErrorMessage((failures[0] as PromiseRejectedResult).reason)}`);
+        else messageApi.success("LFAA 浏览历史、网站数据、缓存与下载历史已清除。");
+        if (nativeBrowser) setBrowserDownloadHistory([]);
+      };
+      const openBrowserDownloads = (): void => {
+        setBrowserDownloadHistoryOpen(true);
+        void refreshBrowserDownloads();
+      };
+      const addBrowserSitePermission = (): void => {
+        let origin = "";
+        try {
+          const url = new URL(browserSitePermissionOriginDraft.trim());
+          if ((url.protocol !== "http:" && url.protocol !== "https:") || url.username || url.password) throw new Error("仅支持 HTTP(S) 网站来源。");
+          origin = url.origin;
+        } catch (reason) {
+          messageApi.error(reason instanceof Error ? reason.message : "网站地址无效。");
+          return;
+        }
+        const sitePermissionOverrides = settings.browserUse.sitePermissionOverrides.filter(rule => !(rule.origin === origin && rule.permission === browserSitePermissionDraft));
+        sitePermissionOverrides.push({ origin, permission: browserSitePermissionDraft, decision: browserSitePermissionDecisionDraft });
+        updateSettings("browserUse", { ...settings.browserUse, sitePermissionOverrides: sitePermissionOverrides.slice(0, 256) });
+        setBrowserSitePermissionOriginDraft("");
+      };
+      const addBrowserWebsiteToolOverride = (): void => {
+        let origin = "";
+        try {
+          const url = new URL(browserWebsiteOriginDraft.trim());
+          if ((url.protocol !== "http:" && url.protocol !== "https:") || url.username || url.password) throw new Error("仅支持 HTTP(S) 网站来源。");
+          origin = url.origin;
+        } catch (reason) {
+          messageApi.error(reason instanceof Error ? reason.message : "网站地址无效。");
+          return;
+        }
+        const websiteToolOverrides = settings.browserUse.websiteToolOverrides.filter(rule => rule.origin !== origin);
+        websiteToolOverrides.push({ origin, decision: browserWebsiteDecisionDraft });
+        updateSettings("browserUse", { ...settings.browserUse, websiteToolOverrides: websiteToolOverrides.slice(0, 256) });
+        setBrowserWebsiteOriginDraft("");
+      };
       const toggleBrowserProvider = async (provider: BrowserProviderSummary, linked: boolean): Promise<void> => {
         if (provider.isolation !== "user-profile") return;
         try {
@@ -3652,13 +3896,22 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           message.error(getErrorMessage(reason));
         }
       };
-      return <section className="settings-content" role="tabpanel" id="settings-browser-panel" aria-labelledby="settings-browser-tab" tabIndex={0}>
-        <header className="settings-content__heading"><div><span className="settings-eyebrow">{selectedSection?.group}</span><Typography.Title level={2}>浏览器</Typography.Title><Typography.Paragraph>LFAA 内置浏览器随工作区直接可用，地址栏输入后会在当前网页区域打开；Agent 可在启用浏览器控制后复用同一会话。只有个人浏览器需要由你明确选择接入，所有 Agent 操作仍遵循统一权限模式。</Typography.Paragraph></div></header>
+      const browserVaultProviders = browserProviders.providers.filter(provider => provider.available && provider.isolation !== "user-profile");
+      return <section className="settings-content settings-content--browser" role="tabpanel" id="settings-browser-panel" aria-labelledby="settings-browser-tab" tabIndex={0}>
+        <header className="settings-content__heading"><div><Typography.Title level={2}>浏览器</Typography.Title><Typography.Paragraph>管理内置浏览器、Agent Browser Use 偏好与网站访问权限。</Typography.Paragraph></div></header>
         <SettingGroup title="Agent 浏览器控制">
           <SettingRow title="让 Agent 控制浏览器" description="开启后，Agent 可以使用当前 Host 可用的 LFAA 内置浏览器并复用右侧当前页面；无需单独接入内置浏览器。关闭只停用 Agent 工具，你仍可直接操作右侧浏览器。" status={settings.browserUse.enabled ? "已开启" : "默认关闭"}>
             <SettingsSwitch label="允许 Agent 使用浏览器" checked={settings.browserUse.enabled} onChange={() => updateSettings("browserUse", { ...settings.browserUse, enabled: !settings.browserUse.enabled })} />
           </SettingRow>
           <SettingRow title="Agent 操作权限" description="浏览器点击、输入和导航统一遵循此权限模式；不为浏览器另设站点白名单或审批规则。" status={settings.permissions.mode === "ask" ? "请求审批" : settings.permissions.mode === "approve_remembered" ? "替我审批" : "完全访问"}><Button onClick={() => selectSection("permissions")}>管理权限模式</Button></SettingRow>
+        </SettingGroup>
+        <SettingGroup title="Agent 打开位置">
+          <SettingRow title="网页 URL 和链接打开位置" description={`控制 Agent 打开公开网站时使用的浏览器。选择当前已打开的浏览器，需要本机 Windows Host 提供电脑操控，并由 Agent 按权限操作可见窗口、保留 LFAA 工作台标签。${settings.computerControl.enabled ? "电脑操控已开启。" : "当前电脑操控关闭；此选项不会替你开启它。"}`} status={settings.browserUse.webUrlOpenLocation === "current-browser" ? "当前已打开的浏览器" : "LFAA 内置浏览器"}>
+            <Select value={settings.browserUse.webUrlOpenLocation} options={[{ value: "lfaa", label: "LFAA 内置浏览器" }, { value: "current-browser", label: "当前已打开的浏览器" }]} onChange={(webUrlOpenLocation: UserSettings["browserUse"]["webUrlOpenLocation"]) => updateSettings("browserUse", { ...settings.browserUse, webUrlOpenLocation })} />
+          </SettingRow>
+          <SettingRow title="本地开发站点默认打开位置" description={`控制 Agent 打开 localhost/loopback 开发 URL 时使用的浏览器。${settings.computerControl.enabled ? "电脑操控已开启；当前浏览器选择可用本机可见窗口。" : "当前浏览器选项需要先启用设置中心的电脑操控；该选择不会替你开启电脑操控。"} 工作区 HTML/HTM 文件仍由 LFAA 受限预览器打开。`} status={settings.browserUse.localUrlOpenLocation === "current-browser" ? "当前已打开的浏览器" : "LFAA 内置浏览器"}>
+            <Select value={settings.browserUse.localUrlOpenLocation} options={[{ value: "lfaa", label: "LFAA 内置浏览器" }, { value: "current-browser", label: "当前已打开的浏览器" }]} onChange={(localUrlOpenLocation: UserSettings["browserUse"]["localUrlOpenLocation"]) => updateSettings("browserUse", { ...settings.browserUse, localUrlOpenLocation })} />
+          </SettingRow>
         </SettingGroup>
         <SettingGroup title="内置浏览器与个人浏览器">
           {browserProviders.status === "loading" && browserProviders.providers.length === 0 ? <SettingRow title="正在检查浏览器" description="只检查 Host 支持和浏览器启动器，不读取个人 Profile、标签或登录状态。" status="检查中"><Tag>检查中</Tag></SettingRow> : null}
@@ -3691,30 +3944,227 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           <SettingRow title="记录最近访问的网站" description="按账户记录 LFAA 浏览器和 Agent 实际访问的网站；查询参数、片段、页面正文和表单内容不会保存，也不读取系统个人浏览器历史。关闭后停止新增记录，并隐藏已有记录。" status={settings.browserUse.recordRecentSites ? "已开启" : "已关闭"}>
             <SettingsSwitch label="记录最近访问的网站" checked={settings.browserUse.recordRecentSites} onChange={() => updateSettings("browserUse", { ...settings.browserUse, recordRecentSites: !settings.browserUse.recordRecentSites })} />
           </SettingRow>
-          <SettingRow title="清除最近网站记录" description="删除当前账户保存的全部最近网站条目；不会清除浏览器 Cookie、缓存或个人浏览器数据。" status="账户范围">
-            <Popconfirm title="清除当前账户的最近网站记录？" description="此操作会移除 LFAA Browser Dock 与 Agent 保存的网站条目。" okText="清除记录" cancelText="取消" onConfirm={() => void clearBrowserRecentSites().then(() => message.success("最近网站记录已清除。" )).catch(reason => message.error(getErrorMessage(reason)))}><Button>清除记录</Button></Popconfirm>
+          <SettingRow title="浏览历史" description="查看或管理 LFAA 内置浏览器与 Agent 最近访问的站点；只保存来源和路径，不包含查询参数、页面正文或表单内容。" status={settings.browserUse.recordRecentSites ? "最多 50 条" : "记录已关闭"}>
+            <Button disabled={!settings.browserUse.recordRecentSites} onClick={openBrowserHistory}>管理</Button>
           </SettingRow>
-          <SettingRow title="清除网站数据" description="清除 LFAA 原生浏览器本次运行期间的 Cookie、缓存、本地站点数据和网站权限决定；不会触碰系统 Edge/Chrome 个人资料。原生网站数据不跨应用重启保存；最近网站记录由上方账户设置单独管理。" status={window.lfaaDesktop?.nativeBrowser ? "仅本次运行数据" : "桌面端可用"}>
-            <Button disabled={!window.lfaaDesktop?.nativeBrowser} onClick={() => void window.lfaaDesktop?.nativeBrowser.clearData().then(result => { if (result.cleared) message.success("LFAA 浏览器网站数据已清除。"); }).catch(reason => message.error(getErrorMessage(reason)))}>清除数据</Button>
+          <SettingRow title="清除浏览历史" description="删除当前账户保存的 LFAA 浏览历史；不会触碰系统 Edge/Chrome 个人资料。" status="账户范围">
+            <Popconfirm title="清除当前账户的最近网站记录？" description="此操作会移除 LFAA Browser Dock 与 Agent 保存的网站条目。" okText="清除记录" cancelText="取消" onConfirm={() => void clearBrowserHistory()}><Button>清除记录</Button></Popconfirm>
+          </SettingRow>
+          <SettingRow title="浏览数据" description="清除 LFAA 浏览历史、原生浏览器网站存储、缓存与下载历史。不会修改系统浏览器个人资料或保存在设置中的密码、联系人及站点权限例外。" status={window.lfaaDesktop?.nativeBrowser ? "LFAA 范围" : "历史可清除"}>
+            <Popconfirm title="清除 LFAA 浏览数据？" description="最近网站记录、网站数据、缓存和下载历史将被删除。" okText="清除数据" cancelText="取消" onConfirm={() => void clearBrowserData()}><Button danger>清除数据</Button></Popconfirm>
           </SettingRow>
         </SettingGroup>
-        <SettingGroup title="当前版本支持范围">
-          <SettingRow title="Electron 原生浏览器工作区" description="源码包含 Chromium 原生页面、多标签、地址导航、前进后退、停止/刷新、页面查找、缩放、打印与下载入口；真实桌面窗口尚未运行验收。" status="桌面实页待验"><Tag>桌面实页待验</Tag></SettingRow>
-          <SettingRow title="页面观察、网站权限与下载" description="源码包含页面信息读取、网站权限请求处理和系统下载对话框；摄像头、麦克风、位置、通知等真实桌面弹窗及下载结果尚未验收。网页登录、OAuth 授权和验证码由用户手动完成。" status="桌面实页待验"><Tag>桌面实页待验</Tag></SettingRow>
-          <SettingRow title="书签、密码/联系信息、扩展和下载历史管理" description="除上方按账户保存的最近网站记录外，书签、密码/联系信息、扩展和下载记录管理尚未接入独立 Owner。" status="部分未接入"><Tag>部分未接入</Tag></SettingRow>
-          <SettingRow title="Agent 原生页面控制" description="源码已接入：受信 Electron Host 的回环 CDP 只用于 Browser Owner 按账户、LFAA Session 和用户当前选中的 Target 绑定；调用仍经认证 API 与 Permission Owner。CDP 端点不提供给 Renderer 或 Agent Tool；桌面实际操作尚未验收。" status="源码已接入 · 桌面实测待验"><Tag>桌面实测待验</Tag></SettingRow>
+        <SettingGroup title="批注截图">
+          <SettingRow title="发送页面截图供 Agent 理解" description="截图仅作为当前浏览器工具调用中的临时视觉输入，不写入历史或会话。始终包含可能增加图像处理用量；按需包含由 Agent 根据任务显式请求。" status={settings.browserUse.annotateScreenshots === "always" ? "始终包含" : settings.browserUse.annotateScreenshots === "never" ? "从不包含" : "按需包含"}>
+            <Select value={settings.browserUse.annotateScreenshots} options={[{ value: "always", label: "始终包含" }, { value: "on-demand", label: "按需包含" }, { value: "never", label: "从不包含" }]} onChange={(annotateScreenshots: UserSettings["browserUse"]["annotateScreenshots"]) => updateSettings("browserUse", { ...settings.browserUse, annotateScreenshots })} />
+          </SettingRow>
         </SettingGroup>
+        <SettingGroup title="自动填充和密码">
+          <SettingRow title="密码管理器" description="网站密码使用账户凭据 Owner 加密保存；列表不会返回密码内容。填入前校验当前页面来源，只填入用户名/密码字段且不会提交表单。" status={browserCredentialsLoaded ? `${browserCredentials.passwords.length} 个加密条目` : "账户加密库"}>
+            <Button onClick={() => openBrowserCredentialManager("passwords")}>管理</Button>
+          </SettingRow>
+          <SettingRow title="联系信息" description="加密保存姓名、地址、电话和邮箱；仅在你点击填入后，写入当前 LFAA 浏览器页面的唯一标准字段，不提交表单。" status={browserCredentialsLoaded ? `${browserCredentials.contacts.length} 个加密条目` : "账户加密库"}>
+            <Button onClick={() => openBrowserCredentialManager("contacts")}>管理</Button>
+          </SettingRow>
+        </SettingGroup>
+        <SettingGroup title="扩展程序">
+          <SettingRow title="扩展程序管理器" description="管理 LFAA Electron 内置浏览器中的已解压扩展；安装前会显示权限提示。Electron 仅支持 Chromium 扩展 API 子集。" status={window.lfaaDesktop?.nativeBrowser ? `${browserExtensions.length} 个扩展` : "当前 Web Host 不支持"}>
+            <Button disabled={!window.lfaaDesktop?.nativeBrowser} onClick={openBrowserExtensions}>管理</Button>
+          </SettingRow>
+        </SettingGroup>
+        <SettingGroup title="浏览器权限">
+          <SettingRow title="Agent 可访问浏览历史" description="允许 Agent 在当前任务确有需要时读取最近 20 条 LFAA 浏览历史；仍受统一权限模式控制，不访问个人浏览器历史。" status={settings.browserUse.allowAgentHistoryAccess ? "已允许" : "默认关闭"}>
+            <SettingsSwitch label="允许 Agent 读取浏览历史" checked={settings.browserUse.allowAgentHistoryAccess} onChange={() => updateSettings("browserUse", { ...settings.browserUse, allowAgentHistoryAccess: !settings.browserUse.allowAgentHistoryAccess })} />
+          </SettingRow>
+          <SettingRow title="默认使用网站工具" description="允许 Agent 发现当前页面通过 WebMCP document.modelContext 公开的同源工具。网站工具说明与结果是不可信内容，执行仍经过统一 Permission Owner。" status={settings.browserUse.useWebsiteToolsByDefault ? "已开启" : "默认关闭"}>
+            <Space><Button onClick={() => setBrowserWebsiteToolsOpen(true)}>网站例外</Button><SettingsSwitch label="允许发现网站工具" checked={settings.browserUse.useWebsiteToolsByDefault} onChange={() => updateSettings("browserUse", { ...settings.browserUse, useWebsiteToolsByDefault: !settings.browserUse.useWebsiteToolsByDefault })} /></Space>
+          </SettingRow>
+          {([ ["camera", "摄像头"], ["microphone", "麦克风"], ["geolocation", "位置信息"], ["notifications", "通知"] ] as const).map(([permission, label]) => (
+            <SettingRow key={permission} title={`${label}默认权限`} description="适用于 LFAA 原生浏览器；网站单独设置的例外优先。询问时由桌面 Host 显示来源明确的权限提示。" status={settings.browserUse.sitePermissionDefaults[permission] === "allow" ? "允许" : settings.browserUse.sitePermissionDefaults[permission] === "block" ? "拒绝" : "每次询问"}>
+              <Select value={settings.browserUse.sitePermissionDefaults[permission]} options={[{ value: "ask", label: "每次询问" }, { value: "allow", label: "允许" }, { value: "block", label: "拒绝" }]} onChange={(decision: "ask" | "allow" | "block") => updateSettings("browserUse", { ...settings.browserUse, sitePermissionDefaults: { ...settings.browserUse.sitePermissionDefaults, [permission]: decision } })} />
+            </SettingRow>
+          ))}
+          <SettingRow title="网站设置" description="按来源单独允许或拒绝摄像头、麦克风、位置信息和通知。仅保存 HTTP(S) 来源，不保存路径或查询参数。" status={`${settings.browserUse.sitePermissionOverrides.length} 项自定义例外`}>
+            <Button onClick={() => setBrowserSitePermissionsOpen(true)}>管理</Button>
+          </SettingRow>
+        </SettingGroup>
+        <Modal
+          className="settings-browser-modal"
+          title="浏览历史"
+          open={browserHistoryOpen}
+          onCancel={() => setBrowserHistoryOpen(false)}
+          footer={<Space><Popconfirm title="清除当前账户的全部浏览历史？" okText="清除" cancelText="取消" onConfirm={() => void clearBrowserHistory()}><Button danger disabled={browserHistory.length === 0}>清除全部</Button></Popconfirm><Button type="primary" onClick={() => setBrowserHistoryOpen(false)}>完成</Button></Space>}
+          width="min(560px, calc(100vw - 32px))"
+        >
+          {browserHistoryLoading ? <Typography.Text type="secondary">正在读取浏览历史…</Typography.Text>
+            : browserHistory.length === 0 ? <Typography.Text type="secondary">暂无浏览历史。</Typography.Text>
+              : <div className="settings-browser-history__list">{browserHistory.map(site => <div className="settings-browser-history__item" key={site.url}>
+                <div className="settings-browser-history__details"><Typography.Text ellipsis title={site.url}>{site.url}</Typography.Text><Typography.Text type="secondary">{new Date(site.visitedAt).toLocaleString("zh-CN")}</Typography.Text></div>
+                <Button aria-label={`删除 ${site.url}`} loading={browserHistoryDeletingUrl === site.url} onClick={() => void removeBrowserHistoryItem(site.url)}>删除</Button>
+              </div>)}</div>}
+        </Modal>
+        <Modal
+          className="settings-browser-modal"
+          title="密码管理器"
+          open={browserCredentialsOpen === "passwords"}
+          onCancel={() => setBrowserCredentialsOpen(null)}
+          footer={<Button type="primary" onClick={() => setBrowserCredentialsOpen(null)}>完成</Button>}
+          width="min(680px, calc(100vw - 32px))"
+        >
+          <div className="settings-browser-credentials__form">
+            <Typography.Text type="secondary">密码由账户凭据 Owner 加密保存，不会返回列表、普通设置或 Agent 上下文。自动填入只匹配保存来源，并且不会提交表单。</Typography.Text>
+            <Input aria-label="密码条目名称" autoComplete="off" value={browserPasswordDraft.title} placeholder="条目名称，例如 工作账号" onChange={event => setBrowserPasswordDraft(current => ({ ...current, title: event.target.value }))} />
+            <Input aria-label="密码网站来源" autoComplete="off" value={browserPasswordDraft.origin} placeholder="网站来源，例如 https://example.com" onChange={event => setBrowserPasswordDraft(current => ({ ...current, origin: event.target.value }))} />
+            <Input aria-label="保存用户名" autoComplete="off" value={browserPasswordDraft.username} placeholder="用户名或邮箱" onChange={event => setBrowserPasswordDraft(current => ({ ...current, username: event.target.value }))} />
+            <Input.Password aria-label="保存网站密码" autoComplete="new-password" value={browserPasswordDraft.password} placeholder="网站密码" onChange={event => setBrowserPasswordDraft(current => ({ ...current, password: event.target.value }))} />
+            <Button type="primary" disabled={!browserPasswordDraft.title.trim() || !browserPasswordDraft.origin.trim() || !browserPasswordDraft.username.trim() || !browserPasswordDraft.password} onClick={() => void createBrowserPassword()}>加密保存</Button>
+            <div className="settings-browser-credentials__provider">
+              <Typography.Text type="secondary">填入页面</Typography.Text>
+              <Select aria-label="密码填入目标浏览器" value={browserVaultProviderId} options={browserVaultProviders.map(provider => ({ value: provider.id, label: provider.name }))} disabled={browserVaultProviders.length === 0} onChange={setBrowserVaultProviderId} />
+            </div>
+            {browserCredentialsLoading ? <Typography.Text type="secondary">正在读取加密记录…</Typography.Text>
+              : browserCredentials.passwords.length === 0 ? <Typography.Text type="secondary">暂无已保存密码。</Typography.Text>
+                : <div className="settings-browser-history__list">{browserCredentials.passwords.map(entry => <div className="settings-browser-history__item" key={entry.id}>
+                  <div className="settings-browser-history__details"><Typography.Text ellipsis title={entry.title}>{entry.title}</Typography.Text><Typography.Text type="secondary">{entry.origin} · {entry.username}</Typography.Text></div>
+                  <Space><Button disabled={browserVaultProviders.length === 0} onClick={() => void autofillBrowserCredential(entry)}>填入</Button><Popconfirm title={`删除“${entry.title}”的加密密码？`} okText="删除" cancelText="取消" onConfirm={() => void removeBrowserCredential(entry)}><Button danger>删除</Button></Popconfirm></Space>
+                </div>)}</div>}
+          </div>
+        </Modal>
+        <Modal
+          className="settings-browser-modal"
+          title="联系信息"
+          open={browserCredentialsOpen === "contacts"}
+          onCancel={() => setBrowserCredentialsOpen(null)}
+          footer={<Button type="primary" onClick={() => setBrowserCredentialsOpen(null)}>完成</Button>}
+          width="min(680px, calc(100vw - 32px))"
+        >
+          <div className="settings-browser-credentials__form">
+            <Typography.Text type="secondary">姓名、地址、电话和邮箱使用账户凭据 Owner 加密保存。填入当前浏览器页面时只匹配唯一标准字段，不会提交表单。</Typography.Text>
+            <Input aria-label="联系信息名称" autoComplete="off" value={browserContactDraft.title} placeholder="条目名称，例如 家庭地址" onChange={event => setBrowserContactDraft(current => ({ ...current, title: event.target.value }))} />
+            <Input aria-label="联系人姓名" autoComplete="name" value={browserContactDraft.name} placeholder="姓名" onChange={event => setBrowserContactDraft(current => ({ ...current, name: event.target.value }))} />
+            <Input aria-label="联系地址" autoComplete="street-address" value={browserContactDraft.address} placeholder="地址" onChange={event => setBrowserContactDraft(current => ({ ...current, address: event.target.value }))} />
+            <Input aria-label="联系邮箱" autoComplete="email" value={browserContactDraft.email} placeholder="电子邮箱" onChange={event => setBrowserContactDraft(current => ({ ...current, email: event.target.value }))} />
+            <Input aria-label="联系电话" autoComplete="tel" value={browserContactDraft.phone} placeholder="电话号码" onChange={event => setBrowserContactDraft(current => ({ ...current, phone: event.target.value }))} />
+            <Button type="primary" disabled={!browserContactDraft.title.trim() || ![browserContactDraft.name, browserContactDraft.address, browserContactDraft.email, browserContactDraft.phone].some(value => value.trim())} onClick={() => void createBrowserContact()}>加密保存</Button>
+            <div className="settings-browser-credentials__provider">
+              <Typography.Text type="secondary">填入页面</Typography.Text>
+              <Select aria-label="联系信息填入目标浏览器" value={browserVaultProviderId} options={browserVaultProviders.map(provider => ({ value: provider.id, label: provider.name }))} disabled={browserVaultProviders.length === 0} onChange={setBrowserVaultProviderId} />
+            </div>
+            {browserCredentialsLoading ? <Typography.Text type="secondary">正在读取加密记录…</Typography.Text>
+              : browserCredentials.contacts.length === 0 ? <Typography.Text type="secondary">暂无已保存联系信息。</Typography.Text>
+                : <div className="settings-browser-history__list">{browserCredentials.contacts.map(entry => <div className="settings-browser-history__item" key={entry.id}>
+                  <div className="settings-browser-history__details"><Typography.Text ellipsis title={entry.title}>{entry.title}</Typography.Text><Typography.Text type="secondary">{[entry.email, entry.phone].filter(Boolean).join(" · ") || "已加密保存"}</Typography.Text></div>
+                  <Space><Button disabled={browserVaultProviders.length === 0} onClick={() => void autofillBrowserCredential(entry)}>填入</Button><Popconfirm title={`删除“${entry.title}”的加密联系信息？`} okText="删除" cancelText="取消" onConfirm={() => void removeBrowserCredential(entry)}><Button danger>删除</Button></Popconfirm></Space>
+                </div>)}</div>}
+          </div>
+        </Modal>
+        <Modal
+          className="settings-browser-modal"
+          title="扩展程序管理器"
+          open={browserExtensionsOpen}
+          onCancel={() => setBrowserExtensionsOpen(false)}
+          footer={<Space><Button onClick={() => void addBrowserExtension()} loading={browserExtensionsLoading}>添加已解压扩展</Button><Button type="primary" onClick={() => setBrowserExtensionsOpen(false)}>完成</Button></Space>}
+          width="min(680px, calc(100vw - 32px))"
+        >
+          <Typography.Paragraph type="secondary">扩展文件仍由你选择的本机目录管理。LFAA 不从商店下载扩展；Chromium 扩展 API 的支持范围由 Electron 决定。</Typography.Paragraph>
+          {browserExtensionsLoading ? <Typography.Text type="secondary">正在读取扩展…</Typography.Text>
+            : browserExtensions.length === 0 ? <Typography.Text type="secondary">暂无已安装扩展。</Typography.Text>
+              : <div className="settings-browser-history__list">{browserExtensions.map(extension => <div className="settings-browser-history__item" key={extension.id}>
+                <div className="settings-browser-history__details"><Typography.Text ellipsis title={extension.name}>{extension.name}</Typography.Text><Typography.Text type="secondary">版本 {extension.version} · {extension.loaded ? "已加载" : "未加载"}</Typography.Text>{extension.warning ? <Typography.Text type="danger">{extension.warning}</Typography.Text> : null}</div>
+                <Space wrap>
+                  <SettingsSwitch label={`${extension.enabled ? "停用" : "启用"} ${extension.name}`} checked={extension.enabled} onChange={() => void setBrowserExtensionEnabled(extension, !extension.enabled)} />
+                  <Button disabled={!extension.enabled || !extension.configurable} onClick={() => void configureBrowserExtension(extension)}>设置</Button>
+                  <Popconfirm title={`移除扩展“${extension.name}”？`} description="此操作只会从 LFAA 内置浏览器移除扩展，不会删除你电脑上的扩展文件夹。" okText="移除" cancelText="取消" onConfirm={() => void removeBrowserExtension(extension)}><Button danger>移除</Button></Popconfirm>
+                </Space>
+              </div>)}</div>}
+        </Modal>
+        <Modal
+          className="settings-browser-modal"
+          title="网站设置"
+          open={browserSitePermissionsOpen}
+          onCancel={() => setBrowserSitePermissionsOpen(false)}
+          footer={<Button type="primary" onClick={() => setBrowserSitePermissionsOpen(false)}>完成</Button>}
+          width="min(600px, calc(100vw - 32px))"
+        >
+          <div className="settings-browser-permissions__form">
+            <Input aria-label="网站来源" value={browserSitePermissionOriginDraft} maxLength={2048} placeholder="https://example.com" onChange={event => setBrowserSitePermissionOriginDraft(event.target.value)} />
+            <Select aria-label="网站权限类型" value={browserSitePermissionDraft} options={[{ value: "camera", label: "摄像头" }, { value: "microphone", label: "麦克风" }, { value: "geolocation", label: "位置信息" }, { value: "notifications", label: "通知" }]} onChange={setBrowserSitePermissionDraft} />
+            <Select aria-label="网站权限决定" value={browserSitePermissionDecisionDraft} options={[{ value: "allow", label: "允许" }, { value: "block", label: "拒绝" }]} onChange={setBrowserSitePermissionDecisionDraft} />
+            <Button type="primary" disabled={!browserSitePermissionOriginDraft.trim()} onClick={addBrowserSitePermission}>添加</Button>
+          </div>
+          {settings.browserUse.sitePermissionOverrides.length === 0
+            ? <Typography.Paragraph className="settings-browser-permissions__empty" type="secondary">此处只显示你设置过例外的网站。</Typography.Paragraph>
+            : <div className="settings-browser-history__list settings-browser-history__list--spaced">{settings.browserUse.sitePermissionOverrides.map(rule => <div className="settings-browser-history__item" key={`${rule.origin}:${rule.permission}`}>
+              <div className="settings-browser-history__details"><Typography.Text ellipsis title={rule.origin}>{rule.origin}</Typography.Text><Typography.Text type="secondary">{{ camera: "摄像头", microphone: "麦克风", geolocation: "位置信息", notifications: "通知" }[rule.permission]} · {rule.decision === "allow" ? "允许" : "拒绝"}</Typography.Text></div>
+              <Button aria-label={`移除 ${rule.origin} 的${rule.permission}例外`} onClick={() => updateSettings("browserUse", { ...settings.browserUse, sitePermissionOverrides: settings.browserUse.sitePermissionOverrides.filter(item => item !== rule) })}>移除</Button>
+            </div>)}</div>}
+        </Modal>
+        <Modal
+          className="settings-browser-modal"
+          title="网站工具例外"
+          open={browserWebsiteToolsOpen}
+          onCancel={() => setBrowserWebsiteToolsOpen(false)}
+          footer={<Button type="primary" onClick={() => setBrowserWebsiteToolsOpen(false)}>完成</Button>}
+          width="min(600px, calc(100vw - 32px))"
+        >
+          <div className="settings-browser-permissions__form">
+            <Input aria-label="WebMCP 网站来源" value={browserWebsiteOriginDraft} maxLength={2048} placeholder="https://example.com" onChange={event => setBrowserWebsiteOriginDraft(event.target.value)} />
+            <Select aria-label="WebMCP 网站决定" value={browserWebsiteDecisionDraft} options={[{ value: "allow", label: "允许" }, { value: "block", label: "拒绝" }]} onChange={setBrowserWebsiteDecisionDraft} />
+            <Button type="primary" disabled={!browserWebsiteOriginDraft.trim()} onClick={addBrowserWebsiteToolOverride}>添加</Button>
+          </div>
+          {settings.browserUse.websiteToolOverrides.length === 0
+            ? <Typography.Paragraph className="settings-browser-permissions__empty" type="secondary">全局默认关闭时，允许例外才会提供该网站工具；拒绝例外优先于全局允许。</Typography.Paragraph>
+            : <div className="settings-browser-history__list settings-browser-history__list--spaced">{settings.browserUse.websiteToolOverrides.map(rule => <div className="settings-browser-history__item" key={rule.origin}>
+              <div className="settings-browser-history__details"><Typography.Text ellipsis title={rule.origin}>{rule.origin}</Typography.Text><Typography.Text type="secondary">WebMCP 工具 · {rule.decision === "allow" ? "允许" : "拒绝"}</Typography.Text></div>
+              <Button aria-label={`移除 ${rule.origin} 的 WebMCP 例外`} onClick={() => updateSettings("browserUse", { ...settings.browserUse, websiteToolOverrides: settings.browserUse.websiteToolOverrides.filter(item => item.origin !== rule.origin) })}>移除</Button>
+            </div>)}</div>}
+        </Modal>
+        <Modal
+          className="settings-browser-modal"
+          title="下载历史记录"
+          open={browserDownloadHistoryOpen}
+          onCancel={() => setBrowserDownloadHistoryOpen(false)}
+          footer={<Space><Popconfirm title="清除全部下载历史？" okText="清除" cancelText="取消" onConfirm={() => void window.lfaaDesktop?.nativeBrowser.clearDownloadHistory().then(() => setBrowserDownloadHistory([])).catch(reason => messageApi.error(getErrorMessage(reason)))}><Button danger disabled={browserDownloadHistory.length === 0}>清除全部</Button></Popconfirm><Button type="primary" onClick={() => setBrowserDownloadHistoryOpen(false)}>完成</Button></Space>}
+          width="min(600px, calc(100vw - 32px))"
+        >
+          {browserDownloadLoading ? <Typography.Text type="secondary">正在读取下载历史…</Typography.Text>
+            : browserDownloadHistory.length === 0 ? <Typography.Text type="secondary">暂无下载记录。</Typography.Text>
+              : <div className="settings-browser-history__list">{browserDownloadHistory.map(download => <div className="settings-browser-history__item" key={download.id}>
+                <div className="settings-browser-history__details"><Typography.Text ellipsis title={download.fileName}>{download.fileName}</Typography.Text><Typography.Text type="secondary">{download.source || "未知来源"} · {download.status === "completed" ? "已完成" : download.status === "in-progress" ? "下载中" : download.status === "cancelled" ? "已取消" : "中断"} · {new Date(download.startedAt).toLocaleString("zh-CN")}</Typography.Text></div>
+                <Button aria-label={`删除下载记录 ${download.fileName}`} onClick={() => void window.lfaaDesktop?.nativeBrowser.removeDownloadHistory(download.id).then(result => { if (result.deleted) setBrowserDownloadHistory(current => current.filter(item => item.id !== download.id)); }).catch(reason => messageApi.error(getErrorMessage(reason)))}>删除</Button>
+              </div>)}</div>}
+        </Modal>
+        <SettingGroup title="下载">
+          <SettingRow title="位置" description={browserDownloadSettings ? browserDownloadSettings.directory : "下载文件保存到此设备的下载文件夹。自定义位置仅保存在本机 Electron Host。"} status={window.lfaaDesktop?.nativeBrowser ? browserDownloadSettings?.usingSystemDirectory === false ? "自定义文件夹" : "系统下载文件夹" : "当前 Host 不支持"}>
+            <Space><Button disabled={!window.lfaaDesktop?.nativeBrowser} onClick={() => void window.lfaaDesktop?.nativeBrowser.chooseDownloadDirectory().then(value => setBrowserDownloadSettings(value)).catch(reason => messageApi.error(getErrorMessage(reason)))}>选择文件夹</Button><Button disabled={!window.lfaaDesktop?.nativeBrowser || browserDownloadSettings?.usingSystemDirectory !== false} onClick={() => void window.lfaaDesktop?.nativeBrowser.useSystemDownloadDirectory().then(value => setBrowserDownloadSettings(value)).catch(reason => messageApi.error(getErrorMessage(reason)))}>使用系统位置</Button></Space>
+          </SettingRow>
+          <SettingRow title="下载前询问保存位置" description="关闭后直接保存到上方目录；下载仍会保留在本机下载历史中。" status={settings.browserUse.askBeforeDownload ? "每次询问" : "直接保存"}>
+            <SettingsSwitch label="下载前询问" checked={settings.browserUse.askBeforeDownload} onChange={() => updateSettings("browserUse", { ...settings.browserUse, askBeforeDownload: !settings.browserUse.askBeforeDownload })} />
+          </SettingRow>
+          <SettingRow title="下载历史记录" description="查看 LFAA 内置浏览器的下载文件名、来源和状态；不会读取系统浏览器下载记录。" status={window.lfaaDesktop?.nativeBrowser ? "本机保存" : "当前 Host 不支持"}>
+            <Button disabled={!window.lfaaDesktop?.nativeBrowser} onClick={openBrowserDownloads}>管理</Button>
+          </SettingRow>
+        </SettingGroup>
+        <SettingGroup title="开发者模式">
+          <SettingRow title="开发者模式" description="开启后显示浏览器开发能力。该设置不会自动开放开发者工具或改变统一权限模式。" status={settings.browserUse.developerMode ? "已开启" : "已关闭"}>
+            <SettingsSwitch label="开发者模式" checked={settings.browserUse.developerMode} onChange={() => updateSettings("browserUse", { ...settings.browserUse, developerMode: !settings.browserUse.developerMode, fullCdpAccess: settings.browserUse.developerMode ? false : settings.browserUse.fullCdpAccess })} />
+          </SettingRow>
+          <SettingRow title="完整 CDP 访问权限" description="开放当前页面 CDP target 的全部可用方法，可检查或控制页面并可能接触凭据等敏感数据；不访问其他页面或个人 Profile。仅在开发者模式下开放，每次 Agent 调用仍经过 Permission Owner。" status={settings.browserUse.fullCdpAccess ? "风险升高 · 已开启" : "默认关闭"}>
+            <SettingsSwitch label="允许完整 CDP" checked={settings.browserUse.fullCdpAccess} disabled={!settings.browserUse.developerMode} onChange={() => updateSettings("browserUse", { ...settings.browserUse, fullCdpAccess: !settings.browserUse.fullCdpAccess })} />
+          </SettingRow>
+        </SettingGroup>
+        {nativeBrowserPreferencesError ? <Alert type="error" showIcon message="浏览器偏好同步失败" description={nativeBrowserPreferencesError} /> : null}
       </section>;
     }
 
-    const pending = pendingSections[activeSection];
-    if (pending) {
+    const pending = getSettingsCenterMenu(activeSection);
+    if (pending?.statusLabel) {
       const selectedSection = sections.find((section) => section.id === activeSection);
       return (
         <section className="settings-content">
           <header className="settings-content__heading"><div><span className="settings-eyebrow">{selectedSection?.group}</span><Typography.Title level={2}>{selectedSection?.title}</Typography.Title><Typography.Paragraph>{pending.description}</Typography.Paragraph></div></header>
           <SettingGroup title="功能状态">
-            <SettingRow title={selectedSection?.title ?? "设置模块"} description={pending.description} status="当前版本状态"><Tag>{pending.status}</Tag></SettingRow>
+            <SettingRow title={selectedSection?.title ?? "设置模块"} description={pending.description} status="当前版本状态"><Tag>{pending.statusLabel}</Tag></SettingRow>
           </SettingGroup>
           {activeSection === "environment" ? <Button type="primary" onClick={() => selectSection("general")}>查看常规环境偏好</Button> : null}
           <div className="settings-note-card"><strong>接入说明</strong><p>此入口已保留在设置导航中。相关宿主能力接入后，会在此页提供可实际使用的配置项和运行状态。</p></div>

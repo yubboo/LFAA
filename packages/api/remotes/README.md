@@ -8,4 +8,10 @@
 
 实际验收发现心跳合同漏登 node-filesystem-instance-v1 和 node-filesystem-game-storage-v1，已与真实 Daemon 声明对齐；未知能力仍拒绝，未放宽通配字符串。
 
-SteamCMD 服务端配置、服务端任务、完成结果和 Daemon 心跳状态由 `route-contracts.ts` 持有 Joi 边界。配置只接收 Tool AppID、相对目录、参数数组、停服命令、等待时间及 EULA 布尔确认；Shell 执行和领域状态归 SteamCMD Service/Daemon。任务结果拒绝未登记字段。
+SteamCMD 服务端配置、服务端任务、完成结果和 Daemon 心跳状态由 `route-contracts.ts` 持有 Joi 边界。配置只接收 Tool AppID、相对目录、参数数组、停服命令、等待时间及 EULA 布尔确认；Shell 执行和领域状态归 SteamCMD Service/Daemon。任务结果拒绝未登记字段；完整卸载回执允许 `removed` 与 `uninstalled` 布尔值，路径仍只接受工具目录和游戏目录字段。
+
+`steamcmdDstClusterSchema` 只接收安全集群名、Steamworks Tool AppID、安装相对目录、显式停服命令、等待秒数和 EULA 确认。集群令牌仅由目标节点文件管理器写入，绝不能进入该 API 的普通 JSON。
+
+Daemon 心跳能力列表显式登记 `node-filesystem-binary-transfer-v1`；节点文件任务合同拒绝 `dataBase64`，二进制结果只接受有界传输 ID 与元数据。新协议通过能力协商启用，旧 Daemon 不会收到需要该协议的文件操作。
+
+`miniSettingsSchema` 从 Settings Owner 导出并由 API Controller 用于账户 Mini 偏好写入；本包不持有 Mini 窗口状态或偏好默认值。

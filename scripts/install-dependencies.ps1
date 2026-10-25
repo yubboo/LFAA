@@ -183,6 +183,44 @@ function ConvertFrom-StaleRuntimeBuildJson {
     return $builds
 }
 
+# 只在能证明"3000 端口属于 LFAA 自己的控制端"时返回进程 ID；其它监听者一律不碰。
+function Get-LfaaControlPlaneProcessId {
+    $connection = Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $connection) { return $null }
+    $process = Get-CimInstance Win32_Process -Filter ("ProcessId=" + $connection.OwningProcess) -ErrorAction SilentlyContinue
+    if (-not $process) { return $null }
+    $commandLine = [string]$process.CommandLine
+    if ($commandLine -match 'apps[\\/]cli[\\/](src[\\/]bin\.ts|bin[\\/]lfaa\.mjs)' -or $commandLine -match 'dist[\\/]apps[\\/]control-plane') { return [int]$connection.OwningProcess }
+    return $null
+}
+
+# 停止并等待端口释放；无法证明归属时拒绝执行，绝不误杀未知服务。
+function Stop-LfaaControlPlane {
+    $processId = Get-LfaaControlPlaneProcessId
+    if (-not $processId) {
+        Write-Host '无法确认 3000 端口属于 LFAA 控制端（可能由其它程序占用）；已停止操作，未终止任何进程。' -ForegroundColor Yellow
+        return $false
+    }
+    Write-Host ("正在停止 LFAA 控制端（PID " + $processId + "）…") -ForegroundColor Yellow
+    try { Stop-Process -Id $processId -Force -ErrorAction Stop } catch { Write-Host ('停止失败：' + $_.Exception.Message) -ForegroundColor Red; return $false }
+    for ($attempt = 0; $attempt -lt 40; $attempt++) {
+        Start-Sleep -Milliseconds 250
+        if (-not (Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue)) { return $true }
+    }
+    Write-Host '控制端未在 10 秒内释放 3000 端口；请手动检查后再试。' -ForegroundColor Red
+    return $false
+}
+# 只读探测控制端健康端点；探测失败视为未运行，绝不终止任何进程。
+function Test-LfaaControlPlaneRunning {
+    try {
+        $response = Invoke-WebRequest -Uri 'http://127.0.0.1:3000/api/health' -TimeoutSec 3 -UseBasicParsing -ErrorAction Stop
+        return ($response.StatusCode -eq 200)
+    }
+    catch {
+        return $false
+    }
+}
+
 function Start-Harness {
     Write-Host '【启动模式】' -ForegroundColor Cyan
     Write-Host '  【1】完整 Web（控制端 + 编译前端，自动托管本机 Daemon；默认）'
@@ -211,6 +249,23 @@ function Start-Harness {
     }
     if ($profile -eq 'daemon') {
         Write-Host '此项单独启动节点进程；桌面安装版会自动启动本机 Daemon。Windows AppContainer Sandbox Host 可用 pnpm run build:windows-sandbox-host 构建，Electron 桌面打包会自动内置。' -ForegroundColor Yellow
+    }
+    # 已有控制端运行时：默认只打开浏览器；需要换新源码时，经归属核验后安全重启。
+    if ($profile -eq 'web' -and (Test-LfaaControlPlaneRunning)) {
+        Write-Host '检测到 LFAA 控制端已在 http://127.0.0.1:3000 运行。' -ForegroundColor Cyan
+        Write-Host '  【1】直接打开当前实例（默认，不动进程）'
+        Write-Host '  【2】安全重启：停止该实例 → 按当前源码重建 → 重新启动（会中断正在执行的任务）'
+        Write-Host '  【0】返回'
+        $restartChoice = [string](Read-Host '输入编号并按 Enter（默认 1）')
+        if ($restartChoice.Trim() -eq '0') { return }
+        if ($restartChoice.Trim() -eq '2') {
+            if (-not (Stop-LfaaControlPlane)) { return }
+            Write-Host '控制端已停止；按当前源码重建并启动。' -ForegroundColor Cyan
+        } else {
+            Write-Host '未改动运行中的服务。若浏览器提示“LFAA 需要重新启动”，说明构建文件已更新，请重新选择本项并按 2 安全重启。' -ForegroundColor DarkGray
+            Start-Process 'http://127.0.0.1:3000/'
+            return
+        }
     }
     # 只重建已经过期的职责输出，禁止在源码更新后静默启动旧版本。
     $nodeCommand = Get-Command 'node' -ErrorAction Stop

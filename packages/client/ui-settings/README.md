@@ -8,11 +8,11 @@
 
 设置中心“集成”在 `/settings?section=plugins` 内提供“插件、应用、MCP、技能、市场”五个页内 Tab，不切换到 `/plugin-manager` 路由。插件清单读取真实 Profile 状态，启停复用受认证的 Profile Plugin Manager 生命周期 API，携带固定来源提交和目标 App，并继续经过 Permission Owner；账户 AI 扩展总开关仍由 `plugins.enabled` 保存。MCP 复用账户 `plugins.mcpServers` 配置、服务范围与开关；原 MCP 设置表单由 `McpConnectionsSettings` 提供，独立插件工作区继续复用该组件。技能列表与左侧插件工作区共用认证后的 `/ai/extensions` 清单，并按 `kind=skill` 原样显示；`skillId` 指向同一 Skill Registry 规范名称，`plugins.disabledSkillNames` 持久化逐项停用并由 Skill Owner 在模型目录和按需加载中执行。`/ai/skills` 仍是模型运行时目录，不再被当作第二套设置页清单。应用 Tab 的内置入口复用 Workbench 同一应用清单，开关使用 `general.hiddenApplicationNavigationIds` 仅显示/隐藏全局菜单，不改变权限或运行状态；外部应用首批接入 GitHub App Device Flow，展示当前账户可访问的仓库、Issue 和 PR 只读数据，真实 token 由 GitHub Integration 通过现有加密凭据 Owner 持有。缺少服务端 GitHub App Client ID 时如实显示未配置。市场明确标注暂未接入，不显示示例条目。标签、列表、表单沿用 Appearance 主题与容器宽度断点。AI 扩展开关、Skill 目录、能力目录、资料库、Cordis 启停/重建诊断与 DSH 壁纸引擎 Slot 设置仍由本包持有表单和 Owner 调用，但只通过 `lfaa-client-ui-plugin-manager` 的独立模式挂载在最左侧“插件”入口；独立工作区的旧 `plugins` 分区仍显示账户 AI 扩展与 MCP 内容，`plugins.enabled` 仅控制账户 AI 扩展。设置页分组搜索、导航状态、栏宽和拖动仍归各自 Owner。
 
-五分类都在当前设置页内切换；窄容器下标题动作、分类、计数和搜索按容器宽度重排，极窄容器收紧分类按钮留白避免孤立换行。页面消费 Appearance 与共享间距令牌，不增加 CSS 自定义变量。
+五分类都在当前设置页内切换；窄容器下标题动作、分类、计数和搜索按容器宽度重排，极窄容器收紧分类按钮留白避免孤立换行。所有设置分类共用 `SettingsPage.css` 顶部的 `--settings-content-max-width`（760px 居中正文）、`--settings-page-padding-inline`、`--settings-row-inline-padding` 与 `--settings-row-padding`；基础值和 900px/620px 断点覆盖集中维护，修改共享宽度或左右留白会同时作用于所有分类、工具栏和标准设置行。浏览器页与设置中心内的扩展工作区均继承共享正文列；浏览器仅保留分组间距和紧凑控件宽度等专属变量，独立插件工作区保留自身完整容器宽度。
 
-独立插件工作区沿用 `plugins.enabled`、`plugins.skillDirectories`、`plugins.mcpServers` 与 `computerControl.enabled` 的既有保存和权限合同；运行概况只读取已登记扩展、MCP 配置和 Cordis Runtime 快照。插件工作区使用完整容器宽度与容器断点排版，卡片和表单仍消费 Appearance 共享主题、强调色、字体/字号、表面、模糊及减少动态效果令牌，不另建设置或视觉配置。
+独立插件工作区沿用 `plugins.enabled`、`plugins.skillDirectories`、`plugins.mcpServers` 与 `computerControl.enabled` 的既有保存和权限合同；运行概况只读取已登记扩展、MCP 配置和 Cordis Runtime 快照。设置中心内的扩展页复用共享 760px 正文列；从插件入口独立打开时由宿主覆盖为完整容器宽度，并按容器断点排版。卡片和表单仍消费 Appearance 共享主题、强调色、字体/字号、表面、模糊及减少动态效果令牌，不另建设置或视觉配置。
 
-SettingsPage 管理账户与产品配置，沿用共享 Appearance 和减少动态效果令牌。通知页 `general.notificationPopupsEnabled` 默认开启，是工作台弹窗/系统通知/提示音的总开关；关闭后保留会话内审批与澄清卡片，并保留弹窗内已选择的提醒类别偏好。设置中心不提供首次登录提醒分类开关；各提醒是否需要处理仍由凭据、AI Provider、SteamCMD 与 Project Storage Owners 的真实状态决定，弹窗中的“不更改”用于关闭对应类别提醒，“稍后再说”仅在当前工作区延后五分钟。版本公告在用户确认后按账户与版本记录，不新增公告开关；桌面更新器的下载/安装与强制更新仍由更新器 Owner 控制。总开关关闭时显示暂停说明。General 自动保存失败会恢复为最近一次服务端确认值并保留错误提示；运行中的 Web/控制端构建不一致时提示重启后重试。SteamCMD 配置仍与业务内容位置在“项目与存储”管理，底层分别调用 SteamCMD 与 Project Storage Owners；SteamCMD 工具路径不会混入业务迁移。AI 模型、Minecraft、用户权限和开发者配置继续在唯一的“配置中心”侧栏入口内切换。项目与存储页面管理游戏/小说/漫剧业务 `data` 选择、迁移操作及游戏 Owner 的节点/实例位置；不提供独立的系统数据根管理，也不展示系统运行目录和控制端数据库路径。默认业务根为 `<LFAA_HOME>/data`（Windows 默认 `%USERPROFILE%\\.lfaa\\data`），推荐位置按当前项目/安装根动态解析为 `data`，自定义使用用户选择的完整路径。业务位置选择不影响账户、AI、会话、设置或插件 Profile；系统文件留在 LFAA Home（默认 `%USERPROFILE%\\.lfaa`）并由各自 Owner 管理，不创建 `system-data` 子目录。开发者页只展示客户端与控制端状态，不展示存储目录。非超级管理员及启动配置锁定环境只读。分类目录采用容器响应式紧凑清单。
+SettingsPage 管理账户与产品配置，沿用共享 Appearance 和减少动态效果令牌。 新账户的外观初始主题跟随系统，登录页、应用中心、SteamCMD、Minecraft、写作和设置中心背景均默认为纯色；Settings Owner 对已保存的主题与背景选择保持原值。通知页 `general.notificationPopupsEnabled` 默认开启，是工作台弹窗/系统通知/提示音的总开关；关闭后保留会话内审批与澄清卡片，并保留弹窗内已选择的提醒类别偏好。设置中心不提供首次登录提醒分类开关；各提醒是否需要处理仍由凭据、AI Provider、SteamCMD 与 Project Storage Owners 的真实状态决定，弹窗中的“不更改”用于关闭对应类别提醒，“稍后再说”仅在当前工作区延后五分钟。版本公告在用户确认后按账户与版本记录，不新增公告开关；桌面更新器的下载/安装与强制更新仍由更新器 Owner 控制。总开关关闭时显示暂停说明。General 自动保存失败会恢复为最近一次服务端确认值并保留错误提示；运行中的 Web/控制端构建不一致时提示重启后重试。SteamCMD 配置仍与业务内容位置在“项目与存储”管理，底层分别调用 SteamCMD 与 Project Storage Owners；SteamCMD 工具路径不会混入业务迁移。AI 模型、Minecraft、用户权限和开发者配置继续在唯一的“配置中心”侧栏入口内切换。项目与存储页面管理游戏/小说/漫剧业务 `data` 选择、迁移操作及游戏 Owner 的节点/实例位置；不提供独立的系统数据根管理，也不展示系统运行目录和控制端数据库路径。默认业务根为 `<LFAA_HOME>/data`（Windows 默认 `%USERPROFILE%\\.lfaa\\data`），推荐位置按当前项目/安装根动态解析为 `data`，自定义使用用户选择的完整路径。业务位置选择不影响账户、AI、会话、设置或插件 Profile；系统文件留在 LFAA Home（默认 `%USERPROFILE%\\.lfaa`）并由各自 Owner 管理，不创建 `system-data` 子目录。开发者页只展示客户端与控制端状态，不展示存储目录。非超级管理员及启动配置锁定环境只读。分类目录采用容器响应式紧凑清单。
 
 已保存模型账户将官方目录刷新与真实模型测试分成独立操作：目录刷新不发推理请求且保留当前选择；真实测试只请求当前模型，并明确可能产生 Provider 用量。模型目录缺少当前选择时设置页保留该型号并提示从最新目录手动选择。控件继续使用现有 Settings API 与 Appearance 令牌。
 
@@ -42,10 +42,20 @@ Minecraft 默认核心下拉框只依赖领域 Owner 登记的本地核心名称
 
 `McpConnectionsSettings` 提供官方 `rea-agents@6.7.0` Windows stdio 预设，写入现有 `plugins.mcpServers`，默认只关联 `workspace` App。用户可以修改、停用或移除；预设不改全局 `plugins.enabled`。服务启用且 AI Work 启动连接后，Windows 控制端由既有 MCP Runtime 调用 `npx` 启动；macOS/Linux 用户需按本机控制端平台编辑 launcher。工具调用仍逐项走现有 `permissions.mode`。
 
-AI 与模型设置中，上下文用量显示、较早上下文自动压缩和未知模型窗口容量分别使用独立设置行；上下文显示项旁标出当前开关状态及其作用。`aiRuntime.showContextUsage` 默认关闭时，AI Work 输入框下仍显示“上下文已关闭”提示和设置位置，不影响 Token/缓存统计；不替用户更改该偏好。
+AI 与模型设置中，上下文用量显示、较早上下文自动压缩和未知模型窗口容量分别使用独立设置行；上下文显示项旁标出当前开关状态及其作用。`aiRuntime.showContextUsage` 对没有已保存值的账户默认开启；用户明确关闭后，AI Work 输入框下仍显示“上下文已关闭”提示和设置位置，不影响 Token/缓存统计。已保存的账户选择保持不变。
 
 从 AI Work 上下文关闭提示进入设置时，设置中心请求定位到“显示上下文使用情况”行；跳转本身不自动改变用户开关。
 
 ## 浏览器接入设置
 
-`browserUse.enabled` 默认关闭，只控制 Agent 是否可发现浏览器工具；LFAA 内置浏览器随当前 Host 自动可用，不需要手动连接；`browserUse.enabledProviderIds` 默认空，只保存用户明确选择的个人 Tabbit 提供方；`browserUse.showFullUrl` 默认关闭，只控制地址栏展示；`browserUse.recordRecentSites` 默认开启，控制按账户保存 LFAA Browser Dock 与 Agent 实际访问的网站元数据。设置中心提供该记录开关及当前账户清除操作；不保存 URL 查询/片段、页面内容或个人浏览器历史。上述设置归 Settings Owner，写入 `browser-use` 分类并按账户保存。Tabbit 个人会话还要求既有 `computerControl.enabled`，所有 Agent 操作继续统一走 `permissions.mode`。密码/自动填充、书签、扩展、下载、站点媒体权限、WebMCP 和完整 CDP 尚未接入，页面如实显示当前限制。
+`browserUse.enabled` 默认关闭，只控制 Agent 是否可发现浏览器工具；`webUrlOpenLocation` 与 `localUrlOpenLocation` 默认均为 `lfaa`，分别控制 Agent 打开公开网页和 localhost/loopback URL 时的首选位置；选择当前已打开的浏览器需要本 Run 可用的个人 Browser Adapter 或 Windows CUA，CUA 还要求 `computerControl.enabled` 并遵循 `permissions.mode`，不会镜像到 LFAA Dock，也不会由选择项静默开启电脑操控。工作区 HTML/HTM 文件继续经受限 LFAA 预览。LFAA 内置浏览器随当前 Host 自动可用，不需要手动连接；`browserUse.enabledProviderIds` 默认空，只保存用户明确选择的个人 Tabbit 提供方；`browserUse.searchEngine` 默认 Bing；`showFullUrl` 默认关闭；`recordRecentSites` 默认开启，控制按账户保存 LFAA Browser Dock 与 Agent 实际访问的网站元数据。`allowAgentHistoryAccess` 默认关闭，`annotateScreenshots` 默认 `on-demand`；WebMCP 默认关闭并可按 HTTP(S) 来源设置允许/拒绝例外；`askBeforeDownload` 默认开启；摄像头、麦克风、位置和通知权限默认逐次询问并可按来源设置例外；开发者模式与完整 CDP 默认关闭，完整 CDP 只能在开发者模式开启时启用。除明确标注的 Electron 本机能力外，所有偏好通过 Settings Owner 按账户校验和保存，旧客户端缺字段更新时保留已有值。
+
+密码与联系信息由 Browser Owner 读取元数据、Credentials Owner 加密保存秘密值；密码列表不返回秘密，填入仅面向当前 LFAA 页面匹配的来源与标准字段，且不提交表单。下载目录、下载历史和扩展安装记录由 Electron 本机 Host 管理；网站权限默认值/例外也由 Electron 原生浏览器执行。普通 Web Host 会显示不支持状态，不伪装成可用。浏览历史清理走 Browser Owner；清除浏览数据同时清理 LFAA 范围的浏览状态，不读取或修改系统个人浏览器数据。
+
+设置菜单名称、分组、字段分类与待接入说明从 `util/values/src/settings-menu-catalog.ts` 读取；`SettingsPage` 仅在 Client 侧补图标，Agent 设置目录复用相同菜单 ID 和状态，避免导航文案与 Agent 语义分叉。
+
+代码审查页复用当前 AI 工作区的 Agent Git Workspace 与 Git Host；页面只说明审查范围并进入 `/work`，实际差异由 Agent 调用 `project_file_operation` 读取，不在设置页复制 Git 状态或审查权限。
+
+钩子菜单按需读取现有 `/ai/extensions` Owner 返回的 AI Runtime Hook 清单，与扩展诊断页共用同一个缓存结果；Agent 的只读工具从同一 Host Hook Registry 获取 ID 与事件。设置页不编辑或执行插件回调。
+
+设置中心 Mini 页通过共享 `UserSettings.mini` 保存伙伴外观、显示、置顶与不透明度；Electron Host 才显示原生窗口入口。云端偏好页读取当前认证 Control Plane 的账户分类/更新时间和快照入口，不把不同实例的状态描述为自动同步。

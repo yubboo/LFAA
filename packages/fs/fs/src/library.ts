@@ -13,7 +13,7 @@ import type { FileManagerOperation, FileResourceLocation, ManagedFileEntry } fro
 import { createManagedFileService } from "./managed-files.mjs";
 import { assertGameMetadataMutable } from "./instance-files.mjs";
 export interface FileActor { userId: string; role: string; signal?: AbortSignal }
-export interface FileMount { id: string; name: string; operate(actor: FileActor, operation: FileManagerOperation, input: Record<string, unknown>): Promise<Record<string, unknown>> }
+export interface FileMount { id: string; name: string; locationDescription?: string; operate(actor: FileActor, operation: FileManagerOperation, input: Record<string, unknown>): Promise<Record<string, unknown>> }
 const libraryDirectory = ".lfaa-library";
 const localDriveShortcut = "local-drives";
 const resourceShortcut = ".lfaa-resources";
@@ -83,12 +83,12 @@ export class SystemFileLibrary {
   private resources() {
     const saved = getProjectStorageLocations().settings;
     return [
-      { id: "backups", name: "备份", root: resolve(this.dataRoot, "backups"), description: "备份文件；恢复操作由对应游戏 Owner 执行" },
-      { id: "environments", name: "运行环境", root: saved.runtimeDirectory, description: "data/environments，跟随统一数据根" },
-      { id: "lib", name: "工具目录", root: resolve(this.dataRoot, "lib"), description: "SteamCMD 等运行工具" },
-      { id: "logs", name: "日志", root: saved.logsDirectory, description: "data/logs，跟随统一数据根" },
-      { id: "cache", name: "缓存", root: saved.downloadCacheDirectory, description: "data/cache，跟随统一数据根，不自动清理" },
-      { id: "tmp", name: "临时文件", root: saved.temporaryDirectory, description: "data/tmp，跟随统一数据根，不自动清理" }
+      { id: "backups", name: "备份", root: resolve(this.dataRoot, "backups"), description: "快捷入口 · data\\backups\\minecraft 与 data\\backups\\steam；备份和恢复由对应游戏 Owner 管理" },
+      { id: "environments", name: "运行环境", root: saved.runtimeDirectory, description: "快捷入口 · data\\environments，跟随统一数据根" },
+      { id: "lib", name: "工具目录", root: resolve(this.dataRoot, "lib"), description: "快捷入口 · data\\lib；SteamCMD 工具实际路径由节点设置显示" },
+      { id: "logs", name: "日志", root: saved.logsDirectory, description: "快捷入口 · data\\logs，跟随统一数据根" },
+      { id: "cache", name: "缓存", root: saved.downloadCacheDirectory, description: "快捷入口 · data\\cache，跟随统一数据根，不自动清理" },
+      { id: "tmp", name: "临时文件", root: saved.temporaryDirectory, description: "快捷入口 · data\\tmp，跟随统一数据根，不自动清理" }
     ];
   }
   listLocations(actor: FileActor): { rootDirectory: string; locations: FileResourceLocation[] } {
@@ -96,13 +96,15 @@ export class SystemFileLibrary {
     const priority = (id: string) => id === "game-instances" ? 0 : id === "game-storage" ? 1 : 2;
     const mounts = [...this.mounts.values()].sort((left, right) => priority(left.id) - priority(right.id));
     return { rootDirectory: this.dataRoot, locations: [
-      { id: "data", name: "LFAA 数据", path: "", description: "当前数据根；私有账户与数据库由各自 Owner 管理" },
-      ...mounts.map(mount => ({ id: mount.id, name: mount.name, path: `${libraryDirectory}/${mount.id}`, description: "由已登记的领域 Owner 提供" })),
+      { id: "data", name: "LFAA 数据", path: "", description: "真实 data 根目录；右侧显示实际目录（含 games、models、output）；users 等账户私有数据由 Owner 管理" },
+      ...mounts.map(mount => ({ id: mount.id, name: mount.name, path: `${libraryDirectory}/${mount.id}`, description: mount.locationDescription ?? "由领域 Owner 提供的快捷入口" })),
       ...this.resources().map(resource => ({ id: resource.id, name: resource.name, path: `${resourceShortcut}/${resource.id}`, description: resource.description })),
       { id: "local-drives", name: "本机磁盘", path: localDriveShortcut, description: "显式切换到本机磁盘；文件权限和领域保护仍生效" }
     ] };
   }
   private assertLocalReadable(path: string) {
+    // 本机磁盘来源不能绕过 Data/Files 的限制重新暴露 Home 账户与控制数据；Data 根仍由下方自己的目录规则管理。
+    if (containsPath(config.homeDirectory, path) && !containsPath(this.dataRoot, path)) throw new ApiError(403, "file_private_path", "LFAA Home 中的账户与控制数据由对应 Owner 管理。");
     const rel = relative(this.dataRoot, path);
     if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) return;
     const segments = rel.split(sep).map(segment => segment.toLocaleLowerCase());
@@ -114,7 +116,8 @@ export class SystemFileLibrary {
     const plugins = resolve(this.dataRoot, "plugins");
     if (containsPath(plugins, path) || containsPath(path, plugins)) throw new ApiError(409, "plugin_lifecycle_required", "扩展插件安装目录由插件管理器维护，请通过插件安装、更新或卸载操作管理。");
     const insideData = containsPath(this.dataRoot, path);
-    if (containsPath(config.repositoryRoot, path) && !insideData || containsPath(path, config.repositoryRoot)) throw new ApiError(403, "file_source_protected", "LFAA 项目源码和安装目录受保护。");
+    const protectedApplicationRoots = [config.repositoryRoot, config.desktopInstallDirectory].filter((root): root is string => Boolean(root));
+    if (protectedApplicationRoots.some(root => containsPath(root, path) && !insideData || containsPath(path, root))) throw new ApiError(403, "file_source_protected", "LFAA 项目源码和安装目录受保护。");
     if (containsPath(resolve(this.dataRoot, "games"), path) && !this.mutationGuards.size) throw new ApiError(409, "game_file_owner_unavailable", "游戏文件保护服务尚未就绪。");
     for (const guard of this.mutationGuards) await guard(path);
   }
@@ -246,9 +249,6 @@ export class SystemFileLibrary {
         if (protectedDataDirectories.includes(segments[0] ?? "") || segments[0] === "users" && segments[2] === "settings") throw new ApiError(403, "file_private_path", "该账户配置和会话文件不开放给通用文件操作。");
       },
       assertCanMutate: async path => {
-        const insideData = containsPath(config.dataDirectory, path);
-        const intersectsRepository = containsPath(config.repositoryRoot, path) && !insideData || containsPath(path, config.repositoryRoot);
-        if (intersectsRepository) throw new ApiError(403, "file_source_protected", "LFAA 项目源码和安装目录受保护，不能通过文件管理器改动。");
         const rootRelative = relative(volume.root, path);
         const topLevel = rootRelative.split(sep)[0]?.toLocaleLowerCase() ?? "";
         if (protectedWindowsRootDirectories.has(topLevel)) throw new ApiError(403, "file_system_path_protected", "Windows 系统目录和程序安装目录受保护。");

@@ -105,6 +105,7 @@ test("节点真实能力合同接受已接入能力，拒绝虚构能力", () =>
 });
 test("真实命令允许空 stdout/stderr，未知退出码仍按实际结果接收", () => {
   assert.equal(aiHostTaskCompletionSchema.validate({ nodeId, succeeded: false, message: "运行中夹具", result: { ...output, stdout: "" } }).error, undefined);
+  assert.equal(aiHostTaskCompletionSchema.validate({ nodeId, succeeded: false, message: "已取消", result: { ...output, cancelled: true, sandbox: { mode: "danger-full-access", enforcement: "none", denied: false, providerId: "direct-node" } } }).error, undefined);
 });
 test("账户时限保存后进入真实任务，备份/启动互斥且心跳不回退过渡状态", () => {
   assert.ok(minecraftRuntimeSettingsSchema.validate({ ...settings.defaultSettings.minecraftRuntime, minecraftReadyTimeoutSeconds: 0 }).error);
@@ -123,17 +124,27 @@ test("账户时限保存后进入真实任务，备份/启动互斥且心跳不�
 });
 test("模型读取配置时限、三种模式都可选择工具，取消工具仍校验归属", async () => {
   const { findAiBusinessTool } = await import("lfaa-tools/src/business-tools.js");
+  const workspaceContext = { userId, workspaceProject: { nodeId, path: "C:\\LFAA-test-project", title: "节点项目" } };
   for (const mode of ["ask", "approve_remembered", "full_access"]) {
     const tool = findAiBusinessTool("minecraft", "member", "host_execute_command", null, mode); assert.ok(tool);
-    assert.equal(tool.prepare({ nodeId, command: "fixture-only", timeoutSeconds: 1800 }, { userId }).timeoutSeconds, 60);
-    assert.equal(tool.prepare({ nodeId, command: "fixture-only" }, { userId }).timeoutSeconds, 60);
-    assert.equal(tool.prepare({ nodeId, command: "fixture-only", timeoutSeconds: 10 }, { userId }).timeoutSeconds, 10);
+    assert.equal(tool.prepare({ nodeId, command: "fixture-only", timeoutSeconds: 1800 }, workspaceContext).timeoutSeconds, 60);
+    assert.equal(tool.prepare({ nodeId, command: "fixture-only" }, workspaceContext).timeoutSeconds, 60);
+    assert.equal(tool.prepare({ nodeId, command: "fixture-only", timeoutSeconds: 10 }, workspaceContext).timeoutSeconds, 10);
   }
   const task = newTask(), tool = findAiBusinessTool("workspace", "member", "host_cancel_task");
   const context = { userId, userRole: "member", applicationId: "workspace", signal: new AbortController().signal, onProgress: () => {} };
   await assert.rejects(tool.execute({ taskId: task.id }, { ...context, userId: "different-user" }), /找不到/u);
   await assert.rejects(tool.execute({ taskId: task.id }, { ...context, applicationId: "minecraft" }), /找不到/u);
   assert.equal((await tool.execute({ taskId: task.id }, context)).task.result.cancelled, true);
+});
+test("受限节点 Shell 持久化设置模式和项目边界，缺少 Host 回执不能成功", () => {
+  const workspaceRoot = "C:\\LFAA-test-project";
+  const task = tasks.createAiHostTask({ nodeId, createdBy: userId, appId: "workspace", shell: "powershell", workingDirectory: workspaceRoot, workspaceRoot, sandboxMode: "workspace-write", command: "fixture-only", timeoutSeconds: 5 });
+  assert.equal(task.sandboxMode, "workspace-write"); assert.equal(task.workspaceRoot, workspaceRoot);
+  assert.throws(() => tasks.createAiHostTask({ nodeId, createdBy: userId, appId: "workspace", shell: "powershell", workingDirectory: "C:\\outside", workspaceRoot, sandboxMode: "workspace-write", command: "fixture-only", timeoutSeconds: 5 }), /必须位于当前项目/u);
+  assert.equal(tasks.claimNextAiHostTask(nodeId).id, task.id);
+  assert.equal(tasks.completeAiHostTask({ taskId: task.id, nodeId, succeeded: true, message: "命令执行完成。", result: { ...output, exitCode: 0 } }), true);
+  const failed = tasks.getAiHostTask(task.id); assert.equal(failed.status, "failed"); assert.match(failed.message, /Host 回执/u);
 });
 test("任务摘要不读取或解析大段输出，正文单独读取并保持账户隔离", () => {
   const task = newTask();

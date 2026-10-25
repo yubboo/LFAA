@@ -16,7 +16,7 @@ AI 漫剧项目列表会在交给工作区前校验服务端返回的项目列�
 
 Browser Dock Client API 使用认证 `/browser/dock/*` 路由。导航前只查询本机隔离 Edge/Chrome 的真实可用性；提交地址时再启动同一账户与 LFAA Session 的无窗口页面，不打开外部浏览器。页面快照只返回标题、地址、标签、加载状态、修订号和视口尺寸，不为 Dock 拉取正文或截图；`streamBrowserDockFrames()` 通过带认证 Cookie 的 SSE 读取 Browser Owner 由 CDP 主动推送的合成器帧事件，使用 AbortSignal 在页面隐藏、切换或卸载时断开。帧流直接显示当前 Browser Owner Page 并启用同页输入，不调用 `getDisplayMedia`、不启动系统标签选择器、不传输用户桌面画面。
 
-AI 回复使用一份 `content` 和可选 `parts` 正文范围；`delta` 携带分段 ID/起点，`presentation` 同步阶段及最终答案范围。帧合并仅合并同一消息的同一分段，非正文事件先冲刷待处理文本。`appendAiTextDelta` 更新同一消息投影；活动的 `contentOffset`、问题和实际审批答案只用于展示。重新订阅的原子快照恢复当前正文与范围，旧服务没有范围时保持兼容。
+AI 回复使用一份 `content` 和可选 `parts` 正文范围；`delta` 携带分段 ID/起点，`presentation` 同步阶段及最终答案范围。帧合并仅合并同一消息的同一分段，非正文事件先冲刷待处理文本。`appendAiTextDelta` 更新同一消息投影；活动的 `contentOffset`、问题、实际审批答案以及受校验的浏览器工具 ID/Provider ID 只用于展示和工作区联动。重新订阅的原子快照恢复当前正文与范围，旧服务没有范围时保持兼容。
 
 订阅继续沿用原取消信号、帧回调撤销和非正文事件顺序；不另建连接、计时器或存储，不传输 Provider 隐藏推理。协议回归见 `apps/cli/tests/ai-work-response-timeline.test.mjs` 与 `ai-work-sse-lifecycle.test.mjs`。
 
@@ -31,6 +31,8 @@ Browser Panel 的 provider、snapshot、revision、页面修订等待、navigate
 `loadAiExtensions()` 支持可选 AbortSignal；插件工作区与设置中心技能 Tab 共用其扩展清单，后者只筛选 `kind=skill`，不复制 Skill 数据目录。Skill 项的 `skillId` 是指向 Skill Registry 的稳定规范名称，设置页停用仍提交给原账户设置 Owner。共享工作区退出或账户切换时取消自身目录请求，其他调用方的默认并发读取仍使用原请求合并合同。普通应用面板不为展示 Agent 资源而读取此目录。
 
 Minecraft 默认核心设置通过 `loadMinecraftCoreNames()` 读取认证后的本地核心名称合同；实时版本和构建仍使用 `loadMinecraftCores()`，避免展示偏好等待外部来源。
+
+文件管理上传通过认证 `POST /files/upload` 发送 File 原始字节；远程下载与图片/PDF 预览使用 `downloadFileTransfer()` 读取账户绑定的一次性 Blob。任务 API 只暴露传输 ID 和文件元数据，不在 Client 类型中提供内联 Base64 上传字段。
 
 2026-10-14：Files locations 与真实 entries 分开；总根设置增加 Owner 返回的默认/推荐/选择类型与显式推荐动作。移除独立项目/节点环境根的写入调用，保留统一派生位置读取。服务器未返回推荐合同不得猜测路径。
 
@@ -48,4 +50,6 @@ Agent Git API 使用账户隔离的本机仓库 ID 与会话绑定 ID调用认�
 
 浏览器最近网站 API `loadBrowserRecentSites`、`recordBrowserRecentSites`、`clearBrowserRecentSites` 只透传认证 Browser Controller 的账户范围合同；Client 不持有网站历史副本、不自行去重或持久化。
 
-SteamCMD Client Connection 提供服务端列表、创建/配置和安装/更新/启动/停止任务 API，类型只表达服务端领域结果；权限、参数校验和节点执行继续归服务端 Owner。调用使用现有认证请求和错误映射，不保存游戏配置副本。构建写根 `dist/packages/client/connection/`。
+SteamCMD Client Connection 提供通用服务端列表、创建/配置、运行环境安装/校验/卸载、DST Master/Caves 集群登记和服务端安装/更新/启动/停止任务 API，类型只表达服务端领域结果；权限、参数校验和节点执行继续归服务端 Owner。SteamCMD 工具目录使用账户限定的 `setFileManagerLocation()` 导航提示，进入现有 File Manager 的同节点只读资源，不传物理路径、令牌或创建第二套文件接口。DST 配置文件仍通过相同导航 Owner 进入现有文件管理。调用使用现有认证请求和错误映射，不保存游戏配置副本。构建写根 `dist/packages/client/connection/`。
+
+`loadUserSettingsSyncStatus()` 读取认证后的当前 Control Plane 账户设置元数据，不缓存跨账户或设置值；Electron `mini.open/close` 只透传桌面 Host 的 IPC 操作及真实回执。

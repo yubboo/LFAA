@@ -5,7 +5,7 @@ import { assertSafeTextPreview } from "lfaa-fs/src/managed-files.mjs";
 import { ApiError } from "lfaa-util-values/src/http-error.js";
 import { createKnowledgeLibraryItem, getKnowledgeLibraryItem, listKnowledgeLibraryItems, updateKnowledgeLibraryItem } from "lfaa-knowledge-library/src/index.js";
 export const knowledgeFileMount: FileMount = {
-  id: "knowledge", name: "我的资料库", async operate(actor, operation, input) {
+  id: "knowledge", name: "我的资料库", locationDescription: "Owner 管理的账户资料库 · Markdown 位于 data\\users\\<账户 SHA-256>\\knowledge\\<scope>，索引由资料库 Owner 管理", async operate(actor, operation, input) {
     const path = String(input.path);
     const items = listKnowledgeLibraryItems(actor.userId);
     if (!path && ["list", "search"].includes(operation)) {

@@ -121,7 +121,7 @@ test('能力生命周期工具协议允许类型 Owner 的实例/项目 target',
   assert.ok(tools.find(tool => tool.name === 'capability_remove').schema.properties.target);
 });
 
-test('直接 GitHub 插件地址可由模型自主检查，工具说明引导幂等生命周期', async () => {
+test('明确 GitHub 来源不强制误判能力类型，工具说明引导幂等生命周期', async () => {
   const { apply } = await import('lfaa-capability-installs/src/index.js');
   const tools = [];
   const owner = { effect(callback) { return callback(); } };
@@ -130,13 +130,14 @@ test('直接 GitHub 插件地址可由模型自主检查，工具说明引导幂
   const byName = Object.fromEntries(tools.map(tool => [tool.name, tool]));
 
   assert.ok(!byName.capability_inspect.schema.required.includes('targetApplicationId'), '未指定目标时沿用当前 App');
-  assert.match(byName.capability_inspect.description, /直接.*kind=plugin.*不必先搜索或查询通用目录/u);
-  assert.match(byName.capability_search.description, /已给出.*GitHub HTTPS 仓库.*跳过搜索/u);
-  assert.match(byName.capability_inspect.description, /NPM 包名\/版本.*Host 上的本机绝对路径/u);
+  assert.match(byName.capability_inspect.description, /只有用户明确要求 LFAA 插件时才用 kind=plugin/u);
+  assert.match(byName.capability_inspect.description, /GitHub URL、NPM 包名不能单独决定类型/u);
+  assert.match(byName.capability_search.description, /用户明确给出 GitHub HTTPS 插件仓库.*不必先搜索/u);
+  assert.match(byName.capability_inspect.description, /NPM 包名\/版本不能用作本机绝对路径/u);
   assert.match(byName.capability_list.description, /同源 installed.*canEnable=true.*capability_set_enabled/u);
   assert.match(byName.capability_set_enabled.description, /启用后再次 capability_list/u);
-  assert.match(byName.capability_install.description, /不得要求用户手写工具顺序/u);
-  assert.match(byName.capability_install.description, /不重试安装/u);
+  assert.match(byName.capability_install.description, /一次性 inspectionId.*同一固定来源/u);
+  assert.match(byName.capability_install.description, /已消费凭证或相同参数盲重放/u);
 });
 
 test('stdio MCP 来源检查在统一 Permission Owner 中标为危险并将批准范围绑定准确命令', async () => {
@@ -156,5 +157,5 @@ test('stdio MCP 来源检查在统一 Permission Owner 中标为危险并将批�
   assert.notEqual(approval.scopeKey, inspect.approval({ ...stdio, target: { ...stdio.target, args: ['other.mjs'] } }, approvalContext).scopeKey, '审批记忆范围必须绑定准确命令和 argv');
   assert.notEqual(approval.scopeKey, inspect.approval(stdio, { ...approvalContext, applicationId: 'minecraft' }).scopeKey, '审批范围不得跨 App 复用');
   assert.equal(inspect.risk({ kind: 'mcp', source: 'https://example.test/mcp' }), 'read', 'HTTP initialize/tools/list 保持只读风险');
-  assert.match(inspect.description, /远程生产 Host 会拒绝/u);
+  assert.match(inspect.description, /远程生产 Host 拒绝启动本机进程/u);
 });

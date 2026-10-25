@@ -6,6 +6,7 @@
 import Joi from "joi";
 import { projectFileTool } from "./project-tools.js";
 import { capabilitySettingsTools } from "./capability-settings.js";
+import { settingsTools } from "./settings-tools.js";
 import { listRegisteredAiTools } from "./registry.js";
 import { createHash } from "node:crypto";
 import { isApplicationInScope } from "lfaa-scope/src/index.js";
@@ -54,8 +55,8 @@ const delegationTool: AiBusinessTool = makeTool({
   execute: async () => { throw new Error("子 Agent 由 AI Runtime 调用循环执行。"); }
 });
 
-export function listAiBusinessTools(applicationId: ApplicationId, userRole: UserRole, writingTarget: AiWritingToolTarget | null = null, permissionMode: "ask" | "approve_remembered" | "full_access" = "ask", includeExtensions = false, includeInstalledPrompts = false, includeComputerControl = false, includeBrowserUse = false): AiBusinessTool[] {
-  const available = [...capabilitySettingsTools, projectFileTool, delegationTool, fileTool];
+export function listAiBusinessTools(applicationId: ApplicationId, userRole: UserRole, writingTarget: AiWritingToolTarget | null = null, permissionMode: "ask" | "approve_remembered" | "full_access" = "ask", includeExtensions = false, includeInstalledPrompts = false, includeComputerControl = false, includeBrowserUse = false, includeBrowserHistoryAccess = false, includeBrowserWebsiteTools = false, includeBrowserDeveloperMode = false, includeBrowserFullCdpAccess = false): AiBusinessTool[] {
+  const available = [...capabilitySettingsTools, ...settingsTools, projectFileTool, delegationTool, fileTool];
   const canAdmin = userRole === "admin" || userRole === "super_admin";
   const fullAccess = permissionMode === "full_access";
   // 完全权限由账户持有人显式启用后可调用当前应用的全部已登记控制工具；写作目标仍绑定调用账户自己的作品。
@@ -72,8 +73,14 @@ export function listAiBusinessTools(applicationId: ApplicationId, userRole: User
   const registered = listRegisteredAiTools(writingTarget).filter(tool => isApplicationInScope(tool.applicationIds, applicationId))
     .filter(tool => !["capabilities.prompts-list", "capabilities.prompt-load"].includes(tool.id) || includeInstalledPrompts)
     .filter(tool => !tool.onDemand || fullAccess || canAdmin || tool.id.startsWith("writing.") || tool.risk(objectValue({ operation: "read" })) === "read");
-  const coreManaged = registered.filter(tool => tool.coreManaged && (!tool.adminOnly || canAdmin) && (!tool.requiresComputerControl || includeComputerControl) && (!tool.requiresBrowserUse || includeBrowserUse));
-  const extensions = includeExtensions ? registered.filter(tool => !tool.coreManaged && (!tool.requiresComputerControl || includeComputerControl) && (!tool.requiresBrowserUse || includeBrowserUse)) : [];
+  const permitted = (tool: AiBusinessTool) => (!tool.requiresComputerControl || includeComputerControl)
+    && (!tool.requiresBrowserUse || includeBrowserUse)
+    && (!tool.requiresBrowserHistoryAccess || includeBrowserHistoryAccess)
+    && (!tool.requiresBrowserWebsiteTools || includeBrowserWebsiteTools)
+    && (!tool.requiresBrowserDeveloperMode || includeBrowserDeveloperMode)
+    && (!tool.requiresBrowserFullCdpAccess || includeBrowserDeveloperMode && includeBrowserFullCdpAccess);
+  const coreManaged = registered.filter(tool => tool.coreManaged && (!tool.adminOnly || canAdmin) && permitted(tool));
+  const extensions = includeExtensions ? registered.filter(tool => !tool.coreManaged && permitted(tool)) : [];
   for (const tool of [...coreManaged, ...extensions]) if (builtins.some(item => item.id === tool.id || item.name === tool.name)) throw new Error(`插件工具与内置工具冲突：${tool.name}`);
   for (const coreTool of coreManaged) if (extensions.some(item => item.id === coreTool.id || item.name === coreTool.name)) throw new Error(`核心管理工具与扩展工具冲突：${coreTool.name}`);
   return [...builtins, ...coreManaged, ...extensions];

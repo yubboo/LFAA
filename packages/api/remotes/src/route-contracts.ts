@@ -13,6 +13,7 @@ import { type MinecraftTask } from "lfaa-jobs/src/minecraft-queue.js";
 import { createSession, sessionLifetimeSeconds } from "lfaa-identity-auth/src/service.js";
 import { type ShortcutSettings } from "lfaa-settings/src/service.js";
 import { APPLICATION_IDS } from "lfaa-util-values/src/application-id.js";
+import { EXECUTION_SANDBOX_MODES } from "lfaa-util-values/src/sandbox-contract.js";
 import { EASYTIER_RUNTIME_RELEASE } from "lfaa-game-connectivity/src/easytier-release.mjs";
 export type AsyncRequestHandler = (request: Request, response: Response, next: NextFunction) => Promise<void>;
 
@@ -45,7 +46,7 @@ export function validateDaemonRequest(request: Request): void {
   const expected = Buffer.from(config.daemonToken);
   const local = received.length === expected.length && timingSafeEqual(received, expected);
   const remote = local ? null : authenticateDaemonCredential(match[1]!);
-  const requestedId = request.body?.nodeId ?? request.body?.id;
+  const requestedId = request.body?.nodeId ?? request.body?.id ?? request.query.nodeId;
   // 密钥绑定真实目标节点，不能拿节点 A 的凭据领取或回报节点 B 的任务。
   if ((!local && !remote) || remote && requestedId !== remote.nodeId || local && typeof requestedId === "string" && isRemoteDaemonIdentity(requestedId)) {
     throw new ApiError(401, "daemon_authentication_required", "本机 Daemon 身份校验失败。");
@@ -115,6 +116,17 @@ export const passwordRecoverySchema = Joi.object({
   newPassword: Joi.string().min(8).max(128).required()
 }).unknown(false);
 
+export const trustedContactInvitationSchema = Joi.object({ code: Joi.string().pattern(/^[A-Za-z0-9_-]{32,64}$/u).required() }).unknown(false);
+export const trustedRecoveryStartSchema = Joi.object({
+  username: Joi.string().trim().min(1).max(32).required(),
+  contactUsername: Joi.string().trim().min(1).max(32).required()
+}).unknown(false);
+export const trustedRecoveryCodeSchema = Joi.object({ code: Joi.string().pattern(/^[A-Za-z0-9_-]{32,64}$/u).required() }).unknown(false);
+export const trustedRecoveryCompleteSchema = Joi.object({
+  code: Joi.string().pattern(/^[A-Za-z0-9_-]{32,64}$/u).required(),
+  newPassword: Joi.string().min(8).max(128).required()
+}).unknown(false);
+
 export const recoveryKeySchema = Joi.object({
   currentPassword: Joi.string().min(1).max(128).required(),
   recoveryKey: Joi.string().min(8).max(128).required()
@@ -173,7 +185,21 @@ export const preferencesSchema = Joi.object({
   selectedMode: Joi.string().valid("normal", "ai-work").required()
 });
 
-export { appearanceBackgroundIdSchema, generalSettingsSchema, aiRuntimeSettingsSchema, minecraftRuntimeSettingsSchema, gitSettingsSchema, permissionsSettingsSchema, pluginsSettingsSchema, personalizationSettingsSchema, conversationMemoriesSchema, computerControlSettingsSchema, browserUseSettingsSchema, appearanceFontsSchema, appearanceModeStyleSchema, appearanceSettingsSchema, shortcutBindingsSchema, shortcutsSchema } from "lfaa-settings/src/validation.js";
+export const accountAgentUsagePolicySchema = Joi.object({
+  enabled: Joi.boolean().required(),
+  timezone: Joi.string().trim().min(1).max(80).required(),
+  dailyLimitMinutes: Joi.number().integer().min(1).max(1440).required(),
+  weeklyWindows: Joi.array().length(7).items(Joi.object({
+    enabled: Joi.boolean().required(),
+    start: Joi.string().pattern(/^(?:[01]\d|2[0-3]):[0-5]\d$/u).required(),
+    end: Joi.string().pattern(/^(?:[01]\d|2[0-3]):[0-5]\d$/u).required()
+  }).unknown(false)).required()
+}).unknown(false);
+export const accountSnapshotCreateSchema = Joi.object({ name: Joi.string().trim().min(1).max(120).required() }).unknown(false);
+export const accountArchiveRestoreSchema = Joi.object({ settings: Joi.boolean().required(), memories: Joi.boolean().required(), sessions: Joi.boolean().required() })
+  .or("settings", "memories", "sessions").unknown(false);
+
+export { appearanceBackgroundIdSchema, generalSettingsSchema, aiRuntimeSettingsSchema, minecraftRuntimeSettingsSchema, gitSettingsSchema, permissionsSettingsSchema, pluginsSettingsSchema, personalizationSettingsSchema, conversationMemoriesSchema, computerControlSettingsSchema, browserUseSettingsSchema, miniSettingsSchema, canvasSettingsSchema, appearanceFontsSchema, appearanceModeStyleSchema, appearanceSettingsSchema, shortcutBindingsSchema, shortcutsSchema } from "lfaa-settings/src/validation.js";
 
 export const aiProbeSchema = Joi.object({
   providerId: Joi.string().valid("openai", "deepseek", "doubao", "qwen", "kimi", "zhipu", "xiaomi").required(),
@@ -213,6 +239,10 @@ export const aiChatMessageSchema = Joi.object({
   gitRepositoryId: Joi.string().guid({ version: ["uuidv4", "uuidv5"] }).allow(null),
   planMode: Joi.boolean(),
   associations: agentAssociationsSchema,
+  // 附件只传 ID：字节归附件 Owner，模型请求按需读取，会话不存图片内容。
+  attachmentIds: Joi.array().items(Joi.string().guid({ version: ["uuidv4", "uuidv5"] })).max(4).unique(),
+  /** 与 attachmentIds 对应的显示名；只用于消息展示，不改变附件归属。 */
+  attachments: Joi.array().items(Joi.object({ id: Joi.string().guid({ version: ["uuidv4", "uuidv5"] }).required(), name: Joi.string().trim().min(1).max(128) }).unknown(false)).max(4),
   content: Joi.string().trim().min(1).max(12000).required()
 }).unknown(false);
 
@@ -318,7 +348,7 @@ export const daemonHeartbeatSchema = Joi.object({
     architecture: Joi.string().valid("x64").required(),
     version: Joi.string().trim().max(40).required(),
     dataRoot: Joi.string().trim().min(3).max(2048).pattern(/^(?:[a-z]:\\|\\\\)/iu).required(),
-    capabilities: Joi.array().items(Joi.string().valid("minecraft-vanilla", "minecraft-native-v1", "minecraft-multicore-v1", "minecraft-instance-archive-v1", "app-sandbox-windows-appcontainer-v1", "java-environment-manager-v1", "runtime-environment-v1", "minecraft-java-runtime-selection-v1", "node-filesystem-v1", "node-filesystem-v2", "node-filesystem-directory-size-v1", "node-filesystem-instance-v1", "node-filesystem-game-storage-v1", "steamcmd-ready-v1", "agent-shell-v1", "project-files-v1", EASYTIER_RUNTIME_RELEASE.installCapability, EASYTIER_RUNTIME_RELEASE.runtimeCapability)).max(20).unique().required(),
+    capabilities: Joi.array().items(Joi.string().valid("minecraft-vanilla", "minecraft-native-v1", "minecraft-multicore-v1", "minecraft-instance-archive-v1", "app-sandbox-windows-appcontainer-v1", "java-environment-manager-v1", "runtime-environment-v1", "minecraft-java-runtime-selection-v1", "node-filesystem-v1", "node-filesystem-v2", "node-filesystem-directory-size-v1", "node-filesystem-instance-v1", "node-filesystem-game-storage-v1", "node-filesystem-binary-transfer-v1", "steamcmd-ready-v1", "agent-shell-v1", "project-files-v1", EASYTIER_RUNTIME_RELEASE.installCapability, EASYTIER_RUNTIME_RELEASE.runtimeCapability)).max(20).unique().required(),
     javaRuntimes: Joi.array().items(Joi.object({
       version: Joi.string().max(80),
       architecture:Joi.string().max(80),
@@ -440,7 +470,6 @@ export const fileOperationSchema = Joi.object({
     name: Joi.string().trim().min(1).max(255).when("operation", { is: Joi.valid("rename", "upload", "trash-restore", "trash-purge"), then: Joi.required(), otherwise: Joi.forbidden() }),
     destinationPath: Joi.string().max(1024).allow("").when("operation", { is: "move", then: Joi.required(), otherwise: Joi.forbidden() }),
     content: Joi.string().allow("").max(2 * 1024 * 1024).when("operation", { is: "write", then: Joi.required(), otherwise: Joi.forbidden() }),
-    dataBase64: Joi.string().allow("").max(4_194_304).when("operation", { is: "upload", then: Joi.required(), otherwise: Joi.forbidden() }),
     sha256: Joi.string().hex().length(64).lowercase().when("operation", { is: "upload", then: Joi.required(), otherwise: Joi.forbidden() }),
     expectedSha256: Joi.string().hex().length(64).lowercase().when("operation", { is: "write", then: Joi.required(), otherwise: Joi.forbidden() })
   }).unknown(false);
@@ -464,6 +493,16 @@ export const steamcmdServerSchema = Joi.object({
     stopCommand: Joi.string().max(120).pattern(/^[^\r\n\u0000-\u001f\u007f]*$/u).allow("").default(""),
     stopTimeoutSeconds: Joi.number().integer().min(5).max(300).default(60),
     eulaAccepted: Joi.boolean().required()
+  }).unknown(false);
+
+export const steamcmdDstClusterSchema = Joi.object({
+    nodeId: Joi.string().guid().required(),
+    clusterName: Joi.string().pattern(/^[A-Za-z0-9_-]{1,32}$/u).required(),
+    toolAppId: Joi.number().integer().min(1).max(2147483647).required(),
+    installDirectory: Joi.string().trim().min(1).max(512).required(),
+    stopCommand: Joi.string().trim().min(1).max(120).pattern(/^[^\r\n\u0000-\u001f\u007f]+$/u).required(),
+    stopTimeoutSeconds: Joi.number().integer().min(5).max(300).default(60),
+    eulaAccepted: Joi.boolean().valid(true).required()
   }).unknown(false);
 
 export const steamcmdServerTaskSchema = Joi.object({
@@ -499,7 +538,7 @@ export const pluginRuntimeActionSchema = Joi.object({
 
 export const steamcmdTaskSchema = Joi.object({
     nodeId: Joi.string().guid().required(),
-    kind: Joi.string().valid("install", "verify").required()
+    kind: Joi.string().valid("install", "verify", "uninstall").required()
   }).unknown(false);
 
 export const steamcmdProgressSchema = Joi.object({
@@ -523,7 +562,9 @@ export const steamcmdCompletionSchema = Joi.object({
       processStarted: Joi.boolean(),
       processId: Joi.number().integer().min(1),
       stopped: Joi.boolean(),
-      forced: Joi.boolean()
+      forced: Joi.boolean(),
+      removed: Joi.boolean(),
+      uninstalled: Joi.boolean()
     }).unknown(false).default({})
   }).unknown(false);
 
@@ -548,7 +589,7 @@ export const fileTaskCompletionSchema = Joi.object({
       mimeType: Joi.string().max(100),
       name: Joi.string().max(255),
       size: Joi.number().integer().min(0).max(Number.MAX_SAFE_INTEGER),
-      dataBase64: Joi.string().allow("").max(4_194_304),
+      transferId: Joi.string().guid(),
       sha256: Joi.string().hex().length(64).lowercase(),
       trashId: Joi.string().guid(),
       restored: Joi.boolean(),
@@ -576,6 +617,14 @@ export const aiHostTaskCompletionSchema = Joi.object({
       exitCode: Joi.number().integer().allow(null).required(),
       timedOut: Joi.boolean().required(),
       outputTruncated: Joi.boolean().required(),
-      cancelled: Joi.boolean().default(false)
+      cancelled: Joi.boolean().default(false),
+      sandbox: Joi.object({
+        mode: Joi.string().valid(...EXECUTION_SANDBOX_MODES).required(),
+        enforcement: Joi.string().valid("full", "none").required(),
+        denied: Joi.boolean().required(),
+        providerId: Joi.string().trim().min(1).max(80).required(),
+        hostVerified: Joi.boolean(),
+        runnerFailed: Joi.boolean()
+      }).unknown(false)
     }).unknown(false).required()
   }).unknown(false);

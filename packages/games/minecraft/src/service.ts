@@ -89,10 +89,10 @@ export function saveMinecraftNodeStorageSettings(nodeId: string, input: Minecraf
   return { nodeId, ...validated };
 }
 
-/** 心跳同时携带当前默认目录和实例/部署已记录目录，Daemon 因此能继续找到未迁移的旧数据。 */
+/** 心跳同时携带当前实例目录、统一 Minecraft 备份根和实例/部署历史目录。 */
 export function getMinecraftNodeStorageDirectories(nodeId: string): { instanceDirectory: string; backupDirectory?: string; knownDirectories: string[] } {
   const instanceDirectory = getMinecraftNodeStorageSettings(nodeId).instanceDirectory;
-  const backupDirectory = getLocalProjectContentPath(getDaemonDataRoot(nodeId), "games/minecraft-backups");
+  const backupDirectory = getLocalProjectContentPath(getDaemonDataRoot(nodeId), "backups/minecraft");
   const rows = database.prepare(`
     SELECT storage_directory FROM minecraft_instances WHERE node_id = ?
     UNION SELECT storage_directory FROM minecraft_deployments WHERE node_id = ?

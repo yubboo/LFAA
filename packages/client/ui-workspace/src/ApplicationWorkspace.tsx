@@ -12,7 +12,7 @@ import { shouldAutoOpenGitSummary } from "./git-summary-layout.config.js";
 
 import { createElement, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent as ReactFormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { Alert, Button, Dropdown, Popover, Tag, Typography } from "antd";
-import { archiveAiSession, getErrorMessage, initializeDefaultWorkspace, isDesktopApp, hasAdminAccess, loadAiExtensions, loadAiSessions, loadAgentGitRepositories, ensureAgentGitSessionRepository, loadAgentGitStatus, loadBrowserRecentSites, recordBrowserRecentSites, loadWorkspaceProjects, loadWritingWorkspace, userRoleLabel, type AgentGitRepository, type AiActivityFileChange, type AiExtension, type AiSession, type ApplicationId, type ApplicationMode, type BrowserRecentSite, type UserRole, type UserSettings, type WorkspaceDaemonNode, type WorkspaceGitStatus, type WorkspaceProject, type WritingWorkspace as WritingWorkspaceData } from "lfaa-client-connection/src/api.js";
+import { archiveAiSession, getErrorMessage, initializeDefaultWorkspace, isDesktopApp, hasAdminAccess, loadAiExtensions, loadAiSessions, loadAgentGitRepositories, ensureAgentGitSessionRepository, loadAgentGitStatus, loadBrowserRecentSites, recordBrowserRecentSites, loadWorkspaceProjects, loadWorkspaceSessionDirectoryAvailability, loadWritingWorkspace, userRoleLabel, type AgentGitRepository, type AiActivityFileChange, type AiExtension, type AiSession, type ApplicationId, type ApplicationMode, type BrowserProviderId, type BrowserRecentSite, type UserRole, type UserSettings, type WorkspaceDaemonNode, type WorkspaceGitStatus, type WorkspaceProject, type WritingWorkspace as WritingWorkspaceData } from "lfaa-client-connection/src/api.js";
 import type { AiWorkGoalRequest, AiWorkNotification, AiWorkNotificationInput } from "lfaa-client-resources/src/notification-runtime.js";
 import { resolveWorkbenchLayoutMetrics, type WorkbenchLayoutMetrics } from "lfaa-client-ui-dockkit/src/workbench-layout.config.js";
 import type { WorkbenchLayoutMode } from "lfaa-client-ui-dockkit/src/workbench-layout.types.js";
@@ -153,6 +153,7 @@ const LAYOUT_KEY = "lfaa.module-workbench.layout.v1";
 const aiExtensionSnapshots = new Map<string, AiExtension[]>();
 const aiSessionSnapshots = new Map<string, AiSession[]>();
 const workspaceProjectSnapshots = new Map<string, { projects: WorkspaceProject[]; nodes: WorkspaceDaemonNode[]; truncated: boolean; defaultProjectId?: string | null }>();
+const emptySessionDirectoryIds: ReadonlySet<string> = new Set();
 const initializedDefaultWorkspaceUsers = new Set<string>();
 const emptySessionFileChanges: AiActivityFileChange[] = [];
 type NavigationLayout = UserSettings["general"]["navigationLayout"];
@@ -220,14 +221,16 @@ function isEditableTarget(target: EventTarget | null): boolean {
   );
 }
 
-interface ApplicationSidebarProps extends Pick<ApplicationWorkspaceProps, "userId" | "app" | "mode" | "apps" | "onNavigate" | "onOpenApplication" | "onOpenSelectedApplication"> {
+interface ApplicationSidebarProps extends Pick<ApplicationWorkspaceProps, "userId" | "app" | "mode" | "section" | "gameLibrary" | "apps" | "applicationNavigationItems" | "onNavigate" | "onOpenApplication" | "onOpenSelectedApplication"> {
   layoutMode: WorkbenchLayoutMode;
+  onWritingLibraryPortalTargetChange: (target: HTMLDivElement | null) => void;
   onToggleLeft: () => void;
   notifications: AiWorkNotification[];
   onMarkNotificationsRead: () => void;
   onClearNotifications: () => void;
   onOpenNotification: (notification: AiWorkNotification) => void;
   sessions: AiSession[];
+  missingSessionDirectoryIds: ReadonlySet<string>;
   aiDraft: string;
   pinnedSessionIds: string[];
   onTogglePinnedSession: (sessionId: string) => void;
@@ -237,7 +240,6 @@ interface ApplicationSidebarProps extends Pick<ApplicationWorkspaceProps, "userI
   activeSessionId: string | null;
   sessionsLoading: boolean;
   sessionsError: string;
-  chatBusy: boolean;
   providerStatus: string | null;
   gitSummaryOpen: boolean;
   gitSummaryContent: ReactNode;
@@ -245,9 +247,12 @@ interface ApplicationSidebarProps extends Pick<ApplicationWorkspaceProps, "userI
   onSelectSession: (sessionId: string) => void;
   onArchiveSession: (session: AiSession) => void;
   onCloseGitSummary: () => void;
+  onPreviewMouseEnter: () => void;
+  onPreviewMouseLeave: () => void;
+  onPreviewBlur: () => void;
 }
 
-function ApplicationSidebar({ userId, app, mode, apps, layoutMode, onNavigate, onOpenApplication, onOpenSelectedApplication, onToggleLeft, notifications, onMarkNotificationsRead, onClearNotifications, onOpenNotification, sessions, aiDraft, pinnedSessionIds, onTogglePinnedSession, workspaceProjects, projectLoadError, onRetryProjects, activeSessionId, sessionsLoading, sessionsError, chatBusy, providerStatus, gitSummaryOpen, gitSummaryContent, onNewSession, onSelectSession, onArchiveSession, onCloseGitSummary }: ApplicationSidebarProps) {
+function ApplicationSidebar({ userId, app, mode, section, gameLibrary, apps, applicationNavigationItems, layoutMode, onWritingLibraryPortalTargetChange, onNavigate, onOpenApplication, onOpenSelectedApplication, onToggleLeft, notifications, onMarkNotificationsRead, onClearNotifications, onOpenNotification, sessions, missingSessionDirectoryIds, aiDraft, pinnedSessionIds, onTogglePinnedSession, workspaceProjects, projectLoadError, onRetryProjects, activeSessionId, sessionsLoading, sessionsError, providerStatus, gitSummaryOpen, gitSummaryContent, onNewSession, onSelectSession, onArchiveSession, onCloseGitSummary, onPreviewMouseEnter, onPreviewMouseLeave, onPreviewBlur }: ApplicationSidebarProps) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [sessionMenuId, setSessionMenuId] = useState<string | null>(null);
   useEffect(() => { setSessionMenuId(null); }, [layoutMode]);
@@ -291,9 +296,10 @@ function ApplicationSidebar({ userId, app, mode, apps, layoutMode, onNavigate, o
   const unreadNotifications = notifications.filter((notification) => !notification.read).length;
   const renderSession = (session: AiSession, nested = false) => {
     const isPinned = pinnedSessionSet.has(session.id);
+    const directoryMissing = missingSessionDirectoryIds.has(session.id);
     const menu = { items: [
-      { key: "pin", label: isPinned ? "取消置顶" : "置顶", disabled: chatBusy },
-      { key: "archive", label: "归档", icon: <WorkbenchIcon name="archive" size={14} />, disabled: chatBusy },
+      { key: "pin", label: isPinned ? "取消置顶" : "置顶" },
+      { key: "archive", label: "归档", icon: <WorkbenchIcon name="archive" size={14} /> },
     ], onClick: ({ key }: { key: string }) => {
       setSessionMenuId(null);
       if (key === "pin") onTogglePinnedSession(session.id);
@@ -303,10 +309,10 @@ function ApplicationSidebar({ userId, app, mode, apps, layoutMode, onNavigate, o
       open={sessionMenuId === session.id} onOpenChange={open => setSessionMenuId(open ? session.id : null)}
       placement="bottomRight" autoAdjustOverflow overlayClassName="module-session-menu"
       getPopupContainer={trigger => trigger.closest<HTMLElement>(".module-workbench-stage") ?? trigger.parentElement!}>
-      <div className={`module-sidebar__session${nested ? " module-sidebar__session--nested" : ""}${session.id === activeSessionId ? " is-active" : ""}`}>
-        <button type="button" disabled={chatBusy} aria-current={session.id === activeSessionId ? "page" : undefined} onClick={() => { setSessionMenuId(null); onSelectSession(session.id); if (layoutMode === "mobile") onToggleLeft(); }} title={session.title}><WorkbenchIcon name="history" size={14} /><span>{session.title}</span></button>
+      <div className={`module-sidebar__session${nested ? " module-sidebar__session--nested" : ""}${session.id === activeSessionId ? " is-active" : ""}${directoryMissing ? " is-project-directory-missing" : ""}`}>
+        <button type="button" aria-current={session.id === activeSessionId ? "page" : undefined} onClick={() => { setSessionMenuId(null); onSelectSession(session.id); if (layoutMode === "mobile") onToggleLeft(); }} title={directoryMissing ? `${session.title} · 项目目录已删除或移动，历史记录仍可查看` : session.title}><WorkbenchIcon name="history" size={14} /><span>{session.title}</span></button>
         <div className="module-sidebar__session-actions">
-          <button type="button" disabled={chatBusy} aria-label={`会话菜单：${session.title}`} aria-haspopup="menu" aria-expanded={sessionMenuId === session.id} title="会话菜单" onClick={event => { event.stopPropagation(); setSessionMenuId(current => current === session.id ? null : session.id); }}><WorkbenchIcon name="dots" size={15} /></button>
+          <button type="button" aria-label={`会话菜单：${session.title}`} aria-haspopup="menu" aria-expanded={sessionMenuId === session.id} title="会话菜单" onClick={event => { event.stopPropagation(); setSessionMenuId(current => current === session.id ? null : session.id); }}><WorkbenchIcon name="dots" size={15} /></button>
         </div>
       </div>
     </Dropdown>;
@@ -322,7 +328,7 @@ function ApplicationSidebar({ userId, app, mode, apps, layoutMode, onNavigate, o
   }, [notificationsOpen]);
 
   return (
-    <div className="module-sidebar" data-ui="left-sidebar" data-layout-mode={layoutMode}>
+    <div className="module-sidebar" data-ui="left-sidebar" data-layout-mode={layoutMode} onMouseEnter={onPreviewMouseEnter} onMouseLeave={onPreviewMouseLeave} onBlur={onPreviewBlur}>
       <header className="module-sidebar__brand-row">
         <button className="module-sidebar__brand" type="button" onClick={() => { if (mode === "ai-work") void onOpenSelectedApplication(); else void onOpenApplication("workspace", "ai-work"); }} aria-label={app === "workspace" ? "切换到上次使用的应用" : `切换到${nextModeLabel}`} title={app === "workspace" ? "切换到上次使用的应用" : `切换到${nextModeLabel}`}>
           <span className="module-sidebar__brand-mark">L</span><strong>LFAA</strong><WorkbenchIcon name="chevron" size={15} />
@@ -361,6 +367,18 @@ function ApplicationSidebar({ userId, app, mode, apps, layoutMode, onNavigate, o
           <button className="module-icon-button module-sidebar__close" type="button" aria-label="收起应用导航" title="收起应用导航" onClick={() => { setNotificationsOpen(false); onCloseGitSummary(); onToggleLeft(); }}><WorkbenchIcon name="close" size={16} /></button>
         </div>
       </header>
+      {mode === "normal" ? <ApplicationNavigationPanel
+        userId={userId}
+        app={app}
+        mode={mode}
+        section={section}
+        gameLibrary={gameLibrary}
+        applicationNavigationItems={applicationNavigationItems}
+        onNavigate={onNavigate}
+        onOpenApplication={onOpenApplication}
+        onWritingLibraryPortalTargetChange={onWritingLibraryPortalTargetChange}
+        hidden={false}
+      /> : null}
       {mode === "ai-work" ? <section className={`module-sidebar__sessions${layoutMode === "mobile" && gitSummaryOpen ? " is-git-summary" : ""}`} aria-label={layoutMode === "mobile" && gitSummaryOpen ? "项目摘要" : `${apps.find((item) => item.id === app)?.title ?? "当前应用"} 会话`}>
         {layoutMode === "mobile" && gitSummaryOpen ? <>
           <div className="module-sidebar__mobile-summary-heading">
@@ -369,7 +387,7 @@ function ApplicationSidebar({ userId, app, mode, apps, layoutMode, onNavigate, o
           </div>
           <div className="module-sidebar__mobile-summary-content">{gitSummaryContent}</div>
         </> : <>
-        <div className="module-sidebar__sessions-heading"><span>{apps.find(item => item.id === app)?.title ?? "当前应用"} 项目与会话</span><span className="module-sidebar__sessions-count">{appSessions.length}</span><button type="button" aria-label="新建会话" title="新建会话" disabled={chatBusy} onClick={() => { onNewSession(); if (layoutMode === "mobile") onToggleLeft(); }}><WorkbenchIcon name="plus" size={15} /></button></div>
+        <div className="module-sidebar__sessions-heading"><span>{apps.find(item => item.id === app)?.title ?? "当前应用"} 项目与会话</span><span className="module-sidebar__sessions-count">{appSessions.length}</span><button type="button" aria-label="新建会话" title="新建会话" onClick={() => { onNewSession(); if (layoutMode === "mobile") onToggleLeft(); }}><WorkbenchIcon name="plus" size={15} /></button></div>
         {sessionsError ? <p className="module-sidebar__sessions-error" role="alert">{sessionsError}</p> : null}
         {projectLoadError ? <p className="module-sidebar__sessions-error" role="alert">项目目录加载失败：{projectLoadError} <button type="button" onClick={onRetryProjects}>重试</button></p> : null}
         <div ref={sessionsScroll.ref} onScroll={sessionsScroll.onScroll} className="module-sidebar__session-list">
@@ -387,10 +405,17 @@ function ApplicationSidebar({ userId, app, mode, apps, layoutMode, onNavigate, o
             </section>
             {projectGroups.size ? <section className="module-sidebar__session-category" aria-label="项目会话">
               <div className="module-sidebar__category-heading"><span>项目</span><small>{[...projectGroups.values()].reduce((count, group) => count + group.sessions.length, 0)}</small></div>
-              {[...projectGroups.entries()].map(([projectId, group]) => <section className="module-sidebar__project-group" key={projectId}>
-                <button className="module-sidebar__project-heading" type="button" disabled={chatBusy || !group.project} title={group.project ? `在 ${group.title} 中新建会话` : `${group.title} 的目录登记已移除，现有会话仍保留原节点目录上下文`} onClick={() => { if (group.project) { onNewSession(group.project.id); if (layoutMode === "mobile") onToggleLeft(); } }}><WorkbenchIcon name="folder" size={14} /><span>{group.title}</span><small>{group.sessions.length}</small></button>
+              {[...projectGroups.entries()].map(([projectId, group]) => {
+                const missingForGroup = group.sessions.length > 0 && group.sessions.every(session => missingSessionDirectoryIds.has(session.id));
+                return <section className="module-sidebar__project-group" key={projectId}>
+                <button className={`module-sidebar__project-heading${missingForGroup ? " is-project-directory-missing" : ""}`} type="button" title={missingForGroup ? `${group.title} 的项目目录已删除或移动；仍可打开历史会话查看记录` : group.project ? `在 ${group.title} 中新建会话` : `${group.title} 已解除目录登记；点击打开历史会话`} onClick={() => {
+                  if (group.project && !missingForGroup) onNewSession(group.project.id);
+                  else if (group.sessions[0]) onSelectSession(group.sessions[0].id);
+                  if (layoutMode === "mobile") onToggleLeft();
+                }}><WorkbenchIcon name="folder" size={14} /><span>{group.title}</span><small>{group.sessions.length}</small></button>
                 {group.sessions.map(session => renderSession(session, true))}
-              </section>)}
+              </section>;
+              })}
             </section> : null}
             {recentSessions.length ? <section className="module-sidebar__session-category" aria-label="最近会话">
               <div className="module-sidebar__category-heading"><span>最近</span><small>{recentSessions.length}</small></div>
@@ -441,9 +466,15 @@ function ApplicationNavigationPanel({ userId, app, mode, section, gameLibrary = 
     })),
   }], [app, applicationNavigationItems, gameLibrary, onNavigate, onOpenApplication]);
 
-  return <section className="module-context__applications" id="module-context-applications" aria-label="应用导航" hidden={hidden}>
+  const locationClassName = mode === "normal" ? "module-context__applications module-sidebar__application-navigation" : "module-context__applications";
+  return <section className={locationClassName} id="module-context-applications" aria-label="应用导航" hidden={hidden}>
     <div ref={appMenuScroll.ref} onScroll={appMenuScroll.onScroll} className="module-context__application-menu">
       <header className="module-context__heading"><div><strong>应用</strong><span>切换工作区与应用页面</span></div></header>
+      <button className="module-context__canvas-entry" type="button" onClick={() => onNavigate(`/apps/${app}/canvas`)} aria-label={`打开 ${applicationNavigationItems.find(item => item.applicationId === app)?.title ?? app} 的无限画布`} title="系统级无限画布：所有 App 共用同一套画布能力">
+        <WorkbenchIcon name="grid" size={16} />
+        <span><strong>无限画布</strong><small>节点、素材与创作工程</small></span>
+        <WorkbenchIcon name="chevron" size={14} />
+      </button>
       {app === "writing" && mode === "normal" ? <div ref={onWritingLibraryPortalTargetChange} className="module-context__writing-library-portal" /> : null}
       <SecondaryNavigation ariaLabel="应用导航" className="module-context__application-navigation" groups={applicationNavigationGroups} activateOnArrow />
       {gameLibrary ? <nav className="module-context__app-menu" aria-label="游戏库菜单">
@@ -488,14 +519,17 @@ function PanelControl({ name, title, shortcut, active, onClick }: { name: "termi
 }
 
 export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary = false, workspaceTitle, applicationContent, apps, applicationNavigationItems, username, role, serverState, error, settings, onSettingsChange, onBack, onSelectedModeHome, onOpenSelectedApplication, onNavigate, onOpenSettings, onOpenApplication, recentSessionsOpenRequestId, onRecentSessionsOpenRequestHandled, rightPanelSection, onRightPanelSectionChange, applicationsOpenRequestId, onApplicationsOpenRequestHandled, activeAiSessionId, aiDraft, aiWorkGoal, notifications, onNotification, onMarkNotificationsRead, onClearNotifications, onOpenNotification, onActiveAiSessionChange, onAiDraftChange, onAiWorkGoalConsumed, onLogout }: ApplicationWorkspaceProps) {
+  const activeRightPanelSection = mode === "normal" ? "context" : rightPanelSection;
   const voiceMode = app === "workspace" && mode === "ai-work" && section === "voice";
   // 旧版 Host 可能缺少后续新增的快捷键项；由 Settings 默认值补齐，不覆盖已保存的空数组。
   const shortcuts = useMemo(() => resolveShortcutSettings(settings.shortcuts), [settings.shortcuts]);
   const sideChatShortcuts = shortcuts.openSideChat;
   const layoutRef = useRef<HTMLDivElement>(null);
   const previewCloseTimer = useRef<number | null>(null);
+  const leftPreviewTriggerRef = useRef<HTMLButtonElement>(null);
   const responsiveAppDock = true;
   const metrics = useWorkbenchMetrics(layoutRef, () => initialMetrics(responsiveAppDock), responsiveAppDock, readWorkbenchLeadingInsetWidth);
+  const leftPreviewContextRef = useRef({ app, mode, section, layoutMode: metrics.mode });
   const sidebarRight = useSidebarRightSnapshot();
   const [chrome, setChrome] = useState(() => readChrome(metrics.mode, responsiveAppDock));
   const [chromeStorageMetadata] = useState(readChromeStorageMetadata);
@@ -508,10 +542,19 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   const [extensionsLoading, setExtensionsLoading] = useState(() => needsExtensions && !aiExtensionSnapshots.has(userId));
   const [aiSessionsState, setAiSessionsState] = useState(() => ({ userId, sessions: aiSessionSnapshots.get(userId) ?? [] }));
   const aiSessions = aiSessionsState.userId === userId ? aiSessionsState.sessions : aiSessionSnapshots.get(userId) ?? [];
+  const [missingSessionDirectoryState, setMissingSessionDirectoryState] = useState<{ key: string; ids: ReadonlySet<string> }>({ key: "", ids: new Set() });
+  const [sessionDirectoryCheckRequest, setSessionDirectoryCheckRequest] = useState<{ sessionId: string; requestId: number } | null>(null);
+  const sessionDirectoryCheckSequence = useRef(0);
+  const sessionDirectoryBindings = useMemo(() => aiSessions.filter(session => !session.archived && session.projectId).slice(0, 200).map(session => [session.id, session.projectId] as [string, string | null]).sort(([firstId], [secondId]) => firstId.localeCompare(secondId)), [aiSessions]);
+  const sessionDirectorySignature = useMemo(() => JSON.stringify(sessionDirectoryBindings), [sessionDirectoryBindings]);
   const aiSessionsRequestRef = useRef<{ userId: string; controller: AbortController } | null>(null);
   const [pinnedSessionState, setPinnedSessionState] = useState(() => ({ userId, ids: readPinnedAiSessionIds(userId) }));
   const pinnedSessionIds = pinnedSessionState.userId === userId ? pinnedSessionState.ids : [];
   const [workspaceProjects, setWorkspaceProjects] = useState<WorkspaceProject[]>(() => workspaceProjectSnapshots.get(`${userId}:${app}`)?.projects ?? []);
+  const workspaceProjectDirectorySignature = useMemo(() => {
+    const sessionProjectIds = new Set(sessionDirectoryBindings.map(([, projectId]) => projectId));
+    return JSON.stringify(workspaceProjects.filter(project => sessionProjectIds.has(project.id)).map(project => [project.id, project.nodeId, project.path]).sort(([firstId], [secondId]) => String(firstId).localeCompare(String(secondId))));
+  }, [sessionDirectoryBindings, workspaceProjects]);
   const [workspaceNodes, setWorkspaceNodes] = useState<WorkspaceDaemonNode[]>(() => workspaceProjectSnapshots.get(`${userId}:${app}`)?.nodes ?? []);
   const [workspaceProjectsTruncated, setWorkspaceProjectsTruncated] = useState(() => workspaceProjectSnapshots.get(`${userId}:${app}`)?.truncated ?? false);
   const [defaultWorkspaceProjectId, setDefaultWorkspaceProjectId] = useState<string | null>(() => workspaceProjectSnapshots.get(`${userId}:${app}`)?.defaultProjectId ?? null);
@@ -520,7 +563,6 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   const [workspaceProjectsRevision, setWorkspaceProjectsRevision] = useState(0);
   const [aiSessionsLoading, setAiSessionsLoading] = useState(() => mode === "ai-work" && !aiSessionSnapshots.has(userId));
   const [aiSessionsError, setAiSessionsError] = useState("");
-  const [aiChatBusy, setAiChatBusy] = useState(false);
   const [agentGitRepositoryState, setAgentGitRepositoryState] = useState<{ userId: string; repositories: AgentGitRepository[] }>({ userId, repositories: [] });
   const agentGitRepositories = agentGitRepositoryState.userId === userId ? agentGitRepositoryState.repositories : [];
   const [agentGitRepositoriesLoading, setAgentGitRepositoriesLoading] = useState(false);
@@ -544,9 +586,13 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   const [sideChatInitialQuestion, setSideChatInitialQuestion] = useState("");
   const [sideChatQuestionRevision, setSideChatQuestionRevision] = useState(0);
   const [gitRefreshRevision, setGitRefreshRevision] = useState(0);
+  const aiChatBusyState = useRef(false);
   const [aiWorkView, setAiWorkView] = useState<"chat" | "git">("chat");
   const [workspaceUtilityTabs, setWorkspaceUtilityTabs] = useState<WorkspaceUtilityTab[]>([{ id: "workspace-tab-1", kind: "new" }]);
   const [activeWorkspaceUtilityTabId, setActiveWorkspaceUtilityTabId] = useState("workspace-tab-1");
+  const handledApplicationsOpenRequestRef = useRef<number | null>(null);
+  const [preferredBrowserProvider, setPreferredBrowserProvider] = useState<{ providerId: BrowserProviderId; requestId: number } | null>(null);
+  const browserProviderSelectionSequence = useRef(0);
   const [browserAddress, setBrowserAddress] = useState("");
   const [browserAddressError, setBrowserAddressError] = useState("");
   const [browserAddressFocused, setBrowserAddressFocused] = useState(false);
@@ -615,8 +661,9 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
     });
   }, [userId]);
   const onAiChatBusyChange = useCallback((busy: boolean) => {
-    setAiChatBusy(busy);
-    if (!busy) setGitRefreshRevision((revision) => revision + 1);
+    const wasBusy = aiChatBusyState.current;
+    aiChatBusyState.current = busy;
+    if (wasBusy && !busy) setGitRefreshRevision((revision) => revision + 1);
   }, []);
   const appliedLayoutMode = useRef(metrics.mode);
   const responsiveLeftRestore = useRef<boolean | null>(null);
@@ -693,6 +740,10 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   const terminalPanelAvailable = app !== "writing";
   const activeAiSessionTitle = aiSessions.find((session) => session.id === activeAiSessionId)?.title ?? null;
   const activeAiSession = aiSessions.find((session) => session.id === activeAiSessionId) ?? null;
+  const missingSessionDirectoryIds = missingSessionDirectoryState.key === `${userId}:${app}:${workspaceProjectsRevision}:${sessionDirectorySignature}:${workspaceProjectDirectorySignature}`
+    ? missingSessionDirectoryState.ids
+    : emptySessionDirectoryIds;
+  const activeAiSessionProjectDirectoryMissing = Boolean(activeAiSessionId && missingSessionDirectoryIds.has(activeAiSessionId));
   const gitManagerAvailable = mode === "ai-work";
   const activeSessionGitRepositoryId = activeAiSessionId && sessionGitBinding.sessionId === activeAiSessionId ? sessionGitBinding.repositoryId : null;
   const selectedAgentGitRepositoryId = gitManagerRepositoryState.userId === userId && gitManagerRepositoryState.repositoryId
@@ -776,7 +827,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   }, [currentSessionFileChanges]);
   const handleGitSummaryFilesToggle = useCallback(() => setGitSummaryShowAllFiles(value => !value), []);
   useEffect(() => {
-    if (mode !== "ai-work") {
+    if (mode !== "ai-work" || (!gitSummaryOpen && activeWorkspaceUtilityTabKind !== "git")) {
       return;
     }
     const controller = new AbortController();
@@ -786,24 +837,24 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
       if (!controller.signal.aborted) setAgentGitRepositoriesError(getErrorMessage(error));
     }).finally(() => { if (!controller.signal.aborted) setAgentGitRepositoriesLoading(false); });
     return () => controller.abort();
-  }, [gitRefreshRevision, mode, userId]);
+  }, [activeWorkspaceUtilityTabKind, gitRefreshRevision, gitSummaryOpen, mode, userId]);
   useEffect(() => {
     if (mode !== "ai-work" || voiceMode || !activeAiSessionId) {
       setSessionGitBinding({ sessionId: "", repositoryId: null, loading: false });
-      return;
+    } else {
+      setSessionGitBinding({ sessionId: activeAiSessionId, repositoryId: null, loading: false });
     }
     setGitManagerRepositoryState({ userId, repositoryId: null });
-    void ensureSessionGitRepository(activeAiSessionId);
-  }, [activeAiSessionId, ensureSessionGitRepository, gitRefreshRevision, mode, userId, voiceMode]);
+  }, [activeAiSessionId, mode, userId, voiceMode]);
   useEffect(() => {
-    if (mode !== "ai-work" || !selectedAgentGitRepository) {
+    if (mode !== "ai-work" || (!gitSummaryOpen && activeWorkspaceUtilityTabKind !== "git") || !selectedAgentGitRepository) {
       gitStatusRequestRevision.current += 1;
       setGitStatusSnapshot({ repositoryId: null, status: null, loading: false, error: "" });
       return;
     }
     void refreshGitStatus(selectedAgentGitRepository);
     return () => { gitStatusRequestRevision.current += 1; };
-  }, [gitRefreshRevision, mode, refreshGitStatus, selectedAgentGitRepository?.id]);
+  }, [activeWorkspaceUtilityTabKind, gitRefreshRevision, gitSummaryOpen, mode, refreshGitStatus, selectedAgentGitRepository?.id]);
   useEffect(() => {
     if (!gitSummaryOpen || mode !== "ai-work") return;
     const controller = new AbortController();
@@ -854,7 +905,13 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
     if (open && mode === "ai-work" && activeAiSessionId) void ensureSessionGitRepository(activeAiSessionId);
   }, [activeAiSessionId, ensureSessionGitRepository, mode]);
   useEffect(() => {
-    if (mode !== "ai-work" || metrics.mode === "mobile" || voiceMode || chrome.rightCollapsed) return;
+    if (mode !== "ai-work" || voiceMode || metrics.mode !== "compact") return;
+    gitSummaryResponsiveOpenRef.current = null;
+    setGitSummaryOpen(false);
+    setGitSummaryActionRepositoryId(null);
+  }, [metrics.mode, mode, voiceMode]);
+  useEffect(() => {
+    if (mode !== "ai-work" || metrics.mode !== "desktop" || voiceMode || chrome.rightCollapsed) return;
     const workbench = layoutRef.current;
     const rightPane = workbench?.querySelector<HTMLElement>(".module-workbench-region--right-menu");
     if (!workbench || !rightPane) return;
@@ -1007,27 +1064,14 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
       return;
     }
     const controller = new AbortController();
+    let projectLoadSequence = 0;
+    let initializationError = "";
     setWorkspaceProjectsError("");
-    void (async () => {
-      let initializationError = "";
-      if (app === "workspace" && !voiceMode && !initializedDefaultWorkspaceUsers.has(userId)) {
-        try {
-          await initializeDefaultWorkspace(controller.signal);
-          if (controller.signal.aborted) return;
-          initializedDefaultWorkspaceUsers.add(userId);
-          if (initializedDefaultWorkspaceUsers.size > 8) {
-            const oldestUserId = initializedDefaultWorkspaceUsers.values().next().value;
-            if (oldestUserId) initializedDefaultWorkspaceUsers.delete(oldestUserId);
-          }
-        }
-        catch (projectError) {
-          if (controller.signal.aborted) return;
-          initializationError = `默认工作区初始化失败：${getErrorMessage(projectError)}`;
-        }
-      }
+    const refreshProjects = async () => {
+      const sequence = ++projectLoadSequence;
       try {
         const { projects, nodes, truncated, defaultProjectId } = await loadWorkspaceProjects({ signal: controller.signal });
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted || sequence !== projectLoadSequence) return;
         workspaceProjectSnapshots.set(cacheKey, { projects, nodes, truncated, defaultProjectId });
         setWorkspaceProjects(projects);
         setWorkspaceNodes(nodes);
@@ -1036,14 +1080,58 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
         setWorkspaceProjectsLoadStatus("ready");
         setWorkspaceProjectsError(initializationError);
       } catch (projectError) {
-        if (!controller.signal.aborted) {
+        if (!controller.signal.aborted && sequence === projectLoadSequence) {
           setWorkspaceProjectsLoadStatus("error");
           setWorkspaceProjectsError(initializationError || getErrorMessage(projectError));
         }
       }
-    })();
+    };
+    void refreshProjects();
+    if (app === "workspace" && !voiceMode && !initializedDefaultWorkspaceUsers.has(userId)) {
+      void initializeDefaultWorkspace(controller.signal).then(() => {
+        if (controller.signal.aborted) return;
+        initializedDefaultWorkspaceUsers.add(userId);
+        if (initializedDefaultWorkspaceUsers.size > 8) {
+          const oldestUserId = initializedDefaultWorkspaceUsers.values().next().value;
+          if (oldestUserId) initializedDefaultWorkspaceUsers.delete(oldestUserId);
+        }
+        return refreshProjects();
+      }).catch(projectError => {
+        if (controller.signal.aborted) return;
+        initializationError = `默认工作区初始化失败：${getErrorMessage(projectError)}`;
+        setWorkspaceProjectsError(initializationError);
+      });
+    }
     return () => controller.abort();
   }, [userId, app, mode, voiceMode, workspaceProjectsRevision]);
+
+  useEffect(() => {
+    const key = `${userId}:${app}:${workspaceProjectsRevision}:${sessionDirectorySignature}:${workspaceProjectDirectorySignature}`;
+    if (mode !== "ai-work") {
+      setMissingSessionDirectoryState({ key, ids: new Set() });
+      return;
+    }
+    const sessionId = sessionDirectoryCheckRequest?.sessionId;
+    if (aiSessionsLoading || !sessionId || sessionId !== activeAiSessionId) return;
+    const hasProjectBinding = (JSON.parse(sessionDirectorySignature) as Array<[string, string | null]>).some(([id, projectId]) => id === sessionId && projectId !== null);
+    if (!hasProjectBinding) return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      void loadWorkspaceSessionDirectoryAvailability([sessionId], controller.signal).then(({ sessions }) => {
+        if (controller.signal.aborted) return;
+        const status = sessions[sessionId] ?? "unknown";
+        setMissingSessionDirectoryState(current => {
+          const ids = new Set(current.key === key ? current.ids : []);
+          if (status === "missing") ids.add(sessionId);
+          else if (status === "available") ids.delete(sessionId);
+          return { key, ids };
+        });
+      }).catch(() => {
+        // 未知状态不标记为目录缺失；聊天与历史内容不等待后台目录检查。
+      });
+    }, 350);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [activeAiSessionId, aiSessionsLoading, app, mode, sessionDirectoryCheckRequest?.requestId, sessionDirectoryCheckRequest?.sessionId, sessionDirectorySignature, userId, workspaceProjectDirectorySignature, workspaceProjectsRevision]);
 
   const retryWorkspaceProjects = useCallback(() => setWorkspaceProjectsRevision(revision => revision + 1), []);
 
@@ -1090,27 +1178,33 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   }, [leftPaneWidth, metrics.left.max, metrics.left.min]);
 
   useEffect(() => () => {
-    if (previewCloseTimer.current !== null) window.clearTimeout(previewCloseTimer.current);
+    if (previewCloseTimer.current !== null) {
+      window.clearTimeout(previewCloseTimer.current);
+      previewCloseTimer.current = null;
+    }
   }, []);
 
   const toggleLeft = useCallback(() => {
     responsiveLeftRestore.current = null;
+    // 中心与右栏均已收起时，关闭左二菜单必须恢复主工作区，不能把页面留成全空。
+    if (!chrome.leftCollapsed && centerCollapsed && chrome.rightCollapsed) setCenterCollapsed(false);
     setChrome((current) => ({
       ...current,
       leftCollapsed: !current.leftCollapsed,
       ...(metrics.mode !== "desktop" && current.leftCollapsed ? { rightCollapsed: true } : {}),
     }));
-  }, [metrics.mode]);
+  }, [centerCollapsed, chrome.leftCollapsed, chrome.rightCollapsed, metrics.mode]);
   const showRightPanelSection = useCallback((nextSection: "context" | "applications") => {
-    onRightPanelSectionChange(nextSection);
+    const sectionToShow = mode === "normal" ? "context" : nextSection;
+    onRightPanelSectionChange(sectionToShow);
     sidebarRightRuntime.select(null);
-    if (nextSection === "applications") setAiWorkView("chat");
+    if (sectionToShow === "applications") setAiWorkView("chat");
     setChrome((current) => ({
       ...current,
       rightCollapsed: false,
       ...(metrics.mode !== "desktop" ? { leftCollapsed: true } : {}),
     }));
-  }, [metrics.mode, onRightPanelSectionChange]);
+  }, [metrics.mode, mode, onRightPanelSectionChange]);
   const showWorkspaceUtilityTab = useCallback((tab: WorkspaceUtilityTab) => {
     setChrome((current) => ({
       ...current,
@@ -1179,6 +1273,22 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
     setActiveWorkspaceUtilityTabId(nextTab.id);
     showWorkspaceUtilityTab(nextTab);
   }, [activeWorkspaceUtilityTabId, showWorkspaceUtilityTab, workspaceUtilityTabs]);
+  const openBrowserDockForAgent = useCallback((providerId: BrowserProviderId) => {
+    const requestId = ++browserProviderSelectionSequence.current;
+    setPreferredBrowserProvider({ providerId, requestId });
+    const activeTab = workspaceUtilityTabs.find(tab => tab.id === activeWorkspaceUtilityTabId);
+    const browserTab = activeTab?.kind === "new" && !activeTab.browserNavigationRequest && !activeTab.browserActionRequest
+      ? activeTab
+      : workspaceUtilityTabs.find(tab => tab.kind === "new" && !tab.browserNavigationRequest && !tab.browserActionRequest);
+    const nextTab = browserTab ?? { id: `workspace-tab-${++workspaceUtilityTabId.current}`, kind: "new" as const };
+    if (!browserTab) {
+      setBrowserAddress("");
+      setBrowserAddressError("");
+      setWorkspaceUtilityTabs(current => [...current, nextTab]);
+    }
+    setActiveWorkspaceUtilityTabId(nextTab.id);
+    showWorkspaceUtilityTab(nextTab);
+  }, [activeWorkspaceUtilityTabId, showWorkspaceUtilityTab, workspaceUtilityTabs]);
   const submitBrowserAddress = useCallback((event: ReactFormEvent<HTMLFormElement>) => {
     event.preventDefault();
     try {
@@ -1241,7 +1351,8 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
     const previousActiveBrowserTab = browserOpenTabs.find(tab => tab.active);
     const activeBrowserPageChanged = Boolean(previousActiveBrowserTab
       && (previousActiveBrowserTab.id !== activeBrowserTab?.id || previousActiveBrowserTab.url !== activeBrowserTab.url));
-    if (activeUtilityTab?.kind === "new" && activeBrowserTab && (activeUtilityTab.browserUrl !== undefined || activeBrowserPageChanged || browserOpenTabs.length === 0)) {
+    const keepSavedAddressDuringOwnerRecovery = activeBrowserTab?.url === "about:blank" && /^https?:\/\//iu.test(activeUtilityTab?.browserUrl ?? "");
+    if (activeUtilityTab?.kind === "new" && activeBrowserTab && !keepSavedAddressDuringOwnerRecovery && (activeUtilityTab.browserUrl !== undefined || activeBrowserPageChanged || browserOpenTabs.length === 0)) {
       setWorkspaceUtilityTabs(current => current.map(tab => tab.id === activeUtilityTab.id && tab.kind === "new" && tab.browserUrl !== activeBrowserTab.url
         ? { ...tab, browserUrl: activeBrowserTab.url }
         : tab));
@@ -1328,16 +1439,16 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
     }
   }, [activeAiSessionId, agentGitRepositories, ensureSessionGitRepository, openWorkspaceUtility, selectedAgentGitRepositoryId, userId]);
   const toggleApplicationsPanel = useCallback(() => {
+    if (mode === "normal") {
+      toggleLeft();
+      return;
+    }
     if (rightPanelSection === "applications" && !chrome.rightCollapsed) {
       setChrome((current) => ({ ...current, rightCollapsed: true }));
       return;
     }
-    if (mode !== "ai-work") {
-      showRightPanelSection("applications");
-      return;
-    }
     openWorkspaceUtility("applications");
-  }, [chrome.rightCollapsed, mode, openWorkspaceUtility, rightPanelSection, showRightPanelSection]);
+  }, [chrome.rightCollapsed, mode, openWorkspaceUtility, rightPanelSection, toggleLeft]);
   const openToolsPanel = useCallback(() => {
     if (mode !== "ai-work") {
       if (rightPanelSection === "context" && !chrome.rightCollapsed) setChrome((current) => ({ ...current, rightCollapsed: true }));
@@ -1367,11 +1478,19 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
     onRecentSessionsOpenRequestHandled(recentSessionsOpenRequestId);
   }, [mode, onRecentSessionsOpenRequestHandled, recentSessionsOpenRequestId, showRecentSessions]);
   useEffect(() => {
-    if (applicationsOpenRequestId === null) return;
-    if (mode === "ai-work") openWorkspaceUtility("applications");
-    else showRightPanelSection("applications");
+    if (applicationsOpenRequestId === null || handledApplicationsOpenRequestRef.current === applicationsOpenRequestId) return;
+    handledApplicationsOpenRequestRef.current = applicationsOpenRequestId;
     onApplicationsOpenRequestHandled(applicationsOpenRequestId);
-  }, [applicationsOpenRequestId, mode, onApplicationsOpenRequestHandled, openWorkspaceUtility, showRightPanelSection]);
+    if (mode === "ai-work") openWorkspaceUtility("applications");
+    else {
+      onRightPanelSectionChange("context");
+      setChrome((current) => ({
+        ...current,
+        leftCollapsed: false,
+        ...(metrics.mode !== "desktop" ? { rightCollapsed: true } : {}),
+      }));
+    }
+  }, [applicationsOpenRequestId, metrics.mode, mode, onApplicationsOpenRequestHandled, onRightPanelSectionChange, openWorkspaceUtility]);
   const toggleRight = useCallback(() => {
     if (chrome.rightCollapsed) {
       showRightPanelSection("context");
@@ -1467,10 +1586,14 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
       setLeftPreviewOpen(false);
       return;
     }
-    previewCloseTimer.current = window.setTimeout(() => {
+    const closeTimer = window.setTimeout(() => {
+      if (previewCloseTimer.current !== closeTimer) return;
       previewCloseTimer.current = null;
+      const previewPane = layoutRef.current?.querySelector<HTMLElement>(".module-left-preview");
+      if (leftPreviewTriggerRef.current?.matches(":hover, :focus-visible") || previewPane?.matches(":hover, :focus-within")) return;
       setLeftPreviewOpen(false);
     }, 160);
+    previewCloseTimer.current = closeTimer;
   }, [chrome.leftCollapsed, clearPreviewClose, metrics.mode]);
 
   useEffect(() => {
@@ -1479,6 +1602,14 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
       setLeftPreviewOpen(false);
     }
   }, [chrome.leftCollapsed, clearPreviewClose, metrics.mode]);
+
+  useLayoutEffect(() => {
+    const previousContext = leftPreviewContextRef.current;
+    if (previousContext.app === app && previousContext.mode === mode && previousContext.section === section && previousContext.layoutMode === metrics.mode) return;
+    leftPreviewContextRef.current = { app, mode, section, layoutMode: metrics.mode };
+    clearPreviewClose();
+    setLeftPreviewOpen(false);
+  }, [app, mode, section, metrics.mode, clearPreviewClose]);
 
   if (!selectedApp) return null;
 
@@ -1583,9 +1714,13 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
     userId,
     app,
     mode,
+    section,
+    gameLibrary,
     apps,
+    applicationNavigationItems,
     onOpenSelectedApplication,
     layoutMode: metrics.mode,
+    onWritingLibraryPortalTargetChange: setWritingLibraryPortalTarget,
     onNavigate: navigateWithinApplication,
     onOpenApplication: openSidebarMode,
     onToggleLeft: toggleLeft,
@@ -1594,6 +1729,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
     onClearNotifications,
     onOpenNotification,
     sessions: aiSessions,
+    missingSessionDirectoryIds,
     aiDraft,
     pinnedSessionIds,
     onTogglePinnedSession: togglePinnedSession,
@@ -1603,17 +1739,23 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
     activeSessionId: activeAiSessionId,
     sessionsLoading: aiSessionsLoading,
     sessionsError: aiSessionsError,
-    chatBusy: aiChatBusy,
     providerStatus: aiProviderStatus,
     gitSummaryOpen,
     gitSummaryContent,
     onNewSession: startNewAiSession,
-    onSelectSession: (sessionId) => { onActiveAiSessionChange(sessionId); setNewAiSessionProjectId(null); setAiSessionsError(""); },
+    onSelectSession: (sessionId) => {
+      onActiveAiSessionChange(sessionId);
+      setNewAiSessionProjectId(null);
+      setAiSessionsError("");
+      setSessionDirectoryCheckRequest({ sessionId, requestId: ++sessionDirectoryCheckSequence.current });
+    },
     onArchiveSession: (session) => { void archiveAiWorkSession(session); },
     onCloseGitSummary: () => handleGitSummaryOpenChange(false),
+    onPreviewMouseEnter: openLeftPreview,
+    onPreviewMouseLeave: closeLeftPreview,
+    onPreviewBlur: closeLeftPreview,
   };
   const left = <ApplicationSidebar {...sidebarProps} />;
-  const leftPreview = <ApplicationSidebar {...sidebarProps} />;
   const showWorkbenchTabs = mode === "ai-work" && !voiceMode;
   const activeCenterCollapsed = centerCollapsePreview ?? centerCollapsed;
   const activeWorkspaceUtilityTab = workspaceUtilityTabs.find(tab => tab.id === activeWorkspaceUtilityTabId) ?? null;
@@ -1667,9 +1809,9 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   </div> : null;
   const center = (
     <div className="module-center">
-      <header className="module-center__header" data-layout-mode={metrics.mode}>
+      <header className="module-center__header" data-layout-mode={metrics.mode} data-module-mode={mode}>
         <div className="module-center__heading">
-          <button className="module-shell-icon-button" type="button" aria-label="切换会话与项目栏" aria-expanded={!chrome.leftCollapsed} aria-keyshortcuts={shortcuts.toggleSidebar.map((chord) => chord.replace("Ctrl", "Control")).join(" ")} title={`切换会话与项目栏 · ${shortcuts.toggleSidebar.join(" / ") || "未分配"}`} onClick={toggleLeft} onMouseEnter={openLeftPreview} onMouseLeave={closeLeftPreview} onFocus={openLeftPreview} onBlur={closeLeftPreview}><WorkbenchIcon name="panelLeft" size={16} /></button>
+          <button ref={leftPreviewTriggerRef} className="module-shell-icon-button module-shell-icon-button--left-preview" type="button" aria-label="切换会话与项目栏" aria-expanded={!chrome.leftCollapsed || leftPreviewOpen} aria-keyshortcuts={shortcuts.toggleSidebar.map((chord) => chord.replace("Ctrl", "Control")).join(" ")} title={`切换会话与项目栏 · ${shortcuts.toggleSidebar.join(" / ") || "未分配"}`} onClick={toggleLeft} onMouseEnter={openLeftPreview} onMouseLeave={closeLeftPreview} onFocus={(event) => { if (event.currentTarget.matches(":focus-visible")) openLeftPreview(); }} onBlur={closeLeftPreview}><WorkbenchIcon name="panelLeft" size={16} /></button>
           <div className="module-center__title" title={mode === "ai-work" ? activeAiSessionTitle?.trim() || "小鱼智能体" : activeApplicationTitle}><WorkbenchIcon name={mode === "normal" ? "folder" : "spark"} size={16} /><strong>{mode === "ai-work" ? activeAiSessionTitle?.trim() || "小鱼智能体" : activeApplicationTitle}</strong></div>
         </div>
         <div className="module-center__actions">
@@ -1700,7 +1842,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
           {(chrome.rightCollapsed || metrics.mode !== "desktop") ? <PanelControl name="panelRight" title="上下文栏" shortcut={shortcuts.toggleContextPanel.join(" / ")} active={!chrome.rightCollapsed} onClick={toggleRight} /> : null}
         </div>
       </header>
-      <main ref={moduleContentScroll.ref} onScroll={moduleContentScroll.onScroll} className={`module-center__content${mode === "ai-work" ? " module-center__content--ai-work" : ""}${writingNormal ? " module-center__content--writing-normal" : ""}${aiVideoNormal ? " module-center__content--aivideo" : ""}`} aria-label={mode === "ai-work" ? "小鱼智能体对话" : writingNormal ? "写作正文编辑区" : aiVideoNormal ? "AI 漫剧分镜画布" : undefined} aria-labelledby={applicationContent ? "game-library-heading" : mode === "normal" && app !== "minecraft" && !writingNormal && !aiVideoNormal ? "module-heading" : undefined}>
+      <main ref={moduleContentScroll.ref} onScroll={moduleContentScroll.onScroll} className={`module-center__content${mode === "ai-work" ? " module-center__content--ai-work" : ""}${mode === "normal" && !writingNormal && !aiVideoNormal ? " module-center__content--application" : ""}${writingNormal ? " module-center__content--writing-normal" : ""}${aiVideoNormal ? " module-center__content--aivideo" : ""}`} aria-label={mode === "ai-work" ? "小鱼智能体对话" : writingNormal ? "写作正文编辑区" : aiVideoNormal ? "AI 漫剧分镜画布" : undefined} aria-labelledby={applicationContent ? "game-library-heading" : mode === "normal" && app !== "minecraft" && !writingNormal && !aiVideoNormal ? "module-heading" : undefined}>
         {mode === "ai-work" ? <>
           {error ? <Alert className="page-alert" type="error" showIcon message={error} /> : null}
           <div className="module-ai-work-chat">
@@ -1718,6 +1860,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
               onSettingsChange={onSettingsChange}
               sessions={aiSessions}
               activeSessionId={activeAiSessionId}
+              projectDirectoryMissing={activeAiSessionProjectDirectoryMissing}
               newSessionProjectId={newAiSessionProjectId}
               newSessionGitRepositoryId={null}
               defaultWorkspaceProjectId={defaultWorkspaceProjectId}
@@ -1751,6 +1894,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
               onWritingWorkspaceChange={setWritingWorkspace}
               onOpenProjectFileReview={openProjectFileReview}
               onSessionFileChanges={onSessionFileChanges}
+              onBrowserToolCompleted={openBrowserDockForAgent}
               voiceMode={section === "voice"}
               onExitVoice={() => onNavigate("/work")}
             />
@@ -1837,8 +1981,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
       <div className="module-context__default-content" hidden={mode === "ai-work" && sideChatOpen}>
       {terminalPanelAvailable && chrome.terminalOpen && settings.general.terminalPosition === "right" ? <div style={{ height: metrics.bottom.initial }}><TaskTerminal appId={app} settings={settings} sessionId={activeAiSessionId} role={role} onClose={toggleTerminal} /></div> : null}
       {mode !== "ai-work" ? <nav className="module-context__tabs" aria-label="右侧菜单">
-        <button type="button" className={sidebarRight.activeId === null && rightPanelSection === "context" && aiWorkView === "chat" ? "is-active" : ""} aria-pressed={sidebarRight.activeId === null && rightPanelSection === "context" && aiWorkView === "chat"} onClick={() => { setAiWorkView("chat"); showRightPanelSection("context"); }}>{contextLabel}</button>
-        <button type="button" className={sidebarRight.activeId === null && rightPanelSection === "applications" ? "is-active" : ""} aria-pressed={sidebarRight.activeId === null && rightPanelSection === "applications"} aria-controls="module-context-applications" onClick={() => showRightPanelSection("applications")}>应用</button>
+        <button type="button" className={sidebarRight.activeId === null && activeRightPanelSection === "context" && aiWorkView === "chat" ? "is-active" : ""} aria-pressed={sidebarRight.activeId === null && activeRightPanelSection === "context" && aiWorkView === "chat"} onClick={() => { setAiWorkView("chat"); showRightPanelSection("context"); }}>{contextLabel}</button>
         {sidebarRight.tabs.flatMap((tab) => {
           const guideItems = [...(tab.guide ?? [])].sort((first, second) => first.order - second.order);
           if (guideItems.length === 0) {
@@ -1854,16 +1997,16 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
         })}
       </nav> : null}
       {sidebarRight.tabs.map((tab) => tab.keepMounted || sidebarRight.activeId === tab.id ? <div key={tab.id} className="module-context__tab-panel" hidden={sidebarRight.activeId !== tab.id} aria-hidden={sidebarRight.activeId !== tab.id}>{createElement(DshSlotOutlet, { name: "sidebar.right.pane.tab", entryKey: tab.id, fallback: <Alert type="warning" showIcon message="扩展面板尚未加载内容" description="此入口已登记，但当前没有 DSH Client 内容提供面板。请检查当前 Profile 的插件状态及 Client 入口加载错误。" /> })}</div> : null)}
-      <ApplicationNavigationPanel userId={userId} app={app} mode={mode} section={section} gameLibrary={gameLibrary} applicationNavigationItems={applicationNavigationItems} onNavigate={navigateWithinApplication} onOpenApplication={openSidebarMode} onWritingLibraryPortalTargetChange={setWritingLibraryPortalTarget} hidden={rightPanelSection !== "applications" || sidebarRight.activeId !== null} />
-      {sidebarRight.activeId === null && rightPanelSection === "context" && aiWorkView === "git" ? gitManagerPanel : null}
-      {sidebarRight.activeId === null && rightPanelSection === "context" && aiWorkView === "chat" ? writingNormal ? <Suspense fallback={<ApplicationContentLoading />}><WritingBookInfo
+      {mode === "ai-work" ? <ApplicationNavigationPanel userId={userId} app={app} mode={mode} section={section} gameLibrary={gameLibrary} applicationNavigationItems={applicationNavigationItems} onNavigate={navigateWithinApplication} onOpenApplication={openSidebarMode} onWritingLibraryPortalTargetChange={setWritingLibraryPortalTarget} hidden={activeRightPanelSection !== "applications" || sidebarRight.activeId !== null} /> : null}
+      {sidebarRight.activeId === null && activeRightPanelSection === "context" && aiWorkView === "git" ? gitManagerPanel : null}
+      {sidebarRight.activeId === null && activeRightPanelSection === "context" && aiWorkView === "chat" ? writingNormal ? <Suspense fallback={<ApplicationContentLoading />}><WritingBookInfo
         workspace={writingWorkspace}
         workspaceLoading={writingWorkspaceLoading}
         onWorkspaceChange={setWritingWorkspace}
         onClose={toggleRight}
       /></Suspense> : <>
       {mode === "ai-work" ? <>
-        {activeWorkspaceUtilityTabKind === "new" ? <Suspense fallback={<ApplicationContentLoading />}><BrowserPanel sessionId={BUILTIN_BROWSER_WORKSPACE_ID} settings={settings} hidden={!activeWorkspaceUtilityTab?.browserUrl} navigationRequest={activeWorkspaceUtilityTab?.browserNavigationRequest ?? null} onNavigationRequestHandled={handleBrowserNavigationRequest} actionRequest={activeWorkspaceUtilityTab?.browserActionRequest ?? null} onActionRequestHandled={handleBrowserActionRequest} onOpenTabsChange={handleBrowserOpenTabsChange} /></Suspense> : null}
+        {activeWorkspaceUtilityTabKind === "new" ? <Suspense fallback={<ApplicationContentLoading />}><BrowserPanel sessionId={BUILTIN_BROWSER_WORKSPACE_ID} settings={settings} browserUrl={activeWorkspaceUtilityTab?.browserUrl} preferredProviderId={preferredBrowserProvider?.providerId} providerSelectionRequestId={preferredBrowserProvider?.requestId} hidden={!activeWorkspaceUtilityTab?.browserUrl} navigationRequest={activeWorkspaceUtilityTab?.browserNavigationRequest ?? null} onNavigationRequestHandled={handleBrowserNavigationRequest} actionRequest={activeWorkspaceUtilityTab?.browserActionRequest ?? null} onActionRequestHandled={handleBrowserActionRequest} onOpenTabsChange={handleBrowserOpenTabsChange} /></Suspense> : null}
         {!activeWorkspaceUtilityTab?.browserUrl ? <>
         <div className="module-context__launcher">
           <section className="module-context__launcher-name" aria-label="名称">
@@ -1943,18 +2086,19 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   const bottom = terminalPanelAvailable ? <TaskTerminal appId={app} settings={settings} sessionId={activeAiSessionId} role={role} onClose={toggleTerminal} /> : null;
 
   const previewStyle = { "--module-left-preview-width": `${leftPaneWidth}px` } as CSSProperties;
+  const leftPreviewMode = chrome.leftCollapsed && metrics.mode !== "mobile";
+  const leftRegionClassName = `module-workbench-region--secondary-navigation${leftPreviewMode ? ` module-left-preview${leftPreviewOpen ? " is-visible" : ""}` : ""}`;
   return (
     <div className={`module-workbench-stage module-workbench-stage--application${voiceMode ? " module-workbench-stage--voice" : ""}`} style={previewStyle} data-layout-mode={metrics.mode}>
       <ResizableWorkbench
         rootElementRef={layoutRef}
         className="module-workbench-inner module-workbench-layout"
-        leading={<GlobalNavigationRail username={username} role={role} serverState={serverState} shortcuts={shortcuts} activePage="home" homeLabel="返回当前模式首页" applications={applicationNavigationItems} onOpenRecentSessions={showRecentSessions} showServiceStatus={settings.general.showServiceStatus} onHome={onSelectedModeHome} onNavigate={onNavigate} onOpenApplication={openApplication} onOpenWork={() => void openApplication("workspace", "ai-work")} onOpenFiles={() => onNavigate("/files")} onOpenSettings={onOpenSettings} onLogout={onLogout} onToggleTools={openToolsPanel} applicationsExpanded={rightPanelSection === "applications" && !chrome.rightCollapsed} applicationsTargetId="module-context-applications" onToggleApplications={toggleApplicationsPanel} />}
+        leading={<GlobalNavigationRail username={username} role={role} serverState={serverState} shortcuts={shortcuts} activePage="home" homeLabel="返回当前模式首页" applications={applicationNavigationItems} onOpenRecentSessions={showRecentSessions} showServiceStatus={settings.general.showServiceStatus} onHome={onSelectedModeHome} onNavigate={onNavigate} onOpenApplication={openApplication} onOpenWork={() => void openApplication("workspace", "ai-work")} onOpenFiles={() => onNavigate("/files")} onOpenSettings={onOpenSettings} onLogout={onLogout} onToggleTools={openToolsPanel} applicationsExpanded={mode === "normal" ? !chrome.leftCollapsed : activeRightPanelSection === "applications" && !chrome.rightCollapsed} applicationsTargetId="module-context-applications" onToggleApplications={toggleApplicationsPanel} />}
         leadingRegionClassName="module-workbench-region--leading"
-        leftRegionClassName="module-workbench-region--secondary-navigation"
+        leftRegionClassName={leftRegionClassName}
         centerRegionClassName="module-workbench-region--center-workspace"
         rightRegionClassName="module-workbench-region--right-menu"
         bottomRegionClassName="module-workbench-region--bottom"
-        overlay={chrome.leftCollapsed && metrics.mode !== "mobile" ? <div className={`module-left-preview${leftPreviewOpen ? " is-visible" : ""}`} data-layout-mode={metrics.mode} aria-hidden={!leftPreviewOpen} onMouseEnter={openLeftPreview} onMouseLeave={closeLeftPreview}>{leftPreview}</div> : null}
         left={left}
         center={center}
         leftVisible={!voiceMode}

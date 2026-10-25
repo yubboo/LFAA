@@ -3,9 +3,11 @@
  * 作用：校验调用方已从权威设置与授权 Owner 得到的策略，并按目标主机语义验证工作区路径；本包不授予权限、不提供默认策略。
  * 关联文件：packages/sandbox/sandbox/src/index.ts、未来的 Daemon/本机沙箱提供方与 Agent 执行适配器。
  */
+import { posix as posixPath, win32 as win32Path } from "node:path";
+import { EXECUTION_SANDBOX_MODES, type ExecutionSandboxMode } from "lfaa-util-values/src/sandbox-contract.js";
 
-export const SANDBOX_MODES = ["read-only", "workspace-write", "danger-full-access"] as const;
-export type SandboxMode = (typeof SANDBOX_MODES)[number];
+export const SANDBOX_MODES = EXECUTION_SANDBOX_MODES;
+export type SandboxMode = ExecutionSandboxMode;
 export type SandboxPlatform = "win32" | "linux" | "darwin";
 export type SandboxTarget = { kind: "local" } | { kind: "node"; nodeId: string };
 
@@ -15,6 +17,8 @@ export interface SandboxExecutionPolicy {
   readonly platform: SandboxPlatform;
   readonly target: SandboxTarget;
   readonly workspaceRoot: string;
+  /** 当前命令目录；由执行 Owner 提供，平台 Host 必须再次检查其位于 workspaceRoot 内。 */
+  readonly workingDirectory?: string;
   readonly sessionId?: string;
 }
 
@@ -51,6 +55,18 @@ export function createSandboxExecutionPolicy(input: SandboxPolicyInput): Sandbox
   if (!isAbsoluteForPlatform(input.platform, input.workspaceRoot)) {
     throw new SandboxPolicyError("工作区根目录必须是目标执行主机上的绝对路径。");
   }
+  if (input.workingDirectory !== undefined) {
+    assertSafeText(input.workingDirectory, "命令工作目录");
+    if (!isAbsoluteForPlatform(input.platform, input.workingDirectory)) {
+      throw new SandboxPolicyError("命令工作目录必须是目标执行主机上的绝对路径。");
+    }
+    const pathApi = input.platform === "win32" ? win32Path : posixPath;
+    const relative = pathApi.relative(input.workspaceRoot, input.workingDirectory);
+    if (input.mode !== "danger-full-access"
+      && (relative === ".." || relative.startsWith(`..${pathApi.sep}`) || pathApi.isAbsolute(relative))) {
+      throw new SandboxPolicyError("命令工作目录必须位于当前工作区内。");
+    }
+  }
   if (input.target.kind === "node") assertSafeText(input.target.nodeId, "目标节点 ID");
   else if (input.target.kind !== "local") throw new SandboxPolicyError("执行目标无效。");
   if (input.sessionId !== undefined) assertSafeText(input.sessionId, "会话 ID");
@@ -60,6 +76,7 @@ export function createSandboxExecutionPolicy(input: SandboxPolicyInput): Sandbox
     platform: input.platform,
     target: Object.freeze({ ...input.target }),
     workspaceRoot: input.workspaceRoot,
+    ...(input.workingDirectory === undefined ? {} : { workingDirectory: input.workingDirectory }),
     ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId })
   });
 }

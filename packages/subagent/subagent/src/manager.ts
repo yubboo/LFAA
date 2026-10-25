@@ -9,6 +9,7 @@ import { logger } from "lfaa-telemetry-logger/src/logger.js";
 import type { SubagentDriver, SubagentDriverContext, SubagentRunHandle, SubagentRunResult, SubagentTask } from "./types.js";
 import { assertProviderName } from "./invariant.js";
 import { nextLifecycle } from "./lifecycle.js";
+import type { KillTreeResult } from "lfaa-win32-process";
 
 /** 活动运行最多同时追踪数量，防止失控委派撑爆内存。 */
 const MAX_TRACKED_RUNS = 64;
@@ -16,6 +17,8 @@ const MAX_TRACKED_RUNS = 64;
 export class SubagentManager {
   private readonly drivers = new Map<string, SubagentDriver>();
   private readonly runs = new Map<string, SubagentRunHandle>();
+
+  constructor(private readonly terminateProcessTree?: (pid: number) => Promise<KillTreeResult>) {}
 
   /** 登记一个驱动；返回卸载函数。同名覆盖直接拒绝，避免静默替换。 */
   registerDriver(driver: SubagentDriver): () => void {
@@ -85,7 +88,11 @@ export class SubagentManager {
       done: Promise.resolve(placeholderResult)
     };
 
-    const driverContext: SubagentDriverContext = { ...ctx, signal: controller.signal };
+    const driverContext: SubagentDriverContext = {
+      ...ctx,
+      signal: controller.signal,
+      ...(this.terminateProcessTree ? { terminateProcessTree: this.terminateProcessTree } : {})
+    };
     const done = (async (): Promise<SubagentRunResult> => {
       let result: SubagentRunResult;
       try {

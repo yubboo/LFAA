@@ -61,6 +61,8 @@ export interface LocalProcessLaunch {
   argv: string[];
   cwd?: string | undefined;
   env?: Record<string, string> | undefined;
+  /** 平台 Host 可先接收取消/超时请求并完成进程树与权限清理。 */
+  requestStop?: (reason: "cancel" | "timeout" | "killed") => boolean;
 }
 
 function mergeEnv(launchEnv: Record<string, string> | undefined, spec: ShellExecSpec): Record<string, string> {
@@ -96,9 +98,16 @@ export function spawnLocalProcess(launch: LocalProcessLaunch, spec: ShellExecSpe
     stdio: ["pipe", "pipe", "pipe"],
   });
 
+  const requestStop = (reason: "cancel" | "timeout" | "killed"): void => {
+    try {
+      if (launch.requestStop?.(reason)) return;
+    } catch { /* 失败时强制结束运行器。 */ }
+    try { child.kill(); } catch { /* 进程已经退出。 */ }
+  };
+
   const onAbort = (): void => {
     aborted = true;
-    try { child.kill(); } catch { /* 进程已经退出。 */ }
+    requestStop("cancel");
   };
 
   const settle = new Promise<ShellRunResult>((resolveResult) => {
@@ -140,7 +149,7 @@ export function spawnLocalProcess(launch: LocalProcessLaunch, spec: ShellExecSpe
       timer = setTimeout(() => {
         timedOut = true;
         if (spec.onExpiry === "kill") {
-          try { child.kill(); } catch { /* 已退出 */ }
+          requestStop("timeout");
         }
       }, spec.timeoutMs);
       timer.unref?.();
@@ -169,7 +178,7 @@ export function spawnLocalProcess(launch: LocalProcessLaunch, spec: ShellExecSpe
     readOutput: () => stdout.readDelta(),
     kill: () => {
       if (status !== "running") return false;
-      try { child.kill(); } catch { /* 已退出 */ }
+      requestStop("killed");
       return true;
     },
   };

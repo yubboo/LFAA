@@ -101,10 +101,10 @@ test('Web Profile 加载通用能力工具并保护适配器目录与插件 API'
   assert.deepEqual(catalog.find(item => item.kind === 'skill'), {
     kind: 'skill',
     available: true,
-    applicationIds: ['workspace', 'minecraft'],
+    applicationIds: ['steamcmd', 'minecraft', 'connectivity', 'writing', 'workspace', 'aivideo'],
     targetSchema: { type: 'object', properties: { sourcePath: { type: 'string', minLength: 1, maxLength: 512 } }, additionalProperties: false },
-    targetDescription: '必须使用当前会话选中的真实项目；sourcePath 是 GitHub 仓库内 Skill 目录的相对路径，仓库根目录用 .；多 Skill 仓库需从检查结果中选择后重新检查。',
-    operations: ['search', 'inspect', 'install', 'list'],
+    targetDescription: '安装到当前 LFAA 账户的共享 Skill 库，可供所有项目与 App 使用；sourcePath 是 GitHub 仓库内 Skill 目录的相对路径，仓库根目录用 .；多 Skill 仓库需从检查结果中选择后重新检查。',
+    operations: ['search', 'inspect', 'install', 'list', 'remove'],
     reason: null
   });
   assert.ok(['prompt', 'mcp'].every(kind => {

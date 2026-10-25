@@ -17,7 +17,7 @@
   "scripts": {
     "dev": "tsx watch --import ./register-package-loader.mjs src/index.ts",
     "build": "node ../../scripts/build-harness.mjs host",
-    "test": "node --import tsx --import ./register-package-loader.mjs --test",
+    "test": "node --import tsx --import ./register-package-loader.mjs --import ./tests/isolated-test-environment.mjs --test --test-concurrency=2",
     "typecheck": "tsc --noEmit -p ../../tsconfig.host.json",
     "start": "node --import ./register-package-loader.mjs ../../dist/apps/control-plane/index.js"
   },

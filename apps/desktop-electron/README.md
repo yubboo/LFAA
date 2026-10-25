@@ -10,10 +10,12 @@ Windows NSIS 安装页允许选择安装位置，并在目录无效或空间不�
 
 Windows x64 桌面包的 `node-pty` 预编译目录只保留 Windows x64 运行文件；打包时排除 PDB 调试符号及 ARM64/macOS 预编译文件，避免安装时复制当前目标平台用不到的内容。安装向导展示的所需空间是解压后落盘体积，不是下载的安装器文件大小；Electron/Chromium 与随包 Node、CLI 及控制端运行组件构成了主要体积。
 
-桌面 Browser Dock 的原生网页由 `native-browser-workspace.mjs` 管理，使用专用非持久 Session，不修改应用默认 Electron Session；Cookie、缓存和站点存储随应用进程结束清理。网页站点权限由当前桌面的系统对话框处理，下载必须由用户选择保存位置；关闭标签/窗口时回收视图和待处理权限/下载。原生网页视图的位置由 Client 按动画帧合并，串行发送给主进程；导航在主文档提交后返回，后续资源仍由页面自行加载。主窗口 IPC 只接受当前配置的 LFAA 前端来源。Electron 主进程启用仅绑定 `127.0.0.1`、由系统分配端口的 CDP，用于 Control Plane Browser Owner 按认证账户、LFAA Session 和当前选中的原生标签 Target 附着；端点不传给 Renderer、Agent Tool 或远程网页。原生标签绑定源码已接入，桌面真实页面、登录、权限、下载和响应式交互仍待实页验收。
+桌面 Browser Dock 的原生网页由 `native-browser-workspace.mjs` 管理，使用专用隔离 Session，不修改应用默认 Electron Session；Cookie、缓存和站点存储可由浏览器设置清理。摄像头、麦克风、位置和通知按账户设置的全局默认值/网站例外执行；“每次询问”由主进程显示来源明确的系统对话框，关闭标签/窗口时回收视图和待处理权限/下载。下载按“下载前询问”偏好使用系统保存对话框或已选本机目录，下载历史与扩展目录记录写入 Electron `userData/native-browser-state.json`；安装已解压扩展前需用户确认权限，扩展 API 受 Chromium 子集限制。原生网页视图的位置由 Client 按动画帧合并，串行发送给主进程；导航在主文档提交后返回，后续资源仍由页面自行加载。主窗口 IPC 只接受当前配置的 LFAA 前端来源。Electron 主进程启用仅绑定 `127.0.0.1`、由系统分配端口的 CDP，用于 Control Plane Browser Owner 按认证账户、LFAA Session 和当前选中的原生标签 Target 附着；端点不传给 Renderer、Agent Tool 或远程网页。设置页中的 Agent 高风险 CDP 工具只附着此当前页面，且仍受 Browser Use/Developer Mode/full CDP 设置与统一 Permission Owner 约束。桌面原生页面交互和下载/扩展/权限 Owner 有隔离回归；真实 Electron 页面、登录与原生响应式交互仍需独立实页验收。
 
 退出被拒绝时撤销“正在关闭”状态并恢复既有更新检查调度，应用保持打开，不留下永久停止检查的状态。`tests/service-shutdown.test.mjs` 除 IPC 原语回归外，还从源码启动隔离 Control Plane，验证 `lfaa-shutdown` 等到 Cordis 资源释放、进程以 0 退出并释放 loopback 端口；这不覆盖真实 Electron 窗口、Daemon 或安装更新顺序。
 
 Daemon 可能先等待已领安装任务再停止游戏实例；桌面等待预算到期可拒绝退出/安装，不冒充安全停机。Tauri 旧关闭实现不由此修复。定向 Node 回归不证明真实 Java 进程、Electron 窗口或 NSIS 升级已验收。
 
 候选输出 `dist/apps/desktop-electron/LFAA-<版本>/` 仅含安装器、blockmap、latest.yml。先准备并核验 Release 工件，再宣告 update.json；构建不授权发布或安装。macOS 打包与签名未接入。
+
+Mini 是受认证 LFAA 前端来源约束的独立透明 Electron 窗口，由主窗口管理生命周期并限制在当前显示器工作区；Mini 偏好由 Settings Owner 提供，主进程校验后应用置顶和不透明度。Control Plane Agent Tool 通过子进程 IPC 等待 Electron Host 回执，Web Host 不可伪装成功。Renderer 打开 `/?mini=1` 并跳过完整 Workbench 预加载；真实桌面窗口与多显示器行为仍须单独验收。

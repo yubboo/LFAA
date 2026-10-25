@@ -394,7 +394,8 @@
 
 .module-context__resource-list { display: grid; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 16px; }
 
-.module-context__resource-list > div { display: flex; min-width: 0; align-items: center; gap: 8px; padding: 5px 0; }
+/* 视口外资源项延迟绘制；以 Appearance 字号令牌预留滚动占位高度。 */
+.module-context__resource-list > div { display: flex; min-width: 0; align-items: center; gap: 8px; padding: 5px 0; content-visibility: auto; contain-intrinsic-block-size: auto calc(var(--font-size-xs) + var(--font-size-xs) + 15px); }
 
 .module-context__resource-list > div > svg { flex: 0 0 auto; color: var(--color-text-muted); }
 

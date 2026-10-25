@@ -37,7 +37,7 @@ type UsageAggregate = { requestCount: number; promptTokens: number; promptTokenC
 const recentMessagePageSize = 100;
 const recentMessagePageMaxSessions = 128;
 const recentMessagePageMaxBytes = 16 * 1024 * 1024;
-const displayMessageFields = ["id", "session_id", "_order", "role", "content", "status", "created_at", "activity_json", "parts"] as const;
+const displayMessageFields = ["id", "session_id", "_order", "role", "content", "status", "created_at", "activity_json", "parts", "attachments_json"] as const;
 const emptyAssociationProjection = (): { seq: number; value: unknown } => ({ seq: -1, value: { applicationIds: [], capabilityIds: [] } });
 const compareMessages = (left: SessionRecord, right: SessionRecord) => String(left.created_at).localeCompare(String(right.created_at)) || Number(left._order) - Number(right._order);
 export class SessionRepository {

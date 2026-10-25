@@ -125,8 +125,8 @@ test("AI Work 回复、刻度/滚动条使用设置的虚化与淡出强度并�
   assert.match(chatCss, /data-output-idle="true"[^\n]*\.ai-work-chat__messages/u);
   assert.match(chatCss, /data-output-idle="true"[^\n]*\.ai-work-chat__anchors/u);
   assert.match(chatCss, /data-output-idle="true"[^\n]*\.ai-work-chat__scroll-latest/u);
-  assert.match(chatCss, /data-output-idle="true"[^\n]*\.ai-work-chat__composer-context/u);
-  assert.match(workbenchCss, /data-output-idle="false"[^\n]*\.ai-work-chat__messages/u);
+  assert.doesNotMatch(chatCss, /data-output-idle="true"[^\n]*\.ai-work-chat__composer-context/u, "闲置时保持输入区上下文清晰可读");
+  assert.match(chatCss, /data-output-idle="false"[^\n]*\.ai-work-chat__message-stage > \.ai-work-chat__anchors/u);
   assert.match(workbench, /--settings-ai-work-output-focus-opacity/u);
   assert.match(workbench, /1\s*-\s*appearanceAdvanced\.aiWorkOutputFocusBlurPercent\s*\/\s*100/u);
   assert.match(chatCss, /opacity:\s*var\(--settings-ai-work-output-focus-opacity/u);

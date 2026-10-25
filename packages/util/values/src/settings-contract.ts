@@ -5,12 +5,13 @@
  */
 import type { ApplicationId, ApplicationNavigationId } from "./application-id.js";
 import type { BrowserProviderId } from "./browser-provider.js";
+import type { ExecutionSandboxMode } from "./sandbox-contract.js";
 
 export type AppearanceTextFont = "system" | "sans" | "serif";
 export type AppearanceCodeFont = "system" | "cascadia" | "consolas" | "jetbrains";
 export interface AppearanceModeStyle { accentColor: string; fonts: AppearanceFonts }
 
-export type SettingsCategory = "general" | "appearance" | "shortcuts" | "ai-runtime" | "minecraft-runtime" | "git" | "permissions" | "plugins" | "personalization" | "computer-control" | "browser-use";
+export type SettingsCategory = "general" | "appearance" | "shortcuts" | "ai-runtime" | "minecraft-runtime" | "git" | "permissions" | "plugins" | "personalization" | "computer-control" | "browser-use" | "mini" | "canvas";
 
 export const UI_MOTION_EFFECT_OPTIONS = [
   { id: "fluid", label: "柔和流体", cardDescription: "轻轻淡入、错开上浮；默认效果。", dialogDescription: "轻柔淡入、微缩放并顺势落位；默认效果。" },
@@ -139,6 +140,49 @@ export interface UserSettings {
   personalization: PersonalizationSettings;
   computerControl: ComputerControlSettings;
   browserUse: BrowserUseSettings;
+  mini: MiniSettings;
+  canvas: CanvasSettings;
+}
+
+export interface MiniSettings {
+  companion: "moss" | "cloud" | "ember";
+  showCompanion: boolean;
+  alwaysOnTop: boolean;
+  opacity: number;
+}
+
+/** 画布打开时的默认模式：生成工作台或空白画布编排；两者都创建真实项目。 */
+export const CANVAS_DEFAULT_MODE_OPTIONS = [
+  { id: "generate", label: "生成工作台", description: "进入后默认展示生成工作台，仍可随时切换到画布。" },
+  { id: "canvas", label: "画布编排", description: "进入后默认展示空白画布，仍可随时切换到生成。" }
+] as const;
+export type CanvasDefaultMode = typeof CANVAS_DEFAULT_MODE_OPTIONS[number]["id"];
+export const CANVAS_DEFAULT_MODE_IDS: readonly CanvasDefaultMode[] = CANVAS_DEFAULT_MODE_OPTIONS.map(({ id }) => id);
+
+/** 画布背景网格样式；关闭网格不改变节点坐标与吸附计算。 */
+export const CANVAS_GRID_STYLE_OPTIONS = [
+  { id: "dots", label: "点阵", description: "即梦式点阵网格；默认样式。" },
+  { id: "lines", label: "线框", description: "显示连续参考线，便于大范围对齐。" },
+  { id: "none", label: "关闭", description: "隐藏网格；拖动吸附仍按保存的开关计算。" }
+] as const;
+export type CanvasGridStyle = typeof CANVAS_GRID_STYLE_OPTIONS[number]["id"];
+export const CANVAS_GRID_STYLE_IDS: readonly CanvasGridStyle[] = CANVAS_GRID_STYLE_OPTIONS.map(({ id }) => id);
+
+/**
+ * 画布账户偏好。
+ * 只保存视图与默认交互；生成模型继续复用 aiRuntime 的图片/视频生成设置，不在此复制第二套模型配置。
+ */
+export interface CanvasSettings {
+  /** 打开 /canvas 时默认进入生成工作台还是画布编排。 */
+  defaultMode: CanvasDefaultMode;
+  /** 画布背景网格样式。 */
+  gridStyle: CanvasGridStyle;
+  /** 拖动节点时是否吸附到网格。 */
+  snapToGrid: boolean;
+  /** 是否显示右下角小地图；关闭只隐藏视图，不删除项目数据。 */
+  showMiniMap: boolean;
+  /** 进入画布工作区时是否默认展开 Agent 对话面板。 */
+  agentPanelDefaultOpen: boolean;
 }
 
 export interface ComputerControlSettings {
@@ -148,14 +192,43 @@ export interface ComputerControlSettings {
 export interface BrowserUseSettings {
   /** 是否向 Agent 提供浏览器操作工具；所有动作仍由 permissions.mode 授权。 */
   enabled: boolean;
+  /** Agent 打开公开网页时使用 LFAA Browser Owner，或当前可见的用户浏览器。 */
+  webUrlOpenLocation: "lfaa" | "current-browser";
+  /** Agent 打开 localhost/loopback 开发 URL 时使用 LFAA Browser Owner，或当前可见的用户浏览器。 */
+  localUrlOpenLocation: "lfaa" | "current-browser";
   /** 用户明确接入的个人浏览器提供方；LFAA 内置浏览器不读写此字段。 */
   enabledProviderIds: BrowserProviderId[];
   /** 是否在浏览器地址栏展示完整路径、查询参数与片段。 */
   showFullUrl: boolean;
   /** 是否按账户保存 LFAA Browser Dock 与 Agent 实际访问的网站。 */
   recordRecentSites: boolean;
+  /** 用户是否允许 Agent 读取 LFAA Browser Owner 保存的最近网站历史。 */
+  allowAgentHistoryAccess: boolean;
+  /** 控制 Agent 工具观察页面时是否把截图作为临时视觉输入。 */
+  annotateScreenshots: "always" | "on-demand" | "never";
+  /** 是否允许 Agent 默认发现当前网站提供的 WebMCP 工具。 */
+  useWebsiteToolsByDefault: boolean;
+  /** 对默认值进行覆盖的网站 WebMCP 例外，来源精确到 HTTP(S) Origin。 */
+  websiteToolOverrides: Array<{ origin: string; decision: "allow" | "block" }>;
+  /** Electron 下载是否逐项显示系统保存对话框。 */
+  askBeforeDownload: boolean;
+  /** 各类站点权限的账户默认决定；ask 表示每次请求交由用户处理。 */
+  sitePermissionDefaults: Record<BrowserSitePermission, "ask" | "allow" | "block">;
+  /** 按 HTTP(S) 来源保存的显式允许/拒绝例外。 */
+  sitePermissionOverrides: BrowserSitePermissionOverride[];
+  /** 是否显示并开放开发者浏览器工具。默认关闭。 */
+  developerMode: boolean;
+  /** 是否允许当前 Agent Run 调用完整 CDP；必须先开启 developerMode。 */
+  fullCdpAccess: boolean;
   /** 地址栏输入普通文字时使用的默认搜索引擎。 */
   searchEngine: "bing" | "google" | "duckduckgo";
+}
+
+export type BrowserSitePermission = "camera" | "microphone" | "geolocation" | "notifications";
+export interface BrowserSitePermissionOverride {
+  origin: string;
+  permission: BrowserSitePermission;
+  decision: "allow" | "block";
 }
 
 export interface PersonalizationSettings {
@@ -169,6 +242,8 @@ export const AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN = 64;
 export const AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN = 128;
 
 export interface AiRuntimeSettings {
+  /** Agent Shell 文件访问限制；不是工具调用授权或审批模式。 */
+  executionSandboxMode: ExecutionSandboxMode;
   speed: "balanced" | "fast" | "deep";
   promptSuggestions: boolean;
   showContextUsage: boolean;
@@ -275,7 +350,7 @@ export type McpServerSetting = {
   computerUse?: boolean;
 } & (
   | { transport?: "streamable-http"; url: string; command?: never; args?: never }
-  | { transport: "stdio"; command: string; args: string[]; url?: never }
+  | { transport: "stdio"; command: string; args: string[]; env?: Record<string, string>; url?: never }
 );
 
 export const DEFAULT_APPEARANCE_ADVANCED_SETTINGS: AppearanceAdvancedSettings = {
@@ -297,7 +372,6 @@ export const DEFAULT_APPEARANCE_ADVANCED_SETTINGS: AppearanceAdvancedSettings = 
   aiWorkOutputFocusBlurPercent: 33,
   aiWorkOutputFocusBlurIdleSeconds: 60
 };
-
 export const DEFAULT_USER_SETTINGS: UserSettings = {
   general: {
     defaultMode: "ai-work",
@@ -330,15 +404,16 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
     defaultAdminCredentialReminderEnabled: true,
     confettiEnabled: false
   },
-  appearance: { theme: "system", accentColor: "#3457d5", sidebarColor: "auto", backgrounds: { login: "forest-bridge-evening", appCenter: "cherry-blossom-shore", steamcmd: "ocean-cliff-sunset", minecraft: "cherry-blossom-village", writing: "snowy-cabin-interior", settings: "lakeside-pagoda-morning" }, wallpaperEngine: { enabled: false, projectId: "" }, overlay: 65, blur: 14, updateSurfaceOpacity: 92, advanced: structuredClone(DEFAULT_APPEARANCE_ADVANCED_SETTINGS) },
+  appearance: { theme: "system", accentColor: "#3457d5", sidebarColor: "auto", backgrounds: { login: "none", appCenter: "none", steamcmd: "none", minecraft: "none", writing: "none", settings: "none" }, wallpaperEngine: { enabled: false, projectId: "" }, overlay: 65, blur: 14, updateSurfaceOpacity: 92, advanced: structuredClone(DEFAULT_APPEARANCE_ADVANCED_SETTINGS) },
   shortcuts: { openSettings: ["Ctrl+,"], openHome: ["Alt+0"], openSteamcmd: ["Ctrl+Alt+1"], openMinecraft: ["Ctrl+Alt+2"], openWriting: ["Ctrl+Alt+3"], toggleSidebar: ["Ctrl+B"], toggleContextPanel: ["Ctrl+Alt+B"], toggleBottomPanel: ["Ctrl+J"], openTerminal: ["Ctrl+`"], switchNormalMode: ["Alt+1"], switchAiWorkMode: ["Alt+2"], openSideChat: ["Ctrl+Alt+S"], wallpaperSidebarToggle: [] },
-  aiRuntime: { speed: "balanced", promptSuggestions: true, showContextUsage: false, requestTimeoutSeconds: 90, requestRetries: 1, retryDelaySeconds: 1, maxOutputTokens: 0, maxModelRequests: 0, maxToolCalls: 0, subagentAccountId: "", imageGenerationMode: "provider", imageGenerationAccountId: "", imageGenerationModelId: "", imageGenerationLocalModelId: "", imageGenerationLocalTimeoutSeconds: 900, imageGenerationUnloadAfterMinutes: 10, videoGenerationMode: "provider", videoGenerationLocalModelId: "", videoGenerationLocalTimeoutSeconds: 900, videoGenerationUnloadAfterMinutes: 10, videoGenerationAccountId: "", videoGenerationModelId: "", videoGenerationDurationSeconds: 5, videoGenerationRatio: "adaptive", videoGenerationResolution: "720p", videoGenerationGenerateAudio: false, videoGenerationWatermark: true, maxSubagents: 4, maxDelegationDepth: 2, voiceInputEnabled: false, readResponsesAloud: false, commandTimeoutSeconds: 0, autoCompaction: true, contextWindowTokens: 32768 },
+  aiRuntime: { executionSandboxMode: "workspace-write", speed: "balanced", promptSuggestions: true, showContextUsage: true, requestTimeoutSeconds: 90, requestRetries: 1, retryDelaySeconds: 1, maxOutputTokens: 0, maxModelRequests: 0, maxToolCalls: 0, subagentAccountId: "", imageGenerationMode: "provider", imageGenerationAccountId: "", imageGenerationModelId: "", imageGenerationLocalModelId: "", imageGenerationLocalTimeoutSeconds: 900, imageGenerationUnloadAfterMinutes: 10, videoGenerationMode: "provider", videoGenerationLocalModelId: "", videoGenerationLocalTimeoutSeconds: 900, videoGenerationUnloadAfterMinutes: 10, videoGenerationAccountId: "", videoGenerationModelId: "", videoGenerationDurationSeconds: 5, videoGenerationRatio: "adaptive", videoGenerationResolution: "720p", videoGenerationGenerateAudio: false, videoGenerationWatermark: true, maxSubagents: 4, maxDelegationDepth: 2, voiceInputEnabled: false, readResponsesAloud: false, commandTimeoutSeconds: 0, autoCompaction: true, contextWindowTokens: 32768 },
   minecraftRuntime: { minecraftReadyTimeoutSeconds: 120, minecraftStopTimeoutSeconds: 30, minecraftDefaultMemoryMb: 4096, minecraftDefaultPort: 25565, minecraftDownloadTimeoutSeconds: 1800, minecraftInstallTimeoutSeconds: 900, minecraftExecutionMode: "native", minecraftDefaultCore: "Paper", minecraftBedrockDefaultPort: 19132 },
   git: { branchPrefix: "codex/" },
   permissions: { mode: "ask" },
   plugins: { enabled: false, mcpServers: [], prompts: [], skillDirectories: [], disabledSkillNames: [] },
   personalization: { memoryEnabled: false, memoryFromToolChats: false },
   computerControl: { enabled: false },
-  browserUse: { enabled: false, enabledProviderIds: [], showFullUrl: false, recordRecentSites: true, searchEngine: "bing" }
+  browserUse: { enabled: false, webUrlOpenLocation: "lfaa", localUrlOpenLocation: "lfaa", enabledProviderIds: [], showFullUrl: false, recordRecentSites: true, allowAgentHistoryAccess: false, annotateScreenshots: "on-demand", useWebsiteToolsByDefault: false, websiteToolOverrides: [], askBeforeDownload: true, sitePermissionDefaults: { camera: "ask", microphone: "ask", geolocation: "ask", notifications: "ask" }, sitePermissionOverrides: [], developerMode: false, fullCdpAccess: false, searchEngine: "bing" },
+  mini: { companion: "moss", showCompanion: true, alwaysOnTop: true, opacity: 100 },
+  canvas: { defaultMode: "generate", gridStyle: "dots", snapToGrid: false, showMiniMap: true, agentPanelDefaultOpen: false }
 };
-

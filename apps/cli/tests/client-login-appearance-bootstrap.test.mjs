@@ -83,5 +83,5 @@ test("登录外观缓存拒绝账户私有图片并在值损坏时回到产品�
   assert.equal(cached.advanced.reducedMotion, DEFAULT_USER_SETTINGS.appearance.advanced.reducedMotion);
   assert.equal(cached.advanced.contrast, DEFAULT_USER_SETTINGS.appearance.advanced.contrast);
   assert.equal(cached.advanced.separateModes, DEFAULT_USER_SETTINGS.appearance.advanced.separateModes);
-  assert.equal(appearanceModule.resolveLoginBackgroundImage("user-private-upload"), "/images/minecraft/forest-bridge-evening.png");
+  assert.equal(appearanceModule.resolveLoginBackgroundImage("user-private-upload"), null, "invalid cached backgrounds fall back to the theme canvas");
 }));

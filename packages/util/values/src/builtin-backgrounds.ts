@@ -30,3 +30,23 @@ export const minecraftSceneBackgrounds = [
   { id: "snowy-cabin-interior", name: "雪夜木屋", file: minecraftSceneImages.snowyCabinInterior },
   { id: "tropical-coast-day", name: "热带海岸", file: minecraftSceneImages.tropicalCoastDay }
 ] as const;
+
+/** 外观设置与 Agent 共享的内置背景选项；ID 必须与 Settings Owner 校验合同一致。 */
+export const appearanceBackgroundOptions = [
+  { id: "none", name: "纯色" },
+  { id: "service-room", name: "服务机房", file: "/backgrounds/service-room.jpg" },
+  { id: "steamcmd-world", name: "游戏世界", file: "/backgrounds/steamcmd-world.jpg" },
+  { id: "minecraft-world", name: "方块日落", file: "/backgrounds/minecraft-world.jpg" },
+  { id: "writing-desk", name: "写作桌面", file: "/backgrounds/writing-desk.jpg" },
+  ...minecraftSceneBackgrounds
+] as const;
+
+/** 外观设置背景图的唯一槽位名称；每个槽位独立保存，Agent 不应推断为全局批量修改。 */
+export const appearanceBackgroundTargets = [
+  { id: "login", label: "登录页（当前设备）" },
+  { id: "appCenter", label: "小鱼智能体工作区" },
+  { id: "steamcmd", label: "SteamCMD 工作区" },
+  { id: "minecraft", label: "Minecraft 工作区（常规与小鱼智能体）" },
+  { id: "writing", label: "写作工作区" },
+  { id: "settings", label: "设置中心" }
+] as const;

@@ -9,7 +9,7 @@ import { spawn } from "node:child_process";
 import { createServer as createTcpServer } from "node:net";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { app, BrowserWindow, WebContentsView, dialog, ipcMain, net, session } from "electron";
+import { app, BrowserWindow, WebContentsView, dialog, ipcMain, net, screen, session } from "electron";
 import electronUpdater from "electron-updater";
 import builderUtilRuntime from "builder-util-runtime";
 import { requestServiceShutdown } from "./service-shutdown.mjs";
@@ -41,6 +41,7 @@ if (singleInstance) {
 }
 
 let mainWindow = null;
+let miniWindow = null;
 let nativeBrowserWorkspace = null;
 const desktopUpdatePromptBroker = createDesktopUpdatePromptBroker();
 let desktopUpdatePreferencesStore = null;
@@ -82,6 +83,40 @@ function getDesktopStorageSettingsPath() {
 
 function getDesktopStorageMigrationRequestPath() {
   return join(app.getPath("userData"), ".lfaa-data-directory.pending.json");
+}
+
+const nativeBrowserStorePath = join(app.getPath("userData"), "native-browser-state.json");
+let nativeBrowserStore = { downloadDirectory: "", downloadHistory: [], extensions: [] };
+
+function loadNativeBrowserStore() {
+  try {
+    const value = JSON.parse(readFileSync(nativeBrowserStorePath, "utf8"));
+    const directory = typeof value?.downloadDirectory === "string" && isAbsolute(value.downloadDirectory) && existsSync(value.downloadDirectory)
+      ? value.downloadDirectory
+      : "";
+    nativeBrowserStore = {
+      downloadDirectory: directory,
+      downloadHistory: Array.isArray(value?.downloadHistory) ? value.downloadHistory.slice(-200) : [],
+      extensions: Array.isArray(value?.extensions) ? value.extensions.slice(0, 64).filter(item => item && typeof item.id === "string"
+        && /^[a-p]{32}$/u.test(item.id) && typeof item.path === "string" && item.path.length <= 2_048
+        && isAbsolute(item.path) && existsSync(item.path) && typeof item.name === "string" && typeof item.version === "string"
+        && typeof item.enabled === "boolean") : []
+    };
+  } catch {
+    nativeBrowserStore = { downloadDirectory: "", downloadHistory: [], extensions: [] };
+  }
+}
+
+function saveNativeBrowserStore(patch) {
+  nativeBrowserStore = { ...nativeBrowserStore, ...patch };
+  const temporaryPath = `${nativeBrowserStorePath}.tmp`;
+  try {
+    writeFileSync(temporaryPath, JSON.stringify(nativeBrowserStore), { encoding: "utf8", mode: 0o600 });
+    renameSync(temporaryPath, nativeBrowserStorePath);
+  } catch (error) {
+    rmSync(temporaryPath, { force: true });
+    throw error;
+  }
 }
 
 function getPackagedNodePath(runtimeRoot) {
@@ -344,6 +379,7 @@ async function startLocalServices(runtimeRoot) {
     windowsHide: true,
     stdio: ["ignore", "pipe", "pipe", "ipc"]
   });
+  serverProcess.on("message", respondToControlPlaneMiniRequest);
   connectProcessOutput(serverProcess, "控制端");
   await waitForControlPlane(serverProcess, port);
 
@@ -384,11 +420,19 @@ async function createMainWindow() {
     WebContentsView,
     session,
     dialog,
+    systemDownloadDirectory: app.getPath("downloads"),
+    downloadDirectory: nativeBrowserStore.downloadDirectory || app.getPath("downloads"),
+    downloadHistory: nativeBrowserStore.downloadHistory,
+    extensions: nativeBrowserStore.extensions,
+    onDownloadHistoryChange: downloadHistory => saveNativeBrowserStore({ downloadHistory }),
+    onDownloadDirectoryChange: downloadDirectory => saveNativeBrowserStore({ downloadDirectory }),
+    onBrowserExtensionsChange: extensions => saveNativeBrowserStore({ extensions }),
     onState: state => {
       if (!mainWindow || mainWindow.isDestroyed()) return;
       mainWindow.webContents.send("lfaa:native-browser:state", state);
     }
   });
+  void nativeBrowserWorkspace.restoreBrowserExtensions().catch(error => writeLog("浏览器扩展", error instanceof Error ? error.message.slice(0, 240) : "恢复失败"));
   const rendererId = mainWindow.webContents.id;
   mainWindow.webContents.on("did-start-loading", () => desktopUpdatePromptBroker.setRendererNotReady(rendererId));
   mainWindow.on("session-end", event => {
@@ -396,6 +440,7 @@ async function createMainWindow() {
     void writeLog("桌面端", `Windows 会话即将结束（${event.reasons.join("、")}）；更新安装将延期。`);
   });
   mainWindow.on("closed", () => {
+    if (miniWindow && !miniWindow.isDestroyed()) miniWindow.close();
     desktopUpdatePromptBroker.setRendererNotReady(rendererId);
     desktopUpdatePromptBroker.cancelAll();
     nativeBrowserWorkspace?.dispose();
@@ -410,6 +455,89 @@ async function createMainWindow() {
   });
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   await mainWindow.loadURL(frontendUrl);
+}
+
+function normalizeMiniWindowSettings(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)
+    || !["moss", "cloud", "ember"].includes(value.companion)
+    || typeof value.showCompanion !== "boolean" || typeof value.alwaysOnTop !== "boolean"
+    || !Number.isInteger(value.opacity) || value.opacity < 40 || value.opacity > 100) {
+    throw new TypeError("Mini 窗口偏好无效。");
+  }
+  return { companion: value.companion, showCompanion: value.showCompanion, alwaysOnTop: value.alwaysOnTop, opacity: value.opacity };
+}
+
+async function openMiniWindow(settingsInput) {
+  if (!mainWindow || mainWindow.isDestroyed() || !trustedFrontendUrl) throw new Error("LFAA 主窗口尚未就绪，无法创建 Mini 窗口。");
+  const settings = normalizeMiniWindowSettings(settingsInput);
+  if (!miniWindow || miniWindow.isDestroyed()) {
+    const mainBounds = mainWindow.getBounds();
+    const width = 360;
+    const height = 250;
+    const { x: areaX, y: areaY, width: areaWidth, height: areaHeight } = screen.getDisplayMatching(mainBounds).workArea;
+    miniWindow = new BrowserWindow({
+      x: Math.max(areaX, Math.min(mainBounds.x + mainBounds.width - width - 24, areaX + areaWidth - width)),
+      y: Math.max(areaY, Math.min(mainBounds.y + 48, areaY + areaHeight - height)),
+      width,
+      height,
+      minWidth: 300,
+      minHeight: 210,
+      maxWidth: 520,
+      maxHeight: 400,
+      parent: mainWindow,
+      show: false,
+      frame: false,
+      transparent: true,
+      backgroundColor: "#00000000",
+      resizable: true,
+      alwaysOnTop: settings.alwaysOnTop,
+      hasShadow: true,
+      autoHideMenuBar: true,
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+        preload: join(app.getAppPath(), "src", "preload.cjs")
+      }
+    });
+    miniWindow.once("ready-to-show", () => {
+      if (miniWindow && !miniWindow.isDestroyed()) miniWindow.show();
+    });
+    miniWindow.webContents.on("will-navigate", (event, url) => {
+      if (!isTrustedFrontendUrl(url, trustedFrontendUrl)) event.preventDefault();
+    });
+    miniWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+    miniWindow.on("closed", () => { miniWindow = null; });
+  }
+  await miniWindow.loadURL(new URL("/?mini=1", trustedFrontendUrl).toString());
+  miniWindow.setAlwaysOnTop(settings.alwaysOnTop);
+  miniWindow.setOpacity(settings.opacity / 100);
+  if (!miniWindow.isVisible()) miniWindow.show();
+  miniWindow.focus();
+  return { opened: true };
+}
+
+function closeMiniWindow() {
+  if (miniWindow && !miniWindow.isDestroyed()) miniWindow.close();
+  return { closed: true };
+}
+
+function respondToControlPlaneMiniRequest(message) {
+  if (!message || message.type !== "lfaa:desktop-mini-request" || typeof message.requestId !== "string"
+    || !/^[0-9a-f-]{36}$/iu.test(message.requestId) || !serverProcess?.connected) return;
+  const respond = (response) => {
+    if (serverProcess?.connected) serverProcess.send({ type: "lfaa:desktop-mini-result", requestId: message.requestId, ...response });
+  };
+  void (async () => {
+    try {
+      const result = message.action === "open"
+        ? await openMiniWindow(message.settings)
+        : message.action === "close" ? closeMiniWindow() : (() => { throw new TypeError("Mini 窗口操作无效。"); })();
+      respond({ ok: true, result });
+    } catch (error) {
+      respond({ ok: false, error: error instanceof Error ? error.message : "Mini 窗口操作失败。" });
+    }
+  })();
 }
 
 async function stopChild(child, name, timeoutMilliseconds) {
@@ -735,6 +863,15 @@ function assertTrustedUpdateRenderer(event) {
   }
 }
 
+function assertTrustedMiniRenderer(event) {
+  const sender = event.sender;
+  const knownWindow = (mainWindow && sender === mainWindow.webContents) || (miniWindow && sender === miniWindow.webContents);
+  const trustedFrame = !event.senderFrame || event.senderFrame === sender.mainFrame;
+  if (!knownWindow || !trustedFrame || !isTrustedFrontendUrl(event.senderFrame?.url ?? sender.getURL(), trustedFrontendUrl)) {
+    throw new Error("拒绝未授权窗口访问 Mini 能力。");
+  }
+}
+
 function registerNativeBrowserIpc() {
   const callWorkspace = (event, operation) => {
     assertTrustedUpdateRenderer(event);
@@ -755,6 +892,18 @@ function registerNativeBrowserIpc() {
   ipcMain.handle("lfaa:native-browser:find", (event, input) => callWorkspace(event, workspace => workspace.find(input?.id, input?.text, input?.forward)));
   ipcMain.handle("lfaa:native-browser:inspect", (event, id) => callWorkspace(event, workspace => workspace.inspect(id)));
   ipcMain.handle("lfaa:native-browser:clear-data", event => callWorkspace(event, workspace => workspace.clearData()));
+  ipcMain.handle("lfaa:native-browser:preferences", (event, preferences) => callWorkspace(event, workspace => workspace.setPreferences(preferences)));
+  ipcMain.handle("lfaa:native-browser:download-settings", event => callWorkspace(event, workspace => workspace.getDownloadSettings()));
+  ipcMain.handle("lfaa:native-browser:choose-download-directory", event => callWorkspace(event, workspace => workspace.chooseDownloadDirectory()));
+  ipcMain.handle("lfaa:native-browser:use-system-download-directory", event => callWorkspace(event, workspace => workspace.useSystemDownloadDirectory()));
+  ipcMain.handle("lfaa:native-browser:download-history", event => callWorkspace(event, workspace => workspace.getDownloadHistory()));
+  ipcMain.handle("lfaa:native-browser:download-history:remove", (event, id) => callWorkspace(event, workspace => workspace.removeDownloadHistory(id)));
+  ipcMain.handle("lfaa:native-browser:download-history:clear", event => callWorkspace(event, workspace => workspace.clearDownloadHistory()));
+  ipcMain.handle("lfaa:native-browser:extensions", event => callWorkspace(event, workspace => workspace.getBrowserExtensions()));
+  ipcMain.handle("lfaa:native-browser:extensions:add", event => callWorkspace(event, workspace => workspace.chooseBrowserExtension()));
+  ipcMain.handle("lfaa:native-browser:extensions:enabled", (event, input) => callWorkspace(event, workspace => workspace.setBrowserExtensionEnabled(input?.id, input?.enabled)));
+  ipcMain.handle("lfaa:native-browser:extensions:remove", (event, id) => callWorkspace(event, workspace => workspace.removeBrowserExtension(id)));
+  ipcMain.handle("lfaa:native-browser:extensions:configure", (event, id) => callWorkspace(event, workspace => workspace.configureBrowserExtension(id)));
   ipcMain.handle("lfaa:native-browser:zoom", (event, input) => callWorkspace(event, workspace => workspace.setZoom(input?.id, input?.zoom)));
   ipcMain.handle("lfaa:native-browser:print", (event, id) => callWorkspace(event, workspace => workspace.print(id)));
   ipcMain.handle("lfaa:native-browser:bounds", (event, bounds) => callWorkspace(event, workspace => workspace.setBounds(bounds)));
@@ -777,6 +926,14 @@ function scheduleDesktopUpdateCheck(delay = INITIAL_UPDATE_CHECK_DELAY_MS) {
 
 if (singleInstance) {
   registerNativeBrowserIpc();
+  ipcMain.handle("lfaa:mini:open", (event, settings) => {
+    assertTrustedMiniRenderer(event);
+    return openMiniWindow(settings);
+  });
+  ipcMain.handle("lfaa:mini:close", event => {
+    assertTrustedMiniRenderer(event);
+    return closeMiniWindow();
+  });
   ipcMain.handle("lfaa:select-data-directory", async (event) => {
     const ownerWindow = BrowserWindow.fromWebContents(event.sender);
     const options = {
@@ -888,6 +1045,7 @@ if (singleInstance) {
     await mkdir(logDirectory, { recursive: true });
     logFilePath = join(logDirectory, "desktop.log");
     desktopUpdatePreferencesStore = createDesktopUpdatePreferencesStore(join(app.getPath("userData"), "update-preferences.json"));
+    loadNativeBrowserStore();
     if (nativeBrowserCdpPort && await waitForNativeBrowserCdp(nativeBrowserCdpPort)) {
       writeFileSync(join(app.getPath("userData"), "DevToolsActivePort"), `${nativeBrowserCdpPort}\n`, { encoding: "utf8", mode: 0o600 });
       await writeLog("原生浏览器", `同页 Agent 通道已就绪（回环端口 ${nativeBrowserCdpPort}）。`);

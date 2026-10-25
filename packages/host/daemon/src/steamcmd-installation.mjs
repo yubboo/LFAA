@@ -1,5 +1,5 @@
 /** SteamCMD 初次安装原子提升：允许空目录/空占位文件，拒绝覆盖用户内容。 */
-import {lstat,readdir,rename,rmdir,unlink,writeFile} from "node:fs/promises";
+import {lstat,readdir,rename,rmdir,unlink,writeFile,rm} from "node:fs/promises";
 import {resolve} from "node:path";
 import {execFile} from "node:child_process";
 import {promisify} from "node:util";
@@ -45,4 +45,17 @@ export async function promoteSteamcmdInstallation(stagingDirectory,toolDirectory
     if(entries.length){const keep=await lstat(resolve(previousDirectory,".gitkeep"));if(!keep.isFile()||keep.size!==0||keep.nlink!==1)return;await unlink(resolve(previousDirectory,".gitkeep"));}
     await rmdir(previousDirectory);
   }catch{/* 不递归删除并发新增的用户内容。 */}
+}
+
+/** 完整删除经安全路径校验的专用 SteamCMD 工具目录；调用方负责校验节点服务器已停止。 */
+export async function removeSteamcmdInstallation(toolDirectory,assertSafePath) {
+  await assertSafePath(toolDirectory,true);
+  let info;
+  try {info=await lstat(toolDirectory);}
+  catch(error){if(error?.code==="ENOENT")return false;throw error;}
+  if(!info.isDirectory()||info.isSymbolicLink())throw new Error("SteamCMD 工具路径不是安全的普通目录，未卸载。");
+  await rm(toolDirectory,{recursive:true,force:false,maxRetries:3,retryDelay:100});
+  try {await lstat(toolDirectory);throw new Error("SteamCMD 工具目录卸载后仍存在，状态未确认。");}
+  catch(error){if(error?.code!=="ENOENT")throw error;}
+  return true;
 }

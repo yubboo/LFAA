@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import { NativeBrowserWorkspace, validateNativeBrowserUrl } from "../src/native-browser-workspace.mjs";
 import { isTrustedFrontendUrl } from "../src/trusted-frontend.mjs";
@@ -66,11 +69,13 @@ FakeWebContentsView.failNextLoad = false;
 class FakeDownloadItem extends EventEmitter {
   constructor(filename) { super(); this.filename = filename; this.cancelled = false; }
   getFilename() { return this.filename; }
+  getURL() { return "https://example.com/file?token=private"; }
+  getSavePath() { return this.savePath ?? ""; }
   cancel() { this.cancelled = true; }
   setSavePath(value) { this.savePath = value; }
 }
 
-function createFixture(dialog = {}) {
+function createFixture(dialog = {}, options = {}) {
   FakeWebContentsView.created = [];
   FakeWebContents.nextTarget = 0;
   const defaultSession = new EventEmitter();
@@ -79,6 +84,21 @@ function createFixture(dialog = {}) {
   const browserSession = new EventEmitter();
   browserSession.setPermissionRequestHandler = handler => { browserSession.permissionRequestHandler = handler; };
   browserSession.setPermissionCheckHandler = handler => { browserSession.permissionCheckHandler = handler; };
+  browserSession.clearStorageData = async () => { browserSession.storageCleared = true; };
+  browserSession.clearCache = async () => { browserSession.cacheCleared = true; };
+  browserSession.clearAuthCache = async () => { browserSession.authCleared = true; };
+  const loadedExtensions = new Map();
+  browserSession.extensions = {
+    getAllExtensions: () => [...loadedExtensions.values()],
+    getExtension: id => loadedExtensions.get(id),
+    loadExtension: async path => {
+      const manifest = JSON.parse(await readFile(join(path, "manifest.json"), "utf8"));
+      const extension = { id: "a".repeat(32), path, name: manifest.name, version: manifest.version, manifest, url: `chrome-extension://${"a".repeat(32)}/` };
+      loadedExtensions.set(extension.id, extension);
+      return extension;
+    },
+    removeExtension: id => loadedExtensions.delete(id)
+  };
   const session = { defaultSession, fromPartition: partition => { session.partition = partition; return browserSession; } };
   const children = new Set();
   const window = {
@@ -94,8 +114,8 @@ function createFixture(dialog = {}) {
     showSaveDialog: async () => ({ canceled: true }),
     ...dialog
   };
-  const workspace = new NativeBrowserWorkspace({ window, WebContentsView: FakeWebContentsView, session, dialog: nativeDialog });
-  return { workspace, session, browserSession, children, nativeDialog };
+  const workspace = new NativeBrowserWorkspace({ window, WebContentsView: FakeWebContentsView, session, dialog: nativeDialog, ...options });
+  return { workspace, session, browserSession, children, nativeDialog, loadedExtensions };
 }
 
 test("native browser URLs accept only credential-free HTTP(S)", () => {
@@ -211,4 +231,105 @@ test("downloads use a sanitized suggestion and are cancelled if the workspace cl
   pending.browserSession.emit("will-download", { preventDefault() {} }, pendingItem);
   pending.workspace.dispose();
   assert.equal(pendingItem.cancelled, true);
+});
+
+test("browser preferences control website permission decisions and default download behavior", async () => {
+  let promptCount = 0;
+  let persistedDownloads = [];
+  const fixture = createFixture({ showMessageBox: async () => { promptCount += 1; return { response: 0 }; } });
+  fixture.workspace.setPreferences({
+    askBeforeDownload: false,
+    sitePermissionDefaults: { camera: "ask", microphone: "ask", geolocation: "block", notifications: "ask" },
+    sitePermissionOverrides: [{ origin: "https://example.com", permission: "camera", decision: "allow" }]
+  });
+  const denied = [];
+  fixture.browserSession.permissionRequestHandler({}, "geolocation", value => denied.push(value), { securityOrigin: "https://example.com" });
+  assert.deepEqual(denied, [false], "blocked permission preferences are applied without an extra prompt");
+  const allowed = [];
+  fixture.browserSession.permissionRequestHandler({}, "media", value => allowed.push(value), { securityOrigin: "https://example.com", mediaTypes: ["video"] });
+  assert.deepEqual(allowed, [true], "site exceptions override the account default");
+  assert.equal(promptCount, 0);
+
+  fixture.workspace.onDownloadHistoryChange = value => { persistedDownloads = value; };
+  fixture.workspace.systemDownloadDirectory = "C:\\Users\\test\\Downloads";
+  fixture.workspace.downloadDirectory = fixture.workspace.systemDownloadDirectory;
+  const item = new FakeDownloadItem("report.pdf");
+  fixture.browserSession.emit("will-download", { preventDefault() {} }, item);
+  assert.equal(item.savePath, "C:\\Users\\test\\Downloads/report.pdf");
+  assert.equal(fixture.workspace.getDownloadHistory()[0].source, "https://example.com/file", "download history strips query strings");
+  item.emit("done", {}, "completed");
+  assert.equal(persistedDownloads[0].status, "completed");
+  assert.equal(persistedDownloads[0].path, "C:\\Users\\test\\Downloads/report.pdf");
+  assert.equal(fixture.workspace.removeDownloadHistory(persistedDownloads[0].id).deleted, true);
+  fixture.workspace.dispose();
+});
+
+test("clearing browser data clears the session stores and download history", async () => {
+  let persistedDownloads = [ { id: "download-1", fileName: "file.txt", source: "https://example.com/file", startedAt: new Date().toISOString(), status: "completed" } ];
+  const fixture = createFixture();
+  fixture.workspace.onDownloadHistoryChange = value => { persistedDownloads = value; };
+  fixture.workspace.downloadHistory = persistedDownloads;
+  const result = await fixture.workspace.clearData();
+  assert.deepEqual(result, { cleared: true });
+  assert.equal(fixture.browserSession.storageCleared, true);
+  assert.equal(fixture.browserSession.cacheCleared, true);
+  assert.equal(fixture.browserSession.authCleared, true);
+  assert.deepEqual(fixture.workspace.getDownloadHistory(), []);
+  assert.deepEqual(persistedDownloads, []);
+  fixture.workspace.dispose();
+});
+
+test("native extension manager loads only a user-confirmed unpacked extension and manages its lifecycle", async () => {
+  const root = await mkdtemp(join(tmpdir(), "lfaa-browser-extension-"));
+  const extensionPath = join(root, "example-extension");
+  await mkdir(extensionPath);
+  await writeFile(join(extensionPath, "manifest.json"), JSON.stringify({
+    manifest_version: 3, name: "Fixture extension", version: "1.0.0", options_page: "options.html"
+  }));
+  await writeFile(join(extensionPath, "options.html"), "<!doctype html><title>Options</title>");
+  let persisted;
+  const fixture = createFixture({
+    showOpenDialog: async () => ({ canceled: false, filePaths: [extensionPath] }),
+    showMessageBox: async () => ({ response: 0 })
+  }, { onBrowserExtensionsChange: value => { persisted = value; } });
+  try {
+    const afterInstall = await fixture.workspace.chooseBrowserExtension();
+    assert.equal(afterInstall.length, 1);
+    assert.equal(afterInstall[0].enabled, true);
+    assert.equal(afterInstall[0].loaded, true);
+    assert.equal(afterInstall[0].configurable, true);
+    assert.equal("path" in afterInstall[0], false, "absolute extension paths never cross the renderer IPC boundary");
+    assert.equal(persisted[0].path, extensionPath, "the selected unpacked path is persisted by the host");
+
+    const configured = await fixture.workspace.configureBrowserExtension(afterInstall[0].id);
+    assert.match(configured.tabs[0].url, /^chrome-extension:\/\//u);
+    assert.equal(fixture.workspace.tabs.get(configured.activeTabId).extensionOrigin, `chrome-extension://${afterInstall[0].id}`);
+
+    const disabled = await fixture.workspace.setBrowserExtensionEnabled(afterInstall[0].id, false);
+    assert.equal(disabled[0].enabled, false);
+    assert.equal(fixture.loadedExtensions.has(afterInstall[0].id), false);
+    const enabled = await fixture.workspace.setBrowserExtensionEnabled(afterInstall[0].id, true);
+    assert.equal(enabled[0].loaded, true);
+    const removed = fixture.workspace.removeBrowserExtension(afterInstall[0].id);
+    assert.equal(removed.removed, true);
+    assert.deepEqual(removed.extensions, []);
+    assert.equal(persisted.length, 0);
+  } finally {
+    fixture.workspace.dispose();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("extension restore failures are reported as extension state without corrupting browser tab state", async () => {
+  const errors = [];
+  const fixture = createFixture({}, {
+    extensions: [{ id: "a".repeat(32), path: join(tmpdir(), "missing-lfaa-extension"), name: "Missing extension", version: "1.0.0", enabled: true }],
+    onState: state => errors.push(state)
+  });
+  const result = await fixture.workspace.restoreBrowserExtensions();
+  assert.equal(result[0].enabled, false);
+  assert.match(result[0].warning, /目录/u);
+  assert.equal(result[0].warning.includes(join(tmpdir(), "missing-lfaa-extension")), false, "host error messages do not leak absolute local paths");
+  assert.deepEqual(errors, [], "extension warnings do not enter the native browser tab-state contract");
+  fixture.workspace.dispose();
 });

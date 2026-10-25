@@ -14,7 +14,7 @@ import { getLocalProjectContentPath } from "lfaa-settings/src/project-storage.js
 const taskLeaseDurationMilliseconds = 30_000;
 
 export type SteamcmdInstallMode = "online" | "manual";
-export type SteamcmdTaskKind = "install" | "verify" | "install-server" | "update-server" | "start-server" | "stop-server";
+export type SteamcmdTaskKind = "install" | "verify" | "uninstall" | "install-server" | "update-server" | "start-server" | "stop-server";
 export type SteamcmdTaskStatus = "queued" | "running" | "succeeded" | "failed";
 export type SteamcmdServerStatus = "unknown" | "stopped" | "running" | "starting" | "stopping";
 export type SteamcmdServerInstallationStatus = "unknown" | "installing" | "installed" | "failed";
@@ -69,6 +69,16 @@ export interface SteamcmdServerInput {
   eulaAccepted: boolean;
 }
 
+export interface SteamcmdDstClusterInput {
+  nodeId: string;
+  clusterName: string;
+  toolAppId: number;
+  installDirectory: string;
+  stopCommand: string;
+  stopTimeoutSeconds: number;
+  eulaAccepted: boolean;
+}
+
 export interface SteamcmdServer extends SteamcmdServerInput {
   id: string;
   createdBy: string;
@@ -80,17 +90,21 @@ export interface SteamcmdServer extends SteamcmdServerInput {
   installationStatus: SteamcmdServerInstallationStatus;
   processId: number | null;
   lastSeenAt: string | null;
+  dstClusterId: string | null;
+  dstClusterName: string | null;
+  dstShard: "Master" | "Caves" | null;
   createdAt: string;
   updatedAt: string;
 }
 
-export interface SteamcmdServerExecution extends Pick<SteamcmdServer, "id" | "nodeId" | "name" | "toolAppId" | "installDirectory" | "executablePath" | "launchArguments" | "stopCommand" | "stopTimeoutSeconds" | "eulaAccepted"> {}
+export interface SteamcmdServerExecution extends Pick<SteamcmdServer, "id" | "nodeId" | "name" | "toolAppId" | "installDirectory" | "executablePath" | "launchArguments" | "stopCommand" | "stopTimeoutSeconds" | "eulaAccepted" | "dstClusterId" | "dstClusterName" | "dstShard"> {}
 
 interface SteamcmdServerRow {
   id: string; node_id: string; created_by: string; name: string; tool_app_id: number; install_directory: string;
   executable_path: string; launch_arguments_json: string; stop_command: string; stop_timeout_seconds: number; eula_accepted: number;
   installation_status: SteamcmdServerInstallationStatus; status: SteamcmdServerStatus; process_id: number | null;
-  last_seen_at: string | null; created_at: string; updated_at: string;
+  last_seen_at: string | null; dst_cluster_id: string | null; dst_cluster_name: string | null; dst_shard: "Master" | "Caves" | null;
+  created_at: string; updated_at: string;
 }
 
 interface SteamcmdTaskRow {
@@ -222,6 +236,36 @@ function validateSteamcmdServerInput(input: SteamcmdServerInput): SteamcmdServer
   const stopTimeoutSeconds = input.stopTimeoutSeconds ?? 60;
   if (!Number.isSafeInteger(stopTimeoutSeconds) || stopTimeoutSeconds < 5 || stopTimeoutSeconds > 300) throw new Error("停服等待时间必须在 5 到 300 秒之间。");
   return { nodeId: input.nodeId, name: input.name.trim(), toolAppId: input.toolAppId, installDirectory, executablePath, launchArguments: [...launchArguments], stopCommand, stopTimeoutSeconds, eulaAccepted: input.eulaAccepted };
+}
+
+const dstDedicatedExecutablePath = "bin64/dontstarve_dedicated_server_nullrenderer_x64.exe";
+
+function validateSteamcmdDstClusterInput(input: SteamcmdDstClusterInput): SteamcmdDstClusterInput & { installDirectory: string } {
+  if (typeof input.clusterName !== "string" || !/^[A-Za-z0-9_-]{1,32}$/u.test(input.clusterName)) throw new Error("饥荒集群名仅可使用 1 到 32 位英文字母、数字、下划线或短横线。此名称会作为节点集群目录名。");
+  if (!Number.isSafeInteger(input.toolAppId) || input.toolAppId < 1 || input.toolAppId > 2_147_483_647) throw new Error("Steam 专用服务端 Tool AppID 必须是有效的正整数。");
+  if (typeof input.eulaAccepted !== "boolean" || !input.eulaAccepted) throw new Error("安装前必须明确确认已阅读并接受饥荒专用服务器许可和 EULA。");
+  if (typeof input.stopCommand !== "string" || !input.stopCommand.trim() || input.stopCommand.length > 120 || /[\r\n\u0000-\u001f\u007f]/u.test(input.stopCommand)) throw new Error("必须填写有效的控制台停服指令；请按 Klei 官方服务器说明核实后填写。");
+  const stopTimeoutSeconds = input.stopTimeoutSeconds;
+  if (!Number.isSafeInteger(stopTimeoutSeconds) || stopTimeoutSeconds < 5 || stopTimeoutSeconds > 300) throw new Error("停服等待时间必须在 5 到 300 秒之间。");
+  const server = validateSteamcmdServerInput({
+    nodeId: input.nodeId,
+    name: `${input.clusterName} / Master`,
+    toolAppId: input.toolAppId,
+    installDirectory: input.installDirectory,
+    executablePath: dstDedicatedExecutablePath,
+    launchArguments: [],
+    stopCommand: input.stopCommand,
+    stopTimeoutSeconds,
+    eulaAccepted: input.eulaAccepted
+  });
+  return { nodeId: server.nodeId, clusterName: input.clusterName, toolAppId: server.toolAppId, installDirectory: server.installDirectory,
+    stopCommand: server.stopCommand, stopTimeoutSeconds: server.stopTimeoutSeconds, eulaAccepted: server.eulaAccepted };
+}
+
+function assertSteamcmdInstallDirectoryAvailable(nodeId: string, installDirectory: string): void {
+  const existing = database.prepare("SELECT id FROM steamcmd_servers WHERE node_id = ? AND lower(install_directory) = lower(?) LIMIT 1")
+    .get(nodeId, installDirectory) as { id: string } | undefined;
+  if (existing) throw new Error("此节点的 Steam 服务端安装目录已被其他记录使用。");
 }
 
 function readConfigurationDefaultsRow(): SteamcmdConfigurationDefaultsRow | undefined {
@@ -367,7 +411,8 @@ function toSteamcmdServer(row: SteamcmdServerRow): SteamcmdServer {
     installDirectory: row.install_directory, executablePath: row.executable_path,
     launchArguments: parseStringArray(row.launch_arguments_json), stopCommand: row.stop_command, stopTimeoutSeconds: row.stop_timeout_seconds,
     eulaAccepted: row.eula_accepted === 1, status: row.status, installationStatus: row.installation_status,
-    processId: row.process_id, lastSeenAt: row.last_seen_at, createdAt: row.created_at, updatedAt: row.updated_at
+    processId: row.process_id, lastSeenAt: row.last_seen_at, dstClusterId: row.dst_cluster_id, dstClusterName: row.dst_cluster_name,
+    dstShard: row.dst_shard, createdAt: row.created_at, updatedAt: row.updated_at
   };
 }
 
@@ -383,12 +428,32 @@ export function getSteamcmdServer(serverId: string): SteamcmdServer | null {
   return row ? toSteamcmdServer(row) : null;
 }
 
+function listSteamcmdServerGroup(server: SteamcmdServer): SteamcmdServer[] {
+  if (!server.dstClusterId) return [server];
+  const rows = database.prepare("SELECT * FROM steamcmd_servers WHERE node_id = ? AND dst_cluster_id = ? ORDER BY dst_shard")
+    .all(server.nodeId, server.dstClusterId) as unknown as SteamcmdServerRow[];
+  const members = rows.map(toSteamcmdServer);
+  const shards = new Set(members.map(member => member.dstShard));
+  if (members.length !== 2 || !shards.has("Master") || !shards.has("Caves")
+    || members.some(member => member.dstClusterName !== server.dstClusterName || member.toolAppId !== server.toolAppId
+      || member.installDirectory.toLocaleLowerCase("en-US") !== server.installDirectory.toLocaleLowerCase("en-US"))) {
+    throw new Error("饥荒集群分片记录不完整或不一致，已拒绝操作；请联系管理员检查数据库记录。");
+  }
+  return members;
+}
+
+function serverIsConfirmedStopped(server: SteamcmdServer): boolean {
+  return server.status === "stopped" || (server.status === "unknown" && server.processId === null
+    && (server.installationStatus === "unknown" || server.installationStatus === "failed"));
+}
+
 export function createSteamcmdServer(input: SteamcmdServerInput & { createdBy: string }): SteamcmdServer {
   const value = validateSteamcmdServerInput(input);
   const node = getDaemonNode(value.nodeId);
   if (!node || node.platform !== "win32" || node.architecture !== "x64") throw new Error("Steam 游戏服务目前只支持已登记的 Windows x64 Daemon 节点。");
   const count = database.prepare("SELECT COUNT(*) AS count FROM steamcmd_servers WHERE node_id = ?").get(value.nodeId) as { count: number };
   if (Number(count.count) >= 200) throw new Error("此节点最多登记 200 个 Steam 游戏服务器。");
+  assertSteamcmdInstallDirectoryAvailable(value.nodeId, value.installDirectory);
   const id = randomUUID();
   database.prepare(`
     INSERT INTO steamcmd_servers (id, node_id, created_by, name, tool_app_id, install_directory, executable_path, launch_arguments_json, stop_command, stop_timeout_seconds, eula_accepted)
@@ -398,15 +463,54 @@ export function createSteamcmdServer(input: SteamcmdServerInput & { createdBy: s
   return getSteamcmdServer(id)!;
 }
 
+export function createSteamcmdDstCluster(input: SteamcmdDstClusterInput & { createdBy: string }): { clusterId: string; servers: SteamcmdServer[] } {
+  const value = validateSteamcmdDstClusterInput(input);
+  const node = getDaemonNode(value.nodeId);
+  if (!node || node.platform !== "win32" || node.architecture !== "x64") throw new Error("饥荒联机版专用服务器目前只支持已登记的 Windows x64 Daemon 节点。");
+  if (!node.capabilities.includes("node-filesystem-game-storage-v1")) throw new Error("目标节点尚不支持受管游戏存储文件管理，无法安全导入集群配置。");
+  const count = database.prepare("SELECT COUNT(*) AS count FROM steamcmd_servers WHERE node_id = ?").get(value.nodeId) as { count: number };
+  if (Number(count.count) + 2 > 200) throw new Error("此节点最多登记 200 个 Steam 游戏服务器，当前空间不足以登记 Master/Caves 两个分片。");
+  assertSteamcmdInstallDirectoryAvailable(value.nodeId, value.installDirectory);
+  const conflictingCluster = database.prepare("SELECT id FROM steamcmd_servers WHERE node_id = ? AND dst_cluster_id IS NOT NULL AND lower(dst_cluster_name) = lower(?) LIMIT 1")
+    .get(value.nodeId, value.clusterName) as { id: string } | undefined;
+  if (conflictingCluster) throw new Error("此节点已有同名饥荒集群，请更换集群名。");
+
+  const clusterId = randomUUID();
+  const masterId = randomUUID();
+  const cavesId = randomUUID();
+  const insert = database.prepare(`
+    INSERT INTO steamcmd_servers (
+      id, node_id, created_by, name, tool_app_id, install_directory, executable_path, launch_arguments_json,
+      stop_command, stop_timeout_seconds, eula_accepted, dst_cluster_id, dst_cluster_name, dst_shard
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, 1, ?, ?, ?)
+  `);
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    insert.run(masterId, value.nodeId, input.createdBy, `${value.clusterName} / Master`, value.toolAppId, value.installDirectory,
+      dstDedicatedExecutablePath, value.stopCommand, value.stopTimeoutSeconds, clusterId, value.clusterName, "Master");
+    insert.run(cavesId, value.nodeId, input.createdBy, `${value.clusterName} / Caves`, value.toolAppId, value.installDirectory,
+      dstDedicatedExecutablePath, value.stopCommand, value.stopTimeoutSeconds, clusterId, value.clusterName, "Caves");
+    database.exec("COMMIT;");
+  } catch (error) {
+    if (database.isTransaction) database.exec("ROLLBACK;");
+    throw error;
+  }
+  return { clusterId, servers: [getSteamcmdServer(masterId)!, getSteamcmdServer(cavesId)!] };
+}
+
 export function updateSteamcmdServer(serverId: string, input: SteamcmdServerInput): SteamcmdServer {
   const current = getSteamcmdServer(serverId);
   if (!current || current.nodeId !== input.nodeId) throw new Error("找不到此目标节点上的 Steam 游戏服务器。");
+  if (current.dstClusterId) throw new Error("饥荒集群的两个分片由集群向导统一管理，不能单独修改分片配置。");
   if (current.status !== "stopped" && !(current.status === "unknown" && current.installationStatus === "unknown" && current.processId === null)) {
     throw new Error("服务器运行状态尚未确认停止，不能修改启动配置。");
   }
   const value = validateSteamcmdServerInput(input);
   if (current.installationStatus === "installed" && (value.toolAppId !== current.toolAppId || value.installDirectory !== current.installDirectory)) {
     throw new Error("已安装的服务端不能直接更换 Tool AppID 或安装目录；请为新服务端创建独立记录。");
+  }
+  if (value.installDirectory.toLocaleLowerCase("en-US") !== current.installDirectory.toLocaleLowerCase("en-US")) {
+    assertSteamcmdInstallDirectoryAvailable(value.nodeId, value.installDirectory);
   }
   database.prepare(`
     UPDATE steamcmd_servers SET name = ?, tool_app_id = ?, install_directory = ?, executable_path = ?, launch_arguments_json = ?, stop_command = ?, stop_timeout_seconds = ?, eula_accepted = ?, updated_at = ?
@@ -463,7 +567,7 @@ function parseJsonObject(value: string | null): Record<string, unknown> | null {
 
 function toTask(row: SteamcmdTaskRow): SteamcmdTask {
   const payload = parseJsonObject(row.payload_json) ?? {};
-  const operation = ["install", "verify", "install-server", "update-server", "start-server", "stop-server"].includes(String(payload.operation))
+  const operation = ["install", "verify", "uninstall", "install-server", "update-server", "start-server", "stop-server"].includes(String(payload.operation))
     ? payload.operation as SteamcmdTaskKind : row.kind;
   const server = typeof payload.server === "object" && payload.server !== null && !Array.isArray(payload.server)
     ? payload.server as SteamcmdServerExecution : undefined;
@@ -499,6 +603,7 @@ function insertSteamcmdTask(input: { nodeId: string; createdBy: string; database
   const payload = { ...input.settings, ...(input.responseKind !== input.databaseKind ? { operation: input.responseKind } : {}), ...(input.server ? { server: input.server } : {}) };
   const messages: Record<SteamcmdTaskKind, string> = {
     install: "等待 daemon 安装 SteamCMD。", verify: "等待 daemon 校验 SteamCMD。",
+    uninstall: "等待 daemon 完整卸载 SteamCMD 工具目录。",
     "install-server": "等待 daemon 安装 Steam 专用服务端。", "update-server": "等待 daemon 更新 Steam 专用服务端。",
     "start-server": "等待 daemon 启动游戏服务器。", "stop-server": "等待 daemon 停止游戏服务器。"
   };
@@ -509,13 +614,19 @@ function insertSteamcmdTask(input: { nodeId: string; createdBy: string; database
   return getSteamcmdTask(id)!;
 }
 
-export function createSteamcmdTask(input: { nodeId: string; createdBy: string; kind: "install" | "verify" }): SteamcmdTask {
+export function createSteamcmdTask(input: { nodeId: string; createdBy: string; kind: "install" | "verify" | "uninstall" }): SteamcmdTask {
   const node = getDaemonNode(input.nodeId);
   if (!node || node.status !== "online" || node.platform !== "win32" || node.architecture !== "x64" || !node.capabilities.includes("node-filesystem-v1")) {
     throw new Error("所选 daemon 节点未连接或不支持 Windows x64 SteamCMD 任务。");
   }
   const settings = getSteamcmdNodeSettings(input.nodeId);
   if (input.kind === "install" && settings.installMode !== "online") throw new Error("当前选择了手动配置，请先切换到在线安装方式。");
+  if (input.kind === "uninstall") {
+    const servers = listSteamcmdServers(input.nodeId);
+    if (servers.some(server => server.status !== "stopped" && !(server.status === "unknown" && server.installationStatus === "unknown" && server.processId === null))) {
+      throw new Error("此节点上的 Steam 游戏服务器仍在运行或状态未确认，不能卸载 SteamCMD。请先停止并核对所有服务器。");
+    }
+  }
   const active = database.prepare(`SELECT * FROM steamcmd_tasks WHERE node_id = ? AND status IN ('queued', 'running') ORDER BY created_at DESC LIMIT 1`)
     .get(input.nodeId) as SteamcmdTaskRow | undefined;
   if (active) {
@@ -523,7 +634,13 @@ export function createSteamcmdTask(input: { nodeId: string; createdBy: string; k
     if (current.kind === input.kind) return current;
     throw new Error("此节点已有 SteamCMD 或游戏服务器任务正在执行，请完成后再提交新任务。");
   }
-  return insertSteamcmdTask({ nodeId: input.nodeId, createdBy: input.createdBy, databaseKind: input.kind, responseKind: input.kind, settings });
+  return insertSteamcmdTask({
+    nodeId: input.nodeId,
+    createdBy: input.createdBy,
+    databaseKind: input.kind === "install" ? "install" : "verify",
+    responseKind: input.kind,
+    settings
+  });
 }
 
 export function createSteamcmdServerTask(input: { serverId: string; nodeId: string; createdBy: string; kind: "install-server" | "update-server" | "start-server" | "stop-server" }): SteamcmdTask {
@@ -534,8 +651,10 @@ export function createSteamcmdServerTask(input: { serverId: string; nodeId: stri
   if (!node.capabilities.includes("steamcmd-ready-v1")) throw new Error("目标设备尚未安装并验证 SteamCMD，请先到游戏库的运行环境中安装。");
   const server = getSteamcmdServer(input.serverId);
   if (!server || server.nodeId !== input.nodeId) throw new Error("找不到此目标节点上的 Steam 游戏服务器。");
-  const confirmedStopped = server.status === "stopped" || (server.status === "unknown" && server.installationStatus === "unknown" && server.processId === null);
-  if ((input.kind === "install-server" || input.kind === "update-server") && !confirmedStopped) throw new Error("服务器运行状态尚未确认停止，不能安装或更新服务端。");
+  const group = listSteamcmdServerGroup(server);
+  if ((input.kind === "install-server" || input.kind === "update-server") && group.some(member => !serverIsConfirmedStopped(member))) {
+    throw new Error(server.dstClusterId ? "Master 或 Caves 分片仍在运行或状态未确认停止，不能更新共享服务端文件。" : "服务器运行状态尚未确认停止，不能安装或更新服务端。");
+  }
   if (!server.eulaAccepted) throw new Error("请先阅读并接受此专用服务端的许可和 EULA。");
   if ((input.kind === "start-server" || input.kind === "stop-server") && (!server.executablePath || !server.stopCommand)) {
     throw new Error("启动配置不完整；请填写服务端 .exe、启动参数和可用的控制台停服指令。");
@@ -546,10 +665,14 @@ export function createSteamcmdServerTask(input: { serverId: string; nodeId: stri
   const kind: "install" | "verify" = input.kind === "install-server" || input.kind === "update-server" ? "install" : "verify";
   const task = insertSteamcmdTask({ nodeId: input.nodeId, createdBy: input.createdBy, databaseKind: kind, responseKind: input.kind, settings: getSteamcmdNodeSettings(input.nodeId), server: {
     id: server.id, nodeId: server.nodeId, name: server.name, toolAppId: server.toolAppId, installDirectory: server.installDirectory,
-    executablePath: server.executablePath, launchArguments: server.launchArguments, stopCommand: server.stopCommand, stopTimeoutSeconds: server.stopTimeoutSeconds, eulaAccepted: server.eulaAccepted
+    executablePath: server.executablePath, launchArguments: server.launchArguments, stopCommand: server.stopCommand, stopTimeoutSeconds: server.stopTimeoutSeconds, eulaAccepted: server.eulaAccepted,
+    dstClusterId: server.dstClusterId, dstClusterName: server.dstClusterName, dstShard: server.dstShard
   } });
   if (input.kind === "install-server" || input.kind === "update-server") {
-    database.prepare("UPDATE steamcmd_servers SET installation_status = 'installing', updated_at = ? WHERE id = ?").run(new Date().toISOString(), server.id);
+    const now = new Date().toISOString();
+    if (server.dstClusterId) database.prepare("UPDATE steamcmd_servers SET installation_status = 'installing', updated_at = ? WHERE node_id = ? AND dst_cluster_id = ?")
+      .run(now, server.nodeId, server.dstClusterId);
+    else database.prepare("UPDATE steamcmd_servers SET installation_status = 'installing', updated_at = ? WHERE id = ?").run(now, server.id);
   } else {
     database.prepare("UPDATE steamcmd_servers SET status = ?, updated_at = ? WHERE id = ?").run(input.kind === "start-server" ? "starting" : "stopping", new Date().toISOString(), server.id);
   }
@@ -579,14 +702,16 @@ export function claimNextSteamcmdTask(nodeId: string): SteamcmdTask | null {
   `).all(nodeId, now) as unknown as SteamcmdTaskRow[];
   for (const row of expiredRows) {
     const task = toTask(row);
-    const serverId = task.payload.server?.id;
-    if (!serverId) continue;
+    const server = task.payload.server;
+    if (!server?.id) continue;
     if (task.kind === "install-server" || task.kind === "update-server") {
-      database.prepare("UPDATE steamcmd_servers SET installation_status = 'unknown', status = 'unknown', process_id = NULL, updated_at = ? WHERE id = ? AND node_id = ?")
-        .run(now, serverId, nodeId);
+      if (server.dstClusterId) database.prepare("UPDATE steamcmd_servers SET installation_status = 'unknown', status = 'unknown', process_id = NULL, updated_at = ? WHERE node_id = ? AND dst_cluster_id = ?")
+        .run(now, nodeId, server.dstClusterId);
+      else database.prepare("UPDATE steamcmd_servers SET installation_status = 'unknown', status = 'unknown', process_id = NULL, updated_at = ? WHERE id = ? AND node_id = ?")
+        .run(now, server.id, nodeId);
     } else {
       database.prepare("UPDATE steamcmd_servers SET status = 'unknown', process_id = NULL, updated_at = ? WHERE id = ? AND node_id = ?")
-        .run(now, serverId, nodeId);
+        .run(now, server.id, nodeId);
     }
   }
   database.prepare(`
@@ -654,21 +779,24 @@ export function completeSteamcmdTask(input: {
     input.nodeId
   );
   if (Number(result.changes) !== 1) return false;
-  const serverId = task.payload.server?.id;
-  if (serverId) {
+  const server = task.payload.server;
+  if (server?.id) {
     const now = new Date().toISOString();
     if (task.kind === "install-server" || task.kind === "update-server") {
-      database.prepare("UPDATE steamcmd_servers SET installation_status = ?, status = ?, process_id = NULL, updated_at = ? WHERE id = ? AND node_id = ?")
-        .run(input.succeeded && input.result.installed === true ? "installed" : "failed", input.succeeded ? "stopped" : "unknown", now, serverId, input.nodeId);
+      const values = [input.succeeded && input.result.installed === true ? "installed" : "failed", input.succeeded ? "stopped" : "unknown", now] as const;
+      if (server.dstClusterId) database.prepare("UPDATE steamcmd_servers SET installation_status = ?, status = ?, process_id = NULL, updated_at = ? WHERE dst_cluster_id = ? AND node_id = ?")
+        .run(...values, server.dstClusterId, input.nodeId);
+      else database.prepare("UPDATE steamcmd_servers SET installation_status = ?, status = ?, process_id = NULL, updated_at = ? WHERE id = ? AND node_id = ?")
+        .run(...values, server.id, input.nodeId);
     } else if (task.kind === "start-server") {
       const started = input.succeeded && input.result.processStarted === true && Number.isSafeInteger(input.result.processId);
       database.prepare("UPDATE steamcmd_servers SET status = ?, process_id = ?, updated_at = ? WHERE id = ? AND node_id = ?")
-        .run(started ? "running" : "unknown", started ? Number(input.result.processId) : null, now, serverId, input.nodeId);
+        .run(started ? "running" : "unknown", started ? Number(input.result.processId) : null, now, server.id, input.nodeId);
     } else if (task.kind === "stop-server") {
       const stopped = input.succeeded && input.result.stopped === true;
-      const existing = getSteamcmdServer(serverId);
+      const existing = getSteamcmdServer(server.id);
       database.prepare("UPDATE steamcmd_servers SET status = ?, process_id = ?, updated_at = ? WHERE id = ? AND node_id = ?")
-        .run(stopped ? "stopped" : "unknown", stopped ? null : existing?.processId ?? null, now, serverId, input.nodeId);
+        .run(stopped ? "stopped" : "unknown", stopped ? null : existing?.processId ?? null, now, server.id, input.nodeId);
     }
   }
   return true;

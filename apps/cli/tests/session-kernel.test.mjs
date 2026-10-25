@@ -62,6 +62,23 @@ test("公开 lfaa-session 包导出完整的内核 API", async () => {
   assert.equal(typeof api.SessionPreparation, "function");
 });
 
+test("运行失败以 error 结束回合且开放工具仍 fail-closed 收尾", () => {
+  const session = fixture();
+  session.append("assistant/response", { runId: "run-1", message: { role: "assistant", content: null, tool_calls: [{ id: "call-2", type: "function", function: { name: "read_status", arguments: "{}" } }] } });
+  session.append("tool/call", { runId: "run-1", callId: "call-2", name: "read_status", arguments: "{}", dispatched: false, headerSeq: 6 });
+  const repaired = session.repairOpenTail("error");
+  assert.equal(repaired.filter(event => event.type === "tool/result").find(event => event.data.callId === "call-1").data.executionState, "unconfirmed");
+  assert.equal(repaired.filter(event => event.type === "tool/result").find(event => event.data.callId === "call-2").data.executionState, "not_started");
+  // 中断恢复必须点明是哪个工具，并给出可安全执行的第一步，而不是让模型在“禁止重放”后彻底停住。
+  const unconfirmed = JSON.parse(repaired.find(event => event.type === "tool/result" && event.data.callId === "call-1").data.content).error;
+  const notStarted = JSON.parse(repaired.find(event => event.type === "tool/result" && event.data.callId === "call-2").data.content).error;
+  assert.match(unconfirmed, /read_status/u);
+  assert.match(unconfirmed, /先读取真实状态核对/u);
+  assert.match(notStarted, /可以按当前目标重新判断/u);
+  assert.equal(session.events.at(-1).type, "turn/end");
+  assert.equal(session.events.at(-1).data.status, "error");
+});
+
 test("请求上下文、历史工具定义、Surface replacement 与精确前缀恢复", () => {
   const session = fixture();
   const sourceCount = session.length;

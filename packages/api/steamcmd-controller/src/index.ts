@@ -5,10 +5,10 @@ import { requireAuthentication, requireRole } from "lfaa-authorization/src/middl
 import { authorizeExplicitUserAction } from "lfaa-permission-presets/src/permissions.js";
 import { assertSystemFileAccess } from "lfaa-fs/src/library.js";
 import { getDaemonDataRoot, getDaemonNode, listDaemonNodes } from "lfaa-host-daemon/src/local-daemon.js";
-import { createSteamcmdServer, createSteamcmdServerTask, createSteamcmdTask, getSteamcmdConfigurationDefaults, getSteamcmdNodeConfiguration, getSteamcmdNodeStorageSettings, getSteamcmdServer, getSteamcmdStorageDefaults, getSteamcmdTask, hasSteamcmdNodeConfiguration, hasSteamcmdNodeStorageSettings, listSteamcmdServers, saveSteamcmdConfigurationDefaults, saveSteamcmdNodeConfiguration, saveSteamcmdNodeStorageSettings, saveSteamcmdStorageDefaults, updateSteamcmdServer, type SteamcmdServerInput } from "lfaa-games-steamcmd/src/service.js";
+import { createSteamcmdDstCluster, createSteamcmdServer, createSteamcmdServerTask, createSteamcmdTask, getSteamcmdConfigurationDefaults, getSteamcmdNodeConfiguration, getSteamcmdNodeStorageSettings, getSteamcmdServer, getSteamcmdStorageDefaults, getSteamcmdTask, hasSteamcmdNodeConfiguration, hasSteamcmdNodeStorageSettings, listSteamcmdServers, saveSteamcmdConfigurationDefaults, saveSteamcmdNodeConfiguration, saveSteamcmdNodeStorageSettings, saveSteamcmdStorageDefaults, updateSteamcmdServer, type SteamcmdDstClusterInput, type SteamcmdServerInput } from "lfaa-games-steamcmd/src/service.js";
 import type { AiPluginHost } from "lfaa-app-boot/src/ai-host.js";
 import type { MinecraftRealtimePublisher } from "lfaa-api-remotes/src/socket-server.js";
-import { parseBody, steamcmdConfigurationSettingsSchema, steamcmdServerSchema, steamcmdServerTaskSchema, steamcmdStorageSettingsSchema, steamcmdTaskSchema } from "lfaa-api-remotes/src/route-contracts.js";
+import { parseBody, steamcmdConfigurationSettingsSchema, steamcmdDstClusterSchema, steamcmdServerSchema, steamcmdServerTaskSchema, steamcmdStorageSettingsSchema, steamcmdTaskSchema } from "lfaa-api-remotes/src/route-contracts.js";
 import { ensureProjectStorageDirectory, isOutsideProjectDataDirectory } from "lfaa-settings/src/project-storage.js";
 export function registerRoutes(router: Router, _aiPluginHost: AiPluginHost, realtime: MinecraftRealtimePublisher): void {
 
@@ -54,6 +54,14 @@ router.post("/steamcmd/servers", requireAuthentication, requireRole("admin"), (r
     if (authorization !== "allow") throw new ApiError(403, "steamcmd_server_not_authorized", "当前权限模式未授权此 Steam 游戏服务器配置写入。");
     try { response.status(201).json({ server: createSteamcmdServer({ ...body, createdBy: request.auth!.user.id }) }); }
     catch (error) { throw new ApiError(400, "steamcmd_server_invalid", error instanceof Error ? error.message : "Steam 游戏服务器配置无效。"); }
+  });
+
+router.post("/steamcmd/dst-clusters", requireAuthentication, requireRole("admin"), (request, response) => {
+    const body = parseBody<SteamcmdDstClusterInput>(steamcmdDstClusterSchema, request.body);
+    const authorization = authorizeExplicitUserAction({ userId: request.auth!.user.id, activeApplicationId: "steamcmd", toolApplicationIds: ["steamcmd"], toolId: "steamcmd.dst-cluster.create", toolVersion: "1", risk: "write", scopeKey: `${body.nodeId}:${body.toolAppId}:dst:${body.clusterName}`, executable: true });
+    if (authorization !== "allow") throw new ApiError(403, "steamcmd_dst_cluster_not_authorized", "当前权限模式未授权创建饥荒服务器集群。");
+    try { response.status(201).json(createSteamcmdDstCluster({ ...body, createdBy: request.auth!.user.id })); }
+    catch (error) { throw new ApiError(409, "steamcmd_dst_cluster_invalid", error instanceof Error ? error.message : "饥荒服务器集群配置无效。"); }
   });
 
 router.put("/steamcmd/servers/:serverId", requireAuthentication, requireRole("admin"), (request, response) => {
@@ -123,7 +131,9 @@ router.put("/steamcmd/storage-settings/:nodeId", requireAuthentication, requireR
   });
 
 router.post("/steamcmd/tasks", requireAuthentication, requireRole("admin"), (request, response) => {
-    const body = parseBody<{ nodeId: string; kind: "install" | "verify" }>(steamcmdTaskSchema, request.body);
+    const body = parseBody<{ nodeId: string; kind: "install" | "verify" | "uninstall" }>(steamcmdTaskSchema, request.body);
+    const authorization = authorizeExplicitUserAction({ userId: request.auth!.user.id, activeApplicationId: "steamcmd", toolApplicationIds: ["steamcmd"], toolId: `steamcmd.runtime.${body.kind}`, toolVersion: "1", risk: body.kind === "uninstall" ? "dangerous" : "write", scopeKey: body.nodeId, executable: true });
+    if (authorization !== "allow") throw new ApiError(403, "steamcmd_runtime_not_authorized", "当前权限模式未授权此 SteamCMD 运行环境操作。");
     try {
       const task = createSteamcmdTask({ ...body, createdBy: request.auth!.user.id });
       response.status(202).json({ task: { ...task, payload: undefined } });

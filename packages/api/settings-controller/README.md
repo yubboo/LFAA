@@ -10,4 +10,8 @@
 
 GET /ai/skills 通过实际 Skill Registry 返回当前账户可见摘要、来源和账户 `plugins.disabledSkillNames` 派生的 `enabled` 状态；隐藏绝对路径、资源基址和正文。插件总开关仍按原规则过滤非内置技能；单项停用由 Skill Tool Owner 在目录和正文加载时执行。
 
+`GET /settings/parental` 只返回认证账户自身的策略与每日用量；管理员可通过账户 ID 查看成员策略并取得可管理成员列表。`PUT /settings/parental/:accountId` 要求管理员角色，Identity/Auth Owner 再次验证目标为普通成员、校验时区和七天策略并返回真实回读。Agent 工具不绕过这些 Owner 条件，统一 Permission Owner 在执行写工具前授权。
+
+`GET /settings/sync/status` 要求认证并返回当前账户在此 Control Plane 的已保存设置分类和最近更新时间，使用 `private, no-store`，不返回设置内容或秘密。`PUT /settings/mini` 复用 Settings Owner 的严格 Mini 分类 schema；窗口生命周期不由该 API 假造。
+
 构建只写仓库根 dist/packages/api/settings-controller/；当前合同见 [开发提示词](../../../docs/development/xiaoyu-agent.zh.md)。构建、合成模型、浏览器与真实模型/节点验收分别报告。

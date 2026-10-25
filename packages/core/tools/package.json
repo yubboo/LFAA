@@ -19,6 +19,7 @@
     "lfaa-identity-auth": "workspace:*",
     "lfaa-jobs": "workspace:*",
     "lfaa-settings": "workspace:*",
+    "lfaa-settings-snapshots": "workspace:*",
     "lfaa-scope": "workspace:*",
     "lfaa-workspace-agent-git": "workspace:*",
     "lfaa-util-values": "workspace:*"

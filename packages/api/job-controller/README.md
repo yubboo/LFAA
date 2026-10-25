@@ -7,3 +7,5 @@
 构建写根 dist/packages/api/job-controller；[本轮数据根规范](../../../docs/development/file-resources.zh.md)。实际节点与设备验收和隔离任务夹具分开记录。
 
 Daemon 心跳同时接收 SteamCMD 服务端进程状态并返回该节点已登记服务端 ID；节点身份仍由 `requireLocalDaemon` 校验。服务端任务与状态更新由 `games/steamcmd` 持有，Job Controller 只负责节点认证与协议路由。
+
+节点文件任务输入与结果字节使用 Daemon 身份认证的原始流路由；输入绑定运行中的上传任务、用户和节点，结果绑定运行中的下载/二进制预览任务。完成时由文件队列核对已收字节及名称、大小和 SHA-256，再只把小型元数据写入 SQLite。

@@ -9,6 +9,7 @@ const { detectPluginSourceInput } = await import('lfaa-client-ui-plugin-manager/
 const pluginPage = readFileSync(fileURLToPath(new URL('../../../packages/client/ui-plugin-manager/src/PluginManagerPage.tsx', import.meta.url)), 'utf8');
 const pluginPageCss = readFileSync(fileURLToPath(new URL('../../../packages/client/ui-plugin-manager/src/PluginManagerPage.css', import.meta.url)), 'utf8');
 const settingsPage = readFileSync(fileURLToPath(new URL('../../../packages/client/ui-settings/src/SettingsPage.tsx', import.meta.url)), 'utf8');
+const settingsMenuCatalog = readFileSync(fileURLToPath(new URL('../../../packages/util/values/src/settings-menu-catalog.ts', import.meta.url)), 'utf8');
 const managedPluginsSettings = readFileSync(fileURLToPath(new URL('../../../packages/client/ui-settings/src/ManagedPluginsSettings.tsx', import.meta.url)), 'utf8');
 const githubConnectionSettings = readFileSync(fileURLToPath(new URL('../../../packages/client/ui-settings/src/GitHubConnectionSettings.tsx', import.meta.url)), 'utf8');
 const connectionApi = readFileSync(fileURLToPath(new URL('../../../packages/client/connection/src/api.ts', import.meta.url)), 'utf8');
@@ -177,16 +178,16 @@ test('plugin settings gear opens the existing SettingsPage plugins section and k
   assert.match(pluginPage, /plugin-manager-page__settings-button/u);
   assert.match(pluginPageCss, /\.plugin-manager-page__settings-button\.ant-btn\s*\{[^}]*width:\s*36px[^}]*height:\s*36px/su);
   assert.match(workbenchPage, /settingsInitialSection, setSettingsInitialSection\] = useState<"ai" \| "permissions" \| "configuration" \| "account" \| "workspace" \| "security" \| "plugins"/u);
-  assert.match(workbenchPage, /settingsSectionRequest, setSettingsSectionRequest\] = useState<\{ section: "ai" \| "permissions" \| "configuration" \| "account" \| "workspace" \| "security" \| "plugins";/u);
-  assert.match(workbenchPage, /const openSettings = useCallback\(\(section\?: "ai" \| "permissions" \| "configuration" \| "account" \| "workspace" \| "security" \| "plugins"\)/u);
+  assert.match(workbenchPage, /settingsSectionRequest, setSettingsSectionRequest\] = useState<\{ section: "ai" \| "permissions" \| "configuration" \| "account" \| "workspace" \| "security" \| "plugins"; requestId: number; focusTarget\?: string \}/u);
+  assert.match(workbenchPage, /const openSettings = useCallback\(\(section\?: "ai" \| "permissions" \| "configuration" \| "account" \| "workspace" \| "security" \| "plugins", focusTarget\?: string\)/u);
   assert.match(workbenchPage, /setSettingsReturnRoute\(route\)/u);
   assert.match(workbenchPage, /onNavigate\(section \? `\/settings\?section=\$\{encodeURIComponent\(section\)\}` : "\/settings"\)/u);
   assert.match(workbenchPage, /onOpenSettings=\{openSettings\}/u);
-  assert.match(settingsPage, /sectionRequest\?: \{ section: "ai" \| "permissions" \| "configuration" \| "account" \| "workspace" \| "security" \| "plugins";/u);
+  assert.match(settingsPage, /sectionRequest\?: \{ section: "ai" \| "permissions" \| "configuration" \| "account" \| "workspace" \| "security" \| "plugins"; requestId: number; focusTarget\?: string \}/u);
 });
 
 test('Settings Center exposes Profile plugins under Integrations and reuses authenticated lifecycle state', () => {
-  assert.match(settingsPage, /\{ id: "profilePlugins", title: "插件", group: "集成", icon: "extension" \}/u);
+  assert.match(settingsMenuCatalog, /\{ id: "profilePlugins", label: "插件", group: "集成", access: "tools"/u);
   assert.match(settingsPage, /if \(section === "plugins"\) return "profilePlugins"/u);
   assert.match(settingsPage, /const routeSection = section === "profilePlugins" \? "plugins" : section/u);
   assert.match(settingsPage, /if \(activeSection === "profilePlugins"\) return <ManagedPluginsSettings/u);
@@ -251,8 +252,8 @@ test('Settings integrations keep title actions left-aligned and stack search cle
   assert.match(settingsCss, /@container settings-main \(max-width: 340px\)[\s\S]*?\.settings-profile-plugins__category\s*\{[^}]*padding-inline:\s*var\(--space-1\)/u);
 });
 
-test('Settings toolbar keeps menu and save status together above paired narrow-screen actions', () => {
-  assert.match(settingsPage, /<div className="settings-toolbar__status"><small>更新会自动保存<\/small><\/div>/u);
+test('Settings toolbar keeps menu and section-specific save status above paired narrow-screen actions', () => {
+  assert.match(settingsPage, /<div className="settings-toolbar__status"><small>\{activeSection === "workspace" \? "本页配置由各区块单独保存" : "更新会自动保存"\}<\/small><\/div>/u);
   assert.match(settingsCss, /@container settings-main \(max-width: 760px\)[\s\S]*?\.settings-toolbar\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/u);
   assert.match(settingsCss, /\.settings-toolbar__status\s*\{[^}]*grid-column:\s*2;[^}]*grid-row:\s*1/su);
   assert.match(settingsCss, /\.settings-toolbar__actions\s*\{[^}]*grid-column:\s*1\s*\/\s*-1;[^}]*grid-row:\s*2;[^}]*grid-template-columns:\s*repeat\(2,/su);

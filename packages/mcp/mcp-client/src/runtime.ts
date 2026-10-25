@@ -13,6 +13,7 @@ import { Ajv2020 } from "ajv/dist/2020.js";
 import type { ValidateFunction } from "ajv";
 import { config } from "lfaa-launch-environment/src/config.js";
 import { getUserSettings, type PluginSettings } from "lfaa-settings/src/service.js";
+import { killProcessTree } from "lfaa-win32-process";
 import type { ApplicationId } from "lfaa-util-values/src/application-id.js";
 import type { AiBusinessTool } from "lfaa-tools/src/business-tools.js";
 import { createPinnedMcpLookup, resolveMcpEndpoint } from "./network.js";
@@ -89,15 +90,22 @@ const MAX_STDIO_FRAME_BYTES = 8 * 1024 * 1024;
 const MAX_STDIO_REQUEST_BYTES = 1024 * 1024;
 
 function mcpServerIdentity(server: PluginSettings["mcpServers"][number]): string {
-  return server.transport === "stdio" ? `stdio:${JSON.stringify([server.command, server.args])}` : server.url;
+  return server.transport === "stdio" ? `stdio:${JSON.stringify([server.command, server.args, canonical(server.env ?? {})])}` : server.url;
 }
 
-function mcpChildEnvironment(): NodeJS.ProcessEnv {
+function mcpChildEnvironment(overrides: Readonly<Record<string, string>> = {}): NodeJS.ProcessEnv {
   const allowed = new Set(process.platform === "win32"
     ? ["PATH", "PATHEXT", "SYSTEMROOT", "WINDIR", "TEMP", "TMP", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "HOMEDRIVE", "HOMEPATH"]
     : ["PATH", "HOME", "TMPDIR", "TMP", "TEMP", "LANG", "LC_ALL", "DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS"]);
   const environment: NodeJS.ProcessEnv = {};
   for (const [key, value] of Object.entries(process.env)) if (value !== undefined && allowed.has(key.toLocaleUpperCase("en-US"))) environment[key] = value;
+  const reserved = new Set([...allowed].map(key => key.toLocaleUpperCase("en-US")));
+  for (const [key, value] of Object.entries(overrides)) {
+    if (!/^[A-Za-z_][A-Za-z0-9_]{0,127}$/u.test(key) || reserved.has(key.toLocaleUpperCase("en-US")) || value.includes("\0")) {
+      throw new Error("MCP 配置包含不允许的环境变量覆盖。");
+    }
+    environment[key] = value;
+  }
   return environment;
 }
 
@@ -130,7 +138,7 @@ class McpConnection {
     }
     const child = spawn(server.command, server.args, {
       cwd: config.repositoryRoot,
-      env: mcpChildEnvironment(),
+      env: mcpChildEnvironment(server.env),
       shell: false,
       windowsHide: true,
       stdio: ["pipe", "pipe", "pipe"]
@@ -183,7 +191,12 @@ class McpConnection {
       pending.cleanup();
       pending.reject(error);
     }
-    if (terminate && this.child && this.child.exitCode === null && this.child.signalCode === null) this.child.kill();
+    // 包管理器 runner（npx/uvx/dnx）会再启动真正的 MCP 服务进程；只杀直接子进程会把孙进程留在系统里。
+    if (terminate && this.child && this.child.exitCode === null && this.child.signalCode === null) {
+      const pid = this.child.pid;
+      if (pid) void killProcessTree(pid, 250);
+      else this.child.kill();
+    }
   }
   private async writeStdio(message: ObjectValue, signal?: AbortSignal, expectedResponse = true): Promise<ObjectValue> {
     const child = this.child;
@@ -323,7 +336,9 @@ class McpConnection {
         child.stdin.end();
         await Promise.race([closed, new Promise<void>(resolve => { const timer = setTimeout(resolve, 750); timer.unref?.(); })]);
         if (child.exitCode === null && child.signalCode === null) {
-          child.kill();
+          // MCP stdio 可能由 npx/uvx/dnx 启动；终止整个进程树，避免只杀 runner 而残留真正的服务进程。
+          if (child.pid) await killProcessTree(child.pid, 500);
+          else child.kill();
           await Promise.race([closed, new Promise<void>(resolve => { const timer = setTimeout(resolve, 750); timer.unref?.(); })]);
         }
       }

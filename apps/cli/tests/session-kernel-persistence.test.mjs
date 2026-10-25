@@ -20,6 +20,44 @@ const setup = `
   const close=()=>{configuration.close();sessionRecords.close();closeDatabase();};
 `;
 
+test("图片附件引用经近期缓存、历史分页和进程重启保持一致", () => {
+  const parent = resolve(cli, "../../dist/.tmp"); mkdirSync(parent, { recursive: true });
+  const data = mkdtempSync(join(parent, "lfaa-session-attachments-"));
+  try {
+    const output = run(data, `${setup}
+      import assert from 'node:assert/strict';
+      (await import('lfaa-storage-domain/src/migration.js')).retireLegacyFileTables();
+      database.prepare("INSERT INTO users(id,username,password_salt,password_hash,role) VALUES ('image-owner','image-owner','salt','hash','admin')").run();
+      const refs=[{id:'11111111-1111-4111-8111-111111111111',name:'测试图片.png'}];
+      let id=null;
+      for(let i=0;i<60;i++){
+        const turn=sessions.createAiTurn('image-owner','workspace',id,'图片 '+i,false,null,undefined,refs);
+        id=turn.session.id;
+        assert.deepEqual(turn.userMessage.attachments,refs);
+        sessions.finishAiAssistantMessage('image-owner',id,turn.assistantMessage.id,'收到','complete');
+      }
+      const page=await sessions.getAiSessionMessagesPage('image-owner',id,undefined,50);
+      assert.deepEqual(page.messages.find(m=>m.role==='user').attachments,refs);
+      console.log(JSON.stringify({id}));close();
+    `);
+    run(data, `${setup}
+      import assert from 'node:assert/strict';
+      const {id}=${output.trim()};
+      const refs=[{id:'11111111-1111-4111-8111-111111111111',name:'测试图片.png'}];
+      const first=await sessions.getAiSessionMessagesPage('image-owner',id,undefined,50);
+      const older=await sessions.getAiSessionMessagesPage('image-owner',id,first.nextCursor,50);
+      for(const page of [first,older]) for(const message of page.messages.filter(m=>m.role==='user')) assert.deepEqual(message.attachments,refs);
+      for(const message of sessions.getAiSessionMessages('image-owner',id).filter(m=>m.role==='user')) assert.deepEqual(message.attachments,refs);
+      assert.equal(await sessions.getAiSessionMessagesPage('another-owner',id,undefined,50),null);
+      close();
+    `);
+  } finally {
+    assert.equal(dirname(resolve(data)), parent);
+    assert.ok(basename(data).startsWith('lfaa-session-attachments-'));
+    rmSync(data, { recursive: true, force: true });
+  }
+});
+
 test("正文分段和审批记录经 JSONL 重启与分页保留，非法范围拒绝", () => {
   const parent = resolve(cli, "../../dist/.tmp"); mkdirSync(parent, { recursive: true });
   const data = mkdtempSync(join(parent, "lfaa-session-response-parts-"));
@@ -127,7 +165,21 @@ test("真实 Agent 请求、Tool 中断修复、精确 fork 与重启沿用唯�
       assert.equal(branchEvents.some(event=>event.type==='tool/result'&&event.data.executionState==='unconfirmed'),true);
       assert.equal(sessions.getAiSessionMessages('kernel-owner',branch.id).length,1);
       assert.equal(sessions.getAiSessionMessages('kernel-other',branch.id),null);
+      const failedTurn=sessions.createAiTurn('kernel-owner','writing',null,'Provider 失败终态');
+      sessions.recordAiModelResponse('kernel-owner',failedTurn.session.id,failedTurn.assistantMessage.id,'部分输出',[
+        {id:'failed-dispatched',name:'local_execute_command',arguments:'{}'},
+        {id:'failed-not-started',name:'host_execute_command',arguments:'{}'}
+      ]);
+      sessions.recordAiToolCall('kernel-owner',failedTurn.session.id,failedTurn.assistantMessage.id,'failed-dispatched','local_execute_command','{}',true);
+      sessions.recordAiToolCall('kernel-owner',failedTurn.session.id,failedTurn.assistantMessage.id,'failed-not-started','host_execute_command','{}',false);
+      sessions.finishAiAssistantMessage('kernel-owner',failedTurn.session.id,failedTurn.assistantMessage.id,'部分输出（失败）','error');
+      const failedEvents=sessionRecords.allForSession('session_events',failedTurn.session.id);
+      assert.equal(failedEvents.at(-1).type,'turn/end');
+      assert.equal(failedEvents.at(-1).data.status,'error');
+      assert.deepEqual(failedEvents.filter(event=>event.type==='tool/result').map(event=>event.data.executionState),['unconfirmed','not_started']);
+      assert.equal(sessions.getAiSessionMessages('kernel-owner',failedTurn.session.id).at(-1).status,'error');
       await sessions.flushAiSession('kernel-owner',turn.session.id);
+      await sessions.flushAiSession('kernel-owner',failedTurn.session.id);
       close();
     `);
     run(data, `${setup}
@@ -143,6 +195,109 @@ test("真实 Agent 请求、Tool 中断修复、精确 fork 与重启沿用唯�
   } finally {
     assert.equal(dirname(resolve(data)), parent);
     assert.ok(basename(data).startsWith("lfaa-session-kernel-"));
+    rmSync(data, { recursive: true, force: true });
+  }
+});
+
+test("进程恢复会关闭未完成的活动卡片并持久化真实中断状态", () => {
+  const parent = resolve(cli, "../../dist/.tmp");
+  mkdirSync(parent, { recursive: true });
+  const data = mkdtempSync(join(parent, "lfaa-session-interrupted-activity-"));
+  try {
+    const output = run(data, `${setup}
+      (await import('lfaa-storage-domain/src/migration.js')).retireLegacyFileTables();
+      database.prepare("INSERT INTO users(id,username,password_salt,password_hash,role) VALUES ('activity-owner','activity-owner','salt','hash','admin')").run();
+      const turn=sessions.createAiTurn('activity-owner','workspace',null,'恢复中断的 Agent 运行');
+      const startedAt='2026-10-25T00:00:00.000Z';
+      sessions.recordAiModelResponse('activity-owner',turn.session.id,turn.assistantMessage.id,'检查中断状态',[
+        {id:'call-dispatched',name:'local_execute_command',arguments:'{}'},
+        {id:'call-not-started',name:'host_execute_command',arguments:'{}'}
+      ]);
+      sessions.recordAiToolCall('activity-owner',turn.session.id,turn.assistantMessage.id,'call-dispatched','local_execute_command','{}',true);
+      sessions.recordAiToolCall('activity-owner',turn.session.id,turn.assistantMessage.id,'call-not-started','host_execute_command','{}',false);
+      sessions.saveAiAssistantActivity('activity-owner',turn.session.id,turn.assistantMessage.id,[
+        {id:'running-tool',kind:'tool',title:'调用 LFAA 工具',status:'running',detail:'参数校验通过；将按当前权限模式执行。',startedAt,completedAt:null,durationMs:null},
+        {id:'pending-approval',kind:'command',title:'等待审批',status:'approval_required',detail:'审批尚未完成。',startedAt,completedAt:null,durationMs:null,approvalId:'approval-fixture'},
+        {id:'pending-question',kind:'question',title:'等待补充信息',status:'waiting_input',detail:'问题尚未回答。',startedAt,completedAt:null,durationMs:null,questionId:'question-fixture',question:'选择目标？',options:['A','B']},
+        {id:'finished',kind:'status',title:'已完成阶段',status:'complete',detail:'已完成。',startedAt,completedAt:startedAt,durationMs:0}
+      ]);
+      console.log(JSON.stringify({sessionId:turn.session.id}));close();
+    `);
+    const { sessionId } = JSON.parse(output);
+    run(data, `${setup}
+      const sessionId=${JSON.stringify(sessionId)};
+      const reply=sessions.getAiSessionMessages('activity-owner',sessionId).at(-1);
+      assert.equal(reply.status,'interrupted');
+      assert.deepEqual(reply.activity.map(item=>item.status),['unavailable','unavailable','unavailable','complete']);
+      assert.ok(reply.activity.slice(0,3).every(item=>item.completedAt && Number.isFinite(item.durationMs)));
+      assert.match(reply.activity[0].detail,/结果未确认|未确认/u);
+      assert.match(reply.activity[1].detail,/未批准|中断/u);
+      assert.match(reply.activity[2].detail,/中断|重新发起/u);
+      const events=sessionRecords.allForSession('session_events',sessionId);
+      const resultByCall=new Map(events.filter(event=>event.type==='tool/result').map(event=>[event.data.callId,event.data]));
+      assert.equal(resultByCall.get('call-dispatched').executionState,'unconfirmed');
+      assert.equal(resultByCall.get('call-dispatched').repaired,true);
+      assert.equal(resultByCall.get('call-not-started').executionState,'not_started');
+      assert.equal(resultByCall.get('call-not-started').repaired,true);
+      assert.equal(events.at(-1).type,'turn/end');
+      assert.equal(events.at(-1).data.status,'interrupted');
+      const count=events.length;
+      assert.equal(sessions.getAiSessionMessages('activity-owner',sessionId).at(-1).status,'interrupted');
+      assert.equal(sessionRecords.allForSession('session_events',sessionId).length,count);
+      close();
+    `);
+  } finally {
+    assert.equal(dirname(resolve(data)), parent);
+    assert.ok(basename(data).startsWith("lfaa-session-interrupted-activity-"));
+    rmSync(data, { recursive: true, force: true });
+  }
+});
+
+test("已闭合的中断事件仍会修复旧消息投影中的运行卡片", () => {
+  const parent = resolve(cli, "../../dist/.tmp");
+  mkdirSync(parent, { recursive: true });
+  const data = mkdtempSync(join(parent, "lfaa-session-stale-interruption-projection-"));
+  try {
+    const output = run(data, `${setup}
+      (await import('lfaa-storage-domain/src/migration.js')).retireLegacyFileTables();
+      database.prepare("INSERT INTO users(id,username,password_salt,password_hash,role) VALUES ('projection-owner','projection-owner','salt','hash','admin')").run();
+      const turn=sessions.createAiTurn('projection-owner','workspace',null,'恢复已修复过的中断运行');
+      const startedAt='2026-10-25T00:00:00.000Z';
+      sessions.recordAiModelResponse('projection-owner',turn.session.id,turn.assistantMessage.id,'检查中断状态',[{id:'call-already-repaired',name:'lfaa_terminal',arguments:'{}'}]);
+      sessions.recordAiToolCall('projection-owner',turn.session.id,turn.assistantMessage.id,'call-already-repaired','lfaa_terminal','{}',true);
+      sessions.saveAiAssistantActivity('projection-owner',turn.session.id,turn.assistantMessage.id,[
+        {id:'running-tool',kind:'tool',title:'调用 LFAA 工具',status:'running',detail:'工具派发后未收到结果。',startedAt,completedAt:null,durationMs:null}
+      ]);
+      sessions.appendAiSessionEvents('projection-owner',turn.session.id,[
+        {type:'assistant/message',data:{messageId:turn.assistantMessage.id,content:'',status:'interrupted',runId:turn.assistantMessage.id}},
+        {type:'tool/result',data:{runId:turn.assistantMessage.id,callId:'call-already-repaired',content:'工具结果未确认。',isError:true,executionState:'unconfirmed',repaired:true}},
+        {type:'turn/end',data:{turnId:turn.assistantMessage.id,status:'interrupted'}}
+      ]);
+      console.log(JSON.stringify({sessionId:turn.session.id}));close();
+    `);
+    const { sessionId } = JSON.parse(output);
+    run(data, `${setup}
+      const sessionId=${JSON.stringify(sessionId)};
+      const before=sessionRecords.allForSession('session_events',sessionId);
+      assert.equal(before.at(-1).type,'turn/end');
+      assert.equal(before.at(-1).data.status,'interrupted');
+      const reply=sessions.getAiSessionMessages('projection-owner',sessionId).at(-1);
+      assert.equal(reply.status,'interrupted');
+      assert.equal(reply.activity[0].status,'unavailable');
+      assert.ok(reply.activity[0].completedAt);
+      const after=sessionRecords.allForSession('session_events',sessionId);
+      assert.equal(after.filter(event=>event.type==='tool/result').length,1);
+      assert.equal(after.filter(event=>event.type==='turn/end').length,1);
+      assert.equal(after.at(-1).type,'activity/change');
+      assert.equal(after.at(-1).data.activity[0].status,'unavailable');
+      const count=after.length;
+      sessions.getAiSessionMessages('projection-owner',sessionId);
+      assert.equal(sessionRecords.allForSession('session_events',sessionId).length,count);
+      close();
+    `);
+  } finally {
+    assert.equal(dirname(resolve(data)), parent);
+    assert.ok(basename(data).startsWith("lfaa-session-stale-interruption-projection-"));
     rmSync(data, { recursive: true, force: true });
   }
 });

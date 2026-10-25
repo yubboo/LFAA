@@ -21,6 +21,7 @@ import type { AiPluginHost } from "lfaa-app-boot/src/ai-host.js";
 import type { MinecraftRealtimePublisher } from "lfaa-api-remotes/src/socket-server.js";
 import { asyncHandler, parseBody } from "lfaa-api-remotes/src/route-contracts.js";
 import { createAiSessionBranchWithMemory } from "lfaa-agent-loop/src/runs.js";
+import { resolveAiSessionWorkspaceContext } from "lfaa-agent-loop/src/workspace-context.js";
 import { getAiSession, listAiSessions, setAiSessionProject, type AiSessionProjectContext } from "lfaa-session/src/sessions.js";
 import { claimLegacyLocalDefaultWorkspace, claimWorkspaceProjectApplication, createWorkspaceGitWorktree, createWorkspaceProject, getDefaultWorkspaceProjectId, getWorkspaceProject, hasWorkspaceGitWorktrees, listWorkspaceProjects, searchWorkspaceProjects, removeWorkspaceProject, renameWorkspaceProject, setDefaultWorkspaceProject, updateDefaultWorkspaceProjectPath, type WorkspaceProjectApplicationId } from "lfaa-workspace-workspace/src/index.js";
 
@@ -40,6 +41,7 @@ const changeSessionProjectSchema = Joi.object({ appId: projectAppIdSchema, proje
 const removeProjectSchema = Joi.object({ appId: projectAppIdSchema, deleteManagedWorktree: Joi.boolean().default(false) }).unknown(false);
 const projectActionSchema = Joi.object({ appId: projectAppIdSchema }).unknown(false);
 const createWorktreeSchema = Joi.object({ appId: projectAppIdSchema }).unknown(false);
+const sessionDirectoryAvailabilitySchema = Joi.object({ sessionIds: Joi.array().items(Joi.string().guid()).max(200).unique().required() }).unknown(false);
 const projectRelativeFilePathSchema = Joi.string().min(1).max(32760).custom((value: string, helpers) => {
   const segments = value.split("/");
   if (value.startsWith("/") || value.includes("\\") || /[\u0000-\u001f\u007f]/u.test(value) || segments.some((segment: string) => !segment || segment === "." || segment === "..")) return helpers.error("string.pattern.base");
@@ -151,6 +153,47 @@ export function registerRoutes(router: Router, aiPluginHost: AiPluginHost, _real
     const defaultProjectId = initializedProjectId && getWorkspaceProject(request.auth!.user.id, initializedProjectId, "workspace") ? initializedProjectId : null;
     response.json({ ...result, projects, defaultProjectId, nodes: nodes.map(({ id, displayName, platform, architecture, version, status, lastSeenAt }) => ({ id, displayName, platform, architecture, version, status, lastSeenAt, local: !isRemoteDaemonIdentity(id) })) });
   });
+
+  router.post("/workspace/sessions/directory-availability", requireAuthentication, asyncHandler(async (request, response) => {
+    const { sessionIds } = parseBody<{ sessionIds: string[] }>(sessionDirectoryAvailabilitySchema, request.body);
+    const userId = request.auth!.user.id;
+    const statuses: Record<string, "available" | "missing" | "unknown"> = Object.fromEntries(sessionIds.map(sessionId => [sessionId, "unknown"]));
+    const groups = new Map<string, { appId: WorkspaceProjectApplicationId; nodeId: string | null; sessionIds: string[]; paths: string[] }>();
+    for (const sessionId of sessionIds) {
+      const context = resolveAiSessionWorkspaceContext(userId, sessionId);
+      if (!context) continue;
+      const path = context.path;
+      const nodeId = context.nodeId;
+      const appId: WorkspaceProjectApplicationId = context.appId === "minecraft" ? "minecraft" : "workspace";
+      const key = `${appId}\u0000${nodeId ?? "local"}`;
+      const group = groups.get(key) ?? { appId, nodeId, sessionIds: [], paths: [] };
+      group.sessionIds.push(sessionId);
+      group.paths.push(path);
+      groups.set(key, group);
+    }
+
+    const pendingGroups = [...groups.values()];
+    let nextGroup = 0;
+    await Promise.all(Array.from({ length: Math.min(4, pendingGroups.length) }, async () => {
+      while (nextGroup < pendingGroups.length) {
+        const group = pendingGroups[nextGroup++];
+        try {
+          const result = (group.nodeId === null
+            ? aiPluginHost.executeLocalProjectFile
+              ? await aiPluginHost.executeLocalProjectFile({ operation: "inspect_directories", paths: group.paths })
+              : null
+            : await runDirectoryOperation(userId, group.appId, group.nodeId, { operation: "inspect_directories", paths: group.paths })) as { directories?: unknown } | null;
+          if (!result) continue;
+          const directories = result.directories;
+          if (!Array.isArray(directories) || directories.length !== group.sessionIds.length || directories.some(directory => typeof directory !== "boolean")) continue;
+          group.sessionIds.forEach((sessionId, index) => { statuses[sessionId] = directories[index] ? "available" : "missing"; });
+        } catch {
+          // Offline nodes, permission failures and Host errors are unknown; only a confirmed ENOENT/ENOTDIR is missing.
+        }
+      }
+    }));
+    response.json({ sessions: statuses });
+  }));
 
   router.post("/workspace/projects/browse", requireAuthentication, asyncHandler(async (request, response) => {
     const body = parseBody<{ appId: WorkspaceProjectApplicationId; nodeId: string; operation: "home" | "list" | "create-directory"; path: string; name?: string }>(browseSchema, request.body);

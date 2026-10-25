@@ -401,6 +401,100 @@ try {
   assert.doesNotMatch(JSON.stringify(sessionRecords.allForSession("ai_messages", imageTurn.session.id)), /data:image|iVBORw0KGgo/u);
   console.log("verified:files");
 
+  // 完整 Profile 中的本机项目工程闭环：项目说明、真实语法检查、摘要保护修复、Git 差异和同命令复验。
+  if (process.platform === "win32") {
+    const engineeringRoot = process.env.LFAA_ENGINEERING_PROJECT_ROOT;
+    assert.ok(engineeringRoot && !engineeringRoot.startsWith(process.env.LFAA_DATA_DIR), "工程夹具必须位于隔离 Data 目录之外");
+    await mkdir(join(engineeringRoot, "src"), { recursive: true });
+    await writeFile(join(engineeringRoot, "AGENTS.md"), "# Project instructions\nOnly modify src/index.js. The project check is `node --check src/index.js`. After fixing it, inspect the project diff and rerun the same check.\n", "utf8");
+    await writeFile(join(engineeringRoot, "package.json"), JSON.stringify({ name: "lfaa-isolated-project", private: true, scripts: { check: "node --check src/index.js" } }, null, 2) + "\n", "utf8");
+    const brokenSource = "const base = 40;\nfunction answer() { return base + ; }\n";
+    const fixedSource = "const base = 40;\nfunction answer() { return base + 2; }\n";
+    await writeFile(join(engineeringRoot, "src", "index.js"), brokenSource, "utf8");
+    const { createWorkspaceProject: createEngineeringProject } = await import("lfaa-workspace-workspace/src/index.js");
+    const engineeringWorkspace = createEngineeringProject({ userId: owner, appId: "workspace", nodeId: null, path: engineeringRoot, platform: process.platform, title: "隔离 Node 工程" });
+    settings.saveUserSettings(owner, "general", { ...settings.getUserSettings(owner).general, taskFolder: engineeringRoot });
+    settings.saveUserSettings(owner, "ai-runtime", { ...settings.getUserSettings(owner).aiRuntime, autoCompaction: false, requestRetries: 0, maxModelRequests: 16, maxToolCalls: 24 });
+    assert.equal(settings.getUserSettings(owner).aiRuntime.executionSandboxMode, "workspace-write", "工程命令必须沿用隔离账户的默认受限沙箱模式");
+    assert.ok(tool("project_file_operation"));
+    assert.ok(tool("local_execute_command"), "完整本机 Profile 必须登记真实本机 Shell Owner 工具");
+
+    let engineeringStep = 0;
+    let sourceSha256 = "";
+    let initialCheck = null;
+    let fixedCheck = null;
+    const checkCommand = "node --check src/index.js";
+    const readToolText = body => body.messages.filter(message => message.role === "tool").at(-1)?.content ?? "";
+    const readToolJson = body => JSON.parse(readToolText(body));
+    respond = body => {
+      const toolNames = body.tools?.map(item => item.function.name) ?? [];
+      const previous = readToolText(body);
+      switch (++engineeringStep) {
+        case 1:
+          assert.ok(toolNames.includes("lfaa_tools_list"));
+          return call("lfaa_tools_list", { query: "项目文件读取写入差异 本机 Shell 工程检查" });
+        case 2:
+          assert.match(previous, /project_file_operation/u);
+          assert.match(previous, /local_execute_command/u);
+          return call("lfaa_tools_load", { names: ["project_file_operation", "local_execute_command"] });
+        case 3:
+          assert.ok(toolNames.includes("project_file_operation"));
+          return call("project_file_operation", { operation: "read", path: "AGENTS.md" });
+        case 4:
+          assert.match(previous, /node --check src\/index\.js/u);
+          assert.ok(toolNames.includes("project_file_operation"));
+          return call("project_file_operation", { operation: "read", path: "package.json" });
+        case 5:
+          assert.equal(JSON.parse(JSON.parse(previous).result.content).scripts.check, checkCommand);
+          assert.ok(toolNames.includes("local_execute_command"));
+          return call("local_execute_command", { command: checkCommand, workingDirectory: engineeringRoot, timeoutSeconds: 60 });
+        case 6: {
+          initialCheck = readToolJson(body);
+          assert.equal(initialCheck.executionState, "failed", "第一次项目检查必须保留真实非零退出状态");
+          assert.notEqual(initialCheck.exitCode, 0);
+          assert.match(initialCheck.stderr + initialCheck.stdout, /SyntaxError|Unexpected token/u);
+          assert.ok(toolNames.includes("project_file_operation"));
+          return call("project_file_operation", { operation: "read", path: "src/index.js" });
+        }
+        case 7: {
+          const source = readToolJson(body).result;
+          assert.equal(source.content, brokenSource);
+          sourceSha256 = source.sha256;
+          assert.match(JSON.stringify(body.messages), /SyntaxError|Unexpected token/u, "真实检查输出必须先回到下一次模型输入");
+          return call("project_file_operation", { operation: "write", path: "src/index.js", sha256: sourceSha256, content: fixedSource });
+        }
+        case 8:
+          assert.match(previous, /sha256|changed/u);
+          return call("project_file_operation", { operation: "diff", path: "src/index.js" });
+        case 9:
+          assert.match(previous, /diff --git/u, "项目文件 Owner 必须返回 Git 差异");
+          assert.match(previous, /base \+ 2;/u, "项目差异必须显示写入的新代码");
+          return call("local_execute_command", { command: checkCommand, workingDirectory: engineeringRoot, timeoutSeconds: 60 });
+        case 10:
+          fixedCheck = readToolJson(body);
+          assert.equal(fixedCheck.executionState, "complete", "复验必须执行相同项目检查并返回成功");
+          assert.equal(fixedCheck.exitCode, 0);
+          assert.equal(fixedCheck.sandbox?.mode, "workspace-write");
+          assert.equal(fixedCheck.sandbox?.enforcement, "full");
+          return sse({ content: "已按项目说明检查 Node 工程；首次语法检查失败后读取报错，按文件摘要修复 src/index.js，查看差异并用同一命令复验通过。" });
+        default:
+          throw new Error(`隔离工程 Agent 意外请求第 ${engineeringStep} 次 Provider`);
+      }
+    };
+    const engineeringTurn = sessions.createAiTurn(owner, "workspace", null, "检查并修复当前隔离 Node 项目。", false, engineeringWorkspace);
+    const engineering = await execute("检查并修复当前隔离 Node 项目。", { turn: engineeringTurn, workspaceProject: engineeringWorkspace });
+    const engineeringEvents = await sessions.getAiQueryEventsPage(owner, engineeringTurn.session.id, engineeringTurn.session.id, { after: 0, limit: 100 });
+    assert.equal(engineering.run.status, "complete", JSON.stringify(engineering.run.message));
+    assert.equal(engineeringStep, 10);
+    assert.equal(sourceSha256.length, 64);
+    assert.notEqual(initialCheck.exitCode, 0);
+    assert.equal(fixedCheck.exitCode, 0);
+    assert.equal(await readFile(join(engineeringRoot, "src", "index.js"), "utf8"), fixedSource);
+    assert.ok(engineeringEvents.events.some(event => event.type === "tool/call" && event.data.name === "project_file_operation"));
+    assert.ok(engineeringEvents.events.some(event => event.type === "tool/call" && event.data.name === "local_execute_command"));
+    console.log("verified:project-engineering-loop");
+  }
+
   // 到点创建真实 Run，交付历史保存 Run ID；缺少消费者必须失败。
   const { listDeliveries } = await import("lfaa-schedule/src/delivery-history.js");
   const { createDefaultFireHandler } = await import("lfaa-schedule/src/client.js");
@@ -521,8 +615,14 @@ try {
   const terminal = createTerminalTool({ createSession: async () => fakeSession, getSession: () => fakeSession });
   const terminalContext = { ...fileContext, onRunDispose: fn => { cleanup = fn; } };
   const created = await terminal.execute({ action: "create" }, terminalContext);
-  await terminal.execute({ action: "send", sessionId: created.sessionId, input: "fixture\n" }, terminalContext);
+  await terminal.execute(terminal.parse({ action: "send", sessionId: created.sessionId, input: "fixture\n" }), terminalContext);
   assert.equal((await terminal.execute({ action: "read", sessionId: created.sessionId }, terminalContext)).output, "fixture\n");
+  const submit = terminal.parse({ action: "send", sessionId: created.sessionId, input: "submitted fixture", submit: true });
+  await terminal.execute(submit, terminalContext);
+  assert.equal((await terminal.execute({ action: "read", sessionId: created.sessionId }, terminalContext)).output, "submitted fixture\r");
+  assert.notEqual(terminal.approval({ action: "send", sessionId: created.sessionId, input: "same" }).scopeKey, terminal.approval({ action: "send", sessionId: created.sessionId, input: "same", submit: true }).scopeKey);
+  assert.throws(() => terminal.parse({ action: "send", input: "invalid", submit: "yes" }), /submit 必须是布尔值/u);
+  assert.throws(() => terminal.parse({ action: "read", submit: true }), /submit 只适用于 send/u);
   await assert.rejects(terminal.execute({ action: "read", sessionId: created.sessionId }, { ...terminalContext, userId: other }), /当前账户/u);
   cleanup(); await new Promise(resolve => setImmediate(resolve)); assert.equal(closed, 1);
   console.log("verified:terminal");

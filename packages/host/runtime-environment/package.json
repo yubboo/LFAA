@@ -1,6 +1,6 @@
 {
   "name": "lfaa-runtime-environment", "version": "0.1.1", "private": true, "type": "module",
   "exports": { "./src/*": "./src/*", "./package.json": "./package.json", ".": "./src/java-runtime.mjs" },
-  "dependencies": {"undici":"6.29.0"},
+  "dependencies": {"undici":"6.29.1"},
   "scripts": { "build": "node ../../../scripts/build-harness.mjs package" }
 }

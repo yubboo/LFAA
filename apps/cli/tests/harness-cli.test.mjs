@@ -95,7 +95,7 @@ test("Web 端口被占用时在插件装配前给出明确错误", { timeout: 15
 async function localNodeReady(runtime, directory) {
   if (process.platform !== "win32" || process.arch !== "x64") return;
   // 只读取测试目录内控制面的真实心跳，确认 Web 自动托管节点，而不是只看到进程启动日志。
-  const database = new DatabaseSync(resolve(directory, "data/database/lfaa.sqlite"), { readOnly: true });
+  const database = new DatabaseSync(resolve(directory, "home/database/lfaa.sqlite"), { readOnly: true });
   try {
     for (let attempt = 0; attempt < 150; attempt++) {
       if (database.prepare("SELECT 1 FROM daemon_nodes WHERE status='online' AND last_seen_at > ?").get(new Date(Date.now() - 20000).toISOString())) return;

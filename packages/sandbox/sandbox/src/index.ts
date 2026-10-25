@@ -16,6 +16,10 @@ export interface ConfinedCommand {
   readonly effectiveMode: SandboxMode;
   readonly enforcement: SandboxEnforcement;
   readonly providerId: string;
+  /** 受限 Host 返回最终回执时使用；未确认令牌不得作为受限执行成功证据。 */
+  readonly verificationToken?: string;
+  /** 将停止请求写入 Host 专用控制通道；false 表示调用方应强制终止运行器。 */
+  readonly requestStop?: (reason: "cancel" | "timeout" | "killed") => boolean;
 }
 
 export class SandboxUnavailableError extends Error {
@@ -56,6 +60,10 @@ export function assertSandboxResult(
   if (result.effectiveMode !== policy.mode) throw new SandboxUnavailableError("沙箱提供方没有维持本次请求的限制模式。");
   if (result.enforcement !== (policy.mode === "danger-full-access" ? "none" : "full")) {
     throw new SandboxUnavailableError("沙箱提供方无法完整执行本次请求的隔离边界。");
+  }
+  if (policy.mode !== "danger-full-access"
+    && (!result.verificationToken || !/^[0-9a-f-]{36}$/iu.test(result.verificationToken) || typeof result.requestStop !== "function")) {
+    throw new SandboxUnavailableError("受限沙箱提供方缺少单次 Host 回执或可清理的取消通道。");
   }
   if (policy.mode === "danger-full-access" && (result.argv.length !== requestedArgv.length || result.argv.some((value, index) => value !== requestedArgv[index]))) {
     throw new SandboxUnavailableError("不受沙箱约束的执行必须保持调用方提交的 argv 原样。");

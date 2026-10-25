@@ -85,10 +85,14 @@ test("同一个新标签页内用地址栏替换主页内容，不新增第二�
   assert.match(browser, /navigateBrowserDock\(sessionId, providerId, target\)/u);
   assert.match(browser, /existing\?\.scope === scope\) return existing\.promise/u, "同一账户会话和 Provider 合并并发状态读取");
   assert.match(browser, /const scope = `\$\{sourceSession\}:\$\{selectedProvider\}`/u, "不同账户会话或浏览器 Provider 不会错误复用旧快照");
-  assert.match(browser, /waitForBrowserDockRevision\(sessionId, providerId, current\.revision/u, "页面变化通过可撤销的 Browser Owner 修订等待同步");
-  assert.match(browser, /current && current\.revision > next\.revision \? current : next/u, "较旧页面响应不会覆盖较新导航状态");
-  assert.match(browser, /隔离的 Chromium 窗口中真实渲染/u, "Web 模式清楚说明真实页面在隔离浏览器窗口渲染");
-  assert.doesNotMatch(browser, /screenshot|<img|<canvas|WheelEvent|onPointerDown|clickAt|typeText/u, "Web Dock 不再生成或交互于 JPEG 页面播放器");
+  assert.match(browser, /waitForBrowserDockRevision\(sessionId, providerId, current\?\.revision \?\? 0/u, "页面变化通过可撤销的 Browser Owner 修订等待同步，空状态从零开始等待");
+  assert.match(browser, /setSnapshot\(current => preferCurrentBrowserSnapshot\(current, next\)\)/u, "Browser Dock 使用 Session 感知快照接纳规则，Owner 重建后的 Session 可以替换旧页面状态");
+  assert.match(browser, /Web 使用认证实时帧流，Electron 使用原生 WebContentsView/u, "共享面板明确区分 Web 实时帧流与 Electron 原生网页视图");
+  assert.match(browser, /streamBrowserDockFrames\([\s\S]*?<canvas/u, "Web Dock 用同一 Browser Owner 页面帧绘制实时网页");
+  assert.match(browser, /const onViewportWheel = useCallback\(\(event: WheelEvent<HTMLDivElement>\) => \{[\s\S]*?event\.preventDefault\(\);[\s\S]*?event\.stopPropagation\(\);/u, "Web Dock 拦截网页区域滚轮，不让事件滚到外层工作区");
+  assert.match(browser, /const flushWheel = useCallback\([\s\S]*?actOnBrowserDock\(sessionId, providerId, \{ action: "scroll"/u, "Web Dock 把网页滚动动作发送给 Browser Owner");
+  assert.match(browser, /onWheel=\{onViewportWheel\}/u);
+  assert.doesNotMatch(browser, /<img\b/u, "Web Dock 不使用静态图片播放器替代实时帧画面");
   assert.doesNotMatch(browser, /接入浏览器|providerConnected|connectProvider\(/u, "LFAA Browser Dock 的手动导航不再出现 Provider 接入门槛");
   assert.doesNotMatch(browser, /lfaa-browser-panel__(?:header|provider-tabs|address|views|footer)/u, "内容区组件不再包含第二套浏览器标题、标签或地址栏");
   assert.match(nativeBrowser, /actionRequest\.action === "back"[\s\S]*?api\.forward\(activeTab\.id\)[\s\S]*?api\.reload\(activeTab\.id\)/u);
@@ -127,4 +131,8 @@ test("推荐区显示 Browser Dock 当前打开标签，并复用一次性导航
   assert.match(migration, /migrateWorkspaceLocalDefaultSchema\(\);\s*migrateBrowserRecentSitesSchema\(\)/u, "新表只能在旧文件迁移协调和版本 60 完成后创建");
   const sqlite = read("../../../packages/storage/storage-sqlite/src/database.ts");
   assert.match(sqlite, /if \(version < 60 \|\| version >= 61\) return/u, "数据库版本 30 不能被跳过直接标成版本 61");
+});
+
+test("右侧能力资源长列表跳过离屏绘制并按外观字号保留滚动尺寸", () => {
+  assert.match(rightMenuCss, /\.module-context__resource-list > div \{[^}]*content-visibility: auto;[^}]*contain-intrinsic-block-size: auto calc\(var\(--font-size-xs\) \+ var\(--font-size-xs\) \+ 15px\)/u);
 });

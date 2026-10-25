@@ -15,8 +15,8 @@ import {
   type ShellExecRequest,
   type ShellExecSpec,
   type ShellExecutor,
-  type ShellRunResult,
 } from "lfaa-shell";
+import { withSandboxResult } from "lfaa-shell";
 import {
   SandboxUnavailableError,
   assertSandboxResult,
@@ -51,30 +51,19 @@ function defaultResolve(request: ShellExecRequest): ShellExecSpec {
 }
 
 /** 以请求规格构造 pwsh argv（与 pwsh-local 一致）。 */
-function pwshArgv(command: string): string[] {
+function pwshArgv(command: string, workingDirectory: string): string[] {
   const pwsh = resolvePwsh();
-  return [
+  const argv = [
     pwsh.exe,
     "-NoLogo",
     "-NoProfile",
     "-NonInteractive",
     "-ExecutionPolicy", "Bypass",
-    "-Command", command,
   ];
-}
-
-/** 委托式包裹：仅覆写 result() 附加沙箱事实，其余句柄行为（含 getter）原样转发。 */
-function withSandboxInfo(execution: ShellExecution, info: NonNullable<ShellRunResult["sandbox"]>): ShellExecution {
-  return {
-    get status() { return execution.status; },
-    get exitCode() { return execution.exitCode; },
-    get signal() { return execution.signal; },
-    get done() { return execution.done; },
-    get sandbox() { return info; },
-    readOutput: () => execution.readOutput(),
-    kill: () => execution.kill(),
-    result: async () => ({ ...(await execution.result()), sandbox: info }),
-  };
+  // PowerShell 7 runspace location can differ from the process CWD; initialize it from the same validated policy path without rewriting the user's command.
+  if (pwsh.edition === "pwsh") argv.push("-WorkingDirectory", workingDirectory);
+  argv.push("-Command", command);
+  return argv;
 }
 
 /** 沙箱化 pwsh 执行器；默认模式 workspace-write。 */
@@ -98,8 +87,9 @@ export class PwshSandboxShellExecutor implements ShellExecutor {
       platform: process.platform === "win32" ? "win32" : process.platform === "darwin" ? "darwin" : "linux",
       target: { kind: "local" },
       workspaceRoot: spec.workdir ?? process.cwd(),
+      workingDirectory: spec.workdir ?? process.cwd(),
     });
-    const requested = pwshArgv(spec.command);
+    const requested = pwshArgv(spec.command, policy.workingDirectory ?? policy.workspaceRoot);
     let confined: ConfinedCommand;
     try {
       confined = await provider.confine(requested, policy, spec.signal);
@@ -110,14 +100,14 @@ export class PwshSandboxShellExecutor implements ShellExecutor {
     // 核验提供方没有偷偷放宽模式或替换命令。
     const verified = assertSandboxResult(requested, policy, confined);
     const execution = await spawnLocalProcess(
-      { argv: [...verified.argv], cwd: spec.workdir },
+      {
+        argv: [...verified.argv],
+        cwd: spec.workdir,
+        ...(verified.requestStop ? { requestStop: verified.requestStop } : {}),
+      },
       spec,
     );
-    return withSandboxInfo(execution, {
-      mode: verified.effectiveMode,
-      enforcement: verified.enforcement,
-      denied: false,
-    });
+    return withSandboxResult(execution, verified);
   }
 }
 

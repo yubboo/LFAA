@@ -19,7 +19,7 @@ export async function terminateProcessTree(child) {
   }
 }
 
-export function startCommand({ executable, args, cwd, input, env, timeoutSeconds, onOutput, outputLimitBytes = 128 * 1024 }) {
+export function startCommand({ executable, args, cwd, input, env, timeoutSeconds, onOutput, requestStop, outputLimitBytes = 128 * 1024 }) {
   const child = spawn(executable, args, { cwd, env, windowsHide: true, detached: process.platform !== "win32", shell: false, stdio: ["pipe", "pipe", "pipe"] });
   let cancelled = false, timedOut = false, spawnError = "", truncated = false;
   const output = { stdout: "", stderr: "" }, counts = { stdout: 0, stderr: 0 };
@@ -41,8 +41,11 @@ export function startCommand({ executable, args, cwd, input, env, timeoutSeconds
   }
   child.stdin.on("error", () => {});
   child.stdin.end(input ?? "");
-  const kill = () => terminateProcessTree(child);
-  const timer = timeoutSeconds > 0 ? setTimeout(() => { timedOut = true; void kill(); }, timeoutSeconds * 1000) : undefined;
+  const stop = reason => {
+    try { if (requestStop?.(reason) === true) return Promise.resolve(); } catch { /* 失败时强制结束运行器。 */ }
+    return terminateProcessTree(child);
+  };
+  const timer = timeoutSeconds > 0 ? setTimeout(() => { timedOut = true; void stop("timeout"); }, timeoutSeconds * 1000) : undefined;
   const done = new Promise(resolve => {
     child.once("error", error => { spawnError = error.message; });
     child.once("close", code => {
@@ -50,7 +53,7 @@ export function startCommand({ executable, args, cwd, input, env, timeoutSeconds
       resolve({ ...output, stderr: [output.stderr, spawnError].filter(Boolean).join("\n"), exitCode: typeof code === "number" ? code : null, timedOut, outputTruncated: truncated, cancelled });
     });
   });
-  return { child, done, cancel: async () => { cancelled = true; await kill(); } };
+  return { child, done, cancel: async () => { cancelled = true; await stop("cancel"); } };
 }
 
 /** AppContainer 启动握手和 Vanilla 就绪日志是两项事实；就绪后仍需上层报告可连接性的验证范围。 */

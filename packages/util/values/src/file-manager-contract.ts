@@ -32,7 +32,6 @@ export interface FileOperationInput {
   name?: string;
   destinationPath?: string;
   content?: string;
-  dataBase64?: string;
   sha256?: string;
   expectedSha256?: string;
 }

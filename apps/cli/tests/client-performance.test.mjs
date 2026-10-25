@@ -95,7 +95,7 @@ test("Browser Dock 隐藏时停止修订轮询并取消在途读取，卸载时�
   assert.match(panel, /activeRequest\?\.abort\(\)/u);
   assert.match(panel, /document\.addEventListener\("visibilitychange", onVisibilityChange\)/u);
   assert.match(panel, /document\.removeEventListener\("visibilitychange", onVisibilityChange\)/u);
-  assert.match(panel, /if \(timer\) clearTimeout\(timer\)/u);
+  assert.match(panel, /if \(reconnectTimerRef\.current\) clearTimeout\(reconnectTimerRef\.current\)/u);
 });
 
 test("读取失败仍能在下一轮恢复，手动调用可以观察错误", async t => {
@@ -211,7 +211,7 @@ test("AI Work 主聊挂载唯一分段展示，沿用原活动展开和完成清
   assert.match(response, /useSyncExternalStore\(aiActivityClock\.subscribe/u);
   assert.ok(response.includes('<AiLiveResponseDuration message={message} />'));
   assert.ok(response.includes('pauseLabel ?? summary.label'));
-  assert.match(styles, /response-divider[^}]*border-top: 1px solid var\(--color-border-subtle\)/u);
+  assert.match(styles, /\.ai-work-chat__response-final \{ min-width: 0; padding-top: 14px; \}/u);
 });
 
 test("AI Work流式增量保持历史消息行的记忆边界", () => {
@@ -253,9 +253,10 @@ test("AI Work 文件活动显示真实路径并通过登记项目打开现有 Gi
   assert.match(chat, /查看差异与编辑/u);
   assert.match(workspace, /workspaceProjects\.find\(item => item\.id === projectId/u);
   assert.match(workspace, /onOpenProjectFileReview=\{openProjectFileReview\}/u);
-  assert.match(reviewer, /current\.files\.find\(file => file\.projectPath === path\)/u);
+  assert.match(reviewer, /const repositoryPath = current\.projectRelativePath && path !== current\.projectRelativePath/u);
+  assert.match(reviewer, /current\.files\.find\(file => file\.projectPath === repositoryPath \|\| file\.projectPath === path\)/u);
   assert.match(reviewer, /setReviewPath\(changedFile\.path\)/u);
-  assert.match(reviewer, /<GitChangeReview appId=\{appId\} project=\{project\} status=\{status\} initialPath=\{reviewPath\}/u);
+  assert.match(reviewer, /<GitChangeReview appId=\{appId\} projectId=\{project\.id\} projectTitle=\{project\.title\} status=\{status\} initialPath=\{reviewPath\}/u);
 });
 
 test("AI Work 待处理审批与澄清贴近输入框，处理后记录回到原回复", () => {

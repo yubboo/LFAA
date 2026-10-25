@@ -87,7 +87,8 @@ test("完整 Agent 链：后台继续、前台等待、回收结果、取消等�
     const account = await settings.saveAiAccount(owner, { providerId: "openai", secret: "fixture-invalid-key", options: {}, displayName: "隔离模型", modelId: "fixture-model", reasoningMode: "default" });
     settings.activateAiAccount(owner, account.id);
     settings.saveUserSettings(owner, "permissions", { mode: "full_access" });
-    settings.saveUserSettings(owner, "ai-runtime", { ...settings.defaultSettings.aiRuntime, requestRetries: 0 });
+    settings.saveUserSettings(owner, "general", { ...settings.defaultSettings.general, taskFolder: testData });
+    settings.saveUserSettings(owner, "ai-runtime", { ...settings.defaultSettings.aiRuntime, requestRetries: 0, executionSandboxMode: "danger-full-access" });
     const host = createAiPluginHost(ctx);
     const waitFor = async read => { const deadline = Date.now() + 15_000; while (Date.now() < deadline) { const value = read(); if (value) return value; await new Promise(resolve => setTimeout(resolve, 10)); } throw new Error("隔离场景等待超时"); };
     const start = () => runs.startAiRun(owner, "admin", { appId: "workspace", sessionId: null, content: "isolated-parent" }, host, { allowedToolNames: ["lfaa_delegate_subagent"] });
@@ -150,7 +151,7 @@ test("完整 Agent 链：后台继续、前台等待、回收结果、取消等�
         async execute() { writeFileSync(shellScenario.marker, "fixed"); return { executed: true }; }
       });
       try {
-        settings.saveUserSettings(owner, "ai-runtime", { ...settings.defaultSettings.aiRuntime, requestRetries: 0 });
+        settings.saveUserSettings(owner, "ai-runtime", { ...settings.defaultSettings.aiRuntime, requestRetries: 0, executionSandboxMode: "danger-full-access" });
         for (const unknown of [false, true]) {
           const marker = join(testData, `shell-repaired-${unknown}`);
           shellScenario = { marker, parameters: { command: unknown ? "Start-Sleep -Seconds 3" : `if (Test-Path -LiteralPath '${marker.replaceAll("'", "''")}') { exit 0 } else { exit 1 }`, workingDirectory: testData, timeoutSeconds: unknown ? 1 : 10 } };

@@ -68,13 +68,18 @@
     "lfaa-prompt-minecraft": "workspace:*",
     "lfaa-prompt-writing": "workspace:*",
     "lfaa-domain-experts": "workspace:*",
+    "lfaa-persona": "workspace:*",
     "lfaa-skill-minecraft": "workspace:*",
     "lfaa-skill-writing": "workspace:*",
+    "lfaa-sandbox-windows-acl": "workspace:*",
     "lfaa-skill-rea": "workspace:*",
     "lfaa-tool-minecraft": "workspace:*",
     "lfaa-tool-steamcmd": "workspace:*",
     "lfaa-tool-runtime": "workspace:*",
-    "lfaa-tool-writing": "workspace:*"
+    "lfaa-tool-writing": "workspace:*",
+    "lfaa-tool-daemon": "workspace:*",
+    "lfaa-attachment": "workspace:*",
+    "lfaa-attachment-local": "workspace:*"
   },
   "devDependencies": {
     "@types/express": "^4.0.0",

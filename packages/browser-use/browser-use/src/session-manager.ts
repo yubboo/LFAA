@@ -12,6 +12,7 @@ import { chromium, type Browser, type BrowserContext, type Page } from "playwrig
 import { isPublicMcpAddress, resolveMcpEndpoint } from "lfaa-mcp-client/src/network.js";
 import { database } from "lfaa-storage-sqlite/src/database.js";
 import { getUserSettings } from "lfaa-settings/src/service.js";
+import type { CredentialRecord, CredentialRecordMetadata } from "lfaa-credentials/src/index.js";
 import { BUILTIN_BROWSER_WORKSPACE_ID, type BrowserProviderId } from "lfaa-util-values/src/browser-provider.js";
 import { TabbitBrowserProvider, type TabbitTabSummary } from "./tabbit-provider.js";
 
@@ -25,7 +26,7 @@ const MAX_INTERACTIVE_ITEMS = 80;
 const BROWSER_DOM_CHANGE_NOTIFICATION_INTERVAL_MS = 750;
 const MAX_SCREENSHOT_BYTES = 2 * 1024 * 1024;
 const MAX_IMAGE_DIMENSION = 1280;
-const PAGE_ACTION_TIMEOUT_MS = 8_000;
+const PAGE_ACTION_TIMEOUT_MS = 15_000;
 const MAX_RECENT_SITES_PER_USER = 100;
 const SENSITIVE_FIELD = /(?:password|passcode|secret|token|api[\s_-]?key|authorization|验证码|密码|密钥|令牌)/iu;
 export const BROWSER_ALLOWED_KEYS = ["Enter", "Tab", "Shift+Tab", "Escape", "ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight", "Home", "End", "PageDown", "PageUp", "Space", "Backspace", "Delete", "Control+A", "Meta+A", "Control+C", "Control+V", "Control+X", "Control+Z", "Control+Y", "Meta+C", "Meta+V", "Meta+X", "Meta+Z", "Meta+Y"] as const;
@@ -55,6 +56,30 @@ export class BrowserNavigationTargetError extends Error {
 export interface BrowserRevision { revision: number; url: string; title: string }
 export interface BrowserRecentSite { url: string; visitedAt: string }
 export interface BrowserDragPoint { x: number; y: number; delayMs: number }
+export interface BrowserWebMcpTool {
+  name: string;
+  origin: string;
+  title: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+  annotations: Record<string, unknown>;
+}
+export interface BrowserVaultEntry {
+  id: string;
+  kind: "password" | "contact";
+  title: string;
+  origin?: string;
+  username?: string;
+  email?: string;
+  phone?: string;
+  updatedAt: string;
+}
+interface BrowserVault {
+  list(ownerId: string): readonly CredentialRecordMetadata[];
+  read(ownerId: string, id: string): CredentialRecord | null;
+  save(ownerId: string, id: string, record: CredentialRecord): void;
+  delete(ownerId: string, id: string): boolean;
+}
 export interface BrowserRunAdapterContext {
   ownerId: string;
   sourceSessionId: string;
@@ -62,18 +87,21 @@ export interface BrowserRunAdapterContext {
   signal: AbortSignal;
   onRunDispose: (cleanup: () => void) => void;
 }
-interface BrowserSessionManagerOptions { headless?: boolean }
+interface BrowserSessionManagerOptions { headless?: boolean; vault?: BrowserVault }
 export interface BrowserRunAdapter {
   readonly runId: string;
   listTabs(): Promise<TabbitTabSummary[]>;
   claimTab(tabId: number): Promise<BrowserSnapshot>;
   navigate(providerId: BrowserProviderId, url: string): Promise<BrowserSnapshot>;
   navigateProjectPreview(providerId: BrowserProviderId, preview: { url: string; close: () => Promise<void> }): Promise<BrowserSnapshot>;
-  observe(providerId: BrowserProviderId): Promise<BrowserSnapshot>;
+  observe(providerId: BrowserProviderId, includeScreenshot?: boolean): Promise<BrowserSnapshot>;
   click(providerId: BrowserProviderId, role: string, name: string, occurrence?: number): Promise<BrowserSnapshot>;
   fill(providerId: BrowserProviderId, label: string, value: string): Promise<BrowserSnapshot>;
   pressKey(providerId: BrowserProviderId, key: string): Promise<BrowserSnapshot>;
   scroll(providerId: BrowserProviderId, direction: "up" | "down", amount: number): Promise<BrowserSnapshot>;
+  getWebsiteTools(providerId: BrowserProviderId): Promise<BrowserWebMcpTool[]>;
+  executeWebsiteTool(providerId: BrowserProviderId, origin: string, name: string, input: Record<string, unknown>): Promise<unknown>;
+  sendCdpCommand(providerId: BrowserProviderId, method: string, parameters: Record<string, unknown>): Promise<unknown>;
 }
 
 interface BrowserSession {
@@ -149,6 +177,7 @@ export class BrowserSessionManager {
   private readonly runAdapters = new Map<string, { adapter: BrowserRunAdapter; signal: AbortSignal; dispose: () => void }>();
   private readonly channels = availableChannels();
   private readonly headless: boolean;
+  private readonly vault: BrowserVault | undefined;
   private readonly sweepTimer = setInterval(() => { void Promise.all([this.sweepExpired(), this.tabbit.sweepExpired()]).catch(() => undefined); }, SESSION_SWEEP_MS);
   private readonly browsers = new Map<"msedge" | "chrome" | "native", Promise<Browser>>();
   private readonly nativeActiveTargets = new Map<string, string>();
@@ -163,6 +192,7 @@ export class BrowserSessionManager {
     options: BrowserSessionManagerOptions = {}
   ) {
     this.headless = options.headless ?? true;
+    this.vault = options.vault;
     this.tabbit = new TabbitBrowserProvider(localHostExecution);
     this.sweepTimer.unref?.();
   }
@@ -172,6 +202,13 @@ export class BrowserSessionManager {
     const safeLimit = Math.max(1, Math.min(50, Math.floor(limit)));
     const rows = database.prepare("SELECT url, visited_at FROM browser_recent_sites WHERE user_id = ? ORDER BY visited_at DESC, url LIMIT ?").all(ownerId, safeLimit) as Array<{ url: string; visited_at: string }>;
     return rows.map(row => ({ url: row.url, visitedAt: row.visited_at }));
+  }
+
+  deleteRecentSite(ownerId: string, input: string): boolean {
+    if (!ownerId || !this.isRecentHistoryEnabled(ownerId)) return false;
+    const url = normalizeRecentSiteUrl(input);
+    if (!url) return false;
+    return database.prepare("DELETE FROM browser_recent_sites WHERE user_id = ? AND url = ?").run(ownerId, url).changes > 0;
   }
 
   recordRecentSites(ownerId: string, urls: readonly string[]): number {
@@ -200,6 +237,141 @@ export class BrowserSessionManager {
   clearRecentSites(ownerId: string): void {
     if (!ownerId) return;
     database.prepare("DELETE FROM browser_recent_sites WHERE user_id = ?").run(ownerId);
+  }
+
+  listSavedBrowserCredentials(ownerId: string): { passwords: BrowserVaultEntry[]; contacts: BrowserVaultEntry[] } {
+    if (!this.vault) throw new Error("加密凭据库尚未接入当前 Host。");
+    const passwords: BrowserVaultEntry[] = [], contacts: BrowserVaultEntry[] = [];
+    for (const metadata of this.vault.list(ownerId).slice(0, 256)) {
+      if (metadata.reference.providerId !== "lfaa-browser-use") continue;
+      const payload = this.readBrowserVaultPayload(ownerId, metadata.reference.id);
+      if (!payload) continue;
+      if (payload.type === "password") passwords.push({
+        id: metadata.reference.id, kind: "password", title: payload.title, origin: payload.origin,
+        username: payload.username, updatedAt: metadata.updatedAt
+      });
+      else if (payload.type === "contact") contacts.push({
+        id: metadata.reference.id, kind: "contact", title: payload.title, email: payload.email,
+        phone: payload.phone, updatedAt: metadata.updatedAt
+      });
+    }
+    return { passwords, contacts };
+  }
+
+  saveBrowserPassword(ownerId: string, input: { title: string; origin: string; username: string; password: string }): BrowserVaultEntry {
+    if (!this.vault) throw new Error("加密凭据库尚未接入当前 Host。");
+    const title = input.title.trim(), username = input.username.trim(), password = input.password;
+    let origin: URL;
+    try { origin = new URL(input.origin); } catch { throw new Error("密码对应的网站地址无效。"); }
+    if ((origin.protocol !== "https:" && origin.protocol !== "http:") || origin.username || origin.password
+      || (origin.protocol !== "https:" && !["localhost", "127.0.0.1", "::1"].includes(origin.hostname))) throw new Error("密码仅允许保存到 HTTPS 网站或本机 localhost 网站。");
+    if (!title || title.length > 120 || username.length > 320 || !username || !password || password.length > 4096 || password.includes("\0")) throw new Error("密码条目的名称、用户名或密码无效。");
+    const id = randomUUID();
+    this.vault.save(ownerId, id, { kind: "grant", payload: { type: "password", title, origin: origin.origin, username, password } });
+    return { id, kind: "password", title, origin: origin.origin, username, updatedAt: new Date().toISOString() };
+  }
+
+  saveBrowserContact(ownerId: string, input: { title: string; name: string; address: string; email: string; phone: string }): BrowserVaultEntry {
+    if (!this.vault) throw new Error("加密凭据库尚未接入当前 Host。");
+    const title = input.title.trim(), name = input.name.trim(), address = input.address.trim(), email = input.email.trim(), phone = input.phone.trim();
+    if (!title || title.length > 120 || name.length > 160 || address.length > 500 || email.length > 320 || phone.length > 80
+      || ![name, address, email, phone].some(Boolean) || /[\u0000-\u001f\u007f]/u.test([name, address, email, phone].join(""))) throw new Error("联系信息条目无效。");
+    const id = randomUUID();
+    this.vault.save(ownerId, id, { kind: "grant", payload: { type: "contact", title, name, address, email, phone } });
+    return { id, kind: "contact", title, ...(email ? { email } : {}), ...(phone ? { phone } : {}), updatedAt: new Date().toISOString() };
+  }
+
+  deleteBrowserVaultEntry(ownerId: string, id: string, expectedKind: "password" | "contact"): boolean {
+    if (!this.vault || !/^[0-9a-f-]{36}$/iu.test(id)) return false;
+    const payload = this.readBrowserVaultPayload(ownerId, id);
+    return payload?.type === expectedKind && this.vault.delete(ownerId, id);
+  }
+
+  async fillSavedPassword(ownerId: string, id: string, providerId: BrowserProviderId): Promise<{ filled: string[]; origin: string }> {
+    if (providerId === "tabbit-personal") throw new Error("密码自动填充只支持 LFAA 内置浏览器页面。");
+    const payload = this.readBrowserVaultPayload(ownerId, id);
+    if (!payload || payload.type !== "password") throw new Error("未找到此账户的已保存密码。");
+    const session = await this.getOrCreate(ownerId, BUILTIN_BROWSER_WORKSPACE_ID, providerId);
+    return this.exclusive(session, async () => {
+      const pageOrigin = new URL(session.page.url()).origin;
+      if (pageOrigin !== payload.origin) throw new Error("密码只可填入与保存来源完全相同的网站页面。");
+      const passwordFields = session.page.locator('input[autocomplete="current-password"], input[type="password"]');
+      if (await passwordFields.count() !== 1) throw new Error("当前页面的密码框不存在或不唯一，未填入任何内容。");
+      const usernameFields = session.page.locator('input[autocomplete="username"]');
+      const usernameCount = await usernameFields.count();
+      if (usernameCount > 1) throw new Error("当前页面的用户名字段不唯一，未填入任何内容。");
+      if (usernameCount === 1) await usernameFields.fill(payload.username, { timeout: PAGE_ACTION_TIMEOUT_MS });
+      await passwordFields.first().fill(payload.password, { timeout: PAGE_ACTION_TIMEOUT_MS });
+      this.touch(session);
+      return { filled: [...(usernameCount === 1 ? ["username"] : []), "password"], origin: pageOrigin };
+    });
+  }
+
+  async fillSavedContact(ownerId: string, id: string, providerId: BrowserProviderId): Promise<{ filled: string[]; origin: string }> {
+    if (providerId === "tabbit-personal") throw new Error("联系信息自动填充只支持 LFAA 内置浏览器页面。");
+    const payload = this.readBrowserVaultPayload(ownerId, id);
+    if (!payload || payload.type !== "contact") throw new Error("未找到此账户的已保存联系信息。");
+    const session = await this.getOrCreate(ownerId, BUILTIN_BROWSER_WORKSPACE_ID, providerId);
+    return this.exclusive(session, async () => {
+      const pageOrigin = new URL(session.page.url()).origin;
+      const fields: Array<[string, string, string]> = [
+        ["name", 'input[autocomplete="name"]', payload.name],
+        ["address", 'textarea[autocomplete="street-address"], input[autocomplete="street-address"]', payload.address],
+        ["email", 'input[autocomplete="email"]', payload.email],
+        ["phone", 'input[autocomplete="tel"]', payload.phone]
+      ];
+      const filled: string[] = [];
+      for (const [name, selector, value] of fields) {
+        if (!value) continue;
+        const locator = session.page.locator(selector);
+        const count = await locator.count();
+        if (count > 1) throw new Error(`当前页面的${name}字段不唯一，已停止填写。`);
+        if (count === 1) {
+          await locator.fill(value, { timeout: PAGE_ACTION_TIMEOUT_MS });
+          filled.push(name);
+        }
+      }
+      if (!filled.length) throw new Error("当前页面没有可唯一匹配的标准联系信息字段，未填入内容。");
+      this.touch(session);
+      return { filled, origin: pageOrigin };
+    });
+  }
+
+  private readBrowserVaultPayload(ownerId: string, id: string): Record<string, string> | null {
+    const record = this.vault?.read(ownerId, id);
+    if (!record || record.kind !== "grant" || !record.payload || typeof record.payload !== "object" || Array.isArray(record.payload)) return null;
+    const payload = record.payload as Record<string, unknown>;
+    if (payload.type === "password" && typeof payload.title === "string" && typeof payload.origin === "string"
+      && typeof payload.username === "string" && typeof payload.password === "string") return payload as Record<string, string>;
+    if (payload.type === "contact" && typeof payload.title === "string" && typeof payload.name === "string"
+      && typeof payload.address === "string" && typeof payload.email === "string" && typeof payload.phone === "string") return payload as Record<string, string>;
+    return null;
+  }
+
+  async clearBrowserData(ownerId: string): Promise<{ cleared: true; sessionsCleared: number }> {
+    if (!ownerId || ownerId.length > 256 || ownerId.includes("\0")) throw new Error("浏览数据清理必须绑定有效账户。");
+    const ownedSessions = [...this.sessions.values()].filter(session => session.ownerId === ownerId && !session.disposed);
+    await Promise.all(ownedSessions.map(session => this.exclusive(session, async () => {
+      await session.context.clearCookies();
+      await session.context.clearPermissions();
+      const pages = session.context.pages().filter(page => !page.isClosed());
+      for (const page of pages) {
+        const origin = normalizeRecentSiteUrl(page.url());
+        if (!origin) continue;
+        let client: Awaited<ReturnType<BrowserContext["newCDPSession"]>> | undefined;
+        try {
+          client = await session.context.newCDPSession(page);
+          await client.send("Network.clearBrowserCache");
+          await client.send("Storage.clearDataForOrigin", { origin: new URL(origin).origin, storageTypes: "all" });
+        } catch {
+          throw new Error("浏览器网站数据未能完整清除；请重试，当前账户的历史记录尚未删除。");
+        } finally {
+          await client?.detach().catch(() => undefined);
+        }
+      }
+    })));
+    this.clearRecentSites(ownerId);
+    return { cleared: true, sessionsCleared: ownedSessions.length };
   }
 
   createRunAdapter(binding: BrowserRunAdapterContext): BrowserRunAdapter {
@@ -232,11 +404,14 @@ export class BrowserSessionManager {
       claimTab: (tabId: number): Promise<BrowserSnapshot> => invoke(() => this.claimTab(ownerId, sourceSessionId, "tabbit-personal", tabId, signal)),
       navigate: (providerId: BrowserProviderId, url: string): Promise<BrowserSnapshot> => invoke(() => this.navigate(ownerId, browserWorkspaceId(providerId), providerId, url, signal, true, false)),
       navigateProjectPreview: (providerId: BrowserProviderId, preview: { url: string; close: () => Promise<void> }): Promise<BrowserSnapshot> => invoke(() => this.navigateProjectPreview(ownerId, browserWorkspaceId(providerId), providerId, preview, signal, false)),
-      observe: (providerId: BrowserProviderId): Promise<BrowserSnapshot> => invoke(() => this.observeForRun(ownerId, browserWorkspaceId(providerId), providerId, signal, false)),
+      observe: (providerId: BrowserProviderId, includeScreenshot = false): Promise<BrowserSnapshot> => invoke(() => this.observeForRun(ownerId, browserWorkspaceId(providerId), providerId, signal, includeScreenshot)),
       click: (providerId: BrowserProviderId, role: string, name: string, occurrence?: number): Promise<BrowserSnapshot> => invoke(() => this.click(ownerId, browserWorkspaceId(providerId), providerId, role, name, signal, true, false, occurrence)),
       fill: (providerId: BrowserProviderId, label: string, value: string): Promise<BrowserSnapshot> => invoke(() => this.fill(ownerId, browserWorkspaceId(providerId), providerId, label, value, signal, true, false)),
       pressKey: (providerId: BrowserProviderId, key: string): Promise<BrowserSnapshot> => invoke(() => this.pressKey(ownerId, browserWorkspaceId(providerId), providerId, key, signal, false)),
-      scroll: (providerId: BrowserProviderId, direction: "up" | "down", amount: number): Promise<BrowserSnapshot> => invoke(() => this.scroll(ownerId, browserWorkspaceId(providerId), providerId, direction, amount, signal, false))
+      scroll: (providerId: BrowserProviderId, direction: "up" | "down", amount: number): Promise<BrowserSnapshot> => invoke(() => this.scroll(ownerId, browserWorkspaceId(providerId), providerId, direction, amount, signal, false)),
+      getWebsiteTools: (providerId: BrowserProviderId): Promise<BrowserWebMcpTool[]> => invoke(() => this.getWebsiteTools(ownerId, browserWorkspaceId(providerId), providerId)),
+      executeWebsiteTool: (providerId: BrowserProviderId, origin: string, name: string, input: Record<string, unknown>): Promise<unknown> => invoke(() => this.executeWebsiteTool(ownerId, browserWorkspaceId(providerId), providerId, origin, name, input, signal)),
+      sendCdpCommand: (providerId: BrowserProviderId, method: string, parameters: Record<string, unknown>): Promise<unknown> => invoke(() => this.sendCdpCommand(ownerId, browserWorkspaceId(providerId), providerId, method, parameters, signal))
     });
     const dispose = () => {
       if (!active) return;
@@ -251,6 +426,117 @@ export class BrowserSessionManager {
       throw error;
     }
     return adapter;
+  }
+
+  async getWebsiteTools(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId): Promise<BrowserWebMcpTool[]> {
+    const session = await this.getOrCreate(ownerId, sourceSessionId, providerId);
+    return this.exclusive(session, async () => {
+      this.assertWebsiteToolsAllowed(ownerId, session.page.url());
+      const result = await session.page.evaluate(async () => {
+        const pageDocument = (globalThis as unknown as { document?: { modelContext?: { getTools?: () => Promise<unknown[]> } } }).document;
+        const context = pageDocument?.modelContext;
+        if (!context || typeof context.getTools !== "function") return null;
+        const tools = await context.getTools();
+        if (!Array.isArray(tools)) return [];
+        return tools.slice(0, 32).flatMap((candidate: unknown) => {
+          if (!candidate || typeof candidate !== "object") return [];
+          const tool = candidate as Record<string, unknown>;
+          if (typeof tool.name !== "string" || !/^[A-Za-z0-9_.-]{1,64}$/u.test(tool.name)
+            || typeof tool.description !== "string" || !tool.inputSchema || typeof tool.inputSchema !== "object") return [];
+          let inputSchema: string;
+          let annotations: string;
+          try {
+            inputSchema = JSON.stringify(tool.inputSchema);
+            annotations = JSON.stringify(tool.annotations ?? {});
+          } catch { return []; }
+          if (inputSchema.length > 12_000 || annotations.length > 2_000) return [];
+          const pageOrigin = (globalThis as unknown as { location?: { origin?: string } }).location?.origin ?? "";
+          return [{ name: tool.name, origin: typeof tool.origin === "string" ? tool.origin : pageOrigin,
+            title: typeof tool.title === "string" ? tool.title.slice(0, 120) : "",
+            description: tool.description.slice(0, 500), inputSchema, annotations }];
+        });
+      }).catch(() => null) as Array<{ name: string; origin: string; title: string; description: string; inputSchema: string; annotations: string }> | null;
+      if (result === null) return [];
+      const pageOrigin = new URL(session.page.url()).origin;
+      const tools: BrowserWebMcpTool[] = [];
+      for (const item of result) {
+        if (item.origin !== pageOrigin) continue;
+        try {
+          const inputSchema = JSON.parse(item.inputSchema) as unknown;
+          const annotations = JSON.parse(item.annotations) as unknown;
+          if (!inputSchema || typeof inputSchema !== "object" || Array.isArray(inputSchema) || !annotations || typeof annotations !== "object" || Array.isArray(annotations)) continue;
+          tools.push({ name: item.name, origin: item.origin, title: item.title, description: item.description,
+            inputSchema: inputSchema as Record<string, unknown>, annotations: annotations as Record<string, unknown> });
+        } catch { /* Ignore malformed website-provided metadata. */ }
+      }
+      this.touch(session);
+      return tools;
+    });
+  }
+
+  async executeWebsiteTool(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, origin: string, name: string, input: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> {
+    if (typeof origin !== "string" || typeof name !== "string" || !/^[A-Za-z0-9_.-]{1,64}$/u.test(name)) throw new Error("网站工具来源或名称无效。");
+    let normalizedOrigin: string;
+    try { normalizedOrigin = new URL(origin).origin; } catch { throw new Error("网站工具来源无效。"); }
+    if (normalizedOrigin !== origin) throw new Error("网站工具必须绑定精确网站来源。");
+    const encodedInput = JSON.stringify(input);
+    if (!encodedInput || encodedInput.length > 16_000) throw new Error("网站工具参数超过 16 KiB 限制。");
+    const session = await this.getOrCreate(ownerId, sourceSessionId, providerId);
+    return this.exclusive(session, async () => {
+      this.assertWebsiteToolsAllowed(ownerId, session.page.url());
+      if (new URL(session.page.url()).origin !== origin) throw new Error("浏览器当前页面已离开该网站来源，请重新发现工具。");
+      const result = await session.page.evaluate(async ({ expectedOrigin, expectedName, args }) => {
+        const pageDocument = (globalThis as unknown as { document?: { modelContext?: { getTools?: () => Promise<unknown[]>; executeTool?: (tool: unknown, input: unknown) => Promise<unknown> } } }).document;
+        const context = pageDocument?.modelContext;
+        if (!context || typeof context.getTools !== "function" || typeof context.executeTool !== "function") throw new Error("当前页面不支持 WebMCP。");
+        const tools = await context.getTools();
+        const tool = tools.find((candidate: unknown) => {
+          if (!candidate || typeof candidate !== "object") return false;
+          const entry = candidate as Record<string, unknown>;
+          const pageOrigin = (globalThis as unknown as { location?: { origin?: string } }).location?.origin;
+          return entry.name === expectedName && (entry.origin ?? pageOrigin) === expectedOrigin;
+        });
+        if (!tool) throw new Error("网站工具已失效或不属于当前页面。");
+        return context.executeTool(tool, args);
+      }, { expectedOrigin: origin, expectedName: name, args: JSON.parse(encodedInput) as unknown });
+      const encodedResult = JSON.stringify(result ?? null);
+      if (encodedResult.length > 16_000) throw new Error("网站工具结果超过 16 KiB 限制。");
+      this.touch(session);
+      return { origin, name, result: JSON.parse(encodedResult) as unknown, contentIsUntrusted: true };
+    }, signal);
+  }
+
+  async sendCdpCommand(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, method: string, parameters: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> {
+    const browserSettings = getUserSettings(ownerId).browserUse;
+    if (!browserSettings.enabled) throw new Error("Agent 浏览器控制已在设置中心关闭。");
+    if (!browserSettings.developerMode || !browserSettings.fullCdpAccess) throw new Error("完整 CDP 访问需要在设置中心开启开发者模式和完整 CDP 权限。");
+    if (providerId === "tabbit-personal") throw new Error("完整 CDP 仅支持 LFAA 当前内置浏览器页面，不访问个人浏览器会话。");
+    if (!/^[A-Za-z][A-Za-z0-9]*\.[A-Za-z][A-Za-z0-9]*$/u.test(method) || method.length > 128) throw new Error("CDP 方法名无效。");
+    const encodedParameters = JSON.stringify(parameters);
+    if (!encodedParameters || encodedParameters.length > 16_000) throw new Error("CDP 参数超过 16 KiB 限制。");
+    const session = await this.getOrCreate(ownerId, sourceSessionId, providerId);
+    return this.exclusive(session, async () => {
+      let client: Awaited<ReturnType<BrowserContext["newCDPSession"]>> | undefined;
+      try {
+        client = await session.context.newCDPSession(session.page);
+        const result = await (client.send as (name: string, params?: Record<string, unknown>) => Promise<unknown>)(method, JSON.parse(encodedParameters) as Record<string, unknown>);
+        const encodedResult = JSON.stringify(result ?? null);
+        if (encodedResult.length > 64_000) throw new Error("CDP 返回结果超过 64 KiB 限制。");
+        this.touch(session);
+        return { method, targetUrl: session.page.url().slice(0, 2048), result: JSON.parse(encodedResult) as unknown, contentIsUntrusted: true };
+      } finally { await client?.detach().catch(() => undefined); }
+    }, signal);
+  }
+
+  private assertWebsiteToolsAllowed(ownerId: string, pageUrl: string): void {
+    const settings = getUserSettings(ownerId).browserUse;
+    if (!settings.enabled) throw new Error("Agent 浏览器控制已在设置中心关闭。");
+    let origin: string;
+    try { origin = new URL(pageUrl).origin; } catch { throw new Error("当前页面没有有效 HTTP(S) 来源。"); }
+    const override = settings.websiteToolOverrides.find(item => item.origin === origin);
+    if (override?.decision === "block" || override?.decision !== "allow" && !settings.useWebsiteToolsByDefault) {
+      throw new Error("当前网站的 WebMCP 工具未获设置中心允许。");
+    }
   }
 
   listProviders(ownerId?: string): BrowserProviderSummary[] {
@@ -521,26 +807,37 @@ export class BrowserSessionManager {
   }
 
   async navigateProjectPreview(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, preview: { url: string; close: () => Promise<void> }, signal?: AbortSignal, includeScreenshot = true): Promise<BrowserSnapshot> {
-    if (providerId === "tabbit-personal") throw new Error("工作区文件只能在 LFAA 隔离浏览器中预览，不会传给个人浏览器。");
-    const url = validateNavigationUrl(preview.url);
-    if (url.hostname !== "127.0.0.1" || typeof preview.close !== "function") throw new Error("项目预览源必须是受限的本机只读服务。");
-    const session = await this.getOrCreate(ownerId, sourceSessionId, providerId);
-    signal?.throwIfAborted();
-    return this.exclusive(session, async () => {
-      await this.closeProjectPreview(session);
-      session.allowedLocalOrigin = url.origin;
-      session.projectPreview = preview;
-      try {
-        await this.assertTarget(session, url, true);
-        await session.page.goto(url.toString(), { waitUntil: "commit", timeout: 20_000 });
-        this.touch(session);
-        return await this.observe(session, includeScreenshot);
-      } catch (error) {
-        await this.closeProjectPreview(session);
+    let adopted = false;
+    try {
+      if (providerId === "tabbit-personal") throw new Error("工作区文件只能在 LFAA 隔离浏览器中预览，不会传给个人浏览器。");
+      const url = validateNavigationUrl(preview.url);
+      if (url.hostname !== "127.0.0.1" || typeof preview.close !== "function") throw new Error("项目预览源必须是受限的本机只读服务。");
+      const session = await this.getOrCreate(ownerId, sourceSessionId, providerId);
+      signal?.throwIfAborted();
+      return await this.exclusive(session, async () => {
+        if (session.projectPreview !== preview) await this.closeProjectPreview(session);
         session.allowedLocalOrigin = null;
-        throw error;
-      }
-    }, signal);
+        signal?.throwIfAborted();
+        session.allowedLocalOrigin = url.origin;
+        session.projectPreview = preview;
+        adopted = true;
+        try {
+          await this.assertTarget(session, url, true);
+          await session.page.goto(url.toString(), { waitUntil: "commit", timeout: 20_000 });
+          this.touch(session);
+          return await this.observe(session, includeScreenshot);
+        } catch (error) {
+          if (!signal?.aborted) {
+            await this.closeProjectPreview(session);
+            session.allowedLocalOrigin = null;
+          }
+          throw error;
+        }
+      }, signal);
+    } catch (error) {
+      if (!adopted && typeof preview.close === "function") await preview.close().catch(() => undefined);
+      throw error;
+    }
   }
 
   async observeForRun(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, signal?: AbortSignal, includeScreenshot = false): Promise<BrowserSnapshot> {
@@ -963,6 +1260,7 @@ export class BrowserSessionManager {
     signal?.throwIfAborted();
     const pending = session.operationTail.then(async () => {
       if (session.disposed) throw new Error("浏览器会话已关闭。");
+      signal?.throwIfAborted();
       return operation();
     });
     session.operationTail = pending.then(() => undefined, () => undefined);

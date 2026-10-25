@@ -8,6 +8,7 @@ import type { Context } from "@deepseek-ai/cordis";
 import type { ShellExecutor } from "./types.js";
 
 export * from "./types.js";
+export * from "./sandbox-result.js";
 export * from "./render.js";
 export { spawnLocalProcess, type LocalProcessLaunch } from "./local-process.js";
 

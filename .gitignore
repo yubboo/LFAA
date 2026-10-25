@@ -115,3 +115,6 @@ id_dsa
 .env.*
 !.env.example
 .lfaa-data-directory.pending.json
+
+# Playwright CLI 运行缓存（浏览器工具体写入进程 cwd，不属于源码）
+.playwright-cli/

@@ -15,8 +15,8 @@ import {
   type ShellExecRequest,
   type ShellExecSpec,
   type ShellExecutor,
-  type ShellRunResult,
 } from "lfaa-shell";
+import { withSandboxResult } from "lfaa-shell";
 import {
   SandboxUnavailableError,
   assertSandboxResult,
@@ -54,19 +54,6 @@ function bashArgv(command: string): string[] {
   return [bash.exe, "--noprofile", "--norc", "-c", command];
 }
 
-function withSandboxInfo(execution: ShellExecution, info: NonNullable<ShellRunResult["sandbox"]>): ShellExecution {
-  return {
-    get status() { return execution.status; },
-    get exitCode() { return execution.exitCode; },
-    get signal() { return execution.signal; },
-    get done() { return execution.done; },
-    get sandbox() { return info; },
-    readOutput: () => execution.readOutput(),
-    kill: () => execution.kill(),
-    result: async () => ({ ...(await execution.result()), sandbox: info }),
-  };
-}
-
 /** 沙箱化 bash 执行器。 */
 export class BashSandboxShellExecutor implements ShellExecutor {
   readonly sandboxMode: SandboxMode = "workspace-write";
@@ -88,6 +75,7 @@ export class BashSandboxShellExecutor implements ShellExecutor {
       platform: process.platform === "win32" ? "win32" : process.platform === "darwin" ? "darwin" : "linux",
       target: { kind: "local" },
       workspaceRoot: spec.workdir ?? process.cwd(),
+      workingDirectory: spec.workdir ?? process.cwd(),
     });
     let confined: ConfinedCommand;
     try {
@@ -97,12 +85,12 @@ export class BashSandboxShellExecutor implements ShellExecutor {
       throw new SandboxUnavailableError(`沙箱提供方拒绝执行：${error instanceof Error ? error.message : String(error)}`);
     }
     const verified = assertSandboxResult(requested, policy, confined);
-    const execution = await spawnLocalProcess({ argv: [...verified.argv], cwd: spec.workdir }, spec);
-    return withSandboxInfo(execution, {
-      mode: verified.effectiveMode,
-      enforcement: verified.enforcement,
-      denied: false,
-    });
+    const execution = await spawnLocalProcess({
+      argv: [...verified.argv],
+      cwd: spec.workdir,
+      ...(verified.requestStop ? { requestStop: verified.requestStop } : {}),
+    }, spec);
+    return withSandboxResult(execution, verified);
   }
 }
 

@@ -5,7 +5,7 @@
       inject: [profileContext, lfaaTools]
     - id: browser-use
       name: lfaa-browser-use
-      inject: [profileContext, lfaaTools]
+      inject: [profileContext, lfaaTools, lfaaCredentials]
     - id: api-browser-controller
       name: lfaa-api-browser-controller
       inject: [apiGateway, lfaaBrowser]

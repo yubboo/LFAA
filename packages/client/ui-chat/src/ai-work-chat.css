@@ -276,31 +276,57 @@ body[data-we-wallpaper] .workbench-shell .ai-work-chat {
 .ai-work-chat__scroll-latest.ant-btn:hover { border-color: var(--settings-accent, var(--color-brand)); color: var(--settings-accent, var(--color-brand)); }
 .ai-work-chat__scroll-latest svg { transform: rotate(180deg); }
 .ai-work-chat__usage { display: block; margin-top: 8px; color: var(--color-text-subtle); font-size: 9px; }
-/* 连续过程只沿用工作台字体、字号、颜色与透明背景；结束后由原生折叠控件收纳。 */
+/* 流式回复沿用工作台字体、字号和颜色；正文与真实活动按同一时间线排列。 */
 .ai-work-chat__response { min-width: 0; }
-.ai-work-chat__response-duration,
-.ai-work-chat__response-history > summary { display: flex; width: fit-content; align-items: center; gap: 7px; padding: 4px 0; color: var(--color-text-muted); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: .86em; }
-.ai-work-chat__response-history > summary,
+.ai-work-chat__response-duration { display: flex; width: fit-content; max-width: 100%; flex-wrap: wrap; align-items: center; gap: 7px; padding: 4px 0; color: var(--color-text-muted); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: .86em; }
+.ai-work-chat__response-final { min-width: 0; padding-top: 14px; }
+.ai-work-chat__response-history { min-width: 0; }
+.ai-work-chat__response-history > summary { display: flex; min-height: 31px; align-items: center; justify-content: space-between; gap: 8px; padding: 3px 0 7px; border-bottom: 1px solid var(--color-border-subtle); color: var(--color-text-muted); cursor: pointer; font-size: .88em; list-style: none; }
+.ai-work-chat__response-history > summary::-webkit-details-marker { display: none; }
+.ai-work-chat__response-history > summary:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; border-radius: 4px; }
+.ai-work-chat__response-history > summary > svg { flex: 0 0 auto; transform: rotate(-90deg); transition: transform 140ms ease; }
+.ai-work-chat__response-history[open] > summary > svg { transform: rotate(0); }
+.ai-work-chat__response-history > .ai-work-chat__response-timeline { gap: 10px; padding: 10px 0; }
+.ai-work-chat__response-file-changes { display: grid; min-width: 0; gap: 0; margin-top: 16px; overflow: hidden; border: 1px solid var(--color-border-subtle); border-radius: 13px; background: color-mix(in srgb, var(--color-surface-muted) 54%, transparent); }
+.ai-work-chat__response-file-changes > header { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 10px; padding: 11px 12px; border-bottom: 1px solid var(--color-border-subtle); }
+.ai-work-chat__response-file-icon { display: grid; width: 38px; height: 38px; flex: 0 0 38px; place-items: center; border: 1px solid var(--color-border-subtle); border-radius: 10px; background: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 12%, var(--color-surface-muted)); color: var(--settings-accent, var(--color-brand)); }
+.ai-work-chat__response-file-heading { display: grid; min-width: 0; flex: 1 1 130px; gap: 3px; }
+.ai-work-chat__response-file-heading > strong { min-width: 0; color: var(--color-text-primary); font-size: .92em; font-weight: 620; }
+.ai-work-chat__response-file-heading > span { overflow-wrap: anywhere; color: var(--color-text-muted); font-size: .78em; }
+.ai-work-chat__response-file-review { min-height: 30px; flex: 0 0 auto; margin-left: auto; padding: 4px 10px; border: 1px solid var(--color-border-subtle); border-radius: 8px; background: color-mix(in srgb, var(--color-surface-muted) 72%, transparent); color: var(--color-text-secondary); cursor: pointer; font: inherit; font-size: .82em; }
+.ai-work-chat__response-file-review:hover { border-color: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 42%, var(--color-border-subtle)); color: var(--settings-accent, var(--color-brand)); }
+.ai-work-chat__response-file-changes > ul { display: grid; min-width: 0; gap: 0; margin: 0; padding: 0; list-style: none; }
+.ai-work-chat__response-file-changes > ul > li { display: flex; min-width: 0; min-height: 38px; align-items: center; gap: 10px; padding: 7px 12px; }
+.ai-work-chat__response-file-changes > ul > li + li { border-top: 1px solid color-mix(in srgb, var(--color-border-subtle) 65%, transparent); }
+.ai-work-chat__response-file-changes > ul > li:hover { background: color-mix(in srgb, var(--color-surface-muted) 58%, transparent); }
+.ai-work-chat__response-file-operation { flex: 0 0 auto; color: var(--color-text-muted); font-size: .78em; }
+.ai-work-chat__response-file-operation--created { color: var(--color-status-success); }
+.ai-work-chat__response-file-operation--deleted { color: var(--color-status-error); }
+.ai-work-chat__response-file-path { display: block; min-width: 0; flex: 1 1 auto; overflow: hidden; padding: 0; border: 0; background: transparent; color: var(--color-text-secondary); cursor: pointer; text-align: left; }
+.ai-work-chat__response-file-changes code.ai-work-chat__response-file-path { cursor: default; }
+.ai-work-chat__response-file-path > code { display: block; min-width: 0; overflow-wrap: anywhere; color: inherit; font: var(--settings-code-font-size, var(--font-size-sm))/1.45 var(--settings-code-font, var(--font-family-mono)); }
+.ai-work-chat__response-file-path:hover > code { color: var(--settings-accent, var(--color-brand)); }
+.ai-work-chat__response-file-path:focus-visible,
+.ai-work-chat__response-file-review:focus-visible,
+.ai-work-chat__response-file-toggle:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; border-radius: 4px; }
+.ai-work-chat__response-file-toggle { display: flex; min-height: 34px; align-items: center; gap: 6px; padding: 5px 12px; border: 0; border-top: 1px solid color-mix(in srgb, var(--color-border-subtle) 65%, transparent); background: transparent; color: var(--color-text-secondary); cursor: pointer; font: inherit; font-size: .82em; text-align: left; }
+.ai-work-chat__response-file-toggle:hover { color: var(--settings-accent, var(--color-brand)); }
+.ai-work-chat__response-file-toggle > svg { transition: transform 140ms ease; }
+.ai-work-chat__response-file-toggle[aria-expanded="true"] > svg { transform: rotate(180deg); }
 .ai-work-chat__tool-group > summary { cursor: pointer; list-style: none; }
-.ai-work-chat__response-history > summary::-webkit-details-marker,
 .ai-work-chat__tool-group > summary::-webkit-details-marker { display: none; }
-.ai-work-chat__response-history > summary:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 3px; }
 .ai-work-chat__tool-group > summary:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: -3px; border-radius: 8px; }
-.ai-work-chat__response-history > summary > svg:last-child,
 .ai-work-chat__tool-group > summary > svg:last-child { flex: 0 0 auto; transform: rotate(-90deg); }
-.ai-work-chat__response-history[open] > summary > svg:last-child,
 .ai-work-chat__tool-group[open] > summary > svg:last-child { transform: rotate(0); }
-.ai-work-chat__response-divider { margin: 8px 0 14px; border: 0; border-top: 1px solid var(--color-border-subtle); }
 .ai-work-chat__response-timeline { display: grid; min-width: 0; gap: 14px; padding: 12px 0; }
 .ai-work-chat__response-timeline:empty { display: none; }
 .ai-work-chat__response-part { min-width: 0; }
-.ai-work-chat__response-live { min-width: 0; }
-.ai-work-chat__tool-group { min-width: 0; overflow: hidden; border: 1px solid var(--color-border-subtle); border-radius: 11px; background: color-mix(in srgb, var(--color-surface-muted) 54%, transparent); color: var(--color-text-muted); font-size: .86em; }
-.ai-work-chat__tool-group > summary { display: flex; width: 100%; min-height: 34px; max-width: 100%; align-items: center; gap: 8px; padding: 6px 10px; box-sizing: border-box; }
+.ai-work-chat__tool-group { min-width: 0; color: var(--color-text-muted); font-size: .86em; }
+.ai-work-chat__tool-group > summary { display: flex; width: fit-content; min-height: 29px; max-width: 100%; align-items: center; gap: 8px; padding: 3px 2px; box-sizing: border-box; }
 .ai-work-chat__tool-group > summary > svg:first-child { flex: 0 0 auto; color: var(--settings-accent, var(--color-brand)); }
 .ai-work-chat__tool-group > summary > span { min-width: 0; overflow-wrap: anywhere; }
 .ai-work-chat__tool-group > summary:hover { color: var(--settings-accent, var(--color-brand)); }
-.ai-work-chat__tool-group-items { display: grid; max-height: min(34dvh, 320px); overflow: auto; gap: 0; margin: 0 8px 8px; padding: 3px 8px 3px 10px; border-top: 1px solid var(--color-border-subtle); overscroll-behavior: contain; }
+.ai-work-chat__tool-group-items { display: grid; max-height: min(34dvh, 320px); overflow: auto; gap: 0; margin: 0 0 6px 6px; padding: 3px 8px 3px 10px; border-inline-start: 1px solid var(--color-border-subtle); overscroll-behavior: contain; }
 .ai-work-chat__tool-group-items .ai-work-chat__activity-row:first-child { border-top: 0; }
 .ai-work-chat__response-interaction { min-width: 0; }
 .ai-work-chat__response-interaction :is(.ai-work-chat__question-record, .ai-work-chat__approval-record) { display: grid; min-width: 0; gap: 7px; padding: 10px 12px; border: 1px solid var(--color-border-subtle); border-inline-start: 2px solid var(--settings-accent, var(--color-brand)); border-radius: 10px; background: color-mix(in srgb, var(--color-surface-muted) 46%, transparent); color: var(--color-text-secondary); }
@@ -886,3 +912,54 @@ body[data-we-wallpaper][data-we-glass-floaters] .workbench-shell[data-wallpaper-
 .ai-work-chat__more-menu-picker > .ant-select { width: 100%; min-width: 0; }
 .ai-work-chat__more-menu-picker > small { color: var(--color-text-muted); font-size: .74em; line-height: 1.45; }
 .ai-work-chat__more-menu-picker > .ant-typography { min-width: 0; font-size: .74em; overflow-wrap: anywhere; }
+
+/* 待发送附件行：独立一行、可换行，避免挤压发送按钮与输入框 */
+.ai-work-chat__attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 2px;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.ai-work-chat__attachment {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  max-width: 220px;
+  padding: 2px 4px 2px 8px;
+  border-radius: 999px;
+  background: var(--lfaa-surface-muted, rgba(127, 127, 127, 0.12));
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.ai-work-chat__attachment-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 输入框附件缩略图：36px 圆角预览，只用于当前账户自己的附件内容接口 */
+.ai-work-chat__attachment-thumb {
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 8px;
+  flex: none;
+  background: rgba(127, 127, 127, 0.12);
+}
+
+/* 用户气泡内的附件图片：限制最大宽度，避免撑破聊天列 */
+.ai-work-chat__message-image {
+  display: block;
+  max-width: min(240px, 100%);
+  max-height: 240px;
+  object-fit: contain;
+  border-radius: 10px;
+  margin: 4px 0 6px;
+  background: rgba(127, 127, 127, 0.1);
+}

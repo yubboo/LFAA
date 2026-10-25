@@ -10,9 +10,13 @@ const homeDirectory = join(testRoot, "home");
 const systemDataDirectory = join(testRoot, "system-data");
 process.env.NODE_ENV = "test";
 process.env.LFAA_HOME = homeDirectory;
-process.env.LFAA_DATA_DIR = systemDataDirectory;
+delete process.env.LFAA_DATA_DIR;
+delete process.env.LFAA_DATA_DIR_CONFIGURED;
+delete process.env.LFAA_DATA_DIR_MANAGED_BY_LAUNCHER;
+delete process.env.LFAA_DATA_DIR_MANAGED_BY_DESKTOP;
 
 const { config } = await import("lfaa-launch-environment/src/config.js");
+config.dataDirectory = systemDataDirectory;
 const { configuration } = await import("lfaa-storage-domain/src/configuration.js");
 const { closeDatabase } = await import("lfaa-storage-sqlite/src/database.js");
 const storage = await import("lfaa-settings/src/project-storage.js");
@@ -60,7 +64,7 @@ test("manifest limits operations to game, Writing and AI Video content", async (
   assert.ok(entries.some(entry => entry.path === dramaFile));
   assert.equal(entries.some(entry => entry.path.includes("system-sentinel")), false);
   assert.equal(entries.some(entry => entry.path.includes("profile-sentinel")), false);
-  assert.throws(() => migration.assertProjectContentTarget(systemDataDirectory), /系统账户/u);
+  assert.equal(migration.assertProjectContentTarget(systemDataDirectory), systemDataDirectory);
   assert.throws(() => migration.assertProjectContentTarget(join(homeDirectory, "profiles", "desktop")), /插件 Profile/u);
 });
 
@@ -69,8 +73,8 @@ test("DSH 风格的单一 Home 允许 Home/data，同时保护系统分类和插
   config.dataDirectory = homeDirectory;
   try {
     assert.equal(migration.assertProjectContentTarget(sourceDirectory), sourceDirectory);
-    assert.throws(() => migration.assertProjectContentTarget(homeDirectory), /系统账户/u);
-    assert.throws(() => migration.assertProjectContentTarget(join(homeDirectory, "database")), /系统账户/u);
+    assert.equal(migration.assertProjectContentTarget(homeDirectory), sourceDirectory);
+    assert.throws(() => migration.assertProjectContentTarget(join(homeDirectory, "database")), /账户、凭据、会话和设置目录/u);
     assert.throws(() => migration.assertProjectContentTarget(join(homeDirectory, "profiles", "desktop")), /插件 Profile/u);
   } finally {
     config.dataDirectory = previousDataDirectory;

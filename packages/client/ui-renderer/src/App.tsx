@@ -7,6 +7,7 @@ import { loadClientModule, LFAA_AUTH_TRANSITION_SLOT, syncDshClientModulesForAut
 import { resolveSessionBootstrap } from "./session-bootstrap.js";
 import { preloadWorkbenchForRoute } from "./workbench-preload.js";
 import { clearAppearanceThemeBootstrap } from "lfaa-client-ui-theme/src/appearance-theme-bootstrap.js";
+import { MiniCompanionWindow } from "./MiniCompanionWindow.js";
 import { APPLICATION_ROUTE_PATTERN, SHARED_WORK_ROUTE, normalizeWorkRoute } from "lfaa-util-values/src/application-id.js";
 import { APPLICATION_ENTRY_STATE_KEY as applicationRouteEntryStateKey, readApplicationEntryIdFromHistory } from "./application-entry-state.js";
 
@@ -27,6 +28,9 @@ import {
   login,
   logout,
   recoverPassword,
+  startTrustedAccountRecovery,
+  getTrustedAccountRecoveryStatus,
+  completeTrustedAccountRecovery,
   savePreferences,
   sessionExpiredEventName,
   type ApplicationId,
@@ -53,9 +57,12 @@ function loadWorkbenchModule() {
 
 const AuthView = lazy(() => loadClientModule<typeof import("lfaa-client-ui-settings-account/src/AuthView.js")>("lfaa-client-ui-settings-account/src/AuthView.js").then((module) => ({ default: module.AuthView })));
 const Workbench = lazy(() => loadWorkbenchModule().then((module) => ({ default: module.Workbench })));
+const isMiniWindowRoute = new URLSearchParams(window.location.search).get("mini") === "1";
 
 // 直接刷新受保护工作区时先准备代码；账户界面仍要等会话和账户设置验证完成后才会挂载。
-void preloadWorkbenchForRoute(window.location.pathname, loadWorkbenchModule);
+if (!isMiniWindowRoute) {
+  void preloadWorkbenchForRoute(window.location.pathname, loadWorkbenchModule);
+}
 
 const fallbackPreferences: UserPreferences = {
   selectedApp: "steamcmd",
@@ -129,6 +136,7 @@ export default function App() {
   const authTransitionPlugins = useDshSlotEntries(LFAA_AUTH_TRANSITION_SLOT);
   const [clientModulesReadyUserId, setClientModulesReadyUserId] = useState<string | null>(null);
   useEffect(() => {
+    if (isMiniWindowRoute) return;
     let active = true;
     void syncDshClientModulesForAuthentication(Boolean(user)).catch((syncError: unknown) => {
       console.error("LFAA DSH Client Runtime 同步失败。", syncError);
@@ -564,6 +572,34 @@ export default function App() {
     }
   }
 
+  async function handleTrustedRecoveryStart(username: string, contactUsername: string) {
+    if (authRequestInFlightRef.current) return null;
+    authRequestInFlightRef.current = true; setAuthBusy(true); setError(null); setAuthNotice(null);
+    try { return await startTrustedAccountRecovery({ username, contactUsername }); }
+    catch (recoveryError) { setError(getErrorMessage(recoveryError)); return null; }
+    finally { authRequestInFlightRef.current = false; setAuthBusy(false); }
+  }
+
+  async function handleTrustedRecoveryStatus(code: string): Promise<"pending" | "approved" | "invalid"> {
+    try {
+      const result = await getTrustedAccountRecoveryStatus(code);
+      if (result.status === "invalid") setError("未找到有效的恢复申请。请检查用户名、联系人用户名和恢复码，或重新发起申请。");
+      else setError(null);
+      return result.status;
+    } catch (recoveryError) { setError(getErrorMessage(recoveryError)); return "invalid"; }
+  }
+
+  async function handleTrustedRecoveryComplete(code: string, newPassword: string): Promise<boolean> {
+    if (authRequestInFlightRef.current) return false;
+    authRequestInFlightRef.current = true; setAuthBusy(true); setError(null); setAuthNotice(null);
+    try {
+      const result = await completeTrustedAccountRecovery({ code, newPassword });
+      setAuthNotice(result.message);
+      return true;
+    } catch (recoveryError) { setError(getErrorMessage(recoveryError)); return false; }
+    finally { authRequestInFlightRef.current = false; setAuthBusy(false); }
+  }
+
   const handleOpenApplication = useCallback(async (app: ApplicationId, mode: ApplicationMode) => {
     const owner = currentUserRef.current?.id;
     if (!owner) return;
@@ -687,6 +723,9 @@ export default function App() {
           onSubmit={(username, password) => void handleAuth(username, password)}
           onPasskeyLogin={() => void handlePasskeyLogin()}
           onRecover={handlePasswordRecovery}
+          onStartTrustedRecovery={handleTrustedRecoveryStart}
+          onCheckTrustedRecovery={handleTrustedRecoveryStatus}
+          onCompleteTrustedRecovery={handleTrustedRecoveryComplete}
           onClearMessage={() => { setError(null); setAuthNotice(null); }}
         />
       </Suspense>
@@ -700,6 +739,10 @@ export default function App() {
         {error ? <><p role="alert">{error}</p><button type="button" disabled={settingsRetryBusy} onClick={() => void retryUserSettings()}>{settingsRetryBusy ? "正在重试…" : "重试读取设置"}</button></> : <span className="loading-indicator" aria-hidden="true" />}
       </main>
     );
+  }
+
+  if (isMiniWindowRoute && window.lfaaDesktop?.mini) {
+    return <MiniCompanionWindow user={user} settings={userSettings} />;
   }
 
   if (userSettings.appearance.wallpaperEngine.enabled && clientModulesReadyUserId !== user.id) {
@@ -722,6 +765,9 @@ export default function App() {
             onSubmit={() => undefined}
             onPasskeyLogin={() => undefined}
             onRecover={async () => false}
+            onStartTrustedRecovery={async () => null}
+            onCheckTrustedRecovery={async () => "invalid"}
+            onCompleteTrustedRecovery={async () => false}
             onClearMessage={() => undefined}
           />
         </Suspense>
@@ -766,6 +812,9 @@ export default function App() {
             onSubmit={() => undefined}
             onPasskeyLogin={() => undefined}
             onRecover={async () => false}
+            onStartTrustedRecovery={async () => null}
+            onCheckTrustedRecovery={async () => "invalid"}
+            onCompleteTrustedRecovery={async () => false}
             onClearMessage={() => undefined}
           />
         </Suspense>

@@ -1,5 +1,7 @@
 # Session JSONL 持久化
 
+消息展示投影保留 `attachments_json` 中的附件 ID/名称，使近期缓存、较早消息分页与重启恢复保持一致；图片字节仍由附件 Owner 按账户授权读取，不复制进展示缓存。
+
 `lfaa-session-persistence-jsonl` 为 Session Owner 保存账户隔离的 JSONL 事务日志。每笔追加事务写入前按当前序号与 SHA-256 链校验，提交后 fsync；Session Owner 是本包写入接口的唯一业务调用者。
 
 `repository.ts` 保留轻量头、计划模式与关联引用投影；标题列表借 SQLite 选择最多 200 个账户隔离键，直接返回已校验的权威头和状态，不逐条恢复完整 Kernel。每个已保留会话头仅关联一份经过完整日志重放校验的引用投影，随受控事务同步更新；查询不命中也不会逐会话重扫 JSONL。正文缓存按最近使用淘汰，最多 8 个会话与 32 MiB 编码记录预算。

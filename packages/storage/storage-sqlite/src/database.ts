@@ -26,7 +26,7 @@ function hasColumn(tableName: "ai_tool_approvals" | "ai_tool_permission_grants",
 }
 
 // 版本31由文件存储协调器在回读校验完成后提交，SQLite 保留账户、权限和任务。
-const latestSupportedDatabaseVersion = 62;
+const latestSupportedDatabaseVersion = 69;
 if (currentVersion > latestSupportedDatabaseVersion) {
   throw new Error(`数据库版本 ${currentVersion} 高于当前程序支持的版本 ${latestSupportedDatabaseVersion}（${config.databasePath}）。请使用更新版本的 LFAA；为保护数据，本程序不会自动降级数据库结构。`);
 }
@@ -1380,23 +1380,35 @@ export function migrateKnowledgeLibrarySchema(): void {
 migrateKnowledgeLibrarySchema();
 
 /** 版本 43 为每个账户保存有界的 AI Work 个性化记忆与并发删除版本。 */
+const conversationMemoriesTableSchema = `CREATE TABLE conversation_memories (
+  user_id TEXT PRIMARY KEY NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  memories_json TEXT NOT NULL DEFAULT '[]' CHECK (length(memories_json) <= 8192),
+  revision INTEGER NOT NULL DEFAULT 1 CHECK (revision > 0),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+) STRICT;`;
+
 export function migrateConversationMemorySchema(): void {
-  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
-  if (version < 42 || version >= 43) return;
   database.exec("BEGIN IMMEDIATE;");
   try {
-    database.exec(`
-      CREATE TABLE conversation_memories (
-        user_id TEXT PRIMARY KEY NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        memories_json TEXT NOT NULL DEFAULT '[]' CHECK (length(memories_json) <= 8192),
-        revision INTEGER NOT NULL DEFAULT 1 CHECK (revision > 0),
-        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-      ) STRICT;
-      PRAGMA user_version = 43;
-      COMMIT;
-    `);
+    const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+    if (version < 42 || version >= 43) {
+      database.exec("ROLLBACK;");
+      return;
+    }
+
+    const existingTable = database.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'conversation_memories'").get() as { sql?: unknown } | undefined;
+    if (existingTable) {
+      const normalizeSql = (sql: string): string => sql.replace(/\s+/gu, " ").trim().replace(/;$/u, "").toLocaleLowerCase("en-US");
+      if (typeof existingTable.sql !== "string" || normalizeSql(existingTable.sql) !== normalizeSql(conversationMemoriesTableSchema)) {
+        throw new Error("conversation_memories 已存在但结构与版本 43 不一致；为保护账户记忆，迁移已停止。");
+      }
+      database.exec("PRAGMA user_version = 43; COMMIT;");
+      return;
+    }
+
+    database.exec(`${conversationMemoriesTableSchema}\nPRAGMA user_version = 43;\nCOMMIT;`);
   } catch (error) {
-    database.exec("ROLLBACK;");
+    if (database.isTransaction) database.exec("ROLLBACK;");
     throw error;
   }
 }
@@ -2072,3 +2084,255 @@ export function migrateSteamcmdServersSchema(): void {
   }
 }
 migrateSteamcmdServersSchema();
+
+/** 版本 63：管理员可为普通账户设置 Agent 使用时段与时长；执行链写入每日用量并预留并发额度。 */
+export function migrateAccountAgentUsageControlsSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 62 || version >= 63) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    database.exec(`
+      CREATE TABLE account_agent_usage_policies (
+        user_id TEXT PRIMARY KEY NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        updated_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+        policy_json TEXT NOT NULL CHECK (length(policy_json) BETWEEN 2 AND 4096),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      ) STRICT;
+      CREATE TABLE account_agent_usage_daily (
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        local_date TEXT NOT NULL CHECK (length(local_date) = 10),
+        used_seconds INTEGER NOT NULL DEFAULT 0 CHECK (used_seconds >= 0),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        PRIMARY KEY (user_id, local_date)
+      ) STRICT;
+      CREATE TABLE account_agent_usage_reservations (
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        run_id TEXT NOT NULL CHECK (length(run_id) BETWEEN 1 AND 160),
+        local_date TEXT NOT NULL CHECK (length(local_date) = 10),
+        started_at_ms INTEGER NOT NULL CHECK (started_at_ms >= 0),
+        expires_at_ms INTEGER NOT NULL CHECK (expires_at_ms > started_at_ms),
+        reserved_seconds INTEGER NOT NULL CHECK (reserved_seconds > 0),
+        PRIMARY KEY (user_id, run_id)
+      ) STRICT;
+      CREATE INDEX account_agent_usage_reservations_expiry_idx
+        ON account_agent_usage_reservations(expires_at_ms);
+      PRAGMA user_version = 63;
+      COMMIT;
+    `);
+  } catch (error) {
+    if (database.isTransaction) database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+migrateAccountAgentUsageControlsSchema();
+
+/** 版本 64：保存账户设置/记忆/会话的版本化压缩快照；内容仅由快照 Owner 解码和校验。 */
+export function migrateAccountSnapshotsSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 63 || version >= 64) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    database.exec(`
+      CREATE TABLE account_snapshots (
+        id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 120),
+        archive_version INTEGER NOT NULL CHECK (archive_version = 1),
+        archive_sha256 TEXT NOT NULL CHECK (length(archive_sha256) = 64),
+        manifest_json TEXT NOT NULL CHECK (length(manifest_json) BETWEEN 2 AND 4096),
+        archive_size_bytes INTEGER NOT NULL CHECK (archive_size_bytes BETWEEN 1 AND 134217728),
+        payload_gzip BLOB NOT NULL CHECK (length(payload_gzip) BETWEEN 1 AND 33554432),
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      ) STRICT;
+      CREATE INDEX account_snapshots_user_created_idx ON account_snapshots(user_id, created_at DESC, id);
+      PRAGMA user_version = 64;
+      COMMIT;
+    `);
+  } catch (error) {
+    if (database.isTransaction) database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+migrateAccountSnapshotsSchema();
+
+/** 版本 65：本机账户间受信联系人邀请与双人确认的密码恢复请求。 */
+export function migrateTrustedContactsSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 64 || version >= 65) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    database.exec(`
+      CREATE TABLE account_trusted_contacts (
+        owner_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        contact_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        PRIMARY KEY (owner_user_id, contact_user_id),
+        CHECK (owner_user_id <> contact_user_id)
+      ) STRICT;
+      CREATE INDEX account_trusted_contacts_contact_idx ON account_trusted_contacts(contact_user_id, owner_user_id);
+      CREATE TABLE account_trusted_contact_invites (
+        id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+        owner_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        code_sha256 TEXT NOT NULL UNIQUE CHECK (length(code_sha256) = 64),
+        created_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        accepted_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+        accepted_at TEXT
+      ) STRICT;
+      CREATE INDEX account_trusted_contact_invites_owner_idx ON account_trusted_contact_invites(owner_user_id, expires_at);
+      CREATE TABLE account_trusted_recovery_requests (
+        id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+        owner_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        contact_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        code_sha256 TEXT NOT NULL UNIQUE CHECK (length(code_sha256) = 64),
+        created_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        approved_at TEXT,
+        completed_at TEXT,
+        CHECK (owner_user_id <> contact_user_id)
+      ) STRICT;
+      CREATE INDEX account_trusted_recovery_contact_idx ON account_trusted_recovery_requests(contact_user_id, expires_at, approved_at);
+      PRAGMA user_version = 65;
+      COMMIT;
+    `);
+  } catch (error) {
+    if (database.isTransaction) database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+migrateTrustedContactsSchema();
+
+/** 版本 66：DST Master/Caves 分片共享一份 SteamCMD 服务端安装，同时保持普通服务端路径唯一。 */
+export function migrateSteamcmdDstClustersSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 65 || version >= 66) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    database.exec(`
+      DROP INDEX IF EXISTS steamcmd_servers_node_recent_idx;
+      ALTER TABLE steamcmd_servers RENAME TO steamcmd_servers_v65;
+      CREATE TABLE steamcmd_servers (
+        id TEXT PRIMARY KEY NOT NULL,
+        node_id TEXT NOT NULL REFERENCES daemon_nodes(id) ON DELETE RESTRICT,
+        created_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+        name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 80),
+        tool_app_id INTEGER NOT NULL CHECK (tool_app_id BETWEEN 1 AND 2147483647),
+        install_directory TEXT NOT NULL CHECK (length(install_directory) BETWEEN 1 AND 512),
+        executable_path TEXT NOT NULL DEFAULT '' CHECK (length(executable_path) <= 1024),
+        launch_arguments_json TEXT NOT NULL DEFAULT '[]',
+        stop_command TEXT NOT NULL DEFAULT '' CHECK (length(stop_command) <= 120),
+        stop_timeout_seconds INTEGER NOT NULL DEFAULT 60 CHECK (stop_timeout_seconds BETWEEN 5 AND 300),
+        eula_accepted INTEGER NOT NULL DEFAULT 0 CHECK (eula_accepted IN (0, 1)),
+        installation_status TEXT NOT NULL DEFAULT 'unknown' CHECK (installation_status IN ('unknown', 'installing', 'installed', 'failed')),
+        status TEXT NOT NULL DEFAULT 'unknown' CHECK (status IN ('unknown', 'stopped', 'running', 'starting', 'stopping')),
+        process_id INTEGER,
+        last_seen_at TEXT,
+        dst_cluster_id TEXT,
+        dst_cluster_name TEXT,
+        dst_shard TEXT CHECK (dst_shard IS NULL OR dst_shard IN ('Master', 'Caves')),
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        CHECK ((dst_cluster_id IS NULL AND dst_cluster_name IS NULL AND dst_shard IS NULL)
+          OR (dst_cluster_id IS NOT NULL AND dst_cluster_name IS NOT NULL AND dst_shard IS NOT NULL
+            AND length(dst_cluster_id) = 36 AND length(dst_cluster_name) BETWEEN 1 AND 32))
+      ) STRICT;
+      INSERT INTO steamcmd_servers (
+        id, node_id, created_by, name, tool_app_id, install_directory, executable_path, launch_arguments_json, stop_command,
+        stop_timeout_seconds, eula_accepted, installation_status, status, process_id, last_seen_at, created_at, updated_at
+      ) SELECT id, node_id, created_by, name, tool_app_id, install_directory, executable_path, launch_arguments_json, stop_command,
+        stop_timeout_seconds, eula_accepted, installation_status, status, process_id, last_seen_at, created_at, updated_at
+        FROM steamcmd_servers_v65;
+      DROP TABLE steamcmd_servers_v65;
+      CREATE INDEX steamcmd_servers_node_recent_idx ON steamcmd_servers(node_id, updated_at DESC, id);
+      CREATE UNIQUE INDEX steamcmd_servers_regular_path_idx ON steamcmd_servers(node_id, install_directory) WHERE dst_cluster_id IS NULL;
+      CREATE UNIQUE INDEX steamcmd_servers_dst_cluster_path_idx ON steamcmd_servers(node_id, install_directory, dst_cluster_id, dst_shard) WHERE dst_cluster_id IS NOT NULL;
+      CREATE UNIQUE INDEX steamcmd_servers_dst_shard_idx ON steamcmd_servers(node_id, dst_cluster_id, dst_shard) WHERE dst_cluster_id IS NOT NULL;
+      CREATE UNIQUE INDEX steamcmd_servers_dst_name_idx ON steamcmd_servers(node_id, lower(dst_cluster_name), dst_shard) WHERE dst_cluster_id IS NOT NULL;
+      PRAGMA user_version = 66;
+      COMMIT;
+    `);
+  } catch (error) {
+    if (database.isTransaction) database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+migrateSteamcmdDstClustersSchema();
+
+/** 版本 67 为 Daemon Agent Shell 保存经设置中心选定的沙箱模式与目标节点工作区边界。 */
+export function migrateAiHostSandboxPolicySchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 66 || version >= 67) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    database.exec(`
+      ALTER TABLE ai_host_tasks
+        ADD COLUMN sandbox_mode TEXT NOT NULL DEFAULT 'danger-full-access'
+        CHECK (sandbox_mode IN ('read-only', 'workspace-write', 'danger-full-access'));
+      ALTER TABLE ai_host_tasks ADD COLUMN workspace_root TEXT NOT NULL DEFAULT '';
+      PRAGMA user_version = 67;
+      COMMIT;
+    `);
+  } catch (error) {
+    if (database.isTransaction) database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+migrateAiHostSandboxPolicySchema();
+
+/** 版本 68 为 LFAA 账户共享 Skill 安装保存 GitHub 来源及完整文件清单。 */
+export function migrateKnowledgeLibrarySkillInstallationsSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 67 || version >= 68) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    database.exec(`
+      CREATE TABLE knowledge_library_skill_installations (
+        id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 64),
+        description TEXT NOT NULL CHECK (length(description) BETWEEN 1 AND 1024),
+        repository_url TEXT NOT NULL CHECK (length(repository_url) BETWEEN 1 AND 512),
+        commit_sha TEXT NOT NULL CHECK (length(commit_sha) = 40),
+        archive_sha256 TEXT NOT NULL CHECK (length(archive_sha256) = 64),
+        source_path TEXT NOT NULL CHECK (length(source_path) <= 512),
+        license TEXT CHECK (license IS NULL OR length(license) <= 120),
+        content_sha256 TEXT NOT NULL CHECK (length(content_sha256) = 64),
+        files_json TEXT NOT NULL CHECK (length(files_json) <= 262144),
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        UNIQUE (user_id, name COLLATE NOCASE)
+      ) STRICT;
+      CREATE INDEX knowledge_library_skill_installations_user_idx ON knowledge_library_skill_installations(user_id, created_at DESC, id);
+      PRAGMA user_version = 68;
+      COMMIT;
+    `);
+  } catch (error) {
+    if (database.isTransaction) database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+migrateKnowledgeLibrarySkillInstallationsSchema();
+
+// 版本 69：为 AI 消息保存附件引用（只存 ID 与名称，不存字节），刷新后可重新渲染图片。
+// 必须读取当前版本而不是模块导入时的快照：全新库此时仍停在版本 30，直接写 69 会跳过
+// 版本 31–68 的整套迁移，导致 configuration_storage_state 等表缺失。
+export function migrateAiMessageAttachmentsSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 68 || version >= 69) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    // 精简/部分迁移夹具可能还没有 ai_messages；没有就只推进版本，不创建遗留结构。
+    const hasMessages = database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'ai_messages'").get() !== undefined;
+    const alreadyHasColumn = hasMessages
+      && (database.prepare("PRAGMA table_info(ai_messages)").all() as Array<{ name?: string }>).some(column => column.name === "attachments_json");
+    if (hasMessages && !alreadyHasColumn) {
+      database.exec("ALTER TABLE ai_messages ADD COLUMN attachments_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(attachments_json));");
+    }
+    database.exec("PRAGMA user_version = 69;");
+    database.exec("COMMIT;");
+  } catch (error) {
+    if (database.isTransaction) database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+migrateAiMessageAttachmentsSchema();

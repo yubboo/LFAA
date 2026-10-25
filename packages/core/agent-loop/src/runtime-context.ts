@@ -13,6 +13,7 @@
  * 不负责：真正执行摘要 LLM 调用或写盘；那是 compaction-basic / spill-local 的职责。
  */
 import type { AiCompletionMessage } from "lfaa-llm/src/completion.js";
+import { logger } from "lfaa-telemetry-logger/src/logger.js";
 import {
   CHARS_PER_TOKEN,
   COMPACTION_PRESSURE_RATIO,
@@ -197,8 +198,9 @@ export async function manageContextBeforeRequest(input: {
         ...(input.signal ? { signal: input.signal } : {})
       });
       if (spilled && spilled !== messages) { messages = spilled; rewritten = true; }
-    } catch {
-      // spill 失败不应阻断主循环；继续尝试压缩或直接请求。
+    } catch (error) {
+      // spill 失败不阻断主循环，但必须留下可诊断记录；静默失败会让“未压缩/未溢出”看起来像已生效。
+      if (!input.signal?.aborted) logger.warn("Agent 上下文溢出钩子失败；继续主循环", { stage: "spill", errorName: error instanceof Error ? error.name : "UnknownError" });
     }
   }
 
@@ -211,8 +213,9 @@ export async function manageContextBeforeRequest(input: {
         ...(input.signal ? { signal: input.signal } : {})
       });
       if (compacted && compacted !== messages) { messages = compacted; rewritten = true; }
-    } catch {
-      // 压缩失败同样不阻断主循环。
+    } catch (error) {
+      // 压缩失败同样不阻断主循环；保留诊断，避免把失败的压缩误认为已完成。
+      if (!input.signal?.aborted) logger.warn("Agent 上下文压缩钩子失败；继续主循环", { stage: "compact", errorName: error instanceof Error ? error.name : "UnknownError" });
     }
   }
 

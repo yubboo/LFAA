@@ -144,7 +144,7 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
       });
       mcpServer.listen(0,'127.0.0.1');await once(mcpServer,'listening');const mcpUrl='http://127.0.0.1:'+mcpServer.address().port+'/mcp';
       retireLegacyFileTables();
-      assert.equal(database.prepare('PRAGMA user_version').get().user_version,61);
+      assert.equal(database.prepare('PRAGMA user_version').get().user_version,69);
       const {aiRuntimeSettingsSchema}=await import('lfaa-api-remotes/src/route-contracts.js');
       const {AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN,AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN}=await import('lfaa-util-values/src/settings-contract.js');
       assert.equal(aiRuntimeSettingsSchema.validate({...settings.defaultSettings.aiRuntime,maxModelRequests:0,maxToolCalls:0}).error,undefined);
@@ -189,25 +189,28 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
       assert.throws(()=>sharedNodeCommand.prepare(sharedNodeCommand.parse({command:'Get-Location'}),{userId:'fixture-owner',workspaceProject:null}),/选择在线 Daemon 节点/u,'缺少真实节点目标时不得回退到控制端本机');
       const shellTool=tools.listAiBusinessTools('minecraft','admin').find(tool=>tool.id==='host.execute-command');assert.ok(shellTool,'游戏 App 仍由模型选择目标节点 Shell 工具');
       const projectNode='11111111-1111-4111-8111-111111111111';
+       const nodeOwner=await import('lfaa-host-daemon/src/local-daemon.js');
+       nodeOwner.recordDaemonHeartbeat({id:projectNode,displayName:'fixture-path-node',platform:'win32',architecture:'x64',version:'fixture',dataRoot:'/fixture/data',capabilities:['minecraft-vanilla','app-sandbox-windows-appcontainer-v1'],javaRuntimes:[]});
       const projectCommand=shellTool.parse({command:'Get-Location'});
       const projectPrepared=shellTool.prepare(projectCommand,{userId:'fixture-owner',workspaceProject:{nodeId:projectNode,path:'/fixture/project',title:'fixture'}});
       assert.equal(projectPrepared.nodeId,projectNode);assert.equal(projectPrepared.workingDirectory,'/fixture/project');
       assert.equal(projectPrepared.shell,settings.getUserSettings('fixture-owner').general.integratedShell);
       const shellBefore=settings.getUserSettings('fixture-owner').general.integratedShell;
-      const powershellPrepared=shellTool.prepare(shellTool.parse({nodeId:projectNode,command:'$value = 1; Write-Output $value',shell:'powershell'}),{userId:'fixture-owner',workspaceProject:null});
+      const powershellPrepared=shellTool.prepare(shellTool.parse({nodeId:projectNode,command:'$value = 1; Write-Output $value',shell:'powershell'}),{userId:'fixture-owner',workspaceProject:{nodeId:projectNode,path:'/fixture/project',title:'fixture'}});
       assert.equal(powershellPrepared.shell,'powershell');
       assert.equal(settings.getUserSettings('fixture-owner').general.integratedShell,shellBefore,'单次明确 Shell 不修改用户终端偏好');
       assert.throws(()=>shellTool.parse({nodeId:projectNode,command:'echo fixture',shell:'arbitrary-executable'}));
-      const nodeOwner=await import('lfaa-host-daemon/src/local-daemon.js');
-      nodeOwner.recordDaemonHeartbeat({id:projectNode,displayName:'fixture-path-node',platform:'win32',architecture:'x64',version:'fixture',dataRoot:'/fixture/data',capabilities:['minecraft-vanilla'],javaRuntimes:[]});
+       const explicitNode='22222222-2222-4222-8222-222222222222';
+       nodeOwner.recordDaemonHeartbeat({id:explicitNode,displayName:'fixture-explicit-node',platform:'win32',architecture:'x64',version:'fixture',dataRoot:'/fixture/explicit-data',capabilities:['agent-shell-v1','app-sandbox-windows-appcontainer-v1'],javaRuntimes:[]});
       const nodesTool=tools.listAiBusinessTools('minecraft','super_admin').find(tool=>tool.id==='minecraft.list-nodes');
       assert.equal((await nodesTool.execute({}, {userId:'fixture-owner',userRole:'super_admin'})).find(node=>node.id===projectNode).dataRoot,'/fixture/data');
       assert.equal(Object.hasOwn((await nodesTool.execute({}, {userId:'fixture-owner',userRole:'member'})).find(node=>node.id===projectNode),'dataRoot'),false,'普通账户不获得宿主绝对路径');
-      const explicitPrepared=shellTool.prepare(shellTool.parse({nodeId:'22222222-2222-4222-8222-222222222222',command:'Get-Location',workingDirectory:'/explicit/path'}),{userId:'fixture-owner',workspaceProject:{nodeId:projectNode,path:'/fixture/project',title:'fixture'}});
-      assert.equal(explicitPrepared.nodeId,'22222222-2222-4222-8222-222222222222');assert.equal(explicitPrepared.workingDirectory,'/explicit/path');
+       const explicitPrepared=shellTool.prepare(shellTool.parse({nodeId:explicitNode,command:'Get-Location',workingDirectory:'/fixture/explicit-project/subdir'}),{userId:'fixture-owner',workspaceProject:{nodeId:explicitNode,path:'/fixture/explicit-project',title:'fixture'}});
+       assert.equal(explicitPrepared.nodeId,explicitNode);assert.equal(explicitPrepared.workingDirectory,'/fixture/explicit-project/subdir');
       settings.saveUserSettings('fixture-owner','general',{...settings.defaultSettings.general,taskFolder:'/fixture/default'});
-      const settingsPrepared=shellTool.prepare(shellTool.parse({nodeId:projectNode,command:'Get-Location'}),{userId:'fixture-owner',workspaceProject:null});
-      assert.equal(settingsPrepared.workingDirectory,'/fixture/default');settings.saveUserSettings('fixture-owner','general',settings.defaultSettings.general);
+       settings.saveUserSettings('fixture-owner','ai-runtime',{...settings.defaultSettings.aiRuntime,executionSandboxMode:'danger-full-access'});
+       const settingsPrepared=shellTool.prepare(shellTool.parse({nodeId:projectNode,command:'Get-Location'}),{userId:'fixture-owner',workspaceProject:null});
+       assert.equal(settingsPrepared.workingDirectory,'/fixture/default');settings.saveUserSettings('fixture-owner','general',settings.defaultSettings.general);settings.saveUserSettings('fixture-owner','ai-runtime',settings.defaultSettings.aiRuntime);
       let bodies=[]; let block=false; let release; let scenario='basic'; let holdChild=false; let executions=0; let holdPauseResponse=false; let releasePauseResponse; let pauseRequestSignal; let holdWriteTool=false; let releaseWriteTool; let pauseToolSignal; let routeHookEnabled=false; let routeAccountId=''; let routeModelId=''; let routeEvents=[]; let routeAuthorization=null; let mcpApprovalDecision='approved';
       const nativeFetch=globalThis.fetch;
       globalThis.fetch=async (url,options={})=>{
@@ -259,6 +262,10 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
           if(toolResults.length===0){assert.ok(body.tools.some(tool=>tool.function.name==='capability_install'));assert.ok(!body.tools.some(tool=>tool.function.name.startsWith('mcp_loopmcp_')));delta={tool_calls:[{index:0,id:'fixture-install',type:'function',function:{name:'capability_install',arguments:JSON.stringify({kind:'mcp'})}}]};}
           else if(toolResults.length===1){const mcpTool=body.tools.find(tool=>tool.function.name.startsWith('mcp_loopmcp_'));assert.ok(mcpTool,'安装后的工具必须进入下一次 Provider 请求');delta={tool_calls:[{index:0,id:'fixture-mcp',type:'function',function:{name:mcpTool.function.name,arguments:'{}'}}]};}
           else{assert.ok(toolResults.some(item=>item.content.includes('实际 MCP 工具结果')));delta={content:'已安装并调用 MCP'};}
+        }else if(scenario==='capabilityInstallOnly'){
+          const toolResults=body.messages.filter(message=>message.role==='tool');
+          if(toolResults.length===0){assert.ok(body.tools.some(tool=>tool.function.name==='capability_install'));delta={tool_calls:[{index:0,id:'fixture-install-only',type:'function',function:{name:'capability_install',arguments:JSON.stringify({kind:'mcp'})}}]};}
+          else{assert.equal(JSON.parse(toolResults.at(-1).content).runtimeActivation.status,'ready');delta={content:'MCP 安装已由 Owner 核实'};}
         }else if(scenario==='mcpPermission'){
           const toolResults=body.messages.filter(message=>message.role==='tool');
           if(toolResults.length===0){const mcpTool=body.tools.find(tool=>tool.function.name.startsWith('mcp_loopmcp_'));assert.ok(mcpTool,'已安装 MCP 必须通过正常工具目录进入 Agent Loop');delta={tool_calls:[{index:0,id:'fixture-mcp-permission',type:'function',function:{name:mcpTool.function.name,arguments:'{}'}}]};}
@@ -645,6 +652,35 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
       const deniedFallbackResult=JSON.parse(bodies.at(-1).messages.find(item=>item.role==='tool'&&item.tool_call_id==='fixture-mcp-denied-fallback').content);
       assert.equal(deniedFallbackResult.executionState,'not_started');assert.equal(writeExecutions,writeBeforeMcpDenial,'拒绝 MCP 后改用普通写工具也不得执行');
       assert.ok(runs.getAiRun('fixture-owner',mcpDeniedRun.id).message.activity.some(item=>item.approvalAnswer==='denied'));
+      settings.saveUserSettings('fixture-owner','plugins',{enabled:true,mcpServers:[]});
+      settings.saveUserSettings('fixture-owner','permissions',{mode:'ask'});bodies=[];scenario='capabilityInstallOnly';
+      const askedInstallRun=runs.startAiRun('fixture-owner','admin',{appId:'workspace',sessionId:null,content:'安装并调用这个 MCP'},host);
+      await until(()=>runs.getAiRun('fixture-owner',askedInstallRun.id).message.activity.some(item=>item.status==='approval_required'));
+      const askedInstallApproval=permissionPresets.listAiToolApprovals('fixture-owner','pending').find(item=>item.sessionId===askedInstallRun.sessionId);
+      assert.ok(askedInstallApproval);assert.equal(mcpExecutions,2,'请求审批模式下批准前不得安装或调用 MCP');
+      assert.equal(permissionPresets.decideAiToolApproval('fixture-owner',askedInstallApproval.id,'approved',false)?.status,'approved');
+      pluginContext.lfaaUserApproval.notify('fixture-owner',askedInstallApproval.id);
+      await until(()=>runs.getAiRun('fixture-owner',askedInstallRun.id).status!=='streaming');
+      assert.equal(runs.getAiRun('fixture-owner',askedInstallRun.id).status,'complete');assert.equal(mcpExecutions,2,'请求审批只安装 MCP，不附带触发 MCP 工具副作用');
+      assert.ok(runs.getAiRun('fixture-owner',askedInstallRun.id).message.activity.some(item=>item.approvalAnswer==='approved'));
+      settings.saveUserSettings('fixture-owner','permissions',{mode:'approve_remembered'});
+      for(let approvalIndex=1;approvalIndex<=2;approvalIndex++){
+        settings.saveUserSettings('fixture-owner','plugins',{enabled:true,mcpServers:[]});bodies=[];scenario='capabilityInstallOnly';
+        const rememberedInstallRun=runs.startAiRun('fixture-owner','admin',{appId:'workspace',sessionId:null,content:'安装并调用这个 MCP'},host);
+        await until(()=>runs.getAiRun('fixture-owner',rememberedInstallRun.id).message.activity.some(item=>item.status==='approval_required')||runs.getAiRun('fixture-owner',rememberedInstallRun.id).status!=='streaming');
+        const rememberedInstallApproval=permissionPresets.listAiToolApprovals('fixture-owner','pending').find(item=>item.sessionId===rememberedInstallRun.sessionId);
+        assert.ok(rememberedInstallApproval,"第 "+approvalIndex+" 次明确同意仍须等待用户审批；运行状态="+JSON.stringify(runs.getAiRun('fixture-owner',rememberedInstallRun.id)));
+        assert.equal(permissionPresets.decideAiToolApproval('fixture-owner',rememberedInstallApproval.id,'approved',false)?.status,'approved');
+        pluginContext.lfaaUserApproval.notify('fixture-owner',rememberedInstallApproval.id);
+        await until(()=>runs.getAiRun('fixture-owner',rememberedInstallRun.id).status!=='streaming');
+        assert.equal(runs.getAiRun('fixture-owner',rememberedInstallRun.id).status,'complete');
+        assert.equal(mcpExecutions,2,"第 "+approvalIndex+" 次安装不应暗中调用 MCP 工具");
+      }
+      settings.saveUserSettings('fixture-owner','plugins',{enabled:true,mcpServers:[]});bodies=[];scenario='capabilityInstallOnly';
+      const rememberedAutoInstallRun=runs.startAiRun('fixture-owner','admin',{appId:'workspace',sessionId:null,content:'安装并调用这个 MCP'},host);
+      await until(()=>runs.getAiRun('fixture-owner',rememberedAutoInstallRun.id).status==='complete');
+      assert.equal(mcpExecutions,2,'替我审批自动安装仍不应暗中调用 MCP 工具');
+      assert.ok(!runs.getAiRun('fixture-owner',rememberedAutoInstallRun.id).message.activity.some(item=>item.status==='approval_required'));
       settings.saveUserSettings('fixture-owner','permissions',{mode:'full_access'});
        settings.saveUserSettings('fixture-owner','computer-control',{enabled:true});
        settings.saveUserSettings('fixture-owner','plugins',{enabled:true,mcpServers:[{id:'stdio_cua',name:'本机 Computer-Use',transport:'stdio',command:process.execPath,args:[stdioMcpFixture],enabled:true,applicationIds:['workspace'],computerUse:true}]});
@@ -797,7 +833,7 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
       process.stdout.write('后台执行回归通过');
     `;
     writeFileSync(childScript, source, "utf8");
-    const output = execFileSync(process.execPath, ["--import", "tsx", "--import", "./register-package-loader.mjs", childScript], { cwd: cli, env: { ...process.env, NODE_ENV: "test", LFAA_HOME: join(data, "lfaa-home"), LFAA_DATA_DIR: join(data, "business-data"), JWT_SECRET: "" }, encoding: "utf8", stdio: "pipe", timeout: 20000 });
+    const output = execFileSync(process.execPath, ["--import", "tsx", "--import", "./register-package-loader.mjs", childScript], { cwd: cli, env: { ...process.env, NODE_ENV: "test", LFAA_HOME: join(data, "lfaa-home"), LFAA_DATA_DIR: join(data, "business-data"), JWT_SECRET: "" }, encoding: "utf8", stdio: "pipe", timeout: 60000 });
     assert.match(output, /后台执行回归通过/);
   } finally {
     assert.equal(dirname(resolve(childScript)), parent);

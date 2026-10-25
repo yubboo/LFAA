@@ -5,7 +5,7 @@
  */
 import assert from "node:assert/strict";
 import { randomUUID, createHash } from "node:crypto";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import test, { after } from "node:test";
@@ -48,6 +48,13 @@ test("file manager schema migration expands tasks and retains non-content audit 
   assert.match(sql, /'trash-restore'/u);
   assert.match(sql, /'directory-size'/u);
   assert.ok(database.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='node_file_audit'").get());
+});
+
+test("缺失 SteamCMD 工具目录给出可恢复提示且不会自动创建目录", async () => {
+  const steamcmdDirectory = join(dataDirectory, "lib", "steamcmd");
+  assert.equal(existsSync(steamcmdDirectory), false);
+  await assert.rejects(performNodeFileOperation("list", { path: "", gameStorageKind: "steamcmd-runtime" }), /SteamCMD 工具目录不存在：.+[\\/]lib[\\/]steamcmd[\s\S]*不会自动创建/u);
+  assert.equal(existsSync(steamcmdDirectory), false);
 });
 
 test("preview separates viewing from editing and rejects sensitive path names", async () => {

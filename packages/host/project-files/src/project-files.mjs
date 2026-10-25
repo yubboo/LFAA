@@ -437,6 +437,32 @@ export async function executeProjectFile(input) {
     }
     return { path: canonical, root: parse(canonical).root, entries: visible.slice(0, 500), truncated: listed.truncated || visible.length > 500 };
   }
+  if (input?.operation === "inspect_directories") {
+    const paths = input.paths;
+    if (!Array.isArray(paths) || paths.length > 200 || paths.some(path => typeof path !== "string" || path.length > 32760 || !isAbsolute(path))) {
+      throw new Error("项目目录检查列表无效。");
+    }
+    const directories = new Array(paths.length);
+    let nextIndex = 0;
+    const inspections = await Promise.allSettled(Array.from({ length: Math.min(8, paths.length) }, async () => {
+      while (nextIndex < paths.length) {
+        const index = nextIndex++;
+        const path = resolve(paths[index]);
+        await assertOutsideDataRoot(path);
+        try {
+          const canonical = await realpath(path);
+          await assertOutsideDataRoot(canonical);
+          directories[index] = (await stat(canonical)).isDirectory();
+        } catch (error) {
+          if (error?.code === "ENOENT" || error?.code === "ENOTDIR") directories[index] = false;
+          else throw error;
+        }
+      }
+    }));
+    const failedInspection = inspections.find(result => result.status === "rejected");
+    if (failedInspection) throw failedInspection.reason;
+    return { directories };
+  }
   if (!input || !["list", "read", "read_lines", "read_image", "search_files", "search", "search_markdown", "create", "create_tree", "replace", "write", "delete", "diff", "discover_skills"].includes(input.operation) || typeof input.rootDirectory !== "string" || !isAbsolute(input.rootDirectory)) throw new Error("项目操作或绝对根目录无效。");
   const root = await realpath(input.rootDirectory);
   await assertOutsideDataRoot(root);
@@ -562,11 +588,21 @@ export async function executeProjectFile(input) {
       const collisionKey = normalized.toLocaleLowerCase("en-US");
       if (seen.has(collisionKey)) throw new Error(`文件树包含重复路径：${normalized}`);
       seen.add(collisionKey);
-      const bytes = Buffer.byteLength(file.content, "utf8");
-      if (bytes > textLimit || file.content.includes("\0")) throw new Error(`文件树只支持不超过 2 MiB 的 UTF-8 文本：${normalized}`);
+      let contents;
+      if (file.encoding === "base64") {
+        if (file.content.length > 3 * 1024 * 1024 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u.test(file.content)) throw new Error(`文件树包含无效或过大的 base64 文件：${normalized}`);
+        contents = Buffer.from(file.content, "base64");
+        if (contents.toString("base64") !== file.content) throw new Error(`文件树包含非规范 base64 文件：${normalized}`);
+      } else {
+        if (file.encoding !== undefined) throw new Error(`文件树编码类型无效：${normalized}`);
+        if (Buffer.byteLength(file.content, "utf8") > textLimit || file.content.includes("\0")) throw new Error(`文件树 UTF-8 文本超过 2 MiB 或包含二进制标记：${normalized}`);
+        contents = Buffer.from(file.content, "utf8");
+      }
+      const bytes = contents.byteLength;
+      if (bytes > textLimit) throw new Error(`文件树单文件超过 2 MiB：${normalized}`);
       totalBytes += bytes;
       if (totalBytes > 8 * 1024 * 1024) throw new Error("文件树总大小超过 8 MiB 安全限制。");
-      return { path: normalized, content: file.content, sha256: digest(file.content) };
+      return { path: normalized, contents, sha256: digest(contents) };
     });
     const parent = dirname(path);
     await mkdir(parent, { recursive: true });
@@ -581,7 +617,7 @@ export async function executeProjectFile(input) {
         assertWithin(stage, destination);
         await mkdir(dirname(destination), { recursive: true, mode: 0o700 });
         await checkedPath(root, destination, true);
-        await writeFile(destination, file.content, { flag: "wx", mode: 0o600 });
+        await writeFile(destination, file.contents, { flag: "wx", mode: 0o600 });
       }
       await checkedPath(root, stage);
       try { await lstat(path); throw new Error("目标目录已存在；未覆盖现有 Skill 或其他文件。"); }
@@ -591,7 +627,7 @@ export async function executeProjectFile(input) {
       assertWithin(root, installedPath);
       await assertOutsideDataRoot(installedPath);
       const relativeBase = toProjectRelativePath(root, installedPath);
-      return { path: installedPath, relativePath: relativeBase, created: true, files: files.map(file => ({ path: file.path, relativePath: `${relativeBase}/${file.path}`, sha256: file.sha256, bytes: Buffer.byteLength(file.content, "utf8") })), totalBytes };
+      return { path: installedPath, relativePath: relativeBase, created: true, files: files.map(file => ({ path: file.path, relativePath: `${relativeBase}/${file.path}`, sha256: file.sha256, bytes: file.contents.byteLength })), totalBytes };
     } catch (error) {
       await rm(stage, { recursive: true, force: true }).catch(() => undefined);
       throw error;

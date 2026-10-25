@@ -56,6 +56,7 @@ Each report below is tied to its task and date. Check the current architecture a
 
 ### Application, client and workspace
 
+- [Infinite canvas MVP (2026-10-25)](infinite-canvas-20261025.md)
 - [Application panel separation delivery (2026-10-16)](application-panels-20261016.md)
 - [Xiaoyu home migration (2026-10-15)](chat-home-20261015.md)
 - [Plugin lifecycle and responsive session menu (2026-10-16)](plugin-lifecycle-session-responsive-20261016.md)
@@ -66,6 +67,7 @@ Each report below is tied to its task and date. Check the current architecture a
 ### Harness, packages and integrations
 
 - [DSH and LFAA extension audit (2026-10-17)](dsh-lfaa-extension-audit-20261017.md)
+- [LFAA and DSH capability gap review (2026-10-25)](dsh-parity-gap-20261025.md)
 - [Ekko capability register](ekko-capability-fusion.md)
 - [Ekko coding collaboration core (2026-10-16)](ekko-fusion-core-20261016.md)
 - [Harness runtime integration (2026-10-09)](harness-runtime-integration-20261009.md)

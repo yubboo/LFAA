@@ -18,6 +18,7 @@ const { executeAiTurn } = await import("lfaa-agent-loop/src/execute-turn.js");
 const { createAiCompletionService } = await import("lfaa-llm/src/completion.js");
 const { registerAiBusinessTool } = await import("lfaa-tools/src/registry.js");
 const { capabilitySettingsTools, capabilitySettingsStatus } = await import("lfaa-tools/src/capability-settings.js");
+const { askUserTool } = await import("lfaa-tool-ask-user/src/index.js");
 const permissions = await import("lfaa-permission-presets/src/permissions.js");
 const { Context } = await import("@deepseek-ai/cordis");
 const ctx = new Context();
@@ -25,6 +26,7 @@ const approvalFiber = await ctx.plugin(await import("lfaa-user-approval/src/inde
 const owner = randomUUID(), other = randomUUID();
 for (const [id, uid] of [[owner, 1], [other, 2]]) database.prepare("INSERT INTO users(id,uid,username,password_salt,password_hash,role) VALUES(?, ?, ?, 'fixture', 'fixture', 'admin')").run(id, uid, `fixture-${uid}`);
 const disposers = [];
+registerAiBusinessTool({ effect: setup => { const dispose = setup(); disposers.push(dispose); return dispose; } }, askUserTool);
 let executions = 0;
 let alternateWriteExecutions = 0;
 const candidateTool = { id: "fixture.computer", name: "fixture_computer", description: "隔离桌面动作夹具", coreManaged: true, requiresComputerControl: true, applicationIds: ["workspace"], schema: { type: "object", properties: {}, additionalProperties: false }, parse: value => value, risk: () => "read", approval: () => ({ scopeKey: "fixture", scopeSummary: "fixture", summary: "fixture" }), execute: async (_, context) => { executions++; assert.ok(context.sessionId); return { observed: "真实夹具计数", executions }; } };
@@ -131,6 +133,63 @@ test("内置浏览器不要求连接偏好，Browser Use 状态不误报待连�
   } finally {
     settings.saveUserSettings(owner, "browser-use", previousBrowserUse);
   }
+});
+
+test("AI Work 对可能指本机客户端或官网的产品名先澄清，再选择浏览器工具", async () => {
+  const previousBrowserUse = settings.getUserSettings(owner).browserUse;
+  settings.saveUserSettings(owner, "permissions", { mode: "full_access" });
+  settings.saveUserSettings(owner, "browser-use", { ...previousBrowserUse, enabled: true, webUrlOpenLocation: "lfaa", localUrlOpenLocation: "current-browser", enabledProviderIds: [] });
+  let unregister;
+  const browserChoiceTool = {
+    id: "browser-use.intent-fixture",
+    name: "lfaa_browser_intent_fixture",
+    description: "供本测试确认模型收到了浏览器路由说明。",
+    coreManaged: true,
+    requiresBrowserUse: true,
+    applicationIds: ["workspace"],
+    schema: { type: "object", properties: {}, additionalProperties: false },
+    parse: value => value,
+    risk: () => "read",
+    approval: () => ({ scopeKey: "browser-intent-fixture", scopeSummary: "浏览器意图回归", summary: "浏览器意图回归" }),
+    execute: async () => ({ ok: true })
+  };
+  registerAiBusinessTool({ effect: setup => { unregister = setup(); return unregister; } }, browserChoiceTool);
+  const turn = sessions.createAiTurn(owner, "workspace", null, "打开樱花映射");
+  const native = globalThis.fetch;
+  let systemPrompt = "";
+  let modelToolNames = [];
+  globalThis.fetch = async (url, options) => {
+    assert.equal(String(url), account.chatUrl);
+    const body = JSON.parse(options.body);
+    systemPrompt = body.messages.find(message => message.role === "system")?.content ?? "";
+    modelToolNames = body.tools?.map(tool => tool.function.name) ?? [];
+    return sse({ content: "浏览器选择提示已装入。" });
+  };
+  try {
+    await executeAiTurn({ userId: owner, userRole: "admin", body: { appId: "workspace", sessionId: turn.session.id, content: "打开樱花映射" }, turn, aiPluginHost: host, abortController: new AbortController(), emit() {}, modelResolver, approvalNotifications: ctx.lfaaUserApproval, requestUserInput: async () => ({ answer: "浏览器里的官网网页", skipped: false }) });
+  } finally {
+    globalThis.fetch = native;
+    unregister?.();
+    settings.saveUserSettings(owner, "browser-use", previousBrowserUse);
+  }
+  assert.match(systemPrompt, /浏览器由模型依据用户目标、Settings Owner 保存的打开位置偏好、当前对话\/页面上下文和实际可用工具选择/u);
+  assert.match(systemPrompt, /新账户默认使用 LFAA 内置浏览器/u);
+  assert.match(systemPrompt, /公开网页=LFAA 内置 Browser Owner；本地 localhost\/loopback 开发 URL=当前已打开的用户浏览器/u, "Agent prompt receives current per-account browser-location preferences");
+  assert.match(systemPrompt, /本地开发 URL 首选用户当前已打开的浏览器/u, "the current-browser preference selects CUA/connected personal control instead of silently falling back");
+  assert.match(systemPrompt, /lfaa-native-browser.*可用且 activeInWorkspace=true.*优先使用该 Provider.*WebContentsView 原生页面/u, "Electron 有活动原生标签时优先沿用用户可见的同一页面");
+  assert.match(systemPrompt, /普通 Web Host 没有 Electron 原生视图/u, "Web Host 不伪称有桌面原生视图");
+  assert.match(systemPrompt, /当两个路径仍都合理/u, "material ambiguity is clarified only after using available context");
+  assert.ok(modelToolNames.includes("lfaa_ask_user"), "the real question tool is available when this instruction is injected");
+  assert.match(systemPrompt, /可能同时指本机客户端和官网网页的产品\/品牌名称/u);
+  assert.match(systemPrompt, /必须先单独调用 lfaa_ask_user/u);
+  assert.match(systemPrompt, /本机已安装的客户端/u);
+  assert.match(systemPrompt, /浏览器里的官网网页/u);
+  assert.match(systemPrompt, /答案返回前不要调用本机应用搜索\/启动.*任何浏览器导航工具/u);
+  assert.match(systemPrompt, /工具审批不代替用户对目标的澄清/u);
+  assert.match(systemPrompt, /CUA 页面不会镜像到 LFAA Browser Dock/u);
+  assert.match(systemPrompt, /不要静默用 LFAA 内置浏览器替代/u);
+  assert.match(systemPrompt, /给出了查询词时/u);
+  assert.match(systemPrompt, /检查浏览器当前页面的真实结果/u);
 });
 
 test("空响应只重试模型请求，已有工具不重放；JSON message 格式正常返回", async () => {

@@ -7,6 +7,7 @@
 const annotations = {
   acp: `acp:外部 Agent Client Protocol 互操作合同与接入适配`,
   api: `account-controller:账户认证、个人资料与身份 API，调用身份 Owner
+attachment-controller:附件上传、清单与元数据的认证 API，只调用附件 Owner
 agent-git-controller:Agent 本机 Git 仓库登记、会话绑定与固定操作认证 API
 ai-video-controller:账户 AI 视频项目与生成任务的认证 API
 local-model-controller:认证 LFAA 本机模型目录、下载、进度、取消和卸载 API
@@ -26,20 +27,22 @@ terminal-controller:目标节点交互终端认证中继与事件通道
 workflow-controller:账户工作流目录、定义与运行状态 API
 workspace-controller:账户项目、受管 Worktree 与文件操作 API
 workspace-files:Workspace 文件协议与请求适配
-writing-controller:账户作品、章节、资料、提案与导入导出 API`,
-  attachment: `attachment:附件描述、引用及模型输入装配合同
-attachment-local:本机附件来源读取和资源适配`,
+writing-controller:账户作品、章节、资料、提案与导入导出 API
+canvas-controller:无限画布项目、节点图与素材的认证 API`,
+  attachment: `attachment:附件媒体类型、大小上限、名称与摘要规则的唯一 Owner，不持有文件
+attachment-local:本机附件存储提供方，按账户隔离、原子写入并在读取时重验摘要`,
   boot: `app-boot:Cordis 启动、Profile 装配、配置和共享生命周期
 capability-installs:通用能力安装计划、来源检查和结果回读协调
 capability-mcp:MCP 安装来源与配置 Owner 的适配
 capability-prompt:外部 Prompt 安装、固定版本/摘要检查及账户设置适配
-capability-skill:项目 Skill 来源核验、Daemon 原子安装与发现回读
+capability-skill:账户共享 Skill 来源核验、Knowledge Library 原子安装与 Skill Registry 回读
 cmdline:命令行参数解析和启动选择适配
 config-editor:Profile/启动配置编辑适配
 hmr:开发插件与源码热重载生命周期
 knowledge-library:知识资料目录和按需读取的工具装配适配
 plugin-manager:第三方插件来源核验、安装、装载、资源和回滚管理`,
   "browser-use": `browser-use:浏览器观察和操作的驱动服务合同`,
+  canvas: `canvas:无限画布项目、节点图与素材的账户隔离唯一 Owner，不执行生成工作流`,
   bundle: `acp-app:ACP 应用的能力组合补丁
 base:共享 Control Plane 基础能力的有序组合
 daemon-app:目标节点身份、执行与任务领取的组合
@@ -208,6 +211,7 @@ plugin-inventory:Host 插件清单和能力检查
 product-telemetry-otel:产品指标 OpenTelemetry 提供方
 project-files:本机与 Daemon 共用的受限文件执行器
 runtime-environment:Host 配置与运行位置服务合同
+tool-daemon:本机托管节点的状态读取与受控启停工具，只调用启动器 supervisor
 webserver:共享 HTTP/Socket 服务和静态资源承载`,
   identity: `anonymous-user-id:匿名用户标识来源适配
 auth:账户身份、认证和账户隔离权威`,
@@ -243,7 +247,7 @@ mcp-resources:MCP 资源列表与按需读取适配`,
   preset: `agent-preset:主/子 Agent 预设元数据登记，不持有领域正文
 agent-preset-registry:Agent 预设目录登记服务
 domain-experts:领域与写作角色元数据、稳定 ID 及按需专家正文
-persona:可选 Agent 人格配置与指引`,
+persona:小鱼核心身份、四个真实领域地图与领域工作约定的唯一正文 Owner，只向系统提示词登记`,
   prompt: `minecraft:Minecraft 提示词正文 Owner、摘要及按需加载登记
 prompt:复用 AiExtensions 的 Prompt/Expert 目录、正文加载及账户安装提示词工具
 writing:写作任务提示词正文 Owner、摘要及按需加载登记`,
@@ -284,7 +288,8 @@ session-turn-outline:会话回合大纲投影`,
 session-query:当前会话查询服务合同
 session-query-sqlite:可重建 SQLite 会话查询索引
 tool-session-query:范围内会话查询工具，不扩大历史可见性`,
-  settings: `settings:账户设置类型、默认值、校验、持久化和能力映射权威`,
+  settings: `settings:账户设置类型、默认值、校验、持久化和能力映射权威
+settings-snapshots:账户设置、会话记忆与公开会话的版本化快照和安全归档 Owner`,
   shell: `bash-local:本机 Bash Shell 提供方
 bash-sandbox:隔离 Bash Shell 提供方
 pwsh-local:本机 PowerShell 提供方

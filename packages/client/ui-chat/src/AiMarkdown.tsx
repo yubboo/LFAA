@@ -125,7 +125,10 @@ const StreamingInlineLine = memo(function StreamingInlineLine({ line, keyPrefix,
 
 /** 流式时只处理已闭合的行内语法，保持段落、列表和代码块结构稳定。 */
 export const AiStreamingMarkdown = memo(function AiStreamingMarkdown({ content }: AiMarkdownProps) {
-  const lines = content.replace(/\r\n?/g, "\n").split("\n");
+  const allLines = content.replace(/\r\n?/g, "\n").split("\n");
+  const firstVisibleLine = allLines.findIndex(line => line.trim().length > 0);
+  // 流式片段开头的空行会在 pre-wrap 下撑出整行高度；内部空行仍按原样保留。
+  const lines = firstVisibleLine < 0 ? [] : allLines.slice(firstVisibleLine);
   let inCodeFence = false;
   return <div className="ai-work-chat__markdown ai-work-chat__streaming-text _markdown_lfaa_wallpaper">
     {lines.map((line, index) => {

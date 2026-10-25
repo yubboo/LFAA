@@ -4,7 +4,7 @@
  * 负责：根据“工作台容器自身”的宽高计算 LayoutMode、左右栏 min/initial/max、底部面板高度、中心区最小宽度和吸附迟滞。
  * 不负责：React 状态、Pointer 事件、CSS 视觉、业务内容。
  * 状态归属：纯函数，无运行时状态。
- * 对外接口：WORKBENCH_LAYOUT_TOKENS、resolveWorkbenchLayoutMetrics、WorkbenchLayoutMetrics、WorkbenchLayoutMode。
+ * 对外接口：WORKBENCH_LAYOUT_TOKENS、resolveWorkbenchCenterFloor、resolveWorkbenchLayoutMetrics、WorkbenchLayoutMetrics、WorkbenchLayoutMode。
  * 关联文件：AgentWorkbench.tsx、ResizableWorkbench.tsx、workbench-layout.types.ts、css/common.css。
  * 修改注意事项：以后改响应式尺寸优先改这里的比例/上下限；不要再在 App Shell 里直接写侧栏宽度常量。
  */
@@ -34,6 +34,11 @@ export interface WorkbenchLayoutMetrics {
   minCenterWidth: number;
   snapCaptureRatio: number;
   snapHysteresis: number;
+}
+
+/** 中心区已折叠或正由右 Dock 拖动吸附时，不再从任一侧栏预算中保留中心区下限。 */
+export function resolveWorkbenchCenterFloor(minCenterWidth: number, centerBudgetReleased: boolean): number {
+  return centerBudgetReleased ? 0 : minCenterWidth;
 }
 
 /**

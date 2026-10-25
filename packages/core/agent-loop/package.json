@@ -9,6 +9,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "lfaa-attachment": "workspace:*",
     "lfaa-mcp-client": "workspace:*",
     "lfaa-llm": "workspace:*",
     "lfaa-token-meter": "workspace:*",
@@ -31,6 +32,8 @@
     "lfaa-workspace-workspace": "workspace:*",
     "lfaa-session": "workspace:*",
     "lfaa-permission-presets": "workspace:*",
+    "lfaa-spill": "workspace:*",
+    "lfaa-spill-policy": "workspace:*",
     "lfaa-scope": "workspace:*",
     "lfaa-system-prompt": "workspace:*",
     "lfaa-telemetry-logger": "workspace:*"

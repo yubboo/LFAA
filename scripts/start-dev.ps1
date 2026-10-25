@@ -1,4 +1,4 @@
-<#
+﻿<#
 功能：启动 LFAA 前端、server 和本机 daemon 的开发进程。
 作用：检查运行环境、已安装依赖和服务端口，并在当前窗口并行运行三项服务，或运行指定的单个服务。
 关联文件：根目录 package.json、scripts/install-dependencies.ps1、scripts/resolve-data-directory.mjs、scripts/apply-data-directory-migration.mjs、apps/web/package.json、apps/cli/package.json、apps/daemon/package.json。

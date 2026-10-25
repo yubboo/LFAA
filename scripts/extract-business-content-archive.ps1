@@ -1,4 +1,4 @@
-﻿param(
+param(
     [Parameter(Mandatory = $true)][string]$ArchivePath,
     [Parameter(Mandatory = $true)][string]$Destination
 )
@@ -34,7 +34,7 @@ try {
         $raw += [pscustomobject]@{ Entry = $entry; Path = $path; IsDirectory = [string]::IsNullOrEmpty($entry.Name) }
     }
 
-    $businessPattern = '^(games(?:/|$)|users/[0-9a-f]{64}/projects/(?:writing|aivideo)(?:/|$))'
+    $businessPattern = '^(games(?:/|$)|users/[0-9a-f]{64}/projects/(?:writing|aivideo|canvas)(?:/|$))'
     $hasDirectBusiness = @($raw | Where-Object { $_.Path -match $businessPattern }).Count -gt 0
     $wrapper = ''
     if (-not $hasDirectBusiness) {

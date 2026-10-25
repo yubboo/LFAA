@@ -10,11 +10,16 @@ const base = resolve(tmpdir());
 await mkdir(base, { recursive: true });
 const root = await mkdtemp(join(base, "system-files-test-"));
 const dataRoot = join(root, "data");
+const homeRoot = join(root, "home");
 const volumeRoot = dataRoot;
 await mkdir(dataRoot);
 process.env.LFAA_DATA_DIR = dataRoot;
+process.env.LFAA_HOME = homeRoot;
 process.env.NODE_ENV = "test";
 const { SystemFileLibrary } = await import("lfaa-fs/src/library.js");
+const { config } = await import("lfaa-launch-environment/src/config.js");
+const originalDesktopInstallDirectory = config.desktopInstallDirectory;
+const { resolveHomePaths } = await import("lfaa-home-paths/src/data-layout.mjs");
 const { database, closeDatabase } = await import("lfaa-storage-sqlite/src/database.js");
 const { retireLegacyFileTables } = await import("lfaa-storage-domain/src/migration.js");
 const { configuration } = await import("lfaa-storage-domain/src/configuration.js");
@@ -25,7 +30,7 @@ const actor = { userId: "file-owner", role: "super_admin" };
 database.prepare("INSERT INTO users(id,uid,username,password_salt,password_hash,role,is_super_admin) VALUES ('file-owner',8801,'file-owner','test','test','admin',1),('other',8802,'file-other','test','test','admin',0)").run();
 const { saveUserSettings } = await import("lfaa-settings/src/service.js");
 saveUserSettings(actor.userId, "permissions", { mode: "full_access" });
-after(async () => { configuration.close(); sessionRecords.close(); closeDatabase(); assert.equal(root.startsWith(base), true); await rm(root, { recursive: true, force: true }); });
+after(async () => { config.desktopInstallDirectory = originalDesktopInstallDirectory; configuration.close(); sessionRecords.close(); closeDatabase(); assert.equal(root.startsWith(base), true); await rm(root, { recursive: true, force: true }); });
 
 test("无节点时浏览当前 data并完成创建、摘要编辑、移动、回收与恢复；不写节点任务", async () => {
   assert.equal(database.prepare("SELECT COUNT(*) AS n FROM daemon_nodes").get().n, 0);
@@ -99,6 +104,83 @@ test("data 外路径、源码、私有目录与权限撤销被实时拒绝", asy
   assert.equal(list.entries.some(entry => ["credentials", "users", "database", "storages", "sessions"].includes(entry.name)), false);
 });
 
+test("本机磁盘别名不能绕过 LFAA Home 账户和插件 Profile 私有目录保护", async () => {
+  const homePaths = resolveHomePaths(config.homeDirectory);
+  const privateFiles = [
+    join(homePaths.credentials, "secret.txt"),
+    join(homePaths.database, "account.sqlite"),
+    join(homePaths.sessions, "session.jsonl"),
+    join(homePaths.storages, "data-directory.json"),
+    join(homePaths.users, "account", "settings", "settings.json"),
+    join(config.pluginInstallDirectory, "Default", "inventory.json"),
+    join(config.pluginInstallDirectory, "Default", "runtime-data", "example", "private.txt")
+  ];
+  for (const path of privateFiles) {
+    await mkdir(resolve(path, ".."), { recursive: true });
+    await writeFile(path, "isolated private fixture", "utf8");
+    const alias = storageFileManagerPath(path, dataRoot);
+    await assert.rejects(library.operate(actor, "read", { path: alias }), /LFAA Home/u, alias);
+    await assert.rejects(library.openDownload(actor, alias), /LFAA Home/u, alias);
+    await assert.rejects(library.operate(actor, "delete", { path: alias }), /LFAA Home/u, alias);
+  }
+  const homeAlias = storageFileManagerPath(config.homeDirectory, dataRoot);
+  await assert.rejects(library.operate(actor, "list", { path: homeAlias }), /LFAA Home/u);
+  const homeParentAlias = storageFileManagerPath(root, dataRoot);
+  const homeParent = await library.operate(actor, "list", { path: homeParentAlias });
+  assert.equal(homeParent.entries.some(entry => entry.name === "home"), false);
+  await mkdir(join(config.homeDirectory, "public-fixture"), { recursive: true });
+  const publicFixture = join(config.homeDirectory, "public-fixture", "outside-data.txt");
+  await writeFile(publicFixture, "home root stays closed", "utf8");
+  await assert.rejects(library.operate(actor, "read", { path: storageFileManagerPath(publicFixture, dataRoot) }), /LFAA Home/u);
+  await library.operate(actor, "create-file", { path: "data-still-available.txt" });
+  assert.equal((await library.operate(actor, "read", { path: "data-still-available.txt" })).content, "");
+});
+
+test("本机磁盘别名对独立桌面安装目录应用与项目源码相同的写保护", async () => {
+  const installRoot = join(root, "installed-app");
+  const installFile = join(installRoot, "resources", "app.asar");
+  const siblingFile = join(root, "outside-install.txt");
+  config.desktopInstallDirectory = installRoot;
+  await mkdir(join(installRoot, "resources"), { recursive: true });
+  await writeFile(installFile, "installed app", "utf8");
+  await writeFile(siblingFile, "ordinary file", "utf8");
+  const alias = storageFileManagerPath(installFile, dataRoot);
+  const installDirectoryAlias = storageFileManagerPath(join(installRoot, "resources"), dataRoot);
+  const siblingAlias = storageFileManagerPath(siblingFile, dataRoot);
+
+  await assert.rejects(library.operate(actor, "write", { path: alias, content: "replace app" }), /源码和安装目录受保护/u);
+  await assert.rejects(library.operate(actor, "delete", { path: alias }), /源码和安装目录受保护/u);
+  await assert.rejects(library.operate(actor, "rename", { path: alias, name: "changed.asar" }), /源码和安装目录受保护/u);
+  await assert.rejects(library.operate(actor, "create-file", { path: storageFileManagerPath(join(installRoot, "new.txt"), dataRoot) }), /源码和安装目录受保护/u);
+  await assert.rejects(library.operate(actor, "move", { path: siblingAlias, destinationPath: installDirectoryAlias }), /源码和安装目录受保护/u);
+  assert.equal(await readFile(installFile, "utf8"), "installed app");
+  assert.equal(await readFile(siblingFile, "utf8"), "ordinary file");
+  config.desktopInstallDirectory = root;
+  await library.operate(actor, "create-file", { path: "business-data-under-install-root.txt" });
+  assert.equal(await readFile(join(dataRoot, "business-data-under-install-root.txt"), "utf8"), "", "business Data keeps its existing independent file contract");
+});
+
+test("下载流收到调用取消信号后关闭文件句柄", async () => {
+  const filePath = join(dataRoot, "cancel-download.txt");
+  await writeFile(filePath, "下载取消测试".repeat(100_000), "utf8");
+  const controller = new AbortController();
+  const file = await library.openDownload({ ...actor, signal: controller.signal }, "cancel-download.txt");
+  const stream = file.stream;
+  const closePromise = new Promise(resolve => stream.once("close", resolve));
+  const errorPromise = new Promise(resolve => stream.once("error", resolve));
+  controller.abort();
+  let timeout;
+  const outcome = await Promise.race([
+    errorPromise.then(error => ({ error })),
+    new Promise(resolve => { timeout = setTimeout(() => resolve({ timeout: true }), 500); })
+  ]);
+  clearTimeout(timeout);
+  if ("timeout" in outcome) stream.destroy();
+  await closePromise;
+  assert.equal("timeout" in outcome, false, "abort signal should terminate the download stream promptly");
+  assert.equal(outcome.error.code, "ABORT_ERR");
+});
+
 test("资料库挂载读写经过原 Owner，保持账户隔离和版本摘要", async () => {
   const { knowledgeFileMount } = await import("lfaa-api-knowledge-controller/src/file-mount.js");
   const unregister = library.register(knowledgeFileMount);
@@ -125,7 +207,7 @@ test("HTTP 无节点可列 data，未认证拒绝；无节点状态查询和任�
     const payload = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ operation: "list", path: "" }) };
     assert.equal((await fetch(url, payload)).status, 401);
     const response = await fetch(url, { ...payload, headers: { ...payload.headers, Cookie: `lfaa_session=${token}` } });
-    assert.equal(response.status, 200); assert.ok((await response.json()).result.entries.some(entry => entry.path === "docs"));
+    assert.equal(response.status, 200, await response.clone().text()); assert.ok((await response.json()).result.entries.some(entry => entry.path === "docs"));
     const bytes = Buffer.from("HTTP 字节上传");
     const sha256 = createHash("sha256").update(bytes).digest("hex");
     const uploadUrl = url.replace("/operations", "/upload?") + new URLSearchParams({ path: "", name: "http.txt", sha256 });

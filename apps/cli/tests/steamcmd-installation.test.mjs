@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {mkdtemp,mkdir,readdir,readFile,rm,writeFile} from "node:fs/promises";
 import {resolve,join} from "node:path";
-import {promoteSteamcmdInstallation,initializeSteamcmd} from "../../../packages/host/daemon/src/steamcmd-installation.mjs";
+import {promoteSteamcmdInstallation,initializeSteamcmd,removeSteamcmdInstallation} from "../../../packages/host/daemon/src/steamcmd-installation.mjs";
 import {createRuntimeIO} from "../../../packages/host/runtime-environment/src/runtime-io.mjs";
 const parent=resolve("../../dist/.tmp");await mkdir(parent,{recursive:true});
 test("SteamCMD 在空占位目录原子安装并保留 .gitkeep",async()=>{
@@ -33,5 +33,19 @@ test("SteamCMD 仅在客户端真实替换后继续一次核验，普通失败�
     assert.match(result,/version fixture/);assert.equal(calls,2);assert.equal(updates,1);
     calls=0;await assert.rejects(initializeSteamcmd(file,{timeout:2000},undefined,async()=>{calls++;throw Object.assign(new Error("ordinary network fixture"),{code:1});}),/ordinary network/);assert.equal(calls,1);
     await assert.rejects(initializeSteamcmd(file,{timeout:2000},undefined,async()=>({stdout:"unrelated success",stderr:""})),/未返回真实客户端版本/);
+  }finally{await rm(data,{recursive:true,force:true});}
+});
+test("SteamCMD 完整卸载只删除隔离工具目录并保留游戏目录",async()=>{
+  const data=await mkdtemp(join(parent,"steamcmd-uninstall-"));
+  try {
+    const tool=join(data,"lib/steamcmd"),games=join(data,"games/steamcmd");
+    await mkdir(join(tool,"package"),{recursive:true});await mkdir(games,{recursive:true});
+    await writeFile(join(tool,"steamcmd.exe"),"SteamCMD fixture");await writeFile(join(tool,"package","bootstrap.vdf"),"package fixture");
+    await writeFile(join(games,"server-world.dat"),"game fixture");
+    const io=createRuntimeIO({roots:[data]});
+    assert.equal(await removeSteamcmdInstallation(tool,(path,allowMissing=false)=>io.assertSafeFileTarget(path,allowMissing)),true);
+    assert.equal(await readdir(tool).catch(error=>error.code),"ENOENT");
+    assert.equal(await readFile(join(games,"server-world.dat"),"utf8"),"game fixture");
+    assert.equal(await removeSteamcmdInstallation(tool,(path,allowMissing=false)=>io.assertSafeFileTarget(path,allowMissing)),false);
   }finally{await rm(data,{recursive:true,force:true});}
 });

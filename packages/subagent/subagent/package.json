@@ -12,7 +12,8 @@
     "@deepseek-ai/cordis": "4.0.4",
     "lfaa-identity-auth": "workspace:*",
     "lfaa-telemetry-logger": "workspace:*",
-    "lfaa-util-values": "workspace:*"
+    "lfaa-util-values": "workspace:*",
+    "lfaa-win32-process": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.0.0"

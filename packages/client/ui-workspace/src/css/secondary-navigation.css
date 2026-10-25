@@ -7,7 +7,7 @@
 
 .module-workbench-layout[data-layout-mode="mobile"][data-mobile-left-layout="dock"] > .module-workbench-region--secondary-navigation { box-shadow: none; }
 
-.module-left-preview {
+.module-workbench-layout[data-left-collapsed="true"] > .module-workbench-region--secondary-navigation.module-left-preview {
   position: absolute;
   z-index: 110;
   top: var(--agent-shell-header-h);
@@ -16,16 +16,35 @@
   width: min(var(--module-left-preview-width, 17rem), 100%);
   overflow: hidden;
   opacity: 0;
+  transform: none;
   visibility: hidden;
-  pointer-events: none;
+  /* 退场淡出期间继续接收指针，避免从标题按钮移向预览时进入不可命中的闪烁间隙；visibility 隐藏后自然不再命中。 */
+  pointer-events: auto;
   /* 预览固定在锚定位置，整体淡出时让 visibility 同步延后，避免内容淡完后外层突然消失。 */
   transition: opacity 260ms ease-in-out, visibility 0s linear 260ms;
   box-shadow: 0 12px 38px var(--color-shadow-float);
 }
 
-.module-left-preview.is-visible { opacity: 1; visibility: visible; pointer-events: auto; transition: opacity 160ms ease-out, visibility 0s linear 0s; }
+.module-workbench-layout[data-left-collapsed="true"] > .module-workbench-region--secondary-navigation.module-left-preview.is-visible {
+  opacity: 1;
+  transform: none;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity 160ms ease-out, visibility 0s linear 0s;
+}
 
-.module-left-preview[data-layout-mode="mobile"] { display: none; }
+/* 标题栏高 48px、触发按钮高 32px 时名义空隙为 8px；额外延长 4px 覆盖响应式缩放造成的亚像素缝隙。 */
+.module-shell-icon-button--left-preview { position: relative; }
+.module-shell-icon-button--left-preview::after {
+  position: absolute;
+  z-index: 1;
+  top: 100%;
+  right: -8px;
+  left: -8px;
+  height: max(12px, calc(var(--agent-shell-header-h, 3rem) - 36px));
+  background: transparent;
+  content: "";
+}
 
 /* 左侧栏尺寸变化时保持玻璃背景模糊，避免按住分隔线期间突然清晰透底。 */
 .module-sidebar {
@@ -71,6 +90,12 @@
 .module-sidebar__brand-mark { display: grid; width: 26px; height: 26px; place-items: center; border-radius: 8px; background: var(--color-brand-subtle); color: var(--color-brand); font-size: 12px; font-weight: 760; }
 
 .module-sidebar__close { display: none; }
+
+/* 中间区收起后标题栏切换按钮不可见；左二菜单自身仍保留关闭入口。 */
+.lfaa-workbench[data-center-collapsed="true"] .module-sidebar__close { display: grid; }
+
+/* 普通应用把主导航放在左二；AI Work 仍由同一侧栏展示会话与项目。 */
+.module-sidebar__application-navigation { margin-top: 12px; border-top: 1px solid var(--color-border); }
 
 .module-sidebar__notification-badge { position: absolute; top: 0; right: 0; display: grid; min-width: 15px; height: 15px; place-items: center; padding: 0 3px; border: 1px solid var(--color-surface); border-radius: 99px; background: var(--color-status-error); color: #fff; font-size: 8px; line-height: 1; }
 
@@ -184,6 +209,8 @@ body:has(.workbench-shell[data-theme="dark"]) .module-sidebar-notification-overl
 
 .module-sidebar__session.is-active { border-color: var(--color-border); background: var(--color-surface-selected); }
 
+.module-sidebar__session.is-project-directory-missing > button:first-child { color: var(--color-text-muted); }
+
 .module-sidebar__session > button { display: flex; min-width: 0; min-height: 34px; align-items: center; gap: 7px; padding: 0 7px; border: 0; border-radius: 7px; background: transparent; color: var(--color-text-primary); cursor: pointer; font-size: var(--font-size-xs); text-align: left; }
 
 .module-sidebar__session > button:first-child { flex: 1; }
@@ -232,6 +259,10 @@ body:has(.workbench-shell[data-theme="dark"]) .module-sidebar-notification-overl
 .module-sidebar__project-heading > small { color: var(--color-text-muted); font-size: 10px; }
 
 .module-sidebar__project-heading:hover:not(:disabled) { background: var(--color-surface-hover); color: var(--color-text-heading); }
+
+.module-sidebar__project-heading.is-project-directory-missing { color: var(--color-text-muted); }
+
+.module-sidebar__project-heading.is-project-directory-missing > svg { color: var(--color-text-muted); }
 
 .module-sidebar__project-heading:disabled { cursor: default; }
 

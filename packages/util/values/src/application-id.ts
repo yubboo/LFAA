@@ -7,7 +7,7 @@ export const APPLICATION_IDS = ["steamcmd", "minecraft", "connectivity", "writin
 export type ApplicationId = typeof APPLICATION_IDS[number];
 
 /** 工作台“应用”菜单的真实入口 ID；与 App ID 区分，保留游戏库这一聚合入口。 */
-export const APPLICATION_NAVIGATION_IDS = ["games", "steamcmd", "minecraft", "connectivity", "writing", "aivideo"] as const;
+export const APPLICATION_NAVIGATION_IDS = ["games", "steamcmd", "minecraft", "connectivity", "writing", "aivideo", "canvas"] as const;
 export type ApplicationNavigationId = typeof APPLICATION_NAVIGATION_IDS[number];
 
 /** 项目目录仅接入这两个 App；范围是能力合同，不等同于所有可切换应用。 */
@@ -16,6 +16,9 @@ export type WorkspaceProjectApplicationId = typeof WORKSPACE_PROJECT_APPLICATION
 
 /** 路由枚举从应用权威清单生成，新增 App 无需在工作台手写正则分支。 */
 export const APPLICATION_ROUTE_PATTERN = new RegExp(`^/apps/(${APPLICATION_IDS.join("|")})/(normal|ai-work)(?:/(.*))?$`, "u");
+
+/** 系统级无限画布：每个 App 都有自己的画布工作区，可带项目 ID。 */
+export const APP_CANVAS_ROUTE_PATTERN = new RegExp(`^/apps/(${APPLICATION_IDS.join("|")})/canvas(?:/([0-9a-fA-F-]{36}))?$`, "u");
 
 /** 所有 App 共用工作入口；根首页、旧工作地址及旧 App 工作地址统一归一到这里。 */
 export const SHARED_WORK_ROUTE = "/work";
