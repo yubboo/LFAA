@@ -116,6 +116,12 @@ async function main() {
   const launchConfig = profile === "web"
     ? (await import(pathToFileURL(resolve(runtimeRoot, "dist/apps/control-plane/packages/util/launch-environment/src/config.js")).href)).config
     : null;
+  if (profile === "web") {
+    // The launch environment resolves the current Settings-owned business Data root,
+    // including the source-mode default and saved project-storage selection. Keep the
+    // process environment consumed by domain packages aligned with that resolved path.
+    process.env.LFAA_DATA_DIR = launchConfig.dataDirectory;
+  }
   if (profile === "web") await assertWebPortAvailable(launchConfig.host, launchConfig.port);
   const { boot } = await import(pathToFileURL(entry).href);
   const context = await boot(args);

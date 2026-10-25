@@ -60,7 +60,7 @@ test("AI Work 中心区收起后显示会话、新标签页及动态工具标签
   assert.doesNotMatch(legacyRightNav, />浏览器|>变更/u, "AI Work 不再将工具功能固定在右侧互斥导航行");
   assert.match(workspace, /const activeCenterCollapsed = centerCollapsePreview \?\? centerCollapsed/u, "拖动预览优先于已提交的中心列状态");
   assert.match(workspace, /const toggleCenterCollapsed = useCallback\(\(\) => \{\s*setCenterCollapsePreview\(null\);\s*setCenterCollapsed\(collapsed => !collapsed\);/u, "双击切换只改变受控中心区状态并清除旧预览");
-  assert.match(workspace, /useLayoutEffect\(\(\) => \{\s*if \(appliedLayoutMode\.current === metrics\.mode\) return;[\s\S]*?\}, \[metrics\.mode, mode\]\);/u, "实际容器断点变化时在绘制前对齐 Dock 状态");
+  assert.match(workspace, /const responsiveLayoutKey = `\$\{metrics\.mode\}:\$\{mode\}`;\s*if \(appliedResponsiveLayout\.current === responsiveLayoutKey\) return;[\s\S]*?\}, \[metrics\.mode, mode\]\);/u, "实际容器断点或布局模式变化时在绘制前对齐 Dock 状态");
   assert.match(workspace, /const workbenchTabs = showWorkbenchTabs \? <div className="module-workbench-tabstrip"/u, "右侧工作区标签在聊天区展开时也显示");
   assert.match(workspace, /selectRightUtilityTab = useCallback\(\(tab: WorkspaceUtilityTab\)/u, "右侧标签切换复用当前 Utility Owner");
   assert.match(workspace, /onClick=\{\(\) => activeCenterCollapsed \? selectWorkbenchTab\(tab\.id\) : selectRightUtilityTab\(tab\)\}/u, "聊天区展开时切换右侧标签不收起中间工作区");
@@ -74,6 +74,12 @@ test("AI Work 中心区收起后显示会话、新标签页及动态工具标签
   const right = workspace.match(/const right = \([\s\S]*?\n  const bottom/u)?.[0];
   assert.ok(right, "右侧菜单 JSX 应可定位");
   assert.match(right, /!chrome\.rightCollapsed && \(metrics\.mode === "desktop" \|\| showWorkbenchTabs\)[\s\S]*?module-context__shell-actions[\s\S]*?\{workbenchTabs\}[\s\S]*?module-context__body/u, "右侧菜单打开时标签栏常驻在右侧标题行");
+  assert.match(workspace, /const showRightShellControls = metrics\.mode === "desktop" \|\| \(showWorkbenchTabs && metrics\.mode === "compact"\)/u, "AI Work 在紧凑宽度下也把右栏开合控件留在右侧标题行");
+  assert.match(workspace, /const showCenterPanelControls = chrome\.rightCollapsed \|\| metrics\.mode === "mobile" \|\| \(metrics\.mode === "compact" && !showWorkbenchTabs\)/u, "右栏收起时保留中心恢复入口，手机与普通紧凑页继续使用中心控件");
+  const shellActions = right.match(/<header className="module-context__shell-actions">([\s\S]*?)<\/header>/u)?.[1];
+  assert.ok(shellActions, "右栏页签标题行应可定位");
+  assert.match(shellActions, /\{workbenchTabs\}[\s\S]*?showRightShellControls && terminalPanelAvailable[\s\S]*?PanelControl name="terminal"[\s\S]*?showRightShellControls \? <PanelControl name="panelRight" title="收起上下文栏"/u, "页签、新建入口、底部终端和上下文收起控件位于右栏同一行");
+  assert.match(workspaceCss, /\.module-workbench-tab-add\s*\{[^}]*flex:\s*0 0 auto/u, "新建标签页 + 保持固定宽度，不被紧凑右栏控件挤掉");
   assert.match(right, /id=\{showWorkbenchTabs && !chrome\.rightCollapsed \? "module-workbench-tab-panel" : undefined\}[\s\S]*?role=\{showWorkbenchTabs && !chrome\.rightCollapsed \? "tabpanel"/u, "页签与右侧菜单内容面板保持同级关系");
   assert.match(right, /选择工具，在当前标签页打开/u);
   assert.match(workspace, /onCenterCollapsePreviewChange=\{setCenterCollapsePreview\}/u);
@@ -196,12 +202,15 @@ test("中心列拖动越过下限阈值后吸附收起，标签仍可显式切�
   assert.match(workspaceCss, /\.module-workbench-tabs--context \{[^}]*width: max-content;[^}]*max-width: calc\(100% - 34px\);[^}]*flex: 0 1 auto;[^}]*overflow-x: auto/u, "导航按标签宽度收缩并为加号保留空间，溢出时仍可横向滚动");
   assert.match(workspaceCss, /\.module-workbench-tabs--context \.module-workbench-tab \{ min-height: 100%; max-width: 280px; \}/u, "右侧页签不以自身宽度百分比限制标签而制造空白");
   assert.match(workspaceCss, /\.module-workbench-tabs--context \.module-workbench-tab-item \{ max-width: 280px; \}/u, "常规右侧标签宽度由内容决定并限制到固定上限");
-  assert.match(workspaceCss, /@container module-context \(max-width: 340px\)[\s\S]*?\.module-workbench-tabs--context \{ max-width: calc\(100% - 25px\);/u, "窄右栏按紧凑加号尺寸预留空间");
-  assert.match(workspaceCss, /@container module-context \(max-width: 340px\)[\s\S]*?\.module-workbench-tabs--context \.module-workbench-tab-item \{ max-width: 38px; \}/u, "窄右栏标签切换为紧凑宽度");
+  assert.match(workspaceCss, /@container module-context \(max-width: 340px\)[\s\S]*?\.module-context__shell-actions > \.module-workbench-tabstrip \{ max-width: calc\(100% - 64px\); min-width: 0; flex: 0 1 auto; margin-inline-end: auto; \}/u, "窄右栏左侧保留完整标签组，并为右侧两个图标按钮预留宽度");
+  assert.match(workspaceCss, /@container module-context \(max-width: 340px\)[\s\S]*?\.module-context__shell-actions > \.module-panel-control > span \{ display: none; \}/u, "窄右栏的终端和上下文控制收为图标按钮，名称仍由无障碍标签提供");
+  assert.match(workspaceCss, /@container module-context \(max-width: 340px\)[\s\S]*?\.module-workbench-tabs--context \{ max-width: calc\(100% - 25px\); min-width: 0; gap: 1px; padding-right: 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; \}/u, "多标签只在标签列表内滚动，保留新建按钮并隐藏装饰性滚动条");
+  assert.doesNotMatch(workspaceCss, /@container module-context \(max-width: 340px\)[\s\S]*?\.module-workbench-tabs--context \.module-workbench-tab > span \{ display: none; \}/u, "窄右栏页签仍显示标题文字");
+  assert.match(workspaceCss, /@container module-context \(max-width: 340px\)[\s\S]*?\.module-workbench-tabs--context \.module-workbench-tab \{ justify-content: flex-start; gap: 4px; padding-inline: 6px; \}/u, "窄右栏页签保持图标、标题与关闭按钮同排");
   assert.match(workspaceCss, /\.module-context__launcher-grid,\s*\.module-context__launcher-extra-grid \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/u);
   assert.match(workspaceCss, /@container module-context \(max-width: 340px\)[\s\S]*?\.module-context__launcher-grid \{ grid-template-columns: minmax\(0, 1fr\)/u, "窄栏入口切换为单列");
   assert.match(workspaceCss, /\.module-workbench-layout\s*\{[^}]*container-name:\s*module-workbench-main/u);
-  assert.match(workspaceCss, /@container module-context \(max-width: 340px\)[\s\S]*?\.module-workbench-tab-item \.module-workbench-tab \{ justify-content: center; padding-inline: 6px; \}/u, "窄右栏收起页签将文字收为图标并保留辅助名称");
+  assert.match(workspaceCss, /@container module-context \(max-width: 340px\)[\s\S]*?\.module-workbench-tab-item \.module-workbench-tab \{ justify-content: flex-start; padding-inline: 6px; \}/u, "窄右栏页签保留图标与标题，并对齐关闭按钮");
 });
 
 test("分隔条第一次越过启动阈值的移动也必须更新尺寸", () => {

@@ -294,6 +294,7 @@
           "packages/api/ai-video-controller",
           "packages/api/attachment-controller",
           "packages/api/browser-controller",
+          "packages/api/canvas-controller",
           "packages/api/connectivity-controller",
           "packages/api/gateway",
           "packages/api/github-connection-controller",
@@ -850,8 +851,47 @@
         "entry": "packages/canvas/canvas/src/index.ts",
         "readme": "packages/canvas/canvas/README.md",
         "consumers": [
-          "packages/api/canvas-controller"
+          "packages/api/canvas-controller",
+          "packages/canvas/canvas-generation",
+          "packages/canvas/tool-canvas"
         ],
+        "bundleDeclarations": [
+          "packages/bundle/web-app/cordis.patch.yml"
+        ],
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
+      }
+    },
+    {
+      "path": "packages/canvas/canvas-generation",
+      "name": "lfaa-canvas-generation",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented",
+      "responsibility": "画布生成编排 Owner，复用 LLM/设置/凭据 Owner 执行图片与视频任务，不新写 Provider 协议",
+      "evidence": {
+        "entry": "packages/canvas/canvas-generation/src/index.ts",
+        "readme": "packages/canvas/canvas-generation/README.md",
+        "consumers": [
+          "packages/api/canvas-controller",
+          "packages/canvas/tool-canvas"
+        ],
+        "bundleDeclarations": [
+          "packages/bundle/web-app/cordis.patch.yml"
+        ],
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
+      }
+    },
+    {
+      "path": "packages/canvas/tool-canvas",
+      "name": "lfaa-canvas-tool-canvas",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented",
+      "responsibility": "小鱼 Agent 的画布读写与生成工具，经 lfaa-tools 合同和现有权限模式执行",
+      "evidence": {
+        "entry": "packages/canvas/tool-canvas/src/index.ts",
+        "readme": "packages/canvas/tool-canvas/README.md",
+        "consumers": [],
         "bundleDeclarations": [
           "packages/bundle/web-app/cordis.patch.yml"
         ],
@@ -2375,6 +2415,7 @@
           "packages/boot/capability-mcp",
           "packages/boot/knowledge-library",
           "packages/browser-use/browser-use",
+          "packages/canvas/tool-canvas",
           "packages/computer-use/computer-use",
           "packages/core/agent-loop",
           "packages/document/tool-writing",
@@ -2476,6 +2517,7 @@
         "consumers": [
           "packages/api/agent-git-controller",
           "packages/browser-use/browser-use",
+          "packages/canvas/canvas-generation",
           "packages/core/agent-default-model",
           "packages/credentials/credential-flows",
           "packages/integrations/github",
@@ -3914,6 +3956,7 @@
         "readme": "packages/llm/llm/README.md",
         "consumers": [
           "packages/boot/app-boot",
+          "packages/canvas/canvas-generation",
           "packages/compaction/command-compact",
           "packages/compaction/compaction",
           "packages/compaction/compaction-basic",
@@ -5010,6 +5053,7 @@
           "packages/boot/capability-skill",
           "packages/boot/plugin-manager",
           "packages/browser-use/browser-use",
+          "packages/canvas/canvas-generation",
           "packages/compaction/compaction-basic",
           "packages/computer-use/computer-use",
           "packages/core/agent-default-model",
@@ -6516,6 +6560,9 @@
           "packages/boot/knowledge-library",
           "packages/boot/plugin-manager",
           "packages/browser-use/browser-use",
+          "packages/canvas/canvas",
+          "packages/canvas/canvas-generation",
+          "packages/canvas/tool-canvas",
           "packages/client/connection",
           "packages/client/ui-chat",
           "packages/client/ui-layout",

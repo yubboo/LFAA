@@ -14,23 +14,28 @@ test("模型目录更新不因当前模型容量错误失败或改写用户选�
   const data = mkdtempSync(join(parent, "lfaa-ai-model-catalog-refresh-"));
   const source = `
     import assert from 'node:assert/strict';
+    import {existsSync, rmSync as removeFile, writeFileSync} from 'node:fs';
+    import {randomBytes} from 'node:crypto';
+    import {join} from 'node:path';
     const {database,closeDatabase}=await import('lfaa-storage-sqlite/src/database.js');
     const {configuration}=await import('lfaa-storage-domain/src/configuration.js');
     const {sessionRecords}=await import('lfaa-session-persistence-jsonl/src/repository.js');
     const {retireLegacyFileTables}=await import('lfaa-storage-domain/src/migration.js');retireLegacyFileTables();
-    const {saveAiAccount,refreshAiAccountModelCatalog,testSavedAiAccountModel,listAiAccounts}=await import('lfaa-settings/src/service.js');
+    const {saveAiAccount,refreshAiAccountModelCatalog,testSavedAiAccountModel,testAiAccountCredential,updateAiAccountCredential,listAiAccounts,resolveAiModelAccountCredential}=await import('lfaa-settings/src/service.js');
     const {modelOptionLabel,modelOptionVersionTag,modelSelectorDisplayLabel}=await import('lfaa-client-ui-settings-models/src/model-options.js');
     database.prepare("INSERT INTO users(id,uid,username,password_salt,password_hash,role,is_super_admin) VALUES ('fixture-owner',1,'fixture-owner','test-salt','test-hash','admin',1)").run();
     const originalFetch=globalThis.fetch;
     try {
       let inferenceCalls=0;
       let updatesPageCalls=0;
+      let inferenceSucceeds=false;
       let catalog=[{id:'fixture-reasoner',effort:{supported_levels:['low','high'],default_level:'high'}}];
       globalThis.fetch=async (url,init)=>{
         if(String(url)==='https://api.deepseek.com/models'&&init.method==='GET') return Response.json({data:catalog});
         if(String(url)==='https://api-docs.deepseek.com/zh-cn/updates/'&&(!init.method||init.method==='GET')) {updatesPageCalls++;return new Response('<h2>DeepSeek-V4.1-Flash-1017 更新</h2>',{headers:{'Content-Type':'text/html; charset=utf-8'}});}
         if(String(url)==='https://api.deepseek.com/chat/completions'){
           inferenceCalls++;
+          if(inferenceSucceeds) return Response.json({choices:[{message:{content:'连接成功。'}}]});
           return Response.json({error:{message:'Selected model is at capacity. Please try a different model.'}},{status:503});
         }
         throw new Error('Unexpected Provider request');
@@ -66,6 +71,24 @@ test("模型目录更新不因当前模型容量错误失败或改写用户选�
       const stored=configuration.get('ai_accounts',row=>row.id===account.id);
       assert.equal(stored.model_id,'fixture-reasoner','目录移除旧模型时也不能自动选择第一项');
       assert.equal(stored.reasoning_mode,'high','目录移除旧模型时也不能改写保存的思考设置');
+      const keyPath=join(process.env.LFAA_HOME,'credentials','settings.key');
+      removeFile(keyPath);
+      assert.throws(()=>resolveAiModelAccountCredential('fixture-owner',account.id),/密钥文件缺失/u,'读取凭据时不得静默生成无法解密旧密文的新密钥');
+      assert.equal(existsSync(keyPath),false,'缺失密钥的读取失败不得写入替代密钥');
+      writeFileSync(keyPath,randomBytes(32),{mode:0o600});
+      assert.throws(()=>resolveAiModelAccountCredential('fixture-owner',account.id),/更新这份系统模型配置的 API Key/u,'密钥不匹配时应指导管理员原位更新系统模型 API Key');
+      catalog=[{id:'fixture-reasoner',effort:{supported_levels:['low','high'],default_level:'high'}}];
+      inferenceSucceeds=true;
+      const tested=await testAiAccountCredential('another-login',account.id,'replacement-secret');
+      assert.equal(tested.modelId,'fixture-reasoner','新密钥必须对当前系统模型发起真实请求');
+      assert.equal(inferenceCalls,2,'更新系统 API Key 前只额外测试当前模型一次');
+      const recovered=await updateAiAccountCredential('another-login',account.id,'replacement-secret');
+      assert.equal(recovered.id,account.id,'修复密钥时保留原系统配置 ID');
+      assert.equal(recovered.displayName,'合成账户','修复密钥时保留系统配置名称');
+      assert.equal(recovered.modelId,'fixture-reasoner','修复密钥时保留当前模型');
+      assert.equal(resolveAiModelAccountCredential('another-login',account.id),'replacement-secret','所有登录账户都可经控制端解析同一系统凭据');
+      assert.deepEqual(listAiAccounts('fixture-owner').map(({displayName})=>displayName),['合成账户'],'恢复时原位替换密钥，不创建第二个模型配置');
+      assert.equal(inferenceCalls,2,'保存经测试的密钥时不得重复计费发送模型请求');
     } finally {globalThis.fetch=originalFetch;sessionRecords.close();configuration.close();closeDatabase();}
   `;
   try {

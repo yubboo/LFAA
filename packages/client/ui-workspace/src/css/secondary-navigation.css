@@ -12,7 +12,8 @@
   z-index: 110;
   top: var(--agent-shell-header-h);
   bottom: 0;
-  left: var(--lfaa-leading-width, 0px);
+  /* pane 已锚定在 Grid 第 2 列；从列起点定位，不能重复叠加常驻导航栏宽度。 */
+  left: 0;
   width: min(var(--module-left-preview-width, 17rem), 100%);
   overflow: hidden;
   opacity: 0;

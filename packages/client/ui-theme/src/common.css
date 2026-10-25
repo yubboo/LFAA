@@ -1,7 +1,7 @@
 /*
  * 功能：定义多个独立前端组件共用的状态样式与界面动效。
  * 作用：集中维护页面加载、服务连接状态、通用错误提示、已注册卡片和全局弹窗效果，不承载单页业务布局。
- * 关联文件：packages/client/web/src/main.tsx、packages/client/ui-renderer/src/App.tsx、packages/client/ui-layout/src/Workbench.tsx、packages/client/ui-workspace/src/ApplicationWorkspace.tsx、packages/client/ui-settings-account/src/AdminUsersPage.tsx、packages/client/ui-primitives/src/ServiceStatus.tsx。
+ * 关联文件：packages/client/web/src/main.tsx、packages/client/ui-renderer/src/App.tsx、packages/client/ui-layout/src/Workbench.tsx、packages/client/ui-workspace/src/ApplicationWorkspace.tsx、packages/client/ui-settings-account/src/AdminUsersPage.tsx、packages/client/ui-primitives/src/ServiceStatus.tsx 与 settings-controls.tsx。
  */
 
 /* 全页与局部加载状态由认证、工作台和应用页面共同使用。 */
@@ -73,6 +73,55 @@
 /* 多页面错误提示共用统一的下方留白，颜色与图标由 Ant Design Alert 提供。 */
 .page-alert {
   margin-bottom: var(--space-5);
+}
+
+/* SettingsSwitch 沿用共享主题颜色；此处只提供弹性滑块和按压反馈，不拥有设置值。 */
+.workbench-shell .settings-switch {
+  --settings-switch-jelly-duration: 350ms; /* 设置中心二态开关的滑块拉伸与轨道变色时长：350ms。 */
+  --settings-switch-jelly-spring: cubic-bezier(.34, 1.36, .64, 1); /* 设置中心开关滑块移动曲线：轻回弹，超调控制在约 8% 内。 */
+  --settings-switch-press-duration: 60ms; /* 设置中心开关按下缩放反馈时长：60ms。 */
+  transition:
+    background-color var(--settings-switch-jelly-duration) cubic-bezier(.2, .8, .2, 1),
+    transform 180ms cubic-bezier(.2, .8, .2, 1);
+}
+
+.workbench-shell .settings-switch > i {
+  background: transparent;
+  box-shadow: none;
+  transition: transform var(--settings-switch-jelly-duration) var(--settings-switch-jelly-spring);
+}
+
+.workbench-shell .settings-switch > i > .settings-switch__thumb {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-surface);
+  box-shadow: 0 1px 4px var(--color-shadow-float);
+}
+
+.workbench-shell .settings-switch.is-on > i > .settings-switch__thumb { transform-origin: left center; }
+.workbench-shell .settings-switch:not(.is-on) > i > .settings-switch__thumb { transform-origin: right center; }
+
+@keyframes lfaa-settings-switch-jelly {
+  0%, 100% { transform: scaleX(1); }
+  42% { transform: scaleX(1.38); }
+  68% { transform: scaleX(.96); }
+}
+
+.workbench-shell .settings-switch > i > .settings-switch__thumb.is-jelly {
+  animation: lfaa-settings-switch-jelly var(--settings-switch-jelly-duration) cubic-bezier(.2, .8, .2, 1) both;
+}
+
+@media (hover: hover) {
+  .workbench-shell .settings-switch:not(:disabled):hover { transform: scale(1.02); }
+}
+
+.workbench-shell .settings-switch:active:not(:disabled) {
+  transform: scale(.975);
+  transition:
+    background-color var(--settings-switch-jelly-duration) cubic-bezier(.2, .8, .2, 1),
+    transform var(--settings-switch-press-duration) cubic-bezier(.2, .8, .2, 1);
 }
 
 /* 卡片仅需加入共享卡片类与列表类；效果由工作台根节点的账户设置统一选择。 */

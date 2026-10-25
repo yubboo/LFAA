@@ -2,7 +2,7 @@
 
 `Workbench` 将认证后的 `/plugins` 路由懒加载到 `ui-plugin-manager`，并把它作为独立模块工作区显示。页面的全局导航归 `ui-sidebar`，插件来源/状态展示与动作意图归 `ui-plugin-manager`；Workbench 只装配该页面，不持有插件规则。插件目录工具栏齿轮调用 `openSettings("plugins")` 路由到设置中心现有插件分区，并保留返回来源；设置内容仍归 `ui-settings`。
 
-模块页面的 Shell 高度与滚动边界由 `src/css/module-shell.css` 管理并由 `Workbench.tsx` 引入；模块路由激活时将 `html/body/#root` 限制在动态视口并锁定文档根滚动，内容仍由各自面板滚动，短屏不以最小高度撑开整页。工作区、文件管理和插件管理的内容样式留在各自 UI 包，不由 Renderer 全局加载。
+模块页面的 Shell 高度与滚动边界由 `src/css/module-shell.css` 管理并由 `Workbench.tsx` 引入；模块路由激活时将 `html/body/#root` 限制在动态视口并锁定文档根滚动，内容仍由各自面板滚动，短屏不以最小高度撑开整页。Web 入口默认在 `html/body` 预留稳定滚动槽；模块页内部滚动后会关闭这两层预留，避免窄视口重复扣除宽度、露出右侧画布底色。工作区、文件管理和插件管理的内容样式留在各自 UI 包，不由 Renderer 全局加载。
 
 Workbench 还负责把设置、文件和插件页面的“最近会话”请求送入 `/work`；请求 ID 只在内存中暂存，由 `ApplicationWorkspace` 消费并确认后清除。会话列表、刷新和 Dock 展开仍归工作区 Owner，不由 Workbench 复制。
 

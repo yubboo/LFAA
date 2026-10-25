@@ -26,7 +26,7 @@
 
 `GeneralSettings.hiddenApplicationNavigationIds` 保存被用户从全局“应用”菜单隐藏的内置导航 ID，唯一默认值为 `[]`。此偏好仅控制菜单可见项，不授予或撤销应用权限、不卸载应用；ID 白名单与 Workbench 应用导航清单保持一致。
 
-2026-10-23：`browser-provider.ts` 统一登记 `BUILTIN_BROWSER_WORKSPACE_ID`，供 Web/Desktop Client 与 Browser Run Adapter 绑定同一个账户内置浏览器工作区，避免 AI 会话切换导致页面分裂。
+2026-10-23：`browser-provider.ts` 统一登记 `BUILTIN_BROWSER_WORKSPACE_ID`，供 Web/Desktop Client 与 Browser Run Adapter 绑定同一个账户内置浏览器工作区，避免 AI 会话切换导致页面分裂；`isBuiltinBrowserProvider` 统一识别可镜像到 LFAA Dock 的内置 Provider，个人 Tabbit 页面不镜像。
 
 `settings-menu-catalog.ts` 是设置中心菜单 ID、标题、分组、账户设置分类、Agent 接入类型与未接入说明的共享只读目录。设置导航和 Agent 设置目录从这里读取菜单语义，避免菜单名称、分类映射与接入状态各维护一份。
 

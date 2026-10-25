@@ -1,8 +1,8 @@
 # 领域与写作专家内容 Owner
 
-持有 SteamCMD/Minecraft/写作领域角色和六个作品角色的元数据及方法。作品角色 ID 只作为偏好，不自动把全文注入主请求。
+持有 SteamCMD/Minecraft/写作/画布领域角色和六个作品角色的元数据及方法。作品角色 ID 只作为偏好，不自动把全文注入主请求。
 
-公共合同：expert.minecraft-hosting、expert.steamcmd-hosting、expert.ai-writing、expert.writing.<原角色 ID>；writing-catalog 只提供稳定 ID 校验，正文加载与实际委派分别由扩展注册表和原 Agent Loop 完成。
+公共合同：expert.minecraft-hosting、expert.steamcmd-hosting、expert.ai-writing、expert.canvas-director、expert.writing.<原角色 ID>；writing-catalog 只提供稳定 ID 校验，正文加载与实际委派分别由扩展注册表和原 Agent Loop 完成。`expert.canvas-director`（画布导演）只在正文中登记 `packages/canvas/tool-canvas` 的真实 `canvas_*` 工具与方法，不新增工具权限或第二套画布数据；生成能力以 `lfaaCanvasGeneration` 真实返回为准。
 
 运行位置：Control Plane 的 Cordis 插件或内部合同库，由 base Bundle 装配；不运行在浏览器，不将凭据或节点进程带入客户端。依赖以本包 package.json 为准，真实消费者见生成包清单的静态证据。源码/装配声明与现场运行验收分别记录。
 

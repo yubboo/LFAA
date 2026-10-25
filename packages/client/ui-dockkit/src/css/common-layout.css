@@ -33,7 +33,7 @@
   min-height: 0;
   overflow: hidden;
   transition:
-    grid-template-columns var(--lfaa-snap-settle-duration) cubic-bezier(.42, 0, .58, 1),
+    grid-template-columns var(--lfaa-snap-settle-duration) cubic-bezier(.16, .82, .24, 1),
     grid-template-rows var(--lfaa-snap-settle-duration) cubic-bezier(.16, .82, .24, 1);
 }
 

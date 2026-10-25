@@ -13,3 +13,5 @@ Agent 使用限制策略、时段与每日额度由 Identity/Auth Owner 校验�
 受信联系人关系、一次性邀请摘要和经确认的恢复请求由 Identity/Auth Owner 校验；本包只建立账户外键、短期凭证摘要字段与查询索引。
 
 `user_settings` 分类白名单包含 `mini`；配置记录仍按 `(user_id, category)` 隔离，不引入 Mini 窗口运行状态或额外设置表。
+
+通用 `configuration_records.user_id` 允许 `null` 表示 system scope；`ai_accounts` 的系统 Provider 与模型记录使用该 scope，由 Settings Owner 校验并管理，账户凭据和账户设置的原有归属不变。SQLite 行键仍以 `table_name + record_key` 唯一，不靠用户外键区分 system 配置。

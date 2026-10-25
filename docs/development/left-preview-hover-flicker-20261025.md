@@ -79,3 +79,23 @@
 - 设置沿用上一节列出的外观与工作区偏好；没有改写开合偏好或服务端数据。`node --test apps/cli/tests/client-left-preview-hover-flicker.test.mjs` 2/2、`pnpm.cmd --filter lfaa-client-ui-workspace run build` 及 `git diff --check` 通过。
 - 当前验收阻塞：第一次 `pnpm.cmd run build:web` 检测到构建期间源码指纹变化；稳定后重试，TypeScript 被本轮未改的 Canvas 工作区错误阻断，包括 `packages/client/ui-workspace/src/client/index.ts` 引用不存在的 `CanvasHome.js`，以及 `ui-layout/Workbench.tsx`、Canvas 组件类型错误；直接 Vite 构建也在相同缺失导入处停止。构建指纹仍为 `["host","web"]`，正式路由 HTTP 503，故没有对这批新代码声称完成内置浏览器验收，也未重启旧产物。需要修复当前 Canvas 构建阻塞后才能重新跑正式 Web 并在 `/apps/connectivity/normal` 实测。
 - 未测范围：浏览器控制工具无纯鼠标移动/hover 方法，真实鼠标命中与离开仍待实测；当前工作区 Web 构建受上述 Canvas 错误阻断，窄/短视口也未对新代码实测。静态源码回归和包组装不替代这些页面证据。
+- 最新截图纠正：唯一左 pane 已处于 DockKit Grid 第 2 列，再设置 `left: var(--lfaa-leading-width)` 会把常驻导航栏宽度加第二次。已改为 `left: 0`，并在回归中断言不再叠加该宽度；正式 Web 被上述 Canvas 构建问题阻断，尚未实页复核最终位置。
+
+## 最新位置修正与实页复验（2026-10-25）
+
+- 用户截图指出菜单整体右移。原因是唯一左 pane 已由 Grid 放在常驻主导航轨之后，预览 CSS 又加了一次主导航宽度。当前规则使用 `left: 0`；不再重复偏移。
+- ChatGPT 内置浏览器实际路由 `http://127.0.0.1:3000/apps/connectivity/normal`，临时视口 `1280×720`，模式 `desktop`。Grid 首列宽 `63.99px`，唯一 `.module-left-preview` 的 x 坐标也是 `63.99px`、宽 `200px`；初始 `aria-expanded=false`、`visibility:hidden`。通过 Tab 聚焦到触发器后，预览变为可见且 `aria-expanded=true`，x 仍为 `63.99px`，截图显示左二菜单紧贴主导航，没有额外空带。该检查确认了实际显示位置及键盘聚焦路径。
+- 截图由内置浏览器 CUA 实际捕获并以内联图像返回；当前接口没有本地图片导出路径，本轮没有生成新的截图文件。
+- 恢复内置浏览器默认视口后，实际路由为同一页面、`725×780`、模式 `mobile`；菜单只有一个实例，桌面 hover 预览 pane 在移动模式不装配，页面 `scrollWidth=715px`，无横向溢出。临时视口覆盖已重置。
+- 当前 CUA 浏览器 API 没有纯鼠标移动/hover 操作。鼠标从触发器经过命中桥进入预览、连续停留是否还闪烁，仍未通过物理鼠标实测；键盘显示和 DOM 坐标证据不能替代该项验收。没有通过点击或拖拽冒充 hover。
+- 最终代码验证：`node --test apps/cli/tests/client-left-preview-hover-flicker.test.mjs` 2/2；`pnpm.cmd --filter lfaa-client-ui-workspace run build` 通过；`pnpm.cmd run build:web` 通过（TypeScript 检查及 Vite 2301 modules，产物仅写根 `dist/`）；正式 `pnpm.cmd run lfaa web --no-local-daemon` 服务已从当前源码重启，`node scripts/runtime-build-state.mjs web` 返回 `[]`，功能路由 HTTP 200；本任务文件 `git diff --check` 通过。之前 Canvas 构建失败/503 是更早状态，已由这次成功构建与实页加载取代。
+- 设置沿用 `appearance.overlay`、`appearance.sidebarColor`、`appearance.blur`、`appearance.advanced.reducedMotion` 和既有工作区宽度/开合偏好；没有新增设置，也没有更改持久化偏好或业务数据。没有新增订阅/请求/长期计时器；关闭计时器的身份校验与卸载清理仍由定向回归覆盖。帧时间和长任务未测。
+
+## 追加修正：只在指定展示位置打开（2026-10-25）
+
+- 用户明确要求：指针进入左侧其他区域时左二菜单不能自行出现；应只在顶部栏“切换会话与项目栏”展示触发位置打开。
+- 根因：`ApplicationSidebar` 把 `onMouseEnter` 绑在整个 `.module-sidebar` 根节点，预览 pane 在淡出期间仍可命中，导致侧栏主体区域也能调用 `openLeftPreview`。顶部按钮本身已有独立的 `onMouseEnter` 与键盘可见焦点入口。
+- 修复：移除左栏根节点及其 props 的 `onPreviewMouseEnter`，仅保留顶部指定按钮打开；左栏 `onMouseLeave`、预览 `:hover/:focus-within` 延迟关闭保护和按钮到预览的窄连接命中区保留。指针进入侧栏主体不会从收起状态触发展开；打开后仍可把指针移入菜单操作。
+- 设置仍沿用 `general.navigationLayout`、已有 Dock 宽度/开合偏好及 Appearance 配置；无新增设置、偏好写入或业务数据变化。
+- 验证：定向回归 4/4、`lfaa-client-ui-workspace` 构建与 `pnpm.cmd run build:web` 通过；运行时指纹为 `[]`，正式 Web 服务经 LFAA 启动器重启。内置浏览器 `/games` 945×1015 Compact 初始预览收起，键盘聚焦顶部触发按钮后预览显示，中心区仍为 x=65；实页截图留在本轮内置浏览器工具记录中，视口重置后页面回到 `/games`。
+- 未测：CUA 浏览器仅提供点击/拖拽，没有纯鼠标移动接口；真实鼠标从左侧非触发区经过、以及实际 hover 闪烁频率未实测，不用键盘焦点结果代替鼠标验收；帧时间未测。

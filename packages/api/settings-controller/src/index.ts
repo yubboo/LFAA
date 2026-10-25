@@ -15,11 +15,11 @@ import { getUserPreferences, saveUserPreferences, type ApplicationId, type Appli
 import { clearConversationMemories, getConversationMemorySnapshot, replaceConversationMemories, validateConversationMemoriesInput } from "lfaa-conversation-memory/src/index.js";
 import { createAccountSnapshot, deleteAccountSnapshot, exportCurrentAccountArchive, listAccountSnapshots, previewAccountArchive, readAccountSnapshot, restoreAccountArchive } from "lfaa-settings-snapshots";
 import { redactConversationMemoryContexts } from "lfaa-session/src/sessions.js";
-import { activateAiAccount, deleteAiAccount, deleteUserBackground, getUserBackground, getUserSettings, getUserSettingsSyncStatus, listUserBackgrounds, listAiAccounts, listAiProviders, probeAiProvider, testAiProviderModel, refreshAiAccountModelCatalog, testSavedAiAccountModel, saveAiAccount, saveUserBackground, saveUserSettings, updateAiAccountModel, updateAiAccountReasoningMode, type SettingsCategory, type ShortcutSettings } from "lfaa-settings/src/service.js";
+import { activateAiAccount, deleteAiAccount, deleteUserBackground, getUserBackground, getUserSettings, getUserSettingsSyncStatus, listUserBackgrounds, listAiAccounts, listAiProviders, probeAiProvider, testAiProviderModel, refreshAiAccountModelCatalog, testSavedAiAccountModel, saveAiAccount, saveUserBackground, saveUserSettings, testAiAccountCredential, updateAiAccountCredential, updateAiAccountModel, updateAiAccountReasoningMode, type SettingsCategory, type ShortcutSettings } from "lfaa-settings/src/service.js";
 import { cancelDataDirectoryChange, confirmDataDirectoryLocation, recommendDataDirectoryLocation, DataDirectorySettingsError, getDataDirectorySettings, requestDataDirectoryChange } from "lfaa-workspace-data-directory/src/service.js";
 import { confirmProjectContentDirectory, getProjectStorageLocations, saveProjectContentDirectory } from "lfaa-settings/src/project-storage.js";
 import { adoptProjectContentDirectory, compareProjectContentDirectories, copyProjectContentToDirectory, createProjectContentArchive, importProjectContentArchive } from "lfaa-settings/src/content-storage-migration.js";
-import { asyncHandler, parseBody, preferencesSchema, accountAgentUsagePolicySchema, accountSnapshotCreateSchema, accountArchiveRestoreSchema, generalSettingsSchema, aiRuntimeSettingsSchema, minecraftRuntimeSettingsSchema, gitSettingsSchema, permissionsSettingsSchema, pluginsSettingsSchema, personalizationSettingsSchema, conversationMemoriesSchema, computerControlSettingsSchema, browserUseSettingsSchema, miniSettingsSchema, canvasSettingsSchema, appearanceSettingsSchema, shortcutsSchema, aiProbeSchema, aiAccountSchema, aiModelSchema, aiReasoningSchema, aiModelTestSchema, backgroundUploadSchema, hasShortcutConflict, dataDirectorySettingsSchema, projectContentStorageSchema, projectContentMigrationSchema, projectContentArchiveImportSchema, pluginRuntimeActionSchema } from "lfaa-api-remotes/src/route-contracts.js";
+import { asyncHandler, parseBody, preferencesSchema, accountAgentUsagePolicySchema, accountSnapshotCreateSchema, accountArchiveRestoreSchema, generalSettingsSchema, aiRuntimeSettingsSchema, minecraftRuntimeSettingsSchema, gitSettingsSchema, permissionsSettingsSchema, pluginsSettingsSchema, personalizationSettingsSchema, conversationMemoriesSchema, computerControlSettingsSchema, browserUseSettingsSchema, miniSettingsSchema, canvasSettingsSchema, appearanceSettingsSchema, shortcutsSchema, aiProbeSchema, aiAccountSchema, aiAccountCredentialSchema, aiModelSchema, aiReasoningSchema, aiModelTestSchema, backgroundUploadSchema, hasShortcutConflict, dataDirectorySettingsSchema, projectContentStorageSchema, projectContentMigrationSchema, projectContentArchiveImportSchema, pluginRuntimeActionSchema } from "lfaa-api-remotes/src/route-contracts.js";
 export function registerRoutes(router: Router, aiPluginHost: AiPluginHost, _realtime: MinecraftRealtimePublisher): void {
 
 function authorizeBusinessContentAction(userId: string, action: string, targetDirectory: string): void {
@@ -279,7 +279,7 @@ router.post("/settings/ai/test-model", requireAuthentication, asyncHandler(async
     }
   }));
 
-router.post("/settings/ai/accounts", requireAuthentication, asyncHandler(async (request, response) => {
+router.post("/settings/ai/accounts", requireAuthentication, requireRole("admin"), asyncHandler(async (request, response) => {
     const body = parseBody<{ providerId: string; secret: string; options: Record<string, string>; displayName: string; modelId: string; reasoningMode: string }>(aiAccountSchema, request.body);
     try {
       const account = await saveAiAccount(request.auth!.user.id, body);
@@ -289,7 +289,7 @@ router.post("/settings/ai/accounts", requireAuthentication, asyncHandler(async (
     }
   }));
 
-router.post("/settings/ai/accounts/:accountId/refresh-models", requireAuthentication, asyncHandler(async (request, response) => {
+router.post("/settings/ai/accounts/:accountId/refresh-models", requireAuthentication, requireRole("admin"), asyncHandler(async (request, response) => {
     try {
       response.json({ result: await refreshAiAccountModelCatalog(request.auth!.user.id, request.params.accountId) });
     } catch (error) {
@@ -297,7 +297,7 @@ router.post("/settings/ai/accounts/:accountId/refresh-models", requireAuthentica
     }
   }));
 
-router.post("/settings/ai/accounts/:accountId/test-model", requireAuthentication, asyncHandler(async (request, response) => {
+router.post("/settings/ai/accounts/:accountId/test-model", requireAuthentication, requireRole("admin"), asyncHandler(async (request, response) => {
     try {
       response.json({ result: await testSavedAiAccountModel(request.auth!.user.id, request.params.accountId) });
     } catch (error) {
@@ -305,7 +305,25 @@ router.post("/settings/ai/accounts/:accountId/test-model", requireAuthentication
     }
   }));
 
-router.put("/settings/ai/accounts/:accountId/model", requireAuthentication, asyncHandler(async (request, response) => {
+router.post("/settings/ai/accounts/:accountId/test-credential", requireAuthentication, requireRole("admin"), asyncHandler(async (request, response) => {
+    const body = parseBody<{ secret: string }>(aiAccountCredentialSchema, request.body);
+    try {
+      response.json({ result: await testAiAccountCredential(request.auth!.user.id, request.params.accountId, body.secret) });
+    } catch (error) {
+      throw new ApiError(422, "ai_account_credential_test_failed", error instanceof Error ? error.message : "系统模型 API Key 测试失败。");
+    }
+  }));
+
+router.put("/settings/ai/accounts/:accountId/credential", requireAuthentication, requireRole("admin"), asyncHandler(async (request, response) => {
+    const body = parseBody<{ secret: string }>(aiAccountCredentialSchema, request.body);
+    try {
+      response.json({ account: await updateAiAccountCredential(request.auth!.user.id, request.params.accountId, body.secret) });
+    } catch (error) {
+      throw new ApiError(422, "ai_account_credential_save_failed", error instanceof Error ? error.message : "系统模型 API Key 保存失败。");
+    }
+  }));
+
+router.put("/settings/ai/accounts/:accountId/model", requireAuthentication, requireRole("admin"), asyncHandler(async (request, response) => {
     const body = parseBody<{ modelId: string }>(aiModelSchema, request.body);
     try {
       response.json({ account: await updateAiAccountModel(request.auth!.user.id, request.params.accountId, body.modelId) });
@@ -314,7 +332,7 @@ router.put("/settings/ai/accounts/:accountId/model", requireAuthentication, asyn
     }
   }));
 
-router.put("/settings/ai/accounts/:accountId/reasoning", requireAuthentication, (request, response) => {
+router.put("/settings/ai/accounts/:accountId/reasoning", requireAuthentication, requireRole("admin"), (request, response) => {
     const body = parseBody<{ reasoningMode: string }>(aiReasoningSchema, request.body);
     try {
       response.json({ account: updateAiAccountReasoningMode(request.auth!.user.id, request.params.accountId, body.reasoningMode) });
@@ -323,7 +341,7 @@ router.put("/settings/ai/accounts/:accountId/reasoning", requireAuthentication, 
     }
   });
 
-router.post("/settings/ai/accounts/:accountId/activate", requireAuthentication, (request, response) => {
+router.post("/settings/ai/accounts/:accountId/activate", requireAuthentication, requireRole("admin"), (request, response) => {
     try {
       response.json({ account: activateAiAccount(request.auth!.user.id, request.params.accountId) });
     } catch (error) {
@@ -331,7 +349,7 @@ router.post("/settings/ai/accounts/:accountId/activate", requireAuthentication, 
     }
   });
 
-router.delete("/settings/ai/accounts/:accountId", requireAuthentication, (request, response) => {
+router.delete("/settings/ai/accounts/:accountId", requireAuthentication, requireRole("admin"), (request, response) => {
     deleteAiAccount(request.auth!.user.id, request.params.accountId);
     response.status(204).end();
   });

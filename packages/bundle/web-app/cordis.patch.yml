@@ -51,7 +51,13 @@
       inject: []
     - id: api-canvas-controller
       name: lfaa-api-canvas-controller
-      inject: [apiGateway, lfaaCanvas]
+      inject: [apiGateway, lfaaCanvas, lfaaCanvasGeneration]
+    - id: canvas-generation
+      name: lfaa-canvas-generation
+      inject: [lfaaCanvas, lfaaSettings, lfaaCredentials]
+    - id: tool-canvas
+      name: lfaa-canvas-tool-canvas
+      inject: [lfaaCanvas, lfaaTools]
     - id: api-settings-controller
       name: lfaa-api-settings-controller
       inject: [apiGateway]

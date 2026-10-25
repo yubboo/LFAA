@@ -42,7 +42,9 @@ hmr:开发插件与源码热重载生命周期
 knowledge-library:知识资料目录和按需读取的工具装配适配
 plugin-manager:第三方插件来源核验、安装、装载、资源和回滚管理`,
   "browser-use": `browser-use:浏览器观察和操作的驱动服务合同`,
-  canvas: `canvas:无限画布项目、节点图与素材的账户隔离唯一 Owner，不执行生成工作流`,
+  canvas: `canvas:无限画布项目、节点图与素材的账户隔离唯一 Owner，不执行生成工作流
+canvas-generation:画布生成编排 Owner，复用 LLM/设置/凭据 Owner 执行图片与视频任务，不新写 Provider 协议
+tool-canvas:小鱼 Agent 的画布读写与生成工具，经 lfaa-tools 合同和现有权限模式执行`,
   bundle: `acp-app:ACP 应用的能力组合补丁
 base:共享 Control Plane 基础能力的有序组合
 daemon-app:目标节点身份、执行与任务领取的组合

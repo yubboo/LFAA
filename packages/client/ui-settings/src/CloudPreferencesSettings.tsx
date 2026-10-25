@@ -7,7 +7,8 @@ import { SettingGroup, SettingRow } from "lfaa-client-ui-primitives/src/settings
 const categoryLabels: Record<string, string> = {
   general: "常规与通知", appearance: "外观", shortcuts: "快捷键", "ai-runtime": "AI 与语音",
   "minecraft-runtime": "Minecraft", git: "Git", permissions: "权限模式", plugins: "扩展与 MCP",
-  personalization: "个性化记忆", "computer-control": "电脑操控", "browser-use": "浏览器", mini: "Mini 与虚拟宠物"
+  personalization: "个性化记忆", "computer-control": "电脑操控", "browser-use": "浏览器", mini: "Mini 与虚拟宠物",
+  canvas: "画布"
 };
 
 export function CloudPreferencesSettings({ user, onNavigate }: { user: User; onNavigate: (path: string) => void }) {

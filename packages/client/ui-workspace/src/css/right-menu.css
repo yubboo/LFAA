@@ -538,19 +538,23 @@
 
 @container module-context (max-width: 340px) {
 
-  .module-context__shell-actions { gap: 1px; padding-inline: 4px; }
+  .module-context__shell-actions { justify-content: flex-start; gap: 2px; padding-inline: 4px; }
+
+  .module-context__shell-actions > .module-workbench-tabstrip { max-width: calc(100% - 64px); min-width: 0; flex: 0 1 auto; margin-inline-end: auto; }
+
+  .module-context__shell-actions > .module-panel-control { width: 30px; min-width: 30px; flex: 0 0 30px; justify-content: center; gap: 0; padding: 0; font-size: 0; }
+
+  .module-context__shell-actions > .module-panel-control > span { display: none; }
 
   .module-workbench-tabstrip { gap: 1px; }
 
-  .module-workbench-tabs--context { max-width: calc(100% - 25px); gap: 1px; padding-right: 2px; }
+  .module-workbench-tabs--context { max-width: calc(100% - 25px); min-width: 0; gap: 1px; padding-right: 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
 
-  .module-workbench-tabs--context .module-workbench-tab { justify-content: center; gap: 0; padding-inline: 7px; }
+  .module-workbench-tabs--context::-webkit-scrollbar { display: none; height: 0; }
 
-  .module-workbench-tabs--context .module-workbench-tab > span { display: none; }
+  .module-workbench-tabs--context .module-workbench-tab { justify-content: flex-start; gap: 4px; padding-inline: 6px; }
 
-  .module-workbench-tabs--context .module-workbench-tab-item { max-width: 38px; }
-
-  .module-workbench-tab-item .module-workbench-tab { justify-content: center; padding-inline: 6px; }
+  .module-workbench-tab-item .module-workbench-tab { justify-content: flex-start; padding-inline: 6px; }
 
   .module-workbench-tab-close { width: 18px; min-width: 18px; }
 

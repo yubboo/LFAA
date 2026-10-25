@@ -1,18 +1,30 @@
 /**
  * 功能：提供认证后的系统级无限画布项目与素材 API。
- * 作用：按当前登录账户与 App 作用域解析有界请求并委派 lfaa-canvas 唯一数据 Owner，不直接持有画布文件或素材。
- * 关联文件：packages/canvas/canvas/src/index.ts、packages/api/gateway、bundle/web-app/cordis.patch.yml。
+ * 作用：按当前登录账户与 App 作用域解析有界请求并委派 lfaa-canvas 唯一数据 Owner；生成路由只做协议适配并委派 lfaaCanvasGeneration，不持有画布文件、素材或 Provider 协议。
+ * 关联文件：packages/canvas/canvas/src/index.ts、packages/canvas/canvas-generation/src/index.ts、packages/api/gateway、bundle/web-app/cordis.patch.yml。
  */
-import express, { Router } from "express";
+import express, { Router, type Response } from "express";
 import Joi from "joi";
 import type { Context } from "@deepseek-ai/cordis";
+import { asyncHandler } from "lfaa-api-remotes/src/route-contracts.js";
 import { ApiError } from "lfaa-util-values/src/http-error.js";
 import { APPLICATION_IDS, type ApplicationId } from "lfaa-util-values/src/application-id.js";
 import { requireAuthentication } from "lfaa-authorization/src/middleware.js";
 import { CANVAS_LIMITS, CANVAS_NODE_TYPE_PATTERN, CanvasConflictError, type CanvasService } from "lfaa-canvas/src/index.js";
+import {
+  CANVAS_GENERATION_LIMITS,
+  CANVAS_IMAGE_ASPECT_RATIOS,
+  CANVAS_VIDEO_ASPECT_RATIOS,
+  CanvasGenerationConfigurationError,
+  CanvasGenerationNotFoundError,
+  CanvasGenerationUnsupportedError,
+  type CanvasGenerationService,
+  type CanvasImageAspectRatio,
+  type CanvasVideoAspectRatio
+} from "lfaa-canvas-generation/src/index.js";
 
 const PROJECT_FORMAT = "lfaa-canvas-project";
-const ASSET_MIME_VALUES = ["image/png", "image/jpeg", "image/webp", "video/mp4", "video/webm"];
+const ASSET_MIME_VALUES = ["image/png", "image/jpeg", "image/webp", "video/mp4", "video/webm", "audio/mpeg", "audio/wav", "audio/ogg"];
 const MAX_UPLOAD_BYTES = CANVAS_LIMITS.videoBytes;
 
 const viewportSchema = Joi.object({
@@ -83,6 +95,31 @@ const assetParamsSchema = Joi.object({
   assetId: Joi.string().guid({ version: ["uuidv4"] }).required()
 }).unknown(false);
 
+const generationNodeParamsSchema = Joi.object({
+  applicationId: Joi.string().valid(...APPLICATION_IDS).required(),
+  projectId: Joi.string().guid({ version: ["uuidv4"] }).required(),
+  nodeId: Joi.string().guid({ version: ["uuidv4"] }).required()
+}).unknown(false);
+const referenceAssetIdsSchema = Joi.array()
+  .max(CANVAS_GENERATION_LIMITS.referenceImages)
+  .items(Joi.string().guid({ version: ["uuidv4"] }))
+  .optional();
+const generateImageSchema = Joi.object({
+  expectedUpdatedAt: Joi.string().isoDate().required(),
+  nodeId: Joi.string().guid({ version: ["uuidv4"] }).optional(),
+  prompt: Joi.string().trim().min(1).max(CANVAS_GENERATION_LIMITS.imagePromptCharacters).required(),
+  aspectRatio: Joi.string().valid(...CANVAS_IMAGE_ASPECT_RATIOS).optional(),
+  referenceAssetIds: referenceAssetIdsSchema
+}).unknown(false);
+const generateVideoSchema = Joi.object({
+  expectedUpdatedAt: Joi.string().isoDate().required(),
+  nodeId: Joi.string().guid({ version: ["uuidv4"] }).optional(),
+  prompt: Joi.string().trim().min(1).max(CANVAS_GENERATION_LIMITS.videoPromptCharacters).required(),
+  durationSeconds: Joi.number().integer().min(CANVAS_GENERATION_LIMITS.videoMinimumSeconds).max(CANVAS_GENERATION_LIMITS.videoMaximumSeconds).optional(),
+  aspectRatio: Joi.string().valid(...CANVAS_VIDEO_ASPECT_RATIOS).optional(),
+  referenceAssetIds: referenceAssetIdsSchema
+}).unknown(false);
+
 function parse<T>(schema: Joi.ObjectSchema, value: unknown): T {
   const result = schema.validate(value, { abortEarly: false, convert: true, stripUnknown: false });
   if (result.error) throw new ApiError(400, "canvas_invalid", result.error.details.map(item => item.message).join("；"));
@@ -99,7 +136,27 @@ function notFoundProject(): never {
   throw new ApiError(404, "canvas_not_found", "找不到当前账户与 App 作用域下的画布项目。");
 }
 
-export function registerRoutes(router: Router, service: CanvasService): void {
+/** 生成编排错误映射：未配置/无密钥/非法参数 → 400；未接通能力 → 501；Provider 真实失败 → 422。 */
+function handleGenerationError(error: unknown): never {
+  if (error instanceof CanvasConflictError) throw new ApiError(409, "canvas_conflict", error.message);
+  if (error instanceof CanvasGenerationConfigurationError) throw new ApiError(400, "canvas_generation_invalid", error.message);
+  if (error instanceof CanvasGenerationUnsupportedError) throw new ApiError(501, "canvas_generation_unsupported", error.message);
+  if (error instanceof CanvasGenerationNotFoundError) throw new ApiError(404, "canvas_not_found", error.message);
+  if (error instanceof ApiError) throw error;
+  throw new ApiError(422, "canvas_generation_failed", error instanceof Error ? error.message : "画布生成请求失败；没有登记任何生成结果。");
+}
+
+/** 客户端断开连接时中止真实 Provider 请求；不缓存、不返回假成功。 */
+function abortOnDisconnect(response: Response): { controller: AbortController; dispose: () => void } {
+  const controller = new AbortController();
+  const abort = () => {
+    if (!response.writableFinished) controller.abort();
+  };
+  response.once("close", abort);
+  return { controller, dispose: () => response.removeListener("close", abort) };
+}
+
+export function registerRoutes(router: Router, service: CanvasService, generation: CanvasGenerationService): void {
   // 画布首页：跨 App 列当前账户全部画布。
   router.get("/canvas/projects", requireAuthentication, (request, response) => {
     response.setHeader("Cache-Control", "no-store");
@@ -230,9 +287,85 @@ export function registerRoutes(router: Router, service: CanvasService): void {
       handleError(error);
     }
   });
+
+  // 生成路由：控制器只做 Joi 校验、认证与错误映射；模型账户、密钥、Provider 协议和落盘都由生成编排与画布 Owner 完成。
+  router.post("/apps/:applicationId/canvas/projects/:projectId/generate/image", requireAuthentication, asyncHandler(async (request, response) => {
+    const params = parse<{ applicationId: ApplicationId; projectId: string }>(projectParamsSchema, request.params);
+    const input = parse<{
+      expectedUpdatedAt: string;
+      nodeId?: string;
+      prompt: string;
+      aspectRatio?: CanvasImageAspectRatio;
+      referenceAssetIds?: string[];
+    }>(generateImageSchema, request.body);
+    const { controller, dispose } = abortOnDisconnect(response);
+    try {
+      const result = await generation.generateImage(request.auth!.user.id, params.applicationId, params.projectId, { ...input, signal: controller.signal });
+      if (!result) notFoundProject();
+      response.setHeader("Cache-Control", "no-store");
+      response.json(result);
+    } catch (error) {
+      handleGenerationError(error);
+    } finally {
+      dispose();
+    }
+  }));
+
+  router.post("/apps/:applicationId/canvas/projects/:projectId/generate/video", requireAuthentication, asyncHandler(async (request, response) => {
+    const params = parse<{ applicationId: ApplicationId; projectId: string }>(projectParamsSchema, request.params);
+    const input = parse<{
+      expectedUpdatedAt: string;
+      nodeId?: string;
+      prompt: string;
+      durationSeconds?: number;
+      aspectRatio?: CanvasVideoAspectRatio;
+      referenceAssetIds?: string[];
+    }>(generateVideoSchema, request.body);
+    const { controller, dispose } = abortOnDisconnect(response);
+    try {
+      const result = await generation.startVideo(request.auth!.user.id, params.applicationId, params.projectId, { ...input, signal: controller.signal });
+      if (!result) notFoundProject();
+      response.setHeader("Cache-Control", "no-store");
+      response.json({ project: result.project });
+    } catch (error) {
+      handleGenerationError(error);
+    } finally {
+      dispose();
+    }
+  }));
+
+  router.post("/apps/:applicationId/canvas/projects/:projectId/generation/:nodeId/refresh", requireAuthentication, asyncHandler(async (request, response) => {
+    const params = parse<{ applicationId: ApplicationId; projectId: string; nodeId: string }>(generationNodeParamsSchema, request.params);
+    const { controller, dispose } = abortOnDisconnect(response);
+    try {
+      const project = await generation.refreshVideo(request.auth!.user.id, params.applicationId, params.projectId, params.nodeId, controller.signal);
+      if (!project) notFoundProject();
+      response.setHeader("Cache-Control", "no-store");
+      response.json({ project });
+    } catch (error) {
+      handleGenerationError(error);
+    } finally {
+      dispose();
+    }
+  }));
+
+  router.post("/apps/:applicationId/canvas/projects/:projectId/generation/:nodeId/cancel", requireAuthentication, asyncHandler(async (request, response) => {
+    const params = parse<{ applicationId: ApplicationId; projectId: string; nodeId: string }>(generationNodeParamsSchema, request.params);
+    const { controller, dispose } = abortOnDisconnect(response);
+    try {
+      const project = await generation.cancelVideo(request.auth!.user.id, params.applicationId, params.projectId, params.nodeId, controller.signal);
+      if (!project) notFoundProject();
+      response.setHeader("Cache-Control", "no-store");
+      response.json({ project });
+    } catch (error) {
+      handleGenerationError(error);
+    } finally {
+      dispose();
+    }
+  }));
 }
 
-export const inject = ["apiGateway", "lfaaCanvas"];
+export const inject = ["apiGateway", "lfaaCanvas", "lfaaCanvasGeneration"];
 export function apply(ctx: Context): void {
-  ctx.apiGateway.register(ctx, "canvas-controller", router => registerRoutes(router, ctx.lfaaCanvas));
+  ctx.apiGateway.register(ctx, "canvas-controller", router => registerRoutes(router, ctx.lfaaCanvas, ctx.lfaaCanvasGeneration));
 }

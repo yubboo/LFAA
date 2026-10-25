@@ -16,6 +16,13 @@ const readWorkspaceCss = () => [
   "../../../packages/client/ui-workspace/src/css/workbench-regions.css",
 ].map(path => readFileSync(new URL(path, import.meta.url), "utf8")).join("\n");
 
+test("模块工作台关闭文档根与 body 的重复滚动条预留", () => {
+  const moduleShellCss = readFileSync(new URL("../../../packages/client/ui-layout/src/css/module-shell.css", import.meta.url), "utf8");
+
+  assert.match(moduleShellCss, /:root:has\(\.workbench-shell--module\)\s*\{[^}]*scrollbar-gutter:\s*auto;/u);
+  assert.match(moduleShellCss, /body:has\(\.workbench-shell--module\)\s*\{[^}]*scrollbar-gutter:\s*auto;/u);
+});
+
 test("嵌入式工作台首次绘制前按实际容器尺寸校准响应式布局", () => {
   const metricsHook = readFileSync(new URL("../../../packages/client/ui-dockkit/src/use-workbench-metrics.ts", import.meta.url), "utf8");
 
@@ -133,6 +140,20 @@ test("AI Work 右侧滚动留白继承聊天表面材质，不透出画布底色
   assert.doesNotMatch(accentThumbRule, /background-clip:\s*content-box/u);
 });
 
+test("AI Work 手机窄中栏将消息、输入区和用量栏的右边界铺到滚动列", () => {
+  const workspaceCss = readWorkspaceCss();
+  const mobileRightEdgeRule = workspaceCss.match(/@container module-center \(max-width:\s*420px\)\s*\{([\s\S]*?)\n\}/u)?.[1];
+
+  assert.ok(mobileRightEdgeRule, "手机窄中栏应有独立的右边界对齐规则");
+  assert.match(mobileRightEdgeRule, /\.module-center__content--ai-work\s*>\s*\.module-ai-work-chat\s*\{\s*width:\s*100%;\s*\}/u, "聊天外壳必须填满中心列，不能继续扣掉右侧间距");
+  assert.match(mobileRightEdgeRule, /\.module-center__content--ai-work\s+\.module-ai-work-chat\s*>\s*\.ai-work-chat\s*>\s*\.ai-work-chat__conversation\s*\{\s*width:\s*100%;\s*\}/u, "会话滚动区应在保留左侧安全间距后贴齐右边界");
+  assert.match(mobileRightEdgeRule, /\.ai-work-chat__message-stage\s*\{\s*width:\s*100%;\s*\}/u);
+  assert.match(mobileRightEdgeRule, /\.ai-work-chat__messages\s*\{\s*width:\s*100%;\s*padding-inline-end:\s*0;\s*\}/u);
+  assert.match(mobileRightEdgeRule, /:is\(\.ai-work-chat__composer,\s*\.ai-work-chat__usage-footer\)\s*\{\s*width:\s*min\(calc\(100%\s*-\s*var\(--ai-work-chat-inline-gap\)\),\s*920px\);\s*align-self:\s*flex-end;\s*left:\s*0;\s*\}/u);
+  assert.match(mobileRightEdgeRule, /\.module-ai-work-chat\s*>\s*\.ai-work-chat::after\s*\{\s*display:\s*none;\s*\}/u, "窄屏不再绘制外壳右侧的补空白表面");
+  assert.match(mobileRightEdgeRule, /\.ai-work-chat__anchor-preview\s*\{\s*left:\s*calc\(100%\s*-\s*4px\);\s*\}/u);
+});
+
 test("响应式应用工作区仅在中心区和左栏下限都放得下时将二级导航改为 Dock", () => {
   assert.equal(shouldDockResponsiveLeftPane(750, 300, 200, true), true);
   assert.equal(shouldDockResponsiveLeftPane(500, 300, 200, true), false);
@@ -166,10 +187,11 @@ test("中心区收起时左二菜单保留自身可见关闭入口", () => {
   assert.match(workspaceSource, /className="module-icon-button module-sidebar__close"[^>]*aria-label="收起应用导航"[\s\S]*?onToggleLeft\(\)/u);
 });
 
-test("中心区横向列变化使用缓入缓出，终端纵向行沿用原曲线", () => {
+test("工作区列宽和面板使用共享 180ms 缓出，终端纵向行沿用同一时长", () => {
   const dockKitCss = readFileSync(new URL("../../../packages/client/ui-dockkit/src/css/common-layout.css", import.meta.url), "utf8");
 
-  assert.match(dockKitCss, /grid-template-columns var\(--lfaa-snap-settle-duration\) cubic-bezier\(\.42,\s*0,\s*\.58,\s*1\)/u);
+  assert.equal(WORKBENCH_INTERACTION_TOKENS.snap.settleDurationMs, 180);
+  assert.match(dockKitCss, /grid-template-columns var\(--lfaa-snap-settle-duration\) cubic-bezier\(\.16,\s*\.82,\s*\.24,\s*1\)/u);
   assert.match(dockKitCss, /grid-template-rows:\s*minmax\(0, 1fr\) var\(--lfaa-bottom-row\)[\s\S]*?grid-template-rows var\(--lfaa-snap-settle-duration\) cubic-bezier\(\.16,\s*\.82,\s*\.24,\s*1\)/u);
 });
 
@@ -194,14 +216,15 @@ test("窄中心列将操作压缩为图标，同时保留当前对话名", () =>
   assert.match(workspaceSource, /aria-label=\{`当前 Agent 的 Git 变更：\$\{gitSummaryText\}`\}/u);
 });
 
-test("Git 摘要抽屉从中心内容区顶部贴右侧分隔线展开，遵循减少动态效果设置", () => {
+test("Git 摘要卡限制宽度并贴齐中心列右缘，仍从中心标题栏下方展开", () => {
   const workspaceCss = readWorkspaceCss();
   const workspaceSource = readFileSync(new URL("../../../packages/client/ui-workspace/src/ApplicationWorkspace.tsx", import.meta.url), "utf8");
 
   assert.match(workspaceCss, /^\.module-center\s*\{[^}]*position:\s*relative;/mu);
   assert.match(workspaceSource, /getPopupContainer=\{trigger => trigger\.closest\("\.module-center"\) \?\? document\.body\}/u);
+  assert.match(workspaceSource, /placement="bottomRight"/u, "浮层右缘由摘要触发按钮定位");
   assert.match(workspaceCss, /\.module-git-summary-popover\s*\{[^}]*inset-inline-start:\s*auto !important;[^}]*inset-inline-end:\s*0 !important;[^}]*top:\s*var\(--agent-shell-header-h,\s*3rem\) !important;[^}]*bottom:\s*auto !important;[^}]*height:\s*auto !important;[^}]*transform:\s*none !important;[^}]*transform-origin:\s*right center;/u);
-  assert.match(workspaceCss, /^\.module-git-summary\s*\{[^}]*height:\s*auto;\s*max-height:\s*min\(72dvh,\s*620px\)/mu);
+  assert.match(workspaceCss, /^\.module-git-summary\s*\{[^}]*width:\s*min\(376px,\s*calc\(100cqi - 48px\)\);[^}]*height:\s*auto;\s*max-height:\s*min\(72dvh,\s*620px\)/mu);
   assert.match(workspaceCss, /\.module-git-summary-popover\.ant-zoom-big-fast-enter-active,[\s\S]*?animation:\s*module-git-summary-drawer-in/u);
   assert.match(workspaceCss, /@keyframes module-git-summary-drawer-in\s*\{\s*from\s*\{\s*clip-path:\s*inset\(0 0 0 100%\)/u);
   assert.match(workspaceCss, /data-reduced-motion="on"\] \.module-git-summary-popover\s*\{\s*animation-duration:\s*0ms/u);

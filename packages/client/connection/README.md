@@ -2,6 +2,8 @@
 
 此包提供已认证控制端 API 和 AI Work SSE 消费协议，不持有模型、Session 或权限业务规则。
 
+AI 模型目录由 `/settings/ai/accounts` 按当前登录返回同一组系统配置。凭据替换只发送新 secret 到管理员专用的测试/更新路由；响应不包含密钥，system scope 与权限判断归服务端 Owner。
+
 会话类 401 由账户 `auth/me` Remote 复核后才通知 UI 退出；成功的密码/通行密钥登录会使之前请求的迟到响应失效。服务端拒绝无效 Cookie 时不发送清 Cookie 响应，避免旧请求晚到覆盖新登录；显式注销仍由账户 Controller 清理 Cookie。
 
 `project-version.ts` 导出由 Web 构建注入的当前产品版本、发布日期、官方版本清单地址和对应发布说明。构建只接受与所有产品包版本匹配的仓库根 `update.json`，Workbench 的版本公告不在运行时重复请求版本说明。

@@ -1,7 +1,7 @@
 /**
  * 功能：持有系统级无限画布项目与项目素材文件。
  * 作用：按账户与 App 作用域隔离并原子保存画布 JSON 与二进制素材，校验并发版本、引用、大小与坐标边界，拒绝符号链接路径。
- * 关联文件：本包 package.json/README、api/canvas-controller、settings/content-storage-migration、apps/cli/tests/canvas-owner.test.mjs。
+ * 关联文件：本包 package.json/README、canvas/canvas-generation、api/canvas-controller、settings/content-storage-migration、apps/cli/tests/canvas-owner.test.mjs。
  */
 import { randomUUID } from "node:crypto";
 import {
@@ -39,6 +39,11 @@ export const CANVAS_LIMITS = Object.freeze({
   projectFileBytes: 4 * 1024 * 1024,
   imageBytes: 16 * 1024 * 1024,
   videoBytes: 64 * 1024 * 1024,
+  audioBytes: 32 * 1024 * 1024,
+  /** 节点 data.assetIds 最多引用的素材数量；与客户端 @ 素材上限一致。 */
+  nodeAssetIds: 20,
+  /** 节点 data.references 最多条数，避免无界引用数组进入项目文件。 */
+  nodeReferences: 64,
   projectAssetBytes: 512 * 1024 * 1024
 });
 
@@ -52,10 +57,11 @@ const ASSETS_DIRECTORY_NAME = "assets";
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const APPLICATION_ID_SET = new Set<string>(APPLICATION_IDS);
 
-export type CanvasAssetMimeType = "image/png" | "image/jpeg" | "image/webp" | "video/mp4" | "video/webm";
+export type CanvasAssetMimeType = "image/png" | "image/jpeg" | "image/webp" | "video/mp4" | "video/webm" | "audio/mpeg" | "audio/wav" | "audio/ogg";
 
-const ASSET_MIME_TYPES = new Set<CanvasAssetMimeType>(["image/png", "image/jpeg", "image/webp", "video/mp4", "video/webm"]);
+const ASSET_MIME_TYPES = new Set<CanvasAssetMimeType>(["image/png", "image/jpeg", "image/webp", "video/mp4", "video/webm", "audio/mpeg", "audio/wav", "audio/ogg"]);
 const IMAGE_MIME_TYPES = new Set<CanvasAssetMimeType>(["image/png", "image/jpeg", "image/webp"]);
+const AUDIO_MIME_TYPES = new Set<CanvasAssetMimeType>(["audio/mpeg", "audio/wav", "audio/ogg"]);
 const STORED_PROJECT_KEYS = ["format", "formatVersion", "applicationId", "id", "title", "viewport", "nodes", "edges", "assets", "createdAt", "updatedAt"];
 
 export interface CanvasProjectSummary {
@@ -126,6 +132,22 @@ export interface CanvasAssetRead {
   rangeNotSatisfiable?: boolean;
 }
 
+/** 素材提交输入：服务器生成流程可预生成 assetId，让同一次项目提交里的节点数据引用新素材。 */
+export interface CanvasAssetCommitInput {
+  expectedUpdatedAt: string;
+  name: unknown;
+  mimeType: unknown;
+  bytes: Buffer;
+  assetId?: unknown;
+  /** 可选：同一次提交中同步更新目标节点的 data，保证素材与节点引用一起落盘。 */
+  node?: { nodeId: string; data: Record<string, unknown> };
+}
+
+export interface CanvasAssetCommitResult {
+  project: CanvasProject;
+  asset: CanvasAsset;
+}
+
 export interface CanvasService {
   /** 省略 applicationId 时枚举全部 App（画布首页）；提供时只列该 App。 */
   list(userId: string, applicationId?: ApplicationId): CanvasProjectSummary[];
@@ -134,6 +156,10 @@ export interface CanvasService {
   update(userId: string, applicationId: ApplicationId, projectId: string, expectedUpdatedAt: string, input: unknown): CanvasProject | null;
   remove(userId: string, applicationId: ApplicationId, projectId: string): boolean;
   uploadAsset(userId: string, applicationId: ApplicationId, projectId: string, expectedUpdatedAt: string, name: unknown, mimeType: unknown, bytes: Buffer): CanvasProject | null;
+  /** 服务器内部生成结果提交：原子写入素材，并在需要时同步更新节点 data；公开上传行为不变。 */
+  commitAsset(userId: string, applicationId: ApplicationId, projectId: string, input: CanvasAssetCommitInput): CanvasAssetCommitResult | null;
+  /** 服务器内部节点数据更新：保留其余节点与素材，写入受 expectedUpdatedAt 并发约束。 */
+  updateNodeData(userId: string, applicationId: ApplicationId, projectId: string, expectedUpdatedAt: string, nodeId: string, data: unknown): CanvasProject | null;
   removeAsset(userId: string, applicationId: ApplicationId, projectId: string, assetId: string, expectedUpdatedAt: string): CanvasProject | null;
   openAsset(userId: string, applicationId: ApplicationId, projectId: string, assetId: string, rangeHeader?: string): CanvasAssetRead | null;
 }
@@ -226,12 +252,13 @@ function normalizedNodeSize(value: unknown, label: string): number {
 
 function normalizedAssetMimeType(value: unknown): CanvasAssetMimeType {
   const mime = typeof value === "string" ? value.split(";", 1)[0]!.trim().toLocaleLowerCase("en-US") : "";
-  if (!ASSET_MIME_TYPES.has(mime as CanvasAssetMimeType)) return fail("素材类型无效；只支持 PNG、JPEG、WebP、MP4 或 WebM。");
+  if (!ASSET_MIME_TYPES.has(mime as CanvasAssetMimeType)) return fail("素材类型无效；只支持 PNG、JPEG、WebP、MP4、WebM、MP3、WAV 或 OGG。");
   return mime as CanvasAssetMimeType;
 }
 
 function maximumAssetBytes(mimeType: CanvasAssetMimeType): number {
-  return IMAGE_MIME_TYPES.has(mimeType) ? CANVAS_LIMITS.imageBytes : CANVAS_LIMITS.videoBytes;
+  if (IMAGE_MIME_TYPES.has(mimeType)) return CANVAS_LIMITS.imageBytes;
+  return AUDIO_MIME_TYPES.has(mimeType) ? CANVAS_LIMITS.audioBytes : CANVAS_LIMITS.videoBytes;
 }
 
 function normalizeNodeData(value: unknown, label: string): Record<string, unknown> {
@@ -248,6 +275,44 @@ function normalizeNodeData(value: unknown, label: string): Record<string, unknow
     return fail(label + "文本不能超过 " + CANVAS_LIMITS.textCharacters + " 个字符。");
   }
   return data;
+}
+
+/** 节点数据里引用的素材必须属于当前项目；越界、跨项目或非字符串一律拒绝。 */
+function normalizedAssetReference(value: unknown, label: string, assetIds: Set<string>): string {
+  const assetId = normalizedUuid(value, label);
+  if (!assetIds.has(assetId)) return fail("画布节点引用的素材不存在。");
+  return assetId;
+}
+
+function normalizeNodeAssets(data: Record<string, unknown>, assetIds: Set<string>): void {
+  if (data.assetIds !== undefined) {
+    if (!Array.isArray(data.assetIds) || data.assetIds.length > CANVAS_LIMITS.nodeAssetIds) {
+      return fail("画布节点引用的素材数量无效；最多 " + CANVAS_LIMITS.nodeAssetIds + " 个。");
+    }
+    const seen = new Set<string>();
+    data.assetIds = data.assetIds.map(item => {
+      const assetId = normalizedAssetReference(item, "节点素材引用 ID", assetIds);
+      if (seen.has(assetId)) return fail("画布节点素材引用 ID 重复。");
+      seen.add(assetId);
+      return assetId;
+    });
+  }
+  if (data.references !== undefined) {
+    if (!Array.isArray(data.references) || data.references.length > CANVAS_LIMITS.nodeReferences) {
+      return fail("画布节点引用列表无效；最多 " + CANVAS_LIMITS.nodeReferences + " 条。");
+    }
+    data.references = data.references.map(item => {
+      if (!isRecord(item)) return fail("画布节点引用项格式无效。");
+      return { ...item, assetId: normalizedAssetReference(item.assetId, "节点引用素材 ID", assetIds) };
+    });
+  }
+}
+
+/** 节点是否通过 assetId、assetIds 或 references 引用素材；删除素材前统一检查。 */
+function nodeReferencesAsset(data: Record<string, unknown>, assetId: string): boolean {
+  if (data.assetId === assetId) return true;
+  if (Array.isArray(data.assetIds) && data.assetIds.includes(assetId)) return true;
+  return Array.isArray(data.references) && data.references.some(item => isRecord(item) && item.assetId === assetId);
 }
 
 function normalizeNodes(value: unknown, assets: CanvasAsset[]): CanvasNode[] {
@@ -267,11 +332,8 @@ function normalizeNodes(value: unknown, assets: CanvasAsset[]): CanvasNode[] {
     const width = normalizedNodeSize(raw.width, "节点宽度");
     const height = normalizedNodeSize(raw.height, "节点高度");
     const data = normalizeNodeData(raw.data, "第 " + (index + 1) + " 个画布节点");
-    if (data.assetId !== undefined) {
-      const assetId = normalizedUuid(data.assetId, "节点素材 ID");
-      if (!assetIds.has(assetId)) return fail("画布节点引用的素材不存在。");
-      data.assetId = assetId;
-    }
+    if (data.assetId !== undefined) data.assetId = normalizedAssetReference(data.assetId, "节点素材 ID", assetIds);
+    normalizeNodeAssets(data, assetIds);
     return { id, type, x, y, width, height, data };
   });
 }
@@ -610,21 +672,31 @@ function storedAssetBytes(location: CanvasProjectLocation, project: CanvasProjec
   return total;
 }
 
+/** MP3 允许带 ID3 标签，或从合法 MPEG 帧同步开始（排除保留的版本/层编码）。 */
+function isMpegAudioFrame(bytes: Buffer): boolean {
+  if (bytes.byteLength < 4 || bytes[0] !== 0xff || (bytes[1]! & 0xe0) !== 0xe0) return false;
+  const version = (bytes[1]! >> 3) & 0x03;
+  const layer = (bytes[1]! >> 1) & 0x03;
+  return version !== 0x01 && layer !== 0x00;
+}
+
+function matchesAssetSignature(bytes: Buffer, mimeType: CanvasAssetMimeType): boolean {
+  if (mimeType === "image/png") return bytes.byteLength >= PNG_SIGNATURE.byteLength && bytes.subarray(0, PNG_SIGNATURE.byteLength).equals(PNG_SIGNATURE);
+  if (mimeType === "image/jpeg") return bytes.byteLength >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  if (mimeType === "image/webp") return bytes.byteLength >= 12 && bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP";
+  if (mimeType === "video/mp4") return bytes.byteLength >= 12 && bytes.toString("ascii", 4, 8) === "ftyp";
+  if (mimeType === "video/webm") return bytes.byteLength >= 4 && bytes.toString("hex", 0, 4) === "1a45dfa3";
+  if (mimeType === "audio/mpeg") return bytes.byteLength >= 10 && bytes.toString("ascii", 0, 3) === "ID3" || isMpegAudioFrame(bytes);
+  if (mimeType === "audio/wav") return bytes.byteLength >= 12 && bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WAVE";
+  return bytes.byteLength >= 4 && bytes.toString("ascii", 0, 4) === "OggS";
+}
+
 function validateAssetBytes(bytes: Buffer, mimeType: CanvasAssetMimeType): Buffer {
   if (!Buffer.isBuffer(bytes) || bytes.byteLength < 1) return fail("素材文件为空或内容无效。");
   if (bytes.byteLength > maximumAssetBytes(mimeType)) {
     return fail("素材文件超过 " + Math.round(maximumAssetBytes(mimeType) / (1024 * 1024)) + " MiB 上限。");
   }
-  const matches = mimeType === "image/png"
-    ? bytes.byteLength >= PNG_SIGNATURE.byteLength && bytes.subarray(0, PNG_SIGNATURE.byteLength).equals(PNG_SIGNATURE)
-    : mimeType === "image/jpeg"
-      ? bytes.byteLength >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff
-      : mimeType === "image/webp"
-        ? bytes.byteLength >= 12 && bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP"
-        : mimeType === "video/mp4"
-          ? bytes.byteLength >= 12 && bytes.toString("ascii", 4, 8) === "ftyp"
-          : bytes.byteLength >= 4 && bytes.toString("hex", 0, 4) === "1a45dfa3";
-  if (!matches) return fail("素材文件内容与声明的图片或视频格式不一致。");
+  if (!matchesAssetSignature(bytes, mimeType)) return fail("素材文件内容与声明的图片、视频或音频格式不一致。");
   return bytes;
 }
 
@@ -779,6 +851,83 @@ export function uploadCanvasAsset(userId: string, applicationId: ApplicationId, 
   }
 }
 
+/** 服务器内部提交：写入生成素材，并可在同一次清单提交中更新目标节点引用。 */
+export function commitCanvasAsset(userId: string, applicationId: ApplicationId, projectId: string, input: CanvasAssetCommitInput): CanvasAssetCommitResult | null {
+  const targetApplication = normalizedApplicationId(applicationId);
+  const id = normalizedUuid(projectId, "项目 ID");
+  const expected = normalizedTimestamp(input.expectedUpdatedAt, "预期更新时间");
+  const contentType = normalizedAssetMimeType(input.mimeType);
+  const assetName = normalizedAssetName(input.name, contentType);
+  const content = validateAssetBytes(input.bytes, contentType);
+  const targetAssetId = input.assetId === undefined ? randomUUID() : normalizedUuid(input.assetId, "素材 ID");
+  const current = readProject(userId, targetApplication, id);
+  if (!current) return null;
+  if (current.updatedAt !== expected) throw new CanvasConflictError();
+  let nodeIndex = -1;
+  if (input.node) {
+    const nodeId = normalizedUuid(input.node.nodeId, "节点 ID");
+    nodeIndex = current.nodes.findIndex(node => node.id === nodeId);
+    if (nodeIndex < 0) return fail("找不到要写入生成结果的画布节点；素材没有保存。");
+  }
+  if (current.assets.length >= CANVAS_LIMITS.assets) {
+    return fail("每个画布最多保存 " + CANVAS_LIMITS.assets + " 个素材；请先删除不再使用的素材。");
+  }
+  const location = projectLocation(userId, targetApplication, id);
+  if (storedAssetBytes(location, current) + content.byteLength > CANVAS_LIMITS.projectAssetBytes) {
+    return fail("画布素材合计超过 512 MiB 上限；没有保存该文件。");
+  }
+  const asset: CanvasAsset = {
+    assetId: targetAssetId,
+    name: assetName,
+    mimeType: contentType,
+    bytes: content.byteLength,
+    createdAt: new Date().toISOString()
+  };
+  const path = projectAssetPath(location, asset.assetId, true);
+  if (existsSync(path)) return fail("素材 ID 冲突；拒绝覆盖现有文件。");
+  let created = false;
+  try {
+    atomicWriteBytes(path, content);
+    created = true;
+    const nextAssets = [...current.assets, asset];
+    let nodes = current.nodes;
+    if (nodeIndex >= 0) {
+      const data = normalizeNodeData(input.node!.data, "第 " + (nodeIndex + 1) + " 个画布节点");
+      nodes = normalizeNodes(current.nodes.map((node, index) => index === nodeIndex ? { ...node, data } : node), nextAssets);
+    }
+    const next: CanvasProject = { ...current, assets: nextAssets, nodes, updatedAt: nextTimestamp(current.updatedAt) };
+    writeProject(userId, next, false);
+    return { project: next, asset };
+  } catch (error) {
+    if (created && existsSync(path)) {
+      try {
+        unlinkSync(path);
+      } catch {
+        // 原始保存错误优先；遗留文件仍计入后续素材容量校验。
+      }
+    }
+    throw error;
+  }
+}
+
+/** 服务器内部节点数据更新；资产引用仍按当前项目素材清单校验。 */
+export function updateCanvasNodeData(userId: string, applicationId: ApplicationId, projectId: string, expectedUpdatedAt: string, nodeId: string, data: unknown): CanvasProject | null {
+  const targetApplication = normalizedApplicationId(applicationId);
+  const id = normalizedUuid(projectId, "项目 ID");
+  const expected = normalizedTimestamp(expectedUpdatedAt, "预期更新时间");
+  const targetNodeId = normalizedUuid(nodeId, "节点 ID");
+  const current = readProject(userId, targetApplication, id);
+  if (!current) return null;
+  if (current.updatedAt !== expected) throw new CanvasConflictError();
+  const index = current.nodes.findIndex(node => node.id === targetNodeId);
+  if (index < 0) return fail("找不到要更新的画布节点。");
+  const normalizedData = normalizeNodeData(data, "第 " + (index + 1) + " 个画布节点");
+  const nodes = normalizeNodes(current.nodes.map((node, nodeIndex) => nodeIndex === index ? { ...node, data: normalizedData } : node), current.assets);
+  const next: CanvasProject = { ...current, nodes, updatedAt: nextTimestamp(current.updatedAt) };
+  writeProject(userId, next, false);
+  return next;
+}
+
 export function removeCanvasAsset(userId: string, applicationId: ApplicationId, projectId: string, assetId: string, expectedUpdatedAt: string): CanvasProject | null {
   const targetApplication = normalizedApplicationId(applicationId);
   const id = normalizedUuid(projectId, "项目 ID");
@@ -789,7 +938,7 @@ export function removeCanvasAsset(userId: string, applicationId: ApplicationId, 
   if (current.updatedAt !== expected) throw new CanvasConflictError();
   const asset = current.assets.find(item => item.assetId === targetId);
   if (!asset) return fail("找不到要删除的画布素材。");
-  const referenced = current.nodes.some(node => node.data.assetId === targetId);
+  const referenced = current.nodes.some(node => nodeReferencesAsset(node.data, targetId));
   if (referenced) return fail("该素材仍被画布节点引用；请先移除引用后再删除。");
   const next: CanvasProject = {
     ...current,
@@ -842,6 +991,8 @@ export function apply(ctx: Context): void {
     update: updateCanvasProject,
     remove: deleteCanvasProject,
     uploadAsset: uploadCanvasAsset,
+    commitAsset: commitCanvasAsset,
+    updateNodeData: updateCanvasNodeData,
     removeAsset: removeCanvasAsset,
     openAsset: openCanvasAsset
   };

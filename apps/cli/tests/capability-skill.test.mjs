@@ -136,16 +136,18 @@ test("账户共享 Skill 固定来源、跨项目/App 加载、隔离和按 ID �
     registry.register({ effect(callback) { return callback(); } }, adapter);
     const workspaceContext = makeContext("skill-owner", "workspace", projectOne);
     const writingContext = makeContext("skill-owner", "writing", projectTwo);
-    const inspected = await registry.inspect("skill", repositoryUrl, "main", "workspace", {}, workspaceContext);
+    const targetApplicationId = "minecraft";
+    const inspected = await registry.inspect("skill", repositoryUrl, "main", targetApplicationId, {}, workspaceContext);
     assert.equal(inspected.resolvedRef, snapshot.commit);
     assert.equal(inspected.targetSummary, "当前 LFAA 账户 · 所有项目与 App 的共享 Skill 库");
     assert.equal(inspected.details.skill.sourcePath, "skills/reviewer");
     assert.match(inspected.summary, /安装只复制文本，不执行/u);
-    const approval = registry.installApproval("skill", inspected.inspectionId, "workspace", "skill-owner");
+    const approval = registry.installApproval("skill", inspected.inspectionId, targetApplicationId, "skill-owner");
     assert.match(approval.summary, /只复制文本，不执行/u);
 
-    const installed = await registry.install("skill", inspected.inspectionId, "workspace", "skill-owner", workspaceContext);
+    const installed = await registry.install("skill", inspected.inspectionId, targetApplicationId, "skill-owner", workspaceContext);
     assert.equal(installed.outcome, "verified_ready");
+    assert.equal(installed.targetApplicationId, targetApplicationId, "安装验证应保留用户选择的目标 App，即使调用来自 workspace");
     assert.equal(installed.verification.status, "ready");
     const installationId = installed.verification.details.installationId;
     assert.equal(installed.verification.details.scriptsExecuted, false);
@@ -158,8 +160,8 @@ test("账户共享 Skill 固定来源、跨项目/App 加载、隔离和按 ID �
       { skill: "reviewer", installationId, applicationId: "all", accountId: "skill-owner" },
       repositoryUrl,
       snapshot.commit,
-      "workspace",
-      adapter.validateTarget({}, "workspace", workspaceContext),
+      targetApplicationId,
+      adapter.validateTarget({}, targetApplicationId, workspaceContext),
       inspected.details,
       workspaceContext
     );
@@ -220,8 +222,8 @@ test("账户共享 Skill 固定来源、跨项目/App 加载、隔离和按 ID �
       { skill: "reviewer", installationId, applicationId: "all", accountId: "skill-owner" },
       repositoryUrl,
       snapshot.commit,
-      "workspace",
-      adapter.validateTarget({}, "workspace", workspaceContext),
+      targetApplicationId,
+      adapter.validateTarget({}, targetApplicationId, workspaceContext),
       inspected.details,
       workspaceContext
     );

@@ -10,6 +10,17 @@
 
 | 编号 | 任务 | 状态 | 合同 |
 |---|---|---|---|
+| LFAA-AGENT-REAL-WORK-ACCEPTANCE-20261025 | 实测小鱼 Agent 的 Skill/MCP、代码编写与修复、浏览器/电脑操控和多 Agent 协作闭环 | 对话、隔离代码修复、MCP 握手/安装/设置回读、多 Agent 并行委派、用时工作记录展开均实测通过；MCP Runtime 被现有 `plugins.enabled=false` 阻断，浏览器/电脑工具因对应设置关闭未操作；Minecraft Skill 已随包内置并曾实测加载，没有重复安装或启动游戏服务 | [合同](#lfaa-agent-real-work-acceptance-20261025) |
+| LFAA-AI-WORK-TAB-SUMMARY-PLACEMENT-20261025 | 优化窄分栏 AI Work 标签页顶栏和 Git 摘要卡位置 | 已完成：四项控件同排、摘要浮层贴中心列右缘、共享开合动效收至 180ms；定向回归 51/51、DockKit/Web 构建和内置浏览器 `/work` 866×925 验收通过 | [合同](#lfaa-ai-work-tab-summary-placement-20261025) |
+| LFAA-AI-WORK-LIVE-PROGRESS-PLACEMENT-20261025 | 让 AI Work 当前状态跟随真实 Agent 时间线显示，并为处理中状态增加流光 | 已完成；定向回归 16/16、ui-chat 构建、Client 类型检查和 Web/Control Plane 构建通过；内置浏览器 `/work` 实测 `正在思考`、流式 `正在回复` 与 2.4 秒流光，Provider 回复成功，1280×900 / 820×520 / 390×740 无横向溢出。减少动态开启、最终工具运行组与帧时间未实测 | [合同](#lfaa-ai-work-live-progress-placement-20261025) |
+| LFAA-AI-WORK-RANDOM-LIQUID-GLASS-STREAM-20261025 | 把 AI Work 处理中提示升级为每轮稳定随机七色的液态玻璃流光 | 实现与构建完成；定向回归 17/17。内置浏览器 `/work` 重载后 `Failed to fetch`，最终窗口显示 `ERR_CONNECTION_REFUSED`；主机路由仍 200、CDP 控制超时，未完成流光实显与窄/短屏验收 | [合同](#lfaa-ai-work-random-liquid-glass-stream-20261025) |
+| LFAA-AI-WORK-EXECUTION-HISTORY-20261025 | 展开 AI Work 回复用时查看 Agent 真实工作记录，并展示结果预览与文件清单 | 已实现；本轮终态标签实测于 `/work` 1280×720、390×740、390×420；定向回归 16/16、UI 包/类型/Control Plane/Web 构建通过。用户授权后安全重启，3000 健康及页面均 HTTP 200；网页/文件卡片真实交互仍未测 | [合同](#lfaa-ai-work-execution-history-20261025) |
+| LFAA-PI-AGENT-CORE-20261025 | 让 Pi Agent Core 承载 LFAA Agent Loop 的模型与工具回合 | 唯一 Agent 回合已接入；定向回归/构建通过。内置浏览器 `/work` 主聊天实测 DeepSeek 回复成功；模型又调用 Skill 发现和加载工具读取 `minecraft-server-setup`。当前会话没有 `minecraft_*`/`runtime_*` 工具，未执行服务器操作；Minecraft Skill 已随包内置，无外部安装。本轮 `check:workspace` 被并行任务的缺失合同锚点阻断 | [合同](development/pi-agent-runtime-20261025.md) |
+| LFAA-SYSTEM-MODEL-CONFIG-SCOPE-20261025 | 登录账号仅用于进入 LFAA；Provider 与活动模型改为系统级共享配置 | 已实现：模型与密钥在 system scope 跨登录账户共用、超级管理员旧配置保留式迁移、管理员 API 写权限、同一配置原位替换凭据；定向回归 11/11，typecheck 和 Web/Control Plane 构建通过；内置浏览器 1355×925、390×740 检查设置，`/work` 主聊天实测 Provider 回复成功。workspace Gate 被并行任务的缺失合同锚点阻断；密钥替换未实测 | [合同](development/system-model-config-scope-20261025.md) |
+| LFAA-CANVAS-RUNTIME-DATA-DIRECTORY-20261025 | 修复 `/canvas` 首页已加载但项目列表返回服务器内部错误 | 已修复；源码 CLI 隔离创建/列表回归 1/1、画布与 HTTP 回归 8/8、Host/Client 类型检查、Control Plane/Web 构建成功；内置浏览器 3000 `/canvas` 724×777 读取空列表及 1 个真实项目并可切换模式，均无服务器错误。17:10 并行修改 `packages/core/agent-loop/package.json` 后，整体 Host/Web 指纹转 stale；当前服务保持验收状态，真实项目写入、Provider、桌面 WebView 与帧时间未测 | [合同](development/canvas-runtime-data-directory-20261025.md) |
+| LFAA-CANVAS-WORKSPACE-REFERENCE-20261025 | 按图二精简画布工作区：紧凑顶部操作、图标工具轨、居中空态；主题继续跟随设置中心 | 已完成；内置浏览器验收 `/canvas` 和 `/apps/steamcmd/canvas` 均正常加载；端口 3000 曾因 Web/控制端构建指纹过期显示重启保护页，重启当前仓库 LFAA Web 后消失。工作区 1440×900、390×845、390×420；菜单与模式切换可用、窄短屏无页面横向溢出、Console error 0；Client/Host 类型检查、包构建、Control Plane/Web 构建通过。工作区 Gate 仍报既有 PROMPTS 锚点缺失，sync 写生成清单报 UNKNOWN；生成 Provider 未配置，生成未发起；暗色主题按用户偏好保留，未在本批实页切换账户主题 | [追加批次合同](development/canvas-agent-workbench-20261025.md#14-图二参考的工作区视觉精简-2026-10-25) |
+| LFAA-CANVAS-HOME-REFERENCE-20261025 | 优化 `/canvas` 首页为图二的欢迎区、顶部搜索、右侧项目区层级，并修复画布对话抽屉内容下方的大块空白 | 已完成；内置浏览器核验 `/canvas`、SteamCMD 对话抽屉；搜索/模式/导航可用，桌面/窄屏/短屏无页面横向溢出；类型检查与 Web 构建通过，浏览器 Console error 0。全局 Appearance 当前浅色，未改设置；生成/导入写操作及 Provider 未触发 | [追加批次合同](development/canvas-agent-workbench-20261025.md#15-画布首页参考布局与对话抽屉高度修复-2026-10-25) |
+| LFAA-AI-WORK-COMPOSER-FOCUS-OUTLINE-20261025 | 修正 `/work` 输入框聚焦时的多余黑色内框，并核对截图标出的顶部操作样式 | 已修复；Web 构建与指纹通过，内置浏览器 `/work` 1280×720、820×520 聚焦验收通过；顶部控件描边与主题样式一致，未修改账户外观偏好 | [合同](development/ai-work-composer-focus-outline-20261025.md) |
 | LFAA-CHAT-ATTACHMENT-HISTORY-20261025 | 修复历史消息缓存丢失图片附件引用 | 源码修复，15 项回归、Host 类型/构建及工作区 Gate 通过；Web 构建被无关 CanvasWorkspace 缺失/类型错误阻塞，实页未验 | [合同](development/chat-attachment-history-20261025.md) |
 | 01-缺口修复-20261008 | 缺口修复 | 见合同 | [本轮合同](#lfaa-remaining-gap-repair-20261008收敛四项明确的代码缺口) |
 | 02-全仓审查整改-20261008 | 全仓审查整改 | 见合同 | [本轮合同](#lfaa-workspace-audit-repair-20261008全仓审查风险修复与文档治理) |
@@ -274,13 +285,19 @@
 | LFAA-WORKSPACE-AUDIT-REPAIR-20261008 | 核验 GLM 审查、修复运行风险与权威重复、整理中英文分类文档和自动门禁 | 整改与本地验证完成；实机退出/升级、长日志等缺口明确保留 | [当前合同](#lfaa-workspace-audit-repair-20261008) |
 | 268-小鱼核心人格正文-20261026 | 把「小鱼」的身份、四个真实领域地图（我的世界/Steam 游戏服务端/AI 写作/联机工具）与领域工作约定收敛为唯一正文 Owner，并让系统提示词按稳定顺序组合 | 已实现；人格回归 4/4、相关提示词/Agent 回归 9/9（初始系统消息 11806 字节）、Host/Client 类型检查、210 包工作区 Gate 与差异检查通过；真实模型、实页与账户级个性化未验 | [本轮合同](#lfaa-xiaoyu-core-persona-20261026) |
 | 269-菜单启动单实例与脚本编码-20261025 | 让「完整 Web」启动入口在控制端已运行时不再重建/重启（避免中断进行中的 Agent 任务），并修复两个菜单 PowerShell 脚本缺失 UTF-8 BOM 导致 Windows PowerShell 5.1 下中文乱码 | 已实现；健康探测实测返回 True、两个脚本 ParseFile 0 错误、git diff --check 通过；真实菜单交互与重启风暴根因仍待复验 | [本轮合同](#lfaa-menu-single-instance-bom-20261025) |
+| 278-Compact应用工作区中心区锚点修正-20261025 | 响应式 Compact 普通应用左二导航改用现有悬浮预览，不再把整个中间主内容区推向右侧；切回桌面恢复保存的开合偏好 | 已实现；定向回归 4/4、ui-workspace/Control Plane/Web 构建通过；内置浏览器 `/apps/connectivity/normal` 与 `/games` 在 Compact 945×1015 验收，预览显示时中心仍锚在 x=65；Desktop/Mobile 无横向溢出；真实鼠标 hover 与帧时间未测 | [本轮合同](#lfaa-compact-application-center-anchor-20261025) |
 | 270-退出时 Agent 收尾-20261025 | 服务退出时先让 Agent 循环停止派发新的模型请求，并在宽限期内等待活动 Run 收尾，避免把已发生的工具副作用写成未知结果 | 已实现；收尾合同回归 4/4、agent-runtime 6/6、Host 类型检查通过；真实桌面/终端退出与重启续跑未验 | [本轮合同](#lfaa-agent-shutdown-grace-20261025) |
 | 271-本机节点工具化-20261025 | 让小鱼能读取本机托管节点状态并受控启动/停止/重启，节点不再只能由人手动拉起 | 已实现；daemon-tools 回归 3/3、supervisor 回归 2/2（含 IPC 正常关闭）、Host 类型检查与 211 包 Gate 通过；真实启停与桌面链路未验 | [本轮合同](#lfaa-local-daemon-tools-20261025) |
 | 272-占位目录保留与自描述-20261025 | 按用户要求保留全部上游占位目录，而不是删除；为每个占位包加可读标记并生成实现清单，明确“不可执行/如何转实现” | 已实现；169 个目录已加 PLACEHOLDER.md、生成占位索引、211 包 Gate 与差异检查通过；尚无一个占位转为真实实现 | [本轮合同](#lfaa-placeholder-directories-20261025) |
 | 273-B1附件基础-20261025 | 实现附件合同与本机账户隔离存储，并把图片魔数嗅探收敛到单一 Owner，为多模态输入打底 | 已实现；attachment 回归 4/4、project-files 12/12、Host 类型检查、213 包 Gate 与差异检查通过；模型图片块装配、上传 API/UI 与 read_image 持久化未接入 | [本轮合同](#lfaa-attachment-foundation-20261025) |
 | 274-附件上传API-20261025 | 提供认证的附件上传/清单/元数据接口，把上传字节交给既有附件 Owner，并在解析阶段拒绝类型/大小/名称越界 | 已实现；附件三组回归 10/10、Host 类型检查、214 包 Gate 与差异检查通过；前端选择文件与"上传即送模型"未接入 | [本轮合同](#lfaa-attachment-upload-api-20261025) |
-| 275-Agent核心链路审查与修复-20261025 | 审查小鱼 Agent 的循环、上下文管理、缓存命中、提问、Skill/MCP 安装、代码写入与自主执行真实能力，修复本轮确认的缺陷并以真实运行验证 | 已实现 9 项源码缺陷修复（含新库迁移越版、未知工具致命失败、ZIP 条目上限）并修复全部测试漂移；全量 814/820 通过，剩余 5 项为 Windows AppContainer 沙箱执行环境未验证；真实 Qwen 验收：普通对话通过，代码写入/提问/Skill/MCP 未通过（证据在 dist/.tmp/agent-acceptance/）；用户 `.lfaa` 数据丢失导致 3000 日常服务仍不可用 | [本轮合同](#lfaa-agent-core-chain-audit-20261025) |
-| 276-系统级画布2.0-20261025 | 把画布升级为 LFAA 系统核心能力：即梦式生成/画布切换与左侧工具轨、全节点类型与 @ 素材引用、真实图像/视频生成、小鱼与画布导演 Agent 工具、设置中心画布分区，并修复缺失 CanvasHome 导致的构建阻断 | 实施中 | [本轮合同](development/canvas-agent-workbench-20261025.md) |
+| 275-Agent核心链路审查与修复-20261025 | 审查小鱼 Agent 的循环、上下文管理、缓存命中、提问、Skill/MCP 安装、代码写入与自主执行真实能力，修复本轮确认的缺陷并以真实运行验证 | 已修复 9 项源码缺陷并通过原回归；真实 DeepSeek Web 对话与多步工具循环通过；追加修复 GitHub Skill 来源读取改为固定 commit + 有界 Git tree/blob，定向回归 28/28、Host 类型检查通过，真实 Skill 重试待进行；MCP、代码写入/修 bug、多 Agent 仍待真实验收；电脑操控/Browser Use 当前设置关闭 | [本轮合同](#lfaa-agent-core-chain-audit-20261025) |
+| 276-系统级画布2.0-20261025 | 把画布升级为 LFAA 系统核心能力：即梦式生成/画布切换与左侧工具轨、12 类节点与 @ 素材引用、真实图像/视频生成编排、小鱼与画布导演 Agent 工具、设置中心画布分区，并修复缺失 CanvasHome 导致的构建阻断 | 基础批次已实现；图二参考工作区视觉精简已完成：紧凑透明顶栏、图标工具轨、居中低干扰空态与可见主题点阵；App 导航/重命名等操作仍可从菜单到达。内置浏览器 3000 `/canvas`、`/apps/steamcmd/canvas` 实页通过；过期构建保护页在重启当前仓库 Web 服务后消失。工作区 1440×900、390×845、390×420 验收，菜单/模式切换通过、窄短屏无页面横向溢出、Console error 0。基础批次：定向回归 26/26、隔离服务保存回读等原验收；Provider 未配置，本轮未实际发起生成；Agent 工具循环、Electron 与帧时间仍未测；画质增强/真全景/智能剪辑导出未接入 | [本轮合同](development/canvas-agent-workbench-20261025.md) |
+| 277-GitHub推送过期索引锁恢复-20261025 | 修复菜单 6 在残留 `.git/index.lock` 时 `git add -A` 以退出码 128 失败；仅自动清理可确认过期且未被占用的当前仓库索引锁 | 已修复；Pester 9/9、PowerShell 5.1 隔离 Git 暂存回归、脚本解析和差异检查通过；真实 GitHub 推送未运行 | [本轮合同](#lfaa-github-stale-index-lock-recovery-20261025) |
+
+| 282-设置中心开关JellyToggle-20261025 | 安装并使用 ui-motion skill，为设置中心二态开关增加有节奏的滑块拉伸和回弹反馈，沿用减少动态效果偏好 | 已完成；回归 2/2、共享包/Client 类型/Web 构建通过；内置浏览器实际检查 1280×800、390×640、845×480，均无横向溢出；实时开关未点击以保护自动保存的用户偏好 | [本轮合同](#lfaa-settings-switch-jelly-toggle-20261025) |
+| 283-AI Work手机窄屏右侧内容对齐-20261025 | 修复 `/work` 手机窄屏下整页工作台未铺满视口、右侧露出空白背景的问题 | 源码、27/27 定向回归、ui-layout/ui-workspace/Web 构建与 Client 类型检查通过；Web/Host 构建指纹匹配；最终 390×740 内置浏览器复验被中断，未标记实页通过 | [本轮合同](#lfaa-ai-work-mobile-right-edge-20261025) |
+| 285-Three.js共享UI视觉与动效开发规则-20261025 | 将 Three.js 与统一 UI 组件、玻璃材质、网格/颗粒背景、完整反馈状态、微交互、滚动渐入和弹性动效纳入 LFAA 规则 | 已完成；Three.js 及类型依赖锁定、ui-primitives/Client/Web 构建通过；工作区 Gate 仅被既有缺失合同锚点阻断；无产品页面消费 Three.js 或发生视觉变化 | [本轮合同](#lfaa-threejs-shared-ui-visual-motion-rules-20261025) |
 
 <a id="lfaa-whole-workspace-performance-security-maintainability-20261019"></a>
 
@@ -428,7 +445,7 @@ Owner 与边界：UI/SSE 为 `packages/client/connection` 与 `packages/client/u
 | LFAA-UI-WORKBENCH-SNAP-03 | 统一设置和应用工作区左右侧栏及底部终端的拉伸、吸附收起与反向展开动效 | 实现完成（前端 TypeScript/Vite 构建通过；浏览器实拖待验） | [合同](archive/contracts/03.md#lfaa-ui-workbench-snap-03) |
 | LFAA-UI-SIDEBAR-GLASS-STABILITY-01 | 修复左侧栏悬停预览和拉伸期间透明度/背景模糊突变 | 实现完成（前端 TypeScript/Vite 构建通过；浏览器悬停与实拖待验） | [合同](archive/contracts/03.md#lfaa-ui-sidebar-glass-stability-01) |
 | LFAA-UI-LEFT-PREVIEW-HOVER-STABILITY-01 | 修复左侧栏收起预览 hover 移出时末尾突隐 | 移出动效已调优（Web 构建、差异检查通过；浏览器 hover 待实测） | [合同](archive/contracts/03.md#lfaa-ui-left-preview-hover-stability-01) |
-| LFAA-UI-LEFT-PREVIEW-HOVER-FLICKER-01 | 修复收起左二菜单 hover 闪烁及非触发位置误显示 | 已删第二份侧栏并复用同一 DockKit 左 pane；定向回归 2/2、UI Workspace 包构建通过。Web/TS 构建被当前工作区缺失的 CanvasHome.js 与 Canvas 类型错误阻断，正式页 HTTP 503；新代码实页验收及纯鼠标 hover 待阻塞解除 | [本轮合同](development/left-preview-hover-flicker-20261025.md) |
+| LFAA-UI-LEFT-PREVIEW-HOVER-FLICKER-01 | 修复收起左二菜单 hover 闪烁及非触发位置误显示 | 已移除整栏 `onMouseEnter`；预览只由顶部指定按钮/键盘可见焦点打开，唯一 Grid pane 与左栏锚点保留；定向回归 4/4、UI Workspace/Web 构建通过。内置浏览器 `/games` 945×1015 默认收起、聚焦触发按钮后显示且中心 x=65 不变；真实鼠标移动仍因浏览器工具没有纯指针接口未测 | [本轮合同](development/left-preview-hover-flicker-20261025.md) |
 | LFAA-UI-WORKBENCH-SWAP-CONTROL-01 | 让交换按钮仅在鼠标移入右侧拉伸位置时显示，移出后隐藏 | 已修复（前端构建通过；浏览器交互待验） | [合同](archive/contracts/01.md#lfaa-ui-workbench-swap-control-01) |
 | LFAA-SETTINGS-GLOBAL-NAV-01 | 将应用工作区左侧全局导航轨复用到设置中心，统一两处导航外壳 | 已完成（TypeScript/Vite 构建通过；浏览器目视待验） | [合同](archive/contracts/01.md#lfaa-settings-global-nav-01) |
 | LFAA-SETTINGS-RETURN-CONTEXT-01 | 设置中心全局导航房子和侧栏返回均回到进入设置前的路由 | 已修复（TypeScript/Vite 构建通过；浏览器交互待验） | [合同](archive/contracts/01.md#lfaa-settings-return-context-01) |
@@ -7995,3 +8012,305 @@ Owner：依赖由各自 `package.json` 声明，`scripts/check-workspace.mjs` �
 - 真实模型仍待复验（需百炼余额正常或换 Key）：代码写入、ask_user 提问卡、Skill 安装、MCP 安装、缓存/usage 字段。
 - 高优先待修：MCP 安装「工具合同已变化或无法连接」（F5，先用稳定夹具复验是否夹具问题）、`local.execute-command` 无错误原因（F6，疑似同沙箱）、单 Run 无进展仍可 51 次请求/重复派发（F4，预算与进展判定需 Session/Loop Owner 共同定策）、qwen Provider 目录解析把原生 `/api/v1/models` 当 OpenAI 目录（F8）、全新 Home 不自动创建默认工作区项目（F11）。
 - 登记的既有风险：压缩/溢出压力估算（3.5 字符/token）与 UI 上下文估算（4 字符/token）两套口径、Session 历史投影只取最近 40 条且无滚动摘要、单轮 JSONL 写放大、压缩摘要请求混入主 Run 会话事件、`knowledge-library` 崩溃残留暂存目录清理。
+
+#### 2026-10-25 Web Agent 补充实测与当前缺陷
+
+- 当前源码启动的 Web `/work` 在 Edge 实页中完成真实 DeepSeek 对话（1 秒），随后完成一次 20 秒的多步只读工具循环：模型连续调用 10 项 LFAA 工具，读取 Skill/MCP 六个 App 作用域的真实清单与合同，再生成最终答复；回复下方“用时”时间线显示了各阶段与工具组。该实测中账户 MCP/第三方 Skill 清单为空，内置 Minecraft 方法 Skill 为 bundled，不计作安装。
+- 真实 Skill 安装尝试由 Agent 通过 `capability_inspect` 执行：`Microck/minecraft-server-skill` 与 `anthropics/skills` 返回“插件快照根目录缺少 package.json”；改用 Mojang 官方 Creator Tools 的 `create-block`（仅 Bedrock）后又返回“插件压缩包包含多卷或不受支持的 ZIP 目录格式”。三次都在产生 inspectionId 前失败；`capability_search` 另遇 GitHub API 限流。每次 `capability_list` 与 Skill Registry 回读均确认无新增安装记录，未执行来源脚本、没有修改用户设置或项目文件。
+- 第一个根因是 Skill 调用插件专用 `downloadGithubSnapshot` 并触发插件 `needsPublishedFiles/package.json` 校验。改为通用仓库路径后，真实 Mojang 来源又证明全仓 ZIP 依然会因大型树/ZIP64 触发解析器限制；该问题不属于 Skill 文本或许可校验。
+- 最新源码将职责限定为：`plugin-manager` 固定 commit、读取有界 Git tree、只下载所选 Skill 目录并按 Git blob SHA 校验；`capability-skill` 继续唯一拥有 Skill 发现/内容和文件边界语义、账户保存与 Registry 校验；插件 manifest/发布入口补齐只在插件路径执行。账户写入仍交给 Knowledge Library Owner，Settings/Permission/项目文件和 Skill 脚本策略不变。安装验证要求检查与安装使用同一 commit 和所选文件摘要，并回读真实 Owner/Registry；插件来源既有回归保持通过。
+- 最新源码回归：`pnpm.cmd --filter @yubboo/lfaa test -- tests/plugin-manager.test.mjs tests/capability-skill.test.mjs` 28/28；`pnpm.cmd --filter @yubboo/lfaa typecheck` 退出 0；目标文件 `git diff --check` 通过。回归模拟仓库 tree/blob，证明不下载整仓 ZIP、只取得所选 Skill 目录、每个文件按 Git SHA 校验，同时验证插件路径仍单独使用 ZIP/package.json 合同。
+- 下一步真实重试来源为 Mojang 官方 `minecraft-creator-tools/plugins/minecraft/skills/create-block`：仓库 `LICENSE.md` 声明 MIT，Skill 只支持 Bedrock 且依赖其专用 `createMinecraftContent` MCP；没有该 MCP 时只能安装/读取 Skill 资料，不能声称完整创作执行可用。当前 Settings Owner 的 `plugins.enabled=false`；安装后仍须如实报告“已安装但运行时关闭”，不得在验收中更改用户偏好。当前真实安装尚未成功，待修复源码装入 Host 后再重试。
+- 其他能力实测状态：Settings Owner 返回 `plugins.enabled=false`、`computerControl.enabled=false`、`browserUse.enabled=false`；本轮不修改这些用户设置，故浏览器 Use/电脑操控未作启用后的实际操作验收。MCP 安装、代码写入/修 Bug 和多 Agent 委派也尚未在本轮真实 Web Run 中验证。
+
+<a id="lfaa-github-stale-index-lock-recovery-20261025"></a>
+
+## 277-GitHub 推送过期索引锁恢复（2026-10-25）
+
+### 目标、Owner 与边界
+
+- 用户报告菜单 6 在扫描工作区后执行 `git add -A` 失败：`fatal: Unable to create '.../.git/index.lock': File exists.`；当前 Git 退出码为 128。
+- 入口与 Owner：`lfaa.bat` → `scripts/project-menu.mjs` → `scripts/install-dependencies.ps1` 的 `Push-GitHubRepository` 持有菜单编排；索引锁和索引原子更新归当前 checkout 的 Git 仓库管理。菜单只可恢复已确认失效的精确锁文件。
+- 无设置中心配置；不改变 GitHub 认证、提交版本、敏感内容扫描、路径/大文件过滤、提交说明、正常快进推送与用户确认合同。
+
+### 允许与禁止
+
+- 允许在 `git add -A` 前，使用 `git rev-parse --git-path index.lock` 解析当前 Git 管理的锁路径；缺少锁时不做额外动作。
+- 仅当锁路径为普通文件、最后写入已超过 10 分钟，且 Windows 独占打开探测成功时删除该精确文件；重查路径与时间后再删除。其他状态须保留锁文件并说明原因/重试方式。
+- 允许修改 `scripts/install-dependencies.ps1`、菜单 6 的直接回归与本合同/索引。
+- 禁止清理 Git 目录中的其他文件，禁止无条件删除锁、强推、自动提交或推送、改全局/仓库 Git 配置，禁止触碰当前画布相关工作区改动。
+
+### 验收
+
+- 回归覆盖无锁无操作、过期且未占用锁可清理、近期锁被保留、被独占句柄占用的过期锁被保留；锁异常或检查失败时菜单不得继续暂存。
+- Windows PowerShell 5.1 语法解析与直接行为回归通过，`git diff --check` 通过。
+- 不在当前工作区运行 `git add`、创建提交或执行远端推送；真实 GitHub 认证/传输不属于本修复验收。
+
+### 实施记录
+
+- `scripts/install-dependencies.ps1` 增加 Git 原生路径解析与过期锁恢复：仅接受 Git 返回的 `index.lock` 普通文件，写入时间超过 10 分钟后还必须能以 Windows 独占方式打开，并在删除前复核文件类型、长度与时间戳。近期锁、占用锁、重解析点、目录或无法检查的路径均保留并给出原因；菜单 6 在 `git add -A` 与 `git commit` 前执行检查，原有凭据扫描、大小/路径过滤、版本校验、用户确认与正常推送合同保持不变。
+- `scripts/tests/push-version.Tests.ps1` 新增锁缺失、过期未占用、近期和仍占用四类回归，并确认菜单 6 在暂存和提交前调用恢复检查。
+- 实际验证：Windows PowerShell 5.1 对脚本与回归文件的 AST 解析通过；`Invoke-Pester -Script scripts/tests/push-version.Tests.ps1 -PassThru` 9/9；隔离临时 Git 仓库中创建 11 分钟未占用锁后，恢复函数移除锁且实际 `git add -A` 成功；近期锁与独占句柄占用锁均保留并给出明确错误；当前仓库锁路径与 Git `rev-parse --git-path index.lock` 一致；目标文件 `git diff --check` 通过。
+- 性能与维护边界：仅在暂存/提交前执行一次 Git 路径查询和常数次文件元数据/句柄检查，不随工作区文件数量增长；未单独计时。失败时不跳过 Git 锁或写入保护，回归保留缺失、近期、过期与占用状态。
+- 未运行菜单交互、当前用户工作区 `git add`、提交或 GitHub 推送；当前画布相关的 9 项既有工作区改动保持原样。未验证 GitHub 凭据、网络与远端推送。
+- 文件职责：`scripts/install-dependencies.ps1`（菜单 6 当前仓库索引锁定位、谨慎恢复与提交前检查）；`scripts/tests/push-version.Tests.ps1`（PowerShell 版本逻辑、锁状态及菜单接线回归）；`docs/PROMPTS.md`（本任务合同、索引与验证记录）。无设置中心配置。
+
+<a id="lfaa-normal-app-shared-left-alignment-20261025"></a>
+
+## 278-普通应用共享导航与内容左移对齐（2026-10-25）
+
+### 目标、Owner 与设置
+
+- 用户要求：应用内所有页面复用相同导航样式，顶栏和主内容整体向左靠近一些，避免只单独移动标题栏按钮。
+- Owner：共享导航结构由 `packages/client/ui-workspace/src/ApplicationWorkspace.tsx` 装配；中心标题栏和普通应用内容的公共对齐由 `packages/client/ui-workspace/src/css/center-workspace.css` 持有。各应用页面继续持有自己的内容布局，不复制导航、不改业务内容。
+- 设置盘点：保留 `general.navigationLayout`、工作区栏宽/开合偏好与 Appearance 主题、字体、字号、侧栏颜色、遮罩、模糊和减少动态效果设置；该任务只调整公共容器内的响应式水平几何，不增设用户偏好，不更改设置值或持久化状态。
+- 运行入口与数据边界：当前源码正式 Web，内置浏览器工作台路由 `/apps/connectivity/normal`；仅读取真实应用页面，不调用服务端写入、账户或权限 API。
+
+### 允许范围与验收
+
+- 允许：在公共中心工作区内以容器宽度为依据，将普通 App 标题栏、主内容容器以相同偏移左移，并保持左右留白总量不变；更新工作区 README、直接相关回归和本合同记录。
+- 验收：至少核对两个普通 App 页面；在宽中心列和窄中心列检查标题栏与内容左移距离一致、无横向溢出；运行直接回归与 Web 构建；从 ChatGPT 内置浏览器实际路由截图/读取前后几何位置。
+- 禁止：只对联机服务单页加偏移、改导航结构或偏好设置、挪动内容卡片到工作区外、修改服务端业务逻辑。
+
+### 实施与验证记录
+
+- 实施：`center-workspace.css` 对普通 App 顶栏与主内容使用相同 `clamp(20px, 2.5cqi, 32px) ± clamp(8px, 1.2cqi, 16px)` 左右留白，两侧合计宽度不变，因此两块内容同向左移 8–16px；容器不超过 560px 时使用 8px/24px，不超过 360px 时使用 8px/16px。应用菜单仍由 `ApplicationWorkspace` 中的共享 `ApplicationNavigationPanel` 提供，没有按应用复制导航。
+- 设置与性能：未新增设置项，沿用 `general.navigationLayout`、工作区栏宽/开合偏好及 Appearance 主题、字体、字号、侧栏颜色、遮罩、模糊和减少动态效果设置；没有写入偏好或业务数据。改动仅为 CSS，无新增请求、订阅、事件监听、计时器或主线程任务；未测帧时间。
+- 基线实页：ChatGPT 内置浏览器工作台中的实际应用路由 `http://127.0.0.1:3000/apps/connectivity/normal`，视口 1280×720。修改前中心列 x=64.99、宽 936.02px；标题栏与页面容器左缘 x=88.38，正文卡片内容 x=115.05。按新公式，中心列此宽度对应共同左移 11.23px；本次没有取得最终源码的实页后坐标。
+- 回归与构建：`node --test apps/cli/tests/client-app-workspace-four-column.test.mjs` 17/17；`pnpm.cmd --filter lfaa-client-ui-workspace run build` 通过；`git diff --check` 通过。初次 `pnpm.cmd run build:web` 在当时源码快照通过；工作树随后出现未跟踪的 `packages/client/ui-workspace/src/CanvasHome.tsx`，当前源码重试因它导入缺失的 `./canvas-home.css` 而失败。失败后 `runtime-build-state web` 虽返回 `[]`，但不能替代失败的构建结果；浏览器实际页面提示“LFAA 需要重新启动”，因此没有重启旧 Web 进程，也没有把构建前页面当成本次验收。该未跟踪文件与本次布局无关，我没有修改它。
+- 未测：最终构建与当前源码一致的 Web 页面、第二个 App 页、窄中心列及短屏实页验收未完成；没有宣称 CSS 已在运行页面生效。完成这些检查需先让当前源码的 CanvasHome 样式导入可构建。
+- 文件职责：`packages/client/ui-workspace/src/css/center-workspace.css`（所有普通 App 页面共享的水平锚点）；`apps/cli/tests/client-app-workspace-four-column.test.mjs`（共享导航布局与容器响应回归）；`packages/client/ui-workspace/README.md`（导航 Owner 和布局合同）；`docs/PROMPTS.md`（本任务设置、边界与验收记录）。
+
+<a id="lfaa-ai-work-tab-summary-placement-20261025"></a>
+
+## 279-AI Work 窄分栏标签栏与摘要卡定位（2026-10-25）
+
+### 目标、Owner 与设置
+
+- 用户对比 `/work` 截图，要求紧凑右栏将页签、`+` 新建标签页、底部终端、上下文栏展开/收起四项功能排在右侧同一标题行；Git 项目摘要卡缩窄并贴齐中心列右缘。
+- 运行入口：Web/Desktop 共用 Client `/work`；标签栏与右侧顶栏由 `ApplicationWorkspace` 组合并由 `ui-workspace/src/css/right-menu.css` 排版；Git 摘要浮层经 Git Summary Owner 提供内容，由 `center-workspace.css` 相对实际中心列定位；DockKit 提供容器宽度。
+- 设置：沿用 `general.navigationLayout`、工作台栏宽/开合偏好和 Appearance 令牌；不新增或改写设置。会话、Git 状态、账户数据和权限仍归各自 Owner。
+- 实页基线：内置浏览器 `/work`，视口 866×925，右侧容器宽约 227px、布局模式 `compact`；右栏标题行仅包含页签与 `+`（x≈623–752），底部终端/上下文开合两控件落在中心标题栏（x≈548–609），右栏剩余约 90px 空白。Git 摘要内卡宽 376px，但浮层右缘按触发按钮定位，距中心列右缘约 72px。
+
+### 允许范围与验收
+
+- 允许：紧凑 AI Work 右栏打开时，将页签、`+` 新建、底部终端、上下文开合控制放回右栏标题行；页签关闭/新建语义不变，`+` 保持可见。右栏关闭时中心标题栏保留展开入口。摘要卡宽度最多 376px，浮层右缘贴齐中心列右边缘。
+- 不改 Dock 宽度偏好、工具/标签数据、Git 读取与操作、认证、授权或账户数据。
+- 验收：直接回归和 Web 构建；内置浏览器 `/work` 检查窄右栏、桌面右栏和多标签状态，四项功能保持在右侧同一行、`+` 可见且可用；摘要卡右缘贴中心列，覆盖窄列和短屏滚动。
+
+### 实施与验收记录
+
+- 实施：紧凑 AI Work 右栏标题行复用工作区标签栏，并保留 `+` 新建标签页、底部终端和上下文栏开合入口；收起右栏时仍在中心顶栏保留展开入口。Git 摘要卡宽度上限 376px，浮层挂在 `.module-center` 并以右缘为锚点。
+- 设置：不新增或重置设置；复用 `general.navigationLayout`、已保存的工作区宽度/开合状态与 Appearance 外观令牌。
+- 性能：共享普通开合时长从 320ms 缩至 180ms；Grid 列/行与窗格位移统一使用 `cubic-bezier(.16, .82, .24, 1)`，缩短聊天正文逐帧重排窗口。减少动态效果和拖动捕获/反向释放仍遵循原规则。实页计算样式确认列宽和窗格位移均为 180ms；未采集帧时间/FPS 数据。
+- 回归：`client-workbench-responsive.test.mjs`、`client-workspace-app-tabs.test.mjs` 与四栏布局回归共 51/51 通过；DockKit 包构建通过；`pnpm run build:web` 通过（Vite 3865 modules）。Web `/api/health` 为 `ok`，构建指纹状态 `[]`。
+- 内置浏览器实页：`http://127.0.0.1:3000/work`，866×925 CSS px，`compact`。展开时四项控件同在右栏顶行：标签和 `+` 位于 x≈608–737，终端/上下文开合位于 x≈780–842；右栏约 243px，中心区约 537px。`+` 保持“新建标签页”语义；摘要卡宽 376px，浮层右缘与中心列右缘重合。关闭右栏后展开入口回到中心顶栏；已恢复验收前收起状态。
+- 未测：没有在本轮内置浏览器检查桌面宽视口、手机设备和实际帧时间；构建/静态回归不能替代这些设备性能数据。
+- 文件职责：`ApplicationWorkspace.tsx` 组合顶栏控件和导航状态；`right-menu.css` 排列窄栏控件；`center-workspace.css` 限制摘要卡宽度并锚定右缘；`workbench-interaction.config.ts` 定义开合时长；`common-layout.css` 统一 Grid 与窗格动效曲线；两个 Client 回归文件覆盖控件与响应式布局；两个包 README 记录 Owner 和共享交互；本合同记录设置、验收和边界。
+
+<a id="lfaa-ai-work-live-progress-placement-20261025"></a>
+
+## 280-AI Work 当前状态跟随真实活动与流光效果（2026-10-25）
+
+### 目标、Owner 与设置
+
+- 用户指出 `/work` 流式回复中的“正在思考”固定在耗时行下方，希望像参考图中的 Agent 过程那样跟随正文、工具和后续活动推进，并增加流光效果。
+- Owner：`packages/client/ui-chat` 的 `AiWorkResponse`、`response-timeline.ts`、`activity-duration.ts` 与共享聊天样式；真实正文落点及活动由 Connection、Session 与 Agent Loop 提供，本任务只投影现有记录，不改变执行合同。
+- 设置：沿用 `appearance.advanced.reducedMotion`（默认 `system`，设置中心持久化，Workbench 映射到 `data-lfaa-reduced-motion`）及既有主题文本/强调色令牌；不新增或更改设置。
+- 运行入口：当前源码正式 Web 的 `/work`；AI Work 会话与 Provider 归各自 Owner。本任务验收只读 UI，不修改真实项目文件、工具授权、Provider 或运行节点。
+
+### 允许范围与验收
+
+- 允许：思考状态投影到真实事件落点；回复状态随最新可见正文推进，避免停在回复阶段开始偏移；工具、命令、Skill 或 Agent 正在运行时在实际活动组上显示动作标签；仅对处理中状态加轻量文字流光；更新直接相关回归和 `ui-chat` README。
+- 真实活动优先；无活动时只根据是否已有可见正文区分“正在思考/正在回复”。不得显示隐藏推理、伪造工具结果或把等待审批/补充信息动画成运行中。
+- 动效读取主题强调色，并服从减少动态效果设置与系统偏好；布局可换行，不产生横向溢出。不新增订阅、计时器、Observer 或网络请求。
+- 验收：响应时间线及活动摘要定向回归、ui-chat 类型/构建与 Web 构建；检查 `git diff --check`；ChatGPT 内置浏览器在 `/work` 覆盖桌面和窄短视口，确认状态随消息/活动落点变化、工具标题是真实动作、处理中流光可见且减少动态效果时关闭；记录实际截图/状态、性能测量范围和未测项。
+
+### 实施与验收记录
+
+- 实施：`response-timeline.ts` 将 UI 状态放在 Agent Loop 已记录的活动偏移处，不写入对话历史；思考状态跟随思考事件，回复状态跟随最新可见正文，运行中的单项工具组显示真实动作标签。没有活动记录时仅根据可见正文显示思考/回复状态。CSS 将处理中状态文字应用 2.4 秒渐变流光，真实等待/审批状态不播放动画。
+- 设置与性能：沿用 `appearance.advanced.reducedMotion`（默认 `system`）、主题文本色与强调色；未修改用户设置。最终浏览器页面的 `data-lfaa-reduced-motion=system`，系统 `prefers-reduced-motion=false`。未添加请求、订阅、计时器或观察器，复用现有消息活动计时；未测帧时间。
+- 回归与构建：`node --import tsx --import ./apps/cli/register-package-loader.mjs --import ./apps/cli/tests/isolated-test-environment.mjs --test apps/cli/tests/ai-work-response-timeline.test.mjs apps/cli/tests/ai-work-activity-duration.test.mjs` 16/16；`pnpm.cmd --filter lfaa-client-ui-chat run build`、`pnpm.cmd exec tsc --noEmit -p tsconfig.client.json`、`pnpm.cmd run build:web` 和正式菜单完整 Web 重建（Control Plane + Web）均通过；`git diff --check` 通过。Web 构建有既有的单块超过 500 kB 提示，未因此失败。
+- 实页证据：正式菜单重建并启动 `http://127.0.0.1:3000/work`，ChatGPT 内置浏览器实测。1280×900 下实际发送无工具请求，页面先显示“已处理不足 1 秒 / 正在思考”，后在回复正文逐步出现时显示“正在回复”；两种状态都位于当前消息时间线与输入框之间，而非固定在耗时行下。回复期间读取到的实际 DOM computed style 为 `animation-name: ai-work-chat-status-shimmer`、`animation-duration: 2.4s`、`background-clip: text`，设置为 system 且系统减少动态效果为 false。同一会话完成 DeepSeek-V4.1-Flash 回复。桌面文档宽度 1270/1280、聊天区 1152/1152；820×520 聊天区 692/692、短屏内容仍可滚动；390×740 聊天区 292/292、输入区 280/280；三种视口均无横向溢出。浏览器 Console error 为 0。测试提示与回复保留在当前测试会话中；没有调用 Minecraft/项目工具或写项目文件。
+- 未测：在用户开启减少动态效果时的实页对照、最终构建下真实工具运行组标题的浏览器实测、桌面 WebView、帧时间/动画流畅度；静态构建与已看到动态状态不替代这些验收。
+- 文件职责：`packages/client/ui-chat/src/response-timeline.ts`（活动偏移与 UI-only 状态块）；`packages/client/ui-chat/src/AiWorkResponse.tsx`（真实活动到状态/工具标签的投影）；`packages/client/ui-chat/src/ai-work-chat.css`（时间线状态布局、流光与减少动态效果）；`packages/client/ui-chat/README.md`（Owner、行为与配置说明）；`apps/cli/tests/ai-work-response-timeline.test.mjs`（状态落点和活动标签回归）；`docs/PROMPTS.md`（任务边界与验收记录）。
+
+<a id="lfaa-ai-work-execution-history-20261025"></a>
+
+## 281-AI Work 完成回复保留真实过程、网页预览与文件变更（2026-10-25）
+
+### 目标、Owner 与设置
+
+- 用户反馈点击已完成回复的“用时”后没有 Agent 工作记录，希望像参考图一样看到实际过程、用时、最终答复、网页打开方式和修改文件清单。
+- Owner：Session/Agent Loop 已持久化的 `AiActivityItem`、`AiReplyPart` 继续提供真实过程；`packages/client/ui-chat` 的 `response-timeline.ts` 和 `AiWorkResponse.tsx` 负责时间线/结果投影；网页安全摘要由 `packages/core/agent-loop/src/web-activity.ts` 生成；Browser Provider 身份由 `packages/util/values/src/browser-provider.ts` 统一判断。
+- 运行入口：正式 Web `/work`，Web/Desktop 共用 Client。最终正文、活动轨迹、真实文件变更分别仍由原 Agent Loop、Session、Project Files Owner 提供。
+- 设置：不新增/修改设置；沿用已保存的 `browserUse.enabledProviderIds`、`browserUse.localUrlOpenLocation` 和 `browserUse.webUrlOpenLocation`，网页卡的打开动作只复用当前活动里的已验证内置 Browser Provider。个人 Tabbit 页面不显示内置 Dock 打开按钮。外观使用 Appearance 令牌。
+
+### 允许范围与验收
+
+- 展开时长后按真实落点展示保存的公开状态阶段、正文评论、工具/命令/Skill/Agent 活动与已完成的交互；连续工具组直接展开。无保存过程的历史记录明确说明，而非猜测执行过程；不展示隐藏推理、原始工具结果或能力目录元数据。
+- 收起的整轮摘要也依据真实 Run 终态显示“已完成”“已停止”或“未能完成”；失败原因只使用真实错误/回复内容，不合成原因或工具结果。
+- 成功的内置浏览器 `navigate` / `open-workspace-file` 才展示网页预览卡与打开入口；展示目标必须去凭据、查询串和片段并限长。失败导航、个人浏览器和普通网页读取不生成预览卡。
+- 最终答复保持可见，文件清单仅来自真实 `activity.fileChanges`；不估算未提供的行数，不创建成功/变更假数据。新样式遵循主题、字体、字号和容器宽度，窄栏可换行。
+- 验收：Agent Loop 网页目标脱敏回归、AI Work 时间线/预览/文件清单回归、相关包构建与 Client 类型检查、Web 构建和 `git diff --check`；内置浏览器 `/work` 验证用时展开的活动详情、网页打开入口、文件变更布局及窄分栏/短屏布局；记录真实视口、交互和未测范围。
+
+### 实施与验收记录
+
+- 实施：完成回复会把 Agent Loop/Session 已保存的成功状态阶段、正文评论、工具活动与交互按真实顺序展示；展开“用时”会直接展开完成的连续工具组，单项活动仍可按需查看安全详情。最终答复保持可见；真实 `activity.fileChanges` 生成文件清单，只有成功的内置 Browser 导航活动才生成去凭据、查询串和片段的网页卡片。无过程的旧记录明确显示空状态，不伪造历史。
+- 设置与性能：未新增或修改设置，继续使用 `browserUse.enabledProviderIds`、`browserUse.localUrlOpenLocation`、`browserUse.webUrlOpenLocation` 与 Appearance 共享令牌；未更改用户偏好。未增加请求、订阅或计时器；真实 22 秒回复展开后有 23 条过程活动和 4 个工具组。390px 宽页面根 `scrollWidth=380`、用时记录及时间线宽 `264/264`，无水平溢出；没有测帧时间或长会话压力。
+- 回归与构建：UI/耗时定向测试 `ai-work-response-timeline.test.mjs` + `ai-work-activity-duration.test.mjs` 16/16；Agent Runtime 网页目标脱敏定向测试 1/1；`pnpm.cmd exec tsc --noEmit -p tsconfig.client.json`、`pnpm.cmd exec tsc --noEmit -p tsconfig.host.json`、`lfaa-client-ui-chat` / `lfaa-agent-loop` / `lfaa-util-values` 包构建、`pnpm.cmd run build:web`、正式菜单 Control Plane + Web 重建及 `git diff --check` 均通过。完整 `agent-runtime.test.mjs` 曾为 5/6：断线恢复用例预期 `getConfiguredModels` 为空，隔离运行仍读到既有 system-scope OpenAI 测试配置；新网页活动断言通过，此失败与本次 UI/摘要改动无关。Web 构建有既有的大块体积提示。
+- 内置浏览器实页：正式服务 `http://127.0.0.1:3000/work`。1280×900 展开真实 22 秒 Minecraft Skill 回复，看到按序状态阶段、评论、4 个自动展开的工具组与 23 条活动；最终正文仍可见。另展开真实 2 秒纯文本回复，阶段记录存在，单项展开显示工具回执摘要。390×740 与 390×420 下记录可滚动、输入区可达，水平无溢出；短屏通过“回到底部”和聊天区滚轮检查。浏览器 Console error 0。当前实页会话没有成功网页导航或文件写入，因此未触发“打开方式”或真实文件变更卡片；两类卡片及失败/个人 Provider 隐藏条件由回归覆盖。没有触发 Provider 请求、工具或项目写入。
+- 未测：实际网页卡片点击后的 Dock 复开、真实文件变更卡片交互、桌面 WebView、系统减少动态效果开启时的对照、帧时间与长会话压力。
+- 文件职责：`packages/client/ui-chat/src/response-timeline.ts`（活动时间线与安全预览筛选）；`packages/client/ui-chat/src/AiWorkResponse.tsx`（过程、最终正文、预览与文件卡）；`packages/client/ui-chat/src/AiWorkChat.tsx`（向回复卡传递现有 Browser Dock Owner）；`packages/client/ui-chat/src/ai-work-chat.css`（主题令牌与响应式卡片样式）；`packages/client/ui-chat/README.md`（展示合同说明）；`packages/core/agent-loop/src/web-activity.ts` 与 `packages/core/agent-loop/README.md`（网页摘要脱敏及 Owner 说明）；`packages/util/values/src/browser-provider.ts` 与 `packages/util/values/README.md`（内置 Browser Provider 的唯一身份判断）；`apps/cli/tests/ai-work-response-timeline.test.mjs`（阶段、空历史、浏览器与文件卡回归）；`apps/cli/tests/agent-runtime.test.mjs`（网页目标摘要脱敏回归）；`docs/PROMPTS.md`（任务合同、验收和边界记录）。
+- 终态摘要增补（2026-10-25）：完成回复摘要按真实 `message.status` 显示“已完成”“已停止”或“未能完成”，复用现有成功/失败/中性主题令牌；终态状态不生成错误诊断，失败详情继续来自 Agent Loop 的真实回复。`ai-work-response-timeline.test.mjs` 与 `ai-work-activity-duration.test.mjs` 本轮 16/16；UI Chat 包构建、Client 类型检查、Control Plane/Web 构建均通过，输出位于根 `dist/`。
+- 本轮内置浏览器回归：先确认构建期间服务返回 503 重启保护；用户授权后通过 `scripts/install-dependencies.ps1` 菜单安全重启，停止核验为 LFAA 的 PID 42524，按当前源码重建 Control Plane/Web 并启动 PID 52232。`runtime-build-state.mjs web` 返回 `[]`，`/api/health` 与 `/work` 均 HTTP 200。内置浏览器 `/work` 1280×720 展开真实 22 秒回复，画面与 AX 树均显示整轮“已完成”、公开阶段、真实工具活动；390×740 与 390×420 下检查到终态标签、时间线和可达输入区，未见横向溢出。没有触发新的 Provider/工具执行；失败/停止摘要由定向回归覆盖。网页预览/文件卡片在当前真实会话没有样本，仍未实页触发与交互验收。
+
+<a id="lfaa-settings-switch-jelly-toggle-20261025"></a>
+
+## 282-设置中心开关 Jelly Toggle（2026-10-25）
+
+### 用户目标、Owner 与设置
+
+- 用户要求安装 linyi-ui/ui-motion-skill，并使用该 skill 为 LFAA 做 UI 动效交互；用户确认先为设置中心二态开关增加 Jelly Toggle。
+- 运行入口：Web/Desktop 共用 Client 的设置中心；开关实际控件由 packages/client/ui-primitives 的 SettingsSwitch 提供，交互外观由 packages/client/ui-theme 的共享样式提供。
+- 设置 Owner：开关所代表的设置仍由现有调用方与 Settings Owner 读写。动效复用 appearance.advanced.reducedMotion（默认 system，按账户持久化，由 Workbench 映射为 data-reduced-motion）；不新增或修改设置。general.cardMotionEffect 与 general.dialogMotionEffect 不改变。
+- 边界：不改变认证、授权、配置保存、开关业务值和账户数据。验收不得更改用户偏好。
+
+### 修改范围与验收
+
+- 允许：SettingsSwitch 的本地瞬态动画触发和滑块 DOM 结构；ui-theme 中共享的开关动效样式；相关包 README、直接回归及本合同记录。
+- 禁止：修改设置类型/默认值、Settings API、持久化映射、用户偏好值、既有未提交的设置页面样式和其他工作区 UI。
+- 可观察条件：点击、触屏及键盘切换均维持即时且真实的 aria-checked/业务值；滑块在约 350ms 内沿现有轨道移动，途中拉伸并轻回弹；减少动态效果开启或系统偏好要求时遵循 Workbench 的 0.01ms 近静态规则；disabled 状态不触发动效；桌面和窄/短设置视口没有溢出或遮挡。
+- 验收入口：/settings?section=general；直接回归、受影响包构建、Client 类型/Web 构建和 git diff --check；ChatGPT 内置浏览器覆盖常用桌面与窄/短视口，记录交互、设置值未改变、截图与未测帧时间边界。
+
+### 实施与验收记录
+
+- 实施：从 `https://github.com/linyi-ui/ui-motion-skill` 安装至 `C:\Users\yu\.codex\skills\ui-motion`，阅读 `SKILL.md` 与 foundations/motions/anti-cheap 参考，采用 Jelly Toggle。SettingsSwitch 保持受控值和原 onChange；点击时仅在 1/2 间轮换有界组件本地 key 重播滑块，样式以 350ms 轨道/位移过渡、42% 拉伸至 1.38 倍、68% 回缩至 0.96 倍、60ms 按压反馈实现，hover 仅用于支持 hover 的设备，disabled 不触发反馈。
+- 设置与性能：沿用 `appearance.advanced.reducedMotion`（默认 `system`、账户持久化）；Workbench 继续提供用户设置与系统 prefers-reduced-motion 的 0.01ms 近静态覆盖。内置浏览器实页读取到 mode=`system`、系统减少动态效果为 false、动画变量 `.35s`、开关过渡 `.35s, 0.18s`；当前共 9 个 SettingsSwitch。未增加设置写入、计时器、观察器或订阅，动画只改变 transform/轨道颜色。
+- 回归与构建：`node --test apps/cli/tests/client-settings-switch-motion.test.mjs` 2/2；ui-primitives、ui-theme 构建，`pnpm exec tsc --noEmit -p tsconfig.client.json` 与 `pnpm run build:web` 均通过，产物位于根 `dist/`；`git diff --check` 通过。
+- 内置浏览器实页：由当前 checkout 运行 `pnpm lfaa web --no-local-daemon`，`/api/health` 与 `/settings?section=general` 均 HTTP 200。页面在 1280×800、390×640、实际报告 845×480 视口显示；各尺寸文档宽度均不超过视口，无横向溢出；短屏内容保持纵向滚动。全程未点击开关，避免自动保存修改用户偏好；因此真实 350ms 动画帧、触屏/键盘操作和帧时间未在浏览器中测量，触发逻辑由直接回归覆盖。截图证据为本轮 ChatGPT 内置浏览器同一路由在上述三个视口的实页截图。
+- 文件职责：`settings-controls.tsx` 保留受控开关语义并触发本地动效；`ui-theme/src/common.css` 提供共享滑块与轨道样式并服从减少动态效果覆盖；两个包 README 记录 Owner 边界；`client-settings-switch-motion.test.mjs` 锁定触发、运动参数和减少动态效果映射；本合同记录设置、范围与验收证据。
+
+<a id="lfaa-ai-work-mobile-right-edge-20261025"></a>
+
+## 283-AI Work 手机窄屏右侧内容对齐（2026-10-25）
+
+### 目标、Owner 与设置
+
+- 用户在 `/work` 的 390×740 响应式截图中指出整页布局已歪、没有铺满全屏，右侧出现明显空白。目标是让窄屏工作台根布局铺满实际视口，再让 AI Work 的消息正文、输入框和用量栏延展到消息列右缘并保留左侧安全间距。
+- Owner：`packages/client/ui-layout/src/css/module-shell.css` 管理模块工作台根布局；`packages/client/ui-workspace/src/css/center-workspace.css` 管理窄中栏的聊天区域边界；消息舞台、滚动内容与输入框继续使用 `packages/client/ui-chat` 现有结构；实际容器尺寸由 `packages/client/ui-dockkit` 提供。
+- 运行入口：Web/Desktop 共用 Client 的 `/work`。没有直接修改会话、消息、Provider 或文件；页面启动时应用自动调用默认工作区初始化接口并收到 HTTP 200。
+- 设置盘点：保留 `general.navigationLayout`、已有 Dock 宽度与开合偏好；外观继续读取主题、字体/字号、强调色、壁纸/遮罩、模糊与减少动态效果令牌。布局间距没有对应的用户配置项，作为窄屏布局修复不新增设置，不更改已保存偏好。
+
+### 边界与验收
+
+- 390×740 手机视口中 `html`、`body`、`#root` 和工作台铺满同一视口宽度，不露出右侧背景条；手机窄中栏左侧继续留出安全间距，消息舞台、消息滚动列、输入框和用量栏的右边界对齐，消息正文不被滚动条遮盖且无横向页面溢出。
+- 420px 以上的中心列继续沿用既有对称留白和滚动条贴右规则；不改变普通应用、导航、Dock 尺寸、偏好或工具行为。
+- 运行直接响应式回归、ui-workspace 构建、Client 类型与 Web 构建；在 ChatGPT 内置浏览器实际 `/work` 检查宽屏并尝试窄/短屏。若内置浏览器无法设置 390px 视口，记录当前可用视口与具体限制，不能把源码回归写成手机实页通过。记录布局前后右缘和未测边界。
+
+### 实施与验收记录
+
+- 实施：确认根因是 Web 入口在 `html` 和 `body` 同时设置 `scrollbar-gutter: stable`，模块工作台又在各层锁定文档滚动；390px 视口下实测 `html/body` 只有 380px，`#root` 与工作台只有 370px，右侧露出页面背景。`module-shell.css` 仅对模块工作台路由将两层 gutter 还原为 `auto`，避免重复预留 20px；窄中栏容器查询同时将聊天舞台/滚动列扩展到可用宽度，移除右侧重复内容 padding，并让输入框和用量栏向右填满。没有新增事件、请求、订阅、计时器或观察器。
+- 回归与构建：`client-workbench-responsive.test.mjs` 27/27 通过；ui-layout 与 ui-workspace 构建、Client TypeScript 检查、Web 构建及 `git diff --check` 通过。最终 `runtime-build-state.mjs web` 返回 `[]`，Web/Host 构建指纹均匹配。Web `/api/health` 为 `ok`，`/work` 返回 HTTP 200。
+- 内置浏览器：最终构建后准备复验 `/work` 的 390×740 时，当前内置浏览器会话被物理 Esc 中断，原标签无法继续访问；新建标签停留在 `loading-page`，因此最终窄屏实页尚未复验。先前 390×740 实页量测记录了修复前的 380px `html/body` 与 370px 工作台，作为根因证据；用户截图同样是修复前基线。没有将源码回归或旧截图冒充修复后实页通过。
+- 未测：最终构建后的 390×740 内置浏览器目视确认、真实移动设备、短屏手势及帧时间。
+- 文件职责：`module-shell.css` 负责模块路由根级滚动条预留；`center-workspace.css` 定义移动窄栏聊天右缘铺开；两个包 README 记录布局事实；`client-workbench-responsive.test.mjs` 锁定根 gutter 与 420px 下消息/输入区边界；本合同记录任务边界与验收证据。
+
+<a id="lfaa-ai-work-random-liquid-glass-stream-20261025"></a>
+
+## 284-AI Work 随机七色液态玻璃流式提示（2026-10-25）
+
+### 目标、Owner 与设置
+
+- 用户希望 `/work` 每轮流式生成与真实运行工具都显示随机七色渐变流光，并加入 Apple 风格的半透明磨砂与流动折射高光。
+- Owner：`packages/client/ui-chat` 的真实处理中状态和运行工具摘要；执行状态继续由现有 Agent Loop、Connection 与 Session 提供，不更改消息、权限或数据合同。
+- 设置：复用设置中心 `appearance.overlay`（新账户默认 65%，范围 0–75%，账户持久化，并映射到 `--settings-background-surface-opacity`）、`appearance.blur`（默认 14px，范围 0–32px，账户持久化，并映射到 `--settings-glass-blur`）、`appearance.advanced.reducedMotion`（默认 `system`，账户持久化，并映射到 `data-lfaa-reduced-motion`）；同时沿用主题颜色、字体、字号和对比度令牌。不得写入/重置用户设置，不新增设置。
+- 运行入口：当前源码正式 Web 的 `/work`。实页验收只读 UI；不得为了验收触发新 Provider/工具、改真实项目文件或运行节点。
+
+### 范围与验收
+
+- 仅在真实处理中状态或真实运行工具组上显示小型玻璃状态胶囊；七色相位由稳定消息 ID 派生，每个回复色相不同，但 token 增量渲染期间不重随机、不闪色。
+- 玻璃底色服从外观遮罩透明度和模糊强度；使用主题文字作底、低透明度七色扫光与主题边缘高光维持浅/深主题可读性。完成、停止、暂停、等待审批或补充信息以及无动态状态时不播放流动效果。
+- `appearance.advanced.reducedMotion=on` 或系统减少动态效果生效时保留静态磨砂状态，关闭移动的彩色光带。窄分栏和短屏可换行、无横向溢出。
+- 不新增请求、事件订阅、计时器、Observer 或动画帧；持续动画仅覆盖当前可见的处理中胶囊和当前运行工具摘要，离开活动状态后随真实状态卸载。
+- 验收：纯函数/时间线回归、ui-chat 构建、Client 类型和 Web/Control Plane 正式构建、`git diff --check`；ChatGPT 内置浏览器实际 `/work` 桌面与窄/短视口检查主题材质、设置令牌、状态胶囊可读性与输入区可达性；记录截图、当前生效外观设置、交互和帧时间/未测范围。
+
+### 修改范围
+
+- 允许：`response-timeline.ts` 为每轮稳定派生渐变色相；`AiWorkResponse.tsx` 将消息标识传给当前时间线样式；`ai-work-chat.css` 对真实活动提示添加受设置控制的磨砂玻璃及七色折射流光；更新 ui-chat README、定向回归与本合同。
+- 禁止：更改 Provider/Agent 执行、业务状态、主题/设置默认值和用户偏好；对最终答案正文全段着色；制造虚假进度或工具状态；为验收持久化测试消息。
+
+### 实施与验证记录（2026-10-25）
+
+- 修改已落在允许范围：消息 ID 稳定派生色相、真实处理中状态/运行工具摘要使用七色玻璃扫光；玻璃透明度、模糊和减少动态效果继续读取既有 Appearance 令牌，未改用户设置，也未触发 Provider 请求。
+- 直接回归：`ai-work-response-timeline.test.mjs` 与 `ai-work-activity-duration.test.mjs` 共 17/17 通过；`lfaa-client-ui-chat` 构建通过；`tsconfig.client.json` 类型检查通过；Control Plane 与 Web 构建通过；`git diff --check` 通过。正式 Web 构建指纹为 `[]`，`/api/health` 与 `/work` 均 HTTP 200。
+- Web 服务按已有授权安全重启为 `pnpm lfaa web --no-local-daemon`，保留原有不管理本机 Daemon 的启动模式。构建产物只写入根 `dist/`。
+- 内置浏览器检查：目标路由为 `http://127.0.0.1:3000/work`。重载前桌面视口 1440×900 的旧页面测得文档宽 1430px，布局未见横向溢出，但该页面未能确认使用本次最新 JS/CSS；重载后曾出现 `Failed to fetch`，最终原生窗口截图显示 `127.0.0.1 ERR_CONNECTION_REFUSED`。与此同时 PowerShell 对 `/api/health`、`/work` 均取得 HTTP 200，构建指纹为 `[]`，内置浏览器控制接口对原标签和临时标签连续超时。故障定位在内置浏览器访问/控制通道，本轮未把新玻璃状态的实显或桌面验收记为通过。
+- 未验收：真实流式/运行工具的玻璃效果、减少动态效果打开时的实页样式、390×740 窄屏/短屏，以及浏览器帧时间。无新 Provider/工具消息、用户偏好或真实项目数据写入。
+
+<a id="lfaa-threejs-shared-ui-visual-motion-rules-20261025"></a>
+
+## 285-Three.js 共享 UI 视觉与动效开发规则（2026-10-25）
+
+### 目标、Owner 与设置
+
+- 用户要求将 Three.js 加入 LFAA，并把 3D 空间、粒子场、漂浮几何体、视差背景、统一 UI、完整状态反馈、玻璃/柔影/渐变网格/颗粒材质、微交互、滚动渐入和弹性动画纳入项目开发规则。
+- 运行入口：Web 与 Desktop 共用的 Client；本轮只登记共享 UI 依赖和规则，不指定产品路由、不更改当前页面。
+- Owner：`packages/client/ui-primitives` 是跨应用共享组件 Owner，承担 Three.js 依赖；`packages/client/ui-theme` 是全局主题令牌、材质和共享 CSS Owner。业务状态仍归现有页面/领域 Owner，renderer 与应用装配继续由当前包负责。
+- 设置盘点：复用现有 Appearance 主题/配色、字体与字号、对比度、壁纸、遮罩透明度、模糊和 `appearance.advanced.reducedMotion`（默认 `system`，由 Settings Owner 账户持久化并由 Workbench 映射）。不新增设置项或更改偏好。
+- 数据与权限：本轮无业务数据、认证、权限、Provider 或节点操作。
+
+### 范围与验收条件
+
+- 允许：在 `ui-primitives` 登记 Three.js 与类型声明依赖；更新 `ui-primitives` README、LFAA 统一 UI/动效开发规则、共享主题与组件职责文档、系统技术选型和本合同。
+- 禁止：把 3D 背景强加到所有页面；改造既有页面/现有自定义 WebGL 与 Canvas 场景；改变任何用户偏好、状态 Owner、认证/权限/数据合同；为本轮增设 UI 页面或演示路由。
+- 规则验收：新界面以共享组件、状态与样式令牌为准；根据场景采用 Three.js 空间、粒子、漂浮几何和多层视差；CSS 共享材质支持主题驱动的毛玻璃、柔和多层阴影、渐变网格与低对比颗粒纹理；控件具有真实的 hover/focus/pressed/disabled/loading/success/error 等适用反馈；微交互、滚动渐入和轻回弹沿用 `ui-motion` 参数，并响应现有减少动态效果设置。
+- 运行时验收：依赖版本精确锁定；受影响共享包构建、Client 类型检查、Web 构建与工作区 Gate 运行。此轮未更改页面或画布，故不记录产品路由的视觉通过；以后任何场景实际使用仍须按开发规则在内置浏览器分批验收。
+
+### 初始实施记录
+
+- 已确认 Three.js 当前官方 npm `latest` 为 `0.186.1`；以此固定运行依赖，类型声明固定为 `@types/three@0.186.0`。
+- 当前代码已有 Voice Orb 的自定义 WebGL 点云及 AI Video 白模 Canvas；本合同不迁移或扩展它们。Three.js 在依赖层注册不代表已在任何产品页面运行。
+- 后续任何 Three.js 场景必须由 `ui-primitives` 的共享组件封装后供页面调用；主题材质归 `ui-theme`。本合同继续记录实际构建/Gate 结果与未验页面边界。
+
+### 完成实施与验证记录
+
+- 依赖：`packages/client/ui-primitives/package.json` 新增运行依赖 `three@0.186.1` 与开发类型依赖 `@types/three@0.186.0`；`pnpm-lock.yaml` 锁定版本。Web 构建的资产目录没有 Three.js 专属 chunk，源码当前也没有页面导入 Three.js，表示安装依赖没有增加本轮浏览器绘制或额外执行循环。
+- 规则：`开发规范.md` 明确统一组件 Owner、CSS 主题材质、状态反馈、Three.js 共享封装、CSS 静态后备、GPU 生命周期与清理、视差/滚动渐入/弹性参数、响应式和减少动态效果要求；包职责细则、ui-primitives README 与系统架构同步当前依赖 Owner 与“尚无产品页面消费”的状态。
+- 设置与数据：没有修改配置、偏好、账户数据或主题映射；规则复用 Appearance 的主题、配色、字体/字号、对比度、壁纸、遮罩透明度、模糊和 `appearance.advanced.reducedMotion`。本轮不更改 UI 页面，因此没有内置浏览器页面交互验收；当前站点仍以既有版本运行。
+- 实际验证：`pnpm.cmd --filter lfaa-client-ui-primitives run build` 通过；`pnpm.cmd exec tsc --noEmit -p tsconfig.client.json` 通过；`pnpm.cmd run build:web` 通过（3865 modules，产物写入根 `dist/apps/web`）；`node scripts/runtime-build-state.mjs web` 返回 `[]`；`git diff --check` 通过。
+- Gate 边界：`pnpm.cmd run check:workspace` 失败 1 项，报 `docs/PROMPTS.md` 缺少既有任务 `#lfaa-compact-application-center-anchor-20261025` 的锚点；该引用属于任务 278，本轮未改其合同或索引。
+- 未测：未在真实产品页面初始化 WebGL renderer、粒子/几何场或动画循环，因此 GPU、帧时间、上下文丢失/恢复、WebView 与设备表现都未验收。每次未来具体场景实现仍须按新规则完成路由、视口、实际交互和帧时间验收。
+- 文件职责：`packages/client/ui-primitives/package.json`（Three.js 运行/类型依赖 Owner）；`pnpm-lock.yaml`（工作区依赖图）；`开发规范.md`（项目级统一 UI/材质/动效硬规则）；`docs/development/package-responsibilities.zh.md`（共享组件与主题 Owner）；`packages/client/ui-primitives/README.md`（包依赖、场景封装和当前消费状态）；`docs/系统总体架构.md`（CSS Owner 与前端技术栈事实）；`docs/PROMPTS.md`（本合同、设置盘点与验收结果）。
+
+<a id="lfaa-agent-real-work-acceptance-20261025"></a>
+
+## 286-小鱼 Agent 实际工作能力验收（2026-10-25）
+
+### 目标、Owner 与设置
+
+- 用户要求按真实案例核验小鱼 Agent 是否能使用 Skill/MCP、读写代码、运行验证并修复缺陷、使用浏览器/电脑工具，以及组织多个 Agent 并汇总结果；同时确认回复用时能否展开为真实工作记录。
+- 唯一回合 Owner 为 `packages/core/agent-loop` 的 Pi Agent Runtime；Skill 与 MCP 接入分别归 `packages/boot/capability-skill`、`packages/boot/capability-mcp`，MCP 子进程归 `packages/mcp/mcp-client`，权限与集成开关归 Settings Owner，工作记录由 Session/Agent 活动时间线归属。
+- 运行入口：源码正式 Web `http://127.0.0.1:3000/work`，使用实际登录的 admin 会话与当前已连接 Host。当前产品在 Edge 页面完成操作；内置浏览器旧标签黑屏且 CDP 调用超时，因此 Edge 实页只能作为本次 Agent 运行证据，不声称内置浏览器验收通过。
+- 设置基线：Provider 为系统级 DeepSeek 主账户 `deepseek-flash`；权限模式 `full_access`。账户 `plugins.enabled=false`、`computerControl.enabled=false`、`browserUse.enabled=false`。仅按用户此前“安装 MCP”的请求，通过 Settings Owner 新增一条 `Sequential Thinking` workspace MCP 记录（`npx -y @modelcontextprotocol/server-sequential-thinking@2.0.0`，记录 enabled）；没有打开全局插件、浏览器或电脑操控开关，也没有更改权限模式、Provider 或其他偏好。Minecraft `minecraft-server-setup` 已随包提供并曾由 Agent 发现、读取，无需重复安装；本轮未启动游戏服务器。
+
+### 验收范围
+
+- 对话应真实调用当前 Provider 并收到最终回答；Skill 发现与读取须来自当前注册表/实际 Skill 文件；MCP 必须真实 initialize、tools/list、经 Capability/Settings Owner 安装并回读。
+- 代码闭环限定在默认工作区中新建且预先确认为不存在的唯一临时目录：编写初版、运行独立断言、读取失败、修复、重新运行、核对哈希并清理。不得改仓库或现有项目文件。
+- 多 Agent 必须有真实独立 runId、独立上下文与终态回报；模型自行分段不得记为委派。检查用时行点击后是否展开真实阶段、工具组与最终结果。
+- 浏览器或电脑控制只有在相应账户设置允许且 Runtime 实际提供工具时才执行；本次保留关闭状态，不通过临时改偏好制造“通过”。
+
+### 实施与验收记录
+
+- 本轮修正 Windows stdio MCP 对 `npx` 的启动：在 `shell:false` 下把 npm shim 解析为同一 Node 安装内的 `npm/bin/npx-cli.js`，保持原 argv 与环境隔离，并添加 Windows/Linux/缺失 CLI 回归。Skill GitHub 目录快照按固定 commit/tree 下载所需 Skill 文件，并保留摘要校验与 Git 回退边界。
+- 实际对话链路：`/work` 上 DeepSeek 新会话返回文本；此前同一 Agent 流程发现并读取随包 Minecraft Skill。没有可用的 Minecraft 服务器执行工具，因此没有把读取 Skill 说明说成服务器已可操作。
+- MCP：Agent 使用 `capability_inspect` 检查用户指定的 `stdio://local`。真实 initialize 协议 `2025-11-25`、tools/list 1 项；随后同凭证 `capability_install` 成功，Settings/能力目录回读同一 serverId、固定命令和参数、workspace 范围、enabled=true。Runtime 回读指出 `plugins.enabled=false`、`blockedBy=["plugins"]`，所以该工具尚未进入 Agent Runtime，也未调用 MCP 工具。设置页 MCP 计数显示 1；本次辅助树中未读到命名服务卡，卡片呈现未实测。
+- 写代码和修复：Agent 在 `D:\系统\文档\LFAA\default-workspace\.lfaa-agent-acceptance-20261025-1017` 确认不存在后创建 `.mjs` 实现与独立测试，用 LFAA 终端运行 `parseInt` 初版。首轮 9/25 通过，16 条失败；Agent 根据失败输出定位前缀解析及 `NaN`/非字符串泄漏，改为字符串类型、整串十进制匹配和范围校验，测试文件哈希未变，修复后 25/25。读回哈希一致，两个临时文件精确删除并确认目录不存在，原工作区条目与开始前一致。
+- 多 Agent：Agent 实际发现注册表含 10 个专家、10 个 Skill 和子 Agent 工具；因没有代码审查/测试设计专属专家，使用两个真实 in-process 子 Agent 并行执行只读合同审查和测试矩阵任务。两任务分别有 runId `59f3abfa-28a1-4752-98f0-fa8f2b2ae4d7`、`fb9b3c07-528e-48a8-9d52-8a49224dd657`，约 0.2 秒内先后启动，终态回读均 completed；主 Agent 整合交集、分歧和规格缺项。没有文件或设置写入。
+- 用时记录：用户点击 `用时 50 秒 已完成` 后，当前回复展开了上下文准备、模型请求、Skill 发现、两次子 Agent 派发、子 Agent 独立工具调用与终态回收等活动项；同时保留最终结果正文。说明图示的用时展开及真实过程记录已落地，不是只显示固定“正在思考”。
+- 能力阻塞：设置中心实读 `plugins.enabled=false`、电脑操控关闭、Agent 浏览器控制关闭，浏览器页还显示当前 Host 不可用。本轮未执行网站读取、桌面点击、应用启动或控制操作；MCP 虽安装成功但不能被 Runtime 使用。外部 Skill 安装历史尝试未得到成功安装回执；Minecraft Skill 已内置，因此不能把它计成外部安装成功。
+- 临时目录：外部 Skill 检查的 Git 回退在 `dist/.tmp/plugin-downloads/git-0hgwZj` 留下一份临时快照。已核验它位于本仓库 `dist/.tmp/plugin-downloads/` 下；递归清理请求被自动安全审查拦截，所以本轮未清除此目录。更早的 `git-ugBdj7`（2026-10-24）未触碰。
+- 直接回归：`plugin-manager` + `capability-skill` 定向测试 28/28，`mcp-tools` 6/6；LFAA CLI 类型检查、Control Plane 构建、Web 构建通过，构建均写入仓库根 `dist/`；`node scripts/runtime-build-state.mjs web` 返回 `[]`；`git diff --check` 通过。
+- 未测：MCP 工具实际调用（受全局扩展开关关闭阻断）、浏览器内容读取与页面操控、电脑操控、外部 Skill 安装成功闭环、Minecraft 服务端启动，以及内置浏览器恢复后的实页验收。
+- 文件职责：`packages/boot/plugin-manager/src/github-source.ts`（GitHub 文件快照下载 Owner）；`packages/boot/capability-skill/src/index.ts`（Skill 检查/安装生命周期）；`packages/mcp/mcp-client/src/runtime.ts`（stdio MCP 进程启动 Owner）；`apps/cli/tests/plugin-manager.test.mjs`、`apps/cli/tests/mcp-tools.test.mjs`（回归）；三个对应包 README（能力状态和调用边界）；`docs/PROMPTS.md`（本任务合同及证据）。

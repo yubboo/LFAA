@@ -1,12 +1,13 @@
-Describe 'GitHub source push version tracking' {
+﻿Describe 'GitHub source push version tracking' {
     BeforeAll {
         $functionPaths = @{
             'Get-CommitMessageVersion' = Join-Path $PSScriptRoot '..\source-version.ps1'
             'Resolve-LastPushedVersion' = Join-Path $PSScriptRoot '..\source-version.ps1'
             'Test-PushVersionIsNewer' = Join-Path $PSScriptRoot '..\install-dependencies.ps1'
+            'Remove-StaleGitIndexLock' = Join-Path $PSScriptRoot '..\install-dependencies.ps1'
         }
 
-        foreach ($name in @('Get-CommitMessageVersion', 'Test-PushVersionIsNewer', 'Resolve-LastPushedVersion')) {
+        foreach ($name in @('Get-CommitMessageVersion', 'Test-PushVersionIsNewer', 'Resolve-LastPushedVersion', 'Remove-StaleGitIndexLock')) {
             $scriptPath = $functionPaths[$name]
             $tokens = $null
             $parseErrors = $null
@@ -59,5 +60,105 @@ Describe 'GitHub source push version tracking' {
         (Test-PushVersionIsNewer -Candidate '0.0.22' -Previous '0.0.24') | Should Be $false
         (Test-PushVersionIsNewer -Candidate '0.0.24' -Previous '0.0.24') | Should Be $false
         (Test-PushVersionIsNewer -Candidate '0.0.100' -Previous '0.0.55') | Should Be $true
+    }
+
+    It 'does nothing when the Git index lock is absent' {
+        $missingLock = Join-Path ([System.IO.Path]::GetTempPath()) ("lfaa-index-lock-missing-{0}" -f [guid]::NewGuid().ToString('N'))
+        (Remove-StaleGitIndexLock -GitIndexLockPath $missingLock) | Should Be $false
+    }
+
+    It 'removes an old index lock only when it can be opened exclusively' {
+        $lockPath = [System.IO.Path]::GetTempFileName()
+        try {
+            [System.IO.File]::SetLastWriteTimeUtc($lockPath, [System.DateTime]::UtcNow.AddMinutes(-11))
+
+            (Remove-StaleGitIndexLock -GitIndexLockPath $lockPath) | Should Be $true
+            (Test-Path -LiteralPath $lockPath) | Should Be $false
+        }
+        finally {
+            if (Test-Path -LiteralPath $lockPath) { [System.IO.File]::Delete($lockPath) }
+        }
+    }
+
+    It 'preserves a recently written index lock and explains that it is too new' {
+        $lockPath = [System.IO.Path]::GetTempFileName()
+        try {
+            $message = ''
+            try {
+                Remove-StaleGitIndexLock -GitIndexLockPath $lockPath | Out-Null
+            }
+            catch {
+                $message = $_.Exception.Message
+            }
+
+            $message | Should Match '较新的 Git 索引锁'
+            (Test-Path -LiteralPath $lockPath) | Should Be $true
+        }
+        finally {
+            if (Test-Path -LiteralPath $lockPath) { [System.IO.File]::Delete($lockPath) }
+        }
+    }
+
+    It 'preserves an old index lock that is still held open by another process' {
+        $lockPath = [System.IO.Path]::GetTempFileName()
+        $lockStream = $null
+        try {
+            [System.IO.File]::SetLastWriteTimeUtc($lockPath, [System.DateTime]::UtcNow.AddMinutes(-11))
+            $lockStream = [System.IO.File]::Open(
+                $lockPath,
+                [System.IO.FileMode]::Open,
+                [System.IO.FileAccess]::ReadWrite,
+                [System.IO.FileShare]::ReadWrite
+            )
+
+            $message = ''
+            try {
+                Remove-StaleGitIndexLock -GitIndexLockPath $lockPath | Out-Null
+            }
+            catch {
+                $message = $_.Exception.Message
+            }
+
+            $message | Should Match '仍被进程占用'
+            (Test-Path -LiteralPath $lockPath) | Should Be $true
+        }
+        finally {
+            if ($null -ne $lockStream) { $lockStream.Dispose() }
+            if (Test-Path -LiteralPath $lockPath) { [System.IO.File]::Delete($lockPath) }
+        }
+    }
+
+    It 'checks the stale lock before staging and committing in menu 6' {
+        $scriptPath = Join-Path $PSScriptRoot '..\install-dependencies.ps1'
+        $tokens = $null
+        $parseErrors = $null
+        $scriptAst = [System.Management.Automation.Language.Parser]::ParseFile(
+            $scriptPath,
+            [ref]$tokens,
+            [ref]$parseErrors
+        )
+        if ($parseErrors.Count -gt 0) {
+            throw "install-dependencies.ps1 has PowerShell parse errors: $($parseErrors.Count)"
+        }
+
+        $pushFunction = $scriptAst.Find({
+            param($node)
+            $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+                $node.Name -eq 'Push-GitHubRepository'
+        }, $true)
+        if ($null -eq $pushFunction) {
+            throw 'Push-GitHubRepository was not found in install-dependencies.ps1.'
+        }
+
+        $pushSource = $pushFunction.Extent.Text
+        $addLockCheckPosition = $pushSource.IndexOf('[void](Remove-StaleGitIndexLock -GitIndexLockPath $gitIndexLockPath)')
+        $commitLockCheckPosition = $pushSource.LastIndexOf('[void](Remove-StaleGitIndexLock -GitIndexLockPath $gitIndexLockPath)')
+        $addPosition = $pushSource.IndexOf("Invoke-GitChecked -GitArguments @('add', '-A')")
+        $commitPosition = $pushSource.IndexOf("Invoke-GitChecked -GitArguments @('commit', '-m', `$commitMessage)")
+
+        ($addLockCheckPosition -ge 0 -and
+            $addLockCheckPosition -lt $addPosition -and
+            $commitLockCheckPosition -gt $addLockCheckPosition -and
+            $commitLockCheckPosition -lt $commitPosition) | Should Be $true
     }
 }

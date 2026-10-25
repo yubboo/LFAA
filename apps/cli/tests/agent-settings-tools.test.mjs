@@ -70,7 +70,7 @@ test("外观目录复用界面背景文案、展示纯色与账户私有选项�
 test("设置目录列出真实分类和值，隐藏由专属 Owner 管理的连接内容", () => {
   settings.saveUserSettings(owner, "plugins", { ...settings.getUserSettings(owner).plugins, mcpServers: [{ id: "private-fixture", name: "private-fixture", enabled: true, applicationIds: ["workspace"], transport: "stdio", command: "secret-command-fixture", args: ["private-argument"] }] });
   const root = agentSettings.listAgentSettings(owner);
-  assert.equal(root.menus.length, 34);
+  assert.equal(root.menus.length, 35);
   assert.deepEqual(root.menus.find(item => item.id === "appearance").toolSearchTerms, undefined);
   assert.equal(root.menus.find(item => item.id === "import").access, "settings-and-tools");
   assert.equal(root.menus.find(item => item.id === "snapshots").access, "settings-and-tools");

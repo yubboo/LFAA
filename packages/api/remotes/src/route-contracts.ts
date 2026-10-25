@@ -213,6 +213,10 @@ export const aiAccountSchema = aiProbeSchema.keys({
   reasoningMode: Joi.string().trim().max(16).default("default")
 });
 
+export const aiAccountCredentialSchema = Joi.object({
+  secret: Joi.string().trim().min(1).max(4096).required()
+}).unknown(false);
+
 export const aiModelSchema = Joi.object({ modelId: Joi.string().trim().min(1).max(160).required() }).unknown(false);
 
 export const aiReasoningSchema = Joi.object({ reasoningMode: Joi.string().trim().max(16).required() }).unknown(false);

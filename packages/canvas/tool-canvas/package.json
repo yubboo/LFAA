@@ -1,0 +1,25 @@
+{
+  "name": "lfaa-canvas-tool-canvas",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "4.0.4",
+    "joi": "^17.0.0",
+    "lfaa-canvas": "workspace:*",
+    "lfaa-canvas-generation": "workspace:*",
+    "lfaa-tools": "workspace:*",
+    "lfaa-util-values": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0"
+  },
+  "scripts": {
+    "build": "node ../../../scripts/build-harness.mjs package"
+  }
+}

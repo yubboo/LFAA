@@ -247,12 +247,11 @@ interface ApplicationSidebarProps extends Pick<ApplicationWorkspaceProps, "userI
   onSelectSession: (sessionId: string) => void;
   onArchiveSession: (session: AiSession) => void;
   onCloseGitSummary: () => void;
-  onPreviewMouseEnter: () => void;
   onPreviewMouseLeave: () => void;
   onPreviewBlur: () => void;
 }
 
-function ApplicationSidebar({ userId, app, mode, section, gameLibrary, apps, applicationNavigationItems, layoutMode, onWritingLibraryPortalTargetChange, onNavigate, onOpenApplication, onOpenSelectedApplication, onToggleLeft, notifications, onMarkNotificationsRead, onClearNotifications, onOpenNotification, sessions, missingSessionDirectoryIds, aiDraft, pinnedSessionIds, onTogglePinnedSession, workspaceProjects, projectLoadError, onRetryProjects, activeSessionId, sessionsLoading, sessionsError, providerStatus, gitSummaryOpen, gitSummaryContent, onNewSession, onSelectSession, onArchiveSession, onCloseGitSummary, onPreviewMouseEnter, onPreviewMouseLeave, onPreviewBlur }: ApplicationSidebarProps) {
+function ApplicationSidebar({ userId, app, mode, section, gameLibrary, apps, applicationNavigationItems, layoutMode, onWritingLibraryPortalTargetChange, onNavigate, onOpenApplication, onOpenSelectedApplication, onToggleLeft, notifications, onMarkNotificationsRead, onClearNotifications, onOpenNotification, sessions, missingSessionDirectoryIds, aiDraft, pinnedSessionIds, onTogglePinnedSession, workspaceProjects, projectLoadError, onRetryProjects, activeSessionId, sessionsLoading, sessionsError, providerStatus, gitSummaryOpen, gitSummaryContent, onNewSession, onSelectSession, onArchiveSession, onCloseGitSummary, onPreviewMouseLeave, onPreviewBlur }: ApplicationSidebarProps) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [sessionMenuId, setSessionMenuId] = useState<string | null>(null);
   useEffect(() => { setSessionMenuId(null); }, [layoutMode]);
@@ -328,7 +327,7 @@ function ApplicationSidebar({ userId, app, mode, section, gameLibrary, apps, app
   }, [notificationsOpen]);
 
   return (
-    <div className="module-sidebar" data-ui="left-sidebar" data-layout-mode={layoutMode} onMouseEnter={onPreviewMouseEnter} onMouseLeave={onPreviewMouseLeave} onBlur={onPreviewBlur}>
+    <div className="module-sidebar" data-ui="left-sidebar" data-layout-mode={layoutMode} onMouseLeave={onPreviewMouseLeave} onBlur={onPreviewBlur}>
       <header className="module-sidebar__brand-row">
         <button className="module-sidebar__brand" type="button" onClick={() => { if (mode === "ai-work") void onOpenSelectedApplication(); else void onOpenApplication("workspace", "ai-work"); }} aria-label={app === "workspace" ? "切换到上次使用的应用" : `切换到${nextModeLabel}`} title={app === "workspace" ? "切换到上次使用的应用" : `切换到${nextModeLabel}`}>
           <span className="module-sidebar__brand-mark">L</span><strong>LFAA</strong><WorkbenchIcon name="chevron" size={15} />
@@ -665,7 +664,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
     aiChatBusyState.current = busy;
     if (wasBusy && !busy) setGitRefreshRevision((revision) => revision + 1);
   }, []);
-  const appliedLayoutMode = useRef(metrics.mode);
+  const appliedResponsiveLayout = useRef<string | null>(null);
   const responsiveLeftRestore = useRef<boolean | null>(null);
   const appliedNavigationLayout = useRef<NavigationLayout | null>(chromeStorageMetadata.navigationLayout);
   const activeAiSessionIdRef = useRef(activeAiSessionId);
@@ -1136,8 +1135,9 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   const retryWorkspaceProjects = useCallback(() => setWorkspaceProjectsRevision(revision => revision + 1), []);
 
   useLayoutEffect(() => {
-    if (appliedLayoutMode.current === metrics.mode) return;
-    appliedLayoutMode.current = metrics.mode;
+    const responsiveLayoutKey = `${metrics.mode}:${mode}`;
+    if (appliedResponsiveLayout.current === responsiveLayoutKey) return;
+    appliedResponsiveLayout.current = responsiveLayoutKey;
     if (metrics.mode === "desktop") {
       const previous = responsiveLeftRestore.current;
       responsiveLeftRestore.current = null;
@@ -1145,9 +1145,13 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
       return;
     }
     setChrome(current => {
-      const hideLeft = metrics.mode === "mobile" || metrics.mode === "compact" && mode === "ai-work" && !current.rightCollapsed;
+      const hideLeft = metrics.mode === "mobile"
+        || metrics.mode === "compact" && (mode === "normal" || mode === "ai-work" && !current.rightCollapsed);
       if (hideLeft && responsiveLeftRestore.current === null) responsiveLeftRestore.current = current.leftCollapsed;
-      return { ...current, ...(hideLeft ? { leftCollapsed: true } : {}), ...(metrics.mode === "mobile" ? { terminalOpen: false } : {}) };
+      const leftCollapsed = hideLeft || current.leftCollapsed;
+      const terminalOpen = metrics.mode === "mobile" ? false : current.terminalOpen;
+      if (leftCollapsed === current.leftCollapsed && terminalOpen === current.terminalOpen) return current;
+      return { ...current, leftCollapsed, terminalOpen };
     });
   }, [metrics.mode, mode]);
 
@@ -1162,12 +1166,19 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
     const hidesLeft = settings.general.navigationLayout === "right-tools" || settings.general.navigationLayout === "focus";
     const hidesRight = settings.general.navigationLayout === "left-two-column" || settings.general.navigationLayout === "focus";
     const keepsThreeColumnDefaultClosed = initialPreference && settings.general.navigationLayout === "three-column";
-    setChrome((current) => ({
-      ...current,
-      leftCollapsed: mobile || hidesLeft,
-      rightCollapsed: keepsThreeColumnDefaultClosed ? current.rightCollapsed : hidesRight,
-    }));
-  }, [chromeStorageMetadata.hasSavedState, metrics.mode, settings.general.navigationLayout]);
+    setChrome((current) => {
+      const responsiveLeftCollapsed = mobile
+        || metrics.mode === "compact" && (mode === "normal" || mode === "ai-work" && !current.rightCollapsed);
+      const leftCollapsed = responsiveLeftCollapsed || hidesLeft;
+      const rightCollapsed = keepsThreeColumnDefaultClosed ? current.rightCollapsed : hidesRight;
+      if (leftCollapsed === current.leftCollapsed && rightCollapsed === current.rightCollapsed) return current;
+      return {
+        ...current,
+        leftCollapsed,
+        rightCollapsed,
+      };
+    });
+  }, [chromeStorageMetadata.hasSavedState, metrics.mode, mode, settings.general.navigationLayout]);
 
   useEffect(() => {
     window.localStorage.setItem(CHROME_KEY, JSON.stringify({ ...chrome, leftCollapsed: responsiveLeftRestore.current ?? chrome.leftCollapsed, navigationLayout: settings.general.navigationLayout }));
@@ -1751,12 +1762,13 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
     },
     onArchiveSession: (session) => { void archiveAiWorkSession(session); },
     onCloseGitSummary: () => handleGitSummaryOpenChange(false),
-    onPreviewMouseEnter: openLeftPreview,
     onPreviewMouseLeave: closeLeftPreview,
     onPreviewBlur: closeLeftPreview,
   };
   const left = <ApplicationSidebar {...sidebarProps} />;
   const showWorkbenchTabs = mode === "ai-work" && !voiceMode;
+  const showRightShellControls = metrics.mode === "desktop" || (showWorkbenchTabs && metrics.mode === "compact");
+  const showCenterPanelControls = chrome.rightCollapsed || metrics.mode === "mobile" || (metrics.mode === "compact" && !showWorkbenchTabs);
   const activeCenterCollapsed = centerCollapsePreview ?? centerCollapsed;
   const activeWorkspaceUtilityTab = workspaceUtilityTabs.find(tab => tab.id === activeWorkspaceUtilityTabId) ?? null;
   const hasActiveBrowserOpenTab = browserOpenTabs.some(tab => tab.active);
@@ -1838,8 +1850,8 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
               <Button className="module-git-summary-trigger" type="text" aria-label="打开 Git 摘要" title="Git 摘要" aria-haspopup="dialog" aria-expanded={gitSummaryOpen}><WorkbenchIcon name="summary" size={17} /></Button>
             </Popover>}
           </div> : null}
-          {terminalPanelAvailable && settings.general.showBottomPanelControl && (chrome.rightCollapsed || metrics.mode !== "desktop") ? <PanelControl name="terminal" title="底部终端" shortcut={shortcuts.toggleBottomPanel.join(" / ")} active={chrome.terminalOpen} onClick={toggleTerminal} /> : null}
-          {(chrome.rightCollapsed || metrics.mode !== "desktop") ? <PanelControl name="panelRight" title="上下文栏" shortcut={shortcuts.toggleContextPanel.join(" / ")} active={!chrome.rightCollapsed} onClick={toggleRight} /> : null}
+          {terminalPanelAvailable && settings.general.showBottomPanelControl && showCenterPanelControls ? <PanelControl name="terminal" title="底部终端" shortcut={shortcuts.toggleBottomPanel.join(" / ")} active={chrome.terminalOpen} onClick={toggleTerminal} /> : null}
+          {showCenterPanelControls ? <PanelControl name="panelRight" title={chrome.rightCollapsed ? "展开上下文栏" : "收起上下文栏"} shortcut={shortcuts.toggleContextPanel.join(" / ")} active={!chrome.rightCollapsed} onClick={toggleRight} /> : null}
         </div>
       </header>
       <main ref={moduleContentScroll.ref} onScroll={moduleContentScroll.onScroll} className={`module-center__content${mode === "ai-work" ? " module-center__content--ai-work" : ""}${mode === "normal" && !writingNormal && !aiVideoNormal ? " module-center__content--application" : ""}${writingNormal ? " module-center__content--writing-normal" : ""}${aiVideoNormal ? " module-center__content--aivideo" : ""}`} aria-label={mode === "ai-work" ? "小鱼智能体对话" : writingNormal ? "写作正文编辑区" : aiVideoNormal ? "AI 漫剧分镜画布" : undefined} aria-labelledby={applicationContent ? "game-library-heading" : mode === "normal" && app !== "minecraft" && !writingNormal && !aiVideoNormal ? "module-heading" : undefined}>
@@ -1944,8 +1956,8 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
       {((!chrome.rightCollapsed && (metrics.mode === "desktop" || showWorkbenchTabs)) || (mode === "ai-work" && sidebarRight.activeId === null && rightPanelSection === "context" && aiWorkView === "chat" && activeWorkspaceUtilityTabKind === "new")) ? <div className="module-context__browser-controls">
         {!chrome.rightCollapsed && (metrics.mode === "desktop" || showWorkbenchTabs) ? <header className="module-context__shell-actions">
           {workbenchTabs}
-          {metrics.mode === "desktop" && terminalPanelAvailable && settings.general.showBottomPanelControl ? <PanelControl name="terminal" title="底部终端" shortcut={shortcuts.toggleBottomPanel.join(" / ")} active={chrome.terminalOpen} onClick={toggleTerminal} /> : null}
-          {metrics.mode === "desktop" ? <PanelControl name="panelRight" title="收起上下文栏" shortcut={shortcuts.toggleContextPanel.join(" / ")} active onClick={toggleRight} /> : null}
+          {showRightShellControls && terminalPanelAvailable && settings.general.showBottomPanelControl ? <PanelControl name="terminal" title="底部终端" shortcut={shortcuts.toggleBottomPanel.join(" / ")} active={chrome.terminalOpen} onClick={toggleTerminal} /> : null}
+          {showRightShellControls ? <PanelControl name="panelRight" title="收起上下文栏" shortcut={shortcuts.toggleContextPanel.join(" / ")} active onClick={toggleRight} /> : null}
         </header> : null}
         {mode === "ai-work" && sidebarRight.activeId === null && rightPanelSection === "context" && aiWorkView === "chat" && activeWorkspaceUtilityTabKind === "new" ? <div className="module-context__browser-toolbar-wrap">
           <div className="module-context__browser-toolbar" aria-label="浏览器导航栏">

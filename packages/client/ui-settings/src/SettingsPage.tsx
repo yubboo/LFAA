@@ -7,7 +7,7 @@ import { useWorkbenchMetrics } from "lfaa-client-ui-dockkit/src/use-workbench-me
 import { lfaaProjectBuildInfo } from "lfaa-client-connection/src/project-version.js";
 import { inspectWebUpdateManifest, type WebUpdateCheckResult } from "./web-update.mjs";
 import { Alert, Button, Card, Input, InputNumber, Modal, Popconfirm, Progress, Radio, Select, Slider, Space, Tag, Typography, message } from "antd";
-import { activateAiAccount, changeCurrentPassword, createSteamcmdTask, deleteAppearanceBackground, deleteAiAccount, deleteConversationMemories, loadConversationMemories, saveConversationMemories, archiveAiSession, decideAiApproval, getErrorMessage, hasAdminAccess, isDesktopApp, loadAiAccounts, loadAiApprovals, loadAiPermissionGrants, loadAiExtensions, loadAiSessions, loadAiUsage, loadAppearanceBackgrounds, loadAiProviders, loadBrowserProviders, closeBrowserProviderSessions, loadHealth, loadMinecraftStorageSettings, loadMinecraftCoreNames, loadSteamcmdSettings, loadSteamcmdTask, loadProjectStorageLocations, compareProjectContentDirectories, copyProjectContentToDirectory, adoptProjectContentDirectory, importProjectContentArchive, downloadProjectContentArchive, loadCapabilityInstallCatalog, manageAiRuntimePlugin, probeAiProvider, refreshAiAccountModelCatalog, testSavedAiAccountModel, saveAiAccount, testAiProviderModel, saveRecoveryKey, saveSettings, saveSteamcmdConfigurationDefaults, saveSteamcmdNodeConfiguration, saveSteamcmdStorageDefaults, saveSteamcmdNodeStorageSettings, selectDesktopDataDirectory, revokeAiPermissionGrant, uploadAppearanceBackground, updateCurrentUserEmail, updateCurrentUserUsername, userRoleLabel, updateAiAccountModel, updateAiAccountReasoningMode, type ApplicationId, type AiModel, type AiModelTestResult, type AiAccount, type AiExtension, type AiRuntimeHookInfo, type AiProvider, type AiProviderProbe, type AiRuntimePlugin, type CapabilityInstallCatalogEntry, type AiSession, type AiUsageSummary, type AiToolApproval, type AiToolPermissionGrant, type AppearanceBackground, type BrowserProviderSummary, type BrowserRecentSite, type BrowserVaultEntry, type BrowserProviderId, type NativeBrowserDownload, type NativeBrowserDownloadSettings, type NativeBrowserExtension, type ConversationMemorySnapshot, type ProjectContentComparison, type ProjectStorageLocations, type DesktopUpdateCheckResult, type DesktopUpdatePreferences, type DesktopUpdateRuntimeInfo, type ServerHealth, type MinecraftStorageNode, type MinecraftStorageSettings, type SteamcmdConfigurationValues, type SteamcmdSettingsNode, type SteamcmdStorageValues, type SteamcmdTask, type User, type UserSettings, type LocalModelSummary, type LocalModelDownloadSnapshot } from "lfaa-client-connection/src/api.js";
+import { activateAiAccount, changeCurrentPassword, createSteamcmdTask, deleteAppearanceBackground, deleteAiAccount, deleteConversationMemories, loadConversationMemories, saveConversationMemories, archiveAiSession, decideAiApproval, getErrorMessage, hasAdminAccess, isDesktopApp, loadAiAccounts, loadAiApprovals, loadAiPermissionGrants, loadAiExtensions, loadAiSessions, loadAiUsage, loadAppearanceBackgrounds, loadAiProviders, loadBrowserProviders, closeBrowserProviderSessions, loadHealth, loadMinecraftStorageSettings, loadMinecraftCoreNames, loadSteamcmdSettings, loadSteamcmdTask, loadProjectStorageLocations, compareProjectContentDirectories, copyProjectContentToDirectory, adoptProjectContentDirectory, importProjectContentArchive, downloadProjectContentArchive, loadCapabilityInstallCatalog, manageAiRuntimePlugin, probeAiProvider, refreshAiAccountModelCatalog, testSavedAiAccountModel, saveAiAccount, testAiAccountCredential, updateAiAccountCredential, testAiProviderModel, saveRecoveryKey, saveSettings, saveSteamcmdConfigurationDefaults, saveSteamcmdNodeConfiguration, saveSteamcmdStorageDefaults, saveSteamcmdNodeStorageSettings, selectDesktopDataDirectory, revokeAiPermissionGrant, uploadAppearanceBackground, updateCurrentUserEmail, updateCurrentUserUsername, userRoleLabel, updateAiAccountModel, updateAiAccountReasoningMode, type ApplicationId, type AiModel, type AiModelTestResult, type AiAccount, type AiExtension, type AiRuntimeHookInfo, type AiProvider, type AiProviderProbe, type AiRuntimePlugin, type CapabilityInstallCatalogEntry, type AiSession, type AiUsageSummary, type AiToolApproval, type AiToolPermissionGrant, type AppearanceBackground, type BrowserProviderSummary, type BrowserRecentSite, type BrowserVaultEntry, type BrowserProviderId, type NativeBrowserDownload, type NativeBrowserDownloadSettings, type NativeBrowserExtension, type ConversationMemorySnapshot, type ProjectContentComparison, type ProjectStorageLocations, type DesktopUpdateCheckResult, type DesktopUpdatePreferences, type DesktopUpdateRuntimeInfo, type ServerHealth, type MinecraftStorageNode, type MinecraftStorageSettings, type SteamcmdConfigurationValues, type SteamcmdSettingsNode, type SteamcmdStorageValues, type SteamcmdTask, type User, type UserSettings, type LocalModelSummary, type LocalModelDownloadSnapshot } from "lfaa-client-connection/src/api.js";
 import { appearanceBackgroundOptions, appearanceBackgroundTargets } from "lfaa-util-values/src/builtin-backgrounds.js";
 import { EXECUTION_SANDBOX_MODES } from "lfaa-util-values/src/sandbox-contract.js";
 import { getSettingsCenterMenu, SETTINGS_CENTER_MENUS, type SettingsMenuId } from "lfaa-util-values/src/settings-menu-catalog.js";
@@ -29,7 +29,7 @@ import "./SettingsPage.css";
 import { hasShortcutConflicts, ShortcutRow } from "lfaa-client-ui-shortcuts/src/settings-shortcuts.js";
 import { defaultReasoningMode, effectiveReasoningMode, reasoningOptions, modelParameterSummary, modelOptionLabel, modelOptionVersionTag, fixedThinkingLabel } from "lfaa-client-ui-settings-models/src/model-options.js";
 import { DEFAULT_USER_SETTINGS } from "lfaa-client-ui-settings-general/src/default-settings.js";
-import { AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN, AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN, UI_MOTION_EFFECT_OPTIONS, type UiMotionEffect } from "lfaa-util-values/src/settings-contract.js";
+import { AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN, AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN, UI_MOTION_EFFECT_OPTIONS, CANVAS_DEFAULT_MODE_OPTIONS, CANVAS_GRID_STYLE_OPTIONS, type UiMotionEffect } from "lfaa-util-values/src/settings-contract.js";
 import { SettingGroup, AdvancedGroup, SettingRow, SettingsSwitch } from "lfaa-client-ui-primitives/src/settings-controls.js";
 import { DshSlotOutlet, LFAA_AUTH_TRANSITION_SLOT, useDshSlotEntries } from "lfaa-client-modules/src/client/index.js";
 
@@ -146,12 +146,9 @@ function isAccountSettingsSection(section: SectionId): section is AccountSetting
 function getSettingsSectionSearchText(section: { id: string; title: string; group: string }): string {
   // 分类搜索词与 Agent 设置目录共用 settings-menu-catalog 的别名/工具搜索词，避免两套中文字典。
   const menu = getSettingsCenterMenu(section.id);
-  const aliases = [
-    ...(menu?.aliases ?? []),
-    ...(menu?.toolSearchTerms ?? []),
-    ...(section.id === "account" ? ["账户", "个人资料", "安全", "账号管理"] : [])
-  ];
-  return `${section.title} ${section.group} ${aliases.join(" ")}`.trim();
+  const aliases = section.id === "account" ? "账户 个人资料 安全 账号管理" : "";
+  const catalogTerms = [...(menu?.aliases ?? []), ...(menu?.toolSearchTerms ?? [])].join(" ");
+  return `${section.title} ${section.group} ${aliases} ${catalogTerms}`.trim();
 }
 
 function AccountSettingsTabs({ activeSection, onSelect }: { activeSection: AccountSettingsSectionId; onSelect: (section: AccountSettingsSectionId) => void }) {
@@ -663,6 +660,9 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   const [backgroundActionError, setBackgroundActionError] = useState("");
   const [providerId, setProviderId] = useState("openai");
   const [providerModalOpen, setProviderModalOpen] = useState(false);
+  const [credentialUpdateAccount, setCredentialUpdateAccount] = useState<AiAccount | null>(null);
+  const [credentialSecret, setCredentialSecret] = useState("");
+  const [credentialTest, setCredentialTest] = useState<AiModelTestResult | null>(null);
   const [providerOptions, setProviderOptions] = useState<Record<string, Record<string, string>>>({});
   const [accountName, setAccountName] = useState("OpenAI 主账户");
   const [secret, setSecret] = useState("");
@@ -2168,6 +2168,47 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     }
   }
 
+  function openCredentialUpdate(account: AiAccount): void {
+    setCredentialUpdateAccount(account);
+    setCredentialSecret("");
+    setCredentialTest(null);
+    setError("");
+  }
+
+  async function testReplacementCredential(): Promise<void> {
+    if (!credentialUpdateAccount || !credentialSecret.trim()) return;
+    setAiBusy(`credential-test:${credentialUpdateAccount.id}`);
+    setCredentialTest(null);
+    setError("");
+    try {
+      const result = await testAiAccountCredential(credentialUpdateAccount.id, credentialSecret.trim());
+      setCredentialTest(result.result);
+      messageApi.success("系统当前模型真实请求通过");
+    } catch (testError) {
+      setError(getErrorMessage(testError));
+    } finally {
+      setAiBusy(null);
+    }
+  }
+
+  async function saveReplacementCredential(): Promise<void> {
+    if (!credentialUpdateAccount || !credentialSecret.trim() || !credentialTest) return;
+    setAiBusy(`credential-save:${credentialUpdateAccount.id}`);
+    setError("");
+    try {
+      await updateAiAccountCredential(credentialUpdateAccount.id, credentialSecret.trim());
+      setCredentialSecret("");
+      setCredentialTest(null);
+      setCredentialUpdateAccount(null);
+      await reloadAiAccounts();
+      messageApi.success("系统模型 API Key 已加密更新，原配置名称和模型保持不变");
+    } catch (saveError) {
+      setError(getErrorMessage(saveError));
+    } finally {
+      setAiBusy(null);
+    }
+  }
+
   async function runAccountAction(account: AiAccount, action: "activate" | "refresh" | "retest" | "delete", modelId?: string): Promise<void> {
     setAiBusy(`${action}:${account.id}`);
     setError("");
@@ -2221,6 +2262,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   }
 
   function openProviderConfiguration(nextProvider: AiProvider): void {
+    if (!canAdmin) return;
     setProviderId(nextProvider.id);
     setAccountName(`${nextProvider.name} 主账户`);
     setSecret("");
@@ -2440,6 +2482,36 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           </SettingRow>
           <SettingRow title="宿主能力" description={window.lfaaDesktop?.mini ? "当前 Electron Host 可创建独立 Mini 窗口。" : "当前是 Web Host；可保存偏好，独立 Mini 窗口需 Electron Host。"} status={window.lfaaDesktop?.mini ? "Electron 已接入" : "Web 不支持原生窗口"}>
             {window.lfaaDesktop?.mini ? <Button onClick={() => void window.lfaaDesktop?.mini.open(settings.mini)}>打开 Mini 窗口</Button> : <Tag>当前 Host 不支持</Tag>}
+          </SettingRow>
+        </SettingGroup>
+      </section>
+    );
+
+    if (activeSection === "canvas") return (
+      <section className="settings-content">
+        <header className="settings-content__heading"><div><span className="settings-eyebrow">个人</span><Typography.Title level={2}>画布</Typography.Title><Typography.Paragraph>画布打开模式、网格与视图偏好按账户保存，由 /canvas 首页和画布工作区读取并即时生效。图片/视频生成继续使用「AI 与模型」中已保存的生成账户与模型，不在这里复制第二套模型配置。</Typography.Paragraph></div></header>
+        <SettingGroup title="打开与模式">
+          <SettingRow title="默认打开模式" description="进入 /canvas 时默认展示生成工作台或空白画布，仍可在顶部随时切换；两种模式都创建真实项目，不伪造生成结果。" status={CANVAS_DEFAULT_MODE_OPTIONS.find(option => option.id === settings.canvas.defaultMode)?.label ?? settings.canvas.defaultMode}>
+            <Select value={settings.canvas.defaultMode} options={CANVAS_DEFAULT_MODE_OPTIONS.map(({ id, label }) => ({ value: id, label }))} onChange={value => updateSettings("canvas", { ...settings.canvas, defaultMode: value })} />
+          </SettingRow>
+          <SettingRow title="Agent 面板默认展开" description="进入画布工作区时是否默认展开 Agent 对话面板；面板只显示真实会话，不会预填假对话。" status={settings.canvas.agentPanelDefaultOpen ? "默认展开" : "默认收起"}>
+            <SettingsSwitch label="Agent 面板默认展开" checked={settings.canvas.agentPanelDefaultOpen} onChange={() => updateSettings("canvas", { ...settings.canvas, agentPanelDefaultOpen: !settings.canvas.agentPanelDefaultOpen })} />
+          </SettingRow>
+        </SettingGroup>
+        <SettingGroup title="画布视图">
+          <SettingRow title="网格样式" description="画布背景网格；关闭网格只隐藏参考线，不改变节点坐标或吸附计算。" status={CANVAS_GRID_STYLE_OPTIONS.find(option => option.id === settings.canvas.gridStyle)?.label ?? settings.canvas.gridStyle}>
+            <Select value={settings.canvas.gridStyle} options={CANVAS_GRID_STYLE_OPTIONS.map(({ id, label }) => ({ value: id, label }))} onChange={value => updateSettings("canvas", { ...settings.canvas, gridStyle: value })} />
+          </SettingRow>
+          <SettingRow title="拖动吸附网格" description="拖动节点时吸附到网格，便于对齐；缩放、连线与导入导出不受影响。" status={settings.canvas.snapToGrid ? "已开启" : "已关闭"}>
+            <SettingsSwitch label="拖动吸附网格" checked={settings.canvas.snapToGrid} onChange={() => updateSettings("canvas", { ...settings.canvas, snapToGrid: !settings.canvas.snapToGrid })} />
+          </SettingRow>
+          <SettingRow title="小地图" description="显示右下角小地图；关闭只隐藏视图，不删除项目数据。" status={settings.canvas.showMiniMap ? "显示" : "隐藏"}>
+            <SettingsSwitch label="显示小地图" checked={settings.canvas.showMiniMap} onChange={() => updateSettings("canvas", { ...settings.canvas, showMiniMap: !settings.canvas.showMiniMap })} />
+          </SettingRow>
+        </SettingGroup>
+        <SettingGroup title="生成模型">
+          <SettingRow title="图片与视频生成模型" description="继续使用「AI 与模型」中保存的图片/视频生成账户、模型与超时；画布不保存第二套模型配置，未配置时画布会显示真实引导。" status="复用 AI 与模型">
+            <Button onClick={() => selectSection("ai")}>前往 AI 与模型设置</Button>
           </SettingRow>
         </SettingGroup>
       </section>
@@ -2861,27 +2933,27 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
 
     if (activeSection === "ai") return (
       <section className="settings-content">
-        <header className="settings-content__heading"><div><span className="settings-eyebrow">模型账户</span><Typography.Title level={2}>AI 与模型</Typography.Title><Typography.Paragraph>配置各应用 小鱼智能体 使用的 Provider 账户，并选择模型。</Typography.Paragraph></div></header>
-        <Alert className="settings-inline-alert" type="info" showIcon message="模型账户、推理参数与 小鱼智能体 共用此处的活动 Provider。密钥只在控制端解密并发送至所选 Provider，不会返回浏览器。" />
+        <header className="settings-content__heading"><div><span className="settings-eyebrow">系统模型配置</span><Typography.Title level={2}>AI 与模型</Typography.Title><Typography.Paragraph>管理员在此配置系统模型，所有 LFAA 登录账户共用当前 Provider 和模型。登录账号只负责进入系统，模型凭据独立保存在控制端。</Typography.Paragraph></div></header>
+        <Alert className="settings-inline-alert" type="info" showIcon message={canAdmin ? "这里的 Provider、活动模型与 API Key 属于系统配置，所有登录账户共用。密钥只在控制端解密并发送至所选 Provider，不会返回浏览器。" : "这里展示系统当前使用的 Provider 与模型；配置由系统管理员统一管理，所有登录账户共用。"} />
         <SettingGroup title="AI Runtime 状态">
           <SettingRow title="Cordis 插件宿主" description={`当前运行组合已加载 ${activeRuntimePluginCount}/${runtimePlugins.length} 个宿主模块；AI 扩展登记 ${extensions.length} 项。`} status={runtimePluginHostReady ? "运行中" : "检查状态"}><Tag color={runtimePluginHostReady ? "green" : "orange"}>{runtimePluginHostReady ? "已就绪" : "检查插件页面"}</Tag></SettingRow>
-          <SettingRow title="当前 Provider" description={accounts.find((account) => account.active) ? `${accounts.find((account) => account.active)!.providerId} · ${accounts.find((account) => account.active)!.modelId}` : "添加并启用账户后，小鱼智能体 才能请求模型。"} status={accounts.some((account) => account.active) ? "已启用" : "需要配置"}><Tag color={accounts.some((account) => account.active) ? "green" : "default"}>{accounts.some((account) => account.active) ? "可推理" : "未配置"}</Tag></SettingRow>
+          <SettingRow title="当前系统模型" description={accounts.find((account) => account.active) ? `${accounts.find((account) => account.active)!.providerId} · ${accounts.find((account) => account.active)!.modelId}；所有登录账户共用。` : canAdmin ? "添加并启用系统模型后，小鱼智能体 才能请求模型。" : "系统管理员尚未配置模型。"} status={accounts.some((account) => account.active) ? "已启用" : "需要配置"}><Tag color={accounts.some((account) => account.active) ? "green" : "default"}>{accounts.some((account) => account.active) ? "可推理" : "未配置"}</Tag></SettingRow>
           <SettingRow title="会话存储" description="小鱼智能体 会话、消息和 Provider 返回的 Token 用量写入账户隔离的控制端 SQLite。" status={health?.persistence === "ready" ? "已连接" : "不可用"}><Tag>{health?.persistence === "ready" ? "SQLite · 已连接" : "SQLite · 未连接"}</Tag></SettingRow>
         </SettingGroup>
         <SettingGroup title="模型服务商">
           {providers.length ? <div className="ai-provider-grid">{providers.map((provider) => {
             const providerAccounts = accounts.filter((account) => account.providerId === provider.id);
             const activeAccount = providerAccounts.find((account) => account.active);
-            return <button className={`ai-provider-card${activeAccount ? " is-active" : ""}`} key={provider.id} type="button" onClick={() => openProviderConfiguration(provider)}>
+            return <button className={`ai-provider-card${activeAccount ? " is-active" : ""}`} key={provider.id} type="button" disabled={!canAdmin} onClick={() => openProviderConfiguration(provider)}>
               <span className={`ai-provider-card__brand is-${provider.id}`} aria-hidden="true">{provider.name.slice(0, 2)}</span>
-              <span className="ai-provider-card__body"><strong>{provider.name}</strong><span>{provider.description}</span><small>{activeAccount ? `当前使用 · ${activeAccount.modelId}` : providerAccounts.length ? `已保存 ${providerAccounts.length} 个账户` : "点击配置模型账户"}</small></span>
+              <span className="ai-provider-card__body"><strong>{provider.name}</strong><span>{provider.description}</span><small>{activeAccount ? `系统当前使用 · ${activeAccount.modelId}` : providerAccounts.length ? `系统已保存 ${providerAccounts.length} 个模型` : canAdmin ? "点击配置系统模型" : "尚未配置，由管理员添加"}</small></span>
               <Tag color={activeAccount ? "green" : undefined}>{activeAccount ? "当前使用" : providerAccounts.length ? "已配置" : "未配置"}</Tag>
             </button>;
           })}</div> : <div className="settings-empty"><strong>正在读取服务商目录</strong><span>服务商列表由控制端提供。</span></div>}
         </SettingGroup>
 
-        <Card className="settings-card ai-account-list" title="已保存账户" extra={<Tag>{accounts.length}</Tag>}>
-          {!accounts.length ? <div className="settings-empty"><strong>还没有模型账户</strong><span>选择上方服务商卡片，配置并测试你的 API Key。</span></div> : accounts.map((account) => {
+        <Card className="settings-card ai-account-list" title="系统模型" extra={<Tag>{accounts.length}</Tag>}>
+          {!accounts.length ? <div className="settings-empty"><strong>还没有系统模型配置</strong><span>{canAdmin ? "选择上方服务商，配置并测试系统 API Key。" : "请联系系统管理员配置模型。"}</span></div> : accounts.map((account) => {
             const accountModel = account.models.find((model) => model.id === account.modelId);
             const accountModelOptions = account.models.map((model) => aiModelSelectOption(account.providerId, model));
             if (!accountModel) accountModelOptions.unshift({ value: account.modelId, label: `${account.modelId}（不在最新目录）`, title: account.modelId, disabled: true });
@@ -2889,17 +2961,18 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
             const accountReasoningMode = effectiveReasoningMode(accountModel, account.reasoningMode);
             return <article className={`ai-account-item${account.active ? " is-active" : ""}`} key={account.id}>
               <div className="ai-account-item__header"><div><strong>{account.displayName}</strong><span>{providers.find((provider) => provider.id === account.providerId)?.name ?? account.providerId} · {account.active ? "当前模型" : "已保存"}</span></div><Tag color={account.active ? "green" : "default"}>{account.active ? "当前使用" : "未启用"}</Tag></div>
-              <label className="settings-field"><span>当前模型</span><Select value={account.modelId} options={accountModelOptions.length ? accountModelOptions : [{ value: account.modelId, label: account.modelId, title: account.modelId, disabled: false }]} onChange={(modelId) => void selectAccountModel(account, modelId)} /></label>
+              <label className="settings-field"><span>当前模型</span><Select disabled={!canAdmin} value={account.modelId} options={accountModelOptions.length ? accountModelOptions : [{ value: account.modelId, label: account.modelId, title: account.modelId, disabled: false }]} onChange={(modelId) => void selectAccountModel(account, modelId)} /></label>
               <p className="settings-field-help">{accountModel ? modelParameterSummary(accountModel) : "当前模型不在最新官方目录中；原选择已保留，请选择目录中的型号。"}</p>
-              {accountReasoningOptions.length ? <label className="settings-field"><span>{accountModel?.thinking?.kind === "effort" ? "思考力度" : "思考模式"}</span><Select value={accountReasoningMode} options={accountReasoningOptions} disabled={aiBusy !== null} onChange={(value) => void selectAccountReasoningMode(account, value)} /></label>
+              {accountReasoningOptions.length ? <label className="settings-field"><span>{accountModel?.thinking?.kind === "effort" ? "思考力度" : "思考模式"}</span><Select value={accountReasoningMode} options={accountReasoningOptions} disabled={!canAdmin || aiBusy !== null} onChange={(value) => void selectAccountReasoningMode(account, value)} /></label>
                 : accountModel?.thinking?.kind === "fixed" ? <p className="ai-thinking-note">{fixedThinkingLabel(accountModel)}</p>
                   : <p className="ai-thinking-note">当前模型目录没有已验证的思考力度选项；请求会跟随模型自身行为，不发送思考字段。</p>}
-              <div className="ai-account-item__actions">
+              {canAdmin ? <div className="ai-account-item__actions">
                 {!account.active ? <Button size="small" type="primary" disabled={aiBusy !== null} onClick={() => void runAccountAction(account, "activate")}>设为当前模型</Button> : null}
+                <Button size="small" disabled={aiBusy !== null} onClick={() => openCredentialUpdate(account)}>更新 API Key</Button>
                 <Button size="small" disabled={aiBusy !== null} loading={aiBusy === `refresh:${account.id}`} onClick={() => void runAccountAction(account, "refresh")}>更新目录</Button>
                 <Button size="small" disabled={aiBusy !== null || !accountModel} title="向当前模型发起真实请求，可能产生 Provider 用量" loading={aiBusy === `retest:${account.id}`} onClick={() => void runAccountAction(account, "retest")}>重测模型</Button>
-                <Popconfirm title="删除这个 AI 账户？" description="删除后，LFAA 将移除加密密钥和已保存的模型目录。" okText="删除" cancelText="取消" onConfirm={() => void runAccountAction(account, "delete")}><Button danger size="small" disabled={aiBusy !== null}>删除</Button></Popconfirm>
-              </div>
+                <Popconfirm title="删除这个系统模型？" description="删除后，所有登录账户都无法再使用这份系统配置。" okText="删除" cancelText="取消" onConfirm={() => void runAccountAction(account, "delete")}><Button danger size="small" disabled={aiBusy !== null}>删除</Button></Popconfirm>
+              </div> : <p className="ai-thinking-note">由系统管理员统一管理；当前模型配置供所有 LFAA 登录账户使用。</p>}
             </article>;
           })}
         </Card>
@@ -2923,7 +2996,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
                 {selectedProvider.options.map((option) => <label className="settings-field" key={option.id}><span>{option.label}</span>{option.choices.length ? <Select value={currentProviderOptions[option.id] ?? (option.id === "region" && providerId === "qwen" ? "ap-southeast-1" : option.choices[0]?.value)} options={option.choices.map((choice) => ({ value: choice.value, label: choice.label }))} onChange={(value) => { setProviderOptions((current) => ({ ...current, [providerId]: { ...current[providerId], [option.id]: value } })); setProviderApiKeyAttention(false); setError(""); setProbe(null); setModelTest(null); }} /> : <Input value={currentProviderOptions[option.id] ?? ""} onChange={(event) => { setProviderOptions((current) => ({ ...current, [providerId]: { ...current[providerId], [option.id]: event.target.value } })); setProviderApiKeyAttention(false); setError(""); setProbe(null); setModelTest(null); }} placeholder={`请输入${option.label}`} />}</label>)}
               </div> : null}
               <div className="ai-provider-credentials-grid">
-                <label className="settings-field"><span>账户名称</span><Input value={accountName} maxLength={48} onChange={(event) => setAccountName(event.target.value)} placeholder="例如：个人 API 账户" /></label>
+                <label className="settings-field"><span>配置名称</span><Input value={accountName} maxLength={48} onChange={(event) => setAccountName(event.target.value)} placeholder="例如：主模型" /></label>
                 <label className="settings-field"><span>{providerSecretLabel}</span><Input.Password status={providerApiKeyAttention ? "error" : undefined} aria-describedby={providerApiKeyAttention ? "provider-api-key-warning" : undefined} autoComplete="new-password" value={secret} onChange={(event) => { setSecret(event.target.value); if (event.target.value.trim()) setProviderApiKeyAttention(false); setError(""); setProbe(null); setModelTest(null); }} placeholder="输入密钥，仅在保存前保留" /></label>
               </div>
             </div>
@@ -2944,8 +3017,35 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
                 <Button loading={aiBusy === "test"} disabled={!selectedModel || !secret.trim() || aiBusy !== null} onClick={() => void runModelTest()}>测试模型</Button>
               </div>
               {modelTest ? <Alert className="settings-ai-result" type="success" showIcon message={`模型请求通过 · ${modelTest.elapsedMs} ms`} description={modelTest.sample} /> : null}
-              <div className="ai-provider-modal__footer"><Button onClick={() => setProviderModalOpen(false)} disabled={aiBusy !== null}>取消</Button><Button type="primary" loading={aiBusy === "save"} disabled={!modelTest || !selectedModel || !secret.trim() || aiBusy !== null} onClick={() => void saveAccount()}>加密保存账户</Button></div>
+              <div className="ai-provider-modal__footer"><Button onClick={() => setProviderModalOpen(false)} disabled={aiBusy !== null}>取消</Button><Button type="primary" loading={aiBusy === "save"} disabled={!modelTest || !selectedModel || !secret.trim() || aiBusy !== null} onClick={() => void saveAccount()}>加密保存系统模型</Button></div>
             </> : null}
+          </div> : null}
+        </Modal>
+        <Modal
+          rootClassName="settings-ai-provider-modal"
+          getContainer={() => document.querySelector<HTMLElement>(".settings-page") ?? document.body}
+          open={credentialUpdateAccount !== null}
+          title="更新系统模型 API Key"
+          centered
+          width={600}
+          footer={null}
+          closable={aiBusy === null}
+          keyboard={aiBusy === null}
+          onCancel={() => { if (aiBusy === null) { setCredentialSecret(""); setCredentialTest(null); setCredentialUpdateAccount(null); setError(""); } }}
+        >
+          {credentialUpdateAccount ? <div className="ai-provider-modal__content">
+            <p className="ai-provider-modal__description">将更新「{credentialUpdateAccount.displayName}」的系统凭据；当前 Provider 与模型保持不变，所有 LFAA 登录账户继续共用这份配置。新密钥只在控制端测试并加密保存，不会创建另一套用户账户。</p>
+            <label className="settings-field"><span>新的 API Key 或 Token</span><Input.Password disabled={aiBusy !== null} autoComplete="new-password" value={credentialSecret} onChange={(event) => { setCredentialSecret(event.target.value); setCredentialTest(null); setError(""); }} placeholder="输入新的 Provider 凭据" /></label>
+            {error ? <Alert className="settings-inline-alert" type="error" showIcon message={error} /> : null}
+            <div className="ai-provider-test-row">
+              <div><strong>测试系统当前模型</strong><span>会发送一条真实请求至当前模型，可能产生 Provider 用量。</span></div>
+              <Button loading={aiBusy === `credential-test:${credentialUpdateAccount.id}`} disabled={!credentialSecret.trim() || aiBusy !== null} onClick={() => void testReplacementCredential()}>测试 API Key</Button>
+            </div>
+            {credentialTest ? <Alert className="settings-ai-result" type="success" showIcon message={`当前模型真实请求通过 · ${credentialTest.elapsedMs} ms`} description={credentialTest.sample} /> : null}
+            <div className="ai-provider-modal__footer">
+              <Button disabled={aiBusy !== null} onClick={() => { setCredentialSecret(""); setCredentialTest(null); setCredentialUpdateAccount(null); setError(""); }}>取消</Button>
+              <Button type="primary" loading={aiBusy === `credential-save:${credentialUpdateAccount.id}`} disabled={!credentialTest || !credentialSecret.trim() || aiBusy !== null} onClick={() => void saveReplacementCredential()}>加密保存到系统配置</Button>
+            </div>
           </div> : null}
         </Modal>
         <SettingGroup title="LFAA 本机模型库">

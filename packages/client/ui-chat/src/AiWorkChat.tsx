@@ -1,4 +1,5 @@
 import { APPLICATION_IDS } from "lfaa-util-values/src/application-id.js";
+import { isBuiltinBrowserProvider } from "lfaa-util-values/src/browser-provider.js";
 import { setAiSessionAssociations, type AgentAssociations } from "lfaa-client-connection/src/api.js";
 /**
  * 文件：AiWorkChat.tsx
@@ -164,9 +165,10 @@ interface AiWorkMessageRowProps {
   setMessageActionError: Dispatch<SetStateAction<string>>;
   setBranchTargetMessageId: Dispatch<SetStateAction<string | null>>;
   onOpenProjectFileReview?: (projectId: string, path: string) => void;
+  onBrowserToolCompleted?: (providerId: BrowserProviderId) => void;
 }
 
-const AiWorkMessageRow = memo(function AiWorkMessageRow({ message, pairedAssistant, usage, editingMessage, anyMessageEditing, pauseState, copied, conversationBusy, activeRunId, liveMessage, branchBusy, hasQueuedRuns, feedbackBusy, showContextUsage, expandedActivitySteps, writingProposalLoading, writingProposalBusy, actions, setEditingMessage, setMessageActionError, setBranchTargetMessageId, onOpenProjectFileReview }: AiWorkMessageRowProps) {
+const AiWorkMessageRow = memo(function AiWorkMessageRow({ message, pairedAssistant, usage, editingMessage, anyMessageEditing, pauseState, copied, conversationBusy, activeRunId, liveMessage, branchBusy, hasQueuedRuns, feedbackBusy, showContextUsage, expandedActivitySteps, writingProposalLoading, writingProposalBusy, actions, setEditingMessage, setMessageActionError, setBranchTargetMessageId, onOpenProjectFileReview, onBrowserToolCompleted }: AiWorkMessageRowProps) {
   const activitySummary = getAiActivitySummary(message);
   const isEditingMessage = editingMessage?.messageId === message.id;
   const canEditMessage = message.role === "user" && pairedAssistant?.role === "assistant" && pairedAssistant.status !== "queued"
@@ -241,7 +243,7 @@ const AiWorkMessageRow = memo(function AiWorkMessageRow({ message, pairedAssista
           <Button size="small" disabled={editingMessage.phase === "sending"} onClick={actions.cancelMessageEditing}>取消</Button>
           <Button size="small" type="primary" loading={editingMessage.phase === "sending"} disabled={editingMessage.phase !== "ready" || !editingMessage.content.trim()} onClick={() => void actions.submitEditedMessage()}>发送</Button>
         </div>
-      </div> : message.role === "assistant" ? <AiWorkResponse message={message} pauseLabel={pauseState === "paused" ? "已暂停" : pauseState === "pausing" ? "正在暂停" : undefined} renderActivity={renderActivity} renderInteraction={renderInteraction} onOpenProjectFileReview={onOpenProjectFileReview} /> : message.content}
+      </div> : message.role === "assistant" ? <AiWorkResponse message={message} pauseLabel={pauseState === "paused" ? "已暂停" : pauseState === "pausing" ? "正在暂停" : undefined} renderActivity={renderActivity} renderInteraction={renderInteraction} onOpenProjectFileReview={onOpenProjectFileReview} onBrowserToolCompleted={onBrowserToolCompleted} /> : message.content}
     </div>
     {message.role === "assistant" && showContextUsage && usage ? <small className="ai-work-chat__usage" title={usage.models?.map(model => `${model.providerId} / ${model.modelId}（${model.requestCount} 次请求）`).join(" → ")}>{`${usage.promptTokens ?? "?"} 输入 · ${usage.completionTokens ?? "?"} 输出 · 缓存命中 ${usage.cacheReadTokens ?? "?"} tokens · ${usage.models?.length ? usage.models.map(model => `${model.providerId} / ${model.modelId}`).join(" → ") : `${usage.providerId} / ${usage.modelId}`}`}</small> : null}
     {message.role === "user" && message.content && !isEditingMessage ? <div className="ai-work-chat__message-actions ai-work-chat__message-actions--user">
@@ -306,10 +308,6 @@ const permissionModeLabels: Record<UserSettings["permissions"]["mode"], string> 
   approve_remembered: "替我审批",
   full_access: "完全权限"
 };
-
-function isBuiltinBrowserProvider(providerId: BrowserProviderId | undefined): providerId is Exclude<BrowserProviderId, "tabbit-personal"> {
-  return providerId === "lfaa-native-browser" || providerId === "lfaa-managed-edge" || providerId === "lfaa-managed-chrome";
-}
 
 const permissionModeOptions: Array<{
   mode: UserSettings["permissions"]["mode"];
@@ -1063,13 +1061,16 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
   }, [newSessionKey]);
 
   useEffect(() => {
+    setError("");
+  }, [activeSessionId, appId]);
+
+  useEffect(() => {
     const conversationKey = `${appId}:${activeSessionId ?? "new-session"}`;
     if (busy) {
       preparedScrollConversationRef.current = conversationKey;
       setMessagesReady(true);
       return;
     }
-    setError("");
     if (!activeSessionId) {
       preparedScrollConversationRef.current = conversationKey;
       setMessages([]);
@@ -2374,6 +2375,7 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
                   setMessageActionError={setMessageActionError}
                   setBranchTargetMessageId={setBranchTargetMessageId}
                   onOpenProjectFileReview={onOpenProjectFileReview}
+                  onBrowserToolCompleted={onBrowserToolCompleted}
                 />;
               }) : <div className={`ai-work-chat__welcome${appId === "writing" ? " ai-work-chat__welcome--writing" : ""}`}>
             {appId === "writing" ? <>

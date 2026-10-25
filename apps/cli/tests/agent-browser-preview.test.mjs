@@ -430,6 +430,9 @@ test("Skill 在同一 Agent Run 安装、发现、加载并引导调用真实隔
           assert.match(lastResult, /verified_ready/u);
           assert.match(lastResult, /scriptsExecuted\\?":false/u);
           assert.ok(names.includes("lfaa_skill_list"));
+          const skillLoadParameters = body.tools.find(tool => tool.function.name === "lfaa_skill_load").function.parameters;
+          assert.equal(skillLoadParameters.properties.resourcePath.type, "string", "模型工具合同必须声明 Registry Owner 实际接收的 resourcePath 参数");
+          assert.equal(skillLoadParameters.properties.path.type, "string", "同一工具还需保留项目 Skill 的 path 参数");
           return sse(providerCall("lfaa_skill_list", { source: "registry" }, "skill-list"));
         case 4:
           assert.match(lastResult, /browser-check/u, "安装后的账户 Skill 必须由同一 Skill Registry 发现");

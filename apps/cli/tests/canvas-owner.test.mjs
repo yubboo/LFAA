@@ -12,6 +12,11 @@ import { isolateData } from "./isolated-data.mjs";
 
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52]);
 const WEBM = Buffer.from([0x1a, 0x45, 0xdf, 0xa3, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+// 音频文件头夹具：ID3 标签、MPEG 帧同步、RIFF WAVE、OggS。
+const MP3_ID3 = Buffer.concat([Buffer.from("ID3", "latin1"), Buffer.from([0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])]);
+const MP3_FRAME = Buffer.from([0xff, 0xfb, 0x90, 0x64, 0x00, 0x00, 0x00, 0x00]);
+const WAV = Buffer.concat([Buffer.from("RIFF", "latin1"), Buffer.from([0x24, 0x00, 0x00, 0x00]), Buffer.from("WAVE", "latin1"), Buffer.alloc(16)]);
+const OGG = Buffer.concat([Buffer.from("OggS", "latin1"), Buffer.alloc(24)]);
 
 function canvasNode(type, x, y, data = {}) {
   return { id: randomUUID(), type, x, y, width: 320, height: 180, data };
@@ -169,7 +174,7 @@ test("无限画布按账户与 App 隔离、跨 App 拒绝并保持 CRUD/边界/
   assert.equal(JSON.parse(readFileSync(projectPath("writing", writingProject.id), "utf8")).assets[0].assetId, assetId);
   assert.equal(owner.openCanvasAsset("other-account", "writing", writingProject.id, assetId), null);
   assert.equal(owner.openCanvasAsset("account-a", "workspace", writingProject.id, assetId), null);
-  assert.throws(() => owner.uploadCanvasAsset("account-a", "writing", writingProject.id, uploaded.updatedAt, "假图.png", "image/png", WEBM), /与声明的图片或视频格式不一致/u);
+  assert.throws(() => owner.uploadCanvasAsset("account-a", "writing", writingProject.id, uploaded.updatedAt, "假图.png", "image/png", WEBM), /与声明的图片、视频或音频格式不一致/u);
   assert.throws(() => owner.uploadCanvasAsset("account-a", "writing", writingProject.id, updated.updatedAt, "旧图.png", "image/png", PNG), owner.CanvasConflictError);
   assert.throws(
     () => owner.uploadCanvasAsset("account-a", "writing", writingProject.id, uploaded.updatedAt, "超大.png", "image/png", Buffer.alloc(owner.CANVAS_LIMITS.imageBytes + 1)),
@@ -203,6 +208,105 @@ test("无限画布按账户与 App 隔离、跨 App 拒绝并保持 CRUD/边界/
   const removedAsset = owner.removeCanvasAsset("account-a", "writing", writingProject.id, assetId, unreferenced.updatedAt);
   assert.deepEqual(removedAsset.assets, []);
   assert.equal(existsSync(assetPath), false);
+
+  // 音频素材：MP3(ID3/帧同步)、RIFF WAVE、OggS 文件头、单文件 32 MiB 上限与伪造 MIME 拒绝。
+  const mp3Uploaded = owner.uploadCanvasAsset("account-a", "writing", writingProject.id, removedAsset.updatedAt, "旁白.mp3", "audio/mpeg; charset=binary", MP3_ID3);
+  assert.equal(mp3Uploaded.assets[0].mimeType, "audio/mpeg");
+  assert.equal(mp3Uploaded.assets[0].bytes, MP3_ID3.length);
+  const mp3FrameUploaded = owner.uploadCanvasAsset("account-a", "writing", writingProject.id, mp3Uploaded.updatedAt, "节拍.mp3", "audio/mpeg", MP3_FRAME);
+  assert.equal(mp3FrameUploaded.assets.length, 2);
+  const wavUploaded = owner.uploadCanvasAsset("account-a", "writing", writingProject.id, mp3FrameUploaded.updatedAt, "配乐.wav", "audio/wav", WAV);
+  const oggUploaded = owner.uploadCanvasAsset("account-a", "writing", writingProject.id, wavUploaded.updatedAt, "环境音.ogg", "audio/ogg", OGG);
+  assert.equal(oggUploaded.assets.length, 4);
+  assert.deepEqual(new Set(oggUploaded.assets.map(item => item.mimeType)), new Set(["audio/mpeg", "audio/wav", "audio/ogg"]));
+  assert.throws(
+    () => owner.uploadCanvasAsset("account-a", "writing", writingProject.id, oggUploaded.updatedAt, "伪造.mp3", "audio/mpeg", WAV),
+    /与声明的图片、视频或音频格式不一致/u
+  );
+  assert.throws(
+    () => owner.uploadCanvasAsset("account-a", "writing", writingProject.id, oggUploaded.updatedAt, "伪造.wav", "audio/wav", OGG),
+    /与声明的图片、视频或音频格式不一致/u
+  );
+  assert.throws(
+    () => owner.uploadCanvasAsset("account-a", "writing", writingProject.id, oggUploaded.updatedAt, "伪造.ogg", "audio/ogg", PNG),
+    /与声明的图片、视频或音频格式不一致/u
+  );
+  assert.throws(
+    () => owner.uploadCanvasAsset("account-a", "writing", writingProject.id, oggUploaded.updatedAt, "超大.mp3", "audio/mpeg", Buffer.alloc(owner.CANVAS_LIMITS.audioBytes + 1)),
+    /32 MiB/u
+  );
+  assert.throws(
+    () => owner.uploadCanvasAsset("account-a", "writing", writingProject.id, oggUploaded.updatedAt, "未知.flac", "audio/flac", OGG),
+    /素材类型无效/u
+  );
+
+  // 节点 data.assetIds 与 data.references[].assetId 必须引用当前项目内素材。
+  const mp3AssetId = oggUploaded.assets[0].assetId;
+  const wavAssetId = oggUploaded.assets.find(item => item.mimeType === "audio/wav").assetId;
+  const referenceNode = { id: randomUUID(), type: "generation", x: 0, y: 0, width: 320, height: 260, data: { assetIds: [mp3AssetId], references: [{ assetId: wavAssetId, name: "配乐" }] } };
+  const withReferences = owner.updateCanvasProject("account-a", "writing", writingProject.id, oggUploaded.updatedAt, canvasInput("引用素材", [referenceNode]));
+  assert.deepEqual(withReferences.nodes[0].data.assetIds, [mp3AssetId]);
+  assert.equal(withReferences.nodes[0].data.references[0].assetId, wavAssetId);
+  assert.equal(withReferences.nodes[0].data.references[0].name, "配乐");
+  assert.throws(
+    () => owner.updateCanvasProject("account-a", "writing", writingProject.id, withReferences.updatedAt, canvasInput("缺参考", [{ ...referenceNode, data: { references: [{ assetId: randomUUID() }] } }])),
+    /引用的素材不存在/u
+  );
+  assert.throws(
+    () => owner.updateCanvasProject("account-a", "writing", writingProject.id, withReferences.updatedAt, canvasInput("缺引用", [{ ...referenceNode, data: { assetIds: [randomUUID()] } }])),
+    /引用的素材不存在/u
+  );
+  assert.throws(
+    () => owner.updateCanvasProject("account-a", "writing", writingProject.id, withReferences.updatedAt, canvasInput("非字符串", [{ ...referenceNode, data: { assetIds: [123] } }])),
+    /有效的 UUID/u
+  );
+  assert.throws(
+    () => owner.updateCanvasProject("account-a", "writing", writingProject.id, withReferences.updatedAt, canvasInput("超量引用", [{ ...referenceNode, data: { assetIds: Array.from({ length: owner.CANVAS_LIMITS.nodeAssetIds + 1 }, () => mp3AssetId) } }])),
+    /最多 20 个/u
+  );
+  assert.throws(
+    () => owner.updateCanvasProject("account-a", "writing", writingProject.id, withReferences.updatedAt, canvasInput("超量参考", [{ ...referenceNode, data: { references: Array.from({ length: owner.CANVAS_LIMITS.nodeReferences + 1 }, () => ({ assetId: mp3AssetId })) } }])),
+    /最多 64 条/u
+  );
+  assert.throws(
+    () => owner.updateCanvasProject("account-a", "writing", writingProject.id, withReferences.updatedAt, canvasInput("缺字段参考", [{ ...referenceNode, data: { references: [{}] } }])),
+    /有效的 UUID/u
+  );
+  // 跨项目素材不算当前项目引用；删除素材前统一检查 assetId/assetIds/references。
+  const otherProject = owner.createCanvasProject("account-a", "writing", "另一个画布");
+  const otherAsset = owner.uploadCanvasAsset("account-a", "writing", otherProject.id, otherProject.updatedAt, "别处.png", "image/png", PNG);
+  assert.throws(
+    () => owner.updateCanvasProject("account-a", "writing", writingProject.id, withReferences.updatedAt, canvasInput("跨项目", [{ ...referenceNode, data: { assetIds: [otherAsset.assets[0].assetId] } }])),
+    /引用的素材不存在/u
+  );
+  assert.throws(() => owner.removeCanvasAsset("account-a", "writing", writingProject.id, mp3AssetId, withReferences.updatedAt), /仍被画布节点引用/u);
+  assert.throws(() => owner.removeCanvasAsset("account-a", "writing", writingProject.id, wavAssetId, withReferences.updatedAt), /仍被画布节点引用/u);
+  assert.equal(owner.deleteCanvasProject("account-a", "writing", otherProject.id), true);
+
+  // 服务器内部提交：素材与节点数据一次写入，仍执行 expectedUpdatedAt 并发检查。
+  const committed = owner.commitCanvasAsset("account-a", "writing", writingProject.id, {
+    expectedUpdatedAt: withReferences.updatedAt,
+    name: "生成结果.png",
+    mimeType: "image/png",
+    bytes: PNG,
+    node: { nodeId: referenceNode.id, data: { ...withReferences.nodes[0].data, generation: { kind: "image", prompt: "一次写入", status: "succeeded" } } }
+  });
+  assert.equal(committed.project.assets.length, oggUploaded.assets.length + 1);
+  assert.equal(committed.project.nodes[0].data.generation.status, "succeeded");
+  assert.equal(existsSync(resolve(accountProjects, "canvas", "writing", writingProject.id, "assets", committed.asset.assetId)), true);
+  assert.throws(
+    () => owner.commitCanvasAsset("account-a", "writing", writingProject.id, { expectedUpdatedAt: withReferences.updatedAt, name: "旧版本.png", mimeType: "image/png", bytes: PNG }),
+    owner.CanvasConflictError
+  );
+  const nodeUpdated = owner.updateCanvasNodeData("account-a", "writing", writingProject.id, committed.project.updatedAt, referenceNode.id, {
+    ...committed.project.nodes[0].data,
+    generation: { kind: "video", prompt: "运行中", status: "running", taskId: "task-c-1" }
+  });
+  assert.equal(nodeUpdated.nodes[0].data.generation.taskId, "task-c-1");
+  assert.throws(
+    () => owner.updateCanvasNodeData("account-a", "writing", writingProject.id, nodeUpdated.updatedAt, randomUUID(), {}),
+    /找不到要更新的画布节点/u
+  );
 
   // 损坏项目文件保留原样。
   const corrupt = owner.createCanvasProject("corrupt-account", "writing", "损坏项目");

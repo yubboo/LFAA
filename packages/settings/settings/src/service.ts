@@ -1244,6 +1244,7 @@ type AiAccountRow = {
   id: string;
   provider_id: string;
   display_name: string;
+  options_json: string;
   model_id: string;
   models_json: string;
   reasoning_mode: string;
@@ -1280,18 +1281,30 @@ function mapAccount(row: AiAccountRow): AiAccountView {
   return { id: row.id, providerId: row.provider_id, displayName: row.display_name, modelId: row.model_id, models, reasoningMode: normalizeAccountReasoningMode(model?.thinking ?? null, row.reasoning_mode), active: row.is_active === 1, createdAt: row.created_at, hasSecret: true };
 }
 
-function accountRows(userId: string): AiAccountRow[] {
-  return configuration.all("ai_accounts", row => (row.user_id === userId), "created_at") as AiAccountRow[];
+function migrateSuperAdminAiAccountsToSystem(): void {
+  if (configuration.all("ai_accounts", row => row.user_id === null).length > 0) return;
+  const superAdmin = database.prepare("SELECT id FROM users WHERE is_super_admin = 1 ORDER BY created_at ASC LIMIT 1").get() as { id: string } | undefined;
+  if (!superAdmin) return;
+  if (configuration.all("ai_accounts", row => row.user_id === superAdmin.id).length === 0) return;
+  // 旧账户 ID、模型、选中状态和密文原样迁入 system scope；其他登录用户的个人旧记录不转移。
+  configuration.transaction(() => {
+    configuration.update("ai_accounts", row => row.user_id === superAdmin.id, { user_id: null });
+  });
 }
 
-export function listAiAccounts(userId: string): AiAccountView[] {
-  return accountRows(userId).map(mapAccount);
+function accountRows(): AiAccountRow[] {
+  migrateSuperAdminAiAccountsToSystem();
+  return configuration.all("ai_accounts", row => row.user_id === null, "created_at") as AiAccountRow[];
+}
+
+export function listAiAccounts(_userId: string): AiAccountView[] {
+  return accountRows().map(mapAccount);
 }
 
 /** 返回当前账户实际配置的模型路由目录；不根据模型名称猜测思考能力。 */
-export function listAiModelRoutes(userId: string): AiModelRouteOption[] {
+export function listAiModelRoutes(_userId: string): AiModelRouteOption[] {
   const routes: AiModelRouteOption[] = [];
-  const rows = accountRows(userId)
+  const rows = accountRows()
     .sort((left, right) => Number(right.is_active) - Number(left.is_active) || left.created_at.localeCompare(right.created_at))
     .slice(0, 128);
   for (const row of rows) {
@@ -1313,7 +1326,7 @@ export function listAiModelRoutes(userId: string): AiModelRouteOption[] {
   return routes;
 }
 
-function getEncryptionKey(): Buffer {
+function getEncryptionKey(createIfMissing = true): Buffer {
   // 使用数据根目录中的稳定密钥文件，避免服务重启后无法解密已保存的 Provider 凭证。
   const keyPath = resolve(config.homeDirectory, "credentials", "settings.key");
   protectPrivateDirectory(dirname(keyPath));
@@ -1323,6 +1336,7 @@ function getEncryptionKey(): Buffer {
     return key;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    if (!createIfMissing) throw new Error("系统模型凭据加密密钥文件缺失；读取时不会自动生成替代密钥。请由管理员在设置中心「AI 与模型」重新录入 Provider API Key。");
     const key = randomBytes(32);
     try { writeFileSync(keyPath, key, { flag: "wx", mode: 0o600 }); }
     catch (writeError) {
@@ -1344,9 +1358,16 @@ function encryptSecret(secret: string): { ciphertext: string; iv: string; tag: s
 }
 
 function decryptSecret(row: { secret_ciphertext: string; secret_iv: string; secret_tag: string }): string {
-  const decipher = createDecipheriv("aes-256-gcm", getEncryptionKey(), Buffer.from(row.secret_iv, "base64url"));
-  decipher.setAuthTag(Buffer.from(row.secret_tag, "base64url"));
-  return Buffer.concat([decipher.update(Buffer.from(row.secret_ciphertext, "base64url")), decipher.final()]).toString("utf8");
+  try {
+    const decipher = createDecipheriv("aes-256-gcm", getEncryptionKey(false), Buffer.from(row.secret_iv, "base64url"));
+    decipher.setAuthTag(Buffer.from(row.secret_tag, "base64url"));
+    return Buffer.concat([decipher.update(Buffer.from(row.secret_ciphertext, "base64url")), decipher.final()]).toString("utf8");
+  } catch (error) {
+    if (error instanceof Error && /unable to authenticate data/iu.test(error.message)) {
+      throw new Error("系统保存的 Provider API Key 无法通过本机加密校验。请由管理员在设置中心「AI 与模型」更新这份系统模型配置的 API Key；测试通过后保存，无需改动 LFAA 登录账户。", { cause: error });
+    }
+    throw error;
+  }
 }
 
 function credentialRecordAad(userId: string, providerId: string, recordId: string): Buffer {
@@ -1365,7 +1386,7 @@ function encryptCredentialRecord(userId: string, reference: { providerId: string
 }
 
 function decryptCredentialRecord(userId: string, reference: { providerId: string; id: string }, row: { ciphertext: string; iv: string; tag: string }): CredentialRecord {
-  const decipher = createDecipheriv("aes-256-gcm", getEncryptionKey(), Buffer.from(row.iv, "base64url"));
+  const decipher = createDecipheriv("aes-256-gcm", getEncryptionKey(false), Buffer.from(row.iv, "base64url"));
   decipher.setAAD(credentialRecordAad(userId, reference.providerId, reference.id));
   decipher.setAuthTag(Buffer.from(row.tag, "base64url"));
   const plaintext = Buffer.concat([decipher.update(Buffer.from(row.ciphertext, "base64url")), decipher.final()]).toString("utf8");
@@ -1417,8 +1438,8 @@ export interface ActiveAiModelConfiguration {
 export type ActiveAiModelDetails = Omit<ActiveAiModelConfiguration, "secret">;
 
 /** 仅返回活动模型元数据；密钥由独立的凭据引用来源读取。 */
-export function resolveActiveAiModelDetails(userId: string, accountId?: string): ActiveAiModelDetails | null {
-  const row = configuration.get("ai_accounts", row => ((row.user_id === userId) && (accountId ? row.id === accountId : row.is_active === 1))) as ({ id: string; provider_id: string; options_json: string; model_id: string; models_json: string; reasoning_mode: string; secret_ciphertext: string; secret_iv: string; secret_tag: string } | undefined);
+export function resolveActiveAiModelDetails(_userId: string, accountId?: string): ActiveAiModelDetails | null {
+  const row = accountRows().find(candidate => accountId ? candidate.id === accountId : candidate.is_active === 1) as (AiAccountRow & { secret_ciphertext: string; secret_iv: string; secret_tag: string } | undefined);
   if (!row) return null;
   const connection = resolveProvider(row.provider_id, JSON.parse(row.options_json) as Record<string, string>);
   let models: AiModelCatalogEntry[] = [];
@@ -1439,9 +1460,9 @@ export function resolveActiveAiModelDetails(userId: string, accountId?: string):
   };
 }
 
-/** 凭据来源仅在用户 ID 与账户 ID 同时匹配时解密账户密钥。 */
-export function resolveAiModelAccountCredential(userId: string, accountId: string): string | null {
-  const row = configuration.get("ai_accounts", row => ((row.user_id === userId) && (row.id === accountId))) as ({ secret_ciphertext: string; secret_iv: string; secret_tag: string } | undefined);
+/** 所有登录用户共用系统模型配置；密钥只在控制端解密，不按登录账户复制。 */
+export function resolveAiModelAccountCredential(_userId: string, accountId: string): string | null {
+  const row = accountRows().find(candidate => candidate.id === accountId) as ({ secret_ciphertext: string; secret_iv: string; secret_tag: string } | undefined);
   return row ? decryptSecret(row) : null;
 }
 
@@ -1454,8 +1475,8 @@ export function resolveActiveAiModelConfiguration(userId: string, accountId?: st
 }
 
 /** 在不改写用户账户偏好的前提下，核验本次请求所选账户、目录模型与思考档位。 */
-export function resolveAiModelRouteDetails(userId: string, route: { accountId: string; modelId?: string; reasoningMode?: string }): ActiveAiModelDetails | null {
-  const row = configuration.get("ai_accounts", candidate => ((candidate.user_id === userId) && (candidate.id === route.accountId))) as ({ id: string; provider_id: string; options_json: string; model_id: string; models_json: string; reasoning_mode: string } | undefined);
+export function resolveAiModelRouteDetails(_userId: string, route: { accountId: string; modelId?: string; reasoningMode?: string }): ActiveAiModelDetails | null {
+  const row = accountRows().find(candidate => candidate.id === route.accountId);
   if (!row) return null;
   let options: Record<string, string>;
   let models: AiModelCatalogEntry[];
@@ -1487,9 +1508,10 @@ export function resolveAiModelRouteDetails(userId: string, route: { accountId: s
   };
 }
 
-export async function saveAiAccount(userId: string, input: AiProviderInput & { displayName: string; modelId: string; reasoningMode: string }): Promise<AiAccountView> {
+export async function saveAiAccount(_userId: string, input: AiProviderInput & { displayName: string; modelId: string; reasoningMode: string }): Promise<AiAccountView> {
+  migrateSuperAdminAiAccountsToSystem();
   const displayName = input.displayName.trim();
-  if (displayName.length < 1 || displayName.length > 48) throw new Error("账户名称需要为 1 到 48 个字符。");
+  if (displayName.length < 1 || displayName.length > 48) throw new Error("系统模型配置名称需要为 1 到 48 个字符。");
   const probe = await probeAiProvider(input);
   const model = probe.models.find((item) => item.id === input.modelId);
   if (!model) throw new Error("所选模型不在该 Provider 返回的官方模型目录中。");
@@ -1498,21 +1520,21 @@ export async function saveAiAccount(userId: string, input: AiProviderInput & { d
   const secret = encryptSecret(input.secret.trim());
   const id = randomUUID();
   try {
-    configuration.insert("ai_accounts", { id: id, user_id: userId, provider_id: input.providerId, display_name: displayName, options_json: JSON.stringify(input.options), model_id: input.modelId, models_json: JSON.stringify(probe.models), reasoning_mode: reasoningMode, secret_ciphertext: secret.ciphertext, secret_iv: secret.iv, secret_tag: secret.tag });
+    configuration.insert("ai_accounts", { id: id, user_id: null, provider_id: input.providerId, display_name: displayName, options_json: JSON.stringify(input.options), model_id: input.modelId, models_json: JSON.stringify(probe.models), reasoning_mode: reasoningMode, secret_ciphertext: secret.ciphertext, secret_iv: secret.iv, secret_tag: secret.tag });
   } catch (error) {
-    if (error instanceof ConfigurationConflict) throw new Error("此用户下已有同名 AI 账户。");
+    if (error instanceof ConfigurationConflict) throw new Error("系统中已有同名模型配置。");
     throw error;
   }
-  const row = accountRows(userId).find((account) => account.id === id);
-  if (!row) throw new Error("AI 账户保存失败，请重试。");
+  const row = accountRows().find((account) => account.id === id);
+  if (!row) throw new Error("系统模型配置保存失败，请重试。");
   return mapAccount(row);
 }
 
-export async function refreshAiAccountModelCatalog(userId: string, accountId: string): Promise<AiProviderProbe> {
-  const row = configuration.get("ai_accounts", row => ((row.user_id === userId) && (row.id === accountId))) as ({ provider_id: string; options_json: string; model_id: string; reasoning_mode: string; secret_ciphertext: string; secret_iv: string; secret_tag: string } | undefined);
-  if (!row) throw new Error("找不到该 AI 账户。");
+export async function refreshAiAccountModelCatalog(_userId: string, accountId: string): Promise<AiProviderProbe> {
+  const row = accountRows().find(candidate => candidate.id === accountId) as (AiAccountRow & { secret_ciphertext: string; secret_iv: string; secret_tag: string } | undefined);
+  if (!row) throw new Error("找不到该系统模型配置。");
   const result = await probeAiProvider({ providerId: row.provider_id, options: JSON.parse(row.options_json) as Record<string, string>, secret: decryptSecret(row) });
-  configuration.update("ai_accounts", row => ((row.user_id === userId) && (row.id === accountId)), { models_json: JSON.stringify(result.models) });
+  configuration.update("ai_accounts", candidate => candidate.user_id === null && candidate.id === accountId, { models_json: JSON.stringify(result.models) });
   const selectedModelAvailable = result.models.some(model => model.id === row.model_id);
   return {
     ...result,
@@ -1522,9 +1544,9 @@ export async function refreshAiAccountModelCatalog(userId: string, accountId: st
   };
 }
 
-export async function testSavedAiAccountModel(userId: string, accountId: string): Promise<AiModelTestResult> {
-  const row = configuration.get("ai_accounts", row => ((row.user_id === userId) && (row.id === accountId))) as ({ provider_id: string; options_json: string; model_id: string; models_json: string; reasoning_mode: string; secret_ciphertext: string; secret_iv: string; secret_tag: string } | undefined);
-  if (!row) throw new Error("找不到该 AI 账户。");
+export async function testSavedAiAccountModel(_userId: string, accountId: string): Promise<AiModelTestResult> {
+  const row = accountRows().find(candidate => candidate.id === accountId) as (AiAccountRow & { secret_ciphertext: string; secret_iv: string; secret_tag: string } | undefined);
+  if (!row) throw new Error("找不到该系统模型配置。");
   let models: AiModelCatalogEntry[] = [];
   try { models = normalizeSavedModels(row.provider_id, JSON.parse(row.models_json) as unknown); } catch { /* 损坏或旧目录不能推断模型能力。 */ }
   const model = models.find(candidate => candidate.id === row.model_id);
@@ -1538,9 +1560,42 @@ export async function testSavedAiAccountModel(userId: string, accountId: string)
   }, model);
 }
 
-export async function updateAiAccountModel(userId: string, accountId: string, modelId: string): Promise<AiAccountView> {
-  const row = configuration.get("ai_accounts", row => ((row.user_id === userId) && (row.id === accountId))) as (AiAccountRow & { options_json: string; secret_ciphertext: string; secret_iv: string; secret_tag: string } | undefined);
-  if (!row) throw new Error("找不到该 AI 账户。");
+export async function testAiAccountCredential(_userId: string, accountId: string, secret: string): Promise<AiModelTestResult> {
+  const row = accountRows().find(candidate => candidate.id === accountId);
+  if (!row) throw new Error("找不到该系统模型配置。");
+  const options = JSON.parse(row.options_json) as Record<string, string>;
+  const probe = await probeAiProvider({ providerId: row.provider_id, options, secret: secret.trim() });
+  const model = probe.models.find(candidate => candidate.id === row.model_id);
+  if (!model) throw new Error("新 API Key 不包含系统当前使用的模型；请先配置该 Provider 下的有效模型目录，再测试并保存。");
+  const reasoningMode = isSelectableReasoningMode(model.thinking, row.reasoning_mode) ? row.reasoning_mode : defaultReasoningMode(model.thinking);
+  return requestAiProviderModel({ providerId: row.provider_id, options, secret: secret.trim(), modelId: row.model_id, reasoningMode }, model);
+}
+
+export async function updateAiAccountCredential(_userId: string, accountId: string, secretInput: string): Promise<AiAccountView> {
+  const row = accountRows().find(candidate => candidate.id === accountId);
+  if (!row) throw new Error("找不到该系统模型配置。");
+  const options = JSON.parse(row.options_json) as Record<string, string>;
+  const secret = secretInput.trim();
+  const probe = await probeAiProvider({ providerId: row.provider_id, options, secret });
+  const model = probe.models.find(candidate => candidate.id === row.model_id);
+  if (!model) throw new Error("新 API Key 不包含系统当前使用的模型；当前配置未更改。");
+  const reasoningMode = isSelectableReasoningMode(model.thinking, row.reasoning_mode) ? row.reasoning_mode : defaultReasoningMode(model.thinking);
+  const encrypted = encryptSecret(secret);
+  configuration.update("ai_accounts", candidate => candidate.user_id === null && candidate.id === accountId, {
+    secret_ciphertext: encrypted.ciphertext,
+    secret_iv: encrypted.iv,
+    secret_tag: encrypted.tag,
+    models_json: JSON.stringify(probe.models),
+    reasoning_mode: reasoningMode
+  });
+  const updated = accountRows().find(candidate => candidate.id === accountId);
+  if (!updated) throw new Error("系统模型凭据保存失败，请重试。");
+  return mapAccount(updated);
+}
+
+export async function updateAiAccountModel(_userId: string, accountId: string, modelId: string): Promise<AiAccountView> {
+  const row = accountRows().find(candidate => candidate.id === accountId) as (AiAccountRow & { secret_ciphertext: string; secret_iv: string; secret_tag: string } | undefined);
+  if (!row) throw new Error("找不到该系统模型配置。");
   const options = JSON.parse(row.options_json) as Record<string, string>;
   const secret = decryptSecret(row);
   const catalog = await probeAiProvider({ providerId: row.provider_id, options, secret });
@@ -1554,7 +1609,7 @@ export async function updateAiAccountModel(userId: string, accountId: string, mo
     ? previousReasoningMode
     : defaultReasoningMode(selectedModel.thinking);
   await requestAiProviderModel({ providerId: row.provider_id, options, secret, modelId, reasoningMode }, selectedModel);
-  configuration.update("ai_accounts", row => ((row.user_id === userId) && (row.id === accountId)), { model_id: modelId, models_json: JSON.stringify(catalog.models), reasoning_mode: reasoningMode });
+  configuration.update("ai_accounts", candidate => candidate.user_id === null && candidate.id === accountId, { model_id: modelId, models_json: JSON.stringify(catalog.models), reasoning_mode: reasoningMode });
   return mapAccount({ ...row, model_id: modelId, models_json: JSON.stringify(catalog.models), reasoning_mode: reasoningMode });
 }
 
@@ -1566,32 +1621,31 @@ function validateReasoningMode(control: AiModelThinkingControl | null, mode: str
   if (!isReasoningModeValid(control, mode)) throw new Error("所选思考力度不属于当前模型目录返回的支持范围。");
 }
 
-export function updateAiAccountReasoningMode(userId: string, accountId: string, reasoningMode: string): AiAccountView {
-  const row = configuration.get("ai_accounts", row => ((row.user_id === userId) && (row.id === accountId))) as AiAccountRow | undefined;
-  if (!row) throw new Error("找不到该 AI 账户。");
+export function updateAiAccountReasoningMode(_userId: string, accountId: string, reasoningMode: string): AiAccountView {
+  const row = accountRows().find(candidate => candidate.id === accountId);
+  if (!row) throw new Error("找不到该系统模型配置。");
   const model = normalizeSavedModels(row.provider_id, JSON.parse(row.models_json) as unknown).find((item) => item.id === row.model_id);
   validateReasoningMode(model?.thinking ?? null, reasoningMode);
-  configuration.update("ai_accounts", row => ((row.user_id === userId) && (row.id === accountId)), { reasoning_mode: reasoningMode });
+  configuration.update("ai_accounts", candidate => candidate.user_id === null && candidate.id === accountId, { reasoning_mode: reasoningMode });
   return mapAccount({ ...row, reasoning_mode: reasoningMode });
 }
 
-export function activateAiAccount(userId: string, accountId: string): AiAccountView {
-  const account = configuration.get("ai_accounts", row => ((row.user_id === userId) && (row.id === accountId)));
-  if (!account) throw new Error("找不到该 AI 账户。");
+export function activateAiAccount(_userId: string, accountId: string): AiAccountView {
+  if (!accountRows().some(row => row.id === accountId)) throw new Error("找不到该系统模型配置。");
   configuration.begin();
   try {
-    configuration.update("ai_accounts", row => (row.user_id === userId), { is_active: 0 });
-    configuration.update("ai_accounts", row => ((row.user_id === userId) && (row.id === accountId)), { is_active: 1 });
+    configuration.update("ai_accounts", row => row.user_id === null, { is_active: 0 });
+    configuration.update("ai_accounts", row => row.user_id === null && row.id === accountId, { is_active: 1 });
     configuration.commit();
   } catch (error) {
     configuration.rollback();
     throw error;
   }
-  const row = accountRows(userId).find((item) => item.id === accountId);
-  if (!row) throw new Error("无法读取已激活的 AI 账户。");
+  const row = accountRows().find((item) => item.id === accountId);
+  if (!row) throw new Error("无法读取已激活的系统模型配置。");
   return mapAccount(row);
 }
 
-export function deleteAiAccount(userId: string, accountId: string): void {
-  configuration.remove("ai_accounts", row => ((row.user_id === userId) && (row.id === accountId)));
+export function deleteAiAccount(_userId: string, accountId: string): void {
+  configuration.remove("ai_accounts", row => row.user_id === null && row.id === accountId);
 }

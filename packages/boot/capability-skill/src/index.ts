@@ -6,7 +6,7 @@
 import type { Context } from "@deepseek-ai/cordis";
 import { createHash } from "node:crypto";
 import type { CapabilityInstallAdapter, CapabilityInstallRegistry, CapabilityApplicationId } from "lfaa-capability-installs/src/index.js";
-import { downloadGithubSnapshot, searchGithubRepositories } from "lfaa-plugin-manager/src/github-source.js";
+import { downloadGithubRepositorySnapshot, GITHUB_SKILL_SOURCE_LIMITS, searchGithubRepositories } from "lfaa-plugin-manager/src/github-source.js";
 import type { PluginArchiveFile } from "lfaa-plugin-manager/src/zip-archive.js";
 import { createKnowledgeLibrarySkillInstallation, deleteKnowledgeLibrarySkillInstallation, getKnowledgeLibrarySkillInstallation, listKnowledgeLibrarySkillInstallations, type KnowledgeLibrarySkillFileInput } from "lfaa-knowledge-library/src/index.js";
 import { APPLICATION_IDS } from "lfaa-util-values/src/application-id.js";
@@ -15,10 +15,10 @@ import { isSkillDisabled, type SkillRegistry } from "lfaa-skill/src/index.js";
 
 const applications: CapabilityApplicationId[] = [...APPLICATION_IDS];
 const skillIdPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
-const maximumSkillFiles = 128;
+const maximumSkillFiles = GITHUB_SKILL_SOURCE_LIMITS.files;
 // Base64 expansion must remain below the existing 8 MiB Project Files task envelope.
-const maximumSkillBytes = 5 * 1024 * 1024;
-const maximumSkillFileBytes = 2 * 1024 * 1024;
+const maximumSkillBytes = GITHUB_SKILL_SOURCE_LIMITS.totalBytes;
+const maximumSkillFileBytes = GITHUB_SKILL_SOURCE_LIMITS.fileBytes;
 
 interface SkillDetails {
   repository: string;
@@ -61,14 +61,14 @@ const runtimeRiskLabels: Record<SkillRuntimeRiskSignal, string> = {
 
 export interface AccountSkillAdapterDependencies {
   searchRepositories?: typeof searchGithubRepositories;
-  downloadSnapshot?: typeof downloadGithubSnapshot;
+  downloadSnapshot?: typeof downloadGithubRepositorySnapshot;
   invalidateSkills?: () => void;
   skillRegistry?: Pick<SkillRegistry, "list" | "get">;
 }
 
 export function createAccountSkillAdapter(dependencies: AccountSkillAdapterDependencies = {}): CapabilityInstallAdapter {
   const search = dependencies.searchRepositories ?? searchGithubRepositories;
-  const download = dependencies.downloadSnapshot ?? downloadGithubSnapshot;
+  const download = dependencies.downloadSnapshot ?? downloadGithubRepositorySnapshot;
 
   const adapter: CapabilityInstallAdapter = {
     kind: "skill",
@@ -97,13 +97,16 @@ export function createAccountSkillAdapter(dependencies: AccountSkillAdapterDepen
       return { candidates: (await search(query)).map(item => ({ ...item, sourceType: "github", requiresInspection: true, warning: item.license ? "仓库搜索只是候选；检查只会选择并复制文本 Skill 文件，不运行仓库脚本。" : "来源许可证未确认；检查前需要先核对许可，仓库内容不会执行。" })) };
     },
     async inspect(source, ref, _applicationId, target, context) {
-      const snapshot = await download(source, ref, context.signal);
+      const indexSnapshot = await download(source, ref, context.signal);
       context.signal.throwIfAborted();
-      const skillRoots = findSkillRoots(snapshot.files);
+      const skillRoots = indexSnapshot.skillRoots ?? findSkillRoots(indexSnapshot.files);
       const selectedPath = typeof target.sourcePath === "string" ? target.sourcePath : undefined;
       if (selectedPath === undefined && skillRoots.length > 1) throw new Error(`仓库包含多个 Skill；请从下列目录选择一个，并在 target.sourcePath 中指定后重新检查（仓库根目录用 .）：${skillRoots.map(path => path || ".").join("、")}`);
       const sourcePath = selectedPath ?? skillRoots[0];
       if (sourcePath === undefined || !skillRoots.includes(sourcePath)) throw new Error(selectedPath ? `仓库中未找到 ${selectedPath}/SKILL.md。` : "仓库快照中未发现 SKILL.md；没有创建安装凭证。");
+      const snapshot = indexSnapshot.skillRoots ? await download(source, indexSnapshot.commit, context.signal, sourcePath) : indexSnapshot;
+      context.signal.throwIfAborted();
+      if (snapshot.commit !== indexSnapshot.commit || (indexSnapshot.skillRoots !== undefined && !snapshot.skillRoots?.includes(sourcePath))) throw new Error("Skill 文件读取与仓库索引不属于同一固定提交；没有创建安装凭证。");
       const selectedFiles = selectSkillFiles(snapshot.files, sourcePath);
       const skillFile = selectedFiles.find(file => file.path.toLocaleLowerCase("en-US") === `${sourcePath ? `${sourcePath}/` : ""}SKILL.md`.toLocaleLowerCase("en-US"));
       if (!skillFile) throw new Error("所选 Skill 缺少 SKILL.md；没有创建安装凭证。");
@@ -129,7 +132,7 @@ export function createAccountSkillAdapter(dependencies: AccountSkillAdapterDepen
       context.signal.throwIfAborted();
       const plan = parseDetails(details, resolvedRef);
       if ((typeof target.sourcePath === "string" ? target.sourcePath : "") !== plan.sourcePath) throw new Error("Skill 目录与检查凭证中的选择不一致；没有写入。");
-      const snapshot = await download(source, resolvedRef, context.signal);
+      const snapshot = await download(source, resolvedRef, context.signal, plan.sourcePath);
       context.signal.throwIfAborted();
       if (snapshot.commit !== resolvedRef || snapshot.archiveSha256 !== plan.archiveSha256) throw new Error("固定提交的源码归档与检查结果摘要不一致；没有写入账户 Skill 库。");
       const selectedFiles = selectSkillFiles(snapshot.files, plan.sourcePath);
@@ -156,8 +159,10 @@ export function createAccountSkillAdapter(dependencies: AccountSkillAdapterDepen
     },
     async verifyInstalled(installation, _source, resolvedRef, applicationId, target, details, context) {
       const plan = parseDetails(details, resolvedRef);
+      // applicationId 是检查凭证绑定的目标 App；context.applicationId 是发起工具调用的 App。
+      // 账户共享 Skill 可从任一已支持 App 安装到同一账户库，两者无需相等。
       if (!isRecord(installation) || installation.skill !== plan.name || installation.applicationId !== "all"
-        || installation.accountId !== context.userId || context.applicationId !== applicationId
+        || installation.accountId !== context.userId
         || typeof installation.installationId !== "string") {
         return { status: "unknown", verified: false, summary: "账户 Skill Owner 返回的安装记录与检查凭证不一致，无法确认登记状态。" };
       }

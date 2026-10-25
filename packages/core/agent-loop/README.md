@@ -1,5 +1,13 @@
 # LFAA Agent Loop
 
+## Pi Agent Core 回合执行器（2026-10-25）
+
+Pi `@earendil-works/pi-agent-core` 是默认 AI Run 的唯一回合调度器，负责模型响应和工具调用之间的单次运行状态机；本包通过 `pi-runtime.ts` 把它嵌入既有 Owner 边界。Pi 只接收本次 Run 的临时消息与工具对象，工具执行设为串行；没有 Pi CLI/RPC、默认本机工具、独立 Provider 选择或 Pi Session 持久化。
+
+Pi 的自定义 `streamFn` 每次都调用 LFAA 注入的 `lfaaLlm` Service。LFAA Settings/凭据继续决定账户、Provider、模型、超时/重试、上下文/输出预算与压缩；LFAA Tools 继续校验参数、范围与 Permission Owner 授权；审批、用户提问、暂停/取消、运行事件和 Session JSONL 仍由原 LFAA Owner 处理。Pi 工具回调只转入现有 LFAA Tool 执行函数，Pi 生成的会话状态在 Run 结束时释放。
+
+图片原文和 Provider 私有 `providerReplay` 只沿 LFAA 当前请求适配在内存中转交，不复制进 Pi 长期状态、普通活动或 Session 明文；上下文压缩和溢出仍在 LFAA 发起 Provider 请求前执行。成本、用量和模型错误只采用 LFAA Provider 实际回报，Pi 的必填成本字段仅用于其内部模型描述，不用于计费或产品展示。
+
 2026-10-16：第一方子 Agent 工具通过原 delegateSubagent 桥增加进程内后台执行，继承主/子模型、数量/深度、项目、工具范围、写操作拒绝状态和取消。父回复正常完成时子 Run 继续；取消/超时不计为成功。驱动及持久化归原 Subagent/Session Owner，不增加第二套循环；外部 CLI 后台尚未接入。
 
 领域工具经共享目录在本 Run 按需选择完整合同，App 不自动展开 Minecraft/SteamCMD/Writing/Runtime 工具；Prompt、Skill、Expert 正文由各自内容 Owner 提供，主请求不随 App 注入领域全文。模型明确传 expertId 后，原委派链才把该专家方法传给对应子 Run；继承工具范围与三种权限不扩大。设置/卸载刷新会撤销失效能力，目录不伪称已加载。
@@ -8,7 +16,7 @@
 
 AI Work 每次 Provider 请求的公开正文以稳定 ID 和起止范围标记为阶段说明或最终答案，活动首次发布时记录正文落点；不复制正文或泄露隐藏推理。`presentation` 事件、Run 实时快照及 Session 最终持久化沿用同一范围协议，使前端按实际顺序展示、重连与恢复。问题与审批沿既有 Owner 等待，原问题和实际决定随活动保存；没有实际决定时不伪造批准或拒绝。分段不决定工具调用、不替换当前模型/思考力度。
 
-网页活动显示经过校验和有界遮蔽的实际搜索查询，读取 URL 移除身份凭据、查询串与片段；不显示网页正文或原始结果。工具类型只控制展示摘要，不决定调用或权限。
+网页活动显示经过校验和有界遮蔽的实际搜索查询、读取/导航 URL 或工作区相对 HTML 路径；URL 移除身份凭据、查询串与片段，不显示网页正文或原始结果。Client 仅对已验证的内置 Browser Provider 提供重新打开入口；个人 Tabbit 页面不镜像到 LFAA Dock。工具类型只控制展示摘要，不决定调用或权限。
 
 Browser Use 只在设置中心 `browserUse.enabled` 开启后暴露 Agent 工具。模型按用户目标、Settings Owner 保存的位置偏好、当前对话/页面与真实工具状态选路：`webUrlOpenLocation` 与 `localUrlOpenLocation` 默认均为 `lfaa`，分别控制公开网页和 localhost/loopback URL；`current-browser` 只在本 Run 实际提供的个人 Browser Adapter 或 Windows CUA、且满足现有能力开关和权限时执行。所选通道不可用时 Agent 不静默改道。LFAA 内置页面的相关 `activeInWorkspace` 状态优先复用；若 Browser Owner 返回 `lfaa-native-browser` 可用且 `activeInWorkspace=true`，沿用 Electron 同一原生标签，使 Dock 由 `WebContentsView` 直接呈现；该 Provider 不可用或未绑定时，按 Host 真实能力选择隔离 Edge/Chrome。普通 Web Host 使用 LFAA Browser Owner 的连续页面流。CUA 操作不镜像到 LFAA Dock；个人 Edge/Chrome Profile 未接入时仍不可冒充 Browser Provider。当前会话绑定本机工作区时，Agent Loop 只把 Project Files Owner 的相对路径 HTML 打开回调提供给 Browser Tools；该文件预览固定使用受限 LFAA Browser Owner 页面，不把本机路径交给用户浏览器。公开活动保留浏览器工具稳定 ID 和已校验 Provider ID；Client 仅在内置浏览器工具成功后切换并展开对应 Dock，不重复导航，也不把个人 Tabbit 页面切入内置 Dock。模型还须区分打开网站与执行站内搜索：没有查询词时打开主页，不得落到任意内容详情；有查询词时核对真实结果页后再报告完成。
 Browser Tools 还按 Browser Settings Owner 检查 WebMCP 网站工具默认值/来源例外，以及开发者模式和完整 CDP 开关；网站提供的定义与结果按不可信网页内容处理，网站工具执行和 CDP 均沿用危险操作及统一 Permission Owner。完整 CDP 只附着当前 LFAA 内置页面，不访问个人 Profile；页面源和用户设置必须再次在 Browser Owner 执行时校验。

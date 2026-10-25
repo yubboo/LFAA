@@ -3,13 +3,13 @@
  * 作用：运行时正文与活动交错；完成后过程收进真实时长折叠行，答案和文件清单保持可见。
  * 关联文件：response-timeline.ts、activity-duration.ts；AiWorkChat 提供原权限/提问/差异交互。
  */
-import { memo, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
-import type { AiActivityFileChange, AiActivityItem, AiMessage } from "lfaa-client-connection/src/api.js";
+import { memo, useMemo, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
+import type { AiActivityFileChange, AiActivityItem, AiMessage, BrowserProviderId } from "lfaa-client-connection/src/api.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
 import { AiMarkdown, AiStreamingMarkdown } from "./AiMarkdown.js";
-import { formatAiActivityDuration, getAiActivityDurationSeconds, getAiActivitySummary } from "./activity-duration.js";
+import { formatAiActivityDuration, getAiActivityActionLabel, getAiActivityDurationSeconds, getAiActivitySummary } from "./activity-duration.js";
 import { aiActivityClock } from "./activity-clock.js";
-import { buildResponseTimeline, responseToolGroupLabel } from "./response-timeline.js";
+import { buildResponseTimeline, getResponseShimmerHue, latestBrowserPreviewActivity, responseToolGroupLabel, splitAiActivityDetail } from "./response-timeline.js";
 
 export function AiLiveActivityDuration({ activity }: { activity: AiActivityItem }) {
   const now = useSyncExternalStore(aiActivityClock.subscribe, aiActivityClock.getSnapshot, aiActivityClock.getSnapshot);
@@ -25,31 +25,68 @@ const ResponseText = memo(function ResponseText({ content, streaming }: { conten
   return streaming ? <AiStreamingMarkdown content={content} /> : <AiMarkdown content={content} />;
 });
 
-export function AiWorkResponse({ message, pauseLabel, renderActivity, renderInteraction, onOpenProjectFileReview }: {
+export function AiWorkResponse({ message, pauseLabel, renderActivity, renderInteraction, onOpenProjectFileReview, onBrowserToolCompleted }: {
   message: AiMessage; pauseLabel?: string;
   renderActivity: (activity: AiActivityItem) => ReactNode;
   renderInteraction: (activity: AiActivityItem) => ReactNode;
   onOpenProjectFileReview?: (projectId: string, path: string) => void;
+  onBrowserToolCompleted?: (providerId: BrowserProviderId) => void;
 }) {
   const summary = getAiActivitySummary(message);
-  const presentation = useMemo(() => buildResponseTimeline(message), [message.content, message.parts, message.activity, message.status]);
+  const presentation = useMemo(() => {
+    const activeActivity = summary.activeActivity;
+    const hasVisibleContent = Boolean(message.content.trim());
+    const replyHasStarted = hasVisibleContent && summary.label === "正在思考" && (!activeActivity || activeActivity.kind === "status");
+    const replyIsStreaming = activeActivity?.kind === "status" && summary.label === "正在回复";
+    const fallback = replyHasStarted ? "正在回复" : summary.label;
+    const currentAction = pauseLabel ?? getAiActivityActionLabel(activeActivity, fallback);
+    const shouldShowInlineStatus = Boolean(pauseLabel) || !activeActivity || activeActivity.kind === "status";
+    if (!shouldShowInlineStatus) return buildResponseTimeline(message);
+
+    const activeActivityIndex = activeActivity ? message.activity.indexOf(activeActivity) : -1;
+    const trailsCurrentText = replyHasStarted || replyIsStreaming;
+    const contentOffset = trailsCurrentText || typeof activeActivity?.contentOffset !== "number"
+      ? message.content.length
+      : activeActivity.contentOffset;
+    const order = activeActivity && !trailsCurrentText
+      ? activeActivityIndex + (pauseLabel && activeActivity.kind !== "status" ? 0.5 : 0)
+      : Number.MAX_SAFE_INTEGER;
+    return buildResponseTimeline(message, {
+      label: currentAction,
+      contentOffset,
+      order,
+      isProcessing: summary.isProcessing && !pauseLabel
+    });
+  }, [message.content, message.parts, message.activity, message.status, summary.activeActivity, summary.label, summary.isProcessing, pauseLabel]);
+  const streamHue = useMemo(() => getResponseShimmerHue(message.id), [message.id]);
   const [allFilesExpanded, setAllFilesExpanded] = useState(false);
   const finished = message.status !== "streaming" && message.status !== "queued";
-  const currentAction = pauseLabel ?? summary.label;
-  const timeline = <div className="ai-work-chat__response-timeline">
+  const browserPreviewActivity = useMemo(() => latestBrowserPreviewActivity(message), [message.activity]);
+  const browserPreviewDetail = useMemo(() => browserPreviewActivity ? splitAiActivityDetail(browserPreviewActivity.detail) : null, [browserPreviewActivity]);
+  // 当前回复的七色流光起点固定由消息 ID 派生，token 增量渲染时不重新随机变色。
+  const timeline = <div className="ai-work-chat__response-timeline" style={{ "--ai-work-stream-hue": `${streamHue}deg` } as CSSProperties}>
     {presentation.blocks.map(block => {
       if (block.kind === "text") return <div className="ai-work-chat__response-part" key={block.id}>
         <ResponseText content={block.content} streaming={block.streaming} />
       </div>;
+      if (block.kind === "status") return <div
+        className={`ai-work-chat__activity-live-status${block.isProcessing ? " ai-work-chat__activity-live-status--processing" : ""}`}
+        key={block.id}
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      ><span>{block.label}</span></div>;
       if (block.kind === "interaction") {
         const interaction = renderInteraction(block.activity);
         return interaction ? <div className="ai-work-chat__response-interaction" key={block.id}>{interaction}</div> : null;
       }
+      if (block.kind === "activity") return <div className="ai-work-chat__response-activity" key={block.id}>{renderActivity(block.activity)}</div>;
       const hasFileChanges = block.activities.some(activity => activity.fileChanges?.some(change => change.operation !== "read"));
       const isCommandGroup = block.activities.every(activity => activity.kind === "command" || activity.title === "执行本机命令" || activity.title === "执行游戏节点命令");
       const isWebGroup = block.activities.some(activity => /搜索|网页|浏览/u.test(activity.title));
       const icon = hasFileChanges ? "file" : isCommandGroup ? "terminal" : isWebGroup ? "browser" : "tools";
-      return <details className="ai-work-chat__tool-group" key={block.id}>
+      const isRunning = block.activities.some(activity => activity.status === "running");
+      return <details className={`ai-work-chat__tool-group${isRunning ? " ai-work-chat__tool-group--running" : ""}`} key={block.id} open={finished}>
         <summary><WorkbenchIcon name={icon} size={14} /><span>{responseToolGroupLabel(block.activities)}</span><WorkbenchIcon name="chevron" size={13} /></summary>
         <div className="ai-work-chat__tool-group-items">{block.activities.map(renderActivity)}</div>
       </details>;
@@ -83,11 +120,25 @@ export function AiWorkResponse({ message, pauseLabel, renderActivity, renderInte
   return <section className={`ai-work-chat__response ai-work-chat__activity--${summary.tone}`}>
     {finished ? <>
       <details className="ai-work-chat__response-history" key={`${message.id}:complete`}>
-        <summary><span>{summary.durationText}</span><WorkbenchIcon name="chevron" size={14} /></summary>
+        <summary>
+          <span className="ai-work-chat__response-history-summary">
+            <span>{summary.durationText}</span>
+            <span className="ai-work-chat__response-history-state" data-tone={summary.tone}>{summary.label}</span>
+          </span>
+          <WorkbenchIcon name="chevron" size={14} />
+        </summary>
         {timeline}
+        {!presentation.blocks.length ? <p className="ai-work-chat__response-history-empty">此回复没有保存可展示的过程更新或工具操作。</p> : null}
       </details>
       {/* 正文保持完整且可见；旧记录缺少可靠落点时也不猜测正文与活动的历史顺序。 */}
       {finalAnswer}
+      {browserPreviewActivity && browserPreviewDetail?.preview && onBrowserToolCompleted ? <section className="ai-work-chat__response-browser-preview" aria-label="网页预览">
+        <span className="ai-work-chat__response-browser-icon" aria-hidden="true"><WorkbenchIcon name="browser" size={18} /></span>
+        <span className="ai-work-chat__response-browser-heading"><strong>网页预览</strong><span>{browserPreviewDetail.previewLabel} · {browserPreviewDetail.preview}</span></span>
+        <button type="button" className="ai-work-chat__response-browser-open" aria-label="在 LFAA 浏览器中重新打开本轮页面" onClick={() => onBrowserToolCompleted(browserPreviewActivity.browserProviderId!)}>
+          <span>打开方式</span><WorkbenchIcon name="chevron" size={14} />
+        </button>
+      </section> : null}
       {changedFiles.length ? <section className="ai-work-chat__response-file-changes" aria-label="本条回复的文件变更">
         <header>
           <span className="ai-work-chat__response-file-icon" aria-hidden="true"><WorkbenchIcon name="file" size={18} /></span>
@@ -114,7 +165,6 @@ export function AiWorkResponse({ message, pauseLabel, renderActivity, renderInte
       </section> : null}
     </> : <>
       <div className="ai-work-chat__response-duration" role="status"><AiLiveResponseDuration message={message} /></div>
-      <div className="ai-work-chat__activity-current-action--static" role="status" aria-live="polite">{currentAction}</div>
       <div key={`${message.id}:running`}>{timeline}</div>
     </>}
   </section>;

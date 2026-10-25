@@ -351,11 +351,15 @@ const allApplicationNavigationItems: ApplicationNavigationItem[] = [
     .map((application) => ({ id: application.id, title: application.title, applicationId: application.id }))
 ];
 
-/** 画布首页与 App 切换器使用完整 App 清单（含 SteamCMD/Minecraft/工作区）。 */
-const canvasApplicationItems: ApplicationNavigationItem[] = [
+/**
+ * 画布首页与 App 切换器使用完整 App 清单（含 SteamCMD/Minecraft/工作区）。
+ * 画布入口清单只被画布页面读取标题与 applicationId；workspace 是真实 App ID，
+ * 但不是导航轨的 ApplicationNavigationId，因此这里显式放宽 id 的枚举类型。
+ */
+const canvasApplicationItems = [
   ...applicationCards.map((application) => ({ id: application.id, title: application.title, applicationId: application.id })),
   { id: "workspace", title: "小鱼智能体", applicationId: "workspace" }
-];
+] as ApplicationNavigationItem[];
 
 export function Workbench({
   user,

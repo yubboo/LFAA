@@ -1,67 +1,68 @@
-/* 功能：无限画布工作区的三栏布局、节点卡片、素材面板与响应式抽屉样式。
- * 作用：只读取 Workbench 主题变量；按容器宽度切换 ≥1024 三栏、<1024 素材抽屉、<640 项目栏下拉，短屏整体可滚动。
- * 关联文件：CanvasWorkspace.tsx、CanvasNodeCards.tsx、CanvasAssetPanel.tsx、ui-layout/src/workbench.css、ui-theme/src/tokens.css。
+/*
+ * 功能：系统级无限画布工作区样式（全幅沉浸画布、浮层工具条、节点卡片、浮层面板）。
+ * 作用：只读取 Workbench 主题令牌派生的画布表面色；按容器宽度（1440/1024/768/390）与短屏（≤480 高）重排，
+ *      使用 Grid/Flex 布局，不用 inline-block 承担布局；尊重外观主题、强调色、字体与减少动态效果设置。
+ * 关联文件：CanvasWorkspace.tsx、CanvasNodeCards.tsx、CanvasAssetPanel.tsx、ui-theme/src/tokens.css、ui-layout/src/workbench.css。
  */
 
-/* 画布模块外壳：与文件管理一致，左侧全局导航轨与画布内容并排；导轨宽度由导轨自身负责。 */
-.lfaa-canvas-outer {
+/* 画布作用域：所有颜色从主题令牌派生，深色主题得到沉浸深灰，浅色主题保持浅底可读。 */
+.lfaa-cnv-outer {
   display: flex;
-  width: 100%;
-  min-width: 0;
-  min-height: 0;
-  flex: 1 1 auto;
-}
-
-.lfaa-canvas-workspace {
-  display: block;
-  flex: 1 1 auto;
   width: 100%;
   height: 100%;
   min-width: 0;
   min-height: 0;
-  overflow: auto;
+  flex: 1 1 auto;
+  /* 画布底色：主题画布色向正文色混合 8%，深色主题为沉浸深灰，浅色主题保持浅底。 */
+  --lfaa-cnv-surface: color-mix(in srgb, var(--color-canvas) 92%, var(--color-text-primary) 8%);
+  /* 浮层背景：主题表面色 90% 不透明，让下方网格与节点隐约透出。 */
+  --lfaa-cnv-float: color-mix(in srgb, var(--color-surface) 90%, transparent);
+  /* 浮层边框：主题边框色 80% 不透明，形成低对比轮廓。 */
+  --lfaa-cnv-float-border: color-mix(in srgb, var(--color-border) 80%, transparent);
+  /* 点阵网格色：正文色 24% 透明度，深色主题为中灰点阵，浅色主题为浅灰点阵。 */
+  --lfaa-cnv-grid: color-mix(in srgb, var(--color-text-primary) 24%, transparent);
+  /* 浮层阴影：26% 中性黑投影，深色主题下形成悬浮层次。 */
+  --lfaa-cnv-shadow: 0 14px 34px color-mix(in srgb, #000 26%, transparent);
+  /* 浮层背景模糊：沿用外观设置玻璃模糊强度，默认 12px。 */
+  --lfaa-cnv-blur: blur(var(--settings-glass-blur, 12px));
+  /* 画布悬停反馈底色：强调色 12% 透明度。 */
+  --lfaa-cnv-hover: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 12%, transparent);
+  /* 画布选中底色：强调色 20% 透明度。 */
+  --lfaa-cnv-selected: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 20%, transparent);
   color: var(--color-text-primary);
-  background: var(--color-canvas);
+}
+
+.lfaa-cnv-workspace {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  background: var(--lfaa-cnv-surface);
   container-type: inline-size;
   container-name: lfaa-canvas;
 }
 
-.lfaa-canvas-shell {
-  display: flex;
+.lfaa-cnv-stage {
+  position: absolute;
+  inset: 0;
   min-width: 0;
-  min-height: 100%;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-4);
+  min-height: 0;
 }
 
-.lfaa-canvas-header {
-  display: flex;
-  min-width: 0;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-3);
+.lfaa-cnv-stage .react-flow {
+  background: transparent;
 }
 
-.lfaa-canvas-header__copy {
-  display: grid;
-  min-width: 0;
-  gap: var(--space-1);
+/* 点阵/线框网格颜色直接取令牌，保证深浅主题都可读。 */
+.lfaa-cnv-stage .react-flow__background {
+  color: var(--lfaa-cnv-grid);
 }
 
-.lfaa-canvas-header .ant-typography {
-  margin: 0;
-}
-
-.lfaa-canvas-status {
-  min-height: 24px;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-  overflow-wrap: anywhere;
-  text-align: right;
-}
-
-.lfaa-canvas-hidden-input {
+.lfaa-cnv-hidden-input {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -70,704 +71,1105 @@
   white-space: nowrap;
 }
 
-.lfaa-canvas-alert {
-  margin: 0;
-}
-
-.lfaa-canvas-toolbar {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.lfaa-canvas-toolbar__title {
-  flex: 1 1 220px;
-  max-width: 320px;
-  min-width: 140px;
-}
-
-.lfaa-canvas-toolbar__project-select {
-  display: none;
-}
-
-.lfaa-canvas-toolbar__assets-toggle {
-  display: none;
-}
-
-.lfaa-canvas-body {
-  position: relative;
-  display: grid;
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 380px;
-  align-items: stretch;
-  gap: var(--space-3);
-  grid-template-columns: 232px minmax(0, 1fr) 292px;
-}
-
-.lfaa-canvas-projects {
-  display: flex;
-  min-width: 0;
-  min-height: 0;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-2);
-  overflow: hidden;
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  background: var(--color-surface-muted);
-}
-
-.lfaa-canvas-projects__header {
+/* 顶部浮层：返回 / 项目切换 / 保存状态 / 生成|画布 / 对话 / 设置。 */
+.lfaa-cnv-topbar {
+  position: absolute;
+  z-index: 20;
+  inset: 10px 12px auto 12px;
   display: flex;
   min-width: 0;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-2);
-  padding: 2px 4px;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
+  flex-wrap: wrap;
+  gap: 8px;
+  pointer-events: none;
 }
 
-.lfaa-canvas-projects__header span {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
+.lfaa-cnv-topbar > * {
+  pointer-events: auto;
 }
 
-.lfaa-canvas-projects__list {
-  display: flex;
-  min-height: 0;
-  flex: 1 1 auto;
-  flex-direction: column;
-  gap: 6px;
-  overflow: auto;
-}
-
-.lfaa-canvas-projects__item {
-  display: grid;
-  min-width: 0;
-  align-items: center;
-  gap: 4px;
-  grid-template-columns: minmax(0, 1fr) auto;
-  padding: 2px;
-  border: 1px solid transparent;
-  border-radius: 9px;
-}
-
-.lfaa-canvas-projects__item:hover,
-.lfaa-canvas-projects__item.is-active {
-  border-color: var(--color-border-strong);
-  background: var(--color-surface-hover);
-}
-
-.lfaa-canvas-projects__item.is-active {
-  background: var(--color-surface-selected);
-}
-
-.lfaa-canvas-projects__open {
-  display: grid;
-  min-width: 0;
-  gap: 3px;
-  padding: 7px 8px;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--color-text-primary);
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-}
-
-.lfaa-canvas-projects__open:focus-visible,
-.lfaa-canvas-projects__delete:focus-visible {
-  outline: 2px solid var(--color-focus-ring);
-  outline-offset: 1px;
-}
-
-.lfaa-canvas-projects__open:disabled,
-.lfaa-canvas-projects__delete:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-
-.lfaa-canvas-projects__name {
-  overflow: hidden;
-  font-size: var(--font-size-sm);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.lfaa-canvas-projects__open small {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-}
-
-.lfaa-canvas-projects__delete {
-  display: grid;
-  width: 26px;
-  height: 26px;
-  flex: 0 0 auto;
-  place-items: center;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--font-size-xs);
-}
-
-.lfaa-canvas-projects__delete:hover,
-.lfaa-canvas-projects__delete:focus-visible {
-  background: var(--color-status-error-surface);
-  color: var(--color-status-error-text);
-}
-
-.lfaa-canvas-projects__empty {
-  margin: 0;
-  padding: 6px 4px;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-}
-
-.lfaa-canvas-stage-area {
-  position: relative;
-  display: flex;
-  min-width: 0;
-  min-height: 0;
-  flex-direction: column;
-}
-
-.lfaa-canvas-stage {
-  position: relative;
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 380px;
-  overflow: hidden;
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  background: var(--color-canvas);
-}
-
-.lfaa-canvas-stage__busy {
-  position: absolute;
-  z-index: 9;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
-  background: color-mix(in srgb, var(--color-canvas) 72%, transparent);
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
-}
-
-.lfaa-canvas-empty,
-.lfaa-canvas-loading {
-  display: grid;
-  flex: 1 1 auto;
-  min-height: 320px;
-  place-content: center;
-  justify-items: center;
-  gap: var(--space-2);
-  padding: var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  background: var(--color-surface-muted);
-  text-align: center;
-}
-
-.lfaa-canvas-empty .ant-typography {
-  margin: 0;
-}
-
-.lfaa-canvas-loading {
-  border: 0;
-  background: transparent;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
-}
-
-/* 画布内 React Flow 主题映射：连线、手柄、框选、缩略图与点阵背景全部读取 Workbench 主题变量，避免深色模式写死浅色。 */
-.lfaa-canvas-stage .react-flow {
-  --xy-edge-stroke: var(--color-text-muted); /* 连线颜色：中性次要文字灰。 */
-  --xy-edge-stroke-width: 2; /* 连线粗细：2px 视觉宽度。 */
-  --xy-edge-stroke-selected: var(--color-brand); /* 选中连线：品牌蓝。 */
-  --xy-connectionline-stroke: var(--color-brand); /* 拖拽中的待连接线：品牌蓝。 */
-  --xy-handle-background-color: var(--color-brand); /* 连接手柄底色：品牌蓝。 */
-  --xy-handle-border-color: var(--color-surface); /* 连接手柄描边：与画布表面同色。 */
-  --xy-minimap-background-color: var(--color-surface-muted); /* 缩略图底色：次级中性表面。 */
-  --xy-minimap-mask-background-color: color-mix(in srgb, var(--color-surface) 55%, transparent); /* 缩略图视口外遮罩：主题表面色 55% 不透明度。 */
-  --xy-minimap-node-background-color: var(--color-border-strong); /* 缩略图节点色块：较深中性边框灰。 */
-  --xy-selection-background-color: color-mix(in srgb, var(--color-brand) 12%, transparent); /* 框选填充：品牌蓝 12% 不透明度。 */
-  --xy-selection-border: 1px dashed var(--color-brand); /* 框选边框：品牌蓝 1px 虚线。 */
-  --xy-background-pattern-color: color-mix(in srgb, var(--color-text-muted) 34%, transparent); /* 点阵背景圆点：次要文字灰 34% 不透明度。 */
-  color: var(--color-text-primary);
-}
-
-.lfaa-canvas-stage .react-flow__controls {
-  overflow: hidden;
-  border: 1px solid var(--color-border);
-  border-radius: 9px;
-  background: var(--color-surface);
-  box-shadow: 0 4px 14px var(--color-shadow-card-soft);
-}
-
-.lfaa-canvas-stage .react-flow__controls-button {
-  width: 30px;
-  height: 30px;
-  border: 0;
-  border-bottom: 1px solid var(--color-border-subtle);
-  background: transparent;
-  color: var(--color-text-secondary);
-}
-
-.lfaa-canvas-stage .react-flow__controls-button:hover,
-.lfaa-canvas-stage .react-flow__controls-button:focus-visible {
-  background: var(--color-surface-hover);
-  color: var(--color-brand);
-}
-
-.lfaa-canvas-stage .react-flow__controls-button svg {
-  fill: currentColor;
-}
-
-.lfaa-canvas-stage .react-flow__minimap {
-  overflow: hidden;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-}
-
-.lfaa-canvas-stage .react-flow__handle {
-  width: 10px;
-  height: 10px;
-  border: 2px solid var(--color-surface);
-  background: var(--color-brand);
-}
-
-.lfaa-canvas-stage .react-flow__handle:hover {
-  background: var(--color-brand-hover);
-}
-
-.lfaa-canvas-stage .react-flow__edge-path {
-  stroke: var(--xy-edge-stroke);
-}
-
-.lfaa-canvas-stage .react-flow__attribution {
-  display: none;
-}
-
-/* 节点卡片：四个节点类型共用一套外框，节点内部区域随固定宽高滚动或缩放。 */
-.lfaa-canvas-node {
-  display: flex;
-  width: 100%;
-  height: 100%;
-  min-width: 0;
-  min-height: 0;
-  flex-direction: column;
-  overflow: hidden;
-  border: 1px solid var(--color-border-strong);
-  border-radius: 12px;
-  background: var(--color-surface);
-  color: var(--color-text-primary);
-  box-shadow: 0 6px 18px var(--color-shadow-card-soft);
-}
-
-.lfaa-canvas-node.is-selected {
-  border-color: var(--color-brand);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-brand) 28%, transparent), 0 6px 18px var(--color-shadow-card-soft);
-}
-
-.lfaa-canvas-node--note {
-  border-left: 3px solid var(--color-status-warning);
-}
-
-.lfaa-canvas-node--image,
-.lfaa-canvas-node--video {
-  background: var(--color-surface-muted);
-}
-
-.lfaa-canvas-node__header {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 8px 7px 10px;
-  border-bottom: 1px solid var(--color-border-subtle);
-  background: var(--color-surface);
-}
-
-.lfaa-canvas-node__kind {
-  flex: 0 0 auto;
-  padding: 1px 6px;
-  border-radius: 6px;
-  background: var(--color-brand-subtle);
-  color: var(--color-brand);
-  font-size: var(--font-size-xs);
-  font-weight: 650;
-}
-
-.lfaa-canvas-node__name {
-  min-width: 0;
-  flex: 1 1 auto;
-  overflow: hidden;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.lfaa-canvas-node__remove.ant-btn {
-  flex: 0 0 auto;
-  padding-inline: 6px;
-  font-size: var(--font-size-xs);
-}
-
-.lfaa-canvas-node__body {
-  position: relative;
-  display: flex;
-  min-width: 0;
-  min-height: 0;
-  flex: 1 1 auto;
-  flex-direction: column;
-}
-
-.lfaa-canvas-node__body--media {
-  overflow: hidden;
-  background: color-mix(in srgb, var(--color-text-primary) 6%, transparent);
-}
-
-.lfaa-canvas-node__text.ant-input {
-  flex: 1 1 auto;
-  height: 100%;
-  min-height: 0;
-  padding: 9px 10px;
-  border: 0;
-  border-radius: 0 0 12px 12px;
-  background: transparent;
-  box-shadow: none;
-  color: var(--color-text-primary);
-  font-size: var(--font-size-sm);
-  resize: none;
-}
-
-.lfaa-canvas-node__text.ant-input:hover,
-.lfaa-canvas-node__text.ant-input:focus,
-.lfaa-canvas-node__text.ant-input-focused {
-  border: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
-.lfaa-canvas-node__media {
-  display: block;
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  object-fit: contain;
-}
-
-.lfaa-canvas-node__missing {
-  display: grid;
-  min-height: 0;
-  flex: 1 1 auto;
-  place-content: center;
-  margin: 0;
-  padding: 10px;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-  text-align: center;
-}
-
-/* 素材面板：宽容器作为第三栏，窄容器由容器查询切换为覆盖画布的抽屉。 */
-.lfaa-canvas-assets {
-  display: flex;
-  min-width: 0;
-  min-height: 0;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-2);
-  overflow: hidden;
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  background: var(--color-surface-muted);
-}
-
-.lfaa-canvas-assets__header {
+.lfaa-cnv-topbar__group {
   display: flex;
   min-width: 0;
   align-items: center;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  gap: 6px;
 }
 
-.lfaa-canvas-assets__heading {
+.lfaa-cnv-topbar__project {
+  display: flex;
+  min-width: 0;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.lfaa-cnv-app-switch {
+  width: 128px;
+}
+
+.lfaa-cnv-project-switch {
+  width: 190px;
+  min-width: 126px;
+}
+
+.lfaa-cnv-save-status {
+  min-width: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  overflow-wrap: anywhere;
+}
+
+.lfaa-cnv-mode-switch {
+  flex: 0 0 auto;
+}
+
+/* 顶部操作按钮：34px 方形点击区；颜色仍使用当前外观主题令牌。 */
+.lfaa-cnv-topbar__icon.ant-btn {
+  display: inline-flex;
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 9px;
+  color: var(--color-text-primary);
+}
+
+.lfaa-cnv-topbar__icon.ant-btn:hover,
+.lfaa-cnv-topbar__icon.ant-btn:focus-visible {
+  background: var(--lfaa-cnv-hover);
+  color: var(--color-text-heading);
+}
+
+/* 左侧工具轨：桌面使用垂直居中的图标浮岛，过高时内部滚动。 */
+.lfaa-cnv-rail {
+  position: absolute;
+  z-index: 15;
+  top: 50%;
+  bottom: auto;
+  left: 12px;
+  display: flex;
+  width: 48px;
+  min-height: 0;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  overflow-y: auto;
+  border: 1px solid var(--lfaa-cnv-float-border);
+  border-radius: 14px;
+  background: var(--lfaa-cnv-float);
+  box-shadow: var(--lfaa-cnv-shadow);
+  -webkit-backdrop-filter: var(--lfaa-cnv-blur);
+  backdrop-filter: var(--lfaa-cnv-blur);
+  max-height: calc(100% - 132px);
+  transform: translateY(-50%);
+}
+
+.lfaa-cnv-rail__item {
+  position: relative;
+  display: grid;
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+  transition: background-color .16s ease, color .16s ease;
+}
+
+.lfaa-cnv-rail__item[data-separator-before="true"] {
+  margin-top: 8px;
+}
+
+.lfaa-cnv-rail__item[data-separator-before="true"]::before {
+  position: absolute;
+  top: -5px;
+  right: 7px;
+  left: 7px;
+  border-top: 1px solid var(--lfaa-cnv-float-border);
+  content: "";
+}
+
+.lfaa-cnv-rail__item:hover,
+.lfaa-cnv-rail__item:focus-visible {
+  background: var(--lfaa-cnv-hover);
+  color: var(--color-text-primary);
+}
+
+.lfaa-cnv-rail__item:focus-visible {
+  outline: 2px solid var(--settings-accent, var(--color-brand));
+  outline-offset: 2px;
+}
+
+.lfaa-cnv-rail__item.is-active {
+  background: var(--lfaa-cnv-selected);
+  color: var(--color-text-heading);
+}
+
+.lfaa-cnv-rail__icon {
+  display: flex;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+/* 底部缩放条。 */
+.lfaa-cnv-zoom {
+  position: absolute;
+  z-index: 16;
+  bottom: 14px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 6px;
+  border: 1px solid var(--lfaa-cnv-float-border);
+  border-radius: 999px;
+  background: var(--lfaa-cnv-float);
+  box-shadow: var(--lfaa-cnv-shadow);
+  -webkit-backdrop-filter: var(--lfaa-cnv-blur);
+  backdrop-filter: var(--lfaa-cnv-blur);
+}
+
+.lfaa-cnv-zoom__value {
+  min-width: 46px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  text-align: center;
+}
+
+/* 生成工作台浮层：图片/视频、提示词、@ 参考、比例/时长与真实生成按钮。 */
+.lfaa-cnv-generate {
+  position: absolute;
+  z-index: 18;
+  bottom: 14px;
+  left: 50%;
+  display: flex;
+  width: min(700px, calc(100% - 210px));
+  max-height: 48vh;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  overflow-y: auto;
+  transform: translateX(-50%);
+  border: 1px solid var(--lfaa-cnv-float-border);
+  border-radius: 16px;
+  background: var(--lfaa-cnv-float);
+  box-shadow: var(--lfaa-cnv-shadow);
+  -webkit-backdrop-filter: var(--lfaa-cnv-blur);
+  backdrop-filter: var(--lfaa-cnv-blur);
+}
+
+.lfaa-cnv-generate__head,
+.lfaa-cnv-generate__actions {
   display: flex;
   min-width: 0;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
-  margin-right: auto;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
 }
 
-.lfaa-canvas-assets__heading span {
+.lfaa-cnv-generate__config {
+  min-width: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  overflow-wrap: anywhere;
+}
+
+.lfaa-cnv-generate__config.is-missing {
+  color: var(--color-status-warning);
+}
+
+.lfaa-cnv-generate__note,
+.lfaa-cnv-generate__hint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  overflow-wrap: anywhere;
+}
+
+.lfaa-cnv-generate__prompt {
+  position: relative;
+  min-width: 0;
+}
+
+.lfaa-cnv-generate__refs-select {
+  width: 100%;
+}
+
+.lfaa-cnv-mention {
+  position: absolute;
+  z-index: 42;
+  bottom: calc(100% + 4px);
+  left: 0;
+  display: grid;
+  width: min(300px, 100%);
+  max-height: 220px;
+  gap: 2px;
+  padding: 6px;
+  overflow-y: auto;
+  border: 1px solid var(--lfaa-cnv-float-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  box-shadow: var(--lfaa-cnv-shadow);
+}
+
+.lfaa-cnv-mention__item {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.lfaa-cnv-mention__item:hover,
+.lfaa-cnv-mention__item:focus-visible {
+  background: var(--lfaa-cnv-hover);
+}
+
+.lfaa-cnv-mention__item small {
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
 }
 
-.lfaa-canvas-assets__upload {
-  position: relative;
-  display: inline-flex;
-  min-height: 30px;
-  align-items: center;
-  overflow: hidden;
-  padding: 4px 10px;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
+.lfaa-cnv-mention__empty {
+  margin: 0;
+  padding: 8px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+/* 右侧抽屉（资产库 / 对话）。 */
+.lfaa-cnv-drawer {
+  position: absolute;
+  z-index: 22;
+  top: 92px;
+  right: 12px;
+  bottom: 84px;
+  display: none;
+  width: 360px;
+  min-height: 0;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  overflow-y: auto;
+  border: 1px solid var(--lfaa-cnv-float-border);
+  border-radius: 16px;
   background: var(--color-surface);
-  color: var(--color-text-primary);
-  cursor: pointer;
+  box-shadow: var(--lfaa-cnv-shadow);
+}
+
+.lfaa-cnv-drawer.is-open {
+  display: flex;
+}
+
+.lfaa-cnv-drawer__header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.lfaa-cnv-drawer__heading {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--color-text-heading);
+}
+
+.lfaa-cnv-drawer__heading span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.lfaa-cnv-drawer__hint,
+.lfaa-cnv-drawer__empty {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.lfaa-cnv-chat__body {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
   font-size: var(--font-size-sm);
 }
 
-.lfaa-canvas-assets__upload:hover {
-  background: var(--color-surface-hover);
+.lfaa-cnv-chat__body p {
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
-.lfaa-canvas-assets__upload:focus-within {
-  outline: 2px solid var(--color-focus-ring);
-  outline-offset: 1px;
+.lfaa-cnv-chat__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
 }
 
-.lfaa-canvas-assets__upload input {
+.lfaa-cnv-scrim {
+  position: absolute;
+  z-index: 21;
+  inset: 0;
+  border: 0;
+  background: color-mix(in srgb, #000 26%, transparent);
+  cursor: pointer;
+}
+
+/* 资产库列表。 */
+.lfaa-cnv-upload {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+}
+
+.lfaa-cnv-upload input {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  cursor: pointer;
   opacity: 0;
+  cursor: pointer;
 }
 
-.lfaa-canvas-assets__upload.is-disabled {
+.lfaa-cnv-upload.is-disabled {
+  opacity: .5;
   cursor: not-allowed;
-  opacity: 0.55;
 }
 
-.lfaa-canvas-assets__close {
-  display: none;
-}
-
-.lfaa-canvas-assets__hint,
-.lfaa-canvas-assets__empty {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-  line-height: 1.5;
-}
-
-.lfaa-canvas-assets__list {
-  display: flex;
-  min-height: 0;
-  flex: 1 1 auto;
-  flex-direction: column;
-  gap: 6px;
-  overflow: auto;
-}
-
-.lfaa-canvas-asset {
+.lfaa-cnv-assets__list {
   display: grid;
   min-width: 0;
-  align-items: center;
-  gap: var(--space-2);
-  grid-template-columns: 56px minmax(0, 1fr);
-  padding: 6px;
+  gap: 8px;
+}
+
+.lfaa-cnv-asset {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+  padding: 8px;
   border: 1px solid var(--color-border-subtle);
-  border-radius: 9px;
+  border-radius: 12px;
+  background: var(--color-surface-muted);
+}
+
+.lfaa-cnv-asset__thumb-wrap {
+  display: grid;
+  min-height: 84px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 8px;
   background: var(--color-surface);
 }
 
-.lfaa-canvas-asset__thumb {
-  display: block;
-  width: 56px;
-  height: 56px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--color-text-primary) 6%, transparent);
-  object-fit: cover;
+.lfaa-cnv-asset__thumb {
+  width: 100%;
+  max-height: 160px;
+  object-fit: contain;
 }
 
-.lfaa-canvas-asset__meta {
+.lfaa-cnv-asset__audio {
+  width: 100%;
+}
+
+.lfaa-cnv-asset__meta {
   display: grid;
   min-width: 0;
   gap: 2px;
 }
 
-.lfaa-canvas-asset__name {
-  overflow: hidden;
+.lfaa-cnv-asset__name {
+  overflow-wrap: anywhere;
   color: var(--color-text-primary);
   font-size: var(--font-size-sm);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.lfaa-canvas-asset__detail {
-  overflow: hidden;
+.lfaa-cnv-asset__detail {
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.lfaa-canvas-asset__actions {
+.lfaa-cnv-asset__actions {
   display: flex;
-  min-width: 0;
-  align-items: center;
   flex-wrap: wrap;
-  gap: 6px;
-  grid-column: 1 / -1;
+  gap: 4px;
 }
 
-.lfaa-canvas-scrim {
-  display: none;
-}
-
-.lfaa-canvas-footnote {
+/* 空态、提示与告警浮层。 */
+.lfaa-cnv-empty {
+  position: absolute;
+  z-index: 12;
+  inset: 0;
   display: flex;
-  min-width: 0;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 24px;
+  pointer-events: none;
+  text-align: center;
+}
+
+.lfaa-cnv-empty__hint {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  pointer-events: none;
+}
+
+.lfaa-cnv-empty__action.ant-btn {
+  height: auto;
+  padding: 2px 4px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  pointer-events: auto;
+}
+
+.lfaa-cnv-empty__action.ant-btn:hover {
+  color: var(--settings-accent, var(--color-brand));
+}
+
+.lfaa-cnv-empty--project {
+  flex-direction: column;
+}
+
+.lfaa-cnv-empty h3,
+.lfaa-cnv-empty p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  pointer-events: none;
+}
+
+.lfaa-cnv-empty .ant-btn {
+  pointer-events: auto;
+}
+
+.lfaa-cnv-loading {
+  position: absolute;
+  z-index: 12;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 8px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.lfaa-cnv-stage__busy {
+  position: absolute;
+  z-index: 14;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  background: var(--color-surface);
+  box-shadow: var(--lfaa-cnv-shadow);
+  font-size: var(--font-size-sm);
+}
+
+/* 顶部浮层内的错误/冲突/不支持节点提示：占满一行，随顶栏一起滚动，不会遮挡窄屏顶栏。 */
+.lfaa-cnv-alert {
+  width: 100%;
+  margin: 0;
+}
+
+.lfaa-cnv-unsupported {
+  width: 100%;
+  margin: 0;
+  padding: 4px 8px;
+  border: 1px dashed var(--color-status-warning);
+  border-radius: 8px;
+  background: var(--color-status-warning-surface);
+  color: var(--color-text-secondary);
   font-size: var(--font-size-xs);
   overflow-wrap: anywhere;
 }
 
-.lfaa-canvas-footnote .ant-typography {
-  margin: 0;
-  text-align: right;
+/* 双击画布后的新建节点菜单。 */
+.lfaa-cnv-add-menu {
+  position: absolute;
+  z-index: 40;
+  display: grid;
+  min-width: 168px;
+  max-height: 60vh;
+  gap: 2px;
+  padding: 6px;
+  overflow-y: auto;
+  border: 1px solid var(--lfaa-cnv-float-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  box-shadow: var(--lfaa-cnv-shadow);
 }
 
-@container lfaa-canvas (max-width: 1023px) {
-  .lfaa-canvas-body {
-    grid-template-columns: 220px minmax(0, 1fr);
+.lfaa-cnv-add-menu__item {
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.lfaa-cnv-add-menu__item:hover,
+.lfaa-cnv-add-menu__item:focus-visible {
+  background: var(--lfaa-cnv-hover);
+}
+
+.lfaa-cnv-add-menu__cancel {
+  color: var(--color-text-muted);
+}
+
+/* 节点卡片：宽高由 React Flow 的 style 决定，内部用 Flex 撑满并可滚动。 */
+.react-flow__node {
+  font-family: var(--settings-content-font, var(--settings-interface-font, var(--font-family-sans)));
+}
+
+.lfaa-cnv-node {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  box-shadow: 0 2px 10px var(--color-shadow-card-soft);
+}
+
+.lfaa-cnv-node.is-selected {
+  border-color: var(--settings-accent, var(--color-brand));
+  box-shadow: 0 0 0 1px var(--settings-accent, var(--color-brand));
+}
+
+.lfaa-cnv-node__header {
+  display: flex;
+  min-width: 0;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-muted);
+}
+
+/* 生成节点 header 内的真实状态徽标：运行中为警告色、成功为成功色、失败为错误色。 */
+.lfaa-cnv-node__badge {
+  flex: 0 0 auto;
+  padding: 0 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: 10px;
+  line-height: 16px;
+}
+
+.lfaa-cnv-node__badge--running {
+  border-color: var(--color-status-warning);
+  color: var(--color-status-warning);
+}
+
+.lfaa-cnv-node__badge--succeeded {
+  border-color: var(--color-status-success);
+  color: var(--color-status-success-text);
+}
+
+.lfaa-cnv-node__badge--failed {
+  border-color: var(--color-status-error);
+  color: var(--color-status-error-text);
+}
+
+.lfaa-cnv-node__kind {
+  flex: 0 0 auto;
+  color: var(--settings-accent, var(--color-brand));
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+}
+
+.lfaa-cnv-node__title {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lfaa-cnv-node__remove.ant-btn {
+  flex: 0 0 auto;
+  height: 22px;
+  padding: 0 4px;
+  font-size: var(--font-size-xs);
+}
+
+.lfaa-cnv-node__body {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  overflow: auto;
+}
+
+.lfaa-cnv-node__textarea,
+.lfaa-cnv-node__textarea.ant-input {
+  width: 100%;
+  min-height: 60px;
+  flex: 1 1 auto;
+  resize: none;
+  font-size: var(--font-size-sm);
+}
+
+.lfaa-cnv-node__media {
+  width: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
+  object-fit: contain;
+  border-radius: 8px;
+  background: var(--color-surface-muted);
+}
+
+.lfaa-cnv-node__audio {
+  width: 100%;
+}
+
+.lfaa-cnv-node__missing,
+.lfaa-cnv-node__advice,
+.lfaa-cnv-node__prompt,
+.lfaa-cnv-node__error {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.lfaa-cnv-node__missing {
+  padding: 12px;
+  border: 1px dashed var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.lfaa-cnv-node__advice {
+  color: var(--color-text-muted);
+}
+
+.lfaa-cnv-node__prompt {
+  color: var(--color-text-secondary);
+}
+
+.lfaa-cnv-node__error {
+  color: var(--color-status-error-text);
+}
+
+.lfaa-cnv-node__status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.lfaa-cnv-node__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.lfaa-cnv-field {
+  display: grid;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  grid-template-columns: 58px minmax(0, 1fr);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.lfaa-cnv-field--stack {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.lfaa-cnv-field > .ant-select {
+  width: 100%;
+}
+
+.lfaa-cnv-timeline {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.lfaa-cnv-timeline__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.lfaa-cnv-timeline__add {
+  width: 100%;
+}
+
+.lfaa-cnv-timeline__clip {
+  display: grid;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  grid-template-columns: minmax(0, 1fr) 68px 68px auto;
+  font-size: var(--font-size-xs);
+}
+
+.lfaa-cnv-handle {
+  width: 9px;
+  height: 9px;
+  border: 1px solid var(--color-surface);
+  background: var(--settings-accent, var(--color-brand));
+}
+
+/* 小地图：深色主题下用主题表面/边框/强调色绘制，避免默认亮白块抢视觉。 */
+.lfaa-cnv-minimap {
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface-muted) !important;
+  box-shadow: 0 6px 18px color-mix(in srgb, #000 28%, transparent);
+}
+
+.lfaa-cnv-minimap .react-flow__minimap-mask {
+  fill: color-mix(in srgb, var(--color-canvas) 62%, transparent) !important;
+}
+
+.lfaa-cnv-minimap .react-flow__minimap-node {
+  fill: color-mix(in srgb, var(--color-brand) 42%, var(--color-surface-muted)) !important;
+  stroke: var(--color-border-strong) !important;
+}
+
+/* 对话卡片按真实说明与操作内容收缩；资产库仍沿用占满工作区的抽屉高度。 */
+.lfaa-cnv-drawer.lfaa-cnv-chat {
+  z-index: 24;
+  top: 92px;
+  right: 12px;
+  bottom: auto;
+  left: auto;
+  width: min(420px, calc(100% - 24px));
+  height: auto;
+  max-height: min(460px, calc(100% - 112px));
+}
+
+/* 短屏折叠态：一行显示类型、提示词摘要与生成按钮；展开后的完整面板最高 60% 视口。 */
+.lfaa-cnv-generate--collapsed {
+  display: flex;
+  width: min(560px, calc(100% - 200px));
+  max-height: none;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  overflow: hidden;
+}
+
+.lfaa-cnv-generate__collapsed-type {
+  flex: 0 0 auto;
+  color: var(--settings-accent, var(--color-brand));
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+}
+
+.lfaa-cnv-generate__collapsed-prompt {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 连线在深浅主题都使用主题边框色，选中时用强调色。 */
+.react-flow__edge.selected .react-flow__edge-path,
+.react-flow__edge:focus .react-flow__edge-path {
+  stroke: var(--settings-accent, var(--color-brand));
+}
+
+.lfaa-cnv-workspace .react-flow__attribution {
+  display: none;
+}
+
+/* 容器宽度断点：生成面板随中心工作区收窄；顶部控件保留可用的项目选择宽度。 */
+/* 宽容器下资产库是浮动抽屉，不需要遮挡整块画布的遮罩。 */
+@container lfaa-canvas (min-width: 861px) {
+  .lfaa-cnv-scrim {
+    display: none;
+  }
+}
+
+@container lfaa-canvas (max-width: 1024px) {
+  .lfaa-cnv-project-switch {
+    width: 170px;
   }
 
-  .lfaa-canvas-toolbar__assets-toggle {
-    display: inline-flex;
+  .lfaa-cnv-generate {
+    width: min(620px, calc(100% - 196px));
+  }
+}
+
+@container lfaa-canvas (max-width: 860px) {
+  .lfaa-cnv-topbar {
+    gap: 6px;
+  }
+}
+
+@container lfaa-canvas (max-width: 640px) {
+  /* 窄屏顶栏分两行：项目与操作在第一行，返回与模式切换在第二行。 */
+  .lfaa-cnv-wide-only {
+    display: none !important;
   }
 
-  .lfaa-canvas-assets {
-    position: absolute;
-    z-index: 12;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: min(320px, 88%);
-    visibility: hidden;
-    transform: translateX(calc(100% + 16px));
-    background: var(--color-surface);
-    box-shadow: 0 10px 30px var(--color-shadow-float);
+  .lfaa-cnv-topbar {
+    inset: 8px 8px auto 8px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "project actions" "mode mode";
+    gap: 6px;
+    padding: 0;
   }
 
-  .lfaa-canvas-assets.is-open {
-    visibility: visible;
+  .lfaa-cnv-topbar__project {
+    grid-area: project;
+    width: 100%;
+    flex: 1 1 auto;
+  }
+
+  .lfaa-cnv-mode-switch {
+    grid-area: mode;
+    justify-self: end;
+  }
+
+  .lfaa-cnv-topbar__group--actions {
+    grid-area: actions;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+  }
+
+  .lfaa-cnv-project-switch {
+    width: min(220px, calc(100% - 56px));
+    min-width: 100px;
+  }
+
+  .lfaa-cnv-save-status {
+    max-width: 52px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .lfaa-cnv-minimap {
+    display: none;
+  }
+
+  .lfaa-cnv-rail {
+    top: auto;
+    bottom: 74px;
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-height: none;
+    flex-direction: row;
+    align-items: center;
+    gap: 0;
+    padding: 4px;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .lfaa-cnv-rail__item {
+    flex: 0 0 38px;
+    min-width: 38px;
+    width: 38px;
+    height: 38px;
+  }
+
+  .lfaa-cnv-rail__item[data-separator-before="true"] {
+    margin-top: 0;
+    margin-left: 7px;
+  }
+
+  .lfaa-cnv-rail__item[data-separator-before="true"]::before {
+    top: 7px;
+    right: auto;
+    bottom: 7px;
+    left: -5px;
+    border-top: 0;
+    border-left: 1px solid var(--lfaa-cnv-float-border);
+  }
+
+  .lfaa-cnv-zoom {
+    bottom: 8px;
+    left: 8px;
+  }
+
+  .lfaa-cnv-generate {
+    right: 8px;
+    bottom: 126px;
+    left: 8px;
+    width: auto;
+    max-height: 46vh;
     transform: none;
   }
 
-  .lfaa-canvas-assets__close {
-    display: inline-flex;
+  .lfaa-cnv-generate--collapsed {
+    right: 8px;
+    bottom: 126px;
+    left: 8px;
+    width: auto;
+    max-height: none;
+    transform: none;
   }
 
-  .lfaa-canvas-scrim {
-    position: absolute;
-    z-index: 11;
-    inset: 0;
-    display: block;
-    padding: 0;
-    border: 0;
-    background: color-mix(in srgb, var(--color-text-primary) 26%, transparent);
-    cursor: pointer;
+  .lfaa-cnv-drawer {
+    top: auto;
+    right: 8px;
+    bottom: 122px;
+    left: 8px;
+    width: auto;
+    max-height: 56vh;
+  }
+
+  .lfaa-cnv-drawer.lfaa-cnv-chat {
+    top: 72px;
+    right: 8px;
+    bottom: auto;
+    left: 8px;
+    width: auto;
+    max-height: calc(100% - 88px);
+  }
+
+  .lfaa-cnv-timeline__clip {
+    grid-template-columns: minmax(0, 1fr) 62px 62px;
+  }
+
+  .lfaa-cnv-timeline__clip .ant-btn {
+    grid-column: 1 / -1;
+    justify-self: end;
   }
 }
 
-@container lfaa-canvas (max-width: 639px) {
-  .lfaa-canvas-shell {
-    gap: var(--space-2);
-    padding: var(--space-2);
-  }
-
-  .lfaa-canvas-header {
-    flex-direction: column;
-    gap: var(--space-1);
-  }
-
-  .lfaa-canvas-status {
-    text-align: left;
-  }
-
-  .lfaa-canvas-toolbar {
-    gap: 6px;
-  }
-
-  .lfaa-canvas-toolbar__title {
-    order: -1;
-    flex: 1 0 100%;
-    max-width: none;
-  }
-
-  .lfaa-canvas-toolbar__project-select {
-    display: flex;
-    flex: 1 0 100%;
-    min-width: 0;
-  }
-
-  .lfaa-canvas-projects {
+/* 短屏（≤640 高）：生成面板默认折叠（一行），展开后最高 60% 视口；小地图在短屏隐藏。 */
+@media (max-height: 640px) {
+  .lfaa-cnv-minimap {
     display: none;
   }
 
-  .lfaa-canvas-body {
-    grid-template-columns: minmax(0, 1fr);
-    min-height: 320px;
-  }
-
-  .lfaa-canvas-stage {
-    min-height: 320px;
-  }
-
-  .lfaa-canvas-footnote {
-    justify-content: flex-start;
-  }
-
-  .lfaa-canvas-footnote .ant-typography {
-    text-align: left;
+  .lfaa-cnv-generate:not(.lfaa-cnv-generate--collapsed) {
+    max-height: 60vh;
   }
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .lfaa-canvas-assets {
-    transition: transform 160ms ease, visibility 160ms;
+@media (max-height: 640px) and (min-width: 641px) {
+  .lfaa-cnv-generate--collapsed {
+    bottom: 12px;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
   }
 }
 
-@media (max-height: 680px) {
-  .lfaa-canvas-shell {
-    gap: var(--space-2);
-    padding-block: var(--space-2);
+/* 短屏（≤480 高）：压缩顶部浮层，让顶部与面板仍可滚动操作。 */
+@media (max-height: 480px) {
+  .lfaa-cnv-topbar {
+    inset: 6px 6px auto 6px;
+    gap: 4px;
   }
 
-  .lfaa-canvas-header__copy .ant-typography-paragraph {
-    display: none;
+  .lfaa-cnv-zoom {
+    bottom: 6px;
+  }
+}
+
+/* 宽屏且短：同时压缩左侧工具轨、右侧抽屉与生成面板高度；窄屏短视口保留横向工具轨布局。 */
+@media (max-height: 480px) and (min-width: 641px) {
+  .lfaa-cnv-rail {
+    max-height: calc(100% - 96px);
   }
 
-  .lfaa-canvas-body {
-    min-height: 280px;
+  .lfaa-cnv-drawer {
+    top: 76px;
+    bottom: 60px;
   }
 
-  .lfaa-canvas-stage {
-    min-height: 280px;
+  .lfaa-cnv-drawer.lfaa-cnv-chat {
+    top: 76px;
+    bottom: auto;
+    max-height: calc(100% - 88px);
   }
 
-  .lfaa-canvas-projects,
-  .lfaa-canvas-assets {
-    min-height: 0;
+  .lfaa-cnv-generate {
+    bottom: 8px;
+    max-height: 40vh;
+  }
+}
+
+/* 减少动态效果：关闭画布过渡与动画。 */
+.workbench-shell[data-reduced-motion="true"] .lfaa-cnv-rail__item,
+.workbench-shell[data-reduced-motion="true"] .lfaa-cnv-node,
+.workbench-shell[data-reduced-motion="true"] .lfaa-cnv-drawer,
+.workbench-shell[data-reduced-motion="true"] .lfaa-cnv-generate {
+  transition: none !important;
+  animation: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lfaa-cnv-rail__item,
+  .lfaa-cnv-node,
+  .lfaa-cnv-drawer,
+  .lfaa-cnv-generate {
+    transition: none !important;
+    animation: none !important;
   }
 }

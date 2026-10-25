@@ -550,6 +550,89 @@ function Get-GitConfigValue {
     return ($lines -join "`n").Trim()
 }
 
+function Get-GitIndexLockPath {
+    $indexLockPath = ((Invoke-GitOutput -GitArguments @('rev-parse', '--git-path', 'index.lock')) -join "`n").Trim()
+    if ([string]::IsNullOrWhiteSpace($indexLockPath)) {
+        throw 'Git 未返回当前仓库索引锁路径，已停止暂存。'
+    }
+
+    if (-not [System.IO.Path]::IsPathRooted($indexLockPath)) {
+        $indexLockPath = Join-Path $projectRoot $indexLockPath
+    }
+
+    return [System.IO.Path]::GetFullPath($indexLockPath)
+}
+
+function Remove-StaleGitIndexLock {
+    param([Parameter(Mandatory = $true)][string]$GitIndexLockPath)
+
+    $lockPath = [System.IO.Path]::GetFullPath($GitIndexLockPath)
+    if (-not (Test-Path -LiteralPath $lockPath)) {
+        return $false
+    }
+
+    if (-not (Test-Path -LiteralPath $lockPath -PathType Leaf)) {
+        throw "Git 索引锁路径不是普通文件：$lockPath；未删除，已停止暂存。"
+    }
+
+    $lockItem = Get-Item -LiteralPath $lockPath -Force
+    if (($lockItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw "Git 索引锁路径是重解析点：$lockPath；未删除，已停止暂存。"
+    }
+
+    # 近期锁先保留；超过 10 分钟仍需通过独占句柄探测，才能排除慢速 Git 操作。
+    $minimumAge = [System.TimeSpan]::FromMinutes(10)
+    $nowUtc = [System.DateTime]::UtcNow
+    $lastWriteUtc = $lockItem.LastWriteTimeUtc
+    if (($nowUtc - $lastWriteUtc) -lt $minimumAge) {
+        throw ("检测到较新的 Git 索引锁：{0}（最后写入 {1:yyyy-MM-dd HH:mm:ss} UTC）。请等待当前 Git 操作完成后重试；未删除锁文件。" -f $lockPath, $lastWriteUtc)
+    }
+
+    $probeStream = $null
+    try {
+        # Windows 的独占打开可发现任何持有该文件句柄的进程，不依赖进程名称猜测。
+        $probeStream = [System.IO.File]::Open(
+            $lockPath,
+            [System.IO.FileMode]::Open,
+            [System.IO.FileAccess]::ReadWrite,
+            [System.IO.FileShare]::None
+        )
+    }
+    catch [System.IO.IOException] {
+        throw ("Git 索引锁仍被进程占用或无法独占检查：{0}。请关闭此仓库中正在运行的 Git 操作后重试；未删除锁文件。" -f $lockPath)
+    }
+    catch {
+        throw ("无法安全检查 Git 索引锁：{0}。原因：{1}；未删除锁文件。" -f $lockPath, $_.Exception.Message)
+    }
+    finally {
+        if ($null -ne $probeStream) {
+            $probeStream.Dispose()
+        }
+    }
+
+    if (-not (Test-Path -LiteralPath $lockPath -PathType Leaf)) {
+        return $false
+    }
+
+    $latestLockItem = Get-Item -LiteralPath $lockPath -Force
+    if (($latestLockItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0 -or
+        $latestLockItem.Length -ne $lockItem.Length -or
+        $latestLockItem.LastWriteTimeUtc -ne $lastWriteUtc -or
+        (([System.DateTime]::UtcNow - $latestLockItem.LastWriteTimeUtc) -lt $minimumAge)) {
+        throw "Git 索引锁在安全检查期间发生变化：$lockPath；未删除，已停止暂存。"
+    }
+
+    try {
+        [System.IO.File]::Delete($lockPath)
+    }
+    catch {
+        throw ("无法移除已确认过期且未占用的 Git 索引锁：{0}。原因：{1}；已停止暂存。" -f $lockPath, $_.Exception.Message)
+    }
+
+    Write-Host "已移除确认过期且未占用的 Git 索引锁：$lockPath" -ForegroundColor Yellow
+    return $true
+}
+
 function Get-ConfiguredDataDirectory {
     $nodeCommand = Get-Command 'node' -ErrorAction SilentlyContinue
     if (-not $nodeCommand) {
@@ -1009,6 +1092,8 @@ function Push-GitHubRepository {
                 Write-Host "  $change"
             }
 
+            $gitIndexLockPath = Get-GitIndexLockPath
+            [void](Remove-StaleGitIndexLock -GitIndexLockPath $gitIndexLockPath)
             Invoke-GitChecked -GitArguments @('add', '-A')
 
             # 忽略规则不是安全边界；再次检查暂存区并保留被排除的本地文件。
@@ -1092,6 +1177,7 @@ function Push-GitHubRepository {
                     $validCommitMessage = $true
                 }
 
+                [void](Remove-StaleGitIndexLock -GitIndexLockPath $gitIndexLockPath)
                 Invoke-GitChecked -GitArguments @('commit', '-m', $commitMessage)
                 $commitCreated = $true
             }

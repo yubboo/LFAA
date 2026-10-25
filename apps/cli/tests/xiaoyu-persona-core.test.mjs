@@ -34,15 +34,21 @@ test("真实插件登记后身份与领域地图排在核心指引之后、领�
     assert.ok(permissionAt < agentAt, "权限模式先于按需 Agent 指引");
     assert.ok(agentAt < suffixAt, "领域约定排在 Agent 指引之后");
     assert.ok(suffixAt < contextAt, "领域约定排在运行上下文之前");
-    // 领域清单必须与当前装配一致：三个领域有工具，联机如实说明尚未接入工具。
+    // 领域清单必须与当前装配一致：四个领域有工具，联机如实说明尚未接入工具。
     assert.match(text, /minecraft_\*/);
     assert.match(text, /steamcmd_\*/);
     assert.match(text, /writing_\*/);
+    assert.match(text, /canvas_\*/, "画布领域必须列出真实工具名");
+    assert.match(text, /canvas_generate_image/, "真实图片生成工具名必须出现在领域地图");
+    assert.match(text, /所有 App 共用的系统能力/, "画布必须说明是系统级、多 App 共用能力");
+    assert.match(text, /按账户 \+ App 隔离/, "画布必须说明数据按账户与 App 隔离");
+    assert.match(text, /expert\.canvas-director/, "画布领域必须指向真实登记的画布导演专家");
     assert.match(text, /尚未接入 Agent 工具/);
     assert.doesNotMatch(text, /connectivity_[a-z_]+/u, "未接入的联机工具不得出现在正文");
     const core = persona.buildXiaoyuCore();
     const bytes = Buffer.byteLength(core.prefix + (core.suffix ?? ""), "utf8");
     assert.ok(bytes < 6000, "人格正文必须保持有界，避免挤占每次请求的上下文");
+    assert.equal(core.version, "1.2.0", "画布领域接入后核心正文版本必须递增并保持一致");
     t.diagnostic("小鱼核心正文 " + bytes + " 字节，版本 " + persona.XIAOYU_CORE_VERSION);
   } finally {
     await fiber.dispose();

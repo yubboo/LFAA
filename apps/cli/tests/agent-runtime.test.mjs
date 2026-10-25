@@ -72,6 +72,10 @@ test("网页活动保留实际查询与 URL，遮蔽凭据且不记录 URL 查�
   assert.ok(safe.length < 1900);assert.doesNotMatch(safe, /sk-test-12345678901234567890/u);assert.match(safe,/预览已截断/u);
   assert.equal(buildWebActivityPreview("web.fetch", { url: "https://user:secret@example.test/docs?token=secret#private" }), "读取网页：\nhttps://example.test/docs");
   assert.equal(buildWebActivityPreview("web.fetch", { url: "file:///private" }), null);
+  assert.equal(buildWebActivityPreview("browser-use.navigate", { url: "http://user:secret@127.0.0.1:3000/work?token=secret#private" }), "打开网页：\nhttp://127.0.0.1:3000/work");
+  assert.equal(buildWebActivityPreview("browser-use.navigate", { url: "file:///private" }), null);
+  assert.equal(buildWebActivityPreview("browser-use.open-workspace-file", { path: "site\\index.html" }), "工作区网页：\nsite/index.html");
+  assert.equal(buildWebActivityPreview("browser-use.open-workspace-file", { path: "../private.html" }), null);
   assert.equal(buildWebActivityPreview("other.tool", { queries: ["private"] }), null);
 });
 

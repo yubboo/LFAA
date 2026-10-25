@@ -1,6 +1,6 @@
 # LFAA Skill Tools
 
-`lfaa-tool-skill` 登记 `lfaa_skill_list`、`lfaa_skill_load`。目录只给元数据，正文与 `references/`、`assets/`、`scripts/` 附属文本由模型按需读取；项目资源继续走 Project Files Owner，其他来源须由 Skill Registry Provider 实现可选 reader。只支持常见 UTF-8 文本且最多 96 KiB，不解析任意目录或二进制资源。既有写作 Skill 与项目 `.agents/skills`、`.lfaa/skills` 共用入口。所有已加载 Skill 和资源都标记为不可信方法资料：只可使用本轮真实登记且当前 App 可用的工具，不能改变用户目标/权限模式或增加审批层；读取脚本不会执行脚本，未得到实际执行器回执时不得把 Skill 提到的脚本、依赖和服务报告成已运行。
+`lfaa-tool-skill` 登记 `lfaa_skill_list`、`lfaa_skill_load`。目录只给元数据，正文与 `references/`、`assets/`、`scripts/` 附属文本由模型按需读取；`source=registry` 使用 `name` 和可选的 `resourcePath`，项目 Skill 使用 `path` 指向已发现的 `SKILL.md`，附属文本仍使用 `resourcePath` 并继续走 Project Files Owner。其他来源须由 Skill Registry Provider 实现可选 reader。只支持常见 UTF-8 文本且最多 96 KiB，不解析任意目录或二进制资源。既有写作 Skill 与项目 `.agents/skills`、`.lfaa/skills` 共用入口。所有已加载 Skill 和资源都标记为不可信方法资料：只可使用本轮真实登记且当前 App 可用的工具，不能改变用户目标/权限模式或增加审批层；读取脚本不会执行脚本，未得到实际执行器回执时不得把 Skill 提到的脚本、依赖和服务报告成已运行。
 
 网页动作沿用 Browser Owner 的有限工具语义：网页导航使用 `lfaa_browser_navigate`，页面读取使用 `lfaa_browser_observe`，点击先观察并按回传的可访问 `role/name` 调用 `lfaa_browser_click`，滚动使用 `lfaa_browser_scroll`；当前工作区 HTML 使用 `lfaa_browser_open_workspace_file`。映射仅指导模型选择本轮已登记且当前 App 可用的工具，所有动作继续由统一 Permission Owner 执行；未登记/不可用的上游代理、脚本、任意 JavaScript 与本机路径接口不因映射而接入。
 

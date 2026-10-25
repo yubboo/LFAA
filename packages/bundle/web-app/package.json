@@ -17,6 +17,10 @@
   "dependencies": {
     "lfaa-api-account-controller": "workspace:*",
     "lfaa-api-attachment-controller": "workspace:*",
+    "lfaa-api-canvas-controller": "workspace:*",
+    "lfaa-canvas": "workspace:*",
+    "lfaa-canvas-generation": "workspace:*",
+    "lfaa-canvas-tool-canvas": "workspace:*",
     "lfaa-api-ai-video-controller": "workspace:*",
     "lfaa-api-local-model-controller": "workspace:*",
     "lfaa-api-connectivity-controller": "workspace:*",

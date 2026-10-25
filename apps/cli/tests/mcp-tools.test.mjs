@@ -17,7 +17,7 @@ await import("lfaa-settings/src/service.js");
 await import("lfaa-session/src/sessions.js");
 const { retireLegacyFileTables } = await import("lfaa-storage-domain/src/migration.js");
 retireLegacyFileTables();
-const { discoverMcpTools } = await import("lfaa-mcp-client/src/runtime.js");
+const { discoverMcpTools, resolveMcpStdioLaunch } = await import("lfaa-mcp-client/src/runtime.js");
 const { formatMcpServerInstructions, mcpToolResultContent, persistedMcpToolResult, persistedModelMessages, releaseOlderComputerImages } = await import("lfaa-agent-loop/src/execute-turn.js");
 const { createPinnedMcpLookup, isPublicMcpAddress, resolveMcpEndpoint } = await import("lfaa-mcp-client/src/network.js");
 const { allowsPrivateMcpNetwork } = await import("lfaa-launch-environment/src/config.js");
@@ -305,4 +305,15 @@ test("本机 stdio MCP 经模型能力目录返回图像并在当前租约结束
     else process.env.LFAA_MCP_FIXTURE_SECRET = previousSecret;
     if (completed) for (const pid of processIds) assert.throws(() => process.kill(pid, 0), error => error.code === "ESRCH", "MCP stdio 子进程在最后一份租约结束后退出");
   }
+});
+
+test("Windows npx stdio MCP 映射到 Node npm CLI 且不经 Shell", () => {
+  const executable = "C:\\Program Files\\nodejs\\node.exe";
+  const cli = "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npx-cli.js";
+  const args = ["-y", "@modelcontextprotocol/server-sequential-thinking@2.0.0"];
+  assert.deepEqual(resolveMcpStdioLaunch("npx", args, "win32", executable, path => path === cli), { command: executable, args: [cli, ...args] });
+  assert.deepEqual(resolveMcpStdioLaunch("C:\\Program Files\\nodejs\\npx.cmd", args, "win32", executable, path => path === cli), { command: executable, args: [cli, ...args] });
+  assert.deepEqual(resolveMcpStdioLaunch("git", args, "win32", executable, () => true), { command: "git", args });
+  assert.deepEqual(resolveMcpStdioLaunch("npx", args, "linux", "/usr/bin/node", () => true), { command: "npx", args });
+  assert.deepEqual(resolveMcpStdioLaunch("npx", args, "win32", executable, () => false), { command: "npx", args }, "npm CLI 不存在时保留原命令，让真实启动错误清晰返回");
 });

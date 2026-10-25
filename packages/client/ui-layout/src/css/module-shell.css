@@ -1,9 +1,11 @@
 /* UI Layout 外壳规则：只负责模块路由共用的页面高度与滚动边界；各页面内容样式由自己的 UI 包负责。 */
 /* 模块工作台的滚动留在各自内容盒子；文档根节点不跟随内层面板一起滚动。 */
+/* Web 入口在 html/body 都预留稳定滚动槽；模块页已锁定根滚动，这里同时取消两层预留，避免窄屏缩掉 20px。 */
 :root:has(.workbench-shell--module) {
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
+  scrollbar-gutter: auto;
   overscroll-behavior: none;
 }
 body:has(.workbench-shell--module) {
@@ -11,6 +13,7 @@ body:has(.workbench-shell--module) {
   height: 100%;
   min-height: 0;
   overflow: hidden;
+  scrollbar-gutter: auto;
   overscroll-behavior: none;
 }
 :root:has(.workbench-shell--module) #root {

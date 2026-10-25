@@ -7,7 +7,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { buildResponseTimeline, responseToolGroupLabel, splitAiActivityDetail } from "../../../packages/client/ui-chat/src/response-timeline.ts";
+import { buildResponseTimeline, getResponseShimmerHue, latestBrowserPreviewActivity, responseToolGroupLabel, splitAiActivityDetail } from "../../../packages/client/ui-chat/src/response-timeline.ts";
 import { createStreamDeltas } from "../../../packages/client/connection/src/stream-deltas.ts";
 import { appendAiTextDelta, streamAiChat } from "../../../packages/client/connection/src/api.ts";
 
@@ -27,6 +27,13 @@ function fixture(status = "complete") {
     activity: [{ ...activity("internal-agent", 0, "agent"), title: "小鱼主 Agent" }, { ...activity("internal-tools", 0, "tool"), title: "已登记项目工具" }, activity("command-1", parts[0].end), activity("command-2", parts[0].end), { ...activity("question", parts[1].end, "question"), question: "是否继续？", questionId: "q", options: ["继续", "停止"], detail: "你的回答：继续" }, activity("command-3", parts[1].end)] };
 }
 
+test("七色流光相位按回复 ID 稳定派生，token 更新不会换色", () => {
+  const hue = getResponseShimmerHue("reply-a");
+  assert.equal(getResponseShimmerHue("reply-a"), hue);
+  assert.notEqual(getResponseShimmerHue("reply-b"), hue);
+  assert.ok(Number.isInteger(hue) && hue >= 0 && hue < 360);
+});
+
 test("正文与操作组、确认记录交错，最终答案保持为独立的终态片段", () => {
   const result = buildResponseTimeline(fixture());
   assert.deepEqual(result.blocks.map(block => block.kind), ["text", "tools", "text", "interaction", "tools"]);
@@ -36,6 +43,8 @@ test("正文与操作组、确认记录交错，最终答案保持为独立的�
   assert.equal(result.finalText, "**已经完成。**");
   assert.ok(!JSON.stringify(result.blocks).includes("已经完成"));
   assert.equal(responseToolGroupLabel([{ ...activity("shell", 0, "tool"), title: "执行本机命令" }]), "运行了命令");
+  assert.equal(responseToolGroupLabel([{ ...activity("active-file", 0, "tool"), title: "操作项目文件", detail: "参数校验通过；按当前权限执行", status: "running" }]), "正在执行：操作项目文件");
+  assert.equal(responseToolGroupLabel([{ ...activity("active-shell", 0), title: "执行本机命令", status: "running" }]), "正在运行命令");
   assert.equal(responseToolGroupLabel([{ ...activity("file", 0, "tool"), fileChanges: [{ operation: "modified", path: "src/main.ts", projectId: "project" }] }]), "编辑了文件");
   assert.equal(responseToolGroupLabel([activity("command-1", 0), activity("command-2", 0), activity("command-3", 0)]), "运行了 3 条命令");
   assert.equal(responseToolGroupLabel([
@@ -57,22 +66,50 @@ test("流式正文、工具与交互按落点留在同条回复，完成后追�
     const require=createRequire(${JSON.stringify(new URL("../../web/package.json", import.meta.url).href)});
     const {createElement}=require('react');const {renderToStaticMarkup}=require('react-dom/server');
     const {AiWorkResponse}=await import(${JSON.stringify(new URL("../../../packages/client/ui-chat/src/AiWorkResponse.tsx", import.meta.url).href)});
-    console.log(renderToStaticMarkup(createElement(AiWorkResponse,{message:${JSON.stringify(message)},renderActivity:item=>createElement('span',{key:item.id},item.id),renderInteraction:${showInteractions ? "item=>createElement('section',null,item.question,item.detail)" : "()=>null"},onOpenProjectFileReview:()=>{}})));
+    console.log(renderToStaticMarkup(createElement(AiWorkResponse,{message:${JSON.stringify(message)},renderActivity:item=>createElement('span',{key:item.id},item.id),renderInteraction:${showInteractions ? "item=>createElement('section',null,item.question,item.detail)" : "()=>null"},onOpenProjectFileReview:()=>{},onBrowserToolCompleted:()=>{}})));
   `], { cwd: fileURLToPath(new URL("..", import.meta.url)), env: { ...process.env, TSX_TSCONFIG_PATH: fileURLToPath(new URL("../../../tsconfig.client.json", import.meta.url)) }, encoding: "utf8" }).trim();
   const running = render(fixture("streaming"));
+  assert.match(running, new RegExp(`--ai-work-stream-hue:${getResponseShimmerHue("run")}deg`), "回复色相来自稳定的消息 ID");
   assert.match(running, /response-duration" role="status">已处理 \d+ (?:小时|分钟|秒)/u);
   assert.doesNotMatch(running, /response-history|response-divider|response-live/u);
   assert.doesNotMatch(running, /小鱼主 Agent|已登记项目工具/u);
-  assert.match(running, /正在思考/u);
+  assert.match(running, /ai-work-chat__activity-live-status--processing[^>]*[\s\S]*?<span>正在回复<\/span>/u, "已有可见正文时状态为正在回复");
+  assert.doesNotMatch(running, /activity-current-action--static/u, "当前状态不固定在耗时行下方");
   assert.doesNotMatch(running, /<details class="ai-work-chat__tool-group"[^>]*\bopen=/u);
   const durationStart = running.indexOf('class="ai-work-chat__response-duration"');
-  const currentActionStart = running.indexOf('class="ai-work-chat__activity-current-action--static"');
   const timelineStart = running.indexOf('class="ai-work-chat__response-timeline"');
-  assert.ok(durationStart < currentActionStart && currentActionStart < timelineStart, "耗时与当前状态位于流式时间线顶部");
+  const currentActionStart = running.indexOf('class="ai-work-chat__activity-live-status');
+  assert.ok(durationStart < timelineStart && timelineStart < currentActionStart, "当前状态放在实际流式时间线中");
   assert.ok(running.indexOf("先核对现状。") < running.indexOf("command-1"));
   assert.ok(running.indexOf("command-2") < running.indexOf("已找到问题。"));
   assert.ok(running.indexOf("已找到问题。") < running.indexOf("是否继续？"));
   assert.ok(running.indexOf("command-3") < running.indexOf("已经完成。"));
+
+  const thinking = fixture("streaming");
+  thinking.content = "";
+  thinking.parts = [];
+  thinking.activity = [{ ...activity("thinking-phase", 0, "status"), title: "模型推理中 · deepseek-flash", status: "running" }];
+  const thinkingMarkup = render(thinking);
+  assert.match(thinkingMarkup, /<span>正在思考<\/span>/u, "首个可见正文前保留真实思考状态");
+  assert.ok(thinkingMarkup.indexOf('class="ai-work-chat__response-timeline"') < thinkingMarkup.indexOf('class="ai-work-chat__activity-live-status'), "思考状态属于时间线，而不是单独固定行");
+
+  const actualReply = fixture("streaming");
+  actualReply.activity = [{ ...activity("reply-phase", actualReply.parts[0].end, "status"), title: "流式接收回答", status: "running" }];
+  const actualReplyMarkup = render(actualReply);
+  assert.ok(actualReplyMarkup.indexOf("已经完成。") < actualReplyMarkup.indexOf("正在回复"), "流式回复状态跟随最新可见正文，而不是停在阶段开始偏移");
+  const partialReply = fixture("streaming");
+  partialReply.content = "先核对现状。";
+  partialReply.parts = [{ id: "part-0", start: 0, end: partialReply.content.length, kind: "commentary" }];
+  partialReply.activity = [{ ...activity("reply-phase", 0, "status"), title: "流式接收回答", status: "running" }];
+  const partialReplyMarkup = render(partialReply);
+  assert.ok(partialReplyMarkup.indexOf("先核对现状。") < partialReplyMarkup.indexOf("正在回复"), "正文增长前状态位于当时正文末尾");
+
+  const activeTool = fixture("streaming");
+  activeTool.activity.push({ ...activity("active-file", activeTool.content.length, "tool"), title: "操作项目文件", detail: "参数校验通过；按当前权限执行", status: "running", completedAt: null, durationMs: null });
+  const activeToolMarkup = render(activeTool);
+  assert.match(activeToolMarkup, /ai-work-chat__tool-group--running[^>]*>/u);
+  assert.match(activeToolMarkup, /正在执行：操作项目文件/u, "当前工具动作显示在实际工具活动组");
+  assert.doesNotMatch(activeToolMarkup, /activity-live-status/u, "真实工具活动不重复生成顶置状态");
   const leadingBlankLines = fixture("streaming");
   leadingBlankLines.content = "\n\n首段正文\n\n后续段";
   leadingBlankLines.parts = [{ id: "leading-blank-lines", start: 0, end: leadingBlankLines.content.length, kind: "commentary" }];
@@ -85,9 +122,10 @@ test("流式正文、工具与交互按落点留在同条回复，完成后追�
   assert.match(running, /是否继续？你的回答：继续/u);
   const finished = render(fixture());
   assert.match(finished, /<details class="ai-work-chat__response-history">/u);
-  assert.match(finished, /<summary><span>用时 /u);
+  assert.match(finished, /<summary>\s*<span class="ai-work-chat__response-history-summary"><span>用时 /u);
+  assert.match(finished, /class="ai-work-chat__response-history-state" data-tone="complete">已完成<\/span>/u, "整轮终态来自真实 complete 消息状态并在折叠摘要可见");
   assert.doesNotMatch(finished, /小鱼主 Agent|已登记项目工具/u);
-  assert.doesNotMatch(finished, /<details class="ai-work-chat__tool-group"[^>]*\bopen=/u);
+  assert.match(finished, /<details class="ai-work-chat__tool-group"[^>]*\bopen=/u, "展开用时时直接显示实际工具步骤");
   assert.doesNotMatch(render(fixture("streaming"), false), /ai-work-chat__response-interaction/u);
   const finalStart = finished.indexOf('class="ai-work-chat__response-final"');
   const historyStart = finished.indexOf('<details class="ai-work-chat__response-history">');
@@ -95,6 +133,37 @@ test("流式正文、工具与交互按落点留在同条回复，完成后追�
   assert.ok(historyStart < finished.indexOf("command-3") && historyEnd < finalStart, "完成后真实工作过程收在用时折叠区，最终答案独立可见");
   assert.match(finished.slice(finalStart), /<strong>已经完成。<\/strong>/u);
   assert.equal([...finished.matchAll(/已经完成。/gu)].length, 1);
+  const failedReply = fixture("error");
+  failedReply.content = "真实执行失败：Provider 连接超时。";
+  failedReply.parts = [{ id: "failure-final", start: 0, end: failedReply.content.length, kind: "final" }];
+  const failedMarkup = render(failedReply);
+  assert.match(failedMarkup, /class="ai-work-chat__response-history-state" data-tone="error">未能完成<\/span>/u);
+  assert.match(failedMarkup, /真实执行失败：Provider 连接超时/u, "失败诊断继续展示真实回复内容，不由状态标签合成");
+  const stoppedReply = fixture("interrupted");
+  stoppedReply.content = "任务已停止。";
+  stoppedReply.parts = [{ id: "stopped-final", start: 0, end: stoppedReply.content.length, kind: "final" }];
+  assert.match(render(stoppedReply), /class="ai-work-chat__response-history-state" data-tone="stopped">已停止<\/span>/u);
+  const withStages = fixture();
+  withStages.activity.splice(2, 0, { ...activity("request-model", 0, "status"), title: "请求 deepseek · flash", detail: "第 1 次模型请求。" });
+  const stageTimeline = buildResponseTimeline(withStages);
+  assert.equal(stageTimeline.blocks[0].kind, "activity");
+  assert.equal(stageTimeline.blocks[0].activity.id, "request-model", "完成态保留真实模型请求阶段，不展示隐藏推理文本");
+  const stageMarkup = render(withStages);
+  assert.match(stageMarkup, /request-model/u);
+  assert.equal(stageTimeline.blocks[0].activity.detail, "第 1 次模型请求。", "执行节点携带 Owner 保存的真实阶段摘要");
+  const emptyHistory = fixture(); emptyHistory.parts = undefined; emptyHistory.activity = [];
+  assert.match(render(emptyHistory), /此回复没有保存可展示的过程更新或工具操作/u, "旧消息没有过程数据时明确说明，避免留下空白区");
+  const browserActivity = { ...activity("browser-navigation", 0, "tool"), title: "导航浏览器页面", toolId: "browser-use.navigate", browserProviderId: "lfaa-native-browser", detail: "页面导航完成。\n打开网页：\nhttp://127.0.0.1:3000/canvas" };
+  const browserReply = fixture(); browserReply.activity.push(browserActivity);
+  assert.equal(latestBrowserPreviewActivity(browserReply)?.id, "browser-navigation");
+  const browserMarkup = render(browserReply);
+  assert.match(browserMarkup, /网页预览/u);
+  assert.match(browserMarkup, /http:\/\/127\.0\.0\.1:3000\/canvas/u);
+  assert.match(browserMarkup, /打开方式/u);
+  const personalBrowserReply = fixture(); personalBrowserReply.activity.push({ ...browserActivity, id: "personal-browser", browserProviderId: "tabbit-personal" });
+  assert.equal(latestBrowserPreviewActivity(personalBrowserReply), null, "个人浏览器页面不伪装成可在 LFAA Dock 重开的预览");
+  const failedBrowserReply = fixture(); failedBrowserReply.activity.push({ ...browserActivity, id: "failed-browser", status: "error" });
+  assert.equal(latestBrowserPreviewActivity(failedBrowserReply), null, "导航失败不生成预览入口");
   const withFiles = fixture();
   withFiles.activity.push({ ...activity("file-change", 0, "tool"), title: "编辑文件", fileChanges: [
     { operation: "modified", path: "packages/client/ui-chat/src/AiWorkResponse.tsx", projectId: "project" },

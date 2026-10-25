@@ -2173,9 +2173,16 @@
 }
 
 .settings-ai-provider-modal .ant-modal-content {
+  display: flex;
   max-height: calc(100vh - 48px);
   max-height: calc(100dvh - 48px);
+  flex-direction: column;
   overflow: hidden;
+}
+
+.settings-ai-provider-modal .ant-modal-body {
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .ai-provider-modal__content {

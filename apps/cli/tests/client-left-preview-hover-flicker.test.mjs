@@ -42,6 +42,8 @@ test("左二 hover 按钮到预览之间的响应式命中区连续", () => {
 
   assert.match(previewRule, /visibility:\s*hidden/u);
   assert.match(previewRule, /pointer-events:\s*auto/u);
+  assert.match(previewRule, /left:\s*0/u);
+  assert.doesNotMatch(previewRule, /left:\s*var\(--lfaa-leading-width/u);
   assert.match(previewRule, /transition:\s*opacity\s+260ms[^;]*,\s*visibility\s+0s\s+linear\s+260ms/u);
   assert.match(visibleRule, /pointer-events:\s*auto/u);
   assert.ok(workspaceSource.includes("if (previewCloseTimer.current !== closeTimer) return;"));
@@ -58,8 +60,31 @@ test("左二 hover 按钮到预览之间的响应式命中区连续", () => {
   assert.doesNotMatch(workspaceSource, /const leftPreview\s*=/u);
   assert.doesNotMatch(workspaceSource, /overlay=\{chrome\.leftCollapsed/u);
   assert.match(workspaceSource, /leftRegionClassName=\{leftRegionClassName\}/u);
-  assert.match(workspaceSource, /onPreviewMouseEnter: openLeftPreview[\s\S]*?onPreviewMouseLeave: closeLeftPreview[\s\S]*?onPreviewBlur: closeLeftPreview/u);
-  assert.match(workspaceSource, /className="module-sidebar"[^>]*onMouseEnter=\{onPreviewMouseEnter\}[^>]*onMouseLeave=\{onPreviewMouseLeave\}[^>]*onBlur=\{onPreviewBlur\}/u);
+  assert.doesNotMatch(workspaceSource, /onPreviewMouseEnter/u);
+  const sidebarRoot = workspaceSource.match(/<div className="module-sidebar"[^>]*>/u)?.[0] ?? "";
+  assert.doesNotMatch(sidebarRoot, /onMouseEnter=/u);
+  assert.match(sidebarRoot, /onMouseLeave=\{onPreviewMouseLeave\}[^>]*onBlur=\{onPreviewBlur\}/u);
   assert.match(workspaceSource, /const leftPreviewContextRef = useRef\(\{ app, mode, section, layoutMode: metrics\.mode \}\)/u);
   assert.match(workspaceSource, /previousContext\.app === app && previousContext\.mode === mode && previousContext\.section === section && previousContext\.layoutMode === metrics\.mode\) return;[\s\S]*?leftPreviewContextRef\.current = \{ app, mode, section, layoutMode: metrics\.mode \};[\s\S]*?clearPreviewClose\(\);\s*setLeftPreviewOpen\(false\);/u);
+});
+
+test("左二预览只由顶部指定触发位置打开", () => {
+  const trigger = workspaceSource.match(/<button ref=\{leftPreviewTriggerRef\}[\s\S]*?<\/button>/u)?.[0] ?? "";
+  const sidebarRoot = workspaceSource.match(/<div className="module-sidebar"[^>]*>/u)?.[0] ?? "";
+
+  assert.match(trigger, /onMouseEnter=\{openLeftPreview\}/u);
+  assert.match(trigger, /onMouseLeave=\{closeLeftPreview\}/u);
+  assert.doesNotMatch(sidebarRoot, /onMouseEnter=/u);
+  assert.match(workspaceSource, /previewPane\?\.matches\(":hover, :focus-within"\)/u);
+});
+
+test("Compact 普通应用左二栏改为悬浮预览，中心区锚在左一之后", () => {
+  assert.match(workspaceSource, /const appliedResponsiveLayout = useRef<string \| null>\(null\)/u);
+  assert.match(workspaceSource, /const responsiveLayoutKey = `\$\{metrics\.mode\}:\$\{mode\}`/u);
+  assert.match(workspaceSource, /metrics\.mode === "compact" && \(mode === "normal" \|\| mode === "ai-work" && !current\.rightCollapsed\)/u);
+  assert.match(workspaceSource, /if \(hideLeft && responsiveLeftRestore\.current === null\) responsiveLeftRestore\.current = current\.leftCollapsed/u);
+  assert.match(workspaceSource, /leftCollapsed: responsiveLeftRestore\.current \?\? chrome\.leftCollapsed/u);
+  assert.match(workspaceSource, /const leftPreviewMode = chrome\.leftCollapsed && metrics\.mode !== "mobile"/u);
+  assert.match(workspaceSource, /const responsiveLeftCollapsed = mobile\s*\|\|\s*metrics\.mode === "compact" && \(mode === "normal" \|\| mode === "ai-work" && !current\.rightCollapsed\)/u);
+  assert.match(workspaceSource, /\[chromeStorageMetadata\.hasSavedState, metrics\.mode, mode, settings\.general\.navigationLayout\]/u);
 });

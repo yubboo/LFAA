@@ -6,7 +6,11 @@ AI 漫剧生图使用 `aiRuntime.imageGenerationMode` 选择远程 Provider 或 
 
 Agent Shell 的文件访问范围由 `aiRuntime.executionSandboxMode` 设置，默认 `workspace-write`，可选只读、工作区读写或完全访问；该字段不是 Permission Owner 的三种授权模式。设置服务负责默认值、枚举校验与账户持久化；受限模式能否执行仍取决于目标平台实际注册的 Sandbox Provider，缺少完整 OS 隔离时失败关闭。
 
-已保存账户的“更新目录”只重新读取并保存 Provider 官方模型目录，不发起模型推理，也不更改已选模型 ID 或 `reasoning_mode`；若当前型号已从新目录移除，保留原选择并提示用户手动选择。“重测模型”只对当前已选型号发起真实请求，可能产生 Provider 用量。两个动作共用本包的账户隔离、加密凭据与 Provider 目录 Owner，不新增配置。
+Provider/API Key、模型目录与系统活动模型由 Settings Owner 写入 `ai_accounts` system scope（`configuration_records.user_id = null`），所有登录账户读取同一模型集合；系统模型编辑 API 仅管理员可写，成员只读并可使用当前模型。旧配置读取时仅在尚无 system-scope 配置的情况下，将超级管理员的旧模型记录按原 ID、活动状态、选项和密文原样迁入；其他成员的旧个人记录保留且不进入系统模型列表。此读取迁移不会解密或重写密钥。
+
+已保存系统模型的“更新目录”只重新读取并保存 Provider 官方模型目录，不发起模型推理，也不更改已选模型 ID 或 `reasoning_mode`；若当前型号已从新目录移除，保留原选择并提示管理员。“重测模型”只对当前已选型号发起真实请求，可能产生 Provider 用量。管理员可在原系统配置 ID 上测试并替换 API Key，保持配置名称、Provider、模型和活动状态不变；成员没有模型写入权限。`aiRuntime` 的运行参数与图片/视频模型选择仍按登录账户保存，模型凭据本身不绑定登录账户。
+
+Provider 与插件秘密凭据使用 LFAA Home `credentials/settings.key` 执行 AES-GCM 加密。读取时若密钥文件缺失，Settings 不得自动生成替代密钥，以免让已有密文永久无法解密；用户明确录入新 Provider 凭据时才可创建密钥。已有密文校验失败时显示重新录入指引，保留旧账户记录，不声称能从密文恢复原密钥。
 
 账户偏好、Provider 凭据引用和权限留在 LFAA Home（默认 `%USERPROFILE%\\.lfaa`，不增加 `system-data` 子目录）。`project-storage.ts` 负责统一业务 Data 根，首次默认 `<LFAA_HOME>/data`（Windows 默认 `%USERPROFILE%\\.lfaa\\data`）；Home Paths 在 Data 根创建共享 `models/`、`input/`、`output/`，模型适配器按自身模态与原生组件格式管理 `models/text/`、`models/image/`、`models/video/`、`models/audio/`、`models/encoders/`、`models/vae/`、`models/adapters/`、`models/acceleration/`、`models/upscalers/`。目录结构由 LFAA 自己定义，和 ComfyUI 权重格式/版本无关；Veo3 是远程 Provider 能力，不当作本机模型。AI Video 的最终项目素材仍由其 Owner 保存于项目目录，避免同时写进共享 `output/`。账户业务文件位于 Data 根的 `users/` 下。系统推荐路径按当前项目或安装根动态解析为其 `data` 子目录；自定义路径把用户所选目录作为父目录，在其中创建 `data/`（所选目录本身名为 `data` 时直接使用）。位置保存在 Home 控制配置；切换时创建新业务分类、保留旧根，控制端与 Daemon 重启后使用新值。游戏、小说和漫剧内容复制/核对/ZIP 仅处理受管业务子树，不复制 Home 系统账户数据。远端环境位置由该节点真实 data 根与平台推导，不能复用控制端盘符。
 
@@ -45,3 +49,5 @@ Agent 设置目录由 `src/agent-settings.ts` 从当前账户 `UserSettings` 与
 `listAgentSettings` 同时返回共享 `settings-menu-catalog.ts` 的完整菜单目录、访问边界、工具搜索词和按 `menuId` 筛选的字段；目录明确区分账户偏好、专属 Owner、只读、用户直接输入、部分接入与未接入状态。字段菜单映射、Joi alternatives 枚举、纯色背景和账户自定义背景选项由 Settings/共享值 Owner 生成；目录读取自定义背景元数据时不触发旧图片迁移。
 
 `mini` 是账户级设置分类，默认伙伴为 `moss`、显示开启、窗口置顶开启、不透明度 100%；读取、严格校验、持久化和 Agent 单字段回读继续归 Settings Owner。`getUserSettingsSyncStatus()` 只返回当前账户已保存的分类和最新更新时间，不返回设置值/秘密；它描述当前自托管 Control Plane，不承诺独立 Control Plane 自动复制。
+
+`canvas` 是账户级画布偏好分类，默认 `defaultMode: "generate"`、`gridStyle: "dots"`、`snapToGrid: false`、`showMiniMap: true`、`agentPanelDefaultOpen: false`。枚举与布尔字段由本包 Strict 校验，未知字段拒绝；`getUserSettings` 为无记录/缺字段的旧账户补共享默认值，`saveUserSettings` 在旧客户端遗漏新字段时合并当前值而不覆盖已保存选择。画布生成模型继续读取 `aiRuntime` 的图片/视频生成账户与模型，本分类不复制第二套模型配置，也不代表生成能力已接通。

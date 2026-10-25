@@ -5,9 +5,11 @@
  */
 import { createHash } from "node:crypto";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { existsSync } from "node:fs";
 import * as http from "node:http";
 import type { IncomingMessage } from "node:http";
 import * as https from "node:https";
+import { win32 as windowsPath } from "node:path";
 import { Ajv } from "ajv";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import type { ValidateFunction } from "ajv";
@@ -89,6 +91,15 @@ export function fingerprintMcpToolManifest(url: string, protocolVersion: string,
 const MAX_STDIO_FRAME_BYTES = 8 * 1024 * 1024;
 const MAX_STDIO_REQUEST_BYTES = 1024 * 1024;
 
+/** Windows npx.cmd/npx.ps1 不是 shell:false 可直接启动的可执行文件；改用同一 Node 安装的 npm CLI。 */
+export function resolveMcpStdioLaunch(command: string, args: string[], platform = process.platform, executable = process.execPath, fileExists = existsSync): { command: string; args: string[] } {
+  if (platform !== "win32") return { command, args };
+  const basename = windowsPath.basename(command).toLocaleLowerCase("en-US");
+  if (basename !== "npx" && basename !== "npx.cmd" && basename !== "npx.ps1") return { command, args };
+  const npxCli = windowsPath.resolve(windowsPath.dirname(executable), "node_modules", "npm", "bin", "npx-cli.js");
+  return fileExists(npxCli) ? { command: executable, args: [npxCli, ...args] } : { command, args };
+}
+
 function mcpServerIdentity(server: PluginSettings["mcpServers"][number]): string {
   return server.transport === "stdio" ? `stdio:${JSON.stringify([server.command, server.args, canonical(server.env ?? {})])}` : server.url;
 }
@@ -136,7 +147,8 @@ class McpConnection {
     if (server.command.includes("\0") || !server.command.trim() || server.args.length > 32 || server.args.some(argument => argument.includes("\0") || argument.length > 1024)) {
       throw new Error("本机 MCP 可执行文件或参数无效。");
     }
-    const child = spawn(server.command, server.args, {
+    const launch = resolveMcpStdioLaunch(server.command, server.args);
+    const child = spawn(launch.command, launch.args, {
       cwd: config.repositoryRoot,
       env: mcpChildEnvironment(server.env),
       shell: false,

@@ -42,8 +42,8 @@ export const WORKBENCH_INTERACTION_TOKENS = Object.freeze({
     captureDurationMs: 260,
     /** Pointer 不松手从吸附态反向拉出的短动画，结束后恢复 1:1 跟手。 */
     releaseDurationMs: 220,
-    /** 非拖拽状态下普通展开/收起与“未达到 capture 阈值就松手恢复 min”的归位动画。 */
-    settleDurationMs: 320,
+    /** 非拖拽状态下普通展开/收起与阈值内松手归位的共享时长；紧凑分栏尽快结束逐帧列宽重排。 */
+    settleDurationMs: 180,
   },
   keyboard: {
     /** 键盘方向键每次 Resize 的普通步长。 */

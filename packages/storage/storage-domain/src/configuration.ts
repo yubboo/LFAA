@@ -189,22 +189,24 @@ export class ConfigurationDomain {
       const records = document.tables[table];
       if (!Array.isArray(records)) throw new Error(`配置域 ${table} 损坏。`);
       const seen = new Set<string>();
-      const accountNames = new Set<string>(), activeUsers = new Set<string>();
+      const accountNames = new Set<string>(), activeAiAccountScopes = new Set<string>();
       for (const record of records) {
         if (!record || typeof record !== "object" || Array.isArray(record)) throw new Error(`配置域 ${table} 的记录无效。`);
         const key = JSON.stringify(keys[table]!.map(field => record[field]));
         if (keys[table]!.some(field => record[field] === null || record[field] === undefined) || seen.has(key)) throw new Error(`配置域 ${table} 的主键缺失或重复。`);
         seen.add(key);
-        if (table === "user_settings" && (!["general", "appearance", "shortcuts", "ai-runtime", "minecraft-runtime", "git", "permissions", "plugins", "personalization", "computer-control", "browser-use", "mini"].includes(String(record.category)) || typeof record.value_json !== "string")) throw new Error("用户设置记录无效。");
+        if (table === "user_settings" && (!["general", "appearance", "shortcuts", "ai-runtime", "minecraft-runtime", "git", "permissions", "plugins", "personalization", "computer-control", "browser-use", "mini", "canvas"].includes(String(record.category)) || typeof record.value_json !== "string")) throw new Error("用户设置记录无效。");
         if (table === "user_preferences" && (!APPLICATION_IDS.includes(String(record.selected_app) as ApplicationId) || !["normal", "ai-work"].includes(String(record.selected_mode)))) throw new Error("应用偏好记录无效。");
         if ("install_mode" in record && !["online", "manual"].includes(String(record.install_mode))) throw new Error("SteamCMD 安装模式无效。");
         if ("id" in record && table.endsWith("defaults") && record.id !== 1) throw new Error("应用默认配置主键无效。");
         if (table === "ai_accounts") {
-          const name = JSON.stringify([record.user_id, record.display_name]);
-          if (accountNames.has(name)) throw new ConfigurationConflict("此用户下已有同名 AI 账户。");
+          if (record.user_id !== null && (typeof record.user_id !== "string" || !record.user_id.trim() || record.user_id.length > 160)) throw new Error("AI 系统模型配置归属无效。");
+          const scope = record.user_id === null ? "system" : `user:${record.user_id}`;
+          const name = JSON.stringify([scope, record.display_name]);
+          if (accountNames.has(name)) throw new ConfigurationConflict(record.user_id === null ? "系统中已有同名模型配置。" : "此用户下已有同名 AI 账户。");
           accountNames.add(name);
           if (![0, 1].includes(Number(record.is_active))) throw new Error("AI 账户激活状态无效。");
-          if (record.is_active === 1) { const user = String(record.user_id); if (activeUsers.has(user)) throw new Error("同一用户只能激活一个 AI 账户。"); activeUsers.add(user); }
+          if (record.is_active === 1) { if (activeAiAccountScopes.has(scope)) throw new Error("同一配置范围只能激活一个系统模型。"); activeAiAccountScopes.add(scope); }
         }
       }
     }

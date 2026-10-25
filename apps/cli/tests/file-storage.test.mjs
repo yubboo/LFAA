@@ -442,16 +442,18 @@ test("Provider 密文、激活事务、账户删除和 SQLite 写入失败保护
        writeFileSync(resolve(resolveHomePaths(process.env.LFAA_HOME).credentials,'settings.key'),key);
       const cipher=createCipheriv('aes-256-gcm',key,iv);
       const encrypted=Buffer.concat([cipher.update(plaintext,'utf8'),cipher.final()]);
-      const account={user_id:'fixture-member',provider_id:'openai',display_name:'长期夹具 A',options_json:'{}',model_id:'fixture-model',models_json:'[{"id":"fixture-model","name":"长期夹具","thinking":null}]',reasoning_mode:'default',secret_ciphertext:encrypted.toString('base64url'),secret_iv:iv.toString('base64url'),secret_tag:cipher.getAuthTag().toString('base64url')};
+      const account={user_id:'fixture-admin',provider_id:'openai',display_name:'长期夹具 A',options_json:'{}',model_id:'fixture-model',models_json:'[{"id":"fixture-model","name":"长期夹具","thinking":null}]',reasoning_mode:'default',secret_ciphertext:encrypted.toString('base64url'),secret_iv:iv.toString('base64url'),secret_tag:cipher.getAuthTag().toString('base64url')};
       ${files}
       configuration.insert('ai_accounts',{...account,id:'fixture-account-a'});
       configuration.insert('ai_accounts',{...account,id:'fixture-account-b',display_name:'长期夹具 B'});
+      assert.deepEqual(settings.listAiAccounts('fixture-member').map(row=>row.id).sort(),['fixture-account-a','fixture-account-b'],'旧超级管理员模型配置应原位迁移到 system scope');
+      assert.equal(configuration.all('ai_accounts',row=>row.user_id===null).length,2,'迁移保留账户记录并将 user_id 变为 system scope');
       settings.activateAiAccount('fixture-member','fixture-account-a');
       settings.activateAiAccount('fixture-member','fixture-account-b');
       assert.equal(settings.resolveActiveAiModelConfiguration('fixture-member').secret,plaintext);
       assert.equal(settings.listAiAccounts('fixture-member').filter(row=>row.active).length,1);
-      assert.deepEqual(settings.listAiAccounts('fixture-admin'),[]);
-      assert.throws(()=>settings.activateAiAccount('fixture-admin','fixture-account-b'));
+      assert.equal(settings.resolveActiveAiModelConfiguration('fixture-admin').secret,plaintext,'不同登录用户读取同一系统模型密钥');
+      assert.deepEqual(settings.listAiAccounts('fixture-admin').map(row=>row.id).sort(),['fixture-account-a','fixture-account-b'],'模型目录不再按登录用户隔离');
       assert.throws(()=>configuration.transaction(()=>configuration.update('ai_accounts',()=>true,{is_active:1})));
       assert.equal(settings.resolveActiveAiModelConfiguration('fixture-member').secret,plaintext);
       const turn=sessions.createAiTurn('fixture-member','writing',null,'长期删除夹具');
@@ -467,7 +469,8 @@ test("Provider 密文、激活事务、账户删除和 SQLite 写入失败保护
       const auth=await import('lfaa-identity-auth/src/service.js');
       auth.deleteManagedUser('fixture-admin','fixture-member');
       assert.equal(database.prepare("SELECT id FROM users WHERE id='fixture-member'").get(),undefined);
-      assert.deepEqual(configuration.all('ai_accounts'),[]);
+      assert.equal(configuration.all('ai_accounts',row=>row.user_id===null).length,2,'删除普通登录用户不删除系统级 Provider 配置');
+      assert.equal(settings.resolveActiveAiModelConfiguration('fixture-admin').secret,'long-term-test-only-secret');
       assert.deepEqual(sessionRecords.all('ai_sessions'),[]);
       const settingsBefore=settings.getUserSettings('fixture-admin');
        const settingsPath=resolveUserAccountPaths(process.env.LFAA_HOME,'fixture-admin').settingsDocument;

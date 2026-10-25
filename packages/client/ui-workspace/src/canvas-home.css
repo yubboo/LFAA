@@ -1,0 +1,577 @@
+/*
+ * 功能：系统级画布首页的欢迎区、顶部搜索、项目侧栏与响应式入口布局。
+ * 作用：只编排 LFAA 已接入的画布、App 和项目入口；表面材质与壁纸继续读取共享 Appearance 令牌。
+ * 关联文件：CanvasHome.tsx、CanvasWorkspace.tsx、ui-layout/src/workbench.css、ui-theme/src/tokens.css。
+ */
+
+.lfaa-cnv-home {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--color-text-primary);
+  /* 首页面板：共享 Appearance 壁纸表面色，透明度由设置中心遮罩偏好控制。 */
+  --lfaa-cnv-home-card: color-mix(in srgb, var(--color-surface) var(--settings-background-surface-opacity, 88%), transparent);
+  /* 首页面板边框：主题边框色 78% 不透明，保证浅/深主题上的边界清晰。 */
+  --lfaa-cnv-home-border: color-mix(in srgb, var(--color-border) 78%, transparent);
+  /* 首页卡片阴影：中性黑 20% 透明度，区分玻璃面板与壁纸。 */
+  --lfaa-cnv-home-shadow: 0 14px 36px color-mix(in srgb, #000 20%, transparent);
+  background: transparent;
+}
+
+.lfaa-cnv-home__topbar {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(120px, auto) minmax(200px, 480px) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 12px clamp(16px, 3vw, 40px);
+  border-bottom: 1px solid var(--lfaa-cnv-home-border);
+  background: color-mix(in srgb, var(--color-surface) var(--settings-background-surface-opacity, 76%), transparent);
+  -webkit-backdrop-filter: blur(var(--settings-glass-blur, 12px));
+  backdrop-filter: blur(var(--settings-glass-blur, 12px));
+}
+
+.lfaa-cnv-home__brand {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+  color: var(--color-text-heading);
+  font-size: var(--font-size-lg);
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.lfaa-cnv-home__brand-mark {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--settings-accent, var(--color-brand));
+  color: var(--color-text-inverse);
+  font-size: var(--font-size-md);
+}
+
+.lfaa-cnv-home__search {
+  width: 100%;
+  min-width: 0;
+  justify-self: center;
+}
+
+.lfaa-cnv-home__search .ant-input-affix-wrapper {
+  min-height: 40px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-surface) 76%, transparent);
+}
+
+.lfaa-cnv-home__topbar-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lfaa-cnv-home__scroll {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 20px;
+  padding: clamp(20px, 3.4vh, 42px) clamp(16px, 4vw, 64px) 24px;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.lfaa-cnv-home__layout {
+  display: grid;
+  width: min(calc(100% - clamp(0px, 16vw, 300px)), 1720px);
+  min-width: 0;
+  flex: 1 0 auto;
+  grid-template-columns: minmax(0, 1.25fr) minmax(320px, .78fr);
+  align-items: stretch;
+  gap: clamp(24px, 4vw, 72px);
+  margin: 0 auto 0 clamp(0px, 16vw, 300px);
+}
+
+.lfaa-cnv-home__hero {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: flex-start;
+  gap: clamp(14px, 2vh, 20px);
+  padding: clamp(80px, 14vh, 148px) clamp(4px, 1.8vw, 28px) 16px;
+}
+
+.lfaa-cnv-home__hero-copy {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+}
+
+.lfaa-cnv-home__eyebrow {
+  margin: 0;
+  color: var(--settings-accent, var(--color-brand));
+  font-size: var(--font-size-sm);
+  font-weight: 650;
+  letter-spacing: .08em;
+}
+
+.lfaa-cnv-home__welcome.ant-typography {
+  max-width: 760px;
+  margin: 0;
+  color: var(--color-text-heading);
+  font-size: clamp(36px, 3.3vw, 60px);
+  font-weight: 650;
+  line-height: 1.08;
+  letter-spacing: -.035em;
+}
+
+.lfaa-cnv-home__subtitle {
+  max-width: 600px;
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-lg);
+  line-height: 1.75;
+}
+
+.lfaa-cnv-home__hero-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: clamp(32px, 7vh, 70px);
+}
+
+.lfaa-cnv-home__hero-actions .ant-btn {
+  min-height: 48px;
+  padding-inline: 20px;
+  border-radius: 12px;
+  font-weight: 600;
+}
+
+.lfaa-cnv-home__creator,
+.lfaa-cnv-home__panel {
+  border: 1px solid var(--lfaa-cnv-home-border);
+  border-radius: 18px;
+  background: var(--lfaa-cnv-home-card);
+  box-shadow: var(--lfaa-cnv-home-shadow);
+  -webkit-backdrop-filter: blur(var(--settings-glass-blur, 12px));
+  backdrop-filter: blur(var(--settings-glass-blur, 12px));
+}
+
+.lfaa-cnv-home__creator {
+  display: grid;
+  width: min(100%, 680px);
+  min-width: 0;
+  gap: 12px;
+  padding: clamp(14px, 1.8vw, 20px);
+}
+
+.lfaa-cnv-home__creator-head,
+.lfaa-cnv-home__creator-head > div {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.lfaa-cnv-home__creator-head {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.lfaa-cnv-home__creator-head > div {
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+
+.lfaa-cnv-home__creator-head strong {
+  color: var(--color-text-heading);
+  font-size: var(--font-size-md);
+}
+
+.lfaa-cnv-home__creator-head span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.lfaa-cnv-home__composer,
+.lfaa-cnv-home__canvas-actions {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+}
+
+.lfaa-cnv-home__composer-row,
+.lfaa-cnv-home__composer-actions,
+.lfaa-cnv-home__canvas-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lfaa-cnv-home__prompt.ant-input {
+  min-height: 58px;
+  resize: vertical;
+  font-size: var(--font-size-md);
+}
+
+.lfaa-cnv-home__mention-note,
+.lfaa-cnv-home__canvas-actions p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  line-height: 1.6;
+}
+
+.lfaa-cnv-home__target {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.lfaa-cnv-home__target-select {
+  min-width: 132px;
+}
+
+.lfaa-cnv-home__aspect {
+  min-width: 108px;
+}
+
+.lfaa-cnv-home__hidden-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.lfaa-cnv-home__alert {
+  width: min(100%, 1720px);
+  margin: 0 auto;
+}
+
+.lfaa-cnv-home__sidebar {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 16px;
+  padding-top: clamp(24px, 5vh, 52px);
+}
+
+.lfaa-cnv-home__panel {
+  display: grid;
+  min-width: 0;
+  gap: 14px;
+  padding: clamp(14px, 1.8vw, 20px);
+}
+
+.lfaa-cnv-home__panel-head,
+.lfaa-cnv-home__panel-head > div {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+}
+
+.lfaa-cnv-home__panel-head {
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.lfaa-cnv-home__panel-head > div {
+  flex-wrap: wrap;
+  gap: 8px 10px;
+}
+
+.lfaa-cnv-home__panel h2 {
+  margin: 0;
+  color: var(--color-text-heading);
+  font-size: var(--font-size-lg);
+}
+
+.lfaa-cnv-home__panel-head span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.lfaa-cnv-home__app-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.lfaa-cnv-home__app-card {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: center;
+  gap: 3px 8px;
+  padding: 10px;
+  border: 1px solid var(--lfaa-cnv-home-border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-surface) 56%, transparent);
+  color: var(--color-text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .16s ease, background-color .16s ease;
+}
+
+.lfaa-cnv-home__app-card:hover,
+.lfaa-cnv-home__app-card:focus-visible {
+  border-color: var(--settings-accent, var(--color-brand));
+  background: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 10%, var(--color-surface));
+}
+
+.lfaa-cnv-home__app-mark {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  grid-row: 1 / span 2;
+  place-items: center;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 16%, transparent);
+  color: var(--settings-accent, var(--color-brand));
+  font-size: 16px;
+}
+
+.lfaa-cnv-home__app-name {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lfaa-cnv-home__app-card small {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.lfaa-cnv-home__project-grid {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+}
+
+.lfaa-cnv-home__project-card {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 3px 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--lfaa-cnv-home-border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-surface) 56%, transparent);
+  color: var(--color-text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .16s ease, background-color .16s ease;
+}
+
+.lfaa-cnv-home__project-card:hover,
+.lfaa-cnv-home__project-card:focus-visible {
+  border-color: var(--settings-accent, var(--color-brand));
+  background: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 8%, var(--color-surface));
+}
+
+.lfaa-cnv-home__project-app {
+  grid-column: 1 / -1;
+  justify-self: start;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--settings-accent, var(--color-brand));
+  font-size: var(--font-size-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lfaa-cnv-home__project-title {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lfaa-cnv-home__project-meta,
+.lfaa-cnv-home__project-time {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.lfaa-cnv-home__project-time {
+  grid-column: 2;
+  grid-row: 2 / span 2;
+  text-align: right;
+}
+
+.lfaa-cnv-home__loading,
+.lfaa-cnv-home__empty {
+  display: grid;
+  min-width: 0;
+  justify-items: center;
+  gap: 6px;
+  padding: 18px 12px;
+  border: 1px dashed var(--color-border);
+  border-radius: 12px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+  text-align: center;
+}
+
+.lfaa-cnv-home__empty p {
+  margin: 0;
+}
+
+.lfaa-cnv-home__footer {
+  width: min(100%, 1720px);
+  margin: 0 auto;
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-xs);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+/* 平板容器：将侧栏收至欢迎区下方，并保留项目/App 两张并列卡片。 */
+@media (max-width: 960px) {
+  .lfaa-cnv-home__layout {
+    width: 100%;
+    flex: 0 0 auto;
+    grid-template-columns: minmax(0, 1fr);
+    margin: 0;
+  }
+
+  .lfaa-cnv-home__hero {
+    padding: 4px 0;
+  }
+
+  .lfaa-cnv-home__sidebar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: start;
+    padding-top: 0;
+  }
+}
+
+/* 手机：顶部搜索独占一行，项目/App 面板纵向排列，所有主操作保持可见且可换行。 */
+@media (max-width: 640px) {
+  .lfaa-cnv-home__topbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 10px;
+    padding: 10px 12px;
+  }
+
+  .lfaa-cnv-home__search {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .lfaa-cnv-home__topbar-actions {
+    gap: 4px;
+  }
+
+  .lfaa-cnv-home__topbar-actions .ant-btn {
+    padding-inline: 8px;
+  }
+
+  .lfaa-cnv-home__scroll {
+    gap: 14px;
+    padding: 20px 12px 24px;
+  }
+
+  .lfaa-cnv-home__layout {
+    gap: 16px;
+  }
+
+  .lfaa-cnv-home__hero {
+    gap: 16px;
+  }
+
+  .lfaa-cnv-home__welcome.ant-typography {
+    font-size: clamp(34px, 10vw, 44px);
+  }
+
+  .lfaa-cnv-home__subtitle {
+    font-size: var(--font-size-md);
+  }
+
+  .lfaa-cnv-home__hero-actions {
+    width: 100%;
+    margin-top: 0;
+  }
+
+  .lfaa-cnv-home__hero-actions .ant-btn {
+    flex: 1 1 140px;
+    padding-inline: 12px;
+  }
+
+  .lfaa-cnv-home__sidebar {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .lfaa-cnv-home__app-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .lfaa-cnv-home__composer-actions > .ant-btn {
+    flex: 1 1 160px;
+  }
+}
+
+/* 短屏：缩小头部与主内容间距，主内容留在可滚动区域内。 */
+@media (max-height: 480px) {
+  .lfaa-cnv-home__topbar {
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+
+  .lfaa-cnv-home__scroll {
+    gap: 12px;
+    padding-top: 12px;
+  }
+
+  .lfaa-cnv-home__hero {
+    gap: 12px;
+    padding-top: 16px;
+  }
+
+  .lfaa-cnv-home__sidebar {
+    padding-top: 0;
+  }
+}
+
+/* 减少动态效果：关闭 App 与项目卡片的状态过渡。 */
+.workbench-shell[data-reduced-motion="true"] .lfaa-cnv-home__app-card,
+.workbench-shell[data-reduced-motion="true"] .lfaa-cnv-home__project-card {
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lfaa-cnv-home__app-card,
+  .lfaa-cnv-home__project-card {
+    transition: none !important;
+  }
+}

@@ -41,6 +41,9 @@ import { applySpillPolicy } from "lfaa-spill-policy/src/index.js";
 import { createRunSpillContext, SPILL_CONTEXT_READ_TOOL_ID } from "./spill-context-tool.js";
 import { isShutdownRequested } from "./shutdown-state.js";
 import { resolveTurnAttachmentMessages } from "lfaa-llm/src/turn-attachments.js";
+import { runLfaaPiAgent, type LfaaPiRequestResult } from "./pi-runtime.js";
+import type { Api, Model } from "@earendil-works/pi-ai";
+import type { AgentToolCall, AgentTurnContext } from "@earendil-works/pi-agent-core";
 
 export interface AiTurnInput { userId: string; userRole: UserRole; body: { appId: ApplicationId; content: string; sessionId: string | null }; turn: AiTurnRows; aiPluginHost: AiPluginHost; abortController: AbortController; pauseGate?: AiRunPauseGate; emit: (event: string, data: Record<string, unknown>) => void; takeInputs?: () => AiCompletionMessage[]; requestUserInput?: (input: { questionId: string; question: string; options: string[] }) => Promise<{ answer: string; skipped: boolean }>; modelAccountId?: string; modelResolver: AgentDefaultModelResolver; approvalNotifications: UserApprovalNotifications; systemPrompt?: string; allowedToolNames?: string[]; memoryEligible?: boolean; planModeEnabled?: boolean; attachmentIds?: string[]; attachments?: import("lfaa-attachment/src/index.js").AttachmentStore; writeGate?: { denied: boolean }; delegate?: (parameters: Record<string, unknown>, availableTools: string[], onActivity: (activity: AiActivityItem) => void, execute?: (startChild: (signal?: AbortSignal) => Promise<{ status: string; [key: string]: unknown }>) => Promise<{ status: string; [key: string]: unknown }>) => Promise<{ status: string; [key: string]: unknown }>; /** 上下文管理钩子（compaction/spill）。未注入时行为与现状完全一致；注入后在每次发模型请求前按上下文规模触发。 */ contextManager?: ContextManagerHooks }
 
@@ -615,7 +618,12 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
       }
       // 持久化保留本轮真实消息；压缩只修改请求视图，不能再按旧 history.length 切片。
       const turnMessages: AiCompletionMessage[] = [];
-      const appendMessages = (...messages: AiCompletionMessage[]): void => { completionMessages.push(...messages); turnMessages.push(...messages); };
+      const currentToolResults = new Map<string, AiCompletionMessage>();
+      const appendMessages = (...messages: AiCompletionMessage[]): void => {
+        completionMessages.push(...messages);
+        turnMessages.push(...messages);
+        for (const message of messages) if (message.role === "tool" && message.tool_call_id) currentToolResults.set(message.tool_call_id, message);
+      };
       addActivity("status", "整理对话上下文", "complete", `使用 ${turn.history.length} 条已完成的对话消息；密钥与内部提示词不会显示在活动记录中。`);
       if (writingContext) {
         addActivity("status", "关联已选作品元数据", "complete", `已选《${writingBookLabel}》${writingChapterLabel ? " · " + writingChapterLabel : " · 未选章节"}；大纲和章节正文尚未读取，由模型按目标选择上下文工具。`);
@@ -890,7 +898,7 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
           abortController.signal.removeEventListener("abort", abortFromRun);
         }
       };
-      const requestModel = async (messages: AiCompletionMessage[], options: { tools?: typeof functionTools; systemPrompt?: string; deltaToUser?: boolean }): Promise<Awaited<ReturnType<AiCompletionService["streamCompletion"]>> & { text: string }> => {
+      const requestModel = async (messages: AiCompletionMessage[], options: { tools?: typeof functionTools; systemPrompt?: string; deltaToUser?: boolean; onPiDelta?: (delta: string) => void }): Promise<Awaited<ReturnType<AiCompletionService["streamCompletion"]>> & { text: string }> => {
         // 服务退出时只阻止新的模型请求：已派发的工具结果保持有效，不会被迫写成“未知”。
         if (isShutdownRequested()) throw new Error("LFAA 服务正在退出；本轮在派发新的模型请求前停止，已完成的工具结果保持有效。");
         await pauseGate.checkpoint(abortController.signal);
@@ -996,6 +1004,7 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
           },
           onDelta: (delta) => {
             roundText += delta;
+            options.onPiDelta?.(delta);
             const previousChunk = roundStream.length - 1;
             if (previousChunk >= 0 && roundStream[previousChunk]!.length < 4096) roundStream[previousChunk] += delta;
             else roundStream.push(delta);
@@ -1044,10 +1053,34 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
       let finalResponseReceived = false;
       let lastCompactionSize = 0;
       let unknownToolRounds = 0;
-      for (let round = 0; round < maxModelRequests; round += 1) {
+      let completion: Awaited<ReturnType<AiCompletionService["streamCompletion"]>> & { text: string } = {
+        text: "", usage: { promptTokens: null, completionTokens: null, cacheReadTokens: null }, toolCalls: []
+      };
+      let offeredBusinessTools = businessTools;
+      let rejectedToolNames: string[] = [];
+      let pendingRunError: Error | null = null;
+      const scheduledMessages: AiCompletionMessage[] = [];
+      const handledToolCallIds = new Set<string>();
+      const blockedToolCallReasons = new Map<string, string>();
+      const piContextWindow = account.contextWindow ?? settings.aiRuntime.contextWindowTokens!;
+      const piModel: Model<Api> = {
+        id: account.modelId,
+        name: account.modelId,
+        api: "openai-completions",
+        provider: account.providerId,
+        baseUrl: account.chatUrl,
+        input: ["text"],
+        // Pi requires model catalog costs, but LFAA owns billing and does not expose these internal placeholders.
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        reasoning: account.reasoningMode !== "default",
+        contextWindow: piContextWindow,
+        maxTokens: aiPluginHost.llm.resolveMaxTokens(settings.aiRuntime, account) ?? piContextWindow
+      };
+      const preparePiRequest = async (input: { messages: AiCompletionMessage[]; signal: AbortSignal }): Promise<{ messages: AiCompletionMessage[]; tools: typeof functionTools }> => {
         await pauseGate.checkpoint(abortController.signal);
         executionPhase = "preflight";
-        appendMessages(...(takeInputs?.() ?? []));
+        const incoming = takeInputs?.() ?? [];
+        if (incoming.length) appendMessages(...incoming);
         await refreshCapabilities();
         // 上下文管理触发点：按上下文规模决定是否压缩/溢出（未注入钩子时原样返回，不改变行为）。
         const currentRuntime = getUserSettings(userId).aiRuntime;
@@ -1082,28 +1115,100 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
             return spilled.messages;
           } } : {})
         } : undefined;
+        let preparedMessages = [...input.messages, ...incoming];
         if ((contextManager || automaticContext) && !abortController.signal.aborted) {
           const managed = await manageContextBeforeRequest({
-            messages: completionMessages,
+            messages: preparedMessages,
             ...(account.contextWindow ?? currentRuntime.contextWindowTokens ? { contextWindow: (account.contextWindow ?? currentRuntime.contextWindowTokens)! } : {}),
             hooks: (contextManager ?? automaticContext)!,
-            signal: abortController.signal
+            signal: input.signal
           });
           if (managed.rewritten) {
+            preparedMessages = managed.messages;
             completionMessages.length = 0;
             completionMessages.push(...managed.messages);
             addActivity("status", "上下文管理", "complete", `已按上下文规模（约 ${managed.pressure.usedTokens} / ${managed.pressure.contextWindow} tokens）缩减本次请求历史；外置结果可按需读取。`);
           }
         }
-        let toolCallingEnabled = functionTools.length > 0;
-        let offeredBusinessTools = businessTools;
-        let completion;
+        return { messages: preparedMessages, tools: functionTools };
+      };
+      const beforePiToolCall = async ({ toolCall }: { toolCall: AgentToolCall }, signal?: AbortSignal) => {
+        const batch = completion.toolCalls;
+        const getCall = (id: string): { id: string; name: string; arguments: string } | undefined => batch.find(call => call.id === id);
+        const call = getCall(toolCall.id) ?? { id: toolCall.id, name: toolCall.name, arguments: JSON.stringify(toolCall.arguments) };
+        const alreadyBlocked = blockedToolCallReasons.get(call.id);
+        if (alreadyBlocked) return { block: true, reason: alreadyBlocked };
+        if (signal?.aborted || abortController.signal.aborted) {
+          const reason = "本轮已停止；此调用尚未派发。";
+          const remaining = batch.filter(item => !handledToolCallIds.has(item.id));
+          recordUnstartedToolCalls(remaining, reason);
+          const resultText = JSON.stringify({ error: reason, executed: false, executionState: "not_started" });
+          for (const item of remaining) blockedToolCallReasons.set(item.id, resultText);
+          pendingRunError = abortController.signal.reason instanceof Error
+            ? abortController.signal.reason
+            : new DOMException("用户已停止 Agent 运行。", "AbortError");
+          saveAiModelHistory(userId, turn.session.id, turn.assistantMessage.id, persistedModelMessages(turnMessages));
+          return { block: true, reason: resultText, terminate: true };
+        }
+        if (pendingRunError) {
+          const remaining = batch.filter(item => !handledToolCallIds.has(item.id));
+          const reason = pendingRunError.message;
+          recordUnstartedToolCalls(remaining, reason);
+          const resultText = JSON.stringify({ error: reason, executed: false, executionState: "not_started" });
+          for (const item of remaining) blockedToolCallReasons.set(item.id, resultText);
+          saveAiModelHistory(userId, turn.session.id, turn.assistantMessage.id, persistedModelMessages(turnMessages));
+          return { block: true, reason: resultText, terminate: true };
+        }
+        if (requestCount >= maxModelRequests) {
+          const reason = "Agent 循环达到本轮模型请求上限，已停止继续调用工具。";
+          recordUnstartedToolCalls(batch, reason);
+          const resultText = JSON.stringify({ error: reason, executed: false, executionState: "not_started" });
+          for (const item of batch) blockedToolCallReasons.set(item.id, resultText);
+          pendingRunError = new AiModelRequestBudgetError(maxModelRequests);
+          saveAiModelHistory(userId, turn.session.id, turn.assistantMessage.id, persistedModelMessages(turnMessages));
+          return { block: true, reason: resultText, terminate: true };
+        }
+        if (toolCallCount + batch.length > maxToolCalls) {
+          const reason = `Agent 循环达到本轮工具调用上限 ${maxToolCalls}；本批工具调用未派发。`;
+          recordUnstartedToolCalls(batch, reason);
+          const resultText = JSON.stringify({ error: reason, executed: false, executionState: "not_started" });
+          for (const item of batch) blockedToolCallReasons.set(item.id, resultText);
+          pendingRunError = new AiToolCallBudgetError(maxToolCalls);
+          saveAiModelHistory(userId, turn.session.id, turn.assistantMessage.id, persistedModelMessages(turnMessages));
+          return { block: true, reason: resultText, terminate: true };
+        }
+        const priorityPlanCall = planModeEnabled ? batch.find(item => planModeToolNames.has(item.name)) : undefined;
+        if (!priorityPlanCall && batch.some(item => offeredBusinessTools.some(tool => tool.name === item.name && tool.requiresQuestionChannel)) && batch.length !== 1) {
+          const reason = "需要向用户澄清时必须单独提出问题；本轮并行工具调用均未派发，请根据拒绝结果重新选择。";
+          recordUnstartedToolCalls(batch, reason);
+          const resultText = JSON.stringify({ error: reason, executed: false, executionState: "not_started" });
+          for (const item of batch) blockedToolCallReasons.set(item.id, resultText);
+          saveAiModelHistory(userId, turn.session.id, turn.assistantMessage.id, persistedModelMessages(turnMessages));
+          addActivity("status", "重新选择工具", "complete", reason);
+          return { block: true, reason: resultText, terminate: true };
+        }
+        if (priorityPlanCall && priorityPlanCall.id !== call.id) {
+          const reason = "计划模式状态切换优先处理；本次响应中的其他工具未派发，请在下一轮根据新模式重新选择。";
+          recordUnstartedToolCalls([call], reason);
+          const resultText = JSON.stringify({ error: reason, executed: false, executionState: "not_started" });
+          blockedToolCallReasons.set(call.id, resultText);
+          saveAiModelHistory(userId, turn.session.id, turn.assistantMessage.id, persistedModelMessages(turnMessages));
+          return { block: true, reason: resultText };
+        }
+        // Pi has already validated that the JSON is an object; LFAA's Joi/domain parser remains authoritative.
+        return undefined;
+      };
+      const prepareNextPiTurn = async (input: { messages: AiCompletionMessage[] }): Promise<{ messages: AiCompletionMessage[]; tools: typeof functionTools }> => {
+        const messages = scheduledMessages.length ? [...input.messages, ...scheduledMessages.splice(0)] : input.messages;
+        return { messages, tools: functionTools };
+      };
+      const streamPiRequest = async (input: { messages: AiCompletionMessage[]; tools: typeof functionTools; signal: AbortSignal; onDelta: (delta: string) => void }): Promise<LfaaPiRequestResult> => {
         for (let retry = 0; ; retry += 1) {
           try {
-            toolCallingEnabled = functionTools.length > 0;
             offeredBusinessTools = businessTools;
-            completion = await requestModel(completionMessages, { ...(toolCallingEnabled ? { tools: functionTools } : {}) });
-            break;
+            completion = await requestModel(input.messages, { ...(input.tools.length ? { tools: input.tools } : {}), onPiDelta: input.onDelta });
+            offeredBusinessTools = businessTools;
+            return completion;
           } catch (error) {
             if (error instanceof AiRecoverableRequestError && retry < settings.aiRuntime.requestRetries && requestCount < maxModelRequests) {
               if (providerActivityId) finishActivity(providerActivityId, "error", error.message);
@@ -1122,81 +1227,50 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
             throw error;
           }
         }
-        if (!completion.toolCalls.length) {
-          appendMessages({ role: "assistant", content: completion.text, ...(completion.providerReplay ? { providerReplay: completion.providerReplay } : {}) });
-          const followups = takeInputs?.() ?? [];
-          appendMessages(...followups);
-          saveAiModelHistory(userId, turn.session.id, turn.assistantMessage.id, persistedModelMessages(turnMessages));
-          recordAiSessionStep(userId, turn.session.id, turn.assistantMessage.id, requestCount, "end");
-          if (followups.length) continue;
-          finalResponseReceived = true;
-          break;
-        }
-        // 未提供工具名不能进入 tool/call 证据：模型臆造或懒加载工具名写错时，让模型收到可恢复的纠正
-        // 反馈后重新选择，而不是让会话内核按 header 校验直接判定整轮失败（真实 Provider 已复现）。
-        const offeredToolNames = new Set(functionTools.map(tool => tool.function.name));
-        const unknownToolCalls = completion.toolCalls.filter(call => !offeredToolNames.has(call.name));
-        if (unknownToolCalls.length) {
-          unknownToolRounds += 1;
-          const unknownNames = [...new Set(unknownToolCalls.map(call => call.name))].join("、");
-          appendMessages({ role: "assistant", content: completion.text || null, ...(completion.providerReplay ? { providerReplay: completion.providerReplay } : {}) });
-          appendMessages({ role: "user", content: `工具目录校验：本轮请求没有提供 ${unknownNames}。不要调用未提供的工具或臆造工具名；请只使用本次请求真实提供的工具重新选择，先按需发现能力再调用。` });
-          saveAiModelHistory(userId, turn.session.id, turn.assistantMessage.id, persistedModelMessages(turnMessages));
-          recordAiSessionStep(userId, turn.session.id, turn.assistantMessage.id, requestCount, "end");
-          addActivity("status", "拒绝未提供的工具", "error", `模型请求了本轮未提供的工具：${unknownNames}；未派发，已让模型按真实工具目录重新选择。`);
-          if (unknownToolRounds >= 3) throw new Error(`模型连续 ${unknownToolRounds} 次请求本轮未提供的工具（${unknownNames}）；已停止本轮，避免继续消耗请求预算。`);
-          continue;
-        }
-        appendMessages({
-          role: "assistant",
-          content: completion.text || null,
-          ...(completion.providerReplay ? { providerReplay: completion.providerReplay } : {}),
-          tool_calls: completion.toolCalls.map((call) => ({ id: call.id, type: "function", function: { name: call.name, arguments: call.arguments } }))
-        });
+      };
+      const onPiAssistantMessage = (message: AiCompletionMessage): void => {
+        appendMessages(message);
         saveAiModelHistory(userId, turn.session.id, turn.assistantMessage.id, persistedModelMessages(turnMessages));
-        if (requestCount >= maxModelRequests) {
-          const reason = "Agent 循环达到本轮模型请求上限，已停止继续调用工具。";
-          for (const call of completion.toolCalls) {
-            const resultText = JSON.stringify({ error: reason, executionState: "not_started" });
-            recordAiToolCall(userId, turn.session.id, turn.assistantMessage.id, call.id, call.name, storedToolArguments(call.name, call.arguments), false);
-            recordAiToolResult(userId, turn.session.id, turn.assistantMessage.id, call.id, persistedComputerToolResult(call.name, resultText), true, "not_started");
-            appendMessages({ role: "tool", tool_call_id: call.id, content: resultText });
+      };
+      const finishPiTurn = async (event: AgentTurnContext): Promise<{ action: "continue" | "end" }> => {
+        recordAiSessionStep(userId, turn.session.id, turn.assistantMessage.id, requestCount, "end");
+        saveAiModelHistory(userId, turn.session.id, turn.assistantMessage.id, persistedModelMessages(turnMessages));
+        if (pendingRunError) return { action: "end" };
+        if (rejectedToolNames.length) {
+          unknownToolRounds += 1;
+          const unknownNames = rejectedToolNames.join("、");
+          const feedback: AiCompletionMessage = { role: "user", content: `工具目录校验：本轮请求没有提供 ${unknownNames}。不要调用未提供的工具或臆造工具名；请只使用本次请求真实提供的工具重新选择，先按需发现能力再调用。` };
+          appendMessages(feedback);
+          scheduledMessages.push(feedback);
+          addActivity("status", "拒绝未提供的工具", "error", `模型请求了本轮未提供的工具：${unknownNames}；未派发，已让模型按真实工具目录重新选择。`);
+          rejectedToolNames = [];
+          saveAiModelHistory(userId, turn.session.id, turn.assistantMessage.id, persistedModelMessages(turnMessages));
+          if (unknownToolRounds >= 3) {
+            pendingRunError = new Error(`模型连续 ${unknownToolRounds} 次请求本轮未提供的工具（${unknownNames}）；已停止本轮，避免继续消耗请求预算。`);
+            return { action: "end" };
           }
-          saveAiModelHistory(userId, turn.session.id, turn.assistantMessage.id, persistedModelMessages(turnMessages));
-          throw new AiModelRequestBudgetError(maxModelRequests);
+          return { action: "continue" };
         }
-        if (toolCallCount + completion.toolCalls.length > maxToolCalls) {
-          const reason = `Agent 循环达到本轮工具调用上限 ${maxToolCalls}；本批工具调用未派发。`;
-          for (const call of completion.toolCalls) {
-            const resultText = JSON.stringify({ error: reason, executionState: "not_started" });
-            recordAiToolCall(userId, turn.session.id, turn.assistantMessage.id, call.id, call.name, storedToolArguments(call.name, call.arguments), false);
-            recordAiToolResult(userId, turn.session.id, turn.assistantMessage.id, call.id, persistedComputerToolResult(call.name, resultText), true, "not_started");
-            appendMessages({ role: "tool", tool_call_id: call.id, content: resultText });
-          }
+        const hasToolCalls = event.message.content.some(part => part.type === "toolCall");
+        if (hasToolCalls) return { action: "continue" };
+        const followups = takeInputs?.() ?? [];
+        if (followups.length) {
+          appendMessages(...followups);
+          scheduledMessages.push(...followups);
           saveAiModelHistory(userId, turn.session.id, turn.assistantMessage.id, persistedModelMessages(turnMessages));
-          throw new AiToolCallBudgetError(maxToolCalls);
+          return { action: "continue" };
         }
-        const priorityPlanCall = planModeEnabled ? completion.toolCalls.find(call => planModeToolNames.has(call.name)) : undefined;
-        if (!priorityPlanCall && completion.toolCalls.some(call => offeredBusinessTools.some(tool => tool.name === call.name && tool.requiresQuestionChannel)) && completion.toolCalls.length !== 1) {
-          const reason = "需要向用户澄清时必须单独提出问题；本轮并行工具调用均未派发，请根据拒绝结果重新选择。";
-          recordUnstartedToolCalls(completion.toolCalls, reason);
-          saveAiModelHistory(userId, turn.session.id, turn.assistantMessage.id, persistedModelMessages(turnMessages));
-          addActivity("status", "重新选择工具", "complete", reason);
-          recordAiSessionStep(userId, turn.session.id, turn.assistantMessage.id, requestCount, "end");
-          continue;
-        }
-        let repeatedToolCallMessage: string | null = null;
-        for (let callIndex = 0; callIndex < completion.toolCalls.length; callIndex += 1) {
-          const call = completion.toolCalls[callIndex]!;
+        finalResponseReceived = true;
+        return { action: "end" };
+      };
+      const executePiToolCall = async (call: import("lfaa-llm").AiCompletionToolCall, signal: AbortSignal): Promise<{ content: AiCompletionMessage["content"]; isError?: boolean }> => {
+          signal.throwIfAborted();
+          const callIndex = completion.toolCalls.findIndex(item => item.id === call.id);
+          const actualCall = completion.toolCalls[callIndex];
+          if (actualCall) call = actualCall;
+          let repeatedToolCallMessage: string | null = null;
+          handledToolCallIds.add(call.id);
           toolCallCount += 1;
-          if (priorityPlanCall && call.id !== priorityPlanCall.id) {
-            const resultText = JSON.stringify({ error: "计划模式状态切换优先处理；本次响应中的其他工具未派发，请在下一轮根据新模式重新选择。", executionState: "not_started" });
-            recordAiToolCall(userId, turn.session.id, turn.assistantMessage.id, call.id, call.name, storedToolArguments(call.name, call.arguments), false);
-            recordAiToolResult(userId, turn.session.id, turn.assistantMessage.id, call.id, resultText, true, "not_started");
-            appendMessages({ role: "tool", tool_call_id: call.id, content: resultText });
-            saveAiModelHistory(userId, turn.session.id, turn.assistantMessage.id, persistedModelMessages(turnMessages));
-            continue;
-          }
           const tool = offeredBusinessTools.find(tool => tool.name === call.name);
           const activityKind: AiActivityItem["kind"] = tool?.activityKind ?? (tool?.delegation === "domain-expert" ? "agent" : tool?.id === "writing.load-skill" ? "skill" : "tool");
           const activityName = tool?.activityTitle ?? activityToolTitle(tool, body.appId);
@@ -1328,7 +1402,7 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
                     appendMessages({ role: "tool", tool_call_id: call.id, content: resultText });
                     saveAiModelHistory(userId, turn.session.id, turn.assistantMessage.id, persistedModelMessages(turnMessages));
                     openToolActivityId = null;
-                    continue;
+                    return { content: resultText, isError: true };
                   }
                   if (abortController.signal.aborted) throw new DOMException("用户已停止 Agent 运行。", "AbortError");
                   if (!consumeAiToolApproval({ userId, approvalId: approval.id, appId: body.appId, toolId: tool.id, toolVersion: "1.0.0", risk, scopeKey: requested.scopeKey, parameters })) {
@@ -1477,7 +1551,12 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
               const resultText = persistedComputerToolResult(call.name, JSON.stringify({ error: "本轮已停止；执行结果须由目标 Owner 核实。", executionState: state, executed: dispatched ? null : false }));
               recordAiToolResult(userId, turn.session.id, turn.assistantMessage.id, call.id, resultText, true, state);
               appendMessages({ role: "tool", tool_call_id: call.id, content: resultText });
-              recordUnstartedToolCalls(completion.toolCalls.slice(callIndex + 1), "本轮已停止；此调用尚未派发。");
+              const remaining = completion.toolCalls.slice(callIndex + 1);
+              const remainingReason = "本轮已停止；此调用尚未派发。";
+              recordUnstartedToolCalls(remaining, remainingReason);
+              const blockedReply = JSON.stringify({ error: remainingReason, executed: false, executionState: "not_started" });
+              for (const item of remaining) blockedToolCallReasons.set(item.id, blockedReply);
+              pendingRunError = error;
               saveAiModelHistory(userId, turn.session.id, turn.assistantMessage.id, persistedModelMessages(turnMessages));
               openToolActivityId = null;
               throw error;
@@ -1488,7 +1567,7 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
           }
           openToolActivityId = null;
           const storedToolResult = call.name.startsWith("mcp_") ? persistedMcpToolResult(toolResult) : toolResult;
-          let resultText = JSON.stringify(storedToolResult);
+          let resultText = JSON.stringify(storedToolResult) ?? "null";
           if (resultText.length > 48_000) resultText = JSON.stringify({ truncated: true, preview: resultText.slice(0, 47_000) });
           const executionState = toolExecutionState(toolResult, dispatched);
           if (executionState === "complete") resultRevision++;
@@ -1530,15 +1609,35 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
             throw error;
           }
           if (stopForRepeatedFailure) {
-            // 整批剩余调用也必须闭合：记录为未派发并把配对结果交回模型历史，不能只依赖会话修复合成证据。
-            recordUnstartedToolCalls(completion.toolCalls.slice(callIndex + 1), "本轮已停止；重复的被拦调用使同批剩余工具不再派发。");
+            // Pi 仍负责遍历剩余调用；beforeToolCall 会把它们登记为未派发并阻止执行。
+            const reason = repeatedToolCallMessage ?? "本轮已停止；重复的被拦调用使同批剩余工具不再派发。";
+            pendingRunError = new AiRepeatedToolCallError(reason);
+            const remaining = completion.toolCalls.slice(callIndex + 1);
+            if (remaining.length) {
+              recordUnstartedToolCalls(remaining, reason);
+              const blockedReply = JSON.stringify({ error: reason, executed: false, executionState: "not_started" });
+              for (const item of remaining) blockedToolCallReasons.set(item.id, blockedReply);
+            }
             saveAiModelHistory(userId, turn.session.id, turn.assistantMessage.id, persistedModelMessages(turnMessages));
-            break;
           }
-        }
-        if (repeatedToolCallMessage) throw new AiRepeatedToolCallError(repeatedToolCallMessage);
-        recordAiSessionStep(userId, turn.session.id, turn.assistantMessage.id, requestCount, "end");
+          return { content: toolMessageContent ?? resultText, ...(executionState !== "complete" ? { isError: true } : {}) };
       }
+      await runLfaaPiAgent({
+        model: piModel,
+        messages: completionMessages,
+        getTools: () => functionTools,
+        stream: streamPiRequest,
+        onRejectedToolCalls: names => { rejectedToolNames = names; },
+        onAssistantMessage: message => onPiAssistantMessage(message),
+        executeTool: async (call, signal) => executePiToolCall(call, signal),
+        prepareRequest: preparePiRequest,
+        prepareNextTurn: prepareNextPiTurn,
+        getToolResultMessage: toolCallId => currentToolResults.get(toolCallId),
+        beforeToolCall: beforePiToolCall,
+        finishTurn: finishPiTurn,
+        signal: abortController.signal
+      });
+      if (pendingRunError) throw pendingRunError;
       if (!finalResponseReceived) throw new AiModelRequestBudgetError(maxModelRequests);
       executionPhase = "agent";
       if (providerActivityId) finishActivity(providerActivityId, "complete", `模型工作流完成；共 ${requestCount} 次对话模型请求、${toolCallCount} 次工具调用。`);

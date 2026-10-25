@@ -235,6 +235,18 @@
       "lfaa-canvas": [
         "packages/canvas/canvas/src/index.ts"
       ],
+      "lfaa-canvas-generation": [
+        "packages/canvas/canvas-generation/src/index.ts"
+      ],
+      "lfaa-canvas-generation/src/*": [
+        "packages/canvas/canvas-generation/src/*"
+      ],
+      "lfaa-canvas-tool-canvas": [
+        "packages/canvas/tool-canvas/src/index.ts"
+      ],
+      "lfaa-canvas-tool-canvas/src/*": [
+        "packages/canvas/tool-canvas/src/*"
+      ],
       "lfaa-canvas/src/*": [
         "packages/canvas/canvas/src/*"
       ],

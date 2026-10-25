@@ -380,6 +380,56 @@ test('GitHub-only DSH bundle 在官方 NPM 返回 404 时仍可检查并隔离�
   assert.equal(publicRegistryRequests.filter(url => url === 'https://registry.npmjs.org/dsh-plugin-unpublished/3.0.0').length, 2, 'inspection and installation check only the declared package and never substitute another package');
 });
 
+test('Skill 使用原始 GitHub 仓库快照，不要求插件 package.json', async () => {
+  const { downloadGithubRepositorySnapshot, downloadGithubSnapshot, parseGithubGitTree } = await import('lfaa-plugin-manager/src/github-source.js');
+  const previousFetch = globalThis.fetch;
+  const repositoryUrl = 'https://github.com/acme/skills';
+  const skillFiles = {
+    'skills/minecraft-server-setup/SKILL.md': '---\nname: minecraft-server-setup\ndescription: Manage a Minecraft Java server.\n---\n# Setup',
+    'skills/minecraft-server-setup/references/commands.md': '# Safe reference\n',
+    'LICENSE.md': 'MIT License\n',
+    'README.md': '# Repository\n'
+  };
+  const blobSha = contents => createHash('sha1').update(`blob ${Buffer.byteLength(contents)}\0`).update(contents).digest('hex');
+  const tree = Object.entries(skillFiles).map(([path, contents]) => ({ path, type: 'blob', mode: '100644', sha: blobSha(contents), size: Buffer.byteLength(contents) }));
+  const gitTree = parseGithubGitTree(Buffer.from(`100644 blob ${blobSha(skillFiles['skills/minecraft-server-setup/SKILL.md'])}\tskills/minecraft-server-setup/SKILL.md\0`, 'utf8'));
+  assert.equal(gitTree[0]?.size, null, 'blobless Git tree parsing must not require `ls-tree -l` to read remote blob sizes');
+  assert.equal(gitTree[0]?.path, 'skills/minecraft-server-setup/SKILL.md');
+  const skillArchive = makeZip({ 'package/SKILL.md': skillFiles['skills/minecraft-server-setup/SKILL.md'] });
+  const requests = [];
+  globalThis.fetch = async input => {
+    const url = String(input);
+    requests.push(url);
+    if (url === 'https://api.github.com/repos/acme/skills') return Response.json({ full_name: 'acme/skills', description: 'Skill fixtures', stargazers_count: 1, default_branch: 'main', license: { spdx_id: 'MIT' } });
+    if (url === `https://api.github.com/repos/acme/skills/commits/${sourceRef}` || url === `https://api.github.com/repos/acme/skills/commits/${commit}`) return Response.json({ sha: commit });
+    if (url === `https://api.github.com/repos/acme/skills/git/trees/${commit}?recursive=1`) return Response.json({ truncated: false, tree });
+    if (url.startsWith(`https://raw.githubusercontent.com/acme/skills/${commit}/`)) {
+      const path = decodeURIComponent(url.slice(`https://raw.githubusercontent.com/acme/skills/${commit}/`.length));
+      if (typeof skillFiles[path] === 'string') return new Response(skillFiles[path]);
+      return new Response(null, { status: 404 });
+    }
+    if (url === `https://codeload.github.com/acme/skills/zip/${commit}`) return new Response(skillArchive, { headers: { 'content-type': 'application/zip' } });
+    throw new Error(`Unexpected GitHub request: ${url}`);
+  };
+  try {
+    await assert.rejects(downloadGithubSnapshot(repositoryUrl, sourceRef), /插件快照根目录缺少 package\.json/u, '插件路径应继续要求有效的插件清单');
+    const index = await downloadGithubRepositorySnapshot(repositoryUrl, sourceRef);
+    assert.deepEqual(index.skillRoots, ['skills/minecraft-server-setup']);
+    assert.deepEqual(index.files, [], '只读树索引时不下载整仓源码');
+    const snapshot = await downloadGithubRepositorySnapshot(repositoryUrl, index.commit, undefined, 'skills/minecraft-server-setup');
+    assert.equal(snapshot.repository.license, 'MIT');
+    assert.equal(snapshot.commit, commit);
+    assert.match(snapshot.archiveSha256, /^[a-f0-9]{64}$/u);
+    assert.equal(snapshot.files.find(file => file.path === 'skills/minecraft-server-setup/SKILL.md')?.contents.toString('utf8'), '---\nname: minecraft-server-setup\ndescription: Manage a Minecraft Java server.\n---\n# Setup');
+    assert.deepEqual(snapshot.files.map(file => file.path), [
+      'skills/minecraft-server-setup/references/commands.md',
+      'skills/minecraft-server-setup/SKILL.md'
+    ]);
+    assert.equal(requests.filter(url => url === `https://codeload.github.com/acme/skills/zip/${commit}`).length, 1, '只有插件路径读取 ZIP 快照');
+    assert.ok(requests.includes(`https://api.github.com/repos/acme/skills/git/trees/${commit}?recursive=1`));
+  } finally { globalThis.fetch = previousFetch; }
+});
+
 test('公开 NPM registry 404 回退后检查与安装固定到同一实际 registry', async () => {
   const manager = new PluginManager('registry-fallback', join(data, 'profiles'));
   publicRegistryRequests = [];

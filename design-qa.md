@@ -52,3 +52,67 @@
 3. 重建期间运行中的 Web 服务按构建保护显示重启提示。重启本轮启动的服务后，在相同路由和视口重新捕获；最终页面正常加载且 Console error 为空。
 
 **final result: passed**
+
+# LFAA 画布首页与对话抽屉视觉 QA
+
+**Findings**
+
+- 没有待修复的 P0/P1/P2 视觉问题。首页按参考图建立顶部品牌/搜索/操作区、左侧欢迎区与右侧最近项目区；提示词创作表单默认收起，点击“通过提示词创作”可展开，保留原有生成与画布模式。
+- [P3] 参考图使用 Magine 的深色背景与纹理；当前账户 Appearance 为浅色。用户已明确要求跟随设置中心，因此首页保持透明背景，继续显示系统主题/壁纸，不复制参考图背景，也不改账户外观偏好。
+- 参考图的会员、购买、速记、自动整理与独立助手入口不属于当前 LFAA 已接入能力；保留真实设置、最近项目、App 导航、导入、空白画布和提示词创作入口。
+- 最近项目在首次打开时出现真实同步态，加载完成后显示当前账户的 3 个项目；不是常驻 spinner。对话抽屉只按摘要与说明的真实内容显示，不包含伪对话或假结果。
+
+**对照证据**
+
+| 检查项 | 参考 | 实现 |
+| --- | --- | --- |
+| 源图 | `C:\Users\yu\AppData\Local\Temp\codex-clipboard-09e1a5ff-f297-4123-9ff8-c00209c5ba8b.png`（当前首页）、`C:\Users\yu\AppData\Local\Temp\codex-clipboard-8347853a-7f65-4c63-a7c8-a85624de8319.png`（目标） | 仅复用布局层级；主题、壁纸遵守 Appearance |
+| 参考尺寸 | 2048×996 像素 | 内置浏览器 `http://127.0.0.1:3000/canvas`，2048×996 CSS px；欢迎标题约 x=392,y=264，最近项目面板约 x=1377,y=148；截图由 CUA inline 捕获，无本地保存路径 |
+| 常用桌面 | 用户截图约 1770×1204 | 同一路由 1440×900 CSS px；搜索、项目/App 卡片、创建表单展开/收起与 App 导航均可见/可用 |
+| 手机 | 窄屏下主要入口和项目可达 | 390×845 CSS px；主内容单列，项目/App 入口可纵向滚动，文档 `scrollWidth=380 <= clientWidth=390` |
+| 短屏 | 操作可达且滚动有界 | 390×420 CSS px；顶栏与主入口可见，主内容可纵向滚动，无页面横向溢出 |
+| 对话抽屉 | 用户提供 `C:\Users\yu\AppData\Local\Temp\codex-clipboard-d9dde740-9c64-41cc-870f-a488a1d38567.png` | `/apps/steamcmd/canvas`；1440×900 时 420×225px，390×845 时 354×243px；内部滚动高度等于可视高度，无内容下方大块空白 |
+
+**交互、设置与性能证据**
+
+- `SteamCMD` 搜索结果同时缩至 1 个真实项目和 1 个真实 App；清空后恢复为 3 个项目、6 个 App 入口。App 卡片可以打开 SteamCMD 画布路由并返回首页。
+- “通过提示词创作”可展开真实生成表单，按 `canvas.defaultMode` 初始选择模式；Canvas/Generate 可切换并收起，没有发起项目创建、导入或生成请求。
+- 页面根背景透明；卡片表面、遮罩、模糊、强调色、字体字号、对比度与减少动态效果继续读取 Appearance/共享令牌。实页主题为 light；验收期间未修改设置。
+- 项目读取继续走原有一次性 API 请求，筛选使用 `useMemo`；本批没有新增订阅、轮询或事件监听。帧时间和大型列表压力未测。
+- 内置浏览器开发日志 Console errors 为 0；`pnpm run typecheck` 与 `pnpm run build:web` 通过；`git diff --check` 通过。Web 构建有现存大型 chunk 提醒，不影响成功产出。
+
+**未测范围**
+
+- 深色主题实页、用户壁纸切换后的截图对照、生成 Provider、文件选择器/真实 JSON 导入、创建写入、Electron/WebView、真实设备和帧时间未在本轮验证。没有更改项目或账户设置。
+
+**final result: passed**
+
+# LFAA 画布工作区参考图视觉 QA
+
+**Findings**
+
+- 没有待修复的 P0/P1/P2 视觉问题。顶栏压缩为项目选择、保存状态、模式和图标操作；返回/App/重命名等仍可从“更多”菜单到达。桌面工具轨只显示图标，中央空态与点阵画布对齐参考图。
+- [P3] 当前账户 Appearance 是浅色，实页因此显示浅色画布；用户选择保持跟随设置中心主题，未覆盖账户偏好。目标图的暗色表面会随 Appearance 深色令牌显示，本轮没有切换账户主题复验。
+- React Flow 点阵使用共享主题正文色 24% 混合透明度，浅色页面可见且保持低对比；生成面板仅在“生成”模式显示。没有加入目标截图中的会员、头像、搜索或历史假入口；底部缩略图遵循真实 `canvas.showMiniMap` 设置。
+- 全局 `/canvas` 验收时遇到过期构建保护页；确认 3000 端口属于当前仓库的 LFAA Web 服务并重启后，首页与 SteamCMD 子画布均正常加载。该重启保护页已消失；不能据此判断用户先前看到的红色服务器错误是否来自生成 API。
+- 图片生成 Provider/模型在设置中心尚未配置；本轮只核对前端真实状态和配置提示，没有提交生成请求。生成能力和先前的生成错误仍需账户配置后的实测。
+
+**对照证据**
+
+| 检查项 | 参考 | 实现 |
+|---|---|---|
+| 源图 | `C:\Users\yu\AppData\Local\Temp\codex-clipboard-520f87d4-c551-46ae-be8e-a0d66537280f.png`、`C:\Users\yu\AppData\Local\Temp\codex-clipboard-6662819b-4e75-4aca-97ed-decf80df29f2.png` | 两图显示的工作区外壳与控件层级作为本批目标；主题按用户明确选择继续跟随设置中心 |
+| 桌面 | 图二宽屏、暗色、图标工具轨、中央空态 | Codex 内置浏览器 `http://127.0.0.1:3000/apps/steamcmd/canvas`，1440×900 CSS 像素；浅色 Appearance、Canvas 模式；截图由 CUA inline 捕获，无本地保存路径 |
+| 全局入口 | 原始 `/canvas` 首页加载 | 重启当前仓库 Web 服务后，`http://127.0.0.1:3000/canvas` 显示画布首页，无构建保护页或服务器内部错误横幅 |
+| 窄屏 | 保持项目/模式/操作可达 | 390×845 CSS 像素；顶栏两行，工具轨横向滚动，缩放条可见 |
+| 短屏 | 仍可触达顶部与工具 | 390×420 CSS 像素；文档 `scrollWidth=380`、`clientWidth=390`，无页面横向溢出；工具轨内部滚动 |
+
+**交互与回归**
+
+- Canvas 模式切换后生成面板消失；初始 Generate 模式下工作台真实显示。
+- 打开“更多”后，返回本 App、画布首页、App 子菜单、重命名、设置、撤销/重做、新建、导入、导出和删除入口仍存在；没有点击写入动作。
+- 当前项目状态为“已保存”，未创建节点、生成素材、保存项目或修改设置。Console error 为 0。
+- `pnpm run typecheck`、`pnpm --filter lfaa-client-ui-workspace build`、`pnpm run build:control-plane` 与最终 `pnpm run build:web` 通过。`pnpm run check:workspace` 仅报告既有 PROMPTS 锚点缺失；`sync:workspace` 写生成清单时 Node 返回 `UNKNOWN`，详见追加批次合同。
+- 本批未实测账户深色主题、桌面 WebView、帧时间、大画布负载或 Provider。
+
+**final result: passed**

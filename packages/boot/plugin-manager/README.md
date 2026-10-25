@@ -4,6 +4,8 @@
 
 `lfaa-plugin-manager` 是 Web 与 Desktop Profile 共用的第三方插件来源和安装清单 Owner，并通过 `lfaa-capability-installs` 注册为 `plugin` 类型适配器。支持 GitHub 仓库、官方 NPM 包和 LFAA Host 本机绝对路径三种来源。自然语言发现、检查、安装、App 路由、清单查询、启停和移除使用跨类型的 `capability_*` AI Tools；候选始终未验证，必须先检查固定来源与清单才能判断合同兼容性。
 
+`github-source.ts` 同时提供 Skill 仓库快照读取合同：只固定仓库 commit，先读取有界 Git tree 发现 `SKILL.md` 目录，再按选中的目录逐文件读取并核验 Git blob SHA；不下载整仓 ZIP，也不要求 npm `package.json`。目录内文件数、总字节和单文件限制与 Skill Owner 的检查值共用；GitHub API 不可用时，Git 只浅取固定 commit 并读取不含 blob 大小的文件树，随后仍从固定 commit 的 `raw.githubusercontent.com` 地址下载所选文件，避免 blobless 仓库因 Git 延迟取回每个文件而留下长时间运行的子进程。Skill 目录选择、`SKILL.md` 校验和账户安装仍归 `lfaa-capability-skill`/Knowledge Library。`downloadGithubSnapshot` 是插件专用路径，才会下载/解包插件快照、读取插件 manifest、检查声明入口或补齐匹配 commit 的 NPM 发布文件。两条路径都不执行仓库脚本。
+
 Capability Install 将 Agent Run 的 AbortSignal 沿 Plugin Adapter、Plugin Manager 与来源解析传到 GitHub/NPM 快照的每个有界请求，以及 Git fallback 子进程；用户取消会停止当前下载，不会被误识别成网络故障而触发 Git fallback。快照下载完成后、暂存目录提交前再次检查取消；原子提交过程不响应中途事件循环，提交前取消清理暂存，已提交结果由清单回读确认。未提供 signal 的既有调用继续使用各自超时限制。Prompt 与 Skill 安装也只在各自 Owner 写入前消费同一 Run signal；通用凭证保持一次性。
 
 DSH `dsh.bundle.patch` 可声明单个路径或按顺序应用的路径数组。来源检查会对每个相对路径做包内存在性、遍历与重复项校验，并将单路径保留为字符串、多路径以有序数组写入 `requirements.bundlePatch` JSON 字段；这只修复通用清单识别和来源信息回传，不代表对应的 DSH Host/Client 已有可执行 Runtime。

@@ -248,7 +248,8 @@ test("工作区通过内外层容器和区域标识独立定位四个布局盒�
   assert.ok(innerIndex > outerIndex, "shared workbench root should be nested inside the outer container");
   assert.match(workspace, /className="module-workbench-inner module-workbench-layout"[\s\S]*?leading=\{<GlobalNavigationRail/u);
   assert.match(workspace, /leadingRegionClassName="module-workbench-region--leading"/u);
-  assert.match(workspace, /leftRegionClassName="module-workbench-region--secondary-navigation"/u);
+  assert.match(workspace, /const leftRegionClassName = `module-workbench-region--secondary-navigation/u);
+  assert.match(workspace, /leftRegionClassName=\{leftRegionClassName\}/u);
   assert.match(workspace, /centerRegionClassName="module-workbench-region--center-workspace"/u);
   assert.match(workspace, /rightRegionClassName="module-workbench-region--right-menu"/u);
   assert.doesNotMatch(workspace, /module-workbench-main/u, "四个内容区不再被额外三栏盒子包裹");
@@ -296,13 +297,15 @@ test("四个工作区大区域内部按功能盒子各自分组", () => {
   assert.match(workspaceRegionsCss, /\.module-workbench-region--leading,[\s\S]*?color:\s*var\(--color-text-primary\)/u);
 });
 
-test("普通应用中心区使用与标题对齐的响应式左右留白", () => {
+test("普通应用页面共用导航与主内容锚点并按中心列宽整体左移", () => {
   assert.match(workspace, /data-module-mode=\{mode\}/u);
   assert.match(workspace, /mode === "normal" && !writingNormal && !aiVideoNormal \? " module-center__content--application"/u);
-  assert.match(workspaceCss, /\.module-center__header\[data-module-mode="normal"\]\s*\{[^}]*padding-inline:\s*clamp\(20px,\s*2\.5cqi,\s*32px\)/u);
+  assert.match(workspaceCss, /\.module-center__header\[data-module-mode="normal"\]\s*\{[^}]*padding-inline-start:\s*calc\(clamp\(20px,\s*2\.5cqi,\s*32px\)\s*-\s*clamp\(8px,\s*1\.2cqi,\s*16px\)\);[^}]*padding-inline-end:\s*calc\(clamp\(20px,\s*2\.5cqi,\s*32px\)\s*\+\s*clamp\(8px,\s*1\.2cqi,\s*16px\)\)/u);
   assert.match(workspaceCss, /\.module-center__header\[data-layout-mode="mobile"\]:not\(\[data-module-mode="normal"\]\)\s*\{[^}]*padding:\s*5px 9px/u);
-  assert.match(workspaceCss, /\.module-center__content--application\s*\{[^}]*padding-inline:\s*clamp\(20px,\s*2\.5cqi,\s*32px\);[^}]*box-sizing:\s*border-box/u);
-  assert.match(workspaceCss, /@container module-center \(max-width:\s*560px\)[\s\S]*?\.module-center__content--application\s*\{[^}]*padding-inline:\s*16px/u);
-  assert.match(workspaceCss, /@container module-center \(max-width:\s*360px\)[\s\S]*?\.module-center__content--application\s*\{[^}]*padding-inline:\s*12px/u);
+  assert.match(workspaceCss, /\.module-center__content--application\s*\{[^}]*padding-inline-start:\s*calc\(clamp\(20px,\s*2\.5cqi,\s*32px\)\s*-\s*clamp\(8px,\s*1\.2cqi,\s*16px\)\);[^}]*padding-inline-end:\s*calc\(clamp\(20px,\s*2\.5cqi,\s*32px\)\s*\+\s*clamp\(8px,\s*1\.2cqi,\s*16px\)\);[^}]*box-sizing:\s*border-box/u);
+  assert.match(workspaceCss, /@container module-center \(max-width:\s*560px\)[\s\S]*?\.module-center__header\[data-module-mode="normal"\]\s*\{[^}]*padding-inline-start:\s*8px;[^}]*padding-inline-end:\s*24px/u);
+  assert.match(workspaceCss, /@container module-center \(max-width:\s*560px\)[\s\S]*?\.module-center__content--application\s*\{[^}]*padding-inline-start:\s*8px;[^}]*padding-inline-end:\s*24px/u);
+  assert.match(workspaceCss, /@container module-center \(max-width:\s*360px\)[\s\S]*?\.module-center__header\[data-module-mode="normal"\]\s*\{[^}]*padding-inline-start:\s*8px;[^}]*padding-inline-end:\s*16px/u);
+  assert.match(workspaceCss, /@container module-center \(max-width:\s*360px\)[\s\S]*?\.module-center__content--application\s*\{[^}]*padding-inline-start:\s*8px;[^}]*padding-inline-end:\s*16px/u);
   assert.match(workspaceCss, /\.module-center__content:not\(\.module-center__content--application\)\s*\{\s*padding:\s*0;\s*\}/u);
 });
