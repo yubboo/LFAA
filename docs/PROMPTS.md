@@ -8314,3 +8314,33 @@ Owner：依赖由各自 `package.json` 声明，`scripts/check-workspace.mjs` �
 - 直接回归：`plugin-manager` + `capability-skill` 定向测试 28/28，`mcp-tools` 6/6；LFAA CLI 类型检查、Control Plane 构建、Web 构建通过，构建均写入仓库根 `dist/`；`node scripts/runtime-build-state.mjs web` 返回 `[]`；`git diff --check` 通过。
 - 未测：MCP 工具实际调用（受全局扩展开关关闭阻断）、浏览器内容读取与页面操控、电脑操控、外部 Skill 安装成功闭环、Minecraft 服务端启动，以及内置浏览器恢复后的实页验收。
 - 文件职责：`packages/boot/plugin-manager/src/github-source.ts`（GitHub 文件快照下载 Owner）；`packages/boot/capability-skill/src/index.ts`（Skill 检查/安装生命周期）；`packages/mcp/mcp-client/src/runtime.ts`（stdio MCP 进程启动 Owner）；`apps/cli/tests/plugin-manager.test.mjs`、`apps/cli/tests/mcp-tools.test.mjs`（回归）；三个对应包 README（能力状态和调用边界）；`docs/PROMPTS.md`（本任务合同及证据）。
+
+<a id="lfaa-agent-real-work-activity-audit-20261026"></a>
+
+## 287-小鱼 Agent 工作记录与电脑操控实测边界（2026-10-26）
+
+### 目标、Owner 与设置
+
+- 承接任务 286 和用户关于“用时”展开应看见工作过程、最终结果及文件变化的要求：核对真实工作记录，补全电脑操控安全摘要，并让工具/MCP 活动说明实际执行的具体动作。
+- Owner：`packages/core/agent-loop` 负责生成活动并按安全边界总结结果；`packages/mcp/mcp-client` 提供真实 MCP 工具身份；Session Owner 保存时间线；`packages/client/ui-chat` 按时间线显示阶段、工具和最终正文；电脑驱动回执继续归 `packages/computer-use`。
+- 运行入口：正式 Web `http://127.0.0.1:3000/work`。本轮未新增 Settings 配置或改账户偏好；实页沿用现有系统级 DeepSeek 主账户、已连接 MCP 与当前权限设置。电脑操控仍须满足 `computerControl.enabled` 与 `permissions.mode`，由 Computer Use 与 Permission Owner 强制执行。
+- 记录边界：活动日志只增加经筛选的动作类型、坐标/目标和驱动状态；不写入桌面截图或输入正文，不把驱动回执说成画面已经变化，不保存隐藏推理。
+
+### 实施与验收记录
+
+- 确认 `用时` 面板已有真实 Session 活动时间线：展开后可见上下文阶段、Provider 请求、工具活动及最终答案正文；成功的文件/命令活动另有项目文件变化汇总。旧活动保留创建时的文本，不会由本次代码变更追溯重写。
+- 修复摘要与真实执行合同不符的问题：屏幕观察回执只有 `screenshotForwarded`，没有 `observed` 字段；摘要现按真实字段判断。点击摘要显示坐标、按键类型、单击/双击及驱动状态；输入、快捷键、滚动只记录已收到驱动回执和“效果待观察”，输入正文始终省略。错误码只接受固定安全字符集，不把执行器错误正文写入活动。
+- MCP 活动现显示有界的服务名和远端工具名，结果摘要说明回执已交还 Agent，原始 MCP 正文不复制到活动日志；能力目录、来源检查、Skill 安装、清单核对和移除也各有清楚标题。
+- 终端活动现按 `create/send/read/close` 显示真实阶段；提交命令项保留经过凭据遮蔽/长度限制的命令预览，并说明 send 回执不证明命令成功；读取项只记录输出字符数，终端原文仍交给 Agent、不写进活动摘要。项目文件活动显示实际操作类型和校验过的相对路径，不记录工作区绝对根目录或文件正文；成功变更继续显示现有文件变化卡片。
+- 设置中心配置：不新增、不修改配置；运行约束仍使用现有 `computerControl.enabled` 和 `permissions.mode`。没有启动 Minecraft 服务、安装程序或接受 EULA。
+- 直接回归：最终 `mcp-tools.test.mjs`、`agent-activity-summary.test.mjs`、`computer-use.test.mjs`、`ai-work-response-timeline.test.mjs` 共 20 项通过；`agent-runtime.test.mjs` 6 项通过。运行测试时先发现一个旧断言仍要求其他账户解析不到模型；现行合同是系统级模型可供已认证账户共享，已将断言更新为核对共享系统模型，Run 数据仍按账户隔离。`@yubboo/lfaa` 类型检查、Control Plane 构建、Web 构建通过，产物仅写入根 `dist/`。
+- 内置浏览器：重启到新构建后，`/work` 返回 200，健康接口为 `status=ok, persistence=ready`，运行构建指纹返回 `[]`。ChatGPT 内置浏览器以约 865×925 视口登录后正常显示工作台；创建只读测试会话，实际调用一次 Sequential Thinking MCP，得到 5 秒“用时”。展开后实页可见上下文准备、模型请求、具体标题 `调用 MCP · Sequential Thinking / sequentialthinking`、真实回执摘要和完整最终答复。截图目视确认标题与摘要未溢出；旧活动不会追溯改写。
+- 内置浏览器：重启到新构建后，`/work` 返回 200，健康接口为 `status=ok, persistence=ready`，运行构建指纹返回 `[]`。ChatGPT 内置浏览器以约 865×925 视口登录后正常显示工作台；创建只读 MCP 会话，实际调用一次 Sequential Thinking，5 秒“用时”展开后可见具体服务/工具标题与真实回执摘要。随后用同一实页做两轮本机只读终端验收；最新“用时 13 秒”展开后可见创建/运行/读取/关闭阶段，提交命令详情为 `node --version`，读取活动只显示 23 个字符、不复制终端输出正文。Agent 经第三次 read 才从真实回显确认 `v24.16.0`，并如实说明前两次只有终端初始化控制序列；截图视口约 865×925，命令与读取摘要在展开项中均可见。旧活动不会追溯改写。
+
+### 剩余能力边界
+
+- 既有验收证据覆盖：系统大模型真实对话、Minecraft Skill 安装/读取（仅方法资料）、Sequential Thinking MCP 注册与实际调用、隔离临时目录代码编写/红绿测试/修复/清理、两个有独立 runId 的子 Agent，以及浏览器读取本机健康接口。
+- 电脑操控尚未通过可靠端到端验收：Agent 先前回报计算器结果 56，随后明确撤回部分屏幕操作叙述；现有 CUA 驱动只观察主显示器，点击/滚动走桌面坐标，截图和输入动作证据不持久化。本轮没有新增桌面动作，也不把先前被撤回的结果计为通过。下一步应先解决可信屏幕回读与窗口定向输入/关闭的验证，再评估电脑操控闭环。
+- Minecraft Skill 只提供开发方法，尚无可用 Minecraft MCP/游戏执行器，不能据此声称 Agent 已能编辑世界或启动服务器。多 Agent 已证明在进程内派发并回收只读任务，尚未验证隔离工作树下并行修改与冲突合并。
+- 内置浏览器黑屏在正式重启后消失；本次实际 `/work` 页面和“用时”交互已通过内置浏览器验收，Edge 不作为替代证据。
+- 文件职责：`packages/core/agent-loop/src/computer-use-activity.ts`（电脑事件标题与安全摘要）；`packages/core/agent-loop/src/terminal-activity.ts`（终端阶段标题、命令预览脱敏与结果摘要）；`packages/core/agent-loop/src/project-file-activity.ts`（安全项目相对路径、文件变更和操作摘要）；`packages/core/agent-loop/src/execute-turn.ts`（活动持久化、标题与真实结果摘要）；`packages/mcp/mcp-client/src/runtime.ts`（提供有界 MCP 服务/工具标题）；`apps/cli/tests/agent-activity-summary.test.mjs`、`apps/cli/tests/agent-runtime.test.mjs`、`apps/cli/tests/mcp-tools.test.mjs`（日志、系统级模型和 MCP 回归）；`packages/core/agent-loop/README.md`、`packages/mcp/mcp-client/README.md`（Owner 与日志合同）；`docs/PROMPTS.md`（本任务证据、设置及未测边界）。

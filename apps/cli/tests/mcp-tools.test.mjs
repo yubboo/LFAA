@@ -107,6 +107,7 @@ test("MCP 按真实协议发现和执行工具，取消不重放", async () => {
     assert.equal(discovered.serverStates[0].status, "ready");
     assert.match(discovered.serverStates[0].manifestSha256, /^[a-f0-9]{64}$/u);
     const tool = discovered.tools[0];
+    assert.equal(tool.activityTitle, "调用 MCP · 测试服务 / fixture_read");
     const nonReconciledProbe = await discoverMcpTools([], "workspace", "fixture-user", controller.signal, 10, { reconcile: false });
     assert.deepEqual(nonReconciledProbe.errors, []);
     await nonReconciledProbe.close();

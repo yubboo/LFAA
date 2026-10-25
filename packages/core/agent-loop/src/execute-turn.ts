@@ -32,7 +32,9 @@ import type { SessionModelMessage } from "lfaa-session/src/kernel.js";
 import { manageContextBeforeRequest, type ContextManagerHooks } from "./runtime-context.js";
 import { appendShellCommandActivityPreview } from "./shell-command-activity.js";
 import { buildWebActivityPreview } from "./web-activity.js";
-import { buildAiProjectFileChanges } from "./project-file-activity.js";
+import { computerUseActivitySummary, computerUseActivityTitle } from "./computer-use-activity.js";
+import { buildAiProjectFileChanges, projectFileActivityInvocation } from "./project-file-activity.js";
+import { terminalActivityInvocationSummary, terminalActivityResultSummary, terminalActivityTitle } from "./terminal-activity.js";
 import { AiRunPauseGate } from "./run-pause.js";
 import { toolExecutionState } from "./tool-outcome.js";
 import { resolveAiSessionWorkspaceContext } from "./workspace-context.js";
@@ -384,7 +386,15 @@ async function waitForApprovalDecision(userId: string, approvalId: string, expir
 const activityToolTitles: Record<string, string> = {
   "web.search": "搜索网页",
   "web.fetch": "读取网页",
-  "computer-use.observe": "观察本机桌面",
+  "terminal.manage": "管理本机终端会话",
+  "fs.search-files": "搜索项目文件",
+  "fs.grep": "搜索文件内容",
+  "fs.list-dir": "列出项目文件",
+  "fs.read-file": "读取项目文件",
+  "fs.read-image": "读取项目图像",
+  "fs.write-file": "写入项目文件",
+  "fs.str-replace": "修改项目文件",
+  "fs.delete-file": "删除项目文件",
   "browser-use.providers": "查询浏览器提供方",
   "browser-use.open-workspace-file": "在内置浏览器打开工作区 HTML",
   "browser-use.open": "打开浏览器页面",
@@ -425,12 +435,24 @@ const activityToolTitles: Record<string, string> = {
   "steamcmd.list-nodes": "检查 SteamCMD 节点",
   "steamcmd.run-task": "安装或校验 SteamCMD",
   "writing.edit-outline": "修改作品大纲",
-  "writing.edit-chapter": "修改当前章节"
+  "writing.edit-chapter": "修改当前章节",
+  "capabilities.catalog": "查看已接入能力类型",
+  "capabilities.search": "搜索可安装能力",
+  "capabilities.inspect": "检查能力来源",
+  "capabilities.install": "安装已检查的能力",
+  "capabilities.install-skill": "安装 Skill",
+  "capabilities.list": "核对能力安装清单",
+  "capabilities.set-enabled": "修改能力启用状态",
+  "capabilities.remove": "移除已安装能力"
 };
 
 function activityToolTitle(tool: ReturnType<typeof listAiBusinessTools>[number] | undefined, appId: ApplicationId): string {
   if (tool?.delegation === "domain-expert") return `委派给${domainExpertName(appId)}`;
   if (tool && activityToolTitles[tool.id]) return activityToolTitles[tool.id];
+  if (tool) {
+    const computerUseTitle = computerUseActivityTitle(tool.id);
+    if (computerUseTitle) return computerUseTitle;
+  }
   if (tool?.id === "writing.load-skill") return "加载写作 Skill";
   if (tool?.id === "writing.load-prompt") return "加载写作提示词";
   if (tool?.id === "minecraft.load-prompt") return "加载 Minecraft 提示词";
@@ -447,12 +469,20 @@ function activityToolTitle(tool: ReturnType<typeof listAiBusinessTools>[number] 
   return "调用 LFAA 工具";
 }
 
-function activityToolResultSummary(value: unknown): string {
+function activityToolResultSummary(value: unknown, toolId?: string, parameters?: Record<string, unknown> | null): string {
+  if (toolId) {
+    const computerUseSummary = computerUseActivitySummary(value, toolId, parameters);
+    if (computerUseSummary) return computerUseSummary;
+  }
   if (!value || typeof value !== "object" || Array.isArray(value)) return "工具结果已交给模型继续判断。";
   const result = value as Record<string, unknown>;
   if (result.executionState === "unconfirmed") return "执行结果未确认；不得报告成功或重放可能已产生副作用的相同操作。";
+  if (result.executionState === "not_started") return "工具未派发；执行入口报告本次操作没有开始。";
   if (result.executionState === "failed") return "命令未成功完成；真实退出结果已交给模型判断。";
   if (result.isError === true) return "外部服务报告失败；详细结果已交给模型。";
+  if (toolId === "terminal.manage") return terminalActivityResultSummary(value, parameters) ?? "本机终端工具已返回结果；详细回执已交给 Agent。";
+  if (toolId === "project.files") return "项目文件 Owner 已返回真实回执；活动摘要不复制文件正文。";
+  if (toolId?.startsWith("mcp.")) return "MCP 已返回结果并交给 Agent 继续判断；活动摘要不复制原始输出正文。";
   if (result.reviewRequired === true) return "写作提案已生成，作品正文尚未修改；模型按用户目标和当前权限模式决定是否调用应用工具。";
   const task = result.task && typeof result.task === "object" && !Array.isArray(result.task) ? result.task as Record<string, unknown> : null;
   const status = task?.status ?? result.status;
@@ -489,12 +519,16 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
     const activities: AiActivityItem[] = [];
     const activityStartedAt = new Map<string, number>();
     const shellCommandByActivity = new Map<string, { toolId: string; command: string }>();
+    const toolInvocationByActivity = new Map<string, string>();
     const webPreviewByActivity = new Map<string, string>();
-    const activityDetailWithShellCommand = (id: string, detail: string): string => {
+    const activityDetailWithPreviews = (id: string, detail: string): string => {
       const command = shellCommandByActivity.get(id);
-      if (command) return appendShellCommandActivityPreview(command.toolId, command.command, detail);
       const webPreview = webPreviewByActivity.get(id);
-      return webPreview ? `${detail}\n${webPreview}` : detail;
+      const toolInvocation = toolInvocationByActivity.get(id);
+      let result = command ? appendShellCommandActivityPreview(command.toolId, command.command, detail) : detail;
+      if (!command && webPreview) result = `${result}\n${webPreview}`;
+      if (toolInvocation && !result.includes(toolInvocation)) result = `${result}\n${toolInvocation}`;
+      return result;
     };
     const publishActivity = (activity: AiActivityItem): void => {
       const existingIndex = activities.findIndex((item) => item.id === activity.id);
@@ -519,14 +553,15 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
       const current = activities.find((item) => item.id === id);
       // 每个阶段只结束一次，避免最终收尾把已记录的真实耗时覆盖成 0。
       if (!current || current.completedAt !== null) return;
-      publishActivity({ ...current, status, detail: activityDetailWithShellCommand(id, detail), completedAt: new Date().toISOString(), durationMs: Math.max(0, Date.now() - (activityStartedAt.get(id) ?? Date.now())) });
+      publishActivity({ ...current, status, detail: activityDetailWithPreviews(id, detail), completedAt: new Date().toISOString(), durationMs: Math.max(0, Date.now() - (activityStartedAt.get(id) ?? Date.now())) });
       activityStartedAt.delete(id);
       shellCommandByActivity.delete(id);
+      toolInvocationByActivity.delete(id);
       webPreviewByActivity.delete(id);
     };
     const updateActivity = (id: string, detail: string): void => {
       const current = activities.find((item) => item.id === id);
-      if (current) publishActivity({ ...current, detail: activityDetailWithShellCommand(id, detail) });
+      if (current) publishActivity({ ...current, detail: activityDetailWithPreviews(id, detail) });
     };
 
     let answer = "";
@@ -1301,6 +1336,12 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
             if (tool.prepare) parameters = tool.prepare(parameters, { userId, workspaceProject, agentGitRepository });
             preparedToolParameters = parameters;
             const browserProviderId = parameters.providerId;
+            const projectFileInvocation = tool.id === "project.files" ? projectFileActivityInvocation(parameters) : null;
+            if (tool.id === "terminal.manage" || projectFileInvocation) {
+              const current = activities.find(activity => activity.id === activityId);
+              const title = terminalActivityTitle(parameters) ?? projectFileInvocation?.title;
+              if (current && title) publishActivity({ ...current, title });
+            }
             if (tool.id.startsWith("browser-use.") && typeof browserProviderId === "string") {
               const current = activities.find(activity => activity.id === activityId);
               if (current) publishActivity({ ...current, browserProviderId: browserProviderId as NonNullable<AiActivityItem["browserProviderId"]> });
@@ -1321,6 +1362,10 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
             if (failedToolSignatures.has(toolSignature) && !repairedFailure) {
               throw new AiRepeatedToolCallError("重复请求先前已失败或结果未知的同一工具与参数；本次未派发。请使用只读状态/日志核对结果；确认失败可选择领域恢复工具，结果未知不可重放。根据已有证据选择其他行动或给出最终答复。");
             }
+            const toolInvocation = tool.id === "terminal.manage"
+              ? terminalActivityInvocationSummary(parameters)
+              : projectFileInvocation?.detail ?? null;
+            if (toolInvocation) toolInvocationByActivity.set(activityId, toolInvocation);
             updateActivity(activityId, "参数校验通过；将按当前权限模式执行。");
 
             const risk: AiToolRisk = tool.risk(parameters);
@@ -1385,7 +1430,7 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
                   });
                   const current = activities.find((activity) => activity.id === activityId)!;
                   const waitDetail = `待批准：${activityName}；目标范围：${approval.scopeSummary}。批准前不会执行写操作，审批将在 5 分钟后过期。`;
-                  publishActivity({ ...current, status: "approval_required", detail: activityDetailWithShellCommand(activityId, waitDetail), approvalId: approval.id, approvalQuestion: waitDetail.slice(0, 1200), completedAt: null, durationMs: null });
+                  publishActivity({ ...current, status: "approval_required", detail: activityDetailWithPreviews(activityId, waitDetail), approvalId: approval.id, approvalQuestion: waitDetail.slice(0, 1200), completedAt: null, durationMs: null });
                   const decision = await waitForApprovalDecision(userId, approval.id, approval.expiresAt, abortController.signal, approvalNotifications);
                   if (abortController.signal.aborted) throw new DOMException("用户已停止 Agent 运行。", "AbortError");
                   if (decision === "approved" || decision === "denied" || decision === "expired") {
@@ -1410,7 +1455,7 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
                   }
                   approvalConsumed = true;
                   if (abortController.signal.aborted) throw new DOMException("用户已停止 Agent 运行。", "AbortError");
-                  publishActivity({ ...activities.find((activity) => activity.id === activityId)!, status: "running", detail: activityDetailWithShellCommand(activityId, "本次操作已批准，正在通过 LFAA 业务服务执行。"), completedAt: null, durationMs: null });
+                  publishActivity({ ...activities.find((activity) => activity.id === activityId)!, status: "running", detail: activityDetailWithPreviews(activityId, "本次操作已批准，正在通过 LFAA 业务服务执行。"), completedAt: null, durationMs: null });
                   activityStartedAt.set(activityId, Date.now());
                 }
               }
@@ -1594,7 +1639,7 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
           recordAiToolResult(userId, turn.session.id, turn.assistantMessage.id, call.id, persistedComputerToolResult(call.name, resultText), executionState === "failed" || executionState === "not_started", executionState);
           const finishedToolActivity = activities.find((activity) => activity.id === activityId);
           if (finishedToolActivity && !tool?.requiresQuestionChannel) {
-            publishActivity({ ...finishedToolActivity, detail: `${finishedToolActivity.detail}\n${activityToolResultSummary(toolResult)}`.slice(0, 1200) });
+            publishActivity({ ...finishedToolActivity, detail: `${finishedToolActivity.detail}\n${activityToolResultSummary(toolResult, tool?.id, preparedToolParameters)}`.slice(0, 1200) });
           }
           if (Array.isArray(toolMessageContent) && toolMessageContent.some(part => part.type === "image_url")) releaseOlderComputerImages(completionMessages);
           appendMessages({ role: "tool", tool_call_id: call.id, content: toolMessageContent ?? resultText });

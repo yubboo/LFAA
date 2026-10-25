@@ -19,6 +19,32 @@ function safeRelativePath(value: unknown): string | null {
   return value;
 }
 
+const projectOperationTitles: Record<string, string> = {
+  list: "列出项目文件",
+  read: "读取项目文件",
+  search: "搜索项目文件",
+  search_markdown: "搜索项目 Markdown 文件",
+  create: "新建项目文件",
+  create_tree: "创建项目文件树",
+  write: "修改项目文件",
+  replace: "替换项目文件内容",
+  delete: "删除项目文件",
+  diff: "查看项目文件差异",
+  discover_skills: "发现项目 Skill"
+};
+
+/** 仅展示经校验的项目相对路径，不将工作区绝对根目录或文件正文写入活动。 */
+export function projectFileActivityInvocation(parameters: Record<string, unknown> | null): { title: string; detail: string } | null {
+  if (!parameters) return null;
+  const operation = typeof parameters.operation === "string" ? parameters.operation : "";
+  const title = projectOperationTitles[operation];
+  if (!title) return null;
+  const path = safeRelativePath(parameters.path);
+  const target = path ?? (operation === "list" && (parameters.path === undefined || parameters.path === "") ? "项目根目录" : null);
+  const detail = target ? `${title}：${target}` : `${title}（目标路径未纳入活动摘要）`;
+  return { title, detail };
+}
+
 /** 只接受成功 mutation 的 Daemon 相对路径，避免把工具参数或文件内容写入活动记录。 */
 export function buildAiProjectFileChanges(
   toolId: string,

@@ -59,6 +59,10 @@ function compileMcpToolSchema(schema: ObjectValue, ajv: AjvInstance, ajv2020: Aj
   return { validate, errorsText: () => engine.errorsText(validate.errors).slice(0, 500) };
 }
 
+function safeMcpActivityPart(value: string, maxLength: number): string {
+  return value.replace(/[\u0000-\u001f\u007f-\u009f]/gu, " ").replace(/\s+/gu, " ").trim().slice(0, maxLength) || "未命名";
+}
+
 export interface McpServerRuntimeState {
   serverId: string;
   status: "ready" | "incompatible" | "unknown";
@@ -584,7 +588,7 @@ export async function discoverMcpTools(servers: PluginSettings["mcpServers"], ap
           const digest = createHash("sha256").update(remoteTool.name).digest("hex").slice(0, 16);
           const name = `mcp_${server.id}_${digest}`;
           if (tools.some(tool => tool.name === name)) throw new Error("MCP 工具名称重复。");
-          tools.push({ id: `mcp.${server.id}.${digest}`, name, description: `MCP ${server.name} · ${remoteTool.name}。${remoteTool.description}`, applicationIds: server.applicationIds ?? ["workspace"], schema: remoteTool.schema,
+          tools.push({ id: `mcp.${server.id}.${digest}`, name, description: `MCP ${server.name} · ${remoteTool.name}。${remoteTool.description}`, activityTitle: `调用 MCP · ${safeMcpActivityPart(server.name, 64)} / ${safeMcpActivityPart(remoteTool.name, 80)}`, applicationIds: server.applicationIds ?? ["workspace"], schema: remoteTool.schema,
             ...(server.computerUse === true ? { requiresComputerControl: true } : {}),
             parse: value => { const parameters = jsonObject(value); if (!remoteTool.validator!.validate(parameters)) throw new Error(`MCP 参数不符合工具约束：${remoteTool.validator!.errorsText()}`); return parameters; },
             risk: () => "dangerous", approval: parameters => ({ scopeKey: "mcp:" + createHash("sha256").update(JSON.stringify([mcpServerIdentity(server), remoteTool.name, parameters])).digest("hex"), scopeSummary: `${server.name} · ${remoteTool.name}`, summary: `调用 MCP 服务 ${server.name} 的 ${remoteTool.name}` }),

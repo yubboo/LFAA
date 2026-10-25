@@ -16,7 +16,11 @@ Pi 的自定义 `streamFn` 每次都调用 LFAA 注入的 `lfaaLlm` Service。LF
 
 AI Work 每次 Provider 请求的公开正文以稳定 ID 和起止范围标记为阶段说明或最终答案，活动首次发布时记录正文落点；不复制正文或泄露隐藏推理。`presentation` 事件、Run 实时快照及 Session 最终持久化沿用同一范围协议，使前端按实际顺序展示、重连与恢复。问题与审批沿既有 Owner 等待，原问题和实际决定随活动保存；没有实际决定时不伪造批准或拒绝。分段不决定工具调用、不替换当前模型/思考力度。
 
-网页活动显示经过校验和有界遮蔽的实际搜索查询、读取/导航 URL 或工作区相对 HTML 路径；URL 移除身份凭据、查询串与片段，不显示网页正文或原始结果。Client 仅对已验证的内置 Browser Provider 提供重新打开入口；个人 Tabbit 页面不镜像到 LFAA Dock。工具类型只控制展示摘要，不决定调用或权限。
+电脑操控活动在“用时”展开区分别标出观察、点击、输入、快捷键和滚动，并记录目标/坐标与有界驱动回执。桌面截图只临时交给当前 Provider、不保存在会话；输入正文不进入活动记录。截图摘要只证明图片已交给本轮模型，不证明模型正确识别画面；点击、输入、快捷键和滚动的驱动回执也不等于界面效果，必须以后续观察确认。
+
+网页活动显示经过校验和有界遮蔽的实际搜索查询、读取/导航 URL 或工作区相对 HTML 路径；URL 移除身份凭据、查询串与片段，不显示网页正文或原始结果。MCP 活动按有界服务名和远端工具名显示具体调用，并说明回执已交回 Agent；活动摘要不复制远端原始结果正文。能力目录、来源检查、Skill 安装、清单核对与移除分别显示对应动作。Client 仅对已验证的内置 Browser Provider 提供重新打开入口；个人 Tabbit 页面不镜像到 LFAA Dock。工具类型只控制展示摘要，不决定调用或权限。
+
+持久终端活动按真实 `create/send/read/close` 阶段显示标题；`send` 保留经过凭据遮蔽和长度限制的命令预览，`read` 只记输出字符数并将原始回执交给 Agent，不把输出正文写入活动日志。命令写入后明确标为“需读取终端回执核验”，未提交的输入不会被记成命令已运行。项目文件活动按真实操作（列表、读取、搜索、新建、修改、删除、差异、Skill 发现）显示标题和校验过的项目相对路径；工作区绝对根目录、文件正文仍不进入活动摘要。
 
 Browser Use 只在设置中心 `browserUse.enabled` 开启后暴露 Agent 工具。模型按用户目标、Settings Owner 保存的位置偏好、当前对话/页面与真实工具状态选路：`webUrlOpenLocation` 与 `localUrlOpenLocation` 默认均为 `lfaa`，分别控制公开网页和 localhost/loopback URL；`current-browser` 只在本 Run 实际提供的个人 Browser Adapter 或 Windows CUA、且满足现有能力开关和权限时执行。所选通道不可用时 Agent 不静默改道。LFAA 内置页面的相关 `activeInWorkspace` 状态优先复用；若 Browser Owner 返回 `lfaa-native-browser` 可用且 `activeInWorkspace=true`，沿用 Electron 同一原生标签，使 Dock 由 `WebContentsView` 直接呈现；该 Provider 不可用或未绑定时，按 Host 真实能力选择隔离 Edge/Chrome。普通 Web Host 使用 LFAA Browser Owner 的连续页面流。CUA 操作不镜像到 LFAA Dock；个人 Edge/Chrome Profile 未接入时仍不可冒充 Browser Provider。当前会话绑定本机工作区时，Agent Loop 只把 Project Files Owner 的相对路径 HTML 打开回调提供给 Browser Tools；该文件预览固定使用受限 LFAA Browser Owner 页面，不把本机路径交给用户浏览器。公开活动保留浏览器工具稳定 ID 和已校验 Provider ID；Client 仅在内置浏览器工具成功后切换并展开对应 Dock，不重复导航，也不把个人 Tabbit 页面切入内置 Dock。模型还须区分打开网站与执行站内搜索：没有查询词时打开主页，不得落到任意内容详情；有查询词时核对真实结果页后再报告完成。
 Browser Tools 还按 Browser Settings Owner 检查 WebMCP 网站工具默认值/来源例外，以及开发者模式和完整 CDP 开关；网站提供的定义与结果按不可信网页内容处理，网站工具执行和 CDP 均沿用危险操作及统一 Permission Owner。完整 CDP 只附着当前 LFAA 内置页面，不访问个人 Profile；页面源和用户设置必须再次在 Browser Owner 执行时校验。

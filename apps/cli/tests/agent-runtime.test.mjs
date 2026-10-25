@@ -329,7 +329,9 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
       const accountReference=credentials.credentialReference('lfaa-settings',account.id);
       const resolvedModelCredential=pluginContext.lfaaAgentDefaultModel.resolve('fixture-owner');
       assert.equal(resolvedModelCredential.secret,'fixture-test-key');
-      assert.equal(pluginContext.lfaaAgentDefaultModel.resolve('another-owner'),null);
+      const sharedSystemModel=pluginContext.lfaaAgentDefaultModel.resolve('another-owner');
+      assert.equal(sharedSystemModel?.accountId,account.id,'系统级模型账户应供系统内其他已认证账户使用');
+      assert.equal(sharedSystemModel?.modelId,'fixture-model');
       assert.equal(accountReference.providerId,'lfaa-settings');
       const host={llm:pluginContext.lfaaLlm,listPlugins:()=>[],listExtensions:()=>[],listInstructionExtensions:()=>[],listHooks:()=>pluginContext.aiRuntimeHooks.list(),getSystemInstructions:()=>[],runBeforeInference:event=>pluginContext.aiRuntimeHooks.beforeInference(event),runAfterInference:event=>pluginContext.aiRuntimeHooks.afterInference(event),runRequestRoute:event=>pluginContext.aiRuntimeHooks.requestRoute(event)};
       const runs=await import('lfaa-agent-loop/src/runs.js');runs.initializeAiRuns(pluginContext.lfaaAgentDefaultModel,pluginContext.lfaaUserApproval,pluginContext.lfaaUserQuestions,pluginContext.lfaaLlm);
@@ -632,6 +634,8 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
       assert.ok(bodies[installRequestIndex+2].messages.some(message=>message.role==='tool'&&message.content.includes('实际 MCP 工具结果')));
       assert.match(runs.getAiRun('fixture-owner',capabilityRun.id).message.content,/已安装并调用 MCP/u);
       assert.ok(runs.getAiRun('fixture-owner',capabilityRun.id).message.activity.some(item=>item.detail.includes('加入当前 Agent Run 的下一次模型请求')));
+      const mcpActivity=runs.getAiRun('fixture-owner',capabilityRun.id).message.activity.find(item=>item.title==='调用 MCP · 回环 MCP / read_status');
+      assert.ok(mcpActivity);assert.equal(mcpActivity.title,'调用 MCP · 回环 MCP / read_status');assert.match(mcpActivity.detail,/MCP 已返回结果并交给 Agent 继续判断/u);
       settings.saveUserSettings('fixture-owner','permissions',{mode:'ask'});
       mcpApprovalDecision='approved';bodies=[];scenario='mcpPermission';
       const mcpApprovedRun=runs.startAiRun('fixture-owner','admin',{appId:'workspace',sessionId:null,content:'调用已安装的 MCP'},host);
