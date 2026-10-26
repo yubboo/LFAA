@@ -15,7 +15,8 @@ export function buildConversationAnchors(messages: AiMessage[]): ConversationAnc
 }
 
 export function conversationAnchorLabel(content: string): string {
-  const compactContent = content.replace(/\s+/gu, " ").trim();
+  // 锚点标题只保留 38 个字符；处理固定短前缀即可，长提问不会在每帧重复压缩全文。
+  const compactContent = content.slice(0, 512).replace(/\s+/gu, " ").trim();
   let label = "";
   let characterCount = 0;
   for (const character of compactContent) {

@@ -23,6 +23,22 @@ const activityStatusLabels: Record<AiActivityItem["status"], string> = {
   unavailable: "结果待确认"
 };
 
+const latestActiveActivities = new WeakMap<AiActivityItem[], AiActivityItem | null>();
+
+function latestActiveActivity(activities: AiActivityItem[]): AiActivityItem | null {
+  if (latestActiveActivities.has(activities)) return latestActiveActivities.get(activities) ?? null;
+  let active: AiActivityItem | null = null;
+  for (let index = activities.length - 1; index >= 0; index -= 1) {
+    const activity = activities[index]!;
+    if (activity.status === "running" || activity.status === "approval_required" || activity.status === "waiting_input" || activity.status === "unavailable") {
+      active = activity;
+      break;
+    }
+  }
+  latestActiveActivities.set(activities, active);
+  return active;
+}
+
 function elapsedSeconds(startedAt: string, now: number): number {
   const startedAtMs = Date.parse(startedAt);
   return Number.isFinite(startedAtMs) ? Math.max(0, Math.floor((now - startedAtMs) / 1000)) : 0;
@@ -105,8 +121,8 @@ function summarizeRunningActivity(activity: AiActivityItem | null): { label: AiA
 
 /** 处理中优先按当前服务端活动计时；排队与结束摘要按本轮持久化时间计时。 */
 export function getAiActivitySummary(message: Pick<AiMessage, "status" | "createdAt" | "activity">, now = Date.now()): AiActivitySummary {
-  const activeActivity = [...message.activity].reverse().find((activity: AiActivityItem) =>
-    activity.status === "running" || activity.status === "approval_required" || activity.status === "waiting_input" || activity.status === "unavailable") ?? null;
+  // 正文流每帧会重算耗时，但活动数组在新活动到达前保持不变；复用其最近活动，避免反复复制并倒序扫描全部步骤。
+  const activeActivity = latestActiveActivity(message.activity);
 
   let label: AiActivitySummary["label"];
   let tone: AiActivitySummary["tone"];

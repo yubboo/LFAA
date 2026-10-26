@@ -54,6 +54,19 @@ test("工具运行中摘要显示整轮耗时，活动记录单独显示当前�
   assert.equal(summary.isProcessing, true);
 });
 
+test("流式耗时更新复用稳定的活动列表，新活动到达后切换到最新阶段", () => {
+  const now = Date.parse("2026-10-02T03:01:10.000Z");
+  const tool = { id: "tool", kind: "tool", title: "启动实例", detail: "参数校验通过。", status: "running", startedAt: "2026-10-02T03:01:00.000Z", completedAt: null, durationMs: null };
+  const activities = [tool];
+  const base = { status: "streaming", createdAt: "2026-10-02T03:00:00.000Z" };
+  assert.equal(getAiActivitySummary({ ...base, activity: activities }, now).label, "正在执行工具");
+
+  const reply = { ...tool, id: "reply", kind: "status", title: "流式接收回答" };
+  const updated = getAiActivitySummary({ ...base, activity: [...activities, reply] }, now);
+  assert.equal(updated.label, "正在回复");
+  assert.strictEqual(updated.activeActivity, reply);
+});
+
 test("当前动作摘要跟随真实命令、工具与等待状态变化", () => {
   const activity = {
     id: "activity-current",
