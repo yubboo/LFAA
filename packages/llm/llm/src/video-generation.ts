@@ -1,8 +1,13 @@
 /** 功能：调用火山方舟异步视频任务 API。作用：由 LLM Provider Owner 承担协议、响应边界与生成文件下载。 */
 
 import type { GeneratedImageMimeType } from "./image-generation.js";
+import { ARK_OPENAI_BASE_URL, ARK_PLAN_PROVIDERS } from "lfaa-util-values/src/ark-provider.js";
 
-const ARK_VIDEO_API = "https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks";
+export type ArkVideoProviderId = "doubao" | "ark-agent-plan";
+const ARK_VIDEO_ENDPOINTS: Record<ArkVideoProviderId, string> = {
+  doubao: `${ARK_OPENAI_BASE_URL}/contents/generations/tasks`,
+  "ark-agent-plan": ARK_PLAN_PROVIDERS.agent.videoGenerationTasksUrl
+};
 const MAX_TASK_RESPONSE_BYTES = 2 * 1024 * 1024;
 const MAX_PROVIDER_VIDEO_BYTES = 128 * 1024 * 1024;
 const ALLOWED_VIDEO_HOST = "ark-content-generation-cn-beijing.tos-cn-beijing.volces.com";
@@ -106,6 +111,7 @@ async function taskRequest(url: string, apiKey: string, timeoutMs: number, signa
 }
 
 export async function createArkVideoTask(input: {
+  providerId: ArkVideoProviderId;
   modelId: string;
   apiKey: string;
   prompt: string;
@@ -119,6 +125,7 @@ export async function createArkVideoTask(input: {
   signal?: AbortSignal;
 }): Promise<ArkVideoTask> {
   if (!input.modelId.trim() || input.modelId.length > 160) return fail("视频模型 ID 无效。");
+  if (!Object.hasOwn(ARK_VIDEO_ENDPOINTS, input.providerId)) return fail("所选账户不支持方舟视频生成任务接口。");
   if (!input.apiKey.trim() || input.apiKey.length > 4096) return fail("设置中心的火山方舟账户密钥不可用。");
   if (!input.prompt.trim() || input.prompt.length > 5_000) return fail("视频提示词为空或超过 5000 字符。");
   if (!Number.isInteger(input.durationSeconds) || input.durationSeconds < 1 || input.durationSeconds > 15) return fail("视频时长必须在 1 到 15 秒之间。");
@@ -129,7 +136,7 @@ export async function createArkVideoTask(input: {
   for (const image of input.referenceImages) {
     content.push({ type: "image_url", image_url: { url: `data:${image.mimeType};base64,${image.bytes.toString("base64")}` }, role: "reference_image" });
   }
-  const payload = await taskRequest(ARK_VIDEO_API, input.apiKey, input.timeoutMs, input.signal, {
+  const payload = await taskRequest(ARK_VIDEO_ENDPOINTS[input.providerId], input.apiKey, input.timeoutMs, input.signal, {
     method: "POST",
     body: JSON.stringify({
       model: input.modelId,
@@ -144,15 +151,17 @@ export async function createArkVideoTask(input: {
   return normalizeTask(payload);
 }
 
-export async function getArkVideoTask(input: { taskId: string; apiKey: string; timeoutMs: number; signal?: AbortSignal }): Promise<ArkVideoTask> {
+export async function getArkVideoTask(input: { providerId: ArkVideoProviderId; taskId: string; apiKey: string; timeoutMs: number; signal?: AbortSignal }): Promise<ArkVideoTask> {
   if (!input.taskId || input.taskId.length > 256) return fail("火山方舟任务 ID 无效。");
-  const payload = await taskRequest(`${ARK_VIDEO_API}/${encodeURIComponent(input.taskId)}`, input.apiKey, input.timeoutMs, input.signal, { method: "GET" });
+  if (!Object.hasOwn(ARK_VIDEO_ENDPOINTS, input.providerId)) return fail("所选账户不支持方舟视频任务查询接口。");
+  const payload = await taskRequest(`${ARK_VIDEO_ENDPOINTS[input.providerId]}/${encodeURIComponent(input.taskId)}`, input.apiKey, input.timeoutMs, input.signal, { method: "GET" });
   return normalizeTask(payload);
 }
 
-export async function cancelArkVideoTask(input: { taskId: string; apiKey: string; timeoutMs: number; signal?: AbortSignal }): Promise<void> {
+export async function cancelArkVideoTask(input: { providerId: ArkVideoProviderId; taskId: string; apiKey: string; timeoutMs: number; signal?: AbortSignal }): Promise<void> {
   if (!input.taskId || input.taskId.length > 256) return fail("火山方舟任务 ID 无效。");
-  await taskRequest(`${ARK_VIDEO_API}/${encodeURIComponent(input.taskId)}`, input.apiKey, input.timeoutMs, input.signal, { method: "DELETE" });
+  if (!Object.hasOwn(ARK_VIDEO_ENDPOINTS, input.providerId)) return fail("所选账户不支持方舟视频任务取消接口。");
+  await taskRequest(`${ARK_VIDEO_ENDPOINTS[input.providerId]}/${encodeURIComponent(input.taskId)}`, input.apiKey, input.timeoutMs, input.signal, { method: "DELETE" });
 }
 
 export async function downloadArkVideo(urlValue: string, timeoutMs: number, signal?: AbortSignal): Promise<Buffer> {

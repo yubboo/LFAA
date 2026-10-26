@@ -8,8 +8,10 @@
  *   本包不持有密钥、不发请求。
  */
 
+import { ARK_OPENAI_BASE_URL } from "lfaa-util-values/src/ark-provider.js";
+
 /** 火山方舟 OpenAI 兼容 Base。 */
-export const ARK_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3";
+export const ARK_BASE_URL = ARK_OPENAI_BASE_URL;
 
 /** Provider 目录 id（与 settings/service.ts providers 表一致）。 */
 export const DOUBAO_PROVIDER_ID = "doubao";

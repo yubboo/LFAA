@@ -141,8 +141,8 @@ test("真实 Agent 请求、Tool 中断修复、精确 fork 与重启沿用唯�
       sessions.recordAiSessionStep('kernel-owner',turn.session.id,turn.assistantMessage.id,1,'start');
       sessions.recordAiSessionRequest('kernel-owner',turn.session.id,turn.assistantMessage.id,{providerId:'provider-a',modelId:'model-a',permissionMode:'ask',settings:{maxTokens:1024},tools:[{type:'function',function:{name:'read_status',description:'读取状态',parameters:{type:'object',properties:{}}}}]},[{role:'system',content:'真实系统提示词'},{role:'user',content:'查询当前项目状态'}]);
       sessions.recordAiSessionAttempt('kernel-owner',turn.session.id,turn.assistantMessage.id,['部分回答'],new Error('Provider 暂时中断'));
-      sessions.recordAiModelResponse('kernel-owner',turn.session.id,turn.assistantMessage.id,'',[{id:'call-1',name:'read_status',arguments:'{}'}],['选择工具'],{promptTokens:3,completionTokens:2});
-      sessions.recordAiToolCall('kernel-owner',turn.session.id,turn.assistantMessage.id,'call-1','read_status','{}',true);
+      sessions.recordAiModelResponse('kernel-owner',turn.session.id,turn.assistantMessage.id,'',[{id:'call-1',name:'read_status',arguments:'{"workspacePath":"private-argument"}'}],['选择工具'],{promptTokens:3,completionTokens:2});
+      sessions.recordAiToolCall('kernel-owner',turn.session.id,turn.assistantMessage.id,'call-1','read_status','{"workspacePath":"private-argument"}',true);
       const beforeRecovery=sessionRecords.allForSession('session_events',turn.session.id);
       assert.equal(beforeRecovery.every((event,index)=>event.seq===index+1),true);
       const call=beforeRecovery.find(event=>event.type==='tool/call');
@@ -165,19 +165,35 @@ test("真实 Agent 请求、Tool 中断修复、精确 fork 与重启沿用唯�
       assert.equal(branchEvents.some(event=>event.type==='tool/result'&&event.data.executionState==='unconfirmed'),true);
       assert.equal(sessions.getAiSessionMessages('kernel-owner',branch.id).length,1);
       assert.equal(sessions.getAiSessionMessages('kernel-other',branch.id),null);
+      const continuation=sessions.createAiTurn('kernel-owner','writing',turn.session.id,'继续核对中断任务');
+      const recoveryCheckpoint=continuation.history.find(message=>message.role==='user'&&message.content.includes('Session Owner 恢复检查点'));
+      assert.ok(recoveryCheckpoint,'新一轮模型上下文应收到持久化恢复状态');
+      assert.match(recoveryCheckpoint.content,/read_status/u);
+      assert.match(recoveryCheckpoint.content,/unconfirmed/u);
+      assert.match(recoveryCheckpoint.content,/只读核对目标当前状态/u);
+      assert.equal(recoveryCheckpoint.content.includes('private-argument'),false,'恢复上下文不能带回工具参数');
       const failedTurn=sessions.createAiTurn('kernel-owner','writing',null,'Provider 失败终态');
       sessions.recordAiModelResponse('kernel-owner',failedTurn.session.id,failedTurn.assistantMessage.id,'部分输出',[
-        {id:'failed-dispatched',name:'local_execute_command',arguments:'{}'},
-        {id:'failed-not-started',name:'host_execute_command',arguments:'{}'}
+        {id:'failed-dispatched',name:'local_execute_command',arguments:'{"command":"private-command-a"}'},
+        {id:'failed-not-started',name:'host_execute_command',arguments:'{"command":"private-command-b"}'},
+        {id:'failed-complete',name:'read_secret_file',arguments:'{"path":"private-path"}'}
       ]);
-      sessions.recordAiToolCall('kernel-owner',failedTurn.session.id,failedTurn.assistantMessage.id,'failed-dispatched','local_execute_command','{}',true);
-      sessions.recordAiToolCall('kernel-owner',failedTurn.session.id,failedTurn.assistantMessage.id,'failed-not-started','host_execute_command','{}',false);
+      sessions.recordAiToolCall('kernel-owner',failedTurn.session.id,failedTurn.assistantMessage.id,'failed-dispatched','local_execute_command','{"command":"private-command-a"}',true);
+      sessions.recordAiToolCall('kernel-owner',failedTurn.session.id,failedTurn.assistantMessage.id,'failed-not-started','host_execute_command','{"command":"private-command-b"}',false);
+      sessions.recordAiToolCall('kernel-owner',failedTurn.session.id,failedTurn.assistantMessage.id,'failed-complete','read_secret_file','{"path":"private-path"}',true);
+      sessions.recordAiToolResult('kernel-owner',failedTurn.session.id,failedTurn.assistantMessage.id,'failed-complete','{"result":"private-result"}',false,'complete');
       sessions.finishAiAssistantMessage('kernel-owner',failedTurn.session.id,failedTurn.assistantMessage.id,'部分输出（失败）','error');
       const failedEvents=sessionRecords.allForSession('session_events',failedTurn.session.id);
       assert.equal(failedEvents.at(-1).type,'turn/end');
       assert.equal(failedEvents.at(-1).data.status,'error');
-      assert.deepEqual(failedEvents.filter(event=>event.type==='tool/result').map(event=>event.data.executionState),['unconfirmed','not_started']);
+      assert.deepEqual(failedEvents.filter(event=>event.type==='tool/result').map(event=>event.data.executionState),['complete','unconfirmed','not_started']);
       assert.equal(sessions.getAiSessionMessages('kernel-owner',failedTurn.session.id).at(-1).status,'error');
+      const failedContinuation=sessions.createAiTurn('kernel-owner','writing',failedTurn.session.id,'继续检查失败任务');
+      const failedCheckpoint=failedContinuation.history.find(message=>message.role==='user'&&message.content.includes('Session Owner 恢复检查点'));
+      assert.ok(failedCheckpoint);
+      assert.match(failedCheckpoint.content,/local_execute_command.*unconfirmed/u);
+      assert.match(failedCheckpoint.content,/host_execute_command.*not_started/u);
+      for (const secret of ['private-command-a','private-command-b','private-path','private-result']) assert.equal(failedCheckpoint.content.includes(secret),false);
       await sessions.flushAiSession('kernel-owner',turn.session.id);
       await sessions.flushAiSession('kernel-owner',failedTurn.session.id);
       close();

@@ -14,6 +14,7 @@ declare module "@deepseek-ai/cordis" {
 
 // 核心类型与运行时
 export * from "./types.js";
+export * from "./working-directory.js";
 export { SubagentManager } from "./manager.js";
 // 协议层各能力模块（深度对齐 DSH 24 文件能力面，按 LFAA 适配）
 export * from "./error.js";

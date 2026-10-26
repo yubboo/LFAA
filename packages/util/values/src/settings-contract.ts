@@ -102,6 +102,7 @@ export interface AppearanceAdvancedSettings {
   aiWorkOutputFocusBlurEnabled: boolean;
   aiWorkOutputFocusBlurPercent: number;
   aiWorkOutputFocusBlurIdleSeconds: number;
+  writingLightRaysEnabled: boolean;
 }
 
 export interface AppearanceBackgroundView {
@@ -370,7 +371,8 @@ export const DEFAULT_APPEARANCE_ADVANCED_SETTINGS: AppearanceAdvancedSettings = 
   pointerCursor: false,
   aiWorkOutputFocusBlurEnabled: true,
   aiWorkOutputFocusBlurPercent: 33,
-  aiWorkOutputFocusBlurIdleSeconds: 60
+  aiWorkOutputFocusBlurIdleSeconds: 60,
+  writingLightRaysEnabled: true
 };
 export const DEFAULT_USER_SETTINGS: UserSettings = {
   general: {

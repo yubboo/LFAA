@@ -1,14 +1,18 @@
 # 设置 Owner 与统一数据根
 
-AI 漫剧生图使用 `aiRuntime.imageGenerationMode` 选择远程 Provider 或 LFAA 本机模型。远程模式使用现有 `imageGenerationAccountId` / `imageGenerationModelId`；本机模式使用模型 Runtime 返回的 `imageGenerationLocalModelId`，并读取 `imageGenerationLocalTimeoutSeconds`（900 秒，60–1800）及 `imageGenerationUnloadAfterMinutes`（10 分钟，1–60）。视频同样以 `videoGenerationMode` 分别选择远程 Provider 或本机模型；本机选择为 `videoGenerationLocalModelId`，时限和空闲释放分别读取 `videoGenerationLocalTimeoutSeconds` 与 `videoGenerationUnloadAfterMinutes`。模型选择、下载和加载不创建虚假 Provider 账户或密钥，切换引擎不会清除另一模式的选择。
+账户外观中的 `appearance.advanced.writingLightRaysEnabled` 由本包设置合同校验并按账户持久化；缺少该字段的旧账户仅补共享默认开启值。设置中心与普通写作工具栏读取同一偏好，Settings Owner 不复制写作背景逻辑。
+
+AI 漫剧和无限画布共用 `aiRuntime.imageGenerationMode/imageGenerationAccountId/imageGenerationModelId` 与 `videoGenerationMode/videoGenerationAccountId/videoGenerationModelId`。Agent Plan 模型目录带官方 `taskType`、支持档位与来源：设置只把图像/视频能力模型放进对应选择器，主模型路由只暴露文本模型。图片/视频账户复用设置中心加密密钥和当前用户所有权；本机模型 ID、时限和空闲释放仍读取现有 `aiRuntime` 字段，切换引擎不会清除另一模式选择。
 
 `registerAiProvider` 是 Provider 设置目录的 Cordis 扩展合同：插件可提供受校验的 Provider 选项、模型发现与真实模型测试处理器，列表 API 返回防篡改副本，注销会移除该插件的目录定义。静态账户凭据仍由本包及 Credentials Owner 管理；Provider 连接 URL 必须使用 HTTPS 且不得内嵌身份信息。该扩展接口不改变当前外部插件 Runtime 的隔离边界。
 
 Agent Shell 的文件访问范围由 `aiRuntime.executionSandboxMode` 设置，默认 `workspace-write`，可选只读、工作区读写或完全访问；该字段不是 Permission Owner 的三种授权模式。设置服务负责默认值、枚举校验与账户持久化；受限模式能否执行仍取决于目标平台实际注册的 Sandbox Provider，缺少完整 OS 隔离时失败关闭。
 
-Provider/API Key、模型目录与系统活动模型由 Settings Owner 写入 `ai_accounts` system scope（`configuration_records.user_id = null`），所有登录账户读取同一模型集合；系统模型编辑 API 仅管理员可写，成员只读并可使用当前模型。旧配置读取时仅在尚无 system-scope 配置的情况下，将超级管理员的旧模型记录按原 ID、活动状态、选项和密文原样迁入；其他成员的旧个人记录保留且不进入系统模型列表。此读取迁移不会解密或重写密钥。
+普通 Provider/API Key、模型目录与系统活动模型由 Settings Owner 写入 `ai_accounts` system scope（`configuration_records.user_id = null`），所有登录账户读取同一系统模型集合；系统模型编辑 API 仅管理员可写。火山方舟 Agent Plan 与 Coding Plan 使用 `user_id` 保存席位所有者，每个登录用户只能读取、测试、激活、改密钥或删除自己的 Plan 账户；其活动模型优先于系统活动模型，未配置个人席位时回退到系统活动模型。Plan `options.planTier` 保存个人套餐档位。套餐专属 Key 没有公开 `/models` 目录 API，因此 Settings Owner 使用带修订日期与官方来源 URL 的套餐公开能力目录；文本主模型保存前仍向专属 Chat Completions 端点真实测试，能力目录不伪装成账户实时权限查询。实际可用范围按控制台档位与服务商请求结果验证。
 
-已保存系统模型的“更新目录”只重新读取并保存 Provider 官方模型目录，不发起模型推理，也不更改已选模型 ID 或 `reasoning_mode`；若当前型号已从新目录移除，保留原选择并提示管理员。“重测模型”只对当前已选型号发起真实请求，可能产生 Provider 用量。管理员可在原系统配置 ID 上测试并替换 API Key，保持配置名称、Provider、模型和活动状态不变；成员没有模型写入权限。`aiRuntime` 的运行参数与图片/视频模型选择仍按登录账户保存，模型凭据本身不绑定登录账户。
+首次读取旧模型配置时，仅在尚无任何 system-scope 配置的情况下，将超级管理员的旧非套餐 Provider 模型记录按原 ID、活动状态、选项和密文原样迁入 system scope；Agent/Coding Plan 记录不参与迁移，其他成员的旧个人记录保留且不进入系统模型列表。此读取迁移不会解密或重写密钥。
+
+已保存系统模型的“更新目录”只重新读取并保存 Provider 官方模型目录，不发起模型推理，也不更改已选模型 ID 或 `reasoning_mode`；若当前型号已从新目录移除，保留原选择并提示管理员。“重测模型”只对当前已选型号发起真实请求，可能产生 Provider 用量。系统模型替换密钥和管理操作仍要求管理员权限；个人 Plan 配置由席位所有者管理。Plan 主模型必须是文本生成能力；图像、视频、语音、向量模型不进入 Agent Loop 文本路由。`aiRuntime` 的运行参数与图片/视频模型选择仍按登录账户保存。
 
 Provider 与插件秘密凭据使用 LFAA Home `credentials/settings.key` 执行 AES-GCM 加密。读取时若密钥文件缺失，Settings 不得自动生成替代密钥，以免让已有密文永久无法解密；用户明确录入新 Provider 凭据时才可创建密钥。已有密文校验失败时显示重新录入指引，保留旧账户记录，不声称能从密文恢复原密钥。
 

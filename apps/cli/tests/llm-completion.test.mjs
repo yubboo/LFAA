@@ -50,6 +50,59 @@ test("HTTP 402 explains the Provider balance/quota issue without exposing its re
   }
 });
 
+test("最终请求准备器看到组合后的 system、附件和工具，并在 HTTP body 前应用改写", async () => {
+  const originalFetch = globalThis.fetch;
+  const bodies = [], snapshots = [], preparedRequests = [];
+  const sourceTool = { type: "function", function: { name: "source_tool", description: "source", parameters: { type: "object", properties: {} } } };
+  const spillTool = { type: "function", function: { name: "agent_context_read_spill", description: "read spill", parameters: { type: "object", properties: { ref: { type: "string" } } } } };
+  try {
+    globalThis.fetch = async (_url, options) => { bodies.push(JSON.parse(options.body)); return sse([{ content: "prepared request finished" }]); };
+    const input = completionInput();
+    input.systemPrompt = "fixture system context";
+    input.messages = [
+      { role: "user", content: "current request" },
+      { role: "user", content: [{ type: "text", text: "image attachment" }, { type: "image_url", image_url: { url: "data:image/png;base64,AA==" } }] }
+    ];
+    input.tools = [sourceTool];
+    input.onPrepareRequest = async request => {
+      preparedRequests.push(request);
+      assert.equal(request.messages[0].role, "system");
+      assert.match(request.messages[0].content, /fixture system context/u);
+      assert.equal(request.messages.at(-1).content[1].type, "image_url");
+      assert.deepEqual(request.tools, [sourceTool]);
+      return {
+        messages: [...request.messages, { role: "user", content: "preflight checkpoint" }],
+        tools: [sourceTool, spillTool]
+      };
+    };
+    input.onRequest = request => snapshots.push(request);
+    await streamAiCompletion(input);
+
+    assert.equal(preparedRequests.length, 1);
+    assert.equal(bodies.length, 1);
+    assert.equal(bodies[0].messages[0].role, "system");
+    assert.ok(bodies[0].messages.some(message => message.content === "preflight checkpoint"));
+    assert.deepEqual(bodies[0].tools, [sourceTool, spillTool]);
+    assert.equal(snapshots[0].messages.some(message => message.content === "preflight checkpoint"), true);
+    assert.deepEqual(snapshots[0].tools, [sourceTool, spillTool]);
+    assert.equal(snapshots[0].reasoningReplayCharacters, 0);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("最终请求准备器取消时不会发送 Provider 请求", async () => {
+  const originalFetch = globalThis.fetch;
+  const controller = new AbortController();
+  let calls = 0;
+  try {
+    globalThis.fetch = async () => { calls += 1; return sse([{ content: "must not send" }]); };
+    const input = completionInput();
+    input.signal = controller.signal;
+    input.onPrepareRequest = async () => { controller.abort(new DOMException("cancelled", "AbortError")); };
+    await assert.rejects(streamAiCompletion(input), error => error.name === "AbortError");
+    assert.equal(calls, 0);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
 test("LLM Provider adapters replace one provider route and are removed with their owner", async () => {
   const service = createAiCompletionService();
   const expected = { text: "adapter result", usage: null, toolCalls: [], providerReplay: null };
@@ -86,10 +139,12 @@ test("保留完整 reasoning_content 续接同模型，跨 Provider/模型与请
     await streamAiCompletion(input);
     assert.equal(bodies[1].messages[1].reasoning_content, hidden);
     assert.equal(Object.hasOwn(bodies[1].messages[1], 'providerReplay'), false);
+    assert.equal(snapshots[1].reasoningReplayCharacters, hidden.length, '本次有效续接只计入一次 Token 预算');
     assert.doesNotMatch(JSON.stringify(snapshots), /private-fixture/u);
     await streamAiCompletion({ ...input, account: { ...input.account, modelId: 'other-model' } });
     await streamAiCompletion({ ...input, account: { ...input.account, providerId: 'other-provider' } });
     await streamAiCompletion({ ...input, account: { ...input.account, accountId: 'other-account' } });
+    for (const snapshot of snapshots.slice(2)) assert.equal(snapshot.reasoningReplayCharacters, 0, '跨账户/Provider/模型的 replay 不进入本次请求预算');
     for (const body of bodies.slice(2)) assert.equal(Object.hasOwn(body.messages[1], 'reasoning_content'), false);
   } finally { globalThis.fetch = originalFetch; }
 });
@@ -204,4 +259,30 @@ test("其它 Provider 状态仍使用原有错误映射", async () => {
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("工具 observation 必须在发送前与唯一前序 tool_call_id 配对", async () => {
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  try {
+    globalThis.fetch = async () => { calls += 1; return sse([{ content: "unused" }]); };
+    const orphan = completionInput();
+    orphan.messages = [{ role: "tool", content: "orphan observation" }];
+    await assert.rejects(streamAiCompletion(orphan), /observation.*tool_call_id/u);
+    const pending = completionInput();
+    pending.messages = [{ role: "assistant", content: null, tool_calls: [{ id: "pending-call", type: "function", function: { name: "read_fixture", arguments: "{}" } }] }];
+    await assert.rejects(streamAiCompletion(pending), /尚无 observation/u);
+    assert.equal(calls, 0, "消息角色配对失败时不得发送 Provider 请求");
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("Provider 返回重复 tool_call_id 时不产生可派发调用", async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => sse([{ tool_calls: [
+      { index: 0, id: "duplicate-call", function: { name: "read_fixture", arguments: "{}" } },
+      { index: 1, id: "duplicate-call", function: { name: "read_fixture", arguments: "{}" } }
+    ] }]);
+    await assert.rejects(streamAiCompletion(completionInput()), /重复 ID/u);
+  } finally { globalThis.fetch = originalFetch; }
 });

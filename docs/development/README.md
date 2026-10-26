@@ -30,6 +30,7 @@ Each report below is tied to its task and date. Check the current architecture a
 - [Agent reply handoff (2026-10-09)](agent-reply-handoff-20261009.md)
 - [Agent response delivery (2026-10-09)](agent-response-delivery-20261009.md)
 - [Agent stream loop repair (2026-10-09)](agent-stream-loop-repair-20261009.md)
+- [External subagent text streaming contract (2026-10-27, Chinese)](agent-subagent-streaming-20261027.zh.md)
 - [Run pause and resume (2026-10-10)](ai-run-pause-resume-20261010.md)
 - [Run reconnect and loop bounds (2026-10-10)](ai-run-reconnect-loop-bounds-20261010.md)
 - [Clarification UI (2026-10-10)](ai-work-clarification-inline-20261010.md)

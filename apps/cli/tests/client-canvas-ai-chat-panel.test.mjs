@@ -36,3 +36,22 @@ test("画布助手由 DockKit 右栏挤压画布，并复用完整拖拽吸附�
   assert.match(canvasStyles, /\.lfaa-cnv-workbench \.lfaa-workbench__pane--right\s*\{[^}]*border-left:\s*1px solid var\(--color-border\)/u);
   assert.doesNotMatch(canvasStyles, /\.lfaa-cnv-workspace\.has-chat|\.lfaa-cnv-chat-resizer|\.lfaa-cnv-chat-pane\s*\{[^}]*max-width/u);
 });
+
+test("画布右下聊天入口悬停时喷焰起飞，并遵循减少动态效果", () => {
+  assert.match(canvasSource, /className="lfaa-cnv-chat-launch__craft" aria-hidden="true"[\s\S]*?<MessageOutlined \/>[\s\S]*?与 AI 对话/u);
+  assert.match(canvasSource, /className="lfaa-cnv-chat-launch__effects" aria-hidden="true"[\s\S]*?__smoke[\s\S]*?__jet--left[\s\S]*?__jet--right/u);
+  assert.match(canvasStyles, /transition:\s*transform 680ms cubic-bezier\(\.16, 1, \.3, 1\)/u);
+  assert.match(canvasStyles, /\.lfaa-cnv-chat-launch__craft::before\s*\{[^}]*opacity:\s*0;[^}]*transition:\s*opacity 420ms/u);
+  assert.match(canvasStyles, /--lfaa-cnv-chat-launch-rise:\s*84px/u);
+  assert.match(canvasStyles, /@media \(hover: hover\) and \(pointer: fine\)[\s\S]*?translate3d\(0, calc\(0px - var\(--lfaa-cnv-chat-launch-rise\)\), 0\) scale\(1\.05\)/u);
+  assert.match(canvasStyles, /\.lfaa-cnv-chat-launch__smoke\s*\{[^}]*top:\s*calc\(100% - var\(--lfaa-cnv-chat-launch-rise\)\);[^}]*left:\s*calc\(50% - 12px\);[^}]*width:\s*152px;[^}]*height:\s*calc\(var\(--lfaa-cnv-chat-launch-rise\) \+ 12px\)/u);
+  assert.match(canvasStyles, /@container lfaa-canvas \(max-width: 640px\)[\s\S]*?\.lfaa-cnv-chat-launch__smoke\s*\{[^}]*width:\s*128px/u);
+  assert.match(canvasStyles, /@container lfaa-canvas \(max-width: 640px\)[\s\S]*?--lfaa-cnv-chat-launch-rise:\s*38px/u);
+  assert.match(canvasStyles, /@media \(max-height: 640px\)[\s\S]*?--lfaa-cnv-chat-launch-rise:\s*38px/u);
+  assert.match(canvasStyles, /\.lfaa-cnv-chat-launch.ant-btn:hover \.lfaa-cnv-chat-launch__smoke\s*\{[^}]*opacity:\s*\.9/u);
+  assert.match(canvasStyles, /\.lfaa-cnv-chat-launch.ant-btn:hover \.lfaa-cnv-chat-launch__jet\s*\{[^}]*opacity:\s*1/u);
+  assert.match(canvasStyles, /\.lfaa-cnv-chat-launch.ant-btn:focus-visible\s*>\s*\.lfaa-cnv-chat-launch__craft[\s\S]*?outline:/u);
+  assert.match(canvasStyles, /data-reduced-motion="on"[\s\S]*?\.lfaa-cnv-chat-launch__smoke[\s\S]*?opacity:\s*0/u);
+  assert.match(canvasStyles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.workbench-shell\[data-reduced-motion="system"\][\s\S]*?\.lfaa-cnv-chat-launch__craft[\s\S]*?transform:\s*none/u);
+  assert.doesNotMatch(canvasStyles, /\.lfaa-cnv-chat-launch[^{}]*\{[^}]*animation:[^}]*infinite/u);
+});

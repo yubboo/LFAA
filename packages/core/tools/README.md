@@ -4,6 +4,12 @@
 
 公共合同：registerAiBusinessTool、registerAiBusinessToolFactory、listAiBusinessTools、createToolDiscoveryTools。`lfaa_tools_list` 支持按工具 ID、名称或说明做多词任一命中搜索，结果先按完整查询命中、再按命中词数量排序，并返回 `matchedTerms`；空查询保留注册顺序和分页。`lfaa_tools_load` 仍只按精确工具名加载已有合同，不执行业务。
 
+`AiBusinessToolContext.externalAgentTools` 仅暴露父 Run 当前继承工具名与原 JSON Schema；`dispatchExternalAgentTool` 是外部 SDK/MCP 调用回到 Agent Loop 共用 dispatch 的桥。目录是发现合同，不授予权限；执行仍由原工具 `parse`、`risk`、`approval`、Permission Owner 和领域 executor 管理。MCP handler 禁止绕过桥直接执行 Registry 工具。
+
+`AiBusinessToolContext.onSubagentTextDelta` 仅用于转发外部子 Agent 顶层助手文本的临时流片段；它不写工具活动或 Session，驱动必须过滤 thinking 和工具参数并在发送前脱敏。
+
+`AiBusinessToolContext.onSubagentUsage` 接受 Driver 经过校验的按模型 token 汇总，由调用侧 Agent Loop 写入 Session Owner；它不接收费用估算，也不决定主消息 usage 的展示归属。
+
 Skill 附属文本资源通过 `lfaa_skill_load` 按当前 Skill Provider 或项目文件 Owner 读取；项目文件工具的 `read.limit` 可限制为 1–100000 个字符，不改变原有根目录、节点、身份与权限检查。
 
 用户明确提供本机绝对项目目录时，`project_file_operation.rootDirectory` 优先于隐式 Agent Git/Workspace 绑定，无显式 `nodeId` 时复用 LFAA Host 的 Project Files Owner。未登记根目录只读，并沿统一 Permission Owner 作为危险读取授权；目录列表、搜索和读取保持有界，Agent Run 的取消信号会传到本机只读 Host 操作。模型据真实读取证据说明项目用途、入口和框架；对概览请求优先使用项目导航与架构说明，避免递归读取所有包，说明未覆盖范围，不把 `list` 或一次搜索说成读完全项目。

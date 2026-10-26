@@ -264,24 +264,29 @@ try {
 
   // 专家由模型显式选择，跨界面复用真实子 Run；角色正文只进入该子任务。
   let expertChildRequests = 0;
+  let expertChildRequestDetails;
   respond = body => {
     const results = body.messages.filter(message => message.role === "tool");
     const task = body.messages.find(message => message.role === "user")?.content;
+    const system = body.messages.find(message => message.role === "system")?.content ?? "";
     if (task === "explicit minecraft expert task") {
       expertChildRequests++;
-      assert.match(body.messages.find(message => message.role === "system").content, /你是 LFAA Minecraft 领域顾问/u);
+      expertChildRequestDetails = { task, hasExpertInstructions: /你是 LFAA 内专职的 Minecraft 应用维护员工/u.test(system), toolNames: body.tools?.map(item => item.function.name) ?? null };
+      assert.match(system, /你是 LFAA 内专职的 Minecraft 应用维护员工/u);
       assert.equal(body.tools, undefined, "专家方法不能扩大明确为空的继承工具范围");
       return sse({ content: "selected expert evidence" });
     }
-    assert.doesNotMatch(body.messages.find(message => message.role === "system").content, /你是 LFAA Minecraft 领域顾问/u);
+    assert.doesNotMatch(system, /你是 LFAA 内专职的 Minecraft 应用维护员工/u);
     if (!results.length) return call("delegate_domain_expert", { task: "explicit minecraft expert task", expertId: "expert.minecraft-hosting", toolNames: [] });
     assert.match(results.at(-1).content, /selected expert evidence/u);
     return sse({ content: "explicit expert complete" });
   };
   const selectedExpert = runs.startAiRun(owner, "admin", { appId: "workspace", sessionId: null, content: "select a minecraft expert" }, host, { allowedToolNames: ["delegate_domain_expert"] });
   const selectedExpertResult = await finish(selectedExpert.id);
-  assert.equal(selectedExpertResult.status, "complete", JSON.stringify(selectedExpertResult));
-  assert.equal(expertChildRequests, 1);
+  assert.equal(selectedExpertResult.status, "complete", JSON.stringify({ result: selectedExpertResult, expertChildRequestDetails }));
+  assert.equal(expertChildRequests, 1, JSON.stringify(expertChildRequestDetails));
+  assert.equal(expertChildRequestDetails?.task, "explicit minecraft expert task", JSON.stringify(expertChildRequestDetails));
+  assert.equal(expertChildRequestDetails?.hasExpertInstructions, true, JSON.stringify(expertChildRequestDetails));
   console.log("verified:lazy-expert");
 
   // 自动摘要请求也走同一请求计数；压缩后本轮的新消息不能因旧索引丢失。
@@ -289,17 +294,23 @@ try {
   const compactionCatalog = JSON.parse(storedParent.models_json).map(model => model.id === account.modelId ? { ...model, contextWindow: 4096 } : model);
   configuration.update("ai_accounts", row => row.id === account.id, { models_json: JSON.stringify(compactionCatalog) });
   const history = [];
-  for (let i = 0; i < 12; i++) history.push({ role: "user", content: `past ${i} ` + "早期事实".repeat(1000) }, { role: "assistant", content: "prior answer" });
+  // 历史本身低于 80% 压缩阈值；只有把最终 system 与工具 schema 纳入预算才应触发摘要。
+  for (let i = 0; i < 12; i++) history.push({ role: "user", content: `past ${i} ` + "早期事实".repeat(50) }, { role: "assistant", content: "prior answer" });
   history.push({ role: "user", content: "current task" });
-  let summaries = 0, normal = 0;
+  let summaries = 0, normal = 0, normalBody;
   respond = body => {
     if (JSON.stringify(body.messages).includes("你是会话压缩器")) { summaries++; assert.equal(body.tools, undefined); return sse({ content: "早期任务已完成，继续当前目标。" }); }
-    normal++; assert.ok(JSON.stringify(body.messages).length < JSON.stringify(history).length);
+    normal++;
+    normalBody = body;
+    assert.equal(body.messages[0].role, "system");
+    assert.ok(body.tools?.length, "最终 Provider 请求必须继续携带当前工具 schema");
+    assert.ok(JSON.stringify(body.messages.slice(1)).length < JSON.stringify(history).length, "压缩后的会话历史应小于原始历史");
     return sse({ content: "compacted final answer" });
   };
   const compactTurn = sessions.createAiTurn(owner, "workspace", null, "current task"); compactTurn.history = history;
   const compacted = await execute("current task", { turn: compactTurn });
   assert.equal(compacted.run.status, "complete", JSON.stringify(compacted.run.message)); assert.equal(summaries, 1); assert.equal(normal, 1);
+  assert.ok(normalBody.messages[0].content.length > 0, "上下文压力计算包含实际 system prompt");
   const persisted = sessionRecords.allForSession("ai_messages", compactTurn.session.id);
   assert.match(JSON.stringify(persisted), /compacted final answer/u);
   const { manageContextBeforeRequest } = await import("lfaa-agent-loop/src/runtime-context.js");
@@ -432,7 +443,7 @@ try {
       switch (++engineeringStep) {
         case 1:
           assert.ok(toolNames.includes("lfaa_tools_list"));
-          return call("lfaa_tools_list", { query: "项目文件读取写入差异 本机 Shell 工程检查" });
+          return call("lfaa_tools_list", { query: "project_file_operation local_execute_command" });
         case 2:
           assert.match(previous, /project_file_operation/u);
           assert.match(previous, /local_execute_command/u);
@@ -592,20 +603,45 @@ try {
   assert.ok(workflowOwner.listWorkflowSummaries(owner, "minecraft").some(item => item.id === workflowDefinition.id));
   assert.deepEqual(workflowOwner.listWorkflowSummaries(owner, "workspace"), [], "工作流列表按 App 隔离");
 
-  // 开服工作流必须先通过当前 Run 的问题通道明确取得 EULA 同意；拒绝时不得创建运行记录。
+  // 开服工作流将 EULA 同意并入统一 Permission Owner 摘要，不另设问题确认闸门。
   const eulaWorkflow = workflowOwner.createWorkflow(owner, "minecraft", {
-    title: "EULA 拒绝保护回归",
+    title: "EULA 统一权限回归",
     nodes: [{ id: "eula-agent", type: "minecraft.agent", version: 1, title: "开服节点", data: { prompt: "部署服务器。", toolNames: ["minecraft_provision_server"] }, x: 0, y: 0 }],
     edges: []
   });
   const eulaRunTool = tool("lfaa_workflow_run");
   assert.equal(eulaRunTool.requiresQuestionChannel, true);
-  const runsBeforeEulaDenial = workflowOwner.listWorkflowRuns(owner, "minecraft", eulaWorkflow.id).length;
-  await assert.rejects(eulaRunTool.execute(eulaRunTool.parse({ workflowId: eulaWorkflow.id, expectedUpdatedAt: eulaWorkflow.updatedAt }), {
+  const eulaRunParameters = eulaRunTool.parse({ workflowId: eulaWorkflow.id, expectedUpdatedAt: eulaWorkflow.updatedAt });
+  const eulaApproval = eulaRunTool.approval(eulaRunParameters, { userId: owner, applicationId: "minecraft" });
+  assert.match(eulaApproval.scopeSummary, /同意 Minecraft EULA/u);
+  assert.match(eulaApproval.summary, /明确同意 Minecraft 官方 EULA/u);
+  assert.match(eulaApproval.summary, /https:\/\/www\.minecraft\.net\/eula/u);
+  assert.match(eulaApproval.summary, /所选服务端核心许可/u);
+  assert.throws(
+    () => workflowOwner.startWorkflowRun(owner, "admin", "minecraft", eulaWorkflow.id, {}, { aiHost: host }),
+    /统一 Permission Owner 授权上下文缺少 Minecraft EULA 同意标记/u,
+    "Minecraft Adapter 仍拒绝缺少统一许可授权标记的开服工作流"
+  );
+  const runsBeforeEula = workflowOwner.listWorkflowRuns(owner, "minecraft", eulaWorkflow.id).length;
+  let eulaAskCalls = 0, eulaNodeSystemPrompt = "";
+  const previousRespond = respond;
+  respond = body => {
+    eulaNodeSystemPrompt = body.messages.filter(message => message.role === "system").map(message => typeof message.content === "string" ? message.content : JSON.stringify(message.content)).join("\n");
+    return sse({ content: "已按统一权限上下文执行工作流节点；本次回归不调用开服工具。" });
+  };
+  let eulaRunResult;
+  try {
+    eulaRunResult = await eulaRunTool.execute(eulaRunParameters, {
     userId: owner, userRole: "admin", applicationId: "minecraft", agentRunId: randomUUID(), signal: new AbortController().signal,
-    onProgress() {}, askUser: async () => ({ answer: "不同意", skipped: false })
-  }), /没有明确同意 Minecraft EULA/u);
-  assert.equal(workflowOwner.listWorkflowRuns(owner, "minecraft", eulaWorkflow.id).length, runsBeforeEulaDenial, "EULA 拒绝前不创建工作流运行");
+    onProgress() {}, askUser: async () => { eulaAskCalls++; return { answer: "不同意", skipped: false }; }
+    });
+  } finally {
+    respond = previousRespond;
+  }
+  assert.equal(eulaAskCalls, 0, "EULA 不再触发第二个问题确认");
+  assert.match(eulaNodeSystemPrompt, /统一 Permission Owner 授权上下文包含 Minecraft EULA/u);
+  assert.equal(eulaRunResult.status, "succeeded", JSON.stringify(eulaRunResult));
+  assert.equal(workflowOwner.listWorkflowRuns(owner, "minecraft", eulaWorkflow.id).length, runsBeforeEula + 1, "统一权限模式已授权后创建工作流运行");
   console.log("verified:workflow-chat-automation");
 
   // 终端服务从闭包注入、绑定账户和父 Run，运行清理会关闭进程。

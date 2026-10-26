@@ -18,6 +18,8 @@ AI Work 的模型悬浮卡片展示账户目录中的模型、真实模型思考
 
 `connection/src/api.ts` 收到首个 Session 快照后记录助手消息的 Run ID；同一 SSE 流在明确 `done` 前 EOF、读取断开或遇到 408/425/429/5xx 时，按 250ms 起步、最多 8 秒的指数退避，通过认证 GET 重新订阅同一 Run。重连快照覆盖已持久化正文，后续 delta 接在快照后；不会重放创建 Run 的 POST。等待和流读取沿用当前请求的 `AbortSignal`，只有终态 `done` 才让调用完成。尚未收到 Run ID 就断流时会报告传输错误，避免猜测或重复创建任务。
 
+外部 Claude Agent SDK 的顶层文本增量沿 `subagent-delta` 事件临时展示在对应工具活动的展开详情中，不进入 Session 快照或本地消息正文；连接层校验活动 Run ID，并与助手正文 delta 保持事件顺序。预览长度和并发项目数有界，Run 结束、切换会话或卸载后会清除。
+
 ## AI Work Run 暂停与继续
 
 `ui-chat/src/AiWorkChat.tsx` 的暂停/继续控件与独立的显式停止控件分别作用于同一 Run；`connection/src/api.ts` 通过认证 Run API 发起暂停/继续，并消费 SSE `pause-state`。当前 Provider 请求或已派发工具未结束时显示“正在暂停”，Agent 到达安全检查点后显示“已暂停”；继续复用原 Run，不创建新消息、不重发已派发工具。审批和澄清等待时可立即暂停，收到交互结果后仍保持暂停，直到用户继续。服务重启会按现有 Run 恢复合同把未完成任务标记为中断。

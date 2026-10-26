@@ -202,15 +202,17 @@ export const accountArchiveRestoreSchema = Joi.object({ settings: Joi.boolean().
 export { appearanceBackgroundIdSchema, generalSettingsSchema, aiRuntimeSettingsSchema, minecraftRuntimeSettingsSchema, gitSettingsSchema, permissionsSettingsSchema, pluginsSettingsSchema, personalizationSettingsSchema, conversationMemoriesSchema, computerControlSettingsSchema, browserUseSettingsSchema, miniSettingsSchema, canvasSettingsSchema, appearanceFontsSchema, appearanceModeStyleSchema, appearanceSettingsSchema, shortcutBindingsSchema, shortcutsSchema } from "lfaa-settings/src/validation.js";
 
 export const aiProbeSchema = Joi.object({
-  providerId: Joi.string().valid("openai", "deepseek", "doubao", "qwen", "kimi", "zhipu", "xiaomi").required(),
+  providerId: Joi.string().valid("openai", "deepseek", "doubao", "qwen", "kimi", "zhipu", "xiaomi", "ark-agent-plan", "ark-coding-plan").required(),
   secret: Joi.string().trim().min(1).max(4096).required(),
+  modelId: Joi.string().trim().min(1).max(160),
   options: Joi.object().pattern(/^[A-Za-z][A-Za-z0-9]{0,31}$/u, Joi.string().max(128)).default({}).unknown(false)
 }).unknown(false);
 
 export const aiAccountSchema = aiProbeSchema.keys({
   displayName: Joi.string().trim().min(1).max(48).required(),
   modelId: Joi.string().trim().min(1).max(160).required(),
-  reasoningMode: Joi.string().trim().max(16).default("default")
+  reasoningMode: Joi.string().trim().max(16).default("default"),
+  verificationToken: Joi.string().trim().min(32).max(128)
 });
 
 export const aiAccountCredentialSchema = Joi.object({

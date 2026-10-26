@@ -1000,6 +1000,29 @@
   line-height: 1.75;
 }
 
+/* 外观页桌面标题保留右侧品牌预览；窄容器时将它收进标题行。 */
+.settings-content__heading--appearance {
+  position: relative;
+}
+
+.settings-content__heading--appearance > .settings-content__heading-copy {
+  flex: 1 1 auto;
+}
+
+.settings-content__heading--appearance .settings-content__heading-title-row {
+  display: block;
+}
+
+.settings-content__heading--appearance .settings-preview {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-end: 0;
+}
+
+.settings-content__heading--appearance .settings-content__heading-title-row > h2.ant-typography {
+  margin-bottom: var(--space-2);
+}
+
 .settings-account-tabs {
   display: flex;
   width: 100%;
@@ -1243,6 +1266,15 @@
   /* 长分类中的离屏表单行跳过布局与绘制；估算高度降低滚动进入视口时的尺寸回补。 */
   content-visibility: auto;
   contain-intrinsic-size: auto 112px;
+}
+
+/* 强调色行按实际可用宽度优先左右排列；内容放不下时改为上下，色盘本身继续自然换行。 */
+.settings-content--appearance #appearance-accent-color.settings-row {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+}
+
+.settings-content--appearance #appearance-accent-color .settings-color-options {
+  flex-wrap: wrap;
 }
 
 /* 存储选择独占整行；三种位置先编辑后保存，长路径在卡片内换行。 */
@@ -2231,6 +2263,29 @@
   background: var(--color-surface-muted);
 }
 
+.settings-ai-external-agent-controls {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-2);
+  width: min(100%, 560px);
+}
+
+.settings-content--ai .settings-row:has(.settings-ai-external-agent-controls) {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.settings-content--ai .settings-row:has(.settings-ai-external-agent-controls) .settings-row__control {
+  width: 100%;
+  max-width: none;
+  align-items: stretch;
+}
+
+.settings-ai-external-agent-controls > * {
+  min-width: 0;
+}
+
 .ai-provider-catalog-row > span,
 .ai-provider-test-row > div {
   display: grid;
@@ -2303,6 +2358,17 @@
 
 .ai-account-item .settings-field {
   margin-bottom: 0;
+}
+
+.ai-account-item .ai-plan-model-editor {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2);
+}
+
+.ai-account-item .ai-plan-model-editor > .ant-input {
+  min-width: 0;
 }
 
 .settings-ai-model-option {
@@ -2578,8 +2644,14 @@
   .ai-provider-grid,
   .ai-provider-form-grid,
   .ai-provider-options-grid,
-  .ai-provider-credentials-grid {
+  .ai-provider-credentials-grid,
+  .settings-ai-external-agent-controls {
     grid-template-columns: 1fr;
+  }
+
+  .settings-ai-external-agent-controls > button,
+  .settings-ai-external-agent-controls > span > button {
+    width: 100%;
   }
 
   .ai-provider-card {
@@ -2598,6 +2670,10 @@
   .ai-provider-test-row {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .ai-account-item .ai-plan-model-editor {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .settings-ai-provider-modal .ant-modal {
@@ -3433,6 +3509,28 @@
 }
 
 @container settings-main (max-width: 620px) {
+  .settings-content__heading--appearance {
+    display: block;
+  }
+
+  .settings-content__heading--appearance .settings-content__heading-title-row {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-bottom: var(--space-2);
+  }
+
+  .settings-content__heading--appearance .settings-content__heading-title-row > h2.ant-typography {
+    min-width: 0;
+    margin: 0;
+  }
+
+  .settings-content__heading--appearance .settings-preview {
+    position: static;
+  }
+
   .ai-provider-grid,
   .settings-theme-options {
     grid-template-columns: minmax(0, 1fr);
@@ -3444,6 +3542,16 @@
 
   .settings-motion-options {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@container settings-main (max-width: 460px) {
+  .settings-content--appearance #appearance-accent-color .settings-row__control > .settings-color-options {
+    justify-content: flex-start;
+  }
+
+  .settings-content--appearance #appearance-accent-color .settings-row__control > small {
+    text-align: left;
   }
 }
 
@@ -3646,6 +3754,10 @@
 }
 
 @container settings-main (max-width: 620px) {
+  .ai-account-item .ai-plan-model-editor {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .settings-extension-catalog {
     padding: var(--space-3);
   }

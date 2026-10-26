@@ -12,12 +12,23 @@ export type AiModelThinkingControl =
   | { kind: "toggle"; parameter: "thinking"; values: Array<"enabled" | "disabled">; defaultValue?: "enabled" | "disabled" }
   | { kind: "fixed"; value: string };
 
+export type AiModelTaskType = "chat" | "embedding" | "image-generation" | "video-generation" | "text-to-speech" | "speech-to-text";
+export type AiPlanTier = "small" | "medium" | "large" | "max" | "lite" | "pro";
+
 export interface AiModelCatalogEntry {
   id: string;
   name: string;
   versionTag?: string;
   contextWindow?: number;
   maxOutputTokens?: number;
+  /** Provider 已知模型用途；普通 /models 目录未声明用途时保持 undefined。 */
+  taskType?: AiModelTaskType;
+  inputModalities?: Array<"text" | "image" | "audio" | "video">;
+  /** 由火山方舟官方套餐目录明确标记的档位支持范围。 */
+  planTiers?: AiPlanTier[];
+  /** 官方资料更新时间或 Provider 原始目录来源。 */
+  catalogSource?: string;
+  catalogNote?: string;
   thinking: AiModelThinkingControl | null;
   thinkingSource: typeof PROVIDER_MODEL_CAPABILITY_SOURCE | null;
 }

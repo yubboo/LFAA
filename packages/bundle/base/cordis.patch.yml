@@ -141,7 +141,7 @@
       required: true
     - id: subagent-claude-code
       name: lfaa-subagent-claude-code
-      inject: ["lfaaSubagents"]
+      inject: ["lfaaSubagents", "lfaaCredentials"]
       required: true
     - id: subagent-codex
       name: lfaa-subagent-codex
@@ -149,7 +149,7 @@
       required: true
     - id: tool-subagent
       name: lfaa-tool-subagent
-      inject: ["lfaaTools", "lfaaSubagents", "lfaaSessions"]
+      inject: ["lfaaTools", "lfaaSubagents", "lfaaSessions", "lfaaSubagentClaudeCode"]
       required: true
     - id: tool-subagent-control
       name: lfaa-tool-subagent-control

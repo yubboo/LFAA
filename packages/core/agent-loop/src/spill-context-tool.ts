@@ -2,7 +2,7 @@
 import type { AiBusinessTool } from "lfaa-tools/src/tool-contract.js";
 import { APPLICATION_IDS, type ApplicationId } from "lfaa-util-values/src/application-id.js";
 import { MAX_SPILL_READ_CHARACTERS, type SpillRef, type SpillStore } from "lfaa-spill/src/index.js";
-import { CHARS_PER_TOKEN } from "./constants.js";
+import { CHARS_PER_TOKEN } from "lfaa-token-meter/src/estimate.js";
 
 export const SPILL_CONTEXT_READ_TOOL_ID = "agent.context-read-spill";
 export const SPILL_CONTEXT_READ_TOOL_NAME = "agent_context_read_spill";

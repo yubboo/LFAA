@@ -4,9 +4,13 @@
 
 `settings-contract.ts` 提供 Settings 类型、唯一默认值及 AI Runtime 每轮模型请求/工具调用的产品安全上限；Client 和 Settings 克隆后消费，不依赖 Node、数据库或 React，不创建第二套持久化。`appearance.theme` 新用户默认 `system`（跟随系统），六个 `appearance.backgrounds` 位置默认 `none`（纯色，由当前主题提供画布色）；Settings Owner 对缺失值使用这些默认，同时保留账户已保存的主题和背景。`aiRuntime.showContextUsage` 对缺少已保存偏好的账户默认开启；Settings Owner 仍保留账户明确保存的开/关选择。General 默认值定义首次登录提醒类别状态及统一通知总开关；旧账户缺少新增字段时由 Settings Owner 回落到共享默认值，设置中心不暴露提醒类别开关。预算设为 0 时使用共享合同中的上限，正数只能收紧该上限。`builtin-backgrounds.ts` 提供内置背景元数据，使主题不再依赖 Minecraft UI；旧 UI 导出仅是迁移兼容入口，消费者迁完后再删除。
 
+`appearance.advanced.writingLightRaysEnabled` 是写作工作区光线背景的账户级开关，默认开启；设置中心和写作工具栏共用该字段。旧账户缺少该值时只补共享默认值，其他外观偏好保持原值。
+
 `general.cardMotionEffect` 与 `general.dialogMotionEffect` 是常规设置中独立的卡片/弹窗动效选择；`UI_MOTION_EFFECT_OPTIONS` 统一持有 ID、展示名称、说明和唯一默认值（`fluid`）。视觉实现由 `client/ui-theme` 消费，不在本包定义 CSS。
 
 写入校验、旧值兼容、持久化、凭据与权限仍由 Settings/Storage Owner 管理。
+
+`ark-provider.ts` 统一提供普通方舟 OpenAI 兼容 Base URL 与个人 Agent Plan/Coding Plan 专属端点、Provider ID 及官方文档地址。Settings Provider 解析和 Pi AI 的普通方舟默认 Base URL 共用这些协议事实；账户归属、密钥和请求仍由各自 Owner 管理。
 
 2026-10-14：FileResourceLocation 描述独立导航，ManagedFileEntry 保留真实文件类型与可执行操作/说明；位置投影不授予文件权限，也不混入物理目录条目。
 

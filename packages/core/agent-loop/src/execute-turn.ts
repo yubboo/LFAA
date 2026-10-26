@@ -14,11 +14,11 @@ import type { UserRole } from "lfaa-identity-auth/src/service.js";
 import type { ApplicationId } from "lfaa-settings/src/preferences/service.js";
 import { AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN, AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN, type BrowserUseSettings } from "lfaa-util-values/src/settings-contract.js";
 import { AiOutputLimitError, AiRecoverableRequestError, type AiCompletionContentPart, type AiCompletionMessage, type AiCompletionUsage, type AiCompletionService } from "lfaa-llm/src/completion.js";
-import { domainExpertName, listAiBusinessTools, type AiBusinessTool } from "lfaa-tools/src/business-tools.js";
+import { domainExpertName, listAiBusinessTools, type AiBusinessTool, type AiExternalAgentToolContent } from "lfaa-tools/src/business-tools.js";
 import { capabilitySettingsInstruction } from "lfaa-tools/src/capability-settings.js";
 import { agentSettingsInstruction } from "lfaa-tools/src/settings-tools.js";
 import { discoverMcpTools, type McpServerInstruction } from "lfaa-mcp-client/src/runtime.js";
-import { finishAiAssistantMessage, getAiSessionPlanMode, getAiSessionTokenUsageSummary, previewAiSessionTokenUsageSummary, recordAiModelResponse, recordAiSessionAttempt, recordAiSessionRequest, recordAiSessionStep, recordAiToolCall, recordAiToolResult, recordAiUsage, saveAiAssistantActivity, saveAiModelHistory, setAiSessionPlanMode, type AiModelMessage, type AiTurnRows, type AiActivityItem } from "lfaa-session/src/sessions.js";
+import { finishAiAssistantMessage, getAiSessionPlanMode, getAiSessionTokenUsageSummary, previewAiSessionTokenUsageSummary, recordAiModelResponse, recordAiSessionAttempt, recordAiSessionRequest, recordAiSessionStep, recordAiToolCall, recordAiToolResult, recordAiUsage, recordAiUsageBatch, saveAiAssistantActivity, saveAiModelHistory, setAiSessionPlanMode, type AiModelMessage, type AiTurnRows, type AiActivityItem } from "lfaa-session/src/sessions.js";
 import { getAgentGitSessionRepository } from "lfaa-workspace-agent-git";
 import { AI_TOOL_APPROVAL_LIFETIME_MS, authorizeAiTool, consumeAiToolApproval, listAiToolApprovals, requestAiToolApproval, type AiToolRisk } from "lfaa-permission-presets/src/permissions.js";
 import type { UserApprovalNotifications } from "lfaa-user-approval/src/index.js";
@@ -40,7 +40,7 @@ import { toolExecutionState } from "./tool-outcome.js";
 import { resolveAiSessionWorkspaceContext } from "./workspace-context.js";
 import { estimateContextBreakdown } from "lfaa-token-meter/src/estimate.js";
 import { applySpillPolicy } from "lfaa-spill-policy/src/index.js";
-import { createRunSpillContext, SPILL_CONTEXT_READ_TOOL_ID } from "./spill-context-tool.js";
+import { createRunSpillContext, SPILL_CONTEXT_READ_TOOL_ID, SPILL_CONTEXT_READ_TOOL_NAME } from "./spill-context-tool.js";
 import { isShutdownRequested } from "./shutdown-state.js";
 import { formatAgentWorkbenchContext, type AgentWorkbenchView } from "./workbench-context.js";
 import { resolveTurnAttachmentMessages } from "lfaa-llm/src/turn-attachments.js";
@@ -176,6 +176,7 @@ const localGameInstruction = [
 const computerObservationInstruction = "这是用户当前 Windows 桌面的即时屏幕截图。请只基于这个画面判断界面状态与后续操作。";
 
 export function storedToolArguments(name: string, argumentsText: string): string {
+  if (name === "lfaa_delegate_subagent") return "[子 Agent 任务正文与工具参数未保存]";
   if (name.startsWith("lfaa_browser_")) return "[浏览器工具参数未保存]";
   if (["computer_use_search_local_apps", "computer_use_recommend_games", "computer_use_launch_local_app", "computer_use_launch_local_executable"].includes(name)) return "[本机应用或游戏工具参数未保存]";
   if (name !== "computer_use_type_text") return argumentsText;
@@ -267,6 +268,35 @@ export function mcpToolResultContent(value: unknown): AiCompletionContentPart[] 
   }
   if (!parts.some(part => part.type === "text")) parts.unshift({ type: "text", text: "MCP 工具返回一张供本轮模型判断的临时图像。" });
   return parts;
+}
+
+function externalAgentMcpContent(content: AiCompletionMessage["content"]): AiExternalAgentToolContent[] {
+  if (typeof content === "string") return [{ type: "text", text: content.slice(0, 48_000) }];
+  if (!Array.isArray(content)) return [{ type: "text", text: "工具没有返回可显示内容。" }];
+  const parts: AiExternalAgentToolContent[] = [];
+  let remainingText = 48_000;
+  let imageCount = 0;
+  for (const part of content) {
+    if (part.type === "text" && remainingText > 0) {
+      const text = part.text.slice(0, remainingText);
+      parts.push({ type: "text", text });
+      remainingText -= text.length;
+      continue;
+    }
+    if (part.type !== "image_url") continue;
+    const match = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/]+=*)$/u.exec(part.image_url.url);
+    if (!match || match[2].length > 4 * 1024 * 1024 || imageCount >= 1) {
+      if (remainingText > 0) {
+        const notice = "工具图像不符合可转发格式或大小限制，已省略。";
+        parts.push({ type: "text", text: notice });
+        remainingText -= notice.length;
+      }
+      continue;
+    }
+    imageCount += 1;
+    parts.push({ type: "image", mimeType: match[1]!, data: match[2]! });
+  }
+  return parts.length ? parts : [{ type: "text", text: "工具没有返回可显示内容。" }];
 }
 
 export function formatMcpServerInstructions(instructions: readonly McpServerInstruction[]): string | undefined {
@@ -577,6 +607,9 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
     let openToolActivityId: string | null = null;
     let closeMcp: (() => Promise<void>) | undefined;
     let contextSpillRuntime: ReturnType<typeof createRunSpillContext> | undefined;
+    let contextSpillAvailable = false;
+    let activeContextHooks: ContextManagerHooks | undefined;
+    let activeContextWindow: number | undefined;
     let publishUsage: (() => void) | undefined;
     let usageReservation: Extract<AgentUsageReservation, { enforced: true; allowed: true }> | null = null;
     let usageLimitTimer: NodeJS.Timeout | null = null;
@@ -629,6 +662,16 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
         .filter(tool => isAiCapabilityInScope(tool, capabilityScope));
       let businessTools = [...availableTools.filter(tool => !tool.onDemand || selectedToolNames.has(tool.name)), ...discoveryTools];
       const inheritedToolNames = (): string[] => businessTools.filter(tool => tool.id !== SPILL_CONTEXT_READ_TOOL_ID).map(tool => tool.name);
+      const inheritedExternalAgentTools = () => {
+        const inheritedNames = new Set(inheritedToolNames());
+        return businessTools
+          .filter(candidate => inheritedNames.has(candidate.name)
+            && !candidate.createsSubagent
+            && candidate.delegation !== "domain-expert"
+            && !planModeToolNames.has(candidate.name)
+            && candidate.id !== SPILL_CONTEXT_READ_TOOL_ID)
+          .map(candidate => ({ name: candidate.name, description: candidate.description, schema: candidate.schema }));
+      };
       const planTools = planModeEnabled ? createPlanModeTools(userId, turn.session.id, body.appId, active => emit("plan-mode", { sessionId: turn.session.id, active })) : [];
       businessTools.push(...planTools.filter(tool => isAiCapabilityInScope(tool, capabilityScope)));
       let functionTools: Array<{ type: "function"; function: { name: string; description: string; parameters: Record<string, unknown> } }> = [];
@@ -773,6 +816,127 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
       };
       // 请求审批与替我审批模式下，一次拒绝或过期会锁住本轮剩余写操作；完全权限模式不进入审批等待。
       let requestCount = 0;
+      let externalAgentModelRequestsUsed = 0;
+      let externalAgentModelRequestsReserved = 0;
+      const reserveExternalAgentModelRequests = (): { maxModelRequests: number; settle: (used?: number) => void } | null => {
+        const available = Math.max(0, maxModelRequests - requestCount - externalAgentModelRequestsUsed - externalAgentModelRequestsReserved);
+        if (available < 1) return null;
+        externalAgentModelRequestsReserved += available;
+        let settled = false;
+        return {
+          maxModelRequests: available,
+          settle(used?: number) {
+            if (settled) return;
+            settled = true;
+            externalAgentModelRequestsReserved = Math.max(0, externalAgentModelRequestsReserved - available);
+            const consumed = Number.isSafeInteger(used) && used! >= 0 ? Math.min(available, used!) : available;
+            externalAgentModelRequestsUsed += consumed;
+          }
+        };
+      };
+      const authorizeExternalAgentAction = async (action: {
+        toolUseId: string;
+        toolName: string;
+        toolVersion: string;
+        risk: AiToolRisk;
+        scopeKey: string;
+        scopeSummary: string;
+        summary: string;
+        parameters: unknown;
+        signal: AbortSignal;
+      }): Promise<boolean> => {
+        const signal = AbortSignal.any([abortController.signal, action.signal]);
+        const toolName = action.toolName.replace(/[\u0000-\u001f\u007f]/gu, " ").slice(0, 80) || "未知工具";
+        const activityId = addActivity("tool", `Claude SDK · ${toolName}`, "running", "正在由 LFAA Permission Owner 检查 SDK 工具动作。");
+        const deny = (detail: string, status: "error" | "unavailable" = "error"): false => {
+          finishActivity(activityId, status, detail);
+          return false;
+        };
+        try {
+          signal.throwIfAborted();
+          if (!["read", "write", "dangerous"].includes(action.risk)) return deny("SDK 工具返回无效风险级别；动作未执行。");
+          if (action.risk !== "read" && writeGate.denied) return deny("本任务已有写操作被拒绝或审批过期；LFAA Permission Owner 已锁定后续写操作。");
+          if (toolCallCount >= maxToolCalls) return deny(`本轮工具调用预算 ${maxToolCalls} 已用完；Claude SDK 动作未执行。`);
+          toolCallCount += 1;
+          const currentRepository = getAgentGitSessionRepository(userId, turn.session.id);
+          if (!agentGitRepository || !currentRepository
+            || currentRepository.id !== agentGitRepository.id
+            || currentRepository.path !== agentGitRepository.path) {
+            return deny("当前 Session 的 AgentGit 仓库绑定已变化；Claude SDK 动作未执行。");
+          }
+          if (getUserSettings(userId).aiRuntime.executionSandboxMode !== "danger-full-access") {
+            return deny("aiRuntime.executionSandboxMode 已不再是 danger-full-access；Claude SDK 动作未执行。");
+          }
+          await pauseGate.checkpoint(signal);
+          signal.throwIfAborted();
+
+          const authorizedMode = getUserSettings(userId).permissions.mode;
+          const authorizedInput = {
+            userId,
+            activeApplicationId: body.appId,
+            toolApplicationIds: [body.appId],
+            toolId: "subagent.claude-code.action",
+            toolVersion: action.toolVersion,
+            risk: action.risk,
+            scopeKey: action.scopeKey,
+            executable: true
+          };
+          const authorization = authorizeAiTool(authorizedInput);
+          if (authorization === "deny") return deny("当前设置中心权限模式或操作目标不允许此 Claude SDK 动作。");
+          if (authorization === "approval_required") {
+            if (action.risk === "read") return deny("LFAA Permission Owner 对只读动作返回了不一致的审批状态；动作已拒绝。");
+            let approval: ReturnType<typeof requestAiToolApproval>;
+            try {
+              approval = requestAiToolApproval({
+                userId,
+                sessionId: turn.session.id,
+                appId: body.appId,
+                toolId: authorizedInput.toolId,
+                toolVersion: action.toolVersion,
+                risk: action.risk,
+                scopeKey: action.scopeKey,
+                scopeSummary: action.scopeSummary.slice(0, 240),
+                summary: action.summary.slice(0, 500),
+                parameters: action.parameters
+              });
+            } catch (error) {
+              return deny(`LFAA Permission Owner 无法建立审批记录；动作未执行。${error instanceof Error ? error.message.slice(0, 240) : ""}`);
+            }
+            const current = activities.find(activity => activity.id === activityId)!;
+            const waitDetail = `待批准：Claude SDK · ${toolName}；目标范围：${approval.scopeSummary}。批准前不会执行此动作，审批将在 5 分钟后过期。`;
+            publishActivity({ ...current, status: "approval_required", detail: waitDetail, approvalId: approval.id, approvalQuestion: waitDetail.slice(0, 1200), completedAt: null, durationMs: null });
+            const decision = await waitForApprovalDecision(userId, approval.id, approval.expiresAt, signal, approvalNotifications);
+            if (signal.aborted) return deny("Claude SDK 动作的审批等待已取消；动作未执行。", "unavailable");
+            if (decision === "approved" || decision === "denied" || decision === "expired") {
+              publishActivity({ ...activities.find(activity => activity.id === activityId)!, approvalAnswer: decision });
+            }
+            if (decision !== "approved") {
+              const reason = decision === "denied" ? "你拒绝了这项 Claude SDK 动作。" : "本次 Claude SDK 动作审批已过期或未完成；动作未执行。";
+              writeGate.denied = true;
+              return deny(reason);
+            }
+            await pauseGate.checkpoint(signal);
+            signal.throwIfAborted();
+            if (getUserSettings(userId).permissions.mode !== authorizedMode) return deny("审批等待期间权限模式已改变；Claude SDK 动作未执行。");
+            if (!consumeAiToolApproval({ userId, approvalId: approval.id, appId: body.appId, toolId: authorizedInput.toolId, toolVersion: action.toolVersion, risk: action.risk, scopeKey: action.scopeKey, parameters: action.parameters })) {
+              return deny("LFAA Permission Owner 未能将审批绑定到本次 SDK 工具参数；动作未执行。");
+            }
+          } else if (getUserSettings(userId).permissions.mode !== authorizedMode) {
+            return deny("权限模式在授权检查期间已改变；Claude SDK 动作未执行。");
+          }
+
+          signal.throwIfAborted();
+          if (getUserSettings(userId).aiRuntime.executionSandboxMode !== "danger-full-access") return deny("沙箱设置在授权期间已改变；Claude SDK 动作未执行。");
+          const latestRepository = getAgentGitSessionRepository(userId, turn.session.id);
+          if (!latestRepository || latestRepository.id !== agentGitRepository.id || latestRepository.path !== agentGitRepository.path) {
+            return deny("Session 的 AgentGit 绑定在授权期间已改变；Claude SDK 动作未执行。");
+          }
+          finishActivity(activityId, "complete", `LFAA Permission Owner 已授权 Claude Agent SDK 执行 ${toolName}。`);
+          return true;
+        } catch (error) {
+          return deny(signal.aborted ? "Claude SDK 动作授权已取消；动作未执行。" : `LFAA Permission Owner 检查失败；动作已拒绝。${error instanceof Error ? error.message.slice(0, 240) : ""}`, signal.aborted ? "unavailable" : "error");
+        }
+      };
       const sessionUsageAtTurnStart = getAiSessionTokenUsageSummary(userId, turn.session.id) ?? {
         requestCount: 0, requestCountExact: true, promptTokens: 0, completionTokens: 0, cacheReadTokens: 0, models: []
       };
@@ -938,7 +1102,7 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
           abortController.signal.removeEventListener("abort", abortFromRun);
         }
       };
-      const requestModel = async (messages: AiCompletionMessage[], options: { tools?: typeof functionTools; systemPrompt?: string; deltaToUser?: boolean; onPiDelta?: (delta: string) => void }): Promise<Awaited<ReturnType<AiCompletionService["streamCompletion"]>> & { text: string }> => {
+      const requestModel = async (messages: AiCompletionMessage[], options: { tools?: typeof functionTools; systemPrompt?: string; deltaToUser?: boolean; onPiDelta?: (delta: string) => void }): Promise<Awaited<ReturnType<AiCompletionService["streamCompletion"]>> & { text: string; requestTools?: typeof functionTools }> => {
         // 服务退出时只阻止新的模型请求：已派发的工具结果保持有效，不会被迫写成“未知”。
         if (isShutdownRequested()) throw new Error("LFAA 服务正在退出；本轮在派发新的模型请求前停止，已完成的工具结果保持有效。");
         await pauseGate.checkpoint(abortController.signal);
@@ -970,6 +1134,8 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
           : `有效输出上限 ${outputLimit.toLocaleString("zh-CN")} tokens`;
         providerActivityId = addActivity("status", `请求 ${account.providerId} · ${account.modelId}`, "running", `第 ${requestCount} 次模型请求；${outputLimitDescription}；超时 ${settings.aiRuntime.requestTimeoutSeconds} 秒。`);
         let result: Awaited<ReturnType<AiCompletionService["streamCompletion"]>>;
+        let requestToolsForRequest = options.tools ?? [];
+        let requestMessagesForPi: AiCompletionMessage[] | undefined;
         const contextUsageForRequest: { current: {
           providerId: string; modelId: string; contextWindow: number | null; contextWindowSource: "model-catalog" | "settings-fallback" | "unknown"; promptTokens: number | null;
           estimatedPromptTokens: number; systemTokens: number; toolsTokens: number; messageTokens: number; includesImages: boolean;
@@ -984,8 +1150,32 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
           extensions: requestUserInput ? [...requestExtensions, "交互约束：当缺少的信息会实质影响任务目标、数据范围、安全或验收结果时，使用 lfaa_ask_user 暂停并向用户确认；普通可逆实现细节可自行判断。提问须一次聚焦一个关键缺口，提供 2 到 4 个清晰选项，并允许用户补充或跳过。收到答案后继续当前任务，不得把未确认内容当作事实。"] : requestExtensions,
           settings: settings.aiRuntime,
           signal: abortController.signal,
+          onPrepareRequest: options.deltaToUser === false ? undefined : async request => {
+            requestToolsForRequest = request.tools;
+            if (!activeContextHooks) return;
+            const managed = await manageContextBeforeRequest({
+              messages: request.messages,
+              tools: request.tools,
+              reasoningReplayCharacters: request.reasoningReplayCharacters,
+              ...(activeContextWindow ? { contextWindow: activeContextWindow } : {}),
+              hooks: activeContextHooks,
+              signal: request.signal
+            });
+            requestToolsForRequest = managed.tools ?? request.tools;
+            const offeredNames = new Set(requestToolsForRequest.map(tool => tool.function.name));
+            offeredBusinessTools = businessTools.filter(tool => offeredNames.has(tool.name));
+            if (managed.rewritten) {
+              const attachmentCount = attachmentTurnMessages.length;
+              const persistedEnd = Math.max(1, managed.messages.length - attachmentCount);
+              completionMessages.length = 0;
+              completionMessages.push(...managed.messages.slice(1, persistedEnd));
+              requestMessagesForPi = [...completionMessages];
+              addActivity("status", "上下文管理", "complete", `已按最终请求估算（约 ${managed.pressure.usedTokens} / ${managed.pressure.contextWindow} tokens；system ${managed.pressure.systemTokens}、tools ${managed.pressure.toolsTokens}、messages ${managed.pressure.messageTokens}）缩减本次历史；外置结果可按需读取。`);
+            }
+            return { messages: managed.messages, tools: requestToolsForRequest };
+          },
           onRequest: request => {
-            const breakdown = estimateContextBreakdown(request.messages, request.tools);
+            const breakdown = estimateContextBreakdown(request.messages, request.tools, request.reasoningReplayCharacters);
             const settingsContextWindow = getUserSettings(userId).aiRuntime.contextWindowTokens ?? null;
             const contextWindow = account.contextWindow ?? settingsContextWindow;
             const contextWindowSource: "model-catalog" | "settings-fallback" | "unknown" = account.contextWindow ? "model-catalog" : contextWindow ? "settings-fallback" : "unknown";
@@ -1014,7 +1204,7 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
             // 模型可能臆造未在本轮 request/header 中提供的工具名。会话内核按 header 校验 tool/call，
             // 把这种调用写进证据会让整个 Run 致命失败且没有可恢复的工具结果；这里只记录真实提供给
             // 模型的工具调用，未知调用交给循环上方“未提供的工具”分支处理。
-            const offeredNames = new Set((options.tools ?? []).map(tool => tool.function.name));
+            const offeredNames = new Set(requestToolsForRequest.map(tool => tool.function.name));
             recordAiModelResponse(
               userId,
               turn.session.id,
@@ -1088,12 +1278,12 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
         }), sessionUsageAtTurnStart);
         emit("usage-progress", { messageId: turn.assistantMessage.id, sessionUsage: preview });
         await pauseGate.checkpoint(abortController.signal);
-        return { ...result, text: roundText };
+        return { ...result, text: roundText, requestTools: requestToolsForRequest, ...(requestMessagesForPi ? { requestMessages: requestMessagesForPi } : {}) };
       };
       let finalResponseReceived = false;
       let lastCompactionSize = 0;
       let unknownToolRounds = 0;
-      let completion: Awaited<ReturnType<AiCompletionService["streamCompletion"]>> & { text: string } = {
+      let completion: Awaited<ReturnType<AiCompletionService["streamCompletion"]>> & { text: string; requestTools?: typeof functionTools; requestMessages?: AiCompletionMessage[] } = {
         text: "", usage: { promptTokens: null, completionTokens: null, cacheReadTokens: null }, toolCalls: []
       };
       let offeredBusinessTools = businessTools;
@@ -1103,6 +1293,16 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
       const handledToolCallIds = new Set<string>();
       const blockedToolCallReasons = new Map<string, string>();
       const piContextWindow = account.contextWindow ?? settings.aiRuntime.contextWindowTokens!;
+      if (settings.aiRuntime.autoCompaction !== false && aiPluginHost.createContextSpillStore) {
+        const store = aiPluginHost.createContextSpillStore();
+        if (store) {
+          contextSpillRuntime = createRunSpillContext({ store, userId, applicationId: body.appId, sessionId: turn.session.id, runId: turn.assistantMessage.id, contextWindow: piContextWindow });
+          runContextTools.push(contextSpillRuntime.tool);
+          availableTools.push(contextSpillRuntime.tool);
+          businessTools.push(contextSpillRuntime.tool);
+          rebuildFunctionTools();
+        }
+      }
       const piModel: Model<Api> = {
         id: account.modelId,
         name: account.modelId,
@@ -1136,40 +1336,20 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
             } });
             return compacted?.messages ?? null;
           } } : {}),
-          ...(aiPluginHost.createContextSpillStore ? { spill: async input => {
+          ...(contextSpillRuntime ? { spill: async input => {
+            const spillRuntime = contextSpillRuntime;
+            if (!spillRuntime) return null;
             abortController.signal.throwIfAborted();
-            if (!contextSpillRuntime) {
-              const store = aiPluginHost.createContextSpillStore?.();
-              if (!store) return null;
-              contextSpillRuntime = createRunSpillContext({ store, userId, applicationId: body.appId, sessionId: turn.session.id, runId: turn.assistantMessage.id, contextWindow: input.contextWindow });
-            }
-            const spilled = await applySpillPolicy({ messages: input.messages, sessionId: turn.session.id, store: contextSpillRuntime.store });
+            const spilled = await applySpillPolicy({ messages: input.messages, sessionId: turn.session.id, store: spillRuntime.store });
             abortController.signal.throwIfAborted();
             if (!spilled.spilledCount) return null;
-            if (!runContextTools.some(tool => tool.id === SPILL_CONTEXT_READ_TOOL_ID)) {
-              runContextTools.push(contextSpillRuntime.tool);
-              availableTools.push(contextSpillRuntime.tool);
-              businessTools.push(contextSpillRuntime.tool);
-              rebuildFunctionTools();
-            }
-            return spilled.messages;
+            contextSpillAvailable = true;
+            return { messages: spilled.messages, tools: functionTools };
           } } : {})
         } : undefined;
+        activeContextHooks = contextManager ?? automaticContext;
+        activeContextWindow = account.contextWindow ?? currentRuntime.contextWindowTokens ?? undefined;
         let preparedMessages = [...input.messages, ...incoming];
-        if ((contextManager || automaticContext) && !abortController.signal.aborted) {
-          const managed = await manageContextBeforeRequest({
-            messages: preparedMessages,
-            ...(account.contextWindow ?? currentRuntime.contextWindowTokens ? { contextWindow: (account.contextWindow ?? currentRuntime.contextWindowTokens)! } : {}),
-            hooks: (contextManager ?? automaticContext)!,
-            signal: input.signal
-          });
-          if (managed.rewritten) {
-            preparedMessages = managed.messages;
-            completionMessages.length = 0;
-            completionMessages.push(...managed.messages);
-            addActivity("status", "上下文管理", "complete", `已按上下文规模（约 ${managed.pressure.usedTokens} / ${managed.pressure.contextWindow} tokens）缩减本次请求历史；外置结果可按需读取。`);
-          }
-        }
         return { messages: preparedMessages, tools: functionTools };
       };
       const beforePiToolCall = async ({ toolCall }: { toolCall: AgentToolCall }, signal?: AbortSignal) => {
@@ -1246,7 +1426,10 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
         for (let retry = 0; ; retry += 1) {
           try {
             offeredBusinessTools = businessTools;
-            completion = await requestModel(input.messages, { ...(input.tools.length ? { tools: input.tools } : {}), onPiDelta: input.onDelta });
+            const requestTools = contextSpillAvailable || !contextSpillRuntime
+              ? input.tools
+              : input.tools.filter(tool => tool.function.name !== SPILL_CONTEXT_READ_TOOL_NAME);
+            completion = await requestModel(input.messages, { tools: requestTools, onPiDelta: input.onDelta });
             offeredBusinessTools = businessTools;
             return completion;
           } catch (error) {
@@ -1303,18 +1486,32 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
         finalResponseReceived = true;
         return { action: "end" };
       };
-      const executePiToolCall = async (call: import("lfaa-llm").AiCompletionToolCall, signal: AbortSignal): Promise<{ content: AiCompletionMessage["content"]; isError?: boolean }> => {
+      let executePiToolCall!: (call: import("lfaa-llm").AiCompletionToolCall, signal: AbortSignal, externalAgent?: boolean) => Promise<{ content: AiCompletionMessage["content"]; isError?: boolean }>;
+      executePiToolCall = async (call: import("lfaa-llm").AiCompletionToolCall, signal: AbortSignal, externalAgent = false): Promise<{ content: AiCompletionMessage["content"]; isError?: boolean }> => {
           signal.throwIfAborted();
-          const callIndex = completion.toolCalls.findIndex(item => item.id === call.id);
-          const actualCall = completion.toolCalls[callIndex];
+          const callIndex = externalAgent ? -1 : completion.toolCalls.findIndex(item => item.id === call.id);
+          const actualCall = callIndex >= 0 ? completion.toolCalls[callIndex] : undefined;
           if (actualCall) call = actualCall;
+          const callBudgetExceeded = externalAgent && toolCallCount >= maxToolCalls;
           let repeatedToolCallMessage: string | null = null;
           handledToolCallIds.add(call.id);
-          toolCallCount += 1;
-          const tool = offeredBusinessTools.find(tool => tool.name === call.name);
+          if (!callBudgetExceeded) toolCallCount += 1;
+          const tool = (externalAgent ? businessTools : offeredBusinessTools).find(tool => tool.name === call.name);
+          let externalAgentToolScope: ReturnType<typeof inheritedExternalAgentTools> = [];
+          const externalAgentToolNames = new Set<string>();
+          const dispatchExternalAgentTool = async (request: { name: string; arguments: unknown; signal: AbortSignal }) => {
+            if (!externalAgentToolNames.has(request.name)) throw new Error("外部 Agent 请求了本次父 Run 未继承的工具；动作已拒绝。");
+            if (!request.arguments || typeof request.arguments !== "object" || Array.isArray(request.arguments)) throw new Error("外部 Agent 工具参数必须为 JSON 对象；动作已拒绝。");
+            let encodedArguments: string;
+            try { encodedArguments = JSON.stringify(request.arguments); }
+            catch { throw new Error("外部 Agent 工具参数无法编码为 JSON；动作已拒绝。"); }
+            if (Buffer.byteLength(encodedArguments, "utf8") > 2 * 1024 * 1024) throw new Error("外部 Agent 工具参数超过 LFAA 2 MiB 上限；动作已拒绝。");
+            const dispatchedResult = await executePiToolCall({ id: randomUUID(), name: request.name, arguments: encodedArguments }, request.signal, true);
+            return { content: externalAgentMcpContent(dispatchedResult.content), ...(dispatchedResult.isError ? { isError: true } : {}) };
+          };
           const activityKind: AiActivityItem["kind"] = tool?.activityKind ?? (tool?.delegation === "domain-expert" ? "agent" : tool?.id === "writing.load-skill" ? "skill" : "tool");
           const activityName = tool?.activityTitle ?? activityToolTitle(tool, body.appId);
-          const activityId = addActivity(activityKind, activityName, "running", "正在校验工具参数并检查当前权限。", undefined, tool?.id.startsWith("browser-use.") ? tool.id as AiActivityItem["toolId"] : undefined);
+          const activityId = addActivity(activityKind, activityName, "running", callBudgetExceeded ? `本轮工具调用预算 ${maxToolCalls} 已用尽；外部 Agent 的本次调用未派发。` : "正在校验工具参数并检查当前权限。", undefined, tool?.id.startsWith("browser-use.") ? tool.id as AiActivityItem["toolId"] : undefined);
           openToolActivityId = activityId;
           let toolResult: unknown;
           let toolMessageContent: AiCompletionMessage["content"] | undefined;
@@ -1329,16 +1526,29 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
           let stopForRepeatedFailure = false;
           let preparedToolParameters: Record<string, unknown> | null = null;
           try {
+            if (callBudgetExceeded) throw new AiToolCallBudgetError(maxToolCalls);
             if (!tool) throw new Error("模型请求了当前应用或权限模式未提供的工具；已拒绝调用。");
             await refreshCapabilities();
+            signal.throwIfAborted();
             if (!businessTools.some(current => current.id === tool.id && current.name === tool.name && JSON.stringify(current.schema) === JSON.stringify(tool.schema))) {
               throw new Error("模型思考期间工具已停用、卸载或合同已改变；本次调用未派发。");
             }
+            externalAgentToolScope = inheritedExternalAgentTools();
+            externalAgentToolNames.clear();
+            for (const externalTool of externalAgentToolScope) externalAgentToolNames.add(externalTool.name);
             let rawParameters: unknown;
             try { rawParameters = JSON.parse(call.arguments) as unknown; }
             catch { throw new Error("模型返回的工具参数不是有效 JSON，已拒绝调用。"); }
             let parameters = tool.parse(rawParameters);
-            if (tool.prepare) parameters = tool.prepare(parameters, { userId, workspaceProject, agentGitRepository });
+            if (tool.prepare) parameters = tool.prepare(parameters, {
+              userId,
+              userRole,
+              workspaceProject,
+              agentGitRepository,
+              authorizeExternalAgentAction,
+              externalAgentTools: externalAgentToolScope,
+              dispatchExternalAgentTool
+            });
             preparedToolParameters = parameters;
             const browserProviderId = parameters.providerId;
             const projectFileInvocation = tool.id === "project.files" ? projectFileActivityInvocation(parameters) : null;
@@ -1407,7 +1617,11 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
               let approvalConsumed = false;
               if (risk !== "read") {
                 if (writeGate.denied) throw new Error("本任务已有写操作被拒绝或审批过期，已禁止本任务及其子 Agent 继续写操作。");
-                const requested = tool.approval(parameters, { userId, applicationId: body.appId });
+                const requested = tool.approval(parameters, {
+                  userId,
+                  applicationId: body.appId,
+                  agentGitRepository: agentGitRepository ? { id: agentGitRepository.id, path: agentGitRepository.path, title: agentGitRepository.title } : null
+                });
                 authorizedInput = {
                   userId,
                   activeApplicationId: body.appId,
@@ -1436,8 +1650,8 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
                   const current = activities.find((activity) => activity.id === activityId)!;
                   const waitDetail = `待批准：${activityName}；目标范围：${approval.scopeSummary}。批准前不会执行写操作，审批将在 5 分钟后过期。`;
                   publishActivity({ ...current, status: "approval_required", detail: activityDetailWithPreviews(activityId, waitDetail), approvalId: approval.id, approvalQuestion: waitDetail.slice(0, 1200), completedAt: null, durationMs: null });
-                  const decision = await waitForApprovalDecision(userId, approval.id, approval.expiresAt, abortController.signal, approvalNotifications);
-                  if (abortController.signal.aborted) throw new DOMException("用户已停止 Agent 运行。", "AbortError");
+                  const decision = await waitForApprovalDecision(userId, approval.id, approval.expiresAt, signal, approvalNotifications);
+                  if (signal.aborted) throw new DOMException("工具调用已取消。", "AbortError");
                   if (decision === "approved" || decision === "denied" || decision === "expired") {
                     publishActivity({ ...activities.find(activity => activity.id === activityId)!, approvalAnswer: decision });
                   }
@@ -1449,17 +1663,19 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
                     const resultText = JSON.stringify(toolResult);
                     recordInvocation(false);
                     recordAiToolResult(userId, turn.session.id, turn.assistantMessage.id, call.id, persistedComputerToolResult(call.name, resultText), true, "not_started");
-                    appendMessages({ role: "tool", tool_call_id: call.id, content: resultText });
-                    saveAiModelHistory(userId, turn.session.id, turn.assistantMessage.id, persistedModelMessages(turnMessages));
+                    if (!externalAgent) {
+                      appendMessages({ role: "tool", tool_call_id: call.id, content: resultText });
+                      saveAiModelHistory(userId, turn.session.id, turn.assistantMessage.id, persistedModelMessages(turnMessages));
+                    }
                     openToolActivityId = null;
                     return { content: resultText, isError: true };
                   }
-                  if (abortController.signal.aborted) throw new DOMException("用户已停止 Agent 运行。", "AbortError");
+                  if (signal.aborted) throw new DOMException("工具调用已取消。", "AbortError");
                   if (!consumeAiToolApproval({ userId, approvalId: approval.id, appId: body.appId, toolId: tool.id, toolVersion: "1.0.0", risk, scopeKey: requested.scopeKey, parameters })) {
                     throw new Error("审批未能绑定到本次工具参数，已拒绝执行。");
                   }
                   approvalConsumed = true;
-                  if (abortController.signal.aborted) throw new DOMException("用户已停止 Agent 运行。", "AbortError");
+                  if (signal.aborted) throw new DOMException("工具调用已取消。", "AbortError");
                   publishActivity({ ...activities.find((activity) => activity.id === activityId)!, status: "running", detail: activityDetailWithPreviews(activityId, "本次操作已批准，正在通过 LFAA 业务服务执行。"), completedAt: null, durationMs: null });
                   activityStartedAt.set(activityId, Date.now());
                 }
@@ -1475,8 +1691,8 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
               if (!businessTools.some(current => current.id === tool.id && current.name === tool.name && JSON.stringify(current.schema) === JSON.stringify(tool.schema))) {
                 throw new Error("工具已停用、卸载或合同已改变；本次调用未派发，请按新目录重新选择。");
               }
-              await pauseGate.checkpoint(abortController.signal);
-              abortController.signal.throwIfAborted();
+              await pauseGate.checkpoint(signal);
+              signal.throwIfAborted();
               dispatched = true;
               recordInvocation(true);
               toolResult = await tool.execute(parameters, {
@@ -1486,7 +1702,10 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
                 agentRunId: turn.assistantMessage.id,
                 sessionId: turn.session.id,
                 allowedToolNames: inheritedToolNames(),
-                externalDelegationAllowed: !allowedToolNames && permissionMode === "full_access" && (userRole === "admin" || userRole === "super_admin"),
+                externalAgentTools: externalAgentToolScope,
+                dispatchExternalAgentTool,
+                authorizeExternalAgentAction,
+                reserveExternalAgentModelRequests,
                 workspaceProject,
                 agentGitRepository: agentGitRepository ? { id: agentGitRepository.id, path: agentGitRepository.path, title: agentGitRepository.title } : null,
                 ...(aiPluginHost.executeLocalProjectFile ? { executeLocalProjectFile: aiPluginHost.executeLocalProjectFile } : {}),
@@ -1499,8 +1718,12 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
                 },
                 ...(delegate ? { delegateSubagent: (parameters: Record<string, unknown>, execute?: (startChild: (signal?: AbortSignal) => Promise<{ status: string; [key: string]: unknown }>) => Promise<{ status: string; [key: string]: unknown }>) => delegate(parameters, inheritedToolNames(), publishActivity, execute) } : {}),
                 onRunDispose: cleanup => toolRunCleanups.add(cleanup),
-                signal: abortController.signal,
+                signal,
                 onProgress: (detail) => updateActivity(activityId, detail),
+                onSubagentTextDelta: (delta) => emit("subagent-delta", { messageId: turn.assistantMessage.id, activityId, delta }),
+                onSubagentUsage: (usage) => {
+                  recordAiUsageBatch(userId, turn.session.id, turn.assistantMessage.id, usage.map(model => ({ ...model, purpose: "subagent" as const })));
+                },
                 ...(tool.requiresQuestionChannel && requestUserInput ? { askUser: async (question, options) => {
                   const current = activities.find((activity) => activity.id === activityId);
                   if (!current) throw new Error("当前 Agent Run 的问题活动已结束，无法等待回答。");
@@ -1594,14 +1817,17 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
                 repeatedToolCallMessage = message;
                 stopForRepeatedFailure = true;
               } else if (toolSignature) blockedToolSignatures.add(toolSignature);
+            } else if (error instanceof Error && error.name === "AbortError" && externalAgent && !abortController.signal.aborted) {
+              finishActivity(activityId, "unavailable", "外部 Agent 已取消本次工具请求；若操作已派发，其副作用状态须由目标 Owner 核实。",);
+              toolResult = { error: "外部 Agent 取消了本次工具请求；请先核对目标状态再决定是否继续。", executed: dispatched ? null : false, executionState: dispatched ? "unconfirmed" : "not_started" };
             } else if (error instanceof Error && error.name === "AbortError") {
               finishActivity(activityId, "error", "本轮已停止，未继续派发工具；若工具已把操作交给外部执行器，副作用状态仍需通过该工具对应的状态查询核实。");
               // 已派发的取消不能推断无副作用；先保存真实未知结果，再结束同一 Run。
               const state = dispatched ? "unconfirmed" : "not_started";
               const resultText = persistedComputerToolResult(call.name, JSON.stringify({ error: "本轮已停止；执行结果须由目标 Owner 核实。", executionState: state, executed: dispatched ? null : false }));
               recordAiToolResult(userId, turn.session.id, turn.assistantMessage.id, call.id, resultText, true, state);
-              appendMessages({ role: "tool", tool_call_id: call.id, content: resultText });
-              const remaining = completion.toolCalls.slice(callIndex + 1);
+              if (!externalAgent) appendMessages({ role: "tool", tool_call_id: call.id, content: resultText });
+              const remaining = externalAgent ? [] : completion.toolCalls.slice(callIndex + 1);
               const remainingReason = "本轮已停止；此调用尚未派发。";
               recordUnstartedToolCalls(remaining, remainingReason);
               const blockedReply = JSON.stringify({ error: remainingReason, executed: false, executionState: "not_started" });
@@ -1647,18 +1873,20 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
             publishActivity({ ...finishedToolActivity, detail: `${finishedToolActivity.detail}\n${activityToolResultSummary(toolResult, tool?.id, preparedToolParameters)}`.slice(0, 1200) });
           }
           if (Array.isArray(toolMessageContent) && toolMessageContent.some(part => part.type === "image_url")) releaseOlderComputerImages(completionMessages);
-          appendMessages({ role: "tool", tool_call_id: call.id, content: toolMessageContent ?? resultText });
-          saveAiModelHistory(userId, turn.session.id, turn.assistantMessage.id, persistedModelMessages(turnMessages));
+          if (!externalAgent) {
+            appendMessages({ role: "tool", tool_call_id: call.id, content: toolMessageContent ?? resultText });
+            saveAiModelHistory(userId, turn.session.id, turn.assistantMessage.id, persistedModelMessages(turnMessages));
+          }
           try {
-            await pauseGate.checkpoint(abortController.signal);
+            await pauseGate.checkpoint(signal);
           } catch (error) {
-            if (error instanceof Error && error.name === "AbortError") {
+            if (!externalAgent && error instanceof Error && error.name === "AbortError") {
               recordUnstartedToolCalls(completion.toolCalls.slice(callIndex + 1), "本轮已停止；此调用尚未派发。");
               saveAiModelHistory(userId, turn.session.id, turn.assistantMessage.id, persistedModelMessages(turnMessages));
             }
             throw error;
           }
-          if (stopForRepeatedFailure) {
+          if (stopForRepeatedFailure && !externalAgent) {
             // Pi 仍负责遍历剩余调用；beforeToolCall 会把它们登记为未派发并阻止执行。
             const reason = repeatedToolCallMessage ?? "本轮已停止；重复的被拦调用使同批剩余工具不再派发。";
             pendingRunError = new AiRepeatedToolCallError(reason);
@@ -1690,7 +1918,7 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
       if (pendingRunError) throw pendingRunError;
       if (!finalResponseReceived) throw new AiModelRequestBudgetError(maxModelRequests);
       executionPhase = "agent";
-      if (providerActivityId) finishActivity(providerActivityId, "complete", `模型工作流完成；共 ${requestCount} 次对话模型请求、${toolCallCount} 次工具调用。`);
+      if (providerActivityId) finishActivity(providerActivityId, "complete", `模型工作流完成；共 ${requestCount} 次 LFAA 对话模型请求、${externalAgentModelRequestsUsed} 次外部 Agent SDK 模型请求、${toolCallCount} 次工具调用。`);
       finishAiAssistantMessage(userId, turn.session.id, turn.assistantMessage.id, answer, "complete", replyParts);
       inferenceStatus = "complete";
 

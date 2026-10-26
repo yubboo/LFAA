@@ -101,7 +101,7 @@ export class JsonlSessionPersistence {
                 }
               } else if (change.value.type === "usage/record") {
                 const data = change.value.data as Record<string, unknown>;
-                if (data && typeof data.runId === "string" && data.purpose !== "memory" && candidates.has(data.runId)) usage.set(data.runId, change.value);
+                if (data && typeof data.runId === "string" && data.purpose !== "memory" && data.purpose !== "subagent" && candidates.has(data.runId)) usage.set(data.runId, change.value);
               }
             }
     }, signal);

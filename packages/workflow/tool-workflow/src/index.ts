@@ -64,11 +64,12 @@ function hasMinecraftEulaNode(definition: WorkflowDefinition): boolean {
     && node.data.toolNames.some(name => typeof name === "string" && DEPLOY_TOOLS.has(name)));
 }
 
-function runApprovalSummary(userId: string, appId: AiBusinessToolContext["applicationId"], workflowId: string, updatedAt: string): { title: string; scopeKey: string } {
+function runApprovalSummary(userId: string, appId: AiBusinessToolContext["applicationId"], workflowId: string, updatedAt: string): { title: string; scopeKey: string; includesMinecraftEula: boolean } {
   const workflow = getWorkflow(userId, appId, workflowId);
   return {
     title: workflow?.title ?? "工作流",
-    scopeKey: `workflow.run:${workflowId}:${updatedAt}`
+    scopeKey: `workflow.run:${workflowId}:${updatedAt}`,
+    includesMinecraftEula: workflow?.updatedAt === updatedAt && hasMinecraftEulaNode(workflow)
   };
 }
 
@@ -247,12 +248,17 @@ function makeTools(aiHost: ReturnType<typeof createAiPluginHost>): AiBusinessToo
     },
     {
       id: "workflow.run", name: "lfaa_workflow_run", coreManaged: true, applicationIds: appIds, requiresQuestionChannel: true,
-      description: "运行当前账户和当前 App 的已保存工作流，并等待最多 10 分钟收集真实终态。必须先读取定义并确认目标；传入精确 expectedUpdatedAt 防止运行过期版本。工作流中的 Agent 澄清会回到当前对话；若 Minecraft 节点会部署/开服，会先明确询问是否已阅读并同意官方 EULA。",
+      description: "运行当前账户和当前 App 的已保存工作流，并等待最多 10 分钟收集真实终态。必须先读取定义并确认目标；传入精确 expectedUpdatedAt 防止运行过期版本。工作流中的 Agent 澄清会回到当前对话；若 Minecraft 节点包含开服/部署工具，同一权限摘要会明确列出接受官方 EULA 与所选核心许可。",
       schema: { type: "object", properties: { workflowId: { type: "string", minLength: 1, maxLength: 120 }, expectedUpdatedAt: { type: "string", minLength: 1, maxLength: 80 } }, required: ["workflowId", "expectedUpdatedAt"], additionalProperties: false },
       risk: () => "dangerous",
       approval(parameters, context) {
         const scope = runApprovalSummary(context.userId, context.applicationId, String(parameters.workflowId), String(parameters.expectedUpdatedAt));
-        return { scopeKey: scope.scopeKey, scopeSummary: `运行工作流 · ${scope.title}`, summary: `启动当前 App 保存的工作流“${scope.title}”；其节点继续使用原领域服务和权限规则` };
+        const licenseAction = scope.includesMinecraftEula ? "；并明确同意 Minecraft 官方 EULA（https://www.minecraft.net/eula）及所选服务端核心许可" : "";
+        return {
+          scopeKey: scope.scopeKey,
+          scopeSummary: `${scope.includesMinecraftEula ? "运行并同意 Minecraft EULA · " : "运行工作流 · "}${scope.title}`,
+          summary: `启动当前 App 保存的工作流“${scope.title}”${licenseAction}；其节点继续使用原领域服务和权限规则`
+        };
       },
       parse(value) { const parsed = record(value); return { workflowId: stringField(parsed.workflowId, "工作流 ID", 120)!, expectedUpdatedAt: stringField(parsed.expectedUpdatedAt, "工作流更新时间", 80)! }; },
       async execute(parameters, context) {
@@ -260,16 +266,10 @@ function makeTools(aiHost: ReturnType<typeof createAiPluginHost>): AiBusinessToo
         const current = getWorkflow(context.userId, context.applicationId, workflowId);
         if (!current) throw new Error("找不到当前账户和 App 的工作流。");
         if (current.updatedAt !== parameters.expectedUpdatedAt) throw new Error("工作流版本已变化；本次未启动，请重新读取并确认最新定义。");
-        let eulaAccepted = false;
-        if (hasMinecraftEulaNode(current)) {
-          if (!context.askUser) throw new Error("当前 Agent Run 没有可用的问题通道；工作流未启动。");
-          const answer = await context.askUser("该工作流包含 Minecraft 开服或部署操作。请先阅读 Minecraft 官方 EULA：https://www.minecraft.net/eula。你是否已阅读并同意该协议？", ["已阅读并同意", "不同意"]);
-          if (answer.skipped || answer.answer !== "已阅读并同意") throw new Error("用户没有明确同意 Minecraft EULA；工作流未启动。");
-          eulaAccepted = true;
-        }
+        const eulaAccepted = hasMinecraftEulaNode(current);
         context.signal.throwIfAborted();
         const latest = getWorkflow(context.userId, context.applicationId, workflowId);
-        if (!latest || latest.updatedAt !== parameters.expectedUpdatedAt) throw new Error("用户确认期间工作流版本已变化；本次未启动，请重新读取并确认最新定义。");
+        if (!latest || latest.updatedAt !== parameters.expectedUpdatedAt) throw new Error("权限检查期间工作流版本已变化；本次未启动，请重新读取并确认最新定义。");
         const run = startWorkflowRun(context.userId, context.userRole, context.applicationId, workflowId, eulaAccepted ? { eulaAccepted: true } : {}, {
           aiHost,
           ...(context.askUser ? { askUser: async (input: { questionId: string; question: string; options: string[] }) => context.askUser!(input.question, input.options) } : {})

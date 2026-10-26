@@ -4,7 +4,7 @@
 
 `loadAiOffice()` 通过认证 `/ai/office` 读取员工元数据和当前账户的 Agent Run 摘要，可传 AbortSignal 供 UI 隐藏/卸载时取消；不缓存状态快照。
 
-AI 模型目录由 `/settings/ai/accounts` 按当前登录返回同一组系统配置。凭据替换只发送新 secret 到管理员专用的测试/更新路由；响应不包含密钥，system scope 与权限判断归服务端 Owner。
+AI 模型目录由 `/settings/ai/accounts` 按当前登录返回系统级普通 Provider 配置和当前用户自己的火山方舟 Agent Plan/Coding Plan 席位。个人席位使用 Plan 专用端点与手填 Model Name；新建时先真实测试模型，再提交短时一次性验证凭证。凭据替换只发送新 secret；响应不包含密钥，system/user scope 与权限判断归服务端 Owner。
 
 会话类 401 由账户 `auth/me` Remote 复核后才通知 UI 退出；成功的密码/通行密钥登录会使之前请求的迟到响应失效。服务端拒绝无效 Cookie 时不发送清 Cookie 响应，避免旧请求晚到覆盖新登录；显式注销仍由账户 Controller 清理 Cookie。
 

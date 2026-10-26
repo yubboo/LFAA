@@ -3,6 +3,7 @@ import type { Context } from "@deepseek-ai/cordis";
 import { createAiCompletionService } from "./completion.js";
 import type { AiCompletionService } from "./completion.js";
 export * from "./completion.js";
+export * from "./anthropic-messages.js";
 export * from "./image-generation.js";
 export * from "./video-generation.js";
 // Provider 无关的流式协议/块组装/错误分类/退避策略/密钥与归因等原语（移植自 DSH dsh-llm，MIT）。

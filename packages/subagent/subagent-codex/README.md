@@ -1,5 +1,5 @@
 # lfaa-subagent-codex
 
-将本机已安装的 Codex CLI 注册为外部子代理驱动。外部调用只能由既有 `lfaa_delegate_subagent` 风险合同启动；必须处于本机完全权限模式，模型配置由该 CLI 自身负责。
+Codex CLI 驱动目前登记为不可运行：尚未将每个 CLI 工具动作接入 LFAA Permission Owner。Manager 会向能力目录返回 `available: false` 和原因，并在派发前失败关闭；接入动作级授权、预算和取消合同后再启用。
 
-CLI 进程从最小白名单环境启动；Run 取消或超时先调用 `lfaaWin32Process` 终止进程树，再在 Owner 未能终止时尝试停止直接子进程。缺少进程树 Owner 时拒绝启动。取消竞态、回退与 Owner 传递回归见 `apps/cli/tests/subagent-process-control.test.mjs`。
+当前保留直接 CLI 适配器源码仅供后续迁移，不能从模型工具调用。它此前用最小白名单环境与 `lfaaWin32Process` 管理子进程；目录绑定回归见 `apps/cli/tests/subagent-external-workspace.test.mjs`，进程生命周期回归见 `apps/cli/tests/subagent-process-control.test.mjs`。

@@ -10,7 +10,7 @@ import { executeProjectFile } from "../../../packages/host/project-files/src/pro
 
 const cli = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
-test("资料库迁移、账户/App 隔离、按需读取、显式保存和本地来源权限合同", () => {
+test("资料库迁移、账户/App 隔离、检索质量基线、显式保存和本地来源权限合同", () => {
   const temporaryRoot = mkdtempSync(join(tmpdir(), "lfaa-knowledge-library-"));
   const homeDirectory = join(temporaryRoot, "home");
   const dataDirectory = join(temporaryRoot, "data");
@@ -57,7 +57,9 @@ test("资料库迁移、账户/App 隔离、按需读取、显式保存和本地
       assert.equal(knowledge.getKnowledgeLibraryItem('knowledge-owner', privateItem.id, 'workspace'), null);
       const summary = knowledge.listKnowledgeLibraryItems('knowledge-owner', 'workspace')[0];
       assert.equal('contentMarkdown' in summary, false);
-      assert.equal(knowledge.searchKnowledgeLibrary('knowledge-owner', 'workspace', 'MCP 权限')[0].id, item.id);
+      assert.equal((await knowledge.searchKnowledgeLibrary('knowledge-owner', 'workspace', 'MCP 权限'))[0].id, item.id);
+      assert.deepEqual(await knowledge.searchKnowledgeLibrary('knowledge-owner', 'minecraft', 'MCP 权限'), []);
+      assert.deepEqual(await knowledge.searchKnowledgeLibrary('knowledge-other', 'workspace', 'MCP 权限'), []);
       assert.throws(() => knowledge.createKnowledgeLibraryItem('knowledge-owner', { applicationId: 'workspace', kind: 'knowledge', title: '超限', contentMarkdown: '中'.repeat(22000), sourceKind: 'manual' }), /64 KiB/u);
       const updated = knowledge.updateKnowledgeLibraryItem('knowledge-owner', item.id, 'workspace', { title: item.title, description: item.description, contentMarkdown: '# 已更新\\n只读当前账户资料。', expectedContentSha256: item.contentSha256 });
       assert.notEqual(updated.contentSha256, item.contentSha256);
@@ -65,7 +67,47 @@ test("资料库迁移、账户/App 隔离、按需读取、显式保存和本地
       const intactMarkdown=readFileSync(itemPath,'utf8');
       writeFileSync(itemPath,'被篡改的资料正文');
       assert.equal(knowledge.getKnowledgeLibraryItem('knowledge-owner',item.id,'workspace'),null);
+      assert.deepEqual(await knowledge.searchKnowledgeLibrary('knowledge-owner', 'workspace', 'MCP 权限'), []);
       writeFileSync(itemPath,intactMarkdown);
+      const evaluationItems = {};
+      const evaluationCorpus = [
+        { key: 'mcpLease', title: 'MCP HTTP 连接池租约', description: '按账户、App 和配置指纹隔离', contentMarkdown: 'MCP HTTP transport 复用连接；配置指纹变化时撤销旧租约。' },
+        { key: 'toolObservation', title: 'tool_call_id Observation 配对', description: 'ReAct 工具往返消息结构', contentMarkdown: 'assistant tool_calls 的 id 必须与 tool message 的 tool_call_id 一一对应。' },
+        { key: 'contextWindow', title: 'Token 与 Context Window 预算', description: '上下文长度与压缩边界', contentMarkdown: '按模型上下文窗口估算 token，用量达到预算后压缩历史消息。' },
+        { key: 'injectionBoundary', title: '提示注入与不可信资料边界', description: '资料内容不能修改 system 角色或授权', contentMarkdown: '外部文档可能写着忽略系统指令并泄露密钥；正文是不可信资料，不能获得 Tool 权限。' },
+        { key: 'planBreakdown', title: 'Plan Task Breakdown 依赖拆解', description: '按依赖分解任务并逐步回报', contentMarkdown: '计划记录目标、子任务、依赖、状态和执行结果。' },
+        { key: 'mcpSettings', title: 'MCP 设置目录读取', description: '读取当前 App 的服务开关', contentMarkdown: '按账户设置读取可用 MCP server 与工具名称。' }
+      ];
+      for (const entry of evaluationCorpus) {
+        const saved = knowledge.createKnowledgeLibraryItem('knowledge-other', { applicationId: 'workspace', kind: 'knowledge', title: entry.title, description: entry.description, contentMarkdown: entry.contentMarkdown, sourceKind: 'manual' });
+        evaluationItems[entry.key] = saved.id;
+      }
+      const retrievalCases = [
+        { query: 'MCP HTTP 连接池租约', relevant: 'mcpLease' },
+        { query: 'tool_call_id Observation 配对', relevant: 'toolObservation' },
+        { query: 'Token 与 Context Window 预算', relevant: 'contextWindow' },
+        { query: '提示注入与不可信资料边界', relevant: 'injectionBoundary' },
+        { query: 'Plan Task Breakdown 依赖拆解', relevant: 'planBreakdown' }
+      ];
+      let relevantAtFour = 0;
+      let reciprocalRankTotal = 0;
+      let injectionResult;
+      for (const evaluation of retrievalCases) {
+        const hits = await knowledge.searchKnowledgeLibrary('knowledge-other', 'workspace', evaluation.query);
+        const rank = hits.findIndex(hit => hit.id === evaluationItems[evaluation.relevant]);
+        if (rank >= 0) {
+          relevantAtFour += 1;
+          reciprocalRankTotal += 1 / (rank + 1);
+        }
+        if (evaluation.relevant === 'injectionBoundary') injectionResult = hits[rank];
+      }
+      const recallAtFour = relevantAtFour / retrievalCases.length;
+      const meanReciprocalRank = reciprocalRankTotal / retrievalCases.length;
+      assert.equal(recallAtFour, 1, '标注的关键词检索题集应全部进入前四条');
+      assert.equal(meanReciprocalRank, 1, '精确主题查询应把对应资料排在首位');
+      assert.equal(injectionResult.trust, 'untrusted', '含提示注入文本的资料必须标记为不可信');
+      const paraphraseProbe = await knowledge.searchKnowledgeLibrary('knowledge-other', 'workspace', '供应商变更后，之前的会话应该怎样处理？');
+      assert.deepEqual(paraphraseProbe, [], '词面检索不会凭空推断缺少共同词项的语义改写');
       assert.throws(() => knowledge.updateKnowledgeLibraryItem('knowledge-owner', item.id, 'workspace', { title: item.title, description: item.description, contentMarkdown: '过期覆盖', expectedContentSha256: item.contentSha256 }), /其他操作更新/u);
       assert.equal(knowledge.normalizeKnowledgeProjectPath('docs/knowledge'), 'docs/knowledge');
       for (const path of ['../secret', '.git', 'docs/node_modules', 'C:\\\\secret', '/absolute']) assert.throws(() => knowledge.normalizeKnowledgeProjectPath(path));

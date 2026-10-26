@@ -5,11 +5,14 @@
  * 关联文件：subagent/manager.ts、subagent-in-process-driver、subagent-claude-code、subagent-codex。
  */
 import type { Context } from "@deepseek-ai/cordis";
+import type { ClaudeAgentCredentialOwner } from "lfaa-subagent-claude-code";
 import type { AiBusinessTool } from "lfaa-tools/src/business-tools.js";
 import { APPLICATION_IDS } from "lfaa-util-values/src/application-id.js";
 import { assertModelId } from "./invariant.js";
 import { listAiAccounts, getUserSettings } from "lfaa-settings/src/service.js";
 import { config } from "lfaa-launch-environment/src/config.js";
+import { getAgentGitSessionRepository } from "lfaa-workspace-agent-git";
+import { resolveExternalSubagentTarget } from "./external-target.js";
 import { createHash } from "node:crypto";
 import { saveAiSubagentTask, type AiSubagentTaskRecord } from "lfaa-session/src/sessions.js";
 
@@ -30,14 +33,18 @@ function parseDelegation(value: unknown): { driver: string; description: string;
 }
 
 export const name = "lfaaToolSubagent";
-export const inject = ["lfaaTools", "lfaaSubagents", "lfaaSessions"];
+export const inject = ["lfaaTools", "lfaaSubagents", "lfaaSessions", "lfaaSubagentClaudeCode"];
+
+function hasClaudeCredential(owner: ClaudeAgentCredentialOwner, userId: string): boolean {
+  return owner.getCredentialStatus(userId).configured;
+}
 
 export function apply(ctx: Context): void {
   const tool: AiBusinessTool = {
     id: "subagent.delegate",
     name: "lfaa_delegate_subagent",
     coreManaged: true,
-    description: "委派一个自包含的子任务。prompt 必须写明目标、必要上下文、产物位置和验收要求；子 Agent 不共享父对话历史。foreground 等待结果；background 仅支持进程内驱动，立即返回真实任务标识，主任务正常结束后仍继续，可用 lfaa_get_subagent_result 查询或等待结果。并行修改代码前自行选择不冲突文件或隔离工作树，并核对差异和验证。模型与数量/深度/工具范围继续服从设置中心；model 可指定当前账户保存的模型账户 ID 或唯一 provider/model，先查询 lfaa_list_subagent_models。外部 CLI 使用自身模型配置。",
+    description: "委派一个自包含的子任务。prompt 必须写明目标、必要上下文、产物位置和验收要求；子 Agent 不共享父对话历史。foreground 等待结果；background 仅支持进程内驱动，立即返回真实任务标识，主任务正常结束后仍继续，可用 lfaa_get_subagent_result 查询或等待结果。并行修改代码前自行选择不冲突文件或隔离工作树，并核对差异和验证。模型与数量/深度/工具范围继续服从设置中心；model 可指定当前账户保存的模型账户 ID 或唯一 provider/model，先查询 lfaa_list_subagent_models。进程内子 Agent 通过 LFAA Permission Owner 执行工具；Claude Agent SDK 需先在设置中心“AI 与模型 → 外部 Coding Agent”配置并验证 Anthropic Console API Key，密钥按当前账户加密保存，不读取本机 Claude Code/claude.ai 登录。SDK 每个动作仍须走同一 Permission Owner；任务和工作区上下文将发送到 Anthropic，使用受 Anthropic Commercial Terms 和 Privacy Policy 约束，且 SDK README 说明会收集使用数据、相关对话数据和反馈。Codex 外部驱动也尚未接入 LFAA 动作授权桥，暂不可运行。",
     applicationIds: [...APPLICATION_IDS],
     createsSubagent: true,
     schema: {
@@ -52,9 +59,50 @@ export function apply(ctx: Context): void {
       required: ["description", "prompt"],
       additionalProperties: false
     },
-    // 委派动作本身不直接读写用户数据；子任务内部的写/危险操作仍由 LFAA 权限系统逐项审批。
+    // 委派启动及 SDK 内层动作都由 Agent Loop 调用同一 Permission Owner；外部目标校验只检查真实执行位置、沙箱设置和 Session 仓库绑定。
     risk: parameters => parameters.driver === "in-process" ? "read" : "dangerous",
-    approval: parameters => ({ scopeKey: `subagent:${createHash("sha256").update(JSON.stringify([parameters.driver, parameters.prompt])).digest("hex")}`, scopeSummary: `子 Agent · ${parameters.driver}`, summary: "启动独立 CLI 执行子任务" }),
+    approval: (parameters, approvalContext) => {
+      const driver = typeof parameters.driver === "string" ? parameters.driver : "in-process";
+      const description = typeof parameters.description === "string" ? parameters.description.trim() : "未命名任务";
+      const repository = approvalContext.agentGitRepository;
+      const repositoryPath = repository?.path ?? "当前 Session 的 AgentGit 目标";
+      const taskHash = createHash("sha256").update(String(parameters.prompt ?? "")).digest("hex");
+      if (driver === "claude-code") {
+        return {
+          scopeKey: `subagent:${createHash("sha256").update(JSON.stringify([driver, repository?.id, repositoryPath, taskHash])).digest("hex")}`,
+          scopeSummary: `Claude Agent SDK · ${repositoryPath} · ${description}`.slice(0, 240),
+          summary: `Claude Agent SDK 使用当前账户在设置中心保存的 Anthropic Console API Key；不会读取本机 Claude Code/claude.ai 登录。若启用“${description}”，目标是当前 Session 绑定的 AgentGit 工作区 ${repositoryPath}。子任务正文和工作区上下文会发送给 Anthropic；SDK README 说明会收集使用数据、相关对话数据和反馈，使用受 Anthropic Commercial Terms 与 Privacy Policy 约束。`
+        };
+      }
+      return {
+        scopeKey: `subagent:${createHash("sha256").update(JSON.stringify([driver, repository?.id, repositoryPath, taskHash])).digest("hex")}`,
+        scopeSummary: `子 Agent · ${driver} · ${repositoryPath} · ${description}`.slice(0, 240),
+        summary: `启动 ${driver} 子 Agent 执行“${description}”。`
+      };
+    },
+    prepare(parameters, prepareContext) {
+      const driver = typeof parameters.driver === "string" ? parameters.driver : "in-process";
+      if (driver !== "in-process") {
+        const registration = ctx.lfaaSubagents.listDrivers().find(candidate => candidate.name === driver);
+        if (!registration) throw new Error(`子代理驱动“${driver}”未登记；已拒绝外部执行。`);
+        if (!registration.available) throw new Error(registration.unavailableReason ?? `子代理驱动“${driver}”当前不可用；已拒绝外部执行。`);
+        const settings = getUserSettings(prepareContext.userId);
+        resolveExternalSubagentTarget({
+          driver,
+          localHostExecution: config.localHostExecution,
+          permissionBridgeAvailable: driver === "claude-code"
+            ? typeof prepareContext.dispatchExternalAgentTool === "function" && Boolean(prepareContext.externalAgentTools?.length)
+            : typeof prepareContext.authorizeExternalAgentAction === "function",
+          executionSandboxMode: settings.aiRuntime.executionSandboxMode,
+          sessionRepository: prepareContext.agentGitRepository ?? null,
+          runRepository: prepareContext.agentGitRepository ?? null
+        });
+        if (driver === "claude-code" && !hasClaudeCredential(ctx.lfaaSubagentClaudeCode, prepareContext.userId)) {
+          throw new Error("Claude Agent SDK 需要先在设置中心“AI 与模型 → 外部 Coding Agent”验证并保存 Anthropic Console API Key；密钥缺失时不会进入审批或启动进程。");
+        }
+      }
+      return parameters;
+    },
     parse: parseDelegation,
     async execute(parameters, context) {
       const { driver, description, prompt, mode, model } = parameters as { driver: string; description: string; prompt: string; mode: "foreground" | "background"; model?: string };
@@ -64,22 +112,72 @@ export function apply(ctx: Context): void {
       const accounts = listAiAccounts(context.userId);
       const matches = model ? accounts.filter(account => account.id === model || `${account.providerId}/${account.modelId}` === model) : [];
       if (model && matches.length !== 1) throw new Error("指定模型必须唯一匹配当前账户已保存的模型账户；请查询模型目录或在设置中心配置。");
-      if (driver !== "in-process" && (!config.localHostExecution || !context.externalDelegationAllowed || getUserSettings(context.userId).permissions.mode !== "full_access" || model)) {
-        throw new Error("外部 CLI 仅在本机完全权限下执行，模型由其自身配置负责；受限任务使用进程内驱动继承 LFAA 权限。");
+      let externalTarget: ReturnType<typeof resolveExternalSubagentTarget> | undefined;
+      if (driver !== "in-process") {
+        if (model) throw new Error("外部 CLI 凭据由各自执行器管理；model 只适用于继承 LFAA Provider 的进程内子 Agent。");
+        const settings = getUserSettings(context.userId);
+        if (driver === "claude-code" && !hasClaudeCredential(ctx.lfaaSubagentClaudeCode, context.userId)) {
+          throw new Error("当前账户没有已验证的 Anthropic Console API Key；请先到设置中心配置。");
+        }
+        const sessionRepository = getAgentGitSessionRepository(context.userId, context.sessionId);
+        externalTarget = resolveExternalSubagentTarget({
+          driver,
+          localHostExecution: config.localHostExecution,
+          permissionBridgeAvailable: driver === "claude-code"
+            ? typeof context.dispatchExternalAgentTool === "function" && Boolean(context.externalAgentTools?.length)
+            : false,
+          executionSandboxMode: settings.aiRuntime.executionSandboxMode,
+          sessionRepository: sessionRepository ? { id: sessionRepository.id, path: sessionRepository.path, title: sessionRepository.title } : null,
+          runRepository: context.agentGitRepository ?? null
+        });
+        context.onProgress(`即将使用 Claude Agent SDK 执行外部子任务。将读取当前账户加密保存的 Anthropic Console API Key；工作区：${externalTarget.workingDirectory}。子任务正文和工作区上下文会发送给 Anthropic；SDK README 说明会收集使用数据、相关对话数据和反馈，使用受 Anthropic Commercial Terms 与 Privacy Policy 约束。`);
       }
       return context.delegateSubagent({ task: prompt, officeEmployeeId: "lfaa.subagent", officeAgentLabel: description, ...(matches[0] ? { modelAccountId: matches[0].id } : {}) }, async startChild => {
-      const handle = ctx.lfaaSubagents.start(
-        { driver, description, prompt, appId: context.applicationId, parentRunId: context.agentRunId },
-        { userId: context.userId, userRole: context.userRole, signal: context.signal, onProgress: context.onProgress, startChild }
-      );
+      const modelBudget = driver === "claude-code" ? context.reserveExternalAgentModelRequests?.() : undefined;
+      if (driver === "claude-code" && (!modelBudget || modelBudget.maxModelRequests < 1)) {
+        modelBudget?.settle();
+        throw new Error("父 Agent Loop 没有剩余模型请求预算；Claude Agent SDK 未启动。");
+      }
+      let handle: ReturnType<typeof ctx.lfaaSubagents.start>;
+      try {
+        handle = ctx.lfaaSubagents.start(
+          { driver, description, prompt, appId: context.applicationId, parentRunId: context.agentRunId },
+          {
+            userId: context.userId,
+            userRole: context.userRole,
+            signal: context.signal,
+            onProgress: context.onProgress,
+            ...(context.onSubagentTextDelta ? { onTextDelta: context.onSubagentTextDelta } : {}),
+            startChild,
+            ...(externalTarget ? {
+              workingDirectory: externalTarget.workingDirectory,
+              repositoryId: externalTarget.repositoryId,
+              ...(modelBudget ? { maxModelRequests: modelBudget.maxModelRequests } : {}),
+              ...(context.authorizeExternalAgentAction ? { authorizeAction: context.authorizeExternalAgentAction } : {}),
+              ...(driver === "claude-code" ? {
+                tools: (context.externalAgentTools ?? []).map(candidate => ({ name: candidate.name, description: candidate.description, inputSchema: candidate.schema })),
+                ...(context.dispatchExternalAgentTool ? { executeTool: (request: { toolName: string; arguments: unknown; signal: AbortSignal }) => context.dispatchExternalAgentTool!({ name: request.toolName, arguments: request.arguments, signal: request.signal }) } : {})
+              } : {})
+            } : {})
+          }
+        );
+      } catch (error) {
+        modelBudget?.settle();
+        throw error;
+      }
       const record: AiSubagentTaskRecord = { runId: handle.runId, parentRunId: context.agentRunId, driver, description, mode, status: "running", startedAt: handle.startedAt, completedAt: null };
       try { saveAiSubagentTask(context.userId, context.sessionId!, record); }
-      catch (error) { handle.cancel(); throw error; }
+      catch (error) { modelBudget?.settle(); handle.cancel(); throw error; }
       // 结果落在原 Session 日志中，父回复完成后也不丢失；不创建续问或重放任务。
       const settled = handle.done.then(result => {
+        modelBudget?.settle(result.modelRequestsUsed);
+        if (result.modelUsage?.length) context.onSubagentUsage?.(result.modelUsage);
         const completed = { ...record, status: handle.status, completedAt: new Date().toISOString(), answer: result.answer, ...(result.diagnostic ? { diagnostic: result.diagnostic } : {}) };
         saveAiSubagentTask(context.userId, context.sessionId!, completed);
         return result;
+      }, error => {
+        modelBudget?.settle();
+        throw error;
       });
       if (mode === "background") {
         // 生命周期由现有 Manager/子 Run 管理；持久化失败转为原活动诊断，避免无观察 Promise。

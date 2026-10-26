@@ -5,6 +5,9 @@
  */
 
 .lfaa-cnv-home {
+  position: relative;
+  isolation: isolate;
+  container-type: inline-size;
   display: flex;
   width: 100%;
   height: 100%;
@@ -23,7 +26,85 @@
   background: transparent;
 }
 
+.lfaa-cnv-home > .lfaa-cnv-home__background {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  opacity: .84;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 32% 38%, color-mix(in srgb, var(--settings-accent, var(--color-brand)) 13%, transparent), transparent 52%),
+    radial-gradient(ellipse at 68% 62%, color-mix(in srgb, var(--settings-accent, var(--color-brand)) 7%, transparent), transparent 48%);
+}
+
+.lfaa-cnv-home__background > .lfaa-cnv-home__fluid-cloud {
+  position: absolute;
+  inset: -14%;
+  display: block;
+  border-radius: 48%;
+  filter: blur(22px);
+  pointer-events: none;
+  will-change: transform;
+}
+
+.lfaa-cnv-home__background > .lfaa-cnv-home__fluid-cloud--deep {
+  opacity: .56;
+  background:
+    radial-gradient(ellipse 44% 43% at 34% 42%, color-mix(in srgb, var(--settings-accent, var(--color-brand)) 42%, transparent), transparent 72%),
+    radial-gradient(ellipse 36% 48% at 67% 61%, color-mix(in srgb, var(--settings-accent, var(--color-brand)) 29%, transparent), transparent 74%);
+  animation: lfaa-cnv-home-fluid-drift 34s ease-in-out infinite alternate;
+}
+
+.lfaa-cnv-home__background > .lfaa-cnv-home__fluid-cloud--sheen {
+  opacity: .44;
+  background:
+    radial-gradient(ellipse 32% 34% at 43% 34%, color-mix(in srgb, var(--settings-accent, var(--color-brand)) 24%, white), transparent 70%),
+    radial-gradient(ellipse 39% 33% at 73% 54%, color-mix(in srgb, var(--settings-accent, var(--color-brand)) 16%, transparent), transparent 72%);
+  animation: lfaa-cnv-home-fluid-sheen 46s ease-in-out infinite alternate;
+}
+
+.lfaa-cnv-home__background > .lfaa-cnv-home__fluid-surface {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+@keyframes lfaa-cnv-home-fluid-drift {
+  from { transform: translate3d(-3.4%, -1.8%, 0) scale(.96) rotate(-2deg); }
+  to { transform: translate3d(3.2%, 2.2%, 0) scale(1.04) rotate(2deg); }
+}
+
+@keyframes lfaa-cnv-home-fluid-sheen {
+  from { transform: translate3d(2.8%, 1.5%, 0) scale(1.02) rotate(1.5deg); }
+  to { transform: translate3d(-2.6%, -2%, 0) scale(.97) rotate(-1.5deg); }
+}
+
+.lfaa-cnv-home__background[data-reduced-motion="on"] > .lfaa-cnv-home__fluid-cloud {
+  animation: none;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lfaa-cnv-home__background[data-reduced-motion="system"] > .lfaa-cnv-home__fluid-cloud {
+    animation: none;
+    transform: none;
+  }
+}
+
+.workbench-shell[data-theme="light"] .lfaa-cnv-home > .lfaa-cnv-home__background { opacity: .48; }
+
+@container (max-width: 520px) {
+  .lfaa-cnv-home > .lfaa-cnv-home__background { opacity: .68; }
+}
+
 .lfaa-cnv-home__topbar {
+  position: relative;
+  z-index: 1;
   display: grid;
   min-width: 0;
   grid-template-columns: minmax(120px, auto) minmax(200px, 480px) auto;
@@ -81,6 +162,8 @@
 }
 
 .lfaa-cnv-home__scroll {
+  position: relative;
+  z-index: 1;
   display: flex;
   width: 100%;
   min-width: 0;

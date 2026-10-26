@@ -36,8 +36,8 @@
 | [packages/api/workspace-controller](../packages/api/workspace-controller) | lfaa-api-workspace-controller | implemented | 账户项目、受管 Worktree 与文件操作 API | [源码](../packages/api/workspace-controller/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/api/workspace-files](../packages/api/workspace-files) | lfaa-api-workspace-files | implemented | Workspace 文件协议与请求适配 | [源码](../packages/api/workspace-files/src/index.ts)；1 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/api/writing-controller](../packages/api/writing-controller) | lfaa-api-writing-controller | implemented | 账户作品、章节、资料、提案与导入导出 API | [源码](../packages/api/writing-controller/src/index.ts)；1 个静态消费者；1 个组合声明 | LFAA 扩展 |
-| [packages/attachment/attachment](../packages/attachment/attachment) | lfaa-attachment | implemented | 附件媒体类型、大小上限、名称与摘要规则的唯一 Owner，不持有文件 | [源码](../packages/attachment/attachment/src/index.ts)；5 个静态消费者；0 个组合声明 | DSH 同名目录 |
-| [packages/attachment/attachment-local](../packages/attachment/attachment-local) | lfaa-attachment-local | implemented | 本机附件存储提供方，按账户隔离、原子写入并在读取时重验摘要 | [源码](../packages/attachment/attachment-local/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |
+| [packages/attachment/attachment](../packages/attachment/attachment) | lfaa-attachment | implemented | 附件媒体类型、大小上限、名称与摘要规则的唯一 Owner，不持有文件 | [源码](../packages/attachment/attachment/src/index.ts)；7 个静态消费者；0 个组合声明 | DSH 同名目录 |
+| [packages/attachment/attachment-local](../packages/attachment/attachment-local) | lfaa-attachment-local | implemented | 本机附件存储提供方，按账户隔离、原子写入并在读取时重验摘要 | [源码](../packages/attachment/attachment-local/src/index.ts)；1 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/boot/app-boot](../packages/boot/app-boot) | lfaa-app-boot | implemented | Cordis 启动、Profile 装配、配置和共享生命周期 | [源码](../packages/boot/app-boot/src/index.ts)；22 个静态消费者；0 个组合声明 | DSH 同名目录 |
 | [packages/boot/capability-installs](../packages/boot/capability-installs) | lfaa-capability-installs | implemented | 通用能力安装计划、来源检查和结果回读协调 | [源码](../packages/boot/capability-installs/src/index.ts)；5 个静态消费者；1 个组合声明 | LFAA 扩展 |
 | [packages/boot/capability-mcp](../packages/boot/capability-mcp) | lfaa-capability-mcp | implemented | MCP 安装来源与配置 Owner 的适配 | [源码](../packages/boot/capability-mcp/src/index.ts)；0 个静态消费者；1 个组合声明 | LFAA 扩展 |
@@ -150,7 +150,7 @@
 | [packages/core/tools](../packages/core/tools) | lfaa-tools | implemented | 公共工具合同、参数校验、可撤销注册与 Run 工具发现 | [源码](../packages/core/tools/src/index.ts)；29 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/credentials/authorization](../packages/credentials/authorization) | lfaa-authorization | implemented | 凭据访问授权合同 | 仅组合/清单；未证实运行 | DSH 同名目录 |
 | [packages/credentials/credential-flows](../packages/credentials/credential-flows) | lfaa-credential-flows | implemented | 凭据获取/连接流程适配 | [源码](../packages/credentials/credential-flows/src/index.ts)；0 个静态消费者；1 个组合声明 | LFAA 扩展 |
-| [packages/credentials/credentials](../packages/credentials/credentials) | lfaa-credentials | implemented | 受保护秘密存储与访问服务 | [源码](../packages/credentials/credentials/src/index.ts)；9 个静态消费者；1 个组合声明 | DSH 同名目录 |
+| [packages/credentials/credentials](../packages/credentials/credentials) | lfaa-credentials | implemented | 受保护秘密存储与访问服务 | [源码](../packages/credentials/credentials/src/index.ts)；10 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/credentials/credentials-local](../packages/credentials/credentials-local) | — | placeholder | 本机凭据存储提供方 | 占位不可执行 | DSH 同名目录 |
 | [packages/credentials/deepseek-account](../packages/credentials/deepseek-account) | — | placeholder | DeepSeek 账户认证来源适配 | 占位不可执行 | DSH 同名目录 |
 | [packages/credentials/deepseek-account-platform](../packages/credentials/deepseek-account-platform) | — | placeholder | DeepSeek 平台账户凭据适配 | 占位不可执行 | DSH 同名目录 |
@@ -235,7 +235,7 @@
 | [packages/jobs/tool-jobs](../packages/jobs/tool-jobs) | — | placeholder | 后台任务查询/控制工具 | 占位不可执行 | DSH 同名目录 |
 | [packages/knowledge/knowledge-library](../packages/knowledge/knowledge-library) | lfaa-knowledge-library | implemented | 账户知识、Prompt、Skill、专家资料及项目来源目录 | [源码](../packages/knowledge/knowledge-library/src/index.ts)；3 个静态消费者；0 个组合声明 | LFAA 扩展 |
 | [packages/llm/deepseek-llm-api-extensions](../packages/llm/deepseek-llm-api-extensions) | — | placeholder | DeepSeek Provider 专属协议扩展 | 占位不可执行 | DSH 同名目录 |
-| [packages/llm/llm](../packages/llm/llm) | lfaa-llm | implemented | 模型请求、流、错误、能力和用量的实际 Provider Owner | [源码](../packages/llm/llm/src/index.ts)；13 个静态消费者；1 个组合声明 | DSH 同名目录 |
+| [packages/llm/llm](../packages/llm/llm) | lfaa-llm | implemented | 模型请求、流、错误、能力和用量的实际 Provider Owner | [源码](../packages/llm/llm/src/index.ts)；14 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/llm/llm-deepseek](../packages/llm/llm-deepseek) | — | placeholder | DeepSeek 模型 Provider 适配 | 占位不可执行 | DSH 同名目录 |
 | [packages/llm/llm-deepseek-account](../packages/llm/llm-deepseek-account) | — | placeholder | DeepSeek 账户方式的模型连接适配 | 占位不可执行 | DSH 同名目录 |
 | [packages/llm/llm-deepseek-api-key](../packages/llm/llm-deepseek-api-key) | — | placeholder | DeepSeek API Key 方式的模型连接适配 | 占位不可执行 | DSH 同名目录 |
@@ -332,7 +332,7 @@
 | [packages/storage/storage-sqlite](../packages/storage/storage-sqlite) | lfaa-storage-sqlite | implemented | SQLite 连接、Schema、事务与持久化后端 | [源码](../packages/storage/storage-sqlite/src/index.ts)；23 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/subagent/subagent](../packages/subagent/subagent) | lfaa-subagent | implemented | 委派任务状态、驱动登记与结果合同 | [源码](../packages/subagent/subagent/src/index.ts)；5 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/subagent/subagent-acp](../packages/subagent/subagent-acp) | — | placeholder | ACP 外部 Agent 驱动 | 占位不可执行 | DSH 同名目录 |
-| [packages/subagent/subagent-claude-code](../packages/subagent/subagent-claude-code) | lfaa-subagent-claude-code | implemented | Claude Code 外部 Agent 驱动 | [源码](../packages/subagent/subagent-claude-code/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |
+| [packages/subagent/subagent-claude-code](../packages/subagent/subagent-claude-code) | lfaa-subagent-claude-code | implemented | Claude Code 外部 Agent 驱动 | [源码](../packages/subagent/subagent-claude-code/src/index.ts)；2 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/subagent/subagent-codex](../packages/subagent/subagent-codex) | lfaa-subagent-codex | implemented | Codex 外部 Agent 驱动 | [源码](../packages/subagent/subagent-codex/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/subagent/subagent-dsh-sdk](../packages/subagent/subagent-dsh-sdk) | — | placeholder | DSH SDK 外部 Agent 驱动 | 占位不可执行 | DSH 同名目录 |
 | [packages/subagent/subagent-fork-in-process](../packages/subagent/subagent-fork-in-process) | — | placeholder | 进程内分支子 Agent 驱动 | 占位不可执行 | DSH 同名目录 |
@@ -394,6 +394,6 @@
 | [packages/workflow/tool-workflow](../packages/workflow/tool-workflow) | lfaa-tool-workflow | implemented | 模型工作流发现、保存、运行和跟踪工具 | [源码](../packages/workflow/tool-workflow/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/workflow/workflow](../packages/workflow/workflow) | lfaa-workflow | implemented | 账户工作流定义、运行与节点结果服务 | [源码](../packages/workflow/workflow/src/index.ts)；4 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/workflow/workflow-ptc](../packages/workflow/workflow-ptc) | — | placeholder | PTC 执行工作流节点适配 | 占位不可执行 | DSH 同名目录 |
-| [packages/workspace/agent-git](../packages/workspace/agent-git) | lfaa-workspace-agent-git | implemented | 账户隔离的本机 Git 仓库登记与 Agent Session 绑定 Owner | [源码](../packages/workspace/agent-git/src/index.ts)；3 个静态消费者；0 个组合声明 | LFAA 扩展 |
+| [packages/workspace/agent-git](../packages/workspace/agent-git) | lfaa-workspace-agent-git | implemented | 账户隔离的本机 Git 仓库登记与 Agent Session 绑定 Owner | [源码](../packages/workspace/agent-git/src/index.ts)；4 个静态消费者；0 个组合声明 | LFAA 扩展 |
 | [packages/workspace/data-directory](../packages/workspace/data-directory) | lfaa-workspace-data-directory | implemented | 配置数据目录与工作区资源协调 | [源码](../packages/workspace/data-directory/src/index.ts)；1 个静态消费者；1 个组合声明 | LFAA 扩展 |
 | [packages/workspace/workspace](../packages/workspace/workspace) | lfaa-workspace-workspace | implemented | 账户项目、受管工作区、Worktree 与 Session 项目绑定 | [源码](../packages/workspace/workspace/src/index.ts)；5 个静态消费者；1 个组合声明 | DSH 同名目录 |

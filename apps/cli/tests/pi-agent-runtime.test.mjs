@@ -68,6 +68,41 @@ test("Pi Agent Core 串行调度 LFAA 工具并把原始参数和真实结果交
   ]);
 });
 
+test("Pi history 保留一一配对的工具结果并忽略孤儿或缺少 ID 的 observation", async () => {
+  let observed;
+  await runLfaaPiAgent({
+    model,
+    messages: [
+      { role: "user", content: "continue" },
+      { role: "assistant", content: null, tool_calls: [
+        { id: "orphan-call", type: "function", function: { name: "missing_tool", arguments: "{}" } },
+        { id: "ambiguous-call", type: "function", function: { name: "known_tool", arguments: "{}" } },
+        { id: "ambiguous-call", type: "function", function: { name: "known_tool", arguments: "{}" } },
+        { id: "paired-call", type: "function", function: { name: "known_tool", arguments: "{}" } }
+      ] },
+      { role: "tool", tool_call_id: "other-call", content: "must be dropped" },
+      { role: "tool", content: "must not receive a fabricated ID" },
+      { role: "tool", tool_call_id: "ambiguous-call", content: "must not choose either action" },
+      { role: "tool", tool_call_id: "paired-call", content: "matched observation" }
+    ],
+    getTools: () => [tool("known_tool")],
+    stream: async request => {
+      observed = request.messages;
+      request.onDelta("done");
+      return { text: "done", toolCalls: [], usage };
+    },
+    executeTool: async () => ({ content: "unused" }),
+    prepareRequest: async ({ messages }) => ({ messages }),
+    prepareNextTurn: async ({ messages }) => ({ messages }),
+    finishTurn: async () => ({ action: "end" }),
+    signal: new AbortController().signal
+  });
+  const assistant = observed.find(message => message.role === "assistant");
+  assert.deepEqual(assistant.tool_calls.map(call => call.id), ["paired-call"]);
+  assert.deepEqual(observed.filter(message => message.role === "tool").map(message => message.tool_call_id), ["paired-call"]);
+  assert.doesNotMatch(JSON.stringify(observed), /must be dropped|fabricated ID|lfaa-tool-result/u);
+});
+
 test("Pi 适配器在本轮含未知工具时拒绝整批调用且保留未知名称供 LFAA 纠正", async () => {
   let executed = 0;
   let rejected;

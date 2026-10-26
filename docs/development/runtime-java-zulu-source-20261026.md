@@ -1,3 +1,5 @@
+<a id="lfaa-runtime-java-zulu-source-20261026"></a>
+
 # LFAA-RUNTIME-JAVA-ZULU-SOURCE-20261026
 
 ## 目标

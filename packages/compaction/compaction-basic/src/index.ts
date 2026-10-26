@@ -72,7 +72,7 @@ export interface BasicCompactionDeps extends Partial<SummarizerDeps> {
  * 创建基础压缩引擎。引擎本身无状态；每次 compactIfNeeded 用当前消息数组现算。
  *
  * 流程（模型驱动，不是写死流水线）：
- *   1. 按当前消息数组估算 token；pressure 触发才看阈值，manual/spill 强制尝试；
+ *   1. 用唯一 Token Meter 对当前模型可见消息与工具 schema 估算 token；pressure 触发才看阈值，manual/spill 强制尝试；
  *   2. 选区间（保留尾部最近 N 轮），对齐 tool 对边界；
  *   3. 区间不变量校验（lfaa-compaction/invariant），不合法直接放弃；
  *   4. 把区间文本喂给摘要模型（streamAiCompletion）；
@@ -85,7 +85,7 @@ export function createBasicCompactionEngine(deps: BasicCompactionDeps): Compacti
   return {
     async compactIfNeeded(input): Promise<CompactionResult | null> {
       const window = input.contextWindow > 0 ? input.contextWindow : FALLBACK_CONTEXT_WINDOW_TOKENS;
-      const used = estimateMessagesTokens(input.messages);
+      const used = estimateMessagesTokens(input.messages, input.tools, input.reasoningReplayCharacters);
       const ratio = used / window;
       // 自动压力触发才看阈值；manual/spill-threshold 强制尝试。
       if (input.trigger.reason === "pressure" && ratio < config.thresholdRatio) return null;
@@ -138,7 +138,7 @@ export function createBasicCompactionEngine(deps: BasicCompactionDeps): Compacti
       return {
         messages,
         compactedCount: range.end - range.start,
-        estimatedTokensAfter: estimateMessagesTokens(messages),
+        estimatedTokensAfter: estimateMessagesTokens(messages, input.tools, input.reasoningReplayCharacters),
         summary,
       };
     },

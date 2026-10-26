@@ -13,14 +13,32 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { tmpdir } from 'node:os';
 import { dirname, join, parse, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { WindowsAclSandboxProvider } from 'lfaa-sandbox-windows-acl/src/index.js';
-import { PwshSandboxShellExecutor } from 'lfaa-pwsh-sandbox/src/index.js';
-import { createSandboxExecutionPolicy } from 'lfaa-sandbox-policy/src/index.js';
+
+const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
+const testHomeParent = resolve(repositoryRoot, 'dist', '.tmp');
+mkdirSync(testHomeParent, { recursive: true });
+const isolatedHome = mkdtempSync(join(testHomeParent, 'lfaa-agent-shell-sandbox-home-'));
+const originalLfaaHome = process.env.LFAA_HOME;
+const originalLfaaDataDir = process.env.LFAA_DATA_DIR;
+process.env.LFAA_HOME = isolatedHome;
+process.env.LFAA_DATA_DIR = join(isolatedHome, 'data');
+const { WindowsAclSandboxProvider } = await import('lfaa-sandbox-windows-acl/src/index.js');
+const { PwshSandboxShellExecutor } = await import('lfaa-pwsh-sandbox/src/index.js');
+const { resolvePwsh } = await import('lfaa-pwsh-local/src/resolve.js');
+const { createSandboxExecutionPolicy } = await import('lfaa-sandbox-policy/src/index.js');
+
+test.after(() => {
+  if (dirname(isolatedHome) !== testHomeParent) throw new Error('拒绝清理 Agent 沙箱隔离 Home 以外的目录。');
+  rmSync(isolatedHome, { recursive: true, force: true });
+  if (originalLfaaHome === undefined) delete process.env.LFAA_HOME;
+  else process.env.LFAA_HOME = originalLfaaHome;
+  if (originalLfaaDataDir === undefined) delete process.env.LFAA_DATA_DIR;
+  else process.env.LFAA_DATA_DIR = originalLfaaDataDir;
+});
 
 const sandboxHostTest = { skip: process.platform !== 'win32', timeout: 120_000 };
 
 test('Windows Agent AppContainer limits files and networking and reports real exit status', sandboxHostTest, async () => {
-  const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
   const binary = resolve(repositoryRoot, 'dist/apps/daemon/target/x86_64-pc-windows-msvc/release/lfaa-sandbox-host.exe');
   assert.ok(existsSync(binary), '先构建根 dist 下的 Windows Sandbox Host');
   const powershell = resolve(process.env.SystemRoot ?? 'C:\\Windows', 'System32/WindowsPowerShell/v1.0/powershell.exe');
@@ -29,6 +47,7 @@ test('Windows Agent AppContainer limits files and networking and reports real ex
 
   const testRoot = mkdtempSync(join(tmpdir(), 'lfaa-agent-shell-sandbox-'));
   const workspace = mkdtempSync(join(dirname(repositoryRoot), 'lfaa-agent-shell-sandbox-workspace-'));
+  const workspaceVolumeSddl = readSddl(parse(workspace).root);
   const stateRoot = join(testRoot, 'state');
   const protectedRoot = join(testRoot, 'protected');
   mkdirSync(workspace, { recursive: true });
@@ -58,6 +77,13 @@ test('Windows Agent AppContainer limits files and networking and reports real ex
     const relativeProjectSource = join(workspace, 'src', 'index.js');
     mkdirSync(dirname(relativeProjectSource), { recursive: true });
     writeFileSync(relativeProjectSource, 'const agentSandboxRelativePath = true;\n', 'utf8');
+    const relativeProjectSourceSddl = readSddl(relativeProjectSource);
+    const pwshExecutable = resolvePwsh().exe;
+    const pwshRuntimeRoot = dirname(pwshExecutable);
+    const pwshRuntimeRootSddl = readSddl(pwshRuntimeRoot);
+    const pwshExecutableSddl = readSddl(pwshExecutable);
+    const nodeRuntimeRootSddl = readSddl(nodeRuntimeRoot);
+    const nodeExecutableSddl = readSddl(process.execPath);
     const shell = new PwshSandboxShellExecutor({ lfaaSandbox: new WindowsAclSandboxProvider() });
     const sandboxPolicy = createSandboxExecutionPolicy({
       mode: 'workspace-write', platform: 'win32', target: { kind: 'local' },
@@ -87,7 +113,14 @@ test('Windows Agent AppContainer limits files and networking and reports real ex
       [`${workspace}|${workspace}`, workspace],
       'PowerShell、.NET 与 Node 必须共享策略工作目录'
     );
+    assertWorkspaceAclRestored(workspace, workspaceSddl);
     assert.equal(readSddl(workspaceParent), workspaceParentSddl, '工作区父路径的临时遍历 ACL 必须在 Shell 结束后精确还原');
+    assert.equal(readSddl(parse(workspace).root), workspaceVolumeSddl, '工作区卷根 ACL 不应被修改');
+    assert.equal(readSddl(relativeProjectSource), relativeProjectSourceSddl, '工作区子文件的继承 ACL 必须在 Shell 结束后精确还原');
+    assert.equal(readSddl(pwshRuntimeRoot), pwshRuntimeRootSddl, 'PowerShell 运行时目录的继承 ACL 必须精确还原');
+    assert.equal(readSddl(pwshExecutable), pwshExecutableSddl, 'PowerShell 可执行文件的继承 ACL 必须精确还原');
+    assert.equal(readSddl(nodeRuntimeRoot), nodeRuntimeRootSddl, 'Node.js 运行时目录的继承 ACL 必须精确还原');
+    assert.equal(readSddl(process.execPath), nodeExecutableSddl, 'Node.js 可执行文件的继承 ACL 必须精确还原');
     assert.deepEqual(readdirSync(resolve(process.env.LFAA_HOME, 'sandbox', 'runs')), [], 'Shell Owner 完成后应清理本次运行状态');
     const crashRun = await startAgentHost(binary, {
       mode: 'workspace-write', workspace, workingDirectory: workspace, stateRoot,
@@ -107,7 +140,7 @@ test('Windows Agent AppContainer limits files and networking and reports real ex
     assert.equal(recoveryResult.code, 0, recoveryResult.stderr);
     assert.deepEqual(readdirSync(stateRoot), [], '下一次启动必须回收崩溃遗留 ACL 日志和取消标记');
     assertRunDataClean(crashRun.token, workspace);
-    assert.equal(readSddl(workspace), workspaceSddl, '崩溃恢复后工作区 DACL 必须还原到运行前');
+    assertWorkspaceAclRestored(workspace, workspaceSddl);
     const run = await startAgentHost(binary, {
     mode: 'workspace-write',
     workspace,
@@ -166,6 +199,8 @@ test('Windows Agent AppContainer limits files and networking and reports real ex
     assert.equal(runtimeProbeResult.code, 0, runtimeProbeResult.stderr);
     assert.match(readFileSync(runtimeProbeMarker, 'utf8'), /^v[0-9]+\.[0-9]+\.[0-9]+\|[0-9]+\.[0-9]+\.[0-9]+$/);
     assert.equal(readSddl(parse(nodeRuntimeRoot).root), runtimeVolumeSddl, '外部 Node.js 卷根 DACL 必须在运行后精确还原');
+    assert.equal(readSddl(nodeRuntimeRoot), nodeRuntimeRootSddl, '外部 Node.js 运行时目录 DACL 必须在运行后精确还原');
+    assert.equal(readSddl(process.execPath), nodeExecutableSddl, '外部 Node.js 可执行文件 DACL 必须在运行后精确还原');
     assertRunDataClean(runtimeProbe.token, workspace);
     assert.deepEqual(readdirSync(stateRoot), [], 'Node/npm 本地启动后应清理卷根 ACL、运行日志与取消文件');
     assert.equal(loopbackConnected, false, '只授予运行时路径遍历权限后仍不得连接本机回环服务');
@@ -331,6 +366,66 @@ function readLines(stream) {
 function readSddl(path) {
   const icacls = resolve(process.env.SystemRoot ?? 'C:\\Windows', 'System32/icacls.exe');
   return execFileSync(icacls, [path], { encoding: 'utf8', windowsHide: true, timeout: 10_000 }).trim();
+}
+
+function assertWorkspaceAclRestored(path, beforeText) {
+  const before = parseAclEntries(beforeText, path);
+  const afterText = readSddl(path);
+  const after = parseAclEntries(afterText, path);
+  const remaining = new Map();
+  for (const entry of after) {
+    const key = aclEntryKey(entry);
+    remaining.set(key, (remaining.get(key) ?? 0) + 1);
+  }
+  for (const entry of before) {
+    const key = aclEntryKey(entry);
+    const count = remaining.get(key) ?? 0;
+    assert.ok(count > 0, `工作区 ACL 丢失了运行前的 ACE：${key}\n${afterText}`);
+    remaining.set(key, count - 1);
+  }
+
+  const added = [];
+  for (const entry of after) {
+    const key = aclEntryKey(entry);
+    const count = remaining.get(key) ?? 0;
+    if (count === 0) continue;
+    added.push(entry);
+    remaining.set(key, count - 1);
+  }
+  const unexpected = added.filter(entry => !(
+    entry.flags.length === 1
+    && entry.flags[0] === 'I'
+    && before.some(original => (
+      original.principal === entry.principal
+      && original.flags.length === 0
+      && original.rights === entry.rights
+    ))
+  ));
+  assert.deepEqual(
+    unexpected,
+    [],
+    `工作区 ACL 只允许 Windows 自动继承与既有显式 ACE 权限完全相同的继承项；实际新增：${JSON.stringify(added)}\n${afterText}`
+  );
+}
+
+function parseAclEntries(text, path) {
+  const entries = [];
+  for (const line of text.split(/\r?\n/u)) {
+    const trimmed = line.trim();
+    const value = trimmed.startsWith(`${path} `) ? trimmed.slice(path.length + 1) : trimmed;
+    const separator = value.lastIndexOf(':');
+    if (separator <= 0) continue;
+    const principal = value.slice(0, separator);
+    const aclText = value.slice(separator + 1);
+    const groups = [...aclText.matchAll(/\(([^()]*)\)/gu)].map(match => match[1]);
+    if (groups.length === 0 || aclText.replace(/\([^()]*\)/gu, '').trim() !== '') continue;
+    entries.push({ principal, flags: groups.slice(0, -1), rights: groups.at(-1) });
+  }
+  return entries;
+}
+
+function aclEntryKey(entry) {
+  return JSON.stringify([entry.principal, entry.flags, entry.rights]);
 }
 
 function waitForClose(child, timeoutMs) {

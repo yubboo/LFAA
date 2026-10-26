@@ -43,7 +43,7 @@ const searchTool: AiBusinessTool = {
   parse: value => parse(searchSchema, value),
   execute: async (parameters, context) => {
     const kind = typeof parameters.kind === "string" ? parameters.kind as KnowledgeLibraryKind : undefined;
-    const saved = searchKnowledgeLibrary(context.userId, context.applicationId, String(parameters.query), kind).slice(0, KNOWLEDGE_LIBRARY_LIMITS.searchResults).map(hit => ({
+    const saved = (await searchKnowledgeLibrary(context.userId, context.applicationId, String(parameters.query), kind)).slice(0, KNOWLEDGE_LIBRARY_LIMITS.searchResults).map(hit => ({
       id: hit.id, kind: hit.kind, title: hit.title, description: hit.description, snippet: hit.snippet, source: hit.sourceKind, trust: hit.trust
     }));
     return { applicationId: context.applicationId, items: saved, resultLimit: KNOWLEDGE_LIBRARY_LIMITS.searchResults, snippetCharacterLimit: KNOWLEDGE_LIBRARY_LIMITS.snippetCharacters, trust: "untrusted" };

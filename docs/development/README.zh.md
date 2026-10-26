@@ -30,6 +30,7 @@
 - [Agent 首次回复交接（2026-10-09）](agent-reply-handoff-20261009.md)
 - [Agent 最终答复交付（2026-10-09）](agent-response-delivery-20261009.md)
 - [Agent 流式循环修复（2026-10-09）](agent-stream-loop-repair-20261009.md)
+- [外部子 Agent 流式文本合同（2026-10-27）](agent-subagent-streaming-20261027.zh.md)
 - [Run 暂停与继续（2026-10-10）](ai-run-pause-resume-20261010.md)
 - [Run 断流恢复与循环上限（2026-10-10）](ai-run-reconnect-loop-bounds-20261010.md)
 - [澄清问题内嵌（2026-10-10）](ai-work-clarification-inline-20261010.md)

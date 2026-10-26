@@ -7,6 +7,7 @@ import { Agent, type AgentContext, type AgentEvent, type AgentTool } from "@eare
 import { createAssistantMessageEventStream, type Api, type AssistantMessage, type AssistantMessageEventStream, type ImageContent, type Message, type Model, type TextContent, type ToolCall, type ToolResultMessage, type Usage } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
 import type { AiCompletionMessage, AiCompletionResult, AiCompletionTool, AiCompletionToolCall, AiCompletionContentPart } from "lfaa-llm";
+import { logger } from "lfaa-telemetry-logger/src/logger.js";
 
 const zeroUsage: Usage = {
   input: 0,
@@ -28,6 +29,10 @@ export interface LfaaPiRequestResult extends AiCompletionResult {
   text: string;
   /** 本轮被拒绝的未提供工具名；交由 LFAA 在下一请求前生成纠正反馈。 */
   rejectedToolNames?: string[];
+  /** 与最后一次 Provider 请求实际提供的工具集合一致；spill 读取工具仅在本 Run 出现引用后提供。 */
+  requestTools?: AiCompletionTool[];
+  /** 发送前压缩后的会话消息；只更新当前 Pi 上下文，不持久化 system 或本次临时附件。 */
+  requestMessages?: AiCompletionMessage[];
 }
 
 export interface LfaaPiRuntimeOptions {
@@ -134,6 +139,15 @@ export async function runLfaaPiAgent(options: LfaaPiRuntimeOptions): Promise<voi
           }
         });
         signal.throwIfAborted();
+        const agentContext = context as AgentContext;
+        if (response.requestMessages) {
+          agentContext.messages = toPiMessages(response.requestMessages, rawMessages);
+        }
+        if (response.requestTools) {
+          currentTools = response.requestTools;
+          agentContext.tools = toPiTools(currentTools);
+          agent.state.tools = agentContext.tools;
+        }
         if (response.text && !streamedText) {
           textIndex = assistant.content.length;
           streamedText = response.text;
@@ -178,7 +192,7 @@ export async function runLfaaPiAgent(options: LfaaPiRuntimeOptions): Promise<voi
       model: options.model,
       systemPrompt: "",
       tools: toPiTools(currentTools),
-      messages: options.messages.map(message => toPiMessage(message, rawMessages))
+      messages: toPiMessages(options.messages, rawMessages)
     },
     toolExecution: "sequential",
     identity: { attribution: null },
@@ -190,7 +204,7 @@ export async function runLfaaPiAgent(options: LfaaPiRuntimeOptions): Promise<voi
     prepareRequest: async ({ context }, signal) => {
       const effectiveSignal = signal ?? options.signal;
       const prepared = await options.prepareRequest({ messages: fromPiMessages(context.messages), signal: effectiveSignal });
-      if (prepared.messages) context.messages = prepared.messages.map(message => toPiMessage(message, rawMessages));
+      if (prepared.messages) context.messages = toPiMessages(prepared.messages, rawMessages);
       if (prepared.tools) currentTools = prepared.tools;
       else currentTools = options.getTools();
       context.tools = toPiTools(currentTools);
@@ -200,7 +214,7 @@ export async function runLfaaPiAgent(options: LfaaPiRuntimeOptions): Promise<voi
     prepareNextTurnWithContext: async ({ context }, signal) => {
       const effectiveSignal = signal ?? options.signal;
       const prepared = await options.prepareNextTurn({ messages: fromPiMessages(context.messages), signal: effectiveSignal });
-      if (prepared.messages) context.messages = prepared.messages.map(message => toPiMessage(message, rawMessages));
+      if (prepared.messages) context.messages = toPiMessages(prepared.messages, rawMessages);
       if (prepared.tools) currentTools = prepared.tools;
       else currentTools = options.getTools();
       context.tools = toPiTools(currentTools);
@@ -251,7 +265,8 @@ function toPiMessage(message: AiCompletionMessage, rawMessages: WeakMap<object, 
       usage: zeroUsage, stopReason: message.tool_calls?.length ? "toolUse" : "stop", timestamp
     };
   } else {
-    const toolCallId = message.tool_call_id ?? "lfaa-tool-result";
+    const toolCallId = message.tool_call_id;
+    if (typeof toolCallId !== "string" || !toolCallId.trim()) throw new Error("工具 observation 缺少 tool_call_id，不能伪装成已匹配结果。");
     mapped = {
       role: "toolResult", toolCallId, toolName: "lfaa-tool",
       content: toPiToolResultContent(message.content), timestamp, isError: false
@@ -259,6 +274,66 @@ function toPiMessage(message: AiCompletionMessage, rawMessages: WeakMap<object, 
   }
   rawMessages.set(mapped, message);
   return mapped;
+}
+
+function toPiMessages(messages: readonly AiCompletionMessage[], rawMessages: WeakMap<object, AiCompletionMessage>): AgentContext["messages"] {
+  const pendingCalls = new Map<string, { messageIndex: number; callIndex: number }>();
+  const ambiguousCallIds = new Set<string>();
+  const validCallIndexes = new Map<number, Set<number>>();
+  const validResultIndexes = new Set<number>();
+  let totalCalls = 0;
+  let totalResults = 0;
+  for (const [index, message] of messages.entries()) {
+    if (message.role === "assistant") {
+      for (const [callIndex, call] of (message.tool_calls ?? []).entries()) {
+        totalCalls += 1;
+        if (!call.id.trim() || ambiguousCallIds.has(call.id)) continue;
+        if (pendingCalls.has(call.id)) {
+          pendingCalls.delete(call.id);
+          ambiguousCallIds.add(call.id);
+          continue;
+        }
+        pendingCalls.set(call.id, { messageIndex: index, callIndex });
+      }
+    } else if (message.role === "tool") {
+      totalResults += 1;
+      const id = message.tool_call_id;
+      if (typeof id !== "string" || !id.trim() || ambiguousCallIds.has(id)) continue;
+      const call = pendingCalls.get(id);
+      if (!call) continue;
+      pendingCalls.delete(id);
+      const indexes = validCallIndexes.get(call.messageIndex) ?? new Set<number>();
+      indexes.add(call.callIndex);
+      validCallIndexes.set(call.messageIndex, indexes);
+      validResultIndexes.add(index);
+    }
+  }
+  const validCallCount = [...validCallIndexes.values()].reduce((sum, indexes) => sum + indexes.size, 0);
+  const validResultCount = validResultIndexes.size;
+  if (totalCalls !== validCallCount || totalResults !== validResultCount) {
+    logger.warn("Pi Agent 初始化时忽略缺少唯一 tool_call_id 配对的消息", { droppedToolCalls: totalCalls - validCallCount, droppedToolResults: totalResults - validResultCount });
+  }
+  const output: AgentContext["messages"] = [];
+  for (const [messageIndex, message] of messages.entries()) {
+    if (message.role === "assistant" && message.tool_calls?.length) {
+      const validIndexes = validCallIndexes.get(messageIndex) ?? new Set<number>();
+      const calls = message.tool_calls.filter((_call, callIndex) => validIndexes.has(callIndex));
+      if (calls.length === message.tool_calls.length) output.push(toPiMessage(message, rawMessages));
+      else {
+        const { tool_calls: _toolCalls, ...withoutCalls } = message;
+        const hasContent = typeof message.content === "string" ? message.content.length > 0 : Array.isArray(message.content) && message.content.length > 0;
+        if (!calls.length && !hasContent) continue;
+        const sanitized: AiCompletionMessage = calls.length ? { ...withoutCalls, tool_calls: calls } : withoutCalls as AiCompletionMessage;
+        output.push(toPiMessage(sanitized, rawMessages));
+      }
+    } else if (message.role === "tool") {
+      if (!validResultIndexes.has(messageIndex)) continue;
+      output.push(toPiMessage(message, rawMessages));
+    } else {
+      output.push(toPiMessage(message, rawMessages));
+    }
+  }
+  return output;
 }
 
 function fromPiMessage(message: Message | AgentContext["messages"][number]): AiCompletionMessage | null {

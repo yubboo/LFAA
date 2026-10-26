@@ -99,6 +99,10 @@ export interface AiProvider {
   description: string;
   options: Array<{ id: string; label: string; choices: Array<{ value: string; label: string }> }>;
   discovery: "api" | "official-list";
+  scope?: "system" | "user";
+  modelInput?: "catalog" | "manual";
+  documentationUrl?: string;
+  secretLabel?: string;
 }
 
 export interface BrowserProviderSummary {
@@ -168,6 +172,11 @@ export interface AiModel {
   versionTag?: string;
   contextWindow?: number;
   maxOutputTokens?: number;
+  taskType?: "chat" | "embedding" | "image-generation" | "video-generation" | "text-to-speech" | "speech-to-text";
+  inputModalities?: Array<"text" | "image" | "audio" | "video">;
+  planTiers?: Array<"small" | "medium" | "large" | "max" | "lite" | "pro">;
+  catalogSource?: string;
+  catalogNote?: string;
   thinking: AiModelThinkingControl | null;
   thinkingSource: "provider-model-catalog" | null;
 }
@@ -219,6 +228,7 @@ export interface AiModelTestResult {
   modelId: string;
   elapsedMs: number;
   sample: string;
+  verificationToken?: string;
 }
 
 export interface AiAccount {
@@ -227,10 +237,17 @@ export interface AiAccount {
   displayName: string;
   modelId: string;
   models: AiModel[];
+  options: Record<string, string>;
   reasoningMode: string;
   active: boolean;
   createdAt: string;
   hasSecret: true;
+  scope: "system" | "user";
+}
+
+export interface ClaudeAgentCredentialStatus {
+  configured: boolean;
+  updatedAt?: string;
 }
 
 export interface AiExtension {
@@ -2627,6 +2644,18 @@ export function loadAiAccounts(): Promise<{ accounts: AiAccount[] }> {
   return request<{ accounts: AiAccount[] }>("/settings/ai/accounts");
 }
 
+export function loadClaudeAgentCredentialStatus(): Promise<{ credential: ClaudeAgentCredentialStatus }> {
+  return request<{ credential: ClaudeAgentCredentialStatus }>("/settings/ai/external-agents/anthropic-credential");
+}
+
+export function saveClaudeAgentCredential(secret: string): Promise<{ credential: ClaudeAgentCredentialStatus }> {
+  return request<{ credential: ClaudeAgentCredentialStatus }>("/settings/ai/external-agents/anthropic-credential", { method: "PUT", body: JSON.stringify({ secret }) });
+}
+
+export function deleteClaudeAgentCredential(): Promise<void> {
+  return request<void>("/settings/ai/external-agents/anthropic-credential", { method: "DELETE" });
+}
+
 export function loadLocalModels(signal?: AbortSignal): Promise<{ models: LocalModelSummary[]; activeDownload: LocalModelDownloadSnapshot | null }> {
   return request<{ models: LocalModelSummary[]; activeDownload: LocalModelDownloadSnapshot | null }>("/local-models", signal ? { signal } : {});
 }
@@ -3186,6 +3215,8 @@ type AiChatStreamInput = {
   onInput?: (message: AiMessage) => void;
   onActivity: (value: { messageId: string; activity: AiActivityItem }) => void;
   onDelta: (value: AiTextDelta) => void;
+  /** 外部子 Agent 顶层助手文本的瞬时流；重新订阅时不重放，也不写入会话。 */
+  onSubagentDelta?: (value: { messageId: string; activityId: string; delta: string }) => void;
   onPresentation?: (value: { messageId: string; parts: AiReplyPart[] }) => void;
   onUsage: (value: { messageId: string; promptTokens: number | null; completionTokens: number | null; cacheReadTokens: number | null; providerId: string; modelId: string; models?: Array<{ providerId: string; modelId: string; requestCount: number }>; sessionUsage?: AiSessionUsageSummary }) => void;
   onUsageProgress?: (value: { messageId: string; sessionUsage: AiSessionUsageSummary }) => void;
@@ -3349,6 +3380,10 @@ async function streamAiChatAt(input: AiChatStreamInput, streamEndpoint: string):
           input.onActivity({ messageId: payload.messageId, activity: payload.activity as AiActivityItem });
         }
         if (eventName === "delta" && typeof payload.messageId === "string" && typeof payload.delta === "string") deltas.push({ messageId: payload.messageId, delta: payload.delta, ...(typeof payload.partId === "string" && typeof payload.partStart === "number" ? { partId: payload.partId, partStart: payload.partStart } : {}) });
+        if (eventName === "subagent-delta" && typeof payload.messageId === "string" && typeof payload.activityId === "string"
+          && typeof payload.delta === "string" && payload.delta.length <= 2048 && activeRunId === payload.messageId) {
+          input.onSubagentDelta?.({ messageId: payload.messageId, activityId: payload.activityId, delta: payload.delta });
+        }
         if (eventName === "presentation" && typeof payload.messageId === "string" && Array.isArray(payload.parts)) input.onPresentation?.({ messageId: payload.messageId, parts: payload.parts as AiReplyPart[] });
         if (eventName === "usage" && typeof payload.providerId === "string" && typeof payload.modelId === "string") {
           const sessionUsage = readAiSessionUsageSummary(payload.sessionUsage);
@@ -3423,7 +3458,7 @@ async function streamAiChatAt(input: AiChatStreamInput, streamEndpoint: string):
   }
 }
 
-export function probeAiProvider(input: { providerId: string; secret: string; options: Record<string, string> }): Promise<{ result: AiProviderProbe }> {
+export function probeAiProvider(input: { providerId: string; secret: string; options: Record<string, string>; modelId?: string }): Promise<{ result: AiProviderProbe }> {
   return request<{ result: AiProviderProbe }>("/settings/ai/probe", { method: "POST", body: JSON.stringify(input) });
 }
 
@@ -3431,7 +3466,7 @@ export function testAiProviderModel(input: { providerId: string; secret: string;
   return request<{ result: AiModelTestResult }>("/settings/ai/test-model", { method: "POST", body: JSON.stringify(input) });
 }
 
-export function saveAiAccount(input: { providerId: string; secret: string; options: Record<string, string>; displayName: string; modelId: string; reasoningMode: string }): Promise<{ account: AiAccount }> {
+export function saveAiAccount(input: { providerId: string; secret: string; options: Record<string, string>; displayName: string; modelId: string; reasoningMode: string; verificationToken?: string }): Promise<{ account: AiAccount }> {
   return request<{ account: AiAccount }>("/settings/ai/accounts", { method: "POST", body: JSON.stringify(input) });
 }
 

@@ -19,6 +19,7 @@ import {
   buildCanvasProjectPayload, formatCanvasBytes, importCanvasProject, parseCanvasImport, resolveCanvasSettings,
   type CanvasAspectRatio, type CanvasGenerationData
 } from "./CanvasProjectTransfer.js";
+import { CanvasHomeFluidBackground } from "./CanvasHomeFluidBackground.js";
 import "./canvas-home.css";
 
 type HomeMode = "generate" | "canvas";
@@ -228,6 +229,10 @@ export function CanvasHome({ user, settings, applications, onNavigate, onOpenSet
 
   return (
     <div className="lfaa-cnv-home">
+      <CanvasHomeFluidBackground
+        accentColor={settings.appearance.accentColor}
+        reducedMotion={settings.appearance.advanced.reducedMotion}
+      />
       <header className="lfaa-cnv-home__topbar">
         <div className="lfaa-cnv-home__brand">
           <span className="lfaa-cnv-home__brand-mark" aria-hidden="true">L</span>

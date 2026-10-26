@@ -301,7 +301,8 @@ export const appearanceSettingsSchema = Joi.object({
     aiWorkOutputFocusBlurEnabled: Joi.boolean().default(true),
     aiWorkOutputFocusBlurPercent: Joi.number().integer().min(0).max(100).optional(),
     aiWorkOutputFocusBlurIdleSeconds: Joi.number().integer().min(60).max(3600).multiple(60).default(60),
-    aiWorkOutputFocusBlurAmount: Joi.number().integer().min(0).max(24).optional()
+    aiWorkOutputFocusBlurAmount: Joi.number().integer().min(0).max(24).optional(),
+    writingLightRaysEnabled: Joi.boolean().default(DEFAULT_USER_SETTINGS.appearance.advanced.writingLightRaysEnabled)
   }).unknown(false).optional()
 }).unknown(false);
 

@@ -8,6 +8,10 @@ Pi `@earendil-works/pi-agent-core` 是默认 AI Run 的唯一回合调度器，�
 
 Pi 的自定义 `streamFn` 每次都调用 LFAA 注入的 `lfaaLlm` Service。LFAA Settings/凭据继续决定账户、Provider、模型、超时/重试、上下文/输出预算与压缩；LFAA Tools 继续校验参数、范围与 Permission Owner 授权；审批、用户提问、暂停/取消、运行事件和 Session JSONL 仍由原 LFAA Owner 处理。Pi 工具回调只转入现有 LFAA Tool 执行函数，Pi 生成的会话状态在 Run 结束时释放。
 
+Claude SDK 子 Agent 的 MCP handler 通过 `AiBusinessToolContext.dispatchExternalAgentTool` 回到同一个工具执行闭包，不直接调用 Registry executor。Agent Loop 按父 Run 继承目录公布原 JSON Schema；SDK 内层 action 重新检查工具合同、参数 parser、权限风险、预算、防重、取消与真实结果记录。MCP 的 action/observation 配对属于 SDK 子对话；内部调用写入 LFAA 工具审计，但不向父 Session 追加缺少 assistant tool_calls 的 tool 消息。权限审批仍由同一个 Permission Owner 等待和决定。
+
+Claude SDK result 的 `modelUsage` 由 Subagent Tool 桥按 Provider/模型记入现有 Session `usage/record`，标记 `purpose=subagent`。Session 累计用量包含这些 token，普通消息仍只展示父助手本轮 Provider 用量；SDK 的估算费用不作为实际成本记录。
+
 图片原文和 Provider 私有 `providerReplay` 只沿 LFAA 当前请求适配在内存中转交，不复制进 Pi 长期状态、普通活动或 Session 明文；上下文压缩和溢出仍在 LFAA 发起 Provider 请求前执行。成本、用量和模型错误只采用 LFAA Provider 实际回报，Pi 的必填成本字段仅用于其内部模型描述，不用于计费或产品展示。
 
 2026-10-16：第一方子 Agent 工具通过原 delegateSubagent 桥增加进程内后台执行，继承主/子模型、数量/深度、项目、工具范围、写操作拒绝状态和取消。父回复正常完成时子 Run 继续；取消/超时不计为成功。驱动及持久化归原 Subagent/Session Owner，不增加第二套循环；外部 CLI 后台尚未接入。
@@ -31,13 +35,15 @@ Browser Tools 还按 Browser Settings Owner 检查 WebMCP 网站工具默认值/
 
 `lfaa-agent-loop` 负责 AI Work 的模型与工具循环。对话记忆仍由 `lfaa-conversation-memory` 持有；循环只检查账户设置，把符合条件的根轮次输入发送给已选 Provider，并通过记忆 Owner 保存已校验结果。
 
+外部 SDK 子 Agent 顶层助手文本可沿 `subagent-delta` Run 事件临时传到订阅 Client；它不进入 Session JSONL、模型 messages 或工具 observation，重新订阅只收到持久化快照和后续新事件。工具调用与最终 SDK result 仍按原 Agent Loop action/observation 合同处理。
+
 所有文本补全通过注入的 `lfaaLlm` Service；Adapter 选择由 `lfaa-llm` 唯一拥有，分支记忆、回复后记忆及压缩摘要使用相同合同。Agent Loop 不直接导入传输函数或另建 Provider 选择表。插件卸载时由其 Cordis Fiber 撤销 Provider Adapter；仍不存在安全的任意外部插件 Client/Host 运行时。
 
 助手消息、主 Provider 用量和 `done` 事件提交后，才开始记忆提取。提取作为有界后台后处理运行：最多同时处理 4 个账户，每个账户最多 1 个任务；请求不带工具，输出上限为 512 token，超时为 30 秒。同账户已有新轮次或本地并发上限已满时跳过提取，并在活动记录中说明原因。成功提取记为触发该流程的助手消息上的独立 Provider 用量记录。提取错误不会改变已经完成的回答。
 
 主 Agent 回合累计这一轮全部模型请求的 prompt/output/cache-read usage，并以一个主回合 SSE 与 Session 记录发布；同时记录请求总数和 Provider 实际返回缓存读取计数的请求数，以便 UI 显示覆盖率。任一请求未上报的分量保持未知，不当成零；回复后的账户记忆提取仍保留独立用量事件，但标记为 `purpose=memory`，消息输入区的本轮统计不会将它混入主回答。
 
-每个真实 Provider 请求发送前，Loop 用 `lfaa-token-meter` 按最终模型可见的 system/messages/tools 生成上下文分项估算，并将当前账户模型目录容量（缺失时读取设置中心 `aiRuntime.contextWindowTokens`）及容量来源随 `request/context` 保存；响应后以 Provider 实际 prompt Token 更新上下文总量。SSE 发送请求前估算、响应后实际值及会话累计用量预览；缓存读取字段始终只采用 Provider usage。模型上下文统计由共享 UI 的 `aiRuntime.showContextUsage` 控制显示。
+每个主 Provider 请求在 LLM Owner 组合最终 system prompt、消息/附件和工具 schema 后、网络发送前执行上下文管理；压力、compaction 和 `request/context` 观测共用 `lfaa-token-meter` 的同一估算口径，包含工具往返、每张图片的保守预留与 LLM Owner 按账户/Provider/模型计算的一次数值型 reasoning replay 字符数。无效来源的 replay 不进入预算，安全请求快照不保存隐藏 replay 正文。压缩后会同步更新本 Run 的 Pi/Agent Loop 消息和工具集；spill 执行器先登记给 Pi，读取工具只有在本 Run 产生引用后才放进 Provider 请求，system prompt 与本次临时附件不进入持久对话历史。估算与当前账户模型目录容量（缺失时读取设置中心 `aiRuntime.contextWindowTokens`）及容量来源随 `request/context` 保存；响应后以 Provider 实际 prompt Token 更新上下文总量。SSE 发送前估算、响应后实际值及会话累计用量可见；缓存读取字段始终只采用 Provider usage。模型上下文统计由共享 UI 的 `aiRuntime.showContextUsage` 控制显示。
 
 发送前，循环会对当前用户消息和最终回答中的常见凭据、个人标识模式做本地启发式过滤；该过滤无法识别所有敏感表达，不处理工具参数、工具结果或较早的 Session 历史。Session Owner 会从持久化的模型快照中移除注入的记忆区块。
 

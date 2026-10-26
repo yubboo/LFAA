@@ -16,6 +16,10 @@ Web/Desktop 共用的应用工作区 UI。除通用 Workspace 外，`AiVideoCanv
 
 `/apps/<app>/canvas` 由 `ApplicationWorkspace` 装配唯一的 `AiWorkChat` 会话运行时，再将聊天内容交给 `CanvasWorkspace` 的 DockKit 右侧栏；画布右下角入口打开同一会话/流式 UI，关闭面板会保留已挂载的聊天实例。中心画布和助手由 `ResizableWorkbench` 作为相邻区域排布，桌面默认宽度沿用 DockKit 右栏初始规则（22%，240–340px），拖动时画布同步挤压，右栏最大占工作区 40%，让中心画布始终宽于助手；吸附收起、反向拖回、键盘调整及释放清理均复用同一组件。此面板不读写布局 localStorage，宽度只在页面实例内变化；容器变窄时沿用 DockKit 响应式 Dock/Overlay 规则。面板默认开合沿用账户级 `canvas.agentPanelDefaultOpen`，不复制会话状态或 Agent 执行链。
 
+右下角“与 AI 对话”入口参考 [React Bits Flying Button](https://www.reactbits.dev/micro/flying-button) 的喷焰起飞视觉，但不复制其 WebGL 源码：桌面悬停时上升 84px；窄于 640px 的画布或高度不超过 640px 的视口收为 38px，并同步缩短喷焰和烟雾，避让窄屏底部控件。双喷焰和烟雾用 Canvas Owner 内的 CSS 渐变绘制；动画读取 Workbench 的 `appearance.advanced.reducedMotion` 映射，并尊重系统减少动态效果，触屏不触发起飞。上游许可证于 2026-10-26 核对为 MIT + Commons Clause；未运行 shadcn CLI、未新增依赖或上游源码，使用独立 CSS 实现以避免随产品打包再分发受限组件。
+
+`/canvas` 首页使用 `CanvasHomeFluidBackground` 绘制连续流动的水面折射、高光焦散和空白处点击涟漪；自有 WebGL 波场以 CSS 流光作为无 WebGL 降级。动画读取 Appearance 强调色与 `appearance.advanced.reducedMotion`，按容器尺寸限制绘制像素数，页面隐藏时暂停并在卸载时撤销 RAF、ResizeObserver 和指针/可见性监听。背景透明叠加，不替换 Workbench 的 `appearance.backgrounds.appCenter` 壁纸、主题遮罩或 Wallpaper Engine。视觉参考 [MagineCanvas-Learn](https://github.com/Magine1921/MagineCanvas-Learn) 与 [在线试用页](https://magine-trial.magine1921.workers.dev/)；参考仓库为 AGPL-3.0-only，LFAA 不复制其着色器源码或图片资源，未新增依赖。
+
 整体布局由 `.module-workbench-stage` 外层盒子包住一个 `ResizableWorkbench` 根节点。图标功能区、二级菜单、中间工作区和右侧菜单作为根节点的四个同级区域直接传入；各区域 class 分别为 `module-workbench-region--leading`、`--secondary-navigation`、`--center-workspace`、`--right-menu`。分隔条与浮层是布局辅助元素，不把四个内容区域互相嵌套。公共几何样式从 `ui-dockkit/src/css/common.css` 复用；图标轨样式由 `ui-sidebar/src/GlobalNavigationRail.css` 负责，左二、中间、右侧内容盒子的样式分别由 `src/css/secondary-navigation.css`、`center-workspace.css`、`right-menu.css` 负责；`src/css/workbench-regions.css` 只保留四个同级区域共用的文字基线与底部面板样式。普通应用页面共用 `ApplicationNavigationPanel` 作为左二主导航，不在各 App 页面重复装配菜单；右侧显示当前应用工具与上下文。AI Work 左二保留会话/项目，右侧承载工具与资源。设置、文件和插件管理等独立页面继续由各自 UI 包维护。图标轨宽度继续使用现有 64px/48px 令牌，并沿用账户外观设置。
 
 普通专业 App 页面复用同一主导航与中心标题栏；标题栏和主内容容器共用按中心列宽计算的水平锚点，并整体左移 8–16px，左右留白总量保持不变。宽列的基线留白为 20–32px，中心列不超过 560px 时为 8px/24px，不超过 360px 时为 8px/16px。专用 Writing、AI 漫剧与 AI Work 画布继续使用各自内容布局。
@@ -103,3 +107,5 @@ Agent 的内置 Browser Tool 成功后，工作区复用无待处理导航请求
 2026-10-26：AI Work 新 Run 附带一次性 `workspaceView` JSON，说明当前右侧面板类型/开合状态和底部终端开合状态；只有 Browser Dock 当前选中、展开且 `browserUse.enabled` 时附带脱敏后的 HTTP(S) 地址。该字段不持久化、不包含网页内容，不能用于推断工具能力或授权。
 
 AI Work 宽中栏的模型配置提示区是会话的直接子盒子，使用与左右留白一致的独立宽度和半间距补偿；420px 及以下继续沿用会话自身的对称内距。消息滚动条仍单独延伸到中心列右缘。
+
+普通写作入口由 `ApplicationWorkspace` 装配 `ui-writing/WritingWorkspace`，并传递 Workbench 的 `UserSettings` 与设置变更回调；写作工具栏快捷控制仍经 Settings Owner 保存同一账户外观字段，不在工作区包另建偏好存储。

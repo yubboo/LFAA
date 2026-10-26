@@ -6,7 +6,7 @@
 import type { SandboxExecutionPolicy, SandboxMode } from "lfaa-sandbox-policy/src/index.js";
 
 export { SANDBOX_MODES, SandboxPolicyError, createSandboxExecutionPolicy, isSandboxPolicyWidening } from "lfaa-sandbox-policy/src/index.js";
-export type { SandboxExecutionPolicy, SandboxMode, SandboxPlatform, SandboxTarget } from "lfaa-sandbox-policy/src/index.js";
+export type { SandboxExecutionPolicy, SandboxMode, SandboxNetworkPolicy, SandboxPlatform, SandboxTarget } from "lfaa-sandbox-policy/src/index.js";
 
 export const SANDBOX_UNAVAILABLE = "SANDBOX_UNAVAILABLE" as const;
 export type SandboxEnforcement = "full" | "partial" | "none";
@@ -15,6 +15,9 @@ export interface ConfinedCommand {
   readonly argv: readonly string[];
   readonly effectiveMode: SandboxMode;
   readonly enforcement: SandboxEnforcement;
+  /** 必须与本次请求一致；`enforcement: full` 仅描述文件隔离，不替代此网络回执。 */
+  readonly networkPolicy: SandboxExecutionPolicy["networkPolicy"];
+  readonly networkEnforcement: SandboxEnforcement;
   readonly providerId: string;
   /** 受限 Host 返回最终回执时使用；未确认令牌不得作为受限执行成功证据。 */
   readonly verificationToken?: string;
@@ -60,6 +63,12 @@ export function assertSandboxResult(
   if (result.effectiveMode !== policy.mode) throw new SandboxUnavailableError("沙箱提供方没有维持本次请求的限制模式。");
   if (result.enforcement !== (policy.mode === "danger-full-access" ? "none" : "full")) {
     throw new SandboxUnavailableError("沙箱提供方无法完整执行本次请求的隔离边界。");
+  }
+  if (JSON.stringify(result.networkPolicy) !== JSON.stringify(policy.networkPolicy)) {
+    throw new SandboxUnavailableError("沙箱提供方没有维持本次请求的网络访问策略。");
+  }
+  if (result.networkEnforcement !== (policy.networkPolicy.mode === "unrestricted" ? "none" : "full")) {
+    throw new SandboxUnavailableError("沙箱提供方无法证明本次网络访问边界。");
   }
   if (policy.mode !== "danger-full-access"
     && (!result.verificationToken || !/^[0-9a-f-]{36}$/iu.test(result.verificationToken) || typeof result.requestStop !== "function")) {

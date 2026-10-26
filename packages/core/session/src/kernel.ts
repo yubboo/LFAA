@@ -147,7 +147,7 @@ export interface SessionEventDataMap {
   "tool/call": { runId: string; callId: string; name: string; arguments: string; dispatched: boolean; headerSeq?: number };
   "tool/result": { runId: string; callId: string; content: string; isError: boolean; executionState: "complete" | "failed" | "unconfirmed" | "not_started"; repaired?: boolean };
   "activity/change": { runId: string; messageId: string; activity: unknown[] };
-  "usage/record": { runId: string; providerId: string; modelId: string; promptTokens: number | null; completionTokens: number | null; cacheReadTokens?: number | null; purpose?: "turn" | "memory"; requestCount?: number; cacheReadReportedRequestCount?: number; cacheReadReportedTokens?: number };
+  "usage/record": { runId: string; providerId: string; modelId: string; promptTokens: number | null; completionTokens: number | null; cacheReadTokens?: number | null; purpose?: "turn" | "memory" | "subagent"; requestCount?: number; cacheReadReportedRequestCount?: number; cacheReadReportedTokens?: number };
   "session/end-seed": { sourceSessionId: string; sourceSeq: number; inheritedEventCount?: number };
 }
 
@@ -312,7 +312,7 @@ function validatePayload(event: SessionEvent): void {
         && (data.requestCount === undefined || Number.isSafeInteger(data.requestCount) && Number(data.requestCount) > 0)
         && (data.cacheReadReportedRequestCount === undefined || Number.isSafeInteger(data.cacheReadReportedRequestCount) && Number(data.cacheReadReportedRequestCount) >= 0 && Number(data.cacheReadReportedRequestCount) <= Number(data.requestCount ?? 1))
         && (data.cacheReadReportedTokens === undefined || Number.isSafeInteger(data.cacheReadReportedTokens) && Number(data.cacheReadReportedTokens) >= 0)
-        && (data.purpose === undefined || data.purpose === "turn" || data.purpose === "memory");
+        && (data.purpose === undefined || data.purpose === "turn" || data.purpose === "memory" || data.purpose === "subagent");
       case "session/branch-memory": return string(data.sourceSessionId) && Number.isSafeInteger(data.sourceSeq) && Number(data.sourceSeq) >= 0
         && string(data.sourceEventId) && string(data.summary) && data.summary.length > 0 && data.summary.length <= 16000 && data.version === 1;
       case "session/portable-context": return string(data.summary) && data.summary.length > 0 && data.summary.length <= 16000 && data.version === 1;

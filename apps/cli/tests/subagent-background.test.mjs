@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 const testRoot = fileURLToPath(new URL("../../../dist/.tmp/", import.meta.url));
 mkdirSync(testRoot, { recursive: true });
 const testData = mkdtempSync(join(testRoot, "lfaa-subagent-background-"));
-process.env.LFAA_DATA_DIR = testData; process.env.NODE_ENV = "test"; process.env.JWT_SECRET = ""; process.env.LFAA_HARNESS_HOME = "";
+process.env.LFAA_DATA_DIR = join(testData, "data"); process.env.LFAA_HOME = join(testData, "home"); process.env.NODE_ENV = "test"; process.env.JWT_SECRET = ""; process.env.LFAA_HARNESS_HOME = "";
 process.env.LFAA_LOCAL_MODE = "true";
 const reservation = createServer(); reservation.listen(0, "127.0.0.1"); await once(reservation, "listening");
 process.env.SERVER_HOST = "127.0.0.1"; process.env.SERVER_PORT = String(reservation.address().port);

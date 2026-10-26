@@ -1832,13 +1832,22 @@ export function CanvasWorkspace({ applicationId, initialProjectId, settings, app
               ref={chatLaunchButtonRef}
               className="lfaa-cnv-chat-launch"
               type="default"
-              icon={<MessageOutlined />}
               aria-label="与 AI 对话"
               aria-expanded={false}
               aria-controls="canvas-chat-panel"
               data-testid="canvas-chat-launch"
               onClick={openChatPanel}
-            >与 AI 对话</Button>
+            >
+              <span className="lfaa-cnv-chat-launch__craft" aria-hidden="true">
+                <MessageOutlined />
+                <span className="lfaa-cnv-chat-launch__label">与 AI 对话</span>
+              </span>
+              <span className="lfaa-cnv-chat-launch__effects" aria-hidden="true">
+                <span className="lfaa-cnv-chat-launch__smoke" />
+                <span className="lfaa-cnv-chat-launch__jet lfaa-cnv-chat-launch__jet--left" />
+                <span className="lfaa-cnv-chat-launch__jet lfaa-cnv-chat-launch__jet--right" />
+              </span>
+            </Button>
           ) : null}
         />
 

@@ -94,7 +94,13 @@ export class WindowsAclSandboxProvider implements SandboxProvider {
       throw new SandboxUnavailableError("Windows Agent 沙箱收到无效 argv。");
     }
     if (policy.mode === "danger-full-access") {
-      return { argv: [...argv], effectiveMode: policy.mode, enforcement: "none", providerId: WINDOWS_APP_CONTAINER_PROVIDER_ID };
+      if (policy.networkPolicy.mode !== "unrestricted") {
+        throw new SandboxUnavailableError("Windows 直接执行不会强制网络隔离；已拒绝无网络或域名 allowlist 请求。");
+      }
+      return { argv: [...argv], effectiveMode: policy.mode, enforcement: "none", networkPolicy: policy.networkPolicy, networkEnforcement: "none", providerId: WINDOWS_APP_CONTAINER_PROVIDER_ID };
+    }
+    if (policy.networkPolicy.mode !== "none") {
+      throw new SandboxUnavailableError("Windows AppContainer Provider 当前只支持无网络策略；已拒绝网络 allowlist 或开放网络请求。");
     }
     if (process.platform !== "win32" || process.arch !== "x64" || policy.platform !== "win32"
       || (policy.target.kind !== "local" && (policy.target.kind !== "node" || !policy.target.nodeId))) {
@@ -129,6 +135,8 @@ export class WindowsAclSandboxProvider implements SandboxProvider {
       argv: hostArgv,
       effectiveMode: policy.mode,
       enforcement: "full",
+      networkPolicy: policy.networkPolicy,
+      networkEnforcement: "full",
       providerId: WINDOWS_APP_CONTAINER_PROVIDER_ID,
       verificationToken: token,
       requestStop: requestStopFor(cancelFile)

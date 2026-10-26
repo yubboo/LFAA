@@ -29,8 +29,13 @@ export class SubagentManager {
   }
 
   /** 列出当前可用驱动名与显示名。 */
-  listDrivers(): Array<{ name: string; displayName: string }> {
-    return [...this.drivers.values()].map(driver => ({ name: driver.name, displayName: driver.displayName }));
+  listDrivers(): Array<{ name: string; displayName: string; available: boolean; unavailableReason?: string }> {
+    return [...this.drivers.values()].map(driver => ({
+      name: driver.name,
+      displayName: driver.displayName,
+      available: driver.available !== false,
+      ...(driver.available === false ? { unavailableReason: driver.unavailableReason ?? "驱动执行合同尚未接入。" } : {})
+    }));
   }
 
   /** 列出某账户的活动（及近期）子任务，最新在前。 */
@@ -63,6 +68,7 @@ export class SubagentManager {
   start(task: SubagentTask, ctx: SubagentDriverContext): SubagentRunHandle {
     const driver = this.drivers.get(task.driver);
     if (!driver) throw new Error(`子代理驱动 "${task.driver}" 未登记；可用：${[...this.drivers.keys()].join("、") || "无"}。`);
+    if (driver.available === false) throw new Error(driver.unavailableReason ?? `子代理驱动 "${task.driver}" 当前不可运行。`);
     // 淘汰终态记录，避免长期使用后永久耗尽 64 个槽；活动任务不淘汰。
     for (const [id, run] of this.runs) {
       if (this.runs.size < MAX_TRACKED_RUNS) break;

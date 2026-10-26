@@ -1391,6 +1391,24 @@ mod windows_host {
         access: u32,
         inheritance: u32,
     ) -> Result<(), String> {
+        grant_access_with_propagation(path, sid, access, inheritance, true)
+    }
+
+    fn grant_access_non_propagating(
+        path: &Path,
+        sid: windows_sys::Win32::Security::PSID,
+        access: u32,
+    ) -> Result<(), String> {
+        grant_access_with_propagation(path, sid, access, 0, false)
+    }
+
+    fn grant_access_with_propagation(
+        path: &Path,
+        sid: windows_sys::Win32::Security::PSID,
+        access: u32,
+        inheritance: u32,
+        propagate: bool,
+    ) -> Result<(), String> {
         let path_wide = wide_os(path.as_os_str());
         let mut old_dacl = null_mut();
         let mut descriptor = null_mut();
@@ -1429,24 +1447,72 @@ mod windows_host {
         if acl_result != ERROR_SUCCESS {
             return Err("无法创建沙盒目标目录 ACL。".to_owned());
         }
-        let apply_result = unsafe {
-            SetNamedSecurityInfoW(
-                path_wide.as_ptr(),
-                SE_FILE_OBJECT,
+        if propagate {
+            let apply_result = unsafe {
+                SetNamedSecurityInfoW(
+                    path_wide.as_ptr(),
+                    SE_FILE_OBJECT,
+                    DACL_SECURITY_INFORMATION,
+                    null_mut(),
+                    null_mut(),
+                    new_dacl,
+                    null_mut(),
+                )
+            };
+            if apply_result != ERROR_SUCCESS {
+                return Err("无法应用沙盒目标目录 ACL。".to_owned());
+            }
+        } else {
+            set_file_dacl_without_propagation(path_wide.as_ptr(), new_dacl)?;
+        }
+        Ok(())
+    }
+
+    fn set_file_dacl_without_propagation(
+        path: *const u16,
+        dacl: *mut windows_sys::Win32::Security::ACL,
+    ) -> Result<(), String> {
+        let mut descriptor =
+            unsafe { std::mem::zeroed::<windows_sys::Win32::Security::SECURITY_DESCRIPTOR>() };
+        let descriptor_ptr: *mut c_void =
+            (&mut descriptor as *mut windows_sys::Win32::Security::SECURITY_DESCRIPTOR).cast();
+        if unsafe { windows_sys::Win32::Security::InitializeSecurityDescriptor(descriptor_ptr, 1) }
+            == 0
+            || unsafe {
+                windows_sys::Win32::Security::SetSecurityDescriptorDacl(descriptor_ptr, 1, dacl, 0)
+            } == 0
+        {
+            return Err("无法准备非传播沙盒目录 ACL。".to_owned());
+        }
+        if unsafe {
+            windows_sys::Win32::Security::SetFileSecurityW(
+                path,
                 DACL_SECURITY_INFORMATION,
-                null_mut(),
-                null_mut(),
-                new_dacl,
-                null_mut(),
+                descriptor_ptr,
             )
-        };
-        if apply_result != ERROR_SUCCESS {
-            return Err("无法应用沙盒目标目录 ACL。".to_owned());
+        } == 0
+        {
+            return Err("无法应用非传播沙盒目录 ACL。".to_owned());
         }
         Ok(())
     }
 
     fn revoke_access(path: &Path, sid: windows_sys::Win32::Security::PSID) -> Result<(), String> {
+        revoke_access_with_propagation(path, sid, true)
+    }
+
+    fn revoke_access_non_propagating(
+        path: &Path,
+        sid: windows_sys::Win32::Security::PSID,
+    ) -> Result<(), String> {
+        revoke_access_with_propagation(path, sid, false)
+    }
+
+    fn revoke_access_with_propagation(
+        path: &Path,
+        sid: windows_sys::Win32::Security::PSID,
+        propagate: bool,
+    ) -> Result<(), String> {
         let path_wide = wide_os(path.as_os_str());
         let mut old_dacl = null_mut();
         let mut descriptor = null_mut();
@@ -1485,19 +1551,24 @@ mod windows_host {
         if acl_result != ERROR_SUCCESS || new_dacl.is_null() {
             return Err("无法安全移除旧 Java 目录的沙盒 ACL。".to_owned());
         }
-        let apply_result = unsafe {
-            SetNamedSecurityInfoW(
-                path_wide.as_ptr(),
-                SE_FILE_OBJECT,
-                DACL_SECURITY_INFORMATION,
-                null_mut(),
-                null_mut(),
-                new_dacl,
-                null_mut(),
-            )
-        };
-        if apply_result != ERROR_SUCCESS {
-            return Err("无法移除旧 Java 目录的沙盒 ACL。".to_owned());
+        if propagate {
+            let apply_result = unsafe {
+                SetNamedSecurityInfoW(
+                    path_wide.as_ptr(),
+                    SE_FILE_OBJECT,
+                    DACL_SECURITY_INFORMATION,
+                    null_mut(),
+                    null_mut(),
+                    new_dacl,
+                    null_mut(),
+                )
+            };
+            if apply_result != ERROR_SUCCESS {
+                return Err("无法移除旧 Java 目录的沙盒 ACL。".to_owned());
+            }
+        } else {
+            set_file_dacl_without_propagation(path_wide.as_ptr(), new_dacl)
+                .map_err(|_| "无法移除非传播沙盒目录 ACL。".to_owned())?;
         }
         Ok(())
     }

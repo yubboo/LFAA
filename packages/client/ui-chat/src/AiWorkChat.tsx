@@ -17,6 +17,19 @@ import { notifyAiWorkAction, notifyAiWorkCompletion, type AiWorkGoalRequest, typ
 
 // 本次请求携带的附件：只用于当前进程把图片显示在用户气泡里（字节仍不写入会话历史）。
 const messageAttachmentRefs = new Map<string, Array<{ id: string; name: string }>>();
+const MAX_SUBAGENT_STREAM_PREVIEW_CHARS = 4096;
+const MAX_SUBAGENT_STREAM_PREVIEWS = 8;
+function appendSubagentStreamPreview(current: Record<string, string>, key: string, delta: string): Record<string, string> {
+  const next = { ...current, [key]: `${current[key] ?? ""}${delta}`.slice(-MAX_SUBAGENT_STREAM_PREVIEW_CHARS) };
+  const keys = Object.keys(next);
+  while (keys.length > MAX_SUBAGENT_STREAM_PREVIEWS) delete next[keys.shift()!];
+  return next;
+}
+function clearSubagentStreamPreviews(current: Record<string, string>, messageId: string): Record<string, string> {
+  const prefix = `${messageId}:`;
+  const remaining = Object.entries(current).filter(([key]) => !key.startsWith(prefix));
+  return remaining.length === Object.keys(current).length ? current : Object.fromEntries(remaining);
+}
 import { createScrollRestorationKey, useScrollRestoration } from "lfaa-client-store/src/scroll-restoration.js";
 import { AiLiveActivityDuration, AiWorkResponse } from "./AiWorkResponse.js";
 import { aiActivityClock } from "./activity-clock.js";
@@ -160,6 +173,7 @@ interface AiWorkMessageRowProps {
   feedbackBusy: boolean;
   showContextUsage: boolean;
   expandedActivitySteps: ExpandedActivitySteps | null;
+  subagentStreamPreviews?: Readonly<Record<string, string>>;
   writingProposalLoading: boolean;
   writingProposalBusy: boolean;
   actions: AiWorkMessageActions;
@@ -170,7 +184,7 @@ interface AiWorkMessageRowProps {
   onBrowserToolCompleted?: (providerId: BrowserProviderId) => void;
 }
 
-const AiWorkMessageRow = memo(function AiWorkMessageRow({ message, pairedAssistant, usage, editingMessage, anyMessageEditing, pauseState, copied, conversationBusy, activeRunId, liveMessage, branchBusy, hasQueuedRuns, feedbackBusy, showContextUsage, expandedActivitySteps, writingProposalLoading, writingProposalBusy, actions, setEditingMessage, setMessageActionError, setBranchTargetMessageId, onOpenProjectFileReview, onBrowserToolCompleted }: AiWorkMessageRowProps) {
+const AiWorkMessageRow = memo(function AiWorkMessageRow({ message, pairedAssistant, usage, editingMessage, anyMessageEditing, pauseState, copied, conversationBusy, activeRunId, liveMessage, branchBusy, hasQueuedRuns, feedbackBusy, showContextUsage, expandedActivitySteps, subagentStreamPreviews, writingProposalLoading, writingProposalBusy, actions, setEditingMessage, setMessageActionError, setBranchTargetMessageId, onOpenProjectFileReview, onBrowserToolCompleted }: AiWorkMessageRowProps) {
   const activitySummary = getAiActivitySummary(message);
   const isEditingMessage = editingMessage?.messageId === message.id;
   const canEditMessage = message.role === "user" && pairedAssistant?.role === "assistant" && pairedAssistant.status !== "queued"
@@ -180,6 +194,7 @@ const AiWorkMessageRow = memo(function AiWorkMessageRow({ message, pairedAssista
 
   const renderActivity = (activity: AiActivityItem) => {
     const activityDetail = splitAiActivityDetail(activity.detail);
+    const subagentStreamPreview = subagentStreamPreviews?.[`${message.id}:${activity.id}`];
     const activityExpanded = expandedActivitySteps?.messageId === message.id && expandedActivitySteps.activityIds.has(activity.id);
     const activityDetailId = `ai-work-chat-activity-detail-${message.id}-${activity.id}`;
     const liveActivityDuration = liveMessage && activity.status === "running"
@@ -203,6 +218,7 @@ const AiWorkMessageRow = memo(function AiWorkMessageRow({ message, pairedAssista
         {activity.detail && (activity.kind === "command" || activity.kind === "tool") ? <div className={`ai-work-chat__activity-output-card${activity.kind === "command" ? " ai-work-chat__activity-output-card--command" : ""}`}>
           {activityDetail.summary ? <div className="ai-work-chat__activity-output-summary"><strong>执行摘要</strong><p>{activityDetail.summary}</p></div> : null}
           {activityDetail.preview ? <div className="ai-work-chat__activity-output-preview"><strong>{activityDetail.previewLabel}</strong><pre>{activityDetail.preview}</pre></div> : null}
+          {subagentStreamPreview ? <div className="ai-work-chat__activity-output-preview"><strong>子 Agent 实时文本（临时预览）</strong><pre>{subagentStreamPreview}</pre></div> : null}
         </div> : activity.detail ? <span className="ai-work-chat__activity-detail">{activity.detail}</span> : null}
         {activity.writingProposalId ? <Button className="ai-work-chat__writing-review-trigger" type="link" size="small" disabled={writingProposalLoading || writingProposalBusy} onClick={() => void actions.openWritingProposal(activity.writingProposalId!)}>审阅修改</Button> : null}
       </div> : null}
@@ -460,6 +476,7 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, capabil
   const cachedAccounts = useRef(aiAccountSnapshots.get(userId) ?? null).current;
   const cachedMessages = useRef(activeSessionId ? aiMessageSnapshots.get(aiMessageSnapshotKey(userId, appId, activeSessionId)) ?? null : null).current;
   const [messages, setMessages] = useState<AiMessage[]>(() => cachedMessages ?? []);
+  const [subagentStreamPreviews, setSubagentStreamPreviews] = useState<Record<string, string>>({});
   const [messagesSessionId, setMessagesSessionId] = useState<string | null>(() => cachedMessages ? activeSessionId : null);
   const sessionFileChangesCacheRef = useRef<{ activityLists: AiActivityItem[][]; changes: AiActivityFileChange[] } | null>(null);
   const sessionFileChanges = useMemo(() => {
@@ -1098,6 +1115,7 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, capabil
 
   useEffect(() => {
     setMessages([]);
+    setSubagentStreamPreviews({});
     setMessagesSessionId(activeSessionId);
     setUsageByMessage({});
     setSessionUsageSummary(null);
@@ -1187,6 +1205,7 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, capabil
     if (messagesSessionId !== activeSessionId && !awaitingCreatedSessionSelection) {
       const snapshot = activeSessionId ? aiMessageSnapshots.get(aiMessageSnapshotKey(userId, appId, activeSessionId)) : null;
       setMessages(snapshot ?? []);
+      setSubagentStreamPreviews({});
       setMessagesSessionId(activeSessionId);
       setLoading(Boolean(activeSessionId && !snapshot));
       setMessagesReady(!activeSessionId || Boolean(snapshot));
@@ -1447,6 +1466,10 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, capabil
           }
           if (activity.status === "error") notifySessionIssue("小鱼智能体 步骤未能完成，请打开会话查看活动详情。");
         },
+        onSubagentDelta: ({ messageId, activityId, delta }) => {
+          if (!isCurrentSubscription() || (runMessageId && runMessageId !== messageId)) return;
+          setSubagentStreamPreviews(current => appendSubagentStreamPreview(current, `${messageId}:${activityId}`, delta));
+        },
         onDelta: value => { if (!isCurrentSubscription()) return; spokenContent += value.delta; setMessages(current => current.map(item => item.id === value.messageId ? appendAiTextDelta(item, value) : item)); },
         onPresentation: ({ messageId, parts }) => { if (isCurrentSubscription()) setMessages(current => current.map(item => item.id === messageId ? { ...item, parts } : item)); },
         onUsage: ({ messageId, sessionUsage, ...usage }) => {
@@ -1488,6 +1511,7 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, capabil
           setRunPauseState(current => current?.runId === runMessageId ? null : current);
           const completedMessageId = runMessageId;
           if (completedMessageId) {
+            setSubagentStreamPreviews(current => clearSubagentStreamPreviews(current, completedMessageId));
             setExpandedActivitySteps(current => current?.messageId === completedMessageId ? null : current);
             setMessages((current) => current.map((item) => item.id === completedMessageId ? { ...item, status } : item));
           }
@@ -2420,6 +2444,7 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, capabil
                   feedbackBusy={feedbackBusy}
                   showContextUsage={settings.aiRuntime.showContextUsage}
                   expandedActivitySteps={expandedActivitySteps?.messageId === item.id ? expandedActivitySteps : null}
+                  subagentStreamPreviews={item.id === activeRunRef.current ? subagentStreamPreviews : undefined}
                   writingProposalLoading={writingProposalLoading}
                   writingProposalBusy={writingProposalBusy}
                   actions={messageRowActions}

@@ -15,6 +15,7 @@
     "lfaa-permission-presets": "workspace:*",
     "lfaa-conversation-memory": "workspace:*",
     "lfaa-session": "workspace:*",
+    "lfaa-subagent-claude-code": "workspace:*",
     "lfaa-settings": "workspace:*",
     "lfaa-settings-snapshots": "workspace:*",
     "lfaa-util-values": "workspace:*",

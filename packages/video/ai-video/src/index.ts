@@ -13,7 +13,7 @@ import { credentialReference } from "lfaa-credentials/src/index.js";
 import type { CredentialConsumer } from "lfaa-credentials/src/index.js";
 import { generateProviderImage, type GeneratedImageMimeType, type ImageGenerationProvider, type ProviderReferenceImage } from "lfaa-llm/src/image-generation.js";
 import type { LocalModelRuntimeService } from "lfaa-llm-local-runtime/src/index.js";
-import { cancelArkVideoTask, createArkVideoTask, downloadArkVideo, getArkVideoTask, type ArkVideoTaskStatus } from "lfaa-llm/src/video-generation.js";
+import { cancelArkVideoTask, createArkVideoTask, downloadArkVideo, getArkVideoTask, type ArkVideoProviderId, type ArkVideoTaskStatus } from "lfaa-llm/src/video-generation.js";
 import { getUserSettings, imageDimensions, listAiAccounts } from "lfaa-settings/src/service.js";
 import { getProjectStorageDirectoryCandidates } from "lfaa-settings/src/project-storage.js";
 
@@ -1257,8 +1257,9 @@ async function generateShotImage(userId: string, canvasId: string, shotId: strin
     if (generationMode === "local" && !localModelId) throw new Error("请先在设置中心选择已登记的本机生图模型。");
     if (generationMode === "provider" && (!accountId || !modelId)) throw new Error("请先在设置中心选择 AI 漫剧图片模型账户和模型 ID。");
     if (generationMode === "provider" && !account?.hasSecret) throw new Error("设置中心找不到所选图片模型账户或其密钥已删除。");
-    if (generationMode === "provider" && account?.providerId !== "openai" && account?.providerId !== "doubao") throw new Error("AI 漫剧图片生成只支持 OpenAI 和豆包/火山方舟账户。");
-    if (generationMode === "provider" && !account?.models.some(item => item.id === modelId)) throw new Error("所选图片模型不在当前账户保存的模型目录中，请重新选择。");
+    if (generationMode === "provider" && account?.providerId !== "openai" && account?.providerId !== "doubao" && account?.providerId !== "ark-agent-plan") throw new Error("AI 漫剧图片生成只支持 OpenAI、豆包/火山方舟或 Agent Plan 图片账户。");
+    const selectedImageModel = account?.models.find(item => item.id === modelId);
+    if (generationMode === "provider" && (!selectedImageModel || account?.providerId === "ark-agent-plan" && selectedImageModel.taskType !== "image-generation")) throw new Error("所选图片模型不在当前账户图片能力目录中，请重新选择。");
     const previousImageBytes = shot.imageAssetId && shot.imageMimeType
       ? lstatSync(imageAssetPath(root, id, shot.imageAssetId, shot.imageMimeType)).size : 0;
       referencedAssetBytes(root, records);
@@ -1391,8 +1392,10 @@ async function startShotVideo(userId: string, canvasId: string, shotId: string, 
     const modelId = generationMode === "provider" ? settings.videoGenerationModelId : settings.videoGenerationLocalModelId;
     if (!modelId || generationMode === "provider" && !accountId) throw new Error(generationMode === "local" ? "请先在设置中心选择已登记的本机视频模型。" : "请先在设置中心选择火山方舟视频账户和模型。");
     const account = generationMode === "provider" ? listAiAccounts(userId).find(item => item.id === accountId) : undefined;
-    if (generationMode === "provider" && (!account?.hasSecret || account.providerId !== "doubao")) throw new Error("设置中心找不到所选火山方舟账户或密钥已删除。");
-    if (generationMode === "provider" && !account?.models.some(item => item.id === modelId)) throw new Error("视频模型不在当前账户保存的模型目录中，请重新选择。");
+    if (generationMode === "provider" && (!account?.hasSecret || account.providerId !== "doubao" && account.providerId !== "ark-agent-plan")) throw new Error("设置中心找不到所选火山方舟视频账户或密钥已删除。");
+    const selectedVideoModel = account?.models.find(item => item.id === modelId);
+    if (generationMode === "provider" && (!selectedVideoModel || account?.providerId === "ark-agent-plan" && (selectedVideoModel.taskType !== "video-generation"
+      || Boolean(selectedVideoModel.planTiers?.length && account.options.planTier !== "unknown" && account.options.planTier && !selectedVideoModel.planTiers.includes(account.options.planTier as NonNullable<typeof selectedVideoModel.planTiers>[number]))))) throw new Error("视频模型不属于当前 Agent Plan 档位的可用视频目录，请重新选择套餐档位或模型。");
     if (generationMode === "local" && (settings.videoGenerationDurationSeconds < 5 || settings.videoGenerationDurationSeconds > 15)) throw new Error("当前本机 MiniMax-H3 适配只接受 5 至 15 秒视频；请在设置中心调整时长或切换远程 Provider。");
     const characters = shot.characterIds.map(referenceId => current.characters.find(reference => reference.id === referenceId)).filter((reference): reference is AiVideoReference => Boolean(reference));
     const location = shot.locationId ? current.locations.find(reference => reference.id === shot.locationId) : undefined;
@@ -1435,7 +1438,7 @@ async function startShotVideo(userId: string, canvasId: string, shotId: string, 
     };
     return generationMode === "local"
       ? { ...targetData, mode: "local" as const, ratio: settings.videoGenerationRatio === "adaptive" ? current.whiteModel.ratio : settings.videoGenerationRatio, unloadAfterMs: settings.videoGenerationUnloadAfterMinutes * 60_000 }
-      : { ...targetData, mode: "provider" as const, apiKey: apiKey!, ratio: settings.videoGenerationRatio, resolution: settings.videoGenerationResolution, generateAudio: settings.videoGenerationGenerateAudio, watermark: settings.videoGenerationWatermark };
+      : { ...targetData, mode: "provider" as const, apiKey: apiKey!, providerId: account!.providerId as ArkVideoProviderId, ratio: settings.videoGenerationRatio, resolution: settings.videoGenerationResolution, generateAudio: settings.videoGenerationGenerateAudio, watermark: settings.videoGenerationWatermark };
   });
   if (!target) return null;
   if (target.mode === "local") {
@@ -1475,6 +1478,7 @@ async function startShotVideo(userId: string, canvasId: string, shotId: string, 
   }
   try {
     const providerTask = await createArkVideoTask({
+      providerId: target.providerId,
       modelId: target.task.modelId,
       apiKey: target.apiKey,
       prompt: target.prompt,
@@ -1501,12 +1505,14 @@ async function startShotVideo(userId: string, canvasId: string, shotId: string, 
   }
 }
 
-function taskApiKey(userId: string, task: AiVideoTask, credentials: CredentialConsumer): { apiKey: string; timeoutMs: number } {
+function taskApiKey(userId: string, task: AiVideoTask, credentials: CredentialConsumer): { apiKey: string; timeoutMs: number; providerId: ArkVideoProviderId } {
   const account = listAiAccounts(userId).find(item => item.id === task.accountId);
-  if (!account?.hasSecret || account.providerId !== "doubao") throw new Error("视频任务所用的火山方舟账户或密钥已不可用。");
+  if (!account?.hasSecret || account.providerId !== "doubao" && account.providerId !== "ark-agent-plan") throw new Error("视频任务所用的火山方舟账户或密钥已不可用。");
+  const model = account.models.find(item => item.id === task.modelId);
+  if (!model || account.providerId === "ark-agent-plan" && model.taskType !== "video-generation") throw new Error("视频任务模型不在套餐视频能力目录中。");
   const apiKey = credentials.resolve(userId, credentialReference("lfaa-settings", task.accountId));
   if (!apiKey) throw new Error("视频任务所用的火山方舟密钥不可用。");
-  return { apiKey, timeoutMs: getUserSettings(userId).aiRuntime.requestTimeoutSeconds * 1_000 };
+  return { apiKey, timeoutMs: getUserSettings(userId).aiRuntime.requestTimeoutSeconds * 1_000, providerId: account.providerId };
 }
 
 async function refreshShotVideo(userId: string, canvasId: string, shotId: string, credentials: CredentialConsumer, signal?: AbortSignal): Promise<AiVideoCanvas | null> {
@@ -1548,11 +1554,12 @@ async function refreshShotVideo(userId: string, canvasId: string, shotId: string
     }) ?? target.canvas;
   }
   if (!("apiKey" in target) || !target.canRefresh || typeof target.timeoutMs !== "number") return target.canvas;
+  if (!("providerId" in target) || !target.providerId) throw new Error("视频任务恢复时未能确定原始方舟套餐接口。" );
   const lease = videoTaskKey(userId, id, targetShotId, target.task.localId);
   if (videoPollLeases.has(lease)) return target.canvas;
   videoPollLeases.add(lease);
   try {
-    const providerTask = await getArkVideoTask({ taskId: target.task.providerTaskId!, apiKey: target.apiKey, timeoutMs: target.timeoutMs, ...(signal ? { signal } : {}) });
+    const providerTask = await getArkVideoTask({ providerId: target.providerId, taskId: target.task.providerTaskId!, apiKey: target.apiKey, timeoutMs: target.timeoutMs, ...(signal ? { signal } : {}) });
     if (providerTask.status === "succeeded") {
       if (!providerTask.videoUrl) return persistVideoTaskState(userId, id, targetShotId, target.task.localId, { status: "succeeded", error: "服务商显示生成完成，但没有返回视频文件地址。请查看服务商任务记录。" });
       try {
@@ -1595,7 +1602,7 @@ async function cancelShotVideo(userId: string, canvasId: string, shotId: string,
     target.localController.abort(new Error("用户取消本机视频生成。"));
     return persistVideoTaskState(userId, id, targetShotId, target.task.localId, { status: "cancelled", error: "" });
   }
-  await cancelArkVideoTask({ taskId: target.task.providerTaskId!, apiKey: target.apiKey, timeoutMs: target.timeoutMs, ...(signal ? { signal } : {}) });
+  await cancelArkVideoTask({ providerId: target.providerId, taskId: target.task.providerTaskId!, apiKey: target.apiKey, timeoutMs: target.timeoutMs, ...(signal ? { signal } : {}) });
   return persistVideoTaskState(userId, id, targetShotId, target.task.localId, { status: "cancelled", error: "" });
 }
 

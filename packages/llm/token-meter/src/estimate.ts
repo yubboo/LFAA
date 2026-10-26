@@ -22,24 +22,39 @@ export function estimateText(text: string): number {
   return Math.ceil(text.length / CHARS_PER_TOKEN);
 }
 
-/**
- * 估算一条 LFAA 消息的 token 数（含角色帧开销）。
- * @param message 模型可见消息，不改写。
- */
 // 图片块的视觉 token 由 Provider 决定；这里给一个保守固定值，避免大图请求完全不进预算。
 const IMAGE_TOKEN_ESTIMATE = 1_200;
 
-export function estimateMessage(message: AiCompletionMessage): number {
+function estimateContextMessage(message: AiCompletionMessage, includeReplay = true): { tokens: number; includesImages: boolean } {
   let characters = 0;
+  let imageCount = 0;
   const content = message.content;
   if (typeof content === "string") {
     characters = content.length;
   } else if (Array.isArray(content)) {
     for (const part of content) {
-      characters += part.type === "text" ? part.text.length : 0;
+      if (part.type === "text") characters += part.text.length;
+      else imageCount += 1;
     }
   }
-  return Math.ceil(characters / CHARS_PER_TOKEN) + ROLE_OVERHEAD;
+  characters += message.role.length;
+  if (Array.isArray(message.tool_calls)) {
+    characters += JSON.stringify(message.tool_calls).length;
+  }
+  if (typeof message.tool_call_id === "string") characters += message.tool_call_id.length;
+  if (includeReplay && message.providerReplay) characters += message.providerReplay.reasoningContent.length;
+  return {
+    tokens: Math.ceil(characters / CHARS_PER_TOKEN) + ROLE_OVERHEAD + imageCount * IMAGE_TOKEN_ESTIMATE,
+    includesImages: imageCount > 0
+  };
+}
+
+/**
+ * 估算一条 LFAA 消息的 token 数（含角色帧、工具往返、图片和续接文本）。
+ * @param message 模型可见消息，不改写。
+ */
+export function estimateMessage(message: AiCompletionMessage): number {
+  return estimateContextMessage(message).tokens;
 }
 
 /**
@@ -56,10 +71,8 @@ export function estimateToolSchemas(tools: readonly AiCompletionTool[] | undefin
  * @param messages 模型可见消息序列。
  * @param tools 工具列表。
  */
-export function estimatePromptTokens(messages: readonly AiCompletionMessage[], tools?: readonly AiCompletionTool[]): number {
-  let total = estimateToolSchemas(tools);
-  for (const message of messages) total += estimateMessage(message);
-  return total;
+export function estimatePromptTokens(messages: readonly AiCompletionMessage[], tools?: readonly AiCompletionTool[], reasoningReplayCharacters?: number): number {
+  return estimateContextBreakdown(messages, tools, reasoningReplayCharacters).estimatedPromptTokens;
 }
 
 export interface ContextBreakdownEstimate {
@@ -70,35 +83,31 @@ export interface ContextBreakdownEstimate {
   includesImages: boolean;
 }
 
-function estimateContextMessage(message: AiCompletionMessage): { tokens: number; includesImages: boolean } {
-  let characters = message.role.length;
-  let includesImages = false;
-  if (typeof message.content === "string") characters += message.content.length;
-  else if (Array.isArray(message.content)) {
-    for (const part of message.content) {
-      if (part.type === "text") characters += part.text.length;
-      else includesImages = true;
-    }
-  }
-  if (Array.isArray(message.tool_calls)) characters += message.tool_calls.reduce((sum, call) => sum + call.function.name.length + call.function.arguments.length, 0);
-  if (typeof message.tool_call_id === "string") characters += message.tool_call_id.length;
-  return { tokens: Math.ceil(characters / CHARS_PER_TOKEN) + ROLE_OVERHEAD + (includesImages ? IMAGE_TOKEN_ESTIMATE : 0), includesImages };
-}
-
 /**
- * Estimate the current request's prompt composition without a model call.
- * Image payload tokens are provider-specific, so the result flags requests
- * containing images and leaves their visual token cost to actual usage.
+ * Estimate the current request's prompt composition without a model call. When provided,
+ * reasoningReplayCharacters replaces raw replay lengths on messages with the LLM Owner's
+ * verified count for the selected account, Provider, and model.
+ * Image payload tokens are provider-specific; use a coarse per-image reserve,
+ * flag the estimate, and replace it with actual Provider usage when available.
  */
-export function estimateContextBreakdown(messages: readonly AiCompletionMessage[], tools?: readonly AiCompletionTool[]): ContextBreakdownEstimate {
+export function estimateContextBreakdown(
+  messages: readonly AiCompletionMessage[],
+  tools?: readonly AiCompletionTool[],
+  reasoningReplayCharacters?: number
+): ContextBreakdownEstimate {
+  const hasExplicitReplayEstimate = typeof reasoningReplayCharacters === "number"
+    && Number.isSafeInteger(reasoningReplayCharacters) && reasoningReplayCharacters >= 0;
   let systemTokens = 0;
   let messageTokens = 0;
   let includesImages = false;
   for (const message of messages) {
-    const estimate = estimateContextMessage(message);
+    const estimate = estimateContextMessage(message, !hasExplicitReplayEstimate);
     if (message.role === "system") systemTokens += estimate.tokens;
     else messageTokens += estimate.tokens;
     includesImages ||= estimate.includesImages;
+  }
+  if (hasExplicitReplayEstimate && reasoningReplayCharacters > 0) {
+    messageTokens += Math.ceil(reasoningReplayCharacters / CHARS_PER_TOKEN);
   }
   const toolsTokens = estimateToolSchemas(tools);
   return { estimatedPromptTokens: systemTokens + toolsTokens + messageTokens, systemTokens, toolsTokens, messageTokens, includesImages };

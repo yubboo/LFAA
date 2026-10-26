@@ -12,7 +12,8 @@ use windows_sys::Win32::Security::Isolation::GetAppContainerFolderPath;
 use windows_sys::Win32::System::Com::CoTaskMemFree;
 
 const JOURNAL_MAGIC_V1: &str = "LFAA-AGENT-SANDBOX-1";
-const JOURNAL_MAGIC: &str = "LFAA-AGENT-SANDBOX-2";
+const JOURNAL_MAGIC_V2: &str = "LFAA-AGENT-SANDBOX-2";
+const JOURNAL_MAGIC: &str = "LFAA-AGENT-SANDBOX-3";
 const AGENT_READY_PREFIX: &str = "\u{1e}LFAA_AGENT_SANDBOX_READY:";
 const AGENT_RESULT_PREFIX: &str = "\u{1e}LFAA_AGENT_SANDBOX_RESULT:";
 const MAX_ACL_PATHS: usize = 100_000;
@@ -40,6 +41,11 @@ struct AclTarget {
     inheritance: u32,
 }
 
+struct AclJournalTarget {
+    path: PathBuf,
+    propagate: bool,
+}
+
 pub(super) fn run(args: impl Iterator<Item = OsString>) -> Result<(), String> {
     let args = parse(args)?;
     let workspace_root = canonical_directory(&args.workspace_root, "工作区")?;
@@ -64,6 +70,7 @@ pub(super) fn run(args: impl Iterator<Item = OsString>) -> Result<(), String> {
 
     reap_stale_journals(&state_root)?;
     let mut targets = HashMap::<String, AclTarget>::new();
+    let mut scanned_paths = 0usize;
     let workspace_access = if args.mode == "read-only" {
         AGENT_READ_ACCESS
     } else {
@@ -72,10 +79,15 @@ pub(super) fn run(args: impl Iterator<Item = OsString>) -> Result<(), String> {
     collect_tree(
         &workspace_root,
         &workspace_root,
-        workspace_access,
-        &mut targets,
         &mut HashSet::new(),
+        &mut scanned_paths,
     )?;
+    record_acl_target(
+        &mut targets,
+        &workspace_root,
+        workspace_access,
+        DIRECTORY_INHERITANCE,
+    );
     collect_path_ancestors_for_traversal(&workspace_root, &mut targets)?;
     let system_root = std::env::var_os("SystemRoot")
         .or_else(|| std::env::var_os("WINDIR"))
@@ -112,20 +124,20 @@ pub(super) fn run(args: impl Iterator<Item = OsString>) -> Result<(), String> {
         if paths_equal_case_insensitive(&root, &volume_root) {
             return Err("沙盒运行时目录不能覆盖整个卷。".to_owned());
         }
-        let volume_key = volume_root.to_string_lossy().to_lowercase();
-        targets.entry(volume_key).or_insert_with(|| AclTarget {
-            path: volume_root,
-            access: APP_CONTAINER_DIRECTORY_TRAVERSE,
-            inheritance: 0,
-        });
+        record_acl_target(
+            &mut targets,
+            &volume_root,
+            APP_CONTAINER_DIRECTORY_TRAVERSE,
+            0,
+        );
         if !path_is_within_case_insensitive(&root, &workspace_root) {
-            collect_tree(
-                &root,
+            collect_tree(&root, &root, &mut HashSet::new(), &mut scanned_paths)?;
+            record_acl_target(
+                &mut targets,
                 &root,
                 AGENT_READ_ACCESS,
-                &mut targets,
-                &mut HashSet::new(),
-            )?;
+                DIRECTORY_INHERITANCE,
+            );
         }
     }
     let targets = targets.into_values().collect::<Vec<_>>();
@@ -159,8 +171,12 @@ pub(super) fn run(args: impl Iterator<Item = OsString>) -> Result<(), String> {
     let mut setup_error = profile_setup.err();
     if setup_error.is_none() {
         for target in &targets {
-            if let Err(error) = grant_access(&target.path, sid.0, target.access, target.inheritance)
-            {
+            let result = if target.inheritance == 0 {
+                grant_access_non_propagating(&target.path, sid.0, target.access)
+            } else {
+                grant_access(&target.path, sid.0, target.access, target.inheritance)
+            };
+            if let Err(error) = result {
                 setup_error = Some(error);
                 break;
             }
@@ -324,8 +340,8 @@ fn collect_path_ancestors_for_traversal(
         if targets.len() >= MAX_ACL_PATHS {
             return Err("沙箱目录超过 100000 项权限准备上限。".to_owned());
         }
-        let canonical = fs::canonicalize(ancestor)
-            .map_err(|_| "Agent 工作区父路径无法规范化。".to_owned())?;
+        let canonical =
+            fs::canonicalize(ancestor).map_err(|_| "Agent 工作区父路径无法规范化。".to_owned())?;
         if !paths_equal_case_insensitive(&canonical, ancestor) {
             return Err("Agent 工作区父路径规范化不一致。".to_owned());
         }
@@ -334,12 +350,7 @@ fn collect_path_ancestors_for_traversal(
         if !metadata.is_dir() || is_reparse_point(&metadata) {
             return Err("Agent 工作区父路径不是普通目录。".to_owned());
         }
-        let key = canonical.to_string_lossy().to_lowercase();
-        targets.entry(key).or_insert_with(|| AclTarget {
-            path: canonical,
-            access: APP_CONTAINER_DIRECTORY_TRAVERSE,
-            inheritance: 0,
-        });
+        record_acl_target(targets, &canonical, APP_CONTAINER_DIRECTORY_TRAVERSE, 0);
         if paths_equal_case_insensitive(ancestor, volume_root) {
             reached_volume_root = true;
             break;
@@ -354,13 +365,9 @@ fn collect_path_ancestors_for_traversal(
 fn collect_tree(
     path: &Path,
     allowed_root: &Path,
-    access: u32,
-    targets: &mut HashMap<String, AclTarget>,
     visited: &mut HashSet<String>,
+    scanned_paths: &mut usize,
 ) -> Result<(), String> {
-    if targets.len() >= MAX_ACL_PATHS {
-        return Err("沙箱目录超过 100000 项权限准备上限。".to_owned());
-    }
     let canonical = fs::canonicalize(path).map_err(|_| "沙箱路径无法规范化。".to_owned())?;
     if !path_is_within_case_insensitive(&canonical, allowed_root) {
         return Err("沙箱工作区或运行时链接指向允许目录之外。".to_owned());
@@ -369,17 +376,11 @@ fn collect_tree(
     if !visited.insert(key.clone()) {
         return Ok(());
     }
+    *scanned_paths = scanned_paths.saturating_add(1);
+    if *scanned_paths > MAX_ACL_PATHS {
+        return Err("沙箱目录超过 100000 项权限准备上限。".to_owned());
+    }
     let metadata = fs::symlink_metadata(&canonical).map_err(|_| "沙箱路径无法检查。".to_owned())?;
-    let inheritance = if metadata.is_dir() {
-        DIRECTORY_INHERITANCE
-    } else {
-        0
-    };
-    targets.entry(key).or_insert_with(|| AclTarget {
-        path: canonical.clone(),
-        access,
-        inheritance,
-    });
     if metadata.is_dir() {
         for entry in fs::read_dir(&canonical).map_err(|_| "沙箱目录无法读取。".to_owned())?
         {
@@ -393,9 +394,9 @@ fn collect_tree(
                 if !path_is_within_case_insensitive(&target, allowed_root) {
                     return Err("沙箱目录包含指向允许范围之外的链接。".to_owned());
                 }
-                collect_tree(&target, allowed_root, access, targets, visited)?;
+                collect_tree(&target, allowed_root, visited, scanned_paths)?;
             } else if candidate_meta.is_dir() || candidate_meta.is_file() {
-                collect_tree(&candidate, allowed_root, access, targets, visited)?;
+                collect_tree(&candidate, allowed_root, visited, scanned_paths)?;
             } else {
                 return Err("沙箱目录含不支持的文件对象。".to_owned());
             }
@@ -404,6 +405,20 @@ fn collect_tree(
         return Err("沙箱目录含不支持的文件对象。".to_owned());
     }
     Ok(())
+}
+
+fn record_acl_target(
+    targets: &mut HashMap<String, AclTarget>,
+    path: &Path,
+    access: u32,
+    inheritance: u32,
+) {
+    let key = path.to_string_lossy().to_lowercase();
+    targets.entry(key).or_insert_with(|| AclTarget {
+        path: path.to_path_buf(),
+        access,
+        inheritance,
+    });
 }
 
 fn create_agent_profile(profile_name: &str) -> Result<LocalAllocation, String> {
@@ -443,7 +458,7 @@ fn write_journal(
     let cancel_path = cancel_file
         .to_str()
         .ok_or_else(|| "沙箱取消路径无法安全编码为 UTF-8。".to_owned())?;
-    let target_paths = targets
+    let target_records = targets
         .iter()
         .map(|target| {
             let path_text = target
@@ -453,7 +468,8 @@ fn write_journal(
             if path_text.contains(['\r', '\n']) {
                 return Err("沙箱路径包含不支持的换行符。".to_owned());
             }
-            Ok(path_text)
+            let propagation = if target.inheritance == 0 { "N" } else { "P" };
+            Ok(format!("{propagation}\t{path_text}"))
         })
         .collect::<Result<Vec<_>, String>>()?;
     let mut file = OpenOptions::new()
@@ -468,8 +484,8 @@ fn write_journal(
             "{JOURNAL_MAGIC}\n{profile}\n{app_data_path}\n{cancel_path}"
         )
         .map_err(|_| "无法写入 Agent 沙箱 ACL 回收记录。".to_owned())?;
-        for path_text in target_paths {
-            writeln!(file, "{path_text}")
+        for target_record in target_records {
+            writeln!(file, "{target_record}")
                 .map_err(|_| "无法写入 Agent 沙箱 ACL 回收记录。".to_owned())?;
         }
         file.sync_all()
@@ -487,7 +503,7 @@ fn read_journal(
     file: &mut File,
     state_root: &Path,
     journal_path: &Path,
-) -> Result<(String, Option<PathBuf>, PathBuf, Vec<PathBuf>), String> {
+) -> Result<(String, Option<PathBuf>, PathBuf, Vec<AclJournalTarget>), String> {
     use std::io::Seek;
     file.rewind()
         .map_err(|_| "Agent 沙箱 ACL 回收记录无法定位。".to_owned())?;
@@ -497,9 +513,14 @@ fn read_journal(
     let mut lines = content.lines();
     let version = lines
         .next()
-        .filter(|version| *version == JOURNAL_MAGIC || *version == JOURNAL_MAGIC_V1)
+        .filter(|version| {
+            *version == JOURNAL_MAGIC
+                || *version == JOURNAL_MAGIC_V2
+                || *version == JOURNAL_MAGIC_V1
+        })
         .ok_or_else(|| "Agent 沙箱 ACL 回收记录版本无效。".to_owned())?;
-    let is_v2 = version == JOURNAL_MAGIC;
+    let is_v3 = version == JOURNAL_MAGIC;
+    let is_v2_or_v3 = is_v3 || version == JOURNAL_MAGIC_V2;
     let profile = lines
         .next()
         .filter(|value| value.starts_with("LFAA.Agent.") && is_uuid(&value[11..]))
@@ -511,7 +532,7 @@ fn read_journal(
     {
         return Err("Agent 沙箱 ACL 回收记录名称与 Profile 不匹配。".to_owned());
     }
-    let app_data_root = if is_v2 {
+    let app_data_root = if is_v2_or_v3 {
         let path =
             PathBuf::from(lines.next().ok_or_else(|| {
                 "Agent 沙箱 ACL 回收记录缺少 AppContainer 本地数据路径。".to_owned()
@@ -542,10 +563,32 @@ fn read_journal(
     {
         return Err("Agent 沙箱 ACL 回收记录中的取消路径越界。".to_owned());
     }
-    let targets = lines.map(PathBuf::from).collect::<Vec<_>>();
+    let targets = lines
+        .map(|line| {
+            if is_v3 {
+                let (propagation, path) = line
+                    .split_once('\t')
+                    .ok_or_else(|| "Agent 沙箱 ACL 回收记录目标格式无效。".to_owned())?;
+                let propagate = match propagation {
+                    "P" => true,
+                    "N" => false,
+                    _ => return Err("Agent 沙箱 ACL 回收记录 ACL 模式无效。".to_owned()),
+                };
+                Ok(AclJournalTarget {
+                    path: PathBuf::from(path),
+                    propagate,
+                })
+            } else {
+                Ok(AclJournalTarget {
+                    path: PathBuf::from(line),
+                    propagate: true,
+                })
+            }
+        })
+        .collect::<Result<Vec<_>, String>>()?;
     if targets.is_empty()
         || targets.len() > MAX_ACL_PATHS
-        || targets.iter().any(|target| !target.is_absolute())
+        || targets.iter().any(|target| !target.path.is_absolute())
     {
         return Err("Agent 沙箱 ACL 回收记录中的路径无效。".to_owned());
     }
@@ -585,7 +628,7 @@ fn reap_stale_journals(state_root: &Path) -> Result<(), String> {
             read_journal(&mut file, state_root, &path)?;
         let sid = derive_agent_profile_sid(&profile)?;
         for target in targets.iter().rev() {
-            revoke_agent_access(target, sid.0)?;
+            revoke_agent_access(&target.path, sid.0, target.propagate)?;
         }
         cleanup_profile(&profile, app_data_root.as_deref())?;
         drop(file);
@@ -642,7 +685,7 @@ fn cleanup_run(
 ) -> Result<(), String> {
     let mut errors = Vec::new();
     for target in targets.iter().rev() {
-        if let Err(error) = revoke_agent_access(&target.path, sid) {
+        if let Err(error) = revoke_agent_access(&target.path, sid, target.inheritance != 0) {
             errors.push(error);
         }
     }
@@ -657,7 +700,11 @@ fn cleanup_run(
     remove_journal(journal_path, journal_file, cancel_file)
 }
 
-fn revoke_agent_access(path: &Path, sid: windows_sys::Win32::Security::PSID) -> Result<(), String> {
+fn revoke_agent_access(
+    path: &Path,
+    sid: windows_sys::Win32::Security::PSID,
+    propagate: bool,
+) -> Result<(), String> {
     let path_wide = wide_os(path.as_os_str());
     let mut old_dacl = null_mut();
     let mut descriptor = null_mut();
@@ -705,7 +752,12 @@ fn revoke_agent_access(path: &Path, sid: windows_sys::Win32::Security::PSID) -> 
     if !has_agent_ace {
         return Ok(());
     }
-    revoke_access(path, sid).map_err(|error| format!("Agent 沙箱 ACL 清理失败：{error}"))
+    let result = if propagate {
+        revoke_access(path, sid)
+    } else {
+        revoke_access_non_propagating(path, sid)
+    };
+    result.map_err(|error| format!("Agent 沙箱 ACL 清理失败：{error}"))
 }
 
 struct CoTaskAllocation(*mut c_void);

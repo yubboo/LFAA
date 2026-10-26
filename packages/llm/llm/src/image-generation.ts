@@ -1,6 +1,7 @@
 /** 功能：调用已登记 Provider 的官方图片生成接口。作用：将图像 API 协议和响应边界留在 LLM Owner。 */
+import { ARK_OPENAI_BASE_URL, ARK_PLAN_PROVIDERS } from "lfaa-util-values/src/ark-provider.js";
 
-export type ImageGenerationProvider = "openai" | "doubao";
+export type ImageGenerationProvider = "openai" | "doubao" | "ark-agent-plan";
 export type GeneratedImageMimeType = "image/png" | "image/jpeg" | "image/webp";
 
 export interface GeneratedProviderImage {
@@ -15,7 +16,8 @@ export interface ProviderReferenceImage {
 
 const PROVIDER_IMAGE_ENDPOINTS: Record<ImageGenerationProvider, string> = {
   openai: "https://api.openai.com/v1/images/generations",
-  doubao: "https://ark.cn-beijing.volces.com/api/v3/images/generations"
+  doubao: `${ARK_OPENAI_BASE_URL}/images/generations`,
+  "ark-agent-plan": ARK_PLAN_PROVIDERS.agent.imageGenerationsUrl
 };
 const OPENAI_IMAGE_EDIT_ENDPOINT = "https://api.openai.com/v1/images/edits";
 const MAX_PROVIDER_RESPONSE_BYTES = 24 * 1024 * 1024;
@@ -98,7 +100,7 @@ export async function generateProviderImage(input: {
   input.signal?.addEventListener("abort", abortFromCaller, { once: true });
   try {
     if (input.signal?.aborted) throw new DOMException("Agent 已停止图片生成。", "AbortError");
-    const requestBody = input.providerId === "doubao"
+    const requestBody = input.providerId === "doubao" || input.providerId === "ark-agent-plan"
       ? { model: input.modelId, prompt: input.prompt.trim(), response_format: "b64_json", ...(referenceImages.length ? { image: referenceImages.map(image => `data:${image.mimeType};base64,${image.bytes.toString("base64")}`) } : {}) }
       : { model: input.modelId, prompt: input.prompt.trim(), n: 1 };
     let body: string | FormData;

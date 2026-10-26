@@ -12,6 +12,8 @@
 
 若旧恢复已经记录 `turn/end: interrupted`，但消息投影尚未写回，Session Owner 仍会幂等修正助手状态和未结束的活动卡片，不重复创建工具结果或结束事件。Provider/Agent 运行失败则以 `turn/end: error` 结束；开放工具仍按已派发/未派发分别补为 `unconfirmed`/`not_started`，消息状态保持 `error`。
 
+同一 Session 后续开始新 Run 时，`historyForTurn()` 会从受保护事件日志附加有界恢复检查点，逐项列出最近最多 16 个工具名与执行状态，不包含参数、结果正文或隐藏推理，且总文本限制为 6000 字符。它明确作为历史状态背景，不构成新用户请求、操作授权或重放许可；`unconfirmed` 必须先只读核验，`not_started` 只能按当前目标与权限重新决策，已完成调用应核对状态以避免重复副作用。Session 不自动续跑旧 Run。
+
 消息页同时读取会话累计 Provider 用量和最新模型上下文快照；所有数值来自 `usage/record`、`request/context` 与模型响应事件，响应上下文总量使用 Provider prompt Token，文本/工具分项保留估算标记。缓存请求数及有缓存读取计数的请求数按 Provider/模型持久化；当前账户所有权仍由 Session Owner 校验。
 
 ## 内核能力
@@ -55,4 +57,4 @@ session/associations 为有界、不可变、可重放的引用事件；视图�
 
 构建只写仓库根 dist/packages/core/session/；当前合同见 [开发提示词](../../../docs/development/xiaoyu-agent.zh.md)。构建、合成模型、浏览器与真实模型/节点验收分别报告。
 
-`usage/record` 保存 Provider 实际返回的 `requestCount`、`cacheReadReportedRequestCount`、`cacheReadTokens` 和 `promptTokens`；分组汇总用报告计数表示真实字段覆盖率。旧事件缺少请求数或缓存读数时保留为未知，不推导命中数。普通消息投影只附加当前回答的主回合 usage，不把 `purpose=memory` 的后处理请求混为主回复用量；字段随已验证的 Session JSONL 分页回读，不另建用量表或客户端存储。
+`usage/record` 保存 Provider 实际返回的 `requestCount`、`cacheReadReportedRequestCount`、`cacheReadTokens` 和 `promptTokens`；分组汇总用报告计数表示真实字段覆盖率。旧事件缺少请求数或缓存读数时保留为未知，不推导命中数。普通消息投影只附加当前回答的主回合 usage，不把 `purpose=memory` 后处理请求或 `purpose=subagent` 子 Agent 用量混为主回复用量；子 Agent Provider token 仍计入 Session/账户汇总，费用不从 SDK 估值推导。一次外部结果最多 32 个模型的记录在单一 Session 事务中提交，避免每个模型单独落盘。字段随已验证的 Session JSONL 分页回读，不另建用量表或客户端存储。

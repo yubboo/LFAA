@@ -13,9 +13,10 @@
  * 不负责：真正执行摘要 LLM 调用或写盘；那是 compaction-basic / spill-local 的职责。
  */
 import type { AiCompletionMessage } from "lfaa-llm/src/completion.js";
+import type { AiCompletionTool } from "lfaa-llm/src/completion.js";
+import { estimateContextBreakdown } from "lfaa-token-meter/src/estimate.js";
 import { logger } from "lfaa-telemetry-logger/src/logger.js";
 import {
-  CHARS_PER_TOKEN,
   COMPACTION_PRESSURE_RATIO,
   FALLBACK_CONTEXT_WINDOW_TOKENS,
   SPILL_PRESSURE_RATIO,
@@ -33,6 +34,11 @@ export interface ContextPressure {
   needsCompaction: boolean;
   /** 是否达到触发 spill 的更高比例。 */
   needsSpill: boolean;
+  /** 下游分项估算；图像视觉 token 使用固定保守值并标记 includesImages。 */
+  systemTokens: number;
+  toolsTokens: number;
+  messageTokens: number;
+  includesImages: boolean;
 }
 
 /**
@@ -47,6 +53,8 @@ export interface ContextManagerHooks {
    */
   compact?: (input: {
     messages: AiCompletionMessage[];
+    tools?: AiCompletionTool[];
+    reasoningReplayCharacters?: number;
     contextWindow: number;
     reason: "pressure" | "manual";
     signal?: AbortSignal;
@@ -58,46 +66,32 @@ export interface ContextManagerHooks {
    */
   spill?: (input: {
     messages: AiCompletionMessage[];
+    tools?: AiCompletionTool[];
+    reasoningReplayCharacters?: number;
     contextWindow: number;
     signal?: AbortSignal;
-  }) => Promise<AiCompletionMessage[] | null>;
+  }) => Promise<AiCompletionMessage[] | { messages: AiCompletionMessage[]; tools?: AiCompletionTool[] } | null>;
 }
 
-/** 取一条消息的纯文本长度（含 tool_calls 的参数 JSON），用于启发式估算。 */
-function messageTextLength(message: AiCompletionMessage): number {
-  let length = message.role.length;
-  const content = message.content;
-  if (typeof content === "string") length += content.length;
-  else if (Array.isArray(content)) {
-    for (const part of content) if (part.type === "text") length += part.text.length;
-  }
-  if (Array.isArray(message.tool_calls)) {
-    for (const call of message.tool_calls) {
-      length += call.function.name.length + call.function.arguments.length;
-    }
-  }
-  if (message.tool_call_id) length += message.tool_call_id.length;
-  if (message.providerReplay) length += message.providerReplay.reasoningContent.length;
-  return length;
-}
-
-/**
- * 启发式 token 估算。LFAA 没有 token-meter（占位包），这里用字符数 / CHARS_PER_TOKEN。
- * 中文场景略偏保守，足以驱动“是否该压缩”的二值判断。
- */
-export function estimateMessagesTokens(messages: readonly AiCompletionMessage[]): number {
-  let chars = 0;
-  for (const message of messages) chars += messageTextLength(message);
-  return Math.ceil(chars / CHARS_PER_TOKEN);
+/** 压缩/溢出使用与 Provider 请求观测相同的唯一估算器。 */
+export function estimateMessagesTokens(
+  messages: readonly AiCompletionMessage[],
+  tools?: readonly AiCompletionTool[],
+  reasoningReplayCharacters?: number
+): number {
+  return estimateContextBreakdown(messages, tools, reasoningReplayCharacters).estimatedPromptTokens;
 }
 
 /** 观测当前消息数组的上下文压力。 */
 export function assessContextPressure(
   messages: readonly AiCompletionMessage[],
   contextWindow?: number,
+  tools?: readonly AiCompletionTool[],
+  reasoningReplayCharacters?: number
 ): ContextPressure {
   const window = contextWindow && contextWindow > 0 ? contextWindow : FALLBACK_CONTEXT_WINDOW_TOKENS;
-  const usedTokens = estimateMessagesTokens(messages);
+  const breakdown = estimateContextBreakdown(messages, tools, reasoningReplayCharacters);
+  const usedTokens = breakdown.estimatedPromptTokens;
   const ratio = window > 0 ? usedTokens / window : 0;
   return {
     usedTokens,
@@ -105,6 +99,10 @@ export function assessContextPressure(
     ratio,
     needsCompaction: ratio >= COMPACTION_PRESSURE_RATIO,
     needsSpill: ratio >= SPILL_PRESSURE_RATIO,
+    systemTokens: breakdown.systemTokens,
+    toolsTokens: breakdown.toolsTokens,
+    messageTokens: breakdown.messageTokens,
+    includesImages: breakdown.includesImages,
   };
 }
 
@@ -177,27 +175,38 @@ export function selectCompactionRange(
  */
 export async function manageContextBeforeRequest(input: {
   messages: AiCompletionMessage[];
+  tools?: AiCompletionTool[];
+  reasoningReplayCharacters?: number;
   contextWindow?: number;
   hooks?: ContextManagerHooks;
   signal?: AbortSignal;
-}): Promise<{ messages: AiCompletionMessage[]; pressure: ContextPressure; rewritten: boolean }> {
-  const pressure = assessContextPressure(input.messages, input.contextWindow);
+}): Promise<{ messages: AiCompletionMessage[]; tools?: AiCompletionTool[]; pressure: ContextPressure; rewritten: boolean }> {
+  let pressure = assessContextPressure(input.messages, input.contextWindow, input.tools, input.reasoningReplayCharacters);
   const hooks = input.hooks;
-  if (!hooks) return { messages: input.messages, pressure, rewritten: false };
+  if (!hooks) return { messages: input.messages, ...(input.tools ? { tools: input.tools } : {}), pressure, rewritten: false };
 
   let messages = input.messages;
+  let tools = input.tools;
   let rewritten = false;
 
-  if (input.signal?.aborted) return { messages, pressure, rewritten };
+  if (input.signal?.aborted) return { messages, ...(tools ? { tools } : {}), pressure, rewritten };
 
   if (pressure.needsSpill && hooks.spill) {
     try {
       const spilled = await hooks.spill({
         messages,
+        ...(tools ? { tools } : {}),
+        ...(input.reasoningReplayCharacters !== undefined ? { reasoningReplayCharacters: input.reasoningReplayCharacters } : {}),
         contextWindow: pressure.contextWindow,
         ...(input.signal ? { signal: input.signal } : {})
       });
-      if (spilled && spilled !== messages) { messages = spilled; rewritten = true; }
+      if (Array.isArray(spilled)) {
+        if (spilled !== messages) { messages = spilled; rewritten = true; }
+      } else if (spilled) {
+        if (spilled.messages !== messages) { messages = spilled.messages; rewritten = true; }
+        if (spilled.tools) tools = spilled.tools;
+      }
+      pressure = assessContextPressure(messages, pressure.contextWindow, tools, input.reasoningReplayCharacters);
     } catch (error) {
       // spill 失败不阻断主循环，但必须留下可诊断记录；静默失败会让“未压缩/未溢出”看起来像已生效。
       if (!input.signal?.aborted) logger.warn("Agent 上下文溢出钩子失败；继续主循环", { stage: "spill", errorName: error instanceof Error ? error.name : "UnknownError" });
@@ -208,6 +217,8 @@ export async function manageContextBeforeRequest(input: {
     try {
       const compacted = await hooks.compact({
         messages,
+        ...(tools ? { tools } : {}),
+        ...(input.reasoningReplayCharacters !== undefined ? { reasoningReplayCharacters: input.reasoningReplayCharacters } : {}),
         contextWindow: pressure.contextWindow,
         reason: "pressure",
         ...(input.signal ? { signal: input.signal } : {})
@@ -219,5 +230,5 @@ export async function manageContextBeforeRequest(input: {
     }
   }
 
-  return { messages, pressure, rewritten };
+  return { messages, ...(tools ? { tools } : {}), pressure, rewritten };
 }

@@ -68,21 +68,41 @@ test("进程树 Owner 报告失败时退回停止直接子进程并保留诊断"
 test("SubagentManager 将唯一进程树 Owner 传给外部驱动", async () => {
   const manager = new SubagentManager(async pid => ({ stopped: true, detail: String(pid) }));
   let terminateProcessTree;
+  let workingDirectory;
   manager.registerDriver({
     name: "fixture",
     displayName: "隔离驱动",
     async run(_task, context) {
       terminateProcessTree = context.terminateProcessTree;
+      workingDirectory = context.workingDirectory;
       return { runId: "", stopReason: "completed", answer: "完成" };
     }
   });
   const handle = manager.start(
     { driver: "fixture", description: "验证 Process Owner", prompt: "fixture", appId: "workspace" },
-    { userId: "isolated-user", userRole: "admin", signal: new AbortController().signal, onProgress() {} }
+    { userId: "isolated-user", userRole: "admin", signal: new AbortController().signal, onProgress() {}, workingDirectory: "C:\\fixture\\repo" }
   );
 
   assert.equal((await handle.done).stopReason, "completed");
   assert.equal(typeof terminateProcessTree, "function");
+  assert.equal(workingDirectory, "C:\\fixture\\repo");
   assert.deepEqual(await terminateProcessTree(4172), { stopped: true, detail: "4172" });
+  manager.close();
+});
+
+test("未接入执行合同的驱动在能力目录中标为不可用且 Manager 拒绝派发", () => {
+  const manager = new SubagentManager();
+  manager.registerDriver({
+    name: "fixture-disabled",
+    displayName: "未接入权限桥",
+    available: false,
+    unavailableReason: "缺少 LFAA Permission Owner 授权桥。",
+    async run() { throw new Error("不可运行驱动不得派发"); }
+  });
+  assert.deepEqual(manager.listDrivers(), [{ name: "fixture-disabled", displayName: "未接入权限桥", available: false, unavailableReason: "缺少 LFAA Permission Owner 授权桥。" }]);
+  assert.throws(() => manager.start(
+    { driver: "fixture-disabled", description: "禁用驱动", prompt: "fixture", appId: "workspace" },
+    { userId: "fixture-user", userRole: "user", signal: new AbortController().signal, onProgress() {} }
+  ), /Permission Owner/u);
   manager.close();
 });

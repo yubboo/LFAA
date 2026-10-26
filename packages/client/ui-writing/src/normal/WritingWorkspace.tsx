@@ -7,12 +7,15 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { Button, Input, Modal, Spin, Tooltip } from "antd";
-import { createWritingBook, createWritingChapter, createWritingVolume, deleteWritingBook, deleteWritingChapter, downloadWritingBookDeepWriteZip, getErrorMessage, importWritingBookDeepWriteZip, loadWritingBookOutlineRevisions, loadWritingChapterRevisions, loadWritingWorkspace, renameWritingBook, restoreWritingBookOutlineRevision, restoreWritingChapterRevision, saveWritingBookOutline, saveWritingChapter, selectWritingLocation, type WritingWorkspace as WritingWorkspaceData } from "lfaa-client-connection/src/api.js";
+import { createWritingBook, createWritingChapter, createWritingVolume, deleteWritingBook, deleteWritingChapter, downloadWritingBookDeepWriteZip, getErrorMessage, importWritingBookDeepWriteZip, loadWritingBookOutlineRevisions, loadWritingChapterRevisions, loadWritingWorkspace, renameWritingBook, restoreWritingBookOutlineRevision, restoreWritingChapterRevision, saveSettings, saveWritingBookOutline, saveWritingChapter, selectWritingLocation, type UserSettings, type WritingWorkspace as WritingWorkspaceData } from "lfaa-client-connection/src/api.js";
+import { LightRays } from "lfaa-client-ui-primitives/src/LightRays.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
 import { WritingCatalogPanel } from "./WritingCatalogPanel.js";
 import "./WritingWorkspace.css";
 
 interface WritingWorkspaceProps {
+  settings: UserSettings;
+  onSettingsChange: (settings: UserSettings) => void;
   workspace: WritingWorkspaceData | null;
   loading: boolean;
   loadError: string;
@@ -30,7 +33,7 @@ function wordCount(value: string): number {
   return count;
 }
 
-export function WritingWorkspace({ workspace, loading, loadError, onRetry, libraryPortalTarget, onWorkspaceChange, onRegisterFlush }: WritingWorkspaceProps) {
+export function WritingWorkspace({ settings, onSettingsChange, workspace, loading, loadError, onRetry, libraryPortalTarget, onWorkspaceChange, onRegisterFlush }: WritingWorkspaceProps) {
   const chapter = workspace?.activeChapter ?? null;
   const activeBookId = workspace?.activeBookId ?? null;
   const [isOutlineActive, setIsOutlineActive] = useState(false);
@@ -50,11 +53,16 @@ export function WritingWorkspace({ workspace, loading, loadError, onRetry, libra
   const [revisionLoading, setRevisionLoading] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
   const [exchangeStatus, setExchangeStatus] = useState("");
+  const [lightRaysSaving, setLightRaysSaving] = useState(false);
+  const [lightRaysError, setLightRaysError] = useState("");
   const deepWriteFileInputRef = useRef<HTMLInputElement | null>(null);
   const downloadUrlRef = useRef<string | null>(null);
   const downloadUrlTimerRef = useRef<number | null>(null);
   const workspaceRef = useRef(workspace);
   workspaceRef.current = workspace;
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  const lightRaysSaveRef = useRef(false);
   const synchronizedRef = useRef({ chapterId: chapter?.id ?? null, title: chapter?.title ?? "", content: chapter?.content ?? "" });
   const draftRef = useRef({ chapterId: chapter?.id ?? null, title: chapterTitle, content });
   draftRef.current = { chapterId: chapter?.id ?? null, title: chapterTitle, content };
@@ -70,6 +78,29 @@ export function WritingWorkspace({ workspace, loading, loadError, onRetry, libra
   const outlineSaveTimerRef = useRef<number | null>(null);
   const saveSnapshotRef = useRef<(snapshot: { chapterId: string; title: string; content: string }) => Promise<void>>(async () => undefined);
   const saveOutlineSnapshotRef = useRef<(snapshot: { bookId: string; content: string }) => Promise<void>>(async () => undefined);
+
+  async function toggleWritingLightRays(): Promise<void> {
+    if (lightRaysSaveRef.current) return;
+    lightRaysSaveRef.current = true;
+    setLightRaysSaving(true);
+    setLightRaysError("");
+    const currentSettings = settingsRef.current;
+    const appearance = currentSettings.appearance;
+    try {
+      const result = await saveSettings("appearance", {
+        ...appearance,
+        advanced: { ...appearance.advanced, writingLightRaysEnabled: !appearance.advanced.writingLightRaysEnabled }
+      });
+      const nextSettings: UserSettings = { ...settingsRef.current, appearance: result.settings.appearance };
+      settingsRef.current = nextSettings;
+      onSettingsChange(nextSettings);
+    } catch (settingError: unknown) {
+      if (mountedRef.current) setLightRaysError(`写作光线设置保存失败：${getErrorMessage(settingError)}`);
+    } finally {
+      lightRaysSaveRef.current = false;
+      if (mountedRef.current) setLightRaysSaving(false);
+    }
+  }
 
   useEffect(() => {
     mountedRef.current = true;
@@ -614,26 +645,37 @@ export function WritingWorkspace({ workspace, loading, loadError, onRetry, libra
       <footer><span className={`writing-workspace__save-dot writing-workspace__save-dot--${currentSaveState}`} />{formattedSaveState}</footer>
     </aside>, libraryPortalTarget) : null}
 
-    <div className="writing-workspace__editor">
-      {activeBook && (isOutlineActive || chapter) ? <>
-        <header className="writing-workspace__editor-toolbar">
-          <div className="writing-workspace__breadcrumb"><span title={activeBook.title}>{activeBook.title}</span><WorkbenchIcon name="chevron" size={13} /><span title={isOutlineActive ? "作品大纲" : chapter?.title}>{isOutlineActive ? "作品大纲" : chapter?.title}</span></div>
-          <div className="writing-workspace__toolbar-actions">
+    <div className="writing-workspace__editor" data-light-rays={settings.appearance.advanced.writingLightRaysEnabled ? "true" : "false"}>
+      {settings.appearance.advanced.writingLightRaysEnabled ? <div className="writing-workspace__light-rays-layer" aria-hidden="true">
+        <LightRays raysOrigin="top-center" raysSpeed={0.12} lightSpread={0.42} rayLength={2.8} rayDensity={1} raySharpness={0.25} glow={0.42} haze={0.18} atmosphere={0.35} intensity={0.7} pulsating={false} fadeDistance={1.2} saturation={0.8} followMouse={false} mouseInfluence={0} cursorShadow={false} clickPulse={false} noiseAmount={0} distortion={0} opacity={0.62} maxDevicePixelRatio={1.35} reducedMotion={settings.appearance.advanced.reducedMotion} />
+      </div> : null}
+      <header className="writing-workspace__editor-toolbar">
+        <div className="writing-workspace__breadcrumb">
+          {activeBook ? <><span title={activeBook.title}>{activeBook.title}</span><WorkbenchIcon name="chevron" size={13} /><span title={isOutlineActive ? "作品大纲" : chapter?.title ?? "作品内容"}>{isOutlineActive ? "作品大纲" : chapter?.title ?? "作品内容"}</span></> : <span>{workspace.books.length ? "选择作品" : "写作空间"}</span>}
+        </div>
+        <div className="writing-workspace__toolbar-actions">
+          {activeBook && (isOutlineActive || chapter) ? <>
             <Tooltip title="重命名作品"><button type="button" aria-label="重命名作品" onClick={() => { setBookTitleDraft(activeBook.title); setRenameBookOpen(true); }}><WorkbenchIcon name="new" size={15} /></button></Tooltip>
             <Tooltip title={isOutlineActive ? "大纲修订历史" : "章节修订历史"}><button type="button" aria-label={isOutlineActive ? "查看大纲修订历史" : "查看章节修订历史"} onClick={() => void openRevisions()}><WorkbenchIcon name="history" size={15} /></button></Tooltip>
             {!isOutlineActive && chapter ? <Tooltip title="删除当前章节"><button type="button" aria-label="删除当前章节" onClick={() => void removeChapter()}><WorkbenchIcon name="trash" size={15} /></button></Tooltip> : null}
             <Tooltip title="删除当前作品"><button type="button" aria-label="删除当前作品" onClick={() => void removeBook()}><WorkbenchIcon name="archive" size={15} /></button></Tooltip>
-          </div>
-        </header>
-        <div className="writing-workspace__paper">
-          {isOutlineActive ? <h1 className="writing-workspace__outline-title">作品大纲</h1> : <Input className="writing-workspace__chapter-title" aria-label="章节标题" value={chapterTitle} onChange={(event) => { setChapterTitle(event.target.value); setSaveState("dirty"); }} maxLength={120} placeholder="章节标题" />}
-          <textarea className="writing-workspace__body" aria-label={isOutlineActive ? "作品大纲编辑区" : "正文编辑区"} value={editorContent} onChange={(event) => {
-            if (isOutlineActive) { setOutlineContent(event.target.value); setOutlineSaveState("dirty"); }
-            else { setContent(event.target.value); setSaveState("dirty"); }
-          }} onBlur={() => { void flushSave().catch(() => undefined); }} onKeyDown={handleEditorKeyDown} placeholder={isOutlineActive ? "整理作品大纲" : "请输入正文"} spellCheck />
-          <footer className="writing-workspace__editor-footer"><span>{editorWordCount.toLocaleString("zh-CN")} 字</span><span>Ctrl + S 保存</span></footer>
+          </> : null}
+          <Tooltip title={settings.appearance.advanced.writingLightRaysEnabled ? "关闭写作光线背景" : "开启写作光线背景"}>
+            <button className={`writing-workspace__light-switch${settings.appearance.advanced.writingLightRaysEnabled ? " is-on" : ""}`} type="button" role="switch" aria-label="写作光线背景" aria-checked={settings.appearance.advanced.writingLightRaysEnabled} aria-busy={lightRaysSaving} disabled={lightRaysSaving} onClick={() => void toggleWritingLightRays()}>
+              <WorkbenchIcon name="spark" size={15} /><span>灯光</span>
+            </button>
+          </Tooltip>
         </div>
-      </> : <div className="writing-workspace__empty">
+      </header>
+      {lightRaysError ? <div className="writing-workspace__light-error" role="alert" aria-live="assertive">{lightRaysError}</div> : null}
+      {activeBook && (isOutlineActive || chapter) ? <div className="writing-workspace__paper">
+        {isOutlineActive ? <h1 className="writing-workspace__outline-title">作品大纲</h1> : <Input className="writing-workspace__chapter-title" aria-label="章节标题" value={chapterTitle} onChange={(event) => { setChapterTitle(event.target.value); setSaveState("dirty"); }} maxLength={120} placeholder="章节标题" />}
+        <textarea className="writing-workspace__body" aria-label={isOutlineActive ? "作品大纲编辑区" : "正文编辑区"} value={editorContent} onChange={(event) => {
+          if (isOutlineActive) { setOutlineContent(event.target.value); setOutlineSaveState("dirty"); }
+          else { setContent(event.target.value); setSaveState("dirty"); }
+        }} onBlur={() => { void flushSave().catch(() => undefined); }} onKeyDown={handleEditorKeyDown} placeholder={isOutlineActive ? "整理作品大纲" : "请输入正文"} spellCheck />
+        <footer className="writing-workspace__editor-footer"><span>{editorWordCount.toLocaleString("zh-CN")} 字</span><span>Ctrl + S 保存</span></footer>
+      </div> : <div className="writing-workspace__empty">
         <span className="writing-workspace__empty-mark"><WorkbenchIcon name="book" size={22} /></span>
         <h1>{activeBook ? "当前作品没有章节" : workspace.books.length ? "选择一本作品开始写作" : "从一个故事开始"}</h1>
         <p>{activeBook ? "可以先选择左侧的作品大纲继续整理；新建章节后也可继续写正文。" : workspace.books.length ? "从作品目录中选择作品，继续编辑章节正文。" : "新建作品后，在中央正文区写下第一章。章节会自动保存并保留修订历史。"}</p>

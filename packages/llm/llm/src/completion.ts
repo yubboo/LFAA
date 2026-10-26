@@ -45,6 +45,11 @@ export interface AiCompletionTool {
   };
 }
 
+export interface AiCompletionPreparedRequest {
+  messages?: AiCompletionMessage[];
+  tools?: AiCompletionTool[];
+}
+
 export interface AiCompletionToolCall {
   id: string;
   name: string;
@@ -147,32 +152,70 @@ export interface AiCompletionInput {
   tools?: AiCompletionTool[];
   systemPrompt?: string;
   context?: string;
-  onRequest?: (request: { messages: AiCompletionMessage[]; tools: AiCompletionTool[]; maxTokens?: number; reasoningParameter: string | null; reasoningValue: unknown }) => void;
+  /** LLM 调用的最后一段请求前钩子；接收已组合 system prompt、消息、附件与 schema。 */
+  onPrepareRequest?: ((request: { messages: AiCompletionMessage[]; tools: AiCompletionTool[]; signal: AbortSignal; reasoningReplayCharacters: number }) => Promise<AiCompletionPreparedRequest | void>) | undefined;
+  onRequest?: (request: { messages: AiCompletionMessage[]; tools: AiCompletionTool[]; maxTokens?: number; reasoningParameter: string | null; reasoningValue: unknown; reasoningReplayCharacters: number }) => void;
   onResponse?: (response: AiCompletionResult) => void;
   onDelta: (delta: string) => void;
   onProgress: (progress: "thinking" | "content") => void;
 }
 
+function assertToolCallPairing(messages: readonly AiCompletionMessage[]): void {
+  const pendingCallIds = new Set<string>();
+  for (const message of messages) {
+    if (message.role === "assistant") {
+      for (const call of message.tool_calls ?? []) {
+        const id = call.id;
+        if (!id.trim() || pendingCallIds.has(id)) throw new Error("模型上下文包含缺失或重复的 tool_call_id；请求未发送。");
+        pendingCallIds.add(id);
+      }
+    } else if (message.role === "tool") {
+      const id = message.tool_call_id;
+      if (!id || !pendingCallIds.delete(id)) throw new Error("工具 observation 没有与前序唯一 tool_call_id 对应；请求未发送。");
+    }
+  }
+  if (pendingCallIds.size) throw new Error("模型上下文包含尚无 observation 的 tool_call；请求未发送。");
+}
+
 export async function streamAiCompletion(input: AiCompletionInput): Promise<AiCompletionResult> {
   const maxTokens = resolveAiCompletionMaxTokens(input.settings, input.account);
   const composedSystemPrompt = composeLfaaSystemPrompt(input);
+  let requestMessages: AiCompletionMessage[] = [
+    { role: "system", content: composedSystemPrompt },
+    ...input.messages.map(message => ({ ...message }))
+  ];
+  let requestTools = [...(input.tools ?? [])];
+  const countReasoningReplayCharacters = (messages: readonly AiCompletionMessage[]): number => messages.reduce((total, message) => {
+    const replay = message.providerReplay;
+    return total + (message.role === "assistant" && replay?.accountId === input.account.accountId
+      && replay.providerId === input.account.providerId && replay.modelId === input.account.modelId
+      ? replay.reasoningContent.length : 0);
+  }, 0);
+  const prepared = await input.onPrepareRequest?.({ messages: requestMessages, tools: requestTools, signal: input.signal, reasoningReplayCharacters: countReasoningReplayCharacters(requestMessages) });
+  input.signal.throwIfAborted();
+  if (prepared?.messages) {
+    if (prepared.messages[0]?.role !== "system" || prepared.messages[0]?.content !== composedSystemPrompt) {
+      throw new Error("LLM 请求准备器不得删除或改写首条系统提示。" );
+    }
+    requestMessages = prepared.messages;
+  }
+  if (prepared?.tools) requestTools = prepared.tools;
+  assertToolCallPairing(requestMessages);
+  const reasoningReplayCharacters = countReasoningReplayCharacters(requestMessages);
   // DSH 的 replay 接缝保留原生协议。LFAA 在现有 Owner 内适配，仅回传来源匹配的真实字段。
-  const wireMessages = input.messages.map(({ providerReplay, ...message }) => ({
+  const wireMessages = requestMessages.map(({ providerReplay, ...message }) => ({
     ...message,
     ...(message.role === "assistant" && providerReplay && providerReplay.accountId === input.account.accountId && providerReplay.providerId === input.account.providerId && providerReplay.modelId === input.account.modelId
       ? { reasoning_content: providerReplay.reasoningContent } : {})
   }));
   const requestBody: Record<string, unknown> = {
     model: input.account.modelId,
-    messages: [
-      { role: "system", content: composedSystemPrompt },
-      ...wireMessages
-    ],
+    messages: wireMessages,
     stream: true,
     ...(maxTokens !== undefined ? { [input.account.maxTokensField]: maxTokens } : {})
   };
-  if (input.tools?.length) {
-    requestBody.tools = input.tools;
+  if (requestTools.length) {
+    requestBody.tools = requestTools;
     requestBody.tool_choice = "auto";
   }
   // 只发送所选模型目录确认支持的官方思考参数；默认档位不发字段，留给 Provider 使用其模型默认值。
@@ -190,11 +233,12 @@ export async function streamAiCompletion(input: AiCompletionInput): Promise<AiCo
     : null;
   input.onRequest?.({
     // 请求观察者只接收可持久化的普通请求快照；私有续接数据在成功 response 中单独保存。
-    messages: [{ role: "system", content: composedSystemPrompt }, ...input.messages.map(({ providerReplay: _replay, ...message }) => message)],
-    tools: input.tools ?? [],
+    messages: requestMessages.map(({ providerReplay: _replay, ...message }) => message),
+    tools: requestTools,
     ...(maxTokens !== undefined ? { maxTokens } : {}),
     reasoningParameter,
-    reasoningValue: reasoningParameter ? requestBody[reasoningParameter] ?? null : null
+    reasoningValue: reasoningParameter ? requestBody[reasoningParameter] ?? null : null,
+    reasoningReplayCharacters
   });
 
   let response: Response;
@@ -220,7 +264,7 @@ export async function streamAiCompletion(input: AiCompletionInput): Promise<AiCo
     await response.body?.cancel().catch(() => undefined);
     if (response.status === 401 || response.status === 403) throw new Error("Provider 拒绝了 API Key，请在“AI 与模型”检查密钥和区域。");
     if (response.status === 402) throw new Error("当前模型 Provider 的账户余额或可用额度不足（HTTP 402）。请为该 Provider 充值，或检查套餐/额度后重试。");
-    if (response.status === 400 && input.messages.some(message => Array.isArray(message.content) && message.content.some(part => part.type === "image_url"))) {
+    if (response.status === 400 && requestMessages.some(message => Array.isArray(message.content) && message.content.some(part => part.type === "image_url"))) {
       throw new Error("Provider 拒绝了包含屏幕截图的请求（HTTP 400）；请检查模型的图像输入能力和接口参数后重试。");
     }
     if (response.status === 400) throw new Error("Provider 拒绝了请求参数或对话协议（HTTP 400）。请检查模型参数、思考续接和工具消息配对；此状态不能直接判定为模型不支持工具。");
@@ -338,8 +382,10 @@ export async function streamAiCompletion(input: AiCompletionInput): Promise<AiCo
     throw new AiRecoverableRequestError(`Provider 已结束响应，${detail}`, usage ?? undefined);
   }
 
+  const seenCallIds = new Set<string>();
   const completedCalls = [...toolCalls.entries()].sort(([left], [right]) => left - right).map(([, call]) => {
-    if (!call.id || !call.name) throw new Error("Provider 返回了不完整的工具调用。请切换到兼容 OpenAI 工具调用协议的模型。");
+    if (!call.id.trim() || !call.name.trim() || seenCallIds.has(call.id)) throw new Error("Provider 返回了缺少或重复 ID 的工具调用；本轮没有派发工具。");
+    seenCallIds.add(call.id);
     return call;
   });
   const result: AiCompletionResult = {
@@ -350,7 +396,10 @@ export async function streamAiCompletion(input: AiCompletionInput): Promise<AiCo
   return result;
 }
 
-/** A provider-specific protocol implementation. The generic OpenAI-compatible stream remains the fallback. */
+/**
+ * A provider-specific protocol implementation. The generic OpenAI-compatible stream remains the fallback.
+ * Adapters must run onPrepareRequest against their final model-visible messages/tools before networking and use its returned arrays.
+ */
 export interface AiCompletionAdapter {
   stream(input: AiCompletionInput): Promise<AiCompletionResult>;
 }

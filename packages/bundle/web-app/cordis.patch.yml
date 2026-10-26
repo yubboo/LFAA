@@ -60,7 +60,7 @@
       inject: [lfaaCanvas, lfaaTools]
     - id: api-settings-controller
       name: lfaa-api-settings-controller
-      inject: [apiGateway, lfaaAttachments]
+      inject: [apiGateway, lfaaAttachments, lfaaSubagentClaudeCode]
       required: true
     - id: api-github-connection-controller
       name: lfaa-api-github-connection-controller

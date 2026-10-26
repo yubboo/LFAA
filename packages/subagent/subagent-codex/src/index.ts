@@ -9,6 +9,7 @@ import type { Context } from "@deepseek-ai/cordis";
 import { spawn, type ChildProcess } from "node:child_process";
 import type { SubagentDriver, SubagentDriverContext, SubagentRunResult, SubagentTask } from "lfaa-subagent";
 import { bindExternalChildCancellation } from "lfaa-subagent/src/out-of-process.js";
+import { resolveSubagentWorkingDirectory } from "lfaa-subagent/src/working-directory.js";
 
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_OUTPUT_BYTES = 64 * 1024;
@@ -37,17 +38,22 @@ export function apply(ctx: Context): void {
   const driver: SubagentDriver = {
     name: "codex",
     displayName: "Codex CLI",
+    available: false,
+    unavailableReason: "Codex CLI 尚未接入 LFAA Permission Owner 的逐动作授权桥。",
     async run(task: SubagentTask, driverCtx: SubagentDriverContext): Promise<SubagentRunResult> {
       if (!driverCtx.terminateProcessTree) return { runId: "", stopReason: "error", answer: "", diagnostic: "Codex 缺少进程树 Owner，已拒绝启动。" };
       const timeout = AbortSignal.timeout(DEFAULT_TIMEOUT_MS);
       const signal = AbortSignal.any([driverCtx.signal, timeout]);
       signal.throwIfAborted();
-      driverCtx.onProgress(`启动 Codex CLI：${bin}（无交互模式）。`);
+      let workingDirectory: string;
+      try { workingDirectory = await resolveSubagentWorkingDirectory(driverCtx.workingDirectory); }
+      catch (error) { return { runId: "", stopReason: "error", answer: "", diagnostic: error instanceof Error ? error.message : "Codex 缺少有效的 AgentGit 工作目录，已拒绝启动。" }; }
+      driverCtx.onProgress(`启动 Codex CLI：${bin}（无交互模式）；工作目录：${workingDirectory}。`);
 
       let child: ChildProcess;
       try {
         child = spawn(bin, ["exec", "--skip-git-repo-check", task.prompt], {
-          cwd: process.cwd(),
+          cwd: workingDirectory,
           env: safeEnv(),
           shell: false,
           windowsHide: true,

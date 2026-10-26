@@ -19,12 +19,14 @@ import { atomicWrite, atomicWriteBytes, decode } from "lfaa-storage-json/src/ind
 import { withControlLock } from "lfaa-storage-domain/src/control-lock.js";
 import { validateSettingsInput } from "./validation.js";
 import { APPLICATION_IDS, APPLICATION_NAVIGATION_IDS, type ApplicationId, type ApplicationNavigationId } from "lfaa-util-values/src/application-id.js";
+import { ARK_OPENAI_BASE_URL, ARK_PLAN_CATALOG_REVISION, ARK_PLAN_PROVIDERS, isArkPlanProviderId } from "lfaa-util-values/src/ark-provider.js";
 import { BROWSER_PROVIDER_IDS, type BrowserProviderId } from "lfaa-util-values/src/browser-provider.js";
 import { EXECUTION_SANDBOX_MODES } from "lfaa-util-values/src/sandbox-contract.js";
 import { credentialReference, normalizeCredentialRecord, type CredentialRecord, type CredentialRecordMetadata } from "lfaa-credentials/src/index.js";
 import { defaultReasoningMode, isSelectableReasoningMode, normalizeAccountReasoningMode, normalizeProviderModelThinking, normalizeStoredModelThinking, PROVIDER_MODEL_CAPABILITY_SOURCE, selectableReasoningValues } from "./model-capabilities.js";
 import type { AiModelCatalogEntry, AiModelThinkingControl } from "./model-capabilities.js";
 export type { AiModelCatalogEntry, AiModelThinkingControl } from "./model-capabilities.js";
+import { ARK_PLAN_TIER_OPTIONS, arkPlanTier, isArkPlanChatModel, listArkPlanModels, type ArkPlanProviderId } from "./ark-plan-model-catalog.js";
 
 import { AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN, AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN, CARD_MOTION_EFFECT_IDS, UI_MOTION_EFFECT_IDS, CANVAS_DEFAULT_MODE_IDS, CANVAS_GRID_STYLE_IDS, DEFAULT_USER_SETTINGS, type SettingsCategory, type GeneralSettings, type AppearanceSettings, type AppearanceFonts, type AppearanceAdvancedSettings, type AppearanceBackgroundView, type ShortcutSettings, type UserSettings, type ComputerControlSettings, type BrowserUseSettings, type PersonalizationSettings, type MiniSettings, type AiRuntimeSettings, type MinecraftRuntimeSettings, type GitSettings, type PermissionSettings, type UserCapabilityPrompt, type PluginSettings, type CanvasSettings } from "lfaa-util-values/src/settings-contract.js";
 export type { SettingsCategory, GeneralSettings, AppearanceSettings, AppearanceFonts, AppearanceAdvancedSettings, AppearanceBackgroundView, ShortcutSettings, UserSettings, ComputerControlSettings, BrowserUseSettings, PersonalizationSettings, MiniSettings, AiRuntimeSettings, MinecraftRuntimeSettings, GitSettings, PermissionSettings, UserCapabilityPrompt, PluginSettings, CanvasSettings } from "lfaa-util-values/src/settings-contract.js";
@@ -712,7 +714,9 @@ function readAppearanceSettings(value: Record<string, unknown>): AppearanceSetti
         // 旧账户缺少回复虚化字段时只补开关、强度和延迟默认值；旧 px 值换算为百分比并保留其他外观偏好。
         aiWorkOutputFocusBlurEnabled: typeof advanced.aiWorkOutputFocusBlurEnabled === "boolean" ? advanced.aiWorkOutputFocusBlurEnabled : defaultSettings.appearance.advanced.aiWorkOutputFocusBlurEnabled,
         aiWorkOutputFocusBlurPercent: focusBlurPercent,
-        aiWorkOutputFocusBlurIdleSeconds: focusBlurIdleSeconds
+        aiWorkOutputFocusBlurIdleSeconds: focusBlurIdleSeconds,
+        // 旧账户缺少写作光线偏好时只补共享默认值，不重置已有主题或外观选项。
+        writingLightRaysEnabled: typeof advanced.writingLightRaysEnabled === "boolean" ? advanced.writingLightRaysEnabled : defaultSettings.appearance.advanced.writingLightRaysEnabled
       };
     })()
   };
@@ -787,6 +791,7 @@ function isAppearanceAdvancedSettings(value: unknown): value is AppearanceAdvanc
     && (advanced.aiWorkOutputFocusBlurEnabled === undefined || typeof advanced.aiWorkOutputFocusBlurEnabled === "boolean")
     && (advanced.aiWorkOutputFocusBlurPercent === undefined || Number.isInteger(advanced.aiWorkOutputFocusBlurPercent) && Number(advanced.aiWorkOutputFocusBlurPercent) >= 0 && Number(advanced.aiWorkOutputFocusBlurPercent) <= 100)
     && (advanced.aiWorkOutputFocusBlurIdleSeconds === undefined || Number.isInteger(advanced.aiWorkOutputFocusBlurIdleSeconds) && Number(advanced.aiWorkOutputFocusBlurIdleSeconds) >= 60 && Number(advanced.aiWorkOutputFocusBlurIdleSeconds) <= 3600 && Number(advanced.aiWorkOutputFocusBlurIdleSeconds) % 60 === 0)
+    && (advanced.writingLightRaysEnabled === undefined || typeof advanced.writingLightRaysEnabled === "boolean")
     && (advanced.aiWorkOutputFocusBlurAmount === undefined || Number.isInteger(advanced.aiWorkOutputFocusBlurAmount) && Number(advanced.aiWorkOutputFocusBlurAmount) >= 0 && Number(advanced.aiWorkOutputFocusBlurAmount) <= 24);
 }
 
@@ -815,12 +820,18 @@ export interface AiProviderDefinition {
   description: string;
   options: Array<{ id: string; label: string; choices: Array<{ value: string; label: string }> }>;
   discovery: "api" | "official-list";
+  scope?: "system" | "user";
+  modelInput?: "catalog" | "manual";
+  documentationUrl?: string;
+  secretLabel?: string;
 }
 
 const providers: readonly AiProviderDefinition[] = [
   { id: "openai", name: "OpenAI", description: "OpenAI API 官方模型目录。", options: [], discovery: "api" },
   { id: "deepseek", name: "DeepSeek", description: "DeepSeek 官方 API。", options: [], discovery: "api" },
   { id: "doubao", name: "豆包 / 火山方舟", description: "字节跳动火山方舟（Ark）OpenAI 兼容接口。", options: [], discovery: "api" },
+  { id: ARK_PLAN_PROVIDERS.agent.id, name: "火山方舟 Agent Plan", description: "个人 Agent Plan 席位；按用户隔离，加载官方套餐能力目录，并通过专属地址真实测试文本模型。", options: [{ id: "planTier", label: "套餐档位", choices: ARK_PLAN_TIER_OPTIONS[ARK_PLAN_PROVIDERS.agent.id] }], discovery: "api", scope: "user", modelInput: "manual", documentationUrl: ARK_PLAN_PROVIDERS.agent.documentationUrl, secretLabel: "Agent Plan 专属 API Key" },
+  { id: ARK_PLAN_PROVIDERS.coding.id, name: "火山方舟 Coding Plan", description: "个人 Coding Plan 席位；按用户隔离，加载官方套餐文本与向量模型目录，并通过专属地址真实测试文本模型。", options: [{ id: "planTier", label: "套餐档位", choices: ARK_PLAN_TIER_OPTIONS[ARK_PLAN_PROVIDERS.coding.id] }], discovery: "api", scope: "user", modelInput: "manual", documentationUrl: ARK_PLAN_PROVIDERS.coding.documentationUrl, secretLabel: "Coding Plan 专属 API Key" },
   { id: "qwen", name: "千问 / 百炼", description: "阿里云百炼区域 API。", options: [{ id: "region", label: "区域", choices: [{ value: "cn-beijing", label: "中国（北京）" }, { value: "ap-southeast-1", label: "新加坡" }, { value: "cn-hongkong", label: "中国（香港）" }, { value: "eu-central-1", label: "德国（法兰克福）" }, { value: "ap-northeast-1", label: "日本（东京）" }, { value: "us-east-1", label: "美国（弗吉尼亚）" }] }, { id: "workspaceId", label: "Workspace ID", choices: [] }], discovery: "api" },
   { id: "kimi", name: "Kimi", description: "Moonshot / Kimi 开放平台。", options: [{ id: "region", label: "区域", choices: [{ value: "china", label: "中国" }, { value: "international", label: "国际" }] }], discovery: "api" },
   { id: "zhipu", name: "智谱 GLM", description: "智谱 BigModel API 模型目录。", options: [{ id: "endpoint", label: "接口类型", choices: [{ value: "standard", label: "标准 API" }, { value: "coding", label: "Coding API" }] }], discovery: "api" },
@@ -835,6 +846,7 @@ export interface AiProviderInput {
   providerId: string;
   secret: string;
   options: Record<string, string>;
+  modelId?: string;
 }
 
 export interface AiProviderProbe {
@@ -844,7 +856,7 @@ export interface AiProviderProbe {
 }
 
 export interface ProviderConnection {
-  url: string;
+  url?: string;
   chatUrl: string;
   keyHeader: string;
   keyPrefix?: string;
@@ -869,6 +881,7 @@ export function registerAiProvider(registration: AiProviderRegistration): () => 
   if (!definition || !/^[a-z][a-z0-9-]{0,63}$/u.test(definition.id) || !definition.name?.trim()
     || definition.name.length > 80 || !definition.description || definition.description.length > 500
     || !["api", "official-list"].includes(definition.discovery)
+    || definition.scope !== undefined || definition.modelInput !== undefined || definition.documentationUrl !== undefined || definition.secretLabel !== undefined
     || !Array.isArray(definition.options) || definition.options.length > 16
     || (definition.discovery === "api" && !registration.resolveConnection)
     || (definition.discovery === "official-list" && !registration.discoverModels)
@@ -941,6 +954,15 @@ function normalizeExtensionModels(value: unknown): AiModelCatalogEntry[] {
   return models;
 }
 
+function normalizeArkPlanOptions(providerId: string, options: Record<string, string>): Record<string, string> {
+  if (!isArkPlanProviderId(providerId)) return options;
+  const planId = providerId as ArkPlanProviderId;
+  if (Object.keys(options).some(key => key !== "planTier")) throw new Error("方舟套餐账户只接受官方档位设置。" );
+  const planTier = arkPlanTier(planId, options);
+  if (options.planTier !== undefined && options.planTier !== planTier) throw new Error("方舟套餐档位无效，请从官方档位列表中选择。" );
+  return { planTier };
+}
+
 function normalizeProviderModels(list: unknown[]): AiModelCatalogEntry[] {
   return list.flatMap((item) => {
     const raw = typeof item === "object" && item !== null ? item as Record<string, unknown> : {};
@@ -1007,7 +1029,7 @@ async function addDeepSeekOfficialVersionTags(models: AiModelCatalogEntry[]): Pr
 
 function normalizeSavedModels(providerId: string, value: unknown): AiModelCatalogEntry[] {
   if (!Array.isArray(value)) return [];
-  return value.flatMap((item) => {
+  const savedModels = value.flatMap((item) => {
     if (typeof item !== "object" || item === null) return [];
     const raw = item as Record<string, unknown>;
     const id = typeof raw.id === "string" ? raw.id : "";
@@ -1020,16 +1042,38 @@ function normalizeSavedModels(providerId: string, value: unknown): AiModelCatalo
       ?? positiveInteger(raw.max_completion_tokens);
     const savedThinking = typeof raw.thinking === "object" && raw.thinking !== null ? raw.thinking as Record<string, unknown> : null;
     const capability = normalizeStoredModelThinking(savedThinking, raw.thinkingSource, providerId === "deepseek");
+    const taskType = ["chat", "embedding", "image-generation", "video-generation", "text-to-speech", "speech-to-text"].includes(String(raw.taskType))
+      ? raw.taskType as AiModelCatalogEntry["taskType"] : undefined;
+    const planTiers = Array.isArray(raw.planTiers) ? raw.planTiers.filter((tier): tier is NonNullable<AiModelCatalogEntry["planTiers"]>[number] => ["small", "medium", "large", "max", "lite", "pro"].includes(String(tier))) : undefined;
+    const inputModalities = Array.isArray(raw.inputModalities) ? raw.inputModalities.filter((modality): modality is NonNullable<AiModelCatalogEntry["inputModalities"]>[number] => ["text", "image", "audio", "video"].includes(String(modality))) : undefined;
+    const catalogSource = typeof raw.catalogSource === "string" && raw.catalogSource.length <= 512 ? raw.catalogSource : undefined;
+    const catalogNote = typeof raw.catalogNote === "string" && raw.catalogNote.length <= 240 ? raw.catalogNote : undefined;
     return [{
       id,
       name,
       ...(versionTag ? { versionTag } : {}),
       ...(contextWindow ? { contextWindow } : {}),
       ...(maxOutputTokens ? { maxOutputTokens } : {}),
+      ...(taskType ? { taskType } : {}),
+      ...(planTiers?.length ? { planTiers } : {}),
+      ...(inputModalities?.length ? { inputModalities } : {}),
+      ...(catalogSource ? { catalogSource } : {}),
+      ...(catalogNote ? { catalogNote } : {}),
       thinking: capability.thinking,
       thinkingSource: capability.thinkingSource
     }];
   }).slice(0, 500);
+  if (!isArkPlanProviderId(providerId)) return savedModels;
+  const officialModels = listArkPlanModels(providerId, { planTier: "unknown" });
+  const savedById = new Map(savedModels.map(model => [model.id, model]));
+  const officialIds = new Set(officialModels.map(model => model.id));
+  return [
+    ...officialModels.map(model => {
+      const saved = savedById.get(model.id);
+      return saved ? { ...model, thinking: saved.thinking, thinkingSource: saved.thinkingSource } : model;
+    }),
+    ...savedModels.filter(model => !officialIds.has(model.id)).map(model => ({ ...model, taskType: model.taskType ?? "chat" as const }))
+  ].slice(0, 500);
 }
 
 function resolveProvider(providerId: string, options: Record<string, string>): ProviderConnection {
@@ -1039,6 +1083,7 @@ function resolveProvider(providerId: string, options: Record<string, string>): P
     const connection = extension.resolveConnection(Object.freeze(normalizeExtensionOptions(extension, options)));
     if (!connection || typeof connection !== "object" || !["max_tokens", "max_completion_tokens"].includes(connection.maxTokensField)
       || !/^[A-Za-z0-9-]{1,80}$/u.test(connection.keyHeader)
+      || typeof connection.url !== "string" || !connection.url
       || (connection.keyPrefix !== undefined && (connection.keyPrefix.length > 80 || !/^[\x20-\x7E]*$/u.test(connection.keyPrefix)))) {
       throw new Error("AI Provider 返回了无效连接设置。");
     }
@@ -1055,7 +1100,9 @@ function resolveProvider(providerId: string, options: Record<string, string>): P
     case "openai": return { url: "https://api.openai.com/v1/models", chatUrl: "https://api.openai.com/v1/chat/completions", keyHeader: "Authorization", keyPrefix: "Bearer ", maxTokensField: "max_completion_tokens" };
     case "deepseek": return { url: "https://api.deepseek.com/models", chatUrl: "https://api.deepseek.com/chat/completions", keyHeader: "Authorization", keyPrefix: "Bearer ", maxTokensField: "max_tokens" };
     // 豆包/火山方舟（Ark）：OpenAI 兼容协议，Base = https://ark.cn-beijing.volces.com/api/v3。
-    case "doubao": return { url: "https://ark.cn-beijing.volces.com/api/v3/models", chatUrl: "https://ark.cn-beijing.volces.com/api/v3/chat/completions", keyHeader: "Authorization", keyPrefix: "Bearer ", maxTokensField: "max_tokens" };
+    case "doubao": return { url: `${ARK_OPENAI_BASE_URL}/models`, chatUrl: `${ARK_OPENAI_BASE_URL}/chat/completions`, keyHeader: "Authorization", keyPrefix: "Bearer ", maxTokensField: "max_tokens" };
+    case ARK_PLAN_PROVIDERS.agent.id: return { chatUrl: ARK_PLAN_PROVIDERS.agent.chatCompletionsUrl, keyHeader: "Authorization", keyPrefix: "Bearer ", maxTokensField: "max_tokens" };
+    case ARK_PLAN_PROVIDERS.coding.id: return { chatUrl: ARK_PLAN_PROVIDERS.coding.chatCompletionsUrl, keyHeader: "Authorization", keyPrefix: "Bearer ", maxTokensField: "max_tokens" };
     case "kimi": {
       const base = options.region === "international" ? "https://api.moonshot.ai/v1" : "https://api.moonshot.cn/v1";
       if (options.region && options.region !== "china" && options.region !== "international") throw new Error("Kimi 区域无效。");
@@ -1109,6 +1156,27 @@ export async function probeAiProvider(input: AiProviderInput): Promise<AiProvide
   if (!providers.some((provider) => provider.id === input.providerId) && !extension) throw new Error("AI Provider 不在允许列表中。");
   if (!input.secret.trim() || input.secret.length > 4096) throw new Error("请输入有效的 API Key。");
 
+  if (isArkPlanProviderId(input.providerId)) {
+    const options = normalizeArkPlanOptions(input.providerId, input.options);
+    const models = listArkPlanModels(input.providerId, options);
+    return {
+      status: "unverified",
+      message: `已加载火山方舟官方套餐模型目录（${ARK_PLAN_CATALOG_REVISION}），共 ${models.length} 个模型；套餐专属 API Key 不提供公开模型列表接口。请按当前档位选择文本模型并发起真实请求验证。`,
+      models
+    };
+  }
+
+  const definition = providers.find(provider => provider.id === input.providerId) ?? extension?.definition;
+  if (definition?.modelInput === "manual") {
+    const modelId = input.modelId?.trim() ?? "";
+    if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/u.test(modelId)) throw new Error("请填写有效的方舟套餐 Model Name，并从官方使用配置核对。");
+    return {
+      status: "unverified",
+      message: "套餐模型名已登记；此步骤不调用普通模型目录接口。只有真实模型请求通过后，才可保存到账户。",
+      models: [{ id: modelId, name: modelId, thinking: null, thinkingSource: null }]
+    };
+  }
+
   if (extension?.definition.discovery === "official-list" && extension.discoverModels) {
     const models = normalizeExtensionModels(await extension.discoverModels({
       ...input,
@@ -1119,6 +1187,7 @@ export async function probeAiProvider(input: AiProviderInput): Promise<AiProvide
   }
 
   const connection = resolveProvider(input.providerId, input.options);
+  if (!connection.url) throw new Error("此 Provider 不提供自动模型目录，请按其官方配置填写模型名并发起真实测试。");
   let response: Response;
   try {
     response = await fetch(connection.url, {
@@ -1151,6 +1220,56 @@ export interface AiModelTestResult {
   modelId: string;
   elapsedMs: number;
   sample: string;
+  verificationToken?: string;
+}
+
+type PlanModelVerification = {
+  userId: string;
+  providerId: string;
+  secretHash: string;
+  options: string;
+  modelId: string;
+  reasoningMode: string;
+  expiresAt: number;
+};
+
+const planModelVerifications = new Map<string, PlanModelVerification>();
+
+function stableProviderOptions(options: Record<string, string>): string {
+  return JSON.stringify(Object.fromEntries(Object.entries(options).sort(([left], [right]) => left.localeCompare(right))));
+}
+
+function issuePlanModelVerification(userId: string, input: AiProviderInput & { modelId: string; reasoningMode: string }): string {
+  const now = Date.now();
+  for (const [token, record] of planModelVerifications) if (record.expiresAt <= now) planModelVerifications.delete(token);
+  while (planModelVerifications.size >= 256) {
+    const oldest = planModelVerifications.keys().next().value as string | undefined;
+    if (!oldest) break;
+    planModelVerifications.delete(oldest);
+  }
+  const token = randomBytes(32).toString("base64url");
+  planModelVerifications.set(token, {
+    userId,
+    providerId: input.providerId,
+    secretHash: createHash("sha256").update(input.secret.trim()).digest("hex"),
+    options: stableProviderOptions(input.options),
+    modelId: input.modelId,
+    reasoningMode: input.reasoningMode,
+    expiresAt: now + 5 * 60_000
+  });
+  return token;
+}
+
+function consumePlanModelVerification(userId: string, input: AiProviderInput & { modelId: string; reasoningMode: string; verificationToken?: string }): void {
+  const token = input.verificationToken ?? "";
+  const record = planModelVerifications.get(token);
+  if (token) planModelVerifications.delete(token);
+  const secretHash = createHash("sha256").update(input.secret.trim()).digest("hex");
+  if (!record || record.expiresAt <= Date.now() || record.userId !== userId || record.providerId !== input.providerId
+    || record.secretHash !== secretHash || record.options !== stableProviderOptions(input.options)
+    || record.modelId !== input.modelId || record.reasoningMode !== input.reasoningMode) {
+    throw new Error("套餐账户保存前需要先对当前用户、密钥和 Model Name 完成一次真实模型测试；请重新测试后保存。");
+  }
 }
 
 function applyThinkingParameter(body: Record<string, unknown>, control: AiModelThinkingControl | null, mode: string): void {
@@ -1233,15 +1352,20 @@ async function requestAiProviderModel(input: AiProviderInput & { modelId: string
   return { status: "connected", modelId: input.modelId, elapsedMs: Date.now() - startedAt, sample: sample.slice(0, 240) };
 }
 
-export async function testAiProviderModel(input: AiProviderInput & { modelId: string; reasoningMode: string }): Promise<AiModelTestResult> {
+export async function testAiProviderModel(userId: string, input: AiProviderInput & { modelId: string; reasoningMode: string }): Promise<AiModelTestResult> {
   const catalog = await probeAiProvider(input);
   const model = catalog.models.find((item) => item.id === input.modelId);
   if (!model) throw new Error("所选模型不在 Provider 返回的官方模型目录中，请重新拉取模型列表。");
-  return requestAiProviderModel(input, model);
+  if (isArkPlanProviderId(input.providerId) && !isArkPlanChatModel(model)) throw new Error("当前只能用套餐文本模型作为 LFAA 主模型；图像、视频、语音和向量模型应在对应功能中选择。" );
+  const result = await requestAiProviderModel(input, model);
+  return isArkPlanProviderId(input.providerId)
+    ? { ...result, verificationToken: issuePlanModelVerification(userId, input) }
+    : result;
 }
 
 type AiAccountRow = {
   id: string;
+  user_id: string | null;
   provider_id: string;
   display_name: string;
   options_json: string;
@@ -1250,6 +1374,9 @@ type AiAccountRow = {
   reasoning_mode: string;
   is_active: number;
   created_at: string;
+  secret_ciphertext: string;
+  secret_iv: string;
+  secret_tag: string;
 };
 
 export interface AiAccountView {
@@ -1258,10 +1385,12 @@ export interface AiAccountView {
   displayName: string;
   modelId: string;
   models: AiModelCatalogEntry[];
+  options: Record<string, string>;
   reasoningMode: string;
   active: boolean;
   createdAt: string;
   hasSecret: true;
+  scope: "system" | "user";
 }
 
 /** 可供 LFAA Agent 本轮动态选择的已配置模型；不包含凭据、URL 或账户显示名。 */
@@ -1276,19 +1405,27 @@ export interface AiModelRouteOption {
 function mapAccount(row: AiAccountRow): AiAccountView {
   let rawModels: unknown = [];
   try { rawModels = JSON.parse(row.models_json) as unknown; } catch { /* 损坏的旧目录不会影响已保存账户的基本信息。 */ }
+  let options: Record<string, string> = {};
+  try { options = normalizeArkPlanOptions(row.provider_id, JSON.parse(row.options_json) as Record<string, string>); } catch { /* 旧的无档位账户仍能列出官方全集。 */ }
   const models = normalizeSavedModels(row.provider_id, rawModels);
   const model = models.find((item) => item.id === row.model_id);
-  return { id: row.id, providerId: row.provider_id, displayName: row.display_name, modelId: row.model_id, models, reasoningMode: normalizeAccountReasoningMode(model?.thinking ?? null, row.reasoning_mode), active: row.is_active === 1, createdAt: row.created_at, hasSecret: true };
+  return { id: row.id, providerId: row.provider_id, displayName: row.display_name, modelId: row.model_id, models, options, reasoningMode: normalizeAccountReasoningMode(model?.thinking ?? null, row.reasoning_mode), active: row.is_active === 1, createdAt: row.created_at, hasSecret: true, scope: row.user_id === null ? "system" : "user" };
 }
 
 function migrateSuperAdminAiAccountsToSystem(): void {
   if (configuration.all("ai_accounts", row => row.user_id === null).length > 0) return;
   const superAdmin = database.prepare("SELECT id FROM users WHERE is_super_admin = 1 ORDER BY created_at ASC LIMIT 1").get() as { id: string } | undefined;
   if (!superAdmin) return;
-  if (configuration.all("ai_accounts", row => row.user_id === superAdmin.id).length === 0) return;
-  // 旧账户 ID、模型、选中状态和密文原样迁入 system scope；其他登录用户的个人旧记录不转移。
+  if (configuration.all("ai_accounts", row => {
+    const account = row as AiAccountRow;
+    return account.user_id === superAdmin.id && !isArkPlanProviderId(account.provider_id);
+  }).length === 0) return;
+  // 旧的非套餐模型按原 ID、活动状态和密文迁入 system scope；个人套餐仍按用户归属。
   configuration.transaction(() => {
-    configuration.update("ai_accounts", row => row.user_id === superAdmin.id, { user_id: null });
+    configuration.update("ai_accounts", row => {
+      const account = row as AiAccountRow;
+      return account.user_id === superAdmin.id && !isArkPlanProviderId(account.provider_id);
+    }, { user_id: null });
   });
 }
 
@@ -1297,22 +1434,48 @@ function accountRows(): AiAccountRow[] {
   return configuration.all("ai_accounts", row => row.user_id === null, "created_at") as AiAccountRow[];
 }
 
-export function listAiAccounts(_userId: string): AiAccountView[] {
-  return accountRows().map(mapAccount);
+function accountRowsForUser(userId: string): AiAccountRow[] {
+  return [...accountRows(), ...configuration.all("ai_accounts", row => {
+    const account = row as AiAccountRow;
+    return account.user_id === userId && isArkPlanProviderId(account.provider_id);
+  }, "created_at") as AiAccountRow[]];
+}
+
+export function getAiProviderAccountScope(providerId: string): "system" | "user" | null {
+  const provider = providers.find(candidate => candidate.id === providerId) ?? extensionProviders.get(providerId)?.definition;
+  return provider ? provider.scope ?? "system" : null;
+}
+
+/** 管理 API 按账户所有者解析写入范围；跨用户账户返回 null。 */
+export function getAiAccountManagementScope(userId: string, accountId: string): "system" | "user" | null {
+  const row = configuration.get("ai_accounts", candidate => candidate.id === accountId) as AiAccountRow | undefined;
+  if (!row) return null;
+  if (row.user_id === null) return "system";
+  return row.user_id === userId && isArkPlanProviderId(row.provider_id) ? "user" : null;
+}
+
+export function listAiAccounts(userId: string): AiAccountView[] {
+  return accountRowsForUser(userId).map(mapAccount);
 }
 
 /** 返回当前账户实际配置的模型路由目录；不根据模型名称猜测思考能力。 */
-export function listAiModelRoutes(_userId: string): AiModelRouteOption[] {
+export function listAiModelRoutes(userId: string): AiModelRouteOption[] {
   const routes: AiModelRouteOption[] = [];
-  const rows = accountRows()
+  const rows = accountRowsForUser(userId)
     .sort((left, right) => Number(right.is_active) - Number(left.is_active) || left.created_at.localeCompare(right.created_at))
     .slice(0, 128);
   for (const row of rows) {
     let rawModels: unknown = [];
     try { rawModels = JSON.parse(row.models_json) as unknown; } catch { /* 损坏目录不阻断其余账户的路由项。 */ }
+    const options = JSON.parse(row.options_json) as Record<string, string>;
     const models = normalizeSavedModels(row.provider_id, rawModels)
       .sort((left, right) => Number(right.id === row.model_id) - Number(left.id === row.model_id));
     for (const model of models) {
+      if (!isArkPlanChatModel(model)) continue;
+      if (isArkPlanProviderId(row.provider_id) && model.planTiers?.length) {
+        const selectedTier = arkPlanTier(row.provider_id, options);
+        if (selectedTier !== "unknown" && !model.planTiers.includes(selectedTier)) continue;
+      }
       routes.push({
         accountId: row.id,
         providerId: row.provider_id,
@@ -1336,7 +1499,7 @@ function getEncryptionKey(createIfMissing = true): Buffer {
     return key;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-    if (!createIfMissing) throw new Error("系统模型凭据加密密钥文件缺失；读取时不会自动生成替代密钥。请由管理员在设置中心「AI 与模型」重新录入 Provider API Key。");
+    if (!createIfMissing) throw new Error("模型凭据加密密钥文件缺失；读取时不会自动生成替代密钥。请在设置中心「AI 与模型」为当前模型账户重新录入 Provider API Key。");
     const key = randomBytes(32);
     try { writeFileSync(keyPath, key, { flag: "wx", mode: 0o600 }); }
     catch (writeError) {
@@ -1364,7 +1527,7 @@ function decryptSecret(row: { secret_ciphertext: string; secret_iv: string; secr
     return Buffer.concat([decipher.update(Buffer.from(row.secret_ciphertext, "base64url")), decipher.final()]).toString("utf8");
   } catch (error) {
     if (error instanceof Error && /unable to authenticate data/iu.test(error.message)) {
-      throw new Error("系统保存的 Provider API Key 无法通过本机加密校验。请由管理员在设置中心「AI 与模型」更新这份系统模型配置的 API Key；测试通过后保存，无需改动 LFAA 登录账户。", { cause: error });
+      throw new Error("保存的 Provider API Key 无法通过本机加密校验。请在设置中心「AI 与模型」更新这份模型配置的 API Key；测试通过后保存。", { cause: error });
     }
     throw error;
   }
@@ -1438,8 +1601,12 @@ export interface ActiveAiModelConfiguration {
 export type ActiveAiModelDetails = Omit<ActiveAiModelConfiguration, "secret">;
 
 /** 仅返回活动模型元数据；密钥由独立的凭据引用来源读取。 */
-export function resolveActiveAiModelDetails(_userId: string, accountId?: string): ActiveAiModelDetails | null {
-  const row = accountRows().find(candidate => accountId ? candidate.id === accountId : candidate.is_active === 1) as (AiAccountRow & { secret_ciphertext: string; secret_iv: string; secret_tag: string } | undefined);
+export function resolveActiveAiModelDetails(userId: string, accountId?: string): ActiveAiModelDetails | null {
+  const rows = accountRowsForUser(userId);
+  const row = accountId
+    ? rows.find(candidate => candidate.id === accountId)
+    : rows.find(candidate => candidate.user_id === userId && candidate.is_active === 1)
+      ?? rows.find(candidate => candidate.user_id === null && candidate.is_active === 1);
   if (!row) return null;
   const connection = resolveProvider(row.provider_id, JSON.parse(row.options_json) as Record<string, string>);
   let models: AiModelCatalogEntry[] = [];
@@ -1460,9 +1627,9 @@ export function resolveActiveAiModelDetails(_userId: string, accountId?: string)
   };
 }
 
-/** 所有登录用户共用系统模型配置；密钥只在控制端解密，不按登录账户复制。 */
-export function resolveAiModelAccountCredential(_userId: string, accountId: string): string | null {
-  const row = accountRows().find(candidate => candidate.id === accountId) as ({ secret_ciphertext: string; secret_iv: string; secret_tag: string } | undefined);
+/** 系统账户可供已认证用户读取；套餐账户只有其席位所有者能读取。 */
+export function resolveAiModelAccountCredential(userId: string, accountId: string): string | null {
+  const row = accountRowsForUser(userId).find(candidate => candidate.id === accountId);
   return row ? decryptSecret(row) : null;
 }
 
@@ -1475,8 +1642,8 @@ export function resolveActiveAiModelConfiguration(userId: string, accountId?: st
 }
 
 /** 在不改写用户账户偏好的前提下，核验本次请求所选账户、目录模型与思考档位。 */
-export function resolveAiModelRouteDetails(_userId: string, route: { accountId: string; modelId?: string; reasoningMode?: string }): ActiveAiModelDetails | null {
-  const row = accountRows().find(candidate => candidate.id === route.accountId);
+export function resolveAiModelRouteDetails(userId: string, route: { accountId: string; modelId?: string; reasoningMode?: string }): ActiveAiModelDetails | null {
+  const row = accountRowsForUser(userId).find(candidate => candidate.id === route.accountId);
   if (!row) return null;
   let options: Record<string, string>;
   let models: AiModelCatalogEntry[];
@@ -1488,7 +1655,11 @@ export function resolveAiModelRouteDetails(_userId: string, route: { accountId: 
   }
   const modelId = route.modelId ?? row.model_id;
   const selectedModel = models.find(candidate => candidate.id === modelId);
-  if (!selectedModel) return null;
+  if (!selectedModel || !isArkPlanChatModel(selectedModel)) return null;
+  if (isArkPlanProviderId(row.provider_id) && selectedModel.planTiers?.length) {
+    const selectedTier = arkPlanTier(row.provider_id, options);
+    if (selectedTier !== "unknown" && !selectedModel.planTiers.includes(selectedTier)) return null;
+  }
   const connection = resolveProvider(row.provider_id, options);
   const selectedReasoningMode = route.reasoningMode
     ?? (modelId === row.model_id ? normalizeAccountReasoningMode(selectedModel.thinking, row.reasoning_mode) : "default");
@@ -1508,33 +1679,38 @@ export function resolveAiModelRouteDetails(_userId: string, route: { accountId: 
   };
 }
 
-export async function saveAiAccount(_userId: string, input: AiProviderInput & { displayName: string; modelId: string; reasoningMode: string }): Promise<AiAccountView> {
+export async function saveAiAccount(userId: string, input: AiProviderInput & { displayName: string; modelId: string; reasoningMode: string; verificationToken?: string }): Promise<AiAccountView> {
   migrateSuperAdminAiAccountsToSystem();
+  const scope = getAiProviderAccountScope(input.providerId);
+  if (!scope) throw new Error("AI Provider 不在允许列表中。");
+  const options = normalizeArkPlanOptions(input.providerId, input.options);
   const displayName = input.displayName.trim();
-  if (displayName.length < 1 || displayName.length > 48) throw new Error("系统模型配置名称需要为 1 到 48 个字符。");
-  const probe = await probeAiProvider(input);
+  if (displayName.length < 1 || displayName.length > 48) throw new Error("模型账户名称需要为 1 到 48 个字符。");
+  if (scope === "user") consumePlanModelVerification(userId, input);
+  const probe = await probeAiProvider({ ...input, options });
   const model = probe.models.find((item) => item.id === input.modelId);
-  if (!model) throw new Error("所选模型不在该 Provider 返回的官方模型目录中。");
+  if (!model) throw new Error("所选模型不在 Provider 返回的模型目录中。");
+  if (isArkPlanProviderId(input.providerId) && !isArkPlanChatModel(model)) throw new Error("套餐账户的默认模型必须是文本生成模型。" );
   const reasoningMode = input.reasoningMode === "default" ? defaultReasoningMode(model.thinking) : input.reasoningMode;
   validateReasoningMode(model.thinking, reasoningMode);
   const secret = encryptSecret(input.secret.trim());
   const id = randomUUID();
   try {
-    configuration.insert("ai_accounts", { id: id, user_id: null, provider_id: input.providerId, display_name: displayName, options_json: JSON.stringify(input.options), model_id: input.modelId, models_json: JSON.stringify(probe.models), reasoning_mode: reasoningMode, secret_ciphertext: secret.ciphertext, secret_iv: secret.iv, secret_tag: secret.tag });
+    configuration.insert("ai_accounts", { id, user_id: scope === "user" ? userId : null, provider_id: input.providerId, display_name: displayName, options_json: JSON.stringify(options), model_id: input.modelId, models_json: JSON.stringify(probe.models), reasoning_mode: reasoningMode, secret_ciphertext: secret.ciphertext, secret_iv: secret.iv, secret_tag: secret.tag });
   } catch (error) {
-    if (error instanceof ConfigurationConflict) throw new Error("系统中已有同名模型配置。");
+    if (error instanceof ConfigurationConflict) throw new Error(scope === "user" ? "此账户下已有同名套餐配置。" : "系统中已有同名模型配置。");
     throw error;
   }
-  const row = accountRows().find((account) => account.id === id);
-  if (!row) throw new Error("系统模型配置保存失败，请重试。");
+  const row = accountRowsForUser(userId).find((account) => account.id === id);
+  if (!row) throw new Error("模型账户保存失败，请重试。");
   return mapAccount(row);
 }
 
-export async function refreshAiAccountModelCatalog(_userId: string, accountId: string): Promise<AiProviderProbe> {
-  const row = accountRows().find(candidate => candidate.id === accountId) as (AiAccountRow & { secret_ciphertext: string; secret_iv: string; secret_tag: string } | undefined);
-  if (!row) throw new Error("找不到该系统模型配置。");
-  const result = await probeAiProvider({ providerId: row.provider_id, options: JSON.parse(row.options_json) as Record<string, string>, secret: decryptSecret(row) });
-  configuration.update("ai_accounts", candidate => candidate.user_id === null && candidate.id === accountId, { models_json: JSON.stringify(result.models) });
+export async function refreshAiAccountModelCatalog(userId: string, accountId: string): Promise<AiProviderProbe> {
+  const row = accountRowsForUser(userId).find(candidate => candidate.id === accountId);
+  if (!row) throw new Error("找不到此账户可管理的模型配置。");
+  const result = await probeAiProvider({ providerId: row.provider_id, options: JSON.parse(row.options_json) as Record<string, string>, secret: decryptSecret(row), ...(isArkPlanProviderId(row.provider_id) ? { modelId: row.model_id } : {}) });
+  configuration.update("ai_accounts", candidate => candidate.user_id === row.user_id && candidate.id === accountId, { models_json: JSON.stringify(result.models) });
   const selectedModelAvailable = result.models.some(model => model.id === row.model_id);
   return {
     ...result,
@@ -1544,13 +1720,14 @@ export async function refreshAiAccountModelCatalog(_userId: string, accountId: s
   };
 }
 
-export async function testSavedAiAccountModel(_userId: string, accountId: string): Promise<AiModelTestResult> {
-  const row = accountRows().find(candidate => candidate.id === accountId) as (AiAccountRow & { secret_ciphertext: string; secret_iv: string; secret_tag: string } | undefined);
-  if (!row) throw new Error("找不到该系统模型配置。");
+export async function testSavedAiAccountModel(userId: string, accountId: string): Promise<AiModelTestResult> {
+  const row = accountRowsForUser(userId).find(candidate => candidate.id === accountId);
+  if (!row) throw new Error("找不到此账户可测试的模型配置。");
   let models: AiModelCatalogEntry[] = [];
   try { models = normalizeSavedModels(row.provider_id, JSON.parse(row.models_json) as unknown); } catch { /* 损坏或旧目录不能推断模型能力。 */ }
   const model = models.find(candidate => candidate.id === row.model_id);
   if (!model) throw new Error("当前模型没有有效的目录能力信息，请先更新模型目录并选择可用型号。");
+  if (isArkPlanProviderId(row.provider_id) && !isArkPlanChatModel(model)) throw new Error("只有套餐文本模型可以作为主模型重测。" );
   return requestAiProviderModel({
     providerId: row.provider_id,
     options: JSON.parse(row.options_json) as Record<string, string>,
@@ -1560,47 +1737,48 @@ export async function testSavedAiAccountModel(_userId: string, accountId: string
   }, model);
 }
 
-export async function testAiAccountCredential(_userId: string, accountId: string, secret: string): Promise<AiModelTestResult> {
-  const row = accountRows().find(candidate => candidate.id === accountId);
-  if (!row) throw new Error("找不到该系统模型配置。");
+export async function testAiAccountCredential(userId: string, accountId: string, secret: string): Promise<AiModelTestResult> {
+  const row = accountRowsForUser(userId).find(candidate => candidate.id === accountId);
+  if (!row) throw new Error("找不到此账户可测试的模型配置。");
   const options = JSON.parse(row.options_json) as Record<string, string>;
-  const probe = await probeAiProvider({ providerId: row.provider_id, options, secret: secret.trim() });
+  const probe = await probeAiProvider({ providerId: row.provider_id, options, secret: secret.trim(), ...(isArkPlanProviderId(row.provider_id) ? { modelId: row.model_id } : {}) });
   const model = probe.models.find(candidate => candidate.id === row.model_id);
-  if (!model) throw new Error("新 API Key 不包含系统当前使用的模型；请先配置该 Provider 下的有效模型目录，再测试并保存。");
+  if (!model) throw new Error("新 API Key 不包含当前模型；请先配置该 Provider 下的有效模型目录，再测试并保存。");
   const reasoningMode = isSelectableReasoningMode(model.thinking, row.reasoning_mode) ? row.reasoning_mode : defaultReasoningMode(model.thinking);
   return requestAiProviderModel({ providerId: row.provider_id, options, secret: secret.trim(), modelId: row.model_id, reasoningMode }, model);
 }
 
-export async function updateAiAccountCredential(_userId: string, accountId: string, secretInput: string): Promise<AiAccountView> {
-  const row = accountRows().find(candidate => candidate.id === accountId);
-  if (!row) throw new Error("找不到该系统模型配置。");
+export async function updateAiAccountCredential(userId: string, accountId: string, secretInput: string): Promise<AiAccountView> {
+  const row = accountRowsForUser(userId).find(candidate => candidate.id === accountId);
+  if (!row) throw new Error("找不到此账户可更新的模型配置。");
   const options = JSON.parse(row.options_json) as Record<string, string>;
   const secret = secretInput.trim();
-  const probe = await probeAiProvider({ providerId: row.provider_id, options, secret });
+  const probe = await probeAiProvider({ providerId: row.provider_id, options, secret, ...(isArkPlanProviderId(row.provider_id) ? { modelId: row.model_id } : {}) });
   const model = probe.models.find(candidate => candidate.id === row.model_id);
   if (!model) throw new Error("新 API Key 不包含系统当前使用的模型；当前配置未更改。");
   const reasoningMode = isSelectableReasoningMode(model.thinking, row.reasoning_mode) ? row.reasoning_mode : defaultReasoningMode(model.thinking);
   const encrypted = encryptSecret(secret);
-  configuration.update("ai_accounts", candidate => candidate.user_id === null && candidate.id === accountId, {
+  configuration.update("ai_accounts", candidate => candidate.user_id === row.user_id && candidate.id === accountId, {
     secret_ciphertext: encrypted.ciphertext,
     secret_iv: encrypted.iv,
     secret_tag: encrypted.tag,
     models_json: JSON.stringify(probe.models),
     reasoning_mode: reasoningMode
   });
-  const updated = accountRows().find(candidate => candidate.id === accountId);
-  if (!updated) throw new Error("系统模型凭据保存失败，请重试。");
+  const updated = accountRowsForUser(userId).find(candidate => candidate.id === accountId);
+  if (!updated) throw new Error("模型账户凭据保存失败，请重试。");
   return mapAccount(updated);
 }
 
-export async function updateAiAccountModel(_userId: string, accountId: string, modelId: string): Promise<AiAccountView> {
-  const row = accountRows().find(candidate => candidate.id === accountId) as (AiAccountRow & { secret_ciphertext: string; secret_iv: string; secret_tag: string } | undefined);
-  if (!row) throw new Error("找不到该系统模型配置。");
+export async function updateAiAccountModel(userId: string, accountId: string, modelId: string): Promise<AiAccountView> {
+  const row = accountRowsForUser(userId).find(candidate => candidate.id === accountId);
+  if (!row) throw new Error("找不到此账户可更新的模型配置。");
   const options = JSON.parse(row.options_json) as Record<string, string>;
   const secret = decryptSecret(row);
-  const catalog = await probeAiProvider({ providerId: row.provider_id, options, secret });
+  const catalog = await probeAiProvider({ providerId: row.provider_id, options, secret, ...(isArkPlanProviderId(row.provider_id) ? { modelId } : {}) });
   const selectedModel = catalog.models.find((model) => model.id === modelId);
-  if (!selectedModel) throw new Error("所选模型不在 Provider 当前返回的官方目录中，请重新拉取模型列表。");
+  if (!selectedModel) throw new Error("所选模型不在 Provider 当前返回的目录中，请核对模型名后重试。");
+  if (isArkPlanProviderId(row.provider_id) && !isArkPlanChatModel(selectedModel)) throw new Error("套餐账户的主模型只能选择文本生成模型。" );
   let previousModels: AiModelCatalogEntry[] = [];
   try { previousModels = normalizeSavedModels(row.provider_id, JSON.parse(row.models_json) as unknown); } catch { /* 旧模型目录无法读取时使用新模型的 Provider 默认行为。 */ }
   const previousModel = previousModels.find((model) => model.id === row.model_id);
@@ -1609,7 +1787,7 @@ export async function updateAiAccountModel(_userId: string, accountId: string, m
     ? previousReasoningMode
     : defaultReasoningMode(selectedModel.thinking);
   await requestAiProviderModel({ providerId: row.provider_id, options, secret, modelId, reasoningMode }, selectedModel);
-  configuration.update("ai_accounts", candidate => candidate.user_id === null && candidate.id === accountId, { model_id: modelId, models_json: JSON.stringify(catalog.models), reasoning_mode: reasoningMode });
+  configuration.update("ai_accounts", candidate => candidate.user_id === row.user_id && candidate.id === accountId, { model_id: modelId, models_json: JSON.stringify(catalog.models), reasoning_mode: reasoningMode });
   return mapAccount({ ...row, model_id: modelId, models_json: JSON.stringify(catalog.models), reasoning_mode: reasoningMode });
 }
 
@@ -1621,31 +1799,34 @@ function validateReasoningMode(control: AiModelThinkingControl | null, mode: str
   if (!isReasoningModeValid(control, mode)) throw new Error("所选思考力度不属于当前模型目录返回的支持范围。");
 }
 
-export function updateAiAccountReasoningMode(_userId: string, accountId: string, reasoningMode: string): AiAccountView {
-  const row = accountRows().find(candidate => candidate.id === accountId);
-  if (!row) throw new Error("找不到该系统模型配置。");
+export function updateAiAccountReasoningMode(userId: string, accountId: string, reasoningMode: string): AiAccountView {
+  const row = accountRowsForUser(userId).find(candidate => candidate.id === accountId);
+  if (!row) throw new Error("找不到此账户可更新的模型配置。");
   const model = normalizeSavedModels(row.provider_id, JSON.parse(row.models_json) as unknown).find((item) => item.id === row.model_id);
   validateReasoningMode(model?.thinking ?? null, reasoningMode);
-  configuration.update("ai_accounts", candidate => candidate.user_id === null && candidate.id === accountId, { reasoning_mode: reasoningMode });
+  configuration.update("ai_accounts", candidate => candidate.user_id === row.user_id && candidate.id === accountId, { reasoning_mode: reasoningMode });
   return mapAccount({ ...row, reasoning_mode: reasoningMode });
 }
 
-export function activateAiAccount(_userId: string, accountId: string): AiAccountView {
-  if (!accountRows().some(row => row.id === accountId)) throw new Error("找不到该系统模型配置。");
+export function activateAiAccount(userId: string, accountId: string): AiAccountView {
+  const target = accountRowsForUser(userId).find(row => row.id === accountId);
+  if (!target) throw new Error("找不到此账户可激活的模型配置。");
   configuration.begin();
   try {
-    configuration.update("ai_accounts", row => row.user_id === null, { is_active: 0 });
-    configuration.update("ai_accounts", row => row.user_id === null && row.id === accountId, { is_active: 1 });
+    configuration.update("ai_accounts", row => row.user_id === target.user_id, { is_active: 0 });
+    configuration.update("ai_accounts", row => row.user_id === target.user_id && row.id === accountId, { is_active: 1 });
     configuration.commit();
   } catch (error) {
     configuration.rollback();
     throw error;
   }
-  const row = accountRows().find((item) => item.id === accountId);
-  if (!row) throw new Error("无法读取已激活的系统模型配置。");
+  const row = accountRowsForUser(userId).find((item) => item.id === accountId);
+  if (!row) throw new Error("无法读取已激活的模型配置。");
   return mapAccount(row);
 }
 
-export function deleteAiAccount(_userId: string, accountId: string): void {
-  configuration.remove("ai_accounts", row => row.user_id === null && row.id === accountId);
+export function deleteAiAccount(userId: string, accountId: string): void {
+  const target = accountRowsForUser(userId).find(row => row.id === accountId);
+  if (!target) throw new Error("找不到此账户可删除的模型配置。");
+  configuration.remove("ai_accounts", row => row.user_id === target.user_id && row.id === accountId);
 }

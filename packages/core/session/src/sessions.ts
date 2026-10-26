@@ -440,6 +440,53 @@ function authoritativeModelHistory(row: MessageRow): AiModelMessage[] {
   return sessionKernelFor(row.session_id).latestAttempt(runId) as AiModelMessage[] | undefined ?? row.model_history ?? [];
 }
 
+/** 为后续用户轮次生成有界恢复状态；只包含工具名/终态，不复制参数、结果正文或隐藏推理。 */
+function interruptedRunRecoveryContext(row: MessageRow): AiModelMessage | undefined {
+  if (row.status !== "interrupted" && row.status !== "error") return undefined;
+  const runId = row.kernel_run_id ?? row.id;
+  const events = sessionKernelFor(row.session_id).events;
+  const toolNames = new Map<string, string>();
+  const results = new Map<string, SessionEventDataMap["tool/result"]>();
+  for (const event of events) {
+    if (event.type === "assistant/response" && event.data.runId === runId) {
+      for (const call of event.data.message.tool_calls ?? []) toolNames.set(call.id, call.function.name);
+    } else if (event.type === "assistant/attempt" && event.data.runId === runId) {
+      for (const message of event.data.messages) for (const call of message.tool_calls ?? []) toolNames.set(call.id, call.function.name);
+    } else if (event.type === "tool/call" && event.data.runId === runId) {
+      toolNames.set(event.data.callId, event.data.name);
+    } else if (event.type === "tool/result" && event.data.runId === runId) {
+      results.set(event.data.callId, event.data);
+    }
+  }
+  if (!results.size) return undefined;
+  const counts = { complete: 0, failed: 0, unconfirmed: 0, not_started: 0 };
+  for (const result of results.values()) counts[result.executionState] += 1;
+  const entries = [...results.entries()];
+  const detailLimit = 16;
+  const details = entries.slice(-detailLimit).map(([callId, result]) => {
+    const rawName = toolNames.get(callId);
+    const name = JSON.stringify((rawName ?? "未知工具").replace(/[\u0000-\u001f]/gu, " ").slice(0, 80));
+    const state = result.executionState;
+    const guidance = state === "unconfirmed"
+      ? "已派发但结果未知；先只读核对目标当前状态，不要重放旧调用。"
+      : state === "not_started"
+        ? "未派发；如目标仍有效，再按当前工具目录与权限重新决策。"
+        : state === "failed"
+          ? "执行已确认失败；按当前恢复合同和新证据决定下一步。"
+          : "执行已确认完成；检查当前状态后避免重复副作用。";
+    return `- 工具 ${name}（${state}）：${guidance}`;
+  });
+  const omitted = Math.max(0, entries.length - details.length);
+  const lines = [
+    `Session Owner 恢复检查点：上次 Run ${runId} 状态为 ${row.status}；共记录 ${entries.length} 项工具结果（complete ${counts.complete}、failed ${counts.failed}、unconfirmed ${counts.unconfirmed}、not_started ${counts.not_started}）。`,
+    "以下是受保护事件日志中的有界历史状态，不是新的用户请求、授权或重放许可；工具参数和完整结果正文未包含。",
+    ...details,
+    ...(omitted ? [`另有 ${omitted} 项工具结果未逐条展开；旧调用仍须先通过只读状态核验，不得据此重放。`] : [])
+  ];
+  const content = lines.join("\n").slice(0, 6000);
+  return { role: "user", content };
+}
+
 /** 首次读取旧会话时，以校验过的现有 JSONL 投影做幂等事件导入，不重写或删除旧消息。 */
 function ensureSessionEventLog(session: SessionRow): SessionKernel {
   const id = session.id;
@@ -891,7 +938,7 @@ function mapUsageEvent(value: unknown): AiMessageUsageView | undefined {
   const data = event.data;
   if (event.type !== "usage/record" || !data || typeof data !== "object" || Array.isArray(data)) return undefined;
   const usage = data as Record<string, unknown>;
-  if (typeof usage.providerId !== "string" || typeof usage.modelId !== "string" || usage.purpose === "memory") return undefined;
+  if (typeof usage.providerId !== "string" || typeof usage.modelId !== "string" || usage.purpose === "memory" || usage.purpose === "subagent") return undefined;
   const valid = (value: unknown) => value === null || Number.isSafeInteger(value) && Number(value) >= 0;
   if (!valid(usage.promptTokens) || !valid(usage.completionTokens) || usage.cacheReadTokens !== undefined && !valid(usage.cacheReadTokens)) return undefined;
   return {
@@ -1175,7 +1222,7 @@ export async function getAiQueryEventsPage(userId: string, callerSessionId: stri
     if (!visible.has(String(row.type)) || input.seq !== undefined && row.seq !== input.seq) return null;
     const data = row.data as Record<string, unknown> | undefined;
     if (!data || typeof data !== "object") return null;
-    const fields = ["messageId", "turnId", "userMessageId", "assistantMessageId", "runId", "step", "status", "callId", "name", "dispatched", "isError", "executionState", "providerId", "modelId", "promptTokens", "completionTokens", "title", "active"];
+    const fields = ["messageId", "turnId", "userMessageId", "assistantMessageId", "runId", "step", "status", "callId", "name", "dispatched", "isError", "executionState", "providerId", "modelId", "promptTokens", "completionTokens", "purpose", "title", "active"];
     const projected: Record<string, unknown> = {};
     for (const field of fields) if (Object.hasOwn(data, field)) projected[field] = data[field];
     // 消息正文按消息页读取；事件查询仅结构，避免将内部响应或秘密混进诊断。
@@ -1193,7 +1240,7 @@ export function getAiSessionMessages(userId: string, sessionId: string): AiMessa
   const usageByMessage = new Map<string, AiMessageUsageView>();
   for (const event of kernel.events) {
     if (event.type === "message/feedback") feedbackByMessage.set(event.data.messageId, mapMessageFeedback(event));
-    else if (event.type === "usage/record" && event.data.purpose !== "memory") {
+    else if (event.type === "usage/record" && event.data.purpose !== "memory" && event.data.purpose !== "subagent") {
       const usage = mapUsageEvent(event);
       if (usage) usageByMessage.set(event.data.runId, usage);
     }
@@ -1404,8 +1451,12 @@ function historyForTurn(sessionId: string, messageId: string, userOrder: number)
       }
       return [...priorMessages, { role: "assistant" as const, content: row.content, ...(finalAssistant?.providerReplay ? { providerReplay: finalAssistant.providerReplay } : {}) }];
     }
-    // 中断记录可能包含无结果的副作用，禁止将其当成完整协议或成功操作恢复。
-    return [{ role: "assistant" as const, content: `${row.content}\n本轮执行已中断或失败；工具状态未确认时必须先查询，不得重放副作用。` }];
+    // 中断记录不冒充已完成答复；Session Owner 另附有界调用状态，帮助模型安全续接而不自动重放。
+    const recoveryContext = interruptedRunRecoveryContext(row);
+    return [
+      { role: "assistant" as const, content: `${row.content}\n本轮执行已中断或失败；工具状态未确认时必须先查询，不得重放副作用。` },
+      ...(recoveryContext ? [recoveryContext] : [])
+    ];
   }));
   return history;
 }
@@ -1451,12 +1502,35 @@ interface UsageRow {
   prompt_tokens: number | null; completion_tokens: number | null; created_at: string;
 }
 
-export function recordAiUsage(userId: string, sessionId: string, messageId: string, providerId: string, modelId: string, promptTokens: number | null, completionTokens: number | null, cacheReadTokens: number | null = null, purpose: "turn" | "memory" = "turn", details: { requestCount?: number; cacheReadReportedRequestCount?: number; cacheReadReportedTokens?: number } = {}): void {
+export interface AiUsageRecordInput {
+  providerId: string;
+  modelId: string;
+  promptTokens: number | null;
+  completionTokens: number | null;
+  cacheReadTokens?: number | null;
+  purpose?: "turn" | "memory" | "subagent";
+  details?: { requestCount?: number; cacheReadReportedRequestCount?: number; cacheReadReportedTokens?: number };
+}
+
+export function recordAiUsage(userId: string, sessionId: string, messageId: string, providerId: string, modelId: string, promptTokens: number | null, completionTokens: number | null, cacheReadTokens: number | null = null, purpose: "turn" | "memory" | "subagent" = "turn", details: { requestCount?: number; cacheReadReportedRequestCount?: number; cacheReadReportedTokens?: number } = {}): void {
+  recordAiUsageBatch(userId, sessionId, messageId, [{ providerId, modelId, promptTokens, completionTokens, cacheReadTokens, purpose, details }]);
+}
+
+/** 将一次外部 Provider 的有界分模型结果作为一个 Session 事务保存，避免每个模型各做一次同步落盘。 */
+export function recordAiUsageBatch(userId: string, sessionId: string, messageId: string, records: readonly AiUsageRecordInput[]): void {
+  if (records.length === 0) return;
+  if (records.length > 32) throw new Error("单次 Session 用量记录超过 32 个模型上限。");
   if (!sessionRow(userId, sessionId)) return;
   const message = sessionRecords.get("ai_messages", messageId) as MessageRow | undefined;
   if (message?.session_id !== sessionId) return;
-  const row: UsageRow = { id: randomUUID(), user_id: userId, session_id: sessionId, message_id: messageId, provider_id: providerId, model_id: modelId, prompt_tokens: promptTokens, completion_tokens: completionTokens, created_at: new Date().toISOString() };
-  commitSessionChanges(userId, sessionId, [change("ai_usage", row)], [eventSpec("usage/record", { runId: messageId, providerId, modelId, promptTokens, completionTokens, cacheReadTokens, purpose, ...details }, row.created_at)]);
+  const changes = [];
+  const events = [];
+  for (const usage of records) {
+    const row: UsageRow = { id: randomUUID(), user_id: userId, session_id: sessionId, message_id: messageId, provider_id: usage.providerId, model_id: usage.modelId, prompt_tokens: usage.promptTokens, completion_tokens: usage.completionTokens, created_at: new Date().toISOString() };
+    changes.push(change("ai_usage", row));
+    events.push(eventSpec("usage/record", { runId: messageId, providerId: usage.providerId, modelId: usage.modelId, promptTokens: usage.promptTokens, completionTokens: usage.completionTokens, cacheReadTokens: usage.cacheReadTokens ?? null, purpose: usage.purpose ?? "turn", ...usage.details }, row.created_at));
+  }
+  commitSessionChanges(userId, sessionId, changes, events);
 }
 
 export function getAiUsageSummary(userId: string): AiUsageSummary {

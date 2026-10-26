@@ -11,7 +11,8 @@
   "dependencies": {
     "@deepseek-ai/cordis": "4.0.4",
     "lfaa-llm": "workspace:*",
-    "lfaa-token-meter": "workspace:*"
+    "lfaa-token-meter": "workspace:*",
+    "lfaa-util-values": "workspace:*"
   },
   "scripts": {
     "build": "node ../../../scripts/build-harness.mjs package"

@@ -5,6 +5,7 @@
  */
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
+import { lstat, readFile } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { database } from "lfaa-storage-sqlite/src/database.js";
 import { config } from "lfaa-launch-environment/src/config.js";
@@ -171,6 +172,63 @@ function readKnowledgeRow(row: ItemRow): ItemRow | null {
     }
     if (existingHash !== databaseHash) atomicWriteBytes(paths.markdown, Buffer.from(row.content_markdown, "utf8"));
     const verifiedBytes = readSafeFile(paths.markdown);
+    const verifiedText = verifiedBytes?.toString("utf8");
+    if (verifiedText !== row.content_markdown || createHash("sha256").update(verifiedText, "utf8").digest("hex") !== databaseHash) {
+      throw new Error("资料正文文件回读校验失败；SQLite 来源仍保留。");
+    }
+    atomicWrite(paths.metadata, { version: 1, contentSha256: databaseHash, updatedAt: row.updated_at });
+    withControlLock(database, () => {
+      const result = database.prepare("UPDATE knowledge_library_items SET content_markdown = ' ' WHERE user_id = ? AND id = ? AND content_sha256 = ? AND content_markdown = ?")
+        .run(row.user_id, row.id, row.content_sha256, row.content_markdown);
+      if (Number(result.changes) === 0) {
+        const current = database.prepare("SELECT content_markdown, content_sha256 FROM knowledge_library_items WHERE user_id = ? AND id = ?").get(row.user_id, row.id) as { content_markdown?: string; content_sha256?: string } | undefined;
+        if (current?.content_markdown !== FILE_BACKED_MARKER || current.content_sha256 !== row.content_sha256) throw new Error("资料正文迁移期间记录发生变化；请重试。");
+      }
+    });
+    return row;
+  }
+  if (existingText === undefined || existingHash !== row.content_sha256) return null;
+  return { ...row, content_markdown: existingText };
+}
+
+async function readSafeFileAsync(path: string): Promise<Buffer | null> {
+  let file;
+  try {
+    file = await lstat(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
+  if (!file.isFile() || file.isSymbolicLink()) throw new Error("资料库文件类型无效；拒绝跟随链接读取。");
+  return readFile(path);
+}
+
+async function readKnowledgeMetadataAsync(path: string): Promise<{ contentSha256: string; updatedAt: string } | null> {
+  const data = await readSafeFileAsync(path);
+  if (!data) return null;
+  const saved = decode(data.toString("utf8")) as Record<string, unknown> | null;
+  if (!saved || saved.version !== 1 || typeof saved.contentSha256 !== "string" || !/^[a-f0-9]{64}$/u.test(saved.contentSha256)
+    || typeof saved.updatedAt !== "string" || !Number.isFinite(Date.parse(saved.updatedAt))) throw new Error("资料库正文元数据损坏；原文件已保留。");
+  return { contentSha256: saved.contentSha256, updatedAt: saved.updatedAt };
+}
+
+/** 搜索专用异步读取；仍逐项验证文件类型和 SHA-256，避免同步读取阻塞主机事件循环。 */
+async function readKnowledgeRowAsync(row: ItemRow): Promise<ItemRow | null> {
+  const paths = itemFilePaths(row);
+  const existingBytes = await readSafeFileAsync(paths.markdown);
+  const existingText = existingBytes?.toString("utf8");
+  const existingHash = existingText === undefined ? null : createHash("sha256").update(existingText, "utf8").digest("hex");
+  if (row.content_markdown !== FILE_BACKED_MARKER) {
+    const databaseHash = createHash("sha256").update(row.content_markdown, "utf8").digest("hex");
+    if (databaseHash !== row.content_sha256) throw new Error("SQLite 资料正文摘要不匹配；来源已保留。");
+    if (existingHash !== null && existingHash !== databaseHash) {
+      const metadata = await readKnowledgeMetadataAsync(paths.metadata);
+      if (!metadata || metadata.contentSha256 !== existingHash || Date.parse(metadata.updatedAt) >= Date.parse(row.updated_at)) {
+        throw new Error("资料文件与待迁移 SQLite 正文冲突；两份来源均保留。");
+      }
+    }
+    if (existingHash !== databaseHash) atomicWriteBytes(paths.markdown, Buffer.from(row.content_markdown, "utf8"));
+    const verifiedBytes = await readSafeFileAsync(paths.markdown);
     const verifiedText = verifiedBytes?.toString("utf8");
     if (verifiedText !== row.content_markdown || createHash("sha256").update(verifiedText, "utf8").digest("hex") !== databaseHash) {
       throw new Error("资料正文文件回读校验失败；SQLite 来源仍保留。");
@@ -358,7 +416,7 @@ export function deleteKnowledgeLibraryProjectSource(userId: string, id: string):
   return database.prepare("DELETE FROM knowledge_library_project_sources WHERE user_id = ? AND id = ?").run(userId, id).changes > 0;
 }
 
-export function searchKnowledgeLibrary(userId: string, applicationId: ApplicationId, query: string, kind?: KnowledgeLibraryKind): KnowledgeLibrarySearchHit[] {
+export async function searchKnowledgeLibrary(userId: string, applicationId: ApplicationId, query: string, kind?: KnowledgeLibraryKind): Promise<KnowledgeLibrarySearchHit[]> {
   const normalizedQuery = validateText(query, "检索问题", KNOWLEDGE_LIBRARY_LIMITS.searchQueryCharacters);
   const rows = database.prepare(`
     SELECT id, user_id, application_id, kind, title, description, content_markdown, content_sha256, source_kind, created_at, updated_at
@@ -367,11 +425,14 @@ export function searchKnowledgeLibrary(userId: string, applicationId: Applicatio
     ORDER BY updated_at DESC, id LIMIT ?
   `).all(userId, applicationId, kind ?? null, kind ?? null, KNOWLEDGE_LIBRARY_LIMITS.itemsPerUser) as unknown as ItemRow[];
   const queryTerms = queryTokens(normalizedQuery);
-  return rows.map(row => readKnowledgeRow(row)).filter((row): row is ItemRow => row !== null).map(row => {
-    const title = row.title.toLocaleLowerCase("en-US");
-    const description = row.description.toLocaleLowerCase("en-US");
-    const content = row.content_markdown.toLocaleLowerCase("en-US");
-    const phrase = normalizedQuery.toLocaleLowerCase("en-US");
+  const phrase = normalizedQuery.toLocaleLowerCase("en-US");
+  const scored: Array<{ row: ItemRow; score: number; snippet: string }> = [];
+  for (const row of rows) {
+    const readable = await readKnowledgeRowAsync(row);
+    if (!readable) continue;
+    const title = readable.title.toLocaleLowerCase("en-US");
+    const description = readable.description.toLocaleLowerCase("en-US");
+    const content = readable.content_markdown.toLocaleLowerCase("en-US");
     let score = title.includes(phrase) ? 12 : 0;
     if (description.includes(phrase)) score += 5;
     if (content.includes(phrase)) score += 3;
@@ -380,9 +441,9 @@ export function searchKnowledgeLibrary(userId: string, applicationId: Applicatio
       if (description.includes(term)) score += 2;
       if (content.includes(term)) score += Math.min(4, Math.max(1, countOccurrences(content, term)));
     }
-    return { row, score, snippet: makeSnippet(row.content_markdown, queryTerms, normalizedQuery) };
-  }).filter(item => item.score > 0 && createHash("sha256").update(item.row.content_markdown, "utf8").digest("hex") === item.row.content_sha256)
-    .sort((left, right) => right.score - left.score || right.row.updated_at.localeCompare(left.row.updated_at) || left.row.id.localeCompare(right.row.id))
+    if (score > 0) scored.push({ row: readable, score, snippet: makeSnippet(readable.content_markdown, queryTerms, normalizedQuery) });
+  }
+  return scored.sort((left, right) => right.score - left.score || right.row.updated_at.localeCompare(left.row.updated_at) || left.row.id.localeCompare(right.row.id))
     .slice(0, KNOWLEDGE_LIBRARY_LIMITS.searchResults)
     .map(({ row, snippet }) => ({ ...mapSummary(row), snippet, trust: "untrusted" as const }));
 }

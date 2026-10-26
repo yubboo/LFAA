@@ -7,7 +7,7 @@
  * 功能：压缩触发原因、结果、区间选择的公共类型。
  * 作用：compaction-basic / image-offload / tool-result-pruner / command-compact 共享这些类型。
  */
-import type { AiCompletionMessage } from "lfaa-llm/src/completion.js";
+import type { AiCompletionMessage, AiCompletionTool } from "lfaa-llm/src/completion.js";
 
 /** 触发压缩的来源。 */
 export type CompactionTrigger =
@@ -37,6 +37,10 @@ export interface CompactionEngine {
    */
   compactIfNeeded(input: {
     messages: AiCompletionMessage[];
+    /** Same request tools used for pressure estimates; summaries still never receive or execute tools. */
+    tools?: AiCompletionTool[];
+    /** Effective replay characters for this Provider/model, counted once in the request budget. */
+    reasoningReplayCharacters?: number;
     contextWindow: number;
     trigger: CompactionTrigger;
     signal?: AbortSignal;

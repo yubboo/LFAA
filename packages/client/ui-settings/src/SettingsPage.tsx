@@ -7,7 +7,7 @@ import { useWorkbenchMetrics } from "lfaa-client-ui-dockkit/src/use-workbench-me
 import { lfaaProjectBuildInfo } from "lfaa-client-connection/src/project-version.js";
 import { inspectWebUpdateManifest, type WebUpdateCheckResult } from "./web-update.mjs";
 import { Alert, Button, Card, Input, InputNumber, Modal, Popconfirm, Progress, Radio, Select, Slider, Space, Tag, Typography, message } from "antd";
-import { activateAiAccount, changeCurrentPassword, createSteamcmdTask, deleteAppearanceBackground, deleteAiAccount, deleteConversationMemories, loadConversationMemories, saveConversationMemories, archiveAiSession, decideAiApproval, getErrorMessage, hasAdminAccess, isDesktopApp, loadAiAccounts, loadAiApprovals, loadAiPermissionGrants, loadAiExtensions, loadAiSessions, loadAiUsage, loadAppearanceBackgrounds, loadAiProviders, loadBrowserProviders, closeBrowserProviderSessions, loadHealth, loadMinecraftStorageSettings, loadMinecraftCoreNames, loadSteamcmdSettings, loadSteamcmdTask, loadProjectStorageLocations, compareProjectContentDirectories, copyProjectContentToDirectory, adoptProjectContentDirectory, importProjectContentArchive, downloadProjectContentArchive, loadCapabilityInstallCatalog, manageAiRuntimePlugin, probeAiProvider, refreshAiAccountModelCatalog, testSavedAiAccountModel, saveAiAccount, testAiAccountCredential, updateAiAccountCredential, testAiProviderModel, saveRecoveryKey, saveSettings, saveSteamcmdConfigurationDefaults, saveSteamcmdNodeConfiguration, saveSteamcmdStorageDefaults, saveSteamcmdNodeStorageSettings, selectDesktopDataDirectory, revokeAiPermissionGrant, uploadAppearanceBackground, updateCurrentUserEmail, updateCurrentUserUsername, userRoleLabel, updateAiAccountModel, updateAiAccountReasoningMode, type ApplicationId, type AiModel, type AiModelTestResult, type AiAccount, type AiExtension, type AiRuntimeHookInfo, type AiProvider, type AiProviderProbe, type AiRuntimePlugin, type CapabilityInstallCatalogEntry, type AiSession, type AiUsageSummary, type AiToolApproval, type AiToolPermissionGrant, type AppearanceBackground, type BrowserProviderSummary, type BrowserRecentSite, type BrowserVaultEntry, type BrowserProviderId, type NativeBrowserDownload, type NativeBrowserDownloadSettings, type NativeBrowserExtension, type ConversationMemorySnapshot, type ProjectContentComparison, type ProjectStorageLocations, type DesktopUpdateCheckResult, type DesktopUpdatePreferences, type DesktopUpdateRuntimeInfo, type ServerHealth, type MinecraftStorageNode, type MinecraftStorageSettings, type SteamcmdConfigurationValues, type SteamcmdSettingsNode, type SteamcmdStorageValues, type SteamcmdTask, type User, type UserSettings, type LocalModelSummary, type LocalModelDownloadSnapshot } from "lfaa-client-connection/src/api.js";
+import { activateAiAccount, changeCurrentPassword, createSteamcmdTask, deleteAppearanceBackground, deleteAiAccount, deleteConversationMemories, loadConversationMemories, saveConversationMemories, archiveAiSession, decideAiApproval, getErrorMessage, hasAdminAccess, isDesktopApp, loadAiAccounts, loadAiApprovals, loadAiPermissionGrants, loadAiExtensions, loadAiSessions, loadAiUsage, loadAppearanceBackgrounds, loadAiProviders, loadClaudeAgentCredentialStatus, saveClaudeAgentCredential, deleteClaudeAgentCredential, loadBrowserProviders, closeBrowserProviderSessions, loadHealth, loadMinecraftStorageSettings, loadMinecraftCoreNames, loadSteamcmdSettings, loadSteamcmdTask, loadProjectStorageLocations, compareProjectContentDirectories, copyProjectContentToDirectory, adoptProjectContentDirectory, importProjectContentArchive, downloadProjectContentArchive, loadCapabilityInstallCatalog, manageAiRuntimePlugin, probeAiProvider, refreshAiAccountModelCatalog, testSavedAiAccountModel, saveAiAccount, testAiAccountCredential, updateAiAccountCredential, testAiProviderModel, saveRecoveryKey, saveSettings, saveSteamcmdConfigurationDefaults, saveSteamcmdNodeConfiguration, saveSteamcmdStorageDefaults, saveSteamcmdNodeStorageSettings, selectDesktopDataDirectory, revokeAiPermissionGrant, uploadAppearanceBackground, updateCurrentUserEmail, updateCurrentUserUsername, userRoleLabel, updateAiAccountModel, updateAiAccountReasoningMode, type ApplicationId, type AiModel, type AiModelTestResult, type AiAccount, type AiExtension, type AiRuntimeHookInfo, type AiProvider, type AiProviderProbe, type AiRuntimePlugin, type CapabilityInstallCatalogEntry, type AiSession, type AiUsageSummary, type AiToolApproval, type AiToolPermissionGrant, type AppearanceBackground, type BrowserProviderSummary, type BrowserRecentSite, type BrowserVaultEntry, type BrowserProviderId, type NativeBrowserDownload, type NativeBrowserDownloadSettings, type NativeBrowserExtension, type ConversationMemorySnapshot, type ProjectContentComparison, type ProjectStorageLocations, type DesktopUpdateCheckResult, type DesktopUpdatePreferences, type DesktopUpdateRuntimeInfo, type ServerHealth, type MinecraftStorageNode, type MinecraftStorageSettings, type SteamcmdConfigurationValues, type SteamcmdSettingsNode, type SteamcmdStorageValues, type SteamcmdTask, type User, type UserSettings, type LocalModelSummary, type LocalModelDownloadSnapshot, type ClaudeAgentCredentialStatus } from "lfaa-client-connection/src/api.js";
 import { appearanceBackgroundOptions, appearanceBackgroundTargets } from "lfaa-util-values/src/builtin-backgrounds.js";
 import { EXECUTION_SANDBOX_MODES } from "lfaa-util-values/src/sandbox-contract.js";
 import { getSettingsCenterMenu, SETTINGS_CENTER_MENUS, type SettingsMenuId } from "lfaa-util-values/src/settings-menu-catalog.js";
@@ -45,6 +45,7 @@ function aiModelSelectOption(providerId: string, model: AiModel): { value: strin
 import { GitWorktreesSettings } from "./GitWorktreesSettings.js";
 import { KnowledgeLibraryPanel } from "./KnowledgeLibraryPanel.js";
 import { isComputerControlEnabled } from "./computer-control-settings.js";
+import { ARK_PLAN_CATALOG_REVISION } from "lfaa-util-values/src/ark-provider.js";
 import { ManagedPluginsSettings } from "./ManagedPluginsSettings.js";
 import { DeveloperHandbook } from "./DeveloperHandbook.js";
 import { AccountAgentUsageSettings } from "./AccountAgentUsageSettings.js";
@@ -592,10 +593,15 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     return () => { live = false; };
   }, [settings.browserUse]);
   const [localModelAction, setLocalModelAction] = useState<string | null>(null);
-  const imageGenerationAccounts = accounts.filter(account => account.providerId === "openai" || account.providerId === "doubao");
+  const imageGenerationAccounts = accounts.filter(account => account.providerId === "openai" || account.providerId === "doubao"
+    || account.providerId === "ark-agent-plan" && account.models.some(model => model.taskType === "image-generation"));
   const selectedImageGenerationAccount = imageGenerationAccounts.find(account => account.id === settings.aiRuntime.imageGenerationAccountId);
   const localImageModels = localModels.filter(model => model.modality === "image");
-  const videoGenerationAccounts = accounts.filter(account => account.providerId === "doubao");
+  const isPlanModelAvailableForTier = (account: AiAccount, model: AiModel): boolean => account.providerId !== "ark-agent-plan"
+    || !model.planTiers?.length || account.options.planTier === "unknown" || !account.options.planTier
+    || model.planTiers.includes(account.options.planTier as NonNullable<AiModel["planTiers"]>[number]);
+  const videoGenerationAccounts = accounts.filter(account => account.providerId === "doubao"
+    || account.providerId === "ark-agent-plan" && account.models.some(model => model.taskType === "video-generation" && isPlanModelAvailableForTier(account, model)));
   const selectedVideoGenerationAccount = videoGenerationAccounts.find(account => account.id === settings.aiRuntime.videoGenerationAccountId);
   const localVideoModels = localModels.filter(model => model.modality === "video");
   const [, setAiAccountsLoadState] = useState<"idle" | "loading" | "ready" | "error">(() => cachedSettingsData?.loadedSections.has("ai") || cachedSettingsData?.loadedSections.has("configuration") ? "ready" : "idle");
@@ -663,7 +669,11 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   const [credentialUpdateAccount, setCredentialUpdateAccount] = useState<AiAccount | null>(null);
   const [credentialSecret, setCredentialSecret] = useState("");
   const [credentialTest, setCredentialTest] = useState<AiModelTestResult | null>(null);
+  const [claudeAgentCredentialStatus, setClaudeAgentCredentialStatus] = useState<ClaudeAgentCredentialStatus | null>(null);
+  const [claudeAgentCredentialDraft, setClaudeAgentCredentialDraft] = useState("");
+  const [claudeAgentCredentialBusy, setClaudeAgentCredentialBusy] = useState(false);
   const [providerOptions, setProviderOptions] = useState<Record<string, Record<string, string>>>({});
+  const [planModelDrafts, setPlanModelDrafts] = useState<Record<string, string>>({});
   const [accountName, setAccountName] = useState("OpenAI 主账户");
   const [secret, setSecret] = useState("");
   const [providerApiKeyAttention, setProviderApiKeyAttention] = useState(false);
@@ -1138,7 +1148,11 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
 
   const selectedProvider = providers.find((provider) => provider.id === providerId);
   const currentProviderOptions = providerOptions[providerId] ?? {};
-  const providerSecretLabel = providerId === "xiaomi" && currentProviderOptions.authMethod === "token-plan" ? "Token Plan Key" : "API Key";
+  const providerSecretLabel = selectedProvider?.secretLabel ?? (providerId === "xiaomi" && currentProviderOptions.authMethod === "token-plan" ? "Token Plan Key" : "API Key");
+  const isManualPlanProvider = selectedProvider?.scope === "user" && selectedProvider.modelInput === "manual";
+  const systemAiAccounts = accounts.filter(account => account.scope !== "user");
+  const personalPlanAccounts = accounts.filter(account => account.scope === "user");
+  const effectiveActiveAiAccount = personalPlanAccounts.find(account => account.active) ?? systemAiAccounts.find(account => account.active);
   const selectedModelDetails = probe?.models.find((model) => model.id === selectedModel);
   const selectedModelReasoningOptions = reasoningOptions(selectedModelDetails);
   const conversationMemoryDraftItems = conversationMemoryDraft.split(/\r?\n/u).map(value => value.trim()).filter(Boolean);
@@ -1175,12 +1189,14 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           case "ai": {
             if (!cachedSettingsData?.loadedSections.has("ai")) setAiAccountsLoadState("loading");
             try {
-              const [providersResult, accountsResult] = await Promise.all([
+              const [providersResult, accountsResult, claudeCredentialResult] = await Promise.all([
                 loadAiProviders(),
-                loadAiAccounts()
+                loadAiAccounts(),
+                loadClaudeAgentCredentialStatus()
               ]);
               setProviders(providersResult.providers);
               setAccounts(accountsResult.accounts);
+              setClaudeAgentCredentialStatus(claudeCredentialResult.credential);
               setAiAccountsLoadState("ready");
             } catch (loadError) {
               setAiAccountsLoadState("error");
@@ -2119,11 +2135,16 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     setError("");
     setModelTest(null);
     try {
-      const result = await probeAiProvider({ providerId, secret, options: currentProviderOptions });
+      const modelId = selectedModel.trim();
+      const result = await probeAiProvider({ providerId, secret, options: currentProviderOptions, ...(selectedProvider.modelInput === "manual" && modelId.length > 0 ? { modelId } : {}) });
       setProbe(result.result);
       setSelectedModel(result.result.models[0]?.id ?? "");
       setReasoningMode(defaultReasoningMode(result.result.models[0]));
-      messageApi.success(`已从官方 API 拉取 ${result.result.models.length} 个模型`);
+      messageApi.success(result.result.status === "connected"
+        ? isManualPlanProvider
+          ? `已加载 ${result.result.models.length} 个套餐目录候选模型；请测试所选模型后再保存。`
+          : `已从官方 API 拉取 ${result.result.models.length} 个模型`
+        : result.result.message);
     } catch (probeError) {
       setProbe(null);
       setProviderApiKeyAttention(false);
@@ -2154,13 +2175,12 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     setAiBusy("save");
     setError("");
     try {
-      await saveAiAccount({ providerId, secret, options: currentProviderOptions, displayName: accountName, modelId: selectedModel, reasoningMode });
+      await saveAiAccount({ providerId, secret, options: currentProviderOptions, displayName: accountName, modelId: selectedModel, reasoningMode, ...(modelTest.verificationToken ? { verificationToken: modelTest.verificationToken } : {}) });
       setSecret("");
       setProbe(null);
       setModelTest(null);
       setProviderModalOpen(false);
       await reloadAiAccounts();
-      messageApi.success("AI 账户已安全保存");
     } catch (saveError) {
       setError(getErrorMessage(saveError));
     } finally {
@@ -2183,7 +2203,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     try {
       const result = await testAiAccountCredential(credentialUpdateAccount.id, credentialSecret.trim());
       setCredentialTest(result.result);
-      messageApi.success("系统当前模型真实请求通过");
+      messageApi.success(credentialUpdateAccount.scope === "user" ? "当前套餐模型真实请求通过" : "系统当前模型真实请求通过");
     } catch (testError) {
       setError(getErrorMessage(testError));
     } finally {
@@ -2201,11 +2221,40 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
       setCredentialTest(null);
       setCredentialUpdateAccount(null);
       await reloadAiAccounts();
-      messageApi.success("系统模型 API Key 已加密更新，原配置名称和模型保持不变");
+      messageApi.success(credentialUpdateAccount.scope === "user" ? "个人套餐密钥已加密更新，原配置名称和模型保持不变" : "系统模型 API Key 已加密更新，原配置名称和模型保持不变");
     } catch (saveError) {
       setError(getErrorMessage(saveError));
     } finally {
       setAiBusy(null);
+    }
+  }
+
+  async function saveClaudeAgentCredentialDraft(): Promise<void> {
+    if (!claudeAgentCredentialDraft.trim()) return;
+    setClaudeAgentCredentialBusy(true);
+    try {
+      const result = await saveClaudeAgentCredential(claudeAgentCredentialDraft.trim());
+      setClaudeAgentCredentialStatus(result.credential);
+      setClaudeAgentCredentialDraft("");
+      messageApi.success("Anthropic Console API Key 已验证并加密保存到当前账户。");
+    } catch (saveError) {
+      messageApi.error(getErrorMessage(saveError));
+    } finally {
+      setClaudeAgentCredentialBusy(false);
+    }
+  }
+
+  async function removeClaudeAgentCredential(): Promise<void> {
+    setClaudeAgentCredentialBusy(true);
+    try {
+      await deleteClaudeAgentCredential();
+      setClaudeAgentCredentialStatus({ configured: false });
+      setClaudeAgentCredentialDraft("");
+      messageApi.success("当前账户的 Anthropic Console API Key 已删除。");
+    } catch (deleteError) {
+      messageApi.error(getErrorMessage(deleteError));
+    } finally {
+      setClaudeAgentCredentialBusy(false);
     }
   }
 
@@ -2238,6 +2287,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     setError("");
     try {
       await updateAiAccountModel(account.id, modelId);
+      if (account.scope === "user") setPlanModelDrafts(current => ({ ...current, [account.id]: modelId }));
       await reloadAiAccounts();
       messageApi.success("模型通过真实请求测试并已更新");
     } catch (modelError) {
@@ -2262,9 +2312,12 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   }
 
   function openProviderConfiguration(nextProvider: AiProvider): void {
-    if (!canAdmin) return;
+    if (!canAdmin && nextProvider.scope !== "user") return;
+    if (nextProvider.id === "ark-agent-plan" || nextProvider.id === "ark-coding-plan") {
+      setProviderOptions(current => ({ ...current, [nextProvider.id]: { ...current[nextProvider.id], planTier: current[nextProvider.id]?.planTier ?? "unknown" } }));
+    }
     setProviderId(nextProvider.id);
-    setAccountName(`${nextProvider.name} 主账户`);
+    setAccountName(nextProvider.scope === "user" ? `我的 ${nextProvider.name}` : `${nextProvider.name} 主账户`);
     setSecret("");
     setProviderApiKeyAttention(false);
     setProbe(null);
@@ -2454,6 +2507,43 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
       </div> : null}
     </div>
   );
+
+  const renderAiAccountItem = (account: AiAccount) => {
+    const provider = providers.find((item) => item.id === account.providerId);
+    const canManageAccount = account.scope === "user" || canAdmin;
+    const isManualAccount = provider?.modelInput === "manual";
+    const accountModel = account.models.find((model) => model.id === account.modelId);
+    const accountModelOptions = account.models.map((model) => aiModelSelectOption(account.providerId, model));
+    if (!accountModel) accountModelOptions.unshift({ value: account.modelId, label: `${account.modelId}（当前目录未列出）`, title: account.modelId, disabled: true });
+    const accountReasoningOptions = reasoningOptions(accountModel);
+    const accountReasoningMode = effectiveReasoningMode(accountModel, account.reasoningMode);
+    const draftModel = planModelDrafts[account.id] ?? account.modelId;
+    const availablePlanModels = account.models.filter(model => (model.taskType ?? "chat") === "chat"
+      && (!model.planTiers?.length || account.options.planTier === "unknown" || !account.options.planTier || model.planTiers.includes(account.options.planTier as NonNullable<AiModel["planTiers"]>[number])));
+    const planCapabilityModels = account.models.filter(model => model.taskType && model.taskType !== "chat"
+      && (!model.planTiers?.length || account.options.planTier === "unknown" || !account.options.planTier || model.planTiers.includes(account.options.planTier as NonNullable<AiModel["planTiers"]>[number])));
+    return <article className={`ai-account-item${account.active ? " is-active" : ""}`} key={account.id}>
+      <div className="ai-account-item__header"><div><strong>{account.displayName}</strong><span>{provider?.name ?? account.providerId} · {account.scope === "user" ? "个人席位" : "系统模型"} · {account.active ? "当前模型" : "已保存"}</span></div><Tag color={account.active ? "green" : account.scope === "user" ? "blue" : "default"}>{account.active ? "当前使用" : account.scope === "user" ? "我的席位" : "系统账户"}</Tag></div>
+      {isManualAccount ? <>
+        <label className="settings-field"><span>套餐文本模型</span><div className="ai-plan-model-editor"><Select showSearch optionFilterProp="label" value={availablePlanModels.some(model => model.id === draftModel) ? draftModel : account.modelId} options={availablePlanModels.map(model => ({ value: model.id, label: `${model.name} · ${model.id}` }))} disabled={!canManageAccount || aiBusy !== null} onChange={value => setPlanModelDrafts(current => ({ ...current, [account.id]: value }))} /><Button disabled={!canManageAccount || aiBusy !== null || !draftModel.trim() || draftModel.trim() === account.modelId} loading={aiBusy === `model:${account.id}`} onClick={() => void selectAccountModel(account, draftModel.trim())}>测试并切换</Button></div></label>
+        <p className="settings-field-help">已加载官方套餐目录；当前档位：{account.options.planTier && account.options.planTier !== "unknown" ? account.options.planTier.toLocaleUpperCase("en-US") : "未确认"}。切换主模型前会向套餐专属地址发起真实文本请求。</p>
+        {planCapabilityModels.length ? <div className="ai-plan-capability-models"><strong>此套餐的其他模型能力</strong><Space wrap size={[6, 6]}>{planCapabilityModels.map(model => <Tag key={`${model.taskType}:${model.id}`} title={model.catalogSource}>{({ embedding: "向量", "image-generation": "生图", "video-generation": "视频", "text-to-speech": "语音合成", "speech-to-text": "语音识别" } as Record<string, string>)[model.taskType!] ?? model.taskType} · {model.name}</Tag>)}</Space></div> : null}
+      </> : <>
+        <label className="settings-field"><span>当前模型</span><Select disabled={!canManageAccount || aiBusy !== null} value={account.modelId} options={accountModelOptions.length ? accountModelOptions : [{ value: account.modelId, label: account.modelId, title: account.modelId, disabled: false }]} onChange={(modelId) => void selectAccountModel(account, modelId)} /></label>
+        <p className="settings-field-help">{accountModel ? modelParameterSummary(accountModel) : "当前模型不在最新模型目录中；原选择已保留，请选择目录中的型号。"}</p>
+      </>}
+      {accountReasoningOptions.length ? <label className="settings-field"><span>{accountModel?.thinking?.kind === "effort" ? "思考力度" : "思考模式"}</span><Select value={accountReasoningMode} options={accountReasoningOptions} disabled={!canManageAccount || aiBusy !== null} onChange={(value) => void selectAccountReasoningMode(account, value)} /></label>
+        : accountModel?.thinking?.kind === "fixed" ? <p className="ai-thinking-note">{fixedThinkingLabel(accountModel)}</p>
+          : <p className="ai-thinking-note">模型目录未提供可校验的思考力度参数；请求跟随模型自身默认行为。</p>}
+      {canManageAccount ? <div className="ai-account-item__actions">
+        {!account.active ? <Button size="small" type="primary" disabled={aiBusy !== null} onClick={() => void runAccountAction(account, "activate")}>设为当前模型</Button> : null}
+        <Button size="small" disabled={aiBusy !== null} onClick={() => openCredentialUpdate(account)}>更新密钥</Button>
+        <Button size="small" disabled={aiBusy !== null} loading={aiBusy === `refresh:${account.id}`} onClick={() => void runAccountAction(account, "refresh")}>更新目录</Button>
+        <Button size="small" disabled={aiBusy !== null || !accountModel} title="向当前模型发起真实请求，可能产生 Provider 用量" loading={aiBusy === `retest:${account.id}`} onClick={() => void runAccountAction(account, "retest")}>重测模型</Button>
+        <Popconfirm title={account.scope === "user" ? "删除我的套餐席位？" : "删除这个系统模型？"} description={account.scope === "user" ? "删除后，当前账户将不再使用这个套餐席位。" : "删除后，所有登录账户都无法再使用这份系统配置。"} okText="删除" cancelText="取消" onConfirm={() => void runAccountAction(account, "delete")}><Button danger size="small" disabled={aiBusy !== null}>删除</Button></Popconfirm>
+      </div> : <p className="ai-thinking-note">由系统管理员统一管理；当前模型配置供所有 LFAA 登录账户使用。</p>}
+    </article>;
+  };
 
   const sectionContent = (() => {
     if (activeSection === "parental") return <AccountAgentUsageSettings user={user} />;
@@ -2725,8 +2815,17 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
       )} />
     );
     if (activeSection === "appearance") return (
-      <section className="settings-content">
-        <header className="settings-content__heading"><div><span className="settings-eyebrow">界面显示</span><Typography.Title level={2}>外观</Typography.Title><Typography.Paragraph>调整主题、强调色，并为登录页和不同工作区选择背景图片。</Typography.Paragraph></div><span className="settings-preview" style={{ "--preview-accent": "var(--settings-accent)" } as CSSProperties}>LFAA</span></header>
+      <section className="settings-content settings-content--appearance">
+        <header className="settings-content__heading settings-content__heading--appearance">
+          <div className="settings-content__heading-copy">
+            <span className="settings-eyebrow">界面显示</span>
+            <div className="settings-content__heading-title-row">
+              <Typography.Title level={2}>外观</Typography.Title>
+              <span className="settings-preview" style={{ "--preview-accent": "var(--settings-accent)" } as CSSProperties}>LFAA</span>
+            </div>
+            <Typography.Paragraph>调整主题、强调色，并为登录页和不同工作区选择背景图片。</Typography.Paragraph>
+          </div>
+        </header>
         <SettingGroup title="主题">
           <SettingRow title="颜色主题" description="选择浅色、深色，或跟随操作系统。" status="已接入">
             <div className="settings-theme-options" role="group" aria-label="颜色主题">
@@ -2749,7 +2848,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
               ))}
             </div>
           </SettingRow>
-          {!settings.appearance.advanced.separateModes ? <SettingRow title="强调色" description="应用到按钮、链接和选中状态。" status="已接入">
+          {!settings.appearance.advanced.separateModes ? <SettingRow id="appearance-accent-color" title="强调色" description="应用到按钮、链接和选中状态。" status="已接入">
             <div className="settings-color-options">{accentColors.map((color) => <button key={color} type="button" aria-label={`选择强调色 ${color}`} aria-pressed={settings.appearance.accentColor === color} style={{ backgroundColor: color }} onClick={() => updateSettings("appearance", { ...settings.appearance, accentColor: color })} />)}</div>
           </SettingRow> : null}
         </SettingGroup>
@@ -2824,6 +2923,9 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
         <SettingGroup title="背景显示">
           <SettingRow title="背景遮罩" description="统一控制工作区壁纸遮罩和弹窗玻璃表面的底色透明度，设置和应用的顶部栏、导航及 小鱼智能体 输入区等独立表面也同步使用；0% 时壁纸最清晰，数值越高整体底色越明显。新账户默认 65%，提高壁纸上的内容可读性；已有账户设置保持原值。消息画布不另加局部遮罩。" status="已接入"><div className="settings-slider"><Slider min={0} max={75} value={settings.appearance.overlay} onChange={(overlay) => updateSettings("appearance", { ...settings.appearance, overlay })} /><output>{settings.appearance.overlay}%</output></div></SettingRow>
           <SettingRow title="玻璃模糊" description="调整顶栏、半透明导航栏、小鱼智能体 输入区、写作上下文作品卡片和壁纸上的弹窗表面模糊强度；消息画布保持透明并显示工作区壁纸，设置正文不做实时模糊。" status="已接入"><div className="settings-slider"><Slider min={0} max={32} value={settings.appearance.blur} onChange={(blur) => updateSettings("appearance", { ...settings.appearance, blur })} /><output>{settings.appearance.blur}px</output></div></SettingRow>
+          <SettingRow title="写作光线背景" description="在普通写作编辑区显示跟随当前主题强调色的柔和光线；也可通过写作工具栏的灯光开关快速控制。" status="已接入">
+            <SettingsSwitch label="写作光线背景" checked={settings.appearance.advanced.writingLightRaysEnabled} onChange={() => updateAppearanceAdvanced({ writingLightRaysEnabled: !settings.appearance.advanced.writingLightRaysEnabled })} />
+          </SettingRow>
           <SettingRow title="更新界面不透明度" description="控制顶栏更新悬浮卡片和更新确认弹窗的清晰度；默认 92%，数值越高壁纸透出越少，并继续跟随当前主题的玻璃模糊设置。" status="实时预览"><div className="settings-slider"><Slider min={70} max={100} value={settings.appearance.updateSurfaceOpacity} onChange={(updateSurfaceOpacity) => updateSettings("appearance", { ...settings.appearance, updateSurfaceOpacity })} /><output>{settings.appearance.updateSurfaceOpacity}%</output></div></SettingRow>
         </SettingGroup>
         <SettingGroup title="小鱼智能体 空闲虚化">
@@ -2932,49 +3034,67 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     );
 
     if (activeSection === "ai") return (
-      <section className="settings-content">
-        <header className="settings-content__heading"><div><span className="settings-eyebrow">系统模型配置</span><Typography.Title level={2}>AI 与模型</Typography.Title><Typography.Paragraph>管理员在此配置系统模型，所有 LFAA 登录账户共用当前 Provider 和模型。登录账号只负责进入系统，模型凭据独立保存在控制端。</Typography.Paragraph></div></header>
-        <Alert className="settings-inline-alert" type="info" showIcon message={canAdmin ? "这里的 Provider、活动模型与 API Key 属于系统配置，所有登录账户共用。密钥只在控制端解密并发送至所选 Provider，不会返回浏览器。" : "这里展示系统当前使用的 Provider 与模型；配置由系统管理员统一管理，所有登录账户共用。"} />
+      <section className="settings-content settings-content--ai">
+        <header className="settings-content__heading"><div><span className="settings-eyebrow">模型服务接入</span><Typography.Title level={2}>AI 与模型</Typography.Title><Typography.Paragraph>普通方舟 API 仍由管理员配置为系统模型；Agent Plan 与 Coding Plan 按登录用户保存各自席位密钥，不再进入系统共享账户。</Typography.Paragraph></div></header>
+        <Alert className="settings-inline-alert" type="info" showIcon message="系统 API 与个人套餐分开管理" description="已保存密钥不会返回浏览器。系统 Provider 由管理员维护；每个登录账户只能读取、调用和修改自己的 Agent Plan/Coding Plan 账户。当前账户已启用的个人套餐优先于系统默认模型。" />
         <SettingGroup title="AI Runtime 状态">
           <SettingRow title="Cordis 插件宿主" description={`当前运行组合已加载 ${activeRuntimePluginCount}/${runtimePlugins.length} 个宿主模块；AI 扩展登记 ${extensions.length} 项。`} status={runtimePluginHostReady ? "运行中" : "检查状态"}><Tag color={runtimePluginHostReady ? "green" : "orange"}>{runtimePluginHostReady ? "已就绪" : "检查插件页面"}</Tag></SettingRow>
-          <SettingRow title="当前系统模型" description={accounts.find((account) => account.active) ? `${accounts.find((account) => account.active)!.providerId} · ${accounts.find((account) => account.active)!.modelId}；所有登录账户共用。` : canAdmin ? "添加并启用系统模型后，小鱼智能体 才能请求模型。" : "系统管理员尚未配置模型。"} status={accounts.some((account) => account.active) ? "已启用" : "需要配置"}><Tag color={accounts.some((account) => account.active) ? "green" : "default"}>{accounts.some((account) => account.active) ? "可推理" : "未配置"}</Tag></SettingRow>
+          <SettingRow title="本账户生效模型" description={effectiveActiveAiAccount ? `${effectiveActiveAiAccount.providerId} · ${effectiveActiveAiAccount.modelId}；${effectiveActiveAiAccount.scope === "user" ? "个人套餐席位" : "系统默认模型"}。` : canAdmin ? "添加并启用系统模型或个人套餐后，小鱼智能体 才能请求模型。" : "系统管理员尚未配置模型；也可添加自己的 Agent Plan/Coding Plan 席位。"} status={effectiveActiveAiAccount ? "已启用" : "需要配置"}><Tag color={effectiveActiveAiAccount ? "green" : "default"}>{effectiveActiveAiAccount ? "可推理" : "未配置"}</Tag></SettingRow>
           <SettingRow title="会话存储" description="小鱼智能体 会话、消息和 Provider 返回的 Token 用量写入账户隔离的控制端 SQLite。" status={health?.persistence === "ready" ? "已连接" : "不可用"}><Tag>{health?.persistence === "ready" ? "SQLite · 已连接" : "SQLite · 未连接"}</Tag></SettingRow>
         </SettingGroup>
         <SettingGroup title="模型服务商">
           {providers.length ? <div className="ai-provider-grid">{providers.map((provider) => {
-            const providerAccounts = accounts.filter((account) => account.providerId === provider.id);
+            const providerScope = provider.scope ?? "system";
+            const providerAccounts = accounts.filter((account) => account.providerId === provider.id && (providerScope === "user" ? account.scope === "user" : account.scope !== "user"));
             const activeAccount = providerAccounts.find((account) => account.active);
-            return <button className={`ai-provider-card${activeAccount ? " is-active" : ""}`} key={provider.id} type="button" disabled={!canAdmin} onClick={() => openProviderConfiguration(provider)}>
+            const isEffective = Boolean(activeAccount && (providerScope === "user" || !personalPlanAccounts.some((account) => account.active)));
+            const canConfigure = canAdmin || providerScope === "user";
+            return <button className={`ai-provider-card${isEffective ? " is-active" : ""}`} key={provider.id} type="button" disabled={!canConfigure} onClick={() => openProviderConfiguration(provider)}>
               <span className={`ai-provider-card__brand is-${provider.id}`} aria-hidden="true">{provider.name.slice(0, 2)}</span>
-              <span className="ai-provider-card__body"><strong>{provider.name}</strong><span>{provider.description}</span><small>{activeAccount ? `系统当前使用 · ${activeAccount.modelId}` : providerAccounts.length ? `系统已保存 ${providerAccounts.length} 个模型` : canAdmin ? "点击配置系统模型" : "尚未配置，由管理员添加"}</small></span>
-              <Tag color={activeAccount ? "green" : undefined}>{activeAccount ? "当前使用" : providerAccounts.length ? "已配置" : "未配置"}</Tag>
+              <span className="ai-provider-card__body"><strong>{provider.name}</strong><span>{provider.description}</span><small>{activeAccount ? `${isEffective ? "当前生效" : "系统默认 · 个人套餐优先"} · ${activeAccount.modelId}` : providerAccounts.length ? `${providerScope === "user" ? "我的账户" : "系统已保存"} ${providerAccounts.length} 项` : providerScope === "user" ? "为当前登录账户配置个人席位" : canAdmin ? "点击配置系统模型" : "尚未配置，由管理员添加"}</small></span>
+              <Tag color={isEffective ? "green" : activeAccount ? "blue" : undefined}>{isEffective ? "当前使用" : activeAccount ? "系统默认" : providerAccounts.length ? "已配置" : "未配置"}</Tag>
             </button>;
           })}</div> : <div className="settings-empty"><strong>正在读取服务商目录</strong><span>服务商列表由控制端提供。</span></div>}
         </SettingGroup>
 
-        <Card className="settings-card ai-account-list" title="系统模型" extra={<Tag>{accounts.length}</Tag>}>
-          {!accounts.length ? <div className="settings-empty"><strong>还没有系统模型配置</strong><span>{canAdmin ? "选择上方服务商，配置并测试系统 API Key。" : "请联系系统管理员配置模型。"}</span></div> : accounts.map((account) => {
-            const accountModel = account.models.find((model) => model.id === account.modelId);
-            const accountModelOptions = account.models.map((model) => aiModelSelectOption(account.providerId, model));
-            if (!accountModel) accountModelOptions.unshift({ value: account.modelId, label: `${account.modelId}（不在最新目录）`, title: account.modelId, disabled: true });
-            const accountReasoningOptions = reasoningOptions(accountModel);
-            const accountReasoningMode = effectiveReasoningMode(accountModel, account.reasoningMode);
-            return <article className={`ai-account-item${account.active ? " is-active" : ""}`} key={account.id}>
-              <div className="ai-account-item__header"><div><strong>{account.displayName}</strong><span>{providers.find((provider) => provider.id === account.providerId)?.name ?? account.providerId} · {account.active ? "当前模型" : "已保存"}</span></div><Tag color={account.active ? "green" : "default"}>{account.active ? "当前使用" : "未启用"}</Tag></div>
-              <label className="settings-field"><span>当前模型</span><Select disabled={!canAdmin} value={account.modelId} options={accountModelOptions.length ? accountModelOptions : [{ value: account.modelId, label: account.modelId, title: account.modelId, disabled: false }]} onChange={(modelId) => void selectAccountModel(account, modelId)} /></label>
-              <p className="settings-field-help">{accountModel ? modelParameterSummary(accountModel) : "当前模型不在最新官方目录中；原选择已保留，请选择目录中的型号。"}</p>
-              {accountReasoningOptions.length ? <label className="settings-field"><span>{accountModel?.thinking?.kind === "effort" ? "思考力度" : "思考模式"}</span><Select value={accountReasoningMode} options={accountReasoningOptions} disabled={!canAdmin || aiBusy !== null} onChange={(value) => void selectAccountReasoningMode(account, value)} /></label>
-                : accountModel?.thinking?.kind === "fixed" ? <p className="ai-thinking-note">{fixedThinkingLabel(accountModel)}</p>
-                  : <p className="ai-thinking-note">当前模型目录没有已验证的思考力度选项；请求会跟随模型自身行为，不发送思考字段。</p>}
-              {canAdmin ? <div className="ai-account-item__actions">
-                {!account.active ? <Button size="small" type="primary" disabled={aiBusy !== null} onClick={() => void runAccountAction(account, "activate")}>设为当前模型</Button> : null}
-                <Button size="small" disabled={aiBusy !== null} onClick={() => openCredentialUpdate(account)}>更新 API Key</Button>
-                <Button size="small" disabled={aiBusy !== null} loading={aiBusy === `refresh:${account.id}`} onClick={() => void runAccountAction(account, "refresh")}>更新目录</Button>
-                <Button size="small" disabled={aiBusy !== null || !accountModel} title="向当前模型发起真实请求，可能产生 Provider 用量" loading={aiBusy === `retest:${account.id}`} onClick={() => void runAccountAction(account, "retest")}>重测模型</Button>
-                <Popconfirm title="删除这个系统模型？" description="删除后，所有登录账户都无法再使用这份系统配置。" okText="删除" cancelText="取消" onConfirm={() => void runAccountAction(account, "delete")}><Button danger size="small" disabled={aiBusy !== null}>删除</Button></Popconfirm>
-              </div> : <p className="ai-thinking-note">由系统管理员统一管理；当前模型配置供所有 LFAA 登录账户使用。</p>}
-            </article>;
-          })}
+        <SettingGroup title="外部 Coding Agent">
+          <SettingRow
+            title="Claude Agent SDK API Key"
+            description="为当前 LFAA 账户保存 Anthropic Console API Key。密钥由控制端加密保存，仅在 Claude Agent SDK 子任务运行时使用；任务与工作区上下文会发送给 Anthropic。"
+            status={claudeAgentCredentialStatus?.configured ? "已验证并加密保存" : "未配置"}
+          >
+            <div className="settings-ai-external-agent-controls">
+              <Input.Password
+                autoComplete="new-password"
+                aria-label="Anthropic Console API Key"
+                placeholder={claudeAgentCredentialStatus?.configured ? "已保存；输入新 Key 可验证并替换" : "输入 Anthropic Console API Key"}
+                value={claudeAgentCredentialDraft}
+                disabled={claudeAgentCredentialBusy}
+                onChange={(event) => setClaudeAgentCredentialDraft(event.target.value)}
+              />
+              <Button type="primary" loading={claudeAgentCredentialBusy} disabled={!claudeAgentCredentialDraft.trim()} onClick={() => void saveClaudeAgentCredentialDraft()}>
+                验证并保存
+              </Button>
+              <Popconfirm title="删除当前账户的 Anthropic API Key？" description="删除后 Claude Agent SDK 子任务将无法启动。" okText="删除" cancelText="取消" onConfirm={() => void removeClaudeAgentCredential()}>
+                <Button danger disabled={!claudeAgentCredentialStatus?.configured || claudeAgentCredentialBusy}>删除密钥</Button>
+              </Popconfirm>
+            </div>
+          </SettingRow>
+          <Alert
+            className="settings-inline-alert"
+            type="info"
+            showIcon
+            message="使用 Anthropic Console API Key"
+            description="系统不会读取本机 Claude Code 的登录态、OAuth 凭据或 claude.ai 账户。保存前会向 Anthropic Models API 验证密钥；SDK 使用独立临时配置目录，结束后清理。"
+          />
+        </SettingGroup>
+
+        <Card className="settings-card ai-account-list" title="系统模型（按量 API）" extra={<Tag>{systemAiAccounts.length}</Tag>}>
+          {!systemAiAccounts.length ? <div className="settings-empty"><strong>还没有系统模型配置</strong><span>{canAdmin ? "选择 OpenAI、DeepSeek 或普通方舟服务商，配置并测试系统 API Key。" : "请联系系统管理员配置系统模型，或添加自己的套餐席位。"}</span></div> : systemAiAccounts.map(renderAiAccountItem)}
+        </Card>
+
+        <Card className="settings-card ai-account-list" title="我的 Agent Plan / Coding Plan 席位" extra={<Tag>{personalPlanAccounts.length}</Tag>}>
+          {!personalPlanAccounts.length ? <div className="settings-empty"><strong>当前账户没有套餐席位配置</strong><span>从上方选择 Agent Plan 或 Coding Plan，填写自己的专属 API Key 和官方 Model Name。此配置仅归当前登录账户所有。</span></div> : personalPlanAccounts.map(renderAiAccountItem)}
         </Card>
 
         <Modal
@@ -2990,42 +3110,56 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           onCancel={() => { if (aiBusy === null) setProviderModalOpen(false); }}
         >
           {selectedProvider ? <div className="ai-provider-modal__content">
-            <p className="ai-provider-modal__description">{selectedProvider.description}。模型列表从该 Provider 官方 API 拉取，密钥仅在控制端验证与加密保存。</p>
+            <p className="ai-provider-modal__description">{selectedProvider.description}{selectedProvider.documentationUrl ? <> · <Typography.Link href={selectedProvider.documentationUrl} target="_blank" rel="noreferrer">火山方舟官方接入文档</Typography.Link></> : null}</p>
             <div className="ai-provider-form-grid">
               {selectedProvider.options.length ? <div className="ai-provider-options-grid">
                 {selectedProvider.options.map((option) => <label className="settings-field" key={option.id}><span>{option.label}</span>{option.choices.length ? <Select value={currentProviderOptions[option.id] ?? (option.id === "region" && providerId === "qwen" ? "ap-southeast-1" : option.choices[0]?.value)} options={option.choices.map((choice) => ({ value: choice.value, label: choice.label }))} onChange={(value) => { setProviderOptions((current) => ({ ...current, [providerId]: { ...current[providerId], [option.id]: value } })); setProviderApiKeyAttention(false); setError(""); setProbe(null); setModelTest(null); }} /> : <Input value={currentProviderOptions[option.id] ?? ""} onChange={(event) => { setProviderOptions((current) => ({ ...current, [providerId]: { ...current[providerId], [option.id]: event.target.value } })); setProviderApiKeyAttention(false); setError(""); setProbe(null); setModelTest(null); }} placeholder={`请输入${option.label}`} />}</label>)}
               </div> : null}
               <div className="ai-provider-credentials-grid">
-                <label className="settings-field"><span>配置名称</span><Input value={accountName} maxLength={48} onChange={(event) => setAccountName(event.target.value)} placeholder="例如：主模型" /></label>
+                <label className="settings-field"><span>配置名称</span><Input value={accountName} maxLength={48} onChange={(event) => setAccountName(event.target.value)} placeholder={selectedProvider.scope === "user" ? "例如：我的 Coding Plan" : "例如：主模型"} /></label>
                 <label className="settings-field"><span>{providerSecretLabel}</span><Input.Password status={providerApiKeyAttention ? "error" : undefined} aria-describedby={providerApiKeyAttention ? "provider-api-key-warning" : undefined} autoComplete="new-password" value={secret} onChange={(event) => { setSecret(event.target.value); if (event.target.value.trim()) setProviderApiKeyAttention(false); setError(""); setProbe(null); setModelTest(null); }} placeholder="输入密钥，仅在保存前保留" /></label>
               </div>
             </div>
-            {error ? <Alert className="settings-inline-alert" type="error" showIcon message={error} /> : providerApiKeyAttention ? <Alert id="provider-api-key-warning" className="settings-inline-alert" type="warning" showIcon message={`请先填写上方标红的 ${providerSecretLabel}；如果已填写仍拉取失败，请检查密钥、服务商参数和 API 地址。`} /> : null}
-            <div className="ai-provider-catalog-row">
-              <span><strong>官方模型目录</strong><small>{probe ? `已读取 ${probe.models.length} 个模型` : !secret.trim() ? `请先填写 ${providerSecretLabel}` : "尚未拉取"}</small></span>
-              <Button loading={aiBusy === "probe"} disabled={aiBusy !== null} title={!secret.trim() ? `请先填写 ${providerSecretLabel} 后再拉取模型` : undefined} onClick={() => void runProbe()}>拉取模型</Button>
-            </div>
-            {probe ? <Alert className="settings-ai-result" type="success" showIcon message={probe.message} description="此步骤只读取模型目录；请选择具体模型后，再发起真实对话测试。" /> : null}
-            {probe?.models.length ? <>
-              <label className="settings-field"><span>模型</span><Select value={selectedModel || undefined} placeholder="选择官方目录中的模型" options={probe.models.map((model) => aiModelSelectOption(providerId, model))} onChange={(nextModel) => { setSelectedModel(nextModel); setReasoningMode(defaultReasoningMode(probe.models.find((model) => model.id === nextModel))); setModelTest(null); }} showSearch optionFilterProp="title" /></label>
-              {selectedModelDetails ? <p className="settings-field-help">{modelParameterSummary(selectedModelDetails)}</p> : null}
-              {selectedModelReasoningOptions.length ? <label className="settings-field"><span>{selectedModelDetails?.thinking?.kind === "effort" ? "思考力度" : "思考模式"}</span><Select value={effectiveReasoningMode(selectedModelDetails, reasoningMode)} options={selectedModelReasoningOptions} disabled={aiBusy !== null} onChange={(value) => { setReasoningMode(value); setModelTest(null); }} /></label>
-                : selectedModelDetails?.thinking?.kind === "fixed" ? <p className="ai-thinking-note">{fixedThinkingLabel(selectedModelDetails)}</p>
-                  : selectedModelDetails ? <p className="ai-thinking-note">此模型目录没有已验证的思考力度选项；将跟随模型自身行为，不发送思考字段。</p> : null}
+            {error ? <Alert className="settings-inline-alert" type="error" showIcon message={error} /> : providerApiKeyAttention ? <Alert id="provider-api-key-warning" className="settings-inline-alert" type="warning" showIcon message={`请先填写上方标红的 ${providerSecretLabel}；如果已填写仍拉取失败，请检查密钥、服务商参数或套餐权限。`} /> : null}
+            {isManualPlanProvider ? <>
+              <Alert className="settings-inline-alert" type="info" showIcon message="火山方舟官方套餐模型目录" description={`已按火山方舟官方支持列表加载 ${probe?.models.length ?? 0} 个模型（目录版本 ${ARK_PLAN_CATALOG_REVISION}）；套餐专属 API Key 没有公开 models 列表接口。套餐档位决定可用范围，具体账户权限仍以真实请求和控制台为准。`} />
+              {providerId === "ark-coding-plan" ? <Alert className="settings-inline-alert" type="warning" showIcon message="Coding Plan 套餐额度由火山方舟识别" description={<>火山文档说明 Coding Plan 额度适用于其支持的 AI 编程工具，普通 API 调用不抵扣套餐。LFAA 使用专属 OpenAI Chat Completions 地址接入；由于当前文档未单独列出 LFAA，实际请求是否计入套餐以控制台用量为准。<Typography.Link href="https://docs.volcengine.com/docs/ark/coding-plan-personal-faq?lang=zh" target="_blank" rel="noreferrer">查看官方说明</Typography.Link></>} /> : null}
+              <div className="ai-provider-catalog-row"><span><strong>官方套餐目录</strong><small>{probe ? `已加载 ${probe.models.length} 个模型 · ${ARK_PLAN_CATALOG_REVISION}` : "需要密钥以继续验证"}</small></span><Button loading={aiBusy === "probe"} disabled={!secret.trim() || aiBusy !== null} onClick={() => void runProbe()}>加载套餐模型</Button></div>
+              {probe?.models.filter(model => model.taskType && model.taskType !== "chat").length ? <div className="ai-plan-capability-models"><strong>本档位模型能力</strong><Space wrap size={[6, 6]}>{probe.models.filter(model => model.taskType && model.taskType !== "chat").map(model => <Tag key={`${model.taskType}:${model.id}`} title={model.catalogSource}>{({ embedding: "向量", "image-generation": "生图", "video-generation": "视频", "text-to-speech": "语音合成", "speech-to-text": "语音识别" } as Record<string, string>)[model.taskType!] ?? model.taskType} · {model.name}</Tag>)}</Space></div> : null}
+              {probe ? <label className="settings-field"><span>套餐文本模型</span><Select showSearch optionFilterProp="title" value={selectedModel || undefined} disabled={aiBusy !== null} options={probe.models.filter(model => (model.taskType ?? "chat") === "chat").map(model => aiModelSelectOption(providerId, model))} onChange={nextModel => { setSelectedModel(nextModel); setModelTest(null); }} /></label> : null}
               <div className="ai-provider-test-row">
-                <div><strong>真实模型测试</strong><span>会发送一条简短请求至所选模型，可能产生 Provider 用量。</span></div>
-                <Button loading={aiBusy === "test"} disabled={!selectedModel || !secret.trim() || aiBusy !== null} onClick={() => void runModelTest()}>测试模型</Button>
+                <div><strong>真实模型测试</strong><span>会使用当前套餐密钥和官方 Model Name 发起一次请求，可能产生套餐用量。</span></div>
+                <Button loading={aiBusy === "test"} disabled={!selectedModel.trim() || !secret.trim() || aiBusy !== null} onClick={() => void runModelTest()}>测试模型</Button>
               </div>
-              {modelTest ? <Alert className="settings-ai-result" type="success" showIcon message={`模型请求通过 · ${modelTest.elapsedMs} ms`} description={modelTest.sample} /> : null}
-              <div className="ai-provider-modal__footer"><Button onClick={() => setProviderModalOpen(false)} disabled={aiBusy !== null}>取消</Button><Button type="primary" loading={aiBusy === "save"} disabled={!modelTest || !selectedModel || !secret.trim() || aiBusy !== null} onClick={() => void saveAccount()}>加密保存系统模型</Button></div>
-            </> : null}
+              {modelTest ? <Alert className="settings-ai-result" type="success" showIcon message={`套餐模型真实请求通过 · ${modelTest.elapsedMs} ms`} description={modelTest.sample} /> : null}
+              <div className="ai-provider-modal__footer"><Button onClick={() => setProviderModalOpen(false)} disabled={aiBusy !== null}>取消</Button><Button type="primary" loading={aiBusy === "save"} disabled={!probe || !modelTest?.verificationToken || !selectedModel.trim() || !secret.trim() || aiBusy !== null} onClick={() => void saveAccount()}>保存个人套餐席位</Button></div>
+            </> : <>
+              <div className="ai-provider-catalog-row">
+                <span><strong>官方模型目录</strong><small>{probe ? `已读取 ${probe.models.length} 个模型` : !secret.trim() ? `请先填写 ${providerSecretLabel}` : "尚未拉取"}</small></span>
+                <Button loading={aiBusy === "probe"} disabled={aiBusy !== null} title={!secret.trim() ? `请先填写 ${providerSecretLabel} 后再拉取模型` : undefined} onClick={() => void runProbe()}>拉取模型</Button>
+              </div>
+              {probe ? <Alert className="settings-ai-result" type="success" showIcon message={probe.message} description="此步骤只读取模型目录；请选择具体模型后，再发起真实对话测试。" /> : null}
+              {probe?.models.length ? <>
+                <label className="settings-field"><span>模型</span><Select value={selectedModel || undefined} placeholder="选择官方目录中的模型" options={probe.models.map((model) => aiModelSelectOption(providerId, model))} onChange={(nextModel) => { setSelectedModel(nextModel); setReasoningMode(defaultReasoningMode(probe.models.find((model) => model.id === nextModel))); setModelTest(null); }} showSearch optionFilterProp="title" /></label>
+                {selectedModelDetails ? <p className="settings-field-help">{modelParameterSummary(selectedModelDetails)}</p> : null}
+                {selectedModelReasoningOptions.length ? <label className="settings-field"><span>{selectedModelDetails?.thinking?.kind === "effort" ? "思考力度" : "思考模式"}</span><Select value={effectiveReasoningMode(selectedModelDetails, reasoningMode)} options={selectedModelReasoningOptions} disabled={aiBusy !== null} onChange={(value) => { setReasoningMode(value); setModelTest(null); }} /></label>
+                  : selectedModelDetails?.thinking?.kind === "fixed" ? <p className="ai-thinking-note">{fixedThinkingLabel(selectedModelDetails)}</p>
+                    : selectedModelDetails ? <p className="ai-thinking-note">此模型目录没有已验证的思考力度选项；将跟随模型自身行为，不发送思考字段。</p> : null}
+                <div className="ai-provider-test-row">
+                  <div><strong>真实模型测试</strong><span>会发送一条简短请求至所选模型，可能产生 Provider 用量。</span></div>
+                  <Button loading={aiBusy === "test"} disabled={!selectedModel || !secret.trim() || aiBusy !== null} onClick={() => void runModelTest()}>测试模型</Button>
+                </div>
+                {modelTest ? <Alert className="settings-ai-result" type="success" showIcon message={`模型请求通过 · ${modelTest.elapsedMs} ms`} description={modelTest.sample} /> : null}
+                <div className="ai-provider-modal__footer"><Button onClick={() => setProviderModalOpen(false)} disabled={aiBusy !== null}>取消</Button><Button type="primary" loading={aiBusy === "save"} disabled={!modelTest || !selectedModel || !secret.trim() || aiBusy !== null} onClick={() => void saveAccount()}>{selectedProvider.scope === "user" ? "保存个人套餐席位" : "加密保存系统模型"}</Button></div>
+              </> : null}
+            </>}
           </div> : null}
         </Modal>
         <Modal
           rootClassName="settings-ai-provider-modal"
           getContainer={() => document.querySelector<HTMLElement>(".settings-page") ?? document.body}
           open={credentialUpdateAccount !== null}
-          title="更新系统模型 API Key"
+          title={credentialUpdateAccount?.scope === "user" ? "更新个人套餐密钥" : "更新系统模型 API Key"}
           centered
           width={600}
           footer={null}
@@ -3034,17 +3168,17 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           onCancel={() => { if (aiBusy === null) { setCredentialSecret(""); setCredentialTest(null); setCredentialUpdateAccount(null); setError(""); } }}
         >
           {credentialUpdateAccount ? <div className="ai-provider-modal__content">
-            <p className="ai-provider-modal__description">将更新「{credentialUpdateAccount.displayName}」的系统凭据；当前 Provider 与模型保持不变，所有 LFAA 登录账户继续共用这份配置。新密钥只在控制端测试并加密保存，不会创建另一套用户账户。</p>
-            <label className="settings-field"><span>新的 API Key 或 Token</span><Input.Password disabled={aiBusy !== null} autoComplete="new-password" value={credentialSecret} onChange={(event) => { setCredentialSecret(event.target.value); setCredentialTest(null); setError(""); }} placeholder="输入新的 Provider 凭据" /></label>
+            <p className="ai-provider-modal__description">{credentialUpdateAccount.scope === "user" ? `将更新「${credentialUpdateAccount.displayName}」的个人套餐密钥；只影响当前登录账户的席位。` : `将更新「${credentialUpdateAccount.displayName}」的系统凭据；当前 Provider 与模型保持不变，所有 LFAA 登录账户继续共用这份配置。`}新密钥只在控制端测试并加密保存，不会返回账户列表。</p>
+            <label className="settings-field"><span>{providers.find((provider) => provider.id === credentialUpdateAccount.providerId)?.secretLabel ?? "新的 API Key 或 Token"}</span><Input.Password disabled={aiBusy !== null} autoComplete="new-password" value={credentialSecret} onChange={(event) => { setCredentialSecret(event.target.value); setCredentialTest(null); setError(""); }} placeholder="输入新的 Provider 凭据" /></label>
             {error ? <Alert className="settings-inline-alert" type="error" showIcon message={error} /> : null}
             <div className="ai-provider-test-row">
-              <div><strong>测试系统当前模型</strong><span>会发送一条真实请求至当前模型，可能产生 Provider 用量。</span></div>
-              <Button loading={aiBusy === `credential-test:${credentialUpdateAccount.id}`} disabled={!credentialSecret.trim() || aiBusy !== null} onClick={() => void testReplacementCredential()}>测试 API Key</Button>
+              <div><strong>测试当前模型</strong><span>会发送一条真实请求至当前模型，可能产生 Provider 用量。</span></div>
+              <Button loading={aiBusy === `credential-test:${credentialUpdateAccount.id}`} disabled={!credentialSecret.trim() || aiBusy !== null} onClick={() => void testReplacementCredential()}>测试密钥</Button>
             </div>
             {credentialTest ? <Alert className="settings-ai-result" type="success" showIcon message={`当前模型真实请求通过 · ${credentialTest.elapsedMs} ms`} description={credentialTest.sample} /> : null}
             <div className="ai-provider-modal__footer">
               <Button disabled={aiBusy !== null} onClick={() => { setCredentialSecret(""); setCredentialTest(null); setCredentialUpdateAccount(null); setError(""); }}>取消</Button>
-              <Button type="primary" loading={aiBusy === `credential-save:${credentialUpdateAccount.id}`} disabled={!credentialTest || !credentialSecret.trim() || aiBusy !== null} onClick={() => void saveReplacementCredential()}>加密保存到系统配置</Button>
+              <Button type="primary" loading={aiBusy === `credential-save:${credentialUpdateAccount.id}`} disabled={!credentialTest || !credentialSecret.trim() || aiBusy !== null} onClick={() => void saveReplacementCredential()}>{credentialUpdateAccount.scope === "user" ? "加密保存到我的席位" : "加密保存到系统配置"}</Button>
             </div>
           </div> : null}
         </Modal>
@@ -3101,11 +3235,11 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
             </SettingRow>
             {localImageModels.length ? <Alert type="info" showIcon message="MOSS-Image 首发适配能力" description="当前 MOSS-Image 支持文字/布局生图，输出 1024×1024 PNG；不接受参考图片。首次生成会在本机加载原生 Diffusers 组件。" /> : null}
           </> : <>
-            <SettingRow title="图片模型账户" description="复用此处加密保存的 OpenAI 或豆包/火山方舟账户。生成只在你点击镜头卡片上的按钮时发起，服务商可能按其规则计费。">
-              <Select allowClear value={settings.aiRuntime.imageGenerationAccountId || undefined} placeholder="选择 OpenAI 或豆包账户" options={imageGenerationAccounts.map(account => ({ value: account.id, label: `${account.displayName} · ${account.providerId}` }))} onChange={value => updateSettings("aiRuntime", { ...settings.aiRuntime, imageGenerationAccountId: value ?? "", imageGenerationModelId: "" })} />
+            <SettingRow title="图片模型账户" description="复用此处加密保存的 OpenAI、豆包按量 API 或 Agent Plan 席位。AI 漫剧与无限画布共用该模型选择。">
+              <Select allowClear value={settings.aiRuntime.imageGenerationAccountId || undefined} placeholder="选择图片模型账户" options={imageGenerationAccounts.map(account => ({ value: account.id, label: `${account.displayName} · ${account.providerId}` }))} onChange={value => updateSettings("aiRuntime", { ...settings.aiRuntime, imageGenerationAccountId: value ?? "", imageGenerationModelId: "" })} />
             </SettingRow>
             <SettingRow title="图像模型 ID" description="从已保存账户的模型目录选择；模型目录存在不代表该型号已开通图像生成，真实请求会返回服务商判定结果。">
-              <Select allowClear showSearch optionFilterProp="label" disabled={!selectedImageGenerationAccount} value={settings.aiRuntime.imageGenerationModelId || undefined} placeholder={selectedImageGenerationAccount ? "选择模型目录中的图像模型" : "请先选择图片模型账户"} options={selectedImageGenerationAccount?.models.map(model => ({ value: model.id, label: model.id })) ?? []} onChange={value => updateSettings("aiRuntime", { ...settings.aiRuntime, imageGenerationModelId: value ?? "" })} />
+              <Select allowClear showSearch optionFilterProp="label" disabled={!selectedImageGenerationAccount} value={settings.aiRuntime.imageGenerationModelId || undefined} placeholder={selectedImageGenerationAccount ? "选择模型目录中的图像模型" : "请先选择图片模型账户"} options={selectedImageGenerationAccount?.models.filter(model => selectedImageGenerationAccount.providerId !== "ark-agent-plan" || model.taskType === "image-generation").filter(model => !model.planTiers?.length || selectedImageGenerationAccount.options.planTier === "unknown" || !selectedImageGenerationAccount.options.planTier || model.planTiers.includes(selectedImageGenerationAccount.options.planTier as NonNullable<AiModel["planTiers"]>[number])).map(model => ({ value: model.id, label: model.id })) ?? []} onChange={value => updateSettings("aiRuntime", { ...settings.aiRuntime, imageGenerationModelId: value ?? "" })} />
             </SettingRow>
             {!imageGenerationAccounts.length ? <Alert type="info" showIcon message="请先在上方配置并加密保存 OpenAI 或豆包/火山方舟账户。" /> : null}
           </>}
@@ -3125,11 +3259,11 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
               <InputNumber min={1} max={60} step={1} value={settings.aiRuntime.videoGenerationUnloadAfterMinutes} addonAfter="分钟" onChange={value => value !== null && updateSettings("aiRuntime", { ...settings.aiRuntime, videoGenerationUnloadAfterMinutes: value })} />
             </SettingRow>
           </> : <>
-            <SettingRow title="火山方舟视频账户" description="复用此处加密保存的火山方舟账户；视频生成会创建服务商异步任务并按服务商规则计费。">
+            <SettingRow title="火山方舟视频账户" description="使用 Agent Plan 视频模型创建官方异步任务；AI 漫剧和无限画布共用此处账户。Agent Plan 仅 Large/Max 提供视频生成。">
               <Select allowClear value={settings.aiRuntime.videoGenerationAccountId || undefined} placeholder="选择火山方舟账户" options={videoGenerationAccounts.map(account => ({ value: account.id, label: `${account.displayName} · 火山方舟` }))} onChange={value => updateSettings("aiRuntime", { ...settings.aiRuntime, videoGenerationAccountId: value ?? "", videoGenerationModelId: "" })} />
             </SettingRow>
-            <SettingRow title="视频模型 ID" description="从所选账户保存的模型目录选择。目录不声明视频能力时仍由服务商按真实请求判定，不自动切换模型。">
-              <Select allowClear showSearch optionFilterProp="label" disabled={!selectedVideoGenerationAccount} value={settings.aiRuntime.videoGenerationModelId || undefined} placeholder={selectedVideoGenerationAccount ? "选择模型目录中的视频模型" : "请先选择火山方舟账户"} options={selectedVideoGenerationAccount?.models.map(model => ({ value: model.id, label: model.id })) ?? []} onChange={value => updateSettings("aiRuntime", { ...settings.aiRuntime, videoGenerationModelId: value ?? "" })} />
+            <SettingRow title="视频模型 ID" description="从官方 Agent Plan 视频模型目录选择，不会把普通文本模型当成视频模型。">
+              <Select allowClear showSearch optionFilterProp="label" disabled={!selectedVideoGenerationAccount} value={settings.aiRuntime.videoGenerationModelId || undefined} placeholder={selectedVideoGenerationAccount ? "选择模型目录中的视频模型" : "请先选择火山方舟账户"} options={selectedVideoGenerationAccount?.models.filter(model => selectedVideoGenerationAccount.providerId !== "ark-agent-plan" || model.taskType === "video-generation").filter(model => !model.planTiers?.length || selectedVideoGenerationAccount.options.planTier === "unknown" || !selectedVideoGenerationAccount.options.planTier || model.planTiers.includes(selectedVideoGenerationAccount.options.planTier as NonNullable<AiModel["planTiers"]>[number])).map(model => ({ value: model.id, label: model.id })) ?? []} onChange={value => updateSettings("aiRuntime", { ...settings.aiRuntime, videoGenerationModelId: value ?? "" })} />
             </SettingRow>
           </>}
           <SettingRow title="生成时长" description="时长单位为秒；模型支持范围和可选离散值由火山方舟实际判定。">

@@ -60,6 +60,7 @@ const settingKeyLabels: Record<string, string> = {
   translucentSidebar: "半透明侧边栏", contrast: "对比度", diffMarkers: "差异标记", pointerCursor: "指针光标",
   aiWorkOutputFocusBlurEnabled: "空闲时虚化回复", aiWorkOutputFocusBlurPercent: "回复虚化程度",
   aiWorkOutputFocusBlurIdleSeconds: "回复虚化等待时间", aiWorkOutputFocusBlurAmount: "旧版回复虚化量",
+  writingLightRaysEnabled: "写作光线背景",
   openSettings: "打开设置中心快捷键", openHome: "打开首页快捷键", openSteamcmd: "打开 SteamCMD 快捷键",
   openMinecraft: "打开 Minecraft 快捷键", openWriting: "打开写作快捷键", toggleSidebar: "切换侧栏快捷键",
   toggleContextPanel: "切换上下文面板快捷键", toggleBottomPanel: "切换底部面板快捷键", openTerminal: "打开终端快捷键",

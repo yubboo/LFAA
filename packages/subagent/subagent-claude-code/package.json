@@ -9,7 +9,11 @@
     "./package.json": "./package.json"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.3.310",
     "@deepseek-ai/cordis": "4.0.4",
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "lfaa-credentials": "workspace:*",
+    "lfaa-llm": "workspace:*",
     "lfaa-subagent": "workspace:*"
   },
   "devDependencies": {

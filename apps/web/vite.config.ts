@@ -99,6 +99,16 @@ export default defineConfig(({ mode }) => {
           recordRuntimeBuild("web", repositoryRoot, sourceFingerprint, webOutputDirectory);
         }
       }
+    }, {
+      name: "lfaa-third-party-notices",
+      apply: "build",
+      generateBundle() {
+        this.emitFile({
+          type: "asset",
+          fileName: "THIRD-PARTY-NOTICES.md",
+          source: readFileSync(resolve(repositoryRoot, "packages/client/ui-primitives/THIRD-PARTY-NOTICES.md"), "utf8")
+        });
+      }
     }],
     resolve: {
       alias: [

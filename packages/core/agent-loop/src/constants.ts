@@ -23,9 +23,6 @@ export const COMPACTION_PRESSURE_RATIO = 0.8;
 /** 触发 spill 的更高压比例：达到窗口该比例时，除压缩外还应考虑把超大工具结果卸载到外部存储。 */
 export const SPILL_PRESSURE_RATIO = 0.9;
 
-/** 启发式 token 估算：在没有 token-meter 时，按字符数除以该系数估算 token。 */
-export const CHARS_PER_TOKEN = 3.5;
-
 /** 压缩后保留的尾部消息数（对齐 DSH preserveRecentTurns 默认）。 */
 export const COMPACTION_PRESERVE_RECENT_TURNS = 8;
 

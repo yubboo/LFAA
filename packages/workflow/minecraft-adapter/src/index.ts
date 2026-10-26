@@ -77,7 +77,7 @@ async function executeAgentNode(context: WorkflowNodeExecutionContext) {
     "你正在执行用户保存的 Minecraft Agent 工作流中的一个节点。",
     "根据节点目标自行判断是否需要调用当前允许的 Minecraft 工具；所有操作继续遵守账户权限、工具校验和审批。",
     "不得执行当前节点目标之外的操作；不得声称工具没有返回的结果。",
-    eulaAccepted ? "本次运行的用户已通过界面明确确认阅读并同意 Minecraft EULA；仍需在要求的工具参数中如实传递 eulaAccepted=true。" : "用户没有同意 Minecraft EULA；不得代替用户接受或传递同意状态。"
+    eulaAccepted ? "本次工作流运行的统一 Permission Owner 授权上下文包含 Minecraft EULA 与所选核心许可；开服工具参数仍须如实传递 eulaAccepted=true。" : "当前工作流运行未获得 Minecraft EULA 的统一权限授权；不得代替用户接受或传递同意状态。"
   ].join("\n");
   const run = startAiRun(context.userId, context.userRole as UserRole, {
     appId: "minecraft",
@@ -131,7 +131,7 @@ export function registerMinecraftWorkflowAdapter(ctx: Context): void {
         const data = normalizeAgentData(node.data);
         if (data.toolNames.some((name) => !tools.has(name))) throw new Error(`节点“${node.title}”包含当前账户或权限模式不可用的工具。`);
         const needsEula = data.toolNames.some((name) => name === "minecraft_provision_server" || name === "minecraft_deploy_server");
-        if (needsEula && options.eulaAccepted !== true) throw new Error("此工作流包含开服工具。运行前请明确确认已阅读并同意 Minecraft EULA。");
+        if (needsEula && options.eulaAccepted !== true) throw new Error("此工作流包含开服工具，但统一 Permission Owner 授权上下文缺少 Minecraft EULA 同意标记。");
       }
     }
   });

@@ -7,3 +7,5 @@ Web/Desktop 共用的写作管理面板。`normal/WritingWorkspace` 负责作品
 模块在 `src/client/index.ts` 可撤销登记，公开写作编辑器及作品信息入口；依赖由 package.json 声明，不在浏览器运行数据库、Shell 或节点执行器。沿用工作台 Appearance 的主题、颜色、字体/字号、对比度、壁纸、遮罩/模糊和减少动态效果，目录/编辑器/侧栏使用已有容器布局。
 
 构建只输出根 `dist/packages/client/ui-writing/`。本包当前不是模板生成或动态应用运行时。实际检查与未验收范围见 [合同](../../../docs/PROMPTS.md#lfaa-application-panels-templates-20261016)。
+
+普通写作的中心编辑器复用 `ui-primitives/LightRays`，其 `appearance.advanced.writingLightRaysEnabled` 由设置中心和写作工具栏共用；工具栏通过 Client Connection 保存 `appearance`，不另建本地偏好。光线层尊重 Appearance 强调色、遮罩透明度和减少动态效果设置，不读取作品内容。

@@ -339,7 +339,7 @@ export class SessionRepository {
         page.bytes -= bytes; this.recentMessagePageBytes -= bytes;
         page.feedback.delete(data.messageId); page.feedbackBytes.delete(data.messageId);
       }
-      if (old?.type === "usage/record" && typeof data?.runId === "string" && page?.usage.has(data.runId)) {
+      if (old?.type === "usage/record" && typeof data?.runId === "string" && data.purpose !== "memory" && data.purpose !== "subagent" && page?.usage.has(data.runId)) {
         const bytes = page.usageBytes.get(data.runId) ?? 0;
         page.bytes -= bytes; this.recentMessagePageBytes -= bytes;
         page.usage.delete(data.runId); page.usageBytes.delete(data.runId);
@@ -359,7 +359,7 @@ export class SessionRepository {
       page.bytes += bytes - (page.feedbackBytes.get(data.messageId) ?? 0);
       this.recentMessagePageBytes += page.bytes - previousBytes;
       page.feedback.set(data.messageId, feedback); page.feedbackBytes.set(data.messageId, bytes);
-    } else if (value.type === "usage/record" && typeof data?.runId === "string" && data.purpose !== "memory" && page?.rows.has(data.runId)) {
+    } else if (value.type === "usage/record" && typeof data?.runId === "string" && data.purpose !== "memory" && data.purpose !== "subagent" && page?.rows.has(data.runId)) {
       const previousBytes = page.bytes;
       const usage = structuredClone(value);
       const bytes = Buffer.byteLength(encode(usage));
@@ -474,7 +474,7 @@ export class SessionRepository {
       if (data && typeof data === "object" && !Array.isArray(data)) {
         const value = data as Record<string, unknown>;
         if (event.type === "message/feedback" && typeof value.messageId === "string" && candidateIds.has(value.messageId)) feedback.set(value.messageId, event);
-        else if (event.type === "usage/record" && typeof value.runId === "string" && value.purpose !== "memory" && candidateIds.has(value.runId)) usage.set(value.runId, event);
+        else if (event.type === "usage/record" && typeof value.runId === "string" && value.purpose !== "memory" && value.purpose !== "subagent" && candidateIds.has(value.runId)) usage.set(value.runId, event);
       }
       if (++processed % 256 === 0) await new Promise<void>(resume => setImmediate(resume));
     }

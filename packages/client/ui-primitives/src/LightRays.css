@@ -1,0 +1,31 @@
+/* React Bits LightRays renderer and static fallback; colors follow the active Workbench accent. */
+.light-rays {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  isolation: isolate;
+  pointer-events: none;
+}
+
+.light-rays__fallback {
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(ellipse 78% 55% at 50% 0, color-mix(in srgb, var(--settings-accent, var(--color-brand)) 14%, transparent), transparent 75%),
+    conic-gradient(from 160deg at 50% -8%, transparent 0deg 22deg, color-mix(in srgb, var(--settings-accent, var(--color-brand)) 13%, transparent) 27deg 30deg, transparent 34deg 39deg, color-mix(in srgb, var(--settings-accent, var(--color-brand)) 9%, transparent) 43deg 46deg, transparent 50deg 74deg, color-mix(in srgb, var(--settings-accent, var(--color-brand)) 11%, transparent) 79deg 82deg, transparent 87deg 360deg);
+  opacity: .52;
+}
+
+.light-rays[data-renderer="webgl"] .light-rays__fallback { opacity: 0; }
+
+.light-rays__canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.light-rays[data-theme="dark"][data-renderer="webgl"] .light-rays__canvas { mix-blend-mode: screen; }
+.light-rays[data-theme="light"][data-renderer="webgl"] .light-rays__canvas { opacity: .48; mix-blend-mode: multiply; }

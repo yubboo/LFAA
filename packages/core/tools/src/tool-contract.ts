@@ -8,6 +8,21 @@ import type { ApplicationId } from "lfaa-util-values/src/application-id.js";
 import type { UserRole } from "lfaa-identity-auth/src/service.js";
 export type AiBusinessToolRisk = "read" | "write" | "dangerous";
 
+export interface AiExternalAgentToolDefinition {
+  name: string;
+  description: string;
+  schema: Record<string, unknown>;
+}
+
+export type AiExternalAgentToolContent =
+  | { type: "text"; text: string }
+  | { type: "image"; mimeType: string; data: string };
+
+export interface AiExternalAgentToolDispatchResult {
+  content: AiExternalAgentToolContent[];
+  isError?: boolean;
+}
+
 export interface AiBusinessToolContext {
   /** 由父 Run 提供：统一委派预算、项目、工具范围及取消；插件不能自行重建根 Run。 */
   delegateSubagent?: (parameters: Record<string, unknown>, execute?: (startChild: (signal?: AbortSignal) => Promise<{ status: string; [key: string]: unknown }>) => Promise<{ status: string; [key: string]: unknown }>) => Promise<{ status: string; [key: string]: unknown }>;
@@ -20,11 +35,37 @@ export interface AiBusinessToolContext {
   sessionId?: string;
   /** 当前模型实际可见的工具名，用于后续任务继承而非扩大范围。 */
   allowedToolNames?: readonly string[];
-  externalDelegationAllowed?: boolean;
+  /** 子 Agent 只看见父 Run 当前继承范围内的工具合同；执行仍回到同一 Agent Loop dispatch。 */
+  externalAgentTools?: readonly AiExternalAgentToolDefinition[];
+  dispatchExternalAgentTool?: (request: { name: string; arguments: unknown; signal: AbortSignal }) => Promise<AiExternalAgentToolDispatchResult>;
+  /** 外部 Agent SDK 每次工具调用回到 Agent Loop 的 Permission Owner。 */
+  authorizeExternalAgentAction?: (request: {
+    toolUseId: string;
+    toolName: string;
+    toolVersion: string;
+    risk: "read" | "write" | "dangerous";
+    scopeKey: string;
+    scopeSummary: string;
+    summary: string;
+    parameters: unknown;
+    signal: AbortSignal;
+  }) => Promise<boolean>;
+  /** 从父 Agent Loop 原子预留一份外部 SDK 模型请求预算；settle 无法确认实际用量时按预留上限计入。 */
+  reserveExternalAgentModelRequests?: () => { maxModelRequests: number; settle: (used?: number) => void } | null;
   /** 工具可登记一次性运行状态清理；Agent Loop 在该运行的 finally 中调用。 */
   onRunDispose?: (cleanup: () => void) => void;
   signal: AbortSignal;
   onProgress: (detail: string) => void;
+  /** 外部子 Agent SDK 的顶层文本增量，沿当前 Run 实时通道转发，不持久化。 */
+  onSubagentTextDelta?: (delta: string) => void;
+  /** 子 Agent Provider 实际报告的分模型 token 聚合量；由 Session Owner 记账，不带估算费用。 */
+  onSubagentUsage?: (usage: readonly {
+    providerId: string;
+    modelId: string;
+    promptTokens: number | null;
+    completionTokens: number | null;
+    cacheReadTokens: number | null;
+  }[]) => void;
   workspaceProject?: { nodeId: string | null; path: string; title: string } | null;
   /** Agent Git Workspace Owner 解析出的可信本机仓库上下文，与 workspaceProject/Daemon 节点无关。 */
   agentGitRepository?: { id: string; path: string; title: string } | null;
@@ -72,8 +113,8 @@ export interface AiBusinessTool {
   applicationIds: ApplicationId[];
   schema: Record<string, unknown>;
   risk: (parameters: Record<string, unknown>) => AiBusinessToolRisk;
-  approval: (parameters: Record<string, unknown>, context: Pick<AiBusinessToolContext, "userId" | "applicationId">) => { scopeKey: string; scopeSummary: string; summary: string };
-  prepare?: (parameters: Record<string, unknown>, context: Pick<AiBusinessToolContext, "userId" | "workspaceProject" | "agentGitRepository">) => Record<string, unknown>;
+  approval: (parameters: Record<string, unknown>, context: Pick<AiBusinessToolContext, "userId" | "applicationId"> & Partial<Pick<AiBusinessToolContext, "agentGitRepository">>) => { scopeKey: string; scopeSummary: string; summary: string };
+  prepare?: (parameters: Record<string, unknown>, context: Pick<AiBusinessToolContext, "userId"> & Partial<Pick<AiBusinessToolContext, "userRole" | "workspaceProject" | "agentGitRepository" | "authorizeExternalAgentAction" | "externalAgentTools" | "dispatchExternalAgentTool">>) => Record<string, unknown>;
   parse: (value: unknown) => Record<string, unknown>;
   execute: (parameters: Record<string, unknown>, context: AiBusinessToolContext) => Promise<unknown>;
   delegation?: "domain-expert";

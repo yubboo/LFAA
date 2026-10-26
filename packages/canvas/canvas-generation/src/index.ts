@@ -10,7 +10,7 @@ import { CanvasConflictError } from "lfaa-canvas/src/index.js";
 import { credentialReference } from "lfaa-credentials/src/index.js";
 import type { ApplicationId } from "lfaa-util-values/src/application-id.js";
 import { generateProviderImage, type GeneratedImageMimeType, type ImageGenerationProvider, type ProviderReferenceImage } from "lfaa-llm/src/image-generation.js";
-import { cancelArkVideoTask, createArkVideoTask, downloadArkVideo, getArkVideoTask, type ArkVideoTaskStatus } from "lfaa-llm/src/video-generation.js";
+import { cancelArkVideoTask, createArkVideoTask, downloadArkVideo, getArkVideoTask, type ArkVideoProviderId, type ArkVideoTaskStatus } from "lfaa-llm/src/video-generation.js";
 import { getUserSettings, listAiAccounts, type AiAccountView, type AiRuntimeSettings } from "lfaa-settings/src/service.js";
 
 /** 画布生成节点 data.generation 的受限状态；只覆盖合同声明的字段，额外字段用于诊断与服务商任务恢复。 */
@@ -275,10 +275,11 @@ function resolveImageTarget(deps: CanvasGenerationDependencies, userId: string, 
   const account = deps.listAccounts(userId).find(item => item.id === accountId);
   if (!account) return failConfiguration("设置中心找不到所选图片生成账户；请在设置中心重新选择账户。");
   if (!account.hasSecret) return failConfiguration("所选图片生成账户的密钥已删除；请在设置中心重新保存账户密钥。");
-  if (account.providerId !== "openai" && account.providerId !== "doubao") {
-    return failConfiguration("画布图片生成只支持 OpenAI 和豆包/火山方舟账户；当前账户类型暂不支持图片生成。");
+  if (account.providerId !== "openai" && account.providerId !== "doubao" && account.providerId !== "ark-agent-plan") {
+    return failConfiguration("画布图片生成只支持 OpenAI、豆包/火山方舟和 Agent Plan 图片账户。");
   }
-  if (!account.models.some(item => item.id === modelId)) {
+  const imageModel = account.models.find(item => item.id === modelId);
+  if (!imageModel || account.providerId === "ark-agent-plan" && imageModel.taskType !== "image-generation") {
     return failConfiguration("所选图片生成模型不在当前账户保存的模型目录中；请在设置中心重新选择模型。");
   }
   const apiKey = deps.resolveCredential(userId, accountId);
@@ -286,7 +287,7 @@ function resolveImageTarget(deps: CanvasGenerationDependencies, userId: string, 
   return { providerId: account.providerId, modelId, apiKey };
 }
 
-function resolveVideoTarget(deps: CanvasGenerationDependencies, userId: string, settings: AiRuntimeSettings): { accountId: string; modelId: string; apiKey: string } {
+function resolveVideoTarget(deps: CanvasGenerationDependencies, userId: string, settings: AiRuntimeSettings): { accountId: string; modelId: string; apiKey: string; providerId: ArkVideoProviderId } {
   if (settings.videoGenerationMode === "local") {
     const localModelId = settings.videoGenerationLocalModelId.trim();
     throw new CanvasGenerationUnsupportedError(localModelId
@@ -298,23 +299,27 @@ function resolveVideoTarget(deps: CanvasGenerationDependencies, userId: string, 
   if (!accountId || !modelId) return failConfiguration("请先在设置中心选择火山方舟视频生成账户和模型，再发起画布视频生成。");
   const account = deps.listAccounts(userId).find(item => item.id === accountId);
   if (!account?.hasSecret) return failConfiguration("设置中心找不到所选火山方舟视频生成账户，或其密钥已删除；请重新保存账户。");
-  if (account.providerId !== "doubao") return failConfiguration("画布视频生成只支持火山方舟（豆包）账户；当前账户类型暂不支持视频生成。");
-  if (!account.models.some(item => item.id === modelId)) {
+  if (account.providerId !== "doubao" && account.providerId !== "ark-agent-plan") return failConfiguration("画布视频生成只支持火山方舟（豆包）或 Agent Plan 视频账户。");
+  const videoModel = account.models.find(item => item.id === modelId);
+  if (!videoModel || account.providerId === "ark-agent-plan" && (videoModel.taskType !== "video-generation"
+    || Boolean(videoModel.planTiers?.length && account.options.planTier !== "unknown" && account.options.planTier && !videoModel.planTiers.includes(account.options.planTier as NonNullable<typeof videoModel.planTiers>[number])))) {
     return failConfiguration("所选视频生成模型不在当前账户保存的模型目录中；请在设置中心重新选择模型。");
   }
   const apiKey = deps.resolveCredential(userId, accountId);
   if (!apiKey) return failConfiguration("设置中心保存的火山方舟视频账户密钥不可用；请重新保存账户密钥。");
-  return { accountId, modelId, apiKey };
+  return { accountId, modelId, apiKey, providerId: account.providerId };
 }
 
 /** 视频任务后续刷新/取消按节点记录里的账户恢复凭据，账户被删除或改类型时明确拒绝。 */
-function resolveStoredVideoCredential(deps: CanvasGenerationDependencies, userId: string, accountId: string): string {
+function resolveStoredVideoCredential(deps: CanvasGenerationDependencies, userId: string, accountId: string, modelId: string): { apiKey: string; providerId: ArkVideoProviderId } {
   const account = deps.listAccounts(userId).find(item => item.id === accountId);
   if (!account?.hasSecret) return failConfiguration("该视频任务使用的火山方舟账户或密钥已不可用；请重新保存账户后再刷新。");
-  if (account.providerId !== "doubao") return failConfiguration("该视频任务使用的账户已不是火山方舟账户；无法恢复任务凭据。");
+  if (account.providerId !== "doubao" && account.providerId !== "ark-agent-plan") return failConfiguration("该视频任务使用的账户已不是火山方舟视频账户；无法恢复任务凭据。");
+  const model = account.models.find(item => item.id === modelId);
+  if (!model || account.providerId === "ark-agent-plan" && model.taskType !== "video-generation") return failConfiguration("该视频任务模型已不在火山方舟视频能力目录中。");
   const apiKey = deps.resolveCredential(userId, accountId);
   if (!apiKey) return failConfiguration("该视频任务使用的火山方舟密钥不可用；请重新保存账户后再刷新。");
-  return apiKey;
+  return { apiKey, providerId: account.providerId };
 }
 
 function findGenerationNode(project: CanvasProject, nodeId: unknown): CanvasNode {
@@ -503,6 +508,7 @@ export function createCanvasGenerationService(deps: CanvasGenerationDependencies
     let task: Awaited<ReturnType<typeof createArkVideoTask>>;
     try {
       task = await deps.createVideoTask({
+        providerId: target.providerId,
         modelId: target.modelId,
         apiKey: target.apiKey,
         prompt,
@@ -551,9 +557,9 @@ export function createCanvasGenerationService(deps: CanvasGenerationDependencies
     if (!node) throw new CanvasGenerationNotFoundError("找不到当前画布项目中的生成节点；请刷新画布后重试。");
     const generation = readVideoGeneration(node);
     if (isTerminalGenerationStatus(generation.status)) return project;
-    const apiKey = resolveStoredVideoCredential(deps, userId, generation.accountId!);
+    const credential = resolveStoredVideoCredential(deps, userId, generation.accountId!, generation.modelId!);
     const timeoutMs = settings.requestTimeoutSeconds * 1_000;
-    const task = await deps.getVideoTask({ taskId: generation.taskId!, apiKey, timeoutMs, ...(signal ? { signal } : {}) });
+    const task = await deps.getVideoTask({ providerId: credential.providerId, taskId: generation.taskId!, apiKey: credential.apiKey, timeoutMs, ...(signal ? { signal } : {}) });
     signal?.throwIfAborted();
     if (task.status === "succeeded") {
       if (!task.videoUrl) {
@@ -619,10 +625,11 @@ export function createCanvasGenerationService(deps: CanvasGenerationDependencies
     if (!node) throw new CanvasGenerationNotFoundError("找不到当前画布项目中的生成节点；请刷新画布后重试。");
     const generation = readVideoGeneration(node);
     if (isTerminalGenerationStatus(generation.status)) return failConfiguration("该视频生成任务已结束，无法取消。");
-    const apiKey = resolveStoredVideoCredential(deps, userId, generation.accountId!);
+    const credential = resolveStoredVideoCredential(deps, userId, generation.accountId!, generation.modelId!);
     await deps.cancelVideoTask({
+      providerId: credential.providerId,
       taskId: generation.taskId!,
-      apiKey,
+      apiKey: credential.apiKey,
       timeoutMs: settings.requestTimeoutSeconds * 1_000,
       ...(signal ? { signal } : {})
     });

@@ -7,6 +7,7 @@ import { isModelInvocable, isSkillDisabled } from "lfaa-skill";
 import { raw, Router } from "express";
 import { ApiError } from "lfaa-util-values/src/http-error.js";
 import { requireAuthentication, requireRole, requireSuperAdmin } from "lfaa-authorization/src/middleware.js";
+import { hasAdminAccess, type UserRole } from "lfaa-identity-auth/src/service.js";
 import { authorizeExplicitUserAction } from "lfaa-permission-presets/src/permissions.js";
 import type { AiPluginHost } from "lfaa-app-boot/src/ai-host.js";
 import { PluginRuntimeError } from "lfaa-app-boot/src/plugin-runtime.js";
@@ -16,12 +17,25 @@ import { clearConversationMemories, getConversationMemorySnapshot, replaceConver
 import { createAccountSnapshot, deleteAccountSnapshot, exportCurrentAccountArchive, listAccountSnapshots, previewAccountArchive, readAccountSnapshot, restoreAccountArchive } from "lfaa-settings-snapshots";
 import type { AttachmentStore } from "lfaa-attachment/src/index.js";
 import { redactConversationMemoryContexts } from "lfaa-session/src/sessions.js";
-import { activateAiAccount, deleteAiAccount, deleteUserBackground, getUserBackground, getUserSettings, getUserSettingsSyncStatus, listUserBackgrounds, listAiAccounts, listAiProviders, probeAiProvider, testAiProviderModel, refreshAiAccountModelCatalog, testSavedAiAccountModel, saveAiAccount, saveUserBackground, saveUserSettings, testAiAccountCredential, updateAiAccountCredential, updateAiAccountModel, updateAiAccountReasoningMode, type SettingsCategory, type ShortcutSettings } from "lfaa-settings/src/service.js";
+import type { ClaudeAgentCredentialOwner } from "lfaa-subagent-claude-code";
+import { activateAiAccount, deleteAiAccount, deleteUserBackground, getAiAccountManagementScope, getAiProviderAccountScope, getUserBackground, getUserSettings, getUserSettingsSyncStatus, listUserBackgrounds, listAiAccounts, listAiProviders, probeAiProvider, testAiProviderModel, refreshAiAccountModelCatalog, testSavedAiAccountModel, saveAiAccount, saveUserBackground, saveUserSettings, testAiAccountCredential, updateAiAccountCredential, updateAiAccountModel, updateAiAccountReasoningMode, type SettingsCategory, type ShortcutSettings } from "lfaa-settings/src/service.js";
 import { cancelDataDirectoryChange, confirmDataDirectoryLocation, recommendDataDirectoryLocation, DataDirectorySettingsError, getDataDirectorySettings, requestDataDirectoryChange } from "lfaa-workspace-data-directory/src/service.js";
 import { confirmProjectContentDirectory, getProjectStorageLocations, saveProjectContentDirectory } from "lfaa-settings/src/project-storage.js";
 import { adoptProjectContentDirectory, compareProjectContentDirectories, copyProjectContentToDirectory, createProjectContentArchive, importProjectContentArchive } from "lfaa-settings/src/content-storage-migration.js";
 import { asyncHandler, parseBody, preferencesSchema, accountAgentUsagePolicySchema, accountSnapshotCreateSchema, accountArchiveRestoreSchema, generalSettingsSchema, aiRuntimeSettingsSchema, minecraftRuntimeSettingsSchema, gitSettingsSchema, permissionsSettingsSchema, pluginsSettingsSchema, personalizationSettingsSchema, conversationMemoriesSchema, computerControlSettingsSchema, browserUseSettingsSchema, miniSettingsSchema, canvasSettingsSchema, appearanceSettingsSchema, shortcutsSchema, aiProbeSchema, aiAccountSchema, aiAccountCredentialSchema, aiModelSchema, aiReasoningSchema, aiModelTestSchema, backgroundUploadSchema, hasShortcutConflict, dataDirectorySettingsSchema, projectContentStorageSchema, projectContentMigrationSchema, projectContentArchiveImportSchema, pluginRuntimeActionSchema } from "lfaa-api-remotes/src/route-contracts.js";
-export function registerRoutes(router: Router, aiPluginHost: AiPluginHost, _realtime: MinecraftRealtimePublisher, attachments: AttachmentStore): void {
+export function registerRoutes(router: Router, aiPluginHost: AiPluginHost, _realtime: MinecraftRealtimePublisher, attachments: AttachmentStore, claudeCredentials: ClaudeAgentCredentialOwner): void {
+
+function assertAiProviderWriteAccess(role: UserRole, providerId: string): void {
+  const scope = getAiProviderAccountScope(providerId);
+  if (!scope) throw new ApiError(422, "ai_provider_not_found", "AI Provider 不在允许列表中。");
+  if (scope === "system" && !hasAdminAccess(role)) throw new ApiError(403, "ai_system_account_admin_required", "只有管理员可以管理系统级 AI Provider。");
+}
+
+function assertAiAccountWriteAccess(userId: string, role: UserRole, accountId: string): void {
+  const scope = getAiAccountManagementScope(userId, accountId);
+  if (!scope) throw new ApiError(404, "ai_account_not_found", "找不到当前账户可管理的 AI 模型配置。");
+  if (scope === "system" && !hasAdminAccess(role)) throw new ApiError(403, "ai_system_account_admin_required", "只有管理员可以管理系统级 AI 模型配置。");
+}
 
 function authorizeBusinessContentAction(userId: string, action: string, targetDirectory: string): void {
   const targetHash = createHash("sha256").update(resolve(targetDirectory).toLocaleLowerCase("en-US")).digest("hex");
@@ -262,6 +276,24 @@ router.get("/settings/ai/accounts", requireAuthentication, (request, response) =
     response.json({ accounts: listAiAccounts(request.auth!.user.id) });
   });
 
+router.get("/settings/ai/external-agents/anthropic-credential", requireAuthentication, (request, response) => {
+    response.json({ credential: claudeCredentials.getCredentialStatus(request.auth!.user.id) });
+  });
+
+router.put("/settings/ai/external-agents/anthropic-credential", requireAuthentication, asyncHandler(async (request, response) => {
+    const body = parseBody<{ secret: string }>(aiAccountCredentialSchema, request.body);
+    try {
+      response.json({ credential: await claudeCredentials.verifyAndSaveCredential(request.auth!.user.id, body.secret) });
+    } catch (error) {
+      throw new ApiError(422, "anthropic_console_credential_save_failed", error instanceof Error ? error.message : "Anthropic Console API Key 验证或加密保存失败。" );
+    }
+  }));
+
+router.delete("/settings/ai/external-agents/anthropic-credential", requireAuthentication, (request, response) => {
+    claudeCredentials.deleteCredential(request.auth!.user.id);
+    response.status(204).end();
+  });
+
 router.post("/settings/ai/probe", requireAuthentication, asyncHandler(async (request, response) => {
     const body = parseBody<{ providerId: string; secret: string; options: Record<string, string> }>(aiProbeSchema, request.body);
     try {
@@ -274,14 +306,15 @@ router.post("/settings/ai/probe", requireAuthentication, asyncHandler(async (req
 router.post("/settings/ai/test-model", requireAuthentication, asyncHandler(async (request, response) => {
     const body = parseBody<{ providerId: string; secret: string; options: Record<string, string>; modelId: string; reasoningMode: string }>(aiModelTestSchema, request.body);
     try {
-      response.json({ result: await testAiProviderModel(body) });
+      response.json({ result: await testAiProviderModel(request.auth!.user.id, body) });
     } catch (error) {
       throw new ApiError(422, "ai_model_test_failed", error instanceof Error ? error.message : "模型测试失败。");
     }
   }));
 
-router.post("/settings/ai/accounts", requireAuthentication, requireRole("admin"), asyncHandler(async (request, response) => {
-    const body = parseBody<{ providerId: string; secret: string; options: Record<string, string>; displayName: string; modelId: string; reasoningMode: string }>(aiAccountSchema, request.body);
+router.post("/settings/ai/accounts", requireAuthentication, asyncHandler(async (request, response) => {
+    const body = parseBody<{ providerId: string; secret: string; options: Record<string, string>; displayName: string; modelId: string; reasoningMode: string; verificationToken?: string }>(aiAccountSchema, request.body);
+    assertAiProviderWriteAccess(request.auth!.user.role, body.providerId);
     try {
       const account = await saveAiAccount(request.auth!.user.id, body);
       response.status(201).json({ account });
@@ -290,7 +323,8 @@ router.post("/settings/ai/accounts", requireAuthentication, requireRole("admin")
     }
   }));
 
-router.post("/settings/ai/accounts/:accountId/refresh-models", requireAuthentication, requireRole("admin"), asyncHandler(async (request, response) => {
+router.post("/settings/ai/accounts/:accountId/refresh-models", requireAuthentication, asyncHandler(async (request, response) => {
+    assertAiAccountWriteAccess(request.auth!.user.id, request.auth!.user.role, request.params.accountId);
     try {
       response.json({ result: await refreshAiAccountModelCatalog(request.auth!.user.id, request.params.accountId) });
     } catch (error) {
@@ -298,7 +332,8 @@ router.post("/settings/ai/accounts/:accountId/refresh-models", requireAuthentica
     }
   }));
 
-router.post("/settings/ai/accounts/:accountId/test-model", requireAuthentication, requireRole("admin"), asyncHandler(async (request, response) => {
+router.post("/settings/ai/accounts/:accountId/test-model", requireAuthentication, asyncHandler(async (request, response) => {
+    assertAiAccountWriteAccess(request.auth!.user.id, request.auth!.user.role, request.params.accountId);
     try {
       response.json({ result: await testSavedAiAccountModel(request.auth!.user.id, request.params.accountId) });
     } catch (error) {
@@ -306,7 +341,8 @@ router.post("/settings/ai/accounts/:accountId/test-model", requireAuthentication
     }
   }));
 
-router.post("/settings/ai/accounts/:accountId/test-credential", requireAuthentication, requireRole("admin"), asyncHandler(async (request, response) => {
+router.post("/settings/ai/accounts/:accountId/test-credential", requireAuthentication, asyncHandler(async (request, response) => {
+    assertAiAccountWriteAccess(request.auth!.user.id, request.auth!.user.role, request.params.accountId);
     const body = parseBody<{ secret: string }>(aiAccountCredentialSchema, request.body);
     try {
       response.json({ result: await testAiAccountCredential(request.auth!.user.id, request.params.accountId, body.secret) });
@@ -315,7 +351,8 @@ router.post("/settings/ai/accounts/:accountId/test-credential", requireAuthentic
     }
   }));
 
-router.put("/settings/ai/accounts/:accountId/credential", requireAuthentication, requireRole("admin"), asyncHandler(async (request, response) => {
+router.put("/settings/ai/accounts/:accountId/credential", requireAuthentication, asyncHandler(async (request, response) => {
+    assertAiAccountWriteAccess(request.auth!.user.id, request.auth!.user.role, request.params.accountId);
     const body = parseBody<{ secret: string }>(aiAccountCredentialSchema, request.body);
     try {
       response.json({ account: await updateAiAccountCredential(request.auth!.user.id, request.params.accountId, body.secret) });
@@ -324,7 +361,8 @@ router.put("/settings/ai/accounts/:accountId/credential", requireAuthentication,
     }
   }));
 
-router.put("/settings/ai/accounts/:accountId/model", requireAuthentication, requireRole("admin"), asyncHandler(async (request, response) => {
+router.put("/settings/ai/accounts/:accountId/model", requireAuthentication, asyncHandler(async (request, response) => {
+    assertAiAccountWriteAccess(request.auth!.user.id, request.auth!.user.role, request.params.accountId);
     const body = parseBody<{ modelId: string }>(aiModelSchema, request.body);
     try {
       response.json({ account: await updateAiAccountModel(request.auth!.user.id, request.params.accountId, body.modelId) });
@@ -333,7 +371,8 @@ router.put("/settings/ai/accounts/:accountId/model", requireAuthentication, requ
     }
   }));
 
-router.put("/settings/ai/accounts/:accountId/reasoning", requireAuthentication, requireRole("admin"), (request, response) => {
+router.put("/settings/ai/accounts/:accountId/reasoning", requireAuthentication, (request, response) => {
+    assertAiAccountWriteAccess(request.auth!.user.id, request.auth!.user.role, request.params.accountId);
     const body = parseBody<{ reasoningMode: string }>(aiReasoningSchema, request.body);
     try {
       response.json({ account: updateAiAccountReasoningMode(request.auth!.user.id, request.params.accountId, body.reasoningMode) });
@@ -342,7 +381,8 @@ router.put("/settings/ai/accounts/:accountId/reasoning", requireAuthentication, 
     }
   });
 
-router.post("/settings/ai/accounts/:accountId/activate", requireAuthentication, requireRole("admin"), (request, response) => {
+router.post("/settings/ai/accounts/:accountId/activate", requireAuthentication, (request, response) => {
+    assertAiAccountWriteAccess(request.auth!.user.id, request.auth!.user.role, request.params.accountId);
     try {
       response.json({ account: activateAiAccount(request.auth!.user.id, request.params.accountId) });
     } catch (error) {
@@ -350,7 +390,8 @@ router.post("/settings/ai/accounts/:accountId/activate", requireAuthentication, 
     }
   });
 
-router.delete("/settings/ai/accounts/:accountId", requireAuthentication, requireRole("admin"), (request, response) => {
+router.delete("/settings/ai/accounts/:accountId", requireAuthentication, (request, response) => {
+    assertAiAccountWriteAccess(request.auth!.user.id, request.auth!.user.role, request.params.accountId);
     deleteAiAccount(request.auth!.user.id, request.params.accountId);
     response.status(204).end();
   });
@@ -449,7 +490,7 @@ router.delete("/data-directory", requireAuthentication, requireSuperAdmin, (_req
 /** 将本控制器的路由层与当前插件生命周期绑定。 */
 import type { Context } from "@deepseek-ai/cordis";
 import "lfaa-api-gateway/src/index.js";
-export const inject = ["apiGateway", "lfaaAttachments"];
+export const inject = ["apiGateway", "lfaaAttachments", "lfaaSubagentClaudeCode"];
 export function apply(ctx: Context): void {
-  ctx.apiGateway.register(ctx, "settings-controller", (router, aiPluginHost, realtime) => registerRoutes(router, aiPluginHost, realtime, ctx.lfaaAttachments));
+  ctx.apiGateway.register(ctx, "settings-controller", (router, aiPluginHost, realtime) => registerRoutes(router, aiPluginHost, realtime, ctx.lfaaAttachments, ctx.lfaaSubagentClaudeCode));
 }

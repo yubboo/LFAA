@@ -478,10 +478,12 @@
         "readme": "packages/attachment/attachment/README.md",
         "consumers": [
           "packages/api/attachment-controller",
+          "packages/api/settings-controller",
           "packages/attachment/attachment-local",
           "packages/core/agent-loop",
           "packages/fs/tool-fs",
-          "packages/llm/llm"
+          "packages/llm/llm",
+          "packages/settings/settings-snapshots"
         ],
         "bundleDeclarations": [],
         "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
@@ -497,7 +499,9 @@
       "evidence": {
         "entry": "packages/attachment/attachment-local/src/index.ts",
         "readme": "packages/attachment/attachment-local/README.md",
-        "consumers": [],
+        "consumers": [
+          "packages/test-support/api"
+        ],
         "bundleDeclarations": [
           "packages/bundle/base/cordis.patch.yml"
         ],
@@ -2523,6 +2527,7 @@
           "packages/integrations/github",
           "packages/network/game-connectivity",
           "packages/settings/settings",
+          "packages/subagent/subagent-claude-code",
           "packages/video/ai-video"
         ],
         "bundleDeclarations": [
@@ -3967,6 +3972,7 @@
           "packages/llm/llm-retry",
           "packages/llm/token-meter",
           "packages/spill/spill-policy",
+          "packages/subagent/subagent-claude-code",
           "packages/video/ai-video"
         ],
         "bundleDeclarations": [
@@ -4085,7 +4091,7 @@
       "responsibility": "PI AI 模型协议桥接提供方",
       "evidence": {
         "entry": "packages/llm/llm-pi-ai/src/index.ts",
-        "readme": null,
+        "readme": "packages/llm/llm-pi-ai/README.md",
         "consumers": [],
         "bundleDeclarations": [
           "packages/bundle/base/cordis.patch.yml"
@@ -5754,7 +5760,10 @@
       "evidence": {
         "entry": "packages/subagent/subagent-claude-code/src/index.ts",
         "readme": "packages/subagent/subagent-claude-code/README.md",
-        "consumers": [],
+        "consumers": [
+          "packages/api/settings-controller",
+          "packages/subagent/tool-subagent"
+        ],
         "bundleDeclarations": [
           "packages/bundle/base/cordis.patch.yml"
         ],
@@ -6599,6 +6608,8 @@
           "packages/interaction/user-questions",
           "packages/jobs/jobs",
           "packages/knowledge/knowledge-library",
+          "packages/llm/llm",
+          "packages/llm/llm-pi-ai",
           "packages/mcp/mcp-client",
           "packages/network/game-connectivity",
           "packages/preset/agent-preset",
@@ -6924,7 +6935,8 @@
         "consumers": [
           "packages/api/agent-git-controller",
           "packages/core/agent-loop",
-          "packages/core/tools"
+          "packages/core/tools",
+          "packages/subagent/tool-subagent"
         ],
         "bundleDeclarations": [],
         "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
