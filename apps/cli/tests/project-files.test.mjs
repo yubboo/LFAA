@@ -89,6 +89,24 @@ test("批量目录检查只把不存在或非目录路径报告为不可用", as
   } finally { assert.equal(dirname(resolve(root)), parent); rmSync(root, { recursive: true, force: true }); }
 });
 
+test("项目文件读取可响应 Agent 停止信号", async () => {
+  const parent = resolve(tmpdir());
+  const root = mkdtempSync(join(parent, "lfaa-project-files-abort-"));
+  try {
+    writeFileSync(join(root, "README.md"), "# Abort test\n", "utf8");
+    const controller = new AbortController();
+    controller.abort(new DOMException("Stopped", "AbortError"));
+    await assert.rejects(
+      executeProjectFile({ operation: "read", rootDirectory: root, path: "README.md" }, { signal: controller.signal }),
+      error => error?.name === "AbortError"
+    );
+    await assert.rejects(
+      executeProjectFile({ operation: "list", rootDirectory: root, path: "." }, { signal: controller.signal }),
+      error => error?.name === "AbortError"
+    );
+  } finally { assert.equal(dirname(resolve(root)), parent); rmSync(root, { recursive: true, force: true }); }
+});
+
 test("项目文本操作返回真实证据且拒绝覆盖、重复锚点和越界", async () => {
   const parent = resolve(tmpdir());
   const root = mkdtempSync(join(parent, "lfaa-project-files-"));

@@ -17,3 +17,5 @@ SteamCMD 服务端配置、服务端任务、完成结果和 Daemon 心跳状态
 Daemon 心跳能力列表显式登记 `node-filesystem-binary-transfer-v1`；节点文件任务合同拒绝 `dataBase64`，二进制结果只接受有界传输 ID 与元数据。新协议通过能力协商启用，旧 Daemon 不会收到需要该协议的文件操作。
 
 `miniSettingsSchema` 从 Settings Owner 导出并由 API Controller 用于账户 Mini 偏好写入；本包不持有 Mini 窗口状态或偏好默认值。
+
+`aiChatMessageSchema.workspaceView` 只接受登记的右侧面板枚举、两个开合布尔值和可选 HTTP(S) Browser Dock 地址；地址仅允许在浏览器面板打开时出现，未知字段拒绝。它是单次请求提示，不新增权限或能力合同。

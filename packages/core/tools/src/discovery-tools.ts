@@ -7,16 +7,40 @@ import Joi from "joi";
 import { APPLICATION_IDS } from "lfaa-util-values/src/application-id.js";
 import { makeTool, strictObject, parseWithSchema, type AiBusinessTool } from "./tool-contract.js";
 
+const CJK_SINGLE_CHARACTER = /^\p{Script=Han}$/u;
+const CJK_WORD = /^\p{Script=Han}+$/u;
+const CJK_SEGMENTER = new Intl.Segmenter("zh-CN", { granularity: "word" });
+const QUERY_STOP_WORDS = new Set(["请", "请问", "帮", "帮我", "我", "你", "看看", "一下", "当前", "这个", "怎么", "如何", "能否"]);
+
+/** 将自然语言查询拆成词；保留中文分词，并把连续单字组合成双字词（如“读”“取”→“读取”）。 */
+function extractQueryTerms(query: string): string[] {
+  const terms = new Set(query.match(/[\p{L}\p{N}_-]+/gu) ?? []);
+  const segments = [...CJK_SEGMENTER.segment(query)];
+  for (let index = 0; index < segments.length; index += 1) {
+    const current = segments[index];
+    if (!current.isWordLike) continue;
+    if (!CJK_SINGLE_CHARACTER.test(current.segment)) terms.add(current.segment.toLocaleLowerCase());
+    if (CJK_WORD.test(current.segment)) {
+      const next = segments[index + 1];
+      if (next && next.index === current.index + current.segment.length && CJK_WORD.test(next.segment)
+        && (CJK_SINGLE_CHARACTER.test(current.segment) || CJK_SINGLE_CHARACTER.test(next.segment))) {
+        terms.add(`${current.segment}${next.segment}`.toLocaleLowerCase());
+      }
+    }
+  }
+  return [...terms].filter(term => !CJK_SINGLE_CHARACTER.test(term) && !QUERY_STOP_WORDS.has(term));
+}
+
 export function createToolDiscoveryTools(readAvailable: () => AiBusinessTool[], load: (names: string[]) => void): AiBusinessTool[] {
   return [
     makeTool({ id: "tools.list", name: "lfaa_tools_list", coreManaged: true, applicationIds: [...APPLICATION_IDS],
-      description: "按需发现当前真实工具摘要；query 可填写多个空白或标点分隔的词，名称/说明中命中任一词的工具会按命中数排序并列出 matchedTerms。query 为空时按原顺序分页列出全部摘要。随后调用 lfaa_tools_load 明确选择需要的工具。目录不授予新的权限。",
+      description: "按需发现当前真实工具摘要；query 支持自然语言和中英文表达，中文按词语分段，名称/说明中命中任一词的工具会按命中数排序并列出 matchedTerms。query 为空时按原顺序分页列出全部摘要。随后调用 lfaa_tools_load 明确选择需要的工具。目录不授予新的权限。",
       schema: strictObject({ query: { type: "string", maxLength: 120 }, offset: { type: "integer", minimum: 0 }, limit: { type: "integer", minimum: 1, maximum: 40 } }),
       parse: value => parseWithSchema(Joi.object({ query: Joi.string().max(120).allow(""), offset: Joi.number().integer().min(0).max(100000).default(0), limit: Joi.number().integer().min(1).max(40).default(20) }).unknown(false), value),
       execute: async (parameters, context) => {
         context.signal.throwIfAborted();
         const query = String(parameters.query ?? "").trim().toLocaleLowerCase();
-        const queryTerms = [...new Set(query.match(/[\p{L}\p{N}_-]+/gu) ?? [])];
+        const queryTerms = extractQueryTerms(query);
         const found = readAvailable().flatMap((tool, index) => {
           const searchableText = `${tool.id} ${tool.name} ${tool.description}`.toLocaleLowerCase();
           if (!query) return [{ tool, index, matchedTerms: [], exactMatch: false }];

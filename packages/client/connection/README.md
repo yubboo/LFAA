@@ -18,9 +18,9 @@ AI 漫剧项目列表会在交给工作区前校验服务端返回的项目列�
 
 Browser Dock Client API 使用认证 `/browser/dock/*` 路由。导航前只查询本机隔离 Edge/Chrome 的真实可用性；提交地址时再启动同一账户与 LFAA Session 的无窗口页面，不打开外部浏览器。页面快照只返回标题、地址、标签、加载状态、修订号和视口尺寸，不为 Dock 拉取正文或截图；`streamBrowserDockFrames()` 通过带认证 Cookie 的 SSE 读取 Browser Owner 由 CDP 主动推送的合成器帧事件，使用 AbortSignal 在页面隐藏、切换或卸载时断开。帧流直接显示当前 Browser Owner Page 并启用同页输入，不调用 `getDisplayMedia`、不启动系统标签选择器、不传输用户桌面画面。
 
-AI 回复使用一份 `content` 和可选 `parts` 正文范围；`delta` 携带分段 ID/起点，`presentation` 同步阶段及最终答案范围。帧合并仅合并同一消息的同一分段，非正文事件先冲刷待处理文本。`appendAiTextDelta` 更新同一消息投影；活动的 `contentOffset`、问题、实际审批答案以及受校验的浏览器工具 ID/Provider ID 只用于展示和工作区联动。重新订阅的原子快照恢复当前正文与范围，旧服务没有范围时保持兼容。
+AI 回复使用一份 `content` 和可选 `parts` 正文范围；`delta` 携带分段 ID/起点，`presentation` 同步阶段及最终答案范围。客户端把同一消息、同一分段的真实文本优先合并到空格或中英文标点边界，并在下一帧交付；没有自然边界时最多等待 72ms，待处理文本达到 2048 个 UTF-16 字符时立即冲刷。非正文事件、消息/分段切换会先交付尾段。`appendAiTextDelta` 更新同一消息投影；活动的 `contentOffset`、问题、实际审批答案以及受校验的浏览器工具 ID/Provider ID 只用于展示和工作区联动。重新订阅的原子快照恢复当前正文与范围，旧服务没有范围时保持兼容。
 
-订阅继续沿用原取消信号、帧回调撤销和非正文事件顺序；不另建连接、计时器或存储，不传输 Provider 隐藏推理。协议回归见 `apps/cli/tests/ai-work-response-timeline.test.mjs` 与 `ai-work-sse-lifecycle.test.mjs`。
+订阅继续沿用原取消信号；结束时冲刷文本，取消/卸载时撤销帧和短计时器并丢弃已失效订阅尾段，不另建连接或存储，也不传输 Provider 隐藏推理。协议回归见 `apps/cli/tests/ai-work-response-timeline.test.mjs`、`apps/cli/tests/ai-work-sse-lifecycle.test.mjs` 与 `apps/cli/tests/client-performance.test.mjs`。
 
 `loadAiMessages()` 接收可选 AbortSignal，并将它传给已认证请求，使聊天切换后可取消过期的首屏读取。
 
@@ -55,3 +55,5 @@ Agent Git API 使用账户隔离的本机仓库 ID 与会话绑定 ID调用认�
 SteamCMD Client Connection 提供通用服务端列表、创建/配置、运行环境安装/校验/卸载、DST Master/Caves 集群登记和服务端安装/更新/启动/停止任务 API，类型只表达服务端领域结果；权限、参数校验和节点执行继续归服务端 Owner。SteamCMD 工具目录使用账户限定的 `setFileManagerLocation()` 导航提示，进入现有 File Manager 的同节点只读资源，不传物理路径、令牌或创建第二套文件接口。DST 配置文件仍通过相同导航 Owner 进入现有文件管理。调用使用现有认证请求和错误映射，不保存游戏配置副本。构建写根 `dist/packages/client/connection/`。
 
 `loadUserSettingsSyncStatus()` 读取认证后的当前 Control Plane 账户设置元数据，不缓存跨账户或设置值；Electron `mini.open/close` 只透传桌面 Host 的 IPC 操作及真实回执。
+
+`streamAiChat()` 可在新 Run 请求中传递严格受限的 `workspaceView` JSON；它不是消息字段，连接层只随本次初始 POST 发送，不在续接既有 Run 时重放。

@@ -31,7 +31,7 @@ export interface AiPluginHost {
   /** All model requests share the active provider registry, including summaries and memory. */
   llm: AiCompletionService;
   /** 仅本机 Host Profile 装配；Agent Git 仓库文件操作复用同一受限文件执行器。 */
-  executeLocalProjectFile?: (input: Record<string, unknown>) => Promise<unknown>;
+  executeLocalProjectFile?: (input: Record<string, unknown>, signal?: AbortSignal) => Promise<unknown>;
   /** 仅本机 Host 为当前会话绑定的工作区提供受限 HTML 预览。 */
   createLocalProjectPreview?: (nodeId: string | null, rootDirectory: string, relativePath: string) => Promise<{ url: string; close: () => Promise<void> }>;
   /** 为当前 Agent 项目只读校验本机目录；远程节点身份返回 null，不会经 Daemon 执行 Git。 */
@@ -66,7 +66,7 @@ export function createAiPluginHost(context: Context): AiPluginHost {
   return {
     llm,
     ...(config.localHostExecution ? {
-      executeLocalProjectFile: (input: Record<string, unknown>) => executeProjectFile(input),
+      executeLocalProjectFile: (input: Record<string, unknown>, signal?: AbortSignal) => executeProjectFile(input, signal ? { signal } : {}),
       createLocalProjectPreview: (nodeId: string | null, rootDirectory: string, relativePath: string) => {
         if (nodeId !== null && !isLocalDaemonIdentity(nodeId)) throw new Error("远程或身份未确认的节点项目不能通过本机 Browser Host 预览；请使用对应节点提供的真实 HTTP 地址。");
         return createProjectPreviewServer(rootDirectory, relativePath);

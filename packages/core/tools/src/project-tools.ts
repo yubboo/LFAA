@@ -6,7 +6,7 @@
 import Joi from "joi";
 import { APPLICATION_IDS } from "lfaa-util-values/src/application-id.js";
 import { createHash } from "node:crypto";
-import { resolve } from "node:path";
+import { isAbsolute, resolve } from "node:path";
 import { isLocalDaemonIdentity } from "lfaa-host-daemon/src/node-credentials.js";
 import { executeGitWorkspace, resolveGitProjectDirectory } from "lfaa-host-git";
 import { getUserSettings } from "lfaa-settings/src/service.js";
@@ -15,10 +15,11 @@ import { bindAgentGitSessionRepository, registerAgentGitRepository } from "lfaa-
 import type { AiBusinessTool } from "./business-tools.js";
 
 const schema = Joi.object({ nodeId: Joi.string().uuid(), operation: Joi.string().valid("list", "read", "search", "search_markdown", "create", "create_tree", "write", "replace", "delete", "diff", "discover_skills").required(), rootDirectory: Joi.string().max(32760).allow("").default(""), path: Joi.string().max(32760).allow("").default(""), offset: Joi.number().integer().min(0).max(2 * 1024 * 1024), limit: Joi.number().integer().min(1).max(100000).when("operation", { is: "read", then: Joi.optional(), otherwise: Joi.forbidden() }), query: Joi.string().min(1).max(500), content: Joi.string().allow("").max(2 * 1024 * 1024), files: Joi.array().items(Joi.object({ path: Joi.string().min(1).max(512).required(), content: Joi.string().max(3 * 1024 * 1024).required(), encoding: Joi.string().valid("base64") }).unknown(false)).min(1).max(128).when("operation", { is: "create_tree", then: Joi.required(), otherwise: Joi.forbidden() }), oldText: Joi.string().min(1).max(2 * 1024 * 1024), newText: Joi.string().allow("").max(2 * 1024 * 1024), sha256: Joi.string().pattern(/^[a-f0-9]{64}$/u) }).unknown(false);
+const readOnlyProjectOperations = new Set(["list", "read", "read_lines", "read_image", "search", "search_files", "search_markdown", "diff", "discover_skills"]);
 
 export const projectFileTool: AiBusinessTool = {
   id: "project.files", name: "project_file_operation", applicationIds: [...APPLICATION_IDS],
-  description: "在当前 Agent Git 仓库内列目录、检索、读写和删除普通文件、原子创建一组 UTF-8/受限 base64 文件、用唯一锚点局部替换或查询 Git 差异。代码审查应先以 diff 读取当前绑定仓库的真实变更，再按变更行查阅相关源码；没有绑定仓库或差异不可用时如实停止。审查只读，不会自动应用补丁、提交或推送。本机 Agent 仓库由 LFAA Host 执行，不要求 Daemon。远程节点文件操作只有在 Agent 绑定了 Daemon 项目且模型选择节点目标时使用。discover_skills 可发现项目 .agents/skills 和 .lfaa/skills 内的真实 SKILL.md，之后由模型按需读取。create_tree 只在目标目录不存在时创建完整文件树，失败时清理暂存目录且不覆盖现有内容。覆盖或替换必须提供最近读取的 sha256；delete 仅删除目标根目录内的普通文件，不递归删除目录。",
+  description: "在项目根内列目录、检索、读取或按现有合同修改普通文件，也可查询 Git 差异。用户明确给出本机绝对项目目录并要求查看/理解时，将原路径作为 rootDirectory；它优先于当前会话绑定目录，无显式 nodeId 时由 LFAA 本机 Host 读取，不要求 Daemon。未登记的本机目录仅支持只读查看，仍按现有 Permission Owner 的危险读取风险授权；要写入时先把项目登记到 Agent Git 工作区。理解项目时先列根目录，再按需读取 README、AGENTS、包清单、配置和入口文件，配合有界搜索补充证据；优先用项目导航和架构说明建立整体认识，只沿任务相关或主要包的入口继续追踪，不递归读取每个包或整篇大型文档。证据足以说明项目用途、主要边界和运行入口后及时总结，并注明未覆盖部分；用户若明确要求全量文件盘点，再按实际可见数量分阶段处理。只总结真实读到的内容，不尝试一次性读取全部文件，也不声称全量读完。代码审查应先以 diff 读取当前绑定仓库的真实变更，再按变更行查阅相关源码；没有绑定仓库或差异不可用时如实停止，不自动应用补丁、提交或推送。只有模型明确选择远程节点并传入 nodeId 时才走节点执行器。discover_skills 可发现项目 .agents/skills 和 .lfaa/skills 内的真实 SKILL.md，之后由模型按需读取。create_tree 只在目标目录不存在时创建完整文件树，失败时清理暂存目录且不覆盖现有内容。覆盖或替换必须提供最近读取的 sha256；delete 仅删除目标根目录内的普通文件，不递归删除目录。",
   schema: { type: "object", additionalProperties: false, properties: { nodeId: { type: "string", format: "uuid" }, operation: { type: "string", enum: ["list", "read", "search", "search_markdown", "create", "create_tree", "write", "replace", "delete", "diff", "discover_skills"] }, rootDirectory: { type: "string" }, path: { type: "string" }, offset: { type: "integer", minimum: 0 }, limit: { type: "integer", minimum: 1, maximum: 100000, description: "read 操作的最大字符数。" }, query: { type: "string" }, content: { type: "string" }, files: { type: "array", maxItems: 128, items: { type: "object", additionalProperties: false, properties: { path: { type: "string", maxLength: 512 }, content: { type: "string", maxLength: 3145728 }, encoding: { type: "string", enum: ["base64"] } }, required: ["path", "content"] } }, oldText: { type: "string" }, newText: { type: "string" }, sha256: { type: "string", description: "覆盖或替换已有文件时必须使用最近读取返回的摘要。" } }, required: ["operation"] },
   parse(value) {
     const result = schema.validate(value);
@@ -30,6 +31,32 @@ export const projectFileTool: AiBusinessTool = {
   },
   prepare(parameters, context) {
     const folder = getUserSettings(context.userId).general.taskFolder;
+    const requestedRoot = typeof parameters.rootDirectory === "string" ? parameters.rootDirectory.trim() : "";
+    if (requestedRoot && !parameters.nodeId) {
+      if (!isAbsolute(requestedRoot)) throw new Error("用户指定的本机项目根目录必须是绝对路径。 ");
+      const root = resolve(requestedRoot);
+      const localWorkspace = context.workspaceProject
+        && (context.workspaceProject.nodeId === null || isLocalDaemonIdentity(context.workspaceProject.nodeId))
+        ? context.workspaceProject.path
+        : "";
+      const boundRepositoryMatches = Boolean(context.agentGitRepository && resolve(context.agentGitRepository.path) === root);
+      const trustedLocalRoot = boundRepositoryMatches
+        || Boolean(localWorkspace && resolve(localWorkspace) === root)
+        || Boolean(folder && resolve(folder) === root);
+      if (!trustedLocalRoot && !readOnlyProjectOperations.has(String(parameters.operation))) {
+        throw new Error("未登记的本机项目目录目前只支持只读查看；请先将项目登记到 Agent Git 工作区后再写入。 ");
+      }
+      return {
+        ...parameters,
+        rootDirectory: requestedRoot,
+        configuredRoot: false,
+        workspaceTitle: "用户指定的本机项目目录",
+        localExecution: true,
+        explicitLocalRoot: true,
+        ...(trustedLocalRoot ? { trustedLocalRoot: true } : {}),
+        ...(boundRepositoryMatches && context.agentGitRepository ? { agentGitRepositoryId: context.agentGitRepository.id } : {})
+      };
+    }
     if (context.agentGitRepository) {
       return { ...parameters, rootDirectory: context.agentGitRepository.path, configuredRoot: false,
         workspaceTitle: context.agentGitRepository.title, localExecution: true, agentGitRepositoryId: context.agentGitRepository.id };
@@ -56,7 +83,7 @@ export const projectFileTool: AiBusinessTool = {
   },
   approval(parameters) { const scopeKey = createHash("sha256").update(JSON.stringify([parameters.agentGitRepositoryId ?? parameters.nodeId, parameters.rootDirectory, parameters.path, parameters.operation])).digest("hex"); return { scopeKey: `project:${scopeKey}`, scopeSummary: `${parameters.rootDirectory} · ${parameters.path}`.slice(0, 240), summary: `项目文件操作：${parameters.operation}` }; },
   async execute(parameters, context) {
-    const { nodeId, configuredRoot: _configuredRoot, trustedLocalRoot, workspaceTitle: _workspaceTitle, localExecution, agentGitRepositoryId: _agentGitRepositoryId, ...input } = parameters;
+    const { nodeId, configuredRoot: _configuredRoot, trustedLocalRoot, explicitLocalRoot, workspaceTitle: _workspaceTitle, localExecution, agentGitRepositoryId: _agentGitRepositoryId, ...input } = parameters;
     const command = JSON.stringify(input);
     if (Buffer.byteLength(command) > 8 * 1024 * 1024) throw new Error("项目任务输入过大。");
     if (localExecution === true) {
@@ -66,7 +93,10 @@ export const projectFileTool: AiBusinessTool = {
       const root = typeof input.rootDirectory === "string" ? resolve(input.rootDirectory) : "";
       const trustedRoot = Boolean(repositoryRoot && resolve(repositoryRoot) === root)
         || trustedLocalRoot === true && (Boolean(workspaceRoot && resolve(workspaceRoot) === root) || Boolean(taskFolder && resolve(taskFolder) === root));
-      if (!trustedRoot || typeof context.executeLocalProjectFile !== "function") throw new Error("当前 Agent 会话没有可用的受信任本机工作目录或本机文件 Host。");
+      if (typeof context.executeLocalProjectFile !== "function") throw new Error("当前 LFAA Host 未提供本机文件读取能力。 ");
+      if (!trustedRoot && !(explicitLocalRoot === true && readOnlyProjectOperations.has(String(input.operation)))) {
+        throw new Error("当前 Agent 会话没有可用的受信任本机工作目录；未登记的显式本机项目目录仅支持只读查看。 ");
+      }
       if (["create", "create_tree", "write", "replace", "delete"].includes(String(input.operation))) {
         const projectDirectory = await resolveGitProjectDirectory(root);
         const status = await executeGitWorkspace({ operation: "status", projectDirectory });
@@ -76,7 +106,8 @@ export const projectFileTool: AiBusinessTool = {
           throw new Error("项目目录的 Agent Git 会话绑定失败，文件尚未写入。 ");
         }
       }
-      return { result: await context.executeLocalProjectFile(input) };
+      context.signal?.throwIfAborted();
+      return { result: await context.executeLocalProjectFile(input, context.signal) };
     }
     if (typeof nodeId !== "string" || !nodeId) throw new Error("当前文件目标未绑定有效 Daemon 节点。");
     const task = createAiHostTask({ nodeId: String(nodeId), createdBy: context.userId, appId: context.applicationId, shell: "project-files", workingDirectory: "", command, timeoutSeconds: 0 });

@@ -236,6 +236,14 @@ export const agentAssociationsSchema = Joi.object({
   capabilityIds: Joi.array().items(Joi.string().pattern(/^[A-Za-z0-9._:/-]{1,180}$/u)).max(16).unique().required()
 }).unknown(false);
 
+const aiWorkbenchViewSchema = Joi.object({
+  rightPane: Joi.string().valid("browser", "new-tab", "git", "applications", "side-chat", "extension", "application-tools").required(),
+  rightPaneOpen: Joi.boolean().required(),
+  bottomTerminalOpen: Joi.boolean().required(),
+  browserUrl: Joi.string().uri({ scheme: ["http", "https"] }).max(2_048)
+}).custom((value, helpers) => value.browserUrl !== undefined && (value.rightPane !== "browser" || !value.rightPaneOpen)
+  ? helpers.error("any.invalid") : value).unknown(false);
+
 export const aiChatMessageSchema = Joi.object({
   appId: Joi.string().valid(...APPLICATION_IDS).required(),
   sessionId: Joi.string().guid({ version: ["uuidv4", "uuidv5"] }).allow(null).default(null),
@@ -243,6 +251,8 @@ export const aiChatMessageSchema = Joi.object({
   gitRepositoryId: Joi.string().guid({ version: ["uuidv4", "uuidv5"] }).allow(null),
   planMode: Joi.boolean(),
   associations: agentAssociationsSchema,
+  /** 当前 Client 工作台的受限视图提示；只供本轮模型识别界面，不作为权限或执行依据。 */
+  workspaceView: aiWorkbenchViewSchema,
   // 附件只传 ID：字节归附件 Owner，模型请求按需读取，会话不存图片内容。
   attachmentIds: Joi.array().items(Joi.string().guid({ version: ["uuidv4", "uuidv5"] })).max(4).unique(),
   /** 与 attachmentIds 对应的显示名；只用于消息展示，不改变附件归属。 */

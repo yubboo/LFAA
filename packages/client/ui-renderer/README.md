@@ -1,5 +1,7 @@
 # client/ui-renderer
 
+DSH Client 图可用时，Renderer 将 LFAA 工作台挂入 DSH UI Renderer/Slots；图或 Renderer 暂不可用时，直接用本地 React 根挂载同一 LFAA `App`。后一模式保留 LFAA 自身界面，只关闭 DSH 扩展槽；图恢复后刷新页面重新装载扩展。
+
 ## 小鱼共享工作入口（2026-10-14）
 
 统一路由归一与认证恢复；根地址、登录恢复和默认首页进入 `/work` 小鱼智能体对话区。`/voice` 是同一 AI Work 工作区的全屏语音别名，不新增应用 ID 或认证范围。专业 App 从全局导航紧凑应用菜单打开，沿用现有应用入口标记与服务端认证/授权。旧工作地址刷新/历史归一。

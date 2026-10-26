@@ -102,7 +102,7 @@ function createDshSlotRegistry(host: DshUiHost): DshSlotRegistryReader | undefin
   };
 }
 
-console.error("LFAA DSH UI Renderer 未就绪，当前页面使用本地 React 根；DSH 扩展槽不可用。 ");
+console.warn("LFAA DSH UI Renderer 暂不可用；当前页面使用本地 React 根，LFAA 自身界面继续运行，DSH 扩展槽暂不可用。");
 const root = ReactDOM.createRoot(container);
 ctx.effect(() => () => { root.unmount(); });
 root.render(

@@ -2,6 +2,8 @@
 
 模型可用 `minecraft_resolve_core_artifact` 只读获取同一工件 Owner 的核心、构建、摘要和实际 Java 要求；环境的安装状态不能代替核心要求。`minecraft_provision_server` 暴露领域服务已有的 `javaRuntimeId`，用户指定环境时原样传递并在登记任务前验证；不匹配返回未开始，不自动更换指定环境。工件连接失败也仅在事务前标为可恢复的未开始，任务创建后的异常仍保留未知副作用边界。
 
+`core-sources.ts` 还唯一维护各核心的 `serverType` 和 `compatibleContent`，供模型区分插件、模组、混合、代理和基岩核心。来源 `category` 原样保留给既有端口和部署逻辑，不能代替插件兼容性判断。
+
 `service.ts` 持有实例、配置、部署和 Java 管理事实；`core-sources.ts` 解析 PaperMC Fill v3、FastMirror 和 Mohist Youer 的真实版本、分页构建与校验摘要，并唯一登记核心名称。API 与模型工具共用这些服务，执行位于目标 Daemon。明确 Paper 时只查询官方目录，工件 URL/SHA-256 与最低 Java 来自对应版本/构建元数据；省略 build 时选择该版本最新 STABLE，不静默替换版本。未指定端口时在同一数据库事务内从设置默认值起避开已登记实例端口，启动前由节点检查真实监听。设置中心读取核心名称不触发远端版本目录查询；实际部署和版本选择仍使用实时来源合同。
 
 新入口为 `provisionMinecraftServer`，默认核心从独立的账户 Minecraft Runtime 配置读取（初始 Paper），执行方式为该分类中账户明确选择的 native。AI Provider 与推理参数属于 `ai-runtime`，不会承载 Minecraft 默认值。环境准备、下载、安装、配置和启动由同一个持久任务完成；仅收到真实就绪证据才标记成功。Forge/Sponge 加载器及 PocketMine PHP 使用各自协议。代理必须选择同节点已运行、明确关闭正版验证的后端，不静默修改后端认证。EULA/核心许可接受在操作摘要中明确说明，并沿用统一三种权限模式。

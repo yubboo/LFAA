@@ -32,6 +32,8 @@ AI Work 的聊天始终留在中心工作区。顶栏 Git 菜单打开项目摘�
 
 根地址与默认首页进入 `/work` 小鱼智能体对话区。全局导航的“应用”入口打开右侧 Dock 的“应用”视图，保留游戏库及 SteamCMD、Minecraft、LFAA 联机服务、写作空间和 AI 漫剧常规入口。应用切换继续调用 Workbench/Client Renderer 已有打开与路由标记，不在菜单复制业务规则；应用视图选择状态由 Workbench 持有，切换 App 路由后保持可用。
 
+右侧“应用”视图复用相同的过滤后导航清单和 `SecondaryNavigation` 回调。应用入口卡片根据右栏实际内容宽度自动排成多列；窄栏和嵌入式窄容器自动回到单列。卡片表面、强调态和文字沿用 Appearance 共享令牌，不改变 `general.hiddenApplicationNavigationIds` 或 Dock 宽度偏好。
+
 设置、文件和插件页发出的跨页“应用”请求按 `requestId` 在工作区内最多消费一次：先标记并确认请求，再更新 Dock/工具页签状态。响应式测量或回调身份变化导致 effect 再执行时，已处理请求不会重放。
 
 `/work` 和专业应用共用固定四栏：全局导航轨、左侧二级栏、中间工作区、右侧工具/上下文栏。普通应用左二显示 `Workbench` 注入的 `applicationNavigationItems` 与当前应用子页面，由 `SecondaryNavigation` 呈现并调用现有路由/App 打开回调；AI Work 左二显示草稿、置顶、项目和最近会话。普通应用右栏只呈现当前应用工具、资源与状态；AI Work 右栏继续以“工具与资源”/“应用”视图访问工具及应用菜单。Minecraft、联机服务子菜单和写作目录 Portal 属于普通应用左二。全局应用按钮在普通应用中开合左二，在 AI Work 中切换右侧应用视图；设置、文件和插件管理页的打开请求进入 `/work` 并展示同一右侧应用视图。各区域尺寸、拖动、收起和响应式行为仍唯一归 `ResizableWorkbench`。
@@ -78,8 +80,12 @@ AI Work 的紧凑右栏将工具页签、`+` 新建标签页、底部终端和�
 
 2026-10-25：收起左二栏的临时预览只由顶部指定切换按钮/键盘可见焦点打开；鼠标进入左二菜单主体或左侧其他区域不触发展开。预览直接复用 DockKit 左窗格中的唯一 `ApplicationSidebar`，不再并行渲染第二份菜单。程序化或鼠标引发的普通 focus 不会单独展开。焦点离开预览后关闭，`aria-expanded` 同步表示临时预览状态；应用、页面分区或工作区布局模式切换时立即关闭旧预览，避免响应式重排把旧状态带到其他页面；手动展开状态仍按原有工作区偏好保存。
 
-Agent 的内置 Browser Tool 成功后，工作区复用无待处理导航请求的“新标签页”，展开右侧上下文 Dock，并把 Agent 返回的 Provider ID 传给 BrowserPanel，以读取同一 Browser Owner 页面；Electron 隔离 Edge/Chrome 使用已有实时帧面板，原生 Provider 继续使用原生视图。失败、个人 Tabbit 和审批等待不切换，也不发起第二次导航。
+AI Work 右侧工作区标签在单标签窄分栏时允许收缩，长标题以省略号显示；多标签仍可在标签条内横向浏览，但不绘制横向滚动条轨道。标签和加号仍使用既有响应式布局，不新增 Appearance 或栏宽设置。
+
+Agent 的内置 Browser Tool 成功后，工作区复用无待处理导航请求的“新标签页”，展开右侧上下文 Dock，并把 Agent 返回的 Provider ID 传给 BrowserPanel，以读取同一 Browser Owner 页面；Electron 隔离 Edge/Chrome 使用已有实时帧面板，原生 Provider 继续使用原生视图。Dock 与工作区通过 JSON 形状的 `BrowserDockTabsUpdate` 对象传递标签、Provider、快照就绪状态及可选的单次 Agent 同步请求号；工作区以该请求号匹配 Agent 活动，在对应 Owner 快照就绪后把真实活动页绑定到所选标签，即使页面列表未变化也能显示；不会重复导航。失败、个人 Tabbit 和审批等待不切换。该请求号仅用于 Client 界面联动，不进入模型对话上下文。
 
 右侧新标签页的长能力资源目录在视口外时跳过内容绘制，并用 Appearance 的小字号令牌预留近似行高；继续使用原生滚动容器，不改变菜单结构。
 
 2026-10-25：AI Work 左二会话切换不再受当前会话 Agent Run 忙碌状态禁用；切换只关闭旧 Client 订阅，重新打开同一会话续接既有服务端 Run。目录状态只在用户选中一个项目会话后延迟查询，不挡住会话列表、消息读取或输入；后台请求失败保持 unknown。仅 Owner 确认目录丢失的会话行弱化并提示“已删除或移动”，历史仍可读，用户选中后聊天输入与项目切换只读。项目组在目录登记仍存在时新建会话，登记已解除时点击项目组回到历史会话。无新增设置或浏览器持久化。
+
+2026-10-26：AI Work 新 Run 附带一次性 `workspaceView` JSON，说明当前右侧面板类型/开合状态和底部终端开合状态；只有 Browser Dock 当前选中、展开且 `browserUse.enabled` 时附带脱敏后的 HTTP(S) 地址。该字段不持久化、不包含网页内容，不能用于推断工具能力或授权。

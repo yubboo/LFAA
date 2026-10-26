@@ -10,6 +10,7 @@ import { createLogger, defineConfig, loadEnv, type Logger } from "vite";
 import react from "@vitejs/plugin-react";
 import { renderIndexInjections } from "@deepseek-ai/dsh-host-webserver";
 import { createHarnessDevProxy } from "./src/dev-proxy.js";
+import { createDshDevBootstrapPlugin } from "./src/dsh-dev-bootstrap.js";
 import { workspaceAliases } from "../../scripts/harness-workspace.mjs";
 import { recordRuntimeBuild, runtimeBuildFingerprint } from "../../scripts/runtime-build-state.mjs";
 import { createWebAssetRetentionPlugin } from "./scripts/web-asset-retention.mjs";
@@ -69,31 +70,6 @@ export default defineConfig(({ mode }) => {
   }
   const serverTarget = `http://127.0.0.1:${serverPort}`;
   const backendProxyLogger = createBackendProxyLogger();
-  const dshBootstrap = {
-    name: "lfaa-dsh-dev-bootstrap",
-    apply: "serve" as const,
-    transformIndexHtml: {
-      order: "pre" as const,
-      async handler(html: string) {
-        let lastError: unknown;
-        for (let attempt = 0; attempt < 12; attempt += 1) {
-          try {
-            const response = await fetch(`${serverTarget}/__dsh/index-injections`);
-            if (response.ok) {
-              const injections: unknown = await response.json();
-              if (!Array.isArray(injections)) throw new Error("DSH Host 返回的页面注入不是列表。");
-              return renderIndexInjections(html, injections);
-            }
-            lastError = new Error(`DSH Host 页面注入返回 HTTP ${response.status}。`);
-          } catch (error) {
-            lastError = error;
-          }
-          await new Promise((resolveRetry) => setTimeout(resolveRetry, 250));
-        }
-        throw new Error("Vite 无法取得已装配的 DSH Client Runtime 启动图。", { cause: lastError });
-      }
-    }
-  };
   let sourceFingerprint: string;
   let writesActiveRuntime: boolean;
   let webOutputDirectory: string;
@@ -104,7 +80,11 @@ export default defineConfig(({ mode }) => {
 
   return {
     customLogger: backendProxyLogger.logger,
-    plugins: [dshBootstrap, react(), createWebAssetRetentionPlugin(repositoryRoot), {
+    plugins: [createDshDevBootstrapPlugin(
+      serverTarget,
+      renderIndexInjections,
+      message => backendProxyLogger.logger.warn(message, { timestamp: true })
+    ), react(), createWebAssetRetentionPlugin(repositoryRoot), {
       name: "lfaa-build-state",
       apply: "build",
       configResolved(config) {

@@ -44,6 +44,15 @@ test("窄中间栏的提问框及 TextArea 随容器收缩，不由隐式 Grid �
   assert.match(composerInputRule, /min-width:\s*0\s*;/u);
 });
 
+test("AI Work 消息从顶部稳定向下排列，展开记录不会在消息间补出空白", () => {
+  assert.match(messageListRule, /min-height:\s*100%/u);
+  assert.match(messageListRule, /justify-content:\s*flex-start/u);
+  assert.doesNotMatch(messageListRule, /justify-content:\s*flex-end/u);
+  assert.match(chatSource, /onClickCapture=\{handleResponseHistoryClickCapture\}/u);
+  assert.match(chatSource, /if \(!details\.open\)[\s\S]*?followLatestMessageRef\.current = false/u);
+  assert.match(chatSource, /responseHistoryDetailsRef\.current\.size === 0[\s\S]*?followLatestMessageRef\.current = followLatestBeforeResponseHistoryRef\.current/u);
+});
+
 test("AI Work 输入光标跟随当前文字颜色，避免浅色背景上不可见", () => {
   assert.match(composerInputRule, /caret-color:\s*var\(--we-caret-color,\s*currentColor\)\s*;/u);
   assert.doesNotMatch(composerInputRule, /caret-color:\s*currentColor\s*!important/u);

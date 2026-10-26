@@ -3137,6 +3137,8 @@ type AiChatStreamInput = {
   /** 附件只传 ID；连接层必须显式转发，否则会被丢弃。 */
   attachmentIds?: string[];
   attachments?: Array<{ id: string; name?: string }>;
+  /** 当前工作台视图提示；只随新 Run 请求发送，不进入 Session 消息或工具权限范围。 */
+  workspaceView?: AiWorkbenchView;
   content: string;
   planMode?: boolean;
   signal: AbortSignal;
@@ -3154,6 +3156,14 @@ type AiChatStreamInput = {
   onContextUsage?: (value: { messageId: string; contextUsage: AiContextUsage }) => void;
   onError: (message: string) => void;
   onDone: (status: "complete" | "interrupted" | "error") => void;
+};
+
+export type AiWorkbenchView = {
+  rightPane: "browser" | "new-tab" | "git" | "applications" | "side-chat" | "extension" | "application-tools";
+  rightPaneOpen: boolean;
+  bottomTerminalOpen: boolean;
+  /** 仅当前选中且可见的 LFAA Browser Dock 标签；服务端还会按 browserUse 设置裁剪。 */
+  browserUrl?: string;
 };
 
 function isNonnegativeSafeInteger(value: unknown): value is number {
@@ -3243,7 +3253,7 @@ async function streamAiChatAt(input: AiChatStreamInput, streamEndpoint: string):
           method: activeRunId ? "GET" : "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-          ...(!activeRunId ? { body: JSON.stringify({ appId: input.appId, sessionId: input.sessionId, ...(input.associations ? { associations: input.associations } : {}), ...(input.attachmentIds?.length ? { attachmentIds: input.attachmentIds } : {}), ...(input.attachments?.length ? { attachments: input.attachments } : {}), ...(input.projectId ? { projectId: input.projectId } : {}), ...(!input.sessionId && input.gitRepositoryId ? { gitRepositoryId: input.gitRepositoryId } : {}), ...(input.planMode === undefined ? {} : { planMode: input.planMode }), content: input.content }) } : {}),
+          ...(!activeRunId ? { body: JSON.stringify({ appId: input.appId, sessionId: input.sessionId, ...(input.associations ? { associations: input.associations } : {}), ...(input.attachmentIds?.length ? { attachmentIds: input.attachmentIds } : {}), ...(input.attachments?.length ? { attachments: input.attachments } : {}), ...(input.projectId ? { projectId: input.projectId } : {}), ...(!input.sessionId && input.gitRepositoryId ? { gitRepositoryId: input.gitRepositoryId } : {}), ...(input.planMode === undefined ? {} : { planMode: input.planMode }), ...(input.workspaceView ? { workspaceView: input.workspaceView } : {}), content: input.content }) } : {}),
           signal: input.signal
         });
       } catch (error) {

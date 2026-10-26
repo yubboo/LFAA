@@ -16,4 +16,8 @@
 
 开服 Skill 增加共享工作、核心/实际模组插件安装与证据的区分；现有领域/通用工具按模型选择，不把说明文本冒充专用安装器。
 
+用户点名核心或提出插件/模组目标时，Skill 指导模型按需读取 `minecraft_list_cores` 的 `serverType` 与 `compatibleContent`，保留指定核心并用 `minecraft_provision_server` 复用现有 Java 自动准备与部署链。该分类和兼容性只由 Minecraft Core Sources Owner 维护。
+
+需要可见桌面操作时，Skill 复用现有 `computer_use_observe`/动作工具，并遵守 `computerControl.enabled` 与 Permission Owner；不自行开启设置，也不把点击回执当成 Minecraft 服务已就绪。
+
 构建只写仓库根 dist/packages/skill/minecraft/；当前合同见 [开发提示词](../../../docs/development/xiaoyu-agent.zh.md)。构建、合成模型、浏览器与真实模型/节点验收分别报告。

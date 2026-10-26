@@ -22,6 +22,10 @@ Workbench 提供唯一的 `applicationNavigationItems` 应用清单。`Applicati
 
 SteamCMD 未验证提示卡片中的操作链接受提示卡可用宽度约束并允许折行，窄中栏下仍完整可见和可操作；窄栏下目标设备选择器与刷新状态按钮在同一行。
 
+运行环境页在窄中栏切换为纵向表单时，自定义 Java 版本和路径输入行按内容高度布局，避免横向表单的 flex 基准拉高控件。
+
+运行环境页的本机 Java 路径通过 `SystemFileLibrary` 的只读本机磁盘浏览选择，服务端仍沿用超级管理员与 `permissions.mode=full_access` 校验；所选路径仅交给 Runtime Manager 在用户点击登记后校验。远端节点不使用本机文件路径，继续由用户填写目标节点路径并在对应 Daemon 验证。
+
 Workbench 将 `/games/*` 全部装配到共享 `ApplicationWorkspace` 四栏 Shell。全局应用导航只呈现“游戏库”；运行环境、Minecraft 与 Steam 游戏服务为游戏库内部视图。`GameLibraryPage`、`SteamcmdWorkspace` 是本包的组合适配器；Minecraft 实例/生命周期、Runtime Manager 和 SteamCMD 数据/任务仍归各自领域 Owner。旧 `/apps/{minecraft,steamcmd}/normal/*` 路由映射到 `/games/*`，内部 `ApplicationId`、认证和 Agent 工具合同保留。外观沿用 Settings/Appearance 共享令牌，不新增偏好；游戏库与运行环境分类使用真实中心容器宽度重排卡片、分类入口及操作控件，不依赖全局窗口宽度。运行环境页标题、返回入口、设备选择和顶部操作保持紧凑对齐；窄中栏将返回、重检和存储操作收为有可访问名称的图标按钮，仍保留设备当前值。
 
 SteamCMD 分类读取设置中心已有节点模式与工具目录；默认选中本机控制端时，首次进入分类会选取在线 Windows x64 Daemon。安装、真实校验和完整卸载经 SteamCMD Owner；文件管理入口以账户限定的资源别名打开同一节点的 `steamcmd-runtime` 只读目录。窄容器将这组运行环境操作收为保留可访问名称的图标按钮。

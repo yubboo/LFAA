@@ -9,7 +9,7 @@ import Joi from "joi";
 import type { Context } from "@deepseek-ai/cordis";
 import { APPLICATION_IDS } from "lfaa-util-values/src/application-id.js";
 import { makeTool, strictObject, parseWithSchema, idSchema, oneString, objectValue, safeTaskView, waitForTask, type AiBusinessTool, type AiBusinessToolContext } from "lfaa-tools/src/tool-contract.js";
-import { listMinecraftCores, listMinecraftCoreBuilds, getPaperCoreSummary, requireMinecraftCore, resolveMinecraftCoreArtifact } from "lfaa-games-minecraft/src/core-sources.js";
+import { listMinecraftCores, listMinecraftCoreBuilds, getPaperCoreSummary, getMinecraftCoreCompatibility, requireMinecraftCore, resolveMinecraftCoreArtifact } from "lfaa-games-minecraft/src/core-sources.js";
 import { provisionMinecraftServer, MinecraftProvisionPreparationError } from "lfaa-games-minecraft/src/deployment-service.js";
 import { deleteMinecraftInstance, restartMinecraftInstance, sendMinecraftConsoleCommand } from "lfaa-games-minecraft/src/service.js";
 import { getDaemonDataRoot, listDaemonNodes } from "lfaa-host-daemon/src/local-daemon.js";
@@ -24,7 +24,7 @@ async function waitForMinecraftTask(id:string,context:AiBusinessToolContext,miss
 const minecraftTools: AiBusinessTool[] = [
   makeTool({
     id: "minecraft.list-cores", name: "minecraft_list_cores", applicationIds: ["minecraft"],
-    description: "读取真实核心分类和版本；指定 core 时只返回该核心，避免无关版本占用上下文。core=Paper 只查询 PaperMC 官方目录。水桶插件服可选兼容 Bukkit 插件的 Paper；版本以目录为准。",
+    description: "读取真实核心版本和适用类型。serverType/compatibleContent 是核心 Owner 维护的插件、模组、混合、代理/基岩兼容信息；category 是下载目录原分类，不能单独用来判断是否支持插件。指定 core 时只返回该核心，避免无关版本占用上下文。core=Paper 只查询 PaperMC 官方目录；用户指定核心或提出插件/模组兼容目标时按需读取并遵守此结果，不静默换核心。",
     schema: strictObject({ core: { type: "string" } }), parse: value => parseWithSchema(Joi.object({ core: oneString("core", 32).optional() }).unknown(false), value),
     execute: async parameters => {
       const core = parameters.core ? requireMinecraftCore(String(parameters.core)) : null;
@@ -48,7 +48,7 @@ const minecraftTools: AiBusinessTool[] = [
     execute: async parameters => {
       const artifact = await resolveMinecraftCoreArtifact(String(parameters.core), String(parameters.version), parameters.build === undefined ? undefined : String(parameters.build));
       // PHP 核心保留历史 Java 列，但不能把它当作运行环境需求交给模型。
-      return { core: artifact.core, version: artifact.version, build: artifact.build, source: artifact.source, filename: artifact.filename, algorithm: artifact.algorithm, digest: artifact.digest,
+      return { core: artifact.core, ...getMinecraftCoreCompatibility(artifact.core), version: artifact.version, build: artifact.build, source: artifact.source, filename: artifact.filename, algorithm: artifact.algorithm, digest: artifact.digest,
         javaMajor: artifact.launchKind === "php" ? null : artifact.javaMajor, runtimeType: artifact.launchKind === "php" ? "php" : "java" };
     }
   }),
@@ -60,6 +60,7 @@ const minecraftTools: AiBusinessTool[] = [
     risk: () => "write",
     approval: parameters => ({ scopeKey: `node:${parameters.nodeId}:minecraft-provision:${String(parameters.name).normalize("NFC").toLowerCase()}`, scopeSummary: `Minecraft ${parameters.core} ${parameters.version} · ${parameters.name}`, summary: "接受 Minecraft EULA 与所选核心许可，下载、安装并启动服务器；使用节点当前系统账户权限。" }),
     execute: async (parameters, context) => {
+      const compatibility = getMinecraftCoreCompatibility(String(parameters.core));
       let created: Awaited<ReturnType<typeof provisionMinecraftServer>>;
       try {
         created = await provisionMinecraftServer({ ...parameters, userId: context.userId, signal: context.signal } as unknown as Parameters<typeof provisionMinecraftServer>[0]);
@@ -69,7 +70,8 @@ const minecraftTools: AiBusinessTool[] = [
           recovery: error.retryable ? "工件准备连接失败；尚未创建实例、部署或节点任务。检查来源连接后可重试，仍受当前权限和预算限制。" : "工件准备校验失败；尚未创建任务。按真实版本/构建目录纠正参数，不重复相同无效请求。" };
       }
       const task = await waitForMinecraftTask(created.task.id, context, "找不到自动开服任务。");
-      return { instanceId: created.instance.id, deploymentId: created.deployment.id, task: safeTaskView(task as unknown as Record<string, unknown>) };
+      return { instanceId: created.instance.id, deploymentId: created.deployment.id, core: created.instance.coreType, serverType: compatibility.serverType, compatibleContent: compatibility.compatibleContent,
+        version: created.instance.releaseId, javaRequirementMajor: created.instance.javaMajor, task: safeTaskView(task as unknown as Record<string, unknown>) };
     }
   }),
   makeTool({

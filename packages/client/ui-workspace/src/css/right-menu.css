@@ -50,7 +50,9 @@
 
 .module-workbench-tab > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.module-workbench-tabs--context { width: max-content; max-width: calc(100% - 34px); min-width: 0; min-height: 0; flex: 0 1 auto; align-self: stretch; gap: 4px; padding: 3px 6px 0 0; overflow-x: auto; overflow-y: hidden; border: 0; background: transparent; scrollbar-width: thin; }
+.module-workbench-tabs--context { width: max-content; max-width: calc(100% - 34px); min-width: 0; min-height: 0; flex: 0 1 auto; align-self: stretch; gap: 4px; padding: 3px 6px 0 0; overflow-x: auto; overflow-y: hidden; border: 0; background: transparent; scrollbar-width: none; }
+
+.module-workbench-tabs--context::-webkit-scrollbar { display: none; height: 0; }
 
 .module-workbench-tabstrip { display: flex; min-width: 0; flex: 1 1 auto; align-items: stretch; gap: 4px; overflow: hidden; }
 
@@ -59,6 +61,8 @@
 .module-workbench-tab-item { display: flex; min-width: 0; max-width: min(42%, 280px); flex: 0 0 auto; align-items: stretch; overflow: hidden; border-bottom: 2px solid transparent; border-radius: 7px 7px 0 0; }
 
 .module-workbench-tabs--context .module-workbench-tab-item { max-width: 280px; }
+
+.module-workbench-tabs--context > .module-workbench-tab-item:only-of-type { max-width: 100%; flex: 0 1 auto; }
 
 .module-workbench-tab-item.is-active { border-bottom-color: var(--settings-accent, var(--color-brand)); background: var(--color-surface-selected); }
 
@@ -85,9 +89,30 @@
 
 .module-context__application-navigation .secondary-navigation__group-label { min-height: 28px; padding-inline: 10px; }
 
-.module-context__application-navigation .secondary-navigation__items-inner { gap: 2px; }
+.module-context__application-navigation .secondary-navigation__items-inner {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: 8px;
+}
 
-.module-context__application-navigation .secondary-navigation__item { min-height: 42px; gap: 9px; padding-inline: 10px; }
+.module-context__application-navigation .secondary-navigation__item {
+  min-height: 72px;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 10px;
+  background: var(--color-surface-muted);
+  color: var(--color-text-primary);
+}
+
+.module-context__application-navigation .secondary-navigation__item:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-hover);
+}
+
+.module-context__application-navigation .secondary-navigation__item.is-active {
+  border-color: var(--settings-accent, var(--color-brand));
+  background: var(--color-surface-selected);
+}
 
 .module-context__writing-library-portal { display: flex; min-height: 0; flex: 0 0 auto; margin: 0 13px 10px; overflow: hidden; border-block: 1px solid var(--color-border-subtle); }
 
@@ -548,9 +573,7 @@
 
   .module-workbench-tabstrip { gap: 1px; }
 
-  .module-workbench-tabs--context { max-width: calc(100% - 25px); min-width: 0; gap: 1px; padding-right: 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
-
-  .module-workbench-tabs--context::-webkit-scrollbar { display: none; height: 0; }
+  .module-workbench-tabs--context { max-width: calc(100% - 25px); min-width: 0; gap: 1px; padding-right: 0; overflow-x: auto; overflow-y: hidden; }
 
   .module-workbench-tabs--context .module-workbench-tab { justify-content: flex-start; gap: 4px; padding-inline: 6px; }
 

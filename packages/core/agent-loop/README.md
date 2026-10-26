@@ -86,3 +86,5 @@ Settings Center 操作遵循模型→`lfaa_settings_list`/`lfaa_settings_update`
 Agent 每轮在首个 Provider 请求前通过 Identity/Auth Owner 预留账户使用时长。策略启用时，当前本地时区窗口和每日剩余额度共同决定本轮最大运行时长；同一账户并行 Run 通过 SQLite 事务预留避免超额。限制在 Provider 与工具执行时沿现有取消信号传播，回合结束按实际持续时间结算；用户主动停止与家长控制到限分别如实展示。没有策略或策略关闭时不改变既有运行行为，也不更改 `permissions.mode`。
 
 当设置中心 `aiRuntime.autoCompaction` 开启且上下文压力达到溢出阈值时，Agent Loop 将符合 spill Policy 的较早大型工具结果写入当前 Run 的本机临时 Store，并只把不透明引用放进本次 Provider 请求视图。模型需要原文时，Loop 才向当前 Run 提供 `agent_context_read_spill`，通过 spill-local 的稀疏 UTF-8 字节索引流式回读，按 Unicode 字符偏移返回有界片段；单次最多 16,384 个字符。读取仍经已有 Tool/Permission Owner，引用绑定账户、App、Session 和 Run。成功、失败或取消进入 `finally` 时回收临时会话目录；引用不进入 Session 持久化或跨进程恢复。该能力不改变原始历史/事件记录，也不构成持久化正文的全量裁剪。压缩或溢出钩子失败、取消时不会伪造“已缩减”结果：记录诊断后继续主循环，原始历史与后续 Provider 请求不受影响；用户附件图片只进入用户可见的主请求视图，不随内部摘要请求重复发送。
+
+新 Run 从 Client 接收 `workspaceView` 后，由 Agent Loop 重新校验面板和布尔字段，仅生成非权威界面提示；Browser URL 再按当前 Settings Owner 的 `browserUse.enabled` 做双重门控并移除凭据、查询和片段。侧边聊天不继承该上下文。工具仍由本轮真实目录、设置和统一 Permission Owner 决定。

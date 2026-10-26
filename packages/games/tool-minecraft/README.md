@@ -2,6 +2,8 @@
 
 持有原模型 Schema、参数、风险/审批摘要和真实 Minecraft 服务调用；实例、核心和任务事实仍归 Minecraft/Jobs/Daemon。
 
+核心目录、工件预检与开服回执暴露 Minecraft Owner 的 `serverType`/`compatibleContent`，以及 Java 主版本要求和真实任务结果；工具不另建核心分类、Java 选择或部署规则。
+
 公共合同：原 minecraft_* 名称与参数保持；所有工具经 lfaa_tools_list/load 在本 Run 按目标选择，不按 App 自动展开。
 
 运行位置：Control Plane 的 Cordis 插件或内部合同库，由 base Bundle 装配；不运行在浏览器，不将凭据或节点进程带入客户端。依赖以本包 package.json 为准，真实消费者见生成包清单的静态证据。源码/装配声明与现场运行验收分别记录。

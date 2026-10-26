@@ -14,6 +14,9 @@ test('Minecraft 开服 Skill 来自随包资源，加载正文后可撤销', asy
     assert.equal(skill.provider,'lfaa-minecraft');
     const loaded = await ctx.skills.get(skill.name);
     assert.match(loaded.content,/minecraft_provision_server/u);
+    assert.match(loaded.content,/serverType.*compatibleContent/u);
+    assert.match(loaded.content,/不能静默更换/u);
+    assert.match(loaded.content,/computer_use_observe.*computerControl\.enabled/u);
     assert.match(loaded.content,/未知.*不重放/u);
     assert.doesNotMatch(loaded.content,/H:\\mc|26\.3|覆盖全版本|先问后做/u);
     await providerFiber.dispose();

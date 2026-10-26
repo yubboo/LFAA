@@ -10,6 +10,8 @@
 
 `login-appearance.ts` 只缓存已确认的登录页外观白名单并按用户名隔离，AuthView 仅在输入用户名匹配时使用；登录背景沿用当前设备的内置图片 ID，不保存上传图片或插件设置。账户 Appearance 仍由 Settings Owner 持久化，账号不匹配或缓存损坏时回到 `DEFAULT_USER_SETTINGS.appearance`。
 
+共享卡片列表最多为前六张卡片播放入场效果，第二至第六张之间每项错开 40ms；Minecraft 任务列表使用这一共享样式。效果只在现有 `general.cardMotionEffect` 启用时播放，并遵循 `appearance.advanced.reducedMotion` 与系统减少动态效果偏好。
+
 源码由 Web/Client 组合装配，不代表包单独可运行。构建产物只写仓库根 `dist/packages/client/ui-theme/`。
 
 共享 SettingsSwitch 的 Jelly Toggle 由 common.css 实现：轨道颜色与滑块位置约 350ms 过渡，内部滑块沿点击方向拉伸后回弹；按压反馈仅缩放控件，动效只改变 transform 与轨道颜色。它读取 Workbench 映射的 appearance.advanced.reducedMotion，不创建新的偏好，也不持有开关值或保存行为。

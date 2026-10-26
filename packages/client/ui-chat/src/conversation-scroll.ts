@@ -23,6 +23,24 @@ export function shouldShowScrollToLatest(distanceFromBottom: number, messageCoun
   return messageCount > 0 && distanceFromBottom > 64;
 }
 
+/** 仅在滚轮能让容器真实移动时预测滚动；滚动位置与离底距离都受实际范围约束。 */
+export function projectConversationWheelScroll(
+  scrollTop: number,
+  scrollHeight: number,
+  clientHeight: number,
+  deltaY: number
+): { direction: "up" | "down"; distanceFromBottom: number } | null {
+  if (!Number.isFinite(scrollTop) || !Number.isFinite(scrollHeight) || !Number.isFinite(clientHeight) || !Number.isFinite(deltaY) || deltaY === 0) return null;
+  const maxScrollTop = Math.max(0, scrollHeight - clientHeight);
+  const currentScrollTop = Math.min(maxScrollTop, Math.max(0, scrollTop));
+  const projectedScrollTop = Math.min(maxScrollTop, Math.max(0, currentScrollTop + deltaY));
+  if (projectedScrollTop === currentScrollTop) return null;
+  return {
+    direction: projectedScrollTop < currentScrollTop ? "up" : "down",
+    distanceFromBottom: maxScrollTop - projectedScrollTop
+  };
+}
+
 /** 按提问数生成等距整数像素锚点；会话变长时轨道同步增长，达到视口上限后等距压缩。 */
 export function buildConversationAnchorLayout(anchorCount: number, viewportHeight: number): { height: number; markHeight: number; hitAreaHeight: number; markOffset: number; positions: number[] } {
   const count = Math.max(0, Math.floor(anchorCount));

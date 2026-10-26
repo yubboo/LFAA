@@ -951,7 +951,7 @@ export function Workbench({
           section={appRoute[3] || "overview"}
           gameLibrary={isGameLibraryRoute}
           workspaceTitle={isGameLibraryRoute ? app === "workspace" ? appRoute[3] === "environments" ? "运行环境" : "游戏库" : app === "steamcmd" ? "Steam 游戏服务" : undefined : undefined}
-          applicationContent={isGameLibraryRoute && app === "workspace" ? <GameLibraryPage onOpenStorage={() => openSettings("workspace")} user={user} environments={appRoute[3] === "environments"} onNavigate={onNavigate} />
+          applicationContent={isGameLibraryRoute && app === "workspace" ? <GameLibraryPage onOpenStorage={() => openSettings("workspace")} user={user} environments={appRoute[3] === "environments"} canBrowseLocalFiles={user.role === "super_admin" && settings.permissions.mode === "full_access"} onNavigate={onNavigate} />
             : isGameLibraryRoute && app === "steamcmd" ? <SteamcmdWorkspace user={user} onNavigate={onNavigate} /> : undefined}
           settings={settings}
           onSettingsChange={updateWorkbenchSettings}

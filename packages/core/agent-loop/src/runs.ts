@@ -22,9 +22,10 @@ import type { SessionReplyPart } from "lfaa-session/src/kernel.js";
 import type { AiCompletionService } from "lfaa-llm/src/completion.js";
 import type { AttachmentStore } from "lfaa-attachment/src/index.js";
 import { resolveAiSessionWorkspaceContext } from "./workspace-context.js";
+import type { AgentWorkbenchView } from "./workbench-context.js";
 import { requestShutdown } from "./shutdown-state.js";
 
-export interface AiRunInput { appId: ApplicationId; sessionId: string | null; content: string; projectId?: string | null; gitRepositoryId?: string | null; attachmentIds?: string[]; attachments?: Array<{ id: string; name?: string }>; associations?: AgentAssociations; planMode?: boolean }
+export interface AiRunInput { appId: ApplicationId; sessionId: string | null; content: string; projectId?: string | null; gitRepositoryId?: string | null; attachmentIds?: string[]; attachments?: Array<{ id: string; name?: string }>; associations?: AgentAssociations; planMode?: boolean; workspaceView?: AgentWorkbenchView }
 interface AiUserQuestion { questionId: string; question: string; options: string[]; resolve: (value: { answer: string; skipped: boolean }) => void; signal: AbortSignal; abort: () => void }
 type Listener = (event: string, data: Record<string, unknown>) => void;
 interface LiveRun { id: string; userId: string; applicationId: ApplicationId; sessionId: string; canAskUser: boolean; controller: AbortController; pauseGate: AiRunPauseGate; children: Set<string>; pendingApprovals: Set<string>; listeners: Set<Listener>; completion: Promise<void>; content: string; parts: SessionReplyPart[]; inbox: AiModelMessage[]; pendingQuestion?: AiUserQuestion }
@@ -217,7 +218,7 @@ export function startAiRun(userId: string, userRole: UserRole, body: AiRunInput,
         logger.warn("AI Work 自动关联本机 Agent Git 失败；继续运行对话", { userId, sessionId: turn.session.id, errorName: error instanceof Error ? error.name : "UnknownError" });
       }
     }
-    return executeAiTurn({ userId, userRole, body, turn, aiPluginHost, abortController: run.controller, pauseGate: run.pauseGate, emit, takeInputs: () => run.inbox.splice(0), modelAccountId: account.accountId, modelResolver: resolver, approvalNotifications: approvals, writeGate, memoryEligible: runOptions.memoryEligible ?? (depth === 0 && !getAiSessionPlanMode(userId, turn.session.id)), planModeEnabled: depth === 0 && !sideChat,
+    return executeAiTurn({ userId, userRole, body: { appId: body.appId, sessionId: turn.session.id, content: body.content, ...(!sideChat && body.workspaceView ? { workspaceView: body.workspaceView } : {}) }, turn, aiPluginHost, abortController: run.controller, pauseGate: run.pauseGate, emit, takeInputs: () => run.inbox.splice(0), modelAccountId: account.accountId, modelResolver: resolver, approvalNotifications: approvals, writeGate, memoryEligible: runOptions.memoryEligible ?? (depth === 0 && !getAiSessionPlanMode(userId, turn.session.id)), planModeEnabled: depth === 0 && !sideChat,
       ...(requestUserInput ? { requestUserInput } : {}),
       ...(runOptions.systemPrompt ? { systemPrompt: runOptions.systemPrompt } : {}),
       ...(body.attachmentIds?.length ? { attachmentIds: body.attachmentIds } : {}),

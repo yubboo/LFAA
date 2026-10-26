@@ -10,6 +10,16 @@
 
 | 编号 | 任务 | 状态 | 合同 |
 |---|---|---|---|
+| LFAA-WORKBENCH-TAB-STRIP-RESPONSIVE-20261026 | 修复 AI Work 右侧工作区标签在窄分栏下出现不必要横向滚动条与单标签裁切 | 已完成；定向回归 10/10、ui-workspace/Web 构建、源码指纹及健康接口通过；内置浏览器 `/work` 在 1440×900、680×720、390×740 视口检查无横向页面溢出；工作区 Gate 被 3 条既有缺图/缺锚点引用阻断 | [本轮合同](#lfaa-workbench-tab-strip-responsive-20261026) |
+| LFAA-XIAOYU-MINECRAFT-CORE-AWARE-BOOTSTRAP-20261026 | 让小鱼按自然语言识别 Minecraft 核心类型，保留指定核心，并复用现有 Java 准备、部署与就绪 Owner | 已完成；原代码回归/类型/包与 Control Plane 构建通过；后续完整开服实测 Provider、Java 11 安装验证、用户授权 EULA、Paper 1.12.2 部署及节点本机 25565 就绪；公网连接、客户端登录和电脑操控未测；check:workspace 有 3 项既存文档引用问题 | [本轮合同](development/xiaoyu-minecraft-core-aware-bootstrap-20261026.md) |
+| LFAA-JAVA-COMMON-VERSION-SELECTOR-20261026 | 将“其他 Java 主版本”改为清晰的常用 LTS 下拉项，并展示 Eclipse Temurin 官方版本页；选择后仍由现有 Runtime Manager 从 Adoptium 官方 API 获取并校验工件 | 已完成；定向回归 2/2、Client 类型、ui-layout/Web 构建及 Web/Host 指纹通过；正式 Web `/games/environments` 在 1312×1244、1440×900、390×740 内置浏览器实测，Java 17 选择后官方链接与按钮正确；未触发下载/安装 | [本轮合同](development/java-common-version-selector-20261026.md) |
+| LFAA-JAVA-EXECUTABLE-PICKER-20261026 | 让运行环境页可通过受控文件管理器选择本机 `java.exe`，再由目标 Runtime Manager 真实登记并校验；远程节点不误用本机路径 | 已完成；定向回归 7/7、Client 类型检查、ui-layout/Web 构建与 Web/Host 指纹通过；正式 Web `/games/environments` 实测 C/D/E 磁盘导航、`E:\java\bin\java.exe` 回填及 296px 窄分栏；未提交登记任务；短屏实页未测 | [本轮合同](development/java-runtime-executable-picker-20261026.md) |
+| LFAA-JAVA-ENVIRONMENT-FORM-LAYOUT-20261026 | 修复 `/games/environments` 窄中栏下 Java 主版本与路径输入框异常增高、表单留白过大的问题 | 已修复；窄栏 323px 下输入控件由约 124px 恢复 31px，表单由 592px 收至 223px；2048×1114 桌面、1312×1244 窄栏、1280×520 短屏及 390×740 手机视口在内置浏览器通过；布局回归 5/5、Client 类型、ui-layout/Web 构建和指纹检查通过 | [本轮合同](development/java-environment-form-layout-20261026.md) |
+| LFAA-RIGHT-APP-MENU-RESPONSIVE-LAYOUT-20261026 | 修复 `/work` 右侧“应用”菜单在宽栏下纵向堆叠、横向空间闲置的问题，并保留窄栏可读性 | 已完成；布局回归 3/3、Client 类型检查及 Workspace/Web/Control Plane 构建通过；内置浏览器 `/work` 1312×1244/726px 双列、2048×1114/1047px 三列、373px 窄栏单列、1280×520 短屏双列且账户区可见；Control Plane 健康接口 200、根页面 503，实页验收使用 Vite 源码服务 `:5173` | [本轮合同](development/right-app-menu-responsive-layout-20261026.md) |
+| LFAA-LOCAL-PATH-PROJECT-READ-STARTUP-20261026 | 支持用户明确提供本机绝对目录后读取并理解项目，并修复本机 Host 默认未启用与 Web 启动图等待过短 | 本机路径读取及启动默认回归 14/14、Vite 非阻断/动态注入回归 2/2、Control Plane/Web 构建通过；内置浏览器 `/work` 读取后显示工作台内容，健康与启动图接口均 HTTP 200；未通过卸载插件或关闭 Control Plane 注入故障，详见合同 | [合同](development/local-path-project-read-startup-20261026.md) |
+| LFAA-AI-WORK-STREAM-NATURALNESS-20261026 | 让 AI Work 流式回复像 ChatGPT 一样持续显示自然进度正文，并避免内部阶段记录挤占回复区 | 已补修并通过真实 Provider 多步实页验收 | [合同](development/ai-work-stream-naturalness-20261026.md#lfaa-ai-work-stream-naturalness-20261026) |
+| LFAA-AI-WORK-ASSISTANT-MOTION-20261026 | 复测 AI Work 流式回复、改善“小鱼助手”状态反馈，并修复对话留白、展开跳位及无滚动空间时误显示回到底部 | 已完成；新增滚轮边界回归 35/35、Client 类型检查及 ui-chat/Web 构建和运行指纹通过；内置浏览器 `/work` 1312×1244 实测短错误会话无效滚轮不显示按钮、长回复真实上翻仍显示；`check:workspace` 被 3 条其他历史文档引用错误阻断；本次未测窄屏与帧时间 | [本轮合同](development/ai-work-assistant-motion-20261026.md#lfaa-ai-work-assistant-motion-20261026) |
+| LFAA-MINECRAFT-TASK-CARD-MOTION-20261026 | 将 Minecraft 任务卡片列表入场间隔从 24ms 对齐至动效规范允许的 30–60ms，继续服从现有动效与减少动态效果设置 | 进行中；待定向回归、UI/Web 构建及 `/games/minecraft/tasks` 内置浏览器桌面与窄分栏验收 | [本轮合同](development/minecraft-task-card-motion-20261026.md#lfaa-minecraft-task-card-motion-20261026) |
 | LFAA-AGENT-REAL-WORK-ACCEPTANCE-20261025 | 实测小鱼 Agent 的 Skill/MCP、代码编写与修复、浏览器/电脑操控和多 Agent 协作闭环 | 对话、隔离代码修复、MCP 握手/安装/设置回读、多 Agent 并行委派、用时工作记录展开均实测通过；MCP Runtime 被现有 `plugins.enabled=false` 阻断，浏览器/电脑工具因对应设置关闭未操作；Minecraft Skill 已随包内置并曾实测加载，没有重复安装或启动游戏服务 | [合同](#lfaa-agent-real-work-acceptance-20261025) |
 | LFAA-AI-WORK-TAB-SUMMARY-PLACEMENT-20261025 | 优化窄分栏 AI Work 标签页顶栏和 Git 摘要卡位置 | 已完成：四项控件同排、摘要浮层贴中心列右缘、共享开合动效收至 180ms；定向回归 51/51、DockKit/Web 构建和内置浏览器 `/work` 866×925 验收通过 | [合同](#lfaa-ai-work-tab-summary-placement-20261025) |
 | LFAA-AI-WORK-LIVE-PROGRESS-PLACEMENT-20261025 | 让 AI Work 当前状态跟随真实 Agent 时间线显示，并为处理中状态增加流光 | 已完成；定向回归 16/16、ui-chat 构建、Client 类型检查和 Web/Control Plane 构建通过；内置浏览器 `/work` 实测 `正在思考`、流式 `正在回复` 与 2.4 秒流光，Provider 回复成功，1280×900 / 820×520 / 390×740 无横向溢出。减少动态开启、最终工具运行组与帧时间未实测 | [合同](#lfaa-ai-work-live-progress-placement-20261025) |
@@ -233,7 +243,7 @@
 | 253-应用工作区四栏职责归位-20261024 | 专业 App 统一复用四栏外壳；普通模式左二承载应用导航、右栏承载当前应用工具与状态，AI Work 左侧继续承载会话与项目；中心页面按实际栏宽响应 | 联机服务/运行环境窄栏响应式回归 2/2、四栏回归 16/16、Client 类型与两页面包构建/Web 构建通过；Control Plane/Workspace 当前受未登记的 settings-snapshots 包阻塞，最终实页未验 | [本轮合同](#lfaa-application-workspace-four-pane-responsibilities-20261024) |
 | 248-Agent设置中心能力接入-20261024 | 让 LFAA Agent 能发现、读取和按真实 Owner 操作设置中心的用户偏好与现有设置能力，并统一遵守三种权限模式 | 已接入 Settings Owner 全分类安全偏好、能力开关和 Browser Owner 管理菜单；定向回归 13/13、类型检查、相关包/Control Plane 构建、207 包工作区 Gate 与差异检查通过；凭据输入和 Electron 本机专属动作保留 Owner 边界 | [本轮合同](#lfaa-agent-settings-center-tools-20261024) |
 | 247-浏览器设置全功能与ChatGPT风格-20261024 | 参考 ChatGPT 浏览器设置重排 LFAA Browser 设置，接入清单能力，并统一所有设置分类的居中宽度和左右留白 | 全量源码、Owner 回归及 Web/Control Plane 构建通过；内置浏览器核对浏览器/普通/常规设置三页一致；窄视口与真实 Electron 桌面验收未测 | [本轮合同](#lfaa-browser-open-location-settings-20261024) |
-| 246-Agent打开浏览器切换右侧Dock-20261024 | Agent 成功打开 LFAA 内置浏览器页面后，自动切到右侧 Browser Dock 展示同一页面；让模型结合目标、当前页面和已启用能力自主选择内置/用户浏览器，目标有实质歧义时先澄清 | 通用 Prompt 与本机应用工具合同已补齐，回归/构建 Gate 通过；最新真实 LFAA Agent 对“打开樱花映射”先询问本机客户端或官网，澄清前未扫描、启动或导航；等待用户选定目标后再验证后续执行 | [本轮合同](#lfaa-agent-open-browser-dock-20261024) |
+| 246-Agent打开浏览器切换右侧Dock-20261024 | Agent 成功打开 LFAA 内置浏览器页面后，自动切到右侧 Browser Dock 展示同一页面；让模型结合目标、当前页面和已启用能力自主选择内置/用户浏览器，目标有实质歧义时先澄清 | 已完成；Dock 联动回归 10/10、类型检查、Browser Dock/Workspace/Web/Control Plane 构建通过；正式 `/work` 真实 Agent 操作后右侧工作区显示 `Example Domain`（1312×1244）；未改设置。一次模型请求异常与导航超时已按实际结果记录 | [本轮合同](#lfaa-agent-open-browser-dock-20261024) |
 | 245-窄屏Git摘要卡不自动展开-20261023 | 小屏工作区不因窄右栏比例自动展开 Git 摘要卡；保留手动打开、桌面自动适配及手机摘要页 | 已完成；定向回归 3/3、Client 类型检查、Web 构建、207 包工作区检查及指纹检查通过；内置浏览器 `/work` 820×520 实测自动收起与手动开合 | [本轮合同](#lfaa-git-summary-no-auto-open-compact-20261023) |
 | 244-中心区收起布局与左二菜单开关-20261023 | 修复中心区收起后的右侧留白/横向跳动，并保证左二菜单可关闭且页面至少保留一个可见工作区 | 已完成；定向回归 23/23、Client 类型检查、207 包工作区检查、Web 构建通过；隔离内置浏览器 `/work` 1280×720 转场测量及 820×520 菜单关闭/内容恢复验收通过；真实设备和帧时间未测 | [本轮合同](#lfaa-center-collapse-right-gap-20261023) |
 | 214-四区域内部功能盒子与样式隔离-20261022 | 在左一、左二、中间和右侧区域内为各功能分组建立独立盒子，并按区域隔离 CSS，保持现有外观和响应式行为 | 已完成；定向回归、类型检查、Web 构建及 `/work` 浏览器验收通过；广义旧回归另有 6 项历史断言不匹配；未测真实设备/帧时间 | [本轮合同](#lfaa-workspace-region-subboxes-20261022) |
@@ -298,6 +308,7 @@
 | 282-设置中心开关JellyToggle-20261025 | 安装并使用 ui-motion skill，为设置中心二态开关增加有节奏的滑块拉伸和回弹反馈，沿用减少动态效果偏好 | 已完成；回归 2/2、共享包/Client 类型/Web 构建通过；内置浏览器实际检查 1280×800、390×640、845×480，均无横向溢出；实时开关未点击以保护自动保存的用户偏好 | [本轮合同](#lfaa-settings-switch-jelly-toggle-20261025) |
 | 283-AI Work手机窄屏右侧内容对齐-20261025 | 修复 `/work` 手机窄屏下整页工作台未铺满视口、右侧露出空白背景的问题 | 源码、27/27 定向回归、ui-layout/ui-workspace/Web 构建与 Client 类型检查通过；Web/Host 构建指纹匹配；最终 390×740 内置浏览器复验被中断，未标记实页通过 | [本轮合同](#lfaa-ai-work-mobile-right-edge-20261025) |
 | 285-Three.js共享UI视觉与动效开发规则-20261025 | 将 Three.js 与统一 UI 组件、玻璃材质、网格/颗粒背景、完整反馈状态、微交互、滚动渐入和弹性动效纳入 LFAA 规则 | 已完成；Three.js 及类型依赖锁定、ui-primitives/Client/Web 构建通过；工作区 Gate 仅被既有缺失合同锚点阻断；无产品页面消费 Three.js 或发生视觉变化 | [本轮合同](#lfaa-threejs-shared-ui-visual-motion-rules-20261025) |
+| 288-LFAA Agent 工作台上下文与自然语言能力发现-20261026 | 让小鱼 Agent 收到当前右侧工作台面板的受限 JSON 状态，并能用自然中文找到本轮真实可用工具；动作仍由原工具目录、Owner 和统一权限执行 | 进行中 | [本轮合同](#lfaa-agent-workbench-context-capability-discovery-20261026) |
 
 <a id="lfaa-whole-workspace-performance-security-maintainability-20261019"></a>
 
@@ -6869,6 +6880,8 @@ Owner：依赖由各自 `package.json` 声明，`scripts/check-workspace.mjs` �
 
 用户让 AI Work Agent 打开浏览器。助手回复称已在 LFAA 内置浏览器打开页面，但截图中的右侧栏仍显示“应用”，用户看不到刚打开的网页。目标是仅在 LFAA 内置 Browser Owner 工具成功操作后，AI Work 自动选中并展开右侧浏览器工作区，显示同一 Browser Owner 页面；失败、审批未完成或个人 Tabbit 操作不切换内置 Dock。
 
+用户进一步明确：右侧区域是 Agent 工作区展示面，用户应能看到小鱼实际使用并打开的浏览器、文件、终端等工作内容。浏览器案例验收时必须显示同一真实页面和页面状态，不能只在对话中报告结果。
+
 ### 运行入口与 Owner
 
 - 运行入口：`/work` → AI Work → Agent Loop → `lfaa_browser_open` / `lfaa_browser_navigate` / `lfaa_browser_open_workspace_file` 等真实 Browser Tools → `BrowserSessionManager`。共享 Client 位于 `packages/client/ui-workspace` 与 `packages/client/ui-chat`，浏览器 Dock 视图由 `packages/client/ui-sidebar-browser` 提供。
@@ -6929,6 +6942,11 @@ Owner：依赖由各自 `package.json` 声明，`scripts/check-workspace.mjs` �
 - 允许修改：`BrowserPanel.tsx` 的 Session 感知快照接纳、流失败后的快照刷新及空 Session/`about:blank` 占位页恢复；从 `ApplicationWorkspace` 向 BrowserPanel 传入现有标签 URL，在确认 snapshot 请求成功且无有效 HTTP(S) Page、没有正在处理的导航请求时，复用同一 Browser Owner 导航恢复标签页面；Owner 恢复期间不让空白占位页覆盖标签原网址。更新该包 README 和定向回归，覆盖同 Session 低修订忽略、新 Session 低修订接纳、失败流发现 Owner 页面丢失并恢复原 URL、空白占位页恢复时保留原网址。
 - 禁止修改：不把完整网页内容或 Cookie 持久化，不改 Browser Owner 会话所有权/生命周期、服务重启策略、浏览器设置、Dock 布局、Agent 意图合同和用户当前会话内容；不改当前等待中的樱花映射澄清卡。恢复时只使用标签当前已保存的 URL，并沿用现有导航/URL 校验合同。
 - 验收：定向检查确保同 Session 低修订响应不能回退、新 Session 低修订快照可以替换旧快照；Owner 丢失页面或只有空白占位页后，Dock 查询/识别当前状态，自动用标签现有 URL 恢复页面且不重复处理活跃导航；运行 Client 类型检查、Web 构建及 workspace Gate。按用户已授权的 LFAA Web 重启流程使改动生效，在 ChatGPT 内置浏览器 `/work` 实际重启服务后确认 Dock 消除 fetch 错误并重新显示同一 Bing 标签页面；滚动边界另据当前 Web/Electron 渲染路径准确记录，不把 Web 帧流冒充原生视图验收。
+- 2026-10-26 Agent 工作区联动续修：以一个类型化、JSON 形状的 `BrowserDockTabsUpdate` 对象传递标签、Provider、快照就绪状态和单次同步请求。该对象只负责 Client 组件之间的 UI 同步；模型仍通过既有工具 JSON Schema 接收参数并读取执行结果，不把 UI 请求号写入模型对话。工作区按 Provider 与请求号匹配后选中并展开右侧工具区；BrowserPanel 在收到成功 Agent Provider 选择后强制向 Browser Owner 读取一次最新快照，修复隐藏 Dock 暂停轮询时仅读到旧快照的问题，并拒绝迟到读取结果覆盖新状态。
+- 本次直接回归：`pnpm --filter @yubboo/lfaa test -- tests/client-workspace-app-tabs.test.mjs` 10/10 通过；`pnpm run typecheck` 通过；`pnpm --filter lfaa-client-ui-sidebar-browser build`、`pnpm --filter lfaa-client-ui-workspace build`、正式 `pnpm run build:web`、Control Plane 构建通过；`node scripts/runtime-build-state.mjs web` 返回 `[]`；`git diff --check` 通过。构建仍显示既有 cpp 分块大于 500 kB 提示。
+- 真实 Agent 实页验收：通过正式启动入口重建并启动本仓库 Web/Control Plane，`/api/health` 为 `status=ok`、`persistence=ready`，`/work` 为 `http://127.0.0.1:3000/work`。在 ChatGPT 内置浏览器 1312×1244 新建会话并请求只读打开 `https://example.com/`。第一轮模型请求了本轮未提供的 `lfaa_browser_list_providers`，纠正后的 Provider 请求返回 HTTP 400；独立复测中 Edge 与 Chrome 导航调用都报告约 20 秒超时，但 Chrome 页面最终确实加载，Agent 继续观察并读到标题。完成态右侧 Browser Dock 标签为 `example.com`，地址栏为 `https://example.com`，页面工作区标题为 `Example Domain` 且状态“网页已就绪”；中间对话的标题/地址/正文与右侧实页一致。捕获当前内置浏览器页面截图作为会话验收证据，未写入仓库。
+- 设置与边界：使用现有 `browserUse.enabled`、`browserUse.enabledProviderIds`、`computerControl.enabled`、`permissions.mode`、布局和外观配置；未新增/修改设置、权限或用户偏好。EULA、登录、表单提交及网页写操作均未发生。只实测 Web 页面流；Electron 原生窗口、窄屏、实体移动设备、帧时间未测。首次 Provider 400 与导航超时已如实保留，不计作联动成功的证据；通过的是后续成功加载并在右侧展示的 Agent 完整闭环。
+- 本次续修文件职责：`packages/client/ui-sidebar-browser/src/browser-tabs-update.ts`（Browser Dock UI 对象消息合同）；`packages/client/ui-sidebar-browser/src/browser-snapshot.ts`（匹配成功 Agent 请求并触发快照刷新的规则）；`packages/client/ui-sidebar-browser/src/BrowserPanel.tsx`（按 Agent Provider 重新读取 Owner 快照并接收最新页）；`packages/client/ui-sidebar-browser/src/NativeBrowserPanel.tsx`（原生 Provider 统一上报结构化状态）；`packages/client/ui-workspace/src/browser-dock-sync.ts`（Provider/序号/页面就绪匹配）；`packages/client/ui-workspace/src/ApplicationWorkspace.tsx`（展开 Agent 工作区并同步真实浏览器标签）；`apps/cli/tests/client-workspace-app-tabs.test.mjs`（对象消息、迟到状态、同页同步回归）；两个受影响包 README（数据消息与使用边界）；`docs/PROMPTS.md`（任务状态与实际验收证据）。
 
 <a id="lfaa-browser-open-location-settings-20261024"></a>
 ## 247-浏览器打开位置设置与 Agent 选路（2026-10-24）
@@ -8344,3 +8362,64 @@ Owner：依赖由各自 `package.json` 声明，`scripts/check-workspace.mjs` �
 - Minecraft Skill 只提供开发方法，尚无可用 Minecraft MCP/游戏执行器，不能据此声称 Agent 已能编辑世界或启动服务器。多 Agent 已证明在进程内派发并回收只读任务，尚未验证隔离工作树下并行修改与冲突合并。
 - 内置浏览器黑屏在正式重启后消失；本次实际 `/work` 页面和“用时”交互已通过内置浏览器验收，Edge 不作为替代证据。
 - 文件职责：`packages/core/agent-loop/src/computer-use-activity.ts`（电脑事件标题与安全摘要）；`packages/core/agent-loop/src/terminal-activity.ts`（终端阶段标题、命令预览脱敏与结果摘要）；`packages/core/agent-loop/src/project-file-activity.ts`（安全项目相对路径、文件变更和操作摘要）；`packages/core/agent-loop/src/execute-turn.ts`（活动持久化、标题与真实结果摘要）；`packages/mcp/mcp-client/src/runtime.ts`（提供有界 MCP 服务/工具标题）；`apps/cli/tests/agent-activity-summary.test.mjs`、`apps/cli/tests/agent-runtime.test.mjs`、`apps/cli/tests/mcp-tools.test.mjs`（日志、系统级模型和 MCP 回归）；`packages/core/agent-loop/README.md`、`packages/mcp/mcp-client/README.md`（Owner 与日志合同）；`docs/PROMPTS.md`（本任务证据、设置及未测边界）。
+
+<a id="lfaa-agent-workbench-context-capability-discovery-20261026"></a>
+
+## 288-LFAA Agent 工作台上下文与自然语言能力发现（2026-10-26）
+
+### 目标、Owner 与设置
+
+- 承接 286/287 的真实 Agent 能力验收及用户对 ChatGPT 可识别当前工作区的比较：小鱼每轮开始时应获得当前 LFAA 工作台选中面板、右侧栏开合、底部终端开合的结构化提示；若用户当前选中 LFAA Browser Dock，且 Agent Browser Use 已启用，则可获得经过清理的页面来源/路径提示。Agent 能以自然中文检索已登记工具目录，不因连续中文句子无法分词而漏掉工具。
+- Owner：Client 工作台状态由 `packages/client/ui-workspace` 提取；认证请求合同由 `packages/api/remotes` 校验、`packages/client/connection` 传递；模型提示与工具发现由 `packages/core/agent-loop`、`packages/core/tools` 负责；网页内容仍由 Browser Owner 提供，工具执行仍回到原领域 Owner 与 Permission Owner。
+- 运行入口：源码正式 Web `http://127.0.0.1:3000/work`，验证工作台真实选中状态和按需工具发现。当前任务为模型上下文/发现合同，不新增可见界面。
+- 设置中心：复用 `browserUse.enabled`（默认关闭）决定是否向模型传当前 LFAA Browser Dock 的页面地址提示；`permissions.mode` 仍是唯一操作授权，工具目录仍按账户、App、Host、插件、能力开关、角色和权限生成。本轮不新增设置、不改变用户偏好。
+- 数据与隐私边界：只发当前面板枚举、开合状态、底部终端开合布尔值，以及 Browser Use 已启用时当前 Dock 标签的 HTTP(S) 来源/路径；去除 URL 用户信息、查询串和片段。不发送页面标题、正文、历史、多标签、DOM 或截图。上下文仅用于本轮提示，不写 Session/活动持久化，不构成权限或执行能力。
+
+### 允许范围与验收
+
+- 允许修改：Ai Work 当前面板状态提取、首轮 Agent 请求 DTO/严格校验、Agent Loop 的安全上下文格式化、通用工具目录中文检索、受影响包 README、直接回归与本合同。
+- 禁止修改：Permission/设置 Owner 和权限策略、浏览器访问开关默认值、Browser Owner 页面读取实现、各领域工具执行规则、用户偏好、Provider/模型选择、插件启停或真实浏览器数据；不把客户端声明的面板或工具列表当作服务端能力证据。
+- 验收：JSON 仅接受登记的面板枚举和严格布尔/URL 字段；恶意/不合法 URL、未知字段被拒绝，安全序列化会剥离凭据/查询/片段；`browserUse.enabled=false` 时模型上下文不含页面地址。普通中文自然短句（如“看看当前浏览器页面”“读取这个本地项目”）可检索对应中文工具，并保持真实目录、排序、分页及精确工具加载合同。运行直接回归、Agent/Client 相关类型检查、受影响包与正式 Web 构建、工作区 Gate 和差异检查；Web `/work` 实页确认 JSON 上下文跟随当前选中面板，页面/工具读取仍来自对应 Owner。没有真实 Provider 证据时不宣称模型自然语言闭环已通过；明确列出 Electron、窄屏、实际模型和页面正文未测范围。
+
+### 实施与验收记录
+
+- 初始目录发现缺陷：`lfaa_tools_list` 原正则把连续中文句子当成一个长词，诸如“请帮我看一下当前浏览器页面”无法命中被查询工具合同；现在按 `Intl.Segmenter('zh-CN')` 切分，并组合与一字词相邻的中文双字词，保留英文/数字/标点查询、排序和分页。
+- 工作台视图通过 `workspaceView` 进入初始 `streamAiChat` POST，经严格 Joi 合同校验后，由 `runs.ts` 仅传给主 Run；续接请求和 side-chat 不转发。Agent Loop 在首轮及能力刷新后重新读取 `browserUse.enabled`，格式化为受限 JSON 提示，明确说明界面提示不是能力或权限，正文仍通过 Browser Owner 实时读取。
+- Client 从当前右侧活跃标签、右栏开合状态、底部终端状态生成视图。Browser URL 只在 Browser Dock 选中、展开且 Browser Use 启用时传递；Client 与 Agent Loop 两端都只接受 HTTP(S)，移除凭据、查询和片段。未发送标题、正文、DOM、历史、多标签或截图，不写入 Session/活动。
+- 性能：中文 `Intl.Segmenter` 在模块级复用；`ApplicationWorkspace` 只把影响本轮上下文的标量作为 `useMemo` 依赖，Browser Dock 无关快照变化不会重建 `AiWorkChat` 的视图对象。
+- 新增长期回归：`apps/cli/tests/agent-workbench-context.test.mjs` 覆盖 Client 裁剪、API 拒绝未知/不匹配字段、服务端二次净化和设置门控；`apps/cli/tests/agent-tool-discovery.test.mjs` 覆盖自然中文句子与原多词、MCP、排序、分页行为。
+- 定向 Agent/工具/Client 回归 44/44 通过：合成 Provider 覆盖主 Run 收到面板 JSON、Browser Use 默认关闭时不见 URL、side-chat 不继承上下文；工具发现、Client 初始 POST/Run 恢复 GET、API Schema 和工作台裁剪也均有断言。最终 UI 精简后 Client/工作台回归 37/37 通过；Client 与 Host TypeScript 检查均退出码 0，最终 `pnpm run build:web` 通过。
+- `pnpm run build` 完成：Harness 218 包、Web Vite、Control Plane 和 CLI 均成功，产物写入仓库根 `dist/`；最终 UI 精简后又单独运行 `pnpm run build:web`。最终 `node scripts/runtime-build-state.mjs web` 返回 `[]`，host/web 指纹与当前源码一致。
+- 最新 Web 构建完成后，源码入口 `pnpm lfaa web` 重启正常，`http://127.0.0.1:3000/api/health` 返回 200。ChatGPT 内置浏览器 tab 13 实际打开 `http://127.0.0.1:3000/work`，AX 页面树加载为“小鱼智能体”工作台，显示右侧浏览器新标签页和已收起的底部终端。本轮未触发模型请求、页面导航或设置修改。当前 CUA 只回传可访问性树，没有截图接口，故无截图证据；真实 Provider/浏览器工具闭环未测。
+- `pnpm run check:workspace` 仍失败于 3 条既有文档完整性错误：`docs/development/left-preview-hover-flicker-20261025.md` 引用了缺失的 `dist/.tmp/hover-flicker-desktop.png`、`dist/.tmp/hover-flicker-narrow.png`，以及 `docs/PROMPTS.md` 缺少 `#lfaa-compact-application-center-anchor-20261025`。这些历史项不属本合同，未擅自补造截图或改动其他任务的合同。
+- 开始状态：沿用用户已有未提交工作；未清理、回退、暂存或覆盖其他差异。
+
+<a id="lfaa-workbench-tab-strip-responsive-20261026"></a>
+
+## 289-AI Work 工作区标签条窄分栏响应式修复（2026-10-26）
+
+### 目标、Owner 与设置
+
+- 用户截图显示右侧工作区页签下方出现横向滚动条，并怀疑窄分栏响应式不足。目标是让单个页签在可用标签区域内收缩并显示省略标题；多个标签超出时仍可横向浏览，但不显示装饰性滚动轨道。
+- Owner：`packages/client/ui-workspace/src/css/right-menu.css` 管理标签条布局；`ApplicationWorkspace` 继续持有页签与开关行为；工作区宿主与分栏尺寸仍归现有 `ui-dockkit/ResizableWorkbench`。
+- 运行入口：Web/Desktop 共用 Client `/work` 的右侧工作区标签条。
+- 设置盘点：沿用 `general.navigationLayout`、已有栏宽/开合偏好，以及 Appearance 的主题、颜色、字体和字号共享令牌。不新增、不修改设置中心配置或用户偏好；滚动条呈现没有用户设置项。
+- 边界：不改变标签创建/关闭/选择、浏览器导航、其他 Dock 尺寸或内容 Owner，不新增监听器、请求或持久化数据。
+
+### 允许范围与验收
+
+- 允许修改右侧标签条 CSS、其直接回归、ui-workspace README 和本合同。
+- 单个很长标签在窄容器内可收缩并以省略号呈现，不能把标题栏撑宽；多标签保留可触屏/触控板横向浏览能力，但任何视口都不显示横向滚动条轨道。
+- `+` 新建、关闭按钮和标签选中仍可见、可操作；桌面/窄分栏及短屏不引入页面级水平溢出。
+- 运行直接标签条回归、ui-workspace 构建、Web 构建及 `git diff --check`；在 ChatGPT 内置浏览器对 `/work` 实际检查宽屏和相关窄分栏视口，记录尺寸、标签显示/滚动交互、截图能力及未测边界。
+
+### 实施与验收记录
+
+- CSS：单个页签按容器收缩并让长标题省略；所有视口隐藏横向滚动轨道，同时保留 `overflow-x:auto`，多标签仍能在标签条内滑动。没有新增请求、状态订阅、观察器、计时器或 CSS 变量。
+- 直接验证：`node --test apps/cli/tests/client-workspace-app-tabs.test.mjs` 10/10 通过；`pnpm.cmd --filter lfaa-client-ui-workspace run build` 和 `pnpm.cmd run build:web` 通过，Vite 完成 3867 modules 转换，产物位于根 `dist/`；`node scripts/runtime-build-state.mjs web` 返回 `[]`；`git diff --check` 通过。
+- Web 实页：最终源码构建后运行 `pnpm.cmd lfaa web`，`/api/health` 为 `status=ok, persistence=ready`，内置浏览器实际打开 `/work`。视口 1440×900、680×720、390×740 实测；复位默认视口为 1312×1244。各宽度 `documentElement.scrollWidth` 等于视口宽度；标签栏 `scrollWidth` 等于 `clientWidth`，实际 `scrollbar-width` 为 `none`；新建与关闭按钮均可见。捕获了对应内置浏览器截图，未发现标签下方横向滚动轨。CUA 截图在本轮实页观察中内联显示，没有本地导出路径。
+- 本次 `/work` 当前只打开空白“新标签页”。为了不在最近访问数据中新增测试网站，没有另行导航以触发真实长网页标签；长标题的省略样式由定向 CSS 回归覆盖，多标签滑动未做浏览器手势实测。用户截图提供了修复前的溢出状态作为对照。
+- 运行拓扑：重建前原 `pnpm lfaa web` 退出时 Harness 触发本机 Daemon 的安全停止请求；之后已恢复默认 `pnpm.cmd lfaa web`，启动器回报本机 Daemon `57702d78` 已启动。未核验本机受管游戏实例是否在此前退出后恢复；远程实例状态不在本轮检查范围。
+- `pnpm.cmd run check:workspace` 失败于 3 条既有文档引用：缺少 `dist/.tmp/hover-flicker-desktop.png`、`dist/.tmp/hover-flicker-narrow.png`，以及既有锚点 `#lfaa-compact-application-center-anchor-20261025`；未改造其它任务材料来消除这些错误。
+- 设置中心：沿用 `general.navigationLayout` 和 Appearance 共享主题/字体令牌，无新增配置或偏好改动。
+- 文件职责：`packages/client/ui-workspace/src/css/right-menu.css`（单标签收缩与滚动条呈现）；`apps/cli/tests/client-workspace-app-tabs.test.mjs`（锁定单标签布局与多标签溢出合同）；`packages/client/ui-workspace/README.md`（记录响应行为）；`docs/PROMPTS.md`（目标、边界与验证证据）。

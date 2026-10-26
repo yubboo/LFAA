@@ -15,7 +15,7 @@ import { createSnapshotCache, clearClientSnapshots } from "../../../packages/cli
 import { createAiActivityClockStore } from "../../../packages/client/ui-chat/src/activity-clock.ts";
 import { observeWorkbenchMetrics } from "../../../packages/client/ui-dockkit/src/use-workbench-metrics.ts";
 import { buildConversationAnchors, conversationAnchorReply } from "../../../packages/client/ui-chat/src/conversation-anchor-preview.ts";
-import { buildConversationAnchorLayout, createConversationScrollTracker, createFrameCoalescer, findNearestConversationAnchorIndex, shouldAutoScrollToLatest, shouldFollowLatestMessage, shouldShowScrollToLatest, updateConversationAnchorPointerTarget } from "../../../packages/client/ui-chat/src/conversation-scroll.ts";
+import { buildConversationAnchorLayout, createConversationScrollTracker, createFrameCoalescer, findNearestConversationAnchorIndex, projectConversationWheelScroll, shouldAutoScrollToLatest, shouldFollowLatestMessage, shouldShowScrollToLatest, updateConversationAnchorPointerTarget } from "../../../packages/client/ui-chat/src/conversation-scroll.ts";
 import { sameTerminalTask } from "../../../packages/client/ui-workspace/src/terminal-snapshot.ts";
 
 function browserEvents(t) {
@@ -110,17 +110,44 @@ test("读取失败仍能在下一轮恢复，手动调用可以观察错误", as
   await assert.rejects(poller.refresh(), /隔离读取失败/u);
 });
 
-test("1000 个同帧文本片段只更新一次，跨消息和终止保持原始文本顺序", t => {
+test("流式文本在自然边界或有界窗口合并，跨消息与取消保持顺序并清理调度", t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
   const animation = frames(t), emitted = [];
   const deltas = createStreamDeltas(value => emitted.push(value));
-  for (let index = 0; index < 1000; index += 1) deltas.push({ messageId: "a", delta: "字" });
+  deltas.push({ messageId: "a", delta: "你好。" });
   assert.equal(animation.pending.size, 1); assert.equal(emitted.length, 0);
   animation.run();
-  assert.deepEqual(emitted, [{ messageId: "a", delta: "字".repeat(1000) }]);
-  deltas.push({ messageId: "a", delta: "尾" }); deltas.push({ messageId: "b", delta: "下" }); deltas.flush();
-  assert.deepEqual(emitted.slice(1), [{ messageId: "a", delta: "尾" }, { messageId: "b", delta: "下" }]);
-  deltas.push({ messageId: "b", delta: "取消内容" }); deltas.dispose(); animation.run();
-  assert.equal(emitted.length, 3); assert.equal(animation.pending.size, 0);
+  assert.deepEqual(emitted, [{ messageId: "a", delta: "你好。" }]);
+
+  deltas.push({ messageId: "a", delta: " still" });
+  deltas.push({ messageId: "b", delta: "下" });
+  assert.deepEqual(emitted.at(-1), { messageId: "a", delta: " still" }, "切换消息前先交付上一条尾段");
+  deltas.push({ messageId: "b", delta: "取消内容" });
+  t.mock.timers.tick(71);
+  assert.equal(emitted.length, 2, "无边界文本在等待窗口内保持合并");
+  t.mock.timers.tick(1);
+  assert.deepEqual(emitted.at(-1), { messageId: "b", delta: "下取消内容" });
+
+  for (let index = 0; index < 5000; index += 1) deltas.push({ messageId: "c", delta: "字" });
+  deltas.flush();
+  assert.equal(emitted.slice(3).map(value => value.delta).join(""), "字".repeat(5000));
+  assert.ok(emitted.slice(3).every(value => value.delta.length <= 2048), "同一待处理批次有字符上限");
+
+  const largeDelta = "a".repeat(2047) + "🙂" + "z".repeat(8);
+  const beforeLargeDelta = emitted.length;
+  deltas.push({ messageId: "d", delta: largeDelta });
+  deltas.flush();
+  const largeChunks = emitted.slice(beforeLargeDelta).map(value => value.delta);
+  assert.equal(largeChunks.join(""), largeDelta, "超长单片段切分后保留完整原文");
+  assert.ok(largeChunks.every(value => value.length <= 2048), "超长单片段同样受缓冲上限约束");
+  assert.ok(largeChunks.every(value => !/^[\uDC00-\uDFFF]/u.test(value) && !/[\uD800-\uDBFF]$/u.test(value)), "切分不拆开 Unicode 代理项");
+
+  const beforeDispose = emitted.length;
+  deltas.push({ messageId: "c", delta: "取消内容" });
+  deltas.dispose();
+  t.mock.timers.tick(1000); animation.run();
+  assert.equal(emitted.length, beforeDispose, "取消后撤销定时器并丢弃已取消订阅的尾段");
+  assert.equal(animation.pending.size, 0);
 });
 
 test("AI Work共享秒表只通知耗时订阅者，并在最后一个工作区停止后清理", () => {
@@ -207,10 +234,15 @@ test("AI Work 主聊挂载唯一分段展示，沿用原活动展开和完成清
   assert.ok(chat.includes('aria-expanded={activityExpanded} aria-controls={activityDetailId}'));
   assert.ok(chat.includes('activityExpanded ? <div className="ai-work-chat__activity-step-detail"'));
   assert.match(response, /summary\.durationText/u);
-  assert.ok(response.includes('className="ai-work-chat__response-duration" role="status"'));
+  assert.ok(response.includes('className="ai-work-chat__response-duration"'));
+  assert.doesNotMatch(response, /className="ai-work-chat__response-duration" role="status"/u);
+  assert.match(response, /function AssistantIdentity\([\s\S]*?小鱼助手/u);
   assert.match(response, /useSyncExternalStore\(aiActivityClock\.subscribe/u);
   assert.ok(response.includes('<AiLiveResponseDuration message={message} />'));
-  assert.ok(response.includes('pauseLabel ?? summary.label'));
+  assert.ok(response.includes('pauseLabel ?? getAiActivityActionLabel(activeActivity, fallback)'));
+  assert.match(styles, /ai-work-chat__assistant-mark--processing > svg \{ animation: ai-work-chat-assistant-swim/u);
+  assert.match(styles, /data-reduced-motion="on"\] \.ai-work-chat__assistant-mark--processing/u);
+  assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*data-reduced-motion="system"\] \.ai-work-chat__assistant-mark--processing/u);
   assert.match(styles, /\.ai-work-chat__response-final \{ min-width: 0; padding-top: 14px; \}/u);
 });
 
@@ -313,7 +345,8 @@ test("Run SSE 在 done 前断流后按同一 Run ID 重订阅并恢复快照", a
     return new Response(requests.length === 1 ? first : resumed, { headers: { "content-type": "text/event-stream" } });
   });
 
-  await streamAiChat({ appId: "writing", sessionId: "existing-session", content: "继续回答", signal: new AbortController().signal,
+  const workspaceView = { rightPane: "browser", rightPaneOpen: true, bottomTerminalOpen: false, browserUrl: "https://example.com/guide" };
+  await streamAiChat({ appId: "writing", sessionId: "existing-session", content: "继续回答", workspaceView, signal: new AbortController().signal,
     onSession: value => sessions.push(value.assistantMessage.content), onActivity() {}, onUsage() {}, onError() {},
     onDelta: value => deltas.push(value.delta), onDone: status => done.push(status)
   });
@@ -322,6 +355,8 @@ test("Run SSE 在 done 前断流后按同一 Run ID 重订阅并恢复快照", a
     ["/api/ai/chat/stream", "POST"],
     ["/api/ai/runs/recovered-run/events", "GET"]
   ]);
+  assert.deepEqual(JSON.parse(requests[0].body).workspaceView, workspaceView, "新 Run 的初始 JSON 请求携带当前工作台视图");
+  assert.equal(requests[1].body, undefined, "跟随既有 Run 时不重复发送工作台视图");
   assert.deepEqual(sessions, ["", "已收到的片段"]);
   assert.deepEqual(deltas, ["已收到的片段", "和后续内容"]);
   assert.deepEqual(done, ["complete"]);
@@ -355,6 +390,7 @@ test("Run SSE 恢复当前暂停状态，控制 API 只请求当前 Run 的暂�
 });
 
 test("取消 SSE 撤销尚未绘制的文本，不在取消后回调或泄漏动画帧", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
   const animation = frames(t), events = [], abort = new AbortController();
   let feed;
   const body = new ReadableStream({ start(controller) { feed = controller; } });
@@ -363,8 +399,8 @@ test("取消 SSE 撤销尚未绘制的文本，不在取消后回调或泄漏动
     onSession() {}, onActivity() {}, onUsage() {}, onError() {}, onDelta: value => events.push(value), onDone: value => events.push(value)
   });
   feed.enqueue(new TextEncoder().encode('event: delta\ndata: {"messageId":"m","delta":"未绘制"}\n\n'));
-  await nextTurn(); assert.equal(animation.pending.size, 1);
-  abort.abort(); feed.close(); await reading; animation.run();
+  await nextTurn(); assert.equal(animation.pending.size, 0);
+  abort.abort(); feed.close(); await reading; t.mock.timers.tick(1000); animation.run();
   assert.deepEqual(events, []); assert.equal(animation.pending.size, 0);
 });
 
@@ -625,6 +661,14 @@ test("刷新恢复时按首次绘制位置同步决定是否显示回到底部",
   assert.equal(shouldShowScrollToLatest(65, 1), true);
   assert.equal(shouldShowScrollToLatest(64, 1), false);
   assert.equal(shouldShowScrollToLatest(500, 0), false);
+});
+
+test("回到底部的滚轮预测只接受容器真实可滚动的距离", () => {
+  assert.equal(projectConversationWheelScroll(0, 436, 436, -120), null);
+  assert.equal(projectConversationWheelScroll(0, 900, 436, -120), null);
+  assert.equal(projectConversationWheelScroll(464, 900, 436, -120)?.distanceFromBottom, 120);
+  assert.deepEqual(projectConversationWheelScroll(240, 900, 436, 120), { direction: "down", distanceFromBottom: 104 });
+  assert.equal(projectConversationWheelScroll(464, 900, 436, 120), null);
 });
 
 test("终端同值任务快照不触发更新，输出、取消及任务切换仍能被识别", () => {

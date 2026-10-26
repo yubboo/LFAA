@@ -9,10 +9,10 @@ import { setAiSessionAssociations, type AgentAssociations } from "lfaa-client-co
  * 关联文件：packages/client/connection/src/api.ts、packages/client/ui-workspace/src/ApplicationWorkspace.tsx、packages/client/store/src/scroll-restoration.ts、packages/api/gateway/src/index.ts。
  * 修改注意事项：只展示 server 发来的真实 Agent、工具、子 Agent、Skill 和审批状态。
  */
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type Dispatch, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type SetStateAction, type UIEvent, type WheelEvent as ReactWheelEvent } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type Dispatch, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type SetStateAction, type UIEvent, type WheelEvent as ReactWheelEvent } from "react";
 import { createSnapshotCache } from "lfaa-client-store/src/snapshot-cache.js";
 import { Alert, Button, Dropdown, Empty, Input, Modal, Popover, Select, Spin, Tag, Tooltip, Typography } from "antd";
-import { appendAiTextDelta, uploadAttachment, answerAiRunQuestion, appendAiRunInput, applyWritingEditProposal, ApiError, cancelAiRun, createWorkspaceGitWorktree, createAiSessionBranchFromMessage, createAiSessionBranchFromMessageInWorktree, decideAiApproval, forkAiSessionBeforeUserMessage, getErrorMessage, loadSettings, loadAiAccounts, loadWritingEditProposal, loadAiMessages, loadAiSessions, loadWritingWorkspace, pauseAiRun, rejectWritingEditProposal, resumeAiRun, saveSettings, setAiSessionPlanMode, setAiSessionProject, streamAiChat, submitAiMessageFeedback, updateAiAccountModel, updateAiAccountReasoningMode, type AiAccount, type AiActivityFileChange, type AiActivityItem, type AiContextUsage, type AiMessage, type AiMessageFeedbackInput, type AiRunPauseState, type AiSession, type AiSessionBranchSource, type AiSessionUsageSummary, type ApplicationId, type BrowserProviderId, type UserSettings, type WritingEditProposal, type WritingWorkspace, type WorkspaceDaemonNode, type WorkspaceProject, type WorkspaceProjectApplicationId } from "lfaa-client-connection/src/api.js";
+import { appendAiTextDelta, uploadAttachment, answerAiRunQuestion, appendAiRunInput, applyWritingEditProposal, ApiError, cancelAiRun, createWorkspaceGitWorktree, createAiSessionBranchFromMessage, createAiSessionBranchFromMessageInWorktree, decideAiApproval, forkAiSessionBeforeUserMessage, getErrorMessage, loadSettings, loadAiAccounts, loadWritingEditProposal, loadAiMessages, loadAiSessions, loadWritingWorkspace, pauseAiRun, rejectWritingEditProposal, resumeAiRun, saveSettings, setAiSessionPlanMode, setAiSessionProject, streamAiChat, submitAiMessageFeedback, updateAiAccountModel, updateAiAccountReasoningMode, type AiAccount, type AiActivityFileChange, type AiActivityItem, type AiContextUsage, type AiMessage, type AiMessageFeedbackInput, type AiRunPauseState, type AiSession, type AiSessionBranchSource, type AiSessionUsageSummary, type AiWorkbenchView, type ApplicationId, type BrowserProviderId, type UserSettings, type WritingEditProposal, type WritingWorkspace, type WorkspaceDaemonNode, type WorkspaceProject, type WorkspaceProjectApplicationId } from "lfaa-client-connection/src/api.js";
 import { notifyAiWorkAction, notifyAiWorkCompletion, type AiWorkGoalRequest, type AiWorkNotificationInput } from "lfaa-client-resources/src/notification-runtime.js";
 
 // 本次请求携带的附件：只用于当前进程把图片显示在用户气泡里（字节仍不写入会话历史）。
@@ -23,7 +23,7 @@ import { aiActivityClock } from "./activity-clock.js";
 import { buildResponseTimeline, splitAiActivityDetail } from "./response-timeline.js";
 import { formatAiActivityDuration, getAiActivityDisplayStatus, getAiActivityDurationSeconds, getAiActivitySummary } from "./activity-duration.js";
 import { buildConversationAnchors, conversationAnchorLabel, conversationAnchorReply, type ConversationAnchorPreview } from "./conversation-anchor-preview.js";
-import { buildConversationAnchorLayout, createConversationScrollTracker, createFrameCoalescer, findNearestConversationAnchorIndex, shouldAutoScrollToLatest, shouldFollowLatestMessage, shouldShowScrollToLatest, updateConversationAnchorPointerTarget } from "./conversation-scroll.js";
+import { buildConversationAnchorLayout, createConversationScrollTracker, createFrameCoalescer, findNearestConversationAnchorIndex, projectConversationWheelScroll, shouldAutoScrollToLatest, shouldFollowLatestMessage, shouldShowScrollToLatest, updateConversationAnchorPointerTarget } from "./conversation-scroll.js";
 import { createOutputIdleBlurController } from "./output-idle-blur.js";
 import { AI_RUN_CONTROL_GUARD_MS, canControlAiRun } from "./run-stop-guard.js";
 import { AiUsageFooter, type AiUsageLoadState } from "./AiUsageFooter.js";
@@ -81,6 +81,7 @@ const aiMessageFeedbackReasons: Record<AiMessageFeedbackRating, string[]> = {
 interface AiWorkChatProps {
   userId: string;
   appId: ApplicationId;
+  workspaceView?: AiWorkbenchView;
   capabilities?: Array<{ id: string; name: string; kind: string }>;
   capabilitiesError?: string;
   settings: UserSettings;
@@ -434,7 +435,7 @@ const runtimeSpeedOptions: Array<{ value: UserSettings["aiRuntime"]["speed"]; la
   { value: "deep", label: "深入", description: "按模型/自定义上限" }
 ];
 
-function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = "", settings, onSettingsChange, sessions, activeSessionId, projectDirectoryMissing, newSessionProjectId, newSessionGitRepositoryId, defaultWorkspaceProjectId, onSelectedProjectChange, workspaceProjects, workspaceProjectsLoadStatus, workspaceProjectsTruncated, workspaceNodes, workspaceProjectsError, onRetryWorkspaceProjects, onWorkspaceProjectsChange, initialDraft, autoSubmitGoal = null, onAutoSubmitGoalConsumed, newSessionKey, onSessionsChange, onActiveSessionChange, onDraftChange, onProviderStatusChange, onBusyChange, onOpenSettings, onNotification, onOpenSideChat, onOpenProjectFileReview, onWritingWorkspaceChange, onSessionFileChanges, onBrowserToolCompleted, voiceMode = false, onExitVoice = () => undefined }: AiWorkChatProps) {
+function AiWorkChatView({ userId, appId, workspaceView, capabilities = [], capabilitiesError = "", settings, onSettingsChange, sessions, activeSessionId, projectDirectoryMissing, newSessionProjectId, newSessionGitRepositoryId, defaultWorkspaceProjectId, onSelectedProjectChange, workspaceProjects, workspaceProjectsLoadStatus, workspaceProjectsTruncated, workspaceNodes, workspaceProjectsError, onRetryWorkspaceProjects, onWorkspaceProjectsChange, initialDraft, autoSubmitGoal = null, onAutoSubmitGoalConsumed, newSessionKey, onSessionsChange, onActiveSessionChange, onDraftChange, onProviderStatusChange, onBusyChange, onOpenSettings, onNotification, onOpenSideChat, onOpenProjectFileReview, onWritingWorkspaceChange, onSessionFileChanges, onBrowserToolCompleted, voiceMode = false, onExitVoice = () => undefined }: AiWorkChatProps) {
   const currentScrollConversationKey = `${appId}:${activeSessionId ?? "new-session"}`;
   const outputFocusRegionElementRef = useRef<HTMLElement | null>(null);
   const setOutputFocusRegionElement = useCallback((node: HTMLElement | null) => {
@@ -702,6 +703,8 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
   }, [settings.appearance.advanced.aiWorkOutputFocusBlurEnabled, settings.appearance.advanced.aiWorkOutputFocusBlurIdleSeconds]);
   // 默认展示会话最新消息；用户主动上翻后暂停跟随，回到底部时再恢复。
   const followLatestMessageRef = useRef(true);
+  const responseHistoryDetailsRef = useRef(new Set<HTMLDetailsElement>());
+  const followLatestBeforeResponseHistoryRef = useRef<boolean | null>(null);
   const messagesScroll = useScrollRestoration(
     createScrollRestorationKey(userId, "ai-messages", appId, activeSessionId ?? "new-session"),
     messagesReady
@@ -715,11 +718,29 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
     followLatestMessageRef.current = shouldFollowLatestMessage(followLatestMessageRef.current, direction, distanceFromBottom);
     setShowScrollToLatest(shouldShowScrollToLatest(distanceFromBottom, messages.length));
   }, [messages.length]);
+  const handleResponseHistoryClickCapture = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
+    if (!(event.target instanceof Element)) return;
+    const summary = event.target.closest("summary");
+    const details = summary?.parentElement;
+    if (!(details instanceof HTMLDetailsElement) || !details.classList.contains("ai-work-chat__response-history")) return;
+    if (!details.open) {
+      if (responseHistoryDetailsRef.current.size === 0) followLatestBeforeResponseHistoryRef.current = followLatestMessageRef.current;
+      responseHistoryDetailsRef.current.add(details);
+      followLatestMessageRef.current = false;
+      return;
+    }
+    responseHistoryDetailsRef.current.delete(details);
+    if (responseHistoryDetailsRef.current.size === 0 && followLatestBeforeResponseHistoryRef.current !== null) {
+      followLatestMessageRef.current = followLatestBeforeResponseHistoryRef.current;
+      followLatestBeforeResponseHistoryRef.current = null;
+    }
+  }, []);
   const handleMessagesWheel = useCallback((event: ReactWheelEvent<HTMLDivElement>) => {
     if (event.deltaY === 0 || event.ctrlKey) return;
-    const distanceFromBottom = event.currentTarget.scrollHeight - event.currentTarget.scrollTop - event.currentTarget.clientHeight;
-    const projectedDistanceFromBottom = Math.max(0, distanceFromBottom - event.deltaY);
-    updateFollowFromUserScroll(event.currentTarget, event.deltaY < 0 ? "up" : "down", projectedDistanceFromBottom);
+    const element = event.currentTarget;
+    const projectedScroll = projectConversationWheelScroll(element.scrollTop, element.scrollHeight, element.clientHeight, event.deltaY);
+    if (!projectedScroll) return;
+    updateFollowFromUserScroll(element, projectedScroll.direction, projectedScroll.distanceFromBottom);
   }, [updateFollowFromUserScroll]);
   const handleMessagesPointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     const element = event.currentTarget;
@@ -952,6 +973,8 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
     if (activeScrollConversationRef.current !== conversationKey) {
       activeScrollConversationRef.current = conversationKey;
       followLatestMessageRef.current = busy;
+      responseHistoryDetailsRef.current.clear();
+      followLatestBeforeResponseHistoryRef.current = null;
       initializedScrollConversationRef.current = null;
       pointerScrollTopRef.current = null;
       pointerScrollDirectionRef.current = null;
@@ -1342,6 +1365,7 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
         ...(!requestSessionId && requestProjectId ? { projectId: requestProjectId } : {}),
         ...(!requestSessionId && newSessionGitRepositoryId ? { gitRepositoryId: newSessionGitRepositoryId } : {}),
         ...(!requestSessionId ? { associations } : {}),
+        ...(!followRunId && workspaceView ? { workspaceView } : {}),
         content,
         ...(requestedPlanMode === undefined ? {} : { planMode: requestedPlanMode }),
         ...(sendingAttachments.length ? { attachmentIds: sendingAttachments.map(item => item.id), attachments: sendingAttachments.map(item => ({ id: item.id, name: item.name })) } : {}),
@@ -2346,7 +2370,7 @@ function AiWorkChatView({ userId, appId, capabilities = [], capabilitiesError = 
             activeAnchorId={activeAnchorId}
             onJump={jumpToConversationAnchor}
           /> : null}
-          <div ref={setMessagesElement} onScroll={handleMessagesScroll} onWheel={handleMessagesWheel} onPointerDown={handleMessagesPointerDown} onPointerUp={handleMessagesPointerUp} onPointerCancel={handleMessagesPointerUp} className="ai-work-chat__messages" aria-live="polite">
+          <div ref={setMessagesElement} onScroll={handleMessagesScroll} onWheel={handleMessagesWheel} onClickCapture={handleResponseHistoryClickCapture} onPointerDown={handleMessagesPointerDown} onPointerUp={handleMessagesPointerUp} onPointerCancel={handleMessagesPointerUp} className="ai-work-chat__messages" aria-live="polite">
             <div className="ai-work-chat__message-list">
               {hasOlderMessages ? <div className="ai-work-chat__older-messages"><Button loading={loadingOlderMessages} onClick={() => void loadEarlierMessages()}>加载更早消息</Button></div> : null}
               {loading ? <Spin /> : messages.length ? messages.map((item, messageIndex) => {

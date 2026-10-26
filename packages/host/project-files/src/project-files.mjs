@@ -155,11 +155,12 @@ function samePath(left, right) {
   return process.platform === "win32" ? a.toLocaleLowerCase("en-US") === b.toLocaleLowerCase("en-US") : a === b;
 }
 
-async function readBoundedDirectory(path, limit = 5000) {
+async function readBoundedDirectory(path, limit = 5000, signal) {
   const directory = await opendir(path);
   const entries = [];
   let truncated = false;
   for await (const entry of directory) {
+    signal?.throwIfAborted();
     if (entries.length >= limit) { truncated = true; break; }
     entries.push(entry);
   }
@@ -180,10 +181,12 @@ async function checkedPath(root, value, create = false) {
 function toProjectRelativePath(root, path) {
   return relative(root, path).split(sep).join("/");
 }
-async function readText(path) {
+async function readText(path, signal) {
+  signal?.throwIfAborted();
   const details = await stat(path);
   if (!details.isFile() || details.size > textLimit) throw new Error("仅支持不超过 2 MiB 的普通文本文件。");
-  const bytes = await readFile(path);
+  const bytes = await readFile(path, signal ? { signal } : undefined);
+  signal?.throwIfAborted();
   if (bytes.includes(0)) throw new Error("文件包含二进制数据，不能按文本处理。");
   return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes);
 }
@@ -384,7 +387,8 @@ async function readProjectGitDiff(root, selectedPath) {
   return { diff, diffTruncated };
 }
 
-export async function executeProjectFile(input) {
+export async function executeProjectFile(input, { signal } = {}) {
+  signal?.throwIfAborted();
   if (input?.operation === "resolve_default_workspace") return await inspectDefaultWorkspaceDirectory();
   if (input?.operation === "initialize_default_workspace") return { path: await createDefaultWorkspaceDirectory() };
   if (input?.operation === "home") {
@@ -422,7 +426,7 @@ export async function executeProjectFile(input) {
     await assertOutsideDataRoot(canonical);
     if (!(await stat(canonical)).isDirectory()) throw new Error("所选路径不是文件夹。");
     if (input.operation === "inspect_directory") return { path: canonical, root: parse(canonical).root, directory: true };
-    const listed = await readBoundedDirectory(canonical);
+    const listed = await readBoundedDirectory(canonical, 5000, signal);
     const directories = listed.entries
       .filter(entry => entry.isDirectory() && !entry.isSymbolicLink())
       .map(entry => entry.name)
@@ -492,7 +496,7 @@ export async function executeProjectFile(input) {
     return { root, skills, limit: 100 };
   }
   if (input.operation === "list") {
-    const listed = await readBoundedDirectory(path);
+    const listed = await readBoundedDirectory(path, 5000, signal);
     const visible = [];
     const protectedRoot = protectedDataRoot ? await (protectedDataRootRealPath ??= realpath(protectedDataRoot).catch(() => protectedDataRoot)) : null;
     for (const entry of listed.entries) {
@@ -509,7 +513,7 @@ export async function executeProjectFile(input) {
     // 任务输出协议上限 1 MiB，图像字节限制为 512 KiB，为 JSON/base64 留出空间。
     const info = await stat(path);
     if (!info.isFile() || info.size > 512 * 1024) throw new Error("图像必须是 512 KiB 以内的普通 PNG/JPEG/WebP 文件，请先缩小图像。");
-    const bytes = await readFile(path);
+    const bytes = await readFile(path, signal ? { signal } : undefined);
     if (bytes.length > 512 * 1024) throw new Error("读取期间图像超过大小限制。");
     const mimeType = bytes.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10])) ? "image/png"
       : bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255 ? "image/jpeg"
@@ -518,7 +522,7 @@ export async function executeProjectFile(input) {
     return { path, relativePath: toProjectRelativePath(root, path), bytes: bytes.length, content: [{ type: "image", mimeType, data: bytes.toString("base64") }] };
   }
   if (input.operation === "read_lines") {
-    const content = await readText(path);
+    const content = await readText(path, signal);
     const offset = input.lineOffset ?? 1, limit = input.lineLimit ?? 2000;
     if (!Number.isSafeInteger(offset) || offset < 1 || !Number.isSafeInteger(limit) || limit < 1 || limit > 2000) throw new Error("读取行范围无效。");
     const lines = content.split(/\r?\n/u), selected = []; let size = 0;
@@ -531,7 +535,7 @@ export async function executeProjectFile(input) {
     return { path, relativePath: toProjectRelativePath(root, path), content: selected.join("\n"), totalLines: lines.length, nextLine: offset + selected.length, truncated: offset - 1 + selected.length < lines.length, sha256: digest(content) };
   }
   if (input.operation === "read") {
-    const content = await readText(path);
+    const content = await readText(path, signal);
     const offset = Math.max(0, Number(input.offset) || 0);
     const requestedLimit = Number.isInteger(input.limit) ? input.limit : 40000;
     const limit = Math.max(1, Math.min(requestedLimit, 100000));
@@ -545,11 +549,13 @@ export async function executeProjectFile(input) {
     const filePattern = filenameOnly ? new RegExp(`^${input.query.replace(/[.+^${}()|[\]\\]/gu, "\\$&").replaceAll("*", ".*").replaceAll("?", ".")}$`, "iu") : null;
     const matches = []; let scanned = 0; let directories = 0; let truncated = false;
     const walk = async directory => {
+      signal?.throwIfAborted();
       if (directories >= 1000) { truncated = true; return; }
       directories += 1;
-      const listing = await readBoundedDirectory(directory, 256);
+      const listing = await readBoundedDirectory(directory, 256, signal);
       if (listing.truncated) truncated = true;
       for (const entry of listing.entries) {
+        signal?.throwIfAborted();
         if (scanned >= 2000 || matches.length >= 100) { truncated = true; return; }
         if (entry.isSymbolicLink() || [".git", "node_modules", "dist"].includes(entry.name.toLocaleLowerCase("en-US"))) continue;
         const child = resolve(directory, entry.name);
@@ -560,7 +566,7 @@ export async function executeProjectFile(input) {
           if (filenameOnly) { if (filePattern.test(entry.name)) matches.push({ path: relative(root, child) }); continue; }
           if (markdownOnly && !/\.(?:md|markdown)$/iu.test(entry.name)) continue;
           let content;
-          try { content = await readText(child); } catch { continue; }
+          try { content = await readText(child, signal); } catch (error) { if (signal?.aborted) throw error; continue; }
           const lines = content.split(/\r?\n/u);
           for (let index = 0; index < lines.length && matches.length < 100; index += 1) if (lines[index].includes(input.query)) matches.push({ path: relative(root, child), line: index + 1, text: lines[index].slice(0, 1000) });
         }

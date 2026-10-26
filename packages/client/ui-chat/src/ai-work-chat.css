@@ -57,7 +57,7 @@ body[data-we-wallpaper] .workbench-shell .ai-work-chat {
 /* 滚动视口铺满中间工作区，消息列表与输入框共用居中窄列，滚动条因此贴在视口最右边。 */
 .ai-work-chat__message-stage { position: relative; display: flex; width: 100%; min-width: 0; min-height: 0; flex: 1 1 0; align-self: stretch; flex-direction: column; }
 .ai-work-chat__messages { display: block; width: 100%; min-width: 0; min-height: 0; flex: 1 1 auto; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; box-sizing: border-box; }
-.ai-work-chat__message-list { display: flex; width: min(100%, 920px); min-height: 100%; flex-direction: column; justify-content: flex-end; align-items: stretch; gap: 26px; margin-inline: auto; padding: 22px clamp(20px, 3%, 32px) 12px; box-sizing: border-box; }
+.ai-work-chat__message-list { display: flex; width: min(100%, 920px); min-height: 100%; flex-direction: column; justify-content: flex-start; align-items: stretch; gap: 26px; margin-inline: auto; padding: 22px clamp(20px, 3%, 32px) 12px; box-sizing: border-box; }
 /* 空闲与恢复状态同步过渡回复区；仅在状态变化时运行有限 CSS 过渡，不创建逐帧脚本。 */
 .workbench-shell[data-ai-work-output-focus-blur="true"] .ai-work-chat .ai-work-chat__messages,
 .workbench-shell[data-ai-work-output-focus-blur="true"] .ai-work-chat .ai-work-chat__anchors,
@@ -279,6 +279,22 @@ body[data-we-wallpaper] .workbench-shell .ai-work-chat {
 /* 流式回复沿用工作台字体、字号和颜色；正文与真实活动按同一时间线排列。 */
 .ai-work-chat__response { min-width: 0; }
 .ai-work-chat__response-duration { display: flex; width: fit-content; max-width: 100%; flex-wrap: wrap; align-items: center; gap: 7px; padding: 4px 0; color: var(--color-text-muted); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: .86em; }
+.ai-work-chat__assistant-identity { display: inline-flex; max-width: 100%; min-width: 0; flex-wrap: wrap; align-items: center; gap: 7px; }
+.ai-work-chat__assistant-mark { display: grid; width: 30px; height: 30px; flex: 0 0 30px; place-items: center; overflow: hidden; border: 1px solid color-mix(in srgb, var(--settings-accent, var(--color-brand)) 28%, var(--color-border-subtle)); border-radius: 50%; background: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 10%, var(--color-surface)); color: var(--settings-accent, var(--color-brand)); }
+.ai-work-chat__assistant-mark > svg { display: block; width: 20px; height: 20px; overflow: visible; }
+.ai-work-chat__assistant-mark--processing > svg { animation: ai-work-chat-assistant-swim 1.6s ease-in-out infinite; }
+.ai-work-chat__assistant-mark--processing .ai-work-chat__assistant-mark-tail { transform-box: fill-box; transform-origin: right center; animation: ai-work-chat-assistant-tail 1.1s ease-in-out infinite; }
+.ai-work-chat__assistant-name { color: var(--color-text-secondary); font-weight: 620; white-space: nowrap; }
+.ai-work-chat__assistant-separator { color: var(--color-text-subtle); }
+.ai-work-chat__assistant-duration { color: var(--color-text-muted); }
+@keyframes ai-work-chat-assistant-swim {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(-2deg); }
+  50% { transform: translate3d(1px, -1px, 0) rotate(2deg); }
+}
+@keyframes ai-work-chat-assistant-tail {
+  0%, 100% { transform: rotate(-7deg); }
+  50% { transform: rotate(7deg); }
+}
 .ai-work-chat__response-final { min-width: 0; padding-top: 14px; }
 .ai-work-chat__response-history { min-width: 0; }
 .ai-work-chat__response-history > summary { display: flex; min-height: 31px; align-items: center; justify-content: space-between; gap: 8px; padding: 3px 0 7px; border-bottom: 1px solid var(--color-border-subtle); color: var(--color-text-muted); cursor: pointer; font-size: .88em; list-style: none; }
@@ -953,9 +969,13 @@ body[data-lfaa-reduced-motion="on"] .ai-work-chat__activity-live-status--process
 body[data-lfaa-reduced-motion="on"] .ai-work-chat__tool-group--running > summary > span { animation: none; background-image: none; color: var(--color-text-muted); -webkit-text-fill-color: currentColor; }
 body[data-lfaa-reduced-motion="on"] .ai-work-chat__activity-live-status--processing::after,
 body[data-lfaa-reduced-motion="on"] .ai-work-chat__tool-group--running > summary::after { animation: none; background-image: none; }
+.workbench-shell[data-reduced-motion="on"] .ai-work-chat__assistant-mark--processing > svg,
+.workbench-shell[data-reduced-motion="on"] .ai-work-chat__assistant-mark--processing .ai-work-chat__assistant-mark-tail { animation: none; }
 @media (prefers-reduced-motion: reduce) {
   body[data-lfaa-reduced-motion="system"] .ai-work-chat__activity-live-status--processing::after,
   body[data-lfaa-reduced-motion="system"] .ai-work-chat__tool-group--running > summary::after { animation: none; background-image: none; }
+  .workbench-shell[data-reduced-motion="system"] .ai-work-chat__assistant-mark--processing > svg,
+  .workbench-shell[data-reduced-motion="system"] .ai-work-chat__assistant-mark--processing .ai-work-chat__assistant-mark-tail { animation: none; }
 }
 
 /* Wallpaper Engine 字体集把 DSH 字体角色映射到 LFAA AI Work 的 Markdown 渲染元素。 */

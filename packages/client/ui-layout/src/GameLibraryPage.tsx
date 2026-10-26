@@ -13,8 +13,8 @@ import { createReadPoller } from "lfaa-client-connection/src/read-poller.js";
 import "./GameLibraryPage.css";
 import {RuntimeEnvironmentPanel} from "./RuntimeEnvironmentPanel.js";
 
-export function GameLibraryPage({ user, environments = false, onNavigate, onOpenStorage }: {
-  user: User; environments?: boolean; onNavigate: (path: string) => void; onOpenStorage:()=>void;
+export function GameLibraryPage({ user, environments = false, canBrowseLocalFiles, onNavigate, onOpenStorage }: {
+  user: User; environments?: boolean; canBrowseLocalFiles:boolean; onNavigate: (path: string) => void; onOpenStorage:()=>void;
 }) {
   const [overview, setOverview] = useState<RuntimeOverview | null>(null);
   const [error, setError] = useState("");
@@ -83,7 +83,7 @@ export function GameLibraryPage({ user, environments = false, onNavigate, onOpen
         <Button type="primary" onClick={() => onNavigate("/games/steamcmd")}>管理 Steam 游戏服务</Button>
       </article>
     </div> : <>
-      {overview?<RuntimeEnvironmentPanel overview={overview} targetId={targetId} setTargetId={setTargetId} canOperate={canOperate} operate={operate} task={task} onNavigate={onNavigate} onOpenStorage={onOpenStorage} onOpenSteamcmd={()=>onNavigate("/games/steamcmd")} onManageSteamcmd={nodeId=>{setFileManagerLocation(user.id,`.lfaa-library/game-storage/${nodeId}/steamcmd-runtime`);onNavigate("/files");}} />:!error?<div role="status"><Spin/> 正在读取设备的实际环境…</div>:null}
+      {overview?<RuntimeEnvironmentPanel overview={overview} targetId={targetId} setTargetId={setTargetId} canOperate={canOperate} canBrowseLocalFiles={canBrowseLocalFiles} operate={operate} task={task} onNavigate={onNavigate} onOpenStorage={onOpenStorage} onOpenSteamcmd={()=>onNavigate("/games/steamcmd")} onManageSteamcmd={nodeId=>{setFileManagerLocation(user.id,`.lfaa-library/game-storage/${nodeId}/steamcmd-runtime`);onNavigate("/files");}} />:!error?<div role="status"><Spin/> 正在读取设备的实际环境…</div>:null}
       {task ? <section className="game-library__runtime" aria-label="运行环境任务"><div><Typography.Title level={3}>环境任务</Typography.Title><p>{task.message}</p>{task.result&&typeof task.result==="object"&&"message" in task.result?<p>{String(task.result.message)}</p>:null}{task.result&&typeof task.result==="object"&&"installerPath" in task.result?<code>{String(task.result.installerPath)}</code>:null}<p>{({ queued: "等待中", running: "执行中", succeeded: "已完成", failed: "失败", cancelled: "已取消" })[task.status]}</p></div>{["queued", "running"].includes(task.status) ? <Button disabled={task.cancelRequested} onClick={() => void cancelRuntimeTask(task.id).then(setTask).catch(reason => setError(getErrorMessage(reason)))}>{task.cancelRequested ? "等待确认取消" : "取消任务"}</Button> : null}</section> : null}
     </>}
   </section>;

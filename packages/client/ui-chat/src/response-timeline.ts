@@ -39,8 +39,8 @@ export function buildResponseTimeline(message: AiMessage, liveStatus?: ResponseT
   for (const [order, activity] of message.activity.entries()) {
     // 这两项是 Agent Loop 的能力/权限说明元数据，不代表本轮执行的工作。
     if ((activity.kind === "agent" && activity.title === "小鱼主 Agent") || (activity.kind === "tool" && activity.title === "已登记项目工具")) continue;
-    // 运行中的状态由同一时间线的动态文案呈现；结束后再展示完整阶段记录，避免重复。
-    if (!finished && activity.kind === "status" && activity.status === "running") continue;
+    // 运行中只显示正文与一个当前状态；重复的模型阶段状态留在完成后的可展开记录中。
+    if (!finished && activity.kind === "status") continue;
     entries.push({ offset: activity.contentOffset ?? 0, order, block: { kind: activity.kind === "question" || activity.approvalId ? "interaction" : "activity", id: activity.id, activity } });
   }
   for (const [index, part] of (parts ?? []).entries()) {

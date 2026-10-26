@@ -17,7 +17,7 @@ await import('lfaa-session/src/sessions.js');
 const { retireLegacyFileTables } = await import('lfaa-storage-domain/src/migration.js');
 retireLegacyFileTables();
 const { provisionMinecraftServer, retryMinecraftProvision } = await import('lfaa-games-minecraft/src/deployment-service.js');
-const { validateCoreCoordinate, resolveMinecraftCoreArtifact } = await import('lfaa-games-minecraft/src/core-sources.js');
+const { validateCoreCoordinate, resolveMinecraftCoreArtifact, getMinecraftCoreCompatibility, listMinecraftCores, minecraftCoreNames } = await import('lfaa-games-minecraft/src/core-sources.js');
 const queue = await import('lfaa-jobs/src/minecraft-queue.js');
 const { recordDaemonHeartbeat } = await import('lfaa-host-daemon/src/local-daemon.js');
 const { createDomainToolTestHost } = await import('./fixtures/domain-tools.mjs');
@@ -45,6 +45,28 @@ globalThis.fetch = async input => {
   throw new Error(`未登记测试来源 ${url}`);
 };
 test.after(() => { globalThis.fetch = originalFetch; closeDatabase(); assert.equal(dirname(resolve(data)), parent); assert.ok(basename(data).startsWith('lfaa-multicore-')); rmSync(data, { recursive: true, force: true }); });
+test('核心 Owner 明确区分插件、模组、混合、代理和基岩兼容类型', async () => {
+  for (const core of minecraftCoreNames) {
+    const profile = getMinecraftCoreCompatibility(core);
+    assert.ok(profile.serverType, `${core} 有服务端类型`);
+    assert.ok(profile.compatibleContent.length, `${core} 有兼容内容说明`);
+  }
+  const catalog = await listMinecraftCores();
+  const paper = catalog.cores.find(core => core.name === 'Paper');
+  const spongeNeo = catalog.cores.find(core => core.name === 'SpongeNeo');
+  const youer = catalog.cores.find(core => core.name === 'Youer');
+  assert.equal(paper?.category, 'pure', '保留来源目录分类，避免改变原行为');
+  assert.equal(paper?.serverType, 'plugin');
+  assert.match(paper?.compatibleContent.join(' '), /Bukkit\/Spigot\/Paper 插件/u);
+  assert.equal(spongeNeo?.serverType, 'hybrid');
+  assert.match(spongeNeo?.compatibleContent.join(' '), /SpongeAPI 插件与 NeoForge 模组/u);
+  assert.equal(youer?.serverType, 'hybrid');
+  const tools = await import('lfaa-tools/src/business-tools.js');
+  const list = tools.findAiBusinessTool('workspace', 'admin', 'minecraft_list_cores', null, 'full_access');
+  assert.ok(list);
+  const selected = await list.execute(list.parse({ core: 'paper' }), {});
+  assert.equal(selected.cores[0].serverType, 'plugin', '模型读取到核心能力分类');
+});
 test('迁移保持旧 Vanilla 记录并可重复执行', () => {
   const id = randomUUID(), deploymentId = randomUUID(), taskId = randomUUID();
   database.prepare("INSERT INTO minecraft_instances(id,node_id,created_by,name,release_id,java_major,memory_mb,state,eula_accepted_at) VALUES(?,?,?,'legacy-fixture','fixture',21,2048,'stopped',?)").run(id, nodeId, userId, new Date().toISOString());
@@ -167,6 +189,8 @@ test('模型可读取核心 Java 要求并将指定运行时传入部署；不�
   assert.ok(read, '模型需要真实工件和运行时要求证据，不能凭版本名称猜测');
   const requirement = await read.execute(read.parse({core:'Paper',version:'1.12.2',build:'1620'}),{});
   assert.equal(requirement.javaMajor,11);
+  assert.equal(requirement.serverType,'plugin');
+  assert.match(requirement.compatibleContent.join(' '),/Bukkit\/Spigot\/Paper 插件/u);
   const provision = tools.findAiBusinessTool('workspace','admin','minecraft_provision_server',null,'full_access');
   assert.equal(provision.schema.properties.javaRuntimeId.type,'string');
   const input = {nodeId,name:'model-selected-java',core:'Paper',version:'1.12.2',build:'1620',eulaAccepted:true,javaRuntimeId:'temurin-11'};

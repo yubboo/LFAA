@@ -21,6 +21,27 @@ function AiLiveResponseDuration({ message }: { message: AiMessage }) {
   return <>{getAiActivitySummary(message, now).durationText}</>;
 }
 
+function AssistantMark({ processing = false }: { processing?: boolean }) {
+  return <span className={`ai-work-chat__assistant-mark${processing ? " ai-work-chat__assistant-mark--processing" : ""}`} aria-hidden="true">
+    <svg viewBox="0 0 32 32" focusable="false">
+      <circle cx="28" cy="9" r="1.1" fill="currentColor" opacity=".55" />
+      <path className="ai-work-chat__assistant-mark-tail" d="M6 16 2.3 11.8v8.4L6 16Z" fill="currentColor" opacity=".65" />
+      <path d="M5.7 16c3.8-4.8 9.1-6.8 14.2-4.8 2.2.9 4.2 2.5 6.1 4.8-1.9 2.3-3.9 3.9-6.1 4.8-5.1 2-10.4 0-14.2-4.8Z" fill="currentColor" fillOpacity=".12" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="m13.4 12.1 2.1-3.5 3.2 3.6m-4.1 8.5 2.3 2.9 2.2-3.6" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="21.9" cy="14.4" r=".9" fill="currentColor" />
+    </svg>
+  </span>;
+}
+
+function AssistantIdentity({ duration, processing = false }: { duration: ReactNode; processing?: boolean }) {
+  return <span className="ai-work-chat__assistant-identity">
+    <AssistantMark processing={processing} />
+    <strong className="ai-work-chat__assistant-name">小鱼助手</strong>
+    <span className="ai-work-chat__assistant-separator" aria-hidden="true">·</span>
+    <span className="ai-work-chat__assistant-duration">{duration}</span>
+  </span>;
+}
+
 const ResponseText = memo(function ResponseText({ content, streaming }: { content: string; streaming: boolean }) {
   return streaming ? <AiStreamingMarkdown content={content} /> : <AiMarkdown content={content} />;
 });
@@ -122,7 +143,7 @@ export function AiWorkResponse({ message, pauseLabel, renderActivity, renderInte
       <details className="ai-work-chat__response-history" key={`${message.id}:complete`}>
         <summary>
           <span className="ai-work-chat__response-history-summary">
-            <span>{summary.durationText}</span>
+            <AssistantIdentity duration={summary.durationText} />
             <span className="ai-work-chat__response-history-state" data-tone={summary.tone}>{summary.label}</span>
           </span>
           <WorkbenchIcon name="chevron" size={14} />
@@ -164,7 +185,9 @@ export function AiWorkResponse({ message, pauseLabel, renderActivity, renderInte
         </button> : null}
       </section> : null}
     </> : <>
-      <div className="ai-work-chat__response-duration" role="status"><AiLiveResponseDuration message={message} /></div>
+      <div className="ai-work-chat__response-duration">
+        <AssistantIdentity duration={<AiLiveResponseDuration message={message} />} processing={summary.isProcessing && !pauseLabel} />
+      </div>
       <div key={`${message.id}:running`}>{timeline}</div>
     </>}
   </section>;

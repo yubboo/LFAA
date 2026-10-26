@@ -5,7 +5,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { preferCurrentBrowserSnapshot, shouldRestoreBrowserDockPage } from "../../../packages/client/ui-sidebar-browser/src/browser-snapshot.ts";
+import { preferCurrentBrowserSnapshot, shouldRefreshAgentBrowserDockSnapshot, shouldRestoreBrowserDockPage } from "../../../packages/client/ui-sidebar-browser/src/browser-snapshot.ts";
+import { matchesAgentBrowserDockSyncRequest, shouldSyncAgentBrowserDockPage } from "../../../packages/client/ui-workspace/src/browser-dock-sync.ts";
+import { isBuiltinBrowserProvider } from "../../../packages/util/values/src/browser-provider.ts";
 
 const read = path => readFileSync(new URL(path, import.meta.url), "utf8");
 const workspace = read("../../../packages/client/ui-workspace/src/ApplicationWorkspace.tsx");
@@ -88,7 +90,7 @@ test("AI Work 中心区收起后显示会话、新标签页及动态工具标签
   assert.match(workspace, /activeWorkspaceUtilityTabKind === "new" \? <Suspense[\s\S]*?<BrowserPanel sessionId=\{BUILTIN_BROWSER_WORKSPACE_ID\} settings=\{settings\} [^>]*hidden=\{!activeWorkspaceUtilityTab\?\.browserUrl\} navigationRequest=\{activeWorkspaceUtilityTab\?\.browserNavigationRequest[^>]*onOpenTabsChange=\{handleBrowserOpenTabsChange\}/u, "内置浏览器独立于 AI 会话，并始终绑定同一个账户工作区");
   assert.match(workspace, /preferredProviderId=\{preferredBrowserProvider\?\.providerId\} providerSelectionRequestId=\{preferredBrowserProvider\?\.requestId\}/u, "Browser Dock 使用 Agent 实际选择的内置 Provider");
   assert.match(aiWorkChat, /activity\.status === "complete" && activity\.toolId\?\.startsWith\("browser-use\."\) && isBuiltinBrowserProvider\(activity\.browserProviderId\)[\s\S]*?onBrowserToolCompleted\?\.\(activity\.browserProviderId\)/u, "仅成功的内置 Browser Tool 活动通知右侧 Dock");
-  assert.match(aiWorkChat, /return providerId === "lfaa-native-browser" \|\| providerId === "lfaa-managed-edge" \|\| providerId === "lfaa-managed-chrome"/u, "个人 Tabbit 浏览器不会切换 LFAA 内置 Dock");
+  assert.equal(isBuiltinBrowserProvider("tabbit-personal"), false, "个人 Tabbit 浏览器不会切换 LFAA 内置 Dock");
   const openBrowserDockForAgent = workspace.match(/const openBrowserDockForAgent = useCallback\(\(providerId: BrowserProviderId\) => \{([\s\S]*?)\n  \}, \[activeWorkspaceUtilityTabId/u)?.[1];
   assert.ok(openBrowserDockForAgent, "Agent Browser Dock 联动逻辑应可定位");
   assert.match(openBrowserDockForAgent, /setPreferredBrowserProvider\(\{ providerId, requestId \}\)[\s\S]*?!tab\.browserNavigationRequest && !tab\.browserActionRequest[\s\S]*?showWorkspaceUtilityTab\(nextTab\)/u, "切换到无待处理操作的新标签并展开右侧 Dock，不重新导航");
@@ -114,6 +116,7 @@ test("Web Browser Dock 在 LFAA 内显示 Browser Owner 的连续实时页面流
   assert.match(browserPanel, /className="lfaa-browser-panel__live-canvas"/u, "Canvas 仅绘制 Browser Owner 主动推送的实时页面帧");
   assert.match(browserPanel, /void startLiveView\(\)/u, "页面进入当前 Browser Owner Session 后自动连接实时帧流");
   assert.match(browserPanel, /waitForBrowserDockRevision\(sessionId, providerId, current\?\.revision \?\? 0/u, "空白工作区也等待 Agent 页面创建；有页面后继续使用修订等待");
+  assert.match(browserPanel, /shouldRefreshAgentBrowserDockSnapshot\(\{[\s\S]*?requestId: providerSelectionRequestId[\s\S]*?refreshSnapshot\(providerId as BrowserProviderId, sessionId!, controller\.signal, true\)/u, "Agent 成功选择 Provider 后强制读取 Owner 最新页面，覆盖隐藏 Dock 暂停轮询造成的旧快照");
   assert.match(browserPanel, /Agent 使用同一页面/u, "页面状态明确说明人与 Agent 共用同一真实页面");
   assert.match(browserPanel, /snapshot\.loading \? "网页仍在加载"/u, "导航提交后仍能报告真实页面加载状态");
   assert.match(browserPanelCss, /@media \(max-width: 560px\)/u, "状态页卡片适配窄分栏与手机视口");
@@ -133,7 +136,7 @@ test("Web Browser Dock 在 LFAA 内显示 Browser Owner 的连续实时页面流
   assert.match(browserOwner, /Page\.startScreencast/u, "Browser Owner 从真实 Chromium Page 订阅合成器帧事件");
   assert.match(browserOwner, /Page\.screencastFrameAck/u, "每帧发送后向 Chromium 确认，保持有界流控");
   assert.match(browserOwner, /headless \? false|headless: this\.headless/u, "Web Browser Owner 按无窗口隔离模式启动 Chromium");
-  assert.match(workspace, /keepSavedAddressDuringOwnerRecovery = activeBrowserTab\?\.url === "about:blank"[\s\S]*?if \(activeUtilityTab\?\.kind === "new" && activeBrowserTab && !keepSavedAddressDuringOwnerRecovery && \(activeUtilityTab\.browserUrl !== undefined \|\| activeBrowserPageChanged \|\| browserOpenTabs\.length === 0\)\) \{[\s\S]*?tab\.browserUrl !== activeBrowserTab\.url[\s\S]*?browserAddressEditingRef\.current/u, "Agent 首次打开网页时空白新标签显示真实页面，后续导航也同步地址，并在恢复中保留原地址");
+  assert.match(workspace, /keepSavedAddressDuringOwnerRecovery = activeBrowserTab\?\.url === "about:blank"[\s\S]*?if \(activeUtilityTab\?\.kind === "new" && activeBrowserTab && !keepSavedAddressDuringOwnerRecovery && \(shouldSyncAgentPage \|\| activeUtilityTab\.browserUrl !== undefined \|\| activeBrowserPageChanged \|\| browserOpenTabs\.length === 0\)\) \{[\s\S]*?tab\.browserUrl !== activeBrowserTab\.url[\s\S]*?browserAddressEditingRef\.current/u, "Agent 首次打开网页时空白新标签显示真实页面，后续导航也同步地址，并在恢复中保留原地址");
   assert.equal((browserPanel.match(/setSnapshot\(current => preferCurrentBrowserSnapshot\(current,/gu) ?? []).length, 3, "快照读取、视口更新和浏览器操作都使用 Session 感知的快照接纳规则");
 });
 
@@ -143,6 +146,24 @@ test("Browser Dock 快照只在同一 Browser Owner Session 内按 revision 排�
   const newSession = { sessionId: "new-session", revision: 0 };
   assert.equal(preferCurrentBrowserSnapshot(previous, lateOldRevision), previous, "同一 Session 的迟到旧响应不能回退页面状态");
   assert.equal(preferCurrentBrowserSnapshot(previous, newSession), newSession, "重建后的新 Session 可用较低 revision 替换旧快照");
+  assert.equal(shouldRefreshAgentBrowserDockSnapshot({ providerId: "lfaa-managed-edge", preferredProviderId: "lfaa-managed-edge", requestId: 7, providerReady: true, sessionId: "builtin-browser-workspace" }), true, "当前 Agent Provider 已就绪后读取 Owner 最新快照");
+  assert.equal(shouldRefreshAgentBrowserDockSnapshot({ providerId: "lfaa-managed-edge", preferredProviderId: "lfaa-managed-chrome", requestId: 7, providerReady: true, sessionId: "builtin-browser-workspace" }), false, "不能为其他 Provider 发起当前 Agent 快照刷新");
+  assert.equal(shouldRefreshAgentBrowserDockSnapshot({ providerId: "lfaa-managed-edge", preferredProviderId: "lfaa-managed-edge", requestId: 7, providerReady: false, sessionId: "builtin-browser-workspace" }), false, "不可用 Provider 不触发快照刷新");
+  assert.equal(shouldRefreshAgentBrowserDockSnapshot({ providerId: "lfaa-managed-edge", preferredProviderId: "lfaa-managed-edge", providerReady: true, sessionId: "builtin-browser-workspace" }), false, "非 Agent 页面选择不额外刷新快照");
+});
+
+test("Agent 操作已有页面时，即使 Browser Owner 标签列表没变化也同步到右侧 Dock", () => {
+  const request = { providerId: "lfaa-managed-edge", requestId: 7 };
+  const update = { tabs: [{ id: "existing", title: "Example Domain", url: "https://example.com/", active: true }], providerId: "lfaa-managed-edge", snapshotReady: true, agentSyncRequest: request };
+  const withUpdate = changes => ({ ...update, ...changes });
+  assert.equal(shouldSyncAgentBrowserDockPage(request, update, true, true, false), true, "匹配当前成功活动时，同一已存在页面也必须绑定到工作区新标签");
+  assert.equal(shouldSyncAgentBrowserDockPage(request, withUpdate({ snapshotReady: false }), true, true, false), false, "未确认的快照不能触发页面显示");
+  assert.equal(shouldSyncAgentBrowserDockPage(request, withUpdate({ providerId: "lfaa-managed-chrome", agentSyncRequest: { ...request, providerId: "lfaa-managed-chrome" } }), true, true, false), false, "其他 Provider 的迟到快照不能覆盖当前 Agent 页面");
+  assert.equal(shouldSyncAgentBrowserDockPage(request, withUpdate({ agentSyncRequest: { ...request, requestId: 6 } }), true, true, false), false, "旧工具活动不能覆盖更新后的页面选择");
+  assert.equal(shouldSyncAgentBrowserDockPage(request, update, true, false, false), false, "没有真实 HTTP(S) 页面时不能回填占位页");
+  assert.equal(shouldSyncAgentBrowserDockPage(request, update, false, true, false), false, "工具页标签不应变成浏览器标签");
+  assert.equal(shouldSyncAgentBrowserDockPage(request, update, true, true, true), false, "未完成的用户导航或浏览器操作不被 Agent 回执覆盖");
+  assert.equal(matchesAgentBrowserDockSyncRequest(request, update), true, "已确认同 Provider 的快照会结束这次单次联动");
 });
 
 test("Browser Dock 只在 Owner 确认页面丢失后恢复当前标签 URL", () => {
@@ -172,8 +193,9 @@ test("浏览器加号只创建空白标签，不能继承当前搜索结果", ()
   assert.match(createTab, /kind: "new"/u);
   assert.doesNotMatch(createTab, /browserUrl|browserNavigationRequest|openBrowserWebsite/u, "加号不能提交地址或创建搜索请求");
 
-  const syncTabs = workspace.match(/const handleBrowserOpenTabsChange = useCallback\(\(tabs: BrowserOpenTab\[\]\) => \{([\s\S]*?)\n  \}, \[activeAiSessionId[\s\S]*?\]\)/u)?.[1];
+  const syncTabs = workspace.match(/const handleBrowserOpenTabsChange = useCallback\(\(update: BrowserDockTabsUpdate\) => \{([\s\S]*?)\n  \}, \[activeAiSessionId[\s\S]*?\]\)/u)?.[1];
   assert.ok(syncTabs, "浏览器标签同步逻辑应可定位");
+  assert.match(syncTabs, /update\.tabs\.flatMap/u, "Browser Dock 通过一个结构化更新对象接收标签快照");
   assert.match(syncTabs, /const previousActiveBrowserTab = browserOpenTabs\.find\(tab => tab\.active\)/u);
   assert.match(syncTabs, /const activeBrowserPageChanged = Boolean\(previousActiveBrowserTab[\s\S]*?previousActiveBrowserTab\.url !== activeBrowserTab\.url/u);
   assert.match(syncTabs, /activeUtilityTab\.browserUrl !== undefined \|\| activeBrowserPageChanged/u, "仅同步当前已打开页面或观察到真实页面切换后的 URL");
@@ -200,11 +222,14 @@ test("中心列拖动越过下限阈值后吸附收起，标签仍可显式切�
   assert.match(workspace, /<\/nav>\s*<button className="module-workbench-tab-add"/u, "新建按钮紧跟标签导航末尾且不进入 tablist");
   assert.doesNotMatch(workspace, /module-workbench-tabs__spacer/u, "标签和新建按钮之间不保留弹性空白");
   assert.match(workspaceCss, /\.module-workbench-tabs--context \{[^}]*width: max-content;[^}]*max-width: calc\(100% - 34px\);[^}]*flex: 0 1 auto;[^}]*overflow-x: auto/u, "导航按标签宽度收缩并为加号保留空间，溢出时仍可横向滚动");
+  assert.match(workspaceCss, /\.module-workbench-tabs--context \{[^}]*scrollbar-width: none/u, "工作区标签的横向浏览能力保留，但不显示装饰性滚动条");
+  assert.match(workspaceCss, /\.module-workbench-tabs--context::-webkit-scrollbar \{ display: none; height: 0; \}/u, "Chromium 标签条不绘制横向滚动轨道");
   assert.match(workspaceCss, /\.module-workbench-tabs--context \.module-workbench-tab \{ min-height: 100%; max-width: 280px; \}/u, "右侧页签不以自身宽度百分比限制标签而制造空白");
   assert.match(workspaceCss, /\.module-workbench-tabs--context \.module-workbench-tab-item \{ max-width: 280px; \}/u, "常规右侧标签宽度由内容决定并限制到固定上限");
+  assert.match(workspaceCss, /\.module-workbench-tabs--context > \.module-workbench-tab-item:only-of-type \{ max-width: 100%; flex: 0 1 auto; \}/u, "仅一个工作区页签时允许其收缩并由标签文字省略显示");
   assert.match(workspaceCss, /@container module-context \(max-width: 340px\)[\s\S]*?\.module-context__shell-actions > \.module-workbench-tabstrip \{ max-width: calc\(100% - 64px\); min-width: 0; flex: 0 1 auto; margin-inline-end: auto; \}/u, "窄右栏左侧保留完整标签组，并为右侧两个图标按钮预留宽度");
   assert.match(workspaceCss, /@container module-context \(max-width: 340px\)[\s\S]*?\.module-context__shell-actions > \.module-panel-control > span \{ display: none; \}/u, "窄右栏的终端和上下文控制收为图标按钮，名称仍由无障碍标签提供");
-  assert.match(workspaceCss, /@container module-context \(max-width: 340px\)[\s\S]*?\.module-workbench-tabs--context \{ max-width: calc\(100% - 25px\); min-width: 0; gap: 1px; padding-right: 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; \}/u, "多标签只在标签列表内滚动，保留新建按钮并隐藏装饰性滚动条");
+  assert.match(workspaceCss, /@container module-context \(max-width: 340px\)[\s\S]*?\.module-workbench-tabs--context \{ max-width: calc\(100% - 25px\); min-width: 0; gap: 1px; padding-right: 0; overflow-x: auto; overflow-y: hidden; \}/u, "超窄右栏保留标签内部横向浏览并为新建按钮留位");
   assert.doesNotMatch(workspaceCss, /@container module-context \(max-width: 340px\)[\s\S]*?\.module-workbench-tabs--context \.module-workbench-tab > span \{ display: none; \}/u, "窄右栏页签仍显示标题文字");
   assert.match(workspaceCss, /@container module-context \(max-width: 340px\)[\s\S]*?\.module-workbench-tabs--context \.module-workbench-tab \{ justify-content: flex-start; gap: 4px; padding-inline: 6px; \}/u, "窄右栏页签保持图标、标题与关闭按钮同排");
   assert.match(workspaceCss, /\.module-context__launcher-grid,\s*\.module-context__launcher-extra-grid \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/u);

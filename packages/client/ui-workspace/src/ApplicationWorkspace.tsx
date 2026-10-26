@@ -28,6 +28,9 @@ import { resolveShortcutSettings } from "lfaa-client-ui-settings-general/src/def
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
 import { resolveBrowserAddress } from "lfaa-client-ui-sidebar-browser/src/browser-address.js";
 import { BUILTIN_BROWSER_WORKSPACE_ID } from "lfaa-util-values/src/browser-provider.js";
+import { matchesAgentBrowserDockSyncRequest, shouldSyncAgentBrowserDockPage, type BrowserDockAgentSyncRequest } from "./browser-dock-sync.js";
+import { createAgentWorkbenchView } from "./agent-workbench-view.js";
+import type { BrowserDockTabsUpdate } from "lfaa-client-ui-sidebar-browser/src/browser-tabs-update.js";
 import { TaskTerminal } from "./TaskTerminal.js";
 import "./module-workbench.css";
 import "./css/secondary-navigation.css";
@@ -592,6 +595,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   const handledApplicationsOpenRequestRef = useRef<number | null>(null);
   const [preferredBrowserProvider, setPreferredBrowserProvider] = useState<{ providerId: BrowserProviderId; requestId: number } | null>(null);
   const browserProviderSelectionSequence = useRef(0);
+  const pendingAgentBrowserDockSyncRef = useRef<BrowserDockAgentSyncRequest | null>(null);
   const [browserAddress, setBrowserAddress] = useState("");
   const [browserAddressError, setBrowserAddressError] = useState("");
   const [browserAddressFocused, setBrowserAddressFocused] = useState(false);
@@ -1286,6 +1290,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   }, [activeWorkspaceUtilityTabId, showWorkspaceUtilityTab, workspaceUtilityTabs]);
   const openBrowserDockForAgent = useCallback((providerId: BrowserProviderId) => {
     const requestId = ++browserProviderSelectionSequence.current;
+    pendingAgentBrowserDockSyncRef.current = { providerId, requestId };
     setPreferredBrowserProvider({ providerId, requestId });
     const activeTab = workspaceUtilityTabs.find(tab => tab.id === activeWorkspaceUtilityTabId);
     const browserTab = activeTab?.kind === "new" && !activeTab.browserNavigationRequest && !activeTab.browserActionRequest
@@ -1334,8 +1339,8 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
       ? { ...tab, browserNavigationRequest: undefined }
       : tab));
   }, []);
-  const handleBrowserOpenTabsChange = useCallback((tabs: BrowserOpenTab[]) => {
-    const safeTabs = tabs.flatMap(tab => {
+  const handleBrowserOpenTabsChange = useCallback((update: BrowserDockTabsUpdate) => {
+    const safeTabs = update.tabs.flatMap(tab => {
       try {
         const parsed = new URL(tab.url);
         if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password || parsed.href.length > 2048) return [];
@@ -1360,10 +1365,19 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
     const activeUtilityTab = workspaceUtilityTabs.find(tab => tab.id === activeWorkspaceUtilityTabId);
     const activeBrowserTab = safeTabs.find(tab => tab.active);
     const previousActiveBrowserTab = browserOpenTabs.find(tab => tab.active);
+    const isAgentSyncResponse = matchesAgentBrowserDockSyncRequest(pendingAgentBrowserDockSyncRef.current, update);
+    const shouldSyncAgentPage = shouldSyncAgentBrowserDockPage(
+      pendingAgentBrowserDockSyncRef.current,
+      update,
+      activeUtilityTab?.kind === "new",
+      Boolean(activeBrowserTab),
+      Boolean(activeUtilityTab?.browserNavigationRequest || activeUtilityTab?.browserActionRequest),
+    );
     const activeBrowserPageChanged = Boolean(previousActiveBrowserTab
       && (previousActiveBrowserTab.id !== activeBrowserTab?.id || previousActiveBrowserTab.url !== activeBrowserTab.url));
     const keepSavedAddressDuringOwnerRecovery = activeBrowserTab?.url === "about:blank" && /^https?:\/\//iu.test(activeUtilityTab?.browserUrl ?? "");
-    if (activeUtilityTab?.kind === "new" && activeBrowserTab && !keepSavedAddressDuringOwnerRecovery && (activeUtilityTab.browserUrl !== undefined || activeBrowserPageChanged || browserOpenTabs.length === 0)) {
+    if (isAgentSyncResponse && update.snapshotReady && activeUtilityTab?.kind === "new") pendingAgentBrowserDockSyncRef.current = null;
+    if (activeUtilityTab?.kind === "new" && activeBrowserTab && !keepSavedAddressDuringOwnerRecovery && (shouldSyncAgentPage || activeUtilityTab.browserUrl !== undefined || activeBrowserPageChanged || browserOpenTabs.length === 0)) {
       setWorkspaceUtilityTabs(current => current.map(tab => tab.id === activeUtilityTab.id && tab.kind === "new" && tab.browserUrl !== activeBrowserTab.url
         ? { ...tab, browserUrl: activeBrowserTab.url }
         : tab));
@@ -1772,6 +1786,24 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   const activeCenterCollapsed = centerCollapsePreview ?? centerCollapsed;
   const activeWorkspaceUtilityTab = workspaceUtilityTabs.find(tab => tab.id === activeWorkspaceUtilityTabId) ?? null;
   const hasActiveBrowserOpenTab = browserOpenTabs.some(tab => tab.active);
+  const activeBrowserUrl = browserOpenTabs.find(tab => tab.active)?.url;
+  const activeAgentRightPane = sidebarRight.activeId !== null ? "extension"
+    : activeRightPanelSection === "applications" ? "applications"
+      : aiWorkView === "git" || activeWorkspaceUtilityTabKind === "git" ? "git"
+        : activeWorkspaceUtilityTabKind === "applications" ? "applications"
+          : activeWorkspaceUtilityTabKind === "side-chat" ? "side-chat"
+            : activeWorkspaceUtilityTabKind === "extension" ? "extension"
+              : activeWorkspaceUtilityTabKind === "new"
+                ? activeRightPanelSection === "context" && activeBrowserUrl ? "browser" : "new-tab"
+                : "application-tools";
+  const agentBrowserUrl = activeAgentRightPane === "browser" ? activeBrowserUrl : undefined;
+  const agentWorkbenchView = useMemo(() => createAgentWorkbenchView({
+    rightPane: activeAgentRightPane,
+    rightPaneOpen: !chrome.rightCollapsed,
+    bottomTerminalOpen: chrome.terminalOpen,
+    browserUseEnabled: settings.browserUse.enabled,
+    ...(agentBrowserUrl ? { activeBrowserUrl: agentBrowserUrl } : {})
+  }), [activeAgentRightPane, agentBrowserUrl, chrome.rightCollapsed, chrome.terminalOpen, settings.browserUse.enabled]);
   const workspaceUtilityTabTitle = (tab: WorkspaceUtilityTab): string => {
     if (tab.kind === "new" && tab.browserUrl) return browserSiteHost(tab.browserUrl);
     if (tab.kind === "new") return "新标签页";
@@ -1868,6 +1900,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
               ]}
               capabilitiesError={skillReferencesError}
               appId={activeAiSession?.appId ?? "workspace"}
+              workspaceView={agentWorkbenchView}
               settings={settings}
               onSettingsChange={onSettingsChange}
               sessions={aiSessions}

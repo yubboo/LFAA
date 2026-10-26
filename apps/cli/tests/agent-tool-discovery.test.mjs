@@ -11,6 +11,7 @@ test("工具目录多关键词按任一词检索并按匹配数排序", async ()
   const available = [
     { id: "workspace-files", name: "project_file_operation", description: "列举项目文件、读取文件、编辑文件或搜索代码。" },
     { id: "file-read", name: "lfaa_read_file", description: "读取文本文件内容。" },
+    { id: "browser-page", name: "lfaa_browser_read_current_page", description: "查看当前浏览器页面，返回标题和正文。" },
     { id: "shell", name: "local_execute_command", description: "运行控制端 PowerShell 命令。" },
     { id: "mcp-install", name: "capability_install", description: "安装用户提供的 MCP 服务端点。" },
     { id: "mcp-status", name: "lfaa_capability_status", description: "查询当前 MCP 服务配置状态。" }
@@ -23,6 +24,15 @@ test("工具目录多关键词按任一词检索并按匹配数排序", async ()
   assert.deepEqual(files.tools.map(tool => tool.name), ["project_file_operation", "lfaa_read_file"]);
   assert.deepEqual(files.tools[0].matchedTerms, ["文件", "读取", "编辑", "搜索"]);
   assert.deepEqual(files.tools[1].matchedTerms, ["文件", "读取"]);
+
+  const browser = await list.execute(list.parse({ query: "请帮我看一下当前浏览器页面" }), context);
+  assert.equal(browser.total, 1, "自然中文整句可以发现当前浏览器页面工具");
+  assert.equal(browser.tools[0].name, "lfaa_browser_read_current_page");
+  assert.ok(browser.tools[0].matchedTerms.includes("浏览器"));
+  assert.ok(browser.tools[0].matchedTerms.includes("页面"));
+
+  const project = await list.execute(list.parse({ query: "帮我读取这个本地项目" }), context);
+  assert.ok(project.tools.some(tool => tool.name === "project_file_operation"), "拆分的中文单字会合并成“读取”并发现项目工具");
 
   const mcp = await list.execute(list.parse({ query: "MCP/服务，安装" }), context);
   assert.equal(mcp.total, 2, "中英文标点都能分隔检索词");

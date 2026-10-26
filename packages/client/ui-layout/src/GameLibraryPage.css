@@ -23,7 +23,7 @@
 .game-library__runtime h3 { font-size: var(--font-size-lg); margin: 0; }
 .game-library__runtime code { white-space: normal; overflow-wrap: anywhere; }
 @container game-library (max-width: 62rem) { .game-library__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .game-library__card--primary { grid-column: auto; } }
-@container game-library (max-width: 39rem) { .game-library__grid { grid-template-columns: minmax(0, 1fr); } .game-library__header { flex-wrap: wrap; } .game-library__environment-controls { align-items: stretch; flex-direction: column; } .game-library__environment-controls label { width: 100%; } .game-library__environment-controls > .ant-btn { width: 100%; white-space: normal; } }
+@container game-library (max-width: 39rem) { .game-library__grid { grid-template-columns: minmax(0, 1fr); } .game-library__header { flex-wrap: wrap; } .game-library__environment-controls { align-items: stretch; flex-direction: column; } .game-library__environment-controls label { width: 100%; } .game-library__environment-controls:not(.game-library__environment-controls--toolbar) label { flex-basis: auto; } .game-library__environment-controls > .ant-btn { width: 100%; white-space: normal; } }
 @media (prefers-reduced-motion: reduce) { .game-library__card { transition: none; } .game-library__card:hover, .game-library__card:focus-within { transform: none; } }
 [data-reduced-motion="on"] .game-library__card { transition: none; transform: none; }
 
@@ -66,10 +66,26 @@
 .runtime-manager__card > button, .runtime-manager__card-actions { margin-top: auto; }
 .runtime-manager__card-actions { display: flex; flex-wrap: wrap; gap: .6rem; }
 .runtime-manager__card-actions > button:first-child { flex: 1; }
+.runtime-manager__java-version-selection { display: grid; flex: 1 1 15rem; min-width: 0; max-width: 100%; gap: .45rem; }
+.runtime-manager__java-version-selection > label { display: grid; grid-template-columns: minmax(0,1fr); min-width: 0; gap: .5rem; }
+.runtime-manager__java-version-selection .ant-select { width: 100%; min-width: 0; max-width: 100%; }
+.runtime-manager__java-version-selection > .ant-btn { width: 100%; white-space: normal; }
+.runtime-manager__java-version-selection > .ant-typography { min-width: 0; overflow-wrap: anywhere; }
 .runtime-manager__steamcmd-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5rem), 1fr)); gap: .6rem; margin-top: auto; }
 .runtime-manager__steamcmd-actions > button { min-width: 0; }
 .runtime-manager__path { overflow-wrap: anywhere; color: var(--color-text-secondary); font-family: var(--settings-code-font); font-size: var(--settings-code-font-size); }
 .runtime-manager__detected { display: grid; gap: .75rem; margin-top: 1.5rem; }
+.runtime-manager__java-picker-hint { margin: -.75rem 0 1rem; }
+.runtime-manager__java-picker.ant-modal,
+.runtime-manager__java-picker .ant-modal { max-width: calc(100vw - 2rem); }
+.runtime-manager__java-picker .ant-modal-body { max-height: min(60dvh, 34rem); overflow-y: auto; }
+.runtime-manager__java-picker-toolbar { display: flex; min-width: 0; align-items: center; gap: .75rem; margin-bottom: .75rem; }
+.runtime-manager__java-picker-location { min-width: 0; overflow-wrap: anywhere; }
+.runtime-manager__java-picker-list { display: grid; min-width: 0; gap: .35rem; }
+.runtime-manager__java-picker-entry { display: flex; width: 100%; min-width: 0; height: auto; min-height: 2.5rem; justify-content: flex-start; padding: .5rem .75rem; text-align: start; white-space: normal; }
+.runtime-manager__java-picker-entry > span:not(.ant-btn-icon) { display: grid; min-width: 0; overflow-wrap: anywhere; }
+.runtime-manager__java-picker-entry--file small { color: inherit; opacity: .8; font-family: var(--settings-code-font); font-size: var(--settings-code-font-size); overflow-wrap: anywhere; }
+.runtime-manager__java-picker-loading { display: flex; min-height: 5rem; align-items: center; justify-content: center; gap: .75rem; }
 .workbench-shell[data-background-image="true"] .runtime-manager { background: color-mix(in srgb, var(--color-surface) var(--settings-background-surface-opacity), transparent); -webkit-backdrop-filter: blur(var(--settings-glass-blur)); backdrop-filter: blur(var(--settings-glass-blur)); }
 @container runtime-manager (max-width: 42rem) { .runtime-manager__cards { grid-template-columns: minmax(0,1fr); } .runtime-manager__tabs { padding-inline: 1rem; } .runtime-manager__body { padding: clamp(.75rem, 3cqi, 2rem); } }
 @container runtime-manager (max-width: 24rem) { .runtime-manager__tabs { grid-template-columns: minmax(0, 1fr); } .runtime-manager__tabs button { width: 100%; } .runtime-manager__card { padding: 1rem; } .runtime-manager__steamcmd-actions { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .35rem; } .runtime-manager__steamcmd-actions > button { width: 100%; height: 2.75rem; padding-inline: 0; justify-content: center; } .runtime-manager__steamcmd-actions .runtime-manager__steamcmd-label { display: none; } .runtime-manager__steamcmd-actions .ant-btn-icon { margin-inline-end: 0; } }

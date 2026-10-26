@@ -184,6 +184,30 @@ function Initialize-LfaaDataDirectory {
     Write-Host "本机运行数据目录：$resolvedDataDirectory" -ForegroundColor DarkGray
 }
 
+function Initialize-LfaaLocalMode {
+    $configuredLocalMode = [string]$env:LFAA_LOCAL_MODE
+    if ([string]::IsNullOrWhiteSpace($configuredLocalMode)) {
+        $environmentFile = Join-Path $projectRoot '.env'
+        if (Test-Path -LiteralPath $environmentFile) {
+            foreach ($line in Get-Content -LiteralPath $environmentFile -Encoding UTF8) {
+                if ($line -match '^\s*(?:export\s+)?LFAA_LOCAL_MODE\s*=\s*([^#]*?)\s*(?:#.*)?$') {
+                    $configuredLocalMode = $Matches[1].Trim().Trim('"').Trim("'")
+                    break
+                }
+            }
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($configuredLocalMode)) {
+        $configuredLocalMode = '1'
+        Write-Host '未显式设置 LFAA_LOCAL_MODE；本机开发默认启用本机 Host。SERVER_HOST 非 loopback 时，本机 Host 仍保持关闭。' -ForegroundColor DarkGray
+    }
+    $env:LFAA_LOCAL_MODE = $configuredLocalMode
+    if ($configuredLocalMode -match '^(?:0|false)$') {
+        Write-Host 'LFAA_LOCAL_MODE 已显式关闭；本机项目文件与默认工作区能力不会提供。' -ForegroundColor Yellow
+    }
+}
+
 function Complete-LfaaDataDirectoryMigration {
     $requestPath = Join-Path $projectRoot '.lfaa-data-directory.pending.json'
     if (-not (Test-Path -LiteralPath $requestPath -PathType Leaf)) { return }
@@ -445,6 +469,7 @@ if ($Mode -eq 'Service') {
             throw '检测到待迁移的数据目录；请通过项目启动器完整重启全部服务后再单独启动某个服务。'
         }
         if ($Service -in @('server', 'daemon')) { Initialize-LfaaDataDirectory }
+        if ($Service -eq 'server') { Initialize-LfaaLocalMode }
         Assert-DevelopmentPortsAvailable
         Write-Host "正在启动 LFAA $Service，请查看本窗口的运行日志。" -ForegroundColor Cyan
         $scriptName = "dev:$Service"
@@ -471,6 +496,7 @@ try {
     if ((Get-ConfiguredServerPort) -eq 5173) {
         throw 'SERVER_PORT 不能与 Vite 前端共用 5173；请为控制端配置其他端口。'
     }
+    Initialize-LfaaLocalMode
     Initialize-LfaaDataDirectory
     Stop-PreviousDevelopmentServices
     Complete-LfaaDataDirectoryMigration

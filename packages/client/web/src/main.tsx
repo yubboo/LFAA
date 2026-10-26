@@ -43,7 +43,7 @@ try {
 } catch (error) {
   // Keep LFAA's own interface available if the independently reported DSH
   // graph fails; do not mark the DSH runtime ready or suppress its cause.
-  console.error("LFAA DSH Client Runtime 未就绪。", error);
+  console.warn("LFAA DSH 扩展层暂不可用；继续运行 LFAA 自身界面。", error);
 }
 const { mountClient } = await import("lfaa-client-ui-renderer/src/render.js");
 mountClient(context);

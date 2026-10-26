@@ -2,9 +2,11 @@
 
 持有工具类型/参数辅助、可撤销注册/上下文工厂与 Run 摘要目录。领域工具和正文不再集中在 business-tools。
 
-公共合同：registerAiBusinessTool、registerAiBusinessToolFactory、listAiBusinessTools、createToolDiscoveryTools。`lfaa_tools_list` 支持按名称、说明或领域做多词任一命中搜索，结果先按完整查询命中、再按命中词数量排序，并返回 `matchedTerms`；空查询保留注册顺序和分页。`lfaa_tools_load` 仍只按精确工具名加载已有合同，不执行业务。
+公共合同：registerAiBusinessTool、registerAiBusinessToolFactory、listAiBusinessTools、createToolDiscoveryTools。`lfaa_tools_list` 支持按工具 ID、名称或说明做多词任一命中搜索，结果先按完整查询命中、再按命中词数量排序，并返回 `matchedTerms`；空查询保留注册顺序和分页。`lfaa_tools_load` 仍只按精确工具名加载已有合同，不执行业务。
 
 Skill 附属文本资源通过 `lfaa_skill_load` 按当前 Skill Provider 或项目文件 Owner 读取；项目文件工具的 `read.limit` 可限制为 1–100000 个字符，不改变原有根目录、节点、身份与权限检查。
+
+用户明确提供本机绝对项目目录时，`project_file_operation.rootDirectory` 优先于隐式 Agent Git/Workspace 绑定，无显式 `nodeId` 时复用 LFAA Host 的 Project Files Owner。未登记根目录只读，并沿统一 Permission Owner 作为危险读取授权；目录列表、搜索和读取保持有界，Agent Run 的取消信号会传到本机只读 Host 操作。模型据真实读取证据说明项目用途、入口和框架；对概览请求优先使用项目导航与架构说明，避免递归读取所有包，说明未覆盖范围，不把 `list` 或一次搜索说成读完全项目。
 
 运行位置：Control Plane 的 Cordis 插件或内部合同库，由 base Bundle 装配；不运行在浏览器，不将凭据或节点进程带入客户端。依赖以本包 package.json 为准，真实消费者见生成包清单的静态证据。源码/装配声明与现场运行验收分别记录。
 
@@ -35,3 +37,5 @@ Agent 设置中心工具：`lfaa_settings_list` 按分类/关键词查询 Settin
 家长控制菜单提供 `lfaa_settings_parental_list` 与 `lfaa_settings_parental_update`。策略由 Identity/Auth 的账户使用控制 Owner 管理；只允许管理员为普通成员配置每周时段与每日 Agent 分钟数，更新始终按统一 Permission Owner 执行。写入按危险风险范围授权，结果读取 Owner 回读；Agent 执行链独立消费策略。此能力不写入或替代 `permissions.mode`。
 
 `lfaa_settings_mini_window` 将打开/关闭请求经 Control Plane 子进程 IPC 交给 Electron Main Owner，等待该窗口 Host 的真实回执；Web Host 抛出不支持错误。`lfaa_settings_sync_status` 只读取 Settings Owner 按账户隔离的当前 Control Plane 分类/时间元数据，不暴露设置值、会话或凭据。两者仍由 Agent Loop 的唯一 Permission Owner 控制写风险。
+
+`lfaa_tools_list.query` 使用中文词语分段并合并相邻单字词，支持自然中文整句发现当前已登记工具；英文、数字与中英文标点分词和原有任一词匹配/排序/分页保持不变。该目录不增加或扩大工具授权。

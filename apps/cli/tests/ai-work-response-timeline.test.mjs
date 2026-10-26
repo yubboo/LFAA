@@ -70,7 +70,9 @@ test("流式正文、工具与交互按落点留在同条回复，完成后追�
   `], { cwd: fileURLToPath(new URL("..", import.meta.url)), env: { ...process.env, TSX_TSCONFIG_PATH: fileURLToPath(new URL("../../../tsconfig.client.json", import.meta.url)) }, encoding: "utf8" }).trim();
   const running = render(fixture("streaming"));
   assert.match(running, new RegExp(`--ai-work-stream-hue:${getResponseShimmerHue("run")}deg`), "回复色相来自稳定的消息 ID");
-  assert.match(running, /response-duration" role="status">已处理 \d+ (?:小时|分钟|秒)/u);
+  assert.match(running, /response-duration"><span class="ai-work-chat__assistant-identity">[\s\S]*?小鱼助手[\s\S]*?已处理 \d+ (?:小时|分钟|秒)/u);
+  assert.match(running, /class="ai-work-chat__assistant-mark ai-work-chat__assistant-mark--processing" aria-hidden="true"/u, "真实处理中显示装饰性小鱼标识并启用动效状态");
+  assert.doesNotMatch(running, /response-duration" role="status"/u, "秒级耗时更新不占用 live status 播报");
   assert.doesNotMatch(running, /response-history|response-divider|response-live/u);
   assert.doesNotMatch(running, /小鱼主 Agent|已登记项目工具/u);
   assert.match(running, /ai-work-chat__activity-live-status--processing[^>]*[\s\S]*?<span>正在回复<\/span>/u, "已有可见正文时状态为正在回复");
@@ -88,9 +90,15 @@ test("流式正文、工具与交互按落点留在同条回复，完成后追�
   const thinking = fixture("streaming");
   thinking.content = "";
   thinking.parts = [];
-  thinking.activity = [{ ...activity("thinking-phase", 0, "status"), title: "模型推理中 · deepseek-flash", status: "running" }];
+  thinking.activity = [
+    { ...activity("request-phase", 0, "status"), title: "请求 deepseek · deepseek-flash" },
+    { ...activity("thinking-done", 0, "status"), title: "模型推理中 · deepseek-flash" },
+    { ...activity("thinking-phase", 0, "status"), title: "模型推理中 · deepseek-flash", status: "running" }
+  ];
   const thinkingMarkup = render(thinking);
   assert.match(thinkingMarkup, /<span>正在思考<\/span>/u, "首个可见正文前保留真实思考状态");
+  assert.doesNotMatch(thinkingMarkup, /request-phase|thinking-done|thinking-phase|deepseek-flash/u, "运行中隐藏重复的内部模型阶段行");
+  assert.equal([...thinkingMarkup.matchAll(/class="ai-work-chat__activity-live-status/g)].length, 1, "运行中只显示一个当前状态");
   assert.ok(thinkingMarkup.indexOf('class="ai-work-chat__response-timeline"') < thinkingMarkup.indexOf('class="ai-work-chat__activity-live-status'), "思考状态属于时间线，而不是单独固定行");
 
   const actualReply = fixture("streaming");
@@ -122,7 +130,11 @@ test("流式正文、工具与交互按落点留在同条回复，完成后追�
   assert.match(running, /是否继续？你的回答：继续/u);
   const finished = render(fixture());
   assert.match(finished, /<details class="ai-work-chat__response-history">/u);
-  assert.match(finished, /<summary>\s*<span class="ai-work-chat__response-history-summary"><span>用时 /u);
+  assert.match(finished, /<summary>\s*<span class="ai-work-chat__response-history-summary"><span class="ai-work-chat__assistant-identity">[\s\S]*?小鱼助手[\s\S]*?用时 /u);
+  assert.doesNotMatch(finished, /ai-work-chat__assistant-mark--processing/u, "回复结束后小鱼保持静止");
+  const waiting = fixture("waiting_input");
+  waiting.activity = [{ ...activity("pending-question", 0, "question"), status: "waiting_input", completedAt: null, question: "要继续吗？", questionId: "q", options: ["继续"] }];
+  assert.doesNotMatch(render(waiting), /ai-work-chat__assistant-mark--processing/u, "等待用户输入时小鱼保持静止");
   assert.match(finished, /class="ai-work-chat__response-history-state" data-tone="complete">已完成<\/span>/u, "整轮终态来自真实 complete 消息状态并在折叠摘要可见");
   assert.doesNotMatch(finished, /小鱼主 Agent|已登记项目工具/u);
   assert.match(finished, /<details class="ai-work-chat__tool-group"[^>]*\bopen=/u, "展开用时时直接显示实际工具步骤");
@@ -205,13 +217,13 @@ test("帧合并不能跨正文段，同一任务的正文只有一份", t => {
   let message = { ...fixture("streaming"), content: "", parts: [] };
   const emitted = [];
   const deltas = createStreamDeltas(value => { emitted.push(value); message = appendAiTextDelta(message, value); });
-  deltas.push({ messageId: "run", delta: "阶段", partId: "a", partStart: 0 });
+  deltas.push({ messageId: "run", delta: "阶段，", partId: "a", partStart: 0 });
   deltas.push({ messageId: "run", delta: "说明", partId: "a", partStart: 0 });
-  deltas.push({ messageId: "run", delta: "结果", partId: "b", partStart: 4 });
+  deltas.push({ messageId: "run", delta: "结果", partId: "b", partStart: 5 });
   scheduled();
   assert.equal(emitted.length, 2);
-  assert.equal(message.content, "阶段说明结果");
-  assert.deepEqual(message.parts.map(({ id, start, end }) => ({ id, start, end })), [{ id: "a", start: 0, end: 4 }, { id: "b", start: 4, end: 6 }]);
+  assert.equal(message.content, "阶段，说明结果");
+  assert.deepEqual(message.parts.map(({ id, start, end }) => ({ id, start, end })), [{ id: "a", start: 0, end: 5 }, { id: "b", start: 5, end: 7 }]);
   deltas.dispose();
 });
 

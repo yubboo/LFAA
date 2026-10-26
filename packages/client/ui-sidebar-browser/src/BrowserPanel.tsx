@@ -6,8 +6,9 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type PointerEvent, type WheelEvent } from "react";
 import { actOnBrowserDock, getErrorMessage, loadBrowserDockSession, loadBrowserProviders, navigateBrowserDock, resizeBrowserDockViewport, streamBrowserDockFrames, waitForBrowserDockRevision, type BrowserDockFrame, type BrowserProviderId, type BrowserProviderSummary, type BrowserSessionSnapshot, type UserSettings } from "lfaa-client-connection/src/api.js";
 import { NativeBrowserPanel } from "./NativeBrowserPanel.js";
+import type { BrowserDockTabsUpdate } from "./browser-tabs-update.js";
 import { resolveBrowserAddress } from "./browser-address.js";
-import { preferCurrentBrowserSnapshot, shouldRestoreBrowserDockPage } from "./browser-snapshot.js";
+import { preferCurrentBrowserSnapshot, shouldRefreshAgentBrowserDockSnapshot, shouldRestoreBrowserDockPage } from "./browser-snapshot.js";
 import "./browser-panel.css";
 
 type BrowserNavigationRequest = { id: string; url: string };
@@ -25,7 +26,7 @@ type BrowserPanelProps = {
   onNavigationRequestHandled?: (requestId: string) => void;
   actionRequest?: BrowserDockActionRequest | null;
   onActionRequestHandled?: (requestId: string) => void;
-  onOpenTabsChange?: (tabs: Array<{ id: string; title: string; url: string; active: boolean }>) => void;
+  onOpenTabsChange?: (update: BrowserDockTabsUpdate) => void;
 };
 
 function displayAddress(value: string, showFullUrl: boolean): string {
@@ -80,8 +81,18 @@ function BrowserUsePanel({ sessionId, settings, browserUrl, preferredProviderId 
   snapshotRef.current = snapshot;
 
   useEffect(() => {
-    onOpenTabsChange?.(snapshot?.tabs ?? []);
-  }, [onOpenTabsChange, snapshot?.tabs]);
+    const snapshotMatchesProvider = Boolean(providerId && snapshotBindingRef.current === `${sessionId}:${providerId}`);
+    const sourceProviderId = snapshotMatchesProvider ? providerId as BrowserProviderId : undefined;
+    const update: BrowserDockTabsUpdate = {
+      tabs: snapshot?.tabs ?? [],
+      ...(sourceProviderId ? { providerId: sourceProviderId } : {}),
+      snapshotReady: snapshotMatchesProvider && snapshotReady,
+      ...(sourceProviderId && preferredProviderId === sourceProviderId && providerSelectionRequestId !== undefined
+        ? { agentSyncRequest: { providerId: sourceProviderId, requestId: providerSelectionRequestId } }
+        : {}),
+    };
+    onOpenTabsChange?.(update);
+  }, [onOpenTabsChange, preferredProviderId, providerId, providerSelectionRequestId, sessionId, snapshot?.tabs, snapshotReady]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -107,14 +118,14 @@ function BrowserUsePanel({ sessionId, settings, browserUrl, preferredProviderId 
     if (providers.some(provider => provider.id === preferredProviderId && provider.available)) setProviderId(preferredProviderId);
   }, [preferredProviderId, providerSelectionRequestId, providers]);
 
-  const refreshSnapshot = useCallback((selectedProvider: BrowserProviderId, sourceSession: string, signal?: AbortSignal) => {
+  const refreshSnapshot = useCallback((selectedProvider: BrowserProviderId, sourceSession: string, signal?: AbortSignal, force = false) => {
     const scope = `${sourceSession}:${selectedProvider}`;
     const existing = snapshotRefreshRef.current;
-    if (existing?.scope === scope) return existing.promise;
+    if (!force && existing?.scope === scope) return existing.promise;
     if (existing) snapshotRefreshRef.current = null;
     const writeAtStart = snapshotWriteRef.current;
     const request = loadBrowserDockSession(sourceSession, selectedProvider, signal).then(result => {
-      if (snapshotRefreshRef.current?.scope !== scope) return null;
+      if (snapshotRefreshRef.current?.promise !== request) return null;
       setSnapshotReady(true);
       if (snapshotWriteRef.current !== writeAtStart) return snapshotRef.current;
       const next = result.session;
@@ -134,6 +145,21 @@ function BrowserUsePanel({ sessionId, settings, browserUrl, preferredProviderId 
     snapshotRefreshRef.current = { scope, promise: request };
     return request;
   }, []);
+
+  useEffect(() => {
+    if (!shouldRefreshAgentBrowserDockSnapshot({
+      providerId,
+      preferredProviderId,
+      requestId: providerSelectionRequestId,
+      providerReady,
+      sessionId,
+    })) return;
+    const controller = new AbortController();
+    void refreshSnapshot(providerId as BrowserProviderId, sessionId!, controller.signal, true).catch(reason => {
+      if (!controller.signal.aborted) setError(getErrorMessage(reason));
+    });
+    return () => controller.abort();
+  }, [preferredProviderId, providerId, providerReady, providerSelectionRequestId, refreshSnapshot, sessionId]);
 
   useEffect(() => {
     snapshotBindingRef.current = "";

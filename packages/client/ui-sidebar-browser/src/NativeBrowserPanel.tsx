@@ -4,19 +4,22 @@
  * 关联文件：apps/desktop-electron/src/native-browser-workspace.mjs、packages/browser-use/browser-use。
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { getErrorMessage, setNativeBrowserActiveTarget, type NativeBrowserState, type UserSettings } from "lfaa-client-connection/src/api.js";
+import { getErrorMessage, setNativeBrowserActiveTarget, type BrowserProviderId, type NativeBrowserState, type UserSettings } from "lfaa-client-connection/src/api.js";
 import "./native-browser-panel.css";
 import { resolveBrowserAddress } from "./browser-address.js";
+import type { BrowserDockTabsUpdate } from "./browser-tabs-update.js";
 
 type Props = {
   sessionId: string | null;
   settings: UserSettings;
+  preferredProviderId?: BrowserProviderId | null;
+  providerSelectionRequestId?: number;
   hidden?: boolean;
   navigationRequest?: { id: string; url: string } | null;
   onNavigationRequestHandled?: (requestId: string) => void;
   actionRequest?: { id: string; action: "back" | "forward" | "reload" } | null;
   onActionRequestHandled?: (requestId: string) => void;
-  onOpenTabsChange?: (tabs: Array<{ id: string; title: string; url: string; active: boolean }>) => void;
+  onOpenTabsChange?: (update: BrowserDockTabsUpdate) => void;
 };
 type NativeBrowserApi = NonNullable<NonNullable<Window["lfaaDesktop"]>["nativeBrowser"]>;
 
@@ -31,9 +34,10 @@ function isNativeBrowserState(value: unknown): value is NativeBrowserState {
     && typeof (value as { visible?: unknown }).visible === "boolean";
 }
 
-export function NativeBrowserPanel({ sessionId, settings, hidden = false, navigationRequest, onNavigationRequestHandled, actionRequest, onActionRequestHandled, onOpenTabsChange }: Props) {
+export function NativeBrowserPanel({ sessionId, settings, preferredProviderId, providerSelectionRequestId, hidden = false, navigationRequest, onNavigationRequestHandled, actionRequest, onActionRequestHandled, onOpenTabsChange }: Props) {
   const api = useMemo(nativeApi, []);
   const [state, setState] = useState<NativeBrowserState>({ tabs: [], activeTabId: null, visible: false });
+  const [stateReady, setStateReady] = useState(false);
   const [error, setError] = useState("");
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const boundTargetRef = useRef("");
@@ -42,8 +46,17 @@ export function NativeBrowserPanel({ sessionId, settings, hidden = false, naviga
   const activeTab = state.tabs.find(tab => tab.id === state.activeTabId) ?? null;
 
   useEffect(() => {
-    onOpenTabsChange?.(state.tabs.map(tab => ({ id: tab.id, title: tab.title, url: tab.url, active: tab.active })));
-  }, [onOpenTabsChange, state.tabs]);
+    const providerSelected = preferredProviderId === "lfaa-native-browser";
+    const update: BrowserDockTabsUpdate = {
+      tabs: state.tabs.map(tab => ({ id: tab.id, title: tab.title, url: tab.url, active: tab.active })),
+      ...(providerSelected ? { providerId: "lfaa-native-browser" as const } : {}),
+      snapshotReady: providerSelected && stateReady,
+      ...(providerSelected && providerSelectionRequestId !== undefined
+        ? { agentSyncRequest: { providerId: "lfaa-native-browser", requestId: providerSelectionRequestId } }
+        : {}),
+    };
+    onOpenTabsChange?.(update);
+  }, [onOpenTabsChange, preferredProviderId, providerSelectionRequestId, state.tabs, stateReady]);
 
   useEffect(() => {
     const targetId = activeTab?.targetId ?? "";
@@ -80,10 +93,11 @@ export function NativeBrowserPanel({ sessionId, settings, hidden = false, naviga
   useEffect(() => {
     if (!api) return;
     let live = true;
-    const unsubscribe = api.onState(next => { if (live) setState(next); });
+    const unsubscribe = api.onState(next => { if (live) { setState(next); setStateReady(true); } });
     void api.getState().then(current => {
       if (!live) return;
       setState(current);
+      setStateReady(true);
       if (!current.tabs.length) return api.ensureTab();
       return current;
     }).then(current => { if (live && current) setState(current); }).catch(reason => { if (live) setError(getErrorMessage(reason)); });

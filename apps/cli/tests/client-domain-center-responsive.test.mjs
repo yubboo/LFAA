@@ -31,6 +31,7 @@ test("运行环境分类与内容卡按游戏库和分类面板的实际宽度�
   assert.match(css, /\.runtime-manager__tabs\s*\{[^}]*grid-template-columns:\s*repeat\(auto-fit,\s*minmax\(min\(100%,\s*10rem\),\s*1fr\)\)/u);
   assert.match(css, /\.runtime-manager__tabs button\s*\{[^}]*min-width:\s*0;[^}]*white-space:\s*normal;[^}]*overflow-wrap:\s*anywhere/u);
   assert.match(css, /@container game-library \(max-width:\s*39rem\)[\s\S]*?\.game-library__environment-controls > \.ant-btn\s*\{\s*width:\s*100%;\s*white-space:\s*normal;/u);
+  assert.match(css, /@container game-library \(max-width:\s*39rem\)[\s\S]*?\.game-library__environment-controls:not\(\.game-library__environment-controls--toolbar\) label\s*\{\s*flex-basis:\s*auto;/u, "窄栏切成纵向表单后标签应按控件内容高度排列");
   assert.match(css, /@container runtime-manager \(max-width:\s*42rem\)[\s\S]*?\.runtime-manager__cards\s*\{\s*grid-template-columns:\s*minmax\(0,1fr\)/u);
   assert.match(css, /@container runtime-manager \(max-width:\s*24rem\)[\s\S]*?\.runtime-manager__tabs\s*\{\s*grid-template-columns:\s*minmax\(0, 1fr\)/u);
   assert.match(ownerReadme, /真实中心容器宽度重排卡片、分类入口及操作控件/u);

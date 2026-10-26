@@ -3,7 +3,21 @@
  * 作用：同一 Session 丢弃迟到的旧响应；Session 重建后允许新快照从低 revision 开始。
  * 关联文件：BrowserPanel.tsx、packages/client/connection/src/api.ts。
  */
-import type { BrowserSessionSnapshot } from "lfaa-client-connection/src/api.js";
+import type { BrowserProviderId, BrowserSessionSnapshot } from "lfaa-client-connection/src/api.js";
+
+export type AgentBrowserDockSnapshotRefresh = {
+  providerId: BrowserProviderId | "";
+  preferredProviderId: BrowserProviderId | null;
+  requestId?: number;
+  providerReady: boolean;
+  sessionId: string | null;
+};
+
+export function shouldRefreshAgentBrowserDockSnapshot(request: AgentBrowserDockSnapshotRefresh): boolean {
+  return Boolean(request.requestId !== undefined && Number.isSafeInteger(request.requestId) && request.requestId > 0
+    && request.providerId && request.preferredProviderId === request.providerId
+    && request.providerReady && request.sessionId);
+}
 
 export function preferCurrentBrowserSnapshot(current: BrowserSessionSnapshot | null, next: BrowserSessionSnapshot): BrowserSessionSnapshot {
   return current?.sessionId === next.sessionId && current.revision > next.revision ? current : next;

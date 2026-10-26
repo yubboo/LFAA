@@ -21,3 +21,5 @@ AI Work 的浏览器是右 Dock 当前新标签页的内容模式，不另建“
 2026-10-23：浏览器面板使用账户内稳定工作区标识，无需先建立 AI 会话。空白面板等待 Agent 创建页面并同步真实网址；实时帧流断开后按有界间隔重连，期间保留上一帧，重连与隐藏/卸载都会撤销定时器、SSE、观察器及输入缓存。Web 仍由本机 Chromium 合成器帧驱动 Canvas 和真实页面输入；Electron 仍由原生 WebContentsView 绘制。
 
 BrowserPanel 遵循成功 Agent 活动中的内置 Provider ID：Web 与 Electron 的隔离 Edge/Chrome 都由现有 Browser Owner 帧面板读取同一个 Page；Electron 在 Agent Provider 为 `lfaa-native-browser` 或尚无 Agent Provider 目标时使用原生 `WebContentsView`；若 Agent 明确选择隔离 Edge/Chrome，则继续显示同一 Browser Owner 的页面流。Agent 在原生标签已活动时由真实 Provider 状态优先选择原生 Provider。不创建第二个 Session 或导航请求。
+
+BrowserPanel 与原生面板以 `BrowserDockTabsUpdate` JSON 形状对象回传页面标签、真实 Provider、快照就绪状态和可选的 `{ providerId, requestId }` Agent 联动标记。Agent 完成当前 Provider 的浏览器操作后，BrowserPanel 按请求号强制读取一次该 Browser Owner 的最新快照，即使隐藏 Dock 已因已有页面暂停修订轮询，也能拿到实际活动页；过期并发快照不会覆盖这次刷新。工作区据此把已存在、地址未变化的活动页面绑定到新标签；空快照、旧 Provider 响应和未完成的用户导航不会触发错误回填。原生面板同样报告真实 Provider 与已读取状态。

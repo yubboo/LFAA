@@ -10,9 +10,15 @@ export const minecraftCoreNames = ["Vanilla", "Paper", "Purpur", "Folia", "Leave
 export type MinecraftCoreName = typeof minecraftCoreNames[number];
 export type CoreCategory = "pure" | "mod" | "vanilla" | "proxy" | "bedrock";
 export type CoreLaunchKind = "jar" | "forge" | "sponge-forge" | "sponge-neo" | "php";
+export type MinecraftServerType = "vanilla" | "plugin" | "modded" | "hybrid" | "proxy" | "bedrock";
+export interface MinecraftCoreCompatibility {
+  serverType: MinecraftServerType;
+  compatibleContent: readonly string[];
+}
 export interface MinecraftCoreSummary {
   name: MinecraftCoreName; category: CoreCategory; versions: string[]; homepage: string;
   source: "papermc" | "fastmirror" | "mohist"; launchKind: CoreLaunchKind;
+  serverType: MinecraftServerType; compatibleContent: readonly string[];
 }
 export interface MinecraftCoreBuild { id: string; updatedAt: string; digest: string; }
 export interface CoreArtifact {
@@ -20,6 +26,32 @@ export interface CoreArtifact {
   url: string; algorithm: "sha1" | "sha256"; digest: string; filename: string;
   javaMajor: number; source: string; loaderArtifact?: { url: string; algorithm: "sha1"; digest: string } | undefined;
   phpArtifact?: { url: string; algorithm: "sha256"; digest: string } | undefined;
+}
+/** 核心目录 Owner 的能力分类；来源 category 另用于部署协议/端口行为，不能表示插件兼容性。 */
+const coreCompatibility: Record<MinecraftCoreName, MinecraftCoreCompatibility> = {
+  Vanilla: { serverType: "vanilla", compatibleContent: ["原版 Java 客户端；不提供模组加载器或服务端插件 API"] },
+  Paper: { serverType: "plugin", compatibleContent: ["Bukkit/Spigot/Paper 插件；仍须核对目标游戏版本和插件 API"] },
+  Purpur: { serverType: "plugin", compatibleContent: ["Bukkit/Spigot/Paper 插件；仍须核对目标游戏版本和插件 API"] },
+  Folia: { serverType: "plugin", compatibleContent: ["Folia 兼容插件；不能默认认为所有 Paper 插件均兼容"] },
+  Leaves: { serverType: "plugin", compatibleContent: ["Paper 兼容插件；仍须核对目标游戏版本和插件 API"] },
+  Fabric: { serverType: "modded", compatibleContent: ["Fabric 加载器模组；不兼容 Bukkit/Spigot/Paper 插件"] },
+  Forge: { serverType: "modded", compatibleContent: ["Forge 加载器模组；不兼容 Fabric 模组或 Bukkit/Spigot 插件"] },
+  Arclight: { serverType: "hybrid", compatibleContent: ["对应版本支持的 Bukkit/Spigot 插件与模组加载器模组；具体兼容组合以该版本构建说明为准"] },
+  CatServer: { serverType: "hybrid", compatibleContent: ["Forge 模组与 Bukkit/Spigot 插件；兼容性以该核心版本为准"] },
+  SpongeForge: { serverType: "hybrid", compatibleContent: ["SpongeAPI 插件与 Forge 模组；插件类型不是 Bukkit API"] },
+  SpongeNeo: { serverType: "hybrid", compatibleContent: ["SpongeAPI 插件与 NeoForge 模组；插件类型不是 Bukkit API"] },
+  SpongeVanilla: { serverType: "plugin", compatibleContent: ["SpongeAPI 插件；不是 Bukkit API，也不加载 Forge 模组"] },
+  BungeeCord: { serverType: "proxy", compatibleContent: ["Java 版多服代理及 BungeeCord 插件；需要已运行的后端服务器"] },
+  Velocity: { serverType: "proxy", compatibleContent: ["Java 版多服代理及 Velocity 插件；需要已运行的后端服务器"] },
+  Nukkit: { serverType: "bedrock", compatibleContent: ["基岩版客户端与 Nukkit 插件；不是 Java 版游戏服务端"] },
+  PocketMine: { serverType: "bedrock", compatibleContent: ["基岩版客户端与 PocketMine-MP PHP 插件；使用 PHP 运行时，不使用 Java"] },
+  Youer: { serverType: "hybrid", compatibleContent: ["NeoForge 模组与 Paper/Purpur API 插件；兼容性以该核心版本为准"] },
+};
+/** 给 AI 工具和目录调用方返回防变更副本，分类仍只有一个权威来源。 */
+export function getMinecraftCoreCompatibility(core: string): MinecraftCoreCompatibility {
+  const name = requireMinecraftCore(core);
+  const profile = coreCompatibility[name];
+  return { serverType: profile.serverType, compatibleContent: [...profile.compatibleContent] };
 }
 const fastMirrorBase = "https://download.fastmirror.net";
 const mohistBase = "https://api.mohistmc.cn";
@@ -43,9 +75,9 @@ export function validateCoreCoordinate(value: string): string {
   return value;
 }
 export function requireMinecraftCore(value: string): MinecraftCoreName {
-  const normalized = value === "vanilla" ? "Vanilla" : value;
-  if (!(minecraftCoreNames as readonly string[]).includes(normalized)) throw new ApiError(400, "minecraft_core_unknown", "核心尚未登记。");
-  return normalized as MinecraftCoreName;
+  const normalized = minecraftCoreNames.find(name => name.toLowerCase() === value.trim().toLowerCase());
+  if (!normalized) throw new ApiError(400, "minecraft_core_unknown", "核心尚未登记。");
+  return normalized;
 }
 async function json<T>(url: string): Promise<T> {
   const hit = cache.get(url);
@@ -71,7 +103,7 @@ export async function getPaperCoreSummary(): Promise<MinecraftCoreSummary> {
   const project = await json<{ versions: Record<string, string[]> }>(paperBase);
   const versions = Object.values(project.versions ?? {}).flat();
   if (!versions.length || !versions.every(v => typeof v === "string")) throw new ApiError(502, "minecraft_paper_catalog_invalid", "PaperMC 未返回有效版本目录。");
-  return { name: "Paper", category: "pure", versions, homepage: "https://papermc.io", source: "papermc", launchKind: "jar" };
+  return { name: "Paper", category: "pure", versions, homepage: "https://papermc.io", source: "papermc", launchKind: "jar", ...getMinecraftCoreCompatibility("Paper") };
 }
 async function paperBuilds(version: string): Promise<PaperBuild[]> {
   const rows = await json<PaperBuild[]>(`${paperBase}/versions/${encodeURIComponent(version)}/builds`);
@@ -106,11 +138,11 @@ export async function listMinecraftCores(): Promise<{ cores: MinecraftCoreSummar
       const name = requireMinecraftCore(item.name);
       const category = ["pure", "mod", "vanilla", "proxy", "bedrock"].includes(item.tag) ? item.tag : "mod";
       const homepage = typeof item.homepage === "string" && /^https:\/\//u.test(item.homepage) ? item.homepage : "https://www.fastmirror.net/#/home";
-      cores.push({ name, category, homepage, versions: item.mc_versions.filter(v => typeof v === "string" && v.length <= 120 && !/[\u0000-\u001f/\\?#]/u.test(v)), source: "fastmirror", launchKind: name === "Forge" ? "forge" : name === "SpongeForge" ? "sponge-forge" : name === "SpongeNeo" ? "sponge-neo" : name === "PocketMine" ? "php" : "jar" });
+      cores.push({ name, category, homepage, versions: item.mc_versions.filter(v => typeof v === "string" && v.length <= 120 && !/[\u0000-\u001f/\\?#]/u.test(v)), source: "fastmirror", launchKind: name === "Forge" ? "forge" : name === "SpongeForge" ? "sponge-forge" : name === "SpongeNeo" ? "sponge-neo" : name === "PocketMine" ? "php" : "jar", ...getMinecraftCoreCompatibility(name) });
     }
   } else errors.push("FastMirror 核心目录暂不可用。");
   if (results[1].status === "fulfilled" && Array.isArray(results[1].value.versions)) {
-    cores.push({ name: "Youer", category: "mod", homepage: "https://www.mohistmc.cn/download/youer", versions: results[1].value.versions.filter(v => typeof v === "string"), source: "mohist", launchKind: "jar" });
+    cores.push({ name: "Youer", category: "mod", homepage: "https://www.mohistmc.cn/download/youer", versions: results[1].value.versions.filter(v => typeof v === "string"), source: "mohist", launchKind: "jar", ...getMinecraftCoreCompatibility("Youer") });
   } else errors.push("Mohist Youer 版本目录暂不可用。");
   if (results[2].status === "fulfilled") {
     const previous = cores.findIndex(core => core.name === "Paper");
