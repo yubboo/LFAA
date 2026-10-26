@@ -15,7 +15,7 @@
 - 上游 Claude Code sandbox 也不能填补此缺口：Anthropic 文档明确它只包围 Shell 命令及其子进程，MCP Server、Hooks 和其他 SDK 进程在沙箱外；原生 Windows 命令不受该 sandbox 保护。[Anthropic sandbox scope](https://code.claude.com/docs/en/sandboxing#what-runs-outside-the-sandbox)
 - 锁定 `@anthropic-ai/claude-agent-sdk@0.3.310` 的本地 `sdk.d.ts` 暴露 `env`、命令沙箱设置和同步 `spawnClaudeCodeProcess(options) => SpawnedProcess`，没有 HTTP client/fetch/transport 注入口。项目当前 `tools: []` 也关闭了上游 Shell 命令，所以其 `sandbox.network.allowedDomains` 不会约束 Claude CLI 自己的模型 API 请求。自定义 spawn 可改变 CLI 运行位置，不能单独改变 CLI 的 API 传输。
 
-本轮结论：网络 allowlist 虽已进入类型合同，但没有产品执行路径；Claude SDK 当前依靠 `danger-full-access` 门槛运行。Host 临时 relay 已实现凭据隔离基础，不改启动门槛、不改成 `internetClient`，不宣称 egress 隔离已完成。可选 per-machine WFP 服务的安装方式选择仍是 Windows 受限网络路线的决策门。
+本轮结论：网络 allowlist 虽已进入类型合同，但没有产品执行路径；Claude SDK 当前依靠 `danger-full-access` 门槛运行。Host 临时 relay 已实现凭据隔离基础，不改启动门槛、不改成 `internetClient`，不宣称 egress 隔离已完成。用户已接受“per-user 继续为默认、可选新增管理员级 per-machine WFP Service”；该选择解除安装模式的产品决策门，服务 Owner、安装/更新/卸载、降权 IPC、恢复授权与真实网络过滤仍须完成设计和验证。
 
 ## 下一批候选实现与决策门
 
@@ -25,7 +25,7 @@
 2. Windows x64 AppContainer 本身保持无一般网络能力。若要允许它访问 relay，需在每次 Run 为本次 Package SID 安装只允许 relay 端口的 loopback WFP 规则，并拒绝其他 loopback/公网；规则随取消、退出、崩溃和 Daemon 重启撤销或失败关闭。WFP/loopback 规则只能由具备系统权限的执行 Owner 安装，不能由普通 Daemon 自行假设可写。
 3. Windows Service 只持有 WFP 规则生命周期，不接触 Anthropic Key 或请求正文；TLS、Provider、账单/用量和凭据仍由既有 Host/LLM/Credentials Owner 持有。原始 CONNECT 或通用字节代理不满足目标主机验证。
 
-该方案会新增可选的管理员安装组件和系统服务生命周期；保持当前 per-user 默认安装时，该能力无法启用，Claude SDK 仍限于用户明确选择的 `danger-full-access`。当前 SDK 本地假服务回归证明 API 请求经 LFAA Host relay 改道并保护账户 Key，不证明 WFP、受限 AppContainer loopback 或端到端拒绝旁路。用户已收到是否接受可选 per-machine WFP Service 的产品选择问题；回复前不改安装方式。若接受，下一批验收先覆盖真实 AppContainer 对 relay 端口可达、其他 loopback/公网不可达及服务离线时失败关闭，再扩大到受限 SDK 执行。
+该方案会新增可选的管理员安装组件和系统服务生命周期；保持当前 per-user 默认安装时，该能力无法启用，Claude SDK 仍限于用户明确选择的 `danger-full-access`。当前 SDK 本地假服务回归证明 API 请求经 LFAA Host relay 改道并保护账户 Key，不证明 WFP、受限 AppContainer loopback 或端到端拒绝旁路。用户已明确接受可选 per-machine WFP Service，并要求 per-user 保持默认。下一批应先确定单一 Service/Installer Owner、最小化受限 IPC、安装/更新/卸载与崩溃恢复语义，再覆盖真实 AppContainer 对 relay 端口可达、其他 loopback/公网不可达及服务离线时失败关闭，之后才扩大到受限 SDK 执行。
 
 ### 第一批：将账户 API Key 留在 Host
 

@@ -6,7 +6,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { estimateContextBreakdown, estimateMessage, estimatePromptTokens } from "../../../packages/llm/token-meter/src/estimate.ts";
-import { assessContextPressure, estimateMessagesTokens } from "../../../packages/core/agent-loop/src/runtime-context.ts";
+import { assessContextPressure, estimateMessagesTokens, manageContextBeforeRequest } from "../../../packages/core/agent-loop/src/runtime-context.ts";
 
 test("上下文估算根据实际请求消息和工具 schema 分项", () => {
   const result = estimateContextBreakdown([
@@ -56,4 +56,29 @@ test("压缩压力复用请求 Token Meter，覆盖 system、工具、图片与 
   assert.equal(pressure.systemTokens > 0, true);
   assert.equal(pressure.toolsTokens > 0, true);
   assert.equal(pressure.includesImages, true);
+});
+
+test("压缩后返回最终上下文压力，而不是压缩前的估算", async () => {
+  const messages = [
+    { role: "system", content: "s".repeat(3_200) },
+    { role: "user", content: "保留当前用户任务" }
+  ];
+  const tools = [{ type: "function", function: { name: "read_file", description: "Read", parameters: { type: "object", properties: {} } } }];
+  const result = await manageContextBeforeRequest({
+    messages,
+    tools,
+    contextWindow: 1_000,
+    hooks: {
+      compact: async () => [
+        { role: "system", content: "精简角色约束" },
+        { role: "user", content: "保留当前用户任务" }
+      ]
+    }
+  });
+
+  const expected = assessContextPressure(result.messages, 1_000, tools);
+  assert.equal(result.rewritten, true);
+  assert.deepEqual(result.pressure, expected);
+  assert.equal(result.pressure.needsCompaction, false);
+  assert.ok(result.pressure.usedTokens < assessContextPressure(messages, 1_000, tools).usedTokens);
 });

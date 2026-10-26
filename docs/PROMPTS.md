@@ -8125,6 +8125,15 @@ Owner：依赖由各自 `package.json` 声明，`scripts/check-workspace.mjs` �
 - 本批验证：`pnpm.cmd --filter @yubboo/lfaa test -- tests/pi-agent-runtime.test.mjs tests/token-meter-estimate.test.mjs tests/llm-completion.test.mjs tests/agent-context-spill.test.mjs` 21/21 通过；`pnpm.cmd --filter @yubboo/lfaa test -- tests/harness-runtime-wiring.test.mjs` 1/1 通过；`lfaa-token-meter`、`lfaa-agent-loop`、`lfaa-llm`、`lfaa-compaction`、`lfaa-compaction-basic` 单包构建均成功，输出在根 `dist/packages/`；`pnpm.cmd exec tsc --noEmit -p tsconfig.host.json` 通过。完整 `pnpm.cmd run typecheck` 在现有 `SettingsPage.tsx` 报 Provider/Account/ModelTestResult 属性类型错误；`pnpm.cmd run check:workspace` 有 4 项错误（包目录 JSON/Markdown 清单过期、PROMPTS 中两个缺失合同锚点）。完整 Harness 曾因夹具断言旧专家名称及以宽泛目录词搜索精确工具而失败；按当前 Expert 名称和精确工具名修正后通过。真实 Provider 与浏览器验收未运行。
 - 剩余边界：每图 1200 tokens 是压力估算预留，不代表任何 Provider 的真实图像 token 数；真实 usage 仍以 Provider 响应为准。后续需处理全仓前端类型错误与 Workspace Gate，再做真实 Provider usage 与长上下文回归。
 
+#### 2026-10-27 Token/Context 第二轮审计与修正
+
+- 目标与 Owner：继续从最终 Provider 请求入口审查 token 预算反馈；`packages/llm/token-meter` 仍是唯一启发式估算 Owner，`packages/core/agent-loop` 持有 spill/compaction 调度及 Run 活动，Session 保存的最终请求估算仍以 LLM `onRequest` 回调为准。
+- 设置与数据边界：使用模型目录 `contextWindow`，缺失时使用设置中心 `aiRuntime.contextWindowTokens`；保留 `aiRuntime.autoCompaction`、`maxOutputTokens`、`showContextUsage` 当前值，不新增或重置设置。只读写本 Run 模型请求前的消息视图与活动状态，不改 Session 历史、附件、工具结果或权限。
+- 审计发现：spill 后已有重估，但 compaction 后 `manageContextBeforeRequest()` 返回的是压缩前 `pressure`；最终 Provider `onRequest` 仍会重新估算实际请求，因此错误仅污染上下文管理活动所展示的估算值，不污染请求快照/Session context usage。另确认当前 `CHARS_PER_TOKEN=4` 对中文/其他多字节文本并非保守估算，图片固定 1200 tokens 也只供预估；模型目录窗口语义与输出上限的组合尚未建立可验证的剩余输出预算合同。后两项需独立做模型/Provider 标定，不在本批改写估算公式或输出策略。
+- 本批实施：compaction 成功返回后，以最终消息、当前工具目录、同一窗口和有效 reasoning replay 字符重新计算 pressure；新增 token-meter/Agent Loop 回归，覆盖压缩前超阈值、压缩后低于阈值及最终压力分项一致。受影响包 README 记录该可观测性合同。
+- 本批验证：待本轮回归和包构建完成后填入确切结果；不以合成压力测试声称真实 Provider token 精度。
+- 后续顺序：先设计可重复的中英混排/代码/图片多模态 tokenizer 误差评估，再决定是否采用 provider/model-aware tokenizer 或更安全的混合密度估算；同时从模型目录与实际 API 请求证据确认 `contextWindow` 是否包含输出，再设计输出预算保留。真实 Provider usage/图片计量仍以服务商响应为准。
+
 <a id="lfaa-github-stale-index-lock-recovery-20261025"></a>
 
 ## 277-GitHub 推送过期索引锁恢复（2026-10-25）

@@ -43,7 +43,7 @@ Browser Tools 还按 Browser Settings Owner 检查 WebMCP 网站工具默认值/
 
 主 Agent 回合累计这一轮全部模型请求的 prompt/output/cache-read usage，并以一个主回合 SSE 与 Session 记录发布；同时记录请求总数和 Provider 实际返回缓存读取计数的请求数，以便 UI 显示覆盖率。任一请求未上报的分量保持未知，不当成零；回复后的账户记忆提取仍保留独立用量事件，但标记为 `purpose=memory`，消息输入区的本轮统计不会将它混入主回答。
 
-每个主 Provider 请求在 LLM Owner 组合最终 system prompt、消息/附件和工具 schema 后、网络发送前执行上下文管理；压力、compaction 和 `request/context` 观测共用 `lfaa-token-meter` 的同一估算口径，包含工具往返、每张图片的保守预留与 LLM Owner 按账户/Provider/模型计算的一次数值型 reasoning replay 字符数。无效来源的 replay 不进入预算，安全请求快照不保存隐藏 replay 正文。压缩后会同步更新本 Run 的 Pi/Agent Loop 消息和工具集；spill 执行器先登记给 Pi，读取工具只有在本 Run 产生引用后才放进 Provider 请求，system prompt 与本次临时附件不进入持久对话历史。估算与当前账户模型目录容量（缺失时读取设置中心 `aiRuntime.contextWindowTokens`）及容量来源随 `request/context` 保存；响应后以 Provider 实际 prompt Token 更新上下文总量。SSE 发送前估算、响应后实际值及会话累计用量可见；缓存读取字段始终只采用 Provider usage。模型上下文统计由共享 UI 的 `aiRuntime.showContextUsage` 控制显示。
+每个主 Provider 请求在 LLM Owner 组合最终 system prompt、消息/附件和工具 schema 后、网络发送前执行上下文管理；压力、compaction 和 `request/context` 观测共用 `lfaa-token-meter` 的同一估算口径，包含工具往返、每张图片的保守预留与 LLM Owner 按账户/Provider/模型计算的一次数值型 reasoning replay 字符数。spill 或 compaction 成功后压力会按最终消息和工具目录重新估算，活动记录不沿用压缩前的数值。无效来源的 replay 不进入预算，安全请求快照不保存隐藏 replay 正文。压缩后会同步更新本 Run 的 Pi/Agent Loop 消息和工具集；spill 执行器先登记给 Pi，读取工具只有在本 Run 产生引用后才放进 Provider 请求，system prompt 与本次临时附件不进入持久对话历史。估算与当前账户模型目录容量（缺失时读取设置中心 `aiRuntime.contextWindowTokens`）及容量来源随 `request/context` 保存；响应后以 Provider 实际 prompt Token 更新上下文总量。SSE 发送前估算、响应后实际值及会话累计用量可见；缓存读取字段始终只采用 Provider usage。模型上下文统计由共享 UI 的 `aiRuntime.showContextUsage` 控制显示。
 
 发送前，循环会对当前用户消息和最终回答中的常见凭据、个人标识模式做本地启发式过滤；该过滤无法识别所有敏感表达，不处理工具参数、工具结果或较早的 Session 历史。Session Owner 会从持久化的模型快照中移除注入的记忆区块。
 

@@ -169,7 +169,7 @@ export function selectCompactionRange(
  *   1. 估算压力；
  *   2. 若 needsSpill 且注入了 spill 钩子，先做溢出（把超大工具结果外置）；
  *   3. 若 needsCompaction 且注入了 compact 钩子，做压缩；
- *   4. 返回新的消息数组与是否发生改写（用于让 execute-turn 决定是否重算请求上下文）。
+ *   4. 每次成功的压缩后重新估算最终消息/工具压力，再返回新数组与改写状态。
  *
  * 注意：这是“按上下文规模触发”的机制，不是写死流程——没有钩子注入时它原样返回，行为与现状完全一致。
  */
@@ -224,6 +224,7 @@ export async function manageContextBeforeRequest(input: {
         ...(input.signal ? { signal: input.signal } : {})
       });
       if (compacted && compacted !== messages) { messages = compacted; rewritten = true; }
+      pressure = assessContextPressure(messages, pressure.contextWindow, tools, input.reasoningReplayCharacters);
     } catch (error) {
       // 压缩失败同样不阻断主循环；保留诊断，避免把失败的压缩误认为已完成。
       if (!input.signal?.aborted) logger.warn("Agent 上下文压缩钩子失败；继续主循环", { stage: "compact", errorName: error instanceof Error ? error.name : "UnknownError" });
