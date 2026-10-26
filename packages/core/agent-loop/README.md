@@ -2,6 +2,8 @@
 
 ## Pi Agent Core 回合执行器（2026-10-25）
 
+AI 员工办公室从本包读取按账户过滤的活动 Run 摘要。Run 保留真实员工 ID、标签、父 Run、排队/运行/暂停状态及最近三条公开活动标题；不会返回活动详情、原始工具参数或 Provider 隐藏推理。专家子 Run 的名称来自已加载的登记专家，通用子 Run 的短标签由已校验的委派工具提供。构建写入仓库根 `dist/packages/core/agent-loop/`。
+
 Pi `@earendil-works/pi-agent-core` 是默认 AI Run 的唯一回合调度器，负责模型响应和工具调用之间的单次运行状态机；本包通过 `pi-runtime.ts` 把它嵌入既有 Owner 边界。Pi 只接收本次 Run 的临时消息与工具对象，工具执行设为串行；没有 Pi CLI/RPC、默认本机工具、独立 Provider 选择或 Pi Session 持久化。
 
 Pi 的自定义 `streamFn` 每次都调用 LFAA 注入的 `lfaaLlm` Service。LFAA Settings/凭据继续决定账户、Provider、模型、超时/重试、上下文/输出预算与压缩；LFAA Tools 继续校验参数、范围与 Permission Owner 授权；审批、用户提问、暂停/取消、运行事件和 Session JSONL 仍由原 LFAA Owner 处理。Pi 工具回调只转入现有 LFAA Tool 执行函数，Pi 生成的会话状态在 Run 结束时释放。

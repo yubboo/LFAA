@@ -212,6 +212,22 @@ test("老消息不猜测分段；停止时最新部分正文继续可见", () =>
   assert.equal(buildResponseTimeline(stopped).finalText, "**已经完成。**");
 });
 
+test("流式正文增量更新分段文本，复用活动结构并保持真实顺序", () => {
+  const activities = [activity("command", 2)];
+  const first = { ...fixture("streaming"), content: "阶段", parts: [{ id: "reply", start: 0, end: 2, kind: "commentary" }], activity: activities };
+  const initial = buildResponseTimeline(first, { label: "正在回复", contentOffset: 2, order: 99, isProcessing: true });
+  assert.deepEqual(initial.blocks.map(block => block.kind), ["text", "tools", "status"]);
+  assert.equal(initial.blocks[0].content, "阶段");
+
+  const next = { ...first, content: "阶段结果", parts: [{ ...first.parts[0], end: 4 }] };
+  const updated = buildResponseTimeline(next, { label: "正在回复", contentOffset: 4, order: 99, isProcessing: true });
+  assert.strictEqual(next.activity, activities, "text deltas keep the activity array stable so its sorted structure can be reused");
+  assert.deepEqual(updated.blocks.map(block => block.kind), ["text", "tools", "status"]);
+  assert.equal(updated.blocks[0].content, "阶段结果", "the latest part end and message content are reflected after each delta");
+  assert.equal(updated.blocks[1].activities[0].id, "command");
+  assert.equal(updated.blocks[2].label, "正在回复");
+});
+
 test("帧合并不能跨正文段，同一任务的正文只有一份", t => {
   let scheduled; frames(t, callback => { scheduled = callback; return 1; });
   let message = { ...fixture("streaming"), content: "", parts: [] };

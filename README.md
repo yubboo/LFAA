@@ -1,16 +1,17 @@
 <a id="readme-top"></a>
 
-# LFAA-Harness
+# LFAA-Harness：AI Agent 工作台与应用平台
 
 [English](README.en.md) · [文档总目录](docs/README.zh.md) · [开发文档索引](docs/development/README.zh.md)
 
-LFAA-Harness 是 LFAA 自有的通用 AI 智能体工作台与应用平台。它拥有自己的 Runtime、Profile/Bundle、第一方能力包和应用服务；运行 LFAA 不需要另外安装 DeepSeek Harness。
+**LFAA（小鱼智能体）是一款可自托管、与模型服务商解耦的 AI Agent 工作台与应用平台，面向本机和远程主机上的实际工作。** 用户描述目标后，当前已配置模型会按需选择已登记的 Skills、领域专家和 Tools；领域服务与经过认证的 Daemon 执行工作并返回真实结果。LFAA 自带 Runtime、Profile/Bundle、第一方能力包和应用服务，不需要另外安装 DeepSeek Harness。
 
 ## 目录
 
 - [项目定位](#project-overview)
 - [产品入口与工作方式](#product-workflow)
 - [主要能力与当前边界](#capabilities-and-status)
+- [常见问题](#common-questions)
 - [首次使用](#first-use)
 - [从源码运行 Web](#run-web)
 - [构建与打包命令](#build-and-package)
@@ -22,7 +23,7 @@ LFAA-Harness 是 LFAA 自有的通用 AI 智能体工作台与应用平台。它
 <a id="project-overview"></a>
 ## 项目定位
 
-LFAA 是一个由大模型驱动的工作台。用户提出目标，模型结合当前启用的能力规划步骤、按需选择已登记的提示词、Skill、领域专家和工具，并根据工具返回的真实结果继续处理。具体能力由 LFAA 的第一方插件和能力包装配；Profile 选择运行组合，Bundle 声明应用装配。
+在 `/work` 中，用户以自然语言描述目标；模型结合当前 Profile、系统级 Provider 配置和实际可用的能力规划工作，并依据工具返回的结果继续判断。具体能力由 LFAA 第一方插件和能力包装配；Profile 选择运行组合，Bundle 声明应用装配。
 
 产品由统一的 Agent 工作区和多个领域应用组成：Agent 负责理解目标、调用能力和汇报结果；领域应用提供传统操作界面和成果管理。二者共用对应的领域服务、数据和权限 Owner，避免聊天入口与手动页面各自实现一套业务规则。
 
@@ -46,7 +47,7 @@ flowchart LR
 工作流程如下：
 
 1. 用户在 `/work` 描述目标，或者在领域应用中执行手动操作。
-2. Agent 使用当前账户启用的 Provider 和模型；模型按目标发现、加载并选择真实可用的能力，不由关键词或固定业务流程替代模型判断。
+2. Agent 使用系统配置的 Provider 和活动模型；模型按目标发现、加载并选择真实可用的能力，不由关键词或固定业务流程替代模型判断。
 3. 工具调用进入其所属的业务 Owner，由 Owner 校验账户、数据范围、参数、节点和现有权限模式。
 4. 需要在主机上执行的工作经控制端派发给已认证的 Daemon；Daemon 返回执行状态和结果，Agent 再据此继续或结束任务。
 
@@ -65,12 +66,35 @@ flowchart LR
 
 能力登记、目录和包状态可在[Harness 包清单](docs/harness-packages.md)查看。目录中存在的包不一定已装配或可运行；请结合当前 Profile 和开发计划判断。
 
+<a id="common-questions"></a>
+## 常见问题
+
+### LFAA 是什么？
+
+LFAA 是可自托管的 AI Agent 工作台与应用平台：用户提出目标，模型按需使用已装配的 Skills、Tools、专家与插件，领域应用和服务负责各自的数据、权限与执行规则。
+
+### 使用 LFAA 需要另外安装 DeepSeek Harness 吗？
+
+不需要。LFAA 提供自己的 Runtime、Profile/Bundle、第一方能力包和应用服务；DeepSeek Harness 不需要单独安装。
+
+### 每个登录用户都要配置一套模型和 API Key 吗？
+
+不需要。管理员在设置中心「AI 与模型」维护系统共享的 Provider、模型和 API Key，所有登录用户读取同一模型集合。API Key 由控制端加密保存，不会返回浏览器；`aiRuntime` 等运行偏好仍由各自账户保存。
+
+### Agent 如何使用工具并操作远程主机？
+
+模型根据当前目标和真实可用目录选择 Tools；领域服务继续校验账户、参数、数据范围和权限模式。需要主机执行时，控制端把任务交给经过认证的 Daemon，并使用其返回的真实状态与结果。
+
+### 哪些能力已经可用？
+
+请查看上方能力表和[当前开发计划](docs/开发计划.md)。实际入口取决于 Profile、设置、权限、Provider 连接和节点状态；源码目录存在本身不代表该能力已经装配或可运行。
+
 <a id="first-use"></a>
 ## 首次使用
 
 1. 按下方命令构建并启动 Web，或在 Windows 使用根目录的 `lfaa.bat` 工作台。
 2. 在浏览器打开 `http://127.0.0.1:3000`。新数据目录首次访问时按页面提示创建超级管理员账户；已有数据目录直接使用原账户登录。
-3. 登录后进入“设置中心 → AI 与模型”，添加 Provider 账户、配置 API Key 并选择模型。模型账户和密钥由设置服务管理，密钥不会返回浏览器；Provider 请求可能按服务商规则计费。
+3. 管理员登录后进入“设置中心 → AI 与模型”，配置系统共享 Provider、API Key 和模型，并选择活动模型。所有登录用户共用这组模型；密钥由设置服务加密保存，不会返回浏览器。Provider 请求可能按服务商规则计费。
 4. 回到 `/work` 开始对话。需要使用游戏、写作或漫剧功能时，从全局导航打开对应应用；Agent 与手动操作共用其业务服务。
 5. 工具执行是否等待逐项审批，由设置中心的账户权限模式和具体操作风险决定。远程主机功能还要求节点已连接且具备对应能力。
 
@@ -167,7 +191,7 @@ dist/apps/desktop-electron/LFAA-<版本号>/
 <a id="data-model-permissions"></a>
 ## 数据、模型与权限
 
-- **模型账户：** 在设置中心配置 Provider 和模型。模型密钥由后端设置/凭据 Owner 保存，不放进前端或 README 示例中；真实请求可能产生 Provider 费用。
+- **系统模型：** 管理员在设置中心配置所有登录用户共享的 Provider、模型和 API Key；密钥由后端设置/凭据 Owner 加密保存，不放进前端或 README 示例中。账户级运行参数及图像/视频模型偏好仍按账户保存；真实请求可能产生 Provider 费用。
 - **用户数据：** 账户、会话、设置、项目和应用数据由各自 Owner 持久化，运行目录由 `LFAA_DATA_DIR` 等部署配置决定。换目录不会自动搬迁旧数据；迁移前应查看[存储说明](docs/subsystems/storage.zh.md)和[CLI 配置说明](docs/user/cli.zh.md#配置与数据)。
 - **权限执行：** 请求审批、替我审批、完全访问是设置中心统一提供的权限模式。工具仍须经过服务端身份、参数、目标和数据范围校验；完全访问不等于操作系统沙盒。
 - **公开部署：** 公网监听需要强 `JWT_SECRET` 和绝对持久化数据目录，不能把本机回环开发配置直接暴露到公网。请先阅读[CLI 配置与数据说明](docs/user/cli.zh.md#配置与数据)。

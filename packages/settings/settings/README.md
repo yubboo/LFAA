@@ -50,4 +50,4 @@ Agent 设置目录由 `src/agent-settings.ts` 从当前账户 `UserSettings` 与
 
 `mini` 是账户级设置分类，默认伙伴为 `moss`、显示开启、窗口置顶开启、不透明度 100%；读取、严格校验、持久化和 Agent 单字段回读继续归 Settings Owner。`getUserSettingsSyncStatus()` 只返回当前账户已保存的分类和最新更新时间，不返回设置值/秘密；它描述当前自托管 Control Plane，不承诺独立 Control Plane 自动复制。
 
-`canvas` 是账户级画布偏好分类，默认 `defaultMode: "generate"`、`gridStyle: "dots"`、`snapToGrid: false`、`showMiniMap: true`、`agentPanelDefaultOpen: false`。枚举与布尔字段由本包 Strict 校验，未知字段拒绝；`getUserSettings` 为无记录/缺字段的旧账户补共享默认值，`saveUserSettings` 在旧客户端遗漏新字段时合并当前值而不覆盖已保存选择。画布生成模型继续读取 `aiRuntime` 的图片/视频生成账户与模型，本分类不复制第二套模型配置，也不代表生成能力已接通。
+`canvas` 是账户级画布偏好分类，默认 `defaultMode: "generate"`、`gridStyle: "dots"`、`snapToGrid: false`、`showMiniMap: true`（在画布左上角显示缩略图）、`agentPanelDefaultOpen: false`。枚举与布尔字段由本包 Strict 校验，未知字段拒绝；`getUserSettings` 为无记录/缺字段的旧账户补共享默认值，`saveUserSettings` 在旧客户端遗漏新字段时合并当前值而不覆盖已保存选择。画布生成模型继续读取 `aiRuntime` 的图片/视频生成账户与模型，本分类不复制第二套模型配置，也不代表生成能力已接通。

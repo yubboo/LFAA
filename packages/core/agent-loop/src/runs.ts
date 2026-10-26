@@ -11,7 +11,7 @@ import type { AgentDefaultModelResolver } from "lfaa-agent-default-model/src/ind
 import type { UserApprovalNotifications } from "lfaa-user-approval/src/index.js";
 import type { UserQuestionService } from "lfaa-user-questions/src/index.js";
 import { getUserSettings } from "lfaa-settings/src/service.js";
-import { appendAiSteeringInput, createAiSessionBranchWithMemory as persistAiSessionBranchWithMemory, createAiTurn, getAiSessionPlanMode, getAiSideChatParentSessionId, prepareAiSessionBranchSeed, refreshAiTurnHistory, saveAiAssistantActivity, setAiSessionPlanMode, startQueuedAiTurn, finishAiAssistantMessage, getAiRun as readRun, interruptOrphanedAiRuns, listAiSessions, type AiModelMessage, type AiRunView, type AiSessionProjectContext } from "lfaa-session/src/sessions.js";
+import { appendAiSteeringInput, createAiSessionBranchWithMemory as persistAiSessionBranchWithMemory, createAiTurn, getAiSessionPlanMode, getAiSideChatParentSessionId, prepareAiSessionBranchSeed, refreshAiTurnHistory, saveAiAssistantActivity, setAiSessionPlanMode, startQueuedAiTurn, finishAiAssistantMessage, getAiRun as readRun, interruptOrphanedAiRuns, listAiSessions, type AiActivityItem, type AiModelMessage, type AiRunView, type AiSessionProjectContext } from "lfaa-session/src/sessions.js";
 import { logger } from "lfaa-telemetry-logger/src/logger.js";
 import { executeAiTurn } from "./execute-turn.js";
 import { summarizeBranchMemory } from "./branch-memory.js";
@@ -28,7 +28,7 @@ import { requestShutdown } from "./shutdown-state.js";
 export interface AiRunInput { appId: ApplicationId; sessionId: string | null; content: string; projectId?: string | null; gitRepositoryId?: string | null; attachmentIds?: string[]; attachments?: Array<{ id: string; name?: string }>; associations?: AgentAssociations; planMode?: boolean; workspaceView?: AgentWorkbenchView }
 interface AiUserQuestion { questionId: string; question: string; options: string[]; resolve: (value: { answer: string; skipped: boolean }) => void; signal: AbortSignal; abort: () => void }
 type Listener = (event: string, data: Record<string, unknown>) => void;
-interface LiveRun { id: string; userId: string; applicationId: ApplicationId; sessionId: string; canAskUser: boolean; controller: AbortController; pauseGate: AiRunPauseGate; children: Set<string>; pendingApprovals: Set<string>; listeners: Set<Listener>; completion: Promise<void>; content: string; parts: SessionReplyPart[]; inbox: AiModelMessage[]; pendingQuestion?: AiUserQuestion }
+interface LiveRun { id: string; userId: string; applicationId: ApplicationId; sessionId: string; parentRunId: string | null; employeeId: string; agentLabel: string; startedAt: string; canAskUser: boolean; controller: AbortController; pauseGate: AiRunPauseGate; children: Set<string>; pendingApprovals: Set<string>; listeners: Set<Listener>; completion: Promise<void>; content: string; parts: SessionReplyPart[]; inbox: AiModelMessage[]; pendingQuestion?: AiUserQuestion }
 const liveRuns = new Map<string, LiveRun>();
 let modelResolver: AgentDefaultModelResolver | undefined;
 let approvalNotifications: UserApprovalNotifications | undefined;
@@ -85,7 +85,59 @@ export function initializeAiRuns(resolver: AgentDefaultModelResolver, approvals:
 }
 export function getAiRun(userId: string, runId: string): AiRunView | null { const run = readRun(userId, runId); const live = liveRuns.get(runId); return run && live?.userId === userId ? { ...run, message: { ...run.message, content: live.content, parts: live.parts.map(part => ({ ...part })) } } : run; }
 
-interface RunOptions { depth?: number; modelAccountId?: string; allowedToolNames?: string[]; systemPrompt?: string; delegationBudget?: { used: number; maximum: number }; writeGate?: { denied: boolean }; canAskUser?: boolean; requestUserInput?: (input: { questionId: string; question: string; options: string[] }) => Promise<{ answer: string; skipped: boolean }>; memoryEligible?: boolean; workspaceProject?: AiSessionProjectContext | null; gitRepositoryId?: string | null }
+interface RunOptions { depth?: number; modelAccountId?: string; allowedToolNames?: string[]; systemPrompt?: string; delegationBudget?: { used: number; maximum: number }; writeGate?: { denied: boolean }; canAskUser?: boolean; requestUserInput?: (input: { questionId: string; question: string; options: string[] }) => Promise<{ answer: string; skipped: boolean }>; memoryEligible?: boolean; workspaceProject?: AiSessionProjectContext | null; gitRepositoryId?: string | null; parentRunId?: string; employeeId?: string; agentLabel?: string }
+
+export interface AiOfficeRunSnapshot {
+  id: string;
+  sessionId: string;
+  appId: ApplicationId;
+  parentRunId: string | null;
+  employeeId: string;
+  label: string;
+  task: string;
+  status: "queued" | "streaming";
+  pauseState: AiRunPauseState;
+  startedAt: string;
+  activities: Array<Pick<AiActivityItem, "kind" | "title" | "status" | "startedAt" | "completedAt">>;
+}
+
+/** 仅列出当前账户在本进程中实际运行的 Agent；公开活动白名单不包含详情、参数或模型推理。 */
+export function listAiOfficeRuns(userId: string): { runs: AiOfficeRunSnapshot[]; truncated: boolean } {
+  const active: LiveRun[] = [];
+  let total = 0;
+  for (const run of liveRuns.values()) {
+    if (run.userId !== userId) continue;
+    total += 1;
+    active.push(run);
+    if (active.length > 100) active.shift();
+  }
+  const runs: AiOfficeRunSnapshot[] = [];
+  for (const live of active) {
+    const view = getAiRun(userId, live.id);
+    if (!view || (view.status !== "queued" && view.status !== "streaming")) continue;
+    runs.push({
+      id: live.id,
+      sessionId: live.sessionId,
+      appId: live.applicationId,
+      parentRunId: live.parentRunId,
+      employeeId: live.employeeId,
+      label: live.agentLabel.slice(0, 120),
+      task: view.userMessage.content.slice(0, 200),
+      status: view.status,
+      pauseState: live.pauseGate.state,
+      startedAt: live.startedAt,
+      activities: view.message.activity.slice(-3).map(({ kind, title, status, startedAt, completedAt }) => ({
+        kind,
+        title: title.slice(0, 180),
+        status,
+        startedAt,
+        completedAt
+      }))
+    });
+  }
+  runs.sort((left, right) => left.startedAt.localeCompare(right.startedAt));
+  return { runs, truncated: total > 100 };
+}
 
 const sideChatSystemPrompt = "你是当前 AI Work 会话的侧边解释助手。用户会在主任务仍可能执行时向你提问。你只解释侧边聊天创建时已记录的会话上下文和一般知识；不要执行或声称执行文件、命令、项目、Daemon、审批或工具操作，也不要改变主聊天任务。上下文快照不含主聊天未完成的流式输出和实时进度；遇到相关问题时请明确说明你看不到未记录的部分。";
 
@@ -199,7 +251,7 @@ export function startAiRun(userId: string, userRole: UserRole, body: AiRunInput,
     for (const listener of run.listeners) { try { listener(event, data); } catch { run.listeners.delete(listener); } }
   };
   const pauseGate = new AiRunPauseGate(state => emit("pause-state", { runId: id, state }));
-  run = { id, userId, applicationId: body.appId, sessionId: turn.session.id, canAskUser, controller: new AbortController(), pauseGate, children: new Set(), pendingApprovals: new Set(), listeners: new Set(), completion: Promise.resolve(), content: "", parts: [], inbox: [] };
+  run = { id, userId, applicationId: body.appId, sessionId: turn.session.id, parentRunId: runOptions.parentRunId ?? null, employeeId: runOptions.employeeId ?? "lfaa.main-agent", agentLabel: runOptions.agentLabel ?? "小鱼主 Agent", startedAt: turn.assistantMessage.createdAt, canAskUser, controller: new AbortController(), pauseGate, children: new Set(), pendingApprovals: new Set(), listeners: new Set(), completion: Promise.resolve(), content: "", parts: [], inbox: [] };
   liveRuns.set(id, run);
   run.completion = (previous?.completion ?? Promise.resolve()).then(async () => {
     await run.pauseGate.checkpoint(run.controller.signal);
@@ -235,7 +287,7 @@ export function startAiRun(userId: string, userRole: UserRole, body: AiRunInput,
         let childStarted = false; const startChild = async (signal?: AbortSignal) => { if (childStarted) throw new Error("同一委派只允许启动一个子任务。"); childStarted = true;
         run.controller.signal.throwIfAborted();
         signal?.throwIfAborted();
-        const child = startAiRun(userId, userRole, { appId: body.appId, sessionId: null, content: String(parameters.task) }, aiPluginHost, { depth: depth + 1, modelAccountId: typeof parameters.modelAccountId === "string" ? parameters.modelAccountId : currentRuntime.subagentAccountId || account.accountId, allowedToolNames: requested, systemPrompt: ["你是主 Agent 委派的子 Agent。围绕本次子任务自主选择工具、检查结果和完成验证；返回产物、执行证据和未解决事项。", typeof parameters.expertInstructions === "string" ? parameters.expertInstructions : ""].filter(Boolean).join("\n\n"), delegationBudget: budget, writeGate, canAskUser: false, workspaceProject, gitRepositoryId: getAgentGitSessionRepository(userId, turn.session.id)?.id ?? null });
+        const child = startAiRun(userId, userRole, { appId: body.appId, sessionId: null, content: String(parameters.task) }, aiPluginHost, { depth: depth + 1, modelAccountId: typeof parameters.modelAccountId === "string" ? parameters.modelAccountId : currentRuntime.subagentAccountId || account.accountId, allowedToolNames: requested, systemPrompt: ["你是主 Agent 委派的子 Agent。围绕本次子任务自主选择工具、检查结果和完成验证；返回产物、执行证据和未解决事项。", typeof parameters.expertInstructions === "string" ? parameters.expertInstructions : ""].filter(Boolean).join("\n\n"), delegationBudget: budget, writeGate, canAskUser: false, workspaceProject, gitRepositoryId: getAgentGitSessionRepository(userId, turn.session.id)?.id ?? null, parentRunId: id, employeeId: typeof parameters.officeEmployeeId === "string" ? parameters.officeEmployeeId : "lfaa.subagent", agentLabel: typeof parameters.officeAgentLabel === "string" ? parameters.officeAgentLabel : "委派子 Agent" });
         const childLive = liveRuns.get(child.id)!;
         run.children.add(child.id);
         const abortChild = () => childLive.controller.abort();

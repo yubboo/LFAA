@@ -4,6 +4,7 @@
 
 - `GET /ai/sessions/:sessionId/messages` 返回当前账户拥有的消息投影，并附带已完成助手消息的反馈状态；首屏分页会在同一日志扫描中附带同账户、同 App 的分支来源会话，客户端不能指定来源。
 - `GET /ai/usage` 返回当前认证账户的历史用量汇总；Session Owner 从重放期间维护的账户/Provider/模型投影读取，不在请求中遍历历史会话。
+- `GET /ai/office` 只返回当前认证账户活动 Agent Run 的有界摘要、已登记专家元数据和活动外部子代理标签；隐藏推理、活动详情/工具参数与跨账户运行均不返回。父子 Run 与公开活动由 Agent Loop 持有，外部驱动状态由 Subagent Manager 提供。
 - 客户端断开分页响应时，Controller 取消对应 AbortSignal 并终止尚未完成的 JSONL 扫描；认证、账户归属和游标验证仍先于消息读取。
 - `POST /ai/sessions/:sessionId/messages/:messageId/feedback` 为已完成助手消息接收一条有界的正向或负向反馈；事件由 Session JSONL Owner 持久化。
 - `POST /ai/sessions/:sessionId/fork` 接收助手 `messageId`；Agent Loop 通过当前已配置 Provider、使用无工具请求整理截至该回答的有界对话记忆，Session Owner 只持久化记忆与来源关系，不复制父会话消息/工具事件。摘要失败时不创建子会话；客户端不能指定边界或替换记忆。

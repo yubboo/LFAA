@@ -20,11 +20,15 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, ty
 import {
   ApiError, cancelCanvasVideo, createCanvasProject, deleteCanvasAsset, deleteCanvasProject, generateCanvasImage, getErrorMessage,
   loadCanvasProject, loadCanvasProjects, refreshCanvasVideo, saveCanvasProject, startCanvasVideo, uploadCanvasAsset,
-  type ApplicationId, type CanvasAsset, type CanvasEdge, type CanvasNode, type CanvasProject, type CanvasProjectSummary, type User, type UserSettings
+  type ApplicationId, type CanvasAsset, type CanvasEdge, type CanvasNode, type CanvasProject, type CanvasProjectSummary, type UserSettings
 } from "lfaa-client-connection/src/api.js";
-import type { ApplicationNavigationItem } from "lfaa-client-ui-sidebar/src/GlobalNavigationRail.js";
-import type { ServiceState } from "lfaa-client-ui-primitives/src/ServiceStatus.js";
+import { ResizableWorkbench } from "lfaa-client-ui-dockkit/src/ResizableWorkbench.js";
+import { useWorkbenchMetrics } from "lfaa-client-ui-dockkit/src/use-workbench-metrics.js";
+import { resolveWorkbenchLayoutMetrics } from "lfaa-client-ui-dockkit/src/workbench-layout.config.js";
+import type { WorkbenchLayoutMetrics } from "lfaa-client-ui-dockkit/src/workbench-layout.config.js";
+import type { WorkbenchPaneLimits } from "lfaa-client-ui-dockkit/src/workbench-layout.types.js";
 import { CanvasAssetPanel, type CanvasProjectAsset } from "./CanvasAssetPanel.js";
+import { CanvasDirectorDeskEditor } from "./CanvasDirectorDeskEditor.js";
 import {
   CANVAS_ASPECT_RATIO_OPTIONS, CANVAS_LIMITS, MAX_IMPORT_FILE_BYTES, MAX_TRANSFER_BYTES,
   buildCanvasExportDocument, buildCanvasProjectPayload, canvasAssetByteLimit, canvasAssetKind, canvasExportFileName,
@@ -47,6 +51,8 @@ const DEFAULT_VIEWPORT: Viewport = { x: 0, y: 0, zoom: 1 };
 const EMPTY_ASSETS: CanvasAsset[] = [];
 const HISTORY_LIMIT = 50;
 const TEXT_HISTORY_DELAY_MS = 700;
+/** 画布助手右栏上限占工作区 40%，保证中心画布始终更宽。 */
+const CANVAS_CHAT_MAX_WIDTH_SHARE = 0.4;
 
 /** 新建节点的默认尺寸；仍受画布服务端 120–800 的权威范围校验。 */
 const NODE_DEFAULT_SIZE: Record<CanvasNodeKind, { width: number; height: number }> = {
@@ -59,7 +65,7 @@ const NODE_DEFAULT_SIZE: Record<CanvasNodeKind, { width: number; height: number 
   subject: { width: 340, height: 360 },
   timeline: { width: 380, height: 340 },
   "director-toolbox": { width: 340, height: 300 },
-  "director-desk": { width: 340, height: 260 },
+  "director-desk": { width: 340, height: 300 },
   script: { width: 360, height: 340 },
   asset: { width: 300, height: 220 }
 };
@@ -310,22 +316,21 @@ function withoutNodeReference(node: CanvasFlowNode, removedId: string): CanvasFl
 }
 
 export interface CanvasWorkspaceProps {
-  user: User;
   applicationId: ApplicationId;
   initialProjectId?: string;
   settings: UserSettings;
-  serverState: ServiceState;
-  applications: ApplicationNavigationItem[];
-  navigationApplications: ApplicationNavigationItem[];
+  applications: Array<{ title: string; applicationId: ApplicationId }>;
   onNavigate: (path: string) => void;
-  onOpenApplication: (app: ApplicationId, mode: "normal") => Promise<void>;
-  onOpenApplications?: () => void;
-  onOpenRecentSessions: () => void;
   onOpenSettings: () => void;
-  onLogout: () => void;
+  chatPanel: ReactNode;
 }
 
-export function CanvasWorkspace({ applicationId, initialProjectId, settings, applications, onNavigate, onOpenSettings }: CanvasWorkspaceProps) {
+function initialCanvasWorkbenchMetrics(): WorkbenchLayoutMetrics {
+  if (typeof window === "undefined") return resolveWorkbenchLayoutMetrics(1200, 800, true);
+  return resolveWorkbenchLayoutMetrics(window.innerWidth, window.innerHeight, true);
+}
+
+export function CanvasWorkspace({ applicationId, initialProjectId, settings, applications, onNavigate, onOpenSettings, chatPanel }: CanvasWorkspaceProps) {
   const canvasSettings = resolveCanvasSettings(settings);
   const [loading, setLoading] = useState(true);
   const [summaries, setSummaries] = useState<CanvasProjectSummary[]>([]);
@@ -345,6 +350,7 @@ export function CanvasWorkspace({ applicationId, initialProjectId, settings, app
   const [conflict, setConflict] = useState(false);
   const [assetsOpen, setAssetsOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(() => resolveCanvasSettings(settings).agentPanelDefaultOpen);
+  const [chatMounted, setChatMounted] = useState(() => resolveCanvasSettings(settings).agentPanelDefaultOpen);
   const [mode, setMode] = useState<CanvasMode>(() => resolveCanvasSettings(settings).defaultMode === "canvas" ? "canvas" : "generate");
   const [addMenu, setAddMenu] = useState<{ x: number; y: number; position: { x: number; y: number } } | null>(null);
   const [prompt, setPrompt] = useState("");
@@ -360,6 +366,7 @@ export function CanvasWorkspace({ applicationId, initialProjectId, settings, app
   const [historyRevision, setHistoryRevision] = useState(0);
   const [compactViewport, setCompactViewport] = useState(() => typeof window !== "undefined" && window.matchMedia("(max-height: 640px), (max-width: 640px)").matches);
   const [generateExpanded, setGenerateExpanded] = useState(false);
+  const [directorDeskNodeId, setDirectorDeskNodeId] = useState<string | null>(null);
   const runningVideoRef = useRef<string[]>([]);
 
   const mountedRef = useRef(true);
@@ -376,6 +383,8 @@ export function CanvasWorkspace({ applicationId, initialProjectId, settings, app
   const editRevision = useRef(0);
   const viewportRef = useRef<Viewport>(DEFAULT_VIEWPORT);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const workbenchRef = useRef<HTMLDivElement>(null);
+  const chatLaunchButtonRef = useRef<HTMLButtonElement>(null);
   const flowRef = useRef<ReactFlowInstance<CanvasFlowNode, Edge> | null>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -402,6 +411,35 @@ export function CanvasWorkspace({ applicationId, initialProjectId, settings, app
   promptRef.current = prompt;
   referenceIdsRef.current = referenceIds;
   generationTargetIdRef.current = generationTargetId;
+
+  const workbenchMetrics = useWorkbenchMetrics(workbenchRef, initialCanvasWorkbenchMetrics, true);
+  const chatRightLimits = useMemo<WorkbenchPaneLimits>(() => {
+    const max = Math.max(
+      workbenchMetrics.right.min,
+      Math.min(workbenchMetrics.right.max, Math.round(workbenchMetrics.containerWidth * CANVAS_CHAT_MAX_WIDTH_SHARE))
+    );
+    return {
+      ...workbenchMetrics.right,
+      max,
+      initial: Math.min(max, Math.max(workbenchMetrics.right.min, workbenchMetrics.right.initial))
+    };
+  }, [workbenchMetrics]);
+
+  const openChatPanel = useCallback(() => {
+    setChatMounted(true);
+    setChatOpen(true);
+    setAssetsOpen(false);
+  }, []);
+
+  const closeChatPanel = useCallback(() => {
+    setChatOpen(false);
+    window.requestAnimationFrame(() => chatLaunchButtonRef.current?.focus());
+  }, []);
+
+  const handleRightCollapsedChange = useCallback((collapsed: boolean) => {
+    if (!collapsed) setChatMounted(true);
+    setChatOpen(!collapsed);
+  }, []);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -546,6 +584,16 @@ export function CanvasWorkspace({ applicationId, initialProjectId, settings, app
     markDirty();
   }, [commitHistory, markDirty, setEdges, setNodes]);
 
+  const onOpenDirectorDesk = useCallback((id: string) => {
+    const target = nodesRef.current.find(node => node.id === id && node.data.kind === "director-desk");
+    if (!target || saving || generationBusy || operation !== null || openingId !== null || deletingProjectId !== null || deletingAssetId !== null) return;
+    setError("");
+    setAssetsOpen(false);
+    setChatOpen(false);
+    setMode("canvas");
+    setDirectorDeskNodeId(id);
+  }, [deletingAssetId, deletingProjectId, generationBusy, openingId, operation, saving]);
+
   const updateProjectMeta = useCallback((updated: CanvasProject) => {
     projectRef.current = updated;
     setProject(updated);
@@ -601,12 +649,14 @@ export function CanvasWorkspace({ applicationId, initialProjectId, settings, app
     onTextChange,
     onPatch,
     onRemove,
+    onOpenDirectorDesk,
     onRefreshGeneration: nodeId => { void refreshGeneration(nodeId); },
     onCancelGeneration: nodeId => { void cancelGeneration(nodeId); }
-  }), [cancelGeneration, onPatch, onRemove, onTextChange, refreshGeneration]);
+  }), [cancelGeneration, onOpenDirectorDesk, onPatch, onRemove, onTextChange, refreshGeneration]);
 
   const applyProject = useCallback((next: CanvasProject) => {
     editRevision.current += 1;
+    setDirectorDeskNodeId(null);
     projectRef.current = next;
     viewportRef.current = next.viewport ?? DEFAULT_VIEWPORT;
     setProject(next);
@@ -964,6 +1014,11 @@ export function CanvasWorkspace({ applicationId, initialProjectId, settings, app
       if (mountedRef.current) setSaving(false);
     }
   }, [applicationId, canvasCallbacks, setEdges, setNodes]);
+
+  const saveAndCloseDirectorDesk = useCallback(async () => {
+    const saved = await saveProjectNow();
+    if (saved) setDirectorDeskNodeId(null);
+  }, [saveProjectNow]);
 
   saveActionRef.current = () => { void saveProjectNow(); };
 
@@ -1380,6 +1435,7 @@ export function CanvasWorkspace({ applicationId, initialProjectId, settings, app
 
   const generationTargetNode = generationTargetId ? nodes.find(node => node.id === generationTargetId && node.data.kind === "generation") ?? null : null;
   const generationConfigured = generationKind === "image" ? imageGenerationConfigured : videoGenerationConfigured;
+  const directorDeskNode = directorDeskNodeId ? nodes.find(node => node.id === directorDeskNodeId && node.data.kind === "director-desk") ?? null : null;
 
   // 选中生成节点时把它的提示词/比例带进生成工作台，便于直接“重新生成”（数据来自项目真实记录）。
   useEffect(() => {
@@ -1422,29 +1478,28 @@ export function CanvasWorkspace({ applicationId, initialProjectId, settings, app
     setMention(null);
   }, [mention, prompt]);
 
-  const copyCanvasContext = useCallback(async () => {
-    const current = projectRef.current;
-    if (!current) return;
-    const context = {
-      applicationId,
-      projectId: current.id,
-      title: titleRef.current,
-      nodeCount: nodesRef.current.length + unsupportedNodesRef.current.length,
-      nodes: nodesRef.current.map(node => ({ id: node.id, type: node.data.kind })),
-      assets: current.assets.map(asset => ({ assetId: asset.assetId, name: asset.name, mimeType: asset.mimeType }))
-    };
-    try {
-      await navigator.clipboard.writeText(JSON.stringify(context, null, 2));
-      setNotice("已复制当前画布上下文，可粘贴到对话里继续协作。");
-    } catch {
-      setError("浏览器未允许写入剪贴板。");
-    }
-  }, [applicationId]);
-
   return (
     <div className="lfaa-cnv-outer">
       <section className="lfaa-cnv-workspace" aria-label="无限画布工作区" aria-busy={loading || saving || operation !== null} data-testid="canvas-workspace">
-        <div className="lfaa-cnv-stage" ref={canvasRef} onDoubleClick={handleStageDoubleClick}>
+        <ResizableWorkbench
+          className="lfaa-cnv-workbench"
+          rootElementRef={workbenchRef}
+          left={null}
+          leftVisible={false}
+          leftCollapsed
+          centerRegionClassName="lfaa-cnv-workbench__center"
+          rightRegionClassName="lfaa-cnv-workbench__right"
+          rightLimits={chatRightLimits}
+          containerWidth={workbenchMetrics.containerWidth}
+          minCenterWidth={workbenchMetrics.minCenterWidth}
+          layoutMode={workbenchMetrics.mode}
+          responsiveRightDock
+          persistState={false}
+          rightCollapsed={!chatOpen}
+          onRightCollapsedChange={handleRightCollapsedChange}
+          center={
+          <div className="lfaa-cnv-center-content">
+          <div className="lfaa-cnv-stage" ref={canvasRef} onDoubleClick={handleStageDoubleClick}>
           {loading ? (
             <div className="lfaa-cnv-loading"><Spin /><span>正在读取当前 App 的画布项目…</span></div>
           ) : project ? (
@@ -1499,6 +1554,7 @@ export function CanvasWorkspace({ applicationId, initialProjectId, settings, app
                 {canvasSettings.showMiniMap ? (
                   <MiniMap
                     className="lfaa-cnv-minimap"
+                    position="top-left"
                     pannable
                     zoomable
                     ariaLabel="画布缩略图"
@@ -1567,7 +1623,6 @@ export function CanvasWorkspace({ applicationId, initialProjectId, settings, app
             <Tooltip title="撤销（Ctrl+Z）"><Button size="small" type="text" className="lfaa-cnv-topbar__icon lfaa-cnv-wide-only" aria-label="撤销" data-testid="canvas-undo" icon={<UndoOutlined />} disabled={!historyState.canUndo} onClick={undo} /></Tooltip>
             <Tooltip title="重做（Ctrl+Shift+Z）"><Button size="small" type="text" className="lfaa-cnv-topbar__icon lfaa-cnv-wide-only" aria-label="重做" data-testid="canvas-redo" icon={<RedoOutlined />} disabled={!historyState.canRedo} onClick={redo} /></Tooltip>
             <Tooltip title="保存画布（Ctrl+S）"><Button size="small" type="text" className="lfaa-cnv-topbar__icon" aria-label="保存画布" data-testid="canvas-save" aria-keyshortcuts="Control+S" icon={<SaveOutlined />} loading={saving} disabled={!project || !dirty || interactionLocked} onClick={() => void saveProjectNow()} /></Tooltip>
-            <Tooltip title="打开小鱼对话"><Button size="small" type="text" className="lfaa-cnv-topbar__icon" aria-label="打开画布对话" data-testid="canvas-agent-toggle" aria-pressed={chatOpen} icon={<MessageOutlined />} onClick={() => { setChatOpen(current => !current); setAssetsOpen(false); }} /></Tooltip>
             <Tooltip title="设置中心"><Button size="small" type="text" className="lfaa-cnv-topbar__icon" aria-label="设置中心" icon={<SettingOutlined />} onClick={onOpenSettings} /></Tooltip>
             <Dropdown
               trigger={["click"]}
@@ -1756,26 +1811,49 @@ export function CanvasWorkspace({ applicationId, initialProjectId, settings, app
           </section>
         )) : null}
 
-        {chatOpen ? (
-          <aside className="lfaa-cnv-drawer lfaa-cnv-chat is-open" aria-label="画布对话" data-testid="canvas-chat-drawer">
-            <header className="lfaa-cnv-drawer__header">
-              <div className="lfaa-cnv-drawer__heading"><strong>画布对话</strong></div>
-              <Button className="lfaa-cnv-drawer__close" size="small" type="text" aria-label="关闭对话" onClick={() => setChatOpen(false)}>关闭</Button>
-            </header>
-            <div className="lfaa-cnv-chat__body">
-              <p><strong>当前画布：</strong>{title || "未命名画布"}</p>
-              <p><strong>App：</strong>{applicationId} · <strong>项目 ID：</strong>{project?.id ?? "—"}</p>
-              <p><strong>节点：</strong>{totalNodeCount} 个 · <strong>素材：</strong>{project?.assets.length ?? 0} 个</p>
-              <p className="lfaa-cnv-drawer__hint">
-                工作区没有内嵌聊天窗口：ui-chat 的 AiWorkChat 需要完整的会话状态（会话列表、流式运行、附件、项目选择与审批），
-                直接嵌入会复制第二套会话机制。这里提供真实会话入口与当前画布上下文说明，不显示伪造的对话或结果。
-              </p>
-              <div className="lfaa-cnv-chat__actions">
-                <Button type="primary" onClick={() => onNavigate("/work")}>打开小鱼对话</Button>
-                <Button onClick={() => void copyCanvasContext()}>复制画布上下文</Button>
-              </div>
-            </div>
-          </aside>
+          </div>
+          }
+          right={chatMounted ? (
+            <aside
+              id="canvas-chat-panel"
+              className="lfaa-cnv-chat-pane"
+              aria-label="小鱼助手对话"
+              data-testid="canvas-chat-drawer"
+            >
+              <header className="lfaa-cnv-chat-pane__header">
+                <strong>小鱼助手</strong>
+                <Button className="lfaa-cnv-chat-pane__close" size="small" type="text" aria-label="关闭小鱼助手" onClick={closeChatPanel}>关闭</Button>
+              </header>
+              <div className="lfaa-cnv-chat-pane__body">{chatPanel}</div>
+            </aside>
+          ) : null}
+          overlay={!chatOpen ? (
+            <Button
+              ref={chatLaunchButtonRef}
+              className="lfaa-cnv-chat-launch"
+              type="default"
+              icon={<MessageOutlined />}
+              aria-label="与 AI 对话"
+              aria-expanded={false}
+              aria-controls="canvas-chat-panel"
+              data-testid="canvas-chat-launch"
+              onClick={openChatPanel}
+            >与 AI 对话</Button>
+          ) : null}
+        />
+
+        {directorDeskNode ? (
+          <CanvasDirectorDeskEditor
+            key={directorDeskNode.id}
+            desk={directorDeskNode.data.desk ?? { shotNodeIds: [] }}
+            snapToGrid={canvasSettings.snapToGrid}
+            saving={saving}
+            disabled={interactionLocked || generationBusy || !project}
+            error={error}
+            onChange={desk => onPatch(directorDeskNode.id, { desk })}
+            onClose={() => setDirectorDeskNodeId(null)}
+            onSaveAndClose={() => { void saveAndCloseDirectorDesk(); }}
+          />
         ) : null}
 
         {assetsOpen ? <button type="button" className="lfaa-cnv-scrim" aria-label="关闭资产库" onClick={() => setAssetsOpen(false)} /> : null}

@@ -50,6 +50,7 @@ export interface CanvasNodeCallbacks {
   onTextChange: (id: string, text: string) => void;
   onPatch: (id: string, patch: Record<string, unknown>) => void;
   onRemove: (id: string) => void;
+  onOpenDirectorDesk: (id: string) => void;
   onRefreshGeneration?: (id: string) => void;
   onCancelGeneration?: (id: string) => void;
 }
@@ -285,7 +286,8 @@ const DeskNodeCard = memo(function DeskNodeCard({ id, data, selected }: NodeProp
         <span>镜头节点</span>
         <Select className="nodrag" size="small" mode="multiple" allowClear placeholder="选择要上导演台的节点" value={desk.shotNodeIds} options={options} onChange={(shotNodeIds: string[]) => patch({ shotNodeIds })} />
       </label>
-      <p className="lfaa-cnv-node__advice">导演台只编排镜头顺序与引用；真实视频合成与剪辑导出尚无媒体处理 Owner，本轮不提供。</p>
+      <Button className="nodrag nopan" type="primary" size="small" block data-testid="canvas-director-open" onClick={() => data.onOpenDirectorDesk(id)}>进入导演台</Button>
+      <p className="lfaa-cnv-node__advice">白模、机位与灯光保存在当前画布项目中。</p>
     </NodeShell>
   );
 });

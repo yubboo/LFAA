@@ -2,7 +2,7 @@
 
 持有 runtime_* 模型合同，检测、安装、校验、登记、取消与设备状态归 RuntimeManager。
 
-公共合同：复用原工具参数与设置，目标必须是 local 或真实节点 ID；Microsoft 安装包下载不等于系统安装。
+公共合同：复用原工具参数与设置，目标必须是 local 或真实节点 ID；Java 安装可以显式指定登记的 Temurin/Zulu 发行版与 Zulu 精确版本，不提供任意 URL。Microsoft 安装包下载不等于系统安装。
 
 运行位置：Control Plane 的 Cordis 插件或内部合同库，由 base Bundle 装配；不运行在浏览器，不将凭据或节点进程带入客户端。依赖以本包 package.json 为准，真实消费者见生成包清单的静态证据。源码/装配声明与现场运行验收分别记录。
 

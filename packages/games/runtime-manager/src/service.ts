@@ -60,16 +60,19 @@ export class RuntimeManager {
     const matches=runtimes.filter(runtime=>runtime.major===major);
     return {targetId,requiredMajor:major,installed:matches.length>0,runtimes:matches,storage:runtimeStorageFor(targetId),note:matches.length?"已发现匹配的实际运行环境，执行时仍会校验可执行文件。":"没有已验证的匹配环境，可选择安装或注册已有路径。"};
   }
-  schedule(input:{targetId:string;userId:string;appId:ApplicationId;operation:RuntimeOperation;major?:number;runtimeId?:string;executablePath?:string;packageId?:string}):RuntimeTask {
+  schedule(input:{targetId:string;userId:string;appId:ApplicationId;operation:RuntimeOperation;major?:number;runtimeId?:string;executablePath?:string;packageId?:string;distribution?:"temurin"|"zulu";version?:string}):RuntimeTask {
     if(!["detect","install","verify","register","remove","forget","update"].includes(input.operation))throw new ApiError(400,"runtime_operation_unavailable","没有登记此环境操作。");
     if(["verify","remove","forget","update"].includes(input.operation)&&!input.runtimeId)throw new ApiError(400,"runtime_id_required","此操作需要当前设备检测结果中的环境 ID。");
     if(input.operation==="register"&&!input.executablePath)throw new ApiError(400,"runtime_path_required","注册环境需要完整可执行文件路径。");
     if(input.targetId!=="local"){listDaemonNodes();const node=getDaemonNode(input.targetId);if(!node||node.status!=="online"||!node.capabilities.includes("runtime-environment-v1"))throw new ApiError(409,"runtime_target_unavailable","目标节点离线或尚未加载统一运行环境执行器。");}
     if(input.packageId&&(!windowsRuntimeCatalog.some(item=>item.id===input.packageId)||input.operation!=="install"))throw new ApiError(400,"runtime_package_invalid","未登记此运行库下载操作。");
+    if(input.distribution&&(!["temurin","zulu"].includes(input.distribution)||input.operation!=="install"||input.packageId))throw new ApiError(400,"runtime_distribution_invalid","发行版只适用于已登记的 Java 安装操作。");
+    if(input.version&&(input.operation!=="install"||input.distribution!=="zulu"||!/^\d{1,2}(?:\.\d{1,3}){2,3}$/u.test(input.version)||Number(input.version.split(".")[0])!==input.major))throw new ApiError(400,"runtime_version_invalid","精确版本只支持与主版本一致的已登记 Zulu Java 安装。");
+    if(input.packageId&&(input.distribution||input.version))throw new ApiError(400,"runtime_package_invalid","Microsoft 组件包不能指定 Java 发行版或版本。");
     if(!input.packageId&&["install","update"].includes(input.operation)&&(!Number.isInteger(input.major)||input.major!<8||input.major!>40))throw new ApiError(400,"runtime_major_invalid","请输入有效 Java 主版本。");
     if(["remove","update"].includes(input.operation)&&input.major)assertRuntimeUnused(input.targetId,input.major);
     const storage=runtimeStorageFor(input.targetId);
-    return createRuntimeTask({targetId:input.targetId,userId:input.userId,appId:input.appId,operation:input.operation,payload:{...(input.packageId?{packageId:input.packageId}:{}),...(input.major?{major:input.major}:{}),...(input.runtimeId?{runtimeId:input.runtimeId}:{}),...(input.executablePath?{executablePath:input.executablePath}:{}),storage,downloadTimeoutSeconds:getUserSettings(input.userId).minecraftRuntime.minecraftDownloadTimeoutSeconds}});
+    return createRuntimeTask({targetId:input.targetId,userId:input.userId,appId:input.appId,operation:input.operation,payload:{...(input.packageId?{packageId:input.packageId}:{}),...(input.major?{major:input.major}:{}),...(input.runtimeId?{runtimeId:input.runtimeId}:{}),...(input.executablePath?{executablePath:input.executablePath}:{}),...(input.distribution?{distribution:input.distribution}:{}),...(input.version?{version:input.version}:{}),storage,downloadTimeoutSeconds:getUserSettings(input.userId).minecraftRuntime.minecraftDownloadTimeoutSeconds}});
   }
   start():()=>Promise<void> {
     this.stopped=false;

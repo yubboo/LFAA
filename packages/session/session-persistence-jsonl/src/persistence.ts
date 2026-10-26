@@ -18,6 +18,8 @@ interface SessionEvent { format: 1; sessionId: string; transaction: string; chan
 type SessionRevision = { sequence: number; checksum: string; size: number; mtimeMs: number; ctimeMs: number; dev: number; ino: number };
 export interface SessionRewriteResult { rewrittenTransactions: number; commits: SessionCommit[] }
 export interface SessionStorageLocation { rootDirectory: string; sessionDirectory: string; eventFile: string }
+export const sessionStorageIndexFileName = "会话目录索引.txt";
+export const sessionStorageIndexTempName = /^\.session-index-[0-9a-f-]{36}\.tmp$/u;
 
 export class JsonlSessionPersistence {
   private readonly applied = new Map<string, Set<string>>();
@@ -37,6 +39,10 @@ export class JsonlSessionPersistence {
     this.applied.clear(); this.revisions.clear();
     for (const entry of readdirSync(this.root, { withFileTypes: true })) {
       if (entry.name === ".writer.lock") continue;
+      if (entry.name === sessionStorageIndexFileName || sessionStorageIndexTempName.test(entry.name)) {
+        if (!entry.isFile()) throw new Error("会话存储中存在未知目录项。");
+        continue;
+      }
       if (!entry.isDirectory() || !/^[a-f0-9]{64}$/u.test(entry.name)) throw new Error("会话存储中存在未知目录项。");
       yield* this.readDirectory(resolve(this.root, entry.name));
     }

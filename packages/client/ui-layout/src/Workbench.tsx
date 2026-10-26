@@ -55,9 +55,9 @@ interface AiWorkUiState {
 
 let settingsPageModulePromise: Promise<typeof import("lfaa-client-ui-settings/src/SettingsPage.js")> | null = null;
 let fileManagerPageModulePromise: Promise<typeof import("lfaa-client-ui-sidebar-files/src/FileManagerPage.js")> | null = null;
-let canvasWorkspaceModulePromise: Promise<typeof import("lfaa-client-ui-workspace/src/CanvasWorkspace.js")> | null = null;
 let canvasHomeModulePromise: Promise<typeof import("lfaa-client-ui-workspace/src/CanvasHome.js")> | null = null;
 let pluginManagerPageModulePromise: Promise<typeof import("lfaa-client-ui-plugin-manager/src/PluginManagerPage.js")> | null = null;
+let agentOfficePageModulePromise: Promise<typeof import("lfaa-client-ui-workspace/src/AgentOfficePage.js")> | null = null;
 let aiWorkChatPreloadPromise: Promise<void> | null = null;
 
 const PORTAL_APPEARANCE_VARIABLES = [
@@ -82,16 +82,6 @@ function loadFileManagerPageModule() {
   return fileManagerPageModulePromise;
 }
 
-function loadCanvasWorkspaceModule() {
-  if (!canvasWorkspaceModulePromise) {
-    canvasWorkspaceModulePromise = loadClientModule<typeof import("lfaa-client-ui-workspace/src/CanvasWorkspace.js")>("lfaa-client-ui-workspace/src/CanvasWorkspace.js").catch((error: unknown) => {
-      canvasWorkspaceModulePromise = null;
-      throw error;
-    });
-  }
-  return canvasWorkspaceModulePromise;
-}
-
 function loadCanvasHomeModule() {
   if (!canvasHomeModulePromise) {
     canvasHomeModulePromise = loadClientModule<typeof import("lfaa-client-ui-workspace/src/CanvasHome.js")>("lfaa-client-ui-workspace/src/CanvasHome.js").catch((error: unknown) => {
@@ -110,6 +100,16 @@ function loadPluginManagerPageModule() {
     });
   }
   return pluginManagerPageModulePromise;
+}
+
+function loadAgentOfficePageModule() {
+  if (!agentOfficePageModulePromise) {
+    agentOfficePageModulePromise = loadClientModule<typeof import("lfaa-client-ui-workspace/src/AgentOfficePage.js")>("lfaa-client-ui-workspace/src/AgentOfficePage.js").catch((error: unknown) => {
+      agentOfficePageModulePromise = null;
+      throw error;
+    });
+  }
+  return agentOfficePageModulePromise;
 }
 
 // 懒加载和提前预热共用同一个模块请求；失败时清空缓存，后续进入设置页仍可重试。
@@ -178,9 +178,9 @@ function gameLibraryApplicationRoute(pathname: string): string[] | null {
 
 const SettingsPage = lazy(() => loadSettingsPageModule().then((module) => ({ default: module.SettingsPage })));
 const FileManagerPage = lazy(() => loadFileManagerPageModule().then((module) => ({ default: module.FileManagerPage })));
-const CanvasWorkspace = lazy(() => loadCanvasWorkspaceModule().then((module) => ({ default: module.CanvasWorkspace })));
 const CanvasHome = lazy(() => loadCanvasHomeModule().then((module) => ({ default: module.CanvasHome })));
 const PluginManagerPage = lazy(() => loadPluginManagerPageModule().then((module) => ({ default: module.PluginManagerPage })));
+const AgentOfficePage = lazy(() => loadAgentOfficePageModule().then((module) => ({ default: module.AgentOfficePage })));
 const ApplicationWorkspace = lazy(() => loadClientModule<typeof import("lfaa-client-ui-workspace/src/ApplicationWorkspace.js")>("lfaa-client-ui-workspace/src/ApplicationWorkspace.js").then((module) => ({ default: module.ApplicationWorkspace })));
 
 function readActiveAiSession(userId: string, app: ApplicationId): string | null {
@@ -377,16 +377,20 @@ export function Workbench({
   authTransitionStaging = false,
   onAuthTransitionWarmupReady
 }: WorkbenchProps) {
-  const appRoute = route === "/voice"
+  const appCanvasRoute = route.match(APP_CANVAS_ROUTE_PATTERN);
+  const appRoute = appCanvasRoute
+    ? [route, "workspace", "ai-work", "canvas"]
+    : route === "/voice"
     ? [route, "workspace", "ai-work", "voice"]
     : normalizeWorkRoute(route) === SHARED_WORK_ROUTE ? [route, "workspace", "ai-work", "overview"] : gameLibraryApplicationRoute(route) ?? route.match(APPLICATION_ROUTE_PATTERN);
   const isGameLibraryRoute = route === "/games" || route.startsWith("/games/");
   const isAiWorkRoute = appRoute?.[1] === "workspace" && appRoute?.[2] === "ai-work";
   const isFileManagerPage = route === "/files";
-  const appCanvasRoute = route.match(APP_CANVAS_ROUTE_PATTERN);
   const isCanvasHomePage = route === "/canvas";
   const isCanvasPage = isCanvasHomePage || Boolean(appCanvasRoute);
   const isPluginManagerPage = route === "/plugin-manager";
+  const isAgentOfficePage = route === "/agent-office";
+  const isModulePage = Boolean(appRoute) || isFileManagerPage || isCanvasPage || isPluginManagerPage || isAgentOfficePage;
   const isLegacyAccountsRoute = route === "/admin/users";
   const isSettingsPage = route === "/settings" || isLegacyAccountsRoute;
   const [setupReminderBusy, setSetupReminderBusy] = useState(() => !isSettingsPage && initialSettings.general.notificationPopupsEnabled);
@@ -401,7 +405,7 @@ export function Workbench({
     if (isAiWorkRoute) void preloadAiWorkChatModule().catch(() => undefined);
   }, [isAiWorkRoute]);
   useScrollRestoration(
-    isSettingsPage || appRoute || isFileManagerPage || isCanvasPage ? "" : createScrollRestorationKey(user.id, "workbench-page", route),
+    isSettingsPage || appRoute || isFileManagerPage || isCanvasPage || isAgentOfficePage ? "" : createScrollRestorationKey(user.id, "workbench-page", route),
     true,
     "window"
   );
@@ -641,6 +645,13 @@ export function Workbench({
   }, [settings.general.notificationPopupsEnabled]);
   const markNotificationsRead = useCallback(() => {
     setNotifications((current) => current.map((notification) => notification.read ? notification : { ...notification, read: true }));
+  }, []);
+  const markSessionNotificationsRead = useCallback((appId: ApplicationId, sessionId: string) => {
+    setNotifications(current => current.map(notification =>
+      notification.appId === appId && notification.sessionId === sessionId && !notification.read
+        ? { ...notification, read: true }
+        : notification
+    ));
   }, []);
   const clearNotifications = useCallback(() => {
     setNotifications([]);
@@ -926,29 +937,37 @@ export function Workbench({
         <CanvasHome user={user} settings={settings} serverState={serverState} applications={canvasApplicationItems} navigationApplications={applicationNavigationItems} onNavigate={onNavigate} onOpenApplication={onOpenApplication} onOpenApplications={requestApplicationsOpen} onOpenRecentSessions={requestRecentSessionsOpen} onOpenSettings={openSettings} onLogout={onLogout} />
       </Suspense>
     );
-  } else if (appCanvasRoute) {
-    pageContent = (
-      <Suspense fallback={<div className="loading-page loading-page--compact"><span className="loading-indicator" aria-hidden="true" /></div>}>
-        <CanvasWorkspace user={user} applicationId={appCanvasRoute[1] as ApplicationId} initialProjectId={appCanvasRoute[2]} settings={settings} serverState={serverState} applications={canvasApplicationItems} navigationApplications={applicationNavigationItems} onNavigate={onNavigate} onOpenApplication={onOpenApplication} onOpenApplications={requestApplicationsOpen} onOpenRecentSessions={requestRecentSessionsOpen} onOpenSettings={openSettings} onLogout={onLogout} />
-      </Suspense>
-    );
   } else if (isPluginManagerPage) {
     pageContent = (
       <Suspense fallback={<div className="loading-page loading-page--compact"><span className="loading-indicator" aria-hidden="true" /></div>}>
         <PluginManagerPage user={user} settings={settings} resolvedTheme={resolvedTheme} serverState={serverState} applications={allApplicationNavigationItems} navigationApplications={applicationNavigationItems} onNavigate={onNavigate} onOpenApplication={onOpenApplication} onOpenApplications={requestApplicationsOpen} onOpenRecentSessions={requestRecentSessionsOpen} onOpenSettings={openSettings} onLogout={onLogout} onUserChange={onUserChange} onSettingsChange={updateWorkbenchSettings} />
       </Suspense>
     );
+  } else if (isAgentOfficePage) {
+    pageContent = (
+      <Suspense fallback={<div className="loading-page loading-page--compact" role="status" aria-live="polite">正在打开 AI 员工办公室…</div>}>
+        <AgentOfficePage user={user} settings={settings} serverState={serverState} applications={allApplicationNavigationItems} navigationApplications={applicationNavigationItems} onNavigate={onNavigate} onOpenApplication={onOpenApplication} onOpenApplications={requestApplicationsOpen} onOpenRecentSessions={requestRecentSessionsOpen} onOpenSettings={openSettings} onLogout={onLogout} />
+      </Suspense>
+    );
   } else if (appRoute) {
+    const canvasMode = Boolean(appCanvasRoute);
     const app = appRoute[1] as ApplicationId;
+    const mode = canvasMode ? "ai-work" : appRoute[2] as ApplicationMode;
+    const section = canvasMode ? "canvas" : appRoute[3] || "overview";
     const aiState = aiWorkUiState;
     pageContent = (
       <Suspense fallback={<div className="loading-page loading-page--compact"><span className="loading-indicator" aria-hidden="true" /></div>}>
         <ApplicationWorkspace
-          key={`${app}:${appRoute[2]}`}
+          key={`${app}:${appRoute[2]}${canvasMode ? ":canvas" : ""}`}
           userId={user.id}
           app={app}
-          mode={appRoute[2] as ApplicationMode}
-          section={appRoute[3] || "overview"}
+          mode={mode}
+          section={section}
+          canvasWorkspace={canvasMode ? {
+            applicationId: appCanvasRoute?.[1] as ApplicationId,
+            initialProjectId: appCanvasRoute?.[2],
+            applications: canvasApplicationItems.map(item => ({ title: item.title, applicationId: item.applicationId! }))
+          } : undefined}
           gameLibrary={isGameLibraryRoute}
           workspaceTitle={isGameLibraryRoute ? app === "workspace" ? appRoute[3] === "environments" ? "运行环境" : "游戏库" : app === "steamcmd" ? "Steam 游戏服务" : undefined : undefined}
           applicationContent={isGameLibraryRoute && app === "workspace" ? <GameLibraryPage onOpenStorage={() => openSettings("workspace")} user={user} environments={appRoute[3] === "environments"} canBrowseLocalFiles={user.role === "super_admin" && settings.permissions.mode === "full_access"} onNavigate={onNavigate} />
@@ -975,13 +994,14 @@ export function Workbench({
           onApplicationsOpenRequestHandled={handleApplicationsOpenRequest}
           activeAiSessionId={aiState.activeSessionId}
           aiDraft={aiWorkDraft}
-          aiWorkGoal={app === "workspace" && appRoute[2] === "ai-work" ? pendingAiWorkGoal : null}
+          aiWorkGoal={app === "workspace" && appRoute[2] === "ai-work" && !canvasMode ? pendingAiWorkGoal : null}
           onAiWorkGoalConsumed={consumeAiWorkGoal}
           onActiveAiSessionChange={(activeSessionId) => updateAiWorkUiState({ activeSessionId })}
           onAiDraftChange={(draft) => updateAiWorkDraft(draft)}
           notifications={notifications}
           onNotification={addAiWorkNotification}
           onMarkNotificationsRead={markNotificationsRead}
+          onMarkSessionNotificationsRead={markSessionNotificationsRead}
           onClearNotifications={clearNotifications}
           onOpenNotification={openNotification}
           onLogout={onLogout}
@@ -1011,7 +1031,7 @@ export function Workbench({
         fontFamily: "var(--font-family-sans)"
       }
     }}>
-    <div ref={workbenchShellRef} className={`workbench-shell${appRoute || isFileManagerPage || isCanvasPage || isPluginManagerPage ? " workbench-shell--module" : ""}${isSettingsPage ? " workbench-shell--settings" : ""}`} data-theme={resolvedTheme} data-background-image={wallpaperCanvasOwnership.hasWallpaperBackground ? "true" : "false"} data-wallpaper-engine-owner={wallpaperCanvasOwnership.wallpaperEngineOwnsCanvas ? "true" : "false"} data-custom-sidebar-color={customSidebarColor && !wallpaperCanvasOwnership.wallpaperEngineOwnsCanvas ? "true" : "false"} data-reduced-motion={appearanceAdvanced.reducedMotion} data-card-motion-effect={settings.general.cardMotionEffect ?? DEFAULT_USER_SETTINGS.general.cardMotionEffect} data-translucent-sidebar={appearanceAdvanced.translucentSidebar ? "true" : "false"} data-diff-markers={appearanceAdvanced.diffMarkers} data-pointer-cursor={appearanceAdvanced.pointerCursor ? "true" : "false"} data-ai-work-output-focus-blur={appearanceAdvanced.aiWorkOutputFocusBlurEnabled ? "true" : "false"} style={shellStyle as CSSProperties}>
+    <div ref={workbenchShellRef} className={`workbench-shell${isModulePage ? " workbench-shell--module" : ""}${isSettingsPage ? " workbench-shell--settings" : ""}`} data-theme={resolvedTheme} data-background-image={wallpaperCanvasOwnership.hasWallpaperBackground ? "true" : "false"} data-wallpaper-engine-owner={wallpaperCanvasOwnership.wallpaperEngineOwnsCanvas ? "true" : "false"} data-custom-sidebar-color={customSidebarColor && !wallpaperCanvasOwnership.wallpaperEngineOwnsCanvas ? "true" : "false"} data-reduced-motion={appearanceAdvanced.reducedMotion} data-card-motion-effect={settings.general.cardMotionEffect ?? DEFAULT_USER_SETTINGS.general.cardMotionEffect} data-translucent-sidebar={appearanceAdvanced.translucentSidebar ? "true" : "false"} data-diff-markers={appearanceAdvanced.diffMarkers} data-pointer-cursor={appearanceAdvanced.pointerCursor ? "true" : "false"} data-ai-work-output-focus-blur={appearanceAdvanced.aiWorkOutputFocusBlurEnabled ? "true" : "false"} style={shellStyle as CSSProperties}>
       {!isSettingsPage ? <header className="topbar">
         <button className="brand-lockup brand-lockup--button" type="button" onClick={() => onNavigate(SHARED_WORK_ROUTE)}>
           <span className="brand-mark" aria-hidden="true">L</span>
@@ -1059,7 +1079,7 @@ export function Workbench({
         </div>
       </header> : null}
 
-      <main className={`workbench-content${appRoute || isFileManagerPage || isCanvasPage || isPluginManagerPage ? " workbench-content--module" : ""}${isSettingsPage ? " workbench-content--settings" : ""}`}>
+      <main className={`workbench-content${isModulePage ? " workbench-content--module" : ""}${isSettingsPage ? " workbench-content--settings" : ""}`}>
         {pageContent}
       </main>
       {desktopUpdateDownloadProgress && downloadProgressOpen ? <Modal
@@ -1249,7 +1269,7 @@ export function Workbench({
         } : null}
       />
       <PasskeySetupPrompt user={user} isSettingsPage={isSettingsPage} notificationPopupsEnabled={settings.general.notificationPopupsEnabled} onOpenSettings={openSettings} onPromptActivityChange={setPasskeyPromptActivity} />
-      {!isSettingsPage ? <footer className={`workbench-footer${appRoute || isFileManagerPage || isCanvasPage || isPluginManagerPage ? " workbench-footer--module" : ""}`}>
+      {!isSettingsPage ? <footer className={`workbench-footer${isModulePage ? " workbench-footer--module" : ""}`}>
         <span>LFAA 本机与远程主机应用工作台</span>
         <span>当前阶段：小鱼智能体工作台</span>
       </footer> : null}

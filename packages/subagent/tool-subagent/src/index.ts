@@ -67,9 +67,9 @@ export function apply(ctx: Context): void {
       if (driver !== "in-process" && (!config.localHostExecution || !context.externalDelegationAllowed || getUserSettings(context.userId).permissions.mode !== "full_access" || model)) {
         throw new Error("外部 CLI 仅在本机完全权限下执行，模型由其自身配置负责；受限任务使用进程内驱动继承 LFAA 权限。");
       }
-      return context.delegateSubagent({ task: prompt, ...(matches[0] ? { modelAccountId: matches[0].id } : {}) }, async startChild => {
+      return context.delegateSubagent({ task: prompt, officeEmployeeId: "lfaa.subagent", officeAgentLabel: description, ...(matches[0] ? { modelAccountId: matches[0].id } : {}) }, async startChild => {
       const handle = ctx.lfaaSubagents.start(
-        { driver, description, prompt, appId: context.applicationId },
+        { driver, description, prompt, appId: context.applicationId, parentRunId: context.agentRunId },
         { userId: context.userId, userRole: context.userRole, signal: context.signal, onProgress: context.onProgress, startChild }
       );
       const record: AiSubagentTaskRecord = { runId: handle.runId, parentRunId: context.agentRunId, driver, description, mode, status: "running", startedAt: handle.startedAt, completedAt: null };

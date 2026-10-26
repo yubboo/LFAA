@@ -105,15 +105,15 @@ export function AccountSnapshotsSettings({ mode }: { mode: "import" | "snapshots
 
   const title = mode === "import" ? "导入与导出" : "应用快照";
   return <section className="settings-content settings-content--account-snapshots" role="tabpanel" tabIndex={0}>
-    <header className="settings-content__heading"><div><span className="settings-eyebrow">个人资料</span><Typography.Title level={2}>{title}</Typography.Title><Typography.Paragraph>在本机导出或恢复账户设置、会话记忆与公开对话文本。所有恢复先预览并选择范围。</Typography.Paragraph></div></header>
+    <header className="settings-content__heading"><div><span className="settings-eyebrow">个人资料</span><Typography.Title level={2}>{title}</Typography.Title><Typography.Paragraph>{mode === "import" ? "换电脑时迁移账户设置、长期记忆、对话、Agent 安全活动摘要、分支检查点和会话附件。导入的会话默认归档，恢复后可继续对话；项目文件需另行迁移并重新关联。" : "本机快照保留可移植设置、长期记忆与公开对话；跨电脑迁移请在“导入与导出”生成完整迁移包。"}所有恢复先预览并选择范围。</Typography.Paragraph></div></header>
 
-    <Alert className="settings-snapshot-info" type="info" showIcon message="安全与本机边界" description="归档不包含权限模式、密码和恢复凭据、Provider 密钥、插件/MCP 连接、浏览器或电脑访问权限、本机路径、背景图片文件、模型请求/工具原始日志、用量及正在运行的任务。会话恢复后成为已归档的独立会话，并清除旧项目绑定。" />
+    <Alert className="settings-snapshot-info" type="info" showIcon message="迁移边界" description="完整迁移包只带公开会话内容、安全活动摘要、记忆检查点和被会话引用的附件；不含权限模式、密码/恢复凭据、Provider 密钥、插件/MCP 连接、浏览器或电脑访问权限、模型请求/工具原始日志、用量、运行中任务、本机路径和项目文件。新电脑需重新登录并配置密钥；另行迁移项目后再重新关联。旧 v1 快照仍可导入，但没有附件字节和 Agent 检查点。" />
 
     {mode === "import" ? <SettingGroup title="账户资料归档">
-      <SettingRow title="导出当前账户" description="生成版本化 .lfaa-snapshot 文件，供备份或导入另一个本机 LFAA 账户。">
+      <SettingRow title="导出当前账户" description="在旧电脑导出 .lfaa-snapshot 文件并复制到新电脑；包含会话附件和可恢复的 Agent 上下文。附件原始总量上限 200 MiB，迁移包还受压缩/解压容量限制。">
         <Button loading={busy} onClick={() => void exportCurrent()}>导出账户资料</Button>
       </SettingRow>
-      <SettingRow title="导入归档" description="选择 .lfaa-snapshot 文件；预览校验不会写入数据，恢复时再选择具体范围。">
+      <SettingRow title="导入归档" description="在新电脑登录后选择迁移文件；会话以归档状态导入，可恢复后继续对话。预览不会写入数据。">
         <label className="settings-snapshot-file"><span>选择快照文件</span><input type="file" accept=".lfaa-snapshot,application/vnd.lfaa.account-snapshot" disabled={busy} onChange={event => void prepareFile(event)} /></label>
       </SettingRow>
     </SettingGroup> : null}
@@ -149,6 +149,9 @@ export function AccountSnapshotsSettings({ mode }: { mode: "import" | "snapshots
       <SettingRow title="会话" description={`${preview.sessions} 个归档会话、${preview.messages} 条公开消息；${preview.sessionConflicts} 个同 ID 冲突会跳过。`}>
         <Checkbox checked={selection.sessions} onChange={event => setSelection(value => ({ ...value, sessions: event.target.checked }))}>恢复会话</Checkbox>
       </SettingRow>
+      <SettingRow title="Agent 上下文与附件" description={`${preview.contextSessions} 个会话含安全活动/分支检查点；${preview.attachments} 个附件，${formatBytes(preview.attachmentBytes)}。仅勾选恢复会话时一并导入。`}>
+        <Tag color={preview.version === 2 ? "green" : "default"}>归档 v{preview.version}</Tag>
+      </SettingRow>
       <div className="settings-snapshot-actions">
         <Button type="primary" loading={busy} disabled={!Object.values(selection).some(Boolean)} onClick={() => void restore()}>恢复所选资料</Button>
         <Button disabled={busy} onClick={clearPreview}>取消预览</Button>
@@ -159,6 +162,7 @@ export function AccountSnapshotsSettings({ mode }: { mode: "import" | "snapshots
       {result.settings.restored.length ? <div>设置：{result.settings.restored.join("、")}</div> : null}
       {result.memories ? <div>记忆：恢复 {result.memories.restored} 条</div> : null}
       {result.sessions ? <div>会话：导入 {result.sessions.imported} 个，跳过冲突 {result.sessions.skipped} 个</div> : null}
+      {result.attachments ? <div>附件：导入 {result.attachments.imported} 个，复用目标账户已有内容 {result.attachments.reused} 个</div> : null}
     </div>} /> : null}
   </section>;
 }

@@ -34,12 +34,12 @@ export class SubagentManager {
   }
 
   /** 列出某账户的活动（及近期）子任务，最新在前。 */
-  listRuns(userId: string): Array<{ runId: string; driver: string; description: string; status: SubagentRunHandle["status"]; startedAt: string }> {
+  listRuns(userId: string): Array<{ runId: string; driver: string; description: string; appId: SubagentRunHandle["appId"]; parentRunId: string | null; status: SubagentRunHandle["status"]; startedAt: string }> {
     return [...this.runs.values()]
       .filter(run => run.userId === userId)
       .sort((a, b) => b.startedAt.localeCompare(a.startedAt))
       .slice(0, 32)
-      .map(run => ({ runId: run.runId, driver: run.driver, description: run.description, status: run.status, startedAt: run.startedAt }));
+      .map(run => ({ runId: run.runId, driver: run.driver, description: run.description, appId: run.appId, parentRunId: run.parentRunId ?? null, status: run.status, startedAt: run.startedAt }));
   }
 
   /** 只返回本账户句柄；等待结果不创建任务，也不取消原任务。 */
@@ -82,6 +82,7 @@ export class SubagentManager {
       description: task.description,
       userId: ctx.userId,
       appId: task.appId,
+      ...(task.parentRunId ? { parentRunId: task.parentRunId } : {}),
       startedAt: new Date().toISOString(),
       status: "running",
       cancel: () => forwardAbort(),

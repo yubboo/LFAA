@@ -14,6 +14,7 @@ import { createElement, lazy, Suspense, useCallback, useEffect, useLayoutEffect,
 import { Alert, Button, Dropdown, Popover, Tag, Typography } from "antd";
 import { archiveAiSession, getErrorMessage, initializeDefaultWorkspace, isDesktopApp, hasAdminAccess, loadAiExtensions, loadAiSessions, loadAgentGitRepositories, ensureAgentGitSessionRepository, loadAgentGitStatus, loadBrowserRecentSites, recordBrowserRecentSites, loadWorkspaceProjects, loadWorkspaceSessionDirectoryAvailability, loadWritingWorkspace, userRoleLabel, type AgentGitRepository, type AiActivityFileChange, type AiExtension, type AiSession, type ApplicationId, type ApplicationMode, type BrowserProviderId, type BrowserRecentSite, type UserRole, type UserSettings, type WorkspaceDaemonNode, type WorkspaceGitStatus, type WorkspaceProject, type WritingWorkspace as WritingWorkspaceData } from "lfaa-client-connection/src/api.js";
 import type { AiWorkGoalRequest, AiWorkNotification, AiWorkNotificationInput } from "lfaa-client-resources/src/notification-runtime.js";
+import { hasUnreadSessionCompletionNotification } from "./session-completion-indicator.js";
 import { resolveWorkbenchLayoutMetrics, type WorkbenchLayoutMetrics } from "lfaa-client-ui-dockkit/src/workbench-layout.config.js";
 import type { WorkbenchLayoutMode } from "lfaa-client-ui-dockkit/src/workbench-layout.types.js";
 import { ResizableWorkbench } from "lfaa-client-ui-dockkit/src/ResizableWorkbench.js";
@@ -41,6 +42,7 @@ import "./css/workbench-regions.css";
 // 按当前应用模式分别加载业务面板，避免工作台外壳等待无关应用代码。
 const AiWorkChat = lazy(() => loadClientModule<typeof import("lfaa-client-ui-chat/src/AiWorkChat.js")>("lfaa-client-ui-chat/src/AiWorkChat.js").then((module) => ({ default: module.AiWorkChat })));
 const AiWorkSideChat = lazy(() => loadClientModule<typeof import("lfaa-client-ui-chat/src/AiWorkSideChat.js")>("lfaa-client-ui-chat/src/AiWorkSideChat.js").then((module) => ({ default: module.AiWorkSideChat })));
+const CanvasWorkspace = lazy(() => loadClientModule<typeof import("lfaa-client-ui-workspace/src/CanvasWorkspace.js")>("lfaa-client-ui-workspace/src/CanvasWorkspace.js").then(module => ({ default: module.CanvasWorkspace })));
 const BrowserPanel = lazy(() => loadClientModule<typeof import("lfaa-client-ui-sidebar-browser/src/BrowserPanel.js")>("lfaa-client-ui-sidebar-browser/src/BrowserPanel.js").then(module => ({ default: module.BrowserPanel })));
 const GitChangeSummary = lazy(() => import("./GitChangeSummary.js").then((module) => ({ default: module.GitChangeSummary })));
 const GitChangeActivityReview = lazy(() => import("./GitChangeSummary.js").then((module) => ({ default: module.GitChangeActivityReview })));
@@ -110,6 +112,11 @@ interface ApplicationWorkspaceProps {
   gameLibrary?: boolean;
   workspaceTitle?: string;
   applicationContent?: ReactNode;
+  canvasWorkspace?: {
+    applicationId: ApplicationId;
+    initialProjectId?: string;
+    applications: Array<{ title: string; applicationId: ApplicationId }>;
+  };
   settings: UserSettings;
   onSettingsChange: (settings: UserSettings) => void;
   apps: ApplicationSummary[];
@@ -136,6 +143,7 @@ interface ApplicationWorkspaceProps {
   notifications: AiWorkNotification[];
   onNotification: (notification: AiWorkNotificationInput) => void;
   onMarkNotificationsRead: () => void;
+  onMarkSessionNotificationsRead: (appId: ApplicationId, sessionId: string) => void;
   onClearNotifications: () => void;
   onOpenNotification: (notification: AiWorkNotification) => void;
   onActiveAiSessionChange: (sessionId: string | null) => void;
@@ -230,6 +238,7 @@ interface ApplicationSidebarProps extends Pick<ApplicationWorkspaceProps, "userI
   onToggleLeft: () => void;
   notifications: AiWorkNotification[];
   onMarkNotificationsRead: () => void;
+  onMarkSessionNotificationsRead: (appId: ApplicationId, sessionId: string) => void;
   onClearNotifications: () => void;
   onOpenNotification: (notification: AiWorkNotification) => void;
   sessions: AiSession[];
@@ -254,7 +263,7 @@ interface ApplicationSidebarProps extends Pick<ApplicationWorkspaceProps, "userI
   onPreviewBlur: () => void;
 }
 
-function ApplicationSidebar({ userId, app, mode, section, gameLibrary, apps, applicationNavigationItems, layoutMode, onWritingLibraryPortalTargetChange, onNavigate, onOpenApplication, onOpenSelectedApplication, onToggleLeft, notifications, onMarkNotificationsRead, onClearNotifications, onOpenNotification, sessions, missingSessionDirectoryIds, aiDraft, pinnedSessionIds, onTogglePinnedSession, workspaceProjects, projectLoadError, onRetryProjects, activeSessionId, sessionsLoading, sessionsError, providerStatus, gitSummaryOpen, gitSummaryContent, onNewSession, onSelectSession, onArchiveSession, onCloseGitSummary, onPreviewMouseLeave, onPreviewBlur }: ApplicationSidebarProps) {
+function ApplicationSidebar({ userId, app, mode, section, gameLibrary, apps, applicationNavigationItems, layoutMode, onWritingLibraryPortalTargetChange, onNavigate, onOpenApplication, onOpenSelectedApplication, onToggleLeft, notifications, onMarkNotificationsRead, onMarkSessionNotificationsRead, onClearNotifications, onOpenNotification, sessions, missingSessionDirectoryIds, aiDraft, pinnedSessionIds, onTogglePinnedSession, workspaceProjects, projectLoadError, onRetryProjects, activeSessionId, sessionsLoading, sessionsError, providerStatus, gitSummaryOpen, gitSummaryContent, onNewSession, onSelectSession, onArchiveSession, onCloseGitSummary, onPreviewMouseLeave, onPreviewBlur }: ApplicationSidebarProps) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [sessionMenuId, setSessionMenuId] = useState<string | null>(null);
   useEffect(() => { setSessionMenuId(null); }, [layoutMode]);
@@ -299,6 +308,7 @@ function ApplicationSidebar({ userId, app, mode, section, gameLibrary, apps, app
   const renderSession = (session: AiSession, nested = false) => {
     const isPinned = pinnedSessionSet.has(session.id);
     const directoryMissing = missingSessionDirectoryIds.has(session.id);
+    const hasUnreadCompletion = hasUnreadSessionCompletionNotification(notifications, session.appId, session.id);
     const menu = { items: [
       { key: "pin", label: isPinned ? "取消置顶" : "置顶" },
       { key: "archive", label: "归档", icon: <WorkbenchIcon name="archive" size={14} /> },
@@ -312,8 +322,9 @@ function ApplicationSidebar({ userId, app, mode, section, gameLibrary, apps, app
       placement="bottomRight" autoAdjustOverflow overlayClassName="module-session-menu"
       getPopupContainer={trigger => trigger.closest<HTMLElement>(".module-workbench-stage") ?? trigger.parentElement!}>
       <div className={`module-sidebar__session${nested ? " module-sidebar__session--nested" : ""}${session.id === activeSessionId ? " is-active" : ""}${directoryMissing ? " is-project-directory-missing" : ""}`}>
-        <button type="button" aria-current={session.id === activeSessionId ? "page" : undefined} onClick={() => { setSessionMenuId(null); onSelectSession(session.id); if (layoutMode === "mobile") onToggleLeft(); }} title={directoryMissing ? `${session.title} · 项目目录已删除或移动，历史记录仍可查看` : session.title}><WorkbenchIcon name="history" size={14} /><span>{session.title}</span></button>
+        <button type="button" aria-current={session.id === activeSessionId ? "page" : undefined} aria-label={`${session.title}${hasUnreadCompletion ? "，有未读的回复完成提醒" : ""}`} onClick={() => { setSessionMenuId(null); if (hasUnreadCompletion) onMarkSessionNotificationsRead(session.appId, session.id); onSelectSession(session.id); if (layoutMode === "mobile") onToggleLeft(); }} title={`${directoryMissing ? `${session.title} · 项目目录已删除或移动，历史记录仍可查看` : session.title}${hasUnreadCompletion ? " · 回复已完成，打开会话查看" : ""}`}><WorkbenchIcon name="history" size={14} /><span>{session.title}</span></button>
         <div className="module-sidebar__session-actions">
+          {hasUnreadCompletion ? <span className="module-sidebar__session-completion-dot" aria-hidden="true" /> : null}
           <button type="button" aria-label={`会话菜单：${session.title}`} aria-haspopup="menu" aria-expanded={sessionMenuId === session.id} title="会话菜单" onClick={event => { event.stopPropagation(); setSessionMenuId(current => current === session.id ? null : session.id); }}><WorkbenchIcon name="dots" size={15} /></button>
         </div>
       </div>
@@ -520,7 +531,7 @@ function PanelControl({ name, title, shortcut, active, onClick }: { name: "termi
   return <button className="module-panel-control" type="button" aria-label={title} aria-keyshortcuts={ariaShortcuts} aria-pressed={active} title={`${title} · ${shortcut || "未分配"}`} onClick={onClick}><WorkbenchIcon name={name} size={16} /><span>{title}</span></button>;
 }
 
-export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary = false, workspaceTitle, applicationContent, apps, applicationNavigationItems, username, role, serverState, error, settings, onSettingsChange, onBack, onSelectedModeHome, onOpenSelectedApplication, onNavigate, onOpenSettings, onOpenApplication, recentSessionsOpenRequestId, onRecentSessionsOpenRequestHandled, rightPanelSection, onRightPanelSectionChange, applicationsOpenRequestId, onApplicationsOpenRequestHandled, activeAiSessionId, aiDraft, aiWorkGoal, notifications, onNotification, onMarkNotificationsRead, onClearNotifications, onOpenNotification, onActiveAiSessionChange, onAiDraftChange, onAiWorkGoalConsumed, onLogout }: ApplicationWorkspaceProps) {
+export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary = false, workspaceTitle, applicationContent, canvasWorkspace, apps, applicationNavigationItems, username, role, serverState, error, settings, onSettingsChange, onBack, onSelectedModeHome, onOpenSelectedApplication, onNavigate, onOpenSettings, onOpenApplication, recentSessionsOpenRequestId, onRecentSessionsOpenRequestHandled, rightPanelSection, onRightPanelSectionChange, applicationsOpenRequestId, onApplicationsOpenRequestHandled, activeAiSessionId, aiDraft, aiWorkGoal, notifications, onNotification, onMarkNotificationsRead, onMarkSessionNotificationsRead, onClearNotifications, onOpenNotification, onActiveAiSessionChange, onAiDraftChange, onAiWorkGoalConsumed, onLogout }: ApplicationWorkspaceProps) {
   const activeRightPanelSection = mode === "normal" ? "context" : rightPanelSection;
   const voiceMode = app === "workspace" && mode === "ai-work" && section === "voice";
   // 旧版 Host 可能缺少后续新增的快捷键项；由 Settings 默认值补齐，不覆盖已保存的空数组。
@@ -573,6 +584,11 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   const [gitStatusSnapshot, setGitStatusSnapshot] = useState<{ repositoryId: string | null; status: WorkspaceGitStatus | null; loading: boolean; error: string }>({ repositoryId: null, status: null, loading: false, error: "" });
   const [gitManagerRepositoryState, setGitManagerRepositoryState] = useState<{ userId: string; repositoryId: string | null }>({ userId, repositoryId: null });
   const [gitSummaryOpen, setGitSummaryOpen] = useState(false);
+  const gitSummaryAvailableOnRunRef = useRef(mode === "ai-work" && !voiceMode && !canvasWorkspace);
+  gitSummaryAvailableOnRunRef.current = mode === "ai-work" && !voiceMode && !canvasWorkspace;
+  const gitSummaryMobileOnRunRef = useRef(metrics.mode === "mobile");
+  gitSummaryMobileOnRunRef.current = metrics.mode === "mobile";
+  const handleGitSummaryOpenChangeRef = useRef<(open: boolean) => void>(() => undefined);
   const gitSummaryResponsiveOpenRef = useRef<boolean | null>(null);
   const [gitSummaryShowAllFiles, setGitSummaryShowAllFiles] = useState(false);
   const [gitSummaryActionRepositoryId, setGitSummaryActionRepositoryId] = useState<string | null>(null);
@@ -663,11 +679,6 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
       return { userId, ids: nextIds };
     });
   }, [userId]);
-  const onAiChatBusyChange = useCallback((busy: boolean) => {
-    const wasBusy = aiChatBusyState.current;
-    aiChatBusyState.current = busy;
-    if (wasBusy && !busy) setGitRefreshRevision((revision) => revision + 1);
-  }, []);
   const appliedResponsiveLayout = useRef<string | null>(null);
   const responsiveLeftRestore = useRef<boolean | null>(null);
   const appliedNavigationLayout = useRef<NavigationLayout | null>(chromeStorageMetadata.navigationLayout);
@@ -907,6 +918,16 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
     if (!open) setGitSummaryActionRepositoryId(null);
     if (open && mode === "ai-work" && activeAiSessionId) void ensureSessionGitRepository(activeAiSessionId);
   }, [activeAiSessionId, ensureSessionGitRepository, mode]);
+  handleGitSummaryOpenChangeRef.current = handleGitSummaryOpenChange;
+  const onAiChatBusyChange = useCallback((busy: boolean) => {
+    const wasBusy = aiChatBusyState.current;
+    aiChatBusyState.current = busy;
+    if (!wasBusy && busy && gitSummaryAvailableOnRunRef.current) {
+      if (gitSummaryMobileOnRunRef.current) setChrome(current => ({ ...current, leftCollapsed: false, rightCollapsed: true }));
+      handleGitSummaryOpenChangeRef.current(true);
+    }
+    if (wasBusy && !busy) setGitRefreshRevision((revision) => revision + 1);
+  }, []);
   useEffect(() => {
     if (mode !== "ai-work" || voiceMode || metrics.mode !== "compact") return;
     gitSummaryResponsiveOpenRef.current = null;
@@ -1751,6 +1772,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
     onToggleLeft: toggleLeft,
     notifications,
     onMarkNotificationsRead,
+    onMarkSessionNotificationsRead,
     onClearNotifications,
     onOpenNotification,
     sessions: aiSessions,
@@ -1851,8 +1873,67 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
     </nav>
     <button className="module-workbench-tab-add" type="button" aria-label="新建标签页" title="新建标签页" onClick={createWorkspaceUtilityTab}><WorkbenchIcon name="plus" size={16} /></button>
   </div> : null;
-  const center = (
-    <div className="module-center">
+  const renderAiWorkChatContent = (workspaceHeader?: ReactNode) => <>
+    {error ? <Alert className="page-alert" type="error" showIcon message={error} /> : null}
+    <div className="module-ai-work-chat">
+      <Suspense fallback={workspaceHeader ? <div className="module-ai-work-chat__loading">{workspaceHeader}<ApplicationContentLoading /></div> : <ApplicationContentLoading />}>
+        <AiWorkChat
+          workspaceHeader={workspaceHeader}
+          userId={userId}
+          capabilities={[
+            ...registeredExtensions.filter(item => ["skill", "prompt", "expert"].includes(item.kind)
+              && (item.kind !== "skill" || !settings.plugins.disabledSkillNames.includes(item.id.startsWith("skill.") ? item.id.slice("skill.".length).split(".").at(-1) ?? item.id : item.id))),
+            ...skillReferences.filter(skill => !settings.plugins.disabledSkillNames.includes(skill.name))
+          ]}
+          capabilitiesError={skillReferencesError}
+          appId={activeAiSession?.appId ?? "workspace"}
+          workspaceView={agentWorkbenchView}
+          settings={settings}
+          onSettingsChange={onSettingsChange}
+          sessions={aiSessions}
+          activeSessionId={activeAiSessionId}
+          projectDirectoryMissing={activeAiSessionProjectDirectoryMissing}
+          newSessionProjectId={newAiSessionProjectId}
+          newSessionGitRepositoryId={null}
+          defaultWorkspaceProjectId={defaultWorkspaceProjectId}
+          workspaceProjects={workspaceProjects}
+          workspaceProjectsLoadStatus={workspaceProjectsLoadStatus}
+          workspaceProjectsTruncated={workspaceProjectsTruncated}
+          workspaceNodes={workspaceNodes}
+          workspaceProjectsError={workspaceProjectsError}
+          onRetryWorkspaceProjects={retryWorkspaceProjects}
+          onWorkspaceProjectsChange={(projects) => {
+            const truncated = workspaceProjectsTruncated || projects.length > 200;
+            workspaceProjectSnapshots.set(`${userId}:${app}`, { projects: projects.slice(0, 200), nodes: workspaceNodes, truncated, defaultProjectId: defaultWorkspaceProjectId });
+            setWorkspaceProjects(projects.slice(0, 200));
+            setWorkspaceProjectsTruncated(truncated);
+          }}
+          initialDraft={aiDraft}
+          autoSubmitGoal={canvasWorkspace ? null : aiWorkGoal}
+          onAutoSubmitGoalConsumed={onAiWorkGoalConsumed}
+          newSessionKey={newAiSessionKey}
+          onSessionsChange={(sessions) => {
+            updateAiSessions(() => sessions);
+          }}
+          onActiveSessionChange={onActiveAiSessionChange}
+          onDraftChange={onAiDraftChange}
+          onProviderStatusChange={setAiProviderStatus}
+          onBusyChange={onAiChatBusyChange}
+          onSelectedProjectChange={setNewAiSessionProjectId}
+          onOpenSettings={onOpenSettings}
+          onNotification={onNotification}
+          onOpenSideChat={openSideChat}
+          onWritingWorkspaceChange={setWritingWorkspace}
+          onOpenProjectFileReview={openProjectFileReview}
+          onSessionFileChanges={onSessionFileChanges}
+          onBrowserToolCompleted={openBrowserDockForAgent}
+          voiceMode={section === "voice"}
+          onExitVoice={() => onNavigate("/work")}
+        />
+      </Suspense>
+    </div>
+  </>;
+  const centerHeader = (
       <header className="module-center__header" data-layout-mode={metrics.mode} data-module-mode={mode}>
         <div className="module-center__heading">
           <button ref={leftPreviewTriggerRef} className="module-shell-icon-button module-shell-icon-button--left-preview" type="button" aria-label="切换会话与项目栏" aria-expanded={!chrome.leftCollapsed || leftPreviewOpen} aria-keyshortcuts={shortcuts.toggleSidebar.map((chord) => chord.replace("Ctrl", "Control")).join(" ")} title={`切换会话与项目栏 · ${shortcuts.toggleSidebar.join(" / ") || "未分配"}`} onClick={toggleLeft} onMouseEnter={openLeftPreview} onMouseLeave={closeLeftPreview} onFocus={(event) => { if (event.currentTarget.matches(":focus-visible")) openLeftPreview(); }} onBlur={closeLeftPreview}><WorkbenchIcon name="panelLeft" size={16} /></button>
@@ -1886,66 +1967,12 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
           {showCenterPanelControls ? <PanelControl name="panelRight" title={chrome.rightCollapsed ? "展开上下文栏" : "收起上下文栏"} shortcut={shortcuts.toggleContextPanel.join(" / ")} active={!chrome.rightCollapsed} onClick={toggleRight} /> : null}
         </div>
       </header>
+  );
+  const center = (
+    <div className="module-center">
+      {mode === "ai-work" ? null : centerHeader}
       <main ref={moduleContentScroll.ref} onScroll={moduleContentScroll.onScroll} className={`module-center__content${mode === "ai-work" ? " module-center__content--ai-work" : ""}${mode === "normal" && !writingNormal && !aiVideoNormal ? " module-center__content--application" : ""}${writingNormal ? " module-center__content--writing-normal" : ""}${aiVideoNormal ? " module-center__content--aivideo" : ""}`} aria-label={mode === "ai-work" ? "小鱼智能体对话" : writingNormal ? "写作正文编辑区" : aiVideoNormal ? "AI 漫剧分镜画布" : undefined} aria-labelledby={applicationContent ? "game-library-heading" : mode === "normal" && app !== "minecraft" && !writingNormal && !aiVideoNormal ? "module-heading" : undefined}>
-        {mode === "ai-work" ? <>
-          {error ? <Alert className="page-alert" type="error" showIcon message={error} /> : null}
-          <div className="module-ai-work-chat">
-          <Suspense fallback={<ApplicationContentLoading />}>
-            <AiWorkChat
-              userId={userId}
-              capabilities={[
-                ...registeredExtensions.filter(item => ["skill", "prompt", "expert"].includes(item.kind)
-                  && (item.kind !== "skill" || !settings.plugins.disabledSkillNames.includes(item.id.startsWith("skill.") ? item.id.slice("skill.".length).split(".").at(-1) ?? item.id : item.id))),
-                ...skillReferences.filter(skill => !settings.plugins.disabledSkillNames.includes(skill.name))
-              ]}
-              capabilitiesError={skillReferencesError}
-              appId={activeAiSession?.appId ?? "workspace"}
-              workspaceView={agentWorkbenchView}
-              settings={settings}
-              onSettingsChange={onSettingsChange}
-              sessions={aiSessions}
-              activeSessionId={activeAiSessionId}
-              projectDirectoryMissing={activeAiSessionProjectDirectoryMissing}
-              newSessionProjectId={newAiSessionProjectId}
-              newSessionGitRepositoryId={null}
-              defaultWorkspaceProjectId={defaultWorkspaceProjectId}
-              workspaceProjects={workspaceProjects}
-              workspaceProjectsLoadStatus={workspaceProjectsLoadStatus}
-              workspaceProjectsTruncated={workspaceProjectsTruncated}
-              workspaceNodes={workspaceNodes}
-              workspaceProjectsError={workspaceProjectsError}
-              onRetryWorkspaceProjects={retryWorkspaceProjects}
-              onWorkspaceProjectsChange={(projects) => {
-                const truncated = workspaceProjectsTruncated || projects.length > 200;
-                workspaceProjectSnapshots.set(`${userId}:${app}`, { projects: projects.slice(0, 200), nodes: workspaceNodes, truncated, defaultProjectId: defaultWorkspaceProjectId });
-                setWorkspaceProjects(projects.slice(0, 200));
-                setWorkspaceProjectsTruncated(truncated);
-              }}
-              initialDraft={aiDraft}
-              autoSubmitGoal={aiWorkGoal}
-              onAutoSubmitGoalConsumed={onAiWorkGoalConsumed}
-              newSessionKey={newAiSessionKey}
-              onSessionsChange={(sessions) => {
-                updateAiSessions(() => sessions);
-              }}
-              onActiveSessionChange={onActiveAiSessionChange}
-              onDraftChange={onAiDraftChange}
-              onProviderStatusChange={setAiProviderStatus}
-              onBusyChange={onAiChatBusyChange}
-              onSelectedProjectChange={setNewAiSessionProjectId}
-              onOpenSettings={onOpenSettings}
-              onNotification={onNotification}
-              onOpenSideChat={openSideChat}
-              onWritingWorkspaceChange={setWritingWorkspace}
-              onOpenProjectFileReview={openProjectFileReview}
-              onSessionFileChanges={onSessionFileChanges}
-              onBrowserToolCompleted={openBrowserDockForAgent}
-              voiceMode={section === "voice"}
-              onExitVoice={() => onNavigate("/work")}
-            />
-          </Suspense>
-          </div>
-        </> : applicationContent ? applicationContent : app === "minecraft" ? <Suspense fallback={<ApplicationContentLoading />}><MinecraftWorkspace onPrepareWithAi={prompt=>{onAiDraftChange(aiDraft.trim()?`${aiDraft}\n\n${prompt}`:prompt);void openApplication("workspace", "ai-work");}} userId={userId} section={section} role={role} settings={settings} onNavigate={navigateWithinApplication} onOpenConnectivity={() => { void openApplication("connectivity", "normal"); }} onContentReady={setMinecraftContentReady} /></Suspense> : app === "connectivity" && mode === "normal" ? <Suspense fallback={<ApplicationContentLoading />}><ConnectivityWorkspace section={section} isAdmin={hasAdminAccess(role)} /></Suspense> : writingNormal ? <Suspense fallback={<ApplicationContentLoading />}><WritingWorkspace workspace={writingWorkspace} loading={writingWorkspaceLoading} loadError={writingWorkspaceError} libraryPortalTarget={writingLibraryPortalTarget} onRetry={() => { void retryWritingWorkspace(); }} onWorkspaceChange={setWritingWorkspace} onRegisterFlush={registerWritingFlush} /></Suspense> : aiVideoNormal ? <Suspense fallback={<ApplicationContentLoading />}><AiVideoCanvasWorkspace /></Suspense> : <>
+        {mode === "ai-work" ? renderAiWorkChatContent(centerHeader) : applicationContent ? applicationContent : app === "minecraft" ? <Suspense fallback={<ApplicationContentLoading />}><MinecraftWorkspace onPrepareWithAi={prompt=>{onAiDraftChange(aiDraft.trim()?`${aiDraft}\n\n${prompt}`:prompt);void openApplication("workspace", "ai-work");}} userId={userId} section={section} role={role} settings={settings} onNavigate={navigateWithinApplication} onOpenConnectivity={() => { void openApplication("connectivity", "normal"); }} onContentReady={setMinecraftContentReady} /></Suspense> : app === "connectivity" && mode === "normal" ? <Suspense fallback={<ApplicationContentLoading />}><ConnectivityWorkspace section={section} isAdmin={hasAdminAccess(role)} /></Suspense> : writingNormal ? <Suspense fallback={<ApplicationContentLoading />}><WritingWorkspace workspace={writingWorkspace} loading={writingWorkspaceLoading} loadError={writingWorkspaceError} libraryPortalTarget={writingLibraryPortalTarget} onRetry={() => { void retryWritingWorkspace(); }} onWorkspaceChange={setWritingWorkspace} onRegisterFlush={registerWritingFlush} /></Suspense> : aiVideoNormal ? <Suspense fallback={<ApplicationContentLoading />}><AiVideoCanvasWorkspace /></Suspense> : <>
           <div className={`module-heading module-heading--workspace module-heading--${app}`}>
             <div className="module-heading__labels"><Tag className="development-tag">开发中</Tag><Tag className="module-mode-tag">{modeLabel}</Tag></div>
             <Typography.Title id="module-heading" level={2}>{activeApplicationTitle}</Typography.Title>
@@ -2133,6 +2160,19 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   const previewStyle = { "--module-left-preview-width": `${leftPaneWidth}px` } as CSSProperties;
   const leftPreviewMode = chrome.leftCollapsed && metrics.mode !== "mobile";
   const leftRegionClassName = `module-workbench-region--secondary-navigation${leftPreviewMode ? ` module-left-preview${leftPreviewOpen ? " is-visible" : ""}` : ""}`;
+  if (canvasWorkspace) {
+    return <Suspense fallback={<ApplicationContentLoading />}>
+      <CanvasWorkspace
+        applicationId={canvasWorkspace.applicationId}
+        initialProjectId={canvasWorkspace.initialProjectId}
+        settings={settings}
+        applications={canvasWorkspace.applications}
+        onNavigate={onNavigate}
+        onOpenSettings={onOpenSettings}
+        chatPanel={renderAiWorkChatContent()}
+      />
+    </Suspense>;
+  }
   return (
     <div className={`module-workbench-stage module-workbench-stage--application${voiceMode ? " module-workbench-stage--voice" : ""}`} style={previewStyle} data-layout-mode={metrics.mode}>
       <ResizableWorkbench

@@ -165,6 +165,7 @@ export function ResizableWorkbench({
   centerRegionClassName,
   rightRegionClassName,
   bottomRegionClassName,
+  persistState = true,
   rootElementRef,
   leftVisible = true,
   right,
@@ -198,8 +199,17 @@ export function ResizableWorkbench({
 }: ResizableWorkbenchProps) {
   const rightEnabled = right !== undefined && right !== null;
   const initial = useMemo(
-    () => loadState(storageKey, leftLimits, rightLimits, bottomLimits, containerWidth),
-    [bottomLimits, containerWidth, leftLimits, rightLimits, storageKey],
+    () => persistState
+      ? loadState(storageKey, leftLimits, rightLimits, bottomLimits, containerWidth)
+      : {
+          leftWidth: leftLimits.initial,
+          rightWidth: rightLimits.initial,
+          bottomHeight: bottomLimits.initial,
+          leftCollapsed: false,
+          rightCollapsed: true,
+          layoutDefaultsVersion: 4,
+        },
+    [bottomLimits, containerWidth, leftLimits, persistState, rightLimits, storageKey],
   );
   const [internalLeftWidth, setInternalLeftWidth] = useState(initial.leftWidth);
   const [bottomHeight, setBottomHeight] = useState(initial.bottomHeight);
@@ -208,6 +218,7 @@ export function ResizableWorkbench({
   const leftWidth = leftWidthProp ?? internalLeftWidth;
   const leftCollapsed = leftCollapsedProp ?? internalLeftCollapsed;
   const rightCollapsed = rightCollapsedProp ?? internalRightCollapsed;
+  const rightWidthTouchedRef = useRef(false);
   const mobileLeftDock = layoutMode === "mobile"
     && shouldDockResponsiveLeftPane(containerWidth, minCenterWidth, leftLimits.min, responsiveLeftDock && leftVisible);
   const leftUsesGrid = layoutMode !== "mobile" || mobileLeftDock;
@@ -345,8 +356,13 @@ export function ResizableWorkbench({
   // 响应式计算结果变化时，把历史持久化尺寸重新夹进当前容器允许的范围。
   // 这一步很重要：用户在大屏保存的 340px 侧栏，切到小窗后不能继续拿 340px 挤压主区。
   useEffect(() => {
-    setRightWidth((value) => clamp(value, rightLimits.min, rightLimits.max));
-  }, [rightLimits.max, rightLimits.min]);
+    setRightWidth((value) => {
+      if (!persistState && !rightWidthTouchedRef.current) {
+        return clamp(rightLimits.initial, rightLimits.min, rightLimits.max);
+      }
+      return clamp(value, rightLimits.min, rightLimits.max);
+    });
+  }, [persistState, rightLimits.initial, rightLimits.max, rightLimits.min]);
 
   useEffect(() => {
     setBottomHeight((value) => clamp(value, bottomLimits.min, bottomLimits.max));
@@ -365,7 +381,7 @@ export function ResizableWorkbench({
   }, [getDynamicMax, leftCollapsed, leftUsesGrid, leftLimits.max, leftLimits.min, setResolvedLeftWidth]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (!persistState || typeof window === "undefined") return;
     const saved = JSON.stringify({
       leftWidth,
       rightWidth,
@@ -379,7 +395,7 @@ export function ResizableWorkbench({
     } catch {
       // 浏览器禁用存储或配额耗尽时保留页面内操作，不能让栏宽保存中断整个工作台。
     }
-  }, [bottomHeight, leftCollapsed, leftWidth, rightCollapsed, rightWidth, storageKey]);
+  }, [bottomHeight, leftCollapsed, leftWidth, persistState, rightCollapsed, rightWidth, storageKey]);
 
   // ===== 4. 左右栏与底部面板共用的 Pointer 拖拽和吸附预览 =====
   // 拖动过程中直接写 CSS 变量，避免每个 pointermove 都触发 React render。
@@ -707,6 +723,7 @@ export function ResizableWorkbench({
         else centerPaneElementRef.current.removeAttribute("aria-hidden");
       }
       setRightWidth(finalWidth);
+      rightWidthTouchedRef.current = true;
       setResolvedRightCollapsed(false);
     }
 
@@ -891,6 +908,7 @@ export function ResizableWorkbench({
       } else {
         setResolvedRightCollapsed(false);
         setRightWidth(clamp(Math.max(rightWidthForLayout, rightLimits.initial), min, max));
+        rightWidthTouchedRef.current = true;
       }
       return;
     }
@@ -903,6 +921,7 @@ export function ResizableWorkbench({
     } else {
       setResolvedRightCollapsed(false);
       setRightWidth(clamp(collapsed ? Math.max(rightWidthForLayout, min) + step : rightWidthForLayout + (event.key === expandKey ? step : -step), min, max));
+      rightWidthTouchedRef.current = true;
     }
   }, [getDynamicMax, leftCollapsed, leftLimits, rightCollapsed, rightLimits, rightWidthForLayout, setResolvedLeftCollapsed, setResolvedLeftWidth, setResolvedRightCollapsed]);
 

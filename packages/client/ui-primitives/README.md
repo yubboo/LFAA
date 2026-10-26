@@ -6,4 +6,4 @@
 
 SettingsSwitch 通过受控的 checked 与 onChange 保持原有开关语义，点击时只在 1/2 间轮换组件本地动画 key，让滑块节点重新播放一次 Jelly Toggle；不新增计时器、订阅或偏好写入路径。轨道颜色、滑块移动与拉伸、hover/press 反馈由 ui-theme/common.css 呈现，并沿用 Workbench 的减少动态效果映射。
 
-Three.js `0.186.1` 与 `@types/three` `0.186.0` 作为共享空间视觉组件的依赖登记在本包。依赖接入本身不代表已有产品页面使用 3D；后续页面只能消费本包封装的共享场景组件，不能直接创建独立 renderer。新场景按需导入 Three.js、遵循 Appearance/减少动态效果设置，并在不可用时保留主题驱动的 CSS 后备与真实 HTML 控件。
+Three.js `0.186.1` 与 `@types/three` `0.186.0` 由本包管理；`DirectorDeskStage` 是共享 3D 导演台场景 renderer，供 `ui-workspace` 的系统画布导演台编辑器按需加载。它绘制程序化白模演员/场景块、网格和相机预览，处理场景拖动、相机观察、容器尺寸与 WebGL 资源清理；业务对象、选中状态和持久化仍归调用页面及画布 Owner。主题颜色读取现有 Appearance 令牌，`canvas.snapToGrid` 控制场景对象吸附；WebGL 不可用时保留可访问提示和真实 HTML 控件。其他页面通过本包场景组件消费 3D 能力，不自行创建 renderer。

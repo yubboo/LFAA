@@ -2494,7 +2494,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           <SettingRow title="默认打开模式" description="进入 /canvas 时默认展示生成工作台或空白画布，仍可在顶部随时切换；两种模式都创建真实项目，不伪造生成结果。" status={CANVAS_DEFAULT_MODE_OPTIONS.find(option => option.id === settings.canvas.defaultMode)?.label ?? settings.canvas.defaultMode}>
             <Select value={settings.canvas.defaultMode} options={CANVAS_DEFAULT_MODE_OPTIONS.map(({ id, label }) => ({ value: id, label }))} onChange={value => updateSettings("canvas", { ...settings.canvas, defaultMode: value })} />
           </SettingRow>
-          <SettingRow title="Agent 面板默认展开" description="进入画布工作区时是否默认展开 Agent 对话面板；面板只显示真实会话，不会预填假对话。" status={settings.canvas.agentPanelDefaultOpen ? "默认展开" : "默认收起"}>
+          <SettingRow title="Agent 面板默认展开" description="进入画布工作区时是否默认展开右侧小鱼助手；继续使用真实会话、输入和流式回复。" status={settings.canvas.agentPanelDefaultOpen ? "默认展开" : "默认收起"}>
             <SettingsSwitch label="Agent 面板默认展开" checked={settings.canvas.agentPanelDefaultOpen} onChange={() => updateSettings("canvas", { ...settings.canvas, agentPanelDefaultOpen: !settings.canvas.agentPanelDefaultOpen })} />
           </SettingRow>
         </SettingGroup>
@@ -2505,7 +2505,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           <SettingRow title="拖动吸附网格" description="拖动节点时吸附到网格，便于对齐；缩放、连线与导入导出不受影响。" status={settings.canvas.snapToGrid ? "已开启" : "已关闭"}>
             <SettingsSwitch label="拖动吸附网格" checked={settings.canvas.snapToGrid} onChange={() => updateSettings("canvas", { ...settings.canvas, snapToGrid: !settings.canvas.snapToGrid })} />
           </SettingRow>
-          <SettingRow title="小地图" description="显示右下角小地图；关闭只隐藏视图，不删除项目数据。" status={settings.canvas.showMiniMap ? "显示" : "隐藏"}>
+          <SettingRow title="小地图" description="显示画布左上角的小地图；关闭只隐藏视图，不删除项目数据。" status={settings.canvas.showMiniMap ? "显示" : "隐藏"}>
             <SettingsSwitch label="显示小地图" checked={settings.canvas.showMiniMap} onChange={() => updateSettings("canvas", { ...settings.canvas, showMiniMap: !settings.canvas.showMiniMap })} />
           </SettingRow>
         </SettingGroup>

@@ -45,6 +45,7 @@ LFAA 适配继续通过既有 `/ai/sessions`、`/ai/runs` 与 AI Work 消息投�
 - 事件 Header 不保存 Provider URL、API key 或认证头；Tool 参数/结果、模型输入上下文保存在受保护的 Host JSONL，不返回普通消息 API 或 Client 插件。
 - 用户、App、项目归属仍由 LFAA API/Session Owner 校验；Provider、权限模式、AI Runtime 限制与跟进方式继续读取现有设置，不新增设置项。
 - assistant 的可选 `providerReplay` 在既有模型历史和 response 事件中保存真实 reasoning_content 及账户/Provider/模型来源，内核验证结构，重启可恢复。新轮次保留最终 assistant 的续接字段与完整澄清配对，仍不重送已完成普通工具大结果。消息分页、Run/SSE、Session Query 与日志导出只消费公开投影，不返回私有续接数据。旧记录缺失时不补写或编造隐藏推理。
+- 账户迁移用 `exportPortableAiSessions()` 生成公开消息投影；v2 才附带安全活动摘要、回复段落、附件引用和已有分支记忆。恢复使用独立 `session/portable-context` 检查点，在后续轮次作为不可信背景注入；消息按原公开文本恢复，不移植运行中任务、原始工具往返、Provider replay、项目路径或权限。
 - Session Owner 的模型请求上下文和失败 Attempt 会移除 LFAA `<conversation-memory>` 注入块，不把已保存记忆正文复制进新的模型历史快照。账户清除记忆时，设置 API 先让 Session Owner 对该账户会话 JSONL 做链校验、脱敏重写与哈希链重算；原始用户/助手消息保留，其他账户的会话文件不处理。重写失败时 API 不清空 Conversation Memory，用户可重试。
 - Web 浏览器、认证 Provider、桌面宿主、真实 Daemon 副作用验收由对应运行环境单独完成；包构建或内核单测不代替这些验收。
 

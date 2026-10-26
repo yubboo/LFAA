@@ -32,6 +32,8 @@ export interface ResizableWorkbenchProps {
   centerRegionClassName?: string;
   rightRegionClassName?: string;
   bottomRegionClassName?: string;
+  /** 关闭时不读取或写入 localStorage；适用于栏宽只应在当前页面会话内生效的工作区。 */
+  persistState?: boolean;
   /** 可选根元素引用；供容器观察和页面级定位复用同一布局根。 */
   rootElementRef?: { current: HTMLDivElement | null };
   /** 隐藏左侧 pane 与 resize handle；常驻导航轨作为可选区域独立管理。 */

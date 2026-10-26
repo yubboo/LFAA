@@ -8,6 +8,8 @@ AI Provider 与模型目录由登录用户共享读取；新增、改模型/思�
 
 构建仅写根 dist/packages/api/settings-controller；[数据与文件合同](../../../docs/development/file-resources.zh.md)。真实服务重载与数据迁移不由构建代替。
 
+账户资料 API 复用 `settings-snapshots` 归档 Owner；Control Plane 装配的 `lfaaAttachments` 仅用于 v2 迁移包导出与附件恢复。`/settings/import/export` 导出 v2 gzip 文件，预览与恢复同时接收 v1/v2；上传仍要求认证和既有 Settings/Memory/Session 校验。请求体上限为 256 MiB，附件按目标用户写入 Attachment Owner；不在 Controller 中解析会话或直接读写附件目录。
+
 ## 小鱼共享工作入口（2026-10-14）
 
 GET /ai/skills 通过实际 Skill Registry 返回当前账户可见摘要、来源和账户 `plugins.disabledSkillNames` 派生的 `enabled` 状态；隐藏绝对路径、资源基址和正文。插件总开关仍按原规则过滤非内置技能；单项停用由 Skill Tool Owner 在目录和正文加载时执行。

@@ -1,16 +1,17 @@
 <a id="readme-top"></a>
 
-# LFAA-Harness
+# LFAA-Harness: AI Agent Workspace and Application Platform
 
 [简体中文](README.md) · [Documentation index](docs/README.md) · [Development docs](docs/development/README.md)
 
-LFAA-Harness is LFAA's first-party general AI agent workspace and application platform. It owns its Runtime, Profiles/Bundles, first-party capability packages, and application services. Running LFAA does not require a separate DeepSeek Harness installation.
+**LFAA is a self-hosted, model-provider-agnostic AI agent workspace and application platform for work across local and remote hosts.** Users describe a goal; the configured model selects registered Skills, domain experts, and Tools as needed. Domain services and authenticated Daemons execute work and return real results. LFAA ships its own Runtime, Profile/Bundle assembly, first-party capability packages, and application services, so it does not require a separate DeepSeek Harness installation.
 
 ## Contents
 
 - [Project overview](#project-overview)
 - [Product entry and workflow](#product-workflow)
 - [Capabilities and current status](#capabilities-and-status)
+- [Frequently asked questions](#common-questions)
 - [First use](#first-use)
 - [Run Web from source](#run-web)
 - [Build and package commands](#build-and-package)
@@ -22,7 +23,7 @@ LFAA-Harness is LFAA's first-party general AI agent workspace and application pl
 <a id="project-overview"></a>
 ## Project overview
 
-LFAA is a large-model-driven workspace. A user describes a goal; the model plans the work, discovers and selects registered prompts, Skills, domain experts, and tools as needed, then continues from the tools' actual results. First-party plugins and capability packages provide the product capabilities. A Profile selects a runtime combination, and a Bundle declares application assembly.
+In `/work`, a user describes a goal in natural language. The model plans from the active Profile, the system-configured Provider, and the capabilities actually available, then continues from returned tool results. First-party plugins and capability packages provide the product capabilities. A Profile selects a runtime combination, and a Bundle declares application assembly.
 
 The product combines one general Agent workspace with domain applications. The Agent understands goals, calls capabilities, and reports results. Domain applications provide conventional operation screens and result management. Both use the same domain services, data owners, and permission owners, so chat and manual screens do not implement separate business rules.
 
@@ -46,7 +47,7 @@ flowchart LR
 The execution path is:
 
 1. The user describes a goal in `/work` or performs a manual action in a domain app.
-2. The Agent uses the Provider and model enabled for the current account. The model discovers, loads, and selects real capabilities according to the goal; keyword routing and fixed business flows do not replace model decisions.
+2. The Agent uses the system-configured Provider and active model. The model discovers, loads, and selects real capabilities according to the goal; keyword routing and fixed business flows do not replace model decisions.
 3. Tool calls go to their domain owner, which validates account identity, data scope, parameters, node, and the existing permission mode.
 4. Host work is sent by the Control Plane to an authenticated Daemon. The Daemon reports execution state and results, which the Agent uses to continue or finish the task.
 
@@ -65,12 +66,35 @@ The table summarizes the product areas and capabilities integrated in source. Ac
 
 The [Harness package inventory](docs/harness-packages.md) (Chinese) lists capability registrations and package status. A directory's presence alone does not mean it is assembled or runnable; check the active Profile and development plan.
 
+<a id="common-questions"></a>
+## Frequently asked questions
+
+### What is LFAA?
+
+LFAA is a self-hosted AI agent workspace and application platform. Users state a goal, the model selects assembled Skills, Tools, experts, and plugins as needed, and domain apps and services own their data, permissions, and execution rules.
+
+### Do I need to install DeepSeek Harness separately?
+
+No. LFAA provides its own Runtime, Profile/Bundle assembly, first-party capability packages, and application services.
+
+### Does every LFAA login need its own model and API key?
+
+No. An administrator manages the system-shared Providers, models, and API keys in **Settings → AI and Models**. All logged-in users read the same model catalog. The Control Plane encrypts API keys and does not return them to the browser; runtime preferences such as `aiRuntime` remain account-scoped.
+
+### How does the Agent use tools and remote hosts?
+
+The model chooses Tools from the capabilities actually available for the current goal. Domain services validate identity, parameters, data scope, and the permission mode. When a task needs host execution, the Control Plane sends it to an authenticated Daemon and uses the real status and result returned by that Daemon.
+
+### Which capabilities are currently available?
+
+See the capability table above and the [current development plan](docs/开发计划.md) (Chinese). Actual availability depends on the Profile, settings, permissions, Provider connection, and node status; a source directory alone does not mean a capability is assembled or runnable.
+
 <a id="first-use"></a>
 ## First use
 
 1. Build and start Web with the commands below, or use the `lfaa.bat` launcher on Windows.
 2. Open `http://127.0.0.1:3000`. On the first visit with a new data directory, create the super-administrator account when prompted. Existing data directories keep their existing account.
-3. After login, open **Settings → AI and Models**. Add a Provider account, configure its API key, and select a model. The settings service owns model accounts and secrets; secrets are not returned to the browser. Provider requests may incur charges under the Provider's terms.
+3. An administrator opens **Settings → AI and Models** to configure system-shared Providers, API keys, and models, then selects the active model. All logged-in users share this model catalog. The settings service encrypts API keys and does not return them to the browser. Provider requests may incur charges under the Provider's terms.
 4. Return to `/work` to start a conversation. Open a domain app from the global navigation to use its manual interface; the Agent shares its business service.
 5. Whether an action waits for approval depends on the account's permission mode and the action's risk. Remote host actions also require a connected node with the needed capability.
 
@@ -167,7 +191,7 @@ The regular `pnpm run build` does not create a desktop installer or increment th
 <a id="data-model-permissions"></a>
 ## Data, models, and permissions
 
-- **Model accounts:** Configure Providers and models in Settings. The backend Settings/Credentials owners store model secrets; do not put them in the frontend or README examples. Real requests may incur Provider charges.
+- **System models:** An administrator configures Providers, models, and API keys shared by all logged-in users. The backend Settings/Credentials owners encrypt API keys; account-scoped runtime and image/video model preferences remain separate. Do not put secrets in the frontend or README examples. Real requests may incur Provider charges.
 - **User data:** Accounts, sessions, settings, projects, and app data are persisted by their respective owners. Runtime locations are controlled by deployment settings such as `LFAA_DATA_DIR`; changing the directory does not automatically move existing data. Read the [storage guide](docs/subsystems/storage.md) and [CLI data guide](docs/user/cli.md).
 - **Permission execution:** Request approval, approve for me, and full access are shared permission modes in Settings. Tools still pass server-side identity, parameter, target, and data-scope validation. Full access is not an operating-system sandbox.
 - **Public deployment:** Public listeners require a strong `JWT_SECRET` and an absolute persistent data directory. Review the [CLI configuration guide](docs/user/cli.md) before exposing a local setup to the network.

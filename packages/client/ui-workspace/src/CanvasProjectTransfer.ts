@@ -9,6 +9,7 @@ import {
   canvasAssetUrl, createCanvasProject, deleteCanvasProject, saveCanvasProject, uploadCanvasAsset,
   type ApplicationId, type CanvasAssetMimeType, type CanvasEdge, type CanvasNode, type CanvasProject, type UserSettings
 } from "lfaa-client-connection/src/api.js";
+import type { DirectorDeskObject, DirectorDeskSceneData } from "lfaa-client-ui-primitives/src/DirectorDeskStage.js";
 
 /** 导入导出的 JSON（含素材 base64）总量上限，与画布合同一致；服务端仍是最终权威。 */
 export const MAX_TRANSFER_BYTES = 64 * 1024 * 1024;
@@ -31,6 +32,7 @@ export const CANVAS_LIMITS = {
   /** 音频单文件上限（合同 5.1）：32 MiB。 */
   audioBytes: 32 * 1024 * 1024,
   projectAssetBytes: 512 * 1024 * 1024,
+  directorDeskObjects: 32,
   minNodeSize: 120,
   maxNodeSize: 800,
   coordinate: 100_000,
@@ -80,7 +82,18 @@ export interface CanvasSubjectData { name: string; kind: CanvasSubjectKind; desc
 export interface CanvasTimelineClip { nodeId: string; assetId?: string; startSeconds: number; durationSeconds: number; title: string }
 export interface CanvasTimelineData { clips: CanvasTimelineClip[]; durationSeconds: number }
 export interface CanvasDirectorToolboxData { name: string; promptSuffix: string; aspectRatio?: CanvasAspectRatio }
-export interface CanvasDirectorDeskData { shotNodeIds: string[] }
+export interface CanvasDirectorDeskData { shotNodeIds: string[]; scene?: DirectorDeskSceneData }
+
+/** 既有 Canvas 设置之外的项目级场景初始值；保存后归当前导演台节点。 */
+export function createDefaultDirectorDeskScene(): DirectorDeskSceneData {
+  return {
+    objects: [],
+    camera: { x: 0, y: 2.4, z: -8, yaw: 0, pitch: -5, focalLength: 50 },
+    environment: "studio",
+    keyLightIntensity: 3.4,
+    showGrid: true
+  };
+}
 export type CanvasScriptStatus = "draft" | "ready";
 export interface CanvasScriptData { title: string; body: string; status: CanvasScriptStatus }
 
@@ -287,7 +300,67 @@ function normalizeDeskData(value: unknown, context: CanvasNodeDataContext, label
     if (typeof nodeId !== "string" || !context.nodeIds.has(nodeId)) throw new Error(label + "镜头节点不存在。");
     return nodeId;
   });
-  return { shotNodeIds: [...new Set(shotNodeIds)] };
+  const result: CanvasDirectorDeskData = { shotNodeIds: [...new Set(shotNodeIds)] };
+  if (value.scene !== undefined) result.scene = normalizeDirectorDeskScene(value.scene, label);
+  return result;
+}
+
+function normalizeDirectorDeskScene(value: unknown, label: string): DirectorDeskSceneData {
+  if (!isRecord(value) || Object.keys(value).some(key => !["objects", "camera", "environment", "keyLightIntensity", "showGrid"].includes(key))) {
+    throw new Error(label + "场景格式无效。");
+  }
+  const rawObjects = readArray(value.objects, "导演台对象", CANVAS_LIMITS.directorDeskObjects);
+  const ids = new Set<string>();
+  const objects: DirectorDeskObject[] = rawObjects.map((item, index) => {
+    if (!isRecord(item) || Object.keys(item).some(key => !["id", "name", "kind", "x", "y", "z", "width", "height", "depth", "rotation"].includes(key))) {
+      throw new Error(label + "第 " + (index + 1) + " 个场景对象格式无效。");
+    }
+    if (typeof item.id !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(item.id)) {
+      throw new Error(label + "场景对象 ID 无效。");
+    }
+    const id = item.id.toLowerCase();
+    if (ids.has(id)) throw new Error(label + "场景对象 ID 重复。");
+    ids.add(id);
+    if (item.kind !== "actor" && item.kind !== "block") throw new Error(label + "对象类型无效。");
+    const finite = (field: unknown, fieldLabel: string, minimum: number, maximum: number) =>
+      clampNumber(requireFinite(field, label + fieldLabel), minimum, maximum);
+    return {
+      id,
+      name: readTrimmed(item.name, 50, item.kind === "actor" ? "白模角色" : "场景方块"),
+      kind: item.kind,
+      x: finite(item.x, "对象横向位置", -50, 50),
+      y: finite(item.y, "对象高度", -50, 50),
+      z: finite(item.z, "对象纵向位置", -50, 50),
+      width: finite(item.width, "对象宽度", 0.2, 20),
+      height: finite(item.height, "对象高度", 0.2, 20),
+      depth: finite(item.depth, "对象纵深", 0.2, 20),
+      rotation: finite(item.rotation, "对象朝向", -360, 360)
+    };
+  });
+  if (!isRecord(value.camera) || Object.keys(value.camera).some(key => !["x", "y", "z", "yaw", "pitch", "focalLength"].includes(key))) {
+    throw new Error(label + "摄影机格式无效。");
+  }
+  const camera = value.camera;
+  const finiteCamera = (field: unknown, fieldLabel: string, minimum: number, maximum: number) =>
+    clampNumber(requireFinite(field, label + fieldLabel), minimum, maximum);
+  if (value.environment !== "studio" && value.environment !== "sunset" && value.environment !== "night") {
+    throw new Error(label + "环境预设无效。");
+  }
+  if (typeof value.showGrid !== "boolean") throw new Error(label + "地面网格开关无效。");
+  return {
+    objects,
+    camera: {
+      x: finiteCamera(camera.x, "摄影机横向位置", -100, 100),
+      y: finiteCamera(camera.y, "摄影机高度", -5, 100),
+      z: finiteCamera(camera.z, "摄影机纵向位置", -100, 100),
+      yaw: finiteCamera(camera.yaw, "摄影机水平角度", -360, 360),
+      pitch: finiteCamera(camera.pitch, "摄影机俯仰角度", -85, 85),
+      focalLength: finiteCamera(camera.focalLength, "摄影机焦距", 18, 120)
+    },
+    environment: value.environment,
+    keyLightIntensity: finiteCamera(value.keyLightIntensity, "主光强度", 0, 5),
+    showGrid: value.showGrid
+  };
 }
 
 function normalizeScriptData(value: unknown, label: string): CanvasScriptData {

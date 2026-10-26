@@ -640,6 +640,10 @@ test("会话导航将助手输出配给最近的提问，并在下一条提问�
   assert.equal(conversationAnchorReply(anchors[0].reply), "第一条 回复");
   assert.equal(conversationAnchorReply(anchors[1].reply), "回复排队中");
   assert.equal(conversationAnchorReply(anchors[2].reply), "尚无助手回复");
+  const longReply = message("long", "assistant", "阶段\n".repeat(400));
+  const preview = conversationAnchorReply(longReply);
+  assert.ok(preview.length <= 321);
+  assert.ok(preview.endsWith("…"), "hover previews stay bounded during long streaming replies");
 });
 
 test("AI Work 只按用户滚动意图切换跟随，流式布局变化不会意外暂停", () => {

@@ -5717,6 +5717,7 @@
         "entry": "packages/subagent/subagent/src/index.ts",
         "readme": "packages/subagent/subagent/README.md",
         "consumers": [
+          "packages/api/session-controller",
           "packages/subagent/subagent-claude-code",
           "packages/subagent/subagent-codex",
           "packages/subagent/subagent-in-process-driver",

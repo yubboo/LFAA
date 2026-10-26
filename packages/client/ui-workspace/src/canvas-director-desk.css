@@ -1,0 +1,172 @@
+/* 导演台编辑器：此文件只负责编辑器结构，背景、文字和描边取自共享主题令牌。 */
+.lfaa-cnv-director {
+  position: absolute;
+  z-index: 45;
+  inset: 0;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: auto;
+  container-type: size;
+  container-name: lfaa-director;
+  background: var(--color-canvas);
+  color: var(--color-text-primary);
+  font-family: var(--settings-interface-font, var(--font-family-sans));
+}
+
+.lfaa-cnv-director__header {
+  display: flex;
+  min-height: 64px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+}
+
+.lfaa-cnv-director__heading,
+.lfaa-cnv-director__actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+
+.lfaa-cnv-director__heading > div { display: flex; min-width: 0; flex-direction: column; }
+.lfaa-cnv-director__heading .ant-typography { margin: 0; }
+.lfaa-cnv-director__heading h4.ant-typography { font-size: var(--font-size-md); }
+.lfaa-cnv-director__actions > span { color: var(--color-text-secondary); font-size: var(--font-size-xs); }
+
+.lfaa-cnv-director__error { margin: 8px 12px 0; }
+
+.lfaa-cnv-director__layout {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  grid-template-columns: minmax(166px, 208px) minmax(0, 1fr) minmax(248px, 300px);
+}
+
+.lfaa-cnv-director__library,
+.lfaa-cnv-director__inspector {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  background: var(--color-surface);
+}
+
+.lfaa-cnv-director__library { padding: 14px 12px; border-right: 1px solid var(--color-border); }
+.lfaa-cnv-director__inspector { display: flex; flex-direction: column; border-left: 1px solid var(--color-border); }
+.lfaa-cnv-director__viewport { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: var(--color-canvas); }
+.lfaa-cnv-director__loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--color-text-secondary); }
+
+.lfaa-cnv-director__panel-heading {
+  display: flex;
+  min-height: 32px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.lfaa-cnv-director__panel-heading > span { color: var(--color-text-secondary); font-size: var(--font-size-xs); }
+.lfaa-cnv-director__library-list { display: grid; gap: 9px; margin-top: 12px; }
+
+.lfaa-cnv-director__asset {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  min-height: 72px;
+  align-items: center;
+  grid-template-columns: 48px minmax(0, 1fr) 16px;
+  gap: 9px;
+  padding: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--color-surface) 76%, var(--color-text-primary) 4%);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  text-align: left;
+}
+
+.lfaa-cnv-director__asset:hover:not(:disabled) { border-color: var(--settings-accent, var(--color-brand)); background: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 8%, var(--color-surface)); }
+.lfaa-cnv-director__asset:disabled { cursor: not-allowed; opacity: 0.55; }
+.lfaa-cnv-director__asset > span:nth-child(2) { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+.lfaa-cnv-director__asset strong { overflow: hidden; font-size: var(--font-size-xs); text-overflow: ellipsis; white-space: nowrap; }
+.lfaa-cnv-director__asset small { color: var(--color-text-secondary); font-size: var(--font-size-xs); }
+.lfaa-cnv-director__asset-preview { display: flex; width: 48px; height: 48px; align-items: center; justify-content: center; border-radius: 7px; background: color-mix(in srgb, var(--color-text-primary) 10%, var(--color-canvas)); color: var(--settings-accent, var(--color-brand)); font-size: 21px; }
+.lfaa-cnv-director__asset-preview--block { color: var(--color-text-primary); }
+.lfaa-cnv-director__limit { margin: 12px 2px; color: var(--color-text-secondary); font-size: var(--font-size-xs); }
+
+.lfaa-cnv-director__object-list { max-height: 38%; min-height: 80px; overflow: auto; padding: 10px 12px; border-bottom: 1px solid var(--color-border); }
+.lfaa-cnv-director__object-list ul { display: grid; gap: 3px; margin: 4px 0 0; padding: 0; list-style: none; }
+.lfaa-cnv-director__object { display: flex; width: 100%; min-width: 0; align-items: center; gap: 8px; padding: 7px 8px; border: 0; border-radius: 6px; background: transparent; color: var(--color-text-primary); cursor: pointer; text-align: left; }
+.lfaa-cnv-director__object > span { overflow: hidden; flex: 1 1 auto; text-overflow: ellipsis; white-space: nowrap; }
+.lfaa-cnv-director__object:hover { background: color-mix(in srgb, var(--color-text-primary) 7%, transparent); }
+.lfaa-cnv-director__object.is-selected { background: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 17%, transparent); color: var(--settings-accent, var(--color-brand)); }
+.lfaa-cnv-director__empty { margin: 8px 0; color: var(--color-text-secondary); font-size: var(--font-size-xs); line-height: 1.5; }
+
+.lfaa-cnv-director__properties { min-height: 0; flex: 1 1 auto; overflow: auto; padding: 10px 12px 16px; }
+.lfaa-cnv-director__group { display: grid; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--color-border-subtle); }
+.lfaa-cnv-director__group h3 { margin: 0; color: var(--color-text-secondary); font-size: var(--font-size-xs); font-weight: 600; }
+.lfaa-cnv-director__field { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 10px; color: var(--color-text-secondary); font-size: var(--font-size-xs); }
+.lfaa-cnv-director__field > span { min-width: 72px; }
+.lfaa-cnv-director__field .ant-input-number,
+.lfaa-cnv-director__field .ant-input,
+.lfaa-cnv-director__field .ant-select { width: min(100%, 156px); }
+.lfaa-cnv-director__field .ant-slider { flex: 1 1 auto; min-width: 60px; margin: 7px 4px; }
+.lfaa-cnv-director__field-grid { display: grid; min-width: 0; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.lfaa-cnv-director__field-grid--camera { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.lfaa-cnv-director__field-grid .lfaa-cnv-director__field { min-width: 0; align-items: stretch; flex-direction: column; gap: 4px; }
+.lfaa-cnv-director__field-grid .lfaa-cnv-director__field > span { min-width: 0; }
+.lfaa-cnv-director__field-grid .ant-input-number { width: 100%; }
+
+@container lfaa-director (max-width: 900px) {
+  .lfaa-cnv-director__layout { grid-template-columns: minmax(0, 1fr) minmax(230px, 34%); grid-template-rows: auto minmax(0, 1fr); }
+  .lfaa-cnv-director__library { display: grid; grid-column: 1 / -1; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 8px 12px; border-right: 0; border-bottom: 1px solid var(--color-border); }
+  .lfaa-cnv-director__library-list { display: flex; min-width: 0; gap: 8px; overflow-x: auto; margin: 0; }
+  .lfaa-cnv-director__asset { width: 190px; min-width: 170px; min-height: 54px; grid-template-columns: 38px minmax(0, 1fr) 14px; padding: 6px; }
+  .lfaa-cnv-director__asset-preview { width: 38px; height: 38px; }
+  .lfaa-cnv-director__limit { margin: 0; white-space: nowrap; }
+  .lfaa-cnv-director__viewport { grid-column: 1; grid-row: 2; }
+  .lfaa-cnv-director__inspector { grid-column: 2; grid-row: 2; }
+}
+
+@container lfaa-director (max-width: 620px) {
+  .lfaa-cnv-director { overflow: auto; }
+  .lfaa-cnv-director__header { position: sticky; z-index: 4; top: 0; align-items: flex-start; flex-direction: column; gap: 6px; padding: 8px 10px; }
+  .lfaa-cnv-director__heading { gap: 6px; }
+  .lfaa-cnv-director__heading .ant-btn { padding-inline: 4px; }
+  .lfaa-cnv-director__actions { width: 100%; justify-content: space-between; }
+  .lfaa-cnv-director__actions > span { max-width: 55%; }
+  .lfaa-cnv-director__layout { display: flex; min-height: max-content; flex-direction: column; overflow: visible; }
+  .lfaa-cnv-director__library { display: grid; grid-template-columns: 1fr; gap: 6px; padding: 8px 10px; }
+  .lfaa-cnv-director__library-list { display: flex; }
+  .lfaa-cnv-director__asset { width: 180px; }
+  .lfaa-cnv-director__limit { display: none; }
+  .lfaa-cnv-director__viewport { flex: 0 0 auto; height: clamp(250px, 48cqh, 390px); min-height: 250px; }
+  .lfaa-cnv-director__inspector { display: grid; flex: 0 0 auto; grid-template-columns: minmax(0, 1fr); overflow: visible; border-top: 1px solid var(--color-border); border-left: 0; }
+  .lfaa-cnv-director__object-list { max-height: 200px; }
+  .lfaa-cnv-director__properties { overflow: visible; }
+  .lfaa-cnv-director__field { gap: 7px; }
+  .lfaa-cnv-director__field-grid--camera { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@container lfaa-director (max-height: 540px) and (min-width: 621px) {
+  .lfaa-cnv-director__header { min-height: 50px; padding-block: 4px; }
+  .lfaa-cnv-director__library { padding-block: 8px; }
+  .lfaa-cnv-director__object-list { max-height: 30%; }
+  .lfaa-cnv-director__group { gap: 6px; padding-block: 8px; }
+}
+
+.workbench-shell[data-reduced-motion="true"] .lfaa-cnv-director *,
+.workbench-shell[data-reduced-motion="true"] .lfaa-cnv-director *::before,
+.workbench-shell[data-reduced-motion="true"] .lfaa-cnv-director *::after {
+  scroll-behavior: auto !important;
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}

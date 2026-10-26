@@ -129,6 +129,7 @@ export interface SessionEventDataMap {
   "session/associations": AgentAssociations;
   "session/side-chat": { parentSessionId: string; snapshotSeq: number };
   "session/branch-memory": { sourceSessionId: string; sourceSeq: number; sourceEventId: string; summary: string; version: 1 };
+  "session/portable-context": { summary: string; version: 1 };
   "subagent/task": SessionSubagentTask;
   "turn/start": { turnId: string; userMessageId: string; assistantMessageId: string };
   "turn/end": { turnId: string; status: "complete" | "interrupted" | "error" | "forked" };
@@ -172,7 +173,7 @@ export type SessionSurfaceItem = Readonly<{
 
 const knownTypes = new Set<string>([
   "session/created", "session/title", "session/project", "session/archived", "session/plan-mode", "turn/start", "turn/end", "step/start", "step/end",
-  "session/side-chat", "session/branch-memory", "session/associations", "subagent/task",
+  "session/side-chat", "session/branch-memory", "session/portable-context", "session/associations", "subagent/task",
   "user/message", "system/message", "developer/message", "assistant/message", "message/feedback", "assistant/response", "assistant/attempt",
   "request/header", "request/context", "tool/call", "tool/result", "activity/change", "usage/record",
   "session/end-seed"
@@ -314,6 +315,7 @@ function validatePayload(event: SessionEvent): void {
         && (data.purpose === undefined || data.purpose === "turn" || data.purpose === "memory");
       case "session/branch-memory": return string(data.sourceSessionId) && Number.isSafeInteger(data.sourceSeq) && Number(data.sourceSeq) >= 0
         && string(data.sourceEventId) && string(data.summary) && data.summary.length > 0 && data.summary.length <= 16000 && data.version === 1;
+      case "session/portable-context": return string(data.summary) && data.summary.length > 0 && data.summary.length <= 16000 && data.version === 1;
       case "session/end-seed": return string(data.sourceSessionId) && Number.isSafeInteger(data.sourceSeq) && Number(data.sourceSeq) >= 0
         && (data.inheritedEventCount === undefined || Number.isSafeInteger(data.inheritedEventCount) && Number(data.inheritedEventCount) >= 0);
     }

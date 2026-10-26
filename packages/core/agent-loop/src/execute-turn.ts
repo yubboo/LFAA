@@ -1393,7 +1393,7 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
                 const loaded = await aiPluginHost.loadInstruction(expert.id, body.appId);
                 abortController.signal.throwIfAborted();
                 if (!aiPluginHost.listExtensions("expert").some(entry => entry.id === expert.id) || !expert.builtIn && !getUserSettings(userId).plugins.enabled) throw new Error("专家加载期间已撤销。");
-                parameters = { ...parameters, expertInstructions: loaded.instructions };
+                parameters = { ...parameters, expertInstructions: loaded.instructions, officeEmployeeId: expert.id, officeAgentLabel: loaded.name };
               }
               updateActivity(activityId, "正在创建独立子 Agent 任务；模型和工具权限遵循设置中心配置。");
               dispatched = true;

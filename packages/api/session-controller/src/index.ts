@@ -9,7 +9,8 @@ import { requireAuthentication } from "lfaa-authorization/src/middleware.js";
 import { createRateLimit } from "lfaa-api-remotes/src/rate-limit.js";
 import type { AiPluginHost } from "lfaa-app-boot/src/ai-host.js";
 import type { MinecraftRealtimePublisher } from "lfaa-api-remotes/src/socket-server.js";
-import { createAiSessionBranchWithMemory, startAiRun, getAiRun, cancelAiRun, pauseAiRun, resumeAiRun, subscribeAiRun, appendAiRunInput, answerAiRunQuestion, type AiRunInput } from "lfaa-agent-loop/src/runs.js";
+import { createAiSessionBranchWithMemory, startAiRun, getAiRun, cancelAiRun, pauseAiRun, resumeAiRun, subscribeAiRun, appendAiRunInput, answerAiRunQuestion, listAiOfficeRuns, type AiRunInput } from "lfaa-agent-loop/src/runs.js";
+import type { SubagentManager } from "lfaa-subagent/src/manager.js";
 import { forkAiSessionBeforeUserMessage, forkAiSessionForSideChat, getAiSideChatParentSessionId, getAiSession, getAiSessionMessages, getAiSessionMessagesPage, getAiUsageSummary, InvalidAiSessionMessageCursorError, listAiSessions, setAiSessionArchived, setAiSessionPlanMode, submitAiMessageFeedback, type AiMessageFeedbackInput } from "lfaa-session/src/sessions.js";
 import { AiPermissionModeChangedError, decideAiToolApproval, listAiToolApprovals, listAiToolPermissionGrants, revokeAiToolPermissionGrant } from "lfaa-permission-presets/src/permissions.js";
 import type { UserApprovalNotifications } from "lfaa-user-approval/src/index.js";
@@ -17,8 +18,42 @@ import { getUserSettings } from "lfaa-settings/src/service.js";
 import { getAiHostTask, listUserAiHostTasks, requestAiHostTaskCancellation } from "lfaa-jobs/src/ai-host-tasks.js";
 import { asyncHandler, parseBody, aiChatMessageSchema, aiMessageFeedbackSchema, aiSessionArchiveSchema, aiSessionPlanModeSchema, aiSessionForkSchema, aiApprovalDecisionSchema, aiRunQuestionAnswerSchema, writeSse } from "lfaa-api-remotes/src/route-contracts.js";
 import { openSseStream } from "lfaa-api-gateway/src/sse.js";
-export function registerRoutes(router: Router, aiPluginHost: AiPluginHost, _realtime: MinecraftRealtimePublisher, approvalNotifications: UserApprovalNotifications): void {
+export function registerRoutes(router: Router, aiPluginHost: AiPluginHost, _realtime: MinecraftRealtimePublisher, approvalNotifications: UserApprovalNotifications, subagents?: Pick<SubagentManager, "listRuns">): void {
 const limitAiInference = createRateLimit(12, 60 * 1000);
+router.get("/ai/office", requireAuthentication, (request, response) => {
+  const userId = request.auth!.user.id;
+  const availableExperts = aiPluginHost.listExtensions("expert");
+  const officeRuns = listAiOfficeRuns(userId);
+  const externalSubagents = (subagents?.listRuns(userId) ?? [])
+    .filter(run => run.status === "running" && run.driver !== "in-process")
+    .map(run => ({
+      id: run.runId,
+      sessionId: "",
+      appId: run.appId,
+      parentRunId: run.parentRunId,
+      employeeId: "lfaa.subagent",
+      label: run.description.slice(0, 120),
+      task: run.description.slice(0, 200),
+      status: "streaming" as const,
+      pauseState: "running" as const,
+      startedAt: run.startedAt,
+      source: "external-subagent" as const,
+      driver: run.driver,
+      activities: [] as const
+    }));
+  const runs = [...officeRuns.runs.map(run => ({ ...run, source: "agent-loop" as const, driver: null })), ...externalSubagents]
+    .sort((left, right) => left.startedAt.localeCompare(right.startedAt));
+  response.json({
+    employees: availableExperts.slice(0, 100).map(({ id, name, description, applicationIds }) => ({
+      id: id.slice(0, 120),
+      name: name.slice(0, 120),
+      description: description.slice(0, 240),
+      applicationIds: applicationIds?.slice(0, 32) ?? []
+    })),
+    runs: runs.slice(-100),
+    truncated: officeRuns.truncated || runs.length > 100 || availableExperts.length > 100
+  });
+});
 router.post("/ai/host-tasks/:taskId/cancel", requireAuthentication, (request, response) => {
   if (!requestAiHostTaskCancellation(request.params.taskId, request.auth!.user.id)) throw new ApiError(404, "ai_host_task_not_found", "找不到当前账户的节点任务。");
   response.status(202).json({ task: getAiHostTask(request.params.taskId) });
@@ -260,7 +295,7 @@ function follow(request: import("express").Request, response: import("express").
 /** 将控制器路由绑定到插件生命周期；运行服务由 agent-loop 包管理。 */
 import type { Context } from "@deepseek-ai/cordis";
 import "lfaa-api-gateway/src/index.js";
-export const inject = ["apiGateway", "lfaaAgentLoop", "lfaaUserApproval"];
+export const inject = ["apiGateway", "lfaaAgentLoop", "lfaaUserApproval", "lfaaSubagents"];
 export function apply(ctx: Context): void {
-  ctx.apiGateway.register(ctx, "session-controller", (router, aiHost, realtime) => registerRoutes(router, aiHost, realtime, ctx.lfaaUserApproval));
+  ctx.apiGateway.register(ctx, "session-controller", (router, aiHost, realtime) => registerRoutes(router, aiHost, realtime, ctx.lfaaUserApproval, ctx.lfaaSubagents));
 }

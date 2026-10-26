@@ -213,7 +213,7 @@ export const settingsTools: AiBusinessTool[] = [
   }),
   makeTool({
     id: "settings.snapshots.create", name: "lfaa_settings_snapshot_create", coreManaged: true, applicationIds: [...APPLICATION_IDS], activityTitle: "创建账户资料快照",
-    description: "为当前账户创建包含可移植设置、会话记忆和公开对话文本的真实持久化快照。权限模式、凭据、插件/MCP 连接、浏览器/电脑访问权限、本机路径、图片素材与运行中任务不会进入快照。返回写入后回读的摘要。",
+    description: "为当前账户创建本机账户快照，保留可移植设置、会话记忆和公开对话文本。它不包含附件字节或 Agent 检查点；需要跨电脑完整迁移时，使用设置中心‘导入与导出’生成 v2 迁移包。权限模式、凭据、连接、本机路径和运行中任务不会进入快照。返回写入后回读的摘要。",
     schema: strictObject({ name: { type: "string", minLength: 1, maxLength: 120 } }, ["name"]),
     parse: value => parse(Joi.object({ name: Joi.string().trim().min(1).max(120).required() }).unknown(false), value),
     risk: () => "write",
@@ -230,7 +230,7 @@ export const settingsTools: AiBusinessTool[] = [
       context.signal.throwIfAborted();
       const snapshot = readAccountSnapshot(context.userId, String(parameters.snapshotId));
       if (!snapshot) throw new Error("找不到当前账户的该快照。");
-      return { source: "settings-snapshots-owner", snapshot: snapshot.summary, preview: previewAccountArchive(context.userId, snapshot.archive) };
+      return { source: "settings-snapshots-owner", snapshot: snapshot.summary, preview: await previewAccountArchive(context.userId, snapshot.archive) };
     }
   }),
   makeTool({
@@ -244,7 +244,7 @@ export const settingsTools: AiBusinessTool[] = [
       context.signal.throwIfAborted();
       const snapshot = readAccountSnapshot(context.userId, String(parameters.snapshotId));
       if (!snapshot) throw new Error("找不到当前账户的该快照。");
-      const result = restoreAccountArchive(context.userId, snapshot.archive, { settings: Boolean(parameters.settings), memories: Boolean(parameters.memories), sessions: Boolean(parameters.sessions) });
+      const result = await restoreAccountArchive(context.userId, snapshot.archive, { settings: Boolean(parameters.settings), memories: Boolean(parameters.memories), sessions: Boolean(parameters.sessions) });
       return { source: "settings-snapshots-owner", snapshot: snapshot.summary, result };
     }
   }),

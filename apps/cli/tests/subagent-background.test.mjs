@@ -26,7 +26,7 @@ test("取消信号在派发前拒绝驱动，派发后不能误记为完成", as
   const release = Promise.withResolvers();
   manager.registerDriver({ name: "fixture", displayName: "隔离驱动", async run() { executions++; await release.promise; return { runId: "", stopReason: "completed", answer: "真实返回" }; } });
   const cancelled = new AbortController(); cancelled.abort();
-  const task = { driver: "fixture", description: "验证取消", prompt: "fixture", appId: "workspace" };
+  const task = { driver: "fixture", description: "验证取消", prompt: "fixture", appId: "workspace", parentRunId: "parent-fixture" };
   const context = { userId: "owner", userRole: "admin", signal: cancelled.signal, onProgress() {} };
   const notStarted = manager.start(task, context);
   assert.equal((await notStarted.done).stopReason, "aborted");
@@ -34,6 +34,7 @@ test("取消信号在派发前拒绝驱动，派发后不能误记为完成", as
   const controller = new AbortController();
   const running = manager.start(task, { ...context, signal: controller.signal });
   assert.equal(manager.getRun("other", running.runId), null);
+  assert.ok(manager.listRuns("owner").some(run => run.runId === running.runId && run.appId === "workspace" && run.parentRunId === "parent-fixture"));
   controller.abort(); release.resolve();
   assert.equal((await running.done).stopReason, "aborted");
   assert.equal(running.status, "aborted");
@@ -103,6 +104,12 @@ test("完整 Agent 链：后台继续、前台等待、回收结果、取消等�
     assert.equal(runs.getAiRun(owner, background.id).status, "complete", runs.getAiRun(owner, background.id).message.content);
     assert.equal(taskFor(background).status, "running", "父回复结束后子任务仍独立运行");
     const bgTask = taskFor(background);
+    const officeChild = runs.listAiOfficeRuns(owner).runs.find(run => run.employeeId === "lfaa.subagent");
+    assert.ok(officeChild, "办公室应观察到仍在运行的进程内子 Agent");
+    assert.equal(officeChild.parentRunId, background.id);
+    assert.equal(officeChild.label, "隔离子任务");
+    assert.equal(officeChild.status, "streaming");
+    assert.deepEqual(runs.listAiOfficeRuns(stranger).runs, [], "其他账户看不到该 Agent Run");
     assert.deepEqual(sessions.listAiSubagentTasks(stranger, background.sessionId), []);
     await assert.rejects(readResult.execute({ runId: bgTask.runId, wait: false }, { ...context(background), userId: stranger }), /找不到/);
     const waitController = new AbortController();

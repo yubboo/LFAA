@@ -20,6 +20,44 @@ export interface ResponseTimelineLiveStatus {
   isProcessing: boolean;
 }
 
+interface CachedTimelineEntry {
+  offset: number;
+  order: number;
+  block: Exclude<ResponseTimelineBlock, { kind: "tools" }>;
+  textRange?: { start: number; end: number };
+  fullContent?: boolean;
+}
+
+interface CachedTimelineStructure {
+  finished: boolean;
+  entries: CachedTimelineEntry[];
+}
+
+// 同一条流的每次文本增量复用已排序的活动/分段结构；活动或 parts 更新时以新数组键重建。
+const responseTimelineStructures = new WeakMap<AiActivityItem[], CachedTimelineStructure>();
+
+function timelineStructureFor(message: AiMessage, finished: boolean): CachedTimelineStructure {
+  const cached = responseTimelineStructures.get(message.activity);
+  if (cached && cached.finished === finished) return cached;
+
+  const entries: CachedTimelineEntry[] = [];
+  for (const [order, activity] of message.activity.entries()) {
+    // 这两项是 Agent Loop 的能力/权限说明元数据，不代表本轮执行的工作。
+    if ((activity.kind === "agent" && activity.title === "小鱼主 Agent") || (activity.kind === "tool" && activity.title === "已登记项目工具")) continue;
+    // 运行中只显示正文与一个当前状态；重复的模型阶段状态留在完成后的可展开记录中。
+    if (!finished && activity.kind === "status") continue;
+    entries.push({ offset: activity.contentOffset ?? 0, order, block: { kind: activity.kind === "question" || activity.approvalId ? "interaction" : "activity", id: activity.id, activity } });
+  }
+  entries.sort((a, b) => a.offset - b.offset || a.order - b.order);
+  const structure = { finished, entries };
+  responseTimelineStructures.set(message.activity, structure);
+  return structure;
+}
+
+function compareTimelineEntries(left: CachedTimelineEntry, right: CachedTimelineEntry): number {
+  return left.offset - right.offset || left.order - right.order;
+}
+
 /** 为每条回复稳定派生彩色流光相位，token 增量渲染时不会重新随机变色。 */
 export function getResponseShimmerHue(messageId: string): number {
   let hash = 0x811c9dc5;
@@ -31,42 +69,66 @@ export function getResponseShimmerHue(messageId: string): number {
 
 export function buildResponseTimeline(message: AiMessage, liveStatus?: ResponseTimelineLiveStatus): { blocks: ResponseTimelineBlock[]; finalText: string } {
   const finished = message.status !== "streaming" && message.status !== "queued";
-  const parts = message.parts?.length ? message.parts : undefined;
   // 历史消息没有可靠分段，不根据标点或内容关键词制造过程。
+  const structure = timelineStructureFor(message, finished);
+  const parts = message.parts?.length ? message.parts : undefined;
   let finalPart: AiReplyPart | undefined;
-  if (finished && parts) finalPart = [...parts].reverse().find(part => part.kind === "final") ?? parts.at(-1);
-  const entries: Array<{ offset: number; order: number; block: Exclude<ResponseTimelineBlock, { kind: "tools" }> | { kind: "activity"; id: string; activity: AiActivityItem } }> = [];
-  for (const [order, activity] of message.activity.entries()) {
-    // 这两项是 Agent Loop 的能力/权限说明元数据，不代表本轮执行的工作。
-    if ((activity.kind === "agent" && activity.title === "小鱼主 Agent") || (activity.kind === "tool" && activity.title === "已登记项目工具")) continue;
-    // 运行中只显示正文与一个当前状态；重复的模型阶段状态留在完成后的可展开记录中。
-    if (!finished && activity.kind === "status") continue;
-    entries.push({ offset: activity.contentOffset ?? 0, order, block: { kind: activity.kind === "question" || activity.approvalId ? "interaction" : "activity", id: activity.id, activity } });
+  const textEntries: CachedTimelineEntry[] = [];
+  if (parts) {
+    if (finished) finalPart = [...parts].reverse().find(part => part.kind === "final") ?? parts.at(-1);
+    for (const [index, part] of parts.entries()) {
+      if (part === finalPart || part.end <= part.start) continue;
+      textEntries.push({
+        offset: part.start,
+        order: message.activity.length + index,
+        block: { kind: "text", id: part.id, content: "", streaming: !finished && index === parts.length - 1 },
+        textRange: { start: part.start, end: part.end }
+      });
+    }
+    textEntries.sort(compareTimelineEntries);
+  } else if (!finished) {
+    textEntries.push({ offset: 0, order: -1, block: { kind: "text", id: "legacy", content: "", streaming: true }, fullContent: true });
   }
-  for (const [index, part] of (parts ?? []).entries()) {
-    if (part === finalPart || part.end <= part.start) continue;
-    entries.push({ offset: part.start, order: message.activity.length + index, block: { kind: "text", id: part.id, content: message.content.slice(part.start, part.end), streaming: !finished && index === parts!.length - 1 } });
-  }
-  if (!parts && !finished && message.content) entries.push({ offset: 0, order: -1, block: { kind: "text", id: "legacy", content: message.content, streaming: true } });
+  let liveEntry: CachedTimelineEntry | null = null;
   if (!finished && liveStatus) {
     const contentOffset = Math.min(message.content.length, Math.max(0, Math.floor(liveStatus.contentOffset)));
-    entries.push({ offset: contentOffset, order: liveStatus.order, block: {
-      kind: "status",
-      id: "live-status",
-      label: liveStatus.label,
-      isProcessing: liveStatus.isProcessing
-    } });
+    liveEntry = { offset: contentOffset, order: liveStatus.order, block: {
+      kind: "status", id: "live-status", label: liveStatus.label, isProcessing: liveStatus.isProcessing
+    } };
   }
-  entries.sort((a, b) => a.offset - b.offset || a.order - b.order);
   const blocks: ResponseTimelineBlock[] = [];
-  for (const { block } of entries) {
-    if (block.kind !== "activity") { blocks.push(block); continue; }
+  const appendEntry = (entry: CachedTimelineEntry) => {
+    const { block } = entry;
+    if (block.kind === "text") {
+      if (entry.fullContent && !message.content) return;
+      blocks.push({ ...block, content: entry.fullContent ? message.content : message.content.slice(entry.textRange!.start, entry.textRange!.end) });
+      return;
+    }
+    if (block.kind !== "activity") { blocks.push(block); return; }
     // 阶段状态逐项显示，展开“用时”即可看见真实执行节点；工具仍按连续操作收组。
-    if (block.activity.kind === "status") { blocks.push(block); continue; }
+    if (block.activity.kind === "status") { blocks.push(block); return; }
     const previous = blocks.at(-1);
     if (previous?.kind === "tools") previous.activities.push(block.activity);
     else blocks.push({ kind: "tools", id: block.id, activities: [block.activity] });
+  };
+  let liveInserted = false;
+  let activityIndex = 0;
+  let textIndex = 0;
+  while (activityIndex < structure.entries.length || textIndex < textEntries.length) {
+    const activityEntry = structure.entries[activityIndex];
+    const textEntry = textEntries[textIndex];
+    const entry = !activityEntry ? textEntry! : !textEntry ? activityEntry
+      : compareTimelineEntries(activityEntry, textEntry) <= 0 ? activityEntry : textEntry;
+    if (entry === activityEntry) activityIndex += 1;
+    else textIndex += 1;
+    // 已排序活动结构按数组身份复用；正文段和当前状态只做线性归并，不重排整条时间线。
+    if (liveEntry && !liveInserted && (liveEntry.offset < entry.offset || liveEntry.offset === entry.offset && liveEntry.order < entry.order)) {
+      appendEntry(liveEntry);
+      liveInserted = true;
+    }
+    appendEntry(entry);
   }
+  if (liveEntry && !liveInserted) appendEntry(liveEntry);
   return { blocks, finalText: finished ? finalPart ? message.content.slice(finalPart.start, finalPart.end) : message.content : "" };
 }
 

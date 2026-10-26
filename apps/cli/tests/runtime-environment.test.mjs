@@ -50,6 +50,14 @@ test("环境任务隔离、重复合并、取消确认及租约未知；旧存�
     assert.equal(storage.getProjectStorageLocations().settings.runtimeDirectory,before.runtimeDirectory);
     assert.ok(storage.getRuntimeStorageLocations('local',process.env.LFAA_DATA_DIR,process.platform).previousRuntimeDirectories.includes(legacy));
     const remote=storage.getRuntimeStorageLocations('00000000-0000-4000-8000-000000000001','E:\\\\remote','win32');assert.equal(remote.runtimeDirectory,'E:\\\\remote\\\\environments');
+    const {runtimeManager,runtimeStorageFor}=await import('lfaa-runtime-manager/src/service.ts');
+    const {getUserSettings}=await import('lfaa-settings/src/service.js');
+    const zulu=runtimeManager.schedule({targetId:'local',userId:'owner',appId:'minecraft',operation:'install',major:17,distribution:'zulu',version:'17.0.19'});
+    const scheduled=jobs.getRuntimeTask(zulu.id);assert.equal(scheduled.payload.distribution,'zulu');assert.equal(scheduled.payload.version,'17.0.19');
+    assert.equal(scheduled.payload.storage.runtimeDirectory,runtimeStorageFor('local').runtimeDirectory);
+    assert.equal(scheduled.payload.downloadTimeoutSeconds,getUserSettings('owner').minecraftRuntime.minecraftDownloadTimeoutSeconds);
+    assert.throws(()=>runtimeManager.schedule({targetId:'local',userId:'owner',appId:'minecraft',operation:'install',major:21,distribution:'zulu',version:'17.0.19'}),/一致/);
+    assert.throws(()=>runtimeManager.schedule({targetId:'local',userId:'owner',appId:'minecraft',operation:'install',major:17,distribution:'unknown'}),/发行版/);
     migrateRuntimeEnvironmentSchema();assert.equal(database.prepare('PRAGMA user_version').get().user_version,69);
     closeDatabase();
   `],{cwd:join(root,"apps/cli"),env:{...process.env,NODE_ENV:"test",LFAA_HOME:home,LFAA_DATA_DIR:data,JWT_SECRET:""},encoding:"utf8",stdio:"pipe"});}
@@ -63,6 +71,52 @@ test("共享 Java 探测保留完整版本；托管解析不依赖 PATH 或网�
     const manager=createJavaRuntimeManager({repositoryRoot:root,dataDirectory:data,javaDirectory,downloadDirectory:join(data,"cache"),...io,captureProcess:async()=>({stdout:"",stderr:'openjdk version "11.0.29"\nOpenJDK Runtime Environment Temurin-11.0.29'}),fetchResource:async()=>{network++;throw new Error("不应下载");}});
     const runtime=await manager.resolveMinecraftJavaRuntime(11,null,async()=>{},30);assert.equal(runtime.major,11);assert.equal(runtime.version,"11.0.29");assert.equal(network,0);assert.equal(runtime.executable,executable);
     await assert.rejects(manager.resolveMinecraftJavaRuntime(17,"temurin-11",async()=>{},30),/不匹配/);
+  }finally{await rm(data,{recursive:true,force:true});}
+});
+test("Zulu 精确版本只用 Azul 官方匹配元数据，安装进目标存储并返回可选 runtimeId",async()=>{
+  const data=await mkdtemp(join(parent,"runtime-zulu-exact-"));
+  try {
+    const javaDirectory=join(data,"environments","Java"),downloadDirectory=join(data,"cache","minecraft-downloads"),temporaryDirectory=join(data,"tmp");
+    const archiveName="zulu17.66.19-ca-jdk17.0.19-win_x64.zip",packageUuid="f337e1e1-4666-46dd-930e-10da2286d2bf",version="17.0.19";
+    const archiveBytes=Buffer.from("isolated Zulu archive fixture"),sha256=createHash("sha256").update(archiveBytes).digest("hex");
+    const detail={product:"zulu",availability_type:"CA",release_status:"ga",os:"windows",hw_bitness:64,java_package_type:"jdk",archive_type:"zip",name:archiveName,package_uuid:packageUuid,java_version:[17,0,19],download_url:`https://cdn.azul.com/zulu/bin/${archiveName}`,sha256_hash:sha256,size:archiveBytes.length};
+    const requests=[];let downloadedArtifact=null;
+    const io=createRuntimeIO({roots:[data]});
+    const manager=createJavaRuntimeManager({repositoryRoot:root,dataDirectory:data,javaDirectory,downloadDirectory,temporaryDirectory,...io,
+      fetchResource:async(url,options)=>{assert.equal(options.redirect,"error");requests.push(String(url));return String(url).includes("/packages/")&&String(url).endsWith("/")&&!String(url).includes("?")
+        ?new Response(JSON.stringify(detail))
+        :new Response(JSON.stringify([{product:"zulu",availability_type:"CA",release_status:"ga",os:"windows",hw_bitness:64,java_package_type:"jdk",archive_type:"zip",name:archiveName,package_uuid:packageUuid,java_version:[17,0,19]}]));},
+      downloadCoreArtifact:async(artifact,path)=>{downloadedArtifact={...artifact,path};await mkdir(dirname(path),{recursive:true});await writeFile(path,archiveBytes);},
+      expandZip:async(_archive,destination)=>{const java=join(destination,"zulu17.66.19-ca-jdk17.0.19-win_x64","bin","java.exe");await mkdir(dirname(java),{recursive:true});await writeFile(java,"isolated java executable fixture");},
+      captureProcess:async()=>({stdout:"",stderr:'openjdk version "17.0.19" OpenJDK Runtime Environment Zulu17.66.19-ca'})
+    });
+
+    const result=await manager.installManagedJavaRuntime(17,"zulu",version,async()=>{},60);
+    const runtime=await manager.findJavaRuntime(17,true,"zulu");
+    assert.equal(result.version,version);assert.equal(result.distribution,"zulu");assert.equal(result.runtimeVendor,"Azul Zulu");
+    assert.equal(runtime.runtimeId,"zulu-17");assert.equal(runtime.version,version);
+    assert.equal(runtime.executable,join(javaDirectory,"Java17-windows-x64-zulu","bin","java.exe"));
+    assert.deepEqual(downloadedArtifact,{url:detail.download_url,algorithm:"sha256",digest:sha256,path:join(downloadDirectory,archiveName)});
+    assert.equal(requests.length,2);assert.ok(requests[0].includes("java_version=17.0.19"));assert.equal(new URL(requests[1]).hostname,"api.azul.com");
+    assert.deepEqual(await import("node:fs/promises").then(fs=>fs.readdir(temporaryDirectory)),[]);
+  }finally{await rm(data,{recursive:true,force:true});}
+});
+test("拒绝 Azul 元数据中不受信任的压缩包地址且不下载或安装",async()=>{
+  const data=await mkdtemp(join(parent,"runtime-zulu-untrusted-"));
+  try {
+    const javaDirectory=join(data,"environments","Java"),archiveName="zulu17.66.19-ca-jdk17.0.19-win_x64.zip",packageUuid="f337e1e1-4666-46dd-930e-10da2286d2bf";
+    const detail={product:"zulu",availability_type:"CA",release_status:"ga",os:"windows",hw_bitness:64,java_package_type:"jdk",archive_type:"zip",name:archiveName,package_uuid:packageUuid,java_version:[17,0,19],download_url:`https://untrusted.invalid/${archiveName}`,sha256_hash:"a".repeat(64),size:1000};
+    const io=createRuntimeIO({roots:[data]});let downloads=0;
+    const manager=createJavaRuntimeManager({repositoryRoot:root,dataDirectory:data,javaDirectory,downloadDirectory:join(data,"cache"),...io,
+      fetchResource:async url=>String(url).includes("?")?new Response(JSON.stringify([{product:"zulu",availability_type:"CA",release_status:"ga",os:"windows",hw_bitness:64,java_package_type:"jdk",archive_type:"zip",name:archiveName,package_uuid:packageUuid,java_version:[17,0,19]}])):new Response(JSON.stringify(detail)),
+      downloadCoreArtifact:async()=>{downloads++;},captureProcess:async()=>({stdout:"",stderr:'openjdk version "17.0.19"'})
+    });
+    for(const url of [`https://untrusted.invalid/${archiveName}`,`https://cdn.azul.com/zulu/bin/other.zip`,`https://cdn.azul.com:444/zulu/bin/${archiveName}`]){
+      detail.download_url=url;
+      await assert.rejects(manager.installManagedJavaRuntime(17,"zulu","17.0.19",async()=>{},60),/官方工件详情/);
+      assert.equal(await io.fileExists(join(javaDirectory,".java-17-zulu.lock")),false);
+    }
+    assert.equal(downloads,0);assert.equal(await io.fileExists(join(javaDirectory,"Java17-windows-x64-zulu")),false);
   }finally{await rm(data,{recursive:true,force:true});}
 });
 test("取消真实启动等待与下载，不接受存活 PID 为就绪",async()=>{

@@ -264,73 +264,64 @@
 }
 
 .module-ai-work-chat {
-  /* 控制 AI Work 中栏 20–32px 的正文内缩与刻度左侧安全区，以及输入区 10–16px 居中补偿；均随中栏宽度响应。 */
+  /* 控制 AI Work 标题、对话流、输入和用量盒子的统一左右间距，以及贴边导航轨道；随中栏宽度响应。 */
   --ai-work-chat-inline-gap: clamp(20px, 6cqi, 32px);
-  --ai-work-chat-inline-gap-half: clamp(10px, 3cqi, 16px);
-  display: flex; width: 100%; height: 100%; min-width: 0; min-height: 0; flex: 1 1 0;
+  /* 控制 AI Work 对话流最右侧原生滚动条盒子的宽度；Chromium 滚动条为 7px。 */
+  --ai-work-chat-scrollbar-inline-size: 7px;
+  display: flex; width: 100%; height: 100%; min-width: 0; min-height: 0; flex: 1 1 0; justify-content: center;
 }
 
-/* 聊天表面、正文与输入区按中栏宽度内缩 20–32px；刻度由下方独立定位规则贴中心列左缘。 */
-.module-center__content--ai-work > .module-ai-work-chat { width: calc(100% - var(--ai-work-chat-inline-gap)); height: 100%; min-width: 0; min-height: 0; flex: 1 1 0; align-self: flex-start; box-sizing: border-box; }
+.module-ai-work-chat__loading { display: flex; width: 100%; height: 100%; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; }
+.module-ai-work-chat__loading > .module-center__header { width: 100%; flex: 0 0 auto; box-sizing: border-box; }
 
-/* 允许消息轨道进入右侧留白到达中栏边缘，同时保持原聊天表面的尺寸与纵向裁切。 */
-.module-center__content--ai-work .module-ai-work-chat > .ai-work-chat { width: 100%; height: 100%; min-width: 0; min-height: 0; flex: 1 1 0; margin: 0; padding-inline: 0; box-sizing: border-box; overflow-x: visible; overflow-y: clip; border: 0; border-radius: 0; background-clip: border-box; }
+/* 聊天根占满中间列，只负责纵向分配；各直接子盒子分别应用同一份左右间距。 */
+.module-center__content--ai-work > .module-ai-work-chat { width: 100%; height: 100%; min-width: 0; min-height: 0; flex: 1 1 0; align-self: stretch; box-sizing: border-box; }
+
+/* 普通聊天根铺满中心列，保证对话内部的锚点轨与滚动条轨可分别贴边。 */
+.module-center__content--ai-work > .module-ai-work-chat > .ai-work-chat:not(.ai-work-chat--voice) { position: relative; width: 100%; height: 100%; min-width: 0; min-height: 0; flex: 1 1 0; align-self: stretch; margin: 0; padding-inline: 0; box-sizing: border-box; overflow-x: visible; overflow-y: clip; border: 0; border-radius: 0; background-clip: border-box; }
+
+.module-center__content--ai-work > .module-ai-work-chat > .ai-work-chat:not(.ai-work-chat--voice) > .module-center__header { width: calc(100% - var(--ai-work-chat-inline-gap) - var(--ai-work-chat-inline-gap)); align-self: center; box-sizing: border-box; }
 
 /* AI Work 普通聊天需要裁切纵向外溢；全屏语音页由自身容器滚动，短屏时必须覆盖这条通用裁切。 */
 .module-workbench-stage--voice .module-center__content--ai-work .module-ai-work-chat > .ai-work-chat--voice { overflow-y: auto; }
 
-/* 恢复会话滚动列、消息舞台和正文原有尺寸；只将刻度轨道定位到中栏左缘，预览卡抵消偏移以留在原位。 */
-.module-center__content--ai-work .module-ai-work-chat > .ai-work-chat > .ai-work-chat__conversation { width: calc(100% + var(--ai-work-chat-inline-gap)); margin-inline: 0; padding-inline-start: var(--ai-work-chat-inline-gap); box-sizing: border-box; }
+/* 标题、对话、输入与用量盒都保留相同左右间距；仅对话内部三轨延展到列边缘。 */
+.module-center__content--ai-work > .module-ai-work-chat > .ai-work-chat > .ai-work-chat__conversation { width: calc(100% - var(--ai-work-chat-inline-gap) - var(--ai-work-chat-inline-gap)); align-self: center; margin-inline: 0; padding-inline: 0; overflow: visible; box-sizing: border-box; }
 
-.module-center__content.module-center__content--ai-work .ai-work-chat__message-stage { width: calc(100% - var(--ai-work-chat-inline-gap)); }
+.module-center__content--ai-work > .module-ai-work-chat > .ai-work-chat > .ai-work-chat__conversation > .ai-work-chat__alerts { width: min(100%, 920px); align-self: center; margin-inline: 0; box-sizing: border-box; }
 
-.module-center__content.module-center__content--ai-work .ai-work-chat__messages { width: calc(100% + var(--ai-work-chat-inline-gap)); padding-inline-end: var(--ai-work-chat-inline-gap); box-sizing: border-box; }
+/* 左刻度、中间消息和右侧滚动条各占独立轨道；原生滚动条延伸至第三轨最右边缘。 */
+.module-center__content--ai-work > .module-ai-work-chat > .ai-work-chat > .ai-work-chat__conversation > .ai-work-chat__message-stage { width: calc(100% + var(--ai-work-chat-inline-gap) + var(--ai-work-chat-inline-gap)); margin-inline-start: calc(-1 * var(--ai-work-chat-inline-gap)); box-sizing: border-box; }
 
-/* 消息滚动槽进入右侧留白时，延续聊天表面的主题材质，避免画布底色透出形成灰带。 */
-.module-center__content.module-center__content--ai-work .module-ai-work-chat > .ai-work-chat::after { position: absolute; z-index: 0; inset-block: 0; inset-inline-start: 100%; width: var(--ai-work-chat-inline-gap); background: inherit; -webkit-backdrop-filter: inherit; backdrop-filter: inherit; content: ""; pointer-events: none; }
+.module-center__content--ai-work > .module-ai-work-chat > .ai-work-chat > .ai-work-chat__conversation > .ai-work-chat__message-stage > .ai-work-chat__navigation-track > .ai-work-chat__anchors { left: 0; }
 
-.module-center__content.module-center__content--ai-work .ai-work-chat__message-stage > .ai-work-chat__anchors { left: calc(-1 * var(--ai-work-chat-inline-gap)); }
+.module-center__content--ai-work > .module-ai-work-chat > .ai-work-chat > .ai-work-chat__conversation > .ai-work-chat__message-stage > .ai-work-chat__stream-track > .ai-work-chat__messages { width: calc(100% + var(--ai-work-chat-scrollbar-inline-size)); margin-inline-end: calc(-1 * var(--ai-work-chat-scrollbar-inline-size)); padding-inline-end: calc(var(--ai-work-chat-inline-gap) - var(--ai-work-chat-scrollbar-inline-size)); box-sizing: border-box; }
 
 .module-center__content.module-center__content--ai-work .ai-work-chat__anchor-preview { left: calc(100% + var(--ai-work-chat-inline-gap) - 4px); }
 
-.module-center__content.module-center__content--ai-work :is(.ai-work-chat__composer, .ai-work-chat__usage-footer) { width: min(calc(100% - var(--ai-work-chat-inline-gap)), 920px); align-self: center; position: relative; left: calc(-1 * var(--ai-work-chat-inline-gap-half)); }
+.module-center__content--ai-work > .module-ai-work-chat > .ai-work-chat > .ai-work-chat__input-area { width: calc(100% - var(--ai-work-chat-inline-gap) - var(--ai-work-chat-inline-gap)); align-self: center; }
 
-/* 手机窄中栏让聊天外壳铺满中心列，保留正文与输入区左侧安全边距，并把内容右缘贴到列边界。 */
-@container module-center (max-width: 420px) {
+.module-center__content--ai-work > .module-ai-work-chat > .ai-work-chat > .ai-work-chat__input-area > :is(.ai-work-chat__plan-mode, .ai-work-chat__interaction-dock, .ai-work-chat__composer) { width: min(100%, 920px); align-self: center; position: relative; left: auto; box-sizing: border-box; }
 
-  .module-center__content--ai-work > .module-ai-work-chat { width: 100%; }
-
-  .module-center__content--ai-work .module-ai-work-chat > .ai-work-chat > .ai-work-chat__conversation { width: 100%; }
-
-  .module-center__content.module-center__content--ai-work .ai-work-chat__message-stage { width: 100%; }
-
-  .module-center__content.module-center__content--ai-work .ai-work-chat__messages { width: 100%; padding-inline-end: 0; }
-
-  .module-center__content.module-center__content--ai-work :is(.ai-work-chat__composer, .ai-work-chat__usage-footer) { width: min(calc(100% - var(--ai-work-chat-inline-gap)), 920px); align-self: flex-end; left: 0; }
-
-  .module-center__content.module-center__content--ai-work .module-ai-work-chat > .ai-work-chat::after { display: none; }
-
-  .module-center__content.module-center__content--ai-work .ai-work-chat__anchor-preview { left: calc(100% - 4px); }
-
-}
+.module-center__content--ai-work > .module-ai-work-chat > .ai-work-chat > .ai-work-chat__usage-footer { width: calc(100% - var(--ai-work-chat-inline-gap) - var(--ai-work-chat-inline-gap)); align-self: center; position: relative; left: auto; box-sizing: border-box; }
 
 /* AI 对话滚动条贴中间区右边缘并始终使用设置中心强调色；轨道保持透明。 */
-.module-center__content.module-center__content--ai-work .ai-work-chat__messages { scrollbar-width: thin !important; scrollbar-color: var(--settings-accent, var(--color-brand)) transparent !important; -ms-overflow-style: auto !important; }
+.module-center__content--ai-work > .module-ai-work-chat > .ai-work-chat > .ai-work-chat__conversation > .ai-work-chat__message-stage > .ai-work-chat__stream-track > .ai-work-chat__messages { scrollbar-width: thin !important; scrollbar-color: var(--settings-accent, var(--color-brand)) transparent !important; -ms-overflow-style: auto !important; }
 
-.module-center__content.module-center__content--ai-work .ai-work-chat__messages::-webkit-scrollbar { display: block !important; width: 7px !important; height: 7px !important; }
+.module-center__content--ai-work > .module-ai-work-chat > .ai-work-chat > .ai-work-chat__conversation > .ai-work-chat__message-stage > .ai-work-chat__stream-track > .ai-work-chat__messages::-webkit-scrollbar { display: block !important; width: var(--ai-work-chat-scrollbar-inline-size) !important; height: var(--ai-work-chat-scrollbar-inline-size) !important; }
 
-.module-center__content.module-center__content--ai-work .ai-work-chat__messages::-webkit-scrollbar-button,
-.module-center__content.module-center__content--ai-work .ai-work-chat__messages::-webkit-scrollbar-button:single-button,
-.module-center__content.module-center__content--ai-work .ai-work-chat__messages::-webkit-scrollbar-button:vertical:decrement,
-.module-center__content.module-center__content--ai-work .ai-work-chat__messages::-webkit-scrollbar-button:vertical:increment,
-.module-center__content.module-center__content--ai-work .ai-work-chat__messages::-webkit-scrollbar-button:horizontal:decrement,
-.module-center__content.module-center__content--ai-work .ai-work-chat__messages::-webkit-scrollbar-button:horizontal:increment,
-.module-center__content.module-center__content--ai-work .ai-work-chat__messages::-webkit-scrollbar-button:vertical:start:decrement,
-.module-center__content.module-center__content--ai-work .ai-work-chat__messages::-webkit-scrollbar-button:vertical:end:increment { display: none !important; width: 0 !important; height: 0 !important; min-width: 0 !important; min-height: 0 !important; -webkit-appearance: none !important; appearance: none !important; border: 0 !important; background: transparent !important; }
+.module-center__content--ai-work > .module-ai-work-chat > .ai-work-chat > .ai-work-chat__conversation > .ai-work-chat__message-stage > .ai-work-chat__stream-track > .ai-work-chat__messages::-webkit-scrollbar-button,
+.module-center__content--ai-work > .module-ai-work-chat > .ai-work-chat > .ai-work-chat__conversation > .ai-work-chat__message-stage > .ai-work-chat__stream-track > .ai-work-chat__messages::-webkit-scrollbar-button:single-button,
+.module-center__content--ai-work > .module-ai-work-chat > .ai-work-chat > .ai-work-chat__conversation > .ai-work-chat__message-stage > .ai-work-chat__stream-track > .ai-work-chat__messages::-webkit-scrollbar-button:vertical:decrement,
+.module-center__content--ai-work > .module-ai-work-chat > .ai-work-chat > .ai-work-chat__conversation > .ai-work-chat__message-stage > .ai-work-chat__stream-track > .ai-work-chat__messages::-webkit-scrollbar-button:vertical:increment,
+.module-center__content--ai-work > .module-ai-work-chat > .ai-work-chat > .ai-work-chat__conversation > .ai-work-chat__message-stage > .ai-work-chat__stream-track > .ai-work-chat__messages::-webkit-scrollbar-button:horizontal:decrement,
+.module-center__content--ai-work > .module-ai-work-chat > .ai-work-chat > .ai-work-chat__conversation > .ai-work-chat__message-stage > .ai-work-chat__stream-track > .ai-work-chat__messages::-webkit-scrollbar-button:horizontal:increment,
+.module-center__content--ai-work > .module-ai-work-chat > .ai-work-chat > .ai-work-chat__conversation > .ai-work-chat__message-stage > .ai-work-chat__stream-track > .ai-work-chat__messages::-webkit-scrollbar-button:vertical:start:decrement,
+.module-center__content--ai-work > .module-ai-work-chat > .ai-work-chat > .ai-work-chat__conversation > .ai-work-chat__message-stage > .ai-work-chat__stream-track > .ai-work-chat__messages::-webkit-scrollbar-button:vertical:end:increment { display: none !important; width: 0 !important; height: 0 !important; min-width: 0 !important; min-height: 0 !important; -webkit-appearance: none !important; appearance: none !important; border: 0 !important; background: transparent !important; }
 
-.module-center__content.module-center__content--ai-work .ai-work-chat__messages::-webkit-scrollbar-track { background: transparent; }
+.module-center__content--ai-work > .module-ai-work-chat > .ai-work-chat > .ai-work-chat__conversation > .ai-work-chat__message-stage > .ai-work-chat__stream-track > .ai-work-chat__messages::-webkit-scrollbar-track { background: transparent; }
 
-.module-center__content.module-center__content--ai-work .ai-work-chat__messages::-webkit-scrollbar-thumb { border: 0; border-radius: 999px; background: var(--settings-accent, var(--color-brand)); }
+.module-center__content--ai-work > .module-ai-work-chat > .ai-work-chat > .ai-work-chat__conversation > .ai-work-chat__message-stage > .ai-work-chat__stream-track > .ai-work-chat__messages::-webkit-scrollbar-thumb { border: 0; border-radius: 999px; background: var(--settings-accent, var(--color-brand)); }
 
 .module-center__content:not(.module-center__content--ai-work) > .module-heading--workspace { min-height: 0; height: clamp(180px, 25vh, 280px); flex: 0 0 auto; margin: 0; border-radius: 0; }
 

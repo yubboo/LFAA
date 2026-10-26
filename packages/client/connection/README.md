@@ -2,6 +2,8 @@
 
 此包提供已认证控制端 API 和 AI Work SSE 消费协议，不持有模型、Session 或权限业务规则。
 
+`loadAiOffice()` 通过认证 `/ai/office` 读取员工元数据和当前账户的 Agent Run 摘要，可传 AbortSignal 供 UI 隐藏/卸载时取消；不缓存状态快照。
+
 AI 模型目录由 `/settings/ai/accounts` 按当前登录返回同一组系统配置。凭据替换只发送新 secret 到管理员专用的测试/更新路由；响应不包含密钥，system scope 与权限判断归服务端 Owner。
 
 会话类 401 由账户 `auth/me` Remote 复核后才通知 UI 退出；成功的密码/通行密钥登录会使之前请求的迟到响应失效。服务端拒绝无效 Cookie 时不发送清 Cookie 响应，避免旧请求晚到覆盖新登录；显式注销仍由账户 Controller 清理 Cookie。
@@ -57,3 +59,5 @@ SteamCMD Client Connection 提供通用服务端列表、创建/配置、运行�
 `loadUserSettingsSyncStatus()` 读取认证后的当前 Control Plane 账户设置元数据，不缓存跨账户或设置值；Electron `mini.open/close` 只透传桌面 Host 的 IPC 操作及真实回执。
 
 `streamAiChat()` 可在新 Run 请求中传递严格受限的 `workspaceView` JSON；它不是消息字段，连接层只随本次初始 POST 发送，不在续接既有 Run 时重放。
+
+账户资料连接 API 将 `.lfaa-snapshot` 文件作为受认证二进制请求上传/下载；预览类型区分 v1/v2 并展示会话检查点与附件统计，恢复结果返回附件导入/复用计数。Client 不在本地解包、保存迁移副本或自行改写会话数据。

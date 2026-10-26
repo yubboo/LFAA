@@ -1,6 +1,6 @@
 /** 功能：经过来源、重定向、大小和摘要验证的下载器。作用：Java 与服务端核心共用，支持总时限与调用方取消。 */
 import {createHash} from 'node:crypto';import {mkdir,open,rm} from 'node:fs/promises';import {dirname} from 'node:path';import {Transform} from 'node:stream';import {pipeline} from 'node:stream/promises';
-const artifactHosts = new Set(["fill-data.papermc.io", "download.fastmirror.net", "mohistmc-build.cn-sy1.rains3.com", "maven.minecraftforge.net", "maven.neoforged.net", "github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com"]);
+const artifactHosts = new Set(["fill-data.papermc.io", "download.fastmirror.net", "mohistmc-build.cn-sy1.rains3.com", "maven.minecraftforge.net", "maven.neoforged.net", "cdn.azul.com", "github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com"]);
 export function isRetryableDownloadError(error) {
   for(let current=error,depth=0;current&&depth<5;current=current.cause,depth++) {
     if(current.name==="TypeError"||["ECONNRESET","ETIMEDOUT","EAI_AGAIN","ECONNREFUSED","UND_ERR_SOCKET"].includes(current.code))return true;

@@ -1103,6 +1103,9 @@ importers:
       lfaa-settings:
         specifier: workspace:*
         version: link:../../settings/settings
+      lfaa-subagent:
+        specifier: workspace:*
+        version: link:../../subagent/subagent
       lfaa-telemetry-logger:
         specifier: workspace:*
         version: link:../../telemetry/logger
@@ -1146,6 +1149,9 @@ importers:
       lfaa-app-boot:
         specifier: workspace:*
         version: link:../../boot/app-boot
+      lfaa-attachment:
+        specifier: workspace:*
+        version: link:../../attachment/attachment
       lfaa-authorization:
         specifier: workspace:*
         version: link:../../credentials/authorization
@@ -5141,6 +5147,9 @@ importers:
       '@deepseek-ai/cordis':
         specifier: 4.0.4
         version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-attachment:
+        specifier: workspace:*
+        version: link:../../attachment/attachment
       lfaa-conversation-memory:
         specifier: workspace:*
         version: link:../../core/conversation-memory
@@ -5847,6 +5856,9 @@ importers:
       lfaa-app-boot:
         specifier: workspace:*
         version: link:../../boot/app-boot
+      lfaa-attachment-local:
+        specifier: workspace:*
+        version: link:../../attachment/attachment-local
     devDependencies:
       '@types/express':
         specifier: ^4.0.0

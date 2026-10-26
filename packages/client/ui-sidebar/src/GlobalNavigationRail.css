@@ -111,6 +111,17 @@
   box-shadow: 0 14px 36px var(--color-shadow-float);
 }
 
+.module-navigation-rail__popover--features {
+  top: 50%;
+  bottom: auto;
+  width: min(320px, calc(100vw - 84px));
+  height: min(390px, calc(100% - 24px));
+  max-height: calc(100% - 24px);
+  grid-template-rows: auto auto minmax(0, 1fr);
+  overflow: hidden;
+  transform: translateY(-50%);
+}
+
 body[data-we-wallpaper][data-we-glass-floaters] .workbench-shell[data-wallpaper-engine-owner="true"] .module-navigation-rail__popover {
   background-color: var(--settings-wallpaper-floaters-surface, var(--color-surface));
   -webkit-backdrop-filter: blur(var(--settings-wallpaper-floaters-blur, var(--settings-glass-blur))) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01);
@@ -127,6 +138,35 @@ body[data-we-wallpaper][data-we-glass-floaters] .workbench-shell[data-wallpaper-
 .module-navigation-rail__popover-actions button { display: flex; min-height: 34px; align-items: center; gap: 9px; padding: 0 8px; border: 0; border-radius: 7px; background: transparent; color: var(--color-text-secondary); cursor: pointer; font-size: 10px; text-align: left; }
 .module-navigation-rail__popover-actions button:hover { background: var(--color-surface-hover); color: var(--color-brand); }
 .module-navigation-rail__popover-actions button span { flex: 1; }
+.module-navigation-rail__feature-search {
+  display: flex;
+  min-width: 0;
+  min-height: 36px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 9px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+}
+.module-navigation-rail__feature-search:focus-within { outline: 2px solid var(--color-focus-ring); outline-offset: 1px; }
+.module-navigation-rail__feature-search input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--color-text-primary); font: inherit; font-size: var(--font-size-xs); }
+.module-navigation-rail__feature-search input::placeholder { color: var(--color-text-subtle); }
+.module-navigation-rail__feature-list { display: grid; min-height: 0; align-content: start; gap: 6px; padding: 2px 2px 0 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.module-navigation-rail__feature-group { display: grid; min-width: 0; gap: 3px; }
+.module-navigation-rail__feature-group h3 { margin: 2px 8px 0; color: var(--color-text-subtle); font-size: var(--font-size-xs); font-weight: 600; }
+.module-navigation-rail__feature-group > button { display: grid; width: 100%; min-width: 0; min-height: 48px; grid-template-columns: 20px minmax(0, 1fr); align-items: center; gap: 9px; padding: 6px 8px; border: 0; border-radius: 8px; background: transparent; color: var(--color-text-secondary); cursor: pointer; text-align: left; }
+.module-navigation-rail__feature-group > button:hover,
+.module-navigation-rail__feature-group > button:focus-visible,
+.module-navigation-rail__feature-group > button.is-active { outline: none; background: var(--color-surface-hover); color: var(--color-brand); }
+.module-navigation-rail__feature-group > button > span { display: grid; min-width: 0; gap: 3px; }
+.module-navigation-rail__feature-group strong { overflow: hidden; color: var(--color-text-heading); font-size: var(--font-size-sm); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.module-navigation-rail__feature-group small { overflow: hidden; color: var(--color-text-subtle); font-size: var(--font-size-xs); text-overflow: ellipsis; white-space: nowrap; }
+.module-navigation-rail__feature-empty { display: grid; justify-items: start; gap: 8px; padding: 12px 8px; color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.module-navigation-rail__feature-empty button { min-height: 28px; padding: 0 9px; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-surface-muted); color: var(--color-text-secondary); cursor: pointer; font: inherit; }
+.module-navigation-rail__feature-empty button:hover,
+.module-navigation-rail__feature-empty button:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 1px; color: var(--color-brand); }
 /* 应用菜单贴近主导航的应用图标；窄视口内宽度不超过页面可用区域。 */
 .module-navigation-rail__popover--applications { top: 58px; bottom: auto; width: min(280px,calc(100vw - 72px)); max-height: calc(100% - 74px); }
 .module-navigation-rail__application-list { display: grid; gap: 2px; }

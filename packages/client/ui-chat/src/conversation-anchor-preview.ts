@@ -28,8 +28,10 @@ export function conversationAnchorLabel(content: string): string {
 
 export function conversationAnchorReply(reply: AiMessage | null): string {
   if (!reply) return "尚无助手回复";
-  const content = reply.content.replace(/\s+/gu, " ").trim();
-  if (content) return content;
+  // 预览卡只显示三行，限制格式化长度，避免每次流式更新都压缩整条长回复。
+  const content = reply.content.slice(0, 512).replace(/\s+/gu, " ").trim();
+  const preview = reply.content.length > 512 ? `${content.slice(0, 320)}…` : content;
+  if (preview) return preview;
   if (reply.status === "queued") return "回复排队中";
   if (reply.status === "streaming") return "正在生成回复";
   if (reply.status === "error") return "回复失败";

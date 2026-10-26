@@ -21,19 +21,22 @@ export function createRuntimeExecutor({dataDirectory,repositoryRoot,storage,sign
     if(operation==="install"&&payload.packageId)return downloadWindowsRuntime(payload.packageId,storage,io,payload.downloadTimeoutSeconds,signal,progress);
     if(operation==="detect")return {runtimes:await list()};
     if(operation==="install") {
-      const existing=(await list()).find(runtime=>runtime.major===payload.major);
-      if(existing){await progress?.(100,`已验证并复用现有 Java ${payload.major}，没有下载。`);return {reused:true,runtime:existing,runtimes:await list()};}
+      const distribution=payload.distribution??"temurin";
+      const existing=(await list()).find(runtime=>runtime.major===payload.major&&(!payload.distribution||runtime.distribution===distribution));
+      if(existing&&(!payload.version||existing.version===payload.version)){await progress?.(100,`已验证并复用现有 Java ${payload.major}，没有下载。`);return {reused:true,runtime:existing,runtimes:await list()};}
+      if(existing&&payload.version&&existing.version!==payload.version)throw new Error(`目标设备已有 ${existing.vendor} Java ${existing.version??"未知"}；不会静默替换为请求的 ${payload.version}，请通过显式更新操作处理。`);
       if(process.platform!=="win32"||process.arch!=="x64")throw new Error("当前托管 Java 安装适配器支持 Windows x64；此平台可以检测和登记现有环境。");
-      await manager.installTemurinRuntime(payload.major,progress,payload.downloadTimeoutSeconds);
-      const runtime=await manager.findJavaRuntime(payload.major,true);if(!runtime)throw new Error("安装结束但没有发现可执行的对应 Java，不能报告成功。");
+      await manager.installManagedJavaRuntime(payload.major,distribution,payload.version,progress,payload.downloadTimeoutSeconds);
+      const runtime=await manager.findJavaRuntime(payload.major,true,distribution);if(!runtime)throw new Error("安装结束但没有发现可执行的对应 Java，不能报告成功。");
+      if(payload.version&&runtime.version!==payload.version)throw new Error(`安装后检测到 Java ${runtime.version??"未知"}，预期为 ${payload.version}。`);
       return {reused:false,runtime,runtimes:await list()};
     }
     if(operation==="register") {await manager.registerJavaRuntimePath({executablePath:payload.executablePath,runtimeId:payload.runtimeId},progress);return {runtimes:await list()};}
     if(operation==="forget") {const runtime=(await list()).find(item=>item.runtimeId===payload.runtimeId);if(runtime)await checkDependencies(runtime);await manager.forgetJavaRuntimePath(payload.runtimeId,progress);return {runtimes:await list()};}
     const runtime=(await manager.discoverJavaRuntimes()).find(item=>item.runtimeId===payload.runtimeId);if(!runtime)throw new Error("所选运行环境已不在当前设备检测结果中。");
     if(operation==="verify"){const checked=await manager.readJavaVersion(runtime.executablePath);if(checked.major!==runtime.major)throw new Error("Java 实际版本已改变，请重新检测后选择。");return {runtime:{...runtime,...checked},verified:true};}
-    if(operation==="update"){if(!runtime.managed)throw new Error("只更新当前目录中 LFAA 管理的环境。");await checkDependencies(runtime);const result=await manager.updateTemurinRuntime(runtime.major,progress,payload.downloadTimeoutSeconds);return {...result,runtimes:await list()};}
-    if(operation==="remove") {if(!runtime.managed)throw new Error("只允许卸载当前托管目录的环境，外部环境可以移除登记。");await checkDependencies(runtime);await manager.uninstallTemurinRuntime(runtime.major,progress);return {removed:true,runtimes:await list()};}
+    if(operation==="update"){if(!runtime.managed)throw new Error("只更新当前目录中 LFAA 管理的环境。");await checkDependencies(runtime);const result=await manager.updateManagedJavaRuntime(runtime.major,runtime.distribution??"temurin",undefined,progress,payload.downloadTimeoutSeconds);return {...result,runtimes:await list()};}
+    if(operation==="remove") {if(!runtime.managed)throw new Error("只允许卸载当前托管目录的环境，外部环境可以移除登记。");await checkDependencies(runtime);await manager.uninstallManagedJavaRuntime(runtime.major,runtime.distribution??"temurin",progress);return {removed:true,runtimes:await list()};}
     throw new Error("当前环境操作尚未接入，未执行任何替代动作。");
   }
   return {manager,list,execute};

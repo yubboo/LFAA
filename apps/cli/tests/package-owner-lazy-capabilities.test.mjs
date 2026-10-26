@@ -69,7 +69,14 @@ test("真实装配从其他 App 按需发现 Minecraft 方法，完整合同只�
     assert.ok(metadata.entries.every(entry => entry.instructions === undefined && entry.loadInstructions === undefined));
     const experts = promptTools.find(tool => tool.name === "lfaa_expert_list");
     const expertCatalog = await experts.execute(experts.parse({ query: "Minecraft" }), context);
-    assert.ok(expertCatalog.entries.some(entry => entry.id === "expert.minecraft-hosting"));
+    const minecraftEmployee = expertCatalog.entries.find(entry => entry.id === "expert.minecraft-hosting");
+    assert.ok(minecraftEmployee, "保留原 Minecraft 专家稳定 ID 并允许跨 App 发现");
+    assert.equal(minecraftEmployee.name, "Minecraft 应用维护员工");
+    const minecraftInstructions = await ctx.aiExtensions.loadInstructions(minecraftEmployee.id, "writing");
+    assert.match(minecraftInstructions.instructions, /LFAA Minecraft App 的问题调查、源码维护/u);
+    assert.match(minecraftInstructions.instructions, /浏览器或某个下载网站不可访问时/u);
+    assert.match(minecraftInstructions.instructions, /lfaa_delegate_subagent/u);
+    assert.match(minecraftInstructions.instructions, /保留用户指定的核心、版本与模组\/插件目标/u);
     const skill = (await ctx.skills.list({ allowHostFilesystem: false })).find(entry => entry.name === "minecraft-server-setup");
     assert.equal(skill.provider, "lfaa-minecraft");
     assert.equal(skill.content, undefined);

@@ -9,46 +9,62 @@ export function createJavaRuntimeManager(options) {
 const {repositoryRoot,dataDirectory,javaDirectory,downloadDirectory,captureProcess,expandZip,assertSafeFileTarget,fileExists,findExecutable,hashFile,downloadCoreArtifact,requireMajor,assertHttpsHost,safeMessage,activeServers=new Map(),postTaskProgress=async()=>{},fetchResource=globalThis.fetch}=options;
 let customJavaPathWarningLogged=false,localDriveRootsCache=[],localDriveRootsCacheExpiresAt=0;
 const customJavaPathsPath=resolve(javaDirectory,'custom-paths.json');
+const javaDistributions=new Set(["temurin","zulu"]);
 async function withMutationLock(name,operation){await assertSafeFileTarget(resolve(javaDirectory,name),true);await mkdir(javaDirectory,{recursive:true});const path=resolve(javaDirectory,name);const lock=await open(path,"wx").catch(error=>{if(error.code==="EEXIST")throw new Error("同一环境已有修改操作或未确认的执行锁，请先核对任务。");throw error;});try{return await operation();}finally{await lock.close();await rm(path,{force:true});}}
+function requireJavaDistribution(value="temurin"){if(typeof value!=="string"||!javaDistributions.has(value))throw new Error("Java 发行版未登记；当前支持 Temurin 与 Zulu。");return value;}
+function javaRuntimeDirectory(major,distribution){return resolve(javaDirectory,`Java${major}-windows-x64${distribution==="zulu"?"-zulu":""}`);}
+function javaRuntimeLockName(major,distribution){return distribution==="temurin"?`.java-${major}.lock`:`.java-${major}-${distribution}.lock`;}
+function javaDistributionForManagedEntry(name,vendor=""){return name.endsWith("-zulu")||/azul|zulu/iu.test(vendor)?"zulu":"temurin";}
+function javaRuntimeId(distribution,major){return `${distribution}-${major}`;}
+function requireRequestedJavaVersion(major,value){if(value===undefined||value===null)return null;if(typeof value!=="string"||value.length>32||!/^\d{1,2}(?:\.\d{1,3}){2,3}$/u.test(value)||Number(value.split(".")[0])!==major)throw new Error(`Java 精确版本必须是与主版本 ${major} 一致的完整版本号。`);return value;}
 async function writeCustomJavaPaths(paths){const temporary=resolve(javaDirectory,`.custom-paths-${randomUUID()}.tmp`);await assertSafeFileTarget(customJavaPathsPath,true);await assertSafeFileTarget(temporary,true);try{await writeFile(temporary,JSON.stringify(paths,null,2),{encoding:"utf8",flag:"wx"});await rename(temporary,customJavaPathsPath);}finally{await rm(temporary,{force:true});}}
 async function installTemurinRuntime(majorInput, reportProgress, downloadTimeoutSeconds) {
-  const major=requireMajor(majorInput);
+  return installManagedJavaRuntime(majorInput,"temurin",undefined,reportProgress,downloadTimeoutSeconds);
+}
+async function installZuluRuntime(majorInput, versionInput, reportProgress, downloadTimeoutSeconds) {
+  return installManagedJavaRuntime(majorInput,"zulu",versionInput,reportProgress,downloadTimeoutSeconds);
+}
+async function installManagedJavaRuntime(majorInput,distributionInput="temurin",versionInput,reportProgress,downloadTimeoutSeconds) {
+  const major=requireMajor(majorInput),distribution=requireJavaDistribution(distributionInput),requestedVersion=requireRequestedJavaVersion(major,versionInput);
+  if(distribution!=="zulu"&&requestedVersion)throw new Error("当前仅支持为 Zulu 安装指定精确版本；Temurin 使用官方兼容目录。 ");
   await mkdir(javaDirectory,{recursive:true});
-  const lockPath=resolve(javaDirectory,`.java-${major}.lock`);
+  const lockName=javaRuntimeLockName(major,distribution),lockPath=resolve(javaDirectory,lockName);
   await assertSafeFileTarget(lockPath,true);
-  const lock=await open(lockPath,"wx").catch(error=>{if(error.code==="EEXIST")throw new Error(`Java ${major} 已有准备操作或未确认的执行锁；请先核对任务，不会重复下载或覆盖。`);throw error;});
-  try {return await installTemurinRuntimeUnlocked(major,reportProgress,downloadTimeoutSeconds);}
+  const lock=await open(lockPath,"wx").catch(error=>{if(error.code==="EEXIST")throw new Error(`Java ${major} ${distribution} 已有准备操作或未确认的执行锁；请先核对任务，不会重复下载或覆盖。`);throw error;});
+  try {return await installManagedJavaRuntimeUnlocked(major,distribution,requestedVersion,reportProgress,downloadTimeoutSeconds);}
   finally {await lock.close();await rm(lockPath,{force:true});}
 }
-async function installTemurinRuntimeUnlocked(majorInput, reportProgress, downloadTimeoutSeconds) {
-  const major = requireMajor(majorInput);
-  const existing = await findJavaRuntime(major, true);
-  if (existing?.managed) return { javaMajor: major, runtimeVendor: "Eclipse Temurin" };
-  const destinationDirectory = resolve(javaDirectory, `Java${major}-windows-x64`);
+async function installManagedJavaRuntimeUnlocked(majorInput,distributionInput,versionInput,reportProgress,downloadTimeoutSeconds) {
+  const major=requireMajor(majorInput),distribution=requireJavaDistribution(distributionInput),requestedVersion=requireRequestedJavaVersion(major,versionInput);
+  const vendorLabel=distribution==="zulu"?"Azul Zulu":"Temurin";
+  const existing=await findJavaRuntime(major,true,distribution);
+  if(existing?.managed){if(requestedVersion&&existing.version!==requestedVersion)throw new Error(`已受管安装 ${vendorLabel} Java ${existing.version}；要安装指定的 ${requestedVersion}，请先显式更新该运行时。`);return {javaMajor:major,runtimeVendor:existing.vendor,version:existing.version,distribution,reused:true};}
+  const destinationDirectory=javaRuntimeDirectory(major,distribution);
   if (await fileExists(destinationDirectory)) throw new Error(`Java ${major} 的标准安装目录已存在，但其中没有可识别的运行时；为避免覆盖文件，已停止安装。`);
-  await reportProgress?.(8, `正在查询 Temurin Java ${major} 的官方安装包。`);
-  const archive = await findTemurinArchive(major).catch(error => {
-    throw new Error(`准备 Java ${major} 失败：无法取得 Adoptium 官方 Windows x64 工件元数据。${error.message}；尚未安装运行环境。`, { cause: error });
+  await reportProgress?.(8, `正在查询 ${vendorLabel} Java ${requestedVersion??major} 的官方安装包。`);
+  const archive=await (distribution==="zulu"?findZuluArchive(major,requestedVersion):findTemurinArchive(major)).catch(error=>{
+    const source=distribution==="zulu"?"Azul":"Adoptium";
+    throw new Error(`准备 ${vendorLabel} Java ${requestedVersion??major} 失败：无法取得 ${source} 官方 Windows x64 工件元数据。${error.message}；尚未安装运行环境。`,{cause:error});
   });
   const { downloadUrl, expectedSha256, archiveName, imageType } = archive;
-  assertHttpsHost(downloadUrl, "github.com");
+  assertHttpsHost(downloadUrl, distribution==="zulu"?"cdn.azul.com":"github.com");
   const archivePath = resolve(downloadDirectory, archiveName);
   if (!(await fileExists(archivePath)) || await hashFile(archivePath, "sha256").catch(() => "") !== expectedSha256) {
     await rm(archivePath, { force: true });
-    await reportProgress?.(24, `正在下载并校验 Temurin Java ${major} ${imageType.toUpperCase()}。`);
+    await reportProgress?.(24, `正在下载并校验 ${vendorLabel} Java ${archive.version??requestedVersion??major} ${imageType.toUpperCase()}。`);
     await downloadCoreArtifact({ url: downloadUrl, algorithm: "sha256", digest: expectedSha256 }, archivePath, downloadTimeoutSeconds,
       (bytes, total) => reportProgress?.(24, `正在下载 Java ${major}：${Math.round(bytes / 1024 / 1024)} MiB${total > 0 ? ` / ${Math.round(total / 1024 / 1024)} MiB` : ""}。`));
   }
 
-  const extractionDirectory = resolve(options.temporaryDirectory??javaDirectory, `.install-${major}-${randomUUID()}`);
+  const extractionDirectory=resolve(options.temporaryDirectory??javaDirectory,`.install-${major}-${distribution}-${randomUUID()}`);
   await assertSafeFileTarget(extractionDirectory,true);
   await mkdir(extractionDirectory, { recursive: true });
   let finalDirectory = "";
   try {
-    await reportProgress?.(72, `正在解压 Temurin Java ${major} ${imageType.toUpperCase()} 到项目数据目录。`);
+    await reportProgress?.(72, `正在解压 ${vendorLabel} Java ${archive.version??requestedVersion??major} ${imageType.toUpperCase()} 到目标运行环境目录。`);
     await expandZip(archivePath, extractionDirectory);
     const executable = await findExecutable(extractionDirectory, "java.exe");
-    if (!executable) throw new Error("Temurin JRE 解压内容中没有 java.exe。");
+    if (!executable) throw new Error(`${vendorLabel} JRE 解压内容中没有 java.exe。`);
     const archiveRuntimeDirectory = dirname(dirname(executable));
     // 永久目录按环境、主版本及平台命名，发行商保留在检测信息中。
     await rename(archiveRuntimeDirectory, destinationDirectory).catch(async error=>{if(error.code!=="EXDEV")throw error;await cp(archiveRuntimeDirectory,destinationDirectory,{recursive:true,errorOnExist:true,force:false,dereference:false});});
@@ -56,9 +72,10 @@ async function installTemurinRuntimeUnlocked(majorInput, reportProgress, downloa
     const finalExecutable = resolve(finalDirectory, relative(archiveRuntimeDirectory, executable));
     const version = await readJavaVersion(finalExecutable);
     if (version.major !== major) throw new Error(`安装后的 Java 主版本为 ${version.major}，预期为 ${major}。`);
+    if(requestedVersion&&version.version!==requestedVersion)throw new Error(`安装后的 Java 精确版本为 ${version.version??"未知"}，预期为 ${requestedVersion}。`);
     await rm(extractionDirectory, { recursive: true, force: true });
-    await reportProgress?.(96, `Temurin Java ${major} ${imageType.toUpperCase()} 已安装并通过版本核对。`).catch(() => {});
-    return { javaMajor: major, runtimeVendor: version.vendor || "Eclipse Temurin", imageType };
+    await reportProgress?.(96, `${vendorLabel} Java ${version.version??major} ${imageType.toUpperCase()} 已安装并通过版本核对。`).catch(() => {});
+    return { javaMajor: major, runtimeVendor: version.vendor || vendorLabel, version:version.version,distribution,imageType };
   } catch (error) {
     await rm(extractionDirectory, { recursive: true, force: true });
     if (finalDirectory) await rm(finalDirectory, { recursive: true, force: true });
@@ -66,13 +83,14 @@ async function installTemurinRuntimeUnlocked(majorInput, reportProgress, downloa
   }
 }
 
-async function updateTemurinRuntime(majorInput,reportProgress,downloadTimeoutSeconds) {
-  const major=requireMajor(majorInput),directory=(await findJavaRuntime(major,true))?.root,lockPath=resolve(javaDirectory,`.java-${major}.lock`);
-  if(!directory)throw new Error(`没有找到已验证的托管 Java ${major}。`);
+async function updateTemurinRuntime(majorInput,reportProgress,downloadTimeoutSeconds) {return updateManagedJavaRuntime(majorInput,"temurin",undefined,reportProgress,downloadTimeoutSeconds);}
+async function updateManagedJavaRuntime(majorInput,distributionInput="temurin",versionInput,reportProgress,downloadTimeoutSeconds) {
+  const major=requireMajor(majorInput),distribution=requireJavaDistribution(distributionInput),requestedVersion=requireRequestedJavaVersion(major,versionInput),directory=(await findJavaRuntime(major,true,distribution))?.root,lockPath=resolve(javaDirectory,javaRuntimeLockName(major,distribution));
+  if(!directory)throw new Error(`没有找到已验证的托管 ${distribution} Java ${major}。`);
   if([...activeServers.values()].some(runtime=>runtime.javaMajor===major&&runtime.child.exitCode===null&&runtime.child.signalCode===null))throw new Error(`Java ${major} 正被运行实例使用，拒绝更新。`);
   await assertSafeFileTarget(resolve(directory,"bin","java.exe"),false);
-  const lock=await open(lockPath,"wx");const backup=resolve(javaDirectory,`.previous-${major}-${randomUUID()}`);let moved=false;
-  try {await rename(directory,backup);moved=true;const result=await installTemurinRuntimeUnlocked(major,reportProgress,downloadTimeoutSeconds);await rm(backup,{recursive:true,force:false});moved=false;return {...result,updated:true};}
+  const lock=await open(lockPath,"wx");const backup=resolve(javaDirectory,`.previous-${major}-${distribution}-${randomUUID()}`);let moved=false;
+  try {await rename(directory,backup);moved=true;const result=await installManagedJavaRuntimeUnlocked(major,distribution,requestedVersion,reportProgress,downloadTimeoutSeconds);await rm(backup,{recursive:true,force:false});moved=false;return {...result,updated:true};}
   catch(error){if(moved){if(await fileExists(directory))await rm(directory,{recursive:true,force:true});await rename(backup,directory);}throw error;}
   finally{await lock.close();await rm(lockPath,{force:true});}
 }
@@ -137,6 +155,45 @@ async function findTemurinArchive(major) {
   throw new Error(`Adoptium 没有 Java ${major} 的 Windows x64 JRE/JDK ZIP 工件；请选择有官方工件的版本，或登记本机现有 Java。`);
 }
 
+async function findZuluArchive(majorInput,versionInput) {
+  const major=requireMajor(majorInput),requestedVersion=requireRequestedJavaVersion(major,versionInput);
+  const listUrl=new URL("https://api.azul.com/metadata/v1/zulu/packages/");
+  for(const [key,value] of Object.entries({java_version:requestedVersion??String(major),os:"windows",arch:"x64",java_package_type:"jdk",javafx_bundled:"false",release_status:"ga",availability_types:"CA",archive_type:"zip",latest:"true",page:"1",page_size:"100"}))listUrl.searchParams.set(key,value);
+  assertHttpsHost(listUrl.href,"api.azul.com");
+  const listResponse=await fetchResource(listUrl,{signal:AbortSignal.timeout(30_000),redirect:"error"});
+  if(!listResponse.ok){await listResponse.body?.cancel();throw new Error(`Azul Zulu Java ${requestedVersion??major} 版本目录查询失败（${listResponse.status}）。`);}
+  const packages=await listResponse.json().catch(()=>null);
+  const packageInfo=Array.isArray(packages)?packages.find(item=>{
+    const version=Array.isArray(item?.java_version)?item.java_version.join("."):"";
+    return item?.product==="zulu"&&item?.availability_type==="CA"&&item?.release_status==="ga"&&item?.os==="windows"&&item?.hw_bitness===64
+      &&item?.java_package_type==="jdk"&&item?.archive_type==="zip"&&typeof item?.name==="string"&&/^zulu[0-9.]+-ca-jdk[0-9.]+-win_x64\.zip$/iu.test(item.name)
+      &&Number(version.split(".")[0])===major&&(!requestedVersion||version===requestedVersion)&&/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/iu.test(item.package_uuid??"");
+  }):null;
+  if(!packageInfo)throw new Error(`Azul 没有找到 Java ${requestedVersion??major} 的 Windows x64 Zulu JDK ZIP；未安装其他版本。`);
+
+  const detailUrl=`https://api.azul.com/metadata/v1/zulu/packages/${packageInfo.package_uuid}/`;
+  assertHttpsHost(detailUrl,"api.azul.com");
+  const detailResponse=await fetchResource(detailUrl,{signal:AbortSignal.timeout(30_000),redirect:"error"});
+  if(!detailResponse.ok){await detailResponse.body?.cancel();throw new Error(`Azul Zulu 工件详情查询失败（${detailResponse.status}）。`);}
+  const detail=await detailResponse.json().catch(()=>null);
+  const detailVersion=Array.isArray(detail?.java_version)?detail.java_version.join("."):"";
+  if(detail?.product!=="zulu"||detail?.availability_type!=="CA"||detail?.release_status!=="ga"||detail?.os!=="windows"||detail?.hw_bitness!==64||detail?.java_package_type!=="jdk"||detail?.archive_type!=="zip"
+    ||detail?.name!==packageInfo.name||detail?.package_uuid!==packageInfo.package_uuid||Number(detailVersion.split(".")[0])!==major||(requestedVersion&&detailVersion!==requestedVersion)
+    ||!isZuluArchiveDownloadUrl(detail?.download_url,detail?.name)||!/^[a-f0-9]{64}$/iu.test(detail?.sha256_hash??"")
+    ||!/^zulu[0-9.]+-ca-jdk[0-9.]+-win_x64\.zip$/iu.test(detail?.name??"")||!Number.isSafeInteger(detail?.size)||detail.size<=0||detail.size>1_000_000_000) {
+    throw new Error("Azul Zulu 官方工件详情缺少匹配的 Windows x64、JDK、版本、大小或 SHA-256 校验信息；已拒绝下载。");
+  }
+  return {downloadUrl:detail.download_url,expectedSha256:detail.sha256_hash.toLowerCase(),archiveName:detail.name,imageType:"jdk",version:detailVersion};
+}
+
+function isZuluArchiveDownloadUrl(value,name) {
+  try {
+    const url=new URL(value);
+    return url.protocol==="https:"&&url.hostname==="cdn.azul.com"&&!url.username&&!url.password&&(!url.port||url.port==="443")
+      &&url.pathname===`/zulu/bin/${name}`&&!url.search&&!url.hash;
+  } catch { return false; }
+}
+
 function isValidTemurinArchivePackage(value) {
   return value && typeof value.link === "string" && /^[a-f0-9]{64}$/iu.test(value.checksum || "")
     && typeof value.name === "string" && /^[A-Za-z0-9._-]+\.zip$/iu.test(value.name)
@@ -156,15 +213,19 @@ async function executeJavaEnvironmentTask(task) {
 }
 
 async function uninstallTemurinRuntime(majorInput, reportProgress) {
-  return withMutationLock(`.java-${requireMajor(majorInput)}.lock`,()=>uninstallTemurinRuntimeUnlocked(majorInput,reportProgress));
+  return uninstallManagedJavaRuntime(majorInput,"temurin",reportProgress);
 }
-async function uninstallTemurinRuntimeUnlocked(majorInput, reportProgress) {
-  const major = requireMajor(majorInput);
+async function uninstallManagedJavaRuntime(majorInput,distributionInput="temurin",reportProgress) {
+  const major=requireMajor(majorInput),distribution=requireJavaDistribution(distributionInput);
+  return withMutationLock(javaRuntimeLockName(major,distribution),()=>uninstallManagedJavaRuntimeUnlocked(major,distribution,reportProgress));
+}
+async function uninstallManagedJavaRuntimeUnlocked(majorInput, distributionInput, reportProgress) {
+  const major=requireMajor(majorInput),distribution=requireJavaDistribution(distributionInput);
   if ([...activeServers.values()].some((runtime) => runtime.javaMajor === major && runtime.child.exitCode === null && runtime.child.signalCode === null)) {
     throw new Error(`Java ${major} 正被运行中的 Minecraft 实例使用，已拒绝卸载。`);
   }
-  const runtimeDirectory = (await findJavaRuntime(major,true))?.root;
-  if(!runtimeDirectory)throw new Error(`没有找到已验证的托管 Java ${major}。`);
+  const runtime=await findJavaRuntime(major,true,distribution),runtimeDirectory=runtime?.root;
+  if(!runtimeDirectory)throw new Error(`没有找到已验证的托管 ${distribution} Java ${major}。`);
   await assertSafeFileTarget(resolve(runtimeDirectory,"bin","java.exe"),false);
   const directoryInfo = await lstat(runtimeDirectory).catch((error) => {
     if (error?.code === "ENOENT") return null;
@@ -177,9 +238,9 @@ async function uninstallTemurinRuntimeUnlocked(majorInput, reportProgress) {
   if (!executable || (await readJavaVersion(executable)).major !== major) {
     throw new Error(`Java ${major} 安装目录校验失败，已保留现有文件。`);
   }
-  await reportProgress(45, `正在安全卸载 LFAA 项目管理的 Temurin Java ${major}。`);
+  await reportProgress(45, `正在安全卸载 LFAA 项目管理的 ${runtime.vendor} Java ${major}。`);
   await rm(runtimeDirectory, { recursive: true, force: false });
-  return { javaMajor: major, runtimeVendor: "Eclipse Temurin" };
+  return { javaMajor: major, runtimeVendor: runtime.vendor,distribution };
 }
 
 async function registerJavaRuntimePath(payload, reportProgress) {
@@ -236,8 +297,8 @@ async function discoverJavaRuntimes() {
     if (!executable) continue;
     const version = await readJavaVersion(executable).catch(() => null);
     if (!version) continue;
-    const runtimeId = `temurin-${version.major}`;
-    runtimes.set(runtimeId, { runtimeId, major: version.major, version: version.version, architecture:version.architecture,os:version.os,vendor: version.vendor || "Eclipse Temurin", managed: true, source: "managed", executablePath: executable });
+    const distribution=javaDistributionForManagedEntry(entry.name,version.vendor),runtimeId=javaRuntimeId(distribution,version.major);
+    runtimes.set(runtimeId, { runtimeId, distribution, major: version.major, version: version.version, architecture:version.architecture,os:version.os,vendor: version.vendor || (distribution==="zulu"?"Azul Zulu":"Eclipse Temurin"), managed: true, source: "managed", executablePath: executable });
   }
   const externalPaths = new Map();
   const addExternalPath = (executablePath, source) => {
@@ -421,7 +482,8 @@ function sameWindowsPath(left, right) {
   return resolve(left).toLocaleLowerCase() === resolve(right).toLocaleLowerCase();
 }
 
-async function findJavaRuntime(major, managedOnly = false) {
+async function findJavaRuntime(major, managedOnly = false, distributionInput) {
+  const requestedDistribution=distributionInput===undefined?null:requireJavaDistribution(distributionInput);
   const runtimes = [];
   const entries = await readdir(javaDirectory, { withFileTypes: true }).catch(() => []);
   for (const entry of entries) {
@@ -438,7 +500,10 @@ async function findJavaRuntime(major, managedOnly = false) {
   }
   for (const runtime of runtimes) {
     const version = await readJavaVersion(runtime.executable).catch(() => null);
-    if (version?.major === major) return { ...runtime, runtimeId: runtime.managed ? `temurin-${major}` : null, ...version };
+    if(version?.major!==major)continue;
+    const distribution=runtime.managed?javaDistributionForManagedEntry(basename(runtime.root),version.vendor):undefined;
+    if(requestedDistribution&&distribution!==requestedDistribution)continue;
+    return { ...runtime, ...(distribution?{distribution,runtimeId:javaRuntimeId(distribution,major)}:{runtimeId:null}), ...version };
   }
   return null;
 }
@@ -449,9 +514,11 @@ async function resolveMinecraftJavaRuntime(majorInput, runtimeId, reportProgress
     // 显式选择必须再次按运行时 ID 和主版本解析；已失效时不回退到另一套 Java。
     if (typeof runtimeId !== "string" || runtimeId.length > 80) throw new Error("实例选择的 Java 运行环境标识无效。");
     let discovered = (await discoverJavaRuntimes()).find((runtime) => runtime.runtimeId === runtimeId);
-    if (!discovered && runtimeId === `temurin-${major}`) {
-      await reportProgress?.(20, `实例选择的 LFAA 托管 Java ${major} 已卸载，正在重新准备 Temurin JRE。`);
-      await installTemurinRuntime(major, reportProgress, downloadTimeoutSeconds);
+    const managedSelection=/^(temurin|zulu)-(\d{1,2})$/u.exec(runtimeId);
+    if (!discovered&&managedSelection&&Number(managedSelection[2])===major) {
+      const distribution=managedSelection[1];
+      await reportProgress?.(20, `实例选择的 LFAA 托管 ${distribution} Java ${major} 已卸载，正在重新准备该发行版。`);
+      await installManagedJavaRuntime(major,distribution,undefined,reportProgress,downloadTimeoutSeconds);
       discovered = (await discoverJavaRuntimes()).find((runtime) => runtime.runtimeId === runtimeId);
     }
     if (!discovered) throw new Error("实例选择的 Java 已不在节点扫描结果中；请为实例重新选择运行环境。");
@@ -500,6 +567,7 @@ async function readJavaVersion(executable) {
   const versionMatch = /version\s+"(?:1\.)?(\d+)/iu.exec(text);
   if (!versionMatch) throw new Error("无法识别 Java 版本输出。");
   const vendor = /Temurin/iu.test(text) ? "Eclipse Temurin"
+    : /Zulu|Azul/iu.test(text) ? "Azul Zulu"
     : /Java\(TM\)/iu.test(text) ? "Java(TM)"
       : /Oracle/iu.test(text) ? "Oracle"
         : /OpenJDK/iu.test(text) ? "OpenJDK" : "Java Runtime";
@@ -507,5 +575,5 @@ async function readJavaVersion(executable) {
 }
 
 
-return {installTemurinRuntime,updateTemurinRuntime,executeJavaEnvironmentTask,uninstallTemurinRuntime,registerJavaRuntimePath,forgetJavaRuntimePath,discoverJavaRuntimes,resolveMinecraftJavaRuntime,readJavaVersion,findJavaRuntime,findTemurinArchive};
+return {installTemurinRuntime,installZuluRuntime,installManagedJavaRuntime,updateTemurinRuntime,updateManagedJavaRuntime,executeJavaEnvironmentTask,uninstallTemurinRuntime,uninstallManagedJavaRuntime,registerJavaRuntimePath,forgetJavaRuntimePath,discoverJavaRuntimes,resolveMinecraftJavaRuntime,readJavaVersion,findJavaRuntime,findTemurinArchive,findZuluArchive};
 }

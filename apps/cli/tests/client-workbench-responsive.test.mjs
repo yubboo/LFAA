@@ -23,6 +23,28 @@ test("模块工作台关闭文档根与 body 的重复滚动条预留", () => {
   assert.match(moduleShellCss, /body:has\(\.workbench-shell--module\)\s*\{[^}]*scrollbar-gutter:\s*auto;/u);
 });
 
+test("AI 员工办公室读取真实账户状态并以容器宽度重排工位", () => {
+  const workbench = readFileSync(new URL("../../../packages/client/ui-layout/src/Workbench.tsx", import.meta.url), "utf8");
+  const office = readFileSync(new URL("../../../packages/client/ui-workspace/src/AgentOfficePage.tsx", import.meta.url), "utf8");
+  const officeRegistry = readFileSync(new URL("../../../packages/client/ui-workspace/src/client/index.ts", import.meta.url), "utf8");
+  const officeCss = readFileSync(new URL("../../../packages/client/ui-workspace/src/agent-office.css", import.meta.url), "utf8");
+  const navigation = readFileSync(new URL("../../../packages/client/ui-sidebar/src/GlobalNavigationRail.tsx", import.meta.url), "utf8");
+  const clientEntry = readFileSync(new URL("../../../packages/client/web/src/main.tsx", import.meta.url), "utf8");
+
+  assert.match(workbench, /route === "\/agent-office"[\s\S]*?AgentOfficePage/u);
+  assert.match(officeRegistry, /register\(ctx, "lfaa-client-ui-workspace\/src\/AgentOfficePage\.js", \(\) => import\("\.\.\/AgentOfficePage\.js"\)\)/u, "lazy page must be registered in the browser module loader");
+  assert.match(clientEntry, /import \* as ui_workspace from "lfaa-client-ui-workspace\/src\/client\/index\.js"/u, "the formal Web client entry must include the workspace registration module");
+  assert.match(clientEntry, /await context\.plugin\(ui_workspace\)[\s\S]*?mountClient\(context\)/u, "workspace module registrations must run before the UI mounts");
+  assert.match(navigation, /onNavigate\("\/agent-office"\)/u);
+  assert.match(office, /loadAiOffice\(current\.signal\)/u);
+  assert.match(office, /document\.visibilityState === "hidden"[\s\S]*?controller\?\.abort\(\)/u);
+  assert.match(office, /finally[\s\S]*?schedule\(\)/u, "同步应串行等待当前请求后再排下一次刷新");
+  assert.match(officeCss, /grid-template-columns:\s*repeat\(auto-fit,\s*minmax\(min\(100%,\s*320px\),\s*1fr\)\)/u);
+  assert.match(officeCss, /@container agent-office \(max-width:\s*680px\)/u);
+  assert.match(officeCss, /@container agent-office \(max-width:\s*380px\)/u);
+  assert.doesNotMatch(officeCss, /display:\s*inline-block/u);
+});
+
 test("嵌入式工作台首次绘制前按实际容器尺寸校准响应式布局", () => {
   const metricsHook = readFileSync(new URL("../../../packages/client/ui-dockkit/src/use-workbench-metrics.ts", import.meta.url), "utf8");
 
@@ -72,86 +94,90 @@ test("AI Work 在所有布局保留 300px 中心下限，通用 Surface 保持�
   assert.ok(sharedDesktop.right.max < applicationDesktop.right.max);
 });
 
-test("AI Work 仅外移会话刻度；消息正文与输入区布局保持不变", () => {
+test("AI Work 中间区按四个同级盒子纵向排列，对话流拆分左中右三轨", () => {
+  const chatMarkup = readFileSync(new URL("../../../packages/client/ui-chat/src/AiWorkChat.tsx", import.meta.url), "utf8");
+  const workspaceMarkup = readFileSync(new URL("../../../packages/client/ui-workspace/src/ApplicationWorkspace.tsx", import.meta.url), "utf8");
+  const normalChatStart = chatMarkup.indexOf('className={`ai-work-chat ai-work-chat--${appId}');
+  const normalChat = chatMarkup.slice(normalChatStart, chatMarkup.indexOf("<Modal", normalChatStart));
+  const boxOrder = ["{workspaceHeader}", 'className="ai-work-chat__conversation"', 'className="ai-work-chat__input-area"', "<AiUsageFooter"];
+  const boxPositions = boxOrder.map(box => normalChat.indexOf(box));
+
+  assert.ok(normalChatStart >= 0, "normal AI Work should have one explicit chat root");
+  assert.ok(boxPositions.every(position => position >= 0), "the four layout boxes should be direct chat-root children");
+  assert.deepEqual(boxPositions, [...boxPositions].sort((left, right) => left - right), "header, conversation, input and usage should keep their vertical order");
+  assert.match(normalChat, /className="ai-work-chat__message-stage"[\s\S]*?className="ai-work-chat__navigation-track"[\s\S]*?className="ai-work-chat__stream-track"[\s\S]*?className="ai-work-chat__messages"[\s\S]*?className="ai-work-chat__scrollbar-track"/u);
+  assert.match(workspaceMarkup, /renderAiWorkChatContent\(centerHeader\)/u, "the center header should be passed into the primary chat root");
+  assert.match(workspaceMarkup, /chatPanel=\{renderAiWorkChatContent\(\)\}/u, "the canvas-side chat should not inherit the center header");
+  assert.match(normalChat, /showContextUsage=\{settings\.aiRuntime\.showContextUsage\}/u, "the usage box should keep its existing Settings owner");
+});
+
+test("AI Work 对话、输入和用量盒共用左右间距，消息原生滚动条仍贴中心列右缘", () => {
   const workspaceCss = readWorkspaceCss();
   const chatCss = readFileSync(new URL("../../../packages/client/ui-chat/src/ai-work-chat.css", import.meta.url), "utf8");
+  const gapRule = workspaceCss.match(/^\.module-ai-work-chat\s*\{([^}]+)\}/mu)?.[1] ?? "";
+  const rootRule = workspaceCss.match(/^\.module-center__content--ai-work > \.module-ai-work-chat > \.ai-work-chat:not\(\.ai-work-chat--voice\)\s*\{([^}]+)\}/mu)?.[1] ?? "";
+  const headerRule = workspaceCss.match(/^\.module-center__content--ai-work > \.module-ai-work-chat > \.ai-work-chat:not\(\.ai-work-chat--voice\) > \.module-center__header\s*\{([^}]+)\}/mu)?.[1] ?? "";
+  const conversationRule = workspaceCss.match(/^\.module-center__content--ai-work > \.module-ai-work-chat > \.ai-work-chat > \.ai-work-chat__conversation\s*\{([^}]+)\}/mu)?.[1] ?? "";
+  const messageStageWorkspaceRule = workspaceCss.match(/^\.module-center__content--ai-work > \.module-ai-work-chat > \.ai-work-chat > \.ai-work-chat__conversation > \.ai-work-chat__message-stage\s*\{([^}]+)\}/mu)?.[1] ?? "";
+  const messageStageRule = chatCss.match(/^\.ai-work-chat__message-stage\s*\{([^}]+)\}/mu)?.[1] ?? "";
+  const scrollbarTrackRule = chatCss.match(/^\.ai-work-chat__scrollbar-track\s*\{([^}]+)\}/mu)?.[1] ?? "";
+  const messagesRule = chatCss.match(/^\.ai-work-chat__messages\s*\{([^}]+)\}/mu)?.[1] ?? "";
+  const messageDockRule = workspaceCss.match(/^\.module-center__content--ai-work > \.module-ai-work-chat > \.ai-work-chat > \.ai-work-chat__conversation > \.ai-work-chat__message-stage > \.ai-work-chat__stream-track > \.ai-work-chat__messages\s*\{([^}]+)\}/mu)?.[1] ?? "";
+  const anchorDockRule = workspaceCss.match(/^\.module-center__content--ai-work > \.module-ai-work-chat > \.ai-work-chat > \.ai-work-chat__conversation > \.ai-work-chat__message-stage > \.ai-work-chat__navigation-track > \.ai-work-chat__anchors\s*\{([^}]+)\}/mu)?.[1] ?? "";
+  const alertRule = workspaceCss.match(/^\.module-center__content--ai-work > \.module-ai-work-chat > \.ai-work-chat > \.ai-work-chat__conversation > \.ai-work-chat__alerts\s*\{([^}]+)\}/mu)?.[1] ?? "";
+  const inputAreaRule = workspaceCss.match(/^\.module-center__content--ai-work > \.module-ai-work-chat > \.ai-work-chat > \.ai-work-chat__input-area\s*\{([^}]+)\}/mu)?.[1] ?? "";
+  const inputChildrenRule = workspaceCss.match(/^\.module-center__content--ai-work > \.module-ai-work-chat > \.ai-work-chat > \.ai-work-chat__input-area > :is\(([^}]+)\)\s*\{([^}]+)\}/mu);
+  const footerRule = workspaceCss.match(/^\.module-center__content--ai-work > \.module-ai-work-chat > \.ai-work-chat > \.ai-work-chat__usage-footer\s*\{([^}]+)\}/mu)?.[1] ?? "";
   const anchorRule = chatCss.match(/^\.ai-work-chat__anchors\s*\{([^}]+)\}/mu)?.[1] ?? "";
-  const anchorDockRule = workspaceCss.match(/^\.module-center__content\.module-center__content--ai-work \.ai-work-chat__message-stage > \.ai-work-chat__anchors\s*\{([^}]+)\}/mu)?.[1];
-  const gapTokens = workspaceCss.match(/^\.module-ai-work-chat\s*\{([^}]+)\}/mu)?.[1];
-  const chatWrapperRule = workspaceCss.match(/^\.module-center__content--ai-work\s*>\s*\.module-ai-work-chat\s*\{([^}]+)\}/mu)?.[1];
-  const surfaceRule = workspaceCss.match(/\.module-center__content--ai-work\s+\.module-ai-work-chat\s*>\s*\.ai-work-chat\s*\{([^}]+)\}/u)?.[1];
-  const conversationRule = workspaceCss.match(/^\.module-center__content--ai-work \.module-ai-work-chat > \.ai-work-chat > \.ai-work-chat__conversation\s*\{([^}]+)\}/mu)?.[1];
-  const messageStageRule = workspaceCss.match(/^\.module-center__content\.module-center__content--ai-work \.ai-work-chat__message-stage\s*\{([^}]+)\}/mu)?.[1];
-  const messagesRule = workspaceCss.match(/^\.module-center__content\.module-center__content--ai-work \.ai-work-chat__messages\s*\{([^}]+)\}/mu)?.[1];
-  const anchorPreviewRule = workspaceCss.match(/\.module-center__content\.module-center__content--ai-work\s+\.ai-work-chat__anchor-preview\s*\{([^}]+)\}/u)?.[1];
-  const insetControlsRule = workspaceCss.match(/\.module-center__content\.module-center__content--ai-work\s+:is\(\.ai-work-chat__composer,\s*\.ai-work-chat__usage-footer\)\s*\{([^}]+)\}/u)?.[1];
-  const composerRule = chatCss.match(/\.ai-work-chat__composer\s*\{([^}]+)\}/u)?.[1];
+  const anchorPreviewRule = workspaceCss.match(/\.module-center__content\.module-center__content--ai-work\s+\.ai-work-chat__anchor-preview\s*\{([^}]+)\}/u)?.[1] ?? "";
 
-  assert.ok(gapTokens, "AI Work should define its responsive chat gap tokens");
-  assert.ok(chatWrapperRule, "AI Work should inset the whole central chat wrapper");
-  assert.ok(surfaceRule, "AI Work chat surface should fill the inset wrapper");
-  assert.ok(conversationRule, "AI Work conversation geometry should remain unchanged");
-  assert.ok(messageStageRule, "AI Work message stage geometry should remain unchanged");
-  assert.ok(messagesRule, "AI Work message scroller geometry should remain unchanged");
-  assert.ok(anchorDockRule, "AI Work should move only the anchor rail to the pane edge");
-  assert.ok(anchorPreviewRule, "AI Work anchor preview should retain its previous position");
-  assert.ok(insetControlsRule, "AI Work composer and usage footer should retain the inset width and alignment");
-  assert.ok(composerRule, "AI Work composer should fill its conversation column by default");
-  assert.match(gapTokens, /--ai-work-chat-inline-gap:\s*clamp\(20px,\s*6cqi,\s*32px\)/u);
-  assert.match(gapTokens, /--ai-work-chat-inline-gap-half:\s*clamp\(10px,\s*3cqi,\s*16px\)/u);
-  assert.match(chatWrapperRule, /width:\s*calc\(100% - var\(--ai-work-chat-inline-gap\)\)/u);
-  assert.match(chatWrapperRule, /align-self:\s*flex-start/u);
-  assert.match(surfaceRule, /overflow-x:\s*visible/u);
-  assert.match(surfaceRule, /overflow-y:\s*clip/u);
-  assert.match(conversationRule, /width:\s*calc\(100% \+ var\(--ai-work-chat-inline-gap\)\)/u);
-  assert.match(conversationRule, /margin-inline:\s*0/u);
-  assert.match(conversationRule, /padding-inline-start:\s*var\(--ai-work-chat-inline-gap\)/u);
-  assert.match(conversationRule, /box-sizing:\s*border-box/u);
-  assert.match(messageStageRule, /width:\s*calc\(100% - var\(--ai-work-chat-inline-gap\)\)/u);
-  assert.doesNotMatch(messageStageRule, /align-self:/u);
-  assert.match(messagesRule, /width:\s*calc\(100% \+ var\(--ai-work-chat-inline-gap\)\)/u);
-  assert.match(messagesRule, /padding-inline-end:\s*var\(--ai-work-chat-inline-gap\)/u);
+  assert.ok(gapRule && rootRule && headerRule && conversationRule && messageStageWorkspaceRule && messageStageRule && scrollbarTrackRule && messagesRule && messageDockRule && anchorDockRule && alertRule && inputAreaRule && inputChildrenRule && footerRule && anchorRule && anchorPreviewRule);
+  assert.match(gapRule, /--ai-work-chat-inline-gap:\s*clamp\(20px,\s*6cqi,\s*32px\)/u);
+  assert.match(gapRule, /--ai-work-chat-scrollbar-inline-size:\s*7px/u);
+  assert.match(rootRule, /width:\s*100%/u, "the chat root should span the middle column so its inner rails can reach both edges");
+  assert.match(headerRule, /width:\s*calc\(100% - var\(--ai-work-chat-inline-gap\) - var\(--ai-work-chat-inline-gap\)\)/u);
+  assert.match(headerRule, /align-self:\s*center/u);
+  assert.match(conversationRule, /width:\s*calc\(100% - var\(--ai-work-chat-inline-gap\) - var\(--ai-work-chat-inline-gap\)\)/u, "conversation box should use the shared left and right gutter");
+  assert.match(conversationRule, /align-self:\s*center/u);
+  assert.match(conversationRule, /overflow:\s*visible/u, "the inner navigation and scrollbar rails should be able to reach the middle-column edges");
+  assert.match(messageStageWorkspaceRule, /width:\s*calc\(100% \+ var\(--ai-work-chat-inline-gap\) \+ var\(--ai-work-chat-inline-gap\)\)/u);
+  assert.match(messageStageWorkspaceRule, /margin-inline-start:\s*calc\(-1 \* var\(--ai-work-chat-inline-gap\)\)/u);
+  assert.match(messageStageRule, /grid-template-columns:\s*var\(--ai-work-chat-inline-gap, 32px\) minmax\(0, 1fr\) var\(--ai-work-chat-scrollbar-inline-size, 7px\)/u);
+  assert.match(scrollbarTrackRule, /grid-column:\s*3/u);
+  assert.match(scrollbarTrackRule, /pointer-events:\s*none/u);
+  assert.match(messagesRule, /width:\s*100%/u);
+  assert.match(messagesRule, /height:\s*100%/u);
+  assert.match(messagesRule, /overflow:\s*auto/u);
+  assert.match(messageDockRule, /width:\s*calc\(100% \+ var\(--ai-work-chat-scrollbar-inline-size\)\)/u);
+  assert.match(messageDockRule, /margin-inline-end:\s*calc\(-1 \* var\(--ai-work-chat-scrollbar-inline-size\)\)/u);
+  assert.match(messageDockRule, /padding-inline-end:\s*calc\(var\(--ai-work-chat-inline-gap\) - var\(--ai-work-chat-scrollbar-inline-size\)\)/u);
+  assert.match(messageDockRule, /box-sizing:\s*border-box/u);
   assert.match(anchorRule, /left:\s*0\s*;/u);
-  assert.match(anchorDockRule, /left:\s*calc\(-1 \* var\(--ai-work-chat-inline-gap\)\)/u);
+  assert.match(anchorDockRule, /left:\s*0/u);
   assert.match(anchorPreviewRule, /left:\s*calc\(100% \+ var\(--ai-work-chat-inline-gap\) - 4px\)/u);
-  assert.match(insetControlsRule, /width:\s*min\(calc\(100% - var\(--ai-work-chat-inline-gap\)\),\s*920px\)/u);
-  assert.match(insetControlsRule, /left:\s*calc\(-1 \* var\(--ai-work-chat-inline-gap-half\)\)/u);
-  assert.match(composerRule, /width:\s*min\(100%,\s*920px\)/u);
-  assert.match(chatCss, /\.ai-work-chat__messages\s*\{[^}]*scrollbar-gutter:\s*stable/su);
+  assert.match(alertRule, /width:\s*min\(100%, 920px\)/u);
+  assert.match(alertRule, /align-self:\s*center/u);
+  assert.equal(inputChildrenRule[1], ".ai-work-chat__plan-mode, .ai-work-chat__interaction-dock, .ai-work-chat__composer");
+  assert.match(inputChildrenRule[2], /width:\s*min\(100%, 920px\)/u);
+  assert.match(inputChildrenRule[2], /align-self:\s*center/u);
+  assert.match(inputChildrenRule[2], /left:\s*auto/u);
+  assert.match(inputAreaRule, /width:\s*calc\(100% - var\(--ai-work-chat-inline-gap\) - var\(--ai-work-chat-inline-gap\)\)/u);
+  assert.match(inputAreaRule, /align-self:\s*center/u);
+  assert.match(footerRule, /width:\s*calc\(100% - var\(--ai-work-chat-inline-gap\) - var\(--ai-work-chat-inline-gap\)\)/u);
+  assert.match(footerRule, /align-self:\s*center/u);
+  assert.match(messagesRule, /scrollbar-gutter:\s*stable/u);
+  assert.doesNotMatch(workspaceCss, /--ai-work-chat-inline-gap-half|@container module-center \(max-width: 420px\)/u, "narrow columns should use the same container-relative geometry without a second offset formula");
 });
 
-test("AI Work 右侧滚动留白继承聊天表面材质，不透出画布底色", () => {
+test("AI Work 共用间距不依赖伪元素，消息滚动条继续使用主题强调色", () => {
   const workspaceCss = readWorkspaceCss();
-  const gutterSurfaceRule = workspaceCss.match(/\.module-center__content\.module-center__content--ai-work \.module-ai-work-chat > \.ai-work-chat::after\s*\{([^}]+)\}/u)?.[1];
-  const accentScrollbarRule = workspaceCss.match(/\.module-center__content\.module-center__content--ai-work \.ai-work-chat__messages\s*\{(?=[^}]*scrollbar-color:)([^}]+)\}/u)?.[1];
-  const accentThumbRule = workspaceCss.match(/\.module-center__content\.module-center__content--ai-work \.ai-work-chat__messages::-webkit-scrollbar-thumb\s*\{([^}]+)\}/u)?.[1];
+  const accentScrollbarRule = workspaceCss.match(/\.module-center__content--ai-work > \.module-ai-work-chat > \.ai-work-chat > \.ai-work-chat__conversation > \.ai-work-chat__message-stage > \.ai-work-chat__stream-track > \.ai-work-chat__messages\s*\{(?=[^}]*scrollbar-color:)([^}]+)\}/u)?.[1];
+  const accentThumbRule = workspaceCss.match(/\.ai-work-chat__stream-track > \.ai-work-chat__messages::-webkit-scrollbar-thumb\s*\{([^}]+)\}/u)?.[1];
 
-  assert.ok(gutterSurfaceRule, "AI Work should extend the chat surface behind its right-edge scroll gutter");
-  assert.ok(accentScrollbarRule, "AI Work should retain the Appearance accent color on the message scrollbar");
-  assert.ok(accentThumbRule, "WebKit message scrollbars should retain the Appearance accent color");
-  assert.match(gutterSurfaceRule, /inset-inline-start:\s*100%/u);
-  assert.match(gutterSurfaceRule, /width:\s*var\(--ai-work-chat-inline-gap\)/u);
-  assert.match(gutterSurfaceRule, /background:\s*inherit/u);
-  assert.match(gutterSurfaceRule, /(?:-webkit-)?backdrop-filter:\s*inherit/u);
-  assert.match(gutterSurfaceRule, /pointer-events:\s*none/u);
+  assert.ok(accentScrollbarRule && accentThumbRule, "the native message scrollbar should retain the Appearance accent color");
+  assert.doesNotMatch(workspaceCss, /\.ai-work-chat:not\(\.ai-work-chat--voice\)::(?:before|after)/u, "the shared gaps should come from each sibling box instead of a decorative pseudo-element");
   assert.match(accentScrollbarRule, /scrollbar-color:\s*var\(--settings-accent, var\(--color-brand\)\) transparent !important/u);
-  assert.match(accentThumbRule, /border:\s*0(?:px)?;/u);
   assert.match(accentThumbRule, /background:\s*var\(--settings-accent, var\(--color-brand\)\)/u);
-  assert.doesNotMatch(accentThumbRule, /background-clip:\s*content-box/u);
-});
-
-test("AI Work 手机窄中栏将消息、输入区和用量栏的右边界铺到滚动列", () => {
-  const workspaceCss = readWorkspaceCss();
-  const mobileRightEdgeRule = workspaceCss.match(/@container module-center \(max-width:\s*420px\)\s*\{([\s\S]*?)\n\}/u)?.[1];
-
-  assert.ok(mobileRightEdgeRule, "手机窄中栏应有独立的右边界对齐规则");
-  assert.match(mobileRightEdgeRule, /\.module-center__content--ai-work\s*>\s*\.module-ai-work-chat\s*\{\s*width:\s*100%;\s*\}/u, "聊天外壳必须填满中心列，不能继续扣掉右侧间距");
-  assert.match(mobileRightEdgeRule, /\.module-center__content--ai-work\s+\.module-ai-work-chat\s*>\s*\.ai-work-chat\s*>\s*\.ai-work-chat__conversation\s*\{\s*width:\s*100%;\s*\}/u, "会话滚动区应在保留左侧安全间距后贴齐右边界");
-  assert.match(mobileRightEdgeRule, /\.ai-work-chat__message-stage\s*\{\s*width:\s*100%;\s*\}/u);
-  assert.match(mobileRightEdgeRule, /\.ai-work-chat__messages\s*\{\s*width:\s*100%;\s*padding-inline-end:\s*0;\s*\}/u);
-  assert.match(mobileRightEdgeRule, /:is\(\.ai-work-chat__composer,\s*\.ai-work-chat__usage-footer\)\s*\{\s*width:\s*min\(calc\(100%\s*-\s*var\(--ai-work-chat-inline-gap\)\),\s*920px\);\s*align-self:\s*flex-end;\s*left:\s*0;\s*\}/u);
-  assert.match(mobileRightEdgeRule, /\.module-ai-work-chat\s*>\s*\.ai-work-chat::after\s*\{\s*display:\s*none;\s*\}/u, "窄屏不再绘制外壳右侧的补空白表面");
-  assert.match(mobileRightEdgeRule, /\.ai-work-chat__anchor-preview\s*\{\s*left:\s*calc\(100%\s*-\s*4px\);\s*\}/u);
 });
 
 test("响应式应用工作区仅在中心区和左栏下限都放得下时将二级导航改为 Dock", () => {

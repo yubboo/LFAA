@@ -21,6 +21,8 @@ export interface SubagentTask {
   readonly prompt: string;
   /** 发起所在的 LFAA 应用。 */
   readonly appId: ApplicationId;
+  /** 创建此任务的 Agent Loop Run；由工具上下文注入，不接受模型参数伪造。 */
+  readonly parentRunId?: string;
 }
 
 /** 子任务执行的运行上下文，由调用方（模型工具）提供，禁止从模型参数伪造。 */
@@ -68,6 +70,7 @@ export interface SubagentRunHandle {
   readonly description: string;
   readonly userId: string;
   readonly appId: ApplicationId;
+  readonly parentRunId?: string;
   readonly startedAt: string;
   status: "running" | "completed" | "aborted" | "error";
   /** 父级取消；同时转发给驱动的内部 AbortController。 */

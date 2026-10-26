@@ -4,6 +4,8 @@
 
 公共样式放在 `src/css/`，由 `common.css` 汇总导入：`common-layout.css` 管容器与区域定位，`common-pane.css` 管折叠状态，`common-pointer.css` 管拖动与分隔条，`common-bottom.css` 管底部区域交互，`common-responsive.css` 管 Compact/Mobile 排布。这里不设置页面内容区的背景、文字色、边框或阴影；每个 UI 包在对应页面 CSS 中定义自己的盒子外观。
 
+`ResizableWorkbench` 的尺寸、拖动和开合状态默认按 `storageKey` 保存在本机。临时工作区可传入 `persistState={false}`，使布局不读取或写入 `localStorage`；容器首次测量完成后使用真实尺寸计算初始栏宽，用户手动调整后只在当前组件实例内记住。
+
 局部可调整尺寸的 Client 组件复用 `src/ui-resize/use-pointer-resize.ts`。它负责 Pointer 捕获、按动画帧合并拖动增量，并在释放、取消、失焦、页面隐藏或卸载时完成清理；调用方负责尺寸约束及布局更新。不要在表格或其他组件内另写 Pointer/RAF 生命周期。
 
 常规使用者默认在 Mobile 将左右侧栏作为 Overlay。应用工作区可启用 `responsiveLeftDock`：当容器宽度至少达到中心区最小宽度、左栏最小宽度和分隔列之和时，左导航进入 Grid 并推动中心区；不足时仍使用 Overlay。`responsiveRightDock` 仅控制右侧 Dock；Compact/Mobile 右栏在右栏、当前 Surface 声明的最小中间区与分隔条可共存时，沿用与 Desktop 相同的 Grid、标准分隔条和拖拽 Owner，打开后推动中间区且不低于其最小宽度；空间不足时回退到共享的可拉伸 Overlay。Overlay 不改写已记忆的右栏宽度。Desktop 仍沿用原有两侧宽度预算。

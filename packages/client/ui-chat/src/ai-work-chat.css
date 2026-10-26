@@ -6,6 +6,7 @@
  * 修改注意事项：应用会话导航由 ApplicationSidebar 提供；悬停锚点只索引当前会话已保存的用户提问，不占聊天列宽。
  */
 .ai-work-chat { position: relative; display: grid; min-height: 390px; height: calc(100% - 12px); grid-template-columns: minmax(0, 1fr); overflow: hidden; container-type: inline-size; container-name: ai-work-chat; border: 1px solid var(--color-border); border-radius: 14px; background: color-mix(in srgb, var(--color-surface) 94%, transparent); box-shadow: 0 8px 30px rgba(25, 40, 70, .08); }
+.ai-work-chat:not(.ai-work-chat--voice) { display: flex; flex-direction: column; }
 .ai-work-chat--composer-menu-open { overflow: visible; }
 /* Wallpaper Engine 活动时优先级高于自定义背景的透明主面板规则，改为消费外观中心的遮罩透明度与模糊。 */
 body[data-we-wallpaper] .workbench-shell .ai-work-chat {
@@ -13,8 +14,10 @@ body[data-we-wallpaper] .workbench-shell .ai-work-chat {
   -webkit-backdrop-filter: blur(var(--settings-glass-blur));
   backdrop-filter: blur(var(--settings-glass-blur));
 }
-/* 提示区、关联和输入框超过所属容器高度时允许整体滚动，短屏不裁掉底部操作。 */
-.ai-work-chat__conversation { display: flex; width: 100%; min-width: 0; min-height: 0; flex: 1 1 0; flex-direction: column; gap: 8px; padding: 10px 0 12px; overflow: auto; overscroll-behavior: contain; }
+/* 对话流盒子占用剩余高度；实际消息滚动只由内部消息视口负责。 */
+.ai-work-chat__conversation { display: flex; width: 100%; min-width: 0; min-height: 0; flex: 1 1 0; flex-direction: column; gap: 8px; padding: 10px 0 12px; overflow: hidden; }
+.ai-work-chat__input-area { display: flex; width: 100%; min-width: 0; min-height: 0; flex: 0 1 auto; flex-direction: column; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
+.ai-work-chat__usage-footer { min-width: 0; flex: 0 0 auto; }
 .ai-work-chat__alerts { display: grid; min-width: 0; flex: 0 0 auto; gap: 8px; }
 .ai-work-chat__conversation > .ai-work-chat__alerts { flex: 0 0 auto; }
 .ai-work-chat__alerts > .ant-alert { min-width: 0; margin: 0; }
@@ -24,9 +27,9 @@ body[data-we-wallpaper] .workbench-shell .ai-work-chat {
 .ai-work-chat__provider-setup-action { max-width: 100%; }
 /* 锚点轨道悬浮在消息视口上；48px 命中区覆盖横杠与卡片外透明间隙，只有可见卡片本身暂停跟随；刻度位置仍由内层列表保持原位。 */
 .ai-work-chat__anchors { position: absolute; z-index: 4; top: 50%; left: 0; width: 48px; height: 64px; transform: translateY(-50%); opacity: 0; pointer-events: none; transition: opacity 120ms ease; }
-.ai-work-chat__message-stage:hover > .ai-work-chat__anchors,
-.ai-work-chat__message-stage:focus-within > .ai-work-chat__anchors { opacity: 1; pointer-events: auto; }
-.workbench-shell[data-ai-work-output-focus-blur="true"] .ai-work-chat[data-output-idle="false"] .ai-work-chat__message-stage > .ai-work-chat__anchors { opacity: 1; pointer-events: auto; }
+.ai-work-chat__message-stage:hover > .ai-work-chat__navigation-track > .ai-work-chat__anchors,
+.ai-work-chat__message-stage:focus-within > .ai-work-chat__navigation-track > .ai-work-chat__anchors { opacity: 1; pointer-events: auto; }
+.workbench-shell[data-ai-work-output-focus-blur="true"] .ai-work-chat[data-output-idle="false"] .ai-work-chat__message-stage > .ai-work-chat__navigation-track > .ai-work-chat__anchors { opacity: 1; pointer-events: auto; }
 .ai-work-chat__anchor-list { position: absolute; inset-block: 0; left: 0; width: 48px; }
 .ai-work-chat__anchor { position: absolute; left: 0; display: block; width: 48px; height: 12px; padding: 0; box-sizing: border-box; border: 0; background: transparent; cursor: pointer; pointer-events: auto; }
 /* 横杠固定为 2px 高；锚点由整数像素布局定位，避免分数像素抗锯齿造成粗细不一。 */
@@ -54,15 +57,19 @@ body[data-we-wallpaper] .workbench-shell .ai-work-chat {
 .ai-work-chat__anchor-preview strong { display: -webkit-box; overflow: hidden; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: var(--color-text-primary); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: var(--font-size-xs); font-weight: 620; }
 .ai-work-chat__anchor-preview > span { display: -webkit-box; overflow: hidden; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
 .ai-work-chat__anchor:is(:hover, :focus-visible, [data-pointer-active="true"]) .ai-work-chat__anchor-preview { opacity: 1; visibility: visible; }
-/* 滚动视口铺满中间工作区，消息列表与输入框共用居中窄列，滚动条因此贴在视口最右边。 */
-.ai-work-chat__message-stage { position: relative; display: flex; width: 100%; min-width: 0; min-height: 0; flex: 1 1 0; align-self: stretch; flex-direction: column; }
-.ai-work-chat__messages { display: block; width: 100%; min-width: 0; min-height: 0; flex: 1 1 auto; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; box-sizing: border-box; }
+/* 消息区内部固定左导航、中间消息、右侧滚动条三条独立轨道；原生滚动条仍由消息视口绘制。 */
+.ai-work-chat__message-stage { position: relative; display: grid; width: 100%; min-width: 0; min-height: 0; flex: 1 1 0; grid-template-columns: var(--ai-work-chat-inline-gap, 32px) minmax(0, 1fr) var(--ai-work-chat-scrollbar-inline-size, 7px); }
+.ai-work-chat__navigation-track { position: relative; min-width: 0; min-height: 0; grid-column: 1; grid-row: 1; }
+.ai-work-chat__stream-track { min-width: 0; min-height: 0; grid-column: 2; grid-row: 1; }
+.ai-work-chat__scrollbar-track { min-width: 0; min-height: 0; grid-column: 3; grid-row: 1; pointer-events: none; }
+.ai-work-chat__messages { display: block; width: 100%; min-width: 0; min-height: 0; height: 100%; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; box-sizing: border-box; }
 .ai-work-chat__message-list { display: flex; width: min(100%, 920px); min-height: 100%; flex-direction: column; justify-content: flex-start; align-items: stretch; gap: 26px; margin-inline: auto; padding: 22px clamp(20px, 3%, 32px) 12px; box-sizing: border-box; }
 /* 空闲与恢复状态同步过渡回复区；仅在状态变化时运行有限 CSS 过渡，不创建逐帧脚本。 */
 .workbench-shell[data-ai-work-output-focus-blur="true"] .ai-work-chat .ai-work-chat__messages,
 .workbench-shell[data-ai-work-output-focus-blur="true"] .ai-work-chat .ai-work-chat__anchors,
 .workbench-shell[data-ai-work-output-focus-blur="true"] .ai-work-chat .ai-work-chat__scroll-latest.ant-btn {
-  transition: filter 240ms cubic-bezier(.2,.8,.2,1), opacity 240ms ease;
+  /* 只过渡透明度；对话流可能很长，逐帧插值整块滚动内容的 blur 会重复光栅化大面积文本。 */
+  transition: opacity 240ms ease;
 }
 
 .workbench-shell[data-ai-work-output-focus-blur="true"] .ai-work-chat[data-output-idle="true"] .ai-work-chat__messages,

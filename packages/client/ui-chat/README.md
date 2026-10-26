@@ -4,6 +4,8 @@
 
 `lfaa-client-ui-chat` 展示同一 Agent Run 的公开正文、真实工具活动、用户问题和权限审批，执行与持久化仍归原 Agent Loop、Session 与 Permission Owner。
 
+普通 AI Work 的唯一聊天根接收 `ui-workspace` 传入的标题栏 slot，随后按顺序呈现会话消息流、输入区与 `AiUsageFooter`；标题、对话流、输入区和用量盒子分别使用同一套响应式左右间距。输入区把计划提示、待处理澄清/审批卡和 composer 包在同一个父盒子中。消息舞台内部由左锚点导航轨、中间消息流轨和右侧滚动条轨组成；消息列表仍是唯一原生滚动 Owner，内部轨道延展进入两侧间距，使锚点及滚动条分别贴近中间列两侧，正文和输入内容共用宽度基准。工作区只限定轨道位置和强调色滚动条。缓存/上下文仍由真实用量与 `aiRuntime.showContextUsage` 设置控制，不新增数据或偏好。
+
 流式回复的耗时留在回复开头；思考状态按真实事件落点显示，回复状态跟随最新可见正文，正在执行的工具、命令、Skill 或 Agent 直接在对应活动组显示当前动作。无活动记录时只根据可见正文区分思考和回复。处理中状态以回复 ID 稳定派生七色流光相位，不随 token 更新闪色，并采用读取 `appearance.overlay` 与 `appearance.blur` 共享令牌的液态玻璃胶囊；`appearance.advanced.reducedMotion` 生效时保留静态磨砂表面并停止彩色扫光，不增加运行状态订阅或请求。
 
 仅当活动记录标明内置 Browser Tool 与已校验 Provider 且状态为成功时，聊天通知工作区切换到同一 Browser Owner 的 Dock；失败、审批未完成和个人 Tabbit 活动不触发切换。
@@ -80,6 +82,6 @@ AI Work 首次使用沿用 DSH 默认项目语义；可用默认项目成为新�
 
 输入操作栏的项目、当前应用、附件、权限、更多、模型、语音、发送和运行控制提供悬停提示；可操作控件同时支持键盘聚焦，禁用的项目按钮继续保留原生提示。会话用量与上下文指标的悬停说明来自当前 Provider 用量/上下文投影，点击仍打开原有详情 Popover；上下文关闭提示继续由 `aiRuntime.showContextUsage` 控制。
 
-历史会话绑定的项目目录只有经 Session/Agent Loop Owner 与 Project Files Host 确认为不存在或非目录时才进入只读提示态；仍可查看消息记录，但禁用该会话的新提交和项目切换。加载失败、离线节点和权限错误均不按目录丢失处理。切换到其他会话时只中止原 Client SSE 订阅并隔离旧事件，不取消服务端 Run；重新打开时续接同一 Run。
+历史会话绑定的项目目录只有经 Session/Agent Loop Owner 与 Project Files Host 确认为不存在或非目录时才进入只读提示态；仍可查看消息记录，但禁用该会话的新提交和项目切换。加载失败、离线节点和权限错误均不按目录丢失处理。切换到其他会话时只中止原 Client SSE 订阅并隔离旧事件，不取消服务端 Run；重新打开时续接同一 Run。读取会话若发现 streaming/queued 消息会自动恢复跟随，断线后也可以从当前活动消息显式恢复跟随。续接允许空正文，但不会提交新用户消息；终态仍以服务端事件/Session 消息为准。
 
 AI Work 新 Run 可选携带 Client 当前 `workspaceView`；续接中的 Run 不重复提交该字段。该 JSON 仅描述选择的工作台面板，不进入消息历史或 Session 持久化。

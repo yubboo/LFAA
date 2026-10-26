@@ -9,6 +9,7 @@
     "lfaa-api-gateway": "workspace:*",
     "lfaa-api-remotes": "workspace:*",
     "lfaa-app-boot": "workspace:*",
+    "lfaa-attachment": "workspace:*",
     "lfaa-authorization": "workspace:*",
     "lfaa-identity-auth": "workspace:*",
     "lfaa-permission-presets": "workspace:*",

@@ -6,6 +6,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { gunzipSync } from "node:zlib";
 import { isolateData } from "./isolated-data.mjs";
 
 isolateData(test, "account-snapshots");
@@ -15,25 +16,29 @@ const { retireLegacyFileTables } = await import("lfaa-storage-domain/src/migrati
 retireLegacyFileTables();
 const settings = await import("lfaa-settings/src/service.js");
 const snapshots = await import("lfaa-settings-snapshots/src/index.js");
+const { createLocalAttachmentStore } = await import("lfaa-attachment-local/src/index.js");
+const attachments = createLocalAttachmentStore({ dataDirectory: () => process.env.LFAA_DATA_DIR });
 
 const accountId = randomUUID();
 const otherAccountId = randomUUID();
 database.prepare("INSERT INTO users(id,uid,username,password_salt,password_hash,role,is_super_admin) VALUES(?,1,'snapshot-fixture','fixture','fixture','admin',0)").run(accountId);
 
-test("账户资料归档按 Owner 分类与 UserSettings 字段映射预览和恢复", () => {
+test("账户资料归档按 Owner 分类与 UserSettings 字段映射预览和恢复", async () => {
   const permissionsMode = settings.getUserSettings(accountId).permissions.mode;
   const initialAiRuntime = settings.getUserSettings(accountId).aiRuntime;
   settings.saveUserSettings(accountId, "ai-runtime", { ...initialAiRuntime, speed: "deep" });
 
-  const exported = snapshots.exportCurrentAccountArchive(accountId);
-  const payload = snapshots.decodeAccountArchive(exported.archive).payload;
+  const exported = await snapshots.exportCurrentAccountArchive(accountId, attachments);
+  const envelope = JSON.parse(gunzipSync(exported.archive).toString("utf8"));
+  const payload = envelope.payload;
+  assert.equal(envelope.version, 2);
   assert.equal(payload.settings.aiRuntime.speed, "deep");
 
   settings.saveUserSettings(accountId, "ai-runtime", { ...settings.getUserSettings(accountId).aiRuntime, speed: "fast" });
-  const preview = snapshots.previewAccountArchive(accountId, exported.archive);
+  const preview = await snapshots.previewAccountArchive(accountId, exported.archive);
   assert.ok(preview.changedSettingsCategories.includes("ai-runtime"));
 
-  const restored = snapshots.restoreAccountArchive(accountId, exported.archive, { settings: true, memories: false, sessions: false });
+  const restored = await snapshots.restoreAccountArchive(accountId, exported.archive, { settings: true, memories: false, sessions: false }, attachments);
   assert.ok(restored.settings.restored.includes("ai-runtime"));
   assert.equal(settings.getUserSettings(accountId).aiRuntime.speed, "deep");
   assert.equal(settings.getUserSettings(accountId).permissions.mode, permissionsMode, "账户快照不能覆盖权限模式");

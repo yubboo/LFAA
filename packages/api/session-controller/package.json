@@ -16,6 +16,7 @@
     "lfaa-user-approval": "workspace:*",
     "lfaa-session": "workspace:*",
     "lfaa-settings": "workspace:*",
+    "lfaa-subagent": "workspace:*",
     "lfaa-jobs": "workspace:*",
     "lfaa-telemetry-logger": "workspace:*",
     "lfaa-tools": "workspace:*",

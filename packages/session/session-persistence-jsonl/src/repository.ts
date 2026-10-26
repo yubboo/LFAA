@@ -4,12 +4,13 @@
  * 关联文件：persistence.ts、core/session/sessions.ts、storage-domain/migration.ts。
  */
 import { createHash, randomUUID } from "node:crypto";
-import { resolve } from "node:path";
+import { lstatSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { basename, resolve } from "node:path";
 import { database } from "lfaa-storage-sqlite/src/database.js";
 import { config } from "lfaa-launch-environment/src/config.js";
 import { encode, JsonStorageBackend } from "lfaa-storage-json/src/index.js";
 import { withControlLock } from "lfaa-storage-domain/src/control-lock.js";
-import { JsonlSessionPersistence, type SessionChange, type SessionCommit, type SessionTable } from "./persistence.js";
+import { JsonlSessionPersistence, sessionStorageIndexFileName, sessionStorageIndexTempName, type SessionChange, type SessionCommit, type SessionTable } from "./persistence.js";
 // 增量对齐：把现有 JSONL 仓库声明为实现 session-persistence 协议（仅类型校验，不改变运行行为）。
 import type { SessionPersistenceBackend } from "lfaa-session-persistence";
 import { applySessionSummaryEvent, createSessionSummaryAccumulator, projectSessionUsage, type SessionContextUsage, type SessionSummaryAccumulator } from "./session-summary.js";
@@ -37,6 +38,7 @@ type UsageAggregate = { requestCount: number; promptTokens: number; promptTokenC
 const recentMessagePageSize = 100;
 const recentMessagePageMaxSessions = 128;
 const recentMessagePageMaxBytes = 16 * 1024 * 1024;
+const storageIndexField = (value: unknown) => String(value ?? "").replace(/[\u0000-\u001f\u007f\u2028\u2029]/gu, " ").trim();
 const displayMessageFields = ["id", "session_id", "_order", "role", "content", "status", "created_at", "activity_json", "parts", "attachments_json"] as const;
 const emptyAssociationProjection = (): { seq: number; value: unknown } => ({ seq: -1, value: { applicationIds: [], capabilityIds: [] } });
 const compareMessages = (left: SessionRecord, right: SessionRecord) => String(left.created_at).localeCompare(String(right.created_at)) || Number(left._order) - Number(right._order);
@@ -77,10 +79,44 @@ export class SessionRepository {
       const interrupted = [...this.interruptedMessages.values()];
       this.interruptedMessages.clear();
       for (const message of interrupted) this.commit(String(message.session_id), [{ table: "ai_messages", key: String(message.id), value: { ...message, status: "interrupted" } }]);
+      withControlLock(database, () => {
+        this.cleanupStorageIndexTemps();
+        this.refreshStorageIndex();
+      });
     } catch (error) { this.persistence.close(); throw error; }
   }
   /** Session Owner 已校验归属后，用于回答会话日志的实际路径；不读取文件内容。 */
   storageLocation(sessionId: string) { return this.persistence.storageLocation(sessionId); }
+  private cleanupStorageIndexTemps(): void {
+    const root = resolve(config.homeDirectory, "sessions");
+    for (const name of readdirSync(root)) {
+      if (!sessionStorageIndexTempName.test(name)) continue;
+      const path = resolve(root, name);
+      try { if (lstatSync(path).isFile()) rmSync(path, { force: true }); }
+      catch { /* 临时文件可能已被并发清理；下次启动会再尝试。 */ }
+    }
+  }
+  /** 从轻量会话头生成可重建的标题映射，不读取 JSONL 正文。 */
+  private refreshStorageIndex(): void {
+    const root = resolve(config.homeDirectory, "sessions");
+    let temporaryPath: string | undefined;
+    try {
+      const rows = [...this.records.get("ai_sessions")!.values()]
+        .map(header => ({
+          title: storageIndexField(header.title),
+          directory: basename(this.persistence.storageLocation(String(header.id)).sessionDirectory)
+        }))
+        .sort((left, right) => left.title.localeCompare(right.title, "zh-CN") || left.directory.localeCompare(right.directory));
+      const content = `\uFEFFLFAA 会话目录索引\r\n会话标题\t哈希目录名\r\n${rows.map(row => `${row.title}\t${row.directory}`).join("\r\n")}${rows.length ? "\r\n" : ""}`;
+      temporaryPath = resolve(root, `.session-index-${randomUUID()}.tmp`);
+      writeFileSync(temporaryPath, content, { encoding: "utf8", flag: "wx", mode: 0o600 });
+      renameSync(temporaryPath, resolve(root, sessionStorageIndexFileName));
+      temporaryPath = undefined;
+    } catch (error) {
+      if (temporaryPath) { try { rmSync(temporaryPath, { force: true }); } catch { /* 下次启动会清理未完成的替换文件。 */ } }
+      console.error("LFAA 会话目录索引更新失败。", error);
+    }
+  }
   private apply(sessionId: string, changes: SessionChange[]): void {
     let hasHeaderChange = false;
     for (const change of changes) {
@@ -593,6 +629,7 @@ export class SessionRepository {
   commit(sessionId: string, changes: SessionChange[]): void {
     this.assertReady();
     this.loadSession(sessionId);
+    const previousTitle = this.records.get("ai_sessions")!.get(sessionId)?.title;
     // 提交只替换涉及的记录；按键保留回滚值，不能为一条活动复制所有账户的历史索引。
     const previous = new Map<SessionTable, Map<string, SessionRecord | undefined>>();
     try {
@@ -614,6 +651,7 @@ export class SessionRepository {
         if (!database.prepare("SELECT id FROM users WHERE id = ?").get(header.user_id as string)) throw new Error("会话所属账户不存在。");
         this.project(committedHeader);
         this.persistence.append({ sessionId, transaction, changes: committedChanges });
+        if (previousTitle !== header.title) this.refreshStorageIndex();
       });
     } catch (error) {
       for (const [table, saved] of previous) for (const [key, value] of saved) {
@@ -628,9 +666,11 @@ export class SessionRepository {
     try {
       this.loadSession(sessionId);
       return withControlLock(database, () => {
+        const previousTitle = this.records.get("ai_sessions")!.get(sessionId)?.title;
         const rewrite = this.persistence.rewrite(sessionId, transform);
         if (!rewrite.rewrittenTransactions) return 0;
         for (const event of rewrite.commits) this.apply(sessionId, event.changes);
+        if (previousTitle !== this.records.get("ai_sessions")!.get(sessionId)?.title) this.refreshStorageIndex();
         return rewrite.rewrittenTransactions;
       });
     } catch (error) {
@@ -654,6 +694,10 @@ export class SessionRepository {
       for (const index of this.recordSessions.values()) for (const [key, owner] of index) if (owner === sessionId) index.delete(key);
       for (const table of tables) for (const [id, record] of this.records.get(table)!) if ((table === "ai_sessions" ? record.id : record.session_id) === sessionId) this.storeRecord(table, id, null);
     }
+    withControlLock(database, () => {
+      this.cleanupStorageIndexTemps();
+      this.refreshStorageIndex();
+    });
   }
   close(): void { this.persistence.close(); }
 }

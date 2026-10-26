@@ -1,0 +1,70 @@
+/* 共享 Three.js 视口：仅负责画布、取景窗和操作提示；背景与边框跟随工作台主题令牌。 */
+.lfaa-director-stage {
+  position: absolute;
+  inset: 0;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--color-canvas);
+}
+
+.lfaa-director-stage__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: grab;
+}
+
+.lfaa-director-stage__canvas:active { cursor: grabbing; }
+
+.lfaa-director-stage__preview {
+  position: absolute;
+  z-index: 2;
+  top: 14px;
+  right: 14px;
+  display: flex;
+  width: clamp(150px, 23%, 260px);
+  height: clamp(94px, 20%, 150px);
+  align-items: flex-start;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--color-border-strong) 78%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-surface) 18%, transparent);
+  box-shadow: 0 8px 24px color-mix(in srgb, #000 24%, transparent);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xs);
+  pointer-events: none;
+}
+
+.lfaa-director-stage__fallback {
+  position: absolute;
+  right: 14px;
+  bottom: 46px;
+  left: 14px;
+  z-index: 3;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.lfaa-director-stage__help {
+  position: absolute;
+  right: 14px;
+  bottom: 12px;
+  left: 14px;
+  z-index: 2;
+  margin: 0;
+  color: color-mix(in srgb, var(--color-text-primary) 68%, transparent);
+  font-size: var(--font-size-xs);
+  pointer-events: none;
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lfaa-director-stage__canvas { scroll-behavior: auto; }
+}

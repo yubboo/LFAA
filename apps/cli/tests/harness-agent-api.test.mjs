@@ -29,8 +29,10 @@ test("完整 Web Profile 经真实认证提交、断线和读取后台任务", (
         const computerTools=listRegisteredAiTools().filter(tool=>tool.id.startsWith('computer-use.'));
         assert.equal(computerTools.length,process.platform==='win32'?9:0,'only a local Windows loopback Web Profile registers computer-control tools');
         assert.equal((await fetch(base+'/ai/runs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({appId:'workspace',sessionId:null,content:'test'})})).status,401);
+        assert.equal((await fetch(base+'/ai/office')).status,401,'AI 员工办公室必须通过账户认证');
         const setup=await fetch(base+'/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:'admin',password:'123456'})});assert.equal(setup.status,200);
         const cookie=setup.headers.get('set-cookie').split(';')[0];const {user}=await setup.json();const headers={'Content-Type':'application/json',Cookie:cookie};
+        const emptyOfficeResponse=await fetch(base+'/ai/office',{headers});assert.equal(emptyOfficeResponse.status,200);const emptyOffice=await emptyOfficeResponse.json();assert.ok(Array.isArray(emptyOffice.employees));assert.deepEqual(emptyOffice.runs,[]);assert.ok(emptyOffice.employees.some(employee=>employee.id==='expert.minecraft-hosting'));assert.equal(emptyOffice.employees.some(employee=>Object.hasOwn(employee,'instructions')),false,'办公室只返回员工元数据，不返回专家正文');
         const {LfaaClient,LfaaApiError}=await import('lfaa-sdk-client');
         const sdk=new LfaaClient({apiUrl:base,authenticationHeaders:()=>({Cookie:cookie})});
         const anonymousSdk=new LfaaClient({apiUrl:base});
@@ -68,11 +70,12 @@ test("完整 Web Profile 经真实认证提交、断线和读取后台任务", (
         const invalid=await fetch(base+'/settings/plugins',{method:'PUT',headers,body:JSON.stringify({enabled:true,mcpServers:[{id:'bad',name:'bad',enabled:true,url:'http://user:secret@localhost/mcp'}]})});assert.equal(invalid.status,400);
         const nativeFetch=globalThis.fetch;
         const providerRequests=[];
-        let pauseHold=false,releasePauseFetch,pauseProviderSignal;
+        let pauseHold=false,releasePauseFetch,pauseProviderSignal,officeHold=true,releaseOfficeProvider;
         globalThis.fetch=async(url,options)=>{
           if(!String(url).startsWith('https://api.openai.com/'))return nativeFetch(url,options);
           if(String(url).endsWith('/models'))return Response.json({data:[{id:'fixture-model'}]});
           const requestBody=JSON.parse(options.body);providerRequests.push(requestBody);
+          if(officeHold&&requestBody.messages.some(message=>message.role==='user'&&message.content==='测试任务'))await new Promise(resolve=>{releaseOfficeProvider=resolve;});
           if(pauseHold&&requestBody.messages.some(message=>message.role==='user'&&message.content==='暂停后继续同一 Run')){pauseProviderSignal=options.signal;await new Promise(resolve=>{releasePauseFetch=resolve;});}
           await new Promise(resolve=>setTimeout(resolve,100));
           const isMemoryRequest=requestBody.messages.some(message=>message.role==='system'&&message.content.includes('你只负责整理账户的长期个性化记忆'));
@@ -81,6 +84,7 @@ test("完整 Web Profile 经真实认证提交、断线和读取后台任务", (
         };
         const settings=await import('lfaa-settings/src/service.js');const account=await settings.saveAiAccount(user.id,{providerId:'openai',secret:'fixture-only-key',options:{},displayName:'fixture',modelId:'fixture-model',reasoningMode:'default'});settings.activateAiAccount(user.id,account.id);
         const submitted=await fetch(base+'/ai/runs',{method:'POST',headers,body:JSON.stringify({appId:'workspace',sessionId:null,content:'测试任务'})});assert.equal(submitted.status,202);const {run}=await submitted.json();
+        const officeResponse=await fetch(base+'/ai/office',{headers});assert.equal(officeResponse.status,200);const office=(await officeResponse.json()).runs.find(item=>item.id===run.id);assert.ok(office,'办公室应显示当前账户真实活动 Run');assert.equal(office.employeeId,'lfaa.main-agent');assert.equal(office.label,'小鱼主 Agent');assert.equal(office.parentRunId,null);assert.equal(office.task,'测试任务');assert.equal(Object.hasOwn(office.activities[0]??{},'detail'),false,'办公室不暴露活动详情');for(let attempt=0;attempt<100&&!releaseOfficeProvider;attempt++)await new Promise(resolve=>setTimeout(resolve,5));assert.equal(typeof releaseOfficeProvider,'function','办公室读取前 Agent 应已进入受控 Provider 请求');officeHold=false;releaseOfficeProvider();
         const events=await fetch(base+'/ai/runs/'+run.id+'/events',{headers});assert.equal(events.status,200);await events.body.cancel();
         let result;for(let attempt=0;attempt<200;attempt++){result=(await(await fetch(base+'/ai/runs/'+run.id,{headers})).json()).run;if(result.status==='complete')break;await new Promise(resolve=>setTimeout(resolve,10));}
         assert.equal(result.status,'complete');assert.equal(result.message.content,'测试隔离回复');

@@ -1,5 +1,7 @@
 # client/ui-layout
 
+Workbench 将认证后的 `/agent-office` 懒加载到 `ui-workspace`，并复用模块 Shell、当前 Settings Appearance 和账户导航；员工状态和卡片布局由 `AgentOfficePage` 负责，Workbench 只做路由装配。办公室入口不启动或控制 Agent。
+
 `Workbench` 将认证后的 `/plugins` 路由懒加载到 `ui-plugin-manager`，并把它作为独立模块工作区显示。页面的全局导航归 `ui-sidebar`，插件来源/状态展示与动作意图归 `ui-plugin-manager`；Workbench 只装配该页面，不持有插件规则。插件目录工具栏齿轮调用 `openSettings("plugins")` 路由到设置中心现有插件分区，并保留返回来源；设置内容仍归 `ui-settings`。
 
 模块页面的 Shell 高度与滚动边界由 `src/css/module-shell.css` 管理并由 `Workbench.tsx` 引入；模块路由激活时将 `html/body/#root` 限制在动态视口并锁定文档根滚动，内容仍由各自面板滚动，短屏不以最小高度撑开整页。Web 入口默认在 `html/body` 预留稳定滚动槽；模块页内部滚动后会关闭这两层预留，避免窄视口重复扣除宽度、露出右侧画布底色。工作区、文件管理和插件管理的内容样式留在各自 UI 包，不由 Renderer 全局加载。
@@ -11,6 +13,8 @@ Workbench 提供唯一的 `applicationNavigationItems` 应用清单。`Applicati
 设置页只在 `/settings`、`/admin/users` 直达路由或用户悬停/聚焦设置导航时预热；工作台空闲时不主动下载整页，避免后台模块加载占用首屏资源。
 
 `/work`、全屏语音入口 `/voice` 与应用 `workspace/ai-work` 路由会在应用工作区模块加载时并行预热 AI 聊天模块，缩短嵌套懒加载形成的首屏等待。预热只在 AI Work 路由触发；失败不阻断模块正常加载，失败 Promise 会清空以便后续重试。
+
+`/apps/<app>/canvas` 仍使用独立的全幅画布展示，但由 `ApplicationWorkspace` 提供 AI Work 的真实会话状态，再把唯一 `AiWorkChat` 内容作为面板槽交给 `CanvasWorkspace`；Workbench 不创建第二个聊天运行时。
 
 ## 小鱼共享工作入口（2026-10-14）
 

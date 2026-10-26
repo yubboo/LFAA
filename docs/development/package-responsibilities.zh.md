@@ -115,7 +115,7 @@
 
 新增包组须先更新本表与架构归属，再创建实现和消费者；保留明确要求的上游占位不意味着必须实现它。禁止用一个组的概括替代逐包审查结果。
 
-Client 视觉能力按单一 Owner 维护：`packages/client/ui-primitives` 拥有跨应用共享控件、真实状态反馈，并负责实现后续 Three.js 场景组件；`packages/client/ui-theme` 拥有共享令牌、毛玻璃/阴影/网格/颗粒等 CSS 材质和减少动态效果样式映射。页面通过共享组件消费视觉能力，不能另起 Three.js renderer、主题令牌或状态组件。当前只有 Three.js 依赖登记，尚无页面消费该 3D 能力；状态、用户偏好及其持久化仍归现有领域与 Settings Owner。
+Client 视觉能力按单一 Owner 维护：`packages/client/ui-primitives` 拥有跨应用共享控件、真实状态反馈和共享 Three.js 场景组件 `DirectorDeskStage`；`packages/client/ui-theme` 拥有共享令牌、毛玻璃/阴影/网格/颗粒等 CSS 材质和减少动态效果样式映射。系统画布导演台由 `ui-workspace` 消费共享场景 renderer，导演台业务对象/数据仍归 Canvas Owner。页面通过共享组件消费视觉能力，不能另起 Three.js renderer、主题令牌或状态组件；状态、用户偏好及其持久化仍归现有领域与 Settings Owner。
 
 ## 5. Prompt、Skill、Tool 与内容归属
 

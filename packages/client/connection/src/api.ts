@@ -2561,14 +2561,16 @@ export interface AccountSnapshotSummary {
   manifest: { settingsCategories: string[]; memories: number; sessions: number; messages: number };
 }
 export interface AccountArchivePreview {
-  valid: true; version: 1; settingsCategories: string[]; changedSettingsCategories: string[];
+  valid: true; version: 1 | 2; settingsCategories: string[]; changedSettingsCategories: string[];
   memories: number; memoryWillChange: boolean; sessions: number; sessionConflicts: number; messages: number;
+  attachments: number; attachmentBytes: number; contextSessions: number;
 }
 export interface AccountArchiveSelection { settings: boolean; memories: boolean; sessions: boolean }
 export interface AccountArchiveRestoreResult {
   settings: { restored: string[] };
   memories: { restored: number } | null;
   sessions: { imported: number; skipped: number } | null;
+  attachments: { imported: number; reused: number } | null;
 }
 
 export function loadAccountSnapshots(): Promise<{ snapshots: AccountSnapshotSummary[] }> { return request("/settings/snapshots"); }
@@ -3103,6 +3105,40 @@ export function rejectWritingEditProposal(proposalId: string): Promise<{ proposa
 
 export function loadAiUsage(): Promise<{ usage: AiUsageSummary }> {
   return request<{ usage: AiUsageSummary }>("/ai/usage");
+}
+
+export interface AiOfficeEmployee {
+  id: string;
+  name: string;
+  description: string;
+  applicationIds: ApplicationId[];
+}
+
+export interface AiOfficeRun {
+  id: string;
+  sessionId: string;
+  appId: ApplicationId;
+  parentRunId: string | null;
+  employeeId: string;
+  label: string;
+  task: string;
+  status: "queued" | "streaming";
+  pauseState: "running" | "pausing" | "paused";
+  startedAt: string;
+  source: "agent-loop" | "external-subagent";
+  driver: string | null;
+  activities: Array<{ kind: string; title: string; status: string; startedAt: string; completedAt: string | null }>;
+}
+
+export interface AiOfficeSnapshot {
+  employees: AiOfficeEmployee[];
+  runs: AiOfficeRun[];
+  truncated: boolean;
+}
+
+/** 读取当前账户的真实员工目录与活动 Run；可在页面隐藏或卸载时取消。 */
+export function loadAiOffice(signal?: AbortSignal): Promise<AiOfficeSnapshot> {
+  return request<AiOfficeSnapshot>("/ai/office", signal ? { signal } : {});
 }
 
 /** 显式停止后台 Agent；断开流式连接只结束订阅。 */
