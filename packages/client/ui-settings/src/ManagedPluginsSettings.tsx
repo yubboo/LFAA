@@ -1,7 +1,7 @@
 /** 功能：呈现设置中心的 Profile 插件开关。作用：读取并调用现有插件生命周期 Owner，不复制安装或运行规则。关联文件：PluginManagerPage、client/connection、SettingsPage。 */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Button, Input, Select, Space, Typography } from "antd";
-import { getErrorMessage, hasAdminAccess, loadAiExtensions, loadManagedPlugins, setManagedPluginEnabled, type AiExtension, type ApplicationId, type ManagedPluginRecord, type User, type UserSettings } from "lfaa-client-connection/src/api.js";
+import { getErrorMessage, hasAdminAccess, loadAiSkillDirectory, loadManagedPlugins, setManagedPluginEnabled, type AiSkillDirectoryEntry, type ApplicationId, type ManagedPluginRecord, type User, type UserSettings } from "lfaa-client-connection/src/api.js";
 import { SettingGroup, SettingRow, SettingsSwitch } from "lfaa-client-ui-primitives/src/settings-controls.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
 import type { ApplicationNavigationId } from "lfaa-util-values/src/application-id.js";
@@ -29,6 +29,17 @@ function pluginCompatibilityLabel(plugin: ManagedPluginRecord): string {
   return plugin.compatibility === "lfaa-v1" ? "LFAA Runtime" : plugin.compatibility === "dsh-v1" ? "DSH Bundle" : "未知合同";
 }
 
+function skillOriginLabel(skill: AiSkillDirectoryEntry): string {
+  if (skill.origin === "account-installed") return "小鱼安装的本机用户 Skill · .lfaa\\skills\\<Skill 名称>\\SKILL.md";
+  if (skill.origin === "bundled") return "LFAA 内置 · 随软件提供，无需安装";
+  if (skill.origin === "user-lfaa") return "本机 LFAA Skill · .lfaa\\skills";
+  if (skill.origin === "user-agents") return "本机共享 Agent Skill · .agents\\skills";
+  if (skill.origin === "project-lfaa") return "当前项目 Skill · .lfaa\\skills";
+  if (skill.origin === "project-agents") return "当前项目 Skill · .agents\\skills";
+  if (skill.origin === "custom") return "设置中的自定义目录";
+  return `Skill Registry · ${skill.origin}`;
+}
+
 export function ManagedPluginsSettings({ user, applications, settings, onPluginSettingsChange, onGeneralSettingsChange, onNavigate }: {
   user: User;
   applications: ApplicationNavigationItem[];
@@ -39,7 +50,7 @@ export function ManagedPluginsSettings({ user, applications, settings, onPluginS
 }) {
   const canManage = hasAdminAccess(user.role);
   const [plugins, setPlugins] = useState<ManagedPluginRecord[]>([]);
-  const [skills, setSkills] = useState<AiExtension[]>([]);
+  const [skills, setSkills] = useState<AiSkillDirectoryEntry[]>([]);
   const [profile, setProfile] = useState("");
   const [loading, setLoading] = useState(canManage);
   const [skillsLoading, setSkillsLoading] = useState(true);
@@ -91,16 +102,16 @@ export function ManagedPluginsSettings({ user, applications, settings, onPluginS
     setSkills([]);
     setSkillsLoading(true);
     setError("");
-    void loadAiExtensions(controller.signal).then(result => {
+    void loadAiSkillDirectory(controller.signal).then(result => {
       if (!mountedRef.current || controller.signal.aborted) return;
-      setSkills(result.extensions.filter(extension => extension.kind === "skill"));
+      setSkills(result.skills);
     }).catch(loadError => {
       if (!controller.signal.aborted && mountedRef.current) setError(`读取 Skill 目录失败：${getErrorMessage(loadError)}`);
     }).finally(() => {
       if (!controller.signal.aborted && mountedRef.current) setSkillsLoading(false);
     });
     return () => controller.abort();
-  }, [user.id]);
+  }, [refreshSequence, user.id]);
 
   const visiblePlugins = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase("zh-CN");
@@ -111,7 +122,7 @@ export function ManagedPluginsSettings({ user, applications, settings, onPluginS
   const visibleSkills = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase("zh-CN");
     if (!normalizedQuery) return skills;
-    return skills.filter(skill => [skill.name, skill.description, skill.pluginId]
+    return skills.filter(skill => [skill.name, skill.description, skill.origin, skill.source]
       .some(value => value.toLocaleLowerCase("zh-CN").includes(normalizedQuery)));
   }, [skills, query]);
   const visibleApplications = useMemo(() => {
@@ -121,7 +132,7 @@ export function ManagedPluginsSettings({ user, applications, settings, onPluginS
       .some(value => value.toLocaleLowerCase("zh-CN").includes(normalizedQuery)));
   }, [applications, query]);
   const enabledCount = plugins.filter(plugin => plugin.state === "enabled").length;
-  const enabledSkillCount = skills.filter(skill => skill.skillId && !settings.plugins.disabledSkillNames.includes(skill.skillId)).length;
+  const enabledSkillCount = skills.filter(skill => skill.enabled && !settings.plugins.disabledSkillNames.includes(skill.name)).length;
   const enabledApplicationCount = applications.filter(application => !(settings.general.hiddenApplicationNavigationIds ?? []).includes(application.id)).length;
 
   async function togglePlugin(plugin: ManagedPluginRecord): Promise<void> {
@@ -178,7 +189,7 @@ export function ManagedPluginsSettings({ user, applications, settings, onPluginS
     plugins: "查看当前 Profile 中已安装插件的真实状态，并按现有授权流程启用或停用。",
     applications: "管理 LFAA 内置工作区入口；关闭后会从全局应用菜单隐藏。",
     mcp: "查看账户已配置的 MCP 服务，并沿用当前设置和权限规则。",
-    skills: "与左侧插件工作区共用同一份 Skill 能力清单；单项关闭后会从模型目录和按需加载中移除。Agent 扩展总开关关闭时，所有扩展暂不进入运行时。",
+    skills: "显示 Skill Registry 当前登记的真实技能。内置技能随软件提供；小鱼安装的技能位于本机 LFAA Home/skills/<技能名>/；单项开关沿用账户设置。",
     market: "LFAA 当前没有可浏览的公共集成目录。"
   };
   const categoryCounts: Record<IntegrationCategory, number | string> = {
@@ -290,19 +301,25 @@ export function ManagedPluginsSettings({ user, applications, settings, onPluginS
           <GitHubConnectionSettings searchQuery={query} />
         </> : null}
         {activeCategory === "mcp" ? <McpConnectionsSettings settings={settings} onChange={onPluginSettingsChange} searchQuery={query} /> : null}
-        {activeCategory === "skills" ? <SettingGroup title="可用技能">
+        {activeCategory === "skills" ? <SettingGroup title="Skill Registry">
+          <Alert
+            type="info"
+            showIcon
+            message="内置 Skill 和本机 Skill 的位置"
+            description={<>LFAA 内置 Skill 来自软件包，无需安装；小鱼安装的 GitHub Skill 与手动放置的本机 Skill 都放在当前 LFAA Home 的 <code>skills/&lt;技能名&gt;/SKILL.md</code>，可由本机项目与 App 发现。项目 Skill 使用项目内 <code>.lfaa/skills</code> 或 <code>.agents/skills</code>。Codex 的 <code>.codex/skills</code> 与 LFAA 相互独立。</>}
+          />
           {skillsLoading && skills.length === 0 ? <div className="settings-profile-plugins__state" role="status"><span className="loading-indicator" /><span>正在读取已登记的 Skill 能力…</span></div>
-            : skills.length === 0 ? <div className="settings-profile-plugins__state" role="status"><WorkbenchIcon name="book" size={20} /><strong>当前没有登记技能</strong><span>这里与左侧插件工作区共用同一份能力登记。</span></div>
+            : skills.length === 0 ? <div className="settings-profile-plugins__state" role="status"><WorkbenchIcon name="book" size={20} /><strong>当前没有登记技能</strong><span>内置与当前运行环境中可发现的 Skill 会显示在这里。</span></div>
               : visibleSkills.length === 0 ? <div className="settings-profile-plugins__state" role="status">没有符合当前搜索的技能。</div>
                 : visibleSkills.map(skill => {
-                  const enabled = skill.skillId ? !settings.plugins.disabledSkillNames.includes(skill.skillId) : false;
+                  const enabled = !settings.plugins.disabledSkillNames.includes(skill.name);
                   return <SettingRow key={skill.id} title={skill.name} description={
                     <span className="settings-profile-plugin-row__description">
                       <span className="settings-profile-plugin-row__icon"><WorkbenchIcon name="book" size={18} /></span>
-                      <span className="settings-profile-plugin-row__copy"><span>{skill.description || "此技能未提供说明。"}</span></span>
+                      <span className="settings-profile-plugin-row__copy"><span>{skill.description || "此技能未提供说明。"}</span><span className="settings-profile-plugin-row__reason">{skillOriginLabel(skill)}</span></span>
                     </span>
-                  } status={`${skill.pluginId} · ${skill.version}`}>
-                    <SettingsSwitch label={`启用技能 ${skill.name}`} checked={enabled} disabled={!skill.skillId} onChange={() => { if (skill.skillId) toggleSkill(skill.skillId); }} />
+                  } status={settings.plugins.enabled || skill.origin === "bundled" ? (enabled ? "当前可用" : "单项已停用") : "Agent 扩展总开关已关闭"}>
+                    <SettingsSwitch label={`启用技能 ${skill.name}`} checked={enabled} onChange={() => toggleSkill(skill.name)} />
                   </SettingRow>;
                 })}
         </SettingGroup> : null}

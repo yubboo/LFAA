@@ -1,5 +1,7 @@
 # Minecraft 领域服务
 
+认证后的 `/minecraft/overview` 只读取本地节点、实例和任务状态；它不访问 Mojang 官方版本目录。`latestRelease` 在真实版本目录尚未加载时为 `null`，部署选择流程通过独立真实路由按需读取，因此上游延迟不会挡住 Minecraft 管理页首屏。
+
 模型可用 `minecraft_resolve_core_artifact` 只读获取同一工件 Owner 的核心、构建、摘要和实际 Java 要求；环境的安装状态不能代替核心要求。`minecraft_provision_server` 暴露领域服务已有的 `javaRuntimeId`，用户指定环境时原样传递并在登记任务前验证；不匹配返回未开始，不自动更换指定环境。工件连接失败也仅在事务前标为可恢复的未开始，任务创建后的异常仍保留未知副作用边界。
 
 `core-sources.ts` 还唯一维护各核心的 `serverType` 和 `compatibleContent`，供模型区分插件、模组、混合、代理和基岩核心。来源 `category` 原样保留给既有端口和部署逻辑，不能代替插件兼容性判断。

@@ -1,7 +1,8 @@
 /** 功能：呈现现有设置中心。作用：消费已保存设置并组合能力包界面。关联文件：client/connection、ui-settings、ui-theme、ui-commands。 */
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createReadPoller } from "lfaa-client-connection/src/read-poller.js";
-import { autofillBrowserContact, autofillBrowserPassword, clearBrowserData as clearBrowserSessionData, clearBrowserRecentSites, deleteBrowserCredential, deleteBrowserRecentSite, loadBrowserCredentials, loadBrowserRecentSites, loadLocalModels, saveBrowserContact, saveBrowserPassword, startLocalModelDownload, readLocalModelDownload, cancelLocalModelDownload, unloadLocalModel } from "lfaa-client-connection/src/api.js";
+import { applyAppearancePreset as applyAppearancePresetRequest, autofillBrowserContact, autofillBrowserPassword, clearBrowserData as clearBrowserSessionData, clearBrowserRecentSites, deleteBrowserCredential, deleteBrowserRecentSite, loadBrowserCredentials, loadBrowserRecentSites, loadLocalModels, saveBrowserContact, saveBrowserPassword, startLocalModelDownload, readLocalModelDownload, cancelLocalModelDownload, unloadLocalModel } from "lfaa-client-connection/src/api.js";
+import { downloadAppearanceBackground, loadSettings, validateAppearancePresetSnapshot } from "lfaa-client-connection/src/api.js";
 import { createSnapshotCache } from "lfaa-client-store/src/snapshot-cache.js";
 import { useWorkbenchMetrics } from "lfaa-client-ui-dockkit/src/use-workbench-metrics.js";
 import { lfaaProjectBuildInfo } from "lfaa-client-connection/src/project-version.js";
@@ -12,6 +13,7 @@ import { appearanceBackgroundOptions, appearanceBackgroundTargets } from "lfaa-u
 import { EXECUTION_SANDBOX_MODES } from "lfaa-util-values/src/sandbox-contract.js";
 import { getSettingsCenterMenu, SETTINGS_CENTER_MENUS, type SettingsMenuId } from "lfaa-util-values/src/settings-menu-catalog.js";
 import { cacheLoginAppearance } from "lfaa-client-ui-theme/src/login-appearance.js";
+import { resolveLoginAreaOverlay, resolveWorkbenchAreaEffects } from "lfaa-client-ui-theme/src/appearance-area-effects.js";
 import { getBrowserNotificationPermission, playNotificationSound, requestBrowserNotificationPermission, sendBrowserNotification, type BrowserNotificationPermission } from "lfaa-client-resources/src/notification-runtime.js";
 import { createScrollRestorationKey, useScrollRestoration } from "lfaa-client-store/src/scroll-restoration.js";
 import { ResizableWorkbench } from "lfaa-client-ui-dockkit/src/ResizableWorkbench.js";
@@ -25,11 +27,14 @@ import { SecondaryNavigation } from "lfaa-client-ui-sidebar/src/SecondaryNavigat
 import { PasskeyManager } from "lfaa-client-ui-settings-account/src/PasskeyManager.js";
 import { McpConnectionsSettings } from "./McpConnectionsSettings.js";
 import { CloudPreferencesSettings } from "./CloudPreferencesSettings.js";
+import { AppearancePresetsPanel } from "./AppearancePresetsPanel.js";
+import { AppearancePresetCommitUncertainError, appearancePresetDownloadName, createAppearancePresetFile, importAppearancePresetWithAssets, parseAppearancePresetFile } from "./AppearancePresetFile.js";
 import "./SettingsPage.css";
 import { hasShortcutConflicts, ShortcutRow } from "lfaa-client-ui-shortcuts/src/settings-shortcuts.js";
 import { defaultReasoningMode, effectiveReasoningMode, reasoningOptions, modelParameterSummary, modelOptionLabel, modelOptionVersionTag, fixedThinkingLabel } from "lfaa-client-ui-settings-models/src/model-options.js";
 import { DEFAULT_USER_SETTINGS } from "lfaa-client-ui-settings-general/src/default-settings.js";
-import { AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN, AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN, UI_MOTION_EFFECT_OPTIONS, CANVAS_DEFAULT_MODE_OPTIONS, CANVAS_GRID_STYLE_OPTIONS, type UiMotionEffect } from "lfaa-util-values/src/settings-contract.js";
+import { AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN, AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN, APPEARANCE_PRESET_LIMIT, UI_MOTION_EFFECT_OPTIONS, CANVAS_DEFAULT_MODE_OPTIONS, CANVAS_GRID_STYLE_OPTIONS, type AppearancePreset, type UiMotionEffect } from "lfaa-util-values/src/settings-contract.js";
+import { createAppearancePresetSnapshot } from "lfaa-util-values/src/appearance-presets.js";
 import { SettingGroup, AdvancedGroup, SettingRow, SettingsSwitch } from "lfaa-client-ui-primitives/src/settings-controls.js";
 import { DshSlotOutlet, LFAA_AUTH_TRANSITION_SLOT, useDshSlotEntries } from "lfaa-client-modules/src/client/index.js";
 
@@ -528,6 +533,10 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   const [searchExpandedSettingsGroups, setSearchExpandedSettingsGroups] = useState<Set<string>>(() => new Set());
   const [search, setSearch] = useState("");
   const [appearanceAdvancedOpen, setAppearanceAdvancedOpen] = useState(() => readSettingsAppearanceAdvancedOpen(user.id));
+  const [appearancePageTab, setAppearancePageTab] = useState<"presets" | "settings">("presets");
+  const [appearancePresetBusy, setAppearancePresetBusy] = useState(false);
+  const appearancePresetsTabRef = useRef<HTMLButtonElement | null>(null);
+  const appearanceSettingsTabRef = useRef<HTMLButtonElement | null>(null);
   const [settings, setSettings] = useState<UserSettings>(workbenchSettings);
   const [skillDirectoriesDraft, setSkillDirectoriesDraft] = useState<string | null>(null);
   const settingsRef = useRef(settings);
@@ -603,6 +612,9 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   const videoGenerationAccounts = accounts.filter(account => account.providerId === "doubao"
     || account.providerId === "ark-agent-plan" && account.models.some(model => model.taskType === "video-generation" && isPlanModelAvailableForTier(account, model)));
   const selectedVideoGenerationAccount = videoGenerationAccounts.find(account => account.id === settings.aiRuntime.videoGenerationAccountId);
+  const videoTranscriptionAccounts = accounts.filter(account => account.providerId === "ark-agent-plan"
+    && account.models.some(model => model.id === "doubao-seed-asr-2.0" && model.taskType === "speech-to-text" && isPlanModelAvailableForTier(account, model)));
+  const selectedVideoTranscriptionAccount = videoTranscriptionAccounts.find(account => account.id === settings.aiRuntime.videoTranscriptionAccountId);
   const localVideoModels = localModels.filter(model => model.modality === "video");
   const [, setAiAccountsLoadState] = useState<"idle" | "loading" | "ready" | "error">(() => cachedSettingsData?.loadedSections.has("ai") || cachedSettingsData?.loadedSections.has("configuration") ? "ready" : "idle");
   const [extensions, setExtensions] = useState<AiExtension[]>(() => cachedSettingsData?.extensions ?? []);
@@ -1735,6 +1747,19 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     updateSettings("appearance", { ...settings.appearance, advanced: { ...settings.appearance.advanced, ...patch } });
   }
 
+  function updateSelectedAreaEffects(patch: { overlay?: number | null; blur?: number | null }): void {
+    const appearance = settingsRef.current.appearance;
+    const areaEffects = {
+      ...appearance.areaEffects,
+      [backgroundTarget]: { ...appearance.areaEffects[backgroundTarget], ...patch }
+    } as UserSettings["appearance"]["areaEffects"];
+    updateSettings("appearance", { ...appearance, areaEffects });
+  }
+
+  function resetSelectedAreaEffects(): void {
+    updateSelectedAreaEffects(DEFAULT_USER_SETTINGS.appearance.areaEffects[backgroundTarget]);
+  }
+
   function updateAppearanceFonts(patch: Partial<UserSettings["appearance"]["advanced"]["fonts"]>): void {
     const advanced = settings.appearance.advanced;
     updateAppearanceAdvanced({ fonts: { ...advanced.fonts, ...patch } });
@@ -1748,6 +1773,146 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   function updateAppearanceModeFonts(mode: "light" | "dark", patch: Partial<UserSettings["appearance"]["advanced"]["modeStyles"]["light"]["fonts"]>): void {
     const profile = settings.appearance.advanced.modeStyles[mode];
     updateAppearanceMode(mode, { fonts: { ...profile.fonts, ...patch } });
+  }
+
+  async function saveCurrentAppearancePreset(name: string): Promise<void> {
+    if (appearancePresetBusy) throw new Error("请等待当前外观预设操作完成。");
+    setAppearancePresetBusy(true);
+    const normalizedName = name.trim();
+    const current = settingsRef.current;
+    try {
+      if (!normalizedName) throw new Error("请填写预设名称。");
+      if (current.appearance.presets.length >= APPEARANCE_PRESET_LIMIT) throw new Error(`最多保存 ${APPEARANCE_PRESET_LIMIT} 个自定义预设。`);
+      const preset: AppearancePreset = {
+        id: `preset-${crypto.randomUUID()}`,
+        name: normalizedName,
+        description: "保存当前外观与常规布局。",
+        snapshot: createAppearancePresetSnapshot(current)
+      };
+      updateSettings("appearance", { ...current.appearance, presets: [...current.appearance.presets, preset] });
+      clearSettingsAutoSave("appearance");
+      await persistLatestSettings("appearance");
+      showSettingsSaveFeedback("success", `已保存外观预设“${normalizedName}”。`);
+    } finally {
+      setAppearancePresetBusy(false);
+    }
+  }
+
+  async function applySavedAppearancePreset(preset: AppearancePreset): Promise<void> {
+    if (appearancePresetBusy) return;
+    setAppearancePresetBusy(true);
+    for (const category of ["appearance", "general"] as const) clearSettingsAutoSave(category);
+    try {
+      await Promise.all(["appearance", "general"].map((category) => settingsSaveRequestsRef.current.get(category as keyof UserSettings)).filter((request): request is Promise<void> => request !== undefined));
+      const { settings: next } = await applyAppearancePresetRequest(preset.snapshot);
+      for (const category of ["appearance", "general"] as const) {
+        settingsRevisionRef.current.set(category, (settingsRevisionRef.current.get(category) ?? 0) + 1);
+        setSettingsSaveErrors((current) => {
+          if (!current[category]) return current;
+          const nextErrors = { ...current };
+          delete nextErrors[category];
+          return nextErrors;
+        });
+      }
+      persistedSettingsRef.current = next;
+      settingsRef.current = next;
+      setSettings(next);
+      onSettingsChange(next);
+      cacheLoginAppearance(user.username, next.appearance);
+      showSettingsSaveFeedback("success", `已应用外观预设“${preset.name}”。`);
+    } finally {
+      setAppearancePresetBusy(false);
+    }
+  }
+
+  async function deleteSavedAppearancePreset(preset: AppearancePreset): Promise<void> {
+    if (appearancePresetBusy) throw new Error("请等待当前外观预设操作完成。");
+    setAppearancePresetBusy(true);
+    try {
+      const current = settingsRef.current;
+      updateSettings("appearance", { ...current.appearance, presets: current.appearance.presets.filter((item) => item.id !== preset.id) });
+      clearSettingsAutoSave("appearance");
+      await persistLatestSettings("appearance");
+      showSettingsSaveFeedback("success", `已删除外观预设“${preset.name}”。`);
+    } finally {
+      setAppearancePresetBusy(false);
+    }
+  }
+
+  async function exportSavedAppearancePreset(preset: AppearancePreset): Promise<void> {
+    if (appearancePresetBusy) throw new Error("请等待当前外观预设操作完成。");
+    setAppearancePresetBusy(true);
+    try {
+      const archive = await createAppearancePresetFile(preset, async (id) => {
+        const background = uploadedBackgrounds.find((item) => item.id === id);
+        if (!background) throw new Error("预设引用的账户背景素材已不可用，请先恢复素材后再导出。");
+        return { name: background.name, mimeType: background.mimeType, blob: await downloadAppearanceBackground(id) };
+      });
+      const url = URL.createObjectURL(archive);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = appearancePresetDownloadName(preset.name);
+      document.body.append(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      messageApi.success(`已导出外观预设“${preset.name}”。`);
+    } finally {
+      setAppearancePresetBusy(false);
+    }
+  }
+
+  async function importAppearancePresetFile(file: File): Promise<void> {
+    if (appearancePresetBusy) throw new Error("请等待当前外观预设操作完成。");
+    setAppearancePresetBusy(true);
+    try {
+      const imported = await parseAppearancePresetFile(file);
+      const current = settingsRef.current;
+      if (current.appearance.presets.length >= APPEARANCE_PRESET_LIMIT) throw new Error(`最多保存 ${APPEARANCE_PRESET_LIMIT} 个自定义预设。`);
+      await validateAppearancePresetSnapshot(imported.snapshot);
+      const importedResult = await importAppearancePresetWithAssets(imported, {
+        upload: async (asset) => {
+          const importedFile = new File([asset.blob], asset.name, { type: asset.mimeType });
+          const result = await uploadAppearanceBackground(importedFile);
+          return result.background;
+        },
+        remove: deleteAppearanceBackground,
+        commit: async (snapshot) => {
+          const preset: AppearancePreset = {
+            id: `preset-${crypto.randomUUID()}`,
+            name: imported.name,
+            description: imported.description,
+            snapshot
+          };
+          const latest = settingsRef.current;
+          if (latest.appearance.presets.length >= APPEARANCE_PRESET_LIMIT) throw new Error(`最多保存 ${APPEARANCE_PRESET_LIMIT} 个自定义预设。`);
+          updateSettings("appearance", { ...latest.appearance, presets: [...latest.appearance.presets, preset] });
+          clearSettingsAutoSave("appearance");
+          try {
+            await persistLatestSettings("appearance");
+          } catch (saveError) {
+            let confirmed: UserSettings;
+            try { confirmed = (await loadSettings()).settings; }
+            catch {
+              throw new AppearancePresetCommitUncertainError("预设保存状态无法确认。为避免破坏可能已保存的预设，背景素材已保留；请刷新页面检查预设列表。");
+            }
+            if (!confirmed.appearance.presets.some((item) => item.id === preset.id)) throw saveError;
+            persistedSettingsRef.current = confirmed;
+            settingsRef.current = confirmed;
+            if (settingsPageMountedRef.current) {
+              setSettings(confirmed);
+              onSettingsChange(confirmed);
+            }
+            cacheLoginAppearance(user.username, confirmed.appearance);
+          }
+          return preset;
+        }
+      });
+      setUploadedBackgrounds((currentBackgrounds) => [...importedResult.assets, ...currentBackgrounds]);
+      showSettingsSaveFeedback("success", `已导入外观预设“${importedResult.value.name}”。`);
+    } finally {
+      setAppearancePresetBusy(false);
+    }
   }
 
   async function persistToolbarSettingsNow(): Promise<void> {
@@ -2370,6 +2535,9 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     setBackgroundActionError("");
     setError("");
     try {
+      if (settingsRef.current.appearance.presets.some((preset) => Object.values(preset.snapshot.appearance.backgrounds).includes(background.id))) {
+        throw new Error("这张背景图片仍被一个或多个外观预设引用。请先删除或更新相关预设，再删除图片。");
+      }
       const backgrounds = Object.fromEntries(Object.entries(settingsRef.current.appearance.backgrounds).map(([target, value]) => [target, value === background.id ? "none" : value])) as UserSettings["appearance"]["backgrounds"];
       updateSettings("appearance", { ...settingsRef.current.appearance, backgrounds });
       clearSettingsAutoSave("appearance");
@@ -2417,6 +2585,17 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     ? backgroundChoices.filter((background) => !background.id.startsWith("user-"))
     : backgroundChoices;
   const selectedBackgroundForTarget = settings.appearance.backgrounds[backgroundTarget];
+  const selectedAreaEffects = settings.appearance.areaEffects?.[backgroundTarget] ?? DEFAULT_USER_SETTINGS.appearance.areaEffects[backgroundTarget];
+  const effectiveAreaOverlay = backgroundTarget === "login"
+    ? resolveLoginAreaOverlay(settings.appearance.overlay, selectedAreaEffects.overlay)
+    : resolveWorkbenchAreaEffects(settings.appearance, backgroundTarget).overlay;
+  const effectiveAreaBlur = backgroundTarget === "login"
+    ? null
+    : resolveWorkbenchAreaEffects(settings.appearance, backgroundTarget).blur;
+  const selectedAreaBlurOverride = backgroundTarget === "login"
+    ? null
+    : settings.appearance.areaEffects?.[backgroundTarget].blur ?? null;
+  const hasAreaEffectOverride = selectedAreaEffects.overlay !== null || selectedAreaBlurOverride !== null;
 
   const notificationPermissionLabels: Record<BrowserNotificationPermission, string> = {
     granted: "已授权",
@@ -2826,6 +3005,20 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
             <Typography.Paragraph>调整主题、强调色，并为登录页和不同工作区选择背景图片。</Typography.Paragraph>
           </div>
         </header>
+        <div className="settings-appearance-tabs" role="tablist" aria-label="外观设置页签" onKeyDown={(event) => {
+          if (event.key === "ArrowRight" || event.key === "ArrowLeft" || event.key === "Home" || event.key === "End") {
+            event.preventDefault();
+            const nextTab = event.key === "Home" ? "presets" : event.key === "End" ? "settings" : appearancePageTab === "presets" ? "settings" : "presets";
+            setAppearancePageTab(nextTab);
+            (nextTab === "presets" ? appearancePresetsTabRef : appearanceSettingsTabRef).current?.focus();
+          }
+        }}>
+          <button ref={appearancePresetsTabRef} type="button" role="tab" id="appearance-presets-tab" aria-controls="appearance-presets-panel" aria-selected={appearancePageTab === "presets"} tabIndex={appearancePageTab === "presets" ? 0 : -1} disabled={appearancePresetBusy} onClick={() => setAppearancePageTab("presets")}>预设</button>
+          <button ref={appearanceSettingsTabRef} type="button" role="tab" id="appearance-settings-tab" aria-controls="appearance-settings-panel" aria-selected={appearancePageTab === "settings"} tabIndex={appearancePageTab === "settings" ? 0 : -1} disabled={appearancePresetBusy} onClick={() => setAppearancePageTab("settings")}>外观设置</button>
+        </div>
+        {appearancePageTab === "presets" ? <div className="settings-appearance-tabpanel" id="appearance-presets-panel" role="tabpanel" aria-labelledby="appearance-presets-tab" tabIndex={0}>
+          <AppearancePresetsPanel settings={settings} resolvedTheme={resolvedTheme} uploadedBackgrounds={uploadedBackgrounds} busy={appearancePresetBusy} onSaveCurrent={saveCurrentAppearancePreset} onApply={applySavedAppearancePreset} onDelete={deleteSavedAppearancePreset} onExport={exportSavedAppearancePreset} onImport={importAppearancePresetFile} />
+        </div> : <div className="settings-appearance-tabpanel" id="appearance-settings-panel" role="tabpanel" aria-labelledby="appearance-settings-tab" tabIndex={0}>
         <SettingGroup title="主题">
           <SettingRow title="颜色主题" description="选择浅色、深色，或跟随操作系统。" status="已接入">
             <div className="settings-theme-options" role="group" aria-label="颜色主题">
@@ -2920,9 +3113,30 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
             </SettingRow>
           )}
         </SettingGroup>
-        <SettingGroup title="背景显示">
-          <SettingRow title="背景遮罩" description="统一控制工作区壁纸遮罩和弹窗玻璃表面的底色透明度，设置和应用的顶部栏、导航及 小鱼智能体 输入区等独立表面也同步使用；0% 时壁纸最清晰，数值越高整体底色越明显。新账户默认 65%，提高壁纸上的内容可读性；已有账户设置保持原值。消息画布不另加局部遮罩。" status="已接入"><div className="settings-slider"><Slider min={0} max={75} value={settings.appearance.overlay} onChange={(overlay) => updateSettings("appearance", { ...settings.appearance, overlay })} /><output>{settings.appearance.overlay}%</output></div></SettingRow>
-          <SettingRow title="玻璃模糊" description="调整顶栏、半透明导航栏、小鱼智能体 输入区、写作上下文作品卡片和壁纸上的弹窗表面模糊强度；消息画布保持透明并显示工作区壁纸，设置正文不做实时模糊。" status="已接入"><div className="settings-slider"><Slider min={0} max={32} value={settings.appearance.blur} onChange={(blur) => updateSettings("appearance", { ...settings.appearance, blur })} /><output>{settings.appearance.blur}px</output></div></SettingRow>
+        <SettingGroup title={`${appearanceBackgroundTargets.find((item) => item.id === backgroundTarget)?.label ?? "当前区域"} · 区域效果`}>
+          <SettingRow title="本区域效果" description="只影响上方选中的位置；没有覆盖的效果继续跟随全局默认。恢复本区域默认会清除这里的覆盖，不会修改全局值或其他位置。" status={hasAreaEffectOverride ? "有自定义覆盖" : "跟随全局默认"}>
+            <Button size="small" disabled={!hasAreaEffectOverride} onClick={resetSelectedAreaEffects}>恢复本区域默认</Button>
+          </SettingRow>
+          <SettingRow title="背景遮罩" description={backgroundTarget === "login"
+            ? selectedAreaEffects.overlay === null
+              ? `当前继承全局遮罩 ${settings.appearance.overlay}% 的 40%（${effectiveAreaOverlay}%）；登录页可以单独设置 0–75%。`
+              : "登录页使用单独遮罩值；0% 保持背景清晰，数值越高表单周围的遮罩越明显。"
+            : selectedAreaEffects.overlay === null
+              ? `当前继承全局遮罩 ${settings.appearance.overlay}%；可单独调整此区域，或恢复本区域默认继续跟随全局值。`
+              : "当前区域使用自己的遮罩值；0% 时背景最清晰，数值越高遮罩越明显。"}
+          status={selectedAreaEffects.overlay === null ? "继承全局" : "本区域自定义"}>
+            <div className="settings-slider"><Slider min={0} max={75} value={effectiveAreaOverlay} onChange={(overlay) => updateSelectedAreaEffects({ overlay })} /><output>{effectiveAreaOverlay}%</output></div>
+          </SettingRow>
+          {backgroundTarget !== "login" && effectiveAreaBlur !== null ? <SettingRow title="玻璃模糊" description={selectedAreaBlurOverride === null
+            ? `当前继承全局模糊 ${settings.appearance.blur}px；可单独调整此区域，或恢复本区域默认继续跟随全局值。`
+            : "当前区域使用自己的玻璃模糊值；0px 为清晰，数值越高背景虚化越明显。"}
+          status={selectedAreaBlurOverride === null ? "继承全局" : "本区域自定义"}>
+            <div className="settings-slider"><Slider min={0} max={32} value={effectiveAreaBlur} onChange={(blur) => updateSelectedAreaEffects({ blur })} /><output>{effectiveAreaBlur}px</output></div>
+          </SettingRow> : null}
+        </SettingGroup>
+        <SettingGroup title="背景显示 · 全局默认">
+          <SettingRow title="背景遮罩" description="作为未单独设置区域的默认值，控制工作区壁纸遮罩和相关玻璃表面的底色透明度。新账户默认 65%，已有账户设置保持原值。登录页的继承值仍按 40% 强度呈现；消息画布不另加局部遮罩。" status="已接入"><div className="settings-slider"><Slider min={0} max={75} value={settings.appearance.overlay} onChange={(overlay) => updateSettings("appearance", { ...settings.appearance, overlay })} /><output>{settings.appearance.overlay}%</output></div></SettingRow>
+          <SettingRow title="玻璃模糊" description="作为未单独设置区域的默认值，调整顶栏、半透明导航栏、小鱼智能体输入区、写作上下文作品卡片和壁纸弹窗表面的模糊强度；消息画布保持透明，设置正文不做实时模糊。" status="已接入"><div className="settings-slider"><Slider min={0} max={32} value={settings.appearance.blur} onChange={(blur) => updateSettings("appearance", { ...settings.appearance, blur })} /><output>{settings.appearance.blur}px</output></div></SettingRow>
           <SettingRow title="写作光线背景" description="在普通写作编辑区显示跟随当前主题强调色的柔和光线；也可通过写作工具栏的灯光开关快速控制。" status="已接入">
             <SettingsSwitch label="写作光线背景" checked={settings.appearance.advanced.writingLightRaysEnabled} onChange={() => updateAppearanceAdvanced({ writingLightRaysEnabled: !settings.appearance.advanced.writingLightRaysEnabled })} />
           </SettingRow>
@@ -3005,6 +3219,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
             </AdvancedGroup>
           </div> : null}
         </section>
+        </div>}
       </section>
     );
 
@@ -3285,6 +3500,13 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
             {!videoGenerationAccounts.length ? <Alert type="info" showIcon message="请先在上方配置并加密保存火山方舟账户。" /> : null}
           </> : <Alert type="info" showIcon message="本机 MiniMax-H3 会按模型默认生成音频；角色/场景参考图最多合并为一张首帧。" />}
         </SettingGroup>
+        <SettingGroup title="视频链接理解">
+          <SettingRow title="语音识别账户" description="没有公开字幕时，Agent 可按需把 Bilibili 视频音轨发给该 Ark Agent Plan 账户转写。音频最长 60 分钟、96 MiB，只在内存处理；需要系统 PATH 中有 FFmpeg。转写会消耗语音模型额度，并按当前权限模式交由 Permission Owner 处理。">
+            <Select allowClear value={settings.aiRuntime.videoTranscriptionAccountId || undefined} placeholder="不启用语音转写" options={videoTranscriptionAccounts.map(account => ({ value: account.id, label: `${account.displayName} · Ark Agent Plan` }))} onChange={value => updateSettings("aiRuntime", { ...settings.aiRuntime, videoTranscriptionAccountId: value ?? "" })} />
+          </SettingRow>
+          {!videoTranscriptionAccounts.length ? <Alert type="info" showIcon message="尚无可用于语音识别的 Ark Agent Plan 账户" description="请先在 AI 与模型的账户目录中配置 Plan 席位并加载包含豆包语音识别的官方目录。公开视频字幕和抽样画面不依赖语音账户。" /> : null}
+          {settings.aiRuntime.videoTranscriptionAccountId && !selectedVideoTranscriptionAccount ? <Alert type="warning" showIcon message="当前语音识别账户不可用" description="请重新选择一个可见且包含语音识别模型的 Ark Agent Plan 账户。" /> : null}
+        </SettingGroup>
         <SettingGroup title="推理参数">
           <SettingRow title="Agent Shell 文件访问限制" description="工作区读写隔离为默认值；只读限制项目文件写入；完全访问仍经现有 Permission Owner 授权。">
             <Select
@@ -3466,10 +3688,10 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
             <section className="settings-plugin-workspace__setting-card settings-plugin-workspace__setting-card--skills" aria-labelledby="settings-plugin-skills-title">
               <div className="settings-plugin-workspace__setting-heading">
                 <span className="settings-plugin-workspace__setting-icon"><WorkbenchIcon name="book" size={18} /></span>
-                <div><h3 id="settings-plugin-skills-title">本机 Skill 目录</h3><p>模型可发现其中的 SKILL.md 并按需加载。</p></div>
+                <div><h3 id="settings-plugin-skills-title">额外本机 Skill 目录</h3><p>这里只添加额外扫描位置，不是 GitHub Skill 的安装位置。</p></div>
               </div>
               <Input.TextArea className="settings-plugin-workspace__skill-input" aria-label="本机 Skill 目录" autoSize={{ minRows: 2, maxRows: 6 }} value={skillDirectoriesDraft ?? (settings.plugins.skillDirectories ?? []).join("\n")} onChange={event => setSkillDirectoriesDraft(event.target.value)} onBlur={event => { updateSettings("plugins", { ...settings.plugins, skillDirectories: event.target.value.split(/\r?\n/u).map(path => path.trim()).filter(Boolean) }); setSkillDirectoriesDraft(null); }} />
-              <small className="settings-plugin-workspace__setting-hint">每行一个绝对目录，最多 16 个。远程控制端不会把这些路径当成服务器读取授权。</small>
+              <small className="settings-plugin-workspace__setting-hint">每行一个绝对目录，最多 16 个。默认本机 Skill 和小鱼安装的 Skill 都在 LFAA Home/skills/&lt;技能名&gt;；项目 Skill 在项目内 .lfaa/skills 或 .agents/skills。远程控制端不会把这些路径当成服务器读取授权。</small>
             </section>
           </div>
           <div className="settings-note-card settings-plugin-workspace__status-note"><strong>状态说明</strong><p>登记、安装、启用和运行分别来自对应目录与 Runtime；MCP“启用”只表示已保存的连接配置，不代表服务当前在线。</p></div>
@@ -4541,7 +4763,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
       </div> : null}
       <Modal title="无项目任务文件夹" open={folderModalOpen} okText="保存路径" cancelText="取消" onCancel={() => setFolderModalOpen(false)} onOk={() => { updateGeneral({ taskFolder: folderDraft.trim() }); setFolderModalOpen(false); }}>
         <Typography.Paragraph type="secondary">填写桌面宿主或受控节点上的默认任务目录。Web 端不会通过此路径访问本机文件。</Typography.Paragraph>
-        <Input autoFocus maxLength={512} value={folderDraft} onChange={(event) => setFolderDraft(event.target.value)} placeholder="例如：C:\\Users\\用户名\\Documents\\LFAA" />
+        <Input autoFocus maxLength={512} value={folderDraft} onChange={(event) => setFolderDraft(event.target.value)} placeholder="例如：C:\\Users\\用户名\\Documents\\lfaa" />
       </Modal>
       <Modal title="开源许可证" open={licensesModalOpen} footer={<Button onClick={() => setLicensesModalOpen(false)}>关闭</Button>} onCancel={() => setLicensesModalOpen(false)}>
         <Typography.Paragraph type="secondary">以下为 LFAA 前端直接运行依赖的许可证信息；完整依赖锁定记录位于仓库根目录 pnpm-lock.yaml。</Typography.Paragraph>

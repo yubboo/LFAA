@@ -92,7 +92,7 @@ export function SteamcmdWorkspace({ user, onNavigate }: { user: User; onNavigate
         }
       } catch (reason) { if (active) setError(getErrorMessage(reason)); }
     };
-    poller = createReadPoller(read, 1500);
+    poller = createReadPoller(read, 3000);
     return () => { active = false; poller?.stop(); };
   }, [task?.id, user.id]);
 

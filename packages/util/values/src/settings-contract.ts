@@ -60,6 +60,7 @@ export interface GeneralSettings {
 }
 
 export interface AppearanceSettings {
+  presets: AppearancePreset[];
   theme: "light" | "dark" | "system";
   accentColor: string;
   sidebarColor: string;
@@ -71,12 +72,65 @@ export interface AppearanceSettings {
     writing: string;
     settings: string;
   };
+  areaEffects: AppearanceAreaEffects;
   wallpaperEngine: { enabled: boolean; projectId: string };
   overlay: number;
   blur: number;
   updateSurfaceOpacity: number;
   advanced: AppearanceAdvancedSettings;
 }
+
+/** 外观快照中不包含用户预设库，避免嵌套复制或递归增长。 */
+export interface AppearancePresetSnapshot {
+  appearance: AppearanceVisualSettings;
+  general: AppearancePresetGeneralSettings;
+}
+
+export interface AppearancePreset {
+  id: string;
+  name: string;
+  description: string;
+  snapshot: AppearancePresetSnapshot;
+}
+
+export type AppearancePresetGeneralSettings = Pick<GeneralSettings,
+  "defaultFullView" | "showServiceStatus" | "showBottomPanelControl" | "navigationLayout" | "hiddenApplicationNavigationIds" | "cardMotionEffect" | "dialogMotionEffect" | "terminalPosition"
+>;
+
+export interface AppearanceVisualSettings {
+  theme: AppearanceSettings["theme"];
+  accentColor: string;
+  sidebarColor: string;
+  backgrounds: AppearanceSettings["backgrounds"];
+  areaEffects: AppearanceAreaEffects;
+  wallpaperEngine: AppearanceSettings["wallpaperEngine"];
+  overlay: number;
+  blur: number;
+  updateSurfaceOpacity: number;
+  advanced: AppearanceAdvancedSettings;
+}
+
+export const APPEARANCE_PRESET_LIMIT = 20;
+export const APPEARANCE_PRESET_NAME_MAX_LENGTH = 40;
+
+/** 逐区域遮罩覆盖；Workbench 区域另支持玻璃模糊覆盖。null 表示沿用全局 Appearance 值。 */
+export interface AppearanceAreaEffects {
+  login: { overlay: number | null };
+  appCenter: { overlay: number | null; blur: number | null };
+  steamcmd: { overlay: number | null; blur: number | null };
+  minecraft: { overlay: number | null; blur: number | null };
+  writing: { overlay: number | null; blur: number | null };
+  settings: { overlay: number | null; blur: number | null };
+}
+
+export const DEFAULT_APPEARANCE_AREA_EFFECTS: AppearanceAreaEffects = {
+  login: { overlay: null },
+  appCenter: { overlay: null, blur: null },
+  steamcmd: { overlay: null, blur: null },
+  minecraft: { overlay: null, blur: null },
+  writing: { overlay: null, blur: null },
+  settings: { overlay: null, blur: null }
+};
 
 export interface AppearanceFonts {
   interface: "system" | "sans" | "serif";
@@ -281,6 +335,8 @@ export interface AiRuntimeSettings {
   /** AI 漫剧视频生成使用的已保存火山方舟账户与模型目录 ID。 */
   videoGenerationAccountId: string;
   videoGenerationModelId: string;
+  /** 无公开字幕时，用于视频语音识别的已保存 Ark Agent Plan 账户。 */
+  videoTranscriptionAccountId: string;
   videoGenerationDurationSeconds: number;
   videoGenerationRatio: "adaptive" | "16:9" | "9:16" | "1:1" | "4:3" | "3:4";
   videoGenerationResolution: "480p" | "720p" | "1080p";
@@ -369,7 +425,7 @@ export const DEFAULT_APPEARANCE_ADVANCED_SETTINGS: AppearanceAdvancedSettings = 
   contrast: 60,
   diffMarkers: "color",
   pointerCursor: false,
-  aiWorkOutputFocusBlurEnabled: true,
+  aiWorkOutputFocusBlurEnabled: false,
   aiWorkOutputFocusBlurPercent: 33,
   aiWorkOutputFocusBlurIdleSeconds: 60,
   writingLightRaysEnabled: true
@@ -406,9 +462,9 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
     defaultAdminCredentialReminderEnabled: true,
     confettiEnabled: false
   },
-  appearance: { theme: "system", accentColor: "#3457d5", sidebarColor: "auto", backgrounds: { login: "none", appCenter: "none", steamcmd: "none", minecraft: "none", writing: "none", settings: "none" }, wallpaperEngine: { enabled: false, projectId: "" }, overlay: 65, blur: 14, updateSurfaceOpacity: 92, advanced: structuredClone(DEFAULT_APPEARANCE_ADVANCED_SETTINGS) },
+  appearance: { presets: [], theme: "system", accentColor: "#3457d5", sidebarColor: "auto", backgrounds: { login: "none", appCenter: "none", steamcmd: "none", minecraft: "none", writing: "none", settings: "none" }, areaEffects: structuredClone(DEFAULT_APPEARANCE_AREA_EFFECTS), wallpaperEngine: { enabled: false, projectId: "" }, overlay: 65, blur: 14, updateSurfaceOpacity: 92, advanced: structuredClone(DEFAULT_APPEARANCE_ADVANCED_SETTINGS) },
   shortcuts: { openSettings: ["Ctrl+,"], openHome: ["Alt+0"], openSteamcmd: ["Ctrl+Alt+1"], openMinecraft: ["Ctrl+Alt+2"], openWriting: ["Ctrl+Alt+3"], toggleSidebar: ["Ctrl+B"], toggleContextPanel: ["Ctrl+Alt+B"], toggleBottomPanel: ["Ctrl+J"], openTerminal: ["Ctrl+`"], switchNormalMode: ["Alt+1"], switchAiWorkMode: ["Alt+2"], openSideChat: ["Ctrl+Alt+S"], wallpaperSidebarToggle: [] },
-  aiRuntime: { executionSandboxMode: "workspace-write", speed: "balanced", promptSuggestions: true, showContextUsage: true, requestTimeoutSeconds: 90, requestRetries: 1, retryDelaySeconds: 1, maxOutputTokens: 0, maxModelRequests: 0, maxToolCalls: 0, subagentAccountId: "", imageGenerationMode: "provider", imageGenerationAccountId: "", imageGenerationModelId: "", imageGenerationLocalModelId: "", imageGenerationLocalTimeoutSeconds: 900, imageGenerationUnloadAfterMinutes: 10, videoGenerationMode: "provider", videoGenerationLocalModelId: "", videoGenerationLocalTimeoutSeconds: 900, videoGenerationUnloadAfterMinutes: 10, videoGenerationAccountId: "", videoGenerationModelId: "", videoGenerationDurationSeconds: 5, videoGenerationRatio: "adaptive", videoGenerationResolution: "720p", videoGenerationGenerateAudio: false, videoGenerationWatermark: true, maxSubagents: 4, maxDelegationDepth: 2, voiceInputEnabled: false, readResponsesAloud: false, commandTimeoutSeconds: 0, autoCompaction: true, contextWindowTokens: 32768 },
+  aiRuntime: { executionSandboxMode: "workspace-write", speed: "balanced", promptSuggestions: true, showContextUsage: true, requestTimeoutSeconds: 90, requestRetries: 1, retryDelaySeconds: 1, maxOutputTokens: 0, maxModelRequests: 0, maxToolCalls: 0, subagentAccountId: "", imageGenerationMode: "provider", imageGenerationAccountId: "", imageGenerationModelId: "", imageGenerationLocalModelId: "", imageGenerationLocalTimeoutSeconds: 900, imageGenerationUnloadAfterMinutes: 10, videoGenerationMode: "provider", videoGenerationLocalModelId: "", videoGenerationLocalTimeoutSeconds: 900, videoGenerationUnloadAfterMinutes: 10, videoGenerationAccountId: "", videoGenerationModelId: "", videoTranscriptionAccountId: "", videoGenerationDurationSeconds: 5, videoGenerationRatio: "adaptive", videoGenerationResolution: "720p", videoGenerationGenerateAudio: false, videoGenerationWatermark: true, maxSubagents: 4, maxDelegationDepth: 2, voiceInputEnabled: false, readResponsesAloud: false, commandTimeoutSeconds: 0, autoCompaction: true, contextWindowTokens: 32768 },
   minecraftRuntime: { minecraftReadyTimeoutSeconds: 120, minecraftStopTimeoutSeconds: 30, minecraftDefaultMemoryMb: 4096, minecraftDefaultPort: 25565, minecraftDownloadTimeoutSeconds: 1800, minecraftInstallTimeoutSeconds: 900, minecraftExecutionMode: "native", minecraftDefaultCore: "Paper", minecraftBedrockDefaultPort: 19132 },
   git: { branchPrefix: "codex/" },
   permissions: { mode: "ask" },

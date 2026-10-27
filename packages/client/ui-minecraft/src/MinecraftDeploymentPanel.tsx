@@ -48,10 +48,13 @@ function orderedVersions(versions: string[]): string[] {
 }
 interface DeploymentDraft {core:string;version:string;nodeId:string;name:string;backendId:string;memory:number|null;port:number|null;step:number;javaRuntimeId:string;}
 const draftCache=createSnapshotCache<DeploymentDraft>();
+const coreCatalogCache=createSnapshotCache<Awaited<ReturnType<typeof loadMinecraftCores>>>();
+const coreBuildCache=createSnapshotCache<Awaited<ReturnType<typeof loadMinecraftCoreBuilds>>>();
 export function MinecraftDeploymentPanel({ userId,onPrepareWithAi,nodes, instances, settings, canOperate, onSubmit, onNavigate }: Props) {
   const draft=useRef(draftCache.get(userId)).current;
-  const [cores, setCores] = useState<MinecraftCore[]>([]), [sourceErrors, setSourceErrors] = useState<string[]>([]);
-  const [catalogLoading, setCatalogLoading] = useState(true), [reload, setReload] = useState(0);
+  const cachedCoreCatalog=useRef(coreCatalogCache.get(userId)??null).current;
+  const [cores, setCores] = useState<MinecraftCore[]>(()=>cachedCoreCatalog?.cores??[]), [sourceErrors, setSourceErrors] = useState<string[]>(()=>cachedCoreCatalog?.errors??[]);
+  const [catalogLoading, setCatalogLoading] = useState(()=>cachedCoreCatalog===null), [reload, setReload] = useState(0);
   const [core, setCore] = useState(draft?.core??settings.minecraftRuntime.minecraftDefaultCore), [version, setVersion] = useState(draft?.version??""), [build, setBuild] = useState("");
   const [category, setCategory] = useState<MinecraftCore["category"] | "">(""), [coreSearch, setCoreSearch] = useState(""), [visibleVersionCount, setVisibleVersionCount] = useState(24);
   const [packageAvailable, setPackageAvailable] = useState(false), [buildLoading, setBuildLoading] = useState(false);
@@ -62,8 +65,9 @@ export function MinecraftDeploymentPanel({ userId,onPrepareWithAi,nodes, instanc
   const [port, setPort] = useState<number | null>(draft?.port??settings.minecraftRuntime.minecraftDefaultPort);
   const [eula, setEula] = useState(false), [submitting, setSubmitting] = useState(false), [error, setError] = useState("");
   const [step, setStep] = useState(draft?.step??0);
+  const refreshBuildKey=useRef<string|null>(null);
   useEffect(()=>{draftCache.set(userId,{core,version,nodeId,name,backendId,memory,port,step,javaRuntimeId});},[userId,core,version,nodeId,name,backendId,memory,port,step,javaRuntimeId]);
-  useEffect(()=>{setRequirement(null);if(!nodeId||!version||!build||!canOperate)return;const controller=new AbortController();void loadMinecraftRuntimeRequirement({core,version,build,nodeId},controller.signal).then(setRequirement).catch(reason=>{if(!controller.signal.aborted)setError(getErrorMessage(reason));});return()=>controller.abort();},[core,version,build,nodeId,canOperate]);
+  useEffect(()=>{setRequirement(null);if(step<1||!nodeId||!version||!build||!canOperate)return;const controller=new AbortController();void loadMinecraftRuntimeRequirement({core,version,build,nodeId},controller.signal).then(setRequirement).catch(reason=>{if(!controller.signal.aborted)setError(getErrorMessage(reason));});return()=>controller.abort();},[core,version,build,nodeId,canOperate,step]);
   const buildSequence = useRef(0);
   const selectedCore = cores.find(c => c.name === core);
   const versions = useMemo(() => orderedVersions(selectedCore?.versions ?? []), [selectedCore]);
@@ -100,10 +104,12 @@ export function MinecraftDeploymentPanel({ userId,onPrepareWithAi,nodes, instanc
     previousDefaults.current = settings.minecraftRuntime;
   }, [settings.minecraftRuntime]);
   useEffect(() => {
+    if(reload===0&&cachedCoreCatalog)return;
     let alive = true; setCatalogLoading(true);
-    loadMinecraftCores().then(value => { if (alive) { setCores(value.cores); setSourceErrors(value.errors); } }).catch(reason => { if (alive) setSourceErrors([getErrorMessage(reason)]); }).finally(() => { if (alive) setCatalogLoading(false); });
-    return () => { alive = false; };
-  }, [reload]);
+    const controller=new AbortController();
+    loadMinecraftCores(controller.signal).then(value => { if (alive) { coreCatalogCache.set(userId,value); setCores(value.cores); setSourceErrors(value.errors); } }).catch(reason => { if (alive&&!controller.signal.aborted) setSourceErrors([getErrorMessage(reason)]); }).finally(() => { if (alive) setCatalogLoading(false); });
+    return () => { alive = false; controller.abort(); };
+  }, [cachedCoreCatalog, reload, userId]);
   useEffect(() => { if(versions.length)setVersion(current => versions.includes(current) ? current : versions[0] ?? ""); }, [core, versions]);
   useEffect(() => { setVisibleVersionCount(24); }, [core]);
   useEffect(() => { setBackendId(""); }, [core]);
@@ -121,10 +127,15 @@ export function MinecraftDeploymentPanel({ userId,onPrepareWithAi,nodes, instanc
     const sequence = ++buildSequence.current;
     setPackageAvailable(false); setBuild(""); setError("");
     if (!version) { setBuildLoading(false); return; }
+    const cacheKey=`${userId}\u001f${core}\u001f${version}`;
+    const cached=coreBuildCache.get(cacheKey);
+    if(cached&&refreshBuildKey.current!==cacheKey){const preferredArtifact=cached.builds[0];setBuild(preferredArtifact?.id??"");setPackageAvailable(Boolean(preferredArtifact?.id));setBuildLoading(false);return()=>{buildSequence.current++;};}
+    if(refreshBuildKey.current===cacheKey)refreshBuildKey.current=null;
+    const controller=new AbortController();
     setBuildLoading(true);
-    loadMinecraftCoreBuilds(core, version).then(value => { if (sequence === buildSequence.current) { const preferredArtifact = value.builds[0]; setBuild(preferredArtifact?.id ?? ""); setPackageAvailable(Boolean(preferredArtifact?.id)); } }).catch(reason => { if (sequence === buildSequence.current) setError(getErrorMessage(reason)); }).finally(() => { if (sequence === buildSequence.current) setBuildLoading(false); });
-    return () => { buildSequence.current++; };
-  }, [core, version, reload]);
+    loadMinecraftCoreBuilds(core, version, 0, controller.signal).then(value => { if (sequence === buildSequence.current) { coreBuildCache.set(cacheKey,value); const preferredArtifact = value.builds[0]; setBuild(preferredArtifact?.id ?? ""); setPackageAvailable(Boolean(preferredArtifact?.id)); } }).catch(reason => { if (!controller.signal.aborted&&sequence === buildSequence.current) setError(getErrorMessage(reason)); }).finally(() => { if (sequence === buildSequence.current) setBuildLoading(false); });
+    return () => { buildSequence.current++; controller.abort(); };
+  }, [core, version, reload, userId]);
   const changeCore = (value: string) => {
     const next = cores.find(c => c.name === value);
     if (!next) return;
@@ -158,7 +169,7 @@ export function MinecraftDeploymentPanel({ userId,onPrepareWithAi,nodes, instanc
         <Typography.Title level={4}>新建 Minecraft 服务器</Typography.Title>
         <Typography.Paragraph>按步骤选择核心、配置目标节点并核对部署信息。提交后由所选节点下载、校验、安装并启动。</Typography.Paragraph>
       </div>
-      <Button onClick={() => setReload(value => value + 1)} loading={catalogLoading}>刷新核心目录</Button>
+      <Button onClick={() => {refreshBuildKey.current=`${userId}\u001f${core}\u001f${version}`;setReload(value => value + 1);}} loading={catalogLoading}>刷新核心目录</Button>
     </div>
     <div className="minecraft-provision-alerts">
       {sourceErrors.map(message => <Alert key={message} type="warning" showIcon message={message} />)}

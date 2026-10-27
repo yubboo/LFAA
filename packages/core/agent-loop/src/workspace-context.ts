@@ -15,8 +15,13 @@ export function resolveAiSessionWorkspaceContext(userId: string, sessionId: stri
   return {
     id: registered.id,
     appId: registered.appId === "minecraft" ? "minecraft" : snapshot.appId,
+    applicationIds: registered.applicationIds,
     nodeId: registered.nodeId,
     path: registered.path,
-    title: registered.title
+    title: registered.title,
+    sources: registered.sources.length ? registered.sources.map(source => source.path) : registered.nodeId === null && registered.path ? [registered.path] : [],
+    sourceDirectories: registered.sources.map(source => ({ id: source.id, path: source.path })),
+    instructions: registered.instructions,
+    memoryMode: registered.memoryMode
   };
 }

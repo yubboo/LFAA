@@ -23,6 +23,13 @@ export interface AiExternalAgentToolDispatchResult {
   isError?: boolean;
 }
 
+export interface AiBusinessToolProjectedResult {
+  /** 发给当前模型回合的临时结果；图像仅在内存中使用。 */
+  content: AiExternalAgentToolContent[];
+  /** 写入工具轨迹/会话的脱敏结果。 */
+  persistedResult: unknown;
+}
+
 export interface AiBusinessToolContext {
   /** 由父 Run 提供：统一委派预算、项目、工具范围及取消；插件不能自行重建根 Run。 */
   delegateSubagent?: (parameters: Record<string, unknown>, execute?: (startChild: (signal?: AbortSignal) => Promise<{ status: string; [key: string]: unknown }>) => Promise<{ status: string; [key: string]: unknown }>) => Promise<{ status: string; [key: string]: unknown }>;
@@ -66,7 +73,7 @@ export interface AiBusinessToolContext {
     completionTokens: number | null;
     cacheReadTokens: number | null;
   }[]) => void;
-  workspaceProject?: { nodeId: string | null; path: string; title: string } | null;
+  workspaceProject?: { nodeId: string | null; path: string; title: string; sources?: string[]; sourceDirectories?: Array<{ id: string; path: string }> } | null;
   /** Agent Git Workspace Owner 解析出的可信本机仓库上下文，与 workspaceProject/Daemon 节点无关。 */
   agentGitRepository?: { id: string; path: string; title: string } | null;
   /** 由 LFAA 本机 Host 注入的共享受限文件执行器；Daemon 模式下不提供。 */
@@ -117,6 +124,8 @@ export interface AiBusinessTool {
   prepare?: (parameters: Record<string, unknown>, context: Pick<AiBusinessToolContext, "userId"> & Partial<Pick<AiBusinessToolContext, "userRole" | "workspaceProject" | "agentGitRepository" | "authorizeExternalAgentAction" | "externalAgentTools" | "dispatchExternalAgentTool">>) => Record<string, unknown>;
   parse: (value: unknown) => Record<string, unknown>;
   execute: (parameters: Record<string, unknown>, context: AiBusinessToolContext) => Promise<unknown>;
+  /** 需要把受限图像作为模型输入的工具，通过此映射明确分离临时内容和可持久化结果。 */
+  projectResult?: (result: unknown) => AiBusinessToolProjectedResult;
   delegation?: "domain-expert";
   createsSubagent?: boolean;
   /** 该插件工具需要当前运行已绑定的交互问题通道。 */

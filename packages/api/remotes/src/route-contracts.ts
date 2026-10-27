@@ -199,7 +199,7 @@ export const accountSnapshotCreateSchema = Joi.object({ name: Joi.string().trim(
 export const accountArchiveRestoreSchema = Joi.object({ settings: Joi.boolean().required(), memories: Joi.boolean().required(), sessions: Joi.boolean().required() })
   .or("settings", "memories", "sessions").unknown(false);
 
-export { appearanceBackgroundIdSchema, generalSettingsSchema, aiRuntimeSettingsSchema, minecraftRuntimeSettingsSchema, gitSettingsSchema, permissionsSettingsSchema, pluginsSettingsSchema, personalizationSettingsSchema, conversationMemoriesSchema, computerControlSettingsSchema, browserUseSettingsSchema, miniSettingsSchema, canvasSettingsSchema, appearanceFontsSchema, appearanceModeStyleSchema, appearanceSettingsSchema, shortcutBindingsSchema, shortcutsSchema } from "lfaa-settings/src/validation.js";
+export { appearanceBackgroundIdSchema, generalSettingsSchema, aiRuntimeSettingsSchema, minecraftRuntimeSettingsSchema, gitSettingsSchema, permissionsSettingsSchema, pluginsSettingsSchema, personalizationSettingsSchema, conversationMemoriesSchema, computerControlSettingsSchema, browserUseSettingsSchema, miniSettingsSchema, canvasSettingsSchema, appearanceFontsSchema, appearanceModeStyleSchema, appearancePresetSchema, appearancePresetSnapshotSchema, appearanceSettingsSchema, shortcutBindingsSchema, shortcutsSchema } from "lfaa-settings/src/validation.js";
 
 export const aiProbeSchema = Joi.object({
   providerId: Joi.string().valid("openai", "deepseek", "doubao", "qwen", "kimi", "zhipu", "xiaomi", "ark-agent-plan", "ark-coding-plan").required(),
@@ -366,6 +366,7 @@ export const daemonHeartbeatSchema = Joi.object({
     dataRoot: Joi.string().trim().min(3).max(2048).pattern(/^(?:[a-z]:\\|\\\\)/iu).required(),
     capabilities: Joi.array().items(Joi.string().valid("minecraft-vanilla", "minecraft-native-v1", "minecraft-multicore-v1", "minecraft-instance-archive-v1", "app-sandbox-windows-appcontainer-v1", "java-environment-manager-v1", "runtime-environment-v1", "minecraft-java-runtime-selection-v1", "node-filesystem-v1", "node-filesystem-v2", "node-filesystem-directory-size-v1", "node-filesystem-instance-v1", "node-filesystem-game-storage-v1", "node-filesystem-binary-transfer-v1", "steamcmd-ready-v1", "agent-shell-v1", "project-files-v1", EASYTIER_RUNTIME_RELEASE.installCapability, EASYTIER_RUNTIME_RELEASE.runtimeCapability)).max(20).unique().required(),
     javaRuntimes: Joi.array().items(Joi.object({
+      distribution: Joi.string().valid("temurin", "zulu").optional(),
       version: Joi.string().max(80),
       architecture:Joi.string().max(80),
       os:Joi.string().max(80),

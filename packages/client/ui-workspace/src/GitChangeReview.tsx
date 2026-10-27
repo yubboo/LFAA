@@ -17,6 +17,7 @@ type GitFileFilter = "all" | "unstaged" | "staged" | "untracked" | "committed";
 interface GitChangeReviewProps {
   appId?: WorkspaceProjectApplicationId;
   projectId: string;
+  sourceId?: string;
   projectTitle: string;
   repositoryId?: string;
   status: WorkspaceGitStatus;
@@ -118,7 +119,7 @@ export function GitChangeReview(props: GitChangeReviewProps) {
   return <GitChangeReviewDialog {...props} embedded={false} />;
 }
 
-function GitChangeReviewDialog({ appId, projectId, projectTitle, repositoryId, status, initialPath, open, embedded = false, onClose, onRefresh }: GitChangeReviewProps) {
+function GitChangeReviewDialog({ appId, projectId, sourceId, projectTitle, repositoryId, status, initialPath, open, embedded = false, onClose, onRefresh }: GitChangeReviewProps) {
   const [selectedPath, setSelectedPath] = useState(initialPath);
   const [filter, setFilter] = useState("");
   const [fileFilter, setFileFilter] = useState<GitFileFilter>("all");
@@ -164,7 +165,7 @@ function GitChangeReviewDialog({ appId, projectId, projectTitle, repositoryId, s
     setDraft("");
     setFileError("");
     setDiffError("");
-  }, [open, projectId]);
+  }, [open, projectId, sourceId]);
 
   useEffect(() => {
     if (open) return;
@@ -181,13 +182,13 @@ function GitChangeReviewDialog({ appId, projectId, projectTitle, repositoryId, s
     setFileDiff(null);
     const load = repositoryId
       ? loadAgentGitFileDiff(repositoryId, selectedPath, { ignoreWhitespace: hideWhitespace, wordDiff }).then(({ diff }) => ({ file: diff }))
-      : loadWorkspaceGitFileDiff(projectId, appId!, selectedPath, { ignoreWhitespace: hideWhitespace, wordDiff });
+      : loadWorkspaceGitFileDiff(projectId, appId!, selectedPath, { sourceId, ignoreWhitespace: hideWhitespace, wordDiff });
     void load
       .then(result => { if (active && requestId === diffRequest.current) setFileDiff(result.file); })
       .catch(error => { if (active && requestId === diffRequest.current) setDiffError(getErrorMessage(error)); })
       .finally(() => { if (active && requestId === diffRequest.current) setDiffLoading(false); });
     return () => { active = false; };
-  }, [open, projectId, repositoryId, appId, selectedPath, hideWhitespace, wordDiff, showSource, version]);
+  }, [open, projectId, sourceId, repositoryId, appId, selectedPath, hideWhitespace, wordDiff, showSource, version]);
 
   useEffect(() => {
     if (!open || !selectedPath || !showSource || fileRead) return;
@@ -195,7 +196,7 @@ function GitChangeReviewDialog({ appId, projectId, projectTitle, repositoryId, s
     let active = true;
     setReadLoading(true);
     setFileError("");
-    const load = repositoryId ? loadAgentGitFile(repositoryId, projectFilePath, { offset: 0, limit: 40000 }) : readWorkspaceProjectTextFile(projectId, appId!, projectFilePath, 0, 40000);
+    const load = repositoryId ? loadAgentGitFile(repositoryId, projectFilePath, { offset: 0, limit: 40000 }) : readWorkspaceProjectTextFile(projectId, appId!, projectFilePath, 0, 40000, sourceId);
     void load
       .then(result => {
         if (!active || requestId !== fileRequest.current) return;
@@ -205,7 +206,7 @@ function GitChangeReviewDialog({ appId, projectId, projectTitle, repositoryId, s
       .catch(error => { if (active && requestId === fileRequest.current) setFileError(getErrorMessage(error)); })
       .finally(() => { if (active && requestId === fileRequest.current) setReadLoading(false); });
     return () => { active = false; };
-  }, [open, projectId, repositoryId, appId, selectedPath, projectFilePath, showSource, fileRead]);
+  }, [open, projectId, sourceId, repositoryId, appId, selectedPath, projectFilePath, showSource, fileRead]);
 
   const filteredFiles = useMemo(() => status.files.filter(file => {
     const matchesName = file.displayPath.toLocaleLowerCase().includes(filter.toLocaleLowerCase());
@@ -276,7 +277,7 @@ function GitChangeReviewDialog({ appId, projectId, projectTitle, repositoryId, s
       let content = fileRead.content;
       let offset = content.length;
       while (offset < fileRead.totalCharacters) {
-        const result = repositoryId ? await loadAgentGitFile(repositoryId, projectFilePath, { offset, limit: 100000 }) : await readWorkspaceProjectTextFile(projectId, appId!, projectFilePath, offset, 100000);
+        const result = repositoryId ? await loadAgentGitFile(repositoryId, projectFilePath, { offset, limit: 100000 }) : await readWorkspaceProjectTextFile(projectId, appId!, projectFilePath, offset, 100000, sourceId);
         if (request !== fileRequest.current) return;
         if (result.file.sha256 !== fileRead.sha256 || result.file.totalCharacters !== fileRead.totalCharacters) throw new Error("文件在分段读取期间发生变化，请重新加载后再编辑。");
         if (!result.file.content.length) throw new Error("文件读取不完整，已停止继续加载。");
@@ -315,7 +316,7 @@ function GitChangeReviewDialog({ appId, projectId, projectTitle, repositoryId, s
     try {
       const result = repositoryId
         ? await saveAgentGitFile(repositoryId, projectFilePath, content, fileRead.sha256)
-        : await writeWorkspaceProjectTextFile(projectId, appId!, projectFilePath, content, fileRead.sha256);
+        : await writeWorkspaceProjectTextFile(projectId, appId!, projectFilePath, content, fileRead.sha256, sourceId);
       const sha256 = "file" in result ? result.file.sha256 : result.result.sha256;
       setFileRead({ ...fileRead, content, sha256, truncated: false });
       setDraft(normalizeEditorText(content));

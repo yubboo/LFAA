@@ -2441,6 +2441,7 @@
           "packages/subagent/tool-subagent-control",
           "packages/terminal/tool-terminal",
           "packages/video/tool-ai-video",
+          "packages/video/tool-bilibili-video",
           "packages/web/tool-web",
           "packages/workflow/minecraft-adapter",
           "packages/workflow/tool-workflow"
@@ -2528,7 +2529,8 @@
           "packages/network/game-connectivity",
           "packages/settings/settings",
           "packages/subagent/subagent-claude-code",
-          "packages/video/ai-video"
+          "packages/video/ai-video",
+          "packages/video/tool-bilibili-video"
         ],
         "bundleDeclarations": [
           "packages/bundle/base/cordis.patch.yml"
@@ -5088,6 +5090,7 @@
           "packages/subagent/tool-subagent",
           "packages/terminal/tool-terminal",
           "packages/video/ai-video",
+          "packages/video/tool-bilibili-video",
           "packages/web/web-search-deepseek",
           "packages/workflow/minecraft-adapter"
         ],
@@ -6671,6 +6674,25 @@
       }
     },
     {
+      "path": "packages/video/bilibili-video",
+      "name": "lfaa-video-bilibili-video",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented",
+      "responsibility": "公开视频字幕、Storyboard 与有界音轨/Ark ASR Provider",
+      "evidence": {
+        "entry": "packages/video/bilibili-video/src/index.ts",
+        "readme": "packages/video/bilibili-video/README.md",
+        "consumers": [
+          "packages/video/tool-bilibili-video"
+        ],
+        "bundleDeclarations": [
+          "packages/bundle/web-app/cordis.patch.yml"
+        ],
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
+      }
+    },
+    {
       "path": "packages/video/tool-ai-video",
       "name": "lfaa-video-tool-ai-video",
       "upstreamName": null,
@@ -6680,6 +6702,23 @@
       "evidence": {
         "entry": "packages/video/tool-ai-video/src/index.ts",
         "readme": "packages/video/tool-ai-video/README.md",
+        "consumers": [],
+        "bundleDeclarations": [
+          "packages/bundle/web-app/cordis.patch.yml"
+        ],
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
+      }
+    },
+    {
+      "path": "packages/video/tool-bilibili-video",
+      "name": "lfaa-video-tool-bilibili-video",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented",
+      "responsibility": "Bilibili 视频输入工具与 Agent Loop/Settings/Credentials 适配",
+      "evidence": {
+        "entry": "packages/video/tool-bilibili-video/src/index.ts",
+        "readme": "packages/video/tool-bilibili-video/README.md",
         "consumers": [],
         "bundleDeclarations": [
           "packages/bundle/web-app/cordis.patch.yml"
@@ -6735,7 +6774,9 @@
       "evidence": {
         "entry": "packages/web/web-fetch-http/src/index.ts",
         "readme": null,
-        "consumers": [],
+        "consumers": [
+          "packages/video/bilibili-video"
+        ],
         "bundleDeclarations": [
           "packages/bundle/base/cordis.patch.yml"
         ],

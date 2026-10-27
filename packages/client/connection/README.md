@@ -2,6 +2,8 @@
 
 此包提供已认证控制端 API 和 AI Work SSE 消费协议，不持有模型、Session 或权限业务规则。
 
+`createReadPoller()` 串行运行只读对账、合并在途刷新，并在页面隐藏时暂停、恢复可见时立即刷新。调用方可用 `initialDelayMs` 复用短期快照，并传入动态间隔函数；下一轮间隔在当前读取结束后重新计算。停止时撤销计时器和事件监听，不管理后台业务任务。
+
 `loadAiOffice()` 通过认证 `/ai/office` 读取员工元数据和当前账户的 Agent Run 摘要，可传 AbortSignal 供 UI 隐藏/卸载时取消；不缓存状态快照。
 
 AI 模型目录由 `/settings/ai/accounts` 按当前登录返回系统级普通 Provider 配置和当前用户自己的火山方舟 Agent Plan/Coding Plan 席位。个人席位使用 Plan 专用端点与手填 Model Name；新建时先真实测试模型，再提交短时一次性验证凭证。凭据替换只发送新 secret；响应不包含密钥，system/user scope 与权限判断归服务端 Owner。
@@ -20,7 +22,7 @@ AI 漫剧项目列表会在交给工作区前校验服务端返回的项目列�
 
 Browser Dock Client API 使用认证 `/browser/dock/*` 路由。导航前只查询本机隔离 Edge/Chrome 的真实可用性；提交地址时再启动同一账户与 LFAA Session 的无窗口页面，不打开外部浏览器。页面快照只返回标题、地址、标签、加载状态、修订号和视口尺寸，不为 Dock 拉取正文或截图；`streamBrowserDockFrames()` 通过带认证 Cookie 的 SSE 读取 Browser Owner 由 CDP 主动推送的合成器帧事件，使用 AbortSignal 在页面隐藏、切换或卸载时断开。帧流直接显示当前 Browser Owner Page 并启用同页输入，不调用 `getDisplayMedia`、不启动系统标签选择器、不传输用户桌面画面。
 
-AI 回复使用一份 `content` 和可选 `parts` 正文范围；`delta` 携带分段 ID/起点，`presentation` 同步阶段及最终答案范围。客户端把同一消息、同一分段的真实文本优先合并到空格或中英文标点边界，并在下一帧交付；没有自然边界时最多等待 72ms，待处理文本达到 2048 个 UTF-16 字符时立即冲刷。非正文事件、消息/分段切换会先交付尾段。`appendAiTextDelta` 更新同一消息投影；活动的 `contentOffset`、问题、实际审批答案以及受校验的浏览器工具 ID/Provider ID 只用于展示和工作区联动。重新订阅的原子快照恢复当前正文与范围，旧服务没有范围时保持兼容。
+AI 回复使用一份 `content` 和可选 `parts` 正文范围；`delta` 携带分段 ID/起点，`presentation` 同步阶段及最终答案范围。客户端把同一消息、同一分段的真实文本优先合并到空格或中英文标点边界，并在下一帧交付；没有自然边界时最多等待 72ms，待处理文本达到 2048 个 UTF-16 字符时立即冲刷。非正文事件、消息/分段切换会先交付尾段。`appendAiTextDelta` 更新同一消息投影；活动的 `contentOffset`、问题、实际审批答案以及受校验的浏览器工具 ID/Provider ID 只用于展示和工作区联动。工具活动类型同时承载安全的函数用途合同与最多 8 个按序执行阶段；Connection 仅透传 Session/Agent Loop 的公开字段，不推断工具或权限状态。重新订阅的原子快照恢复当前正文、范围与活动，旧服务没有范围时保持兼容。
 
 订阅继续沿用原取消信号；结束时冲刷文本，取消/卸载时撤销帧和短计时器并丢弃已失效订阅尾段，不另建连接或存储，也不传输 Provider 隐藏推理。协议回归见 `apps/cli/tests/ai-work-response-timeline.test.mjs`、`apps/cli/tests/ai-work-sse-lifecycle.test.mjs` 与 `apps/cli/tests/client-performance.test.mjs`。
 
@@ -61,3 +63,5 @@ SteamCMD Client Connection 提供通用服务端列表、创建/配置、运行�
 `streamAiChat()` 可在新 Run 请求中传递严格受限的 `workspaceView` JSON；它不是消息字段，连接层只随本次初始 POST 发送，不在续接既有 Run 时重放。
 
 账户资料连接 API 将 `.lfaa-snapshot` 文件作为受认证二进制请求上传/下载；预览类型区分 v1/v2 并展示会话检查点与附件统计，恢复结果返回附件导入/复用计数。Client 不在本地解包、保存迁移副本或自行改写会话数据。
+
+外观预设连接 API 提供结构校验、原子应用与账户背景二进制读取；导入/导出沿用现有认证背景上传/删除 Owner，不在 Connection 缓存图片字节、保存预设副本或另建设置存储。

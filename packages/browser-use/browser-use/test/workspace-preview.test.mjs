@@ -31,6 +31,12 @@ test("opens a scoped workspace preview in the same isolated Browser Session used
   assert.ok(opened.controls.some(control => control.name === "受保护的敏感字段" && !control.type));
   assert.ok(opened.screenshot?.dataBase64.length);
 
+  const accessibility = await manager.observeForRun("preview-test-owner", "preview-test-session", provider.id, undefined, false, true);
+  const accessibilityJson = JSON.stringify(accessibility.accessibilityTree);
+  assert.match(accessibilityJson, /heading/u);
+  assert.match(accessibilityJson, /点我/u);
+  assert.doesNotMatch(accessibilityJson, /隐藏操作|human-only-secret/u, "hidden actions and form values are not exposed in the AX tree");
+
   const resized = await manager.resizeViewport("preview-test-owner", "preview-test-session", provider.id, 960, 1120);
   assert.equal(resized?.screenshot?.width, 960);
   assert.equal(resized?.screenshot?.height, 1120);

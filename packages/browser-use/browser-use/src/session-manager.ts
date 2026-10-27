@@ -15,6 +15,7 @@ import { getUserSettings } from "lfaa-settings/src/service.js";
 import type { CredentialRecord, CredentialRecordMetadata } from "lfaa-credentials/src/index.js";
 import { BUILTIN_BROWSER_WORKSPACE_ID, type BrowserProviderId } from "lfaa-util-values/src/browser-provider.js";
 import { TabbitBrowserProvider, type TabbitTabSummary } from "./tabbit-provider.js";
+import { boundBrowserAccessibilityTree, type BrowserAccessibilityNode } from "./accessibility-tree.js";
 
 const SESSION_IDLE_TTL_MS = 30 * 60_000;
 const SESSION_SWEEP_MS = 60_000;
@@ -23,6 +24,7 @@ const MAX_SESSIONS_PER_USER = 4;
 const MAX_PAGE_COUNT = 8;
 const MAX_PAGE_TEXT = 16_000;
 const MAX_INTERACTIVE_ITEMS = 80;
+const MAX_ACCESSIBILITY_TREE_CHARS = 8_000;
 const BROWSER_DOM_CHANGE_NOTIFICATION_INTERVAL_MS = 750;
 const MAX_SCREENSHOT_BYTES = 2 * 1024 * 1024;
 const MAX_IMAGE_DIMENSION = 1280;
@@ -43,6 +45,7 @@ export interface BrowserSnapshot {
   loading: boolean;
   pageText: string;
   controls: Array<{ role: string; name: string; type?: string; disabled: boolean; occurrence?: number }>;
+  accessibilityTree?: BrowserAccessibilityNode[] | null;
   tabs: BrowserTabSummary[];
   viewport?: { width: number; height: number } | null;
   screenshot: { mimeType: "image/jpeg"; dataBase64: string; width: number; height: number } | null;
@@ -94,7 +97,7 @@ export interface BrowserRunAdapter {
   claimTab(tabId: number): Promise<BrowserSnapshot>;
   navigate(providerId: BrowserProviderId, url: string): Promise<BrowserSnapshot>;
   navigateProjectPreview(providerId: BrowserProviderId, preview: { url: string; close: () => Promise<void> }): Promise<BrowserSnapshot>;
-  observe(providerId: BrowserProviderId, includeScreenshot?: boolean): Promise<BrowserSnapshot>;
+  observe(providerId: BrowserProviderId, includeScreenshot?: boolean, includeAccessibilityTree?: boolean): Promise<BrowserSnapshot>;
   click(providerId: BrowserProviderId, role: string, name: string, occurrence?: number): Promise<BrowserSnapshot>;
   fill(providerId: BrowserProviderId, label: string, value: string): Promise<BrowserSnapshot>;
   pressKey(providerId: BrowserProviderId, key: string): Promise<BrowserSnapshot>;
@@ -404,7 +407,7 @@ export class BrowserSessionManager {
       claimTab: (tabId: number): Promise<BrowserSnapshot> => invoke(() => this.claimTab(ownerId, sourceSessionId, "tabbit-personal", tabId, signal)),
       navigate: (providerId: BrowserProviderId, url: string): Promise<BrowserSnapshot> => invoke(() => this.navigate(ownerId, browserWorkspaceId(providerId), providerId, url, signal, true, false)),
       navigateProjectPreview: (providerId: BrowserProviderId, preview: { url: string; close: () => Promise<void> }): Promise<BrowserSnapshot> => invoke(() => this.navigateProjectPreview(ownerId, browserWorkspaceId(providerId), providerId, preview, signal, false)),
-      observe: (providerId: BrowserProviderId, includeScreenshot = false): Promise<BrowserSnapshot> => invoke(() => this.observeForRun(ownerId, browserWorkspaceId(providerId), providerId, signal, includeScreenshot)),
+      observe: (providerId: BrowserProviderId, includeScreenshot = false, includeAccessibilityTree = false): Promise<BrowserSnapshot> => invoke(() => this.observeForRun(ownerId, browserWorkspaceId(providerId), providerId, signal, includeScreenshot, includeAccessibilityTree)),
       click: (providerId: BrowserProviderId, role: string, name: string, occurrence?: number): Promise<BrowserSnapshot> => invoke(() => this.click(ownerId, browserWorkspaceId(providerId), providerId, role, name, signal, true, false, occurrence)),
       fill: (providerId: BrowserProviderId, label: string, value: string): Promise<BrowserSnapshot> => invoke(() => this.fill(ownerId, browserWorkspaceId(providerId), providerId, label, value, signal, true, false)),
       pressKey: (providerId: BrowserProviderId, key: string): Promise<BrowserSnapshot> => invoke(() => this.pressKey(ownerId, browserWorkspaceId(providerId), providerId, key, signal, false)),
@@ -840,11 +843,11 @@ export class BrowserSessionManager {
     }
   }
 
-  async observeForRun(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, signal?: AbortSignal, includeScreenshot = false): Promise<BrowserSnapshot> {
-    if (providerId === "tabbit-personal") return this.tabbit.observe(ownerId, sourceSessionId, signal);
+  async observeForRun(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, signal?: AbortSignal, includeScreenshot = false, includeAccessibilityTree = false): Promise<BrowserSnapshot> {
+    if (providerId === "tabbit-personal") return this.tabbit.observe(ownerId, sourceSessionId, signal, includeAccessibilityTree);
     const session = await this.getOrCreate(ownerId, sourceSessionId, providerId);
     signal?.throwIfAborted();
-    return this.exclusive(session, () => this.observe(session, includeScreenshot), signal);
+    return this.exclusive(session, () => this.observe(session, includeScreenshot, true, includeAccessibilityTree), signal);
   }
 
   async back(ownerId: string, sourceSessionId: string, providerId: BrowserProviderId, signal?: AbortSignal, includePageDetails = true, includeScreenshot = true): Promise<BrowserSnapshot> {
@@ -1198,7 +1201,7 @@ export class BrowserSessionManager {
     }, signal);
   }
 
-  private async observe(session: BrowserSession, includeScreenshot: boolean, includePageDetails = true): Promise<BrowserSnapshot> {
+  private async observe(session: BrowserSession, includeScreenshot: boolean, includePageDetails = true, includeAccessibilityTree = false): Promise<BrowserSnapshot> {
     this.touch(session);
     const page = session.page;
     if (page.isClosed()) throw new Error("当前浏览器标签已关闭；请重新打开 LFAA 隔离浏览器。");
@@ -1219,7 +1222,7 @@ export class BrowserSessionManager {
         })()
       };
     }).catch(() => ({ loading: false, hasRenderableContent: false, viewport: page.viewportSize() }));
-    const [title, pageText, rawControls, screenshot, tabs] = await Promise.all([
+    const [title, pageText, rawControls, accessibilityTree, screenshot, tabs] = await Promise.all([
       page.title().catch(() => ""),
       includePageDetails && !documentState.loading ? page.locator("body").innerText({ timeout: 4_000 }).catch(() => "") : Promise.resolve(""),
       includePageDetails && !documentState.loading ? page.locator("a,button,input,textarea,select,[role=button],[role=link],[role=textbox]").evaluateAll<BrowserSnapshot["controls"], number>((elements, limit) => elements.slice(0, limit).filter(node => node.getClientRects().length > 0 && !node.closest('[aria-hidden="true"]')).map(node => {
@@ -1231,6 +1234,9 @@ export class BrowserSessionManager {
         const role = node.getAttribute("role") || (node.tagName === "A" ? "link" : node.tagName === "BUTTON" ? "button" : node.tagName === "INPUT" ? (type === "checkbox" ? "checkbox" : type === "radio" ? "radio" : "textbox") : node.tagName === "TEXTAREA" ? "textbox" : node.tagName === "SELECT" ? "combobox" : node.tagName.toLowerCase());
         return { role, name: type === "password" || /password|passcode|secret|token|api[\s_-]?key|authorization|验证码|密码|密钥|令牌/iu.test(name) ? "受保护的敏感字段" : name, ...(type && type !== "password" ? { type } : {}), disabled: node.hasAttribute("disabled") || node.getAttribute("aria-disabled") === "true" };
       }).filter(item => item.name).slice(0, limit), MAX_INTERACTIVE_ITEMS).catch(() => [] as BrowserSnapshot["controls"]) : Promise.resolve([] as BrowserSnapshot["controls"]),
+      includePageDetails && includeAccessibilityTree && !documentState.loading
+        ? page.locator("body").ariaSnapshotJSON({ depth: 8, timeout: 4_000 }).then(boundBrowserAccessibilityTree).catch(() => null)
+        : Promise.resolve(undefined),
       includeScreenshot ? this.captureScreenshot(page, documentState.hasRenderableContent && !documentState.loading) : Promise.resolve(null),
       Promise.all(session.context.pages().filter(tab => session.providerId !== "lfaa-native-browser" || !this.isNativeAppPage(tab)).slice(0, MAX_PAGE_COUNT).map(async (tab, index) => ({ id: String(index), title: await tab.title().catch(() => ""), url: tab.url().slice(0, 2048), active: tab === page })))
     ]);
@@ -1242,7 +1248,9 @@ export class BrowserSessionManager {
       return { ...control, occurrence };
     });
     const normalizedText = pageText.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/gu, " ").slice(0, MAX_PAGE_TEXT);
-    return { sessionId: session.id, providerId: session.providerId, revision: session.revision, url: page.url().slice(0, 2048), title: title.slice(0, 300), loading: documentState.loading, pageText: normalizedText, controls, tabs, viewport: documentState.viewport, screenshot };
+    const boundedTree = accessibilityTree === undefined ? undefined : accessibilityTree;
+    const accessibilityTreeWithinLimit = boundedTree && JSON.stringify(boundedTree).length > MAX_ACCESSIBILITY_TREE_CHARS ? null : boundedTree;
+    return { sessionId: session.id, providerId: session.providerId, revision: session.revision, url: page.url().slice(0, 2048), title: title.slice(0, 300), loading: documentState.loading, pageText: normalizedText, controls, ...(boundedTree !== undefined ? { accessibilityTree: accessibilityTreeWithinLimit } : {}), tabs, viewport: documentState.viewport, screenshot };
   }
 
   private async captureScreenshot(page: Page, hasRenderableContent: boolean): Promise<BrowserSnapshot["screenshot"]> {

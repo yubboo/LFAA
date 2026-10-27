@@ -482,6 +482,22 @@ body[data-we-wallpaper] .workbench-shell .ai-work-chat {
 .ai-work-chat__activity-output-summary p { margin: 0; color: var(--color-text-secondary); line-height: 1.5; overflow-wrap: anywhere; white-space: pre-wrap; }
 .ai-work-chat__activity-output-preview pre { max-width: 100%; margin: 0; color: var(--color-text-primary); font-family: var(--settings-code-font, var(--font-family-mono)); font-size: var(--settings-code-font-size, var(--font-size-sm)); line-height: 1.5; overflow-wrap: anywhere; white-space: pre-wrap; }
 .ai-work-chat__activity-output-card--command .ai-work-chat__activity-output-summary p { font-family: var(--settings-code-font, var(--font-family-mono)); font-size: var(--settings-code-font-size, var(--font-size-sm)); }
+/* 工具合同在同一流式步骤中展示，沿用工作区主题与字体；长说明换行，字段按容器宽度折行。 */
+.ai-work-chat__tool-contract { display: grid; min-width: 0; gap: 7px; padding: 9px 10px; border: 1px solid var(--color-border-subtle); border-inline-start: 2px solid var(--settings-accent, var(--color-brand)); border-radius: 9px; background: color-mix(in srgb, var(--color-surface-muted) 72%, transparent); color: var(--color-text-secondary); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: var(--settings-interface-font-size, var(--font-size-sm)); line-height: 1.5; }
+.ai-work-chat__tool-contract-name, .ai-work-chat__tool-contract-section { display: grid; min-width: 0; gap: 4px; }
+.ai-work-chat__tool-contract-name { grid-template-columns: auto minmax(0, 1fr); align-items: baseline; gap: 8px; }
+.ai-work-chat__tool-contract strong { color: var(--color-text-muted); font-size: var(--font-size-xs); font-weight: 620; }
+.ai-work-chat__tool-contract code { min-width: 0; color: var(--color-text-primary); font-family: var(--settings-code-font, var(--font-family-mono)); font-size: var(--settings-code-font-size, var(--font-size-sm)); overflow-wrap: anywhere; white-space: pre-wrap; }
+.ai-work-chat__tool-contract p { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.ai-work-chat__tool-contract ul { display: grid; min-width: 0; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); gap: 5px; margin: 0; padding: 0; list-style: none; }
+.ai-work-chat__tool-contract li { display: grid; min-width: 0; gap: 4px; padding: 5px 7px; border: 1px solid var(--color-border-subtle); border-radius: 6px; background: var(--color-surface); }
+.ai-work-chat__tool-contract-parameter-heading { display: flex; min-width: 0; flex-wrap: wrap; align-items: baseline; gap: 4px; }
+.ai-work-chat__tool-contract li span span, .ai-work-chat__tool-contract li small, .ai-work-chat__tool-contract-trust { color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.ai-work-chat__tool-contract li small { overflow-wrap: anywhere; white-space: pre-wrap; }
+.ai-work-chat__tool-contract-stages { display: grid; min-width: 0; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.ai-work-chat__tool-contract-stages li { display: grid; min-width: 0; gap: 2px; padding-inline-start: 8px; border: 0; border-inline-start: 2px solid var(--color-border); border-radius: 0; background: transparent; }
+.ai-work-chat__tool-contract-stages li > strong { color: var(--color-text-primary); font-size: var(--font-size-xs); }
+.ai-work-chat__tool-contract-stages li p { color: var(--color-text-secondary); }
 .ai-work-chat__file-change-trigger.ant-btn, .ai-work-chat__file-change-path { display: flex; width: fit-content; max-width: 100%; align-items: center; gap: 6px; margin: 2px 0 0 -7px; padding-inline: 7px; overflow-wrap: anywhere; text-align: left; white-space: normal; color: var(--settings-accent, var(--color-brand)); font: var(--dsw-font-xs-13); }
 .ai-work-chat__file-change-trigger.ant-btn code, .ai-work-chat__file-change-path code { overflow-wrap: anywhere; color: var(--color-text-secondary); font: var(--settings-code-font-size, var(--font-size-sm))/1.45 var(--settings-code-font, var(--font-family-mono)); }
 .ai-work-chat__file-change-trigger.ant-btn > svg, .ai-work-chat__file-change-path > svg { flex: 0 0 auto; }
@@ -753,6 +769,33 @@ body[data-we-wallpaper][data-we-glass-floaters] .workbench-shell[data-wallpaper-
 .ai-work-chat__project-directories > button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ai-work-chat__project-new-folder { display: flex; gap: 6px; }
 .ai-work-chat__project-error { margin: 0; color: var(--color-danger, #c2413a); font-size: var(--font-size-xs); }
+.ai-work-chat__project-modal .ant-modal { width: min(760px, calc(100vw - 24px)) !important; max-width: 100%; }
+.ai-work-chat__project-modal .ant-modal-content { display: flex; max-height: calc(100dvh - 24px); flex-direction: column; overflow: hidden; }
+.ai-work-chat__project-modal .ant-modal-body { min-height: 0; overflow: auto; }
+.ai-work-chat__project-editor { display: grid; min-width: 0; gap: 10px; color: var(--color-text-primary); font-family: var(--settings-interface-font, var(--font-family-sans)); }
+.ai-work-chat__project-editor > label { margin-top: 3px; color: var(--color-text-primary); font-size: var(--font-size-sm); font-weight: 600; }
+.ai-work-chat__project-source-box { display: grid; min-height: 132px; align-content: center; justify-items: center; gap: 9px; padding: 16px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface-muted); }
+.ai-work-chat__project-source { display: flex; width: 100%; min-width: 0; align-items: center; gap: 9px; padding: 7px 9px; border: 1px solid var(--color-border-subtle); border-radius: 8px; background: var(--color-surface); }
+.ai-work-chat__project-source > svg { flex: 0 0 auto; color: var(--settings-accent, var(--color-brand)); }
+.ai-work-chat__project-source > span { min-width: 0; flex: 1; overflow: hidden; color: var(--color-text-secondary); font-size: var(--font-size-xs); text-overflow: ellipsis; white-space: nowrap; }
+.ai-work-chat__project-source > button { display: grid; width: 28px; height: 28px; flex: 0 0 auto; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--color-text-muted); cursor: pointer; }
+.ai-work-chat__project-source > button:hover:not(:disabled) { background: var(--color-surface-hover); color: var(--color-text-heading); }
+.ai-work-chat__project-source-empty { max-width: 440px; color: var(--color-text-muted); font-size: var(--font-size-xs); line-height: 1.55; text-align: center; }
+.ai-work-chat__project-path-entry { display: flex; width: 100%; min-width: 0; gap: 7px; }
+.ai-work-chat__project-path-entry .ant-input { min-width: 0; flex: 1; }
+.ai-work-chat__project-folder-picker { display: grid; width: 100%; min-width: 0; gap: 7px; padding: 8px; border: 1px solid var(--color-border-subtle); border-radius: 9px; background: var(--color-surface); }
+.ai-work-chat__project-folder-toolbar { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 6px; }
+.ai-work-chat__project-folder-toolbar > .ant-select { min-width: 78px; flex: 1 1 88px; }
+.ai-work-chat__project-folder-path { min-width: 0; overflow: hidden; color: var(--color-text-muted); font-size: var(--font-size-xs); text-overflow: ellipsis; white-space: nowrap; }
+.ai-work-chat__project-folder-picker .ai-work-chat__project-directories { max-height: min(220px, 28dvh); }
+.ai-work-chat__project-memory-help { margin: -4px 0 0; color: var(--color-text-muted); font-size: var(--font-size-xs); line-height: 1.55; }
+.ai-work-chat__project-info { display: flex; align-items: flex-start; gap: 10px; padding: 13px 15px; border-radius: 10px; background: var(--color-surface-muted); color: var(--color-text-secondary); font-size: var(--font-size-xs); line-height: 1.55; }
+.ai-work-chat__project-info > svg { flex: 0 0 auto; margin-top: 1px; color: var(--settings-accent, var(--color-brand)); }
+@media (max-width: 520px) {
+  .ai-work-chat__project-modal .ant-modal { width: calc(100vw - 16px) !important; margin: 8px auto; }
+  .ai-work-chat__project-modal .ant-modal-content { max-height: calc(100dvh - 16px); }
+  .ai-work-chat__project-source-box { min-height: 112px; padding: 11px; }
+}
 /* Wallpaper Engine 注入的全局白色光标规则带 !important；仅在 AI Work 提问框内跟随文字颜色覆盖它。 */
 .ai-work-chat__composer .ant-input.ant-input-outlined { width: 100%; min-width: 0; min-height: 52px; resize: none; padding: 7px 3px; border: 0; background: transparent; box-shadow: none; color: var(--color-text-heading); caret-color: var(--we-caret-color, currentColor); font-family: var(--settings-content-font, var(--settings-interface-font, var(--font-family-sans))); font-size: var(--settings-interface-font-size, var(--font-size-base)); line-height: 1.65; }
 .ai-work-chat__composer .ant-input:hover,

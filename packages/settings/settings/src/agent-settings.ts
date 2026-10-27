@@ -3,7 +3,7 @@
  * 作用：限制可见/可写路径、沿用类别校验与持久化，并把权限模式和领域配置留给其原 Owner。
  * 关联文件：core/tools/settings-tools.ts、service.ts、validation.ts。
  */
-import { defaultSettings, getUserSettings, listAiModelRoutes, listUserBackgroundOptionMetadata, saveUserSettings } from "./service.js";
+import { defaultSettings, getUserSettings, listAiAccounts, listAiModelRoutes, listUserBackgroundOptionMetadata, saveUserSettings } from "./service.js";
 import type { SettingsCategory, UserSettings } from "lfaa-util-values/src/settings-contract.js";
 import { appearanceBackgroundOptions, appearanceBackgroundTargets } from "lfaa-util-values/src/builtin-backgrounds.js";
 import { SETTINGS_CENTER_MENUS, type SettingsCenterMenuDefinition, type SettingsMenuId } from "lfaa-util-values/src/settings-menu-catalog.js";
@@ -72,7 +72,7 @@ const settingKeyLabels: Record<string, string> = {
   imageGenerationModelId: "图片生成模型", imageGenerationLocalModelId: "本地图片模型", imageGenerationLocalTimeoutSeconds: "本地图片模型加载时限",
   imageGenerationUnloadAfterMinutes: "本地图片模型空闲释放时间", videoGenerationMode: "视频生成方式", videoGenerationLocalModelId: "本地视频模型",
   videoGenerationLocalTimeoutSeconds: "本地视频模型加载时限", videoGenerationUnloadAfterMinutes: "本地视频模型空闲释放时间",
-  videoGenerationAccountId: "视频生成账户", videoGenerationModelId: "视频生成模型", videoGenerationDurationSeconds: "视频时长",
+  videoGenerationAccountId: "视频生成账户", videoGenerationModelId: "视频生成模型", videoTranscriptionAccountId: "视频语音识别账户", videoGenerationDurationSeconds: "视频时长",
   videoGenerationRatio: "视频画面比例", videoGenerationResolution: "视频分辨率", videoGenerationGenerateAudio: "生成视频音频",
   videoGenerationWatermark: "视频水印", maxSubagents: "最大子 Agent 数量", maxDelegationDepth: "最大委派深度",
   voiceInputEnabled: "语音输入", readResponsesAloud: "播报完成回复", commandTimeoutSeconds: "命令超时",
@@ -184,6 +184,11 @@ function fieldMenuIds(path: string, category: SettingsCategory): SettingsMenuId[
 
 function fieldLabel(path: string, categoryLabel: string): string {
   if (exactSettingLabels[path]) return exactSettingLabels[path];
+  const areaEffect = path.match(/^appearance\.areaEffects\.(login|appCenter|steamcmd|minecraft|writing|settings)\.(overlay|blur)$/u);
+  if (areaEffect) {
+    const area = appearanceBackgroundTargets.find(item => item.id === areaEffect[1])?.label ?? "此位置";
+    return `${area} · ${areaEffect[2] === "overlay" ? "背景遮罩" : "玻璃模糊"}`;
+  }
   const key = path.split(".").at(-1) ?? path;
   return `${categoryLabel} · ${settingKeyLabels[key] ?? key.replace(/([a-z0-9])([A-Z])/gu, "$1 $2")}`;
 }
@@ -193,6 +198,11 @@ function fieldDescription(path: string, menus: string[]): string {
     const targetId = path.slice("appearance.backgrounds.".length);
     const target = appearanceBackgroundTargets.find(item => item.id === targetId);
     return `只控制${target?.label ?? "此背景位置"}；六个背景位置分别保存，更新这一项不会改动其他位置。none 对应“纯色”。登录页只允许选择内置背景。`;
+  }
+  if (path.startsWith("appearance.areaEffects.")) {
+    const [, , targetId, effect] = path.split(".");
+    const target = appearanceBackgroundTargets.find(item => item.id === targetId);
+    return `只控制${target?.label ?? "此位置"}的${effect === "overlay" ? "背景遮罩" : "玻璃模糊"}；传 null 可清除区域覆盖并恢复继承全局 Appearance 值。`;
   }
   return `设置中心“${menus.join(" / ") || "账户设置"}”中的单项偏好；仅影响此字段。`;
 }
@@ -374,6 +384,15 @@ export function updateAgentSetting(userId: string, path: string, nextValue: unkn
   if (["aiRuntime.subagentAccountId", "aiRuntime.imageGenerationAccountId", "aiRuntime.videoGenerationAccountId"].includes(path)
     && nextValue !== "" && (typeof nextValue !== "string" || !routeOptions.some(route => route.accountId === nextValue))) {
     throw new Error("AI 账户必须来自设置中心当前账户的真实模型路由目录；未修改设置。");
+  }
+  if (path === "aiRuntime.videoTranscriptionAccountId" && nextValue !== "") {
+    const account = typeof nextValue === "string" ? listAiAccounts(userId).find(item => item.id === nextValue) : undefined;
+    const model = account?.models.find(item => item.id === "doubao-seed-asr-2.0" && item.taskType === "speech-to-text");
+    const tierAllowed = !model?.planTiers?.length || !account?.options.planTier || account.options.planTier === "unknown"
+      || model.planTiers.includes(account.options.planTier as NonNullable<typeof model.planTiers>[number]);
+    if (!account || account.providerId !== "ark-agent-plan" || !account.hasSecret || !model || !tierAllowed) {
+      throw new Error("视频语音识别账户必须是当前账户真实可用且包含支持档位的 Ark Agent Plan 语音模型账户；未修改设置。");
+    }
   }
   if (["aiRuntime.imageGenerationModelId", "aiRuntime.videoGenerationModelId"].includes(path) && nextValue !== "") {
     const accountPath = path.replace(/ModelId$/u, "AccountId");

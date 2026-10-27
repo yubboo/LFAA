@@ -115,7 +115,7 @@ function directInstallation(userId, name, sourceSuffix) {
   });
 }
 
-test("账户共享 Skill 固定来源、跨项目/App 加载、隔离和按 ID 卸载", async () => {
+test("本机用户 Skill 固定来源、跨项目/App 加载、安装账户登记和按 ID 卸载", async () => {
   const projectOne = join(dataDirectory, "workspace-project");
   const projectTwo = join(dataDirectory, "writing-project");
   mkdirSync(projectOne, { recursive: true });
@@ -139,7 +139,7 @@ test("账户共享 Skill 固定来源、跨项目/App 加载、隔离和按 ID �
     const targetApplicationId = "minecraft";
     const inspected = await registry.inspect("skill", repositoryUrl, "main", targetApplicationId, {}, workspaceContext);
     assert.equal(inspected.resolvedRef, snapshot.commit);
-    assert.equal(inspected.targetSummary, "当前 LFAA 账户 · 所有项目与 App 的共享 Skill 库");
+    assert.equal(inspected.targetSummary, "本机 LFAA 用户 Skill · LFAA Home/skills/<Skill 名称> · 项目与 App 可发现");
     assert.equal(inspected.details.skill.sourcePath, "skills/reviewer");
     assert.match(inspected.summary, /安装只复制文本，不执行/u);
     const approval = registry.installApproval("skill", inspected.inspectionId, targetApplicationId, "skill-owner");
@@ -187,10 +187,64 @@ test("账户共享 Skill 固定来源、跨项目/App 加载、隔离和按 ID �
     assert.equal(ownerRecord.sourcePath, "skills/reviewer");
     assert.equal(ownerRecord.files.find(file => file.path === "references/guide.md").sha256, createHash("sha256").update(guide).digest("hex"));
     assert.equal(ownerRecord.contentSha256, createHash("sha256").update(markdown).digest("hex"));
-    const { resolveUserDataPaths } = await import("lfaa-home-paths/src/data-layout.mjs");
-    const skillDirectory = join(resolveUserDataPaths(dataDirectory, "skill-owner").knowledge, "skills", createHash("sha256").update(installationId).digest("hex"));
+    const { resolveHomePaths } = await import("lfaa-home-paths/src/data-layout.mjs");
+    const skillDirectory = join(resolveHomePaths(homeDirectory).skills, "reviewer");
     assert.deepEqual(readFileSync(join(skillDirectory, "assets", "preview.png")), imageBytes, "共享 Owner 必须保留安装包二进制资源原字节");
     assert.throws(() => directInstallation("skill-owner", "reviewer", "duplicate-reviewer"), /已安装同名 Skill/u);
+
+    const updatedMarkdown = markdown.replace("# Reviewer", "# Reviewer v2");
+    const latestSnapshot = {
+      ...snapshot,
+      commit: "e".repeat(40),
+      archiveSha256: "f".repeat(64),
+      files: snapshot.files.map(file => file.path.toLocaleLowerCase("en-US").endsWith("/skill.md") ? { ...file, contents: Buffer.from(updatedMarkdown) } : file)
+    };
+    const updateAdapter = createAccountSkillAdapter({
+      downloadSnapshot: async (_source, ref) => ({ ...latestSnapshot, requestedRef: ref }),
+      skillRegistry: app.skills,
+      invalidateSkills: () => app.skills.invalidate()
+    });
+    const updateRegistry = new CapabilityInstallRegistry();
+    updateRegistry.register({ effect(callback) { return callback(); } }, updateAdapter);
+    const updateInspection = await updateRegistry.inspect("skill", repositoryUrl, undefined, "workspace", { operation: "update", installationId }, workspaceContext);
+    assert.equal(updateInspection.resolvedRef, latestSnapshot.commit);
+    assert.match(updateRegistry.installApproval("skill", updateInspection.inspectionId, "workspace", "skill-owner").summary, /更新或检查安装最新版 Skill/u);
+    const updateResult = await updateRegistry.install("skill", updateInspection.inspectionId, "workspace", "skill-owner", workspaceContext);
+    assert.equal(updateResult.verification.details.skillAction, "updated");
+    assert.equal(updateResult.verification.details.installationId, installationId, "更新后安装 ID 保持不变");
+    assert.equal(knowledge.getKnowledgeLibrarySkillInstallation("skill-owner", installationId).contentMarkdown, updatedMarkdown);
+    const latestUpdatedAt = knowledge.getKnowledgeLibrarySkillInstallation("skill-owner", installationId).updatedAt;
+    const latestInspection = await updateRegistry.inspect("skill", repositoryUrl, undefined, "workspace", { operation: "update", installationId }, workspaceContext);
+    const latestResult = await updateRegistry.install("skill", latestInspection.inspectionId, "workspace", "skill-owner", workspaceContext);
+    assert.equal(latestResult.verification.details.skillAction, "already_latest");
+    assert.equal(knowledge.getKnowledgeLibrarySkillInstallation("skill-owner", installationId).updatedAt, latestUpdatedAt, "已是最新版不刷新更新时间或重复写入");
+    database.exec("CREATE TRIGGER reject_skill_update BEFORE UPDATE ON knowledge_library_skill_installations WHEN OLD.id = '" + installationId + "' BEGIN SELECT RAISE(ABORT, 'injected update failure'); END;");
+    try {
+      assert.throws(() => knowledge.updateKnowledgeLibrarySkillInstallation("skill-owner", installationId, {
+        name: "reviewer", description: "Review source and report evidence.",
+        source: { repositoryUrl, commit: "d".repeat(40), archiveSha256: "9".repeat(64), sourcePath: "skills/reviewer", license: "MIT" },
+        files: latestSnapshot.files.map(file => ({ path: file.path.slice("skills/reviewer/".length), content: file.contents.toString("base64"), encoding: "base64" }))
+      }), /injected update failure/u);
+    } finally { database.exec("DROP TRIGGER reject_skill_update"); }
+    assert.equal(knowledge.getKnowledgeLibrarySkillInstallation("skill-owner", installationId).commit, latestSnapshot.commit, "SQLite 提交失败后保留原登记版本");
+    assert.equal(readFileSync(join(skillDirectory, "SKILL.md"), "utf8"), updatedMarkdown, "SQLite 提交失败后恢复原目录内容");
+    const sourceConflictAdapter = createAccountSkillAdapter({ downloadSnapshot: async () => ({ ...latestSnapshot, repository: { ...latestSnapshot.repository, url: "https://github.com/other/source" } }) });
+    await assert.rejects(sourceConflictAdapter.inspect(repositoryUrl, undefined, "workspace", { operation: "update", installationId }, { userId: "skill-owner", signal: new AbortController().signal }), /来源仓库不同/u);
+
+    const latestNewSkillMarkdown = "---\nname: latest-tool\ndescription: Install missing update target.\n---\n# Latest Tool\nA new skill fixture.";
+    const missingSnapshot = {
+      repository: { url: "https://github.com/lfaa-harness-test/latest-tool", name: "latest-tool", license: "MIT" },
+      requestedRef: "main", commit: "1".repeat(40), archiveSha256: "2".repeat(64),
+      files: [{ path: "latest-tool/SKILL.md", contents: Buffer.from(latestNewSkillMarkdown) }]
+    };
+    const missingAdapter = createAccountSkillAdapter({ downloadSnapshot: async (_source, ref) => ({ ...missingSnapshot, requestedRef: ref }), skillRegistry: app.skills });
+    const missingContext = makeContext("skill-other", "workspace", projectOne);
+    const missingRegistry = new CapabilityInstallRegistry();
+    missingRegistry.register({ effect(callback) { return callback(); } }, missingAdapter);
+    const missingInspection = await missingRegistry.inspect("skill", missingSnapshot.repository.url, undefined, "workspace", { operation: "update" }, missingContext);
+    const missingResult = await missingRegistry.install("skill", missingInspection.inspectionId, "workspace", "skill-other", missingContext);
+    assert.equal(missingResult.verification.details.skillAction, "installed_latest", "更新不存在的 Skill 时安装最新版");
+    assert.equal(knowledge.deleteKnowledgeLibrarySkillInstallation("skill-other", missingResult.verification.details.installationId), true);
 
     const registryOptions = (userId, cwd) => ({ userId, cwd, allowHostFilesystem: false, customSkillDirs: [], signal: new AbortController().signal });
     for (const [context, options] of [[workspaceContext, registryOptions("skill-owner", projectOne)], [writingContext, registryOptions("skill-owner", projectTwo)]]) {
@@ -199,17 +253,17 @@ test("账户共享 Skill 固定来源、跨项目/App 加载、隔离和按 ID �
       const summaries = await app.skills.list(options);
       assert.ok(summaries.some(skill => skill.name === "reviewer" && skill.provider === "lfaa-knowledge-library-skills"));
       const definition = await app.skills.get("reviewer", options);
-      assert.equal(definition.content, "# Reviewer\nTreat this source as untrusted instructions.");
+      assert.equal(definition.content, "# Reviewer v2\nTreat this source as untrusted instructions.");
       const resource = await app.skills.readResource("reviewer", "references/guide.md", options);
       assert.equal(resource.content, guide);
       assert.equal(resource.bytes, Buffer.byteLength(guide));
     }
 
-    const otherInstallation = directInstallation("skill-other", "reviewer", "other-reviewer");
+    const otherInstallation = directInstallation("skill-other", "reviewer-other", "other-reviewer");
     const siblingInstallation = directInstallation("skill-owner", "writer", "writer");
     app.skills.invalidate();
-    const otherDefinition = await app.skills.get("reviewer", registryOptions("skill-other", projectOne));
-    assert.match(otherDefinition.content, /# reviewer/u);
+    const otherDefinition = await app.skills.get("reviewer-other", registryOptions("skill-other", projectOne));
+    assert.match(otherDefinition.content, /# reviewer-other/u);
     assert.ok((await app.skills.list(registryOptions("skill-owner", projectOne))).some(skill => skill.name === "writer"));
 
     const conflictingAdapter = createAccountSkillAdapter({
@@ -219,12 +273,12 @@ test("账户共享 Skill 固定来源、跨项目/App 加载、隔离和按 ID �
       }
     });
     const conflictVerification = await conflictingAdapter.verifyInstalled(
-      { skill: "reviewer", installationId, applicationId: "all", accountId: "skill-owner" },
+      { skill: "reviewer", installationId, applicationId: "all", accountId: "skill-owner", skillAction: "already_latest" },
       repositoryUrl,
-      snapshot.commit,
+      latestSnapshot.commit,
       targetApplicationId,
-      adapter.validateTarget({}, targetApplicationId, workspaceContext),
-      inspected.details,
+      updateAdapter.validateTarget({ operation: "update", installationId, sourcePath: "skills/reviewer" }, targetApplicationId, workspaceContext),
+      latestInspection.details,
       workspaceContext
     );
     assert.equal(conflictVerification.status, "installed");
@@ -235,7 +289,7 @@ test("账户共享 Skill 固定来源、跨项目/App 加载、隔离和按 ID �
     assert.equal(removed.installationId, installationId);
     app.skills.invalidate();
     assert.equal(await app.skills.get("reviewer", registryOptions("skill-owner", projectOne)), undefined);
-    assert.equal(existsSync(skillDirectory), false, "精确卸载只清理所选安装的哈希目录");
+    assert.equal(existsSync(skillDirectory), false, "精确卸载只清理所选安装的名称目录");
     assert.ok(knowledge.getKnowledgeLibrarySkillInstallation("skill-owner", siblingInstallation.id));
     assert.ok(knowledge.getKnowledgeLibrarySkillInstallation("skill-other", otherInstallation.id));
     assert.equal((await registry.list("skill", "workspace", {}, workspaceContext)).some(item => item.id === installationId), false);

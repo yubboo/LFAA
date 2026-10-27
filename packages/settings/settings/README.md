@@ -36,7 +36,7 @@ Provider 与插件秘密凭据使用 LFAA Home `credentials/settings.key` 执行
 
 设置页沿用共享主题、字号、动效与响应式配置；[本轮提示词](../../../docs/development/file-resources.zh.md)。构建只写根 dist/packages/settings/settings。
 
-外观自定义背景由 Settings Owner 按认证账户保存文件与 MIME 索引；上传声明中的 MIME 只作提示，实际 PNG/JPEG/WebP 类型按文件签名确定，再由唯一尺寸解析和服务端 3 MiB、8192 边长、2000 万像素限制校验。素材文件回读、摘要、读取和删除继续按账户隔离；构建只写根 dist/packages/settings/settings。
+外观自定义背景由 Settings Owner 按认证账户保存文件与 MIME 索引；上传声明中的 MIME 只作提示，实际 PNG/JPEG/WebP 类型按文件签名确定，再由唯一尺寸解析和服务端 3 MiB、8192 边长、2000 万像素限制校验。私有素材保存在 `<LFAA_HOME>/users/<账户哈希>/assets/backgrounds/`，磁盘文件采用上传原名的安全版本与实际内容扩展名；同账户重名时追加 `(2)` 等可读序号，SQLite UUID 仍只用于内部引用。旧 UUID 文件与 SQLite BLOB 在摘要/内容回读核验后迁移，保留账户隔离并在成功写入前不删除原文件；构建只写根 dist/packages/settings/settings。
 
 `browserUse.webUrlOpenLocation` 与 `browserUse.localUrlOpenLocation` 默认均为 `lfaa`，按账户保存 Agent 打开公开网页与 localhost/loopback 开发 URL 的位置；`current-browser` 仅在本 Run 有可用的个人 Browser Adapter 或 CUA 时可执行。旧客户端省略新字段保存 Browser Use 设置时保留服务端已有偏好，并为缺失账户补共享默认值。工作区 HTML/HTM 预览仍由 Project Files Owner 提供受限临时页面。
 
@@ -55,3 +55,9 @@ Agent 设置目录由 `src/agent-settings.ts` 从当前账户 `UserSettings` 与
 `mini` 是账户级设置分类，默认伙伴为 `moss`、显示开启、窗口置顶开启、不透明度 100%；读取、严格校验、持久化和 Agent 单字段回读继续归 Settings Owner。`getUserSettingsSyncStatus()` 只返回当前账户已保存的分类和最新更新时间，不返回设置值/秘密；它描述当前自托管 Control Plane，不承诺独立 Control Plane 自动复制。
 
 `canvas` 是账户级画布偏好分类，默认 `defaultMode: "generate"`、`gridStyle: "dots"`、`snapToGrid: false`、`showMiniMap: true`（在画布左上角显示缩略图）、`agentPanelDefaultOpen: false`。枚举与布尔字段由本包 Strict 校验，未知字段拒绝；`getUserSettings` 为无记录/缺字段的旧账户补共享默认值，`saveUserSettings` 在旧客户端遗漏新字段时合并当前值而不覆盖已保存选择。画布生成模型继续读取 `aiRuntime` 的图片/视频生成账户与模型，本分类不复制第二套模型配置，也不代表生成能力已接通。
+
+账户 `appearance.areaEffects` 的逐区域遮罩/模糊由本包用同一 Joi Schema 做范围校验、旧账户补默认与持久化；`null` 代表继承全局值。旧客户端省略该对象或省略单个叶子时保留当前账户覆盖；登录背景结构缺少新增位置时也保留既有选择。Agent 设置目录从同一 Schema 暴露单字段更新。
+
+账户自定义外观预设保存在既有 `appearance` 分类的有界 `presets` 字段。快照 Schema 拒绝白名单外的设置；`validateAppearancePresetSnapshot()` 仅验证可移植文件结构，允许导出账户的私有背景 ID 等待重新上传，`validateUserAppearancePresetSnapshot()` 再校验当前账户素材归属。`applyUserAppearancePreset()` 在一个配置事务中恢复 Appearance 与白名单 General 布局，同时保留预设库及其他 General 偏好。
+
+`appearance.advanced.aiWorkOutputFocusBlurEnabled` 默认关闭；共享值和 Appearance Schema 使用相同默认，旧账户缺少该字段时只补关闭值，显式保存的账户开关不因默认变更而重置。

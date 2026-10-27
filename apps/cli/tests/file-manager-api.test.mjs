@@ -110,6 +110,23 @@ test("Daemon 心跳只接受显式登记的二进制文件传输能力", () => {
   assert.ok(daemonHeartbeatSchema.validate({ ...heartbeat, capabilities: ["node-filesystem-unregistered-v1"] }).error);
 });
 
+test("Daemon 心跳接受已登记的托管 Java 发行版并拒绝未知字段和值", () => {
+  const baseRuntime = {
+    runtimeId: "temurin-21", distribution: "temurin", major: 21, version: "21.0.8",
+    architecture: "x64", os: "windows", vendor: "Eclipse Temurin", managed: true,
+    source: "managed", executablePath: "C:\\test-data\\environments\\Java\\Java21\\bin\\java.exe"
+  };
+  const heartbeat = {
+    id: randomUUID(), displayName: "Java 心跳测试节点", platform: "win32", architecture: "x64", version: "test",
+    dataRoot: "C:\\test-data", capabilities: [], javaRuntimes: [baseRuntime], instances: []
+  };
+
+  assert.equal(daemonHeartbeatSchema.validate(heartbeat).error, undefined);
+  assert.equal(daemonHeartbeatSchema.validate({ ...heartbeat, javaRuntimes: [{ ...baseRuntime, runtimeId: "zulu-21", distribution: "zulu", vendor: "Azul Zulu" }] }).error, undefined);
+  assert.ok(daemonHeartbeatSchema.validate({ ...heartbeat, javaRuntimes: [{ ...baseRuntime, distribution: "corretto" }] }).error);
+  assert.ok(daemonHeartbeatSchema.validate({ ...heartbeat, javaRuntimes: [{ ...baseRuntime, executable: "unexpected.exe" }] }).error);
+});
+
 test("文件任务 Owner 深层拒绝 Buffer 和 Base64 字节字段", () => {
   assert.throws(() => createNodeFileTask({ nodeId, createdBy: userId, operation: "list", payload: { nested: { bytes: Buffer.from("file bytes") } } }), /不接受文件字节/u);
   assert.throws(() => createNodeFileTask({ nodeId, createdBy: userId, operation: "list", payload: { nested: { dataBase64: "Ynl0ZXM=" } } }), /不接受文件字节/u);

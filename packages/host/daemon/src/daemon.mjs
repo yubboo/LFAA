@@ -394,8 +394,6 @@ async function runLoop() {
         await pollRequest("/health");
         if (shuttingDown) break;
         controlPlaneReady = true;
-        if (lastControlPlaneError) process.stdout.write("Daemon 已连接控制端，开始处理心跳与任务。\n");
-        lastControlPlaneError = "";
       } catch (error) {
         if (shuttingDown) break;
         const message = safeMessage(error);
@@ -434,6 +432,8 @@ async function runLoop() {
         })
       });
       if (shuttingDown) break;
+      if (lastControlPlaneError) process.stdout.write("Daemon 已连接控制端，开始处理心跳与任务。\n");
+      lastControlPlaneError = "";
       knownSteamcmdServerIds = Array.isArray(heartbeat?.steamcmdServers)
         ? heartbeat.steamcmdServers.map(item => item?.id).filter(id => typeof id === "string" && /^[0-9a-f-]{36}$/iu.test(id)).slice(0, 500) : [];
       for (const id of heartbeat?.cancelTaskIds ?? []) {

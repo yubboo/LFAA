@@ -5,6 +5,7 @@
  */
 import { DEFAULT_USER_SETTINGS, type AppearanceSettings } from "lfaa-util-values/src/settings-contract.js";
 import { minecraftSceneBackgrounds } from "lfaa-util-values/src/builtin-backgrounds.js";
+import { resolveLoginAreaOverlay } from "./appearance-area-effects.js";
 
 const loginAppearanceStorageKey = "lfaa:login-appearance.v1";
 const legacyLoginBackgroundStorageKey = "lfaa:login-background";
@@ -27,6 +28,7 @@ export interface LoginAppearanceSnapshot {
   accentColor: string;
   loginBackgroundId: string;
   overlay: number;
+  loginOverlayOverride: number | null;
   advanced: {
     interfaceFontSize: number;
     reducedMotion: AppearanceSettings["advanced"]["reducedMotion"];
@@ -42,6 +44,7 @@ export interface ResolvedLoginAppearance {
   accentColor: string;
   loginBackgroundId: string;
   overlay: number;
+  loginOverlayOverride: number | null;
   interfaceFontSize: number;
   reducedMotion: AppearanceSettings["advanced"]["reducedMotion"];
   fonts: AppearanceFonts;
@@ -54,6 +57,7 @@ const defaultSnapshot: LoginAppearanceSnapshot = {
   accentColor: defaultAppearance.accentColor,
   loginBackgroundId: defaultAppearance.backgrounds.login,
   overlay: defaultAppearance.overlay,
+  loginOverlayOverride: null,
   advanced: {
     interfaceFontSize: defaultAppearance.advanced.interfaceFontSize,
     reducedMotion: defaultAppearance.advanced.reducedMotion,
@@ -114,6 +118,8 @@ function readSnapshot(value: unknown, legacyBackgroundId?: string | null): Login
 
   const advanced = isRecord(value.advanced) ? value.advanced : {};
   const backgrounds = isRecord(value.backgrounds) ? value.backgrounds : {};
+  const areaEffects = isRecord(value.areaEffects) ? value.areaEffects : {};
+  const loginAreaEffects = isRecord(areaEffects.login) ? areaEffects.login : {};
   const modeStyles = isRecord(advanced.modeStyles) ? advanced.modeStyles : {};
   return {
     theme: value.theme === "light" || value.theme === "dark" || value.theme === "system" ? value.theme : defaultSnapshot.theme,
@@ -124,6 +130,12 @@ function readSnapshot(value: unknown, legacyBackgroundId?: string | null): Login
     overlay: typeof value.overlay === "number" && Number.isInteger(value.overlay) && value.overlay >= 0 && value.overlay <= 75
       ? value.overlay
       : defaultSnapshot.overlay,
+    // 新缓存保存独立覆盖；旧缓存从全局遮罩回退，且不读取其他账户或账户私有视觉数据。
+    loginOverlayOverride: value.loginOverlayOverride === null || typeof value.loginOverlayOverride === "number" && Number.isInteger(value.loginOverlayOverride) && value.loginOverlayOverride >= 0 && value.loginOverlayOverride <= 75
+      ? value.loginOverlayOverride
+      : loginAreaEffects.overlay === null || typeof loginAreaEffects.overlay === "number" && Number.isInteger(loginAreaEffects.overlay) && loginAreaEffects.overlay >= 0 && loginAreaEffects.overlay <= 75
+        ? loginAreaEffects.overlay
+        : defaultSnapshot.loginOverlayOverride,
     advanced: {
       interfaceFontSize: typeof advanced.interfaceFontSize === "number" && Number.isInteger(advanced.interfaceFontSize) && advanced.interfaceFontSize >= 10 && advanced.interfaceFontSize <= 24
         ? advanced.interfaceFontSize
@@ -181,6 +193,16 @@ export function resolveLoginBackgroundImage(backgroundId: string): string | null
   return loginBackgroundFiles[backgroundId] ?? loginBackgroundFiles[defaultLoginBackgroundId] ?? null;
 }
 
+/**
+ * 登录页壁纸沿用账户遮罩设置，但将其强度限制为全局值的 40%，避免整屏白雾或深灰遮暗。
+ * 外观设置仍是唯一强度来源，0% 保持无遮罩，设置越高遮罩越明显。
+ */
+export function resolveLoginBackgroundOverlayColor(overlay: number, theme: "light" | "dark", override?: number | null): string {
+  const opacity = Number((resolveLoginAreaOverlay(overlay, override) / 100).toFixed(3));
+  const color = theme === "dark" ? "24, 24, 24" : "255, 255, 255";
+  return `rgba(${color}, ${opacity})`;
+}
+
 export function resolveLoginAppearance(snapshot: LoginAppearanceSnapshot, systemDark: boolean): ResolvedLoginAppearance {
   const theme = snapshot.theme === "system" ? systemDark ? "dark" : "light" : snapshot.theme;
   const modeStyle = snapshot.advanced.modeStyles[theme];
@@ -189,6 +211,7 @@ export function resolveLoginAppearance(snapshot: LoginAppearanceSnapshot, system
     accentColor: snapshot.advanced.separateModes ? modeStyle.accentColor : snapshot.accentColor,
     loginBackgroundId: snapshot.loginBackgroundId,
     overlay: snapshot.overlay,
+    loginOverlayOverride: snapshot.loginOverlayOverride,
     interfaceFontSize: snapshot.advanced.interfaceFontSize,
     reducedMotion: snapshot.advanced.reducedMotion,
     fonts: snapshot.advanced.separateModes ? modeStyle.fonts : snapshot.advanced.fonts,

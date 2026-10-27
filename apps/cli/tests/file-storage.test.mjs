@@ -78,8 +78,12 @@ test("AI Work 回复聚焦虚化外观设置通过账户保存，旧设置补默
       assert.equal(settings.defaultSettings.appearance.advanced.aiWorkOutputFocusBlurIdleSeconds,60);
       const legacy=structuredClone(settings.defaultSettings.appearance);
       delete legacy.wallpaperEngine;
+      delete legacy.areaEffects;
       assert.equal(appearanceSettingsSchema.validate(legacy).error,undefined);
       assert.deepEqual(appearanceSettingsSchema.validate(legacy).value.wallpaperEngine,{enabled:false,projectId:''});
+      assert.deepEqual(appearanceSettingsSchema.validate(legacy).value.areaEffects,settings.defaultSettings.appearance.areaEffects,'旧客户端缺少区域覆盖时只补继承默认');
+      assert.equal(appearanceSettingsSchema.validate({...legacy,areaEffects:{...legacy.areaEffects,login:{overlay:76}}}).error?.details[0].type,'number.max');
+      assert.equal(appearanceSettingsSchema.validate({...legacy,areaEffects:{...legacy.areaEffects,appCenter:{overlay:0,blur:33}}}).error?.details[0].type,'number.max');
       assert.equal(appearanceSettingsSchema.validate({...legacy,wallpaperEngine:{enabled:true,projectId:'1234567890'}}).error,undefined);
       assert.equal(appearanceSettingsSchema.validate({...legacy,wallpaperEngine:{enabled:true,projectId:'workshop_scene-01'}}).error,undefined);
       assert.equal(appearanceSettingsSchema.validate({...legacy,wallpaperEngine:{enabled:true,projectId:'invalid id'}}).error?.details[0].path.join('.'),'wallpaperEngine.projectId');
@@ -90,7 +94,7 @@ test("AI Work 回复聚焦虚化外观设置通过账户保存，旧设置补默
       delete legacy.advanced.aiWorkOutputFocusBlurIdleSeconds;
       const legacyValidation=appearanceSettingsSchema.validate(legacy);
       assert.equal(legacyValidation.error,undefined);
-      assert.equal(legacyValidation.value.advanced.aiWorkOutputFocusBlurEnabled,true);
+      assert.equal(legacyValidation.value.advanced.aiWorkOutputFocusBlurEnabled,false);
       assert.equal(legacyValidation.value.advanced.aiWorkOutputFocusBlurPercent,undefined);
       assert.equal(legacyValidation.value.advanced.aiWorkOutputFocusBlurIdleSeconds,60);
       assert.equal(appearanceSettingsSchema.validate({...legacy,advanced:{...legacy.advanced,aiWorkOutputFocusBlurIdleSeconds:59}}).error?.details[0].type,'number.min');
@@ -107,10 +111,12 @@ test("AI Work 回复聚焦虚化外观设置通过账户保存，旧设置补默
       assert.equal(restored.blur,19);
       assert.deepEqual(restored.wallpaperEngine,{enabled:false,projectId:''});
       assert.equal(restored.advanced.interfaceFontSize,17);
-      assert.equal(restored.advanced.aiWorkOutputFocusBlurEnabled,true);
+      assert.equal(restored.advanced.aiWorkOutputFocusBlurEnabled,false);
       assert.equal(restored.advanced.aiWorkOutputFocusBlurPercent,33);
       assert.equal(restored.advanced.aiWorkOutputFocusBlurIdleSeconds,60);
       assert.equal(restored.advanced.aiWorkOutputFocusBlurAmount,undefined);
+      settings.saveUserSettings('appearance-owner','appearance',{...restored,advanced:{...restored.advanced,aiWorkOutputFocusBlurEnabled:true}});
+      assert.equal(settings.getUserSettings('appearance-owner').appearance.advanced.aiWorkOutputFocusBlurEnabled,true,'显式保存的开启偏好必须保留');
       const oldPixels={...restored,advanced:{...restored.advanced,aiWorkOutputFocusBlurPercent:undefined,aiWorkOutputFocusBlurAmount:13}};
       settings.saveUserSettings('appearance-owner','appearance',oldPixels);
       const migrated=settings.getUserSettings('appearance-owner').appearance;
@@ -123,6 +129,15 @@ test("AI Work 回复聚焦虚化外观设置通过账户保存，旧设置补默
       assert.equal(settings.getUserSettings('appearance-owner').appearance.advanced.aiWorkOutputFocusBlurPercent,54);
       assert.equal(settings.getUserSettings('appearance-owner').appearance.advanced.aiWorkOutputFocusBlurIdleSeconds,180);
       assert.deepEqual(settings.getUserSettings('appearance-owner').appearance.wallpaperEngine,{enabled:true,projectId:'a'.repeat(32)});
+      const areaUpdated={...settings.getUserSettings('appearance-owner').appearance,areaEffects:{...settings.getUserSettings('appearance-owner').appearance.areaEffects,login:{overlay:0},settings:{overlay:17,blur:23}}};
+      settings.saveUserSettings('appearance-owner','appearance',areaUpdated);
+      const oldClient={...settings.getUserSettings('appearance-owner').appearance};
+      delete oldClient.areaEffects;
+      oldClient.backgrounds={appCenter:oldClient.backgrounds.appCenter,steamcmd:oldClient.backgrounds.steamcmd,minecraft:oldClient.backgrounds.minecraft,writing:oldClient.backgrounds.writing,settings:oldClient.backgrounds.settings};
+      settings.saveUserSettings('appearance-owner','appearance',oldClient);
+      const afterOldClient=settings.getUserSettings('appearance-owner').appearance;
+      assert.deepEqual(afterOldClient.areaEffects,areaUpdated.areaEffects,'旧客户端省略新字段时保留已保存区域覆盖');
+      assert.equal(afterOldClient.backgrounds.login,areaUpdated.backgrounds.login,'旧背景结构省略登录页时保留账户选择');
       ${close}
     `);
   } finally {
@@ -147,23 +162,47 @@ test("旧外观背景 BLOB 校验后迁入用户素材目录，新图片不在 S
       assert.equal(database.prepare("SELECT length(image_data) AS size FROM appearance_backgrounds WHERE id=?").get('user-00000000-0000-4000-8000-000000000001').size,0);
        const {resolveUserAccountPaths}=await import('lfaa-home-paths/src/data-layout.mjs');
       const {existsSync,readdirSync,readFileSync,writeFileSync}=await import('node:fs');
+      const {createHash}=await import('node:crypto');
       const {resolve}=await import('node:path');
        const directory=resolveUserAccountPaths(process.env.LFAA_HOME,'background-owner').backgrounds;
       assert.ok(readdirSync(directory).some(name=>name.endsWith('.png')));
       assert.ok(readdirSync(directory).some(name=>name.endsWith('.meta.json')));
+      const oldFilename=database.prepare("SELECT storage_filename FROM appearance_backgrounds WHERE id=?").get('user-00000000-0000-4000-8000-000000000001').storage_filename;
+      assert.equal(oldFilename,'旧背景.png','旧 SQLite BLOB 迁移后应以可读图片名落盘');
+      const legacyId='user-00000000-0000-4000-8000-000000000002';
+      const legacyPath=resolve(directory,legacyId+'.png');
+      writeFileSync(legacyPath,image);
+      writeFileSync(resolve(directory,legacyId+'.meta.json'),JSON.stringify({version:1,sha256:createHash('sha256').update(image).digest('hex')}));
+      database.prepare("INSERT INTO appearance_backgrounds(user_id,id,display_name,mime_type,image_data) VALUES (?,?,?,?,?)").run('background-owner',legacyId,'旧文件名.png','image/png',Buffer.alloc(0));
+      const migratedLegacy=settings.getUserBackground('background-owner',legacyId);
+      assert.ok(migratedLegacy.data.equals(image));
+      const legacyFilename=database.prepare("SELECT storage_filename FROM appearance_backgrounds WHERE id=?").get(legacyId).storage_filename;
+      assert.equal(legacyFilename,'旧文件名.png');
+      assert.equal(existsSync(legacyPath),false,'校验后的新文件写入后才删除 UUID 旧文件');
+      assert.ok(existsSync(resolve(directory,legacyFilename)));
       const uploaded=settings.saveUserBackground('background-owner','data:image/png;base64,'+image.toString('base64'),'新背景');
       assert.ok(settings.getUserBackground('background-owner',uploaded.id).data.equals(image));
       assert.equal(database.prepare("SELECT length(image_data) AS size FROM appearance_backgrounds WHERE id=?").get(uploaded.id).size,0);
+      const uploadedFilename=database.prepare("SELECT storage_filename FROM appearance_backgrounds WHERE id=?").get(uploaded.id).storage_filename;
+      assert.equal(uploadedFilename,'新背景.png');
+      const duplicate=settings.saveUserBackground('background-owner','data:image/png;base64,'+image.toString('base64'),'新背景.PNG');
+      const duplicateFilename=database.prepare("SELECT storage_filename FROM appearance_backgrounds WHERE id=?").get(duplicate.id).storage_filename;
+      assert.equal(duplicateFilename,'新背景 (2).png','同名图片应追加可读序号且不覆盖');
+      assert.ok(settings.getUserBackground('background-owner',duplicate.id).data.equals(image));
+      settings.deleteUserBackground('background-owner',duplicate.id);
+      assert.equal(existsSync(resolve(directory,duplicateFilename)),false);
       const mislabeledJpeg=Buffer.from([255,216,255,192,0,7,8,0,1,0,1]);
       const normalized=settings.saveUserBackground('background-owner','data:image/png;base64,'+mislabeledJpeg.toString('base64'),'浏览器误标 JPEG');
       assert.equal(normalized.mimeType,'image/jpeg','格式应由实际文件签名判定，而非 File.type 标签');
       assert.ok(settings.getUserBackground('background-owner',normalized.id).data.equals(mislabeledJpeg));
-      const normalizedPath=resolve(directory,normalized.id+'.jpg');
+      const normalizedFilename=database.prepare("SELECT storage_filename FROM appearance_backgrounds WHERE id=?").get(normalized.id).storage_filename;
+      const normalizedPath=resolve(directory,normalizedFilename);
+      assert.equal(normalizedFilename,'浏览器误标 JPEG.jpg','扩展名应与实际 JPEG 内容一致');
       assert.ok(existsSync(normalizedPath),'应按实际 JPEG 格式生成素材路径');
       settings.deleteUserBackground('background-owner',normalized.id);
       assert.equal(existsSync(normalizedPath),false);
       assert.throws(()=>settings.saveUserBackground('background-owner','data:image/png;base64,'+Buffer.from('not an image').toString('base64'),'无效格式'),/无法识别图片内容/);
-      const path=resolve(directory,uploaded.id+'.png');
+      const path=resolve(directory,uploadedFilename);
       const original=readFileSync(path); writeFileSync(path,Buffer.alloc(24));
       assert.throws(()=>settings.getUserBackground('background-owner',uploaded.id),/摘要不匹配/);
       writeFileSync(path,original);
@@ -345,8 +384,8 @@ test("旧 SQLite/JSON 用户设置迁入账户文件，SQLite 控制数据与 JS
       assert.deepEqual(prefs.getUserPreferences('fixture-owner'),{selectedApp:'writing',selectedMode:'ai-work'});
       assert.equal(sessions.getAiSessionMessages('fixture-owner','fixture-session')[0].content,'保留原文\\n第二行');
       assert.equal(sessions.getAiSessionMessages('different-owner','fixture-session'),null);
-        // 当前 schema 为 v68；用户设置文件与 Session JSONL 均由各自 Owner 管理。
-        assert.equal(database.prepare('PRAGMA user_version').get().user_version,69);
+        // 当前 schema 为 v72；用户设置文件与 Session JSONL 均由各自 Owner 管理。
+        assert.equal(database.prepare('PRAGMA user_version').get().user_version,72);
       assert.ok(database.prepare('PRAGMA table_info(ai_sessions)').all().some(column=>column.name==='jsonl_revision'));
       assert.equal(database.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type='table' AND name IN ('ai_messages','ai_usage','user_settings','ai_accounts','user_preferences')").get().count,0);
       assert.equal(configuration.get('user_preferences',row=>row.user_id==='fixture-owner').selected_mode,'ai-work');
@@ -373,7 +412,7 @@ test("旧 SQLite/JSON 用户设置迁入账户文件，SQLite 控制数据与 JS
       const snapshot={version:1,revision:Number(state.revision),tables:Object.fromEntries(tableNames.map(table=>[table,configuration.all(table)])),credential_records:configuration.listCredentialRecords('fixture-owner')};
        writeFileSync(resolve(process.env.LFAA_HOME,'storages/configuration.json'),encode(snapshot));
         // 合成 v46 旧库必须撤回后续迁移新增的表列，不能只回退版本号后重放迁移。
-        database.exec('DROP TABLE knowledge_library_skill_installations; DROP TABLE runtime_environment_tasks; ALTER TABLE minecraft_tasks DROP COLUMN cancel_requested; DROP TABLE node_file_audit; DROP TABLE writing_local_file_migrations; ALTER TABLE writing_chapters DROP COLUMN word_count; ALTER TABLE writing_chapter_revisions DROP COLUMN word_count; ALTER TABLE writing_book_outline_revisions DROP COLUMN word_count; DROP INDEX ai_tool_approvals_scope_memory_idx; DROP TABLE ai_tool_permission_memory_state; ALTER TABLE ai_tool_approvals DROP COLUMN decision_mode; ALTER TABLE ai_tool_approvals DROP COLUMN memory_generation; DROP TABLE workspace_default_projects; DROP TABLE agent_git_session_bindings; DROP TABLE agent_git_repositories; DROP TABLE browser_recent_sites; DROP TABLE steamcmd_servers; DROP TABLE account_agent_usage_reservations; DROP TABLE account_agent_usage_daily; DROP TABLE account_agent_usage_policies; DROP TABLE account_snapshots; DROP TABLE account_trusted_contact_invites; DROP TABLE account_trusted_recovery_requests; DROP TABLE account_trusted_contacts; ALTER TABLE ai_host_tasks DROP COLUMN sandbox_mode; ALTER TABLE ai_host_tasks DROP COLUMN workspace_root; DROP TABLE configuration_storage_state; DROP TABLE configuration_credentials; DROP TABLE configuration_records; PRAGMA user_version = 46;');
+        database.exec('DROP INDEX appearance_backgrounds_user_storage_filename_idx; ALTER TABLE appearance_backgrounds DROP COLUMN storage_filename; DROP TABLE workspace_project_applications; DROP TABLE project_conversation_memories; DROP TABLE workspace_project_sources; ALTER TABLE workspace_projects DROP COLUMN instructions; ALTER TABLE workspace_projects DROP COLUMN memory_mode; DROP TABLE knowledge_library_skill_installations; DROP TABLE runtime_environment_tasks; ALTER TABLE minecraft_tasks DROP COLUMN cancel_requested; DROP TABLE node_file_audit; DROP TABLE writing_local_file_migrations; ALTER TABLE writing_chapters DROP COLUMN word_count; ALTER TABLE writing_chapter_revisions DROP COLUMN word_count; ALTER TABLE writing_book_outline_revisions DROP COLUMN word_count; DROP INDEX ai_tool_approvals_scope_memory_idx; DROP TABLE ai_tool_permission_memory_state; ALTER TABLE ai_tool_approvals DROP COLUMN decision_mode; ALTER TABLE ai_tool_approvals DROP COLUMN memory_generation; DROP TABLE workspace_default_projects; DROP TABLE agent_git_session_bindings; DROP TABLE agent_git_repositories; DROP TABLE browser_recent_sites; DROP TABLE steamcmd_servers; DROP TABLE account_agent_usage_reservations; DROP TABLE account_agent_usage_daily; DROP TABLE account_agent_usage_policies; DROP TABLE account_snapshots; DROP TABLE account_trusted_contact_invites; DROP TABLE account_trusted_recovery_requests; DROP TABLE account_trusted_contacts; ALTER TABLE ai_host_tasks DROP COLUMN sandbox_mode; ALTER TABLE ai_host_tasks DROP COLUMN workspace_root; DROP TABLE configuration_storage_state; DROP TABLE configuration_credentials; DROP TABLE configuration_records; PRAGMA user_version = 46;');
       ${close}
     `);
     const home = homesByDataDirectory.get(data);
@@ -383,7 +422,7 @@ test("旧 SQLite/JSON 用户设置迁入账户文件，SQLite 控制数据与 JS
     assert.throws(() => run(data, `${imports}${files}${close}`));
     writeFileSync(sourcePath, validSource);
     run(data, `${imports}${files}
-        assert.equal(database.prepare('PRAGMA user_version').get().user_version,69);
+        assert.equal(database.prepare('PRAGMA user_version').get().user_version,72);
       assert.equal(settings.getUserSettings('fixture-owner').appearance.theme,'dark');
       assert.equal(settings.getUserSettings('fixture-owner').appearance.blur,17);
       assert.equal(settings.getUserSettings('fixture-owner').permissions.mode,'full_access');

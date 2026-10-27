@@ -6,9 +6,9 @@
 
 `dsh-wallpaper-appearance.ts` 是固定 Wallpaper Engine Client 的 Appearance 兼容层：活动 DSH 画布时把插件运行时的强调色、可读性地板、玻璃色/透明度/模糊/边框及逐面变量映射为 LFAA 共享令牌；聊天直接消费插件生成的 `--we-chat-glass-fill`，侧栏、设置面和浮层按 DSH 的逐面混色权重与滤镜呈现。插件停用或画布不活动时由 Workbench 不装配该覆盖，账户 Appearance 自然生效。它仅读取 DSH Client 在 body 上已公布的 CSS 令牌，不复制插件设置、不请求数据、不增加观察器；`ctx.theme` 的偏好和受限颜色/字体角色仍由 `dsh-theme-bridge.ts` 单独适配。当前 LFAA 没有面向用户任意主题包的 Theme Registry、选择持久化或完整语义令牌校验；第三方主题包不能借 Wallpaper Engine 的专用桥接进入 Client。
 
-`appearance-theme-bootstrap.ts` 为刷新首帧缓存主题偏好与当前路由的内置壁纸遮罩；画布缓存只允许公开图片路径，并与账户 `appearance.overlay` 同步。`apps/web/index.html` 在样式和 React 到达前用同主题色与透明度绘制壁纸，工作台挂载后交由 `appearance.theme`、`appearance.overlay` 与现有表面 `appearance.blur` 令牌继续呈现。Wallpaper Engine 独占画布时不缓存 LFAA 壁纸。
+`appearance-theme-bootstrap.ts` 为刷新首帧缓存主题偏好与当前路由的内置壁纸遮罩；画布缓存只允许公开图片路径，并使用当前 Workbench 区域解析后的遮罩值。`appearance-area-effects.ts` 统一解析登录页和 Workbench 的 `appearance.areaEffects`：明确覆盖优先，缺省逐字段继承全局遮罩/模糊；登录未覆盖时仍将全局遮罩按 40% 映射。`apps/web/index.html` 在样式和 React 到达前用同一遮罩值绘制壁纸，工作台挂载后交由共享令牌继续呈现。Wallpaper Engine 独占画布时不缓存 LFAA 壁纸。
 
-`login-appearance.ts` 只缓存已确认的登录页外观白名单并按用户名隔离，AuthView 仅在输入用户名匹配时使用；登录背景沿用当前设备的内置图片 ID，不保存上传图片或插件设置。账户 Appearance 仍由 Settings Owner 持久化，账号不匹配或缓存损坏时回到 `DEFAULT_USER_SETTINGS.appearance`。
+`login-appearance.ts` 只缓存已确认的登录页外观白名单并按用户名隔离，AuthView 仅在输入用户名匹配时使用；登录背景沿用当前设备的内置图片 ID，不保存上传图片或插件设置。登录区域可显式设置自己的遮罩；未设置时仍将全局 `appearance.overlay` 强度缩放至 40%，维持原有保守显示。账户 Appearance 仍由 Settings Owner 持久化，账号不匹配或缓存损坏时回到 `DEFAULT_USER_SETTINGS.appearance`。
 
 共享卡片列表最多为前六张卡片播放入场效果，第二至第六张之间每项错开 40ms；Minecraft 任务列表使用这一共享样式。效果只在现有 `general.cardMotionEffect` 启用时播放，并遵循 `appearance.advanced.reducedMotion` 与系统减少动态效果偏好。
 

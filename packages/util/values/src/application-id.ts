@@ -6,6 +6,22 @@
 export const APPLICATION_IDS = ["steamcmd", "minecraft", "connectivity", "writing", "workspace", "aivideo"] as const;
 export type ApplicationId = typeof APPLICATION_IDS[number];
 
+/** 供项目提供领域背景的正式业务 App；通用 AI Work 入口本身不属于项目关联领域。 */
+export const WORKSPACE_PROJECT_CONTEXT_APPLICATION_IDS = APPLICATION_IDS.filter(
+  (applicationId): applicationId is Exclude<ApplicationId, "workspace"> => applicationId !== "workspace"
+);
+export type WorkspaceProjectContextApplicationId = typeof WORKSPACE_PROJECT_CONTEXT_APPLICATION_IDS[number];
+
+/** 应用显示名称与稳定 ID 共用唯一目录，供项目关联等共享界面消费。 */
+export const APPLICATION_LABELS: Record<ApplicationId, string> = {
+  steamcmd: "SteamCMD 游戏服务",
+  minecraft: "Minecraft 管理",
+  connectivity: "LFAA 联机服务",
+  writing: "写作空间",
+  workspace: "小鱼智能体",
+  aivideo: "AI 漫剧"
+};
+
 /** 工作台“应用”菜单的真实入口 ID；与 App ID 区分，保留游戏库这一聚合入口。 */
 export const APPLICATION_NAVIGATION_IDS = ["games", "steamcmd", "minecraft", "connectivity", "writing", "aivideo", "canvas"] as const;
 export type ApplicationNavigationId = typeof APPLICATION_NAVIGATION_IDS[number];

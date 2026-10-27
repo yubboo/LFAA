@@ -14,6 +14,7 @@ import { appendShellCommandActivityPreview, sanitizeShellCommandActivityPreview 
 import { buildAiProjectFileChanges } from "../../../packages/core/agent-loop/src/project-file-activity.ts";
 import { buildWebActivityPreview } from "../../../packages/core/agent-loop/src/web-activity.ts";
 import { toolExecutionState } from "../../../packages/core/agent-loop/src/tool-outcome.ts";
+import { browserObservationContent } from "../../../packages/core/agent-loop/src/execute-turn.ts";
 
 test("顶层与嵌套任务结果保持失败、运行中及未知状态，不能误记为成功写入", () => {
   for (const wrap of [value => value, value => ({task:value})]) {
@@ -28,6 +29,25 @@ test("顶层与嵌套任务结果保持失败、运行中及未知状态，不�
   assert.equal(toolExecutionState({executionState:'cancelled'},true),'unconfirmed');
   // 节点 Shell 将任务头与执行结果分开返回，未知副作用不能被 succeeded 任务头覆盖。
   assert.equal(toolExecutionState({task:{status:'succeeded'},result:{outcome:'unknown'}},true),'unconfirmed');
+});
+
+test("浏览器观察把有界无障碍树作为不可信 JSON 交给模型", () => {
+  const content = browserObservationContent({
+    url: "https://example.test/settings", title: "设置", pageText: "设置中心", controls: [], tabs: [],
+    accessibilityTree: [{ role: "main", children: [{ role: "button", name: "保存", disabled: true }] }]
+  });
+  assert.equal(content.length, 1);
+  assert.equal(content[0].type, "text");
+  const payloadStart = content[0].text.indexOf("{", content[0].text.indexOf("下方 JSON"));
+  const payload = JSON.parse(content[0].text.slice(payloadStart));
+  assert.deepEqual(payload.accessibilityTree, [{ role: "main", children: [{ role: "button", name: "保存", disabled: true }] }]);
+
+  const oversized = browserObservationContent({
+    url: "https://example.test/", title: "", pageText: "", controls: [], tabs: [],
+    accessibilityTree: [{ role: "text", text: "x".repeat(9_000) }]
+  });
+  const oversizedStart = oversized[0].text.indexOf("{", oversized[0].text.indexOf("下方 JSON"));
+  assert.deepEqual(JSON.parse(oversized[0].text.slice(oversizedStart)).accessibilityTree, { status: "omitted", reason: "无障碍树超出 Agent 输入上限。" });
 });
 
 const cli = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -148,7 +168,7 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
       });
       mcpServer.listen(0,'127.0.0.1');await once(mcpServer,'listening');const mcpUrl='http://127.0.0.1:'+mcpServer.address().port+'/mcp';
       retireLegacyFileTables();
-      assert.equal(database.prepare('PRAGMA user_version').get().user_version,69);
+      assert.equal(database.prepare('PRAGMA user_version').get().user_version,72);
       const {aiRuntimeSettingsSchema}=await import('lfaa-api-remotes/src/route-contracts.js');
       const {AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN,AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN}=await import('lfaa-util-values/src/settings-contract.js');
       assert.equal(aiRuntimeSettingsSchema.validate({...settings.defaultSettings.aiRuntime,maxModelRequests:0,maxToolCalls:0}).error,undefined);
@@ -279,7 +299,7 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
         }else if(scenario==='stdioComputerUse'){
           const toolResults=body.messages.filter(message=>message.role==='tool');
           if(toolResults.length===0){const system=body.messages.find(message=>message.role==='system')?.content??'';assert.match(system,/untrusted-mcp-instructions/u);assert.match(system,/先调用 get_app_state/u);const observe=body.tools.find(tool=>tool.function.name.startsWith('mcp_stdio_cua_'));assert.ok(observe,'已登记的本机 Computer-Use MCP 工具必须按自然语言目标进入模型目录');delta={tool_calls:[{index:0,id:'fixture-stdio-observe',type:'function',function:{name:observe.function.name,arguments:JSON.stringify({app:'当前窗口'})}}]};}
-          else{const result=toolResults.at(-1).content;assert.ok(Array.isArray(result),'MCP 工具结果应保留多模态消息而不是 JSON 文本');assert.ok(result.some(part=>part.type==='text'&&part.text.includes('测试窗口')));assert.ok(result.some(part=>part.type==='image_url'&&part.image_url.url.startsWith('data:image/png;base64,')),'模型必须收到本轮临时截图');delta={content:'我看到了当前窗口的画面'};}
+          else{const result=toolResults.at(-1).content;assert.equal(typeof result,'string','工具配对 observation 应保留可读文本');assert.ok(result.includes('测试窗口'));const imageMessage=body.messages.find(message=>message.role==='user'&&Array.isArray(message.content));assert.ok(imageMessage?.content.some(part=>part.type==='image_url'&&part.image_url.url.startsWith('data:image/png;base64,')),'模型必须收到本轮临时截图');delta={content:'我看到了当前窗口的画面'};}
         }else if(scenario==='stdioComputerUseDisabled'){
           assert.ok(!body.tools.some(tool=>tool.function.name.startsWith('mcp_stdio_cua_')),'电脑操控关闭时不向模型提供工具');
           delta={content:'当前账户已关闭电脑操控'};
@@ -352,7 +372,12 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
        assert.ok(firstSystemPrompt.includes('当前 LFAA 工作台视图（受限 JSON）：{"rightPane":"browser","rightPaneOpen":true,"bottomTerminalOpen":true}'));
        assert.ok(!firstSystemPrompt.includes('browserUrl')&&!firstSystemPrompt.includes('secret')&&!firstSystemPrompt.includes('private'),'Browser Use 默认关闭时模型上下文不得接收页面地址');
       const activity=runs.getAiRun('fixture-owner',run.id).message.activity.find(item=>item.title==='查询 Daemon 节点');
-      assert.ok(activity);assert.doesNotMatch(JSON.stringify(activity),/host_list_nodes|参数：|"result"/u);
+      assert.ok(activity);assert.equal(activity.toolUsage.name,'host_list_nodes');assert.doesNotMatch(JSON.stringify(activity),/参数：|"result"/u);
+      assert.deepEqual(activity.toolStages.map(stage=>stage.stage),['模型已选择工具','参数已校验','风险与权限检查','已派发给执行 Owner','执行结果已返回']);
+      assert.match(activity.toolStages.at(-1).detail,/工具结果已交给模型/u);
+      const streamedToolStages=received.filter(item=>item.event==='activity'&&item.data.activity.id===activity.id).map(item=>item.data.activity.toolStages?.length??0);
+      assert.ok(streamedToolStages.some(count=>count===1)&&streamedToolStages.some(count=>count>=4),'工具选择、校验、派发与结果阶段沿同一 SSE 活动实时发出');
+      assert.ok(streamedToolStages.every((count,index)=>index===0||count>=streamedToolStages[index-1]),'活动阶段按序追加，不覆盖已展示过程');
       assert.equal(bodies[0].tool_choice,'auto');
       assert.equal(runs.getAiRun('another-owner',run.id),null);
       assert.equal(runs.cancelAiRun('another-owner',run.id),false);
@@ -707,7 +732,9 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
        assert.ok(Number.isInteger(stdioPid));
        await until(()=>{try{process.kill(stdioPid,0);return false;}catch(error){return error.code==='ESRCH';}});
        assert.match(runs.getAiRun('fixture-owner',stdioRun.id).message.content,/我看到了当前窗口/u);
-       assert.ok(bodies[1].messages.some(message=>message.role==='tool'&&Array.isArray(message.content)&&message.content.some(part=>part.type==='image_url')));
+       assert.ok(bodies[1].messages.some(message=>message.role==='tool'&&typeof message.content==='string'&&message.content.includes('测试窗口')));
+       assert.ok(bodies[1].messages.some(message=>message.role==='user'&&Array.isArray(message.content)&&message.content.some(part=>part.type==='image_url')),'MCP 截图应通过 Provider 支持的 user 图像输入送回模型');
+       assert.ok(!bodies[1].messages.some(message=>message.role==='tool'&&Array.isArray(message.content)&&message.content.some(part=>part.type==='image_url')),'tool observation 只保留文本，不能携带 Provider 不支持的视觉块');
        settings.saveUserSettings('fixture-owner','computer-control',{enabled:false});
        bodies=[];scenario='stdioComputerUseDisabled';
        const disabledStdioRun=runs.startAiRun('fixture-owner','admin',{appId:'workspace',sessionId:null,content:'查看当前桌面'},host);

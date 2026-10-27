@@ -12,6 +12,8 @@ SSE 必须收到 `[DONE]` 或正常 `finish_reason` 才能完成；只有 EOF �
 
 Chat Completions usage 保留 DeepSeek `prompt_cache_hit_tokens`，兼容 `prompt_tokens_details.cached_tokens`，并在 Provider 只返回 `prompt_cache_miss_tokens` 时用已返回的输入总量减去 miss 数得到 hit 数；显式的 `0` 是真实冷缓存，缺字段或无效计数为未知。DeepSeek 上下文缓存由 Provider 默认自动处理，支持缓存的会话无需单独开关；LFAA 保持系统提示前缀稳定、把动态运行上下文放在后段，不注入缓存控制字段，也不伪造命中率。会话内前缀复用程度和命中仍由 Provider 决定并以其 usage 为准。
 
+视觉模型的 Chat Completions 图片内容放在 `user` 消息。Agent Loop 的工具结果仍保留原 `tool_call_id` 与文本 observation；本 Owner 在 Provider 请求序列化时把工具图片附为紧随工具结果的临时 `user` 视觉消息，并标记为不可信外部资料。原始 Agent Loop 历史不改写，Session/request snapshot 由 Agent Loop 持久化投影剥除 Base64；普通用户图片附件保持原位。该协议适配不证明当前所选模型或兼容 Provider 一定支持视觉输入，能力仍以 Provider/model 实测为准。
+
 远程图片 Provider 通过固定的 OpenAI Images 与火山方舟 Seedream 端点执行。没有参考图时走各自生成 API；有项目本机角色/场景参考图时，OpenAI 走 Images Edit multipart、Ark 走官方 Base64 `image` 字段，文件数量和字节数有界。调用方可传入 AbortSignal；请求超时和 Agent 主动取消分别报告，取消监听随请求完成撤销，不切换模型或端点。LFAA 的本地模型目录、Hub 下载、适配器注册和模型进程归 `packages/llm/llm-local-runtime`，MOSS-Image / MiniMax-H3 原生组件加载归各自系列适配器；本包继续独立拥有远程 Provider 请求协议。
 
 Claude Agent SDK 的受管 Host relay 也由本包持有 Anthropic Messages 传输：固定 `https://api.anthropic.com/v1/messages`、`POST`、`anthropic-version: 2023-06-01`、8 MiB 请求体上限及 `redirect: "error"`；按请求 AbortSignal 取消，返回原始响应流供 SDK relay 按 SSE 转发。SDK 子进程收到的是 relay token，不是这里的账户 API Key。此接口只固定 Provider 目的端并保护凭据，不负责 OS egress allowlist、WFP 或 AppContainer 网络授权。

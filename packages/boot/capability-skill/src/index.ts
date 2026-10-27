@@ -8,7 +8,7 @@ import { createHash } from "node:crypto";
 import type { CapabilityInstallAdapter, CapabilityInstallRegistry, CapabilityApplicationId } from "lfaa-capability-installs/src/index.js";
 import { downloadGithubRepositorySnapshot, GITHUB_SKILL_SOURCE_LIMITS, searchGithubRepositories } from "lfaa-plugin-manager/src/github-source.js";
 import type { PluginArchiveFile } from "lfaa-plugin-manager/src/zip-archive.js";
-import { createKnowledgeLibrarySkillInstallation, deleteKnowledgeLibrarySkillInstallation, getKnowledgeLibrarySkillInstallation, listKnowledgeLibrarySkillInstallations, type KnowledgeLibrarySkillFileInput } from "lfaa-knowledge-library/src/index.js";
+import { createKnowledgeLibrarySkillInstallation, deleteKnowledgeLibrarySkillInstallation, getKnowledgeLibrarySkillInstallation, listKnowledgeLibrarySkillInstallations, updateKnowledgeLibrarySkillInstallation, type KnowledgeLibrarySkillFileInput, type KnowledgeLibrarySkillInstallation } from "lfaa-knowledge-library/src/index.js";
 import { APPLICATION_IDS } from "lfaa-util-values/src/application-id.js";
 import { getUserSettings } from "lfaa-settings/src/service.js";
 import { isSkillDisabled, type SkillRegistry } from "lfaa-skill/src/index.js";
@@ -75,24 +75,36 @@ export function createAccountSkillAdapter(dependencies: AccountSkillAdapterDepen
     applicationIds: applications,
     targetSchema: {
       type: "object",
-      properties: { sourcePath: { type: "string", minLength: 1, maxLength: 512 } },
+      properties: {
+        operation: { type: "string", enum: ["install", "update"] },
+        installationId: { type: "string", format: "uuid" },
+        sourcePath: { type: "string", minLength: 1, maxLength: 512 }
+      },
       additionalProperties: false
     },
-    targetDescription: "安装到当前 LFAA 账户的共享 Skill 库，可供所有项目与 App 使用；sourcePath 是 GitHub 仓库内 Skill 目录的相对路径，仓库根目录用 .；多 Skill 仓库需从检查结果中选择后重新检查。",
+    targetDescription: "安装到本机 LFAA 用户级 Skill 目录 <LFAA_HOME>/skills/<Skill 名称>/，供本机项目与 App 发现使用。明确更新时设 operation=update；可用 installationId 精确绑定账户安装。sourcePath 是 GitHub 仓库内 Skill 目录的相对路径，仓库根目录用 .；多 Skill 仓库需从检查结果中选择后重新检查。",
     validateTarget(target, applicationId) {
       if (!applications.includes(applicationId)) throw new Error("当前 LFAA App 不支持共享 Skill 安装。");
       const input = target === undefined ? {} : asRecord(target, "Skill target");
-      if (Object.keys(input).some(key => key !== "sourcePath")) throw new Error("Skill 只接受仓库内相对 sourcePath 作为类型目标。");
+      if (Object.keys(input).some(key => key !== "operation" && key !== "installationId" && key !== "sourcePath")) throw new Error("Skill target 含不支持的字段。");
+      const operation = input.operation === undefined ? undefined : input.operation === "install" || input.operation === "update" ? input.operation : (() => { throw new Error("Skill operation 只能是 install 或 update。"); })();
+      const installationId = input.installationId === undefined ? undefined : typeof input.installationId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(input.installationId) ? input.installationId : (() => { throw new Error("Skill installationId 必须是有效 UUID。"); })();
+      if (installationId !== undefined && operation !== "update") throw new Error("installationId 只允许用于明确的 Skill 更新。");
       const sourcePath = input.sourcePath === undefined ? undefined : normalizeSourcePath(input.sourcePath);
-      return sourcePath !== undefined ? { sourcePath } : {};
+      return { ...(operation ? { operation } : {}), ...(installationId ? { installationId } : {}), ...(sourcePath !== undefined ? { sourcePath } : {}) };
     },
-    revalidateTarget(target, applicationId) {
+    revalidateTarget(target, applicationId, context) {
       if (!applications.includes(applicationId)) throw new Error("当前 LFAA App 不支持共享 Skill 安装。");
-      if (Object.keys(target).some(key => key !== "sourcePath")) throw new Error("Skill 安装目标超出当前账户的共享范围。");
+      if (Object.keys(target).some(key => key !== "operation" && key !== "installationId" && key !== "sourcePath")) throw new Error("Skill 安装目标超出当前账户的共享范围。");
+      const operation = target.operation === undefined ? undefined : target.operation === "install" || target.operation === "update" ? target.operation : (() => { throw new Error("Skill operation 已变化。"); })();
+      const installationId = target.installationId === undefined ? undefined : typeof target.installationId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(target.installationId) ? target.installationId : (() => { throw new Error("Skill installationId 已变化。"); })();
+      if (installationId !== undefined) {
+        if (operation !== "update" || !listKnowledgeLibrarySkillInstallations(context.userId).some(item => item.id === installationId)) throw new Error("更新绑定的 Skill 安装已不存在。");
+      }
       const sourcePath = target.sourcePath === undefined ? undefined : normalizeSourcePath(target.sourcePath, true);
-      return sourcePath !== undefined ? { sourcePath } : {};
+      return { ...(operation ? { operation } : {}), ...(installationId ? { installationId } : {}), ...(sourcePath !== undefined ? { sourcePath } : {}) };
     },
-    targetSummary() { return "当前 LFAA 账户 · 所有项目与 App 的共享 Skill 库"; },
+    targetSummary() { return "本机 LFAA 用户 Skill · LFAA Home/skills/<Skill 名称> · 项目与 App 可发现"; },
     async search(query) {
       return { candidates: (await search(query)).map(item => ({ ...item, sourceType: "github", requiresInspection: true, warning: item.license ? "仓库搜索只是候选；检查只会选择并复制文本 Skill 文件，不运行仓库脚本。" : "来源许可证未确认；检查前需要先核对许可，仓库内容不会执行。" })) };
     },
@@ -126,7 +138,21 @@ export function createAccountSkillAdapter(dependencies: AccountSkillAdapterDepen
         runtimeAudit,
         untrustedSkillMarkdown: markdown.slice(0, 8000)
       };
-      return { resolvedRef: snapshot.commit, resolvedTarget: { sourcePath: sourcePath || "." }, summary: inspectionSummary(details), details: { skill: details } };
+      const operation = target.operation === "update" ? "update" : undefined;
+      const currentInstallations = operation ? listKnowledgeLibrarySkillInstallations(context.userId) : [];
+      const requestedId = typeof target.installationId === "string" ? target.installationId : undefined;
+      const current = requestedId ? currentInstallations.find(item => item.id === requestedId) : currentInstallations.find(item => item.name.toLocaleLowerCase("en-US") === metadata.name.toLocaleLowerCase("en-US"));
+      if (requestedId && !current) throw new Error("指定的 Skill 安装已不存在；没有创建检查凭证，也不会改装其他条目。");
+      if (current && operation) {
+        if (!sameRepository(current.repositoryUrl, snapshot.repository.url)) throw new Error(`账户中已安装同名 Skill“${metadata.name}”，但来源仓库不同；为避免改源覆盖，更新已停止。`);
+        if (current.sourcePath !== sourcePath) throw new Error(`已安装 Skill“${metadata.name}”的 sourcePath 与请求来源不同；更新已停止。`);
+      }
+      if (requestedId && current && (current.name !== metadata.name || current.sourcePath !== sourcePath)) throw new Error("指定安装 ID 的 Skill 名称或目录与当前检查结果不同；为保持安装身份，更新已停止。");
+      return {
+        resolvedRef: snapshot.commit,
+        resolvedTarget: { ...(operation ? { operation } : {}), ...(current && operation ? { installationId: current.id } : {}), sourcePath: sourcePath || "." },
+        summary: inspectionSummary(details), details: { skill: details }
+      };
     },
     async install(source, resolvedRef, _applicationId, _userId, target, details, context) {
       context.signal.throwIfAborted();
@@ -144,17 +170,24 @@ export function createAccountSkillAdapter(dependencies: AccountSkillAdapterDepen
         encoding: "base64"
       }));
       context.signal.throwIfAborted();
-      const installed = createKnowledgeLibrarySkillInstallation(context.userId, {
-        name: plan.name,
-        description: plan.description,
-        source: { repositoryUrl: plan.repository, commit: resolvedRef, archiveSha256: plan.archiveSha256, sourcePath: plan.sourcePath, license: plan.license },
-        files
-      });
-      dependencies.invalidateSkills?.();
+      const sourceInfo = { repositoryUrl: plan.repository, commit: resolvedRef, archiveSha256: plan.archiveSha256, sourcePath: plan.sourcePath, license: plan.license };
+      const operation = target.operation === "update" ? "update" : "install";
+      let installed: KnowledgeLibrarySkillInstallation;
+      let skillAction: "installed" | "installed_latest" | "updated" | "already_latest";
+      if (operation === "update" && typeof target.installationId === "string") {
+        const update = updateKnowledgeLibrarySkillInstallation(context.userId, target.installationId, { name: plan.name, description: plan.description, source: sourceInfo, files });
+        installed = update.installation;
+        skillAction = update.updated ? "updated" : "already_latest";
+        if (update.updated) dependencies.invalidateSkills?.();
+      } else {
+        installed = createKnowledgeLibrarySkillInstallation(context.userId, { name: plan.name, description: plan.description, source: sourceInfo, files });
+        skillAction = operation === "update" ? "installed_latest" : "installed";
+        dependencies.invalidateSkills?.();
+      }
       return {
         skill: installed.name, installationId: installed.id, applicationId: "all", accountId: context.userId,
         source: { repository: installed.repositoryUrl, commit: installed.commit, archiveSha256: installed.archiveSha256, license: installed.license },
-        fileCount: installed.fileCount, totalBytes: installed.totalBytes
+        fileCount: installed.fileCount, totalBytes: installed.totalBytes, skillAction
       };
     },
     async verifyInstalled(installation, _source, resolvedRef, applicationId, target, details, context) {
@@ -175,7 +208,7 @@ export function createAccountSkillAdapter(dependencies: AccountSkillAdapterDepen
         return { status: "unknown", verified: false, summary: "LFAA 共享 Skill 清单未发现刚安装的精确记录；请先查询清单，不要盲目重放安装。" };
       }
       if (!dependencies.skillRegistry) {
-        return { status: "installed", verified: true, summary: "账户 Skill Owner 已回读固定来源、完整文件清单和正文；Registry 当前回合尚未提供可核对的加载结果。" };
+        return { status: "installed", verified: true, summary: skillActionSummary(installation.skillAction, plan.name), details: { skillAction: installation.skillAction } };
       }
       const cwd = context.workspaceProject?.path;
       const lookup = { userId: context.userId, ...(cwd ? { cwd } : {}) };
@@ -197,7 +230,7 @@ export function createAccountSkillAdapter(dependencies: AccountSkillAdapterDepen
             : "Skill 已保存到当前账户的共享库，但在设置中心的 Skill 停用名单中；当前不会进入模型 Skill 目录，不能报告为当前可用。",
           details: {
             skill: plan.name, installationId: stored.id, applicationId: "all", accountId: context.userId,
-            runtimeEnabled: false, gate: !settings.plugins.enabled ? "plugins.enabled" : "plugins.disabledSkillNames",
+            skillAction: installation.skillAction, runtimeEnabled: false, gate: !settings.plugins.enabled ? "plugins.enabled" : "plugins.disabledSkillNames",
             contentSha256: stored.contentSha256, files: stored.files, state: "account-installed-runtime-gated"
           }
         };
@@ -209,9 +242,9 @@ export function createAccountSkillAdapter(dependencies: AccountSkillAdapterDepen
       return {
         status: "ready",
         verified: true,
-        summary: "LFAA 当前账户的共享 Skill Owner 已保存并由 Registry 回读 " + plan.name + "；所有项目与 App 均可按需发现。附属脚本不执行，依赖或外部运行时仍需按用户目标另行处理。",
+        summary: skillActionSummary(installation.skillAction, plan.name) + " LFAA 已将 Skill 保存到 Home/skills/" + plan.name + "，并由 Registry 回读；本机项目与 App 可按需发现。附属脚本不执行，依赖或外部运行时仍需按用户目标另行处理。",
         details: {
-          skill: plan.name, installationId: stored.id, applicationId: "all", accountId: context.userId,
+          skill: plan.name, installationId: stored.id, applicationId: "all", accountId: context.userId, skillAction: installation.skillAction,
           contentSha256: stored.contentSha256, files: stored.files, state: "account-installed-and-registry-loaded",
           scriptFiles: plan.runtimeAudit.scriptFiles, declaredNodeMajor: plan.runtimeAudit.declaredNodeMajor,
           packageManifest: plan.runtimeAudit.packageManifest, dependencies: plan.runtimeAudit.dependencies,
@@ -234,6 +267,23 @@ export function createAccountSkillAdapter(dependencies: AccountSkillAdapterDepen
 
 function findSkillRoots(files: PluginArchiveFile[]): string[] {
   return files.flatMap(file => file.path.split("/").at(-1)?.toLocaleLowerCase("en-US") === "skill.md" ? [file.path.slice(0, file.path.lastIndexOf("/") + 1).replace(/\/$/u, "")] : []).sort((a, b) => a.localeCompare(b));
+}
+
+function sameRepository(left: string, right: string): boolean {
+  const normalize = (value: string): string => {
+    const url = new URL(value);
+    return `https://${url.hostname.toLocaleLowerCase("en-US")}${url.pathname.replace(/\/+$/u, "").replace(/\.git$/iu, "")}`.toLocaleLowerCase("en-US");
+  };
+  try { return normalize(left) === normalize(right); } catch { return false; }
+}
+
+function skillActionSummary(action: unknown, name: string): string {
+  switch (action) {
+    case "updated": return `Skill“${name}”已更新到最新版本。`;
+    case "already_latest": return `Skill“${name}”已经是最新版本，没有重复写入。`;
+    case "installed_latest": return `未找到 Skill“${name}”的账户安装记录，已安装其最新版本。`;
+    default: return `Skill“${name}”已安装。`;
+  }
 }
 
 function selectSkillFiles(files: PluginArchiveFile[], sourcePath: string): PluginArchiveFile[] {

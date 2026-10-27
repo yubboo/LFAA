@@ -211,10 +211,23 @@ export function startAiRun(userId: string, userRole: UserRole, body: AiRunInput,
   }
   if (runOptions.workspaceProject) {
     const owned = getWorkspaceProject(userId, runOptions.workspaceProject.id);
-    if (!owned || owned.nodeId !== runOptions.workspaceProject.nodeId || owned.path !== runOptions.workspaceProject.path) throw new Error("子 Agent 项目不属于当前账户或节点目录已变更，已拒绝执行。");
+    const ownedSources = owned?.sources.map(source => source.path) ?? [];
+    const suppliedSources = runOptions.workspaceProject.sources ?? [];
+    const ownedApplications = owned?.applicationIds ?? [];
+    const suppliedApplications = runOptions.workspaceProject.applicationIds ?? [];
+    const ownedSourceDirectories = owned?.sources.map(source => `${source.id}\u0000${source.path}`) ?? [];
+    const suppliedSourceDirectories = runOptions.workspaceProject.sourceDirectories?.map(source => `${source.id}\u0000${source.path}`) ?? [];
+    if (!owned || owned.nodeId !== runOptions.workspaceProject.nodeId || owned.path !== runOptions.workspaceProject.path
+      || ownedSources.length !== suppliedSources.length || ownedSources.some((path, index) => path !== suppliedSources[index])
+      || ownedApplications.length !== suppliedApplications.length || ownedApplications.some((applicationId, index) => applicationId !== suppliedApplications[index])
+      || suppliedSourceDirectories.length > 0 && (ownedSourceDirectories.length !== suppliedSourceDirectories.length || ownedSourceDirectories.some((source, index) => source !== suppliedSourceDirectories[index]))) {
+      throw new Error("子 Agent 项目不属于当前账户或源文件夹已变更，已拒绝执行。");
+    }
   }
   const workspaceProject = runOptions.workspaceProject
-    ?? (registeredProject && projectAppId ? { id: registeredProject.id, appId: projectAppId, nodeId: registeredProject.nodeId, path: registeredProject.path, title: registeredProject.title } : null)
+    ?? (registeredProject && projectAppId ? { id: registeredProject.id, appId: projectAppId, applicationIds: registeredProject.applicationIds, nodeId: registeredProject.nodeId, path: registeredProject.path, title: registeredProject.title,
+      sources: registeredProject.sources.map(source => source.path), sourceDirectories: registeredProject.sources.map(source => ({ id: source.id, path: source.path })),
+      instructions: registeredProject.instructions, memoryMode: registeredProject.memoryMode } : null)
     ?? (body.sessionId ? resolveAiSessionWorkspaceContext(userId, body.sessionId) : null);
   const requestedGitRepositoryId = body.sessionId ? null : body.gitRepositoryId ?? runOptions.gitRepositoryId ?? null;
   if (requestedGitRepositoryId && !getAgentGitRepository(userId, requestedGitRepositoryId)) throw new Error("Agent Git 仓库不属于当前账户或已移除。 ");
@@ -259,9 +272,9 @@ export function startAiRun(userId: string, userRole: UserRole, body: AiRunInput,
     if (previous) startQueuedAiTurn(userId, turn.session.id, turn.userMessage.id, id);
     refreshAiTurnHistory(userId, turn);
     finishAiAssistantMessage(userId, turn.session.id, id, "", "streaming");
-    if (workspaceProject && !getAgentGitSessionRepository(userId, turn.session.id) && aiPluginHost.resolveLocalAgentGitDirectory) {
+    if (workspaceProject && (workspaceProject.path || workspaceProject.sources?.length) && !getAgentGitSessionRepository(userId, turn.session.id) && aiPluginHost.resolveLocalAgentGitDirectory) {
       try {
-        const directory = await aiPluginHost.resolveLocalAgentGitDirectory(workspaceProject.nodeId, workspaceProject.path);
+        const directory = await aiPluginHost.resolveLocalAgentGitDirectory(workspaceProject.nodeId, workspaceProject.sources?.[0] ?? workspaceProject.path);
         if (directory) {
           const repository = registerAgentGitRepository({ userId, path: directory, title: workspaceProject.title });
           if (!bindAgentGitSessionRepository(userId, turn.session.id, repository.id)) throw new Error("当前 Agent 项目无法绑定到会话。");

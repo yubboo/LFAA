@@ -6,7 +6,13 @@ AI 员工办公室从本包读取按账户过滤的活动 Run 摘要。Run 保�
 
 Pi `@earendil-works/pi-agent-core` 是默认 AI Run 的唯一回合调度器，负责模型响应和工具调用之间的单次运行状态机；本包通过 `pi-runtime.ts` 把它嵌入既有 Owner 边界。Pi 只接收本次 Run 的临时消息与工具对象，工具执行设为串行；没有 Pi CLI/RPC、默认本机工具、独立 Provider 选择或 Pi Session 持久化。
 
+Browser 与 Computer Use 的模型操作指导由本包按本次 Run 实际登记的工具动态加入：模型使用本轮真实 Tool Schema/说明，基于最新页面/屏幕观察选择一个有界动作，检查工具返回的新状态，必要时再观察；过期或无效结果不能靠复用旧参数重试。网页、截图、可访问性树和 MCP 初始化内容都作为不可信资料。具体能力、设置、执行与动作授权仍归 Browser Owner、Computer Use Owner 和 Permission Owner；这里不创建固定登录流程或第二套审批策略。
+
+每次模型工具调用从实际登记的 `AiBusinessTool` 生成有界活动合同，随现有 activity SSE 发给 AI Work：准确函数名、Owner 用途说明、JSON Schema 字段类型/必填/字段说明，以及按真实参数解析、风险与权限检查、执行 Owner 派发、真实回执形成的阶段摘要。活动阶段按序保留且最多 8 项；不转发参数值、凭据、原始结果正文或隐藏推理。后续修改工具执行链必须在同一批次更新回复流投影与回归；Session 是活动持久化和校验 Owner，Connection 只传递公开类型，ui-chat 负责呈现。
+
 Pi 的自定义 `streamFn` 每次都调用 LFAA 注入的 `lfaaLlm` Service。LFAA Settings/凭据继续决定账户、Provider、模型、超时/重试、上下文/输出预算与压缩；LFAA Tools 继续校验参数、范围与 Permission Owner 授权；审批、用户提问、暂停/取消、运行事件和 Session JSONL 仍由原 LFAA Owner 处理。Pi 工具回调只转入现有 LFAA Tool 执行函数，Pi 生成的会话状态在 Run 结束时释放。
+
+领域 Tool 可通过 `projectResult` 将一张校验后的图片作为当前 Provider 请求的临时内容，同时返回不含图片字节的 `persistedResult`。Loop 只把临时内容用于模型上下文，并以持久化投影替换工具结果；已有 Session 图片清理继续作为模型消息历史的第二道保护。该扩展不承担媒体读取或账户/权限决策。
 
 Claude SDK 子 Agent 的 MCP handler 通过 `AiBusinessToolContext.dispatchExternalAgentTool` 回到同一个工具执行闭包，不直接调用 Registry executor。Agent Loop 按父 Run 继承目录公布原 JSON Schema；SDK 内层 action 重新检查工具合同、参数 parser、权限风险、预算、防重、取消与真实结果记录。MCP 的 action/observation 配对属于 SDK 子对话；内部调用写入 LFAA 工具审计，但不向父 Session 追加缺少 assistant tool_calls 的 tool 消息。权限审批仍由同一个 Permission Owner 等待和决定。
 
@@ -22,7 +28,7 @@ Claude SDK result 的 `modelUsage` 由 Subagent Tool 桥按 Provider/模型记�
 
 AI Work 每次 Provider 请求的公开正文以稳定 ID 和起止范围标记为阶段说明或最终答案，活动首次发布时记录正文落点；不复制正文或泄露隐藏推理。`presentation` 事件、Run 实时快照及 Session 最终持久化沿用同一范围协议，使前端按实际顺序展示、重连与恢复。问题与审批沿既有 Owner 等待，原问题和实际决定随活动保存；没有实际决定时不伪造批准或拒绝。分段不决定工具调用、不替换当前模型/思考力度。
 
-电脑操控活动在“用时”展开区分别标出观察、点击、输入、快捷键和滚动，并记录目标/坐标与有界驱动回执。桌面截图只临时交给当前 Provider、不保存在会话；输入正文不进入活动记录。截图摘要只证明图片已交给本轮模型，不证明模型正确识别画面；点击、输入、快捷键和滚动的驱动回执也不等于界面效果，必须以后续观察确认。
+电脑操控活动在“用时”展开区分别标出观察、点击、输入、快捷键和滚动，并记录目标/坐标与有界驱动回执。桌面截图只临时交给当前 Provider 的 user 视觉消息、不保存在会话；工具文本 observation 仍保留 tool_call 配对，输入正文不进入活动记录。截图摘要只证明图片已交给本轮模型，不证明模型正确识别画面；点击、输入、快捷键和滚动的驱动回执也不等于界面效果，必须以后续观察确认。
 
 网页活动显示经过校验和有界遮蔽的实际搜索查询、读取/导航 URL 或工作区相对 HTML 路径；URL 移除身份凭据、查询串与片段，不显示网页正文或原始结果。MCP 活动按有界服务名和远端工具名显示具体调用，并说明回执已交回 Agent；活动摘要不复制远端原始结果正文。能力目录、来源检查、Skill 安装、清单核对与移除分别显示对应动作。Client 仅对已验证的内置 Browser Provider 提供重新打开入口；个人 Tabbit 页面不镜像到 LFAA Dock。工具类型只控制展示摘要，不决定调用或权限。
 
@@ -34,6 +40,8 @@ Browser Tools 还按 Browser Settings Owner 检查 WebMCP 网站工具默认值/
 当一个产品/品牌名可能同时指本机客户端与官网网页时，Agent 先用本轮文字和对话消歧；仍不明确时必须先独立调用 `lfaa_ask_user`，等用户选择“本机已安装的客户端”或“浏览器里的官网网页”后才搜索、启动或导航。权限审批不承担意图澄清。
 
 `lfaa-agent-loop` 负责 AI Work 的模型与工具循环。对话记忆仍由 `lfaa-conversation-memory` 持有；循环只检查账户设置，把符合条件的根轮次输入发送给已选 Provider，并通过记忆 Owner 保存已校验结果。
+
+AI Work 项目可关联一个或多个已登记业务 App。每轮由 Agent Loop 从 Workspace Owner 读取最新关联，并把 App ID/名称作为用户级领域背景传给模型，帮助它结合目标判断本轮适合的方向。关联不扩大 `applicationId=workspace` 的工具、Skill、Expert 或 MCP 可见范围，不授予权限，也不证明该 App 能力当前已装配；模型仍只能使用本 Run 实际登记且可用的能力，执行仍经过原 Owner 和 Permission Owner。项目关联不含 Daemon/节点身份。
 
 外部 SDK 子 Agent 顶层助手文本可沿 `subagent-delta` Run 事件临时传到订阅 Client；它不进入 Session JSONL、模型 messages 或工具 observation，重新订阅只收到持久化快照和后续新事件。工具调用与最终 SDK result 仍按原 Agent Loop action/observation 合同处理。
 

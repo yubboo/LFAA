@@ -39,6 +39,16 @@ const callTool = (name, args) => ({ tool_calls: [{ index: 0, id: "settings-call"
 const sse = delta => new Response(`data: ${JSON.stringify({ choices: [{ delta }] })}\n\ndata: [DONE]\n\n`, { headers: { "Content-Type": "text/event-stream" } });
 test.after(async () => { await approvalFiber.dispose(); });
 
+test("视频语音识别设置默认关闭，并拒绝目录外的账户", () => {
+  assert.equal(settings.defaultSettings.aiRuntime.videoTranscriptionAccountId, "");
+  assert.equal(settings.getUserSettings(owner).aiRuntime.videoTranscriptionAccountId, "");
+  const aiSettings = agentSettings.listAgentSettings(owner, { category: "ai-runtime", limit: 50 });
+  assert.ok(aiSettings.entries.some(entry => entry.path === "aiRuntime.videoTranscriptionAccountId" && entry.writable));
+  assert.throws(() => agentSettings.updateAgentSetting(owner, "aiRuntime.videoTranscriptionAccountId", "unknown-account"), /Ark Agent Plan 语音模型账户/u);
+  settings.saveUserSettings(owner, "ai-runtime", { ...settings.getUserSettings(owner).aiRuntime, videoTranscriptionAccountId: "" });
+  assert.equal(settings.getUserSettings(owner).aiRuntime.videoTranscriptionAccountId, "");
+});
+
 test("外观目录复用界面背景文案、展示纯色与账户私有选项，且读取不触发图片迁移", () => {
   const uploadedId = `user-${randomUUID()}`;
   const fixtureBytes = Buffer.from("isolated-background-metadata");
@@ -47,9 +57,18 @@ test("外观目录复用界面背景文案、展示纯色与账户私有选项�
   const appearance = agentSettings.listAgentSettings(owner, { category: "appearance", limit: 50 });
   const login = appearance.entries.find(entry => entry.path === "appearance.backgrounds.login");
   const appCenter = appearance.entries.find(entry => entry.path === "appearance.backgrounds.appCenter");
+  const loginOverlay = appearance.entries.find(entry => entry.path === "appearance.areaEffects.login.overlay");
+  const appCenterOverlay = appearance.entries.find(entry => entry.path === "appearance.areaEffects.appCenter.overlay");
+  const appCenterBlur = appearance.entries.find(entry => entry.path === "appearance.areaEffects.appCenter.blur");
   assert.ok(login);
   assert.ok(appCenter);
+  assert.ok(loginOverlay);
+  assert.ok(appCenterOverlay);
+  assert.ok(appCenterBlur);
   assert.equal(login.label, "登录页（当前设备）背景图片");
+  assert.equal(loginOverlay.label, "登录页（当前设备） · 背景遮罩");
+  assert.equal(appCenterBlur.label, "小鱼智能体工作区 · 玻璃模糊");
+  assert.equal(loginOverlay.value, null, "新区域默认继承全局值");
   assert.deepEqual(login.menuLabels, ["外观"]);
   assert.ok(login.allowedValues.includes("none"));
   assert.deepEqual(login.allowedOptions.find(option => option.value === "none"), { value: "none", label: "纯色" });
@@ -64,6 +83,12 @@ test("外观目录复用界面背景文案、展示纯色与账户私有选项�
   const after = settings.getUserSettings(owner).appearance.backgrounds;
   assert.equal(changed.value, "none");
   assert.deepEqual(after, { ...before, login: "none" }, "Agent 只应修改用户明确指定的登录页背景位置");
+  const areaUpdated = agentSettings.updateAgentSetting(owner, "appearance.areaEffects.appCenter.overlay", 21);
+  assert.equal(areaUpdated.value, 21);
+  assert.equal(settings.getUserSettings(owner).appearance.areaEffects.appCenter.overlay, 21);
+  assert.equal(settings.getUserSettings(owner).appearance.areaEffects.settings.overlay, null, "区域更新不影响其他页面");
+  agentSettings.updateAgentSetting(owner, "appearance.areaEffects.appCenter.overlay", null);
+  assert.equal(settings.getUserSettings(owner).appearance.areaEffects.appCenter.overlay, null, "传 null 恢复继承全局遮罩");
   assert.throws(() => agentSettings.updateAgentSetting(owner, "appearance.backgrounds.appCenter", `user-${randomUUID()}`), /背景只能选择/u);
 });
 
@@ -180,7 +205,7 @@ test("代码审查菜单路由到当前会话 Git 差异并保持只读边界", 
   assert.equal(menu?.access, "tools");
   assert.ok(menu?.toolSearchTerms?.includes(projectFileTool.name));
   assert.match(projectFileTool.description, /代码审查[\s\S]*真实变更/u);
-  assert.match(projectFileTool.description, /不会自动应用补丁、提交或推送/u);
+  assert.match(projectFileTool.description, /不自动应用补丁、提交或推送/u);
   assert.match(projectFileTool.description, /没有绑定仓库或差异不可用时如实停止/u);
 });
 

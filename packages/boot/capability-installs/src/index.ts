@@ -92,7 +92,7 @@ export class CapabilityInstallRegistry {
         available: Boolean(adapter),
         applicationIds: adapter ? [...adapter.applicationIds] : [],
         ...(adapter ? { targetSchema: structuredClone(adapter.targetSchema), ...(adapter.targetDescription ? { targetDescription: adapter.targetDescription } : {}) } : {}),
-        operations: adapter ? ["search", "inspect", "install", "list", ...(adapter.setEnabled ? ["enable", "disable"] : []), ...(adapter.remove ? ["remove"] : [])] : [],
+        operations: adapter ? ["search", "inspect", "install", ...(kind === "skill" ? ["update"] : []), "list", ...(adapter.setEnabled ? ["enable", "disable"] : []), ...(adapter.remove ? ["remove"] : [])] : [],
         reason: adapter ? null : "此类型尚未登记到通用安装路由；当前不能通过自然语言检查或安装。已有业务 Runtime 仍由原领域 Owner 管理。"
       };
     });
@@ -134,7 +134,9 @@ export class CapabilityInstallRegistry {
     if (!ticket || ticket.kind !== kind || ticket.applicationId !== applicationId || ticket.userId !== userId || ticket.adapter !== adapter) throw new Error("安装检查凭证不存在、已过期或不属于当前用户、能力类型和目标 App；请重新检查来源。");
     const source = sanitizeLabel(ticket.source, 180);
     const target = sanitizeLabel(adapter.targetSummary(ticket.target), 100);
-    const operation = kind === "plugin" ? "安装插件（新安装的兼容插件会尝试自动启用）" : "安装";
+    const operation = kind === "plugin" ? "安装插件（新安装的兼容插件会尝试自动启用）"
+      : kind === "skill" && ticket.target.operation === "update" ? "更新或检查安装最新版 Skill"
+        : "安装";
     const summary = `${operation} ${ticket.summary}（${ticket.resolvedRef.slice(0, 12)}），来源 ${source}，目标 ${target}`;
     return { scopeKey: `capability-install:${kind}:${applicationId}:${inspectionId}`, scopeSummary: `${kind} · ${target} · ${ticket.summary}`.slice(0, 240), summary: summary.slice(0, 320) };
   }
@@ -348,23 +350,47 @@ function createTools(registry: CapabilityInstallRegistry): AiBusinessTool[] {
       risk: () => "dangerous", approval: (parameters, context) => registry.installApproval(parameters.kind as CapabilityKind, String(parameters.inspectionId), target(parameters, context), context.userId),
       execute: async (parameters, context) => { return registry.install(parameters.kind as CapabilityKind, String(parameters.inspectionId), target(parameters, context), context.userId, context); } }),
     baseTool({ id: "capabilities.install-skill", name: "capability_install_skill", applicationIds: applications,
-      description: "用户用一句话要求安装 Skill/技能时使用：一次完成“定位固定来源 → 检查真实 SKILL.md → 安装到当前账户共享库 → 回读结果”，只需一次审批。source 可填 GitHub 仓库/URL，也可只给 query 由搜索定位；多候选、来源歧义或缺少必要信息时只返回候选与原因，绝不安装。只复制文本与资源文件，不执行来源脚本；其它能力类型仍走 capability_inspect + capability_install。",
-      schema: strictObject({ source: { type: "string", maxLength: 2048 }, query: { type: "string", minLength: 1, maxLength: 120 }, ref: { type: "string", maxLength: 200 }, sourcePath: { type: "string", maxLength: 512 }, targetApplicationId: { type: "string", enum: applications } }),
+      description: "用户用一句话要求安装或更新 Skill/技能时使用：一次完成“定位固定来源 → 检查真实 SKILL.md → 安装/更新当前账户共享库 → 回读结果”，只需一次审批。默认 operation=install 且不覆盖已有安装；用户明确说更新时设 operation=update，可给 installationId 精确指定，也可给已安装 Skill 名称，更新按原登记 GitHub 来源检查最新版并保留安装 ID；若未安装，则在唯一来源明确时安装最新版；已是最新版不重复写入。source 可填 GitHub 仓库/URL，也可只给 query 由搜索定位；多候选、来源歧义、来源与已登记不符或缺少必要信息时只返回原因，绝不覆盖。只复制文本与资源文件，不执行来源脚本；其它能力类型仍走 capability_inspect + capability_install。",
+      schema: strictObject({ operation: { type: "string", enum: ["install", "update"] }, installationId: { type: "string", format: "uuid" }, source: { type: "string", maxLength: 2048 }, query: { type: "string", minLength: 1, maxLength: 120 }, ref: { type: "string", maxLength: 200 }, sourcePath: { type: "string", maxLength: 512 }, targetApplicationId: { type: "string", enum: applications } }),
       parse: value => {
-        const parsed = parseInput(Joi.object({ source: Joi.string().trim().max(2048), query: Joi.string().trim().min(1).max(120), ref: Joi.string().trim().min(1).max(200), sourcePath: Joi.string().trim().min(1).max(512), targetApplicationId: appSchema }).unknown(false), value);
-        if (typeof parsed.source !== "string" && typeof parsed.query !== "string") throw new Error("请提供 Skill 的 GitHub 来源，或用于定位来源的关键词。");
+        const parsed = parseInput(Joi.object({ operation: Joi.string().valid("install", "update"), installationId: Joi.string().guid({ version: ["uuidv4"] }), source: Joi.string().trim().max(2048), query: Joi.string().trim().min(1).max(120), ref: Joi.string().trim().min(1).max(200), sourcePath: Joi.string().trim().min(1).max(512), targetApplicationId: appSchema }).unknown(false), value);
+        const operation = parsed.operation === "update" ? "update" : "install";
+        if (parsed.installationId !== undefined && operation !== "update") throw new Error("installationId 只允许用于明确的 Skill 更新。");
+        if (typeof parsed.source !== "string" && typeof parsed.query !== "string" && !(operation === "update" && typeof parsed.installationId === "string")) throw new Error(operation === "update" ? "更新 Skill 时请给出名称、来源或安装 ID。" : "请提供 Skill 的 GitHub 来源，或用于定位来源的关键词。");
         return parsed;
       },
       risk: () => "dangerous",
       approval: (parameters, context) => {
         const app = target(parameters, context);
-        const label = typeof parameters.source === "string" ? parameters.source : `按关键词「${String(parameters.query)}」搜索到的唯一 Skill`;
-        return { scopeKey: `capability-install-skill:${app}:${createHash("sha256").update(JSON.stringify([context.userId, app, parameters.source ?? null, parameters.query ?? null, parameters.ref ?? null, parameters.sourcePath ?? null])).digest("hex").slice(0, 24)}`, scopeSummary: `${app} · 安装 Skill · ${String(label).slice(0, 120)}`, summary: `安装 Skill：${String(label).slice(0, 180)}（只复制文本与资源文件，不执行来源脚本）` };
+        const updating = parameters.operation === "update";
+        const label = typeof parameters.installationId === "string" ? `安装 ${parameters.installationId}` : typeof parameters.source === "string" ? parameters.source : `按名称/关键词「${String(parameters.query ?? "未命名") }」定位 Skill`;
+        return { scopeKey: `capability-install-skill:${app}:${createHash("sha256").update(JSON.stringify([context.userId, app, parameters.operation ?? "install", parameters.installationId ?? null, parameters.source ?? null, parameters.query ?? null, parameters.ref ?? null, parameters.sourcePath ?? null])).digest("hex").slice(0, 24)}`, scopeSummary: `${app} · ${updating ? "更新/安装最新版 Skill" : "安装 Skill"} · ${String(label).slice(0, 120)}`, summary: `${updating ? "更新或在未安装时安装最新版 Skill" : "安装 Skill"}：${String(label).slice(0, 180)}（只复制文本与资源文件，不执行来源脚本）` };
       },
       execute: async (parameters, context) => {
         const applicationId = target(parameters, context);
+        const operation = parameters.operation === "update" ? "update" : "install";
         let source = typeof parameters.source === "string" ? parameters.source : "";
+        let installationId = typeof parameters.installationId === "string" ? parameters.installationId : undefined;
+        let sourcePath = typeof parameters.sourcePath === "string" ? parameters.sourcePath : undefined;
+        if (operation === "update") {
+          const current = await registry.list("skill", applicationId, {}, context) as Array<Record<string, unknown>>;
+          let selected: Record<string, unknown> | undefined;
+          if (installationId) {
+            selected = current.find(item => item.id === installationId);
+            if (!selected) throw new Error("指定的 Skill 安装 ID 不属于当前账户或已不存在；没有更新其他安装。");
+          } else if (typeof parameters.query === "string") {
+            selected = current.find(item => typeof item.name === "string" && item.name.toLocaleLowerCase("en-US") === String(parameters.query).toLocaleLowerCase("en-US"));
+          }
+          if (selected) {
+            if (typeof selected.repositoryUrl !== "string" || typeof selected.id !== "string" || typeof selected.sourcePath !== "string") throw new Error("已安装 Skill 的来源记录不完整；未尝试覆盖。");
+            if (!source) source = selected.repositoryUrl;
+            if (sourcePath === undefined) sourcePath = selected.sourcePath || ".";
+            installationId = selected.id;
+          }
+        }
         if (!source) {
+          if (operation === "update" && installationId) throw new Error("无法读取指定安装的 GitHub 来源；没有搜索其他 Skill，也没有改动安装。");
+          if (typeof parameters.query !== "string") throw new Error("更新 Skill 时必须提供名称、来源或安装 ID。");
           const found = await registry.search("skill", String(parameters.query), applicationId, context) as { candidates?: Array<Record<string, unknown>> };
           const candidates = Array.isArray(found?.candidates) ? found.candidates : [];
           if (candidates.length !== 1) return { installed: false, reason: candidates.length === 0 ? "没有找到带有效 SKILL.md 的候选仓库；未安装。" : "命中多个候选；请从下列仓库中指定 source 后重试，未安装。", candidates: candidates.slice(0, 8) };
@@ -374,10 +400,13 @@ function createTools(registry: CapabilityInstallRegistry): AiBusinessTool[] {
           source = typeof candidate.url === "string" ? candidate.url : typeof repository?.url === "string" ? repository.url : fullName ? `https://github.com/${fullName}` : "";
           if (!source) return { installed: false, reason: "候选仓库没有可固定的来源地址；未安装。" };
         }
-        const targetInput = typeof parameters.sourcePath === "string" ? { sourcePath: parameters.sourcePath } : {};
+        const targetInput = { ...(operation === "update" ? { operation, ...(installationId ? { installationId } : {}) } : {}), ...(sourcePath !== undefined ? { sourcePath } : {}) };
         const inspection = await registry.inspect("skill", source, typeof parameters.ref === "string" ? parameters.ref : undefined, applicationId, targetInput, context) as { inspectionId: string; resolvedRef?: string; targetSummary?: string };
         const installation = await registry.install("skill", inspection.inspectionId, applicationId, context.userId, context) as { outcome?: string; verification?: unknown; nextAction?: unknown };
-        return { installed: installation.outcome !== "unverified", source, inspection: { resolvedRef: inspection.resolvedRef, targetSummary: inspection.targetSummary }, outcome: installation.outcome, verification: installation.verification, nextAction: installation.nextAction, note: "安装结果来自 Skill Owner 回读；未执行来源脚本。" };
+        const verification = isRecord(installation.verification) ? installation.verification : {};
+        const details = isRecord(verification.details) ? verification.details : {};
+        const skillAction = typeof details.skillAction === "string" ? details.skillAction : undefined;
+        return { installed: installation.outcome !== "unverified", operation, source, inspection: { resolvedRef: inspection.resolvedRef, targetSummary: inspection.targetSummary }, outcome: installation.outcome, skillAction, verification: installation.verification, nextAction: installation.nextAction, note: "结果来自 Skill Owner 对账户安装记录和文件的回读；未执行来源脚本。" };
       }
     }),
     baseTool({ id: "capabilities.list", name: "capability_list", applicationIds: applications,

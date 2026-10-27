@@ -7,6 +7,28 @@ import test from "node:test";
 import { DEFAULT_USER_SETTINGS } from "../../../packages/util/values/src/settings-contract.ts";
 
 const appearanceModule = await import("../../../packages/client/ui-theme/src/login-appearance.ts");
+const areaEffectsModule = await import("../../../packages/client/ui-theme/src/appearance-area-effects.ts");
+
+test("登录壁纸遮罩保留 Appearance 联动但不过度冲淡图片", () => {
+  assert.equal(appearanceModule.resolveLoginBackgroundOverlayColor(65, "light"), "rgba(255, 255, 255, 0.26)");
+  assert.equal(appearanceModule.resolveLoginBackgroundOverlayColor(65, "dark"), "rgba(24, 24, 24, 0.26)");
+  assert.equal(appearanceModule.resolveLoginBackgroundOverlayColor(0, "light"), "rgba(255, 255, 255, 0)");
+  assert.equal(appearanceModule.resolveLoginBackgroundOverlayColor(0, "dark"), "rgba(24, 24, 24, 0)");
+  assert.equal(appearanceModule.resolveLoginBackgroundOverlayColor(75, "light"), "rgba(255, 255, 255, 0.3)");
+  assert.equal(appearanceModule.resolveLoginBackgroundOverlayColor(75, "dark"), "rgba(24, 24, 24, 0.3)");
+  assert.equal(appearanceModule.resolveLoginBackgroundOverlayColor(65, "light", 11), "rgba(255, 255, 255, 0.11)", "显式登录页覆盖直接按区域百分比呈现");
+  assert.equal(appearanceModule.resolveLoginBackgroundOverlayColor(65, "light", null), "rgba(255, 255, 255, 0.26)", "清除覆盖后回到现有全局 40% 映射");
+});
+
+test("Workbench 区域效果只覆盖本区域并逐字段继承全局值", () => {
+  const appearance = structuredClone(DEFAULT_USER_SETTINGS.appearance);
+  appearance.overlay = 42;
+  appearance.blur = 9;
+  appearance.areaEffects.settings.overlay = 18;
+  assert.deepEqual(areaEffectsModule.resolveWorkbenchAreaEffects(appearance, "settings"), { overlay: 18, blur: 9 });
+  assert.deepEqual(areaEffectsModule.resolveWorkbenchAreaEffects(appearance, "writing"), { overlay: 42, blur: 9 });
+  assert.deepEqual(DEFAULT_USER_SETTINGS.appearance.areaEffects.settings, { overlay: null, blur: null }, "新区域设置默认继承且不改变全局默认");
+});
 
 function withLocalStorage(run) {
   const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
@@ -33,6 +55,7 @@ test("登录外观缓存仅保存已确认设置中的白名单视觉值", () =>
   appearance.accentColor = "#1976d2";
   appearance.backgrounds.login = "service-room";
   appearance.overlay = 17;
+  appearance.areaEffects.login.overlay = 12;
   appearance.advanced.interfaceFontSize = 19;
   appearance.advanced.reducedMotion = "on";
   appearance.advanced.separateModes = true;
@@ -50,6 +73,7 @@ test("登录外观缓存仅保存已确认设置中的白名单视觉值", () =>
   assert.equal(resolved.accentColor, "#8e44ad");
   assert.equal(resolved.loginBackgroundId, "service-room");
   assert.equal(resolved.overlay, 17);
+  assert.equal(resolved.loginOverlayOverride, 12);
   assert.equal(resolved.interfaceFontSize, 19);
   assert.equal(resolved.reducedMotion, "on");
   assert.equal(resolved.fonts.interface, "serif");

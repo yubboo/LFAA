@@ -58,7 +58,7 @@ test("环境任务隔离、重复合并、取消确认及租约未知；旧存�
     assert.equal(scheduled.payload.downloadTimeoutSeconds,getUserSettings('owner').minecraftRuntime.minecraftDownloadTimeoutSeconds);
     assert.throws(()=>runtimeManager.schedule({targetId:'local',userId:'owner',appId:'minecraft',operation:'install',major:21,distribution:'zulu',version:'17.0.19'}),/一致/);
     assert.throws(()=>runtimeManager.schedule({targetId:'local',userId:'owner',appId:'minecraft',operation:'install',major:17,distribution:'unknown'}),/发行版/);
-    migrateRuntimeEnvironmentSchema();assert.equal(database.prepare('PRAGMA user_version').get().user_version,69);
+    migrateRuntimeEnvironmentSchema();assert.equal(database.prepare('PRAGMA user_version').get().user_version,70);
     closeDatabase();
   `],{cwd:join(root,"apps/cli"),env:{...process.env,NODE_ENV:"test",LFAA_HOME:home,LFAA_DATA_DIR:data,JWT_SECRET:""},encoding:"utf8",stdio:"pipe"});}
   finally {rmSync(data,{recursive:true,force:true});rmSync(home,{recursive:true,force:true});}

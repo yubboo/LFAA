@@ -20,4 +20,6 @@ Control Plane 关系型存储 Owner，按递增、可重复运行的 schema 版�
 
 迁移 67 为 AI Host Shell 任务记录设置中心选择的沙箱模式及目标 workspaceRoot；已有任务保留原行，并以兼容默认值完成新字段迁移。迁移 68 新增账户隔离的 `knowledge_library_skill_installations` 元数据表和账户/创建时间索引；Skill 正文与附属文件仍由 Knowledge Library Owner 保存和校验，不把正文复制进 SQLite。数据库打开时最高接受版本为 68，旧库由 `storage-domain` 在版本 67 后依序调用。
 
-迁移 69 只给 `ai_messages` 增加 `attachments_json`（附件 ID 与名称的 JSON 数组，不含字节）；精简夹具没有该表时只推进版本号。该迁移必须像其它版本一样读取当前 `PRAGMA user_version` 并只接受 68→69：不能在模块导入时用导入期快照越过尚未由 `storage-domain` 协调器完成的版本 31–68，否则新库会缺表且启动失败。数据库打开时最高接受版本为 69。
+迁移 69 只给 `ai_messages` 增加 `attachments_json`（附件 ID 与名称的 JSON 数组，不含字节）；精简夹具没有该表时只推进版本号。该迁移必须像其它版本一样读取当前 `PRAGMA user_version` 并只接受 68→69：不能在模块导入时用导入期快照越过尚未由 `storage-domain` 协调器完成的版本 31–68，否则新库会缺表且启动失败。数据库打开时最高接受版本为 72。
+
+迁移 72 为 `appearance_backgrounds` 增加账户内唯一的 `storage_filename`，并以大小写不敏感的部分唯一索引防止 Windows 同名覆盖。旧行留空并由 Settings Owner 在素材读取时逐图懒迁移；SQLite 继续保存内部背景 ID 与显示名，不保存已迁入用户素材目录的图片字节。

@@ -4,12 +4,12 @@
  * 关联文件：packages/boot/knowledge-library、packages/api/knowledge-controller、packages/storage/storage-sqlite/src/database.ts。
  */
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, rmdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { lstat, readFile } from "node:fs/promises";
-import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { database } from "lfaa-storage-sqlite/src/database.js";
 import { config } from "lfaa-launch-environment/src/config.js";
-import { resolveUserDataPaths } from "lfaa-home-paths/src/data-layout.mjs";
+import { resolveHomePaths, resolveUserDataPaths } from "lfaa-home-paths/src/data-layout.mjs";
 import { atomicWrite, atomicWriteBytes, decode } from "lfaa-storage-json/src/index.js";
 import { withControlLock } from "lfaa-storage-domain/src/control-lock.js";
 import { APPLICATION_IDS, type ApplicationId } from "lfaa-util-values/src/application-id.js";
@@ -117,6 +117,15 @@ interface SkillInstallationRow {
   id: string; user_id: string; name: string; description: string; repository_url: string;
   commit_sha: string; archive_sha256: string; source_path: string; license: string | null;
   content_sha256: string; files_json: string; created_at: string; updated_at: string;
+}
+
+interface PreparedSkillInstallation {
+  name: string;
+  description: string;
+  source: KnowledgeLibrarySkillSource;
+  files: Array<{ path: string; contents: Buffer; sha256: string; bytes: number }>;
+  contentSha256: string;
+  manifestJson: string;
 }
 
 function mapItem(row: ItemRow, contentMarkdown = row.content_markdown): KnowledgeLibraryItem {
@@ -487,20 +496,19 @@ function makeSnippet(content: string, terms: string[], phrase: string): string {
   return `${start > 0 ? "…" : ""}${content.slice(start, end)}${end < content.length ? "…" : ""}`;
 }
 
-/** 安装 GitHub Skill 到当前账户的 LFAA 共享目录；项目路径不会参与存储定位。 */
-export function createKnowledgeLibrarySkillInstallation(userId: string, input: {
+function prepareSkillInstallation(input: {
   name: string;
   description: string;
   source: KnowledgeLibrarySkillSource;
   files: KnowledgeLibrarySkillFileInput[];
-}): KnowledgeLibrarySkillInstallation {
+}): PreparedSkillInstallation {
   const name = validateText(input.name, "Skill 名称", 64);
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(name)) throw new Error("Skill 名称必须使用小写字母、数字和单个短横线。 ");
   const description = validateText(input.description, "Skill 描述", 1024);
   const source = validateSkillInstallSource(input.source);
   if (!Array.isArray(input.files) || input.files.length < 1 || input.files.length > KNOWLEDGE_LIBRARY_SKILL_LIMITS.files) throw new Error(`Skill 文件数量必须为 1–${KNOWLEDGE_LIBRARY_SKILL_LIMITS.files}。`);
 
-  const normalizedFiles: Array<{ path: string; contents: Buffer; sha256: string; bytes: number }> = [];
+  const files: PreparedSkillInstallation["files"] = [];
   const seen = new Set<string>();
   let totalBytes = 0;
   for (const entry of input.files) {
@@ -513,45 +521,65 @@ export function createKnowledgeLibrarySkillInstallation(userId: string, input: {
     if (contents.length > KNOWLEDGE_LIBRARY_SKILL_LIMITS.fileBytes) throw new Error(`Skill 文件超过 2 MiB：${path}`);
     totalBytes += contents.length;
     if (totalBytes > KNOWLEDGE_LIBRARY_SKILL_LIMITS.totalBytes) throw new Error("Skill 文件总大小超过 5 MiB 安全限制。 ");
-    normalizedFiles.push({ path, contents, sha256: createHash("sha256").update(contents).digest("hex"), bytes: contents.length });
+    files.push({ path, contents, sha256: createHash("sha256").update(contents).digest("hex"), bytes: contents.length });
   }
-  const mainFile = normalizedFiles.find(file => file.path.toLocaleLowerCase("en-US") === "skill.md");
+  const mainFile = files.find(file => file.path.toLocaleLowerCase("en-US") === "skill.md");
   if (!mainFile) throw new Error("Skill 安装包缺少根目录 SKILL.md。 ");
   const contentMarkdown = new TextDecoder("utf-8", { fatal: true }).decode(mainFile.contents);
   if (!contentMarkdown.trim() || contentMarkdown.includes("\0") || createHash("sha256").update(contentMarkdown, "utf8").digest("hex") !== mainFile.sha256) throw new Error("SKILL.md 必须是有效的 UTF-8 文本。 ");
-  const manifestJson = JSON.stringify(normalizedFiles.map(({ path, sha256, bytes }) => ({ path, sha256, bytes })));
+  const manifestJson = JSON.stringify(files.map(({ path, sha256, bytes }) => ({ path, sha256, bytes })));
   if (Buffer.byteLength(manifestJson, "utf8") > 262144) throw new Error("Skill 文件清单超过存储限制。 ");
+  return { name, description, source, files, contentSha256: mainFile.sha256, manifestJson };
+}
+
+function writePreparedSkillDirectory(directory: string, prepared: PreparedSkillInstallation): void {
+  mkdirSync(directory, { recursive: false });
+  for (const file of prepared.files) {
+    const target = resolve(directory, ...file.path.split("/"));
+    assertPathWithin(directory, target);
+    mkdirSync(dirname(target), { recursive: true });
+    writeFileSync(target, file.contents, { flag: "wx", mode: 0o600 });
+  }
+}
+
+/** 安装 GitHub Skill 到 LFAA Home 的用户级 Skills 根；项目路径不会参与存储定位。 */
+export function createKnowledgeLibrarySkillInstallation(userId: string, input: {
+  name: string;
+  description: string;
+  source: KnowledgeLibrarySkillSource;
+  files: KnowledgeLibrarySkillFileInput[];
+}): KnowledgeLibrarySkillInstallation {
+  const prepared = prepareSkillInstallation(input);
+  const { name, description, source, contentSha256, manifestJson } = prepared;
 
   const id = randomUUID();
   assertSkillDirectoryParentsAreSafe(userId);
-  const directory = knowledgeSkillInstallationsDirectory(userId);
+  const directory = knowledgeSkillInstallationsDirectory();
   mkdirSync(directory, { recursive: true });
   assertSafeSkillDirectory(directory);
-  const idHash = createHash("sha256").update(id, "utf8").digest("hex");
-  const finalDirectory = resolve(directory, idHash);
-  const stagingDirectory = resolve(directory, `${idHash}.stage-${randomUUID()}`);
-  mkdirSync(stagingDirectory, { recursive: false });
+  const finalDirectory = skillInstallationDirectoryPath(directory, name);
+  const stagingRoot = resolve(directory, ".installing");
+  mkdirSync(stagingRoot, { recursive: true });
+  assertSafeSkillDirectory(stagingRoot);
+  const stagingDirectory = resolve(stagingRoot, `${name}-${randomUUID()}`);
+  assertPathWithin(directory, finalDirectory);
+  assertPathWithin(stagingRoot, stagingDirectory);
   try {
-    for (const file of normalizedFiles) {
-      const target = resolve(stagingDirectory, ...file.path.split("/"));
-      assertPathWithin(stagingDirectory, target);
-      mkdirSync(dirname(target), { recursive: true });
-      writeFileSync(target, file.contents, { flag: "wx", mode: 0o600 });
-    }
+    writePreparedSkillDirectory(stagingDirectory, prepared);
     withControlLock(database, () => {
       const duplicate = database.prepare("SELECT id FROM knowledge_library_skill_installations WHERE user_id = ? AND name = ? COLLATE NOCASE")
         .get(userId, name) as { id?: string } | undefined;
       if (duplicate) throw new Error(`当前 LFAA 账户已安装同名 Skill“${name}”；不会覆盖现有安装。`);
       const count = (database.prepare("SELECT COUNT(*) AS count FROM knowledge_library_skill_installations WHERE user_id = ?").get(userId) as { count: number }).count;
       if (count >= KNOWLEDGE_LIBRARY_SKILL_LIMITS.installationsPerUser) throw new Error(`当前账户的共享 Skill 已达到 ${KNOWLEDGE_LIBRARY_SKILL_LIMITS.installationsPerUser} 条上限。`);
-      if (existsSync(finalDirectory)) throw new Error("Skill 目标目录已存在；为避免覆盖用户数据，安装已停止。 ");
+      if (pathEntryExists(finalDirectory)) throw new Error("Skill 目标目录已存在；为避免覆盖用户数据，安装已停止。 ");
       renameSync(stagingDirectory, finalDirectory);
       try {
         database.prepare(`
           INSERT INTO knowledge_library_skill_installations (
             id, user_id, name, description, repository_url, commit_sha, archive_sha256, source_path, license, content_sha256, files_json
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(id, userId, name, description, source.repositoryUrl, source.commit, source.archiveSha256, source.sourcePath, source.license, mainFile.sha256, manifestJson);
+        `).run(id, userId, name, description, source.repositoryUrl, source.commit, source.archiveSha256, source.sourcePath, source.license, contentSha256, manifestJson);
       } catch (error) {
         removeOwnedSkillDirectory(finalDirectory);
         throw error;
@@ -563,6 +591,123 @@ export function createKnowledgeLibrarySkillInstallation(userId: string, input: {
   } catch (error) {
     if (existsSync(stagingDirectory)) removeOwnedSkillDirectory(stagingDirectory);
     throw error;
+  } finally {
+    removeEmptySkillStagingDirectory(stagingRoot);
+  }
+}
+
+/** 更新当前账户的精确 Skill 安装；先暂存新文件，保留原 ID，并在提交失败时恢复旧目录与记录。 */
+export function updateKnowledgeLibrarySkillInstallation(userId: string, id: string, input: {
+  name: string;
+  description: string;
+  source: KnowledgeLibrarySkillSource;
+  files: KnowledgeLibrarySkillFileInput[];
+}): { installation: KnowledgeLibrarySkillInstallation; updated: boolean } {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(id)) throw new Error("Skill 安装 ID 无效。 ");
+  const prepared = prepareSkillInstallation(input);
+  const { name, description, source, contentSha256, manifestJson } = prepared;
+  const loadCurrent = (): { row: SkillInstallationRow; installation: KnowledgeLibrarySkillInstallation; directory: string } => {
+    const row = database.prepare(`
+      SELECT id, user_id, name, description, repository_url, commit_sha, archive_sha256, source_path, license, content_sha256, files_json, created_at, updated_at
+      FROM knowledge_library_skill_installations WHERE user_id = ? AND id = ?
+    `).get(userId, id) as SkillInstallationRow | undefined;
+    if (!row) throw new Error("未找到当前账户的这条 Skill 安装记录；不会改动其他安装。 ");
+    if (row.name !== name) throw new Error(`更新结果的 Skill 名称从“${row.name}”变为“${name}”；为保持精确安装身份，已停止更新。`);
+    if (row.repository_url !== source.repositoryUrl || row.source_path !== source.sourcePath) throw new Error("Skill 更新来源与原登记的仓库或目录不同；为避免改源覆盖，已停止更新。 ");
+    const installation = getKnowledgeLibrarySkillInstallation(userId, id);
+    if (!installation) throw new Error("Skill 安装记录无法回读；已保留旧版本。 ");
+    const idHash = createHash("sha256").update(row.id, "utf8").digest("hex");
+    const directory = skillInstallationDirectory(row.user_id, row.name, idHash, row.content_sha256);
+    if (!skillDirectoryMatchesManifest(directory, installation.files)) throw new Error("已安装 Skill 目录含有被修改、缺失或未登记的文件；为保护本地内容，更新已停止。 ");
+    return { row, installation, directory };
+  };
+  const sameVersion = (row: SkillInstallationRow): boolean => row.commit_sha === source.commit
+    && row.content_sha256 === contentSha256 && row.files_json === manifestJson;
+
+  const initial = withControlLock(database, () => loadCurrent());
+  if (sameVersion(initial.row)) return { installation: initial.installation, updated: false };
+
+  assertSkillDirectoryParentsAreSafe(userId);
+  const directory = knowledgeSkillInstallationsDirectory();
+  mkdirSync(directory, { recursive: true });
+  assertSafeSkillDirectory(directory);
+  const finalDirectory = skillInstallationDirectoryPath(directory, name);
+  const stagingRoot = resolve(directory, ".installing");
+  mkdirSync(stagingRoot, { recursive: true });
+  assertSafeSkillDirectory(stagingRoot);
+  const stagingDirectory = resolve(stagingRoot, `${name}-update-${randomUUID()}`);
+  assertPathWithin(stagingRoot, stagingDirectory);
+  const quarantineRoot = initial.directory === finalDirectory ? stagingRoot : dirname(initial.directory);
+  const quarantineDirectory = resolve(quarantineRoot, `${basename(initial.directory)}-update-${randomUUID()}`);
+  assertPathWithin(quarantineRoot, quarantineDirectory);
+  let staged = false;
+  let oldMoved = false;
+  let newMoved = false;
+  let committed = false;
+  let rollbackFailed = false;
+  try {
+    writePreparedSkillDirectory(stagingDirectory, prepared);
+    staged = true;
+    withControlLock(database, () => {
+      const current = loadCurrent();
+      if (sameVersion(current.row)) return;
+      if (current.row.updated_at !== initial.row.updated_at || current.row.description !== initial.row.description
+        || current.row.repository_url !== initial.row.repository_url || current.row.commit_sha !== initial.row.commit_sha
+        || current.row.archive_sha256 !== initial.row.archive_sha256 || current.row.source_path !== initial.row.source_path
+        || current.row.license !== initial.row.license || current.row.files_json !== initial.row.files_json
+        || current.row.content_sha256 !== initial.row.content_sha256 || current.directory !== initial.directory) {
+        throw new Error("Skill 安装在更新过程中已变化；旧版本保持不动，请重新检查后再更新。 ");
+      }
+      if (current.directory !== finalDirectory && pathEntryExists(finalDirectory)) throw new Error("LFAA Home 中存在未登记的同名 Skill 目录；为保护本地文件，更新已停止。 ");
+      assertSafeSkillDirectory(quarantineRoot);
+      renameSync(current.directory, quarantineDirectory);
+      oldMoved = true;
+      try {
+        if (!skillDirectoryMatchesManifest(quarantineDirectory, current.installation.files)) throw new Error("Skill 在进入替换阶段时发生变化；已停止更新并恢复旧目录。 ");
+        renameSync(stagingDirectory, finalDirectory);
+        staged = false;
+        newMoved = true;
+        const changed = database.prepare(`
+          UPDATE knowledge_library_skill_installations
+          SET description = ?, repository_url = ?, commit_sha = ?, archive_sha256 = ?, source_path = ?, license = ?, content_sha256 = ?, files_json = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+          WHERE user_id = ? AND id = ? AND updated_at = ? AND files_json = ? AND content_sha256 = ?
+        `).run(description, source.repositoryUrl, source.commit, source.archiveSha256, source.sourcePath, source.license, contentSha256, manifestJson, userId, id, current.row.updated_at, current.row.files_json, current.row.content_sha256).changes;
+        if (Number(changed) !== 1) throw new Error("Knowledge Library 未确认同一 Skill 安装记录的更新。 ");
+        committed = true;
+      } catch (error) {
+        try {
+          if (newMoved && pathEntryExists(finalDirectory)) {
+            renameSync(finalDirectory, stagingDirectory);
+            staged = true;
+            newMoved = false;
+          }
+          if (oldMoved && pathEntryExists(quarantineDirectory)) {
+            renameSync(quarantineDirectory, current.directory);
+            oldMoved = false;
+          }
+        } catch (rollbackError) {
+          rollbackFailed = true;
+          throw new AggregateError([error, rollbackError], "Skill 更新失败且自动恢复未能完成；请检查 LFAA Home 的 .installing 临时目录。 ");
+        }
+        throw error;
+      }
+    });
+    if (!committed) {
+      const unchanged = getKnowledgeLibrarySkillInstallation(userId, id);
+      if (!unchanged) throw new Error("Skill 已在并发更新中变化，当前记录无法回读。 ");
+      return { installation: unchanged, updated: false };
+    }
+    const updated = getKnowledgeLibrarySkillInstallation(userId, id);
+    if (!updated) throw new Error("Skill 文件已替换，但 Knowledge Library 未能回读更新记录；请先检查 capability_list。 ");
+    if (oldMoved) {
+      removeOwnedSkillDirectory(quarantineDirectory);
+      oldMoved = false;
+    }
+    return { installation: updated, updated: true };
+  } finally {
+    if (staged && !rollbackFailed && pathEntryExists(stagingDirectory)) removeOwnedSkillDirectory(stagingDirectory);
+    if (!committed && !rollbackFailed && newMoved && pathEntryExists(finalDirectory)) removeOwnedSkillDirectory(finalDirectory);
+    if (!oldMoved && dirname(quarantineDirectory) === stagingRoot) removeEmptySkillStagingDirectory(stagingRoot);
   }
 }
 
@@ -610,36 +755,51 @@ export function readKnowledgeLibrarySkillResource(userId: string, id: string, re
 /** 只按当前用户和安装记录 ID 卸载一个 Skill；不会按名称递归清理其他条目。 */
 export function deleteKnowledgeLibrarySkillInstallation(userId: string, id: string): boolean {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(id)) throw new Error("Skill 安装 ID 无效。 ");
-  const row = database.prepare("SELECT id, user_id FROM knowledge_library_skill_installations WHERE user_id = ? AND id = ?").get(userId, id) as { id: string; user_id: string } | undefined;
+  const row = database.prepare("SELECT id, user_id, name, content_sha256 FROM knowledge_library_skill_installations WHERE user_id = ? AND id = ?").get(userId, id) as { id: string; user_id: string; name: string; content_sha256: string } | undefined;
   if (!row) return false;
   assertSkillDirectoryParentsAreSafe(userId);
-  const directory = knowledgeSkillInstallationsDirectory(row.user_id);
   const idHash = createHash("sha256").update(row.id, "utf8").digest("hex");
-  const activeDirectory = resolve(directory, idHash);
-  const quarantineDirectory = resolve(directory, `${idHash}.remove-${randomUUID()}`);
+  const activeDirectory = skillInstallationDirectory(row.user_id, row.name, idHash, row.content_sha256);
+  const stagingRoot = resolve(knowledgeSkillInstallationsDirectory(), ".installing");
+  const directDirectory = skillInstallationDirectoryPath(knowledgeSkillInstallationsDirectory(), row.name);
+  const quarantineRoot = activeDirectory === directDirectory ? stagingRoot : dirname(activeDirectory);
+  if (quarantineRoot === stagingRoot) {
+    mkdirSync(stagingRoot, { recursive: true });
+    assertSafeSkillDirectory(stagingRoot);
+  }
+  const quarantineDirectory = resolve(quarantineRoot, `${basename(activeDirectory)}-remove-${randomUUID()}`);
   let moved = false;
   let deleted = false;
-  withControlLock(database, () => {
-    const current = database.prepare("SELECT id FROM knowledge_library_skill_installations WHERE user_id = ? AND id = ?").get(userId, id) as { id?: string } | undefined;
-    if (!current) return;
-    if (existsSync(activeDirectory)) {
-      assertSafeSkillDirectory(activeDirectory);
-      renameSync(activeDirectory, quarantineDirectory);
-      moved = true;
-    }
-    try {
-      const removed = database.prepare("DELETE FROM knowledge_library_skill_installations WHERE user_id = ? AND id = ?").run(userId, id).changes;
-      if (Number(removed) !== 1) throw new Error("LFAA Skill Owner 未确认精确卸载结果。 ");
-      deleted = true;
-    } catch (error) {
-      if (moved) renameSync(quarantineDirectory, activeDirectory);
-      moved = false;
-      throw error;
-    }
-  });
-  if (!deleted) return false;
-  if (moved) removeOwnedSkillDirectory(quarantineDirectory);
-  return true;
+  try {
+    withControlLock(database, () => {
+      const current = database.prepare("SELECT id FROM knowledge_library_skill_installations WHERE user_id = ? AND id = ?").get(userId, id) as { id?: string } | undefined;
+      if (!current) return;
+      if (pathEntryExists(activeDirectory)) {
+        assertSafeSkillDirectory(activeDirectory);
+        renameSync(activeDirectory, quarantineDirectory);
+        moved = true;
+        if (!skillDirectoryHasContent(quarantineDirectory, row.content_sha256)) {
+          renameSync(quarantineDirectory, activeDirectory);
+          moved = false;
+          throw new Error("LFAA Skill 在卸载前发生变化；为保护本地文件，已保留该目录。 ");
+        }
+      }
+      try {
+        const removed = database.prepare("DELETE FROM knowledge_library_skill_installations WHERE user_id = ? AND id = ?").run(userId, id).changes;
+        if (Number(removed) !== 1) throw new Error("LFAA Skill Owner 未确认精确卸载结果。 ");
+        deleted = true;
+      } catch (error) {
+        if (moved) renameSync(quarantineDirectory, activeDirectory);
+        moved = false;
+        throw error;
+      }
+    });
+    if (!deleted) return false;
+    if (moved) removeOwnedSkillDirectory(quarantineDirectory);
+    return true;
+  } finally {
+    if (quarantineRoot === stagingRoot) removeEmptySkillStagingDirectory(stagingRoot);
+  }
 }
 
 function mapSkillInstallationSummary(row: SkillInstallationRow): KnowledgeLibrarySkillInstallationSummary {
@@ -717,14 +877,104 @@ function parseSkillInstallationManifest(value: string): Array<{ path: string; sh
   return files;
 }
 
-function knowledgeSkillInstallationsDirectory(userId: string): string {
+function knowledgeSkillInstallationsDirectory(): string {
+  return resolveHomePaths(config.homeDirectory).skills;
+}
+
+function previousAccountSkillInstallationsDirectory(userId: string): string {
+  const accountHash = createHash("sha256").update(userId, "utf8").digest("hex");
+  return resolve(resolveHomePaths(config.homeDirectory).skills, "account-installed", accountHash);
+}
+
+function legacyKnowledgeSkillInstallationsDirectory(userId: string): string {
   return resolve(resolveUserDataPaths(config.dataDirectory, userId).knowledge, "skills");
 }
 
+function skillInstallationDirectoryPath(root: string, installationName: string): string {
+  if (typeof installationName !== "string" || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(installationName)) throw new Error("LFAA Skill 安装名称无效；拒绝构造本机路径。 ");
+  return resolve(root, installationName);
+}
+
+function skillInstallationDirectory(userId: string, installationName: string, installationIdHash: string, contentSha256: string): string {
+  const root = knowledgeSkillInstallationsDirectory();
+  const currentDirectory = skillInstallationDirectoryPath(root, installationName);
+  const previousAccountRoot = previousAccountSkillInstallationsDirectory(userId);
+  const previousNamedDirectory = skillInstallationDirectoryPath(previousAccountRoot, installationName);
+  const transitionalDirectory = resolve(previousAccountRoot, installationIdHash);
+  const legacyDirectory = resolve(legacyKnowledgeSkillInstallationsDirectory(userId), installationIdHash);
+  const candidates = [currentDirectory, previousNamedDirectory, transitionalDirectory, legacyDirectory];
+  for (const candidate of candidates) {
+    if (pathEntryExists(candidate) && skillDirectoryHasContent(candidate, contentSha256)) return candidate;
+  }
+  if (candidates.some(pathEntryExists)) throw new Error("LFAA Skill 目录与安装记录不匹配；为保护本地文件，未读取或删除该目录。 ");
+  return currentDirectory;
+}
+
+function skillDirectoryHasContent(directory: string, contentSha256: string): boolean {
+  assertSafeSkillDirectory(directory);
+  const mainFile = resolve(directory, "SKILL.md");
+  assertPathWithin(directory, mainFile);
+  assertNoSymlinkAncestors(directory, mainFile);
+  if (!pathEntryExists(mainFile)) return false;
+  const info = lstatSync(mainFile);
+  if (!info.isFile() || info.isSymbolicLink()) throw new Error("LFAA Skill 主文件不是普通文件；拒绝跟随链接。 ");
+  if (info.size > KNOWLEDGE_LIBRARY_SKILL_LIMITS.fileBytes) return false;
+  return createHash("sha256").update(readFileSync(mainFile)).digest("hex") === contentSha256;
+}
+
+function skillDirectoryMatchesManifest(directory: string, manifest: Array<{ path: string; sha256: string; bytes: number }>): boolean {
+  assertSafeSkillDirectory(directory);
+  const expectedFiles = new Map(manifest.map(file => [file.path.toLocaleLowerCase("en-US"), file]));
+  const expectedDirectories = new Set<string>();
+  for (const file of manifest) {
+    const segments = file.path.split("/");
+    for (let index = 1; index < segments.length; index += 1) expectedDirectories.add(segments.slice(0, index).join("/").toLocaleLowerCase("en-US"));
+  }
+  const found = new Set<string>();
+  let visitedEntries = 0;
+  const maximumEntries = KNOWLEDGE_LIBRARY_SKILL_LIMITS.files * 256;
+  const visit = (current: string): boolean => {
+    for (const entryName of readdirSync(current)) {
+      visitedEntries += 1;
+      if (visitedEntries > maximumEntries) return false;
+      const target = resolve(current, entryName);
+      assertPathWithin(directory, target);
+      const info = lstatSync(target);
+      if (info.isSymbolicLink()) return false;
+      const path = relative(directory, target).split(sep).join("/");
+      const folded = path.toLocaleLowerCase("en-US");
+      if (info.isDirectory()) {
+        if (!expectedDirectories.has(folded) || !visit(target)) return false;
+        continue;
+      }
+      const expected = expectedFiles.get(folded);
+      if (!info.isFile() || !expected || info.size !== expected.bytes || found.has(folded)) return false;
+      const contents = readFileSync(target);
+      if (createHash("sha256").update(contents).digest("hex") !== expected.sha256) return false;
+      found.add(folded);
+    }
+    return true;
+  };
+  return visit(directory) && found.size === expectedFiles.size;
+}
+
+function pathEntryExists(path: string): boolean {
+  try { lstatSync(path); return true; }
+  catch (error) {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT") return false;
+    throw error;
+  }
+}
+
 function assertSkillDirectoryParentsAreSafe(userId: string): void {
+  const homePaths = resolveHomePaths(config.homeDirectory);
   const userPaths = resolveUserDataPaths(config.dataDirectory, userId);
+  const homeRoot = resolve(config.homeDirectory);
   const dataRoot = resolve(config.dataDirectory);
-  const paths = [dataRoot, resolve(dataRoot, "users"), userPaths.root, userPaths.knowledge];
+  const paths = [
+    homeRoot, homePaths.skills, resolve(homePaths.skills, "account-installed"), previousAccountSkillInstallationsDirectory(userId), resolve(homePaths.skills, ".installing"),
+    dataRoot, resolve(dataRoot, "users"), userPaths.root, userPaths.knowledge, legacyKnowledgeSkillInstallationsDirectory(userId)
+  ];
   for (const path of paths) {
     if (!existsSync(path)) continue;
     const info = lstatSync(path);
@@ -732,11 +982,10 @@ function assertSkillDirectoryParentsAreSafe(userId: string): void {
   }
 }
 
-function readSkillInstallationFile(row: Pick<SkillInstallationRow, "id" | "user_id">, file: { path: string; sha256: string; bytes: number }): Buffer {
+function readSkillInstallationFile(row: Pick<SkillInstallationRow, "id" | "user_id" | "name" | "content_sha256">, file: { path: string; sha256: string; bytes: number }): Buffer {
   assertSkillDirectoryParentsAreSafe(row.user_id);
-  const root = knowledgeSkillInstallationsDirectory(row.user_id);
   const idHash = createHash("sha256").update(row.id, "utf8").digest("hex");
-  const directory = resolve(root, idHash);
+  const directory = skillInstallationDirectory(row.user_id, row.name, idHash, row.content_sha256);
   assertSafeSkillDirectory(directory);
   const target = resolve(directory, ...file.path.split("/"));
   assertPathWithin(directory, target);
@@ -750,7 +999,7 @@ function readSkillInstallationFile(row: Pick<SkillInstallationRow, "id" | "user_
 }
 
 function assertSafeSkillDirectory(path: string): void {
-  if (!existsSync(path)) throw new Error("LFAA Skill 存储目录不存在。 ");
+  if (!pathEntryExists(path)) throw new Error("LFAA Skill 存储目录不存在。 ");
   const info = lstatSync(path);
   if (!info.isDirectory() || info.isSymbolicLink()) throw new Error("LFAA Skill 存储路径不是普通目录；拒绝跟随链接。 ");
 }
@@ -775,4 +1024,12 @@ function removeOwnedSkillDirectory(path: string): void {
   if (!existsSync(path)) return;
   assertSafeSkillDirectory(path);
   rmSync(path, { recursive: true, force: false });
+}
+
+function removeEmptySkillStagingDirectory(path: string): void {
+  try { rmdirSync(path); }
+  catch (error) {
+    if (typeof error === "object" && error !== null && "code" in error && (error.code === "ENOENT" || error.code === "ENOTEMPTY" || error.code === "EEXIST")) return;
+    throw error;
+  }
 }

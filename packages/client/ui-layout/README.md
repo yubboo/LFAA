@@ -8,6 +8,12 @@ Workbench 将认证后的 `/agent-office` 懒加载到 `ui-workspace`，并复�
 
 Workbench 还负责把设置、文件和插件页面的“最近会话”请求送入 `/work`；请求 ID 只在内存中暂存，由 `ApplicationWorkspace` 消费并确认后清除。会话列表、刷新和 Dock 展开仍归工作区 Owner，不由 Workbench 复制。
 
+Workbench 根据现有背景槽读取同名 `appearance.areaEffects`：遮罩和玻璃模糊可在五个工作区区域独立覆盖，未覆盖时逐字段继承全局 Appearance；门户表面、Wallpaper Engine 令牌和刷新首帧缓存共用同一解析值。设置中心区域由 `/settings` 路由识别，不创建新背景槽。
+
+内置 Appearance 背景的 ID 与 Web URL 统一来自 `util/values/src/builtin-backgrounds.ts`；素材放在 `apps/web/public/backgrounds/` 或其静态子目录，Vite 构建到根 `dist/apps/web/`。Workbench 和外观选择器复用同一清单，新增静态文件需登记清单才会成为可选背景。账户上传图继续由认证 API 读取，不进入 Web 静态构建。
+
+共享运行环境页将 Runtime Overview 按当前账户与角色保存在 Client Snapshot Cache；回访先呈现最近真实设备/环境快照，再由认证 API 在后台核对。缓存只用于首屏显示，不替代 RuntimeManager 的本机发现、节点心跳和安装前校验；下载仍只由用户发起的运行环境任务执行。
+
 Workbench 提供唯一的 `applicationNavigationItems` 应用清单。`ApplicationWorkspace` 在右侧 Dock 呈现“应用”视图和原工具/资源视图；设置、文件、插件页的全局“应用”入口向 Workbench 提交一次性打开请求，进入 `/work` 后由工作区按 `requestId` 先消费并清理请求、再展开右侧应用视图，防止响应式布局或回调变化重放同一请求。当前视图选择由 Workbench 保持，使应用切换路由后仍留在应用菜单；左 Dock 只呈现会话与项目。
 
 设置页只在 `/settings`、`/admin/users` 直达路由或用户悬停/聚焦设置导航时预热；工作台空闲时不主动下载整页，避免后台模块加载占用首屏资源。

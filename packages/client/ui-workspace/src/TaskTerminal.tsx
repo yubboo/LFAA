@@ -3,7 +3,7 @@
  * 作用：真实 PTY 由 InteractiveTerminal 承接，任务页按账户读取状态、退出码与截断结果。
  * 关联文件：ApplicationWorkspace.tsx、connection/api.ts、api/session-controller、jobs/ai-host-tasks.ts。
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createReadPoller } from "lfaa-client-connection/src/read-poller.js";
 import { Alert, Button, Select } from "antd";
 import { getErrorMessage, loadAiHostTasks, loadAiHostTask, cancelAiHostTask, type AiHostTask } from "lfaa-client-connection/src/api.js";
@@ -19,18 +19,30 @@ export function TaskTerminal(props: { onClose: () => void; appId: ApplicationId;
 
 function TaskOutput({ onClose, onInteractive }: { onClose: () => void; onInteractive: () => void }) {
   const [tasks, setTasks] = useState<AiHostTask[]>([]), [selectedId, setSelectedId] = useState<string>(), [current, setCurrent] = useState<AiHostTask | null>(null), [error, setError] = useState("");
+  const tasksRef = useRef(tasks), currentRef = useRef(current);
+  tasksRef.current = tasks;
+  currentRef.current = current;
   useEffect(() => {
     let alive = true;
     const refresh = async () => {
       try {
         const result = await loadAiHostTasks(); if (!alive) return;
+        tasksRef.current = result.tasks;
         setTasks(current => current.length === result.tasks.length && current.every((task, index) => sameTerminalTask(task, result.tasks[index]!)) ? current : result.tasks);
         const id = selectedId ?? result.tasks[0]?.id;
-        if (id) { const detail = await loadAiHostTask(id); if (alive) setCurrent(current => sameTerminalTask(current, detail.task) ? current : detail.task); } else setCurrent(null);
+        const listedTask = result.tasks.find(task => task.id === id);
+        const cachedTask = currentRef.current;
+        const detailNeedsRefresh = id && (cachedTask?.id !== id
+          || Boolean(cachedTask && ["queued", "running"].includes(cachedTask.status))
+          || ["queued", "running"].includes(listedTask?.status ?? ""));
+        if (id && detailNeedsRefresh) {
+          const detail = await loadAiHostTask(id);
+          if (alive) { currentRef.current = detail.task; setCurrent(current => sameTerminalTask(current, detail.task) ? current : detail.task); }
+        } else if (!id) { currentRef.current = null; setCurrent(null); }
         if (alive) setError("");
       } catch (error) { if (alive) setError(getErrorMessage(error)); }
     };
-    const poller = createReadPoller(refresh, 2000);
+    const poller = createReadPoller(refresh, () => tasksRef.current.some(task => ["queued", "running"].includes(task.status)) ? 3000 : 15000);
     return () => { alive = false; poller.stop(); };
   }, [selectedId]);
   const options = useMemo(() => tasks.map(task => ({ value: task.id, label: `${task.shell} · ${task.status} · ${task.id.slice(0, 8)}` })), [tasks]);

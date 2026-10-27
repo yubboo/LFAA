@@ -42,7 +42,10 @@ function makePage(state = {}) {
     off(event, listener) { listeners.get(event)?.delete(listener); },
     emit(event, ...args) { for (const listener of listeners.get(event) ?? []) listener(...args); },
     locator(selector) {
-      if (selector === "body") return { innerText: async () => { state.pageTextReads = (state.pageTextReads ?? 0) + 1; return state.pageText ?? "body"; } };
+      if (selector === "body") return {
+        innerText: async () => { state.pageTextReads = (state.pageTextReads ?? 0) + 1; return state.pageText ?? "body"; },
+        ariaSnapshotJSON: async () => { state.accessibilityTreeReads = (state.accessibilityTreeReads ?? 0) + 1; return state.accessibilityTree ?? []; }
+      };
       return { evaluateAll: async (_map, limit) => { state.controlReads = (state.controlReads ?? 0) + 1; return (state.controls ?? []).slice(0, limit); } };
     },
     getByRole() { return { count: async () => state.roleCount ?? 1, first: () => ({ click: async () => undefined }), nth: index => ({ click: async () => { state.clickedOccurrence = index; } }) }; },
@@ -424,6 +427,37 @@ test("Browser snapshots bound text, controls, tabs, and screenshot bytes", async
     assert.equal(snapshot.tabs.length, 8);
     assert.equal(snapshot.screenshot, null, "oversized screenshot bytes are not returned");
     assert.deepEqual(activePage.state.screenshotOptions.map(options => options.animations), ["allow", "allow"], "capturing frames keeps page animations running");
+  } finally {
+    await manager.closeAll();
+  }
+});
+
+test("Agent can request a bounded accessibility tree without exposing form values", async () => {
+  const manager = new BrowserSessionManager(false);
+  const activePage = makePage({
+    url: "https://example.test/settings",
+    accessibilityTree: [{ role: "main", children: [
+      { role: "heading", name: "设置中心", level: 1 },
+      { role: "button", name: "保存", disabled: true },
+      { role: "textbox", name: "API Key", value: "never-send-this-secret" },
+      ...Array.from({ length: 140 }, (_, index) => ({ role: "button", name: `项目 ${index}` }))
+    ] }]
+  });
+  const session = { id: "accessibility", lastUsedAt: 0, page: activePage, context: { pages: () => [activePage] } };
+  try {
+    const compact = await manager.observe(session, false, true, false);
+    assert.equal(compact.accessibilityTree, undefined, "accessibility snapshots stay opt-in to control request size");
+    assert.equal(activePage.state.accessibilityTreeReads ?? 0, 0);
+
+    const expanded = await manager.observe(session, false, true, true);
+    assert.ok(Array.isArray(expanded.accessibilityTree));
+    const serialized = JSON.stringify(expanded.accessibilityTree);
+    assert.match(serialized, /设置中心/u);
+    assert.match(serialized, /保存/u);
+    assert.match(serialized, /受保护的敏感字段/u);
+    assert.doesNotMatch(serialized, /never-send-this-secret|API Key/u, "tree omits field values and redacts sensitive labels");
+    assert.match(serialized, /已截断/u, "large trees report their truncation");
+    assert.ok(serialized.length <= 8_000);
   } finally {
     await manager.closeAll();
   }

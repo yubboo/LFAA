@@ -12,6 +12,7 @@ import { join, resolve } from "node:path";
 import { resolveDataPaths } from "lfaa-home-paths/src/data-layout.mjs";
 import { getProjectStorageLocations } from "lfaa-settings/src/project-storage.js";
 import type { BrowserSnapshot } from "./session-manager.js";
+import { boundBrowserAccessibilityTree } from "./accessibility-tree.js";
 
 const FRAME_TIMEOUT_MS = 35_000;
 const MAX_LINE_BYTES = 6 * 1024 * 1024;
@@ -20,6 +21,7 @@ const SESSION_IDLE_TTL_MS = 30 * 60_000;
 const MAX_TABS = 8;
 const MAX_TEXT = 16_000;
 const MAX_CONTROLS = 80;
+const MAX_ACCESSIBILITY_TREE_CHARS = 8_000;
 const SENSITIVE = /(?:password|passcode|secret|token|api[\s_-]?key|authorization|验证码|密码|密钥|令牌)/iu;
 
 export interface TabbitTabSummary { tabId: number; title: string; url: string; active: boolean; state: string }
@@ -63,10 +65,20 @@ function jsString(value: string): string {
   return JSON.stringify(value).replaceAll("\u2028", "\\u2028").replaceAll("\u2029", "\\u2029");
 }
 
-const READ_SNAPSHOT = `
+function readSnapshotCode(includeImage: boolean, includeAccessibilityTree = false): string {
+  const imageRead = includeImage
+    ? `let image = await page.screenshot({type:"jpeg",quality:68,animations:"disabled",timeout:5000}).catch(() => null);
+if(image && image.byteLength > ${MAX_SCREENSHOT_BYTES}) image = await page.screenshot({type:"jpeg",quality:55,animations:"disabled",timeout:5000}).catch(() => null);`
+    : "const image = null;";
+  const treeRead = includeAccessibilityTree
+    ? `const bodyLocator=page.locator("body");const accessibilityTree=typeof bodyLocator.ariaSnapshotJSON==="function"?await bodyLocator.ariaSnapshotJSON({depth:8,timeout:4000}).catch(()=>null):null;`
+    : "";
+  const treeReturn = includeAccessibilityTree ? ",accessibilityTree" : "";
+  return `
 const title = (await page.title().catch(() => "")).slice(0, 300);
 const url = page.url().slice(0, 2048);
 const pageText = (await page.locator("body").innerText({ timeout: 4000 }).catch(() => "")).slice(0, ${MAX_TEXT});
+${treeRead}
 const controls = await page.locator("a,button,input,textarea,select,[role=button],[role=link],[role=textbox]").evaluateAll(elements => elements.slice(0, ${MAX_CONTROLS}).map(element => {
  const node = element; const input = node instanceof HTMLInputElement ? node : null;
  const label = node.getAttribute("aria-label") || node.innerText || input?.placeholder || node.getAttribute("title") || "";
@@ -77,10 +89,12 @@ const controls = await page.locator("a,button,input,textarea,select,[role=button
 const ownedPages = pages().slice(0, ${MAX_TABS});
 const tabs = await Promise.all(ownedPages.map(async (tab, index) => ({id:String(index), title:(await tab.title().catch(() => "")).slice(0,300), url:tab.url().slice(0,2048), active:tab === page})));
 const size = page.viewportSize() || {width:1280,height:800};
-let image = await page.screenshot({type:"jpeg",quality:68,animations:"disabled",timeout:5000}).catch(() => null);
-if(image && image.byteLength > ${MAX_SCREENSHOT_BYTES}) image = await page.screenshot({type:"jpeg",quality:55,animations:"disabled",timeout:5000}).catch(() => null);
-return {title,url,pageText,controls,tabs,screenshotBase64:image ? image.toString("base64") : "",screenshotWidth:size.width,screenshotHeight:size.height};`;
-const READ_SNAPSHOT_WITHOUT_IMAGE = READ_SNAPSHOT.replace(`let image = await page.screenshot({type:"jpeg",quality:68,animations:"disabled",timeout:5000}).catch(() => null);\nif(image && image.byteLength > ${MAX_SCREENSHOT_BYTES}) image = await page.screenshot({type:"jpeg",quality:55,animations:"disabled",timeout:5000}).catch(() => null);`, "const image = null;");
+${imageRead}
+return {title,url,pageText,controls,tabs${treeReturn},screenshotBase64:image ? image.toString("base64") : "",screenshotWidth:size.width,screenshotHeight:size.height};`;
+}
+const READ_SNAPSHOT = readSnapshotCode(true);
+const READ_SNAPSHOT_WITHOUT_IMAGE = readSnapshotCode(false);
+const READ_SNAPSHOT_WITH_ACCESSIBILITY = readSnapshotCode(true, true);
 
 export class TabbitBrowserProvider {
   private readonly sessions = new Map<string, Promise<TabbitSession>>();
@@ -141,11 +155,11 @@ export class TabbitBrowserProvider {
     }, signal);
   }
 
-  async observe(ownerId: string, sourceSessionId: string, signal?: AbortSignal): Promise<BrowserSnapshot> {
+  async observe(ownerId: string, sourceSessionId: string, signal?: AbortSignal, includeAccessibilityTree = false): Promise<BrowserSnapshot> {
     const session = await this.getSession(ownerId, sourceSessionId, signal);
     return this.exclusive(session, async () => {
       if (!session.initialized) throw new Error("请先查看 Tabbit 标签并连接目标标签，或在浏览器工作区地址栏输入网址。");
-      const receipt = await this.sendFrame(session, { op: "run", requestId: this.nextRequestId(session), code: READ_SNAPSHOT });
+      const receipt = await this.sendFrame(session, { op: "run", requestId: this.nextRequestId(session), code: includeAccessibilityTree ? READ_SNAPSHOT_WITH_ACCESSIBILITY : READ_SNAPSHOT });
       return this.saveSnapshot(session, this.receiptValue(receipt));
     }, signal);
   }
@@ -377,7 +391,9 @@ export class TabbitBrowserProvider {
     session.pageUrl = url;
     session.pageTitle = title;
     this.touch(session);
-    const snapshot: BrowserSnapshot = { sessionId: session.id, providerId: "tabbit-personal", revision: session.revision, url, title, loading: record.loading === true, pageText: record.pageText.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/gu, " ").slice(0, MAX_TEXT), controls, tabs, screenshot };
+    const tree = record.accessibilityTree === undefined ? undefined : boundBrowserAccessibilityTree(record.accessibilityTree);
+    const accessibilityTree = tree !== undefined && tree !== null && JSON.stringify(tree).length > MAX_ACCESSIBILITY_TREE_CHARS ? null : tree;
+    const snapshot: BrowserSnapshot = { sessionId: session.id, providerId: "tabbit-personal", revision: session.revision, url, title, loading: record.loading === true, pageText: record.pageText.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/gu, " ").slice(0, MAX_TEXT), controls, ...(tree !== undefined ? { accessibilityTree } : {}), tabs, screenshot };
     session.snapshot = snapshot;
     return structuredClone(snapshot);
   }

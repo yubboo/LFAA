@@ -402,7 +402,7 @@ export async function executeProjectFile(input, { signal } = {}) {
     return { path: home, home, root: parse(home).root, roots };
   }
   if (input?.operation === "list_directories" || input?.operation === "inspect_directory" || input?.operation === "create_directory") {
-    if (typeof input.path !== "string" || !isAbsolute(input.path)) throw new Error("项目目录必须是 Daemon 上的绝对路径。");
+    if (typeof input.path !== "string" || !isAbsolute(input.path)) throw new Error("项目目录必须是当前执行 Host 上的绝对路径。");
     const path = resolve(input.path);
     await assertOutsideDataRoot(path);
     if (input.operation === "create_directory") {

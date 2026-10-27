@@ -14,6 +14,8 @@ const sessions=await import("lfaa-session/src/sessions.js");const {database}=awa
     const directory = await fetch(`${base}/ai/skills`, { headers }); assert.equal(directory.status, 200);
     const { skills } = await directory.json();
     assert.ok(skills.some(skill => skill.id === "skill.registry/minecraft-server-setup"));
+    assert.equal(skills.find(skill => skill.id === "skill.registry/minecraft-server-setup").origin, "bundled");
+    assert.ok(skills.every(skill => typeof skill.origin === "string" && !skill.provider));
     assert.ok(skills.every(skill => !skill.content && !skill.instructions && !skill.path && !skill.resourceBase));
     const nodeId = randomUUID();
     database.prepare("INSERT INTO daemon_nodes(id,display_name,platform,architecture,daemon_version,status,last_seen_at) VALUES (?,'isolated','win32','x64','fixture','offline',?)").run(nodeId, new Date().toISOString());

@@ -89,6 +89,24 @@ test("隐藏暂停读取，恢复立即对账；停止后焦点、可见事件�
   assert.equal(gates.length, 2);
 });
 
+test("只读对账支持新鲜快照延迟启动与按实时状态调整间隔", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  browserEvents(t);
+  let calls = 0, intervalMs = 1000;
+  const poller = createReadPoller(async () => { calls += 1; if (calls === 1) intervalMs = 2000; }, () => intervalMs, { initialDelayMs: 5000 });
+  t.after(() => poller.stop());
+  await nextTurn();
+  assert.equal(calls, 0);
+  t.mock.timers.tick(4999); await nextTurn();
+  assert.equal(calls, 0);
+  t.mock.timers.tick(1); await nextTurn();
+  assert.equal(calls, 1);
+  t.mock.timers.tick(1999); await nextTurn();
+  assert.equal(calls, 1);
+  t.mock.timers.tick(1); await nextTurn();
+  assert.equal(calls, 2);
+});
+
 test("Browser Dock 隐藏时停止修订轮询并取消在途读取，卸载时撤销监听和计时器", () => {
   const panel = readFileSync(new URL("../../../packages/client/ui-sidebar-browser/src/BrowserPanel.tsx", import.meta.url), "utf8");
   assert.match(panel, /document\.visibilityState === "hidden"/u);
@@ -682,4 +700,11 @@ test("终端同值任务快照不触发更新，输出、取消及任务切换�
   assert.equal(sameTerminalTask(task, { ...task, cancelRequested: true }), false);
   assert.equal(sameTerminalTask(task, { ...task, result: { ...task.result, stdout: "新输出" } }), false);
   assert.equal(sameTerminalTask(task, null), false);
+});
+
+test("终端只在任务切换或任务仍活动时读取详情，空闲列表降低轮询频率", () => {
+  const source = readFileSync(new URL("../../../packages/client/ui-workspace/src/TaskTerminal.tsx", import.meta.url), "utf8");
+  assert.match(source, /const detailNeedsRefresh = id && \(cachedTask\?\.id !== id[\s\S]*listedTask\?\.status \?\? ""\)\)/u);
+  assert.match(source, /if \(id && detailNeedsRefresh\) \{\s*const detail = await loadAiHostTask\(id\)/u);
+  assert.match(source, /createReadPoller\(refresh, \(\) => tasksRef\.current\.some\(task => \["queued", "running"\]\.includes\(task\.status\)\) \? 3000 : 15000\)/u);
 });

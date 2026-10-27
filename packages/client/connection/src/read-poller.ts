@@ -3,7 +3,7 @@
  * 作用：合并请求期间的刷新触发，暂停隐藏页面的对账，并在恢复可见时刷新；不管理后台业务任务。
  * 关联文件：App、MinecraftWorkspace、TaskTerminal、FileManagerPage、SettingsPage；调用方负责错误显示与已发请求的过期响应校验。
  */
-export function createReadPoller(read: () => Promise<unknown>, intervalMs: number) {
+export function createReadPoller(read: () => Promise<unknown>, intervalMs: number | (() => number), options: { initialDelayMs?: number } = {}) {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let running: Promise<void> | null = null;
   let queued = false;
@@ -24,7 +24,10 @@ export function createReadPoller(read: () => Promise<unknown>, intervalMs: numbe
       } while (queued && !stopped && visible());
     }).finally(() => {
       running = null;
-      if (!stopped && visible()) timer = setTimeout(trigger, intervalMs);
+      if (!stopped && visible()) {
+        const nextIntervalMs = typeof intervalMs === "function" ? intervalMs() : intervalMs;
+        timer = setTimeout(trigger, Math.max(1, nextIntervalMs));
+      }
     });
     return running;
   }
@@ -34,7 +37,8 @@ export function createReadPoller(read: () => Promise<unknown>, intervalMs: numbe
   function onFocus() { if (visible() && !running) trigger(); }
   if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVisibility);
   if (typeof window !== "undefined") window.addEventListener("focus", onFocus);
-  trigger();
+  if (options.initialDelayMs === undefined || options.initialDelayMs <= 0) trigger();
+  else timer = setTimeout(trigger, options.initialDelayMs);
   return {
     refresh,
     stop() {

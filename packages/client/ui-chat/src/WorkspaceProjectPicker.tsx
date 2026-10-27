@@ -1,14 +1,15 @@
 /**
- * 功能：在 AI Work 输入区选择或登记通用项目文件夹。
- * 作用：从在线 Daemon 的真实卷和用户主目录浏览一级文件夹，维护账户项目登记并把选择交给当前会话。
+ * 功能：为仍使用节点目录模型的 Minecraft 会话选择或登记目录。
+ * 作用：从 Minecraft 所属在线 Daemon 的卷和用户主目录浏览文件夹，维护目录登记并把选择交给当前会话。
  * 不负责：Minecraft 实例管理、模型授权或全局 LFAA 数据目录管理。
  */
 import { useEffect, useMemo, useState } from "react";
 import { Button, Checkbox, Input, Modal, Popconfirm, Popover, Select, Spin, Tooltip } from "antd";
 import { browseWorkspaceDirectory, createWorkspaceGitWorktree, createWorkspaceProject, getErrorMessage, isDesktopApp, loadWorkspaceProjects, removeWorkspaceProject, renameWorkspaceProject, selectDesktopWorkspaceDirectory, type WorkspaceDaemonNode, type WorkspaceProject, type WorkspaceProjectApplicationId } from "lfaa-client-connection/src/api.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
+import { LocalWorkspaceProjectPicker } from "./LocalWorkspaceProjectPicker.js";
 
-interface WorkspaceProjectPickerProps {
+export interface WorkspaceProjectPickerProps {
   appId: WorkspaceProjectApplicationId;
   applicationName: string;
   projects: WorkspaceProject[];
@@ -18,6 +19,7 @@ interface WorkspaceProjectPickerProps {
   onRetryProjects: () => void;
   nodes: WorkspaceDaemonNode[];
   value: string | null;
+  activeSessionId?: string | null;
   selectedProjectTitle?: string | null;
   defaultDirectory: string;
   disabled?: boolean;
@@ -42,7 +44,9 @@ function directoryName(path: string): string {
   return path.replace(/[\\/]+$/u, "").split(/[\\/]/u).at(-1) || path;
 }
 
-export function WorkspaceProjectPicker({ appId, applicationName, projects, projectListStatus, projectListTruncated, projectLoadError, onRetryProjects, nodes, value, selectedProjectTitle, defaultDirectory, disabled = false, onChange, onProjectsChange }: WorkspaceProjectPickerProps) {
+type LegacyWorkspaceProjectPickerProps = Omit<WorkspaceProjectPickerProps, "appId"> & { appId: "minecraft" };
+
+function LegacyWorkspaceProjectPicker({ appId, applicationName, projects, projectListStatus, projectListTruncated, projectLoadError, onRetryProjects, nodes, value, selectedProjectTitle, defaultDirectory, disabled = false, onChange, onProjectsChange }: LegacyWorkspaceProjectPickerProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
@@ -348,4 +352,9 @@ export function WorkspaceProjectPicker({ appId, applicationName, projects, proje
       {projectActionError ? <p className="ai-work-chat__project-error" role="alert">{projectActionError}</p> : null}
     </Modal>
   </>;
+}
+
+export function WorkspaceProjectPicker(props: WorkspaceProjectPickerProps) {
+  if (props.appId === "workspace") return <LocalWorkspaceProjectPicker {...props} />;
+  return <LegacyWorkspaceProjectPicker {...props} appId="minecraft" />;
 }

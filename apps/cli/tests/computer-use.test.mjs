@@ -110,7 +110,7 @@ test("电脑操控受 Profile、本机监听、账户开关、逐轮观察和隔
   const { apply: applyBrowserController } = await import("lfaa-api-browser-controller/src/index.js");
   ({ createWindowsProcessLauncher, createLocalAppsRuntime } = await import("lfaa-computer-use/src/local-apps.js"));
   const { database } = await import("lfaa-storage-sqlite/src/database.js");
-  assert.equal(Number(database.prepare("PRAGMA user_version").get().user_version), 69, "数据库必须完成当前产品真实迁移");
+  assert.equal(Number(database.prepare("PRAGMA user_version").get().user_version), 72, "数据库必须完成当前产品真实迁移");
   database.prepare("INSERT INTO users(id,uid,username,password_salt,password_hash,role,is_super_admin) VALUES ('computer-a',1,'computer-a','salt','hash','admin',1),('computer-b',2,'computer-b','salt','hash','member',0)").run();
   assert.equal(getUserSettings("computer-a").computerControl.enabled, false, "new accounts default to disabled");
   saveUserSettings("computer-a", "computer-control", { enabled: true });

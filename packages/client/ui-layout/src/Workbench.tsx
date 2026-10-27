@@ -1,5 +1,5 @@
 /** 功能：呈现现有工作台。作用：消费已保存设置并组合能力包界面。关联文件：client/connection、ui-settings、ui-theme、ui-commands。 */
-import { APP_CANVAS_ROUTE_PATTERN, APPLICATION_ROUTE_PATTERN, SHARED_WORK_ROUTE, normalizeWorkRoute, type ApplicationNavigationId } from "lfaa-util-values/src/application-id.js";
+import { APP_CANVAS_ROUTE_PATTERN, APPLICATION_LABELS, APPLICATION_ROUTE_PATTERN, SHARED_WORK_ROUTE, normalizeWorkRoute, type ApplicationNavigationId } from "lfaa-util-values/src/application-id.js";
 import { DshSlotOutlet, loadClientModule } from "lfaa-client-modules/src/client/index.js";
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Button, Checkbox, ConfigProvider, Modal, Popover, Tag, Typography, theme as antdTheme } from "antd";
@@ -7,7 +7,7 @@ import { ServiceStatus, type ServiceState } from "lfaa-client-ui-primitives/src/
 import { SetupReminder } from "lfaa-client-ui-settings-general/src/SetupReminder.js";
 import { DEFAULT_USER_SETTINGS, resolveAppearanceBackgrounds, resolveShortcutSettings } from "lfaa-client-ui-settings-general/src/default-settings.js";
 import { PasskeySetupPrompt } from "lfaa-client-ui-settings-account/src/PasskeySetupPrompt.js";
-import { minecraftSceneBackgrounds } from "lfaa-util-values/src/builtin-backgrounds.js";
+import { appearanceBackgroundOptions } from "lfaa-util-values/src/builtin-backgrounds.js";
 import { cacheLoginAppearance } from "lfaa-client-ui-theme/src/login-appearance.js";
 import { aiWorkGoalRequestEventName, aiWorkSessionOpenEventName, type AiWorkGoalRequest, type AiWorkNotification, type AiWorkNotificationInput, type AiWorkSessionTarget } from "lfaa-client-resources/src/notification-runtime.js";
 import { createAiWorkDraftPersistence, readAiWorkDraft, writeAiWorkDraft } from "lfaa-client-store/src/ai-work-drafts.js";
@@ -20,6 +20,7 @@ import { lfaaProjectBuildInfo } from "lfaa-client-connection/src/project-version
 import { shortcutMatches } from "lfaa-client-ui-commands/src/shortcuts.js";
 import { appearanceTextFontStacks, appearanceCodeFontStacks } from "lfaa-client-ui-theme/src/fonts.js";
 import { applyAppearanceThemeBootstrap, cacheAppearanceCanvasBootstrap } from "lfaa-client-ui-theme/src/appearance-theme-bootstrap.js";
+import { resolveWorkbenchAreaEffects } from "lfaa-client-ui-theme/src/appearance-area-effects.js";
 import { bindDshThemeOwner, dshThemeCompatibility, syncDshThemePreference } from "lfaa-client-ui-theme/src/dsh-theme-bridge.js";
 import { createDshWallpaperAppearanceTokens } from "lfaa-client-ui-theme/src/dsh-wallpaper-appearance.js";
 import { dshLocaleRuntime } from "lfaa-client-ui-workspace/src/dsh-locale-runtime.js";
@@ -202,13 +203,9 @@ function persistActiveAiSession(userId: string, app: ApplicationId, sessionId: s
 
 const AI_WORK_DRAFT_SAVE_DELAY_MS = 250;
 
-const backgroundFiles: Record<string, string> = {
-  "service-room": "/backgrounds/service-room.jpg",
-  "steamcmd-world": "/backgrounds/steamcmd-world.jpg",
-  "minecraft-world": "/backgrounds/minecraft-world.jpg",
-  "writing-desk": "/backgrounds/writing-desk.jpg",
-  ...Object.fromEntries(minecraftSceneBackgrounds.map(({ id, file }) => [id, file]))
-};
+const backgroundFiles: Record<string, string> = Object.fromEntries(
+  appearanceBackgroundOptions.flatMap((option) => "file" in option && option.file ? [[option.id, option.file] as [string, string]] : [])
+);
 
 function backgroundFileForRoute(route: string, currentSettings: UserSettings): string | null {
   const backgroundSlot = appearanceBackgroundSlotForRoute(route);
@@ -313,31 +310,31 @@ const applicationCards: Array<{
 }> = [
   {
     id: "steamcmd",
-    title: "SteamCMD 游戏服务",
+    title: APPLICATION_LABELS.steamcmd,
     initials: "S",
     color: "blue"
   },
   {
     id: "minecraft",
-    title: "Minecraft 管理",
+    title: APPLICATION_LABELS.minecraft,
     initials: "M",
     color: "green"
   },
   {
     id: "connectivity",
-    title: "LFAA 联机服务",
+    title: APPLICATION_LABELS.connectivity,
     initials: "N",
     color: "blue"
   },
   {
     id: "writing",
-    title: "写作空间",
+    title: APPLICATION_LABELS.writing,
     initials: "W",
     color: "plum"
   },
   {
     id: "aivideo",
-    title: "AI 漫剧",
+    title: APPLICATION_LABELS.aivideo,
     initials: "漫",
     color: "plum"
   }
@@ -358,7 +355,7 @@ const allApplicationNavigationItems: ApplicationNavigationItem[] = [
  */
 const canvasApplicationItems = [
   ...applicationCards.map((application) => ({ id: application.id, title: application.title, applicationId: application.id })),
-  { id: "workspace", title: "小鱼智能体", applicationId: "workspace" }
+  { id: "workspace", title: APPLICATION_LABELS.workspace, applicationId: "workspace" }
 ] as ApplicationNavigationItem[];
 
 export function Workbench({
@@ -820,6 +817,7 @@ export function Workbench({
   const interfaceFontScale = appearanceAdvanced.interfaceFontSize / 14;
   const contrastDelta = appearanceAdvanced.contrast - 60;
   const backgroundSlot = isSettingsPage ? "settings" : appearanceBackgroundSlotForRoute(route);
+  const areaEffects = resolveWorkbenchAreaEffects(settings.appearance, backgroundSlot === "login" ? "appCenter" : backgroundSlot);
   const appearanceBackgrounds = useMemo(() => resolveAppearanceBackgrounds(settings.appearance.backgrounds), [settings.appearance.backgrounds]);
   const selectedBackground = appearanceBackgrounds[backgroundSlot];
   const backgroundFile = selectedBackground === "none"
@@ -837,8 +835,8 @@ export function Workbench({
     ? createDshWallpaperAppearanceTokens({
       theme: resolvedTheme,
       accentColor: activeAccentColor,
-      overlay: settings.appearance.overlay,
-      blur: settings.appearance.blur,
+      overlay: areaEffects.overlay,
+      blur: areaEffects.blur,
       canvasColor: resolvedTheme === "dark" ? "#181818" : "#ffffff",
       surfaceColor: resolvedTheme === "dark" ? "#202020" : "#ffffff",
       mutedSurfaceColor: resolvedTheme === "dark" ? "#262626" : "#f5f5f5",
@@ -867,14 +865,15 @@ export function Workbench({
     "--font-size-2xl": `${32 * interfaceFontScale}px`,
     "--settings-contrast-strong-mix": `${Math.max(0, contrastDelta) * 0.5}%`,
     "--settings-contrast-soft-mix": `${Math.max(0, -contrastDelta) / 3}%`,
-    // 插件运行时由 DSH Appearance 桥接覆盖为插件玻璃令牌；无插件时仍由账户遮罩设置控制。
-    "--settings-background-surface-opacity": `${settings.appearance.overlay}%`,
+    // 当前区域遮罩按 0–75% 覆盖或继承全局值，应用于本区域的玻璃表面底色。
+    "--settings-background-surface-opacity": `${areaEffects.overlay}%`,
     // 更新日志悬浮卡片与确认弹窗的表面不透明度由账户外观设置控制，避免默认壁纸透出过多。
     "--settings-update-surface-opacity": `${settings.appearance.updateSurfaceOpacity}%`,
     "--settings-background-image": backgroundFile && !wallpaperCanvasOwnership.wallpaperEngineOwnsCanvas ? `url("${backgroundFile}")` : "none",
-    // 壁纸遮罩使用深色中性灰或浅色纯白，透明度继续读取账户偏好。
-    "--settings-background-overlay": resolvedTheme === "dark" ? `rgba(24, 24, 24, ${settings.appearance.overlay / 100})` : `rgba(255, 255, 255, ${settings.appearance.overlay / 100})`,
-    "--settings-glass-blur": `${settings.appearance.blur}px`,
+    // 当前区域壁纸遮罩使用深色中性灰或浅色纯白，alpha 跟随区域覆盖或全局继承值（0–75%）。
+    "--settings-background-overlay": resolvedTheme === "dark" ? `rgba(24, 24, 24, ${areaEffects.overlay / 100})` : `rgba(255, 255, 255, ${areaEffects.overlay / 100})`,
+    // 本区域玻璃表面读取覆盖值或全局模糊值，范围 0–32px。
+    "--settings-glass-blur": `${areaEffects.blur}px`,
     // AI Work 空闲回复区的模糊半径按账户百分比映射到 0–8px。
     "--settings-ai-work-output-focus-blur": `${appearanceAdvanced.aiWorkOutputFocusBlurPercent * 0.08}px`,
     // AI Work 空闲回复区的不透明度，0% 保持完全可见，100% 淡出至完全透明。
@@ -915,8 +914,8 @@ export function Workbench({
   }, [resolvedTheme, settings.appearance, wallpaperCanvasOwnership.hasWallpaperBackground]);
 
   useLayoutEffect(() => {
-    cacheAppearanceCanvasBootstrap(window.location.pathname, backgroundFile && !wallpaperCanvasOwnership.wallpaperEngineOwnsCanvas ? backgroundFile : null, settings.appearance.overlay);
-  }, [backgroundFile, route, settings.appearance.overlay, wallpaperCanvasOwnership.wallpaperEngineOwnsCanvas]);
+    cacheAppearanceCanvasBootstrap(window.location.pathname, backgroundFile && !wallpaperCanvasOwnership.wallpaperEngineOwnsCanvas ? backgroundFile : null, areaEffects.overlay);
+  }, [areaEffects.overlay, backgroundFile, route, wallpaperCanvasOwnership.wallpaperEngineOwnsCanvas]);
 
   let pageContent;
   if (isSettingsPage) {
@@ -974,7 +973,7 @@ export function Workbench({
             : isGameLibraryRoute && app === "steamcmd" ? <SteamcmdWorkspace user={user} onNavigate={onNavigate} /> : undefined}
           settings={settings}
           onSettingsChange={updateWorkbenchSettings}
-          apps={[...applicationCards, { id: "workspace", title: "小鱼智能体", initials: "L", color: "blue" }]}
+          apps={[...applicationCards, { id: "workspace", title: APPLICATION_LABELS.workspace, initials: "L", color: "blue" }]}
           applicationNavigationItems={applicationNavigationItems}
           username={user.username}
           role={user.role}

@@ -45,3 +45,5 @@ Agent 设置中心工具：`lfaa_settings_list` 按分类/关键词查询 Settin
 `lfaa_settings_mini_window` 将打开/关闭请求经 Control Plane 子进程 IPC 交给 Electron Main Owner，等待该窗口 Host 的真实回执；Web Host 抛出不支持错误。`lfaa_settings_sync_status` 只读取 Settings Owner 按账户隔离的当前 Control Plane 分类/时间元数据，不暴露设置值、会话或凭据。两者仍由 Agent Loop 的唯一 Permission Owner 控制写风险。
 
 `lfaa_tools_list.query` 使用中文词语分段并合并相邻单字词，支持自然中文整句发现当前已登记工具；英文、数字与中英文标点分词和原有任一词匹配/排序/分页保持不变。该目录不增加或扩大工具授权。
+
+需要将单张受限图片交给当前模型的领域工具可声明 `projectResult`：Agent Loop 校验临时 `content` 后只放入本轮请求，并将独立的 `persistedResult` 写入工具执行记录。领域 Owner 必须保证持久化投影不含图片字节；该合同不提供文件写入、额外传输或权限决策。

@@ -26,7 +26,7 @@ function hasColumn(tableName: "ai_tool_approvals" | "ai_tool_permission_grants",
 }
 
 // 版本31由文件存储协调器在回读校验完成后提交，SQLite 保留账户、权限和任务。
-const latestSupportedDatabaseVersion = 69;
+const latestSupportedDatabaseVersion = 72;
 if (currentVersion > latestSupportedDatabaseVersion) {
   throw new Error(`数据库版本 ${currentVersion} 高于当前程序支持的版本 ${latestSupportedDatabaseVersion}（${config.databasePath}）。请使用更新版本的 LFAA；为保护数据，本程序不会自动降级数据库结构。`);
 }
@@ -2336,3 +2336,94 @@ export function migrateAiMessageAttachmentsSchema(): void {
   }
 }
 migrateAiMessageAttachmentsSchema();
+
+/** 版本 70：AI Work 项目改为逻辑容器，支持项目指令、记忆范围与多个本机源文件夹。 */
+export function migrateChatGptStyleWorkspaceProjectsSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 69 || version >= 70) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    database.exec(`
+      ALTER TABLE workspace_projects ADD COLUMN instructions TEXT NOT NULL DEFAULT '' CHECK (length(instructions) <= 4000);
+      ALTER TABLE workspace_projects ADD COLUMN memory_mode TEXT NOT NULL DEFAULT 'default' CHECK (memory_mode IN ('default', 'project_only'));
+      DROP INDEX IF EXISTS workspace_projects_user_app_local_path_idx;
+      CREATE TABLE workspace_project_sources (
+        id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        project_id TEXT NOT NULL REFERENCES workspace_projects(id) ON DELETE CASCADE,
+        path TEXT NOT NULL CHECK (length(path) BETWEEN 1 AND 32760),
+        path_key TEXT NOT NULL CHECK (length(path_key) BETWEEN 1 AND 32760),
+        position INTEGER NOT NULL CHECK (position BETWEEN 0 AND 19),
+        created_at TEXT NOT NULL,
+        UNIQUE (project_id, path_key)
+      ) STRICT;
+      CREATE INDEX workspace_project_sources_user_project_idx ON workspace_project_sources(user_id, project_id, position);
+      INSERT INTO workspace_project_sources (id, user_id, project_id, path, path_key, position, created_at)
+        SELECT lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))), 2) || '-' || substr('89ab', (random() & 3) + 1, 1) || substr(lower(hex(randomblob(2))), 2) || '-' || lower(hex(randomblob(6))), user_id, id, path, path_key, 0, created_at
+        FROM workspace_projects WHERE app_id = 'workspace' AND node_id IS NULL AND length(path) > 0;
+      CREATE TABLE project_conversation_memories (
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        project_id TEXT PRIMARY KEY NOT NULL REFERENCES workspace_projects(id) ON DELETE CASCADE,
+        memories_json TEXT NOT NULL CHECK (json_valid(memories_json) AND length(memories_json) <= 65536),
+        revision INTEGER NOT NULL CHECK (revision >= 1),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      ) STRICT;
+      CREATE INDEX project_conversation_memories_user_idx ON project_conversation_memories(user_id, project_id);
+      PRAGMA user_version = 70;
+      COMMIT;
+    `);
+  } catch (error) {
+    if (database.isTransaction) database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+migrateChatGptStyleWorkspaceProjectsSchema();
+
+/** 版本 71：为 AI Work 项目保存零到多个已登记业务 App 的领域上下文关联。 */
+export function migrateWorkspaceProjectApplicationLinksSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 70 || version >= 71) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    database.exec(`
+      CREATE TABLE workspace_project_applications (
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        project_id TEXT NOT NULL REFERENCES workspace_projects(id) ON DELETE CASCADE,
+        application_id TEXT NOT NULL CHECK (length(application_id) BETWEEN 1 AND 80),
+        position INTEGER NOT NULL CHECK (position BETWEEN 0 AND 31),
+        PRIMARY KEY (project_id, application_id),
+        UNIQUE (project_id, position)
+      ) STRICT;
+      CREATE INDEX workspace_project_applications_user_project_idx ON workspace_project_applications(user_id, project_id, position);
+      PRAGMA user_version = 71;
+      COMMIT;
+    `);
+  } catch (error) {
+    if (database.isTransaction) database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+migrateWorkspaceProjectApplicationLinksSchema();
+
+/** 版本 72：为账户外观背景保存安全、可读且按账户唯一的素材文件名。 */
+export function migrateAppearanceBackgroundStorageNamesSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 71 || version >= 72) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    const hasBackgroundTable = database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'appearance_backgrounds'").get() !== undefined;
+    if (hasBackgroundTable) {
+      const columns = database.prepare("PRAGMA table_info(appearance_backgrounds)").all() as Array<{ name?: string }>;
+      if (!columns.some(column => column.name === "storage_filename")) {
+        database.exec("ALTER TABLE appearance_backgrounds ADD COLUMN storage_filename TEXT NOT NULL DEFAULT '' CHECK (length(storage_filename) <= 240);");
+      }
+      database.exec("CREATE UNIQUE INDEX IF NOT EXISTS appearance_backgrounds_user_storage_filename_idx ON appearance_backgrounds(user_id, storage_filename COLLATE NOCASE) WHERE storage_filename <> '';");
+    }
+    database.exec("PRAGMA user_version = 72;");
+    database.exec("COMMIT;");
+  } catch (error) {
+    if (database.isTransaction) database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+migrateAppearanceBackgroundStorageNamesSchema();

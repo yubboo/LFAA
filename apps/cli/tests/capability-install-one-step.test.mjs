@@ -13,21 +13,28 @@ const context = { userId: randomUUID(), userRole: "admin", applicationId: "works
 
 function createFixtureAdapter() {
   const installed = [];
+  const inspectedTargets = [];
   return {
     installed,
+    inspectedTargets,
     kind: "skill",
     applicationIds: [...APPLICATION_IDS],
     targetSchema: {},
-    validateTarget() { return {}; },
-    revalidateTarget() { return {}; },
+    validateTarget(target) { return target ?? {}; },
+    revalidateTarget(target) { return target; },
     targetSummary() { return "当前账户共享 Skill 库"; },
     async search(query) {
       return { candidates: query === "ambiguous"
         ? [{ fullName: "acme/one" }, { fullName: "acme/two" }]
         : [{ fullName: "acme/demo" }] };
     },
-    async inspect(source) { return { resolvedRef: "commit-abc123", details: { name: "demo" } }; },
-    async install(source, resolvedRef) { const record = { id: "skill-demo", source, resolvedRef }; installed.push(record); return record; },
+    async inspect(source, _ref, _applicationId, target) { inspectedTargets.push(target); return { resolvedRef: "commit-abc123", resolvedTarget: target, details: { name: "demo" } }; },
+    async install(source, resolvedRef, _applicationId, _userId, target) {
+      const record = { id: target.installationId ?? "skill-demo", name: "demo", source, resolvedRef, repositoryUrl: source, sourcePath: target.sourcePath ?? "", skillAction: target.operation !== "update" ? "installed" : target.installationId ? "updated" : "installed_latest" };
+      const existingIndex = installed.findIndex(item => item.id === record.id);
+      if (existingIndex < 0) installed.push(record); else installed[existingIndex] = record;
+      return record;
+    },
     async verifyInstalled(installation) { return { status: "ready", verified: true, summary: "已由 Owner 回读", details: installation }; },
     list() { return installed; }
   };
@@ -68,6 +75,35 @@ test("只给关键词时先搜索；多候选只返回候选，不安装", async
     assert.equal(ambiguous.installed, false);
     assert.equal(ambiguous.candidates.length, 2);
     assert.equal(adapter.installed.length, 1, "多候选不得安装任何一项");
+  } finally { await fiber.dispose(); }
+});
+
+test("明确更新已安装 Skill 时绑定原 installation ID 和来源目录", async () => {
+  const { ctx, fiber, adapter, tool } = await build();
+  try {
+    assert.ok(ctx.lfaaCapabilityInstalls.catalog().find(item => item.kind === "skill").operations.includes("update"));
+    const installationId = randomUUID();
+    adapter.installed.push({ id: installationId, name: "demo", repositoryUrl: "https://github.com/acme/demo", sourcePath: "skills/demo" });
+    const result = await tool.execute({ operation: "update", query: "demo" }, context);
+    assert.equal(result.operation, "update");
+    assert.equal(result.skillAction, "updated");
+    assert.equal(adapter.inspectedTargets.at(-1).operation, "update");
+    assert.equal(adapter.inspectedTargets.at(-1).installationId, installationId);
+    assert.equal(adapter.inspectedTargets.at(-1).sourcePath, "skills/demo");
+    assert.equal(adapter.installed.length, 1, "更新沿用安装 ID，不创建第二条记录");
+    assert.equal(adapter.installed[0].id, installationId);
+  } finally { await fiber.dispose(); }
+});
+
+test("更新意图遇到未安装的唯一候选时安装最新版", async () => {
+  const { fiber, adapter, tool } = await build();
+  try {
+    const result = await tool.execute({ operation: "update", query: "demo" }, context);
+    assert.equal(result.installed, true);
+    assert.equal(result.skillAction, "installed_latest");
+    assert.equal(adapter.inspectedTargets.at(-1).operation, "update");
+    assert.equal(adapter.inspectedTargets.at(-1).installationId, undefined, "未安装时不伪造已有安装 ID");
+    assert.equal(adapter.installed.length, 1);
   } finally { await fiber.dispose(); }
 });
 

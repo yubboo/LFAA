@@ -1,10 +1,14 @@
 # 共享纯数据合同
 
-`application-id.ts` 是完整 App ID 权威，同时明确 Workspace/Minecraft 已接入的目录项目子集与 App 路由模式。注册 App 不自动开放项目执行。
+`application-id.ts` 是完整 App ID 与显示名称权威，同时明确 Workspace/Minecraft 项目 Owner 子集、可供 AI Work 项目选择的业务 App 领域上下文集合与 App 路由模式。项目 Owner 的 `appId` 与用户选择的 `applicationIds` 是不同合同；关联只向 Agent 提供项目领域提示，不自动开放工具、执行或授权。
 
-`settings-contract.ts` 提供 Settings 类型、唯一默认值及 AI Runtime 每轮模型请求/工具调用的产品安全上限；Client 和 Settings 克隆后消费，不依赖 Node、数据库或 React，不创建第二套持久化。`appearance.theme` 新用户默认 `system`（跟随系统），六个 `appearance.backgrounds` 位置默认 `none`（纯色，由当前主题提供画布色）；Settings Owner 对缺失值使用这些默认，同时保留账户已保存的主题和背景。`aiRuntime.showContextUsage` 对缺少已保存偏好的账户默认开启；Settings Owner 仍保留账户明确保存的开/关选择。General 默认值定义首次登录提醒类别状态及统一通知总开关；旧账户缺少新增字段时由 Settings Owner 回落到共享默认值，设置中心不暴露提醒类别开关。预算设为 0 时使用共享合同中的上限，正数只能收紧该上限。`builtin-backgrounds.ts` 提供内置背景元数据，使主题不再依赖 Minecraft UI；旧 UI 导出仅是迁移兼容入口，消费者迁完后再删除。
+`settings-contract.ts` 提供 Settings 类型、唯一默认值及 AI Runtime 每轮模型请求/工具调用的产品安全上限；Client 和 Settings 克隆后消费，不依赖 Node、数据库或 React，不创建第二套持久化。`appearance.theme` 新用户默认 `system`（跟随系统），六个 `appearance.backgrounds` 位置默认 `none`（纯色，由当前主题提供画布色）；Settings Owner 对缺失值使用这些默认，同时保留账户已保存的主题和背景。`aiRuntime.showContextUsage` 对缺少已保存偏好的账户默认开启；Settings Owner 仍保留账户明确保存的开/关选择。General 默认值定义首次登录提醒类别状态及统一通知总开关；旧账户缺少新增字段时由 Settings Owner 回落到共享默认值，设置中心不暴露提醒类别开关。预算设为 0 时使用共享合同中的上限，正数只能收紧该上限。`builtin-backgrounds.ts` 是内置背景 ID、名称和 Web URL 的共享清单；静态图本体放在 `apps/web/public/`，外观选项与 Workbench 壁纸读取同一清单，目录文件本身不会自动变成可选项。旧 UI 导出仅是迁移兼容入口，消费者迁完后再删除。
+
+`AppearanceAreaEffects` 为登录、应用中心、SteamCMD、Minecraft、写作和设置中心保存独立遮罩覆盖；Workbench 五个区域另可覆盖玻璃模糊。覆盖默认 `null` 并继承原有全局 `appearance.overlay`（65%）与 `appearance.blur`（14px），不迁移或重置旧账户值；服务端负责范围校验和旧客户端兼容。
 
 `appearance.advanced.writingLightRaysEnabled` 是写作工作区光线背景的账户级开关，默认开启；设置中心和写作工具栏共用该字段。旧账户缺少该值时只补共享默认值，其他外观偏好保持原值。
+
+`appearance.advanced.aiWorkOutputFocusBlurEnabled` 是 AI Work 回复空闲虚化的账户级开关，默认关闭；缺少该字段的新账户/旧账户使用此默认，已有账户明确保存的开关选择由 Settings Owner 原样保留。
 
 `general.cardMotionEffect` 与 `general.dialogMotionEffect` 是常规设置中独立的卡片/弹窗动效选择；`UI_MOTION_EFFECT_OPTIONS` 统一持有 ID、展示名称、说明和唯一默认值（`fluid`）。视觉实现由 `client/ui-theme` 消费，不在本包定义 CSS。
 
@@ -38,3 +42,5 @@
 代码审查菜单的 `tools` 路由使用当前 Agent Git Workspace 的 `project_file_operation` 差异读取能力；未绑定仓库时由 Owner 如实返回不可审查边界。
 
 `hooks` 菜单使用 `tools` 路由并发现 `lfaa_settings_runtime_hooks_list`；当前只读当前 Host 已登记的 AI Runtime Hook ID/事件。钩子代码仍由受信任插件 Owner 管理，不接受通用设置 Patch。
+
+`appearance-presets.ts` 持有系统内置预设与纯值快照创建/应用/匹配规则；快照仅覆盖 Appearance 与 General 的白名单视觉布局字段。`AppearanceSettings.presets` 默认空数组，不改变已有外观默认值或其他设置。

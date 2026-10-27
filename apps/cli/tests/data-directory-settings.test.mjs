@@ -5,7 +5,7 @@ import { existsSync, lstatSync, mkdtempSync, mkdirSync, readFileSync, readdirSyn
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { resolveDataDirectory } from "../../../packages/util/home-paths/src/resolve-data-directory.mjs";
-import { resolveDataPaths, resolveHomePaths } from "../../../packages/util/home-paths/src/data-layout.mjs";
+import { ensureHomeDirectories, resolveDataPaths, resolveHomePaths } from "../../../packages/util/home-paths/src/data-layout.mjs";
 const root = mkdtempSync(join(tmpdir(), "lfaa-data-settings-test-"));
 const userProfile = join(root, "user");
 const home = join(root, "home");
@@ -35,11 +35,16 @@ const projectStorage = await import("lfaa-settings/src/project-storage.js");
 test("空白配置数据根在控制端启动时建立标准分类，不虚构账户、游戏或业务数据", () => {
   const homePaths = resolveHomePaths(home);
   const dataPaths = resolveDataPaths(source);
-  for (const category of ["database", "users", "sessions", "credentials", "storages"]) {
+  for (const category of ["database", "users", "sessions", "credentials", "storages", "skills"]) {
     const directory = homePaths[category];
     const info = lstatSync(directory);
     assert.ok(info.isDirectory() && !info.isSymbolicLink(), `Home/${category} 应在启动时建立为真实目录`);
   }
+  assert.match(readFileSync(homePaths.directoryGuide, "utf8"), /会话目录索引\.txt/u);
+  assert.match(readFileSync(homePaths.directoryGuide, "utf8"), /skills\/.*<技能名>\/SKILL\.md/u);
+  writeFileSync(homePaths.directoryGuide, "用户自定义说明");
+  ensureHomeDirectories(home);
+  assert.equal(readFileSync(homePaths.directoryGuide, "utf8"), "用户自定义说明", "再次初始化不得覆盖用户已有说明");
   for (const category of ["users", "games", "environments", "lib", "cache", "tmp", "logs", "backups", "models", "input", "output", "connectivity"]) {
     const directory = dataPaths[category];
     const info = lstatSync(directory);

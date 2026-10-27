@@ -59,9 +59,11 @@ export function buildAiProjectFileChanges(
 
   const operation = parameters.operation;
   const registeredProjectId = typeof projectId === "string" && projectId.length > 0 && projectId.length <= 128 ? projectId : null;
+  const projectSourceId = typeof parameters.projectSourceId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(parameters.projectSourceId)
+    ? parameters.projectSourceId : null;
   const makeChange = (kind: AiActivityFileChange["operation"], pathValue: unknown): AiActivityFileChange | null => {
     const path = safeRelativePath(pathValue);
-    return path ? { operation: kind, path, projectId: registeredProjectId } : null;
+    return path ? { operation: kind, path, projectId: registeredProjectId, ...(projectSourceId ? { sourceId: projectSourceId } : {}) } : null;
   };
 
   if (["read", "read_lines", "read_image"].includes(String(operation)) && result.relativePath && result.path) {

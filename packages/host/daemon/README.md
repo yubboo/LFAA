@@ -1,6 +1,6 @@
 # Daemon Host
 
-节点详情和列表都以同一 20 秒心跳有效期返回在线状态；读取详情无需先调用列表来刷新过期状态。列表持久化离线变化并按原回调通知，收到新心跳后恢复在线；能力和执行授权仍由原节点与 Permission Owner 校验。
+节点详情和列表都以同一 20 秒心跳有效期返回在线状态；读取详情无需先调用列表来刷新过期状态。列表持久化离线变化并按原回调通知，收到新心跳后恢复在线；能力和执行授权仍由原节点与 Permission Owner 校验。托管 Java 心跳可带 `temurin` 或 `zulu` 发行版；Daemon 只有在心跳被控制端接受后才报告连接恢复，单独健康检查成功不会冒报。
 
 Minecraft 自动部署的 Java 准备继续使用 `resolveMinecraftJavaRuntime`：匹配环境缺失时默认安装并验证 Temurin；Agent 显式选择已登记的 Zulu runtimeId 时，按同一 Runtime Owner 复用或重新准备对应发行版，再下载/校验核心并提交实例元数据。`minecraft-provisioner.mjs` 接受 PaperMC 官方 `fill-data.papermc.io` 工件，仍校验每次 HTTPS 跳转和来源摘要；Java 官方目录失败会标明实际 Java 主版本及准备阶段。此源码路径与隔离回归不等于真实网络下载、安装或游戏就绪验收。
 

@@ -1,7 +1,7 @@
-import { WORKSPACE_PROJECT_APPLICATION_IDS } from "lfaa-util-values/src/application-id.js";
+import { WORKSPACE_PROJECT_APPLICATION_IDS, WORKSPACE_PROJECT_CONTEXT_APPLICATION_IDS } from "lfaa-util-values/src/application-id.js";
 /**
- * 功能：提供账户隔离的项目目录、节点浏览与 Git Worktree API。
- * 作用：在真实 Daemon 上浏览、校验目录并登记项目，登记删除只解除目录关联。
+ * 功能：提供账户隔离的逻辑项目、本机源文件夹、旧应用目录浏览与 Git Worktree API。
+ * 作用：AI Work 项目由 LFAA 本机 Host 管理；旧应用目录能力继续按其原执行边界处理。
  * 不负责：全局数据文件管理、Minecraft 实例、模型权限模式或直接访问控制端文件系统。
  * 关联文件：packages/workspace/workspace/src/index.ts、packages/host/project-files/src/project-files.mjs、packages/core/session/src/sessions.ts。
  */
@@ -22,24 +22,40 @@ import type { MinecraftRealtimePublisher } from "lfaa-api-remotes/src/socket-ser
 import { asyncHandler, parseBody } from "lfaa-api-remotes/src/route-contracts.js";
 import { createAiSessionBranchWithMemory } from "lfaa-agent-loop/src/runs.js";
 import { resolveAiSessionWorkspaceContext } from "lfaa-agent-loop/src/workspace-context.js";
-import { getAiSession, listAiSessions, setAiSessionProject, type AiSessionProjectContext } from "lfaa-session/src/sessions.js";
-import { claimLegacyLocalDefaultWorkspace, claimWorkspaceProjectApplication, createWorkspaceGitWorktree, createWorkspaceProject, getDefaultWorkspaceProjectId, getWorkspaceProject, hasWorkspaceGitWorktrees, listWorkspaceProjects, searchWorkspaceProjects, removeWorkspaceProject, renameWorkspaceProject, setDefaultWorkspaceProject, updateDefaultWorkspaceProjectPath, type WorkspaceProjectApplicationId } from "lfaa-workspace-workspace/src/index.js";
+import { detachAiSessionsFromWorkspaceProject, getAiSession, listAiSessions, setAiSessionProject, type AiSessionProjectContext } from "lfaa-session/src/sessions.js";
+import { claimLegacyLocalDefaultWorkspace, claimWorkspaceProjectApplication, createLocalWorkspaceProject, createWorkspaceGitWorktree, createWorkspaceProject, getDefaultWorkspaceProjectId, getWorkspaceProject, hasWorkspaceGitWorktrees, listWorkspaceProjects, searchWorkspaceProjects, removeWorkspaceProject, renameWorkspaceProject, replaceLocalWorkspaceProjectSources, setDefaultWorkspaceProject, updateDefaultWorkspaceProjectPath, updateLocalWorkspaceProject, type WorkspaceProjectApplicationId, type WorkspaceProjectMemoryMode } from "lfaa-workspace-workspace/src/index.js";
 
 const projectAppIdSchema = Joi.string().valid(...WORKSPACE_PROJECT_APPLICATION_IDS).required();
 const limitAiBranchMemory = createRateLimit(12, 60 * 1000);
 const forkWorktreeSchema = Joi.object({ appId: projectAppIdSchema, messageId: Joi.string().guid({ version: ["uuidv4"] }).required(), targetProjectId: Joi.string().guid({ version: ["uuidv4"] }).required() }).unknown(false);
 const browseSchema = Joi.object({
-  appId: projectAppIdSchema,
+  appId: Joi.string().valid("minecraft").required(),
   nodeId: Joi.string().guid().required(),
   operation: Joi.string().valid("home", "list", "create-directory").required(),
   path: Joi.string().max(32760).allow("").default(""),
   name: Joi.string().trim().min(1).max(120).when("operation", { is: "create-directory", then: Joi.required(), otherwise: Joi.forbidden() })
 }).unknown(false);
-const createProjectSchema = Joi.object({ appId: projectAppIdSchema, nodeId: Joi.string().guid().required(), path: Joi.string().max(32760).required(), title: Joi.string().trim().max(120).allow("") }).unknown(false);
-const renameProjectSchema = Joi.object({ appId: projectAppIdSchema, title: Joi.string().trim().min(1).max(120).required() }).unknown(false);
+const localBrowseSchema = Joi.object({ operation: Joi.string().valid("home", "list", "inspect").required(), path: Joi.string().max(32760).allow("").default("") }).unknown(false);
+const createProjectSchema = Joi.object({
+  appId: projectAppIdSchema,
+  nodeId: Joi.string().guid(),
+  path: Joi.string().max(32760),
+  parentPath: Joi.string().max(32760),
+  title: Joi.string().trim().min(1).max(120),
+  instructions: Joi.string().max(4000).allow(""),
+  memoryMode: Joi.string().valid("default", "project_only"),
+  applicationIds: Joi.array().items(Joi.string().valid(...WORKSPACE_PROJECT_CONTEXT_APPLICATION_IDS)).max(WORKSPACE_PROJECT_CONTEXT_APPLICATION_IDS.length).unique(),
+  sourcePaths: Joi.array().items(Joi.string().max(32760)).max(20)
+}).custom((value, helpers) => {
+  if (value.appId === "workspace" && !value.nodeId && !value.path && typeof value.parentPath === "string" && typeof value.title === "string") return value;
+  if (value.appId === "minecraft" && value.nodeId && value.path && !value.parentPath && !value.sourcePaths && value.instructions === undefined && value.memoryMode === undefined && value.applicationIds === undefined) return value;
+  return helpers.error("object.invalid");
+}).unknown(false);
+const updateProjectSchema = Joi.object({ appId: projectAppIdSchema, title: Joi.string().trim().min(1).max(120).required(), instructions: Joi.string().max(4000).allow(""), memoryMode: Joi.string().valid("default", "project_only"), applicationIds: Joi.array().items(Joi.string().valid(...WORKSPACE_PROJECT_CONTEXT_APPLICATION_IDS)).max(WORKSPACE_PROJECT_CONTEXT_APPLICATION_IDS.length).unique(), sourcePaths: Joi.array().items(Joi.string().max(32760)).max(20) }).unknown(false);
+const updateProjectSourcesSchema = Joi.object({ appId: Joi.string().valid("workspace").required(), paths: Joi.array().items(Joi.string().max(32760)).max(20).required() }).unknown(false);
 const changeSessionProjectSchema = Joi.object({ appId: projectAppIdSchema, projectId: Joi.string().guid().allow(null).required() }).unknown(false);
 const removeProjectSchema = Joi.object({ appId: projectAppIdSchema, deleteManagedWorktree: Joi.boolean().default(false) }).unknown(false);
-const projectActionSchema = Joi.object({ appId: projectAppIdSchema }).unknown(false);
+const projectActionSchema = Joi.object({ appId: projectAppIdSchema, sourceId: Joi.string().guid({ version: ["uuidv4"] }) }).unknown(false);
 const createWorktreeSchema = Joi.object({ appId: projectAppIdSchema }).unknown(false);
 const sessionDirectoryAvailabilitySchema = Joi.object({ sessionIds: Joi.array().items(Joi.string().guid()).max(200).unique().required() }).unknown(false);
 const projectRelativeFilePathSchema = Joi.string().min(1).max(32760).custom((value: string, helpers) => {
@@ -49,6 +65,7 @@ const projectRelativeFilePathSchema = Joi.string().min(1).max(32760).custom((val
 }).messages({ "string.pattern.base": "项目文件必须使用安全的项目相对路径。 " });
 const gitWorkspaceOperationSchema = Joi.object({
   appId: projectAppIdSchema,
+  sourceId: Joi.string().guid({ version: ["uuidv4"] }),
   operation: Joi.string().valid("stage", "unstage", "commit", "history", "branches", "branch-create", "branch-switch", "branch-delete").required(),
   paths: Joi.array().items(projectRelativeFilePathSchema).max(200).unique(),
   message: Joi.string().trim().min(1).max(5000),
@@ -56,19 +73,19 @@ const gitWorkspaceOperationSchema = Joi.object({
   limit: Joi.number().integer().min(1).max(50)
 }).custom((value: Record<string, unknown>, helpers) => {
   const operation = value.operation;
-  const allowed = operation === "stage" || operation === "unstage" ? ["appId", "operation", "paths"]
-    : operation === "commit" ? ["appId", "operation", "message"]
-      : operation === "history" ? ["appId", "operation", "limit"]
-        : operation === "branches" ? ["appId", "operation"]
-          : ["appId", "operation", "branch"];
+  const allowed = operation === "stage" || operation === "unstage" ? ["appId", "operation", "paths", "sourceId"]
+    : operation === "commit" ? ["appId", "operation", "message", "sourceId"]
+      : operation === "history" ? ["appId", "operation", "limit", "sourceId"]
+        : operation === "branches" ? ["appId", "operation", "sourceId"]
+          : ["appId", "operation", "branch", "sourceId"];
   if (Object.keys(value).some(key => !allowed.includes(key))) return helpers.error("object.unknown");
   if (operation === "commit" && typeof value.message !== "string") return helpers.error("any.required");
   if (["branch-create", "branch-switch", "branch-delete"].includes(String(operation)) && typeof value.branch !== "string") return helpers.error("any.required");
   return value;
 }).unknown(false);
-const projectFileReadSchema = Joi.object({ appId: projectAppIdSchema, path: projectRelativeFilePathSchema.required(), offset: Joi.number().integer().min(0).max(2 * 1024 * 1024).default(0), limit: Joi.number().integer().min(1).max(100000).default(40000) }).unknown(false);
-const projectFileWriteSchema = Joi.object({ appId: projectAppIdSchema, path: projectRelativeFilePathSchema.required(), sha256: Joi.string().pattern(/^[a-f0-9]{64}$/u).required(), content: Joi.string().max(2 * 1024 * 1024).required() }).unknown(false);
-const gitFileDiffSchema = Joi.object({ appId: projectAppIdSchema, path: projectRelativeFilePathSchema.required(), ignoreWhitespace: Joi.boolean().default(false), wordDiff: Joi.boolean().default(false), contextLines: Joi.number().integer().min(0).max(1000).default(3) }).unknown(false);
+const projectFileReadSchema = Joi.object({ appId: projectAppIdSchema, sourceId: Joi.string().guid({ version: ["uuidv4"] }), path: projectRelativeFilePathSchema.required(), offset: Joi.number().integer().min(0).max(2 * 1024 * 1024).default(0), limit: Joi.number().integer().min(1).max(100000).default(40000) }).unknown(false);
+const projectFileWriteSchema = Joi.object({ appId: projectAppIdSchema, sourceId: Joi.string().guid({ version: ["uuidv4"] }), path: projectRelativeFilePathSchema.required(), sha256: Joi.string().pattern(/^[a-f0-9]{64}$/u).required(), content: Joi.string().max(2 * 1024 * 1024).required() }).unknown(false);
+const gitFileDiffSchema = Joi.object({ appId: projectAppIdSchema, sourceId: Joi.string().guid({ version: ["uuidv4"] }), path: projectRelativeFilePathSchema.required(), ignoreWhitespace: Joi.boolean().default(false), wordDiff: Joi.boolean().default(false), contextLines: Joi.number().integer().min(0).max(1000).default(3) }).unknown(false);
 const projectsQuerySchema = Joi.object({ appId: Joi.string().valid(...WORKSPACE_PROJECT_APPLICATION_IDS).optional(), query: Joi.string().trim().max(200).allow("") }).unknown(false);
 
 function projectHasOtherAppSessions(userId: string, projectId: string, appId: WorkspaceProjectApplicationId): boolean {
@@ -91,8 +108,10 @@ type WorkspaceProjectForApp = NonNullable<ReturnType<typeof getWorkspaceProject>
 function requireProjectForApp(userId: string, projectId: string, appId: WorkspaceProjectApplicationId): WorkspaceProjectForApp {
   let project = getWorkspaceProject(userId, projectId, appId === "workspace" ? undefined : appId);
   if (project && appId === "workspace") {
+    if (project.nodeId !== null) throw new ApiError(404, "workspace_project_not_found", "找不到当前应用下的此本机项目。 ");
     if (project.appId === null) project = claimWorkspaceProjectApplication(userId, projectId, "workspace");
-    return project as WorkspaceProjectForApp;
+    if (project?.appId === "workspace" && project.nodeId === null) return project as WorkspaceProjectForApp;
+    throw new ApiError(404, "workspace_project_not_found", "找不到当前应用下的此本机项目。 ");
   }
   if (!project) throw new ApiError(404, "workspace_project_not_found", "找不到当前应用下的此项目目录。 ");
   if (project.appId === appId) return project as WorkspaceProjectForApp;
@@ -102,6 +121,22 @@ function requireProjectForApp(userId: string, projectId: string, appId: Workspac
   const claimed = claimWorkspaceProjectApplication(userId, projectId, appId);
   if (!claimed || claimed.appId !== appId) throw new ApiError(409, "workspace_project_app_claim_failed", "此项目已归属其他应用，不能在当前应用使用。 ");
   return claimed as WorkspaceProjectForApp;
+}
+
+/** 将客户端提供的源目录 ID 解析回当前账户已登记的路径；客户端不能提交任意绝对路径。 */
+function projectForSource(project: WorkspaceProjectForApp, sourceId?: string): WorkspaceProjectForApp {
+  if (!sourceId) return project;
+  const source = project.sources.find(item => item.id === sourceId);
+  if (!source) throw new ApiError(404, "workspace_project_source_not_found", "此源文件夹不属于当前账户的项目，或已从项目中移除。 ");
+  return { ...project, path: source.path };
+}
+
+function projectDirectoryName(title: string): string {
+  const name = title.trim().replace(/\s+/gu, " ").replace(/[. ]+$/u, "");
+  if (!name || name.length > 120 || /[<>:"/\\|?*\u0000-\u001f]/u.test(name) || /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/iu.test(name)) {
+    throw new ApiError(400, "workspace_project_directory_name_invalid", "项目名称不能作为本机文件夹名称，请移除 Windows 不支持的字符或保留设备名。");
+  }
+  return name;
 }
 
 
@@ -145,8 +180,9 @@ export function registerRoutes(router: Router, aiPluginHost: AiPluginHost, _real
   }));
 
   router.get("/workspace/projects", requireAuthentication, (request, response) => {
-    const nodes = listDaemonNodes().filter(node => node.capabilities.includes("project-files-v1"));
     const query = parseBody<{ appId?: WorkspaceProjectApplicationId; query?: string }>(projectsQuerySchema, request.query);
+    // AI Work 项目是 LFAA 本机逻辑项目；其列表读取不得查询、等待或要求 Daemon 在线。
+    const nodes = query.appId === "workspace" ? [] : listDaemonNodes().filter(node => node.capabilities.includes("project-files-v1"));
     const result = searchWorkspaceProjects(request.auth!.user.id, query.appId, query.query);
     const projects = query.appId ? filterLegacyProjectsForApp(request.auth!.user.id, query.appId, result.projects) : result.projects;
     const initializedProjectId = query.appId === "minecraft" ? null : getDefaultWorkspaceProjectId(request.auth!.user.id);
@@ -158,17 +194,18 @@ export function registerRoutes(router: Router, aiPluginHost: AiPluginHost, _real
     const { sessionIds } = parseBody<{ sessionIds: string[] }>(sessionDirectoryAvailabilitySchema, request.body);
     const userId = request.auth!.user.id;
     const statuses: Record<string, "available" | "missing" | "unknown"> = Object.fromEntries(sessionIds.map(sessionId => [sessionId, "unknown"]));
-    const groups = new Map<string, { appId: WorkspaceProjectApplicationId; nodeId: string | null; sessionIds: string[]; paths: string[] }>();
+    const groups = new Map<string, { appId: WorkspaceProjectApplicationId; nodeId: string | null; sessions: Array<{ sessionId: string; pathCount: number }>; paths: string[] }>();
     for (const sessionId of sessionIds) {
       const context = resolveAiSessionWorkspaceContext(userId, sessionId);
       if (!context) continue;
-      const path = context.path;
+      const sourcePaths = context.sources?.length ? context.sources : context.path ? [context.path] : [];
+      if (!sourcePaths.length) continue;
       const nodeId = context.nodeId;
       const appId: WorkspaceProjectApplicationId = context.appId === "minecraft" ? "minecraft" : "workspace";
       const key = `${appId}\u0000${nodeId ?? "local"}`;
-      const group = groups.get(key) ?? { appId, nodeId, sessionIds: [], paths: [] };
-      group.sessionIds.push(sessionId);
-      group.paths.push(path);
+      const group = groups.get(key) ?? { appId, nodeId, sessions: [], paths: [] };
+      group.sessions.push({ sessionId, pathCount: sourcePaths.length });
+      group.paths.push(...sourcePaths);
       groups.set(key, group);
     }
 
@@ -185,8 +222,13 @@ export function registerRoutes(router: Router, aiPluginHost: AiPluginHost, _real
             : await runDirectoryOperation(userId, group.appId, group.nodeId, { operation: "inspect_directories", paths: group.paths })) as { directories?: unknown } | null;
           if (!result) continue;
           const directories = result.directories;
-          if (!Array.isArray(directories) || directories.length !== group.sessionIds.length || directories.some(directory => typeof directory !== "boolean")) continue;
-          group.sessionIds.forEach((sessionId, index) => { statuses[sessionId] = directories[index] ? "available" : "missing"; });
+          if (!Array.isArray(directories) || directories.length !== group.paths.length || directories.some(directory => typeof directory !== "boolean")) continue;
+          let offset = 0;
+          for (const session of group.sessions) {
+            const sessionDirectories = directories.slice(offset, offset + session.pathCount) as boolean[];
+            statuses[session.sessionId] = sessionDirectories.some(Boolean) ? "available" : "missing";
+            offset += session.pathCount;
+          }
         } catch {
           // Offline nodes, permission failures and Host errors are unknown; only a confirmed ENOENT/ENOTDIR is missing.
         }
@@ -202,8 +244,44 @@ export function registerRoutes(router: Router, aiPluginHost: AiPluginHost, _real
     response.json({ result });
   }));
 
+  router.post("/workspace/projects/local/browse", requireAuthentication, asyncHandler(async (request, response) => {
+    const body = parseBody<{ operation: "home" | "list" | "inspect"; path: string }>(localBrowseSchema, request.body);
+    if (!aiPluginHost.executeLocalProjectFile) throw new ApiError(503, "workspace_local_host_unavailable", "当前 LFAA Host 未提供本机文件夹选择能力；未使用 Daemon 节点代替。");
+    const operation = body.operation === "list" ? "list_directories" : body.operation === "inspect" ? "inspect_directory" : "home";
+    const result = await aiPluginHost.executeLocalProjectFile({ operation, ...(body.path ? { path: body.path } : {}) });
+    response.json({ result });
+  }));
+
   router.post("/workspace/projects", requireAuthentication, asyncHandler(async (request, response) => {
-    const body = parseBody<{ appId: WorkspaceProjectApplicationId; nodeId: string; path: string; title?: string }>(createProjectSchema, request.body);
+    const body = parseBody<{ appId: WorkspaceProjectApplicationId; nodeId?: string; path?: string; parentPath?: string; title?: string; instructions?: string; memoryMode?: WorkspaceProjectMemoryMode; applicationIds?: string[]; sourcePaths?: string[] }>(createProjectSchema, request.body);
+    if (body.appId === "workspace") {
+      if (body.nodeId || body.path) throw new ApiError(400, "workspace_project_daemon_binding_forbidden", "AI Work 项目由 LFAA 本机 Host 管理，不接受 Daemon 节点或节点目录。 ");
+      if (!aiPluginHost.executeLocalProjectFile) throw new ApiError(503, "workspace_local_host_unavailable", "当前 LFAA Host 未提供本机项目文件夹创建能力；未使用 Daemon 节点代替。");
+      const parent = await aiPluginHost.executeLocalProjectFile({ operation: "inspect_directory", path: body.parentPath }) as { path?: unknown; directory?: unknown };
+      if (typeof parent?.path !== "string" || parent.directory !== true) throw new ApiError(400, "workspace_project_parent_invalid", "请选择 LFAA 本机上现有的工作区父文件夹。");
+      const sources = await inspectLocalProjectSources(aiPluginHost, body.sourcePaths ?? []);
+      const folderName = projectDirectoryName(body.title!);
+      const createdDirectory = await aiPluginHost.executeLocalProjectFile({ operation: "create_directory", path: parent.path, name: folderName }) as { path?: unknown; created?: unknown };
+      if (createdDirectory?.created !== true || typeof createdDirectory.path !== "string") {
+        throw new ApiError(409, "workspace_project_directory_exists", `工作区中已存在“${folderName}”文件夹，请更改项目名称或选择其他工作区。`);
+      }
+      try {
+        response.status(201).json({ project: createLocalWorkspaceProject({
+          userId: request.auth!.user.id,
+          title: body.title!,
+          projectDirectoryPath: createdDirectory.path,
+          ...(body.instructions !== undefined ? { instructions: body.instructions } : {}),
+          ...(body.memoryMode !== undefined ? { memoryMode: body.memoryMode as WorkspaceProjectMemoryMode } : {}),
+          ...(body.applicationIds !== undefined ? { applicationIds: body.applicationIds as string[] } : {}),
+          sources,
+          platform: process.platform
+        }) });
+      } catch (error) {
+        throw new ApiError(409, "workspace_local_project_create_failed", error instanceof Error ? error.message : "本机项目创建失败。");
+      }
+      return;
+    }
+    if (!body.nodeId || !body.path) throw new ApiError(400, "workspace_project_target_required", "当前目录登记需要对应来源；AI Work 项目创建无需节点目录。");
     const inspected = await runDirectoryOperation(request.auth!.user.id, body.appId, body.nodeId, { operation: "inspect_directory", path: body.path }) as { path?: unknown; directory?: unknown };
     if (typeof inspected.path !== "string" || inspected.directory !== true) throw new ApiError(400, "workspace_project_directory_invalid", "请选择 Daemon 上真实存在的文件夹。 ");
     const node = listDaemonNodes().find(item => item.id === body.nodeId);
@@ -215,18 +293,42 @@ export function registerRoutes(router: Router, aiPluginHost: AiPluginHost, _real
     }
   }));
 
-  router.patch("/workspace/projects/:projectId", requireAuthentication, (request, response) => {
-    const body = parseBody<{ appId: WorkspaceProjectApplicationId; title: string }>(renameProjectSchema, request.body);
+  router.patch("/workspace/projects/:projectId", requireAuthentication, asyncHandler(async (request, response) => {
+    const body = parseBody<{ appId: WorkspaceProjectApplicationId; title: string; instructions?: string; memoryMode?: WorkspaceProjectMemoryMode; applicationIds?: string[]; sourcePaths?: string[] }>(updateProjectSchema, request.body);
     const owned = requireProjectForApp(request.auth!.user.id, request.params.projectId, body.appId);
+    if (body.appId === "workspace" && owned.nodeId !== null) throw new ApiError(409, "workspace_project_daemon_binding_forbidden", "AI Work 项目不能重命名或绑定到 Daemon；请新建 LFAA 本机项目并关联本机源文件夹。 ");
+    if (body.appId === "workspace") {
+      const project = updateLocalWorkspaceProject(request.auth!.user.id, request.params.projectId, {
+        title: body.title,
+        instructions: body.instructions ?? owned.instructions,
+        memoryMode: body.memoryMode ?? owned.memoryMode,
+        ...(body.applicationIds !== undefined ? { applicationIds: body.applicationIds as string[] } : {}),
+        ...(body.sourcePaths !== undefined ? { sources: await inspectLocalProjectSources(aiPluginHost, body.sourcePaths), platform: process.platform } : {})
+      });
+      if (!project) throw new ApiError(404, "workspace_project_not_found", "找不到此账户的本机项目。");
+      response.json({ project });
+      return;
+    }
+    if (body.instructions !== undefined || body.memoryMode !== undefined) throw new ApiError(409, "workspace_project_metadata_local_only", "项目指令与项目记忆范围只用于 LFAA 本机项目。");
     const project = renameWorkspaceProject(request.auth!.user.id, request.params.projectId, body.title, owned.appId);
     if (!project) throw new ApiError(404, "workspace_project_not_found", "找不到此账户的项目。 ");
     response.json({ project });
-  });
+  }));
+
+  router.put("/workspace/projects/:projectId/sources", requireAuthentication, asyncHandler(async (request, response) => {
+    const body = parseBody<{ appId: "workspace"; paths: string[] }>(updateProjectSourcesSchema, request.body);
+    const project = requireProjectForApp(request.auth!.user.id, request.params.projectId, body.appId);
+    if (project.nodeId !== null) throw new ApiError(409, "workspace_project_local_sources_required", "本机项目源文件夹不能绑定到 Daemon 项目。");
+    const paths = await inspectLocalProjectSources(aiPluginHost, body.paths);
+    const updated = replaceLocalWorkspaceProjectSources(request.auth!.user.id, project.id, paths, process.platform);
+    if (!updated) throw new ApiError(404, "workspace_project_not_found", "找不到此账户的本机项目。");
+    response.json({ project: updated });
+  }));
 
   router.post("/workspace/projects/:projectId/git/initialize", requireAuthentication, asyncHandler(async (request, response) => {
-    const body = parseBody<{ appId: WorkspaceProjectApplicationId }>(projectActionSchema, request.body);
+    const body = parseBody<{ appId: WorkspaceProjectApplicationId; sourceId?: string }>(projectActionSchema, request.body);
     const userId = request.auth!.user.id;
-    const project = requireProjectForApp(userId, request.params.projectId, body.appId);
+    const project = projectForSource(requireProjectForApp(userId, request.params.projectId, body.appId), body.sourceId);
     const node = requireLocalGitProject(project);
     const authorization = authorizeExplicitUserAction({
       userId,
@@ -235,7 +337,7 @@ export function registerRoutes(router: Router, aiPluginHost: AiPluginHost, _real
       toolId: "workspace.git.initialize",
       toolVersion: "1",
       risk: "dangerous",
-      scopeKey: `${node?.id ?? "local"}:${project.id}`,
+      scopeKey: `${node?.id ?? "local"}:${project.id}:${body.sourceId ?? "primary"}`,
       executable: true
     });
     if (authorization !== "allow") throw new ApiError(403, "workspace_git_operation_not_authorized", "当前账户或应用无权初始化此项目 Git 仓库。 ");
@@ -244,17 +346,17 @@ export function registerRoutes(router: Router, aiPluginHost: AiPluginHost, _real
   }));
 
   router.post("/workspace/projects/:projectId/git/status", requireAuthentication, asyncHandler(async (request, response) => {
-    const body = parseBody<{ appId: WorkspaceProjectApplicationId }>(projectActionSchema, request.body);
+    const body = parseBody<{ appId: WorkspaceProjectApplicationId; sourceId?: string }>(projectActionSchema, request.body);
     const userId = request.auth!.user.id;
-    const project = requireProjectForApp(userId, request.params.projectId, body.appId);
+    const project = projectForSource(requireProjectForApp(userId, request.params.projectId, body.appId), body.sourceId);
     if (!project) throw new ApiError(404, "workspace_project_not_found", "找不到此账户的项目。 ");
     response.json({ status: await runLocalGitOperation(project, { operation: "status" }) });
   }));
 
   router.post("/workspace/projects/:projectId/git/operation", requireAuthentication, asyncHandler(async (request, response) => {
-    const body = parseBody<{ appId: WorkspaceProjectApplicationId; operation: string; paths?: string[]; message?: string; branch?: string; limit?: number }>(gitWorkspaceOperationSchema, request.body);
+    const body = parseBody<{ appId: WorkspaceProjectApplicationId; sourceId?: string; operation: string; paths?: string[]; message?: string; branch?: string; limit?: number }>(gitWorkspaceOperationSchema, request.body);
     const userId = request.auth!.user.id;
-    const project = requireProjectForApp(userId, request.params.projectId, body.appId);
+    const project = projectForSource(requireProjectForApp(userId, request.params.projectId, body.appId), body.sourceId);
     const node = requireLocalGitProject(project);
     const readOnly = body.operation === "history" || body.operation === "branches";
     const risk = body.operation === "commit" || body.operation === "branch-delete" || body.operation === "branch-switch" ? "dangerous" : "write";
@@ -266,7 +368,7 @@ export function registerRoutes(router: Router, aiPluginHost: AiPluginHost, _real
         toolId: `workspace.git.${body.operation}`,
         toolVersion: "1",
         risk,
-        scopeKey: `${node?.id ?? "local"}:${project.id}`,
+        scopeKey: `${node?.id ?? "local"}:${project.id}:${body.sourceId ?? "primary"}`,
         executable: true
       });
       if (authorization !== "allow") throw new ApiError(403, "workspace_git_operation_not_authorized", "当前账户或应用无权执行此 Git 操作。 ");
@@ -286,17 +388,17 @@ export function registerRoutes(router: Router, aiPluginHost: AiPluginHost, _real
   }));
 
   router.post("/workspace/projects/:projectId/git/file-diff", requireAuthentication, asyncHandler(async (request, response) => {
-    const body = parseBody<{ appId: WorkspaceProjectApplicationId; path: string; ignoreWhitespace: boolean; wordDiff: boolean; contextLines: number }>(gitFileDiffSchema, request.body);
+    const body = parseBody<{ appId: WorkspaceProjectApplicationId; sourceId?: string; path: string; ignoreWhitespace: boolean; wordDiff: boolean; contextLines: number }>(gitFileDiffSchema, request.body);
     const userId = request.auth!.user.id;
-    const project = requireProjectForApp(userId, request.params.projectId, body.appId);
+    const project = projectForSource(requireProjectForApp(userId, request.params.projectId, body.appId), body.sourceId);
     requireLocalGitProject(project);
     response.json({ file: await runLocalGitOperation(project, { operation: "file-diff", path: body.path,
       ignoreWhitespace: body.ignoreWhitespace, wordDiff: body.wordDiff, contextLines: body.contextLines }) });
   }));
 
   router.post("/workspace/projects/:projectId/files/read", requireAuthentication, asyncHandler(async (request, response) => {
-    const body = parseBody<{ appId: WorkspaceProjectApplicationId; path: string; offset: number; limit: number }>(projectFileReadSchema, request.body);
-    const project = requireProjectForApp(request.auth!.user.id, request.params.projectId, body.appId);
+    const body = parseBody<{ appId: WorkspaceProjectApplicationId; sourceId?: string; path: string; offset: number; limit: number }>(projectFileReadSchema, request.body);
+    const project = projectForSource(requireProjectForApp(request.auth!.user.id, request.params.projectId, body.appId), body.sourceId);
     const result = await runProjectFileOperation(aiPluginHost, request.auth!.user.id, body.appId, project, {
       operation: "read", rootDirectory: project.path, path: body.path, offset: body.offset, limit: body.limit
     });
@@ -304,8 +406,8 @@ export function registerRoutes(router: Router, aiPluginHost: AiPluginHost, _real
   }));
 
   router.post("/workspace/projects/:projectId/files/write", requireAuthentication, asyncHandler(async (request, response) => {
-    const body = parseBody<{ appId: WorkspaceProjectApplicationId; path: string; sha256: string; content: string }>(projectFileWriteSchema, request.body);
-    const project = requireProjectForApp(request.auth!.user.id, request.params.projectId, body.appId);
+    const body = parseBody<{ appId: WorkspaceProjectApplicationId; sourceId?: string; path: string; sha256: string; content: string }>(projectFileWriteSchema, request.body);
+    const project = projectForSource(requireProjectForApp(request.auth!.user.id, request.params.projectId, body.appId), body.sourceId);
     const result = await runProjectFileOperation(aiPluginHost, request.auth!.user.id, body.appId, project, {
       operation: "write", rootDirectory: project.path, path: body.path, sha256: body.sha256, content: body.content
     });
@@ -376,6 +478,10 @@ export function registerRoutes(router: Router, aiPluginHost: AiPluginHost, _real
     } else if (body.deleteManagedWorktree) {
       throw new ApiError(409, "workspace_git_worktree_not_managed", "此项目不是 LFAA 管理的 AI Worktree。 ");
     }
+    if (project.appId === "workspace" && project.nodeId === null) {
+      try { detachAiSessionsFromWorkspaceProject(userId, project.id); }
+      catch (error) { throw new ApiError(409, "workspace_project_sessions_busy", error instanceof Error ? error.message : "无法安全解除项目会话归属。"); }
+    }
     if (!removeWorkspaceProject(userId, project.id, project.appId)) throw new ApiError(404, "workspace_project_not_found", "找不到此账户的项目。 ");
     response.status(204).end();
   }));
@@ -384,14 +490,18 @@ export function registerRoutes(router: Router, aiPluginHost: AiPluginHost, _real
     const body = parseBody<{ appId: WorkspaceProjectApplicationId; projectId: string | null }>(changeSessionProjectSchema, request.body);
     const existing = getAiSession(request.auth!.user.id, request.params.sessionId);
     if (!existing) throw new ApiError(404, "ai_session_not_found", "找不到此账户的 AI 会话。");
-    if (body.appId !== "workspace" && existing.appId !== body.appId) throw new ApiError(409, "workspace_session_app_mismatch", "会话所属应用与项目应用不一致。 ");
+    if (existing.appId !== body.appId) throw new ApiError(409, "workspace_session_app_mismatch", "会话所属应用与项目应用不一致。 ");
     const project = body.projectId ? requireProjectForApp(request.auth!.user.id, body.projectId, body.appId) : null;
     const projectContext = project ? {
       id: project.id,
       appId: body.appId,
       nodeId: project.nodeId,
       path: project.path,
-      title: project.title
+      title: project.title,
+      sources: project.sources.map(source => source.path),
+      sourceDirectories: project.sources.map(source => ({ id: source.id, path: source.path })),
+      instructions: project.instructions,
+      memoryMode: project.memoryMode
     } : null;
     const session = setAiSessionProject(request.auth!.user.id, request.params.sessionId, projectContext);
     if (!session) {
@@ -408,11 +518,18 @@ export function registerRoutes(router: Router, aiPluginHost: AiPluginHost, _real
     if (sourceSession.appId !== body.appId || !sourceSession.projectId) throw new ApiError(409, "workspace_session_fork_source_mismatch", "只有绑定当前 App 项目的会话可以在新工作树中分支。");
     const sourceProject = requireProjectForApp(userId, sourceSession.projectId, body.appId);
     const targetProject = requireProjectForApp(userId, body.targetProjectId, body.appId);
+    if (body.appId === "workspace" && (sourceProject.nodeId !== null || targetProject.nodeId !== null)) {
+      throw new ApiError(409, "workspace_project_daemon_binding_forbidden", "AI Work 项目与会话分支都由 LFAA 本机 Host 管理，不使用 Daemon 项目。 ");
+    }
     const worktree = targetProject.gitWorktree;
     if (sourceProject.gitWorktree || !worktree || worktree.sourceProjectId !== sourceProject.id || worktree.nodeId !== sourceProject.nodeId || targetProject.nodeId !== sourceProject.nodeId) {
       throw new ApiError(409, "workspace_session_fork_worktree_mismatch", "目标必须是在同一账户、App 与 Daemon 下从当前源项目登记的 AI Worktree。");
     }
-    const projectContext: AiSessionProjectContext = { id: targetProject.id, appId: body.appId, nodeId: targetProject.nodeId, path: targetProject.path, title: targetProject.title };
+    const projectContext: AiSessionProjectContext = {
+      id: targetProject.id, appId: body.appId, nodeId: targetProject.nodeId, path: targetProject.path, title: targetProject.title,
+      sources: targetProject.sources.map(source => source.path), sourceDirectories: targetProject.sources.map(source => ({ id: source.id, path: source.path })),
+      instructions: targetProject.instructions, memoryMode: targetProject.memoryMode
+    };
     const controller = new AbortController();
     const abortOnDisconnect = () => { if (!response.writableEnded) controller.abort(); };
     request.once("aborted", abortOnDisconnect);
@@ -445,7 +562,26 @@ async function initializeLocalDefaultWorkspace(aiPluginHost: AiPluginHost): Prom
   return { path: result.path };
 }
 
+/** 所有关联的项目源目录都必须由同一 LFAA 本机 Host 逐个核验，流程不触碰 Daemon。 */
+async function inspectLocalProjectSources(aiPluginHost: AiPluginHost, paths: string[]): Promise<string[]> {
+  if (paths.length > 20) throw new ApiError(400, "workspace_project_sources_limit", "每个项目最多关联 20 个本机文件夹。");
+  if (!paths.length) return [];
+  if (!aiPluginHost.executeLocalProjectFile) throw new ApiError(503, "workspace_local_host_unavailable", "当前 LFAA Host 未提供本机文件夹能力；未使用 Daemon 节点代替。");
+  const inspected: string[] = [];
+  for (const path of paths) {
+    try {
+      const result = await aiPluginHost.executeLocalProjectFile({ operation: "inspect_directory", path }) as { path?: unknown; directory?: unknown };
+      if (typeof result?.path !== "string" || result.directory !== true) throw new Error("所选路径不是 LFAA 本机上的现有文件夹。");
+      inspected.push(result.path);
+    } catch (error) {
+      throw new ApiError(400, "workspace_project_source_invalid", error instanceof Error ? error.message : "无法核验本机项目源文件夹。");
+    }
+  }
+  return inspected;
+}
+
 async function runProjectFileOperation(aiPluginHost: AiPluginHost, userId: string, appId: WorkspaceProjectApplicationId, project: WorkspaceProjectForApp, operation: Record<string, unknown>): Promise<unknown> {
+  if (!project.path) throw new ApiError(409, "workspace_project_source_required", "当前项目还没有关联源文件夹；请先在项目设置中添加本机文件夹。");
   if (project.nodeId === null) {
     if (!aiPluginHost.executeLocalProjectFile) throw new ApiError(503, "workspace_local_host_unavailable", "当前 LFAA Host 未提供本机项目文件能力。 ");
     return aiPluginHost.executeLocalProjectFile(operation);
@@ -454,6 +590,7 @@ async function runProjectFileOperation(aiPluginHost: AiPluginHost, userId: strin
 }
 
 function requireLocalGitProject(project: WorkspaceProjectForApp): DaemonNode | null {
+  if (!project.path) throw new ApiError(409, "workspace_git_project_source_required", "当前项目还没有关联源文件夹，无法读取 Git 仓库。");
   if (project.nodeId === null) return null;
   const node = listDaemonNodes().find(item => item.id === project.nodeId);
   if ((project.nodeId !== null && !isLocalDaemonIdentity(project.nodeId)) || !node || node.platform !== process.platform) {

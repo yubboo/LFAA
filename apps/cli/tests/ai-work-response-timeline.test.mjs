@@ -65,8 +65,8 @@ test("流式正文、工具与交互按落点留在同条回复，完成后追�
     import {createRequire} from 'node:module';
     const require=createRequire(${JSON.stringify(new URL("../../web/package.json", import.meta.url).href)});
     const {createElement}=require('react');const {renderToStaticMarkup}=require('react-dom/server');
-    const {AiWorkResponse}=await import(${JSON.stringify(new URL("../../../packages/client/ui-chat/src/AiWorkResponse.tsx", import.meta.url).href)});
-    console.log(renderToStaticMarkup(createElement(AiWorkResponse,{message:${JSON.stringify(message)},renderActivity:item=>createElement('span',{key:item.id},item.id),renderInteraction:${showInteractions ? "item=>createElement('section',null,item.question,item.detail)" : "()=>null"},onOpenProjectFileReview:()=>{},onBrowserToolCompleted:()=>{}})));
+    const {AiWorkResponse,AiActivityToolUsageCard}=await import(${JSON.stringify(new URL("../../../packages/client/ui-chat/src/AiWorkResponse.tsx", import.meta.url).href)});
+    console.log(renderToStaticMarkup(createElement(AiWorkResponse,{message:${JSON.stringify(message)},renderActivity:item=>createElement('span',{key:item.id},item.id,item.toolUsage?createElement(AiActivityToolUsageCard,{usage:item.toolUsage,stages:item.toolStages}):null),renderInteraction:${showInteractions ? "item=>createElement('section',null,item.question,item.detail)" : "()=>null"},onOpenProjectFileReview:()=>{},onBrowserToolCompleted:()=>{}})));
   `], { cwd: fileURLToPath(new URL("..", import.meta.url)), env: { ...process.env, TSX_TSCONFIG_PATH: fileURLToPath(new URL("../../../tsconfig.client.json", import.meta.url)) }, encoding: "utf8" }).trim();
   const running = render(fixture("streaming"));
   assert.match(running, new RegExp(`--ai-work-stream-hue:${getResponseShimmerHue("run")}deg`), "回复色相来自稳定的消息 ID");
@@ -77,7 +77,7 @@ test("流式正文、工具与交互按落点留在同条回复，完成后追�
   assert.doesNotMatch(running, /小鱼主 Agent|已登记项目工具/u);
   assert.match(running, /ai-work-chat__activity-live-status--processing[^>]*[\s\S]*?<span>正在回复<\/span>/u, "已有可见正文时状态为正在回复");
   assert.doesNotMatch(running, /activity-current-action--static/u, "当前状态不固定在耗时行下方");
-  assert.doesNotMatch(running, /<details class="ai-work-chat__tool-group"[^>]*\bopen=/u);
+  assert.match(running, /<details class="ai-work-chat__tool-group"[^>]*\bopen=/u, "工具活动组在运行期间展开，详细过程进入同一条回复流");
   const durationStart = running.indexOf('class="ai-work-chat__response-duration"');
   const timelineStart = running.indexOf('class="ai-work-chat__response-timeline"');
   const currentActionStart = running.indexOf('class="ai-work-chat__activity-live-status');
@@ -113,10 +113,18 @@ test("流式正文、工具与交互按落点留在同条回复，完成后追�
   assert.ok(partialReplyMarkup.indexOf("先核对现状。") < partialReplyMarkup.indexOf("正在回复"), "正文增长前状态位于当时正文末尾");
 
   const activeTool = fixture("streaming");
-  activeTool.activity.push({ ...activity("active-file", activeTool.content.length, "tool"), title: "操作项目文件", detail: "参数校验通过；按当前权限执行", status: "running", completedAt: null, durationMs: null });
+  activeTool.activity.push({ ...activity("active-file", activeTool.content.length, "tool"), title: "操作项目文件", detail: "参数校验通过；按当前权限执行", status: "running", completedAt: null, durationMs: null,
+    toolUsage: { name: "project_files", description: "读取、创建、修改或核对当前项目中的文件。", parameters: [{ name: "operation", type: "string", required: true, description: "要执行的文件操作。" }, { name: "path", type: "string", required: true, description: "项目内相对路径。" }], parametersTruncated: false, guidance: "先读取当前文件；写入后检查实际差异。" },
+    toolStages: [{ stage: "模型已选择工具", detail: "模型请求读取指定项目文件。" }, { stage: "参数已校验", detail: "工具 Owner 校验项目相对路径；参数值不公开。" }] });
   const activeToolMarkup = render(activeTool);
   assert.match(activeToolMarkup, /ai-work-chat__tool-group--running[^>]*>/u);
+  assert.match(activeToolMarkup, /<details class="ai-work-chat__tool-group[^>]*\bopen=/u, "运行中的工具组保持展开");
   assert.match(activeToolMarkup, /正在执行：操作项目文件/u, "当前工具动作显示在实际工具活动组");
+  assert.match(activeToolMarkup, /project_files/u, "显示本轮调用的准确工具函数名");
+  assert.match(activeToolMarkup, /读取、创建、修改或核对当前项目中的文件/u, "显示模型本轮收到的工具用途");
+  assert.match(activeToolMarkup, /项目内相对路径/u, "显示字段用途，帮助理解工具参数合同");
+  assert.match(activeToolMarkup, /参数值不公开/u, "执行阶段沿同一时间线保留且不泄漏实际参数值");
+  assert.doesNotMatch(activeToolMarkup, /secret-argument-value/u, "活动流不渲染参数值");
   assert.doesNotMatch(activeToolMarkup, /activity-live-status/u, "真实工具活动不重复生成顶置状态");
   const leadingBlankLines = fixture("streaming");
   leadingBlankLines.content = "\n\n首段正文\n\n后续段";

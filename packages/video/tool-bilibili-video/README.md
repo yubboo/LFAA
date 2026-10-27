@@ -1,0 +1,5 @@
+# `lfaa-video-tool-bilibili-video`
+
+Registers three model-selected AI Work tools for public Bilibili URLs: video information/captions, one sampled storyboard image sheet, and permission-gated Ark Agent Plan audio transcription. The model decides which tools serve the current goal; there is no fixed hidden transcript workflow. The ASR account comes only from `aiRuntime.videoTranscriptionAccountId`; `lfaaCredentials` resolves the existing encrypted Settings key after the Agent Loop's Permission Owner authorizes the dangerous call. Missing account, unsupported tier/model, missing FFmpeg, provider failure, cancellation, or invalid media returns an explicit error with no success fallback.
+
+The tool package owns no media fetching, account, permission policy, session, or persistence. The domain provider is `lfaa-video-bilibili-video`; the Agent Loop's `projectResult` contract forwards one validated storyboard image to the active model and persists metadata without image bytes. Tools are scoped to AI Work (`workspace`) and assembled by the Web/Desktop Bundle at `packages/bundle/web-app`. Build output is `dist/packages/video/tool-bilibili-video/`.

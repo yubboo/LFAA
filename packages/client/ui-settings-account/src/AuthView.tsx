@@ -11,7 +11,7 @@ import { loadPasskeyAvailability } from "lfaa-client-connection/src/api.js";
 import type { TrustedAccountRecoveryStartResult } from "lfaa-client-connection/src/api.js";
 import { applyAppearanceThemeBootstrap } from "lfaa-client-ui-theme/src/appearance-theme-bootstrap.js";
 import { appearanceCodeFontStacks, appearanceTextFontStacks } from "lfaa-client-ui-theme/src/fonts.js";
-import { getCachedLoginAppearance, resolveLoginAppearance, resolveLoginBackgroundImage } from "lfaa-client-ui-theme/src/login-appearance.js";
+import { getCachedLoginAppearance, resolveLoginAppearance, resolveLoginBackgroundImage, resolveLoginBackgroundOverlayColor } from "lfaa-client-ui-theme/src/login-appearance.js";
 import { DshSlotOutlet, LFAA_AUTH_TRANSITION_SLOT, type AuthTransitionPhase, type AuthTransitionSlotOwner } from "lfaa-client-modules/src/client/index.js";
 import { isPasswordAcceptable, PasswordStrengthIndicator } from "./PasswordStrengthIndicator.js";
 import { ServiceStatus, type ServiceState } from "lfaa-client-ui-primitives/src/ServiceStatus.js";
@@ -90,9 +90,11 @@ export function AuthView({ serverState, busy, error, notice, transitionPhase, tr
     "--font-size-sm": `${12 * interfaceFontScale}px`, // 登录页状态文字按界面字号同比缩放。
     "--settings-contrast-strong-mix": `${Math.max(0, contrastDelta) * 0.5}%`, // 登录页边界随外观对比度向正文颜色增强。
     "--settings-contrast-soft-mix": `${Math.max(0, -contrastDelta) / 3}%`, // 登录页边界在低于默认对比度时向表面颜色柔和混合。
-    "--settings-background-overlay": resolvedLoginAppearance.theme === "dark"
-      ? `rgba(24, 24, 24, ${resolvedLoginAppearance.overlay / 100})` // 深色登录页壁纸使用设置的中性深灰遮罩比例。
-      : `rgba(255, 255, 255, ${resolvedLoginAppearance.overlay / 100})` // 浅色登录页壁纸使用设置的纯白遮罩比例。
+    "--settings-background-overlay": resolveLoginBackgroundOverlayColor(
+      resolvedLoginAppearance.overlay,
+      resolvedLoginAppearance.theme,
+      resolvedLoginAppearance.loginOverlayOverride
+    ), // 登录壁纸未覆盖时沿用全局遮罩 40% 强度；单独设置后按区域值显示。
   } as CSSProperties;
 
   useEffect(() => {

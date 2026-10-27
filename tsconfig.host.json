@@ -1218,11 +1218,23 @@
       "lfaa-video-ai-video/src/*": [
         "packages/video/ai-video/src/*"
       ],
+      "lfaa-video-bilibili-video": [
+        "packages/video/bilibili-video/src/index.ts"
+      ],
+      "lfaa-video-bilibili-video/src/*": [
+        "packages/video/bilibili-video/src/*"
+      ],
       "lfaa-video-tool-ai-video": [
         "packages/video/tool-ai-video/src/index.ts"
       ],
       "lfaa-video-tool-ai-video/src/*": [
         "packages/video/tool-ai-video/src/*"
+      ],
+      "lfaa-video-tool-bilibili-video": [
+        "packages/video/tool-bilibili-video/src/index.ts"
+      ],
+      "lfaa-video-tool-bilibili-video/src/*": [
+        "packages/video/tool-bilibili-video/src/*"
       ],
       "lfaa-web": [
         "packages/web/web/src/index.ts"

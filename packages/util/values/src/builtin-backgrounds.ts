@@ -1,7 +1,7 @@
 /**
  * 功能：登记随 Web 交付的场景图片与背景名称。
  * 作用：作为登录、工作台和设置中心的纯数据清单，主题无需依赖业务 UI。
- * 关联文件：apps/web/public/images/minecraft、client/ui-theme/src/login-appearance.ts、client/ui-settings/src/SettingsPage.tsx。
+ * 关联文件：apps/web/public/backgrounds、apps/web/public/images/minecraft、client/ui-theme/src/login-appearance.ts、client/ui-settings/src/SettingsPage.tsx、client/ui-layout/src/Workbench.tsx。
  */
 export const minecraftSceneImages = {
   forestBridgeEvening: "/images/minecraft/forest-bridge-evening.png",
@@ -34,6 +34,7 @@ export const minecraftSceneBackgrounds = [
 /** 外观设置与 Agent 共享的内置背景选项；ID 必须与 Settings Owner 校验合同一致。 */
 export const appearanceBackgroundOptions = [
   { id: "none", name: "纯色" },
+  { id: "cherry-blossom-waterfront", name: "樱花水岸", file: "/backgrounds/cherry-blossom-waterfront.png" },
   { id: "service-room", name: "服务机房", file: "/backgrounds/service-room.jpg" },
   { id: "steamcmd-world", name: "游戏世界", file: "/backgrounds/steamcmd-world.jpg" },
   { id: "minecraft-world", name: "方块日落", file: "/backgrounds/minecraft-world.jpg" },

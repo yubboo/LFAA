@@ -232,7 +232,9 @@ test("进程恢复会关闭未完成的活动卡片并持久化真实中断状�
       sessions.recordAiToolCall('activity-owner',turn.session.id,turn.assistantMessage.id,'call-dispatched','local_execute_command','{}',true);
       sessions.recordAiToolCall('activity-owner',turn.session.id,turn.assistantMessage.id,'call-not-started','host_execute_command','{}',false);
       sessions.saveAiAssistantActivity('activity-owner',turn.session.id,turn.assistantMessage.id,[
-        {id:'running-tool',kind:'tool',title:'调用 LFAA 工具',status:'running',detail:'参数校验通过；将按当前权限模式执行。',startedAt,completedAt:null,durationMs:null},
+        {id:'running-tool',kind:'tool',title:'调用 LFAA 工具',status:'running',detail:'参数校验通过；将按当前权限模式执行。',startedAt,completedAt:null,durationMs:null,
+          toolUsage:{name:'project_files',description:'读取当前项目文件。',parameters:[{name:'operation',type:'string',required:true,description:'读取、写入或列出。'}],parametersTruncated:false,guidance:'按项目相对路径访问。'},
+          toolStages:[{stage:'模型已选择工具',detail:'本轮模型选择 project_files。'},{stage:'参数已校验',detail:'Owner 已核验 JSON 参数；参数值不公开。'}]},
         {id:'pending-approval',kind:'command',title:'等待审批',status:'approval_required',detail:'审批尚未完成。',startedAt,completedAt:null,durationMs:null,approvalId:'approval-fixture'},
         {id:'pending-question',kind:'question',title:'等待补充信息',status:'waiting_input',detail:'问题尚未回答。',startedAt,completedAt:null,durationMs:null,questionId:'question-fixture',question:'选择目标？',options:['A','B']},
         {id:'finished',kind:'status',title:'已完成阶段',status:'complete',detail:'已完成。',startedAt,completedAt:startedAt,durationMs:0}
@@ -247,6 +249,8 @@ test("进程恢复会关闭未完成的活动卡片并持久化真实中断状�
       assert.deepEqual(reply.activity.map(item=>item.status),['unavailable','unavailable','unavailable','complete']);
       assert.ok(reply.activity.slice(0,3).every(item=>item.completedAt && Number.isFinite(item.durationMs)));
       assert.match(reply.activity[0].detail,/结果未确认|未确认/u);
+      assert.equal(reply.activity[0].toolUsage.parameters[0].description,'读取、写入或列出。');
+      assert.deepEqual(reply.activity[0].toolStages.map(stage=>stage.stage),['模型已选择工具','参数已校验']);
       assert.match(reply.activity[1].detail,/未批准|中断/u);
       assert.match(reply.activity[2].detail,/中断|重新发起/u);
       const events=sessionRecords.allForSession('session_events',sessionId);

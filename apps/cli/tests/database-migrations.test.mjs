@@ -368,7 +368,7 @@ test("版本 27 写作作品迁移后保留内容并归入第一卷，重复启�
   }
 });
 
-test("版本 61 数据库依次迁移 Steam、Agent 使用控制、账户快照、受信联系人、DST 集群、沙箱策略与 Skill 安装到 68", () => {
+test("版本 61 数据库依次迁移旧控制表、Skill 安装、ChatGPT 式本机项目、项目 App 关联及外观素材文件名到 72", () => {
   const dataDirectory = mkdtempSync(join(resolve(tmpdir()), "lfaa-db-v63-agent-usage-"));
   try {
     const databaseDirectory = join(dataDirectory, "database");
@@ -378,9 +378,31 @@ test("版本 61 数据库依次迁移 Steam、Agent 使用控制、账户快照�
       CREATE TABLE users (id TEXT PRIMARY KEY NOT NULL) STRICT;
       CREATE TABLE daemon_nodes (id TEXT PRIMARY KEY NOT NULL) STRICT;
       CREATE TABLE ai_host_tasks (id TEXT PRIMARY KEY NOT NULL) STRICT;
+      CREATE TABLE appearance_backgrounds (
+        user_id TEXT NOT NULL,
+        id TEXT NOT NULL,
+        display_name TEXT NOT NULL,
+        mime_type TEXT NOT NULL,
+        image_data BLOB NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (user_id, id)
+      ) STRICT;
+      CREATE TABLE workspace_projects (
+        id TEXT PRIMARY KEY NOT NULL,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        node_id TEXT REFERENCES daemon_nodes(id) ON DELETE RESTRICT,
+        path TEXT NOT NULL,
+        path_key TEXT NOT NULL,
+        title TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        app_id TEXT CHECK (app_id IN ('workspace', 'minecraft'))
+      ) STRICT;
       INSERT INTO users (id) VALUES ('legacy-steam-user');
       INSERT INTO daemon_nodes (id) VALUES ('legacy-steam-node');
       INSERT INTO ai_host_tasks (id) VALUES ('legacy-shell-task');
+      INSERT INTO workspace_projects (id, user_id, node_id, path, path_key, title, created_at, updated_at, app_id)
+        VALUES ('legacy-local-project', 'legacy-steam-user', NULL, 'C:/legacy/project', 'c:/legacy/project', '旧本机项目', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z', 'workspace');
       CREATE TABLE steamcmd_servers (
         id TEXT PRIMARY KEY NOT NULL,
         node_id TEXT NOT NULL REFERENCES daemon_nodes(id) ON DELETE RESTRICT,
@@ -411,7 +433,17 @@ test("版本 61 数据库依次迁移 Steam、Agent 使用控制、账户快照�
     const databasePath = join(dataDirectory, "database", "lfaa.sqlite");
     const database = new DatabaseSync(databasePath, { readOnly: true });
     try {
-      assert.equal(Number(database.prepare("PRAGMA user_version").get().user_version), 69);
+      assert.equal(Number(database.prepare("PRAGMA user_version").get().user_version), 72);
+      assert.ok(database.prepare("PRAGMA table_info(appearance_backgrounds)").all().some(column => column.name === "storage_filename"));
+      assert.ok(database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = 'appearance_backgrounds_user_storage_filename_idx'").get());
+      const projectColumns = database.prepare("PRAGMA table_info(workspace_projects)").all().map(column => column.name);
+      assert.ok(projectColumns.includes("instructions"));
+      assert.ok(projectColumns.includes("memory_mode"));
+      assert.deepEqual({ ...database.prepare("SELECT instructions, memory_mode FROM workspace_projects WHERE id = 'legacy-local-project'").get() }, { instructions: "", memory_mode: "default" });
+      const projectSource = database.prepare("SELECT id, path, position FROM workspace_project_sources WHERE project_id = 'legacy-local-project'").get();
+      assert.deepEqual({ path: projectSource.path, position: projectSource.position }, { path: "C:/legacy/project", position: 0 });
+      assert.match(projectSource.id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu);
+      assert.ok(database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'project_conversation_memories'").get());
       assert.ok(database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'steamcmd_servers'").get());
       assert.deepEqual({ ...database.prepare("SELECT id, name, tool_app_id, install_directory, executable_path, launch_arguments_json, stop_command, stop_timeout_seconds, installation_status, status FROM steamcmd_servers WHERE id = 'legacy-steam-server'").get() }, {
         id: "legacy-steam-server", name: "旧服务端", tool_app_id: 123456, install_directory: "legacy/server", executable_path: "server.exe",
@@ -450,7 +482,8 @@ test("版本 61 数据库依次迁移 Steam、Agent 使用控制、账户快照�
     runDatabaseStartup(dataDirectory);
     const restartedDatabase = new DatabaseSync(databasePath, { readOnly: true });
     try {
-      assert.equal(Number(restartedDatabase.prepare("PRAGMA user_version").get().user_version), 69);
+      assert.equal(Number(restartedDatabase.prepare("PRAGMA user_version").get().user_version), 72);
+      assert.equal(Number(restartedDatabase.prepare("SELECT COUNT(*) AS count FROM workspace_project_sources WHERE project_id = 'legacy-local-project'").get().count), 1);
       assert.equal(Number(restartedDatabase.prepare("SELECT COUNT(*) AS count FROM steamcmd_servers").get().count), 1);
       assert.equal(restartedDatabase.prepare("SELECT name FROM steamcmd_servers WHERE id = 'legacy-steam-server'").get().name, "旧服务端");
       assert.deepEqual({ ...restartedDatabase.prepare("SELECT sandbox_mode, workspace_root FROM ai_host_tasks WHERE id = 'legacy-shell-task'").get() }, { sandbox_mode: "danger-full-access", workspace_root: "" });

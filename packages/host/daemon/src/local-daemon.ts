@@ -7,6 +7,7 @@ import { database } from "lfaa-storage-sqlite/src/database.js";
 
 export interface JavaRuntimeSummary {
   runtimeId: string;
+  distribution?: "temurin" | "zulu";
   version?: string;
   architecture?:string;
   os?:string;

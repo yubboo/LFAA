@@ -16,13 +16,14 @@ import {
 import { isTauri } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { createStreamDeltas } from "./stream-deltas.js";
-import type { ApplicationId } from "lfaa-util-values/src/application-id.js";
+import type { ApplicationId, WorkspaceProjectContextApplicationId } from "lfaa-util-values/src/application-id.js";
 import type { BrowserProviderId } from "lfaa-util-values/src/browser-provider.js";
 import type { TypertRemoteCallOptions, TypertRemoteClientContract } from "lfaa-typert-protocol/src/index.js";
 import { accountControllerRemoteMethods, type AccountControllerRemoteContract } from "lfaa-api-account-controller/src/client-contract.generated.js";
 import { maximumNodeFileTransferBytes } from "lfaa-util-values/src/file-transfer-contract.mjs";
 
 export type { ApplicationId } from "lfaa-util-values/src/application-id.js";
+export type { WorkspaceProjectContextApplicationId } from "lfaa-util-values/src/application-id.js";
 export type { BrowserProviderId } from "lfaa-util-values/src/browser-provider.js";
 export type ApplicationMode = "normal" | "ai-work";
 export type UserRole = "super_admin" | "admin" | "member";
@@ -81,8 +82,8 @@ export interface UserPreferences {
   selectedMode: ApplicationMode;
 }
 
-import type { UserSettings } from "lfaa-util-values/src/settings-contract.js";
-export type { UserSettings, BrowserUseSettings, AppearanceFonts, AppearanceModeStyle, AppearanceAdvancedSettings, AppearanceSettings, AppearanceTextFont, AppearanceCodeFont } from "lfaa-util-values/src/settings-contract.js";
+import type { AppearancePresetSnapshot, UserSettings } from "lfaa-util-values/src/settings-contract.js";
+export type { UserSettings, BrowserUseSettings, AppearanceFonts, AppearanceModeStyle, AppearanceAdvancedSettings, AppearanceSettings, AppearancePreset, AppearancePresetSnapshot, AppearanceTextFont, AppearanceCodeFont } from "lfaa-util-values/src/settings-contract.js";
 export { DEFAULT_APPEARANCE_ADVANCED_SETTINGS } from "lfaa-util-values/src/settings-contract.js";
 
 export interface AppearanceBackground {
@@ -419,9 +420,13 @@ export interface WorkspaceProject {
   id: string;
   userId: string;
   appId: WorkspaceProjectApplicationId | null;
+  applicationIds: WorkspaceProjectContextApplicationId[];
   nodeId: string | null;
   path: string;
   title: string;
+  instructions: string;
+  memoryMode: "default" | "project_only";
+  sources: Array<{ id: string; path: string; position: number }>;
   createdAt: string;
   updatedAt: string;
   gitWorktree: { projectId: string; sourceProjectId: string; nodeId: string; worktreeId: string; worktreeRoot: string; projectRelativePath: string; branch: string; baseCommit: string; sourceHead: string; createdAt: string } | null;
@@ -524,11 +529,11 @@ export interface WorkspaceGitBranch {
 }
 
 export type WorkspaceGitOperationInput =
-  | { operation: "stage" | "unstage"; paths?: string[] }
-  | { operation: "commit"; message: string }
-  | { operation: "history"; limit?: number }
-  | { operation: "branches" }
-  | { operation: "branch-create" | "branch-switch" | "branch-delete"; branch: string }
+  | { operation: "stage" | "unstage"; paths?: string[]; sourceId?: string }
+  | { operation: "commit"; message: string; sourceId?: string }
+  | { operation: "history"; limit?: number; sourceId?: string }
+  | { operation: "branches"; sourceId?: string }
+  | { operation: "branch-create" | "branch-switch" | "branch-delete"; branch: string; sourceId?: string }
   | { operation: "fetch"; remote?: string }
   | { operation: "pull" | "push" }
   | { operation: "push-upstream" | "remote-remove"; remote: string }
@@ -836,6 +841,19 @@ export interface AiMessageFeedbackInput {
   detail: string;
 }
 
+export interface AiActivityToolUsage {
+  name: string;
+  description: string;
+  parameters: Array<{ name: string; type: string; required: boolean; description: string }>;
+  parametersTruncated: boolean;
+  guidance: string;
+}
+
+export interface AiActivityToolStage {
+  stage: string;
+  detail: string;
+}
+
 export interface AiActivityItem {
   id: string;
   kind: "status" | "skill" | "tool" | "command" | "agent" | "question";
@@ -846,6 +864,8 @@ export interface AiActivityItem {
   completedAt: string | null;
   durationMs: number | null;
   toolId?: `browser-use.${string}`;
+  toolUsage?: AiActivityToolUsage;
+  toolStages?: AiActivityToolStage[];
   browserProviderId?: BrowserProviderId;
   approvalId?: string;
   approvalQuestion?: string;
@@ -862,6 +882,7 @@ export interface AiActivityFileChange {
   operation: "read" | "created" | "modified" | "deleted";
   path: string;
   projectId: string | null;
+  sourceId?: string;
 }
 
 export interface AiUsageSummary {
@@ -886,7 +907,7 @@ export interface MinecraftNode {
   version: string;
   status: "online" | "offline";
   capabilities: string[];
-  javaRuntimes: Array<{ runtimeId: string; major: number; vendor: string; managed: boolean; source?: "managed" | "system" | "custom"; executablePath?: string }>;
+  javaRuntimes: Array<{ runtimeId: string; distribution?: "temurin" | "zulu"; major: number; vendor: string; managed: boolean; source?: "managed" | "system" | "custom"; executablePath?: string }>;
   lastSeenAt: string;
 }
 
@@ -1903,7 +1924,7 @@ export function loadSteamcmdTask(taskId: string): Promise<{ task: SteamcmdTask }
   return request(`/steamcmd/tasks/${encodeURIComponent(taskId)}`);
 }
 
-export function loadMinecraftOverview(): Promise<{ overview: { latestRelease: string; node: MinecraftNode | null; instanceCount: number; runningCount: number; activeTaskCount: number } }> {
+export function loadMinecraftOverview(): Promise<{ overview: { latestRelease: string | null; node: MinecraftNode | null; instanceCount: number; runningCount: number; activeTaskCount: number } }> {
   return request("/minecraft/overview");
 }
 
@@ -2210,9 +2231,9 @@ export interface MinecraftCore {
 }
 export function loadMinecraftCoreNames(): Promise<{ cores: string[] }> { return request("/minecraft/core-names"); }
 export interface MinecraftCoreBuild { id: string; updatedAt: string; digest: string; }
-export function loadMinecraftCores(): Promise<{ cores: MinecraftCore[]; errors: string[] }> { return request("/minecraft/cores"); }
-export function loadMinecraftCoreBuilds(core: string, version: string, offset = 0): Promise<{ builds: MinecraftCoreBuild[]; count: number }> {
-  return request(`/minecraft/cores/${encodeURIComponent(core)}/versions/${encodeURIComponent(version)}/builds?offset=${offset}`);
+export function loadMinecraftCores(signal?: AbortSignal): Promise<{ cores: MinecraftCore[]; errors: string[] }> { return request("/minecraft/cores", signal ? { signal } : {}); }
+export function loadMinecraftCoreBuilds(core: string, version: string, offset = 0, signal?: AbortSignal): Promise<{ builds: MinecraftCoreBuild[]; count: number }> {
+  return request(`/minecraft/cores/${encodeURIComponent(core)}/versions/${encodeURIComponent(version)}/builds?offset=${offset}`, signal ? { signal } : {});
 }
 export function provisionMinecraftServer(input: { nodeId: string; name: string; core: string; version: string; build: string; eulaAccepted: true; memoryMb: number; serverPort: number; javaRuntimeId?: string | null; proxyBackendInstanceId?: string }): Promise<{ instance: MinecraftInstance; deployment: MinecraftDeployment; task: MinecraftTask }> {
   return request("/minecraft/provision", { method: "POST", body: JSON.stringify(input) });
@@ -2532,6 +2553,20 @@ export function saveSettings<K extends keyof UserSettings>(category: K, value: U
   });
 }
 
+export function applyAppearancePreset(snapshot: AppearancePresetSnapshot): Promise<{ settings: UserSettings }> {
+  return request<{ settings: UserSettings }>("/settings/appearance-presets/apply", {
+    method: "POST",
+    body: JSON.stringify(snapshot)
+  });
+}
+
+export function validateAppearancePresetSnapshot(snapshot: AppearancePresetSnapshot): Promise<{ valid: true }> {
+  return request<{ valid: true }>("/settings/appearance-presets/validate", {
+    method: "POST",
+    body: JSON.stringify(snapshot)
+  });
+}
+
 export interface ConversationMemorySnapshot { memories: string[]; revision: number }
 
 export function loadConversationMemories(): Promise<{ snapshot: ConversationMemorySnapshot }> {
@@ -2619,6 +2654,10 @@ export function loadAppearanceBackgrounds(): Promise<{ backgrounds: AppearanceBa
   return request<{ backgrounds: AppearanceBackground[] }>("/settings/backgrounds");
 }
 
+export function downloadAppearanceBackground(id: string): Promise<Blob> {
+  return requestBinary(`/settings/backgrounds/${encodeURIComponent(id)}`);
+}
+
 export async function uploadAppearanceBackground(file: File): Promise<{ background: AppearanceBackground }> {
   const dataUrl = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -2676,8 +2715,18 @@ export function unloadLocalModel(modelId: string): Promise<void> {
   return request<void>(`/local-models/${encodeURIComponent(modelId)}/unload`, { method: "POST", body: "{}" });
 }
 
-export function loadAiSkillDirectory(signal?: AbortSignal): Promise<{ skills: Array<{ id: string; name: string; description: string; kind: "skill"; source: string; enabled: boolean }>; truncated: boolean }> {
-  return request("/ai/skills", { signal });
+export interface AiSkillDirectoryEntry {
+  id: string;
+  name: string;
+  description: string;
+  kind: "skill";
+  source: string;
+  origin: string;
+  enabled: boolean;
+}
+
+export function loadAiSkillDirectory(signal?: AbortSignal): Promise<{ skills: AiSkillDirectoryEntry[]; truncated: boolean }> {
+  return request<{ skills: AiSkillDirectoryEntry[]; truncated: boolean }>("/ai/skills", { signal });
 }
 export function setAiSessionAssociations(sessionId: string, associations: AgentAssociations): Promise<{ session: AiSession }> {
   return request(`/ai/sessions/${encodeURIComponent(sessionId)}/associations`, { method: "PATCH", body: JSON.stringify(associations) });
@@ -2959,12 +3008,30 @@ export function removeKnowledgeLibraryProjectSource(id: string): Promise<void> {
   return request<void>(`/knowledge/sources/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
-export function browseWorkspaceDirectory(appId: WorkspaceProjectApplicationId, nodeId: string, operation: "home" | "list" | "create-directory", path?: string, name?: string): Promise<{ result: { path: string; root?: string; home?: string; roots?: string[]; entries?: string[]; truncated?: boolean; created?: boolean; name?: string } }> {
+export function browseWorkspaceDirectory(appId: "minecraft", nodeId: string, operation: "home" | "list" | "create-directory", path?: string, name?: string): Promise<{ result: { path: string; root?: string; home?: string; roots?: string[]; entries?: string[]; truncated?: boolean; created?: boolean; name?: string } }> {
   return request<{ result: { path: string; root?: string; home?: string; roots?: string[]; entries?: string[]; truncated?: boolean; created?: boolean; name?: string } }>("/workspace/projects/browse", { method: "POST", body: JSON.stringify({ appId, nodeId, operation, ...(path ? { path } : {}), ...(name ? { name } : {}) }) });
 }
 
-export function createWorkspaceProject(appId: WorkspaceProjectApplicationId, nodeId: string, path: string, title: string): Promise<{ project: WorkspaceProject }> {
+export function createWorkspaceProject(appId: "minecraft", nodeId: string, path: string, title: string): Promise<{ project: WorkspaceProject }> {
   return request<{ project: WorkspaceProject }>("/workspace/projects", { method: "POST", body: JSON.stringify({ appId, nodeId, path, title }) });
+}
+
+export type WorkspaceProjectMemoryMode = "default" | "project_only";
+
+export function createLocalWorkspaceProject(input: { title: string; parentPath: string; instructions: string; memoryMode: WorkspaceProjectMemoryMode; applicationIds?: WorkspaceProjectContextApplicationId[]; sourcePaths: string[] }): Promise<{ project: WorkspaceProject }> {
+  return request<{ project: WorkspaceProject }>("/workspace/projects", { method: "POST", body: JSON.stringify({ appId: "workspace", ...input }) });
+}
+
+export function updateLocalWorkspaceProject(projectId: string, input: { title: string; instructions: string; memoryMode: WorkspaceProjectMemoryMode; applicationIds?: WorkspaceProjectContextApplicationId[]; sourcePaths: string[] }): Promise<{ project: WorkspaceProject }> {
+  return request<{ project: WorkspaceProject }>(`/workspace/projects/${encodeURIComponent(projectId)}`, { method: "PATCH", body: JSON.stringify({ appId: "workspace", ...input }) });
+}
+
+export function replaceLocalWorkspaceProjectSources(projectId: string, paths: string[]): Promise<{ project: WorkspaceProject }> {
+  return request<{ project: WorkspaceProject }>(`/workspace/projects/${encodeURIComponent(projectId)}/sources`, { method: "PUT", body: JSON.stringify({ appId: "workspace", paths }) });
+}
+
+export function browseLocalWorkspaceDirectory(operation: "home" | "list" | "inspect", path?: string): Promise<{ result: { path: string; root?: string; home?: string; roots?: string[]; entries?: string[]; truncated?: boolean; directory?: boolean } }> {
+  return request<{ result: { path: string; root?: string; home?: string; roots?: string[]; entries?: string[]; truncated?: boolean; directory?: boolean } }>("/workspace/projects/local/browse", { method: "POST", body: JSON.stringify({ operation, ...(path ? { path } : {}) }) });
 }
 
 export function renameWorkspaceProject(projectId: string, title: string, appId: WorkspaceProjectApplicationId): Promise<{ project: WorkspaceProject }> {
@@ -2975,29 +3042,29 @@ export function removeWorkspaceProject(projectId: string, deleteManagedWorktree:
   return request<void>(`/workspace/projects/${encodeURIComponent(projectId)}`, { method: "DELETE", body: JSON.stringify({ appId, deleteManagedWorktree }) });
 }
 
-export function loadWorkspaceGitStatus(projectId: string, appId: WorkspaceProjectApplicationId): Promise<{ status: WorkspaceGitStatus }> {
-  return request<{ status: WorkspaceGitStatus }>(`/workspace/projects/${encodeURIComponent(projectId)}/git/status`, { method: "POST", body: JSON.stringify({ appId }) });
+export function loadWorkspaceGitStatus(projectId: string, appId: WorkspaceProjectApplicationId, sourceId?: string): Promise<{ status: WorkspaceGitStatus }> {
+  return request<{ status: WorkspaceGitStatus }>(`/workspace/projects/${encodeURIComponent(projectId)}/git/status`, { method: "POST", body: JSON.stringify({ appId, ...(sourceId ? { sourceId } : {}) }) });
 }
 
-export function initializeWorkspaceGitRepository(projectId: string, appId: WorkspaceProjectApplicationId): Promise<{ status: WorkspaceGitStatus }> {
-  return request<{ status: WorkspaceGitStatus }>(`/workspace/projects/${encodeURIComponent(projectId)}/git/initialize`, { method: "POST", body: JSON.stringify({ appId }) });
+export function initializeWorkspaceGitRepository(projectId: string, appId: WorkspaceProjectApplicationId, sourceId?: string): Promise<{ status: WorkspaceGitStatus }> {
+  return request<{ status: WorkspaceGitStatus }>(`/workspace/projects/${encodeURIComponent(projectId)}/git/initialize`, { method: "POST", body: JSON.stringify({ appId, ...(sourceId ? { sourceId } : {}) }) });
 }
 
 export function runWorkspaceGitOperation(projectId: string, appId: WorkspaceProjectApplicationId, input: WorkspaceGitOperationInput): Promise<WorkspaceGitOperationResult> {
   return request<WorkspaceGitOperationResult>(`/workspace/projects/${encodeURIComponent(projectId)}/git/operation`, { method: "POST", body: JSON.stringify({ appId, ...input }) });
 }
 
-export function loadWorkspaceGitFileDiff(projectId: string, appId: WorkspaceProjectApplicationId, path: string, options: { ignoreWhitespace?: boolean; wordDiff?: boolean; contextLines?: number; signal?: AbortSignal } = {}): Promise<{ file: WorkspaceGitFileDiff }> {
+export function loadWorkspaceGitFileDiff(projectId: string, appId: WorkspaceProjectApplicationId, path: string, options: { sourceId?: string; ignoreWhitespace?: boolean; wordDiff?: boolean; contextLines?: number; signal?: AbortSignal } = {}): Promise<{ file: WorkspaceGitFileDiff }> {
   const { signal, ...parameters } = options;
-  return request<{ file: WorkspaceGitFileDiff }>(`/workspace/projects/${encodeURIComponent(projectId)}/git/file-diff`, { method: "POST", body: JSON.stringify({ appId, path, ignoreWhitespace: parameters.ignoreWhitespace === true, wordDiff: parameters.wordDiff === true, ...(parameters.contextLines === undefined ? {} : { contextLines: parameters.contextLines }) }), ...(signal ? { signal } : {}) });
+  return request<{ file: WorkspaceGitFileDiff }>(`/workspace/projects/${encodeURIComponent(projectId)}/git/file-diff`, { method: "POST", body: JSON.stringify({ appId, path, ignoreWhitespace: parameters.ignoreWhitespace === true, wordDiff: parameters.wordDiff === true, ...(parameters.contextLines === undefined ? {} : { contextLines: parameters.contextLines }), ...(parameters.sourceId ? { sourceId: parameters.sourceId } : {}) }), ...(signal ? { signal } : {}) });
 }
 
-export function readWorkspaceProjectTextFile(projectId: string, appId: WorkspaceProjectApplicationId, path: string, offset = 0, limit = 40000): Promise<{ file: WorkspaceProjectTextFile }> {
-  return request<{ file: WorkspaceProjectTextFile }>(`/workspace/projects/${encodeURIComponent(projectId)}/files/read`, { method: "POST", body: JSON.stringify({ appId, path, offset, limit }) });
+export function readWorkspaceProjectTextFile(projectId: string, appId: WorkspaceProjectApplicationId, path: string, offset = 0, limit = 40000, sourceId?: string): Promise<{ file: WorkspaceProjectTextFile }> {
+  return request<{ file: WorkspaceProjectTextFile }>(`/workspace/projects/${encodeURIComponent(projectId)}/files/read`, { method: "POST", body: JSON.stringify({ appId, path, offset, limit, ...(sourceId ? { sourceId } : {}) }) });
 }
 
-export function writeWorkspaceProjectTextFile(projectId: string, appId: WorkspaceProjectApplicationId, path: string, content: string, sha256: string): Promise<{ result: { path: string; sha256: string; changed: boolean; bytes: number } }> {
-  return request<{ result: { path: string; sha256: string; changed: boolean; bytes: number } }>(`/workspace/projects/${encodeURIComponent(projectId)}/files/write`, { method: "POST", body: JSON.stringify({ appId, path, content, sha256 }) });
+export function writeWorkspaceProjectTextFile(projectId: string, appId: WorkspaceProjectApplicationId, path: string, content: string, sha256: string, sourceId?: string): Promise<{ result: { path: string; sha256: string; changed: boolean; bytes: number } }> {
+  return request<{ result: { path: string; sha256: string; changed: boolean; bytes: number } }>(`/workspace/projects/${encodeURIComponent(projectId)}/files/write`, { method: "POST", body: JSON.stringify({ appId, path, content, sha256, ...(sourceId ? { sourceId } : {}) }) });
 }
 
 export function createWorkspaceGitWorktree(projectId: string, appId: WorkspaceProjectApplicationId): Promise<{ project: WorkspaceProject }> {

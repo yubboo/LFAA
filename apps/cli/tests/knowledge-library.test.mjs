@@ -22,7 +22,8 @@ test("资料库迁移、账户/App 隔离、检索质量基线、显式保存和
       import { createServer } from 'node:http';
       import { once } from 'node:events';
       import { join } from 'node:path';
-      import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
+      import { mkdirSync, readFileSync, readdirSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
+      import { createHash } from 'node:crypto';
       const reservation = createServer();
       reservation.listen(0, '127.0.0.1');
       await once(reservation, 'listening');
@@ -33,7 +34,7 @@ test("资料库迁移、账户/App 隔离、检索质量基线、显式保存和
       const { sessionRecords } = await import('lfaa-session-persistence-jsonl/src/repository.js');
       const { retireLegacyFileTables } = await import('lfaa-storage-domain/src/migration.js');
       retireLegacyFileTables();
-      assert.equal(Number(database.prepare('PRAGMA user_version').get().user_version), 69);
+      assert.equal(Number(database.prepare('PRAGMA user_version').get().user_version), 72);
       database.prepare("INSERT INTO users(id,uid,username,password_salt,password_hash,role,is_super_admin) VALUES ('knowledge-owner',8201,'knowledge-owner','salt','hash','member',0),('knowledge-other',8202,'knowledge-other','salt','hash','member',0)").run();
       database.prepare("INSERT INTO daemon_nodes(id,display_name,platform,architecture,daemon_version,status,last_seen_at) VALUES ('knowledge-node','资料测试节点','win32','x64','test','offline','2026-10-04T00:00:00Z')").run();
       configuration.begin();
@@ -43,7 +44,7 @@ test("资料库迁移、账户/App 隔离、检索质量基线、显式保存和
       assert.equal(configuration.get('user_settings', row => row.user_id === 'knowledge-owner')?.value_json, '{}');
       assert.equal(database.prepare("SELECT COUNT(*) AS count FROM configuration_records WHERE table_name = 'user_settings'").get().count, 0);
       const knowledge = await import('lfaa-knowledge-library/src/index.js');
-      const { resolveUserDataPaths } = await import('lfaa-home-paths/src/data-layout.mjs');
+      const { resolveHomePaths, resolveUserDataPaths } = await import('lfaa-home-paths/src/data-layout.mjs');
       const item = knowledge.createKnowledgeLibraryItem('knowledge-owner', { applicationId: 'workspace', kind: 'knowledge', title: 'MCP 权限约束', description: '只在当前 App 使用', contentMarkdown: '# MCP 权限\\n必须遵循当前 App 和现有权限模式。', sourceKind: 'manual' });
       const itemDirectory=resolveUserDataPaths(process.env.LFAA_DATA_DIR,'knowledge-owner').knowledge;
       const itemPath=join(itemDirectory,'workspace',readdirSync(join(itemDirectory,'workspace')).find(name=>name.endsWith('.md')));
@@ -111,8 +112,8 @@ test("资料库迁移、账户/App 隔离、检索质量基线、显式保存和
       assert.throws(() => knowledge.updateKnowledgeLibraryItem('knowledge-owner', item.id, 'workspace', { title: item.title, description: item.description, contentMarkdown: '过期覆盖', expectedContentSha256: item.contentSha256 }), /其他操作更新/u);
       assert.equal(knowledge.normalizeKnowledgeProjectPath('docs/knowledge'), 'docs/knowledge');
       for (const path of ['../secret', '.git', 'docs/node_modules', 'C:\\\\secret', '/absolute']) assert.throws(() => knowledge.normalizeKnowledgeProjectPath(path));
-      const { createWorkspaceProject } = await import('lfaa-workspace-workspace/src/index.js');
-      const project = createWorkspaceProject({ userId: 'knowledge-owner', appId: 'workspace', nodeId: 'knowledge-node', path: process.cwd(), platform: 'win32', title: '知识项目' });
+      const { createLocalWorkspaceProject } = await import('lfaa-workspace-workspace/src/index.js');
+      const project = createLocalWorkspaceProject({ userId: 'knowledge-owner', title: '知识项目', projectDirectoryPath: join(process.env.LFAA_DATA_DIR, '知识项目'), platform: 'win32' });
       const source = knowledge.createKnowledgeLibraryProjectSource('knowledge-owner', { applicationId: 'workspace', projectId: project.id, projectApplicationId: 'workspace', relativePath: 'docs', title: '项目文档' });
       assert.equal(knowledge.getKnowledgeLibraryProjectSource('knowledge-owner', source.id, 'minecraft'), null);
       assert.equal(knowledge.getKnowledgeLibraryProjectSource('knowledge-other', source.id, 'workspace'), null);
@@ -152,6 +153,59 @@ test("资料库迁移、账户/App 隔离、检索质量基线、显式保存和
           { path: 'references/guide.md', content: '# Reference\\nOwner-validated resource.' }
         ]
       });
+      const installationHash = createHash('sha256').update(skillInstallation.id).digest('hex');
+      const accountHash = createHash('sha256').update('knowledge-owner').digest('hex');
+      const currentSkillDirectory = join(resolveHomePaths(process.env.LFAA_HOME).skills, skillInstallation.name);
+      const previousHomeSkillDirectory = join(resolveHomePaths(process.env.LFAA_HOME).skills, 'account-installed', accountHash, skillInstallation.name);
+      const legacySkillDirectory = join(resolveUserDataPaths(process.env.LFAA_DATA_DIR, 'knowledge-owner').knowledge, 'skills', installationHash);
+      assert.equal(readFileSync(join(currentSkillDirectory, 'SKILL.md'), 'utf8').includes('Only test fixture instructions.'), true);
+      mkdirSync(join(previousHomeSkillDirectory, '..'), { recursive: true });
+      renameSync(currentSkillDirectory, previousHomeSkillDirectory);
+      assert.equal(knowledge.getKnowledgeLibrarySkillInstallation('knowledge-owner', skillInstallation.id).contentMarkdown, skillInstallation.contentMarkdown);
+      renameSync(previousHomeSkillDirectory, currentSkillDirectory);
+      mkdirSync(join(legacySkillDirectory, '..'), { recursive: true });
+      renameSync(currentSkillDirectory, legacySkillDirectory);
+      assert.equal(knowledge.getKnowledgeLibrarySkillInstallation('knowledge-owner', skillInstallation.id).contentMarkdown, skillInstallation.contentMarkdown);
+      assert.equal(knowledge.readKnowledgeLibrarySkillResource('knowledge-owner', skillInstallation.id, 'references/guide.md').content, '# Reference\\nOwner-validated resource.');
+      renameSync(legacySkillDirectory, currentSkillDirectory);
+      const nextSkillMarkdown = '---\\nname: harness-library-check\\ndescription: fixture\\n---\\n# Updated Instructions\\nUpdated from the same GitHub source.';
+      const updateInput = {
+        name: skillInstallation.name,
+        description: skillInstallation.description,
+        source: { ...skillInstallation, commit: 'e'.repeat(40), archiveSha256: 'f'.repeat(64) },
+        files: [
+          { path: 'SKILL.md', content: nextSkillMarkdown },
+          { path: 'references/guide.md', content: '# Reference\\nOwner-validated resource.' }
+        ]
+      };
+      const updatedSkill = knowledge.updateKnowledgeLibrarySkillInstallation('knowledge-owner', skillInstallation.id, updateInput);
+      assert.equal(updatedSkill.updated, true);
+      assert.equal(updatedSkill.installation.id, skillInstallation.id, '更新保留原安装 ID');
+      assert.equal(updatedSkill.installation.commit, 'e'.repeat(40));
+      assert.equal(readFileSync(join(currentSkillDirectory, 'SKILL.md'), 'utf8'), nextSkillMarkdown);
+      const updatedAt = updatedSkill.installation.updatedAt;
+      const latestSkill = knowledge.updateKnowledgeLibrarySkillInstallation('knowledge-owner', skillInstallation.id, updateInput);
+      assert.equal(latestSkill.updated, false, '已经是最新版本时不重复写入');
+      assert.equal(latestSkill.installation.updatedAt, updatedAt);
+      const userFile = join(currentSkillDirectory, 'user-note.txt');
+      writeFileSync(userFile, 'do not overwrite');
+      assert.throws(() => knowledge.updateKnowledgeLibrarySkillInstallation('knowledge-owner', skillInstallation.id, {
+        ...updateInput,
+        source: { ...updateInput.source, commit: '1'.repeat(40), archiveSha256: '2'.repeat(64) }
+      }), /未登记的文件/u);
+      assert.equal(readFileSync(userFile, 'utf8'), 'do not overwrite');
+      unlinkSync(userFile);
+      database.exec("CREATE TRIGGER reject_skill_update BEFORE UPDATE ON knowledge_library_skill_installations WHEN OLD.id = '" + skillInstallation.id + "' BEGIN SELECT RAISE(ABORT, 'injected update failure'); END;");
+      try {
+        assert.throws(() => knowledge.updateKnowledgeLibrarySkillInstallation('knowledge-owner', skillInstallation.id, {
+          ...updateInput,
+          source: { ...updateInput.source, commit: '1'.repeat(40), archiveSha256: '2'.repeat(64) },
+          files: [{ path: 'SKILL.md', content: nextSkillMarkdown + '\\nRollback probe.' }]
+        }), /injected update failure/u);
+      } finally { database.exec('DROP TRIGGER reject_skill_update'); }
+      const preservedSkill = knowledge.getKnowledgeLibrarySkillInstallation('knowledge-owner', skillInstallation.id);
+      assert.equal(preservedSkill.commit, 'e'.repeat(40), 'SQLite 更新失败后保留旧登记版本');
+      assert.equal(readFileSync(join(currentSkillDirectory, 'SKILL.md'), 'utf8'), nextSkillMarkdown, 'SQLite 更新失败后恢复旧文件');
       assert.equal(skillProviders.length, 1);
       const skillProvider = skillProviders[0];
       const skillOptions = { userId: 'knowledge-owner', signal: new AbortController().signal };
@@ -161,7 +215,7 @@ test("资料库迁移、账户/App 隔离、检索质量基线、显式保存和
       assert.equal(skillCandidate.source, 'user-lfaa');
       assert.equal('contentMarkdown' in skillCandidate, false);
       const skillDefinition = await skillProvider.get(skillCandidate, skillOptions);
-      assert.equal(skillDefinition.content, '# Instructions\\nOnly test fixture instructions.');
+      assert.equal(skillDefinition.content, '# Updated Instructions\\nUpdated from the same GitHub source.');
       assert.equal(await skillProvider.get(skillCandidate, { ...skillOptions, userId: 'knowledge-other' }), undefined);
       const skillResource = await skillProvider.readResource(skillCandidate, 'references/guide.md', skillOptions);
       assert.equal(skillResource.content, '# Reference\\nOwner-validated resource.');
@@ -173,7 +227,7 @@ test("资料库迁移、账户/App 隔离、检索质量基线、显式保存和
         const runtimeSkillSummaries = await app.skills.list(runtimeSkillOptions);
         assert.ok(runtimeSkillSummaries.some(skill => skill.name === 'harness-library-check' && skill.provider === 'lfaa-knowledge-library-skills'));
         const runtimeSkill = await app.skills.get('harness-library-check', runtimeSkillOptions);
-        assert.equal(runtimeSkill.content, '# Instructions\\nOnly test fixture instructions.');
+          assert.equal(runtimeSkill.content, '# Updated Instructions\\nUpdated from the same GitHub source.');
         const runtimeResource = await app.skills.readResource('harness-library-check', 'references/guide.md', runtimeSkillOptions);
         assert.equal(runtimeResource.content, '# Reference\\nOwner-validated resource.');
         const otherRuntimeSkills = await app.skills.list({ ...runtimeSkillOptions, userId: 'knowledge-other' });

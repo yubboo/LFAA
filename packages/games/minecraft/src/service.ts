@@ -285,12 +285,13 @@ function validateSelectedJavaRuntime(node: DaemonNode, javaMajor: number, runtim
   return runtime.runtimeId;
 }
 
-export async function getMinecraftOverview(onNodeStatusChanged?: () => void) {
-  const [catalog, nodes] = await Promise.all([listMinecraftReleases(), Promise.resolve().then(() => listDaemonNodes(onNodeStatusChanged))]);
+export function getMinecraftOverview(onNodeStatusChanged?: () => void) {
+  const nodes = listDaemonNodes(onNodeStatusChanged);
   const instances = listMinecraftInstances();
   const tasks = listMinecraftTasks(20);
   return {
-    latestRelease: catalog.latestRelease,
+    // 官方版本目录由独立 API 读取，不能让外网延迟挡住本机节点与实例状态。
+    latestRelease: null,
     node: nodes.find((item) => item.status === "online" && item.platform === "win32" && item.architecture === "x64" && item.capabilities.includes("minecraft-vanilla")) ?? null,
     instanceCount: instances.length,
     runningCount: instances.filter((item) => item.state === "running").length,

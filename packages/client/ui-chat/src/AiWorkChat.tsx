@@ -31,7 +31,7 @@ function clearSubagentStreamPreviews(current: Record<string, string>, messageId:
   return remaining.length === Object.keys(current).length ? current : Object.fromEntries(remaining);
 }
 import { createScrollRestorationKey, useScrollRestoration } from "lfaa-client-store/src/scroll-restoration.js";
-import { AiLiveActivityDuration, AiWorkResponse } from "./AiWorkResponse.js";
+import { AiActivityToolUsageCard, AiLiveActivityDuration, AiWorkResponse } from "./AiWorkResponse.js";
 import { aiActivityClock } from "./activity-clock.js";
 import { buildResponseTimeline, splitAiActivityDetail } from "./response-timeline.js";
 import { formatAiActivityDuration, getAiActivityDisplayStatus, getAiActivityDurationSeconds, getAiActivitySummary } from "./activity-duration.js";
@@ -105,7 +105,6 @@ interface AiWorkChatProps {
   projectDirectoryMissing: boolean;
   newSessionProjectId: string | null;
   newSessionGitRepositoryId: string | null;
-  defaultWorkspaceProjectId: string | null;
   onSelectedProjectChange: (projectId: string | null) => void;
   workspaceProjects: WorkspaceProject[];
   workspaceProjectsLoadStatus: "loading" | "ready" | "error";
@@ -127,7 +126,7 @@ interface AiWorkChatProps {
   onNotification: (notification: AiWorkNotificationInput) => void;
   onOpenSideChat: (initialQuestion?: string) => void;
   onWritingWorkspaceChange?: (workspace: WritingWorkspace) => void;
-  onOpenProjectFileReview?: (projectId: string, path: string) => void;
+  onOpenProjectFileReview?: (projectId: string, path: string, sourceId?: string) => void;
   onSessionFileChanges?: (sessionId: string | null, changes: AiActivityFileChange[]) => void;
   onBrowserToolCompleted?: (providerId: BrowserProviderId) => void;
   voiceMode?: boolean;
@@ -180,7 +179,7 @@ interface AiWorkMessageRowProps {
   setEditingMessage: Dispatch<SetStateAction<EditingMessage | null>>;
   setMessageActionError: Dispatch<SetStateAction<string>>;
   setBranchTargetMessageId: Dispatch<SetStateAction<string | null>>;
-  onOpenProjectFileReview?: (projectId: string, path: string) => void;
+  onOpenProjectFileReview?: (projectId: string, path: string, sourceId?: string) => void;
   onBrowserToolCompleted?: (providerId: BrowserProviderId) => void;
 }
 
@@ -195,7 +194,8 @@ const AiWorkMessageRow = memo(function AiWorkMessageRow({ message, pairedAssista
   const renderActivity = (activity: AiActivityItem) => {
     const activityDetail = splitAiActivityDetail(activity.detail);
     const subagentStreamPreview = subagentStreamPreviews?.[`${message.id}:${activity.id}`];
-    const activityExpanded = expandedActivitySteps?.messageId === message.id && expandedActivitySteps.activityIds.has(activity.id);
+    const activityExpanded = expandedActivitySteps?.messageId === message.id && expandedActivitySteps.activityIds.has(activity.id)
+      || message.status === "streaming" && Boolean(activity.toolUsage);
     const activityDetailId = `ai-work-chat-activity-detail-${message.id}-${activity.id}`;
     const liveActivityDuration = liveMessage && activity.status === "running"
       && typeof activity.durationMs !== "number" && !activity.completedAt;
@@ -209,11 +209,12 @@ const AiWorkMessageRow = memo(function AiWorkMessageRow({ message, pairedAssista
         const operation = change.operation === "read" ? "读取" : change.operation === "created" ? "新建" : change.operation === "deleted" ? "删除" : "修改";
         const key = `${activity.id}:${index}:${change.path}`;
         return change.operation !== "read" && change.projectId && onOpenProjectFileReview
-          ? <Button key={key} className="ai-work-chat__file-change-trigger" type="link" size="small" aria-label={`${operation}文件 ${change.path}，查看 Git 差异和编辑`} onClick={() => onOpenProjectFileReview(change.projectId!, change.path)}>
+          ? <Button key={key} className="ai-work-chat__file-change-trigger" type="link" size="small" aria-label={`${operation}文件 ${change.path}，查看 Git 差异和编辑`} onClick={() => onOpenProjectFileReview(change.projectId!, change.path, change.sourceId)}>
               <WorkbenchIcon name="file" size={13} />{operation} <code>{change.path}</code><span>查看差异与编辑</span>
             </Button>
           : <span key={key} className="ai-work-chat__file-change-path"><WorkbenchIcon name="file" size={13} />{operation} <code>{change.path}</code></span>;
       })}
+      {activity.toolUsage && !activity.approvalId ? <AiActivityToolUsageCard usage={activity.toolUsage} stages={activity.toolStages} /> : null}
       {activityExpanded ? <div className="ai-work-chat__activity-step-detail" id={activityDetailId}>
         {activity.detail && (activity.kind === "command" || activity.kind === "tool") ? <div className={`ai-work-chat__activity-output-card${activity.kind === "command" ? " ai-work-chat__activity-output-card--command" : ""}`}>
           {activityDetail.summary ? <div className="ai-work-chat__activity-output-summary"><strong>执行摘要</strong><p>{activityDetail.summary}</p></div> : null}
@@ -466,7 +467,7 @@ const runtimeSpeedOptions: Array<{ value: UserSettings["aiRuntime"]["speed"]; la
   { value: "deep", label: "深入", description: "按模型/自定义上限" }
 ];
 
-function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, capabilities = [], capabilitiesError = "", settings, onSettingsChange, sessions, activeSessionId, projectDirectoryMissing, newSessionProjectId, newSessionGitRepositoryId, defaultWorkspaceProjectId, onSelectedProjectChange, workspaceProjects, workspaceProjectsLoadStatus, workspaceProjectsTruncated, workspaceNodes, workspaceProjectsError, onRetryWorkspaceProjects, onWorkspaceProjectsChange, initialDraft, autoSubmitGoal = null, onAutoSubmitGoalConsumed, newSessionKey, onSessionsChange, onActiveSessionChange, onDraftChange, onProviderStatusChange, onBusyChange, onOpenSettings, onNotification, onOpenSideChat, onOpenProjectFileReview, onWritingWorkspaceChange, onSessionFileChanges, onBrowserToolCompleted, voiceMode = false, onExitVoice = () => undefined }: AiWorkChatProps) {
+function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, capabilities = [], capabilitiesError = "", settings, onSettingsChange, sessions, activeSessionId, projectDirectoryMissing, newSessionProjectId, newSessionGitRepositoryId, onSelectedProjectChange, workspaceProjects, workspaceProjectsLoadStatus, workspaceProjectsTruncated, workspaceNodes, workspaceProjectsError, onRetryWorkspaceProjects, onWorkspaceProjectsChange, initialDraft, autoSubmitGoal = null, onAutoSubmitGoalConsumed, newSessionKey, onSessionsChange, onActiveSessionChange, onDraftChange, onProviderStatusChange, onBusyChange, onOpenSettings, onNotification, onOpenSideChat, onOpenProjectFileReview, onWritingWorkspaceChange, onSessionFileChanges, onBrowserToolCompleted, voiceMode = false, onExitVoice = () => undefined }: AiWorkChatProps) {
   const currentScrollConversationKey = `${appId}:${activeSessionId ?? "new-session"}`;
   const outputFocusRegionElementRef = useRef<HTMLElement | null>(null);
   const setOutputFocusRegionElement = useCallback((node: HTMLElement | null) => {
@@ -517,7 +518,7 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, capabil
   const [associationsBusy, setAssociationsBusy] = useState(false);
   const [composerMoreOpen, setComposerMoreOpen] = useState(false);
   const [composerMoreSection, setComposerMoreSection] = useState<"applications" | "capabilities" | null>(null);
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(() => activeSessionId ? sessions.find(session => session.id === activeSessionId)?.projectId ?? null : newSessionProjectId ?? defaultWorkspaceProjectId);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(() => activeSessionId ? sessions.find(session => session.id === activeSessionId)?.projectId ?? null : newSessionProjectId);
   const projectSelectionExplicitRef = useRef(Boolean(newSessionProjectId));
   const projectSelectionSessionKeyRef = useRef(newSessionKey);
   const [projectBusy, setProjectBusy] = useState(false);
@@ -973,13 +974,13 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, capabil
       projectSelectionExplicitRef.current = Boolean(newSessionProjectId);
     }
     if (!activeSessionId) {
-      const projectId = newSessionProjectId ?? (projectSelectionExplicitRef.current ? null : defaultWorkspaceProjectId);
+      const projectId = newSessionProjectId;
       setSelectedProjectId(projectId);
       onSelectedProjectChange(projectId);
     } else {
       projectSelectionExplicitRef.current = true;
     }
-  }, [activeSessionId, defaultWorkspaceProjectId, newSessionKey, newSessionProjectId, onSelectedProjectChange]);
+  }, [activeSessionId, newSessionKey, newSessionProjectId, onSelectedProjectChange]);
 
   useEffect(() => {
     if (!activeSessionId) return;
@@ -2495,7 +2496,7 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, capabil
           <form ref={composerFormRef} className="ai-work-chat__composer" aria-label="小鱼智能体 消息输入" onSubmit={(event) => { event.preventDefault(); void sendMessage(); }}>
           {projectDirectoryMissing ? <Alert className="ai-work-chat__directory-warning" type="warning" showIcon message="项目目录已删除或移动" description="当前会话仍可查看历史记录；如需继续工作，请新建会话并选择可用项目目录。" /> : null}
           <div className="ai-work-chat__composer-context" aria-label="当前对话上下文">
-            <WorkspaceProjectPicker appId="workspace" applicationName="小鱼智能体" projects={workspaceProjects} projectListStatus={workspaceProjectsLoadStatus} projectListTruncated={workspaceProjectsTruncated} projectLoadError={workspaceProjectsError} onRetryProjects={onRetryWorkspaceProjects} nodes={workspaceNodes} value={selectedProjectId} selectedProjectTitle={activeSessionId ? sessions.find(session => session.id === activeSessionId)?.projectTitle : null} defaultDirectory={settings.general.taskFolder} disabled={projectDirectoryMissing || busy || projectBusy || associationsBusy || Boolean(editingMessage)} onChange={project => void changeWorkspaceProject(project)} onProjectsChange={onWorkspaceProjectsChange} />
+            <WorkspaceProjectPicker appId="workspace" applicationName="小鱼智能体" projects={workspaceProjects} projectListStatus={workspaceProjectsLoadStatus} projectListTruncated={workspaceProjectsTruncated} projectLoadError={workspaceProjectsError} onRetryProjects={onRetryWorkspaceProjects} nodes={workspaceNodes} value={selectedProjectId} selectedProjectTitle={activeSessionId ? sessions.find(session => session.id === activeSessionId)?.projectTitle : null} defaultDirectory={settings.general.taskFolder} disabled={projectDirectoryMissing || busy || projectBusy || associationsBusy || Boolean(editingMessage)} onChange={project => void changeWorkspaceProject(project)} onProjectsChange={onWorkspaceProjectsChange} activeSessionId={activeSessionId} />
 
             <Tooltip trigger={["hover"]} placement="top" title={applicationNameFor(appId)}>
               <span className="ai-work-chat__composer-app" aria-label={`当前应用：${applicationNameFor(appId)}`}><WorkbenchIcon name="spark" size={13} /><span className="ai-work-chat__composer-app-label">{applicationNameFor(appId)}</span></span>

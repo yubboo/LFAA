@@ -103,6 +103,47 @@ test("最终请求准备器取消时不会发送 Provider 请求", async () => {
   } finally { globalThis.fetch = originalFetch; }
 });
 
+test("工具图片保留 tool_call 配对并作为独立 user 视觉消息发送", async () => {
+  const originalFetch = globalThis.fetch;
+  const bodies = [], snapshots = [], preparedMessages = [];
+  try {
+    globalThis.fetch = async (_url, options) => { bodies.push(JSON.parse(options.body)); return sse([{ content: "我看到了工具返回的画面" }]); };
+    const input = completionInput();
+    input.messages = [
+      { role: "user", content: [{ type: "text", text: "请分析画面" }, { type: "image_url", image_url: { url: "data:image/png;base64,VVNFUg==" } }] },
+      { role: "assistant", content: null, tool_calls: [
+        { id: "call-one", type: "function", function: { name: "observe_one", arguments: "{}" } },
+        { id: "call-two", type: "function", function: { name: "observe_two", arguments: "{}" } }
+      ] },
+      { role: "tool", tool_call_id: "call-one", content: [{ type: "text", text: "第一张抽帧" }, { type: "image_url", image_url: { url: "data:image/jpeg;base64,AA==", detail: "high" } }] },
+      { role: "tool", tool_call_id: "call-two", content: [{ type: "text", text: "第二张抽帧" }, { type: "image_url", image_url: { url: "data:image/jpeg;base64,AQ==", detail: "high" } }] }
+    ];
+    input.onPrepareRequest = async request => {
+      preparedMessages.push(request.messages);
+    };
+    input.onRequest = request => snapshots.push(request);
+
+    await streamAiCompletion(input);
+
+    const messages = bodies[0].messages;
+    assert.deepEqual(messages.map(message => message.role), ["system", "user", "assistant", "tool", "tool", "user"]);
+    assert.equal(messages[1].content[1].image_url.url, "data:image/png;base64,VVNFUg==", "用户直接提供的图片保持原样");
+    assert.equal(messages[3].tool_call_id, "call-one");
+    assert.equal(messages[3].content, "第一张抽帧");
+    assert.equal(messages[4].tool_call_id, "call-two");
+    assert.equal(messages[4].content, "第二张抽帧");
+    assert.equal(messages.slice(3, 5).some(message => Array.isArray(message.content)), false, "tool observation 不再携带图片块");
+    assert.deepEqual(messages[5].content.filter(part => part.type === "image_url").map(part => part.image_url.url), [
+      "data:image/jpeg;base64,AA==", "data:image/jpeg;base64,AQ=="
+    ], "工具图片以原顺序附在 user 视觉消息中");
+    assert.match(messages[5].content[0].text, /call-one/u);
+    assert.match(messages[5].content[2].text, /call-two/u);
+    assert.deepEqual(preparedMessages[0][3].content[1], { type: "image_url", image_url: { url: "data:image/jpeg;base64,AA==", detail: "high" } }, "预处理器仍能看到 Agent Loop 原始 tool observation 合同");
+    assert.deepEqual(snapshots[0].messages.map(message => message.role), messages.map(message => message.role), "请求观察器记录实际发给 Provider 的消息角色");
+    assert.equal(input.messages[2].content[1].image_url.url, "data:image/jpeg;base64,AA==", "标准化不修改 Agent Loop 的临时内存历史");
+  } finally { globalThis.fetch = originalFetch; }
+});
+
 test("LLM Provider adapters replace one provider route and are removed with their owner", async () => {
   const service = createAiCompletionService();
   const expected = { text: "adapter result", usage: null, toolCalls: [], providerReplay: null };
@@ -146,6 +187,16 @@ test("保留完整 reasoning_content 续接同模型，跨 Provider/模型与请
     await streamAiCompletion({ ...input, account: { ...input.account, accountId: 'other-account' } });
     for (const snapshot of snapshots.slice(2)) assert.equal(snapshot.reasoningReplayCharacters, 0, '跨账户/Provider/模型的 replay 不进入本次请求预算');
     for (const body of bodies.slice(2)) assert.equal(Object.hasOwn(body.messages[1], 'reasoning_content'), false);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("没有 providerReplay 时不会读取其可选字段", async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => sse([{ content: "完成" }]);
+    const input = completionInput();
+    delete input.account.accountId;
+    await assert.doesNotReject(streamAiCompletion(input));
   } finally { globalThis.fetch = originalFetch; }
 });
 

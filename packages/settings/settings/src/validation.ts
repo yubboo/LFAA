@@ -6,7 +6,7 @@
 import Joi from "joi";
 import { BROWSER_PROVIDER_IDS } from "lfaa-util-values/src/browser-provider.js";
 import { EXECUTION_SANDBOX_MODES } from "lfaa-util-values/src/sandbox-contract.js";
-import { AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN, AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN, CARD_MOTION_EFFECT_IDS, UI_MOTION_EFFECT_IDS, DEFAULT_USER_SETTINGS, CANVAS_DEFAULT_MODE_IDS, CANVAS_GRID_STYLE_IDS } from "lfaa-util-values/src/settings-contract.js";
+import { AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN, AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN, APPEARANCE_PRESET_LIMIT, APPEARANCE_PRESET_NAME_MAX_LENGTH, CARD_MOTION_EFFECT_IDS, UI_MOTION_EFFECT_IDS, DEFAULT_USER_SETTINGS, CANVAS_DEFAULT_MODE_IDS, CANVAS_GRID_STYLE_IDS } from "lfaa-util-values/src/settings-contract.js";
 import { APPLICATION_IDS, APPLICATION_NAVIGATION_IDS } from "lfaa-util-values/src/application-id.js";
 import type { SettingsCategory } from "lfaa-util-values/src/settings-contract.js";
 
@@ -76,6 +76,7 @@ export const aiRuntimeSettingsSchema = Joi.object({
   videoGenerationUnloadAfterMinutes: Joi.number().integer().min(1).max(60).default(10),
   videoGenerationAccountId: Joi.string().max(160).allow("").required(),
   videoGenerationModelId: Joi.string().max(160).allow("").required(),
+  videoTranscriptionAccountId: Joi.string().max(160).allow("").default(""),
   videoGenerationDurationSeconds: Joi.number().integer().min(1).max(15).required(),
   videoGenerationRatio: Joi.string().valid("adaptive", "16:9", "9:16", "1:1", "4:3", "3:4").required(),
   videoGenerationResolution: Joi.string().valid("480p", "720p", "1080p").required(),
@@ -261,7 +262,63 @@ export const appearanceModeStyleSchema = Joi.object({
   fonts: appearanceFontsSchema.required()
 }).unknown(false);
 
-export const appearanceSettingsSchema = Joi.object({
+const appearanceOverlayOverrideSchema = Joi.number().integer().min(0).max(75).allow(null).default(null);
+const appearanceBlurOverrideSchema = Joi.number().integer().min(0).max(32).allow(null).default(null);
+const appearanceAreaEffectsSchema = Joi.object({
+  login: Joi.object({ overlay: appearanceOverlayOverrideSchema }).unknown(false).default(DEFAULT_USER_SETTINGS.appearance.areaEffects.login),
+  appCenter: Joi.object({ overlay: appearanceOverlayOverrideSchema, blur: appearanceBlurOverrideSchema }).unknown(false).default(DEFAULT_USER_SETTINGS.appearance.areaEffects.appCenter),
+  steamcmd: Joi.object({ overlay: appearanceOverlayOverrideSchema, blur: appearanceBlurOverrideSchema }).unknown(false).default(DEFAULT_USER_SETTINGS.appearance.areaEffects.steamcmd),
+  minecraft: Joi.object({ overlay: appearanceOverlayOverrideSchema, blur: appearanceBlurOverrideSchema }).unknown(false).default(DEFAULT_USER_SETTINGS.appearance.areaEffects.minecraft),
+  writing: Joi.object({ overlay: appearanceOverlayOverrideSchema, blur: appearanceBlurOverrideSchema }).unknown(false).default(DEFAULT_USER_SETTINGS.appearance.areaEffects.writing),
+  settings: Joi.object({ overlay: appearanceOverlayOverrideSchema, blur: appearanceBlurOverrideSchema }).unknown(false).default(DEFAULT_USER_SETTINGS.appearance.areaEffects.settings)
+}).unknown(false).default(DEFAULT_USER_SETTINGS.appearance.areaEffects);
+
+const appearanceBackgroundsSchema = Joi.object({
+  login: appearanceBackgroundIdSchema.default(DEFAULT_USER_SETTINGS.appearance.backgrounds.login),
+  appCenter: appearanceBackgroundIdSchema.required(),
+  steamcmd: appearanceBackgroundIdSchema.required(),
+  minecraft: appearanceBackgroundIdSchema.required(),
+  writing: appearanceBackgroundIdSchema.required(),
+  settings: appearanceBackgroundIdSchema.required()
+}).unknown(false).required();
+
+const appearancePresetBackgroundsSchema = Joi.object({
+  login: appearanceBackgroundIdSchema.required(),
+  appCenter: appearanceBackgroundIdSchema.required(),
+  steamcmd: appearanceBackgroundIdSchema.required(),
+  minecraft: appearanceBackgroundIdSchema.required(),
+  writing: appearanceBackgroundIdSchema.required(),
+  settings: appearanceBackgroundIdSchema.required()
+}).unknown(false).required();
+
+const appearanceWallpaperEngineSchema = Joi.object({
+  enabled: Joi.boolean().default(false),
+  projectId: Joi.string().allow("").max(180).pattern(/^[A-Za-z0-9_-]+$/u).default("")
+}).unknown(false).default({ enabled: false, projectId: "" });
+
+const appearanceAdvancedSettingsSchema = Joi.object({
+  interfaceFontSize: Joi.number().integer().min(10).max(24).required(),
+  codeFontSize: Joi.number().integer().min(8).max(24).required(),
+  reducedMotion: Joi.string().valid("system", "on", "off").required(),
+  authTransitionPluginId: Joi.string().trim().min(1).max(180).pattern(/^[A-Za-z0-9@._:/-]+$/u).default("builtin"),
+  separateModes: Joi.boolean().required(),
+  fonts: appearanceFontsSchema.required(),
+  modeStyles: Joi.object({
+    light: appearanceModeStyleSchema.required(),
+    dark: appearanceModeStyleSchema.required()
+  }).unknown(false).required(),
+  translucentSidebar: Joi.boolean().required(),
+  contrast: Joi.number().integer().min(0).max(100).required(),
+  diffMarkers: Joi.string().valid("color", "symbols").required(),
+  pointerCursor: Joi.boolean().required(),
+  aiWorkOutputFocusBlurEnabled: Joi.boolean().default(false),
+  aiWorkOutputFocusBlurPercent: Joi.number().integer().min(0).max(100).optional(),
+  aiWorkOutputFocusBlurIdleSeconds: Joi.number().integer().min(60).max(3600).multiple(60).default(60),
+  aiWorkOutputFocusBlurAmount: Joi.number().integer().min(0).max(24).optional(),
+  writingLightRaysEnabled: Joi.boolean().default(DEFAULT_USER_SETTINGS.appearance.advanced.writingLightRaysEnabled)
+}).unknown(false);
+
+const appearanceSettingsFields = {
   updateSurfaceOpacity: Joi.number().integer().min(70).max(100).optional(),
   theme: Joi.string().valid("light", "dark", "system").required(),
   accentColor: Joi.string().valid("#3457d5", "#1687a7", "#27845b", "#8956bb", "#d05b37", "#d64d8f").required(),
@@ -269,41 +326,51 @@ export const appearanceSettingsSchema = Joi.object({
     Joi.string().valid("auto"),
     Joi.string().pattern(/^#[0-9a-f]{6}$/iu)
   ).required(),
-  backgrounds: Joi.object({
-    login: appearanceBackgroundIdSchema.default("forest-bridge-evening"),
-    appCenter: appearanceBackgroundIdSchema.required(),
-    steamcmd: appearanceBackgroundIdSchema.required(),
-    minecraft: appearanceBackgroundIdSchema.required(),
-    writing: appearanceBackgroundIdSchema.required(),
-    settings: appearanceBackgroundIdSchema.required()
-  }).unknown(false).required(),
-  wallpaperEngine: Joi.object({
-    enabled: Joi.boolean().default(false),
-    projectId: Joi.string().allow("").max(180).pattern(/^[A-Za-z0-9_-]+$/u).default("")
-  }).unknown(false).default({ enabled: false, projectId: "" }),
+  backgrounds: appearanceBackgroundsSchema,
+  areaEffects: appearanceAreaEffectsSchema,
+  wallpaperEngine: appearanceWallpaperEngineSchema,
   overlay: Joi.number().integer().min(0).max(75).required(),
   blur: Joi.number().integer().min(0).max(32).required(),
-  advanced: Joi.object({
-    interfaceFontSize: Joi.number().integer().min(10).max(24).required(),
-    codeFontSize: Joi.number().integer().min(8).max(24).required(),
-    reducedMotion: Joi.string().valid("system", "on", "off").required(),
-    authTransitionPluginId: Joi.string().trim().min(1).max(180).pattern(/^[A-Za-z0-9@._:/-]+$/u).default("builtin"),
-    separateModes: Joi.boolean().required(),
-    fonts: appearanceFontsSchema.required(),
-    modeStyles: Joi.object({
-      light: appearanceModeStyleSchema.required(),
-      dark: appearanceModeStyleSchema.required()
-    }).unknown(false).required(),
-    translucentSidebar: Joi.boolean().required(),
-    contrast: Joi.number().integer().min(0).max(100).required(),
-    diffMarkers: Joi.string().valid("color", "symbols").required(),
-    pointerCursor: Joi.boolean().required(),
-    aiWorkOutputFocusBlurEnabled: Joi.boolean().default(true),
-    aiWorkOutputFocusBlurPercent: Joi.number().integer().min(0).max(100).optional(),
-    aiWorkOutputFocusBlurIdleSeconds: Joi.number().integer().min(60).max(3600).multiple(60).default(60),
-    aiWorkOutputFocusBlurAmount: Joi.number().integer().min(0).max(24).optional(),
-    writingLightRaysEnabled: Joi.boolean().default(DEFAULT_USER_SETTINGS.appearance.advanced.writingLightRaysEnabled)
-  }).unknown(false).optional()
+  advanced: appearanceAdvancedSettingsSchema.optional()
+};
+
+const appearancePresetVisualSettingsSchema = Joi.object({
+  ...appearanceSettingsFields,
+  updateSurfaceOpacity: Joi.number().integer().min(70).max(100).required(),
+  backgrounds: appearancePresetBackgroundsSchema,
+  areaEffects: appearanceAreaEffectsSchema.required(),
+  wallpaperEngine: appearanceWallpaperEngineSchema.required(),
+  advanced: appearanceAdvancedSettingsSchema.required()
+}).unknown(false).required();
+
+const appearancePresetGeneralSchema = Joi.object({
+  defaultFullView: Joi.boolean().required(),
+  showServiceStatus: Joi.boolean().required(),
+  showBottomPanelControl: Joi.boolean().required(),
+  navigationLayout: Joi.string().valid("left-two-column", "three-column", "right-tools", "focus").required(),
+  hiddenApplicationNavigationIds: Joi.array().unique().items(Joi.string().valid(...APPLICATION_NAVIGATION_IDS)).max(APPLICATION_NAVIGATION_IDS.length).required(),
+  cardMotionEffect: Joi.string().valid(...CARD_MOTION_EFFECT_IDS).required(),
+  dialogMotionEffect: Joi.string().valid(...UI_MOTION_EFFECT_IDS).required(),
+  terminalPosition: Joi.string().valid("bottom", "right").required()
+}).unknown(false).required();
+
+export const appearancePresetSnapshotSchema = Joi.object({
+  appearance: appearancePresetVisualSettingsSchema,
+  general: appearancePresetGeneralSchema
+}).unknown(false).required();
+
+export const appearancePresetSchema = Joi.object({
+  id: Joi.string().pattern(/^preset-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u).required(),
+  name: Joi.string().trim().min(1).max(APPEARANCE_PRESET_NAME_MAX_LENGTH).required(),
+  description: Joi.string().max(160).required(),
+  snapshot: appearancePresetSnapshotSchema
+}).unknown(false);
+
+export const appearancePresetLibrarySchema = Joi.array().max(APPEARANCE_PRESET_LIMIT).items(appearancePresetSchema);
+
+export const appearanceSettingsSchema = Joi.object({
+  ...appearanceSettingsFields,
+  presets: appearancePresetLibrarySchema.optional()
 }).unknown(false);
 
 export const shortcutBindingsSchema = Joi.array()

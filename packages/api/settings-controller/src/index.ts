@@ -18,11 +18,11 @@ import { createAccountSnapshot, deleteAccountSnapshot, exportCurrentAccountArchi
 import type { AttachmentStore } from "lfaa-attachment/src/index.js";
 import { redactConversationMemoryContexts } from "lfaa-session/src/sessions.js";
 import type { ClaudeAgentCredentialOwner } from "lfaa-subagent-claude-code";
-import { activateAiAccount, deleteAiAccount, deleteUserBackground, getAiAccountManagementScope, getAiProviderAccountScope, getUserBackground, getUserSettings, getUserSettingsSyncStatus, listUserBackgrounds, listAiAccounts, listAiProviders, probeAiProvider, testAiProviderModel, refreshAiAccountModelCatalog, testSavedAiAccountModel, saveAiAccount, saveUserBackground, saveUserSettings, testAiAccountCredential, updateAiAccountCredential, updateAiAccountModel, updateAiAccountReasoningMode, type SettingsCategory, type ShortcutSettings } from "lfaa-settings/src/service.js";
+import { activateAiAccount, applyUserAppearancePreset, validateAppearancePresetSnapshot, deleteAiAccount, deleteUserBackground, getAiAccountManagementScope, getAiProviderAccountScope, getUserBackground, getUserSettings, getUserSettingsSyncStatus, isUserBackgroundInUse, listUserBackgrounds, listAiAccounts, listAiProviders, probeAiProvider, testAiProviderModel, refreshAiAccountModelCatalog, testSavedAiAccountModel, saveAiAccount, saveUserBackground, saveUserSettings, testAiAccountCredential, updateAiAccountCredential, updateAiAccountModel, updateAiAccountReasoningMode, type AppearanceSettings, type AppearancePresetSnapshot, type SettingsCategory, type ShortcutSettings } from "lfaa-settings/src/service.js";
 import { cancelDataDirectoryChange, confirmDataDirectoryLocation, recommendDataDirectoryLocation, DataDirectorySettingsError, getDataDirectorySettings, requestDataDirectoryChange } from "lfaa-workspace-data-directory/src/service.js";
 import { confirmProjectContentDirectory, getProjectStorageLocations, saveProjectContentDirectory } from "lfaa-settings/src/project-storage.js";
 import { adoptProjectContentDirectory, compareProjectContentDirectories, copyProjectContentToDirectory, createProjectContentArchive, importProjectContentArchive } from "lfaa-settings/src/content-storage-migration.js";
-import { asyncHandler, parseBody, preferencesSchema, accountAgentUsagePolicySchema, accountSnapshotCreateSchema, accountArchiveRestoreSchema, generalSettingsSchema, aiRuntimeSettingsSchema, minecraftRuntimeSettingsSchema, gitSettingsSchema, permissionsSettingsSchema, pluginsSettingsSchema, personalizationSettingsSchema, conversationMemoriesSchema, computerControlSettingsSchema, browserUseSettingsSchema, miniSettingsSchema, canvasSettingsSchema, appearanceSettingsSchema, shortcutsSchema, aiProbeSchema, aiAccountSchema, aiAccountCredentialSchema, aiModelSchema, aiReasoningSchema, aiModelTestSchema, backgroundUploadSchema, hasShortcutConflict, dataDirectorySettingsSchema, projectContentStorageSchema, projectContentMigrationSchema, projectContentArchiveImportSchema, pluginRuntimeActionSchema } from "lfaa-api-remotes/src/route-contracts.js";
+import { asyncHandler, parseBody, preferencesSchema, accountAgentUsagePolicySchema, accountSnapshotCreateSchema, accountArchiveRestoreSchema, generalSettingsSchema, aiRuntimeSettingsSchema, minecraftRuntimeSettingsSchema, gitSettingsSchema, permissionsSettingsSchema, pluginsSettingsSchema, personalizationSettingsSchema, conversationMemoriesSchema, computerControlSettingsSchema, browserUseSettingsSchema, miniSettingsSchema, canvasSettingsSchema, appearancePresetSnapshotSchema, appearanceSettingsSchema, shortcutsSchema, aiProbeSchema, aiAccountSchema, aiAccountCredentialSchema, aiModelSchema, aiReasoningSchema, aiModelTestSchema, backgroundUploadSchema, hasShortcutConflict, dataDirectorySettingsSchema, projectContentStorageSchema, projectContentMigrationSchema, projectContentArchiveImportSchema, pluginRuntimeActionSchema } from "lfaa-api-remotes/src/route-contracts.js";
 export function registerRoutes(router: Router, aiPluginHost: AiPluginHost, _realtime: MinecraftRealtimePublisher, attachments: AttachmentStore, claudeCredentials: ClaudeAgentCredentialOwner): void {
 
 function assertAiProviderWriteAccess(role: UserRole, providerId: string): void {
@@ -60,8 +60,16 @@ router.get("/ai/skills", requireAuthentication, asyncHandler(async (request, res
   try {
     const settings = getUserSettings(request.auth!.user.id);
     const visible = (await aiPluginHost.listSkills({ userId: request.auth!.user.id, customSkillDirs: settings.plugins.enabled ? settings.plugins.skillDirectories ?? [] : [], allowHostFilesystem: settings.plugins.enabled && config.localHostExecution, signal: controller.signal }))
-      .filter(skill => isModelInvocable(skill) && (settings.plugins.enabled || skill.source === "bundled"));
-    if (!controller.signal.aborted) response.json({ skills: visible.slice(0, 200).map(skill => ({ id: "skill.registry/" + skill.name, name: skill.name, description: skill.description, kind: "skill", source: skill.source, enabled: !isSkillDisabled(skill.name, settings.plugins.disabledSkillNames) })), truncated: visible.length > 200 });
+      .filter(skill => isModelInvocable(skill) && (settings.plugins.enabled || skill.source === "bundled" || skill.provider === "lfaa-knowledge-library-skills"));
+    if (!controller.signal.aborted) response.json({ skills: visible.slice(0, 200).map(skill => ({
+      id: "skill.registry/" + skill.name,
+      name: skill.name,
+      description: skill.description,
+      kind: "skill",
+      source: skill.source,
+      origin: skill.provider === "lfaa-knowledge-library-skills" ? "account-installed" : skill.source,
+      enabled: (skill.source === "bundled" || settings.plugins.enabled) && !isSkillDisabled(skill.name, settings.plugins.disabledSkillNames)
+    })), truncated: visible.length > 200 });
   } finally { response.off("close", cancel); }
 }));
 
@@ -127,18 +135,42 @@ router.put("/settings/:category", requireAuthentication, (request, response) => 
       throw new ApiError(400, "shortcut_conflict", "快捷键重复，请为每个动作设置不同的组合键。");
     }
     if (category === "appearance") {
-      const appearance = value as { backgrounds: Record<string, string> };
+      const appearance = value as unknown as AppearanceSettings;
       if (appearance.backgrounds.login.startsWith("user-")) {
         throw new ApiError(400, "appearance_login_background_must_be_builtin", "登录页背景只能使用内置图片。");
       }
       const uploadedIds = new Set(listUserBackgrounds(request.auth!.user.id).map((background) => background.id));
-      if (Object.values(appearance.backgrounds).some((backgroundId) => backgroundId.startsWith("user-") && !uploadedIds.has(backgroundId))) {
+      const presets = appearance.presets ?? [];
+      const presetBackgrounds = presets.flatMap((preset) => Object.values(preset.snapshot.appearance.backgrounds));
+      if (presets.some((preset) => preset.snapshot.appearance.backgrounds.login.startsWith("user-"))) {
+        throw new ApiError(400, "appearance_login_background_must_be_builtin", "预设中的登录页背景只能使用内置图片。");
+      }
+      if ([...Object.values(appearance.backgrounds), ...presetBackgrounds].some((backgroundId) => backgroundId.startsWith("user-") && !uploadedIds.has(backgroundId))) {
         throw new ApiError(400, "appearance_background_not_owned", "背景设置引用了当前账户没有的图片。");
       }
     }
     saveUserSettings(request.auth!.user.id, category, value as never);
     response.json({ settings: getUserSettings(request.auth!.user.id) });
   });
+
+router.post("/settings/appearance-presets/apply", requireAuthentication, (request, response) => {
+  const snapshot = parseBody<AppearancePresetSnapshot>(appearancePresetSnapshotSchema, request.body);
+  try {
+    response.json({ settings: applyUserAppearancePreset(request.auth!.user.id, snapshot) });
+  } catch (error) {
+    throw new ApiError(422, "appearance_preset_apply_failed", error instanceof Error ? error.message : "外观预设无法应用。");
+  }
+});
+
+router.post("/settings/appearance-presets/validate", requireAuthentication, (request, response) => {
+  const snapshot = parseBody<AppearancePresetSnapshot>(appearancePresetSnapshotSchema, request.body);
+  try {
+    validateAppearancePresetSnapshot(snapshot);
+    response.json({ valid: true });
+  } catch (error) {
+    throw new ApiError(422, "appearance_preset_invalid", error instanceof Error ? error.message : "外观预设内容无效。");
+  }
+});
 
 router.get("/settings/memories", requireAuthentication, (request, response) => {
     response.json({ snapshot: getConversationMemorySnapshot(request.auth!.user.id) });
@@ -264,6 +296,9 @@ router.get("/settings/backgrounds/:backgroundId", requireAuthentication, (reques
   });
 
 router.delete("/settings/backgrounds/:backgroundId", requireAuthentication, (request, response) => {
+    if (isUserBackgroundInUse(request.auth!.user.id, request.params.backgroundId)) {
+      throw new ApiError(409, "appearance_background_in_use", "这张背景图片仍被外观或预设引用，请先解除引用后再删除。");
+    }
     deleteUserBackground(request.auth!.user.id, request.params.backgroundId);
     response.status(204).end();
   });

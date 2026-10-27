@@ -15,7 +15,7 @@ import { APPLICATION_IDS, type ApplicationId } from "lfaa-util-values/src/applic
 import type { UserRole } from "lfaa-identity-auth/src/service.js";
 import { systemFiles } from "lfaa-fs/src/library.js";
 import { FILE_MANAGER_OPERATIONS, type FileManagerOperation } from "lfaa-util-values/src/file-manager-contract.js";
-export type { AiBusinessTool, AiBusinessToolRisk, AiBusinessToolContext, AiExternalAgentToolDefinition, AiExternalAgentToolContent, AiExternalAgentToolDispatchResult, AiWritingToolTarget } from "./tool-contract.js";
+export type { AiBusinessTool, AiBusinessToolRisk, AiBusinessToolContext, AiExternalAgentToolDefinition, AiExternalAgentToolContent, AiExternalAgentToolDispatchResult, AiBusinessToolProjectedResult, AiWritingToolTarget } from "./tool-contract.js";
 export { strictObject, parseWithSchema, idSchema, makeTool, waitForTask } from "./tool-contract.js";
 import { objectValue, strictObject, parseWithSchema, makeTool, type AiBusinessTool, type AiWritingToolTarget } from "./tool-contract.js";
 export interface AiCompletionTool { type: "function"; function: { name: string; description: string; parameters: Record<string, unknown> } }

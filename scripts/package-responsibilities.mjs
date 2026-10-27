@@ -372,7 +372,9 @@ timeout:有界超时/中止辅助
 values:跨运行时纯合同、枚举和共享设置定义
 workspace-path:工作区相对路径处理辅助`,
   video: `ai-video:账户视频创作项目、媒体、Provider 任务和恢复领域服务
-tool-ai-video:AI 视频领域工具与原项目/生成服务适配`,
+tool-ai-video:AI 视频领域工具与原项目/生成服务适配
+bilibili-video:公开视频字幕、Storyboard 与有界音轨/Ark ASR Provider
+tool-bilibili-video:Bilibili 视频输入工具与 Agent Loop/Settings/Credentials 适配`,
   web: `tool-web:模型网页搜索/抓取工具合同
 web:网页能力 Provider 登记和读取服务
 web-fetch-http:受验证 HTTP 网页读取提供方

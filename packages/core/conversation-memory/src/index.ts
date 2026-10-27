@@ -113,6 +113,15 @@ export function getConversationMemorySnapshot(userId: string): ConversationMemor
   }
 }
 
+/** 仅供当前账户项目记忆范围使用；项目归属与 memory_mode 由 Workspace Owner 在调用前核验。 */
+export function getProjectConversationMemorySnapshot(userId: string, projectId: string): ConversationMemorySnapshot {
+  const row = database.prepare("SELECT memories_json, revision FROM project_conversation_memories WHERE user_id = ? AND project_id = ?")
+    .get(userId, projectId) as ConversationMemoryRow | undefined;
+  if (!row) return { memories: [], revision: 0 };
+  try { return { memories: normalizeConversationMemories(JSON.parse(row.memories_json) as unknown), revision: row.revision }; }
+  catch { return { memories: [], revision: row.revision }; }
+}
+
 function sameMemories(left: readonly string[], right: readonly string[]): boolean {
   return left.length === right.length && left.every((memory, index) => memory === right[index]);
 }
@@ -141,6 +150,32 @@ export function replaceConversationMemories(userId: string, value: unknown, expe
     SET memories_json = ?, revision = revision + 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
     WHERE user_id = ? AND revision = ?
   `).run(encoded, userId, expectedRevision).changes === 1;
+}
+
+/** 项目记忆使用与账户记忆相同的脱敏规范化和乐观并发合同，按账户与项目双重归属隔离。 */
+export function replaceProjectConversationMemories(userId: string, projectId: string, value: unknown, expectedRevision: number): boolean {
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) return false;
+  const memories = normalizeConversationMemories(value);
+  const current = getProjectConversationMemorySnapshot(userId, projectId);
+  if (current.revision !== expectedRevision) return false;
+  if (sameMemories(current.memories, memories)) return true;
+  const encoded = JSON.stringify(memories);
+  if (expectedRevision === 0) {
+    return database.prepare(`
+      INSERT INTO project_conversation_memories (user_id, project_id, memories_json, revision)
+      VALUES (?, ?, ?, 1)
+      ON CONFLICT(project_id) DO UPDATE SET
+        memories_json = excluded.memories_json,
+        revision = project_conversation_memories.revision + 1,
+        updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+      WHERE project_conversation_memories.user_id = excluded.user_id AND project_conversation_memories.revision = 0
+    `).run(userId, projectId, encoded).changes === 1;
+  }
+  return database.prepare(`
+    UPDATE project_conversation_memories
+    SET memories_json = ?, revision = revision + 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+    WHERE user_id = ? AND project_id = ? AND revision = ?
+  `).run(encoded, userId, projectId, expectedRevision).changes === 1;
 }
 
 /** 清空内容并递增 revision；空行是并发删除墓碑，不包含记忆正文。 */

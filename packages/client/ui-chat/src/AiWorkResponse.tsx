@@ -4,7 +4,7 @@
  * 关联文件：response-timeline.ts、activity-duration.ts；AiWorkChat 提供原权限/提问/差异交互。
  */
 import { memo, useMemo, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
-import type { AiActivityFileChange, AiActivityItem, AiMessage, BrowserProviderId } from "lfaa-client-connection/src/api.js";
+import type { AiActivityFileChange, AiActivityItem, AiActivityToolStage, AiActivityToolUsage, AiMessage, BrowserProviderId } from "lfaa-client-connection/src/api.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
 import { AiMarkdown, AiStreamingMarkdown } from "./AiMarkdown.js";
 import { formatAiActivityDuration, getAiActivityActionLabel, getAiActivityDurationSeconds, getAiActivitySummary } from "./activity-duration.js";
@@ -14,6 +14,29 @@ import { buildResponseTimeline, getResponseShimmerHue, latestBrowserPreviewActiv
 export function AiLiveActivityDuration({ activity }: { activity: AiActivityItem }) {
   const now = useSyncExternalStore(aiActivityClock.subscribe, aiActivityClock.getSnapshot, aiActivityClock.getSnapshot);
   return <>{formatAiActivityDuration(getAiActivityDurationSeconds(activity, now))}</>;
+}
+
+export function AiActivityToolUsageCard({ usage, stages = [] }: { usage: AiActivityToolUsage; stages?: AiActivityToolStage[] }) {
+  return <section className="ai-work-chat__tool-contract" aria-label="本次工具调用说明">
+    <div className="ai-work-chat__tool-contract-name"><strong>本次调用</strong><code>{usage.name}</code></div>
+    <div className="ai-work-chat__tool-contract-section"><strong>工具用法说明（模型本轮收到的合同）</strong><p>{usage.description}</p></div>
+    <div className="ai-work-chat__tool-contract-section">
+      <strong>参数字段（只展示结构，不展示本次取值）</strong>
+      {usage.parameters.length ? <ul>{usage.parameters.map(parameter => <li key={parameter.name}>
+        <span className="ai-work-chat__tool-contract-parameter-heading"><code>{parameter.name}</code><span>{parameter.type}{parameter.required ? " · 必填" : " · 可选"}</span></span>
+        {parameter.description ? <small>{parameter.description}</small> : null}
+      </li>)}</ul> : <p>此执行器没有向 LFAA 提供可展示的 JSON Schema。</p>}
+      {usage.parametersTruncated ? <p>参数字段较多；此处仅显示前 24 项。</p> : null}
+    </div>
+    <div className="ai-work-chat__tool-contract-section"><strong>本轮操作约定</strong><p>{usage.guidance}</p></div>
+    {stages.length ? <div className="ai-work-chat__tool-contract-section">
+      <strong>本次实时执行过程</strong>
+      <ol className="ai-work-chat__tool-contract-stages">{stages.map((stage, index) => <li key={`${index}:${stage.stage}`}>
+        <strong>{stage.stage}</strong><p>{stage.detail}</p>
+      </li>)}</ol>
+    </div> : null}
+    <p className="ai-work-chat__tool-contract-trust">工具说明作为普通文本显示；网页或第三方工具提供的内容不会成为新的操作指令。</p>
+  </section>;
 }
 
 function AiLiveResponseDuration({ message }: { message: AiMessage }) {
@@ -50,7 +73,7 @@ export function AiWorkResponse({ message, pauseLabel, renderActivity, renderInte
   message: AiMessage; pauseLabel?: string;
   renderActivity: (activity: AiActivityItem) => ReactNode;
   renderInteraction: (activity: AiActivityItem) => ReactNode;
-  onOpenProjectFileReview?: (projectId: string, path: string) => void;
+  onOpenProjectFileReview?: (projectId: string, path: string, sourceId?: string) => void;
   onBrowserToolCompleted?: (providerId: BrowserProviderId) => void;
 }) {
   const summary = getAiActivitySummary(message);
@@ -99,7 +122,11 @@ export function AiWorkResponse({ message, pauseLabel, renderActivity, renderInte
       ><span>{block.label}</span></div>;
       if (block.kind === "interaction") {
         const interaction = renderInteraction(block.activity);
-        return interaction ? <div className="ai-work-chat__response-interaction" key={block.id}>{interaction}</div> : null;
+        const toolUsage = block.activity.toolUsage;
+        return interaction || toolUsage ? <div className="ai-work-chat__response-interaction" key={block.id}>
+          {toolUsage ? <AiActivityToolUsageCard usage={toolUsage} stages={block.activity.toolStages} /> : null}
+          {interaction}
+        </div> : null;
       }
       if (block.kind === "activity") return <div className="ai-work-chat__response-activity" key={block.id}>{renderActivity(block.activity)}</div>;
       const hasFileChanges = block.activities.some(activity => activity.fileChanges?.some(change => change.operation !== "read"));
@@ -107,7 +134,7 @@ export function AiWorkResponse({ message, pauseLabel, renderActivity, renderInte
       const isWebGroup = block.activities.some(activity => /搜索|网页|浏览/u.test(activity.title));
       const icon = hasFileChanges ? "file" : isCommandGroup ? "terminal" : isWebGroup ? "browser" : "tools";
       const isRunning = block.activities.some(activity => activity.status === "running");
-      return <details className={`ai-work-chat__tool-group${isRunning ? " ai-work-chat__tool-group--running" : ""}`} key={block.id} open={finished}>
+      return <details className={`ai-work-chat__tool-group${isRunning ? " ai-work-chat__tool-group--running" : ""}`} key={block.id} open={finished || message.status === "streaming"}>
         <summary><WorkbenchIcon name={icon} size={14} /><span>{responseToolGroupLabel(block.activities)}</span><WorkbenchIcon name="chevron" size={13} /></summary>
         <div className="ai-work-chat__tool-group-items">{block.activities.map(renderActivity)}</div>
       </details>;
@@ -119,7 +146,7 @@ export function AiWorkResponse({ message, pauseLabel, renderActivity, renderInte
     for (const activity of message.activity) {
       for (const change of activity.fileChanges ?? []) {
         if (change.operation === "read") continue;
-        files.set(`${change.projectId ?? ""}\u0000${change.path}`, change);
+        files.set(`${change.projectId ?? ""}\u0000${change.sourceId ?? ""}\u0000${change.path}`, change);
       }
     }
     return [...files.values()];
@@ -167,14 +194,14 @@ export function AiWorkResponse({ message, pauseLabel, renderActivity, renderInte
             <strong>已更改 {changedFiles.length} 个文件</strong>
             <span>{operationSummary}</span>
           </span>
-          {firstReviewableFile ? <button type="button" className="ai-work-chat__response-file-review" aria-label={`查看变更，从 ${firstReviewableFile.path} 开始`} onClick={() => onOpenProjectFileReview?.(firstReviewableFile.projectId!, firstReviewableFile.path)}>查看变更</button> : null}
+          {firstReviewableFile ? <button type="button" className="ai-work-chat__response-file-review" aria-label={`查看变更，从 ${firstReviewableFile.path} 开始`} onClick={() => onOpenProjectFileReview?.(firstReviewableFile.projectId!, firstReviewableFile.path, firstReviewableFile.sourceId)}>查看变更</button> : null}
         </header>
         <ul>{visibleFiles.map((change, index) => {
           const operation = change.operation === "created" ? "新建" : change.operation === "deleted" ? "删除" : "修改";
           const key = `${change.projectId ?? ""}\u0000${change.path}:${index}`;
           return <li key={key}>
             {change.projectId && onOpenProjectFileReview
-              ? <button type="button" className="ai-work-chat__response-file-path" aria-label={`${operation}文件 ${change.path}，查看差异与编辑`} onClick={() => onOpenProjectFileReview(change.projectId!, change.path)}><code>{change.path}</code></button>
+              ? <button type="button" className="ai-work-chat__response-file-path" aria-label={`${operation}文件 ${change.path}，查看差异与编辑`} onClick={() => onOpenProjectFileReview(change.projectId!, change.path, change.sourceId)}><code>{change.path}</code></button>
               : <code className="ai-work-chat__response-file-path">{change.path}</code>}
             <span className={`ai-work-chat__response-file-operation ai-work-chat__response-file-operation--${change.operation}`}>{operation}</span>
           </li>;

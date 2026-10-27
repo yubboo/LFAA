@@ -37,6 +37,9 @@
     - id: video-ai-video
       name: lfaa-video-ai-video
       inject: [lfaaCredentials, lfaaSettings, lfaaLocalModelRuntime]
+    - id: video-bilibili-video
+      name: lfaa-video-bilibili-video
+      inject: []
     - id: api-ai-video-controller
       name: lfaa-api-ai-video-controller
       inject: [apiGateway, lfaaAiVideo]
@@ -46,6 +49,9 @@
     - id: tool-ai-video
       name: lfaa-video-tool-ai-video
       inject: [lfaaAiVideo, lfaaTools]
+    - id: tool-bilibili-video
+      name: lfaa-video-tool-bilibili-video
+      inject: [lfaaBilibiliVideo, lfaaCredentials, lfaaSettings, lfaaTools]
     - id: canvas
       name: lfaa-canvas
       inject: []

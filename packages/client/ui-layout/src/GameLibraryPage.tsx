@@ -3,9 +3,10 @@
  * 作用：聚合现有 Minecraft/SteamCMD 入口，环境操作统一调用 RuntimeManager。
  * 关联文件：Workbench、connection/runtime-api、games/runtime-manager。
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, Button, Spin, Typography } from "antd";
 import { getErrorMessage, type User } from "lfaa-client-connection/src/api.js";
+import { createSnapshotCache } from "lfaa-client-store/src/snapshot-cache.js";
 import { setFileManagerLocation } from "lfaa-client-connection/src/file-manager-location.js";
 import { loadRuntimeOverview, runRuntimeOperation, loadRuntimeTask, listRuntimeTasks,cancelRuntimeTask, type RuntimeOverview, type RuntimeTask } from "lfaa-client-connection/src/runtime-api.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
@@ -13,10 +14,16 @@ import { createReadPoller } from "lfaa-client-connection/src/read-poller.js";
 import "./GameLibraryPage.css";
 import {RuntimeEnvironmentPanel} from "./RuntimeEnvironmentPanel.js";
 
+const runtimeOverviewSnapshots=createSnapshotCache<{ overview: RuntimeOverview; refreshedAt: number }>();
+const RUNTIME_OVERVIEW_FRESHNESS_MS = 30_000;
+
 export function GameLibraryPage({ user, environments = false, canBrowseLocalFiles, onNavigate, onOpenStorage }: {
   user: User; environments?: boolean; canBrowseLocalFiles:boolean; onNavigate: (path: string) => void; onOpenStorage:()=>void;
 }) {
-  const [overview, setOverview] = useState<RuntimeOverview | null>(null);
+  const snapshotKey=`${user.id}\u001f${user.role}`;
+  const cachedSnapshot=useRef(runtimeOverviewSnapshots.get(snapshotKey)??null).current;
+  const [overviewState, setOverviewState] = useState<{key:string;snapshot:{overview:RuntimeOverview;refreshedAt:number}|null}>(()=>({key:snapshotKey,snapshot:cachedSnapshot}));
+  const overview=overviewState.key===snapshotKey?overviewState.snapshot?.overview??null:null;
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
   const [targetId, setTargetId] = useState(()=>new URLSearchParams(window.location.search).get("target")??"local");
@@ -24,13 +31,16 @@ export function GameLibraryPage({ user, environments = false, canBrowseLocalFile
   const [busy, setBusy] = useState(false);
   useEffect(()=>{if(user.role==="member")return;const controller=new AbortController();void listRuntimeTasks(controller.signal).then(value=>{if(!controller.signal.aborted)setTask(current=>current??value.tasks.find(item=>["queued","running"].includes(item.status))??null);}).catch(reason=>{if(!controller.signal.aborted)setError(getErrorMessage(reason));});return()=>controller.abort();},[user.id,user.role]);
   useEffect(() => {
+    const cached = runtimeOverviewSnapshots.get(snapshotKey) ?? null;
+    setOverviewState({key:snapshotKey,snapshot:cached});
+    if (revision === 0 && cached && Date.now() - cached.refreshedAt < RUNTIME_OVERVIEW_FRESHNESS_MS) return;
     const controller = new AbortController();
     setError("");
-    void loadRuntimeOverview(controller.signal).then(value=>{if(!controller.signal.aborted)setOverview(value);}).catch(reason => {
+    void loadRuntimeOverview(controller.signal).then(value=>{if(!controller.signal.aborted){const snapshot={overview:value,refreshedAt:Date.now()};runtimeOverviewSnapshots.set(snapshotKey,snapshot);setOverviewState({key:snapshotKey,snapshot});}}).catch(reason => {
       if (!controller.signal.aborted) setError(getErrorMessage(reason));
     });
     return () => controller.abort();
-  }, [revision, user.id]);
+  }, [revision, snapshotKey]);
   useEffect(() => {
     if (!task || !["queued", "running"].includes(task.status)) return;
     const controller = new AbortController();
@@ -43,7 +53,7 @@ export function GameLibraryPage({ user, environments = false, canBrowseLocalFile
         if (!["queued", "running"].includes(next.status)) { poller?.stop(); setRevision(value => value + 1); }
       } catch (reason) { if (!controller.signal.aborted) setError(getErrorMessage(reason)); }
     };
-    poller = createReadPoller(read, 1500);
+    poller = createReadPoller(read, 3000);
     return () => { controller.abort(); poller?.stop(); };
   }, [task?.id, user.id]);
   const operate = useCallback(async (operation: string, values: Record<string, unknown> = {}) => {

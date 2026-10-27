@@ -310,6 +310,7 @@ export function GitChangeSummary({ appId, project = null, repositoryId = null, r
 interface GitChangeActivityReviewProps {
   appId: WorkspaceProjectApplicationId;
   project: WorkspaceProject;
+  sourceId?: string;
   path: string;
   requestId: number;
   onClose: () => void;
@@ -317,7 +318,7 @@ interface GitChangeActivityReviewProps {
 }
 
 /** 活动记录只提供项目相对路径；此处必须以已登记项目的 Git 状态精确映射后才打开审阅器。 */
-export function GitChangeActivityReview({ appId, project, path, requestId, onClose, onRefresh }: GitChangeActivityReviewProps) {
+export function GitChangeActivityReview({ appId, project, sourceId, path, requestId, onClose, onRefresh }: GitChangeActivityReviewProps) {
   const [status, setStatus] = useState<WorkspaceGitStatus | null>(null);
   const [reviewPath, setReviewPath] = useState("");
   const [loading, setLoading] = useState(true);
@@ -331,7 +332,7 @@ export function GitChangeActivityReview({ appId, project, path, requestId, onClo
     setReviewPath("");
     setLoading(true);
     setError("");
-    void loadWorkspaceGitStatus(project.id, appId).then(({ status: current }) => {
+    void loadWorkspaceGitStatus(project.id, appId, sourceId).then(({ status: current }) => {
       if (!active || requestRevision.current !== revision) return;
     const repositoryPath = current.projectRelativePath && path !== current.projectRelativePath && !path.startsWith(`${current.projectRelativePath}/`)
       ? `${current.projectRelativePath}/${path}` : path;
@@ -348,12 +349,12 @@ export function GitChangeActivityReview({ appId, project, path, requestId, onClo
       active = false;
       requestRevision.current += 1;
     };
-  }, [appId, path, project.id, requestId]);
+  }, [appId, path, project.id, requestId, sourceId]);
 
   const refresh = useCallback(async () => {
     const revision = ++requestRevision.current;
     try {
-      const { status: current } = await loadWorkspaceGitStatus(project.id, appId);
+      const { status: current } = await loadWorkspaceGitStatus(project.id, appId, sourceId);
       if (requestRevision.current !== revision) return;
       const repositoryPath = current.projectRelativePath && path !== current.projectRelativePath && !path.startsWith(`${current.projectRelativePath}/`)
         ? `${current.projectRelativePath}/${path}` : path;
@@ -369,10 +370,10 @@ export function GitChangeActivityReview({ appId, project, path, requestId, onClo
       setError(getErrorMessage(refreshError));
       setLoading(false);
     }
-  }, [appId, onRefresh, path, project.id]);
+  }, [appId, onRefresh, path, project.id, sourceId]);
 
   return status && reviewPath
-    ? <GitChangeReview appId={appId} projectId={project.id} projectTitle={project.title} status={status} initialPath={reviewPath} open onClose={onClose} onRefresh={refresh} />
+    ? <GitChangeReview appId={appId} projectId={project.id} sourceId={sourceId} projectTitle={project.title} status={status} initialPath={reviewPath} open onClose={onClose} onRefresh={refresh} />
     : <Modal
         open
         title="打开文件差异"

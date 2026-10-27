@@ -197,11 +197,10 @@ try {
   assert.equal(streamedFinished.message.content, "streamed answer fixture");
   console.log("verified:reply-stream");
 
-  const { createWorkspaceProject } = await import("lfaa-workspace-workspace/src/index.js");
-  const { recordDaemonHeartbeat: registerProjectNode } = await import("lfaa-host-daemon/src/local-daemon.js");
-  const registeredNodeId = randomUUID();
-  registerProjectNode({ id: registeredNodeId, displayName: "isolated project node", platform: process.platform, architecture: "x64", version: "fixture", dataRoot: process.env.LFAA_DATA_DIR, capabilities: ["project-files-v1"], javaRuntimes: [] });
-  const project = createWorkspaceProject({ userId: owner, appId: "workspace", nodeId: registeredNodeId, path: join(process.env.LFAA_DATA_DIR, "project"), platform: process.platform, title: "isolated project" });
+  const { createLocalWorkspaceProject } = await import("lfaa-workspace-workspace/src/index.js");
+  const projectDirectoryPath = join(process.env.LFAA_DATA_DIR, "project");
+  await mkdir(projectDirectoryPath, { recursive: true });
+  const project = createLocalWorkspaceProject({ userId: owner, title: "isolated project", projectDirectoryPath, platform: process.platform });
   let fixtureScopeExecutions = 0;
   ctx.lfaaTools.registerTool(ctx, { id: "fixture.probe", name: "fixture_scope_probe", coreManaged: true, applicationIds: ["workspace"], description: "scope fixture", schema: { type: "object", properties: {} }, parse: () => ({}), risk: () => "read", approval: () => ({ scopeKey: "fixture", scopeSummary: "fixture", summary: "fixture" }), async execute(_parameters, context) { fixtureScopeExecutions++; assert.equal(context.workspaceProject.path, project.path); return { inherited: true }; } });
 

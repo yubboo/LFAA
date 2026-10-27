@@ -17,7 +17,7 @@ import { resolveUserAccountPaths } from "lfaa-home-paths/src/data-layout.mjs";
 import { protectPrivateDirectory } from "lfaa-home-paths/src/private-directory.mjs";
 import { atomicWrite, atomicWriteBytes, decode } from "lfaa-storage-json/src/index.js";
 import { withControlLock } from "lfaa-storage-domain/src/control-lock.js";
-import { validateSettingsInput } from "./validation.js";
+import { appearancePresetSchema, appearancePresetSnapshotSchema, validateSettingsInput } from "./validation.js";
 import { APPLICATION_IDS, APPLICATION_NAVIGATION_IDS, type ApplicationId, type ApplicationNavigationId } from "lfaa-util-values/src/application-id.js";
 import { ARK_OPENAI_BASE_URL, ARK_PLAN_CATALOG_REVISION, ARK_PLAN_PROVIDERS, isArkPlanProviderId } from "lfaa-util-values/src/ark-provider.js";
 import { BROWSER_PROVIDER_IDS, type BrowserProviderId } from "lfaa-util-values/src/browser-provider.js";
@@ -28,8 +28,8 @@ import type { AiModelCatalogEntry, AiModelThinkingControl } from "./model-capabi
 export type { AiModelCatalogEntry, AiModelThinkingControl } from "./model-capabilities.js";
 import { ARK_PLAN_TIER_OPTIONS, arkPlanTier, isArkPlanChatModel, listArkPlanModels, type ArkPlanProviderId } from "./ark-plan-model-catalog.js";
 
-import { AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN, AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN, CARD_MOTION_EFFECT_IDS, UI_MOTION_EFFECT_IDS, CANVAS_DEFAULT_MODE_IDS, CANVAS_GRID_STYLE_IDS, DEFAULT_USER_SETTINGS, type SettingsCategory, type GeneralSettings, type AppearanceSettings, type AppearanceFonts, type AppearanceAdvancedSettings, type AppearanceBackgroundView, type ShortcutSettings, type UserSettings, type ComputerControlSettings, type BrowserUseSettings, type PersonalizationSettings, type MiniSettings, type AiRuntimeSettings, type MinecraftRuntimeSettings, type GitSettings, type PermissionSettings, type UserCapabilityPrompt, type PluginSettings, type CanvasSettings } from "lfaa-util-values/src/settings-contract.js";
-export type { SettingsCategory, GeneralSettings, AppearanceSettings, AppearanceFonts, AppearanceAdvancedSettings, AppearanceBackgroundView, ShortcutSettings, UserSettings, ComputerControlSettings, BrowserUseSettings, PersonalizationSettings, MiniSettings, AiRuntimeSettings, MinecraftRuntimeSettings, GitSettings, PermissionSettings, UserCapabilityPrompt, PluginSettings, CanvasSettings } from "lfaa-util-values/src/settings-contract.js";
+import { AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN, AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN, APPEARANCE_PRESET_LIMIT, CARD_MOTION_EFFECT_IDS, UI_MOTION_EFFECT_IDS, CANVAS_DEFAULT_MODE_IDS, CANVAS_GRID_STYLE_IDS, DEFAULT_USER_SETTINGS, type SettingsCategory, type GeneralSettings, type AppearanceSettings, type AppearancePreset, type AppearancePresetSnapshot, type AppearanceAreaEffects, type AppearanceFonts, type AppearanceAdvancedSettings, type AppearanceBackgroundView, type ShortcutSettings, type UserSettings, type ComputerControlSettings, type BrowserUseSettings, type PersonalizationSettings, type MiniSettings, type AiRuntimeSettings, type MinecraftRuntimeSettings, type GitSettings, type PermissionSettings, type UserCapabilityPrompt, type PluginSettings, type CanvasSettings } from "lfaa-util-values/src/settings-contract.js";
+export type { SettingsCategory, GeneralSettings, AppearanceSettings, AppearancePreset, AppearancePresetSnapshot, AppearanceAreaEffects, AppearanceFonts, AppearanceAdvancedSettings, AppearanceBackgroundView, ShortcutSettings, UserSettings, ComputerControlSettings, BrowserUseSettings, PersonalizationSettings, MiniSettings, AiRuntimeSettings, MinecraftRuntimeSettings, GitSettings, PermissionSettings, UserCapabilityPrompt, PluginSettings, CanvasSettings } from "lfaa-util-values/src/settings-contract.js";
 export const defaultSettings: UserSettings = structuredClone(DEFAULT_USER_SETTINGS);
 
 const allowedAccentColors = new Set(["#3457d5", "#1687a7", "#27845b", "#8956bb", "#d05b37", "#d64d8f"]);
@@ -159,6 +159,7 @@ function readAiRuntimeSettings(value: Record<string, unknown>): AiRuntimeSetting
     videoGenerationUnloadAfterMinutes: typeof value.videoGenerationUnloadAfterMinutes === "number" && Number.isInteger(value.videoGenerationUnloadAfterMinutes) && value.videoGenerationUnloadAfterMinutes >= 1 && value.videoGenerationUnloadAfterMinutes <= 60 ? value.videoGenerationUnloadAfterMinutes : defaultSettings.aiRuntime.videoGenerationUnloadAfterMinutes,
     videoGenerationAccountId: typeof value.videoGenerationAccountId === "string" && value.videoGenerationAccountId.length <= 160 ? value.videoGenerationAccountId : defaultSettings.aiRuntime.videoGenerationAccountId,
     videoGenerationModelId: typeof value.videoGenerationModelId === "string" && value.videoGenerationModelId.length <= 160 ? value.videoGenerationModelId : defaultSettings.aiRuntime.videoGenerationModelId,
+    videoTranscriptionAccountId: typeof value.videoTranscriptionAccountId === "string" && value.videoTranscriptionAccountId.length <= 160 ? value.videoTranscriptionAccountId : defaultSettings.aiRuntime.videoTranscriptionAccountId,
     videoGenerationDurationSeconds: typeof value.videoGenerationDurationSeconds === "number" && Number.isInteger(value.videoGenerationDurationSeconds) && value.videoGenerationDurationSeconds >= 1 && value.videoGenerationDurationSeconds <= 15 ? value.videoGenerationDurationSeconds : defaultSettings.aiRuntime.videoGenerationDurationSeconds,
     videoGenerationRatio: value.videoGenerationRatio === "adaptive" || value.videoGenerationRatio === "16:9" || value.videoGenerationRatio === "9:16" || value.videoGenerationRatio === "1:1" || value.videoGenerationRatio === "4:3" || value.videoGenerationRatio === "3:4" ? value.videoGenerationRatio : defaultSettings.aiRuntime.videoGenerationRatio,
     videoGenerationResolution: value.videoGenerationResolution === "480p" || value.videoGenerationResolution === "720p" || value.videoGenerationResolution === "1080p" ? value.videoGenerationResolution : defaultSettings.aiRuntime.videoGenerationResolution,
@@ -425,6 +426,23 @@ export function saveUserSettings(
 ): void {
   // 旧客户端提交整类设置时保留后来新增的字段，显式提交仍采用用户新值。
   const submitted = value as unknown as Record<string, unknown>;
+  if (category === "appearance") {
+    const current = getUserSettings(userId).appearance;
+    const submittedBackgrounds = submitted.backgrounds;
+    const submittedAreaEffects = submitted.areaEffects;
+    value = {
+      ...current,
+      ...submitted,
+      // 老客户端可能没有登录背景字段；合并所有已保存目标，避免 schema 默认值覆盖账户选择。
+      backgrounds: submittedBackgrounds === undefined
+        ? current.backgrounds
+        : typeof submittedBackgrounds === "object" && submittedBackgrounds !== null && !Array.isArray(submittedBackgrounds)
+          ? { ...current.backgrounds, ...(submittedBackgrounds as Record<string, unknown>) }
+          : submittedBackgrounds,
+      // 老客户端和部分字段更新只保留省略项；明确传入 null 仍可清除该区域覆盖。
+      areaEffects: mergeAppearanceAreaEffects(current.areaEffects, submittedAreaEffects)
+    } as AppearanceSettings;
+  }
   if (category === "general" && (!Object.hasOwn(submitted, "cardMotionEffect") || !Object.hasOwn(submitted, "dialogMotionEffect") || !Object.hasOwn(submitted, "defaultAdminCredentialReminderEnabled") || !Object.hasOwn(submitted, "notificationPopupsEnabled") || !Object.hasOwn(submitted, "aiProviderReminderEnabled") || !Object.hasOwn(submitted, "hiddenApplicationNavigationIds"))) {
     value = { ...getUserSettings(userId).general, ...submitted } as GeneralSettings;
   }
@@ -577,7 +595,7 @@ export function imageDimensions(data: Buffer, mimeType: string): { width: number
 }
 
 export function listUserBackgrounds(userId: string): AppearanceBackgroundView[] {
-  const rows = database.prepare("SELECT id, display_name, mime_type, image_data, created_at FROM appearance_backgrounds WHERE user_id = ? ORDER BY created_at DESC").all(userId) as Array<{ id: string; display_name: string; mime_type: string; image_data: Uint8Array; created_at: string }>;
+  const rows = database.prepare("SELECT id, display_name, mime_type, image_data, storage_filename, created_at FROM appearance_backgrounds WHERE user_id = ? ORDER BY created_at DESC").all(userId) as Array<{ id: string; display_name: string; mime_type: string; image_data: Uint8Array; storage_filename: string; created_at: string }>;
   for (const row of rows) readOrMigrateBackground(userId, row);
   return rows.map((image) => ({ id: image.id, name: image.display_name, mimeType: image.mime_type, url: `/api/settings/backgrounds/${image.id}`, createdAt: image.created_at }));
 }
@@ -589,14 +607,75 @@ export function listUserBackgroundOptionMetadata(userId: string): Array<{ id: st
 
 const backgroundExtensions: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
 
-function backgroundPath(userId: string, id: string, mimeType: string): string {
+function legacyBackgroundPath(userId: string, id: string, mimeType: string): string {
   const extension = backgroundExtensions[mimeType];
   if (!extension || !/^user-[0-9a-f-]{36}$/iu.test(id)) throw new Error("背景素材标识无效。");
   return resolve(resolveUserAccountPaths(config.homeDirectory, userId).backgrounds, `${id}.${extension}`);
 }
 
-function backgroundMetadataPath(userId: string, id: string, mimeType: string): string {
-  return backgroundPath(userId, id, mimeType).replace(/\.(?:png|jpg|webp)$/u, ".meta.json");
+function backgroundStoragePath(userId: string, storageFilename: string): string {
+  const directory = resolveUserAccountPaths(config.homeDirectory, userId).backgrounds;
+  const stem = storageFilename.replace(/\.(?:png|jpg|webp)$/iu, "");
+  if (storageFilename.length > 240 || /[\\/\u0000-\u001f\u007f<>:"|?*]/u.test(storageFilename)
+    || !/\.(?:png|jpg|webp)$/iu.test(storageFilename) || /[. ]$/u.test(storageFilename)
+    || /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/iu.test(stem)) {
+    throw new Error("背景素材文件名无效。");
+  }
+  const path = resolve(directory, storageFilename);
+  if (dirname(path) !== directory) throw new Error("背景素材路径越界。");
+  return path;
+}
+
+function backgroundMetadataPath(assetPath: string): string {
+  return assetPath.replace(/\.(?:png|jpg|webp)$/iu, ".meta.json");
+}
+
+function backgroundDisplayName(value: string): string {
+  const leaf = value.replace(/\\/gu, "/").split("/").at(-1) ?? "";
+  return leaf.replace(/[\u0000-\u001f\u007f]/gu, "").trim().slice(0, 80) || "自定义背景";
+}
+
+function preferredBackgroundFilename(displayName: string, mimeType: string): string {
+  const extension = backgroundExtensions[mimeType];
+  if (!extension) throw new Error("背景图片仅支持 PNG、JPEG 或 WebP 格式。");
+  const leaf = displayName.replace(/\\/gu, "/").split("/").at(-1) ?? "";
+  const originalStem = leaf.replace(/\.[^.]*$/u, "");
+  const stem = [...originalStem.normalize("NFC")
+    .replace(/[\u0000-\u001f\u007f<>:"|?*]/gu, "_")
+    .replace(/[. ]+$/gu, "")
+    .trim()]
+    .slice(0, 120)
+    .join("");
+  const safeStem = stem && !/^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/iu.test(stem) ? stem : "background";
+  return `${safeStem}.${extension}`;
+}
+
+function allocateBackgroundFilename(userId: string, preferredFilename: string): string {
+  const extensionStart = preferredFilename.lastIndexOf(".");
+  const stem = preferredFilename.slice(0, extensionStart);
+  const extension = preferredFilename.slice(extensionStart);
+  for (let suffix = 1; suffix <= 10_000; suffix += 1) {
+    const candidate = suffix === 1 ? preferredFilename : `${stem} (${suffix})${extension}`;
+    const path = backgroundStoragePath(userId, candidate);
+    const databaseMatch = database.prepare("SELECT 1 FROM appearance_backgrounds WHERE user_id = ? AND storage_filename = ? COLLATE NOCASE").get(userId, candidate);
+    if (!databaseMatch && !existsSync(path) && !existsSync(backgroundMetadataPath(path))) return candidate;
+  }
+  throw new Error("同名背景图片过多，无法安全分配文件名。");
+}
+
+function ensureBackgroundStorageFilename(userId: string, row: { id: string; display_name: string; mime_type: string; storage_filename: string }): string {
+  if (row.storage_filename) return row.storage_filename;
+  return withControlLock(database, () => {
+    const current = database.prepare("SELECT storage_filename FROM appearance_backgrounds WHERE user_id = ? AND id = ?").get(userId, row.id) as { storage_filename?: string } | undefined;
+    if (!current) throw new Error("背景图片记录已不存在。");
+    if (current.storage_filename) return current.storage_filename;
+    const candidate = allocateBackgroundFilename(userId, preferredBackgroundFilename(row.display_name, row.mime_type));
+    const result = database.prepare("UPDATE appearance_backgrounds SET storage_filename = ? WHERE user_id = ? AND id = ? AND storage_filename = ''").run(candidate, userId, row.id);
+    if (Number(result.changes) === 1) return candidate;
+    const updated = database.prepare("SELECT storage_filename FROM appearance_backgrounds WHERE user_id = ? AND id = ?").get(userId, row.id) as { storage_filename?: string } | undefined;
+    if (!updated?.storage_filename) throw new Error("背景图片文件名迁移期间记录发生变化；请重试。");
+    return updated.storage_filename;
+  });
 }
 
 function readBackgroundFile(path: string): Buffer | null {
@@ -606,13 +685,18 @@ function readBackgroundFile(path: string): Buffer | null {
   return readFileSync(path);
 }
 
-function readOrMigrateBackground(userId: string, row: { id: string; mime_type: string; image_data: Uint8Array }): Buffer {
-  const path = backgroundPath(userId, row.id, row.mime_type);
-  const metadataPath = backgroundMetadataPath(userId, row.id, row.mime_type);
+function readOrMigrateBackground(userId: string, row: { id: string; display_name: string; mime_type: string; image_data: Uint8Array; storage_filename: string }): Buffer {
+  const storageFilename = ensureBackgroundStorageFilename(userId, row);
+  const path = backgroundStoragePath(userId, storageFilename);
+  const metadataPath = backgroundMetadataPath(path);
+  const legacyPath = legacyBackgroundPath(userId, row.id, row.mime_type);
+  const legacyMetadataPath = backgroundMetadataPath(legacyPath);
   const stored = readBackgroundFile(path);
+  const legacyStored = path === legacyPath ? null : readBackgroundFile(legacyPath);
   const databaseImage = Buffer.from(row.image_data);
   if (databaseImage.length > 0) {
     if (stored && !stored.equals(databaseImage)) throw new Error("背景图片文件与旧 SQLite 素材内容冲突；两份来源均保留。");
+    if (legacyStored && !legacyStored.equals(databaseImage)) throw new Error("背景图片旧文件与 SQLite 素材内容冲突；两份来源均保留。");
     if (!stored) atomicWriteBytes(path, databaseImage);
     const verified = readBackgroundFile(path);
     if (!verified?.equals(databaseImage)) throw new Error("背景图片文件回读校验失败；SQLite 来源仍保留。");
@@ -627,13 +711,38 @@ function readOrMigrateBackground(userId: string, row: { id: string; mime_type: s
         if (current?.size !== 0) throw new Error("背景图片迁移期间素材记录发生变化；请重试。");
       }
     });
+    if (legacyStored) removeBackgroundAsset(legacyPath);
     return verified;
   }
-  if (!stored || stored.length === 0) throw new Error("背景图片素材文件缺失；SQLite 仅保留了文件索引，未返回默认图片。");
-  const expectedHash = readBackgroundMetadata(metadataPath);
-  if (!expectedHash || createHash("sha256").update(stored).digest("hex") !== expectedHash) throw new Error("背景图片素材摘要不匹配；未返回损坏文件。");
-  imageDimensions(stored, row.mime_type);
-  return stored;
+  if (stored && legacyStored && !stored.equals(legacyStored)) throw new Error("背景图片新旧文件内容冲突；两份来源均保留。");
+  const source = stored ?? legacyStored;
+  if (!source || source.length === 0) throw new Error("背景图片素材文件缺失；SQLite 仅保留了文件索引，未返回默认图片。");
+  const storedHash = readBackgroundMetadata(metadataPath);
+  const legacyHash = legacyStored ? readBackgroundMetadata(legacyMetadataPath) : null;
+  const expectedHash = storedHash ?? legacyHash;
+  if (!expectedHash || createHash("sha256").update(source).digest("hex") !== expectedHash) throw new Error("背景图片素材摘要不匹配；未返回损坏文件。");
+  imageDimensions(source, row.mime_type);
+  if (!stored) {
+    atomicWriteBytes(path, source);
+    const verified = readBackgroundFile(path);
+    if (!verified?.equals(source)) throw new Error("背景图片原名文件回读校验失败；旧素材仍保留。");
+    atomicWrite(metadataPath, { version: 1, sha256: expectedHash });
+    if (readBackgroundMetadata(metadataPath) !== expectedHash) throw new Error("背景图片原名摘要回读校验失败；旧素材仍保留。");
+  } else if (!storedHash) {
+    atomicWrite(metadataPath, { version: 1, sha256: expectedHash });
+    if (readBackgroundMetadata(metadataPath) !== expectedHash) throw new Error("背景图片原名摘要回读校验失败；旧素材仍保留。");
+  }
+  if (legacyStored) removeBackgroundAsset(legacyPath);
+  return stored ?? source;
+}
+
+function removeBackgroundAsset(path: string): void {
+  for (const candidate of [path, backgroundMetadataPath(path)]) {
+    if (!existsSync(candidate)) continue;
+    const file = lstatSync(candidate);
+    if (!file.isFile() || file.isSymbolicLink()) throw new Error("背景素材文件类型无效；拒绝删除链接目标。");
+    unlinkSync(candidate);
+  }
 }
 
 function readBackgroundMetadata(path: string): string | null {
@@ -653,29 +762,34 @@ export function saveUserBackground(userId: string, dataUrl: string, displayName:
   const { width, height } = imageDimensions(data, mimeType);
   if (width < 1 || height < 1 || width > 8192 || height > 8192 || width * height > 20_000_000) throw new Error("背景图片尺寸不能超过 8192 像素边长或 2000 万像素。");
   const id = `user-${randomUUID()}`;
-  const name = displayName.trim().slice(0, 80) || "自定义背景";
-  database.prepare("INSERT INTO appearance_backgrounds (user_id, id, display_name, mime_type, image_data) VALUES (?, ?, ?, ?, ?)").run(userId, id, name, mimeType, data);
-  readOrMigrateBackground(userId, { id, mime_type: mimeType, image_data: data });
+  const name = backgroundDisplayName(displayName);
+  const storageFilename = withControlLock(database, () => {
+    const filename = allocateBackgroundFilename(userId, preferredBackgroundFilename(name, mimeType));
+    database.prepare("INSERT INTO appearance_backgrounds (user_id, id, display_name, mime_type, image_data, storage_filename) VALUES (?, ?, ?, ?, ?, ?)").run(userId, id, name, mimeType, data, filename);
+    return filename;
+  });
+  readOrMigrateBackground(userId, { id, display_name: name, mime_type: mimeType, image_data: data, storage_filename: storageFilename });
   const row = database.prepare("SELECT created_at FROM appearance_backgrounds WHERE user_id = ? AND id = ?").get(userId, id) as { created_at: string } | undefined;
   return { id, name, mimeType, url: `/api/settings/backgrounds/${id}`, createdAt: row?.created_at ?? new Date().toISOString() };
 }
 
 export function getUserBackground(userId: string, id: string): { mimeType: string; data: Buffer } | null {
-  const row = database.prepare("SELECT id, mime_type, image_data FROM appearance_backgrounds WHERE user_id = ? AND id = ?").get(userId, id) as { id: string; mime_type: string; image_data: Uint8Array } | undefined;
+  const row = database.prepare("SELECT id, display_name, mime_type, image_data, storage_filename FROM appearance_backgrounds WHERE user_id = ? AND id = ?").get(userId, id) as { id: string; display_name: string; mime_type: string; image_data: Uint8Array; storage_filename: string } | undefined;
   return row ? { mimeType: row.mime_type, data: readOrMigrateBackground(userId, row) } : null;
 }
 
+/** 统一检查账户外观或任一自定义预设是否仍引用该私有背景。 */
+export function isUserBackgroundInUse(userId: string, id: string): boolean {
+  const appearance = getUserSettings(userId).appearance;
+  return Object.values(appearance.backgrounds).includes(id)
+    || appearance.presets.some((preset) => Object.values(preset.snapshot.appearance.backgrounds).includes(id));
+}
+
 export function deleteUserBackground(userId: string, id: string): void {
-  const row = database.prepare("SELECT mime_type FROM appearance_backgrounds WHERE user_id = ? AND id = ?").get(userId, id) as { mime_type: string } | undefined;
+  const row = database.prepare("SELECT id, mime_type, storage_filename FROM appearance_backgrounds WHERE user_id = ? AND id = ?").get(userId, id) as { id: string; mime_type: string; storage_filename: string } | undefined;
+  const paths = row ? new Set([legacyBackgroundPath(userId, id, row.mime_type), ...(row.storage_filename ? [backgroundStoragePath(userId, row.storage_filename)] : [])]) : new Set<string>();
   const removed = database.prepare("DELETE FROM appearance_backgrounds WHERE user_id = ? AND id = ?").run(userId, id);
-  if (Number(removed.changes) > 0 && row) {
-    for (const path of [backgroundPath(userId, id, row.mime_type), backgroundMetadataPath(userId, id, row.mime_type)]) {
-      if (!existsSync(path)) continue;
-      const file = lstatSync(path);
-      if (!file.isFile() || file.isSymbolicLink()) throw new Error("背景素材文件类型无效；拒绝删除链接目标。");
-      unlinkSync(path);
-    }
-  }
+  if (Number(removed.changes) > 0) for (const path of paths) removeBackgroundAsset(path);
 }
 
 function readAppearanceSettings(value: Record<string, unknown>): AppearanceSettings | null {
@@ -683,6 +797,7 @@ function readAppearanceSettings(value: Record<string, unknown>): AppearanceSetti
   const appearance = value as unknown as AppearanceSettings;
   return {
     ...appearance,
+    presets: readAppearancePresetLibrary(value.presets),
     // 旧账户没有侧边栏颜色字段时继续跟随主题；自定义颜色仅接受标准六位十六进制值。
     sidebarColor: typeof appearance.sidebarColor === "string" ? appearance.sidebarColor.toLocaleLowerCase() : defaultSettings.appearance.sidebarColor,
     // 新增更新界面透明度时兼容已存储的旧外观对象；异常值回到默认不透明度。
@@ -691,6 +806,8 @@ function readAppearanceSettings(value: Record<string, unknown>): AppearanceSetti
       : defaultSettings.appearance.updateSurfaceOpacity,
     // 旧账户没有高级外观字段时使用默认值，保留原有主题、背景和遮罩设置。
     backgrounds: { ...defaultSettings.appearance.backgrounds, ...appearance.backgrounds },
+    // 旧账户及损坏的覆盖叶子只补回退值；有效的逐区域用户值保持不变。
+    areaEffects: normalizeAppearanceAreaEffects(value.areaEffects),
     wallpaperEngine: readWallpaperEngineSettings(value.wallpaperEngine),
     advanced: (() => {
       const advanced = isAppearanceAdvancedSettings(value.advanced) ? value.advanced : structuredClone(defaultSettings.appearance.advanced);
@@ -719,6 +836,93 @@ function readAppearanceSettings(value: Record<string, unknown>): AppearanceSetti
         writingLightRaysEnabled: typeof advanced.writingLightRaysEnabled === "boolean" ? advanced.writingLightRaysEnabled : defaultSettings.appearance.advanced.writingLightRaysEnabled
       };
     })()
+  };
+}
+
+function readAppearancePresetLibrary(value: unknown): AppearancePreset[] {
+  if (!Array.isArray(value)) return [];
+  const presets: AppearancePreset[] = [];
+  for (const candidate of value.slice(0, APPEARANCE_PRESET_LIMIT)) {
+    const result = appearancePresetSchema.validate(candidate, { abortEarly: true, convert: false });
+    if (!result.error) presets.push(result.value as AppearancePreset);
+  }
+  return presets;
+}
+
+/** 校验可移植快照结构；不写入设置，也不要求导出账户的私有背景 ID 属于当前账户。 */
+export function validateAppearancePresetSnapshot(snapshot: AppearancePresetSnapshot): AppearancePresetSnapshot {
+  const parsed = appearancePresetSnapshotSchema.validate(snapshot, { abortEarly: false, convert: false });
+  if (parsed.error) throw new Error("外观预设内容无效。请重新导入或选择其他预设。");
+  const normalized = parsed.value as AppearancePresetSnapshot;
+  if (normalized.appearance.backgrounds.login.startsWith("user-")) {
+    throw new Error("登录页预设背景只能使用内置图片。");
+  }
+  return normalized;
+}
+
+/** 校验快照可应用于当前账户；私有背景必须已由该账户上传。 */
+export function validateUserAppearancePresetSnapshot(userId: string, snapshot: AppearancePresetSnapshot): AppearancePresetSnapshot {
+  const normalized = validateAppearancePresetSnapshot(snapshot);
+  const uploadedIds = new Set((database.prepare("SELECT id FROM appearance_backgrounds WHERE user_id = ?").all(userId) as Array<{ id: string }>).map(background => background.id));
+  const backgroundIds = Object.values(normalized.appearance.backgrounds);
+  if (backgroundIds.some(id => id.startsWith("user-") && !uploadedIds.has(id))) {
+    throw new Error("外观预设引用了当前账户没有的背景图片，请重新导入包含素材的预设文件。");
+  }
+  return normalized;
+}
+
+/** 在同一账户设置事务中精确应用两类外观字段，并保留其它 General 偏好和当前预设库。 */
+export function applyUserAppearancePreset(userId: string, snapshot: AppearancePresetSnapshot): UserSettings {
+  const normalized = validateUserAppearancePresetSnapshot(userId, snapshot);
+  const current = getUserSettings(userId);
+  const appearance = { ...current.appearance, ...normalized.appearance, presets: current.appearance.presets } as AppearanceSettings;
+  const general = { ...current.general, ...normalized.general } as GeneralSettings;
+  configuration.transaction(() => {
+    saveUserSettings(userId, "appearance", appearance);
+    saveUserSettings(userId, "general", general);
+  });
+  return getUserSettings(userId);
+}
+
+function mergeAppearanceAreaEffects(current: AppearanceAreaEffects, incoming: unknown): unknown {
+  if (incoming === undefined) return structuredClone(current);
+  if (typeof incoming !== "object" || incoming === null || Array.isArray(incoming)) return incoming;
+  const next = { ...(incoming as Record<string, unknown>) };
+  for (const area of Object.keys(current) as Array<keyof AppearanceAreaEffects>) {
+    if (!Object.hasOwn(next, area)) {
+      next[area] = structuredClone(current[area]);
+      continue;
+    }
+    const submittedArea = next[area];
+    if (typeof submittedArea !== "object" || submittedArea === null || Array.isArray(submittedArea)) continue;
+    next[area] = { ...current[area], ...(submittedArea as Record<string, unknown>) };
+  }
+  return next;
+}
+
+function normalizeAppearanceAreaEffects(value: unknown): AppearanceAreaEffects {
+  const defaults = defaultSettings.appearance.areaEffects;
+  const input = typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  const readArea = <K extends keyof AppearanceAreaEffects>(area: K): AppearanceAreaEffects[K] => {
+    const candidate = input[area];
+    if (typeof candidate !== "object" || candidate === null || Array.isArray(candidate)) return structuredClone(defaults[area]);
+    const fields = candidate as Record<string, unknown>;
+    const overlay = fields.overlay === null || Number.isInteger(fields.overlay) && Number(fields.overlay) >= 0 && Number(fields.overlay) <= 75
+      ? fields.overlay as number | null
+      : null;
+    if (area === "login") return { overlay } as AppearanceAreaEffects[K];
+    const blur = fields.blur === null || Number.isInteger(fields.blur) && Number(fields.blur) >= 0 && Number(fields.blur) <= 32
+      ? fields.blur as number | null
+      : null;
+    return { overlay, blur } as AppearanceAreaEffects[K];
+  };
+  return {
+    login: readArea("login"),
+    appCenter: readArea("appCenter"),
+    steamcmd: readArea("steamcmd"),
+    minecraft: readArea("minecraft"),
+    writing: readArea("writing"),
+    settings: readArea("settings")
   };
 }
 

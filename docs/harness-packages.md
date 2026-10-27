@@ -4,7 +4,7 @@
 
 参考 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)，上游基线 commit `639ed015397290b3745d163aafe02ffee4aa3f84`。
 
-当前 385 个两级目录、219 个实际 workspace 包（217 个产品源码/组合包，2 个工程/测试包），166 个占位目录。控制端/节点运行树含 190 个包；客户端源码包单独进入 Web 构建。
+当前 387 个两级目录、221 个实际 workspace 包（219 个产品源码/组合包，2 个工程/测试包），166 个占位目录。控制端/节点运行树含 192 个包；客户端源码包单独进入 Web 构建。
 
 `implemented` 仅表示有 package.json 和源码/装配；不代表已经进入 Profile、通过运行验收或与 DSH 等价。`placeholder` 不可执行。产品能力现状见 [系统总体架构](系统总体架构.md)，历史核验见 [P0 记录](archive/audits/harness-p0-audit.md)。
 
@@ -147,10 +147,10 @@
 | [packages/core/scope](../packages/core/scope) | lfaa-scope | implemented | 能力可见范围与 Cordis 作用域合同 | [源码](../packages/core/scope/src/index.ts)；4 个静态消费者；0 个组合声明 | DSH 同名目录 |
 | [packages/core/session](../packages/core/session) | lfaa-session | implemented | 账户会话事务、事件与 JSONL 恢复门面 | [源码](../packages/core/session/src/index.ts)；12 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/core/system-prompt](../packages/core/system-prompt) | lfaa-system-prompt | implemented | 核心指令/权限/上下文组合，不按 App 注入领域全文 | [源码](../packages/core/system-prompt/src/index.ts)；4 个静态消费者；0 个组合声明 | DSH 同名目录 |
-| [packages/core/tools](../packages/core/tools) | lfaa-tools | implemented | 公共工具合同、参数校验、可撤销注册与 Run 工具发现 | [源码](../packages/core/tools/src/index.ts)；29 个静态消费者；1 个组合声明 | DSH 同名目录 |
+| [packages/core/tools](../packages/core/tools) | lfaa-tools | implemented | 公共工具合同、参数校验、可撤销注册与 Run 工具发现 | [源码](../packages/core/tools/src/index.ts)；30 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/credentials/authorization](../packages/credentials/authorization) | lfaa-authorization | implemented | 凭据访问授权合同 | 仅组合/清单；未证实运行 | DSH 同名目录 |
 | [packages/credentials/credential-flows](../packages/credentials/credential-flows) | lfaa-credential-flows | implemented | 凭据获取/连接流程适配 | [源码](../packages/credentials/credential-flows/src/index.ts)；0 个静态消费者；1 个组合声明 | LFAA 扩展 |
-| [packages/credentials/credentials](../packages/credentials/credentials) | lfaa-credentials | implemented | 受保护秘密存储与访问服务 | [源码](../packages/credentials/credentials/src/index.ts)；10 个静态消费者；1 个组合声明 | DSH 同名目录 |
+| [packages/credentials/credentials](../packages/credentials/credentials) | lfaa-credentials | implemented | 受保护秘密存储与访问服务 | [源码](../packages/credentials/credentials/src/index.ts)；11 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/credentials/credentials-local](../packages/credentials/credentials-local) | — | placeholder | 本机凭据存储提供方 | 占位不可执行 | DSH 同名目录 |
 | [packages/credentials/deepseek-account](../packages/credentials/deepseek-account) | — | placeholder | DeepSeek 账户认证来源适配 | 占位不可执行 | DSH 同名目录 |
 | [packages/credentials/deepseek-account-platform](../packages/credentials/deepseek-account-platform) | — | placeholder | DeepSeek 平台账户凭据适配 | 占位不可执行 | DSH 同名目录 |
@@ -297,7 +297,7 @@
 | [packages/session/session-title-first-prompt-llm](../packages/session/session-title-first-prompt-llm) | lfaa-session-title-first-prompt-llm | implemented | 首轮提示的模型标题提供方 | [源码](../packages/session/session-title-first-prompt-llm/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/session/session-title-llm](../packages/session/session-title-llm) | lfaa-session-title-llm | implemented | 通用模型标题生成适配 | [源码](../packages/session/session-title-llm/src/index.ts)；2 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/session/session-turn-outline](../packages/session/session-turn-outline) | lfaa-session-turn-outline | implemented | 会话回合大纲投影 | [源码](../packages/session/session-turn-outline/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |
-| [packages/settings/settings](../packages/settings/settings) | lfaa-settings | implemented | 账户设置类型、默认值、校验、持久化和能力映射权威 | [源码](../packages/settings/settings/src/index.ts)；46 个静态消费者；1 个组合声明 | DSH 同名目录 |
+| [packages/settings/settings](../packages/settings/settings) | lfaa-settings | implemented | 账户设置类型、默认值、校验、持久化和能力映射权威 | [源码](../packages/settings/settings/src/index.ts)；47 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/settings/settings-snapshots](../packages/settings/settings-snapshots) | lfaa-settings-snapshots | implemented | 账户设置、会话记忆与公开会话的版本化快照和安全归档 Owner | [源码](../packages/settings/settings-snapshots/src/index.ts)；2 个静态消费者；0 个组合声明 | LFAA 扩展 |
 | [packages/shell/bash-local](../packages/shell/bash-local) | lfaa-bash-local | implemented | 本机 Bash Shell 提供方 | [源码](../packages/shell/bash-local/src/index.ts)；1 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/shell/bash-sandbox](../packages/shell/bash-sandbox) | lfaa-bash-sandbox | implemented | 隔离 Bash Shell 提供方 | [源码](../packages/shell/bash-sandbox/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |
@@ -379,10 +379,12 @@
 | [packages/util/values](../packages/util/values) | lfaa-util-values | implemented | 跨运行时纯合同、枚举和共享设置定义 | 仅组合/清单；未证实运行 | DSH 同名目录 |
 | [packages/util/workspace-path](../packages/util/workspace-path) | — | placeholder | 工作区相对路径处理辅助 | 占位不可执行 | DSH 同名目录 |
 | [packages/video/ai-video](../packages/video/ai-video) | lfaa-video-ai-video | implemented | 账户视频创作项目、媒体、Provider 任务和恢复领域服务 | [源码](../packages/video/ai-video/src/index.ts)；2 个静态消费者；1 个组合声明 | LFAA 扩展 |
+| [packages/video/bilibili-video](../packages/video/bilibili-video) | lfaa-video-bilibili-video | implemented | 公开视频字幕、Storyboard 与有界音轨/Ark ASR Provider | [源码](../packages/video/bilibili-video/src/index.ts)；1 个静态消费者；1 个组合声明 | LFAA 扩展 |
 | [packages/video/tool-ai-video](../packages/video/tool-ai-video) | lfaa-video-tool-ai-video | implemented | AI 视频领域工具与原项目/生成服务适配 | [源码](../packages/video/tool-ai-video/src/index.ts)；0 个静态消费者；1 个组合声明 | LFAA 扩展 |
+| [packages/video/tool-bilibili-video](../packages/video/tool-bilibili-video) | lfaa-video-tool-bilibili-video | implemented | Bilibili 视频输入工具与 Agent Loop/Settings/Credentials 适配 | [源码](../packages/video/tool-bilibili-video/src/index.ts)；0 个静态消费者；1 个组合声明 | LFAA 扩展 |
 | [packages/web/tool-web](../packages/web/tool-web) | lfaa-tool-web | implemented | 模型网页搜索/抓取工具合同 | [源码](../packages/web/tool-web/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/web/web](../packages/web/web) | lfaa-web | implemented | 网页能力 Provider 登记和读取服务 | [源码](../packages/web/web/src/index.ts)；3 个静态消费者；1 个组合声明 | DSH 同名目录 |
-| [packages/web/web-fetch-http](../packages/web/web-fetch-http) | lfaa-web-fetch-http | implemented | 受验证 HTTP 网页读取提供方 | [源码](../packages/web/web-fetch-http/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |
+| [packages/web/web-fetch-http](../packages/web/web-fetch-http) | lfaa-web-fetch-http | implemented | 受验证 HTTP 网页读取提供方 | [源码](../packages/web/web-fetch-http/src/index.ts)；1 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/web/web-search-deepseek](../packages/web/web-search-deepseek) | lfaa-web-search-deepseek | implemented | DeepSeek 搜索提供方 | [源码](../packages/web/web-search-deepseek/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/web/web-search-exa](../packages/web/web-search-exa) | — | placeholder | Exa 搜索提供方 | 占位不可执行 | DSH 同名目录 |
 | [packages/web/web-search-perplexity](../packages/web/web-search-perplexity) | — | placeholder | Perplexity 搜索提供方 | 占位不可执行 | DSH 同名目录 |

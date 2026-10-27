@@ -5,6 +5,8 @@ export interface HomePaths {
   sessions: string;
   credentials: string;
   storages: string;
+  skills: string;
+  directoryGuide: string;
 }
 
 /** 列出账户 Home 下的账户/控制数据分类目录。 */

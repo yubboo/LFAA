@@ -9,7 +9,7 @@ import { BROWSER_PROVIDER_IDS, type BrowserProviderId } from "lfaa-util-values/s
  * 修改注意事项：查询必须绑定当前 user_id；用量只记录 Provider 返回的 token 数，不估算费用。
  */
 import { randomUUID } from "node:crypto";
-import { APPLICATION_IDS } from "lfaa-util-values/src/application-id.js";
+import { APPLICATION_IDS, type WorkspaceProjectContextApplicationId } from "lfaa-util-values/src/application-id.js";
 import { isSessionReplyParts, type SessionReplyPart } from "./kernel.js";
 import { sessionRecords } from "lfaa-session-persistence-jsonl/src/repository.js";
 import type { SessionChange, SessionCommit } from "lfaa-session-persistence-jsonl/src/persistence.js";
@@ -128,6 +128,10 @@ export interface AiActivityItem {
   durationMs: number | null;
   /** 仅公开浏览器工具活动的稳定 ID 与 Provider 来源，供共享工作区联动；不包含参数或网页内容。 */
   toolId?: `browser-use.${string}`;
+  /** 模型本次实际调用的工具合同摘要；不含参数值和工具结果。 */
+  toolUsage?: AiActivityToolUsage;
+  /** 本轮工具调用的有界、按序公开阶段；不含参数值、原始结果或隐藏推理。 */
+  toolStages?: AiActivityToolStage[];
   browserProviderId?: BrowserProviderId;
   approvalId?: string;
   approvalQuestion?: string;
@@ -141,10 +145,24 @@ export interface AiActivityItem {
   contentOffset?: number;
 }
 
+export interface AiActivityToolUsage {
+  name: string;
+  description: string;
+  parameters: Array<{ name: string; type: string; required: boolean; description: string }>;
+  parametersTruncated: boolean;
+  guidance: string;
+}
+
+export interface AiActivityToolStage {
+  stage: string;
+  detail: string;
+}
+
 export interface AiActivityFileChange {
   operation: "read" | "created" | "modified" | "deleted";
   path: string;
   projectId: string | null;
+  sourceId?: string;
 }
 
 export interface AiUsageSummary {
@@ -340,10 +358,19 @@ function portableActivity(item: AiActivityItem): AiActivityItem {
       || path.split("/").some(segment => !segment || segment === "." || segment === ".." || segment.includes("\\"))) return [];
     return [{ operation, path: redactPortableLocalPaths(path), projectId: null }];
   });
+  const toolUsage = item.toolUsage ? {
+    ...item.toolUsage,
+    description: redactPortableLocalPaths(item.toolUsage.description),
+    guidance: redactPortableLocalPaths(item.toolUsage.guidance),
+    parameters: item.toolUsage.parameters.map(parameter => ({ ...parameter, description: redactPortableLocalPaths(parameter.description) }))
+  } : undefined;
+  const toolStages = item.toolStages?.map(stage => ({ ...stage, detail: redactPortableLocalPaths(stage.detail) }));
   return {
     ...visible,
     title: redactPortableLocalPaths(item.title),
     detail: redactPortableLocalPaths(item.detail),
+    ...(toolUsage ? { toolUsage } : {}),
+    ...(toolStages ? { toolStages } : {}),
     status,
     ...(item.question ? { question: redactPortableLocalPaths(item.question) } : {}),
     ...(item.approvalQuestion ? { approvalQuestion: redactPortableLocalPaths(item.approvalQuestion) } : {}),
@@ -902,19 +929,31 @@ function mapSession(row: SessionRow, planMode = planModeForSession(row)): AiSess
   return { id: row.id, appId: row.app_id, title: row.title, archived: row.archived === 1, createdAt: row.created_at, updatedAt: row.updated_at, projectId: row.workspace_project_id ?? null, projectTitle: row.workspace_title ?? null, planMode, associations: associationsForSession(row) };
 }
 
-export interface AiSessionProjectContext { id: string; appId: Extract<ApplicationId, "workspace" | "minecraft">; nodeId: string | null; path: string; title: string }
+export interface AiSessionProjectContext {
+  id: string;
+  appId: Extract<ApplicationId, "workspace" | "minecraft">;
+  applicationIds?: WorkspaceProjectContextApplicationId[];
+  nodeId: string | null;
+  /** 兼容单根执行快照；AI Work 新项目可以没有默认根，工具从 sources 中选择。 */
+  path: string;
+  title: string;
+  sources?: string[];
+  sourceDirectories?: Array<{ id: string; path: string }>;
+  instructions?: string;
+  memoryMode?: "default" | "project_only";
+}
 
 /** 私有执行上下文不通过会话展示 API 返回，工具调用必须始终绑定该会话记录。 */
 export function getAiSessionWorkspaceContext(userId: string, sessionId: string): AiSessionProjectContext | null {
   const row = sessionRow(userId, sessionId);
-  if (!row || !row.workspace_project_id || !row.workspace_directory || !row.workspace_title) return null;
+  if (!row || !row.workspace_project_id || row.workspace_directory === null || row.workspace_directory === undefined || !row.workspace_title) return null;
   return { id: row.workspace_project_id, appId: row.app_id === "minecraft" ? "minecraft" : "workspace", nodeId: row.workspace_node_id ?? null, path: row.workspace_directory, title: row.workspace_title };
 }
 
 /** 只有空闲的通用 AI 会话可改绑；目录注册与会话历史是独立记录。 */
 export function setAiSessionProject(userId: string, sessionId: string, project: AiSessionProjectContext | null): AiSessionView | null {
   const row = sessionRow(userId, sessionId);
-  if (!row || project && project.appId !== "workspace" && project.appId !== row.app_id || messageRows(sessionId).some(message => message.role === "assistant" && (message.status === "queued" || message.status === "streaming"))) return null;
+  if (!row || project && project.appId !== row.app_id || messageRows(sessionId).some(message => message.role === "assistant" && (message.status === "queued" || message.status === "streaming"))) return null;
   const updated: SessionRow = {
     ...row,
     workspace_project_id: project?.id ?? null,
@@ -930,6 +969,21 @@ export function setAiSessionProject(userId: string, sessionId: string, project: 
     title: updated.workspace_title ?? null
   })]);
   return mapSession(updated);
+}
+
+/** 移除逻辑项目时，将其会话安全地放回最近聊天；所有目标先通过空闲态检查，再逐条记录项目归属事件。 */
+export function detachAiSessionsFromWorkspaceProject(userId: string, projectId: string): number {
+  const rows = sessionRecords.all("ai_sessions", row => row.user_id === userId && row.workspace_project_id === projectId) as SessionRow[];
+  if (rows.length > 2000) throw new Error("项目关联的会话超过单次安全移除上限 2000；未更改项目或聊天。");
+  if (rows.some(row => messageRows(row.id).some(message => message.role === "assistant" && (message.status === "queued" || message.status === "streaming")))) {
+    throw new Error("项目中仍有任务正在运行；请等待任务结束后再移除项目。");
+  }
+  for (const row of rows) {
+    commitSessionChanges(userId, row.id, [change("ai_sessions", {
+      ...row, workspace_project_id: null, workspace_node_id: null, workspace_directory: null, workspace_title: null, updated_at: new Date().toISOString()
+    })], [eventSpec("session/project", { projectId: null, nodeId: null, directory: null, title: null })]);
+  }
+  return rows.length;
 }
 
 function mapUsageEvent(value: unknown): AiMessageUsageView | undefined {
@@ -980,6 +1034,8 @@ function isAiActivityItem(value: unknown): value is AiActivityItem {
     && typeof item.title === "string"
     && ["running", "approval_required", "waiting_input", "complete", "error", "unavailable"].includes(String(item.status))
     && typeof item.detail === "string"
+    && (item.toolUsage === undefined || isAiActivityToolUsage(item.toolUsage))
+    && (item.toolStages === undefined || item.toolUsage !== undefined && isAiActivityToolStages(item.toolStages))
     && typeof item.startedAt === "string"
     && (item.completedAt === null || typeof item.completedAt === "string")
     && (item.durationMs === null || (typeof item.durationMs === "number" && Number.isFinite(item.durationMs) && item.durationMs >= 0))
@@ -996,12 +1052,39 @@ function isAiActivityItem(value: unknown): value is AiActivityItem {
     && (item.fileChanges === undefined || Array.isArray(item.fileChanges) && item.fileChanges.length <= 128 && item.fileChanges.every(isAiActivityFileChange));
 }
 
+function isAiActivityToolUsage(value: unknown): value is AiActivityToolUsage {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const usage = value as Record<string, unknown>;
+  return typeof usage.name === "string" && usage.name.length > 0 && usage.name.length <= 120
+    && typeof usage.description === "string" && usage.description.length <= 2_000
+    && Array.isArray(usage.parameters) && usage.parameters.length <= 24 && usage.parameters.every(parameter => {
+      if (typeof parameter !== "object" || parameter === null || Array.isArray(parameter)) return false;
+      const item = parameter as Record<string, unknown>;
+      return typeof item.name === "string" && item.name.length > 0 && item.name.length <= 80
+        && typeof item.type === "string" && item.type.length <= 40
+        && typeof item.description === "string" && item.description.length <= 320
+        && typeof item.required === "boolean";
+    })
+    && typeof usage.parametersTruncated === "boolean"
+    && typeof usage.guidance === "string" && usage.guidance.length <= 800;
+}
+
+function isAiActivityToolStages(value: unknown): value is AiActivityToolStage[] {
+  return Array.isArray(value) && value.length <= 8 && value.every(stage => {
+    if (typeof stage !== "object" || stage === null || Array.isArray(stage)) return false;
+    const item = stage as Record<string, unknown>;
+    return typeof item.stage === "string" && item.stage.length > 0 && item.stage.length <= 80
+      && typeof item.detail === "string" && item.detail.length > 0 && item.detail.length <= 640;
+  });
+}
+
 function isAiActivityFileChange(value: unknown): value is AiActivityFileChange {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
   const change = value as Record<string, unknown>;
   if (!(["read", "created", "modified", "deleted"] as const).includes(change.operation as AiActivityFileChange["operation"])) return false;
   if (typeof change.path !== "string" || !change.path || change.path.length > 1024 || change.path.startsWith("/") || /[\u0000-\u001f\u007f]/u.test(change.path)) return false;
   if (change.path.split("/").some(segment => !segment || segment === "." || segment === ".." || segment.includes("\\"))) return false;
+  if (change.sourceId !== undefined && (typeof change.sourceId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(change.sourceId))) return false;
   return change.projectId === null || typeof change.projectId === "string" && change.projectId.length > 0 && change.projectId.length <= 128;
 }
 
@@ -1187,7 +1270,7 @@ export function listAiQuerySessions(userId: string, callerSessionId: string): Ai
     if (row.id === callerSessionId) return true;
     const target = sessionRow(userId, row.id);
     return Boolean(caller.workspace_project_id && target?.workspace_project_id === caller.workspace_project_id
-      && target.workspace_node_id === caller.workspace_node_id && target.workspace_directory === caller.workspace_directory);
+      && target.app_id === caller.app_id);
   });
 }
 
@@ -1195,8 +1278,7 @@ export function listAiQuerySessions(userId: string, callerSessionId: string): Ai
 export function assertAiSessionQueryScope(userId: string, callerSessionId: string, targetSessionId: string): void {
   const caller = sessionRow(userId, callerSessionId), target = sessionRow(userId, targetSessionId);
   if (!caller || !target || caller.app_id !== target.app_id || caller.id !== target.id && !(caller.workspace_project_id
-    && caller.workspace_project_id === target.workspace_project_id && caller.workspace_node_id === target.workspace_node_id
-    && caller.workspace_directory === target.workspace_directory)) throw new Error("目标会话不在当前账户/App/项目的查询范围内。");
+    && caller.workspace_project_id === target.workspace_project_id)) throw new Error("目标会话不在当前账户/App/项目的查询范围内。");
 }
 
 export interface AiSessionStorageLocation {
