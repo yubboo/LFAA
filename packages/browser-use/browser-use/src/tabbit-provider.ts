@@ -393,7 +393,7 @@ export class TabbitBrowserProvider {
     this.touch(session);
     const tree = record.accessibilityTree === undefined ? undefined : boundBrowserAccessibilityTree(record.accessibilityTree);
     const accessibilityTree = tree !== undefined && tree !== null && JSON.stringify(tree).length > MAX_ACCESSIBILITY_TREE_CHARS ? null : tree;
-    const snapshot: BrowserSnapshot = { sessionId: session.id, providerId: "tabbit-personal", revision: session.revision, url, title, loading: record.loading === true, pageText: record.pageText.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/gu, " ").slice(0, MAX_TEXT), controls, ...(tree !== undefined ? { accessibilityTree } : {}), tabs, screenshot };
+    const snapshot: BrowserSnapshot = { sessionId: session.id, providerId: "tabbit-personal", revision: session.revision, url, title, loading: record.loading === true, pageText: record.pageText.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/gu, " ").slice(0, MAX_TEXT), controls, ...(accessibilityTree !== undefined ? { accessibilityTree } : {}), tabs, screenshot };
     session.snapshot = snapshot;
     return structuredClone(snapshot);
   }

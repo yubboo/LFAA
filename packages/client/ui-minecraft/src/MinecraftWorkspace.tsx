@@ -75,7 +75,8 @@ const minecraftWorkspaceSnapshots = createSnapshotCache<MinecraftWorkspaceSnapsh
 const MINECRAFT_SNAPSHOT_FRESHNESS_MS = 30_000;
 const MINECRAFT_CONNECTED_RECONCILE_INTERVAL_MS = 30_000;
 const MINECRAFT_DISCONNECTED_RECONCILE_INTERVAL_MS = 10_000;
-const MINECRAFT_LOG_RECONCILE_INTERVAL_MS = 20_000;
+const MINECRAFT_LOG_CONNECTED_RECONCILE_INTERVAL_MS = 30_000;
+const MINECRAFT_LOG_DISCONNECTED_RECONCILE_INTERVAL_MS = 5_000;
 const minecraftTaskSelectionCodec = createJsonPersistenceCodec<string[]>((value): value is string[] => Array.isArray(value) && value.every((id) => typeof id === "string"));
 
 function realtimeStatusLabel(status: RealtimeConnectionStatus): string {
@@ -175,6 +176,7 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
   const [taskDetailLoading, setTaskDetailLoading] = useState(false);
   const [taskDetailError, setTaskDetailError] = useState<string | null>(null);
   const taskDetailSequence = useRef(0);
+  const taskDetailAbortController = useRef<AbortController | null>(null);
   const [realtimeStatus, setRealtimeStatus] = useState<RealtimeConnectionStatus>("connecting");
   const realtimeStatusRef = useRef(realtimeStatus);
   realtimeStatusRef.current = realtimeStatus;
@@ -190,6 +192,7 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
   const mounted = useRef(false);
   const refreshSequence = useRef(0);
   const snapshotReadInFlight = useRef(false);
+  const snapshotAbortController = useRef<AbortController | null>(null);
   const initialSnapshotReadScheduled = useRef(false);
   const lastSnapshotReadAt = useRef(cachedSnapshot ? Date.parse(cachedSnapshot.refreshedAt) : 0);
   const socketConnectedOnce = useRef(false);
@@ -272,18 +275,16 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
   const snapshotPoller = useRef<ReturnType<typeof createReadPoller> | null>(null);
   const readSnapshot = useCallback(async () => {
     const sequence = ++refreshSequence.current;
+    const controller = new AbortController();
+    snapshotAbortController.current = controller;
     snapshotReadInFlight.current = true;
     initialSnapshotReadScheduled.current = false;
     setRefreshError(null);
     const isCurrent = () => mounted.current && sequence === refreshSequence.current;
-    const overviewRequest = loadMinecraftOverview().then((value) => { if (isCurrent()) setOverview(value.overview); return value; });
-    const nodesRequest = loadMinecraftNodes().then((value) => { if (isCurrent()) { setNodes(value.nodes); setNodesLoaded(true); } return value; });
-    const javaRequest = loadMinecraftJava().then((value) => { if (isCurrent()) { setJavaNodes(value.nodes); setJavaNodesLoaded(true); } return value; });
-    const instancesRequest = loadMinecraftInstances().then((value) => { if (isCurrent()) setInstances(value.instances); return value; });
-    const tasksRequest = loadMinecraftTasks().then((value) => { if (isCurrent()) { setTasks(value.tasks); setTasksLoaded(true); } return value; });
-    const deploymentsRequest = loadMinecraftDeployments().then((value) => { if (isCurrent()) { setDeployments(value.deployments); setDeploymentsLoaded(true); } return value; });
+    const overviewRequest = loadMinecraftOverview(controller.signal).then((value) => { if (isCurrent()) setOverview(value.overview); return value; });
+    const nodesRequest = loadMinecraftNodes(controller.signal).then((value) => { if (isCurrent()) { setNodes(value.nodes); setNodesLoaded(true); } return value; });
+    const instancesRequest = loadMinecraftInstances(controller.signal).then((value) => { if (isCurrent()) setInstances(value.instances); return value; });
     const criticalRequests = Promise.allSettled([overviewRequest, nodesRequest, instancesRequest]);
-    const allRequests = Promise.allSettled([overviewRequest, nodesRequest, javaRequest, instancesRequest, tasksRequest, deploymentsRequest]);
     let contentReady = false;
     const markContentReady = () => {
       if (!isCurrent()) return;
@@ -294,13 +295,17 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
         onContentReady(true);
       }
     };
-    void criticalRequests.then((results) => {
-      if (!isCurrent()) return;
-      const failure = results.find((result) => result.status === "rejected");
-      if (failure?.status === "rejected") setRefreshError(getErrorMessage(failure.reason));
-      markContentReady();
-    });
     try {
+      const criticalResults = await criticalRequests;
+      if (!isCurrent()) return;
+      const criticalFailure = criticalResults.find((result) => result.status === "rejected");
+      if (criticalFailure?.status === "rejected") setRefreshError(getErrorMessage(criticalFailure.reason));
+      markContentReady();
+
+      const javaRequest = loadMinecraftJava(controller.signal).then((value) => { if (isCurrent()) { setJavaNodes(value.nodes); setJavaNodesLoaded(true); } return value; });
+      const tasksRequest = loadMinecraftTasks(controller.signal).then((value) => { if (isCurrent()) { setTasks(value.tasks); setTasksLoaded(true); } return value; });
+      const deploymentsRequest = loadMinecraftDeployments(controller.signal).then((value) => { if (isCurrent()) { setDeployments(value.deployments); setDeploymentsLoaded(true); } return value; });
+      const allRequests = Promise.allSettled([overviewRequest, nodesRequest, javaRequest, instancesRequest, tasksRequest, deploymentsRequest]);
       const results = await allRequests;
       if (!isCurrent()) return;
       const failures = results.flatMap((result) => result.status === "rejected" ? [getErrorMessage(result.reason)] : []);
@@ -323,9 +328,9 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
           lastSnapshotReadAt.current = Date.now();
         }
       }
-      markContentReady();
     } finally {
       snapshotReadInFlight.current = false;
+      if (snapshotAbortController.current === controller) snapshotAbortController.current = null;
     }
   }, [onContentReady, snapshotKey]);
   const refresh = useCallback(() => snapshotPoller.current?.refresh() ?? Promise.resolve(), []);
@@ -351,6 +356,8 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
     return () => {
       mounted.current = false;
       refreshSequence.current += 1;
+      snapshotAbortController.current?.abort();
+      snapshotAbortController.current = null;
       poller.stop();
       if (snapshotPoller.current === poller) snapshotPoller.current = null;
     };
@@ -373,7 +380,12 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
       if (logTarget.current.view === "logs") readLogsRef.current?.();
     };
     const onDisconnect = () => {
-      if (alive) { const status = socket.active ? "reconnecting" : "disconnected"; realtimeStatusRef.current = status; setRealtimeStatus(status); }
+      if (alive) {
+        const status = socket.active ? "reconnecting" : "disconnected";
+        realtimeStatusRef.current = status;
+        setRealtimeStatus(status);
+        if (logTarget.current.view === "logs") readLogsRef.current?.();
+      }
     };
     const onConnectError = () => {
       if (alive) { const status = socket.active ? "reconnecting" : "disconnected"; realtimeStatusRef.current = status; setRealtimeStatus(status); }
@@ -420,17 +432,20 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
     }
     let alive = true;
     let initialReadPending = true;
+    const controller = new AbortController();
     setLogsLoaded(false);
-    const readLogs = () => loadMinecraftInstanceLogs(selectedInstanceId).then((result) => { if (alive) setLogs(result.logs); }).catch((error: unknown) => { if (alive) setActionError(getErrorMessage(error)); }).finally(() => {
+    const readLogs = () => loadMinecraftInstanceLogs(selectedInstanceId, controller.signal).then((result) => { if (alive) setLogs(result.logs); }).catch((error: unknown) => { if (alive) setActionError(getErrorMessage(error)); }).finally(() => {
       if (alive && initialReadPending) {
         initialReadPending = false;
         setLogsLoaded(true);
       }
     });
-    const poller = createReadPoller(readLogs, MINECRAFT_LOG_RECONCILE_INTERVAL_MS);
+    const poller = createReadPoller(readLogs, () => realtimeStatusRef.current === "connected"
+      ? MINECRAFT_LOG_CONNECTED_RECONCILE_INTERVAL_MS
+      : MINECRAFT_LOG_DISCONNECTED_RECONCILE_INTERVAL_MS);
     const trigger = () => { void poller.refresh(); };
     readLogsRef.current = trigger;
-    return () => { alive = false; if (readLogsRef.current === trigger) readLogsRef.current = null; poller.stop(); };
+    return () => { alive = false; controller.abort(); if (readLogsRef.current === trigger) readLogsRef.current = null; poller.stop(); };
   }, [detailView, selectedInstanceId]);
 
   useEffect(() => {
@@ -454,19 +469,29 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
     }
   }, [onNavigate, refresh]);
 
+  useEffect(() => () => {
+    taskDetailSequence.current += 1;
+    taskDetailAbortController.current?.abort();
+    taskDetailAbortController.current = null;
+  }, []);
+
   const openTaskDetails = useCallback(async (taskId: string) => {
     const sequence = ++taskDetailSequence.current;
+    taskDetailAbortController.current?.abort();
+    const controller = new AbortController();
+    taskDetailAbortController.current = controller;
     setTaskDetailId(taskId);
     setTaskDetails(null);
     setTaskDetailError(null);
     setTaskDetailLoading(true);
     try {
-      const details = await loadMinecraftTaskDetails(taskId);
+      const details = await loadMinecraftTaskDetails(taskId, controller.signal);
       if (taskDetailSequence.current === sequence) setTaskDetails(details);
     } catch (error) {
       if (taskDetailSequence.current === sequence) setTaskDetailError(getErrorMessage(error));
     } finally {
       if (taskDetailSequence.current === sequence) setTaskDetailLoading(false);
+      if (taskDetailAbortController.current === controller) taskDetailAbortController.current = null;
     }
   }, []);
 
@@ -633,7 +658,7 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
         </Card> : null}
         {detailView === "logs" ? <div className="minecraft-console-layout">
           <Card className="minecraft-card minecraft-logs-card">
-            <div className="minecraft-card-heading"><div><Typography.Title level={4}>服务器控制台</Typography.Title><Typography.Text type="secondary">日志通过 Socket.IO 与 20 秒只读对账更新；发送指令后以服务端日志确认执行效果。</Typography.Text></div><Tag>{logs.length} 条</Tag></div>
+            <div className="minecraft-card-heading"><div><Typography.Title level={4}>服务器控制台</Typography.Title><Typography.Text type="secondary">日志由 Socket.IO 实时推送；在线每 30 秒、断连每 5 秒核对一次，发送指令后以服务端日志确认执行效果。</Typography.Text></div><Tag>{logs.length} 条</Tag></div>
             <div ref={logsScroll.ref} onScroll={logsScroll.onScroll} className="minecraft-log-list" role="log" aria-live="polite">{logs.length ? logs.map((entry) => <p key={entry.id}><time>{timeLabel(entry.createdAt)}</time><span className={`is-${entry.stream}`}>{entry.stream === "stderr" ? "错误" : "输出"}</span><code>{entry.line}</code></p>) : <div className="minecraft-empty">{logsLoaded ? "Daemon 尚未回传日志。" : "正在读取实例日志…"}</div>}</div>
             <div className="minecraft-console-command">
               <Input aria-label="Minecraft 控制台命令" value={consoleCommand} maxLength={1024} placeholder="输入服务器指令，例如 list" disabled={!canOperate || selectedInstance.nodeStatus !== "online" || selectedInstance.state !== "running" || busy} onChange={event => setConsoleCommand(event.target.value)} />

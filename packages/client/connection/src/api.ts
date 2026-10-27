@@ -626,8 +626,8 @@ export interface AiHostTask {
   result?: { stdout: string; stderr: string; exitCode: number | null; timedOut: boolean; outputTruncated: boolean } | null;
   cancelRequested?: boolean;
 }
-export function loadAiHostTasks(): Promise<{ tasks: AiHostTask[] }> { return request("/ai/host-tasks"); }
-export function loadAiHostTask(taskId: string): Promise<{ task: AiHostTask }> { return request(`/ai/host-tasks/${encodeURIComponent(taskId)}`); }
+export function loadAiHostTasks(signal?: AbortSignal): Promise<{ tasks: AiHostTask[] }> { return request("/ai/host-tasks", signal ? { signal } : {}); }
+export function loadAiHostTask(taskId: string, signal?: AbortSignal): Promise<{ task: AiHostTask }> { return request(`/ai/host-tasks/${encodeURIComponent(taskId)}`, signal ? { signal } : {}); }
 export function cancelAiHostTask(taskId: string): Promise<{ task: AiHostTask }> { return request(`/ai/host-tasks/${encodeURIComponent(taskId)}/cancel`, { method: "POST" }); }
 
 export type { TerminalInfo } from "lfaa-api-terminal-controller/src/protocol.js";
@@ -1920,16 +1920,16 @@ export function createSteamcmdTask(input: { nodeId: string; kind: "install" | "v
   return request("/steamcmd/tasks", { method: "POST", body: JSON.stringify(input) });
 }
 
-export function loadSteamcmdTask(taskId: string): Promise<{ task: SteamcmdTask }> {
-  return request(`/steamcmd/tasks/${encodeURIComponent(taskId)}`);
+export function loadSteamcmdTask(taskId: string, signal?: AbortSignal): Promise<{ task: SteamcmdTask }> {
+  return request(`/steamcmd/tasks/${encodeURIComponent(taskId)}`, signal ? { signal } : {});
 }
 
-export function loadMinecraftOverview(): Promise<{ overview: { latestRelease: string | null; node: MinecraftNode | null; instanceCount: number; runningCount: number; activeTaskCount: number } }> {
-  return request("/minecraft/overview");
+export function loadMinecraftOverview(signal?: AbortSignal): Promise<{ overview: { latestRelease: string | null; node: MinecraftNode | null; instanceCount: number; runningCount: number; activeTaskCount: number } }> {
+  return request("/minecraft/overview", signal ? { signal } : {});
 }
 
-export function loadMinecraftNodes(): Promise<{ nodes: MinecraftNode[] }> {
-  return request("/minecraft/nodes");
+export function loadMinecraftNodes(signal?: AbortSignal): Promise<{ nodes: MinecraftNode[] }> {
+  return request("/minecraft/nodes", signal ? { signal } : {});
 }
 
 export function loadMinecraftReleases(): Promise<{ catalog: MinecraftCatalog }> {
@@ -2239,28 +2239,28 @@ export function provisionMinecraftServer(input: { nodeId: string; name: string; 
   return request("/minecraft/provision", { method: "POST", body: JSON.stringify(input) });
 }
 
-export function loadMinecraftJava(): Promise<{ nodes: Array<{ nodeId: string; nodeName: string; nodeStatus: string; runtimes: MinecraftNode["javaRuntimes"] }> }> {
-  return request("/minecraft/java");
+export function loadMinecraftJava(signal?: AbortSignal): Promise<{ nodes: Array<{ nodeId: string; nodeName: string; nodeStatus: string; runtimes: MinecraftNode["javaRuntimes"] }> }> {
+  return request("/minecraft/java", signal ? { signal } : {});
 }
 
-export function loadMinecraftInstances(): Promise<{ instances: MinecraftInstance[] }> {
-  return request("/minecraft/instances");
+export function loadMinecraftInstances(signal?: AbortSignal): Promise<{ instances: MinecraftInstance[] }> {
+  return request("/minecraft/instances", signal ? { signal } : {});
 }
 
-export function loadMinecraftDeployments(): Promise<{ deployments: MinecraftDeployment[] }> {
-  return request("/minecraft/deployments");
+export function loadMinecraftDeployments(signal?: AbortSignal): Promise<{ deployments: MinecraftDeployment[] }> {
+  return request("/minecraft/deployments", signal ? { signal } : {});
 }
 
-export function loadMinecraftInstanceLogs(instanceId: string): Promise<{ logs: MinecraftLog[] }> {
-  return request(`/minecraft/instances/${encodeURIComponent(instanceId)}/logs`);
+export function loadMinecraftInstanceLogs(instanceId: string, signal?: AbortSignal): Promise<{ logs: MinecraftLog[] }> {
+  return request(`/minecraft/instances/${encodeURIComponent(instanceId)}/logs`, signal ? { signal } : {});
 }
 
-export function loadMinecraftTasks(): Promise<{ tasks: MinecraftTask[] }> {
-  return request("/minecraft/tasks");
+export function loadMinecraftTasks(signal?: AbortSignal): Promise<{ tasks: MinecraftTask[] }> {
+  return request("/minecraft/tasks", signal ? { signal } : {});
 }
 
-export function loadMinecraftTaskDetails(taskId: string): Promise<MinecraftTaskDetails> {
-  return request(`/minecraft/tasks/${encodeURIComponent(taskId)}`);
+export function loadMinecraftTaskDetails(taskId: string, signal?: AbortSignal): Promise<MinecraftTaskDetails> {
+  return request(`/minecraft/tasks/${encodeURIComponent(taskId)}`, signal ? { signal } : {});
 }
 
 export function deleteMinecraftTaskRecords(taskIds: string[]): Promise<{ deletedCount: number }> {

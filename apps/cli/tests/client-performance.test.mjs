@@ -705,6 +705,9 @@ test("终端同值任务快照不触发更新，输出、取消及任务切换�
 test("终端只在任务切换或任务仍活动时读取详情，空闲列表降低轮询频率", () => {
   const source = readFileSync(new URL("../../../packages/client/ui-workspace/src/TaskTerminal.tsx", import.meta.url), "utf8");
   assert.match(source, /const detailNeedsRefresh = id && \(cachedTask\?\.id !== id[\s\S]*listedTask\?\.status \?\? ""\)\)/u);
-  assert.match(source, /if \(id && detailNeedsRefresh\) \{\s*const detail = await loadAiHostTask\(id\)/u);
-  assert.match(source, /createReadPoller\(refresh, \(\) => tasksRef\.current\.some\(task => \["queued", "running"\]\.includes\(task\.status\)\) \? 3000 : 15000\)/u);
+  assert.match(source, /if \(id && detailNeedsRefresh\) \{\s*const detail = await loadAiHostTask\(id, controller\.signal\)/u);
+  assert.match(source, /createReadPoller\(refresh, \(\) => tasksRef\.current\.some\(task => \["queued", "running"\]\.includes\(task\.status\)\) \? 3000 : 5000\)/u);
+  assert.match(source, /loadAiHostTasks\(controller\.signal\)/u);
+  assert.match(source, /loadAiHostTask\(id, controller\.signal\)/u);
+  assert.match(source, /controller\.abort\(\); poller\.stop\(\)/u);
 });

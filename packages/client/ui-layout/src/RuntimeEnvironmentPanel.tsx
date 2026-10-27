@@ -73,7 +73,7 @@ export function RuntimeEnvironmentPanel({overview,targetId,setTargetId,canOperat
   const javaPickerFiles=javaPickerEntries.filter(javaExecutableEntry);
   useEffect(()=>()=>{javaPickerRequest.current+=1;javaPickerAbort.current?.abort();},[]);
   useEffect(()=>{if(!canBrowseLocalFiles||targetId!=="local")closeJavaPicker();},[canBrowseLocalFiles,targetId]);
-  useEffect(()=>{if(!steamTask||!["queued","running"].includes(steamTask.status))return;let active=true;const poller=createReadPoller(async()=>{try{const value=await loadSteamcmdTask(steamTask.id);if(active)setSteamTask(value.task);if(!["queued","running"].includes(value.task.status))poller.stop();}catch(reason){if(active)setError(getErrorMessage(reason));}},3000);return()=>{active=false;poller.stop();};},[steamTask?.id]);
+  useEffect(()=>{if(!steamTask||!["queued","running"].includes(steamTask.status))return;let active=true;const controller=new AbortController();const poller=createReadPoller(async()=>{try{const value=await loadSteamcmdTask(steamTask.id,controller.signal);if(active)setSteamTask(value.task);if(!["queued","running"].includes(value.task.status))poller.stop();}catch(reason){if(active)setError(getErrorMessage(reason));}},3000);return()=>{active=false;controller.abort();poller.stop();};},[steamTask?.id]);
   useEffect(()=>{
     if(category!=="steamcmd"||explicitTarget||targetId!=="local"||!overview||steamAutoTargeted.current)return;
     steamAutoTargeted.current=true;

@@ -80,10 +80,11 @@ export function SteamcmdWorkspace({ user, onNavigate }: { user: User; onNavigate
   useEffect(() => {
     if (!task || !["queued", "running"].includes(task.status)) return;
     let active = true;
+    const controller = new AbortController();
     let poller: ReturnType<typeof createReadPoller> | undefined;
     const read = async () => {
       try {
-        const value = await loadSteamcmdTask(task.id);
+        const value = await loadSteamcmdTask(task.id, controller.signal);
         if (!active) return;
         setTask(value.task);
         if (!["queued", "running"].includes(value.task.status)) {
@@ -93,7 +94,7 @@ export function SteamcmdWorkspace({ user, onNavigate }: { user: User; onNavigate
       } catch (reason) { if (active) setError(getErrorMessage(reason)); }
     };
     poller = createReadPoller(read, 3000);
-    return () => { active = false; poller?.stop(); };
+    return () => { active = false; controller.abort(); poller?.stop(); };
   }, [task?.id, user.id]);
 
   const submitForm = async (event: FormEvent<HTMLFormElement>) => {

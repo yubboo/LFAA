@@ -24,9 +24,10 @@ function TaskOutput({ onClose, onInteractive }: { onClose: () => void; onInterac
   currentRef.current = current;
   useEffect(() => {
     let alive = true;
+    const controller = new AbortController();
     const refresh = async () => {
       try {
-        const result = await loadAiHostTasks(); if (!alive) return;
+        const result = await loadAiHostTasks(controller.signal); if (!alive) return;
         tasksRef.current = result.tasks;
         setTasks(current => current.length === result.tasks.length && current.every((task, index) => sameTerminalTask(task, result.tasks[index]!)) ? current : result.tasks);
         const id = selectedId ?? result.tasks[0]?.id;
@@ -36,14 +37,14 @@ function TaskOutput({ onClose, onInteractive }: { onClose: () => void; onInterac
           || Boolean(cachedTask && ["queued", "running"].includes(cachedTask.status))
           || ["queued", "running"].includes(listedTask?.status ?? ""));
         if (id && detailNeedsRefresh) {
-          const detail = await loadAiHostTask(id);
+          const detail = await loadAiHostTask(id, controller.signal);
           if (alive) { currentRef.current = detail.task; setCurrent(current => sameTerminalTask(current, detail.task) ? current : detail.task); }
         } else if (!id) { currentRef.current = null; setCurrent(null); }
         if (alive) setError("");
       } catch (error) { if (alive) setError(getErrorMessage(error)); }
     };
-    const poller = createReadPoller(refresh, () => tasksRef.current.some(task => ["queued", "running"].includes(task.status)) ? 3000 : 15000);
-    return () => { alive = false; poller.stop(); };
+    const poller = createReadPoller(refresh, () => tasksRef.current.some(task => ["queued", "running"].includes(task.status)) ? 3000 : 5000);
+    return () => { alive = false; controller.abort(); poller.stop(); };
   }, [selectedId]);
   const options = useMemo(() => tasks.map(task => ({ value: task.id, label: `${task.shell} · ${task.status} · ${task.id.slice(0, 8)}` })), [tasks]);
   const output = useMemo(() => current ? `${current.message}\n${current.result ? `退出码：${current.result.exitCode ?? "未知"}${current.result.timedOut ? " · 已超时" : ""}${current.result.outputTruncated ? " · 输出已截断" : ""}\n${current.result.stdout}${current.result.stderr ? `\n${current.result.stderr}` : ""}` : current.status === "succeeded" || current.status === "failed" ? "输出保留期已结束或结果缺失。" : "任务尚未回传输出。"}` : "", [current]);

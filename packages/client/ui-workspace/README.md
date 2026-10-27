@@ -32,7 +32,7 @@ Git“变更”工作区以紧凑工具条和按文件排列的真实差异列�
 
 构建输出位于仓库根 `dist/packages/client/ui-workspace/`。
 
-工作区终端可切换真实交互式会话和 Agent 任务输出；交互页选择已连接的本机/远程 Daemon，使用 xterm 处理输入、ANSI、中文、尺寸变化和 Ctrl+C。沿用 `general.integratedShell/taskFolder/terminalPosition/showBottomPanelControl`、统一权限模式及工作台主题、代码字体/字号、强调色、壁纸/遮罩/模糊和减少动态效果。容器 ResizeObserver 合并一帧内的缩放，输入与缩放分别串行发送；绘制容量 512 Ki 字符、历史 2000 行，超限失败关闭。卸载关闭会话并撤销 SSE、观察器与动画帧；任务输出页面活动任务每 3 秒对账、空闲时每 15 秒对账，只有选中任务变化或任务活动期间读取详情。
+工作区终端可切换真实交互式会话和 Agent 任务输出；交互页选择已连接的本机/远程 Daemon，使用 xterm 处理输入、ANSI、中文、尺寸变化和 Ctrl+C。沿用 `general.integratedShell/taskFolder/terminalPosition/showBottomPanelControl`、统一权限模式及工作台主题、代码字体/字号、强调色、壁纸/遮罩/模糊和减少动态效果。容器 ResizeObserver 合并一帧内的缩放，输入与缩放分别串行发送；绘制容量 512 Ki 字符、历史 2000 行，超限失败关闭。卸载关闭会话并撤销 SSE、观察器与动画帧；任务输出页面活动任务每 3 秒对账、空闲时每 5 秒对账，只有选中任务变化或任务活动期间读取详情。
 
 AI Work 的聊天始终留在中心工作区。顶栏 Git 菜单打开项目摘要悬浮卡：当前会话绑定的仓库置于主卡，账户下其他已登记项目文件夹逐行显示各自的真实 Git 状态和增删统计；“变更”入口联动打开对应仓库的右侧 Git 管理面板，不替换聊天或输入区。摘要下方“输出内容”和“来源”只汇总当前会话活动记录里的真实新建/修改与读取文件，超过首屏数量时可展开“查看全部”；通用附件未接入时不伪造来源。Agent Git 管理器管理多个完整本机项目仓库，并随 Agent 会话绑定；不要求用户手工添加仓库，也不依赖 Daemon 节点。默认工作区启用本地 Git 版本管理；用户项目在 Agent 首次获准实际创建或写入文件时自动初始化，Git init 与本次文件操作共用 Permission Owner 授权。状态、变更统计、差异、文本查看/编辑、暂存、提交历史与分支操作都基于真实仓库根。本地执行由 Agent Git Controller、Permission Owner 与 LFAA Host 负责。分支前缀读取账户 `git.branchPrefix`，Appearance 继续使用工作台共享主题。HTTPS remote 支持 fetch、干净工作区快进 pull、当前分支 push 和发布分支；凭据按账户加密保存。SSH 同步与 PR 写入未接入。Agent 的可选 Daemon 项目仍只表示节点任务目标。
 

@@ -63,9 +63,13 @@ export function boundBrowserAccessibilityTree(value: unknown): BrowserAccessibil
       const placeholder = text(raw.placeholder);
       if (placeholder) node.placeholder = SENSITIVE_NAME.test(placeholder) ? "受保护的敏感字段" : placeholder;
     }
-    for (const key of ["checked", "disabled", "expanded", "active", "invalid", "pressed", "selected"] as const) {
+    for (const key of ["checked", "pressed"] as const) {
       const flag = raw[key];
-      if (typeof flag === "boolean" || (key === "checked" || key === "pressed") && flag === "mixed") node[key] = flag;
+      if (typeof flag === "boolean" || flag === "mixed") node[key] = flag;
+    }
+    for (const key of ["disabled", "expanded", "active", "invalid", "selected"] as const) {
+      const flag = raw[key];
+      if (typeof flag === "boolean") node[key] = flag;
     }
     if (typeof raw.level === "number" && Number.isSafeInteger(raw.level) && raw.level >= 0 && raw.level <= 100) node.level = raw.level;
     if (Array.isArray(raw.children)) {

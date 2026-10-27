@@ -1250,7 +1250,7 @@ export class BrowserSessionManager {
     const normalizedText = pageText.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/gu, " ").slice(0, MAX_PAGE_TEXT);
     const boundedTree = accessibilityTree === undefined ? undefined : accessibilityTree;
     const accessibilityTreeWithinLimit = boundedTree && JSON.stringify(boundedTree).length > MAX_ACCESSIBILITY_TREE_CHARS ? null : boundedTree;
-    return { sessionId: session.id, providerId: session.providerId, revision: session.revision, url: page.url().slice(0, 2048), title: title.slice(0, 300), loading: documentState.loading, pageText: normalizedText, controls, ...(boundedTree !== undefined ? { accessibilityTree: accessibilityTreeWithinLimit } : {}), tabs, viewport: documentState.viewport, screenshot };
+    return { sessionId: session.id, providerId: session.providerId, revision: session.revision, url: page.url().slice(0, 2048), title: title.slice(0, 300), loading: documentState.loading, pageText: normalizedText, controls, ...(accessibilityTreeWithinLimit !== undefined ? { accessibilityTree: accessibilityTreeWithinLimit } : {}), tabs, viewport: documentState.viewport, screenshot };
   }
 
   private async captureScreenshot(page: Page, hasRenderableContent: boolean): Promise<BrowserSnapshot["screenshot"]> {

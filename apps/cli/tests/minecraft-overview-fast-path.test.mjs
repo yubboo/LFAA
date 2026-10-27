@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 
 const workspaceSource = readFileSync(new URL("../../../packages/client/ui-minecraft/src/MinecraftWorkspace.tsx", import.meta.url), "utf8");
 const deploymentSource = readFileSync(new URL("../../../packages/client/ui-minecraft/src/MinecraftDeploymentPanel.tsx", import.meta.url), "utf8");
+const connectionSource = readFileSync(new URL("../../../packages/client/connection/src/api.ts", import.meta.url), "utf8");
 
 test("Minecraft 再次进入按账户先恢复最近完整快照", () => {
   assert.match(workspaceSource, /const snapshotKey = `\$\{userId\}\\u001f\$\{role\}`/u);
@@ -22,7 +23,16 @@ test("Minecraft 再次进入按账户先恢复最近完整快照", () => {
   assert.match(workspaceSource, /snapshotAgeMs >= MINECRAFT_SNAPSHOT_FRESHNESS_MS/u);
   assert.match(workspaceSource, /lastSnapshotReadAt\.current = Date\.now\(\)/u);
   assert.match(workspaceSource, /const criticalRequests = Promise\.allSettled\(\[overviewRequest, nodesRequest, instancesRequest\]\)/u);
-  assert.match(workspaceSource, /MINECRAFT_LOG_RECONCILE_INTERVAL_MS = 20_000/u);
+  assert.match(workspaceSource, /loadMinecraftOverview\(controller\.signal\)/u);
+  assert.match(workspaceSource, /snapshotAbortController\.current\?\.abort\(\)/u);
+  assert.match(workspaceSource, /controller\.abort\(\); if \(readLogsRef\.current === trigger\)/u);
+  assert.match(workspaceSource, /loadMinecraftTaskDetails\(taskId, controller\.signal\)/u);
+  assert.match(connectionSource, /loadMinecraftTaskDetails\(taskId: string, signal\?: AbortSignal\)/u);
+  assert.match(connectionSource, /loadMinecraftOverview\(signal\?: AbortSignal\)[\s\S]*request\("\/minecraft\/overview", signal \? \{ signal \} : \{\}\)/u);
+  assert.match(connectionSource, /loadMinecraftInstanceLogs\(instanceId: string, signal\?: AbortSignal\)/u);
+  assert.match(workspaceSource, /MINECRAFT_LOG_CONNECTED_RECONCILE_INTERVAL_MS = 30_000/u);
+  assert.match(workspaceSource, /MINECRAFT_LOG_DISCONNECTED_RECONCILE_INTERVAL_MS = 5_000/u);
+  assert.ok(workspaceSource.indexOf("const criticalResults = await criticalRequests") < workspaceSource.indexOf("const javaRequest = loadMinecraftJava("), "关键三路状态显示后再请求 Java、任务和部署辅助数据");
   assert.doesNotMatch(workspaceSource, /loadMinecraftReleases\(/u, "普通总览不能请求 Mojang 官方目录");
   assert.match(deploymentSource, /coreCatalogCache\.get\(userId\)/u);
   assert.match(deploymentSource, /coreCatalogCache\.set\(userId,value\)/u);
