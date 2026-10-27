@@ -148,7 +148,12 @@ export async function listMinecraftCores(): Promise<{ cores: MinecraftCoreSummar
     const previous = cores.findIndex(core => core.name === "Paper");
     if (previous >= 0) cores.splice(previous, 1);
     cores.push(results[2].value);
-  } else errors.push("PaperMC 官方版本目录暂不可用。");
+  } else {
+    // Paper 部署只接受 PaperMC 官方版本/构建；镜像目录里的 Paper 会造成后续必然失败的选项。
+    const mirrorPaper = cores.findIndex(core => core.name === "Paper");
+    if (mirrorPaper >= 0) cores.splice(mirrorPaper, 1);
+    errors.push("PaperMC 官方版本目录暂不可用。");
+  }
   return { cores, errors };
 }
 async function requireCoreVersion(core: string, version: string): Promise<MinecraftCoreSummary> {

@@ -54,7 +54,7 @@ export function MinecraftDeploymentPanel({ userId,onPrepareWithAi,nodes, instanc
   const draft=useRef(draftCache.get(userId)).current;
   const cachedCoreCatalog=useRef(coreCatalogCache.get(userId)??null).current;
   const [cores, setCores] = useState<MinecraftCore[]>(()=>cachedCoreCatalog?.cores??[]), [sourceErrors, setSourceErrors] = useState<string[]>(()=>cachedCoreCatalog?.errors??[]);
-  const [catalogLoading, setCatalogLoading] = useState(()=>cachedCoreCatalog===null), [reload, setReload] = useState(0);
+  const [catalogLoading, setCatalogLoading] = useState(true), [reload, setReload] = useState(0);
   const [core, setCore] = useState(draft?.core??settings.minecraftRuntime.minecraftDefaultCore), [version, setVersion] = useState(draft?.version??""), [build, setBuild] = useState("");
   const [category, setCategory] = useState<MinecraftCore["category"] | "">(""), [coreSearch, setCoreSearch] = useState(""), [visibleVersionCount, setVisibleVersionCount] = useState(24);
   const [packageAvailable, setPackageAvailable] = useState(false), [buildLoading, setBuildLoading] = useState(false);
@@ -104,13 +104,23 @@ export function MinecraftDeploymentPanel({ userId,onPrepareWithAi,nodes, instanc
     previousDefaults.current = settings.minecraftRuntime;
   }, [settings.minecraftRuntime]);
   useEffect(() => {
-    if(reload===0&&cachedCoreCatalog)return;
     let alive = true; setCatalogLoading(true);
     const controller=new AbortController();
-    loadMinecraftCores(controller.signal).then(value => { if (alive) { coreCatalogCache.set(userId,value); setCores(value.cores); setSourceErrors(value.errors); } }).catch(reason => { if (alive&&!controller.signal.aborted) setSourceErrors([getErrorMessage(reason)]); }).finally(() => { if (alive) setCatalogLoading(false); });
+    loadMinecraftCores(controller.signal).then(value => { if (alive) { coreCatalogCache.set(userId,value); setCores(value.cores); setSourceErrors(value.errors); } }).catch(reason => { if (alive&&!controller.signal.aborted) { const message=getErrorMessage(reason); const unavailable={cores:[],errors:[message]}; coreCatalogCache.set(userId,unavailable); setCores([]); setSourceErrors(unavailable.errors); } }).finally(() => { if (alive) setCatalogLoading(false); });
     return () => { alive = false; controller.abort(); };
-  }, [cachedCoreCatalog, reload, userId]);
-  useEffect(() => { if(versions.length)setVersion(current => versions.includes(current) ? current : versions[0] ?? ""); }, [core, versions]);
+  }, [reload, userId]);
+  useEffect(() => {
+    if (catalogLoading) return;
+    if (!selectedCore) {
+      if (core) setCore("");
+      if (version) setVersion("");
+      setBuild("");
+      setPackageAvailable(false);
+      return;
+    }
+    if (versions.length) setVersion(current => versions.includes(current) ? current : versions[0] ?? "");
+    else if (version) setVersion("");
+  }, [catalogLoading, core, selectedCore, version, versions]);
   useEffect(() => { setVisibleVersionCount(24); }, [core]);
   useEffect(() => { setBackendId(""); }, [core]);
   const soleNodeId = eligible.length === 1 ? eligible[0]!.id : "";
@@ -126,7 +136,7 @@ export function MinecraftDeploymentPanel({ userId,onPrepareWithAi,nodes, instanc
   useEffect(() => {
     const sequence = ++buildSequence.current;
     setPackageAvailable(false); setBuild(""); setError("");
-    if (!version) { setBuildLoading(false); return; }
+    if (catalogLoading || !selectedCore || !version) { setBuildLoading(false); return; }
     const cacheKey=`${userId}\u001f${core}\u001f${version}`;
     const cached=coreBuildCache.get(cacheKey);
     if(cached&&refreshBuildKey.current!==cacheKey){const preferredArtifact=cached.builds[0];setBuild(preferredArtifact?.id??"");setPackageAvailable(Boolean(preferredArtifact?.id));setBuildLoading(false);return()=>{buildSequence.current++;};}
@@ -135,7 +145,7 @@ export function MinecraftDeploymentPanel({ userId,onPrepareWithAi,nodes, instanc
     setBuildLoading(true);
     loadMinecraftCoreBuilds(core, version, 0, controller.signal).then(value => { if (sequence === buildSequence.current) { coreBuildCache.set(cacheKey,value); const preferredArtifact = value.builds[0]; setBuild(preferredArtifact?.id ?? ""); setPackageAvailable(Boolean(preferredArtifact?.id)); } }).catch(reason => { if (!controller.signal.aborted&&sequence === buildSequence.current) setError(getErrorMessage(reason)); }).finally(() => { if (sequence === buildSequence.current) setBuildLoading(false); });
     return () => { buildSequence.current++; controller.abort(); };
-  }, [core, version, reload, userId]);
+  }, [catalogLoading, core, selectedCore, version, reload, userId]);
   const changeCore = (value: string) => {
     const next = cores.find(c => c.name === value);
     if (!next) return;

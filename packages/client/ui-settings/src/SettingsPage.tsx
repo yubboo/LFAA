@@ -2701,7 +2701,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
       && (!model.planTiers?.length || account.options.planTier === "unknown" || !account.options.planTier || model.planTiers.includes(account.options.planTier as NonNullable<AiModel["planTiers"]>[number])));
     const planCapabilityModels = account.models.filter(model => model.taskType && model.taskType !== "chat"
       && (!model.planTiers?.length || account.options.planTier === "unknown" || !account.options.planTier || model.planTiers.includes(account.options.planTier as NonNullable<AiModel["planTiers"]>[number])));
-    return <article className={`ai-account-item${account.active ? " is-active" : ""}`} key={account.id}>
+    return <article id={`settings-ai-account-${account.id}`} className={`ai-account-item${account.active ? " is-active" : ""}`} key={account.id}>
       <div className="ai-account-item__header"><div><strong>{account.displayName}</strong><span>{provider?.name ?? account.providerId} · {account.scope === "user" ? "个人席位" : "系统模型"} · {account.active ? "当前模型" : "已保存"}</span></div><Tag color={account.active ? "green" : account.scope === "user" ? "blue" : "default"}>{account.active ? "当前使用" : account.scope === "user" ? "我的席位" : "系统账户"}</Tag></div>
       {isManualAccount ? <>
         <label className="settings-field"><span>套餐文本模型</span><div className="ai-plan-model-editor"><Select showSearch optionFilterProp="label" value={availablePlanModels.some(model => model.id === draftModel) ? draftModel : account.modelId} options={availablePlanModels.map(model => ({ value: model.id, label: `${model.name} · ${model.id}` }))} disabled={!canManageAccount || aiBusy !== null} onChange={value => setPlanModelDrafts(current => ({ ...current, [account.id]: value }))} /><Button disabled={!canManageAccount || aiBusy !== null || !draftModel.trim() || draftModel.trim() === account.modelId} loading={aiBusy === `model:${account.id}`} onClick={() => void selectAccountModel(account, draftModel.trim())}>测试并切换</Button></div></label>
@@ -2716,7 +2716,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           : <p className="ai-thinking-note">模型目录未提供可校验的思考力度参数；请求跟随模型自身默认行为。</p>}
       {canManageAccount ? <div className="ai-account-item__actions">
         {!account.active ? <Button size="small" type="primary" disabled={aiBusy !== null} onClick={() => void runAccountAction(account, "activate")}>设为当前模型</Button> : null}
-        <Button size="small" disabled={aiBusy !== null} onClick={() => openCredentialUpdate(account)}>更新密钥</Button>
+        <Button size="small" disabled={aiBusy !== null} onClick={() => openCredentialUpdate(account)}>更换密钥</Button>
         <Button size="small" disabled={aiBusy !== null} loading={aiBusy === `refresh:${account.id}`} onClick={() => void runAccountAction(account, "refresh")}>更新目录</Button>
         <Button size="small" disabled={aiBusy !== null || !accountModel} title="向当前模型发起真实请求，可能产生 Provider 用量" loading={aiBusy === `retest:${account.id}`} onClick={() => void runAccountAction(account, "retest")}>重测模型</Button>
         <Popconfirm title={account.scope === "user" ? "删除我的套餐席位？" : "删除这个系统模型？"} description={account.scope === "user" ? "删除后，当前账户将不再使用这个套餐席位。" : "删除后，所有登录账户都无法再使用这份系统配置。"} okText="删除" cancelText="取消" onConfirm={() => void runAccountAction(account, "delete")}><Button danger size="small" disabled={aiBusy !== null}>删除</Button></Popconfirm>
@@ -3262,12 +3262,19 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
             const providerScope = provider.scope ?? "system";
             const providerAccounts = accounts.filter((account) => account.providerId === provider.id && (providerScope === "user" ? account.scope === "user" : account.scope !== "user"));
             const activeAccount = providerAccounts.find((account) => account.active);
+            const providerAccountTarget = activeAccount ?? providerAccounts[0];
             const isEffective = Boolean(activeAccount && (providerScope === "user" || !personalPlanAccounts.some((account) => account.active)));
             const canConfigure = canAdmin || providerScope === "user";
-            return <button className={`ai-provider-card${isEffective ? " is-active" : ""}`} key={provider.id} type="button" disabled={!canConfigure} onClick={() => openProviderConfiguration(provider)}>
+            return <button className={`ai-provider-card${isEffective ? " is-active" : ""}`} key={provider.id} type="button" disabled={!canConfigure} title={providerAccountTarget ? "查看下方已保存的模型配置" : "添加服务商配置"} onClick={() => {
+              if (providerAccountTarget) {
+                document.getElementById(`settings-ai-account-${providerAccountTarget.id}`)?.scrollIntoView({ block: "center" });
+                return;
+              }
+              openProviderConfiguration(provider);
+            }}>
               <span className={`ai-provider-card__brand is-${provider.id}`} aria-hidden="true">{provider.name.slice(0, 2)}</span>
-              <span className="ai-provider-card__body"><strong>{provider.name}</strong><span>{provider.description}</span><small>{activeAccount ? `${isEffective ? "当前生效" : "系统默认 · 个人套餐优先"} · ${activeAccount.modelId}` : providerAccounts.length ? `${providerScope === "user" ? "我的账户" : "系统已保存"} ${providerAccounts.length} 项` : providerScope === "user" ? "为当前登录账户配置个人席位" : canAdmin ? "点击配置系统模型" : "尚未配置，由管理员添加"}</small></span>
-              <Tag color={isEffective ? "green" : activeAccount ? "blue" : undefined}>{isEffective ? "当前使用" : activeAccount ? "系统默认" : providerAccounts.length ? "已配置" : "未配置"}</Tag>
+              <span className="ai-provider-card__body"><strong>{provider.name}</strong><span>{provider.description}</span><small>{activeAccount ? `${isEffective ? "当前生效" : "系统默认 · 个人套餐优先"} · ${activeAccount.modelId}` : providerAccounts.length ? `${providerScope === "user" ? "我的账户" : "系统已保存"} ${providerAccounts.length} 项` : providerScope === "user" ? "为当前登录账户配置个人席位" : canAdmin ? "点击配置系统模型" : "尚未配置，由管理员添加"}</small><span className="ai-provider-card__action">{providerAccountTarget ? "查看已保存配置" : "添加配置"}</span></span>
+              <Tag className="ai-provider-card__status" color={isEffective ? "green" : activeAccount ? "blue" : undefined}>{isEffective ? "当前使用" : activeAccount ? "系统默认" : providerAccounts.length ? "已配置" : "未配置"}</Tag>
             </button>;
           })}</div> : <div className="settings-empty"><strong>正在读取服务商目录</strong><span>服务商列表由控制端提供。</span></div>}
         </SettingGroup>
@@ -3353,11 +3360,11 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
                 <span><strong>官方模型目录</strong><small>{probe ? `已读取 ${probe.models.length} 个模型` : !secret.trim() ? `请先填写 ${providerSecretLabel}` : "尚未拉取"}</small></span>
                 <Button loading={aiBusy === "probe"} disabled={aiBusy !== null} title={!secret.trim() ? `请先填写 ${providerSecretLabel} 后再拉取模型` : undefined} onClick={() => void runProbe()}>拉取模型</Button>
               </div>
-              {probe ? <Alert className="settings-ai-result" type="success" showIcon message={probe.message} description="此步骤只读取模型目录；请选择具体模型后，再发起真实对话测试。" /> : null}
+              {probe ? <Alert className="settings-ai-result" type="success" showIcon message={`模型目录读取成功 · ${probe.models.length} 个模型`} description="此结果只证明 Provider 模型目录可读取，不代表模型请求已通过；请选择具体模型后，再发起真实对话测试。" /> : null}
               {probe?.models.length ? <>
-                <label className="settings-field"><span>模型</span><Select value={selectedModel || undefined} placeholder="选择官方目录中的模型" options={probe.models.map((model) => aiModelSelectOption(providerId, model))} onChange={(nextModel) => { setSelectedModel(nextModel); setReasoningMode(defaultReasoningMode(probe.models.find((model) => model.id === nextModel))); setModelTest(null); }} showSearch optionFilterProp="title" /></label>
+                <label className="settings-field"><span>模型</span><Select value={selectedModel || undefined} placeholder="选择官方目录中的模型" options={probe.models.map((model) => aiModelSelectOption(providerId, model))} onChange={(nextModel) => { setSelectedModel(nextModel); setReasoningMode(defaultReasoningMode(probe.models.find((model) => model.id === nextModel))); setModelTest(null); setError(""); }} showSearch optionFilterProp="title" /></label>
                 {selectedModelDetails ? <p className="settings-field-help">{modelParameterSummary(selectedModelDetails)}</p> : null}
-                {selectedModelReasoningOptions.length ? <label className="settings-field"><span>{selectedModelDetails?.thinking?.kind === "effort" ? "思考力度" : "思考模式"}</span><Select value={effectiveReasoningMode(selectedModelDetails, reasoningMode)} options={selectedModelReasoningOptions} disabled={aiBusy !== null} onChange={(value) => { setReasoningMode(value); setModelTest(null); }} /></label>
+                {selectedModelReasoningOptions.length ? <label className="settings-field"><span>{selectedModelDetails?.thinking?.kind === "effort" ? "思考力度" : "思考模式"}</span><Select value={effectiveReasoningMode(selectedModelDetails, reasoningMode)} options={selectedModelReasoningOptions} disabled={aiBusy !== null} onChange={(value) => { setReasoningMode(value); setModelTest(null); setError(""); }} /></label>
                   : selectedModelDetails?.thinking?.kind === "fixed" ? <p className="ai-thinking-note">{fixedThinkingLabel(selectedModelDetails)}</p>
                     : selectedModelDetails ? <p className="ai-thinking-note">此模型目录没有已验证的思考力度选项；将跟随模型自身行为，不发送思考字段。</p> : null}
                 <div className="ai-provider-test-row">

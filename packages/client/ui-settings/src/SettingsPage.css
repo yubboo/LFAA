@@ -2072,19 +2072,23 @@
   padding: var(--settings-panel-padding);
 }
 
-/* Provider 卡片承担配置入口；每张卡片显示其真实账户和活动模型状态。 */
+/* Provider 卡片显示真实账户状态；已保存配置跳转到对应账户管理项。 */
 .ai-provider-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-3);
 }
 
 .ai-provider-card {
   display: grid;
   min-width: 0;
-  min-height: 112px;
-  grid-template-columns: 46px minmax(0, 1fr) auto;
-  align-items: center;
+  min-height: 154px;
+  grid-template-areas:
+    "brand status"
+    "body body";
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
+  align-items: start;
   gap: var(--space-3);
   padding: var(--space-4);
   border: 1px solid var(--color-border);
@@ -2113,6 +2117,7 @@
 }
 
 .ai-provider-card__brand {
+  grid-area: brand;
   display: grid;
   width: 46px;
   height: 46px;
@@ -2157,31 +2162,53 @@
 }
 
 .ai-provider-card__body {
+  grid-area: body;
   display: grid;
   min-width: 0;
+  align-content: start;
   gap: var(--space-1);
 }
 
-.ai-provider-card__body strong,
-.ai-provider-card__body span,
-.ai-provider-card__body small {
+.ai-provider-card__status {
+  grid-area: status;
+  justify-self: end;
+  margin: 0;
+}
+
+.ai-provider-card__body > strong,
+.ai-provider-card__body > span,
+.ai-provider-card__body > small {
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.ai-provider-card__body strong {
+.ai-provider-card__body > strong {
   color: var(--color-text-heading);
   font-size: var(--font-size-base);
+  line-height: 1.3;
 }
 
-.ai-provider-card__body span {
+.ai-provider-card__body > span:not(.ai-provider-card__action) {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
+  line-height: 1.45;
 }
 
-.ai-provider-card__body small {
+.ai-provider-card__body > small {
   color: var(--color-text-secondary);
   font-size: var(--font-size-xs);
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.ai-provider-card__action {
+  color: var(--settings-accent, var(--color-brand));
+  font-size: var(--font-size-xs);
+  font-weight: 640;
+  line-height: 1.4;
 }
 
 .ai-account-list .ant-card-body {
@@ -2655,7 +2682,9 @@
   }
 
   .ai-provider-card {
-    min-height: 96px;
+    min-height: 132px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: var(--space-3);
   }
 
   .settings-content .account-user-grid {
@@ -3472,21 +3501,9 @@
     align-items: flex-start;
   }
 
-  .ai-provider-card {
-    grid-template-columns: 40px minmax(0, 1fr);
-    gap: var(--space-2) var(--space-3);
-    padding: var(--space-3);
-  }
-
   .ai-provider-card__brand {
     width: 40px;
     height: 40px;
-  }
-
-  .ai-provider-card > .ant-tag {
-    grid-column: 2;
-    grid-row: 2;
-    justify-self: start;
   }
 
   .settings-content__heading {

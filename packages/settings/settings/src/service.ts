@@ -1535,6 +1535,7 @@ async function requestAiProviderModel(input: AiProviderInput & { modelId: string
   if (!response.ok) {
     await response.body?.cancel().catch(() => undefined);
     if (response.status === 401 || response.status === 403) throw new Error("Provider 拒绝了 API Key，请检查密钥与认证方式。");
+    if (input.providerId === "deepseek" && response.status === 402) throw new Error("DeepSeek API 返回 HTTP 402（余额不足）；请检查账户余额，余额不足时充值后重试。");
     throw new Error(`模型测试返回 HTTP ${response.status}；请检查所选模型和官方请求参数。`);
   }
 

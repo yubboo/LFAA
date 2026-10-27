@@ -4,7 +4,7 @@
  * 关联文件：packages/client/ui-chat/src/AiWorkChat.tsx、packages/client/ui-chat/src/ai-work-chat.css。
  */
 import { memo, useEffect, useMemo, useRef, type ReactNode } from "react";
-import { createStreamingMarkdownCache, extendStreamingMarkdownCache, type StreamingLine, type StreamingMarkdownCache } from "./streaming-markdown.js";
+import { createStreamingMarkdownCache, extendStreamingMarkdownCache, type StreamingMarkdownCache } from "./streaming-markdown.js";
 
 interface AiMarkdownProps {
   content: string;
@@ -37,7 +37,7 @@ function isBlockStart(lines: string[], index: number): boolean {
   return /^\s*(```|#{1,6}\s|>\s?|[-*+]\s|\d+[.)]\s)/.test(line) || Boolean(lines[index + 1] && isTableSeparator(lines[index + 1]));
 }
 
-export const AiMarkdown = memo(function AiMarkdown({ content }: AiMarkdownProps) {
+function renderMarkdownBlocks(content: string): ReactNode[] {
   const lines = content.replace(/\r\n?/g, "\n").split("\n");
   const blocks: ReactNode[] = [];
   let index = 0;
@@ -117,32 +117,29 @@ export const AiMarkdown = memo(function AiMarkdown({ content }: AiMarkdownProps)
     blocks.push(<p key={`block-${blocks.length}`}>{paragraph.map((part, partIndex) => <span key={`line-${partIndex}`}>{partIndex ? <br /> : null}{renderInlineMarkdown(part, `paragraph-${blocks.length}-${partIndex}`)}</span>)}</p>);
   }
 
-  return <div className="ai-work-chat__markdown _markdown_lfaa_wallpaper">{blocks}</div>;
+  return blocks;
+}
+
+export const AiMarkdown = memo(function AiMarkdown({ content }: AiMarkdownProps) {
+  return <div className="ai-work-chat__markdown _markdown_lfaa_wallpaper">{renderMarkdownBlocks(content)}</div>;
 });
 
-const StreamingInlineLine = memo(function StreamingInlineLine({ line, keyPrefix, literal, newline }: { line: string; keyPrefix: string; literal: boolean; newline: boolean }) {
-  return <span>{literal ? line : renderInlineMarkdown(line, keyPrefix)}{newline ? "\n" : null}</span>;
+const StreamingMarkdownBlock = memo(function StreamingMarkdownBlock({ content }: AiMarkdownProps) {
+  return <>{renderMarkdownBlocks(content)}</>;
 });
 
-const StreamingLineChunk = memo(function StreamingLineChunk({ lines }: { lines: StreamingLine[] }) {
-  return <>{lines.map(line => <StreamingInlineLine
-    key={`line-${line.index}`}
-    line={line.text}
-    keyPrefix={`stream-${line.index}`}
-    literal={line.literal}
-    newline
-  />)}</>;
+const StreamingMarkdownChunk = memo(function StreamingMarkdownChunk({ blocks }: { blocks: StreamingMarkdownCache["chunks"][number] }) {
+  return <>{blocks.map(block => <StreamingMarkdownBlock key={`block-${block.index}`} content={block.content} />)}</>;
 });
 
-/** 流式时仅解析新到达的文本；已闭合行分块复用，保持段落、列表和代码块结构稳定。 */
+/** 流式阶段与完成态共用 Markdown 解析和样式；已完成块复用，只重解析当前增长块。 */
 export const AiStreamingMarkdown = memo(function AiStreamingMarkdown({ content }: AiMarkdownProps) {
   const committedCacheRef = useRef<StreamingMarkdownCache>(createStreamingMarkdownCache());
   const cache = useMemo(() => extendStreamingMarkdownCache(committedCacheRef.current, content), [content]);
   useEffect(() => { committedCacheRef.current = cache; }, [cache]);
-  const showPendingLine = cache.started || Boolean(cache.pendingLine.trim());
-  return <div className="ai-work-chat__markdown ai-work-chat__streaming-text _markdown_lfaa_wallpaper">
-    {cache.chunks.map((lines, index) => <StreamingLineChunk key={`chunk-${index}`} lines={lines} />)}
-    {/* 正在增长的行先按纯文本显示，闭合换行后再解析行内语法，避免每个增量重复跑 Markdown 正则。 */}
-    {showPendingLine ? <StreamingInlineLine key={`line-${cache.lineCount}-active`} line={cache.pendingLine} keyPrefix={`stream-${cache.lineCount}`} literal={cache.inCodeFence || !cache.pendingMayContainInlineSyntax} newline={false} /> : null}
+  const activeBlock = [...cache.pendingBlockLines, cache.pendingLine].join("\n");
+  return <div className="ai-work-chat__markdown _markdown_lfaa_wallpaper">
+    {cache.chunks.map((blocks, index) => <StreamingMarkdownChunk key={`chunk-${index}`} blocks={blocks} />)}
+    {activeBlock ? <StreamingMarkdownBlock key={`active-${cache.blockCount}`} content={activeBlock} /> : null}
   </div>;
 });

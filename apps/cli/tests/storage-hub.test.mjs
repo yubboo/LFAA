@@ -66,7 +66,7 @@ test("JSON 与 SQLite 后端按布局持久化、校验版本并随插件卸载"
       const { sessionRecords } = await import('lfaa-session-persistence-jsonl/src/repository.js');
       const { retireLegacyFileTables } = await import('lfaa-storage-domain/src/migration.js');
       retireLegacyFileTables();
-      assert.equal(database.prepare('PRAGMA user_version').get().user_version, 72);
+      assert.equal(database.prepare('PRAGMA user_version').get().user_version, 73);
       const hub = context.lfaaStorageHub;
       assert.deepEqual(hub.backend.names(), ['json', 'sqlite']);
 

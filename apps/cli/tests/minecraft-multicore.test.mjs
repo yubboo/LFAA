@@ -27,9 +27,13 @@ const userId = randomUUID(), nodeId = randomUUID();
 database.prepare("INSERT INTO users(id,username,password_salt,password_hash,role) VALUES(?,?,'fixture-salt','fixture-hash','admin')").run(userId, `fixture-${userId}`);
 recordDaemonHeartbeat({ id: nodeId, displayName: '隔离测试节点', platform: 'win32', architecture: 'x64', version: 'fixture', dataRoot: data, capabilities: ['minecraft-vanilla', 'minecraft-native-v1', 'minecraft-multicore-v1','java-environment-manager-v1'], javaRuntimes: [] });
 const originalFetch = globalThis.fetch;
+let paperSourceAvailable = true;
 globalThis.fetch = async input => {
   const url = String(input);
-  if (url === 'https://fill.papermc.io/v3/projects/paper') return Response.json({versions:{fixture:['fixture-version','1.12.2']}});
+  if (url === 'https://fill.papermc.io/v3/projects/paper') {
+    if (!paperSourceAvailable) throw new Error('fixture: PaperMC unavailable');
+    return Response.json({versions:{fixture:['fixture-version','1.12.2']}});
+  }
   if (url.endsWith('/paper/versions/1.12.2')) return Response.json({version:{id:'1.12.2',java:{version:{minimum:8}}}});
   if (url.endsWith('/paper/versions/1.12.2/builds/1620')) return Response.json({id:1620,channel:'STABLE',downloads:{'server:default':{name:'paper.jar',url:'https://fill-data.papermc.io/v1/objects/fixture/paper.jar',checksums:{sha256:'a'.repeat(64)}}}});
   if (url.endsWith('/paper/versions/fixture-version')) return Response.json({version:{id:'fixture-version',java:{version:{minimum:21}}}});
@@ -51,6 +55,12 @@ test('核心 Owner 明确区分插件、模组、混合、代理和基岩兼容�
     assert.ok(profile.serverType, `${core} 有服务端类型`);
     assert.ok(profile.compatibleContent.length, `${core} 有兼容内容说明`);
   }
+  paperSourceAvailable = false;
+  const unavailablePaper = await listMinecraftCores();
+  assert.equal(unavailablePaper.cores.some(core => core.name === 'Paper'), false, 'PaperMC 不可用时不展示只能从镜像取得、后续不能查询官方构建的 Paper 版本');
+  assert.ok(unavailablePaper.cores.some(core => core.name === 'SpongeNeo'), '其他可用来源的核心仍然展示');
+  assert.ok(unavailablePaper.errors.some(error => error.includes('PaperMC 官方版本目录')), '保留 PaperMC 来源不可用提示');
+  paperSourceAvailable = true;
   const catalog = await listMinecraftCores();
   const paper = catalog.cores.find(core => core.name === 'Paper');
   const spongeNeo = catalog.cores.find(core => core.name === 'SpongeNeo');

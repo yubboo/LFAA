@@ -59,6 +59,26 @@ test("正文与操作组、确认记录交错，最终答案保持为独立的�
   });
 });
 
+test("相邻 Provider 正文分段合并后再流式解析 Markdown", () => {
+  const content = "说明文字\n\n> 正在引用\n\n```bash\necho ready\n";
+  const quoteCut = content.indexOf("> 正在引用") + 1;
+  const fenceCut = content.indexOf("bash") + 2;
+  const message = {
+    id: "split-markdown-run", role: "assistant", status: "streaming", createdAt: "2026-10-27T00:00:00Z",
+    content, activity: [], parts: [
+      { id: "reply-1", start: 0, end: quoteCut, kind: "commentary" },
+      { id: "reply-2", start: quoteCut, end: fenceCut, kind: "commentary" },
+      { id: "reply-3", start: fenceCut, end: content.length, kind: "commentary" }
+    ]
+  };
+  const result = buildResponseTimeline(message);
+
+  assert.equal(result.blocks.length, 1);
+  assert.equal(result.blocks[0].kind, "text");
+  assert.equal(result.blocks[0].content, content);
+  assert.equal(result.blocks[0].streaming, true);
+});
+
 test("流式正文、工具与交互按落点留在同条回复，完成后追加最终答案", () => {
   // 独立进程使用 Web 的正式 JSX 编译配置，不为产品注入全局 React 或测试路由。
   const render = (message, showInteractions = true) => execFileSync(process.execPath, ["--import", "tsx", "--import", "./register-package-loader.mjs", "--input-type=module", "-e", `
@@ -130,8 +150,8 @@ test("流式正文、工具与交互按落点留在同条回复，完成后追�
   leadingBlankLines.content = "\n\n首段正文\n\n后续段";
   leadingBlankLines.parts = [{ id: "leading-blank-lines", start: 0, end: leadingBlankLines.content.length, kind: "commentary" }];
   const leadingBlankMarkup = render(leadingBlankLines);
-  assert.match(leadingBlankMarkup, /class="ai-work-chat__markdown ai-work-chat__streaming-text[^"]*"><span>首段正文\n<\/span><span>\n<\/span><span>后续段<\/span><\/div>/u,
-    "开头空行不再撑出空白高度，正文内部的空行仍保留");
+  assert.match(leadingBlankMarkup, /class="ai-work-chat__markdown[^"]*"><p><span>首段正文<\/span><\/p><p><span>后续段<\/span><\/p><\/div>/u,
+    "开头空行不撑高回复，正文空行形成自然分段");
   assert.match(running, /<strong>已经完成。<\/strong>/u);
   assert.doesNotMatch(running, /\*\*已经完成。\*\*/u);
   assert.equal([...running.matchAll(/已经完成。/gu)].length, 1);

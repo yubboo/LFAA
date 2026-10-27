@@ -101,7 +101,13 @@ export function buildResponseTimeline(message: AiMessage, liveStatus?: ResponseT
     const { block } = entry;
     if (block.kind === "text") {
       if (entry.fullContent && !message.content) return;
-      blocks.push({ ...block, content: entry.fullContent ? message.content : message.content.slice(entry.textRange!.start, entry.textRange!.end) });
+      const content = entry.fullContent ? message.content : message.content.slice(entry.textRange!.start, entry.textRange!.end);
+      const previous = blocks.at(-1);
+      if (previous?.kind === "text") {
+        // Markdown 语法可以跨模型请求分段；没有活动记录隔开时，按一段连续正文渲染。
+        previous.content += content;
+        previous.streaming ||= block.streaming;
+      } else blocks.push({ ...block, content });
       return;
     }
     if (block.kind !== "activity") { blocks.push(block); return; }

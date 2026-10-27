@@ -238,7 +238,6 @@ body[data-we-wallpaper] .workbench-shell .ai-work-chat {
 .ai-work-chat__message-meta .ant-tag { margin: 0; line-height: 18px; }
 .ai-work-chat__message-content { color: var(--color-text-heading); font-family: var(--settings-content-font, var(--settings-interface-font, var(--font-family-sans))); font-size: var(--settings-interface-font-size, var(--font-size-base)); line-height: 1.8; overflow-wrap: anywhere; }
 .ai-work-chat__message--user .ai-work-chat__message-content { line-height: 1.7; white-space: pre-wrap; }
-.ai-work-chat__streaming-text { white-space: pre-wrap; overflow-wrap: anywhere; }
 .ai-work-chat__message-actions { display: flex; min-height: 28px; align-items: center; gap: 2px; color: var(--color-text-subtle); font-size: var(--font-size-xs); }
 .ai-work-chat__message-actions--user { justify-content: flex-end; margin: 3px -8px -7px 0; }
 .ai-work-chat__message-actions--assistant { justify-content: flex-start; margin-top: 7px; }

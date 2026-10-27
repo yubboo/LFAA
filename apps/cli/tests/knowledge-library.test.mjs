@@ -34,7 +34,7 @@ test("资料库迁移、账户/App 隔离、检索质量基线、显式保存和
       const { sessionRecords } = await import('lfaa-session-persistence-jsonl/src/repository.js');
       const { retireLegacyFileTables } = await import('lfaa-storage-domain/src/migration.js');
       retireLegacyFileTables();
-      assert.equal(Number(database.prepare('PRAGMA user_version').get().user_version), 72);
+      assert.equal(Number(database.prepare('PRAGMA user_version').get().user_version), 73);
       database.prepare("INSERT INTO users(id,uid,username,password_salt,password_hash,role,is_super_admin) VALUES ('knowledge-owner',8201,'knowledge-owner','salt','hash','member',0),('knowledge-other',8202,'knowledge-other','salt','hash','member',0)").run();
       database.prepare("INSERT INTO daemon_nodes(id,display_name,platform,architecture,daemon_version,status,last_seen_at) VALUES ('knowledge-node','资料测试节点','win32','x64','test','offline','2026-10-04T00:00:00Z')").run();
       configuration.begin();

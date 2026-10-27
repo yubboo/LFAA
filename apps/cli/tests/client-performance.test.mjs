@@ -200,12 +200,17 @@ test("AI Work共享秒表只通知耗时订阅者，并在最后一个工作区�
   unsubscribeLabels[0]();
 });
 
-test("AI Work 分段流式正文使用稳定纯文本，终态 Markdown 保留且无光标", () => {
+test("AI Work 流式正文使用共享 Markdown 渲染，终态与流式输出均无光标", () => {
   const response = readFileSync(new URL("../../../packages/client/ui-chat/src/AiWorkResponse.tsx", import.meta.url), "utf8");
   const styles = readFileSync(new URL("../../../packages/client/ui-chat/src/ai-work-chat.css", import.meta.url), "utf8");
+  const markdown = readFileSync(new URL("../../../packages/client/ui-chat/src/AiMarkdown.tsx", import.meta.url), "utf8");
   assert.match(response, /const ResponseText = memo/u);
   assert.ok(response.includes("streaming ? <AiStreamingMarkdown content={content} /> : <AiMarkdown content={content} />"));
-  assert.match(readFileSync(new URL("../../../packages/client/ui-chat/src/AiMarkdown.tsx", import.meta.url), "utf8"), /AiStreamingMarkdown/u);
+  assert.match(markdown, /renderMarkdownBlocks\(content\)/u);
+  assert.match(markdown, /const StreamingMarkdownBlock = memo/u);
+  assert.match(markdown, /已完成块复用，只重解析当前增长块/u);
+  assert.doesNotMatch(markdown, /StreamingInlineLine|pendingMayContainInlineSyntax/u);
+  assert.doesNotMatch(styles, /ai-work-chat__streaming-text/u);
   assert.doesNotMatch(styles, /ai-work-chat__message-content--streaming[^\n]*::after/u);
 });
 

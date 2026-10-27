@@ -43,7 +43,7 @@ test("完整 Web Profile 经真实认证提交、断线和读取后台任务", (
         const {database}=await import('lfaa-storage-sqlite/src/database.js');
         database.prepare("INSERT INTO users(id,uid,username,password_salt,password_hash,role) VALUES('other-fixture',2,'other-fixture','test','test','member')").run();
         const conversationMemory=await import('lfaa-conversation-memory/src/index.js');
-        assert.equal(Number(database.prepare('PRAGMA user_version').get().user_version),72);
+        assert.equal(Number(database.prepare('PRAGMA user_version').get().user_version),73);
         assert.deepEqual(conversationMemory.getConversationMemorySnapshot(user.id),{memories:[],revision:0});
         assert.equal(conversationMemory.replaceConversationMemories('other-fixture',['另一账户的偏好'],0),true);
         database.prepare("INSERT INTO daemon_nodes(id,display_name,platform,architecture,daemon_version,status,last_seen_at) VALUES('fixture-node','测试节点','win32','x64','test','offline','2026-09-30T00:00:00Z')").run();

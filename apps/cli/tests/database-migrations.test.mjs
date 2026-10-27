@@ -368,7 +368,7 @@ test("版本 27 写作作品迁移后保留内容并归入第一卷，重复启�
   }
 });
 
-test("版本 61 数据库依次迁移旧控制表、Skill 安装、ChatGPT 式本机项目、项目 App 关联及外观素材文件名到 72", () => {
+test("版本 61 数据库依次迁移旧控制表、Skill 安装、ChatGPT 式本机项目、项目 App 关联及外观素材文件名到 73", () => {
   const dataDirectory = mkdtempSync(join(resolve(tmpdir()), "lfaa-db-v63-agent-usage-"));
   try {
     const databaseDirectory = join(dataDirectory, "database");
@@ -433,7 +433,7 @@ test("版本 61 数据库依次迁移旧控制表、Skill 安装、ChatGPT 式�
     const databasePath = join(dataDirectory, "database", "lfaa.sqlite");
     const database = new DatabaseSync(databasePath, { readOnly: true });
     try {
-      assert.equal(Number(database.prepare("PRAGMA user_version").get().user_version), 72);
+      assert.equal(Number(database.prepare("PRAGMA user_version").get().user_version), 73);
       assert.ok(database.prepare("PRAGMA table_info(appearance_backgrounds)").all().some(column => column.name === "storage_filename"));
       assert.ok(database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = 'appearance_backgrounds_user_storage_filename_idx'").get());
       const projectColumns = database.prepare("PRAGMA table_info(workspace_projects)").all().map(column => column.name);
@@ -482,7 +482,7 @@ test("版本 61 数据库依次迁移旧控制表、Skill 安装、ChatGPT 式�
     runDatabaseStartup(dataDirectory);
     const restartedDatabase = new DatabaseSync(databasePath, { readOnly: true });
     try {
-      assert.equal(Number(restartedDatabase.prepare("PRAGMA user_version").get().user_version), 72);
+      assert.equal(Number(restartedDatabase.prepare("PRAGMA user_version").get().user_version), 73);
       assert.equal(Number(restartedDatabase.prepare("SELECT COUNT(*) AS count FROM workspace_project_sources WHERE project_id = 'legacy-local-project'").get().count), 1);
       assert.equal(Number(restartedDatabase.prepare("SELECT COUNT(*) AS count FROM steamcmd_servers").get().count), 1);
       assert.equal(restartedDatabase.prepare("SELECT name FROM steamcmd_servers WHERE id = 'legacy-steam-server'").get().name, "旧服务端");
@@ -492,6 +492,79 @@ test("版本 61 数据库依次迁移旧控制表、Skill 安装、ChatGPT 式�
     const resolvedDataDirectory = resolve(dataDirectory);
     assert.equal(dirname(resolvedDataDirectory), resolve(tmpdir()));
     assert.ok(basename(resolvedDataDirectory).startsWith("lfaa-db-v63-agent-usage-"));
+    rmSync(resolvedDataDirectory, { recursive: true, force: true });
+  }
+});
+
+test("版本 72 项目 schema 缺口恢复保留项目与会话并可重复启动", () => {
+  const dataDirectory = mkdtempSync(join(resolve(tmpdir()), "lfaa-db-v72-project-gap-"));
+  try {
+    const databaseDirectory = join(dataDirectory, "database");
+    const databasePath = join(databaseDirectory, "lfaa.sqlite");
+    mkdirSync(databaseDirectory, { recursive: true });
+    const incompleteDatabase = new DatabaseSync(databasePath);
+    try {
+      incompleteDatabase.exec(`
+        PRAGMA foreign_keys = ON;
+        CREATE TABLE users (id TEXT PRIMARY KEY NOT NULL) STRICT;
+        CREATE TABLE workspace_projects (
+          id TEXT PRIMARY KEY NOT NULL,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          node_id TEXT,
+          path TEXT NOT NULL,
+          path_key TEXT NOT NULL,
+          title TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          app_id TEXT CHECK (app_id IN ('workspace', 'minecraft'))
+        ) STRICT;
+        CREATE UNIQUE INDEX workspace_projects_user_app_local_path_idx ON workspace_projects(user_id, app_id, path_key) WHERE app_id IS NOT NULL AND node_id IS NULL;
+        CREATE TABLE workspace_default_projects (
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          app_id TEXT NOT NULL,
+          project_id TEXT NOT NULL REFERENCES workspace_projects(id) ON DELETE CASCADE,
+          created_at TEXT NOT NULL,
+          PRIMARY KEY (user_id, app_id)
+        ) STRICT;
+        CREATE TABLE ai_sessions (id TEXT PRIMARY KEY NOT NULL, title TEXT NOT NULL) STRICT;
+        INSERT INTO users (id) VALUES ('legacy-user');
+        INSERT INTO ai_sessions (id, title) VALUES ('legacy-session', '长期迁移夹具');
+        PRAGMA user_version = 72;
+      `);
+      const projectId = "30000000-0000-4000-8000-000000000001";
+      incompleteDatabase.prepare("INSERT INTO workspace_projects (id, user_id, node_id, path, path_key, title, created_at, updated_at, app_id) VALUES (?, 'legacy-user', NULL, ?, ?, '保留项目', '2026-10-01T00:00:00.000Z', '2026-10-01T00:00:00.000Z', 'workspace')")
+        .run(projectId, "C:/legacy/project", "c:/legacy/project");
+      incompleteDatabase.prepare("INSERT INTO workspace_default_projects (user_id, app_id, project_id, created_at) VALUES ('legacy-user', 'workspace', ?, '2026-10-01T00:00:00.000Z')").run(projectId);
+    } finally { incompleteDatabase.close(); }
+
+    runDatabaseStartup(dataDirectory);
+    const recoveredDatabase = new DatabaseSync(databasePath, { readOnly: true });
+    try {
+      assert.equal(Number(recoveredDatabase.prepare("PRAGMA user_version").get().user_version), 73);
+      const project = recoveredDatabase.prepare("SELECT id, title, path, instructions, memory_mode FROM workspace_projects WHERE id = '30000000-0000-4000-8000-000000000001'").get();
+      assert.deepEqual({ ...project }, { id: "30000000-0000-4000-8000-000000000001", title: "保留项目", path: "C:/legacy/project", instructions: "", memory_mode: "default" });
+      assert.deepEqual({ ...recoveredDatabase.prepare("SELECT user_id, app_id, project_id FROM workspace_default_projects WHERE user_id = 'legacy-user' AND app_id = 'workspace'").get() }, { user_id: "legacy-user", app_id: "workspace", project_id: project.id });
+      const source = recoveredDatabase.prepare("SELECT id, path, path_key, position FROM workspace_project_sources WHERE project_id = ?").get(project.id);
+      assert.deepEqual({ path: source.path, path_key: source.path_key, position: source.position }, { path: "C:/legacy/project", path_key: "c:/legacy/project", position: 0 });
+      assert.match(source.id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu);
+      assert.ok(recoveredDatabase.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'project_conversation_memories'").get());
+      assert.equal(recoveredDatabase.prepare("SELECT title FROM ai_sessions WHERE id = 'legacy-session'").get().title, "长期迁移夹具");
+      assert.deepEqual(recoveredDatabase.prepare("PRAGMA foreign_key_check").all(), []);
+    } finally { recoveredDatabase.close(); }
+
+    runDatabaseStartup(dataDirectory);
+    const restartedDatabase = new DatabaseSync(databasePath, { readOnly: true });
+    try {
+      assert.equal(Number(restartedDatabase.prepare("PRAGMA user_version").get().user_version), 73);
+      assert.equal(Number(restartedDatabase.prepare("SELECT COUNT(*) AS count FROM workspace_project_sources WHERE project_id = '30000000-0000-4000-8000-000000000001'").get().count), 1);
+      assert.equal(Number(restartedDatabase.prepare("SELECT COUNT(*) AS count FROM workspace_default_projects WHERE user_id = 'legacy-user' AND app_id = 'workspace'").get().count), 1);
+      assert.equal(restartedDatabase.prepare("SELECT title FROM ai_sessions WHERE id = 'legacy-session'").get().title, "长期迁移夹具");
+      assert.deepEqual(restartedDatabase.prepare("PRAGMA foreign_key_check").all(), []);
+    } finally { restartedDatabase.close(); }
+  } finally {
+    const resolvedDataDirectory = resolve(dataDirectory);
+    assert.equal(dirname(resolvedDataDirectory), resolve(tmpdir()));
+    assert.ok(basename(resolvedDataDirectory).startsWith("lfaa-db-v72-project-gap-"));
     rmSync(resolvedDataDirectory, { recursive: true, force: true });
   }
 });

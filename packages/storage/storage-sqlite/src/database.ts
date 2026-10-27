@@ -26,7 +26,7 @@ function hasColumn(tableName: "ai_tool_approvals" | "ai_tool_permission_grants",
 }
 
 // 版本31由文件存储协调器在回读校验完成后提交，SQLite 保留账户、权限和任务。
-const latestSupportedDatabaseVersion = 72;
+const latestSupportedDatabaseVersion = 73;
 if (currentVersion > latestSupportedDatabaseVersion) {
   throw new Error(`数据库版本 ${currentVersion} 高于当前程序支持的版本 ${latestSupportedDatabaseVersion}（${config.databasePath}）。请使用更新版本的 LFAA；为保护数据，本程序不会自动降级数据库结构。`);
 }
@@ -2427,3 +2427,70 @@ export function migrateAppearanceBackgroundStorageNamesSchema(): void {
   }
 }
 migrateAppearanceBackgroundStorageNamesSchema();
+
+/** 版本 73：修复版本号已越过 70、但 AI Work 项目结构未完整落库的历史数据库。 */
+export function migrateWorkspaceProjectSchemaGapRecovery(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 72 || version >= 73) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    const projectTable = database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'workspace_projects'").get();
+    if (!projectTable) throw new Error("v73 项目结构恢复缺少 workspace_projects；数据库版本未推进。");
+
+    const projectColumns = new Set((database.prepare("PRAGMA table_info(workspace_projects)").all() as Array<{ name: string }>).map(column => column.name));
+    for (const required of ["id", "user_id", "node_id", "path", "path_key", "title", "created_at", "updated_at", "app_id"]) {
+      if (!projectColumns.has(required)) throw new Error(`v73 项目结构恢复发现 workspace_projects 缺少基础列 ${required}；数据库版本未推进。`);
+    }
+    if (!projectColumns.has("instructions")) {
+      database.exec("ALTER TABLE workspace_projects ADD COLUMN instructions TEXT NOT NULL DEFAULT '' CHECK (length(instructions) <= 4000);");
+    }
+    if (!projectColumns.has("memory_mode")) {
+      database.exec("ALTER TABLE workspace_projects ADD COLUMN memory_mode TEXT NOT NULL DEFAULT 'default' CHECK (memory_mode IN ('default', 'project_only'));");
+    }
+
+    const hasProjectSources = database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'workspace_project_sources'").get() !== undefined;
+    if (!hasProjectSources) {
+      database.exec(`
+        CREATE TABLE workspace_project_sources (
+          id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          project_id TEXT NOT NULL REFERENCES workspace_projects(id) ON DELETE CASCADE,
+          path TEXT NOT NULL CHECK (length(path) BETWEEN 1 AND 32760),
+          path_key TEXT NOT NULL CHECK (length(path_key) BETWEEN 1 AND 32760),
+          position INTEGER NOT NULL CHECK (position BETWEEN 0 AND 19),
+          created_at TEXT NOT NULL,
+          UNIQUE (project_id, path_key)
+        ) STRICT;
+      `);
+    }
+    database.exec("CREATE INDEX IF NOT EXISTS workspace_project_sources_user_project_idx ON workspace_project_sources(user_id, project_id, position);");
+    database.exec(`
+      INSERT INTO workspace_project_sources (id, user_id, project_id, path, path_key, position, created_at)
+        SELECT lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))), 2) || '-' || substr('89ab', (random() & 3) + 1, 1) || substr(lower(hex(randomblob(2))), 2) || '-' || lower(hex(randomblob(6))), p.user_id, p.id, p.path, p.path_key, 0, p.created_at
+        FROM workspace_projects p
+        WHERE p.app_id = 'workspace' AND p.node_id IS NULL AND length(p.path) > 0
+          AND NOT EXISTS (SELECT 1 FROM workspace_project_sources s WHERE s.project_id = p.id AND s.path_key = p.path_key);
+    `);
+
+    const hasProjectMemories = database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'project_conversation_memories'").get() !== undefined;
+    if (!hasProjectMemories) {
+      database.exec(`
+        CREATE TABLE project_conversation_memories (
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          project_id TEXT PRIMARY KEY NOT NULL REFERENCES workspace_projects(id) ON DELETE CASCADE,
+          memories_json TEXT NOT NULL CHECK (json_valid(memories_json) AND length(memories_json) <= 65536),
+          revision INTEGER NOT NULL CHECK (revision >= 1),
+          updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        ) STRICT;
+      `);
+    }
+    database.exec("CREATE INDEX IF NOT EXISTS project_conversation_memories_user_idx ON project_conversation_memories(user_id, project_id);");
+    database.exec("DROP INDEX IF EXISTS workspace_projects_user_app_local_path_idx;");
+    database.exec("PRAGMA user_version = 73;");
+    database.exec("COMMIT;");
+  } catch (error) {
+    if (database.isTransaction) database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+migrateWorkspaceProjectSchemaGapRecovery();
