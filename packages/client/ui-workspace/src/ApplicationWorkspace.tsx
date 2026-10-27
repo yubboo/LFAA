@@ -12,8 +12,8 @@ import { shouldAutoOpenGitSummary } from "./git-summary-layout.config.js";
 import { openWorkspaceProjectManager } from "lfaa-client-ui-chat/src/project-manager-events.js";
 
 import { createElement, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent as ReactFormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
-import { Alert, Button, Dropdown, Popover, Tag, Typography } from "antd";
-import { archiveAiSession, getErrorMessage, initializeDefaultWorkspace, isDesktopApp, hasAdminAccess, loadAiExtensions, loadAiSessions, loadAgentGitRepositories, ensureAgentGitSessionRepository, loadAgentGitStatus, loadBrowserRecentSites, recordBrowserRecentSites, loadWorkspaceProjects, loadWorkspaceSessionDirectoryAvailability, loadWritingWorkspace, userRoleLabel, type AgentGitRepository, type AiActivityFileChange, type AiExtension, type AiSession, type ApplicationId, type ApplicationMode, type BrowserProviderId, type BrowserRecentSite, type UserRole, type UserSettings, type WorkspaceDaemonNode, type WorkspaceGitStatus, type WorkspaceProject, type WritingWorkspace as WritingWorkspaceData } from "lfaa-client-connection/src/api.js";
+import { Alert, Button, Dropdown, Popover, Segmented, Tag, Typography } from "antd";
+import { archiveAiSession, getErrorMessage, initializeDefaultWorkspace, isDesktopApp, hasAdminAccess, loadAiExtensions, loadAiSessions, loadAgentGitRepositories, ensureAgentGitSessionRepository, loadAgentGitStatus, loadBrowserRecentSites, recordBrowserRecentSites, loadWorkspaceProjects, loadWorkspaceSessionDirectoryAvailability, loadWritingWorkspace, userRoleLabel, type AgentGitRepository, type AiActivityFileChange, type AiExtension, type AiSession, type AiWorkbenchView, type ApplicationId, type ApplicationMode, type BrowserProviderId, type BrowserRecentSite, type UserRole, type UserSettings, type WorkspaceDaemonNode, type WorkspaceGitStatus, type WorkspaceProject, type WritingWorkspace as WritingWorkspaceData } from "lfaa-client-connection/src/api.js";
 import type { AiWorkGoalRequest, AiWorkNotification, AiWorkNotificationInput } from "lfaa-client-resources/src/notification-runtime.js";
 import { hasUnreadSessionCompletionNotification } from "./session-completion-indicator.js";
 import { resolveWorkbenchLayoutMetrics, type WorkbenchLayoutMetrics } from "lfaa-client-ui-dockkit/src/workbench-layout.config.js";
@@ -44,6 +44,8 @@ import "./css/workbench-regions.css";
 const AiWorkChat = lazy(() => loadClientModule<typeof import("lfaa-client-ui-chat/src/AiWorkChat.js")>("lfaa-client-ui-chat/src/AiWorkChat.js").then((module) => ({ default: module.AiWorkChat })));
 const AiWorkSideChat = lazy(() => loadClientModule<typeof import("lfaa-client-ui-chat/src/AiWorkSideChat.js")>("lfaa-client-ui-chat/src/AiWorkSideChat.js").then((module) => ({ default: module.AiWorkSideChat })));
 const CanvasWorkspace = lazy(() => loadClientModule<typeof import("lfaa-client-ui-workspace/src/CanvasWorkspace.js")>("lfaa-client-ui-workspace/src/CanvasWorkspace.js").then(module => ({ default: module.CanvasWorkspace })));
+const MinecraftWorkflowCanvas = lazy(() => loadClientModule<typeof import("lfaa-client-ui-minecraft/src/MinecraftWorkflowCanvas.js")>("lfaa-client-ui-minecraft/src/MinecraftWorkflowCanvas.js").then(module => ({ default: module.MinecraftWorkflowCanvas })));
+const ApplicationWorkflowCanvas = lazy(() => loadClientModule<typeof import("lfaa-client-ui-workflow/src/ApplicationWorkflowCanvas.js")>("lfaa-client-ui-workflow/src/ApplicationWorkflowCanvas.js").then(module => ({ default: module.ApplicationWorkflowCanvas })));
 const BrowserPanel = lazy(() => loadClientModule<typeof import("lfaa-client-ui-sidebar-browser/src/BrowserPanel.js")>("lfaa-client-ui-sidebar-browser/src/BrowserPanel.js").then(module => ({ default: module.BrowserPanel })));
 const GitChangeSummary = lazy(() => import("./GitChangeSummary.js").then((module) => ({ default: module.GitChangeSummary })));
 const GitChangeActivityReview = lazy(() => import("./GitChangeSummary.js").then((module) => ({ default: module.GitChangeActivityReview })));
@@ -165,6 +167,8 @@ const LAYOUT_KEY = "lfaa.module-workbench.layout.v1";
 const aiExtensionSnapshots = new Map<string, AiExtension[]>();
 const aiSessionSnapshots = new Map<string, AiSession[]>();
 const workspaceProjectSnapshots = new Map<string, { projects: WorkspaceProject[]; nodes: WorkspaceDaemonNode[]; truncated: boolean; defaultProjectId?: string | null }>();
+// 项目侧栏每次按产品约定最多追加 5 条会话。
+const AI_WORK_PROJECT_SESSION_PAGE_SIZE = 5;
 const emptySessionDirectoryIds: ReadonlySet<string> = new Set();
 const initializedDefaultWorkspaceUsers = new Set<string>();
 const emptySessionFileChanges: AiActivityFileChange[] = [];
@@ -246,6 +250,8 @@ interface ApplicationSidebarProps extends Pick<ApplicationWorkspaceProps, "userI
   missingSessionDirectoryIds: ReadonlySet<string>;
   aiDraft: string;
   pinnedSessionIds: string[];
+  recentSessionsExpanded: boolean;
+  onRecentSessionsExpandedChange: (expanded: boolean) => void;
   onTogglePinnedSession: (sessionId: string) => void;
   workspaceProjects: WorkspaceProject[];
   projectLoadError: string;
@@ -264,10 +270,13 @@ interface ApplicationSidebarProps extends Pick<ApplicationWorkspaceProps, "userI
   onPreviewBlur: () => void;
 }
 
-function ApplicationSidebar({ userId, app, mode, section, gameLibrary, apps, applicationNavigationItems, layoutMode, onWritingLibraryPortalTargetChange, onNavigate, onOpenApplication, onOpenSelectedApplication, onToggleLeft, notifications, onMarkNotificationsRead, onMarkSessionNotificationsRead, onClearNotifications, onOpenNotification, sessions, missingSessionDirectoryIds, aiDraft, pinnedSessionIds, onTogglePinnedSession, workspaceProjects, projectLoadError, onRetryProjects, activeSessionId, sessionsLoading, sessionsError, providerStatus, gitSummaryOpen, gitSummaryContent, onNewSession, onSelectSession, onArchiveSession, onCloseGitSummary, onPreviewMouseLeave, onPreviewBlur }: ApplicationSidebarProps) {
+function ApplicationSidebar({ userId, app, mode, section, gameLibrary, apps, applicationNavigationItems, layoutMode, onWritingLibraryPortalTargetChange, onNavigate, onOpenApplication, onOpenSelectedApplication, onToggleLeft, notifications, onMarkNotificationsRead, onMarkSessionNotificationsRead, onClearNotifications, onOpenNotification, sessions, missingSessionDirectoryIds, aiDraft, pinnedSessionIds, recentSessionsExpanded, onRecentSessionsExpandedChange, onTogglePinnedSession, workspaceProjects, projectLoadError, onRetryProjects, activeSessionId, sessionsLoading, sessionsError, providerStatus, gitSummaryOpen, gitSummaryContent, onNewSession, onSelectSession, onArchiveSession, onCloseGitSummary, onPreviewMouseLeave, onPreviewBlur }: ApplicationSidebarProps) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [sessionMenuId, setSessionMenuId] = useState<string | null>(null);
-  const [projectsExpanded, setProjectsExpanded] = useState(true);
+  const [pinnedExpanded, setPinnedExpanded] = useState(true);
+  const [projectsExpanded, setProjectsExpanded] = useState(false);
+  const [collapsedProjectGroups, setCollapsedProjectGroups] = useState<Set<string>>(() => new Set());
+  const [projectSessionVisibleCounts, setProjectSessionVisibleCounts] = useState<Record<string, number>>({});
   useEffect(() => { setSessionMenuId(null); }, [layoutMode]);
   useEffect(() => {
     if (!sessionMenuId) return;
@@ -293,6 +302,18 @@ function ApplicationSidebar({ userId, app, mode, section, gameLibrary, apps, app
   const pinnedSessionSet = new Set(pinnedSessionIds);
   const pinnedSessions = appSessions.filter(session => pinnedSessionSet.has(session.id));
   const projectsById = new Map(workspaceProjects.map(project => [project.id, project]));
+  const pinnedProjectGroups = new Map<string, { project: WorkspaceProject | null; title: string; sessions: AiSession[] }>();
+  for (const session of pinnedSessions) {
+    const project = session.projectId ? projectsById.get(session.projectId) ?? null : null;
+    const groupKey = session.projectId ? `project:${session.projectId}` : "unassigned";
+    const group = pinnedProjectGroups.get(groupKey) ?? {
+      project,
+      title: project?.title ?? session.projectTitle ?? (session.projectId ? "已移除项目" : "未归属项目"),
+      sessions: [],
+    };
+    group.sessions.push(session);
+    pinnedProjectGroups.set(groupKey, group);
+  }
   const projectGroups = new Map<string, { project: WorkspaceProject | null; title: string; sessions: AiSession[] }>();
   if (app === "workspace") {
     for (const project of workspaceProjects) {
@@ -306,12 +327,38 @@ function ApplicationSidebar({ userId, app, mode, section, gameLibrary, apps, app
     group.sessions.push(session);
     projectGroups.set(session.projectId, group);
   }
-  const recentSessions = appSessions.filter(session => !session.projectId && !pinnedSessionSet.has(session.id));
+  const recentSessions = appSessions.filter(session => !pinnedSessionSet.has(session.id));
   const hasDraft = app === "workspace" && Boolean(aiDraft.trim());
   const sessionsScroll = useScrollRestoration(createScrollRestorationKey(userId, "module-session-list", app), !sessionsLoading);
   const nextMode: ApplicationMode = mode === "normal" ? "ai-work" : "normal";
   const nextModeLabel = nextMode === "normal" ? "应用" : "工作";
   const unreadNotifications = notifications.filter((notification) => !notification.read).length;
+  useEffect(() => {
+    const activeGroupKeys = new Set([
+      ...[...pinnedProjectGroups.keys()].map(projectId => `pinned:${projectId}`),
+      ...[...projectGroups.keys()].map(projectId => `projects:project:${projectId}`),
+    ]);
+    setCollapsedProjectGroups(current => {
+      let next: Set<string> | null = null;
+      for (const key of current) {
+        if (!activeGroupKeys.has(key)) {
+          next ??= new Set(current);
+          next.delete(key);
+        }
+      }
+      return next ?? current;
+    });
+    setProjectSessionVisibleCounts(current => {
+      let next: Record<string, number> | null = null;
+      for (const key of Object.keys(current)) {
+        if (!activeGroupKeys.has(key)) {
+          next ??= { ...current };
+          delete next[key];
+        }
+      }
+      return next ?? current;
+    });
+  }, [app, pinnedSessionIds, sessions, workspaceProjects]);
   const renderSession = (session: AiSession, nested = false) => {
     const isPinned = pinnedSessionSet.has(session.id);
     const directoryMissing = missingSessionDirectoryIds.has(session.id);
@@ -336,6 +383,43 @@ function ApplicationSidebar({ userId, app, mode, section, gameLibrary, apps, app
         </div>
       </div>
     </Dropdown>;
+  };
+  const renderProjectGroup = (groupKey: string, group: { project: WorkspaceProject | null; title: string; sessions: AiSession[] }) => {
+    const isExpanded = !collapsedProjectGroups.has(groupKey);
+    const visibleCount = projectSessionVisibleCounts[groupKey] ?? AI_WORK_PROJECT_SESSION_PAGE_SIZE;
+    const visibleSessions = group.sessions.slice(0, visibleCount);
+    const hiddenCount = group.sessions.length - visibleSessions.length;
+    const groupContentId = `module-sidebar-project-sessions-${encodeURIComponent(groupKey)}`;
+    const missingForGroup = group.sessions.length > 0 && group.sessions.every(session => missingSessionDirectoryIds.has(session.id));
+    return <section className="module-sidebar__project-group" key={groupKey}>
+      <div className="module-sidebar__project-row" onClick={event => {
+        if (event.target instanceof Element && event.target.closest("button")) return;
+        setCollapsedProjectGroups(current => {
+          const next = new Set(current);
+          if (next.has(groupKey)) next.delete(groupKey);
+          else next.add(groupKey);
+          return next;
+        });
+      }}>
+        <button className={`module-sidebar__project-heading${missingForGroup ? " is-project-directory-missing" : ""}`} type="button" aria-expanded={isExpanded} aria-controls={groupContentId} title={group.project ? `${group.title} · ${group.project.sources.map(source => source.path).join(" · ") || "尚未添加源文件夹"}` : `${group.title} · 展开或收起会话`} onClick={() => {
+          setCollapsedProjectGroups(current => {
+            const next = new Set(current);
+            if (next.has(groupKey)) next.delete(groupKey);
+            else next.add(groupKey);
+            return next;
+          });
+        }}><WorkbenchIcon name="folder" size={14} /><span>{group.title}</span><small>{group.sessions.length}</small><WorkbenchIcon name="chevron" size={13} /></button>
+        <div className="module-sidebar__project-actions">
+          {app === "workspace" && group.project?.nodeId === null ? <button className="module-sidebar__project-edit" type="button" aria-label={`编辑项目：${group.title}`} title="编辑项目" onClick={() => openWorkspaceProjectManager(group.project!.id)}><WorkbenchIcon name="dots" size={14} /></button> : null}
+          {group.project ? <button className="module-sidebar__project-new-session" type="button" aria-label={`在项目“${group.title}”中新对话`} title="在此项目中新对话" onClick={() => { onNewSession(group.project!.id); if (layoutMode === "mobile") onToggleLeft(); }}><WorkbenchIcon name="new" size={14} /></button> : null}
+        </div>
+      </div>
+      <div id={groupContentId} className="module-sidebar__project-sessions" hidden={!isExpanded}>
+        {visibleSessions.map(session => renderSession(session, true))}
+        {hiddenCount > 0 ? <button className="module-sidebar__project-more" type="button" aria-label={`展开显示${group.title}中的更多会话，剩余 ${hiddenCount} 条`} title={`每次展开 ${AI_WORK_PROJECT_SESSION_PAGE_SIZE} 个会话`} onClick={() => setProjectSessionVisibleCounts(current => ({ ...current, [groupKey]: (current[groupKey] ?? AI_WORK_PROJECT_SESSION_PAGE_SIZE) + AI_WORK_PROJECT_SESSION_PAGE_SIZE }))}>展开显示</button> : null}
+        {!group.sessions.length ? <span className="module-sidebar__session-message">此项目暂无会话</span> : null}
+      </div>
+    </section>;
   };
 
   useEffect(() => {
@@ -407,7 +491,7 @@ function ApplicationSidebar({ userId, app, mode, section, gameLibrary, apps, app
           </div>
           <div className="module-sidebar__mobile-summary-content">{gitSummaryContent}</div>
         </> : <>
-        <div className="module-sidebar__sessions-heading"><span>{apps.find(item => item.id === app)?.title ?? "当前应用"} 项目与会话</span><span className="module-sidebar__sessions-count">{appSessions.length}</span><button type="button" aria-label="新建会话" title="新建会话" onClick={() => { onNewSession(); if (layoutMode === "mobile") onToggleLeft(); }}><WorkbenchIcon name="plus" size={15} /></button></div>
+        <div className="module-sidebar__sessions-heading"><span>{apps.find(item => item.id === app)?.title ?? "当前应用"} 项目与会话</span><span className="module-sidebar__sessions-count">{appSessions.length}</span><button type="button" aria-label="新对话" title="新对话" onClick={() => { onNewSession(); if (layoutMode === "mobile") onToggleLeft(); }}><WorkbenchIcon name="plus" size={15} /><span>新对话</span></button></div>
         {sessionsError ? <p className="module-sidebar__sessions-error" role="alert">{sessionsError}</p> : null}
         {projectLoadError ? <p className="module-sidebar__sessions-error" role="alert">项目目录加载失败：{projectLoadError} <button type="button" onClick={onRetryProjects}>重试</button></p> : null}
         <div ref={sessionsScroll.ref} onScroll={sessionsScroll.onScroll} className="module-sidebar__session-list">
@@ -419,14 +503,18 @@ function ApplicationSidebar({ userId, app, mode, section, gameLibrary, apps, app
               </div>
             </section> : null}
             <section className="module-sidebar__session-category" aria-label="置顶会话">
-              <div className="module-sidebar__category-heading"><span>置顶</span><small>{pinnedSessions.length}</small></div>
-              {pinnedSessions.map(session => renderSession(session))}
-              {!pinnedSessions.length ? <span className="module-sidebar__session-message">用星标收纳常用会话</span> : null}
+              <button className="module-sidebar__category-toggle" type="button" aria-expanded={pinnedExpanded} aria-controls="module-sidebar-pinned-content" onClick={() => setPinnedExpanded(current => !current)}><span>置顶</span><small>{pinnedSessions.length}</small><WorkbenchIcon name="chevron" size={13} /></button>
+              <div id="module-sidebar-pinned-content" className="module-sidebar__category-content" hidden={!pinnedExpanded}>
+                {[...pinnedProjectGroups.entries()].map(([projectId, group]) => renderProjectGroup(`pinned:${projectId}`, group))}
+                {!pinnedSessions.length ? <span className="module-sidebar__session-message">用星标收纳常用会话</span> : null}
+              </div>
             </section>
             {projectGroups.size || app === "workspace" ? <section className="module-sidebar__session-category" aria-label="项目">
-              <div className="module-sidebar__project-toolbar">
-                <button className="module-sidebar__project-section-toggle" type="button" aria-expanded={projectsExpanded} onClick={() => setProjectsExpanded(current => !current)}><span>项目</span><WorkbenchIcon name="chevron" size={13} /></button>
-                <small>{app === "workspace" ? projectGroups.size : [...projectGroups.values()].reduce((count, group) => count + group.sessions.length, 0)}</small>
+              <div className="module-sidebar__project-toolbar" onClick={event => {
+                if (event.target instanceof Element && event.target.closest("button")) return;
+                setProjectsExpanded(current => !current);
+              }}>
+                <button className="module-sidebar__project-section-toggle" type="button" aria-expanded={projectsExpanded} onClick={() => setProjectsExpanded(current => !current)}><span>项目</span><small>{app === "workspace" ? projectGroups.size : [...projectGroups.values()].reduce((count, group) => count + group.sessions.length, 0)}</small><WorkbenchIcon name="chevron" size={13} /></button>
                 {app === "workspace" ? <>
                   <Dropdown menu={{ items: [{ key: "refresh", label: "刷新项目列表" }, { key: "create", label: "创建项目" }], onClick: ({ key }) => { if (key === "refresh") onRetryProjects(); else if (key === "create") openWorkspaceProjectManager(); } }} trigger={["click"]} placement="bottomRight" getPopupContainer={trigger => trigger.closest<HTMLElement>(".module-workbench-stage") ?? trigger.parentElement!}>
                     <button type="button" aria-label="项目更多操作" title="项目更多操作"><WorkbenchIcon name="dots" size={15} /></button>
@@ -434,25 +522,16 @@ function ApplicationSidebar({ userId, app, mode, section, gameLibrary, apps, app
                   <button type="button" aria-label="创建项目" title="创建项目" onClick={() => openWorkspaceProjectManager()}><WorkbenchIcon name="plus" size={15} /></button>
                 </> : null}
               </div>
-              {projectsExpanded ? [...projectGroups.entries()].map(([projectId, group]) => {
-                const missingForGroup = group.sessions.length > 0 && group.sessions.every(session => missingSessionDirectoryIds.has(session.id));
-                return <section className="module-sidebar__project-group" key={projectId}>
-                  <div className="module-sidebar__project-row">
-                    <button className={`module-sidebar__project-heading${missingForGroup ? " is-project-directory-missing" : ""}`} type="button" title={group.project ? `${group.title} · ${group.project.sources.map(source => source.path).join(" · ") || "尚未添加源文件夹"}` : `${group.title} 已解除项目关联；点击查看历史会话`} onClick={() => {
-                      if (group.project && !missingForGroup) onNewSession(group.project.id);
-                      else if (group.sessions[0]) onSelectSession(group.sessions[0].id);
-                      if (layoutMode === "mobile") onToggleLeft();
-                    }}><WorkbenchIcon name="folder" size={14} /><span>{group.title}</span><small>{group.sessions.length}</small></button>
-                    {app === "workspace" && group.project?.nodeId === null ? <button className="module-sidebar__project-edit" type="button" aria-label={`编辑项目：${group.title}`} title="编辑项目" onClick={() => openWorkspaceProjectManager(group.project!.id)}><WorkbenchIcon name="dots" size={14} /></button> : null}
-                  </div>
-                  {group.sessions.map(session => renderSession(session, true))}
-              </section>;
-              }) : null}
-              {projectsExpanded && !projectGroups.size && app === "workspace" ? <div className="module-sidebar__project-empty"><span>把相关聊天集中到一个项目中。</span><button type="button" onClick={() => openWorkspaceProjectManager()}>创建项目</button></div> : null}
+              <div className="module-sidebar__category-content" hidden={!projectsExpanded}>
+                {[...projectGroups.entries()].map(([projectId, group]) => renderProjectGroup(`projects:project:${projectId}`, group))}
+                {!projectGroups.size && app === "workspace" ? <div className="module-sidebar__project-empty"><span>把相关聊天集中到一个项目中。</span><button type="button" onClick={() => openWorkspaceProjectManager()}>创建项目</button></div> : null}
+              </div>
             </section> : null}
             {recentSessions.length ? <section className="module-sidebar__session-category" aria-label="最近会话">
-              <div className="module-sidebar__category-heading"><span>最近</span><small>{recentSessions.length}</small></div>
-              {recentSessions.map(session => renderSession(session))}
+              <button className="module-sidebar__category-toggle" type="button" aria-expanded={recentSessionsExpanded} aria-controls="module-sidebar-recent-content" onClick={() => onRecentSessionsExpandedChange(!recentSessionsExpanded)}><span>最近</span><small>{recentSessions.length}</small><WorkbenchIcon name="chevron" size={13} /></button>
+              <div id="module-sidebar-recent-content" className="module-sidebar__category-content" hidden={!recentSessionsExpanded}>
+                {recentSessions.map(session => renderSession(session))}
+              </div>
             </section> : null}
           </>}
           {!sessionsLoading && !appSessions.length ? <span className="module-sidebar__session-message">还没有会话</span> : null}
@@ -583,6 +662,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   const aiSessionsRequestRef = useRef<{ userId: string; controller: AbortController } | null>(null);
   const [pinnedSessionState, setPinnedSessionState] = useState(() => ({ userId, ids: readPinnedAiSessionIds(userId) }));
   const pinnedSessionIds = pinnedSessionState.userId === userId ? pinnedSessionState.ids : [];
+  const [recentSessionsExpanded, setRecentSessionsExpanded] = useState(false);
   const [workspaceProjects, setWorkspaceProjects] = useState<WorkspaceProject[]>(() => workspaceProjectSnapshots.get(`${userId}:${app}`)?.projects ?? []);
   const workspaceProjectDirectorySignature = useMemo(() => {
     const sessionProjectIds = new Set(sessionDirectoryBindings.map(([, projectId]) => projectId));
@@ -671,6 +751,8 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   const [gitRepositoryChangeError, setGitRepositoryChangeError] = useState("");
   const [fileReviewRequest, setFileReviewRequest] = useState<{ projectId: string; path: string; sourceId?: string; requestId: number } | null>(null);
   const [aiProviderStatus, setAiProviderStatus] = useState<string | null>(null);
+  const [agentCanvasContext, setAgentCanvasContext] = useState<{ canvas: AiWorkbenchView["canvas"]; workflow: AiWorkbenchView["workflow"] }>({ canvas: undefined, workflow: undefined });
+  const [canvasAgentChange, setCanvasAgentChange] = useState<{ revision: number; projectId: string | null }>({ revision: 0, projectId: null });
   const [newAiSessionKey, setNewAiSessionKey] = useState(0);
   const [newAiSessionProjectId, setNewAiSessionProjectId] = useState<string | null>(null);
   const [writingWorkspace, setWritingWorkspace] = useState<WritingWorkspaceData | null>(null);
@@ -774,10 +856,14 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   const terminalPanelAvailable = app !== "writing";
   const activeAiSessionTitle = aiSessions.find((session) => session.id === activeAiSessionId)?.title ?? null;
   const activeAiSession = aiSessions.find((session) => session.id === activeAiSessionId) ?? null;
+  const chatAppId = canvasWorkspace?.applicationId ?? (app === "workspace" ? activeAiSession?.appId ?? "workspace" : app);
+  const activeChatSession = activeAiSession && ((app === "workspace" && !canvasWorkspace) || activeAiSession.appId === chatAppId) ? activeAiSession : null;
+  const activeChatSessionId = activeChatSession?.id ?? null;
+  const activeChatSessionTitle = activeChatSession?.title ?? (canvasWorkspace ? applicationNavigationItems.find(item => item.applicationId === canvasWorkspace.applicationId)?.title ?? "小鱼智能体" : "小鱼智能体");
   const missingSessionDirectoryIds = missingSessionDirectoryState.key === `${userId}:${app}:${workspaceProjectsRevision}:${sessionDirectorySignature}:${workspaceProjectDirectorySignature}`
     ? missingSessionDirectoryState.ids
     : emptySessionDirectoryIds;
-  const activeAiSessionProjectDirectoryMissing = Boolean(activeAiSessionId && missingSessionDirectoryIds.has(activeAiSessionId));
+  const activeChatSessionDirectoryMissing = Boolean(activeChatSessionId && missingSessionDirectoryIds.has(activeChatSessionId));
   const gitManagerAvailable = mode === "ai-work";
   const activeSessionGitRepositoryId = activeAiSessionId && sessionGitBinding.sessionId === activeAiSessionId ? sessionGitBinding.repositoryId : null;
   const selectedAgentGitRepositoryId = gitManagerRepositoryState.userId === userId && gitManagerRepositoryState.repositoryId
@@ -1535,6 +1621,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
       leftCollapsed: false,
       ...(metrics.mode !== "desktop" ? { rightCollapsed: true } : {}),
     }));
+    setRecentSessionsExpanded(true);
     if (mode === "ai-work") refreshAiSessions();
     else void openApplication("workspace", "ai-work").catch(() => undefined);
   }, [metrics.mode, mode, openApplication, refreshAiSessions]);
@@ -1799,6 +1886,8 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
     missingSessionDirectoryIds,
     aiDraft,
     pinnedSessionIds,
+    recentSessionsExpanded,
+    onRecentSessionsExpandedChange: setRecentSessionsExpanded,
     onTogglePinnedSession: togglePinnedSession,
     workspaceProjects,
     projectLoadError: workspaceProjectsError,
@@ -1839,13 +1928,34 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
                 ? activeRightPanelSection === "context" && activeBrowserUrl ? "browser" : "new-tab"
                 : "application-tools";
   const agentBrowserUrl = activeAgentRightPane === "browser" ? activeBrowserUrl : undefined;
+  const onCanvasProjectContextChange = useCallback((project: AiWorkbenchView["canvas"] | null) => {
+    setAgentCanvasContext(current => {
+      const previous = current.canvas;
+      if (previous?.applicationId === project?.applicationId && previous?.projectId === project?.projectId && previous?.title === project?.title && previous?.updatedAt === project?.updatedAt) return current;
+      return { ...current, canvas: project ?? undefined };
+    });
+  }, []);
+  const onWorkflowContextChange = useCallback((workflow: AiWorkbenchView["workflow"] | null) => {
+    setAgentCanvasContext(current => {
+      const previous = current.workflow;
+      if (previous?.applicationId === workflow?.applicationId && previous?.workflowId === workflow?.workflowId && previous?.title === workflow?.title && previous?.updatedAt === workflow?.updatedAt) return current;
+      return { ...current, workflow: workflow ?? undefined };
+    });
+  }, []);
+  const onCanvasToolsCompleted = useCallback((projectId?: string) => {
+    if (!canvasWorkspace) return;
+    const activeProjectId = projectId ?? (agentCanvasContext.canvas?.applicationId === canvasWorkspace.applicationId ? agentCanvasContext.canvas.projectId : undefined);
+    setCanvasAgentChange(current => ({ revision: current.revision + 1, projectId: activeProjectId ?? null }));
+  }, [agentCanvasContext.canvas, canvasWorkspace]);
   const agentWorkbenchView = useMemo(() => createAgentWorkbenchView({
     rightPane: activeAgentRightPane,
     rightPaneOpen: !chrome.rightCollapsed,
     bottomTerminalOpen: chrome.terminalOpen,
     browserUseEnabled: settings.browserUse.enabled,
+    ...(canvasWorkspace && agentCanvasContext.canvas?.applicationId === chatAppId ? { canvas: agentCanvasContext.canvas } : {}),
+    ...(canvasWorkspace && agentCanvasContext.workflow?.applicationId === chatAppId ? { workflow: agentCanvasContext.workflow } : {}),
     ...(agentBrowserUrl ? { activeBrowserUrl: agentBrowserUrl } : {})
-  }), [activeAgentRightPane, agentBrowserUrl, chrome.rightCollapsed, chrome.terminalOpen, settings.browserUse.enabled]);
+  }), [activeAgentRightPane, agentBrowserUrl, agentCanvasContext.canvas, agentCanvasContext.workflow, canvasWorkspace, chatAppId, chrome.rightCollapsed, chrome.terminalOpen, settings.browserUse.enabled]);
   const workspaceUtilityTabTitle = (tab: WorkspaceUtilityTab): string => {
     if (tab.kind === "new" && tab.browserUrl) return browserSiteHost(tab.browserUrl);
     if (tab.kind === "new") return "新标签页";
@@ -1906,14 +2016,15 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
             ...skillReferences.filter(skill => !settings.plugins.disabledSkillNames.includes(skill.name))
           ]}
           capabilitiesError={skillReferencesError}
-          appId={activeAiSession?.appId ?? "workspace"}
+          appId={chatAppId}
           workspaceView={agentWorkbenchView}
           settings={settings}
           onSettingsChange={onSettingsChange}
           sessions={aiSessions}
-          activeSessionId={activeAiSessionId}
-          projectDirectoryMissing={activeAiSessionProjectDirectoryMissing}
+          activeSessionId={activeChatSessionId}
+          projectDirectoryMissing={activeChatSessionDirectoryMissing}
           newSessionProjectId={newAiSessionProjectId}
+          defaultWorkspaceProjectId={defaultWorkspaceProjectId}
           newSessionGitRepositoryId={null}
           workspaceProjects={workspaceProjects}
           workspaceProjectsLoadStatus={workspaceProjectsLoadStatus}
@@ -1946,6 +2057,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
           onOpenProjectFileReview={openProjectFileReview}
           onSessionFileChanges={onSessionFileChanges}
           onBrowserToolCompleted={openBrowserDockForAgent}
+          onCanvasToolsCompleted={onCanvasToolsCompleted}
           voiceMode={section === "voice"}
           onExitVoice={() => onNavigate("/work")}
         />
@@ -1956,9 +2068,17 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
       <header className="module-center__header" data-layout-mode={metrics.mode} data-module-mode={mode}>
         <div className="module-center__heading">
           <button ref={leftPreviewTriggerRef} className="module-shell-icon-button module-shell-icon-button--left-preview" type="button" aria-label="切换会话与项目栏" aria-expanded={!chrome.leftCollapsed || leftPreviewOpen} aria-keyshortcuts={shortcuts.toggleSidebar.map((chord) => chord.replace("Ctrl", "Control")).join(" ")} title={`切换会话与项目栏 · ${shortcuts.toggleSidebar.join(" / ") || "未分配"}`} onClick={toggleLeft} onMouseEnter={openLeftPreview} onMouseLeave={closeLeftPreview} onFocus={(event) => { if (event.currentTarget.matches(":focus-visible")) openLeftPreview(); }} onBlur={closeLeftPreview}><WorkbenchIcon name="panelLeft" size={16} /></button>
-          <div className="module-center__title" title={mode === "ai-work" ? activeAiSessionTitle?.trim() || "小鱼智能体" : activeApplicationTitle}><WorkbenchIcon name={mode === "normal" ? "folder" : "spark"} size={16} /><strong>{mode === "ai-work" ? activeAiSessionTitle?.trim() || "小鱼智能体" : activeApplicationTitle}</strong></div>
+          <div className="module-center__title" title={mode === "ai-work" ? activeChatSessionTitle?.trim() || "小鱼智能体" : activeApplicationTitle}><WorkbenchIcon name={mode === "normal" ? "folder" : "spark"} size={16} /><strong>{mode === "ai-work" ? activeChatSessionTitle?.trim() || "小鱼智能体" : activeApplicationTitle}</strong></div>
         </div>
         <div className="module-center__actions">
+          {mode === "ai-work" && section !== "voice" ? <Segmented
+            className="module-center__mode-switch"
+            size="small"
+            aria-label="聊天与画布工作模式"
+            value="chat"
+            options={[{ label: "聊天", value: "chat" }, { label: "画布", value: "canvas" }]}
+            onChange={value => { if (value === "canvas") onNavigate(`/apps/${encodeURIComponent(chatAppId)}/canvas`); }}
+          /> : null}
           {app === "workspace" && mode === "ai-work" && section !== "voice" ? <Button className="module-center__voice-button" type="text" size="small" aria-label="语音主脑" title="语音主脑" icon={<WorkbenchIcon name="microphone" size={15} />} onClick={() => onNavigate("/voice")}>语音主脑</Button> : null}
           {settings.general.showServiceStatus ? <span className={`module-runtime-state${serverState === "online" ? " is-connected" : ""}`} role="img" aria-label={statusLabel} title={statusLabel}><i aria-hidden="true" />{statusLabel}</span> : null}
           {gitManagerAvailable ? <div className="module-center__work-tabs" aria-label="Agent Git">
@@ -2184,10 +2304,16 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
       <CanvasWorkspace
         applicationId={canvasWorkspace.applicationId}
         initialProjectId={canvasWorkspace.initialProjectId}
+        agentChangesRevision={canvasAgentChange.revision}
+        agentChangedProjectId={canvasAgentChange.projectId}
         settings={settings}
         applications={canvasWorkspace.applications}
         onNavigate={onNavigate}
         onOpenSettings={onOpenSettings}
+        onProjectContextChange={onCanvasProjectContextChange}
+        applicationWorkflowPanel={visible => canvasWorkspace.applicationId === "minecraft"
+          ? <Suspense fallback={<ApplicationContentLoading />}><MinecraftWorkflowCanvas userId={userId} visible={visible} onWorkflowContextChange={onWorkflowContextChange} /></Suspense>
+          : <Suspense fallback={<ApplicationContentLoading />}><ApplicationWorkflowCanvas applicationId={canvasWorkspace.applicationId} userId={userId} visible={visible} onWorkflowContextChange={onWorkflowContextChange} /></Suspense>}
         chatPanel={renderAiWorkChatContent()}
       />
     </Suspense>;

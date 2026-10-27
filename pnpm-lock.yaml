@@ -2016,6 +2016,9 @@ importers:
       lfaa-workflow:
         specifier: workspace:*
         version: link:../../workflow/workflow
+      lfaa-workflow-app-agent-adapter:
+        specifier: workspace:*
+        version: link:../../workflow/app-agent-adapter
       lfaa-workflow-dag-engine:
         specifier: workspace:*
         version: link:../../workflow/dag-engine
@@ -3270,6 +3273,9 @@ importers:
 
   packages/client/ui-workflow:
     dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
       '@xyflow/react':
         specifier: 12.11.5
         version: 12.11.5(@types/react-dom@18.0.0)(@types/react@18.3.31)(immer@10.2.0)(react-dom@18.0.0(react@18.0.0))(react@18.0.0)
@@ -3279,6 +3285,12 @@ importers:
       lfaa-client-connection:
         specifier: workspace:*
         version: link:../connection
+      lfaa-client-modules:
+        specifier: workspace:*
+        version: link:../modules
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
       react:
         specifier: ^18.0.0
         version: 18.0.0
@@ -3346,6 +3358,9 @@ importers:
       lfaa-client-ui-theme:
         specifier: workspace:*
         version: link:../ui-theme
+      lfaa-client-ui-workflow:
+        specifier: workspace:*
+        version: link:../ui-workflow
       lfaa-client-ui-writing:
         specifier: workspace:*
         version: link:../ui-writing
@@ -3471,6 +3486,9 @@ importers:
       lfaa-client-ui-sidebar-files:
         specifier: workspace:*
         version: link:../ui-sidebar-files
+      lfaa-client-ui-workflow:
+        specifier: workspace:*
+        version: link:../ui-workflow
       lfaa-client-ui-workspace:
         specifier: workspace:*
         version: link:../ui-workspace
@@ -3836,6 +3854,9 @@ importers:
       lfaa-workspace-agent-git:
         specifier: workspace:*
         version: link:../../workspace/agent-git
+      lfaa-workspace-workspace:
+        specifier: workspace:*
+        version: link:../../workspace/workspace
     devDependencies:
       '@types/express':
         specifier: ^4.0.0
@@ -5234,6 +5255,9 @@ importers:
       lfaa-shell:
         specifier: workspace:*
         version: link:../shell
+      lfaa-win32-process:
+        specifier: workspace:*
+        version: link:../../subprocess/win32-process
     devDependencies:
       '@types/node':
         specifier: ^24.0.0
@@ -6153,6 +6177,33 @@ importers:
       '@types/node':
         specifier: ^24.0.0
         version: 24.19.0
+
+  packages/workflow/app-agent-adapter:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-agent-loop:
+        specifier: workspace:*
+        version: link:../../core/agent-loop
+      lfaa-app-boot:
+        specifier: workspace:*
+        version: link:../../boot/app-boot
+      lfaa-identity-auth:
+        specifier: workspace:*
+        version: link:../../identity/auth
+      lfaa-settings:
+        specifier: workspace:*
+        version: link:../../settings/settings
+      lfaa-tools:
+        specifier: workspace:*
+        version: link:../../core/tools
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
+      lfaa-workflow:
+        specifier: workspace:*
+        version: link:../workflow
 
   packages/workflow/dag-engine:
     dependencies:

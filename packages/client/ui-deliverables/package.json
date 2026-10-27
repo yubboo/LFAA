@@ -1,0 +1,23 @@
+{
+  "name": "lfaa-client-ui-deliverables",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "lfaa-client-connection": "workspace:*",
+    "lfaa-client-ui-primitives": "workspace:*",
+    "react": "^18.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^18.0.0"
+  },
+  "scripts": {
+    "build": "node ../../../scripts/build-harness.mjs package"
+  }
+}

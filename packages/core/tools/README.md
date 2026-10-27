@@ -14,6 +14,8 @@ Skill 附属文本资源通过 `lfaa_skill_load` 按当前 Skill Provider 或项
 
 用户明确提供本机绝对项目目录时，`project_file_operation.rootDirectory` 优先于隐式 Agent Git/Workspace 绑定，无显式 `nodeId` 时复用 LFAA Host 的 Project Files Owner。未登记根目录只读，并沿统一 Permission Owner 作为危险读取授权；目录列表、搜索和读取保持有界，Agent Run 的取消信号会传到本机只读 Host 操作。模型据真实读取证据说明项目用途、入口和框架；对概览请求优先使用项目导航与架构说明，避免递归读取所有包，说明未覆盖范围，不把 `list` 或一次搜索说成读完全项目。
 
+本机未绑定项目时，`general.taskFolder` 有非空显式值则优先使用；为空时，`project_file_operation` 只读 Workspace Owner 已登记的默认工作区路径。该回退不初始化工作区，也不把本机路径传给远端节点终端；读写授权仍走原有 Permission Owner。
+
 运行位置：Control Plane 的 Cordis 插件或内部合同库，由 base Bundle 装配；不运行在浏览器，不将凭据或节点进程带入客户端。依赖以本包 package.json 为准，真实消费者见生成包清单的静态证据。源码/装配声明与现场运行验收分别记录。
 
 设置：复用 plugins.enabled（第三方扩展）、plugins.skillDirectories（Skill 来源）、permissions.mode、Provider/模型及 aiRuntime 的输出/请求/上下文/工具/委派预算；领域工具读取原 minecraftRuntime、设备存储位置及节点覆盖。没有新增设置或默认值，不重置用户偏好。内置方法不因第三方开关关闭而成为虚假不可用，用户内容仍受原范围与开关约束。

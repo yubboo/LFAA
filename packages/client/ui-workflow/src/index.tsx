@@ -168,3 +168,5 @@ export function WorkflowGraphEditor({ nodes, edges, nodeTypes, runtimeNodes = []
     </ReactFlow>
   </div>;
 }
+
+export { ApplicationWorkflowCanvas } from "./ApplicationWorkflowCanvas.js";

@@ -239,10 +239,22 @@ export const agentAssociationsSchema = Joi.object({
 }).unknown(false);
 
 const aiWorkbenchViewSchema = Joi.object({
-  rightPane: Joi.string().valid("browser", "new-tab", "git", "applications", "side-chat", "extension", "application-tools").required(),
+  rightPane: Joi.string().valid("browser", "new-tab", "git", "assets", "applications", "side-chat", "extension", "application-tools").required(),
   rightPaneOpen: Joi.boolean().required(),
   bottomTerminalOpen: Joi.boolean().required(),
-  browserUrl: Joi.string().uri({ scheme: ["http", "https"] }).max(2_048)
+  browserUrl: Joi.string().uri({ scheme: ["http", "https"] }).max(2_048),
+  canvas: Joi.object({
+    applicationId: Joi.string().valid(...APPLICATION_IDS).required(),
+    projectId: Joi.string().guid({ version: ["uuidv4", "uuidv5"] }).required(),
+    title: Joi.string().trim().max(80).required(),
+    updatedAt: Joi.string().isoDate().required()
+  }).unknown(false),
+  workflow: Joi.object({
+    applicationId: Joi.string().valid(...APPLICATION_IDS).required(),
+    workflowId: Joi.string().guid({ version: ["uuidv4", "uuidv5"] }).required(),
+    title: Joi.string().trim().max(80).required(),
+    updatedAt: Joi.string().isoDate().required()
+  }).unknown(false)
 }).custom((value, helpers) => value.browserUrl !== undefined && (value.rightPane !== "browser" || !value.rightPaneOpen)
   ? helpers.error("any.invalid") : value).unknown(false);
 

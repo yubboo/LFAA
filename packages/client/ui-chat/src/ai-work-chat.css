@@ -62,7 +62,7 @@ body[data-we-wallpaper] .workbench-shell .ai-work-chat {
 .ai-work-chat__navigation-track { position: relative; min-width: 0; min-height: 0; grid-column: 1; grid-row: 1; }
 .ai-work-chat__stream-track { min-width: 0; min-height: 0; grid-column: 2; grid-row: 1; }
 .ai-work-chat__scrollbar-track { min-width: 0; min-height: 0; grid-column: 3; grid-row: 1; pointer-events: none; }
-.ai-work-chat__messages { display: block; width: 100%; min-width: 0; min-height: 0; height: 100%; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; box-sizing: border-box; }
+.ai-work-chat__messages { display: block; width: 100%; min-width: 0; min-height: 0; height: 100%; overflow: auto; overflow-anchor: none; overscroll-behavior: contain; scrollbar-gutter: stable; box-sizing: border-box; }
 .ai-work-chat__message-list { display: flex; width: min(100%, 920px); min-height: 100%; flex-direction: column; justify-content: flex-start; align-items: stretch; gap: 26px; margin-inline: auto; padding: 22px clamp(20px, 3%, 32px) 12px; box-sizing: border-box; }
 /* 空闲与恢复状态同步过渡回复区；仅在状态变化时运行有限 CSS 过渡，不创建逐帧脚本。 */
 .workbench-shell[data-ai-work-output-focus-blur="true"] .ai-work-chat .ai-work-chat__messages,
@@ -88,12 +88,15 @@ body[data-we-wallpaper] .workbench-shell .ai-work-chat {
 .workbench-shell[data-reduced-motion="on"] .ai-work-chat__more-overlay {
   transition: none;
 }
-.ai-work-chat__welcome { display: flex; max-width: 620px; flex-direction: column; align-items: center; gap: 15px; margin: auto; padding: 20px; text-align: center; }
-.ai-work-chat__welcome > .ant-typography { font-size: var(--settings-interface-font-size, var(--font-size-base)); }
-.ai-work-chat__welcome-mark { display: grid; width: 44px; height: 44px; place-items: center; border: 1px solid var(--color-border-subtle); border-radius: 13px; background: var(--color-brand-subtle); color: var(--settings-accent, var(--color-brand)); }
+.ai-work-chat__welcome { display: grid; width: min(100%, 920px); min-height: 100%; grid-template-rows: minmax(190px, 1fr) auto auto; align-items: stretch; justify-items: center; gap: 14px; margin: 0 auto; padding: clamp(22px, 4vh, 48px) clamp(8px, 2vw, 24px) 8px; box-sizing: border-box; text-align: center; }
+.ai-work-chat__welcome-hero { display: grid; min-width: 0; align-content: center; justify-items: center; gap: 14px; }
+.ai-work-chat__welcome-mark { display: grid; width: 48px; height: 48px; place-items: center; border: 1px solid var(--color-border-subtle); border-radius: 14px; background: var(--color-brand-subtle); color: var(--settings-accent, var(--color-brand)); }
 .ai-work-chat__welcome-copy { display: grid; justify-items: center; gap: 7px; }
+.ai-work-chat__welcome-app { color: var(--color-text-muted); font-size: var(--font-size-xs); letter-spacing: .04em; }
 .ai-work-chat__welcome-copy h1 { margin: 0; color: var(--color-text-heading); font-family: var(--settings-content-font, var(--settings-interface-font, var(--font-family-sans))); font-size: var(--font-size-xl); font-weight: 650; line-height: 1.35; }
-.ai-work-chat__welcome-copy p { max-width: 540px; margin: 0; color: var(--color-text-muted); font-family: var(--settings-content-font, var(--settings-interface-font, var(--font-family-sans))); font-size: var(--font-size-sm); line-height: 1.7; }
+.ai-work-chat__welcome-copy p { max-width: 540px; margin: 0; color: var(--color-text-muted); font-family: var(--settings-content-font, var(--settings-interface-font, var(--font-family-sans))); font-size: var(--settings-interface-font-size, var(--font-size-sm)); line-height: 1.7; }
+.ai-work-chat__welcome-recommendations { display: grid; width: min(100%, 720px); min-width: 0; justify-self: start; align-content: end; gap: 9px; text-align: left; }
+.ai-work-chat__welcome-recommendations-title { color: var(--color-text-muted); font-size: var(--font-size-xs); }
 
 /* 全屏语音主脑使用独立沉浸式画布，表面仍读取账户 Appearance 透明度、模糊和主题令牌。 */
 .module-workbench-stage--voice .ai-work-chat--voice { display: block; width: 100%; height: 100%; min-height: 0; overflow: auto; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
@@ -220,9 +223,11 @@ body[data-we-wallpaper] .workbench-shell .ai-work-chat {
 }
 @media (prefers-reduced-motion: reduce) { .ai-work-voice__composer, .ai-work-voice__header-action { transition: none !important; } }
 .workbench-shell[data-reduced-motion="on"] .ai-work-voice__composer, .workbench-shell[data-reduced-motion="on"] .ai-work-voice__header-action { transition: none !important; }
-.ai-work-chat__suggestions { display: grid; width: min(100%, 530px); gap: 7px; }
-.ai-work-chat__suggestions button { padding: 10px 12px; border: 1px solid var(--color-border); border-radius: 9px; background: color-mix(in srgb, var(--color-surface) 80%, transparent); color: var(--color-text-secondary); cursor: pointer; font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: var(--settings-interface-font-size, var(--font-size-base)); text-align: left; }
+.ai-work-chat__suggestions { display: flex; width: 100%; min-width: 0; flex-wrap: wrap; align-items: flex-start; justify-content: flex-start; gap: 8px; }
+.ai-work-chat__suggestions button { display: flex; min-width: 0; max-width: min(100%, 560px); flex: 0 1 auto; align-items: center; padding: 9px 12px; border: 1px solid var(--color-border); border-radius: 999px; background: color-mix(in srgb, var(--color-surface) 80%, transparent); color: var(--color-text-secondary); cursor: pointer; font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: var(--settings-interface-font-size, var(--font-size-base)); line-height: 1.5; overflow-wrap: anywhere; text-align: left; }
 .ai-work-chat__suggestions button:hover:not(:disabled) { border-color: var(--settings-accent, var(--color-brand)); color: var(--settings-accent, var(--color-brand)); }
+.ai-work-chat__suggestions button:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+.ai-work-chat__welcome > .ant-typography { width: min(100%, 720px); justify-self: start; margin: 0; font-size: var(--settings-interface-font-size, var(--font-size-base)); line-height: 1.55; text-align: left; }
 .ai-work-chat--writing .ai-work-chat__composer .ant-input { font-family: var(--settings-content-font, var(--settings-interface-font, var(--font-family-sans))); font-size: var(--font-size-base); }
 .ai-work-chat--writing .ai-work-chat__composer-control.ant-btn { font-family: var(--settings-interface-font, var(--font-family-sans)); }
 .ai-work-chat--writing .ai-work-chat__composer-control-label { font-size: var(--font-size-xs); }
@@ -284,7 +289,7 @@ body[data-we-wallpaper] .workbench-shell .ai-work-chat {
 .ai-work-chat__usage { display: block; margin-top: 8px; color: var(--color-text-subtle); font-size: 9px; }
 /* 流式回复沿用工作台字体、字号和颜色；正文与真实活动按同一时间线排列。 */
 .ai-work-chat__response { min-width: 0; }
-.ai-work-chat__response-duration { display: flex; width: fit-content; max-width: 100%; flex-wrap: wrap; align-items: center; gap: 7px; padding: 4px 0; color: var(--color-text-muted); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: .86em; }
+.ai-work-chat__response-duration { display: flex; width: 100%; max-width: 100%; min-height: 39px; flex-wrap: wrap; align-items: center; gap: 7px; padding: 4px 0 9px; border-bottom: 1px solid var(--color-border-subtle); color: var(--color-text-muted); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: .86em; }
 .ai-work-chat__assistant-identity { display: inline-flex; max-width: 100%; min-width: 0; flex-wrap: wrap; align-items: center; gap: 7px; }
 .ai-work-chat__assistant-mark { display: grid; width: 30px; height: 30px; flex: 0 0 30px; place-items: center; overflow: hidden; border: 1px solid color-mix(in srgb, var(--settings-accent, var(--color-brand)) 28%, var(--color-border-subtle)); border-radius: 50%; background: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 10%, var(--color-surface)); color: var(--settings-accent, var(--color-brand)); }
 .ai-work-chat__assistant-mark > svg { display: block; width: 20px; height: 20px; overflow: visible; }
@@ -302,18 +307,10 @@ body[data-we-wallpaper] .workbench-shell .ai-work-chat {
   50% { transform: rotate(7deg); }
 }
 .ai-work-chat__response-final { min-width: 0; padding-top: 14px; }
-.ai-work-chat__response-history { min-width: 0; }
-.ai-work-chat__response-history > summary { display: flex; min-height: 31px; align-items: center; justify-content: space-between; gap: 8px; padding: 3px 0 7px; border-bottom: 1px solid var(--color-border-subtle); color: var(--color-text-muted); cursor: pointer; font-size: .88em; list-style: none; }
-.ai-work-chat__response-history-summary { display: flex; min-width: 0; flex: 1 1 auto; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
-.ai-work-chat__response-history-state { flex: 0 0 auto; padding: 2px 8px; border: 1px solid var(--color-border-subtle); border-radius: 999px; color: var(--color-text-secondary); font-size: .82em; line-height: 1.4; }
-.ai-work-chat__response-history-state[data-tone="complete"] { border-color: color-mix(in srgb, var(--color-status-success) 30%, var(--color-border-subtle)); background: var(--color-status-success-surface); color: var(--color-status-success-text); }
-.ai-work-chat__response-history-state[data-tone="error"] { border-color: color-mix(in srgb, var(--color-status-error) 30%, var(--color-border-subtle)); background: var(--color-status-error-surface); color: var(--color-status-error-text); }
-.ai-work-chat__response-history-state[data-tone="stopped"] { background: var(--color-surface-muted); color: var(--color-text-muted); }
-.ai-work-chat__response-history > summary::-webkit-details-marker { display: none; }
-.ai-work-chat__response-history > summary:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; border-radius: 4px; }
-.ai-work-chat__response-history > summary > svg { flex: 0 0 auto; transform: rotate(-90deg); transition: transform 140ms ease; }
-.ai-work-chat__response-history[open] > summary > svg { transform: rotate(0); }
-.ai-work-chat__response-history > .ai-work-chat__response-timeline { gap: 10px; padding: 10px 0; }
+.ai-work-chat__response-state { flex: 0 0 auto; padding: 2px 8px; border: 1px solid var(--color-border-subtle); border-radius: 999px; color: var(--color-text-secondary); font-size: .82em; line-height: 1.4; }
+.ai-work-chat__response-state[data-tone="complete"] { border-color: color-mix(in srgb, var(--color-status-success) 30%, var(--color-border-subtle)); background: var(--color-status-success-surface); color: var(--color-status-success-text); }
+.ai-work-chat__response-state[data-tone="error"] { border-color: color-mix(in srgb, var(--color-status-error) 30%, var(--color-border-subtle)); background: var(--color-status-error-surface); color: var(--color-status-error-text); }
+.ai-work-chat__response-state[data-tone="stopped"] { background: var(--color-surface-muted); color: var(--color-text-muted); }
 .ai-work-chat__response-history-empty { margin: 0; padding: 10px 0; color: var(--color-text-muted); font-size: .86em; }
 .ai-work-chat__response-browser-preview { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 14px; padding: 11px 12px; border: 1px solid var(--color-border-subtle); border-radius: 13px; background: color-mix(in srgb, var(--color-surface-muted) 54%, transparent); }
 .ai-work-chat__response-browser-icon { display: grid; width: 38px; height: 38px; flex: 0 0 38px; place-items: center; border: 1px solid var(--color-border-subtle); border-radius: 10px; background: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 12%, var(--color-surface-muted)); color: var(--settings-accent, var(--color-brand)); }
@@ -361,7 +358,7 @@ body[data-we-wallpaper] .workbench-shell .ai-work-chat {
 .ai-work-chat__tool-group { min-width: 0; color: var(--color-text-muted); font-size: .86em; }
 .ai-work-chat__tool-group > summary { display: flex; width: fit-content; min-height: 29px; max-width: 100%; align-items: center; gap: 8px; padding: 3px 2px; box-sizing: border-box; }
 .ai-work-chat__tool-group > summary > svg:first-child { flex: 0 0 auto; color: var(--settings-accent, var(--color-brand)); }
-.ai-work-chat__tool-group > summary > span { min-width: 0; overflow-wrap: anywhere; }
+.ai-work-chat__tool-group > summary > .ai-work-chat__tool-group-label { min-width: 0; overflow-wrap: anywhere; }
 .ai-work-chat__tool-group > summary:hover { color: var(--settings-accent, var(--color-brand)); }
 .ai-work-chat__tool-group-items { display: grid; max-height: min(34dvh, 320px); overflow: auto; gap: 0; margin: 0 0 6px 6px; padding: 3px 8px 3px 10px; border-inline-start: 1px solid var(--color-border-subtle); overscroll-behavior: contain; }
 .ai-work-chat__tool-group-items .ai-work-chat__activity-row:first-child { border-top: 0; }
@@ -373,14 +370,21 @@ body[data-we-wallpaper] .workbench-shell .ai-work-chat {
 .ai-work-chat__activity-live-status::before { width: 5px; height: 5px; flex: 0 0 5px; border-radius: 50%; background: var(--settings-accent, var(--color-brand)); opacity: .78; content: ""; }
 .ai-work-chat__activity-live-status > span { min-width: 0; overflow-wrap: anywhere; }
 .ai-work-chat__activity-live-status--processing > span,
-.ai-work-chat__tool-group--running > summary > span { background-image: linear-gradient(105deg, var(--color-text-muted) 0%, var(--color-text-muted) 37%, color-mix(in srgb, var(--color-text-muted) 44%, var(--settings-accent, var(--color-brand))) 47%, var(--settings-accent, var(--color-brand)) 50%, color-mix(in srgb, var(--color-text-muted) 44%, var(--settings-accent, var(--color-brand))) 53%, var(--color-text-muted) 63%, var(--color-text-muted) 100%); background-position: 115% 0; background-size: 240% 100%; }
+.ai-work-chat__tool-group--running > summary > .ai-work-chat__tool-group-label { background-image: linear-gradient(105deg, var(--color-text-muted) 0%, var(--color-text-muted) 37%, color-mix(in srgb, var(--color-text-muted) 44%, var(--settings-accent, var(--color-brand))) 47%, var(--settings-accent, var(--color-brand)) 50%, color-mix(in srgb, var(--color-text-muted) 44%, var(--settings-accent, var(--color-brand))) 53%, var(--color-text-muted) 63%, var(--color-text-muted) 100%); background-position: 115% 0; background-size: 240% 100%; }
 @supports ((-webkit-background-clip: text) or (background-clip: text)) {
   .ai-work-chat__activity-live-status--processing > span,
-  .ai-work-chat__tool-group--running > summary > span { color: transparent; -webkit-text-fill-color: transparent; -webkit-background-clip: text; background-clip: text; animation: ai-work-chat-status-shimmer 2.4s linear infinite; }
+  .ai-work-chat__tool-group--running > summary > .ai-work-chat__tool-group-label { color: transparent; -webkit-text-fill-color: transparent; -webkit-background-clip: text; background-clip: text; animation: ai-work-chat-status-shimmer 2.4s linear infinite; }
 }
 @keyframes ai-work-chat-status-shimmer { to { background-position: -115% 0; } }
 .ai-work-chat__activity-live-status--processing > span,
-.ai-work-chat__tool-group--running > summary > span { font-weight: 520; }
+.ai-work-chat__tool-group--running > summary > .ai-work-chat__tool-group-label { font-weight: 520; }
+.ai-work-chat__tool-group-live-status { position: relative; z-index: 1; display: inline-flex; min-width: 0; max-width: 100%; flex: 0 1 auto; align-items: center; gap: 5px; padding: 2px 8px; border: 1px solid color-mix(in srgb, var(--settings-accent, var(--color-brand)) 26%, var(--color-border-subtle)); border-radius: 999px; background: color-mix(in srgb, var(--color-surface) var(--settings-background-surface-opacity, 65%), transparent); color: var(--settings-accent, var(--color-brand)); font-size: .94em; overflow-wrap: anywhere; }
+.ai-work-chat__tool-group-live-status::before { width: 5px; height: 5px; flex: 0 0 5px; border-radius: 50%; background: currentColor; opacity: .82; content: ""; }
+.ai-work-chat__tool-group-live-status > span { min-width: 0; overflow-wrap: anywhere; }
+.ai-work-chat__tool-group-live-status--processing > span { background-image: linear-gradient(105deg, var(--settings-accent, var(--color-brand)) 0%, var(--settings-accent, var(--color-brand)) 37%, color-mix(in srgb, var(--settings-accent, var(--color-brand)) 48%, var(--color-text-primary)) 50%, var(--settings-accent, var(--color-brand)) 63%, var(--settings-accent, var(--color-brand)) 100%); background-position: 115% 0; background-size: 240% 100%; font-weight: 520; }
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .ai-work-chat__tool-group-live-status--processing > span { color: transparent; -webkit-text-fill-color: transparent; -webkit-background-clip: text; background-clip: text; animation: ai-work-chat-status-shimmer 2.4s linear infinite; }
+}
 /* 处理中提示使用账户遮罩透明度/玻璃模糊；主题文字作底，七色折射高光只覆盖当前运行胶囊。 */
 .ai-work-chat__activity-live-status--processing,
 .ai-work-chat__tool-group--running > summary {
@@ -423,10 +427,10 @@ body[data-we-wallpaper] .workbench-shell .ai-work-chat {
   animation: ai-work-chat-glass-refraction 2.8s cubic-bezier(.45, 0, .55, 1) infinite alternate;
 }
 .ai-work-chat__activity-live-status--processing > span,
-.ai-work-chat__tool-group--running > summary > :is(svg, span) { position: relative; z-index: 1; }
+.ai-work-chat__tool-group--running > summary > :is(svg, .ai-work-chat__tool-group-label) { position: relative; z-index: 1; }
 @supports ((-webkit-background-clip: text) or (background-clip: text)) {
   .ai-work-chat__activity-live-status--processing > span,
-  .ai-work-chat__tool-group--running > summary > span {
+  .ai-work-chat__tool-group--running > summary > .ai-work-chat__tool-group-label {
     background-image: linear-gradient(105deg,
       var(--color-text-muted) 0%,
       var(--color-text-muted) 37%,
@@ -482,7 +486,15 @@ body[data-we-wallpaper] .workbench-shell .ai-work-chat {
 .ai-work-chat__activity-output-preview pre { max-width: 100%; margin: 0; color: var(--color-text-primary); font-family: var(--settings-code-font, var(--font-family-mono)); font-size: var(--settings-code-font-size, var(--font-size-sm)); line-height: 1.5; overflow-wrap: anywhere; white-space: pre-wrap; }
 .ai-work-chat__activity-output-card--command .ai-work-chat__activity-output-summary p { font-family: var(--settings-code-font, var(--font-family-mono)); font-size: var(--settings-code-font-size, var(--font-size-sm)); }
 /* 工具合同在同一流式步骤中展示，沿用工作区主题与字体；长说明换行，字段按容器宽度折行。 */
-.ai-work-chat__tool-contract { display: grid; min-width: 0; gap: 7px; padding: 9px 10px; border: 1px solid var(--color-border-subtle); border-inline-start: 2px solid var(--settings-accent, var(--color-brand)); border-radius: 9px; background: color-mix(in srgb, var(--color-surface-muted) 72%, transparent); color: var(--color-text-secondary); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: var(--settings-interface-font-size, var(--font-size-sm)); line-height: 1.5; }
+.ai-work-chat__tool-contract { min-width: 0; padding: 0 9px; border: 1px solid var(--color-border-subtle); border-inline-start: 2px solid var(--settings-accent, var(--color-brand)); border-radius: 8px; background: color-mix(in srgb, var(--color-surface-muted) 58%, transparent); color: var(--color-text-secondary); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: var(--settings-interface-font-size, var(--font-size-sm)); line-height: 1.5; }
+.ai-work-chat__tool-contract > summary { display: flex; min-width: 0; min-height: 32px; align-items: center; gap: 7px; cursor: pointer; list-style: none; }
+.ai-work-chat__tool-contract > summary::-webkit-details-marker { display: none; }
+.ai-work-chat__tool-contract-summary > svg:first-child { flex: 0 0 auto; color: var(--settings-accent, var(--color-brand)); }
+.ai-work-chat__tool-contract-summary > strong { color: var(--color-text-muted); font-size: var(--font-size-xs); font-weight: 620; }
+.ai-work-chat__tool-contract-summary > code { min-width: 0; overflow: hidden; color: var(--color-text-secondary); font-family: var(--settings-code-font, var(--font-family-mono)); font-size: var(--settings-code-font-size, var(--font-size-xs)); text-overflow: ellipsis; white-space: nowrap; }
+.ai-work-chat__tool-contract-summary > svg:last-child { flex: 0 0 auto; margin-inline-start: auto; color: var(--color-text-subtle); transform: rotate(-90deg); transition: transform 140ms ease; }
+.ai-work-chat__tool-contract[open] > summary > svg:last-child { transform: rotate(0); }
+.ai-work-chat__tool-contract-body { display: grid; min-width: 0; gap: 7px; padding: 0 0 9px; }
 .ai-work-chat__tool-contract-name, .ai-work-chat__tool-contract-section { display: grid; min-width: 0; gap: 4px; }
 .ai-work-chat__tool-contract-name { grid-template-columns: auto minmax(0, 1fr); align-items: baseline; gap: 8px; }
 .ai-work-chat__tool-contract strong { color: var(--color-text-muted); font-size: var(--font-size-xs); font-weight: 620; }
@@ -929,10 +941,10 @@ body[data-we-wallpaper][data-we-glass-floaters] .workbench-shell[data-wallpaper-
   backdrop-filter: blur(var(--settings-glass-blur));
 }
 
-/* 写作壁纸启用时，仅为起始标记和示例按钮提供轻量表面，不覆盖整块消息画布。 */
+/* 壁纸启用时，欢迎标记和推荐问答读取 Appearance 遮罩透明度与模糊。 */
 .workbench-shell[data-background-image="true"] :is(
   .ai-work-chat__welcome-mark,
-  .ai-work-chat__suggestions--writing button
+  .ai-work-chat__suggestions button
 ) {
   background-color: color-mix(in srgb, var(--color-surface) var(--settings-background-surface-opacity), transparent);
   -webkit-backdrop-filter: blur(var(--settings-glass-blur));
@@ -942,6 +954,9 @@ body[data-we-wallpaper][data-we-glass-floaters] .workbench-shell[data-wallpaper-
 @media (max-width: 760px) {
   .ai-work-chat { height: auto; min-height: 440px; grid-template-columns: minmax(0, 1fr); }
   .ai-work-chat__conversation { padding: 9px 0 11px; }
+  .ai-work-chat__welcome { padding: 20px 12px 8px; }
+  .ai-work-chat__welcome-recommendations,
+  .ai-work-chat__welcome > .ant-typography { width: 100%; }
   .ai-work-chat__conversation > .ai-work-chat__alerts { margin-inline: 9px; }
   .ai-work-chat__interaction-dock,
   .ai-work-chat__composer,
@@ -949,6 +964,15 @@ body[data-we-wallpaper][data-we-glass-floaters] .workbench-shell[data-wallpaper-
   .ai-work-chat__interaction-dock { margin-bottom: 7px; padding: 10px 11px; border-radius: 13px; }
   .ai-work-chat__composer { margin-bottom: 0; padding: 8px 9px 7px; border-radius: 14px; }
   .ai-work-chat__message { max-width: 100%; }
+}
+
+@media (max-height: 620px) {
+  .ai-work-chat__welcome { grid-template-rows: minmax(140px, 1fr) auto auto; padding-top: 14px; }
+  .ai-work-chat__welcome-hero { gap: 9px; }
+  .ai-work-chat__welcome-mark { width: 40px; height: 40px; }
+  .ai-work-chat__welcome-recommendations { gap: 6px; }
+  .ai-work-chat__suggestions { gap: 6px; }
+  .ai-work-chat__suggestions button { padding: 7px 10px; }
 }
 
 @media (max-width: 520px) {
@@ -1003,7 +1027,8 @@ body[data-we-wallpaper][data-we-glass-floaters] .workbench-shell[data-wallpaper-
 
 @media (prefers-reduced-motion: reduce) {
   body[data-lfaa-reduced-motion="system"] .ai-work-chat__activity-live-status--processing > span,
-  body[data-lfaa-reduced-motion="system"] .ai-work-chat__tool-group--running > summary > span { animation: none; background-image: none; color: var(--color-text-muted); -webkit-text-fill-color: currentColor; }
+  body[data-lfaa-reduced-motion="system"] .ai-work-chat__tool-group--running > summary > .ai-work-chat__tool-group-label { animation: none; background-image: none; color: var(--color-text-muted); -webkit-text-fill-color: currentColor; }
+  body[data-lfaa-reduced-motion="system"] .ai-work-chat__tool-group-live-status--processing > span { animation: none; background-image: none; color: var(--settings-accent, var(--color-brand)); -webkit-text-fill-color: currentColor; }
   .ai-work-chat__composer, .ai-work-chat__composer-control.ant-btn, .ai-work-chat__composer-submit.ant-btn, .workbench-shell .ai-work-chat__project-trigger.ant-btn,
   .ai-work-chat__activity-step-toggle > svg:last-child,
   .workbench-shell[data-reduced-motion="system"][data-ai-work-output-focus-blur="true"] .ai-work-chat__messages,
@@ -1015,7 +1040,9 @@ body[data-we-wallpaper][data-we-glass-floaters] .workbench-shell[data-wallpaper-
 }
 
 body[data-lfaa-reduced-motion="on"] .ai-work-chat__activity-live-status--processing > span,
-body[data-lfaa-reduced-motion="on"] .ai-work-chat__tool-group--running > summary > span { animation: none; background-image: none; color: var(--color-text-muted); -webkit-text-fill-color: currentColor; }
+body[data-lfaa-reduced-motion="on"] .ai-work-chat__tool-group--running > summary > .ai-work-chat__tool-group-label { animation: none; background-image: none; color: var(--color-text-muted); -webkit-text-fill-color: currentColor; }
+body[data-lfaa-reduced-motion="on"] .ai-work-chat__tool-group-live-status--processing > span { animation: none; background-image: none; color: var(--settings-accent, var(--color-brand)); -webkit-text-fill-color: currentColor; }
+body[data-lfaa-reduced-motion="on"] .ai-work-chat__tool-contract-summary > svg:last-child { transition-duration: 0ms; }
 body[data-lfaa-reduced-motion="on"] .ai-work-chat__activity-live-status--processing::after,
 body[data-lfaa-reduced-motion="on"] .ai-work-chat__tool-group--running > summary::after { animation: none; background-image: none; }
 .workbench-shell[data-reduced-motion="on"] .ai-work-chat__assistant-mark--processing > svg,
@@ -1025,6 +1052,7 @@ body[data-lfaa-reduced-motion="on"] .ai-work-chat__tool-group--running > summary
   body[data-lfaa-reduced-motion="system"] .ai-work-chat__tool-group--running > summary::after { animation: none; background-image: none; }
   .workbench-shell[data-reduced-motion="system"] .ai-work-chat__assistant-mark--processing > svg,
   .workbench-shell[data-reduced-motion="system"] .ai-work-chat__assistant-mark--processing .ai-work-chat__assistant-mark-tail { animation: none; }
+  .workbench-shell[data-reduced-motion="system"] .ai-work-chat__tool-contract-summary > svg:last-child { transition-duration: 0ms; }
 }
 
 /* Wallpaper Engine 字体集把 DSH 字体角色映射到 LFAA AI Work 的 Markdown 渲染元素。 */

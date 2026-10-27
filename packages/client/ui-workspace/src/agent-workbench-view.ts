@@ -11,12 +11,16 @@ export function createAgentWorkbenchView(input: {
   bottomTerminalOpen: boolean;
   browserUseEnabled: boolean;
   activeBrowserUrl?: string;
+  canvas?: AiWorkbenchView["canvas"];
+  workflow?: AiWorkbenchView["workflow"];
 }): AiWorkbenchView {
   const result: AiWorkbenchView = {
     rightPane: input.rightPane,
     rightPaneOpen: input.rightPaneOpen,
     bottomTerminalOpen: input.bottomTerminalOpen
   };
+  if (input.canvas) result.canvas = input.canvas;
+  if (input.workflow) result.workflow = input.workflow;
   if (input.rightPane !== "browser" || !input.rightPaneOpen || !input.browserUseEnabled || !input.activeBrowserUrl) return result;
   try {
     const url = new URL(input.activeBrowserUrl);

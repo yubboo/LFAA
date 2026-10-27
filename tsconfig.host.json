@@ -1269,6 +1269,12 @@
       "lfaa-workflow": [
         "packages/workflow/workflow/src/index.ts"
       ],
+      "lfaa-workflow-app-agent-adapter": [
+        "packages/workflow/app-agent-adapter/src/index.ts"
+      ],
+      "lfaa-workflow-app-agent-adapter/src/*": [
+        "packages/workflow/app-agent-adapter/src/*"
+      ],
       "lfaa-workflow-dag-engine": [
         "packages/workflow/dag-engine/src/index.ts"
       ],

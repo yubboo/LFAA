@@ -7,12 +7,24 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { getEventListeners } from "node:events";
 import { existsSync } from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { spawnLocalProcess } from "../../../packages/shell/shell/src/local-process.ts";
 import { PwshLocalShellExecutor } from "../../../packages/shell/pwsh-local/src/index.ts";
+import { DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS } from "../../../packages/shell/shell/src/index.ts";
+import { killProcessTree } from "../../../packages/subprocess/win32-process/src/index.ts";
 
 const spec = (overrides = {}) => ({ command: "fixture", workdir: process.cwd(), timeoutMs: 2000, onExpiry: "kill", stdoutMaxBytes: 4096, ...overrides });
 const launch = code => ({ argv: [process.execPath, "-e", code] });
+
+test("PowerShell Shell 缺省或零值时使用有限默认值，显式时限仍受 Shell 上限约束", () => {
+  const executor = new PwshLocalShellExecutor({ get: () => undefined });
+  assert.equal(executor.resolve({ command: "fixture" }).timeoutMs, DEFAULT_TIMEOUT_MS);
+  assert.equal(executor.resolve({ command: "fixture", timeoutMs: 0 }).timeoutMs, DEFAULT_TIMEOUT_MS);
+  assert.equal(executor.resolve({ command: "fixture", timeoutMs: 45_000 }).timeoutMs, 45_000);
+  assert.equal(executor.resolve({ command: "fixture", timeoutMs: MAX_TIMEOUT_MS + 10_000 }).timeoutMs, MAX_TIMEOUT_MS);
+});
 
 test("无 stdin 的一次性命令立即收到 EOF，不耗尽命令超时", async () => {
   const execution = spawnLocalProcess(launch("process.stdin.resume(); process.stdin.on('end',()=>process.stdout.write('EOF'));"), spec({ timeoutMs: 500 }));
@@ -58,6 +70,67 @@ test("运行中取消保留真实终态，显式 stdin 仍完整传递", async (
   const echo = await spawnLocalProcess(launch("process.stdin.setEncoding('utf8'); process.stdin.on('data',x=>process.stdout.write(x));"), spec({ stdin: "中文输入" })).result();
   assert.equal(echo.stdout.text, "中文输入");
   assert.equal(echo.exitCode, 0);
+});
+
+test("异步平台停止回调收到 PID，拒绝接管时回退停止直接进程", async () => {
+  const controller = new AbortController();
+  let requested;
+  const execution = spawnLocalProcess({
+    ...launch("setInterval(()=>{},1000)"),
+    requestStop: async (reason, pid) => {
+      requested = { reason, pid };
+      await new Promise(resolve => setTimeout(resolve, 20));
+      return false;
+    },
+  }, spec({ signal: controller.signal }));
+  controller.abort();
+  const result = await execution.result();
+  assert.equal(result.aborted, true);
+  assert.equal(requested.reason, "cancel");
+  assert.ok(Number.isInteger(requested.pid) && requested.pid > 0);
+});
+
+test("Windows 取消通过进程树 Owner 终止本机命令及其后代", { skip: process.platform !== "win32", timeout: 10_000 }, async () => {
+  const root = await mkdtemp(join(tmpdir(), "lfaa-shell-tree-"));
+  const marker = join(root, "descendant-survived.txt");
+  const childCode = `setTimeout(()=>require('node:fs').writeFileSync(${JSON.stringify(marker)},'survived'),1200)`;
+  const parentCode = `const {spawn}=require('node:child_process');const child=spawn(process.execPath,['-e',${JSON.stringify(childCode)}],{stdio:'ignore',windowsHide:true});process.stdout.write(String(child.pid));setInterval(()=>{},1000);`;
+  const controller = new AbortController();
+  let processPid;
+  const execution = spawnLocalProcess({
+    ...launch(parentCode),
+    requestStop: async (reason, pid) => {
+      assert.equal(reason, "cancel");
+      processPid = pid;
+      return (await killProcessTree(pid, 250)).stopped;
+    },
+  }, spec({ signal: controller.signal, timeoutMs: 5000 }));
+  try {
+    let output = "";
+    for (let index = 0; index < 100 && !/^\d+$/u.test(output.trim()); index++) {
+      output += execution.readOutput().delta;
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    assert.match(output.trim(), /^\d+$/u, "父进程应先启动并报告后代 PID");
+    controller.abort();
+    assert.equal((await execution.result()).aborted, true);
+    await new Promise(resolve => setTimeout(resolve, 1400));
+    assert.equal(existsSync(marker), false, "取消后代不得在后台继续运行");
+  } finally {
+    if (processPid) await killProcessTree(processPid, 0);
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("PowerShell 执行器取消时调用已装配的 Windows 进程树 Owner", { skip: process.platform !== "win32", timeout: 10_000 }, async () => {
+  const controller = new AbortController();
+  const executor = new PwshLocalShellExecutor({ get: () => undefined });
+  const started = performance.now();
+  const execution = await executor.execute(executor.resolve({ command: "while ($true) { Start-Sleep -Milliseconds 100 }", signal: controller.signal }));
+  controller.abort();
+  const result = await execution.result();
+  assert.equal(result.aborted, true);
+  assert.ok(performance.now() - started < 4000, "取消应等待进程树 Owner 确认，而不是无限等待 PowerShell");
 });
 
 test("直接命令退出后，继承输出管道的后代不拖住返回或伪造超时", async () => {

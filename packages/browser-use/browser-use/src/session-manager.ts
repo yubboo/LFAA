@@ -871,10 +871,10 @@ export class BrowserSessionManager {
       if (occurrence !== undefined) throw new Error("Tabbit 当前不支持按同名控件序号点击。");
       return this.tabbit.action(ownerId, sourceSessionId, "click", { role, name }, signal);
     }
-    const allowedRoles = new Set(["button", "link", "checkbox", "radio", "tab", "menuitem", "option"]);
+    const allowedRoles = new Set(["button", "link", "checkbox", "radio", "switch", "tab", "menuitem", "option"]);
     if (!allowedRoles.has(role) || !name.trim() || name.length > 160) throw new Error("点击目标必须来自页面快照中的可访问角色和名称。");
     return this.usePage(ownerId, sourceSessionId, providerId, async page => {
-      const matches = page.getByRole(role as "button", { name: name.trim(), exact: true });
+      const matches = page.getByRole(role as "button" | "link" | "checkbox" | "radio" | "switch" | "tab" | "menuitem" | "option", { name: name.trim(), exact: true });
       const count = await matches.count();
       if (count === 0) throw new Error("当前网页已找不到此控件，请重新观察页面。");
       if (occurrence === undefined && count !== 1) throw new Error("当前网页有多个同名控件，请使用页面快照中的 occurrence 序号。");
@@ -1225,7 +1225,7 @@ export class BrowserSessionManager {
     const [title, pageText, rawControls, accessibilityTree, screenshot, tabs] = await Promise.all([
       page.title().catch(() => ""),
       includePageDetails && !documentState.loading ? page.locator("body").innerText({ timeout: 4_000 }).catch(() => "") : Promise.resolve(""),
-      includePageDetails && !documentState.loading ? page.locator("a,button,input,textarea,select,[role=button],[role=link],[role=textbox]").evaluateAll<BrowserSnapshot["controls"], number>((elements, limit) => elements.slice(0, limit).filter(node => node.getClientRects().length > 0 && !node.closest('[aria-hidden="true"]')).map(node => {
+      includePageDetails && !documentState.loading ? page.locator("a,button,input,textarea,select,[role=button],[role=link],[role=textbox],[role=switch]").evaluateAll<BrowserSnapshot["controls"], number>((elements, limit) => elements.slice(0, limit).filter(node => node.getClientRects().length > 0 && !node.closest('[aria-hidden="true"]')).map(node => {
         const isInput = node.tagName === "INPUT";
         const innerText = (node as typeof node & { innerText?: string }).innerText;
         const label = node.getAttribute("aria-label") || (["INPUT", "TEXTAREA", "SELECT"].includes(node.tagName) ? (node as typeof node & { labels?: ArrayLike<{ textContent?: string | null }> }).labels?.[0]?.textContent : null) || innerText || (isInput ? node.getAttribute("placeholder") : null) || node.getAttribute("title") || "";

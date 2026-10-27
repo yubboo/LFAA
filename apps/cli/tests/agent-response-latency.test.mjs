@@ -30,12 +30,12 @@ settings.saveUserSettings(owner, "permissions", { mode: "full_access" });
 const workspaceRoot = join(process.env.LFAA_DATA_DIR, "agent-workspace");
 mkdirSync(workspaceRoot, { recursive: true });
 settings.saveUserSettings(owner, "general", { ...settings.getUserSettings(owner).general, taskFolder: workspaceRoot });
-settings.saveUserSettings(owner, "ai-runtime", { ...settings.defaultSettings.aiRuntime, maxModelRequests: 4, maxToolCalls: 4, requestRetries: 0 });
+settings.saveUserSettings(owner, "ai-runtime", { ...settings.defaultSettings.aiRuntime, commandTimeoutSeconds: 10, maxModelRequests: 4, maxToolCalls: 4, requestRetries: 0 });
 const host = { llm: createAiCompletionService(), listPlugins: () => [], listExtensions: () => [], listInstructionExtensions: () => [], getSystemInstructions: () => [], listHooks: () => [], runBeforeInference: () => ({ failedHookIds: [] }), runAfterInference: () => ({ failedHookIds: [] }) };
 const account = { accountId: "fixture-account", providerId: "fixture", modelId: "fixture-selected-model", chatUrl: "https://provider.example.test/chat", secret: "invalid-fixture-key", keyHeader: "Authorization", keyPrefix: "Bearer ", maxTokensField: "max_tokens", reasoningMode: "high", thinking: { kind: "effort", parameter: "reasoning_effort", values: ["high"] } };
 const line = delta => `data: ${JSON.stringify({ choices: [{ delta }] })}\n\n`;
 const response = delta => new Response(line(delta) + "data: [DONE]\n\n", { headers: { "Content-Type": "text/event-stream" } });
-const call = id => ({ tool_calls: [{ index: 0, id, type: "function", function: { name: "local_execute_command", arguments: JSON.stringify({ command: "fixture bounded command" }) } }] });
+const call = (id, parameters = { command: "fixture bounded command" }) => ({ tool_calls: [{ index: 0, id, type: "function", function: { name: "local_execute_command", arguments: JSON.stringify(parameters) } }] });
 const capturedTools = [], disposers = [];
 let shellResult, shellExecutions = 0, lastSpec;
 shellTools.apply({ lfaaTools: { registerTool: (_ctx, tool) => capturedTools.push(tool) }, get: () => ({ resolve: input => { lastSpec = input; return input; }, execute: async () => { shellExecutions++; return { result: async () => shellResult }; } }) });
@@ -136,14 +136,14 @@ test("Shell 非零退出、超时、取消与未知退出码保持事实，并�
     const toolResults = sessionRecords.allForSession("session_events", result.turn.session.id).filter(event => event.type === "tool/result");
     assert.deepEqual(toolResults.map(event => event.data.executionState), [expected, "not_started"]);
     assert.ok(result.result.message.activity.some(activity => activity.title === "执行本机命令" && activity.status === (expected === "unconfirmed" ? "unavailable" : "error")));
-    assert.equal(lastSpec.timeoutMs, settings.getUserSettings(owner).aiRuntime.commandTimeoutSeconds * 1000);
+    assert.equal(lastSpec.timeoutMs, undefined, "节点命令的默认时限不能传给本机 Shell；缺省由 Shell 自己补有界时限");
   }
 });
 
 test("本机命令成功保持 complete，后续模型根据真实结果完成", async () => {
   shellResult = { exitCode: 0, timedOut: false, aborted: false, stdout: { text: "中文结果", truncated: false }, stderr: { text: "", truncated: false } };
   const result = await run((body, count) => {
-    if (count === 1) return response(call("success"));
+    if (count === 1) return response(call("success", { command: "fixture bounded command", timeoutSeconds: 45 }));
     const returned = JSON.parse(body.messages.find(message => message.role === "tool").content);
     assert.equal(returned.executionState, "complete"); assert.equal(returned.isError, false);
     assert.equal(returned.stdout, "中文结果");
@@ -151,6 +151,7 @@ test("本机命令成功保持 complete，后续模型根据真实结果完成",
   });
   assert.equal(result.result.status, "complete");
   assert.equal(result.bodies.length, 2);
+  assert.equal(lastSpec.timeoutMs, 45_000, "模型本次明确指定的本机超时按工具合同传递，不受节点设置影响");
 });
 
 test("一次真实 Agent 运行记录阶段正文、工具落点和最终答案，分页恢复分段且不泄露私有协议", async () => {

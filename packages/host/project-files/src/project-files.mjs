@@ -3,8 +3,8 @@
  * 作用：验证规范路径、拒绝越界符号链接，使用文件摘要检测并发修改，返回可核对的内容与差异。
  * 关联文件：daemon.mjs 的 project-files 任务执行器、core/tools/project-tools.ts；可作为独立 Node 任务运行。
  */
-import { createReadStream } from "node:fs";
-import { readFile, writeFile, realpath, stat, lstat, readdir, mkdir, opendir, rename, rm, unlink } from "node:fs/promises";
+import { constants as fsConstants } from "node:fs";
+import { readFile, writeFile, realpath, stat, lstat, readdir, mkdir, opendir, rename, rm, unlink, open as openFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { resolve, relative, dirname, basename, join, isAbsolute, sep, parse } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
@@ -18,6 +18,7 @@ const projectDiffLimit = 2 * 1024 * 1024;
 const projectDiffUntrackedFileLimit = 200;
 const projectDiffUntrackedByteLimit = 1024 * 1024;
 const projectPreviewFileLimit = 64 * 1024 * 1024;
+const projectArtifactFileLimit = 512 * 1024 * 1024;
 const digest = text => createHash("sha256").update(text).digest("hex");
 const execFileAsync = promisify(execFile);
 let protectedDataRoot = process.env.LFAA_DAEMON_DATA_ROOT?.trim() ? resolve(process.env.LFAA_DAEMON_DATA_ROOT.trim()) : "";
@@ -180,6 +181,80 @@ async function checkedPath(root, value, create = false) {
 // 活动记录只消费经 Daemon 校验后的项目相对路径，避免把节点绝对路径传到浏览器。
 function toProjectRelativePath(root, path) {
   return relative(root, path).split(sep).join("/");
+}
+
+async function openCheckedProjectArtifact(rootDirectory, relativePath) {
+  if (typeof rootDirectory !== "string" || !isAbsolute(rootDirectory) || typeof relativePath !== "string"
+    || !relativePath || relativePath.length > 32760 || relativePath.includes("\\") || relativePath.includes("\0") || relativePath.startsWith("/")) {
+    throw new Error("产物必须是当前项目内的有效相对文件路径。 ");
+  }
+  const segments = relativePath.split("/");
+  if (segments.some(segment => !segment || segment === "." || segment === "..")) throw new Error("产物路径不能跳出项目根目录。 ");
+  const root = await realpath(resolve(rootDirectory));
+  await assertOutsideDataRoot(root);
+  if (!(await stat(root)).isDirectory()) throw new Error("产物项目根目录不是现有文件夹。 ");
+  const path = resolve(root, ...segments);
+  assertWithin(root, path);
+  let current = root;
+  let finalDetails;
+  for (let index = 0; index < segments.length; index += 1) {
+    current = resolve(current, segments[index]);
+    const details = await lstat(current);
+    if (details.isSymbolicLink()) throw new Error("资产文件及其父目录不能是符号链接。 ");
+    if (index < segments.length - 1 && !details.isDirectory()) throw new Error("资产路径中的父级必须是普通项目目录。 ");
+    finalDetails = details;
+  }
+  if (!finalDetails?.isFile()) throw new Error("资产必须是项目内的普通文件。 ");
+  if (finalDetails.size > projectArtifactFileLimit) throw new Error("资产文件超过 512 MiB 上限。 ");
+  const canonical = await realpath(path);
+  assertWithin(root, canonical);
+  await assertOutsideDataRoot(canonical);
+  if (!samePath(path, canonical)) throw new Error("资产路径解析到了其他位置。 ");
+  const noFollow = fsConstants.O_NOFOLLOW ?? 0;
+  const handle = await openFile(canonical, fsConstants.O_RDONLY | noFollow);
+  try {
+    const openedDetails = await handle.stat();
+    if (!openedDetails.isFile() || openedDetails.size !== finalDetails.size
+      || finalDetails.ino !== 0 && openedDetails.ino !== 0 && openedDetails.ino !== finalDetails.ino
+      || finalDetails.dev !== 0 && openedDetails.dev !== 0 && openedDetails.dev !== finalDetails.dev) {
+      throw new Error("核验期间资产文件发生变化，请重新读取后再发布或下载。 ");
+    }
+    return { handle, root, path, details: openedDetails };
+  } catch (error) {
+    await handle.close();
+    throw error;
+  }
+}
+
+/** 校验并为 Agent 发布工具返回有界的真实文件元数据，不把二进制送进模型上下文。 */
+export async function inspectProjectArtifact(rootDirectory, relativePath, signal) {
+  const opened = await openCheckedProjectArtifact(rootDirectory, relativePath);
+  const hash = createHash("sha256");
+  let bytesRead = 0;
+  try {
+    for await (const chunk of opened.handle.createReadStream({ autoClose: false })) {
+      signal?.throwIfAborted();
+      bytesRead += chunk.length;
+      if (bytesRead > projectArtifactFileLimit) throw new Error("资产文件超过 512 MiB 上限。 ");
+      hash.update(chunk);
+    }
+    signal?.throwIfAborted();
+    const after = await opened.handle.stat();
+    if (bytesRead !== opened.details.size || after.size !== opened.details.size || after.mtimeMs !== opened.details.mtimeMs) {
+      throw new Error("核验期间资产文件发生变化，请重新读取后再发布。 ");
+    }
+    return { relativePath: toProjectRelativePath(opened.root, opened.path), fileName: basename(opened.path), sizeBytes: bytesRead,
+      sha256: hash.digest("hex"), modifiedAt: opened.details.mtime.toISOString() };
+  } finally {
+    await opened.handle.close().catch(() => undefined);
+  }
+}
+
+/** 下载只读已登记项目中的普通文件，返回绑定已打开文件句柄的流。 */
+export async function openProjectArtifact(rootDirectory, relativePath) {
+  const opened = await openCheckedProjectArtifact(rootDirectory, relativePath);
+  return { fileName: basename(opened.path), sizeBytes: opened.details.size, modifiedAt: opened.details.mtime.toISOString(),
+    stream: opened.handle.createReadStream({ autoClose: true }) };
 }
 async function readText(path, signal) {
   signal?.throwIfAborted();
@@ -467,7 +542,7 @@ export async function executeProjectFile(input, { signal } = {}) {
     if (failedInspection) throw failedInspection.reason;
     return { directories };
   }
-  if (!input || !["list", "read", "read_lines", "read_image", "search_files", "search", "search_markdown", "create", "create_tree", "replace", "write", "delete", "diff", "discover_skills"].includes(input.operation) || typeof input.rootDirectory !== "string" || !isAbsolute(input.rootDirectory)) throw new Error("项目操作或绝对根目录无效。");
+  if (!input || !["list", "read", "read_lines", "read_image", "search_files", "search", "search_markdown", "create", "create_tree", "replace", "write", "delete", "diff", "discover_skills", "inspect_artifact"].includes(input.operation) || typeof input.rootDirectory !== "string" || !isAbsolute(input.rootDirectory)) throw new Error("项目操作或绝对根目录无效。");
   const root = await realpath(input.rootDirectory);
   await assertOutsideDataRoot(root);
   const path = await checkedPath(root, input.path, input.operation === "create" || input.operation === "create_tree");
@@ -495,6 +570,7 @@ export async function executeProjectFile(input, { signal } = {}) {
     }
     return { root, skills, limit: 100 };
   }
+  if (input.operation === "inspect_artifact") return await inspectProjectArtifact(root, input.path, signal);
   if (input.operation === "list") {
     const listed = await readBoundedDirectory(path, 5000, signal);
     const visible = [];

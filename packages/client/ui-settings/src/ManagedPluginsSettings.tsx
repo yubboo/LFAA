@@ -187,7 +187,7 @@ export function ManagedPluginsSettings({ user, applications, settings, onPluginS
   const categoryTitle = integrationCategories.find(category => category.id === activeCategory)?.label ?? "插件";
   const categoryDescription: Record<IntegrationCategory, string> = {
     plugins: "查看当前 Profile 中已安装插件的真实状态，并按现有授权流程启用或停用。",
-    applications: "管理 LFAA 内置工作区入口；关闭后会从全局应用菜单隐藏。",
+    applications: "管理 LFAA 内置应用入口和 GitHub 外部账户连接。",
     mcp: "查看账户已配置的 MCP 服务，并沿用当前设置和权限规则。",
     skills: "显示 Skill Registry 当前登记的真实技能。内置技能随软件提供；小鱼安装的技能位于本机 LFAA Home/skills/<技能名>/；单项开关沿用账户设置。",
     market: "LFAA 当前没有可浏览的公共集成目录。"
@@ -244,7 +244,7 @@ export function ManagedPluginsSettings({ user, applications, settings, onPluginS
           >{category.label}<span className="settings-profile-plugins__category-count">{categoryCounts[category.id]}</span></button>)}
         </nav>
         <span className="settings-profile-plugins__count">{categoryCountSummary[activeCategory]}</span>
-        {activeCategory === "plugins" || activeCategory === "mcp" || activeCategory === "skills" || activeCategory === "applications" ? <Input.Search aria-label={searchLabel} placeholder={searchPlaceholder} allowClear value={query} onChange={event => setQuery(event.target.value)} /> : null}
+        {activeCategory === "plugins" || activeCategory === "applications" || activeCategory === "mcp" || activeCategory === "skills" ? <Input.Search aria-label={searchLabel} placeholder={searchPlaceholder} allowClear value={query} onChange={event => setQuery(event.target.value)} /> : null}
       </div>
       <div id="settings-integration-panel" role="tabpanel" aria-labelledby={`settings-integration-tab-${activeCategory}`} tabIndex={0}>
         {error ? <Alert className="settings-profile-plugins__error" type="error" showIcon message={error} /> : null}
@@ -284,7 +284,7 @@ export function ManagedPluginsSettings({ user, applications, settings, onPluginS
           </SettingGroup>
         </> : null}
         {activeCategory === "applications" ? <>
-          <SettingGroup title="LFAA 内置应用">
+          <SettingGroup title="LFAA 内置应用入口">
             {visibleApplications.length === 0 ? <div className="settings-profile-plugins__state" role="status"><span>没有符合当前搜索的应用。</span></div>
               : visibleApplications.map(application => {
                 const enabled = !(settings.general.hiddenApplicationNavigationIds ?? []).includes(application.id);

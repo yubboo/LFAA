@@ -61,7 +61,7 @@
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  container-type: inline-size;
+  container-type: size;
   container-name: lfaa-canvas;
 }
 
@@ -81,6 +81,21 @@
 .lfaa-cnv-stage .react-flow {
   background: transparent;
 }
+
+.lfaa-cnv-workflow-stage {
+  position: absolute;
+  z-index: 10;
+  inset: 0;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 78px 20px 24px;
+  background: var(--lfaa-cnv-surface);
+  container-type: size;
+  container-name: lfaa-canvas;
+}
+
+.lfaa-cnv-workflow-stage[hidden] { display: none; }
 
 /* 点阵/线框网格颜色直接取令牌，保证深浅主题都可读。 */
 .lfaa-cnv-stage .react-flow__background {
@@ -137,6 +152,15 @@
 .lfaa-cnv-project-switch {
   width: 190px;
   min-width: 126px;
+}
+
+.lfaa-cnv-topbar__modes {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .lfaa-cnv-save-status {
@@ -1265,8 +1289,14 @@
   }
 
   .lfaa-cnv-mode-switch {
+    justify-self: end;
+  }
+
+  .lfaa-cnv-topbar__modes {
     grid-area: mode;
     justify-self: end;
+    max-width: 100%;
+    justify-content: flex-end;
   }
 
   .lfaa-cnv-topbar__group--actions {
@@ -1367,6 +1397,11 @@
     grid-column: 1 / -1;
     justify-self: end;
   }
+}
+
+@container lfaa-canvas (max-width: 420px) {
+  .lfaa-cnv-workflow-stage { padding: 108px 8px 16px; }
+  .lfaa-cnv-topbar__modes { gap: 4px; }
 }
 
 @container lfaa-canvas (max-width: 640px) {

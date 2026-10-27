@@ -147,8 +147,8 @@ credentials:受保护秘密存储与访问服务
 credentials-local:本机凭据存储提供方
 deepseek-account:DeepSeek 账户认证来源适配
 deepseek-account-platform:DeepSeek 平台账户凭据适配`,
-  deliverables: `tool-present:交付物呈现工具协议
-workspace-changes:工作区真实修改及产物引用收集`,
+  deliverables: `tool-present:Agent 明确发布最终交付文件的工具合同
+workspace-changes:账户隔离的 Agent 产物登记与项目引用收集，不复制文件字节`,
   document: `office-to-pdf:Office 文档到 PDF 的真实转换适配
 tool-writing:绑定当前账户作品的写作读取/提案工具合同
 writing:作品、章节、资料、修订、提案事务与本机正文存储`,
@@ -384,6 +384,7 @@ web-search-perplexity:Perplexity 搜索提供方`,
   webhook: `webhook:外部事件验签、解析和触发合同
 webhook-github:GitHub 事件来源适配`,
   workflow: `dag-engine:DAG 节点依赖调度、状态和取消
+app-agent-adapter:按 App 工具目录注册 Agent 工作流节点
 minecraft-adapter:Minecraft 领域工作流节点适配
 tool-ralph:Ralph 迭代工作流工具适配
 tool-workflow:模型工作流发现、保存、运行和跟踪工具

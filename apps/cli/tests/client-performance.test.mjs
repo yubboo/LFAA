@@ -15,7 +15,7 @@ import { createSnapshotCache, clearClientSnapshots } from "../../../packages/cli
 import { createAiActivityClockStore } from "../../../packages/client/ui-chat/src/activity-clock.ts";
 import { observeWorkbenchMetrics } from "../../../packages/client/ui-dockkit/src/use-workbench-metrics.ts";
 import { buildConversationAnchors, conversationAnchorReply } from "../../../packages/client/ui-chat/src/conversation-anchor-preview.ts";
-import { buildConversationAnchorLayout, createConversationScrollTracker, createFrameCoalescer, findNearestConversationAnchorIndex, projectConversationWheelScroll, shouldAutoScrollToLatest, shouldFollowLatestMessage, shouldShowScrollToLatest, updateConversationAnchorPointerTarget } from "../../../packages/client/ui-chat/src/conversation-scroll.ts";
+import { buildConversationAnchorLayout, createConversationScrollTracker, createFrameCoalescer, findNearestConversationAnchorIndex, projectConversationWheelScroll, shouldAutoScrollToLatest, shouldFollowLatestMessage, shouldShowScrollToLatest, syncConversationScrollToLatest, updateConversationAnchorPointerTarget } from "../../../packages/client/ui-chat/src/conversation-scroll.ts";
 import { sameTerminalTask } from "../../../packages/client/ui-workspace/src/terminal-snapshot.ts";
 
 function browserEvents(t) {
@@ -682,6 +682,16 @@ test("回到底部只在消息布局变化时自动调整位置，普通滚动�
   assert.equal(shouldAutoScrollToLatest(true, false), false);
   assert.equal(shouldAutoScrollToLatest(true, true), true);
   assert.equal(shouldAutoScrollToLatest(false, true), false);
+});
+
+test("流式提交后在绘制前同步跟随最新正文，用户上翻时不抢滚动位置", () => {
+  const viewport = { scrollHeight: 1000, scrollTop: 400, clientHeight: 500 };
+  assert.equal(syncConversationScrollToLatest(viewport, true), true);
+  assert.equal(viewport.scrollTop, 500);
+  assert.equal(syncConversationScrollToLatest(viewport, true), false, "已在底部时不重复写滚动位置");
+  viewport.scrollTop = 240;
+  assert.equal(syncConversationScrollToLatest(viewport, false), false);
+  assert.equal(viewport.scrollTop, 240, "用户离开底部后保留用户位置");
 });
 
 test("刷新恢复时按首次绘制位置同步决定是否显示回到底部", () => {

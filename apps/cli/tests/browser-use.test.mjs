@@ -9,6 +9,7 @@ import { isolateData } from "./isolated-data.mjs";
 
 isolateData(test, "browser-use");
 const { BrowserSessionManager } = await import("lfaa-browser-use/src/session-manager.js");
+const { createBrowserTools } = await import("lfaa-browser-use/src/browser-tools.js");
 const { BUILTIN_BROWSER_WORKSPACE_ID } = await import("lfaa-util-values/src/browser-provider.js");
 const { database } = await import("lfaa-storage-sqlite/src/database.js");
 
@@ -266,7 +267,18 @@ test("real Chromium lets Agent operate the page already opened in LFAA browser",
   if (!provider) { await manager.closeAll(); t.skip("Microsoft Edge is unavailable on this host"); return; }
   const server = createServer((_request, response) => {
     response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-    response.end('<!doctype html><html><head><title>Browser handoff</title></head><body><button id="first">同名</button><button id="second">同名</button><label>姓名 <input id="name"></label><output id="result">尚未操作</output><script>document.querySelector("#first").onclick=()=>document.querySelector("#result").textContent="第一个按钮";document.querySelector("#second").onclick=()=>document.querySelector("#result").textContent="第二个按钮";document.querySelector("#name").oninput=e=>document.querySelector("#result").textContent="输入:"+e.target.value;</script></body></html>');
+    response.end(`<!doctype html><html><head><title>Browser handoff</title></head><body>
+      <button id="first">同名</button><button id="second">同名</button>
+      <label>姓名 <input id="name"></label>
+      <div id="switch" style="width:40px;height:20px" role="switch" aria-label="夜间氛围" aria-checked="false" tabindex="0"></div>
+      <output id="result">尚未操作</output>
+      <script>
+        document.querySelector("#first").onclick=()=>document.querySelector("#result").textContent="第一个按钮";
+        document.querySelector("#second").onclick=()=>document.querySelector("#result").textContent="第二个按钮";
+        document.querySelector("#name").oninput=e=>document.querySelector("#result").textContent="输入:"+e.target.value;
+        document.querySelector("#switch").onclick=e=>{const value=e.currentTarget.getAttribute("aria-checked")!=="true";e.currentTarget.setAttribute("aria-checked",String(value));document.querySelector("#result").textContent="夜间模式:"+(value?"已开":"已关");};
+      </script>
+    </body></html>`);
   });
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
@@ -280,9 +292,12 @@ test("real Chromium lets Agent operate the page already opened in LFAA browser",
     assert.equal(observed.sessionId, manual.sessionId, "Agent observes the manually opened Page rather than a new browser");
     assert.deepEqual(observed.controls.filter(control => control.name === "同名").map(control => control.occurrence), [0, 1]);
     assert.ok(observed.controls.some(control => control.name === "姓名" && control.role === "textbox"), "linked label appears in Agent snapshot");
+    assert.ok(observed.controls.some(control => control.name === "夜间氛围" && control.role === "switch"), "custom ARIA switch appears in Agent snapshot");
     await assert.rejects(agent.click("lfaa-managed-edge", "button", "同名"), /多个同名控件/u);
     const clicked = await agent.click("lfaa-managed-edge", "button", "同名", 1);
     assert.match(clicked.pageText, /第二个按钮/u);
+    const switched = await agent.click("lfaa-managed-edge", "switch", "夜间氛围");
+    assert.match(switched.pageText, /夜间模式:已开/u);
     const filled = await agent.fill("lfaa-managed-edge", "姓名", "LFAA");
     assert.match(filled.pageText, /输入:LFAA/u);
   } finally {
@@ -290,6 +305,22 @@ test("real Chromium lets Agent operate the page already opened in LFAA browser",
     for (const cleanup of cleanups) cleanup();
     await manager.closeAll();
     await new Promise(resolve => server.close(resolve));
+  }
+});
+
+test("Browser click Tool Schema accepts switch while preserving write risk", async () => {
+  const manager = new BrowserSessionManager(true, undefined, { headless: true });
+  try {
+    const clickTool = createBrowserTools(manager).find(item => item.name === "lfaa_browser_click");
+    assert.ok(clickTool);
+    const roleEnum = clickTool.schema.properties.role.enum;
+    assert.ok(roleEnum.includes("switch"), "Provider receives switch in the executable Tool Schema");
+    assert.deepEqual(clickTool.parse({ providerId: "lfaa-managed-edge", role: "switch", name: "夜间氛围" }), {
+      providerId: "lfaa-managed-edge", role: "switch", name: "夜间氛围"
+    });
+    assert.equal(clickTool.risk({ role: "switch" }), "write", "switch actions still pass through the existing Permission Owner");
+  } finally {
+    await manager.closeAll();
   }
 });
 

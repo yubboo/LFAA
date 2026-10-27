@@ -59,6 +59,35 @@ test("正文与操作组、确认记录交错，最终答案保持为独立的�
   });
 });
 
+test("隐藏重复模型阶段，只保留真实上下文整理、工具和执行错误", () => {
+  const firstEnd = "发现问题。".length;
+  const content = "发现问题。查询后已修复。";
+  const message = {
+    id: "status-filter-run", role: "assistant", status: "complete", createdAt: "2026-10-27T00:00:00Z",
+    content, activity: [
+      { ...activity("prepare", 0, "status"), title: "整理对话上下文" },
+      { ...activity("request", 0, "status"), title: "请求 deepseek · deepseek-flash" },
+      { ...activity("context", firstEnd, "status"), title: "上下文管理", detail: "根据本轮真实管理结果整理了历史上下文。" },
+      { ...activity("inference", firstEnd, "status"), title: "模型推理中 · deepseek-flash" },
+      { ...activity("receive", firstEnd, "status"), title: "流式接收回答" },
+      { ...activity("tool", firstEnd, "tool"), title: "查询 Minecraft 核心" },
+      { ...activity("failure", content.length, "status"), title: "可选路由不可用", status: "unavailable" }
+    ], parts: [
+      { id: "commentary", start: 0, end: firstEnd, kind: "commentary" },
+      { id: "final", start: firstEnd, end: content.length, kind: "final" }
+    ]
+  };
+  const result = buildResponseTimeline(message);
+  const serialized = JSON.stringify(result.blocks);
+  const context = result.blocks.find(block => block.kind === "activity");
+  const tools = result.blocks.find(block => block.kind === "tools");
+
+  assert.doesNotMatch(serialized, /整理对话上下文|请求 deepseek|模型推理中|流式接收回答|deepseek-flash/u);
+  assert.equal(context?.activity.title, "已优化对话", "只把真实完成的上下文整理映射为简短操作记录");
+  assert.equal(tools?.activities[0]?.id, "tool", "实际派发的工具仍处于正文的真实落点");
+  assert.equal(result.blocks.at(-1)?.kind, "activity", "执行错误仍保留为可见状态");
+});
+
 test("相邻 Provider 正文分段合并后再流式解析 Markdown", () => {
   const content = "说明文字\n\n> 正在引用\n\n```bash\necho ready\n";
   const quoteCut = content.indexOf("> 正在引用") + 1;
@@ -97,7 +126,7 @@ test("流式正文、工具与交互按落点留在同条回复，完成后追�
   assert.doesNotMatch(running, /小鱼主 Agent|已登记项目工具/u);
   assert.match(running, /ai-work-chat__activity-live-status--processing[^>]*[\s\S]*?<span>正在回复<\/span>/u, "已有可见正文时状态为正在回复");
   assert.doesNotMatch(running, /activity-current-action--static/u, "当前状态不固定在耗时行下方");
-  assert.match(running, /<details class="ai-work-chat__tool-group"[^>]*\bopen=/u, "工具活动组在运行期间展开，详细过程进入同一条回复流");
+  assert.doesNotMatch(running, /<details class="ai-work-chat__tool-group"[^>]*\bopen=/u, "运行中的工具活动组默认收起，真实状态仍在摘要中");
   const durationStart = running.indexOf('class="ai-work-chat__response-duration"');
   const timelineStart = running.indexOf('class="ai-work-chat__response-timeline"');
   const currentActionStart = running.indexOf('class="ai-work-chat__activity-live-status');
@@ -125,6 +154,18 @@ test("流式正文、工具与交互按落点留在同条回复，完成后追�
   actualReply.activity = [{ ...activity("reply-phase", actualReply.parts[0].end, "status"), title: "流式接收回答", status: "running" }];
   const actualReplyMarkup = render(actualReply);
   assert.ok(actualReplyMarkup.indexOf("已经完成。") < actualReplyMarkup.indexOf("正在回复"), "流式回复状态跟随最新可见正文，而不是停在阶段开始偏移");
+  const replyAfterTool = fixture("streaming");
+  const replyOffset = replyAfterTool.content.length;
+  replyAfterTool.activity = [
+    { ...activity("minecraft-core-query", replyOffset, "tool"), title: "查询可用 Minecraft 核心" },
+    { ...activity("reply-after-tool", replyOffset, "status"), title: "流式接收回答", status: "running", completedAt: null, durationMs: null }
+  ];
+  const replyAfterToolMarkup = render(replyAfterTool);
+  const replyToolSummary = replyAfterToolMarkup.slice(replyAfterToolMarkup.indexOf("<summary"), replyAfterToolMarkup.indexOf("</summary>") + "</summary>".length);
+  assert.match(replyToolSummary, /ai-work-chat__tool-group-live-status[^>]*role="status"[^>]*aria-live="polite"[^>]*aria-atomic="true"><span>正在回复<\/span>/u,
+    "工具活动后的正在回复状态嵌入同一条可展开摘要");
+  assert.doesNotMatch(replyAfterToolMarkup, /<div class="ai-work-chat__activity-live-status[^>]*>\s*<span>正在回复/u,
+    "已合并到工具摘要的回复状态不再另起一行");
   const partialReply = fixture("streaming");
   partialReply.content = "先核对现状。";
   partialReply.parts = [{ id: "part-0", start: 0, end: partialReply.content.length, kind: "commentary" }];
@@ -138,7 +179,9 @@ test("流式正文、工具与交互按落点留在同条回复，完成后追�
     toolStages: [{ stage: "模型已选择工具", detail: "模型请求读取指定项目文件。" }, { stage: "参数已校验", detail: "工具 Owner 校验项目相对路径；参数值不公开。" }] });
   const activeToolMarkup = render(activeTool);
   assert.match(activeToolMarkup, /ai-work-chat__tool-group--running[^>]*>/u);
-  assert.match(activeToolMarkup, /<details class="ai-work-chat__tool-group[^>]*\bopen=/u, "运行中的工具组保持展开");
+  assert.doesNotMatch(activeToolMarkup, /<details class="ai-work-chat__tool-group[^>]*\bopen=/u, "多步执行时工具组默认收起，避免活动记录挤占正文");
+  assert.match(activeToolMarkup, /<summary class="ai-work-chat__tool-contract-summary">[\s\S]*?调用说明[\s\S]*?project_files[\s\S]*?<\/summary>/u, "工具合同摘要仍提供准确函数名和手动展开入口");
+  assert.doesNotMatch(activeToolMarkup, /<details class="ai-work-chat__tool-contract"[^>]*\bopen=/u, "工具用途、参数字段与阶段详情默认收起");
   assert.match(activeToolMarkup, /正在执行：操作项目文件/u, "当前工具动作显示在实际工具活动组");
   assert.match(activeToolMarkup, /project_files/u, "显示本轮调用的准确工具函数名");
   assert.match(activeToolMarkup, /读取、创建、修改或核对当前项目中的文件/u, "显示模型本轮收到的工具用途");
@@ -157,41 +200,39 @@ test("流式正文、工具与交互按落点留在同条回复，完成后追�
   assert.equal([...running.matchAll(/已经完成。/gu)].length, 1);
   assert.match(running, /是否继续？你的回答：继续/u);
   const finished = render(fixture());
-  assert.match(finished, /<details class="ai-work-chat__response-history">/u);
-  assert.match(finished, /<summary>\s*<span class="ai-work-chat__response-history-summary"><span class="ai-work-chat__assistant-identity">[\s\S]*?小鱼助手[\s\S]*?用时 /u);
+  assert.doesNotMatch(finished, /<details class="ai-work-chat__response-history"/u, "完成后正文与操作不会被整体收进外层折叠");
+  assert.match(finished, /<div class="ai-work-chat__response-duration"><span class="ai-work-chat__assistant-identity">[\s\S]*?小鱼助手[\s\S]*?用时 [\s\S]*?<span class="ai-work-chat__response-state" data-tone="complete">已完成<\/span>/u);
   assert.doesNotMatch(finished, /ai-work-chat__assistant-mark--processing/u, "回复结束后小鱼保持静止");
   const waiting = fixture("waiting_input");
   waiting.activity = [{ ...activity("pending-question", 0, "question"), status: "waiting_input", completedAt: null, question: "要继续吗？", questionId: "q", options: ["继续"] }];
   assert.doesNotMatch(render(waiting), /ai-work-chat__assistant-mark--processing/u, "等待用户输入时小鱼保持静止");
-  assert.match(finished, /class="ai-work-chat__response-history-state" data-tone="complete">已完成<\/span>/u, "整轮终态来自真实 complete 消息状态并在折叠摘要可见");
+  assert.match(finished, /class="ai-work-chat__response-state" data-tone="complete">已完成<\/span>/u, "整轮终态来自真实 complete 消息状态并显示在固定标题行");
   assert.doesNotMatch(finished, /小鱼主 Agent|已登记项目工具/u);
-  assert.match(finished, /<details class="ai-work-chat__tool-group"[^>]*\bopen=/u, "展开用时时直接显示实际工具步骤");
+  assert.doesNotMatch(finished, /<details class="ai-work-chat__tool-group"[^>]*\bopen=/u, "回看已完成过程时工具组仍默认收起，按需查看具体步骤");
   assert.doesNotMatch(render(fixture("streaming"), false), /ai-work-chat__response-interaction/u);
   const finalStart = finished.indexOf('class="ai-work-chat__response-final"');
-  const historyStart = finished.indexOf('<details class="ai-work-chat__response-history">');
-  const historyEnd = finished.indexOf("</details>", historyStart);
-  assert.ok(historyStart < finished.indexOf("command-3") && historyEnd < finalStart, "完成后真实工作过程收在用时折叠区，最终答案独立可见");
+  const headerStart = finished.indexOf('class="ai-work-chat__response-duration"');
+  const finishedTimelineStart = finished.indexOf('class="ai-work-chat__response-timeline"');
+  assert.ok(headerStart < finishedTimelineStart && finishedTimelineStart < finished.indexOf("command-3") && finished.indexOf("command-3") < finalStart, "固定标题与分隔线之后按顺序显示真实动作，最后显示最终答复");
   assert.match(finished.slice(finalStart), /<strong>已经完成。<\/strong>/u);
   assert.equal([...finished.matchAll(/已经完成。/gu)].length, 1);
   const failedReply = fixture("error");
   failedReply.content = "真实执行失败：Provider 连接超时。";
   failedReply.parts = [{ id: "failure-final", start: 0, end: failedReply.content.length, kind: "final" }];
   const failedMarkup = render(failedReply);
-  assert.match(failedMarkup, /class="ai-work-chat__response-history-state" data-tone="error">未能完成<\/span>/u);
+  assert.match(failedMarkup, /class="ai-work-chat__response-state" data-tone="error">未能完成<\/span>/u);
   assert.match(failedMarkup, /真实执行失败：Provider 连接超时/u, "失败诊断继续展示真实回复内容，不由状态标签合成");
   const stoppedReply = fixture("interrupted");
   stoppedReply.content = "任务已停止。";
   stoppedReply.parts = [{ id: "stopped-final", start: 0, end: stoppedReply.content.length, kind: "final" }];
-  assert.match(render(stoppedReply), /class="ai-work-chat__response-history-state" data-tone="stopped">已停止<\/span>/u);
+  assert.match(render(stoppedReply), /class="ai-work-chat__response-state" data-tone="stopped">已停止<\/span>/u);
   const withStages = fixture();
   withStages.activity.splice(2, 0, { ...activity("request-model", 0, "status"), title: "请求 deepseek · flash", detail: "第 1 次模型请求。" });
   const stageTimeline = buildResponseTimeline(withStages);
-  assert.equal(stageTimeline.blocks[0].kind, "activity");
-  assert.equal(stageTimeline.blocks[0].activity.id, "request-model", "完成态保留真实模型请求阶段，不展示隐藏推理文本");
+  assert.notEqual(stageTimeline.blocks[0].kind, "activity", "完成态也不重复展示内部模型请求阶段");
   const stageMarkup = render(withStages);
-  assert.match(stageMarkup, /request-model/u);
-  assert.equal(stageTimeline.blocks[0].activity.detail, "第 1 次模型请求。", "执行节点携带 Owner 保存的真实阶段摘要");
-  const emptyHistory = fixture(); emptyHistory.parts = undefined; emptyHistory.activity = [];
+  assert.doesNotMatch(stageMarkup, /request-model|请求 deepseek|第 1 次模型请求/u, "内部模型请求信息不进入用户回复");
+  const emptyHistory = fixture(); emptyHistory.content = ""; emptyHistory.parts = undefined; emptyHistory.activity = [];
   assert.match(render(emptyHistory), /此回复没有保存可展示的过程更新或工具操作/u, "旧消息没有过程数据时明确说明，避免留下空白区");
   const browserActivity = { ...activity("browser-navigation", 0, "tool"), title: "导航浏览器页面", toolId: "browser-use.navigate", browserProviderId: "lfaa-native-browser", detail: "页面导航完成。\n打开网页：\nhttp://127.0.0.1:3000/canvas" };
   const browserReply = fixture(); browserReply.activity.push(browserActivity);
@@ -228,9 +269,8 @@ test("流式正文、工具与交互按落点留在同条回复，完成后追�
   assert.doesNotMatch(fileCard, /<code>README\.md<\/code>/u, "只列修改、新建或删除，不把读取文件算作变更");
   const legacy = fixture(); delete legacy.parts;
   const legacyHtml = render(legacy);
-  const legacyHistoryStart = legacyHtml.indexOf('<details class="ai-work-chat__response-history">');
-  const legacyHistoryEnd = legacyHtml.indexOf("</details>", legacyHistoryStart);
-  assert.ok(legacyHistoryEnd < legacyHtml.indexOf('class="ai-work-chat__response-final"'), "旧消息正文完整可见，过程折叠展示且不推测历史落点");
+  assert.doesNotMatch(legacyHtml, /<details class="ai-work-chat__response-history"/u, "旧消息也不再把整轮内容放进外层折叠");
+  assert.ok(legacyHtml.indexOf('class="ai-work-chat__response-duration"') < legacyHtml.indexOf('class="ai-work-chat__response-final"'), "旧消息正文在固定助手标题下完整可见");
 });
 
 test("老消息不猜测分段；停止时最新部分正文继续可见", () => {

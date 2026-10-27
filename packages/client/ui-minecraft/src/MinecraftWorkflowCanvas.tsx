@@ -15,6 +15,7 @@ import {
   loadWorkflows,
   saveWorkflow,
   startWorkflowRun,
+  type AiWorkbenchView,
   type WorkflowDefinition,
   type WorkflowEdge,
   type WorkflowNode,
@@ -25,7 +26,7 @@ import {
 import { MinecraftAgentWorkflowNodeEditor } from "./MinecraftAgentWorkflowNodeEditor.js";
 import "./MinecraftWorkflowCanvas.css";
 
-interface MinecraftWorkflowCanvasProps { userId: string }
+interface MinecraftWorkflowCanvasProps { userId: string; visible?: boolean; onWorkflowContextChange?: (workflow: AiWorkbenchView["workflow"] | null) => void }
 interface WorkflowDraft { id: string | null; title: string; engineId: string; nodes: WorkflowNode[]; edges: WorkflowEdge[] }
 const terminalStatuses = new Set(["succeeded", "failed", "interrupted"]);
 const workflowStatusLabel: Record<WorkflowRun["status"], string> = { queued: "排队中", running: "运行中", succeeded: "已完成", failed: "失败", interrupted: "已中断" };
@@ -58,7 +59,7 @@ function needsMinecraftEula(nodes: WorkflowNode[]): boolean {
     && node.data.toolNames.some((name) => name === "minecraft_provision_server" || name === "minecraft_deploy_server"));
 }
 
-export function MinecraftWorkflowCanvas({ userId }: MinecraftWorkflowCanvasProps) {
+export function MinecraftWorkflowCanvas({ userId, visible = true, onWorkflowContextChange }: MinecraftWorkflowCanvasProps) {
   const [workflows, setWorkflows] = useState<WorkflowDefinition[]>([]);
   const [nodeTypes, setNodeTypes] = useState<WorkflowNodeType[]>([]);
   const [engineTypes, setEngineTypes] = useState<Array<{ id: string; version: number; name: string }>>([]);
@@ -101,8 +102,14 @@ export function MinecraftWorkflowCanvas({ userId }: MinecraftWorkflowCanvasProps
 
   const selectedId = draft?.id ?? "";
   const activeRun = useMemo(() => runs.some((run) => !terminalStatuses.has(run.status)), [runs]);
+  const selectedWorkflowUpdatedAt = workflows.find(workflow => workflow.id === draft?.id)?.updatedAt;
   useEffect(() => {
-    if (!selectedId) { setRuns([]); return; }
+    if (!visible || !draft?.id || !selectedWorkflowUpdatedAt) { onWorkflowContextChange?.(null); return; }
+    onWorkflowContextChange?.({ applicationId: "minecraft", workflowId: draft.id, title: draft.title, updatedAt: selectedWorkflowUpdatedAt });
+    return () => onWorkflowContextChange?.(null);
+  }, [draft?.id, draft?.title, onWorkflowContextChange, selectedWorkflowUpdatedAt, visible]);
+  useEffect(() => {
+    if (!visible || !selectedId) { if (!selectedId) setRuns([]); return; }
     let alive = true;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let inFlight = false;
@@ -110,7 +117,7 @@ export function MinecraftWorkflowCanvas({ userId }: MinecraftWorkflowCanvasProps
       if (inFlight) return;
       inFlight = true;
       try {
-        const result = await loadWorkflowRuns("minecraft", selectedId);
+        const result = await loadWorkflowRuns("minecraft", selectedId, controller.signal);
         if (!alive) return;
         setRuns((current) => JSON.stringify(current) === JSON.stringify(result.runs) ? current : result.runs);
         if (!document.hidden && result.runs.some((run) => !terminalStatuses.has(run.status))) timer = setTimeout(() => void refresh(), 2500);
@@ -123,9 +130,10 @@ export function MinecraftWorkflowCanvas({ userId }: MinecraftWorkflowCanvasProps
       else { if (timer) clearTimeout(timer); timer = null; void refresh(); }
     };
     document.addEventListener("visibilitychange", onVisibilityChange);
+    const controller = new AbortController();
     void refresh();
-    return () => { alive = false; if (timer) clearTimeout(timer); document.removeEventListener("visibilitychange", onVisibilityChange); };
-  }, [selectedId, activeRun]);
+    return () => { alive = false; controller.abort(); if (timer) clearTimeout(timer); document.removeEventListener("visibilitychange", onVisibilityChange); };
+  }, [selectedId, activeRun, visible]);
 
   const markChanged = useCallback((change: (current: WorkflowDraft) => WorkflowDraft) => {
     setDraft((current) => current ? change(current) : current);

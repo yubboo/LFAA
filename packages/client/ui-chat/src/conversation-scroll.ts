@@ -18,6 +18,18 @@ export function shouldAutoScrollToLatest(following: boolean, layoutChanged: bool
   return following && layoutChanged;
 }
 
+/** 在绘制前同步跟随最新内容；只在确实落后时写入位置，避免无变化滚动事件。 */
+export function syncConversationScrollToLatest(
+  container: Pick<HTMLElement, "scrollHeight" | "scrollTop" | "clientHeight">,
+  following: boolean
+): boolean {
+  if (!following) return false;
+  const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+  if (distanceFromBottom <= 1) return false;
+  container.scrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
+  return true;
+}
+
 /** 刷新恢复或滚动后，仅在确有历史消息且离最新位置超过跟随缓冲区时显示提示。 */
 export function shouldShowScrollToLatest(distanceFromBottom: number, messageCount: number): boolean {
   return messageCount > 0 && distanceFromBottom > 64;

@@ -1,7 +1,7 @@
 {
   "name": "lfaa-pwsh-local", "version": "0.1.1", "private": true, "type": "module",
   "exports": { ".": "./src/index.ts", "./src/*": "./src/*", "./package.json": "./package.json" },
-  "dependencies": { "@deepseek-ai/cordis": "4.0.4", "lfaa-shell": "workspace:*", "lfaa-sandbox-policy": "workspace:*" },
+  "dependencies": { "@deepseek-ai/cordis": "4.0.4", "lfaa-shell": "workspace:*", "lfaa-sandbox-policy": "workspace:*", "lfaa-win32-process": "workspace:*" },
   "devDependencies": { "@types/node": "^24.0.0" },
   "scripts": { "build": "node ../../../scripts/build-harness.mjs package" }
 }

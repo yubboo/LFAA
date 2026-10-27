@@ -31,6 +31,7 @@
 .module-center__title svg { color: var(--settings-accent, var(--color-brand)); }
 
 .module-center__actions { display: flex; min-width: 0; grid-column: 2; justify-self: end; align-items: center; gap: 3px; }
+.module-center__mode-switch { flex: 0 0 auto; }
 
 @container module-center (max-width: 560px) {
 

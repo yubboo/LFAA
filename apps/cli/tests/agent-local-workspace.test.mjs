@@ -65,6 +65,55 @@ test("本机 Agent 首次写入前初始化 Git 并绑定会话，不创建 Daem
   }
 });
 
+test("空默认任务目录继承 Workspace Owner 登记的默认工作区", () => {
+  const data = mkdtempSync(join(tmpdir(), "lfaa-agent-default-workspace-fallback-data-"));
+  const home = mkdtempSync(join(tmpdir(), "lfaa-agent-default-workspace-fallback-home-"));
+  const root = mkdtempSync(join(tmpdir(), "lfaa-agent-default-workspace-fallback-root-"));
+  try {
+    const script = [
+      "import assert from 'node:assert/strict';",
+      "import { database, closeDatabase } from 'lfaa-storage-sqlite/src/database.js';",
+      "import { configuration } from 'lfaa-storage-domain/src/configuration.js';",
+      "import { sessionRecords } from 'lfaa-session-persistence-jsonl/src/repository.js';",
+      "import * as sessions from 'lfaa-session/src/sessions.js';",
+      "import { retireLegacyFileTables } from 'lfaa-storage-domain/src/migration.js';",
+      "import { createWorkspaceProject, setDefaultWorkspaceProject } from 'lfaa-workspace-workspace/src/index.js';",
+      "import { projectFileTool } from 'lfaa-tools/src/project-tools.js';",
+      "retireLegacyFileTables();",
+      "database.prepare(\"INSERT INTO users(id,uid,username,password_salt,password_hash,role,is_super_admin) VALUES ('agent-default-workspace-fallback',733,'agent-default-workspace-fallback','salt','hash','admin',0)\").run();",
+      "const userId = 'agent-default-workspace-fallback';",
+      "const root = process.env.AGENT_DEFAULT_WORKSPACE_FALLBACK_ROOT;",
+      "const project = createWorkspaceProject({ userId, appId: 'workspace', nodeId: null, path: root, platform: process.platform, title: '默认工作区' });",
+      "setDefaultWorkspaceProject(userId, project.id);",
+      "const session = sessions.createAiTurn(userId, 'workspace', null, '列出默认目录').session;",
+      "const context = { userId, sessionId: session.id, applicationId: 'workspace', workspaceProject: null };",
+      "const prepared = projectFileTool.prepare({ operation: 'list' }, context);",
+      "assert.equal(prepared.rootDirectory, root);",
+      "assert.equal(prepared.workspaceTitle, '默认工作区');",
+      "assert.equal(prepared.localExecution, true);",
+      "assert.equal(prepared.trustedLocalRoot, true);",
+      "assert.equal(prepared.configuredRoot, false);",
+      "assert.equal(projectFileTool.risk(prepared), 'read');",
+      "let received = null;",
+      "await projectFileTool.execute(prepared, { ...context, executeLocalProjectFile: async input => { received = input; return { path: input.rootDirectory }; } });",
+      "assert.equal(received.rootDirectory, root);",
+      "assert.equal(database.prepare('SELECT COUNT(*) AS count FROM ai_host_tasks').get().count, 0, '默认工作区回退仍在本机执行，不派发节点任务');",
+      "configuration.close(); sessionRecords.close(); closeDatabase();"
+    ].join("\n");
+    const loader = new URL("../register-package-loader.mjs", import.meta.url).href;
+    execFileSync(process.execPath, ["--import", "tsx", "--import", loader, "--input-type=module", "-e", script], {
+      cwd: cli,
+      env: { ...process.env, NODE_ENV: "test", LFAA_HOME: home, LFAA_DATA_DIR: data, AGENT_DEFAULT_WORKSPACE_FALLBACK_ROOT: root },
+      encoding: "utf8", stdio: "pipe", timeout: 20000
+    });
+  } finally {
+    for (const path of [data, home, root]) {
+      assert.notEqual(resolve(path), resolve(tmpdir()));
+      rmSync(path, { recursive: true, force: true });
+    }
+  }
+});
+
 test("用户明确给出的本机绝对路径优先于绑定项目，并通过 LFAA Host 只读", () => {
   const data = mkdtempSync(join(tmpdir(), "lfaa-agent-explicit-project-data-"));
   const home = mkdtempSync(join(tmpdir(), "lfaa-agent-explicit-project-home-"));

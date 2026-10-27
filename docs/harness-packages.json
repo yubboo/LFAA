@@ -539,6 +539,7 @@
           "packages/core/agent-loop",
           "packages/host/webserver",
           "packages/test-support/api",
+          "packages/workflow/app-agent-adapter",
           "packages/workflow/minecraft-adapter",
           "packages/workflow/tool-workflow"
         ],
@@ -1007,6 +1008,7 @@
           "packages/client/ui-sidebar",
           "packages/client/ui-sidebar-browser",
           "packages/client/ui-sidebar-files",
+          "packages/client/ui-workflow",
           "packages/client/ui-workspace",
           "packages/client/ui-writing",
           "packages/client/web"
@@ -1971,7 +1973,9 @@
         "entry": "packages/client/ui-workflow/src/index.tsx",
         "readme": "packages/client/ui-workflow/README.md",
         "consumers": [
-          "packages/client/ui-minecraft"
+          "packages/client/ui-minecraft",
+          "packages/client/ui-workspace",
+          "packages/client/web"
         ],
         "bundleDeclarations": [],
         "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
@@ -2289,6 +2293,7 @@
           "packages/api/workspace-controller",
           "packages/compaction/compaction-basic",
           "packages/sdk/sdk-protocol",
+          "packages/workflow/app-agent-adapter",
           "packages/workflow/minecraft-adapter"
         ],
         "bundleDeclarations": [
@@ -2443,6 +2448,7 @@
           "packages/video/tool-ai-video",
           "packages/video/tool-bilibili-video",
           "packages/web/tool-web",
+          "packages/workflow/app-agent-adapter",
           "packages/workflow/minecraft-adapter",
           "packages/workflow/tool-workflow"
         ],
@@ -3735,6 +3741,7 @@
           "packages/credentials/authorization",
           "packages/fs/fs",
           "packages/subagent/subagent",
+          "packages/workflow/app-agent-adapter",
           "packages/workflow/minecraft-adapter"
         ],
         "bundleDeclarations": [
@@ -5092,6 +5099,7 @@
           "packages/video/ai-video",
           "packages/video/tool-bilibili-video",
           "packages/web/web-search-deepseek",
+          "packages/workflow/app-agent-adapter",
           "packages/workflow/minecraft-adapter"
         ],
         "bundleDeclarations": [
@@ -5163,7 +5171,7 @@
       "responsibility": "本机 PowerShell 提供方",
       "evidence": {
         "entry": "packages/shell/pwsh-local/src/index.ts",
-        "readme": null,
+        "readme": "packages/shell/pwsh-local/README.md",
         "consumers": [
           "packages/shell/pwsh-sandbox"
         ],
@@ -5939,6 +5947,7 @@
         "readme": null,
         "consumers": [
           "packages/mcp/mcp-client",
+          "packages/shell/pwsh-local",
           "packages/subagent/subagent",
           "packages/subprocess/subprocess-local"
         ],
@@ -6586,6 +6595,7 @@
           "packages/client/ui-settings-general",
           "packages/client/ui-sidebar",
           "packages/client/ui-theme",
+          "packages/client/ui-workflow",
           "packages/client/ui-workspace",
           "packages/computer-use/computer-use",
           "packages/core/agent",
@@ -6629,6 +6639,7 @@
           "packages/subagent/tool-subagent",
           "packages/subagent/tool-subagent-control",
           "packages/terminal/tool-terminal",
+          "packages/workflow/app-agent-adapter",
           "packages/workflow/dag-engine",
           "packages/workflow/tool-workflow",
           "packages/workflow/workflow",
@@ -6861,6 +6872,23 @@
       }
     },
     {
+      "path": "packages/workflow/app-agent-adapter",
+      "name": "lfaa-workflow-app-agent-adapter",
+      "upstreamName": null,
+      "upstream": false,
+      "status": "implemented",
+      "responsibility": "按 App 工具目录注册 Agent 工作流节点",
+      "evidence": {
+        "entry": "packages/workflow/app-agent-adapter/src/index.ts",
+        "readme": "packages/workflow/app-agent-adapter/README.md",
+        "consumers": [],
+        "bundleDeclarations": [
+          "packages/bundle/base/cordis.patch.yml"
+        ],
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
+      }
+    },
+    {
       "path": "packages/workflow/dag-engine",
       "name": "lfaa-workflow-dag-engine",
       "upstreamName": null,
@@ -6938,6 +6966,7 @@
         "readme": "packages/workflow/workflow/README.md",
         "consumers": [
           "packages/api/workflow-controller",
+          "packages/workflow/app-agent-adapter",
           "packages/workflow/dag-engine",
           "packages/workflow/minecraft-adapter",
           "packages/workflow/tool-workflow"
@@ -7017,6 +7046,7 @@
           "packages/api/workspace-controller",
           "packages/boot/knowledge-library",
           "packages/core/agent-loop",
+          "packages/core/tools",
           "packages/knowledge/knowledge-library"
         ],
         "bundleDeclarations": [

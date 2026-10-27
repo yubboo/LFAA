@@ -21,3 +21,6 @@ Daemon 心跳能力列表显式登记 `node-filesystem-binary-transfer-v1`；节
 `aiChatMessageSchema.workspaceView` 只接受登记的右侧面板枚举、两个开合布尔值和可选 HTTP(S) Browser Dock 地址；地址仅允许在浏览器面板打开时出现，未知字段拒绝。它是单次请求提示，不新增权限或能力合同。
 
 `appearancePresetSnapshotSchema` 与 Settings Owner 共用外观预设快照白名单。API route-contracts 只转出该既有合同，不在远程接口层复制主题、背景或布局默认值。
+# Agent 工作台视图
+
+`aiWorkbenchViewSchema` 校验可选的 Canvas/Workflow 当前 App ID、UUID、短标题与 ISO `updatedAt`。它们只是当前工作区定位信息，既不扩展 Tool Scope，也不替代画布/工作流 Owner 的真实读取与版本冲突校验。

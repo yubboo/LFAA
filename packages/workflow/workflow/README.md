@@ -12,7 +12,7 @@
 
 没有已注册节点包的 App 可读取/保存可识别定义，但不能运行未知节点。插件卸载不删除已保存图；未知节点配置保留并阻止运行，插件恢复后再解析。既有 v44 工作流由 v45 迁移至 `appId=minecraft`，v46 为运行记录新增当前节点字段。
 
-首个 App 节点实现位于 `packages/workflow/minecraft-adapter`；默认顺序 DAG 引擎在 `packages/workflow/dag-engine`。核心 Registry 允许切换已安装的兼容引擎，但 LFAA 通用第三方插件运行时尚不支持任意工作流代码安全装载。
+Minecraft 节点位于 `packages/workflow/minecraft-adapter`，保留专用工具过滤与 EULA 流程；其他已登记 App 的 `<appId>.agent` 节点由 `packages/workflow/app-agent-adapter` 按各自的 `AiBusinessTool` 目录注册。工具选择不是授权，执行继续回到 Agent Loop、工具 Owner 和 Permission Owner。默认顺序 DAG 引擎在 `packages/workflow/dag-engine`。核心 Registry 允许切换已安装的兼容引擎，但 LFAA 通用第三方插件运行时尚不支持任意工作流代码安全装载。
 
 AI Work 模型工具桥接位于 `packages/workflow/tool-workflow`，当前账户和 App 由 Agent Run 提供；该工具包调用本服务，不复制图校验、运行状态或节点执行逻辑。
 

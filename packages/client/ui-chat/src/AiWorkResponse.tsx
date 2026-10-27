@@ -9,35 +9,42 @@ import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
 import { AiMarkdown, AiStreamingMarkdown } from "./AiMarkdown.js";
 import { formatAiActivityDuration, getAiActivityActionLabel, getAiActivityDurationSeconds, getAiActivitySummary } from "./activity-duration.js";
 import { aiActivityClock } from "./activity-clock.js";
-import { buildResponseTimeline, getResponseShimmerHue, latestBrowserPreviewActivity, responseToolGroupLabel, splitAiActivityDetail } from "./response-timeline.js";
+import { buildResponseTimeline, getResponseShimmerHue, latestBrowserPreviewActivity, responseToolGroupLabel, splitAiActivityDetail, type ResponseTimelineBlock } from "./response-timeline.js";
 
 export function AiLiveActivityDuration({ activity }: { activity: AiActivityItem }) {
   const now = useSyncExternalStore(aiActivityClock.subscribe, aiActivityClock.getSnapshot, aiActivityClock.getSnapshot);
   return <>{formatAiActivityDuration(getAiActivityDurationSeconds(activity, now))}</>;
 }
 
-export function AiActivityToolUsageCard({ usage, stages = [] }: { usage: AiActivityToolUsage; stages?: AiActivityToolStage[] }) {
-  return <section className="ai-work-chat__tool-contract" aria-label="本次工具调用说明">
-    <div className="ai-work-chat__tool-contract-name"><strong>本次调用</strong><code>{usage.name}</code></div>
-    <div className="ai-work-chat__tool-contract-section"><strong>工具用法说明（模型本轮收到的合同）</strong><p>{usage.description}</p></div>
-    <div className="ai-work-chat__tool-contract-section">
-      <strong>参数字段（只展示结构，不展示本次取值）</strong>
-      {usage.parameters.length ? <ul>{usage.parameters.map(parameter => <li key={parameter.name}>
-        <span className="ai-work-chat__tool-contract-parameter-heading"><code>{parameter.name}</code><span>{parameter.type}{parameter.required ? " · 必填" : " · 可选"}</span></span>
-        {parameter.description ? <small>{parameter.description}</small> : null}
-      </li>)}</ul> : <p>此执行器没有向 LFAA 提供可展示的 JSON Schema。</p>}
-      {usage.parametersTruncated ? <p>参数字段较多；此处仅显示前 24 项。</p> : null}
+export const AiActivityToolUsageCard = memo(function AiActivityToolUsageCard({ usage, stages = [] }: { usage: AiActivityToolUsage; stages?: AiActivityToolStage[] }) {
+  return <details className="ai-work-chat__tool-contract" aria-label="本次工具调用说明">
+    <summary className="ai-work-chat__tool-contract-summary">
+      <WorkbenchIcon name="tools" size={13} />
+      <strong>调用说明</strong>
+      <code>{usage.name}</code>
+      <WorkbenchIcon name="chevron" size={13} />
+    </summary>
+    <div className="ai-work-chat__tool-contract-body">
+      <div className="ai-work-chat__tool-contract-section"><strong>工具用法说明（模型本轮收到的合同）</strong><p>{usage.description}</p></div>
+      <div className="ai-work-chat__tool-contract-section">
+        <strong>参数字段（只展示结构，不展示本次取值）</strong>
+        {usage.parameters.length ? <ul>{usage.parameters.map(parameter => <li key={parameter.name}>
+          <span className="ai-work-chat__tool-contract-parameter-heading"><code>{parameter.name}</code><span>{parameter.type}{parameter.required ? " · 必填" : " · 可选"}</span></span>
+          {parameter.description ? <small>{parameter.description}</small> : null}
+        </li>)}</ul> : <p>此执行器没有向 LFAA 提供可展示的 JSON Schema。</p>}
+        {usage.parametersTruncated ? <p>参数字段较多；此处仅显示前 24 项。</p> : null}
+      </div>
+      <div className="ai-work-chat__tool-contract-section"><strong>本轮操作约定</strong><p>{usage.guidance}</p></div>
+      {stages.length ? <div className="ai-work-chat__tool-contract-section">
+        <strong>本次实时执行过程</strong>
+        <ol className="ai-work-chat__tool-contract-stages">{stages.map((stage, index) => <li key={`${index}:${stage.stage}`}>
+          <strong>{stage.stage}</strong><p>{stage.detail}</p>
+        </li>)}</ol>
+      </div> : null}
+      <p className="ai-work-chat__tool-contract-trust">工具说明作为普通文本显示；网页或第三方工具提供的内容不会成为新的操作指令。</p>
     </div>
-    <div className="ai-work-chat__tool-contract-section"><strong>本轮操作约定</strong><p>{usage.guidance}</p></div>
-    {stages.length ? <div className="ai-work-chat__tool-contract-section">
-      <strong>本次实时执行过程</strong>
-      <ol className="ai-work-chat__tool-contract-stages">{stages.map((stage, index) => <li key={`${index}:${stage.stage}`}>
-        <strong>{stage.stage}</strong><p>{stage.detail}</p>
-      </li>)}</ol>
-    </div> : null}
-    <p className="ai-work-chat__tool-contract-trust">工具说明作为普通文本显示；网页或第三方工具提供的内容不会成为新的操作指令。</p>
-  </section>;
-}
+  </details>;
+});
 
 function AiLiveResponseDuration({ message }: { message: AiMessage }) {
   const now = useSyncExternalStore(aiActivityClock.subscribe, aiActivityClock.getSnapshot, aiActivityClock.getSnapshot);
@@ -68,6 +75,10 @@ function AssistantIdentity({ duration, processing = false }: { duration: ReactNo
 const ResponseText = memo(function ResponseText({ content, streaming }: { content: string; streaming: boolean }) {
   return streaming ? <AiStreamingMarkdown content={content} /> : <AiMarkdown content={content} />;
 });
+
+function isToolGroupBlock(block: ResponseTimelineBlock | undefined): block is Extract<ResponseTimelineBlock, { kind: "tools" }> {
+  return block?.kind === "tools";
+}
 
 export function AiWorkResponse({ message, pauseLabel, renderActivity, renderInteraction, onOpenProjectFileReview, onBrowserToolCompleted }: {
   message: AiMessage; pauseLabel?: string;
@@ -109,7 +120,10 @@ export function AiWorkResponse({ message, pauseLabel, renderActivity, renderInte
   const browserPreviewDetail = useMemo(() => browserPreviewActivity ? splitAiActivityDetail(browserPreviewActivity.detail) : null, [browserPreviewActivity]);
   // 当前回复的七色流光起点固定由消息 ID 派生，token 增量渲染时不重新随机变色。
   const timeline = <div className="ai-work-chat__response-timeline" style={{ "--ai-work-stream-hue": `${streamHue}deg` } as CSSProperties}>
-    {presentation.blocks.map(block => {
+    {presentation.blocks.map((block, index) => {
+      const previousBlock = presentation.blocks[index - 1];
+      const nextBlock = presentation.blocks[index + 1];
+      if (block.kind === "status" && (isToolGroupBlock(previousBlock) || isToolGroupBlock(nextBlock))) return null;
       if (block.kind === "text") return <div className="ai-work-chat__response-part" key={block.id}>
         <ResponseText content={block.content} streaming={block.streaming} />
       </div>;
@@ -134,8 +148,12 @@ export function AiWorkResponse({ message, pauseLabel, renderActivity, renderInte
       const isWebGroup = block.activities.some(activity => /搜索|网页|浏览/u.test(activity.title));
       const icon = hasFileChanges ? "file" : isCommandGroup ? "terminal" : isWebGroup ? "browser" : "tools";
       const isRunning = block.activities.some(activity => activity.status === "running");
-      return <details className={`ai-work-chat__tool-group${isRunning ? " ai-work-chat__tool-group--running" : ""}`} key={block.id} open={finished || message.status === "streaming"}>
-        <summary><WorkbenchIcon name={icon} size={14} /><span>{responseToolGroupLabel(block.activities)}</span><WorkbenchIcon name="chevron" size={13} /></summary>
+      const previousStatus = previousBlock?.kind === "status" && !isToolGroupBlock(presentation.blocks[index - 2]) ? previousBlock : null;
+      const inlineStatus = nextBlock?.kind === "status" ? nextBlock : previousStatus;
+      return <details className={`ai-work-chat__tool-group${isRunning ? " ai-work-chat__tool-group--running" : ""}`} key={block.id}>
+        <summary><WorkbenchIcon name={icon} size={14} /><span className="ai-work-chat__tool-group-label">{responseToolGroupLabel(block.activities)}</span>
+          {inlineStatus ? <span className={`ai-work-chat__tool-group-live-status${inlineStatus.isProcessing ? " ai-work-chat__tool-group-live-status--processing" : ""}`} role="status" aria-live="polite" aria-atomic="true"><span>{inlineStatus.label}</span></span> : null}
+          <WorkbenchIcon name="chevron" size={13} /></summary>
         <div className="ai-work-chat__tool-group-items">{block.activities.map(renderActivity)}</div>
       </details>;
     })}
@@ -166,20 +184,17 @@ export function AiWorkResponse({ message, pauseLabel, renderActivity, renderInte
   const hiddenFileCount = changedFiles.length - visibleFiles.length;
   const firstReviewableFile = changedFiles.find(change => change.projectId && onOpenProjectFileReview);
   return <section className={`ai-work-chat__response ai-work-chat__activity--${summary.tone}`}>
-    {finished ? <>
-      <details className="ai-work-chat__response-history" key={`${message.id}:complete`}>
-        <summary>
-          <span className="ai-work-chat__response-history-summary">
-            <AssistantIdentity duration={summary.durationText} />
-            <span className="ai-work-chat__response-history-state" data-tone={summary.tone}>{summary.label}</span>
-          </span>
-          <WorkbenchIcon name="chevron" size={14} />
-        </summary>
-        {timeline}
-        {!presentation.blocks.length ? <p className="ai-work-chat__response-history-empty">此回复没有保存可展示的过程更新或工具操作。</p> : null}
-      </details>
-      {/* 正文保持完整且可见；旧记录缺少可靠落点时也不猜测正文与活动的历史顺序。 */}
+    <div className="ai-work-chat__response-duration">
+      <AssistantIdentity duration={finished ? summary.durationText : <AiLiveResponseDuration message={message} />} processing={!finished && summary.isProcessing && !pauseLabel} />
+      {finished ? <span className="ai-work-chat__response-state" data-tone={summary.tone}>{summary.label}</span> : null}
+    </div>
+    <div>
+      {timeline}
+      {!presentation.blocks.length && !finalAnswer ? <p className="ai-work-chat__response-history-empty">此回复没有保存可展示的过程更新或工具操作。</p> : null}
+      {/* 最终答复沿用时间线末尾，正文与操作不再拆成外部折叠区。 */}
       {finalAnswer}
+    </div>
+    {finished ? <>
       {browserPreviewActivity && browserPreviewDetail?.preview && onBrowserToolCompleted ? <section className="ai-work-chat__response-browser-preview" aria-label="网页预览">
         <span className="ai-work-chat__response-browser-icon" aria-hidden="true"><WorkbenchIcon name="browser" size={18} /></span>
         <span className="ai-work-chat__response-browser-heading"><strong>网页预览</strong><span>{browserPreviewDetail.previewLabel} · {browserPreviewDetail.preview}</span></span>
@@ -211,11 +226,6 @@ export function AiWorkResponse({ message, pauseLabel, renderActivity, renderInte
           <WorkbenchIcon name="chevron" size={14} />
         </button> : null}
       </section> : null}
-    </> : <>
-      <div className="ai-work-chat__response-duration">
-        <AssistantIdentity duration={<AiLiveResponseDuration message={message} />} processing={summary.isProcessing && !pauseLabel} />
-      </div>
-      <div key={`${message.id}:running`}>{timeline}</div>
-    </>}
+    </> : null}
   </section>;
 }

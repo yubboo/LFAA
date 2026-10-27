@@ -66,7 +66,7 @@ const settingKeyLabels: Record<string, string> = {
   toggleContextPanel: "切换上下文面板快捷键", toggleBottomPanel: "切换底部面板快捷键", openTerminal: "打开终端快捷键",
   switchNormalMode: "切换常规模式快捷键", switchAiWorkMode: "切换 AI Work 模式快捷键", openSideChat: "打开侧聊快捷键",
   wallpaperSidebarToggle: "切换壁纸侧栏快捷键", speed: "Agent 响应速度", promptSuggestions: "提示建议", showContextUsage: "显示上下文使用情况",
-  requestTimeoutSeconds: "模型请求超时", requestRetries: "模型请求重试次数", retryDelaySeconds: "重试等待时间",
+  requestTimeoutSeconds: "模型无进展超时", requestRetries: "模型请求重试次数", retryDelaySeconds: "重试等待时间",
   maxOutputTokens: "最大输出 Token 数", maxModelRequests: "单轮模型请求预算", maxToolCalls: "单轮工具调用预算",
   subagentAccountId: "子 Agent 模型账户", imageGenerationMode: "图片生成方式", imageGenerationAccountId: "图片生成账户",
   imageGenerationModelId: "图片生成模型", imageGenerationLocalModelId: "本地图片模型", imageGenerationLocalTimeoutSeconds: "本地图片模型加载时限",

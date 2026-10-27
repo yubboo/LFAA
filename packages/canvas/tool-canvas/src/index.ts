@@ -15,6 +15,7 @@ import {
   type AiBusinessToolContext
 } from "lfaa-tools/src/tool-contract.js";
 import { APPLICATION_IDS, type ApplicationId } from "lfaa-util-values/src/application-id.js";
+import { CANVAS_NODE_KINDS_BY_APPLICATION } from "lfaa-util-values/src/canvas-node-types.js";
 import {
   CANVAS_LIMITS,
   CanvasConflictError,
@@ -306,7 +307,12 @@ function assertExpectedVersion(project: CanvasProject, expectedUpdatedAt: unknow
   if (project.updatedAt !== String(expectedUpdatedAt)) throw canvasConflictError();
 }
 
+function assertCurrentApplication(context: AiBusinessToolContext, applicationId: ApplicationId): void {
+  if (context.applicationId !== applicationId) throw new Error("画布 Agent 只能操作当前 App 的项目；请在目标 App 中打开画布后再执行。");
+}
+
 function requireProject(service: CanvasService, context: AiBusinessToolContext, applicationId: ApplicationId, projectId: string): CanvasProject {
+  assertCurrentApplication(context, applicationId);
   const project = service.read(context.userId, applicationId, projectId);
   if (!project) throw new Error("找不到当前账户与 App 作用域下的画布项目；请先用 canvas_list_projects 读取真实项目 ID，不要猜测。");
   return project;
@@ -517,6 +523,7 @@ function listProjectsTool(service: CanvasService): AiBusinessTool {
     execute: async (parameters, context) => {
       context.signal.throwIfAborted();
       const applicationId = parameters.applicationId as ApplicationId;
+      assertCurrentApplication(context, applicationId);
       const projects = service.list(context.userId, applicationId).map(summary => ({
         id: summary.id,
         applicationId: summary.applicationId,
@@ -591,6 +598,7 @@ function createProjectTool(service: CanvasService): AiBusinessTool {
     }),
     execute: async (parameters, context) => {
       context.signal.throwIfAborted();
+      assertCurrentApplication(context, parameters.applicationId as ApplicationId);
       const project = service.create(context.userId, parameters.applicationId as ApplicationId, parameters.title);
       return {
         created: true,
@@ -639,6 +647,7 @@ function addNodeTool(service: CanvasService): AiBusinessTool {
       assertExpectedVersion(project, parameters.expectedUpdatedAt);
       if (project.nodes.length >= CANVAS_LIMITS.nodes) throw new Error("每个画布最多保存 " + CANVAS_LIMITS.nodes + " 个节点；请先删除不再使用的节点。");
       const type = String(parameters.type) as CanvasToolNodeType;
+      if (!CANVAS_NODE_KINDS_BY_APPLICATION[applicationId].includes(type)) throw new Error("节点类型“" + type + "”未登记给当前 App。");
       const data = normalizeNodeData(type, parameters.data, project, null);
       const defaults = DEFAULT_NODE_SIZE[type];
       const node: CanvasNode = {
@@ -697,6 +706,7 @@ function updateNodeTool(service: CanvasService): AiBusinessTool {
       if (index === -1) throw new Error("找不到该项目中的画布节点；请先用 canvas_read_project 读取真实节点 ID。");
       const current = project.nodes[index]!;
       const type = parameters.type === undefined ? current.type : String(parameters.type);
+      if (!CANVAS_NODE_KINDS_BY_APPLICATION[project.applicationId].includes(type)) throw new Error("节点类型“" + type + "”未登记给当前 App。");
       const data = normalizeNodeData(type, parameters.data === undefined ? current.data : parameters.data, project, current);
       const node: CanvasNode = {
         ...current,

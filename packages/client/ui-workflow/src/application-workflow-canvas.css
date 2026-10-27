@@ -1,0 +1,60 @@
+.lfaa-app-workflow {
+  display: grid;
+  width: min(1440px, 100%);
+  min-width: 0;
+  gap: 12px;
+  margin: 0 auto;
+  color: var(--color-text-primary);
+}
+
+.lfaa-app-workflow__loading {
+  display: flex;
+  min-height: 260px;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.lfaa-app-workflow__heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 4px 2px;
+}
+
+.lfaa-app-workflow__heading > div { min-width: min(100%, 300px); }
+.lfaa-app-workflow__title.ant-typography { margin: 0 0 4px; color: var(--color-text-heading); font-size: clamp(18px, 2.2cqi, 24px); }
+.lfaa-app-workflow__description.ant-typography { margin: 0; color: var(--color-text-secondary); font-size: var(--font-size-xs); }
+.lfaa-app-workflow__eyebrow { display: block; margin-bottom: 4px; color: var(--color-text-muted); font-size: 10px; letter-spacing: .12em; }
+.lfaa-app-workflow__heading > .ant-space { min-width: 0; max-width: 100%; }
+.lfaa-app-workflow__heading .ant-select { min-width: min(170px, 100%); }
+.lfaa-app-workflow__editor,
+.lfaa-app-workflow__runs { min-width: 0; border-color: var(--color-border-subtle); background: var(--color-surface); color: var(--color-text-primary); }
+.lfaa-app-workflow__toolbar { display: flex; min-width: 0; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.lfaa-app-workflow__toolbar .ant-input { width: min(440px, 100%); }
+.lfaa-app-workflow__toolbar > span { color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.lfaa-app-workflow__run-title,
+.lfaa-app-workflow__run > header { display: flex; min-width: 0; align-items: center; gap: 8px; }
+.lfaa-app-workflow__run-title { justify-content: space-between; margin-bottom: 12px; }
+.lfaa-app-workflow__run-title .ant-typography { display: block; margin: 0; }
+.lfaa-app-workflow__run > header { flex-wrap: wrap; margin: 10px 0; }
+.lfaa-app-workflow__run-node { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 10px 0; border-top: 1px solid var(--color-border-subtle); }
+.lfaa-app-workflow__run-node > span:first-child { overflow-wrap: anywhere; }
+.lfaa-app-workflow__output,
+.lfaa-app-workflow__pending { grid-column: 1 / -1; min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.lfaa-app-workflow__output { max-height: 260px; overflow: auto; white-space: pre-wrap; }
+.lfaa-app-workflow__pending { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--color-border-subtle); border-radius: 8px; background: var(--color-surface-muted); }
+
+@container lfaa-canvas (max-width: 760px) {
+  .lfaa-app-workflow { gap: 8px; }
+  .lfaa-app-workflow__heading { align-items: flex-start; }
+  .lfaa-app-workflow__heading > .ant-space { display: grid; width: 100%; grid-template-columns: repeat(auto-fit, minmax(min(145px, 100%), 1fr)); }
+  .lfaa-app-workflow__heading .ant-select { width: 100%; min-width: 0; }
+}
+
+@container lfaa-canvas (max-height: 480px) {
+  .lfaa-app-workflow__editor .workflow-graph-editor { min-height: 380px; }
+}

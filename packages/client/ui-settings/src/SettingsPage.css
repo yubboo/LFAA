@@ -3771,6 +3771,19 @@
 }
 
 @container settings-main (max-width: 620px) {
+  .settings-content--ai .ai-account-item .ant-select-selection-item {
+    overflow: hidden;
+  }
+
+  .settings-content--ai .ai-account-item .ant-select-selection-item .settings-ai-model-option {
+    flex-wrap: nowrap;
+    overflow: hidden;
+  }
+
+  .settings-content--ai .ai-account-item .ant-select-selection-item .settings-ai-model-option__id {
+    display: none;
+  }
+
   .ai-account-item .ai-plan-model-editor {
     grid-template-columns: minmax(0, 1fr);
   }

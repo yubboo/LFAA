@@ -17,6 +17,7 @@ import * as ui_sidebar from "lfaa-client-ui-sidebar/src/client/index.js";
 import * as ui_sidebar_browser from "lfaa-client-ui-sidebar-browser/src/client/index.js";
 import * as ui_sidebar_files from "lfaa-client-ui-sidebar-files/src/client/index.js";
 import * as ui_workspace from "lfaa-client-ui-workspace/src/client/index.js";
+import * as ui_workflow from "lfaa-client-ui-workflow/src/client/index.js";
 import * as ui_writing from "lfaa-client-ui-writing/src/client/index.js";
 import { bootDshClientModules } from "lfaa-client-modules/src/client/index.js";
 const context = new Context();
@@ -37,6 +38,7 @@ await context.plugin(ui_sidebar);
 await context.plugin(ui_sidebar_browser);
 await context.plugin(ui_sidebar_files);
 await context.plugin(ui_workspace);
+await context.plugin(ui_workflow);
 await context.plugin(ui_writing);
 try {
   await bootDshClientModules(context);

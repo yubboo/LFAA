@@ -9,13 +9,26 @@
     ".": "./src/index.tsx"
   },
   "dependencies": {
+    "@deepseek-ai/cordis": "4.0.4",
     "@xyflow/react": "12.11.5",
     "antd": "^5.0.0",
     "lfaa-client-connection": "workspace:*",
+    "lfaa-client-modules": "workspace:*",
+    "lfaa-util-values": "workspace:*",
     "react": "^18.0.0"
   },
   "devDependencies": {
     "@types/react": "^18.0.0"
+  },
+  "lfaa": {
+    "client": {
+      "platform": "web",
+      "inject": [
+        "lfaa-client-connection",
+        "lfaa-client-modules",
+        "lfaa-util-values"
+      ]
+    }
   },
   "scripts": {
     "build": "node ../../../scripts/build-harness.mjs package"

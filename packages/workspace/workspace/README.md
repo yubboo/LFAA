@@ -6,7 +6,7 @@
 
 SQLite 迁移 38 为项目增加 `app_id`。迁移前的目录保持未分配，只有用户从某个 App 显式使用时才归属该 App；一个目录若仍被其他 App 的历史会话引用，则必须在目标 App 重新登记，不能共享归属。项目仅关联当前 App 的 AI 会话和文件上下文，不会创建新的 LFAA App，也不会创建或管理 Minecraft 游戏实例。
 
-SQLite 迁移 58 为每个账户保留 AI Work 默认工作区身份；默认目录由 LFAA 本机 Host 根据操作系统的“文档”位置动态解析到小写 `lfaa/default-workspace`，项目登记不保存 Daemon 节点 ID。SQLite 迁移 60 解除已知默认项目的旧节点绑定；更早的旧版默认目录只通过本机保存的身份确认唯一候选，再原子清空节点字段，不连接在线 Daemon。既有默认项目登记到其他路径时，Controller 请求本机 Project Files Owner 创建规范默认目录，再由本 Owner 以旧路径做并发保护并更新登记；旧目录内容以及 Session 记录都不读取、不复制、不改写。历史 Session JSONL 快照不重写，运行时按 Workspace Owner 当前登记解析默认身份。首次初始化只在当前账户没有项目与会话历史时创建；移除默认登记后不会自动重建。
+SQLite 迁移 58 为每个账户保留 AI Work 默认工作区身份；默认目录由 LFAA 本机 Host 根据操作系统的“文档”位置动态解析到小写 `lfaa/default-workspace`，项目登记不保存 Daemon 节点 ID。公开只读函数 `getDefaultWorkspaceProjectPath(userId)` 解析已登记默认项目的本机路径，不初始化或改写目录。SQLite 迁移 60 解除已知默认项目的旧节点绑定；更早的旧版默认目录只通过本机保存的身份确认唯一候选，再原子清空节点字段，不连接在线 Daemon。既有默认项目登记到其他路径时，Controller 请求本机 Project Files Owner 创建规范默认目录，再由本 Owner 以旧路径做并发保护并更新登记；旧目录内容以及 Session 记录都不读取、不复制、不改写。历史 Session JSONL 快照不重写，运行时按 Workspace Owner 当前登记解析默认身份。首次初始化只在当前账户没有项目与会话历史时创建；移除默认登记后不会自动重建。
 
 本包还持久化由 Daemon Git Worktree Owner 创建的隔离工作树身份、源项目、节点和恢复基线（SQLite 迁移 37）。它只登记项目关系，不持有仓库状态或 diff；工作树的创建、恢复或删除必须先通过账户/App/项目校验，再由原节点 Daemon 的固定 Git 操作完成。
 

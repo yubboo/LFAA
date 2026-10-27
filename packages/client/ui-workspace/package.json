@@ -22,6 +22,7 @@
     "lfaa-client-store": "workspace:*",
     "lfaa-client-ui-chat": "workspace:*",
     "lfaa-client-ui-connectivity": "workspace:*",
+    "lfaa-client-ui-deliverables": "workspace:*",
     "lfaa-client-ui-dockkit": "workspace:*",
     "lfaa-client-ui-minecraft": "workspace:*",
     "lfaa-client-ui-primitives": "workspace:*",
@@ -29,6 +30,7 @@
     "lfaa-client-ui-sidebar": "workspace:*",
     "lfaa-client-ui-sidebar-browser": "workspace:*",
     "lfaa-client-ui-theme": "workspace:*",
+    "lfaa-client-ui-workflow": "workspace:*",
     "lfaa-client-ui-writing": "workspace:*",
     "lfaa-util-values": "workspace:*",
     "react": "^18.0.0"
@@ -53,11 +55,13 @@
         "lfaa-client-ui-dockkit",
         "lfaa-client-ui-minecraft",
         "lfaa-client-ui-connectivity",
+        "lfaa-client-ui-deliverables",
         "lfaa-client-ui-primitives",
         "lfaa-client-ui-sidebar",
         "lfaa-client-ui-sidebar-browser",
         "lfaa-client-ui-settings-general",
         "lfaa-client-ui-theme",
+        "lfaa-client-ui-workflow",
         "lfaa-client-ui-writing"
       ]
     }

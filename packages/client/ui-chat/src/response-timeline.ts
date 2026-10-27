@@ -44,9 +44,11 @@ function timelineStructureFor(message: AiMessage, finished: boolean): CachedTime
   for (const [order, activity] of message.activity.entries()) {
     // 这两项是 Agent Loop 的能力/权限说明元数据，不代表本轮执行的工作。
     if ((activity.kind === "agent" && activity.title === "小鱼主 Agent") || (activity.kind === "tool" && activity.title === "已登记项目工具")) continue;
-    // 运行中只显示正文与一个当前状态；重复的模型阶段状态留在完成后的可展开记录中。
-    if (!finished && activity.kind === "status") continue;
-    entries.push({ offset: activity.contentOffset ?? 0, order, block: { kind: activity.kind === "question" || activity.approvalId ? "interaction" : "activity", id: activity.id, activity } });
+    // 模型请求、推理和接收阶段是协议进度，不是用户要回看的工作；只保留真实上下文整理和可操作错误。
+    const contextOptimization = activity.kind === "status" && activity.title === "上下文管理" && activity.status === "complete";
+    if (activity.kind === "status" && !contextOptimization && activity.status !== "error" && activity.status !== "unavailable") continue;
+    const visibleActivity = contextOptimization ? { ...activity, title: "已优化对话" } : activity;
+    entries.push({ offset: activity.contentOffset ?? 0, order, block: { kind: activity.kind === "question" || activity.approvalId ? "interaction" : "activity", id: activity.id, activity: visibleActivity } });
   }
   entries.sort((a, b) => a.offset - b.offset || a.order - b.order);
   const structure = { finished, entries };
@@ -111,7 +113,7 @@ export function buildResponseTimeline(message: AiMessage, liveStatus?: ResponseT
       return;
     }
     if (block.kind !== "activity") { blocks.push(block); return; }
-    // 阶段状态逐项显示，展开“用时”即可看见真实执行节点；工具仍按连续操作收组。
+    // 上下文整理保留为一条简短独立活动；模型请求阶段不混进用户回复流。
     if (block.activity.kind === "status") { blocks.push(block); return; }
     const previous = blocks.at(-1);
     if (previous?.kind === "tools") previous.activities.push(block.activity);

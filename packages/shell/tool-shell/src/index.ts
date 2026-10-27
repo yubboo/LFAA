@@ -223,9 +223,6 @@ function buildLocalTools(ctx: Context): AiBusinessTool[] {
         if (shell === undefined) throw new Error(mode === "danger-full-access"
           ? "本机 shell 执行器未挂载（需加载 lfaa-pwsh-local）。"
           : "受限 Shell 执行器未挂载；已拒绝运行命令。");
-        const configured = settings.aiRuntime.commandTimeoutSeconds;
-        const requested = typeof parameters.timeoutSeconds === "number" ? parameters.timeoutSeconds : configured;
-        const timeoutSeconds = configured > 0 && requested > 0 ? Math.min(configured, requested) : requested;
         const platform: SandboxPlatform = process.platform === "win32" ? "win32" : process.platform === "darwin" ? "darwin" : "linux";
         const sandboxPolicy = createSandboxExecutionPolicy({
           mode,
@@ -237,7 +234,7 @@ function buildLocalTools(ctx: Context): AiBusinessTool[] {
         const spec = shell.resolve({
           command: String(parameters.command),
           ...(String(parameters.workingDirectory) ? { workdir: String(parameters.workingDirectory) } : {}),
-          timeoutMs: timeoutSeconds * 1000,
+          ...(typeof parameters.timeoutSeconds === "number" ? { timeoutMs: parameters.timeoutSeconds * 1000 } : {}),
           signal: context.signal,
           sandboxPolicy
         });

@@ -69,12 +69,26 @@ export class AiRecoverableRequestError extends Error {
   }
 }
 
+/** Oversized tool arguments are rejected before dispatch and may be corrected by a bounded follow-up request. */
+export class AiToolArgumentsTooLargeError extends Error {
+  constructor(readonly toolName: string, readonly maxCharacters: number, readonly usage: AiCompletionUsage = { promptTokens: null, completionTokens: null, cacheReadTokens: null }) {
+    super(`模型生成的工具参数超过 ${maxCharacters.toLocaleString("zh-CN")} 字符上限；该工具调用未执行。`);
+    this.name = "AiToolArgumentsTooLargeError";
+  }
+}
+
 /** Provider 已明确截断输出；重试相同请求和上限只会重复消耗预算，不能视为完整回答。 */
 export class AiOutputLimitError extends Error {
   constructor(readonly usage: AiCompletionUsage = { promptTokens: null, completionTokens: null, cacheReadTokens: null }) {
     super("Provider 因达到模型输出 token 上限而截断了响应。本轮内容不完整；可检查用户输出上限、模型目录能力或改用输出能力更高的模型。");
     this.name = "AiOutputLimitError";
   }
+}
+
+function isRequestTimeoutError(error: unknown): error is Error {
+  if (!(error instanceof Error)) return false;
+  if (error.name === "TimeoutError") return true;
+  return error.cause instanceof Error && error.cause.name === "TimeoutError";
 }
 
 /** 0 表示自动：先用用户明确设置的上限，否则跟随模型目录；目录未知时不向 Provider 发送上限字段。 */
@@ -282,7 +296,26 @@ export async function streamAiCompletion(input: AiCompletionInput): Promise<AiCo
     reasoningReplayCharacters
   });
 
+  const requestController = new AbortController();
+  const requestSignal = AbortSignal.any([input.signal, requestController.signal]);
+  const timeoutMs = Math.max(1, input.settings.requestTimeoutSeconds * 1000);
+  let requestTimedOut = false;
+  let requestTimeoutTimer: ReturnType<typeof setTimeout> | undefined;
+  const clearRequestTimeout = (): void => {
+    if (requestTimeoutTimer !== undefined) clearTimeout(requestTimeoutTimer);
+    requestTimeoutTimer = undefined;
+  };
+  const resetRequestTimeout = (): void => {
+    clearRequestTimeout();
+    if (requestController.signal.aborted || input.signal.aborted) return;
+    requestTimeoutTimer = setTimeout(() => {
+      requestTimedOut = true;
+      requestController.abort(new DOMException("AI Runtime Provider stream made no progress before timeout.", "TimeoutError"));
+    }, timeoutMs);
+  };
+
   let response: Response;
+  resetRequestTimeout();
   try {
     response = await fetch(input.account.chatUrl, {
       method: "POST",
@@ -292,16 +325,19 @@ export async function streamAiCompletion(input: AiCompletionInput): Promise<AiCo
         [input.account.keyHeader]: `${input.account.keyPrefix}${input.account.secret}`
       },
       body: JSON.stringify(requestBody),
-      signal: AbortSignal.any([input.signal, AbortSignal.timeout(input.settings.requestTimeoutSeconds * 1000)]),
+      signal: requestSignal,
       redirect: "error"
     });
   } catch (error) {
     if (input.signal.aborted || (error instanceof Error && error.name === "AbortError")) throw error;
-    if (error instanceof Error && error.name === "TimeoutError") throw error;
+    if (requestTimedOut || isRequestTimeoutError(error)) {
+      throw new AiRecoverableRequestError("模型 Provider 连续未返回新数据；将按已保存的重试设置恢复。");
+    }
     throw new AiRecoverableRequestError("无法连接到模型 Provider，请检查网络、DNS、代理和账户区域设置。");
   }
 
   if (!response.ok) {
+    clearRequestTimeout();
     await response.body?.cancel().catch(() => undefined);
     if (response.status === 401 || response.status === 403) throw new Error("Provider 拒绝了 API Key，请在“AI 与模型”检查密钥和区域。");
     if (response.status === 402) throw new Error("当前模型 Provider 的账户余额或可用额度不足（HTTP 402）。请为该 Provider 充值，或检查套餐/额度后重试。");
@@ -315,7 +351,10 @@ export async function streamAiCompletion(input: AiCompletionInput): Promise<AiCo
     if (response.status >= 500) throw new AiRecoverableRequestError(`Provider 暂时不可用（HTTP ${response.status}），请稍后重试。`);
     throw new Error(`Provider 返回 HTTP ${response.status}，请检查模型账户设置后重试。`);
   }
-  if (!response.body) throw new Error("Provider 没有返回可读取的流式响应。");
+  if (!response.body) {
+    clearRequestTimeout();
+    throw new Error("Provider 没有返回可读取的流式响应。");
+  }
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
@@ -339,6 +378,7 @@ export async function streamAiCompletion(input: AiCompletionInput): Promise<AiCo
     if (!payloadText) return false;
     let payload: unknown;
     try { payload = JSON.parse(payloadText) as unknown; } catch { return false; }
+    resetRequestTimeout();
     if (typeof payload === "object" && payload !== null && (payload as Record<string, unknown>).error != null) {
       // 错误帧可能包含请求正文或秘密；只报告协议失败，不能吞掉后继续把半截内容标为成功。
       throw new Error("Provider 流返回错误；本轮输出不完整，未派发其中的工具。请检查 Provider 状态与接口协议。");
@@ -373,7 +413,7 @@ export async function streamAiCompletion(input: AiCompletionInput): Promise<AiCo
       const fn = typeof call.function === "object" && call.function !== null ? call.function as Record<string, unknown> : null;
       if (typeof fn?.name === "string") existing.name += fn.name;
       if (typeof fn?.arguments === "string") existing.arguments += fn.arguments;
-      if (existing.arguments.length > 32_768) throw new Error("模型生成的工具参数超过允许大小。");
+      if (existing.arguments.length > 32_768) throw new AiToolArgumentsTooLargeError(existing.name, 32_768, usage ?? undefined);
       toolCalls.set(index, existing);
       sawToolCalls = true;
     }
@@ -387,7 +427,7 @@ export async function streamAiCompletion(input: AiCompletionInput): Promise<AiCo
       receivedBytes += chunk.value.byteLength;
       if (receivedBytes > 8 * 1024 * 1024) throw new Error("Provider 流式响应超过允许大小。");
       buffer += decoder.decode(chunk.value, { stream: true });
-      if (jsonResponse) continue;
+      if (jsonResponse) { resetRequestTimeout(); continue; }
       let newline = buffer.indexOf("\n");
       while (newline >= 0) {
         const line = buffer.slice(0, newline).replace(/\r$/u, "");
@@ -401,7 +441,15 @@ export async function streamAiCompletion(input: AiCompletionInput): Promise<AiCo
       if (jsonResponse) { processLine(`data: ${buffer}`); done = true; }
       else if (processLine(buffer)) done = true;
     }
+  } catch (error) {
+    // 超时前若没有向用户输出正文、也没有形成工具选择，Agent Loop 可以按当前预算安全重试；
+    // 部分正文或工具调用选择不得重放，避免重复展示或重复副作用。
+    if ((requestTimedOut || isRequestTimeoutError(error)) && !input.signal.aborted && !sawContent && !sawToolCalls) {
+      throw new AiRecoverableRequestError("模型 Provider 连续未返回新数据；将按已保存的重试设置恢复。", usage ?? undefined);
+    }
+    throw error;
   } finally {
+    clearRequestTimeout();
     await reader.cancel().catch(() => undefined);
     reader.releaseLock();
   }

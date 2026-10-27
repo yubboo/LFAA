@@ -369,9 +369,9 @@ export function createBrowserTools(manager: BrowserSessionManager): AiBusinessTo
       execute: async (browserRun, providerId, parameters) => snapshotResult(await browserRun.navigate(providerId, String(parameters.url)))
     }),
     makeBrowserTool(manager, {
-      id: "click", name: "lfaa_browser_click", description: "点击最近页面观察中列出的可访问角色/名称。同名控件必须传入快照里的零起始 occurrence 序号，避免误点第一个；每次点击由 LFAA 当前权限模式授权，不接受任意 CSS/JavaScript。",
-      properties: { role: { type: "string", enum: ["button", "link", "checkbox", "radio", "tab", "menuitem", "option"] }, name: { type: "string", minLength: 1, maxLength: 160 }, occurrence: { type: "integer", minimum: 0, maximum: 79 } }, required: ["role", "name"],
-      schema: Joi.object({ providerId: providerIdSchema, role: Joi.string().valid("button", "link", "checkbox", "radio", "tab", "menuitem", "option").required(), name: Joi.string().trim().min(1).max(160).required(), occurrence: Joi.number().integer().min(0).max(79) }).unknown(false),
+      id: "click", name: "lfaa_browser_click", description: "点击最近页面观察中列出的可访问角色/名称（包括 button、switch、checkbox 等）。同名控件必须传入快照里的零起始 occurrence 序号，避免误点第一个；每次点击由 LFAA 当前权限模式授权，不接受任意 CSS/JavaScript。",
+      properties: { role: { type: "string", enum: ["button", "link", "checkbox", "radio", "switch", "tab", "menuitem", "option"] }, name: { type: "string", minLength: 1, maxLength: 160 }, occurrence: { type: "integer", minimum: 0, maximum: 79 } }, required: ["role", "name"],
+      schema: Joi.object({ providerId: providerIdSchema, role: Joi.string().valid("button", "link", "checkbox", "radio", "switch", "tab", "menuitem", "option").required(), name: Joi.string().trim().min(1).max(160).required(), occurrence: Joi.number().integer().min(0).max(79) }).unknown(false),
       risk: parameters => parameters.role === "link" ? "read" : "write",
       approval: approval("click", parameters => `点击网页中的${String(parameters.role)}“${String(parameters.name).slice(0, 100)}”${parameters.occurrence === undefined ? "" : `（第 ${Number(parameters.occurrence) + 1} 个）`}`),
       execute: async (browserRun, providerId, parameters) => snapshotResult(await browserRun.click(providerId, String(parameters.role), String(parameters.name), parameters.occurrence === undefined ? undefined : Number(parameters.occurrence)))

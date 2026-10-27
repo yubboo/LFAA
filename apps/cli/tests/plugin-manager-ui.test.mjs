@@ -212,7 +212,7 @@ test('Settings integration tabs stay in place and each category uses its real ow
   assert.match(managedPluginsSettings, /<nav className="settings-profile-plugins__categories" role="tablist" aria-label="集成分类"/u);
   assert.match(managedPluginsSettings, /onClick=\{\(\) => setActiveCategory\(category\.id\)\}/u);
   assert.doesNotMatch(managedPluginsSettings, /plugin-manager\?view=/u);
-  assert.match(managedPluginsSettings, /LFAA 内置应用/u);
+  assert.match(managedPluginsSettings, /activeCategory === "applications" \? <>[\s\S]*?<SettingGroup title="LFAA 内置应用入口"[\s\S]*?<GitHubConnectionSettings searchQuery=\{query\} \/>/u);
   assert.match(managedPluginsSettings, /hiddenApplicationNavigationIds/u);
   assert.match(managedPluginsSettings, /<GitHubConnectionSettings searchQuery=\{query\} \/>/u);
   assert.match(githubConnectionSettings, /beginGitHubAuthorization/u);

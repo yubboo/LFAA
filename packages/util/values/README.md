@@ -2,6 +2,8 @@
 
 `application-id.ts` 是完整 App ID 与显示名称权威，同时明确 Workspace/Minecraft 项目 Owner 子集、可供 AI Work 项目选择的业务 App 领域上下文集合与 App 路由模式。项目 Owner 的 `appId` 与用户选择的 `applicationIds` 是不同合同；关联只向 Agent 提供项目领域提示，不自动开放工具、执行或授权。
 
+`canvas-node-types.ts` 是各 App 自由画布节点白名单；Canvas UI 的工具轨/新增菜单与 `canvas_*` Agent 工具读取同一映射。Minecraft、写作、AI 漫剧和通用工作区各自只暴露已登记的节点类型；通用 Canvas 的节点连线仍不代表可执行工作流。
+
 `settings-contract.ts` 提供 Settings 类型、唯一默认值及 AI Runtime 每轮模型请求/工具调用的产品安全上限；Client 和 Settings 克隆后消费，不依赖 Node、数据库或 React，不创建第二套持久化。`appearance.theme` 新用户默认 `system`（跟随系统），六个 `appearance.backgrounds` 位置默认 `none`（纯色，由当前主题提供画布色）；Settings Owner 对缺失值使用这些默认，同时保留账户已保存的主题和背景。`aiRuntime.showContextUsage` 对缺少已保存偏好的账户默认开启；Settings Owner 仍保留账户明确保存的开/关选择。General 默认值定义首次登录提醒类别状态及统一通知总开关；旧账户缺少新增字段时由 Settings Owner 回落到共享默认值，设置中心不暴露提醒类别开关。预算设为 0 时使用共享合同中的上限，正数只能收紧该上限。`builtin-backgrounds.ts` 是内置背景 ID、名称和 Web URL 的共享清单；静态图本体放在 `apps/web/public/`，外观选项与 Workbench 壁纸读取同一清单，目录文件本身不会自动变成可选项。旧 UI 导出仅是迁移兼容入口，消费者迁完后再删除。
 
 `AppearanceAreaEffects` 为登录、应用中心、SteamCMD、Minecraft、写作和设置中心保存独立遮罩覆盖；Workbench 五个区域另可覆盖玻璃模糊。覆盖默认 `null` 并继承原有全局 `appearance.overlay`（65%）与 `appearance.blur`（14px），不迁移或重置旧账户值；服务端负责范围校验和旧客户端兼容。

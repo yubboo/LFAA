@@ -12,14 +12,14 @@
 
 - 工具 ID、模型调用名、参数合同和中文能力描述由本包唯一持有；工具通过 `lfaa-tools` 的 `makeTool` 登记，执行时调用 `lfaa-canvas` 的 Cordis 服务 `lfaaCanvas`。
 - 画布数据事实（`lfaa-canvas-project` v2、节点/连线/视口/素材、`expectedUpdatedAt` 并发语义、`CANVAS_LIMITS` 边界）来自 `lfaa-canvas`，本包不复制这些默认值，只引用其导出常量。
-- 节点类型集合按本轮合同 5.2 收敛为 `text/note/image/video/audio/generation/subject/timeline/director-toolbox/director-desk/script/asset/upload`；每个类型只校验已知字段的类型与长度，保留客户端扩展字段，并保持节点 data ≤64 KiB、文本 ≤20,000 字符。
+- 节点形状集合按本轮合同 5.2 收敛为 `text/note/image/video/audio/generation/subject/timeline/director-toolbox/director-desk/script/asset/upload`；App 可用类型读取 `lfaa-util-values/src/canvas-node-types.ts` 的共享映射。`applicationId` 必须匹配当前 Agent Run；节点增改只能使用该 App 已登记的节点类型。字段校验保留客户端扩展字段，节点 data ≤64 KiB、文本 ≤20,000 字符。
 - 生成工具只调用画布生成 Owner（`lfaaCanvasGeneration.generateImage`）；未装配、模型账户/密钥未配置或生成失败时工具返回真实原因，不返回成功占位。
 
 ## 公共合同
 
 - Cordis 插件：`name = "lfaaCanvasToolCanvas"`，`inject = ["lfaaCanvas", "lfaaTools"]`，`apply(ctx)` 通过 `ctx.lfaaTools.registerTool(ctx, tool)` 登记；注册随插件卸载撤销。
 - 生成服务 `lfaaCanvasGeneration` 通过 `ctx.get("lfaaCanvasGeneration")` 读取，属于可选依赖：服务未装配时 `canvas_generate_image` 明确报“尚未装配”；装配后按 `lfaa-canvas-generation` 的公开合同调用 `generateImage(userId, applicationId, projectId, input)`，只返回 Owner 真实落盘的 `project` 与 `asset`。
-- 所有工具声明 `coreManaged: true`、`applicationIds = APPLICATION_IDS`；参数中的 `applicationId` 必须来自 `APPLICATION_IDS`，写工具必须携带最近读取或写入返回的 `expectedUpdatedAt`。
+- 所有工具声明 `coreManaged: true`、`applicationIds = APPLICATION_IDS`；参数中的 `applicationId` 必须来自 `APPLICATION_IDS` 且等于当前 Agent Run 的 App，写工具必须携带最近读取或写入返回的 `expectedUpdatedAt`。
 - 返回值只包含 Owner 的真实项目摘要、节点、连线、素材元数据与最新 `updatedAt`；不返回本机文件路径、素材二进制或 Provider 临时 URL。
 
 ## 运行位置与装配
@@ -31,7 +31,7 @@
 
 - 不新增设置项：工具读取的生成模型/账户/密钥由 `lfaa-settings` 的既有 `imageGeneration*`/`videoGeneration*` 与 `lfaa-credentials` 提供（生成 Owner 读取，本包不复制）。
 - 不新增权限模式：写节点/连线、删除节点、图片生成分别声明 `risk` 与 `approval` 范围，由统一 Permission Owner 在请求审批/替我审批/完全访问三种模式下处理。
-- 画布不新增 ApplicationId；`applicationId` 只指定目标 App 作用域，账户隔离仍由 `lfaa-canvas` 的目录结构与认证上下文保证。
+- 画布不新增 ApplicationId；`applicationId` 指定当前 Agent 所属 App，不能越 App 读取或写入其他项目。账户隔离仍由 `lfaa-canvas` 的目录结构与认证上下文保证。
 
 ## 数据与副作用
 

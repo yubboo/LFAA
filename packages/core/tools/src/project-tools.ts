@@ -10,6 +10,7 @@ import { isAbsolute, resolve } from "node:path";
 import { isLocalDaemonIdentity } from "lfaa-host-daemon/src/node-credentials.js";
 import { executeGitWorkspace, resolveGitProjectDirectory } from "lfaa-host-git";
 import { getUserSettings } from "lfaa-settings/src/service.js";
+import { getDefaultWorkspaceProjectPath } from "lfaa-workspace-workspace/src/index.js";
 import { createAiHostTask, getAiHostTask, requestAiHostTaskCancellation } from "lfaa-jobs/src/ai-host-tasks.js";
 import { bindAgentGitSessionRepository, registerAgentGitRepository } from "lfaa-workspace-agent-git";
 import type { AiBusinessTool } from "./business-tools.js";
@@ -35,7 +36,8 @@ export const projectFileTool: AiBusinessTool = {
     return result.value as Record<string, unknown>;
   },
   prepare(parameters, context) {
-    const folder = getUserSettings(context.userId).general.taskFolder;
+    const configuredFolder = getUserSettings(context.userId).general.taskFolder.trim();
+    const folder = configuredFolder || getDefaultWorkspaceProjectPath(context.userId) || "";
     const requestedRoot = typeof parameters.rootDirectory === "string" ? parameters.rootDirectory.trim() : "";
     const projectSources = context.workspaceProject?.sourceDirectories?.length
       ? context.workspaceProject.sourceDirectories
@@ -85,10 +87,10 @@ export const projectFileTool: AiBusinessTool = {
         ...(projectSources[0]?.id ? { projectSourceId: projectSources[0].id } : {}) };
     }
     if (!context.workspaceProject && !parameters.nodeId && folder) {
-      return { ...parameters, rootDirectory: folder, configuredRoot: true,
-        workspaceTitle: "默认任务文件夹", localExecution: true, trustedLocalRoot: true };
+      return { ...parameters, rootDirectory: folder, configuredRoot: Boolean(configuredFolder),
+        workspaceTitle: configuredFolder ? "默认任务文件夹" : "默认工作区", localExecution: true, trustedLocalRoot: true };
     }
-    const root = context.workspaceProject?.path || String(parameters.rootDirectory || folder);
+    const root = context.workspaceProject?.path || String(parameters.rootDirectory || configuredFolder);
     if (!root) throw new Error("请指定项目绝对根目录，或在设置中心保存默认任务文件夹。");
     const nodeId = context.workspaceProject?.nodeId ?? String(parameters.nodeId || "");
     if (!nodeId) throw new Error("请先选择项目目录，或指定真实在线 Daemon 节点。");
@@ -110,7 +112,7 @@ export const projectFileTool: AiBusinessTool = {
       const repositoryRoot = context.agentGitRepository?.path;
       const workspaceRoots = context.workspaceProject && (context.workspaceProject.nodeId === null || isLocalDaemonIdentity(context.workspaceProject.nodeId))
         ? context.workspaceProject.sources?.length ? context.workspaceProject.sources : context.workspaceProject.path ? [context.workspaceProject.path] : [] : [];
-      const taskFolder = getUserSettings(context.userId).general.taskFolder;
+      const taskFolder = getUserSettings(context.userId).general.taskFolder.trim() || getDefaultWorkspaceProjectPath(context.userId) || "";
       const root = typeof input.rootDirectory === "string" ? resolve(input.rootDirectory) : "";
       const trustedRoot = Boolean(repositoryRoot && resolve(repositoryRoot) === root)
         || trustedLocalRoot === true && (workspaceRoots.some(source => samePath(source, root)) || !context.workspaceProject && Boolean(taskFolder && samePath(taskFolder, root)));

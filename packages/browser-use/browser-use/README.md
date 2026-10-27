@@ -22,6 +22,8 @@ Agent Loop 只在本 Run 实际提供 Browser Tools 时附加浏览器操作指�
 
 2026-10-23：内置 Provider 的 Agent Run 保留原 AI 会话身份用于权限和 Run 清理，但实际 Page 始终解析到当前账户的 `BUILTIN_BROWSER_WORKSPACE_ID`；个人 Tabbit 仍按 AI 会话隔离。Provider 目录的 `activeInWorkspace` 标识当前账户已经打开的内置页面，Agent 应优先观察该 Provider。空白 Dock 的修订等待在 Agent 创建 Page 时被唤醒，等待有数量上限且取消时移除。结构化控件快照为同名角色附带从 0 开始的 `occurrence`，点击同名控件必须显式给出序号，防止静默误点第一个；有标签的普通文本框从关联 label 读取名称。
 
+Agent 的 `lfaa_browser_click` 支持 `switch` 等语义角色；页面快照会发现自定义 `[role=switch]` 控件。开关点击仍按 `write` 风险经过统一 Permission Owner，控件可见不代表获准执行。
+
 浏览器设置中的密码和联系信息只由 Browser Owner 调用 Credentials Owner 的账户加密记录；列表提供元数据，填入前核对当前 LFAA 内置页面来源，只匹配用户名/密码或标准 `autocomplete` 字段，不提交表单，不支持 Tabbit 个人 Profile。最近网站记录由 Browser Owner 按账户保存和清理，Agent 读取还须同时开启 `allowAgentHistoryAccess`、记录开关和 Browser Use，并沿统一 Permission Owner。
 
 设置中心的 Browser Owner 动作由 Agent 可发现工具 `lfaa_browser_manage_settings` 提供：连接/断开可用的个人 Provider、最近网站逐条/全部删除、清理 LFAA Browser Session 数据，查看不含用户名/联系方式/密码的加密凭据元数据，按 ID 删除凭据，或将已保存凭据填入 LFAA 内置浏览器当前同来源页面。个人 Provider 连接前须由用户启用既有电脑操控开关，断开前关闭该账户 Provider 会话。填入不提交表单，且不能对个人 Tabbit Profile 操作。连接、删除、填入和清理按危险操作进入既有 Permission Owner；元数据只读沿用 read 风险。该工具不要求开启 Agent 网页操控主开关，但填入时仍在 Owner 执行处重新核验 Browser Use、Provider、账户归属和站点来源。密码/联系信息新增与编辑继续要求用户直接在设置页安全输入，不接受模型传递秘密；工具不触及系统浏览器个人 Profile 或 Electron 下载记录。

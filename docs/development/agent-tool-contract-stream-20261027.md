@@ -6,7 +6,7 @@
 
 - 目标：用户在 AI Work 回复流中实时看见 Agent 当前调用的准确工具名、该 Owner 声明的使用说明、参数字段类型/必填状态/字段说明（不含参数值）、LFAA 操作规则、真实权限与执行 Owner，以及按序保留的工具调用阶段和安全结果摘要；工具完成后，过程记录仍可在回复历史中查看。
 - 入口与唯一 Owner：`packages/core/agent-loop` 从本轮实际可用的 `AiBusinessTool` 创建活动事件；`packages/core/session` 持有活动数据合同与持久化/导出校验；`packages/api/session-controller` 与 Client Connection 转发现有 activity SSE；`packages/client/ui-chat` 将真实活动插入同一回复时间线并负责展示。工具描述与 JSON Schema 由各工具 Owner 维护，Agent Loop 不复制领域规则。
-- 行为合同：活动在工具派发前开始流式发送；更新活动状态只更新同一活动 ID；工具名、用法说明及参数字段不随状态覆盖丢失。每条工具活动最多保留 8 个真实阶段：模型选择、参数校验、风险/权限检查、需要时的审批、派发到执行 Owner、真实回执；当前轮次未结束时，工具组和本轮各工具详情持续展开，即使某一工具已结束而模型仍在判断。成功/失败/未确认状态只采用执行 Owner 的真实回执。
+- 行为合同：活动在工具派发前开始流式发送；更新活动状态只更新同一活动 ID；工具名、用法说明及参数字段不随状态覆盖丢失。每条工具活动最多保留 8 个真实阶段：模型选择、参数校验、风险/权限检查、需要时的审批、派发到执行 Owner、真实回执；工具组默认收起并显示真实当前动作/状态，工具合同按需展开，不让多步调用的完整描述挤占正文。成功/失败/未确认状态只采用执行 Owner 的真实回执。
 - 安全边界：不显示原始 JSON 工具参数值、原始工具返回正文、凭据、截图/网页正文或模型隐藏推理；既有 Owner 生成的脱敏命令、查询和相对路径摘要仍遵循原展示合同。工具 `description` 与参数说明是不可信合同数据，只作为明确标注的文本展示，不能当作对话指令；字段列表从 JSON Schema 顶层 properties/required 派生并有界限长。HTML 由 React 文本节点转义，不解释远端富文本。
 - 设置：复用 AI Work 当前消息流与既有外观共享令牌；本批没有新的用户偏好。按设置中心已接入的主题、字体、字号、颜色/对比度、遮罩/模糊与减少动态效果显示，不读取/修改权限设置。授权和执行仍由 Permission Owner 与各执行 Owner 负责。
 - 性能/可维护性：沿用现有 SSE activity event，不加轮询、订阅或请求；不对每个 token 重新解析工具合同，只在新活动创建时构造一次有界元数据。每项工具最多公开 24 个参数字段，每字段说明最多 320 字符、阶段最多 8 项并各限 640 字符。活动详情区域限制高度、内部滚动并支持窄容器换行；收尾清理仍由既有流和组件生命周期负责。
@@ -20,8 +20,8 @@
 
 - `packages/core/agent-loop/src/execute-turn.ts`：从本轮实际登记的工具及 JSON Schema 构造有界使用说明；同一 SSE activity 按序追加模型选择、参数校验、风险/权限检查、审批、派发与真实结果阶段；结果摘要不复制原始返回正文、网页内容或截图。
 - `packages/core/session/src/sessions.ts`、`packages/client/connection/src/api.ts`：新增有界工具说明和阶段合同，验证、持久化及导出时对说明文本中的本地路径脱敏。
-- `packages/client/ui-chat/src/AiWorkChat.tsx`、`AiWorkResponse.tsx`、`ai-work-chat.css`：将工具用途、参数字段说明、操作约定与阶段事件放在原回复时间线；运行期间工具组和工具详情保持展开，终态可回看，字段说明可在窄容器换行。
-- `apps/cli/tests/ai-work-response-timeline.test.mjs`、`session-kernel-persistence.test.mjs`、`agent-runtime.test.mjs`：覆盖展开状态、工具合同与阶段展示、Session 恢复，以及同一 SSE 活动阶段递增。
+- `packages/client/ui-chat/src/AiWorkChat.tsx`、`AiWorkResponse.tsx`、`ai-work-chat.css`：将工具用途、参数字段说明、操作约定与阶段事件放在原回复时间线；运行期间摘要保持可见、工具组与工具详情默认折叠，终态可回看，字段说明可在窄容器换行。
+- `apps/cli/tests/ai-work-response-timeline.test.mjs`、`session-kernel-persistence.test.mjs`、`agent-runtime.test.mjs`：覆盖工具组/合同默认折叠、工具合同与阶段仍可查看、Session 恢复，以及同一 SSE 活动阶段递增。
 - `开发规范.md`、`docs/系统总体架构.md` 及四个受影响包 README：将“工具执行链与 AI Work 流式回复同批更新”写入工程规范并记录包职责。
 - 未新增或修改设置项；沿用外观共享令牌、现有减少动态效果样式和 Permission Owner 的当前权限模式。
 
@@ -40,6 +40,12 @@
 - `apps/cli/tests/ai-work-response-timeline.test.mjs`：AI Work 工具说明卡片和流式展开回归。
 - `apps/cli/tests/session-kernel-persistence.test.mjs`：工具活动合同和阶段恢复回归。
 - `开发规范.md`、`docs/PROMPTS.md`、`docs/系统总体架构.md`：跨层流式显示规范、任务状态及系统架构合同。
+
+### 2026-10-27 流式活动默认密度追修
+
+- 用户提供了“小鱼开 Minecraft 服务器”实际回复截图，显示用途说明、参数结构和工具阶段整段自动展开，导致回答正文被挤压。现在运行和完成状态均保留同一回复时间线中的工具摘要，工具组和完整合同默认收起，用户仍可逐项打开查看。
+- 滚动跟随在消息提交绘制前同步，只有用户仍在跟随最新回复时才调整；关闭浏览器锚定，避免与 ResizeObserver 的布局补偿叠加。未改变模型、SSE、活动协议、工具执行、权限或 Minecraft 数据。
+- 具体回归、实页视口与边界记录见 `docs/development/ai-work-stream-markdown-presentation-20261027.md`。
 - `docs/development/agent-tool-contract-stream-20261027.md`：任务范围、实施记录、验证证据与未测边界。
 - `packages/core/agent-loop/README.md`、`packages/core/agent-loop/src/execute-turn.ts`：工具 Owner 合同投影与实时活动阶段。
 - `packages/core/session/README.md`、`packages/core/session/src/sessions.ts`：Session 活动合同、边界校验与持久化/导出处理。

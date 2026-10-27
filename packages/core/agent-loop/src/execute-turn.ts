@@ -14,7 +14,7 @@ import type { UserRole } from "lfaa-identity-auth/src/service.js";
 import type { ApplicationId } from "lfaa-settings/src/preferences/service.js";
 import { APPLICATION_LABELS } from "lfaa-util-values/src/application-id.js";
 import { AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN, AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN, type BrowserUseSettings } from "lfaa-util-values/src/settings-contract.js";
-import { AiOutputLimitError, AiRecoverableRequestError, type AiCompletionContentPart, type AiCompletionMessage, type AiCompletionUsage, type AiCompletionService } from "lfaa-llm/src/completion.js";
+import { AiOutputLimitError, AiRecoverableRequestError, AiToolArgumentsTooLargeError, type AiCompletionContentPart, type AiCompletionMessage, type AiCompletionUsage, type AiCompletionService } from "lfaa-llm/src/completion.js";
 import { domainExpertName, listAiBusinessTools, type AiBusinessTool, type AiExternalAgentToolContent } from "lfaa-tools/src/business-tools.js";
 import { capabilitySettingsInstruction } from "lfaa-tools/src/capability-settings.js";
 import { agentSettingsInstruction } from "lfaa-tools/src/settings-tools.js";
@@ -1222,7 +1222,7 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
         const outputLimitDescription = outputLimit === undefined
           ? "输出上限跟随 Provider 默认（模型目录未提供上限）"
           : `有效输出上限 ${outputLimit.toLocaleString("zh-CN")} tokens`;
-        providerActivityId = addActivity("status", `请求 ${account.providerId} · ${account.modelId}`, "running", `第 ${requestCount} 次模型请求；${outputLimitDescription}；超时 ${settings.aiRuntime.requestTimeoutSeconds} 秒。`);
+        providerActivityId = addActivity("status", `请求 ${account.providerId} · ${account.modelId}`, "running", `第 ${requestCount} 次模型请求；${outputLimitDescription}；连续无新模型数据 ${settings.aiRuntime.requestTimeoutSeconds} 秒后超时。`);
         let result: Awaited<ReturnType<AiCompletionService["streamCompletion"]>>;
         let requestToolsForRequest = options.tools ?? [];
         let requestMessagesForPi: AiCompletionMessage[] | undefined;
@@ -1340,7 +1340,7 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
           });
         } catch (error) {
           recordAiSessionAttempt(userId, turn.session.id, turn.assistantMessage.id, roundStream, error);
-          if (error instanceof AiRecoverableRequestError || error instanceof AiOutputLimitError) accumulateUsage(account, error.usage);
+          if (error instanceof AiRecoverableRequestError || error instanceof AiOutputLimitError || error instanceof AiToolArgumentsTooLargeError) accumulateUsage(account, error.usage);
           else accumulateUsage(account, { promptTokens: null, completionTokens: null, cacheReadTokens: null });
           throw error;
         }
@@ -1513,16 +1513,34 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
         return { messages, tools: functionTools };
       };
       const streamPiRequest = async (input: { messages: AiCompletionMessage[]; tools: typeof functionTools; signal: AbortSignal; onDelta: (delta: string) => void }): Promise<LfaaPiRequestResult> => {
+        let retryMessages = input.messages;
+        let oversizedArgumentsRetries = 0;
         for (let retry = 0; ; retry += 1) {
           try {
             offeredBusinessTools = businessTools;
             const requestTools = contextSpillAvailable || !contextSpillRuntime
               ? input.tools
               : input.tools.filter(tool => tool.function.name !== SPILL_CONTEXT_READ_TOOL_NAME);
-            completion = await requestModel(input.messages, { tools: requestTools, onPiDelta: input.onDelta });
+            completion = await requestModel(retryMessages, { tools: requestTools, onPiDelta: input.onDelta });
             offeredBusinessTools = businessTools;
+            if (retryMessages !== input.messages && !completion.requestMessages) completion.requestMessages = retryMessages;
             return completion;
           } catch (error) {
+            if (error instanceof AiToolArgumentsTooLargeError
+              && oversizedArgumentsRetries < settings.aiRuntime.requestRetries
+              && requestCount < maxModelRequests
+              && !input.signal.aborted && !abortController.signal.aborted) {
+              oversizedArgumentsRetries += 1;
+              if (providerActivityId) finishActivity(providerActivityId, "error", error.message);
+              const name = error.toolName.replace(/[^\p{L}\p{N}_.:-]/gu, "").slice(0, 80) || "未知工具";
+              const detail = `模型请求的工具「${name}」参数超过单次 ${error.maxCharacters.toLocaleString("zh-CN")} 字符上限，调用未派发。请根据当前真实工具合同缩短内容，或拆成多个有界的写入/追加/编辑调用；若没有分块工具，先精简产物再重试。不得重复提交超限参数。`;
+              const feedback: AiCompletionMessage = { role: "user", content: detail };
+              appendMessages(feedback);
+              saveAiModelHistory(userId, turn.session.id, turn.assistantMessage.id, persistedModelMessages(turnMessages));
+              retryMessages = [...retryMessages, feedback];
+              addActivity("status", "缩短超限工具调用", "complete", `${detail} 已按当前设置的模型请求重试次数继续，工具尚未执行。`);
+              continue;
+            }
             if (error instanceof AiRecoverableRequestError && retry < settings.aiRuntime.requestRetries && requestCount < maxModelRequests) {
               if (providerActivityId) finishActivity(providerActivityId, "error", error.message);
               const delay = settings.aiRuntime.retryDelaySeconds * 1000 * 2 ** retry;
@@ -2134,7 +2152,7 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
       const interrupted = userAbortController.signal.aborted || parentalUsageExpired || parentalUsageDenied || (error instanceof Error && error.name === "AbortError");
       inferenceStatus = interrupted ? "interrupted" : "error";
       const errorMessage = error instanceof Error && error.name === "TimeoutError"
-        ? "模型请求超时，请在“AI 与模型”调整超时时间或检查 Provider 状态。"
+        ? "模型长时间没有新响应，已接收的部分内容保留；为避免重放部分回答或工具选择，本轮已停止。请检查 Provider 状态，或继续追问未完成的目标。"
         : error instanceof Error ? error.message : "模型请求失败，请检查 Provider 配置后重试。";
       const finalErrorMessage = error instanceof AiParentalUsageDeniedError
         ? error.message

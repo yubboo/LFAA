@@ -13,12 +13,13 @@ import { requireAuthentication } from "lfaa-authorization/src/middleware.js";
 import { authorizeExplicitUserAction } from "lfaa-permission-presets/src/permissions.js";
 import { executeGitWorkspace, readGitRemoteUrl, resolveGitProjectDirectory, resolveGitWorkspaceDirectory } from "lfaa-host-git";
 import { isLocalDaemonIdentity, isRemoteDaemonIdentity } from "lfaa-host-daemon/src/node-credentials.js";
-import { executeProjectFile } from "lfaa-host-project-files/src/project-files.mjs";
+import { executeProjectFile, openProjectArtifact } from "lfaa-host-project-files/src/project-files.mjs";
 import { getAiSession, getAiSessionMessages, getAiSessionWorkspaceContext } from "lfaa-session/src/sessions.js";
 import { getUserSettings } from "lfaa-settings/src/service.js";
 import { asyncHandler, parseBody } from "lfaa-api-remotes/src/route-contracts.js";
 import { bindAgentGitSessionRepository, getAgentGitRepository, getAgentGitSessionRepository, listAgentGitRepositories, registerAgentGitRepository, removeAgentGitRepository } from "lfaa-workspace-agent-git";
 import { getWorkspaceProject, isDefaultWorkspaceProject } from "lfaa-workspace-workspace/src/index.js";
+import { getAgentDeliverable, listAgentDeliverables } from "lfaa-deliverables-workspace-changes";
 
 const repositoryPathSchema = Joi.object({ path: Joi.string().trim().min(1).max(32760).required(), title: Joi.string().trim().max(120).allow("") }).unknown(false);
 const bindRepositorySchema = Joi.object({ repositoryId: Joi.string().guid({ version: ["uuidv4", "uuidv5"] }).allow(null).required() }).unknown(false);
@@ -221,6 +222,36 @@ export function registerRoutes(router: Router, context: Context, consumer: Crede
     const repository = requireRepository(userId, request.params.repositoryId);
     const status = await executeGitWorkspace({ operation: "status", projectDirectory: repository.path }) as AgentGitStatusSnapshot;
     response.json({ status: await decorateRemoteCredentialStatus(consumer, userId, repository, status) });
+  }));
+
+  router.get("/agent/git/repositories/:repositoryId/deliverables", requireAuthentication, (request, response) => {
+    const userId = request.auth!.user.id;
+    const repository = requireRepository(userId, request.params.repositoryId);
+    response.json({ deliverables: listAgentDeliverables(userId, repository.id) });
+  });
+
+  router.get("/agent/git/deliverables/:deliverableId/download", requireAuthentication, asyncHandler(async (request, response) => {
+    const userId = request.auth!.user.id;
+    const deliverable = getAgentDeliverable(userId, request.params.deliverableId);
+    if (!deliverable) throw new ApiError(404, "agent_deliverable_not_found", "找不到当前账户的已发布资产。 ");
+    const repository = requireRepository(userId, deliverable.repositoryId);
+    let file: Awaited<ReturnType<typeof openProjectArtifact>>;
+    try { file = await openProjectArtifact(repository.path, deliverable.path); }
+    catch (error) { throw new ApiError(404, "agent_deliverable_file_unavailable", error instanceof Error ? error.message : "资产文件已移动或不可读取。 "); }
+    response.attachment(file.fileName);
+    response.setHeader("Content-Length", String(file.sizeBytes));
+    response.setHeader("Cache-Control", "private, no-store");
+    response.setHeader("X-Content-Type-Options", "nosniff");
+    if (request.method === "HEAD") {
+      file.stream.destroy();
+      response.status(200).end();
+      return;
+    }
+    file.stream.once("error", () => {
+      if (!response.headersSent) response.status(500).json({ error: "agent_deliverable_stream_failed", message: "资产下载读取失败。" });
+      else response.destroy();
+    });
+    file.stream.pipe(response);
   }));
 
   router.put("/agent/git/repositories/:repositoryId/remotes/:remote/credential", requireAuthentication, asyncHandler(async (request, response) => {

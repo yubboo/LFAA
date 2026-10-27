@@ -1,12 +1,14 @@
 # 共享设置界面
 
+常规页“项目外聊天文件夹”只读展示 Workspace Owner 登记的默认工作区路径；项目外新聊天默认归入该工作区，Session Owner 仍将会话事件写入 LFAA Home 的 `.lfaa/sessions`。此位置不新增设置字段、不迁移旧会话。“默认任务文件夹”仍由 Settings Owner 的 `general.taskFolder` 管理并显示在“环境”页；留空时本机无项目文件操作继承 Workspace Owner 默认工作区，自定义值优先。远端节点终端在该项留空时使用节点登记数据目录；显式路径仍按目标执行入口应用。通知偏好仍保存在 `general` 分类，控件仅展示在“通知”页。
+
 设置中心全局导航轨的“应用”图标直接进入 `/work`，使用应用工作区已有四栏布局和左二 `SecondaryNavigation`，不在设置页弹出第二套应用列表。
 
 设置中心的全局“最近会话”入口调用 Workbench 专属导航回调：进入 `/work` 后展开唯一的会话 Dock；普通“工作·小鱼智能体”入口不代替此请求。
 
 “个人资料 / 安全 / 账号管理”集中在单一“账号”设置入口并通过页内 Tab 切换；资料仍读取当前认证会话，凭据继续调用 Account Owner，账号列表继续使用 `AdminUsersPage` 与管理 API。旧 `section=profile/security/account` 深链映射到对应 Tab；页面继续消费 Appearance 共享令牌，不新增账户设置偏好。设置工具栏按 `settings-main` 实际容器宽度排列；窄容器中设置菜单与自动保存状态并排，恢复默认和立即保存按钮在下一行并排铺满。通知页提示保持现有接入边界，并使用适合窄栏阅读的短文案。
 
-设置中心“集成”在 `/settings?section=plugins` 内提供“插件、应用、MCP、技能、市场”五个页内 Tab，不切换到 `/plugin-manager` 路由。插件清单读取真实 Profile 状态，启停复用受认证的 Profile Plugin Manager 生命周期 API，携带固定来源提交和目标 App，并继续经过 Permission Owner；账户 AI 扩展总开关仍由 `plugins.enabled` 保存。MCP 复用账户 `plugins.mcpServers` 配置、服务范围与开关；原 MCP 设置表单由 `McpConnectionsSettings` 提供，独立插件工作区继续复用该组件。技能列表与左侧插件工作区共用认证后的 `/ai/extensions` 清单，并按 `kind=skill` 原样显示；`skillId` 指向同一 Skill Registry 规范名称，`plugins.disabledSkillNames` 持久化逐项停用并由 Skill Owner 在模型目录和按需加载中执行。`/ai/skills` 仍是模型运行时目录，不再被当作第二套设置页清单。应用 Tab 的内置入口复用 Workbench 同一应用清单，开关使用 `general.hiddenApplicationNavigationIds` 仅显示/隐藏全局菜单，不改变权限或运行状态；外部应用首批接入 GitHub App Device Flow，展示当前账户可访问的仓库、Issue 和 PR 只读数据，真实 token 由 GitHub Integration 通过现有加密凭据 Owner 持有。缺少服务端 GitHub App Client ID 时如实显示未配置。市场明确标注暂未接入，不显示示例条目。标签、列表、表单沿用 Appearance 主题与容器宽度断点。AI 扩展开关、Skill 目录、能力目录、资料库、Cordis 启停/重建诊断与 DSH 壁纸引擎 Slot 设置仍由本包持有表单和 Owner 调用，但只通过 `lfaa-client-ui-plugin-manager` 的独立模式挂载在最左侧“插件”入口；独立工作区的旧 `plugins` 分区仍显示账户 AI 扩展与 MCP 内容，`plugins.enabled` 仅控制账户 AI 扩展。设置页分组搜索、导航状态、栏宽和拖动仍归各自 Owner。
+设置中心“集成”在 `/settings?section=plugins` 内提供“插件、应用、MCP、技能、市场”五个页内 Tab，不切换到 `/plugin-manager` 路由。“插件”展示 Profile 插件，生命周期与数据继续由原 Owner 管理；应用 Tab 展示 LFAA 内置应用入口开关及 GitHub 外部账户连接。插件清单读取真实 Profile 状态，启停复用受认证的 Profile Plugin Manager 生命周期 API，携带固定来源提交和目标 App，并继续经过 Permission Owner；账户 AI 扩展总开关仍由 `plugins.enabled` 保存。内置应用入口复用 Workbench 同一应用清单，`general.hiddenApplicationNavigationIds` 只显示/隐藏全局菜单，不改变权限或运行状态。GitHub App Device Flow 展示当前账户可访问的仓库、Issue 和 PR 只读数据，真实 token 由 GitHub Integration 通过现有加密凭据 Owner 持有；缺少服务端 GitHub App Client ID 时如实显示未配置，GitHub 连接不等于 Agent Tool。MCP 复用账户 `plugins.mcpServers` 配置、服务范围与开关；原 MCP 设置表单由 `McpConnectionsSettings` 提供，独立插件工作区继续复用该组件。技能列表与左侧插件工作区共用认证后的 `/ai/extensions` 清单，并按 `kind=skill` 原样显示；`skillId` 指向同一 Skill Registry 规范名称，`plugins.disabledSkillNames` 持久化逐项停用并由 Skill Owner 在模型目录和按需加载中执行。`/ai/skills` 仍是模型运行时目录，不再被当作第二套设置页清单。市场明确标注暂未接入，不显示示例条目。标签、列表、表单沿用 Appearance 主题与容器宽度断点。AI 扩展开关、Skill 目录、能力目录、资料库、Cordis 启停/重建诊断与 DSH 壁纸引擎 Slot 设置仍由本包持有表单和 Owner 调用，但只通过 `lfaa-client-ui-plugin-manager` 的独立模式挂载在最左侧“插件”入口；独立工作区的旧 `plugins` 分区仍显示账户 AI 扩展与 MCP 内容，`plugins.enabled` 仅控制账户 AI 扩展。设置页分组搜索、导航状态、栏宽和拖动仍归各自 Owner。
 
 五分类都在当前设置页内切换；窄容器下标题动作、分类、计数和搜索按容器宽度重排，极窄容器收紧分类按钮留白避免孤立换行。所有设置分类共用 `SettingsPage.css` 顶部的 `--settings-content-max-width`（760px 居中正文）、`--settings-page-padding-inline`、`--settings-row-inline-padding` 与 `--settings-row-padding`；基础值和 900px/620px 断点覆盖集中维护，修改共享宽度或左右留白会同时作用于所有分类、工具栏和标准设置行。浏览器页与设置中心内的扩展工作区均继承共享正文列；浏览器仅保留分组间距和紧凑控件宽度等专属变量，独立插件工作区保留自身完整容器宽度。
 
@@ -71,7 +73,7 @@ AI 与模型设置中，上下文用量显示、较早上下文自动压缩和�
 
 AI 模型页从认证设置 Owner 返回的模型 `taskType`、套餐层级和目录来源展示 Agent Plan/Coding Plan 能力；文本聊天模型单独选择，图像与视频按已有生成账户/模型偏好配置。Client 不把套餐密钥发给浏览器或运行时，也不自行确认席位权益。
 
-AI 服务商卡片按已保存的真实账户展示状态。点击已有配置会定位到对应模型管理项；只有当前 Provider 没有账户配置时才打开新增配置表单。账户的“更换密钥”继续调用 Settings Owner 的独立验证/加密保存弹窗，Client 不回读或显示已保存密钥。
+AI 服务商卡片按已保存的真实账户展示状态。点击已有配置会定位到对应模型管理项；只有当前 Provider 没有账户配置时才打开新增配置表单。账户的“更换密钥”继续调用 Settings Owner 的独立验证/加密保存弹窗，Client 不回读或显示已保存密钥。窄栏中已选模型收为单行，避免挤压参数说明；模型 ID 仍在可展开的官方目录选项中展示。
 
 外观页管理账户级 `appearance.advanced.writingLightRaysEnabled`，通过现有 Settings Owner 自动保存；普通写作工具栏快捷开关使用同一偏好。本包不实现光线绘制或写作业务逻辑。
 

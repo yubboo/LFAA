@@ -36,6 +36,7 @@ import {
   parseCanvasImport, resolveCanvasSettings,
   type CanvasAspectRatio, type CanvasGenerationData, type CanvasNodeKind
 } from "./CanvasProjectTransfer.js";
+import { CANVAS_NODE_KINDS_BY_APPLICATION } from "lfaa-util-values/src/canvas-node-types.js";
 import {
   CANVAS_NODE_LABELS, CANVAS_NODE_TYPES, CanvasNodeContextProvider,
   type CanvasFlowNode, type CanvasNodeCallbacks, type CanvasNodeData, type CanvasNodeOption
@@ -318,10 +319,14 @@ function withoutNodeReference(node: CanvasFlowNode, removedId: string): CanvasFl
 export interface CanvasWorkspaceProps {
   applicationId: ApplicationId;
   initialProjectId?: string;
+  agentChangesRevision?: number;
+  agentChangedProjectId?: string | null;
   settings: UserSettings;
   applications: Array<{ title: string; applicationId: ApplicationId }>;
   onNavigate: (path: string) => void;
   onOpenSettings: () => void;
+  onProjectContextChange?: (project: { applicationId: ApplicationId; projectId: string; title: string; updatedAt: string } | null) => void;
+  applicationWorkflowPanel?: (visible: boolean) => ReactNode;
   chatPanel: ReactNode;
 }
 
@@ -330,7 +335,7 @@ function initialCanvasWorkbenchMetrics(): WorkbenchLayoutMetrics {
   return resolveWorkbenchLayoutMetrics(window.innerWidth, window.innerHeight, true);
 }
 
-export function CanvasWorkspace({ applicationId, initialProjectId, settings, applications, onNavigate, onOpenSettings, chatPanel }: CanvasWorkspaceProps) {
+export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesRevision = 0, agentChangedProjectId = null, settings, applications, onNavigate, onOpenSettings, onProjectContextChange, applicationWorkflowPanel, chatPanel }: CanvasWorkspaceProps) {
   const canvasSettings = resolveCanvasSettings(settings);
   const [loading, setLoading] = useState(true);
   const [summaries, setSummaries] = useState<CanvasProjectSummary[]>([]);
@@ -340,6 +345,7 @@ export function CanvasWorkspace({ applicationId, initialProjectId, settings, app
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [agentSyncing, setAgentSyncing] = useState(false);
   const [openingId, setOpeningId] = useState<string | null>(null);
   const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null);
   const [deletingAssetId, setDeletingAssetId] = useState<string | null>(null);
@@ -348,10 +354,13 @@ export function CanvasWorkspace({ applicationId, initialProjectId, settings, app
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [conflict, setConflict] = useState(false);
+  const [agentConflict, setAgentConflict] = useState(false);
   const [assetsOpen, setAssetsOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(() => resolveCanvasSettings(settings).agentPanelDefaultOpen);
   const [chatMounted, setChatMounted] = useState(() => resolveCanvasSettings(settings).agentPanelDefaultOpen);
   const [mode, setMode] = useState<CanvasMode>(() => resolveCanvasSettings(settings).defaultMode === "canvas" ? "canvas" : "generate");
+  const hasApplicationWorkflow = Boolean(applicationWorkflowPanel);
+  const [applicationCanvasView, setApplicationCanvasView] = useState<"canvas" | "workflow">("canvas");
   const [addMenu, setAddMenu] = useState<{ x: number; y: number; position: { x: number; y: number } } | null>(null);
   const [prompt, setPrompt] = useState("");
   const [referenceIds, setReferenceIds] = useState<string[]>([]);
@@ -367,6 +376,10 @@ export function CanvasWorkspace({ applicationId, initialProjectId, settings, app
   const [compactViewport, setCompactViewport] = useState(() => typeof window !== "undefined" && window.matchMedia("(max-height: 640px), (max-width: 640px)").matches);
   const [generateExpanded, setGenerateExpanded] = useState(false);
   const [directorDeskNodeId, setDirectorDeskNodeId] = useState<string | null>(null);
+  const allowedNodeKinds = useMemo(() => new Set(CANVAS_NODE_KINDS_BY_APPLICATION[applicationId] as readonly CanvasNodeKind[]), [applicationId]);
+  const supportsAssets = allowedNodeKinds.has("image") || allowedNodeKinds.has("video") || allowedNodeKinds.has("audio");
+  const visibleRailItems = useMemo(() => RAIL_ITEMS.filter(item => item.key === "assets" || item.key === "upload" ? supportsAssets : allowedNodeKinds.has(item.key)), [allowedNodeKinds, supportsAssets]);
+  const visibleAddMenuItems = useMemo(() => ADD_MENU_ITEMS.filter(item => allowedNodeKinds.has(item.kind)), [allowedNodeKinds]);
   const runningVideoRef = useRef<string[]>([]);
 
   const mountedRef = useRef(true);
@@ -392,6 +405,9 @@ export function CanvasWorkspace({ applicationId, initialProjectId, settings, app
   const downloadUrlsRef = useRef<Set<string>>(new Set());
   const createInFlight = useRef(false);
   const openInFlight = useRef(false);
+  const agentRefreshControllerRef = useRef<AbortController | null>(null);
+  const agentRefreshHandledRevisionRef = useRef(0);
+  const applyProjectRef = useRef<(next: CanvasProject) => void>(() => undefined);
   const deleteInFlight = useRef(false);
   const refreshInFlight = useRef(false);
   const generationInFlight = useRef(false);
@@ -688,12 +704,14 @@ export function CanvasWorkspace({ applicationId, initialProjectId, settings, app
     }
     setDirty(false);
     setConflict(false);
+    setAgentConflict(false);
     setError("");
     setFlowRevision(current => current + 1);
     historyRef.current = { past: [], future: [] };
     pendingSnapshotRef.current = null;
     setHistoryRevision(current => current + 1);
   }, [canvasCallbacks, setEdges, setNodes]);
+  applyProjectRef.current = applyProject;
 
   const clearProject = useCallback(() => {
     editRevision.current += 1;
@@ -750,6 +768,52 @@ export function CanvasWorkspace({ applicationId, initialProjectId, settings, app
     })();
     return () => { active = false; };
   }, [applicationId, initialProjectId, applyProject]);
+
+  useEffect(() => {
+    if (agentChangesRevision <= agentRefreshHandledRevisionRef.current) return;
+    const current = projectRef.current;
+    if (!current || (agentChangedProjectId && current.id !== agentChangedProjectId)) return;
+    agentRefreshHandledRevisionRef.current = agentChangesRevision;
+    if (dirtyRef.current) {
+      setAgentConflict(true);
+      setConflict(true);
+      setNotice("");
+      return;
+    }
+    const controller = new AbortController();
+    agentRefreshControllerRef.current?.abort();
+    agentRefreshControllerRef.current = controller;
+    const projectId = current.id;
+    const startingEditRevision = editRevision.current;
+    setAgentSyncing(true);
+    setError("");
+    void Promise.all([
+      loadCanvasProject(applicationId, projectId, controller.signal),
+      loadCanvasProjects(applicationId, controller.signal)
+    ]).then(([loaded, listed]) => {
+      if (controller.signal.aborted || !mountedRef.current || projectRef.current?.id !== projectId) return;
+      if (dirtyRef.current || editRevision.current !== startingEditRevision) {
+        setAgentConflict(true);
+        setConflict(true);
+        setNotice("");
+        return;
+      }
+      applyProjectRef.current(loaded.project);
+      setSummaries(listed.projects);
+      setNotice("已同步小鱼通过对话完成的画布修改。");
+    }).catch(refreshError => {
+      if (controller.signal.aborted || !mountedRef.current) return;
+      setAgentConflict(true);
+      setConflict(true);
+      setError(canvasErrorText(refreshError, "小鱼已修改画布，但同步失败。"));
+    }).finally(() => {
+      if (agentRefreshControllerRef.current === controller) {
+        agentRefreshControllerRef.current = null;
+        if (mountedRef.current) setAgentSyncing(false);
+      }
+    });
+    return () => controller.abort();
+  }, [agentChangedProjectId, agentChangesRevision, applicationId, project?.id]);
 
   const openProject = useCallback(async (summary: CanvasProjectSummary) => {
     if (projectRef.current?.id === summary.id || openInFlight.current || busyRef.current || saveInFlight.current) return;
@@ -889,6 +953,10 @@ export function CanvasWorkspace({ applicationId, initialProjectId, settings, app
   const addNode = useCallback((kind: CanvasNodeKind, at?: { x: number; y: number }) => {
     const current = projectRef.current;
     if (!current || busyRef.current || saveInFlight.current) return;
+    if (!allowedNodeKinds.has(kind)) {
+      setError("当前 App 尚未登记此画布节点类型。");
+      return;
+    }
     if (nodesRef.current.length + unsupportedNodesRef.current.length >= CANVAS_LIMITS.nodes) {
       setError("每个画布最多 " + CANVAS_LIMITS.nodes + " 个节点，请先删除部分节点。");
       return;
@@ -898,7 +966,7 @@ export function CanvasWorkspace({ applicationId, initialProjectId, settings, app
     setNodes(items => [...items, node]);
     markDirty();
     if (kind === "generation") setGenerationTargetId(node.id);
-  }, [commitHistory, createFlowNode, markDirty, setNodes]);
+  }, [allowedNodeKinds, commitHistory, createFlowNode, markDirty, setNodes]);
 
   const insertAssetNode = useCallback((asset: CanvasProjectAsset, asReference: boolean) => {
     const current = projectRef.current;
@@ -909,6 +977,10 @@ export function CanvasWorkspace({ applicationId, initialProjectId, settings, app
     }
     const mediaKind = canvasAssetKind(asset.mimeType);
     const kind: CanvasNodeKind = asReference ? "asset" : mediaKind ?? "image";
+    if (!allowedNodeKinds.has(kind)) {
+      setError("当前 App 画布未登记此素材节点类型。");
+      return;
+    }
     const size = NODE_DEFAULT_SIZE[kind];
     commitHistory();
     const node: CanvasFlowNode = {
@@ -929,7 +1001,7 @@ export function CanvasWorkspace({ applicationId, initialProjectId, settings, app
     setNodes(items => [...items, node]);
     markDirty();
     setNotice("素材「" + asset.name + "」已插入画布，按 Ctrl+S 保存项目引用。");
-  }, [applicationId, canvasCallbacks, commitHistory, markDirty, placementForNewNode, setNodes]);
+  }, [allowedNodeKinds, applicationId, canvasCallbacks, commitHistory, markDirty, placementForNewNode, setNodes]);
 
   const onFlowNodesChange = useCallback((changes: NodeChange<CanvasFlowNode>[]) => {
     onNodesChange(changes);
@@ -1021,6 +1093,14 @@ export function CanvasWorkspace({ applicationId, initialProjectId, settings, app
   }, [saveProjectNow]);
 
   saveActionRef.current = () => { void saveProjectNow(); };
+
+  useEffect(() => {
+    const currentProject = applicationCanvasView === "canvas" && project
+      ? { applicationId, projectId: project.id, title: title.trim() || project.title, updatedAt: project.updatedAt }
+      : null;
+    onProjectContextChange?.(currentProject);
+    return () => onProjectContextChange?.(null);
+  }, [applicationCanvasView, applicationId, onProjectContextChange, project, title]);
 
   const restoreSnapshot = useCallback((snapshot: CanvasSnapshot) => {
     setNodes(snapshot.nodes);
@@ -1449,11 +1529,12 @@ export function CanvasWorkspace({ applicationId, initialProjectId, settings, app
     if (typeof generation.durationSeconds === "number" && generation.durationSeconds > 0) setDurationSeconds(generation.durationSeconds);
   }, [generationTargetId]);
   const generationTargetState = generationTargetNode?.data.generation ?? null;
-  const interactionLocked = saving || operation !== null || openingId !== null || deletingProjectId !== null;
+  const interactionLocked = saving || agentSyncing || operation !== null || openingId !== null || deletingProjectId !== null;
   const totalNodeCount = nodes.length + unsupportedNodesRef.current.length;
   const backRoute = applicationId === "workspace" ? "/work" : "/apps/" + encodeURIComponent(applicationId) + "/normal";
   const statusText = saving
     ? "正在保存…"
+    : agentSyncing ? "正在同步小鱼的画布修改…"
     : operation === "import" ? (progressNote || "正在导入画布…")
       : operation === "export" ? (progressNote || "正在导出画布…")
         : operation === "upload" ? "正在上传素材…"
@@ -1498,7 +1579,7 @@ export function CanvasWorkspace({ applicationId, initialProjectId, settings, app
           rightCollapsed={!chatOpen}
           onRightCollapsedChange={handleRightCollapsedChange}
           center={
-          <div className="lfaa-cnv-center-content">
+          <div className="lfaa-cnv-center-content" data-application-canvas-view={applicationCanvasView}>
           <div className="lfaa-cnv-stage" ref={canvasRef} onDoubleClick={handleStageDoubleClick}>
           {loading ? (
             <div className="lfaa-cnv-loading"><Spin /><span>正在读取当前 App 的画布项目…</span></div>
@@ -1585,7 +1666,7 @@ export function CanvasWorkspace({ applicationId, initialProjectId, settings, app
 
           {addMenu ? (
             <div className="lfaa-cnv-add-menu" data-testid="canvas-add-node-menu" style={{ left: addMenu.x, top: addMenu.y }} role="menu" aria-label="新建节点菜单">
-              {ADD_MENU_ITEMS.map(item => (
+              {visibleAddMenuItems.map(item => (
                 <button key={item.kind} type="button" role="menuitem" className="lfaa-cnv-add-menu__item" onClick={() => addNodeAtMenu(item.kind)}>{item.label}</button>
               ))}
               <button type="button" role="menuitem" className="lfaa-cnv-add-menu__item lfaa-cnv-add-menu__cancel" onClick={() => setAddMenu(null)}>取消</button>
@@ -1595,9 +1676,13 @@ export function CanvasWorkspace({ applicationId, initialProjectId, settings, app
           {openingId ? <div className="lfaa-cnv-stage__busy" role="status"><Spin size="small" /><span>正在打开项目…</span></div> : null}
         </div>
 
+        {hasApplicationWorkflow ? <section className="lfaa-cnv-workflow-stage" aria-label="当前 App 工作流画布" hidden={applicationCanvasView !== "workflow"}>
+          {applicationWorkflowPanel?.(applicationCanvasView === "workflow")}
+        </section> : null}
+
         <header className="lfaa-cnv-topbar">
           <div className="lfaa-cnv-topbar__project">
-            <Select
+            {applicationCanvasView === "workflow" ? <strong className="lfaa-cnv-workflow-title">{applications.find(item => item.applicationId === applicationId)?.title ?? applicationId} 工作流</strong> : <Select
               size="small"
               className="lfaa-cnv-project-switch"
               aria-label="切换画布项目"
@@ -1607,24 +1692,42 @@ export function CanvasWorkspace({ applicationId, initialProjectId, settings, app
               disabled={interactionLocked || !project}
               options={summaries.map(summary => ({ value: summary.id, label: summary.title }))}
               onChange={(projectId: string) => { const summary = summaries.find(item => item.id === projectId); if (summary) void openProject(summary); }}
-            />
-            <span className="lfaa-cnv-save-status" role="status" aria-live="polite" data-testid="canvas-save-status">{statusText}</span>
+            />}
+            {applicationCanvasView === "canvas" ? <span className="lfaa-cnv-save-status" role="status" aria-live="polite" data-testid="canvas-save-status">{statusText}</span> : null}
           </div>
-          <Segmented
-            className="lfaa-cnv-mode-switch"
-            value={mode}
-            onChange={value => { setMode(value as CanvasMode); setAddMenu(null); }}
-            options={[
-              { value: "generate", label: <span data-testid="canvas-mode-generate">生成</span> },
-              { value: "canvas", label: <span data-testid="canvas-mode-canvas">画布</span> }
-            ]}
-          />
+          <div className="lfaa-cnv-topbar__modes">
+            <Segmented
+              className="lfaa-cnv-mode-switch"
+              aria-label="聊天与画布工作模式"
+              value="canvas"
+              onChange={value => { if (value === "chat") onNavigate("/apps/" + encodeURIComponent(applicationId) + "/ai-work"); }}
+              options={[{ value: "chat", label: "聊天" }, { value: "canvas", label: "画布" }]}
+            />
+            {hasApplicationWorkflow ? <Segmented
+              className="lfaa-cnv-mode-switch lfaa-cnv-mode-switch--app"
+              aria-label="当前 App 画布类型"
+              value={applicationCanvasView}
+              onChange={value => { setApplicationCanvasView(value as "canvas" | "workflow"); setAddMenu(null); setAssetsOpen(false); setDirectorDeskNodeId(null); }}
+              options={[{ value: "workflow", label: "工作流" }, { value: "canvas", label: "自由画布" }]}
+            /> : null}
+            {applicationCanvasView === "canvas" ? <Segmented
+              className="lfaa-cnv-mode-switch"
+              value={mode}
+              onChange={value => { setMode(value as CanvasMode); setAddMenu(null); }}
+              options={[
+                { value: "generate", label: <span data-testid="canvas-mode-generate">生成</span> },
+                { value: "canvas", label: <span data-testid="canvas-mode-canvas">画布</span> }
+              ]}
+            /> : null}
+          </div>
           <div className="lfaa-cnv-topbar__group lfaa-cnv-topbar__group--actions">
-            <Tooltip title="撤销（Ctrl+Z）"><Button size="small" type="text" className="lfaa-cnv-topbar__icon lfaa-cnv-wide-only" aria-label="撤销" data-testid="canvas-undo" icon={<UndoOutlined />} disabled={!historyState.canUndo} onClick={undo} /></Tooltip>
-            <Tooltip title="重做（Ctrl+Shift+Z）"><Button size="small" type="text" className="lfaa-cnv-topbar__icon lfaa-cnv-wide-only" aria-label="重做" data-testid="canvas-redo" icon={<RedoOutlined />} disabled={!historyState.canRedo} onClick={redo} /></Tooltip>
-            <Tooltip title="保存画布（Ctrl+S）"><Button size="small" type="text" className="lfaa-cnv-topbar__icon" aria-label="保存画布" data-testid="canvas-save" aria-keyshortcuts="Control+S" icon={<SaveOutlined />} loading={saving} disabled={!project || !dirty || interactionLocked} onClick={() => void saveProjectNow()} /></Tooltip>
+            {applicationCanvasView === "canvas" ? <>
+              <Tooltip title="撤销（Ctrl+Z）"><Button size="small" type="text" className="lfaa-cnv-topbar__icon lfaa-cnv-wide-only" aria-label="撤销" data-testid="canvas-undo" icon={<UndoOutlined />} disabled={!historyState.canUndo} onClick={undo} /></Tooltip>
+              <Tooltip title="重做（Ctrl+Shift+Z）"><Button size="small" type="text" className="lfaa-cnv-topbar__icon lfaa-cnv-wide-only" aria-label="重做" data-testid="canvas-redo" icon={<RedoOutlined />} disabled={!historyState.canRedo} onClick={redo} /></Tooltip>
+              <Tooltip title="保存画布（Ctrl+S）"><Button size="small" type="text" className="lfaa-cnv-topbar__icon" aria-label="保存画布" data-testid="canvas-save" aria-keyshortcuts="Control+S" icon={<SaveOutlined />} loading={saving} disabled={!project || !dirty || interactionLocked} onClick={() => void saveProjectNow()} /></Tooltip>
+            </> : null}
             <Tooltip title="设置中心"><Button size="small" type="text" className="lfaa-cnv-topbar__icon" aria-label="设置中心" icon={<SettingOutlined />} onClick={onOpenSettings} /></Tooltip>
-            <Dropdown
+            {applicationCanvasView === "canvas" ? <Dropdown
               trigger={["click"]}
               menu={{
                 items: [
@@ -1670,11 +1773,11 @@ export function CanvasWorkspace({ applicationId, initialProjectId, settings, app
               }}
             >
               <Button size="small" type="text" className="lfaa-cnv-topbar__icon" aria-label="更多画布操作" title="更多画布操作" icon={<EllipsisOutlined />} loading={operation === "export" || operation === "import"} />
-            </Dropdown>
+            </Dropdown> : null}
           </div>
-          {error ? <Alert className="lfaa-cnv-alert" type="error" showIcon closable message={error} onClose={() => setError("")} action={<Button size="small" onClick={onOpenSettings}>设置中心</Button>} /> : null}
-          {conflict ? <Alert className="lfaa-cnv-alert" type="warning" showIcon message="保存冲突（HTTP 409）" description="项目已在其他窗口或设备更新。重新加载后可以继续编辑并保存，避免覆盖对方的修改。" action={<Button size="small" loading={openingId !== null} onClick={() => void reloadCurrentProject()}>重新加载</Button>} /> : null}
-          {!loading && project && unsupportedNodesRef.current.length > 0 ? (
+          {applicationCanvasView === "canvas" && error ? <Alert className="lfaa-cnv-alert" type="error" showIcon closable message={error} onClose={() => setError("")} action={<Button size="small" onClick={onOpenSettings}>设置中心</Button>} /> : null}
+          {applicationCanvasView === "canvas" && conflict ? <Alert className="lfaa-cnv-alert" type="warning" showIcon message={agentConflict ? "小鱼已通过对话修改当前画布" : "保存冲突（HTTP 409）"} description={agentConflict ? error || "当前画布有未保存的本地编辑，已保留这些内容。重新加载会用小鱼完成的画布版本替换本地未保存更改。" : "项目已在其他窗口或设备更新。重新加载后可以继续编辑并保存，避免覆盖对方的修改。"} action={<Button size="small" loading={openingId !== null} onClick={() => void reloadCurrentProject()}>重新加载</Button>} /> : null}
+          {applicationCanvasView === "canvas" && !loading && project && unsupportedNodesRef.current.length > 0 ? (
             <p className="lfaa-cnv-unsupported" role="status">
               当前客户端暂不支持 {unsupportedNodesRef.current.length} 个节点类型（{unsupportedNodesRef.current.map(node => node.type).join("、")}），它们会原样保留但不可编辑。
             </p>
@@ -1684,8 +1787,8 @@ export function CanvasWorkspace({ applicationId, initialProjectId, settings, app
         <input ref={uploadInputRef} className="lfaa-cnv-hidden-input" type="file" accept="image/png,image/jpeg,image/webp,video/mp4,video/webm,audio/mpeg,audio/wav,audio/ogg" aria-label="选择要上传的图片、视频或音频素材" onChange={handleUploadInput} />
         <input ref={importInputRef} className="lfaa-cnv-hidden-input" type="file" accept=".json,application/json" aria-label="选择要导入的画布 JSON 文件" onChange={handleImportInput} />
 
-        <nav className="lfaa-cnv-rail" aria-label="画布工具轨">
-          {RAIL_ITEMS.map(item => (
+        {applicationCanvasView === "canvas" ? <nav className="lfaa-cnv-rail" aria-label="画布工具轨">
+          {visibleRailItems.map(item => (
             <Tooltip key={item.key} title={item.label} placement="right">
               <button
                 type="button"
@@ -1699,16 +1802,16 @@ export function CanvasWorkspace({ applicationId, initialProjectId, settings, app
               </button>
             </Tooltip>
           ))}
-        </nav>
+        </nav> : null}
 
-        <div className="lfaa-cnv-zoom" role="group" aria-label="画布缩放">
+        {applicationCanvasView === "canvas" ? <div className="lfaa-cnv-zoom" role="group" aria-label="画布缩放">
           <Button size="small" type="text" aria-label="缩小画布" onClick={() => { void flowRef.current?.zoomOut({ duration: 160 }); }}>−</Button>
           <span className="lfaa-cnv-zoom__value" data-testid="canvas-zoom-value">{Math.round(zoom * 100)}%</span>
           <Button size="small" type="text" aria-label="放大画布" onClick={() => { void flowRef.current?.zoomIn({ duration: 160 }); }}>＋</Button>
           <Button size="small" type="text" aria-label="适应画布内容" onClick={() => fitCanvasToNodes()}>适应</Button>
-        </div>
+        </div> : null}
 
-        {mode === "generate" ? (compactViewport && !generateExpanded ? (
+        {applicationCanvasView === "canvas" && mode === "generate" ? (compactViewport && !generateExpanded ? (
           <section className="lfaa-cnv-generate lfaa-cnv-generate--collapsed" aria-label="生成工作台（已折叠）" data-testid="canvas-generate-panel">
             <span className="lfaa-cnv-generate__collapsed-type">{generationKind === "image" ? "图片生成" : "视频生成"}</span>
             <span className="lfaa-cnv-generate__collapsed-prompt" title={prompt}>{prompt.trim() || "未输入提示词"}</span>
@@ -1851,7 +1954,7 @@ export function CanvasWorkspace({ applicationId, initialProjectId, settings, app
           ) : null}
         />
 
-        {directorDeskNode ? (
+        {applicationCanvasView === "canvas" && directorDeskNode ? (
           <CanvasDirectorDeskEditor
             key={directorDeskNode.id}
             desk={directorDeskNode.data.desk ?? { shotNodeIds: [] }}
@@ -1866,7 +1969,7 @@ export function CanvasWorkspace({ applicationId, initialProjectId, settings, app
         ) : null}
 
         {assetsOpen ? <button type="button" className="lfaa-cnv-scrim" aria-label="关闭资产库" onClick={() => setAssetsOpen(false)} /> : null}
-        <CanvasAssetPanel
+        {applicationCanvasView === "canvas" ? <CanvasAssetPanel
           project={project}
           open={assetsOpen}
           disabled={!project || interactionLocked}
@@ -1878,7 +1981,7 @@ export function CanvasWorkspace({ applicationId, initialProjectId, settings, app
           onCopyReference={asset => void copyAssetReference(asset)}
           onDelete={asset => void removeAsset(asset)}
           onClose={() => setAssetsOpen(false)}
-        />
+        /> : null}
       </section>
     </div>
   );

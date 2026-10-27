@@ -513,6 +513,20 @@ export interface AgentGitRepository {
   updatedAt: string;
 }
 
+export interface AgentDeliverable {
+  id: string;
+  userId: string;
+  repositoryId: string;
+  sessionId: string;
+  path: string;
+  title: string;
+  fileName: string;
+  sha256: string;
+  sizeBytes: number;
+  modifiedAt: string;
+  publishedAt: string;
+}
+
 export interface WorkspaceGitCommit {
   hash: string;
   shortHash: string;
@@ -546,6 +560,18 @@ export type WorkspaceGitOperationResult =
 
 export function loadAgentGitRepositories(signal?: AbortSignal): Promise<{ repositories: AgentGitRepository[] }> {
   return request("/agent/git/repositories", signal ? { signal } : {});
+}
+
+export function loadAgentDeliverables(repositoryId: string, signal?: AbortSignal): Promise<{ deliverables: AgentDeliverable[] }> {
+  return request(`/agent/git/repositories/${encodeURIComponent(repositoryId)}/deliverables`, signal ? { signal } : {});
+}
+
+export function checkAgentDeliverableDownload(deliverableId: string): Promise<void> {
+  return requestBinary(`/agent/git/deliverables/${encodeURIComponent(deliverableId)}/download`, { method: "HEAD" }).then(() => undefined);
+}
+
+export function agentDeliverableDownloadUrl(deliverableId: string): string {
+  return `/api/agent/git/deliverables/${encodeURIComponent(deliverableId)}/download`;
 }
 
 export function registerAgentGitRepository(path: string, title = ""): Promise<{ repository: AgentGitRepository }> {
@@ -2052,14 +2078,14 @@ export interface CanvasProject {
 function canvasAppPath(applicationId: ApplicationId): string {
   return `/apps/${encodeURIComponent(applicationId)}/canvas/projects`;
 }
-export function loadCanvasProjects(applicationId?: ApplicationId): Promise<{ projects: CanvasProjectSummary[] }> {
-  return request(applicationId ? canvasAppPath(applicationId) : "/canvas/projects");
+export function loadCanvasProjects(applicationId?: ApplicationId, signal?: AbortSignal): Promise<{ projects: CanvasProjectSummary[] }> {
+  return request(applicationId ? canvasAppPath(applicationId) : "/canvas/projects", signal ? { signal } : {});
 }
 export function createCanvasProject(applicationId: ApplicationId, title: string): Promise<{ project: CanvasProject }> {
   return request(canvasAppPath(applicationId), { method: "POST", body: JSON.stringify({ title }) });
 }
-export function loadCanvasProject(applicationId: ApplicationId, projectId: string): Promise<{ project: CanvasProject }> {
-  return request(`${canvasAppPath(applicationId)}/${encodeURIComponent(projectId)}`);
+export function loadCanvasProject(applicationId: ApplicationId, projectId: string, signal?: AbortSignal): Promise<{ project: CanvasProject }> {
+  return request(`${canvasAppPath(applicationId)}/${encodeURIComponent(projectId)}`, signal ? { signal } : {});
 }
 export function saveCanvasProject(applicationId: ApplicationId, projectId: string, expectedUpdatedAt: string, project: CanvasProject): Promise<{ project: CanvasProject }> {
   return request(`${canvasAppPath(applicationId)}/${encodeURIComponent(projectId)}`, { method: "PUT", body: JSON.stringify({ expectedUpdatedAt, project }) });
@@ -2127,7 +2153,7 @@ export function saveWorkflow(appId: ApplicationId, workflowId: string, input: Pi
   return request(`${workflowPath(appId)}/${encodeURIComponent(workflowId)}`, { method: "PUT", body: JSON.stringify(input) });
 }
 export function deleteWorkflow(appId: ApplicationId, workflowId: string): Promise<void> { return request(`${workflowPath(appId)}/${encodeURIComponent(workflowId)}`, { method: "DELETE" }); }
-export function loadWorkflowRuns(appId: ApplicationId, workflowId: string): Promise<{ runs: WorkflowRun[] }> { return request(`${workflowPath(appId)}/${encodeURIComponent(workflowId)}/runs`); }
+export function loadWorkflowRuns(appId: ApplicationId, workflowId: string, signal?: AbortSignal): Promise<{ runs: WorkflowRun[] }> { return request(`${workflowPath(appId)}/${encodeURIComponent(workflowId)}/runs`, signal ? { signal } : {}); }
 export function startWorkflowRun(appId: ApplicationId, workflowId: string, options: Record<string, unknown> = {}): Promise<{ run: WorkflowRun }> {
   return request(`${workflowPath(appId)}/${encodeURIComponent(workflowId)}/runs`, { method: "POST", body: JSON.stringify({ options }) });
 }
@@ -3293,11 +3319,15 @@ type AiChatStreamInput = {
 };
 
 export type AiWorkbenchView = {
-  rightPane: "browser" | "new-tab" | "git" | "applications" | "side-chat" | "extension" | "application-tools";
+  rightPane: "browser" | "new-tab" | "git" | "assets" | "applications" | "side-chat" | "extension" | "application-tools";
   rightPaneOpen: boolean;
   bottomTerminalOpen: boolean;
   /** 仅当前选中且可见的 LFAA Browser Dock 标签；服务端还会按 browserUse 设置裁剪。 */
   browserUrl?: string;
+  /** 当前 App 画布路由中的短期定位信息；仅供 Agent 识别画布，不代替 Owner 读取版本或授权。 */
+  canvas?: { applicationId: ApplicationId; projectId: string; title: string; updatedAt: string };
+  /** 当前 App 工作流路由中的短期定位信息；仅供 Agent 识别工作流，不代替 Owner 读取版本或授权。 */
+  workflow?: { applicationId: ApplicationId; workflowId: string; title: string; updatedAt: string };
 };
 
 function isNonnegativeSafeInteger(value: unknown): value is number {

@@ -79,7 +79,7 @@ const title = (await page.title().catch(() => "")).slice(0, 300);
 const url = page.url().slice(0, 2048);
 const pageText = (await page.locator("body").innerText({ timeout: 4000 }).catch(() => "")).slice(0, ${MAX_TEXT});
 ${treeRead}
-const controls = await page.locator("a,button,input,textarea,select,[role=button],[role=link],[role=textbox]").evaluateAll(elements => elements.slice(0, ${MAX_CONTROLS}).map(element => {
+const controls = await page.locator("a,button,input,textarea,select,[role=button],[role=link],[role=textbox],[role=switch]").evaluateAll(elements => elements.slice(0, ${MAX_CONTROLS}).map(element => {
  const node = element; const input = node instanceof HTMLInputElement ? node : null;
  const label = node.getAttribute("aria-label") || node.innerText || input?.placeholder || node.getAttribute("title") || "";
  const name = label.replace(/[\\u0000-\\u001f\\u007f]/gu, " ").trim().slice(0, 160);

@@ -14,7 +14,6 @@ import { appendShellCommandActivityPreview, sanitizeShellCommandActivityPreview 
 import { buildAiProjectFileChanges } from "../../../packages/core/agent-loop/src/project-file-activity.ts";
 import { buildWebActivityPreview } from "../../../packages/core/agent-loop/src/web-activity.ts";
 import { toolExecutionState } from "../../../packages/core/agent-loop/src/tool-outcome.ts";
-import { browserObservationContent } from "../../../packages/core/agent-loop/src/execute-turn.ts";
 
 test("顶层与嵌套任务结果保持失败、运行中及未知状态，不能误记为成功写入", () => {
   for (const wrap of [value => value, value => ({task:value})]) {
@@ -31,7 +30,18 @@ test("顶层与嵌套任务结果保持失败、运行中及未知状态，不�
   assert.equal(toolExecutionState({task:{status:'succeeded'},result:{outcome:'unknown'}},true),'unconfirmed');
 });
 
-test("浏览器观察把有界无障碍树作为不可信 JSON 交给模型", () => {
+test("浏览器观察把有界无障碍树作为不可信 JSON 交给模型", async () => {
+  // execute-turn imports the Writing Owner, whose local-file migration requires the normal storage migration order.
+  await import("lfaa-session/src/sessions.js");
+  const [{ configuration }, { sessionRecords }, { retireLegacyFileTables }] = await Promise.all([
+    import("lfaa-storage-domain/src/configuration.js"),
+    import("lfaa-session-persistence-jsonl/src/repository.js"),
+    import("lfaa-storage-domain/src/migration.js")
+  ]);
+  void configuration;
+  void sessionRecords;
+  retireLegacyFileTables();
+  const { browserObservationContent } = await import("../../../packages/core/agent-loop/src/execute-turn.ts");
   const content = browserObservationContent({
     url: "https://example.test/settings", title: "设置", pageText: "设置中心", controls: [], tabs: [],
     accessibilityTree: [{ role: "main", children: [{ role: "button", name: "保存", disabled: true }] }]
@@ -242,6 +252,7 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
         if(String(url).endsWith('/models'))return Response.json({data:[{id:'fixture-model'},{id:'fixture-child'}]});
         assert.equal(String(url),'https://api.openai.com/v1/chat/completions');
         const body=JSON.parse(options.body);bodies.push(body);
+        if(scenario==='timeoutRetry'&&bodies.length===1)throw new DOMException('Provider request timed out','TimeoutError');
         if(scenario==='route')routeAuthorization=options.headers.Authorization;
         const isChild=body.messages.some(message=>message.role==='user'&&message.content==='child-target');
         if(holdPauseResponse&&scenario==='pauseBeforeTool'){pauseRequestSignal=options.signal;await new Promise(resolve=>{releasePauseResponse=resolve;});}
@@ -251,6 +262,12 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
         let delta;
         if(scenario==='route'){
           delta={content:'使用路由后的真实模型回复'};
+        }else if(scenario==='timeoutRetry'){
+          delta={content:'模型请求超时后已恢复并完成'};
+        }else if(scenario==='oversizedToolArguments'){
+          const correction=body.messages.find(message=>message.role==='user'&&String(message.content).includes('单次 32,768 字符上限'));
+          if(correction){assert.match(correction.content,/调用未派发/u);delta={content:'已按工具参数限制缩短并完成'};}
+          else{delta={tool_calls:[{index:0,id:'fixture-oversized-tool-arguments',type:'function',function:{name:'fixture_read_probe',arguments:'x'.repeat(32_769)}}]};}
         }else if(scenario==='pauseBeforeTool'||scenario==='pauseDuringTool'){
           const toolResults=body.messages.filter(message=>message.role==='tool');
           if(toolResults.length===0){delta={tool_calls:[{index:0,id:'fixture-pause-write',type:'function',function:{name:'fixture_write_probe',arguments:'{}'}}]};}
@@ -359,8 +376,11 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
       block=true;
       const run=runs.startAiRun('fixture-owner','admin',{appId:'workspace',sessionId:null,content:'合成测试目标',workspaceView:{rightPane:'browser',rightPaneOpen:true,bottomTerminalOpen:true,browserUrl:'https://user:secret@example.com/docs?token=private#fragment'}},host);
       let received=[];const unsubscribe=runs.subscribeAiRun('fixture-owner',run.id,(event,data)=>received.push({event,data}));
-      await until(()=>!!release);unsubscribe();block=false;release();
+      await until(()=>!!release);unsubscribe();
+      const reconnected=[];const unsubscribeReconnected=runs.subscribeAiRun('fixture-owner',run.id,(event,data)=>reconnected.push({event,data}));
+      block=false;release();
       await until(()=>runs.getAiRun('fixture-owner',run.id).status!=='streaming');
+      unsubscribeReconnected();
       assert.equal(runs.getAiRun('fixture-owner',run.id).status,'complete');
        const firstSystemPrompt=bodies[0].messages.find(item=>item.role==='system')?.content??'';
         assert.match(firstSystemPrompt,/先回应用户真正关心的事，用平实自然、连贯的句子表达/u);
@@ -375,7 +395,7 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
       assert.ok(activity);assert.equal(activity.toolUsage.name,'host_list_nodes');assert.doesNotMatch(JSON.stringify(activity),/参数：|"result"/u);
       assert.deepEqual(activity.toolStages.map(stage=>stage.stage),['模型已选择工具','参数已校验','风险与权限检查','已派发给执行 Owner','执行结果已返回']);
       assert.match(activity.toolStages.at(-1).detail,/工具结果已交给模型/u);
-      const streamedToolStages=received.filter(item=>item.event==='activity'&&item.data.activity.id===activity.id).map(item=>item.data.activity.toolStages?.length??0);
+      const streamedToolStages=reconnected.filter(item=>item.event==='activity'&&item.data.activity.id===activity.id).map(item=>item.data.activity.toolStages?.length??0);
       assert.ok(streamedToolStages.some(count=>count===1)&&streamedToolStages.some(count=>count>=4),'工具选择、校验、派发与结果阶段沿同一 SSE 活动实时发出');
       assert.ok(streamedToolStages.every((count,index)=>index===0||count>=streamedToolStages[index-1]),'活动阶段按序追加，不覆盖已展示过程');
       assert.equal(bodies[0].tool_choice,'auto');
@@ -383,10 +403,33 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
       assert.equal(runs.cancelAiRun('another-owner',run.id),false);
       assert.equal(received.filter(item=>item.event==='done').length,0);
       assert.ok(bodies.at(-1).messages.some(item=>item.role==='tool'&&item.tool_call_id==='fixture-call'));
-      let reconnected=[];runs.subscribeAiRun('fixture-owner',run.id,(event,data)=>reconnected.push({event,data}));
-      assert.equal(reconnected[0].data.assistantMessage.content,'合成测试回答');
-      assert.equal(reconnected.at(-1).data.status,'complete');
+      let snapshot=[];runs.subscribeAiRun('fixture-owner',run.id,(event,data)=>snapshot.push({event,data}));
+      assert.equal(snapshot[0].data.assistantMessage.content,'合成测试回答');
+      assert.equal(snapshot.at(-1).data.status,'complete');
       const completedMessage=runs.getAiRun('fixture-owner',run.id).message;
+      const aiRuntimeBeforeTimeout=settings.getUserSettings('fixture-owner').aiRuntime;
+      settings.saveUserSettings('fixture-owner','ai-runtime',{...aiRuntimeBeforeTimeout,requestRetries:1,retryDelaySeconds:0,maxModelRequests:2});
+      bodies=[];scenario='timeoutRetry';
+      const timeoutRetryRun=runs.startAiRun('fixture-owner','admin',{appId:'workspace',sessionId:null,content:'模型请求超时后继续到最终结果'},host);
+      await until(()=>runs.getAiRun('fixture-owner',timeoutRetryRun.id).status!=='streaming');
+      const timeoutRetryOutcome=runs.getAiRun('fixture-owner',timeoutRetryRun.id);
+      assert.equal(timeoutRetryOutcome.status,'complete');
+      assert.equal(timeoutRetryOutcome.message.content,'模型请求超时后已恢复并完成');
+      assert.equal(bodies.length,2,'首次请求超时后按一次重试预算发出第二次模型请求');
+      assert.equal(sessionRecords.allForSession('session_events',timeoutRetryRun.sessionId).some(event=>event.type==='tool/call'),false,'超时恢复不会重放或虚构工具调用');
+      assert.equal(timeoutRetryOutcome.message.activity.filter(item=>item.title==='恢复模型请求').length,1);
+      bodies=[];scenario='oversizedToolArguments';
+      const oversizedRecoveryRun=runs.startAiRun('fixture-owner','admin',{appId:'workspace',sessionId:null,content:'超限工具参数后继续到最终结果'},host);
+      await until(()=>runs.getAiRun('fixture-owner',oversizedRecoveryRun.id).status!=='streaming');
+      const oversizedRecoveryOutcome=runs.getAiRun('fixture-owner',oversizedRecoveryRun.id);
+      assert.equal(oversizedRecoveryOutcome.status,'complete',JSON.stringify({content:oversizedRecoveryOutcome.message.content,activities:oversizedRecoveryOutcome.message.activity}));
+      assert.equal(oversizedRecoveryOutcome.message.content,'已按工具参数限制缩短并完成');
+      assert.equal(bodies.length,2,'超限后的纠正请求仍受模型请求预算约束');
+      assert.ok(bodies[1].messages.some(message=>message.role==='user'&&String(message.content).includes('单次 32,768 字符上限')),'模型应收到明确的超限反馈');
+      assert.equal(sessionRecords.allForSession('session_events',oversizedRecoveryRun.sessionId).some(event=>event.type==='tool/call'),false,'超限调用未派发，不得写入工具调用证据');
+      assert.ok(oversizedRecoveryOutcome.message.activity.some(item=>item.title==='缩短超限工具调用'&&item.detail.includes('调用未派发')));
+      settings.saveUserSettings('fixture-owner','ai-runtime',aiRuntimeBeforeTimeout);
+      scenario='basic';
       const rawHistory=[
         {role:'assistant',content:null,tool_calls:[{id:'fixture-old-call',type:'function',function:{name:'host_list_nodes',arguments:'{}'}}]},
         {role:'tool',tool_call_id:'fixture-old-call',content:'历史工具返回的节点快照'.repeat(12000)},

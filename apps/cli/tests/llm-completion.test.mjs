@@ -5,7 +5,7 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { AiRecoverableRequestError, createAiCompletionService, streamAiCompletion } from "../../../packages/llm/llm/src/completion.ts";
+import { AiRecoverableRequestError, AiToolArgumentsTooLargeError, createAiCompletionService, streamAiCompletion } from "../../../packages/llm/llm/src/completion.ts";
 import { readArkUsage } from "../../../packages/llm/llm-pi-ai/src/adapter.ts";
 
 function completionInput() {
@@ -45,6 +45,94 @@ test("HTTP 402 explains the Provider balance/quota issue without exposing its re
       assert.equal(error.message.includes(providerBody), false, "Provider 错误正文不得泄漏");
       return true;
     });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("无输出的连接和流读取超时归入现有恢复重试合同", async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    const input = completionInput();
+    input.settings.requestTimeoutSeconds = 0.01;
+    globalThis.fetch = async (_url, options) => new Promise((_resolve, reject) => {
+      const fail = () => reject(options.signal.reason);
+      if (options.signal.aborted) fail();
+      else options.signal.addEventListener("abort", fail, { once: true });
+    });
+    await assert.rejects(streamAiCompletion(input), error => error instanceof AiRecoverableRequestError);
+
+    globalThis.fetch = async (_url, options) => new Response(new ReadableStream({
+      start(controller) {
+        const fail = () => controller.error(options.signal.reason);
+        if (options.signal.aborted) fail();
+        else options.signal.addEventListener("abort", fail, { once: true });
+      }
+    }), { headers: { "Content-Type": "text/event-stream" } });
+    await assert.rejects(streamAiCompletion(input), error => error instanceof AiRecoverableRequestError);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("模型持续返回推理/回答数据时不会因累计总时长超过无进展时限而中断", async () => {
+  const originalFetch = globalThis.fetch;
+  const encoder = new TextEncoder();
+  try {
+    const input = completionInput();
+    input.settings.requestTimeoutSeconds = 0.1;
+    globalThis.fetch = async (_url, options) => new Response(new ReadableStream({
+      start(controller) {
+        const first = setTimeout(() => controller.enqueue(encoder.encode('data: ' + JSON.stringify({ choices: [{ delta: { reasoning_content: "持续推理" } }] }) + "\n\n")), 70);
+        const second = setTimeout(() => {
+          controller.enqueue(encoder.encode('data: ' + JSON.stringify({ choices: [{ delta: { content: "最终答复" }, finish_reason: "stop" }] }) + "\n\ndata: [DONE]\n\n"));
+          controller.close();
+        }, 140);
+        const abort = () => {
+          clearTimeout(first);
+          clearTimeout(second);
+          controller.error(options.signal.reason);
+        };
+        if (options.signal.aborted) abort();
+        else options.signal.addEventListener("abort", abort, { once: true });
+      }
+    }), { headers: { "Content-Type": "text/event-stream" } });
+
+    const deltas = [];
+    input.onDelta = delta => deltas.push(delta);
+    const result = await streamAiCompletion(input);
+    assert.deepEqual(deltas, ["最终答复"]);
+    assert.deepEqual(result.toolCalls, []);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("已输出部分正文或形成工具选择后的流超时不得自动重放", async () => {
+  const originalFetch = globalThis.fetch;
+  const encoder = new TextEncoder();
+  const frames = [
+    'data: ' + JSON.stringify({ choices: [{ delta: { content: "部分正文" } }] }) + "\n\n",
+    'data: ' + JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id: "partial-call", function: { name: "read_fixture", arguments: "{}" } }] } }] }) + "\n\n"
+  ];
+  try {
+    for (const frame of frames) {
+      const input = completionInput();
+      input.settings.requestTimeoutSeconds = 0.01;
+      globalThis.fetch = async (_url, options) => new Response(new ReadableStream({
+        start(controller) {
+          controller.enqueue(encoder.encode(frame));
+          const fail = () => controller.error(options.signal.reason);
+          if (options.signal.aborted) fail();
+          else options.signal.addEventListener("abort", fail, { once: true });
+        }
+      }), { headers: { "Content-Type": "text/event-stream" } });
+      await assert.rejects(streamAiCompletion(input), error => {
+        assert.equal(error.name, "TimeoutError");
+        assert.equal(error instanceof AiRecoverableRequestError, false);
+        return true;
+      });
+    }
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -160,6 +248,24 @@ test("LLM Provider adapters replace one provider route and are removed with thei
 });
 
 const sse = (deltas, end = 'data: [DONE]\n\n') => new Response(deltas.map(delta => 'data: ' + JSON.stringify({ choices: [{ delta }] }) + '\n\n').join('') + end, { headers: { 'Content-Type': 'text/event-stream' } });
+
+test("超长工具参数在派发前以可恢复错误拒绝，并保留安全上限", async () => {
+  const originalFetch = globalThis.fetch;
+  let onResponseCalled = false;
+  try {
+    globalThis.fetch = async () => sse([{ tool_calls: [{ index: 0, id: "oversized-call", function: { name: "write_file", arguments: "x".repeat(32_769) } }] }]);
+    const input = completionInput();
+    input.onResponse = () => { onResponseCalled = true; };
+    await assert.rejects(streamAiCompletion(input), error => {
+      assert.ok(error instanceof AiToolArgumentsTooLargeError);
+      assert.equal(error.toolName, "write_file");
+      assert.equal(error.maxCharacters, 32_768);
+      assert.equal(error.message.includes("未执行"), true);
+      return true;
+    });
+    assert.equal(onResponseCalled, false, "超限响应不得被当作完整结果或交给工具派发");
+  } finally { globalThis.fetch = originalFetch; }
+});
 
 test("保留完整 reasoning_content 续接同模型，跨 Provider/模型与请求观察者不接收私有协议", async () => {
   const originalFetch = globalThis.fetch;

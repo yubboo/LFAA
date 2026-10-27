@@ -2,13 +2,15 @@
 
 `lfaa-llm` 是唯一 Provider 请求 Owner。Bundle 登记 `lfaaLlm` Cordis 服务；AI 主回答、自动摘要、分支记忆和回复后记忆都注入该服务，不直接选择协议实现。插件可按 Provider ID 登记 `AiCompletionAdapter`；重复 ID 明确失败，注册返回 Fiber 持有的 disposer，卸载后请求回到原有 OpenAI-compatible 实现。原 `core/agent-loop/src/runtime.ts` 已迁入 `src/completion.ts`，不保留第二份执行逻辑。
 
-读取 Settings 的当前模型地址、凭据与能力目录；支持 SSE delta、SSE message 与 JSON message，限制响应大小、超时与输出。隐藏推理、密钥和错误响应正文不发给客户端。空响应提供格式/结束原因诊断；可恢复且尚无可展示输出或工具调用的错误才允许 Agent Loop 按 `aiRuntime.requestRetries`、`retryDelaySeconds` 重试，仍计入请求预算；不重放工具或更换模型。
+读取 Settings 的当前模型地址、凭据与能力目录；支持 SSE delta、SSE message 与 JSON message，限制响应大小、无进展等待时间与输出。超时计时在 Provider 连续没有新模型数据时才触发，不按整段推理的累计耗时中断；用户取消始终立即生效。隐藏推理、密钥和错误响应正文不发给客户端。空响应提供格式/结束原因诊断；连接/读取超时只有在尚无可展示正文或工具选择时才标为可恢复，Agent Loop 按 `aiRuntime.requestRetries`、`retryDelaySeconds` 重试并计入请求预算；部分正文、工具选择、用户取消及已派发工具均不重放，也不更换模型。
 
 构建输出为根 `dist/packages/llm/llm/`。真实用户 Provider 兼容性仍需单独验收。
 
 参照 DSH `llm-pi-ai/replay` 保留 Chat Completions 实际返回的 `reasoning_content`，以账户、Provider、模型三项来源绑定的 `providerReplay` 交给 Agent/Session Owner。发给同来源 Provider 时才转换成原生字段，不推断其他协议或思考参数；请求观察者、正文回调和进度通知均不接收隐藏文本。私有协议仅由现有 Session 受保护记录保存，跨模型/账户不回传。旧会话没有记录的隐藏内容无法重建，不编造替代值。
 
 SSE 必须收到 `[DONE]` 或正常 `finish_reason` 才能完成；只有 EOF 的半截正文/工具选择失败并禁止派发，有可见输出/工具选择时不自动重试。无换行的末尾 `[DONE]`、正常 finish_reason 和 JSON message 仍兼容。HTTP 400 只报告参数/协议拒绝，不依据“请求带 tools”就断言模型不支持工具，也不回显 Provider 错误正文。
+
+单个工具参数仍限制在 32,768 个字符；超限时拒绝整次 Provider 响应并保证不派发工具，返回带工具名、限制值和 usage 的可恢复错误，供 Agent Loop 在既有模型请求预算内向模型说明并重选更短或分段的调用。
 
 Chat Completions usage 保留 DeepSeek `prompt_cache_hit_tokens`，兼容 `prompt_tokens_details.cached_tokens`，并在 Provider 只返回 `prompt_cache_miss_tokens` 时用已返回的输入总量减去 miss 数得到 hit 数；显式的 `0` 是真实冷缓存，缺字段或无效计数为未知。DeepSeek 上下文缓存由 Provider 默认自动处理，支持缓存的会话无需单独开关；LFAA 保持系统提示前缀稳定、把动态运行上下文放在后段，不注入缓存控制字段，也不伪造命中率。会话内前缀复用程度和命中仍由 Provider 决定并以其 usage 为准。
 

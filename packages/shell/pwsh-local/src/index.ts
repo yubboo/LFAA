@@ -1,7 +1,8 @@
 /**
  * 功能：本机 PowerShell 执行器（主 shell）。
  * 作用：实现 ShellExecutor 接缝，用 child_process 以非交互 -Command 模式执行命令，
- *       统一处理默认超时/落点/中止，并注入 LFAA_* 托管环境。注册为 ctx.shell。
+ *       统一处理有界默认超时/落点/中止，并注入 LFAA_* 托管环境；停止时委托 Windows 进程树 Owner。
+ *       注册为 ctx.shell。
  * 关联文件：shell（协议/引擎）、resolve.ts（解释器选择）、tool-shell（模型工具）。
  * 移植自 DeepSeek Harness（MIT License，commit 639ed015397290b3745d163aafe02ffee4aa3f84），包名 dsh-pwsh-local。
  */
@@ -17,6 +18,7 @@ import {
   type ShellExecution,
   type ShellExecutor,
 } from "lfaa-shell";
+import { killProcessTree } from "lfaa-win32-process";
 import { resolvePwsh } from "./resolve.js";
 
 /** PowerShell 本地执行器（非受限）。 */
@@ -24,7 +26,7 @@ export class PwshLocalShellExecutor implements ShellExecutor {
   constructor(private readonly ctx: Context) {}
 
   resolve(request: ShellExecRequest): ShellExecSpec {
-    const timeoutMs = request.timeoutMs === 0 ? 0 : Number.isFinite(request.timeoutMs) && (request.timeoutMs ?? 0) > 0
+    const timeoutMs = Number.isFinite(request.timeoutMs) && (request.timeoutMs ?? 0) > 0
       ? Math.min(Math.trunc(request.timeoutMs!), MAX_TIMEOUT_MS)
       : DEFAULT_TIMEOUT_MS;
     return {
@@ -60,7 +62,14 @@ export class PwshLocalShellExecutor implements ShellExecutor {
       ...spec,
       lfaaEnv: { ...collected, ...(spec.lfaaEnv ?? {}) },
     };
-    return spawnLocalProcess({ argv, cwd: merged.workdir }, merged);
+    return spawnLocalProcess({
+      argv,
+      cwd: merged.workdir,
+      requestStop: async (_reason, pid) => {
+        if (typeof pid !== "number") return false;
+        return (await killProcessTree(pid, 250)).stopped;
+      },
+    }, merged);
   }
 }
 

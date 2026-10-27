@@ -26,7 +26,7 @@ function hasColumn(tableName: "ai_tool_approvals" | "ai_tool_permission_grants",
 }
 
 // 版本31由文件存储协调器在回读校验完成后提交，SQLite 保留账户、权限和任务。
-const latestSupportedDatabaseVersion = 73;
+const latestSupportedDatabaseVersion = 74;
 if (currentVersion > latestSupportedDatabaseVersion) {
   throw new Error(`数据库版本 ${currentVersion} 高于当前程序支持的版本 ${latestSupportedDatabaseVersion}（${config.databasePath}）。请使用更新版本的 LFAA；为保护数据，本程序不会自动降级数据库结构。`);
 }
@@ -2494,3 +2494,41 @@ export function migrateWorkspaceProjectSchemaGapRecovery(): void {
   }
 }
 migrateWorkspaceProjectSchemaGapRecovery();
+
+/** 版本 74：按账户和 Agent Git 项目登记明确发布的最终产物元数据，不复制文件字节。 */
+export function migrateAgentDeliverablesSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 73 || version >= 74) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    const tables = new Set((database.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{ name: string }>).map(row => row.name));
+    if (!tables.has("users") || !tables.has("agent_git_repositories")) {
+      throw new Error("v74 资产库迁移缺少账户或 Agent Git 结构；数据库版本未推进。");
+    }
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS agent_deliverables (
+        id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        repository_id TEXT NOT NULL REFERENCES agent_git_repositories(id) ON DELETE CASCADE,
+        session_id TEXT NOT NULL CHECK (length(session_id) = 36),
+        path TEXT NOT NULL CHECK (length(path) BETWEEN 1 AND 32760),
+        path_key TEXT NOT NULL CHECK (length(path_key) BETWEEN 1 AND 32760),
+        title TEXT NOT NULL CHECK (length(title) BETWEEN 1 AND 160),
+        file_name TEXT NOT NULL CHECK (length(file_name) BETWEEN 1 AND 255),
+        sha256 TEXT NOT NULL CHECK (length(sha256) = 64),
+        size_bytes INTEGER NOT NULL CHECK (size_bytes BETWEEN 0 AND 536870912),
+        modified_at TEXT NOT NULL,
+        published_at TEXT NOT NULL,
+        UNIQUE (user_id, repository_id, path_key)
+      ) STRICT;
+      CREATE INDEX IF NOT EXISTS agent_deliverables_user_repository_published_idx
+        ON agent_deliverables(user_id, repository_id, published_at DESC, id);
+      PRAGMA user_version = 74;
+    `);
+    database.exec("COMMIT;");
+  } catch (error) {
+    if (database.isTransaction) database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+migrateAgentDeliverablesSchema();

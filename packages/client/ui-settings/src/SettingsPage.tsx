@@ -8,7 +8,7 @@ import { useWorkbenchMetrics } from "lfaa-client-ui-dockkit/src/use-workbench-me
 import { lfaaProjectBuildInfo } from "lfaa-client-connection/src/project-version.js";
 import { inspectWebUpdateManifest, type WebUpdateCheckResult } from "./web-update.mjs";
 import { Alert, Button, Card, Input, InputNumber, Modal, Popconfirm, Progress, Radio, Select, Slider, Space, Tag, Typography, message } from "antd";
-import { activateAiAccount, changeCurrentPassword, createSteamcmdTask, deleteAppearanceBackground, deleteAiAccount, deleteConversationMemories, loadConversationMemories, saveConversationMemories, archiveAiSession, decideAiApproval, getErrorMessage, hasAdminAccess, isDesktopApp, loadAiAccounts, loadAiApprovals, loadAiPermissionGrants, loadAiExtensions, loadAiSessions, loadAiUsage, loadAppearanceBackgrounds, loadAiProviders, loadClaudeAgentCredentialStatus, saveClaudeAgentCredential, deleteClaudeAgentCredential, loadBrowserProviders, closeBrowserProviderSessions, loadHealth, loadMinecraftStorageSettings, loadMinecraftCoreNames, loadSteamcmdSettings, loadSteamcmdTask, loadProjectStorageLocations, compareProjectContentDirectories, copyProjectContentToDirectory, adoptProjectContentDirectory, importProjectContentArchive, downloadProjectContentArchive, loadCapabilityInstallCatalog, manageAiRuntimePlugin, probeAiProvider, refreshAiAccountModelCatalog, testSavedAiAccountModel, saveAiAccount, testAiAccountCredential, updateAiAccountCredential, testAiProviderModel, saveRecoveryKey, saveSettings, saveSteamcmdConfigurationDefaults, saveSteamcmdNodeConfiguration, saveSteamcmdStorageDefaults, saveSteamcmdNodeStorageSettings, selectDesktopDataDirectory, revokeAiPermissionGrant, uploadAppearanceBackground, updateCurrentUserEmail, updateCurrentUserUsername, userRoleLabel, updateAiAccountModel, updateAiAccountReasoningMode, type ApplicationId, type AiModel, type AiModelTestResult, type AiAccount, type AiExtension, type AiRuntimeHookInfo, type AiProvider, type AiProviderProbe, type AiRuntimePlugin, type CapabilityInstallCatalogEntry, type AiSession, type AiUsageSummary, type AiToolApproval, type AiToolPermissionGrant, type AppearanceBackground, type BrowserProviderSummary, type BrowserRecentSite, type BrowserVaultEntry, type BrowserProviderId, type NativeBrowserDownload, type NativeBrowserDownloadSettings, type NativeBrowserExtension, type ConversationMemorySnapshot, type ProjectContentComparison, type ProjectStorageLocations, type DesktopUpdateCheckResult, type DesktopUpdatePreferences, type DesktopUpdateRuntimeInfo, type ServerHealth, type MinecraftStorageNode, type MinecraftStorageSettings, type SteamcmdConfigurationValues, type SteamcmdSettingsNode, type SteamcmdStorageValues, type SteamcmdTask, type User, type UserSettings, type LocalModelSummary, type LocalModelDownloadSnapshot, type ClaudeAgentCredentialStatus } from "lfaa-client-connection/src/api.js";
+import { activateAiAccount, changeCurrentPassword, createSteamcmdTask, deleteAppearanceBackground, deleteAiAccount, deleteConversationMemories, loadConversationMemories, saveConversationMemories, archiveAiSession, decideAiApproval, getErrorMessage, hasAdminAccess, isDesktopApp, loadAiAccounts, loadAiApprovals, loadAiPermissionGrants, loadAiExtensions, loadAiSessions, loadAiUsage, loadAppearanceBackgrounds, loadAiProviders, loadClaudeAgentCredentialStatus, saveClaudeAgentCredential, deleteClaudeAgentCredential, loadBrowserProviders, closeBrowserProviderSessions, loadHealth, loadMinecraftStorageSettings, loadMinecraftCoreNames, loadSteamcmdSettings, loadSteamcmdTask, loadProjectStorageLocations, loadWorkspaceProjects, compareProjectContentDirectories, copyProjectContentToDirectory, adoptProjectContentDirectory, importProjectContentArchive, downloadProjectContentArchive, loadCapabilityInstallCatalog, manageAiRuntimePlugin, probeAiProvider, refreshAiAccountModelCatalog, testSavedAiAccountModel, saveAiAccount, testAiAccountCredential, updateAiAccountCredential, testAiProviderModel, saveRecoveryKey, saveSettings, saveSteamcmdConfigurationDefaults, saveSteamcmdNodeConfiguration, saveSteamcmdStorageDefaults, saveSteamcmdNodeStorageSettings, selectDesktopDataDirectory, revokeAiPermissionGrant, uploadAppearanceBackground, updateCurrentUserEmail, updateCurrentUserUsername, userRoleLabel, updateAiAccountModel, updateAiAccountReasoningMode, type ApplicationId, type AiModel, type AiModelTestResult, type AiAccount, type AiExtension, type AiRuntimeHookInfo, type AiProvider, type AiProviderProbe, type AiRuntimePlugin, type CapabilityInstallCatalogEntry, type AiSession, type AiUsageSummary, type AiToolApproval, type AiToolPermissionGrant, type AppearanceBackground, type BrowserProviderSummary, type BrowserRecentSite, type BrowserVaultEntry, type BrowserProviderId, type NativeBrowserDownload, type NativeBrowserDownloadSettings, type NativeBrowserExtension, type ConversationMemorySnapshot, type ProjectContentComparison, type ProjectStorageLocations, type DesktopUpdateCheckResult, type DesktopUpdatePreferences, type DesktopUpdateRuntimeInfo, type ServerHealth, type MinecraftStorageNode, type MinecraftStorageSettings, type SteamcmdConfigurationValues, type SteamcmdSettingsNode, type SteamcmdStorageValues, type SteamcmdTask, type User, type UserSettings, type LocalModelSummary, type LocalModelDownloadSnapshot, type ClaudeAgentCredentialStatus } from "lfaa-client-connection/src/api.js";
 import { appearanceBackgroundOptions, appearanceBackgroundTargets } from "lfaa-util-values/src/builtin-backgrounds.js";
 import { EXECUTION_SANDBOX_MODES } from "lfaa-util-values/src/sandbox-contract.js";
 import { getSettingsCenterMenu, SETTINGS_CENTER_MENUS, type SettingsMenuId } from "lfaa-util-values/src/settings-menu-catalog.js";
@@ -555,6 +555,8 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   const [settingsSaveErrors, setSettingsSaveErrors] = useState<Partial<Record<keyof UserSettings, string>>>({});
   const [folderModalOpen, setFolderModalOpen] = useState(false);
   const [folderDraft, setFolderDraft] = useState("");
+  const [defaultWorkspaceLocation, setDefaultWorkspaceLocation] = useState<{ status: "loading" | "ready" | "error"; path: string | null; error: string }>({ status: "loading", path: null, error: "" });
+  const [defaultWorkspaceReload, setDefaultWorkspaceReload] = useState(0);
   const [licensesModalOpen, setLicensesModalOpen] = useState(false);
   const [notificationPermission, setNotificationPermission] = useState<BrowserNotificationPermission>(() => getBrowserNotificationPermission());
   const [browserProviders, setBrowserProviders] = useState<{ status: "idle" | "loading" | "ready" | "error"; providers: BrowserProviderSummary[]; error: string }>({ status: "idle", providers: [], error: "" });
@@ -1134,6 +1136,21 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
       document.removeEventListener("visibilitychange", refreshNotificationPermission);
     };
   }, []);
+
+  useEffect(() => {
+    if (activeSection !== "general" && activeSection !== "environment") return;
+    const controller = new AbortController();
+    setDefaultWorkspaceLocation({ status: "loading", path: null, error: "" });
+    void loadWorkspaceProjects({ appId: "workspace", signal: controller.signal }).then(({ projects, defaultProjectId }) => {
+      if (controller.signal.aborted) return;
+      const defaultProject = defaultProjectId ? projects.find(project => project.id === defaultProjectId) : undefined;
+      setDefaultWorkspaceLocation({ status: "ready", path: defaultProject?.path ?? null, error: "" });
+    }).catch(loadError => {
+      if (controller.signal.aborted) return;
+      setDefaultWorkspaceLocation({ status: "error", path: null, error: getErrorMessage(loadError) });
+    });
+    return () => controller.abort();
+  }, [activeSection, defaultWorkspaceReload]);
 
   useEffect(() => {
     if (activeSection !== "personalization") return;
@@ -2874,8 +2891,13 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           </SettingRow>
         </SettingGroup>
         <SettingGroup title="常规">
-          <SettingRow title="默认任务文件夹" description="项目文件操作的默认根目录与节点命令的默认工作目录。必须是目标节点上的真实绝对路径；任务通过认证 Daemon 和项目权限合同执行。">
-            <div className="settings-folder-value" title={settings.general.taskFolder || "尚未设置"}><span>{settings.general.taskFolder || "尚未设置"}</span><Button onClick={() => { setFolderDraft(settings.general.taskFolder); setFolderModalOpen(true); }}>更改</Button></div>
+          <SettingRow title="项目外聊天文件夹" description="项目外新聊天默认归入此工作区；会话记录仍保存在 LFAA 的 .lfaa 数据目录中。">
+            <div className="settings-folder-value" title={defaultWorkspaceLocation.path ?? (defaultWorkspaceLocation.error || "默认工作区尚未初始化")}>
+              <span>{defaultWorkspaceLocation.status === "loading" ? "正在读取…" : defaultWorkspaceLocation.status === "error" ? "读取失败" : defaultWorkspaceLocation.path ?? "默认工作区尚未初始化"}</span>
+              <Button disabled={defaultWorkspaceLocation.status === "loading"} onClick={() => defaultWorkspaceLocation.status === "error" ? setDefaultWorkspaceReload(value => value + 1) : onNavigate("/work")}>
+                {defaultWorkspaceLocation.status === "error" ? "重试" : "管理工作区"}
+              </Button>
+            </div>
           </SettingRow>
           <SettingRow title="默认文件打开位置" description="选择文件操作使用系统默认应用，或在执行时再询问。">
             <Select value={settings.general.fileOpenLocation} options={[{ value: "system", label: "系统默认应用" }, { value: "ask", label: "每次询问" }]} onChange={(value) => updateGeneral({ fileOpenLocation: value })} />
@@ -2953,7 +2975,6 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
             <Input value={settings.general.popupShortcut} placeholder="关闭" maxLength={48} onChange={(event) => updateGeneral({ popupShortcut: event.target.value })} />
           </SettingRow>
         </SettingGroup>
-        {notificationGroup}
         <SettingGroup title="趣味实验">
           <SettingRow title="彩纸礼炮" description="任务完成时显示彩纸效果；需要任务完成事件和桌面动效接入。">
             <SettingsSwitch label="彩纸礼炮" checked={settings.general.confettiEnabled} onChange={() => updateGeneral({ confettiEnabled: !settings.general.confettiEnabled })} />
@@ -3533,7 +3554,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           <SettingRow title="最大输出 tokens" description="0 表示自动：按模型目录声明的单次输出上限发送；目录未提供时省略上限字段，遵循 Provider 对该型号的默认值。正数是你的上限，已验证的模型上限仍会优先约束。部分模型的思考内容也占用 Provider 输出预算。">
             <InputNumber min={0} max={Number.MAX_SAFE_INTEGER} step={1024} value={settings.aiRuntime.maxOutputTokens} onChange={(value) => value !== null && updateSettings("aiRuntime", { ...settings.aiRuntime, maxOutputTokens: value })} />
           </SettingRow>
-          <SettingRow title="请求超时" description="模型请求等待 Provider 的最长时间。">
+          <SettingRow title="模型无进展超时" description="Provider 无响应或模型流没有新数据时中止；持续返回内容时不会因累计时长而中断。">
             <Input type="number" min={10} max={300} value={settings.aiRuntime.requestTimeoutSeconds} onChange={(event) => updateSettings("aiRuntime", { ...settings.aiRuntime, requestTimeoutSeconds: Math.max(10, Math.min(300, Number(event.target.value) || 10)) })} />
           </SettingRow>
           <SettingRow title="模型请求重试次数" description="仅在未收到回答或工具选择时恢复临时网络、服务错误或空回答；0 表示关闭。每次重试计入本轮请求预算，已执行工具不会重放。">
@@ -4621,6 +4642,28 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     }
 
     const pending = getSettingsCenterMenu(activeSection);
+    if (activeSection === "environment") {
+      const configuredTaskFolder = settings.general.taskFolder.trim();
+      const inheritedTaskFolder = defaultWorkspaceLocation.status === "ready" ? defaultWorkspaceLocation.path : null;
+      const taskFolderValue = configuredTaskFolder
+        || (defaultWorkspaceLocation.status === "loading" ? "正在读取默认工作区…"
+          : defaultWorkspaceLocation.status === "error" ? "默认工作区路径读取失败"
+            : inheritedTaskFolder || "默认工作区尚未初始化");
+      return (
+        <section className="settings-content">
+          <header className="settings-content__heading"><div><span className="settings-eyebrow">编码</span><Typography.Title level={2}>环境</Typography.Title><Typography.Paragraph>本机未绑定项目时，文件操作默认使用已登记的默认工作区；填写自定义目录后优先使用它。项目外新聊天也归入默认工作区，会话记录仍保存在 LFAA 数据目录中。</Typography.Paragraph></div></header>
+          <SettingGroup title="项目操作目录">
+            <SettingRow title="默认任务文件夹" description={configuredTaskFolder ? "本机未绑定项目时使用此自定义目录；节点终端按所选目标应用该路径。聊天存储位置不变。" : "本机未绑定项目时当前使用默认工作区；填写自定义目录后优先使用它。节点终端仍使用节点登记的数据目录；此项不会改变聊天存储位置。"}>
+              <div className="settings-folder-value" title={taskFolderValue}><span>{taskFolderValue}</span><Button onClick={() => { setFolderDraft(settings.general.taskFolder); setFolderModalOpen(true); }}>更改</Button></div>
+            </SettingRow>
+          </SettingGroup>
+          <SettingGroup title="运行环境能力">
+            <SettingRow title="Daemon 环境扫描" description="扫描当前 Host 已登记的节点运行环境，以供任务选择。" status="待接入"><Tag>Daemon 节点待接入</Tag></SettingRow>
+          </SettingGroup>
+        </section>
+      );
+    }
+
     if (pending?.statusLabel) {
       const selectedSection = sections.find((section) => section.id === activeSection);
       return (
@@ -4629,7 +4672,6 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           <SettingGroup title="功能状态">
             <SettingRow title={selectedSection?.title ?? "设置模块"} description={pending.description} status="当前版本状态"><Tag>{pending.statusLabel}</Tag></SettingRow>
           </SettingGroup>
-          {activeSection === "environment" ? <Button type="primary" onClick={() => selectSection("general")}>查看常规环境偏好</Button> : null}
           <div className="settings-note-card"><strong>接入说明</strong><p>此入口已保留在设置导航中。相关宿主能力接入后，会在此页提供可实际使用的配置项和运行状态。</p></div>
         </section>
       );
@@ -4768,9 +4810,9 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           <span className="settings-save-feedback__copy"><strong>{settingsSaveFeedback.status === "success" ? "保存成功" : "保存未成功"}</strong><span>{settingsSaveFeedback.message}</span></span>
         </div>
       </div> : null}
-      <Modal title="无项目任务文件夹" open={folderModalOpen} okText="保存路径" cancelText="取消" onCancel={() => setFolderModalOpen(false)} onOk={() => { updateGeneral({ taskFolder: folderDraft.trim() }); setFolderModalOpen(false); }}>
-        <Typography.Paragraph type="secondary">填写桌面宿主或受控节点上的默认任务目录。Web 端不会通过此路径访问本机文件。</Typography.Paragraph>
-        <Input autoFocus maxLength={512} value={folderDraft} onChange={(event) => setFolderDraft(event.target.value)} placeholder="例如：C:\\Users\\用户名\\Documents\\lfaa" />
+      <Modal title="默认任务文件夹" open={folderModalOpen} okText="保存路径" cancelText="取消" onCancel={() => setFolderModalOpen(false)} onOk={() => { updateGeneral({ taskFolder: folderDraft.trim() }); setFolderModalOpen(false); }}>
+        <Typography.Paragraph type="secondary">留空时，本机未绑定项目的文件操作使用默认工作区{defaultWorkspaceLocation.path ? `（${defaultWorkspaceLocation.path}）` : ""}；节点终端回退到节点登记的数据目录。填写自定义路径后，按所选执行目标应用该路径。Web 端不会通过此路径访问本机文件。</Typography.Paragraph>
+        <Input autoFocus maxLength={512} value={folderDraft} onChange={(event) => setFolderDraft(event.target.value)} placeholder={defaultWorkspaceLocation.path || "留空以继承默认工作区"} />
       </Modal>
       <Modal title="开源许可证" open={licensesModalOpen} footer={<Button onClick={() => setLicensesModalOpen(false)}>关闭</Button>} onCancel={() => setLicensesModalOpen(false)}>
         <Typography.Paragraph type="secondary">以下为 LFAA 前端直接运行依赖的许可证信息；完整依赖锁定记录位于仓库根目录 pnpm-lock.yaml。</Typography.Paragraph>

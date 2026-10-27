@@ -289,6 +289,9 @@
     - id: workflow-dag-engine
       name: lfaa-workflow-dag-engine
       inject: ["lfaaWorkflow"]
+    - id: workflow-app-agent-adapter
+      name: lfaa-workflow-app-agent-adapter
+      inject: ["lfaaWorkflow", "lfaaAgentLoop"]
     - id: workflow-minecraft-adapter
       name: lfaa-workflow-minecraft-adapter
       inject: ["lfaaWorkflow", "lfaaAgentLoop"]
@@ -447,6 +450,10 @@
     - id: tool-writing
       name: lfaa-tool-writing
       inject: ["lfaaTools", "lfaaWriting"]
+      required: true
+    - id: deliverables-tool-present
+      name: lfaa-deliverables-tool-present
+      inject: ["lfaaTools"]
       required: true
     - id: tool-daemon
       name: lfaa-tool-daemon

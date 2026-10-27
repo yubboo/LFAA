@@ -2,6 +2,8 @@
 
 此包提供已认证控制端 API 和 AI Work SSE 消费协议，不持有模型、Session 或权限业务规则。
 
+`AiWorkbenchView` 只传递当前可见工作区状态。Canvas/Workflow 引用含当前 App、真实 Owner ID、标题及 `updatedAt`，只随新 Agent Run 请求发送；不持久化到 Session，也不授予工具或操作权限。`loadWorkflowRuns` 支持 AbortSignal，供隐藏或卸载的画布面板撤销状态读取。
+
 `createReadPoller()` 串行运行只读对账、合并在途刷新，并在页面隐藏时暂停、恢复可见时立即刷新。调用方可用 `initialDelayMs` 复用短期快照，并传入动态间隔函数；下一轮间隔在当前读取结束后重新计算。停止时撤销计时器和事件监听，不管理后台业务任务。
 
 Minecraft 首屏、实例日志/任务详情、Agent 节点任务列表与详情读取，以及 SteamCMD 任务详情均接受可选 `AbortSignal`；UI 在身份切换、切换详情、离开页面或卸载时撤销对应的只读 HTTP 请求。

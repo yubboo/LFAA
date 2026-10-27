@@ -62,7 +62,7 @@ export interface LocalProcessLaunch {
   cwd?: string | undefined;
   env?: Record<string, string> | undefined;
   /** 平台 Host 可先接收取消/超时请求并完成进程树与权限清理。 */
-  requestStop?: (reason: "cancel" | "timeout" | "killed") => boolean;
+  requestStop?: (reason: "cancel" | "timeout" | "killed", pid?: number) => boolean | Promise<boolean>;
 }
 
 function mergeEnv(launchEnv: Record<string, string> | undefined, spec: ShellExecSpec): Record<string, string> {
@@ -99,10 +99,19 @@ export function spawnLocalProcess(launch: LocalProcessLaunch, spec: ShellExecSpe
   });
 
   const requestStop = (reason: "cancel" | "timeout" | "killed"): void => {
+    const stopDirectly = (): void => { try { child.kill(); } catch { /* 进程已经退出。 */ } };
+    let requested: boolean | Promise<boolean> | undefined;
     try {
-      if (launch.requestStop?.(reason)) return;
+      requested = launch.requestStop?.(reason, child.pid);
     } catch { /* 失败时强制结束运行器。 */ }
-    try { child.kill(); } catch { /* 进程已经退出。 */ }
+    if (requested === undefined) {
+      stopDirectly();
+      return;
+    }
+    void Promise.resolve(requested).then(
+      stopped => { if (!stopped && status === "running") stopDirectly(); },
+      () => { if (status === "running") stopDirectly(); },
+    );
   };
 
   const onAbort = (): void => {

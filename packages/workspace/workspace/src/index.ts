@@ -186,6 +186,14 @@ export function getDefaultWorkspaceProjectId(userId: string): string | null {
   return typeof row?.project_id === "string" ? row.project_id : null;
 }
 
+/** 返回当前账户已登记默认工作区的本机项目路径；此查询只读，不初始化目录。 */
+export function getDefaultWorkspaceProjectPath(userId: string): string | null {
+  const projectId = getDefaultWorkspaceProjectId(userId);
+  if (!projectId) return null;
+  const project = getWorkspaceProject(userId, projectId, "workspace");
+  return project?.appId === "workspace" && project.nodeId === null && typeof project.path === "string" && project.path ? project.path : null;
+}
+
 /** 只登记当前账户真实存在的 AI Work 项目；并发首次初始化只保留第一个持久身份。 */
 export function setDefaultWorkspaceProject(userId: string, projectId: string): string {
   const project = getWorkspaceProject(userId, projectId, "workspace");

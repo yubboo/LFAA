@@ -43,6 +43,7 @@
     "lfaa-user-questions": "workspace:*",
     "lfaa-workflow": "workspace:*",
     "lfaa-workflow-dag-engine": "workspace:*",
+    "lfaa-workflow-app-agent-adapter": "workspace:*",
     "lfaa-workflow-minecraft-adapter": "workspace:*",
     "lfaa-tool-workflow": "workspace:*",
     "lfaa-credential-flows": "workspace:*",
