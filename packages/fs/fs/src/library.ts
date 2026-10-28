@@ -1,5 +1,6 @@
 /** 功能：提供页面与 AI 共用的文件服务。作用：实时核验权限，管理 data、业务 Owner 和本机磁盘来源。关联文件：managed-files、workspace-files API、Settings/Identity Owner。 */
 import { randomUUID, createHash } from "node:crypto";
+import type { Readable } from "node:stream";
 import { appendFile, lstat, readFile, readdir, rename } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { config } from "lfaa-launch-environment/src/config.js";
@@ -13,7 +14,8 @@ import type { FileManagerOperation, FileResourceLocation, ManagedFileEntry } fro
 import { createManagedFileService } from "./managed-files.mjs";
 import { assertGameMetadataMutable } from "./instance-files.mjs";
 export interface FileActor { userId: string; role: string; signal?: AbortSignal }
-export interface FileMount { id: string; name: string; locationDescription?: string; operate(actor: FileActor, operation: FileManagerOperation, input: Record<string, unknown>): Promise<Record<string, unknown>> }
+export interface FileDownload { stream: Readable; name: string; size: number; mimeType?: string }
+export interface FileMount { id: string; name: string; locationDescription?: string; operate(actor: FileActor, operation: FileManagerOperation, input: Record<string, unknown>): Promise<Record<string, unknown>>; openDownload?(actor: FileActor, path: string): Promise<FileDownload> }
 const libraryDirectory = ".lfaa-library";
 const localDriveShortcut = "local-drives";
 const resourceShortcut = ".lfaa-resources";
@@ -93,7 +95,7 @@ export class SystemFileLibrary {
   }
   listLocations(actor: FileActor): { rootDirectory: string; locations: FileResourceLocation[] } {
     this.checkActor(actor);
-    const priority = (id: string) => id === "game-instances" ? 0 : id === "game-storage" ? 1 : 2;
+    const priority = (id: string) => id === "game-instances" ? 0 : id === "game-storage" ? 1 : id === "aivideo-projects" ? 2 : 3;
     const mounts = [...this.mounts.values()].sort((left, right) => priority(left.id) - priority(right.id));
     return { rootDirectory: this.dataRoot, locations: [
       { id: "data", name: "LFAA 数据", path: "", description: "真实 data 根目录；右侧显示实际目录（含 games、models、output）；users 等账户私有数据由 Owner 管理" },
@@ -259,6 +261,12 @@ export class SystemFileLibrary {
   async openDownload(actor: FileActor, path: string) {
     this.checkActor(actor);
     const parts = this.split(path);
+    if (parts[0] === libraryDirectory) {
+      const mount = this.mounts.get(parts[1]);
+      if (!mount?.openDownload || parts.length < 3) throw new ApiError(404, "file_download_not_found", "当前资源 Owner 未提供该文件的流下载。 ");
+      actor.signal?.throwIfAborted();
+      return mount.openDownload(actor, parts.slice(2).join("/"));
+    }
     if (parts[0] === resourceShortcut) {
       const resource = this.resources().find(item => item.id === parts[1]);
       if (!resource || parts.length < 3) throw new ApiError(404, "local_file_missing", "资源文件不存在。");

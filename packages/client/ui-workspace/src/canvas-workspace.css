@@ -298,24 +298,48 @@
   text-align: center;
 }
 
-/* 生成工作台浮层：图片/视频、提示词、@ 参考、比例/时长与真实生成按钮。 */
+/* 节点上下文生成面板：只在生成模式选中媒体/生成节点时显示，并由工作区按节点屏幕位置定位。 */
 .lfaa-cnv-generate {
   position: absolute;
   z-index: 18;
-  bottom: 14px;
-  left: 50%;
+  top: 0;
+  left: 0;
   display: flex;
-  width: min(700px, calc(100% - 210px));
-  max-height: 48vh;
+  width: min(680px, calc(100% - 20px));
+  max-height: min(48vh, calc(100% - 20px));
   flex-direction: column;
   gap: 8px;
   padding: 12px;
   overflow-y: auto;
-  transform: translateX(-50%);
+  box-sizing: border-box;
   border: 1px solid var(--lfaa-cnv-float-border);
   border-radius: 16px;
   background: var(--lfaa-cnv-float);
   box-shadow: var(--lfaa-cnv-shadow);
+  -webkit-backdrop-filter: var(--lfaa-cnv-blur);
+  backdrop-filter: var(--lfaa-cnv-blur);
+}
+
+.lfaa-cnv-generation-hint {
+  position: absolute;
+  z-index: 17;
+  top: 82px;
+  left: 50%;
+  display: flex;
+  max-width: calc(100% - 32px);
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px;
+  transform: translateX(-50%);
+  border: 1px solid var(--lfaa-cnv-float-border);
+  border-radius: 12px;
+  background: var(--lfaa-cnv-float);
+  box-shadow: var(--lfaa-cnv-shadow);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  text-align: center;
   -webkit-backdrop-filter: var(--lfaa-cnv-blur);
   backdrop-filter: var(--lfaa-cnv-blur);
 }
@@ -1202,7 +1226,7 @@
 /* 短屏折叠态：一行显示类型、提示词摘要与生成按钮；展开后的完整面板最高 60% 视口。 */
 .lfaa-cnv-generate--collapsed {
   display: flex;
-  width: min(560px, calc(100% - 200px));
+  width: min(560px, calc(100% - 20px));
   max-height: none;
   flex-direction: row;
   align-items: center;
@@ -1363,20 +1387,20 @@
   }
 
   .lfaa-cnv-generate {
-    right: 8px;
-    bottom: 126px;
-    left: 8px;
-    width: auto;
-    max-height: 46vh;
-    transform: none;
+    width: min(560px, calc(100% - 16px));
+    max-height: min(52vh, calc(100% - 16px));
   }
 
   .lfaa-cnv-generate--collapsed {
-    right: 8px;
-    bottom: 126px;
-    left: 8px;
-    width: auto;
+    width: min(560px, calc(100% - 16px));
     max-height: none;
+  }
+
+  .lfaa-cnv-generation-hint {
+    top: 108px;
+    right: 8px;
+    left: 8px;
+    max-width: none;
     transform: none;
   }
 
@@ -1434,12 +1458,7 @@
 }
 
 @media (max-height: 640px) and (min-width: 641px) {
-  .lfaa-cnv-generate--collapsed {
-    bottom: 12px;
-    left: 50%;
-    right: auto;
-    transform: translateX(-50%);
-  }
+  .lfaa-cnv-generate--collapsed { width: min(560px, calc(100% - 20px)); }
 }
 
 /* 短屏（≤480 高）：压缩顶部浮层，让顶部与面板仍可滚动操作。 */
@@ -1466,8 +1485,7 @@
   }
 
   .lfaa-cnv-generate {
-    bottom: 8px;
-    max-height: 40vh;
+    max-height: min(40vh, calc(100% - 16px));
   }
 }
 

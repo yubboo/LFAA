@@ -368,6 +368,8 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
   const [aspectRatio, setAspectRatio] = useState<CanvasAspectRatio>("1:1");
   const [durationSeconds, setDurationSeconds] = useState(5);
   const [generationTargetId, setGenerationTargetId] = useState<string | null>(null);
+  const [generationAnchorId, setGenerationAnchorIdState] = useState<string | null>(null);
+  const [generationPosition, setGenerationPosition] = useState<{ left: number; top: number } | null>(null);
   const [generationBusy, setGenerationBusy] = useState(false);
   const [mention, setMention] = useState<{ query: string; start: number; end: number } | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -377,6 +379,7 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
   const [generateExpanded, setGenerateExpanded] = useState(false);
   const [directorDeskNodeId, setDirectorDeskNodeId] = useState<string | null>(null);
   const allowedNodeKinds = useMemo(() => new Set(CANVAS_NODE_KINDS_BY_APPLICATION[applicationId] as readonly CanvasNodeKind[]), [applicationId]);
+
   const supportsAssets = allowedNodeKinds.has("image") || allowedNodeKinds.has("video") || allowedNodeKinds.has("audio");
   const visibleRailItems = useMemo(() => RAIL_ITEMS.filter(item => item.key === "assets" || item.key === "upload" ? supportsAssets : allowedNodeKinds.has(item.key)), [allowedNodeKinds, supportsAssets]);
   const visibleAddMenuItems = useMemo(() => ADD_MENU_ITEMS.filter(item => allowedNodeKinds.has(item.kind)), [allowedNodeKinds]);
@@ -396,6 +399,12 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
   const editRevision = useRef(0);
   const viewportRef = useRef<Viewport>(DEFAULT_VIEWPORT);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const generationAnchorIdRef = useRef<string | null>(null);
+  const generationPanelRef = useRef<HTMLElement>(null);
+  const generationPositionFrameRef = useRef<number | null>(null);
+  const generationVisibilityFrameRef = useRef<number | null>(null);
+  const generationVisibilityForceRef = useRef(false);
+  const generationLayoutSizeRef = useRef<{ stageWidth: number; stageHeight: number; panelWidth: number; panelHeight: number } | null>(null);
   const workbenchRef = useRef<HTMLDivElement>(null);
   const chatLaunchButtonRef = useRef<HTMLButtonElement>(null);
   const flowRef = useRef<ReactFlowInstance<CanvasFlowNode, Edge> | null>(null);
@@ -427,6 +436,137 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
   promptRef.current = prompt;
   referenceIdsRef.current = referenceIds;
   generationTargetIdRef.current = generationTargetId;
+
+  const setGenerationAnchorId = useCallback((id: string | null) => {
+    generationAnchorIdRef.current = id;
+    setGenerationAnchorIdState(current => current === id ? current : id);
+    if (!id) setGenerationPosition(current => current === null ? current : null);
+  }, []);
+
+  const updateGenerationPanelPosition = useCallback(() => {
+    const stage = canvasRef.current;
+    const panel = generationPanelRef.current;
+    const anchorId = generationAnchorIdRef.current;
+    if (!stage || !panel || !anchorId) return;
+    const stageRect = stage.getBoundingClientRect();
+    if (stageRect.width <= 0 || stageRect.height <= 0) return;
+    let anchor: HTMLElement | null = null;
+    for (const candidate of stage.querySelectorAll<HTMLElement>(".react-flow__node[data-id]")) {
+      if (candidate.dataset.id === anchorId) {
+        anchor = candidate;
+        break;
+      }
+    }
+    if (!anchor) return;
+
+    const anchorRect = anchor.getBoundingClientRect();
+    const panelWidth = panel.offsetWidth;
+    const panelHeight = panel.offsetHeight;
+    const edge = 10;
+    const gap = 12;
+    const maxLeft = Math.max(edge, stageRect.width - panelWidth - edge);
+    const left = Math.max(edge, Math.min(maxLeft, anchorRect.left - stageRect.left + anchorRect.width / 2 - panelWidth / 2));
+    const below = anchorRect.bottom - stageRect.top + gap;
+    const above = anchorRect.top - stageRect.top - panelHeight - gap;
+    const maxTop = Math.max(edge, stageRect.height - panelHeight - edge);
+    const top = below + panelHeight <= stageRect.height - edge
+      ? below
+      : above >= edge
+        ? above
+        : Math.max(edge, Math.min(maxTop, below));
+    const next = { left: Math.round(left), top: Math.round(top) };
+    setGenerationPosition(current => current && current.left === next.left && current.top === next.top ? current : next);
+  }, []);
+
+  const scheduleGenerationPanelPosition = useCallback(() => {
+    if (generationPositionFrameRef.current !== null) return;
+    generationPositionFrameRef.current = window.requestAnimationFrame(() => {
+      generationPositionFrameRef.current = null;
+      updateGenerationPanelPosition();
+    });
+  }, [updateGenerationPanelPosition]);
+
+  const scheduleGenerationAnchorVisibility = useCallback(() => {
+    if (generationVisibilityFrameRef.current !== null) return;
+    generationVisibilityFrameRef.current = window.requestAnimationFrame(() => {
+      generationVisibilityFrameRef.current = null;
+      const stage = canvasRef.current;
+      const panel = generationPanelRef.current;
+      const anchorId = generationAnchorIdRef.current;
+      const instance = flowRef.current;
+      const force = generationVisibilityForceRef.current;
+      generationVisibilityForceRef.current = false;
+      if (!stage || !panel || !anchorId || !instance) return;
+      const stageRect = stage.getBoundingClientRect();
+      const panelWidth = panel.offsetWidth;
+      const panelHeight = panel.offsetHeight;
+      const previousSize = generationLayoutSizeRef.current;
+      generationLayoutSizeRef.current = {
+        stageWidth: stageRect.width,
+        stageHeight: stageRect.height,
+        panelWidth,
+        panelHeight
+      };
+      const resized = previousSize !== null && (
+        previousSize.stageWidth !== stageRect.width
+        || previousSize.stageHeight !== stageRect.height
+        || previousSize.panelWidth !== panelWidth
+        || previousSize.panelHeight !== panelHeight
+      );
+      if (!force && !resized) return;
+
+      const anchor = [...stage.querySelectorAll<HTMLElement>(".react-flow__node[data-id]")]
+        .find(candidate => candidate.dataset.id === anchorId);
+      if (!anchor) return;
+      const anchorRect = anchor.getBoundingClientRect();
+      const currentViewport = instance.getViewport();
+      const node = nodesRef.current.find(candidate => candidate.id === anchorId);
+      if (!node || currentViewport.zoom <= 0) return;
+
+      const horizontalMargin = 12;
+      const topInset = Math.min(128, Math.max(104, Math.round(stageRect.height * 0.18)));
+      const gap = 12;
+      const bottomMargin = 10;
+      const nodeWidth = anchorRect.width / currentViewport.zoom;
+      const nodeHeight = anchorRect.height / currentViewport.zoom;
+      const availableWidth = Math.max(1, stageRect.width - horizontalMargin * 2);
+      const availableNodeHeight = Math.max(1, stageRect.height - topInset - panelHeight - gap - bottomMargin);
+      const nextZoom = Math.max(CANVAS_LIMITS.minZoom, Math.min(
+        currentViewport.zoom,
+        availableWidth / nodeWidth,
+        availableNodeHeight / nodeHeight
+      ));
+      const panelCenterMin = Math.min(stageRect.width / 2, panelWidth / 2 + horizontalMargin);
+      const panelCenterMax = Math.max(stageRect.width / 2, stageRect.width - panelWidth / 2 - horizontalMargin);
+      const currentCenterX = anchorRect.left - stageRect.left + anchorRect.width / 2;
+      const panelWouldClamp = currentCenterX < panelCenterMin || currentCenterX > panelCenterMax;
+      const targetCenterX = panelWouldClamp ? stageRect.width / 2 : currentCenterX;
+      const maxNodeTop = Math.max(topInset, stageRect.height - panelHeight - gap - nodeHeight * nextZoom - bottomMargin);
+      const currentTop = anchorRect.top - stageRect.top;
+      const targetTop = Math.max(topInset, Math.min(maxNodeTop, currentTop));
+      const anchorClipped = anchorRect.left < stageRect.left + horizontalMargin
+        || anchorRect.right > stageRect.right - horizontalMargin
+        || currentTop < topInset;
+      const composerOverlapsNode = currentTop + nodeHeight * nextZoom + gap + panelHeight > stageRect.height - bottomMargin;
+      if (!force && !anchorClipped && !composerOverlapsNode && !panelWouldClamp) return;
+
+      const nextViewport: Viewport = {
+        x: targetCenterX - nodeWidth * nextZoom / 2 - node.position.x * nextZoom,
+        y: targetTop - node.position.y * nextZoom,
+        zoom: nextZoom
+      };
+      if (Math.abs(nextViewport.x - currentViewport.x) < 0.5
+        && Math.abs(nextViewport.y - currentViewport.y) < 0.5
+        && Math.abs(nextViewport.zoom - currentViewport.zoom) < 0.002) return;
+
+      // 只调整画布视口，让节点和上下文面板在可用区域内完整呈现；不改节点坐标或保存项目。
+      void instance.setViewport(nextViewport, { duration: 0 }).then(() => {
+        viewportRef.current = instance.getViewport();
+        setZoom(viewportRef.current.zoom);
+        scheduleGenerationPanelPosition();
+      });
+    });
+  }, [scheduleGenerationPanelPosition]);
 
   const workbenchMetrics = useWorkbenchMetrics(workbenchRef, initialCanvasWorkbenchMetrics, true);
   const chatRightLimits = useMemo<WorkbenchPaneLimits>(() => {
@@ -461,6 +601,45 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
     mountedRef.current = true;
     return () => { mountedRef.current = false; };
   }, []);
+
+  useEffect(() => {
+    const anchorId = generationAnchorId;
+    const stage = canvasRef.current;
+    const panel = generationPanelRef.current;
+    if (mode !== "generate" || applicationCanvasView !== "canvas" || !anchorId || !stage || !panel) {
+      setGenerationPosition(current => current === null ? current : null);
+      return;
+    }
+    scheduleGenerationPanelPosition();
+    const stageRect = stage.getBoundingClientRect();
+    generationLayoutSizeRef.current = {
+      stageWidth: stageRect.width,
+      stageHeight: stageRect.height,
+      panelWidth: panel.offsetWidth,
+      panelHeight: panel.offsetHeight
+    };
+    const anchor = [...stage.querySelectorAll<HTMLElement>(".react-flow__node[data-id]")]
+      .find(candidate => candidate.dataset.id === anchorId);
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(entries => {
+      scheduleGenerationPanelPosition();
+      if (entries.some(entry => entry.target === stage || entry.target === panel)) scheduleGenerationAnchorVisibility();
+    });
+    observer?.observe(stage);
+    observer?.observe(panel);
+    if (anchor) observer?.observe(anchor);
+    return () => {
+      observer?.disconnect();
+      if (generationPositionFrameRef.current !== null) {
+        window.cancelAnimationFrame(generationPositionFrameRef.current);
+        generationPositionFrameRef.current = null;
+      }
+      if (generationVisibilityFrameRef.current !== null) {
+        window.cancelAnimationFrame(generationVisibilityFrameRef.current);
+        generationVisibilityFrameRef.current = null;
+      }
+      generationLayoutSizeRef.current = null;
+    };
+  }, [applicationCanvasView, generationAnchorId, mode, scheduleGenerationAnchorVisibility, scheduleGenerationPanelPosition]);
 
   // 短屏（高度 ≤640）或窄屏（宽度 ≤640）用紧凑布局：生成面板默认折叠成一行，避免遮挡画布节点。
   useEffect(() => {
@@ -695,12 +874,14 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
       const generation = autoTarget.data.generation;
       setNodes(flow.nodes.map(node => node.id === autoTarget.id ? { ...node, selected: true } : node));
       setGenerationTargetId(autoTarget.id);
+      setGenerationAnchorId(autoTarget.id);
       if (generation?.prompt) setPrompt(generation.prompt.slice(0, CANVAS_LIMITS.textLength));
       if (generation?.kind) setGenerationKind(generation.kind);
       if (generation?.aspectRatio) setAspectRatio(generation.aspectRatio);
       if (typeof generation?.durationSeconds === "number" && generation.durationSeconds > 0) setDurationSeconds(generation.durationSeconds);
     } else {
       setGenerationTargetId(null);
+      setGenerationAnchorId(null);
     }
     setDirty(false);
     setConflict(false);
@@ -710,7 +891,7 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
     historyRef.current = { past: [], future: [] };
     pendingSnapshotRef.current = null;
     setHistoryRevision(current => current + 1);
-  }, [canvasCallbacks, setEdges, setNodes]);
+  }, [canvasCallbacks, setEdges, setGenerationAnchorId, setNodes]);
   applyProjectRef.current = applyProject;
 
   const clearProject = useCallback(() => {
@@ -723,12 +904,14 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
     setTitle("");
     setNodes([]);
     setEdges([]);
+    setGenerationTargetId(null);
+    setGenerationAnchorId(null);
     setDirty(false);
     setConflict(false);
     setFlowRevision(current => current + 1);
     historyRef.current = { past: [], future: [] };
     setHistoryRevision(current => current + 1);
-  }, [setEdges, setNodes]);
+  }, [setEdges, setGenerationAnchorId, setNodes]);
 
   const confirmDiscard = useCallback((action: string): boolean => {
     if (!dirtyRef.current) return true;
@@ -963,10 +1146,15 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
     }
     commitHistory();
     const node = createFlowNode(kind, current, at);
-    setNodes(items => [...items, node]);
+    if (kind === "generation") {
+      setNodes(items => [...items.map(item => item.selected ? { ...item, selected: false } : item), { ...node, selected: true }]);
+      setGenerationTargetId(node.id);
+      setGenerationAnchorId(node.id);
+    } else {
+      setNodes(items => [...items, node]);
+    }
     markDirty();
-    if (kind === "generation") setGenerationTargetId(node.id);
-  }, [allowedNodeKinds, commitHistory, createFlowNode, markDirty, setNodes]);
+  }, [allowedNodeKinds, commitHistory, createFlowNode, markDirty, setGenerationAnchorId, setNodes]);
 
   const insertAssetNode = useCallback((asset: CanvasProjectAsset, asReference: boolean) => {
     const current = projectRef.current;
@@ -1008,11 +1196,13 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
     if (changes.some(change => change.type === "position" || change.type === "remove")) markDirty();
     const removed: string[] = [];
     for (const change of changes) if (change.type === "remove") removed.push(change.id);
+    if (removed.includes(generationAnchorIdRef.current ?? "")) setGenerationAnchorId(null);
+    if (changes.some(change => change.type === "position" && change.id === generationAnchorIdRef.current)) scheduleGenerationPanelPosition();
     if (removed.length) {
       setEdges(current => current.filter(edge => !removed.includes(edge.source) && !removed.includes(edge.target)));
       setNodes(current => current.map(node => removed.reduce((next, removedId) => withoutNodeReference(next, removedId), node)));
     }
-  }, [markDirty, onNodesChange, setEdges, setNodes]);
+  }, [markDirty, onNodesChange, scheduleGenerationPanelPosition, setEdges, setGenerationAnchorId, setNodes]);
 
   const onFlowEdgesChange = useCallback((changes: EdgeChange<Edge>[]) => {
     onEdgesChange(changes);
@@ -1514,8 +1704,36 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
   );
 
   const generationTargetNode = generationTargetId ? nodes.find(node => node.id === generationTargetId && node.data.kind === "generation") ?? null : null;
+  const generationAnchorNode = generationAnchorId ? nodes.find(node => node.id === generationAnchorId && (node.data.kind === "image" || node.data.kind === "video" || node.data.kind === "generation")) ?? null : null;
   const generationConfigured = generationKind === "image" ? imageGenerationConfigured : videoGenerationConfigured;
   const directorDeskNode = directorDeskNodeId ? nodes.find(node => node.id === directorDeskNodeId && node.data.kind === "director-desk") ?? null : null;
+  const handleGenerationAnchorSelection = useCallback((node: CanvasFlowNode | null) => {
+    if (!node || (node.data.kind !== "image" && node.data.kind !== "video" && node.data.kind !== "generation")) {
+      setGenerationAnchorId(null);
+      return;
+    }
+    setGenerationAnchorId(node.id);
+    generationVisibilityForceRef.current = true;
+    scheduleGenerationAnchorVisibility();
+    if (node.data.kind === "generation") {
+      const generation = node.data.generation;
+      setGenerationTargetId(node.id);
+      if (generation?.prompt) setPrompt(generation.prompt.slice(0, CANVAS_LIMITS.textLength));
+      if (generation?.kind) setGenerationKind(generation.kind);
+      if (generation?.aspectRatio) setAspectRatio(generation.aspectRatio);
+      if (typeof generation?.durationSeconds === "number" && generation.durationSeconds > 0) setDurationSeconds(generation.durationSeconds);
+      return;
+    }
+    setGenerationTargetId(null);
+    setGenerationKind(node.data.kind === "video" ? "video" : "image");
+  }, [scheduleGenerationAnchorVisibility, setGenerationAnchorId]);
+  const generationComposerVisible = applicationCanvasView === "canvas" && mode === "generate" && generationAnchorNode !== null;
+  const updateGenerationPrompt = (value: string, cursor: number): void => {
+    setPrompt(value);
+    const match = value.slice(0, cursor).match(/@([^\s@]*)$/u);
+    if (match) setMention({ query: match[1] ?? "", start: cursor - match[0].length, end: cursor });
+    else setMention(null);
+  };
 
   // 选中生成节点时把它的提示词/比例带进生成工作台，便于直接“重新生成”（数据来自项目真实记录）。
   useEffect(() => {
@@ -1593,22 +1811,20 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
                 onNodesChange={onFlowNodesChange}
                 onEdgesChange={onFlowEdgesChange}
                 onConnect={onConnect}
-                onNodeClick={(_event, node) => {
-                  if (node.data.kind !== "generation") return;
-                  const generation = node.data.generation;
-                  setGenerationTargetId(node.id);
-                  if (generation?.prompt) setPrompt(generation.prompt.slice(0, CANVAS_LIMITS.textLength));
-                  if (generation?.kind) setGenerationKind(generation.kind);
-                  if (generation?.aspectRatio) setAspectRatio(generation.aspectRatio);
-                  if (typeof generation?.durationSeconds === "number" && generation.durationSeconds > 0) setDurationSeconds(generation.durationSeconds);
+                onNodeClick={(_event, node) => handleGenerationAnchorSelection(node)}
+                onSelectionChange={({ nodes: selectedNodes }) => {
+                  const selected = [...selectedNodes].reverse().find(node => node.data.kind === "image" || node.data.kind === "video" || node.data.kind === "generation") ?? null;
+                  handleGenerationAnchorSelection(selected);
                 }}
                 onNodeDragStart={() => commitHistory()}
-                onMoveEnd={(_event, nextViewport) => { viewportRef.current = nextViewport; setZoom(nextViewport.zoom); }}
+                onMove={scheduleGenerationPanelPosition}
+                onMoveEnd={(_event, nextViewport) => { viewportRef.current = nextViewport; setZoom(nextViewport.zoom); scheduleGenerationPanelPosition(); }}
                 onInit={(instance: ReactFlowInstance<CanvasFlowNode, Edge>) => {
                   flowRef.current = instance;
                   if (nodesRef.current.length > 0) window.requestAnimationFrame(() => fitCanvasToNodes());
+                  scheduleGenerationPanelPosition();
                 }}
-                onPaneClick={() => setAddMenu(null)}
+                onPaneClick={() => { setAddMenu(null); handleGenerationAnchorSelection(null); }}
                 zoomOnDoubleClick={false}
                 defaultViewport={project.viewport ?? DEFAULT_VIEWPORT}
                 defaultEdgeOptions={{ type: "smoothstep", style: { stroke: "var(--color-border-strong)", strokeWidth: 1.6 }, markerEnd: { type: MarkerType.ArrowClosed, color: "var(--color-border-strong)" } }}
@@ -1651,8 +1867,25 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
 
           {project && nodes.length === 0 && unsupportedNodesRef.current.length === 0 ? (
             <div className="lfaa-cnv-empty" data-testid="canvas-empty">
-              <span className="lfaa-cnv-empty__hint">双击画布</span>
-              <Button type="text" className="lfaa-cnv-empty__action" data-testid="canvas-empty-create" onClick={() => addNode("text")}>创建节点</Button>
+              {mode === "generate" && allowedNodeKinds.has("generation") ? (
+                <>
+                  <span className="lfaa-cnv-empty__hint">从一个生成节点开始，面板会跟随节点展开</span>
+                  <Button type="primary" data-testid="canvas-empty-create" onClick={() => addNode("generation")}>添加生成节点</Button>
+                  <Button type="text" className="lfaa-cnv-empty__action" onClick={() => addNode("text")}>创建文本节点</Button>
+                </>
+              ) : (
+                <>
+                  <span className="lfaa-cnv-empty__hint">双击画布</span>
+                  <Button type="text" className="lfaa-cnv-empty__action" data-testid="canvas-empty-create" onClick={() => addNode("text")}>创建节点</Button>
+                </>
+              )}
+            </div>
+          ) : null}
+
+          {project && nodes.length > 0 && mode === "generate" && !generationAnchorNode ? (
+            <div className="lfaa-cnv-generation-hint" role="status" data-testid="canvas-generation-hint">
+              <span>选择图片、视频或生成节点，在节点下方打开生成面板。</span>
+              {allowedNodeKinds.has("generation") ? <Button size="small" type="primary" onClick={() => addNode("generation")}>添加生成节点</Button> : null}
             </div>
           ) : null}
 
@@ -1814,15 +2047,27 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
           <Button size="small" type="text" aria-label="适应画布内容" onClick={() => fitCanvasToNodes()}>适应</Button>
         </div> : null}
 
-        {applicationCanvasView === "canvas" && mode === "generate" ? (compactViewport && !generateExpanded ? (
-          <section className="lfaa-cnv-generate lfaa-cnv-generate--collapsed" aria-label="生成工作台（已折叠）" data-testid="canvas-generate-panel">
+        {generationComposerVisible ? (compactViewport && !generateExpanded ? (
+          <section
+            ref={generationPanelRef}
+            className="lfaa-cnv-generate lfaa-cnv-generate--collapsed"
+            aria-label="选中节点的生成工作台（已折叠）"
+            data-testid="canvas-generate-panel"
+            style={{ left: generationPosition?.left ?? -10_000, top: generationPosition?.top ?? -10_000, visibility: generationPosition ? "visible" : "hidden" }}
+          >
             <span className="lfaa-cnv-generate__collapsed-type">{generationKind === "image" ? "图片生成" : "视频生成"}</span>
             <span className="lfaa-cnv-generate__collapsed-prompt" title={prompt}>{prompt.trim() || "未输入提示词"}</span>
             <Button size="small" type="primary" data-testid="canvas-node-generation-generate" loading={generationBusy} disabled={!project || interactionLocked} onClick={() => void runGeneration()}>生成</Button>
             <Button size="small" onClick={() => setGenerateExpanded(true)}>展开</Button>
           </section>
         ) : (
-          <section className="lfaa-cnv-generate" aria-label="生成工作台" data-testid="canvas-generate-panel">
+          <section
+            ref={generationPanelRef}
+            className="lfaa-cnv-generate"
+            aria-label="选中节点的生成工作台"
+            data-testid="canvas-generate-panel"
+            style={{ left: generationPosition?.left ?? -10_000, top: generationPosition?.top ?? -10_000, visibility: generationPosition ? "visible" : "hidden" }}
+          >
             <div className="lfaa-cnv-generate__head">
               <Segmented
                 size="small"
@@ -1868,11 +2113,8 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
                 value={prompt}
                 onChange={event => {
                   const value = event.target.value;
-                  setPrompt(value);
                   const cursor = event.target.selectionStart ?? value.length;
-                  const match = value.slice(0, cursor).match(/@([^\s@]*)$/u);
-                  if (match) setMention({ query: match[1] ?? "", start: cursor - match[0].length, end: cursor });
-                  else setMention(null);
+                  updateGenerationPrompt(value, cursor);
                 }}
                 onKeyDown={event => { if (event.key === "Escape") setMention(null); }}
               />

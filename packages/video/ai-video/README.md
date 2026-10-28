@@ -8,4 +8,6 @@ AI 漫剧项目、创作画布、媒体库、时间线与白模导演台的唯�
 
 角色/场景参考图支持认证上传、读取、替换和删除，限定 PNG/JPEG/WebP、单张 3 MiB、边长 8192 像素和总像素 2000 万；复用 Settings 既有文件头/尺寸解析。媒体库支持 PNG/JPEG/WebP、MP4/WebM、MP3/WAV/OGG 导入；项目 `assets/` 仍是编辑权威副本，经过 AI Video 校验的用户上传素材会原子镜像到账户隔离的 `Data/input/<账户 SHA-256>/`，作为本机可访问的输入素材副本；AI Video 推理仍从项目 Owner 读取已校验素材。JSON 保存素材 ID/MIME/大小/名称/来源；认证读取支持 Range 流，删除前检查角色、场景、镜头及时间线引用。账户项目素材最多 2048 个文件、合计 2 GiB、单素材 128 MiB；图片上限 16 MiB。Input/Output 镜像由用户按本机文件系统管理，不随项目删除自动清理。时间线有视频、音频、字幕轨，单轨不重叠、最多 256 个片段、最长 300 秒。浏览器按 MediaRecorder 的真实能力导出 MP4/WebM，限制 128 MiB，音轨源文件合计最多 32 MiB，成片回写项目媒体库；浏览器/远程 Provider 结果不自动进入本机 `output/`。
 
+系统文件管理通过 `ai-video-controller` 的只读 FileMount 展示同一媒体清单，并把下载流委派给本 Owner；不会复制 `assets/` 或开放其任意目录写操作。
+
 白模导演台在同一项目保存最多 32 个角色/方块几何体及相机位置、角度、焦距和比例；共享工作区用 Canvas 透视投影绘制场景，白模取景可保存为镜头参考。手机设备取景只在用户点击后启动 `getUserMedia`，切页、隐藏窗口或卸载时停止设备轨道，拍摄帧通过认证 Owner 写入镜头素材。无法访问相机时显示真实错误。Agent 领域工具由 `packages/video/tool-ai-video` 负责，所有写入/计费操作沿用统一 Permission Owner。旧版 `storyboards.json` 在分项写入并回读验证后原子改名为迁移恢复副本。构建输出位于仓库根 `dist/packages/video/ai-video/`。

@@ -10,7 +10,7 @@
 
 | 编号 | 任务 | 状态 | 合同 |
 |---|---|---|---|
-| LFAA-CANVAS-AGENT-IMAGE-MODEL-ROUTING-20261028 | 让画布 Agent 发现当前账户的图片模型，并按单次目标调用火山方舟 Agent Plan 图像能力 | 实现、包构建、类型检查、Web/控制端构建及内置浏览器桌面/手机视口验收完成；未调用真实 Agent 模型或计费生图，详见任务合同 | [本轮合同](development/canvas-agent-image-model-routing-20261028.md#lfaa-canvas-agent-image-model-routing-20261028) |
+| LFAA-CANVAS-AGENT-IMAGE-MODEL-ROUTING-20261028 | 让画布 Agent 发现当前账户的图片模型，并按单次目标调用火山方舟 Agent Plan 图像能力 | 修复 `lfaa-canvas-generation` 缺少 Settings 凭据来源消费者登记；设置包、控制端/Web 构建、类型检查与 Web 健康检查通过；未发起真实 Agent/Provider 请求或计费生图，详见任务合同 | [本轮合同](development/canvas-agent-image-model-routing-20261028.md#lfaa-canvas-agent-image-model-routing-20261028) |
 | LFAA-GUIDED-SYSTEM-ENTRY-20261028 | 首次登录后用引导卡片选择通用工作区或业务 App，再选择聊天、画布或手动工作模式 | 向导与偏好/路由装配已实现；早先 Web 构建与桌面/手机/短屏实页通过，后续共享源码使 Web 指纹过期，最终重建被无关 AI Work TS2554 阻断；偏好端到端未验证，详见任务合同 | [本轮合同](development/guided-system-entry-20261028.md#lfaa-guided-system-entry-20261028) |
 | LFAA-AI-WORK-CONFIGURED-MODEL-CATALOG-20261028 | AI Work 模型切换器汇总设置中心全部已配置账户的官方模型目录，并按真实账户模型能力展示元数据 | 根因已确认：当前切换器只读活动账户目录；修复与实页验收进行中，详见任务合同 | [本轮合同](development/ai-work-configured-model-catalog-20261028.md#lfaa-ai-work-configured-model-catalog-20261028) |
 | LFAA-APP-BOUNDARIES-20261028 | 梳理系统核心能力、全局 Agent 与业务 App 三模式边界，打通 App 聊天/画布/手动模式路由与上下文 | 首批路由、模式栏与全局开发入口说明已实现；App-scoped 聊天保留作用域；`/work` 不选业务 App 也可做通用项目开发。全局跨 App 领域工具合同与 Minecraft/Steam 专用画布节点仍待实现，详见任务合同 | [本轮合同](development/app-boundaries-20261028.md#lfaa-app-boundaries-20261028) |
@@ -140,6 +140,7 @@
 | 46-项目存储位置-20261013 | 接通游戏、日志、写作、漫剧的默认/自定义存储路径，并让统一文件管理发现本机全部磁盘 | 本轮实施中；覆盖范围与验收见新合同 | [当前合同](#lfaa-project-storage-locations-20261013) |
 | 47-项目存储设置-20261013 | 将 Writing 项目 Markdown 路径与统一本机数据根目录设置接入“项目与存储” | 已实现；目录/迁移与 Writing 回归 3/3、设置/Writing 包构建、Web 类型检查/构建通过；真实浏览器、移动/短屏与服务重载未验 | [本轮合同](#lfaa-project-storage-settings-20261013) |
 | 48-系统文件服务-20261013 | 系统文件库独立于游戏 Daemon，应用 Owner 挂载账户资源，节点目录作为可选来源 | 统一 `SystemFileLibrary` 首版已接入（Data、派生资源、显式本机磁盘、已登记领域/游戏挂载）；剩余 Owner 覆盖、长任务/传输边界及完整实页/性能验收仍未完成 | [当前合同](#lfaa-system-file-service-20261013) |
+| 48A-漫剧媒体文件管理联动-20261028 | 让系统文件管理只读浏览当前账户的 AI 漫剧项目媒体，并从项目媒体库直达对应项目目录 | 已接入；实页确认只读入口，当前账户无项目，媒体预览/下载与项目内跳转未测 | [当前合同](development/aivideo-file-library-integration-20261028.md) |
 | 49-文件管理基础-20261013 | 将节点文件管理补成有预览/编辑区分、回收站、移动和批量操作的安全工作台 | 首版基础功能已实现并通过 11 项回归和登录态浏览器验收；短屏/移动端与帧时间未测；Office 高保真、杀毒、对象存储等列明能力尚未接入 | [当前合同](#lfaa-file-manager-foundation-20261013) |
 | 50-文件管理响应-20261013 | 降低文件管理目录任务的等待，并在刷新时显示匹配的已有目录快照 | 实现和 Web 构建通过；登录态浏览器读取/刷新通过；短视口实际滚动未测 | [当前合同](#lfaa-file-manager-latency-20261013) |
 | 51-文件夹大小显示-20261013 | 修正文件夹大小缺失与通用文件类型显示英文，并保持列表读取轻量 | 大小/文件类型定向回归 14/14；收到用户对首轮左对齐观感的反馈后，补充表头/单元格显式对齐和操作组左起布局，重新构建并在登录浏览器确认；本轮客户端/Host 类型检查、Web 构建和差异检查通过。远程第二节点、大目录性能、窄视口与帧时间未测 | [当前合同](#lfaa-file-manager-directory-size-20261013) |
@@ -369,6 +370,7 @@
 | 283-AI Work手机窄屏右侧内容对齐-20261025 | 修复 `/work` 手机窄屏下整页工作台未铺满视口、右侧露出空白背景的问题 | 源码、27/27 定向回归、ui-layout/ui-workspace/Web 构建与 Client 类型检查通过；Web/Host 构建指纹匹配；最终 390×740 内置浏览器复验被中断，未标记实页通过 | [本轮合同](#lfaa-ai-work-mobile-right-edge-20261025) |
 | 285-Three.js共享UI视觉与动效开发规则-20261025 | 将 Three.js 与统一 UI 组件、玻璃材质、网格/颗粒背景、完整反馈状态、微交互、滚动渐入和弹性动效纳入 LFAA 规则 | 已完成；Three.js 及类型依赖锁定、ui-primitives/Client/Web 构建通过；工作区 Gate 仅被既有缺失合同锚点阻断；无产品页面消费 Three.js 或发生视觉变化 | [本轮合同](#lfaa-threejs-shared-ui-visual-motion-rules-20261025) |
 | 288-LFAA Agent 工作台上下文与自然语言能力发现-20261026 | 让小鱼 Agent 收到当前右侧工作台面板的受限 JSON 状态，并能用自然中文找到本轮真实可用工具；动作仍由原工具目录、Owner 和统一权限执行 | 进行中 | [本轮合同](#lfaa-agent-workbench-context-capability-discovery-20261026) |
+| 289-无限画布节点上下文生成面板-20261028 | 对照即梦参考图：选中图片/视频/生成节点时，生成面板锚定在节点下方并跟随；无可生成节点选中时隐藏，生成模式空画布提供添加生成节点的入口；复用原生成 Owner 与项目素材库 | 已实现并通过 UI 包/Web 构建、Client 类型检查、运行指纹、差异检查；内置浏览器 1280×720、390×720、390×560 实页测量，验证选择、取消选择、窄屏缩放和面板操作；未调用真实 Provider，拖动/平移/缩放帧时间及桌面包未测 | [本轮合同](development/canvas-persistent-generation-composer-20261028.md) |
 
 <a id="lfaa-whole-workspace-performance-security-maintainability-20261019"></a>
 

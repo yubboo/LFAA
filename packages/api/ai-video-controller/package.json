@@ -16,6 +16,7 @@
     "lfaa-api-remotes": "workspace:*",
     "lfaa-app-boot": "workspace:*",
     "lfaa-authorization": "workspace:*",
+    "lfaa-fs": "workspace:*",
     "lfaa-util-values": "workspace:*",
     "lfaa-video-ai-video": "workspace:*"
   },

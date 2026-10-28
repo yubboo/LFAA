@@ -10,6 +10,8 @@ export interface ManagedFileEntry {
   fileType?: string;
   trashId?: string;
   operations?: readonly FileManagerOperation[];
+  /** 由领域 Owner 明确提供认证流下载时，文件管理器可跳过本机小文件传输上限。 */
+  downloadStrategy?: "stream";
   description?: string;
 }
 /** 资源位置仅描述导航，不授予路径权限，也不混入物理目录条目。 */

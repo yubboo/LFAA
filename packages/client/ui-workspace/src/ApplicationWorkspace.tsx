@@ -12,6 +12,7 @@ import { sidebarRightRuntime, useSidebarRightSnapshot } from "./sidebar-right-ru
 import { shouldAutoOpenGitSummary } from "./git-summary-layout.config.js";
 import { AiWorkProjectFileDock } from "./AiWorkProjectFileDock.js";
 import { openWorkspaceProjectManager } from "lfaa-client-ui-chat/src/project-manager-events.js";
+import { setFileManagerLocation } from "lfaa-client-connection/src/file-manager-location.js";
 
 import { createElement, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent as ReactFormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { Alert, Button, Dropdown, Popover, Segmented, Tag, Typography } from "antd";
@@ -1150,6 +1151,11 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
     }
     await onOpenApplication(nextApp, nextMode);
   }, [app, mode, onOpenApplication]);
+  const openAiVideoProjectFiles = useCallback((projectId: string) => {
+    setFileManagerLocation(userId, `.lfaa-library/aivideo-projects/${projectId}`);
+    onNavigate("/files");
+  }, [onNavigate, userId]);
+  const canOpenSystemFiles = role === "super_admin" && settings.permissions.mode === "full_access";
   useEffect(() => {
     if (mode !== "ai-work") return;
     const controller = new AbortController();
@@ -2214,7 +2220,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
     <div className="module-center">
         {mode === "ai-work" ? null : centerHeader}
       <main ref={moduleContentScroll.ref} onScroll={moduleContentScroll.onScroll} className={`module-center__content${mode === "ai-work" ? " module-center__content--ai-work" : ""}${mode === "normal" && !writingNormal && !aiVideoNormal ? " module-center__content--application" : ""}${writingNormal ? " module-center__content--writing-normal" : ""}${aiVideoNormal ? " module-center__content--aivideo" : ""}`} aria-label={mode === "ai-work" ? "小鱼智能体对话" : writingNormal ? "写作正文编辑区" : aiVideoNormal ? "AI 漫剧分镜画布" : undefined} aria-labelledby={applicationContent ? "game-library-heading" : mode === "normal" && app !== "minecraft" && !writingNormal && !aiVideoNormal ? "module-heading" : undefined}>
-        {mode === "ai-work" ? renderAiWorkChatContent(centerHeader) : applicationContent ? applicationContent : app === "minecraft" ? <Suspense fallback={<ApplicationContentLoading />}><MinecraftWorkspace onPrepareWithAi={prompt=>{onAiDraftChange(aiDraft.trim()?`${aiDraft}\n\n${prompt}`:prompt);void openApplication("minecraft", "ai-work");}} userId={userId} section={section} role={role} settings={settings} onNavigate={navigateWithinApplication} onOpenConnectivity={() => { void openApplication("connectivity", "normal"); }} onContentReady={setMinecraftContentReady} /></Suspense> : app === "connectivity" && mode === "normal" ? <Suspense fallback={<ApplicationContentLoading />}><ConnectivityWorkspace section={section} isAdmin={hasAdminAccess(role)} /></Suspense> : writingNormal ? <Suspense fallback={<ApplicationContentLoading />}><WritingWorkspace settings={settings} onSettingsChange={onSettingsChange} workspace={writingWorkspace} loading={writingWorkspaceLoading} loadError={writingWorkspaceError} libraryPortalTarget={writingLibraryPortalTarget} onRetry={() => { void retryWritingWorkspace(); }} onWorkspaceChange={setWritingWorkspace} onRegisterFlush={registerWritingFlush} /></Suspense> : aiVideoNormal ? <Suspense fallback={<ApplicationContentLoading />}><AiVideoCanvasWorkspace /></Suspense> : <>
+        {mode === "ai-work" ? renderAiWorkChatContent(centerHeader) : applicationContent ? applicationContent : app === "minecraft" ? <Suspense fallback={<ApplicationContentLoading />}><MinecraftWorkspace onPrepareWithAi={prompt=>{onAiDraftChange(aiDraft.trim()?`${aiDraft}\n\n${prompt}`:prompt);void openApplication("minecraft", "ai-work");}} userId={userId} section={section} role={role} settings={settings} onNavigate={navigateWithinApplication} onOpenConnectivity={() => { void openApplication("connectivity", "normal"); }} onContentReady={setMinecraftContentReady} /></Suspense> : app === "connectivity" && mode === "normal" ? <Suspense fallback={<ApplicationContentLoading />}><ConnectivityWorkspace section={section} isAdmin={hasAdminAccess(role)} /></Suspense> : writingNormal ? <Suspense fallback={<ApplicationContentLoading />}><WritingWorkspace settings={settings} onSettingsChange={onSettingsChange} workspace={writingWorkspace} loading={writingWorkspaceLoading} loadError={writingWorkspaceError} libraryPortalTarget={writingLibraryPortalTarget} onRetry={() => { void retryWritingWorkspace(); }} onWorkspaceChange={setWritingWorkspace} onRegisterFlush={registerWritingFlush} /></Suspense> : aiVideoNormal ? <Suspense fallback={<ApplicationContentLoading />}><AiVideoCanvasWorkspace canOpenFileManager={canOpenSystemFiles} onOpenFileManager={openAiVideoProjectFiles} /></Suspense> : <>
           <div className={`module-heading module-heading--workspace module-heading--${app}`}>
             <div className="module-heading__labels"><Tag className="development-tag">开发中</Tag><Tag className="module-mode-tag">{modeLabel}</Tag></div>
             <Typography.Title id="module-heading" level={2}>{activeApplicationTitle}</Typography.Title>

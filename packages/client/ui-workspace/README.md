@@ -4,6 +4,8 @@
 
 `ApplicationWorkspace` 为领域 App 提供“聊天/画布/手动”三模式栏；聊天保留 App-scoped AI 会话，画布用同一 App ID 装配共享 Canvas Runtime 与已登记节点，手动面板仍由该 App 的数据 Owner 提供。`CanvasWorkspace` 复用既有全幅 Canvas 模板和真实 AiWorkChat 侧栏；顶部还可在自由画布与 App 工作流间切换：Minecraft 延用专用面板/许可行为，其他 App 使用 `ui-workflow/ApplicationWorkflowCanvas` 与各自已登记的 `<appId>.agent` 节点。Canvas 项目/工作流引用及更新时间仅随当前画布发送的新 Run 传递，不写入会话。已有 Canvas 外观、模式和助手栏设置继续生效。
 
+系统画布在“生成”模式中只对选中的图片、视频或生成节点显示上下文生成面板；面板按节点实际屏幕位置锚定在节点上下方，并随拖动、平移、缩放和容器变化重新定位。空画布用“添加生成节点”作为明确入口；新节点选中后再展开面板。选中图片/视频节点时，现有 Canvas Generation Owner 仍负责创建真实生成节点并把结果登记到当前画布项目素材库；选中生成节点时回填其已保存的提示词与参数。模型/账户/凭据、项目数据与生成任务状态继续分别归现有 Settings、Canvas、Credentials、Canvas Generation Owner，界面不复制规则。
+
 AI Work 活动文件按钮按账户和当前 App 校验登记项目后打开可切换的 `project-file` 右侧标签；`AiWorkProjectFileDock` 通过认证 Workspace File Owner 读取文本并显示项目相对路径面包屑。Git 变更面板按 Workspace Git Owner 的真实状态构建可展开文件树，点击文件读取该项目/来源下的真实文本差异；目录与文件状态只展示服务端返回的变更，读取请求在标签切换或卸载时可取消。项目/Git 状态/来源不匹配时不回退读取其他项目。
 
 `AgentOfficePage` 消费 Client Connection 的认证 `/ai/office` 快照，展示已登记专家、主 Agent、真实活动任务、父子关系与公开活动标题。页面只读；单链 5 秒刷新在页面隐藏时取消，未完成请求不重叠。工位按实际容器宽度排列，使用 Workbench 当前 Appearance；不新增设置或用户数据。
@@ -11,6 +13,8 @@ AI Work 活动文件按钮按账户和当前 App 校验登记项目后打开可�
 2026-10-16：普通 App 是手动操作与成果管理面板，Agent 对话、能力资源和侧聊只在共享工作区展示。写作侧栏改用 `normal/WritingBookInfo`，保留作品信息与写作方法管理，不再提供 App 专属 AI Work 切换。普通面板不加载 Agent 能力目录；共享工作读取目录可取消，离开或切换账户时撤销请求。两类自定义模板（成果/应用面板）的目标与待实施范围见 [模板目标](../../../docs/development/application-panels-templates.zh.md)，本轮不声明模板运行时已实现。
 
 Web/Desktop 共用的应用工作区 UI。除通用 Workspace 外，`AiVideoCanvasWorkspace` 将单个 AI 漫剧项目呈现为剧本、角色/场景档案和 React Flow 分镜画布，通过 Client Connection 调用认证 API 保存，不把浏览器存储作为项目数据 Owner。
+
+AI 漫剧“媒体与时间线”面板可在项目和时间线均已保存时跳转到系统文件管理中的同一项目只读媒体投影；仅在现有文件权限可用时显示入口。项目媒体清单与文件字节仍由 AI Video Owner 持有，文件管理不创建副本。
 
 系统画布的图标工具轨与顶栏直接使用 `@ant-design/icons`，图标控件仍提供可访问名称与悬停提示；画布项目、节点和素材 Owner 不变。
 

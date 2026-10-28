@@ -1,4 +1,4 @@
-import { Alert, Button, Input, InputNumber, Progress, Typography } from "antd";
+import { Alert, Button, Input, InputNumber, Progress, Space, Typography } from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { aiVideoAssetUrl, deleteAiVideoMediaAsset, loadAiVideoMediaAssets, saveAiVideoExport, uploadAiVideoMediaAsset, type AiVideoCanvas, type AiVideoMediaAsset, type AiVideoTimelineClip } from "lfaa-client-connection/src/api.js";
 import { renderAiVideoTimeline } from "./timeline-export.js";
@@ -25,11 +25,13 @@ export function AiVideoMediaStudio(props: {
   saving: boolean;
   maxAssetBytes: number;
   maxImageBytes: number;
+  canOpenFileManager?: boolean;
+  onOpenFileManager?: (projectId: string) => void;
   onTimelineChange: (clips: AiVideoTimelineClip[]) => void;
   onCanvasUpdated: (canvas: AiVideoCanvas) => void;
   onBusyChange: (busy: boolean) => void;
 }) {
-  const { canvas, clips, dirty, saving, maxAssetBytes, maxImageBytes, onTimelineChange, onCanvasUpdated, onBusyChange } = props;
+  const { canvas, clips, dirty, saving, maxAssetBytes, maxImageBytes, canOpenFileManager = false, onOpenFileManager, onTimelineChange, onCanvasUpdated, onBusyChange } = props;
   const [assets, setAssets] = useState<AiVideoMediaAsset[]>(canvas.mediaAssets ?? []);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -180,8 +182,11 @@ export function AiVideoMediaStudio(props: {
     {error ? <Alert type="error" showIcon message={error} /> : null}
     {notice ? <Typography.Text className="aivideo-media-studio__notice" type="secondary" role="status">{notice}</Typography.Text> : null}
     <section className="aivideo-media-library" aria-labelledby="aivideo-media-heading">
-      <header><div><Typography.Title id="aivideo-media-heading" level={4}>项目媒体库</Typography.Title><Typography.Text type="secondary">图片、视频和声音保存在此项目的本机素材目录中。</Typography.Text></div>
-        <label className="aivideo-reference-file"><span>{busy ? "正在处理…" : "导入媒体"}<input type="file" accept={ACCEPTED_MEDIA} multiple disabled={busy || saving || dirty} onChange={event => { const files = event.currentTarget.files; event.currentTarget.value = ""; void importFile(files); }} /></span></label>
+      <header><div><Typography.Title id="aivideo-media-heading" level={4}>项目媒体库</Typography.Title><Typography.Text type="secondary">图片、视频和声音保存在此项目的本机素材目录中；文件管理展示同一批素材，不会另存副本。</Typography.Text></div>
+        <Space wrap>
+          {canOpenFileManager && onOpenFileManager ? <Button disabled={busy || saving || dirty} title={dirty ? "请先保存项目和时间线" : "在系统文件管理中只读查看当前项目媒体"} onClick={() => onOpenFileManager(canvas.id)}>在文件管理中查看</Button> : null}
+          <label className="aivideo-reference-file"><span>{busy ? "正在处理…" : "导入媒体"}<input type="file" accept={ACCEPTED_MEDIA} multiple disabled={busy || saving || dirty} onChange={event => { const files = event.currentTarget.files; event.currentTarget.value = ""; void importFile(files); }} /></span></label>
+        </Space>
       </header>
       {dirty ? <Typography.Text type="warning">保存当前项目后可导入、删除素材或导出。</Typography.Text> : null}
       <div className="aivideo-media-library__list" aria-live="polite">

@@ -1773,6 +1773,16 @@ export function operateSystemFiles(input: FileOperationInput & { operation: File
 export function downloadSystemFile(path: string): Promise<Blob> {
   return requestBinary(`/files/download?${new URLSearchParams({ path })}`);
 }
+/** 让服务端以 attachment 流式交付领域媒体，避免把大视频先读入页面内存。 */
+export function startSystemFileDownload(path: string): void {
+  const link = document.createElement("a");
+  link.href = `/api/files/download?${new URLSearchParams({ path })}`;
+  link.rel = "noopener";
+  link.hidden = true;
+  document.body.append(link);
+  link.click();
+  link.remove();
+}
 export function downloadFileTransfer(transferId: string): Promise<Blob> {
   return requestBinary(`/files/transfers/${encodeURIComponent(transferId)}`);
 }

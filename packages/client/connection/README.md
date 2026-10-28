@@ -26,6 +26,8 @@ DSH 来源检查的 `requirements.bundlePatch` 与上游声明保持一致：一
 
 `file-manager-location.ts` 将设置中心已保存的本机目录映射到 data 或本机卷来源，通过账户限定的路由历史把浏览目标交给文件页；不把路径当成权限、不在 URL 放入绝对路径，也不读取磁盘。文件页消费目标后移除临时历史字段，后续目录恢复继续使用原有账户缓存。
 
+`startSystemFileDownload()` 通过同源认证下载路由触发浏览器原生 attachment 流，供领域 Owner 交付大媒体文件；流式文件不先进入 Client Blob 内存，账户、项目和素材校验仍在服务端 Owner 执行。
+
 AI 漫剧项目列表会在交给工作区前校验服务端返回的项目列表与全部资源限制；缺少或包含无效限制值时以 `ai_video_contract_mismatch` 报错，避免旧版控制端响应进入新版 UI。
 
 Browser Dock Client API 使用认证 `/browser/dock/*` 路由。导航前只查询本机隔离 Edge/Chrome 的真实可用性；提交地址时再启动同一账户与 LFAA Session 的无窗口页面，不打开外部浏览器。页面快照只返回标题、地址、标签、加载状态、修订号和视口尺寸，不为 Dock 拉取正文或截图；`streamBrowserDockFrames()` 通过带认证 Cookie 的 SSE 读取 Browser Owner 由 CDP 主动推送的合成器帧事件，使用 AbortSignal 在页面隐藏、切换或卸载时断开。帧流直接显示当前 Browser Owner Page 并启用同页输入，不调用 `getDisplayMedia`、不启动系统标签选择器、不传输用户桌面画面。

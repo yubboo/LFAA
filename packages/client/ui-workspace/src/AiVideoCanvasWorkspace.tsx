@@ -120,7 +120,7 @@ const ShotNodeCard = memo(function ShotNodeCard({ id, data, selected }: NodeProp
 
 const nodeTypes: NodeTypes = { shot: ShotNodeCard };
 
-export function AiVideoCanvasWorkspace() {
+export function AiVideoCanvasWorkspace({ canOpenFileManager = false, onOpenFileManager }: { canOpenFileManager?: boolean; onOpenFileManager?: (projectId: string) => void }) {
   const [canvases, setCanvases] = useState<AiVideoCanvas[]>([]);
   const [limits, setLimits] = useState({ canvases: 0, shots: 0, links: 0, characters: 0, locations: 0, scriptCharacters: 0, referencesPerShot: 0, referenceImageBytes: 0, referenceImageDimension: 0, referenceImagePixels: 0, imageAssetBytes: 0, mediaAssetBytes: 0, timelineClips: 0, timelineSeconds: 0 });
   const [activeCanvas, setActiveCanvas] = useState<AiVideoCanvas | null>(null);
@@ -589,7 +589,7 @@ export function AiVideoCanvasWorkspace() {
                   <Button danger type="text" disabled={saving} onClick={() => removeReference("locations", reference.id)}>删除场景</Button>
                 </article>)}</div> : <Typography.Text type="secondary">还没有场景档案。</Typography.Text>}
               </section>
-            </div> : activePage === "media" ? <AiVideoMediaStudio canvas={activeCanvas} clips={timelineClips} dirty={dirty} saving={saving} maxAssetBytes={limits.mediaAssetBytes} maxImageBytes={limits.imageAssetBytes} onTimelineChange={clips => { setTimelineClips(clips); markDirty(); }} onCanvasUpdated={applyServerCanvas} onBusyChange={setSaving} /> : activePage === "director" ? <AiVideoDirectorStage canvas={activeCanvas} stage={whiteModel} shots={nodes.map(node => ({ id: node.id, title: node.data.title }))} dirty={dirty} saving={saving} onChange={stage => { setWhiteModel(stage); markDirty(); }} onCanvasUpdated={applyServerCanvas} onBusyChange={setSaving} /> : <div className="aivideo-canvas" role="tabpanel" aria-label="镜头无限画布">
+            </div> : activePage === "media" ? <AiVideoMediaStudio canvas={activeCanvas} clips={timelineClips} dirty={dirty} saving={saving} maxAssetBytes={limits.mediaAssetBytes} maxImageBytes={limits.imageAssetBytes} canOpenFileManager={canOpenFileManager} onOpenFileManager={onOpenFileManager} onTimelineChange={clips => { setTimelineClips(clips); markDirty(); }} onCanvasUpdated={applyServerCanvas} onBusyChange={setSaving} /> : activePage === "director" ? <AiVideoDirectorStage canvas={activeCanvas} stage={whiteModel} shots={nodes.map(node => ({ id: node.id, title: node.data.title }))} dirty={dirty} saving={saving} onChange={stage => { setWhiteModel(stage); markDirty(); }} onCanvasUpdated={applyServerCanvas} onBusyChange={setSaving} /> : <div className="aivideo-canvas" role="tabpanel" aria-label="镜头无限画布">
               <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={onFlowNodesChange} onEdgesChange={onFlowEdgesChange} onConnect={onConnect} nodesDraggable={!saving} nodesConnectable={!saving} elementsSelectable={!saving} deleteKeyCode={saving ? null : "Delete"} fitView fitViewOptions={{ padding: 0.22, maxZoom: 1 }} defaultEdgeOptions={{ type: "smoothstep" }} proOptions={{ hideAttribution: true }} aria-label="漫剧镜头无限画布">
                 <Background gap={24} size={1} /><Controls showInteractive={false} />
               </ReactFlow>

@@ -8,7 +8,7 @@ import { createSnapshotCache } from "lfaa-client-store/src/snapshot-cache.js";
 import { Alert, Button, Dropdown, Empty, Input, Modal, Popover, Select, Space, Spin, Table, Tag, Tree, Typography, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import type { DataNode, EventDataNode } from "antd/es/tree";
-import { getErrorMessage, loadSystemFileAudit, loadFileResourceLocations, operateSystemFiles, downloadSystemFile, downloadFileTransfer, maximumNodeFileTransferBytes, uploadSystemFile, type ApplicationId, type FileManagerAuditEntry, type FileManagerOperation, type ManagedFileEntry, type FileResourceLocation, type User, type UserSettings } from "lfaa-client-connection/src/api.js";
+import { getErrorMessage, loadSystemFileAudit, loadFileResourceLocations, operateSystemFiles, downloadSystemFile, downloadFileTransfer, maximumNodeFileTransferBytes, startSystemFileDownload, uploadSystemFile, type ApplicationId, type FileManagerAuditEntry, type FileManagerOperation, type ManagedFileEntry, type FileResourceLocation, type User, type UserSettings } from "lfaa-client-connection/src/api.js";
 import type { ServiceState } from "lfaa-client-ui-primitives/src/ServiceStatus.js";
 import { GlobalNavigationRail, type ApplicationNavigationItem } from "lfaa-client-ui-sidebar/src/GlobalNavigationRail.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
@@ -425,6 +425,10 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, applic
       return;
     }
     if (!directoryReady) return;
+    if (!canOperate("preview", entry)) {
+      if (canOperate("download", entry)) await downloadEntry(entry);
+      return;
+    }
     try {
       const result = await runTask("preview", { path: entry.path });
       const kind = result.previewKind;
@@ -523,7 +527,7 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, applic
       let totalBytes = 0;
       for (const entry of selected) {
         assertFileContext();
-        const result = !entry.path.startsWith(".lfaa-library/") ? null : await runTask("download", { path: entry.path });
+        const result = !entry.path.startsWith(".lfaa-library/") || entry.downloadStrategy === "stream" ? null : await runTask("download", { path: entry.path });
         totalBytes += entry.size;
         if (totalBytes > maximumBatchTransferBytes) throw new Error("批量下载总量不能超过 20 MiB；请分批选择。");
         const blob = result
@@ -640,6 +644,10 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, applic
   const downloadEntry = async (entry: ManagedFileEntry) => {
     try {
       assertFileContext();
+      if (entry.downloadStrategy === "stream") {
+        startSystemFileDownload(entry.path);
+        return;
+      }
       const result = !entry.path.startsWith(".lfaa-library/") ? null : await runTask("download", { path: entry.path });
       const blob = result
         ? typeof result.transferId === "string" ? await downloadFileTransfer(result.transferId) : (() => { throw new Error("文件服务没有返回原始文件传输。"); })()
@@ -817,13 +825,13 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, applic
         const entryUsable = directoryReady || showCurrentDirectorySnapshot && entry.kind === "directory";
         const menuItems = [
           ...(entry.kind === "file" && editableFileTypes.has(entry.fileType ?? "") ? [{ key: "edit", label: "编辑", disabled: busy || !directoryReady || !canOperate("write", entry) || entry.size > 2 * 1024 * 1024 }] : []),
-          ...(entry.kind === "file" ? [{ key: "download", label: "下载", disabled: busy || !directoryReady || !canOperate("download", entry) || entry.size > 3 * 1024 * 1024 }] : []),
+          ...(entry.kind === "file" ? [{ key: "download", label: "下载", disabled: busy || !directoryReady || !canOperate("download", entry) || entry.size > maximumNodeFileTransferBytes && entry.downloadStrategy !== "stream" }] : []),
           { key: "move", label: "移动", disabled: busy || !directoryReady || !canOperate("move", entry) },
           { key: "rename", label: "重命名", disabled: busy || !directoryReady || !canOperate("rename", entry) },
           { key: "delete", label: "移入回收站", danger: true, disabled: busy || !directoryReady || !canOperate("delete", entry) }
         ];
         return <Space className="file-manager__row-actions" size={8}>
-          <Button type="text" size="small" disabled={busy || !isOnline || !entryUsable} onClick={() => void openEntry(entry)}>{entry.kind === "directory" ? "打开" : "预览"}</Button>
+          <Button type="text" size="small" disabled={busy || !isOnline || !entryUsable || entry.kind === "file" && !canOperate("preview", entry) && !canOperate("download", entry)} onClick={() => void openEntry(entry)}>{entry.kind === "directory" ? "打开" : canOperate("preview", entry) ? "预览" : "下载"}</Button>
           <Dropdown trigger={["click"]} placement="bottomRight" menu={{ items: menuItems, onClick: ({ key }) => {
             if (key === "edit") void editEntry(entry);
             else if (key === "download") void downloadEntry(entry);
@@ -838,7 +846,7 @@ export function FileManagerPage({ user, settings, serverState, homeRoute, applic
     }
   ];
 
-  const crumbs = currentPath ? currentPath.split("/").map((name, index, segments) => ({ name: name === ".lfaa-library" ? "应用资源" : name === ".lfaa-resources" ? "受管资源" : segments[1] === "game-instances" && index === 2 ? "实例目录" : segments[1] === "game-storage" && name === "minecraft" ? "Minecraft 游戏目录" : segments[1] === "game-storage" && name === "steamcmd" ? "Steam 游戏目录" : name === "steamcmd-runtime" ? "SteamCMD 工具目录" : locations.find(location => location.path === segments.slice(0, index + 1).join("/"))?.name ?? (segments[index - 1] === "local-drives" && /^[A-Z]$/iu.test(name) ? `${name}:` : name), path: segments.slice(0, index + 1).join("/") })).filter(crumb => crumb.path !== ".lfaa-resources" && !(crumb.path.startsWith(".lfaa-library/game-storage/") && crumb.path.split("/").length === 3)) : [];
+  const crumbs = currentPath ? currentPath.split("/").map((name, index, segments) => ({ name: name === ".lfaa-library" ? "应用资源" : name === ".lfaa-resources" ? "受管资源" : segments[1] === "game-instances" && index === 2 ? "实例目录" : segments[1] === "aivideo-projects" && index === 2 ? "项目媒体" : segments[1] === "game-storage" && name === "minecraft" ? "Minecraft 游戏目录" : segments[1] === "game-storage" && name === "steamcmd" ? "Steam 游戏目录" : name === "steamcmd-runtime" ? "SteamCMD 工具目录" : locations.find(location => location.path === segments.slice(0, index + 1).join("/"))?.name ?? (segments[index - 1] === "local-drives" && /^[A-Z]$/iu.test(name) ? `${name}:` : name), path: segments.slice(0, index + 1).join("/") })).filter(crumb => crumb.path !== ".lfaa-resources" && !(crumb.path.startsWith(".lfaa-library/game-storage/") && crumb.path.split("/").length === 3)) : [];
 
   return (
     <div className="module-workbench-stage file-manager-stage">

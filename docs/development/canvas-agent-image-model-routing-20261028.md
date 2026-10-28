@@ -24,3 +24,11 @@
 - 构建与静态核对：`pnpm run typecheck`、`pnpm run build:control-plane`、`pnpm run build:web` 通过；`packages/canvas/canvas-generation`、`packages/canvas/tool-canvas`、`packages/api/canvas-controller`、`packages/settings/settings`、`packages/client/ui-settings` 的包构建通过；`git diff --check` 通过；`node scripts/runtime-build-state.mjs web` 与 `host` 均返回 `[]`。当前 Web 重启后 `/api/health` 返回 `status=ok`、`persistence=ready`。
 - 正式 Web 实页：ChatGPT 内置浏览器在 `/settings?section=ai` 验收；桌面默认视口实测 1423×1244，确认 AI Plan Provider 已配置、个人 Agent Plan 目录公开列出 Seedream 5.0 Pro/Flash 图像能力；图片模型账户下拉列出“我的火山方舟 Agent Plan”。420×800 手机视口确认远程账户/模型选择控件纵向可达，无可见横向溢出；820×900 窄分栏也完成实页查看。只展开并关闭了账户下拉，没有选择账户、保存设置或生成图片；临时视口已恢复。
 - 未实测：没有通过 Agent 实际调用 `canvas_list_image_models`，没有发起文本模型或图片 Provider 请求，也没有计费生图；因此模型目录实际工具返回与最终 Provider 生图成功率仍未端到端证明。真实图片生成仍需要用户已保存有效凭据、Plan 当前套餐/档位可用，并由 Permission Owner 按账户权限模式处理。
+
+## 后续凭据授权阻塞修复（2026-10-28）
+
+- 用户已确认 Agent Plan 图像账户与模型目录可用，但生成在 Provider 请求前失败：`lfaa-canvas-generation` 未获准读取 `lfaa-settings` 来源，工具结果为 `executed=[]`、`unconfirmed`，画布仍无节点/素材。
+- 根因：`packages/settings/settings/src/index.ts` 注册 Provider 账户凭据来源时，消费者名单漏掉 `lfaa-canvas-generation`。`lfaa-credentials` 从活动 Fiber 派生该消费者 ID，并在调用 Provider 前按来源名单拒绝；这是 Settings 凭据来源注册遗漏，不是密钥、模型目录或用户权限模式问题。
+- 修复：Settings Owner 将 `lfaa-canvas-generation` 加入现有账户凭据来源消费者名单；同步更新 Settings、Credentials 与 Canvas Generation 包 README。没有读取、修改或重新保存用户密钥，也没有更改账户、模型和权限设置。
+- 验证：`pnpm --filter lfaa-settings run build`、`pnpm run build:control-plane`、`pnpm run build:web`、`pnpm run typecheck`、`git diff --check` 均通过；`node scripts/runtime-build-state.mjs web` 与 `host` 均返回 `[]`。当前源码正式 Web 已在 `http://127.0.0.1:3000` 启动，`/api/health` 返回 `status=ok`、`persistence=ready`。
+- 未实测：未实际读取或输出密钥、未发起 Agent/Provider 请求或计费生图；因此本次未验证用户账户密钥解密和模型端最终生成。消费者授权代码已随新控制端构建加载，用户可在当前运行实例重试。

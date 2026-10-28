@@ -548,6 +548,9 @@ importers:
       lfaa-authorization:
         specifier: workspace:*
         version: link:../../credentials/authorization
+      lfaa-fs:
+        specifier: workspace:*
+        version: link:../../fs/fs
       lfaa-util-values:
         specifier: workspace:*
         version: link:../../util/values

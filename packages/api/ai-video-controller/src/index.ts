@@ -5,9 +5,135 @@ import type { Context } from "@deepseek-ai/cordis";
 import { asyncHandler } from "lfaa-api-remotes/src/route-contracts.js";
 import { ApiError } from "lfaa-util-values/src/http-error.js";
 import { requireAuthentication } from "lfaa-authorization/src/middleware.js";
-import { AI_VIDEO_CANVAS_LIMITS, AiVideoCanvasConflictError, type AiVideoCanvasService } from "lfaa-video-ai-video/src/index.js";
+import { AI_VIDEO_CANVAS_LIMITS, AiVideoCanvasConflictError, type AiVideoCanvas, type AiVideoCanvasService, type AiVideoMediaAssetSummary } from "lfaa-video-ai-video/src/index.js";
 import type { AiPluginHost } from "lfaa-app-boot/src/ai-host.js";
 import type { MinecraftRealtimePublisher } from "lfaa-api-remotes/src/socket-server.js";
+import { systemFiles, type FileActor, type FileMount } from "lfaa-fs/src/library.js";
+import type { FileManagerOperation, ManagedFileEntry } from "lfaa-util-values/src/file-manager-contract.js";
+
+const aiVideoFileMountId = "aivideo-projects";
+const maximumFilePreviewBytes = 3 * 1024 * 1024;
+const maximumFileSearchEntries = 10_000;
+const maximumFileListEntries = 500;
+const aiVideoFileOperations: readonly FileManagerOperation[] = ["list", "search", "preview", "download"];
+const mediaExtensions: Record<AiVideoMediaAssetSummary["mimeType"], string> = {
+  "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "video/mp4": "mp4", "video/webm": "webm",
+  "audio/mpeg": "mp3", "audio/wav": "wav", "audio/ogg": "ogg"
+};
+const mediaPreviewTypes = new Set<AiVideoMediaAssetSummary["mimeType"]>(["image/png", "image/jpeg", "image/webp"]);
+const mediaOriginLabels: Record<AiVideoMediaAssetSummary["origin"], string> = { imported: "导入", export: "导出", generated: "生成" };
+
+function normalizedMountPath(value: unknown): string[] {
+  if (typeof value !== "string" || value.length > 512 || value.includes("\\") || value.includes("\0")) throw new ApiError(400, "aivideo_file_path_invalid", "漫剧文件路径无效。 ");
+  const parts = value ? value.split("/") : [];
+  if (parts.some(part => !part || part === "." || part === "..")) throw new ApiError(400, "aivideo_file_path_invalid", "漫剧文件路径无效。 ");
+  return parts;
+}
+
+function aiVideoProjectEntry(project: AiVideoCanvas): ManagedFileEntry {
+  return { name: project.title, path: project.id, kind: "directory", size: 0, fileType: "folder", modifiedAt: project.updatedAt, operations: ["list", "search"], description: "AI 漫剧项目媒体" };
+}
+
+function aiVideoAssetEntry(projectId: string, asset: AiVideoMediaAssetSummary): ManagedFileEntry {
+  const previewable = asset.available && asset.bytes <= maximumFilePreviewBytes && mediaPreviewTypes.has(asset.mimeType);
+  return {
+    name: asset.name,
+    path: `${projectId}/${asset.assetId}`,
+    kind: "file",
+    size: asset.bytes,
+    modifiedAt: asset.createdAt,
+    fileType: mediaExtensions[asset.mimeType],
+    operations: asset.available ? [ ...(previewable ? ["preview" as const] : []), "download" ] : [],
+    ...(asset.available ? { downloadStrategy: "stream" as const } : {}),
+    description: `${mediaOriginLabels[asset.origin]}${asset.available ? " · 项目媒体" : " · 文件缺失"}`
+  };
+}
+
+function aiVideoFileMount(service: AiVideoCanvasService): FileMount {
+  const ownedProject = (actor: FileActor, projectId: string) => service.list(actor.userId).find(project => project.id === projectId) ?? null;
+  const projectAssets = (actor: FileActor, projectId: string): AiVideoMediaAssetSummary[] => {
+    const assets = service.listMediaAssets(actor.userId, projectId);
+    if (!assets) throw new ApiError(404, "aivideo_file_project_missing", "AI 漫剧项目已不存在或不属于当前账户。 ");
+    return assets;
+  };
+
+  return {
+    id: aiVideoFileMountId,
+    name: "AI 漫剧项目",
+    locationDescription: "当前账户 AI 漫剧项目媒体的只读入口；媒体仍由漫剧项目 Owner 管理，不会复制到通用文件目录。",
+    async operate(actor, operation, input) {
+      if (!["list", "search", "preview"].includes(operation)) throw new ApiError(403, "aivideo_file_read_only", "漫剧项目文件在系统文件管理中只允许查看和下载；导入、删除与引用管理请在 AI 漫剧媒体库中完成。 ");
+      const parts = normalizedMountPath(input.path);
+      const query = typeof input.query === "string" ? input.query.trim().slice(0, 120).toLocaleLowerCase() : "";
+      const projects = service.list(actor.userId);
+      if (operation === "preview") {
+        if (parts.length !== 2) throw new ApiError(400, "aivideo_file_preview_invalid", "预览必须选择当前项目中的媒体文件。 ");
+        const project = ownedProject(actor, parts[0]!);
+        if (!project) throw new ApiError(404, "aivideo_file_project_missing", "AI 漫剧项目已不存在或不属于当前账户。 ");
+        const asset = projectAssets(actor, project.id).find(item => item.assetId === parts[1]);
+        if (!asset?.available) throw new ApiError(404, "aivideo_file_asset_missing", "项目媒体文件不存在或已缺失。 ");
+        if (!mediaPreviewTypes.has(asset.mimeType) || asset.bytes > maximumFilePreviewBytes) throw new ApiError(413, "aivideo_file_preview_limit", "文件管理仅预览 3 MiB 以内的图片；可使用下载查看完整媒体。 ");
+        const image = service.readGeneratedImage(actor.userId, project.id, asset.assetId);
+        if (!image || image.bytes.byteLength > maximumFilePreviewBytes || !mediaPreviewTypes.has(image.mimeType as AiVideoMediaAssetSummary["mimeType"])) throw new ApiError(404, "aivideo_file_asset_missing", "项目图片已不存在或超过预览上限。 ");
+        return { path: parts.join("/"), previewKind: "image", mimeType: image.mimeType, dataBase64: image.bytes.toString("base64"), size: image.bytes.byteLength, operations: ["preview", "download"] };
+      }
+
+      if (operation === "search") {
+        if (!query) throw new ApiError(400, "aivideo_file_search_query", "请输入要搜索的项目或素材名称。 ");
+        if (parts.length > 1) throw new ApiError(400, "aivideo_file_search_scope", "请在漫剧项目列表或项目媒体目录中搜索。 ");
+        const entries: ManagedFileEntry[] = [];
+        let inspected = 0;
+        let truncated = false;
+        const searchProjects = parts.length === 1
+          ? projects.filter(project => project.id === parts[0])
+          : projects;
+        if (parts.length === 1 && searchProjects.length === 0) throw new ApiError(404, "aivideo_file_project_missing", "AI 漫剧项目已不存在或不属于当前账户。 ");
+        for (const project of searchProjects) {
+          if (parts.length === 0 && project.title.toLocaleLowerCase().includes(query)) entries.push(aiVideoProjectEntry(project));
+          const assets = projectAssets(actor, project.id);
+          for (const asset of assets) {
+            if (++inspected > maximumFileSearchEntries) { truncated = true; break; }
+            if (asset.name.toLocaleLowerCase().includes(query)) entries.push(aiVideoAssetEntry(project.id, asset));
+            if (entries.length > maximumFileListEntries) { truncated = true; break; }
+          }
+          if (truncated) break;
+        }
+        return { path: parts.join("/"), entries: entries.slice(0, maximumFileListEntries), truncated, operations: aiVideoFileOperations, description: "搜索当前账户 AI 漫剧项目与已登记媒体；目录只读。", rootDirectory: "AI 漫剧项目媒体 · 由漫剧项目 Owner 提供" };
+      }
+
+      if (parts.length === 0) {
+        const entries = projects.slice(0, maximumFileListEntries).map(aiVideoProjectEntry);
+        return { path: "", entries, truncated: projects.length > maximumFileListEntries, operations: ["list", "search"], description: "当前账户的 AI 漫剧项目；打开项目可查看其已登记媒体。", rootDirectory: "AI 漫剧项目媒体 · 只读 Owner 挂载" };
+      }
+      if (parts.length === 1) {
+        const project = ownedProject(actor, parts[0]!);
+        if (!project) throw new ApiError(404, "aivideo_file_project_missing", "AI 漫剧项目已不存在或不属于当前账户。 ");
+        const assets = projectAssets(actor, project.id);
+        const entries = assets.slice(0, maximumFileListEntries).map(asset => aiVideoAssetEntry(project.id, asset));
+        return { path: project.id, entries, truncated: assets.length > maximumFileListEntries, operations: ["list", "search"], description: `项目“${project.title}”的已登记媒体，只读浏览；导入、删除与引用管理请回到 AI 漫剧媒体库。`, rootDirectory: `AI 漫剧项目 · ${project.title}` };
+      }
+      if (parts.length === 2) {
+        const project = ownedProject(actor, parts[0]!);
+        if (!project) throw new ApiError(404, "aivideo_file_project_missing", "AI 漫剧项目已不存在或不属于当前账户。 ");
+        const asset = projectAssets(actor, project.id).find(item => item.assetId === parts[1]);
+        if (!asset) throw new ApiError(404, "aivideo_file_asset_missing", "项目媒体记录已不存在。 ");
+        return { path: parts.join("/"), entries: [], operations: [], description: asset.available ? "项目媒体文件。" : "项目媒体文件缺失；未创建替代文件。", rootDirectory: `AI 漫剧项目 · ${project.title}` };
+      }
+      throw new ApiError(404, "aivideo_file_path_missing", "漫剧项目目录或素材不存在。 ");
+    },
+    async openDownload(actor, path) {
+      const parts = normalizedMountPath(path);
+      if (parts.length !== 2) throw new ApiError(400, "aivideo_file_download_invalid", "下载路径必须指向一个项目媒体文件。 ");
+      const project = ownedProject(actor, parts[0]!);
+      if (!project) throw new ApiError(404, "aivideo_file_project_missing", "AI 漫剧项目已不存在或不属于当前账户。 ");
+      const asset = projectAssets(actor, project.id).find(item => item.assetId === parts[1]);
+      if (!asset?.available) throw new ApiError(404, "aivideo_file_asset_missing", "项目媒体文件不存在或已缺失。 ");
+      const opened = service.openMediaAsset(actor.userId, project.id, asset.assetId);
+      if (!opened?.stream) throw new ApiError(404, "aivideo_file_asset_missing", "项目媒体文件不存在或已缺失。 ");
+      return { stream: opened.stream, name: asset.name, size: opened.size, mimeType: opened.mimeType };
+    }
+  };
+}
 
 const MAX_CONCURRENT_MEDIA_UPLOADS = 2;
 let activeMediaUploads = 0;
@@ -317,5 +443,6 @@ export function registerRoutes(router: Router, _aiHost: AiPluginHost, _realtime:
 
 export const inject = ["apiGateway", "lfaaAiVideo"];
 export function apply(ctx: Context): void {
+  ctx.effect(() => systemFiles.register(aiVideoFileMount(ctx.lfaaAiVideo)));
   ctx.apiGateway.register(ctx, "ai-video-controller", (router, aiHost, realtime) => registerRoutes(router, aiHost, realtime, ctx.lfaaAiVideo));
 }

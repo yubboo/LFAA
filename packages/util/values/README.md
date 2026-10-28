@@ -20,6 +20,8 @@
 
 2026-10-14：FileResourceLocation 描述独立导航，ManagedFileEntry 保留真实文件类型与可执行操作/说明；位置投影不授予文件权限，也不混入物理目录条目。
 
+2026-10-28：`ManagedFileEntry.downloadStrategy="stream"` 标记领域 Owner 已提供认证流下载；它只绕过通用小文件 Blob 传输上限，不增加写、改名、移动或删除权限。
+
 ## 节点文件二进制传输边界
 
 `src/file-transfer-contract.mjs` 是 Control Plane、Daemon 与 Client 共用的传输限制来源：单文件 3 MiB、Control Plane 内总预留 20 MiB、暂存 5 分钟。此处只定义稳定协议常量，不持有文件字节或运行状态。
