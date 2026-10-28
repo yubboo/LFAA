@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "enabled": true,
   "channel": "stable",
-  "version": "0.0.13",
-  "title": "LFAA 0.0.13",
-  "publishedAt": "2026-10-23",
+  "version": "0.0.14",
+  "title": "LFAA 0.0.14",
+  "publishedAt": "2026-10-28",
   "releaseNotes": [
-    "修复 Windows Electron 安装包缺少 Web 构建指纹导致控制端启动失败"
+    "优化桌面体验"
   ],
   "mandatory": false,
   "minimumSupportedVersion": "0.0.1",
