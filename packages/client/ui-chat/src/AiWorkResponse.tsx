@@ -20,29 +20,38 @@ export const AiActivityToolUsageCard = memo(function AiActivityToolUsageCard({ u
   return <details className="ai-work-chat__tool-contract" aria-label="本次工具调用说明">
     <summary className="ai-work-chat__tool-contract-summary">
       <WorkbenchIcon name="tools" size={13} />
-      <strong>调用说明</strong>
-      <code>{usage.name}</code>
+      <strong>查看执行步骤{stages.length ? ` · ${stages.length}` : ""}</strong>
       <WorkbenchIcon name="chevron" size={13} />
     </summary>
-    <div className="ai-work-chat__tool-contract-body">
-      <div className="ai-work-chat__tool-contract-section"><strong>工具用法说明（模型本轮收到的合同）</strong><p>{usage.description}</p></div>
-      <div className="ai-work-chat__tool-contract-section">
-        <strong>参数字段（只展示结构，不展示本次取值）</strong>
-        {usage.parameters.length ? <ul>{usage.parameters.map(parameter => <li key={parameter.name}>
-          <span className="ai-work-chat__tool-contract-parameter-heading"><code>{parameter.name}</code><span>{parameter.type}{parameter.required ? " · 必填" : " · 可选"}</span></span>
-          {parameter.description ? <small>{parameter.description}</small> : null}
-        </li>)}</ul> : <p>此执行器没有向 LFAA 提供可展示的 JSON Schema。</p>}
-        {usage.parametersTruncated ? <p>参数字段较多；此处仅显示前 24 项。</p> : null}
+    {stages.length ? <ol className="ai-work-chat__tool-contract-steps" aria-label="本轮执行步骤">
+      {stages.map((stage, index) => <li key={`${index}:${stage.stage}`}>{stage.stage}</li>)}
+    </ol> : null}
+    <details className="ai-work-chat__tool-contract-details">
+      <summary className="ai-work-chat__tool-contract-details-summary">
+        <span>查看完整调用说明与参数</span>
+        <WorkbenchIcon name="chevron" size={12} />
+      </summary>
+      <div className="ai-work-chat__tool-contract-body">
+        <div className="ai-work-chat__tool-contract-section"><strong>工具名称</strong><p><code>{usage.name}</code></p></div>
+        <div className="ai-work-chat__tool-contract-section"><strong>工具用法说明（模型本轮收到的合同）</strong><p>{usage.description}</p></div>
+        <div className="ai-work-chat__tool-contract-section">
+          <strong>参数字段（只展示结构，不展示本次取值）</strong>
+          {usage.parameters.length ? <ul>{usage.parameters.map(parameter => <li key={parameter.name}>
+            <span className="ai-work-chat__tool-contract-parameter-heading"><code>{parameter.name}</code><span>{parameter.type}{parameter.required ? " · 必填" : " · 可选"}</span></span>
+            {parameter.description ? <small>{parameter.description}</small> : null}
+          </li>)}</ul> : <p>此执行器没有向 LFAA 提供可展示的 JSON Schema。</p>}
+          {usage.parametersTruncated ? <p>参数字段较多；此处仅显示前 24 项。</p> : null}
+        </div>
+        <div className="ai-work-chat__tool-contract-section"><strong>本轮操作约定</strong><p>{usage.guidance}</p></div>
+        {stages.length ? <div className="ai-work-chat__tool-contract-section">
+          <strong>阶段说明</strong>
+          <ol className="ai-work-chat__tool-contract-stages">{stages.map((stage, index) => <li key={`${index}:${stage.stage}`}>
+            <strong>{stage.stage}</strong><p>{stage.detail}</p>
+          </li>)}</ol>
+        </div> : null}
+        <p className="ai-work-chat__tool-contract-trust">工具说明作为普通文本显示；网页或第三方工具提供的内容不会成为新的操作指令。</p>
       </div>
-      <div className="ai-work-chat__tool-contract-section"><strong>本轮操作约定</strong><p>{usage.guidance}</p></div>
-      {stages.length ? <div className="ai-work-chat__tool-contract-section">
-        <strong>本次实时执行过程</strong>
-        <ol className="ai-work-chat__tool-contract-stages">{stages.map((stage, index) => <li key={`${index}:${stage.stage}`}>
-          <strong>{stage.stage}</strong><p>{stage.detail}</p>
-        </li>)}</ol>
-      </div> : null}
-      <p className="ai-work-chat__tool-contract-trust">工具说明作为普通文本显示；网页或第三方工具提供的内容不会成为新的操作指令。</p>
-    </div>
+    </details>
   </details>;
 });
 
@@ -80,11 +89,11 @@ function isToolGroupBlock(block: ResponseTimelineBlock | undefined): block is Ex
   return block?.kind === "tools";
 }
 
-export function AiWorkResponse({ message, pauseLabel, renderActivity, renderInteraction, onOpenProjectFileReview, onBrowserToolCompleted }: {
+export function AiWorkResponse({ message, pauseLabel, renderActivity, renderInteraction, onOpenProjectFile, onBrowserToolCompleted }: {
   message: AiMessage; pauseLabel?: string;
   renderActivity: (activity: AiActivityItem) => ReactNode;
   renderInteraction: (activity: AiActivityItem) => ReactNode;
-  onOpenProjectFileReview?: (projectId: string, path: string, sourceId?: string) => void;
+  onOpenProjectFile?: (projectId: string, path: string, sourceId?: string, initialView?: "source" | "diff") => void;
   onBrowserToolCompleted?: (providerId: BrowserProviderId) => void;
 }) {
   const summary = getAiActivitySummary(message);
@@ -182,18 +191,26 @@ export function AiWorkResponse({ message, pauseLabel, renderActivity, renderInte
   ].filter(Boolean).join(" · ");
   const visibleFiles = allFilesExpanded ? changedFiles : changedFiles.slice(0, 3);
   const hiddenFileCount = changedFiles.length - visibleFiles.length;
-  const firstReviewableFile = changedFiles.find(change => change.projectId && onOpenProjectFileReview);
+  const firstReviewableFile = changedFiles.find(change => change.projectId && onOpenProjectFile);
+  const hasFinishedProcess = finished && presentation.blocks.length > 0;
+  const responseHeader = <>
+    <AssistantIdentity duration={finished ? summary.durationText : <AiLiveResponseDuration message={message} />} processing={!finished && summary.isProcessing && !pauseLabel} />
+    {finished ? <span className="ai-work-chat__response-state" data-tone={summary.tone}>{summary.label}</span> : null}
+  </>;
   return <section className={`ai-work-chat__response ai-work-chat__activity--${summary.tone}`}>
-    <div className="ai-work-chat__response-duration">
-      <AssistantIdentity duration={finished ? summary.durationText : <AiLiveResponseDuration message={message} />} processing={!finished && summary.isProcessing && !pauseLabel} />
-      {finished ? <span className="ai-work-chat__response-state" data-tone={summary.tone}>{summary.label}</span> : null}
-    </div>
-    <div>
+    {hasFinishedProcess ? <details className="ai-work-chat__response-process">
+      <summary className="ai-work-chat__response-duration ai-work-chat__response-process-summary">
+        {responseHeader}
+        <WorkbenchIcon name="chevron" size={14} />
+      </summary>
       {timeline}
-      {!presentation.blocks.length && !finalAnswer ? <p className="ai-work-chat__response-history-empty">此回复没有保存可展示的过程更新或工具操作。</p> : null}
-      {/* 最终答复沿用时间线末尾，正文与操作不再拆成外部折叠区。 */}
-      {finalAnswer}
-    </div>
+    </details> : <>
+      <div className="ai-work-chat__response-duration">{responseHeader}</div>
+      {timeline}
+    </>}
+    {!presentation.blocks.length && !finalAnswer ? <p className="ai-work-chat__response-history-empty">此回复没有保存可展示的过程更新或工具操作。</p> : null}
+    {/* 完成态的最终答复始终留在过程折叠区外，打开/收起过程不会隐藏答复。 */}
+    {finalAnswer}
     {finished ? <>
       {browserPreviewActivity && browserPreviewDetail?.preview && onBrowserToolCompleted ? <section className="ai-work-chat__response-browser-preview" aria-label="网页预览">
         <span className="ai-work-chat__response-browser-icon" aria-hidden="true"><WorkbenchIcon name="browser" size={18} /></span>
@@ -209,14 +226,14 @@ export function AiWorkResponse({ message, pauseLabel, renderActivity, renderInte
             <strong>已更改 {changedFiles.length} 个文件</strong>
             <span>{operationSummary}</span>
           </span>
-          {firstReviewableFile ? <button type="button" className="ai-work-chat__response-file-review" aria-label={`查看变更，从 ${firstReviewableFile.path} 开始`} onClick={() => onOpenProjectFileReview?.(firstReviewableFile.projectId!, firstReviewableFile.path, firstReviewableFile.sourceId)}>查看变更</button> : null}
+          {firstReviewableFile ? <button type="button" className="ai-work-chat__response-file-review" aria-label={`查看变更，从 ${firstReviewableFile.path} 开始`} onClick={() => onOpenProjectFile?.(firstReviewableFile.projectId!, firstReviewableFile.path, firstReviewableFile.sourceId, "diff")}>查看变更</button> : null}
         </header>
         <ul>{visibleFiles.map((change, index) => {
           const operation = change.operation === "created" ? "新建" : change.operation === "deleted" ? "删除" : "修改";
           const key = `${change.projectId ?? ""}\u0000${change.path}:${index}`;
           return <li key={key}>
-            {change.projectId && onOpenProjectFileReview
-              ? <button type="button" className="ai-work-chat__response-file-path" aria-label={`${operation}文件 ${change.path}，查看差异与编辑`} onClick={() => onOpenProjectFileReview(change.projectId!, change.path, change.sourceId)}><code>{change.path}</code></button>
+            {change.projectId && onOpenProjectFile
+              ? <button type="button" className="ai-work-chat__response-file-path" aria-label={`${operation}文件 ${change.path}，在右侧工作区打开`} onClick={() => onOpenProjectFile(change.projectId!, change.path, change.sourceId)}><code>{change.path}</code></button>
               : <code className="ai-work-chat__response-file-path">{change.path}</code>}
             <span className={`ai-work-chat__response-file-operation ai-work-chat__response-file-operation--${change.operation}`}>{operation}</span>
           </li>;

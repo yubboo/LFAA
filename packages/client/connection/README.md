@@ -2,7 +2,9 @@
 
 此包提供已认证控制端 API 和 AI Work SSE 消费协议，不持有模型、Session 或权限业务规则。
 
-`AiWorkbenchView` 只传递当前可见工作区状态。Canvas/Workflow 引用含当前 App、真实 Owner ID、标题及 `updatedAt`，只随新 Agent Run 请求发送；不持久化到 Session，也不授予工具或操作权限。`loadWorkflowRuns` 支持 AbortSignal，供隐藏或卸载的画布面板撤销状态读取。
+`UserPreferences.guidedEntryCompleted` 与最近 App/模式选择共用认证 `/preferences` 读写合同；Connection 只传递账户级偏好，不另存向导状态或工作区内容。
+
+`AiWorkbenchView` 只传递当前可见工作区状态，包括 `project-file` 右侧文件页签。Canvas/Workflow 引用含当前 App、真实 Owner ID、标题及 `updatedAt`，只随新 Agent Run 请求发送；不持久化到 Session，也不授予工具或操作权限。`readWorkspaceProjectTextFile`、`loadWorkspaceGitStatus` 和 `loadWorkspaceGitFileDiff` 保持认证项目/节点边界，UI 不访问本机文件系统；项目文件读取、Git 状态和单文件差异均透传活动 `sourceId`，并支持 AbortSignal 取消过期读取。`loadWorkflowRuns` 支持 AbortSignal，供隐藏或卸载的画布面板撤销状态读取。
 
 `createReadPoller()` 串行运行只读对账、合并在途刷新，并在页面隐藏时暂停、恢复可见时立即刷新。调用方可用 `initialDelayMs` 复用短期快照，并传入动态间隔函数；下一轮间隔在当前读取结束后重新计算。停止时撤销计时器和事件监听，不管理后台业务任务。
 
@@ -11,6 +13,8 @@ Minecraft 首屏、实例日志/任务详情、Agent 节点任务列表与详情
 `loadAiOffice()` 通过认证 `/ai/office` 读取员工元数据和当前账户的 Agent Run 摘要，可传 AbortSignal 供 UI 隐藏/卸载时取消；不缓存状态快照。
 
 AI 模型目录由 `/settings/ai/accounts` 按当前登录返回系统级普通 Provider 配置和当前用户自己的火山方舟 Agent Plan/Coding Plan 席位。个人席位使用 Plan 专用端点与手填 Model Name；新建时先真实测试模型，再提交短时一次性验证凭证。凭据替换只发送新 secret；响应不包含密钥，system/user scope 与权限判断归服务端 Owner。
+
+`selectAiAccountModel()` 调用 Settings Owner 的账户模型选择路由；它只传账户 ID 和模型 ID，不传目录元数据或凭据。控制端在真实 Provider 目录与显式模型测试通过后，原子保存所选目录模型及其活动账户。
 
 会话类 401 由账户 `auth/me` Remote 复核后才通知 UI 退出；成功的密码/通行密钥登录会使之前请求的迟到响应失效。服务端拒绝无效 Cookie 时不发送清 Cookie 响应，避免旧请求晚到覆盖新登录；显式注销仍由账户 Controller 清理 Cookie。
 

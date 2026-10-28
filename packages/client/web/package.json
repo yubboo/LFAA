@@ -26,6 +26,7 @@
     "lfaa-client-ui-sidebar": "workspace:*",
     "lfaa-client-ui-sidebar-browser": "workspace:*",
     "lfaa-client-ui-sidebar-files": "workspace:*",
+    "lfaa-client-ui-deliverables": "workspace:*",
     "lfaa-client-ui-workflow": "workspace:*",
     "lfaa-client-ui-workspace": "workspace:*",
     "lfaa-client-ui-writing": "workspace:*"
@@ -49,6 +50,7 @@
         "lfaa-client-ui-theme",
         "lfaa-client-ui-sidebar-browser",
         "lfaa-client-ui-workflow",
+        "lfaa-client-ui-deliverables",
         "lfaa-client-ui-workspace"
       ]
     }

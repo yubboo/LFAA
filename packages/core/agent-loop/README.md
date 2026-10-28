@@ -45,6 +45,8 @@ Browser Tools 还按 Browser Settings Owner 检查 WebMCP 网站工具默认值/
 
 AI Work 项目可关联一个或多个已登记业务 App。每轮由 Agent Loop 从 Workspace Owner 读取最新关联，并把 App ID/名称作为用户级领域背景传给模型，帮助它结合目标判断本轮适合的方向。关联不扩大 `applicationId=workspace` 的工具、Skill、Expert 或 MCP 可见范围，不授予权限，也不证明该 App 能力当前已装配；模型仍只能使用本 Run 实际登记且可用的能力，执行仍经过原 Owner 和 Permission Owner。项目关联不含 Daemon/节点身份。
 
+受限工作台视图枚举包含 `project-file`，只用于说明 Client 当前右侧面板类别；不携带文件正文或路径，也不影响工具目录、账户、项目授权或执行范围。
+
 外部 SDK 子 Agent 顶层助手文本可沿 `subagent-delta` Run 事件临时传到订阅 Client；它不进入 Session JSONL、模型 messages 或工具 observation，重新订阅只收到持久化快照和后续新事件。工具调用与最终 SDK result 仍按原 Agent Loop action/observation 合同处理。
 
 所有文本补全通过注入的 `lfaaLlm` Service；Adapter 选择由 `lfaa-llm` 唯一拥有，分支记忆、回复后记忆及压缩摘要使用相同合同。Agent Loop 不直接导入传输函数或另建 Provider 选择表。插件卸载时由其 Cordis Fiber 撤销 Provider Adapter；仍不存在安全的任意外部插件 Client/Host 运行时。

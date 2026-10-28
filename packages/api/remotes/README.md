@@ -1,8 +1,12 @@
 # api/remotes
 
+`preferencesSchema` 校验认证 `/preferences` 写入的 App、工作模式与 `guidedEntryCompleted` 布尔标记；该字段归 Preferences Owner，Remote 不创建独立的向导状态。
+
 ## 小鱼共享工作入口（2026-10-14）
 
 共享 API 输入合同：可选关联只接受有界 App/能力 ID 引用，不接收正文或权限变更。
+
+AI Work 的严格 `workspaceView.rightPane` 合同允许 `project-file` 面板标识；该字段只描述当前 UI，不接收文件路径或内容，也不扩张授权。
 
 AI Provider 新凭据替换合同只接收一个 1–4096 字符的 `secret`；不接收 Provider ID、URL、模型或用户 ID，目标配置 ID 与 Provider/模型由 Settings Owner 读取，写入路由另要求管理员角色。
 

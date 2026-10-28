@@ -1,4 +1,4 @@
-import { APPLICATION_IDS } from "lfaa-util-values/src/application-id.js";
+import { APPLICATION_IDS, APPLICATION_LABELS } from "lfaa-util-values/src/application-id.js";
 import { isBuiltinBrowserProvider } from "lfaa-util-values/src/browser-provider.js";
 import { setAiSessionAssociations, type AgentAssociations } from "lfaa-client-connection/src/api.js";
 /**
@@ -12,7 +12,7 @@ import { setAiSessionAssociations, type AgentAssociations } from "lfaa-client-co
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type Dispatch, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type SetStateAction, type UIEvent, type WheelEvent as ReactWheelEvent } from "react";
 import { createSnapshotCache } from "lfaa-client-store/src/snapshot-cache.js";
 import { Alert, Button, Dropdown, Input, Modal, Popover, Select, Spin, Tag, Tooltip, Typography } from "antd";
-import { appendAiTextDelta, uploadAttachment, answerAiRunQuestion, appendAiRunInput, applyWritingEditProposal, ApiError, cancelAiRun, createWorkspaceGitWorktree, createAiSessionBranchFromMessage, createAiSessionBranchFromMessageInWorktree, decideAiApproval, forkAiSessionBeforeUserMessage, getErrorMessage, loadSettings, loadAiAccounts, loadWritingEditProposal, loadAiMessages, loadAiSessions, loadWritingWorkspace, pauseAiRun, rejectWritingEditProposal, resumeAiRun, saveSettings, setAiSessionPlanMode, setAiSessionProject, streamAiChat, submitAiMessageFeedback, updateAiAccountModel, updateAiAccountReasoningMode, type AiAccount, type AiActivityFileChange, type AiActivityItem, type AiContextUsage, type AiMessage, type AiMessageFeedbackInput, type AiRunPauseState, type AiSession, type AiSessionBranchSource, type AiSessionUsageSummary, type AiWorkbenchView, type ApplicationId, type BrowserProviderId, type UserSettings, type WritingEditProposal, type WritingWorkspace, type WorkspaceDaemonNode, type WorkspaceProject, type WorkspaceProjectApplicationId } from "lfaa-client-connection/src/api.js";
+import { appendAiTextDelta, uploadAttachment, answerAiRunQuestion, appendAiRunInput, applyWritingEditProposal, ApiError, cancelAiRun, createWorkspaceGitWorktree, createAiSessionBranchFromMessage, createAiSessionBranchFromMessageInWorktree, decideAiApproval, forkAiSessionBeforeUserMessage, getErrorMessage, loadSettings, loadAiAccounts, loadWritingEditProposal, loadAiMessages, loadAiSessions, loadWritingWorkspace, pauseAiRun, rejectWritingEditProposal, resumeAiRun, saveSettings, selectAiAccountModel, setAiSessionPlanMode, setAiSessionProject, streamAiChat, submitAiMessageFeedback, updateAiAccountReasoningMode, type AiAccount, type AiActivityFileChange, type AiActivityItem, type AiContextUsage, type AiMessage, type AiMessageFeedbackInput, type AiRunPauseState, type AiSession, type AiSessionBranchSource, type AiSessionUsageSummary, type AiWorkbenchView, type ApplicationId, type BrowserProviderId, type UserSettings, type WritingEditProposal, type WritingWorkspace, type WorkspaceDaemonNode, type WorkspaceProject, type WorkspaceProjectApplicationId } from "lfaa-client-connection/src/api.js";
 import { notifyAiWorkAction, notifyAiWorkCompletion, type AiWorkGoalRequest, type AiWorkNotificationInput } from "lfaa-client-resources/src/notification-runtime.js";
 
 // 本次请求携带的附件：只用于当前进程把图片显示在用户气泡里（字节仍不写入会话历史）。
@@ -46,7 +46,7 @@ import { resolveNewSessionWorkspaceProjectId } from "./new-session-project-selec
 import { buildResponseTimeline, splitAiActivityDetail } from "./response-timeline.js";
 import { formatAiActivityDuration, getAiActivityDisplayStatus, getAiActivityDurationSeconds, getAiActivitySummary } from "./activity-duration.js";
 import { buildConversationAnchors, conversationAnchorLabel, conversationAnchorReply, type ConversationAnchorPreview } from "./conversation-anchor-preview.js";
-import { buildConversationAnchorLayout, createConversationScrollTracker, createFrameCoalescer, findNearestConversationAnchorIndex, projectConversationWheelScroll, shouldAutoScrollToLatest, shouldFollowLatestMessage, shouldShowScrollToLatest, syncConversationScrollToLatest, updateConversationAnchorPointerTarget } from "./conversation-scroll.js";
+import { buildConversationAnchorLayout, createConversationScrollTracker, createFrameCoalescer, findNearestConversationAnchorIndex, preserveConversationAnchorViewport, projectConversationWheelScroll, shouldAutoScrollToLatest, shouldFollowLatestMessage, shouldShowScrollToLatest, syncConversationScrollToLatest, updateConversationAnchorPointerTarget, updateResponseProcessFollowState } from "./conversation-scroll.js";
 import { createOutputIdleBlurController } from "./output-idle-blur.js";
 import { AI_RUN_CONTROL_GUARD_MS, canControlAiRun } from "./run-stop-guard.js";
 import { AiUsageFooter, type AiUsageLoadState } from "./AiUsageFooter.js";
@@ -56,7 +56,7 @@ import { VoiceOrb3D } from "./VoiceOrb3D.js";
 import { WorkbenchIcon, type WorkbenchIconName } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
 import { DshSlotOutlet } from "lfaa-client-modules/src/client/index.js";
 import { WorkspaceProjectPicker } from "./WorkspaceProjectPicker.js";
-import { effectiveReasoningMode, fixedThinkingLabel, modelOptionVersionTag, modelParameterSummary, modelSelectorDisplayLabel, reasoningDefaultLabel, reasoningModeLabel, reasoningOptions } from "lfaa-client-ui-settings-models/src/model-options.js";
+import { aiModelPickerCatalog, effectiveAiAccount, effectiveReasoningMode, fixedThinkingLabel, modelCatalogCapabilitySummary, modelOptionVersionTag, modelParameterSummary, modelSelectorDisplayLabel, reasoningDefaultLabel, reasoningModeLabel, reasoningOptions } from "lfaa-client-ui-settings-models/src/model-options.js";
 import "./ai-work-chat.css";
 
 const MODEL_PICKER_RESULT_LIMIT = 60;
@@ -84,12 +84,12 @@ const composerSlashCommands: ComposerMenuItem[] = [
 ];
 
 const applicationAssociationLabels: Record<ApplicationId, string> = {
-  steamcmd: "SteamCMD",
-  minecraft: "Minecraft",
-  connectivity: "联机服务",
-  writing: "写作",
-  aivideo: "AI 漫剧",
-  workspace: "小鱼智能体"
+  steamcmd: APPLICATION_LABELS.steamcmd,
+  minecraft: APPLICATION_LABELS.minecraft,
+  connectivity: APPLICATION_LABELS.connectivity,
+  writing: APPLICATION_LABELS.writing,
+  aivideo: APPLICATION_LABELS.aivideo,
+  workspace: APPLICATION_LABELS.workspace
 };
 
 function capabilityAssociationGroup(kind: string): string {
@@ -137,7 +137,7 @@ interface AiWorkChatProps {
   onNotification: (notification: AiWorkNotificationInput) => void;
   onOpenSideChat: (initialQuestion?: string) => void;
   onWritingWorkspaceChange?: (workspace: WritingWorkspace) => void;
-  onOpenProjectFileReview?: (projectId: string, path: string, sourceId?: string) => void;
+  onOpenProjectFile?: (projectId: string, path: string, sourceId?: string, initialView?: "source" | "diff") => void;
   onSessionFileChanges?: (sessionId: string | null, changes: AiActivityFileChange[]) => void;
   onBrowserToolCompleted?: (providerId: BrowserProviderId) => void;
   onCanvasToolsCompleted?: (projectId?: string) => void;
@@ -191,11 +191,11 @@ interface AiWorkMessageRowProps {
   setEditingMessage: Dispatch<SetStateAction<EditingMessage | null>>;
   setMessageActionError: Dispatch<SetStateAction<string>>;
   setBranchTargetMessageId: Dispatch<SetStateAction<string | null>>;
-  onOpenProjectFileReview?: (projectId: string, path: string, sourceId?: string) => void;
+  onOpenProjectFile?: (projectId: string, path: string, sourceId?: string, initialView?: "source" | "diff") => void;
   onBrowserToolCompleted?: (providerId: BrowserProviderId) => void;
 }
 
-const AiWorkMessageRow = memo(function AiWorkMessageRow({ message, pairedAssistant, usage, editingMessage, anyMessageEditing, pauseState, copied, conversationBusy, activeRunId, liveMessage, branchBusy, hasQueuedRuns, feedbackBusy, showContextUsage, expandedActivitySteps, subagentStreamPreviews, writingProposalLoading, writingProposalBusy, actions, setEditingMessage, setMessageActionError, setBranchTargetMessageId, onOpenProjectFileReview, onBrowserToolCompleted }: AiWorkMessageRowProps) {
+const AiWorkMessageRow = memo(function AiWorkMessageRow({ message, pairedAssistant, usage, editingMessage, anyMessageEditing, pauseState, copied, conversationBusy, activeRunId, liveMessage, branchBusy, hasQueuedRuns, feedbackBusy, showContextUsage, expandedActivitySteps, subagentStreamPreviews, writingProposalLoading, writingProposalBusy, actions, setEditingMessage, setMessageActionError, setBranchTargetMessageId, onOpenProjectFile, onBrowserToolCompleted }: AiWorkMessageRowProps) {
   const activitySummary = getAiActivitySummary(message);
   const isEditingMessage = editingMessage?.messageId === message.id;
   const canEditMessage = message.role === "user" && pairedAssistant?.role === "assistant" && pairedAssistant.status !== "queued"
@@ -206,8 +206,7 @@ const AiWorkMessageRow = memo(function AiWorkMessageRow({ message, pairedAssista
   const renderActivity = (activity: AiActivityItem) => {
     const activityDetail = splitAiActivityDetail(activity.detail);
     const subagentStreamPreview = subagentStreamPreviews?.[`${message.id}:${activity.id}`];
-    const activityExpanded = expandedActivitySteps?.messageId === message.id && expandedActivitySteps.activityIds.has(activity.id)
-      || message.status === "streaming" && Boolean(activity.toolUsage);
+    const activityExpanded = expandedActivitySteps?.messageId === message.id && expandedActivitySteps.activityIds.has(activity.id);
     const activityDetailId = `ai-work-chat-activity-detail-${message.id}-${activity.id}`;
     const liveActivityDuration = liveMessage && activity.status === "running"
       && typeof activity.durationMs !== "number" && !activity.completedAt;
@@ -220,14 +219,14 @@ const AiWorkMessageRow = memo(function AiWorkMessageRow({ message, pairedAssista
       {activity.fileChanges?.map((change, index) => {
         const operation = change.operation === "read" ? "读取" : change.operation === "created" ? "新建" : change.operation === "deleted" ? "删除" : "修改";
         const key = `${activity.id}:${index}:${change.path}`;
-        return change.operation !== "read" && change.projectId && onOpenProjectFileReview
-          ? <Button key={key} className="ai-work-chat__file-change-trigger" type="link" size="small" aria-label={`${operation}文件 ${change.path}，查看 Git 差异和编辑`} onClick={() => onOpenProjectFileReview(change.projectId!, change.path, change.sourceId)}>
-              <WorkbenchIcon name="file" size={13} />{operation} <code>{change.path}</code><span>查看差异与编辑</span>
+        return change.projectId && onOpenProjectFile
+          ? <Button key={key} className="ai-work-chat__file-change-trigger" type="link" size="small" aria-label={`${operation}文件 ${change.path}，在右侧工作区打开`} onClick={() => onOpenProjectFile(change.projectId!, change.path, change.sourceId)}>
+              <WorkbenchIcon name="file" size={13} />{operation} <code>{change.path}</code>
             </Button>
           : <span key={key} className="ai-work-chat__file-change-path"><WorkbenchIcon name="file" size={13} />{operation} <code>{change.path}</code></span>;
       })}
-      {activity.toolUsage && !activity.approvalId ? <AiActivityToolUsageCard usage={activity.toolUsage} stages={activity.toolStages} /> : null}
       {activityExpanded ? <div className="ai-work-chat__activity-step-detail" id={activityDetailId}>
+        {activity.toolUsage && !activity.approvalId ? <AiActivityToolUsageCard usage={activity.toolUsage} stages={activity.toolStages} /> : null}
         {activity.detail && (activity.kind === "command" || activity.kind === "tool") ? <div className={`ai-work-chat__activity-output-card${activity.kind === "command" ? " ai-work-chat__activity-output-card--command" : ""}`}>
           {activityDetail.summary ? <div className="ai-work-chat__activity-output-summary"><strong>执行摘要</strong><p>{activityDetail.summary}</p></div> : null}
           {activityDetail.preview ? <div className="ai-work-chat__activity-output-preview"><strong>{activityDetail.previewLabel}</strong><pre>{activityDetail.preview}</pre></div> : null}
@@ -274,7 +273,7 @@ const AiWorkMessageRow = memo(function AiWorkMessageRow({ message, pairedAssista
           <Button size="small" disabled={editingMessage.phase === "sending"} onClick={actions.cancelMessageEditing}>取消</Button>
           <Button size="small" type="primary" loading={editingMessage.phase === "sending"} disabled={editingMessage.phase !== "ready" || !editingMessage.content.trim()} onClick={() => void actions.submitEditedMessage()}>发送</Button>
         </div>
-      </div> : message.role === "assistant" ? <AiWorkResponse message={message} pauseLabel={pauseState === "paused" ? "已暂停" : pauseState === "pausing" ? "正在暂停" : undefined} renderActivity={renderActivity} renderInteraction={renderInteraction} onOpenProjectFileReview={onOpenProjectFileReview} onBrowserToolCompleted={onBrowserToolCompleted} /> : message.content}
+      </div> : message.role === "assistant" ? <AiWorkResponse message={message} pauseLabel={pauseState === "paused" ? "已暂停" : pauseState === "pausing" ? "正在暂停" : undefined} renderActivity={renderActivity} renderInteraction={renderInteraction} onOpenProjectFile={onOpenProjectFile} onBrowserToolCompleted={onBrowserToolCompleted} /> : message.content}
     </div>
     {message.role === "assistant" && showContextUsage && usage ? <small className="ai-work-chat__usage" title={usage.models?.map(model => `${model.providerId} / ${model.modelId}（${model.requestCount} 次请求）`).join(" → ")}>{`${usage.promptTokens ?? "?"} 输入 · ${usage.completionTokens ?? "?"} 输出 · 缓存命中 ${usage.cacheReadTokens ?? "?"} tokens · ${usage.models?.length ? usage.models.map(model => `${model.providerId} / ${model.modelId}`).join(" → ") : `${usage.providerId} / ${usage.modelId}`}`}</small> : null}
     {message.role === "user" && message.content && !isEditingMessage ? <div className="ai-work-chat__message-actions ai-work-chat__message-actions--user">
@@ -305,8 +304,8 @@ const aiMessageSnapshots = createSnapshotCache<AiMessage[]>(messages => messages
   + (message.content.length + message.activity.reduce((length, activity) => length + activity.title.length + activity.detail.length, 0)) * 2, 0));
 const pendingInteractionByActivity = new WeakMap<AiActivityItem[], AiActivityItem | null>();
 
-function applicationNameFor(_appId: ApplicationId): string {
-  return "小鱼智能体";
+function applicationNameFor(appId: ApplicationId): string {
+  return APPLICATION_LABELS[appId];
 }
 
 function aiMessageSnapshotKey(userId: string, appId: ApplicationId, sessionId: string): string {
@@ -340,10 +339,10 @@ function latestPendingInteractionActivity(activities: AiActivityItem[]): AiActiv
 }
 
 const welcomeContent: Record<ApplicationId, { title: string; description: string }> = {
-  workspace: { title: "小鱼智能体", description: "告诉小鱼你的目标：一起解决问题，也可以进入画布用一句话整理节点和工作流。" },
-  steamcmd: { title: "SteamCMD 游戏服务", description: "规划专用服务器的安装、更新、备份和日常维护。" },
-  minecraft: { title: "Minecraft 管理", description: "查询 Minecraft 服务端与工具，也可以让 Agent 帮你搭建专属工作流。" },
-  connectivity: { title: "LFAA 联机服务", description: "查看联机服务配置与运行情况，按当前可用能力继续处理。" },
+  workspace: { title: "小鱼智能体", description: "讨论问题、写代码、处理项目都可以直接开始；需要时再关联领域能力，或切到画布继续。" },
+  steamcmd: { title: "Steam 游戏服务器", description: "规划专用服务器的安装、更新、备份和日常维护。" },
+  minecraft: { title: "Minecraft 服务端", description: "查询 Minecraft 服务端与工具，也可以让 Agent 帮你搭建专属工作流。" },
+  connectivity: { title: "联机管理", description: "查看联机服务配置与运行情况，按当前可用能力继续处理。" },
   writing: { title: "写作空间", description: "梳理故事设定、人物动机与章节节奏，也可以直接贴一段正文来讨论。" },
   aivideo: { title: "AI 漫剧", description: "围绕剧本、角色、场景和镜头继续创作，并用画布组织漫剧流程。" }
 };
@@ -379,7 +378,9 @@ function getPermissionModeHint(applicationId: ApplicationId, mode: UserSettings[
     ? "AI 可围绕当前作品大纲和章节正文工作，并按你的指令选择写入目标。"
     : applicationId === "aivideo"
       ? "AI 可围绕当前漫剧项目的剧本、角色、场景和镜头工作，并通过已接入的漫剧工具管理真实项目与素材。"
-    : "AI 可调用当前应用的项目管理、节点、文件及主机终端能力。";
+      : applicationId === "workspace"
+        ? "小鱼可在通用工作区处理代码和项目，并调用当前范围内已登记的项目文件与主机能力。"
+        : "AI 可调用当前应用的项目管理、节点、文件及主机终端能力。";
   if (mode === "full_access") return `${appContext}完全权限已开启，模型可在在线 Daemon 上执行任意命令并指定任意工作目录，不再逐项等待审批。`;
   if (mode === "approve_remembered") return `${appContext}匹配已记住的精确范围时自动执行，其他写入和高风险操作会请求审批。`;
   return `${appContext}写入和高风险操作会先请求你的逐项审批。`;
@@ -488,7 +489,7 @@ const runtimeSpeedOptions: Array<{ value: UserSettings["aiRuntime"]["speed"]; la
   { value: "deep", label: "深入", description: "按模型/自定义上限" }
 ];
 
-function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, capabilities = [], capabilitiesError = "", settings, onSettingsChange, sessions, activeSessionId, projectDirectoryMissing, newSessionProjectId, defaultWorkspaceProjectId, newSessionGitRepositoryId, onSelectedProjectChange, workspaceProjects, workspaceProjectsLoadStatus, workspaceProjectsTruncated, workspaceNodes, workspaceProjectsError, onRetryWorkspaceProjects, onWorkspaceProjectsChange, initialDraft, autoSubmitGoal = null, onAutoSubmitGoalConsumed, newSessionKey, onSessionsChange, onActiveSessionChange, onDraftChange, onProviderStatusChange, onBusyChange, onOpenSettings, onNotification, onOpenSideChat, onOpenProjectFileReview, onWritingWorkspaceChange, onSessionFileChanges, onBrowserToolCompleted, onCanvasToolsCompleted, voiceMode = false, onExitVoice = () => undefined }: AiWorkChatProps) {
+function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, capabilities = [], capabilitiesError = "", settings, onSettingsChange, sessions, activeSessionId, projectDirectoryMissing, newSessionProjectId, defaultWorkspaceProjectId, newSessionGitRepositoryId, onSelectedProjectChange, workspaceProjects, workspaceProjectsLoadStatus, workspaceProjectsTruncated, workspaceNodes, workspaceProjectsError, onRetryWorkspaceProjects, onWorkspaceProjectsChange, initialDraft, autoSubmitGoal = null, onAutoSubmitGoalConsumed, newSessionKey, onSessionsChange, onActiveSessionChange, onDraftChange, onProviderStatusChange, onBusyChange, onOpenSettings, onNotification, onOpenSideChat, onOpenProjectFile, onWritingWorkspaceChange, onSessionFileChanges, onBrowserToolCompleted, onCanvasToolsCompleted, voiceMode = false, onExitVoice = () => undefined }: AiWorkChatProps) {
   const currentScrollConversationKey = `${appId}:${activeSessionId ?? "new-session"}`;
   const outputFocusRegionElementRef = useRef<HTMLElement | null>(null);
   const setOutputFocusRegionElement = useCallback((node: HTMLElement | null) => {
@@ -622,6 +623,7 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, capabil
   const [modelBusy, setModelBusy] = useState(false);
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
   const [modelSearch, setModelSearch] = useState("");
+  const [modelResultLimit, setModelResultLimit] = useState(MODEL_PICKER_RESULT_LIMIT);
   const [reasoningDraftIndex, setReasoningDraftIndex] = useState<number | null>(null);
   const [interactionBusy, setInteractionBusy] = useState(false);
   const [questionReply, setQuestionReply] = useState("");
@@ -767,11 +769,27 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, capabil
   }, [settings.appearance.advanced.aiWorkOutputFocusBlurEnabled, settings.appearance.advanced.aiWorkOutputFocusBlurIdleSeconds]);
   // 默认展示会话最新消息；用户主动上翻后暂停跟随，回到底部时再恢复。
   const followLatestMessageRef = useRef(true);
-  const responseHistoryDetailsRef = useRef(new Set<HTMLDetailsElement>());
-  const followLatestBeforeResponseHistoryRef = useRef<boolean | null>(null);
+  const responseProcessDetailsRef = useRef(new Set<HTMLDetailsElement>());
+  const followLatestBeforeResponseProcessRef = useRef<boolean | null>(null);
+  const responseProcessUserScrolledRef = useRef(false);
+  const responseProcessScrollAnchorRef = useRef<{ summary: HTMLElement; previousTop: number; frame: number | null; releaseFrame: number | null } | null>(null);
+  useEffect(() => () => {
+    const pending = responseProcessScrollAnchorRef.current;
+    if (pending?.frame !== null && pending?.frame !== undefined) cancelAnimationFrame(pending.frame);
+    if (pending?.releaseFrame !== null && pending?.releaseFrame !== undefined) cancelAnimationFrame(pending.releaseFrame);
+    responseProcessScrollAnchorRef.current = null;
+  }, []);
+  const messagesScrollKey = createScrollRestorationKey(userId, "ai-messages", appId, activeSessionId ?? "new-session");
+  const messagesReadyForScrollRestore = messagesReady && (!activeSessionId || messagesSessionId === activeSessionId);
   const messagesScroll = useScrollRestoration(
-    createScrollRestorationKey(userId, "ai-messages", appId, activeSessionId ?? "new-session"),
-    messagesReady
+    messagesScrollKey,
+    messagesReadyForScrollRestore,
+    "element",
+    undefined,
+    {
+      bottomPinnedKey: createScrollRestorationKey(userId, "ai-messages-follow-latest", appId, activeSessionId ?? "new-session"),
+      isBottomPinned: () => followLatestMessageRef.current
+    }
   );
   const setMessagesElement = useCallback((node: HTMLDivElement | null) => {
     messagesElementRef.current = node;
@@ -779,24 +797,59 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, capabil
   }, [messagesScroll.ref]);
   const updateFollowFromUserScroll = useCallback((element: HTMLDivElement, direction: "up" | "down", projectedDistanceFromBottom?: number) => {
     const distanceFromBottom = projectedDistanceFromBottom ?? element.scrollHeight - element.scrollTop - element.clientHeight;
+    if (responseProcessDetailsRef.current.size > 0) responseProcessUserScrolledRef.current = true;
     followLatestMessageRef.current = shouldFollowLatestMessage(followLatestMessageRef.current, direction, distanceFromBottom);
     setShowScrollToLatest(shouldShowScrollToLatest(distanceFromBottom, messages.length));
   }, [messages.length]);
-  const handleResponseHistoryClickCapture = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
+  const handleResponseProcessClickCapture = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
     if (!(event.target instanceof Element)) return;
     const summary = event.target.closest("summary");
     const details = summary?.parentElement;
-    if (!(details instanceof HTMLDetailsElement) || !details.classList.contains("ai-work-chat__response-history")) return;
-    if (!details.open) {
-      if (responseHistoryDetailsRef.current.size === 0) followLatestBeforeResponseHistoryRef.current = followLatestMessageRef.current;
-      responseHistoryDetailsRef.current.add(details);
-      followLatestMessageRef.current = false;
-      return;
+    if (!(details instanceof HTMLDetailsElement) || !details.classList.contains("ai-work-chat__response-process")) return;
+    const container = messagesElementRef.current;
+    if (container && summary instanceof HTMLElement) {
+      const previous = responseProcessScrollAnchorRef.current;
+      if (previous?.frame !== null && previous?.frame !== undefined) cancelAnimationFrame(previous.frame);
+      if (previous?.releaseFrame !== null && previous?.releaseFrame !== undefined) cancelAnimationFrame(previous.releaseFrame);
+      const snapshot = {
+        summary,
+        previousTop: previous?.summary === summary ? previous.previousTop : summary.getBoundingClientRect().top,
+        frame: null as number | null,
+        releaseFrame: null as number | null
+      };
+      responseProcessScrollAnchorRef.current = snapshot;
+      details.addEventListener("toggle", () => {
+        if (responseProcessScrollAnchorRef.current !== snapshot) return;
+        snapshot.frame = requestAnimationFrame(() => {
+          snapshot.frame = null;
+          if (responseProcessScrollAnchorRef.current === snapshot && messagesElementRef.current === container && summary.isConnected) {
+            preserveConversationAnchorViewport(container, summary, snapshot.previousTop);
+          }
+          // 滚动校正产生的 scroll 事件在下帧前处理；用户的真实滚动仍走原跟随逻辑。
+          snapshot.releaseFrame = requestAnimationFrame(() => {
+            if (responseProcessScrollAnchorRef.current === snapshot) {
+              responseProcessScrollAnchorRef.current = null;
+              scrollTrackerRef.current?.refresh();
+            }
+          });
+        });
+      }, { once: true });
     }
-    responseHistoryDetailsRef.current.delete(details);
-    if (responseHistoryDetailsRef.current.size === 0 && followLatestBeforeResponseHistoryRef.current !== null) {
-      followLatestMessageRef.current = followLatestBeforeResponseHistoryRef.current;
-      followLatestBeforeResponseHistoryRef.current = null;
+    if (!details.open && responseProcessDetailsRef.current.size === 0) responseProcessUserScrolledRef.current = false;
+    const next = updateResponseProcessFollowState(
+      responseProcessDetailsRef.current,
+      details,
+      !details.open,
+      followLatestMessageRef.current,
+      followLatestBeforeResponseProcessRef.current
+    );
+    followLatestBeforeResponseProcessRef.current = next.followingBeforeOpen;
+    if (details.open && responseProcessDetailsRef.current.size === 0) {
+      // 收起最后一个过程区时，保留展开期间用户主动滚动形成的新跟随状态。
+      if (!responseProcessUserScrolledRef.current) followLatestMessageRef.current = next.following;
+      responseProcessUserScrolledRef.current = false;
+    } else {
+      followLatestMessageRef.current = next.following;
     }
   }, []);
   const handleMessagesWheel = useCallback((event: ReactWheelEvent<HTMLDivElement>) => {
@@ -840,7 +893,6 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, capabil
     }
   }, [messages.length]);
   const handleMessagesScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
-    messagesScroll.onScroll(event);
     const element = event.currentTarget;
     const distanceFromBottom = element.scrollHeight - element.scrollTop - element.clientHeight;
     const pointerScrollTop = pointerScrollTopRef.current;
@@ -850,21 +902,27 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, capabil
       updateFollowFromUserScroll(element, direction);
       pointerScrollTopRef.current = element.scrollTop;
     }
-    setShowScrollToLatest(shouldShowScrollToLatest(distanceFromBottom, messages.length));
+    messagesScroll.onScroll(event);
+    const responseProcessAdjustment = (responseProcessDetailsRef.current.size > 0 && !responseProcessUserScrolledRef.current)
+      || responseProcessScrollAnchorRef.current !== null;
+    if (!responseProcessAdjustment) setShowScrollToLatest(shouldShowScrollToLatest(distanceFromBottom, messages.length));
     scrollTrackerRef.current?.refresh();
   }, [messages.length, messagesScroll.onScroll, updateFollowFromUserScroll]);
   const scrollToLatest = useCallback((smooth = false) => {
     const element = messagesElementRef.current;
     if (!element) return;
+    if (responseProcessDetailsRef.current.size > 0) responseProcessUserScrolledRef.current = true;
     followLatestMessageRef.current = true;
+    messagesScroll.saveBottomPinnedNow();
     stopVoicePlayback();
     const reducedMotion = settings.appearance.advanced.reducedMotion === "on"
       || settings.appearance.advanced.reducedMotion === "system" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (smooth && !reducedMotion) element.scrollTo({ top: element.scrollHeight, behavior: "smooth" });
     else element.scrollTop = element.scrollHeight;
     setShowScrollToLatest(false);
-  }, [settings.appearance.advanced.reducedMotion]);
-  const activeAccount = accountLoadState === "ready" ? accounts.find((account) => account.active) : undefined;
+  }, [messagesScroll.saveBottomPinnedNow, settings.appearance.advanced.reducedMotion]);
+  const activeAccount = accountLoadState === "ready" ? effectiveAiAccount(accounts) : undefined;
+  const modelPickerCatalog = useMemo(() => aiModelPickerCatalog(accounts), [accounts]);
   const activeSession = sessions.find(session => session.id === activeSessionId) ?? null;
   const conversationInputSlotOwner = useMemo(() => ({ sessionId: activeSessionId }), [activeSessionId]);
   const planModeActive = planModeOverride?.sessionId === activeSessionId ? planModeOverride.active : activeSession?.planMode === true;
@@ -901,7 +959,7 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, capabil
       return composerSlashCommands
         .filter(item => item.label.slice(1).toLocaleLowerCase("zh-CN").startsWith(query))
         .map(item => item.action === "open-model-picker"
-          ? { ...item, disabled: !activeAccount || activeAccount.models.length === 0 || modelBusy || busy }
+          ? { ...item, disabled: modelPickerCatalog.length === 0 || modelBusy || busy }
           : item);
     }
 
@@ -910,7 +968,7 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, capabil
       .filter(item => !query || item.searchText?.includes(query))
       .slice(0, 60)
       .map(item => ({ ...item, disabled: unavailable }));
-  }, [activeAccount, associationsBusy, busy, composerMenu, composerMentionCatalog, modelBusy]);
+  }, [activeAccount, associationsBusy, busy, composerMenu, composerMentionCatalog, modelBusy, modelPickerCatalog.length]);
   const composerMenuGroups = useMemo(() => Array.from(new Set(composerMenuItems.map(item => item.group))), [composerMenuItems]);
   const composerMenuVisible = Boolean(composerMenu);
   useEffect(() => { setComposerMenu(null); setComposerMenuActiveIndex(0); }, [activeSessionId, newSessionKey]);
@@ -990,9 +1048,11 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, capabil
     : reasoningModeLabel(activeReasoningMode);
   const matchingModels = useMemo(() => {
     const query = modelSearch.trim().toLocaleLowerCase("zh-CN");
-    return (activeAccount?.models ?? []).filter((model) => !query || `${model.name} ${modelOptionVersionTag(model) ?? ""} ${model.id}`.toLocaleLowerCase("zh-CN").includes(query));
-  }, [activeAccount?.models, modelSearch]);
-  const visibleModels = matchingModels.slice(0, MODEL_PICKER_RESULT_LIMIT);
+    return modelPickerCatalog.filter(({ account, model }) => !query
+      || `${account.displayName} ${account.providerId} ${model.name} ${modelOptionVersionTag(model) ?? ""} ${model.id}`.toLocaleLowerCase("zh-CN").includes(query));
+  }, [modelPickerCatalog, modelSearch]);
+  const visibleModels = matchingModels.slice(0, modelResultLimit);
+  const modelPickerAccountCount = useMemo(() => new Set(modelPickerCatalog.map(({ account }) => account.id)).size, [modelPickerCatalog]);
 
   useEffect(() => {
     if (projectSelectionSessionKeyRef.current !== newSessionKey) {
@@ -1046,8 +1106,9 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, capabil
     if (activeScrollConversationRef.current !== conversationKey) {
       activeScrollConversationRef.current = conversationKey;
       followLatestMessageRef.current = busy;
-      responseHistoryDetailsRef.current.clear();
-      followLatestBeforeResponseHistoryRef.current = null;
+      responseProcessDetailsRef.current.clear();
+      followLatestBeforeResponseProcessRef.current = null;
+      responseProcessUserScrolledRef.current = false;
       initializedScrollConversationRef.current = null;
       pointerScrollTopRef.current = null;
       pointerScrollDirectionRef.current = null;
@@ -1057,26 +1118,31 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, capabil
       && initializedScrollConversationRef.current !== conversationKey) {
       const element = messagesElementRef.current;
       if (element) {
-        const distanceFromBottom = element.scrollHeight - element.scrollTop - element.clientHeight;
-        followLatestMessageRef.current = distanceFromBottom <= 64;
+        let distanceFromBottom = element.scrollHeight - element.scrollTop - element.clientHeight;
+        followLatestMessageRef.current = messagesScroll.restoredBottomPinnedRef.current ?? distanceFromBottom <= 64;
+        if (followLatestMessageRef.current) {
+          syncConversationScrollToLatest(element, true);
+          distanceFromBottom = element.scrollHeight - element.scrollTop - element.clientHeight;
+        }
         setShowScrollToLatest(shouldShowScrollToLatest(distanceFromBottom, messages.length));
       }
       initializedScrollConversationRef.current = conversationKey;
     }
     scrollTrackerRef.current?.refresh(true);
-  }, [activeSessionId, appId, busy, messages, messagesReady]);
+  }, [activeSessionId, appId, busy, messages, messagesReady, messagesScroll.restoredBottomPinnedRef]);
 
   useEffect(() => {
     const element = messagesElementRef.current;
     if (!element || !messagesReady) return;
     const tracker = createConversationScrollTracker(element, ({ viewportHeight, activeId, lastId, layoutChanged }) => {
       setAnchorViewportHeight(current => current === viewportHeight ? current : viewportHeight);
-      if (shouldAutoScrollToLatest(followLatestMessageRef.current, layoutChanged)) syncConversationScrollToLatest(element, true);
+      const responseProcessViewportAdjusting = responseProcessDetailsRef.current.size > 0 || responseProcessScrollAnchorRef.current !== null;
+      if (!responseProcessViewportAdjusting && shouldAutoScrollToLatest(followLatestMessageRef.current, layoutChanged)) syncConversationScrollToLatest(element, true);
       if (followLatestMessageRef.current) {
         setActiveAnchorId(current => current === lastId ? current : lastId);
-        setShowScrollToLatest(false);
+        if (!responseProcessViewportAdjusting) setShowScrollToLatest(false);
       } else {
-        setShowScrollToLatest(shouldShowScrollToLatest(element.scrollHeight - element.scrollTop - element.clientHeight, messages.length));
+        if (!responseProcessViewportAdjusting) setShowScrollToLatest(shouldShowScrollToLatest(element.scrollHeight - element.scrollTop - element.clientHeight, messages.length));
         setActiveAnchorId(current => current === activeId ? current : activeId);
       }
     });
@@ -1918,18 +1984,28 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, capabil
     void saveMode();
   }
 
-  async function selectModel(modelId: string): Promise<void> {
-    if (!activeAccount || activeAccount.modelId === modelId || modelBusy || busy) return;
+  async function selectModel(accountId: string, modelId: string): Promise<void> {
+    const targetAccount = accounts.find((account) => account.id === accountId);
+    if (!targetAccount || modelBusy || busy) return;
+    if (activeAccount?.id === accountId && targetAccount.modelId === modelId) {
+      setModelPickerOpen(false);
+      return;
+    }
     setModelBusy(true);
     setError("");
     try {
-      const result = await updateAiAccountModel(activeAccount.id, modelId);
-      const nextAccounts = accounts.map((account) => account.id === result.account.id ? result.account : account);
+      const result = await selectAiAccountModel(targetAccount.id, modelId);
+      const nextAccounts = accounts.map((account) => {
+        if (account.id === result.account.id) return result.account;
+        if (result.account.scope === "system" && account.scope === "user") return { ...account, active: false };
+        return account.scope === result.account.scope ? { ...account, active: false } : account;
+      });
       aiAccountSnapshots.set(userId, nextAccounts);
       setAccounts(nextAccounts);
       onProviderStatusChange(`${result.account.displayName} · ${result.account.modelId}`);
       setModelPickerOpen(false);
       setModelSearch("");
+      setModelResultLimit(MODEL_PICKER_RESULT_LIMIT);
       setReasoningDraftIndex(null);
     } catch (modelError) {
       setError(`模型切换失败：${getErrorMessage(modelError)}`);
@@ -2146,6 +2222,7 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, capabil
     if (!anchorElement) return;
 
     followLatestMessageRef.current = false;
+    if (responseProcessDetailsRef.current.size > 0) responseProcessUserScrolledRef.current = true;
     const targetTop = anchorElement.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop - 16;
     const reducedMotion = settings.appearance.advanced.reducedMotion === "on"
       || settings.appearance.advanced.reducedMotion === "system" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -2258,27 +2335,32 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, capabil
       </section>
 
       <section className="ai-work-chat__model-card-section ai-work-chat__model-card-section--catalog" aria-label="选择模型">
-        <div className="ai-work-chat__model-card-section-heading"><div><strong>切换模型</strong><span>{activeAccount?.models.length ?? 0} 个目录模型</span></div></div>
+        <div className="ai-work-chat__model-card-section-heading"><div><strong>切换模型</strong><span>{modelPickerAccountCount} 个配置账户 · {modelSearch.trim() ? `${matchingModels.length} 个匹配模型` : `${modelPickerCatalog.length} 个目录模型`}</span></div></div>
         <Input
           size="small"
           allowClear
           value={modelSearch}
           aria-label="搜索模型名称或 ID"
           placeholder="搜索模型名称或 ID"
-          onChange={(event) => setModelSearch(event.target.value)}
+          onChange={(event) => { setModelSearch(event.target.value); setModelResultLimit(MODEL_PICKER_RESULT_LIMIT); }}
         />
         <div className="ai-work-chat__model-card-models" role="group" aria-label="模型目录">
-          {visibleModels.map((model) => <button
-            key={model.id}
+          {visibleModels.map(({ account, model }) => {
+            const selected = account.id === activeAccount?.id && model.id === activeAccount?.modelId;
+            const metadata = modelCatalogCapabilitySummary(model);
+            return <button
+            key={`${account.id}:${model.id}`}
             type="button"
-            className={model.id === activeAccount?.modelId ? "is-selected" : ""}
-            aria-pressed={model.id === activeAccount?.modelId}
+            className={selected ? "is-selected" : ""}
+            aria-pressed={selected}
+            title={`${account.displayName} · ${account.providerId} · ${modelSelectorDisplayLabel(model)} · ${model.id} · ${metadata}`}
             disabled={modelBusy || busy}
-            onClick={() => model.id === activeAccount?.modelId ? setModelPickerOpen(false) : void selectModel(model.id)}
-          ><span><strong><span className="ai-work-chat__model-card-model-name">{model.name}</span>{modelOptionVersionTag(model) ? <Tag color="blue">{modelOptionVersionTag(model)}</Tag> : null}</strong><small>{model.id}</small></span>{model.id === activeAccount?.modelId ? <span aria-hidden="true">✓</span> : null}</button>)}
-          {!visibleModels.length ? <span className="ai-work-chat__model-card-empty">没有匹配的模型</span> : null}
+            onClick={() => selected ? setModelPickerOpen(false) : void selectModel(account.id, model.id)}
+          ><span><small className="ai-work-chat__model-card-model-account">{account.displayName} · {account.providerId}</small><strong><span className="ai-work-chat__model-card-model-name">{model.name}</span>{modelOptionVersionTag(model) ? <Tag color="blue">{modelOptionVersionTag(model)}</Tag> : null}</strong><small>{model.id}</small><small className="ai-work-chat__model-card-model-metadata">{metadata}</small></span>{selected ? <span aria-hidden="true">✓</span> : null}</button>;
+          })}
+          {!visibleModels.length ? <span className="ai-work-chat__model-card-empty">{modelSearch.trim() ? "没有匹配的模型" : "设置中心尚未返回可用的对话模型目录"}</span> : null}
         </div>
-        {matchingModels.length > visibleModels.length ? <span className="ai-work-chat__model-card-limit">显示前 {MODEL_PICKER_RESULT_LIMIT} 个匹配结果，请继续输入以缩小范围。</span> : null}
+        {matchingModels.length > visibleModels.length ? <button type="button" className="ai-work-chat__model-card-load-more" onClick={() => setModelResultLimit((limit) => Math.min(limit + MODEL_PICKER_RESULT_LIMIT, matchingModels.length))}>继续加载 {Math.min(MODEL_PICKER_RESULT_LIMIT, matchingModels.length - visibleModels.length)} 个模型 · 还剩 {matchingModels.length - visibleModels.length} 个</button> : null}
       </section>
     </div>
   );
@@ -2460,7 +2542,7 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, capabil
             /> : null}
           </div>
           <div className="ai-work-chat__stream-track">
-            <div ref={setMessagesElement} onScroll={handleMessagesScroll} onWheel={handleMessagesWheel} onClickCapture={handleResponseHistoryClickCapture} onPointerDown={handleMessagesPointerDown} onPointerUp={handleMessagesPointerUp} onPointerCancel={handleMessagesPointerUp} className="ai-work-chat__messages" aria-live="polite">
+            <div ref={setMessagesElement} onScroll={handleMessagesScroll} onWheel={handleMessagesWheel} onClickCapture={handleResponseProcessClickCapture} onPointerDown={handleMessagesPointerDown} onPointerUp={handleMessagesPointerUp} onPointerCancel={handleMessagesPointerUp} className="ai-work-chat__messages" aria-live="polite">
               <div className="ai-work-chat__message-list">
               {hasOlderMessages ? <div className="ai-work-chat__older-messages"><Button loading={loadingOlderMessages} onClick={() => void loadEarlierMessages()}>加载更早消息</Button></div> : null}
               {loading ? <Spin /> : messages.length ? messages.map((item, messageIndex) => {
@@ -2489,7 +2571,7 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, capabil
                   setEditingMessage={setEditingMessage}
                   setMessageActionError={setMessageActionError}
                   setBranchTargetMessageId={setBranchTargetMessageId}
-                  onOpenProjectFileReview={onOpenProjectFileReview}
+                  onOpenProjectFile={onOpenProjectFile}
                   onBrowserToolCompleted={onBrowserToolCompleted}
                 />;
               }) : <div className={`ai-work-chat__welcome${appId === "writing" ? " ai-work-chat__welcome--writing" : ""}`}>
@@ -2536,10 +2618,10 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, capabil
           <form ref={composerFormRef} className="ai-work-chat__composer" aria-label="小鱼智能体 消息输入" onSubmit={(event) => { event.preventDefault(); void sendMessage(); }}>
           {projectDirectoryMissing ? <Alert className="ai-work-chat__directory-warning" type="warning" showIcon message="项目目录已删除或移动" description="当前会话仍可查看历史记录；如需继续工作，请新建会话并选择可用项目目录。" /> : null}
           <div className="ai-work-chat__composer-context" aria-label="当前对话上下文">
-            <WorkspaceProjectPicker appId="workspace" applicationName="小鱼智能体" projects={workspaceProjects} projectListStatus={workspaceProjectsLoadStatus} projectListTruncated={workspaceProjectsTruncated} projectLoadError={workspaceProjectsError} onRetryProjects={onRetryWorkspaceProjects} nodes={workspaceNodes} value={selectedProjectId} selectedProjectTitle={activeSessionId ? sessions.find(session => session.id === activeSessionId)?.projectTitle : null} defaultDirectory={settings.general.taskFolder || workspaceProjects.find(project => project.id === defaultWorkspaceProjectId)?.path || ""} disabled={projectDirectoryMissing || busy || projectBusy || associationsBusy || Boolean(editingMessage)} onChange={project => void changeWorkspaceProject(project)} onProjectsChange={onWorkspaceProjectsChange} activeSessionId={activeSessionId} />
+            <WorkspaceProjectPicker appId="workspace" applicationName="通用工作区" projects={workspaceProjects} projectListStatus={workspaceProjectsLoadStatus} projectListTruncated={workspaceProjectsTruncated} projectLoadError={workspaceProjectsError} onRetryProjects={onRetryWorkspaceProjects} nodes={workspaceNodes} value={selectedProjectId} selectedProjectTitle={activeSessionId ? sessions.find(session => session.id === activeSessionId)?.projectTitle : null} defaultDirectory={settings.general.taskFolder || workspaceProjects.find(project => project.id === defaultWorkspaceProjectId)?.path || ""} disabled={projectDirectoryMissing || busy || projectBusy || associationsBusy || Boolean(editingMessage)} onChange={project => void changeWorkspaceProject(project)} onProjectsChange={onWorkspaceProjectsChange} activeSessionId={activeSessionId} />
 
             <Tooltip trigger={["hover"]} placement="top" title={applicationNameFor(appId)}>
-              <span className="ai-work-chat__composer-app" aria-label={`当前应用：${applicationNameFor(appId)}`}><WorkbenchIcon name="spark" size={13} /><span className="ai-work-chat__composer-app-label">{applicationNameFor(appId)}</span></span>
+              <span className="ai-work-chat__composer-app" aria-label={`${appId === "workspace" ? "当前工作区" : "当前应用"}：${applicationNameFor(appId)}`}><WorkbenchIcon name="spark" size={13} /><span className="ai-work-chat__composer-app-label">{applicationNameFor(appId)}</span></span>
             </Tooltip>
             <Typography.Text className="ai-work-chat__composer-count" aria-label={`已输入 ${draft.length}，最多 12000 个字符`}>{draft.length}<span>/12000</span></Typography.Text>
           </div>
@@ -2689,16 +2771,17 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, capabil
                   setModelPickerOpen(open);
                   if (!open) {
                     setModelSearch("");
+                    setModelResultLimit(MODEL_PICKER_RESULT_LIMIT);
                     setReasoningDraftIndex(null);
                   }
                 }}
                 content={modelPickerContent}
               >
-                <Tooltip trigger={["hover", "focus"]} placement="bottom" title={activeAccount ? `选择模型 · ${activeAccount.displayName} · ${activeModel ? `${modelSelectorDisplayLabel(activeModel)} · ${activeAccount.modelId}` : activeAccount.modelId}` : accountLoadState === "loading" ? "模型正在读取当前配置" : accountLoadState === "error" ? "模型状态不可用，请查看错误提示" : "请先在设置中心配置活动模型"}>
-                  <span className="ai-work-chat__composer-disabled-wrap" tabIndex={!activeAccount || !activeAccount.models.length || modelBusy || busy ? 0 : -1}>
-                    <Button className="ai-work-chat__composer-control ai-work-chat__composer-control--model" type="text" aria-haspopup="dialog" aria-expanded={modelPickerOpen} aria-busy={accountLoadState === "loading" || modelBusy} aria-label={activeAccount ? `模型：${activeModel ? modelSelectorDisplayLabel(activeModel) : activeAccount.modelId} · ${activeAccount.modelId}` : accountLoadState === "loading" ? "模型：正在读取当前配置" : accountLoadState === "error" ? "模型：状态不可用" : "模型：未配置"} disabled={!activeAccount || !activeAccount.models.length || modelBusy || busy}>
+                <Tooltip trigger={["hover", "focus"]} placement="bottom" title={activeAccount ? `选择模型 · ${activeAccount.displayName} · ${activeModel ? `${modelSelectorDisplayLabel(activeModel)} · ${activeAccount.modelId}` : activeAccount.modelId}` : modelPickerCatalog.length ? "选择已配置模型并设为当前账户" : accountLoadState === "loading" ? "模型正在读取当前配置" : accountLoadState === "error" ? "模型状态不可用，请查看错误提示" : "请先在设置中心配置活动模型"}>
+                  <span className="ai-work-chat__composer-disabled-wrap" tabIndex={!modelPickerCatalog.length || modelBusy || busy ? 0 : -1}>
+                    <Button className="ai-work-chat__composer-control ai-work-chat__composer-control--model" type="text" aria-haspopup="dialog" aria-expanded={modelPickerOpen} aria-busy={accountLoadState === "loading" || modelBusy} aria-label={activeAccount ? `模型：${activeModel ? modelSelectorDisplayLabel(activeModel) : activeAccount.modelId} · ${activeAccount.modelId}` : modelPickerCatalog.length ? "模型：选择已配置模型" : accountLoadState === "loading" ? "模型：正在读取当前配置" : accountLoadState === "error" ? "模型：状态不可用" : "模型：未配置"} disabled={!modelPickerCatalog.length || modelBusy || busy}>
                       <WorkbenchIcon name="spark" size={14} />
-                      <span className="ai-work-chat__composer-control-label">{activeModel ? <><span className="ai-work-chat__model-name">{activeModel.name}</span>{activeModelVersionTag ? <span className="ai-work-chat__model-version-tag">{activeModelVersionTag}</span> : null}</> : activeAccount?.modelId ?? (accountLoadState === "loading" ? "读取中…" : accountLoadState === "error" ? "不可用" : "模型未配置")}</span>
+                      <span className="ai-work-chat__composer-control-label">{activeModel ? <><span className="ai-work-chat__model-name">{activeModel.name}</span>{activeModelVersionTag ? <span className="ai-work-chat__model-version-tag">{activeModelVersionTag}</span> : null}</> : activeAccount?.modelId ?? (modelPickerCatalog.length ? "选择模型" : accountLoadState === "loading" ? "读取中…" : accountLoadState === "error" ? "不可用" : "模型未配置")}</span>
                       <WorkbenchIcon className="ai-work-chat__composer-control-chevron" name="chevron" size={12} />
                     </Button>
                   </span>

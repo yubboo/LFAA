@@ -13,6 +13,7 @@ export interface AgentDeliverable {
   sessionId: string;
   path: string;
   title: string;
+  artifactKind: "minecraft-plugin" | "minecraft-mod" | "other";
   fileName: string;
   sha256: string;
   sizeBytes: number;
@@ -27,6 +28,7 @@ interface AgentDeliverableRow {
   session_id: string;
   path: string;
   title: string;
+  artifact_kind: "minecraft-plugin" | "minecraft-mod" | "other";
   file_name: string;
   sha256: string;
   size_bytes: number;
@@ -34,12 +36,12 @@ interface AgentDeliverableRow {
   published_at: string;
 }
 
-const columns = "id, user_id, repository_id, session_id, path, title, file_name, sha256, size_bytes, modified_at, published_at";
+const columns = "id, user_id, repository_id, session_id, path, title, artifact_kind, file_name, sha256, size_bytes, modified_at, published_at";
 const maxDeliverableBytes = 512 * 1024 * 1024;
 
 function mapRow(row: AgentDeliverableRow): AgentDeliverable {
   return { id: row.id, userId: row.user_id, repositoryId: row.repository_id, sessionId: row.session_id, path: row.path,
-    title: row.title, fileName: row.file_name, sha256: row.sha256, sizeBytes: row.size_bytes, modifiedAt: row.modified_at, publishedAt: row.published_at };
+    title: row.title, artifactKind: row.artifact_kind, fileName: row.file_name, sha256: row.sha256, sizeBytes: row.size_bytes, modifiedAt: row.modified_at, publishedAt: row.published_at };
 }
 
 function normalizeRelativePath(path: string): string {
@@ -63,6 +65,7 @@ export function publishAgentDeliverable(input: {
   sessionId: string;
   path: string;
   title: string;
+  artifactKind?: "minecraft-plugin" | "minecraft-mod" | "other";
   fileName: string;
   sha256: string;
   sizeBytes: number;
@@ -72,8 +75,9 @@ export function publishAgentDeliverable(input: {
   const path = normalizeRelativePath(input.path);
   const key = pathKey(path, input.platform ?? process.platform);
   const title = input.title.trim();
+  const artifactKind = input.artifactKind ?? "other";
   if (!input.userId || !input.repositoryId || !/^[0-9a-f-]{36}$/iu.test(input.sessionId)
-    || !title || title.length > 160 || !input.fileName || input.fileName.length > 255
+    || !title || title.length > 160 || !["minecraft-plugin", "minecraft-mod", "other"].includes(artifactKind) || !input.fileName || input.fileName.length > 255
     || !/^[a-f0-9]{64}$/u.test(input.sha256) || !Number.isSafeInteger(input.sizeBytes) || input.sizeBytes < 0 || input.sizeBytes > maxDeliverableBytes
     || !Number.isFinite(Date.parse(input.modifiedAt))) throw new Error("产物登记元数据无效。 ");
 
@@ -82,12 +86,12 @@ export function publishAgentDeliverable(input: {
     .get(input.userId, input.repositoryId, key) as unknown as AgentDeliverableRow | undefined;
   const id = existing?.id ?? randomUUID();
   database.prepare(`
-    INSERT INTO agent_deliverables(id, user_id, repository_id, session_id, path, path_key, title, file_name, sha256, size_bytes, modified_at, published_at)
-    VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO agent_deliverables(id, user_id, repository_id, session_id, path, path_key, title, artifact_kind, file_name, sha256, size_bytes, modified_at, published_at)
+    VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(user_id, repository_id, path_key) DO UPDATE SET
-      session_id = excluded.session_id, path = excluded.path, title = excluded.title, file_name = excluded.file_name,
+      session_id = excluded.session_id, path = excluded.path, title = excluded.title, artifact_kind = excluded.artifact_kind, file_name = excluded.file_name,
       sha256 = excluded.sha256, size_bytes = excluded.size_bytes, modified_at = excluded.modified_at, published_at = excluded.published_at
-  `).run(id, input.userId, input.repositoryId, input.sessionId, path, key, title, input.fileName, input.sha256, input.sizeBytes, input.modifiedAt, now);
+  `).run(id, input.userId, input.repositoryId, input.sessionId, path, key, title, artifactKind, input.fileName, input.sha256, input.sizeBytes, input.modifiedAt, now);
   const row = database.prepare(`SELECT ${columns} FROM agent_deliverables WHERE user_id = ? AND repository_id = ? AND path_key = ?`)
     .get(input.userId, input.repositoryId, key) as unknown as AgentDeliverableRow | undefined;
   if (!row) throw new Error("产物登记后未能回读。 ");

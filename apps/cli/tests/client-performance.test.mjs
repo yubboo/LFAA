@@ -9,13 +9,13 @@ import test from "node:test";
 import { setImmediate as nextTurn } from "node:timers/promises";
 import { createReadPoller } from "../../../packages/client/connection/src/read-poller.ts";
 import { createStreamDeltas } from "../../../packages/client/connection/src/stream-deltas.ts";
-import { pauseAiRun, resumeAiRun, streamAiChat } from "../../../packages/client/connection/src/api.ts";
+import { loadWorkspaceGitStatus, pauseAiRun, resumeAiRun, streamAiChat } from "../../../packages/client/connection/src/api.ts";
 import { saveWorkbenchLeftWidth } from "../../../packages/client/ui-dockkit/src/workbench-preferences.ts";
 import { createSnapshotCache, clearClientSnapshots } from "../../../packages/client/store/src/snapshot-cache.ts";
 import { createAiActivityClockStore } from "../../../packages/client/ui-chat/src/activity-clock.ts";
 import { observeWorkbenchMetrics } from "../../../packages/client/ui-dockkit/src/use-workbench-metrics.ts";
 import { buildConversationAnchors, conversationAnchorReply } from "../../../packages/client/ui-chat/src/conversation-anchor-preview.ts";
-import { buildConversationAnchorLayout, createConversationScrollTracker, createFrameCoalescer, findNearestConversationAnchorIndex, projectConversationWheelScroll, shouldAutoScrollToLatest, shouldFollowLatestMessage, shouldShowScrollToLatest, syncConversationScrollToLatest, updateConversationAnchorPointerTarget } from "../../../packages/client/ui-chat/src/conversation-scroll.ts";
+import { buildConversationAnchorLayout, createConversationScrollTracker, createFrameCoalescer, findNearestConversationAnchorIndex, preserveConversationAnchorViewport, projectConversationWheelScroll, shouldAutoScrollToLatest, shouldFollowLatestMessage, shouldShowScrollToLatest, syncConversationScrollToLatest, updateConversationAnchorPointerTarget, updateResponseProcessFollowState } from "../../../packages/client/ui-chat/src/conversation-scroll.ts";
 import { sameTerminalTask } from "../../../packages/client/ui-workspace/src/terminal-snapshot.ts";
 
 function browserEvents(t) {
@@ -299,19 +299,36 @@ test("AI Work模型按钮保留可见的目录版本标签", () => {
   assert.match(styles, /\.ai-work-chat__composer-control--model \.ai-work-chat__composer-control-label \{ display: none/u);
 });
 
-test("AI Work 文件活动显示真实路径并通过登记项目打开现有 Git 审阅器", () => {
+test("AI Work 文件活动路径打开绑定项目的右侧文件标签", () => {
   const chat = readFileSync(new URL("../../../packages/client/ui-chat/src/AiWorkChat.tsx", import.meta.url), "utf8");
   const workspace = readFileSync(new URL("../../../packages/client/ui-workspace/src/ApplicationWorkspace.tsx", import.meta.url), "utf8");
-  const reviewer = readFileSync(new URL("../../../packages/client/ui-workspace/src/GitChangeSummary.tsx", import.meta.url), "utf8");
+  const dock = readFileSync(new URL("../../../packages/client/ui-workspace/src/AiWorkProjectFileDock.tsx", import.meta.url), "utf8");
   assert.match(chat, /activity\.fileChanges\?\.map/u);
-  assert.match(chat, /onOpenProjectFileReview\(change\.projectId!, change\.path\)/u);
-  assert.match(chat, /查看差异与编辑/u);
+  assert.match(chat, /onOpenProjectFile\(change\.projectId!, change\.path, change\.sourceId\)/u);
+  assert.match(workspace, /kind: "project-file"/u);
   assert.match(workspace, /workspaceProjects\.find\(item => item\.id === projectId/u);
-  assert.match(workspace, /onOpenProjectFileReview=\{openProjectFileReview\}/u);
-  assert.match(reviewer, /const repositoryPath = current\.projectRelativePath && path !== current\.projectRelativePath/u);
-  assert.match(reviewer, /current\.files\.find\(file => file\.projectPath === repositoryPath \|\| file\.projectPath === path\)/u);
-  assert.match(reviewer, /setReviewPath\(changedFile\.path\)/u);
-  assert.match(reviewer, /<GitChangeReview appId=\{appId\} projectId=\{project\.id\} projectTitle=\{project\.title\} status=\{status\} initialPath=\{reviewPath\}/u);
+  assert.match(workspace, /onOpenProjectFile=\{openProjectFile\}/u);
+  assert.match(workspace, /<AiWorkProjectFileDock[\s\S]*?path=\{activeWorkspaceUtilityTab\.filePath\}/u);
+  assert.match(dock, /readWorkspaceProjectTextFile\(project\.id, appId, path/u);
+  assert.match(dock, /aria-label="文件路径"/u);
+  assert.match(dock, /aria-current=\{index === segments\.length - 1 \? "page"/u);
+});
+
+test("工作区 Git 状态读取携带活动来源并可取消过期请求", async t => {
+  const originalFetch = globalThis.fetch;
+  let captured = null;
+  globalThis.fetch = async (input, init) => {
+    captured = { url: String(input), options: init ?? {} };
+    return new Response(JSON.stringify({ status: { repositoryState: "ready" } }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  t.after(() => { globalThis.fetch = originalFetch; });
+
+  const controller = new AbortController();
+  await loadWorkspaceGitStatus("project-1", "workspace", "source-1", controller.signal);
+  assert.ok(captured);
+  assert.equal(captured.url, "/api/workspace/projects/project-1/git/status");
+  assert.deepEqual(JSON.parse(String(captured.options.body)), { appId: "workspace", sourceId: "source-1" });
+  assert.equal(captured.options.signal, controller.signal);
 });
 
 test("AI Work 待处理审批与澄清贴近输入框，处理后记录回到原回复", () => {
@@ -508,6 +525,35 @@ test("长会话滚动按帧合并，锚点重测不误报布局尺寸变化，�
   tracker.refresh(true); tracker.stop(); notify(); animation.run();
   container.dispatchEvent(new Event("load")); animation.run();
   assert.ok(disconnected); assert.equal(animation.pending.size, 0); assert.equal(snapshots.length, 5);
+});
+
+test("完成态过程折叠暂停贴底跟随，嵌套展开结束后恢复原状态", () => {
+  const openDetails = new Set(), first = {}, second = {};
+  let state = updateResponseProcessFollowState(openDetails, first, true, true, null);
+  assert.deepEqual(state, { following: false, followingBeforeOpen: true });
+  state = updateResponseProcessFollowState(openDetails, second, true, state.following, state.followingBeforeOpen);
+  assert.deepEqual(state, { following: false, followingBeforeOpen: true });
+  state = updateResponseProcessFollowState(openDetails, first, false, state.following, state.followingBeforeOpen);
+  assert.deepEqual(state, { following: false, followingBeforeOpen: true });
+  state = updateResponseProcessFollowState(openDetails, second, false, state.following, state.followingBeforeOpen);
+  assert.deepEqual(state, { following: true, followingBeforeOpen: null });
+  assert.equal(openDetails.size, 0);
+  assert.equal(shouldAutoScrollToLatest(state.following, true), true, "恢复后其他真实布局变化仍可贴底");
+
+  const container = { scrollTop: 1714 };
+  const summary = { getBoundingClientRect: () => ({ top: 521 }) };
+  assert.equal(preserveConversationAnchorViewport(container, summary, 415), 106);
+  assert.equal(container.scrollTop, 1820, "视口内的助手标题保持原位");
+
+  const chatSource = readFileSync(new URL("../../../packages/client/ui-chat/src/AiWorkChat.tsx", import.meta.url), "utf8");
+  assert.match(chatSource, /classList\.contains\("ai-work-chat__response-process"\)/u, "滚动处理绑定到完成态助手标题实际使用的 disclosure");
+  assert.doesNotMatch(chatSource, /classList\.contains\("ai-work-chat__response-history"\)/u, "不再监听已移除的旧外层折叠类名");
+  assert.match(chatSource, /preserveConversationAnchorViewport\(container, summary, snapshot\.previousTop\)/u, "折叠区改高后在绘制前校正标题位置");
+  assert.match(chatSource, /details\.addEventListener\("toggle"/u, "等待原生 details 切换完成后再读取布局并校正");
+  assert.match(chatSource, /const responseProcessViewportAdjusting = responseProcessDetailsRef\.current\.size > 0 \|\| responseProcessScrollAnchorRef\.current !== null;[\s\S]*?!responseProcessViewportAdjusting && shouldAutoScrollToLatest/u,
+    "过程区布局变化不触发消息区自动贴底");
+  assert.match(chatSource, /const responseProcessAdjustment =[\s\S]*?if \(!responseProcessAdjustment\) setShowScrollToLatest/u,
+    "展开与位置校正产生的程序滚动不显示回到底部提示");
 });
 
 test("会话导航按提问数量动态增长并保持整数像素等距", () => {

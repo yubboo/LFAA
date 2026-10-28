@@ -4,7 +4,7 @@
 
 参考 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)，上游基线 commit `639ed015397290b3745d163aafe02ffee4aa3f84`。
 
-当前 388 个两级目录、222 个实际 workspace 包（220 个产品源码/组合包，2 个工程/测试包），166 个占位目录。控制端/节点运行树含 193 个包；客户端源码包单独进入 Web 构建。
+当前 388 个两级目录、225 个实际 workspace 包（223 个产品源码/组合包，2 个工程/测试包），163 个占位目录。控制端/节点运行树含 195 个包；客户端源码包单独进入 Web 构建。
 
 `implemented` 仅表示有 package.json 和源码/装配；不代表已经进入 Profile、通过运行验收或与 DSH 等价。`placeholder` 不可执行。产品能力现状见 [系统总体架构](系统总体架构.md)，历史核验见 [P0 记录](archive/audits/harness-p0-audit.md)。
 
@@ -64,7 +64,7 @@
 | [packages/client/file-upload](../packages/client/file-upload) | lfaa-client-file-upload | implemented | 客户端文件上传协议与进度交互 | [源码](../packages/client/file-upload/src/index.ts)；0 个静态消费者；0 个组合声明 | DSH 同名目录 |
 | [packages/client/hmr](../packages/client/hmr) | — | placeholder | 客户端模块开发热更新 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/locale](../packages/client/locale) | — | placeholder | 客户端语言资源与语言设置映射 | 占位不可执行 | DSH 同名目录 |
-| [packages/client/modules](../packages/client/modules) | lfaa-client-modules | implemented | 客户端模块/Slots 的懒加载、装卸与作用域 | [源码](../packages/client/modules/src/index.ts)；18 个静态消费者；0 个组合声明 | DSH 同名目录 |
+| [packages/client/modules](../packages/client/modules) | lfaa-client-modules | implemented | 客户端模块/Slots 的懒加载、装卸与作用域 | [源码](../packages/client/modules/src/index.ts)；19 个静态消费者；0 个组合声明 | DSH 同名目录 |
 | [packages/client/product-analytics](../packages/client/product-analytics) | — | placeholder | 客户端产品指标上报适配与隐私边界 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/resources](../packages/client/resources) | lfaa-client-resources | implemented | 客户端共享资源读取、缓存与撤销 | 仅组合/清单；未证实运行 | DSH 同名目录 |
 | [packages/client/shortcuts](../packages/client/shortcuts) | — | placeholder | 客户端快捷键服务和登记协议 | 占位不可执行 | DSH 同名目录 |
@@ -77,7 +77,7 @@
 | [packages/client/ui-commands](../packages/client/ui-commands) | lfaa-client-ui-commands | implemented | 键盘命令匹配和交互派发 | [源码](../packages/client/ui-commands/src/index.ts)；2 个静态消费者；0 个组合声明 | DSH 同名目录 |
 | [packages/client/ui-connectivity](../packages/client/ui-connectivity) | lfaa-client-ui-connectivity | implemented | 联机 App 工作台和网络任务界面 | [源码](../packages/client/ui-connectivity/src/index.ts)；2 个静态消费者；0 个组合声明 | LFAA 扩展 |
 | [packages/client/ui-conversation](../packages/client/ui-conversation) | — | placeholder | 会话对话容器与消息交互组件 | 占位不可执行 | DSH 同名目录 |
-| [packages/client/ui-deliverables](../packages/client/ui-deliverables) | — | placeholder | 真实交付物与产物展示界面 | 占位不可执行 | DSH 同名目录 |
+| [packages/client/ui-deliverables](../packages/client/ui-deliverables) | lfaa-client-ui-deliverables | implemented | 真实交付物与产物展示界面 | [源码](../packages/client/ui-deliverables/src/index.ts)；2 个静态消费者；0 个组合声明 | DSH 同名目录 |
 | [packages/client/ui-directory-picker-browse](../packages/client/ui-directory-picker-browse) | — | placeholder | 通过服务浏览目录的选择界面 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-directory-picker-native](../packages/client/ui-directory-picker-native) | — | placeholder | 平台原生目录选择的客户端适配 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-dockkit](../packages/client/ui-dockkit) | lfaa-client-ui-dockkit | implemented | 共享容器尺寸、Dock/Overlay、拖拽和面板布局 | [源码](../packages/client/ui-dockkit/src/index.ts)；5 个静态消费者；0 个组合声明 | DSH 同名目录 |
@@ -92,7 +92,7 @@
 | [packages/client/ui-permission-presets](../packages/client/ui-permission-presets) | — | placeholder | 权限预设选择界面，不实现授权策略 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-plan](../packages/client/ui-plan) | — | placeholder | 计划模式和计划结果展示 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-plugin-manager](../packages/client/ui-plugin-manager) | lfaa-client-ui-plugin-manager | implemented | 插件安装、停用和故障管理界面 | [源码](../packages/client/ui-plugin-manager/src/index.ts)；2 个静态消费者；0 个组合声明 | DSH 同名目录 |
-| [packages/client/ui-primitives](../packages/client/ui-primitives) | lfaa-client-ui-primitives | implemented | 跨应用可复用的基础交互组件 | [源码](../packages/client/ui-primitives/src/index.ts)；11 个静态消费者；0 个组合声明 | DSH 同名目录 |
+| [packages/client/ui-primitives](../packages/client/ui-primitives) | lfaa-client-ui-primitives | implemented | 跨应用可复用的基础交互组件 | [源码](../packages/client/ui-primitives/src/index.ts)；12 个静态消费者；0 个组合声明 | DSH 同名目录 |
 | [packages/client/ui-reference](../packages/client/ui-reference) | — | placeholder | 上下文引用与来源展示 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-renderer](../packages/client/ui-renderer) | lfaa-client-ui-renderer | implemented | React 根挂载、账户路由和 Slots 容器 | [源码](../packages/client/ui-renderer/src/index.ts)；1 个静态消费者；0 个组合声明 | DSH 同名目录 |
 | [packages/client/ui-schedule](../packages/client/ui-schedule) | — | placeholder | 定时任务配置与实际状态界面 | 占位不可执行 | DSH 同名目录 |
@@ -147,15 +147,15 @@
 | [packages/core/scope](../packages/core/scope) | lfaa-scope | implemented | 能力可见范围与 Cordis 作用域合同 | [源码](../packages/core/scope/src/index.ts)；4 个静态消费者；0 个组合声明 | DSH 同名目录 |
 | [packages/core/session](../packages/core/session) | lfaa-session | implemented | 账户会话事务、事件与 JSONL 恢复门面 | [源码](../packages/core/session/src/index.ts)；12 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/core/system-prompt](../packages/core/system-prompt) | lfaa-system-prompt | implemented | 核心指令/权限/上下文组合，不按 App 注入领域全文 | [源码](../packages/core/system-prompt/src/index.ts)；4 个静态消费者；0 个组合声明 | DSH 同名目录 |
-| [packages/core/tools](../packages/core/tools) | lfaa-tools | implemented | 公共工具合同、参数校验、可撤销注册与 Run 工具发现 | [源码](../packages/core/tools/src/index.ts)；31 个静态消费者；1 个组合声明 | DSH 同名目录 |
+| [packages/core/tools](../packages/core/tools) | lfaa-tools | implemented | 公共工具合同、参数校验、可撤销注册与 Run 工具发现 | [源码](../packages/core/tools/src/index.ts)；32 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/credentials/authorization](../packages/credentials/authorization) | lfaa-authorization | implemented | 凭据访问授权合同 | 仅组合/清单；未证实运行 | DSH 同名目录 |
 | [packages/credentials/credential-flows](../packages/credentials/credential-flows) | lfaa-credential-flows | implemented | 凭据获取/连接流程适配 | [源码](../packages/credentials/credential-flows/src/index.ts)；0 个静态消费者；1 个组合声明 | LFAA 扩展 |
 | [packages/credentials/credentials](../packages/credentials/credentials) | lfaa-credentials | implemented | 受保护秘密存储与访问服务 | [源码](../packages/credentials/credentials/src/index.ts)；11 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/credentials/credentials-local](../packages/credentials/credentials-local) | — | placeholder | 本机凭据存储提供方 | 占位不可执行 | DSH 同名目录 |
 | [packages/credentials/deepseek-account](../packages/credentials/deepseek-account) | — | placeholder | DeepSeek 账户认证来源适配 | 占位不可执行 | DSH 同名目录 |
 | [packages/credentials/deepseek-account-platform](../packages/credentials/deepseek-account-platform) | — | placeholder | DeepSeek 平台账户凭据适配 | 占位不可执行 | DSH 同名目录 |
-| [packages/deliverables/tool-present](../packages/deliverables/tool-present) | — | placeholder | 交付物呈现工具协议 | 占位不可执行 | DSH 同名目录 |
-| [packages/deliverables/workspace-changes](../packages/deliverables/workspace-changes) | — | placeholder | 工作区真实修改及产物引用收集 | 占位不可执行 | DSH 同名目录 |
+| [packages/deliverables/tool-present](../packages/deliverables/tool-present) | lfaa-deliverables-tool-present | implemented | Agent 明确发布最终交付文件的工具合同 | [源码](../packages/deliverables/tool-present/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |
+| [packages/deliverables/workspace-changes](../packages/deliverables/workspace-changes) | lfaa-deliverables-workspace-changes | implemented | 账户隔离的 Agent 产物登记与项目引用收集，不复制文件字节 | [源码](../packages/deliverables/workspace-changes/src/index.ts)；2 个静态消费者；0 个组合声明 | DSH 同名目录 |
 | [packages/document/office-to-pdf](../packages/document/office-to-pdf) | — | placeholder | Office 文档到 PDF 的真实转换适配 | 占位不可执行 | DSH 同名目录 |
 | [packages/document/tool-writing](../packages/document/tool-writing) | lfaa-tool-writing | implemented | 绑定当前账户作品的写作读取/提案工具合同 | [源码](../packages/document/tool-writing/src/index.ts)；0 个静态消费者；1 个组合声明 | LFAA 扩展 |
 | [packages/document/writing](../packages/document/writing) | lfaa-document-writing | implemented | 作品、章节、资料、修订、提案事务与本机正文存储 | [源码](../packages/document/writing/src/index.ts)；3 个静态消费者；1 个组合声明 | LFAA 扩展 |
@@ -329,7 +329,7 @@
 | [packages/storage/storage](../packages/storage/storage) | lfaa-storage-hub | implemented | 存储 Hub、命名空间和后端登记 | [源码](../packages/storage/storage/src/index.ts)；2 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/storage/storage-domain](../packages/storage/storage-domain) | lfaa-storage-domain | implemented | 领域存储协调、配置事务及迁移 | [源码](../packages/storage/storage-domain/src/index.ts)；8 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/storage/storage-json](../packages/storage/storage-json) | lfaa-storage-json | implemented | 受控 JSON 配置存储提供方 | [源码](../packages/storage/storage-json/src/index.ts)；12 个静态消费者；1 个组合声明 | DSH 同名目录 |
-| [packages/storage/storage-sqlite](../packages/storage/storage-sqlite) | lfaa-storage-sqlite | implemented | SQLite 连接、Schema、事务与持久化后端 | [源码](../packages/storage/storage-sqlite/src/index.ts)；23 个静态消费者；1 个组合声明 | DSH 同名目录 |
+| [packages/storage/storage-sqlite](../packages/storage/storage-sqlite) | lfaa-storage-sqlite | implemented | SQLite 连接、Schema、事务与持久化后端 | [源码](../packages/storage/storage-sqlite/src/index.ts)；24 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/subagent/subagent](../packages/subagent/subagent) | lfaa-subagent | implemented | 委派任务状态、驱动登记与结果合同 | [源码](../packages/subagent/subagent/src/index.ts)；5 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/subagent/subagent-acp](../packages/subagent/subagent-acp) | — | placeholder | ACP 外部 Agent 驱动 | 占位不可执行 | DSH 同名目录 |
 | [packages/subagent/subagent-claude-code](../packages/subagent/subagent-claude-code) | lfaa-subagent-claude-code | implemented | Claude Code 外部 Agent 驱动 | [源码](../packages/subagent/subagent-claude-code/src/index.ts)；2 个静态消费者；1 个组合声明 | DSH 同名目录 |

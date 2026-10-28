@@ -109,7 +109,11 @@ const generateImageSchema = Joi.object({
   nodeId: Joi.string().guid({ version: ["uuidv4"] }).optional(),
   prompt: Joi.string().trim().min(1).max(CANVAS_GENERATION_LIMITS.imagePromptCharacters).required(),
   aspectRatio: Joi.string().valid(...CANVAS_IMAGE_ASPECT_RATIOS).optional(),
-  referenceAssetIds: referenceAssetIdsSchema
+  referenceAssetIds: referenceAssetIdsSchema,
+  modelTarget: Joi.object({
+    accountId: Joi.string().trim().min(1).max(160).required(),
+    modelId: Joi.string().trim().min(1).max(160).required()
+  }).unknown(false).optional()
 }).unknown(false);
 const generateVideoSchema = Joi.object({
   expectedUpdatedAt: Joi.string().isoDate().required(),
@@ -297,6 +301,7 @@ export function registerRoutes(router: Router, service: CanvasService, generatio
       prompt: string;
       aspectRatio?: CanvasImageAspectRatio;
       referenceAssetIds?: string[];
+      modelTarget?: { accountId: string; modelId: string };
     }>(generateImageSchema, request.body);
     const { controller, dispose } = abortOnDisconnect(response);
     try {

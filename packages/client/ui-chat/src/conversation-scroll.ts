@@ -18,6 +18,39 @@ export function shouldAutoScrollToLatest(following: boolean, layoutChanged: bool
   return following && layoutChanged;
 }
 
+/** 完成态过程区展开时暂停贴底；全部收起后仅在用户未主动滚动时恢复此前状态。 */
+export function updateResponseProcessFollowState<T>(
+  openDetails: Set<T>,
+  detail: T,
+  opening: boolean,
+  following: boolean,
+  followingBeforeOpen: boolean | null
+): { following: boolean; followingBeforeOpen: boolean | null } {
+  if (opening) {
+    if (openDetails.size === 0) followingBeforeOpen = following;
+    openDetails.add(detail);
+    return { following: false, followingBeforeOpen };
+  }
+
+  openDetails.delete(detail);
+  if (openDetails.size === 0 && followingBeforeOpen !== null) {
+    return { following: followingBeforeOpen, followingBeforeOpen: null };
+  }
+  return { following, followingBeforeOpen };
+}
+
+/** 折叠区改高后将其摘要校回原视口坐标，避免浏览器锚定造成整页跳动。 */
+export function preserveConversationAnchorViewport(
+  container: Pick<HTMLElement, "scrollTop">,
+  anchor: Pick<HTMLElement, "getBoundingClientRect">,
+  previousTop: number
+): number {
+  const delta = anchor.getBoundingClientRect().top - previousTop;
+  if (!Number.isFinite(delta) || Math.abs(delta) < 1) return 0;
+  container.scrollTop += delta;
+  return delta;
+}
+
 /** 在绘制前同步跟随最新内容；只在确实落后时写入位置，避免无变化滚动事件。 */
 export function syncConversationScrollToLatest(
   container: Pick<HTMLElement, "scrollHeight" | "scrollTop" | "clientHeight">,

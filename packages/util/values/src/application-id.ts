@@ -1,6 +1,6 @@
 /**
- * 功能：声明 LFAA 当前可切换的应用 ID。
- * 作用：为设置、权限、Agent、API 和能力路由提供唯一共享清单。
+ * 功能：声明 LFAA 内部应用作用域 ID。
+ * 作用：为设置、权限、Agent、API 和能力路由提供稳定清单；不等同于用户可见的所有工作台入口。
  * 关联文件：settings/settings/src/preferences/service.ts、core/tools、core/agent。
  */
 export const APPLICATION_IDS = ["steamcmd", "minecraft", "connectivity", "writing", "workspace", "aivideo"] as const;
@@ -12,17 +12,17 @@ export const WORKSPACE_PROJECT_CONTEXT_APPLICATION_IDS = APPLICATION_IDS.filter(
 );
 export type WorkspaceProjectContextApplicationId = typeof WORKSPACE_PROJECT_CONTEXT_APPLICATION_IDS[number];
 
-/** 应用显示名称与稳定 ID 共用唯一目录，供项目关联等共享界面消费。 */
+/** 应用作用域的领域名称与稳定 ID 共用唯一目录；workspace 保留为通用工作区兼容范围。 */
 export const APPLICATION_LABELS: Record<ApplicationId, string> = {
-  steamcmd: "SteamCMD 游戏服务",
-  minecraft: "Minecraft 管理",
-  connectivity: "LFAA 联机服务",
+  steamcmd: "Steam 游戏服务器",
+  minecraft: "Minecraft 服务端",
+  connectivity: "联机管理",
   writing: "写作空间",
-  workspace: "小鱼智能体",
+  workspace: "通用工作区",
   aivideo: "AI 漫剧"
 };
 
-/** 工作台“应用”菜单的真实入口 ID；与 App ID 区分，保留游戏库这一聚合入口。 */
+/** 工作台导航入口 ID；包含领域应用聚合入口与系统共享能力入口，不等同于内部 App ID。 */
 export const APPLICATION_NAVIGATION_IDS = ["games", "steamcmd", "minecraft", "connectivity", "writing", "aivideo", "canvas"] as const;
 export type ApplicationNavigationId = typeof APPLICATION_NAVIGATION_IDS[number];
 
@@ -36,11 +36,11 @@ export const APPLICATION_ROUTE_PATTERN = new RegExp(`^/apps/(${APPLICATION_IDS.j
 /** 系统级无限画布：每个 App 都有自己的画布工作区，可带项目 ID。 */
 export const APP_CANVAS_ROUTE_PATTERN = new RegExp(`^/apps/(${APPLICATION_IDS.join("|")})/canvas(?:/([0-9a-fA-F-]{36}))?$`, "u");
 
-/** 所有 App 共用工作入口；根首页、旧工作地址及旧 App 工作地址统一归一到这里。 */
+/** 通用 Agent 工作入口；只把根首页与旧任务地址归一到这里，业务 App 的聊天保留 App 作用域。 */
 export const SHARED_WORK_ROUTE = "/work";
 export function normalizeWorkRoute(path: string): string {
-  if (path === "/" || path === "/tasks" || path.match(APPLICATION_ROUTE_PATTERN)?.[2] === "ai-work") return SHARED_WORK_ROUTE;
   const appRoute = path.match(APPLICATION_ROUTE_PATTERN);
+  if (path === "/" || path === "/tasks" || appRoute?.[1] === "workspace" && appRoute?.[2] === "ai-work") return SHARED_WORK_ROUTE;
   if (appRoute?.[2] === "normal" && (appRoute[1] === "steamcmd" || appRoute[1] === "minecraft")) {
     const section = appRoute[3] ? `/${appRoute[3]}` : "";
     return `/games/${appRoute[1]}${section}`;

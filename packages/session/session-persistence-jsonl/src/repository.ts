@@ -72,7 +72,13 @@ export class SessionRepository {
       else if (migration.version !== 1) throw new Error("会话迁移标记版本不支持。");
       if (Number(database.prepare("PRAGMA user_version").get()!.user_version) >= 31) {
         const cached = database.prepare("SELECT id, jsonl_revision FROM ai_sessions").all();
-        for (const row of cached) if (!this.records.get("ai_sessions")!.has(String(row.id)) || typeof row.jsonl_revision === "string" && !this.persistence.hasTransaction(String(row.id), row.jsonl_revision)) throw new Error("会话日志缺失已提交历史，拒绝用不完整文件覆盖投影。");
+        for (const row of cached) {
+          const sessionId = String(row.id);
+          // SQLite 只保存可重建的列表/授权投影。会话日志被删除后，不应让无权威记录的缓存头阻塞整个服务启动。
+          if (!this.records.get("ai_sessions")!.has(sessionId)) continue;
+          // 日志仍存在但缺少 SQLite 已提交的修订时，仍按不完整历史拒绝启动，保护可恢复数据。
+          if (typeof row.jsonl_revision === "string" && !this.persistence.hasTransaction(sessionId, row.jsonl_revision)) throw new Error("会话日志缺失已提交历史，拒绝用不完整文件覆盖投影。");
+        }
       }
       withControlLock(database, () => { for (const header of this.records.get("ai_sessions")!.values()) this.project(header); });
       // 进程退出后尚未结束的回复不能继续表现为推理中；恢复也必须留下权威事件。
@@ -576,10 +582,27 @@ export class SessionRepository {
   /** SQLite 只选择已投影的身份键，返回值仍从 JSONL 会话头取得。 */
   listHeaders(userId: string, archived: boolean, appId?: string): unknown[] {
     this.assertReady();
-    const rows = appId
-      ? database.prepare("SELECT id FROM ai_sessions WHERE user_id = ? AND archived = ? AND app_id = ? ORDER BY updated_at DESC, id LIMIT 200").all(userId, Number(archived), appId)
-      : database.prepare("SELECT id FROM ai_sessions WHERE user_id = ? AND archived = ? ORDER BY updated_at DESC, id LIMIT 200").all(userId, Number(archived));
-    return rows.flatMap(row => { const header = this.records.get("ai_sessions")!.get(String(row.id)); return header?.user_id === userId ? [structuredClone(header)] : []; });
+    const result: SessionRecord[] = [];
+    const seen = new Set<string>();
+    let cursor: { updatedAt: string; id: string } | undefined;
+    while (result.length < 200) {
+      const cursorClause = cursor ? " AND (updated_at < ? OR (updated_at = ? AND id > ?))" : "";
+      const query = `SELECT id, updated_at FROM ai_sessions WHERE user_id = ? AND archived = ?${appId ? " AND app_id = ?" : ""}${cursorClause} ORDER BY updated_at DESC, id LIMIT 200`;
+      const parameters: Array<string | number> = [userId, Number(archived)];
+      if (appId) parameters.push(appId);
+      if (cursor) parameters.push(cursor.updatedAt, cursor.updatedAt, cursor.id);
+      const rows = database.prepare(query).all(...parameters) as Array<{ id: string; updated_at: string }>;
+      for (const row of rows) {
+        const id = String(row.id);
+        const header = this.records.get("ai_sessions")!.get(id);
+        if (header?.user_id === userId && !seen.has(id)) { result.push(structuredClone(header)); seen.add(id); }
+        if (result.length >= 200) break;
+      }
+      if (rows.length < 200 || result.length >= 200) break;
+      const last = rows.at(-1)!;
+      cursor = { updatedAt: String(last.updated_at), id: String(last.id) };
+    }
+    return result;
   }
   /** 列表只读取已校验事件的轻量计划投影，避免为两百条标题恢复正文和完整 Kernel。 */
   planMode(sessionId: string): boolean {

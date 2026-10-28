@@ -1,4 +1,4 @@
-/** 功能：游戏库内的 Steam 专用服务端管理面板。作用：通过认证 Connection 管理服务端记录与 SteamCMD 节点任务。关联文件：games/steamcmd、api/steamcmd-controller、host/daemon。 */
+/** 功能：游戏服务内的 Steam 专用服务器管理面板。作用：通过认证 Connection 管理服务端记录与 SteamCMD 节点任务。关联文件：games/steamcmd、api/steamcmd-controller、host/daemon。 */
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Alert, Button, Checkbox, Input, InputNumber, Popconfirm, Select, Spin, Tag, Typography } from "antd";
 import { createSteamcmdDstCluster, createSteamcmdServer, createSteamcmdServerTask, getErrorMessage, loadSteamcmdServers, loadSteamcmdSettings, loadSteamcmdTask, updateSteamcmdServer, type SteamcmdDstClusterInput, type SteamcmdServer, type SteamcmdServerInput, type SteamcmdSettingsNode, type SteamcmdTask, type User } from "lfaa-client-connection/src/api.js";
@@ -159,22 +159,22 @@ export function SteamcmdWorkspace({ user, onNavigate }: { user: User; onNavigate
   return <section className="game-library steamcmd-workspace" aria-labelledby="game-library-heading">
     <header className="game-library__header steamcmd-workspace__header">
       <div>
-        <Typography.Title id="game-library-heading" level={1}>Steam 游戏服务</Typography.Title>
+        <Typography.Title id="game-library-heading" level={1}>Steam 游戏服务器</Typography.Title>
         <Typography.Paragraph>按 Steam 已发布的 Dedicated Server Tool AppID 部署和更新专用服务端；客户端商店 AppID 不一定能用于匿名下载。</Typography.Paragraph>
       </div>
       <div className="steamcmd-workspace__node-picker">
         <label htmlFor="steamcmd-node-select">目标设备</label>
-        <Select id="steamcmd-node-select" aria-label="Steam 游戏服务目标设备" value={nodeId || undefined} options={nodeOptions} onChange={setNodeId} placeholder="选择 Windows x64 节点" disabled={!nodeOptions.length} />
+        <Select id="steamcmd-node-select" aria-label="Steam 游戏服务器目标设备" value={nodeId || undefined} options={nodeOptions} onChange={setNodeId} placeholder="选择 Windows x64 节点" disabled={!nodeOptions.length} />
         <Button onClick={() => setRevision(value => value + 1)} disabled={serverLoading || !nodeId}>刷新状态</Button>
       </div>
     </header>
 
     {error ? <Alert className="steamcmd-workspace__alert" type="error" showIcon message={error} /> : null}
     {notice ? <Alert className="steamcmd-workspace__alert" type="success" showIcon message={notice} /> : null}
-    {user.role === "member" ? <Alert type="warning" showIcon message="Steam 游戏服务的节点与安装管理需要管理员账户。" /> : null}
+    {user.role === "member" ? <Alert type="warning" showIcon message="Steam 游戏服务器的节点与安装管理需要管理员账户。" /> : null}
     {!nodes.length && !error ? <Alert type="info" showIcon message="尚未发现 Windows x64 Daemon 节点。启动或连接一个节点后，可在这里管理 Steam 专用服务端。" /> : null}
-    {selectedNode && !selectedNode.steamcmdInstalled ? <Alert className="steamcmd-workspace__alert" type="warning" showIcon message="此设备尚未验证 SteamCMD" description={<Button type="link" onClick={() => onNavigate(`/games/environments?target=${encodeURIComponent(selectedNode.id)}`)}>前往游戏库运行环境安装或校验 SteamCMD</Button>} /> : null}
-    {task ? <section className="steamcmd-workspace__task" aria-label="SteamCMD 游戏服务任务" role="status">
+    {selectedNode && !selectedNode.steamcmdInstalled ? <Alert className="steamcmd-workspace__alert" type="warning" showIcon message="此设备尚未验证 SteamCMD" description={<Button type="link" onClick={() => onNavigate(`/games/environments?target=${encodeURIComponent(selectedNode.id)}`)}>前往运行环境安装或校验 SteamCMD</Button>} /> : null}
+    {task ? <section className="steamcmd-workspace__task" aria-label="Steam 游戏服务器任务" role="status">
       <div><strong>{task.message}</strong><span>{taskStatusLabel[task.status]}{task.status === "running" ? ` · ${task.progress}%` : ""}</span></div>
       {task.result && typeof task.result === "object" && "forced" in task.result && task.result.forced ? <p>服务器未响应停服指令，Daemon 已结束进程树；游戏存档完整性未确认。</p> : null}
     </section> : null}

@@ -3462,8 +3462,8 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           </Space> : <Alert type="info" showIcon message={localModelsLoading ? "正在读取 LFAA 本机模型库" : "当前没有可识别的模型"} description="这里显示 LFAA 已内置适配器支持的官方原生模型目录。其他格式不会自动执行或改写。" />}
           <Alert type="info" showIcon message="本机推理环境" description="LFAA 会使用随包审阅的模型适配器和受管 Python 进程；当前适配依赖、GPU 与显存要求因模型而异。下载只安装权重，不代表当前电脑满足推理条件；缺少运行依赖时会显示真实错误。" />
         </SettingGroup>
-        <SettingGroup title="AI 漫剧图片生成">
-          <SettingRow title="生图引擎" description="选择已保存的远程图片 Provider，或由 LFAA 本机模型加载器调用已登记的生图模型；切换模式不会清除另一模式的选择。">
+        <SettingGroup title="AI 漫剧与画布图片生成">
+          <SettingRow title="AI 漫剧生图引擎" description="此引擎选择只控制 AI 漫剧。无限画布使用下方远程图片模型，并可由小鱼按本轮目标从账户目录中选择 Agent Plan 生图模型。切换模式会保留两边的模型选择。">
             <Select value={settings.aiRuntime.imageGenerationMode} options={[{ value: "provider", label: "远程 Provider" }, { value: "local", label: "LFAA 本机模型" }]} onChange={value => updateSettings("aiRuntime", { ...settings.aiRuntime, imageGenerationMode: value })} />
           </SettingRow>
           {settings.aiRuntime.imageGenerationMode === "local" ? <>
@@ -3477,15 +3477,14 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
               <InputNumber min={1} max={60} step={1} value={settings.aiRuntime.imageGenerationUnloadAfterMinutes} addonAfter="分钟" onChange={value => value !== null && updateSettings("aiRuntime", { ...settings.aiRuntime, imageGenerationUnloadAfterMinutes: value })} />
             </SettingRow>
             {localImageModels.length ? <Alert type="info" showIcon message="MOSS-Image 首发适配能力" description="当前 MOSS-Image 支持文字/布局生图，输出 1024×1024 PNG；不接受参考图片。首次生成会在本机加载原生 Diffusers 组件。" /> : null}
-          </> : <>
-            <SettingRow title="图片模型账户" description="复用此处加密保存的 OpenAI、豆包按量 API 或 Agent Plan 席位。AI 漫剧与无限画布共用该模型选择。">
+          </> : null}
+            <SettingRow title="默认远程图片模型账户" description="这是 AI 漫剧远程模式与无限画布的默认账户。小鱼也可在画布单次生成时，从下方目录选择 Agent Plan 图片模型；不会改写此默认值。">
               <Select allowClear value={settings.aiRuntime.imageGenerationAccountId || undefined} placeholder="选择图片模型账户" options={imageGenerationAccounts.map(account => ({ value: account.id, label: `${account.displayName} · ${account.providerId}` }))} onChange={value => updateSettings("aiRuntime", { ...settings.aiRuntime, imageGenerationAccountId: value ?? "", imageGenerationModelId: "" })} />
             </SettingRow>
-            <SettingRow title="图像模型 ID" description="从已保存账户的模型目录选择；模型目录存在不代表该型号已开通图像生成，真实请求会返回服务商判定结果。">
+            <SettingRow title="默认远程图像模型" description="从已保存账户目录中选择。Agent Plan 仅列出官方标记为图片生成且符合套餐档位的模型；本轮选择只影响当前画布生成，不更改此默认值。">
               <Select allowClear showSearch optionFilterProp="label" disabled={!selectedImageGenerationAccount} value={settings.aiRuntime.imageGenerationModelId || undefined} placeholder={selectedImageGenerationAccount ? "选择模型目录中的图像模型" : "请先选择图片模型账户"} options={selectedImageGenerationAccount?.models.filter(model => selectedImageGenerationAccount.providerId !== "ark-agent-plan" || model.taskType === "image-generation").filter(model => !model.planTiers?.length || selectedImageGenerationAccount.options.planTier === "unknown" || !selectedImageGenerationAccount.options.planTier || model.planTiers.includes(selectedImageGenerationAccount.options.planTier as NonNullable<AiModel["planTiers"]>[number])).map(model => ({ value: model.id, label: model.id })) ?? []} onChange={value => updateSettings("aiRuntime", { ...settings.aiRuntime, imageGenerationModelId: value ?? "" })} />
             </SettingRow>
-            {!imageGenerationAccounts.length ? <Alert type="info" showIcon message="请先在上方配置并加密保存 OpenAI 或豆包/火山方舟账户。" /> : null}
-          </>}
+            {!imageGenerationAccounts.length ? <Alert type="info" showIcon message="请先在上方配置并加密保存 OpenAI、豆包按量或 Agent Plan 图片账户。" /> : null}
         </SettingGroup>
         <SettingGroup title="AI 漫剧视频生成">
           <SettingRow title="视频引擎" description="选择火山方舟异步服务，或 LFAA 本机模型库中的视频模型。两种模式独立保存选择，不会互相覆盖。">

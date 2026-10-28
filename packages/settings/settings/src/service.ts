@@ -1149,13 +1149,42 @@ function normalizeExtensionModels(value: unknown): AiModelCatalogEntry[] {
     if (!id || id.length > 160) return [];
     const name = typeof raw.name === "string" && raw.name.length <= 160 ? raw.name : id;
     const versionTag = normalizeModelVersionTag(raw.version_tag ?? raw.versionTag ?? raw.version);
-    const contextWindow = positiveInteger(raw.contextWindow);
-    const maxOutputTokens = positiveInteger(raw.maxOutputTokens);
+    const contextWindow = positiveInteger(raw.contextWindow) ?? positiveInteger(raw.context_window);
+    const maxOutputTokens = positiveInteger(raw.maxOutputTokens)
+      ?? positiveInteger(raw.max_output_tokens)
+      ?? positiveInteger(raw.max_completion_tokens);
     const capability = normalizeStoredModelThinking(raw.thinking, raw.thinkingSource, false);
-    return [{ id, name, ...(versionTag ? { versionTag } : {}), ...(contextWindow ? { contextWindow } : {}), ...(maxOutputTokens ? { maxOutputTokens } : {}), ...capability }];
+    const metadata = normalizeProviderModelMetadata(raw);
+    return [{ id, name, ...(versionTag ? { versionTag } : {}), ...(contextWindow ? { contextWindow } : {}), ...(maxOutputTokens ? { maxOutputTokens } : {}), ...metadata, ...capability }];
   });
   if (!models.length) throw new Error("AI Provider 没有返回有效模型目录。");
   return models;
+}
+
+function normalizeProviderModelMetadata(raw: Record<string, unknown>): Pick<AiModelCatalogEntry, "taskType" | "planTiers" | "inputModalities" | "catalogSource" | "catalogNote"> {
+  const taskTypeValue = raw.taskType ?? raw.task_type;
+  const taskType = ["chat", "embedding", "image-generation", "video-generation", "text-to-speech", "speech-to-text"].includes(String(taskTypeValue))
+    ? taskTypeValue as AiModelCatalogEntry["taskType"]
+    : undefined;
+  const planTierValues = raw.planTiers ?? raw.plan_tiers;
+  const planTiers = Array.isArray(planTierValues)
+    ? [...new Set(planTierValues.filter((tier): tier is NonNullable<AiModelCatalogEntry["planTiers"]>[number] => ["small", "medium", "large", "max", "lite", "pro"].includes(String(tier))))]
+    : [];
+  const inputModalityValues = raw.inputModalities ?? raw.input_modalities;
+  const inputModalities = Array.isArray(inputModalityValues)
+    ? [...new Set(inputModalityValues.filter((modality): modality is NonNullable<AiModelCatalogEntry["inputModalities"]>[number] => ["text", "image", "audio", "video"].includes(String(modality))))]
+    : [];
+  const catalogSourceValue = raw.catalogSource ?? raw.catalog_source;
+  const catalogNoteValue = raw.catalogNote ?? raw.catalog_note;
+  const catalogSource = typeof catalogSourceValue === "string" && catalogSourceValue.length <= 512 ? catalogSourceValue : undefined;
+  const catalogNote = typeof catalogNoteValue === "string" && catalogNoteValue.length <= 240 ? catalogNoteValue : undefined;
+  return {
+    ...(taskType ? { taskType } : {}),
+    ...(planTiers.length ? { planTiers } : {}),
+    ...(inputModalities.length ? { inputModalities } : {}),
+    ...(catalogSource ? { catalogSource } : {}),
+    ...(catalogNote ? { catalogNote } : {})
+  };
 }
 
 function normalizeArkPlanOptions(providerId: string, options: Record<string, string>): Record<string, string> {
@@ -1179,12 +1208,14 @@ function normalizeProviderModels(list: unknown[]): AiModelCatalogEntry[] {
       ?? positiveInteger(raw.maxOutputTokens)
       ?? positiveInteger(raw.max_completion_tokens);
     const thinking = normalizeProviderModelThinking(raw);
+    const metadata = normalizeProviderModelMetadata(raw);
     return [{
       id,
       name,
       ...(versionTag ? { versionTag } : {}),
       ...(contextWindow ? { contextWindow } : {}),
       ...(maxOutputTokens ? { maxOutputTokens } : {}),
+      ...metadata,
       thinking,
       thinkingSource: thinking ? PROVIDER_MODEL_CAPABILITY_SOURCE : null
     }];
@@ -1975,9 +2006,7 @@ export async function updateAiAccountCredential(userId: string, accountId: strin
   return mapAccount(updated);
 }
 
-export async function updateAiAccountModel(userId: string, accountId: string, modelId: string): Promise<AiAccountView> {
-  const row = accountRowsForUser(userId).find(candidate => candidate.id === accountId);
-  if (!row) throw new Error("找不到此账户可更新的模型配置。");
+async function prepareAiAccountModelSelection(row: AiAccountRow, modelId: string): Promise<Pick<AiAccountRow, "model_id" | "models_json" | "reasoning_mode">> {
   const options = JSON.parse(row.options_json) as Record<string, string>;
   const secret = decryptSecret(row);
   const catalog = await probeAiProvider({ providerId: row.provider_id, options, secret, ...(isArkPlanProviderId(row.provider_id) ? { modelId } : {}) });
@@ -1992,8 +2021,15 @@ export async function updateAiAccountModel(userId: string, accountId: string, mo
     ? previousReasoningMode
     : defaultReasoningMode(selectedModel.thinking);
   await requestAiProviderModel({ providerId: row.provider_id, options, secret, modelId, reasoningMode }, selectedModel);
-  configuration.update("ai_accounts", candidate => candidate.user_id === row.user_id && candidate.id === accountId, { model_id: modelId, models_json: JSON.stringify(catalog.models), reasoning_mode: reasoningMode });
-  return mapAccount({ ...row, model_id: modelId, models_json: JSON.stringify(catalog.models), reasoning_mode: reasoningMode });
+  return { model_id: modelId, models_json: JSON.stringify(catalog.models), reasoning_mode: reasoningMode };
+}
+
+export async function updateAiAccountModel(userId: string, accountId: string, modelId: string): Promise<AiAccountView> {
+  const row = accountRowsForUser(userId).find(candidate => candidate.id === accountId);
+  if (!row) throw new Error("找不到此账户可更新的模型配置。");
+  const modelSelection = await prepareAiAccountModelSelection(row, modelId);
+  configuration.update("ai_accounts", candidate => candidate.user_id === row.user_id && candidate.id === accountId, modelSelection);
+  return mapAccount({ ...row, ...modelSelection });
 }
 
 function isReasoningModeValid(control: AiModelThinkingControl | null, mode: string): boolean {
@@ -2013,21 +2049,39 @@ export function updateAiAccountReasoningMode(userId: string, accountId: string, 
   return mapAccount({ ...row, reasoning_mode: reasoningMode });
 }
 
-export function activateAiAccount(userId: string, accountId: string): AiAccountView {
-  const target = accountRowsForUser(userId).find(row => row.id === accountId);
-  if (!target) throw new Error("找不到此账户可激活的模型配置。");
+function persistActivatedAiAccount(userId: string, target: AiAccountRow, updates: Partial<AiAccountRow> = {}): AiAccountView {
   configuration.begin();
   try {
-    configuration.update("ai_accounts", row => row.user_id === target.user_id, { is_active: 0 });
-    configuration.update("ai_accounts", row => row.user_id === target.user_id && row.id === accountId, { is_active: 1 });
+    if (target.user_id === null) {
+      configuration.update("ai_accounts", row => row.user_id === null, { is_active: 0 });
+      // 个人席位覆盖系统默认；明确选择系统账户时，清除当前用户的覆盖以使选择立即生效。
+      configuration.update("ai_accounts", row => row.user_id === userId, { is_active: 0 });
+    } else {
+      configuration.update("ai_accounts", row => row.user_id === target.user_id, { is_active: 0 });
+    }
+    configuration.update("ai_accounts", row => row.user_id === target.user_id && row.id === target.id, { ...updates, is_active: 1 });
     configuration.commit();
   } catch (error) {
     configuration.rollback();
     throw error;
   }
-  const row = accountRowsForUser(userId).find((item) => item.id === accountId);
+  const row = accountRowsForUser(userId).find((item) => item.id === target.id);
   if (!row) throw new Error("无法读取已激活的模型配置。");
   return mapAccount(row);
+}
+
+export function activateAiAccount(userId: string, accountId: string): AiAccountView {
+  const target = accountRowsForUser(userId).find(row => row.id === accountId);
+  if (!target) throw new Error("找不到此账户可激活的模型配置。");
+  return persistActivatedAiAccount(userId, target);
+}
+
+/** 在验证目录模型后，于同一账户事务中保存模型和活动账户，避免 UI 出现半切换状态。 */
+export async function selectAiAccountModel(userId: string, accountId: string, modelId: string): Promise<AiAccountView> {
+  const target = accountRowsForUser(userId).find(row => row.id === accountId);
+  if (!target) throw new Error("找不到此账户可选择的模型配置。");
+  const updates = target.model_id === modelId ? {} : await prepareAiAccountModelSelection(target, modelId);
+  return persistActivatedAiAccount(userId, target, updates);
 }
 
 export function deleteAiAccount(userId: string, accountId: string): void {

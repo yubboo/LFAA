@@ -1,6 +1,6 @@
 # 共享纯数据合同
 
-`application-id.ts` 是完整 App ID 与显示名称权威，同时明确 Workspace/Minecraft 项目 Owner 子集、可供 AI Work 项目选择的业务 App 领域上下文集合与 App 路由模式。项目 Owner 的 `appId` 与用户选择的 `applicationIds` 是不同合同；关联只向 Agent 提供项目领域提示，不自动开放工具、执行或授权。
+`application-id.ts` 是完整 App ID 与显示名称权威，同时明确 Workspace/Minecraft 项目 Owner 子集、可供 AI Work 项目选择的业务 App 领域上下文集合与 App 路由模式。全局 `/work` 不要求选择 App；`/apps/<app>/ai-work` 保留领域聊天作用域，画布与手动面板继续使用同一 App ID。项目 Owner 的 `appId` 与用户选择的 `applicationIds` 是不同合同；关联只向 Agent 提供项目领域提示，不自动开放工具、执行或授权。
 
 `canvas-node-types.ts` 是各 App 自由画布节点白名单；Canvas UI 的工具轨/新增菜单与 `canvas_*` Agent 工具读取同一映射。Minecraft、写作、AI 漫剧和通用工作区各自只暴露已登记的节点类型；通用 Canvas 的节点连线仍不代表可执行工作流。
 
@@ -34,7 +34,7 @@
 
 `PluginSettings.disabledSkillNames` 是账户级逐 Skill 停用列表，唯一默认值为 `[]`。持久化、严格校验、读取和运行时执行由 Settings/Skill Owners 负责；本包不创建 UI 状态或第二份设置存储。
 
-`GeneralSettings.hiddenApplicationNavigationIds` 保存被用户从全局“应用”菜单隐藏的内置导航 ID，唯一默认值为 `[]`。此偏好仅控制菜单可见项，不授予或撤销应用权限、不卸载应用；ID 白名单与 Workbench 应用导航清单保持一致。
+`GeneralSettings.hiddenApplicationNavigationIds` 保存被用户从全局“应用”菜单隐藏的内置工作台导航 ID，唯一默认值为 `[]`。此偏好仅控制菜单可见项，不授予或撤销应用权限、不卸载应用；导航 ID 可指向领域聚合入口或系统共享能力，不等同于 `ApplicationId`，白名单与 Workbench 导航清单保持一致。
 
 2026-10-23：`browser-provider.ts` 统一登记 `BUILTIN_BROWSER_WORKSPACE_ID`，供 Web/Desktop Client 与 Browser Run Adapter 绑定同一个账户内置浏览器工作区，避免 AI 会话切换导致页面分裂；`isBuiltinBrowserProvider` 统一识别可镜像到 LFAA Dock 的内置 Provider，个人 Tabbit 页面不镜像。
 

@@ -917,6 +917,7 @@
           "packages/client/resources",
           "packages/client/ui-chat",
           "packages/client/ui-connectivity",
+          "packages/client/ui-deliverables",
           "packages/client/ui-layout",
           "packages/client/ui-minecraft",
           "packages/client/ui-plugin-manager",
@@ -996,6 +997,7 @@
         "consumers": [
           "packages/client/ui-chat",
           "packages/client/ui-connectivity",
+          "packages/client/ui-deliverables",
           "packages/client/ui-dockkit",
           "packages/client/ui-layout",
           "packages/client/ui-minecraft",
@@ -1222,17 +1224,20 @@
     },
     {
       "path": "packages/client/ui-deliverables",
-      "name": null,
+      "name": "lfaa-client-ui-deliverables",
       "upstreamName": "@deepseek-ai/dsh-client-ui-deliverables",
       "upstream": true,
-      "status": "placeholder",
+      "status": "implemented",
       "responsibility": "真实交付物与产物展示界面",
       "evidence": {
-        "entry": null,
-        "readme": null,
-        "consumers": [],
+        "entry": "packages/client/ui-deliverables/src/index.ts",
+        "readme": "packages/client/ui-deliverables/README.md",
+        "consumers": [
+          "packages/client/ui-workspace",
+          "packages/client/web"
+        ],
         "bundleDeclarations": [],
-        "boundary": "目标职责；占位不可执行"
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
       }
     },
     {
@@ -1472,6 +1477,7 @@
         "readme": "packages/client/ui-primitives/README.md",
         "consumers": [
           "packages/client/ui-chat",
+          "packages/client/ui-deliverables",
           "packages/client/ui-layout",
           "packages/client/ui-plugin-manager",
           "packages/client/ui-renderer",
@@ -2427,6 +2433,7 @@
           "packages/canvas/tool-canvas",
           "packages/computer-use/computer-use",
           "packages/core/agent-loop",
+          "packages/deliverables/tool-present",
           "packages/document/tool-writing",
           "packages/fs/tool-fs",
           "packages/fs/tool-fs-search",
@@ -2591,32 +2598,37 @@
     },
     {
       "path": "packages/deliverables/tool-present",
-      "name": null,
+      "name": "lfaa-deliverables-tool-present",
       "upstreamName": "@deepseek-ai/dsh-tool-present",
       "upstream": true,
-      "status": "placeholder",
-      "responsibility": "交付物呈现工具协议",
+      "status": "implemented",
+      "responsibility": "Agent 明确发布最终交付文件的工具合同",
       "evidence": {
-        "entry": null,
-        "readme": null,
+        "entry": "packages/deliverables/tool-present/src/index.ts",
+        "readme": "packages/deliverables/tool-present/README.md",
         "consumers": [],
-        "bundleDeclarations": [],
-        "boundary": "目标职责；占位不可执行"
+        "bundleDeclarations": [
+          "packages/bundle/base/cordis.patch.yml"
+        ],
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
       }
     },
     {
       "path": "packages/deliverables/workspace-changes",
-      "name": null,
+      "name": "lfaa-deliverables-workspace-changes",
       "upstreamName": "@deepseek-ai/dsh-workspace-changes",
       "upstream": true,
-      "status": "placeholder",
-      "responsibility": "工作区真实修改及产物引用收集",
+      "status": "implemented",
+      "responsibility": "账户隔离的 Agent 产物登记与项目引用收集，不复制文件字节",
       "evidence": {
-        "entry": null,
-        "readme": null,
-        "consumers": [],
+        "entry": "packages/deliverables/workspace-changes/src/index.ts",
+        "readme": "packages/deliverables/workspace-changes/README.md",
+        "consumers": [
+          "packages/api/agent-git-controller",
+          "packages/deliverables/tool-present"
+        ],
         "bundleDeclarations": [],
-        "boundary": "目标职责；占位不可执行"
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
       }
     },
     {
@@ -5697,6 +5709,7 @@
           "packages/api/gateway",
           "packages/browser-use/browser-use",
           "packages/core/conversation-memory",
+          "packages/deliverables/workspace-changes",
           "packages/document/writing",
           "packages/fs/fs",
           "packages/games/minecraft",

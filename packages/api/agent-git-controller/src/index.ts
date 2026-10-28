@@ -14,7 +14,7 @@ import { authorizeExplicitUserAction } from "lfaa-permission-presets/src/permiss
 import { executeGitWorkspace, readGitRemoteUrl, resolveGitProjectDirectory, resolveGitWorkspaceDirectory } from "lfaa-host-git";
 import { isLocalDaemonIdentity, isRemoteDaemonIdentity } from "lfaa-host-daemon/src/node-credentials.js";
 import { executeProjectFile, openProjectArtifact } from "lfaa-host-project-files/src/project-files.mjs";
-import { getAiSession, getAiSessionMessages, getAiSessionWorkspaceContext } from "lfaa-session/src/sessions.js";
+import { getAiSession, getAiSessionMessages, getAiSessionTitle, getAiSessionWorkspaceContext } from "lfaa-session/src/sessions.js";
 import { getUserSettings } from "lfaa-settings/src/service.js";
 import { asyncHandler, parseBody } from "lfaa-api-remotes/src/route-contracts.js";
 import { bindAgentGitSessionRepository, getAgentGitRepository, getAgentGitSessionRepository, listAgentGitRepositories, registerAgentGitRepository, removeAgentGitRepository } from "lfaa-workspace-agent-git";
@@ -227,7 +227,11 @@ export function registerRoutes(router: Router, context: Context, consumer: Crede
   router.get("/agent/git/repositories/:repositoryId/deliverables", requireAuthentication, (request, response) => {
     const userId = request.auth!.user.id;
     const repository = requireRepository(userId, request.params.repositoryId);
-    response.json({ deliverables: listAgentDeliverables(userId, repository.id) });
+    const deliverables = listAgentDeliverables(userId, repository.id).map(item => ({
+      ...item,
+      sessionTitle: getAiSessionTitle(userId, item.sessionId) ?? "历史会话"
+    }));
+    response.json({ deliverables });
   });
 
   router.get("/agent/git/deliverables/:deliverableId/download", requireAuthentication, asyncHandler(async (request, response) => {

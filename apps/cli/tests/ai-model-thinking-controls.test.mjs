@@ -43,6 +43,45 @@ test("设置中心和 AI Work 共用目录选项且 Provider 默认不伪装成�
   assert.deepEqual(modelOptions.reasoningOptions({ ...model, thinkingSource: null }), []);
 });
 
+test("AI Work 汇总全部已配置账户的目录并只呈现目录已声明的能力", () => {
+  const account = (id, scope, active, modelId, models, planTier = "") => ({
+    id, scope, active, modelId, models, providerId: id, displayName: id, options: { planTier }, reasoningMode: "default"
+  });
+  const catalog = modelOptions.aiModelPickerCatalog([
+    account("system-deepseek", "system", true, "shared-model", [
+      { id: "shared-model", name: "系统当前模型", thinking: null, thinkingSource: null },
+      { id: "system-alt", name: "系统备选", thinking: null, thinkingSource: null },
+      { id: "embedding", name: "非聊天模型", taskType: "embedding", thinking: null, thinkingSource: null }
+    ]),
+    account("user-plan", "user", true, "shared-model", [
+      { id: "shared-model", name: "个人当前模型", planTiers: ["pro"], thinking: null, thinkingSource: null },
+      { id: "unavailable", name: "不属于当前套餐", planTiers: ["lite"], thinking: null, thinkingSource: null }
+    ], "pro")
+  ]);
+  assert.deepEqual(catalog.map(({ account: item, model }) => `${item.id}:${model.name}`), [
+    "user-plan:个人当前模型",
+    "system-deepseek:系统当前模型",
+    "system-deepseek:系统备选"
+  ], "个人账户按 Settings Owner 的优先级展示；账户不同的同 ID 模型不可合并；非聊天和不支持的套餐模型不进入 Agent 选择器");
+
+  const official = {
+    id: "official-model",
+    name: "官方模型",
+    contextWindow: 128_000,
+    maxOutputTokens: 8_192,
+    taskType: "chat",
+    inputModalities: ["text", "image"],
+    thinking: { kind: "effort", parameter: "reasoning_effort", values: ["low", "high"], defaultValue: "high" },
+    thinkingSource: "provider-model-catalog",
+    catalogSource: "https://provider.example/models"
+  };
+  assert.equal(modelOptions.modelCatalogCapabilitySummary(official), "上下文 128,000 tokens · 官方单次输出上限 8,192 tokens · 模型用途 chat · 输入模态 text、image · 思考参数 reasoning_effort: low / high · 官方默认 high · 目录来源 https://provider.example/models");
+  const missing = modelOptions.modelCatalogCapabilitySummary({ id: "plain", name: "plain", thinking: null, thinkingSource: null });
+  assert.match(missing, /官方模型目录未提供上下文与输出上限元数据/u);
+  assert.match(missing, /思考参数目录未提供可验证能力/u);
+  assert.doesNotMatch(missing, /tokens/u, "目录缺失的容量不能按名称猜测或填入默认值");
+});
+
 test("旧目录兼容仅限原 DeepSeek 官方档位且会拒绝 none、off 和 disabled", () => {
   const legacy = capabilities.normalizeStoredModelThinking(
     { kind: "effort", parameter: "reasoning_effort", values: ["low", "high", "none"], defaultValue: "high" },
@@ -125,6 +164,60 @@ test("账户保存、切换模型与 Agent Runtime 使用同一目录能力", ()
       process.stdout.write('模型思考参数账户与 Runtime 回归通过');
     `], { cwd: cli, env: { ...process.env, NODE_ENV: "test", LFAA_DATA_DIR: data, JWT_SECRET: "" }, encoding: "utf8", stdio: "pipe", timeout: 20000 });
     assert.match(output, /模型思考参数账户与 Runtime 回归通过/u);
+  } finally {
+    assert.equal(dirname(resolve(data)), parent);
+    rmSync(data, { recursive: true, force: true });
+  }
+});
+
+test("跨 Provider 选择目录模型时原子保存官方元数据与有效活动账户", () => {
+  const parent = resolve(tmpdir());
+  const data = mkdtempSync(join(parent, "lfaa-model-picker-selection-"));
+  try {
+    execFileSync(process.execPath, ["--import", "tsx", "--import", "./register-package-loader.mjs", "--input-type=module", "-e", `
+      import assert from 'node:assert/strict';
+      const { database, closeDatabase } = await import('lfaa-storage-sqlite/src/database.js');
+      database.prepare("INSERT INTO users(id,uid,username,password_salt,password_hash,role,is_super_admin) VALUES ('picker-owner',1,'picker-owner','test-salt','test-hash','admin',1)").run();
+      const settings = await import('lfaa-settings/src/service.js');
+      const { configuration } = await import('lfaa-storage-domain/src/configuration.js');
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = async (url, options = {}) => {
+        const target = String(url);
+        if (target === 'https://api.deepseek.com/models') return Response.json({ data: [{ id: 'deep-model', name: 'Deep Model' }] });
+        if (target === 'https://api.openai.com/v1/models') return Response.json({ data: [
+          { id: 'open-current', name: 'Open Current', task_type: 'chat', input_modalities: ['text'] },
+          { id: 'open-next', name: 'Open Next', context_window: 131072, max_completion_tokens: 8192, task_type: 'chat', input_modalities: ['text', 'image'], effort: { supported_levels: ['low', 'high'], default_level: 'high' } }
+        ] });
+        if (target === 'https://api-docs.deepseek.com/zh-cn/updates/') return new Response('<html></html>');
+        if (target === 'https://api.deepseek.com/chat/completions' || target === 'https://api.openai.com/v1/chat/completions') {
+          return Response.json({ choices: [{ message: { content: 'fixture response' } }] });
+        }
+        throw new Error('Unexpected Provider request: ' + target);
+      };
+      try {
+        const deep = await settings.saveAiAccount('picker-owner', { providerId: 'deepseek', secret: 'fixture-key', options: {}, displayName: 'DeepSeek 主账户', modelId: 'deep-model', reasoningMode: 'default' });
+        settings.activateAiAccount('picker-owner', deep.id);
+        const open = await settings.saveAiAccount('picker-owner', { providerId: 'openai', secret: 'fixture-key', options: {}, displayName: 'OpenAI 账户', modelId: 'open-current', reasoningMode: 'default' });
+        assert.deepEqual(settings.listAiAccounts('picker-owner').map(account => account.id).sort(), [deep.id, open.id].sort(), 'Settings Owner 返回全部已配置 Provider 账户');
+        assert.equal(open.models.find(model => model.id === 'open-next').contextWindow, 131072, '官方上下文容量必须完整写入账户目录');
+        assert.deepEqual(open.models.find(model => model.id === 'open-next').inputModalities, ['text', 'image'], '官方输入模态必须完整写入账户目录');
+        const selected = await settings.selectAiAccountModel('picker-owner', open.id, 'open-next');
+        assert.equal(selected.modelId, 'open-next');
+        assert.equal(selected.active, true);
+        assert.equal(selected.models.find(model => model.id === 'open-next').maxOutputTokens, 8192);
+        assert.deepEqual(settings.listAiAccounts('picker-owner').filter(account => account.active).map(account => account.id), [open.id], '系统 Provider 切换必须清除当前用户的个人账户覆盖');
+        const effective = settings.resolveActiveAiModelDetails('picker-owner');
+        assert.equal(effective.providerId, 'openai');
+        assert.equal(effective.modelId, 'open-next');
+        assert.equal(effective.contextWindow, 131072);
+        assert.equal(effective.maxOutputTokens, 8192);
+        assert.deepEqual(effective.thinking, { kind: 'effort', parameter: 'reasoning_effort', values: ['low', 'high'], defaultValue: 'high' });
+      } finally {
+        globalThis.fetch = originalFetch;
+        configuration.close();
+        closeDatabase();
+      }
+    `], { cwd: cli, env: { ...process.env, NODE_ENV: "test", LFAA_HOME: data, LFAA_DATA_DIR: data, JWT_SECRET: "", LFAA_HARNESS_HOME: "" }, encoding: "utf8", stdio: "pipe", timeout: 30_000 });
   } finally {
     assert.equal(dirname(resolve(data)), parent);
     rmSync(data, { recursive: true, force: true });

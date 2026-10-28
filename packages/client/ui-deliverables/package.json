@@ -6,10 +6,13 @@
   "exports": {
     "./src/*": "./src/*",
     "./package.json": "./package.json",
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./client": "./src/client/index.ts"
   },
   "dependencies": {
+    "@deepseek-ai/cordis": "4.0.4",
     "lfaa-client-connection": "workspace:*",
+    "lfaa-client-modules": "workspace:*",
     "lfaa-client-ui-primitives": "workspace:*",
     "react": "^18.0.0"
   },
@@ -19,5 +22,15 @@
   },
   "scripts": {
     "build": "node ../../../scripts/build-harness.mjs package"
+  },
+  "lfaa": {
+    "client": {
+      "platform": "web",
+      "inject": [
+        "lfaa-client-connection",
+        "lfaa-client-modules",
+        "lfaa-client-ui-primitives"
+      ]
+    }
   }
 }

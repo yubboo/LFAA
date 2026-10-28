@@ -1,8 +1,10 @@
 # 设置 Owner 与统一数据根
 
+`preferences/service.ts` 是账户 App/工作模式和首次入口引导标记的唯一 Owner。`guidedEntryCompleted` 默认 `false`，完成后与 `selectedApp/selectedMode` 一起写入现有 `user_preferences` 配置记录；它不是设置中心可切换项，不影响业务数据或权限。
+
 账户外观中的 `appearance.advanced.writingLightRaysEnabled` 由本包设置合同校验并按账户持久化；缺少该字段的旧账户仅补共享默认开启值。设置中心与普通写作工具栏读取同一偏好，Settings Owner 不复制写作背景逻辑。
 
-AI 漫剧和无限画布共用 `aiRuntime.imageGenerationMode/imageGenerationAccountId/imageGenerationModelId` 与 `videoGenerationMode/videoGenerationAccountId/videoGenerationModelId`。Agent Plan 模型目录带官方 `taskType`、支持档位与来源：设置只把图像/视频能力模型放进对应选择器，主模型路由只暴露文本模型。图片/视频账户复用设置中心加密密钥和当前用户所有权；本机模型 ID、时限和空闲释放仍读取现有 `aiRuntime` 字段，切换引擎不会清除另一模式选择。
+AI 漫剧与画布共用图片账户/模型默认值 `aiRuntime.imageGenerationAccountId/imageGenerationModelId`；`imageGenerationMode` 只控制 AI 漫剧本机/远程引擎，画布使用远程 Provider，可由 Agent 按单次目标选择当前用户账户中的 Agent Plan 图像模型，且不写回默认偏好。视频继续使用 `videoGenerationMode/videoGenerationAccountId/videoGenerationModelId`。Agent Plan 模型目录带官方 `taskType`、支持档位与来源：设置只把图像/视频能力模型放进对应选择器，主模型路由只暴露文本模型。图片/视频账户复用设置中心加密密钥和当前用户所有权；设置中心凭据来源仅向登记的消费者提供账户密钥解析，画布生成 Owner `lfaa-canvas-generation` 已登记为该来源消费者。本机模型 ID、时限和空闲释放仍读取现有 `aiRuntime` 字段，切换漫剧引擎不会清除远程选择。
 
 `registerAiProvider` 是 Provider 设置目录的 Cordis 扩展合同：插件可提供受校验的 Provider 选项、模型发现与真实模型测试处理器，列表 API 返回防篡改副本，注销会移除该插件的目录定义。静态账户凭据仍由本包及 Credentials Owner 管理；Provider 连接 URL 必须使用 HTTPS 且不得内嵌身份信息。该扩展接口不改变当前外部插件 Runtime 的隔离边界。
 
@@ -13,6 +15,8 @@ Agent Shell 的文件访问范围由 `aiRuntime.executionSandboxMode` 设置，�
 首次读取旧模型配置时，仅在尚无任何 system-scope 配置的情况下，将超级管理员的旧非套餐 Provider 模型记录按原 ID、活动状态、选项和密文原样迁入 system scope；Agent/Coding Plan 记录不参与迁移，其他成员的旧个人记录保留且不进入系统模型列表。此读取迁移不会解密或重写密钥。
 
 已保存系统模型的“更新目录”只重新读取并保存 Provider 官方模型目录，不发起模型推理，也不更改已选模型 ID 或 `reasoning_mode`；若当前型号已从新目录移除，保留原选择并提示管理员。“重测模型”只对当前已选型号发起真实请求，可能产生 Provider 用量。DeepSeek 官方错误码 402 映射为余额不足提示，422 才提示检查模型/参数；目录读取成功始终不代表真实推理请求通过。系统模型替换密钥和管理操作仍要求管理员权限；个人 Plan 配置由席位所有者管理。Plan 主模型必须是文本生成能力；图像、视频、语音、向量模型不进入 Agent Loop 文本路由。`aiRuntime` 的运行参数与图片/视频模型选择仍按登录账户保存。
+
+AI Work 模型选择从 `/settings/ai/accounts` 的全部可见账户目录产生；上下文、输出上限、任务/输入模态、版本与思考参数只使用目录内已明确提供并经过校验的字段。`selectAiAccountModel()` 验证 Provider 当前目录及目标模型后，事务性保存模型 ID、完整模型目录、该模型兼容的思考模式和活动账户；切到系统账户会清除当前用户的 Plan 覆盖，未选中的系统回退账户仍按全局规则处理。
 
 Provider 与插件秘密凭据使用 LFAA Home `credentials/settings.key` 执行 AES-GCM 加密。读取时若密钥文件缺失，Settings 不得自动生成替代密钥，以免让已有密文永久无法解密；用户明确录入新 Provider 凭据时才可创建密钥。已有密文校验失败时显示重新录入指引，保留旧账户记录，不声称能从密文恢复原密钥。
 
@@ -26,7 +30,7 @@ Provider 与插件秘密凭据使用 LFAA Home `credentials/settings.key` 执行
 
 账户 `plugins.disabledSkillNames` 保存设置中心逐 Skill 停用名单，默认空列表，最多 200 个唯一 kebab-case 名称。读取历史设置缺少此字段时使用空列表；旧客户端提交缺字段时，`saveUserSettings()` 合并当前值以保留既有停用选择。此名单只控制模型 Skill 发现、按需加载和工作区 Skill 引用，不修改 Skill 文件、来源或权限模式。
 
-`general.hiddenApplicationNavigationIds` 是用户可隐藏的内置应用菜单项白名单，默认 `[]`；读写时按共享 App ID 列表严格校验并去重。旧账户缺字段时读取默认空列表；旧客户端遗漏字段更新其他 General 偏好时保留服务端当前值。该设置仅控制导航显示，不代表应用权限、安装或运行状态。
+`general.hiddenApplicationNavigationIds` 是用户可隐藏的内置工作台导航项白名单，默认 `[]`；读写时按共享导航 ID 列表严格校验并去重，导航项可包含领域聚合入口和系统共享能力，不等同于 App ID。旧账户缺字段时读取默认空列表；旧客户端遗漏字段更新其他 General 偏好时保留服务端当前值。该设置仅控制导航显示，不代表应用权限、安装或运行状态。
 
 旧 project_storage_locations 中的作品与环境位置仅作为已有文件回读候选，不删除原记录/文件。Writing、AI Video 和 Runtime Executor 继续核验账户、项目和真实路径；新内容写入当前已选择的业务内容根。原分类设置写入接口由 API Owner 明确退役，不另造迁移器或权限策略。
 

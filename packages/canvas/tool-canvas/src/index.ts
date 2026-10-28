@@ -264,6 +264,9 @@ const listAssetsSchema = strictObject({
   offset: toolOffsetProperty,
   limit: toolLimitProperty
 }, ["applicationId", "projectId"]);
+const listImageModelsSchema = strictObject({
+  applicationId: toolApplicationIdProperty
+}, ["applicationId"]);
 const generateImageSchema = strictObject({
   applicationId: toolApplicationIdProperty,
   projectId: toolProjectIdProperty,
@@ -271,7 +274,13 @@ const generateImageSchema = strictObject({
   nodeId: toolNodeIdProperty,
   prompt: { type: "string", minLength: 1, maxLength: CANVAS_LIMITS.textCharacters },
   aspectRatio: { type: "string", enum: ["1:1", "4:3", "3:4", "16:9", "9:16", "2:1"] },
-  referenceAssetIds: { type: "array", maxItems: CANVAS_LIMITS.assets, items: { type: "string", format: "uuid" } }
+  referenceAssetIds: { type: "array", maxItems: CANVAS_LIMITS.assets, items: { type: "string", format: "uuid" } },
+  modelTarget: {
+    type: "object",
+    properties: { accountId: { type: "string", minLength: 1, maxLength: 160 }, modelId: { type: "string", minLength: 1, maxLength: 160 } },
+    required: ["accountId", "modelId"],
+    additionalProperties: false
+  }
 }, ["applicationId", "projectId", "expectedUpdatedAt", "prompt"]);
 
 /**
@@ -878,6 +887,36 @@ function listAssetsTool(service: CanvasService): AiBusinessTool {
   });
 }
 
+function listImageModelsTool(readGeneration: CanvasGenerationReader): AiBusinessTool {
+  return makeTool({
+    id: "canvas.generation.image-models",
+    name: "canvas_list_image_models",
+    coreManaged: true,
+    applicationIds: [...APPLICATION_IDS],
+    activityTitle: "读取可用图片模型",
+    description: "读取当前账户画布可用的图片模型：包含设置中心已选默认图片模型，以及 Agent Plan 官方目录中 taskType=image-generation 且符合所选套餐档位的模型。只返回账户/模型标识和公开目录元数据，不返回密钥，也不修改设置。用户指定模型/套餐，或尚无默认图片模型时先调用本工具；随后可在 canvas_generate_image 的 modelTarget 中选择这里返回的账户和模型。画布使用远程 Provider，漫剧本机引擎设置不会拦截画布请求。",
+    schema: listImageModelsSchema,
+    parse: value => parseWithSchema(Joi.object({ applicationId: applicationIdSchema }).unknown(false), value),
+    risk: () => "read",
+    execute: async (parameters, context) => {
+      context.signal.throwIfAborted();
+      const applicationId = parameters.applicationId as ApplicationId;
+      assertCurrentApplication(context, applicationId);
+      const generation = requireGenerationService(readGeneration);
+      if (typeof generation.listImageModels !== "function") throw new Error("当前画布生成 Owner 未提供图片模型目录；没有读取或修改设置。");
+      const options = generation.listImageModels(context.userId);
+      return {
+        applicationId,
+        defaultModel: options.find(option => option.isDefault) ?? null,
+        models: options,
+        nextStep: options.length
+          ? "只从 models 返回的账户/模型中选择；使用 modelTarget 调用 canvas_generate_image 可仅对本次请求生效，不会更改默认设置。"
+          : "当前账户没有已选默认图片模型或可用的 Agent Plan 图像模型；请在设置中心 AI 与模型中保存图片账户和选择模型。"
+      };
+    }
+  });
+}
+
 function generateImageTool(service: CanvasService, readGeneration: CanvasGenerationReader): AiBusinessTool {
   return makeTool({
     id: "canvas.generation.image",
@@ -885,7 +924,7 @@ function generateImageTool(service: CanvasService, readGeneration: CanvasGenerat
     coreManaged: true,
     applicationIds: [...APPLICATION_IDS],
     activityTitle: "生成画布图片",
-    description: "调用画布生成 Owner，用设置中心当前选择的图片模型为画布项目生成一张真实图片，并把结果登记为项目素材并返回真实 assetId；2:1 只表示全景比例图像，不是真全景渲染。该操作可能产生服务商费用。生成 Owner 未装配、模型账户/密钥未配置或生成失败时会返回真实原因，不会伪造成功。必须携带最近读取的 expectedUpdatedAt。",
+    description: "调用画布生成 Owner 为画布项目生成一张真实图片，并把结果登记为项目素材、返回真实 assetId；通常使用设置中心默认图片模型。若用户指定模型，或没有默认图片模型，先调用 canvas_list_image_models，再将返回的账户与模型以 modelTarget 指定，本次选择不更改用户默认设置。Agent Plan 只接受官方目录中的 image-generation 模型和适用套餐档位。画布使用远程 Provider，AI 漫剧的本机引擎选择不会拦截它。2:1 只表示全景比例图像，不是真全景渲染。该操作可能产生服务商费用，必须服从 Permission Owner。账户/模型/密钥缺失或生成失败时返回真实原因，不伪造成功；必须携带最近读取的 expectedUpdatedAt。",
     schema: generateImageSchema,
     parse: value => parseWithSchema(Joi.object({
       applicationId: applicationIdSchema,
@@ -896,7 +935,11 @@ function generateImageTool(service: CanvasService, readGeneration: CanvasGenerat
       aspectRatio: Joi.string().valid("1:1", "4:3", "3:4", "16:9", "9:16", "2:1").optional().messages({
         "any.only": "aspectRatio 只支持 1:1、4:3、3:4、16:9、9:16 或 2:1。"
       }),
-      referenceAssetIds: Joi.array().max(CANVAS_LIMITS.assets).items(assetIdSchema).optional()
+      referenceAssetIds: Joi.array().max(CANVAS_LIMITS.assets).items(assetIdSchema).optional(),
+      modelTarget: Joi.object({
+        accountId: Joi.string().trim().min(1).max(160).required(),
+        modelId: Joi.string().trim().min(1).max(160).required()
+      }).unknown(false).optional()
     }).unknown(false), value),
     risk: () => "dangerous",
     approval: parameters => ({
@@ -925,9 +968,10 @@ function generateImageTool(service: CanvasService, readGeneration: CanvasGenerat
         signal: context.signal,
         ...(parameters.nodeId === undefined ? {} : { nodeId: String(parameters.nodeId) }),
         ...(parameters.aspectRatio === undefined ? {} : { aspectRatio: parameters.aspectRatio as NonNullable<CanvasGenerateImageInput["aspectRatio"]> }),
-        ...(parameters.referenceAssetIds === undefined ? {} : { referenceAssetIds: parameters.referenceAssetIds as string[] })
+        ...(parameters.referenceAssetIds === undefined ? {} : { referenceAssetIds: parameters.referenceAssetIds as string[] }),
+        ...(parameters.modelTarget === undefined ? {} : { modelTarget: parameters.modelTarget as NonNullable<CanvasGenerateImageInput["modelTarget"]> })
       };
-      context.onProgress("正在使用设置中心选中的图片模型生成画布图片");
+      context.onProgress(parameters.modelTarget === undefined ? "正在使用设置中心默认图片模型生成画布图片" : "正在使用模型目录中选定的图片模型生成画布图片");
       const result = await generation.generateImage(context.userId, applicationId, project.id, input);
       context.signal.throwIfAborted();
       if (!result) throw new Error("画布生成 Owner 未返回可保存的图片结果（项目可能已被删除）；本次没有登记任何成功结果。");
@@ -956,6 +1000,7 @@ export function createCanvasTools(service: CanvasService, readGeneration: Canvas
     connectNodesTool(service),
     disconnectNodesTool(service),
     listAssetsTool(service),
+    listImageModelsTool(readGeneration),
     generateImageTool(service, readGeneration)
   ];
 }

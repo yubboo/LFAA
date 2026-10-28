@@ -312,6 +312,12 @@
       "lfaa-client-ui-connectivity/src/*": [
         "packages/client/ui-connectivity/src/*"
       ],
+      "lfaa-client-ui-deliverables": [
+        "packages/client/ui-deliverables/src/index.ts"
+      ],
+      "lfaa-client-ui-deliverables/src/*": [
+        "packages/client/ui-deliverables/src/*"
+      ],
       "lfaa-client-ui-dockkit": [
         "packages/client/ui-dockkit/src/index.ts"
       ],
@@ -473,6 +479,18 @@
       ],
       "lfaa-daemon-app/src/*": [
         "packages/bundle/daemon-app/src/*"
+      ],
+      "lfaa-deliverables-tool-present": [
+        "packages/deliverables/tool-present/src/index.ts"
+      ],
+      "lfaa-deliverables-tool-present/src/*": [
+        "packages/deliverables/tool-present/src/*"
+      ],
+      "lfaa-deliverables-workspace-changes": [
+        "packages/deliverables/workspace-changes/src/index.ts"
+      ],
+      "lfaa-deliverables-workspace-changes/src/*": [
+        "packages/deliverables/workspace-changes/src/*"
       ],
       "lfaa-desktop-computer-use/src/*": [
         "packages/bundle/desktop-computer-use/src/*"

@@ -2,7 +2,9 @@
 
 共享小鱼工作区接收 Workbench 投递的 `AiWorkGoalRequest` 并传给 `AiWorkChat`；聊天仍通过既有 Agent Loop 执行目标，没有 Provider 时保留草稿。
 
-`ApplicationWorkspace` 在聊天标题栏提供“聊天/画布”切换。`CanvasWorkspace` 复用既有全幅 Canvas 模板，为所有 App 提供 App 隔离的自由画布和真实 AiWorkChat 侧栏；节点菜单读取 `lfaa-util-values` 的共享 App 能力目录。顶部还可在自由画布与 App 工作流间切换：Minecraft 延用专用面板/许可行为，其他 App 使用 `ui-workflow/ApplicationWorkflowCanvas` 与各自已登记的 `<appId>.agent` 节点。Canvas 项目/工作流引用及更新时间仅随当前画布发送的新 Run 传递，不写入会话。已有 Canvas 外观、模式和助手栏设置继续生效。
+`ApplicationWorkspace` 为领域 App 提供“聊天/画布/手动”三模式栏；聊天保留 App-scoped AI 会话，画布用同一 App ID 装配共享 Canvas Runtime 与已登记节点，手动面板仍由该 App 的数据 Owner 提供。`CanvasWorkspace` 复用既有全幅 Canvas 模板和真实 AiWorkChat 侧栏；顶部还可在自由画布与 App 工作流间切换：Minecraft 延用专用面板/许可行为，其他 App 使用 `ui-workflow/ApplicationWorkflowCanvas` 与各自已登记的 `<appId>.agent` 节点。Canvas 项目/工作流引用及更新时间仅随当前画布发送的新 Run 传递，不写入会话。已有 Canvas 外观、模式和助手栏设置继续生效。
+
+AI Work 活动文件按钮按账户和当前 App 校验登记项目后打开可切换的 `project-file` 右侧标签；`AiWorkProjectFileDock` 通过认证 Workspace File Owner 读取文本并显示项目相对路径面包屑。Git 变更面板按 Workspace Git Owner 的真实状态构建可展开文件树，点击文件读取该项目/来源下的真实文本差异；目录与文件状态只展示服务端返回的变更，读取请求在标签切换或卸载时可取消。项目/Git 状态/来源不匹配时不回退读取其他项目。
 
 `AgentOfficePage` 消费 Client Connection 的认证 `/ai/office` 快照，展示已登记专家、主 Agent、真实活动任务、父子关系与公开活动标题。页面只读；单链 5 秒刷新在页面隐藏时取消，未完成请求不重叠。工位按实际容器宽度排列，使用 Workbench 当前 Appearance；不新增设置或用户数据。
 
@@ -34,6 +36,8 @@ Git“变更”工作区以紧凑工具条和按文件排列的真实差异列�
 
 构建输出位于仓库根 `dist/packages/client/ui-workspace/`。
 
+AI Work 中间聊天区的收起/展开状态随现有 Workbench Chrome 布局写入浏览器本地存储，刷新后恢复；拖动预览仍只保留在页面内，切换账户或工作模式时沿用工作区既有重置行为。该偏好不写入会话、项目或设置中心。
+
 工作区终端可切换真实交互式会话和 Agent 任务输出；交互页选择已连接的本机/远程 Daemon，使用 xterm 处理输入、ANSI、中文、尺寸变化和 Ctrl+C。沿用 `general.integratedShell/taskFolder/terminalPosition/showBottomPanelControl`、统一权限模式及工作台主题、代码字体/字号、强调色、壁纸/遮罩/模糊和减少动态效果。容器 ResizeObserver 合并一帧内的缩放，输入与缩放分别串行发送；绘制容量 512 Ki 字符、历史 2000 行，超限失败关闭。卸载关闭会话并撤销 SSE、观察器与动画帧；任务输出页面活动任务每 3 秒对账、空闲时每 5 秒对账，只有选中任务变化或任务活动期间读取详情。
 
 AI Work 的聊天始终留在中心工作区。顶栏 Git 菜单打开项目摘要悬浮卡：当前会话绑定的仓库置于主卡，账户下其他已登记项目文件夹逐行显示各自的真实 Git 状态和增删统计；“变更”入口联动打开对应仓库的右侧 Git 管理面板，不替换聊天或输入区。摘要下方“输出内容”和“来源”只汇总当前会话活动记录里的真实新建/修改与读取文件，超过首屏数量时可展开“查看全部”；通用附件未接入时不伪造来源。Agent Git 管理器管理多个完整本机项目仓库，并随 Agent 会话绑定；不要求用户手工添加仓库，也不依赖 Daemon 节点。默认工作区启用本地 Git 版本管理；用户项目在 Agent 首次获准实际创建或写入文件时自动初始化，Git init 与本次文件操作共用 Permission Owner 授权。状态、变更统计、差异、文本查看/编辑、暂存、提交历史与分支操作都基于真实仓库根。本地执行由 Agent Git Controller、Permission Owner 与 LFAA Host 负责。分支前缀读取账户 `git.branchPrefix`，Appearance 继续使用工作台共享主题。HTTPS remote 支持 fetch、干净工作区快进 pull、当前分支 push 和发布分支；凭据按账户加密保存。SSH 同步与 PR 写入未接入。Agent 的可选 Daemon 项目仍只表示节点任务目标。
@@ -46,9 +50,9 @@ AI Work 主聊天从空闲切换到运行时自动展开 Git 摘要卡，并复�
 
 ## 小鱼共享工作入口（2026-10-14）
 
-根地址与默认首页进入 `/work` 小鱼智能体对话区。全局导航的“应用”入口打开右侧 Dock 的“应用”视图，保留游戏库及 SteamCMD、Minecraft、LFAA 联机服务、写作空间和 AI 漫剧常规入口。应用切换继续调用 Workbench/Client Renderer 已有打开与路由标记，不在菜单复制业务规则；应用视图选择状态由 Workbench 持有，切换 App 路由后保持可用。
+根地址与默认首页进入 `/work` 小鱼智能体对话区。全局导航的“应用”入口打开右侧 Dock 的“应用与能力”视图，领域应用包括游戏服务、联机管理、写作空间和 AI 漫剧；系统画布作为跨应用共享工作模式单独呈现。SteamCMD 是 Steam 游戏服务器当前使用的执行技术，不作为产品分类。应用切换继续调用 Workbench/Client Renderer 已有打开与路由标记，不在菜单复制业务规则；视图选择状态由 Workbench 持有，切换路由后保持可用。
 
-右侧“应用”视图复用相同的过滤后导航清单和 `SecondaryNavigation` 回调。应用入口卡片根据右栏实际内容宽度自动排成多列；窄栏和嵌入式窄容器自动回到单列。卡片表面、强调态和文字沿用 Appearance 共享令牌，不改变 `general.hiddenApplicationNavigationIds` 或 Dock 宽度偏好。
+右侧“应用与能力”视图复用相同的过滤后导航清单和 `SecondaryNavigation` 回调。应用入口卡片根据右栏实际内容宽度自动排成多列；窄栏和嵌入式窄容器自动回到单列。卡片表面、强调态和文字沿用 Appearance 共享令牌，不改变 `general.hiddenApplicationNavigationIds` 或 Dock 宽度偏好。
 
 设置、文件和插件页发出的跨页“应用”请求按 `requestId` 在工作区内最多消费一次：先标记并确认请求，再更新 Dock/工具页签状态。响应式测量或回调身份变化导致 effect 再执行时，已处理请求不会重放。
 
@@ -70,11 +74,11 @@ AI Work 中心区在桌面、紧凑和移动布局下均可收窄到 300px；聊
 
 工作区顶栏状态与左侧导航状态点共同消费设置中心 `general.showServiceStatus`；Appearance 的字体、颜色、壁纸、遮罩、模糊、字号、对比度和减少动态效果继续读取工作台共享令牌。中心列宽不超过 560px 时，语音、状态、Git 和面板操作收为图标，当前对话名仍以可截断文字显示；按钮保留可访问名称和提示。
 
-应用仅组合原常规界面，共享工作组合一个聊天/项目/会话 UI。项目和旧 App 会话按账户统一查询，公共会话列表不随当前 App 分区；列表在账户间隔离、按账户缓存，并在离开工作模式或切换账户时取消过期请求。全局导航“最近会话”在工作区内展开左侧 Dock，在设置、文件、插件等独立页通过 Workbench 的一次性打开请求进入 `/work` 后展开同一 Dock，并复用同一份会话列表、刷新与选择操作；不渲染悬浮卡片或第二份会话列表。请求在工作区确认处理后清除，不持久化、不重放；刷新请求串行复用，过期请求取消且不能覆盖后续会话变更。“工作·小鱼智能体”入口只进入公共工作，不代替最近会话入口。游戏“交给小鱼”进入公共工作；容器布局仍归 ResizableWorkbench。
+领域 App 以聊天/画布/手动三模式共享同一个领域上下文；共享 Agent、Canvas Runtime 与 App 数据 Owner 不重复装配。项目和会话按账户查询；全局聊天列表跨 App 展示，领域 App 聊天按当前 appId 筛选；列表在账户间隔离、按账户缓存，并在离开工作模式或切换账户时取消过期请求。全局导航“最近会话”在工作区内展开左侧 Dock，在设置、文件、插件等独立页通过 Workbench 的一次性打开请求进入 `/work` 后展开同一 Dock，并复用同一份会话列表、刷新与选择操作；不渲染悬浮卡片或第二份会话列表。请求在工作区确认处理后清除，不持久化、不重放；刷新请求串行复用，过期请求取消且不能覆盖后续会话变更。“工作·小鱼智能体”入口只进入公共工作，不代替最近会话入口。游戏 App 的“交给 AI”进入对应 App 聊天并保留领域上下文；容器布局仍归 ResizableWorkbench。
 
 AI Work 项目清单继续从 Workspace Owner 实时读取；已有同账户快照在后台刷新时保持可见，不把正在校验显示成空项目。默认工作区目录初始化在同一页面会话按账户最多执行一次；页面刷新仍按正式 API 重新校验，不将账户路径或项目快照写入浏览器存储。新建会话默认带上 Workspace Owner 返回的默认项目 ID，因此显示在默认工作区分组；项目会话也保留在跨项目的“最近”入口中，置顶会话由置顶分区显示。已有会话归属及 `.lfaa` 存储路径不变。
 
-AI Work 左侧“置顶”“项目”“最近”标题是独立的折叠开关；项目行只展开或收起该项目会话，不创建或打开会话。置顶会话按项目分组，项目会话从首批 5 条开始显示，“展开显示”每次追加最多 5 条；需要新建项目会话时使用项目行单独的新建按钮。最近仍保留所有未置顶会话（包括已归属项目的会话），通过最近标题或全局最近会话入口展开。分区和项目的临时展开状态不写入账户设置；颜色、字体和减少动态效果继续使用 Appearance 共享映射。
+AI Work 左侧“置顶”“项目”“最近”标题是独立的折叠开关；项目行只展开或收起该项目会话，不创建或打开会话。置顶会话按项目分组，项目会话从首批 5 条开始显示，“展开显示”每次追加最多 5 条；需要新建项目会话时使用项目行单独的新建按钮。最近仍保留所有未置顶会话（包括已归属项目的会话），通过最近标题或全局最近会话入口展开。三个分区开合、项目折叠与分页数量由 Client Store 按账户和 App 保存为本机 UI 偏好；不写入账户设置、会话或项目数据。颜色、字体和减少动态效果继续使用 Appearance 共享映射。
 
 AI Work 右侧工作区工具标签单击继续只选择功能；双击同一标签通过 `ApplicationWorkspace` 的受控中心折叠状态展开/收起中间聊天区，不更改标签实例和各工具 Owner。
 
@@ -84,7 +88,7 @@ AI Work 右侧工作区标签的新标签页即浏览器入口：统一地址栏
 
 右侧新标签页将工作区标签和浏览器地址栏放在固定顶栏；主页主体由名称、工具、推荐、最近四个同级盒子组成并在主体内滚动，账户状态固定在右栏底部。四个盒子使用 `right-menu.css` 与 Appearance 共享主题令牌，窄容器按自身宽度收窄，保留原有 Browser/Git/Files/Side Chat Owner 与导航回调。
 
-小鱼智能体左侧会话栏按草稿、置顶、项目、最近分区；置顶 ID 使用 Client Store 的账户隔离本机偏好，项目与会话仍由现有 Owner 管理，界面沿用 Appearance 共享令牌。
+小鱼智能体左侧会话栏按草稿、置顶、项目、最近分区；置顶 ID 与分区开合、项目折叠及分页数量使用 Client Store 的账户/App 隔离本机偏好，项目与会话仍由现有 Owner 管理，界面沿用 Appearance 共享令牌。
 
 会话行尾的强调色圆点只标记该会话自身 `appId` 与 `sessionId` 匹配的未读真实 `complete` 通知；失败、审批、提问和已读通知不显示。跨 App 会话列表按每条会话自己的 App 归属匹配，不使用当前工作区的 App。点击该会话时，Workbench 通知 Owner 将同一会话提醒标为已读；通知仍由 `general.notificationPopupsEnabled` 与 `general.completionNotification` 门控，圆点颜色继续读取 Appearance 的 `--settings-accent`，不新增会话状态、请求或设置。
 
@@ -96,7 +100,7 @@ AI Work 的紧凑右栏将工具页签、`+` 新建标签页、底部终端和�
 
 桌面和紧凑布局中的 Git 摘要浮层挂载在当前中心列，宽度受真实列宽约束且最多 376px；浮层右缘贴齐中心列右侧，从中心标题栏下方向左展开，按摘要内容自然收高，超出短屏时内容在卡片内滚动。四项 Git 操作菜单定位在摘要卡范围内，避免被中心列裁切。桌面布局下，右栏宽度按工作台根容器比例响应：不超过约 76% 时默认展开，越过边界后默认吸附收起；只在初次测量或跨界时自动切换，用户在同一宽度状态内手动开合后保持该选择。紧凑布局默认不自动展开摘要，但保留中心摘要按钮的手动开合；手机继续在左侧项目/会话栏显示摘要页。展开效果读取 Appearance 的减少动态效果状态，摘要数据与 Git 操作仍由原有 Owner 管理。
 
-游戏库四栏 Shell 由 `ui-layout/Workbench` 组合，并通过 `ApplicationWorkspace.applicationContent` 提供中心内容槽；本包继续持有四个同级工作区区域与响应式尺寸，不持有 Minecraft、SteamCMD 或运行环境业务数据。
+游戏服务四栏 Shell 由 `ui-layout/Workbench` 组合，并通过 `ApplicationWorkspace.applicationContent` 提供中心内容槽；本包继续持有四个同级工作区区域与响应式尺寸，不持有 Minecraft、Steam 游戏服务器或运行环境业务数据。
 
 2026-10-23：AI Work 地址栏的 BrowserPanel 固定绑定 `BUILTIN_BROWSER_WORKSPACE_ID`，手动打开网页无需 AI 会话；Agent 首次打开网页时，空白新标签同步其真实页面。窄窗口自动收起左栏时暂存此前开合偏好，回到桌面宽度后恢复，临时响应式状态不覆盖持久化偏好。
 

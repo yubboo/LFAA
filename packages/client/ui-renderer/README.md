@@ -6,6 +6,8 @@ DSH Client 图可用时，Renderer 将 LFAA 工作台挂入 DSH UI Renderer/Slot
 
 统一路由归一与认证恢复；根地址、登录恢复和默认首页进入 `/work` 小鱼智能体对话区。`/voice` 是同一 AI Work 工作区的全屏语音别名，不新增应用 ID 或认证范围。专业 App 从全局导航紧凑应用菜单打开，沿用现有应用入口标记与服务端认证/授权。旧工作地址刷新/历史归一。
 
+首次进入工作台的入口向导由 Workbench 显示，Renderer 只消费 `user_preferences.guided_entry_completed` 与 App 路由合同。提交前仍校验当前账户身份；聊天、画布或手动入口失败时保留向导并显示真实保存错误，跳过进入通用 `/work`。
+
 构建只写仓库根 dist/packages/client/ui-renderer/；当前合同见 [开发提示词](../../../docs/development/xiaoyu-agent.zh.md)。构建、合成模型、浏览器与真实模型/节点验收分别报告。
 
 Renderer 从 Account Owner 读取默认凭据待处理状态，并在用户离开设置路由后重新读取；修改仍未完成且凭据提醒偏好开启时继续提醒。`ui-settings-general/SetupReminder` 将它与 AI Provider、业务内容目录提醒排队显示；当日暂停按账户/类别/日期保存，稍后重试只在当前工作区延后五分钟。SteamCMD 游戏安装位置仍由“项目与存储”管理，但不触发首次登录提醒。Renderer 不会因本地暂停或稍后重试而确认或修改服务端凭据状态；类别关闭状态由 Settings Owner 持久化并由提醒弹窗交互更新，设置中心只提供统一的通知总开关，不暴露分类提醒开关。

@@ -1406,6 +1406,12 @@ export function getAiSession(userId: string, sessionId: string): AiSessionView |
   return row ? mapSession(row) : null;
 }
 
+/** 资产等轻量来源标注只读账户所属会话标题，不恢复消息或 JSONL 事件日志。 */
+export function getAiSessionTitle(userId: string, sessionId: string): string | null {
+  const row = sessionRow(userId, sessionId);
+  return row?.title ?? null;
+}
+
 export function saveAiAssistantActivity(userId: string, sessionId: string, messageId: string, activity: AiActivityItem[]): void {
   if (!sessionRow(userId, sessionId)) return;
   const message = sessionRecords.get("ai_messages", messageId) as MessageRow | undefined;

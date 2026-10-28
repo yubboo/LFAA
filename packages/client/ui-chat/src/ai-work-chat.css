@@ -270,7 +270,7 @@ body[data-we-wallpaper] .workbench-shell .ai-work-chat {
 .ai-work-chat__markdown li { padding-left: 3px; }
 .ai-work-chat__markdown blockquote { margin: 12px 0 16px; padding: 3px 0 3px 15px; border-left: 3px solid var(--settings-accent, var(--color-brand)); color: var(--color-text-secondary); }
 .ai-work-chat__markdown blockquote p { margin-bottom: 7px; }
-.ai-work-chat__markdown pre { max-width: 100%; margin: 12px 0 16px; padding: 14px 16px; overflow: auto; border: 1px solid var(--color-border-subtle); border-radius: 12px; background: color-mix(in srgb, var(--color-surface-muted) 84%, transparent); color: var(--color-text-primary); font-family: var(--settings-code-font, var(--font-family-mono)); font-size: .9em; line-height: 1.65; white-space: pre; }
+.ai-work-chat__markdown pre { max-width: 100%; max-height: min(45dvh, 420px); margin: 12px 0 16px; padding: 14px 16px; overflow: auto; overscroll-behavior: auto; border: 1px solid var(--color-border-subtle); border-radius: 12px; background: color-mix(in srgb, var(--color-surface-muted) 84%, transparent); color: var(--color-text-primary); font-family: var(--settings-code-font, var(--font-family-mono)); font-size: .9em; line-height: 1.65; white-space: pre; }
 .ai-work-chat__markdown :not(pre) > code { padding: 2px 5px; border: 1px solid var(--color-border-subtle); border-radius: 5px; background: var(--color-surface-muted); font-family: var(--settings-code-font, var(--font-family-mono)); font-size: .9em; }
 .ai-work-chat__table-wrap { max-width: 100%; margin: 12px 0 16px; overflow-x: auto; border: 1px solid var(--color-border-subtle); border-radius: 10px; }
 .ai-work-chat__markdown table { width: 100%; border-collapse: collapse; text-align: left; }
@@ -298,6 +298,13 @@ body[data-we-wallpaper] .workbench-shell .ai-work-chat {
 .ai-work-chat__assistant-name { color: var(--color-text-secondary); font-weight: 620; white-space: nowrap; }
 .ai-work-chat__assistant-separator { color: var(--color-text-subtle); }
 .ai-work-chat__assistant-duration { color: var(--color-text-muted); }
+.ai-work-chat__response-process { min-width: 0; }
+.ai-work-chat__response-process > .ai-work-chat__response-process-summary { cursor: pointer; list-style: none; }
+.ai-work-chat__response-process > .ai-work-chat__response-process-summary::-webkit-details-marker { display: none; }
+.ai-work-chat__response-process > .ai-work-chat__response-process-summary:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; border-radius: 6px; }
+.ai-work-chat__response-process > .ai-work-chat__response-process-summary > svg:last-child { flex: 0 0 auto; margin-inline-start: auto; color: var(--color-text-subtle); transform: rotate(-90deg); transition: transform 140ms ease; }
+.ai-work-chat__response-process[open] > .ai-work-chat__response-process-summary > svg:last-child { transform: rotate(0); }
+.ai-work-chat__response-process > .ai-work-chat__response-timeline { padding-top: 8px; }
 @keyframes ai-work-chat-assistant-swim {
   0%, 100% { transform: translate3d(0, 0, 0) rotate(-2deg); }
   50% { transform: translate3d(1px, -1px, 0) rotate(2deg); }
@@ -360,12 +367,12 @@ body[data-we-wallpaper] .workbench-shell .ai-work-chat {
 .ai-work-chat__tool-group > summary > svg:first-child { flex: 0 0 auto; color: var(--settings-accent, var(--color-brand)); }
 .ai-work-chat__tool-group > summary > .ai-work-chat__tool-group-label { min-width: 0; overflow-wrap: anywhere; }
 .ai-work-chat__tool-group > summary:hover { color: var(--settings-accent, var(--color-brand)); }
-.ai-work-chat__tool-group-items { display: grid; max-height: min(34dvh, 320px); overflow: auto; gap: 0; margin: 0 0 6px 6px; padding: 3px 8px 3px 10px; border-inline-start: 1px solid var(--color-border-subtle); overscroll-behavior: contain; }
+.ai-work-chat__tool-group-items { display: grid; max-height: min(34dvh, 320px); overflow: auto; gap: 0; margin: 0 0 6px; padding: 3px 0; }
 .ai-work-chat__tool-group-items .ai-work-chat__activity-row:first-child { border-top: 0; }
-.ai-work-chat__response-interaction { min-width: 0; }
-.ai-work-chat__response-interaction :is(.ai-work-chat__question-record, .ai-work-chat__approval-record) { display: grid; min-width: 0; gap: 7px; padding: 10px 12px; border: 1px solid var(--color-border-subtle); border-inline-start: 2px solid var(--settings-accent, var(--color-brand)); border-radius: 10px; background: color-mix(in srgb, var(--color-surface-muted) 46%, transparent); color: var(--color-text-secondary); }
-.ai-work-chat__response-interaction :is(.ai-work-chat__question-record, .ai-work-chat__approval-record) > strong { color: var(--color-text-heading); font-size: .92em; font-weight: 620; }
-.ai-work-chat__response-interaction .ai-work-chat__question-inline-answer { margin: 10px 0 0; white-space: pre-wrap; }
+.ai-work-chat__response-interaction { display: grid; min-width: 0; gap: 4px; margin: 0 0 8px; }
+.ai-work-chat__response-interaction :is(.ai-work-chat__question-record, .ai-work-chat__approval-record) { display: grid; min-width: 0; gap: 4px; padding: 5px 0 5px 12px; border: 0; border-inline-start: 1px solid var(--color-border-subtle); border-radius: 0; background: transparent; color: var(--color-text-muted); }
+.ai-work-chat__response-interaction :is(.ai-work-chat__question-record, .ai-work-chat__approval-record) > strong { color: var(--color-text-secondary); font-size: .9em; font-weight: 600; overflow-wrap: anywhere; }
+.ai-work-chat__response-interaction .ai-work-chat__question-inline-answer { margin: 0; padding-top: 4px; border-top: 1px solid var(--color-border-subtle); color: var(--color-text-muted); white-space: pre-wrap; }
 .ai-work-chat__activity-live-status { display: flex; width: fit-content; min-width: 0; max-width: 100%; align-items: center; gap: 7px; color: var(--color-text-muted); font-size: calc(var(--settings-interface-font-size, 14px) * .84); overflow-wrap: anywhere; }
 .ai-work-chat__activity-live-status::before { width: 5px; height: 5px; flex: 0 0 5px; border-radius: 50%; background: var(--settings-accent, var(--color-brand)); opacity: .78; content: ""; }
 .ai-work-chat__activity-live-status > span { min-width: 0; overflow-wrap: anywhere; }
@@ -461,8 +468,8 @@ body[data-we-wallpaper] .workbench-shell .ai-work-chat {
 .ai-work-chat__activity--complete .ai-work-chat__activity-summary-main svg { color: var(--color-status-success); }
 .ai-work-chat__activity-step-toggle[aria-expanded="true"] > svg:last-child { transform: rotate(0); }
 .ai-work-chat__activity-step-toggle:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
-.ai-work-chat__activity-row { display: grid; min-width: 0; gap: 3px; padding: 5px 3px; border-top: 1px solid var(--color-border-subtle); }
-.ai-work-chat__activity-step-toggle.ant-btn { display: flex; width: 100%; min-width: 0; height: auto; min-height: 30px; align-items: center; gap: 9px; padding: 3px; border: 0; color: var(--color-text-muted); text-align: left; }
+.ai-work-chat__activity-row { display: grid; min-width: 0; gap: 1px; padding: 2px 0; border: 0; }
+.ai-work-chat__activity-step-toggle.ant-btn { display: flex; width: 100%; min-width: 0; height: auto; min-height: 25px; align-items: center; gap: 8px; padding: 1px 0; border: 0; color: var(--color-text-muted); text-align: left; }
 .ai-work-chat__activity-step-toggle.ant-btn:hover { background: transparent; color: var(--color-text-secondary); }
 .ai-work-chat__activity-step-toggle > svg:first-child { flex: 0 0 auto; color: var(--color-text-muted); }
 .ai-work-chat__activity-row--running .ai-work-chat__activity-step-toggle > svg:first-child,
@@ -472,44 +479,72 @@ body[data-we-wallpaper] .workbench-shell .ai-work-chat {
 .ai-work-chat__activity-step-toggle > svg:last-child { flex: 0 0 auto; transform: rotate(-90deg); color: var(--color-text-subtle); transition: transform 140ms ease; }
 .ai-work-chat__activity-heading { display: flex; min-width: 0; flex: 1 1 auto; align-items: baseline; gap: 9px; }
 .ai-work-chat__activity-step-detail { display: grid; min-width: 0; gap: 3px; padding: 1px 3px 4px 26px; }
-.ai-work-chat__activity-row strong { min-width: 0; overflow-wrap: anywhere; color: var(--color-text-secondary); font-weight: 600; }
+.ai-work-chat__activity-row strong { min-width: 0; overflow-wrap: anywhere; color: var(--color-text-secondary); font-weight: 520; }
 .ai-work-chat__activity-status, .ai-work-chat__activity-duration { flex: 0 0 auto; color: var(--color-text-subtle); font-size: .9em; white-space: nowrap; }
 .ai-work-chat__activity-status--running, .ai-work-chat__activity-status--approval_required { color: var(--settings-accent, var(--color-brand)); }
 .ai-work-chat__activity-status--error { color: var(--color-status-error); }
 .ai-work-chat__activity-status--unavailable { color: var(--color-text-muted); }
 .ai-work-chat__activity-detail { color: var(--color-text-muted); overflow-wrap: anywhere; line-height: 1.5; white-space: pre-wrap; }
-.ai-work-chat__activity-output-card { display: grid; min-width: 0; max-height: 240px; gap: 9px; padding: 9px 10px; overflow: auto; border: 1px solid var(--color-border-subtle); border-radius: 9px; background: color-mix(in srgb, var(--color-surface-muted) 78%, transparent); overscroll-behavior: contain; }
+.ai-work-chat__activity-output-card { display: grid; min-width: 0; max-height: 240px; gap: 9px; padding: 9px 10px; overflow: auto; border: 1px solid var(--color-border-subtle); border-radius: 9px; background: color-mix(in srgb, var(--color-surface-muted) 78%, transparent); }
 .ai-work-chat__activity-output-summary,
 .ai-work-chat__activity-output-preview { display: grid; min-width: 0; gap: 5px; }
 .ai-work-chat__activity-output-card strong { color: var(--color-text-muted); font-size: var(--font-size-xs); font-weight: 620; }
 .ai-work-chat__activity-output-summary p { margin: 0; color: var(--color-text-secondary); line-height: 1.5; overflow-wrap: anywhere; white-space: pre-wrap; }
 .ai-work-chat__activity-output-preview pre { max-width: 100%; margin: 0; color: var(--color-text-primary); font-family: var(--settings-code-font, var(--font-family-mono)); font-size: var(--settings-code-font-size, var(--font-size-sm)); line-height: 1.5; overflow-wrap: anywhere; white-space: pre-wrap; }
 .ai-work-chat__activity-output-card--command .ai-work-chat__activity-output-summary p { font-family: var(--settings-code-font, var(--font-family-mono)); font-size: var(--settings-code-font-size, var(--font-size-sm)); }
-/* 工具合同在同一流式步骤中展示，沿用工作区主题与字体；长说明换行，字段按容器宽度折行。 */
-.ai-work-chat__tool-contract { min-width: 0; padding: 0 9px; border: 1px solid var(--color-border-subtle); border-inline-start: 2px solid var(--settings-accent, var(--color-brand)); border-radius: 8px; background: color-mix(in srgb, var(--color-surface-muted) 58%, transparent); color: var(--color-text-secondary); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: var(--settings-interface-font-size, var(--font-size-sm)); line-height: 1.5; }
-.ai-work-chat__tool-contract > summary { display: flex; min-width: 0; min-height: 32px; align-items: center; gap: 7px; cursor: pointer; list-style: none; }
-.ai-work-chat__tool-contract > summary::-webkit-details-marker { display: none; }
-.ai-work-chat__tool-contract-summary > svg:first-child { flex: 0 0 auto; color: var(--settings-accent, var(--color-brand)); }
-.ai-work-chat__tool-contract-summary > strong { color: var(--color-text-muted); font-size: var(--font-size-xs); font-weight: 620; }
-.ai-work-chat__tool-contract-summary > code { min-width: 0; overflow: hidden; color: var(--color-text-secondary); font-family: var(--settings-code-font, var(--font-family-mono)); font-size: var(--settings-code-font-size, var(--font-size-xs)); text-overflow: ellipsis; white-space: nowrap; }
-.ai-work-chat__tool-contract-summary > svg:last-child { flex: 0 0 auto; margin-inline-start: auto; color: var(--color-text-subtle); transform: rotate(-90deg); transition: transform 140ms ease; }
-.ai-work-chat__tool-contract[open] > summary > svg:last-child { transform: rotate(0); }
-.ai-work-chat__tool-contract-body { display: grid; min-width: 0; gap: 7px; padding: 0 0 9px; }
-.ai-work-chat__tool-contract-name, .ai-work-chat__tool-contract-section { display: grid; min-width: 0; gap: 4px; }
-.ai-work-chat__tool-contract-name { grid-template-columns: auto minmax(0, 1fr); align-items: baseline; gap: 8px; }
-.ai-work-chat__tool-contract strong { color: var(--color-text-muted); font-size: var(--font-size-xs); font-weight: 620; }
+/* 工具过程先以轻量步骤行呈现；完整合同保留在二级折叠区，并沿用外观主题、字体及代码字号。 */
+.ai-work-chat__tool-contract { display: grid; min-width: 0; gap: 3px; margin-top: 2px; color: var(--color-text-muted); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: calc(var(--settings-interface-font-size, 14px) * .86); line-height: 1.45; }
+.ai-work-chat__tool-contract > summary { display: flex; width: fit-content; min-width: 0; min-height: 24px; max-width: 100%; align-items: center; gap: 6px; padding: 1px 0; cursor: pointer; list-style: none; }
+.ai-work-chat__tool-contract > summary::-webkit-details-marker, .ai-work-chat__tool-contract-details > summary::-webkit-details-marker { display: none; }
+.ai-work-chat__tool-contract-summary > svg:first-child { flex: 0 0 auto; color: var(--color-text-subtle); }
+.ai-work-chat__tool-contract-summary > strong { color: var(--color-text-muted); font-size: .96em; font-weight: 500; }
+.ai-work-chat__tool-contract-summary > svg:last-child, .ai-work-chat__tool-contract-details-summary > svg { flex: 0 0 auto; color: var(--color-text-subtle); transform: rotate(-90deg); transition: transform 140ms ease; }
+.ai-work-chat__tool-contract[open] > summary > svg:last-child, .ai-work-chat__tool-contract-details[open] > summary > svg { transform: rotate(0); }
+.ai-work-chat__tool-contract-steps { display: grid; min-width: 0; gap: 0; margin: 0 0 2px 6px; padding: 2px 0 2px 12px; border-inline-start: 1px solid var(--color-border-subtle); list-style: none; }
+.ai-work-chat__tool-contract-steps > li { position: relative; min-width: 0; padding: 3px 0; color: var(--color-text-secondary); overflow-wrap: anywhere; }
+.ai-work-chat__tool-contract-steps > li::before { position: absolute; inset-inline-start: -15px; top: .72em; width: 4px; height: 4px; border-radius: 50%; background: var(--color-text-subtle); content: ""; }
+.ai-work-chat__tool-contract-details { min-width: 0; margin-inline-start: 6px; }
+.ai-work-chat__tool-contract-details > summary { display: flex; width: fit-content; min-width: 0; min-height: 23px; max-width: 100%; align-items: center; gap: 5px; color: var(--color-text-subtle); cursor: pointer; font-size: .94em; list-style: none; }
+.ai-work-chat__tool-contract-details-summary > span { overflow-wrap: anywhere; }
+.ai-work-chat__tool-contract-body { display: grid; min-width: 0; max-height: min(34dvh, 280px); gap: 6px; margin: 2px 0 4px 4px; padding: 3px 8px 4px 10px; overflow: auto; border-inline-start: 1px solid var(--color-border-subtle); color: var(--color-text-secondary); }
+/* 消息内有界内容区使用强调色细滚动条；长内容到边界后继续把滚轮交给外层消息列表。 */
+.ai-work-chat .ai-work-chat__markdown pre,
+.ai-work-side-chat .ai-work-chat__markdown pre,
+.ai-work-chat .ai-work-chat__activity-output-card,
+.ai-work-chat .ai-work-chat__tool-group-items,
+.ai-work-chat .ai-work-chat__tool-contract-body { scrollbar-width: thin !important; scrollbar-color: var(--settings-accent, var(--color-brand)) transparent !important; -ms-overflow-style: auto !important; }
+.ai-work-chat .ai-work-chat__markdown pre::-webkit-scrollbar,
+.ai-work-side-chat .ai-work-chat__markdown pre::-webkit-scrollbar,
+.ai-work-chat .ai-work-chat__activity-output-card::-webkit-scrollbar,
+.ai-work-chat .ai-work-chat__tool-group-items::-webkit-scrollbar,
+.ai-work-chat .ai-work-chat__tool-contract-body::-webkit-scrollbar { display: block !important; width: var(--ai-work-chat-scrollbar-inline-size, 7px) !important; height: var(--ai-work-chat-scrollbar-inline-size, 7px) !important; }
+.ai-work-chat .ai-work-chat__markdown pre::-webkit-scrollbar-track,
+.ai-work-side-chat .ai-work-chat__markdown pre::-webkit-scrollbar-track,
+.ai-work-chat .ai-work-chat__activity-output-card::-webkit-scrollbar-track,
+.ai-work-chat .ai-work-chat__tool-group-items::-webkit-scrollbar-track,
+.ai-work-chat .ai-work-chat__tool-contract-body::-webkit-scrollbar-track { background: transparent; }
+.ai-work-chat .ai-work-chat__markdown pre::-webkit-scrollbar-thumb,
+.ai-work-side-chat .ai-work-chat__markdown pre::-webkit-scrollbar-thumb,
+.ai-work-chat .ai-work-chat__activity-output-card::-webkit-scrollbar-thumb,
+.ai-work-chat .ai-work-chat__tool-group-items::-webkit-scrollbar-thumb,
+.ai-work-chat .ai-work-chat__tool-contract-body::-webkit-scrollbar-thumb { border: 0; border-radius: 999px; background: var(--settings-accent, var(--color-brand)); }
+.ai-work-chat__tool-contract-section { display: grid; min-width: 0; gap: 3px; }
+.ai-work-chat__tool-contract strong { color: var(--color-text-muted); font-size: .88em; font-weight: 600; }
 .ai-work-chat__tool-contract code { min-width: 0; color: var(--color-text-primary); font-family: var(--settings-code-font, var(--font-family-mono)); font-size: var(--settings-code-font-size, var(--font-size-sm)); overflow-wrap: anywhere; white-space: pre-wrap; }
 .ai-work-chat__tool-contract p { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
-.ai-work-chat__tool-contract ul { display: grid; min-width: 0; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); gap: 5px; margin: 0; padding: 0; list-style: none; }
-.ai-work-chat__tool-contract li { display: grid; min-width: 0; gap: 4px; padding: 5px 7px; border: 1px solid var(--color-border-subtle); border-radius: 6px; background: var(--color-surface); }
-.ai-work-chat__tool-contract-parameter-heading { display: flex; min-width: 0; flex-wrap: wrap; align-items: baseline; gap: 4px; }
-.ai-work-chat__tool-contract li span span, .ai-work-chat__tool-contract li small, .ai-work-chat__tool-contract-trust { color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.ai-work-chat__tool-contract ul { display: grid; min-width: 0; gap: 0; margin: 0; padding: 0; list-style: none; }
+.ai-work-chat__tool-contract li { display: grid; min-width: 0; gap: 2px; padding: 4px 0; border: 0; border-top: 1px solid var(--color-border-subtle); background: transparent; }
+.ai-work-chat__tool-contract-parameter-heading { display: flex; min-width: 0; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+.ai-work-chat__tool-contract li span span, .ai-work-chat__tool-contract li small, .ai-work-chat__tool-contract-trust { color: var(--color-text-muted); font-size: .9em; }
 .ai-work-chat__tool-contract li small { overflow-wrap: anywhere; white-space: pre-wrap; }
-.ai-work-chat__tool-contract-stages { display: grid; min-width: 0; gap: 6px; margin: 0; padding: 0; list-style: none; }
-.ai-work-chat__tool-contract-stages li { display: grid; min-width: 0; gap: 2px; padding-inline-start: 8px; border: 0; border-inline-start: 2px solid var(--color-border); border-radius: 0; background: transparent; }
-.ai-work-chat__tool-contract-stages li > strong { color: var(--color-text-primary); font-size: var(--font-size-xs); }
-.ai-work-chat__tool-contract-stages li p { color: var(--color-text-secondary); }
-.ai-work-chat__file-change-trigger.ant-btn, .ai-work-chat__file-change-path { display: flex; width: fit-content; max-width: 100%; align-items: center; gap: 6px; margin: 2px 0 0 -7px; padding-inline: 7px; overflow-wrap: anywhere; text-align: left; white-space: normal; color: var(--settings-accent, var(--color-brand)); font: var(--dsw-font-xs-13); }
+.ai-work-chat__tool-contract-stages { display: grid; min-width: 0; gap: 0; margin: 0; padding: 0; list-style: none; }
+.ai-work-chat__tool-contract-stages li { display: grid; min-width: 0; gap: 2px; padding: 4px 0 4px 8px; border: 0; border-inline-start: 1px solid var(--color-border); border-radius: 0; background: transparent; }
+.ai-work-chat__tool-contract-stages li > strong { color: var(--color-text-secondary); font-size: .9em; }
+.ai-work-chat__tool-contract-stages li p { color: var(--color-text-muted); }
+.ai-work-chat__file-change-trigger.ant-btn, .ai-work-chat__file-change-path { display: flex; width: fit-content; max-width: 100%; align-items: center; gap: 6px; margin: 1px 0 0; padding: 1px 0; overflow-wrap: anywhere; text-align: left; white-space: normal; color: var(--color-text-muted); font: inherit; }
+.ai-work-chat__file-change-trigger.ant-btn:hover { color: var(--settings-accent, var(--color-brand)); }
+.ai-work-chat__file-change-trigger > span { display: none; }
+.ai-work-chat__file-change-trigger code, .ai-work-chat__file-change-path code { color: inherit; overflow-wrap: anywhere; text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 2px; }
 .ai-work-chat__file-change-trigger.ant-btn code, .ai-work-chat__file-change-path code { overflow-wrap: anywhere; color: var(--color-text-secondary); font: var(--settings-code-font-size, var(--font-size-sm))/1.45 var(--settings-code-font, var(--font-family-mono)); }
 .ai-work-chat__file-change-trigger.ant-btn > svg, .ai-work-chat__file-change-path > svg { flex: 0 0 auto; }
 .ai-work-chat__file-change-path { color: var(--color-text-muted); }
@@ -748,9 +783,14 @@ body[data-we-wallpaper][data-we-glass-floaters] .workbench-shell[data-wallpaper-
 .ai-work-chat__model-card-model-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ai-work-chat__model-card-models button strong .ant-tag { flex: 0 0 auto; margin: 0; font-size: .78em; line-height: 1.45; }
 .ai-work-chat__model-card-models button small { color: var(--color-text-muted); font-size: .63em; }
+.ai-work-chat__model-card-models button .ai-work-chat__model-card-model-account { font-size: .61em; }
+.ai-work-chat__model-card-models button .ai-work-chat__model-card-model-metadata { display: block; max-height: none; overflow: visible; overflow-wrap: anywhere; text-overflow: clip; white-space: normal; line-height: 1.4; }
 .ai-work-chat__model-card-models button > span:last-child { flex: 0 0 auto; color: var(--settings-accent, var(--color-brand)); font-size: .8em; }
 .ai-work-chat__model-card-empty,
 .ai-work-chat__model-card-limit { padding: 3px 2px; color: var(--color-text-muted); font-size: .68em; }
+.ai-work-chat__model-card-load-more { width: 100%; padding: 6px 8px; border: 1px solid var(--color-border); border-radius: 7px; background: var(--color-surface-muted); color: var(--settings-accent, var(--color-brand)); cursor: pointer; font: inherit; font-size: .68em; text-align: center; }
+.ai-work-chat__model-card-load-more:hover { background: var(--color-surface-hover); }
+.ai-work-chat__model-card-load-more:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 1px; }
 .workbench-shell[data-background-image="true"] :is(.ai-work-chat__model-overlay, .ai-work-chat__more-overlay) .ant-popover-inner { background-color: color-mix(in srgb, var(--color-surface) var(--settings-background-surface-opacity), transparent); -webkit-backdrop-filter: blur(var(--settings-glass-blur)); backdrop-filter: blur(var(--settings-glass-blur)); }
 .ai-work-chat__project-menu { display: grid; gap: 7px; color: var(--color-text-primary); font-family: var(--settings-interface-font, var(--font-family-sans)); }
 .ai-work-chat__project-list { display: grid; max-height: min(320px, 40vh); gap: 2px; overflow: auto; }
@@ -1031,6 +1071,7 @@ body[data-we-wallpaper][data-we-glass-floaters] .workbench-shell[data-wallpaper-
   body[data-lfaa-reduced-motion="system"] .ai-work-chat__tool-group-live-status--processing > span { animation: none; background-image: none; color: var(--settings-accent, var(--color-brand)); -webkit-text-fill-color: currentColor; }
   .ai-work-chat__composer, .ai-work-chat__composer-control.ant-btn, .ai-work-chat__composer-submit.ant-btn, .workbench-shell .ai-work-chat__project-trigger.ant-btn,
   .ai-work-chat__activity-step-toggle > svg:last-child,
+  .ai-work-chat__response-process > .ai-work-chat__response-process-summary > svg:last-child,
   .workbench-shell[data-reduced-motion="system"][data-ai-work-output-focus-blur="true"] .ai-work-chat__messages,
   .workbench-shell[data-reduced-motion="system"][data-ai-work-output-focus-blur="true"] .ai-work-chat__anchors,
   .workbench-shell[data-reduced-motion="system"][data-ai-work-output-focus-blur="true"] .ai-work-chat__scroll-latest,
@@ -1042,7 +1083,8 @@ body[data-we-wallpaper][data-we-glass-floaters] .workbench-shell[data-wallpaper-
 body[data-lfaa-reduced-motion="on"] .ai-work-chat__activity-live-status--processing > span,
 body[data-lfaa-reduced-motion="on"] .ai-work-chat__tool-group--running > summary > .ai-work-chat__tool-group-label { animation: none; background-image: none; color: var(--color-text-muted); -webkit-text-fill-color: currentColor; }
 body[data-lfaa-reduced-motion="on"] .ai-work-chat__tool-group-live-status--processing > span { animation: none; background-image: none; color: var(--settings-accent, var(--color-brand)); -webkit-text-fill-color: currentColor; }
-body[data-lfaa-reduced-motion="on"] .ai-work-chat__tool-contract-summary > svg:last-child { transition-duration: 0ms; }
+body[data-lfaa-reduced-motion="on"] .ai-work-chat__tool-contract-summary > svg:last-child,
+body[data-lfaa-reduced-motion="on"] .ai-work-chat__response-process > .ai-work-chat__response-process-summary > svg:last-child { transition-duration: 0ms; }
 body[data-lfaa-reduced-motion="on"] .ai-work-chat__activity-live-status--processing::after,
 body[data-lfaa-reduced-motion="on"] .ai-work-chat__tool-group--running > summary::after { animation: none; background-image: none; }
 .workbench-shell[data-reduced-motion="on"] .ai-work-chat__assistant-mark--processing > svg,

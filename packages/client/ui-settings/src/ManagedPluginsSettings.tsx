@@ -187,7 +187,7 @@ export function ManagedPluginsSettings({ user, applications, settings, onPluginS
   const categoryTitle = integrationCategories.find(category => category.id === activeCategory)?.label ?? "插件";
   const categoryDescription: Record<IntegrationCategory, string> = {
     plugins: "查看当前 Profile 中已安装插件的真实状态，并按现有授权流程启用或停用。",
-    applications: "管理 LFAA 内置应用入口和 GitHub 外部账户连接。",
+    applications: "管理 LFAA 工作台入口和 GitHub 外部账户连接。",
     mcp: "查看账户已配置的 MCP 服务，并沿用当前设置和权限规则。",
     skills: "显示 Skill Registry 当前登记的真实技能。内置技能随软件提供；小鱼安装的技能位于本机 LFAA Home/skills/<技能名>/；单项开关沿用账户设置。",
     market: "LFAA 当前没有可浏览的公共集成目录。"
@@ -201,7 +201,7 @@ export function ManagedPluginsSettings({ user, applications, settings, onPluginS
   };
   const categoryCountSummary: Record<IntegrationCategory, string> = {
     plugins: `${plugins.length} 项 · ${enabledCount} 项已启用${profile ? ` · Profile ${profile}` : ""}`,
-    applications: `${enabledApplicationCount} 项显示 · ${applications.length} 项内置应用`,
+    applications: `${enabledApplicationCount} 项显示 · ${applications.length} 项工作台入口`,
     mcp: `${settings.plugins.mcpServers.length} 项 · ${settings.plugins.mcpServers.filter(server => server.enabled).length} 项已启用`,
     skills: skillsLoading && skills.length === 0 ? "正在同步技能目录…" : `${skills.length} 项 · ${enabledSkillCount} 项单项开启${settings.plugins.enabled ? "" : " · Agent 扩展总开关已关闭"}`,
     market: "暂无目录条目"
@@ -284,8 +284,8 @@ export function ManagedPluginsSettings({ user, applications, settings, onPluginS
           </SettingGroup>
         </> : null}
         {activeCategory === "applications" ? <>
-          <SettingGroup title="LFAA 内置应用入口">
-            {visibleApplications.length === 0 ? <div className="settings-profile-plugins__state" role="status"><span>没有符合当前搜索的应用。</span></div>
+          <SettingGroup title="LFAA 工作台入口">
+            {visibleApplications.length === 0 ? <div className="settings-profile-plugins__state" role="status"><span>没有符合当前搜索的工作台入口。</span></div>
               : visibleApplications.map(application => {
                 const enabled = !(settings.general.hiddenApplicationNavigationIds ?? []).includes(application.id);
                 return <SettingRow key={application.id} title={application.title} description={
@@ -293,8 +293,8 @@ export function ManagedPluginsSettings({ user, applications, settings, onPluginS
                     <span className="settings-profile-plugin-row__icon"><WorkbenchIcon name="grid" size={18} /></span>
                     <span className="settings-profile-plugin-row__copy"><span>{application.description || "LFAA 内置工作区入口。"}</span></span>
                   </span>
-                } status={enabled ? "应用菜单中显示" : "应用菜单中隐藏"}>
-                  <SettingsSwitch label={`显示应用 ${application.title}`} checked={enabled} onChange={() => toggleApplicationNavigation(application.id)} />
+                } status={enabled ? "工作台中显示" : "工作台中隐藏"}>
+                  <SettingsSwitch label={`显示入口 ${application.title}`} checked={enabled} onChange={() => toggleApplicationNavigation(application.id)} />
                 </SettingRow>;
               })}
           </SettingGroup>

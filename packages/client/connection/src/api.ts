@@ -80,6 +80,7 @@ export interface PasskeySummary {
 export interface UserPreferences {
   selectedApp: ApplicationId;
   selectedMode: ApplicationMode;
+  guidedEntryCompleted: boolean;
 }
 
 import type { AppearancePresetSnapshot, UserSettings } from "lfaa-util-values/src/settings-contract.js";
@@ -518,8 +519,10 @@ export interface AgentDeliverable {
   userId: string;
   repositoryId: string;
   sessionId: string;
+  sessionTitle?: string;
   path: string;
   title: string;
+  artifactKind: "minecraft-plugin" | "minecraft-mod" | "other";
   fileName: string;
   sha256: string;
   sizeBytes: number;
@@ -3068,8 +3071,8 @@ export function removeWorkspaceProject(projectId: string, deleteManagedWorktree:
   return request<void>(`/workspace/projects/${encodeURIComponent(projectId)}`, { method: "DELETE", body: JSON.stringify({ appId, deleteManagedWorktree }) });
 }
 
-export function loadWorkspaceGitStatus(projectId: string, appId: WorkspaceProjectApplicationId, sourceId?: string): Promise<{ status: WorkspaceGitStatus }> {
-  return request<{ status: WorkspaceGitStatus }>(`/workspace/projects/${encodeURIComponent(projectId)}/git/status`, { method: "POST", body: JSON.stringify({ appId, ...(sourceId ? { sourceId } : {}) }) });
+export function loadWorkspaceGitStatus(projectId: string, appId: WorkspaceProjectApplicationId, sourceId?: string, signal?: AbortSignal): Promise<{ status: WorkspaceGitStatus }> {
+  return request<{ status: WorkspaceGitStatus }>(`/workspace/projects/${encodeURIComponent(projectId)}/git/status`, { method: "POST", body: JSON.stringify({ appId, ...(sourceId ? { sourceId } : {}) }), ...(signal ? { signal } : {}) });
 }
 
 export function initializeWorkspaceGitRepository(projectId: string, appId: WorkspaceProjectApplicationId, sourceId?: string): Promise<{ status: WorkspaceGitStatus }> {
@@ -3085,8 +3088,8 @@ export function loadWorkspaceGitFileDiff(projectId: string, appId: WorkspaceProj
   return request<{ file: WorkspaceGitFileDiff }>(`/workspace/projects/${encodeURIComponent(projectId)}/git/file-diff`, { method: "POST", body: JSON.stringify({ appId, path, ignoreWhitespace: parameters.ignoreWhitespace === true, wordDiff: parameters.wordDiff === true, ...(parameters.contextLines === undefined ? {} : { contextLines: parameters.contextLines }), ...(parameters.sourceId ? { sourceId: parameters.sourceId } : {}) }), ...(signal ? { signal } : {}) });
 }
 
-export function readWorkspaceProjectTextFile(projectId: string, appId: WorkspaceProjectApplicationId, path: string, offset = 0, limit = 40000, sourceId?: string): Promise<{ file: WorkspaceProjectTextFile }> {
-  return request<{ file: WorkspaceProjectTextFile }>(`/workspace/projects/${encodeURIComponent(projectId)}/files/read`, { method: "POST", body: JSON.stringify({ appId, path, offset, limit, ...(sourceId ? { sourceId } : {}) }) });
+export function readWorkspaceProjectTextFile(projectId: string, appId: WorkspaceProjectApplicationId, path: string, offset = 0, limit = 40000, sourceId?: string, signal?: AbortSignal): Promise<{ file: WorkspaceProjectTextFile }> {
+  return request<{ file: WorkspaceProjectTextFile }>(`/workspace/projects/${encodeURIComponent(projectId)}/files/read`, { method: "POST", body: JSON.stringify({ appId, path, offset, limit, ...(sourceId ? { sourceId } : {}) }), ...(signal ? { signal } : {}) });
 }
 
 export function writeWorkspaceProjectTextFile(projectId: string, appId: WorkspaceProjectApplicationId, path: string, content: string, sha256: string, sourceId?: string): Promise<{ result: { path: string; sha256: string; changed: boolean; bytes: number } }> {
@@ -3319,7 +3322,7 @@ type AiChatStreamInput = {
 };
 
 export type AiWorkbenchView = {
-  rightPane: "browser" | "new-tab" | "git" | "assets" | "applications" | "side-chat" | "extension" | "application-tools";
+  rightPane: "browser" | "new-tab" | "git" | "assets" | "applications" | "side-chat" | "extension" | "project-file" | "application-tools";
   rightPaneOpen: boolean;
   bottomTerminalOpen: boolean;
   /** 仅当前选中且可见的 LFAA Browser Dock 标签；服务端还会按 browserUse 设置裁剪。 */
@@ -3593,6 +3596,10 @@ export function updateAiAccountReasoningMode(accountId: string, reasoningMode: s
 
 export function activateAiAccount(accountId: string): Promise<{ account: AiAccount }> {
   return request<{ account: AiAccount }>(`/settings/ai/accounts/${encodeURIComponent(accountId)}/activate`, { method: "POST" });
+}
+
+export function selectAiAccountModel(accountId: string, modelId: string): Promise<{ account: AiAccount }> {
+  return request<{ account: AiAccount }>(`/settings/ai/accounts/${encodeURIComponent(accountId)}/select-model`, { method: "POST", body: JSON.stringify({ modelId }) });
 }
 
 export function deleteAiAccount(accountId: string): Promise<void> {

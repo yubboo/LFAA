@@ -66,7 +66,8 @@ if (!isMiniWindowRoute) {
 
 const fallbackPreferences: UserPreferences = {
   selectedApp: "steamcmd",
-  selectedMode: "normal"
+  selectedMode: "normal",
+  guidedEntryCompleted: false
 };
 
 function serverStateFromHealth(health: ServerHealth | null, checking: boolean): ServiceState {
@@ -603,9 +604,13 @@ export default function App() {
   const handleOpenApplication = useCallback(async (app: ApplicationId, mode: ApplicationMode) => {
     const owner = currentUserRef.current?.id;
     if (!owner) return;
-    if (mode === "ai-work" || app === "workspace") {
+    if (app === "workspace") {
       navigationSequence.current += 1; setError(null);
       routeTo(SHARED_WORK_ROUTE, setRoute); return;
+    }
+    if (mode === "ai-work") {
+      navigationSequence.current += 1; setError(null);
+      routeTo(`/apps/${app}/ai-work`, setRoute, { applicationEntryApp: app }); return;
     }
     const request = ++navigationSequence.current;
     const selectedMode = "normal";
@@ -616,7 +621,7 @@ export default function App() {
       if (!isCurrent()) return;
       // 应用入口只保存常规 App；共享工作不覆盖上次选择的应用。
       if (preferencesRef.current.selectedApp !== app || preferencesRef.current.selectedMode !== selectedMode) {
-        const result = await savePreferences({ selectedApp: app, selectedMode });
+        const result = await savePreferences({ ...preferencesRef.current, selectedApp: app, selectedMode });
         if (currentUserRef.current?.id !== owner) return;
         preferencesRef.current = result.preferences;
         if (!isCurrent()) return;
@@ -632,6 +637,38 @@ export default function App() {
     });
     navigationSave.current = operation;
     await operation;
+  }, []);
+
+  const handleCompleteGuidedEntry = useCallback(async (app: ApplicationId, mode: "chat" | "canvas" | "manual"): Promise<string | null> => {
+    const owner = currentUserRef.current?.id;
+    if (!owner) return "登录状态已失效，请重新登录后继续。";
+    const request = ++navigationSequence.current;
+    const isCurrent = () => request === navigationSequence.current && currentUserRef.current?.id === owner;
+    setError(null);
+    const operation = navigationSave.current.then(async () => {
+      if (!isCurrent()) return null;
+      const preferencesToSave: UserPreferences = {
+        ...preferencesRef.current,
+        guidedEntryCompleted: true,
+        ...(mode === "manual" && app !== "workspace" ? { selectedApp: app, selectedMode: "normal" as const } : {})
+      };
+      const result = await savePreferences(preferencesToSave);
+      if (currentUserRef.current?.id !== owner) return null;
+      preferencesRef.current = result.preferences;
+      setPreferences(result.preferences);
+      if (!isCurrent()) return null;
+
+      const targetRoute = app === "workspace"
+        ? mode === "canvas" ? "/apps/workspace/canvas" : SHARED_WORK_ROUTE
+        : mode === "chat" ? `/apps/${app}/ai-work`
+          : mode === "canvas" ? `/apps/${app}/canvas`
+            : app === "steamcmd" || app === "minecraft" ? `/games/${app}` : `/apps/${app}/normal`;
+      const needsApplicationEntry = mode !== "manual" || app !== "steamcmd" && app !== "minecraft";
+      routeTo(targetRoute, setRoute, needsApplicationEntry ? { applicationEntryApp: app } : {});
+      return null;
+    }).catch((saveError: unknown) => isCurrent() ? getErrorMessage(saveError) : null);
+    navigationSave.current = operation.then(() => undefined);
+    return operation;
   }, []);
 
   async function handleLogout(): Promise<void> {
@@ -777,6 +814,7 @@ export default function App() {
         user={user}
         initialSettings={userSettings}
         preferences={preferences}
+        onCompleteGuidedEntry={handleCompleteGuidedEntry}
         serverState={serverState}
         route={route}
         error={error}

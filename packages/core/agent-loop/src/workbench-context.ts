@@ -5,7 +5,7 @@
  */
 
 export interface AgentWorkbenchView {
-  rightPane: "browser" | "new-tab" | "git" | "assets" | "applications" | "side-chat" | "extension" | "application-tools";
+  rightPane: "browser" | "new-tab" | "git" | "assets" | "applications" | "side-chat" | "extension" | "project-file" | "application-tools";
   rightPaneOpen: boolean;
   bottomTerminalOpen: boolean;
   browserUrl?: string;
@@ -13,7 +13,7 @@ export interface AgentWorkbenchView {
   workflow?: { applicationId: string; workflowId: string; title: string; updatedAt: string };
 }
 
-const RIGHT_PANES = new Set<AgentWorkbenchView["rightPane"]>(["browser", "new-tab", "git", "assets", "applications", "side-chat", "extension", "application-tools"]);
+const RIGHT_PANES = new Set<AgentWorkbenchView["rightPane"]>(["browser", "new-tab", "git", "assets", "applications", "side-chat", "extension", "project-file", "application-tools"]);
 
 function safeBrowserLocation(value: unknown): string | undefined {
   if (typeof value !== "string" || value.length > 2_048) return undefined;

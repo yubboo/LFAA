@@ -82,6 +82,8 @@ export interface CanvasGenerateImageInput {
   expectedUpdatedAt: string;
   nodeId?: string;
   prompt: string;
+  /** 可选单次模型选择；校验当前账户目录后使用，不写回设置默认值。 */
+  modelTarget?: { accountId: string; modelId: string };
   aspectRatio?: CanvasImageAspectRatio;
   referenceAssetIds?: string[];
   signal?: AbortSignal;
@@ -109,11 +111,26 @@ export interface CanvasImageGenerationResult {
   asset: CanvasGeneratedAssetSummary;
 }
 
+export interface CanvasImageModelOption {
+  accountId: string;
+  accountName: string;
+  providerId: ImageGenerationProvider;
+  modelId: string;
+  modelName: string;
+  isDefault: boolean;
+  taskType?: string;
+  planTier?: string;
+  planTiers?: string[];
+  catalogSource?: string;
+}
+
 export interface CanvasVideoGenerationResult {
   project: CanvasProject;
 }
 
 export interface CanvasGenerationService {
+  /** 返回用户默认图片模型及 Agent Plan 官方图像模型；不返回凭据。 */
+  listImageModels(userId: string): CanvasImageModelOption[];
   /** 同步生图；成功后把图片原子写入项目素材，并在指定生成节点写入 succeeded 状态。 */
   generateImage(userId: string, applicationId: ApplicationId, projectId: string, input: CanvasGenerateImageInput): Promise<CanvasImageGenerationResult | null>;
   /** 提交火山方舟视频任务；先把节点置 running，拿到服务商任务 ID 后写入 data.generation。 */
@@ -262,25 +279,82 @@ export function isTerminalGenerationStatus(status: CanvasGenerationStatus): bool
   return status === "succeeded" || status === "failed";
 }
 
-function resolveImageTarget(deps: CanvasGenerationDependencies, userId: string, settings: AiRuntimeSettings): { providerId: ImageGenerationProvider; modelId: string; apiKey: string } {
-  if (settings.imageGenerationMode === "local") {
-    const localModelId = settings.imageGenerationLocalModelId.trim();
-    throw new CanvasGenerationUnsupportedError(localModelId
-      ? "画布图片生成本轮未接通本机 MOSS 模型（" + localModelId + "）；请在设置中心把图片生成方式切换为远程服务商，或等待后续版本接入。"
-      : "画布图片生成本轮未接通本机 MOSS 模型；请在设置中心把图片生成方式切换为远程服务商，或等待后续版本接入。");
+function isImageProvider(providerId: string): providerId is ImageGenerationProvider {
+  return providerId === "openai" || providerId === "doubao" || providerId === "ark-agent-plan";
+}
+
+function planTierAllowsImageModel(account: AiAccountView, model: AiAccountView["models"][number]): boolean {
+  if (account.providerId !== "ark-agent-plan" || !model.planTiers?.length) return true;
+  const tier = account.options.planTier;
+  return !tier || tier === "unknown" || model.planTiers.includes(tier as typeof model.planTiers[number]);
+}
+
+function isImageModelForAccount(account: AiAccountView, model: AiAccountView["models"][number]): boolean {
+  return isImageProvider(account.providerId)
+    && (account.providerId !== "ark-agent-plan" || model.taskType === "image-generation" && planTierAllowsImageModel(account, model));
+}
+
+function listImageModelOptions(deps: CanvasGenerationDependencies, userId: string): CanvasImageModelOption[] {
+  const settings = deps.readSettings(userId);
+  const accounts = deps.listAccounts(userId);
+  const options = new Map<string, CanvasImageModelOption>();
+  const add = (account: AiAccountView, model: AiAccountView["models"][number], isDefault: boolean) => {
+    if (!account.hasSecret || !isImageProvider(account.providerId) || !isImageModelForAccount(account, model)) return;
+    const key = account.id + ":" + model.id;
+    const previous = options.get(key);
+    options.set(key, {
+      accountId: account.id,
+      accountName: account.displayName,
+      providerId: account.providerId,
+      modelId: model.id,
+      modelName: model.name,
+      isDefault: isDefault || previous?.isDefault === true,
+      ...(model.taskType ? { taskType: model.taskType } : {}),
+      ...(account.providerId === "ark-agent-plan" && account.options.planTier ? { planTier: account.options.planTier } : {}),
+      ...(model.planTiers?.length ? { planTiers: [...model.planTiers] } : {}),
+      ...(model.catalogSource ? { catalogSource: model.catalogSource } : {})
+    });
+  };
+
+  const defaultAccountId = settings.imageGenerationAccountId.trim();
+  const defaultModelId = settings.imageGenerationModelId.trim();
+  if (defaultAccountId && defaultModelId) {
+    const account = accounts.find(item => item.id === defaultAccountId);
+    const model = account?.models.find(item => item.id === defaultModelId);
+    if (account && model) add(account, model, true);
   }
-  const accountId = settings.imageGenerationAccountId.trim();
-  const modelId = settings.imageGenerationModelId.trim();
-  if (!accountId || !modelId) return failConfiguration("请先在设置中心选择图片生成账户和模型，再发起画布生成。");
+
+  for (const account of accounts) {
+    if (account.providerId !== "ark-agent-plan") continue;
+    for (const model of account.models) {
+      if (model.taskType === "image-generation" && planTierAllowsImageModel(account, model)) add(account, model, false);
+    }
+  }
+  return [...options.values()].slice(0, 128);
+}
+
+function resolveImageTarget(
+  deps: CanvasGenerationDependencies,
+  userId: string,
+  settings: AiRuntimeSettings,
+  requestedTarget?: { accountId: string; modelId: string }
+): { providerId: ImageGenerationProvider; modelId: string; apiKey: string } {
+  // Canvas currently uses remote Providers; imageGenerationMode controls the AI Video engine only.
+  const accountId = requestedTarget?.accountId.trim() ?? settings.imageGenerationAccountId.trim();
+  const modelId = requestedTarget?.modelId.trim() ?? settings.imageGenerationModelId.trim();
+  if (!accountId || !modelId) return failConfiguration("尚未选择画布图片模型；请先调用 canvas_list_image_models 查看当前账户可用的模型，或在设置中心选择默认远程图片账户和模型。");
+  if (requestedTarget && !listImageModelOptions(deps, userId).some(option => option.accountId === accountId && option.modelId === modelId)) {
+    return failConfiguration("本次选择的图片账户/模型不在当前账户的图片模型目录中；请先调用 canvas_list_image_models 获取可用选项。没有发起生成请求。");
+  }
   const account = deps.listAccounts(userId).find(item => item.id === accountId);
   if (!account) return failConfiguration("设置中心找不到所选图片生成账户；请在设置中心重新选择账户。");
   if (!account.hasSecret) return failConfiguration("所选图片生成账户的密钥已删除；请在设置中心重新保存账户密钥。");
-  if (account.providerId !== "openai" && account.providerId !== "doubao" && account.providerId !== "ark-agent-plan") {
+  if (!isImageProvider(account.providerId)) {
     return failConfiguration("画布图片生成只支持 OpenAI、豆包/火山方舟和 Agent Plan 图片账户。");
   }
   const imageModel = account.models.find(item => item.id === modelId);
-  if (!imageModel || account.providerId === "ark-agent-plan" && imageModel.taskType !== "image-generation") {
-    return failConfiguration("所选图片生成模型不在当前账户保存的模型目录中；请在设置中心重新选择模型。");
+  if (!imageModel || !isImageModelForAccount(account, imageModel)) {
+    return failConfiguration("所选图片生成模型不在当前账户保存的图像能力目录或套餐档位中；请重新选择模型。");
   }
   const apiKey = deps.resolveCredential(userId, accountId);
   if (!apiKey) return failConfiguration("设置中心保存的图片生成账户密钥不可用；请重新保存账户密钥。");
@@ -419,6 +493,10 @@ function retryOnConflict<T>(operation: () => T | null, attempts = 3): T | null {
 }
 
 export function createCanvasGenerationService(deps: CanvasGenerationDependencies): CanvasGenerationService {
+  function listImageModels(userId: string): CanvasImageModelOption[] {
+    return listImageModelOptions(deps, userId);
+  }
+
   function persistVideoState(userId: string, applicationId: ApplicationId, projectId: string, nodeId: string, generation: CanvasGenerationState): CanvasProject | null {
     return retryOnConflict(() => {
       const current = deps.canvas.read(userId, applicationId, projectId);
@@ -435,7 +513,7 @@ export function createCanvasGenerationService(deps: CanvasGenerationDependencies
     const aspectRatio = normalizeImageAspectRatio(input.aspectRatio);
     const referenceAssetIds = normalizeReferenceAssetIds(input.referenceAssetIds);
     const settings = deps.readSettings(userId);
-    const target = resolveImageTarget(deps, userId, settings);
+    const target = resolveImageTarget(deps, userId, settings, input.modelTarget);
     const project = deps.canvas.read(userId, applicationId, projectId);
     if (!project) return null;
     if (project.updatedAt !== input.expectedUpdatedAt) throw new CanvasConflictError();
@@ -642,7 +720,7 @@ export function createCanvasGenerationService(deps: CanvasGenerationDependencies
     return persistVideoState(userId, applicationId, projectId, targetNodeId, cancelled) ?? project;
   }
 
-  return { generateImage, startVideo, refreshVideo, cancelVideo };
+  return { listImageModels, generateImage, startVideo, refreshVideo, cancelVideo };
 }
 
 declare module "@deepseek-ai/cordis" {

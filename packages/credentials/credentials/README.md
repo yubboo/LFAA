@@ -4,6 +4,6 @@
 
 GitHub Integration 登记 `lfaa-github-integration/github` 账户凭据记录，并仅允许对应 GitHub API Provider 消费。密文仍由 Settings Owner 的 AES-256-GCM 存储，不在此注册表复制 token 或密钥。
 
-本包不创建密钥文件、不持久化账户、不缓存解密结果。`lfaa-settings` 的 Provider 账户来源仅允许 `lfaa-agent-default-model` 与 `lfaa-ai-video` 消费；浏览器设置 UI 只获得 `configured` 等不含秘密的状态。通用记录只接受有界的 `api-key` 与不透明 `grant` JSON，读者须在记录所有者白名单内；持久化适配器只能由活动的 `lfaa-settings` Fiber 注册，记录状态接口不包含载荷。Browser Owner 以 `lfaa-browser-use` 为记录所有者保存浏览器密码/联系信息的 `grant` 载荷，访问仍绑定认证账户；元数据与解密后的记录仅由对应 Browser Owner 流程读取，自动填入再核验当前 LFAA 页面来源和字段，不提交网页表单。
+本包不创建密钥文件、不持久化账户、不缓存解密结果。`lfaa-settings` 的 Provider 账户来源仅允许 `lfaa-agent-default-model`、`lfaa-ai-video`、`lfaa-video-tool-bilibili-video` 与 `lfaa-canvas-generation` 消费；浏览器设置 UI 只获得 `configured` 等不含秘密的状态。通用记录只接受有界的 `api-key` 与不透明 `grant` JSON，读者须在记录所有者白名单内；持久化适配器只能由活动的 `lfaa-settings` Fiber 注册，记录状态接口不包含载荷。Browser Owner 以 `lfaa-browser-use` 为记录所有者保存浏览器密码/联系信息的 `grant` 载荷，访问仍绑定认证账户；元数据与解密后的记录仅由对应 Browser Owner 流程读取，自动填入再核验当前 LFAA 页面来源和字段，不提交网页表单。
 
 AI Provider 密钥和插件凭据记录沿用设置中心现有的 AES-256-GCM 密钥文件与原子配置存储；插件记录的认证数据绑定账户、插件所有者和记录 ID，防止密文跨地址调换。没有增加第二个秘密 Owner、浏览器密钥传输或用户设置。记录变更只发出账户、引用和操作类型，不包含秘密值。DeepSeek Platform 登录、远程授权入口和任意环境变量引用尚未接入，不能标记为已支持。

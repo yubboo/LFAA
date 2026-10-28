@@ -8,7 +8,7 @@ export const EXPERT_CATALOG = [
   {
     "id": "expert.minecraft-hosting",
     "name": "Minecraft 应用维护员工",
-    "description": "专职处理 LFAA Minecraft App 与 Minecraft 服务问题：调查、修复、运行环境、核心/模组/插件、节点和实例运维，并按需协作子 Agent。"
+    "description": "维护 LFAA Minecraft App 与 Minecraft 服务；按需开发、构建和验证 Minecraft Java 插件，并按真实工具结果处理节点和实例运维。"
   },
   {
     "id": "expert.ai-writing",

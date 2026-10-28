@@ -2,7 +2,11 @@
 
 本包登记认证后的设置路由，不复制身份、配置或数据迁移规则。系统数据根只读启动配置，由 workspace/data-directory 提供状态；系统数据迁移入口禁用。游戏、Writing、AI Video 的业务内容根及其复制/核对/ZIP 操作由 settings/project-storage 与 content-storage-migration 持有。
 
+认证 `/preferences` 路由将向导完成标记与 App/模式偏好一并交给 Settings Preferences Owner；Controller 不持有向导规则，也不修改设置中心配置。
+
 AI Provider 目录由认证用户读取，账户集合由 Settings Owner 按 system/user scope 限定：普通 Provider 系统账户的新增和管理仅管理员可写；火山方舟 Agent Plan/Coding Plan 账户仅所属登录用户可管理，跨用户账户返回未找到，不能作为共享模型使用。模型凭据由 Settings Owner 加密，不进入路由响应。用户级 `aiRuntime` 偏好仍由原设置路由持有。
+
+`POST /settings/ai/accounts/:accountId/select-model` 复用账户写权限和严格模型 ID 校验；Settings Owner 先核对 Provider 当前目录并测试目标模型，再在一个配置事务中提交模型与活动账户。选择系统账户时清除当前用户的 Plan 账户覆盖，使系统回退模型立即生效；系统活动模型仍是既有全局配置。
 
 业务内容迁移路由要求管理员身份；写入、复制切换、手动核对切换及归档导入/导出均经过 Permission Owner 的 `authorizeExplicitUserAction`，页面上的明确操作按钮构成单次授权。系统复制只覆盖受管业务树并保留目标备份，手动模式核对 SHA-256，ZIP 脚本仅解包 `games/` 与账户项目目录。系统账号、AI Provider、会话、设置、环境、缓存、插件 Profile 和远端节点路径不由这些路由处理。
 

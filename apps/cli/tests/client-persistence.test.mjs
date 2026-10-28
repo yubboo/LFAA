@@ -1,7 +1,7 @@
 /**
  * 功能：回归验证浏览器端共享持久化底座。
  * 作用：覆盖版本/作用域键、运行时编解码、异常降级及防抖写入生命周期。
- * 关联文件：packages/client/store/src/browser-persistence.ts、ai-work-drafts.ts、ai-session-pins.ts、scroll-restoration.ts。
+ * 关联文件：packages/client/store/src/browser-persistence.ts、ai-work-drafts.ts、ai-session-pins.ts、ai-work-sidebar.ts、scroll-restoration.ts。
  */
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -14,6 +14,7 @@ import {
 } from "../../../packages/client/store/src/browser-persistence.ts";
 import { readAiWorkDraft, writeAiWorkDraft } from "../../../packages/client/store/src/ai-work-drafts.ts";
 import { MAX_PINNED_AI_SESSIONS, readPinnedAiSessionIds, writePinnedAiSessionIds } from "../../../packages/client/store/src/ai-session-pins.ts";
+import { MAX_AI_WORK_SIDEBAR_GROUP_PREFERENCES, readAiWorkSidebarPreferences, writeAiWorkSidebarPreferences } from "../../../packages/client/store/src/ai-work-sidebar.ts";
 import { createScrollRestorationKey } from "../../../packages/client/store/src/scroll-restoration.ts";
 
 function createMemoryStorage() {
@@ -67,6 +68,50 @@ test("会话置顶按账户隔离、去重并限制在有界 ID 列表", () => {
   assert.equal(writePinnedAiSessionIds("user:a", ["", "x".repeat(129)], storage), true);
   assert.deepEqual(readPinnedAiSessionIds("user:a", storage), []);
   assert.equal(storage.values.has("lfaa.ai-session-pins.v1:user%3Aa"), false);
+});
+
+test("AI Work 侧栏开合与项目分页偏好按账户/App 持久化隔离", () => {
+  const storage = createMemoryStorage();
+  const preferences = {
+    pinnedExpanded: false,
+    projectsExpanded: true,
+    recentSessionsExpanded: true,
+    collapsedProjectGroups: ["projects:project:project-a"],
+    projectSessionVisibleCounts: { "projects:project:project-a": 15 },
+  };
+
+  assert.equal(readAiWorkSidebarPreferences("user:a", "workspace", storage).pinnedExpanded, true);
+  assert.equal(writeAiWorkSidebarPreferences("user:a", "workspace", preferences, storage), true);
+  assert.deepEqual(readAiWorkSidebarPreferences("user:a", "workspace", storage), preferences);
+  assert.equal(readAiWorkSidebarPreferences("user:b", "workspace", storage).projectsExpanded, false);
+  assert.equal(readAiWorkSidebarPreferences("user:a", "minecraft", storage).recentSessionsExpanded, false);
+  assert.equal(storage.values.has("lfaa.ai-work-sidebar.v1:user%3Aa:workspace"), true);
+});
+
+test("AI Work 侧栏偏好拒绝超界/损坏数据并在存储拒绝时安全使用默认值", () => {
+  const storage = createMemoryStorage();
+  const defaults = readAiWorkSidebarPreferences("user:a", "workspace", storage);
+  assert.equal(writeAiWorkSidebarPreferences("user:a", "workspace", {
+    ...defaults,
+    projectSessionVisibleCounts: { group: 201 },
+  }, storage), false);
+  assert.equal(writeAiWorkSidebarPreferences("user:a", "workspace", {
+    ...defaults,
+    collapsedProjectGroups: Array.from({ length: MAX_AI_WORK_SIDEBAR_GROUP_PREFERENCES + 1 }, (_, index) => `group-${index}`),
+  }, storage), false);
+
+  storage.values.set("lfaa.ai-work-sidebar.v1:user%3Aa:workspace", JSON.stringify({ ...defaults, projectsExpanded: "yes" }));
+  assert.deepEqual(readAiWorkSidebarPreferences("user:a", "workspace", storage), defaults);
+  assert.equal(storage.values.has("lfaa.ai-work-sidebar.v1:user%3Aa:workspace"), false);
+
+  const deniedStorage = {
+    getItem() { throw new Error("测试存储访问被拒绝"); },
+    setItem() { throw new Error("测试存储访问被拒绝"); },
+    removeItem() { throw new Error("测试存储访问被拒绝"); },
+  };
+  assert.deepEqual(readAiWorkSidebarPreferences("user:a", "workspace", deniedStorage), defaults);
+  assert.equal(writeAiWorkSidebarPreferences("user:a", "workspace", defaults, deniedStorage), false);
+  assert.equal(writeAiWorkSidebarPreferences("", "workspace", defaults, storage), false);
 });
 
 test("共享 JSON codec 校验运行时类型并跳过相同值写入", () => {

@@ -182,7 +182,8 @@ export const passkeyRemovalSchema = Joi.object({
 
 export const preferencesSchema = Joi.object({
   selectedApp: Joi.string().valid(...APPLICATION_IDS).required(),
-  selectedMode: Joi.string().valid("normal", "ai-work").required()
+  selectedMode: Joi.string().valid("normal", "ai-work").required(),
+  guidedEntryCompleted: Joi.boolean().required()
 });
 
 export const accountAgentUsagePolicySchema = Joi.object({
@@ -239,7 +240,7 @@ export const agentAssociationsSchema = Joi.object({
 }).unknown(false);
 
 const aiWorkbenchViewSchema = Joi.object({
-  rightPane: Joi.string().valid("browser", "new-tab", "git", "assets", "applications", "side-chat", "extension", "application-tools").required(),
+  rightPane: Joi.string().valid("browser", "new-tab", "git", "assets", "applications", "side-chat", "extension", "project-file", "application-tools").required(),
   rightPaneOpen: Joi.boolean().required(),
   bottomTerminalOpen: Joi.boolean().required(),
   browserUrl: Joi.string().uri({ scheme: ["http", "https"] }).max(2_048),

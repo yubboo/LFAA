@@ -27,6 +27,7 @@ import { dshLocaleRuntime } from "lfaa-client-ui-workspace/src/dsh-locale-runtim
 import { resolveWallpaperCanvasOwnership } from "./wallpaper-canvas-ownership.js";
 import { appearanceBackgroundSlotForRoute } from "./appearance-background-slot.js";
 import { createReleaseAnnouncementPersistence } from "./release-announcement.js";
+import { GuidedSystemEntry } from "./GuidedSystemEntry.js";
 import "./css/module-shell.css";
 const GameLibraryPage = lazy(() => import("./GameLibraryPage.js").then(module => ({ default: module.GameLibraryPage })));
 const SteamcmdWorkspace = lazy(() => import("./SteamcmdWorkspace.js").then(module => ({ default: module.SteamcmdWorkspace })));
@@ -42,6 +43,7 @@ interface WorkbenchProps {
   error: string | null;
   onNavigate: (path: string) => void;
   onOpenApplication: (app: ApplicationId, mode: ApplicationMode) => Promise<void>;
+  onCompleteGuidedEntry: (app: ApplicationId, mode: "chat" | "canvas" | "manual") => Promise<string | null>;
   onUserChange: (user: User) => void;
   onLogout: () => void;
   credentialReminder: { usernamePending: boolean; passwordPending: boolean } | null;
@@ -341,8 +343,8 @@ const applicationCards: Array<{
 ];
 
 const allApplicationNavigationItems: ApplicationNavigationItem[] = [
-  { id: "games", title: "游戏库", description: "运行环境 · Minecraft · SteamCMD", route: "/games" },
-  { id: "canvas", title: "无限画布", description: "系统级创作画布 · 所有 App 可用", route: "/canvas" },
+  { id: "games", title: "游戏服务", description: "Minecraft · Steam 游戏服务器 · 运行环境", route: "/games" },
+  { id: "canvas", title: "系统画布", description: "跨业务应用共用的可视化工作区", route: "/canvas" },
   ...applicationCards
     .filter((application) => application.id !== "steamcmd" && application.id !== "minecraft")
     .map((application) => ({ id: application.id, title: application.title, applicationId: application.id }))
@@ -367,6 +369,7 @@ export function Workbench({
   error,
   onNavigate,
   onOpenApplication,
+  onCompleteGuidedEntry,
   onUserChange,
   onLogout,
   credentialReminder,
@@ -381,7 +384,7 @@ export function Workbench({
     ? [route, "workspace", "ai-work", "voice"]
     : normalizeWorkRoute(route) === SHARED_WORK_ROUTE ? [route, "workspace", "ai-work", "overview"] : gameLibraryApplicationRoute(route) ?? route.match(APPLICATION_ROUTE_PATTERN);
   const isGameLibraryRoute = route === "/games" || route.startsWith("/games/");
-  const isAiWorkRoute = appRoute?.[1] === "workspace" && appRoute?.[2] === "ai-work";
+  const isAiWorkRoute = appRoute?.[2] === "ai-work";
   const isFileManagerPage = route === "/files";
   const isCanvasHomePage = route === "/canvas";
   const isCanvasPage = isCanvasHomePage || Boolean(appCanvasRoute);
@@ -429,6 +432,12 @@ export function Workbench({
     const hidden = new Set<ApplicationNavigationId>(hiddenApplicationNavigationIds);
     return allApplicationNavigationItems.filter(application => !hidden.has(application.id));
   }, [hiddenApplicationNavigationIds]);
+  const guidedVisibleApplications = useMemo<ApplicationId[]>(() => [
+    "workspace",
+    ...applicationCards.filter(application => application.id === "steamcmd" || application.id === "minecraft"
+      ? applicationNavigationItems.some(item => item.id === "games")
+      : applicationNavigationItems.some(item => item.id === application.id)).map(application => application.id)
+  ], [applicationNavigationItems]);
   const [wallpaperEngineClientAvailable, setWallpaperEngineClientAvailable] = useState(() => document.body.hasAttribute("data-lfaa-wallpaper-engine-client"));
   const shortcutSettingsRef = useRef(settings.shortcuts);
   useLayoutEffect(() => { shortcutSettingsRef.current = settings.shortcuts; }, [settings.shortcuts]);
@@ -951,13 +960,14 @@ export function Workbench({
   } else if (appRoute) {
     const canvasMode = Boolean(appCanvasRoute);
     const app = appRoute[1] as ApplicationId;
+    const modeApp = canvasMode ? appCanvasRoute?.[1] as ApplicationId : app;
     const mode = canvasMode ? "ai-work" : appRoute[2] as ApplicationMode;
     const section = canvasMode ? "canvas" : appRoute[3] || "overview";
     const aiState = aiWorkUiState;
     pageContent = (
       <Suspense fallback={<div className="loading-page loading-page--compact"><span className="loading-indicator" aria-hidden="true" /></div>}>
         <ApplicationWorkspace
-          key={`${app}:${appRoute[2]}${canvasMode ? ":canvas" : ""}`}
+          key={canvasMode ? appCanvasRoute?.[1] : app}
           userId={user.id}
           app={app}
           mode={mode}
@@ -968,7 +978,7 @@ export function Workbench({
             applications: canvasApplicationItems.map(item => ({ title: item.title, applicationId: item.applicationId! }))
           } : undefined}
           gameLibrary={isGameLibraryRoute}
-          workspaceTitle={isGameLibraryRoute ? app === "workspace" ? appRoute[3] === "environments" ? "运行环境" : "游戏库" : app === "steamcmd" ? "Steam 游戏服务" : undefined : undefined}
+          workspaceTitle={isGameLibraryRoute ? app === "workspace" ? appRoute[3] === "environments" ? "运行环境" : "游戏服务" : app === "steamcmd" ? "Steam 游戏服务器" : undefined : undefined}
           applicationContent={isGameLibraryRoute && app === "workspace" ? <GameLibraryPage onOpenStorage={() => openSettings("workspace")} user={user} environments={appRoute[3] === "environments"} canBrowseLocalFiles={user.role === "super_admin" && settings.permissions.mode === "full_access"} onNavigate={onNavigate} />
             : isGameLibraryRoute && app === "steamcmd" ? <SteamcmdWorkspace user={user} onNavigate={onNavigate} /> : undefined}
           settings={settings}
@@ -979,9 +989,9 @@ export function Workbench({
           role={user.role}
           serverState={serverState}
           error={error}
-          onBack={() => onNavigate(isGameLibraryRoute ? "/games" : `/apps/${app === "workspace" ? preferences.selectedApp : app}/normal`)}
+          onBack={() => onNavigate(isGameLibraryRoute ? "/games" : `/apps/${modeApp === "workspace" ? preferences.selectedApp : modeApp}/normal`)}
           onOpenSelectedApplication={() => onOpenApplication(preferences.selectedApp, "normal")}
-          onSelectedModeHome={() => onNavigate(isGameLibraryRoute ? "/games" : appRoute[2] === "ai-work" ? SHARED_WORK_ROUTE : `/apps/${app}/normal`)}
+          onSelectedModeHome={() => onNavigate(isGameLibraryRoute ? "/games" : modeApp === "workspace" ? SHARED_WORK_ROUTE : `/apps/${modeApp}/normal`)}
           onNavigate={onNavigate}
           onOpenSettings={openSettings}
           onOpenApplication={onOpenApplication}
@@ -1031,6 +1041,7 @@ export function Workbench({
       }
     }}>
     <div ref={workbenchShellRef} className={`workbench-shell${isModulePage ? " workbench-shell--module" : ""}${isSettingsPage ? " workbench-shell--settings" : ""}`} data-theme={resolvedTheme} data-background-image={wallpaperCanvasOwnership.hasWallpaperBackground ? "true" : "false"} data-wallpaper-engine-owner={wallpaperCanvasOwnership.wallpaperEngineOwnsCanvas ? "true" : "false"} data-custom-sidebar-color={customSidebarColor && !wallpaperCanvasOwnership.wallpaperEngineOwnsCanvas ? "true" : "false"} data-reduced-motion={appearanceAdvanced.reducedMotion} data-card-motion-effect={settings.general.cardMotionEffect ?? DEFAULT_USER_SETTINGS.general.cardMotionEffect} data-translucent-sidebar={appearanceAdvanced.translucentSidebar ? "true" : "false"} data-diff-markers={appearanceAdvanced.diffMarkers} data-pointer-cursor={appearanceAdvanced.pointerCursor ? "true" : "false"} data-ai-work-output-focus-blur={appearanceAdvanced.aiWorkOutputFocusBlurEnabled ? "true" : "false"} style={shellStyle as CSSProperties}>
+      {!preferences.guidedEntryCompleted ? <GuidedSystemEntry visibleApplications={guidedVisibleApplications} onComplete={onCompleteGuidedEntry} /> : <>
       {!isSettingsPage ? <header className="topbar">
         <button className="brand-lockup brand-lockup--button" type="button" onClick={() => onNavigate(SHARED_WORK_ROUTE)}>
           <span className="brand-mark" aria-hidden="true">L</span>
@@ -1272,6 +1283,7 @@ export function Workbench({
         <span>LFAA 本机与远程主机应用工作台</span>
         <span>当前阶段：小鱼智能体工作台</span>
       </footer> : null}
+      </>}
     </div>
     </ConfigProvider>
   );

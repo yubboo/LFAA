@@ -1,4 +1,4 @@
-/** 游戏库沿用设置映射的文字、表面、强调色和减少动态效果，不新增独立主题。 */
+/** 游戏服务工作区沿用设置映射的文字、表面、强调色和减少动态效果，不新增独立主题。 */
 .game-library { width: 100%; min-width: 0; max-width: 76rem; box-sizing: border-box; margin: 0 auto; padding: clamp(.75rem, 3cqi, 2.5rem); container-type: inline-size; container-name: game-library; }
 .game-library__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1.25rem; margin-bottom: 2rem; }
 .game-library__header h1 { margin: 0; font-size: var(--font-size-2xl); }

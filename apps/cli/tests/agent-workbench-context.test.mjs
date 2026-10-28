@@ -31,6 +31,7 @@ test("API 只接受已登记面板和条件匹配的 HTTP(S) 浏览器地址", (
   assert.ok(aiChatMessageSchema.validate({ ...message, workspaceView: { ...valid, browserUrl: "ftp://example.com" } }).error);
   assert.ok(aiChatMessageSchema.validate({ ...message, workspaceView: { ...valid, rightPane: "git" } }).error);
   assert.ok(aiChatMessageSchema.validate({ ...message, workspaceView: { ...valid, rightPaneOpen: false } }).error);
+  assert.equal(aiChatMessageSchema.validate({ ...message, workspaceView: { rightPane: "project-file", rightPaneOpen: true, bottomTerminalOpen: false } }).error, undefined);
 });
 
 test("Agent Loop 将受限 JSON 作为界面提示，不把它当能力或权限", () => {
@@ -46,5 +47,6 @@ test("Agent Loop 将受限 JSON 作为界面提示，不把它当能力或权限
   const disabled = formatAgentWorkbenchContext(view, false);
   assert.ok(disabled);
   assert.ok(!disabled.includes("browserUrl"));
+  assert.ok(formatAgentWorkbenchContext({ ...view, rightPane: "project-file" }, true)?.includes('"rightPane":"project-file"'));
   assert.equal(formatAgentWorkbenchContext({ ...view, rightPane: "not-a-pane" }, true), undefined);
 });

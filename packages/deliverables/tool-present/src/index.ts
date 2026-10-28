@@ -14,7 +14,8 @@ const publishSchema = Joi.object({
     return value.startsWith("/") || value.includes("\\") || /[\u0000-\u001f\u007f]/u.test(value)
       || segments.some(segment => !segment || segment === "." || segment === "..") ? helpers.error("string.pattern.base") : value;
   }),
-  title: Joi.string().trim().min(1).max(160).optional()
+  title: Joi.string().trim().min(1).max(160).optional(),
+  artifactKind: Joi.string().valid("minecraft-plugin", "minecraft-mod", "other").optional()
 }).unknown(false);
 
 const tool: AiBusinessTool = makeTool({
@@ -23,7 +24,7 @@ const tool: AiBusinessTool = makeTool({
   applicationIds: ["workspace"],
   coreManaged: true,
   description: "将当前项目中已完成、用户可直接下载使用的最终文件发布到资产库。仅在代码/文件已经完成且所需构建或验证真实成功后调用；path 必须是当前 Agent Git 项目根目录内的项目相对路径。它会用本机 Project Files Owner 检查文件存在、普通文件类型、摘要和大小，并按账户/项目登记；不会编译、自动搜索文件、复制文件或把源码变成资产。登记失败时按真实结果修复或报告，不可声称发布成功。",
-  schema: strictObject({ path: { type: "string", maxLength: 32760, description: "当前项目根目录内的普通文件相对路径，不允许绝对路径或跳出项目。" }, title: { type: "string", maxLength: 160, description: "资产库中显示的简短名称。" } }, ["path"]),
+  schema: strictObject({ path: { type: "string", maxLength: 32760, description: "当前项目根目录内的普通文件相对路径，不允许绝对路径或跳出项目。" }, title: { type: "string", maxLength: 160, description: "资产库中显示的简短名称。" }, artifactKind: { type: "string", enum: ["minecraft-plugin", "minecraft-mod", "other"], description: "真实产物类型；Minecraft 插件 JAR 选 minecraft-plugin，模组 JAR 选 minecraft-mod。" } }, ["path"]),
   parse: value => parseWithSchema(publishSchema, value),
   prepare(parameters, context) {
     const repository = context.agentGitRepository;
@@ -47,12 +48,13 @@ const tool: AiBusinessTool = makeTool({
       sessionId: context.sessionId,
       path: file.relativePath,
       title: typeof parameters.title === "string" ? parameters.title : file.fileName,
+      artifactKind: parameters.artifactKind === "minecraft-plugin" || parameters.artifactKind === "minecraft-mod" ? parameters.artifactKind : "other",
       fileName: file.fileName,
       sizeBytes: file.sizeBytes,
       sha256: file.sha256,
       modifiedAt: file.modifiedAt
     });
-    return { published: true, id: deliverable.id, title: deliverable.title, fileName: deliverable.fileName, path: deliverable.path,
+    return { published: true, id: deliverable.id, title: deliverable.title, artifactKind: deliverable.artifactKind, fileName: deliverable.fileName, path: deliverable.path,
       sizeBytes: deliverable.sizeBytes, sha256: deliverable.sha256, publishedAt: deliverable.publishedAt };
   }
 });

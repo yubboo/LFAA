@@ -487,6 +487,9 @@ importers:
       lfaa-credentials:
         specifier: workspace:*
         version: link:../../credentials/credentials
+      lfaa-deliverables-workspace-changes:
+        specifier: workspace:*
+        version: link:../../deliverables/workspace-changes
       lfaa-host-daemon:
         specifier: workspace:*
         version: link:../../host/daemon
@@ -2590,6 +2593,31 @@ importers:
         specifier: ^18.0.0
         version: 18.3.31
 
+  packages/client/ui-deliverables:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-client-connection:
+        specifier: workspace:*
+        version: link:../connection
+      lfaa-client-modules:
+        specifier: workspace:*
+        version: link:../modules
+      lfaa-client-ui-primitives:
+        specifier: workspace:*
+        version: link:../ui-primitives
+      react:
+        specifier: ^18.0.0
+        version: 18.0.0
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+      '@types/react':
+        specifier: ^18.0.0
+        version: 18.3.31
+
   packages/client/ui-dockkit:
     dependencies:
       '@deepseek-ai/cordis':
@@ -3337,6 +3365,9 @@ importers:
       lfaa-client-ui-connectivity:
         specifier: workspace:*
         version: link:../ui-connectivity
+      lfaa-client-ui-deliverables:
+        specifier: workspace:*
+        version: link:../ui-deliverables
       lfaa-client-ui-dockkit:
         specifier: workspace:*
         version: link:../ui-dockkit
@@ -3450,6 +3481,9 @@ importers:
       lfaa-client-ui-connectivity:
         specifier: workspace:*
         version: link:../ui-connectivity
+      lfaa-client-ui-deliverables:
+        specifier: workspace:*
+        version: link:../ui-deliverables
       lfaa-client-ui-dockkit:
         specifier: workspace:*
         version: link:../ui-dockkit
@@ -3917,6 +3951,34 @@ importers:
       '@deepseek-ai/cordis':
         specifier: 4.0.4
         version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.0
+
+  packages/deliverables/tool-present:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.4
+        version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      joi:
+        specifier: ^17.0.0
+        version: 17.13.8
+      lfaa-deliverables-workspace-changes:
+        specifier: workspace:*
+        version: link:../workspace-changes
+      lfaa-tools:
+        specifier: workspace:*
+        version: link:../../core/tools
+      lfaa-util-values:
+        specifier: workspace:*
+        version: link:../../util/values
+
+  packages/deliverables/workspace-changes:
+    dependencies:
+      lfaa-storage-sqlite:
+        specifier: workspace:*
+        version: link:../../storage/storage-sqlite
     devDependencies:
       '@types/node':
         specifier: ^24.0.0

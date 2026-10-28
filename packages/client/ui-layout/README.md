@@ -1,5 +1,7 @@
 # client/ui-layout
 
+首次进入引导由 `GuidedSystemEntry` 在 Workbench Shell 内呈现：始终提供通用工作区，业务 App 卡片跟随现有 `general.hiddenApplicationNavigationIds` 过滤。它只返回入口与工作模式选择；完成标记和具体路由由 Renderer 及既有 Preferences Owner 保存/装配，不卡片创建业务数据。页面使用 Workbench 当前 Appearance 令牌与减少动态效果状态。
+
 Workbench 将认证后的 `/agent-office` 懒加载到 `ui-workspace`，并复用模块 Shell、当前 Settings Appearance 和账户导航；员工状态和卡片布局由 `AgentOfficePage` 负责，Workbench 只做路由装配。办公室入口不启动或控制 Agent。
 
 `Workbench` 将认证后的 `/plugins` 路由懒加载到 `ui-plugin-manager`，并把它作为独立模块工作区显示。页面的全局导航归 `ui-sidebar`，插件来源/状态展示与动作意图归 `ui-plugin-manager`；Workbench 只装配该页面，不持有插件规则。插件目录工具栏齿轮调用 `openSettings("plugins")` 路由到设置中心现有插件分区，并保留返回来源；设置内容仍归 `ui-settings`。
@@ -14,7 +16,7 @@ Workbench 根据现有背景槽读取同名 `appearance.areaEffects`：遮罩和
 
 共享运行环境页将 Runtime Overview 按当前账户与角色保存在 Client Snapshot Cache；同一身份 30 秒内回访先呈现最近真实设备/环境快照并跳过重复读取，过期快照继续由认证 API 核对。缓存只用于首屏显示，不替代 RuntimeManager 的本机发现、节点心跳和安装前校验；活动环境任务每 3 秒核对一次，下载仍只由用户发起的运行环境任务执行。
 
-Workbench 提供唯一的 `applicationNavigationItems` 应用清单。`ApplicationWorkspace` 在右侧 Dock 呈现“应用”视图和原工具/资源视图；设置、文件、插件页的全局“应用”入口向 Workbench 提交一次性打开请求，进入 `/work` 后由工作区按 `requestId` 先消费并清理请求、再展开右侧应用视图，防止响应式布局或回调变化重放同一请求。当前视图选择由 Workbench 保持，使应用切换路由后仍留在应用菜单；左 Dock 只呈现会话与项目。
+Workbench 提供唯一的 `applicationNavigationItems` 工作台入口清单，其中领域应用导航与系统共享能力入口分开表达。`ApplicationWorkspace` 在右侧 Dock 呈现“应用与能力”视图和原工具/资源视图；设置、文件、插件页的全局入口向 Workbench 提交一次性打开请求，进入 `/work` 后由工作区按 `requestId` 先消费并清理请求、再展开右侧视图，防止响应式布局或回调变化重放同一请求。当前视图选择由 Workbench 保持，使入口切换路由后仍留在该视图；左 Dock 只呈现会话与项目。
 
 设置页只在 `/settings`、`/admin/users` 直达路由或用户悬停/聚焦设置导航时预热；工作台空闲时不主动下载整页，避免后台模块加载占用首屏资源。
 
@@ -24,7 +26,7 @@ Workbench 提供唯一的 `applicationNavigationItems` 应用清单。`Applicati
 
 ## 小鱼共享工作入口（2026-10-14）
 
-小鱼智能体工作区是独立工作入口，根地址与登录默认入口都落到 `/work`；旧工作路由归一。右侧“应用”视图显示游戏库及联机、写作、漫剧入口；SteamCMD 与 Minecraft 只从游戏库内部进入。常规应用页面作为维护和管理面板，小鱼 Agent 负责 `/work` 的智能体交互。共用工作区只有一个草稿写入器与活动会话选择；旧 App 草稿保留，首次无共享草稿时回读上次 App。通知直接打开共享会话。General 中旧 `defaultMode/defaultStandaloneChat` 字段保持账户读写兼容，不再改变首页。
+小鱼智能体工作区是系统级目标执行入口，根地址与登录默认入口都落到 `/work`；旧工作路由归一。右侧“应用与能力”视图区分游戏服务、联机管理、写作空间和 AI 漫剧等领域入口，以及所有领域共用的系统画布。SteamCMD 只作为 Steam 游戏服务器的当前实现依赖，不作为产品边界。常规应用页面管理各自领域数据，小鱼 Agent 负责统一目标交互与能力调度。共用工作区只有一个草稿写入器与活动会话选择；旧 App 草稿保留，首次无共享草稿时回读上次 App。通知直接打开共享会话。General 中旧 `defaultMode/defaultStandaloneChat` 字段保持账户读写兼容，不再改变首页。
 
 构建只写仓库根 dist/packages/client/ui-layout/；当前合同见 [开发提示词](../../../docs/development/xiaoyu-agent.zh.md)。构建、合成模型、浏览器与真实模型/节点验收分别报告。
 
@@ -36,7 +38,7 @@ SteamCMD 未验证提示卡片中的操作链接受提示卡可用宽度约束�
 
 运行环境页的本机 Java 路径通过 `SystemFileLibrary` 的只读本机磁盘浏览选择，服务端仍沿用超级管理员与 `permissions.mode=full_access` 校验；所选路径仅交给 Runtime Manager 在用户点击登记后校验。远端节点不使用本机文件路径，继续由用户填写目标节点路径并在对应 Daemon 验证。
 
-Workbench 将 `/games/*` 全部装配到共享 `ApplicationWorkspace` 四栏 Shell。全局应用导航只呈现“游戏库”；运行环境、Minecraft 与 Steam 游戏服务为游戏库内部视图。`GameLibraryPage`、`SteamcmdWorkspace` 是本包的组合适配器；Minecraft 实例/生命周期、Runtime Manager 和 SteamCMD 数据/任务仍归各自领域 Owner。旧 `/apps/{minecraft,steamcmd}/normal/*` 路由映射到 `/games/*`，内部 `ApplicationId`、认证和 Agent 工具合同保留。外观沿用 Settings/Appearance 共享令牌，不新增偏好；游戏库与运行环境分类使用真实中心容器宽度重排卡片、分类入口及操作控件，不依赖全局窗口宽度。运行环境页标题、返回入口、设备选择和顶部操作保持紧凑对齐；窄中栏将返回、重检和存储操作收为有可访问名称的图标按钮，仍保留设备当前值。
+Workbench 将 `/games/*` 全部装配到共享 `ApplicationWorkspace` 四栏 Shell。全局应用导航只呈现聚合入口“游戏服务”；运行环境、Minecraft 服务端与 Steam 游戏服务器为其内部视图。`GameLibraryPage`、`SteamcmdWorkspace` 是本包的组合适配器；Minecraft 实例/生命周期、Runtime Manager 和 SteamCMD 数据/任务仍归各自领域 Owner。旧 `/apps/{minecraft,steamcmd}/normal/*` 路由映射到 `/games/*`，内部 `ApplicationId`、认证和 Agent 工具合同保留。外观沿用 Settings/Appearance 共享令牌，不新增偏好；游戏服务与运行环境分类使用真实中心容器宽度重排卡片、分类入口及操作控件，不依赖全局窗口宽度。运行环境页标题、返回入口、设备选择和顶部操作保持紧凑对齐；窄中栏将返回、重检和存储操作收为有可访问名称的图标按钮，仍保留设备当前值。
 
 SteamCMD 分类读取设置中心已有节点模式与工具目录；默认选中本机控制端时，首次进入分类会选取在线 Windows x64 Daemon。安装、真实校验和完整卸载经 SteamCMD Owner；文件管理入口以账户限定的资源别名打开同一节点的 `steamcmd-runtime` 只读目录。窄容器将这组运行环境操作收为保留可访问名称的图标按钮。
 

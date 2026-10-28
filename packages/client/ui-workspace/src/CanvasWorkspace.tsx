@@ -1698,10 +1698,13 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
           <div className="lfaa-cnv-topbar__modes">
             <Segmented
               className="lfaa-cnv-mode-switch"
-              aria-label="聊天与画布工作模式"
+              aria-label="当前应用工作模式"
               value="canvas"
-              onChange={value => { if (value === "chat") onNavigate("/apps/" + encodeURIComponent(applicationId) + "/ai-work"); }}
-              options={[{ value: "chat", label: "聊天" }, { value: "canvas", label: "画布" }]}
+              onChange={value => {
+                if (value === "chat") onNavigate(`/apps/${encodeURIComponent(applicationId)}/ai-work`);
+                else if (value === "manual") onNavigate(`/apps/${encodeURIComponent(applicationId)}/normal`);
+              }}
+              options={[{ value: "chat", label: "聊天" }, { value: "canvas", label: "画布" }, ...(applicationId === "workspace" ? [] : [{ value: "manual", label: "手动" }])]}
             />
             {hasApplicationWorkflow ? <Segmented
               className="lfaa-cnv-mode-switch lfaa-cnv-mode-switch--app"

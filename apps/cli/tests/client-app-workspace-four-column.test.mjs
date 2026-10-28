@@ -132,7 +132,7 @@ test("AI Work 将 Git 摘要与变更管理联动到右侧菜单且聊天保持�
   assert.match(gitSummary, /querySelector<HTMLTextAreaElement>\('\[aria-label="提交信息"\]'\)/u);
   assert.match(gitSummary, /requestedActionFocus === "branch-create"/u);
   assert.match(gitSummary, /此 remote 类型暂未接入账户隔离的同步凭据/u);
-  assert.doesNotMatch(gitSummary.slice(0, gitSummary.indexOf("interface GitChangeActivityReviewProps")), /loadWorkspaceGitStatus\(/u);
+  assert.doesNotMatch(gitSummary, /GitChangeActivityReview|loadWorkspaceGitStatus\(/u);
   assert.match(workspaceCss, /\.module-git-manager__body\s*\{[^}]*overflow:\s*auto/u);
   assert.match(workspaceCss, /\.module-center__work-tabs/u);
   assert.match(workspaceCss, /\.module-context \.module-git-manager__header\s*\{/u);

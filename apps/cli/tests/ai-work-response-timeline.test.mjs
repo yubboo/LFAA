@@ -115,7 +115,7 @@ test("流式正文、工具与交互按落点留在同条回复，完成后追�
     const require=createRequire(${JSON.stringify(new URL("../../web/package.json", import.meta.url).href)});
     const {createElement}=require('react');const {renderToStaticMarkup}=require('react-dom/server');
     const {AiWorkResponse,AiActivityToolUsageCard}=await import(${JSON.stringify(new URL("../../../packages/client/ui-chat/src/AiWorkResponse.tsx", import.meta.url).href)});
-    console.log(renderToStaticMarkup(createElement(AiWorkResponse,{message:${JSON.stringify(message)},renderActivity:item=>createElement('span',{key:item.id},item.id,item.toolUsage?createElement(AiActivityToolUsageCard,{usage:item.toolUsage,stages:item.toolStages}):null),renderInteraction:${showInteractions ? "item=>createElement('section',null,item.question,item.detail)" : "()=>null"},onOpenProjectFileReview:()=>{},onBrowserToolCompleted:()=>{}})));
+    console.log(renderToStaticMarkup(createElement(AiWorkResponse,{message:${JSON.stringify(message)},renderActivity:item=>createElement('span',{key:item.id},item.id,item.toolUsage?createElement(AiActivityToolUsageCard,{usage:item.toolUsage,stages:item.toolStages}):null),renderInteraction:${showInteractions ? "item=>createElement('section',null,item.question,item.detail)" : "()=>null"},onOpenProjectFile:()=>{},onBrowserToolCompleted:()=>{}})));
   `], { cwd: fileURLToPath(new URL("..", import.meta.url)), env: { ...process.env, TSX_TSCONFIG_PATH: fileURLToPath(new URL("../../../tsconfig.client.json", import.meta.url)) }, encoding: "utf8" }).trim();
   const running = render(fixture("streaming"));
   assert.match(running, new RegExp(`--ai-work-stream-hue:${getResponseShimmerHue("run")}deg`), "回复色相来自稳定的消息 ID");
@@ -180,8 +180,11 @@ test("流式正文、工具与交互按落点留在同条回复，完成后追�
   const activeToolMarkup = render(activeTool);
   assert.match(activeToolMarkup, /ai-work-chat__tool-group--running[^>]*>/u);
   assert.doesNotMatch(activeToolMarkup, /<details class="ai-work-chat__tool-group[^>]*\bopen=/u, "多步执行时工具组默认收起，避免活动记录挤占正文");
-  assert.match(activeToolMarkup, /<summary class="ai-work-chat__tool-contract-summary">[\s\S]*?调用说明[\s\S]*?project_files[\s\S]*?<\/summary>/u, "工具合同摘要仍提供准确函数名和手动展开入口");
+  assert.match(activeToolMarkup, /<summary class="ai-work-chat__tool-contract-summary">[\s\S]*?查看执行步骤/u, "工具步骤以简短动作入口显示，不把原始函数名放在主时间线摘要中");
   assert.doesNotMatch(activeToolMarkup, /<details class="ai-work-chat__tool-contract"[^>]*\bopen=/u, "工具用途、参数字段与阶段详情默认收起");
+  assert.doesNotMatch(activeToolMarkup, /<details class="ai-work-chat__tool-contract-details"[^>]*\bopen=/u, "完整工具合同仍需用户主动展开");
+  assert.match(activeToolMarkup, /ai-work-chat__tool-contract-steps[^>]*>[\s\S]*?模型已选择工具/u, "展开工具步骤后先显示紧凑的真实阶段标签");
+  assert.match(activeToolMarkup, /ai-work-chat__tool-contract-details-summary[^>]*>[\s\S]*?查看完整调用说明与参数/u, "完整合同和 Schema 放在第二层详情中");
   assert.match(activeToolMarkup, /正在执行：操作项目文件/u, "当前工具动作显示在实际工具活动组");
   assert.match(activeToolMarkup, /project_files/u, "显示本轮调用的准确工具函数名");
   assert.match(activeToolMarkup, /读取、创建、修改或核对当前项目中的文件/u, "显示模型本轮收到的工具用途");
@@ -201,7 +204,8 @@ test("流式正文、工具与交互按落点留在同条回复，完成后追�
   assert.match(running, /是否继续？你的回答：继续/u);
   const finished = render(fixture());
   assert.doesNotMatch(finished, /<details class="ai-work-chat__response-history"/u, "完成后正文与操作不会被整体收进外层折叠");
-  assert.match(finished, /<div class="ai-work-chat__response-duration"><span class="ai-work-chat__assistant-identity">[\s\S]*?小鱼助手[\s\S]*?用时 [\s\S]*?<span class="ai-work-chat__response-state" data-tone="complete">已完成<\/span>/u);
+  assert.match(finished, /<details class="ai-work-chat__response-process"><summary class="ai-work-chat__response-duration ai-work-chat__response-process-summary"><span class="ai-work-chat__assistant-identity">[\s\S]*?小鱼助手[\s\S]*?用时 [\s\S]*?<span class="ai-work-chat__response-state" data-tone="complete">已完成<\/span>/u,
+    "完成后小鱼助手用时标题包含默认收起的执行过程");
   assert.doesNotMatch(finished, /ai-work-chat__assistant-mark--processing/u, "回复结束后小鱼保持静止");
   const waiting = fixture("waiting_input");
   waiting.activity = [{ ...activity("pending-question", 0, "question"), status: "waiting_input", completedAt: null, question: "要继续吗？", questionId: "q", options: ["继续"] }];
@@ -213,7 +217,8 @@ test("流式正文、工具与交互按落点留在同条回复，完成后追�
   const finalStart = finished.indexOf('class="ai-work-chat__response-final"');
   const headerStart = finished.indexOf('class="ai-work-chat__response-duration"');
   const finishedTimelineStart = finished.indexOf('class="ai-work-chat__response-timeline"');
-  assert.ok(headerStart < finishedTimelineStart && finishedTimelineStart < finished.indexOf("command-3") && finished.indexOf("command-3") < finalStart, "固定标题与分隔线之后按顺序显示真实动作，最后显示最终答复");
+  assert.ok(headerStart < finishedTimelineStart && finishedTimelineStart < finished.indexOf("command-3") && finished.indexOf("command-3") < finalStart && finished.lastIndexOf("</details>") < finalStart,
+    "公开过程保持原顺序并收在标题下，最终答复位于折叠区外");
   assert.match(finished.slice(finalStart), /<strong>已经完成。<\/strong>/u);
   assert.equal([...finished.matchAll(/已经完成。/gu)].length, 1);
   const failedReply = fixture("error");

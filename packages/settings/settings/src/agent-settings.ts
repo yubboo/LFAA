@@ -381,9 +381,20 @@ export function updateAgentSetting(userId: string, path: string, nextValue: unkn
     throw new Error("完整 CDP 访问需要先由用户开启浏览器开发者模式；当前未修改设置。");
   }
   const routeOptions = listAiModelRoutes(userId);
-  if (["aiRuntime.subagentAccountId", "aiRuntime.imageGenerationAccountId", "aiRuntime.videoGenerationAccountId"].includes(path)
+  if (["aiRuntime.subagentAccountId", "aiRuntime.videoGenerationAccountId"].includes(path)
     && nextValue !== "" && (typeof nextValue !== "string" || !routeOptions.some(route => route.accountId === nextValue))) {
     throw new Error("AI 账户必须来自设置中心当前账户的真实模型路由目录；未修改设置。");
+  }
+  if (path === "aiRuntime.imageGenerationAccountId" && nextValue !== "") {
+    const account = typeof nextValue === "string" ? listAiAccounts(userId).find(item => item.id === nextValue) : undefined;
+    const hasPlanImageModel = account?.models.some(model => model.taskType === "image-generation" && (
+      !model.planTiers?.length || !account.options.planTier || account.options.planTier === "unknown"
+      || model.planTiers.includes(account.options.planTier as NonNullable<typeof model.planTiers>[number])
+    ));
+    if (!account?.hasSecret || account.providerId !== "openai" && account.providerId !== "doubao" && account.providerId !== "ark-agent-plan"
+      || account.providerId === "ark-agent-plan" && !hasPlanImageModel) {
+      throw new Error("图片生成账户必须是当前用户已保存且具有图像能力目录的 OpenAI、豆包或 Agent Plan 账户；未修改设置。");
+    }
   }
   if (path === "aiRuntime.videoTranscriptionAccountId" && nextValue !== "") {
     const account = typeof nextValue === "string" ? listAiAccounts(userId).find(item => item.id === nextValue) : undefined;
@@ -394,8 +405,19 @@ export function updateAgentSetting(userId: string, path: string, nextValue: unkn
       throw new Error("视频语音识别账户必须是当前账户真实可用且包含支持档位的 Ark Agent Plan 语音模型账户；未修改设置。");
     }
   }
-  if (["aiRuntime.imageGenerationModelId", "aiRuntime.videoGenerationModelId"].includes(path) && nextValue !== "") {
-    const accountPath = path.replace(/ModelId$/u, "AccountId");
+  if (path === "aiRuntime.imageGenerationModelId" && nextValue !== "") {
+    const accountId = readPath(current, "aiRuntime.imageGenerationAccountId");
+    const account = typeof accountId === "string" ? listAiAccounts(userId).find(item => item.id === accountId) : undefined;
+    const model = account?.models.find(item => item.id === nextValue);
+    const tier = account?.options.planTier;
+    const tierAllowed = !model?.planTiers?.length || !tier || tier === "unknown"
+      || model.planTiers.includes(tier as NonNullable<typeof model.planTiers>[number]);
+    if (!account?.hasSecret || !model || account.providerId === "ark-agent-plan" && model.taskType !== "image-generation" || !tierAllowed) {
+      throw new Error("图片模型必须来自当前所选账户的真实图像能力目录及 Agent Plan 档位；未修改设置。");
+    }
+  }
+  if (path === "aiRuntime.videoGenerationModelId" && nextValue !== "") {
+    const accountPath = "aiRuntime.videoGenerationAccountId";
     const accountId = readPath(current, accountPath);
     if (typeof nextValue !== "string" || typeof accountId !== "string" || !routeOptions.some(route => route.accountId === accountId && route.modelId === nextValue)) {
       throw new Error("模型必须来自当前设置所选账户的真实模型目录；未修改设置。");

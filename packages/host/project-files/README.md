@@ -8,6 +8,8 @@
 
 本机 Host 可为当前可信项目根中的普通 HTML/HTM 建立只读短期预览服务：仅绑定 `127.0.0.1` 的临时端口，只响应 GET/HEAD，不提供目录列表或写入；每个 HTML、脚本、样式和媒体资源请求都会重新校验真实路径、符号链接与 LFAA 数据目录边界，并限制单文件大小。返回的关闭句柄由 Browser Session Owner 持有，Session 结束或空闲过期时回收服务。
 
+`inspect_artifact` 与 `openProjectArtifact` 仅接受 Agent Git 项目根内的普通文件相对路径，拒绝遍历、符号链接、LFAA 数据目录和超过 512 MiB 的文件；发布时以有界流读取并计算 SHA-256，下载时返回绑定已校验文件句柄的流，不把二进制读入模型上下文或 SQLite。
+
 构建只写仓库根 `dist/packages/host/project-files/`。
 
 项目 Git 差异对根目录省略空 pathspec，并将未跟踪普通 UTF-8 文本与已跟踪差异一起返回；执行器禁用外部 diff/textconv，路径按 literal 传给 Git。差异输出最多 2 MiB、未跟踪文本最多 200 个文件/1 MiB，超过上限以 `diffTruncated` 标记；二进制、符号链接和无效 UTF-8 不按文本内容返回。

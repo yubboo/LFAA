@@ -1,5 +1,5 @@
 /**
- * 功能：游戏库一级入口与共享运行环境页面。
+ * 功能：游戏服务聚合入口与共享运行环境页面。
  * 作用：聚合现有 Minecraft/SteamCMD 入口，环境操作统一调用 RuntimeManager。
  * 关联文件：Workbench、connection/runtime-api、games/runtime-manager。
  */
@@ -65,9 +65,9 @@ export function GameLibraryPage({ user, environments = false, canBrowseLocalFile
   const canOperate = user.role !== "member" && !busy && !["queued", "running"].includes(task?.status ?? "");
   return <section className={`game-library${environments?" game-library--environments":""}`} aria-labelledby="game-library-heading">
     <header className="game-library__header">
-      <div><Typography.Title id="game-library-heading" level={1}>{environments ? "运行环境" : "游戏库"}</Typography.Title>
+      <div><Typography.Title id="game-library-heading" level={1}>{environments ? "运行环境" : "游戏服务"}</Typography.Title>
         <Typography.Paragraph>{environments ? "本机与远程设备各自管理环境，Minecraft 和 SteamCMD 共用已验证的运行资源。" : "从环境准备到服务器运行，在同一个入口管理游戏服务。"}</Typography.Paragraph></div>
-      {environments ? <Button className="game-library__return-action" aria-label="返回游戏库" title="返回游戏库" icon={<WorkbenchIcon className="game-library__return-icon" name="arrowRight" size={16} />} onClick={() => onNavigate("/games")}><span className="game-library__action-label">返回游戏库</span></Button> : null}
+      {environments ? <Button className="game-library__return-action" aria-label="返回游戏服务" title="返回游戏服务" icon={<WorkbenchIcon className="game-library__return-icon" name="arrowRight" size={16} />} onClick={() => onNavigate("/games")}><span className="game-library__action-label">返回游戏服务</span></Button> : null}
     </header>
     {error ? <Alert type="error" showIcon message={error} action={<Button onClick={() => setRevision(value => value + 1)}>重试读取</Button>} /> : null}
     {!environments ? <div className="game-library__grid">
@@ -87,10 +87,10 @@ export function GameLibraryPage({ user, environments = false, canBrowseLocalFile
       </article>
       <article className="game-library__card">
         <span className="game-library__icon"><WorkbenchIcon name="terminal" size={28} /></span>
-        <Typography.Title level={2}>Steam 游戏服务</Typography.Title>
+        <Typography.Title level={2}>Steam 游戏服务器</Typography.Title>
         <Typography.Paragraph>部署和更新 Steam 专用服务端，按目标设备管理游戏服务器实例。</Typography.Paragraph>
         <p className="game-library__status">支持 Steam 已发布的专用服务端 AppID</p>
-        <Button type="primary" onClick={() => onNavigate("/games/steamcmd")}>管理 Steam 游戏服务</Button>
+        <Button type="primary" onClick={() => onNavigate("/games/steamcmd")}>管理 Steam 游戏服务器</Button>
       </article>
     </div> : <>
       {overview?<RuntimeEnvironmentPanel overview={overview} targetId={targetId} setTargetId={setTargetId} canOperate={canOperate} canBrowseLocalFiles={canBrowseLocalFiles} operate={operate} task={task} onNavigate={onNavigate} onOpenStorage={onOpenStorage} onOpenSteamcmd={()=>onNavigate("/games/steamcmd")} onManageSteamcmd={nodeId=>{setFileManagerLocation(user.id,`.lfaa-library/game-storage/${nodeId}/steamcmd-runtime`);onNavigate("/files");}} />:!error?<div role="status"><Spin/> 正在读取设备的实际环境…</div>:null}

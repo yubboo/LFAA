@@ -112,7 +112,7 @@ export function CanvasHome({ user, settings, applications, onNavigate, onOpenSet
       seen.add(id);
       options.push({ value: id, label: item.title });
     }
-    if (options.length === 0) options.push({ value: "workspace", label: "小鱼智能体" });
+    if (options.length === 0) options.push({ value: "workspace", label: "通用工作区" });
     return options;
   }, [applications]);
 

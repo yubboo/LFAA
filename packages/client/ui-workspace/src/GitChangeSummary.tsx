@@ -1,11 +1,11 @@
 /**
- * 功能：显示当前 AI Work 项目的真实 Git 差异、受管 Worktree 恢复入口和活动文件审阅桥接。
- * 作用：差异由 LFAA 本机 Git Owner 读取完整仓库根；活动桥接核对 Agent 项目路径后复用 GitChangeReview。
+ * 功能：显示当前 AI Work 项目的真实 Git 差异与受管 Worktree 恢复入口。
+ * 作用：差异由 LFAA 本机 Git Owner 读取完整仓库根；活动文件查看由 ApplicationWorkspace 的项目文件标签负责。
  * 不负责：自动提交、强制覆盖、远端 PR 或凭据明文持久化。
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Alert, Button, Checkbox, Input, Modal, Popconfirm, Select, Spin, Tag } from "antd";
-import { getErrorMessage, loadWorkspaceGitStatus, removeAgentGitRemoteCredential, resetWorkspaceGitWorktree, runAgentGitOperation, runWorkspaceGitOperation, saveAgentGitRemoteCredential, type WorkspaceGitBranch, type WorkspaceGitCommit, type WorkspaceGitOperationInput, type WorkspaceGitStatus, type WorkspaceProject, type WorkspaceProjectApplicationId } from "lfaa-client-connection/src/api.js";
+import { getErrorMessage, removeAgentGitRemoteCredential, resetWorkspaceGitWorktree, runAgentGitOperation, runWorkspaceGitOperation, saveAgentGitRemoteCredential, type WorkspaceGitBranch, type WorkspaceGitCommit, type WorkspaceGitOperationInput, type WorkspaceGitStatus, type WorkspaceProject, type WorkspaceProjectApplicationId } from "lfaa-client-connection/src/api.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
 import { GitChangeReview } from "./GitChangeReview.js";
 
@@ -305,83 +305,4 @@ export function GitChangeSummary({ appId, project = null, repositoryId = null, r
     </Modal>
     {(project || repositoryId) && status && status.repositoryState !== "not-repository" ? <GitChangeReview appId={appId} projectId={repositoryId ?? project!.id} projectTitle={repositoryId ? repositoryTitle ?? "" : project!.title} repositoryId={repositoryId ?? undefined} status={status} initialPath={reviewPath || status.files[0]?.path || ""} open={reviewOpen} onClose={() => setReviewOpen(false)} onRefresh={onRefresh} /> : null}
   </section>;
-}
-
-interface GitChangeActivityReviewProps {
-  appId: WorkspaceProjectApplicationId;
-  project: WorkspaceProject;
-  sourceId?: string;
-  path: string;
-  requestId: number;
-  onClose: () => void;
-  onRefresh: () => void;
-}
-
-/** 活动记录只提供项目相对路径；此处必须以已登记项目的 Git 状态精确映射后才打开审阅器。 */
-export function GitChangeActivityReview({ appId, project, sourceId, path, requestId, onClose, onRefresh }: GitChangeActivityReviewProps) {
-  const [status, setStatus] = useState<WorkspaceGitStatus | null>(null);
-  const [reviewPath, setReviewPath] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const requestRevision = useRef(0);
-
-  useEffect(() => {
-    let active = true;
-    const revision = ++requestRevision.current;
-    setStatus(null);
-    setReviewPath("");
-    setLoading(true);
-    setError("");
-    void loadWorkspaceGitStatus(project.id, appId, sourceId).then(({ status: current }) => {
-      if (!active || requestRevision.current !== revision) return;
-    const repositoryPath = current.projectRelativePath && path !== current.projectRelativePath && !path.startsWith(`${current.projectRelativePath}/`)
-      ? `${current.projectRelativePath}/${path}` : path;
-    const changedFile = current.files.find(file => file.projectPath === repositoryPath || file.projectPath === path);
-      if (!changedFile) throw new Error("当前 Git 差异结果未包含此文件；它可能已提交、被忽略、超出返回列表，或项目状态已经变化。");
-      setStatus(current);
-      setReviewPath(changedFile.path);
-    }).catch(loadError => {
-      if (active && requestRevision.current === revision) setError(getErrorMessage(loadError));
-    }).finally(() => {
-      if (active && requestRevision.current === revision) setLoading(false);
-    });
-    return () => {
-      active = false;
-      requestRevision.current += 1;
-    };
-  }, [appId, path, project.id, requestId, sourceId]);
-
-  const refresh = useCallback(async () => {
-    const revision = ++requestRevision.current;
-    try {
-      const { status: current } = await loadWorkspaceGitStatus(project.id, appId, sourceId);
-      if (requestRevision.current !== revision) return;
-      const repositoryPath = current.projectRelativePath && path !== current.projectRelativePath && !path.startsWith(`${current.projectRelativePath}/`)
-        ? `${current.projectRelativePath}/${path}` : path;
-      const changedFile = current.files.find(file => file.projectPath === repositoryPath || file.projectPath === path);
-      if (!changedFile) throw new Error("当前 Git 差异结果未包含此文件；请刷新后从当前差异列表重新打开。");
-      setStatus(current);
-      setReviewPath(changedFile.path);
-      onRefresh();
-    } catch (refreshError) {
-      if (requestRevision.current !== revision) return;
-      setStatus(null);
-      setReviewPath("");
-      setError(getErrorMessage(refreshError));
-      setLoading(false);
-    }
-  }, [appId, onRefresh, path, project.id, sourceId]);
-
-  return status && reviewPath
-    ? <GitChangeReview appId={appId} projectId={project.id} sourceId={sourceId} projectTitle={project.title} status={status} initialPath={reviewPath} open onClose={onClose} onRefresh={refresh} />
-    : <Modal
-        open
-        title="打开文件差异"
-        footer={null}
-        onCancel={onClose}
-        getContainer={() => document.querySelector(".workbench-shell") ?? document.body}
-      >
-        {loading ? <div className="module-context__git-loading"><Spin size="small" /><span>正在核对项目 Git 状态…</span></div> : null}
-        {error ? <Alert type="warning" showIcon message={error} action={<Button size="small" onClick={onClose}>关闭</Button>} /> : null}
-      </Modal>;
 }

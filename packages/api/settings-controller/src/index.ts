@@ -18,7 +18,7 @@ import { createAccountSnapshot, deleteAccountSnapshot, exportCurrentAccountArchi
 import type { AttachmentStore } from "lfaa-attachment/src/index.js";
 import { redactConversationMemoryContexts } from "lfaa-session/src/sessions.js";
 import type { ClaudeAgentCredentialOwner } from "lfaa-subagent-claude-code";
-import { activateAiAccount, applyUserAppearancePreset, validateAppearancePresetSnapshot, deleteAiAccount, deleteUserBackground, getAiAccountManagementScope, getAiProviderAccountScope, getUserBackground, getUserSettings, getUserSettingsSyncStatus, isUserBackgroundInUse, listUserBackgrounds, listAiAccounts, listAiProviders, probeAiProvider, testAiProviderModel, refreshAiAccountModelCatalog, testSavedAiAccountModel, saveAiAccount, saveUserBackground, saveUserSettings, testAiAccountCredential, updateAiAccountCredential, updateAiAccountModel, updateAiAccountReasoningMode, type AppearanceSettings, type AppearancePresetSnapshot, type SettingsCategory, type ShortcutSettings } from "lfaa-settings/src/service.js";
+import { activateAiAccount, applyUserAppearancePreset, validateAppearancePresetSnapshot, deleteAiAccount, deleteUserBackground, getAiAccountManagementScope, getAiProviderAccountScope, getUserBackground, getUserSettings, getUserSettingsSyncStatus, isUserBackgroundInUse, listUserBackgrounds, listAiAccounts, listAiProviders, probeAiProvider, testAiProviderModel, refreshAiAccountModelCatalog, testSavedAiAccountModel, saveAiAccount, saveUserBackground, saveUserSettings, testAiAccountCredential, updateAiAccountCredential, updateAiAccountModel, updateAiAccountReasoningMode, selectAiAccountModel, type AppearanceSettings, type AppearancePresetSnapshot, type SettingsCategory, type ShortcutSettings } from "lfaa-settings/src/service.js";
 import { cancelDataDirectoryChange, confirmDataDirectoryLocation, recommendDataDirectoryLocation, DataDirectorySettingsError, getDataDirectorySettings, requestDataDirectoryChange } from "lfaa-workspace-data-directory/src/service.js";
 import { confirmProjectContentDirectory, getProjectStorageLocations, saveProjectContentDirectory } from "lfaa-settings/src/project-storage.js";
 import { adoptProjectContentDirectory, compareProjectContentDirectories, copyProjectContentToDirectory, createProjectContentArchive, importProjectContentArchive } from "lfaa-settings/src/content-storage-migration.js";
@@ -97,7 +97,7 @@ router.get("/preferences", requireAuthentication, (request, response) => {
   });
 
 router.put("/preferences", requireAuthentication, (request, response) => {
-    const body = parseBody<{ selectedApp: ApplicationId; selectedMode: ApplicationMode }>(preferencesSchema, request.body);
+    const body = parseBody<{ selectedApp: ApplicationId; selectedMode: ApplicationMode; guidedEntryCompleted: boolean }>(preferencesSchema, request.body);
     const preferences = saveUserPreferences(request.auth!.user.id, body);
     response.json({ preferences });
   });
@@ -424,6 +424,16 @@ router.post("/settings/ai/accounts/:accountId/activate", requireAuthentication, 
       throw new ApiError(404, "ai_account_activation_failed", error instanceof Error ? error.message : "AI 账户激活失败。");
     }
   });
+
+router.post("/settings/ai/accounts/:accountId/select-model", requireAuthentication, asyncHandler(async (request, response) => {
+    assertAiAccountWriteAccess(request.auth!.user.id, request.auth!.user.role, request.params.accountId);
+    const body = parseBody<{ modelId: string }>(aiModelSchema, request.body);
+    try {
+      response.json({ account: await selectAiAccountModel(request.auth!.user.id, request.params.accountId, body.modelId) });
+    } catch (error) {
+      throw new ApiError(422, "ai_account_model_selection_failed", error instanceof Error ? error.message : "AI 账户与模型切换失败。");
+    }
+  }));
 
 router.delete("/settings/ai/accounts/:accountId", requireAuthentication, (request, response) => {
     assertAiAccountWriteAccess(request.auth!.user.id, request.auth!.user.role, request.params.accountId);

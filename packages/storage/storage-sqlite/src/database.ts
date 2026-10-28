@@ -26,7 +26,7 @@ function hasColumn(tableName: "ai_tool_approvals" | "ai_tool_permission_grants",
 }
 
 // 版本31由文件存储协调器在回读校验完成后提交，SQLite 保留账户、权限和任务。
-const latestSupportedDatabaseVersion = 74;
+const latestSupportedDatabaseVersion = 75;
 if (currentVersion > latestSupportedDatabaseVersion) {
   throw new Error(`数据库版本 ${currentVersion} 高于当前程序支持的版本 ${latestSupportedDatabaseVersion}（${config.databasePath}）。请使用更新版本的 LFAA；为保护数据，本程序不会自动降级数据库结构。`);
 }
@@ -2532,3 +2532,24 @@ export function migrateAgentDeliverablesSchema(): void {
   }
 }
 migrateAgentDeliverablesSchema();
+
+/** 版本 75：记录 Agent 交付物类型，供资产库按 Minecraft 插件/模组归类。 */
+export function migrateAgentDeliverableKindsSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 74 || version >= 75) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    const tables = new Set((database.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{ name: string }>).map(row => row.name));
+    if (!tables.has("agent_deliverables")) throw new Error("v75 资产库迁移缺少 v74 交付物表；数据库版本未推进。");
+    const columns = database.prepare("PRAGMA table_info(agent_deliverables)").all() as Array<{ name: string }>;
+    if (!columns.some(column => column.name === "artifact_kind")) {
+      database.exec("ALTER TABLE agent_deliverables ADD COLUMN artifact_kind TEXT NOT NULL DEFAULT 'other' CHECK (artifact_kind IN ('minecraft-plugin', 'minecraft-mod', 'other'));");
+    }
+    database.exec("PRAGMA user_version = 75;");
+    database.exec("COMMIT;");
+  } catch (error) {
+    if (database.isTransaction) database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+migrateAgentDeliverableKindsSchema();

@@ -8,6 +8,8 @@
 
 `lfaa-session` 是 LFAA AI Work、Agent Loop 与会话 API 共用的唯一 Session Owner。Session 事件、消息、活动和用量沿用 `lfaa-session-persistence-jsonl` 的账户隔离 JSONL 事务日志；SQLite 继续保存授权查询所需的会话头投影。没有另建服务、数据根或 UI。
 
+`getAiSessionTitle(userId, sessionId)` 只从账户所属的会话头读取轻量来源标题，不恢复消息、计划状态或 JSONL 事件日志，供资产等有限列表展示来源使用。
+
 进程恢复发现开放 turn 时，Session Owner 在同一 JSONL 事务中将助手消息标记为 `interrupted`，把仍运行、待审批或待回答的活动标记为 `unavailable`，再为开放工具调用记录 `unconfirmed` 或 `not_started` 并结束 turn。未知副作用不标记成功、不盲目重放；重复读取不会重复修复。
 
 若旧恢复已经记录 `turn/end: interrupted`，但消息投影尚未写回，Session Owner 仍会幂等修正助手状态和未结束的活动卡片，不重复创建工具结果或结束事件。Provider/Agent 运行失败则以 `turn/end: error` 结束；开放工具仍按已派发/未派发分别补为 `unconfirmed`/`not_started`，消息状态保持 `error`。
