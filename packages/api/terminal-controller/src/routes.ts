@@ -11,6 +11,7 @@ import { getUserSettings } from "lfaa-settings/src/service.js";
 import { authorizeAiTool, requestAiToolApproval, consumeAiToolApproval } from "lfaa-permission-presets/src/permissions.js";
 import { createEmptyAiSession, getAiSession, listAiSessions } from "lfaa-session/src/sessions.js";
 import { listDaemonNodes, getDaemonDataRoot } from "lfaa-host-daemon/src/local-daemon.js";
+import { getMinecraftInstance } from "lfaa-games-minecraft/src/service.js";
 import { APPLICATION_IDS, type ApplicationId } from "lfaa-util-values/src/application-id.js";
 import { ApiError } from "lfaa-util-values/src/http-error.js";
 import type { AiPluginHost } from "lfaa-app-boot/src/ai-host.js";
@@ -20,21 +21,29 @@ import type { TerminalEvent } from "./protocol.js";
 
 const idSchema = Joi.string().guid({ version: "uuidv4" }).required();
 const dimensions = { cols: Joi.number().integer().min(2).max(500).default(80), rows: Joi.number().integer().min(1).max(300).default(24) };
-const createSchema = Joi.object({ id: idSchema, nodeId: idSchema, appId: Joi.string().valid(...APPLICATION_IDS).required(), sessionId: Joi.string().guid().allow(null), approvalId: Joi.string().guid(), ...dimensions }).unknown(false);
+const targetSchema = Joi.alternatives().try(
+  Joi.object({ kind: Joi.valid("shell").required() }).unknown(false),
+  Joi.object({ kind: Joi.valid("minecraft").required(), instanceId: idSchema }).unknown(false)
+).default({ kind: "shell" });
+const createSchema = Joi.object({ id: idSchema, nodeId: idSchema, appId: Joi.string().valid(...APPLICATION_IDS).required(), target: targetSchema, sessionId: Joi.string().guid().allow(null), approvalId: Joi.string().guid(), ...dimensions }).unknown(false);
 const nodeSchema = Joi.object({ nodeId: idSchema, channelId: idSchema }).unknown(false);
 const eventSchema = Joi.object({ nodeId: idSchema, channelId: idSchema, events: Joi.array().items(
   Joi.object({ type: Joi.valid("ack").required(), commandId: idSchema, ok: Joi.boolean().required(), message: Joi.string().max(500) }).unknown(false),
   Joi.object({ type: Joi.valid("output").required(), id: idSchema, data: Joi.string().max(16 * 1024).required() }).unknown(false),
   Joi.object({ type: Joi.valid("exit").required(), id: idSchema, exitCode: Joi.number().integer().allow(null).required(), message: Joi.string().max(500) }).unknown(false)
 ).min(1).max(16).required() }).unknown(false);
-const toolIdentity = { toolId: "lfaa_interactive_terminal", toolVersion: "1", risk: "dangerous" as const };
-function policy(userId: string, appId: ApplicationId, scopeKey: string) {
-  return { ...toolIdentity, userId, activeApplicationId: appId, toolApplicationIds: [...APPLICATION_IDS], scopeKey, executable: true };
+const toolIdentity = {
+  shell: { toolId: "lfaa_interactive_terminal", toolVersion: "1", risk: "dangerous" as const },
+  minecraft: { toolId: "lfaa_minecraft_console", toolVersion: "1", risk: "dangerous" as const }
+};
+function identity(target: { kind: "shell" | "minecraft" }) { return toolIdentity[target.kind]; }
+function policy(userId: string, appId: ApplicationId, scopeKey: string, target: { kind: "shell" | "minecraft" }) {
+  return { ...identity(target), userId, activeApplicationId: appId, toolApplicationIds: [...APPLICATION_IDS], scopeKey, executable: true };
 }
 function assertSession(terminal: RegisteredTerminal, request: Request, registry: TerminalRegistry): void {
   const settings = getUserSettings(terminal.userId);
   if (request.auth?.sessionId !== terminal.loginSessionId || settings.permissions.mode !== terminal.permissionMode
-    || !terminal.approved && authorizeAiTool(policy(terminal.userId, terminal.appId as ApplicationId, terminal.scopeKey)) !== "allow") {
+    || !terminal.approved && authorizeAiTool(policy(terminal.userId, terminal.appId as ApplicationId, terminal.scopeKey, terminal.info.target ?? { kind: "shell" })) !== "allow") {
     void registry.close(terminal.userId, terminal.info.id);
     throw new ApiError(403, "terminal_authorization_changed", "登录或权限已变化，请重新创建终端。");
   }
@@ -49,29 +58,53 @@ export function registerTerminalRoutes(router: Router, registry: TerminalRegistr
   router.get("/terminals/nodes", ...browserAuth, (_request, response) => response.json({ nodes: listDaemonNodes().map(node => ({ id: node.id, displayName: node.displayName, connected: registry.connected(node.id) && node.status === "online" })) }));
   router.get("/terminals", ...browserAuth, (request, response) => response.json({ terminals: registry.list(request.auth!.user.id) }));
   router.post("/terminals", ...browserAuth, createRateLimit(12, 60_000), asyncHandler(async (request, response) => {
-    const body = parseBody<{ id: string; nodeId: string; appId: ApplicationId; sessionId?: string | null; approvalId?: string; cols: number; rows: number }>(createSchema, request.body);
-    const node = listDaemonNodes().find(node => node.id === body.nodeId);
-    if (!node || node.status !== "online" || !registry.connected(node.id)) throw new ApiError(409, "terminal_node_offline", "目标节点的交互式终端尚未连接。");
-    const userId = request.auth!.user.id, settings = getUserSettings(userId), root = getDaemonDataRoot(node.id);
-    if (!root) throw new ApiError(409, "terminal_node_root_missing", "目标节点尚未登记工作目录。");
-    const cwd = win32.resolve(root, settings.general.taskFolder || "."), shell = settings.general.integratedShell;
-    if (cwd.includes("\0")) throw new ApiError(400, "terminal_cwd_invalid", "设置中的任务目录无效。");
-    const scopeKey = `node-terminal:${node.id}:${createHash("sha256").update(JSON.stringify({ cwd, shell })).digest("hex")}`;
-    const parameters = { id: body.id, nodeId: node.id, appId: body.appId, cwd, shell };
+    const body = parseBody<{ id: string; nodeId: string; appId: ApplicationId; target?: { kind: "shell" } | { kind: "minecraft"; instanceId: string }; sessionId?: string | null; approvalId?: string; cols: number; rows: number }>(createSchema, request.body);
+    const target = body.target ?? { kind: "shell" as const };
+    const userId = request.auth!.user.id, settings = getUserSettings(userId);
+    let nodeId = body.nodeId, cwd: string, shell: string | undefined, title: string, scopeKey: string, parameters: Record<string, unknown>;
+    if (target.kind === "minecraft") {
+      if (body.appId !== "minecraft") throw new ApiError(400, "terminal_target_app_invalid", "Minecraft 控制台必须使用 Minecraft 应用身份。");
+      const instance = getMinecraftInstance(target.instanceId);
+      if (!instance) throw new ApiError(404, "minecraft_instance_not_found", "找不到这个 Minecraft 实例。");
+      nodeId = instance.nodeId;
+      if (body.nodeId !== nodeId) throw new ApiError(409, "terminal_target_node_changed", "实例运行节点已变化，请刷新后重新连接。");
+      if (instance.state !== "running" || instance.nodeStatus !== "online") throw new ApiError(409, "minecraft_console_unavailable", "只有节点在线且已就绪的 Minecraft 实例可以连接交互式控制台。");
+      cwd = `Minecraft · ${instance.name}`;
+      const node = listDaemonNodes().find(item => item.id === nodeId);
+      if (!node || node.status !== "online" || !registry.connected(nodeId)) throw new ApiError(409, "terminal_node_offline", "实例所在节点的终端通道当前不可用。");
+      if (!node.capabilities.includes("minecraft-interactive-console-v1")) throw new ApiError(409, "minecraft_console_pty_unavailable", "目标节点尚未报告交互式 Minecraft 控制台能力；请更新并重启节点后再试。");
+      title = `${node.displayName} · ${instance.name} 控制台`;
+      scopeKey = `minecraft-console:${nodeId}:${instance.id}`;
+      parameters = { id: body.id, nodeId, appId: body.appId, target };
+    } else {
+      const node = listDaemonNodes().find(item => item.id === nodeId);
+      if (!node || node.status !== "online" || !registry.connected(node.id)) throw new ApiError(409, "terminal_node_offline", "目标节点的交互式终端尚未连接。");
+      const root = getDaemonDataRoot(node.id);
+      if (!root) throw new ApiError(409, "terminal_node_root_missing", "目标节点尚未登记工作目录。");
+      cwd = win32.resolve(root, settings.general.taskFolder || ".");
+      shell = settings.general.integratedShell;
+      if (cwd.includes("\0")) throw new ApiError(400, "terminal_cwd_invalid", "设置中的任务目录无效。");
+      title = `${node.displayName} · ${shell}`;
+      scopeKey = `node-terminal:${node.id}:${createHash("sha256").update(JSON.stringify({ cwd, shell })).digest("hex")}`;
+      parameters = { id: body.id, nodeId, appId: body.appId, target, cwd, shell };
+    }
+    const node = listDaemonNodes().find(item => item.id === nodeId);
+    if (!node) throw new ApiError(409, "terminal_node_offline", "终端目标节点已经不可用。");
+    const selectedIdentity = identity(target);
     let approved = false;
-    if (authorizeAiTool(policy(userId, body.appId, scopeKey)) !== "allow") {
-      if (body.approvalId) approved = consumeAiToolApproval({ ...toolIdentity, userId, approvalId: body.approvalId, appId: body.appId, scopeKey, parameters });
+    if (authorizeAiTool(policy(userId, body.appId, scopeKey, target)) !== "allow") {
+      if (body.approvalId) approved = consumeAiToolApproval({ ...selectedIdentity, userId, approvalId: body.approvalId, appId: body.appId, scopeKey, parameters });
       if (!approved) {
         let session = body.sessionId ? getAiSession(userId, body.sessionId) : listAiSessions(userId, false, body.appId)[0];
         if (body.sessionId && (!session || session.appId !== body.appId)) throw new ApiError(404, "terminal_session_missing", "找不到此应用下的会话。");
         session ??= createEmptyAiSession(userId, body.appId, "交互式终端审批");
-        const approval = requestAiToolApproval({ ...toolIdentity, userId, sessionId: session.id, appId: body.appId, scopeKey, parameters,
-          summary: `在 ${node.displayName} 打开交互式终端；批准包括本会话中输入的所有命令，可访问该节点 OS 账户权限范围内的文件和程序。`, scopeSummary: `${node.displayName} · ${shell} · ${cwd}` });
+        const approval = requestAiToolApproval({ ...selectedIdentity, userId, sessionId: session.id, appId: body.appId, scopeKey, parameters,
+          summary: target.kind === "minecraft" ? `连接 ${node.displayName} 上 Minecraft 实例的受管服务端控制台；批准包括本会话输入的所有游戏服务端指令，不会启动 OS Shell。` : `在 ${node.displayName} 打开交互式终端；批准包括本会话中输入的所有命令，可访问该节点 OS 账户权限范围内的文件和程序。`, scopeSummary: `${node.displayName} · ${cwd}${shell ? ` · ${shell}` : ""}` });
         response.status(202).json({ approval }); return;
       }
     }
     const terminal = await registry.create({ userId, loginSessionId: request.auth!.sessionId, appId: body.appId, permissionMode: settings.permissions.mode, approved, scopeKey },
-      { id: body.id, nodeId: node.id, title: `${node.displayName} · ${shell}`, cwd, shell, cols: body.cols, rows: body.rows, state: "starting", exitCode: null });
+      { id: body.id, nodeId: node.id, title, cwd, ...(shell ? { shell } : {}), target, cols: body.cols, rows: body.rows, state: "starting", exitCode: null });
     response.status(201).json({ terminal });
   }));
   router.get("/terminals/:id/follow", ...browserAuth, (request, response) => {

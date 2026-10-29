@@ -4479,6 +4479,107 @@
   height: 7px;
 }
 
+.appearance-writing-preset .appearance-writing-preset__preview {
+  min-height: 148px;
+  background: #273b4a;
+}
+
+.appearance-writing-preset .appearance-preset-preview__background {
+  object-position: 68% 52%;
+  transition: transform 480ms cubic-bezier(0.2, 0.72, 0.24, 1);
+}
+
+.appearance-writing-preset:hover .appearance-preset-preview__background {
+  transform: scale(1.025);
+}
+
+.appearance-writing-preset .appearance-preset-preview__wash {
+  background: #17222d;
+}
+
+.appearance-writing-preset__desk {
+  position: absolute;
+  right: 5%;
+  bottom: 0;
+  left: 5%;
+  display: flex;
+  height: 30%;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid color-mix(in srgb, #d8c4a1 22%, transparent);
+  border-bottom: 0;
+  border-radius: 9px 9px 0 0;
+  background: color-mix(in srgb, #30271f 74%, transparent);
+  box-shadow: 0 -8px 20px color-mix(in srgb, #17222d 25%, transparent);
+}
+
+.appearance-writing-preset__desk > span {
+  width: 20%;
+  height: 55%;
+  border: 1px solid color-mix(in srgb, #f0e5d3 30%, transparent);
+  border-radius: 3px;
+  background: color-mix(in srgb, #f0e5d3 12%, transparent);
+  transform: rotate(-5deg);
+}
+
+.appearance-writing-preset__desk > i,
+.appearance-writing-preset__desk > b {
+  display: block;
+  width: 10%;
+  height: 5px;
+  border-radius: 999px;
+  background: #d2a56f;
+  box-shadow: 0 2px 10px color-mix(in srgb, #e9bd81 42%, transparent);
+}
+
+.appearance-writing-preset__desk > b {
+  width: 4px;
+  height: 14px;
+  background: #e7c99b;
+}
+
+.appearance-writing-preset .appearance-preset-preview__window {
+  z-index: 1;
+  width: min(68%, 240px);
+  height: 78px;
+  border-color: color-mix(in srgb, #eee6da 38%, transparent);
+  background: color-mix(in srgb, #171a1b 86%, transparent);
+  backdrop-filter: blur(6px);
+}
+
+.appearance-writing-preset .appearance-preset-preview__bar {
+  border-color: color-mix(in srgb, #eee6da 18%, transparent);
+}
+
+.appearance-writing-preset .appearance-preset-preview__bar > i:first-child {
+  background: #a6cbb9;
+}
+
+.appearance-writing-preset__lines {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  justify-content: center;
+  gap: 7px;
+  padding: 10px 12px;
+}
+
+.appearance-writing-preset__lines > i {
+  display: block;
+  width: 76%;
+  height: 3px;
+  border-radius: 999px;
+  background: color-mix(in srgb, #e8e2d8 58%, transparent);
+}
+
+.appearance-writing-preset__lines > i:first-child {
+  width: 38%;
+  height: 5px;
+  background: #ded0b6;
+}
+
 .appearance-preset-card__content {
   display: flex;
   min-width: 0;

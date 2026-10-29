@@ -48,3 +48,5 @@
 `hooks` 菜单使用 `tools` 路由并发现 `lfaa_settings_runtime_hooks_list`；当前只读当前 Host 已登记的 AI Runtime Hook ID/事件。钩子代码仍由受信任插件 Owner 管理，不接受通用设置 Patch。
 
 `appearance-presets.ts` 持有系统内置预设与纯值快照创建/应用/匹配规则；快照仅覆盖 Appearance 与 General 的白名单视觉布局字段。`AppearanceSettings.presets` 默认空数组，不改变已有外观默认值或其他设置。
+
+`builtin-backgrounds.ts` 还登记“云涧书境”写作图片。`applyWritingWorkspacePresetAppearance()` 和 `writingWorkspacePresetMatches()` 仅映射 `appearance.backgrounds.writing`、`appearance.areaEffects.writing` 与 `appearance.advanced.writingLightRaysEnabled`，不能经普通账户级预设路径影响其他区域。

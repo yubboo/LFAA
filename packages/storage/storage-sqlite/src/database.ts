@@ -26,7 +26,8 @@ function hasColumn(tableName: "ai_tool_approvals" | "ai_tool_permission_grants",
 }
 
 // 版本31由文件存储协调器在回读校验完成后提交，SQLite 保留账户、权限和任务。
-const latestSupportedDatabaseVersion = 75;
+// 数据库打开兼容上限必须与本文件中的最新 schema 迁移版本保持一致。
+const latestSupportedDatabaseVersion = 76;
 if (currentVersion > latestSupportedDatabaseVersion) {
   throw new Error(`数据库版本 ${currentVersion} 高于当前程序支持的版本 ${latestSupportedDatabaseVersion}（${config.databasePath}）。请使用更新版本的 LFAA；为保护数据，本程序不会自动降级数据库结构。`);
 }
@@ -2553,3 +2554,25 @@ export function migrateAgentDeliverableKindsSchema(): void {
   }
 }
 migrateAgentDeliverableKindsSchema();
+
+/** 版本 76：为 Writing 作品保存可读目录片段；账户 ID 与作品 ID 仍是关系主键。 */
+export function migrateReadableWritingProjectDirectoriesSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 75 || version >= 76) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    const tables = new Set((database.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{ name: string }>).map(row => row.name));
+    if (!tables.has("writing_books")) throw new Error("v76 账户库迁移缺少 Writing 作品表；数据库版本未推进。");
+    const columns = database.prepare("PRAGMA table_info(writing_books)").all() as Array<{ name: string }>;
+    if (!columns.some(column => column.name === "directory_name")) {
+      database.exec("ALTER TABLE writing_books ADD COLUMN directory_name TEXT CHECK (directory_name IS NULL OR length(directory_name) BETWEEN 1 AND 80);");
+    }
+    database.exec("CREATE UNIQUE INDEX IF NOT EXISTS writing_books_user_directory_name_idx ON writing_books(user_id, directory_name) WHERE directory_name IS NOT NULL;");
+    database.exec("PRAGMA user_version = 76;");
+    database.exec("COMMIT;");
+  } catch (error) {
+    if (database.isTransaction) database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+migrateReadableWritingProjectDirectoriesSchema();

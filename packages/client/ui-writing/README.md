@@ -8,4 +8,6 @@ Web/Desktop 共用的写作管理面板。`normal/WritingWorkspace` 负责作品
 
 构建只输出根 `dist/packages/client/ui-writing/`。本包当前不是模板生成或动态应用运行时。实际检查与未验收范围见 [合同](../../../docs/PROMPTS.md#lfaa-application-panels-templates-20261016)。
 
-普通写作的中心编辑器复用 `ui-primitives/LightRays`，其 `appearance.advanced.writingLightRaysEnabled` 由设置中心和写作工具栏共用；工具栏通过 Client Connection 保存 `appearance`，不另建本地偏好。光线层尊重 Appearance 强调色、遮罩透明度和减少动态效果设置，不读取作品内容。
+普通写作的中心编辑器复用 `ui-primitives/LightRays`，其 `appearance.advanced.writingLightRaysEnabled` 由设置中心和写作工具栏共用；工具栏通过 Client Connection 保存 `appearance`，不另建本地偏好。LightRays 在共享 Three.js renderer 上叠加克制的雾层，尊重 Appearance 强调色、遮罩透明度和减少动态效果设置，不读取作品内容。
+
+写作工作区的“云涧书境”外观由共享 Settings Owner 中 `backgrounds.writing` 与 `areaEffects.writing` 提供；本包只在编辑器读取已映射的共享外观和已有光线开关，不自行保存主题、壁纸或动效偏好。预设同时作用于写作应用的手动、聊天和画布模式背景槽位，不影响其他 App。

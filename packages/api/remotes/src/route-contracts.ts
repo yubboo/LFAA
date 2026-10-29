@@ -383,7 +383,7 @@ export const daemonHeartbeatSchema = Joi.object({
     architecture: Joi.string().valid("x64").required(),
     version: Joi.string().trim().max(40).required(),
     dataRoot: Joi.string().trim().min(3).max(2048).pattern(/^(?:[a-z]:\\|\\\\)/iu).required(),
-    capabilities: Joi.array().items(Joi.string().valid("minecraft-vanilla", "minecraft-native-v1", "minecraft-multicore-v1", "minecraft-instance-archive-v1", "app-sandbox-windows-appcontainer-v1", "java-environment-manager-v1", "runtime-environment-v1", "minecraft-java-runtime-selection-v1", "node-filesystem-v1", "node-filesystem-v2", "node-filesystem-directory-size-v1", "node-filesystem-instance-v1", "node-filesystem-game-storage-v1", "node-filesystem-binary-transfer-v1", "steamcmd-ready-v1", "agent-shell-v1", "project-files-v1", EASYTIER_RUNTIME_RELEASE.installCapability, EASYTIER_RUNTIME_RELEASE.runtimeCapability)).max(20).unique().required(),
+    capabilities: Joi.array().items(Joi.string().valid("minecraft-vanilla", "minecraft-native-v1", "minecraft-multicore-v1", "minecraft-interactive-console-v1", "minecraft-instance-archive-v1", "app-sandbox-windows-appcontainer-v1", "java-environment-manager-v1", "runtime-environment-v1", "minecraft-java-runtime-selection-v1", "node-filesystem-v1", "node-filesystem-v2", "node-filesystem-directory-size-v1", "node-filesystem-instance-v1", "node-filesystem-game-storage-v1", "node-filesystem-binary-transfer-v1", "steamcmd-ready-v1", "agent-shell-v1", "project-files-v1", EASYTIER_RUNTIME_RELEASE.installCapability, EASYTIER_RUNTIME_RELEASE.runtimeCapability)).max(20).unique().required(),
     javaRuntimes: Joi.array().items(Joi.object({
       distribution: Joi.string().valid("temurin", "zulu").optional(),
       version: Joi.string().max(80),

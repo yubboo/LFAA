@@ -2,7 +2,7 @@
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { ApiError } from "lfaa-util-values/src/http-error.js";
-import type { TerminalInfo, TerminalCommand, TerminalEvent } from "./protocol.js";
+import type { TerminalInfo, TerminalCommand, TerminalEvent, TerminalTarget } from "./protocol.js";
 type NodeChannel = { id: string; send: (command: TerminalCommand) => void; close: () => void };
 export type RegisteredTerminal = {
   userId: string; loginSessionId: string; appId: string; permissionMode: string; approved: boolean; scopeKey: string; info: TerminalInfo;
@@ -63,14 +63,18 @@ export class TerminalRegistry {
     while (terminal.replayBytes > 256 * 1024 && terminal.replay.length) { terminal.replayBytes -= Buffer.byteLength(terminal.replay.shift()!); terminal.truncated = true; }
     terminal.events.emit("output", event.data);
   }
-  async create(owner: Pick<RegisteredTerminal, "userId" | "loginSessionId" | "appId" | "permissionMode" | "approved" | "scopeKey">, input: TerminalInfo & { shell: string }): Promise<TerminalInfo> {
+  async create(owner: Pick<RegisteredTerminal, "userId" | "loginSessionId" | "appId" | "permissionMode" | "approved" | "scopeKey">, input: TerminalInfo & { shell?: string; target?: TerminalTarget }): Promise<TerminalInfo> {
     if (this.terminals.has(input.id)) throw new ApiError(409, "terminal_exists", "终端标识已存在。");
     if (this.terminals.size >= 64 || [...this.terminals.values()].filter(t => t.userId === owner.userId).length >= 8) throw new ApiError(429, "terminal_limit", "终端数量已达上限，请先关闭旧会话。");
+    const minecraftInstanceId = input.target?.kind === "minecraft" ? input.target.instanceId : undefined;
+    if (minecraftInstanceId && [...this.terminals.values()].some(terminal => terminal.info.target?.kind === "minecraft" && terminal.info.target.instanceId === minecraftInstanceId && terminal.info.state !== "exited")) {
+      throw new ApiError(409, "minecraft_console_attached", "这个 Minecraft 实例已经连接了一个交互式控制台。");
+    }
     const { shell, ...info } = input;
     const terminal: RegisteredTerminal = { ...owner, info, events: new EventEmitter(), replay: [], replayBytes: 0, truncated: false };
     this.terminals.set(info.id, terminal); this.releaseFollower(terminal);
     try {
-      await this.command(info.nodeId, { type: "create", id: info.id, cwd: info.cwd, shell, cols: info.cols, rows: info.rows });
+      await this.command(info.nodeId, { type: "create", id: info.id, cwd: info.cwd, ...(shell ? { shell } : {}), ...(info.target ? { target: info.target } : {}), cols: info.cols, rows: info.rows });
       if (terminal.info.state === "starting") terminal.info = { ...terminal.info, state: "running" };
       return terminal.info;
     } catch (error) { await this.close(owner.userId, info.id); throw error; }

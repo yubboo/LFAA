@@ -1,5 +1,7 @@
 # LFAA-PROJECT-APPLICATION-ASSOCIATIONS-20261027：项目关联 LFAA 应用
 
+<a id="lfaa-project-application-associations-20261027"></a>
+
 ## 用户目标
 
 在 AI Work 的 ChatGPT 式项目中，可关联一个或多个 LFAA 已登记的业务 App。项目会持续告诉 Agent 该项目的领域范围，使模型结合当前请求，从 LFAA 真实登记且当前可用的工具、Skill 与专家中选择合适能力。关联清单取自 `APPLICATION_IDS`；当前示例为 Minecraft、SteamCMD 游戏服务、写作空间和 AI 漫剧。

@@ -5,6 +5,7 @@
  */
 import {
   DEFAULT_USER_SETTINGS,
+  type AppearanceSettings,
   type AppearanceAdvancedSettings,
   type AppearancePreset,
   type AppearancePresetGeneralSettings,
@@ -12,6 +13,34 @@ import {
   type AppearanceVisualSettings,
   type UserSettings
 } from "./settings-contract.js";
+
+export const WRITING_WORKSPACE_PRESET = {
+  id: "writing-yunjian",
+  name: "云涧书境",
+  description: "山雾晨光与暖木书案，为写作工作区营造安静的沉浸感。",
+  overlay: 48,
+  blur: 8
+} as const;
+
+/** 仅覆盖写作工作区外观；不修改登录页、全局主题或任何其他账户偏好。 */
+export function applyWritingWorkspacePresetAppearance(appearance: AppearanceSettings): AppearanceSettings {
+  return {
+    ...appearance,
+    backgrounds: { ...appearance.backgrounds, writing: WRITING_WORKSPACE_PRESET.id },
+    areaEffects: {
+      ...appearance.areaEffects,
+      writing: { overlay: WRITING_WORKSPACE_PRESET.overlay, blur: WRITING_WORKSPACE_PRESET.blur }
+    },
+    advanced: { ...appearance.advanced, writingLightRaysEnabled: true }
+  };
+}
+
+export function writingWorkspacePresetMatches(appearance: AppearanceSettings): boolean {
+  return appearance.backgrounds.writing === WRITING_WORKSPACE_PRESET.id
+    && appearance.areaEffects.writing.overlay === WRITING_WORKSPACE_PRESET.overlay
+    && appearance.areaEffects.writing.blur === WRITING_WORKSPACE_PRESET.blur
+    && appearance.advanced.writingLightRaysEnabled;
+}
 
 const appearanceTargets = ["login", "appCenter", "steamcmd", "minecraft", "writing", "settings"] as const;
 

@@ -1,4 +1,4 @@
-/** 功能：运行目标节点的交互式终端通道。作用：同源认证 SSE 收命令、顺序回报有界输出与应答，断线或卸载关闭全部原生 PTY。关联文件：daemon.mjs、api/terminal-controller、subprocess-local/src/pty.ts。 */
+/** 功能：运行目标节点的交互式终端通道。作用：同源认证 SSE 复用 Shell PTY 或附着 Minecraft 受管 PTY，顺序回报有界输出与应答；断线只关闭会话或 Shell，不停止 Minecraft 服务端。关联文件：daemon.mjs、api/terminal-controller、subprocess-local/src/pty.ts。 */
 import { randomUUID } from "node:crypto";
 import { stat } from "node:fs/promises";
 import { isAbsolute } from "node:path";
@@ -8,7 +8,7 @@ import { terminalEnvironment } from "lfaa-subprocess-local/src/pty.js";
 import { resolveTerminalShell } from "lfaa-terminal-bash/src/index.js";
 
 export { terminalEnvironment };
-export function startTerminalChannel({ apiBase, nodeId, readToken, signal, onError = () => {} }) {
+export function startTerminalChannel({ apiBase, nodeId, readToken, signal, attachMinecraftConsole, onError = () => {} }) {
   const runtime = new LocalSubprocessRuntime();
   const done = (async () => {
     let lastError = "";
@@ -55,31 +55,51 @@ export function startTerminalChannel({ apiBase, nodeId, readToken, signal, onErr
         if (typeof id !== "string" || !/^[0-9a-f-]{36}$/iu.test(id) || typeof commandId !== "string") throw new Error("终端命令身份无效。");
         if (type === "create") {
           if (sessions.has(id) || sessions.size >= 8) throw new Error("节点终端数量已达上限或标识重复。");
-          if (typeof command.cwd !== "string" || !isAbsolute(command.cwd) || !(await stat(command.cwd)).isDirectory()) throw new Error("终端起始目录不存在。");
-          const launch = await resolveTerminalShell(command.shell);
-          connectionSignal.throwIfAborted();
-          const handle = await runtime.spawnTerminal({ target: { kind: "local" }, platform: process.platform, executable: launch.executable, args: launch.args, cwd: command.cwd,
-            env: terminalEnvironment(), columns: command.cols, rows: command.rows, maxQueuedOutputBytes: 1024 * 1024, terminationGraceMs: 1000, signal: connectionSignal });
-          sessions.set(id, handle);
-          const drain = (async () => {
-            for await (const chunk of handle.output) {
-              const text = Buffer.from(chunk.bytes).toString("utf8");
-              for (let index = 0; index < text.length;) {
-                let end = Math.min(index + 8192, text.length);
-                if (end < text.length && /[\uD800-\uDBFF]/u.test(text[end - 1])) end--;
-                send({ type: "output", id, data: text.slice(index, end) }); index = end;
+          if (command.target?.kind === "minecraft") {
+            if (!/^[0-9a-f-]{36}$/iu.test(command.target.instanceId) || typeof attachMinecraftConsole !== "function") throw new Error("Minecraft 交互式控制台适配未登记。");
+            const attachment = await attachMinecraftConsole(command.target.instanceId, id, {
+              onOutput(data) {
+                const text = String(data);
+                for (let index = 0; index < text.length;) {
+                  let end = Math.min(index + 8192, text.length);
+                  if (end < text.length && /[\uD800-\uDBFF]/u.test(text[end - 1])) end--;
+                  send({ type: "output", id, data: text.slice(index, end) }); index = end;
+                }
+              },
+              onExit(exitCode, message) { sessions.delete(id); send({ type: "exit", id, exitCode, ...(message ? { message } : {}) }); }
+            });
+            sessions.set(id, { kind: "minecraft", attachment });
+          } else {
+            if (typeof command.cwd !== "string" || !isAbsolute(command.cwd) || !(await stat(command.cwd)).isDirectory()) throw new Error("终端起始目录不存在。");
+            const launch = await resolveTerminalShell(command.shell);
+            connectionSignal.throwIfAborted();
+            const handle = await runtime.spawnTerminal({ target: { kind: "local" }, platform: process.platform, executable: launch.executable, args: launch.args, cwd: command.cwd,
+              env: terminalEnvironment(), columns: command.cols, rows: command.rows, maxQueuedOutputBytes: 1024 * 1024, terminationGraceMs: 1000, signal: connectionSignal });
+            sessions.set(id, { kind: "shell", handle });
+            const drain = (async () => {
+              for await (const chunk of handle.output) {
+                const text = Buffer.from(chunk.bytes).toString("utf8");
+                for (let index = 0; index < text.length;) {
+                  let end = Math.min(index + 8192, text.length);
+                  if (end < text.length && /[\uD800-\uDBFF]/u.test(text[end - 1])) end--;
+                  send({ type: "output", id, data: text.slice(index, end) }); index = end;
+                }
               }
-            }
-            const outcome = await handle.done;
-            sessions.delete(id);
-            send({ type: "exit", id, exitCode: outcome.exitCode, ...(outcome.outputTruncated ? { message: "输出超过容量，会话已停止。" } : {}) });
-          })();
-          drains.add(drain); void drain.catch(abort).finally(() => drains.delete(drain));
+              const outcome = await handle.done;
+              sessions.delete(id);
+              send({ type: "exit", id, exitCode: outcome.exitCode, ...(outcome.outputTruncated ? { message: "输出超过容量，会话已停止。" } : {}) });
+            })();
+            drains.add(drain); void drain.catch(abort).finally(() => drains.delete(drain));
+          }
         } else if (type === "close") {
-          await sessions.get(id)?.terminate(); sessions.delete(id);
+          const session = sessions.get(id);
+          if (session?.kind === "minecraft") session.attachment.detach();
+          else if (session?.kind === "shell") await session.handle.terminate();
+          sessions.delete(id);
         } else {
-          const handle = sessions.get(id);
-          if (!handle) throw new Error("终端已经退出。");
+          const session = sessions.get(id);
+          if (!session) throw new Error("终端已经退出。");
+          const handle = session.kind === "minecraft" ? session.attachment : session.handle;
           if (type === "input" && typeof command.data === "string" && command.data.length > 0 && command.data.length <= 16 * 1024) await handle.writeStdin(Buffer.from(command.data, "utf8"));
           else if (type === "resize") await handle.resize(command.cols, command.rows);
           else throw new Error("终端命令无效。");
@@ -107,7 +127,7 @@ export function startTerminalChannel({ apiBase, nodeId, readToken, signal, onErr
       }
     } finally {
       clearTimeout(watchdog); abort(); queue = []; queuedBytes = 0;
-      await Promise.allSettled([...sessions.values()].map(handle => handle.terminate()));
+      await Promise.allSettled([...sessions.values()].map(session => session.kind === "minecraft" ? session.attachment.detach() : session.handle.terminate()));
       await Promise.allSettled(drains);
       await sending;
     }

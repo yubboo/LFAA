@@ -4,7 +4,7 @@
 
 参考 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)，上游基线 commit `639ed015397290b3745d163aafe02ffee4aa3f84`。
 
-当前 388 个两级目录、225 个实际 workspace 包（223 个产品源码/组合包，2 个工程/测试包），163 个占位目录。控制端/节点运行树含 195 个包；客户端源码包单独进入 Web 构建。
+当前 388 个两级目录、226 个实际 workspace 包（224 个产品源码/组合包，2 个工程/测试包），162 个占位目录。控制端/节点运行树含 195 个包；客户端源码包单独进入 Web 构建。
 
 `implemented` 仅表示有 package.json 和源码/装配；不代表已经进入 Profile、通过运行验收或与 DSH 等价。`placeholder` 不可执行。产品能力现状见 [系统总体架构](系统总体架构.md)，历史核验见 [P0 记录](archive/audits/harness-p0-audit.md)。
 
@@ -114,7 +114,7 @@
 | [packages/client/ui-sidebar-documentpreview](../packages/client/ui-sidebar-documentpreview) | — | placeholder | 文档预览侧栏展示 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-sidebar-files](../packages/client/ui-sidebar-files) | lfaa-client-ui-sidebar-files | implemented | 统一文件列表、预览、编辑与回收站界面 | [源码](../packages/client/ui-sidebar-files/src/index.ts)；2 个静态消费者；0 个组合声明 | DSH 同名目录 |
 | [packages/client/ui-sidebar-right](../packages/client/ui-sidebar-right) | — | placeholder | 共享右侧上下文栏展示 | 占位不可执行 | DSH 同名目录 |
-| [packages/client/ui-sidebar-terminal](../packages/client/ui-sidebar-terminal) | — | placeholder | 终端侧栏展示和会话交互 | 占位不可执行 | DSH 同名目录 |
+| [packages/client/ui-sidebar-terminal](../packages/client/ui-sidebar-terminal) | lfaa-client-ui-sidebar-terminal | implemented | 唯一共享 xterm 呈现、主题/容器尺寸映射与原始流/单行命令交互控件；不持有 Shell、Minecraft 命令、日志、权限或生命周期规则 | [源码](../packages/client/ui-sidebar-terminal/src/index.ts)；2 个静态消费者；0 个组合声明 | DSH 同名目录 |
 | [packages/client/ui-skill](../packages/client/ui-skill) | — | placeholder | Skill 摘要和加载状态界面 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-slots](../packages/client/ui-slots) | — | placeholder | 插件 UI 插槽渲染协议和容器 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-subagent](../packages/client/ui-subagent) | — | placeholder | 子 Agent 委派任务与结果展示 | 占位不可执行 | DSH 同名目录 |
@@ -186,14 +186,14 @@
 | [packages/extensions/ui-cordis](../packages/extensions/ui-cordis) | — | placeholder | Cordis 扩展状态和交互界面 | 占位不可执行 | DSH 同名目录 |
 | [packages/feedback/command-feedback](../packages/feedback/command-feedback) | — | placeholder | 显式反馈命令适配 | 占位不可执行 | DSH 同名目录 |
 | [packages/feedback/message-feedback](../packages/feedback/message-feedback) | — | placeholder | 消息反馈状态与记录服务 | 占位不可执行 | DSH 同名目录 |
-| [packages/fs/fs](../packages/fs/fs) | lfaa-fs | implemented | 统一文件库、账户资源与文件任务合同 | [源码](../packages/fs/fs/src/index.ts)；7 个静态消费者；1 个组合声明 | DSH 同名目录 |
+| [packages/fs/fs](../packages/fs/fs) | lfaa-fs | implemented | 统一文件库、账户资源与文件任务合同 | [源码](../packages/fs/fs/src/index.ts)；8 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/fs/fs-local](../packages/fs/fs-local) | lfaa-fs-local | implemented | 本机项目文件访问提供方 | [源码](../packages/fs/fs-local/src/index.ts)；1 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/fs/fs-observation-policy](../packages/fs/fs-observation-policy) | — | placeholder | 文件观察、刷新与缓存失效策略 | 占位不可执行 | DSH 同名目录 |
 | [packages/fs/fs-sandbox](../packages/fs/fs-sandbox) | — | placeholder | 隔离文件访问提供方 | 占位不可执行 | DSH 同名目录 |
 | [packages/fs/tool-fs](../packages/fs/tool-fs) | lfaa-tool-fs | implemented | 项目文件读写/删除工具适配 | [源码](../packages/fs/tool-fs/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/fs/tool-fs-search](../packages/fs/tool-fs-search) | lfaa-tool-fs-search | implemented | 有界文件名/正文检索工具 | [源码](../packages/fs/tool-fs-search/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/fs/tool-str-replace-editor](../packages/fs/tool-str-replace-editor) | lfaa-tool-str-replace-editor | implemented | 带基准校验的精准文本替换工具 | [源码](../packages/fs/tool-str-replace-editor/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |
-| [packages/games/minecraft](../packages/games/minecraft) | lfaa-games-minecraft | implemented | Minecraft 核心、实例、部署与生命周期领域服务 | [源码](../packages/games/minecraft/src/index.ts)；4 个静态消费者；1 个组合声明 | LFAA 扩展 |
+| [packages/games/minecraft](../packages/games/minecraft) | lfaa-games-minecraft | implemented | Minecraft 核心、实例、部署与生命周期领域服务 | [源码](../packages/games/minecraft/src/index.ts)；5 个静态消费者；1 个组合声明 | LFAA 扩展 |
 | [packages/games/runtime-manager](../packages/games/runtime-manager) | lfaa-runtime-manager | implemented | 设备运行环境发现、解析、安装与真实任务服务 | [源码](../packages/games/runtime-manager/src/index.ts)；4 个静态消费者；1 个组合声明 | LFAA 扩展 |
 | [packages/games/steamcmd](../packages/games/steamcmd) | lfaa-games-steamcmd | implemented | SteamCMD 工具安装和校验领域服务 | [源码](../packages/games/steamcmd/src/index.ts)；4 个静态消费者；1 个组合声明 | LFAA 扩展 |
 | [packages/games/tool-minecraft](../packages/games/tool-minecraft) | lfaa-tool-minecraft | implemented | Minecraft 模型工具与原业务服务适配，合同按需选择 | [源码](../packages/games/tool-minecraft/src/index.ts)；0 个静态消费者；1 个组合声明 | LFAA 扩展 |

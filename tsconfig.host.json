@@ -393,6 +393,12 @@
       "lfaa-client-ui-sidebar-files/src/*": [
         "packages/client/ui-sidebar-files/src/*"
       ],
+      "lfaa-client-ui-sidebar-terminal": [
+        "packages/client/ui-sidebar-terminal/src/index.ts"
+      ],
+      "lfaa-client-ui-sidebar-terminal/src/*": [
+        "packages/client/ui-sidebar-terminal/src/*"
+      ],
       "lfaa-client-ui-sidebar/src/*": [
         "packages/client/ui-sidebar/src/*"
       ],

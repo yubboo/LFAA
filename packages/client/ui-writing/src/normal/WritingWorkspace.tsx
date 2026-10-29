@@ -647,7 +647,7 @@ export function WritingWorkspace({ settings, onSettingsChange, workspace, loadin
 
     <div className="writing-workspace__editor" data-light-rays={settings.appearance.advanced.writingLightRaysEnabled ? "true" : "false"}>
       {settings.appearance.advanced.writingLightRaysEnabled ? <div className="writing-workspace__light-rays-layer" aria-hidden="true">
-        <LightRays raysOrigin="top-center" raysSpeed={0.12} lightSpread={0.42} rayLength={2.8} rayDensity={1} raySharpness={0.25} glow={0.42} haze={0.18} atmosphere={0.35} intensity={0.7} pulsating={false} fadeDistance={1.2} saturation={0.8} followMouse={false} mouseInfluence={0} cursorShadow={false} clickPulse={false} noiseAmount={0} distortion={0} opacity={0.62} maxDevicePixelRatio={1.35} reducedMotion={settings.appearance.advanced.reducedMotion} />
+        <LightRays raysOrigin="top-center" raysSpeed={0.12} lightSpread={0.42} rayLength={2.8} rayDensity={1} raySharpness={0.25} glow={0.42} haze={0.18} mist={0.24} atmosphere={0.35} intensity={0.7} pulsating={false} fadeDistance={1.2} saturation={0.8} followMouse={false} mouseInfluence={0} cursorShadow={false} clickPulse={false} noiseAmount={0} distortion={0} opacity={0.62} maxDevicePixelRatio={1.35} reducedMotion={settings.appearance.advanced.reducedMotion} />
       </div> : null}
       <header className="writing-workspace__editor-toolbar">
         <div className="writing-workspace__breadcrumb">

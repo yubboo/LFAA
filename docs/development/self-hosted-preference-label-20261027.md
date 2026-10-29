@@ -1,5 +1,7 @@
 # LFAA-SELF-HOSTED-PREFERENCE-LABEL-20261027
 
+<a id="lfaa-self-hosted-preference-label-20261027"></a>
+
 ## 用户问题、目标与入口
 
 - 用户问题：设置页将当前 Control Plane 的账户设置状态称作“云端偏好设置”，容易让人误以为 LFAA 已提供云端存储。

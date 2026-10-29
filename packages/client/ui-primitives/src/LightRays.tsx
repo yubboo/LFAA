@@ -33,6 +33,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import * as THREE from 'three';
 import './LightRays.css';
 
 const PIXEL_BUDGET = 1.25e6;
@@ -64,6 +65,7 @@ interface LightRaysProps {
   cursorShadow?: boolean;
   clickPulse?: boolean;
   noiseAmount?: number;
+  mist?: number;
   distortion?: number;
   intro?: boolean;
   opacity?: number;
@@ -94,6 +96,7 @@ type RaySettings = {
   cursorShadow: boolean;
   clickPulse: boolean;
   noise: number;
+  mist: number;
   distortion: number;
   intro: boolean;
   opacity: number;
@@ -112,13 +115,12 @@ const ORIGINS: Record<RayOrigin, Origin> = {
   'bottom-right': { anchor: [1, 1.2], dir: [0, -1] }
 };
 
-const VERTEX = `#version 300 es
-const vec2 corners[3] = vec2[3](vec2(-1.0, -1.0), vec2(3.0, -1.0), vec2(-1.0, 3.0));
+const VERTEX = `in vec3 position;
 void main() {
-  gl_Position = vec4(corners[gl_VertexID], 0.0, 1.0);
+  gl_Position = vec4(position.xy, 0.0, 1.0);
 }`;
 
-const FRAGMENT = `#version 300 es
+const FRAGMENT = `
 precision highp float;
 uniform vec2 uResolution;
 uniform float uScale;
@@ -133,6 +135,7 @@ uniform float uFade;
 uniform float uSaturation;
 uniform float uPulsating;
 uniform float uNoise;
+uniform float uMist;
 uniform float uDistortion;
 uniform float uDensity;
 uniform float uSharpness;
@@ -165,8 +168,22 @@ float shape(float strength, float width) {
   return mix(strength, smoothstep(0.62 - edge, 0.62 + edge, strength), uSharpness);
 }
 
+vec4 addMist(vec4 source, vec3 mistColor, float alpha) {
+  vec4 haze = vec4(mistColor * alpha, alpha);
+  return source + haze * (1.0 - source.a);
+}
+
 void main() {
   vec2 coord = vec2(gl_FragCoord.x, uResolution.y - gl_FragCoord.y) / uScale;
+  vec2 uv = coord / max(uResolution / uScale, vec2(1.0));
+  float mistLevel = 0.0;
+  if (uMist > 0.0) {
+    vec2 mistDrift = uv * vec2(3.6, 1.5) + vec2(uTime * 0.012, -uTime * 0.008);
+    float mistNoise = 0.62 * valueNoise(mistDrift) + 0.38 * valueNoise(mistDrift * vec2(2.1, 1.7) + 3.4);
+    float lowHaze = smoothstep(0.08, 0.9, uv.y);
+    mistLevel = min(0.055, uMist * 0.22 * smoothstep(0.38, 0.78, mistNoise) * lowHaze);
+  }
+  vec3 mistColor = mix(vec3(0.72), uColor, 0.1);
   vec2 delta = coord - uSource;
   float distance = length(delta);
   vec2 dir = delta / max(distance, 1e-4);
@@ -183,7 +200,7 @@ void main() {
   float envelope = spread * lengthFalloff * fadeFalloff;
   float reveal = uIntensity * uIntro.y * (1.0 - smoothstep(uIntro.x - 0.35, uIntro.x, depth));
   if ((envelope * 1.6 + glowLight) * reveal < 0.0015) {
-    fragColor = vec4(0.0);
+    fragColor = addMist(vec4(0.0), mistColor, mistLevel);
     return;
   }
 
@@ -245,14 +262,14 @@ void main() {
     float warm = clamp((min(tone.r, tone.g) - tone.b) * 2.0, 0.0, 1.0);
     vec3 ink = tone * (mix(0.66, 0.94, warm) - 0.1 * smoothstep(0.4, 1.2, energy));
     float density = clamp(0.82 * (1.0 - exp(-1.5 * energy * energy)) * uOpacity + grain, 0.0, 1.0);
-    fragColor = vec4(ink * density, density);
+    fragColor = addMist(vec4(ink * density, density), mistColor, mistLevel);
     return;
   }
   float level = light < 0.75 ? light : 0.75 + 0.25 * (1.0 - exp(-(light - 0.75) / 0.25));
   float top = max(hue.r, max(hue.g, hue.b));
   hue = mix(hue, vec3(top), smoothstep(0.8, 1.0, level) * 0.45);
   vec3 shown = clamp(hue * level, 0.0, 1.0) * level;
-  fragColor = vec4(clamp(shown + grain, 0.0, level) * uOpacity, level * uOpacity);
+  fragColor = addMist(vec4(clamp(shown + grain, 0.0, level) * uOpacity, level * uOpacity), mistColor, mistLevel);
 }`;
 
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
@@ -267,45 +284,6 @@ const parseColor = (value: string | undefined): RGB | null => {
   const rgb = /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/i.exec(text);
   if (rgb) return [rgb[1], rgb[2], rgb[3]].map(channel => clamp(parseFloat(channel) / 255, 0, 1)) as RGB;
   return null;
-};
-
-const compile = (gl: WebGL2RenderingContext, type: number, source: string): WebGLShader | null => {
-  const shader = gl.createShader(type);
-  if (!shader) return null;
-  gl.shaderSource(shader, source);
-  gl.compileShader(shader);
-  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-    gl.deleteShader(shader);
-    return null;
-  }
-  return shader;
-};
-
-const link = (gl: WebGL2RenderingContext): { program: WebGLProgram; uniforms: Record<string, WebGLUniformLocation | null> } | null => {
-  const vertex = compile(gl, gl.VERTEX_SHADER, VERTEX);
-  const fragment = compile(gl, gl.FRAGMENT_SHADER, FRAGMENT);
-  const program = vertex && fragment ? gl.createProgram() : null;
-  if (!vertex || !fragment || !program) {
-    if (vertex) gl.deleteShader(vertex);
-    if (fragment) gl.deleteShader(fragment);
-    return null;
-  }
-  gl.attachShader(program, vertex);
-  gl.attachShader(program, fragment);
-  gl.linkProgram(program);
-  gl.deleteShader(vertex);
-  gl.deleteShader(fragment);
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    gl.deleteProgram(program);
-    return null;
-  }
-  const uniforms: Record<string, WebGLUniformLocation | null> = {};
-  const count = gl.getProgramParameter(program, gl.ACTIVE_UNIFORMS);
-  for (let index = 0; index < count; index++) {
-    const info = gl.getActiveUniform(program, index);
-    if (info) uniforms[info.name.replace(/\[0\]$/, '')] = gl.getUniformLocation(program, info.name);
-  }
-  return { program, uniforms };
 };
 
 const smoother = (t: number): number => {
@@ -334,6 +312,7 @@ export function LightRays({
   cursorShadow = true,
   clickPulse = true,
   noiseAmount = 0,
+  mist = 0,
   distortion = 0,
   intro = true,
   opacity = 1,
@@ -368,6 +347,7 @@ export function LightRays({
     cursorShadow,
     clickPulse,
     noise: clamp(noiseAmount, 0, 1),
+    mist: clamp(mist, 0, 1),
     distortion,
     intro,
     opacity: clamp(opacity, 0, 1),
@@ -387,38 +367,83 @@ export function LightRays({
     if (!container || !canvas) return;
     container.dataset.renderer = 'fallback';
 
-    const gl = canvas.getContext('webgl2', {
-      alpha: true,
-      premultipliedAlpha: true,
-      antialias: false,
-      depth: false,
-      stencil: false,
-      powerPreference: 'high-performance'
-    });
-    const shader = gl ? link(gl) : null;
-    if (!gl || !shader) {
-      gl?.getExtension('WEBGL_lose_context')?.loseContext();
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = new THREE.WebGLRenderer({
+        canvas,
+        alpha: true,
+        premultipliedAlpha: true,
+        antialias: false,
+        depth: false,
+        stencil: false,
+        powerPreference: 'high-performance'
+      });
+    } catch {
       return;
     }
 
+    const pulseData = new Float32Array(MAX_PULSES * 4);
+    const uniforms = {
+      uResolution: { value: new THREE.Vector2(1, 1) },
+      uScale: { value: 1 },
+      uTime: { value: 0 },
+      uSource: { value: new THREE.Vector2() },
+      uAim: { value: new THREE.Vector2() },
+      uReach: { value: 1 },
+      uColor: { value: new THREE.Vector3(1, 1, 1) },
+      uSpread: { value: 1 },
+      uLength: { value: 1 },
+      uFade: { value: 1 },
+      uSaturation: { value: 1 },
+      uPulsating: { value: 0 },
+      uNoise: { value: 0 },
+      uMist: { value: 0 },
+      uDistortion: { value: 0 },
+      uDensity: { value: 1 },
+      uSharpness: { value: 0 },
+      uGlow: { value: 0 },
+      uHaze: { value: 0 },
+      uAtmosphere: { value: 0 },
+      uIntensity: { value: 1 },
+      uShadow: { value: new THREE.Vector4() },
+      uPulses: { value: pulseData },
+      uIntro: { value: new THREE.Vector2() },
+      uLight: { value: 0 },
+      uOpacity: { value: 1 }
+    };
+    const material = new THREE.RawShaderMaterial({
+      uniforms,
+      vertexShader: VERTEX,
+      fragmentShader: FRAGMENT,
+      glslVersion: THREE.GLSL3,
+      transparent: true,
+      premultipliedAlpha: true,
+      depthTest: false,
+      depthWrite: false,
+      toneMapped: false
+    });
+    const geometry = new THREE.PlaneGeometry(2, 2);
+    const scene = new THREE.Scene();
+    const camera = new THREE.Camera();
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.frustumCulled = false;
+    scene.add(mesh);
+    const drawBufferSize = new THREE.Vector2(1, 1);
+    renderer.setPixelRatio(1);
+    renderer.setSize(1, 1, false);
+    renderer.setClearColor(0x000000, 0);
+
     const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
     let reduced = settingsRef.current.reducedMotion === 'on' || (settingsRef.current.reducedMotion === 'system' && motionQuery.matches);
-    const vao = gl.createVertexArray();
-    if (!vao) {
-      gl.deleteProgram(shader.program);
-      gl.getExtension('WEBGL_lose_context')?.loseContext();
-      return;
-    }
-    container.dataset.renderer = 'webgl';
+    container.dataset.renderer = 'three';
     const size = { width: 1, height: 1, ratio: 1 };
     const pointer = { x: 0.5, y: 0.5, inside: false, seen: false };
     const aim = { x: 0.5, y: 0.5 };
     const shade = { x: 0.5, y: 0.5, presence: 0 };
     const pulses: Array<{ age: number }> = [];
-    const pulseData = new Float32Array(MAX_PULSES * 4);
     let time = 0;
     let opening = settingsRef.current.intro && !reduced && generation === 0 ? 0 : 1;
-    let raf = 0;
+    let animationRunning = false;
     let last = 0;
     let visible = true;
     let pageVisible = document.visibilityState !== 'hidden';
@@ -447,20 +472,37 @@ export function LightRays({
         sampling,
         Math.sqrt(PIXEL_BUDGET / (cssWidth * cssHeight))
       );
-      const width = Math.max(1, Math.round(cssWidth * ratio));
-      const height = Math.max(1, Math.round(cssHeight * ratio));
-      if (canvas.width !== width || canvas.height !== height) {
-        canvas.width = width;
-        canvas.height = height;
-      }
+      renderer.setPixelRatio(ratio);
+      renderer.setSize(cssWidth, cssHeight, false);
+      renderer.getDrawingBufferSize(drawBufferSize);
       size.width = cssWidth;
       size.height = cssHeight;
-      size.ratio = width / cssWidth;
+      size.ratio = drawBufferSize.x / cssWidth;
+      uniforms.uResolution.value.copy(drawBufferSize);
+      uniforms.uScale.value = size.ratio;
     };
 
+    const stop = () => {
+      if (!animationRunning) return;
+      renderer.setAnimationLoop(null);
+      animationRunning = false;
+    };
+    const syncReducedMotion = () => {
+      const nextReduced = settingsRef.current.reducedMotion === 'on' || (settingsRef.current.reducedMotion === 'system' && motionQuery.matches);
+      if (nextReduced === reduced) return;
+      reduced = nextReduced;
+      if (!reduced) return;
+      time = 0;
+      opening = 1;
+      pulses.length = 0;
+      shade.presence = 0;
+    };
     const frame = (now: number) => {
-      raf = 0;
-      if (lost) return;
+      if (lost || !visible || !pageVisible) {
+        stop();
+        return;
+      }
+      syncReducedMotion();
       const s = settingsRef.current;
       const dt = clamp((now - last) / 1000 || 0, 0, 0.05);
       last = Math.max(last, now);
@@ -515,38 +557,32 @@ export function LightRays({
       }
       const eased = 1 - Math.pow(1 - opening, 3);
 
-      gl.viewport(0, 0, canvas.width, canvas.height);
-      gl.clearColor(0, 0, 0, 0);
-      gl.clear(gl.COLOR_BUFFER_BIT);
-      gl.useProgram(shader.program);
-      gl.bindVertexArray(vao);
-      const u = shader.uniforms;
-      gl.uniform2f(u.uResolution, canvas.width, canvas.height);
-      gl.uniform1f(u.uScale, size.ratio);
-      gl.uniform1f(u.uTime, time);
-      gl.uniform2f(u.uSource, sourceX, sourceY);
-      gl.uniform2f(u.uAim, dirX, dirY);
-      gl.uniform1f(u.uReach, Math.max(width, height));
-      gl.uniform3f(u.uColor, palette.color[0], palette.color[1], palette.color[2]);
-      gl.uniform1f(u.uSpread, s.spread);
-      gl.uniform1f(u.uLength, s.length);
-      gl.uniform1f(u.uFade, s.fade);
-      gl.uniform1f(u.uSaturation, s.saturation);
-      gl.uniform1f(u.uPulsating, s.pulsating ? 1 : 0);
-      gl.uniform1f(u.uNoise, s.noise);
-      gl.uniform1f(u.uDistortion, s.distortion);
-      gl.uniform1f(u.uDensity, s.density);
-      gl.uniform1f(u.uSharpness, s.sharpness);
-      gl.uniform1f(u.uGlow, s.glow);
-      gl.uniform1f(u.uHaze, s.haze);
-      gl.uniform1f(u.uAtmosphere, s.atmosphere);
-      gl.uniform1f(u.uIntensity, s.intensity);
-      gl.uniform4f(u.uShadow, shade.x * width, shade.y * height, shade.presence, 16);
-      gl.uniform4fv(u.uPulses, pulseData);
-      gl.uniform2f(u.uIntro, eased * 2.6, smoother(opening / 0.5));
-      gl.uniform1f(u.uLight, palette.lightMode ? 1 : 0);
-      gl.uniform1f(u.uOpacity, s.opacity);
-      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      uniforms.uResolution.value.copy(drawBufferSize);
+      uniforms.uScale.value = size.ratio;
+      uniforms.uTime.value = time;
+      uniforms.uSource.value.set(sourceX, sourceY);
+      uniforms.uAim.value.set(dirX, dirY);
+      uniforms.uReach.value = Math.max(width, height);
+      uniforms.uColor.value.set(palette.color[0], palette.color[1], palette.color[2]);
+      uniforms.uSpread.value = s.spread;
+      uniforms.uLength.value = s.length;
+      uniforms.uFade.value = s.fade;
+      uniforms.uSaturation.value = s.saturation;
+      uniforms.uPulsating.value = s.pulsating ? 1 : 0;
+      uniforms.uNoise.value = s.noise;
+      uniforms.uMist.value = s.mist;
+      uniforms.uDistortion.value = s.distortion;
+      uniforms.uDensity.value = s.density;
+      uniforms.uSharpness.value = s.sharpness;
+      uniforms.uGlow.value = s.glow;
+      uniforms.uHaze.value = s.haze;
+      uniforms.uAtmosphere.value = s.atmosphere;
+      uniforms.uIntensity.value = s.intensity;
+      uniforms.uShadow.value.set(shade.x * width, shade.y * height, shade.presence, 16);
+      uniforms.uIntro.value.set(eased * 2.6, smoother(opening / 0.5));
+      uniforms.uLight.value = palette.lightMode ? 1 : 0;
+      uniforms.uOpacity.value = s.opacity;
+      renderer.render(scene, camera);
 
       const settling =
         Math.abs(aim.x - aimX) > 1e-4 ||
@@ -555,13 +591,15 @@ export function LightRays({
         Math.abs((shading ? 1 : 0) - shade.presence) > 1e-3 ||
         pulses.length > 0;
       const busy = !reduced && (s.speed > 0 || opening < 1 || settling);
-      if (busy && visible && pageVisible) raf = requestAnimationFrame(frame);
+      if (!busy) stop();
     };
 
     const wake = () => {
-      if (raf || lost || !visible || !pageVisible) return;
+      syncReducedMotion();
+      if (lost || !visible || !pageVisible || animationRunning) return;
       last = performance.now();
-      raf = requestAnimationFrame(frame);
+      animationRunning = true;
+      renderer.setAnimationLoop(frame);
     };
     wakeRef.current = () => {
       refreshPalette();
@@ -570,15 +608,6 @@ export function LightRays({
     };
 
     const onMotionPreferenceChange = () => {
-      const nextReduced = settingsRef.current.reducedMotion === 'on' || (settingsRef.current.reducedMotion === 'system' && motionQuery.matches);
-      if (nextReduced === reduced) return;
-      reduced = nextReduced;
-      if (reduced) {
-        time = 0;
-        opening = 1;
-        pulses.length = 0;
-        shade.presence = 0;
-      }
       wake();
     };
     motionQuery.addEventListener('change', onMotionPreferenceChange);
@@ -648,8 +677,7 @@ export function LightRays({
       event.preventDefault();
       lost = true;
       container.dataset.renderer = 'fallback';
-      cancelAnimationFrame(raf);
-      raf = 0;
+      stop();
     };
     const onRestored = () => setGeneration(value => value + 1);
     canvas.addEventListener('webglcontextlost', onLost);
@@ -665,13 +693,15 @@ export function LightRays({
 
     const intersection = typeof IntersectionObserver !== 'undefined' ? new IntersectionObserver((entries: IntersectionObserverEntry[]) => {
       visible = entries.some(entry => entry.isIntersecting);
-      wake();
+      if (visible) wake();
+      else stop();
     }) : null;
     intersection?.observe(container);
 
     const onVisibility = () => {
       pageVisible = document.visibilityState !== 'hidden';
-      wake();
+      if (pageVisible) wake();
+      else stop();
     };
     document.addEventListener('visibilitychange', onVisibility);
 
@@ -679,7 +709,7 @@ export function LightRays({
     wake();
 
     return () => {
-      cancelAnimationFrame(raf);
+      stop();
       wakeRef.current = null;
       resizeObserver?.disconnect();
       intersection?.disconnect();
@@ -700,12 +730,11 @@ export function LightRays({
       canvas.removeEventListener('webglcontextrestored', onRestored);
       delete container.dataset.renderer;
       delete container.dataset.theme;
-      if (!gl.isContextLost()) {
-        gl.deleteVertexArray(vao);
-        gl.deleteProgram(shader.program);
-      }
+      geometry.dispose();
+      material.dispose();
+      renderer.dispose();
     };
-  }, [generation, reducedMotion]);
+  }, [generation]);
 
   return (
     <div ref={containerRef} className={`light-rays${className ? ` ${className}` : ''}`} style={style}>

@@ -1,5 +1,7 @@
 # LFAA-AI-WORK-DEFAULT-PROJECT-NEW-SESSION-20261027：新会话默认归入默认工作区
 
+<a id="lfaa-ai-work-default-project-new-session-20261027"></a>
+
 ## 用户目标
 
 在 AI Work 新建会话时，默认选中当前账户由 Workspace Owner 登记的“默认工作区”项目，使新会话出现在左侧默认工作区项目分组中。同时，“最近”作为跨项目的近期会话入口，也保留这些会话的访问入口。默认工作区的数据仍在现有 `.lfaa` 位置，修复只补齐新会话的项目归属和侧栏索引。

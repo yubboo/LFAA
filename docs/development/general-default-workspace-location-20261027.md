@@ -1,5 +1,7 @@
 # LFAA-GENERAL-DEFAULT-WORKSPACE-LOCATION-20261027
 
+<a id="lfaa-general-default-workspace-location-20261027"></a>
+
 ## 用户目标与边界
 
 在“常规”页展示 Codex“项目外聊天文件夹”对应的 LFAA 位置：Workspace Owner 当前登记的默认工作区路径。没有从具体项目发起的新聊天默认归入该工作区；明确从项目发起的聊天继续归入该项目。聊天事件和消息仍由 Session Owner 写入 LFAA Home 下的 `.lfaa/sessions`，本任务不改变该目录、数据格式或既有会话归属，也不迁移历史文件。

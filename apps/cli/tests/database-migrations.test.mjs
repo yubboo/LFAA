@@ -182,6 +182,34 @@ function runDatabaseStartup(dataDirectory) {
   });
 }
 
+test("版本 76 数据库通过启动兼容检查并保留原有数据", () => {
+  const dataDirectory = mkdtempSync(join(resolve(tmpdir()), "lfaa-db-v76-current-"));
+  try {
+    const databasePath = join(dataDirectory, "database", "lfaa.sqlite");
+    mkdirSync(dirname(databasePath), { recursive: true });
+    const fixtureDatabase = new DatabaseSync(databasePath);
+    fixtureDatabase.exec(`
+      CREATE TABLE preserved_fixture (value TEXT NOT NULL) STRICT;
+      INSERT INTO preserved_fixture (value) VALUES ('kept');
+      PRAGMA user_version = 76;
+    `);
+    fixtureDatabase.close();
+
+    runDatabaseStartup(dataDirectory);
+
+    const startedDatabase = new DatabaseSync(databasePath, { readOnly: true });
+    try {
+      assert.equal(Number(startedDatabase.prepare("PRAGMA user_version").get().user_version), 76);
+      assert.equal(startedDatabase.prepare("SELECT value FROM preserved_fixture").get().value, "kept");
+    } finally { startedDatabase.close(); }
+  } finally {
+    const resolvedDataDirectory = resolve(dataDirectory);
+    assert.equal(dirname(resolvedDataDirectory), resolve(tmpdir()));
+    assert.ok(basename(resolvedDataDirectory).startsWith("lfaa-db-v76-current-"));
+    rmSync(resolvedDataDirectory, { recursive: true, force: true });
+  }
+});
+
 for (const includeScopeSummary of [false, true]) {
   test(`版本 8 数据库 ${includeScopeSummary ? "已有" : "缺少"}目标范围列时升级并保留记录`, () => {
     const temporaryParent = resolve(tmpdir());

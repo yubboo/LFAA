@@ -10,6 +10,8 @@
 
 `login-appearance.ts` 只缓存已确认的登录页外观白名单并按用户名隔离，AuthView 仅在输入用户名匹配时使用；登录背景沿用当前设备的内置图片 ID，不保存上传图片或插件设置。登录区域可显式设置自己的遮罩；未设置时仍将全局 `appearance.overlay` 强度缩放至 40%，维持原有保守显示。账户 Appearance 仍由 Settings Owner 持久化，账号不匹配或缓存损坏时回到 `DEFAULT_USER_SETTINGS.appearance`。
 
+登录页图片映射识别共享清单中的 `writing-yunjian` ID，供用户手动选择时正常解析；“云涧书境”预设本身只写 `backgrounds.writing`，不会更改登录页背景。
+
 共享卡片列表最多为前六张卡片播放入场效果，第二至第六张之间每项错开 40ms；Minecraft 任务列表使用这一共享样式。效果只在现有 `general.cardMotionEffect` 启用时播放，并遵循 `appearance.advanced.reducedMotion` 与系统减少动态效果偏好。
 
 源码由 Web/Client 组合装配，不代表包单独可运行。构建产物只写仓库根 `dist/packages/client/ui-theme/`。

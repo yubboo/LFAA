@@ -16,6 +16,7 @@
     "lfaa-api-remotes": "workspace:*",
     "lfaa-app-boot": "workspace:*",
     "lfaa-authorization": "workspace:*",
+    "lfaa-games-minecraft": "workspace:*",
     "lfaa-host-daemon": "workspace:*",
     "lfaa-permission-presets": "workspace:*",
     "lfaa-session": "workspace:*",

@@ -11,7 +11,7 @@
 import type { ReactElement, SVGProps } from "react";
 
 export type WorkbenchIconName =
-  | "archive" | "bolt" | "book" | "branch" | "browser" | "check" | "chevron" | "close" | "copy" | "dots" | "file" | "folder" | "grid" | "history"
+  | "archive" | "bolt" | "book" | "branch" | "browser" | "chat" | "check" | "chevron" | "close" | "copy" | "dots" | "file" | "folder" | "grid" | "history"
   | "help" | "home" | "keyboard" | "microphone" | "moon" | "monitor" | "new" | "panelLeft" | "panelRight" | "plus" | "refresh" | "review" | "search"
   | "settings" | "shield" | "spark" | "summary" | "sun" | "terminal" | "thumbDown" | "thumbUp" | "tools" | "trash" | "user" | "bell" | "extension" | "arrowRight";
 
@@ -28,6 +28,7 @@ const paths: Record<WorkbenchIconName, ReactElement> = {
   book: <><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v17H6.5A2.5 2.5 0 0 0 4 22V5.5Z"/><path d="M4 6v14a2 2 0 0 1 2-2h14"/><path d="M8 7h8"/></>,
   branch: <><circle cx="6" cy="5" r="2.5"/><circle cx="18" cy="5" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.5 5h3a3 3 0 0 1 3 3v8a3 3 0 0 0 3 3"/><path d="M8.5 5h6.5a3 3 0 0 1 3 3"/></>,
   browser: <><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.7 2.4 4 5.4 4 9s-1.3 6.6-4 9c-2.7-2.4-4-5.4-4-9s1.3-6.6 4-9Z"/></>,
+  chat: <><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H7l-4 2v-5.5a7.5 7.5 0 1 1 17-4Z"/><path d="M8 11h.01M12 11h.01M16 11h.01"/></>,
   check: <path d="m5 12 4 4L19 6"/>,
   chevron: <path d="m8 10 4 4 4-4"/>,
   close: <><path d="m6 6 12 12"/><path d="M18 6 6 18"/></>,

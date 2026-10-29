@@ -9,7 +9,7 @@ import { createDeepWriteZip, parseDeepWriteProject, readDeepWriteZip, DEEPWRITE_
 import { database } from "lfaa-storage-sqlite/src/database.js";
 import { WRITING_SPECIALISTS, getWritingSpecialist, type WritingSpecialistId } from "lfaa-domain-experts/src/writing-catalog.js";
 import { countWritingWords } from "./content-utils.js";
-import { ensureWritingProjectFiles, migrateWritingContentToLocalFiles, readWritingLocalText, removeWritingLocalText, removeWritingProjectFiles, writeWritingLocalText, WRITING_LOCAL_FILE_MARKER, type WritingLocalContentRef } from "./local-files.js";
+import { allocateWritingProjectDirectoryName, ensureWritingProjectFiles, getWritingProjectDirectoryName, migrateWritingContentToLocalFiles, readWritingLocalText, removeWritingLocalText, removeWritingProjectFiles, writeWritingLocalText, WRITING_LOCAL_FILE_MARKER, type WritingLocalContentRef } from "./local-files.js";
 
 migrateWritingContentToLocalFiles();
 
@@ -773,12 +773,13 @@ export function createWritingBook(userId: string, title: string): WritingWorkspa
   const bookId = randomUUID();
   const volumeId = randomUUID();
   const chapterId = randomUUID();
+  const directoryName = allocateWritingProjectDirectoryName(userId, title);
   try {
-    ensureWritingProjectFiles(userId, bookId);
-    writeWritingLocalText(userId, bookId, { kind: "outline" }, "");
-    writeWritingLocalText(userId, bookId, { kind: "chapter", id: chapterId }, "");
+    ensureWritingProjectFiles(userId, bookId, title, directoryName);
+    writeWritingLocalText(userId, bookId, { kind: "outline" }, "", title, directoryName);
+    writeWritingLocalText(userId, bookId, { kind: "chapter", id: chapterId }, "", title, directoryName);
     database.exec("BEGIN IMMEDIATE;");
-    database.prepare("INSERT INTO writing_books (id, user_id, title) VALUES (?, ?, ?)").run(bookId, userId, title);
+    database.prepare("INSERT INTO writing_books (id, user_id, title, directory_name) VALUES (?, ?, ?, ?)").run(bookId, userId, title, directoryName);
     database.prepare("INSERT INTO writing_volumes (id, book_id, title, sort_order) VALUES (?, ?, '第一卷', 0)").run(volumeId, bookId);
     database.prepare("INSERT INTO writing_chapters (id, book_id, volume_id, title, content, word_count, sort_order) VALUES (?, ?, ?, '第1章', '', 0, 0)").run(chapterId, bookId, volumeId);
     database.prepare("INSERT INTO writing_local_file_migrations (book_id, format_version, content_count) VALUES (?, 1, 2)").run(bookId);
@@ -786,7 +787,7 @@ export function createWritingBook(userId: string, title: string): WritingWorkspa
     database.exec("COMMIT;");
   } catch (error) {
     if (database.isTransaction) database.exec("ROLLBACK;");
-    removeWritingProjectFiles(userId, bookId);
+    removeWritingProjectFiles(userId, bookId, directoryName, title);
     throw error;
   }
   return getWritingWorkspace(userId);
@@ -816,6 +817,7 @@ export function renameWritingBook(userId: string, bookId: string, title: string)
 
 export function deleteWritingBook(userId: string, bookId: string): boolean {
   if (!bookRow(userId, bookId)) return false;
+  const directoryName = getWritingProjectDirectoryName(userId, bookId);
   database.exec("BEGIN IMMEDIATE;");
   try {
     database.prepare("DELETE FROM writing_books WHERE user_id = ? AND id = ?").run(userId, bookId);
@@ -832,7 +834,7 @@ export function deleteWritingBook(userId: string, bookId: string): boolean {
     database.exec("ROLLBACK;");
     throw error;
   }
-  removeWritingProjectFiles(userId, bookId);
+  removeWritingProjectFiles(userId, bookId, directoryName);
   return true;
 }
 
@@ -1149,6 +1151,7 @@ export function importWritingBookDeepWriteZip(userId: string, archive: Uint8Arra
 
   const now = new Date().toISOString();
   const bookId = randomUUID();
+  const directoryName = allocateWritingProjectDirectoryName(userId, project.title);
   const volumeIds = new Map(project.volumes.map((volume) => [volume.externalId, randomUUID()]));
   const chapterIds = new Map(project.chapters.map((chapter) => [chapter.externalId, randomUUID()]));
   const orderedChapters = [...project.chapters].sort((left, right) => left.order - right.order || left.externalId.localeCompare(right.externalId));
@@ -1160,19 +1163,19 @@ export function importWritingBookDeepWriteZip(userId: string, archive: Uint8Arra
   const catalogRecords = materials.map((entry) => ({ ...entry, id: randomUUID() }));
   const skillRecords = project.skills.map((skill) => ({ ...skill, id: randomUUID() }));
   try {
-    ensureWritingProjectFiles(userId, bookId);
-    writeWritingLocalText(userId, bookId, { kind: "outline" }, project.outline);
-    for (const chapter of orderedChapters) writeWritingLocalText(userId, bookId, { kind: "chapter", id: chapterIds.get(chapter.externalId)! }, chapter.content);
-    for (const entry of catalogRecords) writeWritingLocalText(userId, bookId, { kind: "catalog", id: entry.id }, entry.content);
-    for (const skill of skillRecords) writeWritingLocalText(userId, bookId, { kind: "skill", id: skill.id }, skill.instructions);
+    ensureWritingProjectFiles(userId, bookId, project.title, directoryName);
+    writeWritingLocalText(userId, bookId, { kind: "outline" }, project.outline, project.title, directoryName);
+    for (const chapter of orderedChapters) writeWritingLocalText(userId, bookId, { kind: "chapter", id: chapterIds.get(chapter.externalId)! }, chapter.content, project.title, directoryName);
+    for (const entry of catalogRecords) writeWritingLocalText(userId, bookId, { kind: "catalog", id: entry.id }, entry.content, project.title, directoryName);
+    for (const skill of skillRecords) writeWritingLocalText(userId, bookId, { kind: "skill", id: skill.id }, skill.instructions, project.title, directoryName);
   } catch (error) {
-    removeWritingProjectFiles(userId, bookId);
+    removeWritingProjectFiles(userId, bookId, directoryName, project.title);
     throw error;
   }
 
   database.exec("BEGIN IMMEDIATE;");
   try {
-    database.prepare("INSERT INTO writing_books (id, user_id, title, outline_content, ai_role_id, created_at, updated_at) VALUES (?, ?, ?, '', ?, ?, ?)").run(bookId, userId, project.title, project.aiRoleId, now, now);
+    database.prepare("INSERT INTO writing_books (id, user_id, title, directory_name, outline_content, ai_role_id, created_at, updated_at) VALUES (?, ?, ?, ?, '', ?, ?, ?)").run(bookId, userId, project.title, directoryName, project.aiRoleId, now, now);
     const insertVolume = database.prepare("INSERT INTO writing_volumes (id, book_id, title, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)");
     project.volumes.sort((left, right) => left.order - right.order || left.externalId.localeCompare(right.externalId)).forEach((volume, order) => insertVolume.run(volumeIds.get(volume.externalId)!, bookId, volume.title, order, now, now));
     const insertChapter = database.prepare("INSERT INTO writing_chapters (id, book_id, volume_id, title, content, word_count, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, '', ?, ?, ?, ?)");
@@ -1187,7 +1190,7 @@ export function importWritingBookDeepWriteZip(userId: string, archive: Uint8Arra
     database.exec("COMMIT;");
   } catch (error) {
     database.exec("ROLLBACK;");
-    removeWritingProjectFiles(userId, bookId);
+    removeWritingProjectFiles(userId, bookId, directoryName, project.title);
     throw error;
   }
   return getWritingWorkspace(userId);

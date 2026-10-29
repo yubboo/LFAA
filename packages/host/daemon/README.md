@@ -22,7 +22,7 @@ Minecraft/Steam 的备份分类根分别为 `data/backups/minecraft` 与 `data/b
 
 ## 运行与桌面打包
 
-`terminal-channel.mjs` 在现有控制端地址上建立认证 POST SSE 命令连接，通过顺序 HTTP 批量回报输出和应答；本机与远程节点共用该链，远程仍要求 HTTPS。真实 Shell 经 subprocess-local 的原生 PTY 在线程中启动，节点最多 8 个会话，发送队列 1 MiB；控制端断线、凭据失效或 Daemon 卸载关闭全部会话，不重放输入。Shell 选择来自 Settings，并通过 terminal-bash 异步解析，必要 OS 环境采用显式允许集合，不继承模型服务密钥。
+`terminal-channel.mjs` 在现有控制端地址上建立认证 POST SSE 命令连接，通过顺序 HTTP 批量回报输出和应答；本机与远程节点共用该链，远程仍要求 HTTPS。系统 Shell 经 subprocess-local 的原生 PTY 启动，Shell 选择来自 Settings 并通过 terminal-bash 异步解析，必要 OS 环境采用显式允许集合，不继承模型服务密钥。Minecraft 只附着到该节点 Daemon 当前持有、且已报告就绪的实例 PTY；不会把 Java 进程暴露成 OS Shell。原生模式复用同一 subprocess-local ConPTY；AppContainer 模式由 Rust Sandbox Host 创建 Windows Pseudo Console，PTY 字节和尺寸通过有长度上限的帧协议送入 Host，Java 仍保留实例 AppContainer、文件 ACL、网络能力和 Job Object。每节点最多 8 个终端会话，发送队列 1 MiB；控制端断线、凭据失效或 Daemon 卸载关闭 Shell PTY 并撤销 Minecraft 附着，不重放输入，也不因终端断开停止 Minecraft 服务端。AppContainer 交互式能力只在 Sandbox Host v2 探测成功后加入节点能力集。
 
 Windows Electron 桌面安装包内置本机 Daemon，并由桌面主进程自动启动和收尾。Daemon 保持独立进程与 `daemon` Profile，控制端通过现有认证节点任务通道单独读取节点状态和派发操作。需要新增远程节点时，管理员通过控制端签发 HTTPS 连接身份，目标 Windows x64 主机导入连接文件后运行 `lfaa daemon`；远程主机安装器和系统服务托管尚未接入。
 

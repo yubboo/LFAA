@@ -17,6 +17,7 @@ const loginBackgroundFiles: Record<string, string> = {
   "steamcmd-world": "/backgrounds/steamcmd-world.jpg",
   "minecraft-world": "/backgrounds/minecraft-world.jpg",
   "writing-desk": "/backgrounds/writing-desk.jpg",
+  "writing-yunjian": "/backgrounds/writing-yunjian.png",
   ...Object.fromEntries(minecraftSceneBackgrounds.map(({ id, file }) => [id, file]))
 };
 

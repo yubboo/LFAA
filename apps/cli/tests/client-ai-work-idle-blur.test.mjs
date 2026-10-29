@@ -1,6 +1,6 @@
 /**
  * 功能：回归 AI Work 空闲虚化/淡出计时与 UI 状态接线。
- * 作用：验证活动复位、到期虚化/淡出、隐藏/卸载清理，以及设置控制回复/刻度/滚动条的同一状态。
+ * 作用：验证活动复位、到期虚化/淡出、隐藏/卸载清理，以及滑块拖动使用局部状态并在结束时提交。
  */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -112,6 +112,7 @@ test("AI Work 回复、刻度/滚动条使用设置的虚化与淡出强度并�
   ].map(read).join("\n");
   const workbench = read("../../../packages/client/ui-layout/src/Workbench.tsx");
   const settings = read("../../../packages/client/ui-settings/src/SettingsPage.tsx");
+  const focusBlurSliders = settings.match(/const AppearanceFocusBlurSliders = memo\(function AppearanceFocusBlurSliders\([\s\S]*?\n\}\);/u)?.[0];
 
   assert.match(chat, /aiWorkOutputFocusBlurIdleSeconds\s*\*\s*1000/u);
   assert.match(chat, /addEventListener\("pointermove"/u);
@@ -126,16 +127,20 @@ test("AI Work 回复、刻度/滚动条使用设置的虚化与淡出强度并�
   assert.match(chatCss, /data-output-idle="true"[^\n]*\.ai-work-chat__anchors/u);
   assert.match(chatCss, /data-output-idle="true"[^\n]*\.ai-work-chat__scroll-latest/u);
   assert.doesNotMatch(chatCss, /data-output-idle="true"[^\n]*\.ai-work-chat__composer-context/u, "闲置时保持输入区上下文清晰可读");
-  assert.match(chatCss, /data-output-idle="false"[^\n]*\.ai-work-chat__message-stage > \.ai-work-chat__anchors/u);
+  assert.match(chatCss, /data-output-idle="false"[^\n]*\.ai-work-chat__message-stage > \.ai-work-chat__navigation-track > \.ai-work-chat__anchors/u);
   assert.match(workbench, /--settings-ai-work-output-focus-opacity/u);
   assert.match(workbench, /1\s*-\s*appearanceAdvanced\.aiWorkOutputFocusBlurPercent\s*\/\s*100/u);
   assert.match(chatCss, /opacity:\s*var\(--settings-ai-work-output-focus-opacity/u);
-  assert.match(chatCss, /transition:\s*filter\s+240ms[^;]*opacity\s+240ms/u);
+  assert.match(chatCss, /transition:\s*opacity\s+240ms\s+ease/u);
   assert.match(chatCss, /data-reduced-motion="on"[\s\S]*transition:\s*none/u);
   assert.match(chatCss, /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*transition-duration:\s*0ms/u);
   assert.match(settings, /aiWorkOutputFocusBlurIdleSeconds/u);
-  assert.match(settings, /min=\{1\} max=\{60\} value=\{settings\.appearance\.advanced\.aiWorkOutputFocusBlurIdleSeconds \/ 60\} onChange=\{\(minutes\) => updateAppearanceAdvanced\(\{ aiWorkOutputFocusBlurIdleSeconds: minutes \* 60 \}\)\}/u);
-  assert.match(settings, /min=\{1\} max=\{60\}[\s\S]*?\} 分钟/u);
+  assert.ok(focusBlurSliders, "虚化滑块必须由局部 memo 组件维护拖动状态");
+  assert.match(focusBlurSliders, /value=\{idleMinutes\} onChange=\{setIdleMinutes\} onChangeComplete=\{onIdleMinutesChange\}/u);
+  assert.match(focusBlurSliders, /value=\{percent\} onChange=\{setPercent\} onChangeComplete=\{onPercentChange\}/u);
+  assert.doesNotMatch(focusBlurSliders, /onChange=\{[^}]*updateAppearanceAdvanced/u, "拖动中的 onChange 不应提交整页设置");
+  assert.match(settings, /onIdleMinutesChange=\{minutes => updateAppearanceAdvanced\(\{ aiWorkOutputFocusBlurIdleSeconds: minutes \* 60 \}\)\}/u);
+  assert.match(settings, /onPercentChange=\{aiWorkOutputFocusBlurPercent => updateAppearanceAdvanced\(\{ aiWorkOutputFocusBlurPercent \}\)\}/u);
   assert.match(settings, /100% 完全淡出隐藏回复/u);
   assert.doesNotMatch(chatCss, /瞬时切换[\s\S]*filter 动画/u);
 });

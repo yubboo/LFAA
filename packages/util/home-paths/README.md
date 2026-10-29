@@ -2,6 +2,8 @@
 
 `resolveHomeDirectory()` 是本机账户/控制数据 Home Owner：`LFAA_HOME` 必须是绝对路径；留空默认 `%USERPROFILE%\.lfaa`（非 Windows 使用 `~/.lfaa`）。`resolveDataDirectory()` 是业务 Data 根 Owner：显式部署 `LFAA_DATA_DIR` 优先；否则读取设置中心“项目与存储”选择，首次默认 `<LFAA_HOME>/data`。控制配置文件 `<LFAA_HOME>/storages/data-directory.json` 保存这一唯一选择。Home 承载数据库、账户文件、会话、凭据、控制配置与 Skill 来源；Data 根承载账户业务文件、游戏、运行环境、工具、缓存、临时文件、日志、备份、模型与联机配置。应用推荐位置按当前项目/安装根动态解析为 `data`。切换 Data 根只登记新路径并创建分类；旧根和其中的文件保留，重启后控制端与本机 Daemon 读取同一个选择。App Boot 的 Profile Cordis Patch 与 Plugin Manager 的插件源码/清单位于 `<LFAA_HOME>/profiles/<Profile>`；受控 Wallpaper Engine 运行副本和默认私有运行数据位于该 Profile 的 `runtime-adapters/<plugin-id>/` 与 `runtime-data/<plugin-id>/`。插件自有存储位置配置由对应 Plugin/Runtime Owner 解释；旧 `<LFAA_HOME>/plugins` 与 `<LFAA_DATA_DIR>/plugins` 不再作为入口，也不由系统 data 初始化或迁移接管。系统账户数据、业务 Data 与 Profile 目录不会互相扫描或合并。自动化回归只使用合成数据；浏览器验收复用现有 `admin` 测试账号，不提供临时存储模式或独立临时 Web 服务。Profile 配置不创建 `node_modules`，也不会在用户目录运行任意依赖安装脚本。
 
+AI 漫剧与 Writing 的项目专用目录由 `ensureReadableUserDataPaths()` 放在 `<LFAA_DATA_DIR>/users/<可读用户名>/projects/<领域>/`。每个用户目录的 `.lfaa-user-owner.json` 保存稳定账户 ID 与清单版本，用于账户改名与目录冲突校验；通用账户数据、工作流、知识库、输入/输出镜像和其他领域继续使用既有 SHA-256 布局。作品目录使用经跨平台清理的作品名；作品 UUID 仍留在项目清单与数据库中。两个领域 Owner 负责把自己原有哈希/UUID 项目迁移到可读目录，不由 Home Paths 扫描或搬动领域正文。
+
 `private-directory.mjs` 保护真实凭据目录：POSIX 0700；Windows 受保护继承 ACL 只允许当前 OS 账户、SYSTEM 和 Administrators。路径经环境变量进入固定 PowerShell/.NET 脚本，不插入命令文本；符号链接拒绝，权限设置失败阻止密钥访问或创建。每进程成功保护后缓存，避免在请求链反复同步启动辅助进程。
 
 账户设置与外观素材位于 `<LFAA_HOME>/users/<账户 SHA-256>/`；外观上传素材由 Settings Owner 放在 `assets/backgrounds/`，文件名来自用户上传原名，账户内重名时使用可读序号区分。`LFAA_DATA_DIR` 是业务数据根，不承载外观偏好或账户私有外观图。

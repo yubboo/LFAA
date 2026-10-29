@@ -17,6 +17,8 @@ mod windows_host {
     use std::os::windows::io::{FromRawHandle, IntoRawHandle, RawHandle};
     use std::path::{Component, Path, PathBuf, Prefix};
     use std::ptr::{null, null_mut};
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
     use std::thread;
 
     use windows_sys::Win32::Foundation::{
@@ -42,7 +44,8 @@ mod windows_host {
         FILE_GENERIC_WRITE,
     };
     use windows_sys::Win32::System::Console::{
-        GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE,
+        ClosePseudoConsole, CreatePseudoConsole, GetStdHandle, ResizePseudoConsole, COORD, HPCON,
+        STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE,
     };
     use windows_sys::Win32::System::Environment::{
         FreeEnvironmentStringsW, GetEnvironmentStringsW, SetEnvironmentVariableW,
@@ -59,7 +62,8 @@ mod windows_host {
         CREATE_SUSPENDED, CREATE_UNICODE_ENVIRONMENT, DeleteProcThreadAttributeList,
         EXTENDED_STARTUPINFO_PRESENT, GetExitCodeProcess, InitializeProcThreadAttributeList,
         OpenProcessToken, PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
-        PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES, PROCESS_INFORMATION, ResumeThread,
+        PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE, PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES,
+        PROCESS_INFORMATION, ResumeThread,
         STARTF_USESTDHANDLES, STARTUPINFOEXW, TerminateProcess, UpdateProcThreadAttribute,
         WaitForSingleObject,
     };
@@ -144,13 +148,9 @@ mod windows_host {
         }
     }
 
-    struct PipeSet {
-        stdin_read: OwnedHandle,
-        stdin_write: OwnedHandle,
-        stdout_read: OwnedHandle,
-        stdout_write: OwnedHandle,
-        stderr_read: OwnedHandle,
-        stderr_write: OwnedHandle,
+    struct PseudoConsolePipes {
+        input_write: OwnedHandle,
+        output_read: OwnedHandle,
     }
 
     struct ProcAttributeList {
@@ -168,6 +168,16 @@ mod windows_host {
         }
     }
 
+    struct OwnedPseudoConsole(HPCON);
+
+    impl OwnedPseudoConsole {
+        fn raw(&self) -> HPCON { self.0 }
+    }
+
+    impl Drop for OwnedPseudoConsole {
+        fn drop(&mut self) { unsafe { ClosePseudoConsole(self.0); } }
+    }
+
     struct LaunchArgs {
         data_root: PathBuf,
         instance_storage: String,
@@ -177,6 +187,8 @@ mod windows_host {
         java_root: PathBuf,
         previous_java_root: Option<PathBuf>,
         memory_mb: u32,
+        console_columns: u16,
+        console_rows: u16,
         readiness_token: Option<String>,
     }
 
@@ -209,7 +221,7 @@ mod windows_host {
                 }
                 probe()?;
                 println!(
-                    "{{\"backend\":\"{BACKEND_ID}\",\"protocolVersion\":1,\"networkCapabilities\":[\"internetClientServer\",\"privateNetworkClientServer\"]}}"
+                    "{{\"backend\":\"{BACKEND_ID}\",\"protocolVersion\":2,\"interactiveConsole\":true,\"networkCapabilities\":[\"internetClientServer\",\"privateNetworkClientServer\"]}}"
                 );
                 Ok(())
             }
@@ -257,6 +269,8 @@ mod windows_host {
                     | "--java-root"
                     | "--previous-java-root"
                     | "--memory-mb"
+                    | "--console-columns"
+                    | "--console-rows"
                     | "--readiness-token"
             ) {
                 return Err("Sandbox Host 参数不受支持。".to_owned());
@@ -313,6 +327,18 @@ mod windows_host {
             .and_then(|value| value.parse::<u32>().ok())
             .filter(|value| (1024..=32768).contains(value))
             .ok_or_else(|| "实例内存上限无效。".to_owned())?;
+        let console_columns = values
+            .remove("--console-columns")
+            .and_then(|value| value.into_string().ok())
+            .and_then(|value| value.parse::<u16>().ok())
+            .filter(|value| (20..=500).contains(value))
+            .ok_or_else(|| "Minecraft 终端列数无效。".to_owned())?;
+        let console_rows = values
+            .remove("--console-rows")
+            .and_then(|value| value.into_string().ok())
+            .and_then(|value| value.parse::<u16>().ok())
+            .filter(|value| (5..=200).contains(value))
+            .ok_or_else(|| "Minecraft 终端行数无效。".to_owned())?;
         let readiness_token = values
             .remove("--readiness-token")
             .and_then(|value| value.into_string().ok());
@@ -331,6 +357,8 @@ mod windows_host {
             java_root,
             previous_java_root,
             memory_mb,
+            console_columns,
+            console_rows,
             readiness_token,
         })
     }
@@ -1083,7 +1111,7 @@ mod windows_host {
                 return Err("无法将限定的插件标准输入输出句柄设为可继承。".to_owned());
             }
         }
-        let attributes = create_attribute_list(&capabilities, &standard_handles)?;
+        let attributes = create_attribute_list(&capabilities, &standard_handles, None)?;
         let mut startup = STARTUPINFOEXW::default();
         startup.StartupInfo.cb = size_of::<STARTUPINFOEXW>() as u32;
         startup.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
@@ -1678,21 +1706,10 @@ mod windows_host {
         };
 
         let job = create_limited_job(args.memory_mb)?;
-        let pipes = create_child_pipes()?;
-        let attributes = create_attribute_list(
-            &capabilities,
-            &[
-                pipes.stdin_read.raw(),
-                pipes.stdout_write.raw(),
-                pipes.stderr_write.raw(),
-            ],
-        )?;
+        let (pseudo_console, console_pipes) = create_pseudo_console(args.console_columns, args.console_rows)?;
+        let attributes = create_attribute_list(&capabilities, &[], Some(pseudo_console.raw()))?;
         let mut startup = STARTUPINFOEXW::default();
         startup.StartupInfo.cb = size_of::<STARTUPINFOEXW>() as u32;
-        startup.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
-        startup.StartupInfo.hStdInput = pipes.stdin_read.raw();
-        startup.StartupInfo.hStdOutput = pipes.stdout_write.raw();
-        startup.StartupInfo.hStdError = pipes.stderr_write.raw();
         startup.lpAttributeList = attributes.raw;
 
         let mut environment = build_environment(&args.java_path, &instance_directory)?;
@@ -1707,7 +1724,7 @@ mod windows_host {
                 command_line.as_mut_ptr(),
                 null(),
                 null(),
-                1,
+                0,
                 CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT | EXTENDED_STARTUPINFO_PRESENT,
                 environment.as_mut_ptr() as *const c_void,
                 cwd_wide.as_ptr(),
@@ -1725,9 +1742,6 @@ mod windows_host {
         let process = OwnedHandle(process_info.hProcess);
         let thread_handle = OwnedHandle(process_info.hThread);
 
-        drop(pipes.stdin_read);
-        drop(pipes.stdout_write);
-        drop(pipes.stderr_write);
         if unsafe { AssignProcessToJobObject(job.raw(), process.raw()) } == 0 {
             unsafe {
                 TerminateProcess(process.raw(), 1);
@@ -1741,15 +1755,17 @@ mod windows_host {
             return Err("无法恢复受限的 Minecraft Java 进程。".to_owned());
         }
 
-        let stdin_writer = unsafe { File::from_raw_handle(pipes.stdin_write.into_raw_handle()) };
-        let stdout_reader = unsafe { File::from_raw_handle(pipes.stdout_read.into_raw_handle()) };
-        let stderr_reader = unsafe { File::from_raw_handle(pipes.stderr_read.into_raw_handle()) };
-        thread::spawn(move || forward_stdin(stdin_writer));
+        let stdin_writer = unsafe { File::from_raw_handle(console_pipes.input_write.into_raw_handle()) };
+        let stdout_reader = unsafe { File::from_raw_handle(console_pipes.output_read.into_raw_handle()) };
+        let pseudo_console_handle = pseudo_console.raw() as usize;
+        let console_active = Arc::new(AtomicBool::new(true));
+        let input_console_active = Arc::clone(&console_active);
+        thread::spawn(move || forward_stdin(stdin_writer, pseudo_console_handle, input_console_active));
         let stdout_thread = thread::spawn(move || forward_output(stdout_reader, false));
-        let stderr_thread = thread::spawn(move || forward_output(stderr_reader, true));
 
         write_ready_message(readiness_token)?;
         let wait_result = unsafe { WaitForSingleObject(process.raw(), u32::MAX) };
+        console_active.store(false, Ordering::Release);
         if wait_result != WAIT_OBJECT_0 {
             return Err("等待 Minecraft Java 进程结束时发生错误。".to_owned());
         }
@@ -1758,7 +1774,6 @@ mod windows_host {
             return Err("无法读取 Minecraft Java 进程的退出状态。".to_owned());
         }
         let _ = stdout_thread.join();
-        let _ = stderr_thread.join();
         if exit_code != 0 {
             return Err(format!("Minecraft Java 进程退出（代码 {exit_code}）。"));
         }
@@ -1791,27 +1806,33 @@ mod windows_host {
         Ok(job)
     }
 
-    fn create_child_pipes() -> Result<PipeSet, String> {
+    fn create_pseudo_console(
+        columns: u16,
+        rows: u16,
+    ) -> Result<(OwnedPseudoConsole, PseudoConsolePipes), String> {
         let mut attributes = SECURITY_ATTRIBUTES {
             nLength: size_of::<SECURITY_ATTRIBUTES>() as u32,
             lpSecurityDescriptor: null_mut(),
-            bInheritHandle: 1,
+            bInheritHandle: 0,
         };
-        let (stdin_read, stdin_write) = create_pipe_pair(&mut attributes)?;
-        let (stdout_read, stdout_write) = create_pipe_pair(&mut attributes)?;
-        let (stderr_read, stderr_write) = create_pipe_pair(&mut attributes)?;
-
-        set_noninheritable(stdin_write.raw())?;
-        set_noninheritable(stdout_read.raw())?;
-        set_noninheritable(stderr_read.raw())?;
-        Ok(PipeSet {
-            stdin_read,
-            stdin_write,
-            stdout_read,
-            stdout_write,
-            stderr_read,
-            stderr_write,
-        })
+        let (input_read, input_write) = create_pipe_pair(&mut attributes)?;
+        let (output_read, output_write) = create_pipe_pair(&mut attributes)?;
+        let mut pseudo_console = 0;
+        let created = unsafe {
+            CreatePseudoConsole(
+                COORD { X: columns as i16, Y: rows as i16 },
+                input_read.raw(),
+                output_write.raw(),
+                0,
+                &mut pseudo_console,
+            )
+        };
+        drop(input_read);
+        drop(output_write);
+        if created != 0 || pseudo_console == 0 {
+            return Err("Windows 无法为 Minecraft AppContainer 创建交互式伪终端。".to_owned());
+        }
+        Ok((OwnedPseudoConsole(pseudo_console), PseudoConsolePipes { input_write, output_read }))
     }
 
     fn create_pipe_pair(
@@ -1825,18 +1846,12 @@ mod windows_host {
         Ok((OwnedHandle(read), OwnedHandle(write)))
     }
 
-    fn set_noninheritable(handle: HANDLE) -> Result<(), String> {
-        if unsafe { SetHandleInformation(handle, HANDLE_FLAG_INHERIT, 0) } == 0 {
-            return Err("无法限制 Minecraft 控制台句柄继承范围。".to_owned());
-        }
-        Ok(())
-    }
-
     fn create_attribute_list(
         capabilities: &SECURITY_CAPABILITIES,
         handles: &[HANDLE],
+        pseudo_console: Option<HPCON>,
     ) -> Result<ProcAttributeList, String> {
-        let attribute_count = if handles.is_empty() { 1 } else { 2 };
+        let attribute_count = 1 + u32::from(!handles.is_empty()) + u32::from(pseudo_console.is_some());
         let mut required_bytes = 0usize;
         unsafe {
             InitializeProcThreadAttributeList(null_mut(), attribute_count, 0, &mut required_bytes);
@@ -1884,6 +1899,22 @@ mod windows_host {
             } == 0
         {
             return Err("Windows 拒绝设置 Minecraft 控制台句柄白名单。".to_owned());
+        }
+        if let Some(pseudo_console) = pseudo_console {
+            if unsafe {
+                UpdateProcThreadAttribute(
+                    list,
+                    0,
+                    PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE as usize,
+                    &pseudo_console as *const HPCON as *const c_void,
+                    size_of::<HPCON>(),
+                    null_mut(),
+                    null(),
+                )
+            } == 0
+            {
+                return Err("Windows 拒绝将 Minecraft AppContainer 连接到交互式伪终端。".to_owned());
+            }
         }
         Ok(attribute_list)
     }
@@ -2070,23 +2101,65 @@ mod windows_host {
         result
     }
 
-    fn forward_stdin(mut child_stdin: File) {
+    fn forward_stdin(mut pseudo_console_input: File, pseudo_console_handle: usize, console_active: Arc<AtomicBool>) {
         let mut input = std::io::stdin();
-        let mut buffer = [0u8; 4096];
+        const HEADER_LENGTH: usize = 13;
+        const MAX_INPUT_BYTES: usize = 16 * 1024;
+        let mut stop_server = true;
         loop {
-            match input.read(&mut buffer) {
-                Ok(0) => {
-                    let _ = child_stdin.write_all(b"stop\n");
-                    let _ = child_stdin.flush();
-                    break;
-                }
-                Ok(count) => {
-                    if child_stdin.write_all(&buffer[..count]).is_err() {
+            if !console_active.load(Ordering::Acquire) { stop_server = false; break; }
+            let mut header = [0u8; HEADER_LENGTH];
+            match input.read(&mut header[..1]) {
+                Ok(0) => break,
+                Ok(_) => {}
+                Err(_) => break,
+            }
+            if input.read_exact(&mut header[1..]).is_err() || &header[..8] != b"LFAATTY1" {
+                let _ = std::io::stderr().write_all("Minecraft PTY 输入帧无效。\n".as_bytes());
+                break;
+            }
+            let length = u32::from_le_bytes(header[9..13].try_into().unwrap()) as usize;
+            if length > MAX_INPUT_BYTES {
+                let _ = std::io::stderr().write_all("Minecraft PTY 输入帧超过大小上限。\n".as_bytes());
+                break;
+            }
+            let mut payload = vec![0u8; length];
+            if input.read_exact(&mut payload).is_err() {
+                let _ = std::io::stderr().write_all("Minecraft PTY 输入帧数据不完整。\n".as_bytes());
+                break;
+            }
+            if !console_active.load(Ordering::Acquire) { stop_server = false; break; }
+            match header[8] {
+                1 if !payload.is_empty() => {
+                    if pseudo_console_input.write_all(&payload).is_err() || pseudo_console_input.flush().is_err() {
+                        stop_server = false;
                         break;
                     }
                 }
-                Err(_) => break,
+                2 if payload.len() == 8 => {
+                    let columns = u32::from_le_bytes(payload[..4].try_into().unwrap());
+                    let rows = u32::from_le_bytes(payload[4..].try_into().unwrap());
+                    if !(2..=500).contains(&columns) || !(2..=300).contains(&rows) {
+                        let _ = std::io::stderr().write_all("Minecraft PTY 尺寸无效。\n".as_bytes());
+                        break;
+                    }
+                    let resized = unsafe {
+                        ResizePseudoConsole(pseudo_console_handle as HPCON, COORD { X: columns as i16, Y: rows as i16 })
+                    };
+                    if resized != 0 {
+                        let _ = std::io::stderr().write_all("Windows 无法调整 Minecraft 伪终端尺寸。\n".as_bytes());
+                        break;
+                    }
+                }
+                _ => {
+                    let _ = std::io::stderr().write_all("Minecraft PTY 操作码或数据无效。\n".as_bytes());
+                    break;
+                }
             }
+        }
+        if stop_server {
+            let _ = pseudo_console_input.write_all(b"stop\r");
+            let _ = pseudo_console_input.flush();
         }
     }
 

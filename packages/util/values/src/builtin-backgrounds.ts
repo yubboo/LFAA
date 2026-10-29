@@ -39,6 +39,7 @@ export const appearanceBackgroundOptions = [
   { id: "steamcmd-world", name: "游戏世界", file: "/backgrounds/steamcmd-world.jpg" },
   { id: "minecraft-world", name: "方块日落", file: "/backgrounds/minecraft-world.jpg" },
   { id: "writing-desk", name: "写作桌面", file: "/backgrounds/writing-desk.jpg" },
+  { id: "writing-yunjian", name: "云涧书境", file: "/backgrounds/writing-yunjian.png" },
   ...minecraftSceneBackgrounds
 ] as const;
 

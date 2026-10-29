@@ -5,6 +5,7 @@ import { basename, dirname, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import type { Context } from "@deepseek-ai/cordis";
 import { resolveUserDataPaths } from "lfaa-home-paths/src/data-layout.mjs";
+import { ensureReadableUserDataPaths, resolveExistingReadableUserDataPaths, sanitizeReadableDirectoryName } from "lfaa-home-paths/src/readable-user-paths.mjs";
 import { protectPrivateDirectory } from "lfaa-home-paths/src/private-directory.mjs";
 import { atomicWrite, atomicWriteBytes } from "lfaa-storage-json/src/index.js";
 import { database } from "lfaa-storage-sqlite/src/database.js";
@@ -30,6 +31,7 @@ const LEGACY_FILE_NAME = "storyboards.json";
 const LEGACY_BACKUP_FILE_NAME = "storyboards.v1.migrated.json";
 const videoPollLeases = new Set<string>();
 const localVideoJobs = new Map<string, AbortController>();
+const projectDirectoryCache = new Map<string, string>();
 let watchSubmittedVideoTask: ((userId: string, canvasId: string, shotId: string, localTaskId: string) => void) | null = null;
 
 function videoTaskKey(userId: string, canvasId: string, shotId: string, localTaskId: string): string {
@@ -396,32 +398,76 @@ export function normalizeAiVideoCanvasInput(input: unknown): CanvasInput {
   return { title, ...(script !== undefined ? { script } : {}), ...(characters !== undefined ? { characters } : {}), ...(locations !== undefined ? { locations } : {}), shots, links, ...(timelineClips !== undefined ? { timelineClips } : {}), ...(whiteModel ? { whiteModel } : {}), ...(canvasLayout ? { canvasLayout } : {}) };
 }
 
-function aivideoDirectory(userId: string): string {
-  const baseDirectory = getProjectStorageDirectoryCandidates("drama")[0];
-  if (!baseDirectory) throw new Error("AI 漫剧存储位置未配置。");
-  return resolve(resolveUserDataPaths(baseDirectory, userId).projects, "aivideo");
-}
-
-function aivideoDirectoryCandidates(root: string): string[] {
-  const userHash = basename(dirname(dirname(resolve(root))));
-  if (!/^[a-f0-9]{64}$/u.test(userHash)) throw new Error("AI 漫剧账户目录无效，拒绝访问。");
-  return [...new Set(getProjectStorageDirectoryCandidates("drama").map(baseDirectory => resolve(baseDirectory, "users", userHash, "projects", "aivideo")))];
+function readableAccountContext(root: string): { userId: string; username: string; currentUserRoot: string } {
+  const currentUserRoot = resolve(root, "..", "..");
+  const markerPath = resolve(currentUserRoot, ".lfaa-user-owner.json");
+  rejectSymlinkOrWrongType(markerPath, "file");
+  if (!existsSync(markerPath)) throw new Error("AI 漫剧用户目录缺少归属清单；拒绝访问。");
+  const info = lstatSync(markerPath);
+  if (info.nlink !== 1 || info.size > 4_096) throw new Error("AI 漫剧用户目录归属清单无效；拒绝访问。");
+  let marker: unknown;
+  try { marker = JSON.parse(readFileSync(markerPath, "utf8")) as unknown; }
+  catch { throw new Error("AI 漫剧用户目录归属清单损坏；原目录已保留。"); }
+  if (!isRecord(marker) || marker.format !== "lfaa-readable-user-directory" || marker.version !== 1 || typeof marker.userId !== "string") {
+    throw new Error("AI 漫剧用户目录归属清单格式无效；原目录已保留。");
+  }
+  const account = database.prepare("SELECT username FROM users WHERE id = ?").get(marker.userId) as { username: string } | undefined;
+  if (!account?.username) throw new Error("找不到 AI 漫剧项目所属账户；原目录已保留。");
+  return { userId: marker.userId, username: account.username, currentUserRoot };
 }
 
 function assertWithin(root: string, path: string): void {
   if (!path.startsWith(`${root}${process.platform === "win32" ? "\\" : "/"}`)) throw new Error("AI 漫剧项目路径越界，拒绝访问。");
 }
 
-function projectDirectory(root: string, canvasId: string): string {
+function projectDirectory(root: string, canvasId: string, title?: string): string {
   const id = normalizedId(canvasId, "项目 ID");
-  const candidates = aivideoDirectoryCandidates(root).map(candidate => resolve(candidate, id));
-  const existing = candidates.filter(candidate => existsSync(candidate));
-  if (existing.length > 1) throw new Error("AI 漫剧画布在多个存储位置重复存在；请先核对文件，拒绝选择性覆盖。");
-  const directory = existing[0] ?? candidates[0];
-  if (!directory) throw new Error("AI 漫剧存储位置未配置。");
-  const ownerRoot = dirname(directory);
-  assertWithin(ownerRoot, directory);
-  return directory;
+  const key = `${resolve(root)}\n${id}`;
+  const cached = projectDirectoryCache.get(key);
+  if (cached && existsSync(cached)) return cached;
+  projectDirectoryCache.delete(key);
+  readProjectCollection(root);
+  const located = projectDirectoryCache.get(key);
+  if (located && existsSync(located)) return located;
+  if (title !== undefined) return uniqueProjectDirectory(root, title);
+  return resolve(root, id);
+}
+
+function cacheProjectDirectory(root: string, canvasId: string, directory: string): void {
+  if (projectDirectoryCache.size > 2_048) projectDirectoryCache.clear();
+  projectDirectoryCache.set(`${resolve(root)}\n${canvasId}`, directory);
+}
+
+function projectDirectoryName(title: string): string {
+  const safe = sanitizeReadableDirectoryName(title);
+  return UUID_PATTERN.test(safe) ? "作品" : safe;
+}
+
+function uniqueProjectDirectory(root: string, title: string, currentDirectory?: string): string {
+  const base = projectDirectoryName(title);
+  for (let suffix = 1; suffix <= AI_VIDEO_CANVAS_LIMITS.canvases + 4; suffix += 1) {
+    const name = suffix === 1 ? base : `${[...base].slice(0, 72).join("")} (${suffix})`;
+    const candidate = resolve(root, name);
+    assertWithin(root, candidate);
+    if (currentDirectory && resolve(candidate) === resolve(currentDirectory)) return candidate;
+    if (!existsSync(candidate)) return candidate;
+  }
+  throw new Error("无法为 AI 漫剧作品分配可读目录名；原目录已保留。");
+}
+
+function aivideoDirectoryCandidates(root: string): Array<{ directory: string; baseDirectory: string; legacy: boolean }> {
+  const account = readableAccountContext(root);
+  const currentBase = resolve(account.currentUserRoot, "..", "..");
+  return [...new Set(getProjectStorageDirectoryCandidates("drama").map(baseDirectory => resolve(baseDirectory)))].flatMap(baseDirectory => {
+    const namedRoot = baseDirectory === currentBase
+      ? resolve(root)
+      : resolve(resolveExistingReadableUserDataPaths(baseDirectory, account.userId, account.username).projects, "aivideo");
+    const hashedRoot = resolve(resolveUserDataPaths(baseDirectory, account.userId).projects, "aivideo");
+    return [
+      { directory: namedRoot, baseDirectory, legacy: false },
+      ...(hashedRoot === namedRoot ? [] : [{ directory: hashedRoot, baseDirectory, legacy: true }])
+    ];
+  });
 }
 
 function rejectSymlinkOrWrongType(path: string, expected: "directory" | "file"): void {
@@ -439,20 +485,19 @@ function rejectSymlinkOrWrongType(path: string, expected: "directory" | "file"):
 function ensureAivideoDirectory(userId: string): string {
   const baseDirectory = getProjectStorageDirectoryCandidates("drama")[0];
   if (!baseDirectory) throw new Error("AI 漫剧存储位置未配置。");
-  const userPaths = resolveUserDataPaths(baseDirectory, userId);
+  const account = database.prepare("SELECT username FROM users WHERE id = ?").get(userId) as { username: string } | undefined;
+  if (!account?.username) throw new Error("找不到 AI 漫剧项目所属账户。");
+  const userPaths = ensureReadableUserDataPaths(baseDirectory, userId, account.username);
   const projectsDirectory = resolve(userPaths.root, "projects");
-  const directory = aivideoDirectory(userId);
+  const directory = resolve(userPaths.projects, "aivideo");
   rejectSymlinkOrWrongType(userPaths.root, "directory");
   rejectSymlinkOrWrongType(projectsDirectory, "directory");
   rejectSymlinkOrWrongType(directory, "directory");
-  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  if (!existsSync(projectsDirectory)) mkdirSync(projectsDirectory, { recursive: false, mode: 0o700 });
+  if (!existsSync(directory)) mkdirSync(directory, { recursive: false, mode: 0o700 });
   rejectSymlinkOrWrongType(directory, "directory");
   protectPrivateDirectory(directory);
   return directory;
-}
-
-function projectFilePath(root: string, canvasId: string): string {
-  return resolve(projectDirectory(root, canvasId), "project.json");
 }
 
 function imageExtension(mimeType: GeneratedImageMimeType): "png" | "jpg" | "webp" {
@@ -663,12 +708,8 @@ function serializedProjectBytes(canvas: AiVideoCanvas): number {
   return Buffer.byteLength(`${JSON.stringify(projectFile(canvas), null, 2)}\n`, "utf8");
 }
 
-function readProject(root: string, canvasId: string): StoredCanvas | null {
-  const id = normalizedId(canvasId, "项目 ID");
-  const directory = projectDirectory(root, id);
-  rejectSymlinkOrWrongType(directory, "directory");
-  if (!existsSync(directory)) return null;
-  const path = projectFilePath(root, id);
+function readProjectFromDirectory(directory: string, expectedId?: string): StoredCanvas {
+  const path = resolve(directory, "project.json");
   rejectSymlinkOrWrongType(path, "file");
   if (!existsSync(path)) throw new Error("AI 漫剧项目清单缺失；原项目目录已保留。");
   const bytes = readFileSync(path);
@@ -681,14 +722,60 @@ function readProject(root: string, canvasId: string): StoredCanvas | null {
     throw new Error("AI 漫剧项目格式不受支持；原文件已保留。");
   }
   const canvas = normalizeStoredCanvas(raw.canvas);
-  if (canvas.id !== id) throw new Error("AI 漫剧项目目录与清单 ID 不匹配；原文件已保留。");
+  if (expectedId && canvas.id !== expectedId) throw new Error("AI 漫剧项目目录与清单 ID 不匹配；原文件已保留。");
   return { canvas, bytes: bytes.byteLength };
 }
 
+function readProject(root: string, canvasId: string): StoredCanvas | null {
+  const id = normalizedId(canvasId, "项目 ID");
+  const directory = projectDirectory(root, id);
+  rejectSymlinkOrWrongType(directory, "directory");
+  if (!existsSync(directory)) return null;
+  return readProjectFromDirectory(directory, id);
+}
+
+function ensureAiVideoProjectRoot(path: string, userRoot: string): void {
+  rejectSymlinkOrWrongType(userRoot, "directory");
+  const projects = resolve(userRoot, "projects");
+  rejectSymlinkOrWrongType(projects, "directory");
+  if (!existsSync(projects)) mkdirSync(projects, { recursive: false, mode: 0o700 });
+  rejectSymlinkOrWrongType(path, "directory");
+  if (!existsSync(path)) mkdirSync(path, { recursive: false, mode: 0o700 });
+  rejectSymlinkOrWrongType(path, "directory");
+  protectPrivateDirectory(path);
+}
+
+function migrateReadableProjectDirectory(root: string, location: { directory: string; baseDirectory: string; legacy: boolean }, record: StoredCanvas): string {
+  if (!location.legacy && !UUID_PATTERN.test(basename(location.directory))) return location.directory;
+  const account = readableAccountContext(root);
+  const userPaths = ensureReadableUserDataPaths(location.baseDirectory, account.userId, account.username);
+  const targetRoot = resolve(userPaths.projects, "aivideo");
+  ensureAiVideoProjectRoot(targetRoot, userPaths.root);
+  const target = uniqueProjectDirectory(targetRoot, record.canvas.title);
+  assertWithin(targetRoot, target);
+  if (existsSync(target)) throw new Error("AI 漫剧作品迁移目标已存在；原目录已保留。");
+  try { renameSync(location.directory, target); }
+  catch (error) { throw new Error(`AI 漫剧作品目录迁移失败，原目录已保留：${error instanceof Error ? error.message : String(error)}`); }
+  try {
+    const readback = readProjectFromDirectory(target, record.canvas.id);
+    if (!isDeepStrictEqual(readback.canvas, record.canvas) || readback.bytes !== record.bytes) throw new Error("AI 漫剧作品迁移回读校验失败。");
+  } catch (error) {
+    try { renameSync(target, location.directory); }
+    catch { throw new Error("AI 漫剧作品迁移回读失败，原目录已移动到可读路径；请保留现场并核对目录。"); }
+    throw error;
+  }
+  return target;
+}
+
 function readProjectCollection(root: string): StoredCanvas[] {
-  const ids = new Map<string, string>();
+  const ids = new Set<string>();
+  const records: StoredCanvas[] = [];
+  const directories = new Map<string, string>();
+  const cachePrefix = `${resolve(root)}\n`;
+  for (const key of projectDirectoryCache.keys()) if (key.startsWith(cachePrefix)) projectDirectoryCache.delete(key);
   let scannedRoots = 0;
-  for (const candidateRoot of aivideoDirectoryCandidates(root)) {
+  for (const candidate of aivideoDirectoryCandidates(root)) {
+    const candidateRoot = candidate.directory;
     if (!existsSync(candidateRoot)) continue;
     scannedRoots += 1;
     if (scannedRoots > 32) throw new Error("AI 漫剧存储位置历史超过有界读取上限；文件已保留。");
@@ -703,10 +790,17 @@ function readProjectCollection(root: string): StoredCanvas[] {
         if (entryCount > AI_VIDEO_CANVAS_LIMITS.canvases + 4) throw new Error("AI 漫剧项目目录项超过有界读取上限；文件已保留。");
         if (entry.isSymbolicLink()) throw new Error("AI 漫剧项目目录含符号链接；拒绝跟随链接读取。");
         if (!entry.isDirectory()) continue;
-        const id = normalizedId(entry.name, "项目目录名");
-        if (ids.has(id)) throw new Error("AI 漫剧画布在多个存储位置重复存在；请先核对文件，拒绝选择性覆盖。");
-        ids.set(id, candidateRoot);
+        const directoryPath = resolve(candidateRoot, entry.name);
+        const projectPath = resolve(directoryPath, "project.json");
+        rejectSymlinkOrWrongType(projectPath, "file");
+        if (!existsSync(projectPath) && !UUID_PATTERN.test(entry.name)) continue;
+        const record = readProjectFromDirectory(directoryPath);
+        if (ids.has(record.canvas.id)) throw new Error("AI 漫剧画布在多个存储位置重复存在；请先核对文件，拒绝选择性覆盖。");
+        ids.add(record.canvas.id);
         if (ids.size > AI_VIDEO_CANVAS_LIMITS.canvases) throw new Error(`每个账户最多保存 ${AI_VIDEO_CANVAS_LIMITS.canvases} 个分镜项目。`);
+        const readableDirectory = migrateReadableProjectDirectory(root, candidate, record);
+        directories.set(record.canvas.id, readableDirectory);
+        records.push(record);
       }
     } finally {
       try { directory.closeSync(); }
@@ -714,11 +808,9 @@ function readProjectCollection(root: string): StoredCanvas[] {
     }
   }
 
-  const projects = [...ids.keys()].map(id => readProject(root, id));
-  if (projects.some(project => !project)) throw new Error("AI 漫剧项目目录不完整；文件已保留。");
-  const records = projects as StoredCanvas[];
   const totalBytes = records.reduce((total, record) => total + record.bytes, 0);
   if (totalBytes > AI_VIDEO_CANVAS_LIMITS.storeBytes) throw new Error("AI 漫剧账户项目总量超过存储上限；文件已保留。");
+  for (const [id, directory] of directories) cacheProjectDirectory(root, id, directory);
   return records;
 }
 
@@ -739,8 +831,19 @@ function parseLegacyStore(path: string): LegacyCanvasStore {
 }
 
 function writeProject(root: string, canvas: AiVideoCanvas): void {
-  const directory = projectDirectory(root, canvas.id);
-  const path = projectFilePath(root, canvas.id);
+  let directory = projectDirectory(root, canvas.id, canvas.title);
+  const previous = existsSync(directory) ? readProjectFromDirectory(directory, canvas.id).canvas : null;
+  let movedFrom: string | null = null;
+  if (previous && previous.title !== canvas.title) {
+    const nextDirectory = uniqueProjectDirectory(dirname(directory), canvas.title, directory);
+    if (nextDirectory !== directory) {
+      renameSync(directory, nextDirectory);
+      movedFrom = directory;
+      directory = nextDirectory;
+      cacheProjectDirectory(root, canvas.id, directory);
+    }
+  }
+  const path = resolve(directory, "project.json");
   rejectSymlinkOrWrongType(directory, "directory");
   const createdDirectory = !existsSync(directory);
   if (createdDirectory) mkdirSync(directory, { recursive: false, mode: 0o700 });
@@ -751,17 +854,22 @@ function writeProject(root: string, canvas: AiVideoCanvas): void {
     const readback = readProject(root, canvas.id);
     // 读取时会统一对象字段顺序；比较归一后的内容，避免仅因 JSON 键顺序不同拒绝真实写入。
     if (!readback || !isDeepStrictEqual(readback.canvas, normalizeStoredCanvas(canvas))) throw new Error("AI 漫剧项目写入回读校验失败。");
+    cacheProjectDirectory(root, canvas.id, directory);
   } catch (error) {
     if (createdDirectory && existsSync(directory)) rmSync(directory, { recursive: true, force: true });
+    if (movedFrom && existsSync(directory)) {
+      try { renameSync(directory, movedFrom); cacheProjectDirectory(root, canvas.id, movedFrom); }
+      catch { throw new Error("AI 漫剧作品更新失败，目录已改名且无法自动回退；请保留现场并核对项目文件。"); }
+    }
     throw error;
   }
 }
 
-function migrateLegacyStore(root: string): void {
-  const legacyPath = resolve(root, LEGACY_FILE_NAME);
+function migrateLegacyStore(legacyRoot: string, root: string): void {
+  const legacyPath = resolve(legacyRoot, LEGACY_FILE_NAME);
   rejectSymlinkOrWrongType(legacyPath, "file");
   if (!existsSync(legacyPath)) return;
-  const backupPath = resolve(root, LEGACY_BACKUP_FILE_NAME);
+  const backupPath = resolve(legacyRoot, LEGACY_BACKUP_FILE_NAME);
   rejectSymlinkOrWrongType(backupPath, "file");
   if (existsSync(backupPath)) throw new Error("旧版迁移恢复文件已存在；原文件已保留，拒绝覆盖。");
 
@@ -793,8 +901,8 @@ function migrateLegacyStore(root: string): void {
 
 function ensureCurrentFormat(userId: string): string {
   const root = ensureAivideoDirectory(userId);
-  for (const candidateRoot of aivideoDirectoryCandidates(root)) {
-    if (existsSync(candidateRoot)) migrateLegacyStore(candidateRoot);
+  for (const candidate of aivideoDirectoryCandidates(root)) {
+    if (existsSync(candidate.directory)) migrateLegacyStore(candidate.directory, root);
   }
   return root;
 }
@@ -1651,6 +1759,7 @@ export function deleteAiVideoCanvas(userId: string, canvasId: string): boolean {
     const directory = projectDirectory(root, id);
     rejectSymlinkOrWrongType(directory, "directory");
     rmSync(directory, { recursive: true, force: false });
+    projectDirectoryCache.delete(`${resolve(root)}\n${id}`);
     return true;
   });
 }

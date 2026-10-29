@@ -18,21 +18,28 @@ test("写作工具栏与设置中心共用账户级光线开关", () => {
   assert.doesNotMatch(writing, /localStorage|sessionStorage/u);
 });
 
-test("LightRays 沿用 Appearance，并暂停隐藏、离屏和减少动态效果场景", () => {
-  assert.match(lightRays, /canvas\.getContext\('webgl2'/u);
+test("LightRays 通过 Three.js 单画布渲染，并暂停隐藏、离屏和减少动态效果场景", () => {
+  assert.match(lightRays, /new THREE\.WebGLRenderer/u);
+  assert.match(lightRays, /new THREE\.RawShaderMaterial/u);
+  assert.match(lightRays, /renderer\.render\(scene, camera\)/u);
+  assert.match(lightRays, /uniform float uMist/u);
+  assert.match(writing, /mist=\{0\.24\}/u);
   assert.match(lightRays, /const PIXEL_BUDGET = 1\.25e6/u);
   assert.match(lightRays, /getPropertyValue\('--settings-accent'\)/u);
   assert.match(lightRays, /settingsRef\.current\.reducedMotion === 'on' \|\| \(settingsRef\.current\.reducedMotion === 'system' && motionQuery\.matches\)/u);
   assert.match(lightRays, /if \(reduced\) \{\s*time = 0;\s*opening = 1;/u);
   assert.match(lightRays, /const busy = !reduced/u);
+  assert.match(lightRays, /renderer\.setAnimationLoop\(frame\)/u);
+  assert.match(lightRays, /renderer\.setAnimationLoop\(null\)/u);
   assert.match(lightRays, /new ResizeObserver/u);
   assert.match(lightRays, /new IntersectionObserver/u);
   assert.match(lightRays, /document\.addEventListener\('visibilitychange'/u);
   assert.match(lightRays, /resizeObserver\?\.disconnect\(\)/u);
   assert.match(lightRays, /intersection\?\.disconnect\(\)/u);
   assert.match(lightRays, /themeObserver\?\.disconnect\(\)/u);
-  assert.match(lightRays, /cancelAnimationFrame\(raf\)/u);
-  assert.match(lightRays, /gl\.deleteProgram\(shader\.program\)/u);
+  assert.match(lightRays, /geometry\.dispose\(\)/u);
+  assert.match(lightRays, /material\.dispose\(\)/u);
+  assert.match(lightRays, /renderer\.dispose\(\)/u);
   assert.match(lightRaysStyles, /\.light-rays__fallback/u);
   assert.match(lightRaysStyles, /var\(--settings-accent/u);
   assert.match(lightRaysStyles, /pointer-events:\s*none/u);
@@ -42,5 +49,6 @@ test("光线只在编辑器内作为背景，窄栏工具栏可换行且编辑�
   assert.match(writingStyles, /\.writing-workspace__editor \{[^}]*position:\s*relative;[^}]*isolation:\s*isolate/u);
   assert.match(writingStyles, /\.writing-workspace__light-rays-layer \{[^}]*pointer-events:\s*none/u);
   assert.match(writingStyles, /\.workbench-shell \.writing-workspace__editor\[data-light-rays="true"\] > \.writing-workspace__paper[^}]*--settings-background-surface-opacity/u);
-  assert.match(writingStyles, /@media \(max-width:\s*520px\)[\s\S]*writing-workspace__editor-toolbar \{ flex-wrap:\s*wrap/u);
+  assert.match(writingStyles, /@container writing-workspace \(max-width:\s*560px\)[\s\S]*writing-workspace__editor-toolbar \{ flex-wrap:\s*wrap/u);
+  assert.match(writingStyles, /@container writing-workspace \(max-height:\s*620px\)/u);
 });

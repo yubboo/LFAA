@@ -1,5 +1,5 @@
 /** 功能：呈现现有设置中心。作用：消费已保存设置并组合能力包界面。关联文件：client/connection、ui-settings、ui-theme、ui-commands。 */
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createReadPoller } from "lfaa-client-connection/src/read-poller.js";
 import { applyAppearancePreset as applyAppearancePresetRequest, autofillBrowserContact, autofillBrowserPassword, clearBrowserData as clearBrowserSessionData, clearBrowserRecentSites, deleteBrowserCredential, deleteBrowserRecentSite, loadBrowserCredentials, loadBrowserRecentSites, loadLocalModels, saveBrowserContact, saveBrowserPassword, startLocalModelDownload, readLocalModelDownload, cancelLocalModelDownload, unloadLocalModel } from "lfaa-client-connection/src/api.js";
 import { downloadAppearanceBackground, loadSettings, validateAppearancePresetSnapshot } from "lfaa-client-connection/src/api.js";
@@ -34,7 +34,7 @@ import { hasShortcutConflicts, ShortcutRow } from "lfaa-client-ui-shortcuts/src/
 import { defaultReasoningMode, effectiveReasoningMode, reasoningOptions, modelParameterSummary, modelOptionLabel, modelOptionVersionTag, fixedThinkingLabel } from "lfaa-client-ui-settings-models/src/model-options.js";
 import { DEFAULT_USER_SETTINGS } from "lfaa-client-ui-settings-general/src/default-settings.js";
 import { AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN, AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN, APPEARANCE_PRESET_LIMIT, UI_MOTION_EFFECT_OPTIONS, CANVAS_DEFAULT_MODE_OPTIONS, CANVAS_GRID_STYLE_OPTIONS, type AppearancePreset, type UiMotionEffect } from "lfaa-util-values/src/settings-contract.js";
-import { createAppearancePresetSnapshot } from "lfaa-util-values/src/appearance-presets.js";
+import { applyWritingWorkspacePresetAppearance, createAppearancePresetSnapshot } from "lfaa-util-values/src/appearance-presets.js";
 import { SettingGroup, AdvancedGroup, SettingRow, SettingsSwitch } from "lfaa-client-ui-primitives/src/settings-controls.js";
 import { DshSlotOutlet, LFAA_AUTH_TRANSITION_SLOT, useDshSlotEntries } from "lfaa-client-modules/src/client/index.js";
 
@@ -426,6 +426,34 @@ interface SettingsPageProps {
   standalonePluginView?: StandalonePluginWorkspaceView;
   standalonePluginSection?: "plugins" | "wallpaperEngine";
 }
+
+const AppearanceFocusBlurSliders = memo(function AppearanceFocusBlurSliders({
+  enabled,
+  idleMinutes: savedIdleMinutes,
+  percent: savedPercent,
+  onIdleMinutesChange,
+  onPercentChange
+}: {
+  enabled: boolean;
+  idleMinutes: number;
+  percent: number;
+  onIdleMinutesChange: (minutes: number) => void;
+  onPercentChange: (percent: number) => void;
+}) {
+  const [idleMinutes, setIdleMinutes] = useState(savedIdleMinutes);
+  const [percent, setPercent] = useState(savedPercent);
+  useEffect(() => setIdleMinutes(savedIdleMinutes), [savedIdleMinutes]);
+  useEffect(() => setPercent(savedPercent), [savedPercent]);
+
+  return <>
+    <SettingRow title="空闲多久后虚化" description="页面至少 1 分钟没有鼠标、键盘、滚动或触屏操作后，开始虚化 小鱼智能体 输出区域。">
+      <div className="settings-slider"><Slider disabled={!enabled} min={1} max={60} value={idleMinutes} onChange={setIdleMinutes} onChangeComplete={onIdleMinutesChange} /><output>{idleMinutes} 分钟</output></div>
+    </SettingRow>
+    <SettingRow title="回复虚化与淡出强度" description="按百分比调节 小鱼智能体 空闲后的虚化和淡出；0% 保持清晰可见，100% 完全淡出隐藏回复，中间值同时增加模糊并降低不透明度。">
+      <div className="settings-slider"><Slider disabled={!enabled} min={0} max={100} value={percent} onChange={setPercent} onChangeComplete={onPercentChange} /><output>{percent}%</output></div>
+    </SettingRow>
+  </>;
+});
 
 function MotionEffectSelector({ ariaLabel, previewKind, value, onChange }: {
   ariaLabel: string;
@@ -1842,6 +1870,23 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     }
   }
 
+  async function applyWritingWorkspacePreset(): Promise<void> {
+    if (appearancePresetBusy) return;
+    setAppearancePresetBusy(true);
+    clearSettingsAutoSave("appearance");
+    try {
+      const inFlightAppearanceSave = settingsSaveRequestsRef.current.get("appearance");
+      if (inFlightAppearanceSave) await inFlightAppearanceSave;
+      const current = settingsRef.current;
+      updateSettings("appearance", applyWritingWorkspacePresetAppearance(current.appearance));
+      clearSettingsAutoSave("appearance");
+      await persistLatestSettings("appearance");
+      showSettingsSaveFeedback("success", "已应用“云涧书境”到写作工作区。");
+    } finally {
+      setAppearancePresetBusy(false);
+    }
+  }
+
   async function deleteSavedAppearancePreset(preset: AppearancePreset): Promise<void> {
     if (appearancePresetBusy) throw new Error("请等待当前外观预设操作完成。");
     setAppearancePresetBusy(true);
@@ -3038,7 +3083,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           <button ref={appearanceSettingsTabRef} type="button" role="tab" id="appearance-settings-tab" aria-controls="appearance-settings-panel" aria-selected={appearancePageTab === "settings"} tabIndex={appearancePageTab === "settings" ? 0 : -1} disabled={appearancePresetBusy} onClick={() => setAppearancePageTab("settings")}>外观设置</button>
         </div>
         {appearancePageTab === "presets" ? <div className="settings-appearance-tabpanel" id="appearance-presets-panel" role="tabpanel" aria-labelledby="appearance-presets-tab" tabIndex={0}>
-          <AppearancePresetsPanel settings={settings} resolvedTheme={resolvedTheme} uploadedBackgrounds={uploadedBackgrounds} busy={appearancePresetBusy} onSaveCurrent={saveCurrentAppearancePreset} onApply={applySavedAppearancePreset} onDelete={deleteSavedAppearancePreset} onExport={exportSavedAppearancePreset} onImport={importAppearancePresetFile} />
+          <AppearancePresetsPanel settings={settings} resolvedTheme={resolvedTheme} uploadedBackgrounds={uploadedBackgrounds} busy={appearancePresetBusy} onSaveCurrent={saveCurrentAppearancePreset} onApply={applySavedAppearancePreset} onApplyWritingPreset={applyWritingWorkspacePreset} onDelete={deleteSavedAppearancePreset} onExport={exportSavedAppearancePreset} onImport={importAppearancePresetFile} />
         </div> : <div className="settings-appearance-tabpanel" id="appearance-settings-panel" role="tabpanel" aria-labelledby="appearance-settings-tab" tabIndex={0}>
         <SettingGroup title="主题">
           <SettingRow title="颜色主题" description="选择浅色、深色，或跟随操作系统。" status="已接入">
@@ -3167,12 +3212,13 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           <SettingRow title="空闲时虚化回复" description="开启后，鼠标、键盘、滚动或触屏操作停止达到设定时长后，回复内容、刻度和滚动条按强度虚化并淡出；再次操作后平滑恢复清晰。输入框保持清晰。">
             <SettingsSwitch label="空闲时虚化回复" checked={settings.appearance.advanced.aiWorkOutputFocusBlurEnabled} onChange={() => updateAppearanceAdvanced({ aiWorkOutputFocusBlurEnabled: !settings.appearance.advanced.aiWorkOutputFocusBlurEnabled })} />
           </SettingRow>
-          <SettingRow title="空闲多久后虚化" description="页面至少 1 分钟没有鼠标、键盘、滚动或触屏操作后，开始虚化 小鱼智能体 输出区域。">
-            <div className="settings-slider"><Slider disabled={!settings.appearance.advanced.aiWorkOutputFocusBlurEnabled} min={1} max={60} value={settings.appearance.advanced.aiWorkOutputFocusBlurIdleSeconds / 60} onChange={(minutes) => updateAppearanceAdvanced({ aiWorkOutputFocusBlurIdleSeconds: minutes * 60 })} /><output>{settings.appearance.advanced.aiWorkOutputFocusBlurIdleSeconds / 60} 分钟</output></div>
-          </SettingRow>
-          <SettingRow title="回复虚化与淡出强度" description="按百分比调节 小鱼智能体 空闲后的虚化和淡出；0% 保持清晰可见，100% 完全淡出隐藏回复，中间值同时增加模糊并降低不透明度。">
-            <div className="settings-slider"><Slider disabled={!settings.appearance.advanced.aiWorkOutputFocusBlurEnabled} min={0} max={100} value={settings.appearance.advanced.aiWorkOutputFocusBlurPercent} onChange={(aiWorkOutputFocusBlurPercent) => updateAppearanceAdvanced({ aiWorkOutputFocusBlurPercent })} /><output>{settings.appearance.advanced.aiWorkOutputFocusBlurPercent}%</output></div>
-          </SettingRow>
+          <AppearanceFocusBlurSliders
+            enabled={settings.appearance.advanced.aiWorkOutputFocusBlurEnabled}
+            idleMinutes={settings.appearance.advanced.aiWorkOutputFocusBlurIdleSeconds / 60}
+            percent={settings.appearance.advanced.aiWorkOutputFocusBlurPercent}
+            onIdleMinutesChange={minutes => updateAppearanceAdvanced({ aiWorkOutputFocusBlurIdleSeconds: minutes * 60 })}
+            onPercentChange={aiWorkOutputFocusBlurPercent => updateAppearanceAdvanced({ aiWorkOutputFocusBlurPercent })}
+          />
         </SettingGroup>
         <section className="settings-advanced">
           <button className="settings-advanced__toggle" type="button" aria-expanded={appearanceAdvancedOpen} onClick={() => setAppearanceAdvancedOpen((open) => !open)}>

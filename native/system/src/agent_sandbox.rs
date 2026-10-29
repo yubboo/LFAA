@@ -906,7 +906,7 @@ fn run_confined_process(
             return Err("无法限定 Agent 沙箱标准输入输出句柄。".to_owned());
         }
     }
-    let attributes = create_attribute_list(&capabilities, &standard_handles)?;
+    let attributes = create_attribute_list(&capabilities, &standard_handles, None)?;
     let mut startup = STARTUPINFOEXW::default();
     startup.StartupInfo.cb = size_of::<STARTUPINFOEXW>() as u32;
     startup.StartupInfo.dwFlags = STARTF_USESTDHANDLES;

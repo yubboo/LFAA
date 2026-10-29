@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { applyAppearancePresetSnapshot, createAppearancePresetSnapshot } from "lfaa-util-values/src/appearance-presets.js";
+import { applyAppearancePresetSnapshot, applyWritingWorkspacePresetAppearance, createAppearancePresetSnapshot, writingWorkspacePresetMatches } from "lfaa-util-values/src/appearance-presets.js";
 import { DEFAULT_USER_SETTINGS } from "lfaa-util-values/src/settings-contract.js";
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -30,6 +30,25 @@ test("外观快照只收集外观与常规视觉布局，并保留非视觉设�
   assert.deepEqual(applied.appearance.presets, current.appearance.presets);
 });
 
+test("云涧书境只更新写作区域外观，并保留其余 Appearance 偏好", () => {
+  const appearance = structuredClone(DEFAULT_USER_SETTINGS.appearance);
+  appearance.backgrounds.login = "writing-desk";
+  appearance.backgrounds.appCenter = "minecraft-world";
+  appearance.areaEffects.writing = { overlay: 22, blur: 17 };
+  appearance.advanced.writingLightRaysEnabled = false;
+  const before = structuredClone(appearance);
+
+  const applied = applyWritingWorkspacePresetAppearance(appearance);
+
+  const expected = structuredClone(before);
+  expected.backgrounds.writing = "writing-yunjian";
+  expected.areaEffects.writing = { overlay: 48, blur: 8 };
+  expected.advanced.writingLightRaysEnabled = true;
+  assert.deepEqual(applied, expected);
+  assert.equal(writingWorkspacePresetMatches(applied), true);
+  assert.equal(writingWorkspacePresetMatches(before), false);
+});
+
 test("外观预设页签可键盘操作，预设卡片和设置面板按设置容器响应", () => {
   const page = readFileSync(resolve(repo, "packages/client/ui-settings/src/SettingsPage.tsx"), "utf8");
   const panel = readFileSync(resolve(repo, "packages/client/ui-settings/src/AppearancePresetsPanel.tsx"), "utf8");
@@ -41,6 +60,9 @@ test("外观预设页签可键盘操作，预设卡片和设置面板按设置�
   assert.match(panel, /保存当前外观/u);
   assert.match(panel, /另存为我的预设，原预设不会被覆盖/u);
   assert.match(panel, /preset\.id === "builtin-standard" \? "恢复默认"/u);
+  assert.match(panel, /写作工作区预设/u);
+  assert.match(panel, /仅写作工作区/u);
+  assert.match(page, /onApplyWritingPreset=\{applyWritingWorkspacePreset\}/u);
   assert.match(styles, /\.appearance-presets-grid\s*\{[\s\S]*?repeat\(auto-fit,\s*minmax\(min\(100%,\s*17rem\),\s*1fr\)\)/u);
   assert.match(styles, /@container settings-main \(max-width: 620px\)[\s\S]*?\.appearance-presets-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/u);
   assert.doesNotMatch(styles, /display:\s*inline-block/u);

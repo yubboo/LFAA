@@ -661,7 +661,7 @@ export function cancelAiHostTask(taskId: string): Promise<{ task: AiHostTask }> 
 
 export type { TerminalInfo } from "lfaa-api-terminal-controller/src/protocol.js";
 export interface TerminalNode { id: string; displayName: string; connected: boolean }
-export interface CreateTerminalInput { id: string; nodeId: string; appId: ApplicationId; sessionId?: string | null; approvalId?: string; cols: number; rows: number }
+export interface CreateTerminalInput { id: string; nodeId: string; appId: ApplicationId; target?: import("lfaa-api-terminal-controller/src/protocol.js").TerminalTarget; sessionId?: string | null; approvalId?: string; cols: number; rows: number }
 export function loadTerminalNodes(): Promise<{ nodes: TerminalNode[] }> { return request("/terminals/nodes"); }
 export function createTerminal(input: CreateTerminalInput, signal?: AbortSignal): Promise<{ terminal?: import("lfaa-api-terminal-controller/src/protocol.js").TerminalInfo; approval?: AiToolApproval }> {
   return request("/terminals", { method: "POST", body: JSON.stringify(input), signal });

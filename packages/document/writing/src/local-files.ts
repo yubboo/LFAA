@@ -4,12 +4,13 @@
  * 关联文件：service.ts、storage-sqlite/src/database.ts、util/home-paths。
  */
 import { createHash } from "node:crypto";
-import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, rmSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { relative, resolve } from "node:path";
-import { atomicWrite, atomicWriteBytes } from "lfaa-storage-json/src/index.js";
+import { atomicWriteBytes } from "lfaa-storage-json/src/index.js";
 import { database } from "lfaa-storage-sqlite/src/database.js";
 import { protectPrivateDirectory } from "lfaa-home-paths/src/private-directory.mjs";
 import { resolveUserDataPaths } from "lfaa-home-paths/src/data-layout.mjs";
+import { ensureReadableUserDataPaths, resolveExistingReadableUserDataPaths, sanitizeReadableDirectoryName } from "lfaa-home-paths/src/readable-user-paths.mjs";
 import { getProjectStorageDirectoryCandidates } from "lfaa-settings/src/project-storage.js";
 import { countWritingWords } from "./content-utils.js";
 
@@ -26,30 +27,132 @@ function assertUuid(value: string, label: string): void {
   if (!uuidPattern.test(value)) throw new Error(`${label}标识无效，拒绝访问作品文件。`);
 }
 
-function projectLocation(userId: string, bookId: string): { baseDirectory: string; directory: string } {
-  assertUuid(bookId, "作品");
-  const candidates = getProjectStorageDirectoryCandidates("writing");
-  const locations = candidates.map(baseDirectory => {
-    const projects = resolveUserDataPaths(baseDirectory, userId).projects;
-    const writingRoot = resolve(projects, "writing");
-    const directory = resolve(writingRoot, bookId);
-    const relativeDirectory = relative(baseDirectory, directory);
-    if (!relativeDirectory || relativeDirectory.startsWith("..") || resolve(baseDirectory, relativeDirectory) !== directory) throw new Error("作品文件目录越界，拒绝访问。");
-    return { baseDirectory: resolve(baseDirectory), directory };
+function accountUsername(userId: string): string {
+  const row = database.prepare("SELECT username FROM users WHERE id = ?").get(userId) as { username: string } | undefined;
+  if (!row?.username) throw new Error("找不到作品所属账户；拒绝访问本地文件。");
+  return row.username;
+}
+
+function directoryNameAvailable(userId: string, name: string, exceptBookId?: string): boolean {
+  const row = database.prepare("SELECT 1 FROM writing_books WHERE user_id = ? AND directory_name = ? AND id <> COALESCE(?, '') LIMIT 1")
+    .get(userId, name, exceptBookId ?? "");
+  if (row) return false;
+  const username = accountUsername(userId);
+  return getProjectStorageDirectoryCandidates("writing").every(baseDirectory => {
+    const projects = resolveExistingReadableUserDataPaths(baseDirectory, userId, username).projects;
+    return !existsSync(resolve(projects, "writing", name));
   });
-  const existing = locations.filter(location => existsSync(location.directory));
-  if (existing.length > 1) throw new Error("Writing 作品在多个存储位置重复存在；请先核对文件，拒绝选择性覆盖。");
-  if (existing.length === 1) return existing[0]!;
+}
+
+export function allocateWritingProjectDirectoryName(userId: string, title: string, exceptBookId?: string): string {
+  assertUuid(exceptBookId ?? "00000000-0000-4000-8000-000000000000", "作品");
+  const readableTitle = sanitizeReadableDirectoryName(title);
+  const baseName = uuidPattern.test(readableTitle) ? "作品" : readableTitle;
+  for (let suffix = 1; suffix <= 10_000; suffix += 1) {
+    const candidate = suffix === 1 ? baseName : `${[...baseName].slice(0, 72).join("")} (${suffix})`;
+    if (directoryNameAvailable(userId, candidate, exceptBookId)) return candidate;
+  }
+  throw new Error("无法为 Writing 作品分配可读目录名；原文件已保留。");
+}
+
+function writingProjectDirectoryName(userId: string, bookId: string, titleOverride?: string, directoryNameOverride?: string): string {
+  if (directoryNameOverride) return sanitizeReadableDirectoryName(directoryNameOverride);
+  const row = database.prepare("SELECT title, directory_name FROM writing_books WHERE id = ? AND user_id = ?").get(bookId, userId) as { title: string; directory_name: string | null } | undefined;
+  if (row?.directory_name) return sanitizeReadableDirectoryName(row.directory_name);
+  const title = row?.title ?? titleOverride;
+  if (!title) throw new Error("Writing 作品名称缺失；拒绝创建未命名目录。");
+  const directoryName = allocateWritingProjectDirectoryName(userId, title, row ? bookId : undefined);
+  if (row) {
+    database.prepare("UPDATE writing_books SET directory_name = ? WHERE id = ? AND user_id = ? AND directory_name IS NULL")
+      .run(directoryName, bookId, userId);
+    const current = database.prepare("SELECT directory_name FROM writing_books WHERE id = ? AND user_id = ?").get(bookId, userId) as { directory_name: string | null } | undefined;
+    if (current?.directory_name) return sanitizeReadableDirectoryName(current.directory_name);
+  }
+  return directoryName;
+}
+
+function validProjectManifest(directory: string, bookId: string): boolean {
+  const manifestPath = resolve(directory, "project.json");
+  if (!existsSync(manifestPath)) return false;
+  const manifestInfo = lstatSync(manifestPath);
+  if (!manifestInfo.isFile() || manifestInfo.isSymbolicLink() || manifestInfo.nlink !== 1 || manifestInfo.size > 4_096) {
+    throw new Error("Writing 作品清单必须是独立普通文件，拒绝访问重定向内容。");
+  }
+  let existing: unknown;
+  try { existing = JSON.parse(readFileSync(manifestPath, "utf8")); }
+  catch { throw new Error("Writing 作品清单损坏，原目录已保留。"); }
+  if (JSON.stringify(existing) !== JSON.stringify(manifestFor(bookId))) throw new Error("Writing 作品目录与清单归属不匹配，原目录已保留。");
+  return true;
+}
+
+function projectLocation(userId: string, bookId: string, titleOverride?: string, directoryNameOverride?: string): { baseDirectory: string; directory: string; directoryName: string; writingRoot: string } {
+  assertUuid(bookId, "作品");
+  const username = accountUsername(userId);
+  const candidates = getProjectStorageDirectoryCandidates("writing");
+  const activeBase = candidates[0];
+  if (!activeBase) throw new Error("Writing 存储位置未配置。");
+  const activeUserPaths = ensureReadableUserDataPaths(activeBase, userId, username);
+  const directoryName = writingProjectDirectoryName(userId, bookId, titleOverride, directoryNameOverride);
+  const locations = candidates.map(baseDirectory => {
+    const readableProjects = resolve(baseDirectory) === resolve(activeBase)
+      ? activeUserPaths.projects
+      : resolveExistingReadableUserDataPaths(baseDirectory, userId, username).projects;
+    const hashedProjects = resolveUserDataPaths(baseDirectory, userId).projects;
+    const writingRoot = resolve(readableProjects, "writing");
+    const directory = resolve(writingRoot, directoryName);
+    const legacyDirectories = [
+      resolve(writingRoot, bookId),
+      resolve(hashedProjects, "writing", bookId)
+    ];
+    for (const path of [directory, ...legacyDirectories]) {
+      const relativeDirectory = relative(baseDirectory, path);
+      if (!relativeDirectory || relativeDirectory.startsWith("..") || resolve(baseDirectory, relativeDirectory) !== path) throw new Error("作品文件目录越界，拒绝访问。");
+    }
+    return { baseDirectory: resolve(baseDirectory), directory, directoryName, writingRoot, legacyDirectories };
+  });
+  const existingTargets = locations.filter(location => existsSync(location.directory));
+  const existingLegacy = locations.flatMap(location => location.legacyDirectories
+    .filter(path => existsSync(path))
+    .map(path => ({ ...location, directory: path })));
+  if (existingTargets.length + existingLegacy.length > 1) throw new Error("Writing 作品在多个存储位置或目录重复存在；请先核对文件，拒绝选择性覆盖。");
+  if (existingTargets.length === 1) {
+    ensureActualDirectory(existingTargets[0]!.directory);
+    if (!validProjectManifest(existingTargets[0]!.directory, bookId)) throw new Error("Writing 作品目录缺少清单；原目录已保留。");
+    return existingTargets[0]!;
+  }
+  if (existingLegacy.length === 1) {
+    const source = existingLegacy[0]!;
+    ensureActualDirectory(source.directory);
+    if (!validProjectManifest(source.directory, bookId)) throw new Error("Writing 旧作品目录缺少有效清单；原目录已保留。");
+    const ownerPaths = ensureReadableUserDataPaths(source.baseDirectory, userId, username);
+    const targetRoot = resolve(ownerPaths.projects, "writing");
+    const target = resolve(targetRoot, directoryName);
+    ensureActualDirectory(resolve(ownerPaths.root, "projects"));
+    ensureActualDirectory(targetRoot);
+    if (existsSync(target)) throw new Error("Writing 作品迁移目标已存在；原目录已保留。");
+    try { renameSync(source.directory, target); }
+    catch (error) { throw new Error(`Writing 作品目录迁移失败，原目录已保留：${error instanceof Error ? error.message : String(error)}`); }
+    try {
+      if (!validProjectManifest(target, bookId)) throw new Error("Writing 作品迁移回读校验失败。");
+    } catch (error) {
+      try { renameSync(target, source.directory); }
+      catch { throw new Error("Writing 作品迁移回读失败，原目录已移至新位置；请保留现场并核对目录。"); }
+      throw error;
+    }
+    return { baseDirectory: source.baseDirectory, directory: target, directoryName, writingRoot: targetRoot };
+  }
   const legacyExists = database.prepare("SELECT 1 FROM writing_books WHERE id = ? AND user_id = ?").get(bookId, userId);
   const localMigrationExists = database.prepare("SELECT 1 FROM writing_local_file_migrations WHERE book_id = ?").get(bookId);
   if (legacyExists && localMigrationExists) throw new Error("Writing 作品目录缺失；原作品文件未迁移，拒绝创建空目录覆盖。");
-  const active = locations[0];
-  if (!active) throw new Error("Writing 存储位置未配置。");
-  return active;
+  return { baseDirectory: resolve(activeBase), directory: resolve(activeUserPaths.projects, "writing", directoryName), directoryName, writingRoot: resolve(activeUserPaths.projects, "writing") };
 }
 
-function projectDirectory(userId: string, bookId: string): string {
-  return projectLocation(userId, bookId).directory;
+function projectDirectory(userId: string, bookId: string, titleOverride?: string, directoryNameOverride?: string): string {
+  return projectLocation(userId, bookId, titleOverride, directoryNameOverride).directory;
+}
+
+export function getWritingProjectDirectoryName(userId: string, bookId: string): string {
+  return writingProjectDirectoryName(userId, bookId);
 }
 
 function ensureActualDirectory(path: string): void {
@@ -61,10 +164,11 @@ function ensureActualDirectory(path: string): void {
   if (!info.isDirectory() || info.isSymbolicLink() || !samePath) throw new Error("Writing 作品目录必须是本机实际目录，拒绝符号链接或联接重定向。");
 }
 
-function ensureProjectDirectory(userId: string, bookId: string): string {
-  const { baseDirectory, directory } = projectLocation(userId, bookId);
-  const userPaths = resolveUserDataPaths(baseDirectory, userId);
-  const chain = [baseDirectory, resolve(baseDirectory, "users"), userPaths.root, userPaths.projects, resolve(userPaths.projects, "writing"), directory];
+function ensureProjectDirectory(userId: string, bookId: string, titleOverride?: string, directoryNameOverride?: string): string {
+  const { baseDirectory, directory, writingRoot } = projectLocation(userId, bookId, titleOverride, directoryNameOverride);
+  const userRoot = resolve(writingRoot, "..", "..");
+  const projectsRoot = resolve(userRoot, "projects");
+  const chain = [baseDirectory, resolve(baseDirectory, "users"), userRoot, projectsRoot, writingRoot, directory];
   for (const path of chain) ensureActualDirectory(path);
   protectPrivateDirectory(directory);
   ensureActualDirectory(directory);
@@ -88,8 +192,8 @@ const manifestFor = (bookId: string) => ({
   }
 });
 
-export function ensureWritingProjectFiles(userId: string, bookId: string): string {
-  const directory = ensureProjectDirectory(userId, bookId);
+export function ensureWritingProjectFiles(userId: string, bookId: string, titleOverride?: string, directoryNameOverride?: string): string {
+  const directory = ensureProjectDirectory(userId, bookId, titleOverride, directoryNameOverride);
   const manifestPath = resolve(directory, "project.json");
   if (existsSync(manifestPath)) {
     const manifestInfo = lstatSync(manifestPath);
@@ -101,7 +205,10 @@ export function ensureWritingProjectFiles(userId: string, bookId: string): strin
     if (JSON.stringify(existing) !== JSON.stringify(expected)) throw new Error("Writing 作品清单与当前格式不匹配，拒绝覆盖本地作品文件。");
     return directory;
   }
-  atomicWrite(manifestPath, manifestFor(bookId));
+  try { writeFileSync(manifestPath, JSON.stringify(manifestFor(bookId)), { flag: "wx", mode: 0o600 }); }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST" || !validProjectManifest(directory, bookId)) throw error;
+  }
   return directory;
 }
 
@@ -139,9 +246,9 @@ function contentPath(directory: string, ref: WritingLocalContentRef): string {
   return target;
 }
 
-export function writeWritingLocalText(userId: string, bookId: string, ref: WritingLocalContentRef, content: string): void {
+export function writeWritingLocalText(userId: string, bookId: string, ref: WritingLocalContentRef, content: string, titleOverride?: string, directoryNameOverride?: string): void {
   if (typeof content !== "string") throw new Error("Writing 正文必须是文本。");
-  const directory = ensureWritingProjectFiles(userId, bookId);
+  const directory = ensureWritingProjectFiles(userId, bookId, titleOverride, directoryNameOverride);
   const path = contentPath(directory, ref);
   if (existsSync(path)) {
     const info = lstatSync(path);
@@ -171,8 +278,8 @@ export function removeWritingLocalText(userId: string, bookId: string, ref: Writ
   catch { throw new Error("无法移除已删除 Writing 内容对应的本地文件。"); }
 }
 
-export function removeWritingProjectFiles(userId: string, bookId: string): void {
-  const directory = projectDirectory(userId, bookId);
+export function removeWritingProjectFiles(userId: string, bookId: string, directoryNameOverride?: string, titleOverride?: string): void {
+  const directory = projectDirectory(userId, bookId, titleOverride, directoryNameOverride);
   if (!existsSync(directory)) return;
   protectPrivateDirectory(directory);
   try { rmSync(directory, { recursive: true, force: true }); }

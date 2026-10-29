@@ -53,6 +53,30 @@ test("真实 Daemon 通道创建 PTY，中文输出经 SSE 回传；其它账户
   await waitFor(() => text.includes("event: exit")); followController.abort(); await drain;
 });
 
+test("Minecraft 终端目标复用节点中继并把原始输入、尺寸、输出交给受管 PTY", { timeout: 15_000 }, async () => {
+  const minecraftNodeId = randomUUID(), instanceId = randomUUID(), minecraftController = new AbortController();
+  database.prepare("INSERT INTO daemon_nodes(id,display_name,platform,architecture,daemon_version,data_root,status,capabilities_json,last_seen_at) VALUES(?,'Minecraft PTY 验收节点','win32','x64','test',?,'online',?,?)")
+    .run(minecraftNodeId, data, JSON.stringify(["minecraft-interactive-console-v1"]), new Date().toISOString());
+  let attachedInstance = "", attachedTerminal = "", input = "", resized = {}, detached = 0, onOutput;
+  const minecraftChannel = startTerminalChannel({ apiBase: base, nodeId: minecraftNodeId, readToken: async () => config.daemonToken, signal: minecraftController.signal,
+    async attachMinecraftConsole(targetInstanceId, terminalId, callbacks) {
+      attachedInstance = targetInstanceId; attachedTerminal = terminalId; onOutput = callbacks.onOutput;
+      return { writeStdin: data => { input = Buffer.from(data).toString("utf8"); }, resize: (cols, rows) => { resized = { cols, rows }; }, detach: () => { detached++; } };
+    }
+  });
+  try {
+    await waitFor(() => registry.connected(minecraftNodeId));
+    mode("full_access");
+    const terminal = await registry.create({ userId: users[0], loginSessionId: "test-login", appId: "minecraft", permissionMode: "full_access", approved: true, scopeKey: `minecraft-console:${minecraftNodeId}:${instanceId}` },
+      { id: randomUUID(), nodeId: minecraftNodeId, title: "Minecraft PTY", cwd: "Minecraft · 测试实例", target: { kind: "minecraft", instanceId }, cols: 80, rows: 24, state: "starting", exitCode: null });
+    assert.equal(terminal.state, "running"); assert.equal(attachedInstance, instanceId); assert.equal(attachedTerminal, terminal.id);
+    await registry.command(minecraftNodeId, { type: "input", id: terminal.id, data: "list\t\r" }); assert.equal(input, "list\t\r");
+    await registry.command(minecraftNodeId, { type: "resize", id: terminal.id, cols: 132, rows: 42 }); assert.deepEqual(resized, { cols: 132, rows: 42 });
+    onOutput("\u001b[32mserver completion\u001b[0m\r\n"); await waitFor(() => registry.get(users[0], terminal.id).replay.join("").includes("server completion"));
+    await registry.close(users[0], terminal.id); await waitFor(() => detached === 1);
+  } finally { minecraftController.abort(); await minecraftChannel.done; }
+});
+
 test("请求审批不提前执行，批准仅能消费一次，权限变化结束会话", { timeout: 15_000 }, async () => {
   mode("ask"); const body = create();
   let response = await request("/terminals", body); assert.equal(response.status, 202);

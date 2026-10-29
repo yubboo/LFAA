@@ -1,7 +1,7 @@
 /**
  * 功能：呈现 Minecraft 常规模式的真实管理工作台。
  * 作用：读取 LFAA 控制端与本机 Daemon 数据，并提交受权限控制的实例任务。
- * 关联文件：packages/client/connection/src/api.ts、packages/client/ui-workspace/src/ApplicationWorkspace.tsx、packages/client/ui-minecraft/src/MinecraftWorkspace.css、packages/client/store/src/scroll-restoration.ts。
+ * 关联文件：packages/client/connection/src/api.ts、packages/client/ui-workspace/src/ApplicationWorkspace.tsx、packages/client/ui-sidebar-terminal/src/TerminalSurface.tsx、packages/client/ui-minecraft/src/MinecraftWorkspace.css。
  */
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { createReadPoller } from "lfaa-client-connection/src/read-poller.js";
@@ -23,7 +23,6 @@ import {
   registerMinecraftDeployment,
   retryMinecraftDeployment,
   runMinecraftInstanceAction,
-  sendMinecraftConsole,
   saveMinecraftServerProperties,
   setMinecraftInstanceJavaRuntime,
   type MinecraftDeployment,
@@ -36,9 +35,9 @@ import {
   type UserRole,
   type UserSettings
 } from "lfaa-client-connection/src/api.js";
-import { createScrollRestorationKey, useScrollRestoration } from "lfaa-client-store/src/scroll-restoration.js";
 import { createBrowserPersistence, createClientPersistenceKey, createJsonPersistenceCodec } from "lfaa-client-store/src/browser-persistence.js";
 import { createMinecraftSocket, type MinecraftRealtimeChange } from "lfaa-client-connection/src/minecraft-socket.js";
+import { TerminalSurface, useTerminalSession, type TerminalSurfaceHandle } from "lfaa-client-ui-sidebar-terminal/src/index.js";
 import "./MinecraftWorkspace.css";
 import { MinecraftDeploymentPanel } from "./MinecraftDeploymentPanel.js";
 import {cancelMinecraftTask} from "lfaa-client-connection/src/runtime-api.js";
@@ -165,6 +164,7 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
   const [deployments, setDeployments] = useState<MinecraftDeployment[]>(() => cachedSnapshot?.deployments ?? []);
   const [tasks, setTasks] = useState<MinecraftTask[]>(() => cachedSnapshot?.tasks ?? []);
   const [logs, setLogs] = useState<MinecraftLog[]>([]);
+  const [logsInstanceId, setLogsInstanceId] = useState("");
   const [logsLoaded, setLogsLoaded] = useState(false);
   const [loading, setLoading] = useState(() => cachedSnapshot === null);
   const [refreshError, setRefreshError] = useState<string | null>(null);
@@ -186,7 +186,6 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
   const [registerJavaRuntimeId, setRegisterJavaRuntimeId] = useState("");
   const [registerModalOpen, setRegisterModalOpen] = useState(false);
   const [propertyDraft, setPropertyDraft] = useState<MinecraftServerProperties>({});
-  const [consoleCommand, setConsoleCommand] = useState("");
   const [instanceSearch, setInstanceSearch] = useState("");
   const [instanceStateFilter, setInstanceStateFilter] = useState<MinecraftInstanceFilter>("all");
   const mounted = useRef(false);
@@ -200,17 +199,20 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
   const realtimeSocket = useRef<ReturnType<typeof createMinecraftSocket> | null>(null);
   const readLogsRef = useRef<(() => void) | null>(null);
   const logTarget = useRef({ instanceId: "", view: "overview" });
+  const renderedConsoleLogs = useRef({ instanceId: "", seenIds: new Set<number>(), emptyMessageShown: false });
 
   const detailMatch = /^instance\/([0-9a-f-]{36})\/(overview|configuration|logs|backup)$/iu.exec(section);
   const selectedInstanceId = detailMatch?.[1] ?? "";
-  useEffect(() => { setConsoleCommand(""); }, [selectedInstanceId]);
   const detailView = detailMatch?.[2] ?? "overview";
+  const consoleSurface = useRef<TerminalSurfaceHandle>(null);
+  const terminalSession = useTerminalSession({ surface: consoleSurface, appId: "minecraft", sessionId: null, permissionsMode: settings.permissions.mode, scopeKey: `${selectedInstanceId}:${detailView}`, preserveSurfaceOnConnect: true });
   logTarget.current = { instanceId: selectedInstanceId, view: detailView };
   const selectedInstance = instances.find((item) => item.id === selectedInstanceId) ?? null;
   const independentCoreConfiguration = selectedInstance && ["BungeeCord", "Velocity", "Nukkit", "PocketMine"].includes(selectedInstance.coreType);
   const proxyInstance = selectedInstance && ["BungeeCord", "Velocity"].includes(selectedInstance.coreType);
   const selectedDeployment = deployments.find((item) => item.id === registerDeploymentId) ?? null;
   const selectedInstanceNode = selectedInstance ? nodes.find((node) => node.id === selectedInstance.nodeId) ?? null : null;
+  const selectedInstanceSupportsInteractiveConsole = selectedInstanceNode?.capabilities.includes("minecraft-interactive-console-v1") ?? false;
   const selectedInstanceJavaNode = selectedInstance ? javaNodes.find((node) => node.nodeId === selectedInstance.nodeId) ?? null : null;
   const selectedInstanceJavaRuntimes = selectedInstanceJavaNode?.runtimes ?? selectedInstanceNode?.javaRuntimes ?? [];
   const selectedInstanceCompatibleJavaRuntimes = selectedInstance
@@ -231,10 +233,6 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
     ? registerNodeRuntimes.filter((runtime) => runtime.major === selectedDeployment.javaMajor)
     : [];
   const registerSelectedJavaRuntime = registerCompatibleJavaRuntimes.find((runtime) => runtime.runtimeId === registerJavaRuntimeId) ?? null;
-  const logsScroll = useScrollRestoration(
-    createScrollRestorationKey(userId, "minecraft-logs", selectedInstanceId),
-    !loading && logsLoaded
-  );
   const eligibleNodes = useMemo(() => nodes.filter((node) => node.status === "online" && node.platform === "win32" && node.architecture === "x64" && node.capabilities.includes("minecraft-multicore-v1")), [nodes]);
   const canOperate = hasAdminAccess(role);
   const onlineNodeCount = nodes.filter((node) => node.status === "online").length;
@@ -427,14 +425,17 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
   useEffect(() => {
     if (!selectedInstanceId || detailView !== "logs") {
       setLogs([]);
+      setLogsInstanceId("");
       setLogsLoaded(true);
       return;
     }
     let alive = true;
     let initialReadPending = true;
     const controller = new AbortController();
+    setLogs([]);
+    setLogsInstanceId("");
     setLogsLoaded(false);
-    const readLogs = () => loadMinecraftInstanceLogs(selectedInstanceId, controller.signal).then((result) => { if (alive) setLogs(result.logs); }).catch((error: unknown) => { if (alive) setActionError(getErrorMessage(error)); }).finally(() => {
+    const readLogs = () => loadMinecraftInstanceLogs(selectedInstanceId, controller.signal).then((result) => { if (alive) { setLogs(result.logs); setLogsInstanceId(selectedInstanceId); } }).catch((error: unknown) => { if (alive) setActionError(getErrorMessage(error)); }).finally(() => {
       if (alive && initialReadPending) {
         initialReadPending = false;
         setLogsLoaded(true);
@@ -447,6 +448,43 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
     readLogsRef.current = trigger;
     return () => { alive = false; controller.abort(); if (readLogsRef.current === trigger) readLogsRef.current = null; poller.stop(); };
   }, [detailView, selectedInstanceId]);
+
+  useEffect(() => {
+    if (detailView !== "logs" || !selectedInstance) {
+      renderedConsoleLogs.current = { instanceId: "", seenIds: new Set(), emptyMessageShown: false };
+      return;
+    }
+    const surface = consoleSurface.current;
+    if (!surface || !logsLoaded || logsInstanceId !== selectedInstance.id) return;
+    const liveTerminal = terminalSession.terminal?.state === "running";
+    const state = renderedConsoleLogs.current;
+    if (state.instanceId !== selectedInstance.id) {
+      state.instanceId = selectedInstance.id;
+      state.seenIds.clear();
+      state.emptyMessageShown = false;
+    }
+    if (!logs.length) {
+      if (!liveTerminal && !state.emptyMessageShown) {
+        surface.writeOutput("[当前日志快照为空]\r\n");
+        state.emptyMessageShown = true;
+      }
+      return;
+    }
+    const output = logs.slice().sort((left, right) => left.id - right.id).flatMap((entry) => {
+      if (state.seenIds.has(entry.id)) return [];
+      state.seenIds.add(entry.id);
+      const time = new Date(entry.createdAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      const stream = entry.stream === "stderr" ? "\x1b[31m[stderr]\x1b[0m" : entry.stream === "system" ? "\x1b[33m[system]\x1b[0m" : "[stdout]";
+      const line = entry.line.replace(/[\u0000-\u001f\u007f-\u009f]/gu, "�").slice(0, 4096);
+      return [`${time} ${stream} ${line}\r\n`];
+    }).join("");
+    while (state.seenIds.size > 1000) {
+      const oldest = state.seenIds.values().next().value;
+      if (oldest === undefined) break;
+      state.seenIds.delete(oldest);
+    }
+    if (output && !liveTerminal) surface.writeOutput(output);
+  }, [detailView, logs, logsInstanceId, logsLoaded, selectedInstance?.id, terminalSession.terminal?.state]);
 
   useEffect(() => {
     if (selectedInstance) setPropertyDraft(selectedInstance.serverProperties);
@@ -468,6 +506,13 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
       setBusy(false);
     }
   }, [onNavigate, refresh]);
+
+  const connectMinecraftTerminal = useCallback(() => {
+    const instance = selectedInstance;
+    if (!instance || !canOperate || instance.nodeStatus !== "online" || instance.state !== "running" || !selectedInstanceSupportsInteractiveConsole || terminalSession.busy) return;
+    const size = consoleSurface.current?.getSize() ?? { cols: 80, rows: 24 };
+    void terminalSession.start({ id: crypto.randomUUID(), nodeId: instance.nodeId, appId: "minecraft", target: { kind: "minecraft", instanceId: instance.id }, sessionId: null, ...size });
+  }, [selectedInstance, canOperate, selectedInstanceSupportsInteractiveConsole, terminalSession.busy, terminalSession.start]);
 
   useEffect(() => () => {
     taskDetailSequence.current += 1;
@@ -658,11 +703,22 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
         </Card> : null}
         {detailView === "logs" ? <div className="minecraft-console-layout">
           <Card className="minecraft-card minecraft-logs-card">
-            <div className="minecraft-card-heading"><div><Typography.Title level={4}>服务器控制台</Typography.Title><Typography.Text type="secondary">日志由 Socket.IO 实时推送；在线每 30 秒、断连每 5 秒核对一次，发送指令后以服务端日志确认执行效果。</Typography.Text></div><Tag>{logs.length} 条</Tag></div>
-            <div ref={logsScroll.ref} onScroll={logsScroll.onScroll} className="minecraft-log-list" role="log" aria-live="polite">{logs.length ? logs.map((entry) => <p key={entry.id}><time>{timeLabel(entry.createdAt)}</time><span className={`is-${entry.stream}`}>{entry.stream === "stderr" ? "错误" : "输出"}</span><code>{entry.line}</code></p>) : <div className="minecraft-empty">{logsLoaded ? "Daemon 尚未回传日志。" : "正在读取实例日志…"}</div>}</div>
-            <div className="minecraft-console-command">
-              <Input aria-label="Minecraft 控制台命令" value={consoleCommand} maxLength={1024} placeholder="输入服务器指令，例如 list" disabled={!canOperate || selectedInstance.nodeStatus !== "online" || selectedInstance.state !== "running" || busy} onChange={event => setConsoleCommand(event.target.value)} />
-              <Button type="primary" loading={busy} disabled={!canOperate || selectedInstance.nodeStatus !== "online" || selectedInstance.state !== "running" || !consoleCommand.trim()} onClick={() => void submitAction(() => sendMinecraftConsole(selectedInstance.id, consoleCommand), false).then(saved => { if (saved) setConsoleCommand(""); })}>发送指令</Button>
+            <div className="minecraft-card-heading"><div><Typography.Title level={4}>服务器控制台</Typography.Title><Typography.Text type="secondary">连接后直接操作运行中的服务端 PTY：Tab 补全、方向键、Ctrl+C 和服务端支持的控制台命令由当前核心处理。断开只关闭终端会话，不停止服务器。</Typography.Text></div><Space wrap><Tag color={realtimeStatusColor(realtimeStatus)}>{realtimeStatus === "connected" ? "实时日志已连接" : realtimeStatus === "reconnecting" ? "日志重连中" : realtimeStatus === "connecting" ? "日志连接中" : "日志离线"}</Tag><Tag>{logsInstanceId === selectedInstance.id ? logs.length : 0} 条日志快照</Tag>{terminalSession.terminal?.state === "running" || terminalSession.terminal?.state === "starting" ? <Button size="small" onClick={() => void terminalSession.stop().catch(error => terminalSession.reportError(error))}>断开终端</Button> : <Button size="small" disabled={!canOperate || selectedInstance.nodeStatus !== "online" || selectedInstance.state !== "running" || !selectedInstanceSupportsInteractiveConsole || !!terminalSession.approval} loading={terminalSession.busy} onClick={connectMinecraftTerminal}>连接服务端终端</Button>}</Space></div>
+            {terminalSession.error ? <Alert type="error" showIcon message={terminalSession.error} closable onClose={terminalSession.clearError} /> : null}
+            {terminalSession.approval ? <Card size="small" className="minecraft-terminal-approval"><Typography.Paragraph>{terminalSession.approval.summary}</Typography.Paragraph><Typography.Text type="secondary">{terminalSession.approval.scopeSummary}</Typography.Text><Space wrap><Button size="small" type="primary" loading={terminalSession.busy} onClick={() => void terminalSession.decide(true)}>批准本次连接</Button><Button size="small" disabled={terminalSession.busy} onClick={() => void terminalSession.decide(false)}>拒绝</Button></Space></Card> : null}
+            {!selectedInstanceSupportsInteractiveConsole && selectedInstance.nodeStatus === "online" ? <Alert type="info" showIcon message="当前节点尚未报告交互式 Minecraft 控制台能力；更新并重启节点后可连接原生 PTY。" /> : null}
+            <div className="minecraft-server-terminal">
+              <TerminalSurface
+                key={selectedInstance.id}
+                ref={consoleSurface}
+                className="minecraft-server-terminal__surface _block_lfaa_wallpaper_terminal"
+                ariaLabel="Minecraft 服务端终端输出"
+                inputMode="raw"
+                inputEnabled={canOperate && selectedInstance.nodeStatus === "online" && selectedInstance.state === "running" && terminalSession.terminal?.state === "running"}
+                initialMessage="LFAA Minecraft 服务端控制台\r\n这里显示当前实例的服务端 PTY 输出。连接后按 Enter 发送命令，Tab 请求当前服务端补全；不启动 OS Shell。\r\n连接服务端终端后才能输入；断开连接不会停止服务器。\r\n\r\n"
+                onData={terminalSession.send}
+                onResize={size => terminalSession.resize(size)}
+              />
             </div>
           </Card>
           <aside className="minecraft-console-sidebar" aria-label="控制台实例信息与快捷输入">
@@ -674,13 +730,6 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
                 <div><dt>服务器端口</dt><dd>{selectedInstance.serverProperties.serverPort ?? "未配置"}</dd></div>
                 <div><dt>配置内存</dt><dd>{selectedInstance.coreType === "PocketMine" ? "由 PHP 核心管理" : `${selectedInstance.memoryMb} MB`}</dd></div>
               </dl>
-            </Card>
-            <Card className="minecraft-card minecraft-console-shortcuts">
-              <div className="minecraft-card-heading"><Typography.Title level={4}>快捷输入</Typography.Title></div>
-              <div className="minecraft-console-shortcuts-grid">
-                {([["/say", "say "], ["/tp", "tp "], ["/kick", "kick "], ["/ban", "ban "], ["/save-all", "save-all"], ["/list", "list"]] as const).map(([label, command]) => <Button key={label} onClick={() => setConsoleCommand(command)}>{label}</Button>)}
-              </div>
-              <Typography.Text type="secondary">点按只会填入命令；请检查参数后再手动发送。</Typography.Text>
             </Card>
           </aside>
         </div> : null}
@@ -713,17 +762,17 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
             <Space wrap><Button onClick={() => onNavigate("/games/minecraft/nodes")}>检查节点</Button><Button type="primary" onClick={() => onNavigate("/games/minecraft/deployment")}>开始部署</Button></Space>
           </div>}
         </section>
-        <div className="minecraft-stat-grid" aria-label="Minecraft 管理摘要">
-          <button className="minecraft-metric-card" type="button" onClick={() => onNavigate("/apps/minecraft/normal/nodes")} aria-label="查看控制节点状态">
+        <div className="minecraft-stat-grid" role="group" aria-label="Minecraft 管理摘要">
+          <button className="minecraft-metric-card lfaa-card-motion" type="button" onClick={() => onNavigate("/apps/minecraft/normal/nodes")} aria-label="查看控制节点状态">
             <span>控制节点</span><strong>{nodesLoaded ? <>{onlineNodeCount} / {nodes.length}</> : "—"}</strong><small>{nodesLoaded ? <>{eligibleNodes.length} 个节点满足部署前置条件</> : "节点状态读取中"}</small>
           </button>
-          <button className="minecraft-metric-card" type="button" onClick={() => onNavigate("/apps/minecraft/normal/instances")} aria-label="查看 Minecraft 实例">
+          <button className="minecraft-metric-card lfaa-card-motion" type="button" onClick={() => onNavigate("/apps/minecraft/normal/instances")} aria-label="查看 Minecraft 实例">
             <span>运行实例</span><strong>{overview?.runningCount ?? "—"} / {overview?.instanceCount ?? "—"}</strong><small>运行中 / 总数</small>
           </button>
-          <button className="minecraft-metric-card" type="button" onClick={() => onNavigate("/apps/minecraft/normal/tasks")} aria-label="查看 Minecraft 活动任务">
+          <button className="minecraft-metric-card lfaa-card-motion" type="button" onClick={() => onNavigate("/apps/minecraft/normal/tasks")} aria-label="查看 Minecraft 活动任务">
             <span>活动任务</span><strong>{overview?.activeTaskCount ?? "—"}</strong><small>排队中或执行中</small>
           </button>
-          <button className="minecraft-metric-card" type="button" onClick={() => onNavigate("/apps/minecraft/normal/deployment")} aria-label="部署最新 Minecraft 正式版">
+          <button className="minecraft-metric-card lfaa-card-motion" type="button" onClick={() => onNavigate("/apps/minecraft/normal/deployment")} aria-label="部署最新 Minecraft 正式版">
             <span>官方 Minecraft 版本</span><strong>{overview?.latestRelease ?? "按需获取"}</strong><small>进入部署时读取版本目录</small>
           </button>
         </div>
@@ -754,7 +803,7 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
             </dl> : <div className="minecraft-empty">暂无实例状态；请开始部署。</div>}
             <div className="minecraft-overview-node-heading"><Typography.Text strong>Daemon 节点</Typography.Text><Button type="link" onClick={() => onNavigate("/games/minecraft/nodes")}>查看全部</Button></div>
             {!nodesLoaded ? <div className="minecraft-empty">{refreshError ? "节点状态暂不可读。" : "正在读取节点状态…"}</div> : nodes.length ? <div className="minecraft-node-preview-list">
-              {nodes.slice(0, 3).map((node) => <button className="minecraft-node-preview" type="button" key={node.id} onClick={() => onNavigate("/games/minecraft/nodes")} aria-label={"查看控制节点 " + node.displayName}>
+              {nodes.slice(0, 3).map((node) => <button className="minecraft-node-preview lfaa-card-motion" type="button" key={node.id} onClick={() => onNavigate("/games/minecraft/nodes")} aria-label={"查看控制节点 " + node.displayName}>
                 <span><strong>{node.displayName}</strong><small>{node.platform} · {node.architecture}</small></span>
                 <Tag color={node.status === "online" ? "green" : "default"}>{node.status === "online" ? "在线" : "离线"}</Tag>
                 <small>最近心跳 {timeLabel(node.lastSeenAt)}</small>

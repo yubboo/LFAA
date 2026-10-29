@@ -930,6 +930,7 @@
           "packages/client/ui-sidebar",
           "packages/client/ui-sidebar-browser",
           "packages/client/ui-sidebar-files",
+          "packages/client/ui-sidebar-terminal",
           "packages/client/ui-theme",
           "packages/client/ui-workflow",
           "packages/client/ui-workspace",
@@ -1844,17 +1845,20 @@
     },
     {
       "path": "packages/client/ui-sidebar-terminal",
-      "name": null,
+      "name": "lfaa-client-ui-sidebar-terminal",
       "upstreamName": "@deepseek-ai/dsh-client-ui-sidebar-terminal",
       "upstream": true,
-      "status": "placeholder",
-      "responsibility": "终端侧栏展示和会话交互",
+      "status": "implemented",
+      "responsibility": "唯一共享 xterm 呈现、主题/容器尺寸映射与原始流/单行命令交互控件；不持有 Shell、Minecraft 命令、日志、权限或生命周期规则",
       "evidence": {
-        "entry": null,
-        "readme": null,
-        "consumers": [],
+        "entry": "packages/client/ui-sidebar-terminal/src/index.ts",
+        "readme": "packages/client/ui-sidebar-terminal/README.md",
+        "consumers": [
+          "packages/client/ui-minecraft",
+          "packages/client/ui-workspace"
+        ],
         "bundleDeclarations": [],
-        "boundary": "目标职责；占位不可执行"
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
       }
     },
     {
@@ -3100,6 +3104,7 @@
         "entry": "packages/fs/fs/src/index.ts",
         "readme": "packages/fs/fs/README.md",
         "consumers": [
+          "packages/api/ai-video-controller",
           "packages/api/job-controller",
           "packages/api/knowledge-controller",
           "packages/api/minecraft-controller",
@@ -3227,6 +3232,7 @@
         "consumers": [
           "packages/api/job-controller",
           "packages/api/minecraft-controller",
+          "packages/api/terminal-controller",
           "packages/api/workspace-files",
           "packages/games/tool-minecraft"
         ],

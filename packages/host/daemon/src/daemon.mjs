@@ -23,6 +23,7 @@ import { provisionMinecraftCore, startNativeMinecraftServer, isMinecraftCoreRead
 import { validateDaemonConnection } from "./connection-config.mjs";
 import { createDaemonTaskLanes } from "./task-lanes.mjs";
 import { startTerminalChannel } from "./terminal-channel.mjs";
+import { spawnNativeTerminal } from "lfaa-subprocess-local/src/pty.js";
 import { stopManagedProcess } from "./managed-process-shutdown.mjs";
 import { installEasyTierRuntime, readInstalledEasyTierVersion, validateEasyTierInstallRequest } from "./easytier-runtime.mjs";
 import { EASYTIER_RUNTIME_RELEASE } from "lfaa-game-connectivity/src/easytier-release.mjs";
@@ -174,7 +175,7 @@ async function initialize() {
   process.stdout.write(`LFAA 本机 Daemon 已启动（${nodeId.slice(0, 8)}）。\n`);
   runLoopPromise = runLoop();
   fileTaskLoopPromise = runFileTaskPoller();
-  terminalChannel = startTerminalChannel({ apiBase, nodeId, readToken, signal: pollingController.signal, onError: message => process.stderr.write(`节点终端连接暂不可用：${message}\n`) });
+  terminalChannel = startTerminalChannel({ apiBase, nodeId, readToken, signal: pollingController.signal, attachMinecraftConsole: attachManagedMinecraftConsole, onError: message => process.stderr.write(`节点终端连接暂不可用：${message}\n`) });
 }
 
 async function detectSandboxBackend() {
@@ -182,7 +183,8 @@ async function detectSandboxBackend() {
     const { stdout } = await execFileAsync(sandboxHostPath, ["--probe"], { cwd: repositoryRoot, windowsHide: true, timeout: 5000, maxBuffer: 16 * 1024 });
     const result = JSON.parse(stdout.trim());
     return result?.backend === sandboxBackendId
-      && result?.protocolVersion === 1
+      && result?.protocolVersion === 2
+      && result?.interactiveConsole === true
       && Array.isArray(result?.networkCapabilities)
       && result.networkCapabilities.includes("internetClientServer")
       && result.networkCapabilities.includes("privateNetworkClientServer");
@@ -226,7 +228,7 @@ async function prepareMinecraftSandbox(instanceId, instanceName, java, memoryMb,
   try {
     const args = [
       "--prepare", "--data-root", dataDirectory, "--instance-storage", minecraftStorageDirectoryForInstance(instanceDirectory), "--instance-id", instanceId, "--instance-name", instanceName,
-      "--java", java.executable, "--java-root", java.root, "--memory-mb", String(memoryMb)
+      "--java", java.executable, "--java-root", java.root, "--memory-mb", String(memoryMb), "--console-columns", "120", "--console-rows", "30"
     ];
     if (previousJavaRoot && await fileExists(previousJavaRoot)) args.push("--previous-java-root", previousJavaRoot);
     output = await execFileAsync(sandboxHostPath, args, { cwd: repositoryRoot, windowsHide: true, timeout: 120_000, maxBuffer: 32 * 1024 });
@@ -413,7 +415,7 @@ async function runLoop() {
           .finally(() => { javaDiscoveryPending = null; javaDiscoveryRefreshAt = Date.now() + 60_000; });
       }
       await refreshEasyTierRuntimeVersion();
-      const capabilities = ["minecraft-vanilla", "minecraft-native-v1", "minecraft-multicore-v1", "minecraft-instance-archive-v1", "java-environment-manager-v1", "runtime-environment-v1", javaRuntimeSelectionCapability, "node-filesystem-v1", "node-filesystem-v2", "node-filesystem-directory-size-v1", "node-filesystem-instance-v1", "node-filesystem-game-storage-v1", "node-filesystem-binary-transfer-v1", "agent-shell-v1", "project-files-v1", EASYTIER_RUNTIME_RELEASE.installCapability, ...(easyTierRuntimeVersion === EASYTIER_RUNTIME_RELEASE.version ? [EASYTIER_RUNTIME_RELEASE.runtimeCapability] : []), ...(sandboxBackendAvailable ? [sandboxCapability] : [])];
+      const capabilities = ["minecraft-vanilla", "minecraft-native-v1", "minecraft-multicore-v1", "minecraft-interactive-console-v1", "minecraft-instance-archive-v1", "java-environment-manager-v1", "runtime-environment-v1", javaRuntimeSelectionCapability, "node-filesystem-v1", "node-filesystem-v2", "node-filesystem-instance-v1", "node-filesystem-game-storage-v1", "node-filesystem-binary-transfer-v1", "agent-shell-v1", "project-files-v1", EASYTIER_RUNTIME_RELEASE.installCapability, ...(easyTierRuntimeVersion === EASYTIER_RUNTIME_RELEASE.version ? [EASYTIER_RUNTIME_RELEASE.runtimeCapability] : []), ...(sandboxBackendAvailable ? [sandboxCapability] : [])];
       if (await steamcmdExecutableReady(steamcmdSettings.steamcmdDirectory)) capabilities.push("steamcmd-ready-v1");
       const heartbeat = await pollRequest("/daemon/heartbeat", {
         method: "POST",
@@ -714,8 +716,8 @@ async function executeTask(task) {
       case "console": {
         const runtime = activeServers.get(requireInstanceId(task.instanceId));
         const command = task.payload?.command;
-        if (!runtime?.serverReady || typeof command !== "string" || !command.trim() || command.length > 1024 || /[\u0000-\u001f\u007f]/u.test(command)) throw new Error("实例控制台不可用或命令无效。");
-        await new Promise((resolve, reject) => runtime.child.stdin.write(`${command}\n`, error => error ? reject(error) : resolve()));
+        if (!runtime?.serverReady || typeof runtime.writeConsoleInput !== "function" || typeof command !== "string" || !command.trim() || command.length > 1024 || /[\u0000-\u001f\u007f]/u.test(command)) throw new Error("实例控制台不可用或命令无效。");
+        await runtime.writeConsoleInput(`${command}\r`);
         result = { delivered: true, verified: false, note: "命令已写入服务器标准输入；效果须读取后续日志验证。" }; break;
       }
       case "properties": result = await applyMinecraftProperties(task); break;
@@ -1620,7 +1622,7 @@ async function startMinecraftInstance(task) {
   if (!metadata) throw new Error("找不到已安装的 Minecraft 实例元数据。");
   if ((task.payload?.executionMode ?? metadata.executionMode) === "native") return await startNativeMinecraftServer(task, metadata, instanceDirectory, {
     signal:minecraftTaskControllers.get(task.id)?.signal,
-    activeServers, safeFileExists, readSafeFile, isProcessRunning, assertSafeFileTarget, java: (major, runtimeId, progress) => resolveMinecraftJavaRuntime(major, runtimeId, progress, task.payload.downloadTimeoutSeconds),
+    activeServers, safeFileExists, readSafeFile, isProcessRunning, assertSafeFileTarget, spawnTerminal: spawnNativeTerminal, java: (major, runtimeId, progress) => resolveMinecraftJavaRuntime(major, runtimeId, progress, task.payload.downloadTimeoutSeconds),
     phpDirectory: resolve(dataDirectory, "environments", "php", "pocketmine"), progress: postTaskProgress,
     attachOutput: attachServerOutput, waitForExit: waitForChildExit
   });
@@ -1643,7 +1645,7 @@ async function startMinecraftInstance(task) {
   const readinessToken = randomUUID();
   const child = spawn(sandboxHostPath, [
     "--launch", "--data-root", dataDirectory, "--instance-storage", minecraftStorageDirectoryForInstance(instanceDirectory), "--instance-id", instanceId, "--instance-name", instanceName,
-    "--java", java.executable, "--java-root", java.root,
+    "--java", java.executable, "--java-root", java.root, "--console-columns", "120", "--console-rows", "30",
     "--memory-mb", String(metadata.memoryMb), "--readiness-token", readinessToken
   ], {
     cwd: repositoryRoot,
@@ -1651,7 +1653,10 @@ async function startMinecraftInstance(task) {
     windowsHide: true,
     stdio: ["pipe", "pipe", "pipe"]
   });
-  const record = { child, javaMajor, javaRuntimeId, stopTimeoutSeconds, startedAt: Date.now(), taskId: task.id, sandboxReady: false, serverReady: false, sandboxBackend: sandboxBackendId };
+  const writeSandboxFrame = frame => new Promise((resolveWrite, rejectWrite) => child.stdin.write(frame, error => error ? rejectWrite(error) : resolveWrite()));
+  const record = { child, javaMajor, javaRuntimeId, stopTimeoutSeconds, startedAt: Date.now(), taskId: task.id, sandboxReady: false, serverReady: false, sandboxBackend: sandboxBackendId, consoleSubscribers: new Map(),
+    writeConsoleInput: data => writeSandboxFrame(encodeSandboxConsoleFrame(1, Buffer.from(data, "utf8"))),
+    resizeConsole: (columns, rows) => writeSandboxFrame(encodeSandboxConsoleFrame(2, encodeConsoleResize(columns, rows))) };
   child.stdin.on("error", () => { void appendInstanceLog(instanceId, task.id, "system", "Minecraft 控制台输入通道发生错误；发送任务以实际回报为准。"); });
   activeServers.set(instanceId, record);
   attachServerOutput(instanceId, child, task.id, {
@@ -1683,7 +1688,7 @@ async function stopMinecraftInstance(task) {
   if (child.exitCode !== null || child.killed) throw new Error("Minecraft 进程已经退出。");
   const stopTimeout = Number(task.payload?.stopTimeoutSeconds);
   if (!Number.isInteger(stopTimeout) || stopTimeout < 5 || stopTimeout > 300) throw new Error("任务缺少有效的安全停服等待配置。");
-  await new Promise((resolveWrite, rejectWrite) => child.stdin.write(running.coreType === "BungeeCord" ? "end\n" : "stop\n", error => error ? rejectWrite(error) : resolveWrite()));
+  await running.writeConsoleInput(running.coreType === "BungeeCord" ? "end\r" : "stop\r");
   await postTaskProgress(task.id, 35, "已发送 Minecraft 安全停止命令，等待世界保存和进程退出。");
   const stopped = await waitForChildExit(child, stopTimeout * 1000);
   if (!stopped) {
@@ -2002,6 +2007,15 @@ function attachServerOutput(instanceId, child, taskId, options = {}) {
     let rest = "";
     stream.setEncoding("utf8");
     stream.on("data", (chunk) => {
+      if (streamName === "stdout") {
+        const terminalChunk = options.readinessToken
+          ? chunk.replace(`${sandboxReadyPrefix}${options.readinessToken}\u001e`, "")
+          : chunk;
+        const runtime = activeServers.get(instanceId);
+        if (terminalChunk && runtime?.consoleSubscribers instanceof Map) {
+          for (const subscriber of runtime.consoleSubscribers.values()) subscriber.onOutput(terminalChunk);
+        }
+      }
       rest += chunk;
       const lines = rest.split(/\r?\n/u);
       rest = lines.pop() || "";
@@ -2030,12 +2044,63 @@ function attachServerOutput(instanceId, child, taskId, options = {}) {
     void appendInstanceLog(instanceId, taskId, "system", "Minecraft 进程发生启动或运行错误。").catch(() => {});
   });
   child.once("exit", (code) => {
+    const runtime = activeServers.get(instanceId);
+    if (runtime?.consoleSubscribers instanceof Map) {
+      for (const subscriber of runtime.consoleSubscribers.values()) subscriber.onExit(code);
+      runtime.consoleSubscribers.clear();
+    }
     activeServers.delete(instanceId);
     void rm(resolve(getInstanceDirectory(instanceId), "daemon-process.json"), { force: true }).catch(() => {
       void appendInstanceLog(instanceId, taskId, "system", "进程已退出，但运行标记清理失败；下次启动将重新核实标记中的进程。").catch(() => {});
     });
     void appendInstanceLog(instanceId, taskId, "system", `Minecraft 进程已退出（退出码 ${code ?? "未知"}）。`).catch(() => {});
   });
+}
+
+function attachManagedMinecraftConsole(instanceId, terminalId, callbacks) {
+  const id = requireInstanceId(instanceId);
+  const runtime = activeServers.get(id);
+  if (!runtime?.serverReady || typeof runtime.writeConsoleInput !== "function" || typeof runtime.resizeConsole !== "function") {
+    throw new Error("Minecraft 实例没有可用的交互式 PTY 控制台；请确认实例已就绪且节点支持交互式控制台。");
+  }
+  if (!(runtime.consoleSubscribers instanceof Map)) runtime.consoleSubscribers = new Map();
+  if (runtime.consoleSubscribers.size) throw new Error("此 Minecraft 实例已经连接了一个交互式终端会话。");
+  const onOutput = data => callbacks.onOutput(data);
+  const onExit = code => callbacks.onExit(code);
+  runtime.consoleSubscribers.set(terminalId, { onOutput, onExit });
+  return {
+    writeStdin(data) {
+      if (activeServers.get(id) !== runtime || !runtime.serverReady) throw new Error("Minecraft 实例已停止或控制台已断开。");
+      const bytes = Buffer.isBuffer(data) ? data : Buffer.from(data);
+      if (!bytes.length || bytes.length > 16 * 1024) throw new Error("Minecraft 控制台输入长度无效。");
+      return runtime.writeConsoleInput(bytes.toString("utf8"));
+    },
+    resize(columns, rows) {
+      if (activeServers.get(id) !== runtime || !runtime.serverReady) throw new Error("Minecraft 实例已停止或控制台已断开。");
+      if (!Number.isInteger(columns) || columns < 2 || columns > 500 || !Number.isInteger(rows) || rows < 2 || rows > 200) throw new Error("Minecraft 终端尺寸无效。");
+      return runtime.resizeConsole(columns, rows);
+    },
+    detach() {
+      if (runtime.consoleSubscribers.get(terminalId)?.onOutput === onOutput) runtime.consoleSubscribers.delete(terminalId);
+    }
+  };
+}
+
+function encodeSandboxConsoleFrame(opcode, payload) {
+  if (!Buffer.isBuffer(payload) || payload.length > 16 * 1024) throw new Error("Minecraft PTY 帧数据超过允许大小。");
+  const header = Buffer.alloc(13);
+  header.write("LFAATTY1", 0, "ascii");
+  header[8] = opcode;
+  header.writeUInt32LE(payload.length, 9);
+  return Buffer.concat([header, payload]);
+}
+
+function encodeConsoleResize(columns, rows) {
+  if (!Number.isInteger(columns) || columns < 2 || columns > 500 || !Number.isInteger(rows) || rows < 2 || rows > 200) throw new Error("Minecraft 终端尺寸无效。");
+  const payload = Buffer.alloc(8);
+  payload.writeUInt32LE(columns, 0);
+  payload.writeUInt32LE(rows, 4);
+  return payload;
 }
 
 function bufferLogs(instanceId, taskId, stream, lines) {
@@ -2092,6 +2157,9 @@ async function flushMinecraftTaskLogs(taskId) {
 function redactLogLine(line) {
   const dataPrefix = dataDirectory.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
   return String(line)
+    .replace(/\u001b\[[0-?]*[ -/]*[@-~]/gu, "")
+    .replace(/\u001b\][^\u0007]*(?:\u0007|\u001b\\)/gu, "")
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/gu, "")
     .replace(new RegExp(dataPrefix, "giu"), "[LFAA 数据目录]")
     .replace(/(?:Bearer\s+)[A-Za-z0-9._~-]{24,}/giu, "Bearer [已隐藏]")
     .replace(/(token|password|secret)\s*[=:]\s*[^\s,;]+/giu, "$1=[已隐藏]");
@@ -2249,7 +2317,8 @@ async function shutdown(signal) {
   process.stdout.write(`本机 Daemon 正在关闭（${signal}），请求安全停止受管实例。\n`);
   const stops = [...activeServers.entries()].map(async ([instanceId, runtime]) => {
     const graceful = await stopManagedProcess({
-      child: runtime.child, command: runtime.coreType === "BungeeCord" ? "end\n" : "stop\n",
+      child: runtime.child, command: runtime.coreType === "BungeeCord" ? "end\r" : "stop\r",
+      writeCommand: data => runtime.writeConsoleInput(data),
       timeoutMilliseconds: runtime.stopTimeoutSeconds * 1000,
       waitForExit: waitForChildExit, terminate: terminateProcessTree
     });

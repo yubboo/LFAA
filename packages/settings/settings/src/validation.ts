@@ -12,7 +12,7 @@ import type { SettingsCategory } from "lfaa-util-values/src/settings-contract.js
 
 export const appearanceBackgroundIdSchema = Joi.alternatives().try(
   Joi.string().valid(
-    "none", "service-room", "steamcmd-world", "minecraft-world", "writing-desk",
+    "none", "service-room", "steamcmd-world", "minecraft-world", "writing-desk", "writing-yunjian",
     "cherry-blossom-shore", "cherry-blossom-village", "flower-meadow-castle", "forest-bridge-evening",
     "golden-wheat-field", "lakeside-pagoda-morning", "ocean-cliff-sunset", "rainy-grassland",
     "snowy-cabin-interior", "tropical-coast-day"

@@ -7,7 +7,7 @@ import { useRef, useState } from "react";
 import { Alert, Button, Input, Modal, Popconfirm, Tag, Typography } from "antd";
 import { appearanceBackgroundOptions } from "lfaa-util-values/src/builtin-backgrounds.js";
 import { APPEARANCE_PRESET_LIMIT, APPEARANCE_PRESET_NAME_MAX_LENGTH, type AppearancePreset, type UserSettings } from "lfaa-util-values/src/settings-contract.js";
-import { appearancePresetMatchesCurrent, BUILTIN_APPEARANCE_PRESETS } from "lfaa-util-values/src/appearance-presets.js";
+import { appearancePresetMatchesCurrent, BUILTIN_APPEARANCE_PRESETS, WRITING_WORKSPACE_PRESET, writingWorkspacePresetMatches } from "lfaa-util-values/src/appearance-presets.js";
 import type { AppearanceBackground } from "lfaa-client-connection/src/api.js";
 
 export interface AppearancePresetsPanelProps {
@@ -17,6 +17,7 @@ export interface AppearancePresetsPanelProps {
   busy: boolean;
   onSaveCurrent: (name: string) => Promise<void>;
   onApply: (preset: AppearancePreset) => Promise<void>;
+  onApplyWritingPreset: () => Promise<void>;
   onDelete: (preset: AppearancePreset) => Promise<void>;
   onExport: (preset: AppearancePreset) => Promise<void>;
   onImport: (file: File) => Promise<void>;
@@ -59,7 +60,7 @@ function PresetPreview({ preset, accent, background }: { preset: AppearancePrese
   </div>;
 }
 
-export function AppearancePresetsPanel({ settings, resolvedTheme, uploadedBackgrounds, busy, onSaveCurrent, onApply, onDelete, onExport, onImport }: AppearancePresetsPanelProps) {
+export function AppearancePresetsPanel({ settings, resolvedTheme, uploadedBackgrounds, busy, onSaveCurrent, onApply, onApplyWritingPreset, onDelete, onExport, onImport }: AppearancePresetsPanelProps) {
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
   const [pendingPresetId, setPendingPresetId] = useState<string | null>(null);
@@ -67,6 +68,8 @@ export function AppearancePresetsPanel({ settings, resolvedTheme, uploadedBackgr
   const fileInputRef = useRef<HTMLInputElement>(null);
   const customPresets = settings.appearance.presets;
   const canAddPreset = customPresets.length < APPEARANCE_PRESET_LIMIT;
+  const writingPresetActive = writingWorkspacePresetMatches(settings.appearance);
+  const writingBackground = appearanceBackgroundOptions.find((background) => background.id === WRITING_WORKSPACE_PRESET.id);
 
   async function saveCurrent(): Promise<void> {
     const name = nameDraft.trim();
@@ -86,6 +89,14 @@ export function AppearancePresetsPanel({ settings, resolvedTheme, uploadedBackgr
     setPendingPresetId(preset.id);
     try { await onApply(preset); }
     catch (applyError) { setError(applyError instanceof Error ? applyError.message : "预设应用失败，请稍后重试。"); }
+    finally { setPendingPresetId(null); }
+  }
+
+  async function applyWritingPreset(): Promise<void> {
+    setError("");
+    setPendingPresetId(WRITING_WORKSPACE_PRESET.id);
+    try { await onApplyWritingPreset(); }
+    catch (applyError) { setError(applyError instanceof Error ? applyError.message : "写作工作区预设应用失败，请稍后重试。"); }
     finally { setPendingPresetId(null); }
   }
 
@@ -159,6 +170,30 @@ export function AppearancePresetsPanel({ settings, resolvedTheme, uploadedBackgr
     <section className="appearance-presets-group" aria-labelledby="appearance-presets-builtin-heading">
       <div className="appearance-presets-group__heading"><div><h3 id="appearance-presets-builtin-heading">内置预设</h3><p>可随时应用；不会改写系统默认值。</p></div></div>
       <div className="appearance-presets-grid">{BUILTIN_APPEARANCE_PRESETS.map((preset) => renderPreset(preset, true))}</div>
+    </section>
+    <section className="appearance-presets-group" aria-labelledby="appearance-presets-writing-heading">
+      <div className="appearance-presets-group__heading"><div><h3 id="appearance-presets-writing-heading">写作工作区预设</h3><p>只调整 AI 写作工作区的背景和氛围，不改变其他区域、主题、字体或工作台布局。</p></div><Tag color="blue">仅写作工作区</Tag></div>
+      <div className="appearance-presets-grid">
+        <article className={`appearance-preset-card appearance-writing-preset${writingPresetActive ? " is-active" : ""}`}>
+          <div className="appearance-preset-preview is-dark appearance-writing-preset__preview" aria-hidden="true">
+            {writingBackground && "file" in writingBackground ? <img className="appearance-preset-preview__background" src={writingBackground.file} alt="" loading="lazy" decoding="async" /> : null}
+            <span className="appearance-preset-preview__wash" style={{ opacity: WRITING_WORKSPACE_PRESET.overlay / 100 }} />
+            <div className="appearance-writing-preset__desk"><span /><i /><b /></div>
+            <div className="appearance-preset-preview__window">
+              <div className="appearance-preset-preview__bar"><i /><i /><i /></div>
+              <div className="appearance-writing-preset__lines"><i /><i /><i /><i /></div>
+            </div>
+          </div>
+          <div className="appearance-preset-card__content">
+            <div className="appearance-preset-card__heading">
+              <div><h3>{WRITING_WORKSPACE_PRESET.name}</h3><p>{WRITING_WORKSPACE_PRESET.description}</p></div>
+              {writingPresetActive ? <Tag color="blue">已应用</Tag> : null}
+            </div>
+            <div className="appearance-preset-card__details" aria-label="云涧书境预设摘要"><span>仅写作工作区</span><span>山雾背景</span><span>柔和动态光线</span></div>
+            <div className="appearance-preset-card__actions"><Button type={writingPresetActive ? "default" : "primary"} aria-pressed={writingPresetActive} loading={pendingPresetId === WRITING_WORKSPACE_PRESET.id} disabled={busy} onClick={() => void applyWritingPreset()}>{writingPresetActive ? "重新应用" : "应用到写作"}</Button></div>
+          </div>
+        </article>
+      </div>
     </section>
     <section className="appearance-presets-group" aria-labelledby="appearance-presets-custom-heading">
       <div className="appearance-presets-group__heading"><div><h3 id="appearance-presets-custom-heading">我的预设</h3><p>保存当前外观与常规布局，便于之后一键恢复。</p></div></div>

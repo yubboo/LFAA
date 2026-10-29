@@ -8,9 +8,9 @@ import { constants,createReadStream } from "node:fs";
 import { copyFile,lstat, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join, relative, isAbsolute, resolve } from "node:path";
 import { createServer, createConnection } from "node:net";
-import { spawn } from "node:child_process";
 import { createSocket } from "node:dgram";
 import { startCommand, terminateProcessTree } from "./process-control.mjs";
+import { terminalHandleToChild } from "./terminal-process-adapter.mjs";
 
 export {validateCoreArtifactDownload,downloadCoreArtifact} from "lfaa-runtime-environment/src/download.mjs";
 import {validateCoreArtifactDownload,downloadCoreArtifact} from "lfaa-runtime-environment/src/download.mjs";
@@ -170,8 +170,10 @@ export async function startNativeMinecraftServer(task, stored, directory, host) 
   if (task.payload?.operation === "provision" && (!Number.isInteger(installTimeout) || installTimeout < 30 || installTimeout > 7200)) throw new Error("自动部署缺少安装时限配置。");
   await host.assertSafeFileTarget(join(directory, "lfaa-instance.json"));
   await writeFile(join(directory, "lfaa-instance.json"), JSON.stringify(metadata, null, 2));
-  const child = spawn(runtime.executable, args, { cwd: directory, env: minecraftNativeEnvironment(directory, runtime), shell: false, windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
-  const record = { child, javaMajor: metadata.javaMajor, javaRuntimeId, stopTimeoutSeconds, startedAt: Date.now(), taskId: task.id, sandboxReady: false, serverReady: false, executionMode: "native", coreType: metadata.coreType };
+  const terminal = await host.spawnTerminal({ target: { kind: "local" }, platform: process.platform, executable: runtime.executable, args, cwd: directory,
+    env: minecraftNativeEnvironment(directory, runtime), columns: 120, rows: 30, maxQueuedOutputBytes: 2 * 1024 * 1024, terminationGraceMs: 1000, signal: host.signal });
+  const child = terminalHandleToChild(terminal);
+  const record = { child, terminal, writeConsoleInput: data => terminal.writeStdin(Buffer.from(data, "utf8")), resizeConsole: (columns, rows) => terminal.resize(columns, rows), consoleSubscribers: new Map(), javaMajor: metadata.javaMajor, javaRuntimeId, stopTimeoutSeconds, startedAt: Date.now(), taskId: task.id, sandboxReady: false, serverReady: false, executionMode: "native", coreType: metadata.coreType };
   host.activeServers.set(id, record);
   child.stdin.on("error", () => {});
   host.attachOutput(id, child, task.id, { coreType: metadata.coreType, onFailureLine: line => { if (!record.serverReady && /Caused by:|^(?:Exception in thread|Error:|Fatal error:)/u.test(line)) record.startupError = line.replace(/^\s*Caused by:\s*/u, "").slice(0, 160); }, onServerReady: () => { record.serverReady = true; record.onReady?.(); } });

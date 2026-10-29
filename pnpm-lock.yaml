@@ -1283,6 +1283,9 @@ importers:
       lfaa-authorization:
         specifier: workspace:*
         version: link:../../credentials/authorization
+      lfaa-games-minecraft:
+        specifier: workspace:*
+        version: link:../../games/minecraft
       lfaa-host-daemon:
         specifier: workspace:*
         version: link:../../host/daemon
@@ -2751,6 +2754,9 @@ importers:
       lfaa-client-store:
         specifier: workspace:*
         version: link:../store
+      lfaa-client-ui-sidebar-terminal:
+        specifier: workspace:*
+        version: link:../ui-sidebar-terminal
       lfaa-client-ui-workflow:
         specifier: workspace:*
         version: link:../ui-workflow
@@ -3274,6 +3280,28 @@ importers:
         specifier: ^18.0.0
         version: 18.0.0
 
+  packages/client/ui-sidebar-terminal:
+    dependencies:
+      '@xterm/addon-fit':
+        specifier: 0.11.0
+        version: 0.11.0
+      '@xterm/xterm':
+        specifier: 6.0.0
+        version: 6.0.0
+      lfaa-client-connection:
+        specifier: workspace:*
+        version: link:../connection
+      react:
+        specifier: ^18.0.0
+        version: 18.0.0
+    devDependencies:
+      '@types/react':
+        specifier: ^18.0.0
+        version: 18.3.31
+      '@types/react-dom':
+        specifier: ^18.0.0
+        version: 18.0.0
+
   packages/client/ui-theme:
     dependencies:
       lfaa-client-connection:
@@ -3338,12 +3366,6 @@ importers:
       '@deepseek-ai/cordis':
         specifier: 4.0.4
         version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
-      '@xterm/addon-fit':
-        specifier: 0.11.0
-        version: 0.11.0
-      '@xterm/xterm':
-        specifier: 6.0.0
-        version: 6.0.0
       '@xyflow/react':
         specifier: 12.11.5
         version: 12.11.5(@types/react-dom@18.0.0)(@types/react@18.3.31)(immer@10.2.0)(react-dom@18.0.0(react@18.0.0))(react@18.0.0)
@@ -3389,6 +3411,9 @@ importers:
       lfaa-client-ui-sidebar-browser:
         specifier: workspace:*
         version: link:../ui-sidebar-browser
+      lfaa-client-ui-sidebar-terminal:
+        specifier: workspace:*
+        version: link:../ui-sidebar-terminal
       lfaa-client-ui-theme:
         specifier: workspace:*
         version: link:../ui-theme

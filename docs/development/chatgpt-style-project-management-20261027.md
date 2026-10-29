@@ -1,5 +1,7 @@
 # LFAA-CHATGPT-STYLE-MULTI-PROJECTS-20261027：ChatGPT 式多项目管理
 
+<a id="lfaa-chatgpt-style-multi-projects-20261027"></a>
+
 ## 用户目标
 
 让 LFAA AI Work 按截图提供 ChatGPT Projects 式多项目管理：侧栏项目入口支持新建、选择和管理多个项目；用户选择一个本机父目录作为工作区分组，LFAA 本机 Host 在该目录下创建以项目名命名的项目文件夹。项目以名称归组会话，可关联多个额外本机源文件夹，可编辑项目指令，并选择“默认记忆”或“仅限项目的记忆”。主项目文件夹作为固定工作根；额外源文件夹只关联既有目录，不复制、移动或删除用户内容。

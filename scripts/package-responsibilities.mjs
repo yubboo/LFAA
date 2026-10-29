@@ -107,7 +107,7 @@ ui-sidebar-browser:浏览器侧栏内容展示
 ui-sidebar-documentpreview:文档预览侧栏展示
 ui-sidebar-files:统一文件列表、预览、编辑与回收站界面
 ui-sidebar-right:共享右侧上下文栏展示
-ui-sidebar-terminal:终端侧栏展示和会话交互
+ui-sidebar-terminal:唯一共享 xterm 呈现、主题/容器尺寸映射与原始流/单行命令交互控件；不持有 Shell、Minecraft 命令、日志、权限或生命周期规则
 ui-skill:Skill 摘要和加载状态界面
 ui-slots:插件 UI 插槽渲染协议和容器
 ui-subagent:子 Agent 委派任务与结果展示

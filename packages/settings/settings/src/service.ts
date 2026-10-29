@@ -948,7 +948,7 @@ function isAppearanceSettings(value: Record<string, unknown>): boolean {
   const hasLegacyShape = keys.length === legacyTargets.length && legacyTargets.every((target) => target in backgrounds);
   const hasCurrentShape = keys.length === targets.length && targets.every((target) => target in backgrounds);
   if (!hasLegacyShape && !hasCurrentShape) return false;
-  const backgroundIds = new Set(["none", "service-room", "steamcmd-world", "minecraft-world", "writing-desk", "cherry-blossom-shore", "cherry-blossom-village", "flower-meadow-castle", "forest-bridge-evening", "golden-wheat-field", "lakeside-pagoda-morning", "ocean-cliff-sunset", "rainy-grassland", "snowy-cabin-interior", "tropical-coast-day"]);
+  const backgroundIds = new Set(["none", "service-room", "steamcmd-world", "minecraft-world", "writing-desk", "writing-yunjian", "cherry-blossom-shore", "cherry-blossom-village", "flower-meadow-castle", "forest-bridge-evening", "golden-wheat-field", "lakeside-pagoda-morning", "ocean-cliff-sunset", "rainy-grassland", "snowy-cabin-interior", "tropical-coast-day"]);
   return (value.theme === "light" || value.theme === "dark" || value.theme === "system")
     && typeof value.accentColor === "string" && allowedAccentColors.has(value.accentColor)
     && isValidSidebarColor(value.sidebarColor)

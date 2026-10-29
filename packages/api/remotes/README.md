@@ -14,6 +14,8 @@ AI Provider 新凭据替换合同只接收一个 1–4096 字符的 `secret`；�
 
 实际验收发现心跳合同漏登 node-filesystem-instance-v1 和 node-filesystem-game-storage-v1，已与真实 Daemon 声明对齐；未知能力仍拒绝，未放宽通配字符串。
 
+Minecraft 原生交互式控制台以 `minecraft-interactive-console-v1` 单独协商；心跳合同只接受该登记值，Sandbox Host 交互协议还需 v2 探测成功，旧节点不会因此被误认为支持 AppContainer PTY。
+
 SteamCMD 服务端配置、服务端任务、完成结果和 Daemon 心跳状态由 `route-contracts.ts` 持有 Joi 边界。配置只接收 Tool AppID、相对目录、参数数组、停服命令、等待时间及 EULA 布尔确认；Shell 执行和领域状态归 SteamCMD Service/Daemon。任务结果拒绝未登记字段；完整卸载回执允许 `removed` 与 `uninstalled` 布尔值，路径仍只接受工具目录和游戏目录字段。
 
 `steamcmdDstClusterSchema` 只接收安全集群名、Steamworks Tool AppID、安装相对目录、显式停服命令、等待秒数和 EULA 确认。集群令牌仅由目标节点文件管理器写入，绝不能进入该 API 的普通 JSON。

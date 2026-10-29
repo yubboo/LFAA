@@ -26,9 +26,9 @@ test("所有旧工作入口归一，App 常规路由保持，关联只接受有�
   assert.ok(!isAgentAssociations({ applicationIds: [], capabilityIds: ["ignore\nsystem"] }));
 });
 
-test("真实节点新增实例/平台文件能力通过心跳合同，未登记能力仍拒绝", async () => {
+test("真实节点实例文件与交互终端能力通过心跳合同，未登记能力仍拒绝", async () => {
   const { daemonHeartbeatSchema } = await import("lfaa-api-remotes/src/route-contracts.js");
-  const heartbeat = { id: randomUUID(), displayName: "隔离节点", platform: "win32", architecture: "x64", version: "fixture", dataRoot: "C:\\fixture-data", capabilities: ["node-filesystem-v1", "node-filesystem-v2", "node-filesystem-instance-v1", "node-filesystem-game-storage-v1"], javaRuntimes: [], instances: [] };
+  const heartbeat = { id: randomUUID(), displayName: "隔离节点", platform: "win32", architecture: "x64", version: "fixture", dataRoot: "C:\\fixture-data", capabilities: ["node-filesystem-v1", "node-filesystem-v2", "node-filesystem-instance-v1", "node-filesystem-game-storage-v1", "minecraft-interactive-console-v1"], javaRuntimes: [], instances: [] };
   assert.equal(daemonHeartbeatSchema.validate(heartbeat).error, undefined);
   assert.ok(daemonHeartbeatSchema.validate({ ...heartbeat, capabilities: [...heartbeat.capabilities, "unknown-unregistered-capability"] }).error);
 });

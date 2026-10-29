@@ -297,6 +297,24 @@ test("四个工作区大区域内部按功能盒子各自分组", () => {
   assert.match(workspaceRegionsCss, /\.module-workbench-region--leading,[\s\S]*?color:\s*var\(--color-text-primary\)/u);
 });
 
+test("App 模式组固定在顶栏中心列并在极窄中心区独占居中行", () => {
+  const header = workspace.slice(workspace.indexOf("const centerHeader = ("), workspace.indexOf("const center = ("));
+  const headerRule = workspaceCss.match(/^\.module-center__header\s*\{([^}]+)\}/mu)?.[1] ?? "";
+  const modeSlotRule = workspaceCss.match(/^\.module-center__mode-switch-slot\s*\{([^}]+)\}/mu)?.[1] ?? "";
+  const actionsRule = workspaceCss.match(/^\.module-center__actions\s*\{([^}]+)\}/mu)?.[1] ?? "";
+
+  assert.match(header, /module-center__mode-switch-slot[\s\S]*?<Segmented[\s\S]*?mode-option" title="聊天"[\s\S]*?WorkbenchIcon name="chat"[\s\S]*?mode-option" title="画布"[\s\S]*?WorkbenchIcon name="grid"[\s\S]*?mode-option" title="手动"[\s\S]*?WorkbenchIcon name="new"[\s\S]*?module-center__actions/u);
+  assert.match(header, /module-center__mode-option-accessible-name">聊天[\s\S]*?module-center__mode-option-accessible-name">画布[\s\S]*?module-center__mode-option-accessible-name">手动/u);
+  assert.match(headerRule, /grid-template-columns:\s*minmax\(0,\s*1fr\) auto minmax\(0,\s*1fr\)/u);
+  assert.match(modeSlotRule, /grid-column:\s*2/u);
+  assert.match(modeSlotRule, /justify-content:\s*center/u);
+  assert.match(actionsRule, /grid-column:\s*3/u);
+  assert.match(workspaceCss, /\.module-center__actions > \.module-runtime-state\s*\{[^}]*font-size:\s*0/u);
+  assert.match(workspaceCss, /\.module-center__actions > \.module-panel-control\s*\{[^}]*font-size:\s*0/u);
+  assert.match(workspaceCss, /\.module-center__work-tabs > button:not\(\.module-git-summary-trigger\) > span\s*\{\s*display:\s*none/u);
+  assert.match(workspaceCss, /@container module-center \(max-width:\s*420px\)[\s\S]*?\.module-center__header:has\(> \.module-center__mode-switch-slot\) > \.module-center__mode-switch-slot\s*\{[^}]*grid-column:\s*1 \/ -1; grid-row:\s*2; justify-self:\s*center/u);
+});
+
 test("普通应用页面共用导航与主内容锚点并按中心列宽整体左移", () => {
   assert.match(workspace, /data-module-mode=\{mode\}/u);
   assert.match(workspace, /mode === "normal" && !writingNormal && !aiVideoNormal \? " module-center__content--application"/u);

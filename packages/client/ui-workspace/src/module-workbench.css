@@ -325,13 +325,6 @@
 
 .module-terminal__emulator { flex: 1 0 64px; min-width: 0; min-height: 64px; overflow: hidden; font-family: var(--settings-code-font); font-size: var(--settings-code-font-size); }
 
-.module-terminal__emulator .xterm { height: 100%; padding: 0; }
-
-/* 透明视口沿用终端区域的账户主题与壁纸遮罩，覆盖 xterm 自带的不透明黑底；输入法预编辑沿用同一主题表面和文字。 */
-.module-terminal__emulator .xterm .xterm-viewport { background-color: transparent; }
-
-.module-terminal__emulator .xterm .composition-view { background: var(--color-surface-muted); color: var(--color-text-primary); }
-
 .module-terminal__approval { flex: 0 0 auto; overflow-wrap: anywhere; font-size: var(--font-size-xs); }
 
 .module-terminal__approval p { margin: 0 0 4px; }

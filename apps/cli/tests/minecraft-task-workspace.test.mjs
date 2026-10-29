@@ -38,7 +38,7 @@ test("任务条目显示真实执行进度、失败消息及实例归档结果",
 });
 
 test("任务详情呈现失败回报、节点异常日志、输入和结构化结果", () => {
-  assert.match(workspace, /loadMinecraftTaskDetails\(taskId\)/u);
+  assert.match(workspace, /loadMinecraftTaskDetails\(taskId,\s*controller\.signal\)/u);
   assert.match(workspace, /首条异常日志/u);
   assert.match(workspace, /没有关联的错误\/标准错误日志/u);
   assert.match(workspace, /任务输入与参数/u);
@@ -93,4 +93,20 @@ test("任务状态卡片和任务列表按可用容器宽度自动换列", () =>
   assert.match(styles, /\.minecraft-task-detail-modal \.ant-modal-body\s*\{[^}]*overflow:\s*auto/u);
   assert.match(styles, /\.minecraft-task-detail__logs\s*\{[^}]*overflow:\s*auto/u);
   assert.match(styles, /@media \(max-width: 560px\)/u);
+});
+
+test("Minecraft 服务端控制台复用共享 Terminal Controller 会话并附着原生 PTY", () => {
+  assert.match(workspace, /TerminalSurface, useTerminalSession, type TerminalSurfaceHandle/u);
+  assert.match(workspace, /inputMode="raw"/u);
+  assert.match(workspace, /onData=\{terminalSession\.send\}/u);
+  assert.match(workspace, /target: \{ kind: "minecraft", instanceId: instance\.id \}/u);
+  assert.doesNotMatch(workspace, /sendMinecraftConsole\(instance\.id, command\)/u);
+  assert.match(workspace, /setLogsInstanceId\(selectedInstanceId\)/u);
+  assert.match(workspace, /logsInstanceId !== selectedInstance\.id/u);
+  assert.match(workspace, /inputEnabled=\{canOperate && selectedInstance\.nodeStatus === "online" && selectedInstance\.state === "running" && terminalSession\.terminal\?\.state === "running"\}/u);
+  assert.match(workspace, /selectedInstanceSupportsInteractiveConsole/u);
+  assert.ok(workspace.includes('entry.line.replace(/[\\u0000-\\u001f\\u007f-\\u009f]/gu, "�")'));
+  assert.doesNotMatch(workspace, /setConsoleCommand|minecraft-console-command|new Terminal\(/u);
+  assert.match(styles, /\.minecraft-server-terminal \{[^\n]*height: min\(62vh, 680px\)/u);
+  assert.match(styles, /@media \(max-height: 520px\)[\s\S]*?\.minecraft-server-terminal \{[^\n]*min-height: 160px/u);
 });

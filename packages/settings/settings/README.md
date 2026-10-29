@@ -65,3 +65,5 @@ Agent 设置目录由 `src/agent-settings.ts` 从当前账户 `UserSettings` 与
 账户自定义外观预设保存在既有 `appearance` 分类的有界 `presets` 字段。快照 Schema 拒绝白名单外的设置；`validateAppearancePresetSnapshot()` 仅验证可移植文件结构，允许导出账户的私有背景 ID 等待重新上传，`validateUserAppearancePresetSnapshot()` 再校验当前账户素材归属。`applyUserAppearancePreset()` 在一个配置事务中恢复 Appearance 与白名单 General 布局，同时保留预设库及其他 General 偏好。
 
 `appearance.advanced.aiWorkOutputFocusBlurEnabled` 默认关闭；共享值和 Appearance Schema 使用相同默认，旧账户缺少该字段时只补关闭值，显式保存的账户开关不因默认变更而重置。
+
+`appearanceBackgroundIdSchema` 与服务层背景白名单共同接受共享清单中的 `writing-yunjian`；该 ID 只能经现有 Settings Owner 认证、校验与账户 Appearance 分类保存。

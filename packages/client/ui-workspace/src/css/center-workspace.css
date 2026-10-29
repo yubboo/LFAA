@@ -14,13 +14,7 @@
 
 .module-center { position: relative; display: flex; width: 100%; height: 100%; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; background: transparent; container-type: inline-size; container-name: module-center; }
 
-.module-center__header { position: relative; z-index: 2; display: grid; min-height: var(--agent-shell-header-h, 3rem); grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 0 14px; border-bottom: 1px solid var(--color-border); background: color-mix(in srgb, var(--color-surface) 82%, transparent); -webkit-backdrop-filter: blur(var(--settings-glass-blur)); backdrop-filter: blur(var(--settings-glass-blur)); }
-
-/* 普通应用复用同一导航轨：标题栏与正文按中心列宽共同左移 8–16px，左右留白总量保持不变。 */
-.module-center__header[data-module-mode="normal"] {
-  padding-inline-start: calc(clamp(20px, 2.5cqi, 32px) - clamp(8px, 1.2cqi, 16px));
-  padding-inline-end: calc(clamp(20px, 2.5cqi, 32px) + clamp(8px, 1.2cqi, 16px));
-}
+.module-center__header { position: relative; z-index: 2; display: grid; min-height: var(--agent-shell-header-h, 3rem); grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12px; padding: 0 14px; border-bottom: 1px solid var(--color-border); background: color-mix(in srgb, var(--color-surface) 82%, transparent); -webkit-backdrop-filter: blur(var(--settings-glass-blur)); backdrop-filter: blur(var(--settings-glass-blur)); }
 
 .module-center__heading { display: flex; min-width: 0; grid-column: 1; align-items: center; gap: 9px; }
 
@@ -30,8 +24,17 @@
 
 .module-center__title svg { color: var(--settings-accent, var(--color-brand)); }
 
-.module-center__actions { display: flex; min-width: 0; grid-column: 2; justify-self: end; align-items: center; gap: 3px; }
+/* 模式组独立占据顶栏中列；左右标题和工具宽度变化不改变其水平中心。 */
+.module-center__mode-switch-slot { display: flex; min-width: 0; grid-column: 2; align-items: center; justify-content: center; }
 .module-center__mode-switch { flex: 0 0 auto; }
+
+.module-center__actions { display: flex; min-width: 0; grid-column: 3; justify-self: end; align-items: center; gap: 3px; }
+
+.module-center__mode-option { display: inline-flex; align-items: center; justify-content: center; }
+
+.module-center__mode-option-accessible-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+.module-center__actions > .module-runtime-state { width: 30px; height: 30px; flex: 0 0 30px; justify-content: center; gap: 0; margin: 0; font-size: 0; }
 
 @container module-center (max-width: 560px) {
 
@@ -45,17 +48,19 @@
 
   .module-center__actions { gap: 1px; }
 
-  .module-center__voice-button,
-  .module-center__actions > .module-panel-control { width: 30px; min-width: 30px; height: 30px; justify-content: center; gap: 0; padding: 0; font-size: 0; }
+  .module-center__mode-switch-slot { min-width: 0; }
 
-  .module-center__work-tabs { gap: 0; padding: 0; border: 0; background: transparent; }
+}
 
-  .module-center__work-tabs > button:not(.module-git-summary-trigger) { width: 30px; min-width: 30px; height: 30px; justify-content: center; gap: 0; padding: 0; font-size: 0; }
+@container module-center (max-width: 420px) {
 
-  .module-center__work-tabs > button:not(.module-git-summary-trigger) > span { display: none; }
+  .module-center__header:has(> .module-center__mode-switch-slot) { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; gap: 4px 8px; padding-inline: 8px; }
 
-  .module-center__voice-button:focus-visible,
-  .module-center__work-tabs > button:focus-visible { outline: 2px solid var(--color-border-strong); outline-offset: 1px; }
+  .module-center__header:has(> .module-center__mode-switch-slot) > .module-center__heading { grid-column: 1; grid-row: 1; }
+
+  .module-center__header:has(> .module-center__mode-switch-slot) > .module-center__mode-switch-slot { grid-column: 1 / -1; grid-row: 2; justify-self: center; }
+
+  .module-center__header:has(> .module-center__mode-switch-slot) > .module-center__actions { grid-column: 2; grid-row: 1; }
 
 }
 
@@ -71,15 +76,11 @@
 
 @container module-center (max-width: 560px) {
 
-  .module-center__header[data-module-mode="normal"] { padding-inline-start: 8px; padding-inline-end: 24px; }
-
   .module-center__content--application { padding-inline-start: 8px; padding-inline-end: 24px; }
 
 }
 
 @container module-center (max-width: 360px) {
-
-  .module-center__header[data-module-mode="normal"] { padding-inline-start: 8px; padding-inline-end: 16px; }
 
   .module-center__content--application { padding-inline-start: 8px; padding-inline-end: 16px; }
 
@@ -100,19 +101,28 @@
 
 .module-workbench-stage--voice .module-center__content--ai-work > .module-ai-work-chat { width: 100%; }
 
-.module-center__work-tabs { display: inline-flex; min-width: 0; align-items: center; gap: 2px; padding: 2px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface-muted); }
+.module-center__work-tabs { display: inline-flex; min-width: 0; align-items: center; gap: 2px; padding: 0; border: 0; background: transparent; }
 
-.module-center__work-tabs button { display: inline-flex; min-height: 27px; align-items: center; gap: 6px; padding: 0 9px; border: 0; border-radius: 6px; background: transparent; color: var(--color-text-secondary); cursor: pointer; font: inherit; font-size: var(--font-size-xs); white-space: nowrap; }
+.module-center__work-tabs button { display: inline-flex; width: 30px; min-width: 30px; height: 30px; min-height: 30px; flex: 0 0 30px; align-items: center; justify-content: center; gap: 0; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--color-text-secondary); cursor: pointer; font: inherit; font-size: 0; white-space: nowrap; }
 
 .module-center__work-tabs button:hover { background: var(--color-surface-hover); color: var(--color-text-primary); }
 
 .module-center__work-tabs button.is-active { background: var(--color-surface); color: var(--settings-accent, var(--color-brand)); box-shadow: 0 1px 3px var(--color-shadow-card-soft); }
 
-.module-center__work-tabs button > span { color: var(--color-status-success); font-size: 10px; }
+.module-center__work-tabs > button:not(.module-git-summary-trigger) > span { display: none; }
 
 .module-git-summary-trigger { position: relative; display: inline-grid; width: 30px; min-width: 30px; height: 30px; place-items: center; padding: 0; }
 
 .module-git-summary-trigger > span { position: absolute; top: -3px; right: -4px; display: grid; min-width: 15px; height: 15px; place-items: center; padding-inline: 3px; border-radius: 999px; background: var(--color-brand); color: var(--color-text-inverse); font-size: 9px; line-height: 1; }
+
+.module-center__actions > .module-center__voice-button,
+.module-center__actions > .module-panel-control { width: 30px; min-width: 30px; height: 30px; flex: 0 0 30px; justify-content: center; gap: 0; padding: 0; font-size: 0; }
+
+.module-center__actions > .module-panel-control > span { display: none; }
+
+.module-center__voice-button:focus-visible,
+.module-center__work-tabs > button:focus-visible,
+.module-center__actions > .module-panel-control:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 1px; }
 
 /* Git 摘要按项目卡片、文件夹变更和会话文件记录分层；宽度受当前工作区容器约束。 */
 .module-git-summary { position: relative; display: flex; width: min(376px, calc(100cqi - 48px)); max-width: calc(100vw - 24px); height: auto; max-height: min(72dvh, 620px); min-height: 0; flex-direction: column; overflow: visible; box-sizing: border-box; color: var(--color-text-primary); container-type: inline-size; }
@@ -285,8 +295,6 @@
 
 /* 普通聊天根铺满中心列，保证对话内部的锚点轨与滚动条轨可分别贴边。 */
 .module-center__content--ai-work > .module-ai-work-chat > .ai-work-chat:not(.ai-work-chat--voice) { position: relative; width: 100%; height: 100%; min-width: 0; min-height: 0; flex: 1 1 0; align-self: stretch; margin: 0; padding-inline: 0; box-sizing: border-box; overflow-x: visible; overflow-y: clip; border: 0; border-radius: 0; background-clip: border-box; }
-
-.module-center__content--ai-work > .module-ai-work-chat > .ai-work-chat:not(.ai-work-chat--voice) > .module-center__header { width: calc(100% - var(--ai-work-chat-inline-gap) - var(--ai-work-chat-inline-gap)); align-self: center; box-sizing: border-box; }
 
 /* AI Work 普通聊天需要裁切纵向外溢；全屏语音页由自身容器滚动，短屏时必须覆盖这条通用裁切。 */
 .module-workbench-stage--voice .module-center__content--ai-work .module-ai-work-chat > .ai-work-chat--voice { overflow-y: auto; }

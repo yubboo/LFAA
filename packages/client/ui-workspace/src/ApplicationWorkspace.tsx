@@ -2249,22 +2249,22 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
           <button ref={leftPreviewTriggerRef} className="module-shell-icon-button module-shell-icon-button--left-preview" type="button" aria-label={mode === "normal" ? "切换当前应用功能菜单" : "切换会话与项目栏"} aria-expanded={!chrome.leftCollapsed || leftPreviewOpen} aria-keyshortcuts={shortcuts.toggleSidebar.map((chord) => chord.replace("Ctrl", "Control")).join(" ")} title={`${mode === "normal" ? "切换当前应用功能菜单" : "切换会话与项目栏"} · ${shortcuts.toggleSidebar.join(" / ") || "未分配"}`} onClick={toggleLeft} onMouseEnter={openLeftPreview} onMouseLeave={closeLeftPreview} onFocus={(event) => { if (event.currentTarget.matches(":focus-visible")) openLeftPreview(); }} onBlur={closeLeftPreview}><WorkbenchIcon name="panelLeft" size={16} /></button>
           <div className="module-center__title" title={mode === "ai-work" ? activeChatSessionTitle?.trim() || "小鱼智能体" : activeApplicationTitle}><WorkbenchIcon name={mode === "normal" ? "folder" : "spark"} size={16} /><strong>{mode === "ai-work" ? activeChatSessionTitle?.trim() || "小鱼智能体" : activeApplicationTitle}</strong></div>
         </div>
+        {modeSwitchAppId && section !== "voice" ? <div className="module-center__mode-switch-slot"><Segmented
+          className="module-center__mode-switch"
+          size="small"
+          aria-label={applicationModeScopeId ? "当前应用工作模式" : "聊天与画布工作模式"}
+          value={canvasWorkspace ? "canvas" : mode === "normal" ? "manual" : "chat"}
+          options={[{ label: <span className="module-center__mode-option" title="聊天"><WorkbenchIcon name="chat" size={16} /><span className="module-center__mode-option-accessible-name">聊天</span></span>, value: "chat" }, { label: <span className="module-center__mode-option" title="画布"><WorkbenchIcon name="grid" size={16} /><span className="module-center__mode-option-accessible-name">画布</span></span>, value: "canvas" }, ...(applicationModeScopeId && applicationModeScopeId !== "workspace" ? [{ label: <span className="module-center__mode-option" title="手动"><WorkbenchIcon name="new" size={16} /><span className="module-center__mode-option-accessible-name">手动</span></span>, value: "manual" }] : [])]}
+          onChange={value => {
+            if (value === "chat") void openApplication(modeSwitchAppId, "ai-work");
+            else if (value === "canvas") {
+              if (mode === "ai-work") setCanvasChatOpenOverride(userId, modeSwitchAppId, true);
+              onNavigate(`/apps/${encodeURIComponent(modeSwitchAppId)}/canvas${activeCanvasProjectId ? `/${encodeURIComponent(activeCanvasProjectId)}` : ""}`);
+            }
+            else if (value === "manual" && applicationModeScopeId) void openApplication(applicationModeScopeId, "normal");
+          }}
+        /></div> : null}
         <div className="module-center__actions">
-          {modeSwitchAppId && section !== "voice" ? <Segmented
-            className="module-center__mode-switch"
-            size="small"
-            aria-label={applicationModeScopeId ? "当前应用工作模式" : "聊天与画布工作模式"}
-            value={canvasWorkspace ? "canvas" : mode === "normal" ? "manual" : "chat"}
-            options={[{ label: "聊天", value: "chat" }, { label: "画布", value: "canvas" }, ...(applicationModeScopeId && applicationModeScopeId !== "workspace" ? [{ label: "手动", value: "manual" }] : [])]}
-            onChange={value => {
-              if (value === "chat") void openApplication(modeSwitchAppId, "ai-work");
-              else if (value === "canvas") {
-                if (mode === "ai-work") setCanvasChatOpenOverride(userId, modeSwitchAppId, true);
-                onNavigate(`/apps/${encodeURIComponent(modeSwitchAppId)}/canvas${activeCanvasProjectId ? `/${encodeURIComponent(activeCanvasProjectId)}` : ""}`);
-              }
-              else if (value === "manual" && applicationModeScopeId) void openApplication(applicationModeScopeId, "normal");
-            }}
-          /> : null}
           {app === "workspace" && mode === "ai-work" && section !== "voice" ? <Button className="module-center__voice-button" type="text" size="small" aria-label="语音主脑" title="语音主脑" icon={<WorkbenchIcon name="microphone" size={15} />} onClick={() => onNavigate("/voice")}>语音主脑</Button> : null}
           {settings.general.showServiceStatus ? <span className={`module-runtime-state${serverState === "online" ? " is-connected" : ""}`} role="img" aria-label={statusLabel} title={statusLabel}><i aria-hidden="true" />{statusLabel}</span> : null}
           {gitManagerAvailable ? <div className="module-center__work-tabs" aria-label="Agent Git">
