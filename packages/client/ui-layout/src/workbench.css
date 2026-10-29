@@ -354,6 +354,7 @@
   margin: 0 auto;
   padding: clamp(36px,4vw,64px) 0 clamp(44px,5vw,64px);
 }
+
 .application-monogram {
   display: grid;
   width: 50px;

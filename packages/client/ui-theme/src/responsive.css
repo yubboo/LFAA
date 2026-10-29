@@ -11,9 +11,20 @@
     padding: 12px 18px;
   }
   .topbar-nav {
-    height: 42px;
+    height: auto;
+    min-height: 42px;
     order: 3;
     width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    flex-wrap: wrap;
+    gap: 0 4px;
+  }
+  .topbar-nav .nav-button.ant-btn {
+    flex: 0 1 auto;
+    min-width: 0;
+    height: 40px;
+    padding-inline: 8px;
   }
   .topbar-account {
     gap: 10px;

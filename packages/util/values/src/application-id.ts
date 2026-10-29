@@ -36,11 +36,15 @@ export const APPLICATION_ROUTE_PATTERN = new RegExp(`^/apps/(${APPLICATION_IDS.j
 /** 系统级无限画布：每个 App 都有自己的画布工作区，可带项目 ID。 */
 export const APP_CANVAS_ROUTE_PATTERN = new RegExp(`^/apps/(${APPLICATION_IDS.join("|")})/canvas(?:/([0-9a-fA-F-]{36}))?$`, "u");
 
-/** 通用 Agent 工作入口；只把根首页与旧任务地址归一到这里，业务 App 的聊天保留 App 作用域。 */
+/** `/desktop` 旧地址兼容常量；当前认证默认入口为 SHARED_WORK_ROUTE。 */
+export const SYSTEM_DESKTOP_ROUTE = "/desktop";
+
+/** 通用 Agent 工作入口；旧任务地址和通用 App AI Work 地址归一到这里，业务 App 的聊天保留 App 作用域。 */
 export const SHARED_WORK_ROUTE = "/work";
 export function normalizeWorkRoute(path: string): string {
   const appRoute = path.match(APPLICATION_ROUTE_PATTERN);
-  if (path === "/" || path === "/tasks" || appRoute?.[1] === "workspace" && appRoute?.[2] === "ai-work") return SHARED_WORK_ROUTE;
+  if (path === "/" || path === SYSTEM_DESKTOP_ROUTE) return SHARED_WORK_ROUTE;
+  if (path === "/tasks" || appRoute?.[1] === "workspace" && appRoute?.[2] === "ai-work") return SHARED_WORK_ROUTE;
   if (appRoute?.[2] === "normal" && (appRoute[1] === "steamcmd" || appRoute[1] === "minecraft")) {
     const section = appRoute[3] ? `/${appRoute[3]}` : "";
     return `/games/${appRoute[1]}${section}`;

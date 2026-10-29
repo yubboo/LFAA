@@ -142,7 +142,6 @@ interface ApplicationWorkspaceProps {
   error: string | null;
   onNavigate: (path: string) => void;
   onBack: () => void;
-  onSelectedModeHome: () => void;
   onOpenSelectedApplication: () => Promise<void>;
   onOpenSettings: (section?: "ai" | "permissions", focusTarget?: string) => void;
   onOpenApplication: (app: ApplicationId, mode: ApplicationMode) => Promise<void>;
@@ -273,7 +272,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
   );
 }
 
-interface ApplicationSidebarProps extends Pick<ApplicationWorkspaceProps, "userId" | "app" | "mode" | "section" | "gameLibrary" | "apps" | "applicationNavigationItems" | "onNavigate" | "onOpenApplication" | "onOpenSelectedApplication"> {
+interface ApplicationSidebarProps extends Pick<ApplicationWorkspaceProps, "userId" | "app" | "mode" | "section" | "gameLibrary" | "workspaceTitle" | "apps" | "applicationNavigationItems" | "onNavigate" | "onOpenApplication" | "onOpenSelectedApplication"> {
   layoutMode: WorkbenchLayoutMode;
   onWritingLibraryPortalTargetChange: (target: HTMLDivElement | null) => void;
   onToggleLeft: () => void;
@@ -307,7 +306,7 @@ interface ApplicationSidebarProps extends Pick<ApplicationWorkspaceProps, "userI
   onPreviewBlur: () => void;
 }
 
-function ApplicationSidebar({ userId, app, mode, section, gameLibrary, apps, applicationNavigationItems, layoutMode, onWritingLibraryPortalTargetChange, onNavigate, onOpenApplication, onOpenSelectedApplication, onToggleLeft, notifications, onMarkNotificationsRead, onMarkSessionNotificationsRead, onClearNotifications, onOpenNotification, sessions, missingSessionDirectoryIds, aiDraft, pinnedSessionIds, onTogglePinnedSession, workspaceProjects, workspaceProjectsReady, sessionsDataReady, recentSessionsExpandRequestId, projectLoadError, onRetryProjects, activeSessionId, sessionsLoading, sessionsError, providerStatus, gitSummaryOpen, gitSummaryContent, onNewSession, onSelectSession, onArchiveSession, onCloseGitSummary, onPreviewMouseLeave, onPreviewBlur }: ApplicationSidebarProps) {
+function ApplicationSidebar({ userId, app, mode, section, gameLibrary, workspaceTitle, apps, applicationNavigationItems, layoutMode, onWritingLibraryPortalTargetChange, onNavigate, onOpenApplication, onOpenSelectedApplication, onToggleLeft, notifications, onMarkNotificationsRead, onMarkSessionNotificationsRead, onClearNotifications, onOpenNotification, sessions, missingSessionDirectoryIds, aiDraft, pinnedSessionIds, onTogglePinnedSession, workspaceProjects, workspaceProjectsReady, sessionsDataReady, recentSessionsExpandRequestId, projectLoadError, onRetryProjects, activeSessionId, sessionsLoading, sessionsError, providerStatus, gitSummaryOpen, gitSummaryContent, onNewSession, onSelectSession, onArchiveSession, onCloseGitSummary, onPreviewMouseLeave, onPreviewBlur }: ApplicationSidebarProps) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [sessionMenuId, setSessionMenuId] = useState<string | null>(null);
   const sidebarPreferenceScope = JSON.stringify([userId, app]);
@@ -535,6 +534,8 @@ function ApplicationSidebar({ userId, app, mode, section, gameLibrary, apps, app
         mode={mode}
         section={section}
         gameLibrary={gameLibrary}
+        workspaceTitle={workspaceTitle}
+        apps={apps}
         applicationNavigationItems={applicationNavigationItems}
         onNavigate={onNavigate}
         onOpenApplication={onOpenApplication}
@@ -605,15 +606,16 @@ function ApplicationSidebar({ userId, app, mode, section, gameLibrary, apps, app
   );
 }
 
-interface ApplicationNavigationPanelProps extends Pick<ApplicationWorkspaceProps, "app" | "mode" | "section" | "gameLibrary" | "applicationNavigationItems" | "onNavigate" | "onOpenApplication"> {
+interface ApplicationNavigationPanelProps extends Pick<ApplicationWorkspaceProps, "app" | "mode" | "section" | "gameLibrary" | "workspaceTitle" | "apps" | "applicationNavigationItems" | "onNavigate" | "onOpenApplication"> {
   userId: string;
   hidden: boolean;
   onWritingLibraryPortalTargetChange: (target: HTMLDivElement | null) => void;
 }
 
-function ApplicationNavigationPanel({ userId, app, mode, section, gameLibrary = false, applicationNavigationItems, hidden, onNavigate, onOpenApplication, onWritingLibraryPortalTargetChange }: ApplicationNavigationPanelProps) {
+function ApplicationNavigationPanel({ userId, app, mode, section, gameLibrary = false, workspaceTitle, apps, applicationNavigationItems, hidden, onNavigate, onOpenApplication, onWritingLibraryPortalTargetChange }: ApplicationNavigationPanelProps) {
   const appMenuScroll = useScrollRestoration(createScrollRestorationKey(userId, "module-app-menu", app));
-  const minecraftMenuCategory = section === "connectivity" ? "network" : section === "java" ? "environment" : section === "overview" || section === "nodes" ? "monitor" : "management";
+  const minecraftMenuCategory = section === "java" ? "environment" : section === "overview" || section === "nodes" ? "monitor" : "management";
+  const currentApplicationTitle = workspaceTitle ?? apps.find(item => item.id === app)?.title ?? "当前应用";
   const applicationNavigationGroups = useMemo<SecondaryNavigationGroup[]>(() => {
     const createItems = (items: ApplicationNavigationItem[]): SecondaryNavigationGroup["items"] => items.map<SecondaryNavigationGroup["items"][number]>((item) => ({
       id: `module-context-application-${item.id}`,
@@ -650,22 +652,26 @@ function ApplicationNavigationPanel({ userId, app, mode, section, gameLibrary = 
   }, [app, applicationNavigationItems, gameLibrary, onNavigate, onOpenApplication]);
 
   const locationClassName = mode === "normal" ? "module-context__applications module-sidebar__application-navigation" : "module-context__applications";
-  return <section className={locationClassName} id="module-context-applications" aria-label="领域应用与共享能力导航" hidden={hidden}>
+  return <section className={locationClassName} id="module-context-applications" aria-label={mode === "normal" ? `${currentApplicationTitle}功能导航` : "领域应用与共享能力导航"} hidden={hidden}>
     <div ref={appMenuScroll.ref} onScroll={appMenuScroll.onScroll} className="module-context__application-menu">
-      <header className="module-context__heading"><div><strong>应用与能力</strong><span>领域应用 · 跨应用共享能力</span></div></header>
-      <button className="module-context__canvas-entry" type="button" onClick={() => onNavigate(`/apps/${app}/canvas`)} aria-label={`打开 ${applicationNavigationItems.find(item => item.applicationId === app)?.title ?? app} 的项目画布`} title="系统级共享能力：画布可绑定当前领域项目">
+      <header className="module-context__heading"><div><strong>{mode === "normal" ? currentApplicationTitle : "应用与能力"}</strong><span>{mode === "normal" ? "当前应用功能" : "领域应用 · 跨应用共享能力"}</span></div></header>
+      {mode === "ai-work" ? <button className="module-context__canvas-entry" type="button" onClick={() => onNavigate(`/apps/${app}/canvas`)} aria-label={`打开 ${applicationNavigationItems.find(item => item.applicationId === app)?.title ?? app} 的项目画布`} title="系统级共享能力：画布可绑定当前领域项目">
         <WorkbenchIcon name="grid" size={16} />
         <span><strong>当前项目画布</strong><small>系统共享能力 · 绑定当前领域</small></span>
         <WorkbenchIcon name="chevron" size={14} />
-      </button>
+      </button> : null}
       {app === "writing" && mode === "normal" ? <div ref={onWritingLibraryPortalTargetChange} className="module-context__writing-library-portal" /> : null}
-      <SecondaryNavigation ariaLabel="工作台入口导航" className="module-context__application-navigation" groups={applicationNavigationGroups} activateOnArrow />
-      {gameLibrary ? <nav className="module-context__app-menu" aria-label="游戏服务菜单">
+      {mode === "ai-work" ? <SecondaryNavigation ariaLabel="工作台入口导航" className="module-context__application-navigation" groups={applicationNavigationGroups} activateOnArrow /> : null}
+      {gameLibrary && app === "workspace" && mode === "normal" ? <nav className="module-context__app-menu" aria-label="游戏服务菜单">
         <div className="module-context__section-title"><span>游戏服务</span></div>
         {([["/games", "服务总览"], ["/games/environments", "运行环境"], ["/games/minecraft", "Minecraft 服务端"], ["/games/steamcmd", "Steam 游戏服务器"]] as const).map(([path, label]) => {
-          const active = path === "/games" ? section === "library" : path.endsWith("/environments") ? section === "environments" : path.endsWith("/minecraft") ? app === "minecraft" : app === "steamcmd";
+          const active = path === "/games" ? section === "library" : path.endsWith("/environments") && section === "environments";
           return <button type="button" key={path} className={`module-context__menu-item${active ? " is-active" : ""}`} aria-current={active ? "page" : undefined} onClick={() => onNavigate(path)}><span aria-hidden="true" />{label}</button>;
         })}
+      </nav> : null}
+      {app === "steamcmd" && mode === "normal" ? <nav className="module-context__app-menu" aria-label="Steam 游戏服务器菜单">
+        <div className="module-context__section-title"><span>Steam 游戏服务器</span></div>
+        <button type="button" className={`module-context__menu-item${section === "overview" ? " is-active" : ""}`} aria-current={section === "overview" ? "page" : undefined} onClick={() => onNavigate("/games/steamcmd")}><span aria-hidden="true" />服务器工作区</button>
       </nav> : null}
       {app === "minecraft" && mode === "normal" ? <nav className="module-context__app-menu" aria-label="Minecraft 工作区菜单">
         <div className="module-context__section-title"><span>Minecraft 工作区</span></div>
@@ -673,14 +679,13 @@ function ApplicationNavigationPanel({ userId, app, mode, section, gameLibrary = 
           <button type="button" aria-pressed={minecraftMenuCategory === "monitor"} onClick={() => onNavigate("/games/minecraft/overview")}>监控</button>
           <button type="button" aria-pressed={minecraftMenuCategory === "management"} onClick={() => onNavigate("/games/minecraft/instances")}>管理</button>
           <button type="button" aria-pressed={minecraftMenuCategory === "environment"} onClick={() => onNavigate("/games/minecraft/java")}>环境</button>
-          <button type="button" aria-pressed={minecraftMenuCategory === "network"} onClick={() => void onOpenApplication("connectivity", "normal")}>联机</button>
         </div>
         {(minecraftMenuCategory === "monitor"
           ? [["overview", "总览"], ["nodes", "控制节点"]]
           : minecraftMenuCategory === "management"
             ? [["deployment", "部署"], ["instances", "实例"], ["tasks", "任务"], ["workflows", "工作流"], ["files", "文件管理"]]
-            : minecraftMenuCategory === "network" ? [["connectivity", "LFAA 世界联机"]] : [["java", "Java 环境"]]
-        ).map(([key, label]) => <button type="button" key={key} className={`module-context__menu-item${section === key || key === "instances" && section.startsWith("instance/") ? " is-active" : ""}`} aria-current={section === key ? "page" : undefined} onClick={() => key === "connectivity" ? void onOpenApplication("connectivity", "normal") : onNavigate(key === "files" ? "/files" : `/games/minecraft/${key}`)}><span aria-hidden="true" />{label}</button>)}
+            : [["java", "Java 环境"]]
+        ).map(([key, label]) => <button type="button" key={key} className={`module-context__menu-item${section === key || key === "instances" && section.startsWith("instance/") ? " is-active" : ""}`} aria-current={section === key ? "page" : undefined} onClick={() => onNavigate(key === "files" ? "/files" : `/games/minecraft/${key}`)}><span aria-hidden="true" />{label}</button>)}
         {section.startsWith("instance/") ? <>
           <div className="module-context__section-title module-context__section-title--instance"><span>当前实例</span></div>
           {([[
@@ -701,7 +706,7 @@ function PanelControl({ name, title, shortcut, active, onClick }: { name: "termi
   return <button className="module-panel-control" type="button" aria-label={title} aria-keyshortcuts={ariaShortcuts} aria-pressed={active} title={`${title} · ${shortcut || "未分配"}`} onClick={onClick}><WorkbenchIcon name={name} size={16} /><span>{title}</span></button>;
 }
 
-export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary = false, workspaceTitle, applicationContent, canvasWorkspace, apps, applicationNavigationItems, username, role, serverState, error, settings, onSettingsChange, onBack, onSelectedModeHome, onOpenSelectedApplication, onNavigate, onOpenSettings, onOpenApplication, recentSessionsOpenRequestId, onRecentSessionsOpenRequestHandled, rightPanelSection, onRightPanelSectionChange, applicationsOpenRequestId, onApplicationsOpenRequestHandled, activeAiSessionId, aiDraft, aiWorkGoal, notifications, onNotification, onMarkNotificationsRead, onMarkSessionNotificationsRead, onClearNotifications, onOpenNotification, onActiveAiSessionChange, onAiDraftChange, onAiWorkGoalConsumed, onLogout }: ApplicationWorkspaceProps) {
+export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary = false, workspaceTitle, applicationContent, canvasWorkspace, apps, applicationNavigationItems, username, role, serverState, error, settings, onSettingsChange, onBack, onOpenSelectedApplication, onNavigate, onOpenSettings, onOpenApplication, recentSessionsOpenRequestId, onRecentSessionsOpenRequestHandled, rightPanelSection, onRightPanelSectionChange, applicationsOpenRequestId, onApplicationsOpenRequestHandled, activeAiSessionId, aiDraft, aiWorkGoal, notifications, onNotification, onMarkNotificationsRead, onMarkSessionNotificationsRead, onClearNotifications, onOpenNotification, onActiveAiSessionChange, onAiDraftChange, onAiWorkGoalConsumed, onLogout }: ApplicationWorkspaceProps) {
   const activeRightPanelSection = mode === "normal" ? "context" : rightPanelSection;
   const voiceMode = app === "workspace" && mode === "ai-work" && section === "voice";
   // 旧版 Host 可能缺少后续新增的快捷键项；由 Settings 默认值补齐，不覆盖已保存的空数组。
@@ -1753,16 +1758,12 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
     }
   }, [activeAiSessionId, agentGitRepositories, ensureSessionGitRepository, openWorkspaceUtility, selectedAgentGitRepositoryId, userId]);
   const toggleApplicationsPanel = useCallback(() => {
-    if (mode === "normal") {
-      toggleLeft();
-      return;
-    }
     if (rightPanelSection === "applications" && !chrome.rightCollapsed) {
       setChrome((current) => ({ ...current, rightCollapsed: true }));
       return;
     }
     openWorkspaceUtility("applications");
-  }, [chrome.rightCollapsed, mode, openWorkspaceUtility, rightPanelSection, toggleLeft]);
+  }, [chrome.rightCollapsed, openWorkspaceUtility, rightPanelSection]);
   const openToolsPanel = useCallback(() => {
     if (mode !== "ai-work") {
       if (rightPanelSection === "context" && !chrome.rightCollapsed) setChrome((current) => ({ ...current, rightCollapsed: true }));
@@ -2034,6 +2035,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
     mode,
     section,
     gameLibrary,
+    workspaceTitle,
     apps,
     applicationNavigationItems,
     onOpenSelectedApplication,
@@ -2244,7 +2246,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   const centerHeader = (
       <header className="module-center__header" data-layout-mode={metrics.mode} data-module-mode={mode}>
         <div className="module-center__heading">
-          <button ref={leftPreviewTriggerRef} className="module-shell-icon-button module-shell-icon-button--left-preview" type="button" aria-label="切换会话与项目栏" aria-expanded={!chrome.leftCollapsed || leftPreviewOpen} aria-keyshortcuts={shortcuts.toggleSidebar.map((chord) => chord.replace("Ctrl", "Control")).join(" ")} title={`切换会话与项目栏 · ${shortcuts.toggleSidebar.join(" / ") || "未分配"}`} onClick={toggleLeft} onMouseEnter={openLeftPreview} onMouseLeave={closeLeftPreview} onFocus={(event) => { if (event.currentTarget.matches(":focus-visible")) openLeftPreview(); }} onBlur={closeLeftPreview}><WorkbenchIcon name="panelLeft" size={16} /></button>
+          <button ref={leftPreviewTriggerRef} className="module-shell-icon-button module-shell-icon-button--left-preview" type="button" aria-label={mode === "normal" ? "切换当前应用功能菜单" : "切换会话与项目栏"} aria-expanded={!chrome.leftCollapsed || leftPreviewOpen} aria-keyshortcuts={shortcuts.toggleSidebar.map((chord) => chord.replace("Ctrl", "Control")).join(" ")} title={`${mode === "normal" ? "切换当前应用功能菜单" : "切换会话与项目栏"} · ${shortcuts.toggleSidebar.join(" / ") || "未分配"}`} onClick={toggleLeft} onMouseEnter={openLeftPreview} onMouseLeave={closeLeftPreview} onFocus={(event) => { if (event.currentTarget.matches(":focus-visible")) openLeftPreview(); }} onBlur={closeLeftPreview}><WorkbenchIcon name="panelLeft" size={16} /></button>
           <div className="module-center__title" title={mode === "ai-work" ? activeChatSessionTitle?.trim() || "小鱼智能体" : activeApplicationTitle}><WorkbenchIcon name={mode === "normal" ? "folder" : "spark"} size={16} /><strong>{mode === "ai-work" ? activeChatSessionTitle?.trim() || "小鱼智能体" : activeApplicationTitle}</strong></div>
         </div>
         <div className="module-center__actions">
@@ -2407,7 +2409,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
         })}
       </nav> : null}
       {sidebarRight.tabs.map((tab) => tab.keepMounted || sidebarRight.activeId === tab.id ? <div key={tab.id} className="module-context__tab-panel" hidden={sidebarRight.activeId !== tab.id} aria-hidden={sidebarRight.activeId !== tab.id}>{createElement(DshSlotOutlet, { name: "sidebar.right.pane.tab", entryKey: tab.id, fallback: <Alert type="warning" showIcon message="扩展面板尚未加载内容" description="此入口已登记，但当前没有 DSH Client 内容提供面板。请检查当前 Profile 的插件状态及 Client 入口加载错误。" /> })}</div> : null)}
-      {mode === "ai-work" ? <ApplicationNavigationPanel userId={userId} app={app} mode={mode} section={section} gameLibrary={gameLibrary} applicationNavigationItems={applicationNavigationItems} onNavigate={navigateWithinApplication} onOpenApplication={openSidebarMode} onWritingLibraryPortalTargetChange={setWritingLibraryPortalTarget} hidden={activeRightPanelSection !== "applications" || sidebarRight.activeId !== null} /> : null}
+      {mode === "ai-work" ? <ApplicationNavigationPanel userId={userId} app={app} mode={mode} section={section} gameLibrary={gameLibrary} workspaceTitle={workspaceTitle} apps={apps} applicationNavigationItems={applicationNavigationItems} onNavigate={navigateWithinApplication} onOpenApplication={openSidebarMode} onWritingLibraryPortalTargetChange={setWritingLibraryPortalTarget} hidden={activeRightPanelSection !== "applications" || sidebarRight.activeId !== null} /> : null}
       {sidebarRight.activeId === null && activeRightPanelSection === "context" && aiWorkView === "git" ? gitManagerPanel : null}
       {sidebarRight.activeId === null && activeRightPanelSection === "context" && aiWorkView === "chat" ? writingNormal ? <Suspense fallback={<ApplicationContentLoading />}><WritingBookInfo
         workspace={writingWorkspace}
@@ -2511,7 +2513,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
       <ResizableWorkbench
         rootElementRef={layoutRef}
         className="module-workbench-inner module-workbench-layout"
-        leading={<GlobalNavigationRail username={username} role={role} serverState={serverState} shortcuts={shortcuts} activePage="home" homeLabel="返回当前模式首页" applications={applicationNavigationItems} onOpenRecentSessions={showRecentSessions} showServiceStatus={settings.general.showServiceStatus} onHome={onSelectedModeHome} onNavigate={onNavigate} onOpenApplication={openApplication} onOpenWork={() => void openApplication("workspace", "ai-work")} onOpenFiles={() => onNavigate("/files")} onOpenSettings={onOpenSettings} onLogout={onLogout} onToggleTools={openToolsPanel} applicationsExpanded={mode === "normal" ? !chrome.leftCollapsed : activeRightPanelSection === "applications" && !chrome.rightCollapsed} applicationsTargetId="module-context-applications" onToggleApplications={toggleApplicationsPanel} />}
+        leading={<GlobalNavigationRail username={username} role={role} serverState={serverState} shortcuts={shortcuts} activePage="home" applications={applicationNavigationItems} onOpenRecentSessions={showRecentSessions} showServiceStatus={settings.general.showServiceStatus} onNavigate={onNavigate} onOpenApplication={openApplication} isSharedWorkHome={app === "workspace" && mode === "ai-work" && section !== "canvas"} onOpenFiles={() => onNavigate("/files")} onOpenSettings={onOpenSettings} onLogout={onLogout} onToggleTools={openToolsPanel} applicationsExpanded={mode === "normal" ? !chrome.leftCollapsed : activeRightPanelSection === "applications" && !chrome.rightCollapsed} applicationsTargetId="module-context-applications" onToggleApplications={mode === "ai-work" ? toggleApplicationsPanel : undefined} />}
         leadingRegionClassName="module-workbench-region--leading"
         leftRegionClassName={leftRegionClassName}
         centerRegionClassName="module-workbench-region--center-workspace"

@@ -2,7 +2,8 @@
 import { APP_CANVAS_ROUTE_PATTERN, APPLICATION_LABELS, APPLICATION_ROUTE_PATTERN, SHARED_WORK_ROUTE, normalizeWorkRoute, type ApplicationNavigationId } from "lfaa-util-values/src/application-id.js";
 import { DshSlotOutlet, loadClientModule } from "lfaa-client-modules/src/client/index.js";
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { Button, Checkbox, ConfigProvider, Modal, Popover, Tag, Typography, theme as antdTheme } from "antd";
+import { Button, Checkbox, ConfigProvider, Dropdown, Modal, Popover, Tag, Typography, theme as antdTheme } from "antd";
+import type { MenuProps } from "antd";
 import { ServiceStatus, type ServiceState } from "lfaa-client-ui-primitives/src/ServiceStatus.js";
 import { SetupReminder } from "lfaa-client-ui-settings-general/src/SetupReminder.js";
 import { DEFAULT_USER_SETTINGS, resolveAppearanceBackgrounds, resolveShortcutSettings } from "lfaa-client-ui-settings-general/src/default-settings.js";
@@ -27,7 +28,6 @@ import { dshLocaleRuntime } from "lfaa-client-ui-workspace/src/dsh-locale-runtim
 import { resolveWallpaperCanvasOwnership } from "./wallpaper-canvas-ownership.js";
 import { appearanceBackgroundSlotForRoute } from "./appearance-background-slot.js";
 import { createReleaseAnnouncementPersistence } from "./release-announcement.js";
-import { GuidedSystemEntry } from "./GuidedSystemEntry.js";
 import "./css/module-shell.css";
 const GameLibraryPage = lazy(() => import("./GameLibraryPage.js").then(module => ({ default: module.GameLibraryPage })));
 const SteamcmdWorkspace = lazy(() => import("./SteamcmdWorkspace.js").then(module => ({ default: module.SteamcmdWorkspace })));
@@ -43,7 +43,6 @@ interface WorkbenchProps {
   error: string | null;
   onNavigate: (path: string) => void;
   onOpenApplication: (app: ApplicationId, mode: ApplicationMode) => Promise<void>;
-  onCompleteGuidedEntry: (app: ApplicationId, mode: "chat" | "canvas" | "manual") => Promise<string | null>;
   onUserChange: (user: User) => void;
   onLogout: () => void;
   credentialReminder: { usernamePending: boolean; passwordPending: boolean } | null;
@@ -160,14 +159,6 @@ function formatDesktopUpdateBytes(bytes: number): string {
     unitIndex += 1;
   }
   return `${scaled.toFixed(1)} ${units[unitIndex]}`;
-}
-
-// 将文件页来源归一为应用模式根页；通用任务的正式入口 `/tasks` 对应 workspace AI Work。
-function applicationModeHomeRoute(pathname: string): string | null {
-  if (normalizeWorkRoute(pathname) === SHARED_WORK_ROUTE) return SHARED_WORK_ROUTE;
-  if (/^\/games(?:\/|$)/u.test(pathname)) return "/games";
-  const match = pathname.match(APPLICATION_ROUTE_PATTERN);
-  return match ? `/apps/${match[1]}/${match[2]}` : null;
 }
 
 function gameLibraryApplicationRoute(pathname: string): string[] | null {
@@ -369,7 +360,6 @@ export function Workbench({
   error,
   onNavigate,
   onOpenApplication,
-  onCompleteGuidedEntry,
   onUserChange,
   onLogout,
   credentialReminder,
@@ -383,6 +373,7 @@ export function Workbench({
     : route === "/voice"
     ? [route, "workspace", "ai-work", "voice"]
     : normalizeWorkRoute(route) === SHARED_WORK_ROUTE ? [route, "workspace", "ai-work", "overview"] : gameLibraryApplicationRoute(route) ?? route.match(APPLICATION_ROUTE_PATTERN);
+  const [pendingAiWorkGoal, setPendingAiWorkGoal] = useState<AiWorkGoalRequest | null>(null);
   const isGameLibraryRoute = route === "/games" || route.startsWith("/games/");
   const isAiWorkRoute = appRoute?.[2] === "ai-work";
   const isFileManagerPage = route === "/files";
@@ -391,16 +382,11 @@ export function Workbench({
   const isPluginManagerPage = route === "/plugin-manager";
   const isAgentOfficePage = route === "/agent-office";
   const isModulePage = Boolean(appRoute) || isFileManagerPage || isCanvasPage || isPluginManagerPage || isAgentOfficePage;
+  const isApplicationWorkspacePage = Boolean(appRoute && appRoute[1] !== "workspace") || isGameLibraryRoute || isCanvasPage;
   const isLegacyAccountsRoute = route === "/admin/users";
   const isSettingsPage = route === "/settings" || isLegacyAccountsRoute;
   const [setupReminderBusy, setSetupReminderBusy] = useState(() => !isSettingsPage && initialSettings.general.notificationPopupsEnabled);
   const [passkeyPromptBusy, setPasskeyPromptBusy] = useState(() => !isSettingsPage && initialSettings.general.notificationPopupsEnabled);
-  // 文件页房子返回来源 App/模式根；从设置进入时再追溯设置页保存的来源路由。
-  const previousRoute = useRef(route);
-  const fileManagerEntryRoute = route === "/files" && previousRoute.current !== "/files" ? previousRoute.current : null;
-  useEffect(() => {
-    if (route !== "/files") previousRoute.current = route;
-  }, [route]);
   useEffect(() => {
     if (isAiWorkRoute) void preloadAiWorkChatModule().catch(() => undefined);
   }, [isAiWorkRoute]);
@@ -412,11 +398,6 @@ export function Workbench({
   const [settingsReturnRoute, setSettingsReturnRoute] = useState(() =>
     route === "/settings" || route === "/admin/users" ? `/apps/${preferences.selectedApp}/${preferences.selectedMode}` : SHARED_WORK_ROUTE,
   );
-  const fileManagerSourceRoute = fileManagerEntryRoute === "/settings" || fileManagerEntryRoute === "/admin/users"
-    ? settingsReturnRoute
-    : fileManagerEntryRoute;
-  const fileManagerHomeRoute = applicationModeHomeRoute(fileManagerSourceRoute ?? "")
-    ?? `/apps/${preferences.selectedApp}/${preferences.selectedMode}`;
   const settingsReturnBackgroundRef = useRef<HTMLImageElement | null>(null);
   const [settingsInitialSection, setSettingsInitialSection] = useState<"ai" | "permissions" | "configuration" | "account" | "workspace" | "security" | "plugins" | undefined>();
   const [settingsSectionRequest, setSettingsSectionRequest] = useState<{ section: "ai" | "permissions" | "configuration" | "account" | "workspace" | "security" | "plugins"; requestId: number; focusTarget?: string } | null>(null);
@@ -432,12 +413,30 @@ export function Workbench({
     const hidden = new Set<ApplicationNavigationId>(hiddenApplicationNavigationIds);
     return allApplicationNavigationItems.filter(application => !hidden.has(application.id));
   }, [hiddenApplicationNavigationIds]);
-  const guidedVisibleApplications = useMemo<ApplicationId[]>(() => [
-    "workspace",
-    ...applicationCards.filter(application => application.id === "steamcmd" || application.id === "minecraft"
-      ? applicationNavigationItems.some(item => item.id === "games")
-      : applicationNavigationItems.some(item => item.id === application.id)).map(application => application.id)
-  ], [applicationNavigationItems]);
+  const applicationSwitcherItems = useMemo<ApplicationNavigationItem[]>(() => applicationNavigationItems.flatMap(application => {
+    if (application.id !== "games") return [application];
+    return [
+      { id: "minecraft", title: APPLICATION_LABELS.minecraft, applicationId: "minecraft" },
+      { id: "steamcmd", title: APPLICATION_LABELS.steamcmd, applicationId: "steamcmd" }
+    ];
+  }), [applicationNavigationItems]);
+  const appSwitcherMenuItems: MenuProps["items"] = useMemo(() => [
+    { key: "system:ai", label: "小鱼智能体" },
+    { type: "divider" },
+    ...applicationNavigationItems.map(application => ({ key: `application:${application.id}`, label: application.title })),
+    ...applicationSwitcherItems.filter(application => application.id === "minecraft" || application.id === "steamcmd")
+      .map(application => ({ key: `application:${application.id}`, label: application.title })),
+    { type: "divider" },
+    { key: "system:plugins", label: "插件管理" }
+  ], [applicationNavigationItems, applicationSwitcherItems]);
+  const openApplicationFromSwitcher = useCallback((key: string) => {
+    if (key === "system:ai") { onNavigate(SHARED_WORK_ROUTE); return; }
+    if (key === "system:plugins") { onNavigate("/plugin-manager"); return; }
+    const application = [...applicationNavigationItems, ...applicationSwitcherItems]
+      .find(item => `application:${item.id}` === key);
+    if (application?.route) { onNavigate(application.route); return; }
+    if (application?.applicationId) void onOpenApplication(application.applicationId, "normal").catch(() => undefined);
+  }, [applicationNavigationItems, applicationSwitcherItems, onNavigate, onOpenApplication]);
   const [wallpaperEngineClientAvailable, setWallpaperEngineClientAvailable] = useState(() => document.body.hasAttribute("data-lfaa-wallpaper-engine-client"));
   const shortcutSettingsRef = useRef(settings.shortcuts);
   useLayoutEffect(() => { shortcutSettingsRef.current = settings.shortcuts; }, [settings.shortcuts]);
@@ -508,7 +507,6 @@ export function Workbench({
   }, [settings.general.language]);
   // 草稿按账户/App 从浏览器读取一次；已发送消息和活动会话仍由各自既有 Owner 管理。
   const [aiWorkUiState, setAiWorkUiState] = useState<AiWorkUiState>(() => ({ activeSessionId: readActiveAiSession(user.id, "workspace") ?? readActiveAiSession(user.id, preferences.selectedApp) }));
-  const [pendingAiWorkGoal, setPendingAiWorkGoal] = useState<AiWorkGoalRequest | null>(null);
   const [notifications, setNotifications] = useState<AiWorkNotification[]>([]);
   const [notificationToast, setNotificationToast] = useState<AiWorkNotification | null>(null);
   const [desktopUpdatePrompt, setDesktopUpdatePrompt] = useState<DesktopUpdatePrompt | null>(null);
@@ -936,7 +934,7 @@ export function Workbench({
   } else if (isFileManagerPage) {
     pageContent = (
       <Suspense fallback={<div className="loading-page loading-page--compact"><span className="loading-indicator" aria-hidden="true" /></div>}>
-        <FileManagerPage user={user} settings={settings} serverState={serverState} homeRoute={fileManagerHomeRoute} applications={allApplicationNavigationItems} navigationApplications={applicationNavigationItems} onOpenApplication={onOpenApplication} onOpenApplications={requestApplicationsOpen} onOpenRecentSessions={requestRecentSessionsOpen} onNavigate={onNavigate} onOpenSettings={() => openSettings()} onLogout={onLogout} />
+        <FileManagerPage user={user} settings={settings} serverState={serverState} applications={allApplicationNavigationItems} navigationApplications={applicationNavigationItems} onOpenApplication={onOpenApplication} onOpenApplications={requestApplicationsOpen} onOpenRecentSessions={requestRecentSessionsOpen} onNavigate={onNavigate} onOpenSettings={() => openSettings()} onLogout={onLogout} />
       </Suspense>
     );
   } else if (isCanvasHomePage) {
@@ -991,7 +989,6 @@ export function Workbench({
           error={error}
           onBack={() => onNavigate(isGameLibraryRoute ? "/games" : `/apps/${modeApp === "workspace" ? preferences.selectedApp : modeApp}/normal`)}
           onOpenSelectedApplication={() => onOpenApplication(preferences.selectedApp, "ai-work")}
-          onSelectedModeHome={() => onNavigate(isGameLibraryRoute ? "/games" : modeApp === "workspace" ? SHARED_WORK_ROUTE : `/apps/${modeApp}/normal`)}
           onNavigate={onNavigate}
           onOpenSettings={openSettings}
           onOpenApplication={onOpenApplication}
@@ -1022,7 +1019,7 @@ export function Workbench({
       <section className="module-page" aria-labelledby="missing-route-heading">
         <Typography.Title id="missing-route-heading" level={2}>页面不存在</Typography.Title>
         <Typography.Paragraph>这个地址没有对应的工作台页面。</Typography.Paragraph>
-        <Button type="primary" onClick={() => onNavigate(SHARED_WORK_ROUTE)}>返回首页</Button>
+        <Button type="primary" onClick={() => onNavigate(SHARED_WORK_ROUTE)}>返回小鱼智能体</Button>
       </section>
     );
   }
@@ -1041,7 +1038,6 @@ export function Workbench({
       }
     }}>
     <div ref={workbenchShellRef} className={`workbench-shell${isModulePage ? " workbench-shell--module" : ""}${isSettingsPage ? " workbench-shell--settings" : ""}`} data-theme={resolvedTheme} data-background-image={wallpaperCanvasOwnership.hasWallpaperBackground ? "true" : "false"} data-wallpaper-engine-owner={wallpaperCanvasOwnership.wallpaperEngineOwnsCanvas ? "true" : "false"} data-custom-sidebar-color={customSidebarColor && !wallpaperCanvasOwnership.wallpaperEngineOwnsCanvas ? "true" : "false"} data-reduced-motion={appearanceAdvanced.reducedMotion} data-card-motion-effect={settings.general.cardMotionEffect ?? DEFAULT_USER_SETTINGS.general.cardMotionEffect} data-translucent-sidebar={appearanceAdvanced.translucentSidebar ? "true" : "false"} data-diff-markers={appearanceAdvanced.diffMarkers} data-pointer-cursor={appearanceAdvanced.pointerCursor ? "true" : "false"} data-ai-work-output-focus-blur={appearanceAdvanced.aiWorkOutputFocusBlurEnabled ? "true" : "false"} style={shellStyle as CSSProperties}>
-      {!preferences.guidedEntryCompleted ? <GuidedSystemEntry visibleApplications={guidedVisibleApplications} onComplete={onCompleteGuidedEntry} /> : <>
       {!isSettingsPage ? <header className="topbar">
         <button className="brand-lockup brand-lockup--button" type="button" onClick={() => onNavigate(SHARED_WORK_ROUTE)}>
           <span className="brand-mark" aria-hidden="true">L</span>
@@ -1075,6 +1071,9 @@ export function Workbench({
           <Button className="lfaa-update-entry" aria-label={`打开 LFAA ${desktopAvailableUpdate.version} 更新提示`} aria-haspopup="dialog" aria-expanded={updatePopoverOpen} onClick={openDesktopUpdatePrompt}>更新</Button>
         </Popover> : null}
         <nav className="topbar-nav" aria-label="主导航">
+          <Dropdown menu={{ items: appSwitcherMenuItems, onClick: ({ key }) => openApplicationFromSwitcher(key) }} trigger={["click"]} placement="bottomLeft">
+            <Button type="text" className={isApplicationWorkspacePage || isPluginManagerPage ? "nav-button nav-button--active" : "nav-button"} aria-haspopup="menu">应用</Button>
+          </Dropdown>
           <Button type="text" className={normalizeWorkRoute(route) === SHARED_WORK_ROUTE ? "nav-button nav-button--active" : "nav-button"} onClick={() => onNavigate(SHARED_WORK_ROUTE)}>小鱼智能体</Button>
           <Button type="text" className={isFileManagerPage ? "nav-button nav-button--active" : "nav-button"} onClick={() => onNavigate("/files")}>文件管理</Button>
           <Button type="text" className={isSettingsPage ? "nav-button nav-button--active" : "nav-button"} onMouseEnter={preloadSettingsPageModule} onFocus={preloadSettingsPageModule} onClick={() => openSettings()} aria-keyshortcuts="Control+, Meta+,">设置中心</Button>
@@ -1283,7 +1282,6 @@ export function Workbench({
         <span>LFAA 本机与远程主机应用工作台</span>
         <span>当前阶段：小鱼智能体工作台</span>
       </footer> : null}
-      </>}
     </div>
     </ConfigProvider>
   );

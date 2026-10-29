@@ -10,6 +10,7 @@
 
 | 编号 | 任务 | 状态 | 合同 |
 |---|---|---|---|
+| LFAA-AI-DESKTOP-SHELL-20261029 | 认证后直接进入小鱼智能体聊天/代码工作区；共享 AI 核心承载相互解耦的领域应用，并保留应用内功能边界 | 桌面入口、首次向导、模式主页图标和重复 AI 工作捷径已移除；Web 构建、`/games` 全局图标轨及 Minecraft 左二模块边界实页通过；插件运行时注册和内部应用市场仍待后续实现 | [当前合同](development/ai-desktop-shell-20261029.md#lfaa-ai-desktop-shell-20261029) |
 | LFAA-UNIFIED-APP-CHAT-CANVAS-20261028 | 让领域 App 统一为聊天、画布与手动三种工作方式，并把 AI 漫剧数据/编辑能力接入唯一画布工作区 | 源码和 Web 构建通过；内置浏览器验证三模式、同项目 Chat↔Canvas、窄容器与保留的手动页；Provider/桌面/手机设备未验，详见本轮合同 | [本轮合同](development/unified-app-chat-canvas-20261028.md#lfaa-unified-app-chat-canvas-20261028) |
 | LFAA-CANVAS-TOOLBAR-DEDUPLICATION-20261028 | 移除画布顶栏重复的工作流/自由画布与生成/画布分段栏，将选项保留在更多操作菜单 | 顶栏去重已完成；AI 漫剧模式切换黑屏复测进行中；历史实页验收与本次回归见合同 | [本轮合同](development/canvas-toolbar-deduplication-20261028.md#lfaa-canvas-toolbar-deduplication-20261028) |
 | LFAA-CANVAS-AGENT-IMAGE-MODEL-ROUTING-20261028 | 让画布 Agent 发现当前账户的图片模型，并按单次目标调用火山方舟 Agent Plan 图像能力 | 修复 `lfaa-canvas-generation` 缺少 Settings 凭据来源消费者登记；设置包、控制端/Web 构建、类型检查与 Web 健康检查通过；未发起真实 Agent/Provider 请求或计费生图，详见任务合同 | [本轮合同](development/canvas-agent-image-model-routing-20261028.md#lfaa-canvas-agent-image-model-routing-20261028) |

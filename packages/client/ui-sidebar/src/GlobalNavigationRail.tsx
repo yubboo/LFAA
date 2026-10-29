@@ -1,12 +1,12 @@
 /**
  * 文件：GlobalNavigationRail.tsx
  * 功能：提供应用工作区、文件页和设置中心共用的全局导航轨。
- * 作用：统一首页、应用菜单、最近 小鱼智能体 会话、工具、设置、快捷键、账户状态与退出登录入口；最近会话展开共享工作区 Dock，不持有会话列表副本。
+ * 作用：统一小鱼首页、应用菜单、最近会话、工具、设置、快捷键、账户状态与退出登录入口；不把当前应用主页或 AI Work 捷径混入全局图标轨。
  * 关联文件：packages/client/ui-sidebar/src/GlobalNavigationRail.css、packages/client/ui-workspace/src/ApplicationWorkspace.tsx、packages/client/ui-settings/src/SettingsPage.tsx、packages/client/ui-sidebar-files/src/FileManagerPage.tsx、packages/client/connection/src/api.ts、packages/client/resources/src/notification-runtime.ts。
  */
 import { useEffect, useRef, useState } from "react";
 import { userRoleLabel, type UserRole, type UserSettings } from "lfaa-client-connection/src/api.js";
-import type { ApplicationId, ApplicationNavigationId } from "lfaa-util-values/src/application-id.js";
+import { SHARED_WORK_ROUTE, type ApplicationId, type ApplicationNavigationId } from "lfaa-util-values/src/application-id.js";
 import type { ServiceState } from "lfaa-client-ui-primitives/src/ServiceStatus.js";
 import { WorkbenchIcon, type WorkbenchIconName } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
 import "./GlobalNavigationRail.css";
@@ -43,17 +43,15 @@ interface GlobalNavigationRailProps {
   serverState: ServiceState;
   shortcuts: UserSettings["shortcuts"];
   activePage: "home" | "files" | "plugins" | "settings" | "canvas" | "office";
-  homeLabel: string;
   applications: ApplicationNavigationItem[];
   navigationApplications?: ApplicationNavigationItem[];
   onOpenRecentSessions: () => void;
   showServiceStatus: boolean;
-  onHome: () => void;
   onNavigate: (path: string) => void;
   onOpenApplication: (app: ApplicationId, mode: "normal") => Promise<void>;
   onOpenFiles: () => void;
   onOpenCanvas?: () => void;
-  onOpenWork?: () => void;
+  isSharedWorkHome?: boolean;
   onOpenSettings: () => void;
   onLogout: () => void;
   onToggleTools?: () => void;
@@ -62,7 +60,7 @@ interface GlobalNavigationRailProps {
   onToggleApplications?: () => void;
 }
 
-export function GlobalNavigationRail({ className, username, role, serverState, shortcuts, activePage, homeLabel, applications, navigationApplications = applications, onOpenRecentSessions, showServiceStatus, onHome, onNavigate, onOpenApplication, onOpenFiles, onOpenCanvas, onOpenWork, onOpenSettings, onLogout, onToggleTools, applicationsExpanded = false, applicationsTargetId = "module-sidebar-applications", onToggleApplications }: GlobalNavigationRailProps) {
+export function GlobalNavigationRail({ className, username, role, serverState, shortcuts, activePage, applications, navigationApplications = applications, onOpenRecentSessions, showServiceStatus, onNavigate, onOpenApplication, onOpenFiles, onOpenCanvas, isSharedWorkHome = false, onOpenSettings, onLogout, onToggleTools, applicationsExpanded = false, applicationsTargetId = "module-sidebar-applications", onToggleApplications }: GlobalNavigationRailProps) {
   const [openPopover, setOpenPopover] = useState<"applications" | "menu" | "shortcuts" | "profile" | null>(null);
   const [menuSearch, setMenuSearch] = useState("");
   const railRef = useRef<HTMLElement>(null);
@@ -113,17 +111,17 @@ export function GlobalNavigationRail({ className, username, role, serverState, s
   const visibleFeatureGroups = featureGroups
     .map(group => ({ ...group, items: group.items.filter(item => `${item.title} ${item.description}`.toLocaleLowerCase().includes(normalizedMenuSearch)) }))
     .filter(group => group.items.length > 0);
+  const applicationsActive = (onToggleApplications ? applicationsExpanded : openPopover === "applications") || (activePage === "home" && !isSharedWorkHome);
   const featurePageActive = activePage === "office" || activePage === "files" || activePage === "canvas" || activePage === "plugins";
 
   return (
     <nav className={`module-navigation-rail${className ? ` ${className}` : ""}`} aria-label="LFAA 主导航" ref={railRef}>
       <div className="module-navigation-rail__top" role="group" aria-label="顶部入口">
-        <button className={`module-navigation-rail__button${activePage === "home" ? " is-active" : ""}`} type="button" aria-label={homeLabel} aria-current={activePage === "home" ? "page" : undefined} title={homeLabel} onClick={() => { setOpenPopover(null); onHome(); }}><WorkbenchIcon name="home" size={19} /></button>
+        <button className={`module-navigation-rail__button${isSharedWorkHome ? " is-active" : ""}`} type="button" aria-label={isSharedWorkHome ? "小鱼智能体" : "返回小鱼智能体"} aria-current={isSharedWorkHome ? "page" : undefined} title={isSharedWorkHome ? "小鱼智能体" : "返回小鱼智能体"} onClick={() => { setOpenPopover(null); onNavigate(SHARED_WORK_ROUTE); }}><WorkbenchIcon name="home" size={19} /></button>
       </div>
       <div className="module-navigation-rail__primary" role="group" aria-label="中部导航">
-        <button className={`module-navigation-rail__button${(onToggleApplications ? applicationsExpanded : openPopover === "applications") ? " is-active" : ""}`} type="button" aria-label="应用" title="应用" aria-haspopup={onToggleApplications ? undefined : "dialog"} aria-expanded={onToggleApplications ? applicationsExpanded : openPopover === "applications"} aria-controls={onToggleApplications ? applicationsTargetId : openPopover === "applications" ? "module-navigation-rail-applications" : undefined} onClick={toggleApplications}><WorkbenchIcon name="grid" size={19} /></button>
-        {onOpenWork ? <button className="module-navigation-rail__button" type="button" aria-label="工作 · 小鱼智能体" title="工作 · 小鱼智能体" onClick={() => { setOpenPopover(null); onOpenWork(); }}><WorkbenchIcon name="spark" size={19} /></button> : null}
-        <button className="module-navigation-rail__button" type="button" aria-label="最近会话" title="最近会话" aria-expanded={applicationsExpanded} aria-controls={applicationsExpanded ? "module-sidebar-applications" : undefined} onClick={() => {
+        <button className={`module-navigation-rail__button${applicationsActive ? " is-active" : ""}`} type="button" aria-label="应用" title="应用" aria-haspopup={onToggleApplications ? undefined : "dialog"} aria-expanded={onToggleApplications ? applicationsExpanded : openPopover === "applications"} aria-controls={onToggleApplications ? applicationsTargetId : openPopover === "applications" ? "module-navigation-rail-applications" : undefined} onClick={toggleApplications}><WorkbenchIcon name="grid" size={19} /></button>
+        <button className="module-navigation-rail__button" type="button" aria-label="最近会话" title="最近会话" onClick={() => {
           setOpenPopover(null);
           onOpenRecentSessions();
         }}><WorkbenchIcon name="history" size={19} /></button>

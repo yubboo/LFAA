@@ -177,10 +177,10 @@ export function AgentOfficePage({ user, settings, serverState, applications, nav
     <div className="agent-office-stage module-workbench-stage">
       <GlobalNavigationRail
         username={user.username} role={user.role} serverState={serverState} shortcuts={settings.shortcuts}
-        activePage="office" homeLabel="返回小鱼智能体工作区" applications={applications} navigationApplications={navigationApplications}
-        showServiceStatus={settings.general.showServiceStatus} onHome={() => onNavigate("/work")}
+        activePage="office" applications={applications} navigationApplications={navigationApplications}
+        showServiceStatus={settings.general.showServiceStatus}
         onToggleApplications={onOpenApplications} onOpenRecentSessions={onOpenRecentSessions} onNavigate={onNavigate}
-        onOpenApplication={onOpenApplication} onOpenWork={() => onNavigate("/work")} onOpenFiles={() => onNavigate("/files")}
+        onOpenApplication={onOpenApplication} onOpenFiles={() => onNavigate("/files")}
         onOpenSettings={onOpenSettings} onLogout={onLogout}
       />
       <main className="agent-office-page" aria-labelledby="agent-office-title">

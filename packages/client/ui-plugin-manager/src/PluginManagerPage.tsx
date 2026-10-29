@@ -558,16 +558,13 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
         serverState={serverState}
         shortcuts={settings.shortcuts}
         activePage="plugins"
-        homeLabel="返回小鱼智能体工作区"
         applications={applications}
         navigationApplications={navigationApplications}
         showServiceStatus={settings.general.showServiceStatus}
-        onHome={() => onNavigate("/work")}
         onToggleApplications={onOpenApplications ?? (() => onNavigate("/work"))}
         onOpenRecentSessions={onOpenRecentSessions}
         onNavigate={onNavigate}
         onOpenApplication={onOpenApplication}
-        onOpenWork={() => onNavigate("/work")}
         onOpenFiles={() => onNavigate("/files")}
         onOpenSettings={onOpenSettings}
         onLogout={onLogout}

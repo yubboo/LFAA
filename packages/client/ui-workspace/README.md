@@ -30,7 +30,7 @@ AI 漫剧“媒体与时间线”面板可在项目和时间线均已保存时�
 
 `/canvas` 首页使用 `CanvasHomeFluidBackground` 绘制连续流动的水面折射、高光焦散和空白处点击涟漪；自有 WebGL 波场以 CSS 流光作为无 WebGL 降级。动画读取 Appearance 强调色与 `appearance.advanced.reducedMotion`，按容器尺寸限制绘制像素数，页面隐藏时暂停并在卸载时撤销 RAF、ResizeObserver 和指针/可见性监听。背景透明叠加，不替换 Workbench 的 `appearance.backgrounds.appCenter` 壁纸、主题遮罩或 Wallpaper Engine。视觉参考 [MagineCanvas-Learn](https://github.com/Magine1921/MagineCanvas-Learn) 与 [在线试用页](https://magine-trial.magine1921.workers.dev/)；参考仓库为 AGPL-3.0-only，LFAA 不复制其着色器源码或图片资源，未新增依赖。
 
-整体布局由 `.module-workbench-stage` 外层盒子包住一个 `ResizableWorkbench` 根节点。图标功能区、二级菜单、中间工作区和右侧菜单作为根节点的四个同级区域直接传入；各区域 class 分别为 `module-workbench-region--leading`、`--secondary-navigation`、`--center-workspace`、`--right-menu`。分隔条与浮层是布局辅助元素，不把四个内容区域互相嵌套。公共几何样式从 `ui-dockkit/src/css/common.css` 复用；图标轨样式由 `ui-sidebar/src/GlobalNavigationRail.css` 负责，左二、中间、右侧内容盒子的样式分别由 `src/css/secondary-navigation.css`、`center-workspace.css`、`right-menu.css` 负责；`src/css/workbench-regions.css` 只保留四个同级区域共用的文字基线与底部面板样式。普通应用页面共用 `ApplicationNavigationPanel` 作为左二主导航，不在各 App 页面重复装配菜单；右侧显示当前应用工具与上下文。AI Work 左二保留会话/项目，右侧承载工具与资源。设置、文件和插件管理等独立页面继续由各自 UI 包维护。图标轨宽度继续使用现有 64px/48px 令牌，并沿用账户外观设置。
+整体布局由 `.module-workbench-stage` 外层盒子包住一个 `ResizableWorkbench` 根节点。图标功能区、二级菜单、中间工作区和右侧菜单作为根节点的四个同级区域直接传入；各区域 class 分别为 `module-workbench-region--leading`、`--secondary-navigation`、`--center-workspace`、`--right-menu`。分隔条与浮层是布局辅助元素，不把四个内容区域互相嵌套。公共几何样式从 `ui-dockkit/src/css/common.css` 复用；图标轨样式由 `ui-sidebar/src/GlobalNavigationRail.css` 负责，左二、中间、右侧内容盒子的样式分别由 `src/css/secondary-navigation.css`、`center-workspace.css`、`right-menu.css` 负责；`src/css/workbench-regions.css` 只保留四个同级区域共用的文字基线与底部面板样式。普通应用页面共用 `ApplicationNavigationPanel` 作为左二主导航，但只装配当前 App 的功能菜单；图标轨“应用”打开全局应用切换弹层。AI Work 左二保留会话/项目，右侧“应用”视图保留全局应用目录，工具与资源继续由右侧承载。设置、文件和插件管理等独立页面继续由各自 UI 包维护。图标轨宽度继续使用现有 64px/48px 令牌，并沿用账户外观设置。
 
 普通专业 App 页面复用同一主导航与中心标题栏；标题栏和主内容容器共用按中心列宽计算的水平锚点，并整体左移 8–16px，左右留白总量保持不变。宽列的基线留白为 20–32px，中心列不超过 560px 时为 8px/24px，不超过 360px 时为 8px/16px。专用 Writing、AI 漫剧与 AI Work 画布继续使用各自内容布局。
 
@@ -56,13 +56,13 @@ AI Work 主聊天从空闲切换到运行时自动展开 Git 摘要卡，并复�
 
 ## 小鱼共享工作入口（2026-10-14）
 
-根地址与默认首页进入 `/work` 小鱼智能体对话区。全局导航的“应用”入口打开右侧 Dock 的“应用与能力”视图，领域应用包括游戏服务、联机管理、写作空间和 AI 漫剧；系统画布作为跨应用共享工作模式单独呈现。SteamCMD 是 Steam 游戏服务器当前使用的执行技术，不作为产品分类。应用切换继续调用 Workbench/Client Renderer 已有打开与路由标记，不在菜单复制业务规则；视图选择状态由 Workbench 持有，切换路由后保持可用。
+根地址与默认首页进入 `/work` 小鱼智能体对话区。全局导航的“应用”入口在普通应用中打开全局应用切换弹层，在 AI Work 中切换右侧 Dock 的“应用与能力”视图；领域应用包括游戏服务、联机管理、写作空间和 AI 漫剧，系统画布作为跨应用共享工作模式单独呈现。SteamCMD 是 Steam 游戏服务器当前使用的执行技术，不作为产品分类。应用切换继续调用 Workbench/Client Renderer 已有打开与路由标记，不在菜单复制业务规则；视图选择状态由 Workbench 持有，切换路由后保持可用。
 
 右侧“应用与能力”视图复用相同的过滤后导航清单和 `SecondaryNavigation` 回调。应用入口卡片根据右栏实际内容宽度自动排成多列；窄栏和嵌入式窄容器自动回到单列。卡片表面、强调态和文字沿用 Appearance 共享令牌，不改变 `general.hiddenApplicationNavigationIds` 或 Dock 宽度偏好。
 
 设置、文件和插件页发出的跨页“应用”请求按 `requestId` 在工作区内最多消费一次：先标记并确认请求，再更新 Dock/工具页签状态。响应式测量或回调身份变化导致 effect 再执行时，已处理请求不会重放。
 
-`/work` 和专业应用共用固定四栏：全局导航轨、左侧二级栏、中间工作区、右侧工具/上下文栏。普通应用左二显示 `Workbench` 注入的 `applicationNavigationItems` 与当前应用子页面，由 `SecondaryNavigation` 呈现并调用现有路由/App 打开回调；AI Work 左二显示草稿、置顶、项目和最近会话。普通应用右栏只呈现当前应用工具、资源与状态；AI Work 右栏继续以“工具与资源”/“应用”视图访问工具及应用菜单。Minecraft、联机服务子菜单和写作目录 Portal 属于普通应用左二。全局应用按钮在普通应用中开合左二，在 AI Work 中切换右侧应用视图；设置、文件和插件管理页的打开请求进入 `/work` 并展示同一右侧应用视图。各区域尺寸、拖动、收起和响应式行为仍唯一归 `ResizableWorkbench`。
+`/work` 和专业应用共用固定四栏：全局导航轨、左侧二级栏、中间工作区、右侧工具/上下文栏。普通应用左二只显示当前 App 的功能模块；跨 App 的 `applicationNavigationItems` 由图标轨“应用”弹层切换，AI Work 右侧“应用”视图继续显示全局应用目录。普通应用右栏只呈现当前应用工具、资源与状态；AI Work 左二显示草稿、置顶、项目和最近会话，右栏承载工具与资源。Minecraft、联机服务菜单和写作目录 Portal 分别留在对应应用内；应用模式栏负责进入当前 App 的聊天或画布。设置、文件和插件管理页的打开请求进入 `/work` 并展示同一右侧应用视图。各区域尺寸、拖动、收起和响应式行为仍唯一归 `ResizableWorkbench`。
 
 AI Work 左侧项目分区与项目行的悬停/焦点背景覆盖整行，点击行内空白也可展开或收起；行内更多、编辑、项目新对话和创建项目按钮继续执行各自操作，不带动分区折叠。顶部新会话按钮显示“新对话”。会话滚动列表使用稳定滚动槽位，列表溢出状态变化不改变内容宽度。
 

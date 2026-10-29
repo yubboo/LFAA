@@ -51,11 +51,11 @@ export const developerHandbookSections: readonly DeveloperHandbookSection[] = [
     shortTitle: "左一 · 全局导航",
     eyebrow: "跨页面入口",
     title: "最左侧这一列负责什么",
-    summary: "全局导航轨让人不必先返回首页，就能切换到应用、最近会话、文件、插件、工具资源、设置和个人账户入口。",
+    summary: "所有页面共用同一条全局图标轨：小鱼智能体、应用、最近会话、设置及更多功能；当前 App 的模式主页与功能模块留在左二工作区菜单。",
     problem: "入口分散在各业务页时，用户需要记住每个页面的返回路径；把业务状态也放进这条导航又会造成两套状态。",
     owner: "呈现组件是 packages/client/ui-sidebar/src/GlobalNavigationRail.tsx；导航目标和业务打开逻辑由 packages/client/ui-layout/src/Workbench.tsx 提供。GlobalNavigationRail 不保存第二份会话清单或应用业务数据。",
     implementation: [
-      { label: "菜单项", detail: "组件根据 activePage 标记当前主页面，并通过 onHome、onOpenFiles、onOpenSettings、onNavigate 等回调请求 Workbench 导航。" },
+      { label: "菜单项", detail: "小鱼智能体入口固定进入共享 /work；应用、最近会话、设置及更多功能在各页面保持相同位置和样式。组件根据 activePage 标记当前主页面，并通过回调请求 Workbench 导航。" },
       { label: "最近会话", detail: "调用专属 onOpenRecentSessions。Workbench 进入共享 /work 后展开唯一会话 Dock，避免在全局轨再维护一份会话列表。" },
       { label: "服务状态", detail: "只有 general.showServiceStatus 开启时显示连接状态点；状态值来自真实 ServiceState。" },
       { label: "宽度", detail: "标准与紧凑宽度分别由 GLOBAL_NAVIGATION_RAIL_WIDTH 和 GLOBAL_NAVIGATION_RAIL_COMPACT_WIDTH 提供，不在调用页面重复定义。" }

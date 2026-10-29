@@ -639,38 +639,6 @@ export default function App() {
     await operation;
   }, []);
 
-  const handleCompleteGuidedEntry = useCallback(async (app: ApplicationId, mode: "chat" | "canvas" | "manual"): Promise<string | null> => {
-    const owner = currentUserRef.current?.id;
-    if (!owner) return "登录状态已失效，请重新登录后继续。";
-    const request = ++navigationSequence.current;
-    const isCurrent = () => request === navigationSequence.current && currentUserRef.current?.id === owner;
-    setError(null);
-    const operation = navigationSave.current.then(async () => {
-      if (!isCurrent()) return null;
-      const preferencesToSave: UserPreferences = {
-        ...preferencesRef.current,
-        guidedEntryCompleted: true,
-        ...(mode === "manual" && app !== "workspace" ? { selectedApp: app, selectedMode: "normal" as const } : {})
-      };
-      const result = await savePreferences(preferencesToSave);
-      if (currentUserRef.current?.id !== owner) return null;
-      preferencesRef.current = result.preferences;
-      setPreferences(result.preferences);
-      if (!isCurrent()) return null;
-
-      const targetRoute = app === "workspace"
-        ? mode === "canvas" ? "/apps/workspace/canvas" : SHARED_WORK_ROUTE
-        : mode === "chat" ? `/apps/${app}/ai-work`
-          : mode === "canvas" ? `/apps/${app}/canvas`
-            : app === "steamcmd" || app === "minecraft" ? `/games/${app}` : `/apps/${app}/normal`;
-      const needsApplicationEntry = mode !== "manual" || app !== "steamcmd" && app !== "minecraft";
-      routeTo(targetRoute, setRoute, needsApplicationEntry ? { applicationEntryApp: app } : {});
-      return null;
-    }).catch((saveError: unknown) => isCurrent() ? getErrorMessage(saveError) : null);
-    navigationSave.current = operation.then(() => undefined);
-    return operation;
-  }, []);
-
   async function handleLogout(): Promise<void> {
     navigationSequence.current += 1;
     clearClientSnapshots();
@@ -814,7 +782,6 @@ export default function App() {
         user={user}
         initialSettings={userSettings}
         preferences={preferences}
-        onCompleteGuidedEntry={handleCompleteGuidedEntry}
         serverState={serverState}
         route={route}
         error={error}

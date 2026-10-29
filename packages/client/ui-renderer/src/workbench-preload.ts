@@ -1,4 +1,5 @@
 /** 功能：提前准备受保护工作台路由所需的前端代码。作用：把可复用的路由判断和模块预热流程与 React 生命周期分开。 */
+import { SYSTEM_DESKTOP_ROUTE } from "lfaa-util-values/src/application-id.js";
 
 export interface WorkbenchPreloadModule {
   preloadSettingsPageForRoute: () => Promise<void>;
@@ -9,7 +10,8 @@ export type WorkbenchModuleLoader = () => Promise<WorkbenchPreloadModule>;
 const APP_WORKSPACE_ROUTE = /^\/apps\/(?:steamcmd|minecraft|connectivity|writing|workspace)\/(?:normal|ai-work)(?:\/|$)/u;
 
 export function shouldPreloadWorkbenchForRoute(pathname: string): boolean {
-  return pathname === "/settings"
+  return pathname === SYSTEM_DESKTOP_ROUTE
+    || pathname === "/settings"
     || /^\/games(?:\/|$)/u.test(pathname)
     || pathname === "/admin/users"
     || pathname === "/work" || pathname === "/tasks" || pathname === "/voice"

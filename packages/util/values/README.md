@@ -1,6 +1,6 @@
 # 共享纯数据合同
 
-`application-id.ts` 是完整 App ID 与显示名称权威，同时明确 Workspace/Minecraft 项目 Owner 子集、可供 AI Work 项目选择的业务 App 领域上下文集合与 App 路由模式。全局 `/work` 不要求选择 App；`/apps/<app>/ai-work` 保留领域聊天作用域，画布与手动面板继续使用同一 App ID。项目 Owner 的 `appId` 与用户选择的 `applicationIds` 是不同合同；关联只向 Agent 提供项目领域提示，不自动开放工具、执行或授权。
+`application-id.ts` 是完整 App ID 与显示名称权威，同时明确 Workspace/Minecraft 项目 Owner 子集、可供 AI Work 项目选择的业务 App 领域上下文集合与 App 路由模式。系统默认入口为 `/work`；根地址 `/`、旧 `/desktop`、`/tasks` 和通用 Workspace AI Work 地址都归一到 `/work`；`/apps/<app>/ai-work` 保留领域聊天作用域，画布与手动面板继续使用同一 App ID。项目 Owner 的 `appId` 与用户选择的 `applicationIds` 是不同合同；关联只向 Agent 提供项目领域提示，不自动开放工具、执行或授权。
 
 `canvas-node-types.ts` 是各 App 自由画布节点白名单；Canvas UI 的工具轨/新增菜单与 `canvas_*` Agent 工具读取同一映射。Minecraft、写作、AI 漫剧和通用工作区各自只暴露已登记的节点类型；通用 Canvas 的节点连线仍不代表可执行工作流。
 

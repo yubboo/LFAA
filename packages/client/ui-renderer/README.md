@@ -4,9 +4,9 @@ DSH Client 图可用时，Renderer 将 LFAA 工作台挂入 DSH UI Renderer/Slot
 
 ## 小鱼共享工作入口（2026-10-14）
 
-统一路由归一与认证恢复；根地址、登录恢复和默认首页进入 `/work` 小鱼智能体对话区。`/voice` 是同一 AI Work 工作区的全屏语音别名，不新增应用 ID 或认证范围。专业 App 从全局导航紧凑应用菜单打开，沿用现有应用入口标记与服务端认证/授权。旧工作地址刷新/历史归一。
+统一路由归一与认证恢复；根地址和认证后的默认入口直接进入 `/work` 小鱼智能体聊天与代码开发工作区；旧 `/desktop`、`/tasks` 和通用工作区 AI Work 路由继续归一到 `/work`。`/voice` 是同一 AI Work 工作区的全屏语音别名，不新增应用 ID 或认证范围。专业 App 从全局应用切换器打开，沿用现有应用入口标记与服务端认证/授权。旧工作地址刷新/历史归一。
 
-首次进入工作台的入口向导由 Workbench 显示，Renderer 只消费 `user_preferences.guided_entry_completed` 与 App 路由合同。提交前仍校验当前账户身份；聊天、画布或手动入口失败时保留向导并显示真实保存错误，跳过进入通用 `/work`。
+认证后直接进入小鱼工作区，不再显示首次进入向导；`guided_entry_completed` 作为旧账户数据字段保留兼容，不要求用户选择或保存首次工作入口。
 
 构建只写仓库根 dist/packages/client/ui-renderer/；当前合同见 [开发提示词](../../../docs/development/xiaoyu-agent.zh.md)。构建、合成模型、浏览器与真实模型/节点验收分别报告。
 

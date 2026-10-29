@@ -4767,16 +4767,13 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           serverState={serverState}
           shortcuts={settings.shortcuts}
           activePage="settings"
-          homeLabel="返回进入设置前的位置"
           applications={applications}
           navigationApplications={navigationApplications}
           showServiceStatus={settings.general.showServiceStatus}
-          onHome={onBack}
           onNavigate={onNavigate}
           onOpenApplication={onOpenApplication}
           onOpenRecentSessions={onOpenRecentSessions}
           onToggleApplications={onOpenApplications ?? (() => onNavigate("/work"))}
-          onOpenWork={() => onNavigate("/work")}
           onOpenFiles={() => onNavigate("/files")}
           onOpenSettings={onOpenSettings}
           onLogout={onLogout}

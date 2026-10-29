@@ -1,6 +1,8 @@
 # client/ui-layout
 
-首次进入引导由 `GuidedSystemEntry` 在 Workbench Shell 内呈现：始终提供通用工作区，业务 App 卡片跟随现有 `general.hiddenApplicationNavigationIds` 过滤。它只返回入口与工作模式选择；完成标记和具体路由由 Renderer 及既有 Preferences Owner 保存/装配，不卡片创建业务数据。页面使用 Workbench 当前 Appearance 令牌与减少动态效果状态。
+认证后默认进入 `/work` 小鱼智能体聊天与代码开发工作区。根地址 `/` 和旧地址 `/desktop` 通过共享路由合同归一到 `/work`；应用切换仍使用 Workbench 现有应用清单和受保护路由。
+
+Workbench 不再显示首次进入向导；既有 `guidedEntryCompleted` 偏好只保留数据兼容，不参与首页选择，也不被此入口改写。
 
 Workbench 将认证后的 `/agent-office` 懒加载到 `ui-workspace`，并复用模块 Shell、当前 Settings Appearance 和账户导航；员工状态和卡片布局由 `AgentOfficePage` 负责，Workbench 只做路由装配。办公室入口不启动或控制 Agent。
 
@@ -38,7 +40,7 @@ SteamCMD 未验证提示卡片中的操作链接受提示卡可用宽度约束�
 
 运行环境页的本机 Java 路径通过 `SystemFileLibrary` 的只读本机磁盘浏览选择，服务端仍沿用超级管理员与 `permissions.mode=full_access` 校验；所选路径仅交给 Runtime Manager 在用户点击登记后校验。远端节点不使用本机文件路径，继续由用户填写目标节点路径并在对应 Daemon 验证。
 
-Workbench 将 `/games/*` 全部装配到共享 `ApplicationWorkspace` 四栏 Shell。全局应用导航只呈现聚合入口“游戏服务”；运行环境、Minecraft 服务端与 Steam 游戏服务器为其内部视图。`GameLibraryPage`、`SteamcmdWorkspace` 是本包的组合适配器；Minecraft 实例/生命周期、Runtime Manager 和 SteamCMD 数据/任务仍归各自领域 Owner。旧 `/apps/{minecraft,steamcmd}/normal/*` 路由映射到 `/games/*`，内部 `ApplicationId`、认证和 Agent 工具合同保留。外观沿用 Settings/Appearance 共享令牌，不新增偏好；游戏服务与运行环境分类使用真实中心容器宽度重排卡片、分类入口及操作控件，不依赖全局窗口宽度。运行环境页标题、返回入口、设备选择和顶部操作保持紧凑对齐；窄中栏将返回、重检和存储操作收为有可访问名称的图标按钮，仍保留设备当前值。
+Workbench 将 `/games/*` 全部装配到共享 `ApplicationWorkspace` 四栏 Shell。`/games` 与 `/games/environments` 使用“游戏服务”聚合入口；`/games/minecraft/*` 和 `/games/steamcmd` 保留各自 `ApplicationId` 与专属左二功能菜单，全局应用切换单独由导航轨弹层承载。`GameLibraryPage`、`SteamcmdWorkspace` 是本包的组合适配器；Minecraft 实例/生命周期、Runtime Manager 和 SteamCMD 数据/任务仍归各自领域 Owner。旧 `/apps/{minecraft,steamcmd}/normal/*` 路由映射到 `/games/*`，内部认证和 Agent 工具合同保留。外观沿用 Settings/Appearance 共享令牌，不新增偏好；游戏服务与运行环境分类使用真实中心容器宽度重排卡片、分类入口及操作控件，不依赖全局窗口宽度。运行环境页标题、返回入口、设备选择和顶部操作保持紧凑对齐；窄中栏将返回、重检和存储操作收为有可访问名称的图标按钮，仍保留设备当前值。
 
 SteamCMD 分类读取设置中心已有节点模式与工具目录；默认选中本机控制端时，首次进入分类会选取在线 Windows x64 Daemon。安装、真实校验和完整卸载经 SteamCMD Owner；文件管理入口以账户限定的资源别名打开同一节点的 `steamcmd-runtime` 只读目录。窄容器将这组运行环境操作收为保留可访问名称的图标按钮。
 
