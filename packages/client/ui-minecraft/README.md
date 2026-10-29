@@ -20,7 +20,7 @@
 
 Minecraft 常规模式的“工作流”页提供无限画布式 Agent DAG：节点可拖动、连线表达前置依赖，位置与定义由账户隔离的 Workflow Owner 保存。每个节点仍运行于 Minecraft App 的现有 Agent Loop、Session 和 Minecraft 工具/权限链；当前运行按拓扑顺序串行执行，不提供循环、计划任务、跨 App 或任意代码节点。界面沿用现有外观设置与主题令牌，不新增设置项。浏览器编辑、拖动、连线、保存/刷新恢复和缩放验收见 `docs/PROMPTS.md` 的 `LFAA-AGENT-WORKFLOW-CANVAS-01`。
 
-Minecraft 工作流画布仍是专用适配器，继续处理 Minecraft 工具选择与 EULA。嵌入系统 Canvas 外壳时用 `visible` 暂停隐藏面板的运行状态刷新，并向当前画布 Agent 报告所选工作流的真实 ID/标题/更新时间；上下文只作定位提示。
+Minecraft 工作流画布仍是专用适配器，继续处理 Minecraft 工具选择与 EULA。嵌入系统 Canvas 外壳时用 `visible` 暂停隐藏面板的运行状态刷新，并向当前画布 Agent 报告所选工作流的真实 ID/标题/更新时间；上下文只作定位提示。Client 模块入口同时登记 `MinecraftWorkspace.js` 与 `MinecraftWorkflowCanvas.js`，供 `ApplicationWorkspace` 的动态模块加载器按需装配。
 
 Minecraft 的“联机”菜单跳转到独立的 LFAA 联机服务 App。Minecraft 包只登记当前账户拥有、节点在线且真实运行的 Java TCP 目标与已保存端口；不会在此包复制路由表单、创建公网映射或触碰开服/实例启停。完整游戏目标合同见 `packages/network/game-connectivity`。
 

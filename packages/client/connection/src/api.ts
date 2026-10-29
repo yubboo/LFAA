@@ -1995,15 +1995,16 @@ export interface AiVideoMediaAsset { assetId: string; name: string; mimeType: Ai
 export interface AiVideoTimelineClip { id: string; track: "video" | "audio" | "subtitle"; assetId?: string; text?: string; startSeconds: number; inPointSeconds: number; durationSeconds: number }
 export interface AiVideoWhiteModelItem { id: string; name: string; kind: "actor" | "block"; x: number; z: number; width: number; depth: number; height: number }
 export interface AiVideoWhiteModel { items: AiVideoWhiteModelItem[]; camera: { x: number; y: number; z: number; yaw: number; pitch: number; focalLength: number }; ratio: "16:9" | "9:16" | "1:1" }
-export interface AiVideoCanvas { id: string; title: string; script: string; characters: AiVideoReference[]; locations: AiVideoReference[]; shots: AiVideoShot[]; links: AiVideoShotLink[]; mediaAssets: AiVideoMediaAsset[]; timelineClips: AiVideoTimelineClip[]; whiteModel: AiVideoWhiteModel; createdAt: string; updatedAt: string }
-export type AiVideoCanvasInput = Pick<AiVideoCanvas, "title" | "script" | "characters" | "locations" | "shots" | "links" | "timelineClips" | "whiteModel">;
+export interface AiVideoCanvasLayout { viewport: { x: number; y: number; zoom: number }; nodePositions: Record<string, { x: number; y: number }> }
+export interface AiVideoCanvas { id: string; title: string; script: string; characters: AiVideoReference[]; locations: AiVideoReference[]; shots: AiVideoShot[]; links: AiVideoShotLink[]; mediaAssets: AiVideoMediaAsset[]; timelineClips: AiVideoTimelineClip[]; whiteModel: AiVideoWhiteModel; canvasLayout: AiVideoCanvasLayout; createdAt: string; updatedAt: string }
+export type AiVideoCanvasInput = Pick<AiVideoCanvas, "title" | "script" | "characters" | "locations" | "shots" | "links" | "timelineClips" | "whiteModel"> & { canvasLayout?: AiVideoCanvasLayout };
 
 type AiVideoCanvasLimits = { canvases: number; shots: number; links: number; characters: number; locations: number; scriptCharacters: number; referencesPerShot: number; referenceImageBytes: number; referenceImageDimension: number; referenceImagePixels: number; imageAssetBytes: number; mediaAssetBytes: number; timelineClips: number; timelineSeconds: number };
 type AiVideoCanvasCollection = { canvases: AiVideoCanvas[]; limits: AiVideoCanvasLimits };
 const aiVideoCanvasLimitFields = ["canvases", "shots", "links", "characters", "locations", "scriptCharacters", "referencesPerShot", "referenceImageBytes", "referenceImageDimension", "referenceImagePixels", "imageAssetBytes", "mediaAssetBytes", "timelineClips", "timelineSeconds"] as const satisfies readonly (keyof AiVideoCanvasLimits)[];
 
-export async function loadAiVideoCanvases(): Promise<AiVideoCanvasCollection> {
-  const response: unknown = await request<unknown>("/ai-video/canvases");
+export async function loadAiVideoCanvases(signal?: AbortSignal): Promise<AiVideoCanvasCollection> {
+  const response: unknown = await request<unknown>("/ai-video/canvases", signal ? { signal } : {});
   const limits = isRecord(response) && isRecord(response.limits) ? response.limits : undefined;
   if (!isRecord(response) || !Array.isArray(response.canvases) || !limits || !aiVideoCanvasLimitFields.every(field => {
     const value = limits[field];
@@ -2037,8 +2038,8 @@ export function aiVideoShotImageUrl(canvasId: string, assetId: string): string {
 export function aiVideoAssetUrl(canvasId: string, assetId: string): string {
   return `/api/ai-video/canvases/${encodeURIComponent(canvasId)}/assets/${encodeURIComponent(assetId)}`;
 }
-export function loadAiVideoMediaAssets(canvasId: string): Promise<{ assets: AiVideoMediaAsset[] }> {
-  return request(`/ai-video/canvases/${encodeURIComponent(canvasId)}/media`);
+export function loadAiVideoMediaAssets(canvasId: string, signal?: AbortSignal): Promise<{ assets: AiVideoMediaAsset[] }> {
+  return request(`/ai-video/canvases/${encodeURIComponent(canvasId)}/media`, signal ? { signal } : {});
 }
 export function readAiVideoMediaAsset(canvasId: string, assetId: string): Promise<Blob> {
   return requestBinary(`/ai-video/canvases/${encodeURIComponent(canvasId)}/assets/${encodeURIComponent(assetId)}`);
@@ -3341,6 +3342,8 @@ export type AiWorkbenchView = {
   canvas?: { applicationId: ApplicationId; projectId: string; title: string; updatedAt: string };
   /** 当前 App 工作流路由中的短期定位信息；仅供 Agent 识别工作流，不代替 Owner 读取版本或授权。 */
   workflow?: { applicationId: ApplicationId; workflowId: string; title: string; updatedAt: string };
+  /** 当前领域 App 正在编辑的项目；只供 Agent 选择领域 Owner 工具的项目 ID，不包含正文或授权。 */
+  applicationProject?: { applicationId: ApplicationId; projectId: string; title: string; updatedAt: string };
 };
 
 function isNonnegativeSafeInteger(value: unknown): value is number {

@@ -7,6 +7,7 @@
  */
 import {
   canvasAssetUrl, createCanvasProject, deleteCanvasProject, saveCanvasProject, uploadCanvasAsset,
+  type AiVideoReference, type AiVideoTimelineClip, type AiVideoWhiteModel,
   type ApplicationId, type CanvasAssetMimeType, type CanvasEdge, type CanvasNode, type CanvasProject, type UserSettings
 } from "lfaa-client-connection/src/api.js";
 import type { DirectorDeskObject, DirectorDeskSceneData } from "lfaa-client-ui-primitives/src/DirectorDeskStage.js";
@@ -46,7 +47,8 @@ export const CANVAS_ASSET_MIME_TYPES: readonly CanvasAssetMimeType[] = [
 
 /** 画布客户端注册的节点类型（合同 5.2）；服务端只校验类型模式与有界 JSON。 */
 export const CANVAS_NODE_KINDS = [
-  "text", "note", "image", "video", "audio", "generation", "subject", "timeline", "director-toolbox", "director-desk", "script", "asset"
+  "text", "note", "image", "video", "audio", "generation", "subject", "timeline", "director-toolbox", "director-desk", "script", "asset",
+  "shot", "aivideo-reference", "aivideo-timeline", "aivideo-director"
 ] as const;
 export type CanvasNodeKind = typeof CANVAS_NODE_KINDS[number];
 
@@ -96,6 +98,7 @@ export function createDefaultDirectorDeskScene(): DirectorDeskSceneData {
 }
 export type CanvasScriptStatus = "draft" | "ready";
 export interface CanvasScriptData { title: string; body: string; status: CanvasScriptStatus }
+export interface AiVideoReferenceNodeData extends AiVideoReference { kind: "characters" | "locations" }
 
 /** 画布界面读取的设置中心 canvas 分区（权威 Owner 为 settings-contract + settings + ui-settings）。 */
 export interface CanvasUiSettings {
@@ -421,6 +424,83 @@ export function normalizeCanvasNodeData(kind: CanvasNodeKind, raw: unknown, cont
     case "script":
       normalized = { script: normalizeScriptData(data.script, label) };
       break;
+    case "shot": {
+      if (!isRecord(data.shot)) throw new Error(label + "缺少镜头数据。");
+      const shot = data.shot;
+      const durationSeconds = Number(shot.durationSeconds);
+      const characterIds = Array.isArray(shot.characterIds) ? shot.characterIds.slice(0, 8).filter((id): id is string => typeof id === "string") : [];
+      const task = isRecord(shot.videoTask) ? shot.videoTask : undefined;
+      normalized = {
+        shot: {
+          id: typeof shot.id === "string" ? shot.id : "",
+          title: readTrimmed(shot.title, 80, "未命名镜头"),
+          description: readText(shot.description, 1_000, ""),
+          dialogue: readText(shot.dialogue, 2_000, ""),
+          durationSeconds: Number.isInteger(durationSeconds) ? clampNumber(durationSeconds, 1, 120) : 5,
+          characterIds,
+          ...(typeof shot.locationId === "string" && shot.locationId ? { locationId: shot.locationId } : {}),
+          ...(typeof shot.imageAssetId === "string" && typeof shot.imageMimeType === "string" ? { imageAssetId: shot.imageAssetId, imageMimeType: shot.imageMimeType } : {}),
+          ...(typeof shot.videoAssetId === "string" && shot.videoMimeType === "video/mp4" ? { videoAssetId: shot.videoAssetId, videoMimeType: "video/mp4" } : {}),
+          ...(task ? { videoTask: task } : {})
+        }
+      };
+      break;
+    }
+    case "aivideo-reference": {
+      if (!isRecord(data.reference) || data.reference.kind !== "characters" && data.reference.kind !== "locations") throw new Error(label + "档案类型无效。");
+      const reference = data.reference;
+      normalized = { reference: {
+        id: readTrimmed(reference.id, 64, ""),
+        kind: reference.kind,
+        name: readTrimmed(reference.name, 80, "未命名档案"),
+        description: readText(reference.description, 2_000, ""),
+        ...(typeof reference.imageAssetId === "string" ? { imageAssetId: reference.imageAssetId } : {}),
+        ...(typeof reference.imageMimeType === "string" ? { imageMimeType: reference.imageMimeType } : {})
+      } };
+      break;
+    }
+    case "aivideo-timeline": {
+      const clips = readArray(data.clips, "漫剧时间线片段", 256).map((rawClip, index) => {
+        if (!isRecord(rawClip) || rawClip.track !== "video" && rawClip.track !== "audio" && rawClip.track !== "subtitle") throw new Error(label + "第 " + (index + 1) + " 个片段类型无效。");
+        const readSeconds = (value: unknown) => typeof value === "number" && Number.isFinite(value) ? clampNumber(value, 0, 300) : 0;
+        const clip: AiVideoTimelineClip = {
+          id: readTrimmed(rawClip.id, 64, ""),
+          track: rawClip.track,
+          startSeconds: readSeconds(rawClip.startSeconds),
+          inPointSeconds: readSeconds(rawClip.inPointSeconds),
+          durationSeconds: Math.max(0.1, readSeconds(rawClip.durationSeconds))
+        };
+        if (typeof rawClip.assetId === "string") clip.assetId = rawClip.assetId;
+        if (typeof rawClip.text === "string") clip.text = readText(rawClip.text, 1_000, "");
+        return clip;
+      });
+      normalized = { clips };
+      break;
+    }
+    case "aivideo-director": {
+      if (!isRecord(data.whiteModel) || !isRecord(data.whiteModel.camera) || !Array.isArray(data.whiteModel.items)) throw new Error(label + "导演台数据无效。");
+      const source = data.whiteModel;
+      const camera = source.camera as Record<string, unknown>;
+      const rawItems = source.items as unknown[];
+      const finite = (value: unknown, fallback: number, min: number, max: number) => typeof value === "number" && Number.isFinite(value) ? clampNumber(value, min, max) : fallback;
+      const items = rawItems.slice(0, 32).filter(isRecord).map(item => ({
+        id: readTrimmed(item.id, 64, ""),
+        name: readTrimmed(item.name, 50, "白模对象"),
+        kind: item.kind === "actor" ? "actor" as const : "block" as const,
+        x: finite(item.x, 0, -50, 50), z: finite(item.z, 0, -50, 50),
+        width: finite(item.width, 1, 0.2, 20), depth: finite(item.depth, 1, 0.2, 20), height: finite(item.height, 1, 0.2, 20)
+      }));
+      const whiteModel: AiVideoWhiteModel = {
+        items,
+        camera: {
+          x: finite(camera.x, 0, -100, 100), y: finite(camera.y, 1.6, -5, 100), z: finite(camera.z, -8, -100, 100),
+          yaw: finite(camera.yaw, 0, -360, 360), pitch: finite(camera.pitch, -4, -85, 85), focalLength: finite(camera.focalLength, 50, 18, 120)
+        },
+        ratio: source.ratio === "9:16" || source.ratio === "1:1" ? source.ratio : "16:9"
+      };
+      normalized = { whiteModel };
+      break;
+    }
     default:
       throw new Error(label + "不受支持。");
   }

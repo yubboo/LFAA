@@ -379,7 +379,7 @@ export function Workbench({
 }: WorkbenchProps) {
   const appCanvasRoute = route.match(APP_CANVAS_ROUTE_PATTERN);
   const appRoute = appCanvasRoute
-    ? [route, "workspace", "ai-work", "canvas"]
+    ? [route, appCanvasRoute[1], "ai-work", "canvas"]
     : route === "/voice"
     ? [route, "workspace", "ai-work", "voice"]
     : normalizeWorkRoute(route) === SHARED_WORK_ROUTE ? [route, "workspace", "ai-work", "overview"] : gameLibraryApplicationRoute(route) ?? route.match(APPLICATION_ROUTE_PATTERN);
@@ -622,7 +622,7 @@ export function Workbench({
     setRecentSessionsOpenRequestId(current => current === requestId ? null : current);
   }, []);
   const openApplicationFromCurrentPage = useCallback((targetApp: ApplicationId) => {
-    void onOpenApplication(targetApp, "normal").catch(() => undefined);
+    void onOpenApplication(targetApp, "ai-work").catch(() => undefined);
   }, [onOpenApplication]);
   const requestApplicationsOpen = useCallback(() => {
     setWorkspaceRightPanelSection("applications");
@@ -958,9 +958,9 @@ export function Workbench({
       </Suspense>
     );
   } else if (appRoute) {
-    const canvasMode = Boolean(appCanvasRoute);
     const app = appRoute[1] as ApplicationId;
-    const modeApp = canvasMode ? appCanvasRoute?.[1] as ApplicationId : app;
+    const canvasMode = Boolean(appCanvasRoute);
+    const modeApp = canvasMode ? (appCanvasRoute?.[1] as ApplicationId | undefined) ?? app : app;
     const mode = canvasMode ? "ai-work" : appRoute[2] as ApplicationMode;
     const section = canvasMode ? "canvas" : appRoute[3] || "overview";
     const aiState = aiWorkUiState;
@@ -973,7 +973,7 @@ export function Workbench({
           mode={mode}
           section={section}
           canvasWorkspace={canvasMode ? {
-            applicationId: appCanvasRoute?.[1] as ApplicationId,
+            applicationId: (appCanvasRoute?.[1] as ApplicationId | undefined) ?? app,
             initialProjectId: appCanvasRoute?.[2],
             applications: canvasApplicationItems.map(item => ({ title: item.title, applicationId: item.applicationId! }))
           } : undefined}
@@ -990,7 +990,7 @@ export function Workbench({
           serverState={serverState}
           error={error}
           onBack={() => onNavigate(isGameLibraryRoute ? "/games" : `/apps/${modeApp === "workspace" ? preferences.selectedApp : modeApp}/normal`)}
-          onOpenSelectedApplication={() => onOpenApplication(preferences.selectedApp, "normal")}
+          onOpenSelectedApplication={() => onOpenApplication(preferences.selectedApp, "ai-work")}
           onSelectedModeHome={() => onNavigate(isGameLibraryRoute ? "/games" : modeApp === "workspace" ? SHARED_WORK_ROUTE : `/apps/${modeApp}/normal`)}
           onNavigate={onNavigate}
           onOpenSettings={openSettings}

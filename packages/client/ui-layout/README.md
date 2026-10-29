@@ -22,7 +22,7 @@ Workbench 提供唯一的 `applicationNavigationItems` 工作台入口清单，�
 
 `/work`、全屏语音入口 `/voice` 与应用 `workspace/ai-work` 路由会在应用工作区模块加载时并行预热 AI 聊天模块，缩短嵌套懒加载形成的首屏等待。预热只在 AI Work 路由触发；失败不阻断模块正常加载，失败 Promise 会清空以便后续重试。
 
-`/apps/<app>/canvas` 仍使用独立的全幅画布展示，但由 `ApplicationWorkspace` 提供 AI Work 的真实会话状态，再把唯一 `AiWorkChat` 内容作为面板槽交给 `CanvasWorkspace`；Workbench 不创建第二个聊天运行时。
+各业务 App 共用 `Workbench` 四栏布局，聊天与画布分别复用唯一 `AiWorkChat`、`CanvasWorkspace`；`ApplicationWorkspace` 传入当前 App 上下文，画布读取该 App 已登记的节点目录。手动模式保留给领域 App 自己的业务面板。AI 漫剧的 `/apps/aivideo/ai-work`、`/apps/aivideo/canvas`、`/apps/aivideo/normal` 分别对应绑定漫剧上下文的聊天、共享画布与漫剧专属手动工作台；三个入口使用同一 AI Video 项目 Owner，不复制项目数据。
 
 ## 小鱼共享工作入口（2026-10-14）
 

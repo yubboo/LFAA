@@ -24,8 +24,8 @@ type AiVideoImageGenerationTarget =
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const MAX_COORDINATE = 50_000;
 const PROJECT_FORMAT = "lfaa-aivideo-project";
-const PROJECT_FORMAT_VERSION = 6;
-const SUPPORTED_PROJECT_FORMAT_VERSIONS = new Set([1, 2, 3, 4, 5, PROJECT_FORMAT_VERSION]);
+const PROJECT_FORMAT_VERSION = 7;
+const SUPPORTED_PROJECT_FORMAT_VERSIONS = new Set([1, 2, 3, 4, 5, 6, PROJECT_FORMAT_VERSION]);
 const LEGACY_FILE_NAME = "storyboards.json";
 const LEGACY_BACKUP_FILE_NAME = "storyboards.v1.migrated.json";
 const videoPollLeases = new Set<string>();
@@ -74,6 +74,10 @@ export interface AiVideoMediaAssetSummary extends AiVideoMediaAsset { available:
 export interface AiVideoTimelineClip { id: string; track: "video" | "audio" | "subtitle"; assetId?: string; text?: string; startSeconds: number; inPointSeconds: number; durationSeconds: number }
 export interface AiVideoWhiteModelItem { id: string; name: string; kind: "actor" | "block"; x: number; z: number; width: number; depth: number; height: number }
 export interface AiVideoWhiteModel { items: AiVideoWhiteModelItem[]; camera: { x: number; y: number; z: number; yaw: number; pitch: number; focalLength: number }; ratio: "16:9" | "9:16" | "1:1" }
+export interface AiVideoCanvasLayout {
+  viewport: { x: number; y: number; zoom: number };
+  nodePositions: Record<string, { x: number; y: number }>;
+}
 
 export interface AiVideoCanvas {
   id: string;
@@ -86,6 +90,7 @@ export interface AiVideoCanvas {
   mediaAssets: AiVideoMediaAsset[];
   timelineClips: AiVideoTimelineClip[];
   whiteModel: AiVideoWhiteModel;
+  canvasLayout: AiVideoCanvasLayout;
   createdAt: string;
   updatedAt: string;
 }
@@ -111,7 +116,7 @@ export interface AiVideoCanvasService {
 }
 
 interface LegacyCanvasStore { schemaVersion: 1; canvases: AiVideoCanvas[] }
-interface CanvasInput { title: string; script?: string; characters?: AiVideoReference[]; locations?: AiVideoReference[]; shots: AiVideoShot[]; links: AiVideoShotLink[]; timelineClips?: AiVideoTimelineClip[]; whiteModel?: AiVideoWhiteModel }
+interface CanvasInput { title: string; script?: string; characters?: AiVideoReference[]; locations?: AiVideoReference[]; shots: AiVideoShot[]; links: AiVideoShotLink[]; timelineClips?: AiVideoTimelineClip[]; whiteModel?: AiVideoWhiteModel; canvasLayout?: AiVideoCanvasLayout }
 type ProjectAsset = { assetId: string; mimeType: AiVideoMediaMimeType };
 interface CanvasProjectFile { format: typeof PROJECT_FORMAT; formatVersion: typeof PROJECT_FORMAT_VERSION; canvas: AiVideoCanvas }
 interface StoredCanvas { canvas: AiVideoCanvas; bytes: number }
@@ -122,6 +127,31 @@ export class AiVideoCanvasConflictError extends Error {
 
 function fail(message: string): never { throw new Error(message); }
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }
+
+function normalizeCanvasLayout(value: unknown): AiVideoCanvasLayout {
+  if (value === undefined) return { viewport: { x: 0, y: 0, zoom: 1 }, nodePositions: {} };
+  if (!isRecord(value) || Object.keys(value).some(key => key !== "viewport" && key !== "nodePositions")
+    || !isRecord(value.viewport) || Object.keys(value.viewport).some(key => !["x", "y", "zoom"].includes(key))
+    || !isRecord(value.nodePositions) || Object.keys(value.nodePositions).length > 128) return fail("漫剧画布布局格式无效。");
+  const coordinate = (input: unknown, label: string, min: number, max: number) => {
+    const number = Number(input);
+    if (!Number.isFinite(number) || number < min || number > max) return fail(`${label}超出可用范围。`);
+    return Number(number.toFixed(2));
+  };
+  const x = coordinate(value.viewport.x, "画布视口横坐标", -100_000, 100_000);
+  const y = coordinate(value.viewport.y, "画布视口纵坐标", -100_000, 100_000);
+  const zoom = coordinate(value.viewport.zoom, "画布缩放比例", 0.05, 8);
+  const nodePositions: AiVideoCanvasLayout["nodePositions"] = {};
+  for (const [key, position] of Object.entries(value.nodePositions)) {
+    if (!/^(?:script|timeline|director|character:[0-9a-f-]{36}|location:[0-9a-f-]{36}|asset:[0-9a-f-]{36})$/iu.test(key) || !isRecord(position)
+      || Object.keys(position).some(field => field !== "x" && field !== "y")) return fail("漫剧画布节点布局标识无效。");
+    nodePositions[key] = {
+      x: coordinate(position.x, "节点横坐标", -50_000, 50_000),
+      y: coordinate(position.y, "节点纵坐标", -50_000, 50_000)
+    };
+  }
+  return { viewport: { x, y, zoom }, nodePositions };
+}
 
 function normalizedText(value: unknown, label: string, maximum: number, allowEmpty = false): string {
   if (typeof value !== "string") return fail(`${label}必须是文本。`);
@@ -300,7 +330,7 @@ function normalizeVideoTask(value: unknown): AiVideoTask | undefined {
 }
 
 export function normalizeAiVideoCanvasInput(input: unknown): CanvasInput {
-  if (!isRecord(input) || Object.keys(input).some(key => !["title", "script", "characters", "locations", "shots", "links", "timelineClips", "whiteModel"].includes(key))) return fail("漫剧项目格式无效。");
+  if (!isRecord(input) || Object.keys(input).some(key => !["title", "script", "characters", "locations", "shots", "links", "timelineClips", "whiteModel", "canvasLayout"].includes(key))) return fail("漫剧项目格式无效。");
   const title = normalizedText(input.title, "画布名称", 80);
   const script = input.script === undefined ? undefined : normalizedDocument(input.script);
   const characters = input.characters === undefined ? undefined : normalizeReferences(input.characters, "角色档案", AI_VIDEO_CANVAS_LIMITS.characters);
@@ -360,9 +390,10 @@ export function normalizeAiVideoCanvasInput(input: unknown): CanvasInput {
 
   const timelineClips = input.timelineClips === undefined ? undefined : normalizeTimelineClips(input.timelineClips);
   const whiteModel = input.whiteModel === undefined ? undefined : normalizeWhiteModel(input.whiteModel);
+  const canvasLayout = input.canvasLayout === undefined ? undefined : normalizeCanvasLayout(input.canvasLayout);
 
   if (script !== undefined && characters !== undefined && locations !== undefined) validateShotReferences(shots, characters, locations);
-  return { title, ...(script !== undefined ? { script } : {}), ...(characters !== undefined ? { characters } : {}), ...(locations !== undefined ? { locations } : {}), shots, links, ...(timelineClips !== undefined ? { timelineClips } : {}), ...(whiteModel ? { whiteModel } : {}) };
+  return { title, ...(script !== undefined ? { script } : {}), ...(characters !== undefined ? { characters } : {}), ...(locations !== undefined ? { locations } : {}), shots, links, ...(timelineClips !== undefined ? { timelineClips } : {}), ...(whiteModel ? { whiteModel } : {}), ...(canvasLayout ? { canvasLayout } : {}) };
 }
 
 function aivideoDirectory(userId: string): string {
@@ -608,17 +639,17 @@ function removeProjectAssetAfterCommit(root: string, canvasId: string, asset: Pr
 }
 
 function normalizeStoredCanvas(value: unknown): AiVideoCanvas {
-  if (!isRecord(value) || Object.keys(value).some(key => !["id", "title", "script", "characters", "locations", "shots", "links", "mediaAssets", "timelineClips", "whiteModel", "createdAt", "updatedAt"].includes(key))) {
+  if (!isRecord(value) || Object.keys(value).some(key => !["id", "title", "script", "characters", "locations", "shots", "links", "mediaAssets", "timelineClips", "whiteModel", "canvasLayout", "createdAt", "updatedAt"].includes(key))) {
     throw new Error("AI 漫剧项目画布格式无效；原文件已保留。");
   }
-  const normalized = normalizeAiVideoCanvasInput({ title: value.title, script: value.script, characters: value.characters, locations: value.locations, shots: value.shots, links: value.links, timelineClips: value.timelineClips ?? [], ...(value.whiteModel !== undefined ? { whiteModel: value.whiteModel } : {}) });
+  const normalized = normalizeAiVideoCanvasInput({ title: value.title, script: value.script, characters: value.characters, locations: value.locations, shots: value.shots, links: value.links, timelineClips: value.timelineClips ?? [], ...(value.whiteModel !== undefined ? { whiteModel: value.whiteModel } : {}), ...(value.canvasLayout !== undefined ? { canvasLayout: value.canvasLayout } : {}) });
   const mediaAssets = value.mediaAssets === undefined ? [] : Array.isArray(value.mediaAssets) && value.mediaAssets.length <= AI_VIDEO_CANVAS_LIMITS.assetFiles ? value.mediaAssets.map(normalizeMediaAsset) : fail("项目媒体清单超过上限；原文件已保留。");
   if (new Set(mediaAssets.map(asset => asset.assetId)).size !== mediaAssets.length) throw new Error("项目媒体素材 ID 重复；原文件已保留。");
   const id = normalizedId(value.id, "项目 ID");
   const createdAt = normalizedText(value.createdAt, "创建时间", 40);
   const updatedAt = normalizedText(value.updatedAt, "更新时间", 40);
   if (!Number.isFinite(Date.parse(createdAt)) || !Number.isFinite(Date.parse(updatedAt))) throw new Error("AI 漫剧项目时间无效；原文件已保留。");
-  const canvas: AiVideoCanvas = { id, ...normalized, script: normalized.script ?? "", characters: normalized.characters ?? [], locations: normalized.locations ?? [], mediaAssets, timelineClips: normalized.timelineClips ?? [], whiteModel: normalized.whiteModel ?? defaultWhiteModel(), createdAt, updatedAt };
+  const canvas: AiVideoCanvas = { id, ...normalized, script: normalized.script ?? "", characters: normalized.characters ?? [], locations: normalized.locations ?? [], mediaAssets, timelineClips: normalized.timelineClips ?? [], whiteModel: normalized.whiteModel ?? defaultWhiteModel(), canvasLayout: normalized.canvasLayout ?? normalizeCanvasLayout(undefined), createdAt, updatedAt };
   validateShotReferences(canvas.shots, canvas.characters, canvas.locations);
   validateTimelineAssets(canvas);
   return canvas;
@@ -787,7 +818,7 @@ export function createAiVideoCanvas(userId: string, title: unknown): AiVideoCanv
     const root = ensureCurrentFormat(userId);
     const records = readProjectCollection(root);
     const now = new Date().toISOString();
-    const canvas: AiVideoCanvas = { id: randomUUID(), title: normalizedTitle, script: "", characters: [], locations: [], shots: [], links: [], mediaAssets: [], timelineClips: [], whiteModel: defaultWhiteModel(), createdAt: now, updatedAt: now };
+    const canvas: AiVideoCanvas = { id: randomUUID(), title: normalizedTitle, script: "", characters: [], locations: [], shots: [], links: [], mediaAssets: [], timelineClips: [], whiteModel: defaultWhiteModel(), canvasLayout: normalizeCanvasLayout(undefined), createdAt: now, updatedAt: now };
     assertProjectCapacity(records, canvas);
     writeProject(root, canvas);
     return canvas;
@@ -852,6 +883,7 @@ export function updateAiVideoCanvas(userId: string, canvasId: string, expectedUp
       mediaAssets: current.mediaAssets,
       timelineClips: normalized.timelineClips ?? current.timelineClips,
       whiteModel: normalized.whiteModel ?? current.whiteModel,
+      canvasLayout: normalized.canvasLayout ?? current.canvasLayout,
       createdAt: current.createdAt,
       updatedAt: new Date().toISOString()
     };

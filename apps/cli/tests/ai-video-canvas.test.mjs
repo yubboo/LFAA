@@ -61,12 +61,14 @@ test("分镜画布按账户持久化，并拒绝过期写入和超界关系", as
     links: [
       { id: randomUUID(), source: firstShotId, target: secondShotId },
       { id: randomUUID(), source: secondShotId, target: firstShotId }
-    ]
+    ],
+    canvasLayout: { viewport: { x: -80, y: 24, zoom: 1.15 }, nodePositions: { script: { x: -180, y: -360 }, [`asset:${randomUUID()}`]: { x: 480, y: 80 } } }
   };
   const saved = owner.updateAiVideoCanvas("account-a", created.id, created.updatedAt, input);
   assert.equal(saved.title, input.title);
   assert.equal(saved.shots[0].x, -240);
   assert.equal(saved.links.length, 2);
+  assert.deepEqual(saved.canvasLayout, input.canvasLayout, "新画布位置与视口写入 AI Video Owner，而不是浏览器临时状态");
   assert.deepEqual(owner.listAiVideoCanvases("account-b"), []);
   assert.equal(owner.updateAiVideoCanvas("account-b", created.id, created.updatedAt, input), null);
   assert.throws(() => owner.updateAiVideoCanvas("account-a", created.id, created.updatedAt, input), owner.AiVideoCanvasConflictError);
@@ -76,6 +78,7 @@ test("分镜画布按账户持久化，并拒绝过期写入和超界关系", as
   const stored = JSON.parse(readFileSync(storedPath, "utf8"));
   assert.equal(stored.format, "lfaa-aivideo-project");
   assert.equal(stored.canvas.shots[1].dialogue, "谁在那里？");
+  assert.deepEqual(stored.canvas.canvasLayout, input.canvasLayout);
   assert.equal(owner.deleteAiVideoCanvas("account-b", created.id), false);
   assert.equal(owner.deleteAiVideoCanvas("account-a", created.id), true);
   assert.equal(existsSync(storedPath), false);

@@ -10,6 +10,8 @@
 
 | 编号 | 任务 | 状态 | 合同 |
 |---|---|---|---|
+| LFAA-UNIFIED-APP-CHAT-CANVAS-20261028 | 让领域 App 统一为聊天、画布与手动三种工作方式，并把 AI 漫剧数据/编辑能力接入唯一画布工作区 | 源码和 Web 构建通过；内置浏览器验证三模式、同项目 Chat↔Canvas、窄容器与保留的手动页；Provider/桌面/手机设备未验，详见本轮合同 | [本轮合同](development/unified-app-chat-canvas-20261028.md#lfaa-unified-app-chat-canvas-20261028) |
+| LFAA-CANVAS-TOOLBAR-DEDUPLICATION-20261028 | 移除画布顶栏重复的工作流/自由画布与生成/画布分段栏，将选项保留在更多操作菜单 | 顶栏去重已完成；AI 漫剧模式切换黑屏复测进行中；历史实页验收与本次回归见合同 | [本轮合同](development/canvas-toolbar-deduplication-20261028.md#lfaa-canvas-toolbar-deduplication-20261028) |
 | LFAA-CANVAS-AGENT-IMAGE-MODEL-ROUTING-20261028 | 让画布 Agent 发现当前账户的图片模型，并按单次目标调用火山方舟 Agent Plan 图像能力 | 修复 `lfaa-canvas-generation` 缺少 Settings 凭据来源消费者登记；设置包、控制端/Web 构建、类型检查与 Web 健康检查通过；未发起真实 Agent/Provider 请求或计费生图，详见任务合同 | [本轮合同](development/canvas-agent-image-model-routing-20261028.md#lfaa-canvas-agent-image-model-routing-20261028) |
 | LFAA-GUIDED-SYSTEM-ENTRY-20261028 | 首次登录后用引导卡片选择通用工作区或业务 App，再选择聊天、画布或手动工作模式 | 向导与偏好/路由装配已实现；早先 Web 构建与桌面/手机/短屏实页通过，后续共享源码使 Web 指纹过期，最终重建被无关 AI Work TS2554 阻断；偏好端到端未验证，详见任务合同 | [本轮合同](development/guided-system-entry-20261028.md#lfaa-guided-system-entry-20261028) |
 | LFAA-AI-WORK-CONFIGURED-MODEL-CATALOG-20261028 | AI Work 模型切换器汇总设置中心全部已配置账户的官方模型目录，并按真实账户模型能力展示元数据 | 根因已确认：当前切换器只读活动账户目录；修复与实页验收进行中，详见任务合同 | [本轮合同](development/ai-work-configured-model-catalog-20261028.md#lfaa-ai-work-configured-model-catalog-20261028) |

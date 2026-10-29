@@ -239,6 +239,22 @@
 
 .module-context__body { display: flex; min-height: 0; flex: 1; flex-direction: column; overflow: auto; }
 
+/* Canvas 中的应用聊天直接复用标准右栏外框/标题；仅内容盒切换为聊天所需的全高裁剪。 */
+.module-context--canvas-chat > .module-context__body--canvas-chat { min-width: 0; overflow: hidden; padding: 0; }
+
+.module-context--canvas-chat > .module-context__body--canvas-chat > .page-alert { position: relative; z-index: 1; flex: 0 0 auto; margin: 8px; }
+
+.module-context--canvas-chat > .module-context__body--canvas-chat > .module-ai-work-chat { display: flex; width: 100%; min-width: 0; min-height: 0; flex: 1 1 auto; }
+
+.module-context--canvas-chat > .module-context__body--canvas-chat > .module-ai-work-chat > .ai-work-chat:not(.ai-work-chat--voice) { position: relative; width: 100%; height: 100%; min-width: 0; min-height: 0; flex: 1 1 auto; margin: 0; padding-inline: 0; overflow: hidden; border: 0; border-radius: 0; background: transparent; box-shadow: none; box-sizing: border-box; }
+
+.module-context--canvas-chat > .module-context__body--canvas-chat > .module-ai-work-chat > .ai-work-chat > .ai-work-chat__conversation { min-height: 0; flex: 1 1 auto; }
+
+.module-context--canvas-chat > .module-context__body--canvas-chat > .module-ai-work-chat > .ai-work-chat > .ai-work-chat__input-area { min-height: 0; }
+
+.module-context--canvas-chat > .module-context__body--canvas-chat > .module-ai-work-chat > .ai-work-chat > .ai-work-chat__composer,
+.module-context--canvas-chat > .module-context__body--canvas-chat > .module-ai-work-chat > .ai-work-chat > .ai-work-chat__usage-footer { width: min(calc(100% - 24px), 920px); }
+
 .module-context__default-content { display: flex; min-height: 0; flex: 1; flex-direction: column; }
 
 .module-context__default-content[hidden], .module-context__side-chat[hidden] { display: none; }

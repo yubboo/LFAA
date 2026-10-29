@@ -34,7 +34,7 @@ export function buildXiaoyuCore(config: Config = {}): LfaaPersonaCore {
         "- 我的世界：minecraft_* 负责核心目录、部署、启动/停止/重启、控制台、配置、日志、世界备份、删除与任务状态，runtime_* 负责 Java 等运行环境；方法见 prompt.minecraft.* 与 Skill minecraft-server-setup，专家 expert.minecraft-hosting。",
         "- Steam 游戏服务端：steamcmd_* 负责节点、安装/更新/启停/卸载任务、服务器登记与 DST 集群；专家 expert.steamcmd-hosting。Steam 客户端游戏本体不由 LFAA 启动。",
         "- AI 写作：writing_* 负责当前作品上下文、章节与修订、资料、作品 Skill、任务模板与提案保存；方法见 prompt.writing.*，专家 expert.ai-writing 与作品角色 expert.writing.*。",
-        "- 画布：canvas_* 负责列出/新建画布项目、分页读取项目/节点/连线/素材、增删改节点与连线，并用 canvas_generate_image 调用真实图片生成。画布是所有 App 共用的系统能力，但项目按账户 + App 隔离，调用时必须显式传 applicationId，写操作必须带最近返回的 expectedUpdatedAt。生成结果只以真实工具返回为准；视频生成、全景球面渲染、画质增强、即梦 CLI 与本地语音尚未接通时如实说明，方法见专家 expert.canvas-director。",
+        "- 画布：canvas_* 负责可用 App 的通用画布读写；画布 UI 是共享能力，项目按账户 + App 隔离，写操作必须带最近返回的 expectedUpdatedAt。AI 漫剧由同一画布 UI 呈现，但它的项目真源是 AI Video Owner，使用 aivideo_* 工具修改剧本、角色/场景、镜头、时间线、导演台和媒体；不要为漫剧另建通用 Canvas 项目。漫剧方法见 expert.aivideo-director；其它通用画布方法见 expert.canvas-director。生成结果只以真实工具回执为准。",
         "- 联机工具：面板、连接路线、目标与 EasyTier 运行包已经存在，但尚未接入 Agent 工具。涉及联机时如实说明当前只能带用户在「联机服务」面板里配置，并说明「LFAA 房间域名 Relay」与第三方 Provider 尚未接通；不要编造已创建的房间、隧道或已连通的玩家。",
         "- 能力安装：用户要装 Skill 时用 capability_install_skill 一次完成定位、检查、安装与回读（只复制文本，一次审批）；MCP 仍需 capability_search → capability_inspect → capability_install 两次审批。不要用 Shell、git clone 或 npm 代替安装入口；失败先读 capability_list 的真实状态。",
         "领域之外（AI 漫剧、通用文件与命令、浏览器、电脑操控）按同样的证据规则使用真实工具，不为凑领域而绕路。"

@@ -21,6 +21,9 @@ test("Client 只在已打开的 Browser Dock 且设置启用时传安全页面�
   assert.equal("browserUrl" in collapsed, false);
   const nonBrowser = createAgentWorkbenchView({ ...base, rightPane: "git", browserUseEnabled: true, activeBrowserUrl: "https://example.com/docs/start" });
   assert.equal("browserUrl" in nonBrowser, false);
+  const applicationProject = { applicationId: "aivideo", projectId: "88c69f39-6178-4a6f-92b0-b9e158b112ad", title: "漫剧项目", updatedAt: "2026-10-28T08:00:00.000Z" };
+  const appView = createAgentWorkbenchView({ ...base, browserUseEnabled: false, applicationProject });
+  assert.deepEqual(appView.applicationProject, applicationProject);
 });
 
 test("API 只接受已登记面板和条件匹配的 HTTP(S) 浏览器地址", () => {
@@ -32,6 +35,9 @@ test("API 只接受已登记面板和条件匹配的 HTTP(S) 浏览器地址", (
   assert.ok(aiChatMessageSchema.validate({ ...message, workspaceView: { ...valid, rightPane: "git" } }).error);
   assert.ok(aiChatMessageSchema.validate({ ...message, workspaceView: { ...valid, rightPaneOpen: false } }).error);
   assert.equal(aiChatMessageSchema.validate({ ...message, workspaceView: { rightPane: "project-file", rightPaneOpen: true, bottomTerminalOpen: false } }).error, undefined);
+  const applicationProject = { applicationId: "aivideo", projectId: "88c69f39-6178-4a6f-92b0-b9e158b112ad", title: "漫剧项目", updatedAt: "2026-10-28T08:00:00.000Z" };
+  assert.equal(aiChatMessageSchema.validate({ ...message, appId: "aivideo", workspaceView: { ...valid, applicationProject } }).error, undefined);
+  assert.ok(aiChatMessageSchema.validate({ ...message, workspaceView: { ...valid, applicationProject: { ...applicationProject, extra: true } } }).error);
 });
 
 test("Agent Loop 将受限 JSON 作为界面提示，不把它当能力或权限", () => {
@@ -49,4 +55,20 @@ test("Agent Loop 将受限 JSON 作为界面提示，不把它当能力或权限
   assert.ok(!disabled.includes("browserUrl"));
   assert.ok(formatAgentWorkbenchContext({ ...view, rightPane: "project-file" }, true)?.includes('"rightPane":"project-file"'));
   assert.equal(formatAgentWorkbenchContext({ ...view, rightPane: "not-a-pane" }, true), undefined);
+});
+
+test("Agent Loop 只向当前 App 提供当前领域项目定位，不把它当权限", () => {
+  const view = {
+    rightPane: "application-tools",
+    rightPaneOpen: true,
+    bottomTerminalOpen: false,
+    applicationProject: { applicationId: "aivideo", projectId: "88c69f39-6178-4a6f-92b0-b9e158b112ad", title: "漫剧项目", updatedAt: "2026-10-28T08:00:00.000Z" }
+  };
+  const currentApp = formatAgentWorkbenchContext(view, true, "aivideo");
+  assert.ok(currentApp?.includes('"projectId":"88c69f39-6178-4a6f-92b0-b9e158b112ad"'));
+  assert.ok(currentApp.includes("不代表项目存在"));
+  assert.ok(currentApp.includes("不代表工具可用或授权"));
+  const otherApp = formatAgentWorkbenchContext(view, true, "minecraft");
+  assert.ok(otherApp);
+  assert.ok(!otherApp.includes("88c69f39-6178-4a6f-92b0-b9e158b112ad"));
 });

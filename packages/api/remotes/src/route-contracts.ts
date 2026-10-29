@@ -255,6 +255,12 @@ const aiWorkbenchViewSchema = Joi.object({
     workflowId: Joi.string().guid({ version: ["uuidv4", "uuidv5"] }).required(),
     title: Joi.string().trim().max(80).required(),
     updatedAt: Joi.string().isoDate().required()
+  }).unknown(false),
+  applicationProject: Joi.object({
+    applicationId: Joi.string().valid(...APPLICATION_IDS).required(),
+    projectId: Joi.string().guid({ version: ["uuidv4", "uuidv5"] }).required(),
+    title: Joi.string().trim().max(80).required(),
+    updatedAt: Joi.string().isoDate().required()
   }).unknown(false)
 }).custom((value, helpers) => value.browserUrl !== undefined && (value.rightPane !== "browser" || !value.rightPaneOpen)
   ? helpers.error("any.invalid") : value).unknown(false);

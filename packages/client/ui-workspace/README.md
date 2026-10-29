@@ -2,7 +2,9 @@
 
 共享小鱼工作区接收 Workbench 投递的 `AiWorkGoalRequest` 并传给 `AiWorkChat`；聊天仍通过既有 Agent Loop 执行目标，没有 Provider 时保留草稿。
 
-`ApplicationWorkspace` 为领域 App 提供“聊天/画布/手动”三模式栏；聊天保留 App-scoped AI 会话，画布用同一 App ID 装配共享 Canvas Runtime 与已登记节点，手动面板仍由该 App 的数据 Owner 提供。`CanvasWorkspace` 复用既有全幅 Canvas 模板和真实 AiWorkChat 侧栏；顶部还可在自由画布与 App 工作流间切换：Minecraft 延用专用面板/许可行为，其他 App 使用 `ui-workflow/ApplicationWorkflowCanvas` 与各自已登记的 `<appId>.agent` 节点。Canvas 项目/工作流引用及更新时间仅随当前画布发送的新 Run 传递，不写入会话。已有 Canvas 外观、模式和助手栏设置继续生效。
+`ApplicationWorkspace` 为业务 App 共用四栏布局、聊天与画布 UI，并提供“聊天/画布/手动”三种模式。聊天复用唯一 `AiWorkChat` 和 Agent Runtime，绑定当前 App 上下文；画布复用唯一 `CanvasWorkspace` 与节点运行时，按 App 登记节点目录；只有手动面板由各领域 App 自己维护。AI 漫剧的 `/apps/aivideo/normal` 继续承载完整漫剧手动工作台，`/apps/aivideo/ai-work` 与 `/apps/aivideo/canvas` 则共用当前 AI Video 项目定位。通用 App 项目仍使用 Canvas Owner，AI 漫剧项目仍由 AI Video Owner 持有，Agent 通过漫剧工具修改同一份 Owner 数据。Canvas 项目/工作流引用及更新时间仅随当前画布发送的新 Run 传递，不写入会话。已有 Canvas 外观、默认模式和助手栏设置继续生效。
+
+Canvas 模式的 App 聊天复用标准 `module-context` 右栏外壳、标题和关闭按钮；`.module-context--canvas-chat` 只约束聊天正文的容器尺寸与溢出。从 App Chat 进入 Canvas 时展开同一 App、同一项目的聊天；直接进入 Canvas 时读取 `canvas.agentPanelDefaultOpen`。在 Canvas 手动收起只作用于当前画布视图。
 
 系统画布在“生成”模式中只对选中的图片、视频或生成节点显示上下文生成面板；面板按节点实际屏幕位置锚定在节点上下方，并随拖动、平移、缩放和容器变化重新定位。空画布用“添加生成节点”作为明确入口；新节点选中后再展开面板。选中图片/视频节点时，现有 Canvas Generation Owner 仍负责创建真实生成节点并把结果登记到当前画布项目素材库；选中生成节点时回填其已保存的提示词与参数。模型/账户/凭据、项目数据与生成任务状态继续分别归现有 Settings、Canvas、Credentials、Canvas Generation Owner，界面不复制规则。
 
@@ -12,7 +14,7 @@ AI Work 活动文件按钮按账户和当前 App 校验登记项目后打开可�
 
 2026-10-16：普通 App 是手动操作与成果管理面板，Agent 对话、能力资源和侧聊只在共享工作区展示。写作侧栏改用 `normal/WritingBookInfo`，保留作品信息与写作方法管理，不再提供 App 专属 AI Work 切换。普通面板不加载 Agent 能力目录；共享工作读取目录可取消，离开或切换账户时撤销请求。两类自定义模板（成果/应用面板）的目标与待实施范围见 [模板目标](../../../docs/development/application-panels-templates.zh.md)，本轮不声明模板运行时已实现。
 
-Web/Desktop 共用的应用工作区 UI。除通用 Workspace 外，`AiVideoCanvasWorkspace` 将单个 AI 漫剧项目呈现为剧本、角色/场景档案和 React Flow 分镜画布，通过 Client Connection 调用认证 API 保存，不把浏览器存储作为项目数据 Owner。
+Web/Desktop 共用的应用工作区 UI。AI 漫剧通过 `ai-video-canvas-adapter` 把项目 Owner 数据映射为共享 Canvas 节点：剧本、角色/场景档案、镜头（图像/视频生成）、媒体素材、时间线、白模导演台与布局位置。适配器只重用共享 UI，不复制项目数据或 Owner。漫剧 Agent 由现有 Agent Runtime 根据模型决策选择 `expert.aivideo-director`，使用限定为 aivideo 的 `aivideo_*` 工具写入同一项目；通用 `canvas_*` 工具不向 aivideo 暴露，避免生成第二份项目。
 
 AI 漫剧“媒体与时间线”面板可在项目和时间线均已保存时跳转到系统文件管理中的同一项目只读媒体投影；仅在现有文件权限可用时显示入口。项目媒体清单与文件字节仍由 AI Video Owner 持有，文件管理不创建副本。
 
@@ -22,7 +24,7 @@ AI 漫剧“媒体与时间线”面板可在项目和时间线均已保存时�
 
 系统画布的导演台节点由 `CanvasWorkspace` 打开 `CanvasDirectorDeskEditor`，编辑器消费 `ui-primitives` 的懒加载 `DirectorDeskStage`，提供程序化白模角色/场景块、对象列表与变换、环境/灯光、导演相机与实时取景预览。镜头及场景数据写入当前节点 `desk.scene`，沿用既有 Canvas Project API、账户/App 项目隔离和版本冲突校验；不创建第二份存储，也不调用生成服务。场景拖动吸附读取 `canvas.snapToGrid`，外观沿用 Appearance 共享主题令牌，编辑器按容器宽高适配窄栏与短屏。
 
-`/apps/<app>/canvas` 由 `ApplicationWorkspace` 装配唯一的 `AiWorkChat` 会话运行时，再将聊天内容交给 `CanvasWorkspace` 的 DockKit 右侧栏；画布右下角入口打开同一会话/流式 UI，关闭面板会保留已挂载的聊天实例。中心画布和助手由 `ResizableWorkbench` 作为相邻区域排布，桌面默认宽度沿用 DockKit 右栏初始规则（22%，240–340px），拖动时画布同步挤压，右栏最大占工作区 40%，让中心画布始终宽于助手；吸附收起、反向拖回、键盘调整及释放清理均复用同一组件。此面板不读写布局 localStorage，宽度只在页面实例内变化；容器变窄时沿用 DockKit 响应式 Dock/Overlay 规则。面板默认开合沿用账户级 `canvas.agentPanelDefaultOpen`，不复制会话状态或 Agent 执行链。
+`/apps/<app>/canvas` 由 `ApplicationWorkspace` 装配标准四栏 Workbench；中心 Canvas 只负责画布，右栏由外层工作区持有，并挂载同一个 `AiWorkChat` 会话运行时。右栏复用 `module-context` 外框、标题和关闭控件，聊天内容只通过限定的全高内容修饰类适配，不另建一套面板表面样式。画布中的“聊天/画布/手动”切换由共享标题栏管理；Canvas 不再嵌套第二个助手 Dock，也不再单独持有聊天开合状态。右栏开合沿用账户级 `canvas.agentPanelDefaultOpen`，宽度、拖动、键盘调整和释放清理继续由 Workbench/DockKit 负责，不复制会话状态或 Agent 执行链。AI 漫剧从 Canvas 打开的聊天继续使用当前 AI Video 项目定位。
 
 右下角“与 AI 对话”入口参考 [React Bits Flying Button](https://www.reactbits.dev/micro/flying-button) 的喷焰起飞视觉，但不复制其 WebGL 源码：桌面悬停时上升 84px；窄于 640px 的画布或高度不超过 640px 的视口收为 38px，并同步缩短喷焰和烟雾，避让窄屏底部控件。双喷焰和烟雾用 Canvas Owner 内的 CSS 渐变绘制；动画读取 Workbench 的 `appearance.advanced.reducedMotion` 映射，并尊重系统减少动态效果，触屏不触发起飞。上游许可证于 2026-10-26 核对为 MIT + Commons Clause；未运行 shadcn CLI、未新增依赖或上游源码，使用独立 CSS 实现以避免随产品打包再分发受限组件。
 

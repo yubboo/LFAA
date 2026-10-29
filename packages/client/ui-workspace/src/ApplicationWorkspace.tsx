@@ -180,6 +180,28 @@ const LAYOUT_KEY = "lfaa.module-workbench.layout.v1";
 const aiExtensionSnapshots = new Map<string, AiExtension[]>();
 const aiSessionSnapshots = new Map<string, AiSession[]>();
 const workspaceProjectSnapshots = new Map<string, { projects: WorkspaceProject[]; nodes: WorkspaceDaemonNode[]; truncated: boolean; defaultProjectId?: string | null }>();
+const canvasChatOpenByApplication = new Map<string, boolean>();
+let canvasChatStateOwnerId: string | null = null;
+
+function getCanvasChatOpenOverride(userId: string, applicationId: string): boolean | undefined {
+  if (canvasChatStateOwnerId !== userId) {
+    canvasChatOpenByApplication.clear();
+    canvasChatStateOwnerId = userId;
+  }
+  return canvasChatOpenByApplication.get(applicationId);
+}
+
+function setCanvasChatOpenOverride(userId: string, applicationId: string, open: boolean): void {
+  if (canvasChatStateOwnerId !== userId) {
+    canvasChatOpenByApplication.clear();
+    canvasChatStateOwnerId = userId;
+  }
+  if (!canvasChatOpenByApplication.has(applicationId) && canvasChatOpenByApplication.size >= 32) {
+    const oldestApplicationId = canvasChatOpenByApplication.keys().next().value;
+    if (oldestApplicationId) canvasChatOpenByApplication.delete(oldestApplicationId);
+  }
+  canvasChatOpenByApplication.set(applicationId, open);
+}
 // 项目侧栏每次按产品约定最多追加 5 条会话。
 const AI_WORK_PROJECT_SESSION_PAGE_SIZE = 5;
 const emptySessionDirectoryIds: ReadonlySet<string> = new Set();
@@ -606,7 +628,7 @@ function ApplicationNavigationPanel({ userId, app, mode, section, gameLibrary = 
       active: Boolean(item.applicationId && item.applicationId === app || item.id === "games" && gameLibrary),
       onSelect: () => {
         if (item.route) onNavigate(item.route);
-        else if (item.applicationId) void onOpenApplication(item.applicationId, "normal").catch(() => undefined);
+        else if (item.applicationId) void onOpenApplication(item.applicationId, "ai-work").catch(() => undefined);
       },
     }));
     const domainApplications = applicationNavigationItems.filter(item => item.id !== "canvas");
@@ -693,6 +715,13 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   const leftPreviewContextRef = useRef({ app, mode, section, layoutMode: metrics.mode });
   const sidebarRight = useSidebarRightSnapshot();
   const [chrome, setChrome] = useState(() => readChrome(metrics.mode, responsiveAppDock));
+  const [canvasChatOpen, setCanvasChatOpenState] = useState(() => getCanvasChatOpenOverride(userId, canvasWorkspace?.applicationId ?? app) ?? settings.canvas.agentPanelDefaultOpen);
+  const canvasChatContextRef = useRef({ userId, applicationId: canvasWorkspace?.applicationId ?? app, isCanvas: Boolean(canvasWorkspace), defaultOpen: settings.canvas.agentPanelDefaultOpen });
+  const canvasChatApplicationId = canvasWorkspace?.applicationId;
+  const setCanvasChatOpen = useCallback((open: boolean) => {
+    if (canvasChatApplicationId) setCanvasChatOpenOverride(userId, canvasChatApplicationId, open);
+    setCanvasChatOpenState(open);
+  }, [canvasChatApplicationId, userId]);
   const [chromeStorageMetadata] = useState(readChromeStorageMetadata);
   const [leftPaneWidth, setLeftPaneWidth] = useState(() => readWorkbenchLeftWidth(metrics.left, metrics.containerWidth));
   const [leftPreviewOpen, setLeftPreviewOpen] = useState(false);
@@ -736,6 +765,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   const [gitSummaryOpen, setGitSummaryOpen] = useState(false);
   const gitSummaryAvailableOnRunRef = useRef(mode === "ai-work" && !voiceMode && !canvasWorkspace);
   gitSummaryAvailableOnRunRef.current = mode === "ai-work" && !voiceMode && !canvasWorkspace;
+
   const gitSummaryMobileOnRunRef = useRef(metrics.mode === "mobile");
   gitSummaryMobileOnRunRef.current = metrics.mode === "mobile";
   const handleGitSummaryOpenChangeRef = useRef<(open: boolean) => void>(() => undefined);
@@ -807,6 +837,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   const [gitRepositoryChangeError, setGitRepositoryChangeError] = useState("");
   const [aiProviderStatus, setAiProviderStatus] = useState<string | null>(null);
   const [agentCanvasContext, setAgentCanvasContext] = useState<{ canvas: AiWorkbenchView["canvas"]; workflow: AiWorkbenchView["workflow"] }>({ canvas: undefined, workflow: undefined });
+  const [applicationProjectContextState, setApplicationProjectContextState] = useState<{ userId: string; project: AiWorkbenchView["applicationProject"] }>({ userId, project: undefined });
   const [canvasAgentChange, setCanvasAgentChange] = useState<{ revision: number; projectId: string | null }>({ revision: 0, projectId: null });
   const [newAiSessionKey, setNewAiSessionKey] = useState(0);
   const [newAiSessionProjectId, setNewAiSessionProjectId] = useState<string | null>(null);
@@ -911,17 +942,48 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   const terminalPanelAvailable = app !== "writing";
   const activeAiSessionTitle = aiSessions.find((session) => session.id === activeAiSessionId)?.title ?? null;
   const activeAiSession = aiSessions.find((session) => session.id === activeAiSessionId) ?? null;
+  const applicationProjectContext = applicationProjectContextState.userId === userId ? applicationProjectContextState.project : undefined;
   const chatAppId = canvasWorkspace?.applicationId ?? (app === "workspace" ? activeAiSession?.appId ?? "workspace" : app);
   const activeChatSession = activeAiSession && ((app === "workspace" && !canvasWorkspace) || activeAiSession.appId === chatAppId) ? activeAiSession : null;
   const activeChatSessionId = activeChatSession?.id ?? null;
   const applicationModeScopeId = canvasWorkspace?.applicationId ?? (app === "workspace" ? null : app);
   const modeSwitchAppId = applicationModeScopeId ?? (app === "workspace" && mode === "ai-work" ? chatAppId : null);
-  const activeCanvasProjectId = agentCanvasContext.canvas?.applicationId === modeSwitchAppId ? agentCanvasContext.canvas.projectId : null;
-  const activeChatSessionTitle = activeChatSession?.title ?? (canvasWorkspace ? applicationNavigationItems.find(item => item.applicationId === canvasWorkspace.applicationId)?.title ?? "小鱼智能体" : "小鱼智能体");
+  const activeCanvasProjectId = agentCanvasContext.canvas?.applicationId === modeSwitchAppId
+    ? agentCanvasContext.canvas.projectId
+    : modeSwitchAppId === "aivideo" && applicationProjectContext?.applicationId === "aivideo"
+      ? applicationProjectContext.projectId
+      : null;
+  useEffect(() => {
+    const previous = canvasChatContextRef.current;
+    const isCanvas = Boolean(canvasWorkspace);
+    const applicationId = canvasWorkspace?.applicationId ?? chatAppId;
+    const ownerChanged = previous.userId !== userId;
+    const applicationChanged = previous.applicationId !== applicationId || ownerChanged;
+    const enteredCanvas = isCanvas && !previous.isCanvas;
+    const defaultChanged = previous.defaultOpen !== settings.canvas.agentPanelDefaultOpen;
+
+    if (canvasWorkspace) {
+      const key = canvasWorkspace.applicationId;
+      const explicitState = getCanvasChatOpenOverride(userId, key);
+      if (applicationChanged) {
+        setCanvasChatOpenState(explicitState ?? settings.canvas.agentPanelDefaultOpen);
+      } else if (enteredCanvas) {
+        const open = explicitState ?? true;
+        setCanvasChatOpenState(open);
+        if (explicitState === undefined) setCanvasChatOpenOverride(userId, key, open);
+      } else if (defaultChanged && explicitState === undefined) {
+        setCanvasChatOpenState(settings.canvas.agentPanelDefaultOpen);
+      }
+    }
+
+    canvasChatContextRef.current = { userId, applicationId, isCanvas, defaultOpen: settings.canvas.agentPanelDefaultOpen };
+  }, [app, chatAppId, userId, canvasWorkspace?.applicationId, settings.canvas.agentPanelDefaultOpen]);
+  const canvasApplicationTitle = canvasWorkspace ? applicationNavigationItems.find(item => item.applicationId === canvasWorkspace.applicationId)?.title ?? activeApplicationTitle : activeApplicationTitle;
+  const activeChatSessionTitle = activeChatSession?.title ?? (canvasWorkspace ? canvasApplicationTitle : chatAppId !== "workspace" ? activeApplicationTitle : "小鱼智能体");
   const missingSessionDirectoryIds = missingSessionDirectoryState.key === `${userId}:${app}:${workspaceProjectsRevision}:${sessionDirectorySignature}:${workspaceProjectDirectorySignature}`
     ? missingSessionDirectoryState.ids
     : emptySessionDirectoryIds;
-  const activeChatSessionDirectoryMissing = Boolean(activeChatSessionId && missingSessionDirectoryIds.has(activeChatSessionId));
+  const activeChatSessionDirectoryMissing = Boolean((chatAppId === "workspace" || chatAppId === "minecraft") && activeChatSessionId && missingSessionDirectoryIds.has(activeChatSessionId));
   const gitManagerAvailable = mode === "ai-work";
   const activeSessionGitRepositoryId = activeAiSessionId && sessionGitBinding.sessionId === activeAiSessionId ? sessionGitBinding.repositoryId : null;
   const activeSessionAssetRepository = agentGitRepositories.find(repository => repository.id === activeSessionGitRepositoryId) ?? null;
@@ -1237,8 +1299,11 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
       setWorkspaceProjects([]);
       setWorkspaceNodes([]);
       setWorkspaceProjectsTruncated(false);
+      setDefaultWorkspaceProjectId(null);
+      setWorkspaceProjectsError("");
       setWorkspaceProjectsDataScope(cacheKey);
       setWorkspaceProjectsLoadStatus("ready");
+      setNewAiSessionProjectId(null);
       return;
     }
     const cached = workspaceProjectSnapshots.get(cacheKey);
@@ -2031,13 +2096,15 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
                 ? activeRightPanelSection === "context" && activeBrowserUrl ? "browser" : "new-tab"
                 : "application-tools";
   const agentBrowserUrl = activeAgentRightPane === "browser" ? activeBrowserUrl : undefined;
+  const canvasApplicationId = canvasWorkspace?.applicationId;
   const onCanvasProjectContextChange = useCallback((project: AiWorkbenchView["canvas"] | null) => {
     setAgentCanvasContext(current => {
       const previous = current.canvas;
       if (previous?.applicationId === project?.applicationId && previous?.projectId === project?.projectId && previous?.title === project?.title && previous?.updatedAt === project?.updatedAt) return current;
       return { ...current, canvas: project ?? undefined };
     });
-  }, []);
+    if (canvasApplicationId === "aivideo") setApplicationProjectContextState({ userId, project: project ?? undefined });
+  }, [canvasApplicationId, userId]);
   const onWorkflowContextChange = useCallback((workflow: AiWorkbenchView["workflow"] | null) => {
     setAgentCanvasContext(current => {
       const previous = current.workflow;
@@ -2045,6 +2112,9 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
       return { ...current, workflow: workflow ?? undefined };
     });
   }, []);
+  const onApplicationProjectContextChange = useCallback((project: AiWorkbenchView["applicationProject"] | null) => {
+    setApplicationProjectContextState({ userId, project: project ?? undefined });
+  }, [userId]);
   const onCanvasToolsCompleted = useCallback((projectId?: string) => {
     const applicationId = canvasWorkspace?.applicationId ?? chatAppId;
     const activeProjectId = projectId ?? (agentCanvasContext.canvas?.applicationId === applicationId ? agentCanvasContext.canvas.projectId : undefined);
@@ -2057,8 +2127,9 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
     browserUseEnabled: settings.browserUse.enabled,
     ...(agentCanvasContext.canvas?.applicationId === chatAppId ? { canvas: agentCanvasContext.canvas } : {}),
     ...(agentCanvasContext.workflow?.applicationId === chatAppId ? { workflow: agentCanvasContext.workflow } : {}),
+    ...(applicationProjectContext?.applicationId === chatAppId ? { applicationProject: applicationProjectContext } : {}),
     ...(agentBrowserUrl ? { activeBrowserUrl: agentBrowserUrl } : {})
-  }), [activeAgentRightPane, agentBrowserUrl, agentCanvasContext.canvas, agentCanvasContext.workflow, canvasWorkspace, chatAppId, chrome.rightCollapsed, chrome.terminalOpen, settings.browserUse.enabled]);
+  }), [activeAgentRightPane, agentBrowserUrl, agentCanvasContext.canvas, agentCanvasContext.workflow, applicationProjectContext, canvasWorkspace, chatAppId, chrome.rightCollapsed, chrome.terminalOpen, settings.browserUse.enabled]);
   const workspaceUtilityTabTitle = (tab: WorkspaceUtilityTab): string => {
     if (tab.kind === "new" && tab.browserUrl) return browserSiteHost(tab.browserUrl);
     if (tab.kind === "new") return "新标签页";
@@ -2163,6 +2234,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
           onSessionFileChanges={onSessionFileChanges}
           onBrowserToolCompleted={openBrowserDockForAgent}
           onCanvasToolsCompleted={onCanvasToolsCompleted}
+          onOpenApplicationCanvas={() => onNavigate(`/apps/${encodeURIComponent(chatAppId)}/canvas${activeCanvasProjectId ? `/${encodeURIComponent(activeCanvasProjectId)}` : ""}`)}
           voiceMode={section === "voice"}
           onExitVoice={() => onNavigate("/work")}
         />
@@ -2181,10 +2253,13 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
             size="small"
             aria-label={applicationModeScopeId ? "当前应用工作模式" : "聊天与画布工作模式"}
             value={canvasWorkspace ? "canvas" : mode === "normal" ? "manual" : "chat"}
-            options={[{ label: "聊天", value: "chat" }, { label: "画布", value: "canvas" }, ...(applicationModeScopeId ? [{ label: "手动", value: "manual" }] : [])]}
+            options={[{ label: "聊天", value: "chat" }, { label: "画布", value: "canvas" }, ...(applicationModeScopeId && applicationModeScopeId !== "workspace" ? [{ label: "手动", value: "manual" }] : [])]}
             onChange={value => {
               if (value === "chat") void openApplication(modeSwitchAppId, "ai-work");
-              else if (value === "canvas") onNavigate(`/apps/${encodeURIComponent(modeSwitchAppId)}/canvas${activeCanvasProjectId ? `/${encodeURIComponent(activeCanvasProjectId)}` : ""}`);
+              else if (value === "canvas") {
+                if (mode === "ai-work") setCanvasChatOpenOverride(userId, modeSwitchAppId, true);
+                onNavigate(`/apps/${encodeURIComponent(modeSwitchAppId)}/canvas${activeCanvasProjectId ? `/${encodeURIComponent(activeCanvasProjectId)}` : ""}`);
+              }
               else if (value === "manual" && applicationModeScopeId) void openApplication(applicationModeScopeId, "normal");
             }}
           /> : null}
@@ -2212,15 +2287,30 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
             </Popover>}
           </div> : null}
           {terminalPanelAvailable && settings.general.showBottomPanelControl && showCenterPanelControls ? <PanelControl name="terminal" title="底部终端" shortcut={shortcuts.toggleBottomPanel.join(" / ")} active={chrome.terminalOpen} onClick={toggleTerminal} /> : null}
-          {showCenterPanelControls ? <PanelControl name="panelRight" title={chrome.rightCollapsed ? "展开上下文栏" : "收起上下文栏"} shortcut={shortcuts.toggleContextPanel.join(" / ")} active={!chrome.rightCollapsed} onClick={toggleRight} /> : null}
+          {canvasWorkspace ? <PanelControl name="panelRight" title={canvasChatOpen ? "收起应用聊天" : "展开应用聊天"} shortcut={shortcuts.toggleContextPanel.join(" / ")} active={canvasChatOpen} onClick={() => setCanvasChatOpen(!canvasChatOpen)} /> : showCenterPanelControls ? <PanelControl name="panelRight" title={chrome.rightCollapsed ? "展开上下文栏" : "收起上下文栏"} shortcut={shortcuts.toggleContextPanel.join(" / ")} active={!chrome.rightCollapsed} onClick={toggleRight} /> : null}
         </div>
       </header>
   );
   const center = (
     <div className="module-center">
-        {mode === "ai-work" ? null : centerHeader}
-      <main ref={moduleContentScroll.ref} onScroll={moduleContentScroll.onScroll} className={`module-center__content${mode === "ai-work" ? " module-center__content--ai-work" : ""}${mode === "normal" && !writingNormal && !aiVideoNormal ? " module-center__content--application" : ""}${writingNormal ? " module-center__content--writing-normal" : ""}${aiVideoNormal ? " module-center__content--aivideo" : ""}`} aria-label={mode === "ai-work" ? "小鱼智能体对话" : writingNormal ? "写作正文编辑区" : aiVideoNormal ? "AI 漫剧分镜画布" : undefined} aria-labelledby={applicationContent ? "game-library-heading" : mode === "normal" && app !== "minecraft" && !writingNormal && !aiVideoNormal ? "module-heading" : undefined}>
-        {mode === "ai-work" ? renderAiWorkChatContent(centerHeader) : applicationContent ? applicationContent : app === "minecraft" ? <Suspense fallback={<ApplicationContentLoading />}><MinecraftWorkspace onPrepareWithAi={prompt=>{onAiDraftChange(aiDraft.trim()?`${aiDraft}\n\n${prompt}`:prompt);void openApplication("minecraft", "ai-work");}} userId={userId} section={section} role={role} settings={settings} onNavigate={navigateWithinApplication} onOpenConnectivity={() => { void openApplication("connectivity", "normal"); }} onContentReady={setMinecraftContentReady} /></Suspense> : app === "connectivity" && mode === "normal" ? <Suspense fallback={<ApplicationContentLoading />}><ConnectivityWorkspace section={section} isAdmin={hasAdminAccess(role)} /></Suspense> : writingNormal ? <Suspense fallback={<ApplicationContentLoading />}><WritingWorkspace settings={settings} onSettingsChange={onSettingsChange} workspace={writingWorkspace} loading={writingWorkspaceLoading} loadError={writingWorkspaceError} libraryPortalTarget={writingLibraryPortalTarget} onRetry={() => { void retryWritingWorkspace(); }} onWorkspaceChange={setWritingWorkspace} onRegisterFlush={registerWritingFlush} /></Suspense> : aiVideoNormal ? <Suspense fallback={<ApplicationContentLoading />}><AiVideoCanvasWorkspace canOpenFileManager={canOpenSystemFiles} onOpenFileManager={openAiVideoProjectFiles} /></Suspense> : <>
+        {mode === "ai-work" && !canvasWorkspace ? null : centerHeader}
+        <main ref={moduleContentScroll.ref} onScroll={moduleContentScroll.onScroll} className={`module-center__content${mode === "ai-work" ? " module-center__content--ai-work" : ""}${canvasWorkspace ? " module-center__content--canvas" : ""}${mode === "normal" && !writingNormal && !aiVideoNormal ? " module-center__content--application" : ""}${writingNormal ? " module-center__content--writing-normal" : ""}${aiVideoNormal ? " module-center__content--aivideo" : ""}`} aria-label={canvasWorkspace ? "应用共享画布工作区" : mode === "ai-work" ? chatAppId === "workspace" ? "小鱼智能体对话" : `${activeApplicationTitle}聊天` : writingNormal ? "写作正文编辑区" : aiVideoNormal ? "AI 漫剧手动工作区" : undefined} aria-labelledby={applicationContent ? "game-library-heading" : mode === "normal" && app !== "minecraft" && !writingNormal && !aiVideoNormal ? "module-heading" : undefined}>
+        {canvasWorkspace ? <Suspense fallback={<ApplicationContentLoading />}>
+          <CanvasWorkspace
+            applicationId={canvasWorkspace.applicationId}
+            initialProjectId={canvasWorkspace.initialProjectId}
+            agentChangesRevision={canvasAgentChange.revision}
+            agentChangedProjectId={canvasAgentChange.projectId}
+            settings={settings}
+            applications={canvasWorkspace.applications}
+            onNavigate={navigateWithinApplication}
+            onOpenSettings={onOpenSettings}
+            onProjectContextChange={onCanvasProjectContextChange}
+            applicationWorkflowPanel={canvasWorkspace.applicationId === "aivideo" ? undefined : visible => canvasWorkspace.applicationId === "minecraft"
+              ? <Suspense fallback={<ApplicationContentLoading />}><MinecraftWorkflowCanvas userId={userId} visible={visible} onWorkflowContextChange={onWorkflowContextChange} /></Suspense>
+              : <Suspense fallback={<ApplicationContentLoading />}><ApplicationWorkflowCanvas applicationId={canvasWorkspace.applicationId} userId={userId} visible={visible} onWorkflowContextChange={onWorkflowContextChange} /></Suspense>}
+          />
+        </Suspense> : mode === "ai-work" ? renderAiWorkChatContent(centerHeader) : applicationContent ? applicationContent : app === "minecraft" ? <Suspense fallback={<ApplicationContentLoading />}><MinecraftWorkspace onPrepareWithAi={prompt=>{onAiDraftChange(aiDraft.trim()?`${aiDraft}\n\n${prompt}`:prompt);void openApplication("minecraft", "ai-work");}} userId={userId} section={section} role={role} settings={settings} onNavigate={navigateWithinApplication} onOpenConnectivity={() => { void openApplication("connectivity", "normal"); }} onContentReady={setMinecraftContentReady} /></Suspense> : app === "connectivity" && mode === "normal" ? <Suspense fallback={<ApplicationContentLoading />}><ConnectivityWorkspace section={section} isAdmin={hasAdminAccess(role)} /></Suspense> : writingNormal ? <Suspense fallback={<ApplicationContentLoading />}><WritingWorkspace settings={settings} onSettingsChange={onSettingsChange} workspace={writingWorkspace} loading={writingWorkspaceLoading} loadError={writingWorkspaceError} libraryPortalTarget={writingLibraryPortalTarget} onRetry={() => { void retryWritingWorkspace(); }} onWorkspaceChange={setWritingWorkspace} onRegisterFlush={registerWritingFlush} /></Suspense> : aiVideoNormal ? <Suspense fallback={<ApplicationContentLoading />}><AiVideoCanvasWorkspace canOpenFileManager={canOpenSystemFiles} onOpenFileManager={openAiVideoProjectFiles} onOpenSharedCanvas={projectId => onNavigate(`/apps/aivideo/canvas/${encodeURIComponent(projectId)}`)} onProjectContextChange={onApplicationProjectContextChange} /></Suspense> : <>
           <div className={`module-heading module-heading--workspace module-heading--${app}`}>
             <div className="module-heading__labels"><Tag className="development-tag">开发中</Tag><Tag className="module-mode-tag">{modeLabel}</Tag></div>
             <Typography.Title id="module-heading" level={2}>{activeApplicationTitle}</Typography.Title>
@@ -2416,25 +2506,6 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   const previewStyle = { "--module-left-preview-width": `${leftPaneWidth}px` } as CSSProperties;
   const leftPreviewMode = chrome.leftCollapsed && metrics.mode !== "mobile";
   const leftRegionClassName = `module-workbench-region--secondary-navigation${leftPreviewMode ? ` module-left-preview${leftPreviewOpen ? " is-visible" : ""}` : ""}`;
-  if (canvasWorkspace) {
-    return <Suspense fallback={<ApplicationContentLoading />}>
-      <CanvasWorkspace
-        applicationId={canvasWorkspace.applicationId}
-        initialProjectId={canvasWorkspace.initialProjectId}
-        agentChangesRevision={canvasAgentChange.revision}
-        agentChangedProjectId={canvasAgentChange.projectId}
-        settings={settings}
-        applications={canvasWorkspace.applications}
-        onNavigate={navigateWithinApplication}
-        onOpenSettings={onOpenSettings}
-        onProjectContextChange={onCanvasProjectContextChange}
-        applicationWorkflowPanel={visible => canvasWorkspace.applicationId === "minecraft"
-          ? <Suspense fallback={<ApplicationContentLoading />}><MinecraftWorkflowCanvas userId={userId} visible={visible} onWorkflowContextChange={onWorkflowContextChange} /></Suspense>
-          : <Suspense fallback={<ApplicationContentLoading />}><ApplicationWorkflowCanvas applicationId={canvasWorkspace.applicationId} userId={userId} visible={visible} onWorkflowContextChange={onWorkflowContextChange} /></Suspense>}
-        chatPanel={renderAiWorkChatContent()}
-      />
-    </Suspense>;
-  }
   return (
     <div className={`module-workbench-stage module-workbench-stage--application${voiceMode ? " module-workbench-stage--voice" : ""}`} style={previewStyle} data-layout-mode={metrics.mode}>
       <ResizableWorkbench
@@ -2449,7 +2520,18 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
         left={left}
         center={center}
         leftVisible={!voiceMode}
-        right={voiceMode ? null : right}
+        right={voiceMode ? null : canvasWorkspace ? (
+          <aside className="module-context module-context--canvas-chat" aria-label={`${canvasWorkspace ? canvasApplicationTitle : activeApplicationTitle}聊天`} data-layout-mode={metrics.mode} data-testid="canvas-agent-chat">
+            <header className="module-context__heading">
+              <div>
+                <strong>{activeChatSessionTitle?.trim() || `${activeApplicationTitle}助手`}</strong>
+                <span>{canvasWorkspace ? "当前项目对话" : `${activeApplicationTitle} · 当前项目对话`}</span>
+              </div>
+              <button type="button" className="module-shell-icon-button module-context__close" aria-label="收起应用聊天" onClick={() => setCanvasChatOpen(false)}><WorkbenchIcon name="close" size={15} /></button>
+            </header>
+            <div className="module-context__body module-context__body--canvas-chat">{renderAiWorkChatContent()}</div>
+          </aside>
+        ) : right}
         bottom={!voiceMode && terminalPanelAvailable && chrome.terminalOpen && settings.general.terminalPosition === "bottom" ? bottom : null}
         storageKey={LAYOUT_KEY}
         leftLimits={metrics.left}
@@ -2470,8 +2552,11 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
         onLeftWidthChange={setLeftPaneWidth}
         leftCollapsed={chrome.leftCollapsed}
         onLeftCollapsedChange={(leftCollapsed) => setChrome((current) => ({ ...current, leftCollapsed }))}
-        rightCollapsed={chrome.rightCollapsed}
-        onRightCollapsedChange={(rightCollapsed) => setChrome((current) => ({ ...current, rightCollapsed }))}
+        rightCollapsed={canvasWorkspace ? !canvasChatOpen : chrome.rightCollapsed}
+        onRightCollapsedChange={(rightCollapsed) => {
+          if (canvasWorkspace) setCanvasChatOpen(!rightCollapsed);
+          else setChrome((current) => ({ ...current, rightCollapsed }));
+        }}
         bottomOpen={terminalPanelAvailable && chrome.terminalOpen && settings.general.terminalPosition === "bottom"}
         onBottomOpenChange={(terminalOpen) => setChrome((current) => ({ ...current, terminalOpen }))}
       />

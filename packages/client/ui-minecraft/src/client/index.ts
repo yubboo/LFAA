@@ -4,4 +4,5 @@ import "lfaa-client-modules/src/client/index.js";
 export const inject = ["clientModules"];
 export function apply(ctx: Context): void {
   ctx.clientModules.register(ctx, "lfaa-client-ui-minecraft/src/MinecraftWorkspace.js", () => import("../MinecraftWorkspace.js"));
+  ctx.clientModules.register(ctx, "lfaa-client-ui-minecraft/src/MinecraftWorkflowCanvas.js", () => import("../MinecraftWorkflowCanvas.js"));
 }

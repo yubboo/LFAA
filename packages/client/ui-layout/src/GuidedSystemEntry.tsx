@@ -99,7 +99,7 @@ export function GuidedSystemEntry({ visibleApplications, onComplete }: GuidedSys
           <div className="guided-system-entry__intro">
             <p className="guided-system-entry__eyebrow">已选择 · {selectedLabel}</p>
             <h1 id="guided-system-entry-title">选择你的工作方式</h1>
-            <p id="guided-system-entry-mode-description">聊天、画布与手动面板共享当前工作范围，可以按任务切换。</p>
+            <p id="guided-system-entry-mode-description">{selectedApplication === "workspace" ? "聊天与画布共用通用工作区，可以按任务切换。" : "聊天、画布与手动面板绑定当前 App，可以按任务切换。"}</p>
           </div>
           <div className="guided-system-entry__modes" role="group" aria-label="选择工作方式">
             {modes.map(({ id, title, description, icon: Icon }) => <button

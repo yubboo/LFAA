@@ -1,11 +1,10 @@
-/** 功能：编辑 AI 漫剧分镜画布。作用：以无限画布组织可保存镜头卡片和镜头关系，不执行生成工作流。 */
-import { addEdge, Background, Controls, Handle, Position, ReactFlow, useEdgesState, useNodesState, type Connection, type Edge, type EdgeChange, type Node, type NodeChange, type NodeProps, type NodeTypes } from "@xyflow/react";
+/** 功能：AI 漫剧手动工作区。剧本、素材和镜头细节在此编辑；镜头空间布局与连线统一由共享画布 Owner 管理。 */
+import type { Edge, Node } from "@xyflow/react";
 import { Alert, Button, Input, Popconfirm, Select, Spin, Typography } from "antd";
-import { memo, useCallback, useEffect, useRef, useState } from "react";
-import { aiVideoAssetUrl, aiVideoShotImageUrl, cancelAiVideoShotVideo, createAiVideoCanvas, deleteAiVideoCanvas, generateAiVideoShotImage, getErrorMessage, loadAiVideoCanvases, refreshAiVideoShotVideo, removeAiVideoReferenceImage, saveAiVideoCanvas, startAiVideoShotVideo, uploadAiVideoReferenceImage, type AiVideoCanvas, type AiVideoCanvasInput, type AiVideoReference, type AiVideoShot, type AiVideoTask, type AiVideoTimelineClip, type AiVideoWhiteModel } from "lfaa-client-connection/src/api.js";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { aiVideoAssetUrl, aiVideoShotImageUrl, cancelAiVideoShotVideo, createAiVideoCanvas, deleteAiVideoCanvas, generateAiVideoShotImage, getErrorMessage, loadAiVideoCanvases, refreshAiVideoShotVideo, removeAiVideoReferenceImage, saveAiVideoCanvas, startAiVideoShotVideo, uploadAiVideoReferenceImage, type AiVideoCanvas, type AiVideoCanvasInput, type AiVideoReference, type AiVideoShot, type AiVideoTask, type AiVideoTimelineClip, type AiVideoWhiteModel, type AiWorkbenchView } from "lfaa-client-connection/src/api.js";
 import { AiVideoMediaStudio } from "./AiVideoMediaStudio.js";
 import { AiVideoDirectorStage } from "./AiVideoDirectorStage.js";
-import "@xyflow/react/dist/style.css";
 import "./ai-video-canvas.css";
 
 interface ShotNodeData extends Record<string, unknown> {
@@ -83,11 +82,10 @@ function readImageDataUrl(file: File): Promise<string> {
   });
 }
 
-const ShotNodeCard = memo(function ShotNodeCard({ id, data, selected }: NodeProps<ShotFlowNode>) {
+const ShotNodeCard = memo(function ShotNodeCard({ id, data }: { id: string; data: ShotNodeData }) {
   const updateText = (key: "title" | "description" | "dialogue", value: string) => data.onChange(id, { [key]: value });
   return (
-    <article className={`aivideo-shot${selected ? " aivideo-shot--selected" : ""}`} aria-label={`镜头：${data.title}`}>
-      <Handle type="target" position={Position.Left} aria-label="镜头连接输入" />
+    <article className="aivideo-shot" aria-label={`镜头：${data.title}`}>
       <header className="aivideo-shot__header">
         <span className="aivideo-shot__mark" aria-hidden="true">镜</span>
         <Input className="aivideo-shot__title nodrag" aria-label="镜头标题" maxLength={80} value={data.title} disabled={!data.canEdit} onChange={event => updateText("title", event.target.value)} />
@@ -113,14 +111,18 @@ const ShotNodeCard = memo(function ShotNodeCard({ id, data, selected }: NodeProp
         <Typography.Text type={data.videoTask.status === "failed" || data.videoTask.status === "expired" ? "danger" : "secondary"}>{({ submitting: "正在提交视频任务…", queued: "视频任务排队中…", running: "视频正在生成…", succeeded: data.videoAssetId ? "视频已保存到本机项目" : "视频已生成，等待下载" , failed: "视频生成失败", cancelled: "视频任务已取消", expired: "视频任务已过期" } as Record<AiVideoTask["status"], string>)[data.videoTask.status]}</Typography.Text>
         {data.videoTask.error ? <Typography.Text type="danger">{data.videoTask.error}</Typography.Text> : null}
       </div> : null}
-      <Handle type="source" position={Position.Right} aria-label="镜头连接输出" />
     </article>
   );
 });
 
-const nodeTypes: NodeTypes = { shot: ShotNodeCard };
+type AiVideoCanvasWorkspaceProps = {
+  canOpenFileManager?: boolean;
+  onOpenFileManager?: (projectId: string) => void;
+  onOpenSharedCanvas?: (projectId: string) => void;
+  onProjectContextChange?: (project: NonNullable<AiWorkbenchView["applicationProject"]> | null) => void;
+};
 
-export function AiVideoCanvasWorkspace({ canOpenFileManager = false, onOpenFileManager }: { canOpenFileManager?: boolean; onOpenFileManager?: (projectId: string) => void }) {
+export function AiVideoCanvasWorkspace({ canOpenFileManager = false, onOpenFileManager, onOpenSharedCanvas, onProjectContextChange }: AiVideoCanvasWorkspaceProps) {
   const [canvases, setCanvases] = useState<AiVideoCanvas[]>([]);
   const [limits, setLimits] = useState({ canvases: 0, shots: 0, links: 0, characters: 0, locations: 0, scriptCharacters: 0, referencesPerShot: 0, referenceImageBytes: 0, referenceImageDimension: 0, referenceImagePixels: 0, imageAssetBytes: 0, mediaAssetBytes: 0, timelineClips: 0, timelineSeconds: 0 });
   const [activeCanvas, setActiveCanvas] = useState<AiVideoCanvas | null>(null);
@@ -131,8 +133,9 @@ export function AiVideoCanvasWorkspace({ canOpenFileManager = false, onOpenFileM
   const [timelineClips, setTimelineClips] = useState<AiVideoTimelineClip[]>([]);
   const [whiteModel, setWhiteModel] = useState<AiVideoWhiteModel>({ items: [], camera: { x: 0, y: 1.6, z: -8, yaw: 0, pitch: -4, focalLength: 50 }, ratio: "16:9" });
   const [activePage, setActivePage] = useState("script");
-  const [nodes, setNodes, onNodesChange] = useNodesState<ShotFlowNode>([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<ShotFlowEdge>([]);
+  const [nodes, setNodes] = useState<ShotFlowNode[]>([]);
+  const [edges, setEdges] = useState<ShotFlowEdge[]>([]);
+  const [selectedShotId, setSelectedShotId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [collectionReady, setCollectionReady] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -160,6 +163,15 @@ export function AiVideoCanvasWorkspace({ canOpenFileManager = false, onOpenFileM
   const onVideoGenerate = useCallback((shotId: string) => generateVideoRef.current(shotId), []);
   const onVideoRefresh = useCallback((shotId: string) => refreshVideoRef.current(shotId), []);
   const onVideoCancel = useCallback((shotId: string) => cancelVideoRef.current(shotId), []);
+
+  useEffect(() => {
+    onProjectContextChange?.(activeCanvas ? {
+      applicationId: "aivideo",
+      projectId: activeCanvas.id,
+      title: activeCanvas.title,
+      updatedAt: activeCanvas.updatedAt
+    } : null);
+  }, [activeCanvas, onProjectContextChange]);
 
   const markDirty = useCallback(() => { editRevision.current += 1; setDirty(true); setNotice(""); }, []);
   const onShotChange = useCallback((id: string, update: Partial<Pick<AiVideoShot, "title" | "description" | "dialogue" | "durationSeconds" | "characterIds" | "locationId">>) => {
@@ -207,6 +219,7 @@ export function AiVideoCanvasWorkspace({ canOpenFileManager = false, onOpenFileM
     setActivePage("script");
     setNodes(nodesFor(canvas, onShotChange, onShotRemove, onShotGenerate, onVideoGenerate, onVideoRefresh, onVideoCancel));
     setEdges(edgesFor(canvas));
+    setSelectedShotId(canvas.shots[0]?.id ?? null);
     setDirty(false);
     setError("");
     setNotice("");
@@ -224,6 +237,7 @@ export function AiVideoCanvasWorkspace({ canOpenFileManager = false, onOpenFileM
     setWhiteModel(canvas.whiteModel);
     setNodes(nodesFor(canvas, onShotChange, onShotRemove, onShotGenerate, onVideoGenerate, onVideoRefresh, onVideoCancel));
     setEdges(edgesFor(canvas));
+    setSelectedShotId(current => canvas.shots.some(shot => shot.id === current) ? current : canvas.shots[0]?.id ?? null);
     setDirty(false);
   }, [onShotChange, onShotGenerate, onShotRemove, onVideoCancel, onVideoGenerate, onVideoRefresh, setEdges, setNodes]);
 
@@ -265,23 +279,6 @@ export function AiVideoCanvasWorkspace({ canOpenFileManager = false, onOpenFileM
     } })));
   }, [activeCanvas, dirty, generatingShotId, referenceImageOperation, saving, setNodes, videoTaskBusyShotId]);
 
-  const onFlowNodesChange = useCallback((changes: NodeChange<ShotFlowNode>[]) => {
-    onNodesChange(changes);
-    if (changes.some(change => change.type === "position" || change.type === "remove")) markDirty();
-    const removed = new Set<string>();
-    for (const change of changes) if (change.type === "remove") removed.add(change.id);
-    if (removed.size) setEdges(current => current.filter(edge => !removed.has(edge.source) && !removed.has(edge.target)));
-  }, [markDirty, onNodesChange, setEdges]);
-  const onFlowEdgesChange = useCallback((changes: EdgeChange<ShotFlowEdge>[]) => {
-    onEdgesChange(changes);
-    if (changes.some(change => change.type === "remove")) markDirty();
-  }, [markDirty, onEdgesChange]);
-  const onConnect = useCallback((connection: Connection) => {
-    if (edges.length >= limits.links) { setError(`每个画布最多保存 ${limits.links} 条镜头连线。`); return; }
-    setEdges(current => addEdge({ ...connection, id: crypto.randomUUID(), type: "smoothstep" }, current));
-    markDirty();
-  }, [edges.length, limits.links, markDirty, setEdges]);
-
   const createCanvas = useCallback(async () => {
     if (dirty && !window.confirm("当前画布有未保存更改，继续后将丢弃这些更改。要继续吗？")) return;
     setError("");
@@ -300,6 +297,7 @@ export function AiVideoCanvasWorkspace({ canOpenFileManager = false, onOpenFileM
       data: { title: `镜头 ${index + 1}`, description: "", dialogue: "", durationSeconds: 5, characterIds: [], characters, locations, isGenerating: false, isVideoOperating: false, canGenerate: false, canRemove: true, canEdit: !saving, onGenerate: onShotGenerate, onGenerateVideo: onVideoGenerate, onRefreshVideo: onVideoRefresh, onCancelVideo: onVideoCancel, onChange: onShotChange, onRemove: onShotRemove }
     };
     setNodes(current => [...current, node]);
+    setSelectedShotId(node.id);
     markDirty();
   }, [characters, limits.shots, locations, markDirty, nodes.length, onShotChange, onShotGenerate, onShotRemove, onVideoCancel, onVideoGenerate, onVideoRefresh, setNodes]);
 
@@ -530,10 +528,23 @@ export function AiVideoCanvasWorkspace({ canOpenFileManager = false, onOpenFileM
       if (remaining[0]) selectCanvas(remaining[0]);
       else {
         selectedId.current = null;
-        setActiveCanvas(null); setTitle(""); setScript(""); setCharacters([]); setLocations([]); setTimelineClips([]); setNodes([]); setEdges([]); setDirty(false);
+        setActiveCanvas(null); setTitle(""); setScript(""); setCharacters([]); setLocations([]); setTimelineClips([]); setNodes([]); setEdges([]); setSelectedShotId(null); setDirty(false);
       }
     } catch (deleteError) { setError(canvasError(deleteError, "删除分镜画布失败。")); }
   }, [activeCanvas, canvases, selectCanvas, setEdges, setNodes]);
+
+  const shotRelationships = useMemo(() => {
+    const names = new Map(nodes.map(node => [node.id, node.data.title]));
+    const relations = new Map(nodes.map(node => [node.id, { incoming: [] as string[], outgoing: [] as string[] }]));
+    for (const edge of edges) {
+      const source = relations.get(edge.source);
+      const target = relations.get(edge.target);
+      if (source) source.outgoing.push(names.get(edge.target) ?? "未知镜头");
+      if (target) target.incoming.push(names.get(edge.source) ?? "未知镜头");
+    }
+    return relations;
+  }, [edges, nodes]);
+  const selectedShot = nodes.find(node => node.id === selectedShotId) ?? nodes[0] ?? null;
 
   return (
     <section className="aivideo-workspace" aria-labelledby="aivideo-heading">
@@ -561,7 +572,7 @@ export function AiVideoCanvasWorkspace({ canOpenFileManager = false, onOpenFileM
           </aside>
           <div className="aivideo-workspace__panel">
             <div className="aivideo-workspace__tabs" role="tablist" aria-label="项目制作页面">
-              {[{ key: "script", label: "剧本" }, { key: "references", label: "角色与场景" }, { key: "canvas", label: "分镜画布" }, { key: "media", label: "媒体与时间线" }, { key: "director", label: "白模导演台" }].map(tab => <button key={tab.key} type="button" role="tab" aria-selected={activePage === tab.key} disabled={!activeCanvas || saving} onClick={() => setActivePage(tab.key)}>{tab.label}</button>)}
+              {[{ key: "script", label: "剧本" }, { key: "references", label: "角色与场景" }, { key: "shots", label: "镜头编辑" }, { key: "media", label: "媒体与时间线" }, { key: "director", label: "白模导演台" }].map(tab => <button key={tab.key} type="button" role="tab" aria-selected={activePage === tab.key} disabled={!activeCanvas || saving} onClick={() => setActivePage(tab.key)}>{tab.label}</button>)}
             </div>
             {!activeCanvas ? <div className="aivideo-workspace__empty"><Typography.Title level={3}>先建一个漫剧项目</Typography.Title><Typography.Paragraph>剧本、参考档案、分镜和生成的图片会保存在各自的本机项目文件夹中。</Typography.Paragraph><Button type="primary" disabled={!collectionReady} onClick={() => void createCanvas()}>新建项目</Button></div> : activePage === "script" ? <div className="aivideo-script" role="tabpanel" aria-label="项目剧本">
               <div className="aivideo-script__heading"><Typography.Title level={4}>剧本</Typography.Title><Typography.Text type="secondary">最多 {limits.scriptCharacters.toLocaleString()} 个字符，随项目一起保存。</Typography.Text></div>
@@ -589,11 +600,30 @@ export function AiVideoCanvasWorkspace({ canOpenFileManager = false, onOpenFileM
                   <Button danger type="text" disabled={saving} onClick={() => removeReference("locations", reference.id)}>删除场景</Button>
                 </article>)}</div> : <Typography.Text type="secondary">还没有场景档案。</Typography.Text>}
               </section>
-            </div> : activePage === "media" ? <AiVideoMediaStudio canvas={activeCanvas} clips={timelineClips} dirty={dirty} saving={saving} maxAssetBytes={limits.mediaAssetBytes} maxImageBytes={limits.imageAssetBytes} canOpenFileManager={canOpenFileManager} onOpenFileManager={onOpenFileManager} onTimelineChange={clips => { setTimelineClips(clips); markDirty(); }} onCanvasUpdated={applyServerCanvas} onBusyChange={setSaving} /> : activePage === "director" ? <AiVideoDirectorStage canvas={activeCanvas} stage={whiteModel} shots={nodes.map(node => ({ id: node.id, title: node.data.title }))} dirty={dirty} saving={saving} onChange={stage => { setWhiteModel(stage); markDirty(); }} onCanvasUpdated={applyServerCanvas} onBusyChange={setSaving} /> : <div className="aivideo-canvas" role="tabpanel" aria-label="镜头无限画布">
-              <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={onFlowNodesChange} onEdgesChange={onFlowEdgesChange} onConnect={onConnect} nodesDraggable={!saving} nodesConnectable={!saving} elementsSelectable={!saving} deleteKeyCode={saving ? null : "Delete"} fitView fitViewOptions={{ padding: 0.22, maxZoom: 1 }} defaultEdgeOptions={{ type: "smoothstep" }} proOptions={{ hideAttribution: true }} aria-label="漫剧镜头无限画布">
-                <Background gap={24} size={1} /><Controls showInteractive={false} />
-              </ReactFlow>
-            </div>}
+            </div> : activePage === "shots" ? <div className="aivideo-shots" role="tabpanel" aria-label="手动镜头编辑">
+              <header className="aivideo-shots__heading">
+                <div><Typography.Title level={4}>镜头编辑</Typography.Title><Typography.Text type="secondary">编辑单镜头内容与生成素材；空间排列和镜头关系在共享画布统一管理。</Typography.Text></div>
+                <Button disabled={!activeCanvas || !onOpenSharedCanvas || dirty || saving} onClick={() => activeCanvas && onOpenSharedCanvas?.(activeCanvas.id)}>打开共享画布</Button>
+              </header>
+              {dirty ? <Typography.Text className="aivideo-shots__save-hint" type="secondary">保存当前更改后即可带着同一项目打开共享画布。</Typography.Text> : null}
+              <div className="aivideo-shots__layout">
+                <nav className="aivideo-shots__list" aria-label="镜头列表">
+                  <div className="aivideo-shots__list-heading"><strong>镜头</strong><span>{nodes.length}/{limits.shots}</span></div>
+                  {nodes.map((node, index) => <button key={node.id} type="button" className={`aivideo-shots__list-item${selectedShot?.id === node.id ? " is-active" : ""}`} aria-current={selectedShot?.id === node.id ? "true" : undefined} onClick={() => setSelectedShotId(node.id)}>
+                    <span className="aivideo-shots__list-title"><strong>{index + 1}. {node.data.title}</strong><small>{node.data.durationSeconds} 秒</small></span>
+                    <span className="aivideo-shots__list-links">入 {shotRelationships.get(node.id)?.incoming.length ?? 0} · 出 {shotRelationships.get(node.id)?.outgoing.length ?? 0}</span>
+                  </button>)}
+                  {nodes.length === 0 ? <Typography.Text type="secondary">还没有镜头，使用上方“添加镜头”开始。</Typography.Text> : null}
+                </nav>
+                {selectedShot ? <div className="aivideo-shots__editor">
+                  <div className="aivideo-shots__relations" aria-label="当前镜头关系">
+                    <div><strong>上游镜头</strong><span>{shotRelationships.get(selectedShot.id)?.incoming.join("、") || "暂无"}</span></div>
+                    <div><strong>下游镜头</strong><span>{shotRelationships.get(selectedShot.id)?.outgoing.join("、") || "暂无"}</span></div>
+                  </div>
+                  <ShotNodeCard id={selectedShot.id} data={selectedShot.data} />
+                </div> : <div className="aivideo-shots__empty"><Typography.Text type="secondary">选择一个镜头进行编辑。</Typography.Text></div>}
+              </div>
+            </div> : activePage === "media" ? <AiVideoMediaStudio canvas={activeCanvas} clips={timelineClips} dirty={dirty} saving={saving} maxAssetBytes={limits.mediaAssetBytes} maxImageBytes={limits.imageAssetBytes} canOpenFileManager={canOpenFileManager} onOpenFileManager={onOpenFileManager} onTimelineChange={clips => { setTimelineClips(clips); markDirty(); }} onCanvasUpdated={applyServerCanvas} onBusyChange={setSaving} /> : activePage === "director" ? <AiVideoDirectorStage canvas={activeCanvas} stage={whiteModel} shots={nodes.map(node => ({ id: node.id, title: node.data.title }))} dirty={dirty} saving={saving} onChange={stage => { setWhiteModel(stage); markDirty(); }} onCanvasUpdated={applyServerCanvas} onBusyChange={setSaving} /> : null}
           </div>
         </div>
         <footer className="aivideo-workspace__footnote"><Typography.Text type="secondary">剧本、档案、镜头、白模构图、时间线和媒体文件都保存在当前账户的本机漫剧项目中。图片/视频生成走设置中心选定的大模型服务；成片本机导出受浏览器编码能力与项目媒体配额限制。</Typography.Text></footer>

@@ -1,6 +1,6 @@
 /**
- * 功能：把当前工作台选择状态裁剪成一次 Agent Run 的 UI 提示。
- * 作用：只包含面板种类和开合状态；网页地址必须来自当前可见 Dock 且允许 Agent Browser Use。
+ * 功能：把当前工作台选择和当前 App 项目定位裁剪成一次 Agent Run 的 UI 提示。
+ * 作用：不发送项目正文；网页地址必须来自当前可见 Dock 且允许 Agent Browser Use。
  * 关联文件：ApplicationWorkspace.tsx、packages/client/connection/src/api.ts。
  */
 import type { AiWorkbenchView } from "lfaa-client-connection/src/api.js";
@@ -13,6 +13,7 @@ export function createAgentWorkbenchView(input: {
   activeBrowserUrl?: string;
   canvas?: AiWorkbenchView["canvas"];
   workflow?: AiWorkbenchView["workflow"];
+  applicationProject?: AiWorkbenchView["applicationProject"];
 }): AiWorkbenchView {
   const result: AiWorkbenchView = {
     rightPane: input.rightPane,
@@ -21,6 +22,7 @@ export function createAgentWorkbenchView(input: {
   };
   if (input.canvas) result.canvas = input.canvas;
   if (input.workflow) result.workflow = input.workflow;
+  if (input.applicationProject) result.applicationProject = input.applicationProject;
   if (input.rightPane !== "browser" || !input.rightPaneOpen || !input.browserUseEnabled || !input.activeBrowserUrl) return result;
   try {
     const url = new URL(input.activeBrowserUrl);

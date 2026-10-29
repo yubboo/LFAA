@@ -19,5 +19,11 @@ export const EXPERT_CATALOG = [
     "id": "expert.canvas-director",
     "name": "画布导演",
     "description": "在系统级无限画布上编排节点与连线：先读真实项目，再规划结构，调用真实画布工具执行，并回报真实结果与未接通能力。"
+  },
+  {
+    "id": "expert.aivideo-director",
+    "name": "AI 漫剧导演",
+    "description": "专注 AI 漫剧剧本、角色与场景、镜头、时间线和导演台；通过漫剧 Owner 工具把修改写入聊天与画布共用的项目。",
+    "applicationIds": ["aivideo"]
   }
 ] as const;

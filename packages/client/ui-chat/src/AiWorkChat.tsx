@@ -26,7 +26,14 @@ const canvasMutationToolIds = new Set([
   "canvas.nodes.remove",
   "canvas.nodes.connect",
   "canvas.nodes.disconnect",
-  "canvas.generation.image"
+  "canvas.generation.image",
+  "aivideo.projects.create",
+  "aivideo.projects.update",
+  "aivideo.projects.delete",
+  "aivideo.shots.generate-image",
+  "aivideo.shots.generate-video",
+  "aivideo.shots.refresh-video",
+  "aivideo.shots.cancel-video"
 ]);
 function appendSubagentStreamPreview(current: Record<string, string>, key: string, delta: string): Record<string, string> {
   const next = { ...current, [key]: `${current[key] ?? ""}${delta}`.slice(-MAX_SUBAGENT_STREAM_PREVIEW_CHARS) };
@@ -106,6 +113,7 @@ interface AiWorkChatProps {
   userId: string;
   appId: ApplicationId;
   workspaceView?: AiWorkbenchView;
+  onOpenApplicationCanvas?: () => void;
   capabilities?: Array<{ id: string; name: string; kind: string }>;
   capabilitiesError?: string;
   settings: UserSettings;
@@ -489,7 +497,7 @@ const runtimeSpeedOptions: Array<{ value: UserSettings["aiRuntime"]["speed"]; la
   { value: "deep", label: "深入", description: "按模型/自定义上限" }
 ];
 
-function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, capabilities = [], capabilitiesError = "", settings, onSettingsChange, sessions, activeSessionId, projectDirectoryMissing, newSessionProjectId, defaultWorkspaceProjectId, newSessionGitRepositoryId, onSelectedProjectChange, workspaceProjects, workspaceProjectsLoadStatus, workspaceProjectsTruncated, workspaceNodes, workspaceProjectsError, onRetryWorkspaceProjects, onWorkspaceProjectsChange, initialDraft, autoSubmitGoal = null, onAutoSubmitGoalConsumed, newSessionKey, onSessionsChange, onActiveSessionChange, onDraftChange, onProviderStatusChange, onBusyChange, onOpenSettings, onNotification, onOpenSideChat, onOpenProjectFile, onWritingWorkspaceChange, onSessionFileChanges, onBrowserToolCompleted, onCanvasToolsCompleted, voiceMode = false, onExitVoice = () => undefined }: AiWorkChatProps) {
+function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, onOpenApplicationCanvas, capabilities = [], capabilitiesError = "", settings, onSettingsChange, sessions, activeSessionId, projectDirectoryMissing, newSessionProjectId, defaultWorkspaceProjectId, newSessionGitRepositoryId, onSelectedProjectChange, workspaceProjects, workspaceProjectsLoadStatus, workspaceProjectsTruncated, workspaceNodes, workspaceProjectsError, onRetryWorkspaceProjects, onWorkspaceProjectsChange, initialDraft, autoSubmitGoal = null, onAutoSubmitGoalConsumed, newSessionKey, onSessionsChange, onActiveSessionChange, onDraftChange, onProviderStatusChange, onBusyChange, onOpenSettings, onNotification, onOpenSideChat, onOpenProjectFile, onWritingWorkspaceChange, onSessionFileChanges, onBrowserToolCompleted, onCanvasToolsCompleted, voiceMode = false, onExitVoice = () => undefined }: AiWorkChatProps) {
   const currentScrollConversationKey = `${appId}:${activeSessionId ?? "new-session"}`;
   const outputFocusRegionElementRef = useRef<HTMLElement | null>(null);
   const setOutputFocusRegionElement = useCallback((node: HTMLElement | null) => {
@@ -540,6 +548,8 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, capabil
   const [associationsBusy, setAssociationsBusy] = useState(false);
   const [composerMoreOpen, setComposerMoreOpen] = useState(false);
   const [composerMoreSection, setComposerMoreSection] = useState<"applications" | "capabilities" | null>(null);
+  const workspaceProjectAppId: WorkspaceProjectApplicationId | null = appId === "workspace" || appId === "minecraft" ? appId : null;
+  const supportsWorkspaceProjectContext = workspaceProjectAppId !== null;
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(() => activeSessionId ? sessions.find(session => session.id === activeSessionId)?.projectId ?? null : newSessionProjectId ?? defaultWorkspaceProjectId);
   const projectSelectionExplicitRef = useRef(Boolean(newSessionProjectId));
   const projectSelectionSessionKeyRef = useRef(newSessionKey);
@@ -1059,7 +1069,7 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, capabil
       projectSelectionSessionKeyRef.current = newSessionKey;
       projectSelectionExplicitRef.current = Boolean(newSessionProjectId);
     }
-    if (!activeSessionId) {
+    if (!activeSessionId && supportsWorkspaceProjectContext) {
       const projectId = resolveNewSessionWorkspaceProjectId({
         requestedProjectId: newSessionProjectId,
         defaultProjectId: defaultWorkspaceProjectId,
@@ -1068,10 +1078,13 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, capabil
       });
       setSelectedProjectId(projectId);
       if (newSessionProjectId !== null || projectSelectionExplicitRef.current) onSelectedProjectChange(projectId);
+    } else if (!activeSessionId) {
+      setSelectedProjectId(null);
+      onSelectedProjectChange(null);
     } else {
       projectSelectionExplicitRef.current = true;
     }
-  }, [activeSessionId, defaultWorkspaceProjectId, newSessionKey, newSessionProjectId, onSelectedProjectChange, selectedProjectId]);
+  }, [activeSessionId, defaultWorkspaceProjectId, newSessionKey, newSessionProjectId, onSelectedProjectChange, selectedProjectId, supportsWorkspaceProjectContext]);
 
   useEffect(() => {
     if (!activeSessionId) return;
@@ -1083,12 +1096,12 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, capabil
   }, [activeSessionId, onSelectedProjectChange, sessions]);
 
   async function changeWorkspaceProject(project: WorkspaceProject | null): Promise<void> {
-    if (busy || projectBusy) return;
+    if (busy || projectBusy || !workspaceProjectAppId) return;
     projectSelectionExplicitRef.current = true;
     setProjectBusy(true);
     try {
       if (activeSessionId) {
-        const { session } = await setAiSessionProject(activeSessionId, project?.id ?? null, "workspace");
+        const { session } = await setAiSessionProject(activeSessionId, project?.id ?? null, workspaceProjectAppId);
         onSessionsChange([session, ...sessions.filter(item => item.id !== session.id)]);
       }
       setSelectedProjectId(project?.id ?? null);
@@ -1451,7 +1464,7 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, capabil
       voiceResumePendingRef.current = false;
     }
     const requestSessionId = targetSession ? targetSession.session.id : activeSessionId;
-    const requestProjectId = targetSession ? targetSession.session.projectId : selectedProjectId;
+    const requestProjectId = supportsWorkspaceProjectContext ? targetSession ? targetSession.session.projectId : selectedProjectId : null;
     const requestedPlanMode = sendOptions?.planMode ?? (planModeOverride?.sessionId === requestSessionId ? planModeOverride.active : undefined);
     const requestGeneration = ++runRequestGenerationRef.current;
     followLatestMessageRef.current = true;
@@ -2616,13 +2629,21 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, capabil
           </section> : null}
           {renderPendingComposerInteraction()}
           <form ref={composerFormRef} className="ai-work-chat__composer" aria-label="小鱼智能体 消息输入" onSubmit={(event) => { event.preventDefault(); void sendMessage(); }}>
-          {projectDirectoryMissing ? <Alert className="ai-work-chat__directory-warning" type="warning" showIcon message="项目目录已删除或移动" description="当前会话仍可查看历史记录；如需继续工作，请新建会话并选择可用项目目录。" /> : null}
+          {projectDirectoryMissing && supportsWorkspaceProjectContext ? <Alert className="ai-work-chat__directory-warning" type="warning" showIcon message="项目目录已删除或移动" description="当前会话仍可查看历史记录；如需继续工作，请新建会话并选择可用项目目录。" /> : null}
           <div className="ai-work-chat__composer-context" aria-label="当前对话上下文">
-            <WorkspaceProjectPicker appId="workspace" applicationName="通用工作区" projects={workspaceProjects} projectListStatus={workspaceProjectsLoadStatus} projectListTruncated={workspaceProjectsTruncated} projectLoadError={workspaceProjectsError} onRetryProjects={onRetryWorkspaceProjects} nodes={workspaceNodes} value={selectedProjectId} selectedProjectTitle={activeSessionId ? sessions.find(session => session.id === activeSessionId)?.projectTitle : null} defaultDirectory={settings.general.taskFolder || workspaceProjects.find(project => project.id === defaultWorkspaceProjectId)?.path || ""} disabled={projectDirectoryMissing || busy || projectBusy || associationsBusy || Boolean(editingMessage)} onChange={project => void changeWorkspaceProject(project)} onProjectsChange={onWorkspaceProjectsChange} activeSessionId={activeSessionId} />
+            {workspaceProjectAppId ? <WorkspaceProjectPicker appId={workspaceProjectAppId} applicationName={applicationNameFor(workspaceProjectAppId)} projects={workspaceProjects} projectListStatus={workspaceProjectsLoadStatus} projectListTruncated={workspaceProjectsTruncated} projectLoadError={workspaceProjectsError} onRetryProjects={onRetryWorkspaceProjects} nodes={workspaceNodes} value={selectedProjectId} selectedProjectTitle={activeSessionId ? sessions.find(session => session.id === activeSessionId)?.projectTitle : null} defaultDirectory={settings.general.taskFolder || workspaceProjects.find(project => project.id === defaultWorkspaceProjectId)?.path || ""} disabled={projectDirectoryMissing || busy || projectBusy || associationsBusy || Boolean(editingMessage)} onChange={project => void changeWorkspaceProject(project)} onProjectsChange={onWorkspaceProjectsChange} activeSessionId={activeSessionId} /> : null}
 
             <Tooltip trigger={["hover"]} placement="top" title={applicationNameFor(appId)}>
               <span className="ai-work-chat__composer-app" aria-label={`${appId === "workspace" ? "当前工作区" : "当前应用"}：${applicationNameFor(appId)}`}><WorkbenchIcon name="spark" size={13} /><span className="ai-work-chat__composer-app-label">{applicationNameFor(appId)}</span></span>
             </Tooltip>
+            {!workspaceProjectAppId && appId !== "workspace" && appId !== "minecraft" ? (() => {
+              const appProject = workspaceView?.applicationProject?.applicationId === appId
+                ? workspaceView.applicationProject
+                : workspaceView?.canvas?.applicationId === appId ? workspaceView.canvas : undefined;
+              return appProject ? <Tooltip trigger={["hover"]} placement="top" title={`当前${applicationNameFor(appId)}项目：${appProject.title}`}>
+                <span className="ai-work-chat__composer-app" aria-label={`当前${applicationNameFor(appId)}项目：${appProject.title}`}><WorkbenchIcon name="folder" size={13} /><span className="ai-work-chat__composer-app-label">{appProject.title}</span></span>
+              </Tooltip> : onOpenApplicationCanvas ? <Button className="ai-work-chat__composer-project-button" type="text" size="small" icon={<WorkbenchIcon name="grid" size={13} />} onClick={onOpenApplicationCanvas}>选择{applicationNameFor(appId)}项目</Button> : null;
+            })() : null}
             <Typography.Text className="ai-work-chat__composer-count" aria-label={`已输入 ${draft.length}，最多 12000 个字符`}>{draft.length}<span>/12000</span></Typography.Text>
           </div>
           {composerMenu ? <div className="ai-work-chat__composer-menu" data-trigger={composerMenu.trigger} style={composerMenuMaxHeight === null ? undefined : { maxHeight: `${composerMenuMaxHeight}px` }} onMouseDown={event => event.preventDefault()}>

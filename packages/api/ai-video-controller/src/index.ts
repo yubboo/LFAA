@@ -200,6 +200,17 @@ const whiteModelSchema = Joi.object({
     x: Joi.number().min(-50).max(50).required(), z: Joi.number().min(-50).max(50).required(), width: Joi.number().min(0.2).max(20).required(), depth: Joi.number().min(0.2).max(20).required(), height: Joi.number().min(0.2).max(20).required()
   }).unknown(false)).required()
 }).unknown(false);
+const canvasLayoutSchema = Joi.object({
+  viewport: Joi.object({
+    x: Joi.number().min(-100_000).max(100_000).required(),
+    y: Joi.number().min(-100_000).max(100_000).required(),
+    zoom: Joi.number().min(0.05).max(8).required()
+  }).unknown(false).required(),
+  nodePositions: Joi.object().pattern(/^(?:script|timeline|director|character:[0-9a-f-]{36}|location:[0-9a-f-]{36}|asset:[0-9a-f-]{36})$/iu, Joi.object({
+    x: Joi.number().min(-50_000).max(50_000).required(),
+    y: Joi.number().min(-50_000).max(50_000).required()
+  }).unknown(false)).max(128).required()
+}).unknown(false);
 const createSchema = Joi.object({ title: Joi.string().trim().min(1).max(80).required() }).unknown(false);
 const updateSchema = Joi.object({
   expectedUpdatedAt: Joi.string().isoDate().required(),
@@ -211,7 +222,8 @@ const updateSchema = Joi.object({
     shots: Joi.array().max(AI_VIDEO_CANVAS_LIMITS.shots).items(shotSchema).required(),
     links: Joi.array().max(AI_VIDEO_CANVAS_LIMITS.links).items(linkSchema).required(),
     timelineClips: Joi.array().max(AI_VIDEO_CANVAS_LIMITS.timelineClips).items(timelineClipSchema).optional(),
-    whiteModel: whiteModelSchema.optional()
+    whiteModel: whiteModelSchema.optional(),
+    canvasLayout: canvasLayoutSchema.optional()
   }).unknown(false).required()
 }).unknown(false);
 

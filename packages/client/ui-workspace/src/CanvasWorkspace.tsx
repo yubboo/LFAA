@@ -1,7 +1,8 @@
 /**
  * 功能：系统级无限画布工作区（即梦式主题驱动沉浸画布）。
- * 作用：在 /apps/<app>/canvas[/:projectId] 提供全幅画布、左侧浮层工具轨、顶部浮层（返回/项目切换/保存状态/生成|画布/对话/设置）、
+ * 作用：在 /apps/<app>/canvas[/:projectId] 提供全幅画布、左侧浮层工具轨、顶部浮层（返回/项目切换/保存状态/设置/更多），
  *      点阵网格、平移缩放、Shift 框选、多选、连线、撤销重做、小地图（受设置控制）、节点编辑、生成工作台、资产库、导入导出与 409 冲突处理。
+ *      应用模式切换与唯一 App 聊天由外层 ApplicationWorkspace 提供；本组件不创建第二套聊天或模式栏。
  *      所有数据读写都经画布 Owner 的认证 API；生成调用画布生成 Owner，未配置时展示服务端真实错误并引导到设置中心。
  * 不负责：权限判断、账户隔离与数据校验（服务端权威）；不伪造生成结果。
  * 关联文件：CanvasNodeCards.tsx、CanvasAssetPanel.tsx、CanvasProjectTransfer.ts、CanvasHome.tsx、canvas-workspace.css。
@@ -12,13 +13,13 @@ import {
 } from "@xyflow/react";
 import {
   AudioOutlined, BarsOutlined, EllipsisOutlined, FileTextOutlined,
-  FolderOpenOutlined, MessageOutlined, PictureOutlined, RedoOutlined, SaveOutlined,
+  FolderOpenOutlined, PictureOutlined, RedoOutlined, SaveOutlined,
   SettingOutlined, SmileOutlined, TableOutlined, ToolOutlined, UndoOutlined, UploadOutlined, VideoCameraOutlined
 } from "@ant-design/icons";
 import { Alert, Button, Dropdown, Input, Segmented, Select, Spin, Tooltip, Typography } from "antd";
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import {
-  ApiError, cancelCanvasVideo, createCanvasProject, deleteCanvasAsset, deleteCanvasProject, generateCanvasImage, getErrorMessage,
+  ApiError, cancelCanvasVideo, canvasAssetUrl, createCanvasProject, deleteCanvasAsset, deleteCanvasProject, generateCanvasImage, getErrorMessage,
   loadCanvasProject, loadCanvasProjects, refreshCanvasVideo, saveCanvasProject, startCanvasVideo, uploadCanvasAsset,
   type ApplicationId, type CanvasAsset, type CanvasEdge, type CanvasNode, type CanvasProject, type CanvasProjectSummary, type UserSettings
 } from "lfaa-client-connection/src/api.js";
@@ -26,7 +27,6 @@ import { ResizableWorkbench } from "lfaa-client-ui-dockkit/src/ResizableWorkbenc
 import { useWorkbenchMetrics } from "lfaa-client-ui-dockkit/src/use-workbench-metrics.js";
 import { resolveWorkbenchLayoutMetrics } from "lfaa-client-ui-dockkit/src/workbench-layout.config.js";
 import type { WorkbenchLayoutMetrics } from "lfaa-client-ui-dockkit/src/workbench-layout.config.js";
-import type { WorkbenchPaneLimits } from "lfaa-client-ui-dockkit/src/workbench-layout.types.js";
 import { CanvasAssetPanel, type CanvasProjectAsset } from "./CanvasAssetPanel.js";
 import { CanvasDirectorDeskEditor } from "./CanvasDirectorDeskEditor.js";
 import {
@@ -37,6 +37,7 @@ import {
   type CanvasAspectRatio, type CanvasGenerationData, type CanvasNodeKind
 } from "./CanvasProjectTransfer.js";
 import { CANVAS_NODE_KINDS_BY_APPLICATION } from "lfaa-util-values/src/canvas-node-types.js";
+import { aiVideoCanvasAdapter } from "./ai-video-canvas-adapter.js";
 import {
   CANVAS_NODE_LABELS, CANVAS_NODE_TYPES, CanvasNodeContextProvider,
   type CanvasFlowNode, type CanvasNodeCallbacks, type CanvasNodeData, type CanvasNodeOption
@@ -52,8 +53,38 @@ const DEFAULT_VIEWPORT: Viewport = { x: 0, y: 0, zoom: 1 };
 const EMPTY_ASSETS: CanvasAsset[] = [];
 const HISTORY_LIMIT = 50;
 const TEXT_HISTORY_DELAY_MS = 700;
-/** 画布助手右栏上限占工作区 40%，保证中心画布始终更宽。 */
-const CANVAS_CHAT_MAX_WIDTH_SHARE = 0.4;
+interface CanvasWorkspaceOwner {
+  listProjects: (applicationId: ApplicationId, signal?: AbortSignal) => Promise<CanvasProjectSummary[]>;
+  loadProject: (applicationId: ApplicationId, projectId: string, signal?: AbortSignal) => Promise<CanvasProject>;
+  createProject: (applicationId: ApplicationId, title: string) => Promise<CanvasProject>;
+  saveProject: (applicationId: ApplicationId, project: CanvasProject, expectedUpdatedAt: string) => Promise<CanvasProject>;
+  deleteProject: (applicationId: ApplicationId, projectId: string) => Promise<void>;
+  uploadAsset: (applicationId: ApplicationId, project: CanvasProject, file: File) => Promise<CanvasProject>;
+  deleteAsset: (applicationId: ApplicationId, project: CanvasProject, assetId: string) => Promise<CanvasProject>;
+  assetUrl: (applicationId: ApplicationId, projectId: string, assetId: string) => string;
+}
+
+const genericCanvasOwner: CanvasWorkspaceOwner = {
+  async listProjects(applicationId, signal) { return (await loadCanvasProjects(applicationId, signal)).projects; },
+  async loadProject(applicationId, projectId, signal) { return (await loadCanvasProject(applicationId, projectId, signal)).project; },
+  async createProject(applicationId, title) { return (await createCanvasProject(applicationId, title)).project; },
+  async saveProject(applicationId, project, expectedUpdatedAt) { return (await saveCanvasProject(applicationId, project.id, expectedUpdatedAt, project)).project; },
+  async deleteProject(applicationId, projectId) { await deleteCanvasProject(applicationId, projectId); },
+  async uploadAsset(applicationId, project, file) { return (await uploadCanvasAsset(applicationId, project.id, project.updatedAt, file.name.slice(0, 120), file, file.type)).project; },
+  async deleteAsset(applicationId, project, assetId) { return (await deleteCanvasAsset(applicationId, project.id, assetId, project.updatedAt)).project; },
+  assetUrl: (applicationId, projectId, assetId) => canvasAssetUrl(applicationId, projectId, assetId)
+};
+
+const aiVideoCanvasOwner: CanvasWorkspaceOwner = {
+  listProjects: async (_applicationId, signal) => aiVideoCanvasAdapter.listProjects(signal),
+  loadProject: async (_applicationId, projectId, signal) => aiVideoCanvasAdapter.loadProject(projectId, signal),
+  createProject: async (_applicationId, title) => aiVideoCanvasAdapter.createProject(title),
+  saveProject: async (_applicationId, project, expectedUpdatedAt) => aiVideoCanvasAdapter.saveProject(project, expectedUpdatedAt),
+  deleteProject: async (_applicationId, projectId) => aiVideoCanvasAdapter.deleteProject(projectId),
+  uploadAsset: async (_applicationId, project, file) => aiVideoCanvasAdapter.uploadAsset(project, file),
+  deleteAsset: async (_applicationId, project, assetId) => aiVideoCanvasAdapter.deleteAsset(project, assetId),
+  assetUrl: (_applicationId, projectId, assetId) => aiVideoCanvasAdapter.assetUrl(projectId, assetId)
+};
 
 /** 新建节点的默认尺寸；仍受画布服务端 120–800 的权威范围校验。 */
 const NODE_DEFAULT_SIZE: Record<CanvasNodeKind, { width: number; height: number }> = {
@@ -68,11 +99,20 @@ const NODE_DEFAULT_SIZE: Record<CanvasNodeKind, { width: number; height: number 
   "director-toolbox": { width: 340, height: 300 },
   "director-desk": { width: 340, height: 300 },
   script: { width: 360, height: 340 },
-  asset: { width: 300, height: 220 }
+  asset: { width: 300, height: 220 },
+  shot: { width: 360, height: 560 },
+  "aivideo-reference": { width: 340, height: 430 },
+  "aivideo-timeline": { width: 440, height: 520 },
+  "aivideo-director": { width: 420, height: 480 }
 };
 
 /** 左侧图标工具轨；资产库/上传是动作入口，不是节点类型。 */
 const RAIL_ITEMS: ReadonlyArray<{ key: CanvasNodeKind | "assets" | "upload"; label: string; icon: ReactNode; testId: string; separatorBefore?: boolean }> = [
+  { key: "script", label: "剧本", icon: <FileTextOutlined />, testId: "canvas-rail-aivideo-script" },
+  { key: "shot", label: "镜头", icon: <VideoCameraOutlined />, testId: "canvas-rail-aivideo-shot" },
+  { key: "aivideo-reference", label: "角色 / 场景", icon: <SmileOutlined />, testId: "canvas-rail-aivideo-reference" },
+  { key: "aivideo-timeline", label: "漫剧时间线", icon: <BarsOutlined />, testId: "canvas-rail-aivideo-timeline" },
+  { key: "aivideo-director", label: "导演台", icon: <TableOutlined />, testId: "canvas-rail-aivideo-director" },
   { key: "text", label: "文本", icon: <FileTextOutlined />, testId: "canvas-rail-text" },
   { key: "image", label: "图片", icon: <PictureOutlined />, testId: "canvas-rail-image" },
   { key: "video", label: "视频", icon: <VideoCameraOutlined />, testId: "canvas-rail-video" },
@@ -89,6 +129,8 @@ const ADD_MENU_ITEMS: ReadonlyArray<{ kind: CanvasNodeKind; label: string }> = [
   { kind: "text", label: "文本节点" },
   { kind: "note", label: "备注节点" },
   { kind: "script", label: "剧本节点" },
+  { kind: "shot", label: "镜头节点" },
+  { kind: "aivideo-reference", label: "角色 / 场景节点" },
   { kind: "subject", label: "主体节点" },
   { kind: "timeline", label: "时间线节点" },
   { kind: "director-toolbox", label: "导演工具箱" },
@@ -122,6 +164,15 @@ function isConflictError(error: unknown): boolean {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("读取参考图失败。"));
+    reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("参考图格式无效。"));
+    reader.readAsDataURL(file);
+  });
 }
 
 function summaryFor(project: CanvasProject, nodeCount = project.nodes.length): CanvasProjectSummary {
@@ -175,6 +226,14 @@ function uiPatchFromPersisted(kind: CanvasNodeKind, data: Record<string, unknown
       return isRecord(data.desk) ? { desk: data.desk as unknown as CanvasNodeData["desk"] } : {};
     case "script":
       return isRecord(data.script) ? { script: data.script as unknown as CanvasNodeData["script"] } : {};
+    case "shot":
+      return isRecord(data.shot) ? { shot: data.shot as unknown as CanvasNodeData["shot"] } : {};
+    case "aivideo-reference":
+      return isRecord(data.reference) ? { reference: data.reference as unknown as CanvasNodeData["reference"] } : {};
+    case "aivideo-timeline":
+      return Array.isArray(data.clips) ? { clips: data.clips as unknown as CanvasNodeData["clips"] } : {};
+    case "aivideo-director":
+      return isRecord(data.whiteModel) ? { whiteModel: data.whiteModel as unknown as CanvasNodeData["whiteModel"] } : {};
     default:
       return {};
   }
@@ -198,6 +257,14 @@ function defaultUiData(kind: CanvasNodeKind): Partial<CanvasNodeData> {
       return { desk: { shotNodeIds: [] } };
     case "script":
       return { script: { title: "", body: "", status: "draft" } };
+    case "shot":
+      return { shot: { id: "", title: "新镜头", description: "", dialogue: "", durationSeconds: 5, x: 0, y: 0, characterIds: [] } };
+    case "aivideo-reference":
+      return { reference: { id: "", name: "新角色", description: "", kind: "characters" } };
+    case "aivideo-timeline":
+      return { clips: [] };
+    case "aivideo-director":
+      return { whiteModel: { items: [], camera: { x: 0, y: 1.6, z: -8, yaw: 0, pitch: -4, focalLength: 50 }, ratio: "16:9" } };
     default:
       return {};
   }
@@ -297,6 +364,9 @@ function assetReferenceCount(flowNodes: CanvasFlowNode[], assetId: string): numb
     if (data.generation?.assetId === assetId) count += 1;
     if (data.subject?.assetIds.includes(assetId)) count += 1;
     if (data.timeline?.clips.some(clip => clip.assetId === assetId)) count += 1;
+    if (data.shot?.imageAssetId === assetId || data.shot?.videoAssetId === assetId) count += 1;
+    if (data.reference?.imageAssetId === assetId) count += 1;
+    if (data.clips?.some(clip => clip.assetId === assetId)) count += 1;
   }
   return count;
 }
@@ -313,6 +383,16 @@ function withoutNodeReference(node: CanvasFlowNode, removedId: string): CanvasFl
     data = { ...data, desk: { shotNodeIds: data.desk.shotNodeIds.filter(id => id !== removedId) } };
     changed = true;
   }
+  if (data.kind === "shot" && data.shot?.characterIds.includes(removedId)) {
+    data = { ...data, shot: { ...data.shot, characterIds: data.shot.characterIds.filter(id => id !== removedId) } };
+    changed = true;
+  }
+  if (data.kind === "shot" && data.shot?.locationId === removedId) {
+    const shot = { ...data.shot };
+    delete shot.locationId;
+    data = { ...data, shot };
+    changed = true;
+  }
   return changed ? { ...node, data } : node;
 }
 
@@ -327,7 +407,6 @@ export interface CanvasWorkspaceProps {
   onOpenSettings: () => void;
   onProjectContextChange?: (project: { applicationId: ApplicationId; projectId: string; title: string; updatedAt: string } | null) => void;
   applicationWorkflowPanel?: (visible: boolean) => ReactNode;
-  chatPanel: ReactNode;
 }
 
 function initialCanvasWorkbenchMetrics(): WorkbenchLayoutMetrics {
@@ -335,8 +414,9 @@ function initialCanvasWorkbenchMetrics(): WorkbenchLayoutMetrics {
   return resolveWorkbenchLayoutMetrics(window.innerWidth, window.innerHeight, true);
 }
 
-export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesRevision = 0, agentChangedProjectId = null, settings, applications, onNavigate, onOpenSettings, onProjectContextChange, applicationWorkflowPanel, chatPanel }: CanvasWorkspaceProps) {
+export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesRevision = 0, agentChangedProjectId = null, settings, applications, onNavigate, onOpenSettings, onProjectContextChange, applicationWorkflowPanel }: CanvasWorkspaceProps) {
   const canvasSettings = resolveCanvasSettings(settings);
+  const owner = useMemo(() => applicationId === "aivideo" ? aiVideoCanvasOwner : genericCanvasOwner, [applicationId]);
   const [loading, setLoading] = useState(true);
   const [summaries, setSummaries] = useState<CanvasProjectSummary[]>([]);
   const [project, setProject] = useState<CanvasProject | null>(null);
@@ -356,11 +436,10 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
   const [conflict, setConflict] = useState(false);
   const [agentConflict, setAgentConflict] = useState(false);
   const [assetsOpen, setAssetsOpen] = useState(false);
-  const [chatOpen, setChatOpen] = useState(() => resolveCanvasSettings(settings).agentPanelDefaultOpen);
-  const [chatMounted, setChatMounted] = useState(() => resolveCanvasSettings(settings).agentPanelDefaultOpen);
-  const [mode, setMode] = useState<CanvasMode>(() => resolveCanvasSettings(settings).defaultMode === "canvas" ? "canvas" : "generate");
+  const [mode, setMode] = useState<CanvasMode>(() => applicationId === "aivideo" || resolveCanvasSettings(settings).defaultMode === "canvas" ? "canvas" : "generate");
   const hasApplicationWorkflow = Boolean(applicationWorkflowPanel);
   const [applicationCanvasView, setApplicationCanvasView] = useState<"canvas" | "workflow">("canvas");
+  const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
   const [addMenu, setAddMenu] = useState<{ x: number; y: number; position: { x: number; y: number } } | null>(null);
   const [prompt, setPrompt] = useState("");
   const [referenceIds, setReferenceIds] = useState<string[]>([]);
@@ -380,9 +459,14 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
   const [directorDeskNodeId, setDirectorDeskNodeId] = useState<string | null>(null);
   const allowedNodeKinds = useMemo(() => new Set(CANVAS_NODE_KINDS_BY_APPLICATION[applicationId] as readonly CanvasNodeKind[]), [applicationId]);
 
-  const supportsAssets = allowedNodeKinds.has("image") || allowedNodeKinds.has("video") || allowedNodeKinds.has("audio");
+  useEffect(() => {
+    if (applicationId === "aivideo") setMode("canvas");
+  }, [applicationId]);
+
+  const supportsAssets = applicationId === "aivideo" || allowedNodeKinds.has("image") || allowedNodeKinds.has("video") || allowedNodeKinds.has("audio");
   const visibleRailItems = useMemo(() => RAIL_ITEMS.filter(item => item.key === "assets" || item.key === "upload" ? supportsAssets : allowedNodeKinds.has(item.key)), [allowedNodeKinds, supportsAssets]);
-  const visibleAddMenuItems = useMemo(() => ADD_MENU_ITEMS.filter(item => allowedNodeKinds.has(item.kind)), [allowedNodeKinds]);
+  const visibleAddMenuItems = useMemo(() => ADD_MENU_ITEMS.filter(item => allowedNodeKinds.has(item.kind)
+    && (applicationId !== "aivideo" || item.kind === "shot" || item.kind === "aivideo-reference")), [allowedNodeKinds, applicationId]);
   const runningVideoRef = useRef<string[]>([]);
 
   const mountedRef = useRef(true);
@@ -406,7 +490,6 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
   const generationVisibilityForceRef = useRef(false);
   const generationLayoutSizeRef = useRef<{ stageWidth: number; stageHeight: number; panelWidth: number; panelHeight: number } | null>(null);
   const workbenchRef = useRef<HTMLDivElement>(null);
-  const chatLaunchButtonRef = useRef<HTMLButtonElement>(null);
   const flowRef = useRef<ReactFlowInstance<CanvasFlowNode, Edge> | null>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -420,6 +503,14 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
   const deleteInFlight = useRef(false);
   const refreshInFlight = useRef(false);
   const generationInFlight = useRef(false);
+  const aiVideoShotActionsRef = useRef<{
+    generateImage: (id: string) => void;
+    startVideo: (id: string) => void;
+    refreshVideo: (id: string) => void;
+    cancelVideo: (id: string) => void;
+    uploadReference: (id: string, file: File) => void;
+    removeReference: (id: string) => void;
+  }>({ generateImage: () => undefined, startVideo: () => undefined, refreshVideo: () => undefined, cancelVideo: () => undefined, uploadReference: () => undefined, removeReference: () => undefined });
   const unsupportedNodesRef = useRef<CanvasNode[]>([]);
   const unsupportedEdgesRef = useRef<CanvasEdge[]>([]);
   const cascadeRef = useRef(0);
@@ -569,33 +660,6 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
   }, [scheduleGenerationPanelPosition]);
 
   const workbenchMetrics = useWorkbenchMetrics(workbenchRef, initialCanvasWorkbenchMetrics, true);
-  const chatRightLimits = useMemo<WorkbenchPaneLimits>(() => {
-    const max = Math.max(
-      workbenchMetrics.right.min,
-      Math.min(workbenchMetrics.right.max, Math.round(workbenchMetrics.containerWidth * CANVAS_CHAT_MAX_WIDTH_SHARE))
-    );
-    return {
-      ...workbenchMetrics.right,
-      max,
-      initial: Math.min(max, Math.max(workbenchMetrics.right.min, workbenchMetrics.right.initial))
-    };
-  }, [workbenchMetrics]);
-
-  const openChatPanel = useCallback(() => {
-    setChatMounted(true);
-    setChatOpen(true);
-    setAssetsOpen(false);
-  }, []);
-
-  const closeChatPanel = useCallback(() => {
-    setChatOpen(false);
-    window.requestAnimationFrame(() => chatLaunchButtonRef.current?.focus());
-  }, []);
-
-  const handleRightCollapsedChange = useCallback((collapsed: boolean) => {
-    if (!collapsed) setChatMounted(true);
-    setChatOpen(!collapsed);
-  }, []);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -784,7 +848,6 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
     if (!target || saving || generationBusy || operation !== null || openingId !== null || deletingProjectId !== null || deletingAssetId !== null) return;
     setError("");
     setAssetsOpen(false);
-    setChatOpen(false);
     setMode("canvas");
     setDirectorDeskNodeId(id);
   }, [deletingAssetId, deletingProjectId, generationBusy, openingId, operation, saving]);
@@ -846,7 +909,13 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
     onRemove,
     onOpenDirectorDesk,
     onRefreshGeneration: nodeId => { void refreshGeneration(nodeId); },
-    onCancelGeneration: nodeId => { void cancelGeneration(nodeId); }
+    onCancelGeneration: nodeId => { void cancelGeneration(nodeId); },
+    onGenerateShotImage: nodeId => aiVideoShotActionsRef.current.generateImage(nodeId),
+    onStartShotVideo: nodeId => aiVideoShotActionsRef.current.startVideo(nodeId),
+    onRefreshShotVideo: nodeId => aiVideoShotActionsRef.current.refreshVideo(nodeId),
+    onCancelShotVideo: nodeId => aiVideoShotActionsRef.current.cancelVideo(nodeId),
+    onUploadReferenceImage: (nodeId, file) => aiVideoShotActionsRef.current.uploadReference(nodeId, file),
+    onRemoveReferenceImage: nodeId => aiVideoShotActionsRef.current.removeReference(nodeId)
   }), [cancelGeneration, onOpenDirectorDesk, onPatch, onRemove, onTextChange, refreshGeneration]);
 
   const applyProject = useCallback((next: CanvasProject) => {
@@ -919,30 +988,35 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
   }, []);
 
   const reloadSummaries = useCallback(async () => {
-    const { projects } = await loadCanvasProjects(applicationId);
+    const projects = await owner.listProjects(applicationId);
     if (mountedRef.current) setSummaries(projects);
     return projects;
-  }, [applicationId]);
+  }, [applicationId, owner]);
 
   useEffect(() => {
     let active = true;
     setLoading(true);
     void (async () => {
       try {
-        const { projects } = await loadCanvasProjects(applicationId);
+        const projects = await owner.listProjects(applicationId);
         if (!active) return;
         setSummaries(projects);
-        let target: CanvasProject;
+        let target: CanvasProject | null = null;
         if (initialProjectId) {
-          target = (await loadCanvasProject(applicationId, initialProjectId)).project;
+          target = await owner.loadProject(applicationId, initialProjectId);
         } else if (projects[0]) {
-          target = (await loadCanvasProject(applicationId, projects[0].id)).project;
-        } else {
-          target = (await createCanvasProject(applicationId, "未命名画布")).project;
+          target = await owner.loadProject(applicationId, projects[0].id);
+        } else if (applicationId !== "aivideo") {
+          target = await owner.createProject(applicationId, "未命名画布");
         }
         if (!active) return;
-        applyProject(target);
-        setSummaries(list => upsertSummary(list, summaryFor(target, target.nodes.length)));
+        if (target) {
+          applyProject(target);
+          const targetSummary = summaryFor(target, target.nodes.length);
+          setSummaries(list => upsertSummary(list, targetSummary));
+        } else {
+          clearProject();
+        }
       } catch (loadError) {
         if (active) setError(canvasErrorText(loadError, "无法加载画布项目。"));
       } finally {
@@ -950,7 +1024,7 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
       }
     })();
     return () => { active = false; };
-  }, [applicationId, initialProjectId, applyProject]);
+  }, [applicationId, initialProjectId, applyProject, clearProject, owner]);
 
   useEffect(() => {
     if (agentChangesRevision <= agentRefreshHandledRevisionRef.current) return;
@@ -971,8 +1045,8 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
     setAgentSyncing(true);
     setError("");
     void Promise.all([
-      loadCanvasProject(applicationId, projectId, controller.signal),
-      loadCanvasProjects(applicationId, controller.signal)
+      owner.loadProject(applicationId, projectId, controller.signal),
+      owner.listProjects(applicationId, controller.signal)
     ]).then(([loaded, listed]) => {
       if (controller.signal.aborted || !mountedRef.current || projectRef.current?.id !== projectId) return;
       if (dirtyRef.current || editRevision.current !== startingEditRevision) {
@@ -981,8 +1055,8 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
         setNotice("");
         return;
       }
-      applyProjectRef.current(loaded.project);
-      setSummaries(listed.projects);
+      applyProjectRef.current(loaded);
+      setSummaries(listed);
       setNotice("已同步小鱼通过对话完成的画布修改。");
     }).catch(refreshError => {
       if (controller.signal.aborted || !mountedRef.current) return;
@@ -996,7 +1070,7 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
       }
     });
     return () => controller.abort();
-  }, [agentChangedProjectId, agentChangesRevision, applicationId, project?.id]);
+  }, [agentChangedProjectId, agentChangesRevision, applicationId, owner, project?.id]);
 
   const openProject = useCallback(async (summary: CanvasProjectSummary) => {
     if (projectRef.current?.id === summary.id || openInFlight.current || busyRef.current || saveInFlight.current) return;
@@ -1006,7 +1080,7 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
     setError("");
     setNotice("");
     try {
-      const { project: loaded } = await loadCanvasProject(applicationId, summary.id);
+      const loaded = await owner.loadProject(applicationId, summary.id);
       if (!mountedRef.current) return;
       applyProject(loaded);
       setSummaries(list => upsertSummary(list, summaryFor(loaded)));
@@ -1017,7 +1091,7 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
       openInFlight.current = false;
       if (mountedRef.current) setOpeningId(null);
     }
-  }, [applicationId, applyProject, confirmDiscard]);
+  }, [applicationId, applyProject, confirmDiscard, owner]);
 
   const createProject = useCallback(async () => {
     if (createInFlight.current || busyRef.current || saveInFlight.current || openInFlight.current) return;
@@ -1026,7 +1100,7 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
     setError("");
     setNotice("");
     try {
-      const { project: created } = await createCanvasProject(applicationId, "画布 " + (summaries.length + 1));
+      const created = await owner.createProject(applicationId, applicationId === "aivideo" ? "漫剧项目 " + (summaries.length + 1) : "画布 " + (summaries.length + 1));
       if (!mountedRef.current) return;
       applyProject(created);
       setSummaries(list => upsertSummary(list, summaryFor(created)));
@@ -1036,7 +1110,7 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
     } finally {
       createInFlight.current = false;
     }
-  }, [applicationId, applyProject, confirmDiscard, summaries.length]);
+  }, [applicationId, applyProject, confirmDiscard, owner, summaries.length]);
 
   const reloadCurrentProject = useCallback(async () => {
     const current = projectRef.current;
@@ -1046,7 +1120,7 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
     setOpeningId(current.id);
     setError("");
     try {
-      const { project: loaded } = await loadCanvasProject(applicationId, current.id);
+      const loaded = await owner.loadProject(applicationId, current.id);
       if (!mountedRef.current) return;
       applyProject(loaded);
       setSummaries(list => upsertSummary(list, summaryFor(loaded)));
@@ -1057,7 +1131,7 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
       openInFlight.current = false;
       if (mountedRef.current) setOpeningId(null);
     }
-  }, [applicationId, applyProject, confirmDiscard]);
+  }, [applicationId, applyProject, confirmDiscard, owner]);
 
   const removeProject = useCallback(async (summary: CanvasProjectSummary) => {
     if (deleteInFlight.current || busyRef.current || saveInFlight.current) return;
@@ -1068,14 +1142,14 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
     setError("");
     setNotice("");
     try {
-      await deleteCanvasProject(applicationId, summary.id);
+      await owner.deleteProject(applicationId, summary.id);
       if (!mountedRef.current) return;
       const projects = await reloadSummaries();
       if (!mountedRef.current) return;
       if (active) {
         const next = projects[0];
         if (next) {
-          const { project: loaded } = await loadCanvasProject(applicationId, next.id);
+          const loaded = await owner.loadProject(applicationId, next.id);
           if (mountedRef.current) applyProject(loaded);
         } else {
           clearProject();
@@ -1088,7 +1162,7 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
       deleteInFlight.current = false;
       if (mountedRef.current) setDeletingProjectId(null);
     }
-  }, [applicationId, applyProject, clearProject, confirmDiscard, reloadSummaries]);
+  }, [applicationId, applyProject, clearProject, confirmDiscard, owner, reloadSummaries]);
 
   const placementForNewNode = useCallback((kind: CanvasNodeKind): { x: number; y: number } => {
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -1216,10 +1290,18 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
       return;
     }
     if (!connection.source || !connection.target || connection.source === connection.target) return;
+    if (applicationId === "aivideo") {
+      const source = nodesRef.current.find(node => node.id === connection.source);
+      const target = nodesRef.current.find(node => node.id === connection.target);
+      if (source?.data.kind !== "shot" || target?.data.kind !== "shot") {
+        setError("漫剧连线只连接镜头；剧本、角色、时间线和导演台通过项目关系保持同步。");
+        return;
+      }
+    }
     commitHistory();
     setEdges(current => addEdge({ ...connection, id: crypto.randomUUID(), type: "smoothstep" }, current));
     markDirty();
-  }, [commitHistory, markDirty, setEdges]);
+  }, [applicationId, commitHistory, markDirty, setEdges]);
 
   const saveProjectNow = useCallback(async (force = false): Promise<CanvasProject | null> => {
     const current = projectRef.current;
@@ -1246,7 +1328,7 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
     const revision = editRevision.current;
     const payload = buildCanvasProjectPayload({ project: current, title: nextTitle, viewport: viewportRef.current, nodes: persisted, edges: persistedEdges });
     try {
-      const { project: saved } = await saveCanvasProject(applicationId, current.id, current.updatedAt, payload);
+      const saved = await owner.saveProject(applicationId, payload, current.updatedAt);
       if (!mountedRef.current) return saved;
       projectRef.current = saved;
       setProject(saved);
@@ -1275,7 +1357,153 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
       saveInFlight.current = false;
       if (mountedRef.current) setSaving(false);
     }
-  }, [applicationId, canvasCallbacks, setEdges, setNodes]);
+  }, [applicationId, canvasCallbacks, owner, setEdges, setNodes]);
+
+  const generateAiVideoShotImage = useCallback(async (shotId: string) => {
+    if (applicationId !== "aivideo" || generationInFlight.current || busyRef.current || saveInFlight.current) return;
+    generationInFlight.current = true;
+    setGenerationBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const current = projectRef.current;
+      const saved = current && dirtyRef.current ? await saveProjectNow() : current;
+      if (!saved) return;
+      const updated = await aiVideoCanvasAdapter.generateShotImage(saved.id, shotId, saved.updatedAt);
+      if (!mountedRef.current) return;
+      applyProjectRef.current(updated);
+      setNotice("分镜图已生成并保存到漫剧项目媒体库。");
+    } catch (actionError) {
+      if (!mountedRef.current) return;
+      if (isConflictError(actionError)) setConflict(true);
+      setError(canvasErrorText(actionError, "生成分镜图失败。"));
+    } finally {
+      generationInFlight.current = false;
+      if (mountedRef.current) setGenerationBusy(false);
+    }
+  }, [applicationId, saveProjectNow]);
+
+  const startAiVideoShotVideo = useCallback(async (shotId: string) => {
+    if (applicationId !== "aivideo" || generationInFlight.current || busyRef.current || saveInFlight.current) return;
+    generationInFlight.current = true;
+    setGenerationBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const current = projectRef.current;
+      const saved = current && dirtyRef.current ? await saveProjectNow() : current;
+      if (!saved) return;
+      const updated = await aiVideoCanvasAdapter.startShotVideo(saved.id, shotId, saved.updatedAt);
+      if (!mountedRef.current) return;
+      applyProjectRef.current(updated);
+      setNotice("视频任务已提交；状态将按漫剧服务的真实任务结果更新。");
+    } catch (actionError) {
+      if (!mountedRef.current) return;
+      if (isConflictError(actionError)) setConflict(true);
+      setError(canvasErrorText(actionError, "提交镜头视频任务失败。"));
+    } finally {
+      generationInFlight.current = false;
+      if (mountedRef.current) setGenerationBusy(false);
+    }
+  }, [applicationId, saveProjectNow]);
+
+  const refreshAiVideoShotVideo = useCallback(async (shotId: string) => {
+    const current = projectRef.current;
+    if (applicationId !== "aivideo" || !current || refreshInFlight.current || busyRef.current || saveInFlight.current || generationInFlight.current) return;
+    if (dirtyRef.current) {
+      setNotice("先保存当前修改，再刷新视频任务状态。");
+      return;
+    }
+    refreshInFlight.current = true;
+    try {
+      const updated = await aiVideoCanvasAdapter.refreshShotVideo(current.id, shotId);
+      if (!mountedRef.current || dirtyRef.current) return;
+      applyProjectRef.current(updated);
+    } catch (actionError) {
+      if (mountedRef.current) setError(canvasErrorText(actionError, "刷新镜头视频任务失败。"));
+    } finally {
+      refreshInFlight.current = false;
+    }
+  }, [applicationId]);
+
+  const cancelAiVideoShotVideo = useCallback(async (shotId: string) => {
+    const current = projectRef.current;
+    if (applicationId !== "aivideo" || !current || refreshInFlight.current || busyRef.current || saveInFlight.current || generationInFlight.current) return;
+    if (dirtyRef.current) {
+      setNotice("先保存当前修改，再取消视频任务。");
+      return;
+    }
+    refreshInFlight.current = true;
+    try {
+      const updated = await aiVideoCanvasAdapter.cancelShotVideo(current.id, shotId);
+      if (!mountedRef.current) return;
+      applyProjectRef.current(updated);
+      setNotice("已请求取消视频任务；最终状态以漫剧服务返回为准。");
+    } catch (actionError) {
+      if (mountedRef.current) setError(canvasErrorText(actionError, "取消镜头视频任务失败。"));
+    } finally {
+      refreshInFlight.current = false;
+    }
+  }, [applicationId]);
+
+  const uploadAiVideoReferenceImage = useCallback(async (nodeId: string, file: File) => {
+    if (applicationId !== "aivideo" || generationInFlight.current || busyRef.current || saveInFlight.current) return;
+    generationInFlight.current = true;
+    setGenerationBusy(true);
+    setError("");
+    try {
+      const node = nodesRef.current.find(item => item.id === nodeId && item.data.kind === "aivideo-reference");
+      const current = projectRef.current;
+      const reference = node?.data.reference;
+      if (!current || !reference) throw new Error("找不到对应的漫剧角色或场景档案。");
+      if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) throw new Error("参考图只支持 PNG、JPEG 或 WebP。");
+      const saved = dirtyRef.current ? await saveProjectNow() : current;
+      if (!saved) return;
+      const dataUrl = await fileToDataUrl(file);
+      const updated = await aiVideoCanvasAdapter.uploadReferenceImage(saved.id, reference.kind, nodeId, saved.updatedAt, dataUrl);
+      if (!mountedRef.current) return;
+      applyProjectRef.current(updated);
+      setNotice("参考图已写入漫剧项目。");
+    } catch (actionError) {
+      if (mountedRef.current) setError(canvasErrorText(actionError, "上传角色或场景参考图失败。"));
+    } finally {
+      generationInFlight.current = false;
+      if (mountedRef.current) setGenerationBusy(false);
+    }
+  }, [applicationId, saveProjectNow]);
+
+  const removeAiVideoReferenceImage = useCallback(async (nodeId: string) => {
+    if (applicationId !== "aivideo" || generationInFlight.current || busyRef.current || saveInFlight.current) return;
+    generationInFlight.current = true;
+    setGenerationBusy(true);
+    setError("");
+    try {
+      const node = nodesRef.current.find(item => item.id === nodeId && item.data.kind === "aivideo-reference");
+      const current = projectRef.current;
+      const reference = node?.data.reference;
+      if (!current || !reference?.imageAssetId) throw new Error("当前档案没有可移除的参考图。");
+      const saved = dirtyRef.current ? await saveProjectNow() : current;
+      if (!saved) return;
+      const updated = await aiVideoCanvasAdapter.removeReferenceImage(saved.id, reference.kind, nodeId, saved.updatedAt);
+      if (!mountedRef.current) return;
+      applyProjectRef.current(updated);
+      setNotice("已移除档案参考图。");
+    } catch (actionError) {
+      if (mountedRef.current) setError(canvasErrorText(actionError, "移除档案参考图失败。"));
+    } finally {
+      generationInFlight.current = false;
+      if (mountedRef.current) setGenerationBusy(false);
+    }
+  }, [applicationId, saveProjectNow]);
+
+  aiVideoShotActionsRef.current = {
+    generateImage: id => { void generateAiVideoShotImage(id); },
+    startVideo: id => { void startAiVideoShotVideo(id); },
+    refreshVideo: id => { void refreshAiVideoShotVideo(id); },
+    cancelVideo: id => { void cancelAiVideoShotVideo(id); },
+    uploadReference: (id, file) => { void uploadAiVideoReferenceImage(id, file); },
+    removeReference: id => { void removeAiVideoReferenceImage(id); }
+  };
 
   const saveAndCloseDirectorDesk = useCallback(async () => {
     const saved = await saveProjectNow();
@@ -1289,7 +1517,6 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
       ? { applicationId, projectId: project.id, title: title.trim() || project.title, updatedAt: project.updatedAt }
       : null;
     onProjectContextChange?.(currentProject);
-    return () => onProjectContextChange?.(null);
   }, [applicationCanvasView, applicationId, onProjectContextChange, project, title]);
 
   const restoreSnapshot = useCallback((snapshot: CanvasSnapshot) => {
@@ -1362,10 +1589,10 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
     }
     startOperation("upload");
     try {
-      const uploaded = await uploadCanvasAsset(applicationId, current.id, current.updatedAt, file.name.slice(0, 120), file, file.type);
+      const uploaded = await owner.uploadAsset(applicationId, current, file);
       if (!mountedRef.current) return;
-      updateProjectMeta(uploaded.project);
-      const asset = uploaded.project.assets[uploaded.project.assets.length - 1];
+      updateProjectMeta(uploaded);
+      const asset = uploaded.assets[uploaded.assets.length - 1];
       if (asset && insertIntoCanvas) insertAssetNode(asset, false);
       setNotice("已上传素材「" + (asset?.name ?? file.name) + "」。");
     } catch (uploadError) {
@@ -1379,7 +1606,7 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
     } finally {
       finishOperation();
     }
-  }, [applicationId, finishOperation, insertAssetNode, startOperation, updateProjectMeta]);
+  }, [applicationId, finishOperation, insertAssetNode, owner, startOperation, updateProjectMeta]);
 
   const removeAsset = useCallback(async (asset: CanvasProjectAsset) => {
     const current = projectRef.current;
@@ -1394,9 +1621,9 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
     startOperation("asset-delete");
     setDeletingAssetId(asset.assetId);
     try {
-      const updated = await deleteCanvasAsset(applicationId, current.id, asset.assetId, current.updatedAt);
+      const updated = await owner.deleteAsset(applicationId, current, asset.assetId);
       if (!mountedRef.current) return;
-      updateProjectMeta(updated.project);
+      updateProjectMeta(updated);
       setNotice("已删除素材「" + asset.name + "」。");
     } catch (removeError) {
       if (!mountedRef.current) return;
@@ -1409,7 +1636,7 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
     } finally {
       finishOperation();
     }
-  }, [applicationId, finishOperation, startOperation, updateProjectMeta]);
+  }, [applicationId, finishOperation, owner, startOperation, updateProjectMeta]);
 
   const copyAssetReference = useCallback(async (asset: CanvasProjectAsset) => {
     try {
@@ -1516,7 +1743,6 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
   const handleRail = useCallback((key: CanvasNodeKind | "assets" | "upload") => {
     if (key === "assets") {
       setAssetsOpen(current => !current);
-      setChatOpen(false);
       return;
     }
     if (key === "upload") {
@@ -1525,12 +1751,20 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
     }
     if (key === "image" || key === "video" || key === "audio") {
       setAssetsOpen(true);
-      setChatOpen(false);
       setNotice("请从资产库上传或选择" + CANVAS_NODE_LABELS[key] + "素材后插入画布。");
       return;
     }
+    if (applicationId === "aivideo" && (key === "script" || key === "aivideo-timeline" || key === "aivideo-director")) {
+      const existing = nodesRef.current.find(node => node.data.kind === key);
+      if (existing) {
+        setNodes(current => current.map(node => ({ ...node, selected: node.id === existing.id })));
+        const size = NODE_DEFAULT_SIZE[key];
+        void flowRef.current?.setCenter(existing.position.x + size.width / 2, existing.position.y + size.height / 2, { zoom: Math.max(viewportRef.current.zoom, 0.45), duration: 180 });
+        return;
+      }
+    }
     addNode(key);
-  }, [addNode]);
+  }, [addNode, applicationId, setNodes]);
 
   const handleStageDoubleClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement;
@@ -1653,6 +1887,24 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
     return () => { active = false; window.clearInterval(timer); };
   }, [runningVideoSignature, refreshGeneration]);
 
+  const runningAiVideoShotIds = useMemo(() => applicationId === "aivideo"
+    ? nodes.filter(node => node.data.kind === "shot" && (node.data.shot?.videoTask?.status === "submitting" || node.data.shot?.videoTask?.status === "queued" || node.data.shot?.videoTask?.status === "running")).map(node => node.id)
+    : [], [applicationId, nodes]);
+  const runningAiVideoShotSignature = runningAiVideoShotIds.join(",");
+  const runningAiVideoShotRef = useRef<string[]>([]);
+  runningAiVideoShotRef.current = runningAiVideoShotIds;
+
+  useEffect(() => {
+    if (!runningAiVideoShotSignature) return;
+    let active = true;
+    const timer = window.setInterval(() => {
+      if (!active || refreshInFlight.current || dirtyRef.current || document.visibilityState !== "visible") return;
+      const shotId = runningAiVideoShotRef.current[0];
+      if (shotId) void refreshAiVideoShotVideo(shotId);
+    }, 5_000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [refreshAiVideoShotVideo, runningAiVideoShotSignature]);
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
@@ -1688,16 +1940,29 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [dirty]);
 
-  const nodeOptionSignature = nodes.map(node => node.id + ":" + node.data.kind).join("|");
+  const nodeOptionSignature = nodes.map(node => {
+    const data = node.data;
+    const name = data.kind === "text" || data.kind === "note" ? data.text.trim().split("\n")[0]
+      : data.assetName ?? data.generation?.prompt ?? data.subject?.name ?? data.script?.title ?? data.shot?.title ?? data.reference?.name ?? "";
+    return node.id + ":" + data.kind + ":" + name;
+  }).join("|");
   const nodeOptions = useMemo<CanvasNodeOption[]>(() => nodes.map(node => {
     const data = node.data;
     const label = data.kind === "text" || data.kind === "note"
       ? (data.text.trim().split("\n")[0] ?? "").slice(0, 40) || CANVAS_NODE_LABELS[data.kind]
-      : data.assetName || data.generation?.prompt.trim().slice(0, 40) || data.subject?.name || data.script?.title || CANVAS_NODE_LABELS[data.kind];
+      : data.assetName || data.generation?.prompt.trim().slice(0, 40) || data.subject?.name || data.script?.title || data.shot?.title || data.reference?.name || CANVAS_NODE_LABELS[data.kind];
     return { id: node.id, label, kind: data.kind };
   }), [nodeOptionSignature]);
 
-  const nodeContextValue = useMemo(() => ({ assets: project?.assets ?? EMPTY_ASSETS, nodeOptions }), [project?.assets, nodeOptions]);
+  const references = useMemo(() => nodes.flatMap(node => node.data.kind === "aivideo-reference" && node.data.reference
+    ? [{ id: node.id, name: node.data.reference.name, kind: node.data.reference.kind }]
+    : []), [nodeOptionSignature]);
+  const nodeContextValue = useMemo(() => ({
+    assets: project?.assets ?? EMPTY_ASSETS,
+    nodeOptions,
+    references,
+    assetUrl: (projectId: string, assetId: string) => owner.assetUrl(applicationId, projectId, assetId)
+  }), [applicationId, nodeOptions, owner, project?.assets, references]);
   const historyState = useMemo(
     () => ({ canUndo: historyRef.current.past.length > 0, canRedo: historyRef.current.future.length > 0 }),
     [historyRevision]
@@ -1749,7 +2014,7 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
   const generationTargetState = generationTargetNode?.data.generation ?? null;
   const interactionLocked = saving || agentSyncing || operation !== null || openingId !== null || deletingProjectId !== null;
   const totalNodeCount = nodes.length + unsupportedNodesRef.current.length;
-  const backRoute = applicationId === "workspace" ? "/work" : "/apps/" + encodeURIComponent(applicationId) + "/normal";
+  const backRoute = applicationId === "workspace" ? "/work" : applicationId === "aivideo" ? "/apps/aivideo/ai-work" : "/apps/" + encodeURIComponent(applicationId) + "/normal";
   const statusText = saving
     ? "正在保存…"
     : agentSyncing ? "正在同步小鱼的画布修改…"
@@ -1787,15 +2052,10 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
           leftVisible={false}
           leftCollapsed
           centerRegionClassName="lfaa-cnv-workbench__center"
-          rightRegionClassName="lfaa-cnv-workbench__right"
-          rightLimits={chatRightLimits}
           containerWidth={workbenchMetrics.containerWidth}
           minCenterWidth={workbenchMetrics.minCenterWidth}
           layoutMode={workbenchMetrics.mode}
-          responsiveRightDock
           persistState={false}
-          rightCollapsed={!chatOpen}
-          onRightCollapsedChange={handleRightCollapsedChange}
           center={
           <div className="lfaa-cnv-center-content" data-application-canvas-view={applicationCanvasView}>
           <div className="lfaa-cnv-stage" ref={canvasRef} onDoubleClick={handleStageDoubleClick}>
@@ -1928,34 +2188,6 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
             />}
             {applicationCanvasView === "canvas" ? <span className="lfaa-cnv-save-status" role="status" aria-live="polite" data-testid="canvas-save-status">{statusText}</span> : null}
           </div>
-          <div className="lfaa-cnv-topbar__modes">
-            <Segmented
-              className="lfaa-cnv-mode-switch"
-              aria-label="当前应用工作模式"
-              value="canvas"
-              onChange={value => {
-                if (value === "chat") onNavigate(`/apps/${encodeURIComponent(applicationId)}/ai-work`);
-                else if (value === "manual") onNavigate(`/apps/${encodeURIComponent(applicationId)}/normal`);
-              }}
-              options={[{ value: "chat", label: "聊天" }, { value: "canvas", label: "画布" }, ...(applicationId === "workspace" ? [] : [{ value: "manual", label: "手动" }])]}
-            />
-            {hasApplicationWorkflow ? <Segmented
-              className="lfaa-cnv-mode-switch lfaa-cnv-mode-switch--app"
-              aria-label="当前 App 画布类型"
-              value={applicationCanvasView}
-              onChange={value => { setApplicationCanvasView(value as "canvas" | "workflow"); setAddMenu(null); setAssetsOpen(false); setDirectorDeskNodeId(null); }}
-              options={[{ value: "workflow", label: "工作流" }, { value: "canvas", label: "自由画布" }]}
-            /> : null}
-            {applicationCanvasView === "canvas" ? <Segmented
-              className="lfaa-cnv-mode-switch"
-              value={mode}
-              onChange={value => { setMode(value as CanvasMode); setAddMenu(null); }}
-              options={[
-                { value: "generate", label: <span data-testid="canvas-mode-generate">生成</span> },
-                { value: "canvas", label: <span data-testid="canvas-mode-canvas">画布</span> }
-              ]}
-            /> : null}
-          </div>
           <div className="lfaa-cnv-topbar__group lfaa-cnv-topbar__group--actions">
             {applicationCanvasView === "canvas" ? <>
               <Tooltip title="撤销（Ctrl+Z）"><Button size="small" type="text" className="lfaa-cnv-topbar__icon lfaa-cnv-wide-only" aria-label="撤销" data-testid="canvas-undo" icon={<UndoOutlined />} disabled={!historyState.canUndo} onClick={undo} /></Tooltip>
@@ -1963,24 +2195,38 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
               <Tooltip title="保存画布（Ctrl+S）"><Button size="small" type="text" className="lfaa-cnv-topbar__icon" aria-label="保存画布" data-testid="canvas-save" aria-keyshortcuts="Control+S" icon={<SaveOutlined />} loading={saving} disabled={!project || !dirty || interactionLocked} onClick={() => void saveProjectNow()} /></Tooltip>
             </> : null}
             <Tooltip title="设置中心"><Button size="small" type="text" className="lfaa-cnv-topbar__icon" aria-label="设置中心" icon={<SettingOutlined />} onClick={onOpenSettings} /></Tooltip>
-            {applicationCanvasView === "canvas" ? <Dropdown
+            <Dropdown
+              open={actionsMenuOpen}
+              onOpenChange={setActionsMenuOpen}
               trigger={["click"]}
               menu={{
                 items: [
                   { key: "back", label: "返回本 App" },
-                  { key: "home", label: "画布首页" },
+                  ...(applicationId === "workspace" ? [{ key: "home", label: "画布首页" }] : []),
                   ...(appOptions.length > 1 ? [{ key: "app-switch", label: "切换 App", children: appOptions.map(option => ({ key: "app:" + option.value, label: option.label })) }] : []),
                   { type: "divider" as const },
+                  ...(hasApplicationWorkflow ? [{ type: "group" as const, label: "工作区视图", children: [
+                    { key: "view:workflow", label: <span data-testid="canvas-view-workflow">{applicationCanvasView === "workflow" ? "✓ 工作流" : "工作流"}</span> },
+                    { key: "view:canvas", label: <span data-testid="canvas-view-canvas">{applicationCanvasView === "canvas" ? "✓ 自由画布" : "自由画布"}</span> }
+                  ] }] : []),
+                  ...(applicationId === "aivideo" ? [] : [{ type: "group" as const, label: "画布模式", children: [
+                    { key: "mode:generate", label: <span data-testid="canvas-mode-generate">{mode === "generate" ? "✓ 生成" : "生成"}</span> },
+                    { key: "mode:canvas", label: <span data-testid="canvas-mode-canvas">{mode === "canvas" ? "✓ 画布" : "画布"}</span> }
+                  ] }]),
+                  ...(applicationCanvasView === "canvas" ? [
                   { key: "undo", label: "撤销（Ctrl+Z）", disabled: !historyState.canUndo },
                   { key: "redo", label: "重做（Ctrl+Shift+Z）", disabled: !historyState.canRedo },
                   { key: "rename", label: "重命名当前画布", disabled: !project },
                   { key: "settings", label: "打开设置中心" },
                   { type: "divider" as const },
                   { key: "new", label: "新建画布" },
-                  { key: "import", label: "导入画布 JSON" },
-                  { key: "export", label: "导出画布 JSON" },
+                  ...(applicationId === "aivideo" ? [] : [
+                    { key: "import", label: "导入画布 JSON" },
+                    { key: "export", label: "导出画布 JSON" }
+                  ]),
                   { type: "divider" as const },
                   { key: "delete", label: "删除当前项目管理", disabled: !project }
+                  ] : [{ key: "settings", label: "打开设置中心" }])
                 ],
                 onClick: ({ key }) => {
                   if (key === "back") onNavigate(backRoute);
@@ -1989,6 +2235,10 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
                     const next = key.slice(4) as ApplicationId;
                     if (next !== applicationId && appOptions.some(option => option.value === next)) onNavigate("/apps/" + encodeURIComponent(next) + "/canvas");
                   }
+                  else if (key === "view:workflow") { setApplicationCanvasView("workflow"); setAddMenu(null); setAssetsOpen(false); setDirectorDeskNodeId(null); setActionsMenuOpen(false); }
+                  else if (key === "view:canvas") { setApplicationCanvasView("canvas"); setAddMenu(null); setAssetsOpen(false); setDirectorDeskNodeId(null); setActionsMenuOpen(false); }
+                  else if (key === "mode:generate") { setMode("generate"); setAddMenu(null); setActionsMenuOpen(false); }
+                  else if (key === "mode:canvas") { setMode("canvas"); setAddMenu(null); setActionsMenuOpen(false); }
                   else if (key === "undo") undo();
                   else if (key === "redo") redo();
                   else if (key === "rename" && project) {
@@ -2009,7 +2259,7 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
               }}
             >
               <Button size="small" type="text" className="lfaa-cnv-topbar__icon" aria-label="更多画布操作" title="更多画布操作" icon={<EllipsisOutlined />} loading={operation === "export" || operation === "import"} />
-            </Dropdown> : null}
+            </Dropdown>
           </div>
           {applicationCanvasView === "canvas" && error ? <Alert className="lfaa-cnv-alert" type="error" showIcon closable message={error} onClose={() => setError("")} action={<Button size="small" onClick={onOpenSettings}>设置中心</Button>} /> : null}
           {applicationCanvasView === "canvas" && conflict ? <Alert className="lfaa-cnv-alert" type="warning" showIcon message={agentConflict ? "小鱼已通过对话修改当前画布" : "保存冲突（HTTP 409）"} description={agentConflict ? error || "当前画布有未保存的本地编辑，已保留这些内容。重新加载会用小鱼完成的画布版本替换本地未保存更改。" : "项目已在其他窗口或设备更新。重新加载后可以继续编辑并保存，避免覆盖对方的修改。"} action={<Button size="small" loading={openingId !== null} onClick={() => void reloadCurrentProject()}>重新加载</Button>} /> : null}
@@ -2161,42 +2411,6 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
 
           </div>
           }
-          right={chatMounted ? (
-            <aside
-              id="canvas-chat-panel"
-              className="lfaa-cnv-chat-pane"
-              aria-label="小鱼助手对话"
-              data-testid="canvas-chat-drawer"
-            >
-              <header className="lfaa-cnv-chat-pane__header">
-                <strong>小鱼助手</strong>
-                <Button className="lfaa-cnv-chat-pane__close" size="small" type="text" aria-label="关闭小鱼助手" onClick={closeChatPanel}>关闭</Button>
-              </header>
-              <div className="lfaa-cnv-chat-pane__body">{chatPanel}</div>
-            </aside>
-          ) : null}
-          overlay={!chatOpen ? (
-            <Button
-              ref={chatLaunchButtonRef}
-              className="lfaa-cnv-chat-launch"
-              type="default"
-              aria-label="与 AI 对话"
-              aria-expanded={false}
-              aria-controls="canvas-chat-panel"
-              data-testid="canvas-chat-launch"
-              onClick={openChatPanel}
-            >
-              <span className="lfaa-cnv-chat-launch__craft" aria-hidden="true">
-                <MessageOutlined />
-                <span className="lfaa-cnv-chat-launch__label">与 AI 对话</span>
-              </span>
-              <span className="lfaa-cnv-chat-launch__effects" aria-hidden="true">
-                <span className="lfaa-cnv-chat-launch__smoke" />
-                <span className="lfaa-cnv-chat-launch__jet lfaa-cnv-chat-launch__jet--left" />
-                <span className="lfaa-cnv-chat-launch__jet lfaa-cnv-chat-launch__jet--right" />
-              </span>
-            </Button>
-          ) : null}
         />
 
         {applicationCanvasView === "canvas" && directorDeskNode ? (
@@ -2216,6 +2430,7 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
         {assetsOpen ? <button type="button" className="lfaa-cnv-scrim" aria-label="关闭资产库" onClick={() => setAssetsOpen(false)} /> : null}
         {applicationCanvasView === "canvas" ? <CanvasAssetPanel
           project={project}
+          assetUrl={nodeContextValue.assetUrl}
           open={assetsOpen}
           disabled={!project || interactionLocked}
           uploading={operation === "upload"}

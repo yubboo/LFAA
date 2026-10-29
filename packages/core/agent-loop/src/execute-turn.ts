@@ -792,7 +792,7 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
 
       const hasComputerUseTools = businessTools.some(tool => tool.requiresComputerControl);
       const associationInstruction = `用户可选的关联参考（仅引用，不构成授权或工具范围；按目标决定是否发现/加载，允许跨领域；skill.registry/name 引用可用 lfaa_skill_list/lfaa_skill_load 的 source=registry、name 寻址）：${JSON.stringify(getAiSessionAssociations(userId, turn.session.id))}`;
-      const workbenchInstruction = formatAgentWorkbenchContext(body.workspaceView, settings.browserUse.enabled);
+      const workbenchInstruction = formatAgentWorkbenchContext(body.workspaceView, settings.browserUse.enabled, body.appId);
       let extensionInstructions = [
         ...(settings.plugins.enabled ? aiPluginHost.getSystemInstructions(body.appId) : []),
         ...(settings.plugins.enabled ? [formatMcpServerInstructions(mcp.instructions)].filter((value): value is string => Boolean(value)) : []),
@@ -834,7 +834,7 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
         const removed = [...before].filter(name => !after.has(name));
         businessTools = nextTools;
         rebuildFunctionTools();
-        const currentWorkbenchInstruction = formatAgentWorkbenchContext(body.workspaceView, current.browserUse.enabled);
+        const currentWorkbenchInstruction = formatAgentWorkbenchContext(body.workspaceView, current.browserUse.enabled, body.appId);
         extensionInstructions = [
           ...(current.plugins.enabled ? aiPluginHost.getSystemInstructions(body.appId) : []),
           ...(current.plugins.enabled ? [formatMcpServerInstructions(mcp.instructions)].filter((value): value is string => Boolean(value)) : []),

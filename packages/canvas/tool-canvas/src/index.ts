@@ -27,6 +27,9 @@ import {
 } from "lfaa-canvas/src/index.js";
 import type { CanvasGenerateImageInput, CanvasGenerationService } from "lfaa-canvas-generation/src/index.js";
 
+// 漫剧项目由 AI Video Owner 作为画布真源；通用 Canvas CRUD 不向 aivideo 暴露，避免并行写出第二份项目。
+const CANVAS_TOOL_APPLICATION_IDS: readonly ApplicationId[] = APPLICATION_IDS.filter(applicationId => applicationId !== "aivideo");
+
 /**
  * 合同 5.2：客户端注册的画布节点类型集合。
  * 服务端 Owner 只校验节点类型标识格式与有界 JSON；工具在本集合内收敛模型可创建的节点语义，避免写入未登记的节点类型。
@@ -82,7 +85,7 @@ interface ProjectSummary {
 
 const UUID_V4 = Joi.string().guid({ version: ["uuidv4"] });
 
-const applicationIdSchema = Joi.string().valid(...APPLICATION_IDS).required().messages({
+const applicationIdSchema = Joi.string().valid(...CANVAS_TOOL_APPLICATION_IDS).required().messages({
   "any.only": "applicationId 必须来自 APPLICATION_IDS 已登记的 App；画布是系统能力，但仍按 App 作用域隔离数据。"
 });
 const projectIdSchema = UUID_V4.required().messages({ "string.guid": "projectId 必须是 canvas_list_projects 返回的真实项目 ID。" });
@@ -191,7 +194,7 @@ const commonNodeDataSchema = Joi.object({
 
 const nodeDataParamSchema = Joi.object().required().messages({ "object.base": "节点 data 必须是 JSON 对象。" });
 
-const toolApplicationIdProperty = { type: "string", enum: [...APPLICATION_IDS] };
+const toolApplicationIdProperty = { type: "string", enum: [...CANVAS_TOOL_APPLICATION_IDS] };
 const toolProjectIdProperty = { type: "string", format: "uuid" };
 const toolNodeIdProperty = { type: "string", format: "uuid" };
 const toolEdgeIdProperty = { type: "string", format: "uuid" };
@@ -523,7 +526,7 @@ function listProjectsTool(service: CanvasService): AiBusinessTool {
     id: "canvas.projects.list",
     name: "canvas_list_projects",
     coreManaged: true,
-    applicationIds: [...APPLICATION_IDS],
+    applicationIds: [...CANVAS_TOOL_APPLICATION_IDS],
     activityTitle: "读取画布项目",
     description: "列出当前账户在指定 App 作用域内的真实画布项目摘要（ID、标题、节点/素材数量、更新时间）。画布是所有 App 共用的系统能力；必须显式传 applicationId，后续读写必须使用这里返回的项目 ID 与 updatedAt。",
     schema: listProjectsSchema,
@@ -552,7 +555,7 @@ function readProjectTool(service: CanvasService): AiBusinessTool {
     id: "canvas.projects.read",
     name: "canvas_read_project",
     coreManaged: true,
-    applicationIds: [...APPLICATION_IDS],
+    applicationIds: [...CANVAS_TOOL_APPLICATION_IDS],
     activityTitle: "读取画布项目内容",
     description: "按 section 分页读取真实画布项目：project 返回摘要/视口/计数，nodes 返回节点（默认 5 个、最多 20 个，并按 JSON 字节预算继续分页），edges（默认 50、最多 100），assets（默认 20、最多 50）。使用返回的 nextOffset 继续读取；写操作必须携带本次返回的 updatedAt。",
     schema: readProjectSchema,
@@ -594,7 +597,7 @@ function createProjectTool(service: CanvasService): AiBusinessTool {
     id: "canvas.projects.create",
     name: "canvas_create_project",
     coreManaged: true,
-    applicationIds: [...APPLICATION_IDS],
+    applicationIds: [...CANVAS_TOOL_APPLICATION_IDS],
     activityTitle: "新建画布项目",
     description: "在当前账户指定 App 作用域内新建一个空白真实画布项目。画布是所有 App 共用的系统能力，但项目按账户 + App 隔离；创建后使用返回的项目 ID 与 updatedAt 添加节点。",
     schema: createProjectSchema,
@@ -623,7 +626,7 @@ function addNodeTool(service: CanvasService): AiBusinessTool {
     id: "canvas.nodes.add",
     name: "canvas_add_node",
     coreManaged: true,
-    applicationIds: [...APPLICATION_IDS],
+    applicationIds: [...CANVAS_TOOL_APPLICATION_IDS],
     activityTitle: "添加画布节点",
     description: "在真实画布项目内添加一个节点并返回保存后的节点与最新 updatedAt。type 必须是合同登记的节点类型；data 按类型校验（文本 ≤20000 字符、节点数据 ≤64 KiB），素材引用必须来自当前项目。写操作必须携带最近读取的 expectedUpdatedAt，冲突会返回真实 409。",
     schema: addNodeSchema,
@@ -679,7 +682,7 @@ function updateNodeTool(service: CanvasService): AiBusinessTool {
     id: "canvas.nodes.update",
     name: "canvas_update_node",
     coreManaged: true,
-    applicationIds: [...APPLICATION_IDS],
+    applicationIds: [...CANVAS_TOOL_APPLICATION_IDS],
     activityTitle: "更新画布节点",
     description: "更新画布项目中指定节点明确提供的字段；未提供的字段保持现状。type/data 按合同节点类型校验，data 是整组替换，编辑前请先读取完整节点。必须携带最近一次读取或写入返回的 expectedUpdatedAt，冲突返回真实 409。",
     schema: updateNodeSchema,
@@ -739,7 +742,7 @@ function removeNodeTool(service: CanvasService): AiBusinessTool {
     id: "canvas.nodes.remove",
     name: "canvas_remove_node",
     coreManaged: true,
-    applicationIds: [...APPLICATION_IDS],
+    applicationIds: [...CANVAS_TOOL_APPLICATION_IDS],
     activityTitle: "删除画布节点",
     description: "删除画布项目中的指定节点，并同步移除挂在该节点上的连线（否则项目文档会引用不存在的节点）。必须携带最近一次读取返回的 expectedUpdatedAt；返回真实删除结果与剩余连线数量。",
     schema: removeNodeSchema,
@@ -781,7 +784,7 @@ function connectNodesTool(service: CanvasService): AiBusinessTool {
     id: "canvas.nodes.connect",
     name: "canvas_connect_nodes",
     coreManaged: true,
-    applicationIds: [...APPLICATION_IDS],
+    applicationIds: [...CANVAS_TOOL_APPLICATION_IDS],
     activityTitle: "连接画布节点",
     description: "连接当前画布项目中的两个不同节点，返回真实连线 ID 与最新 updatedAt。连线只表示画布关系，不等同于可执行 Workflow；必须携带最近一次读取返回的 expectedUpdatedAt。",
     schema: connectNodesSchema,
@@ -828,7 +831,7 @@ function disconnectNodesTool(service: CanvasService): AiBusinessTool {
     id: "canvas.nodes.disconnect",
     name: "canvas_disconnect_nodes",
     coreManaged: true,
-    applicationIds: [...APPLICATION_IDS],
+    applicationIds: [...CANVAS_TOOL_APPLICATION_IDS],
     activityTitle: "断开画布连线",
     description: "断开画布项目中指定的一条连线；只删除真实存在的连线，不猜测端点。必须携带最近一次读取返回的 expectedUpdatedAt，返回更新后的项目摘要。",
     schema: disconnectNodesSchema,
@@ -865,7 +868,7 @@ function listAssetsTool(service: CanvasService): AiBusinessTool {
     id: "canvas.assets.list",
     name: "canvas_list_assets",
     coreManaged: true,
-    applicationIds: [...APPLICATION_IDS],
+    applicationIds: [...CANVAS_TOOL_APPLICATION_IDS],
     activityTitle: "读取画布素材",
     description: "分页读取画布项目的真实素材元数据（ID、名称、MIME、字节、创建时间、被节点引用次数）与容量使用。素材二进制不通过该工具传输；节点的 assetId 只能来自这里或 canvas_read_project 返回的真实素材。",
     schema: listAssetsSchema,
@@ -892,7 +895,7 @@ function listImageModelsTool(readGeneration: CanvasGenerationReader): AiBusiness
     id: "canvas.generation.image-models",
     name: "canvas_list_image_models",
     coreManaged: true,
-    applicationIds: [...APPLICATION_IDS],
+    applicationIds: [...CANVAS_TOOL_APPLICATION_IDS],
     activityTitle: "读取可用图片模型",
     description: "读取当前账户画布可用的图片模型：包含设置中心已选默认图片模型，以及 Agent Plan 官方目录中 taskType=image-generation 且符合所选套餐档位的模型。只返回账户/模型标识和公开目录元数据，不返回密钥，也不修改设置。用户指定模型/套餐，或尚无默认图片模型时先调用本工具；随后可在 canvas_generate_image 的 modelTarget 中选择这里返回的账户和模型。画布使用远程 Provider，漫剧本机引擎设置不会拦截画布请求。",
     schema: listImageModelsSchema,
@@ -922,7 +925,7 @@ function generateImageTool(service: CanvasService, readGeneration: CanvasGenerat
     id: "canvas.generation.image",
     name: "canvas_generate_image",
     coreManaged: true,
-    applicationIds: [...APPLICATION_IDS],
+    applicationIds: [...CANVAS_TOOL_APPLICATION_IDS],
     activityTitle: "生成画布图片",
     description: "调用画布生成 Owner 为画布项目生成一张真实图片，并把结果登记为项目素材、返回真实 assetId；通常使用设置中心默认图片模型。若用户指定模型，或没有默认图片模型，先调用 canvas_list_image_models，再将返回的账户与模型以 modelTarget 指定，本次选择不更改用户默认设置。Agent Plan 只接受官方目录中的 image-generation 模型和适用套餐档位。画布使用远程 Provider，AI 漫剧的本机引擎选择不会拦截它。2:1 只表示全景比例图像，不是真全景渲染。该操作可能产生服务商费用，必须服从 Permission Owner。账户/模型/密钥缺失或生成失败时返回真实原因，不伪造成功；必须携带最近读取的 expectedUpdatedAt。",
     schema: generateImageSchema,

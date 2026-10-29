@@ -5,13 +5,14 @@
  * 关联文件：CanvasWorkspace.tsx、CanvasProjectTransfer.ts、canvas-workspace.css。
  */
 import { Button, Popconfirm } from "antd";
-import { canvasAssetUrl, type CanvasAsset, type CanvasProject } from "lfaa-client-connection/src/api.js";
+import { type CanvasAsset, type CanvasProject } from "lfaa-client-connection/src/api.js";
 import { CANVAS_ASSET_MIME_TYPES, CANVAS_LIMITS, canvasAssetKind, formatCanvasBytes } from "./CanvasProjectTransfer.js";
 
 export type CanvasProjectAsset = CanvasProject["assets"][number];
 
 export interface CanvasAssetPanelProps {
   project: CanvasProject | null;
+  assetUrl: (projectId: string, assetId: string) => string;
   open: boolean;
   disabled: boolean;
   uploading: boolean;
@@ -39,7 +40,7 @@ function mimeLabel(mimeType: CanvasAsset["mimeType"]): string {
   }
 }
 
-export function CanvasAssetPanel({ project, open, disabled, uploading, deletingAssetId, onUpload, onInsert, onInsertReference, onCopyReference, onDelete, onClose }: CanvasAssetPanelProps) {
+export function CanvasAssetPanel({ project, assetUrl, open, disabled, uploading, deletingAssetId, onUpload, onInsert, onInsertReference, onCopyReference, onDelete, onClose }: CanvasAssetPanelProps) {
   const assets = project?.assets ?? [];
   return (
     <aside className={"lfaa-cnv-drawer lfaa-cnv-assets" + (open ? " is-open" : "")} aria-label="项目资产库" aria-hidden={!open} data-testid="canvas-asset-drawer">
@@ -73,10 +74,10 @@ export function CanvasAssetPanel({ project, open, disabled, uploading, deletingA
               <article key={asset.assetId} className="lfaa-cnv-asset">
                 <div className="lfaa-cnv-asset__thumb-wrap">
                   {kind === "image"
-                    ? <img className="lfaa-cnv-asset__thumb" src={canvasAssetUrl(project!.applicationId, project!.id, asset.assetId)} alt={"素材缩略图：" + asset.name} loading="lazy" decoding="async" />
+                    ? <img className="lfaa-cnv-asset__thumb" src={assetUrl(project!.id, asset.assetId)} alt={"素材缩略图：" + asset.name} loading="lazy" decoding="async" />
                     : kind === "video"
-                      ? <video className="lfaa-cnv-asset__thumb" src={canvasAssetUrl(project!.applicationId, project!.id, asset.assetId)} preload="metadata" muted playsInline aria-label={"素材预览：" + asset.name} />
-                      : <audio className="lfaa-cnv-asset__audio" src={canvasAssetUrl(project!.applicationId, project!.id, asset.assetId)} controls preload="metadata" aria-label={"音频预览：" + asset.name} />}
+                      ? <video className="lfaa-cnv-asset__thumb" src={assetUrl(project!.id, asset.assetId)} preload="metadata" muted playsInline aria-label={"素材预览：" + asset.name} />
+                      : <audio className="lfaa-cnv-asset__audio" src={assetUrl(project!.id, asset.assetId)} controls preload="metadata" aria-label={"音频预览：" + asset.name} />}
                 </div>
                 <div className="lfaa-cnv-asset__meta">
                   <span className="lfaa-cnv-asset__name" title={asset.name}>{asset.name}</span>

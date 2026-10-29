@@ -10,5 +10,5 @@ export const CANVAS_NODE_KINDS_BY_APPLICATION: Readonly<Record<ApplicationId, re
   connectivity: ["text", "note"],
   writing: ["text", "note", "script"],
   steamcmd: ["text", "note"],
-  aivideo: ["text", "note", "image", "video", "audio", "generation", "subject", "timeline", "director-toolbox", "director-desk", "script", "asset"]
+  aivideo: ["asset", "script", "shot", "aivideo-reference", "aivideo-timeline", "aivideo-director"]
 };

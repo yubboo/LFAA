@@ -7,7 +7,7 @@
 import type { Context } from "@deepseek-ai/cordis";
 import Joi from "joi";
 import { makeTool, type AiBusinessTool } from "lfaa-tools/src/business-tools.js";
-import type { AiVideoCanvas, AiVideoCanvasService } from "lfaa-video-ai-video/src/index.js";
+import type { AiVideoCanvas, AiVideoCanvasLayout, AiVideoCanvasService, AiVideoTimelineClip, AiVideoWhiteModel } from "lfaa-video-ai-video/src/index.js";
 
 const uuid = Joi.string().guid({ version: ["uuidv4"] });
 const referenceSchema = Joi.object({
@@ -31,6 +31,25 @@ const linkSchema = Joi.object({
   source: uuid.required(),
   target: uuid.required()
 }).unknown(false);
+const timelineClipSchema = Joi.object({
+  id: uuid.required(), track: Joi.string().valid("video", "audio", "subtitle").required(), assetId: uuid.optional(), text: Joi.string().max(2_000).allow("").optional(),
+  startSeconds: Joi.number().min(0).max(300).required(), inPointSeconds: Joi.number().min(0).max(300).required(), durationSeconds: Joi.number().min(0.1).max(300).required()
+}).unknown(false);
+const whiteModelSchema = Joi.object({
+  ratio: Joi.string().valid("16:9", "9:16", "1:1").required(),
+  camera: Joi.object({
+    x: Joi.number().min(-100).max(100).required(), y: Joi.number().min(-5).max(100).required(), z: Joi.number().min(-100).max(100).required(),
+    yaw: Joi.number().min(-360).max(360).required(), pitch: Joi.number().min(-85).max(85).required(), focalLength: Joi.number().min(18).max(120).required()
+  }).unknown(false).required(),
+  items: Joi.array().max(32).items(Joi.object({
+    id: uuid.required(), name: Joi.string().trim().min(1).max(50).required(), kind: Joi.string().valid("actor", "block").required(),
+    x: Joi.number().min(-50).max(50).required(), z: Joi.number().min(-50).max(50).required(), width: Joi.number().min(0.2).max(20).required(), depth: Joi.number().min(0.2).max(20).required(), height: Joi.number().min(0.2).max(20).required()
+  }).unknown(false)).required()
+}).unknown(false);
+const canvasLayoutSchema = Joi.object({
+  viewport: Joi.object({ x: Joi.number().min(-100_000).max(100_000).required(), y: Joi.number().min(-100_000).max(100_000).required(), zoom: Joi.number().min(0.05).max(8).required() }).unknown(false).required(),
+  nodePositions: Joi.object().pattern(/^(?:script|timeline|director|character:[0-9a-f-]{36}|location:[0-9a-f-]{36}|asset:[0-9a-f-]{36})$/iu, Joi.object({ x: Joi.number().min(-50_000).max(50_000).required(), y: Joi.number().min(-50_000).max(50_000).required() }).unknown(false)).max(128).unknown(false).required()
+}).unknown(false);
 
 const summaryToolSchema = {
   type: "object",
@@ -49,7 +68,7 @@ const readProjectJsonSchema = {
   additionalProperties: false,
   properties: {
     projectId: { type: "string", format: "uuid" },
-    section: { type: "string", enum: ["summary", "script", "characters", "locations", "shots", "links"] },
+    section: { type: "string", enum: ["summary", "script", "characters", "locations", "shots", "links", "assets", "timeline", "director"] },
     offset: { type: "integer", minimum: 0, maximum: 100_000 },
     limit: { type: "integer", minimum: 1, maximum: 8_000 }
   },
@@ -60,6 +79,35 @@ const createProjectJsonSchema = {
   additionalProperties: false,
   properties: { title: { type: "string", minLength: 1, maxLength: 80 } },
   required: ["title"]
+};
+const timelineClipJsonSchema = {
+  type: "object", additionalProperties: false,
+  properties: {
+    id: { type: "string", format: "uuid" }, track: { type: "string", enum: ["video", "audio", "subtitle"] },
+    assetId: { type: "string", format: "uuid" }, text: { type: "string", maxLength: 2_000 },
+    startSeconds: { type: "number", minimum: 0, maximum: 300 }, inPointSeconds: { type: "number", minimum: 0, maximum: 300 }, durationSeconds: { type: "number", minimum: 0.1, maximum: 300 }
+  }, required: ["id", "track", "startSeconds", "inPointSeconds", "durationSeconds"]
+};
+const whiteModelJsonSchema = {
+  type: "object", additionalProperties: false,
+  properties: {
+    ratio: { type: "string", enum: ["16:9", "9:16", "1:1"] },
+    camera: { type: "object", additionalProperties: false, properties: {
+      x: { type: "number", minimum: -100, maximum: 100 }, y: { type: "number", minimum: -5, maximum: 100 }, z: { type: "number", minimum: -100, maximum: 100 },
+      yaw: { type: "number", minimum: -360, maximum: 360 }, pitch: { type: "number", minimum: -85, maximum: 85 }, focalLength: { type: "number", minimum: 18, maximum: 120 }
+    }, required: ["x", "y", "z", "yaw", "pitch", "focalLength"] },
+    items: { type: "array", maxItems: 32, items: { type: "object", additionalProperties: false, properties: {
+      id: { type: "string", format: "uuid" }, name: { type: "string", minLength: 1, maxLength: 50 }, kind: { type: "string", enum: ["actor", "block"] },
+      x: { type: "number", minimum: -50, maximum: 50 }, z: { type: "number", minimum: -50, maximum: 50 }, width: { type: "number", minimum: 0.2, maximum: 20 }, depth: { type: "number", minimum: 0.2, maximum: 20 }, height: { type: "number", minimum: 0.2, maximum: 20 }
+    }, required: ["id", "name", "kind", "x", "z", "width", "depth", "height"] } }
+  }, required: ["ratio", "camera", "items"]
+};
+const canvasLayoutJsonSchema = {
+  type: "object", additionalProperties: false,
+  properties: {
+    viewport: { type: "object", additionalProperties: false, properties: { x: { type: "number", minimum: -100_000, maximum: 100_000 }, y: { type: "number", minimum: -100_000, maximum: 100_000 }, zoom: { type: "number", minimum: 0.05, maximum: 8 } }, required: ["x", "y", "zoom"] },
+    nodePositions: { type: "object", maxProperties: 128, patternProperties: { "^(?:script|timeline|director|character:[0-9a-f-]{36}|location:[0-9a-f-]{36}|asset:[0-9a-f-]{36})$": { type: "object", additionalProperties: false, properties: { x: { type: "number", minimum: -50_000, maximum: 50_000 }, y: { type: "number", minimum: -50_000, maximum: 50_000 } }, required: ["x", "y"] } }, additionalProperties: false }
+  }, required: ["viewport", "nodePositions"]
 };
 const updateProjectJsonSchema = {
   type: "object",
@@ -72,7 +120,10 @@ const updateProjectJsonSchema = {
     characters: { type: "array", maxItems: 24, items: { type: "object", additionalProperties: false, properties: { id: { type: "string", format: "uuid" }, name: { type: "string", minLength: 1, maxLength: 80 }, description: { type: "string", maxLength: 2_000 } }, required: ["id", "name", "description"] } },
     locations: { type: "array", maxItems: 24, items: { type: "object", additionalProperties: false, properties: { id: { type: "string", format: "uuid" }, name: { type: "string", minLength: 1, maxLength: 80 }, description: { type: "string", maxLength: 2_000 } }, required: ["id", "name", "description"] } },
     shots: { type: "array", maxItems: 64, items: { type: "object", additionalProperties: false, properties: { id: { type: "string", format: "uuid" }, title: { type: "string", minLength: 1, maxLength: 80 }, description: { type: "string", maxLength: 1_000 }, dialogue: { type: "string", maxLength: 2_000 }, durationSeconds: { type: "integer", minimum: 1, maximum: 120 }, x: { type: "integer", minimum: -50_000, maximum: 50_000 }, y: { type: "integer", minimum: -50_000, maximum: 50_000 }, characterIds: { type: "array", maxItems: 8, items: { type: "string", format: "uuid" } }, locationId: { type: "string", format: "uuid" } }, required: ["id", "title", "description", "dialogue", "durationSeconds", "x", "y", "characterIds"] } },
-    links: { type: "array", maxItems: 128, items: { type: "object", additionalProperties: false, properties: { id: { type: "string", format: "uuid" }, source: { type: "string", format: "uuid" }, target: { type: "string", format: "uuid" } }, required: ["id", "source", "target"] } }
+    links: { type: "array", maxItems: 128, items: { type: "object", additionalProperties: false, properties: { id: { type: "string", format: "uuid" }, source: { type: "string", format: "uuid" }, target: { type: "string", format: "uuid" } }, required: ["id", "source", "target"] } },
+    timelineClips: { type: "array", maxItems: 256, items: timelineClipJsonSchema },
+    whiteModel: whiteModelJsonSchema,
+    canvasLayout: canvasLayoutJsonSchema
   },
   required: ["projectId", "expectedUpdatedAt"]
 };
@@ -115,7 +166,9 @@ function projectSummary(project: AiVideoCanvas): Record<string, unknown> {
     characterCount: project.characters.length,
     locationCount: project.locations.length,
     shotCount: project.shots.length,
-    linkCount: project.links.length
+    linkCount: project.links.length,
+    mediaAssetCount: project.mediaAssets.length,
+    timelineClipCount: project.timelineClips.length
   };
 }
 
@@ -150,11 +203,11 @@ function readProjectTool(service: AiVideoCanvasService): AiBusinessTool {
     coreManaged: true,
     applicationIds: ["aivideo"],
     activityTitle: "读取漫剧项目内容",
-    description: "按需读取项目摘要、剧本片段、角色、场景、镜头或连线。读取有分页上限：剧本每次最多 8000 字符，角色/场景最多 8 条、镜头最多 8 条、连线最多 32 条。使用返回的 nextOffset 继续读取。",
+    description: "按需读取项目摘要、剧本片段、角色、场景、镜头、连线、媒体素材、时间线或导演台。读取有分页上限：剧本每次最多 8000 字符，角色/场景/镜头/素材/时间线最多 8 条，连线最多 32 条。素材只返回元数据和项目内 ID，不返回媒体字节。使用返回的 nextOffset 继续读取。",
     schema: readProjectJsonSchema,
     parse: value => parse(Joi.object({
       projectId: Joi.string().guid({ version: ["uuidv4"] }).required(),
-      section: Joi.string().valid("summary", "script", "characters", "locations", "shots", "links").required(),
+      section: Joi.string().valid("summary", "script", "characters", "locations", "shots", "links", "assets", "timeline", "director").required(),
       offset: Joi.number().integer().min(0).max(100_000).default(0),
       limit: Joi.number().integer().min(1).max(8_000).optional()
     }).unknown(false), value),
@@ -171,6 +224,7 @@ function readProjectTool(service: AiVideoCanvasService): AiBusinessTool {
           omitted: { characters: Math.max(0, project.characters.length - 12), locations: Math.max(0, project.locations.length - 12), shots: Math.max(0, project.shots.length - 16) }
         };
       }
+      if (section === "director") return { project: projectSummary(project), section, whiteModel: project.whiteModel, canvasLayout: project.canvasLayout };
       const offset = Number(parameters.offset ?? 0);
       if (section === "script") {
         const limit = Math.min(Number(parameters.limit ?? 4_000), 8_000);
@@ -181,9 +235,11 @@ function readProjectTool(service: AiVideoCanvasService): AiBusinessTool {
       const collection = section === "characters" ? project.characters
         : section === "locations" ? project.locations
           : section === "shots" ? project.shots
-            : project.links;
+            : section === "links" ? project.links
+              : section === "timeline" ? project.timelineClips
+                : service.listMediaAssets(context.userId, project.id) ?? [];
       const defaultLimit = section === "links" ? 24 : 6;
-      const maximumLimit = section === "links" ? 32 : section === "shots" ? 8 : 8;
+      const maximumLimit = section === "links" ? 32 : 8;
       const limit = Math.min(Number(parameters.limit ?? defaultLimit), maximumLimit);
       const items = collection.slice(offset, offset + limit);
       const nextOffset = offset + items.length;
@@ -221,15 +277,18 @@ function updateProjectTool(service: AiVideoCanvasService): AiBusinessTool {
     characters: Joi.array().max(24).items(referenceSchema).optional(),
     locations: Joi.array().max(24).items(referenceSchema).optional(),
     shots: Joi.array().max(64).items(shotSchema).optional(),
-    links: Joi.array().max(128).items(linkSchema).optional()
-  }).or("title", "script", "characters", "locations", "shots", "links").unknown(false);
+    links: Joi.array().max(128).items(linkSchema).optional(),
+    timelineClips: Joi.array().max(256).items(timelineClipSchema).optional(),
+    whiteModel: whiteModelSchema.optional(),
+    canvasLayout: canvasLayoutSchema.optional()
+  }).or("title", "script", "characters", "locations", "shots", "links", "timelineClips", "whiteModel", "canvasLayout").unknown(false);
   return makeTool({
     id: "aivideo.projects.update",
     name: "aivideo_update_project",
     coreManaged: true,
     applicationIds: ["aivideo"],
     activityTitle: "保存漫剧创作内容",
-    description: "更新当前账户本机项目中明确提供的字段；未提供的字段保持现状。数组字段是整组替换，编辑前请先读取对应完整分页。镜头坐标是画布位置，不是时间顺序；执行关系以 links 为准。必须传入最近一次读取或写入返回的 expectedUpdatedAt，避免覆盖并发修改。",
+    description: "更新当前账户本机项目中明确提供的字段；未提供的字段保持现状。剧本、角色/场景、镜头、连线、时间线、导演台和画布布局都写回聊天与画布共用的 AI Video 项目。数组字段是整组替换，编辑前请先读取对应完整分页。镜头坐标是画布位置，不是时间顺序；执行关系以 links 为准。必须传入最近一次读取或写入返回的 expectedUpdatedAt，避免覆盖并发修改。",
     schema: updateProjectJsonSchema,
     parse: value => parse(updateSchema, value),
     risk: () => "write",
@@ -238,7 +297,7 @@ function updateProjectTool(service: AiVideoCanvasService): AiBusinessTool {
       context.signal.throwIfAborted();
       const current = findProject(service, context.userId, String(parameters.projectId));
       const changes = { ...current } as AiVideoCanvas & Record<string, unknown>;
-      for (const key of ["title", "script", "characters", "locations", "shots", "links"] as const) {
+      for (const key of ["title", "script", "characters", "locations", "shots", "links", "timelineClips", "whiteModel", "canvasLayout"] as const) {
         if (Object.hasOwn(parameters, key)) changes[key] = parameters[key] as never;
       }
       const updated = service.update(context.userId, current.id, String(parameters.expectedUpdatedAt), {
@@ -247,7 +306,10 @@ function updateProjectTool(service: AiVideoCanvasService): AiBusinessTool {
         characters: changes.characters,
         locations: changes.locations,
         shots: changes.shots,
-        links: changes.links
+        links: changes.links,
+        timelineClips: changes.timelineClips as AiVideoTimelineClip[] | undefined,
+        whiteModel: changes.whiteModel as AiVideoWhiteModel | undefined,
+        canvasLayout: changes.canvasLayout as AiVideoCanvasLayout | undefined
       });
       if (!updated) throw new Error("项目在保存前已删除；请重新列出项目后再操作。");
       return {
@@ -269,7 +331,7 @@ function deleteProjectTool(service: AiVideoCanvasService): AiBusinessTool {
     coreManaged: true,
     applicationIds: ["aivideo"],
     activityTitle: "删除漫剧项目",
-    description: "删除当前账户本机的整个 AI 漫剧项目目录及其素材。只在用户明确要求删除该项目时调用；删除不可恢复。",
+    description: "删除当前账户本机的整个 AI 漫剧项目目录及其素材。仅当当前用户目标明确包含删除该项目时调用；删除不可恢复，按 Permission Owner 当前权限模式处理。",
     schema: projectIdSchema,
     parse: value => parse(Joi.object({ projectId: Joi.string().guid({ version: ["uuidv4"] }).required() }).unknown(false), value),
     risk: () => "dangerous",
@@ -291,7 +353,7 @@ function generateImageTool(service: AiVideoCanvasService): AiBusinessTool {
     coreManaged: true,
     applicationIds: ["aivideo"],
     activityTitle: "生成镜头图片",
-    description: "使用设置中心当前选择的 OpenAI 或豆包/火山方舟图片模型，为指定镜头生成一张图片，并保存到当前账户本机项目素材。该操作可能产生服务商费用/用量；必须在用户要求出图或明确批准此操作后调用。需要项目/镜头 ID 和最新 expectedUpdatedAt。",
+    description: "使用设置中心当前选择的 OpenAI 或豆包/火山方舟图片模型，为指定镜头生成一张图片，并保存到当前账户本机项目素材。该操作可能产生服务商费用/用量，使用 Permission Owner 当前权限模式和服务端配置；需要项目/镜头 ID 和最新 expectedUpdatedAt。",
     schema: generateImageJsonSchema,
     parse: value => parse(Joi.object({
       projectId: Joi.string().guid({ version: ["uuidv4"] }).required(),
@@ -324,7 +386,7 @@ function generateVideoTool(service: AiVideoCanvasService): AiBusinessTool {
     coreManaged: true,
     applicationIds: ["aivideo"],
     activityTitle: "生成镜头视频",
-    description: "使用设置中心选择的火山方舟视频账户与模型，为一个镜头创建真实异步视频任务，并把任务状态保存到本机项目。模型调用和生成可能产生费用；必须在用户要求生成视频或明确批准此操作后调用。需要最近的项目更新时间。",
+    description: "使用设置中心选择的火山方舟视频账户与模型，为一个镜头创建真实异步视频任务，并把任务状态保存到本机项目。模型调用和生成可能产生费用，使用 Permission Owner 当前权限模式和服务端配置；需要最近的项目更新时间。",
     schema: shotVideoJsonSchema,
     parse: value => parse(Joi.object({ projectId: uuid.required(), shotId: uuid.required(), expectedUpdatedAt: Joi.string().isoDate().required() }).unknown(false), value),
     risk: () => "dangerous",

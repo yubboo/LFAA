@@ -279,9 +279,8 @@
   padding-bottom: 0;
 }
 
-/* Mobile Overlay 采用浮层时中心内容被面板覆盖；隐藏其文字与焦点，避免半透明表面下叠读。Dock 模式仍保留被挤开的中心列。 */
-.lfaa-workbench[data-layout-mode="mobile"][data-mobile-left-layout="overlay"][data-left-collapsed="false"] .lfaa-workbench__center,
-.lfaa-workbench[data-layout-mode="mobile"][data-right-layout="overlay"][data-right-collapsed="false"] .lfaa-workbench__center {
+/* 左侧 Overlay 保留既有遮罩与焦点隔离；右侧 Overlay 由高层面板覆盖自身范围，中心未覆盖区仍可见、可交互。 */
+.lfaa-workbench[data-layout-mode="mobile"][data-mobile-left-layout="overlay"][data-left-collapsed="false"] .lfaa-workbench__center {
   visibility: hidden;
   pointer-events: none;
 }

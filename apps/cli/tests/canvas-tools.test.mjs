@@ -21,6 +21,7 @@ const TOOL_NAMES = [
   "canvas_connect_nodes",
   "canvas_disconnect_nodes",
   "canvas_list_assets",
+  "canvas_list_image_models",
   "canvas_generate_image"
 ];
 const TOOL_IDS = [
@@ -33,6 +34,7 @@ const TOOL_IDS = [
   "canvas.nodes.connect",
   "canvas.nodes.disconnect",
   "canvas.assets.list",
+  "canvas.generation.image-models",
   "canvas.generation.image"
 ];
 
@@ -60,7 +62,7 @@ test("画布工具按合同注册、拒绝非法参数，并真实读写画布 O
     assert.deepEqual([...ids].sort(), [...TOOL_IDS].sort(), "工具 ID 必须稳定且唯一");
     for (const tool of registered) {
       assert.equal(tool.coreManaged, true, tool.name + " 必须是核心管理工具");
-      assert.deepEqual([...tool.applicationIds].sort(), [...APPLICATION_IDS].sort(), tool.name + " 必须声明全部已登记 App");
+      assert.deepEqual([...tool.applicationIds].sort(), APPLICATION_IDS.filter(applicationId => applicationId !== "aivideo").sort(), tool.name + " 必须只声明通用 Canvas Owner 支持的 App");
       assert.equal(typeof tool.parse, "function");
       assert.equal(typeof tool.execute, "function");
     }
@@ -90,6 +92,7 @@ test("画布工具按合同注册、拒绝非法参数，并真实读写画布 O
 
     // 参数校验：非法 App、未知 section/节点类型、超长文本、缺失并发基线与非法比例都必须拒绝。
     assert.throws(() => find("canvas_list_projects").parse({ applicationId: "canvas" }), /applicationId/);
+    assert.throws(() => find("canvas_list_projects").parse({ applicationId: "aivideo" }), /applicationId/, "漫剧项目必须走 AI Video Owner，不能通过通用 Canvas 创建第二份数据");
     assert.throws(() => find("canvas_read_project").parse({ applicationId: "workspace", projectId: randomUUID(), section: "summary" }), /section/);
     assert.throws(() => find("canvas_add_node").parse({
       applicationId: "workspace", projectId: randomUUID(), expectedUpdatedAt: new Date().toISOString(),
@@ -220,8 +223,8 @@ test("画布工具按合同注册、拒绝非法参数，并真实读写画布 O
     assert.equal(disconnected.project.edgeCount, 0);
 
     // 跨 App 与跨账户隔离：同一项目在 other App / 其他账户下视为不存在，不串数据。
-    await rejects("canvas_read_project", { applicationId: "writing", projectId, section: "project" }, /找不到当前账户与 App 作用域/);
-    assert.equal((await call("canvas_list_projects", { applicationId: "writing" })).total, 0);
+    await rejects("canvas_read_project", { applicationId: "writing", projectId, section: "project" }, /只能操作当前 App 的项目/);
+    await rejects("canvas_list_projects", { applicationId: "writing" }, /只能操作当前 App 的项目/);
     const beforeGenerate = owner.readCanvasProject(userId, "workspace", projectId);
     await rejects("canvas_generate_image", {
       applicationId: "workspace", projectId, expectedUpdatedAt: disconnected.updatedAt,
@@ -302,6 +305,13 @@ test("画布导演专家按真实 aiExtensions 目录登记并按需加载正文
     assert.match(loaded.instructions, /canvas_generate_image/, "专家方法必须指向真实生成工具");
     assert.match(loaded.instructions, /expectedUpdatedAt/, "专家方法必须要求并发基线");
     assert.doesNotMatch(loaded.instructions, /canvas_delete_project/, "未登记的项目删除工具不得出现在专家方法中");
+    const aiVideoExpert = experts.find(item => item.id === "expert.aivideo-director");
+    assert.ok(aiVideoExpert, "必须登记漫剧领域员工");
+    assert.deepEqual(aiVideoExpert.applicationIds, ["aivideo"], "漫剧员工只在漫剧 App 的 Agent Runtime 中可用");
+    const aiVideoInstructions = await context.aiExtensions.loadInstructions("expert.aivideo-director", "aivideo");
+    assert.match(aiVideoInstructions.instructions, /aivideo_update_project/);
+    assert.match(aiVideoInstructions.instructions, /不要调用通用 canvas_\*/);
+    await assert.rejects(() => context.aiExtensions.loadInstructions("expert.aivideo-director", "workspace"), /不在当前上下文范围/);
   } finally {
     await fiber.dispose();
   }
