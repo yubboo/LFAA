@@ -1,7 +1,7 @@
 /**
- * 功能：锁定 Minecraft 实例删除导航与任务菜单的真实反馈回归。
- * 作用：避免删除操作强制切页，也避免任务路由只显示标题而丢失执行状态。
- * 关联文件：packages/client/ui-minecraft/src/MinecraftWorkspace.tsx、MinecraftWorkspace.css。
+ * 功能：锁定 Minecraft 实例终端/日志分离与任务菜单状态筛选合同。
+ * 作用：避免日志伪装成终端、状态计数不可筛选及过滤清除批量选择。
+ * 关联文件：packages/client/ui-minecraft/src/MinecraftWorkspace.tsx、ui-sidebar-terminal、MinecraftWorkspace.css。
  */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -9,6 +9,9 @@ import test from "node:test";
 
 const workspace = readFileSync(new URL("../../../packages/client/ui-minecraft/src/MinecraftWorkspace.tsx", import.meta.url), "utf8");
 const styles = readFileSync(new URL("../../../packages/client/ui-minecraft/src/MinecraftWorkspace.css", import.meta.url), "utf8");
+const terminalManager = readFileSync(new URL("../../../packages/client/ui-sidebar-terminal/src/TerminalManagerProvider.tsx", import.meta.url), "utf8");
+const terminalAdapter = readFileSync(new URL("../../../packages/host/daemon/src/terminal-process-adapter.mjs", import.meta.url), "utf8");
+const daemon = readFileSync(new URL("../../../packages/host/daemon/src/daemon.mjs", import.meta.url), "utf8");
 const minecraftApi = readFileSync(new URL("../../../packages/api/minecraft-controller/src/index.ts", import.meta.url), "utf8");
 const taskQueue = readFileSync(new URL("../../../packages/jobs/jobs/src/minecraft-queue.ts", import.meta.url), "utf8");
 const taskPage = workspace.match(/\{!selectedInstance && currentSection === "tasks" \? <>[\s\S]*?<\/> : null\}/u)?.[0] ?? "";
@@ -27,7 +30,10 @@ test("Minecraft 任务菜单渲染真实快照、空/读取状态和状态计数
   assert.match(taskPage, /tasksLoaded/u);
   assert.match(taskPage, /任务状态暂不可读/u);
   assert.match(taskPage, /暂无任务记录/u);
-  assert.match(taskPage, /tasks=\{tasks\}/u);
+  assert.match(taskPage, /taskStatusFilter === status/u);
+  assert.match(taskPage, /aria-pressed=\{taskStatusFilter === status\}/u);
+  assert.match(taskPage, /tasks=\{visibleTasks\} selectionTasks=\{tasks\}/u);
+  assert.match(taskPage, /清除筛选/u);
 });
 
 test("任务条目显示真实执行进度、失败消息及实例归档结果", () => {
@@ -84,7 +90,8 @@ test("批量选择按用户隔离并在同标签页刷新后恢复，只保留�
   assert.match(workspace, /selectionPersistence\?\.read\(\)/u);
   assert.match(workspace, /selectionPersistence\.write\(validSelection\)/u);
   assert.match(workspace, /selectionPersistence\.remove\(\)/u);
-  assert.match(workspace, /currentDeletableIds = tasks\.filter\(\(task\) => task\.status === "succeeded" \|\| task\.status === "failed"\)/u);
+  assert.match(workspace, /currentDeletableIds = selectionTasks\.filter\(\(task\) => task\.status === "succeeded" \|\| task\.status === "failed"\)/u);
+  assert.match(workspace, /selectionTasks=\{tasks\}/u);
 });
 
 test("任务状态卡片和任务列表按可用容器宽度自动换列", () => {
@@ -96,17 +103,23 @@ test("任务状态卡片和任务列表按可用容器宽度自动换列", () =>
 });
 
 test("Minecraft 服务端控制台复用共享 Terminal Controller 会话并附着原生 PTY", () => {
-  assert.match(workspace, /TerminalSurface, useTerminalSession, type TerminalSurfaceHandle/u);
-  assert.match(workspace, /inputMode="raw"/u);
-  assert.match(workspace, /onData=\{terminalSession\.send\}/u);
-  assert.match(workspace, /target: \{ kind: "minecraft", instanceId: instance\.id \}/u);
+  assert.match(workspace, /TerminalManagerDock placement="minecraft"/u);
+  assert.match(workspace, /detailView === "terminal"/u);
+  assert.match(workspace, /detailView === "logs"/u);
+  assert.match(terminalManager, /TerminalSurface, type TerminalSurfaceHandle/u);
+  assert.match(terminalManager, /inputMode="raw"/u);
+  assert.match(terminalManager, /onData=\{session\.send\}/u);
+  assert.match(terminalManager, /kind: "minecraft", autoStart: true/u);
+  assert.match(terminalManager, /target: \{ kind: "minecraft", instanceId: instance\.id \}/u);
   assert.doesNotMatch(workspace, /sendMinecraftConsole\(instance\.id, command\)/u);
   assert.match(workspace, /setLogsInstanceId\(selectedInstanceId\)/u);
-  assert.match(workspace, /logsInstanceId !== selectedInstance\.id/u);
-  assert.match(workspace, /inputEnabled=\{canOperate && selectedInstance\.nodeStatus === "online" && selectedInstance\.state === "running" && terminalSession\.terminal\?\.state === "running"\}/u);
-  assert.match(workspace, /selectedInstanceSupportsInteractiveConsole/u);
-  assert.ok(workspace.includes('entry.line.replace(/[\\u0000-\\u001f\\u007f-\\u009f]/gu, "�")'));
-  assert.doesNotMatch(workspace, /setConsoleCommand|minecraft-console-command|new Terminal\(/u);
-  assert.match(styles, /\.minecraft-server-terminal \{[^\n]*height: min\(62vh, 680px\)/u);
-  assert.match(styles, /@media \(max-height: 520px\)[\s\S]*?\.minecraft-server-terminal \{[^\n]*min-height: 160px/u);
+  assert.match(workspace, /logsInstanceId === selectedInstance\.id/u);
+  assert.match(terminalManager, /inputEnabled=\{running\}/u);
+  assert.match(terminalManager, /surface\.current\?\.focus\(\)/u);
+  assert.match(daemon, /runtime\.consoleOutputReplay\.append\(terminalChunk\)/u);
+  assert.match(daemon, /runtime\.consoleOutputReplay\?\.snapshot\(\)/u);
+  assert.match(terminalAdapter, /createTerminalOutputReplayBuffer\(maximumBytes = 128 \* 1024\)/u);
+  assert.doesNotMatch(terminalManager, /logSnapshot|initialOutput|__log-viewport|__snapshot/u);
+  assert.match(styles, /\.minecraft-server-terminal \{[^\n]*height: min\(68vh, 720px\)/u);
+  assert.match(styles, /@media \(max-height: 520px\)[\s\S]*?\.minecraft-server-terminal \{[^\n]*min-height: 150px/u);
 });

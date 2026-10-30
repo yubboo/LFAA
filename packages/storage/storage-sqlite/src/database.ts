@@ -27,7 +27,7 @@ function hasColumn(tableName: "ai_tool_approvals" | "ai_tool_permission_grants",
 
 // 版本31由文件存储协调器在回读校验完成后提交，SQLite 保留账户、权限和任务。
 // 数据库打开兼容上限必须与本文件中的最新 schema 迁移版本保持一致。
-const latestSupportedDatabaseVersion = 76;
+const latestSupportedDatabaseVersion = 77;
 if (currentVersion > latestSupportedDatabaseVersion) {
   throw new Error(`数据库版本 ${currentVersion} 高于当前程序支持的版本 ${latestSupportedDatabaseVersion}（${config.databasePath}）。请使用更新版本的 LFAA；为保护数据，本程序不会自动降级数据库结构。`);
 }
@@ -2576,3 +2576,30 @@ export function migrateReadableWritingProjectDirectoriesSchema(): void {
   }
 }
 migrateReadableWritingProjectDirectoriesSchema();
+
+/** 版本 77：允许真实读取 server.properties 的有界 properties-read 任务；保留既有任务及表关系。 */
+export function migrateMinecraftPropertiesReadTaskSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 76 || version >= 77) return;
+  database.exec("PRAGMA foreign_keys = OFF; BEGIN IMMEDIATE;");
+  try {
+    const row = database.prepare("SELECT sql FROM sqlite_master WHERE name = 'minecraft_tasks' AND type = 'table'").get();
+    if (typeof row?.sql !== "string") throw new Error("缺少 Minecraft 任务表，拒绝执行 v77 迁移。");
+    const indexes = database.prepare("SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'minecraft_tasks' AND sql IS NOT NULL").all();
+    const schema = row.sql
+      .replace(/^CREATE TABLE\s+"?minecraft_tasks"?/u, "CREATE TABLE minecraft_tasks_v77")
+      .replace("'restart', 'console', 'delete'", "'restart', 'console', 'delete', 'properties-read'");
+    if (!schema.includes("'properties-read'")) throw new Error("Minecraft 任务种类约束与版本 77 不匹配。");
+    database.exec(schema);
+    database.exec("INSERT INTO minecraft_tasks_v77 SELECT * FROM minecraft_tasks; DROP TABLE minecraft_tasks; ALTER TABLE minecraft_tasks_v77 RENAME TO minecraft_tasks;");
+    for (const index of indexes) database.exec(String(index.sql));
+    if (database.prepare("PRAGMA foreign_key_check").all().length) throw new Error("Minecraft 配置读取任务迁移外键校验失败。");
+    database.exec("PRAGMA user_version = 77; COMMIT;");
+  } catch (error) {
+    if (database.isTransaction) database.exec("ROLLBACK;");
+    throw error;
+  } finally {
+    database.exec("PRAGMA foreign_keys = ON;");
+  }
+}
+migrateMinecraftPropertiesReadTaskSchema();

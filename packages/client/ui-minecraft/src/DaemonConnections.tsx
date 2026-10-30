@@ -30,7 +30,7 @@ export function DaemonConnections() {
     try { await revokeDaemonConnection(nodeId); await refresh(); }
     catch (failure) { setError(getErrorMessage(failure)); } finally { setBusy(false); }
   };
-  return <Card className="minecraft-card">
+  return <Card className="minecraft-card minecraft-daemon-connections">
     <Typography.Title level={4}>远程节点连接</Typography.Title>
     <Typography.Paragraph type="secondary">本机节点随 Web 启动器托管；远程 Windows x64 节点使用独立连接文件。控制端须配置 HTTPS，远程节点不会替换成控制机器执行。</Typography.Paragraph>
     <Space direction="vertical" style={{ width: "100%" }}>

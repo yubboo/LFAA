@@ -25,6 +25,7 @@ import { resolveWorkbenchAreaEffects } from "lfaa-client-ui-theme/src/appearance
 import { bindDshThemeOwner, dshThemeCompatibility, syncDshThemePreference } from "lfaa-client-ui-theme/src/dsh-theme-bridge.js";
 import { createDshWallpaperAppearanceTokens } from "lfaa-client-ui-theme/src/dsh-wallpaper-appearance.js";
 import { dshLocaleRuntime } from "lfaa-client-ui-workspace/src/dsh-locale-runtime.js";
+import { TerminalManagerProvider } from "lfaa-client-ui-sidebar-terminal/src/TerminalManagerProvider.js";
 import { resolveWallpaperCanvasOwnership } from "./wallpaper-canvas-ownership.js";
 import { appearanceBackgroundSlotForRoute } from "./appearance-background-slot.js";
 import { createReleaseAnnouncementPersistence } from "./release-announcement.js";
@@ -963,6 +964,7 @@ export function Workbench({
     const section = canvasMode ? "canvas" : appRoute[3] || "overview";
     const aiState = aiWorkUiState;
     pageContent = (
+      <TerminalManagerProvider key={user.id} userId={user.id} settings={settings} role={user.role}>
       <Suspense fallback={<div className="loading-page loading-page--compact"><span className="loading-indicator" aria-hidden="true" /></div>}>
         <ApplicationWorkspace
           key={canvasMode ? appCanvasRoute?.[1] : app}
@@ -1013,6 +1015,7 @@ export function Workbench({
           onLogout={onLogout}
         />
       </Suspense>
+      </TerminalManagerProvider>
     );
   } else {
     pageContent = (

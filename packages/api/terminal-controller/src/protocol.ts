@@ -4,7 +4,7 @@ export interface TerminalInfo {
   target?: TerminalTarget;
   state: "starting" | "running" | "exited"; exitCode: number | null;
 }
-export type TerminalTarget = { kind: "shell" } | { kind: "minecraft"; instanceId: string };
+export type TerminalTarget = { kind: "shell" } | { kind: "minecraft-shell"; instanceId: string } | { kind: "minecraft"; instanceId: string };
 export type TerminalCommand = {
   commandId: string; id: string; type: "create" | "input" | "resize" | "close";
   cwd?: string; shell?: string; cols?: number; rows?: number; data?: string; target?: TerminalTarget;

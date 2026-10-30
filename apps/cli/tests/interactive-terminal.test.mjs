@@ -5,6 +5,19 @@ import { stripVTControlCharacters } from "node:util";
 import { AsyncChunkQueue } from "lfaa-subprocess-local/src/async-queue.js";
 import { LocalSubprocessRuntime } from "lfaa-subprocess-local/src/spawn.js";
 import { terminalEnvironment } from "lfaa-host-daemon/src/terminal-channel.mjs";
+import { createTerminalOutputReplayBuffer } from "lfaa-host-daemon/src/terminal-process-adapter.mjs";
+
+test("Minecraft PTY 重连回放只保留有界的真实终端输出", () => {
+  const replay = createTerminalOutputReplayBuffer(21);
+  replay.append("启动\r\n");
+  replay.append("边界".repeat(8));
+  const snapshot = replay.snapshot();
+  assert.ok(Buffer.byteLength(snapshot, "utf8") <= 21);
+  assert.ok(!snapshot.includes("\uFFFD"));
+  assert.ok(snapshot.endsWith("边界边界边界"));
+  replay.clear();
+  assert.equal(replay.snapshot(), "");
+});
 
 test("等待中的输出消费方收到首块，结束不会吞掉末块", async () => {
   const queue = new AsyncChunkQueue();

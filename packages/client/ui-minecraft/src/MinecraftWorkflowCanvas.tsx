@@ -1,6 +1,6 @@
 /** 功能：Minecraft App 的共享工作流画布适配器。作用：提供 Minecraft 节点编辑、EULA 和真实运行状态。 */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Button, Card, Checkbox, Empty, Input, Select, Space, Spin, Tag, Typography } from "antd";
+import { Alert, Button, Card, Checkbox, Input, Select, Space, Spin, Tag, Typography } from "antd";
 import { WorkflowGraphEditor, type WorkflowNodeEditors } from "lfaa-client-ui-workflow/src/index.js";
 import {
   answerAiRunQuestion,
@@ -225,22 +225,23 @@ export function MinecraftWorkflowCanvas({ userId, visible = true, onWorkflowCont
   const activeRuntimeNodes = runs.find((run) => !terminalStatuses.has(run.status))?.nodes ?? runs[0]?.nodes ?? [];
   return <section className="minecraft-workflow-page" aria-label="Minecraft 工作流">
     <div className="minecraft-workflow-heading">
-      <div><span className="minecraft-eyebrow">APP WORKFLOW</span><Typography.Title level={3}>工作流画布</Typography.Title><Typography.Paragraph>使用可插拔节点组织任务。画布与运行核心跨 App 共用，Minecraft Agent 节点通过现有工具和权限服务执行。</Typography.Paragraph></div>
       <Space wrap>
         <Select aria-label="选择工作流" value={draft?.id ?? "__new"} onChange={selectWorkflow} options={[...workflows.map((workflow) => ({ value: workflow.id, label: workflow.title })), { value: "__new", label: "＋ 新建工作流" }]} style={{ minWidth: 180 }} />
-        <Select aria-label="选择工作流引擎" value={draft?.engineId} onChange={(engineId) => markChanged((current) => ({ ...current, engineId }))} options={engineTypes.map((engine) => ({ value: engine.id, label: engine.name }))} disabled={!draft || activeRun || !engineTypes.length} style={{ minWidth: 140 }} />
-        <Select aria-label="选择要添加的节点" value={nodeToAdd} onChange={setNodeToAdd} options={nodeTypes.map((node) => ({ value: node.type, label: node.name }))} disabled={!draft || activeRun || !nodeTypes.length} style={{ minWidth: 160 }} />
-        <Button onClick={addNode} disabled={!draft || activeRun || !nodeToAdd || draft.nodes.length >= 64}>添加节点</Button>
-        <Button type="primary" onClick={() => void handleSave()} disabled={!draft || !dirty || activeRun || !draft.engineId} loading={saving}>保存</Button>
-        <Button type="primary" disabled={!draft?.id || dirty || !draft.nodes.length || activeRun || !selectedEngineAvailable || !allNodeTypesAvailable || (needsEula && !eulaAccepted)} loading={running} onClick={() => void handleRun()}>运行</Button>
-        {draft?.id ? <Button danger onClick={() => void handleDelete()}>删除</Button> : null}
+        {draft ? <>
+          <Select aria-label="选择工作流引擎" value={draft.engineId} onChange={(engineId) => markChanged((current) => ({ ...current, engineId }))} options={engineTypes.map((engine) => ({ value: engine.id, label: engine.name }))} disabled={activeRun || !engineTypes.length} style={{ minWidth: 140 }} />
+          <Select aria-label="选择要添加的节点" value={nodeToAdd} onChange={setNodeToAdd} options={nodeTypes.map((node) => ({ value: node.type, label: node.name }))} disabled={activeRun || !nodeTypes.length} style={{ minWidth: 160 }} />
+          <Button onClick={addNode} disabled={activeRun || !nodeToAdd || draft.nodes.length >= 64}>添加节点</Button>
+          <Button type="primary" onClick={() => void handleSave()} disabled={!dirty || activeRun || !draft.engineId} loading={saving}>保存</Button>
+          <Button type="primary" disabled={!draft.id || dirty || !draft.nodes.length || activeRun || !selectedEngineAvailable || !allNodeTypesAvailable || (needsEula && !eulaAccepted)} loading={running} onClick={() => void handleRun()}>运行</Button>
+          {draft.id ? <Button danger onClick={() => void handleDelete()}>删除</Button> : null}
+        </> : null}
       </Space>
     </div>
 
     {error ? <Alert className="minecraft-workflow-alert" type="error" showIcon message={error} closable onClose={() => setError(null)} /> : null}
     {draft && (!selectedEngineAvailable || !allNodeTypesAvailable) ? <Alert type="warning" showIcon message="工作流所需的插件当前未启用" description="定义和未知节点配置已保留。启用匹配的节点/引擎提供方后才能运行。" /> : null}
     <Card className="minecraft-card minecraft-workflow-editor">
-      {!draft ? <Empty description="还没有工作流。新建一个画布，再从已安装节点包中添加节点。"><Button type="primary" onClick={() => selectWorkflow("__new")}>新建工作流</Button></Empty> : <>
+      {!draft ? <div className="minecraft-workflow-empty"><Typography.Paragraph>还没有工作流。创建后，从已安装的节点中加入步骤。</Typography.Paragraph><Button type="primary" onClick={() => selectWorkflow("__new")}>新建工作流</Button></div> : <>
         <div className="minecraft-workflow-toolbar">
           <Input aria-label="工作流名称" value={draft.title} maxLength={80} disabled={activeRun} onChange={(event) => markChanged((current) => ({ ...current, title: event.target.value }))} />
           <span>{draft.nodes.length} 个节点 · {draft.edges.length} 条连线{dirty ? " · 尚未保存" : " · 已保存"}</span>
@@ -275,6 +276,6 @@ export function MinecraftWorkflowCanvas({ userId, visible = true, onWorkflowCont
         })}
       </article>)}
     </Card> : null}
-    <Typography.Text className="minecraft-workflow-footnote" type="secondary">执行引擎与节点适配器可按 App 插拔；本首个适配器使用顺序 DAG。Minecraft 工具审批、EULA 和目标节点真实状态继续由现有 Owner 管理。</Typography.Text>
+    <Typography.Text className="minecraft-workflow-footnote" type="secondary">运行能力取决于当前启用的执行引擎和节点。Minecraft 工具审批、EULA 和目标节点状态继续按现有规则处理。</Typography.Text>
   </section>;
 }

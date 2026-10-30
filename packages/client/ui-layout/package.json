@@ -26,6 +26,7 @@
     "lfaa-client-ui-settings-general": "workspace:*",
     "lfaa-client-ui-sidebar": "workspace:*",
     "lfaa-client-ui-sidebar-files": "workspace:*",
+    "lfaa-client-ui-sidebar-terminal": "workspace:*",
     "lfaa-client-ui-theme": "workspace:*",
     "lfaa-client-ui-workspace": "workspace:*",
     "react": "^18.0.0",
@@ -56,6 +57,7 @@
         "lfaa-client-ui-settings-general",
         "lfaa-client-ui-sidebar",
         "lfaa-client-ui-sidebar-files",
+        "lfaa-client-ui-sidebar-terminal",
         "lfaa-client-ui-theme",
         "lfaa-client-ui-workspace"
       ]

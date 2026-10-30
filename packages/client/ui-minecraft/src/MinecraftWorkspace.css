@@ -3,88 +3,157 @@
  * 作用：让状态、任务、配置和日志在共享 LFAA 工作区内清晰排布，并适配窄屏。
  * 关联文件：packages/client/ui-minecraft/src/MinecraftWorkspace.tsx、packages/client/ui-workspace/src/ApplicationWorkspace.tsx。
  */
-/* 内容字号和字体沿用设置中心的共享令牌，切换主题/字体/字号无需重建 Minecraft 视图。 */
-.minecraft-workspace { display: flex; width: 100%; min-width: 0; min-height: 100%; flex: 1 0 auto; flex-direction: column; gap: 16px; padding: clamp(18px, 3vw, 34px); color: var(--color-text-heading); font-family: var(--font-family-sans); font-size: var(--font-size-base); }
+/* Minecraft 内容沿用当前账户的主题和表面令牌，由具体页面表达层级。 */
+.minecraft-workspace { container-type: inline-size; display: flex; width: 100%; min-width: 0; min-height: 100%; flex: 1 0 auto; flex-direction: column; gap: clamp(20px, 2.4cqi, 30px); padding: clamp(18px, 2.4cqi, 32px); background: color-mix(in srgb, var(--color-canvas) var(--settings-background-surface-opacity, 100%), transparent); color: var(--color-text-heading); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: var(--font-size-base); }
+.workbench-shell[data-background-image="true"] .minecraft-workspace { -webkit-backdrop-filter: blur(var(--settings-glass-blur, 0px)); backdrop-filter: blur(var(--settings-glass-blur, 0px)); } /* taste-skill-ignore glass: obey the account's configured wallpaper blur. */
 .minecraft-page-heading { display: flex; min-width: 0; align-items: flex-start; justify-content: space-between; gap: 18px; }
-.minecraft-page-heading h2.ant-typography { margin: 5px 0 4px; color: var(--color-text-heading); }
-.minecraft-page-heading p.ant-typography { max-width: 760px; margin: 0; color: var(--color-text-secondary); }
-.minecraft-eyebrow { color: var(--color-brand); font-size: calc(var(--font-size-xs) * .91); font-weight: 700; letter-spacing: .11em; }
+.minecraft-page-heading__copy { display: grid; min-width: 0; gap: 5px; }
+.minecraft-page-heading h2.ant-typography { margin: 0; color: var(--color-text-heading); font-size: clamp(22px, 2.25cqi, 30px); line-height: 1.2; }
+.minecraft-page-heading p.ant-typography { max-width: 680px; margin: 0; color: var(--color-text-secondary); line-height: 1.55; }
+.minecraft-page-heading__controls { flex: 0 1 auto; align-items: center; justify-content: flex-end; }
+.minecraft-overview-sync { color: var(--color-text-muted); font-size: var(--font-size-xs); white-space: nowrap; }
 .minecraft-alert { flex: 0 0 auto; }
 .minecraft-loading { display: flex; min-height: 280px; flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--color-text-secondary); }
-.minecraft-stat-grid { display: grid; min-width: 0; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-.minecraft-metric-card { display: grid; min-width: 0; min-height: 100px; align-content: start; gap: 7px; padding: 15px 16px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface); color: inherit; cursor: pointer; font: inherit; text-align: left; }
-.minecraft-metric-card:hover { border-color: var(--color-brand); background: var(--color-surface-hover); }
+.minecraft-stat-grid { display: grid; min-width: 0; grid-template-columns: repeat(3, minmax(0, 1fr)); border-block: 1px solid var(--color-border-subtle); }
+.minecraft-metric-card { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; align-content: center; gap: 3px 10px; min-height: 72px; padding: 12px 16px; border: 0; border-right: 1px solid var(--color-border-subtle); background: transparent; color: inherit; cursor: pointer; font: inherit; text-align: left; }
+.minecraft-metric-card:last-child { border-right: 0; }
+.minecraft-metric-card:hover { background: var(--color-surface-hover); }
 .minecraft-metric-card:active { background: var(--color-surface-muted); }
-.minecraft-metric-card:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
-.minecraft-metric-card span, .minecraft-metric-card small { color: var(--color-text-secondary); font-size: var(--font-size-sm); line-height: 1.4; }
-.minecraft-metric-card strong { overflow-wrap: anywhere; color: var(--color-text-heading); font-size: var(--font-size-xl); font-variant-numeric: tabular-nums; font-weight: 700; line-height: 1.2; }
+.minecraft-metric-card:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: -2px; }
+.minecraft-metric-card span, .minecraft-metric-card small { min-width: 0; color: var(--color-text-secondary); font-size: var(--font-size-xs); line-height: 1.4; }
+.minecraft-metric-card strong { grid-column: 2; grid-row: 1 / 3; align-self: center; max-width: 12ch; overflow-wrap: anywhere; color: var(--color-text-heading); font-size: var(--font-size-lg); font-variant-numeric: tabular-nums; font-weight: 550; line-height: 1.2; text-align: right; }
 .minecraft-card .ant-typography { color: var(--color-text-heading); }
 .minecraft-card h4.ant-typography, .minecraft-card h5.ant-typography { margin: 0; }
-.minecraft-overview-meta { display: flex; flex-wrap: wrap; gap: 6px 15px; color: var(--color-text-muted); font-size: var(--font-size-sm); line-height: 1.5; }
-.minecraft-overview-hero { display: grid; min-width: 0; min-height: 204px; grid-template-columns: minmax(0, 1fr) minmax(190px, 260px); align-items: end; gap: 20px; padding: clamp(18px, 2.5cqi, 30px); overflow: hidden; border: 1px solid var(--color-border); border-radius: 13px; background-color: var(--color-surface);
-  background-image: linear-gradient(var(--settings-background-overlay), var(--settings-background-overlay)), var(--settings-background-image); /* taste-skill-ignore: 遮罩由 Appearance 设置控制，用于保证用户壁纸上的标题对比度。 */
-  background-position: center; background-size: cover; box-shadow: 0 8px 24px var(--color-shadow-card-soft); }
-.minecraft-overview-hero__copy { display: grid; min-width: 0; align-content: end; gap: 8px; }
-.minecraft-overview-hero__copy > span { color: var(--color-brand); font-size: var(--font-size-xs); font-weight: 700; }
+.minecraft-overview-hero { display: grid; min-width: 0; gap: 20px; padding: clamp(20px, 2.8cqi, 32px); border-radius: 8px; background: color-mix(in srgb, var(--color-surface-muted) var(--settings-background-surface-opacity, 100%), transparent); }
+.minecraft-overview-hero__copy { display: grid; min-width: 0; gap: 10px; }
 .minecraft-overview-hero__title { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 9px; }
-.minecraft-overview-hero__title h3.ant-typography { min-width: 0; margin: 0; overflow-wrap: anywhere; color: var(--color-text-heading); font-size: clamp(24px, 3cqi, 34px); line-height: 1.2; }
+.minecraft-overview-hero__title h3.ant-typography { min-width: 0; margin: 0; overflow-wrap: anywhere; color: var(--color-text-heading); font-size: clamp(21px, 2.4cqi, 30px); line-height: 1.2; }
 .minecraft-overview-hero__title .ant-tag { margin: 0; }
 .minecraft-overview-hero__copy > .ant-typography { margin: 0; color: var(--color-text-secondary); }
-.minecraft-overview-hero__facts { display: flex; min-width: 0; flex-wrap: wrap; gap: 8px 22px; margin-top: 5px; }
+.minecraft-overview-hero__facts { display: flex; min-width: 0; flex-wrap: wrap; gap: 8px 24px; padding-top: 2px; }
 .minecraft-overview-hero__facts > span { display: grid; min-width: 0; gap: 3px; }
 .minecraft-overview-hero__facts small { color: var(--color-text-muted); font-size: calc(var(--font-size-xs) * .9); }
 .minecraft-overview-hero__facts strong { min-width: 0; overflow-wrap: anywhere; color: var(--color-text-heading); font-size: var(--font-size-sm); }
-.minecraft-overview-hero__actions { display: flex; min-width: 0; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
-.minecraft-overview-hero__empty { display: flex; min-width: 0; grid-column: 1 / -1; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; }
-.minecraft-overview-hero__empty h3.ant-typography { margin: 0 0 5px; color: var(--color-text-heading); }
-.minecraft-overview-hero__empty p.ant-typography { max-width: 620px; margin: 0; color: var(--color-text-secondary); }
-.minecraft-overview-dashboard { display: grid; min-width: 0; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(190px, .78fr); align-items: start; gap: 12px; }
-.minecraft-overview-dashboard > .minecraft-overview-panel { min-width: 0; }
-.minecraft-overview-dashboard > .minecraft-overview-panel > .ant-card-body { display: grid; min-width: 0; align-content: start; gap: 12px; }
+.minecraft-overview-hero__actions { display: flex; min-width: 0; flex-wrap: wrap; justify-content: flex-start; gap: 8px; }
+.minecraft-overview-hero--server { grid-template-columns: minmax(0, 1.35fr) minmax(180px, .65fr); align-items: center; }
+.minecraft-overview-hero--server .minecraft-overview-hero__actions { align-content: center; }
+.minecraft-overview-launch { display: grid; min-width: 0; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); align-items: center; gap: clamp(20px, 3cqi, 38px); }
+.minecraft-overview-launch__intro { display: grid; min-width: 0; gap: 9px; }
+.minecraft-overview-launch__intro h3.ant-typography { margin: 0; color: var(--color-text-heading); font-size: clamp(21px, 2.4cqi, 28px); line-height: 1.25; }
+.minecraft-overview-launch__intro p.ant-typography { max-width: 40ch; margin: 0; color: var(--color-text-secondary); line-height: 1.55; }
+.minecraft-launch-steps { display: grid; min-width: 0; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; padding: 0; border-block: 1px solid var(--color-border-subtle); list-style: none; }
+.minecraft-launch-steps > li { display: grid; min-width: 0; align-content: start; gap: 10px; padding: 14px 13px 14px 0; }
+.minecraft-launch-steps > li + li { padding-left: 13px; border-left: 1px solid var(--color-border-subtle); }
+.minecraft-launch-steps__number { color: var(--color-text-muted); font-size: var(--font-size-xs); font-variant-numeric: tabular-nums; }
+.minecraft-launch-steps > li > div { display: grid; min-width: 0; gap: 5px; align-content: start; }
+.minecraft-launch-steps strong { color: var(--color-text-heading); font-size: var(--font-size-sm); font-weight: 600; }
+.minecraft-launch-steps small { min-width: 0; overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: var(--font-size-xs); line-height: 1.5; }
+.minecraft-launch-steps__device small[data-state="ready"] { color: var(--color-status-success); }
+.minecraft-launch-steps__device small[data-state="blocked"] { color: var(--color-status-warning); }
+.minecraft-launch-steps__device .ant-btn { justify-self: start; min-height: 28px; padding-inline: 0; }
+.minecraft-world-route { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) minmax(34px, .35fr) minmax(0, 1fr); align-items: center; gap: 10px; padding: 14px 0; border-block: 1px solid var(--color-border-subtle); }
+.minecraft-world-route__stop { display: grid; min-width: 0; grid-template-columns: 10px minmax(0, 1fr) auto; grid-template-rows: auto auto; align-items: center; gap: 4px 9px; }
+.minecraft-world-route__marker { grid-column: 1; grid-row: 1 / 3; width: 8px; height: 8px; border: 1px solid currentColor; background: currentColor; }
+.minecraft-world-route__stop[data-status="online"], .minecraft-world-route__stop[data-status="running"] { color: var(--color-status-success); }
+.minecraft-world-route__stop[data-status="error"] { color: var(--color-status-error); }
+.minecraft-world-route__stop[data-status="unknown"], .minecraft-world-route__stop[data-status="starting"], .minecraft-world-route__stop[data-status="stopping"] { color: var(--color-status-warning); }
+.minecraft-world-route__stop[data-status="offline"], .minecraft-world-route__stop[data-status="stopped"] { color: var(--color-status-idle); }
+.minecraft-world-route__label { grid-column: 2 / 4; color: var(--color-text-secondary); font-size: var(--font-size-xs); }
+.minecraft-world-route__stop strong { grid-column: 2; min-width: 0; overflow-wrap: anywhere; color: var(--color-text-heading); font-size: var(--font-size-sm); font-weight: 650; }
+.minecraft-world-route__stop .ant-tag { grid-column: 3; grid-row: 2; justify-self: end; margin: 0; }
+.minecraft-world-route__track { height: 1px; background: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 45%, var(--color-border)); }
+.minecraft-overview-dashboard { display: grid; min-width: 0; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); align-items: start; gap: clamp(22px, 3cqi, 40px); }
+.minecraft-overview-dashboard > .minecraft-overview-panel { display: grid; min-width: 0; align-content: start; gap: 12px; padding-top: 14px; border-top: 1px solid var(--color-border-subtle); }
 .minecraft-overview-dashboard .minecraft-card-heading { align-items: center; }
 .minecraft-overview-server-facts { display: grid; min-width: 0; gap: 0; margin: 0; }
 .minecraft-overview-server-facts > div { display: grid; min-width: 0; grid-template-columns: minmax(78px, .7fr) minmax(0, 1.3fr); align-items: center; gap: 9px; padding: 9px 0; border-bottom: 1px solid var(--color-border-subtle); }
 .minecraft-overview-server-facts dt { color: var(--color-text-muted); font-size: var(--font-size-xs); }
 .minecraft-overview-server-facts dd { min-width: 0; margin: 0; overflow-wrap: anywhere; color: var(--color-text-heading); font-size: var(--font-size-xs); }
 .minecraft-overview-server-facts dd .ant-tag { margin: 0; }
-.minecraft-overview-node-heading { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 8px; padding-top: 2px; }
-.minecraft-overview-shortcuts { display: grid; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.minecraft-overview-shortcuts .ant-btn { min-width: 0; height: auto; min-height: 42px; padding: 8px 10px; white-space: normal; }
-.minecraft-overview-shortcuts-panel > .ant-card-body > .ant-typography { color: var(--color-text-muted); font-size: var(--font-size-xs); line-height: 1.55; }
-.minecraft-instance-summary, .minecraft-node-monitor-summary { display: grid; min-width: 0; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-.minecraft-instance-summary > article, .minecraft-node-monitor-summary > article { display: grid; min-width: 0; align-content: center; gap: 5px; padding: 14px 16px; border: 1px solid var(--color-border); border-radius: 11px; background: color-mix(in srgb, var(--color-surface) 94%, transparent); }
+.minecraft-instance-summary, .minecraft-node-monitor-summary { display: grid; min-width: 0; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; border-block: 1px solid var(--color-border-subtle); }
+.minecraft-instance-summary > article, .minecraft-node-monitor-summary > article { display: grid; min-width: 0; min-height: 72px; align-content: center; gap: 5px; padding: 10px 14px; border-right: 1px solid var(--color-border-subtle); background: transparent; }
+.minecraft-instance-summary > article:last-child, .minecraft-node-monitor-summary > article:last-child { border-right: 0; }
 .minecraft-instance-summary > article > span, .minecraft-node-monitor-summary > article > span { color: var(--color-text-secondary); font-size: var(--font-size-xs); }
 .minecraft-instance-summary > article > strong, .minecraft-node-monitor-summary > article > strong { overflow-wrap: anywhere; color: var(--color-text-heading); font-size: clamp(19px, 2cqi, 26px); line-height: 1.2; }
 .minecraft-instance-summary > article > small, .minecraft-node-monitor-summary > article > small { color: var(--color-text-muted); font-size: calc(var(--font-size-xs) * .91); line-height: 1.45; }
-.workbench-shell[data-background-image="true"] .minecraft-workspace--instances .minecraft-instance-summary > article,
-.workbench-shell[data-background-image="true"] .minecraft-workspace--nodes .minecraft-node-monitor-summary > article { background-color: color-mix(in srgb, var(--color-surface) var(--settings-background-surface-opacity), transparent); -webkit-backdrop-filter: blur(var(--settings-glass-blur)); backdrop-filter: blur(var(--settings-glass-blur)); }
-.minecraft-node-telemetry-note { margin: 0; }
+.minecraft-node-telemetry-note { margin: 0; border: 0; border-left: 2px solid var(--color-border); border-radius: 0; background: transparent; padding-inline: 14px 0; }
 .minecraft-node-telemetry-note .ant-alert-message { color: var(--color-text-heading); }
 .minecraft-node-telemetry-note .ant-alert-description { color: var(--color-text-secondary); }
-.minecraft-console-layout { display: grid; min-width: 0; grid-template-columns: minmax(0, 1.7fr) minmax(260px, .72fr); align-items: start; gap: 12px; }
+/* 节点与实例运维区使用平面分组和行分隔，外观颜色仍由共享令牌决定。 */
+.minecraft-workspace--nodes > .minecraft-daemon-connections.ant-card,
+.minecraft-workspace--nodes > .minecraft-node-management.ant-card,
+.minecraft-workspace--nodes > .minecraft-sandbox-card.ant-card,
+.minecraft-workspace--instances > .minecraft-instances-panel.ant-card,
+.minecraft-workspace--instances > .minecraft-config-card.ant-card,
+.minecraft-workspace--instances > .minecraft-instance-logs.ant-card,
+.minecraft-workspace--instances > .minecraft-backup-card.ant-card,
+.minecraft-workspace--instances > .minecraft-detail-grid > .minecraft-instance-detail-summary.ant-card,
+.minecraft-workspace--instances > .minecraft-detail-grid > .minecraft-instance-recent-tasks.ant-card { border: 0; border-radius: 0; background: transparent; box-shadow: none; } /* taste-skill-ignore shadow: clear the Ant Card elevation for the flat operations layout. */
+.minecraft-workspace--nodes > .minecraft-daemon-connections.ant-card > .ant-card-body { display: grid; gap: 8px; padding: 0 0 18px; border-bottom: 1px solid var(--color-border-subtle); }
+.minecraft-workspace--nodes > .minecraft-daemon-connections.ant-card > .ant-card-body > .ant-typography { margin: 0; }
+.minecraft-workspace--nodes > .minecraft-node-management.ant-card > .ant-card-body { display: grid; gap: 12px; padding: 0; }
+.minecraft-workspace--nodes > .minecraft-node-management.ant-card > .ant-card-body > .minecraft-card-heading { align-items: center; padding-top: 12px; border-top: 1px solid var(--color-border-subtle); }
+.minecraft-workspace--nodes > .minecraft-node-management.ant-card > .ant-card-body > .minecraft-empty { min-height: 72px; place-items: start; padding: 12px 0; text-align: left; }
+.minecraft-workspace--nodes > .minecraft-node-management.ant-card > .ant-card-body > .minecraft-node-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
+.minecraft-workspace--nodes > .minecraft-node-management.ant-card > .ant-card-body > .minecraft-node-grid > .minecraft-node-card.ant-card { border: 0; border-radius: 0; background: transparent; box-shadow: none; } /* taste-skill-ignore shadow: clear the Ant Card elevation for a flat device row. */
+.minecraft-workspace--nodes > .minecraft-node-management.ant-card > .ant-card-body > .minecraft-node-grid > .minecraft-node-card.ant-card > .ant-card-body { display: grid; align-content: start; gap: 12px; padding: 15px 0; border-top: 1px solid var(--color-border-subtle); }
+.minecraft-workspace--nodes > .minecraft-node-management.ant-card > .ant-card-body > .minecraft-node-grid > .minecraft-node-card.ant-card > .ant-card-body > .minecraft-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; margin: 0; }
+.minecraft-workspace--nodes > .minecraft-node-management.ant-card > .ant-card-body > .minecraft-node-grid > .minecraft-node-card.ant-card > .ant-card-body > .minecraft-facts > .minecraft-node-java { grid-column: 1 / -1; }
+.minecraft-workspace--nodes > .minecraft-sandbox-card.ant-card > .ant-card-body { display: grid; gap: 8px; padding: 14px 0 0; border-top: 1px solid var(--color-border-subtle); }
+.minecraft-workspace--nodes > .minecraft-sandbox-card.ant-card > .ant-card-body > .ant-typography { margin: 0; }
+.minecraft-workspace--nodes > .minecraft-sandbox-card.ant-card > .ant-card-body > .ant-alert { border: 0; border-left: 2px solid var(--color-border); border-radius: 0; background: transparent; padding-inline: 14px 0; }
+.minecraft-workspace--instances > .minecraft-instances-panel.ant-card > .ant-card-body { display: grid; gap: 14px; padding: 0; }
+.minecraft-workspace--instances > .minecraft-instances-panel.ant-card > .ant-card-body > .minecraft-instances-heading { padding: 10px 0 14px; }
+.minecraft-workspace--instances > .minecraft-instances-panel.ant-card > .ant-card-body > .minecraft-instance-list { grid-template-columns: minmax(0, 1fr); gap: 0; }
+.minecraft-workspace--instances > .minecraft-instances-panel.ant-card > .ant-card-body > .minecraft-instance-list > .minecraft-instance-card.ant-card { border: 0; border-radius: 0; background: transparent; box-shadow: none; } /* taste-skill-ignore shadow: clear the Ant Card elevation for a flat server row. */
+.minecraft-workspace--instances > .minecraft-instances-panel.ant-card > .ant-card-body > .minecraft-instance-list > .minecraft-instance-card.ant-card > .ant-card-body { display: grid; grid-template-columns: minmax(180px, .8fr) minmax(0, 1.6fr) minmax(220px, auto); align-items: center; gap: 14px; padding: 15px 0; border-top: 1px solid var(--color-border-subtle); }
+.minecraft-workspace--instances > .minecraft-instances-panel.ant-card > .ant-card-body > .minecraft-instance-list > .minecraft-instance-card.ant-card > .ant-card-body > .minecraft-instance-card__facts { border: 0; padding: 0; }
+.minecraft-workspace--instances > .minecraft-instances-panel.ant-card > .ant-card-body > .minecraft-instance-list > .minecraft-instance-card.ant-card > .ant-card-body > .minecraft-instance-card__actions { align-self: center; justify-content: flex-end; }
+.minecraft-workspace--instances > .minecraft-instances-panel.ant-card > .ant-card-body > .minecraft-instance-list > .minecraft-instance-card.ant-card > .ant-card-body > .ant-typography { grid-column: 1 / -1; }
+.minecraft-workspace--instances > .minecraft-instances-panel.ant-card > .ant-card-body > .minecraft-instance-onboarding-empty { min-height: 0; padding: 18px 0; border: 0; border-block: 1px solid var(--color-border-subtle); border-radius: 0; background: transparent; }
+.minecraft-workspace--instances > .minecraft-instances-panel.ant-card > .ant-card-body > .minecraft-instance-filter-empty { min-height: 70px; align-items: flex-start; justify-content: flex-start; padding: 16px 0; border-top: 1px solid var(--color-border-subtle); }
+.minecraft-workspace--instances > .minecraft-detail-grid > .minecraft-instance-detail-summary.ant-card > .ant-card-body,
+.minecraft-workspace--instances > .minecraft-detail-grid > .minecraft-instance-recent-tasks.ant-card > .ant-card-body,
+.minecraft-workspace--instances > .minecraft-config-card.ant-card > .ant-card-body,
+.minecraft-workspace--instances > .minecraft-instance-logs.ant-card > .ant-card-body,
+.minecraft-workspace--instances > .minecraft-backup-card.ant-card > .ant-card-body { display: grid; align-content: start; gap: 14px; padding: 14px 0; border-top: 1px solid var(--color-border-subtle); }
+.minecraft-console-layout { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr); align-items: stretch; }
 .minecraft-console-layout > * { min-width: 0; }
-.minecraft-logs-card > .ant-card-body { display: grid; min-width: 0; align-content: start; gap: 12px; }
-.minecraft-server-terminal { display: flex; width: 100%; height: min(62vh, 680px); min-width: 0; min-height: 220px; overflow: hidden; border: 1px solid var(--color-border); border-radius: 9px; background: var(--color-surface-muted); }
-.minecraft-server-terminal__surface { flex: 1 1 auto; min-width: 0; min-height: 0; }
-.workbench-shell[data-background-image="true"] .minecraft-server-terminal { background-color: color-mix(in srgb, var(--color-surface) var(--settings-background-surface-opacity), transparent); -webkit-backdrop-filter: blur(var(--settings-glass-blur)); backdrop-filter: blur(var(--settings-glass-blur)); }
-.minecraft-console-sidebar { display: grid; min-width: 0; gap: 12px; }
-.minecraft-console-status > .ant-card-body { display: grid; min-width: 0; align-content: start; gap: 12px; }
-.minecraft-logs-card > .minecraft-terminal-approval > .ant-card-body { display: grid; min-width: 0; gap: 8px; }
-.minecraft-logs-card > .minecraft-terminal-approval > .ant-card-body > .ant-typography { margin: 0; overflow-wrap: anywhere; }
-.workbench-shell[data-background-image="true"] .minecraft-workspace--overview .minecraft-overview-hero,
-.workbench-shell[data-background-image="true"] .minecraft-workspace--overview .minecraft-stat-grid,
-.workbench-shell[data-background-image="true"] .minecraft-workspace--overview .minecraft-overview-dashboard > .minecraft-overview-panel { background-color: color-mix(in srgb, var(--color-surface) var(--settings-background-surface-opacity), transparent); -webkit-backdrop-filter: blur(var(--settings-glass-blur)); backdrop-filter: blur(var(--settings-glass-blur)); }
-.workbench-shell[data-background-image="true"] .minecraft-workspace--overview .minecraft-stat-grid { border-radius: 12px; }
-.workbench-shell[data-background-image="true"] .minecraft-workspace--overview .minecraft-stat-grid > .minecraft-metric-card { background-color: transparent; }
+.minecraft-server-terminal { display: flex; width: 100%; height: min(68vh, 720px); min-width: 0; min-height: 360px; overflow: hidden; border: 1px solid var(--color-border); border-radius: 9px; background: var(--color-surface-muted); }
+.workbench-shell[data-background-image="true"] .minecraft-server-terminal { background-color: color-mix(in srgb, var(--color-surface) var(--settings-background-surface-opacity), transparent); -webkit-backdrop-filter: blur(var(--settings-glass-blur)); backdrop-filter: blur(var(--settings-glass-blur)); } /* taste-skill-ignore glass: obey the account's configured wallpaper blur. */
+.minecraft-instance-logs.ant-card > .ant-card-body { display: grid; min-width: 0; align-content: start; gap: 12px; padding: 14px 0; border-top: 1px solid var(--color-border-subtle); }
+.minecraft-instance-logs__heading,
+.minecraft-instance-logs__toolbar,
+.minecraft-instance-logs__filters { display: flex; min-width: 0; align-items: center; gap: 8px; }
+.minecraft-instance-logs__heading { justify-content: space-between; }
+.minecraft-instance-logs__heading > .ant-typography { margin: 0; }
+.minecraft-instance-logs__toolbar { justify-content: space-between; flex-wrap: wrap; }
+.minecraft-instance-logs__filters { flex-wrap: wrap; }
+.minecraft-instance-logs__filters > button { min-height: 34px; padding: 6px 10px; border: 1px solid var(--color-border-subtle); border-radius: 6px; background: transparent; color: var(--color-text-secondary); cursor: pointer; font: inherit; font-size: var(--font-size-xs); }
+.minecraft-instance-logs__filters > button:hover { border-color: var(--color-border); color: var(--color-text-heading); }
+.minecraft-instance-logs__filters > button[aria-pressed="true"] { border-color: var(--color-focus-ring); background: var(--color-surface-muted); color: var(--color-text-heading); }
+.minecraft-instance-logs__filters > button:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+.minecraft-instance-logs__toolbar > .ant-checkbox-wrapper { color: var(--color-text-secondary); font-size: var(--font-size-xs); }
+.minecraft-instance-logs__viewport { display: grid; min-width: 0; min-height: 280px; max-height: min(68vh, 720px); overflow: auto; border: 1px solid var(--color-border-subtle); border-radius: 7px; background: var(--color-surface-muted); overscroll-behavior: contain; }
+.minecraft-instance-logs__viewport > ol { display: grid; align-content: start; margin: 0; padding: 10px 12px; list-style: none; }
+.minecraft-instance-logs__line { display: grid; grid-template-columns: minmax(128px, auto) max-content minmax(0, 1fr); align-items: start; gap: 7px; padding: 3px 0; font-family: var(--settings-code-font, monospace); font-size: var(--settings-code-font-size, 13px); line-height: 1.45; }
+.minecraft-instance-logs__line.is-stdout { grid-template-columns: minmax(128px, auto) minmax(0, 1fr); }
+.minecraft-instance-logs__line > time,
+.minecraft-instance-logs__line > span { color: var(--color-text-muted); }
+.minecraft-instance-logs__line > code { min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; color: var(--color-text-primary); font: inherit; }
+.minecraft-instance-logs__line.is-stderr > span,
+.minecraft-instance-logs__line.is-stderr > code { color: var(--color-danger, #c2413a); }
+.minecraft-instance-logs__line.is-system > span { color: var(--color-status-info, var(--settings-accent, var(--color-brand))); }
+.minecraft-instance-logs__empty { display: grid; min-height: 280px; place-items: center; color: var(--color-text-muted); font-size: var(--font-size-sm); }
 .minecraft-task-panels { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.55fr); align-items: start; gap: 12px; }
 .minecraft-task-panels > .ant-card { min-width: 0; }
-.minecraft-overview-panel .ant-card-body { display: grid; align-content: start; gap: 10px; }
 .minecraft-overview-panel .minecraft-card-heading { align-items: center; }
+.minecraft-overview-panel > .minecraft-empty { min-height: 56px; place-items: start; padding: 8px 0; text-align: left; }
 .minecraft-node-preview-list { display: grid; gap: 7px; }
-.minecraft-node-preview { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px 10px; width: 100%; min-width: 0; padding: 10px; border: 1px solid var(--color-border-subtle); border-radius: 9px; background: transparent; color: inherit; cursor: pointer; font: inherit; text-align: left; }
-.minecraft-node-preview:hover { border-color: var(--color-border); background: var(--color-surface-muted); }
-.minecraft-node-preview:active { background: var(--color-surface-hover); }
-.minecraft-node-preview:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+.minecraft-node-preview { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px 10px; width: 100%; min-width: 0; padding: 9px 0; border: 0; border-bottom: 1px solid var(--color-border-subtle); background: transparent; color: inherit; cursor: pointer; font: inherit; text-align: left; }
+.minecraft-node-preview:hover { background: var(--color-surface-hover); }
+.minecraft-node-preview:active { background: var(--color-surface-muted); }
+.minecraft-node-preview:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
 .minecraft-node-preview > span { display: grid; min-width: 0; gap: 3px; }
 .minecraft-node-preview strong { overflow: hidden; color: var(--color-text-heading); font-size: var(--font-size-xs); text-overflow: ellipsis; white-space: nowrap; }
 .minecraft-node-preview small { color: var(--color-text-secondary); font-size: calc(var(--font-size-xs) * .91); }
@@ -139,7 +208,7 @@
 .minecraft-instance-tabs button[aria-current="page"] { border-bottom-color: var(--color-brand); color: var(--color-brand); font-weight: 650; }
 .minecraft-detail-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(260px, .9fr); gap: 12px; }
 .minecraft-detail-grid > * { min-width: 0; }
-.minecraft-instance-summary .minecraft-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px 18px; margin: 20px 0 0; }
+.minecraft-instance-detail-summary > .ant-card-body > .minecraft-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px 18px; margin: 8px 0 0; }
 .minecraft-facts div { min-width: 0; }
 .minecraft-facts dt { margin-bottom: 4px; color: var(--color-text-muted); font-size: calc(var(--font-size-xs) * .91); }
 .minecraft-facts dd { margin: 0; overflow-wrap: anywhere; color: var(--color-text-heading); font-size: var(--font-size-sm); }
@@ -149,6 +218,23 @@
 .minecraft-property-form > label .ant-input-number { width: 100%; }
 .minecraft-property-form > .ant-checkbox-wrapper { align-self: center; color: var(--color-text-secondary); font-size: var(--font-size-xs); }
 .minecraft-property-form > .ant-btn { justify-self: start; }
+.minecraft-config-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.minecraft-config-heading > div { flex: 1 1 360px; min-width: 0; }
+.minecraft-config-heading > div > .ant-typography { margin-bottom: 8px; }
+.minecraft-config-heading > .ant-space { flex: 0 1 auto; min-width: 0; justify-content: flex-end; }
+.minecraft-property-read-alert { margin-top: 12px; }
+.minecraft-property-empty { display: flex; align-items: center; gap: 10px; min-height: 88px; margin-top: 18px; padding: 18px; border: 1px dashed var(--color-border); border-radius: var(--radius-md); color: var(--color-text-secondary); }
+.minecraft-property-sections { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(260px, .85fr); align-items: start; gap: 18px; margin-top: 16px; }
+.minecraft-property-editable, .minecraft-property-readonly { min-width: 0; padding: 16px; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface-raised); }
+.minecraft-property-editable > header, .minecraft-property-readonly > header { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 12px; }
+.minecraft-property-editable > header > .ant-typography, .minecraft-property-readonly > header > .ant-typography { margin: 0; }
+.minecraft-property-file-list { display: grid; gap: 0; margin: 14px 0 0; }
+.minecraft-property-file-list > div { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: 12px; padding: 9px 0; border-top: 1px solid var(--color-border-subtle); }
+.minecraft-property-file-list dt { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 6px; min-width: 0; color: var(--color-text-secondary); }
+.minecraft-property-file-list dt code { color: var(--color-text-primary); overflow-wrap: anywhere; }
+.minecraft-property-file-list dd { min-width: 0; margin: 0; overflow-wrap: anywhere; color: var(--color-text-primary); }
+.minecraft-property-file-list dd .is-empty { color: var(--color-text-tertiary); font-style: italic; }
+.minecraft-property-source-note { display: block; margin-top: 14px; }
 .minecraft-create-card { max-width: 960px; }
 .minecraft-create-card .ant-card-body { display: grid; gap: 17px; }
 /* 部署面板占据中间内容区主宽度，真实记录排在其后，不挤压核心分类与版本卡片。 */
@@ -158,19 +244,20 @@
 .minecraft-provision-boundary strong { color: var(--color-text-heading); }
 .minecraft-provision-form > label, .minecraft-provision-form .minecraft-eula { font-size: .9em; }
 .minecraft-provision-form > label > .ant-typography { font-size: .85em; overflow-wrap: anywhere; }
-.minecraft-provision-card { max-width: none; }
-.minecraft-provision-card > .ant-card-body { gap: 0; padding: clamp(18px, 1.7cqi, 28px); }
+.minecraft-workspace--deployment > .minecraft-deployment-layout > .minecraft-provision-card.ant-card { max-width: none; overflow: visible; border: 0; background: transparent; }
+.minecraft-workspace--deployment > .minecraft-deployment-layout > .minecraft-provision-card.ant-card > .ant-card-body { display: grid; gap: 0; padding: 8px 0 0; }
 .minecraft-wizard-progress { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 20px 0 0; padding: 0; list-style: none; }
-.minecraft-wizard-progress li { display: flex; min-width: 0; align-items: center; gap: 9px; padding: 10px 12px; border-bottom: 2px solid var(--color-border-subtle); color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.minecraft-wizard-progress li { display: grid; min-width: 0; grid-template-columns: 25px minmax(0, 1fr); align-items: center; gap: 8px; padding: 10px 8px; border-bottom: 1px solid var(--color-border-subtle); color: var(--color-text-muted); font-size: var(--font-size-xs); }
 .minecraft-wizard-progress li.is-current { border-bottom-color: var(--color-brand); color: var(--color-brand); font-weight: 700; }
 .minecraft-wizard-progress li.is-complete { border-bottom-color: var(--color-border); color: var(--color-text-secondary); }
-.minecraft-wizard-progress__number { display: grid; width: 25px; height: 25px; flex: 0 0 auto; place-items: center; border: 1px solid var(--color-border); border-radius: 50%; background: var(--color-surface-muted); color: inherit; font-size: calc(var(--font-size-xs) * .9); }
+.minecraft-wizard-progress__number { display: grid; width: 25px; height: 25px; place-items: center; border: 1px solid var(--color-border); border-radius: 50%; background: transparent; color: inherit; font-size: calc(var(--font-size-xs) * .9); }
 .minecraft-wizard-progress li.is-current .minecraft-wizard-progress__number { border-color: var(--color-brand); background: var(--color-brand); color: var(--color-text-inverse); }
 .minecraft-wizard-progress li.is-complete .minecraft-wizard-progress__number { border-color: var(--color-border); }
+.minecraft-wizard-progress li > span:last-child { min-width: 0; overflow-wrap: anywhere; }
 .minecraft-wizard-intro { display: grid; gap: 4px; padding: 19px 0 4px; }
 .minecraft-wizard-intro h5.ant-typography { margin: 0; }
 .minecraft-wizard-intro > .ant-typography { color: var(--color-text-secondary); font-size: var(--font-size-xs); line-height: 1.6; }
-.minecraft-wizard-review { display: grid; gap: 14px; padding: 16px; border: 1px solid var(--color-border-subtle); border-radius: 11px; background: var(--color-surface-muted); }
+.minecraft-wizard-review { display: grid; gap: 14px; padding: 16px 0; border-block: 1px solid var(--color-border-subtle); background: transparent; }
 .minecraft-wizard-review__heading { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
 .minecraft-wizard-review__heading > div { display: grid; gap: 4px; }
 .minecraft-wizard-review__heading h5.ant-typography { margin: 0; }
@@ -187,55 +274,59 @@
 .minecraft-deployment-card-heading p.ant-typography { max-width: 740px; margin-top: 7px; color: var(--color-text-secondary); line-height: 1.65; }
 .minecraft-provision-alerts { display: grid; gap: 10px; padding-top: 16px; }
 .minecraft-provision-alerts:empty { display: none; }
+.minecraft-workspace--deployment .minecraft-provision-alerts > .minecraft-provision-readiness-alert.ant-alert { display: grid; grid-template-columns: 24px minmax(0, 1fr); align-items: start; gap: 0 10px; }
+.minecraft-workspace--deployment .minecraft-provision-readiness-alert.ant-alert > .ant-alert-icon { grid-row: 1 / span 2; margin-top: 2px; }
+.minecraft-workspace--deployment .minecraft-provision-readiness-alert.ant-alert > .ant-alert-content { min-width: 0; }
+.minecraft-workspace--deployment .minecraft-provision-readiness-alert.ant-alert > .ant-alert-action { grid-column: 2; margin: 8px 0 0; }
 .minecraft-provision-form { display: grid; gap: 0; }
-.minecraft-core-library { display: grid; min-width: 0; grid-template-columns: minmax(220px, .38fr) minmax(0, 1.62fr); align-items: stretch; gap: clamp(12px, 1.3cqi, 20px); padding: 18px 0 20px; border-bottom: 1px solid var(--color-border-subtle); }
-.minecraft-core-categories, .minecraft-core-browser { display: grid; min-width: 0; align-content: start; border: 1px solid var(--color-border-subtle); border-radius: 12px; background: var(--color-surface-muted); }
-.minecraft-core-categories { gap: 10px; padding: 12px; }
+.minecraft-core-library { display: grid; min-width: 0; grid-template-columns: minmax(220px, .38fr) minmax(0, 1.62fr); align-items: stretch; gap: clamp(18px, 2cqi, 30px); padding: 18px 0 20px; border-bottom: 1px solid var(--color-border-subtle); }
+.minecraft-provision-card .minecraft-core-library > .minecraft-core-categories, .minecraft-provision-card .minecraft-core-library > .minecraft-core-browser { display: grid; min-width: 0; align-content: start; border: 0; border-radius: 0; background: transparent; }
+.minecraft-provision-card .minecraft-core-library > .minecraft-core-categories { gap: 10px; padding: 0; }
 .minecraft-core-categories__heading, .minecraft-core-browser__heading, .minecraft-core-subheading { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 10px; }
 .minecraft-core-categories__heading > div, .minecraft-core-subheading > div { display: grid; min-width: 0; gap: 4px; }
 .minecraft-core-categories__heading h5.ant-typography, .minecraft-core-browser__heading h5.ant-typography, .minecraft-core-subheading h5.ant-typography { margin: 0; color: var(--color-text-heading); font-size: var(--font-size-sm); }
 .minecraft-core-categories__heading .ant-typography-secondary, .minecraft-core-subheading .ant-typography-secondary, .minecraft-core-browser__heading .ant-typography-secondary { color: var(--color-text-muted); font-size: var(--font-size-xs); line-height: 1.5; }
 .minecraft-core-categories__heading .ant-tag, .minecraft-core-subheading .ant-tag { flex: 0 0 auto; margin: 0; }
 .minecraft-core-categories__list { display: grid; min-width: 0; gap: 6px; }
-.minecraft-core-category { display: grid; min-width: 0; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center; gap: 9px; padding: 9px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: inherit; cursor: pointer; font: inherit; text-align: left; }
-.minecraft-core-category:hover { border-color: var(--color-border); background: var(--color-surface); }
+.minecraft-core-categories__list > .minecraft-core-category { display: grid; min-width: 0; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 9px; padding: 9px 6px; border: 0; border-left: 2px solid transparent; border-radius: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; text-align: left; }
+.minecraft-core-categories__list > .minecraft-core-category:hover { background: var(--color-surface-muted); }
 .minecraft-core-category:focus-visible, .minecraft-core-option:focus-visible, .minecraft-core-version:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
-.minecraft-core-category[aria-current="true"] { border-color: var(--color-brand); background: color-mix(in srgb, var(--color-brand) 11%, var(--color-surface)); }
-.minecraft-core-category__mark, .minecraft-core-option__mark { display: grid; width: 32px; height: 32px; place-items: center; border: 1px solid var(--color-border-subtle); border-radius: 9px; background: var(--color-surface); color: var(--color-brand); font-size: var(--font-size-xs); font-weight: 700; }
+.minecraft-core-categories__list > .minecraft-core-category[aria-current="true"] { border-left-color: var(--color-brand); background: color-mix(in srgb, var(--color-brand) 8%, transparent); }
+.minecraft-core-category__mark, .minecraft-core-option__mark { display: grid; width: 26px; height: 26px; place-items: center; border: 0; border-radius: 0; background: transparent; color: var(--color-brand); font-size: var(--font-size-xs); font-weight: 700; }
 .minecraft-core-category__copy { display: grid; min-width: 0; gap: 3px; }
 .minecraft-core-category__copy strong { overflow: hidden; color: var(--color-text-heading); font-size: var(--font-size-xs); font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .minecraft-core-category__copy small { overflow: hidden; color: var(--color-text-secondary); font-size: calc(var(--font-size-xs) * .91); line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
 .minecraft-core-category .ant-tag { margin: 0; color: var(--color-text-muted); font-size: calc(var(--font-size-xs) * .85); }
-.minecraft-core-browser { gap: 13px; padding: 14px; }
+.minecraft-provision-card .minecraft-core-library > .minecraft-core-browser { gap: 13px; padding: 0; }
 .minecraft-core-browser__heading { align-items: flex-start; padding: 0 0 12px; border-bottom: 1px solid var(--color-border-subtle); }
 .minecraft-core-browser__heading > div { display: grid; min-width: 0; gap: 6px; }
 .minecraft-core-browser__heading > .ant-input-affix-wrapper { width: min(100%, 270px); flex: 0 1 270px; }
 .minecraft-core-browser__title { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 8px; }
 .minecraft-core-browser__title .ant-tag { margin: 0; }
-.minecraft-core-option-grid { display: grid; min-width: 0; grid-template-columns: repeat(auto-fill, minmax(min(100%, 185px), 1fr)); align-items: stretch; gap: 9px; }
-.minecraft-core-option { display: grid; min-width: 0; min-height: 146px; align-content: start; gap: 8px; padding: 11px; border: 1px solid var(--color-border-subtle); border-radius: 10px; background: var(--color-surface); color: inherit; cursor: pointer; font: inherit; text-align: left; }
-.minecraft-core-option:hover { border-color: var(--color-border); }
-.minecraft-core-option.is-selected { border-color: var(--color-brand); background: color-mix(in srgb, var(--color-brand) 9%, var(--color-surface)); }
+.minecraft-core-option-grid { display: grid; min-width: 0; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); align-items: stretch; gap: 0 14px; }
+.minecraft-core-option-grid > .minecraft-core-option { display: grid; min-width: 0; min-height: 0; align-content: start; gap: 5px; padding: 10px 4px; border: 0; border-bottom: 1px solid var(--color-border-subtle); border-radius: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; text-align: left; }
+.minecraft-core-option-grid > .minecraft-core-option:hover { background: var(--color-surface-muted); }
+.minecraft-core-option-grid > .minecraft-core-option.is-selected { border-bottom-color: var(--color-brand); background: color-mix(in srgb, var(--color-brand) 7%, transparent); }
 .minecraft-core-option__top { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 7px; }
 .minecraft-core-option__top .ant-tag { margin: 0; font-size: calc(var(--font-size-xs) * .84); }
 .minecraft-core-option > strong { overflow: hidden; color: var(--color-text-heading); font-size: var(--font-size-sm); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 .minecraft-core-option > small { display: -webkit-box; min-width: 0; min-height: 2.8em; overflow: hidden; color: var(--color-text-secondary); font-size: calc(var(--font-size-xs) * .91); line-height: 1.4; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.minecraft-core-option__state { align-self: end; color: var(--color-text-muted); font-size: calc(var(--font-size-xs) * .88); }
+.minecraft-core-option__state { align-self: start; color: var(--color-text-muted); font-size: calc(var(--font-size-xs) * .88); }
 .minecraft-core-option.is-selected .minecraft-core-option__state { color: var(--color-brand); font-weight: 650; }
-.minecraft-core-description { gap: 8px; padding: 11px 13px; line-height: 1.55; }
+.minecraft-core-description { gap: 8px; padding: 11px 0; border-block: 1px solid var(--color-border-subtle); border-inline: 0; border-radius: 0; background: transparent; line-height: 1.55; }
 .minecraft-core-description > .ant-typography { color: var(--color-text-secondary); font-size: var(--font-size-xs); }
 .minecraft-core-description .ant-space { gap: 6px 10px !important; }
 .minecraft-core-description .ant-tag { margin: 0; }
-.minecraft-core-picker-empty { display: grid; min-height: 58px; place-items: center; padding: 12px; border: 1px dashed var(--color-border-subtle); border-radius: 9px; color: var(--color-text-muted); font-size: var(--font-size-xs); text-align: center; }
+.minecraft-core-picker-empty { display: grid; min-height: 46px; align-content: center; padding: 12px 0; border-bottom: 1px solid var(--color-border-subtle); color: var(--color-text-muted); font-size: var(--font-size-xs); text-align: left; }
 .minecraft-core-picker-empty--hint { min-height: 46px; }
 .minecraft-core-version-section, .minecraft-core-package-section { display: grid; min-width: 0; gap: 10px; padding-top: 12px; border-top: 1px solid var(--color-border-subtle); }
 .minecraft-core-subheading { align-items: flex-start; }
 .minecraft-core-subheading h5.ant-typography { font-size: var(--font-size-sm); }
 .minecraft-core-version-grid { display: grid; min-width: 0; grid-template-columns: repeat(auto-fill, minmax(min(100%, 112px), 1fr)); gap: 7px; }
-.minecraft-core-version { display: flex; min-width: 0; min-height: 41px; align-items: center; justify-content: space-between; gap: 6px; padding: 8px 10px; border: 1px solid var(--color-border-subtle); border-radius: 8px; background: var(--color-surface); color: var(--color-text-heading); cursor: pointer; font: inherit; font-size: var(--font-size-xs); text-align: left; }
-.minecraft-core-version:hover { border-color: var(--color-border); }
+.minecraft-core-version-grid > .minecraft-core-version { display: flex; min-width: 0; min-height: 38px; align-items: center; justify-content: space-between; gap: 6px; padding: 8px 10px; border: 0; border-bottom: 1px solid var(--color-border-subtle); border-radius: 0; background: transparent; color: var(--color-text-heading); cursor: pointer; font: inherit; font-size: var(--font-size-xs); text-align: left; }
+.minecraft-core-version-grid > .minecraft-core-version:hover { background: var(--color-surface-muted); }
 .minecraft-core-version.is-selected { border-color: var(--color-brand); background: color-mix(in srgb, var(--color-brand) 10%, var(--color-surface)); color: var(--color-brand); font-weight: 700; }
-.minecraft-core-artifact-summary { display: flex; min-width: 0; min-height: 46px; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; padding: 10px 12px; border: 1px solid var(--color-border-subtle); border-radius: 9px; background: var(--color-surface); }
+.minecraft-core-artifact-summary { display: flex; min-width: 0; min-height: 42px; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; padding: 10px 0; border-block: 1px solid var(--color-border-subtle); background: transparent; }
 .minecraft-core-artifact-summary > .ant-typography { min-width: 0; margin: 0; color: var(--color-text-heading); font-size: var(--font-size-xs); }
 .minecraft-core-artifact-details { min-width: 0; color: var(--color-text-muted); font-size: var(--font-size-xs); }
 .minecraft-core-artifact-details summary { cursor: pointer; }
@@ -253,8 +344,8 @@
 .minecraft-provision-section .minecraft-core-description { gap: 10px; padding: 14px 16px; line-height: 1.6; }
 .minecraft-provision-section .minecraft-core-description .ant-space { gap: 7px 12px !important; }
 .minecraft-provision-section--execution { border-bottom: 0; }
-.minecraft-provision-section .minecraft-provision-boundary { grid-template-columns: minmax(140px, .42fr) minmax(0, 1fr); align-items: start; gap: 8px 16px; padding: 14px 16px; line-height: 1.6; }
-.minecraft-provision-submit { display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; gap: 18px; padding: 18px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface-muted); }
+.minecraft-provision-section .minecraft-provision-boundary { grid-template-columns: minmax(140px, .42fr) minmax(0, 1fr); align-items: start; gap: 8px 16px; padding: 10px 14px; border: 0; border-left: 2px solid var(--color-border); border-radius: 0; background: transparent; line-height: 1.6; }
+.minecraft-provision-submit { display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; gap: 18px; padding: 16px 0; border-top: 1px solid var(--color-border-subtle); background: transparent; }
 .minecraft-provision-submit .minecraft-eula { display: grid; min-width: 0; grid-column: auto; gap: 7px; align-content: start; color: var(--color-text-secondary); font-size: var(--font-size-xs); }
 .minecraft-provision-submit .minecraft-eula .ant-typography { margin: 0; font-size: calc(var(--font-size-xs) * .94); line-height: 1.55; }
 .minecraft-provision-load-more { justify-self: start; padding-inline: 0; }
@@ -267,15 +358,15 @@
 .minecraft-eula { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 5px; grid-column: 1 / -1; color: var(--color-text-secondary); font-size: var(--font-size-xs); }
 .minecraft-eula .ant-typography { flex-basis: 100%; margin: 2px 0 0; font-size: calc(var(--font-size-xs) * .91); }
 .minecraft-create-form > .ant-btn { justify-self: start; grid-column: 1 / -1; }
-.minecraft-deployments-card { position: static; max-width: none; }
-.minecraft-deployments-card > .ant-card-body { display: grid; gap: 14px; }
+.minecraft-workspace--deployment > .minecraft-deployment-layout > .minecraft-deployments-card.ant-card { position: static; max-width: none; overflow: visible; border: 0; background: transparent; }
+.minecraft-workspace--deployment > .minecraft-deployment-layout > .minecraft-deployments-card.ant-card > .ant-card-body { display: grid; gap: 14px; padding: 16px 0 0; }
 .minecraft-deployments-heading { display: flex; min-width: 0; align-items: flex-start; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--color-border-subtle); }
 .minecraft-deployments-heading > div { display: grid; min-width: 0; gap: 5px; }
 .minecraft-deployments-heading h4.ant-typography { margin: 0; }
 .minecraft-deployments-heading .ant-typography-secondary { color: var(--color-text-muted); font-size: var(--font-size-xs); line-height: 1.5; }
 .minecraft-deployments-heading > .ant-tag { flex: 0 0 auto; margin: 0; }
 .minecraft-deployment-list { display: grid; gap: 9px; }
-.minecraft-deployment-row { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--color-border-subtle); border-radius: 12px; background: var(--color-surface-muted); }
+.minecraft-deployment-list > .minecraft-deployment-row { display: grid; gap: 12px; padding: 14px 0; border: 0; border-top: 1px solid var(--color-border-subtle); border-radius: 0; background: transparent; }
 .minecraft-deployment-row__heading { display: flex; min-width: 0; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .minecraft-deployment-row__heading > div { display: grid; min-width: 0; gap: 5px; }
 .minecraft-deployment-row__heading strong { display: block; color: var(--color-text-heading); font-size: var(--font-size-sm); font-weight: 650; }
@@ -334,7 +425,11 @@
 .minecraft-task-copy { position: relative; z-index: 2; pointer-events: none; }
 .minecraft-task-actions { position: relative; z-index: 2; margin-top: auto; padding-top: 0; pointer-events: auto; }
 .minecraft-task-status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 10px; }
-.minecraft-task-status-card { display: grid; min-width: 0; gap: 6px; padding: 13px 15px; border: 1px solid var(--color-border-subtle); border-radius: 10px; background: var(--color-surface-muted); }
+.minecraft-task-status-card { display: grid; width: 100%; min-width: 0; gap: 6px; padding: 13px 15px; border: 1px solid var(--color-border-subtle); border-radius: 10px; background: var(--color-surface-muted); color: inherit; cursor: pointer; font: inherit; text-align: left; }
+.minecraft-task-status-card:hover:not(:disabled) { background: var(--color-surface-hover); }
+.minecraft-task-status-card:active:not(:disabled) { background: var(--color-surface-muted); }
+.minecraft-task-status-card:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: -2px; }
+.minecraft-task-status-card:disabled { cursor: not-allowed; }
 .minecraft-task-status-card span { color: var(--color-text-secondary); font-size: var(--font-size-xs); }
 .minecraft-task-status-card strong { color: var(--color-text-heading); font-size: clamp(20px, 2.5cqi, 26px); line-height: 1.2; }
 .minecraft-task-copy { display: grid; min-width: 0; gap: 7px; align-content: start; }
@@ -345,6 +440,17 @@
 .minecraft-task-copy > .minecraft-task-message.is-failed { color: var(--color-danger, #c2413a); }
 .minecraft-task-copy > small { min-width: 0; padding-top: 1px; overflow-wrap: anywhere; color: var(--color-text-muted); font-size: calc(var(--font-size-xs) * .91); }
 .minecraft-tasks-card > .ant-card-body { display: grid; gap: 12px; }
+.minecraft-workspace--tasks > .minecraft-task-status-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; border-block: 1px solid var(--color-border-subtle); }
+.minecraft-workspace--tasks > .minecraft-task-status-grid > .minecraft-task-status-card { gap: 5px; padding: 12px 14px; border: 0; border-right: 1px solid var(--color-border-subtle); border-radius: 0; background: transparent; }
+.minecraft-workspace--tasks > .minecraft-task-status-grid > .minecraft-task-status-card:last-child { border-right: 0; }
+.minecraft-workspace--tasks > .minecraft-task-status-grid > .minecraft-task-status-card.is-active { background: var(--color-surface-muted); }
+.minecraft-workspace--tasks > .minecraft-tasks-card.ant-card { overflow: visible; border: 0; background: transparent; }
+.minecraft-workspace--tasks > .minecraft-tasks-card.ant-card > .ant-card-body { gap: 12px; padding: 16px 0 0; }
+.minecraft-tasks-card > .ant-card-body > .minecraft-task-list { grid-template-columns: minmax(0, 1fr); gap: 0; }
+.minecraft-tasks-card .minecraft-task-list > .minecraft-task-card { max-width: none; gap: 10px; padding: 14px 0; border: 0; border-bottom: 1px solid var(--color-border-subtle); border-radius: 0; background: transparent; }
+.minecraft-tasks-card .minecraft-task-list > .minecraft-task-card.is-selected { border-bottom-color: var(--color-danger, #c2413a); background: color-mix(in srgb, var(--color-danger, #c2413a) 8%, transparent); }
+.minecraft-tasks-card .minecraft-task-list > .minecraft-task-card > .minecraft-task-actions { padding-top: 10px; border-top: 1px solid var(--color-border-subtle); }
+.minecraft-tasks-card > .ant-card-body > .minecraft-task-selection-bar { padding: 9px 0; border: 0; border-block: 1px solid var(--color-border-subtle); border-radius: 0; background: transparent; }
 .minecraft-task-selection-bar { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border: 1px solid var(--color-border-subtle); border-radius: 9px; background: var(--color-surface-muted); }
 .minecraft-task-selection-bar > div,
 .minecraft-task-actions,
@@ -379,6 +485,10 @@
 @media (max-width: 760px) {
   .minecraft-workspace { gap: 12px; padding: 16px; }
   .minecraft-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .minecraft-workspace--tasks > .minecraft-task-status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .minecraft-workspace--tasks > .minecraft-task-status-grid > .minecraft-task-status-card { border-right: 0; border-bottom: 1px solid var(--color-border-subtle); }
+  .minecraft-workspace--tasks > .minecraft-task-status-grid > .minecraft-task-status-card:nth-child(odd) { border-right: 1px solid var(--color-border-subtle); }
+  .minecraft-workspace--tasks > .minecraft-task-status-grid > .minecraft-task-status-card:nth-last-child(-n + 2) { border-bottom: 0; }
   .minecraft-sandbox-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .minecraft-overview-dashboard, .minecraft-overview-panels, .minecraft-node-grid, .minecraft-task-panels { grid-template-columns: minmax(0, 1fr); }
   .minecraft-detail-grid { grid-template-columns: minmax(0, 1fr); }
@@ -396,6 +506,9 @@
   .minecraft-workspace { padding: 12px; }
   .minecraft-page-heading { flex-direction: column; }
   .minecraft-create-form, .minecraft-property-form { grid-template-columns: minmax(0, 1fr); }
+  .minecraft-property-sections { grid-template-columns: minmax(0, 1fr); }
+  .minecraft-config-heading { flex-direction: column; }
+  .minecraft-config-heading > .ant-space { justify-content: flex-start; }
   .minecraft-sandbox-grid { grid-template-columns: minmax(0, 1fr); }
   .minecraft-java-card-grid { grid-template-columns: minmax(0, 1fr); }
   .minecraft-eula, .minecraft-create-form > .ant-btn { grid-column: auto; }
@@ -405,13 +518,16 @@
 }
 
 @media (max-height: 520px) {
-  .minecraft-server-terminal { height: min(44dvh, 360px); min-height: 160px; }
+  .minecraft-server-terminal { height: min(38dvh, 200px); min-height: 150px; }
+  .minecraft-instance-logs__viewport { min-height: 180px; max-height: 55dvh; }
 }
 
 /* Minecraft 卡片按中间列自身宽度收敛，避免桌面视口仍很宽但右 Dock 挤窄主区时持续折行。 */
 @container module-center-content (max-width: 920px) {
   .minecraft-instance-summary, .minecraft-node-monitor-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .minecraft-stat-grid,
+  .minecraft-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .minecraft-metric-card:nth-child(2) { border-right: 0; }
+  .minecraft-metric-card:nth-child(-n + 2) { border-bottom: 1px solid var(--color-border-subtle); }
   .minecraft-sandbox-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .minecraft-java-custom-card .ant-card-body { grid-template-columns: minmax(0, 1fr); align-items: stretch; }
   .minecraft-java-custom-card .minecraft-java-install__controls { max-width: 470px; }
@@ -425,23 +541,50 @@
   .minecraft-console-layout { grid-template-columns: minmax(0, 1fr); }
 }
 
+@container module-center-content (max-width: 560px) {
+  .minecraft-instance-logs__toolbar { align-items: flex-start; }
+  .minecraft-instance-logs__filters { max-width: 100%; overflow-x: auto; flex-wrap: nowrap; overscroll-behavior-x: contain; }
+  .minecraft-instance-logs__filters > button { flex: 0 0 auto; }
+  .minecraft-instance-logs__line,
+  .minecraft-instance-logs__line.is-stdout { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .minecraft-instance-logs__line > time,
+  .minecraft-instance-logs__line > span { grid-column: 1; }
+}
+
 @container module-center-content (max-width: 940px) {
   .minecraft-overview-dashboard { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .minecraft-overview-server-panel { grid-row: span 2; }
+}
+
+@container module-center-content (max-width: 800px) {
+  .minecraft-page-heading { flex-direction: column; align-items: stretch; }
+  .minecraft-page-heading__controls { justify-content: flex-start; }
+  .minecraft-overview-launch { grid-template-columns: minmax(0, 1fr); }
+  .minecraft-workspace--instances > .minecraft-instances-panel.ant-card > .ant-card-body > .minecraft-instance-list > .minecraft-instance-card.ant-card > .ant-card-body { grid-template-columns: minmax(0, 1fr); align-items: start; }
+  .minecraft-workspace--instances > .minecraft-instances-panel.ant-card > .ant-card-body > .minecraft-instance-list > .minecraft-instance-card.ant-card > .ant-card-body > .minecraft-instance-card__actions { justify-content: flex-start; }
 }
 
 @container module-center-content (max-width: 560px) {
   .minecraft-overview-dashboard { grid-template-columns: minmax(0, 1fr); }
-  .minecraft-overview-server-panel { grid-row: auto; }
-  .minecraft-overview-hero { grid-template-columns: minmax(0, 1fr); }
+  .minecraft-overview-hero--server,
+  .minecraft-overview-launch { grid-template-columns: minmax(0, 1fr); }
+  .minecraft-launch-steps { grid-template-columns: minmax(0, 1fr); }
+  .minecraft-launch-steps > li { grid-template-columns: 26px minmax(0, 1fr); align-items: start; gap: 0 9px; padding: 11px 0; }
+  .minecraft-launch-steps > li + li { padding-left: 0; border-top: 1px solid var(--color-border-subtle); border-left: 0; }
+  .minecraft-launch-steps__number { grid-column: 1; grid-row: 1 / span 2; padding-top: 2px; }
+  .minecraft-launch-steps > li > div { grid-column: 2; }
+  .minecraft-stat-grid { grid-template-columns: minmax(0, 1fr); }
+  .minecraft-metric-card { min-height: 60px; padding: 9px 4px; border-right: 0; border-bottom: 1px solid var(--color-border-subtle); }
+  .minecraft-metric-card:last-child { border-bottom: 0; }
   .minecraft-overview-hero__actions > * { flex: 1 1 auto; }
 }
 
 @container module-center-content (max-width: 980px) {
   .minecraft-core-library { grid-template-columns: minmax(0, 1fr); }
-  .minecraft-core-categories__list { display: flex; min-width: 0; gap: 7px; overflow-x: auto; overscroll-behavior-x: contain; padding-bottom: 3px; scrollbar-width: none; }
+  .minecraft-core-categories__list { display: flex; min-width: 0; gap: 4px; overflow-x: auto; overscroll-behavior-x: contain; padding-bottom: 3px; scrollbar-width: none; }
   .minecraft-core-categories__list::-webkit-scrollbar { display: none; }
-  .minecraft-core-category { min-width: 210px; flex: 0 0 210px; }
+  .minecraft-core-categories__list > .minecraft-core-category { min-width: 0; flex: 0 0 auto; grid-template-columns: minmax(0, 1fr) auto; padding: 7px 9px; }
+  .minecraft-core-categories__list > .minecraft-core-category .minecraft-core-category__mark,
+  .minecraft-core-categories__list > .minecraft-core-category .minecraft-core-category__copy small { display: none; }
 }
 
 @container module-center-content (max-width: 1080px) {
@@ -453,24 +596,40 @@
 @container module-center-content (max-width: 560px) {
   .minecraft-stat-grid,
   .minecraft-sandbox-grid,
-  .minecraft-instance-summary,
-  .minecraft-node-monitor-summary,
   .minecraft-detail-grid,
   .minecraft-create-form,
   .minecraft-provision-fields { grid-template-columns: minmax(0, 1fr); }
+  .minecraft-instance-summary,
+  .minecraft-node-monitor-summary,
+  .minecraft-workspace--tasks > .minecraft-task-status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .minecraft-instance-summary > article,
+  .minecraft-node-monitor-summary > article,
+  .minecraft-workspace--tasks > .minecraft-task-status-grid > .minecraft-task-status-card { border-right: 0; border-bottom: 1px solid var(--color-border-subtle); }
+  .minecraft-instance-summary > article:nth-child(odd),
+  .minecraft-node-monitor-summary > article:nth-child(odd),
+  .minecraft-workspace--tasks > .minecraft-task-status-grid > .minecraft-task-status-card:nth-child(odd) { border-right: 1px solid var(--color-border-subtle); }
+  .minecraft-instance-summary > article:nth-last-child(-n+2),
+  .minecraft-node-monitor-summary > article:nth-last-child(-n+2),
+  .minecraft-workspace--tasks > .minecraft-task-status-grid > .minecraft-task-status-card:nth-last-child(-n+2) { border-bottom: 0; }
+  .minecraft-workspace--instances > .minecraft-detail-grid > .minecraft-instance-detail-summary.ant-card > .ant-card-body > .minecraft-facts { grid-template-columns: minmax(0, 1fr); }
   .minecraft-core-browser__heading { align-items: stretch; flex-direction: column; }
   .minecraft-core-browser__heading > .ant-input-affix-wrapper { width: 100%; flex-basis: auto; }
   .minecraft-deployment-card-heading { align-items: flex-start; flex-direction: column; }
   .minecraft-provision-section .minecraft-provision-boundary { grid-template-columns: minmax(0, 1fr); }
-  .minecraft-provision-submit { padding: 14px; }
+  .minecraft-provision-submit { padding: 14px 0; }
   .minecraft-instance-toolbar,
   .minecraft-wizard-review dl { grid-template-columns: minmax(0, 1fr); }
   .minecraft-instance-onboarding-empty { align-items: flex-start; flex-direction: column; }
   .minecraft-instance-onboarding-empty > .ant-btn { width: 100%; }
-  .minecraft-wizard-progress li { justify-content: center; gap: 6px; padding-inline: 6px; text-align: center; }
+  .minecraft-wizard-progress li { grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 4px; padding: 8px 4px; text-align: center; }
   .minecraft-wizard-progress__number { width: 22px; height: 22px; }
+  .minecraft-wizard-progress li > span:last-child { white-space: nowrap; }
   .minecraft-wizard-actions > .ant-btn { min-width: 0; flex: 1 1 0; }
   .minecraft-wizard-actions > .ant-btn-primary { min-width: 0; }
+  .minecraft-world-route { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .minecraft-world-route__track { width: 1px; height: 16px; margin-left: 3px; }
+  .minecraft-metric-card { border-right: 0; border-bottom: 1px solid var(--color-border-subtle); }
+  .minecraft-metric-card:last-child { border-bottom: 0; }
   .minecraft-deployment-row__heading { display: grid; grid-template-columns: minmax(0, 1fr); }
   .minecraft-deployment-row__heading .ant-tag { justify-self: start; max-width: 100%; }
   .minecraft-node-card .minecraft-facts { grid-template-columns: minmax(0, 1fr); }

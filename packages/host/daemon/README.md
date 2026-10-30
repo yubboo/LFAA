@@ -4,6 +4,8 @@
 
 Minecraft 自动部署的 Java 准备继续使用 `resolveMinecraftJavaRuntime`：匹配环境缺失时默认安装并验证 Temurin；Agent 显式选择已登记的 Zulu runtimeId 时，按同一 Runtime Owner 复用或重新准备对应发行版，再下载/校验核心并提交实例元数据。`minecraft-provisioner.mjs` 接受 PaperMC 官方 `fill-data.papermc.io` 工件，仍校验每次 HTTPS 跳转和来源摘要；Java 官方目录失败会标明实际 Java 主版本及准备阶段。此源码路径与隔离回归不等于真实网络下载、安装或游戏就绪验收。
 
+Minecraft 配置回读仅由已认证 `properties-read` 节点任务触发。Daemon 通过实例 ID 与已核实目录读取普通 `server.properties`，拒绝符号链接/硬链接/特殊文件、缺失文件及超过 64 KiB 或 256 项的输入；返回原属性清单，并把密码、令牌、凭据和资源包 URL 值置空。写入仍只接受领域白名单字段、保留其他属性，再从最终文件读取脱敏快照回报控制端。节点心跳声明 `minecraft-server-properties-file-v1` 后控制端才可排入此读取任务；旧节点不会收到未知任务。
+
 Daemon Host 是目标节点本机能力的执行适配器。通用项目文件的唯一受限执行实现位于 `packages/host/project-files`，Daemon 仅接收目标节点任务并调用该实现；LFAA 本机 Agent Host 也调用同一实现，因而 Agent 本机 Git/文件工作不要求 Daemon 在线。读取限定为普通 UTF-8 文本并支持分页；创建不覆盖既有内容，更新按 SHA-256 检查并发修改，删除仅 unlink 普通文件，不递归删除目录。模型可用操作与目标选择仍由 `packages/core/tools/src/project-tools.ts` 和 Agent Loop 决定。
 
 目标节点 Agent Shell 由 Daemon 使用该节点已装配的 `lfaa-sandbox-windows-acl` Provider。Windows x64 `workspace-write` / `read-only` 必须由 AppContainer Host 执行并返回当次回执；本机隔离 Control Plane + Daemon 回归覆盖取消、写入边界与完成校验。受限提供方只授权解析出的 Shell 可执行文件目录和 Node.js 运行时目录，不递归 ACL 整条 PATH；其他 OS 或 Host 缺失均失败关闭。真实远程设备、Electron 安装包和 macOS/Linux 尚未实测。
@@ -22,7 +24,7 @@ Minecraft/Steam 的备份分类根分别为 `data/backups/minecraft` 与 `data/b
 
 ## 运行与桌面打包
 
-`terminal-channel.mjs` 在现有控制端地址上建立认证 POST SSE 命令连接，通过顺序 HTTP 批量回报输出和应答；本机与远程节点共用该链，远程仍要求 HTTPS。系统 Shell 经 subprocess-local 的原生 PTY 启动，Shell 选择来自 Settings 并通过 terminal-bash 异步解析，必要 OS 环境采用显式允许集合，不继承模型服务密钥。Minecraft 只附着到该节点 Daemon 当前持有、且已报告就绪的实例 PTY；不会把 Java 进程暴露成 OS Shell。原生模式复用同一 subprocess-local ConPTY；AppContainer 模式由 Rust Sandbox Host 创建 Windows Pseudo Console，PTY 字节和尺寸通过有长度上限的帧协议送入 Host，Java 仍保留实例 AppContainer、文件 ACL、网络能力和 Job Object。每节点最多 8 个终端会话，发送队列 1 MiB；控制端断线、凭据失效或 Daemon 卸载关闭 Shell PTY 并撤销 Minecraft 附着，不重放输入，也不因终端断开停止 Minecraft 服务端。AppContainer 交互式能力只在 Sandbox Host v2 探测成功后加入节点能力集。
+`terminal-channel.mjs` 在现有控制端地址上建立认证 POST SSE 命令连接，通过顺序 HTTP 批量回报输出和应答；本机与远程节点共用该链，远程仍要求 HTTPS。系统 Shell 与从 Minecraft 实例目录启动的 `minecraft-shell` 都经 subprocess-local 原生 PTY，Shell 选择来自 Settings 并通过 terminal-bash 异步解析，必要 OS 环境采用显式允许集合，不继承模型服务密钥。`minecraft` 目标只附着到该节点 Daemon 当前持有、且已报告就绪的实例 PTY；不会把 Java 进程暴露成 OS Shell。原生模式复用同一 subprocess-local ConPTY；AppContainer 模式由 Rust Sandbox Host 创建 Windows Pseudo Console，PTY 字节和尺寸通过有长度上限的帧协议送入 Host，Java 仍保留实例 AppContainer、文件 ACL、网络能力和 Job Object。每节点最多 8 个终端会话，发送队列 1 MiB；控制端断线、凭据失效或 Daemon 卸载关闭 Shell PTY 并撤销 Minecraft 附着，不重放输入，也不因终端断开停止 Minecraft 服务端。AppContainer 交互式能力只在 Sandbox Host v2 探测成功后加入节点能力集。Minecraft 受管终端另对目标进程的原始 PTY stdout 保留最多 128 KiB 的临时回放缓冲，重连后回放后继续订阅同一进程流，不读取或持久化实例日志。
 
 Windows Electron 桌面安装包内置本机 Daemon，并由桌面主进程自动启动和收尾。Daemon 保持独立进程与 `daemon` Profile，控制端通过现有认证节点任务通道单独读取节点状态和派发操作。需要新增远程节点时，管理员通过控制端签发 HTTPS 连接身份，目标 Windows x64 主机导入连接文件后运行 `lfaa daemon`；远程主机安装器和系统服务托管尚未接入。
 

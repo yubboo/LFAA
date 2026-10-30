@@ -24,6 +24,7 @@ import { validateDaemonConnection } from "./connection-config.mjs";
 import { createDaemonTaskLanes } from "./task-lanes.mjs";
 import { startTerminalChannel } from "./terminal-channel.mjs";
 import { spawnNativeTerminal } from "lfaa-subprocess-local/src/pty.js";
+import { createTerminalOutputReplayBuffer } from "./terminal-process-adapter.mjs";
 import { stopManagedProcess } from "./managed-process-shutdown.mjs";
 import { installEasyTierRuntime, readInstalledEasyTierVersion, validateEasyTierInstallRequest } from "./easytier-runtime.mjs";
 import { EASYTIER_RUNTIME_RELEASE } from "lfaa-game-connectivity/src/easytier-release.mjs";
@@ -94,6 +95,7 @@ const daemonVersion = JSON.parse(readFileSync(new URL("../package.json", import.
 const sandboxBackendId = "windows-appcontainer-v1";
 const sandboxCapability = "app-sandbox-windows-appcontainer-v1";
 const javaRuntimeSelectionCapability = "minecraft-java-runtime-selection-v1";
+const serverPropertiesFileCapability = "minecraft-server-properties-file-v1";
 const sandboxReadyPrefix = "\u001eLFAA_SANDBOX_READY:";
 const execFileAsync = promisify(execFile);
 let nodeId = "";
@@ -415,7 +417,7 @@ async function runLoop() {
           .finally(() => { javaDiscoveryPending = null; javaDiscoveryRefreshAt = Date.now() + 60_000; });
       }
       await refreshEasyTierRuntimeVersion();
-      const capabilities = ["minecraft-vanilla", "minecraft-native-v1", "minecraft-multicore-v1", "minecraft-interactive-console-v1", "minecraft-instance-archive-v1", "java-environment-manager-v1", "runtime-environment-v1", javaRuntimeSelectionCapability, "node-filesystem-v1", "node-filesystem-v2", "node-filesystem-instance-v1", "node-filesystem-game-storage-v1", "node-filesystem-binary-transfer-v1", "agent-shell-v1", "project-files-v1", EASYTIER_RUNTIME_RELEASE.installCapability, ...(easyTierRuntimeVersion === EASYTIER_RUNTIME_RELEASE.version ? [EASYTIER_RUNTIME_RELEASE.runtimeCapability] : []), ...(sandboxBackendAvailable ? [sandboxCapability] : [])];
+      const capabilities = ["minecraft-vanilla", "minecraft-native-v1", "minecraft-multicore-v1", "minecraft-interactive-console-v1", "minecraft-instance-archive-v1", serverPropertiesFileCapability, "java-environment-manager-v1", "runtime-environment-v1", javaRuntimeSelectionCapability, "node-filesystem-v1", "node-filesystem-v2", "node-filesystem-instance-v1", "node-filesystem-game-storage-v1", "node-filesystem-binary-transfer-v1", "agent-shell-v1", "project-files-v1", EASYTIER_RUNTIME_RELEASE.installCapability, ...(easyTierRuntimeVersion === EASYTIER_RUNTIME_RELEASE.version ? [EASYTIER_RUNTIME_RELEASE.runtimeCapability] : []), ...(sandboxBackendAvailable ? [sandboxCapability] : [])];
       if (await steamcmdExecutableReady(steamcmdSettings.steamcmdDirectory)) capabilities.push("steamcmd-ready-v1");
       const heartbeat = await pollRequest("/daemon/heartbeat", {
         method: "POST",
@@ -720,6 +722,7 @@ async function executeTask(task) {
         await runtime.writeConsoleInput(`${command}\r`);
         result = { delivered: true, verified: false, note: "命令已写入服务器标准输入；效果须读取后续日志验证。" }; break;
       }
+      case "properties-read": result = await readMinecraftProperties(task); break;
       case "properties": result = await applyMinecraftProperties(task); break;
       case "backup": result = await backupMinecraftWorld(task); break;
       case "delete": result = await archiveMinecraftInstance(task); break;
@@ -1705,9 +1708,11 @@ async function applyMinecraftProperties(task) {
   const instanceId = requireInstanceId(task.instanceId);
   const instanceDirectory = await requireSafeInstanceDirectory(instanceId);
   if (activeServers.has(instanceId)) throw new Error("只能在 Minecraft 实例停止时修改 server.properties。");
-  const properties = validateProperties(task.payload?.properties);
+  const metadata = await readInstanceMetadata(instanceDirectory);
+  const releaseId = getMinecraftReleaseForProperties(metadata, task.payload?.releaseId);
+  const properties = validateProperties(task.payload?.properties, releaseId);
   const propertyPath = resolve(instanceDirectory, "server.properties");
-  const current = await safeFileExists(propertyPath) ? parseProperties(await readSafeFile(propertyPath, "utf8")) : new Map();
+  const current = (await readMinecraftPropertiesFile(instanceDirectory)).properties;
   const entries = mapPropertyValues(properties);
   for (const [key, value] of Object.entries(entries)) current.set(key, String(value));
   const content = [...current.entries()].map(([key, value]) => `${key}=${value}`).join("\n") + "\n";
@@ -1715,8 +1720,94 @@ async function applyMinecraftProperties(task) {
   await assertSafeFileTarget(propertyPath);
   await writeFile(temporaryPath, content, { encoding: "utf8", flag: "wx" });
   await rename(temporaryPath, propertyPath);
+  const synced = await readMinecraftPropertiesFile(instanceDirectory, releaseId);
   await appendInstanceLog(instanceId, task.id, "system", "已写入通过白名单校验的 server.properties 字段。");
-  return {};
+  return { serverProperties: synced.serverProperties, fileSnapshot: synced.fileSnapshot };
+}
+
+async function readMinecraftProperties(task) {
+  const instanceId = requireInstanceId(task.instanceId);
+  const instanceDirectory = await requireSafeInstanceDirectory(instanceId);
+  const metadata = await readInstanceMetadata(instanceDirectory);
+  if (!metadata || metadata.instanceId !== instanceId) throw new Error("实例元数据缺失或身份不匹配，未读取 server.properties。");
+  if (["BungeeCord", "Velocity", "Nukkit", "PocketMine"].includes(metadata.coreType)) throw new Error("此核心不使用受支持的 server.properties 配置格式。");
+  await postTaskProgress(task.id, 35, "正在安全读取节点上的 server.properties 文件。");
+  const synced = await readMinecraftPropertiesFile(instanceDirectory, metadata.releaseId);
+  await appendInstanceLog(instanceId, task.id, "system", `已从节点读取并脱敏 server.properties（${synced.fileSnapshot.entries.length} 项）。`);
+  return { serverProperties: synced.serverProperties, fileSnapshot: synced.fileSnapshot };
+}
+
+async function readMinecraftPropertiesFile(instanceDirectory, releaseId) {
+  const propertyPath = resolve(instanceDirectory, "server.properties");
+  if (!(await safeFileExists(propertyPath))) throw new Error("实例中还没有 server.properties 文件；请先完成一次服务器启动后再读取配置。");
+  const info = await lstat(propertyPath);
+  if (info.size > 64 * 1024) throw new Error("server.properties 超过 64 KiB 安全读取上限，未返回部分配置。");
+  const text = await readSafeFile(propertyPath, "utf8");
+  if (Buffer.byteLength(text, "utf8") > 64 * 1024) throw new Error("server.properties 超过 64 KiB 安全读取上限，未返回部分配置。");
+  const properties = parseProperties(text);
+  if (properties.size > 256) throw new Error("server.properties 超过 256 项安全读取上限，未返回部分配置。");
+  const entries = [];
+  let totalCharacters = 0;
+  for (const [key, value] of properties) {
+    if (!/^[A-Za-z0-9._-]{1,128}$/u.test(key) || value.length > 4096 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(value)) throw new Error("server.properties 包含不受支持或超出单项上限的字段。");
+    totalCharacters += key.length + value.length;
+    if (totalCharacters > 64 * 1024) throw new Error("server.properties 的字段总量超过安全上限。");
+    const sensitive = isSensitiveMinecraftPropertyKey(key);
+    entries.push({ key, value: sensitive ? null : value, sensitive });
+  }
+
+  const normalized = {};
+  const names = {
+    motd: "motd", difficulty: "difficulty", gamemode: "gamemode", "max-players": "maxPlayers", "server-port": "serverPort",
+    "online-mode": "onlineMode", pvp: "pvp", "white-list": "whiteList", "view-distance": "viewDistance",
+    "simulation-distance": "simulationDistance", "level-name": "levelName", "level-seed": "levelSeed"
+  };
+  for (const [propertyName, field] of Object.entries(names)) {
+    const raw = properties.get(propertyName);
+    if (raw === undefined) continue;
+    const converted = parseMinecraftEditableProperty(field, raw);
+    if (converted === undefined) continue;
+    if (field === "simulationDistance" && !supportsMinecraftSimulationDistance(releaseId)) continue;
+    normalized[field] = converted;
+  }
+  return {
+    properties,
+    serverProperties: normalized,
+    fileSnapshot: { source: "node", observedAt: new Date().toISOString(), entries }
+  };
+}
+
+function parseMinecraftEditableProperty(field, raw) {
+  if (field === "motd") return raw.length <= 120 && !/[\r\n\u0000]/u.test(raw) ? raw : undefined;
+  if (field === "levelName") return /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/u.test(raw) && !raw.includes("..") ? raw : undefined;
+  if (field === "levelSeed") return raw.length <= 80 && !/[\r\n\u0000]/u.test(raw) ? raw : undefined;
+  if (field === "difficulty") return ["peaceful", "easy", "normal", "hard"].includes(raw) ? raw : undefined;
+  if (field === "gamemode") return ["survival", "creative", "adventure", "spectator"].includes(raw) ? raw : undefined;
+  if (["maxPlayers", "serverPort", "viewDistance", "simulationDistance"].includes(field)) {
+    if (!/^-?\d+$/u.test(raw)) return undefined;
+    const number = Number(raw);
+    const [minimum, maximum] = field === "serverPort" ? [1024, 65535] : field === "maxPlayers" ? [1, 200] : [2, 32];
+    return Number.isSafeInteger(number) && number >= minimum && number <= maximum ? number : undefined;
+  }
+  if (["onlineMode", "pvp", "whiteList"].includes(field)) return raw === "true" ? true : raw === "false" ? false : undefined;
+  return undefined;
+}
+
+function isSensitiveMinecraftPropertyKey(key) {
+  return /password|secret|token|credential|api[-_.]?key|private[-_.]?key|resource-pack/iu.test(key);
+}
+
+function supportsMinecraftSimulationDistance(releaseId) {
+  const match = /^(\d+)\.(\d+)(?:\.(\d+))?(?:$|[-+])/u.exec(String(releaseId ?? ""));
+  if (!match) return false;
+  const [, major, minor] = match;
+  return Number(major) > 1 || Number(major) === 1 && Number(minor) >= 18;
+}
+
+function getMinecraftReleaseForProperties(metadata, fallback) {
+  const releaseId = typeof metadata?.releaseId === "string" ? metadata.releaseId : typeof fallback === "string" ? fallback : "";
+  if (metadata?.releaseId && fallback && metadata.releaseId !== fallback) throw new Error("任务版本与实例元数据不一致，拒绝修改服务器配置。");
+  return releaseId;
 }
 
 async function backupMinecraftWorld(task) {
@@ -1955,7 +2046,7 @@ function parseProperties(text) {
   return map;
 }
 
-function validateProperties(value) {
+function validateProperties(value, releaseId) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("服务器配置输入格式无效。");
   const allowed = new Set(["motd", "difficulty", "gamemode", "maxPlayers", "serverPort", "onlineMode", "pvp", "whiteList", "viewDistance", "simulationDistance", "levelName", "levelSeed"]);
   for (const key of Object.keys(value)) if (!allowed.has(key)) throw new Error("Daemon 拒绝写入未登记的服务器配置字段。");
@@ -1967,6 +2058,7 @@ function validateProperties(value) {
   for (const [key, minimum, maximum] of [["maxPlayers", 1, 200], ["serverPort", 1024, 65535], ["viewDistance", 2, 32], ["simulationDistance", 2, 32]]) {
     if (value[key] !== undefined && (!Number.isInteger(value[key]) || value[key] < minimum || value[key] > maximum)) throw new Error(`配置字段 ${key} 超出允许范围。`);
   }
+  if (value.simulationDistance !== undefined && !supportsMinecraftSimulationDistance(releaseId)) throw new Error("当前 Minecraft 版本不支持修改 simulation-distance。");
   for (const key of ["onlineMode", "pvp", "whiteList"]) {
     if (value[key] !== undefined && typeof value[key] !== "boolean") throw new Error(`配置字段 ${key} 必须为布尔值。`);
   }
@@ -2012,8 +2104,12 @@ function attachServerOutput(instanceId, child, taskId, options = {}) {
           ? chunk.replace(`${sandboxReadyPrefix}${options.readinessToken}\u001e`, "")
           : chunk;
         const runtime = activeServers.get(instanceId);
-        if (terminalChunk && runtime?.consoleSubscribers instanceof Map) {
-          for (const subscriber of runtime.consoleSubscribers.values()) subscriber.onOutput(terminalChunk);
+        if (terminalChunk && runtime) {
+          runtime.consoleOutputReplay ??= createTerminalOutputReplayBuffer();
+          runtime.consoleOutputReplay.append(terminalChunk);
+          if (runtime.consoleSubscribers instanceof Map) {
+            for (const subscriber of runtime.consoleSubscribers.values()) subscriber.onOutput(terminalChunk);
+          }
         }
       }
       rest += chunk;
@@ -2049,6 +2145,7 @@ function attachServerOutput(instanceId, child, taskId, options = {}) {
       for (const subscriber of runtime.consoleSubscribers.values()) subscriber.onExit(code);
       runtime.consoleSubscribers.clear();
     }
+    runtime?.consoleOutputReplay?.clear();
     activeServers.delete(instanceId);
     void rm(resolve(getInstanceDirectory(instanceId), "daemon-process.json"), { force: true }).catch(() => {
       void appendInstanceLog(instanceId, taskId, "system", "进程已退出，但运行标记清理失败；下次启动将重新核实标记中的进程。").catch(() => {});
@@ -2068,6 +2165,8 @@ function attachManagedMinecraftConsole(instanceId, terminalId, callbacks) {
   const onOutput = data => callbacks.onOutput(data);
   const onExit = code => callbacks.onExit(code);
   runtime.consoleSubscribers.set(terminalId, { onOutput, onExit });
+  const recentOutput = runtime.consoleOutputReplay?.snapshot();
+  if (recentOutput) onOutput(recentOutput);
   return {
     writeStdin(data) {
       if (activeServers.get(id) !== runtime || !runtime.serverReady) throw new Error("Minecraft 实例已停止或控制台已断开。");

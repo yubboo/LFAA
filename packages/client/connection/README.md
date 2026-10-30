@@ -10,6 +10,8 @@
 
 Minecraft 首屏、实例日志/任务详情、Agent 节点任务列表与详情读取，以及 SteamCMD 任务详情均接受可选 `AbortSignal`；UI 在身份切换、切换详情、离开页面或卸载时撤销对应的只读 HTTP 请求。
 
+Minecraft 实例配置 Client 同时提供 `readMinecraftServerProperties()` 只读任务请求与 `MinecraftServerPropertiesFileSnapshot` 脱敏文件快照类型；保存仍通过 `saveMinecraftServerProperties()` 提交部分属性更新。Client 只传递任务与文件快照合同，不解释服务端属性、添加默认值或扩展编辑白名单。
+
 `loadAiOffice()` 通过认证 `/ai/office` 读取员工元数据和当前账户的 Agent Run 摘要，可传 AbortSignal 供 UI 隐藏/卸载时取消；不缓存状态快照。
 
 AI 模型目录由 `/settings/ai/accounts` 按当前登录返回系统级普通 Provider 配置和当前用户自己的火山方舟 Agent Plan/Coding Plan 席位。个人席位使用 Plan 专用端点与手填 Model Name；新建时先真实测试模型，再提交短时一次性验证凭证。凭据替换只发送新 secret；响应不包含密钥，system/user scope 与权限判断归服务端 Owner。

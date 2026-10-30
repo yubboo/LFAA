@@ -4,6 +4,8 @@
 
 Workbench 不再显示首次进入向导；既有 `guidedEntryCompleted` 偏好只保留数据兼容，不参与首页选择，也不被此入口改写。
 
+Workbench 在认证后的应用路由上装配 `ui-sidebar-terminal` 的 TerminalManagerProvider，使其跨 App 页面键切换保留当前账户的终端标签；底部面板与 Minecraft 实例控制台只注册显示位置。切换应用工作区或账户时，由共享会话 Owner 关闭对应 PTY 与 SSE，不跨账户保留。
+
 Workbench 将认证后的 `/agent-office` 懒加载到 `ui-workspace`，并复用模块 Shell、当前 Settings Appearance 和账户导航；员工状态和卡片布局由 `AgentOfficePage` 负责，Workbench 只做路由装配。办公室入口不启动或控制 Agent。
 
 `Workbench` 将认证后的 `/plugins` 路由懒加载到 `ui-plugin-manager`，并把它作为独立模块工作区显示。页面的全局导航归 `ui-sidebar`，插件来源/状态展示与动作意图归 `ui-plugin-manager`；Workbench 只装配该页面，不持有插件规则。插件目录工具栏齿轮调用 `openSettings("plugins")` 路由到设置中心现有插件分区，并保留返回来源；设置内容仍归 `ui-settings`。

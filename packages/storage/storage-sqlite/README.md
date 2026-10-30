@@ -8,6 +8,8 @@ Control Plane 关系型存储 Owner，按递增、可重复运行的 schema 版�
 
 版本 76 为 `writing_books` 增加可空 `directory_name` 和账户内唯一索引，Writing Owner 惰性分配经过跨平台清理的可读作品目录片段。字段不是客户端路径，账户归属和作品关系仍由现有 ID 外键负责；SQLite 迁移只改结构，不触碰用户目录。
 
+版本 77 扩展 `minecraft_tasks.kind`，允许 Minecraft Domain/Jobs 创建节点真实 `server.properties` 只读任务 `properties-read`。迁移重建任务表以更新严格 CHECK 约束，并在同一事务中保留所有任务、索引和外键；`storage-domain` 在 v76 后协调旧库升级。数据库打开兼容上限为 77。
+
 迁移不得降级数据库、删除现有记录或把编译输出写到包目录。构建只写仓库根 `dist/packages/storage/storage-sqlite/`。
 
 迁移 62 新增 `steamcmd_servers`，由 `games/steamcmd` 持有服务端配置与派生运行状态；节点文件和进程仍归对应 Daemon。迁移不移动既有 SteamCMD 文件、不重置设置，安装目录按节点与相对目录唯一。历史 `steamcmd_tasks` 表继续承载安装/校验及服务端任务，不复制租约状态机。

@@ -383,7 +383,7 @@ export const daemonHeartbeatSchema = Joi.object({
     architecture: Joi.string().valid("x64").required(),
     version: Joi.string().trim().max(40).required(),
     dataRoot: Joi.string().trim().min(3).max(2048).pattern(/^(?:[a-z]:\\|\\\\)/iu).required(),
-    capabilities: Joi.array().items(Joi.string().valid("minecraft-vanilla", "minecraft-native-v1", "minecraft-multicore-v1", "minecraft-interactive-console-v1", "minecraft-instance-archive-v1", "app-sandbox-windows-appcontainer-v1", "java-environment-manager-v1", "runtime-environment-v1", "minecraft-java-runtime-selection-v1", "node-filesystem-v1", "node-filesystem-v2", "node-filesystem-directory-size-v1", "node-filesystem-instance-v1", "node-filesystem-game-storage-v1", "node-filesystem-binary-transfer-v1", "steamcmd-ready-v1", "agent-shell-v1", "project-files-v1", EASYTIER_RUNTIME_RELEASE.installCapability, EASYTIER_RUNTIME_RELEASE.runtimeCapability)).max(20).unique().required(),
+    capabilities: Joi.array().items(Joi.string().valid("minecraft-vanilla", "minecraft-native-v1", "minecraft-multicore-v1", "minecraft-interactive-console-v1", "minecraft-instance-archive-v1", "minecraft-server-properties-file-v1", "app-sandbox-windows-appcontainer-v1", "java-environment-manager-v1", "runtime-environment-v1", "minecraft-java-runtime-selection-v1", "node-filesystem-v1", "node-filesystem-v2", "node-filesystem-directory-size-v1", "node-filesystem-instance-v1", "node-filesystem-game-storage-v1", "node-filesystem-binary-transfer-v1", "steamcmd-ready-v1", "agent-shell-v1", "project-files-v1", EASYTIER_RUNTIME_RELEASE.installCapability, EASYTIER_RUNTIME_RELEASE.runtimeCapability)).max(20).unique().required(),
     javaRuntimes: Joi.array().items(Joi.object({
       distribution: Joi.string().valid("temurin", "zulu").optional(),
       version: Joi.string().max(80),
@@ -494,7 +494,30 @@ export const minecraftCompletionSchema = Joi.object({
       delivered: Joi.boolean(),
       verified: Joi.boolean(),
       note: Joi.string().max(240),
-      properties: Joi.object({ serverPort: Joi.number().integer().min(1024).max(65535) }).unknown(false)
+      properties: Joi.object({ serverPort: Joi.number().integer().min(1024).max(65535) }).unknown(false),
+      serverProperties: Joi.object({
+        motd: Joi.string().max(120).allow(""),
+        difficulty: Joi.string().valid("peaceful", "easy", "normal", "hard"),
+        gamemode: Joi.string().valid("survival", "creative", "adventure", "spectator"),
+        maxPlayers: Joi.number().integer().min(1).max(200),
+        serverPort: Joi.number().integer().min(1024).max(65535),
+        viewDistance: Joi.number().integer().min(2).max(32),
+        simulationDistance: Joi.number().integer().min(2).max(32),
+        levelName: Joi.string().max(64),
+        levelSeed: Joi.string().max(80).allow(""),
+        pvp: Joi.boolean(),
+        onlineMode: Joi.boolean(),
+        whiteList: Joi.boolean()
+      }).unknown(false),
+      fileSnapshot: Joi.object({
+        source: Joi.string().valid("node").required(),
+        observedAt: Joi.string().isoDate().required(),
+        entries: Joi.array().items(Joi.object({
+          key: Joi.string().pattern(/^[A-Za-z0-9._-]{1,128}$/u).required(),
+          value: Joi.string().max(4096).allow("", null).required(),
+          sensitive: Joi.boolean().required()
+        }).unknown(false)).max(256).required()
+      }).unknown(false)
     }).unknown(false).default({})
   }).unknown(false);
 

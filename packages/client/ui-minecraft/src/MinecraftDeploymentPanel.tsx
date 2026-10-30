@@ -184,13 +184,13 @@ export function MinecraftDeploymentPanel({ userId,onPrepareWithAi,nodes, instanc
     <div className="minecraft-provision-alerts">
       {sourceErrors.map(message => <Alert key={message} type="warning" showIcon message={message} />)}
       {error ? <Alert type="error" showIcon message={error} /> : null}
-      {!eligible.length ? <Alert type="warning" showIcon message="尚无在线的多核心执行节点" description="控制端连接正常不代表 Daemon 在线。进入控制节点启动本机服务，或连接远程执行节点。" action={<Button onClick={() => onNavigate("/apps/minecraft/normal/nodes")}>检查节点</Button>} /> : null}
+      {!eligible.length ? <Alert className="minecraft-provision-readiness-alert" type="warning" showIcon message="尚无在线的多核心执行节点" description="控制端连接正常不代表 Daemon 在线。进入控制节点启动本机服务，或连接远程执行节点。" action={<Button onClick={() => onNavigate("/apps/minecraft/normal/nodes")}>检查节点</Button>} /> : null}
       {!modeNative ? <Alert type="warning" showIcon message="当前设置选择 AppContainer" description="多核心自动安装需要推荐的本机原生执行方式。请在设置中心修改执行方式；此处不会静默回退。" /> : null}
       {core === "SpongeForge" && settings.minecraftRuntime.minecraftStopTimeoutSeconds < 90 ? <Alert type="info" showIcon message="SpongeForge 建议将安全停服等待设为 90 秒" description="本次实机中 30 秒会触发强制结束，90 秒完成正常退出。可在设置中心调整 Minecraft 停服等待时间；此处保留你的已保存设置。" /> : null}
     </div>
     <ol className="minecraft-wizard-progress" aria-label="部署步骤">
-      {["选择服务端", "设置实例", "核对并部署"].map((label, index) => <li className={step === index ? "is-current" : step > index ? "is-complete" : ""} aria-current={step === index ? "step" : undefined} key={label}>
-        <span className="minecraft-wizard-progress__number">{step > index ? "✓" : index + 1}</span><span>{label}</span>
+      {["选核心", "设实例", "核对开服"].map((label, index) => <li className={step === index ? "is-current" : step > index ? "is-complete" : ""} aria-label={["选择服务端", "设置实例", "核对并部署"][index]} aria-current={step === index ? "step" : undefined} key={label}>
+        <span className="minecraft-wizard-progress__number">{index + 1}</span><span>{label}</span>
       </li>)}
     </ol>
     <div className="minecraft-wizard-intro" aria-live="polite">
@@ -206,7 +206,7 @@ export function MinecraftDeploymentPanel({ userId,onPrepareWithAi,nodes, instanc
         <nav className="minecraft-core-categories" aria-label="服务端类型">
           <div className="minecraft-core-categories__heading">
             <div><Typography.Title level={5}>分类导航</Typography.Title><Typography.Text type="secondary">只显示当前目录中的类型</Typography.Text></div>
-            <Tag>{coreCategories.length} 类</Tag>
+            <Tag>{catalogLoading ? "读取中" : `${coreCategories.length} 类`}</Tag>
           </div>
           <div className="minecraft-core-categories__list">
             {catalogLoading && !coreCategories.length ? <Typography.Text type="secondary">正在读取核心分类…</Typography.Text> : null}
@@ -260,7 +260,7 @@ export function MinecraftDeploymentPanel({ userId,onPrepareWithAi,nodes, instanc
               {activeCore ? <Tag>{versions.length} 个版本</Tag> : null}
             </div>
             {activeCore && versions.length ? <div className="minecraft-core-version-grid" role="group" aria-label="可用版本">
-              {visibleVersions.map(value => <button aria-pressed={version === value} className={`minecraft-core-version${version === value ? " is-selected" : ""}`} key={value} onClick={() => setVersion(value)} type="button"><span>{value}</span>{version === value ? <span aria-hidden="true">✓</span> : null}</button>)}
+              {visibleVersions.map(value => <button aria-pressed={version === value} className={`minecraft-core-version${version === value ? " is-selected" : ""}`} key={value} onClick={() => setVersion(value)} type="button"><span>{value}</span></button>)}
             </div> : null}
             {activeCore && !versions.length && !catalogLoading ? <div className="minecraft-core-picker-empty">核心目录暂未返回可用版本。</div> : null}
             {!activeCore ? <div className="minecraft-core-picker-empty">先选择一个核心分支，版本列表会显示在这里。</div> : null}

@@ -19,6 +19,7 @@ import type { MinecraftCoreName } from "./core-sources.js";
 
 const sandboxCapability = "app-sandbox-windows-appcontainer-v1";
 const javaRuntimeSelectionCapability = "minecraft-java-runtime-selection-v1";
+const serverPropertiesFileCapability = "minecraft-server-properties-file-v1";
 const defaultMinecraftStorageDirectory = "games/minecraft";
 
 export interface MinecraftStorageSettings {
@@ -138,6 +139,13 @@ export interface MinecraftServerProperties {
   simulationDistance?: number;
   levelName?: string;
   levelSeed?: string;
+  fileSnapshot?: MinecraftServerPropertiesFileSnapshot;
+}
+
+export interface MinecraftServerPropertiesFileSnapshot {
+  source: "node";
+  observedAt: string;
+  entries: Array<{ key: string; value: string | null; sensitive: boolean }>;
 }
 
 export interface MinecraftInstance {
@@ -330,6 +338,24 @@ export function getMinecraftConnectivityTarget(ownerId: string, instanceId: stri
 export function getMinecraftInstance(instanceId: string): MinecraftInstance | null {
   const row = database.prepare(`${instanceSelect} WHERE i.id = ?`).get(instanceId) as InstanceRow | undefined;
   return row ? toInstance(row) : null;
+}
+
+/** 由 Minecraft Owner 解析受登记的实例工作目录，供实例 Shell 起始位置使用。 */
+export function getMinecraftInstanceShellDirectory(instanceId: string): { instance: MinecraftInstance; directory: string } {
+  const instance = getMinecraftInstance(instanceId);
+  if (!instance) throw new ApiError(404, "minecraft_instance_not_found", "找不到这个 Minecraft 实例。");
+  const storageDirectory = validateMinecraftStorageDirectory(instance.storageDirectory);
+  const nodeDataRoot = getDaemonDataRoot(instance.nodeId);
+  const storageRoot = win32.isAbsolute(storageDirectory)
+    ? storageDirectory
+    : getLocalProjectContentPath(nodeDataRoot, storageDirectory);
+  if (!storageRoot || !win32.isAbsolute(storageRoot)) throw new ApiError(409, "minecraft_instance_directory_unavailable", "无法解析这个 Minecraft 实例的节点目录。");
+  const directory = win32.resolve(storageRoot, instance.name);
+  const relative = win32.relative(win32.resolve(storageRoot), directory);
+  if (!relative || relative === ".." || relative.startsWith(`..${win32.sep}`) || win32.isAbsolute(relative)) {
+    throw new ApiError(409, "minecraft_instance_directory_invalid", "Minecraft 实例目录不在登记的存储目录内。");
+  }
+  return { instance, directory };
 }
 
 function validateMinecraftInstanceName(value: string): string {
@@ -750,16 +776,50 @@ export function updateMinecraftServerProperties(instanceId: string, userId: stri
   if (["BungeeCord", "Velocity", "Nukkit", "PocketMine"].includes(instance.coreType)) throw new ApiError(409, "minecraft_core_properties_unsupported", "此核心使用独立配置格式，请通过节点文件管理修改真实配置。");
   if (instance.state !== "stopped") throw new ApiError(409, "minecraft_properties_requires_stopped", "请先停止实例，再修改服务器配置。");
   const node = requireInstanceNode(instance);
+  if (!node.capabilities.includes(serverPropertiesFileCapability)) {
+    throw new ApiError(409, "minecraft_properties_write_unsupported", "目标 Daemon 尚未报告 server.properties 真实文件读写能力，请更新并重启节点后再保存。");
+  }
   if (database.prepare("SELECT 1 FROM minecraft_tasks WHERE instance_id = ? AND status IN ('queued', 'running') LIMIT 1").get(instanceId)) throw new ApiError(409, "minecraft_instance_busy", "实例已有未完成操作，请等待后再修改配置。");
-  const properties = { ...instance.serverProperties, ...validateMinecraftServerProperties(input) };
+  const properties = validateMinecraftServerProperties(input);
+  if (properties.simulationDistance !== undefined && !supportsMinecraftSimulationDistance(instance.releaseId)) {
+    throw new ApiError(400, "minecraft_property_version_unsupported", `Minecraft ${instance.releaseId} 不支持修改 simulation-distance。`);
+  }
   return createMinecraftTask({
     nodeId: node.id,
     instanceId,
     createdBy: userId,
     kind: "properties",
-    payload: { properties },
+    payload: { properties, releaseId: instance.releaseId },
     message: "等待写入允许修改的 server.properties 字段。"
   });
+}
+
+/** 按目标实例与节点能力读取真实 server.properties，不读取控制端本地文件。 */
+export function readMinecraftServerProperties(instanceId: string, userId: string): MinecraftTask {
+  const instance = requireInstance(instanceId);
+  if (["BungeeCord", "Velocity", "Nukkit", "PocketMine"].includes(instance.coreType)) throw new ApiError(409, "minecraft_core_properties_unsupported", "此核心使用独立配置格式，不能读取 server.properties。");
+  const node = requireInstanceNode(instance);
+  if (database.prepare("SELECT 1 FROM minecraft_tasks WHERE instance_id = ? AND status IN ('queued', 'running') LIMIT 1").get(instanceId)) {
+    throw new ApiError(409, "minecraft_instance_busy", "实例当前有任务执行，请完成后再读取服务器配置。");
+  }
+  if (!node.capabilities.includes(serverPropertiesFileCapability)) {
+    throw new ApiError(409, "minecraft_properties_read_unsupported", "目标 Daemon 尚未报告安全读取 server.properties 的能力，请更新并重启节点后重试。");
+  }
+  return createMinecraftTask({
+    nodeId: node.id,
+    instanceId,
+    createdBy: userId,
+    kind: "properties-read",
+    payload: { releaseId: instance.releaseId },
+    message: "等待节点读取并脱敏 server.properties。"
+  });
+}
+
+function supportsMinecraftSimulationDistance(releaseId: string): boolean {
+  const match = /^(\d+)\.(\d+)(?:\.(\d+))?(?:$|[-+])/u.exec(releaseId);
+  if (!match) return false;
+  const [, major, minor] = match;
+  return Number(major) > 1 || Number(major) === 1 && Number(minor) >= 18;
 }
 
 export {installMinecraftJava,uninstallMinecraftJava,registerMinecraftJavaPath,forgetMinecraftJavaPath,listMinecraftJavaRuntimes} from "lfaa-runtime-manager/src/legacy-java.js";

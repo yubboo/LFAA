@@ -3,15 +3,16 @@ import type { Router, Request, Response } from "express";
 import Joi from "joi";
 import { createHash } from "node:crypto";
 import { win32 } from "node:path";
-import { requireAuthentication, requireRole, resolveSocketSessionFromCookieHeader } from "lfaa-authorization/src/middleware.js";
+import { requireAuthentication, resolveSocketSessionFromCookieHeader } from "lfaa-authorization/src/middleware.js";
 import { asyncHandler, parseBody, writeSse, requireLocalDaemon, validateDaemonRequest } from "lfaa-api-remotes/src/route-contracts.js";
 import { createRateLimit } from "lfaa-api-remotes/src/rate-limit.js";
 import { openSseStream } from "lfaa-api-gateway/src/sse.js";
 import { getUserSettings } from "lfaa-settings/src/service.js";
 import { authorizeAiTool, requestAiToolApproval, consumeAiToolApproval } from "lfaa-permission-presets/src/permissions.js";
+import { hasAdminAccess } from "lfaa-identity-auth/src/service.js";
 import { createEmptyAiSession, getAiSession, listAiSessions } from "lfaa-session/src/sessions.js";
 import { listDaemonNodes, getDaemonDataRoot } from "lfaa-host-daemon/src/local-daemon.js";
-import { getMinecraftInstance } from "lfaa-games-minecraft/src/service.js";
+import { getMinecraftInstance, getMinecraftInstanceShellDirectory } from "lfaa-games-minecraft/src/service.js";
 import { APPLICATION_IDS, type ApplicationId } from "lfaa-util-values/src/application-id.js";
 import { ApiError } from "lfaa-util-values/src/http-error.js";
 import type { AiPluginHost } from "lfaa-app-boot/src/ai-host.js";
@@ -23,6 +24,7 @@ const idSchema = Joi.string().guid({ version: "uuidv4" }).required();
 const dimensions = { cols: Joi.number().integer().min(2).max(500).default(80), rows: Joi.number().integer().min(1).max(300).default(24) };
 const targetSchema = Joi.alternatives().try(
   Joi.object({ kind: Joi.valid("shell").required() }).unknown(false),
+  Joi.object({ kind: Joi.valid("minecraft-shell").required(), instanceId: idSchema }).unknown(false),
   Joi.object({ kind: Joi.valid("minecraft").required(), instanceId: idSchema }).unknown(false)
 ).default({ kind: "shell" });
 const createSchema = Joi.object({ id: idSchema, nodeId: idSchema, appId: Joi.string().valid(...APPLICATION_IDS).required(), target: targetSchema, sessionId: Joi.string().guid().allow(null), approvalId: Joi.string().guid(), ...dimensions }).unknown(false);
@@ -36,8 +38,9 @@ const toolIdentity = {
   shell: { toolId: "lfaa_interactive_terminal", toolVersion: "1", risk: "dangerous" as const },
   minecraft: { toolId: "lfaa_minecraft_console", toolVersion: "1", risk: "dangerous" as const }
 };
-function identity(target: { kind: "shell" | "minecraft" }) { return toolIdentity[target.kind]; }
-function policy(userId: string, appId: ApplicationId, scopeKey: string, target: { kind: "shell" | "minecraft" }) {
+type TerminalTargetKind = "shell" | "minecraft-shell" | "minecraft";
+function identity(target: { kind: TerminalTargetKind }) { return target.kind === "minecraft" ? toolIdentity.minecraft : toolIdentity.shell; }
+function policy(userId: string, appId: ApplicationId, scopeKey: string, target: { kind: TerminalTargetKind }) {
   return { ...identity(target), userId, activeApplicationId: appId, toolApplicationIds: [...APPLICATION_IDS], scopeKey, executable: true };
 }
 function assertSession(terminal: RegisteredTerminal, request: Request, registry: TerminalRegistry): void {
@@ -54,15 +57,16 @@ function boundedWrite(response: Response, event: string, data: unknown): void {
 }
 
 export function registerTerminalRoutes(router: Router, registry: TerminalRegistry, _aiHost: AiPluginHost, _realtime: MinecraftRealtimePublisher): void {
-  const browserAuth = [requireAuthentication, requireRole("admin")];
+  const browserAuth = [requireAuthentication];
   router.get("/terminals/nodes", ...browserAuth, (_request, response) => response.json({ nodes: listDaemonNodes().map(node => ({ id: node.id, displayName: node.displayName, connected: registry.connected(node.id) && node.status === "online" })) }));
   router.get("/terminals", ...browserAuth, (request, response) => response.json({ terminals: registry.list(request.auth!.user.id) }));
   router.post("/terminals", ...browserAuth, createRateLimit(12, 60_000), asyncHandler(async (request, response) => {
-    const body = parseBody<{ id: string; nodeId: string; appId: ApplicationId; target?: { kind: "shell" } | { kind: "minecraft"; instanceId: string }; sessionId?: string | null; approvalId?: string; cols: number; rows: number }>(createSchema, request.body);
+    const body = parseBody<{ id: string; nodeId: string; appId: ApplicationId; target?: { kind: "shell" } | { kind: "minecraft-shell" | "minecraft"; instanceId: string }; sessionId?: string | null; approvalId?: string; cols: number; rows: number }>(createSchema, request.body);
     const target = body.target ?? { kind: "shell" as const };
     const userId = request.auth!.user.id, settings = getUserSettings(userId);
-    let nodeId = body.nodeId, cwd: string, shell: string | undefined, title: string, scopeKey: string, parameters: Record<string, unknown>;
+    let nodeId = body.nodeId, cwd: string, shell: string | undefined, title: string, scopeKey: string, parameters: Record<string, unknown>, instanceName = "";
     if (target.kind === "minecraft") {
+      if (!hasAdminAccess(request.auth!.user.role)) throw new ApiError(403, "minecraft_console_admin_required", "只有 Minecraft 管理员可以连接受管服务端控制台。");
       if (body.appId !== "minecraft") throw new ApiError(400, "terminal_target_app_invalid", "Minecraft 控制台必须使用 Minecraft 应用身份。");
       const instance = getMinecraftInstance(target.instanceId);
       if (!instance) throw new ApiError(404, "minecraft_instance_not_found", "找不到这个 Minecraft 实例。");
@@ -77,16 +81,26 @@ export function registerTerminalRoutes(router: Router, registry: TerminalRegistr
       scopeKey = `minecraft-console:${nodeId}:${instance.id}`;
       parameters = { id: body.id, nodeId, appId: body.appId, target };
     } else {
+      if (target.kind === "minecraft-shell") {
+        if (body.appId !== "minecraft") throw new ApiError(400, "terminal_target_app_invalid", "Minecraft 实例目录 Shell 必须使用 Minecraft 应用身份。");
+        const resolved = getMinecraftInstanceShellDirectory(target.instanceId);
+        if (resolved.instance.state === "installing") throw new ApiError(409, "minecraft_instance_installing", "实例仍在部署，完成后才能打开其实例目录终端。");
+        nodeId = resolved.instance.nodeId;
+        if (body.nodeId !== nodeId) throw new ApiError(409, "terminal_target_node_changed", "实例运行节点已变化，请刷新后重新连接。");
+        cwd = resolved.directory;
+        instanceName = resolved.instance.name;
+      } else {
+        const root = getDaemonDataRoot(nodeId);
+        if (!root) throw new ApiError(409, "terminal_node_root_missing", "目标节点尚未登记工作目录。");
+        cwd = win32.resolve(root, settings.general.taskFolder || ".");
+      }
       const node = listDaemonNodes().find(item => item.id === nodeId);
       if (!node || node.status !== "online" || !registry.connected(node.id)) throw new ApiError(409, "terminal_node_offline", "目标节点的交互式终端尚未连接。");
-      const root = getDaemonDataRoot(node.id);
-      if (!root) throw new ApiError(409, "terminal_node_root_missing", "目标节点尚未登记工作目录。");
-      cwd = win32.resolve(root, settings.general.taskFolder || ".");
       shell = settings.general.integratedShell;
       if (cwd.includes("\0")) throw new ApiError(400, "terminal_cwd_invalid", "设置中的任务目录无效。");
-      title = `${node.displayName} · ${shell}`;
+      title = `${node.displayName} · ${instanceName ? `${instanceName} · ` : ""}${shell}`;
       scopeKey = `node-terminal:${node.id}:${createHash("sha256").update(JSON.stringify({ cwd, shell })).digest("hex")}`;
-      parameters = { id: body.id, nodeId, appId: body.appId, target, cwd, shell };
+      parameters = { id: body.id, nodeId, appId: body.appId, target, cwd, shell, ...(instanceName ? { instanceName } : {}) };
     }
     const node = listDaemonNodes().find(item => item.id === nodeId);
     if (!node) throw new ApiError(409, "terminal_node_offline", "终端目标节点已经不可用。");
@@ -99,7 +113,7 @@ export function registerTerminalRoutes(router: Router, registry: TerminalRegistr
         if (body.sessionId && (!session || session.appId !== body.appId)) throw new ApiError(404, "terminal_session_missing", "找不到此应用下的会话。");
         session ??= createEmptyAiSession(userId, body.appId, "交互式终端审批");
         const approval = requestAiToolApproval({ ...selectedIdentity, userId, sessionId: session.id, appId: body.appId, scopeKey, parameters,
-          summary: target.kind === "minecraft" ? `连接 ${node.displayName} 上 Minecraft 实例的受管服务端控制台；批准包括本会话输入的所有游戏服务端指令，不会启动 OS Shell。` : `在 ${node.displayName} 打开交互式终端；批准包括本会话中输入的所有命令，可访问该节点 OS 账户权限范围内的文件和程序。`, scopeSummary: `${node.displayName} · ${cwd}${shell ? ` · ${shell}` : ""}` });
+          summary: target.kind === "minecraft" ? `连接 ${node.displayName} 上 Minecraft 实例的受管服务端控制台；批准包括本会话输入的所有游戏服务端指令，不会启动 OS Shell。` : target.kind === "minecraft-shell" ? `在 ${node.displayName} 上以 ${instanceName} 的目录启动 ${shell}；本会话仍可访问该节点 OS 账户权限范围内的文件和程序。` : `在 ${node.displayName} 打开交互式终端；批准包括本会话中输入的所有命令，可访问该节点 OS 账户权限范围内的文件和程序。`, scopeSummary: `${node.displayName} · ${cwd}${shell ? ` · ${shell}` : ""}` });
         response.status(202).json({ approval }); return;
       }
     }

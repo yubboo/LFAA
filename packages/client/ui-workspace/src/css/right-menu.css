@@ -130,8 +130,6 @@
 
 .module-context__menu-tabs button:focus-visible { outline: 2px solid var(--settings-accent, var(--color-brand)); outline-offset: 1px; }
 
-.module-context__section-title--instance { margin-top: 8px; border-top: 1px solid var(--color-border-subtle); }
-
 .module-context__menu-item { display: flex; width: calc(100% - 18px); min-height: 36px; align-items: center; gap: 10px; margin: 2px 9px; padding: 0 11px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--color-text-primary); cursor: pointer; font: inherit; font-size: var(--font-size-sm); text-align: left; }
 
 .module-context__menu-item > span { width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: var(--color-border-strong); }
@@ -144,8 +142,6 @@
 .module-context__menu-item.is-active { border-color: var(--color-border); background: var(--color-surface-selected); box-shadow: inset 3px 0 0 var(--settings-accent, var(--color-brand)); color: var(--settings-accent, var(--color-brand)); font-weight: 650; }
 
 .module-context__menu-item.is-active > span { background: var(--settings-accent, var(--color-brand)); }
-
-.module-context__menu-item--nested { min-height: 32px; padding-left: 20px; font-size: var(--font-size-xs); }
 
 .module-runtime-state i,
 .module-context__connection i { width: 7px; height: 7px; border-radius: 50%; background: var(--color-status-error); box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-status-error) 12%, transparent); }

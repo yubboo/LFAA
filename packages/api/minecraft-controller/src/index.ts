@@ -4,7 +4,7 @@ import {runtimeManager} from "lfaa-runtime-manager/src/service.js";
 import {requestMinecraftTaskCancellation} from "lfaa-jobs/src/minecraft-queue.js";
 import {resolveMinecraftCoreArtifact} from "lfaa-games-minecraft/src/core-sources.js";
 import { issueDaemonCredential, listDaemonCredentials, revokeDaemonCredential } from "lfaa-host-daemon/src/node-credentials.js";
-import { deleteMinecraftInstance, restartMinecraftInstance, sendMinecraftConsoleCommand } from "lfaa-games-minecraft/src/service.js";
+import { deleteMinecraftInstance, readMinecraftServerProperties, restartMinecraftInstance, sendMinecraftConsoleCommand } from "lfaa-games-minecraft/src/service.js";
 import Joi from "joi";
 import { ApiError } from "lfaa-util-values/src/http-error.js";
 import { requireAuthentication, requireRole } from "lfaa-authorization/src/middleware.js";
@@ -231,6 +231,11 @@ router.patch("/minecraft/instances/:instanceId/properties", requireAuthenticatio
     }).unknown(false), request.body);
     const properties = validateMinecraftServerProperties(body.properties);
     const task = updateMinecraftServerProperties(request.params.instanceId, request.auth!.user.id, properties);
+    realtime.publishMinecraftChange(["tasks"], request.params.instanceId);
+    response.status(202).json({ task });
+  });
+router.post("/minecraft/instances/:instanceId/properties/read", requireAuthentication, requireRole("admin"), (request, response) => {
+    const task = readMinecraftServerProperties(request.params.instanceId, request.auth!.user.id);
     realtime.publishMinecraftChange(["tasks"], request.params.instanceId);
     response.status(202).json({ task });
   });

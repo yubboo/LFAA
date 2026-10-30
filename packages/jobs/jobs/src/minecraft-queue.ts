@@ -23,7 +23,7 @@ export function requestMinecraftTaskCancellation(taskId:string,userId:string):Mi
 }
 export function listMinecraftCancellationRequests(nodeId:string):string[]{return (database.prepare("SELECT id FROM minecraft_tasks WHERE node_id=? AND status='running' AND cancel_requested=1").all(nodeId) as Array<{id:string}>).map(row=>row.id);}
 
-export type MinecraftTaskKind = "install" | "start" | "stop" | "properties" | "backup" | "java-install" | "restart" | "console" | "delete";
+export type MinecraftTaskKind = "install" | "start" | "stop" | "properties" | "properties-read" | "backup" | "java-install" | "restart" | "console" | "delete";
 export type MinecraftTaskStatus = "queued" | "running" | "succeeded" | "failed";
 
 export interface MinecraftTask {
@@ -93,6 +93,54 @@ function parseJsonObject(value: string | null): Record<string, unknown> | null {
   }
 }
 
+const minecraftPropertyFields = new Set([
+  "motd", "difficulty", "gamemode", "maxPlayers", "serverPort", "viewDistance",
+  "simulationDistance", "levelName", "levelSeed", "pvp", "onlineMode", "whiteList"
+]);
+
+function normalizeMinecraftPropertiesResult(result: Record<string, unknown>): {
+  serverProperties: Record<string, string | number | boolean>;
+  fileSnapshot: { source: "node"; observedAt: string; entries: Array<{ key: string; value: string | null; sensitive: boolean }> };
+} | null {
+  const rawProperties = result.serverProperties;
+  const rawSnapshot = result.fileSnapshot;
+  if (!rawProperties || typeof rawProperties !== "object" || Array.isArray(rawProperties)
+    || !rawSnapshot || typeof rawSnapshot !== "object" || Array.isArray(rawSnapshot)) return null;
+  const snapshot = rawSnapshot as Record<string, unknown>;
+  const observedAt = typeof snapshot.observedAt === "string" && Number.isFinite(Date.parse(snapshot.observedAt)) ? snapshot.observedAt : null;
+  if (snapshot.source !== "node" || !observedAt || !Array.isArray(snapshot.entries) || snapshot.entries.length > 256) return null;
+
+  const entries: Array<{ key: string; value: string | null; sensitive: boolean }> = [];
+  let totalCharacters = 0;
+  for (const rawEntry of snapshot.entries) {
+    if (!rawEntry || typeof rawEntry !== "object" || Array.isArray(rawEntry)) return null;
+    const entry = rawEntry as Record<string, unknown>;
+    if (typeof entry.key !== "string" || !/^[A-Za-z0-9._-]{1,128}$/u.test(entry.key)) return null;
+    const hasStringValue = typeof entry.value === "string" && entry.value.length <= 4096;
+    if (entry.value !== null && !hasStringValue) return null;
+    totalCharacters += entry.key.length + (typeof entry.value === "string" ? entry.value.length : 0);
+    if (totalCharacters > 64 * 1024) return null;
+    const sensitive = entry.sensitive === true || /password|secret|token|credential|api[-_.]?key|private[-_.]?key|^resource-pack$/iu.test(entry.key);
+    entries.push({ key: entry.key, value: sensitive ? null : entry.value as string | null, sensitive });
+  }
+
+  const normalizedProperties: Record<string, string | number | boolean> = {};
+  for (const [key, value] of Object.entries(rawProperties)) {
+    if (!minecraftPropertyFields.has(key)) continue;
+    if ((key === "motd" || key === "difficulty" || key === "gamemode" || key === "levelName" || key === "levelSeed") && typeof value === "string" && value.length <= 2048) {
+      normalizedProperties[key] = value;
+    } else if (["maxPlayers", "serverPort", "viewDistance", "simulationDistance"].includes(key) && typeof value === "number" && Number.isSafeInteger(value)) {
+      normalizedProperties[key] = value;
+    } else if (["pvp", "onlineMode", "whiteList"].includes(key) && typeof value === "boolean") {
+      normalizedProperties[key] = value;
+    }
+  }
+  return {
+    serverProperties: normalizedProperties,
+    fileSnapshot: { source: "node", observedAt, entries }
+  };
+}
+
 function toTask(row: TaskRow): MinecraftTask {
   const payload = parseJsonObject(row.payload_json) ?? {};
   // 旧版排队任务也从部署/实例记录补上原目录，避免默认目录变更后落到新位置。
@@ -125,7 +173,7 @@ export function createMinecraftTask(input: {
   message?: string;
 }): MinecraftTask {
   if (input.instanceId && database.prepare("SELECT 1 FROM minecraft_tasks WHERE instance_id = ? AND status IN ('queued', 'running') LIMIT 1").get(input.instanceId)) {
-    throw new Error("实例已有排队或运行中的操作，不能同时修改配置或启动备份。");
+    throw new Error("实例已有排队或运行中的操作，请等待当前操作完成后重试。");
   }
   const id = randomUUID();
   database.prepare(`
@@ -199,7 +247,8 @@ export function claimNextMinecraftTask(nodeId: string, sandboxAvailable = false)
   try {
     const row = database.prepare(`
       SELECT id, deployment_id FROM minecraft_tasks
-      WHERE node_id = ? AND status = 'queued' AND (kind NOT IN ('start', 'restart') OR ? = 1)
+      WHERE node_id = ? AND status = 'queued'
+        AND (kind NOT IN ('start', 'restart') OR ? = 1 OR json_extract(payload_json, '$.executionMode') = 'native')
       ORDER BY created_at LIMIT 1
     `).get(nodeId, sandboxAvailable ? 1 : 0) as { id: string; deployment_id: string | null } | undefined;
     if (!row) {
@@ -299,6 +348,11 @@ export function completeMinecraftTask(taskId: string, nodeId: string, succeeded:
   failExpiredMinecraftTasks(nodeId);
   const task = database.prepare("SELECT kind, instance_id, deployment_id, payload_json FROM minecraft_tasks WHERE id = ? AND node_id = ? AND status = 'running'").get(taskId, nodeId) as { kind: MinecraftTaskKind; instance_id: string | null; deployment_id: string | null; payload_json: string } | undefined;
   if (!task) return false;
+  let propertySync = succeeded && (task.kind === "properties" || task.kind === "properties-read") ? normalizeMinecraftPropertiesResult(result) : null;
+  if (succeeded && (task.kind === "properties" || task.kind === "properties-read") && !propertySync) {
+    succeeded = false;
+    message = "节点未返回有效的 server.properties 文件快照，操作未确认成功。";
+  }
   if(succeeded&&task.kind==="delete"&&result.archived!==true){succeeded=false;message="节点未确认实例归档，保留实例登记。";}
   if (succeeded && (parseJsonObject(task.payload_json)?.operation === "provision" || task.kind === "start" || task.kind === "restart") && result.serverReady !== true) {
     succeeded = false;
@@ -306,13 +360,20 @@ export function completeMinecraftTask(taskId: string, nodeId: string, succeeded:
   }
   const status: MinecraftTaskStatus = succeeded ? "succeeded" : "failed";
   const finishTime = new Date().toISOString();
+  const historyResult = task.kind === "properties" || task.kind === "properties-read"
+    ? propertySync ? {
+      fileEntries: propertySync.fileSnapshot.entries.length,
+      observedAt: propertySync.fileSnapshot.observedAt,
+      propertiesSynced: succeeded
+    } : { propertiesSynced: succeeded, fileSnapshotAvailable: false }
+    : result;
 
   database.exec("BEGIN IMMEDIATE;");
   try {
     const update = database.prepare(`
       UPDATE minecraft_tasks SET status = ?, progress = ?, message = ?, result_json = ?, finished_at = ?, lease_expires_at = NULL
       WHERE id = ? AND node_id = ? AND status = 'running'
-    `).run(status, succeeded ? 100 : 0, message.slice(0, 240), JSON.stringify(result), finishTime, taskId, nodeId);
+    `).run(status, succeeded ? 100 : 0, message.slice(0, 240), JSON.stringify(historyResult), finishTime, taskId, nodeId);
     if (Number(update.changes) !== 1) {
       database.exec("COMMIT;");
       return false;
@@ -336,12 +397,10 @@ export function completeMinecraftTask(taskId: string, nodeId: string, succeeded:
         database.prepare("UPDATE minecraft_instances SET sandbox_status = 'running', updated_at = ? WHERE id = ?")
           .run(finishTime, task.instance_id);
       }
-      if (task.kind === "properties" && succeeded) {
-        const payload = parseJsonObject(task.payload_json);
-        const properties = payload?.properties;
-        if (typeof properties === "object" && properties !== null && !Array.isArray(properties)) {
+      if ((task.kind === "properties" || task.kind === "properties-read") && succeeded) {
+        if (propertySync) {
           database.prepare("UPDATE minecraft_instances SET server_properties_json = ?, updated_at = ? WHERE id = ?")
-            .run(JSON.stringify(properties), finishTime, task.instance_id);
+            .run(JSON.stringify({ ...propertySync.serverProperties, fileSnapshot: propertySync.fileSnapshot }), finishTime, task.instance_id);
         }
       }
       if (payload?.executionMode === "native") database.prepare("UPDATE minecraft_instances SET sandbox_status = 'unsupported', execution_mode = 'native' WHERE id = ?").run(task.instance_id);

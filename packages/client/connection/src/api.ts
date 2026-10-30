@@ -659,7 +659,7 @@ export function loadAiHostTasks(signal?: AbortSignal): Promise<{ tasks: AiHostTa
 export function loadAiHostTask(taskId: string, signal?: AbortSignal): Promise<{ task: AiHostTask }> { return request(`/ai/host-tasks/${encodeURIComponent(taskId)}`, signal ? { signal } : {}); }
 export function cancelAiHostTask(taskId: string): Promise<{ task: AiHostTask }> { return request(`/ai/host-tasks/${encodeURIComponent(taskId)}/cancel`, { method: "POST" }); }
 
-export type { TerminalInfo } from "lfaa-api-terminal-controller/src/protocol.js";
+export type { TerminalInfo, TerminalTarget } from "lfaa-api-terminal-controller/src/protocol.js";
 export interface TerminalNode { id: string; displayName: string; connected: boolean }
 export interface CreateTerminalInput { id: string; nodeId: string; appId: ApplicationId; target?: import("lfaa-api-terminal-controller/src/protocol.js").TerminalTarget; sessionId?: string | null; approvalId?: string; cols: number; rows: number }
 export function loadTerminalNodes(): Promise<{ nodes: TerminalNode[] }> { return request("/terminals/nodes"); }
@@ -964,6 +964,13 @@ export interface MinecraftServerProperties {
   simulationDistance?: number;
   levelName?: string;
   levelSeed?: string;
+  fileSnapshot?: MinecraftServerPropertiesFileSnapshot;
+}
+
+export interface MinecraftServerPropertiesFileSnapshot {
+  source: "node";
+  observedAt: string;
+  entries: Array<{ key: string; value: string | null; sensitive: boolean }>;
 }
 
 export interface MinecraftInstance {
@@ -1071,7 +1078,7 @@ export interface MinecraftTask {
   instanceId: string | null;
   deploymentId: string | null;
   createdBy: string;
-  kind: "install" | "start" | "stop" | "properties" | "backup" | "java-install" | "restart" | "console" | "delete";
+  kind: "install" | "start" | "stop" | "properties" | "properties-read" | "backup" | "java-install" | "restart" | "console" | "delete";
   status: "queued" | "running" | "succeeded" | "failed";
   progress: number;
   message: string;
@@ -2386,6 +2393,10 @@ export function sendMinecraftConsole(instanceId: string, command: string): Promi
 
 export function saveMinecraftServerProperties(instanceId: string, properties: MinecraftServerProperties): Promise<{ task: MinecraftTask }> {
   return request(`/minecraft/instances/${encodeURIComponent(instanceId)}/properties`, { method: "PATCH", body: JSON.stringify({ properties }) });
+}
+
+export function readMinecraftServerProperties(instanceId: string): Promise<{ task: MinecraftTask }> {
+  return request(`/minecraft/instances/${encodeURIComponent(instanceId)}/properties/read`, { method: "POST" });
 }
 
 export interface DefaultCredentialReminder {

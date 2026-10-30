@@ -1,0 +1,410 @@
+.lfaa-terminal-manager-parking {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.lfaa-terminal-manager-portal {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.lfaa-terminal-manager-slot {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.lfaa-terminal-manager-slot--minecraft {
+  min-height: 260px;
+}
+
+.lfaa-terminal-manager-slot__note {
+  align-self: center;
+  color: var(--color-text-muted);
+  font-size: var(--settings-interface-font-size, 13px);
+}
+
+.lfaa-terminal-manager {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  color: var(--color-text-primary);
+  overflow: hidden;
+}
+
+.lfaa-terminal-manager--embedded { container: minecraft-console / inline-size; }
+
+.lfaa-terminal-manager__layout {
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.lfaa-terminal-manager--embedded .lfaa-terminal-manager__layout { grid-template-columns: minmax(0, 1fr) minmax(240px, .42fr); }
+
+.lfaa-terminal-manager__main {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.lfaa-terminal-manager__sidebar {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.lfaa-terminal-manager__sidebar-card {
+  display: grid;
+  align-content: start;
+  gap: 9px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 9px;
+  background: var(--color-surface-raised);
+}
+
+.lfaa-terminal-manager__sidebar-card > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  color: var(--color-text-heading);
+  font-size: var(--settings-interface-font-size, 13px);
+}
+
+.lfaa-terminal-manager__sidebar-card > header .ant-tag { margin: 0; }
+
+.lfaa-terminal-manager__sidebar-card > dl {
+  display: grid;
+  margin: 0;
+}
+
+.lfaa-terminal-manager__sidebar-card > dl > div {
+  display: grid;
+  grid-template-columns: minmax(68px, .8fr) minmax(0, 1.2fr);
+  gap: 8px;
+  padding: 8px 0;
+  border-top: 1px solid var(--color-border-subtle);
+  font-size: calc(var(--settings-interface-font-size, 13px) * .91);
+}
+
+.lfaa-terminal-manager__sidebar-card dt { color: var(--color-text-muted); }
+.lfaa-terminal-manager__sidebar-card dd { min-width: 0; margin: 0; overflow-wrap: anywhere; color: var(--color-text-primary); }
+
+.lfaa-terminal-manager__quick-commands {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.lfaa-terminal-manager__quick-commands > .ant-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  min-width: 0;
+  padding-inline: 8px;
+}
+
+.lfaa-terminal-manager__quick-commands code { color: var(--settings-accent, var(--color-brand)); font-size: calc(var(--settings-code-font-size, 13px) * .92); }
+.lfaa-terminal-manager__quick-commands span { min-width: 0; overflow: hidden; color: var(--color-text-secondary); text-overflow: ellipsis; }
+.lfaa-terminal-manager__quick-commands > .ant-btn:last-child { grid-column: 1 / -1; }
+
+.lfaa-terminal-manager__toolbar,
+.lfaa-terminal-manager__actions,
+.lfaa-terminal-manager__session-bar,
+.lfaa-terminal-manager__session-bar > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.lfaa-terminal-manager__toolbar {
+  flex-wrap: wrap;
+  justify-content: space-between;
+  flex: 0 0 auto;
+}
+
+.lfaa-terminal-manager__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: auto;
+  color: var(--color-text-heading);
+  font-size: var(--settings-interface-font-size, 13px);
+}
+
+.lfaa-terminal-manager__context {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin-right: auto;
+  color: var(--color-text-heading);
+  font-size: var(--settings-interface-font-size, 13px);
+}
+
+.lfaa-terminal-manager__context > span {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: calc(var(--settings-interface-font-size, 13px) * 0.88);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lfaa-terminal-manager__toolbar .ant-select {
+  width: min(240px, 100%);
+  min-width: 150px;
+}
+
+.lfaa-terminal-manager__actions {
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.lfaa-terminal-manager__icon-button,
+.lfaa-terminal-manager__tab-close {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.lfaa-terminal-manager__icon-button:hover,
+.lfaa-terminal-manager__tab-close:hover {
+  border-color: var(--settings-accent, var(--color-brand));
+  color: var(--color-text-primary);
+}
+
+.lfaa-terminal-manager__tabs {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 5px;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.lfaa-terminal-manager__tab {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 3px;
+  max-width: min(240px, 72vw);
+  min-width: 112px;
+  padding: 3px 4px 3px 9px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 8px;
+  background: var(--color-surface-raised);
+}
+
+.lfaa-terminal-manager__tab.is-active {
+  border-color: var(--settings-accent, var(--color-brand));
+  background: var(--color-brand-subtle);
+}
+
+.lfaa-terminal-manager__tab > button:first-child {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  text-align: left;
+}
+
+.lfaa-terminal-manager__tab > button:first-child > span,
+.lfaa-terminal-manager__tab > button:first-child > small {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lfaa-terminal-manager__tab > button:first-child > span {
+  font-size: var(--settings-interface-font-size, 13px);
+}
+
+.lfaa-terminal-manager__tab > button:first-child > small {
+  color: var(--color-text-muted);
+  font-size: calc(var(--settings-interface-font-size, 13px) * 0.82);
+}
+
+.lfaa-terminal-manager__tab-close {
+  width: 24px;
+  height: 24px;
+  border-color: transparent;
+}
+
+.lfaa-terminal-manager__empty-tabs {
+  align-self: center;
+  padding: 4px 2px;
+  color: var(--color-text-muted);
+  font-size: var(--settings-interface-font-size, 13px);
+}
+
+.lfaa-terminal-manager__panes {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.lfaa-terminal-manager__pane {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.lfaa-terminal-manager__pane[hidden] {
+  display: none !important;
+}
+
+.lfaa-terminal-manager__session-bar {
+  flex: 0 0 auto;
+  justify-content: space-between;
+  color: var(--color-text-muted);
+  font-size: calc(var(--settings-interface-font-size, 13px) * 0.9);
+}
+
+.lfaa-terminal-manager__session-bar > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lfaa-terminal-manager__surface {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.lfaa-terminal-manager__alert {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.lfaa-terminal-manager__approval {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 5px;
+  padding: 9px 11px;
+  border: 1px solid var(--color-status-warning);
+  border-radius: 8px;
+  background: var(--color-surface-raised);
+}
+
+.lfaa-terminal-manager__approval p,
+.lfaa-terminal-manager__approval small {
+  margin: 0;
+  color: var(--color-text-primary);
+}
+
+.lfaa-terminal-manager__approval small {
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.lfaa-terminal-manager__approval > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.lfaa-terminal-manager__empty {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px;
+  min-width: 0;
+  min-height: 0;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.lfaa-terminal-manager__empty > span {
+  font-size: calc(var(--settings-interface-font-size, 13px) * 0.9);
+}
+
+.lfaa-terminal-manager__empty > strong { color: var(--color-text-primary); font-size: var(--settings-interface-font-size, 13px); font-weight: 550; }
+.lfaa-terminal-manager__empty > span { max-width: 420px; color: var(--color-text-muted); line-height: 1.5; }
+
+@media (max-width: 520px) {
+  .lfaa-terminal-manager__toolbar {
+    align-items: stretch;
+  }
+
+  .lfaa-terminal-manager__toolbar .ant-select {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .lfaa-terminal-manager__actions {
+    margin-left: 0;
+  }
+}
+
+@media (max-height: 520px) {
+  .lfaa-terminal-manager-slot--minecraft {
+    min-height: 160px;
+  }
+}
+
+@container minecraft-console (max-width: 760px) {
+  .lfaa-terminal-manager--embedded .lfaa-terminal-manager__layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
+  .lfaa-terminal-manager__sidebar { grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: visible; }
+}
+
+@container minecraft-console (max-width: 460px) {
+  .lfaa-terminal-manager--embedded .lfaa-terminal-manager__layout { grid-template-rows: minmax(0, 1fr) 138px; }
+  .lfaa-terminal-manager__sidebar { grid-template-columns: minmax(0, 1fr); height: 138px; overflow: auto; }
+  .lfaa-terminal-manager__quick-commands { grid-template-columns: minmax(0, 1fr); }
+  .lfaa-terminal-manager__quick-commands > .ant-btn:last-child { grid-column: auto; }
+}
+
+@media (max-height: 520px) {
+  .lfaa-terminal-manager--embedded .lfaa-terminal-manager__layout { grid-template-columns: minmax(0, 1fr) minmax(190px, .42fr); grid-template-rows: minmax(0, 1fr); }
+  .lfaa-terminal-manager__sidebar { grid-template-columns: minmax(0, 1fr); }
+}

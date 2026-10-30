@@ -55,6 +55,7 @@ export function startTerminalChannel({ apiBase, nodeId, readToken, signal, attac
         if (typeof id !== "string" || !/^[0-9a-f-]{36}$/iu.test(id) || typeof commandId !== "string") throw new Error("终端命令身份无效。");
         if (type === "create") {
           if (sessions.has(id) || sessions.size >= 8) throw new Error("节点终端数量已达上限或标识重复。");
+          if (command.target && !["shell", "minecraft-shell", "minecraft"].includes(command.target.kind)) throw new Error("终端目标类型无效。");
           if (command.target?.kind === "minecraft") {
             if (!/^[0-9a-f-]{36}$/iu.test(command.target.instanceId) || typeof attachMinecraftConsole !== "function") throw new Error("Minecraft 交互式控制台适配未登记。");
             const attachment = await attachMinecraftConsole(command.target.instanceId, id, {

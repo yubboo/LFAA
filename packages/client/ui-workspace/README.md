@@ -32,6 +32,8 @@ AI 漫剧“媒体与时间线”面板可在项目和时间线均已保存时�
 
 整体布局由 `.module-workbench-stage` 外层盒子包住一个 `ResizableWorkbench` 根节点。图标功能区、二级菜单、中间工作区和右侧菜单作为根节点的四个同级区域直接传入；各区域 class 分别为 `module-workbench-region--leading`、`--secondary-navigation`、`--center-workspace`、`--right-menu`。分隔条与浮层是布局辅助元素，不把四个内容区域互相嵌套。公共几何样式从 `ui-dockkit/src/css/common.css` 复用；图标轨样式由 `ui-sidebar/src/GlobalNavigationRail.css` 负责，左二、中间、右侧内容盒子的样式分别由 `src/css/secondary-navigation.css`、`center-workspace.css`、`right-menu.css` 负责；`src/css/workbench-regions.css` 只保留四个同级区域共用的文字基线与底部面板样式。普通应用页面共用 `ApplicationNavigationPanel` 作为左二主导航，但只装配当前 App 的功能菜单；图标轨“应用”打开全局应用切换弹层。AI Work 左二保留会话/项目，右侧“应用”视图保留全局应用目录，工具与资源继续由右侧承载。设置、文件和插件管理等独立页面继续由各自 UI 包维护。图标轨宽度继续使用现有 64px/48px 令牌，并沿用账户外观设置。
 
+Minecraft 实例详情的概览、服务器配置、控制台日志和世界备份路由只由 `ui-minecraft` 页面顶部页签切换；左侧导航保留「管理 → 实例」父入口并显示其当前态，不重复列出当前实例的子路由。
+
 普通专业 App 页面复用同一主导航与中心标题栏；标题栏和主内容容器共用按中心列宽计算的水平锚点，并整体左移 8–16px，左右留白总量保持不变。宽列的基线留白为 20–32px，中心列不超过 560px 时为 8px/24px，不超过 360px 时为 8px/16px。专用 Writing、AI 漫剧与 AI Work 画布继续使用各自内容布局。
 
 应用侧栏与中心区复用 `ResizableWorkbench`。Compact 普通应用默认临时收起左二；悬浮预览只由顶部栏指定切换按钮及其窄连接命中区，或键盘可见焦点打开，指针经过左侧其他区域不触发展开。打开后左二复用同一 Dock pane，中心区保持锚在左一全局轨之后，不因预览宽度右移；临时响应式开合值不覆盖保存偏好，回到 Desktop 后恢复。用户显式展开时仍由 DockKit 管理 Dock 几何。Mobile 左二由 DockKit 按真实容器可用宽度选择 Dock 或 Overlay。公共几何样式由该组件引入 `src/css/common.css`；各区域的局部外观继续由各自 CSS 文件维护。AI Work 将标题栏、对话流、输入区和上下文/缓存用量栏放在同一聊天根盒子内按 Y 轴纵向排列；对话流内部再分左侧锚点导航轨、中间消息流轨和右侧原生滚动条轨。标题、对话盒、输入盒和用量盒分别以同一份按中心容器宽度计算的间距左右对齐；对话内部的锚点与滚动条轨延展至中间列边缘，消息列表为滚动条预留补偿宽度，保持正文宽度与输入卡一致。此布局不改变 DockKit 四栏宽度与保存偏好。窄分栏使用同一容器公式，短屏时输入区仍可滚动并访问底部操作。
@@ -44,7 +46,7 @@ Git“变更”工作区以紧凑工具条和按文件排列的真实差异列�
 
 AI Work 中间聊天区的收起/展开状态随现有 Workbench Chrome 布局写入浏览器本地存储，刷新后恢复；拖动预览仍只保留在页面内，切换账户或工作模式时沿用工作区既有重置行为。该偏好不写入会话、项目或设置中心。
 
-工作区终端可切换真实交互式会话和 Agent 任务输出；交互页选择已连接的本机/远程 Daemon，Shell 会话使用 `ui-sidebar-terminal` 唯一共享 Terminal Surface 处理输入、ANSI、中文、尺寸变化和 Ctrl+C。沿用 `general.integratedShell/taskFolder/terminalPosition/showBottomPanelControl`、统一权限模式及工作台主题、代码字体/字号、强调色、壁纸/遮罩/模糊和减少动态效果。共享终端按实际容器合并尺寸变化；输入与缩放分别串行发送；绘制容量 512 Ki 字符、历史 2000 行，超限失败关闭。卸载关闭会话并撤销 SSE、观察器与动画帧；任务输出页面活动任务每 3 秒对账、空闲时每 5 秒对账，只有选中任务变化或任务活动期间读取详情。
+工作区底部终端是 `ui-sidebar-terminal` 多会话管理器的一个显示位置，可同时建立多个互相独立的 Shell 标签；Minecraft App 不再显示第二个底部入口，而是在实例控制台页注册同一个管理器并将新 Shell 定位到当前实例目录。服务端 PTY 和实例 Shell 是两个清楚标记的会话目标。单击“新建 Shell”或“连接服务端”即启动对应会话；Workbench 在应用路由间保留标签和 PTY，切换标签或显示位置不会重复连接。沿用 `general.integratedShell/taskFolder/terminalPosition/showBottomPanelControl`、`permissions.mode` 和工作台主题、代码字体/字号、强调色、壁纸/遮罩/模糊及减少动态效果。各 Terminal Surface 的滚动历史为 2000 行；单会话输入/输出预算由共享 hook 与 Terminal Controller 约束。关闭标签或离开应用工作台后撤销 SSE、PTY、观察器和动画帧。Agent 任务输出仍保留独立的历史任务视图，不伪装成终端会话。
 
 AI Work 的聊天始终留在中心工作区。顶栏 Git 菜单打开项目摘要悬浮卡：当前会话绑定的仓库置于主卡，账户下其他已登记项目文件夹逐行显示各自的真实 Git 状态和增删统计；“变更”入口联动打开对应仓库的右侧 Git 管理面板，不替换聊天或输入区。摘要下方“输出内容”和“来源”只汇总当前会话活动记录里的真实新建/修改与读取文件，超过首屏数量时可展开“查看全部”；通用附件未接入时不伪造来源。Agent Git 管理器管理多个完整本机项目仓库，并随 Agent 会话绑定；不要求用户手工添加仓库，也不依赖 Daemon 节点。默认工作区启用本地 Git 版本管理；用户项目在 Agent 首次获准实际创建或写入文件时自动初始化，Git init 与本次文件操作共用 Permission Owner 授权。状态、变更统计、差异、文本查看/编辑、暂存、提交历史与分支操作都基于真实仓库根。本地执行由 Agent Git Controller、Permission Owner 与 LFAA Host 负责。分支前缀读取账户 `git.branchPrefix`，Appearance 继续使用工作台共享主题。HTTPS remote 支持 fetch、干净工作区快进 pull、当前分支 push 和发布分支；凭据按账户加密保存。SSH 同步与 PR 写入未接入。Agent 的可选 Daemon 项目仍只表示节点任务目标。
 

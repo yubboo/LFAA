@@ -686,12 +686,6 @@ function ApplicationNavigationPanel({ userId, app, mode, section, gameLibrary = 
             ? [["deployment", "部署"], ["instances", "实例"], ["tasks", "任务"], ["workflows", "工作流"], ["files", "文件管理"]]
             : [["java", "Java 环境"]]
         ).map(([key, label]) => <button type="button" key={key} className={`module-context__menu-item${section === key || key === "instances" && section.startsWith("instance/") ? " is-active" : ""}`} aria-current={section === key ? "page" : undefined} onClick={() => onNavigate(key === "files" ? "/files" : `/games/minecraft/${key}`)}><span aria-hidden="true" />{label}</button>)}
-        {section.startsWith("instance/") ? <>
-          <div className="module-context__section-title module-context__section-title--instance"><span>当前实例</span></div>
-          {([[
-            "overview", "实例概览"
-          ], ["configuration", "服务器配置"], ["logs", "控制台日志"], ["backup", "世界备份"]] as const).map(([view, label]) => <button type="button" key={view} className={`module-context__menu-item module-context__menu-item--nested${section.endsWith(`/${view}`) ? " is-active" : ""}`} aria-current={section.endsWith(`/${view}`) ? "page" : undefined} onClick={() => onNavigate(`/games/minecraft/${section.replace(/\/(overview|configuration|logs|backup)$/u, "")}/${view}`)}><span aria-hidden="true" />{label}</button>)}
-        </> : null}
       </nav> : null}
       {app === "connectivity" && mode === "normal" ? <nav className="module-context__app-menu" aria-label="联机管理菜单">
         <div className="module-context__section-title"><span>联机管理</span></div>
@@ -944,7 +938,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   const modeLabel = mode === "normal" ? "应用" : "工作";
   const writingNormal = app === "writing" && mode === "normal";
   const aiVideoNormal = app === "aivideo" && mode === "normal";
-  const terminalPanelAvailable = app !== "writing";
+  const terminalPanelAvailable = app !== "writing" && app !== "minecraft";
   const activeAiSessionTitle = aiSessions.find((session) => session.id === activeAiSessionId)?.title ?? null;
   const activeAiSession = aiSessions.find((session) => session.id === activeAiSessionId) ?? null;
   const applicationProjectContext = applicationProjectContextState.userId === userId ? applicationProjectContextState.project : undefined;
@@ -2436,7 +2430,6 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
             <div className="module-context__launcher-grid module-context__launcher-quick-tools">
               {gitManagerAvailable && !findGitWorkspaceUtilityTab(workspaceUtilityTabs) ? <button type="button" onClick={() => openWorkspaceUtility("git")}><WorkbenchIcon name="branch" size={16} /><span><strong>变更</strong></span></button> : null}
               <button type="button" onClick={() => openWorkspaceUtility("assets")}><WorkbenchIcon name="archive" size={16} /><span><strong>资产库</strong></span></button>
-              {terminalPanelAvailable && settings.general.showBottomPanelControl ? <button type="button" onClick={openTerminal} aria-keyshortcuts={shortcuts.openTerminal.map((chord) => chord.replace("Ctrl", "Control")).join(" ")}><WorkbenchIcon name="terminal" size={16} /><span><strong>终端</strong></span>{shortcuts.openTerminal.length > 0 ? <kbd>{shortcuts.openTerminal.join(" / ")}</kbd> : null}</button> : null}
               <button type="button" onClick={() => onNavigate("/files")} title="打开已接入的节点文件管理"><WorkbenchIcon name="file" size={16} /><span><strong>文件</strong></span></button>
               <button type="button" onClick={() => openWorkspaceUtility("side-chat")} aria-keyshortcuts={shortcuts.openSideChat.map((chord) => chord.replace("Ctrl", "Control")).join(" ")}><WorkbenchIcon name="help" size={16} /><span><strong>侧边聊天</strong></span>{shortcuts.openSideChat.length > 0 ? <kbd>{shortcuts.openSideChat.join(" / ")}</kbd> : null}</button>
               <details className="module-context__launcher-more">
@@ -2489,7 +2482,6 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
       </> : <>
         <header className="module-context__heading"><div><strong>{contextLabel}</strong><span>手动操作与管理</span></div><span className={`module-context__connection module-context__connection--${serverState}`}><i aria-hidden="true" />{serverState === "online" ? "已连接" : serverState === "checking" ? "检查中" : "未连接"}</span><button className="module-shell-icon-button module-context__close" type="button" aria-label={`收起${contextLabel}`} title={`收起${contextLabel}`} onClick={toggleRight}><WorkbenchIcon name="close" size={15} /></button></header>
         <div className="module-context__tools">
-          {terminalPanelAvailable && settings.general.showBottomPanelControl ? <button type="button" onClick={openTerminal} aria-keyshortcuts={shortcuts.openTerminal.map((chord) => chord.replace("Ctrl", "Control")).join(" ")}><WorkbenchIcon name="terminal" size={16} /><span>终端</span><kbd>{shortcuts.openTerminal.join(" / ") || "未分配"}</kbd></button> : null}
           <button type="button" onClick={() => onNavigate("/files")} title="打开已接入的节点文件管理"><WorkbenchIcon name="file" size={16} /><span>节点文件</span></button>
         </div>
         <section className="module-context__section"><header><span>当前应用</span><b>1</b></header><div className="module-context__app"><span className={`application-monogram application-monogram--${selectedApp.color}`} aria-hidden="true">{selectedApp.initials}</span><div><strong>{activeApplicationTitle}</strong><small>{modeLabel}</small></div></div></section>
