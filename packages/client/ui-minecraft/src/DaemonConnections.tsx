@@ -32,7 +32,7 @@ export function DaemonConnections() {
   };
   return <Card className="minecraft-card minecraft-daemon-connections">
     <Typography.Title level={4}>远程节点连接</Typography.Title>
-    <Typography.Paragraph type="secondary">本机节点随 Web 启动器托管；远程 Windows x64 节点使用独立连接文件。控制端须配置 HTTPS，远程节点不会替换成控制机器执行。</Typography.Paragraph>
+    <Typography.Paragraph type="secondary">本机节点由 Web 启动器托管。远程节点要求 HTTPS 和独立连接文件，任务只在目标节点运行。</Typography.Paragraph>
     <Space direction="vertical" style={{ width: "100%" }}>
       <Input aria-label="控制端 HTTPS 地址" value={url} placeholder="控制端 HTTPS 地址" onChange={event => setUrl(event.target.value)} disabled={busy} />
       <Space.Compact block><Input aria-label="远程节点名称" value={name} maxLength={80} placeholder="远程节点名称" onChange={event => setName(event.target.value)} disabled={busy} /><Button type="primary" disabled={busy || !name.trim() || !url.trim()} onClick={() => void issue()}>生成连接文件</Button></Space.Compact>
@@ -43,7 +43,7 @@ export function DaemonConnections() {
         <Button disabled={busy || !url.trim()} onClick={() => void issue(node)}>轮换连接文件</Button>
         <Popconfirm getPopupContainer={trigger => trigger.closest<HTMLElement>(".workbench-shell") ?? trigger.parentElement ?? trigger} title="撤销此节点连接？" description="将拒绝后续连接和任务回报；已经运行的操作不能据此确认已停止。" onConfirm={() => revoke(node.nodeId)}><Button danger disabled={busy || node.revoked}>撤销</Button></Popconfirm>
       </Space>)}
-      <Typography.Paragraph>在控制端 OS 账户下导出连接文件，通过受信任通道传给目标节点。在目标节点运行 <Typography.Text code>lfaa daemon configure --connection-file 文件路径</Typography.Text>，再运行 <Typography.Text code>lfaa daemon</Typography.Text>。导入后删除传输副本。</Typography.Paragraph>
+      <Typography.Paragraph>将连接文件经可信通道传至目标节点，然后运行 <Typography.Text code>lfaa daemon configure --connection-file 文件路径</Typography.Text> 和 <Typography.Text code>lfaa daemon</Typography.Text>。导入后删除传输副本。</Typography.Paragraph>
     </Space>
   </Card>;
 }

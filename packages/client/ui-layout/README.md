@@ -42,9 +42,11 @@ SteamCMD 未验证提示卡片中的操作链接受提示卡可用宽度约束�
 
 运行环境页的本机 Java 路径通过 `SystemFileLibrary` 的只读本机磁盘浏览选择，服务端仍沿用超级管理员与 `permissions.mode=full_access` 校验；所选路径仅交给 Runtime Manager 在用户点击登记后校验。远端节点不使用本机文件路径，继续由用户填写目标节点路径并在对应 Daemon 验证。
 
-Workbench 将 `/games/*` 全部装配到共享 `ApplicationWorkspace` 四栏 Shell。`/games` 与 `/games/environments` 使用“游戏服务”聚合入口；`/games/minecraft/*` 和 `/games/steamcmd` 保留各自 `ApplicationId` 与专属左二功能菜单，全局应用切换单独由导航轨弹层承载。`GameLibraryPage`、`SteamcmdWorkspace` 是本包的组合适配器；Minecraft 实例/生命周期、Runtime Manager 和 SteamCMD 数据/任务仍归各自领域 Owner。旧 `/apps/{minecraft,steamcmd}/normal/*` 路由映射到 `/games/*`，内部认证和 Agent 工具合同保留。外观沿用 Settings/Appearance 共享令牌，不新增偏好；游戏服务与运行环境分类使用真实中心容器宽度重排卡片、分类入口及操作控件，不依赖全局窗口宽度。运行环境页标题、返回入口、设备选择和顶部操作保持紧凑对齐；窄中栏将返回、重检和存储操作收为有可访问名称的图标按钮，仍保留设备当前值。
+Workbench 将 `/games/*` 全部装配到共享 `ApplicationWorkspace` 四栏 Shell。`/games` 与 `/games/environments` 使用“游戏服务”聚合入口；`/games/minecraft/*` 和 `/games/steamcmd` 保留各自 `ApplicationId` 与专属左二功能菜单，全局应用切换单独由导航轨弹层承载。`GameLibraryPage`、`SteamcmdWorkspace` 是本包的组合适配器；Minecraft 实例/生命周期、Runtime Manager 和 SteamCMD 数据/任务仍归各自领域 Owner。旧 `/apps/{minecraft,steamcmd}/normal/*` 路由映射到 `/games/*`，内部认证和 Agent 工具合同保留。外观沿用 Settings/Appearance 共享令牌，不新增偏好；游戏服务与运行环境分类使用真实中心容器宽度重排卡片、分类入口及操作控件，不依赖全局窗口宽度。运行环境页标题与两条返回入口在页头并列；设备选择、重检和存储操作紧贴其下，窄中栏将返回、重检和存储操作收为有可访问名称的图标按钮，仍保留设备当前值。
 
 SteamCMD 分类读取设置中心已有节点模式与工具目录；默认选中本机控制端时，首次进入分类会选取在线 Windows x64 Daemon。安装、真实校验和完整卸载经 SteamCMD Owner；文件管理入口以账户限定的资源别名打开同一节点的 `steamcmd-runtime` 只读目录。窄容器将这组运行环境操作收为保留可访问名称的图标按钮。
+
+Java 分类使用主版本列表与选中详情的主从布局；筛选、搜索、排序读取设备的真实 Java 目录与实例的 `requiredJavaMajor`，离线状态不计作已安装。详情按真实 Runtime Manager 记录展示版本、来源和路径，安装/登记/校验/更新/卸载仍调用原操作合同；有可用记录时“校验并复用”位于该记录操作行右侧，无可用记录时显示一次下载入口；不生成性能评分或通用兼容结论。容器宽度收窄后列表与详情切为单列，卡片动效继续由 Appearance 的 `general.cardMotionEffect` 和减少动态效果偏好控制。
 
 工作区现存卡片通过 `lfaa-card-motion` 和 `lfaa-card-motion-list` 注册到共享动效；Workbench 将账户 `general.cardMotionEffect` 映射到根节点，并将 `general.dialogMotionEffect`、减少动态效果偏好及当前 Appearance 主题/强调色/字体字号/对比度/壁纸表面令牌同步到 body，供 Ant Design Portal 的 Modal、确认弹窗和 Popconfirm 读取；弹窗外框、标题/正文/操作区留白和响应式滚动基础归 `ui-theme` 集中维护，业务页面只保留内容布局与必要尺寸。
 

@@ -26,6 +26,8 @@
 
 `src/file-transfer-contract.mjs` 是 Control Plane、Daemon 与 Client 共用的传输限制来源：单文件 3 MiB、Control Plane 内总预留 20 MiB、暂存 5 分钟。此处只定义稳定协议常量，不持有文件字节或运行状态。
 
+`src/minecraft-property-contract.mjs` 统一 Minecraft `server.properties` 键、单项/总量限制、敏感键识别及字段值校验。调用方仍须以当前节点文件快照限制可改键，并执行各自认证和任务职责；本包不持有 Minecraft 文件或配置状态。
+
 ## 小鱼共享工作入口（2026-10-14）
 
 声明根路由 `/`、`/tasks` 与旧 App AI Work 地址归一到 `/work`，以及 AgentAssociations 纯值校验；引用有界、唯一，不含正文或执行授权。
@@ -48,5 +50,7 @@
 `hooks` 菜单使用 `tools` 路由并发现 `lfaa_settings_runtime_hooks_list`；当前只读当前 Host 已登记的 AI Runtime Hook ID/事件。钩子代码仍由受信任插件 Owner 管理，不接受通用设置 Patch。
 
 `appearance-presets.ts` 持有系统内置预设与纯值快照创建/应用/匹配规则；快照仅覆盖 Appearance 与 General 的白名单视觉布局字段。`AppearanceSettings.presets` 默认空数组，不改变已有外观默认值或其他设置。
+
+`src/minecraft-jvm-contract.mjs` 是 Minecraft JVM 参数的纯值 Owner：统一解析每行参数、堆大小、Java 版本兼容性与 G1 白名单；Minecraft Service、目标 Daemon 和 Client 共用同一合同。这里不持久化账户或实例数据，也不负责下载 Java。
 
 `builtin-backgrounds.ts` 还登记“云涧书境”写作图片。`applyWritingWorkspacePresetAppearance()` 和 `writingWorkspacePresetMatches()` 仅映射 `appearance.backgrounds.writing`、`appearance.areaEffects.writing` 与 `appearance.advanced.writingLightRaysEnabled`，不能经普通账户级预设路径影响其他区域。

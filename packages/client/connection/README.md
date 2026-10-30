@@ -10,7 +10,7 @@
 
 Minecraft 首屏、实例日志/任务详情、Agent 节点任务列表与详情读取，以及 SteamCMD 任务详情均接受可选 `AbortSignal`；UI 在身份切换、切换详情、离开页面或卸载时撤销对应的只读 HTTP 请求。
 
-Minecraft 实例配置 Client 同时提供 `readMinecraftServerProperties()` 只读任务请求与 `MinecraftServerPropertiesFileSnapshot` 脱敏文件快照类型；保存仍通过 `saveMinecraftServerProperties()` 提交部分属性更新。Client 只传递任务与文件快照合同，不解释服务端属性、添加默认值或扩展编辑白名单。
+Minecraft 实例配置 Client 提供 `readMinecraftServerProperties()` 只读任务请求、`MinecraftServerPropertiesFileSnapshot` 脱敏快照和 `saveMinecraftServerFileProperties()`。保存传递来自快照的已变更键值，敏感项只传用户新输入或明确清除标记；此处不读取本机实例文件、不补默认值，也不做领域校验。
 
 `loadAiOffice()` 通过认证 `/ai/office` 读取员工元数据和当前账户的 Agent Run 摘要，可传 AbortSignal 供 UI 隐藏/卸载时取消；不缓存状态快照。
 
@@ -75,5 +75,7 @@ SteamCMD Client Connection 提供通用服务端列表、创建/配置、运行�
 `streamAiChat()` 可在新 Run 请求中传递严格受限的 `workspaceView` JSON；它不是消息字段，连接层只随本次初始 POST 发送，不在续接既有 Run 时重放。
 
 账户资料连接 API 将 `.lfaa-snapshot` 文件作为受认证二进制请求上传/下载；预览类型区分 v1/v2 并展示会话检查点与附件统计，恢复结果返回附件导入/复用计数。Client 不在本地解包、保存迁移副本或自行改写会话数据。
+
+`setMinecraftInstanceJvmConfiguration()` 只提交实例最大堆、初始堆和逐行 JVM 参数至 Minecraft Service；Connection 不做参数判定、持久化或 Java 环境安装。
 
 外观预设连接 API 提供结构校验、原子应用与账户背景二进制读取；导入/导出沿用现有认证背景上传/删除 Owner，不在 Connection 缓存图片字节、保存预设副本或另建设置存储。

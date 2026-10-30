@@ -9,6 +9,7 @@ import { copyFile,lstat, mkdir, readFile, readdir, rename, rm, writeFile } from 
 import { dirname, join, relative, isAbsolute, resolve } from "node:path";
 import { createServer, createConnection } from "node:net";
 import { createSocket } from "node:dgram";
+import { buildMinecraftJvmArguments, defaultMinecraftInitialHeapMb } from "lfaa-util-values/src/minecraft-jvm-contract.mjs";
 import { startCommand, terminateProcessTree } from "./process-control.mjs";
 import { terminalHandleToChild } from "./terminal-process-adapter.mjs";
 
@@ -93,7 +94,11 @@ export function buildMinecraftNativeArguments(metadata) {
   if (launch.kind === "php") return [launch.path, "--no-wizard", "--disable-ansi"];
   const memory = Number(metadata.memoryMb);
   if (!Number.isInteger(memory) || memory < 1024 || memory > 32768) throw new Error("实例内存配置无效。");
-  const jvm = ["-Dfile.encoding=UTF-8", "-Dsun.stdout.encoding=UTF-8", "-Dsun.stderr.encoding=UTF-8", `-Xms${Math.min(memory, 1024)}M`, `-Xmx${memory}M`];
+  const jvm = buildMinecraftJvmArguments({
+    memoryMb: memory,
+    initialHeapMb: metadata.initialHeapMb ?? defaultMinecraftInitialHeapMb(memory, metadata.executionMode ?? "native"),
+    jvmArguments: metadata.jvmArguments ?? []
+  }, { javaMajor: Number(metadata.javaMajor ?? 21), coreType: metadata.coreType ?? "Vanilla" });
   if (metadata.coreType === "Nukkit") {
     const locale = metadata.language === "system" || !metadata.language ? Intl.DateTimeFormat().resolvedOptions().locale : metadata.language;
     return [...jvm, "-jar", launch.path, "--language", locale.startsWith("zh") ? "chs" : "eng"];
@@ -146,7 +151,14 @@ export async function startNativeMinecraftServer(task, stored, directory, host) 
     await rm(marker);
   }
   const javaRuntimeId = Object.hasOwn(task.payload ?? {}, "javaRuntimeId") ? task.payload.javaRuntimeId : stored.javaRuntimeId ?? null;
-  const metadata = { ...stored, executionMode: "native", coreType: stored.coreType ?? "Vanilla", launch: stored.launch ?? { kind: "jar", path: "server.jar" }, javaRuntimeId };
+  const metadata = {
+    ...stored,
+    ...(Number.isInteger(task.payload?.memoryMb) ? { memoryMb: task.payload.memoryMb } : {}),
+    ...(Number.isInteger(task.payload?.initialHeapMb) ? { initialHeapMb: task.payload.initialHeapMb } : {}),
+    ...(Array.isArray(task.payload?.jvmArguments) ? { jvmArguments: task.payload.jvmArguments } : {}),
+    ...(Number.isInteger(task.payload?.javaMajor) ? { javaMajor: task.payload.javaMajor } : {}),
+    executionMode: "native", coreType: stored.coreType ?? "Vanilla", launch: stored.launch ?? { kind: "jar", path: "server.jar" }, javaRuntimeId
+  };
   if (!(await host.readSafeFile(join(directory, "eula.txt"), "utf8")).split(/\r?\n/u).some(line => /^eula\s*=\s*true\s*$/u.test(line))) throw new Error("实例未记录有效 EULA 同意。");
   const properties = await host.readSafeFile(join(directory, "server.properties"), "utf8").catch(error => { if (error.code !== "ENOENT") throw error; return ""; });
   let port = Number(properties.match(/^server-port\s*=\s*(\d+)\s*$/mu)?.[1] ?? metadata.properties?.serverPort ?? task.payload?.serverPort);
@@ -160,9 +172,18 @@ export async function startNativeMinecraftServer(task, stored, directory, host) 
     if (!php || typeof php.executable !== "string" || !php.executable.startsWith(resolve(host.phpDirectory) + (process.platform === "win32" ? "\\" : "/"))) throw new Error("PHP 运行环境不属于节点受管理目录。");
     await host.assertSafeFileTarget(php.executable, false); runtime = php;
   } else runtime = await host.java(metadata.javaMajor, javaRuntimeId, (p, text) => host.progress(task.id, Math.min(80, p), text));
+  const args = buildMinecraftNativeArguments(metadata);
+  const serverEntry = args.findIndex(argument => argument === "-jar" || argument.startsWith("@"));
+  if (metadata.launch.kind !== "php") {
+    if (typeof host.validateJavaArguments !== "function") throw new Error("目标 Daemon 缺少 JVM 参数预检能力，已拒绝启动实例。");
+    try {
+      await host.validateJavaArguments(runtime.executable, serverEntry < 0 ? args : args.slice(0, serverEntry), metadata.javaMajor);
+    } catch (error) {
+      throw new Error(error instanceof Error ? error.message : `Java ${metadata.javaMajor} 不接受当前 JVM 参数。`);
+    }
+  }
   // 环境下载/扫描可能耗时；靠近实际启动再次核实端口，避免使用环境准备前的过期观测。
   await assertMinecraftPortAvailable(port, udp);
-  const args = buildMinecraftNativeArguments(metadata);
   await host.assertSafeFileTarget(resolve(directory, metadata.launch.path), false);
   const timeout = Number(task.payload?.readyTimeoutSeconds), stopTimeoutSeconds = Number(task.payload?.stopTimeoutSeconds);
   if (!Number.isInteger(timeout) || timeout < 10 || timeout > 900 || !Number.isInteger(stopTimeoutSeconds) || stopTimeoutSeconds < 5 || stopTimeoutSeconds > 300) throw new Error("任务缺少有效就绪/停服配置。");
@@ -284,7 +305,7 @@ export async function provisionMinecraftCore(task, host) {
     await report(75, "正在写入 EULA、端口和实例启动配置。");
     await writeMinecraftOwnedConfiguration(join(directory, "eula.txt"), "# 用户已在 LFAA 开服表单明确同意。\neula=true\n", payload.resume);
     await writeCoreConfiguration(artifact.core, directory, payload);
-    const metadata = { instanceId: task.instanceId, instanceName: payload.instanceName, releaseId: artifact.version, javaMajor: artifact.javaMajor, javaRuntimeId: payload.javaRuntimeId ?? null, memoryMb: payload.memoryMb, coreType: artifact.core, coreBuild: artifact.build, executionMode: "native", deploymentId: task.deploymentId, launch, phpRuntime: artifact.launchKind === "php" ? runtime : undefined, properties: payload.properties, language: payload.language };
+    const metadata = { instanceId: task.instanceId, instanceName: payload.instanceName, releaseId: artifact.version, javaMajor: artifact.javaMajor, javaRuntimeId: payload.javaRuntimeId ?? null, memoryMb: payload.memoryMb, initialHeapMb: payload.initialHeapMb ?? defaultMinecraftInitialHeapMb(Number(payload.memoryMb), "native"), jvmArguments: Array.isArray(payload.jvmArguments) ? payload.jvmArguments : [], coreType: artifact.core, coreBuild: artifact.build, executionMode: "native", deploymentId: task.deploymentId, launch, phpRuntime: artifact.launchKind === "php" ? runtime : undefined, properties: payload.properties, language: payload.language };
     await writeMinecraftOwnedConfiguration(join(directory, "lfaa-deployment.json"), JSON.stringify({ deploymentId: task.deploymentId, name: payload.instanceName, releaseId: artifact.version, serverType: artifact.core, coreBuild: artifact.build, artifactName: name, javaMajor: artifact.javaMajor }), payload.resume);
     // 最后提交启动元数据；缺少此文件代表配置阶段尚未完成。
     await writeMinecraftOwnedConfiguration(join(directory, "lfaa-instance.json"), JSON.stringify(metadata, null, 2), payload.resume);

@@ -18,7 +18,7 @@ Agent Shell 的文件访问范围由 `aiRuntime.executionSandboxMode` 设置，�
 
 AI Work 模型选择从 `/settings/ai/accounts` 的全部可见账户目录产生；上下文、输出上限、任务/输入模态、版本与思考参数只使用目录内已明确提供并经过校验的字段。`selectAiAccountModel()` 验证 Provider 当前目录及目标模型后，事务性保存模型 ID、完整模型目录、该模型兼容的思考模式和活动账户；切到系统账户会清除当前用户的 Plan 覆盖，未选中的系统回退账户仍按全局规则处理。
 
-Provider 与插件秘密凭据使用 LFAA Home `credentials/settings.key` 执行 AES-GCM 加密。读取时若密钥文件缺失，Settings 不得自动生成替代密钥，以免让已有密文永久无法解密；用户明确录入新 Provider 凭据时才可创建密钥。已有密文校验失败时显示重新录入指引，保留旧账户记录，不声称能从密文恢复原密钥。
+Provider 与插件秘密凭据使用 LFAA Home `credentials/settings.key` 执行 AES-GCM 加密。读取时若密钥文件缺失，Settings 不得自动生成替代密钥，以免让已有密文永久无法解密；用户明确录入新 Provider 凭据或提交 Minecraft 敏感配置时才可创建密钥。已有密文校验失败时显示重新录入指引，保留旧账户记录，不声称能从密文恢复原密钥。`protectTaskSecret()` 复用同一密钥为持久任务队列中的短期服务器秘密加密，并把实例 ID/属性名作为认证上下文；只有已认证 Daemon 领取任务时由 Minecraft Domain 解封，用户任务响应继续隐藏密文。
 
 账户偏好、Provider 凭据引用和权限留在 LFAA Home（默认 `%USERPROFILE%\\.lfaa`，不增加 `system-data` 子目录）。`project-storage.ts` 负责统一业务 Data 根，首次默认 `<LFAA_HOME>/data`（Windows 默认 `%USERPROFILE%\\.lfaa\\data`）；Home Paths 在 Data 根创建共享 `models/`、`input/`、`output/`，模型适配器按自身模态与原生组件格式管理 `models/text/`、`models/image/`、`models/video/`、`models/audio/`、`models/encoders/`、`models/vae/`、`models/adapters/`、`models/acceleration/`、`models/upscalers/`。目录结构由 LFAA 自己定义，和 ComfyUI 权重格式/版本无关；Veo3 是远程 Provider 能力，不当作本机模型。AI Video 的最终项目素材仍由其 Owner 保存于项目目录，避免同时写进共享 `output/`。账户业务文件位于 Data 根的 `users/` 下。系统推荐路径按当前项目或安装根动态解析为其 `data` 子目录；自定义路径把用户所选目录作为父目录，在其中创建 `data/`（所选目录本身名为 `data` 时直接使用）。位置保存在 Home 控制配置；切换时创建新业务分类、保留旧根，控制端与 Daemon 重启后使用新值。游戏、小说和漫剧内容复制/核对/ZIP 仅处理受管业务子树，不复制 Home 系统账户数据。远端环境位置由该节点真实 data 根与平台推导，不能复用控制端盘符。
 

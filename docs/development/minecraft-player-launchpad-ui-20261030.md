@@ -109,3 +109,123 @@
 - **任务状态筛选：** 四项真实任务计数现在是可选状态按钮；点击可筛选任务记录，再点同一状态或“清除筛选”恢复全部。过滤器仅改变当前列表。`TaskList` 的批量选择以未过滤任务集合校验与持久化，筛选状态不会静默清掉隐藏任务的已选项。
 - **代码验证：** `ui-sidebar-terminal`、`ui-minecraft`、Daemon、Client 类型检查、Web 与 Control Plane 构建及 `tests/interactive-terminal.test.mjs`（7/7）通过；`runtime-build-state web/host` 均为 `[]`，构建输出只进入根 `dist/`。当前 Impeccable 检查与最后一轮 UI 检查待本批收尾运行。
 - **正式内置浏览器未验收：** Web 当前 PID 30736 通过本机监督 Daemon PID 28404 托管 Minecraft Java PID 44888。完成 Web/Control Plane 构建后，从内置浏览器打开新 `/terminal` 路由时命中 LFAA 运行时保护页：“LFAA Web 或控制端构建文件在服务运行期间已更新”。按 CLI 生命周期检查，重启 Web 会调用 `supervisor.stop()` 并影响其托管 Daemon，因此本次未停服务或服务器。`/terminal`、`/logs`、任务状态筛选的桌面/窄分栏/短屏实页、键盘焦点与在运行实例上的 PTY 重连/输入回显仍待在不影响该活动实例的安全重启条件下验收；旧 PID 提供的页面不能作为新实现通过证据。
+
+### 补充批次 5c：控制台空间布局
+
+- 用户明确要求按参考图重新安排终端页：中间只留真实服务端终端及必要会话控制；实例状态和快捷命令放在工作台最外层右侧菜单（红框箭头所指的 App 侧栏），不放进终端组件内部。终端使用中间工作区剩余高度，底部不保留固定 720px 高度造成的空白。
+- 页面标题简化为“控制台”，删掉解释性副标题，并隐藏实例页面上无关的“新建服务器”入口；嵌入模式只显示当前实例的服务端 PTY 标签，不把通用 Shell 标签或新建 Shell 操作混进服务端终端区；全局终端管理器仍负责通用 Shell。保留共享实例导航、刷新状态、共享 Terminal Manager 和真实 PTY 输入/输出。日志仍是独立日志页。
+- 状态只展示当前真实节点、实例状态、服务端版本、端口和配置内存；不照搬参考图中当前没有权威采样来源的 TPS、CPU、在线人数、延迟或命令历史。主题与颜色、字体、字号、壁纸/遮罩/模糊及减少动态效果继续使用 Appearance/共享终端映射；不新增设置。
+- 目标 Owner：`packages/client/ui-minecraft` 控制台页面/页面尺寸；`packages/client/ui-sidebar-terminal` 共享终端及右侧面板数据/命令动作；`packages/client/ui-workspace` 只负责把公开的 `TerminalManagerRightSidebar` 放进最外层右侧菜单。权限、命令执行、PTY/输出、实例与节点事实仍由现有 Terminal Manager、Minecraft API/领域及 Daemon 持有；本批不增加命令接口或会话。
+- 验收：`/games/minecraft/instance/<id>/terminal` 常规视口中终端填满中心工作区剩余高度且无下方大块空白；右侧菜单显示真实节点、实例状态与快捷命令；终端区没有第二个运维侧栏。窄分栏下按实际右栏宽度重排、无横向溢出且命令仍可达；短屏中终端仍可操作并可滚动；继续检查日志页分离和同一实例 PTY 标签未被重复创建。必须记录当前源码正式 Web 页面、视口、截图和未测范围；不得重启可能托管活动 Minecraft 进程的服务来绕过运行时保护。
+
+#### 用户再次校正：右侧菜单是工作台最外层栏
+
+- 前一版把状态和快捷命令放在控制台卡片内部，用户明确指出箭头指向的是最右侧 `module-context` 应用侧栏；前一版布局视为未验收，不能描述为用户认可。
+- 当前实现从共享 Terminal Manager 向 `ApplicationWorkspace` 提供 `TerminalManagerRightSidebar`，仅在 Minecraft App 使用该数据时渲染；控制台中间变为单列真实服务端 PTY。右侧工具卡数据仍由共享管理器提供；离开实例控制台后清除；Minecraft 右侧栏隐藏泛化说明卡以腾出操作空间。
+- 快捷命令仍发送到当前活动 Minecraft PTY，发送后恢复 xterm 焦点；真实日志继续留在日志页。没有增加终端会话、轮询、订阅或命令 API。窄右栏通过该区域自己的容器断点把快捷命令与状态字段改为单列。
+- 设置：继续读取 `settings.permissions.mode` 与共享 Appearance 主题/颜色、字体/字号、对比度、背景/遮罩/模糊及减少动态效果映射，不新增设置或改偏好。
+- 本更正验证：`node --test apps/cli/tests/minecraft-task-workspace.test.mjs` 9/9 通过；`ui-minecraft`、`ui-sidebar-terminal`、`ui-workspace` 三个 Owner 包构建通过；`pnpm.cmd exec tsc --noEmit -p tsconfig.client.json` 通过；Web Vite 构建 3907 个模块通过，输出隔离在 `dist/.tmp/minecraft-terminal-review`，未覆盖正式 Web 文件，验收后已清理。`git diff --check` 通过。
+- ChatGPT 内置浏览器使用现有源码 Vite 页 `http://127.0.0.1:5173/games/minecraft/instance/17e265c3-a9a8-419b-b43c-ae4592d2480d/terminal`：1750×1244 桌面检查确认状态/快捷命令在最外层右栏，中间终端占满剩余区，实例子页没有“新建服务器”按钮；820×520 窄短屏检查确认右栏可纵向滚动到快捷命令、页面宽度未横溢、中间控制台保持单列。临时窄视口已恢复；截图在本轮内置浏览器输出中查看，未另存文件。
+- 实例真实状态为已停止，快捷命令因此正确禁用；未启动/停止实例、未向 PTY 发送命令，故本轮只验布局和真实状态呈现，不把命令执行描述为已验。正式 Web `127.0.0.1:3000` 未重启；该页面使用 5173 源码开发服务器。浏览器日志保留着较早的 Vite 动态模块加载错误，本次刷新后页面可渲染，但正式生产 Web 验收仍未完成。无新设置项或偏好写入；继续沿用 Appearance/终端映射。
+
+### 补充批次 5d：左二独立日志入口
+
+- 用户指出实例页签中的“日志”与实例操作挤在一起，要求将日志移到截图箭头所指的 Minecraft 左二菜单位置，使日志独立展示。
+- `packages/client/ui-workspace` 只负责在 Minecraft「管理」菜单增加“日志”入口及当前路由态；`packages/client/ui-minecraft` 负责独立日志页和真实实例选择。日志内容继续通过既有 `loadMinecraftInstanceLogs` 与 Minecraft Socket/轮询 Owner 读取；不新增 API、轮询、订阅或假日志。
+- 日志页可从真实运行实例优先、否则首个真实实例作为默认目标，并可切换账户可见实例；在实例详情中打开日志时保留目标实例。旧 `/instance/<id>/logs` 地址继续映射为独立日志页。实例详情的页面页签不再包含日志；从任务失败提示等现有入口导航到新的独立日志路由。
+- 无实例、实例记录失效、读取中/失败均呈现实际状态；切换目标取消旧请求并清理轮询，不更改服务器、配置、日志或用户偏好。沿用现有 Appearance/主题与 `settings.permissions.mode`，不新增设置。
+- **验收目标：** 左二「管理 → 日志」能独立打开中心日志页面；日志页不显示实例详情页签或终端，选择不同真实实例会读取对应实例日志；筛选/自动滚动仍可用；历史日志入口仍正常跳转。桌面、窄分栏与短屏布局无溢出，日志内容可滚动。只进行读取和本地筛选，不启停服务端或发送控制台命令。
+- **实施完成：** 左二「管理 → 日志」进入独立服务端日志页，页面提供真实实例选择、来源筛选和自动滚动；旧 `/games/minecraft/instance/<id>/logs` 路由仍呈现同一独立页。实例详情页签已移除“日志”，日志页不装配服务端 PTY/终端。
+- **真实页面验收：** ChatGPT 内置浏览器打开当前源码 Vite 服务 `http://127.0.0.1:5173/games/minecraft/logs`，视口 1750×1244。截图确认左二“日志”高亮，中心页加载实例 `xiaoyu-e2e-paper1122-20261026 · Paper 1.12.2` 的真实 500 条日志，日志视口填满中心区；直接访问旧 `/games/minecraft/instance/17e265c3-a9a8-419b-b43c-ae4592d2480d/logs` 后，再点左二入口会回到独立 `/games/minecraft/logs` 页面。现有数据只暴露一个实例，因此没有第二个实例可用于页面切换验收。截图由内置浏览器实页捕获并目视检查，未另存到仓库。
+- **响应式未实测范围：** 当前 CUA 内置浏览器接口不提供视口覆盖；为了避免拖动并持久化用户工作台分栏偏好，本批未改浏览器/工作台尺寸，因此窄分栏和短屏没有实页证据。源码保留日志页自己的窄容器筛选器横向滚动、日志文本换行以及 520px 短屏纵向滚动规则；这些只算源码检查，不算设备实测。
+- **验证：** `ui-workspace`、`ui-minecraft` 构建通过；`pnpm.cmd exec tsc --noEmit -p tsconfig.client.json` 通过；`apps/cli/tests/minecraft-task-workspace.test.mjs` 10/10 通过；`git diff --check` 通过；Impeccable detector 对三个改动 UI 文件返回 `[]`；Web 构建 3907 个模块成功，隔离构建输出位于仓库根 `dist/.tmp/minecraft-logs-review`。该临时目录仍存在；尝试清理时本机命令策略拦截了删除操作，未改用其他删除方式。
+- **构建运行边界：** 第一次尝试通过 pnpm 转发 `--outDir` 时，Vite 收到结束标记后忽略后续目录参数，实际更新了根目录 `dist/apps/web` 生产构建输出。随后直接调用 Vite 已在 `dist/.tmp/minecraft-logs-review` 成功完成隔离构建。两次都未重启 Web、Control Plane 或 Minecraft 实例；本批实页仍使用 5173 源码服务器。正式 3000 Web 页面未重启验收，以免触碰当前托管 Daemon/Minecraft 的服务生命周期。
+
+### 2026-10-30 用户反馈：Minecraft 全域视觉与响应式不合格
+
+- 用户要求直接检查并修复 Minecraft 应用各处布局，明确指出间距、视觉效果、动画、文案和响应式均不符合预期。附件截图来自 `/games/minecraft/tasks`，1504×1655；任务正文在左、操作被推到下一条横线下方，卡片层级只有细分隔线，页面缺少清楚的分组与交互反馈。
+- 前一版 `true-black-flat` 视觉只作为历史版本记录，不能视为通过。本次方向改为有层次的运维工作台：统一页面节奏与信息权重，重要状态/入口可识别，分组表面有真实层级；用户本轮确认沿用 LFAA 深色运维风格，强化层次、留白与有意义的动效。实际主题、强调色、字体、字号、对比度、壁纸/遮罩/模糊仍读取 Appearance 设置，主题切换后随设置变化。界面文案去除重复解释，保留真实能力边界、操作前置条件与 EULA。
+- 动效按原因使用：卡片列表入场和可点击卡片反馈复用 `general.cardMotionEffect` 的 `.lfaa-card-motion`，减少动态效果与系统偏好继续由共享 Theme Owner 控制；不增加持续循环特效、重复动画引擎或新的动效设置。状态特效必须绑定真实节点/实例/任务状态。
+- 全域范围限于 `packages/client/ui-minecraft` 的真实视图：总览、节点、部署、实例列表/详情、任务、日志、控制台页面容器、工作流及包内联机引导；终端控件本体仍归共享 Terminal Manager。Java 环境和独立联机管理继续由各自 Owner 持有，不复制其页面或规则。认证、权限、真实服务端数据和行为合同保持不变。
+- 响应式必须按工作区容器宽度和高度验证，而非只按桌面窗口；覆盖桌面、平板、手机、窄分栏及短屏。卡片和操作在窄宽下重排、文字可读、页面无意外横向溢出；内容区域和终端/日志可用滚动，关键操作触达。所有 CSS 盒子只由 Minecraft 页面 Owner 管理并限定在明确父/子区域。
+- 设置与权限继续采用本合同设置中心盘点：`general.cardMotionEffect`（默认 `fluid`）、`appearance.advanced.reducedMotion`（默认 `system`）、主题/强调色、字体/字号、对比度、壁纸/遮罩/模糊、Minecraft 运行时设置；不新增设置、不写用户偏好。动态仅消费现有 `.lfaa-card-motion` 与 `data-reduced-motion` 映射。
+- 技能按职责取用：Taste `app-screens` 仅用于运维屏检查；Impeccable `operate` / `layout/adapt` 用于信息层级与响应式；Baseline UI 用于间距、对比和控件检查；UI Motion 只指导复用现有用户动效设置的反馈；UI/UX Pro Max 用于窄容器、触控尺寸和长内容核对。用户明确要求技能按需分工，不把不同技能的风格拼成一套。`Audit Skills` 的 Java/.NET/PHP 覆盖不适用于本次 TSX/CSS，不能宣称做了对应的安全扫描；安全仍通过审阅现有 Client/API/Permission Owner 边界确认。
+- **补充批次 6a：** 修复页面根层级、状态摘要、任务记录和常用列表/卡片的间距、对齐、表面层次与交互动效；确保用户截图中的“查看详情”、取消、删除和选择操作在桌面同一行的操作列内对齐，窄容器按触控/可用宽度重排。先在 `/games/minecraft/tasks`、`/games/minecraft/overview`、`/games/minecraft/nodes`、`/games/minecraft/instances` 验收并记录截图和无写入交互。
+- **补充批次 6b：** 修复部署向导、任务详情/日志、实例配置/备份/控制台容器、工作流及联机引导中实际存在的层级、留白和响应式问题；关键确认、真实输入/输出、日志与授权逻辑不变。按每个可访问路由逐页验收；真实实例所需页面只做读取和布局检查，不提交部署、不写配置、不创建备份、不启动/停止或发送终端命令。
+- 每批继续按仓库边开发边验收要求运行直接相关回归/类型检查/包构建，并使用 ChatGPT 内置浏览器实页；记录实际路由、宽×高、换行/溢出/滚动、交互及截图。正式 Web 3000、源码 Vite 5173 和当前服务状态必须核实；Web PID 32588 与 Vite PID 28412 归本 checkout，其中 3000 的健康检查为 `ready`，当前 Web 指纹检查返回 `[]`，不重启可能托管活动 Daemon/Minecraft 的 3000 服务。验收使用安全的隔离账号/目录；不能隔离或验证时说明具体阻碍，不把源码断点检查或截图估测标为响应式实测。
+
+### 补充批次 6a/6b 实施与当前实页验收
+
+- 用户确认最终视觉方向为 LFAA 深色运维风格；技能各按职责取用。任务记录改为内容与动作分区，桌面操作列右对齐，窄屏动作留在记录卡内；任务状态摘要按容器宽度换列。总览、节点、实例和工作流使用有层次的表面、清晰留白，并复用 `general.cardMotionEffect`；日志页移除重复标题，保留真实日志条数。配置页窄容器修复桌面 `360px` flex 基准造成的垂直留白；任务详情弹窗居中，并把正文高度限制到可用视口内，短屏仍可滚动且关闭按钮可达。
+- 变更由 `packages/client/ui-minecraft` Owner 承担；入口、API、状态、数据、角色与权限合同未变。没有新增设置，也没有改写账户偏好；外观和动效继续读取 Appearance / `general.cardMotionEffect` / 减少动态效果共享映射。没有新增轮询、订阅、计时器、观察器或 JS 动画。
+- ChatGPT 内置浏览器使用当前源码 Vite `http://127.0.0.1:5173`，记录真实账户的实际数据：1 个在线节点、1 个运行实例、7 条已完成任务、500 条服务端日志；只浏览或切换页面，没有更改实例、任务、配置、备份、工作流或设置。
+- 桌面 1440×900：`/games/minecraft/overview` 显示真实节点到实例关系、3 项实际摘要和动效设置 `fluid`；`/games/minecraft/logs` 只显示一个“服务端日志”标题，日志区实际装载 500 条并在自身滚动。两页均无横向溢出。`/games/minecraft/deployment`、`/games/minecraft/nodes`、`/games/minecraft/instances`、`/games/minecraft/tasks`、`/games/minecraft/workflows` 也已在当前浏览器查看；没有执行部署或实例操作。
+- 手机 390×844：`/games/minecraft/tasks` 状态摘要为 2×2、详情/删除动作留在卡片内；`/games/minecraft/workflows`、`/games/minecraft/instances`、`/games/minecraft/nodes`、`/games/minecraft/deployment`、实例 `/overview`、`/configuration`、`/backup`、`/logs` 均无页面横向溢出，长内容纵向可达。配置页标题下的按钮/快照行已由初测约 433px 位置上移到约 423px，表单从约 766px 上移到约 508px，消除了空白区域。
+- 短屏 820×520：任务页无横向溢出，第一条记录的操作按钮仍处于可滚动页面内；日志输出区域高度约 161px、500 条记录在内部滚动，页面无横向溢出。任务详情弹窗锚定到当前 `.module-center` 工作区，不覆盖左侧导航；390×520 时尺寸约 310×487、正文 350px 内部滚动、关闭操作可见且遮罩滚动高度等于视口；820×520 时弹窗约 722×487，仍在 754px 工作区内；390×844 时约 310×745 且完整落在工作区内。日志实例选择器在 390px 内容宽度内铺满可用区域。
+- 只读打开一条真实已完成任务详情，确认任务状态、节点、实例、执行回报和结构化输入仍显示真实数据；没有点击删除/批量删除。世界备份按钮因实例运行而按既有状态禁用，未发起备份。控制台页内容未打开，避免对当前运行的 Minecraft PTY 建立会话；Java 环境和独立联机管理属于各自 Owner，不纳入本次视觉改动。
+- Minecraft 的“Java 环境”入口会进入共用 `/games/environments`，该页在 390×844 可读、无横向溢出；没有安装、校验或卸载运行时。Minecraft `/games/minecraft/connectivity` 入口在 390×844 无横向溢出，短文案直接说明管理范围；“打开联机服务”进入独立 `/apps/connectivity/normal`。共用环境管理页及联机服务各子页面均属自己的 Owner，本轮只检查入口与手机布局，没有重写它们。
+- 源码验证：`pnpm --filter lfaa-client-ui-minecraft run build`、`pnpm exec tsc --noEmit -p tsconfig.client.json`、`node --test apps/cli/tests/minecraft-task-workspace.test.mjs`（10/10）、Taste lint（11 个文件，0 FAIL/0 WARN）、Impeccable detector（`[]`）、`git diff --check` 通过；包构建产物只写入根 `dist/packages/`。Taste `inspect.mjs` 使用独立临时 Chrome 用户目录，无法继承已登录内置浏览器会话；为避免把登录页当成产品页，本轮用实际已登录的 ChatGPT 内置浏览器逐页目视验收。内置浏览器实页使用当前源码开发服务，正式 Web 3000 未重启。没有测帧时间，也没有切换账户主题、壁纸或减少动态效果做多偏好对照。
+
+### 补充批次 6c：配置属性表单实页回归
+
+- 修复联动开发时暴露的配置页运行时引用错误：旧白名单编辑器已迁走，页面仍引用其旧变量；现在表单由真实快照条目生成，覆盖本次读取到的 34 个属性，并按已识别类型提供布尔、枚举、数值输入，其他项使用文本输入。无快照时不伪造默认值；敏感值不回显，空白不进入替换请求，输入后再清空也不会误清除旧值；只有存在有效变更且实例已停止等原有 Owner 条件成立时才允许保存。
+- 真实配置路由：`/games/minecraft/instance/17e265c3-a9a8-419b-b43c-ae4592d2480d/configuration`。ChatGPT 内置浏览器查看现有真实节点快照（34/34 个属性；快照时间 2026-10-30 11:30；1.12.2 文件没有 `simulation-distance`）。桌面 1440×900 两组表单并列、平板 768×900 组卡并列；手机 390×844 单列；390×520 短屏滚至底部后仍能触达表单操作。DOM 检查：390px 和 768px 下 `documentElement.scrollWidth === clientWidth`；390×520 操作区可见，字段列宽约 260.7px、组宽约 294px。所有字段可见且敏感输入为空白；真实实例仍在运行，因此保存正确保持禁用。
+- 返回任务列表 `/games/minecraft/tasks` 后页面真实显示 7 条已完成任务，没有 `minecraftPropertyEditors` 崩溃。没有刷新或创建额外读取任务，没有编辑或保存属性、泄露敏感值、改变实例状态或用户设置。截图证据在本轮内置浏览器实页状态中；正式 Web `3000` 未重启，验收使用当前源码 Vite `5173`。
+- 直接验证：`pnpm --filter lfaa-client-ui-minecraft run build`、`pnpm exec tsc --noEmit -p tsconfig.client.json`、`node --test apps/cli/tests/minecraft-task-workspace.test.mjs`（11/11）、Taste lint（11 个文件，0 FAIL/0 WARN）、`git diff --check` 均通过。属性回写没有在正在运行的用户实例上操作；隔离文件/Daemon 写回回归与真实停服写回未在此批执行。新增/修改样式没有新增 CSS 变量；沿用 `general.cardMotionEffect`、减少动态效果与 Appearance 共享映射，未测帧时间。
+
+### 补充批次 7：部署、实例、日志页面二次检查
+
+- 用户要求再检查部署、实例、日志菜单的 UI 与响应式表现。当前页面 Owner 仍为 `packages/client/ui-minecraft`；真实部署、实例和日志数据继续由原 Minecraft API/Daemon、认证与 Permission Owner 持有。允许修改这三页呈现和日志的展示格式，不提交部署、不改实例/日志数据、不启动或停止服务端、不改账户设置。
+- 设置继续使用已映射的 `general.cardMotionEffect`、`appearance.advanced.reducedMotion`、主题/强调色、字体/字号、背景/遮罩/模糊和 Minecraft Runtime 默认值；本批不新增设置，不更改用户偏好。技能仅按仓库硬规则读取六项 UI 技能；不混用额外视觉风格技能，Audit Skills 的 Java/.NET/PHP 扫描范围不覆盖本次 TSX/CSS。
+- 检查基线已确认 `/games/minecraft/instances` 桌面单卡宽度约 267px，长实例名被挤成三行；日志行含被控制符替换出的 `�`。部署页重复表述核心/版本/EULA，选中核心说明重复出现在卡片与摘要区。Vite 5173 由当前 checkout 的 `apps/web/node_modules/.bin/vite` 进程运行；保留正式 Web/Daemon 与运行实例状态，不重启服务。
+- **批次 7 实施：** 实例卡片改为 260px 起步的身份列，长名称与状态独立排列；部署页缩短重复说明并移除选中核心的重复描述，同时保留来源校验、节点选择、EULA 和许可证事实；日志仅在展示时移除 ANSI 序列、不可见控制符和特定边界替代符，单条显示仍限 4096 字符，不改写持久化数据。短屏日志窗最小高度从 150px 调整到 120px，使 390×520 窗口底部完整落入视口。另在回归中发现同工作树的敏感配置清空分支偏离 6c 既有验收且造成类型推导失败，恢复“空白不发出替换项、保留旧值”的已验行为；不扩大本批配置编辑范围。
+- **批次 7 设置与性能：** 沿用 `general.cardMotionEffect`、`appearance.advanced.reducedMotion`、主题/颜色/字体/字号/壁纸/遮罩/模糊及部署 Runtime 设置；没有新设置或偏好写入，没有增加请求、订阅、计时器、观察器或动画循环。日志格式化对最多 500 条、每条最多 4096 字符执行有界字符串处理；没有测帧时间。
+- **ChatGPT 内置浏览器实页：** 使用当前 checkout 的 Vite PID 28412（命令入口 `E:\lfaa1\lfaa\apps\web\node_modules\.bin\vite`，地址 `http://127.0.0.1:5173`），没有重启正式 Web 或可能承载活动实例的服务。桌面 1280×720 的 `/games/minecraft/instances` 卡片宽 1098px，实例标题高 24px、单行显示；页面 `scrollWidth/clientWidth=1280/1280`。同尺寸的 `/games/minecraft/deployment` 真实目录显示 5 类核心、68 个版本，页面无横向溢出。
+- **手机与窄屏实页：** `/games/minecraft/deployment` 在 390×844、320×600 单列换行、版本列表纵向可滚；320px 宽时工作区 248px、文档宽度 320/320，核心分类轨道局部横向滚动（441/224px），部署“下一步”在页面下方可达并处于 enabled 状态。`/games/minecraft/instances` 在 390×844、320×600 无页面横向溢出，状态摘要转为 2×2，实例信息与操作分组纵排；向下滚动后启动/安全停止/管理/删除按钮可见，真实运行实例的禁用/可用状态未变化。`/games/minecraft/logs` 在 390×844 的日志区为 294×428px，文档宽度 390/390；短屏 390×520 时日志区为 294×126px、底部 y=516，位于视口内，500 条内容在内部滚动。
+- **日志和运行边界：** 内置浏览器打开真实日志页显示 500 条、无 `�` 字符；标准输出筛选从 500 条降为 499 条，再恢复“全部”，没有改动服务端日志。浏览器控制台错误列表为空。未创建/提交部署、未接受 EULA、未读取或保存 server.properties、未创建备份、未启动/停止/删除实例、未打开当前运行实例的 PTY、未改账户设置。手机实页、主流桌面与短屏均完成；没有物理手机/平板、多主题对照或帧时间测量。
+- **源码验证：** `pnpm --filter lfaa-client-ui-minecraft run build` 通过（产物位于根 `dist/packages`）；`pnpm exec tsc --noEmit -p tsconfig.client.json` 通过；`node --test apps/cli/tests/minecraft-task-workspace.test.mjs` 12/12 通过；Taste lint 扫描 11 个 TSX 文件，0 FAIL/0 WARN；`git diff --check` 通过。批次文件包括 `MinecraftWorkspace.tsx`（日志展示格式化与部署页标题说明）、`MinecraftWorkspace.css`（实例列和短屏日志高度）、`MinecraftDeploymentPanel.tsx`（减少重复部署文案）、`README.md`（说明布局和日志显示策略）、任务回归、提示索引与本合同。
+
+### 批次 8：修复日志过滤后的宽度塌缩与控制台自动附着
+
+- 用户补充指出日志筛选页右侧空白、实例控制台要求手动重试；本批检查日志、实例配置与 `/terminal` 的实际源码页，不触碰运行实例命令或生命周期。
+- 真实复现：内置浏览器当前源码路由 `/games/minecraft/instance/17e265c3-a9a8-419b-b43c-ae4592d2480d/logs`，视口 1280×720。日志卡片宽 808px；全部 500 条时视口同为 808px，点击“错误”显示 0 条后视口收缩至 303px，点击“系统”显示 1 条后收缩至 449px。过滤只改变本地显示状态，500 条数据没有删除或改写。深入测量确认外层 Card 的横向 Flex 排列使 `.ant-card-body` 按当前内容宽度收缩；仅给 Grid 轨道设 `minmax(0, 1fr)` 无效。
+- 配置页复核：同实例 `/configuration` 真实路由、1280×720，读取到真实快照 34/34 项；两类属性分组各自使用双列字段布局，当前可用宽度内没有复现空列/字段错位。本批不改配置值、保存语义或设置偏好；后续若用户提供具体字段/视口故障，沿配置 Owner 单独复现。
+- 控制台复现：同实例 `/terminal` 显示运行中的实例和在线节点，但标签状态“未连接”、没有输出且无错误提示。源码入口 `packages/client/ui-renderer/src/render.tsx` 使用 `React.StrictMode`；`TerminalSessionPane` 的自动启动 effect 同步发起请求，同时会被开发模式首次挂载清理，`autoStarted` 一次性标记使第二次 effect 不再启动。实际修复让自动启动等待可取消的下一轮事件循环，使 StrictMode 的模拟清理先完成，再只创建一次真实终端会话；没有绕过审批、权限或 Daemon 实例/PTy 校验。
+- 实际修复：Ant Design Card 默认横向 Flex 排列导致正文按子内容缩窄；将日志 Card 改为纵向 Flex，正文与日志视口明确占满卡片宽度。
+- 实页验收：源码 Vite `/games/minecraft/logs` 在 1280×720 下“全部”500 条、“错误”0 条、“系统”1 条三种筛选的卡片/正文/视口均为 808px，页面没有横向溢出。390×844 下日志区域宽 294px，320×600 下宽 224px；两者 `scrollWidth=clientWidth`。窄屏工作台右菜单为现有移动端 overlay 展开态，会遮住部分底层筛选按钮，因此只在桌面实测筛选交互；未改写工作台偏好，测试后恢复默认视口。
+- 控制台实页验收：同实例 `/terminal` 在 1750×1244 下自动选中并附着正在运行、节点在线的 Minecraft 实例，显示同一真实 PTY 的 stdout 回放；按钮不再停留在要求用户重试的未连接态。没有发送命令；随后通过“断开会话”释放测试订阅，实例仍处于运行中。
+- 回归/构建：`node --test apps/cli/tests/minecraft-task-workspace.test.mjs` 12/12；Minecraft UI、共享 Terminal Manager 包构建、Client TypeScript 与 `git diff --check` 均通过。验收使用源码 Vite `127.0.0.1:5173`，正式 Web `3000` 未重启，以免影响仍由现行服务托管的 Minecraft 实例。未改配置、实例、任务或设置。
+
+### 用户追加：实例摘要与任务区分
+
+- 用户希望实例概览改成附件图一的横向信息卡层级，并指出将近期任务嵌在实例摘要旁会混淆“实例”和“任务”。本批使用 LFAA 深色运维主题，采用横向封面/名称/状态/真实元信息/生命周期动作的信息顺序；示例封面只作为装饰图，不代表实例实际世界截图。
+- 近期任务从实例概览移除，全部记录仍由独立“任务”菜单及详情页负责；不删除或更改任务数据。
+- 实例卡只呈现真实的服务端版本、节点状态、端口、运行配置、创建时间、执行方式与 EULA 事实，不添加示例地址、玩家数或推算运行时长。启动、安全停止、安全重启与进入控制台继续走既有 Minecraft action API、管理员权限、节点状态、实例状态、AppContainer 能力和安全停止确认；不调用或测试真实生命周期动作。
+- 使用现有 `樱花水岸` 静态 Minecraft 插画作为封面装饰，Appearance、主题、颜色、字体、字号、壁纸/遮罩/模糊及减少动态效果保持现有共享映射；不新增/修改用户偏好。
+- 验收：实例概览显示单一清楚的摘要卡和运行环境区；“最近任务”只在任务页出现；在桌面、窄容器/手机和短屏检查换行、溢出与操作可达；实例操作仅静态核对按钮条件，不启动/停止/重启服务器。
+
+### 2026-10-30 全部 Minecraft 界面批次最终验证
+
+- 页面实测使用 ChatGPT 内置浏览器当前源码路由 `127.0.0.1:5173`；配置页完成 `1750×1244`、`1920×1080` 和 `390×520` 检查，窄屏配置中间区宽 `294px`、34 项齐全且无横向溢出。实例概览、任务、日志、部署和停服控制台实页结果分别记录于本合同与 `shared-minecraft-terminal-console-20261030.md`。
+- 部署路由 `/games/minecraft/deployment` 等待真实核心目录载入后，桌面显示 5 类核心与 68 个版本；窄屏 `390×520` 的工作区为 `318px`、部署表单为 `294px`，页面 `scrollWidth=clientWidth=390`，无横向溢出。全程未选择版本或提交部署。
+- 验证通过：`pnpm run build:harness`（225 个能力包）、`pnpm run build:web`、`pnpm run build:control-plane`、`pnpm run build:windows-sandbox-host`、`pnpm run typecheck`、Minecraft UI/共享终端包构建、任务工作区回归 14/14、属性文件与敏感值回归 2/2、`git diff --check`。属性敏感值回归运行在唯一临时 `LFAA_HOME`/`LFAA_DATA_DIR` 中，结束后已清理，不占用运行中控制端的数据锁。
+- 构建只写根目录 `dist/`；保留现有暗色主题、Appearance/字体与 `general.cardMotionEffect` 动效，以及减少动态效果、统一权限、实例/节点和 `minecraftRuntime.minecraftStopTimeoutSeconds`；没有增加或修改设置。
+- 真实实例保持已停止。没有点击启动、安全停止或安全重启，没有发送控制台命令、保存节点配置或删除任务；真实启动后的自动 PTY 重新附着过程、帧时间和物理设备未实测。正式 Web `3000` 与 Daemon 未重启，验收页面来自当前 Vite `5173`。
+
+### 2026-10-30 实例概览摘要卡与任务分离实页验收
+
+- 实例详情概览改为横向英雄卡：复用仓库内置樱花水岸图作为装饰，按 LFAA 深色运维主题展示真实实例名、状态、核心/版本、节点、端口、Java 与内存，以及启动/安全停止/安全重启/控制台入口；下方保留运行环境、EULA 与执行方式等真实管理信息。图片明确为空替代图，不冒充实例实际世界画面。
+- 实例概览移除“最近任务”记录卡。8 条真实任务记录仅在独立 `/games/minecraft/tasks` 页面显示；实例详情不再混排任务历史。
+- ChatGPT 内置浏览器源码实页：桌面 `1920×1080`、手机窄屏 `430×900` 和短屏 `390×520` 检查 `/games/minecraft/instance/17e265c3-a9a8-419b-b43c-ae4592d2480d/overview`。概览卡分别为横排与单列；页面 `scrollWidth=clientWidth`。短屏滚到操作区后，操作按钮完整进入 `390×520` 可视区域。任务页同一真实账户显示 8 条已完成记录；两条页面均无横向溢出。
+- 实例当前真实状态为已停止、节点在线：启动入口可见；安全停止/重启按状态禁用。验收没有触发启动、停止、重启、控制台命令、配置写回或任务删除。继续使用 Appearance/共享主题、字体和动效映射，以及实例/节点/管理员权限校验；没有新增或修改设置。
+- 视口使用当前源码 Vite `5173`，未重启正式 Web `3000` 或 Daemon。未测物理设备和帧时间。
+- 最终检查：`node --test apps/cli/tests/minecraft-task-workspace.test.mjs` 14/14、Minecraft UI 包构建、Client TypeScript 检查与 `git diff --check` 通过。
+
+### 2026-10-30 概览实例操作区位置调整
+
+- **用户问题：** 总览实例卡内的“启动/安全停止/安全重启/终端/管理实例”挤在节点到实例关系行旁边；用户希望将操作移到截图箭头所指的实例卡片右上空位。
+- **目标运行入口与 Owner：** `/games/minecraft/overview`；唯一 UI Owner 为 `packages/client/ui-minecraft/src/MinecraftWorkspace.tsx` 中的 `.minecraft-overview-hero__actions`，由该包的 `MinecraftWorkspace.css` 管理布局。真实权限、节点在线、实例状态及动作提交继续由原 Minecraft action API/Permission Owner 决定。
+- **设置、数据与权限：** 沿用当前 Appearance 主题、字号与强调色；无新增/修改设置，无配置或运行数据写入。不得更改启停状态判断、操作回调、终端导航或权限流程；本批不执行服务器启停或终端命令。
+- **允许范围：** 调整总览实例摘要卡的操作区对齐与窄容器换行，更新 Minecraft `DESIGN.md` 和本合同验收记录。
+- **验收条件：** 桌面操作按钮出现在摘要卡右上区域且不覆盖实例名称或状态；节点—实例关系信息仍完整；容器变窄时按钮移到主要实例信息之后，保持可触达并且页面无横向溢出；原状态门控与导航行为不变。
+- **性能与安全边界：** 仅静态布局变更，不增加订阅、请求、动画或主线程计算；沿用已存在的状态、权限和节点校验。

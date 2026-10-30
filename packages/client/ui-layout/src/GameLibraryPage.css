@@ -51,8 +51,11 @@
 .game-library--environments .game-library__header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .75rem 1rem; margin-bottom: .75rem; }
 .game-library--environments .game-library__header > div { min-width: 0; }
 .game-library--environments .game-library__header p { margin: .35rem 0 0; line-height: 1.5; }
-.game-library__return-action { justify-self: end; flex: 0 0 auto; }
+.game-library__header-actions { display: flex; min-width: 0; align-items: center; justify-content: flex-end; gap: .5rem; }
+.game-library__header-actions > .ant-btn { flex: 0 0 auto; }
+.game-library__return-action { flex: 0 0 auto; }
 .game-library__return-icon { transform: scaleX(-1); }
+.game-library__return-minecraft-icon { transform: scaleX(-1); }
 .game-library__environment-controls--toolbar { display: grid; grid-template-columns: minmax(14rem, 1fr) auto auto; align-items: end; gap: .75rem; margin: .75rem 0 1rem; }
 .game-library__environment-controls--toolbar label { display: grid; grid-template-columns: minmax(0, 1fr); gap: .4rem; min-width: 0; width: auto; }
 .game-library__environment-device-label { display: inline-flex; min-width: 0; align-items: center; gap: .45rem; line-height: 1.3; }
@@ -66,6 +69,76 @@
 .runtime-manager__card > button, .runtime-manager__card-actions { margin-top: auto; }
 .runtime-manager__card-actions { display: flex; flex-wrap: wrap; gap: .6rem; }
 .runtime-manager__card-actions > button:first-child { flex: 1; }
+.runtime-manager__java { display: grid; min-width: 0; gap: 1rem; }
+.runtime-manager__java-hero { display: flex; min-width: 0; min-height: 9rem; align-items: center; justify-content: space-between; gap: 1rem; padding: clamp(1rem, 2.5cqw, 2rem); border: 1px solid var(--color-border); border-radius: 1rem; background-color: var(--color-surface); background-image: linear-gradient(95deg, color-mix(in srgb, var(--color-surface) 96%, transparent) 0%, color-mix(in srgb, var(--color-surface) 82%, transparent) 44%, color-mix(in srgb, var(--color-surface) 32%, transparent) 100%), url("/backgrounds/cherry-blossom-waterfront.png"); background-position: center; background-size: cover; }
+.runtime-manager__java-hero-copy { display: flex; min-width: 0; align-items: center; gap: 1rem; }
+.runtime-manager__java-hero-icon { display: grid; width: 3.25rem; height: 3.25rem; flex: 0 0 auto; place-items: center; color: var(--settings-accent, var(--color-brand)); border: 1px solid color-mix(in srgb, var(--settings-accent, var(--color-brand)) 32%, var(--color-border)); border-radius: 1rem; background: color-mix(in srgb, var(--color-surface) 78%, transparent); }
+.runtime-manager__java-hero-icon svg { width: 1.75rem; height: 1.75rem; }
+.runtime-manager__java-hero-copy > div { min-width: 0; }
+.runtime-manager__java-hero h2 { margin: 0; font-size: var(--font-size-2xl); }
+.runtime-manager__java-hero p { margin: .3rem 0 .65rem; color: var(--color-text-secondary); }
+.runtime-manager__java-hero > button { flex: 0 0 auto; }
+.runtime-manager__java-summary { display: flex; flex-wrap: wrap; gap: .5rem 1rem; color: var(--color-text-secondary); font-size: var(--font-size-sm); }
+.runtime-manager__java-toolbar { display: grid; min-width: 0; grid-template-columns: minmax(0, 1.35fr) minmax(12rem, .9fr) minmax(10rem, auto); align-items: center; gap: .75rem; }
+.runtime-manager__java-toolbar > .ant-input-search,
+.runtime-manager__java-toolbar > .ant-select { width: 100%; min-width: 0; }
+.runtime-manager__java-filters { display: flex; min-width: 0; flex-wrap: wrap; gap: .4rem; }
+.runtime-manager__java-filters > button { display: inline-flex; min-width: 0; align-items: center; gap: .4rem; padding: .45rem .7rem; color: var(--color-text-secondary); border: 1px solid var(--color-border); border-radius: .7rem; background: var(--color-surface); font: inherit; line-height: 1.35; cursor: pointer; }
+.runtime-manager__java-filters > button[aria-pressed="true"] { color: var(--settings-accent, var(--color-brand)); border-color: var(--settings-accent, var(--color-brand)); background: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 10%, var(--color-surface)); }
+.runtime-manager__java-filters > button:disabled { cursor: not-allowed; opacity: .55; }
+.runtime-manager__java-filters small { color: inherit; font-size: var(--font-size-xs); }
+.runtime-manager__java-filters button:focus-visible,
+.runtime-manager__java-version-card:focus-visible,
+.runtime-manager__java-detail-tabs button:focus-visible { outline: 2px solid var(--settings-accent, var(--color-brand)); outline-offset: 2px; }
+.runtime-manager__java-layout { display: grid; min-width: 0; grid-template-columns: minmax(17rem, .82fr) minmax(0, 1.18fr); align-items: start; gap: 1rem; }
+.runtime-manager__java-catalog,
+.runtime-manager__java-detail { min-width: 0; padding: 1rem; border: 1px solid var(--color-border); border-radius: 1rem; background: color-mix(in srgb, var(--color-text-primary) 3%, var(--color-surface)); }
+.runtime-manager__java-section-heading { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: .75rem; }
+.runtime-manager__java-section-heading > div { display: flex; min-width: 0; align-items: baseline; gap: .6rem; }
+.runtime-manager__java-section-heading h3 { margin: 0; font-size: var(--font-size-lg); }
+.runtime-manager__java-version-list { display: grid; min-width: 0; gap: .55rem; }
+.runtime-manager__java-version-card { display: grid; width: 100%; min-width: 0; grid-template-columns: 2.5rem minmax(0, 1fr); align-items: start; gap: .75rem; padding: .85rem; color: var(--color-text-primary); border: 1px solid var(--color-border); border-radius: .85rem; background: var(--color-surface); font: inherit; text-align: start; cursor: pointer; }
+.runtime-manager__java-version-card.is-selected { border-color: var(--settings-accent, var(--color-brand)); background: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 7%, var(--color-surface)); }
+.runtime-manager__java-version-icon { display: grid; width: 2.5rem; height: 2.5rem; place-items: center; color: var(--settings-accent, var(--color-brand)); border: 1px solid var(--color-border); border-radius: .75rem; background: color-mix(in srgb, var(--color-text-primary) 4%, var(--color-surface)); }
+.runtime-manager__java-version-icon svg { width: 1.4rem; height: 1.4rem; }
+.runtime-manager__java-version-main { display: grid; min-width: 0; gap: .35rem; }
+.runtime-manager__java-version-title { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .35rem .6rem; }
+.runtime-manager__java-version-title strong { font-size: var(--font-size-md); }
+.runtime-manager__java-version-meta,
+.runtime-manager__java-version-card code { min-width: 0; color: var(--color-text-secondary); overflow-wrap: anywhere; }
+.runtime-manager__java-requirement { color: var(--settings-accent, var(--color-brand)); font-size: var(--font-size-sm); }
+.runtime-manager__java-detail-heading { display: flex; min-width: 0; align-items: flex-start; justify-content: space-between; gap: .75rem; }
+.runtime-manager__java-detail-heading h3 { margin: .15rem 0 0; font-size: var(--font-size-xl); }
+.runtime-manager__java-detail-tabs { margin: .75rem 0 1rem; border-bottom: 1px solid var(--color-border); }
+.runtime-manager__java-detail-tabs > div { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .25rem; }
+.runtime-manager__java-detail-tabs button { min-width: 0; padding: .7rem .4rem; color: var(--color-text-secondary); border: 0; border-bottom: 2px solid transparent; background: transparent; font: inherit; overflow-wrap: anywhere; cursor: pointer; }
+.runtime-manager__java-detail-tabs button[aria-pressed="true"] { color: var(--settings-accent, var(--color-brand)); border-bottom-color: currentColor; }
+.runtime-manager__java-pane { display: grid; min-width: 0; gap: .75rem; }
+.runtime-manager__java-runtime { display: grid; min-width: 0; gap: .7rem; padding: 1rem; border: 1px solid var(--color-border); border-radius: .85rem; background: var(--color-surface); }
+.runtime-manager__java-runtime > header { display: flex; min-width: 0; align-items: flex-start; justify-content: space-between; gap: .75rem; }
+.runtime-manager__java-runtime > header > div { display: grid; min-width: 0; gap: .25rem; }
+.runtime-manager__java-runtime > header span,
+.runtime-manager__java-runtime code { min-width: 0; color: var(--color-text-secondary); overflow-wrap: anywhere; }
+.runtime-manager__java-runtime-actions,
+.runtime-manager__java-primary-action { display: flex; flex-wrap: wrap; gap: .5rem; }
+.runtime-manager__java-primary-action { justify-content: flex-end; }
+.runtime-manager__java-runtime-reuse { margin-inline-start: auto; }
+.runtime-manager__java-empty { display: grid; justify-items: center; gap: .75rem; padding: 1.25rem .5rem; }
+.runtime-manager__java-server-list { display: grid; gap: .6rem; }
+.runtime-manager__java-server { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: .75rem; padding: .85rem 1rem; border: 1px solid var(--color-border); border-radius: .8rem; background: var(--color-surface); }
+.runtime-manager__java-server > div:first-child { min-width: 0; }
+.runtime-manager__java-server p { margin: .25rem 0 0; color: var(--color-text-secondary); }
+.runtime-manager__java-server-actions { display: flex; flex: 0 0 auto; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.runtime-manager__java-install-grid { display: grid; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; gap: .75rem; }
+.runtime-manager__java-install-card { display: flex; min-width: 0; flex-direction: column; gap: .7rem; padding: 1rem; border: 1px solid var(--color-border); border-radius: .85rem; background: var(--color-surface); }
+.runtime-manager__java-install-card > header { display: flex; min-width: 0; align-items: center; gap: .6rem; color: var(--settings-accent, var(--color-brand)); }
+.runtime-manager__java-install-card h4 { margin: 0; color: var(--color-text-primary); font-size: var(--font-size-md); }
+.runtime-manager__java-install-card > label { display: grid; min-width: 0; gap: .45rem; }
+.runtime-manager__java-install-card .ant-select,
+.runtime-manager__java-install-card .ant-input { width: 100%; min-width: 0; }
+.runtime-manager__java-install-card > .ant-btn { margin-top: auto; }
+.runtime-manager__java-register-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.runtime-manager__java-register-actions > button:last-child { flex: 1 1 auto; }
 .runtime-manager__java-version-selection { display: grid; flex: 1 1 15rem; min-width: 0; max-width: 100%; gap: .45rem; }
 .runtime-manager__java-version-selection > label { display: grid; grid-template-columns: minmax(0,1fr); min-width: 0; gap: .5rem; }
 .runtime-manager__java-version-selection .ant-select { width: 100%; min-width: 0; max-width: 100%; }
@@ -88,11 +161,15 @@
 .runtime-manager__java-picker-loading { display: flex; min-height: 5rem; align-items: center; justify-content: center; gap: .75rem; }
 .workbench-shell[data-background-image="true"] .runtime-manager { background: color-mix(in srgb, var(--color-surface) var(--settings-background-surface-opacity), transparent); -webkit-backdrop-filter: blur(var(--settings-glass-blur)); backdrop-filter: blur(var(--settings-glass-blur)); }
 @container runtime-manager (max-width: 42rem) { .runtime-manager__cards { grid-template-columns: minmax(0,1fr); } .runtime-manager__tabs { padding-inline: 1rem; } .runtime-manager__body { padding: clamp(.75rem, 3cqi, 2rem); } }
+@container runtime-manager (max-width: 54rem) { .runtime-manager__java-layout { grid-template-columns: minmax(0, 1fr); } .runtime-manager__java-install-grid { grid-template-columns: minmax(0, 1fr); } }
+@container runtime-manager (max-width: 40rem) { .runtime-manager__java-toolbar { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .runtime-manager__java-filters { grid-column: 1 / -1; } .runtime-manager__java-hero { min-height: 0; align-items: flex-start; flex-direction: column; } .runtime-manager__java-hero > button { width: 100%; } .runtime-manager__java-server { align-items: flex-start; flex-direction: column; } }
+@container runtime-manager (max-width: 24rem) { .runtime-manager__java-toolbar { grid-template-columns: minmax(0, 1fr); } .runtime-manager__java-filters { grid-column: auto; } .runtime-manager__java-filters > button { flex: 1 1 calc(50% - .4rem); justify-content: space-between; } .runtime-manager__java-catalog, .runtime-manager__java-detail { padding: .75rem; } .runtime-manager__java-detail-tabs > div { grid-template-columns: minmax(0, 1fr); } .runtime-manager__java-runtime-actions > button { flex: 1 1 auto; } .runtime-manager__java-summary { gap: .35rem .6rem; } }
 @container runtime-manager (max-width: 24rem) { .runtime-manager__tabs { grid-template-columns: minmax(0, 1fr); } .runtime-manager__tabs button { width: 100%; } .runtime-manager__card { padding: 1rem; } .runtime-manager__steamcmd-actions { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .35rem; } .runtime-manager__steamcmd-actions > button { width: 100%; height: 2.75rem; padding-inline: 0; justify-content: center; } .runtime-manager__steamcmd-actions .runtime-manager__steamcmd-label { display: none; } .runtime-manager__steamcmd-actions .ant-btn-icon { margin-inline-end: 0; } }
 @container game-library (max-width: 39rem) {
   .game-library--environments .game-library__header { grid-template-columns: minmax(0, 1fr) auto; gap: .5rem .75rem; margin-bottom: .75rem; }
-  .game-library--environments .game-library__return-action { width: 2.75rem; min-width: 2.75rem; height: 2.75rem; padding-inline: 0; justify-content: center; }
-  .game-library--environments .game-library__return-action .game-library__action-label { display: none; }
+  .game-library--environments .game-library__header-actions > .ant-btn { width: 2.75rem; min-width: 2.75rem; height: 2.75rem; padding-inline: 0; justify-content: center; }
+  .game-library--environments .game-library__header-actions .game-library__action-label { display: none; }
+  .game-library--environments .game-library__header-actions .ant-btn-icon { margin-inline-end: 0; }
   .game-library__environment-controls--toolbar { grid-template-columns: minmax(0, 1fr) repeat(2, 2.75rem); align-items: end; gap: .5rem; margin: .75rem 0 1rem; }
   .game-library__environment-controls--toolbar label { width: auto; }
   .game-library__environment-controls--toolbar .game-library__environment-device-label > span { display: none; }
@@ -103,5 +180,5 @@
 @container game-library (max-width: 22rem) {
   .game-library__environment-controls--toolbar { grid-template-columns: minmax(0, 1fr) repeat(2, 2.5rem); }
   .game-library--environments .game-library__environment-controls--toolbar > .game-library__environment-action { width: 2.5rem; min-width: 2.5rem; height: 2.5rem; }
-  .game-library--environments .game-library__return-action { width: 2.5rem; min-width: 2.5rem; height: 2.5rem; }
+  .game-library--environments .game-library__header-actions > .ant-btn { width: 2.5rem; min-width: 2.5rem; height: 2.5rem; }
 }

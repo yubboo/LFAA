@@ -1769,6 +1769,44 @@ function decryptSecret(row: { secret_ciphertext: string; secret_iv: string; secr
   }
 }
 
+export interface ProtectedTaskSecret {
+  version: 1;
+  ciphertext: string;
+  iv: string;
+  tag: string;
+}
+
+/** 用本机既有凭据密钥保护会进入持久化任务队列的短期秘密。context 必须绑定目标实例和属性名。 */
+export function protectTaskSecret(secret: string, context: string): ProtectedTaskSecret {
+  if (typeof secret !== "string" || Buffer.byteLength(secret, "utf8") > 4096 || !context || context.length > 512) {
+    throw new Error("任务敏感值或关联范围无效。");
+  }
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", getEncryptionKey(), iv);
+  cipher.setAAD(Buffer.from(`lfaa-task-secret\0${context}`, "utf8"));
+  const ciphertext = Buffer.concat([cipher.update(secret, "utf8"), cipher.final()]);
+  return { version: 1, ciphertext: ciphertext.toString("base64url"), iv: iv.toString("base64url"), tag: cipher.getAuthTag().toString("base64url") };
+}
+
+/** 仅在认证节点领取自己的任务时解封；密文篡改或关联范围不匹配都会失败。 */
+export function revealTaskSecret(envelope: unknown, context: string): string {
+  if (!envelope || typeof envelope !== "object" || Array.isArray(envelope) || !context || context.length > 512) {
+    throw new Error("任务敏感值密封格式无效。");
+  }
+  const value = envelope as Partial<ProtectedTaskSecret>;
+  if (value.version !== 1 || typeof value.ciphertext !== "string" || typeof value.iv !== "string" || typeof value.tag !== "string") {
+    throw new Error("任务敏感值密封格式无效。");
+  }
+  try {
+    const decipher = createDecipheriv("aes-256-gcm", getEncryptionKey(false), Buffer.from(value.iv, "base64url"));
+    decipher.setAAD(Buffer.from(`lfaa-task-secret\0${context}`, "utf8"));
+    decipher.setAuthTag(Buffer.from(value.tag, "base64url"));
+    return Buffer.concat([decipher.update(Buffer.from(value.ciphertext, "base64url")), decipher.final()]).toString("utf8");
+  } catch (error) {
+    throw new Error("任务敏感值无法通过本机加密校验。", { cause: error });
+  }
+}
+
 function credentialRecordAad(userId: string, providerId: string, recordId: string): Buffer {
   return Buffer.from(`lfaa-credential-record\0${userId}\0${providerId}\0${recordId}`, "utf8");
 }

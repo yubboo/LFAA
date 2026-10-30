@@ -32,7 +32,9 @@ AI 漫剧“媒体与时间线”面板可在项目和时间线均已保存时�
 
 整体布局由 `.module-workbench-stage` 外层盒子包住一个 `ResizableWorkbench` 根节点。图标功能区、二级菜单、中间工作区和右侧菜单作为根节点的四个同级区域直接传入；各区域 class 分别为 `module-workbench-region--leading`、`--secondary-navigation`、`--center-workspace`、`--right-menu`。分隔条与浮层是布局辅助元素，不把四个内容区域互相嵌套。公共几何样式从 `ui-dockkit/src/css/common.css` 复用；图标轨样式由 `ui-sidebar/src/GlobalNavigationRail.css` 负责，左二、中间、右侧内容盒子的样式分别由 `src/css/secondary-navigation.css`、`center-workspace.css`、`right-menu.css` 负责；`src/css/workbench-regions.css` 只保留四个同级区域共用的文字基线与底部面板样式。普通应用页面共用 `ApplicationNavigationPanel` 作为左二主导航，但只装配当前 App 的功能菜单；图标轨“应用”打开全局应用切换弹层。AI Work 左二保留会话/项目，右侧“应用”视图保留全局应用目录，工具与资源继续由右侧承载。设置、文件和插件管理等独立页面继续由各自 UI 包维护。图标轨宽度继续使用现有 64px/48px 令牌，并沿用账户外观设置。
 
-Minecraft 实例详情的概览、服务器配置、控制台日志和世界备份路由只由 `ui-minecraft` 页面顶部页签切换；左侧导航保留「管理 → 实例」父入口并显示其当前态，不重复列出当前实例的子路由。
+Minecraft 左二「管理」菜单提供部署、实例、任务、工作流、文件管理和独立日志入口。日志页只在中心区显示实例选择和持久化日志；详情页不再提供重复日志页签。实例详情的概览、服务器配置、控制台和世界备份路由由 `ui-minecraft` 页面切换；实例旧日志路由仍受支持并显示为独立日志页面。实例父级菜单只在实例详情路由选中。
+
+Minecraft 实例终端页的中间工作区只承载共享 `TerminalManager` 的真实服务端 PTY。实例状态和快捷命令由 `TerminalManagerRightSidebar` 接入本包拥有的最外层工作台右侧菜单；离开终端页时由共享终端 Owner 清空该面板，不创建嵌套终端侧栏或第二条命令执行路径。右侧菜单仅展示 Terminal Manager 提供的真实实例/节点事实，快捷命令仍写入当前实例 PTY。
 
 普通专业 App 页面复用同一主导航与中心标题栏；标题栏和主内容容器共用按中心列宽计算的水平锚点，并整体左移 8–16px，左右留白总量保持不变。宽列的基线留白为 20–32px，中心列不超过 560px 时为 8px/24px，不超过 360px 时为 8px/16px。专用 Writing、AI 漫剧与 AI Work 画布继续使用各自内容布局。
 

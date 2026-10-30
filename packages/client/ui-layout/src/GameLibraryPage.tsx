@@ -63,11 +63,16 @@ export function GameLibraryPage({ user, environments = false, canBrowseLocalFile
     finally { setBusy(false); }
   }, [targetId]);
   const canOperate = user.role !== "member" && !busy && !["queued", "running"].includes(task?.status ?? "");
+  const returnValue=environments?new URLSearchParams(window.location.search).get("return"):null;
+  const returnPath=returnValue==="minecraft"?"/games/minecraft/deployment":returnValue==="overview"?"/games/minecraft/overview":returnValue&&/^[a-f0-9-]{36}$/iu.test(returnValue)?`/games/minecraft/instance/${returnValue}/overview`:null;
   return <section className={`game-library${environments?" game-library--environments":""}`} aria-labelledby="game-library-heading">
     <header className="game-library__header">
       <div><Typography.Title id="game-library-heading" level={1}>{environments ? "运行环境" : "游戏服务"}</Typography.Title>
         <Typography.Paragraph>{environments ? "本机与远程设备各自管理环境，Minecraft 和 SteamCMD 共用已验证的运行资源。" : "从环境准备到服务器运行，在同一个入口管理游戏服务。"}</Typography.Paragraph></div>
-      {environments ? <Button className="game-library__return-action" aria-label="返回游戏服务" title="返回游戏服务" icon={<WorkbenchIcon className="game-library__return-icon" name="arrowRight" size={16} />} onClick={() => onNavigate("/games")}><span className="game-library__action-label">返回游戏服务</span></Button> : null}
+      {environments ? <nav className="game-library__header-actions" aria-label="运行环境页面导航">
+        {returnPath?<Button type="primary" className="game-library__return-minecraft" aria-label={returnValue==="minecraft"?"返回部署草稿":"返回 Minecraft"} title={returnValue==="minecraft"?"返回部署草稿":"返回 Minecraft"} icon={<WorkbenchIcon className="game-library__return-minecraft-icon" name="arrowRight" size={16}/>} onClick={()=>onNavigate(returnPath)}><span className="game-library__action-label">{returnValue==="minecraft"?"返回部署草稿":"返回 Minecraft"}</span></Button>:null}
+        <Button className="game-library__return-action" aria-label="返回游戏服务" title="返回游戏服务" icon={<WorkbenchIcon className="game-library__return-icon" name="arrowRight" size={16} />} onClick={() => onNavigate("/games")}><span className="game-library__action-label">返回游戏服务</span></Button>
+      </nav> : null}
     </header>
     {error ? <Alert type="error" showIcon message={error} action={<Button onClick={() => setRevision(value => value + 1)}>重试读取</Button>} /> : null}
     {!environments ? <div className="game-library__grid">

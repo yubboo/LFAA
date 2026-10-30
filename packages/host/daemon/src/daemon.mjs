@@ -7,6 +7,7 @@ import {createRuntimeExecutor} from "lfaa-runtime-environment/src/executor.mjs";
 import {fetchRuntimeResource} from "lfaa-runtime-environment/src/network.mjs";
 import {promoteSteamcmdInstallation,initializeSteamcmd,removeSteamcmdInstallation} from "./steamcmd-installation.mjs";
 import { initializeGameBackupDirectories } from "./minecraft-backup-storage.mjs";
+import { commitMinecraftPropertyFile } from "./minecraft-properties-file.mjs";
 import { assertSteamcmdDstClusterFiles as verifySteamcmdDstClusterFiles, buildSteamcmdDstLaunchArguments } from "./steamcmd-dst.mjs";
 import { createManagedFileService } from "lfaa-fs/src/managed-files.mjs";
 import { protectedDataDirectories } from "lfaa-home-paths/src/reserved-data-paths.mjs";
@@ -29,6 +30,8 @@ import { stopManagedProcess } from "./managed-process-shutdown.mjs";
 import { installEasyTierRuntime, readInstalledEasyTierVersion, validateEasyTierInstallRequest } from "./easytier-runtime.mjs";
 import { EASYTIER_RUNTIME_RELEASE } from "lfaa-game-connectivity/src/easytier-release.mjs";
 import { maximumNodeFileTransferBytes } from "lfaa-util-values/src/file-transfer-contract.mjs";
+import { buildMinecraftJvmArguments, defaultMinecraftInitialHeapMb } from "lfaa-util-values/src/minecraft-jvm-contract.mjs";
+import { isSensitiveMinecraftPropertyKey, MINECRAFT_PROPERTY_KEY_PATTERN, MINECRAFT_PROPERTY_VALUE_LIMIT, MINECRAFT_PROPERTIES_ENTRY_LIMIT, MINECRAFT_PROPERTIES_TOTAL_LIMIT, validateMinecraftPropertyChanges } from "lfaa-util-values/src/minecraft-property-contract.mjs";
 import { closeSync, createReadStream, createWriteStream, openSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { access, copyFile, lstat, mkdir, opendir, readFile, readdir, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
@@ -98,6 +101,20 @@ const javaRuntimeSelectionCapability = "minecraft-java-runtime-selection-v1";
 const serverPropertiesFileCapability = "minecraft-server-properties-file-v1";
 const sandboxReadyPrefix = "\u001eLFAA_SANDBOX_READY:";
 const execFileAsync = promisify(execFile);
+async function validateMinecraftJavaArguments(executable, arguments_, javaMajor, signal) {
+  try {
+    await execFileAsync(executable, [...arguments_, "-version"], {
+      windowsHide: true,
+      timeout: 10_000,
+      maxBuffer: 16 * 1024,
+      signal
+    });
+  } catch (error) {
+    if (signal?.aborted) throw signal.reason ?? error;
+    const detail = String(error?.stderr || error?.stdout || "").trim().split(/\r?\n/u).slice(-2).join(" ").slice(0, 280);
+    throw new Error(`目标 Java ${javaMajor} 不接受当前 JVM 参数，服务端尚未启动。${detail ? ` ${detail}` : ""}`);
+  }
+}
 let nodeId = "";
 const activeServers = new Map();
 const activeSteamcmdServers = new Map();
@@ -1602,6 +1619,8 @@ async function registerMinecraftInstance(task) {
       javaMajor,
       javaRuntimeId,
       memoryMb,
+      initialHeapMb: Number(payload.initialHeapMb ?? defaultMinecraftInitialHeapMb(memoryMb, payload.executionMode ?? "appcontainer")),
+      jvmArguments: Array.isArray(payload.jvmArguments) ? payload.jvmArguments : [],
       deploymentId,
       executionMode: payload.executionMode ?? "appcontainer",
       coreType: "Vanilla",
@@ -1626,10 +1645,17 @@ async function startMinecraftInstance(task) {
   if ((task.payload?.executionMode ?? metadata.executionMode) === "native") return await startNativeMinecraftServer(task, metadata, instanceDirectory, {
     signal:minecraftTaskControllers.get(task.id)?.signal,
     activeServers, safeFileExists, readSafeFile, isProcessRunning, assertSafeFileTarget, spawnTerminal: spawnNativeTerminal, java: (major, runtimeId, progress) => resolveMinecraftJavaRuntime(major, runtimeId, progress, task.payload.downloadTimeoutSeconds),
+    validateJavaArguments: (executable, args, major) => validateMinecraftJavaArguments(executable, args, major, minecraftTaskControllers.get(task.id)?.signal),
     phpDirectory: resolve(dataDirectory, "environments", "php", "pocketmine"), progress: postTaskProgress,
     attachOutput: attachServerOutput, waitForExit: waitForChildExit
   });
   const instanceName = requireMinecraftInstanceName(task.payload?.instanceName ?? metadata.instanceName ?? basename(instanceDirectory));
+  const launchMetadata = {
+    ...metadata,
+    memoryMb: task.payload?.memoryMb ?? metadata.memoryMb,
+    initialHeapMb: task.payload?.initialHeapMb ?? metadata.initialHeapMb ?? defaultMinecraftInitialHeapMb(Number(task.payload?.memoryMb ?? metadata.memoryMb), task.payload?.executionMode ?? metadata.executionMode ?? "appcontainer"),
+    jvmArguments: task.payload?.jvmArguments ?? metadata.jvmArguments ?? []
+  };
   const javaMajor = requireMajor(task.payload?.javaMajor ?? metadata.javaMajor);
   const javaRuntimeId = Object.hasOwn(task.payload ?? {}, "javaRuntimeId")
     ? (typeof task.payload.javaRuntimeId === "string" ? task.payload.javaRuntimeId : null)
@@ -1639,17 +1665,25 @@ async function startMinecraftInstance(task) {
   if (!(await safeFileExists(resolve(instanceDirectory, "eula.txt")))) throw new Error("实例缺少 EULA 同意记录。");
   if (activeServers.has(instanceId)) throw new Error("Minecraft 实例已由本机 Daemon 管理为运行状态。");
   if (!sandboxBackendAvailable) throw new Error("Windows AppContainer Sandbox Host 不可用，已拒绝启动 Minecraft Java。");
-  await prepareMinecraftSandbox(instanceId, instanceName, java, metadata.memoryMb, task.id, instanceDirectory);
-  if (metadata.javaRuntimeId !== javaRuntimeId) {
+  const jvmArguments = buildMinecraftJvmArguments({
+    memoryMb: Number(launchMetadata.memoryMb),
+    initialHeapMb: Number(launchMetadata.initialHeapMb),
+    jvmArguments: launchMetadata.jvmArguments
+  }, { javaMajor, coreType: metadata.coreType ?? "Vanilla" });
+  await validateMinecraftJavaArguments(java.executable, jvmArguments, javaMajor, minecraftTaskControllers.get(task.id)?.signal);
+  await prepareMinecraftSandbox(instanceId, instanceName, java, launchMetadata.memoryMb, task.id, instanceDirectory);
+  const savedRuntimeMetadata = { ...launchMetadata, javaMajor, javaRuntimeId, executionMode: "appcontainer" };
+  if (metadata.javaRuntimeId !== javaRuntimeId || metadata.memoryMb !== launchMetadata.memoryMb || metadata.initialHeapMb !== launchMetadata.initialHeapMb || JSON.stringify(metadata.jvmArguments ?? []) !== JSON.stringify(launchMetadata.jvmArguments)) {
     await assertSafeFileTarget(resolve(instanceDirectory, "lfaa-instance.json"));
-    await writeFile(resolve(instanceDirectory, "lfaa-instance.json"), JSON.stringify({ ...metadata, javaRuntimeId }, null, 2), "utf8");
+    await writeFile(resolve(instanceDirectory, "lfaa-instance.json"), JSON.stringify(savedRuntimeMetadata, null, 2), "utf8");
   }
 
   const readinessToken = randomUUID();
   const child = spawn(sandboxHostPath, [
     "--launch", "--data-root", dataDirectory, "--instance-storage", minecraftStorageDirectoryForInstance(instanceDirectory), "--instance-id", instanceId, "--instance-name", instanceName,
     "--java", java.executable, "--java-root", java.root, "--console-columns", "120", "--console-rows", "30",
-    "--memory-mb", String(metadata.memoryMb), "--readiness-token", readinessToken
+    "--java-major", String(javaMajor), "--memory-mb", String(launchMetadata.memoryMb), "--initial-heap-mb", String(launchMetadata.initialHeapMb),
+    ...launchMetadata.jvmArguments.flatMap(argument => ["--jvm-arg", argument]), "--readiness-token", readinessToken
   ], {
     cwd: repositoryRoot,
     shell: false,
@@ -1710,18 +1744,28 @@ async function applyMinecraftProperties(task) {
   if (activeServers.has(instanceId)) throw new Error("只能在 Minecraft 实例停止时修改 server.properties。");
   const metadata = await readInstanceMetadata(instanceDirectory);
   const releaseId = getMinecraftReleaseForProperties(metadata, task.payload?.releaseId);
-  const properties = validateProperties(task.payload?.properties, releaseId);
   const propertyPath = resolve(instanceDirectory, "server.properties");
-  const current = (await readMinecraftPropertiesFile(instanceDirectory)).properties;
-  const entries = mapPropertyValues(properties);
-  for (const [key, value] of Object.entries(entries)) current.set(key, String(value));
-  const content = [...current.entries()].map(([key, value]) => `${key}=${value}`).join("\n") + "\n";
+  const currentSnapshot = await readMinecraftPropertiesFile(instanceDirectory, releaseId);
+  const current = currentSnapshot.properties;
+  const fileChanges = task.payload?.fileProperties;
+  let entries;
+  if (fileChanges && typeof fileChanges === "object" && !Array.isArray(fileChanges)) {
+    const knownKeys = new Set(current.keys());
+    entries = new Map(Object.entries(validateMinecraftPropertyChanges(fileChanges, knownKeys, releaseId)));
+  } else {
+    entries = new Map(Object.entries(mapPropertyValues(validateProperties(task.payload?.properties, releaseId))));
+  }
   const temporaryPath = resolve(instanceDirectory, `.server-properties-${task.id}.tmp`);
-  await assertSafeFileTarget(propertyPath);
-  await writeFile(temporaryPath, content, { encoding: "utf8", flag: "wx" });
-  await rename(temporaryPath, propertyPath);
+  await commitMinecraftPropertyFile({
+    propertyPath,
+    temporaryPath,
+    properties: current,
+    sourceText: currentSnapshot.sourceText,
+    changes: Object.fromEntries(entries),
+    assertSafeTarget: assertSafeFileTarget
+  });
   const synced = await readMinecraftPropertiesFile(instanceDirectory, releaseId);
-  await appendInstanceLog(instanceId, task.id, "system", "已写入通过白名单校验的 server.properties 字段。");
+  await appendInstanceLog(instanceId, task.id, "system", "已写入校验通过的 server.properties 属性并重新读取真实文件。");
   return { serverProperties: synced.serverProperties, fileSnapshot: synced.fileSnapshot };
 }
 
@@ -1745,13 +1789,13 @@ async function readMinecraftPropertiesFile(instanceDirectory, releaseId) {
   const text = await readSafeFile(propertyPath, "utf8");
   if (Buffer.byteLength(text, "utf8") > 64 * 1024) throw new Error("server.properties 超过 64 KiB 安全读取上限，未返回部分配置。");
   const properties = parseProperties(text);
-  if (properties.size > 256) throw new Error("server.properties 超过 256 项安全读取上限，未返回部分配置。");
+  if (properties.size > MINECRAFT_PROPERTIES_ENTRY_LIMIT) throw new Error("server.properties 超过 256 项安全读取上限，未返回部分配置。");
   const entries = [];
   let totalCharacters = 0;
   for (const [key, value] of properties) {
-    if (!/^[A-Za-z0-9._-]{1,128}$/u.test(key) || value.length > 4096 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(value)) throw new Error("server.properties 包含不受支持或超出单项上限的字段。");
+    if (!MINECRAFT_PROPERTY_KEY_PATTERN.test(key) || value.length > MINECRAFT_PROPERTY_VALUE_LIMIT || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(value)) throw new Error("server.properties 包含不受支持或超出单项上限的字段。");
     totalCharacters += key.length + value.length;
-    if (totalCharacters > 64 * 1024) throw new Error("server.properties 的字段总量超过安全上限。");
+    if (totalCharacters > MINECRAFT_PROPERTIES_TOTAL_LIMIT) throw new Error("server.properties 的字段总量超过安全上限。");
     const sensitive = isSensitiveMinecraftPropertyKey(key);
     entries.push({ key, value: sensitive ? null : value, sensitive });
   }
@@ -1772,6 +1816,7 @@ async function readMinecraftPropertiesFile(instanceDirectory, releaseId) {
   }
   return {
     properties,
+    sourceText: text,
     serverProperties: normalized,
     fileSnapshot: { source: "node", observedAt: new Date().toISOString(), entries }
   };
@@ -1791,10 +1836,6 @@ function parseMinecraftEditableProperty(field, raw) {
   }
   if (["onlineMode", "pvp", "whiteList"].includes(field)) return raw === "true" ? true : raw === "false" ? false : undefined;
   return undefined;
-}
-
-function isSensitiveMinecraftPropertyKey(key) {
-  return /password|secret|token|credential|api[-_.]?key|private[-_.]?key|resource-pack/iu.test(key);
 }
 
 function supportsMinecraftSimulationDistance(releaseId) {

@@ -240,7 +240,7 @@ export function MinecraftWorkflowCanvas({ userId, visible = true, onWorkflowCont
 
     {error ? <Alert className="minecraft-workflow-alert" type="error" showIcon message={error} closable onClose={() => setError(null)} /> : null}
     {draft && (!selectedEngineAvailable || !allNodeTypesAvailable) ? <Alert type="warning" showIcon message="工作流所需的插件当前未启用" description="定义和未知节点配置已保留。启用匹配的节点/引擎提供方后才能运行。" /> : null}
-    <Card className="minecraft-card minecraft-workflow-editor">
+    <Card className="minecraft-card minecraft-workflow-editor lfaa-card-motion">
       {!draft ? <div className="minecraft-workflow-empty"><Typography.Paragraph>还没有工作流。创建后，从已安装的节点中加入步骤。</Typography.Paragraph><Button type="primary" onClick={() => selectWorkflow("__new")}>新建工作流</Button></div> : <>
         <div className="minecraft-workflow-toolbar">
           <Input aria-label="工作流名称" value={draft.title} maxLength={80} disabled={activeRun} onChange={(event) => markChanged((current) => ({ ...current, title: event.target.value }))} />
@@ -251,9 +251,9 @@ export function MinecraftWorkflowCanvas({ userId, visible = true, onWorkflowCont
       </>}
     </Card>
 
-    {runs.length ? <Card className="minecraft-card minecraft-workflow-runs">
+    {runs.length ? <Card className="minecraft-card minecraft-workflow-runs lfaa-card-motion">
       <div className="minecraft-card-heading"><div><Typography.Title level={4}>运行记录</Typography.Title><Typography.Text type="secondary">状态和结果来自已登记节点执行器与其领域 Owner。</Typography.Text></div><Tag>{runs.length}</Tag></div>
-      {runs.map((run) => <article className="minecraft-workflow-run" key={run.id}>
+      <div className="minecraft-workflow-run-list lfaa-card-motion-list">{runs.map((run) => <article className="minecraft-workflow-run lfaa-card-motion" key={run.id}>
         <div className="minecraft-workflow-run__heading"><strong>{workflowStatusLabel[run.status]}</strong><Tag color={statusColor(run.status)}>{new Date(run.createdAt).toLocaleString("zh-CN")}</Tag>{!terminalStatuses.has(run.status) ? <Button size="small" danger onClick={() => void handleCancel(run.id)}>取消运行</Button> : null}</div>
         {run.nodes.map((node) => {
           const question = readPendingQuestion(node);
@@ -274,8 +274,8 @@ export function MinecraftWorkflowCanvas({ userId, visible = true, onWorkflowCont
             {approval ? <div className="minecraft-workflow-question"><strong>需要你审批：{approval.title}</strong><Typography.Text>{approval.detail}</Typography.Text><Space><Button type="primary" size="small" loading={decidingApproval === approval.approvalId} disabled={Boolean(decidingApproval)} onClick={() => void handleApprovalDecision(approval.approvalId, "approved")}>批准本次操作</Button><Button danger size="small" disabled={Boolean(decidingApproval)} onClick={() => void handleApprovalDecision(approval.approvalId, "denied")}>拒绝</Button></Space></div> : null}
           </div>;
         })}
-      </article>)}
+      </article>)}</div>
     </Card> : null}
-    <Typography.Text className="minecraft-workflow-footnote" type="secondary">运行能力取决于当前启用的执行引擎和节点。Minecraft 工具审批、EULA 和目标节点状态继续按现有规则处理。</Typography.Text>
+    <Typography.Text className="minecraft-workflow-footnote" type="secondary">可运行步骤受节点、审批和 EULA 状态限制。</Typography.Text>
   </section>;
 }

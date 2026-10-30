@@ -119,3 +119,25 @@
 - 当前 Daemon 在进程内为每个 Minecraft 受管 PTY 保留最多 128 KiB 的 stdout，重新附着先回放此真实进程缓冲，再订阅同一流；没有全量输出拷贝到日志，也没有额外轮询。已退出进程的缓冲立即清理。多个普通 Shell 会话和服务端会话仍分别拥有 PTY，只共享管理器、终端表面与统一设置适配。
 - 本次源码验证：Terminal Manager、Minecraft UI、Daemon 包构建，Client 类型检查、正式 Web 构建和 Control Plane 构建通过；`interactive-terminal.test.mjs` 7/7、`minecraft-task-workspace.test.mjs` 9/9、Impeccable mechanical detector `[]`、`node --check` 与 `git diff --check` 通过。构建产物位于根 `dist/`。
 - 本次正式内置浏览器未能加载最新构建：新 `/terminal` 路由显示运行版本需要安全重启的提示。当前 Web PID 30736 监督 Daemon PID 28404，后者托管 Minecraft Java PID 44888；为避免中断真实服务器，没有重启 Web/Daemon 或 Minecraft。故新源码的终端输入/输出、自动聚焦、重连和窄屏视觉尚未用本轮页面实测；此前 `list` 返回 `0/20` 属于上一个已运行版本的历史验收证据，不能替代这次实页验收。
+
+### 后续批次：StrictMode 下的运行实例自动附着
+
+- 2026-10-30 在当前 Vite 源码实页重新检查 `/games/minecraft/instance/17e265c3-a9a8-419b-b43c-ae4592d2480d/terminal`，实例状态为运行中、节点在线，但会话标签未连接且没有错误提示。控制台源码使用共享 `TerminalManager`，数据 Owner 仍是 Daemon 所持有的 Minecraft 真实 PTY。
+- 已定位 UI 生命周期缺陷：Client 根始终包在 `React.StrictMode` 中；终端 pane 同步执行单次 `autoStart`，而 `useTerminalSession` 的 mount cleanup 会取消尚未完成的创建请求并使 generation 失效，`autoStarted` ref 则阻止 StrictMode 第二次挂载重新附着。后续修复通过可取消的延迟启动解决生命周期竞态；不得静默绕过 Permission Owner、认证或服务端实例/节点/PTy 状态检查。
+- 修复后实页验收：源码 Vite `http://127.0.0.1:5173/games/minecraft/instance/17e265c3-a9a8-419b-b43c-ae4592d2480d/terminal`，1750×1244。运行实例对应标签自动选中并附着，显示 Daemon 回放的真实 PTY stdout，右侧显示实例运行中、节点在线；不再要求重复点击重试。未发送命令。随后通过“断开会话”释放测试订阅，并确认 Minecraft 实例仍在运行。
+- 竞态修复使用可取消的下一轮事件循环启动共享 Terminal Manager，避开 React StrictMode 首次 mount 的模拟 cleanup；仍经过既有 Daemon、节点、实例状态、认证和权限校验。Minecraft UI 与 Terminal Manager 构建、Client TypeScript、`minecraft-task-workspace` 回归 12/12、`git diff --check` 通过。正式 Web `3000` 未重启；没有改配置、设置或进程生命周期。
+
+### 用户追加：实例生命周期控制与停服后收起
+
+- 用户明确要求控制台提供实例“启动 / 安全停止 / 安全重启”，实例安全停止后关闭已退出 PTY 并清除终端视图中的旧输出，不再保留误导的“重新连接”；嵌入式 Minecraft 控制台不显示低层“断开会话”。
+- 页面按钮只调用 `runMinecraftInstanceAction`，由 Minecraft action task、Control Plane、Daemon 和统一 Permission Owner 执行；沿用管理员、节点在线、实例状态、AppContainer 与安全停止确认条件。终端输入在实例不处于 `running` 时禁用，快捷命令同样禁用。Shell 的独立标签及“断开会话”行为保持原合同。
+- 收到实例 `stopped` 的权威状态后，嵌入式管理器移除该实例 PTY 标签；安全重启期间只有在旧 PTY 已退出时才收起，待新实例进入 `running` 后沿既有自动附着链重连。终端关闭只关闭 PTY 会话，不发送 Minecraft `stop` 指令，也不代替实例生命周期操作。
+- 验收只观察用户当前已停止实例的控制台和按钮条件，不点击启动、停止、重启或发送控制台命令；确认停服页不显示旧 PTY/重试和会话断开按钮，运行页的三个操作保持状态与权限禁用规则，并覆盖窄屏控制区。
+
+### 2026-10-30 停服后终端收起与实例概览验收
+
+- 当前实例权威状态为 `stopped`。在源码 Vite `5173` 的 `/games/minecraft/instance/17e265c3-a9a8-419b-b43c-ae4592d2480d/terminal` 实页，确认只显示“实例已停止 / 启动实例后，控制台会自动连接”，没有已退出 PTY 缓冲、重试连接或“断开会话”操作。桌面 `1920×1080` 控制台宽 `1696px`，手机短屏 `390×520` 无横向溢出。
+- 控制台在已停止状态显示“启动实例”和刷新；概览卡同时提供启动、安全停止、安全重启和进入控制台。实际节点在线且权限满足时启动可用，停止/重启因实例已停止保持禁用。没有点击任何实例操作或发送 Minecraft 命令；因此安全停止/重启的在线执行过程未在实机触发。
+- 服务端日志独立路由 `/games/minecraft/instance/17e265c3-a9a8-419b-b43c-ae4592d2480d/logs` 仍显示 500 条真实历史日志，桌面 `1920×1080` 输出区宽 `1696px`，占满可用中心区；手机 `390×520` 日志与筛选落在 `318px` 工作区内。页面 `scrollWidth=clientWidth`，无右侧巨大空白或横向页面滚动。
+- 终端/实例操作权限仍来自现有 Minecraft task、node 状态、权限 Owner 和停服时限设置；主题、代码字体和动效仍读 Appearance/共享设置；无设置项新增或修改。运行中 PTY 自动重连未在这次停止态实页中重复测试，帧时间与物理设备未测。
+- 最终检查：Minecraft UI 与共享 Terminal Manager 包构建、Client TypeScript 检查、`node --test apps/cli/tests/minecraft-task-workspace.test.mjs` 14/14、`git diff --check` 均通过。

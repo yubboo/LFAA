@@ -11,11 +11,14 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { createServer } from 'node:net';
-import { buildMinecraftNativeArguments, minecraftNativeEnvironment, validateCoreArtifactDownload, downloadCoreArtifact, waitForNativeMinecraftReady, isMinecraftCoreReadyLine, assertMinecraftPortAvailable, writeMinecraftOwnedConfiguration, provisionMinecraftCore } from '../../../packages/host/daemon/src/minecraft-provisioner.mjs';
+import { buildMinecraftNativeArguments, minecraftNativeEnvironment, validateCoreArtifactDownload, downloadCoreArtifact, waitForNativeMinecraftReady, isMinecraftCoreReadyLine, assertMinecraftPortAvailable, writeMinecraftOwnedConfiguration, provisionMinecraftCore, startNativeMinecraftServer } from '../../../packages/host/daemon/src/minecraft-provisioner.mjs';
 
 test('多核心启动协议与路径校验', () => {
   const metadata = { memoryMb: 2048, coreType: 'Paper', launch: { kind: 'jar', path: 'server.jar' } };
   assert.deepEqual(buildMinecraftNativeArguments(metadata).slice(-5), ['-Xms1024M', '-Xmx2048M', '-jar', 'server.jar', 'nogui']);
+  const configured = buildMinecraftNativeArguments({ ...metadata, javaMajor: 11, initialHeapMb: 512, jvmArguments: ['-XX:+UseG1GC'] });
+  assert.deepEqual(configured.slice(-6), ['-Xms512M', '-Xmx2048M', '-XX:+UseG1GC', '-jar', 'server.jar', 'nogui']);
+  assert.throws(() => buildMinecraftNativeArguments({ ...metadata, javaMajor: 21, jvmArguments: ['-XX:G1NewSizePercent=30'] }), /Java 17|G1/u);
   assert.ok(buildMinecraftNativeArguments({ ...metadata, coreType: 'Nukkit', language: 'zh-CN' }).includes('chs'));
   assert.equal(isMinecraftCoreReadyLine('Nukkit', '启动完成 (3.721s)！输入 help'), true);
   assert.deepEqual(buildMinecraftNativeArguments({ ...metadata, coreType: 'Velocity' }).slice(-2), ['-jar', 'server.jar']);
@@ -23,6 +26,44 @@ test('多核心启动协议与路径校验', () => {
   assert.deepEqual(buildMinecraftNativeArguments({ launch: { kind: 'php', path: 'PocketMine-MP.phar' } }), ['PocketMine-MP.phar', '--no-wizard', '--disable-ansi']);
   for (const path of ['../server.jar', 'libraries/../server.jar', 'server.jar\nstop', 'C:server.jar']) assert.throws(() => buildMinecraftNativeArguments({ ...metadata, launch: { kind: 'jar', path } }));
   assert.equal(minecraftNativeEnvironment('fixture', { executable: 'bin/java.exe', root: 'fixture' }).LFAA_DAEMON_TOKEN, undefined);
+});
+test('目标 Java 拒绝已保存参数时绝不创建服务端进程', async () => {
+  const parent = resolve(tmpdir()), directory = await mkdtemp(join(parent, 'lfaa-jvm-preflight-'));
+  const instanceId = 'jvm-preflight-fixture';
+  let spawned = false;
+  await writeFile(join(directory, 'eula.txt'), 'eula=true\n');
+  await writeFile(join(directory, 'server.properties'), 'server-port=25565\n');
+  const stored = {
+    instanceId, instanceName: 'jvm-preflight-fixture', memoryMb: 2048, initialHeapMb: 1024,
+    jvmArguments: ['-XX:+UseG1GC'], javaMajor: 21, coreType: 'Paper', executionMode: 'native',
+    launch: { kind: 'jar', path: 'server.jar' }
+  };
+  const host = {
+    activeServers: new Map(),
+    safeFileExists: async () => false,
+    readSafeFile: readFile,
+    isProcessRunning: () => false,
+    assertSafeFileTarget: async () => {},
+    java: async () => ({ executable: 'fixture-java', root: directory }),
+    validateJavaArguments: async (_executable, args, major) => {
+      assert.equal(major, 21);
+      assert.ok(args.includes('-XX:+UseG1GC'));
+      throw new Error('Java 21 rejected JVM fixture');
+    },
+    phpDirectory: directory,
+    progress: async () => {},
+    spawnTerminal: async () => { spawned = true; throw new Error('preflight must run first'); },
+    attachOutput: () => {},
+    waitForExit: async () => {}
+  };
+  try {
+    await assert.rejects(startNativeMinecraftServer({ id: 'task-fixture', instanceId, payload: { javaMajor: 21, readyTimeoutSeconds: 60, stopTimeoutSeconds: 30 } }, stored, directory, host), /Java 21 rejected/u);
+    assert.equal(spawned, false, 'Java 预检失败后不会启动 Minecraft 子进程');
+  } finally {
+    assert.equal(dirname(resolve(directory)), parent);
+    assert.ok(basename(directory).startsWith('lfaa-jvm-preflight-'));
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 test('PID 存活不能代替核心就绪；早退和超时会失败', async () => {
   const child = new EventEmitter(); child.exitCode = null; child.signalCode = null;

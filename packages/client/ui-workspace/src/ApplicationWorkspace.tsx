@@ -13,6 +13,7 @@ import { shouldAutoOpenGitSummary } from "./git-summary-layout.config.js";
 import { AiWorkProjectFileDock } from "./AiWorkProjectFileDock.js";
 import { openWorkspaceProjectManager } from "lfaa-client-ui-chat/src/project-manager-events.js";
 import { setFileManagerLocation } from "lfaa-client-connection/src/file-manager-location.js";
+import { TerminalManagerRightSidebar } from "lfaa-client-ui-sidebar-terminal/src/index.js";
 
 import { createElement, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent as ReactFormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { Alert, Button, Dropdown, Popover, Segmented, Tag, Typography } from "antd";
@@ -615,6 +616,8 @@ interface ApplicationNavigationPanelProps extends Pick<ApplicationWorkspaceProps
 function ApplicationNavigationPanel({ userId, app, mode, section, gameLibrary = false, workspaceTitle, apps, applicationNavigationItems, hidden, onNavigate, onOpenApplication, onWritingLibraryPortalTargetChange }: ApplicationNavigationPanelProps) {
   const appMenuScroll = useScrollRestoration(createScrollRestorationKey(userId, "module-app-menu", app));
   const minecraftMenuCategory = section === "java" ? "environment" : section === "overview" || section === "nodes" ? "monitor" : "management";
+  const minecraftLogsSection = section === "logs" || section.startsWith("logs/") || /^instance\/[0-9a-f-]{36}\/logs$/iu.test(section);
+  const minecraftInstanceSection = section.startsWith("instance/") && !minecraftLogsSection;
   const currentApplicationTitle = workspaceTitle ?? apps.find(item => item.id === app)?.title ?? "当前应用";
   const applicationNavigationGroups = useMemo<SecondaryNavigationGroup[]>(() => {
     const createItems = (items: ApplicationNavigationItem[]): SecondaryNavigationGroup["items"] => items.map<SecondaryNavigationGroup["items"][number]>((item) => ({
@@ -683,9 +686,12 @@ function ApplicationNavigationPanel({ userId, app, mode, section, gameLibrary = 
         {(minecraftMenuCategory === "monitor"
           ? [["overview", "总览"], ["nodes", "控制节点"]]
           : minecraftMenuCategory === "management"
-            ? [["deployment", "部署"], ["instances", "实例"], ["tasks", "任务"], ["workflows", "工作流"], ["files", "文件管理"]]
+            ? [["deployment", "部署"], ["instances", "实例"], ["tasks", "任务"], ["workflows", "工作流"], ["files", "文件管理"], ["logs", "日志"]]
             : [["java", "Java 环境"]]
-        ).map(([key, label]) => <button type="button" key={key} className={`module-context__menu-item${section === key || key === "instances" && section.startsWith("instance/") ? " is-active" : ""}`} aria-current={section === key ? "page" : undefined} onClick={() => onNavigate(key === "files" ? "/files" : `/games/minecraft/${key}`)}><span aria-hidden="true" />{label}</button>)}
+        ).map(([key, label]) => {
+          const active = key === "logs" ? minecraftLogsSection : section === key || key === "instances" && minecraftInstanceSection;
+          return <button type="button" key={key} className={`module-context__menu-item${active ? " is-active" : ""}`} aria-current={active ? "page" : undefined} onClick={() => onNavigate(key === "files" ? "/files" : `/games/minecraft/${key}`)}><span aria-hidden="true" />{label}</button>;
+        })}
       </nav> : null}
       {app === "connectivity" && mode === "normal" ? <nav className="module-context__app-menu" aria-label="联机管理菜单">
         <div className="module-context__section-title"><span>联机管理</span></div>
@@ -2486,7 +2492,8 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
         </div>
         <section className="module-context__section"><header><span>当前应用</span><b>1</b></header><div className="module-context__app"><span className={`application-monogram application-monogram--${selectedApp.color}`} aria-hidden="true">{selectedApp.initials}</span><div><strong>{activeApplicationTitle}</strong><small>{modeLabel}</small></div></div></section>
         <section className="module-context__section"><header><span>服务状态</span></header><div className="module-context__service"><ServiceStatus state={serverState} /><small>控制端健康状态</small></div></section>
-        <section className="module-context__note"><strong>领域应用</strong><p>在这里查看和操作当前领域数据；目标理解与工具执行由小鱼 Agent 统一协调。</p></section>
+        {app === "minecraft" ? <TerminalManagerRightSidebar /> : null}
+        {app !== "minecraft" ? <section className="module-context__note"><strong>领域应用</strong><p>在这里查看和操作当前领域数据；目标理解与工具执行由小鱼 Agent 统一协调。</p></section> : null}
       </>}
       </> : null}
       </div>

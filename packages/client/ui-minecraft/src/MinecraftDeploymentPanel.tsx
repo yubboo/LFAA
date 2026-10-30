@@ -21,19 +21,19 @@ const categoryDescriptions: Record<MinecraftCore["category"], string> = {
   pure: "原版增强与插件生态", mod: "模组及混合核心", vanilla: "Minecraft 官方原版", proxy: "连接 Java 后端实例", bedrock: "基岩版运行核心"
 };
 const coreDescriptions: Record<string, string> = {
-  Paper: "普通生存、多人联机和插件服的推荐选择。多数 Bukkit/Spigot 插件使用这一类核心。",
-  Vanilla: "保持 Mojang 原版行为，不支持 Bukkit 插件或 Forge/Fabric 模组。",
+  Paper: "推荐给普通生存与 Bukkit/Spigot 插件服。",
+  Vanilla: "保持 Mojang 原版行为；不支持 Bukkit 插件或 Forge/Fabric 模组。",
   Fabric: "适合 Fabric 模组包；客户端模组与服务器版本需要按模组包要求一致。",
   Forge: "适合 Forge 模组包；自动运行安装器并准备服务端依赖。",
-  Folia: "适合明确支持 Folia 的插件服；普通 Paper 插件不能假定兼容。",
-  Purpur: "基于 Paper 提供更多玩法配置，适合需要细调玩法的插件服。",
-  Leaves: "面向希望保留更多原版机制的插件服；请核对所用插件兼容性。",
+  Folia: "仅选明确支持 Folia 的插件；Paper 插件未必兼容。",
+  Purpur: "Paper 分支，提供更多玩法配置。",
+  Leaves: "偏原版机制；部署前确认插件兼容。",
   Arclight: "模组与插件混合核心，所选版本后缀决定 Forge、NeoForge 或 Fabric 加载器。",
   CatServer: "模组与插件混合核心；模组、插件和核心版本必须相互兼容。",
   Youer: "NeoForge 与 Paper/Purpur 混合核心；从 Mohist 官网拉取对应版本程序包。",
   SpongeForge: "Forge + Sponge 插件；自动安装匹配的 Forge 加载器。",
   SpongeNeo: "NeoForge + Sponge 插件；自动安装匹配的 NeoForge 加载器。",
-  SpongeVanilla: "原版游戏与 Sponge 插件；不能直接当作 Bukkit 插件服使用。",
+  SpongeVanilla: "搭配 Sponge 插件；不兼容 Bukkit 插件。",
   Velocity: "连接多个 Java 后端的代理。请先准备同节点真实后端实例，不会自动关闭后端正版验证。",
   BungeeCord: "连接 Java 后端的代理。先选择已运行且配置适合代理的后端实例。",
   Nukkit: "Java 编写的基岩服务器，适合基岩玩家和 Nukkit 插件。",
@@ -60,14 +60,32 @@ export function MinecraftDeploymentPanel({ userId,onPrepareWithAi,nodes, instanc
   const [packageAvailable, setPackageAvailable] = useState(false), [buildLoading, setBuildLoading] = useState(false);
   const [nodeId, setNodeId] = useState(draft?.nodeId??""), [name, setName] = useState(draft?.name??""), [backendId, setBackendId] = useState(draft?.backendId??"");
   const [javaRuntimeId,setJavaRuntimeId]=useState(draft?.javaRuntimeId??"");
-  const [requirement,setRequirement]=useState<Awaited<ReturnType<typeof loadMinecraftRuntimeRequirement>>|null>(null);
+  const [requirementRetry,setRequirementRetry]=useState(0);
+  const [requirementEntry,setRequirementEntry]=useState<{key:string;value:Awaited<ReturnType<typeof loadMinecraftRuntimeRequirement>>}|null>(null);
+  const [requirementErrorEntry,setRequirementErrorEntry]=useState<{key:string;message:string}|null>(null);
   const [memory, setMemory] = useState<number | null>(draft?.memory??settings.minecraftRuntime.minecraftDefaultMemoryMb);
   const [port, setPort] = useState<number | null>(draft?.port??settings.minecraftRuntime.minecraftDefaultPort);
   const [eula, setEula] = useState(false), [submitting, setSubmitting] = useState(false), [error, setError] = useState("");
   const [step, setStep] = useState(draft?.step??0);
+  const requirementKey=`${core}\u001f${version}\u001f${build}\u001f${nodeId}\u001f${requirementRetry}`;
+  const requirement=requirementEntry?.key===requirementKey?requirementEntry.value:null;
+  const requirementError=requirementErrorEntry?.key===requirementKey?requirementErrorEntry.message:"";
+  const shouldCheckRequirement=step>=1&&Boolean(nodeId&&version&&build&&canOperate);
+  const requirementLoading=shouldCheckRequirement&&!requirement&&!requirementError;
   const refreshBuildKey=useRef<string|null>(null);
   useEffect(()=>{draftCache.set(userId,{core,version,nodeId,name,backendId,memory,port,step,javaRuntimeId});},[userId,core,version,nodeId,name,backendId,memory,port,step,javaRuntimeId]);
-  useEffect(()=>{setRequirement(null);if(step<1||!nodeId||!version||!build||!canOperate)return;const controller=new AbortController();void loadMinecraftRuntimeRequirement({core,version,build,nodeId},controller.signal).then(setRequirement).catch(reason=>{if(!controller.signal.aborted)setError(getErrorMessage(reason));});return()=>controller.abort();},[core,version,build,nodeId,canOperate,step]);
+  useEffect(()=>{
+    if(!shouldCheckRequirement)return;
+    const key=requirementKey;
+    let active=true;
+    const controller=new AbortController();
+    setRequirementEntry(null);
+    setRequirementErrorEntry(null);
+    void loadMinecraftRuntimeRequirement({core,version,build,nodeId},controller.signal)
+      .then(value=>{if(active&&!controller.signal.aborted)setRequirementEntry({key,value});})
+      .catch(reason=>{if(active&&!controller.signal.aborted)setRequirementErrorEntry({key,message:getErrorMessage(reason)});});
+    return()=>{active=false;controller.abort();};
+  },[core,version,build,nodeId,canOperate,shouldCheckRequirement,requirementRetry]);
   const buildSequence = useRef(0);
   const selectedCore = cores.find(c => c.name === core);
   const versions = useMemo(() => orderedVersions(selectedCore?.versions ?? []), [selectedCore]);
@@ -83,6 +101,11 @@ export function MinecraftDeploymentPanel({ userId,onPrepareWithAi,nodes, instanc
   const visibleVersions = versions.slice(0, visibleVersionCount);
   const eligible = nodes.filter(n => n.status === "online" && n.platform === "win32" && n.architecture === "x64" && n.capabilities.includes("minecraft-multicore-v1"));
   const selectedNode = eligible.find(n => n.id === nodeId);
+  const runtimeRequirementReady=selectedCore?.launchKind==="php"||Boolean(requirement);
+  const canHandOffRuntime=Boolean(selectedNode&&activeCore&&version&&build&&!buildLoading&&(requirement||requirementError));
+  const runtimePreparationPrompt=requirement
+    ? `请为当前手动部署草稿准备运行环境。核心 ${core}，游戏版本 ${version}，构建 ${build}，实例名称 ${name.trim()||"待填写"}；目标节点 ${selectedNode?.displayName??nodeId}（${nodeId}）。核心元数据已核实需要 Java ${requirement.javaMajor}（来源 ${requirement.source}），优先复用该节点已有兼容环境，缺少时按该节点的项目与存储设置准备。不要提交服务器部署。`
+    : `请为当前手动部署草稿核查并准备运行环境。核心 ${core}，游戏版本 ${version}，构建 ${build}，实例名称 ${name.trim()||"待填写"}；目标节点 ${selectedNode?.displayName??nodeId}（${nodeId}）。部署页面核验 Java 要求失败：${requirementError}。请依据已接入的核心工件与节点运行环境能力取得真实要求并检查该节点；仍无法核实则报告真实错误并停止，不得猜测 Java 版本或提交服务器部署。`;
   const backends = instances.filter(i => i.nodeId === nodeId && i.state === "running" && i.serverProperties.onlineMode === false && i.serverProperties.serverPort && !["BungeeCord", "Velocity", "Nukkit", "PocketMine"].includes(i.coreType));
   const modeNative = settings.minecraftRuntime.minecraftExecutionMode === "native";
   const previousDefaults = useRef(settings.minecraftRuntime);
@@ -162,14 +185,19 @@ export function MinecraftDeploymentPanel({ userId,onPrepareWithAi,nodes, instanc
   const nameConflict=instances.some(item=>item.nodeId===nodeId&&item.name.normalize("NFC").toLowerCase()===name.trim().normalize("NFC").toLowerCase());
   const runtimeValid=!javaRuntimeId||Boolean(requirement?.runtimes.some(item=>item.runtimeId===javaRuntimeId));
   const instanceReady = Boolean(selectedNode && name.trim() && !nameConflict && memory && port && !portConflict && runtimeValid && (activeCore?.category !== "proxy" || backends.some(i => i.id === backendId)));
-  const valid = canOperate && sourceReady && instanceReady && modeNative && eula;
+  const nextStepReady=step===0?sourceReady:instanceReady&&runtimeRequirementReady;
+  const valid = canOperate && sourceReady && instanceReady && modeNative && runtimeRequirementReady && eula;
+  const moveToStep=(next:number)=>{
+    if(next===1&&step!==1)setRequirementRetry(value=>value+1);
+    setStep(next);
+  };
   const submit = async (event: FormEvent) => {
     event.preventDefault(); if (step !== 2 || !valid || !memory || !port) return; setSubmitting(true);
     try {
       const success = await onSubmit(() => provisionMinecraftServer({ nodeId, name: name.trim(), core, version, build, eulaAccepted: true, memoryMb: memory, serverPort: port,javaRuntimeId:javaRuntimeId||null, ...(activeCore?.category === "proxy" ? { proxyBackendInstanceId: backendId } : {}) }), true);
       if (success) {
         draftCache.set(userId,{core,version,nodeId,name:"",backendId:"",memory,port:settings.minecraftRuntime.minecraftDefaultPort,step:0,javaRuntimeId:""});
-        setName(""); setEula(false); setStep(0);
+        setName(""); setEula(false); moveToStep(0);
       }
     } finally { setSubmitting(false); }
   };
@@ -177,7 +205,7 @@ export function MinecraftDeploymentPanel({ userId,onPrepareWithAi,nodes, instanc
     <div className="minecraft-card-heading minecraft-deployment-card-heading">
       <div>
         <Typography.Title level={4}>新建 Minecraft 服务器</Typography.Title>
-        <Typography.Paragraph>按步骤选择核心、配置目标节点并核对部署信息。提交后由所选节点下载、校验、安装并启动。</Typography.Paragraph>
+        <Typography.Paragraph>选核心与版本，设置实例并核对 EULA。</Typography.Paragraph>
       </div>
       <Button onClick={() => {refreshBuildKey.current=`${userId}\u001f${core}\u001f${version}`;setReload(value => value + 1);}} loading={catalogLoading}>刷新核心目录</Button>
     </div>
@@ -196,23 +224,23 @@ export function MinecraftDeploymentPanel({ userId,onPrepareWithAi,nodes, instanc
     <div className="minecraft-wizard-intro" aria-live="polite">
       <Typography.Title level={5}>{["选择服务端核心和版本", "设置实例运行位置", "确认部署信息和许可"][step]}</Typography.Title>
       <Typography.Text type="secondary">{[
-        "先选适合玩法的服务端核心，再选 Minecraft 版本。系统会自动匹配可信下载包。",
-        "选择实际运行服务器的在线节点，并设置实例名称、端口和内存。",
-        "确认节点和参数无误后阅读许可。只有明确勾选 EULA，才会提交部署任务。"
+        "可用核心来自资源目录；下载包会在部署时校验。",
+        "选择在线运行设备，设置名称、端口与内存。",
+        "核对节点和参数，阅读并同意 EULA 后提交。"
       ][step]}</Typography.Text>
     </div>
     <form className="minecraft-provision-form" onSubmit={submit}>
       {step === 0 ? <section className="minecraft-core-library" aria-label="服务端核心资源库">
         <nav className="minecraft-core-categories" aria-label="服务端类型">
           <div className="minecraft-core-categories__heading">
-            <div><Typography.Title level={5}>分类导航</Typography.Title><Typography.Text type="secondary">只显示当前目录中的类型</Typography.Text></div>
+            <div><Typography.Title level={5}>服务端类型</Typography.Title><Typography.Text type="secondary">仅列出可用类型</Typography.Text></div>
             <Tag>{catalogLoading ? "读取中" : `${coreCategories.length} 类`}</Tag>
           </div>
-          <div className="minecraft-core-categories__list">
+          <div className="minecraft-core-categories__list lfaa-card-motion-list">
             {catalogLoading && !coreCategories.length ? <Typography.Text type="secondary">正在读取核心分类…</Typography.Text> : null}
             {coreCategories.map(item => <button
               aria-current={category === item.value ? "true" : undefined}
-              className="minecraft-core-category"
+              className="minecraft-core-category lfaa-card-motion"
               key={item.value}
               onClick={() => changeCategory(item.value)}
               type="button"
@@ -228,17 +256,17 @@ export function MinecraftDeploymentPanel({ userId,onPrepareWithAi,nodes, instanc
           <div className="minecraft-core-browser__heading">
             <div>
               <div className="minecraft-core-browser__title"><Typography.Title level={5}>选择具体核心分支</Typography.Title>{selectedCore ? <Tag color={activeCore ? "blue" : undefined}>{activeCore ? `已选 ${activeCore.name}` : `表单当前为 ${selectedCore?.name}`}</Tag> : null}</div>
-              <Typography.Text type="secondary">按分类浏览真实核心目录；选择分支后加载对应版本。</Typography.Text>
+              <Typography.Text type="secondary">选定分支后显示对应版本。</Typography.Text>
             </div>
             <Input aria-label="搜索当前分类核心" allowClear value={coreSearch} onChange={event => setCoreSearch(event.target.value)} placeholder="搜索核心名称…" />
           </div>
-          <div className="minecraft-core-option-grid" role="group" aria-label="核心分支">
+          <div className="minecraft-core-option-grid lfaa-card-motion-list" role="group" aria-label="核心分支">
             {catalogLoading && !cores.length ? <div className="minecraft-core-picker-empty">正在读取核心目录…</div> : null}
             {!catalogLoading && cores.length > 0 && !categoryCores.length ? <div className="minecraft-core-picker-empty">这个分类当前没有可用核心。</div> : null}
             {!catalogLoading && categoryCores.length > 0 && !visibleCores.length ? <div className="minecraft-core-picker-empty">当前分类没有匹配“{coreSearch.trim()}”的核心。</div> : null}
             {visibleCores.map(item => <button
               aria-pressed={core === item.name}
-              className={`minecraft-core-option${core === item.name ? " is-selected" : ""}`}
+              className={`minecraft-core-option lfaa-card-motion${core === item.name ? " is-selected" : ""}`}
               key={item.name}
               onClick={() => changeCore(item.name)}
               title={coreDescriptions[item.name] ?? "请核对核心用途与所需模组/插件兼容性。"}
@@ -251,16 +279,15 @@ export function MinecraftDeploymentPanel({ userId,onPrepareWithAi,nodes, instanc
             </button>)}
           </div>
           {activeCore ? <div className="minecraft-core-description">
-            <Typography.Text>{coreDescriptions[activeCore.name] ?? "请核对核心用途与所需模组/插件兼容性。"}</Typography.Text>
             <Space><Tag>{categoryNames[activeCore.category]}</Tag><Typography.Link href={activeCore.homepage} target="_blank" rel="noreferrer">核心项目说明</Typography.Link></Space>
-          </div> : <div className="minecraft-core-picker-empty minecraft-core-picker-empty--hint">{selectedCore ? `表单仍保留 ${selectedCore.name}。请选择当前分类中的核心，版本会随之切换。` : "先选择一个核心分支，再查看它支持的版本。"}</div>}
+          </div> : <div className="minecraft-core-picker-empty minecraft-core-picker-empty--hint">{selectedCore ? `当前表单保留 ${selectedCore.name}；选同类核心后可切换版本。` : "先选择核心，再查看版本。"}</div>}
           <section className="minecraft-core-version-section" aria-labelledby="minecraft-provision-version-title">
             <div className="minecraft-core-subheading">
               <div><Typography.Title id="minecraft-provision-version-title" level={5}>{activeCore ? `选择${activeCore.category === "proxy" || activeCore.category === "bedrock" ? "核心版本通道" : "Minecraft 版本"}` : "选择版本"}</Typography.Title><Typography.Text type="secondary">{activeCore ? "版本来自核心目录；部署时由目标节点下载并校验。" : "选择核心分支后显示它的实际版本。"}</Typography.Text></div>
               {activeCore ? <Tag>{versions.length} 个版本</Tag> : null}
             </div>
-            {activeCore && versions.length ? <div className="minecraft-core-version-grid" role="group" aria-label="可用版本">
-              {visibleVersions.map(value => <button aria-pressed={version === value} className={`minecraft-core-version${version === value ? " is-selected" : ""}`} key={value} onClick={() => setVersion(value)} type="button"><span>{value}</span></button>)}
+            {activeCore && versions.length ? <div className="minecraft-core-version-grid lfaa-card-motion-list" role="group" aria-label="可用版本">
+              {visibleVersions.map(value => <button aria-pressed={version === value} className={`minecraft-core-version lfaa-card-motion${version === value ? " is-selected" : ""}`} key={value} onClick={() => setVersion(value)} type="button"><span>{value}</span></button>)}
             </div> : null}
             {activeCore && !versions.length && !catalogLoading ? <div className="minecraft-core-picker-empty">核心目录暂未返回可用版本。</div> : null}
             {!activeCore ? <div className="minecraft-core-picker-empty">先选择一个核心分支，版本列表会显示在这里。</div> : null}
@@ -268,7 +295,7 @@ export function MinecraftDeploymentPanel({ userId,onPrepareWithAi,nodes, instanc
           </section>
           <section className="minecraft-core-package-section" aria-labelledby="minecraft-provision-package-title">
             <div className="minecraft-core-subheading">
-              <div><Typography.Title id="minecraft-provision-package-title" level={5}>服务端下载包</Typography.Title><Typography.Text type="secondary">选择核心和 Minecraft 版本后，系统会自动匹配目录中的程序包并在部署时校验来源摘要。</Typography.Text></div>
+              <div><Typography.Title id="minecraft-provision-package-title" level={5}>服务端下载包</Typography.Title><Typography.Text type="secondary">自动匹配，并在部署时校验来源摘要。</Typography.Text></div>
               {activeCore && version ? <Tag>{buildLoading && !packageAvailable ? "匹配中" : build ? "已自动匹配" : "暂不可用"}</Tag> : null}
             </div>
             {activeCore && version && build ? <div className="minecraft-core-artifact-summary">
@@ -298,15 +325,16 @@ export function MinecraftDeploymentPanel({ userId,onPrepareWithAi,nodes, instanc
       </section> : null}
       {step >= 1 && selectedNode && selectedCore?.launchKind!=="php" ? <section className="minecraft-provision-section" aria-label="部署运行环境">
         <Typography.Title level={5}>Java 运行环境</Typography.Title>
-        <Typography.Paragraph>{requirement?`当前核心要求 Java ${requirement.javaMajor}，依据：${requirement.source}。${requirement.installed?"已检测到匹配环境，将优先复用。":"目标节点尚未检测到匹配环境，可以前往运行环境准备；自动部署也会按相同规则准备。"}`:"正在核对所选核心的 Java 要求…"}</Typography.Paragraph>
+        <Typography.Paragraph>{requirement?`当前核心要求 Java ${requirement.javaMajor}，依据：${requirement.source}。${requirement.installed?"已检测到匹配环境，将优先复用。":"目标节点尚未检测到匹配环境，可以前往运行环境准备；自动部署也会按相同规则准备。"}`:requirementLoading?"正在核对所选核心的 Java 要求…":requirementError?"无法核实当前核心的 Java 要求。请重试，或交给 AI Work 检查来源。":"选择核心、版本、构建和目标节点后即可核对 Java 要求。"}</Typography.Paragraph>
+        {requirementError?<Alert type="error" showIcon message="Java 要求核验失败" description={requirementError} action={<Button size="small" onClick={()=>setRequirementRetry(value=>value+1)}>重试核验</Button>}/>:null}
         <Select aria-label="部署 Java 环境" value={javaRuntimeId} onChange={setJavaRuntimeId} style={{width:"100%"}} options={[{value:"",label:"自动匹配已有环境，缺少时准备"},...(requirement?.runtimes??[]).map(runtime=>({value:runtime.runtimeId,label:`Java ${runtime.major} · ${runtime.version??runtime.vendor} · ${runtime.source}`}))]} />
         {!runtimeValid?<Alert type="warning" showIcon message="之前选择的 Java 不适用于当前版本或节点，请重新选择或使用自动匹配。"/>:null}
-        <Space wrap><Button onClick={()=>onNavigate(`/games/environments?target=${encodeURIComponent(nodeId)}&return=minecraft`)}>管理运行环境并返回</Button><Button disabled={!requirement} onClick={()=>onPrepareWithAi(`请为我的手动部署准备运行环境。核心 ${core}，游戏版本 ${version}，构建 ${build}，实例名称 ${name.trim()||"待填写"}；目标节点 ${selectedNode.displayName}（${nodeId}），已核实需要 Java ${requirement!.javaMajor}（来源 ${requirement!.source}）。优先复用该设备已有环境，缺少时按设备的项目与存储设置准备。完成后我会返回保留的手动部署草稿继续核对。`)}>交给 AI Work 准备</Button></Space>
+        <Space wrap><Button onClick={()=>onNavigate(`/games/environments?target=${encodeURIComponent(nodeId)}&return=minecraft`)}>管理运行环境并返回</Button><Button disabled={!canHandOffRuntime} onClick={()=>onPrepareWithAi(runtimePreparationPrompt)}>{requirementError?"交给 AI Work 检查来源":"交给 AI Work 准备"}</Button></Space>
         <Typography.Text type="secondary">离开页面会保留当前账户的部署草稿；返回后重新核对设备和核心。EULA 勾选不会保留。</Typography.Text>
       </section> : null}
       {step === 2 ? <>
       <section className="minecraft-wizard-review" aria-label="部署配置摘要">
-        <div className="minecraft-wizard-review__heading"><div><Typography.Title level={5}>部署摘要</Typography.Title><Typography.Text type="secondary">开始前再核对一次；程序包会自动匹配并在节点上校验。</Typography.Text></div><Button type="link" onClick={() => setStep(1)}>修改实例设置</Button></div>
+        <div className="minecraft-wizard-review__heading"><div><Typography.Title level={5}>部署摘要</Typography.Title><Typography.Text type="secondary">开始前再核对一次；程序包会自动匹配并在节点上校验。</Typography.Text></div><Button type="link" onClick={() => moveToStep(1)}>修改实例设置</Button></div>
         <dl>
           <div><dt>服务端</dt><dd>{activeCore?.name ?? "尚未选择"} · Minecraft {version || "—"}</dd></div>
           <div><dt>下载包</dt><dd>{buildLoading ? "正在匹配…" : packageAvailable ? "目录自动匹配" : "当前不可用"}</dd></div>
@@ -339,8 +367,8 @@ export function MinecraftDeploymentPanel({ userId,onPrepareWithAi,nodes, instanc
       {!modeNative ? <Alert type="warning" showIcon message="请先在设置中心切换为本机原生执行，再提交多核心自动部署。" /> : null}
       </> : null}
       <div className="minecraft-wizard-actions">
-        <Button htmlType="button" disabled={step === 0 || submitting} onClick={() => setStep(current => Math.max(0, current - 1))}>上一步</Button>
-        {step < 2 ? <Button type="primary" htmlType="button" disabled={step === 0 ? !sourceReady : !instanceReady} onClick={() => setStep(current => Math.min(2, current + 1))}>{step === 1 ? "核对部署信息" : "下一步"}</Button> : <Button type="primary" htmlType="submit" loading={submitting} disabled={!valid}>自动部署并启动</Button>}
+        <Button htmlType="button" disabled={step === 0 || submitting} onClick={() => moveToStep(Math.max(0,step-1))}>上一步</Button>
+        {step < 2 ? <Button type="primary" htmlType="button" disabled={!nextStepReady} onClick={() => moveToStep(Math.min(2,step+1))}>{step === 1 ? "核对部署信息" : "下一步"}</Button> : <Button type="primary" htmlType="submit" loading={submitting} disabled={!valid}>自动部署并启动</Button>}
       </div>
     </form>
   </Card>;

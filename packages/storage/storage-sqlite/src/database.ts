@@ -27,7 +27,7 @@ function hasColumn(tableName: "ai_tool_approvals" | "ai_tool_permission_grants",
 
 // 版本31由文件存储协调器在回读校验完成后提交，SQLite 保留账户、权限和任务。
 // 数据库打开兼容上限必须与本文件中的最新 schema 迁移版本保持一致。
-const latestSupportedDatabaseVersion = 77;
+const latestSupportedDatabaseVersion = 78;
 if (currentVersion > latestSupportedDatabaseVersion) {
   throw new Error(`数据库版本 ${currentVersion} 高于当前程序支持的版本 ${latestSupportedDatabaseVersion}（${config.databasePath}）。请使用更新版本的 LFAA；为保护数据，本程序不会自动降级数据库结构。`);
 }
@@ -2603,3 +2603,31 @@ export function migrateMinecraftPropertiesReadTaskSchema(): void {
   }
 }
 migrateMinecraftPropertiesReadTaskSchema();
+
+/** 版本 78：为 Minecraft 实例持久化初始堆与经过白名单校验的 JVM 调优项。 */
+export function migrateMinecraftInstanceJvmConfigurationSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 77 || version >= 78) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    const tables = new Set((database.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{ name: string }>).map(row => row.name));
+    if (!tables.has("minecraft_instances")) throw new Error("Minecraft 实例 JVM 配置迁移缺少实例表；数据库版本未推进。");
+    const columns = new Set((database.prepare("PRAGMA table_info(minecraft_instances)").all() as Array<{ name: string }>).map(row => row.name));
+    if (!columns.has("jvm_initial_heap_mb")) {
+      database.exec("ALTER TABLE minecraft_instances ADD COLUMN jvm_initial_heap_mb INTEGER NOT NULL DEFAULT 512 CHECK (jvm_initial_heap_mb BETWEEN 512 AND 32768);");
+    }
+    if (!columns.has("jvm_arguments_json")) {
+      database.exec("ALTER TABLE minecraft_instances ADD COLUMN jvm_arguments_json TEXT NOT NULL DEFAULT '[]';");
+    }
+    // 保留升级前两条启动路径的实际 Xms 默认；所有后续启动都会消费这列。
+    database.exec(`UPDATE minecraft_instances SET jvm_initial_heap_mb = CASE
+      WHEN execution_mode = 'appcontainer' THEN MIN(1024, memory_mb / 2)
+      ELSE MIN(memory_mb, 1024)
+    END;`);
+    database.exec("PRAGMA user_version = 78; COMMIT;");
+  } catch (error) {
+    if (database.isTransaction) database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+migrateMinecraftInstanceJvmConfigurationSchema();

@@ -9,7 +9,7 @@ export function MinecraftConnectivityPanel({ onOpenConnectivity }: { onOpenConne
   return <Card className="minecraft-card">
     <Typography.Title level={4}>LFAA 联机服务</Typography.Title>
     <Typography.Paragraph type="secondary">
-      开服和实例仍由 Minecraft 管理。玩家组网、穿透 Provider、自备线路与房间域名统一在 LFAA 联机服务中管理；它会读取当前账户下真实运行的 Minecraft Java 目标。
+      开服和实例留在 Minecraft 管理；房间域名、Provider 与自备穿透在联机服务配置，目标读取账户下的真实 Minecraft Java 实例。
     </Typography.Paragraph>
     <Button type="primary" onClick={onOpenConnectivity}>打开联机服务</Button>
   </Card>;

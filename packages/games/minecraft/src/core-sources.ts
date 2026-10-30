@@ -57,6 +57,7 @@ const fastMirrorBase = "https://download.fastmirror.net";
 const mohistBase = "https://api.mohistmc.cn";
 const paperBase = "https://fill.papermc.io/v3/projects/paper";
 const cache = new Map<string, { expiresAt: number; data: unknown }>();
+const jsonSourceHosts = ["download.fastmirror.net", "api.mohistmc.cn", "piston-meta.mojang.com", "launchermeta.mojang.com", "fill.papermc.io"] as const;
 /** 只读元数据允许一次网络重试；不重放节点写入，失败保留可操作的来源提示。 */
 async function sourceRequest(url: string | URL, init: RequestInit = {}): Promise<Response> {
     try {
@@ -65,6 +66,29 @@ async function sourceRequest(url: string | URL, init: RequestInit = {}): Promise
       return await fetchRuntimeResource(url, { signal: AbortSignal.timeout(20_000), ...init, headers });
     }
     catch { throw new ApiError(502, "minecraft_source_connection_failed", `无法连接核心来源 ${new URL(url).hostname}，请检查网络后刷新或重试。`); }
+}
+
+function isRetryableSourceFailure(error: unknown): error is ApiError {
+  return error instanceof ApiError && error.errorCode === "minecraft_source_connection_failed";
+}
+
+function officialMojangFallbackUrl(url: URL): URL | null {
+  if (url.hostname !== "piston-meta.mojang.com") return null;
+  const fallback = new URL(url);
+  fallback.hostname = "launchermeta.mojang.com";
+  return fallback;
+}
+
+async function readJsonSource<T>(url: URL): Promise<T> {
+  const response = await sourceRequest(url, { redirect: "error" });
+  if (!response.ok) {
+    await response.body?.cancel();
+    if ([408, 425, 429, 500, 502, 503, 504].includes(response.status)) {
+      throw new ApiError(502, "minecraft_source_connection_failed", `核心来源 ${url.hostname} 暂时不可用。`);
+    }
+    throw new ApiError(502, "minecraft_catalog_unavailable", `核心目录请求失败（${response.status}）。`);
+  }
+  return await response.json() as T;
 }
 
 /** API 路径分段编码；版本可含空格，但绝不作为实例目录或命令使用。 */
@@ -83,10 +107,22 @@ async function json<T>(url: string): Promise<T> {
   const hit = cache.get(url);
   if (hit && hit.expiresAt > Date.now()) return hit.data as T;
   const parsed = new URL(url);
-  if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.port && parsed.port !== "443" || !["download.fastmirror.net", "api.mohistmc.cn", "piston-meta.mojang.com", "fill.papermc.io"].includes(parsed.hostname)) throw new ApiError(502, "minecraft_source_invalid", "核心目录来源无效。");
-  const response = await sourceRequest(parsed, { redirect: "error" });
-  if (!response.ok) {await response.body?.cancel();throw new ApiError(502, "minecraft_catalog_unavailable", `核心目录请求失败（${response.status}）。`);}
-  const data = await response.json() as T;
+  if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.port && parsed.port !== "443" || !(jsonSourceHosts as readonly string[]).includes(parsed.hostname)) throw new ApiError(502, "minecraft_source_invalid", "核心目录来源无效。");
+  let data: T;
+  try {
+    data = await readJsonSource<T>(parsed);
+  } catch (primaryError) {
+    const fallback = officialMojangFallbackUrl(parsed);
+    if (!fallback || !isRetryableSourceFailure(primaryError)) throw primaryError;
+    try {
+      data = await readJsonSource<T>(fallback);
+    } catch (fallbackError) {
+      if (isRetryableSourceFailure(fallbackError)) {
+        throw new ApiError(502, "minecraft_source_connection_failed", "无法连接 Mojang 官方元数据主来源 piston-meta.mojang.com 或备用来源 launchermeta.mojang.com，请检查网络后刷新或重试。");
+      }
+      throw fallbackError;
+    }
+  }
   cache.set(url, { data, expiresAt: Date.now() + 60_000 });
   return data;
 }
@@ -193,8 +229,8 @@ async function javaForCore(core: MinecraftCoreName, version: string): Promise<nu
   const game = manifest.versions.find(v => v.id === gameVersion);
   if (!game) throw new ApiError(409, "minecraft_java_requirement_unknown", "无法从 Mojang 确认此游戏版本的 Java 要求，暂不自动开服。");
   const detail = await json<{ javaVersion?: { majorVersion?: number } }>(game.url);
-  const major = detail.javaVersion?.majorVersion ?? 8;
-  if (!Number.isInteger(major) || major < 8 || major > 40) throw new ApiError(502, "minecraft_java_requirement_invalid", "版本的 Java 要求无效。");
+  const major = detail.javaVersion?.majorVersion;
+  if (typeof major !== "number" || !Number.isInteger(major) || major < 8 || major > 40) throw new ApiError(409, "minecraft_java_requirement_unknown", "Mojang 未返回可验证的 Java 主版本，暂不自动开服。");
   return pluginJavaMajor(core, gameVersion, major);
 }
 /** Paper 官方运行建议与构建最低版本共同约束；所有下载分支共用，避免把最低字节码版本当作推荐运行时。 */

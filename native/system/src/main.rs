@@ -187,6 +187,8 @@ mod windows_host {
         java_root: PathBuf,
         previous_java_root: Option<PathBuf>,
         memory_mb: u32,
+        initial_heap_mb: u32,
+        jvm_arguments: Vec<String>,
         console_columns: u16,
         console_rows: u16,
         readiness_token: Option<String>,
@@ -256,9 +258,16 @@ mod windows_host {
         require_readiness_token: bool,
     ) -> Result<LaunchArgs, String> {
         let mut values = std::collections::HashMap::<String, OsString>::new();
+        let mut jvm_arguments = Vec::<String>::new();
         let mut args = args;
         while let Some(key) = args.next() {
             let key = key.into_string().map_err(|_| "Sandbox Host 参数无效。")?;
+            if key == "--jvm-arg" {
+                let value = args.next().and_then(|value| value.into_string().ok()).ok_or_else(|| "JVM 参数缺少值或包含无效字符。".to_owned())?;
+                if jvm_arguments.len() >= 20 { return Err("Minecraft JVM 调优参数最多为 20 项。".to_owned()); }
+                jvm_arguments.push(value);
+                continue;
+            }
             if !matches!(
                 key.as_str(),
                 "--data-root"
@@ -268,7 +277,9 @@ mod windows_host {
                     | "--java"
                     | "--java-root"
                     | "--previous-java-root"
+                    | "--java-major"
                     | "--memory-mb"
+                    | "--initial-heap-mb"
                     | "--console-columns"
                     | "--console-rows"
                     | "--readiness-token"
@@ -321,12 +332,26 @@ mod windows_host {
         if require_readiness_token && previous_java_root.is_some() {
             return Err("启动命令不接受旧 Java 目录参数。".to_owned());
         }
+        let java_major = match values.remove("--java-major") {
+            Some(value) => value.into_string().ok().and_then(|value| value.parse::<u8>().ok())
+                .ok_or_else(|| "Minecraft Java 主版本无效。".to_owned())?,
+            None => 8,
+        };
+        if !(8..=40).contains(&java_major) { return Err("Minecraft Java 主版本无效。".to_owned()); }
         let memory_mb = values
             .remove("--memory-mb")
             .and_then(|value| value.into_string().ok())
             .and_then(|value| value.parse::<u32>().ok())
             .filter(|value| (1024..=32768).contains(value))
             .ok_or_else(|| "实例内存上限无效。".to_owned())?;
+        let initial_heap_mb = match values.remove("--initial-heap-mb") {
+            Some(value) => value.into_string().ok().and_then(|value| value.parse::<u32>().ok())
+                .ok_or_else(|| "Minecraft 初始堆配置无效。".to_owned())?,
+            None => 1024u32.min(memory_mb / 2),
+        };
+        if initial_heap_mb < 512 || initial_heap_mb > memory_mb { return Err("Minecraft 初始堆必须为 512 MB 至最大堆之间。".to_owned()); }
+        if !require_readiness_token && !jvm_arguments.is_empty() { return Err("AppContainer 准备命令不能接收 JVM 调优参数。".to_owned()); }
+        if require_readiness_token { validate_minecraft_jvm_arguments(&jvm_arguments, java_major)?; }
         let console_columns = values
             .remove("--console-columns")
             .and_then(|value| value.into_string().ok())
@@ -357,10 +382,78 @@ mod windows_host {
             java_root,
             previous_java_root,
             memory_mb,
+            initial_heap_mb,
+            jvm_arguments,
             console_columns,
             console_rows,
             readiness_token,
         })
+    }
+
+    fn validate_minecraft_jvm_arguments(arguments: &[String], java_major: u8) -> Result<(), String> {
+        use std::collections::HashSet;
+        let mut names = HashSet::<String>::new();
+        let mut uses_g1 = false;
+        let mut uses_g1_tuning = false;
+        let mut unlocks_experimental = false;
+        let mut minimum_new_size = None;
+        let mut maximum_new_size = None;
+        for argument in arguments {
+            if argument.is_empty() || argument.len() > 160 || argument.chars().any(|character| character.is_whitespace() || character.is_control()) {
+                return Err("Minecraft JVM 调优参数格式无效。".to_owned());
+            }
+            let name = match argument.as_str() {
+                "-XX:+UseG1GC" => { uses_g1 = true; "UseG1GC" }
+                "-XX:+ParallelRefProcEnabled" => "ParallelRefProcEnabled",
+                "-XX:+DisableExplicitGC" => "DisableExplicitGC",
+                "-XX:+UnlockExperimentalVMOptions" => {
+                    if java_major > 16 { return Err("Java 17 及以上沿用默认 JVM 参数，不接受旧版实验性参数解锁项。".to_owned()); }
+                    unlocks_experimental = true;
+                    "UnlockExperimentalVMOptions"
+                }
+                _ => {
+                    let body = argument.strip_prefix("-XX:").ok_or_else(|| "Minecraft JVM 参数不在受支持范围内。".to_owned())?;
+                    let (name, value) = body.split_once('=').ok_or_else(|| "Minecraft JVM 参数不在受支持范围内。".to_owned())?;
+                    if name.is_empty() || value.is_empty() { return Err("Minecraft JVM 参数不在受支持范围内。".to_owned()); }
+                    let is_g1_tuning = name.starts_with("G1") || name == "SurvivorRatio" || name == "MaxTenuringThreshold";
+                    if is_g1_tuning && java_major > 16 { return Err("Java 17 及以上沿用默认 G1 策略，不接受旧版 Paper 调优项。".to_owned()); }
+                    if is_g1_tuning { uses_g1_tuning = true; }
+                    let numeric_value = if name == "G1HeapRegionSize" {
+                        let region = value.strip_suffix('M').and_then(|value| value.parse::<u32>().ok())
+                            .filter(|value| [1, 2, 4, 8, 16, 32].contains(value))
+                            .ok_or_else(|| "G1HeapRegionSize 须使用 1、2、4、8、16 或 32M。".to_owned())?;
+                        region
+                    } else {
+                        let value = value.parse::<u32>().map_err(|_| "Minecraft JVM 参数值须为受支持的整数。".to_owned())?;
+                        let range = match name {
+                            "MaxGCPauseMillis" => 50..=1000,
+                            "G1NewSizePercent" => { minimum_new_size = Some(value); 5..=50 },
+                            "G1MaxNewSizePercent" => { maximum_new_size = Some(value); 10..=80 },
+                            "G1ReservePercent" => 10..=50,
+                            "G1HeapWastePercent" => 1..=50,
+                            "G1MixedGCCountTarget" => 1..=16,
+                            "InitiatingHeapOccupancyPercent" => 0..=100,
+                            "G1MixedGCLiveThresholdPercent" => 1..=100,
+                            "G1RSetUpdatingPauseTimePercent" => 0..=100,
+                            "SurvivorRatio" => 1..=100,
+                            "MaxTenuringThreshold" => 0..=15,
+                            _ => return Err("Minecraft JVM 参数不在受支持范围内。".to_owned()),
+                        };
+                        if !range.contains(&value) { return Err("Minecraft JVM 参数值超出受支持范围。".to_owned()); }
+                        value
+                    };
+                    let _ = numeric_value;
+                    name
+                }
+            };
+            if !names.insert(name.to_owned()) { return Err("Minecraft JVM 调优参数不能重复。".to_owned()); }
+        }
+        if uses_g1_tuning && !uses_g1 { return Err("G1 专属参数必须同时启用 -XX:+UseG1GC。".to_owned()); }
+        if java_major <= 10 && uses_g1_tuning && !unlocks_experimental { return Err("Java 8–10 的旧版 G1 调优项需要 -XX:+UnlockExperimentalVMOptions。".to_owned()); }
+        if minimum_new_size.zip(maximum_new_size).is_some_and(|(minimum, maximum)| minimum > maximum) {
+            return Err("G1NewSizePercent 不能大于 G1MaxNewSizePercent。".to_owned());
+        }
+        Ok(())
     }
 
     fn parse_plugin_launch_args(
@@ -1713,8 +1806,7 @@ mod windows_host {
         startup.lpAttributeList = attributes.raw;
 
         let mut environment = build_environment(&args.java_path, &instance_directory)?;
-        let mut command_line =
-            build_java_command_line(&args.java_path, &instance_directory, args.memory_mb);
+        let mut command_line = build_java_command_line(&args, &instance_directory);
         let java_path_wide = wide_os(args.java_path.as_os_str());
         let cwd_wide = wide_os(instance_directory.as_os_str());
         let mut process_info = PROCESS_INFORMATION::default();
@@ -2056,21 +2148,22 @@ mod windows_host {
         }
     }
 
-    fn build_java_command_line(
-        java_path: &Path,
-        instance_directory: &Path,
-        memory_mb: u32,
-    ) -> Vec<u16> {
-        let minimum_heap = 1024u32.min(memory_mb / 2);
+    fn build_java_command_line(args: &LaunchArgs, instance_directory: &Path) -> Vec<u16> {
         let jar = instance_directory.join("server.jar");
-        let arguments = [
-            java_path.as_os_str().to_owned(),
-            OsString::from(format!("-Xms{minimum_heap}M")),
-            OsString::from(format!("-Xmx{memory_mb}M")),
+        let mut arguments = vec![
+            args.java_path.as_os_str().to_owned(),
+            OsString::from("-Dfile.encoding=UTF-8"),
+            OsString::from("-Dsun.stdout.encoding=UTF-8"),
+            OsString::from("-Dsun.stderr.encoding=UTF-8"),
+            OsString::from(format!("-Xms{}M", args.initial_heap_mb)),
+            OsString::from(format!("-Xmx{}M", args.memory_mb)),
+        ];
+        arguments.extend(args.jvm_arguments.iter().map(|argument| OsString::from(argument.as_str())));
+        arguments.extend([
             OsString::from("-jar"),
             jar.into_os_string(),
             OsString::from("nogui"),
-        ];
+        ]);
         let command = arguments
             .iter()
             .map(|argument| quote_windows_argument(argument))

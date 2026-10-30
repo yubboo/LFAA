@@ -3,7 +3,7 @@ export { TerminalSurface } from "./TerminalSurface.js";
 export type { TerminalSurfaceHandle, TerminalSurfaceProps, TerminalSurfaceSize } from "./TerminalSurface.js";
 export { useTerminalSession } from "./useTerminalSession.js";
 export type { TerminalSessionController } from "./useTerminalSession.js";
-export { TerminalManagerDock, TerminalManagerProvider } from "./TerminalManagerProvider.js";
+export { TerminalManagerDock, TerminalManagerProvider, TerminalManagerRightSidebar } from "./TerminalManagerProvider.js";
 export type { MinecraftTerminalDockContext, MinecraftTerminalQuickCommand, TerminalManagerDockProps } from "./TerminalManagerProvider.js";
 
 export function apply(): void {}

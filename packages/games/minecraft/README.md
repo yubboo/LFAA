@@ -6,11 +6,11 @@
 
 `core-sources.ts` 还唯一维护各核心的 `serverType` 和 `compatibleContent`，供模型区分插件、模组、混合、代理和基岩核心。来源 `category` 原样保留给既有端口和部署逻辑，不能代替插件兼容性判断。
 
-`service.ts` 持有实例、配置、部署和 Java 管理事实；`core-sources.ts` 解析 PaperMC Fill v3、FastMirror 和 Mohist Youer 的真实版本、分页构建与校验摘要，并唯一登记核心名称。API 与模型工具共用这些服务，执行位于目标 Daemon。明确 Paper 时只查询官方目录，工件 URL/SHA-256 与最低 Java 来自对应版本/构建元数据；省略 build 时选择该版本最新 STABLE，不静默替换版本。未指定端口时在同一数据库事务内从设置默认值起避开已登记实例端口，启动前由节点检查真实监听。设置中心读取核心名称不触发远端版本目录查询；实际部署和版本选择仍使用实时来源合同。
+`service.ts` 持有实例、配置、部署和 Java 管理事实；`core-sources.ts` 解析 PaperMC Fill v3、FastMirror 和 Mohist Youer 的真实版本、分页构建与校验摘要，并唯一登记核心名称。API 与模型工具共用这些服务，执行位于目标 Daemon。明确 Paper 时只查询官方目录，工件 URL/SHA-256 与最低 Java 来自对应版本/构建元数据；省略 build 时选择该版本最新 STABLE，不静默替换版本。非 Paper 的 Java 要求从 Mojang 版本元数据读取；`piston-meta.mojang.com` 网络/暂时不可用时，仅同路径回退到 Mojang 官方 `launchermeta.mojang.com`，两个来源都不可用则在事务前失败，不猜 Java 版本。未指定端口时在同一数据库事务内从设置默认值起避开已登记实例端口，启动前由节点检查真实监听。设置中心读取核心名称不触发远端版本目录查询；实际部署和版本选择仍使用实时来源合同。
 
 `getMinecraftInstanceShellDirectory()` 是 Minecraft Service 提供的实例目录解析 Owner。Terminal Controller 只传递已登记的实例 ID，并将该结果用作 `minecraft-shell` 的 Shell 起始目录；界面或请求体不能自行指定任意 cwd。该 cwd 仅是起始位置，不限制用户随后可访问的 Daemon OS 账户权限范围。
 
-实例配置读取只由 `readMinecraftServerProperties()` 经 `properties-read` 节点任务访问目标实例的 `server.properties`；节点须报告 `minecraft-server-properties-file-v1` 能力。Daemon 返回有界且脱敏的文件快照，Jobs 只将真实快照写入实例当前配置；UI 仅对文件实际存在、类型有效并在当前 Minecraft 版本支持的白名单字段提供编辑。更新只包含发生变化的字段，未知/未登记属性由节点原样保留。`simulation-distance` 只允许 Minecraft 1.18 及以上版本编辑，不由默认值伪造。
+实例配置读取只由 `readMinecraftServerProperties()` 经 `properties-read` 节点任务访问目标实例的 `server.properties`；节点须报告 `minecraft-server-properties-file-v1` 能力。Daemon 返回有界且脱敏的完整文件快照，中央 UI 为快照中的每个真实属性提供编辑，键值和类型校验共用 `lfaa-util-values` 合同。更新只接受当前快照中已存在的键，要求实例停止、节点在线且无冲突任务；Daemon 保留注释和未修改文件内容，在同目录原子替换后回读脱敏快照。敏感值写入任务队列前由 Settings Owner AES-GCM 密封，已认证目标节点领取时才解封；空值可明确移除敏感属性。旧白名单 `{properties}` API 仍兼容。
 
 新入口为 `provisionMinecraftServer`，默认核心从独立的账户 Minecraft Runtime 配置读取（初始 Paper），执行方式为该分类中账户明确选择的 native。AI Provider 与推理参数属于 `ai-runtime`，不会承载 Minecraft 默认值。环境准备、下载、安装、配置和启动由同一个持久任务完成；仅收到真实就绪证据才标记成功。Forge/Sponge 加载器及 PocketMine PHP 使用各自协议。代理必须选择同节点已运行、明确关闭正版验证的后端，不静默修改后端认证。EULA/核心许可接受在操作摘要中明确说明，并沿用统一三种权限模式。
 
@@ -25,3 +25,5 @@ Paper 官方构建的最低 Java 字节码版本与官方推荐运行版本共�
 长期回归位于 `apps/cli/tests/minecraft-{multicore,provisioner,task-leases}.test.mjs`。经明确 EULA 授权可运行 `minecraft-live-deployment.test.mjs`，只操作独立临时数据；支持按核心、版本与账户停服预算验收。具体命令、已验证构建、上游兼容问题及未测量边界见 [开发与验收记录](../../../docs/archive/audits/minecraft-deployment-plan.md)。构建输出只进入根 `dist/packages/games/minecraft/`。
 
 玩家联机不是此部署服务的副作用。Minecraft App 通过 `lfaa-game-connectivity` 注册 Java TCP 目标适配器；联机 App 只列出当前账户拥有、节点在线且实际运行的实例，并读取真实保存端口生成回环目标。网络路线由跨游戏 Connectivity Owner 管理，不调用 Minecraft 部署或启停服务。
+
+实例 JVM 堆与调优参数保存在 `minecraft_instances`，由本 Service 校验实例停止、节点在线、权限和任务互斥，再通过 `lfaa-util-values/src/minecraft-jvm-contract.mjs` 校验唯一参数白名单。启动/重启事务读取最新实例配置并写入持久任务载荷；`minecraftDefaultMemoryMb` 仅作为新实例默认最大堆，不覆盖已有实例值。SQLite v78 为旧实例保留原有 Xms 初值。

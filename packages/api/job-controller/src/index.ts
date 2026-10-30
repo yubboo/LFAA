@@ -11,7 +11,7 @@ import { discardNodeFileUploadTransfer, FileTransferLimitError, FileTransferNotF
 import { claimNextAiHostTask, completeAiHostTask, getAiHostTask, renewAiHostTaskLeases, listAiHostCancellationRequests, updateAiHostTaskOutput, type AiHostTaskResult } from "lfaa-jobs/src/ai-host-tasks.js";
 import { claimNextMinecraftTask, appendMinecraftTaskLogs, completeMinecraftTask, getMinecraftTask, renewMinecraftTaskLeases, updateMinecraftTaskProgress } from "lfaa-jobs/src/minecraft-queue.js";
 import { claimNextSteamcmdTask, completeSteamcmdTask, getSteamcmdNodeSettings, renewSteamcmdTaskLeases, steamcmdServerIdsForNode, updateSteamcmdServerStatesFromDaemon, updateSteamcmdTaskProgress } from "lfaa-games-steamcmd/src/service.js";
-import { getMinecraftInstance, getMinecraftNodeStorageDirectories, updateInstanceStatesFromDaemon } from "lfaa-games-minecraft/src/service.js";
+import { getMinecraftInstance, getMinecraftNodeStorageDirectories, revealMinecraftTaskPropertySecrets, updateInstanceStatesFromDaemon } from "lfaa-games-minecraft/src/service.js";
 import type { AiPluginHost } from "lfaa-app-boot/src/ai-host.js";
 import type { MinecraftRealtimePublisher } from "lfaa-api-remotes/src/socket-server.js";
 import { asyncHandler, parseBody, requireLocalDaemon, daemonHeartbeatSchema, minecraftProgressSchema, minecraftLogBatchSchema, minecraftCompletionSchema, steamcmdProgressSchema, steamcmdCompletionSchema, fileTaskCompletionSchema, aiHostTaskCompletionSchema } from "lfaa-api-remotes/src/route-contracts.js";
@@ -52,8 +52,17 @@ router.post("/daemon/tasks/claim", requireLocalDaemon, (request, response) => {
     if (!node || node.status !== "online" || node.platform !== "win32" || node.architecture !== "x64") {
       throw new ApiError(409, "daemon_node_not_ready", "本机 Daemon 尚未登记或平台不受支持。");
     }
-    const task = claimNextMinecraftTask(body.nodeId, node.capabilities.includes("app-sandbox-windows-appcontainer-v1"));
-    if (task) realtime.publishMinecraftChange(["tasks"], task.instanceId ?? undefined);
+    const claimed = claimNextMinecraftTask(body.nodeId, node.capabilities.includes("app-sandbox-windows-appcontainer-v1"));
+    let task = claimed;
+    if (claimed) {
+      try {
+        task = revealMinecraftTaskPropertySecrets(claimed);
+      } catch (error) {
+        completeMinecraftTask(claimed.id, body.nodeId, false, error instanceof Error ? error.message : "无法安全解封服务器配置。");
+        throw new ApiError(500, "minecraft_property_secret_unavailable", "服务器配置任务无法安全解封；任务已失败，请重新读取并提交配置。");
+      }
+      realtime.publishMinecraftChange(["tasks"], task.instanceId ?? undefined);
+    }
     response.json({ task });
   });
 

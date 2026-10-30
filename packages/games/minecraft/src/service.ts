@@ -8,12 +8,14 @@ import {hasPendingJavaEnvironmentTask} from "lfaa-runtime-manager/src/legacy-jav
 import { protectedDataDirectories } from "lfaa-home-paths/src/reserved-data-paths.mjs";
 import { win32 } from "node:path";
 import { ApiError } from "lfaa-util-values/src/http-error.js";
+import { buildMinecraftJvmArguments, defaultMinecraftInitialHeapMb, parseMinecraftJvmArguments } from "lfaa-util-values/src/minecraft-jvm-contract.mjs";
+import { isSensitiveMinecraftPropertyKey, MINECRAFT_PROPERTY_KEY_PATTERN, validateMinecraftPropertyChanges } from "lfaa-util-values/src/minecraft-property-contract.mjs";
 import { database } from "lfaa-storage-sqlite/src/database.js";
 import { configuration } from "lfaa-storage-domain/src/configuration.js";
 import { getDaemonDataRoot, getDaemonNode, listDaemonNodes, type DaemonNode } from "lfaa-host-daemon/src/local-daemon.js";
 import { createMinecraftTask, deleteMinecraftTaskRecords as deleteMinecraftTaskRows, getMinecraftTaskDetails, listMinecraftLogs, listMinecraftTasks, MinecraftTaskRecordError, type MinecraftTask, type MinecraftTaskDetails } from "lfaa-jobs/src/minecraft-queue.js";
 import { getMinecraftReleaseArtifact, listMinecraftReleases } from "./catalog.js";
-import { getUserSettings } from "lfaa-settings/src/service.js";
+import { getUserSettings, protectTaskSecret, revealTaskSecret } from "lfaa-settings/src/service.js";
 import { getLocalProjectContentPath } from "lfaa-settings/src/project-storage.js";
 import type { MinecraftCoreName } from "./core-sources.js";
 
@@ -159,6 +161,8 @@ export interface MinecraftInstance {
   javaMajor: number;
   javaRuntimeId: string | null;
   memoryMb: number;
+  initialHeapMb: number;
+  jvmArguments: string[];
   coreType: MinecraftCoreName;
   coreBuild: string;
   executionMode: "native" | "appcontainer";
@@ -200,6 +204,8 @@ interface InstanceRow {
   java_major: number;
   java_runtime_id: string | null;
   memory_mb: number;
+  jvm_initial_heap_mb: number;
+  jvm_arguments_json: string;
   core_type: MinecraftCoreName;
   core_build: string;
   execution_mode: MinecraftInstance["executionMode"];
@@ -214,7 +220,7 @@ interface InstanceRow {
 
 const instanceSelect = `
   SELECT i.id, i.node_id, n.display_name AS node_name, n.status AS node_status,
-    i.name, i.storage_directory, i.release_id, i.java_major, i.java_runtime_id, i.memory_mb, i.core_type, i.core_build, i.execution_mode, i.state, i.eula_accepted_at,
+    i.name, i.storage_directory, i.release_id, i.java_major, i.java_runtime_id, i.memory_mb, i.jvm_initial_heap_mb, i.jvm_arguments_json, i.core_type, i.core_build, i.execution_mode, i.state, i.eula_accepted_at,
     i.sandbox_status, n.capabilities_json AS node_capabilities_json,
     i.server_properties_json, i.created_at, i.updated_at
   FROM minecraft_instances i JOIN daemon_nodes n ON n.id = i.node_id
@@ -243,6 +249,8 @@ function toInstance(row: InstanceRow): MinecraftInstance {
     javaMajor: row.java_major,
     javaRuntimeId: row.java_runtime_id,
     memoryMb: row.memory_mb,
+    initialHeapMb: row.jvm_initial_heap_mb,
+    jvmArguments: parseMinecraftJvmArgumentList(row.jvm_arguments_json),
     coreType: row.core_type,
     coreBuild: row.core_build,
     executionMode: row.execution_mode,
@@ -254,6 +262,15 @@ function toInstance(row: InstanceRow): MinecraftInstance {
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
+}
+
+function parseMinecraftJvmArgumentList(value: string): string[] {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) && parsed.every(item => typeof item === "string") ? parsed : [];
+  } catch {
+    return [];
+  }
 }
 
 function parseCapabilities(value: string): string[] {
@@ -561,14 +578,14 @@ export async function registerMinecraftDeployment(input: {
     }
     if (existing) {
       database.prepare(`
-        UPDATE minecraft_instances SET release_id = ?, java_major = ?, java_runtime_id = ?, memory_mb = ?, storage_directory = ?, state = 'installing',
+        UPDATE minecraft_instances SET release_id = ?, java_major = ?, java_runtime_id = ?, memory_mb = ?, jvm_initial_heap_mb = ?, jvm_arguments_json = '[]', storage_directory = ?, state = 'installing',
           eula_accepted_at = ?, sandbox_status = 'unprepared', updated_at = ? WHERE id = ?
-      `).run(currentRow.release_id, currentRow.java_major, javaRuntimeId, input.memoryMb, currentRow.storage_directory, acceptedAt, acceptedAt, instanceId);
+      `).run(currentRow.release_id, currentRow.java_major, javaRuntimeId, input.memoryMb, defaultMinecraftInitialHeapMb(input.memoryMb, executionMode), currentRow.storage_directory, acceptedAt, acceptedAt, instanceId);
     } else {
       database.prepare(`
-        INSERT INTO minecraft_instances (id, node_id, created_by, name, storage_directory, release_id, java_major, java_runtime_id, memory_mb, state, eula_accepted_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'installing', ?)
-      `).run(instanceId, node.id, input.userId, name, currentRow.storage_directory, currentRow.release_id, currentRow.java_major, javaRuntimeId, input.memoryMb, acceptedAt);
+        INSERT INTO minecraft_instances (id, node_id, created_by, name, storage_directory, release_id, java_major, java_runtime_id, memory_mb, jvm_initial_heap_mb, jvm_arguments_json, state, eula_accepted_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', 'installing', ?)
+      `).run(instanceId, node.id, input.userId, name, currentRow.storage_directory, currentRow.release_id, currentRow.java_major, javaRuntimeId, input.memoryMb, defaultMinecraftInitialHeapMb(input.memoryMb, executionMode), acceptedAt);
     }
     const linked = database.prepare("UPDATE minecraft_deployments SET state = 'registering', instance_id = ?, updated_at = ? WHERE id = ? AND state = 'ready'")
       .run(instanceId, acceptedAt, input.deploymentId);
@@ -589,6 +606,8 @@ export async function registerMinecraftDeployment(input: {
         javaMajor: currentRow.java_major,
         javaRuntimeId,
         memoryMb: input.memoryMb,
+        initialHeapMb: defaultMinecraftInitialHeapMb(input.memoryMb, executionMode),
+        jvmArguments: [],
         executionMode,
         eulaAccepted: true,
         downloadTimeoutSeconds: getUserSettings(input.userId).minecraftRuntime.minecraftDownloadTimeoutSeconds
@@ -633,6 +652,46 @@ export function updateMinecraftInstanceJavaRuntime(instanceId: string, runtimeId
   return getMinecraftInstance(instanceId)!;
 }
 
+/** 停止状态下原子保存 JVM 堆与安全白名单参数；启动任务只从此权威配置取值。 */
+export function updateMinecraftInstanceJvmConfiguration(instanceId: string, input: {
+  memoryMb: number;
+  initialHeapMb: number;
+  jvmArguments: string;
+}): MinecraftInstance {
+  listMinecraftTasks(1);
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    const current = requireInstance(instanceId);
+    requireInstanceNode(current);
+    if (current.coreType === "PocketMine") throw new ApiError(409, "minecraft_php_runtime", "PocketMine 使用 PHP，不支持 JVM 参数。");
+    if (current.state !== "stopped" && current.state !== "error") throw new ApiError(409, "minecraft_instance_running", "只能在 Minecraft 实例停止后修改 JVM 参数。");
+    if (database.prepare("SELECT 1 FROM minecraft_tasks WHERE instance_id = ? AND status IN ('queued', 'running') LIMIT 1").get(instanceId)) {
+      throw new ApiError(409, "minecraft_instance_busy", "实例已有未完成操作，暂不能保存 JVM 参数。");
+    }
+    let parsed: ReturnType<typeof parseMinecraftJvmArguments>;
+    try {
+      parsed = parseMinecraftJvmArguments([
+        `-Xms${input.initialHeapMb}M`, `-Xmx${input.memoryMb}M`, input.jvmArguments
+      ].filter(Boolean).join("\n"), { javaMajor: current.javaMajor, coreType: current.coreType });
+      buildMinecraftJvmArguments(parsed, { javaMajor: current.javaMajor, coreType: current.coreType });
+    } catch (error) {
+      throw new ApiError(400, "minecraft_jvm_configuration_invalid", error instanceof Error ? error.message : "JVM 参数无效。");
+    }
+    const now = new Date().toISOString();
+    const result = database.prepare(`UPDATE minecraft_instances
+      SET memory_mb = ?, jvm_initial_heap_mb = ?, jvm_arguments_json = ?, updated_at = ?
+      WHERE id = ? AND state IN ('stopped', 'error')`).run(
+      parsed.memoryMb, parsed.initialHeapMb, JSON.stringify(parsed.jvmArguments), now, instanceId
+    );
+    if (Number(result.changes) !== 1) throw new ApiError(409, "minecraft_instance_state_changed", "实例状态已变化，请刷新后重试。");
+    database.exec("COMMIT;");
+    return getMinecraftInstance(instanceId)!;
+  } catch (error) {
+    if (database.isTransaction) database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+
 function queueInstanceAction(instance: MinecraftInstance, userId: string, kind: "start" | "stop" | "backup" | "restart" | "console", payload: Record<string, unknown> = {}): MinecraftTask {
   // 先收敛已过期租约，再进入领域事务；不会重放任何副作用。
   listMinecraftTasks(1);
@@ -659,6 +718,17 @@ function queueInstanceAction(instance: MinecraftInstance, userId: string, kind: 
         throw new ApiError(409, "java_runtime_uninstall_pending", `Java ${current.javaMajor} 正在排队卸载，请先等待任务完成或失败。`);
       }
       if (current.javaRuntimeId) validateSelectedJavaRuntime(node, current.javaMajor, current.javaRuntimeId);
+      const jvmConfiguration = {
+        memoryMb: current.memoryMb,
+        initialHeapMb: current.initialHeapMb,
+        jvmArguments: current.jvmArguments
+      };
+      try {
+        buildMinecraftJvmArguments(jvmConfiguration, { javaMajor: current.javaMajor, coreType: current.coreType });
+      } catch (error) {
+        throw new ApiError(409, "minecraft_jvm_configuration_invalid", error instanceof Error ? error.message : "保存的 JVM 参数无效，请重新保存实例配置。");
+      }
+      payload = { ...payload, ...jvmConfiguration, javaMajor: current.javaMajor, javaRuntimeId: current.javaRuntimeId };
     }
     if (kind === "stop" && current.state !== "running" && current.state !== "starting") {
       throw new ApiError(409, "minecraft_instance_not_running", "只有运行中的实例可以停止。");
@@ -687,8 +757,7 @@ function queueInstanceAction(instance: MinecraftInstance, userId: string, kind: 
 }
 
 export function startMinecraftInstance(instanceId: string, userId: string): MinecraftTask {
-  const instance = requireInstance(instanceId);
-  return queueInstanceAction(instance, userId, "start", { memoryMb: instance.memoryMb, javaMajor: instance.javaMajor, javaRuntimeId: instance.javaRuntimeId });
+  return queueInstanceAction(requireInstance(instanceId), userId, "start");
 }
 
 export function stopMinecraftInstance(instanceId: string, userId: string): MinecraftTask {
@@ -709,8 +778,7 @@ export function deleteMinecraftInstance(instanceId:string,userId:string):Minecra
 }
 
 export function restartMinecraftInstance(instanceId: string, userId: string): MinecraftTask {
-  const instance = requireInstance(instanceId);
-  return queueInstanceAction(instance, userId, "restart", { memoryMb: instance.memoryMb, javaMajor: instance.javaMajor, javaRuntimeId: instance.javaRuntimeId });
+  return queueInstanceAction(requireInstance(instanceId), userId, "restart");
 }
 
 /** 单行服务器指令不是系统 Shell；生命周期命令通常优先使用对应接口；控制台仍按用户选择接收有效单行指令。 */
@@ -780,7 +848,28 @@ export function updateMinecraftServerProperties(instanceId: string, userId: stri
     throw new ApiError(409, "minecraft_properties_write_unsupported", "目标 Daemon 尚未报告 server.properties 真实文件读写能力，请更新并重启节点后再保存。");
   }
   if (database.prepare("SELECT 1 FROM minecraft_tasks WHERE instance_id = ? AND status IN ('queued', 'running') LIMIT 1").get(instanceId)) throw new ApiError(409, "minecraft_instance_busy", "实例已有未完成操作，请等待后再修改配置。");
-  const properties = validateMinecraftServerProperties(input);
+  const filePropertyRequest = input && typeof input === "object" && !Array.isArray(input)
+    ? input as Record<string, unknown>
+    : null;
+  const isFilePropertyRequest = Boolean(filePropertyRequest && Object.keys(filePropertyRequest).length === 1 && Object.hasOwn(filePropertyRequest, "fileProperties"));
+  const fileProperties = isFilePropertyRequest
+    ? validateMinecraftFilePropertyChanges(instance, filePropertyRequest!.fileProperties)
+    : null;
+  const properties: MinecraftServerProperties = isFilePropertyRequest ? {} : validateMinecraftServerProperties(input);
+  if (fileProperties) {
+    const protectedFileProperties = Object.fromEntries(Object.entries(fileProperties).map(([key, value]) => [
+      key,
+      value === null || !isSensitiveMinecraftPropertyKey(key) ? value : protectTaskSecret(value, minecraftPropertySecretContext(instance.id, key))
+    ]));
+    return createMinecraftTask({
+      nodeId: node.id,
+      instanceId,
+      createdBy: userId,
+      kind: "properties",
+      payload: { fileProperties: protectedFileProperties, releaseId: instance.releaseId },
+      message: "等待写入已变更的 server.properties 属性。"
+    });
+  }
   if (properties.simulationDistance !== undefined && !supportsMinecraftSimulationDistance(instance.releaseId)) {
     throw new ApiError(400, "minecraft_property_version_unsupported", `Minecraft ${instance.releaseId} 不支持修改 simulation-distance。`);
   }
@@ -792,6 +881,49 @@ export function updateMinecraftServerProperties(instanceId: string, userId: stri
     payload: { properties, releaseId: instance.releaseId },
     message: "等待写入允许修改的 server.properties 字段。"
   });
+}
+
+function minecraftPropertySecretContext(instanceId: string, propertyKey: string): string {
+  return `minecraft-server-property\0${instanceId}\0${propertyKey}`;
+}
+
+function validateMinecraftFilePropertyChanges(instance: MinecraftInstance, input: unknown): Record<string, string | null> {
+  if (!input || typeof input !== "object" || Array.isArray(input)) throw new ApiError(400, "invalid_minecraft_properties", "服务器配置必须是属性名和值组成的对象。");
+  const values = input as Record<string, unknown>;
+  const keys = Object.keys(values);
+  const entries = instance.serverProperties.fileSnapshot?.entries;
+  if (!entries) throw new ApiError(409, "minecraft_properties_snapshot_required", "请先读取目标节点的真实 server.properties，再修改配置。");
+  const actualKeys = new Set(entries.map(entry => entry.key));
+  for (const key of keys) {
+    if (!MINECRAFT_PROPERTY_KEY_PATTERN.test(key)) throw new ApiError(400, "invalid_minecraft_properties", `属性名 ${key} 格式不正确。`);
+    if (!actualKeys.has(key)) throw new ApiError(409, "minecraft_property_snapshot_stale", `属性 ${key} 不在当前节点快照中，请重新读取后再保存。`);
+  }
+  try {
+    return validateMinecraftPropertyChanges(values, actualKeys, instance.releaseId);
+  } catch (error) {
+    throw new ApiError(400, "invalid_minecraft_properties", error instanceof Error ? error.message : "服务器配置格式无效。");
+  }
+}
+
+/** 仅供已认证的 Minecraft 节点领取自己的任务时解封敏感属性。 */
+export function revealMinecraftTaskPropertySecrets(task: MinecraftTask): MinecraftTask {
+  if (task.kind !== "properties" || !task.instanceId || !task.payload || typeof task.payload !== "object") return task;
+  const raw = (task.payload as Record<string, unknown>).fileProperties;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return task;
+  const fileProperties = Object.fromEntries(Object.entries(raw as Record<string, unknown>).map(([key, value]) => {
+    if (!isSensitiveMinecraftPropertyKey(key)) return [key, value];
+    return value === null ? [key, null] : [key, revealTaskSecret(value, minecraftPropertySecretContext(task.instanceId!, key))];
+  }));
+  return { ...task, payload: { ...(task.payload as Record<string, unknown>), fileProperties } };
+}
+
+/** 供用户任务列表/API 使用：不向浏览器暴露已加密的敏感字段密文。 */
+export function withoutMinecraftTaskPropertySecrets(task: MinecraftTask): MinecraftTask {
+  if (task.kind !== "properties" || !task.payload || typeof task.payload !== "object") return task;
+  const raw = (task.payload as Record<string, unknown>).fileProperties;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return task;
+  const fileProperties = Object.fromEntries(Object.entries(raw as Record<string, unknown>).filter(([key]) => !isSensitiveMinecraftPropertyKey(key)));
+  return { ...task, payload: { ...(task.payload as Record<string, unknown>), fileProperties } };
 }
 
 /** 按目标实例与节点能力读取真实 server.properties，不读取控制端本地文件。 */

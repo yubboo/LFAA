@@ -2,7 +2,7 @@
 
 该包只负责 Minecraft HTTP 路由、认证和响应适配；核心类型、来源和版本事实归 `lfaa-games-minecraft`。`GET /minecraft/core-names` 经现有认证后返回领域 Owner 登记的核心名称，用于设置中心选择账户默认核心，不访问外部目录；`GET /minecraft/cores` 仍读取实时核心/版本目录，部署和工件校验语义不变。设置偏好继续由 `lfaa-settings` 校验与持久化，实例操作仍经领域服务和目标 Daemon。
 
-管理员可调用 `POST /minecraft/instances/:instanceId/properties/read` 请求领域 Owner 将有界读取任务排入实例节点；节点能力不足、离线或实例忙碌时按真实错误响应。现有 `PATCH /minecraft/instances/:instanceId/properties` 仍只接受领域白名单属性，读回/保存结果均经同一 Minecraft 任务与 Daemon Owner。
+管理员可调用 `POST /minecraft/instances/:instanceId/properties/read` 请求领域 Owner 将有界读取任务排入实例节点；节点能力不足、离线或实例忙碌时按真实错误响应。`PATCH /minecraft/instances/:instanceId/properties` 兼容 `{properties}`，并可接受 `{fileProperties}` 对真实文件属性做动态编辑；两者互斥，后者由 Domain 限定在当前节点快照键内并限制长度/数量/字符，敏感密文从用户任务响应剔除。读回/保存结果均经同一 Minecraft 任务与 Daemon Owner。
 
 直接回归：`apps/cli/tests/minecraft-core-names-api.test.mjs`。构建只写仓库根 `dist/packages/api/minecraft-controller/`。
 

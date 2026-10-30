@@ -4,7 +4,7 @@
 
 Minecraft 自动部署的 Java 准备继续使用 `resolveMinecraftJavaRuntime`：匹配环境缺失时默认安装并验证 Temurin；Agent 显式选择已登记的 Zulu runtimeId 时，按同一 Runtime Owner 复用或重新准备对应发行版，再下载/校验核心并提交实例元数据。`minecraft-provisioner.mjs` 接受 PaperMC 官方 `fill-data.papermc.io` 工件，仍校验每次 HTTPS 跳转和来源摘要；Java 官方目录失败会标明实际 Java 主版本及准备阶段。此源码路径与隔离回归不等于真实网络下载、安装或游戏就绪验收。
 
-Minecraft 配置回读仅由已认证 `properties-read` 节点任务触发。Daemon 通过实例 ID 与已核实目录读取普通 `server.properties`，拒绝符号链接/硬链接/特殊文件、缺失文件及超过 64 KiB 或 256 项的输入；返回原属性清单，并把密码、令牌、凭据和资源包 URL 值置空。写入仍只接受领域白名单字段、保留其他属性，再从最终文件读取脱敏快照回报控制端。节点心跳声明 `minecraft-server-properties-file-v1` 后控制端才可排入此读取任务；旧节点不会收到未知任务。
+Minecraft 配置读取和写入仅由已认证节点任务触发。Daemon 通过实例 ID 与已核实目录读取普通 `server.properties`，拒绝符号链接/硬链接/特殊文件、缺失文件及超过 64 KiB 或 256 项的输入；密码、令牌、凭据和资源包 URL 值在回报时置空。动态写入只接受读取到的真实键和共享校验通过的值，在同目录临时文件原子替换，保留注释及未修改行；敏感值可通过明确的空值删除。最终再次读取脱敏快照并回报控制端。节点心跳声明 `minecraft-server-properties-file-v1` 后控制端才可排入读写任务；旧节点不会收到未知任务。
 
 Daemon Host 是目标节点本机能力的执行适配器。通用项目文件的唯一受限执行实现位于 `packages/host/project-files`，Daemon 仅接收目标节点任务并调用该实现；LFAA 本机 Agent Host 也调用同一实现，因而 Agent 本机 Git/文件工作不要求 Daemon 在线。读取限定为普通 UTF-8 文本并支持分页；创建不覆盖既有内容，更新按 SHA-256 检查并发修改，删除仅 unlink 普通文件，不递归删除目录。模型可用操作与目标选择仍由 `packages/core/tools/src/project-tools.ts` 和 Agent Loop 决定。
 
@@ -51,3 +51,5 @@ SteamCMD 工具目录使用内部 `steamcmd-runtime` 路由只读浏览，文件
 SteamCMD Dedicated Server 通过 `steamcmd_servers` 配置和现有 SteamCMD 租约任务执行；只从服务端安装目录内启动 `.exe`，参数数组使用 `shell:false`。运行态写入 Daemon 受保护的进程标记并经心跳回报；Daemon 重启后仍运行、但无法恢复控制台的进程标记为未知，拒绝重复启动、更新或假报停止。停服先发送服务端配置的控制台命令，等待秒数读取该服务端配置；超时会终止进程树并报告存档完整性未确认。运行中服务端目录拒绝文件管理写入。真实 Steam 下载、目标游戏就绪、网络可达性和实体节点状态须另行验收。
 
 DST 集群由 Master/Caves 两个记录共享一份 SteamCMD 安装；更新前同时检查两个分片与 Daemon 进程标记。每个分片启动时固定生成 `-persistent_storage_root`、`-conf_dir`、`-cluster`、`-shard`、`-console` 参数，不从客户端接受原始路径参数。开服前逐个检查 `cluster.ini`、`cluster_token.txt` 和本分片 `server.ini` 是非空普通文件；Token 只做存在性检查，不读取正文。进程标记登记集群数据目录，任一分片运行时 File Manager 都不得改写集群文件。心跳只证明 PID 存活，不证明游戏或网络已就绪。
+
+Minecraft 实例启动只消费目标节点任务中的堆、Java 主版本和 JVM 白名单值，并在派生服务端进程前调用实例实际 Java 可执行文件运行 `-version` 预检；校验失败或 Daemon 缺少预检能力时 fail closed。原生 Java 与 AppContainer Host 共享 `lfaa-util-values` 的参数构造合同，PHP 核心不接收 JVM 配置。

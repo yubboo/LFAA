@@ -5,6 +5,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { ApiError } from "lfaa-util-values/src/http-error.js";
+import { defaultMinecraftInitialHeapMb } from "lfaa-util-values/src/minecraft-jvm-contract.mjs";
 import { database } from "lfaa-storage-sqlite/src/database.js";
 import { getDaemonNode } from "lfaa-host-daemon/src/local-daemon.js";
 import { createMinecraftTask, listMinecraftTasks } from "lfaa-jobs/src/minecraft-queue.js";
@@ -73,12 +74,13 @@ export async function provisionMinecraftServer(input: MinecraftProvisionInput) {
     if (input.serverPort === undefined) while (serverPort < 65535 && portQuery.get(node.id, serverPort)) serverPort++;
     const occupied = portQuery.get(node.id, serverPort);
     if (occupied) throw new ApiError(409, "minecraft_port_reserved", "这个节点已有实例使用该端口，请选择其他端口。");
-    database.prepare(`INSERT INTO minecraft_instances (id,node_id,created_by,name,storage_directory,release_id,java_major,memory_mb,state,eula_accepted_at,java_runtime_id,core_type,core_build,execution_mode,sandbox_status,server_properties_json)
-      VALUES (?,?,?,?,?,?,?,?,'installing',?,?,?,?,'native','unsupported',?)`).run(instanceId,node.id,input.userId,name,storageDirectory,input.version,artifact.javaMajor,memoryMb,now,javaRuntimeId,artifact.core,artifact.build,JSON.stringify({ serverPort }));
+    database.prepare(`INSERT INTO minecraft_instances (id,node_id,created_by,name,storage_directory,release_id,java_major,memory_mb,jvm_initial_heap_mb,jvm_arguments_json,state,eula_accepted_at,java_runtime_id,core_type,core_build,execution_mode,sandbox_status,server_properties_json)
+      VALUES (?,?,?,?,?,?,?,?,?,'[]','installing',?,?,?,?,'native','unsupported',?)`).run(instanceId,node.id,input.userId,name,storageDirectory,input.version,artifact.javaMajor,memoryMb,defaultMinecraftInitialHeapMb(memoryMb),now,javaRuntimeId,artifact.core,artifact.build,JSON.stringify({ serverPort }));
     database.prepare(`INSERT INTO minecraft_deployments (id,node_id,created_by,name,storage_directory,server_type,release_id,java_major,state,instance_id,core_build,artifact_json,automatic)
       VALUES (?,?,?,?,?,?,?,?,'queued',?,?,?,1)`).run(deploymentId,node.id,input.userId,name,storageDirectory,artifact.core,input.version,artifact.javaMajor,instanceId,artifact.build,JSON.stringify(artifact));
+    const initialHeapMb = defaultMinecraftInitialHeapMb(memoryMb);
     const task = createMinecraftTask({ nodeId: node.id, instanceId, deploymentId, createdBy: input.userId, kind: "install", message: "等待节点自动准备环境、安装并启动服务端。", payload: {
-      operation: "provision", instanceName: name, storageDirectory, artifact, releaseId: input.version, javaMajor: artifact.javaMajor, javaRuntimeId, memoryMb, properties: { serverPort }, eulaAccepted: true, executionMode: "native",
+      operation: "provision", instanceName: name, storageDirectory, artifact, releaseId: input.version, javaMajor: artifact.javaMajor, javaRuntimeId, memoryMb, initialHeapMb, jvmArguments: [], properties: { serverPort }, eulaAccepted: true, executionMode: "native",
       language: userSettings.general.language,
       readyTimeoutSeconds: settings.minecraftReadyTimeoutSeconds, stopTimeoutSeconds: settings.minecraftStopTimeoutSeconds,
       downloadTimeoutSeconds: settings.minecraftDownloadTimeoutSeconds, installTimeoutSeconds: settings.minecraftInstallTimeoutSeconds, proxyBackend

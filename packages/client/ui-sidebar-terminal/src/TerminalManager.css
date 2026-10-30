@@ -44,8 +44,6 @@
   overflow: hidden;
 }
 
-.lfaa-terminal-manager--embedded { container: minecraft-console / inline-size; }
-
 .lfaa-terminal-manager__layout {
   display: grid;
   flex: 1 1 auto;
@@ -55,8 +53,6 @@
   min-height: 0;
 }
 
-.lfaa-terminal-manager--embedded .lfaa-terminal-manager__layout { grid-template-columns: minmax(0, 1fr) minmax(240px, .42fr); }
-
 .lfaa-terminal-manager__main {
   display: flex;
   flex-direction: column;
@@ -65,16 +61,17 @@
   min-height: 0;
 }
 
-.lfaa-terminal-manager__sidebar {
+.lfaa-terminal-manager__right-panel {
   display: grid;
   align-content: start;
   gap: 10px;
   min-width: 0;
-  min-height: 0;
-  overflow: auto;
+  padding: 12px 12px 14px;
+  border-top: 1px solid var(--color-border);
+  container: minecraft-ops / inline-size;
 }
 
-.lfaa-terminal-manager__sidebar-card {
+.lfaa-terminal-manager__right-panel > .lfaa-terminal-manager__sidebar-card {
   display: grid;
   align-content: start;
   gap: 9px;
@@ -85,7 +82,7 @@
   background: var(--color-surface-raised);
 }
 
-.lfaa-terminal-manager__sidebar-card > header {
+.lfaa-terminal-manager__right-panel > .lfaa-terminal-manager__sidebar-card > header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -95,14 +92,14 @@
   font-size: var(--settings-interface-font-size, 13px);
 }
 
-.lfaa-terminal-manager__sidebar-card > header .ant-tag { margin: 0; }
+.lfaa-terminal-manager__right-panel > .lfaa-terminal-manager__sidebar-card > header .ant-tag { margin: 0; }
 
-.lfaa-terminal-manager__sidebar-card > dl {
+.lfaa-terminal-manager__right-panel > .lfaa-terminal-manager__sidebar-card > dl {
   display: grid;
   margin: 0;
 }
 
-.lfaa-terminal-manager__sidebar-card > dl > div {
+.lfaa-terminal-manager__right-panel > .lfaa-terminal-manager__sidebar-card > dl > div {
   display: grid;
   grid-template-columns: minmax(68px, .8fr) minmax(0, 1.2fr);
   gap: 8px;
@@ -111,16 +108,16 @@
   font-size: calc(var(--settings-interface-font-size, 13px) * .91);
 }
 
-.lfaa-terminal-manager__sidebar-card dt { color: var(--color-text-muted); }
-.lfaa-terminal-manager__sidebar-card dd { min-width: 0; margin: 0; overflow-wrap: anywhere; color: var(--color-text-primary); }
+.lfaa-terminal-manager__right-panel > .lfaa-terminal-manager__sidebar-card dt { color: var(--color-text-muted); }
+.lfaa-terminal-manager__right-panel > .lfaa-terminal-manager__sidebar-card dd { min-width: 0; margin: 0; overflow-wrap: anywhere; color: var(--color-text-primary); }
 
-.lfaa-terminal-manager__quick-commands {
+.lfaa-terminal-manager__right-panel .lfaa-terminal-manager__quick-commands {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
 }
 
-.lfaa-terminal-manager__quick-commands > .ant-btn {
+.lfaa-terminal-manager__right-panel .lfaa-terminal-manager__quick-commands > .ant-btn {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -129,9 +126,9 @@
   padding-inline: 8px;
 }
 
-.lfaa-terminal-manager__quick-commands code { color: var(--settings-accent, var(--color-brand)); font-size: calc(var(--settings-code-font-size, 13px) * .92); }
-.lfaa-terminal-manager__quick-commands span { min-width: 0; overflow: hidden; color: var(--color-text-secondary); text-overflow: ellipsis; }
-.lfaa-terminal-manager__quick-commands > .ant-btn:last-child { grid-column: 1 / -1; }
+.lfaa-terminal-manager__right-panel .lfaa-terminal-manager__quick-commands code { color: var(--settings-accent, var(--color-brand)); font-size: calc(var(--settings-code-font-size, 13px) * .92); }
+.lfaa-terminal-manager__right-panel .lfaa-terminal-manager__quick-commands span { min-width: 0; overflow: hidden; color: var(--color-text-secondary); text-overflow: ellipsis; }
+.lfaa-terminal-manager__right-panel .lfaa-terminal-manager__quick-commands > .ant-btn:last-child { grid-column: 1 / -1; }
 
 .lfaa-terminal-manager__toolbar,
 .lfaa-terminal-manager__actions,
@@ -386,25 +383,8 @@
   }
 }
 
-@media (max-height: 520px) {
-  .lfaa-terminal-manager-slot--minecraft {
-    min-height: 160px;
-  }
-}
-
-@container minecraft-console (max-width: 760px) {
-  .lfaa-terminal-manager--embedded .lfaa-terminal-manager__layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
-  .lfaa-terminal-manager__sidebar { grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: visible; }
-}
-
-@container minecraft-console (max-width: 460px) {
-  .lfaa-terminal-manager--embedded .lfaa-terminal-manager__layout { grid-template-rows: minmax(0, 1fr) 138px; }
-  .lfaa-terminal-manager__sidebar { grid-template-columns: minmax(0, 1fr); height: 138px; overflow: auto; }
-  .lfaa-terminal-manager__quick-commands { grid-template-columns: minmax(0, 1fr); }
-  .lfaa-terminal-manager__quick-commands > .ant-btn:last-child { grid-column: auto; }
-}
-
-@media (max-height: 520px) {
-  .lfaa-terminal-manager--embedded .lfaa-terminal-manager__layout { grid-template-columns: minmax(0, 1fr) minmax(190px, .42fr); grid-template-rows: minmax(0, 1fr); }
-  .lfaa-terminal-manager__sidebar { grid-template-columns: minmax(0, 1fr); }
+@container minecraft-ops (max-width: 240px) {
+  .lfaa-terminal-manager__right-panel .lfaa-terminal-manager__quick-commands { grid-template-columns: minmax(0, 1fr); }
+  .lfaa-terminal-manager__right-panel .lfaa-terminal-manager__quick-commands > .ant-btn:last-child { grid-column: auto; }
+  .lfaa-terminal-manager__right-panel > .lfaa-terminal-manager__sidebar-card > dl > div { grid-template-columns: minmax(0, 1fr); gap: 3px; }
 }

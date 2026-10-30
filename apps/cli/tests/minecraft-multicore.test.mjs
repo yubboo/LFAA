@@ -11,12 +11,13 @@ import { dirname, basename, join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 const parent = resolve(tmpdir()), data = mkdtempSync(join(parent, 'lfaa-multicore-'));
 process.env.LFAA_DATA_DIR = data; process.env.NODE_ENV = 'test'; process.env.JWT_SECRET = '';
-const { database, closeDatabase, migrateMinecraftCoreSchema } = await import('lfaa-storage-sqlite/src/database.js');
+const { database, closeDatabase, migrateMinecraftCoreSchema, migrateMinecraftInstanceJvmConfigurationSchema } = await import('lfaa-storage-sqlite/src/database.js');
 const settings = await import('lfaa-settings/src/service.js');
 await import('lfaa-session/src/sessions.js');
 const { retireLegacyFileTables } = await import('lfaa-storage-domain/src/migration.js');
 retireLegacyFileTables();
 const { provisionMinecraftServer, retryMinecraftProvision } = await import('lfaa-games-minecraft/src/deployment-service.js');
+const { getMinecraftInstance, startMinecraftInstance, updateMinecraftInstanceJvmConfiguration } = await import('lfaa-games-minecraft/src/service.js');
 const { validateCoreCoordinate, resolveMinecraftCoreArtifact, getMinecraftCoreCompatibility, listMinecraftCores, minecraftCoreNames } = await import('lfaa-games-minecraft/src/core-sources.js');
 const queue = await import('lfaa-jobs/src/minecraft-queue.js');
 const { recordDaemonHeartbeat } = await import('lfaa-host-daemon/src/local-daemon.js');
@@ -103,6 +104,51 @@ test('迁移保持旧 Vanilla 记录并可重复执行', () => {
   assert.equal(queue.getMinecraftTask(taskId).status,'succeeded');
   assert.equal(database.prepare('SELECT line FROM minecraft_task_logs WHERE task_id=?').get(taskId).line,'legacy-log');
   assert.deepEqual(database.prepare('PRAGMA foreign_key_check').all(), []);
+
+  // 模拟 v77 实例表并再次执行正式 v78 迁移，核对旧执行模式对应的 -Xms 得到保留。
+  const nativeId = randomUUID(), appContainerId = randomUUID();
+  database.prepare(`INSERT INTO minecraft_instances(id,node_id,created_by,name,storage_directory,release_id,java_major,memory_mb,core_type,core_build,execution_mode,state,eula_accepted_at)
+    VALUES(?,?,?,'native-jvm-migration','games/minecraft','fixture',11,1536,'Paper','fixture','native','stopped',?)`).run(nativeId, nodeId, userId, new Date().toISOString());
+  database.prepare(`INSERT INTO minecraft_instances(id,node_id,created_by,name,storage_directory,release_id,java_major,memory_mb,core_type,core_build,execution_mode,state,eula_accepted_at)
+    VALUES(?,?,?,'appcontainer-jvm-migration','games/minecraft','fixture',11,1536,'Paper','fixture','appcontainer','stopped',?)`).run(appContainerId, nodeId, userId, new Date().toISOString());
+  database.exec("PRAGMA user_version=77;");
+  migrateMinecraftInstanceJvmConfigurationSchema(); migrateMinecraftInstanceJvmConfigurationSchema();
+  assert.equal(database.prepare('PRAGMA user_version').get().user_version, 78);
+  assert.equal(database.prepare('SELECT jvm_initial_heap_mb FROM minecraft_instances WHERE id=?').get(id).jvm_initial_heap_mb, 1024);
+  assert.equal(database.prepare('SELECT jvm_initial_heap_mb FROM minecraft_instances WHERE id=?').get(nativeId).jvm_initial_heap_mb, 1024);
+  assert.equal(database.prepare('SELECT jvm_initial_heap_mb FROM minecraft_instances WHERE id=?').get(appContainerId).jvm_initial_heap_mb, 768);
+  assert.equal(database.prepare('SELECT jvm_arguments_json FROM minecraft_instances WHERE id=?').get(nativeId).jvm_arguments_json, '[]');
+  assert.deepEqual(database.prepare('PRAGMA foreign_key_check').all(), []);
+});
+test('实例 JVM 参数保存后进入启动任务，运行中及错误参数不能覆盖配置', () => {
+  const instanceId = randomUUID(), createdAt = new Date().toISOString();
+  const previousRuntimeSettings = settings.getUserSettings(userId).minecraftRuntime;
+  let taskId;
+  try {
+    settings.saveUserSettings(userId, 'minecraft-runtime', { ...previousRuntimeSettings, minecraftExecutionMode: 'native' });
+    database.prepare(`INSERT INTO minecraft_instances(id,node_id,created_by,name,storage_directory,release_id,java_major,java_runtime_id,memory_mb,jvm_initial_heap_mb,jvm_arguments_json,core_type,core_build,execution_mode,state,eula_accepted_at)
+      VALUES(?,?,?,'jvm-config-fixture','games/minecraft','1.12.2',11,NULL,2048,512,'[]','Paper','1620','native','stopped',?)`).run(instanceId, nodeId, userId, createdAt);
+
+    const saved = updateMinecraftInstanceJvmConfiguration(instanceId, { memoryMb: 4096, initialHeapMb: 1024, jvmArguments: '-XX:+UseG1GC\n-XX:MaxGCPauseMillis=200' });
+    assert.equal(saved.memoryMb, 4096);
+    assert.equal(saved.initialHeapMb, 1024);
+    assert.deepEqual(saved.jvmArguments, ['-XX:+UseG1GC', '-XX:MaxGCPauseMillis=200']);
+    assert.throws(() => updateMinecraftInstanceJvmConfiguration(instanceId, { memoryMb: 4096, initialHeapMb: 1024, jvmArguments: '-XX:G1NewSizePercent=30' }), /G1 专属参数|Java 8–10/u);
+    assert.deepEqual(getMinecraftInstance(instanceId).jvmArguments, saved.jvmArguments, '拒绝无效参数时保留上次保存值');
+
+    const task = startMinecraftInstance(instanceId, userId);
+    taskId = task.id;
+    assert.equal(task.kind, 'start');
+    assert.equal(task.payload.memoryMb, 4096);
+    assert.equal(task.payload.initialHeapMb, 1024);
+    assert.deepEqual(task.payload.jvmArguments, saved.jvmArguments);
+    assert.equal(task.payload.javaMajor, 11);
+    assert.throws(() => updateMinecraftInstanceJvmConfiguration(instanceId, { memoryMb: 4096, initialHeapMb: 1024, jvmArguments: '' }), /停止后/u);
+  } finally {
+    if (taskId) database.prepare('DELETE FROM minecraft_tasks WHERE id = ?').run(taskId);
+    database.prepare('DELETE FROM minecraft_instances WHERE id = ?').run(instanceId);
+    settings.saveUserSettings(userId, 'minecraft-runtime', previousRuntimeSettings);
+  }
 });
 test('工件准备连接失败不创建实例或任务，并向模型返回可核验的未开始结果', async () => {
   const fixtureFetch = globalThis.fetch;
@@ -226,6 +272,52 @@ test('EULA、执行边界和路径坐标拒绝无效输入', async () => {
   for (const value of ['../x', 'a/b', 'a\\b', '.', 'build\nstop']) assert.throws(() => validateCoreCoordinate(value));
   settings.saveUserSettings(userId, 'minecraft-runtime', { ...settings.getUserSettings(userId).minecraftRuntime, minecraftExecutionMode: 'appcontainer' });
   await assert.rejects(provisionMinecraftServer({ ...input, eulaAccepted: true }), /不会静默降级/u);
+});
+
+test('Mojang 主站和备用站都不可用时，非 Paper 部署在事务前失败', async () => {
+  const fixtureFetch = globalThis.fetch;
+  const previousRuntimeSettings = settings.getUserSettings(userId).minecraftRuntime;
+  const counts = () => ['minecraft_instances','minecraft_deployments','minecraft_tasks'].map(table=>database.prepare('SELECT count(*) AS count FROM '+table).get().count);
+  const before = counts();
+  settings.saveUserSettings(userId, 'minecraft-runtime', { ...previousRuntimeSettings, minecraftExecutionMode: 'native' });
+  globalThis.fetch = async (input, init) => {
+    const hostname = new URL(String(input)).hostname;
+    if (hostname === 'piston-meta.mojang.com' || hostname === 'launchermeta.mojang.com') throw new Error('fixture: Mojang metadata host unavailable');
+    return fixtureFetch(input, init);
+  };
+  try {
+    await assert.rejects(
+      provisionMinecraftServer({nodeId,userId,name:'mojang-both-hosts-unavailable',core:'SpongeNeo',version:'fixture-version',build:'21.8.31-16.0.0',eulaAccepted:true}),
+      error => error.errorCode === 'minecraft_source_connection_failed' && error.executionState === 'not_started'
+    );
+    assert.deepEqual(counts(), before, 'Mojang 元数据不可用时不创建实例、部署或节点任务');
+  } finally {
+    globalThis.fetch = fixtureFetch;
+    settings.saveUserSettings(userId, 'minecraft-runtime', previousRuntimeSettings);
+  }
+});
+
+test('piston-meta 不可达时通过 Mojang 官方备用域名读取清单和版本详情', async () => {
+  const fixtureFetch = globalThis.fetch;
+  const observed = [];
+  globalThis.fetch = async (input, init) => {
+    const url = new URL(String(input));
+    if (url.hostname === 'piston-meta.mojang.com') throw new Error('fixture: piston-meta unavailable');
+    if (url.hostname === 'launchermeta.mojang.com') {
+      observed.push(url.pathname);
+      if (url.pathname === '/mc/game/version_manifest_v2.json') {
+        return Response.json({ versions: [{ id: 'fixture-version', url: 'https://piston-meta.mojang.com/fixture/detail' }] });
+      }
+      if (url.pathname === '/fixture/detail') return Response.json({ javaVersion: { majorVersion: 21 } });
+      throw new Error(`未登记备用元数据路径 ${url.pathname}`);
+    }
+    return fixtureFetch(input, init);
+  };
+  try {
+    const artifact = await resolveMinecraftCoreArtifact('SpongeNeo','fixture-version','21.8.31-16.0.0');
+    assert.equal(artifact.javaMajor, 21, 'Java 主版本必须来自备用域名返回的实际版本详情');
+    assert.deepEqual(observed, ['/mc/game/version_manifest_v2.json', '/fixture/detail']);
+  } finally { globalThis.fetch = fixtureFetch; }
 });
 
 test('SpongeNeo 正式版和 RC 构建都解析同一官方加载器坐标', async () => {

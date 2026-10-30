@@ -426,6 +426,12 @@ export const minecraftInstanceJavaRuntimeSchema = Joi.object({
     javaRuntimeId: Joi.string().trim().min(1).max(80).allow(null).required()
   }).unknown(false);
 
+export const minecraftInstanceJvmConfigurationSchema = Joi.object({
+    memoryMb: Joi.number().integer().min(1024).max(32768).required(),
+    initialHeapMb: Joi.number().integer().min(512).max(32768).required(),
+    jvmArguments: Joi.string().max(8192).allow("").required()
+  }).unknown(false);
+
 export const minecraftJavaInstallSchema = Joi.object({
     nodeId: Joi.string().guid().required(),
     major: Joi.number().integer().min(8).max(40).required()

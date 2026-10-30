@@ -984,6 +984,8 @@ export interface MinecraftInstance {
   javaMajor: number;
   javaRuntimeId: string | null;
   memoryMb: number;
+  initialHeapMb: number;
+  jvmArguments: string[];
   coreType: string;
   coreBuild: string;
   executionMode: "native" | "appcontainer";
@@ -2366,6 +2368,11 @@ export function setMinecraftInstanceJavaRuntime(instanceId: string, javaRuntimeI
   return request(`/minecraft/instances/${encodeURIComponent(instanceId)}/java-runtime`, { method: "PATCH", body: JSON.stringify({ javaRuntimeId }) });
 }
 
+/** 更新已停止实例实际使用的 JVM 参数；服务端再次验证节点状态、实例状态和参数白名单。 */
+export function setMinecraftInstanceJvmConfiguration(instanceId: string, configuration: { memoryMb: number; initialHeapMb: number; jvmArguments: string }): Promise<{ instance: MinecraftInstance }> {
+  return request(`/minecraft/instances/${encodeURIComponent(instanceId)}/jvm-configuration`, { method: "PATCH", body: JSON.stringify(configuration) });
+}
+
 export function installMinecraftJava(input: { nodeId: string; major: number }): Promise<{ task: MinecraftTask }> {
   return request("/minecraft/java/install", { method: "POST", body: JSON.stringify(input) });
 }
@@ -2393,6 +2400,10 @@ export function sendMinecraftConsole(instanceId: string, command: string): Promi
 
 export function saveMinecraftServerProperties(instanceId: string, properties: MinecraftServerProperties): Promise<{ task: MinecraftTask }> {
   return request(`/minecraft/instances/${encodeURIComponent(instanceId)}/properties`, { method: "PATCH", body: JSON.stringify({ properties }) });
+}
+
+export function saveMinecraftServerFileProperties(instanceId: string, fileProperties: Record<string, string | null>): Promise<{ task: MinecraftTask }> {
+  return request(`/minecraft/instances/${encodeURIComponent(instanceId)}/properties`, { method: "PATCH", body: JSON.stringify({ fileProperties }) });
 }
 
 export function readMinecraftServerProperties(instanceId: string): Promise<{ task: MinecraftTask }> {

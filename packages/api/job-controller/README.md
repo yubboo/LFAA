@@ -9,3 +9,5 @@
 Daemon 心跳同时接收 SteamCMD 服务端进程状态并返回该节点已登记服务端 ID；节点身份仍由 `requireLocalDaemon` 校验。服务端任务与状态更新由 `games/steamcmd` 持有，Job Controller 只负责节点认证与协议路由。
 
 节点文件任务输入与结果字节使用 Daemon 身份认证的原始流路由；输入绑定运行中的上传任务、用户和节点，结果绑定运行中的下载/二进制预览任务。完成时由文件队列核对已收字节及名称、大小和 SHA-256，再只把小型元数据写入 SQLite。
+
+Minecraft 节点通过认证后领取任务时，Job Controller 才调用领域 Owner 解封已绑定实例和属性名的 `server.properties` 敏感值；若认证解密失败则将已领取任务标为失败，不返回或记录明文。通用任务列表和详情继续由 Minecraft Domain 移除敏感属性键。

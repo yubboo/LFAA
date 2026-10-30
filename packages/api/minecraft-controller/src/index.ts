@@ -7,15 +7,16 @@ import { issueDaemonCredential, listDaemonCredentials, revokeDaemonCredential } 
 import { deleteMinecraftInstance, readMinecraftServerProperties, restartMinecraftInstance, sendMinecraftConsoleCommand } from "lfaa-games-minecraft/src/service.js";
 import Joi from "joi";
 import { ApiError } from "lfaa-util-values/src/http-error.js";
+import { MINECRAFT_PROPERTY_KEY_PATTERN, MINECRAFT_PROPERTY_VALUE_LIMIT, MINECRAFT_PROPERTIES_ENTRY_LIMIT } from "lfaa-util-values/src/minecraft-property-contract.mjs";
 import { requireAuthentication, requireRole } from "lfaa-authorization/src/middleware.js";
 import { assertSystemFileAccess } from "lfaa-fs/src/library.js";
 import { getDaemonNode, listDaemonNodes } from "lfaa-host-daemon/src/local-daemon.js";
-import { backupMinecraftWorld, createMinecraftDeployment, deleteMinecraftTaskRecords, getMinecraftTaskRecordDetails, getMinecraftInstance, getMinecraftInstanceLogs, getMinecraftOverview, getMinecraftRelease, getMinecraftReleases, getMinecraftStorageSettingsOverview, listMinecraftDeployments, forgetMinecraftJavaPath, installMinecraftJava, listMinecraftInstances, listMinecraftJavaRuntimes, listMinecraftTaskRecords, startMinecraftInstance, stopMinecraftInstance, registerMinecraftDeployment, retryMinecraftDeployment, updateMinecraftInstanceJavaRuntime, saveMinecraftNodeStorageSettings, saveMinecraftStorageDefaults, registerMinecraftJavaPath, uninstallMinecraftJava, updateMinecraftServerProperties, validateMinecraftServerProperties } from "lfaa-games-minecraft/src/service.js";
+import { backupMinecraftWorld, createMinecraftDeployment, deleteMinecraftTaskRecords, getMinecraftTaskRecordDetails, getMinecraftInstance, getMinecraftInstanceLogs, getMinecraftOverview, getMinecraftRelease, getMinecraftReleases, getMinecraftStorageSettingsOverview, listMinecraftDeployments, forgetMinecraftJavaPath, installMinecraftJava, listMinecraftInstances, listMinecraftJavaRuntimes, listMinecraftTaskRecords, startMinecraftInstance, stopMinecraftInstance, registerMinecraftDeployment, retryMinecraftDeployment, updateMinecraftInstanceJavaRuntime, updateMinecraftInstanceJvmConfiguration, saveMinecraftNodeStorageSettings, saveMinecraftStorageDefaults, registerMinecraftJavaPath, uninstallMinecraftJava, updateMinecraftServerProperties, validateMinecraftServerProperties, withoutMinecraftTaskPropertySecrets } from "lfaa-games-minecraft/src/service.js";
 import type { AiPluginHost } from "lfaa-app-boot/src/ai-host.js";
 import type { MinecraftRealtimePublisher } from "lfaa-api-remotes/src/socket-server.js";
 import { listMinecraftCores, listMinecraftCoreBuilds, minecraftCoreNames } from "lfaa-games-minecraft/src/core-sources.js";
 import { provisionMinecraftServer, type MinecraftProvisionInput } from "lfaa-games-minecraft/src/deployment-service.js";
-import { asyncHandler, parseBody, withoutJavaExecutablePath, withoutJavaExecutablePaths, withoutJavaTaskPath, minecraftDeploymentSchema, minecraftDeploymentRegistrationSchema, minecraftInstanceJavaRuntimeSchema, minecraftJavaInstallSchema, minecraftJavaUninstallSchema, minecraftJavaPathSchema, minecraftJavaPathRemovalSchema, minecraftStorageSettingsSchema } from "lfaa-api-remotes/src/route-contracts.js";
+import { asyncHandler, parseBody, withoutJavaExecutablePath, withoutJavaExecutablePaths, withoutJavaTaskPath, minecraftDeploymentSchema, minecraftDeploymentRegistrationSchema, minecraftInstanceJavaRuntimeSchema, minecraftInstanceJvmConfigurationSchema, minecraftJavaInstallSchema, minecraftJavaUninstallSchema, minecraftJavaPathSchema, minecraftJavaPathRemovalSchema, minecraftStorageSettingsSchema } from "lfaa-api-remotes/src/route-contracts.js";
 import { ensureProjectStorageDirectory, isOutsideProjectDataDirectory } from "lfaa-settings/src/project-storage.js";
 export function registerRoutes(router: Router, _aiPluginHost: AiPluginHost, realtime: MinecraftRealtimePublisher): void {
 router.post("/minecraft/tasks/:taskId/cancel",requireAuthentication,requireRole("admin"),(request,response)=>{const task=requestMinecraftTaskCancellation(request.params.taskId,request.auth!.user.id);realtime.publishMinecraftChange(["tasks","state"],task.instanceId??undefined);response.json({task});});
@@ -197,6 +198,13 @@ router.patch("/minecraft/instances/:instanceId/java-runtime", requireAuthenticat
     response.json({ instance });
   });
 
+router.patch("/minecraft/instances/:instanceId/jvm-configuration", requireAuthentication, requireRole("admin"), (request, response) => {
+    const body = parseBody<{ memoryMb: number; initialHeapMb: number; jvmArguments: string }>(minecraftInstanceJvmConfigurationSchema, request.body);
+    const instance = updateMinecraftInstanceJvmConfiguration(request.params.instanceId, body);
+    realtime.publishMinecraftChange(["state"], instance.id);
+    response.json({ instance });
+  });
+
 router.get("/minecraft/instances/:instanceId/logs", requireAuthentication, (request, response) => {
     response.json({ logs: getMinecraftInstanceLogs(request.params.instanceId) });
   });
@@ -226,11 +234,13 @@ router.post("/minecraft/instances/:instanceId/backup", requireAuthentication, re
   });
 
 router.patch("/minecraft/instances/:instanceId/properties", requireAuthentication, requireRole("admin"), (request, response) => {
-    const body = parseBody<{ properties: unknown }>(Joi.object({
-      properties: Joi.object().min(1).required()
-    }).unknown(false), request.body);
-    const properties = validateMinecraftServerProperties(body.properties);
-    const task = updateMinecraftServerProperties(request.params.instanceId, request.auth!.user.id, properties);
+    const filePropertyValueSchema = Joi.alternatives().try(Joi.string().max(MINECRAFT_PROPERTY_VALUE_LIMIT).pattern(/^[^\u0000-\u001f\u007f]*$/u), Joi.valid(null));
+    const body = parseBody<{ properties?: unknown; fileProperties?: Record<string, string | null> }>(Joi.object({
+      properties: Joi.object().min(1),
+      fileProperties: Joi.object().pattern(Joi.string().pattern(MINECRAFT_PROPERTY_KEY_PATTERN), filePropertyValueSchema).min(1).max(MINECRAFT_PROPERTIES_ENTRY_LIMIT)
+    }).xor("properties", "fileProperties").unknown(false), request.body);
+    const input = body.fileProperties ? { fileProperties: body.fileProperties } : validateMinecraftServerProperties(body.properties);
+    const task = withoutMinecraftTaskPropertySecrets(updateMinecraftServerProperties(request.params.instanceId, request.auth!.user.id, input));
     realtime.publishMinecraftChange(["tasks"], request.params.instanceId);
     response.status(202).json({ task });
   });
@@ -242,11 +252,12 @@ router.post("/minecraft/instances/:instanceId/properties/read", requireAuthentic
 
 router.get("/minecraft/tasks", requireAuthentication, (request, response) => {
     const tasks = listMinecraftTaskRecords();
-    response.json({ tasks: request.auth!.user.role !== "member" ? tasks : tasks.map(withoutJavaTaskPath) });
+    response.json({ tasks: tasks.map(withoutMinecraftTaskPropertySecrets).map(task => request.auth!.user.role !== "member" ? task : withoutJavaTaskPath(task)) });
   });
 router.get("/minecraft/tasks/:taskId", requireAuthentication, (request, response) => {
     const details = getMinecraftTaskRecordDetails(request.params.taskId);
-    response.json({ ...details, task: request.auth!.user.role !== "member" ? details.task : withoutJavaTaskPath(details.task) });
+    const task = withoutMinecraftTaskPropertySecrets(details.task);
+    response.json({ ...details, task: request.auth!.user.role !== "member" ? task : withoutJavaTaskPath(task) });
   });
 router.delete("/minecraft/tasks", requireAuthentication, requireRole("admin"), (request, response) => {
     const body = parseBody<{ taskIds: string[] }>(Joi.object({
