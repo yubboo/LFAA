@@ -33,5 +33,6 @@
 
 - `packages/client/ui-minecraft` 在实例列表卡片和具体实例概览提供“打开实例文件”，并在进入文件页时复用同一稳定实例 ID 生成概览返回路由；`packages/client/connection` 将此相对站内路由与文件位置一并按账户写入并校验；`packages/client/ui-sidebar-files` 在文件页标题操作区提供“返回实例”，进入该文件页的上下文只对来源账户有效。返回仍走既有 `onNavigate`，打开文件仍走 `gameInstanceFileMount`。
 - 更新 Connection、Minecraft、Files 包 README 与本合同，记录同一流程与唯一 Owner；没有新增设置、API、权限或实例数据规则。
-- 静态回归、类型和构建：待执行。
-- ChatGPT 内置浏览器真实往返：待执行。
+- 静态回归 `client-file-manager-responsive`、`client-minecraft-instance-file-entry`、`client-minecraft-instance-files-roundtrip` 共 7/7 通过；Client 类型检查、Files 包构建与正式 Web 构建通过，Web/Host 构建指纹均为 `[]`。
+- ChatGPT 内置浏览器使用真实 `admin` 登录态：实例 `1.21.1`（ID `45f694c3-fbf3-447c-a848-80c6a5c5724c`）点击“打开实例文件”进入 `/files`，位置显示 `DESKTOP-26FQTU7 · …\games\minecraft\1.21.1` 且读取 29 项；点击“返回实例”回到同一 ID，再次打开后仍到达相同路径。390×845 手机 viewport 下，文件区与表格分别为 `332/332px`、`316/316px`，无横向溢出；实例保持停止，没有启动/停止或文件写入。
+- 实际桌面/手机浏览器往返已测；真实设备与帧时间未测。

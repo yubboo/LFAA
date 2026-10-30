@@ -19,6 +19,7 @@ import { readWorkbenchLeadingInsetWidth, useWorkbenchMetrics } from "lfaa-client
 import type { WorkbenchCollapseState } from "lfaa-client-ui-dockkit/src/workbench-layout.types.js";
 import { usePointerResize } from "lfaa-client-ui-dockkit/src/ui-resize/use-pointer-resize.js";
 import { createTarArchive } from "./archive.js";
+import { buildFileManagerBreadcrumbs, getFileManagerBreadcrumbTitle } from "./file-manager-breadcrumbs.js";
 import { consumeFileManagerLocation, readFileManagerLocation, readFileManagerReturnPath } from "lfaa-client-connection/src/file-manager-location.js";
 import "./FileManagerPage.css";
 
@@ -419,7 +420,7 @@ export function FileManagerPage({ user, settings, serverState, applications, nav
         ? await runTask("search", { path: currentPath, query: searchQuery.trim() }, controller.signal)
         : await runTask("list", { path: currentPath }, controller.signal);
       if (request !== directoryReadSequence.current) return;
-      if (typeof result.rootDirectory === "string") setDataRootLabel(result.rootDirectory);
+      setDataRootLabel(typeof result.rootDirectory === "string" ? result.rootDirectory : "");
       const nextEntries = Array.isArray(result.entries) ? result.entries as ManagedFileEntry[] : [];
       setEntries(nextEntries);
       const operations = Array.isArray(result.operations) ? result.operations as FileManagerOperation[] : undefined;
@@ -929,7 +930,7 @@ export function FileManagerPage({ user, settings, serverState, applications, nav
     }))
     : columns;
 
-  const crumbs = currentPath ? currentPath.split("/").map((name, index, segments) => ({ name: name === ".lfaa-library" ? "应用资源" : name === ".lfaa-resources" ? "受管资源" : segments[1] === "aivideo-projects" && index === 2 ? "项目媒体" : segments[1] === "game-storage" && name === "minecraft" ? "Minecraft 游戏目录" : segments[1] === "game-storage" && name === "steamcmd" ? "Steam 游戏目录" : name === "steamcmd-runtime" ? "SteamCMD 工具目录" : locations.find(location => location.path === segments.slice(0, index + 1).join("/"))?.name ?? (segments[index - 1] === "local-drives" && /^[A-Z]$/iu.test(name) ? `${name}:` : name), path: segments.slice(0, index + 1).join("/") })).filter(crumb => crumb.path !== ".lfaa-resources" && !(crumb.path.startsWith(".lfaa-library/game-storage/") && crumb.path.split("/").length === 3)) : [];
+  const crumbs = buildFileManagerBreadcrumbs(currentPath, locations, dataRootLabel);
 
   return (
     <div className="module-workbench-stage file-manager-stage" ref={layoutMeasureRef}>
@@ -1013,7 +1014,7 @@ export function FileManagerPage({ user, settings, serverState, applications, nav
             <div className="file-manager__location">
               <Button aria-label="返回上一级" title="返回上一级" disabled={!isOnline || !currentPath || busy} onClick={navigateUp}><WorkbenchIcon name="chevron" size={15} /></Button>
               <Button aria-label="回到文件总览" title="回到文件总览" disabled={!isOnline || !currentPath || busy} onClick={() => { setCurrentPath(""); setSearchQuery(""); setSearchText(""); }}><WorkbenchIcon name="home" size={15} /></Button>
-              <div className={`file-manager__breadcrumbs${crumbs.length ? " file-manager__breadcrumbs--nested" : ""}`} aria-label="当前目录" title={currentPath || "LFAA 数据"}>
+              <div className={`file-manager__breadcrumbs${crumbs.length ? " file-manager__breadcrumbs--nested" : ""}`} aria-label={`当前目录：${getFileManagerBreadcrumbTitle(dataRootLabel, currentPath)}`} title={getFileManagerBreadcrumbTitle(dataRootLabel, currentPath)}>
                 <button type="button" className={!currentPath ? "is-current" : ""} disabled={!isOnline || busy} onClick={() => { setCurrentPath(""); setSearchQuery(""); setSearchText(""); }}>LFAA 数据</button>
                 {crumbs.map((crumb) => <span key={crumb.path}>
                   <span aria-hidden="true">/</span>

@@ -37,7 +37,7 @@ const { confirmProjectContentDirectory, getProjectStorageLocations, getProjectSt
 const { SystemFileLibrary } = await import('lfaa-fs/src/library.js');
 const { createManagedFileService } = await import('lfaa-fs/src/managed-files.mjs');
 const { createInstanceFileService } = await import('lfaa-fs/src/instance-files.mjs');
-const { gameInstanceFileMount, gameStorageFileMount } = await import('lfaa-api-workspace-files/src/index.js');
+const { gameFileMount, gameInstanceFileMount, gameStorageFileMount } = await import('lfaa-api-workspace-files/src/index.js');
 const queue = await import('lfaa-fs/src/queue.js');
 const actor = { userId: randomUUID(), role: 'super_admin' };
 database.prepare("INSERT INTO users(id,uid,username,password_salt,password_hash,role,is_super_admin) VALUES(?,9901,'resources-test','test','test','admin',1)").run(actor.userId);
@@ -244,6 +244,40 @@ test('平台游戏目录按节点保存设置派发，并保留回收站节点/�
     assert.equal(runtimeResult.entries[0].path,`${runtimePath}/steamcmd.exe`);
     assert.deepEqual(runtimeResult.operations,['list','search','directory-size','preview','read','download']);
   }finally{dispose();}
+});
+test('文件资源入口只列在线同名节点，保留旧节点记录并拒绝离线访问', async () => {
+  const onlineNodeId = randomUUID(), offlineNodeId = randomUUID();
+  const onlineSeen = new Date().toISOString();
+  const offlineSeen = '2026-10-25T05:38:20.820Z';
+  const insertNode = database.prepare('INSERT INTO daemon_nodes(id,display_name,platform,architecture,daemon_version,status,data_root,capabilities_json,last_seen_at) VALUES(?,\'同名文件节点\',\'win32\',\'x64\',\'fixture\',?,?,?,?)');
+  const capabilities = JSON.stringify(['node-filesystem-v1', 'node-filesystem-game-storage-v1']);
+  insertNode.run(onlineNodeId, 'online', 'E:\\NodeData/minecraft', capabilities, onlineSeen);
+  insertNode.run(offlineNodeId, 'offline', 'E:\\NodeData/minecraft', capabilities, offlineSeen);
+  const disposeNodes = library.register(gameFileMount);
+  const disposeStorage = library.register(gameStorageFileMount);
+  try {
+    const nodeEntries = await library.operate(actor, 'list', { path: '.lfaa-library/game-servers' });
+    assert.ok(nodeEntries.entries.some(entry => entry.path === `.lfaa-library/game-servers/${onlineNodeId}`));
+    assert.ok(nodeEntries.entries.every(entry => entry.path !== `.lfaa-library/game-servers/${offlineNodeId}`));
+
+    const storageEntries = await library.operate(actor, 'list', { path: '.lfaa-library/game-storage' });
+    assert.equal(storageEntries.entries.filter(entry => entry.path.startsWith(`.lfaa-library/game-storage/${onlineNodeId}/`)).length, 3);
+    assert.ok(storageEntries.entries.every(entry => !entry.path.startsWith(`.lfaa-library/game-storage/${offlineNodeId}/`)));
+
+    const browsingNode = library.operate(actor, 'list', { path: `.lfaa-library/game-servers/${onlineNodeId}` });
+    await new Promise(done => setImmediate(done));
+    const nodeTask = queue.claimNextNodeFileTask(onlineNodeId);
+    assert.equal(nodeTask.payload.path, '');
+    queue.completeNodeFileTask({ taskId: nodeTask.id, nodeId: onlineNodeId, succeeded: true, message: '节点文件根夹具', result: { path: '', entries: [] } });
+    assert.equal((await browsingNode).rootDirectory, '同名文件节点 · E:\\NodeData\\minecraft');
+
+    await assert.rejects(library.operate(actor, 'list', { path: `.lfaa-library/game-servers/${offlineNodeId}` }), /当前无法连接/u);
+    await assert.rejects(library.operate(actor, 'list', { path: `.lfaa-library/game-storage/${offlineNodeId}/minecraft` }), /离线/u);
+    assert.equal(database.prepare('SELECT COUNT(*) AS count FROM daemon_nodes WHERE id = ?').get(offlineNodeId).count, 1, '不删除有历史用途的节点记录');
+  } finally {
+    disposeStorage();
+    disposeNodes();
+  }
 });
 test('取消只回收本账户排队中的只读任务，不能伪称写入已撤销',()=>{
   const nodeId=database.prepare('SELECT id FROM daemon_nodes LIMIT 1').get().id;

@@ -69,7 +69,7 @@ interface MinecraftWorkspaceProps {
 const minecraftRoot = "/apps/minecraft/normal";
 const unavailableValue = "—"; // taste-skill-ignore em-dash: shared placeholder for a value the app has not received.
 type RealtimeConnectionStatus = "connecting" | "connected" | "reconnecting" | "disconnected";
-type MinecraftInstanceFilter = "all" | MinecraftInstance["state"];
+type MinecraftInstanceFilter = "all" | "needs-review" | MinecraftInstance["state"];
 
 interface MinecraftWorkspaceSnapshot {
   overview: { latestRelease: string | null; node: MinecraftNode | null; instanceCount: number; runningCount: number; activeTaskCount: number };
@@ -121,6 +121,12 @@ function navigateToInstanceFiles(userId: string, instanceId: string, onNavigate:
 
 function stateLabel(state: MinecraftInstance["state"]): string {
   return ({ installing: "安装中", stopped: "已停止", starting: "启动中", running: "运行中", stopping: "停止中", error: "异常", unknown: "状态未知" })[state];
+}
+
+function matchesMinecraftInstanceFilter(instance: MinecraftInstance, filter: MinecraftInstanceFilter): boolean {
+  if (filter === "all") return true;
+  if (filter === "needs-review") return instance.state === "error" || instance.state === "unknown";
+  return instance.state === filter;
 }
 
 function taskLabel(kind: MinecraftTask["kind"]): string {
@@ -291,6 +297,7 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
   const handledPropertyReadTask = useRef<string | null>(null);
   const [instanceSearch, setInstanceSearch] = useState("");
   const [instanceStateFilter, setInstanceStateFilter] = useState<MinecraftInstanceFilter>("all");
+  const [managementInstanceId, setManagementInstanceId] = useState<string | null>(null);
   const [taskStatusFilter, setTaskStatusFilter] = useState<MinecraftTask["status"] | "all">("all");
   const mounted = useRef(false);
   const refreshSequence = useRef(0);
@@ -404,15 +411,27 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
     && overviewInstance.state === "running");
   useEffect(()=>{if(section==="java")onNavigate(`/games/environments?return=overview`);},[section,onNavigate]);
   const currentSection = standaloneLogs ? "logs" : section === "overview" || section === "nodes" || section === "deployment" || section === "instances" || section === "java" || section === "tasks" || section === "workflows" || section === "connectivity" ? section : detailMatch ? "instances" : "overview";
+  const managedInstance = instances.find((instance) => instance.id === managementInstanceId) ?? null;
+  useEffect(() => {
+    if (managementInstanceId && (currentSection !== "instances" || selectedInstanceId || !managedInstance)) {
+      setManagementInstanceId(null);
+    }
+  }, [currentSection, managedInstance, managementInstanceId, selectedInstanceId]);
   const visibleInstances = useMemo(() => {
     const query = instanceSearch.trim().toLocaleLowerCase();
-    return instances.filter((instance) => (instanceStateFilter === "all" || instance.state === instanceStateFilter)
+    return instances.filter((instance) => matchesMinecraftInstanceFilter(instance, instanceStateFilter)
       && (!query || `${instance.name} ${instance.coreType} ${instance.releaseId} ${instance.nodeName}`.toLocaleLowerCase().includes(query)));
   }, [instances, instanceSearch, instanceStateFilter]);
   const instanceStateCounts = useMemo(() => instances.reduce<Partial<Record<MinecraftInstance["state"], number>>>((counts, instance) => {
     counts[instance.state] = (counts[instance.state] ?? 0) + 1;
     return counts;
   }, {}), [instances]);
+  const instanceSummaryCards: Array<{ filter: MinecraftInstanceFilter; label: string; count: number; action: string }> = [
+    { filter: "all", label: "全部实例", count: instances.length, action: "查看全部实例" },
+    { filter: "running", label: "运行中", count: instanceStateCounts.running ?? 0, action: "筛选运行中的实例" },
+    { filter: "stopped", label: "已停止", count: instanceStateCounts.stopped ?? 0, action: "筛选已停止的实例" },
+    { filter: "needs-review", label: "需核对", count: (instanceStateCounts.error ?? 0) + (instanceStateCounts.unknown ?? 0), action: "筛选异常或状态未确认的实例" }
+  ];
   const latestFailedTaskByNode = useMemo(() => {
     const failedTasks = [...tasks].filter((task) => task.status === "failed").sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
     const latestByNode = new Map<string, MinecraftTask>();
@@ -847,6 +866,7 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
     && selectedInstance.nodeStatus === "online" && (selectedInstance.coreType !== "PocketMine")
     && ["stopped", "error"].includes(selectedInstance.state));
   const isInstanceConsole = Boolean(selectedInstance && detailView === "terminal");
+  const isMinecraftOverviewHome = currentSection === "overview" && !selectedInstance;
   const pageTitle = currentSection === "overview" ? "Minecraft 服务器" : currentSection === "nodes" ? "运行设备" : currentSection === "deployment" ? "部署" : currentSection === "instances" ? "服务器列表" : currentSection === "java" ? "Java 环境" : currentSection === "connectivity" ? "世界联机" : currentSection === "workflows" ? "工作流" : currentSection === "logs" ? "服务端日志" : "任务";
   const pageDescription = selectedInstance
     ? detailView === "terminal" || detailView === "overview" ? ""
@@ -875,16 +895,20 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
     <ConfigProvider theme={{ token: { fontSize: settings.appearance.advanced.interfaceFontSize } }}>
     <section className={`minecraft-workspace minecraft-workspace--${currentSection}${isInstanceConsole ? " minecraft-workspace--instance-console" : ""}`} data-section={currentSection} aria-labelledby="minecraft-page-title">
       <div className="minecraft-page-top">
-        <header className={`minecraft-page-heading${selectedInstance ? " minecraft-page-heading--instance" : ""}`}>
+        <header className={`minecraft-page-heading${selectedInstance ? " minecraft-page-heading--instance" : isMinecraftOverviewHome ? " minecraft-page-heading--overview" : ""}`}>
           <div className="minecraft-page-heading__copy">
             <Typography.Title id="minecraft-page-title" level={2}>{isInstanceConsole ? "控制台" : selectedInstance ? detailView === "overview" ? "实例概览" : selectedInstance.name : pageTitle}</Typography.Title>
             {selectedInstance ? <div className="minecraft-page-heading__description-slot" aria-hidden={!pageDescription}>
               <Typography.Paragraph className={pageDescription ? undefined : "minecraft-page-heading__description-placeholder"} title={pageDescription || undefined}>{pageDescription || "\u00a0"}</Typography.Paragraph>
             </div> : pageDescription ? <Typography.Paragraph>{pageDescription}</Typography.Paragraph> : null}
           </div>
+          {isMinecraftOverviewHome ? <div className="minecraft-overview-heading__status" aria-label="连接与同步状态">
+            <Tag role="status" aria-live="polite" color={realtimeStatusColor(realtimeStatus)}>{realtimeStatusLabel(realtimeStatus)}</Tag>
+            <span className="minecraft-overview-sync">{lastRefreshedAt ? `同步于 ${timeLabel(lastRefreshedAt)}` : "等待首次同步"}</span>
+          </div> : null}
           <Space className="minecraft-page-heading__controls" size="small" wrap>
             {currentSection === "logs" ? <Select aria-label="选择日志实例" placeholder="选择实例" value={selectedLogInstance?.id ?? undefined} onChange={(instanceId: string) => { setLogInstanceSelection(instanceId); onNavigate(getInstanceRoute(instanceId, "logs")); }} disabled={!instances.length} options={instances.map((instance) => ({ value: instance.id, label: `${instance.name} · ${instance.coreType} ${instance.releaseId}` }))} /> : null}
-            {!isInstanceConsole ? <Tag role="status" aria-live="polite" color={realtimeStatusColor(realtimeStatus)}>{currentSection === "connectivity" ? `控制端 · ${realtimeStatusLabel(realtimeStatus)}` : realtimeStatusLabel(realtimeStatus)}</Tag> : null}
+            {!isInstanceConsole && !isMinecraftOverviewHome ? <Tag role="status" aria-live="polite" color={realtimeStatusColor(realtimeStatus)}>{currentSection === "connectivity" ? `控制端 · ${realtimeStatusLabel(realtimeStatus)}` : realtimeStatusLabel(realtimeStatus)}</Tag> : null}
             {currentSection === "overview" && !selectedInstance ? <Button type={overviewInstance ? "default" : "primary"} onClick={() => onNavigate("/games/minecraft/deployment")}>{overviewInstance ? "新建服务器" : "开始开服"}</Button> : null}
             {currentSection === "instances" && !selectedInstance ? <Button type="primary" onClick={() => onNavigate(`${minecraftRoot}/deployment`)}>新建服务器</Button> : null}
             {isInstanceConsole && selectedInstance ? <>
@@ -894,7 +918,7 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
               </Popconfirm> : null}
               {selectedInstance.state === "running" ? <Button disabled={!selectedInstanceCanRestart} loading={busy} onClick={() => instanceAction("restart")}>安全重启</Button> : null}
             </> : null}
-            {currentSection === "overview" ? <span className="minecraft-overview-sync">{lastRefreshedAt ? `同步于 ${timeLabel(lastRefreshedAt)}` : "等待首次同步"}</span> : null}
+            {currentSection === "overview" && selectedInstance ? <span className="minecraft-overview-sync">{lastRefreshedAt ? `同步于 ${timeLabel(lastRefreshedAt)}` : "等待首次同步"}</span> : null}
             {realtimeStatus !== "connected" ? <Button size="small" onClick={reconnectRealtime}>重新连接</Button> : null}
             <Button onClick={() => void refresh()}>刷新状态</Button>
           </Space>
@@ -1251,19 +1275,23 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
       </> : null}
 
       {!selectedInstance && currentSection === "instances" ? <>
-        <div className="minecraft-instance-summary lfaa-card-motion-list" aria-label="Minecraft 实例状态摘要">
-          <article><span>全部实例</span><strong>{instances.length}</strong><small>当前账户可见</small></article>
-          <article><span>运行中</span><strong>{instanceStateCounts.running ?? 0}</strong><small>由目标节点回报</small></article>
-          <article><span>已停止</span><strong>{instanceStateCounts.stopped ?? 0}</strong><small>可以进入实例管理</small></article>
-          <article><span>需核对</span><strong>{(instanceStateCounts.error ?? 0) + (instanceStateCounts.unknown ?? 0)}</strong><small>失败或节点结果未确认</small></article>
+        <div className="minecraft-instance-summary lfaa-card-motion-list" role="group" aria-label="按实例状态筛选">
+          {instanceSummaryCards.map(({ filter, label, count, action }) => <button
+            className="minecraft-instance-summary__item lfaa-card-motion"
+            type="button"
+            key={filter}
+            aria-pressed={instanceStateFilter === filter}
+            onClick={() => setInstanceStateFilter(filter)}
+          ><span>{label}</span><strong>{count}</strong><small>{action}</small></button>)}
         </div>
         <Card className="minecraft-card minecraft-instances-panel">
           <div className="minecraft-card-heading minecraft-instances-heading"><div><Typography.Title level={4}>服务器</Typography.Title><Typography.Text type="secondary">共 {instances.length} 个 · 状态来自控制端与运行设备</Typography.Text></div></div>
-          {instances.length ? <>
+          {instances.length || instanceStateFilter !== "all" ? <>
             <div className="minecraft-instance-toolbar" role="search">
               <Input aria-label="搜索实例" allowClear value={instanceSearch} onChange={(event) => setInstanceSearch(event.target.value)} placeholder="按名称、核心或节点搜索" />
               <Select aria-label="按实例状态筛选" value={instanceStateFilter} onChange={setInstanceStateFilter} options={[
                 { value: "all", label: `全部状态 · ${instances.length}` },
+                { value: "needs-review", label: `需核对 · ${(instanceStateCounts.error ?? 0) + (instanceStateCounts.unknown ?? 0)}` },
                 ...(["running", "stopped", "starting", "stopping", "installing", "error", "unknown"] as const).map((state) => ({ value: state, label: `${stateLabel(state)} · ${instanceStateCounts[state] ?? 0}` }))
               ]} />
             </div>
@@ -1286,9 +1314,7 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
                   <Popconfirm title={`安全停止“${instance.name}”？`} description="Daemon 会向服务端发送正常停止指令，并按设置中心的停服时限等待退出。" okText="安全停止" cancelText="取消" onConfirm={() => void submitAction(() => runMinecraftInstanceAction(instance.id, "stop"), { message: `${taskLabel("stop")}任务已提交。`, showTasksLink: true })}>
                     <Button danger disabled={!canStop} loading={busy}>安全停止</Button>
                   </Popconfirm>
-                  <Button onClick={() => onNavigate(getInstanceRoute(instance.id, "overview"))}>管理实例</Button>
-                  <Button onClick={() => navigateToInstanceFiles(userId, instance.id, onNavigate)}>打开实例文件</Button>
-                  <Popconfirm title={`删除“${instance.name}”？`} description="完整实例文件将移入节点备份归档，再移除登记；不会覆盖已有备份。" okText="归档并删除" cancelText="取消" onConfirm={() => deleteInstance(instance)}><Button danger disabled={!canOperate||!nodeOnline||busy||!["stopped","error","unknown"].includes(instance.state)}>删除实例</Button></Popconfirm>
+                  <Button aria-label={`管理实例 ${instance.name}`} onClick={() => setManagementInstanceId(instance.id)}>管理</Button>
                 </div>
               </Card>;
             })}</div> : <div className="minecraft-empty minecraft-instance-filter-empty"><Typography.Text>没有符合当前搜索和状态筛选的实例。</Typography.Text><Button type="link" onClick={() => { setInstanceSearch(""); setInstanceStateFilter("all"); }}>清除筛选条件</Button></div>}
@@ -1299,6 +1325,32 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
           {!canOperate && instances.length ? <Typography.Text className="minecraft-instance-readonly-note" type="secondary">当前账户为只读角色；可查看实例，启动和停止需要管理员权限。</Typography.Text> : null}
         </Card>
       </> : null}
+
+      {managedInstance ? <Modal
+        className="minecraft-instance-action-modal"
+        getContainer={() => document.querySelector<HTMLElement>(".module-center") ?? document.body}
+        centered
+        title={`管理实例 · ${managedInstance.name}`}
+        open={Boolean(managedInstance)}
+        width="min(480px, calc(100vw - 32px), calc(100cqi - 32px))"
+        footer={<Button onClick={() => setManagementInstanceId(null)}>关闭</Button>}
+        onCancel={() => setManagementInstanceId(null)}
+      >
+        <div className="minecraft-instance-action-modal__buttons" role="group" aria-label={`管理 ${managedInstance.name}`}>
+          <Button block onClick={() => { setManagementInstanceId(null); onNavigate(getInstanceRoute(managedInstance.id, "overview")); }}>管理实例</Button>
+          <Button block onClick={() => { setManagementInstanceId(null); navigateToInstanceFiles(userId, managedInstance.id, onNavigate); }}>打开实例文件</Button>
+          <Popconfirm
+            title={`删除“${managedInstance.name}”？`}
+            description="完整实例文件将移入节点备份归档，再移除登记；不会覆盖已有备份。"
+            okText="归档并删除"
+            cancelText="取消"
+            okButtonProps={{ danger: true }}
+            onConfirm={() => { setManagementInstanceId(null); deleteInstance(managedInstance); }}
+          >
+            <Button block danger disabled={!canOperate || managedInstance.nodeStatus !== "online" || busy || !["stopped", "error", "unknown"].includes(managedInstance.state)}>删除实例</Button>
+          </Popconfirm>
+        </div>
+      </Modal> : null}
 
       {!selectedInstance && currentSection === "tasks" ? <>
         <div className="minecraft-task-status-grid lfaa-card-motion-list" role="group" aria-label="按任务状态筛选">

@@ -15,7 +15,7 @@ import type { FileManagerOperation } from "lfaa-util-values/src/file-manager-con
 import { listMinecraftInstances, getMinecraftNodeStorageSettings } from "lfaa-games-minecraft/src/service.js";
 import { getSteamcmdNodeSettings } from "lfaa-games-steamcmd/src/service.js";
 import { config } from "lfaa-launch-environment/src/config.js";
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { isAbsolute, posix, relative, resolve, sep, win32 } from "node:path";
 import { assertInstanceFileMutation } from "lfaa-fs/src/instance-files.mjs";
 async function protectRunningGameFiles(path: string): Promise<void> {
   for (const instance of listMinecraftInstances()) {
@@ -50,7 +50,8 @@ function instanceDescription(instance: ReturnType<typeof listMinecraftInstances>
   return `${instance.nodeName} · ${instance.nodeStatus === "online" ? "在线" : "离线"} · ${states[instance.state]} · ${displayDataPath(`${instance.storageDirectory}/${instance.name}`)}`;
 }
 function displayDataPath(path: string): string {
-  if (/^[a-z]:[\\/]|^\\\\|^\//iu.test(path)) return path;
+  if (/^[a-z]:[\\/]|^\\\\/iu.test(path)) return win32.normalize(path);
+  if (path.startsWith("/")) return posix.normalize(path);
   return `data\\${path.replace(/[\\/]+/gu, "\\")}`;
 }
 const systemOperationSchema = fileOperationSchema.fork(["nodeId"], field => field.forbidden());
@@ -66,12 +67,15 @@ function transferError(error: unknown): never {
   throw error;
 }
 // 游戏服务器是统一目录中的一个 Owner；登记本身不查询节点，更不阻断本机根目录。
-const gameFileMount: import("lfaa-fs/src/library.js").FileMount = { id: "game-servers", name: "节点资源", locationDescription: "各节点自己的真实 data 根目录；进入后由该节点的文件 Owner 读取", async operate(actor, operation, input) {
+function listOnlineFileCapableNodes() {
+  return listDaemonNodes().filter(node => node.status === "online" && node.capabilities.includes("node-filesystem-v1"));
+}
+export const gameFileMount: import("lfaa-fs/src/library.js").FileMount = { id: "game-servers", name: "节点资源", locationDescription: "各节点自己的真实 data 根目录；进入后由该节点的文件 Owner 读取", async operate(actor, operation, input) {
   const [nodeId, ...parts] = String(input.path).split("/");
-  const nodes = listDaemonNodes().filter(node => node.capabilities.includes("node-filesystem-v1"));
-  if (!nodeId && operation === "list") return { path: "", operations: ["list"], entries: nodes.map(node => ({ name: `${node.displayName}${node.status === "online" ? "" : "（离线）"}`, path: node.id, kind: "directory", size: 0, fileType: "folder", modifiedAt: node.lastSeenAt, operations: ["list"] })), truncated: false };
+  const nodes = listOnlineFileCapableNodes();
+  if (!nodeId && operation === "list") return { path: "", operations: ["list"], entries: nodes.map(node => ({ name: node.displayName, path: node.id, kind: "directory", size: 0, fileType: "folder", modifiedAt: node.lastSeenAt, operations: ["list"] })), truncated: false };
   const node = nodes.find(item => item.id === nodeId);
-  if (!node || node.status !== "online") throw new ApiError(409, "file_host_offline", "这台游戏服务器当前无法连接；其他目录仍可使用。");
+  if (!node) throw new ApiError(409, "file_host_offline", "这台游戏服务器当前无法连接；其他目录仍可使用。");
   if (binaryNodeFileOperations.has(operation) && !node.capabilities.includes("node-filesystem-binary-transfer-v1")) throw new ApiError(409, "file_host_binary_transfer_update_required", "此机器尚不支持安全的二进制文件传输，请更新并加载 Daemon。");
   if (operation === "upload" && typeof input.transferId !== "string") throw new ApiError(400, "file_upload_transfer_required", "上传必须通过原始文件字节流提交。");
   if (["preview", "move", "trash-list", "trash-restore", "trash-purge"].includes(operation) && !node.capabilities.includes("node-filesystem-v2")) throw new ApiError(409, "file_host_update_required", "此机器尚不支持该文件操作，请更新其 Daemon。");
@@ -87,7 +91,7 @@ const gameFileMount: import("lfaa-fs/src/library.js").FileMount = { id: "game-se
   if (operation === "upload") bindFileTransferToNodeTask({ transferId: String(payload.transferId), taskId: task.id, nodeId, userId: actor.userId });
   const result = await waitNodeFileResult(task.id, actor);
   const prefix = (path: string) => [nodeId, path].filter(Boolean).join("/");
-  return { ...result, ...(typeof result.path === "string" ? { path: prefix(result.path) } : {}), ...(Array.isArray(result.entries) ? { entries: result.entries.map(entry => ({ ...entry, path: prefix(entry.path), ...(entry.trashId ? { trashId: prefix(entry.trashId) } : {}) })) } : {}) };
+  return { ...result, rootDirectory: `${node.displayName} · ${displayDataPath(getDaemonDataRoot(node.id) ?? "data")}`, ...(typeof result.path === "string" ? { path: prefix(result.path) } : {}), ...(Array.isArray(result.entries) ? { entries: result.entries.map(entry => ({ ...entry, path: prefix(entry.path), ...(entry.trashId ? { trashId: prefix(entry.trashId) } : {}) })) } : {}) };
 } };
 /** 按实例 ID 投影原领域记录；路径只交由目标节点索引解析，不接收浏览器绝对路径。 */
 export const gameInstanceFileMount: import("lfaa-fs/src/library.js").FileMount = { id: "game-instances", name: "游戏实例", locationDescription: "快捷入口 · 只显示已登记 Minecraft 实例并跳转到其真实目录；当前节点存储根见“游戏存储位置”", async operate(actor, operation, input) {
@@ -128,11 +132,11 @@ export const gameInstanceFileMount: import("lfaa-fs/src/library.js").FileMount =
 /** 平台目录来自各节点的保存设置；控制端不解释远端盘符。 */
 export const gameStorageFileMount: import("lfaa-fs/src/library.js").FileMount = { id: "game-storage", name: "游戏存储位置", locationDescription: "快捷入口 · Minecraft、Steam 游戏和 SteamCMD 工具位置来自对应节点的已保存设置", async operate(actor, operation, input) {
   const [nodeId, kind, ...parts] = String(input.path).split("/");
-  const nodes = listDaemonNodes().filter(node => node.capabilities.includes("node-filesystem-v1"));
+  const nodes = listOnlineFileCapableNodes();
   if (!nodeId && operation === "list") return { path: "", operations: ["list"], entries: nodes.flatMap(node => [
-    { name: `${node.displayName} · Minecraft`, path: `${node.id}/minecraft`, description: `${node.status === "online" ? "在线" : "离线"} · ${displayDataPath(getMinecraftNodeStorageSettings(node.id).instanceDirectory)}` },
-    { name: `${node.displayName} · Steam 游戏`, path: `${node.id}/steamcmd`, description: `${node.status === "online" ? "在线" : "离线"} · ${displayDataPath(getSteamcmdNodeSettings(node.id).gameDirectory)}` },
-    { name: `${node.displayName} · SteamCMD 工具目录`, path: `${node.id}/steamcmd-runtime`, description: `${node.status === "online" ? "在线" : "离线"} · ${displayDataPath(getSteamcmdNodeSettings(node.id).steamcmdDirectory)} · 只读查看` }
+    { name: `${node.displayName} · Minecraft`, path: `${node.id}/minecraft`, description: `在线 · ${displayDataPath(getMinecraftNodeStorageSettings(node.id).instanceDirectory)}` },
+    { name: `${node.displayName} · Steam 游戏`, path: `${node.id}/steamcmd`, description: `在线 · ${displayDataPath(getSteamcmdNodeSettings(node.id).gameDirectory)}` },
+    { name: `${node.displayName} · SteamCMD 工具目录`, path: `${node.id}/steamcmd-runtime`, description: `在线 · ${displayDataPath(getSteamcmdNodeSettings(node.id).steamcmdDirectory)} · 只读查看` }
   ]).map(entry => ({ ...entry, kind: "directory", size: 0, fileType: "folder", modifiedAt: "", operations: ["list"] })), truncated: false };
   if (kind !== "minecraft" && kind !== "steamcmd" && kind !== "steamcmd-runtime") throw new ApiError(400, "game_storage_kind_invalid", "游戏存储来源无效。");
   const runtimeReadOnlyOperations: FileManagerOperation[] = ["list", "search", "directory-size", "preview", "read", "download"];

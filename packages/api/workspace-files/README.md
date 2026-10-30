@@ -1,6 +1,6 @@
 # Files API 与游戏资源挂载
 
-本包把认证 HTTP 请求交给唯一 SystemFileLibrary；`/files/locations` 与真实目录 entries 分开。资源挂载提供用户可读的物理位置说明；stable ID 仅作内部路由，UI 不展示伪目录名。`game-instances` 按 Minecraft Owner 的稳定 ID、名称、节点、状态投影，目标节点依据已核验实例索引解析目录并返回实际存储位置；`game-storage` 使用保存的 Minecraft/SteamCMD 节点位置，Daemon 自己解释路径。SteamCMD 工具目录通过内部 `steamcmd-runtime` 子资源只读浏览，界面展示节点设置中的实际工具目录，写入和删除仍由 SteamCMD 生命周期 Owner 管理。`game-servers` 保留整台节点 data 的显式来源。
+本包把认证 HTTP 请求交给唯一 SystemFileLibrary；`/files/locations` 与真实目录 entries 分开。资源挂载提供用户可读的物理位置说明；stable ID 仅作内部路由，UI 不展示伪目录名。`game-instances` 按 Minecraft Owner 的稳定 ID、名称、节点、状态投影，目标节点依据已核验实例索引解析目录并返回实际存储位置；`game-storage` 使用保存的 Minecraft/SteamCMD 节点位置，Daemon 自己解释路径。SteamCMD 工具目录通过内部 `steamcmd-runtime` 子资源只读浏览，界面展示节点设置中的实际工具目录，写入和删除仍由 SteamCMD 生命周期 Owner 管理。`game-servers` 保留整台节点 data 的显式来源；文件资源根只列在线且具备 `node-filesystem-v1` 的节点，离线节点仍保留在节点 Owner 的历史记录中，不会生成无法打开的目录入口。
 
 按实例及游戏存储浏览要求节点分别报告 `node-filesystem-instance-v1`、`node-filesystem-game-storage-v1`；旧节点、离线、失败和未知结果不伪装为空目录或成功。相同节点任务等待函数由两种挂载共用；取消/超时不重放副作用。状态可能变化，写入最终仍由节点检查活动进程和持久标记。控制端自定义实例绝对路径保护也沿用共享 instance-files。
 
