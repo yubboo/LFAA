@@ -5,15 +5,16 @@
  */
 /* Minecraft 内容沿用当前账户的主题和表面令牌，由具体页面表达层级。 */
 .minecraft-workspace { container-type: inline-size; display: flex; width: min(100%, 1760px); min-width: 0; min-height: 100%; flex: 1 0 auto; flex-direction: column; gap: clamp(22px, 2.4cqi, 32px); margin-inline: auto; padding: clamp(20px, 2.4cqi, 32px); background: color-mix(in srgb, var(--color-canvas) var(--settings-background-surface-opacity, 100%), transparent); color: var(--color-text-heading); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: var(--font-size-base); }
+.minecraft-workspace > .minecraft-page-top { display: grid; min-width: 0; gap: 8px; }
 .workbench-shell[data-background-image="true"] .minecraft-workspace { -webkit-backdrop-filter: blur(var(--settings-glass-blur, 0px)); backdrop-filter: blur(var(--settings-glass-blur, 0px)); } /* taste-skill-ignore glass: obey the account's configured wallpaper blur. */
 .minecraft-page-heading { display: flex; min-width: 0; align-items: flex-start; justify-content: space-between; gap: 18px; }
 .minecraft-page-heading__copy { display: grid; min-width: 0; gap: 8px; }
 .minecraft-page-heading h2.ant-typography { margin: 0; color: var(--color-text-heading); font-size: clamp(22px, 2.25cqi, 30px); line-height: 1.2; }
 .minecraft-page-heading p.ant-typography { max-width: 64ch; margin: 0; color: var(--color-text-secondary); line-height: 1.55; }
 .minecraft-page-heading__controls { flex: 0 1 auto; align-items: center; justify-content: flex-end; }
-.minecraft-page-heading--instance { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 18px; }
-.minecraft-page-heading--instance > .minecraft-page-heading__copy { min-width: 0; }
-.minecraft-page-heading__description-slot { min-width: 0; overflow: hidden; }
+.minecraft-page-heading--instance { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 18px; row-gap: 8px; }
+.minecraft-page-heading--instance > .minecraft-page-heading__copy { display: flex; min-width: 0; align-items: baseline; gap: 12px; }
+.minecraft-page-heading__description-slot { min-width: 0; max-width: 64ch; flex: 0 1 auto; overflow: hidden; }
 .minecraft-page-heading--instance > .minecraft-page-heading__copy > .minecraft-page-heading__description-slot > .ant-typography { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 1; text-overflow: ellipsis; }
 .minecraft-page-heading--instance > .minecraft-page-heading__copy > .minecraft-page-heading__description-slot > .minecraft-page-heading__description-placeholder { visibility: hidden; }
 .minecraft-page-heading--instance > .minecraft-page-heading__controls { min-width: 0; max-width: 100%; justify-self: end; }
@@ -160,13 +161,12 @@
 .minecraft-console-layout > * { min-width: 0; }
 .minecraft-server-terminal { display: flex; width: 100%; height: min(68vh, 720px); min-width: 0; min-height: 360px; overflow: hidden; border: 1px solid var(--color-border); border-radius: 9px; background: var(--color-surface-muted); }
 .minecraft-workspace--instance-console { box-sizing: border-box; min-height: 0; height: 100%; flex: 1 1 0; overflow: hidden; }
-.minecraft-workspace--instance-console > .minecraft-page-heading { flex: 0 0 auto; }
-.minecraft-workspace--instance-console > .minecraft-instance-tabs { flex: 0 0 auto; }
+.minecraft-workspace--instance-console > .minecraft-page-top { flex: 0 0 auto; }
 .minecraft-workspace--instance-console > .minecraft-console-layout { display: flex; min-height: 0; flex: 1 1 0; }
 .minecraft-workspace--instance-console > .minecraft-console-layout > .minecraft-server-terminal { height: auto; min-height: 0; flex: 1 1 auto; }
 .minecraft-workspace--logs { box-sizing: border-box; min-height: 0; height: 100%; flex: 1 1 0; gap: 12px; overflow: hidden; padding-block: clamp(12px, 1.6cqi, 20px); }
-.minecraft-workspace--logs > .minecraft-page-heading { flex: 0 0 auto; }
-.minecraft-workspace--logs > .minecraft-page-heading .ant-select { width: min(360px, 100%); }
+.minecraft-workspace--logs > .minecraft-page-top { flex: 0 0 auto; }
+.minecraft-workspace--logs > .minecraft-page-top > .minecraft-page-heading .ant-select { width: min(360px, 100%); }
 .minecraft-workspace--logs > .minecraft-instance-logs.ant-card { display: flex; min-width: 0; min-height: 0; flex: 1 1 0; flex-direction: column; }
 .minecraft-workspace--logs > .minecraft-instance-logs.ant-card > .ant-card-body { box-sizing: border-box; display: grid; width: 100%; min-width: 0; min-height: 0; height: 100%; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr); align-content: stretch; gap: 12px; padding: 14px 0; border-top: 1px solid var(--color-border-subtle); }
 .minecraft-workspace--logs > .minecraft-instance-logs.ant-card > .ant-card-body > .minecraft-instance-logs__viewport { box-sizing: border-box; width: 100%; min-width: 0; min-height: 0; max-height: none; }
@@ -685,8 +685,8 @@
   .minecraft-page-heading__controls { width: 100%; min-width: 0; justify-content: flex-start; }
   .minecraft-page-heading--instance { grid-template-columns: minmax(0, 1fr) auto; align-items: start; }
   .minecraft-page-heading--instance > .minecraft-page-heading__controls { width: auto; justify-content: flex-end; }
-  .minecraft-workspace--logs > .minecraft-page-heading > .minecraft-page-heading__controls > .ant-space-item:first-child { min-width: 0; max-width: 100%; flex: 1 1 100%; }
-  .minecraft-workspace--logs > .minecraft-page-heading > .minecraft-page-heading__controls > .ant-space-item:first-child > .ant-select { width: 100%; max-width: 100%; }
+  .minecraft-workspace--logs > .minecraft-page-top > .minecraft-page-heading > .minecraft-page-heading__controls > .ant-space-item:first-child { min-width: 0; max-width: 100%; flex: 1 1 100%; }
+  .minecraft-workspace--logs > .minecraft-page-top > .minecraft-page-heading > .minecraft-page-heading__controls > .ant-space-item:first-child > .ant-select { width: 100%; max-width: 100%; }
   .minecraft-workspace--instances > .minecraft-instance-overview > .minecraft-instance-hero { grid-template-columns: minmax(180px, .5fr) minmax(0, 1fr); }
   .minecraft-workspace--instances > .minecraft-instance-overview > .minecraft-instance-hero > .minecraft-instance-hero__content > .minecraft-instance-hero__heading { align-items: flex-start; }
   .minecraft-workspace--instances > .minecraft-instance-overview > .minecraft-instance-hero .minecraft-instance-hero__actions { justify-content: flex-start; }

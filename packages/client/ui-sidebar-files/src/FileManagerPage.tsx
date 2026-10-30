@@ -68,6 +68,26 @@ function formatBytes(size: number): string {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function formatCompactRootPath(label: string): string {
+  const separator = label.lastIndexOf(" · ");
+  const nodeName = separator >= 0 ? label.slice(0, separator) : "";
+  const path = separator >= 0 ? label.slice(separator + 3) : label;
+  const segments = path.split(/[\\/]/u).filter(Boolean);
+  const suffix = segments.slice(-3).join("\\");
+  const compactPath = segments.length > 3 ? `…\\${suffix}` : path;
+  return [nodeName, compactPath].filter(Boolean).join(" · ");
+}
+
+function formatCompactEntryMeta(entry: ManagedFileEntry): string {
+  const kind = entry.kind === "directory"
+    ? "文件夹"
+    : entry.fileType && entry.fileType !== "file" ? entry.fileType.toUpperCase() : "文件";
+  const detail = entry.kind === "file"
+    ? formatBytes(entry.size)
+    : entry.modifiedAt && Number.isFinite(Date.parse(entry.modifiedAt)) ? new Date(entry.modifiedAt).toLocaleDateString() : "";
+  return [kind, detail].filter(Boolean).join(" · ");
+}
+
 function pathWithin(directory: string, name: string): string {
   return [directory, name].filter(Boolean).join("/");
 }
@@ -91,6 +111,7 @@ interface FileColumnResizeEdge { left: FileColumnKey; right: FileColumnKey }
 const initialFileColumnWidths: FileColumnWidths = { name: 360, fileType: 120, size: 120, modifiedAt: 200, actions: 160 };
 const minimumFileColumnWidths: FileColumnWidths = { name: 160, fileType: 82, size: 88, modifiedAt: 146, actions: 120 };
 const maximumFileColumnWidths: FileColumnWidths = { name: 1200, fileType: 280, size: 280, modifiedAt: 380, actions: 240 };
+const compactFileTableBreakpoint = 960;
 const fileColumnResizeEdges: Record<"name" | "fileType" | "size" | "modifiedAt", FileColumnResizeEdge> = {
   name: { left: "name", right: "fileType" },
   fileType: { left: "fileType", right: "size" },
@@ -176,7 +197,6 @@ export function FileManagerPage({ user, settings, serverState, applications, nav
   const [dataRootLabel, setDataRootLabel] = useState("");
   const [locations, setLocations] = useState<FileResourceLocation[]>([]);
   const [locationError, setLocationError] = useState("");
-  const [directoryDescription, setDirectoryDescription] = useState("");
   useEffect(() => {
     setLocations([]); setLocationError("");
     if (!fileAccess) return;
@@ -232,10 +252,25 @@ export function FileManagerPage({ user, settings, serverState, applications, nav
   const [auditEntries, setAuditEntries] = useState<FileManagerAuditEntry[]>([]);
   const [auditQuery, setAuditQuery] = useState("");
   const [columnWidths, setColumnWidths] = useState<FileColumnWidths>(initialFileColumnWidths);
+  const [compactFileTable, setCompactFileTable] = useState(false);
   const columnWidthsRef = useRef(columnWidths);
   const columnResizeStartRef = useRef<FileColumnWidths | null>(null);
   const columnsManuallyResizedRef = useRef(false);
   const fileManagerBodyRef = useRef<HTMLDivElement | null>(null);
+
+  useLayoutEffect(() => {
+    const body = layoutMeasured ? fileManagerBodyRef.current : null;
+    if (!body) return;
+    const updateTableMode = () => {
+      const next = body.clientWidth <= compactFileTableBreakpoint;
+      setCompactFileTable(current => current === next ? current : next);
+    };
+    updateTableMode();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(updateTableMode);
+    observer.observe(body);
+    return () => observer.disconnect();
+  }, [layoutMeasured]);
 
   const applyInitialCollapseState = useCallback((state: WorkbenchCollapseState) => {
     const initialLeftCollapsed = !state.restored && metrics.mode === "mobile" ? true : state.leftCollapsed;
@@ -330,7 +365,7 @@ export function FileManagerPage({ user, settings, serverState, applications, nav
   const directoryUsable = directoryReady || showCurrentDirectorySnapshot;
   const concreteDirectory = currentPath !== "local-drives" && (!currentPath.startsWith(".lfaa-library") || currentPath.startsWith(".lfaa-library/game-servers/") && currentPath.split("/").length >= 3 || instanceDirectory || gameStorageDirectory);
   const activeLocation = locations.filter(location => currentPath === location.path || location.path && currentPath.startsWith(location.path + "/")).sort((left, right) => right.path.length - left.path.length)[0];
-  const selectLocation = (path: string) => { setCurrentPath(path); setSearchQuery(""); setSearchText(""); setDirectoryDescription(""); setDataRootLabel(""); };
+  const selectLocation = (path: string) => { setCurrentPath(path); setSearchQuery(""); setSearchText(""); setDataRootLabel(""); };
   const canOperate = (operation: FileManagerOperation, entry?: ManagedFileEntry) => entry?.operations ? entry.operations.includes(operation) : availableOperations ? availableOperations.includes(operation) : concreteDirectory;
 
   const runTask = useCallback(async (
@@ -385,7 +420,6 @@ export function FileManagerPage({ user, settings, serverState, applications, nav
         : await runTask("list", { path: currentPath }, controller.signal);
       if (request !== directoryReadSequence.current) return;
       if (typeof result.rootDirectory === "string") setDataRootLabel(result.rootDirectory);
-      setDirectoryDescription(typeof result.description === "string" ? result.description : "");
       const nextEntries = Array.isArray(result.entries) ? result.entries as ManagedFileEntry[] : [];
       setEntries(nextEntries);
       const operations = Array.isArray(result.operations) ? result.operations as FileManagerOperation[] : undefined;
@@ -429,7 +463,7 @@ export function FileManagerPage({ user, settings, serverState, applications, nav
       setCurrentPath(""); setSearchQuery(""); setSearchText(""); setDataRootLabel(""); setBusy(false); setTaskMessage(""); setError("");
     }
     setPreview(null); setEditorPath(""); setTrashOpen(false); setTrashEntries([]); setAuditOpen(false); setAuditEntries([]);
-    setSelectedPaths([]); setCreateKind(null); setRenameEntry(null); setDirectoryDescription("");
+    setSelectedPaths([]); setCreateKind(null); setRenameEntry(null);
     setTreeData([{ title: "文件", key: "", isLeaf: false, children: [] }]); setLoadedTreeKeys([]);
   }, [cacheKey]);
 
@@ -839,7 +873,11 @@ export function FileManagerPage({ user, settings, serverState, applications, nav
         const entryUsable = directoryReady || showCurrentDirectorySnapshot && entry.kind === "directory";
         return <button className="file-manager__name" type="button" draggable={entryUsable && !busy && canOperate("move", entry)} disabled={busy || !isOnline || !entryUsable} onDragStart={event => { draggedPathRef.current = entry.path; event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", entry.path); }} onClick={() => void openEntry(entry)}>
           <WorkbenchIcon name={entry.kind === "directory" ? "folder" : "file"} size={17} />
-          <span className="file-manager__entry-label"><span>{entry.name}</span>{entry.description ? <small>{entry.description}</small> : null}</span>
+          <span className="file-manager__entry-label">
+            <span title={entry.name}>{entry.name}</span>
+            {entry.description ? <small className="file-manager__entry-description">{entry.description}</small> : null}
+            <small className="file-manager__entry-meta">{formatCompactEntryMeta(entry)}</small>
+          </span>
         </button>;
       }
     },
@@ -884,7 +922,14 @@ export function FileManagerPage({ user, settings, serverState, applications, nav
     }
   ];
 
-  const crumbs = currentPath ? currentPath.split("/").map((name, index, segments) => ({ name: name === ".lfaa-library" ? "应用资源" : name === ".lfaa-resources" ? "受管资源" : segments[1] === "game-instances" && index === 2 ? "实例目录" : segments[1] === "aivideo-projects" && index === 2 ? "项目媒体" : segments[1] === "game-storage" && name === "minecraft" ? "Minecraft 游戏目录" : segments[1] === "game-storage" && name === "steamcmd" ? "Steam 游戏目录" : name === "steamcmd-runtime" ? "SteamCMD 工具目录" : locations.find(location => location.path === segments.slice(0, index + 1).join("/"))?.name ?? (segments[index - 1] === "local-drives" && /^[A-Z]$/iu.test(name) ? `${name}:` : name), path: segments.slice(0, index + 1).join("/") })).filter(crumb => crumb.path !== ".lfaa-resources" && !(crumb.path.startsWith(".lfaa-library/game-storage/") && crumb.path.split("/").length === 3)) : [];
+  const visibleColumns: ColumnsType<ManagedFileEntry> = compactFileTable
+    ? columns.filter(column => column.key === "name" || column.key === "actions").map(column => ({
+      ...column,
+      ...(column.key === "name" ? { width: undefined } : { width: 104 })
+    }))
+    : columns;
+
+  const crumbs = currentPath ? currentPath.split("/").map((name, index, segments) => ({ name: name === ".lfaa-library" ? "应用资源" : name === ".lfaa-resources" ? "受管资源" : segments[1] === "aivideo-projects" && index === 2 ? "项目媒体" : segments[1] === "game-storage" && name === "minecraft" ? "Minecraft 游戏目录" : segments[1] === "game-storage" && name === "steamcmd" ? "Steam 游戏目录" : name === "steamcmd-runtime" ? "SteamCMD 工具目录" : locations.find(location => location.path === segments.slice(0, index + 1).join("/"))?.name ?? (segments[index - 1] === "local-drives" && /^[A-Z]$/iu.test(name) ? `${name}:` : name), path: segments.slice(0, index + 1).join("/") })).filter(crumb => crumb.path !== ".lfaa-resources" && !(crumb.path.startsWith(".lfaa-library/game-storage/") && crumb.path.split("/").length === 3)) : [];
 
   return (
     <div className="module-workbench-stage file-manager-stage" ref={layoutMeasureRef}>
@@ -917,7 +962,7 @@ export function FileManagerPage({ user, settings, serverState, applications, nav
             </Button>
           </div>
           <nav className="file-manager__resource-list" aria-label="资源类别">
-            {locations.map(location => <button type="button" key={location.id} title={location.description} aria-current={activeLocation?.id === location.id ? "page" : undefined} disabled={!isOnline || busy} onClick={() => selectLocation(location.path)}><WorkbenchIcon name="folder" size={16} /><span>{location.name}<small lang="en">{resourceEnglishNames[location.id] ?? location.id}</small><small className="file-manager__resource-path">{location.description}</small></span></button>)}
+            {locations.map(location => <button type="button" key={location.id} title={location.description} aria-current={activeLocation?.id === location.id ? "page" : undefined} disabled={!isOnline || busy} onClick={() => selectLocation(location.path)}><WorkbenchIcon name="folder" size={16} /><span>{location.name}<small lang="en">{resourceEnglishNames[location.id] ?? location.id}</small></span></button>)}
           </nav>
         </aside>}
         center={
@@ -939,15 +984,20 @@ export function FileManagerPage({ user, settings, serverState, applications, nav
         <header className="file-manager__header">
           <div className="file-manager__heading">
             <Typography.Title id="file-manager-title" level={2}>文件与资源</Typography.Title>
-            <Typography.Text type="secondary">管理游戏、备份和运行资源。</Typography.Text>
           </div>
           <div className="file-manager__header-side">
-            {dataRootLabel ? <Typography.Text className="file-manager__root-path" type="secondary" title={dataRootLabel}>当前存储位置：{dataRootLabel}</Typography.Text> : null}
+            {dataRootLabel ? <Typography.Text className="file-manager__root-path" type="secondary" title={dataRootLabel} aria-label={`当前存储位置：${dataRootLabel}`}>
+              <span className="file-manager__root-path-full">当前存储位置：{dataRootLabel}</span>
+              <span className="file-manager__root-path-compact">{formatCompactRootPath(dataRootLabel)}</span>
+            </Typography.Text> : null}
             <div className="file-manager__header-controls">
               <Space wrap className="file-manager__header-actions">
                 {fileEntryReturnPath ? <Button type="primary" disabled={busy} onClick={() => onNavigate(fileEntryReturnPath)}>返回实例</Button> : null}
                 <Button disabled={!isOnline || busy || !directoryReady || !canOperate("trash-list")} onClick={() => void loadTrash()}>回收站</Button>
-                <Button disabled={!fileAccess} onClick={() => void loadAudit()}>操作记录</Button>
+                <Button aria-label="操作记录" title="操作记录" disabled={!fileAccess} onClick={() => void loadAudit()}>
+                  <span className="file-manager__audit-full">操作记录</span>
+                  <span className="file-manager__audit-compact" aria-hidden="true">记录</span>
+                </Button>
               </Space>
             </div>
           </div>
@@ -963,7 +1013,7 @@ export function FileManagerPage({ user, settings, serverState, applications, nav
             <div className="file-manager__location">
               <Button aria-label="返回上一级" title="返回上一级" disabled={!isOnline || !currentPath || busy} onClick={navigateUp}><WorkbenchIcon name="chevron" size={15} /></Button>
               <Button aria-label="回到文件总览" title="回到文件总览" disabled={!isOnline || !currentPath || busy} onClick={() => { setCurrentPath(""); setSearchQuery(""); setSearchText(""); }}><WorkbenchIcon name="home" size={15} /></Button>
-              <div className="file-manager__breadcrumbs" aria-label="当前目录">
+              <div className={`file-manager__breadcrumbs${crumbs.length ? " file-manager__breadcrumbs--nested" : ""}`} aria-label="当前目录" title={currentPath || "LFAA 数据"}>
                 <button type="button" className={!currentPath ? "is-current" : ""} disabled={!isOnline || busy} onClick={() => { setCurrentPath(""); setSearchQuery(""); setSearchText(""); }}>LFAA 数据</button>
                 {crumbs.map((crumb) => <span key={crumb.path}>
                   <span aria-hidden="true">/</span>
@@ -977,7 +1027,7 @@ export function FileManagerPage({ user, settings, serverState, applications, nav
               allowClear
               disabled={!isOnline || !directoryUsable || busy || !fileAccess}
               prefix={<WorkbenchIcon name="search" size={15} />}
-              placeholder="搜索当前目录及子目录"
+              placeholder={compactFileTable ? "搜索文件" : "搜索当前目录及子目录"}
               value={searchText}
               onChange={(event) => { setSearchText(event.target.value); if (!event.target.value) setSearchQuery(""); }}
               onPressEnter={() => setSearchQuery(searchText.trim())}
@@ -1014,8 +1064,8 @@ export function FileManagerPage({ user, settings, serverState, applications, nav
           <Button size="small" type="text" onClick={() => setSelectedPaths([])}>清除选择</Button>
         </div> : null}
 
-        <div className="file-manager__body" ref={fileManagerBodyRef}>
-          {activeLocation ? <div className="file-manager__resource-context"><strong>{activeLocation.name}</strong><span title={directoryDescription || activeLocation.description}>{directoryDescription || activeLocation.description}</span>{activeLocation.id === "plugins" ? <Button size="small" onClick={onOpenSettings}>管理扩展插件</Button> : null}</div> : null}
+        <div className={`file-manager__body${compactFileTable ? " file-manager__body--compact" : ""}`} ref={fileManagerBodyRef}>
+          {activeLocation?.id === "plugins" ? <div className="file-manager__resource-context"><Button size="small" onClick={onOpenSettings}>管理扩展插件</Button></div> : null}
           {loading && !showCurrentDirectorySnapshot ? <div className="file-manager__loading" role="status"><Spin /><span>正在读取目录…</span></div>
             : !fileAccess ? <Empty className="file-manager__empty" description="仅超级管理员在完全访问模式下可使用文件管理"><Button onClick={onOpenSettings}>前往设置中心</Button></Empty>
                       : directoryState === "error" ? <div className="file-manager__offline-state" role="status">
@@ -1024,7 +1074,7 @@ export function FileManagerPage({ user, settings, serverState, applications, nav
                       <Button disabled={!isOnline || busy} onClick={() => void refresh()}>重试读取目录</Button>
                     </div>
                       : directoryState !== "ready" && !showCurrentDirectorySnapshot ? <div className="file-manager__offline-state" role="status"><Typography.Text>目录尚未读取。</Typography.Text></div>
-                      : visibleEntries.length ? <Table<ManagedFileEntry> rowKey="path" size="small" tableLayout="fixed" scroll={{ x: true }} columns={columns} dataSource={visibleEntries} rowSelection={{ columnWidth: 42, selectedRowKeys: selectedPaths, onChange: keys => {
+                      : visibleEntries.length ? <Table<ManagedFileEntry> rowKey="path" size="small" tableLayout="fixed" scroll={compactFileTable ? undefined : { x: true }} columns={visibleColumns} dataSource={visibleEntries} rowSelection={{ columnWidth: 42, selectedRowKeys: selectedPaths, onChange: keys => {
                           if (keys.length > maximumBatchItems) { messageApi.warning(`批量操作最多选择 ${maximumBatchItems} 项。`); setSelectedPaths(keys.slice(0, maximumBatchItems).map(String)); }
                           else setSelectedPaths(keys.map(String));
                         } }} pagination={{ pageSize: 20, showSizeChanger: false }} onRow={(entry) => ({ onDoubleClick: () => void openEntry(entry), onDragOver: event => { if (entry.kind === "directory") event.preventDefault(); }, onDrop: event => { event.preventDefault(); void moveOnDrop(entry); } })} />

@@ -11,7 +11,9 @@
 | 编号 | 任务 | 状态 | 合同 |
 |---|---|---|---|
 | LFAA-MINECRAFT-INSTANCE-TAB-HEADER-POSITION-20261030 | 将 Minecraft 实例页头改为左侧标题说明、右侧状态操作，统一各 tab 高度 | 完成；包回归 4/4、Minecraft UI/Web/Control Plane 构建通过；内置浏览器 1280×720、900×720、760×640 四 Tab 高度一致，详见合同 | [本轮合同](development/minecraft-instance-tab-header-position-20261030.md#lfaa-minecraft-instance-tab-header-position-20261030) |
+| LFAA-MINECRAFT-INSTANCE-CONFIG-SPACING-20261030 | 收紧 Minecraft 实例配置页标题与标签栏之间的留白 | 完成；Minecraft 包与正式 Control Plane/Web 构建通过、构建指纹 `[]`；内置浏览器 overview/config 1280×720、窄栏 760×640、手机 390×845 验收通过；配置保持 62/62、0 待保存，详见合同 | [本轮合同](development/minecraft-instance-config-spacing-20261030.md#lfaa-minecraft-instance-config-spacing-20261030) |
 | LFAA-MINECRAFT-INSTANCE-FILES-ROUNDTRIP-20261030 | 从实例文件页便捷返回同一实例，并可再次打开该实例文件 | 进行中 | [本轮合同](development/minecraft-instance-files-roundtrip-20261030.md#lfaa-minecraft-instance-files-roundtrip-20261030) |
+| LFAA-FILES-NARROW-VIEWPORT-UX-20261030 | 修复 `/files` 窄视口下的滚动、布局和冗余说明 | 进行中 | [本轮合同](development/files-narrow-viewport-ux-20261030.md#lfaa-files-narrow-viewport-ux-20261030) |
 | LFAA-MINECRAFT-INSTANCE-FILES-WORKBENCH-20261030 | 为 Minecraft 每个实例提供直达其登记目录的文件管理入口，并让 `/files` 使用共享四栏工作台和统一标题栏 | 已完成：正式 Web 健康且指纹 `[]`；真实实例 `1.21.1` 直达并读取实际目录；内置浏览器实测 1280×720、820×520、390×845，四栏标题、窄屏与手机侧栏互斥/关闭通过；定向回归 4/4、Client 类型、受影响包与 Web 构建通过；详见合同 | [本轮合同](development/minecraft-instance-files-workbench-20261030.md#lfaa-minecraft-instance-files-workbench-20261030) |
 | LFAA-MINECRAFT-CORE-CATALOG-LOAD-RECOVERY-20261030 | 修复 Minecraft 手动部署核心目录请求无限等待、页面始终停留在读取状态的问题 | 源码、UI/Web 构建与静态检查通过；运行服务需安全重启后实页验收 | [本轮合同](development/minecraft-core-catalog-load-recovery-20261030.md#lfaa-minecraft-core-catalog-load-recovery-20261030) |
 | LFAA-WINDOWS-RUST-TOOLCHAIN-BOOTSTRAP-20261030 | 修复 Windows 菜单 2 开发模式/菜单 3 桌面构建缺少 Rust 工具链时直接失败的问题，将官方 Rustup 与 stable MSVC target 引导到当前 LFAA 数据缓存 | 修复完成；定向回归与原生构建通过；补充实跑 `lfaa.bat` 并修复 Windows PowerShell 5.1 UTF-8 解析；全工作区 Gate 遗留项见合同 | [本轮合同](development/windows-rust-toolchain-bootstrap-20261030.md#lfaa-windows-rust-toolchain-bootstrap-20261030) |
@@ -8838,3 +8840,15 @@ Owner：依赖由各自 `package.json` 声明，`scripts/check-workspace.mjs` �
 - 实施记录：已完成。整行 hover/焦点底色覆盖项目分区及项目行；点击项目分区空白与项目行留白可开合，菜单/编辑/项目新对话按钮各自处理操作；顶部显示“新对话”；会话滚动列表使用 `scrollbar-gutter: stable`；每项目按 5 条分批显示，仍沿用现有 200 条会话边界。未新增设置、请求或订阅。
 - 验证记录：Workspace 包构建通过；首次侧栏实现后 Client 类型检查及 Web 构建通过。随后共享工作区加入其他 Client 改动，最新 `build:web` 类型检查失败：`ApplicationWorkspace.tsx:861`/`:865` 的会话目录状态变量问题及 `:2297` Minecraft 画布属性不匹配；本次未改这些并行功能，也未重启 3000 端口。ChatGPT 内置浏览器 `/work` 实页 1117×1244、800×720、390×640 已核对，“新对话”文案、整行开合、独立项目菜单、5→10 条分页、无横向溢出均通过。滚动列表有/无溢出时桌面 `clientWidth` 均为 227px；手机侧栏内容宽 310px，文档宽 390px。验收结束已刷新回初始分页/折叠状态；未创建会话或更改用户偏好。`runtime-build-state` 当前返回 `["host"]`；真实帧时间与屏幕阅读器实机未测。
 - 变更文件：`packages/client/ui-workspace/src/ApplicationWorkspace.tsx`（交互/分组状态）、`packages/client/ui-workspace/src/css/secondary-navigation.css`（侧栏样式）、`packages/client/ui-workspace/README.md`（包合同说明）、本合同与 `docs/PROMPTS.md`（任务索引/验收记录）。
+
+<a id="lfaa-minecraft-instance-config-spacing-20261030"></a>
+
+## LFAA Minecraft 实例配置页标题与标签栏间距收紧（2026-10-30）
+
+- 用户问题与目标：用户指出实例配置页面标题区下方留白过多、标题与实例标签栏隔得太宽。按附件红框收紧该段垂直间距，保持配置内容、其他区域间距和既有页面行为。
+- 运行入口与 Owner：Minecraft 实例详情 Web 路由 `/games/minecraft/instance/:instanceId/{overview,configuration}`；页面与样式唯一 Owner 为 `packages/client/ui-minecraft`，配置数据仍由 Minecraft API/Daemon 真实 `server.properties` 读取。
+- 设置、数据与权限：不新增或修改设置，不改变用户偏好。布局继续使用 Settings Owner 提供的 Appearance 主题、字体/字号、强调色、背景表面映射；设置中心没有控制此处页面区块间距的配置。无实例数据、权限或服务端行为变更。
+- 性能、安全与允许范围：仅调整 Minecraft 页面顶部信息区与实例导航的结构/样式，必要时更新包说明与本合同；不新增订阅、请求、计时器、观察器或动画，不触碰认证、授权、配置读写、实例操作和运行数据。
+- UI 技能与方向：已读取 Taste Skill、Impeccable、Audit Skills、UI Motion、UI/UX Pro Max、Baseline UI 六项技能及本任务相关参考。Minecraft 工作台属于 Operate 型密集 App 界面，沿用现有视觉合同；以明确父容器收拢标题、反馈与标签导航，组内间距和窄处换行行距使用 8px；实例标题和副标题共行，无副标题不占垂直空行，同时保留标签到内容的通用节奏。遵循响应式容器布局与现有 Ant Design 控件；不加动效、不增加 Tailwind/motion 依赖。Audit Skills 当前支持 Java/.NET/PHP，不覆盖本次 TSX/CSS，不声明专项扫描结论。
+- 单批验收条件：桌面及相关窄分栏/短屏中，标题/状态控件至实例标签栏的空带明显缩小；标签栏至编辑内容的既有间距保持；标题、状态与操作不遮挡或溢出；真实字段和所有标签交互维持原行为。以当前源码启动的正式 Web 服务在 ChatGPT 内置浏览器验收实际实例概览与配置路由，并记录视口、截图及未测边界；运行直接相关构建与差异检查。不得通过验收修改用户偏好或保存服务器配置。
+- 当前阶段：完成。正式菜单重建 Control Plane/Harness、Web 与 Minecraft 能力包成功；`web`/`host` 指纹均为 `[]`。内置浏览器验证 overview/config 1280×720、窄分栏短屏 760×640、手机 overview 390×845；config 首轮重启后读取短暂失败，经原有刷新操作恢复，62 项全部可见、0 项待保存，未修改配置。帧时间、物理设备与屏幕阅读器未测；未运行自动化测试。

@@ -874,33 +874,38 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
   return (
     <ConfigProvider theme={{ token: { fontSize: settings.appearance.advanced.interfaceFontSize } }}>
     <section className={`minecraft-workspace minecraft-workspace--${currentSection}${isInstanceConsole ? " minecraft-workspace--instance-console" : ""}`} data-section={currentSection} aria-labelledby="minecraft-page-title">
-      <header className={`minecraft-page-heading${selectedInstance ? " minecraft-page-heading--instance" : ""}`}>
-        <div className="minecraft-page-heading__copy">
-          <Typography.Title id="minecraft-page-title" level={2}>{isInstanceConsole ? "控制台" : selectedInstance ? detailView === "overview" ? "实例概览" : selectedInstance.name : pageTitle}</Typography.Title>
-          {selectedInstance ? <div className="minecraft-page-heading__description-slot" aria-hidden={!pageDescription}>
-            <Typography.Paragraph className={pageDescription ? undefined : "minecraft-page-heading__description-placeholder"} title={pageDescription || undefined}>{pageDescription || "\u00a0"}</Typography.Paragraph>
-          </div> : pageDescription ? <Typography.Paragraph>{pageDescription}</Typography.Paragraph> : null}
-        </div>
-        <Space className="minecraft-page-heading__controls" size="small" wrap>
-          {currentSection === "logs" ? <Select aria-label="选择日志实例" placeholder="选择实例" value={selectedLogInstance?.id ?? undefined} onChange={(instanceId: string) => { setLogInstanceSelection(instanceId); onNavigate(getInstanceRoute(instanceId, "logs")); }} disabled={!instances.length} options={instances.map((instance) => ({ value: instance.id, label: `${instance.name} · ${instance.coreType} ${instance.releaseId}` }))} /> : null}
-          {!isInstanceConsole ? <Tag role="status" aria-live="polite" color={realtimeStatusColor(realtimeStatus)}>{currentSection === "connectivity" ? `控制端 · ${realtimeStatusLabel(realtimeStatus)}` : realtimeStatusLabel(realtimeStatus)}</Tag> : null}
-          {currentSection === "overview" && !selectedInstance ? <Button type={overviewInstance ? "default" : "primary"} onClick={() => onNavigate("/games/minecraft/deployment")}>{overviewInstance ? "新建服务器" : "开始开服"}</Button> : null}
-          {currentSection === "instances" && !selectedInstance ? <Button type="primary" onClick={() => onNavigate(`${minecraftRoot}/deployment`)}>新建服务器</Button> : null}
-          {isInstanceConsole && selectedInstance ? <>
-            {selectedInstance.state === "stopped" || selectedInstance.state === "error" ? <Button type="primary" disabled={!selectedInstanceCanStart} loading={busy} onClick={() => instanceAction("start")}>启动实例</Button> : null}
-            {["running", "starting"].includes(selectedInstance.state) ? <Popconfirm title={`安全停止“${selectedInstance.name}”？`} description="Daemon 会向服务端发送正常停止指令，并按设置中心的停服时限等待退出。" okText="安全停止" cancelText="取消" onConfirm={() => instanceAction("stop")}>
-              <Button danger disabled={!selectedInstanceCanStop} loading={busy}>安全停止</Button>
-            </Popconfirm> : null}
-            {selectedInstance.state === "running" ? <Button disabled={!selectedInstanceCanRestart} loading={busy} onClick={() => instanceAction("restart")}>安全重启</Button> : null}
-          </> : null}
-          {currentSection === "overview" ? <span className="minecraft-overview-sync">{lastRefreshedAt ? `同步于 ${timeLabel(lastRefreshedAt)}` : "等待首次同步"}</span> : null}
-          {realtimeStatus !== "connected" ? <Button size="small" onClick={reconnectRealtime}>重新连接</Button> : null}
-          <Button onClick={() => void refresh()}>刷新状态</Button>
-        </Space>
-      </header>
-      {refreshError ? <Alert className="minecraft-alert" type="warning" showIcon message="部分 Minecraft 数据暂时无法读取" description={refreshError} /> : null}
-      {actionError ? <Alert className="minecraft-alert" type="error" showIcon closable onClose={() => setActionError(null)} message={actionError} /> : null}
-      {actionNotice ? <Alert className="minecraft-alert" type="success" showIcon closable onClose={() => setActionNotice(null)} message={actionNotice} role="status" /> : null}
+      <div className="minecraft-page-top">
+        <header className={`minecraft-page-heading${selectedInstance ? " minecraft-page-heading--instance" : ""}`}>
+          <div className="minecraft-page-heading__copy">
+            <Typography.Title id="minecraft-page-title" level={2}>{isInstanceConsole ? "控制台" : selectedInstance ? detailView === "overview" ? "实例概览" : selectedInstance.name : pageTitle}</Typography.Title>
+            {selectedInstance ? <div className="minecraft-page-heading__description-slot" aria-hidden={!pageDescription}>
+              <Typography.Paragraph className={pageDescription ? undefined : "minecraft-page-heading__description-placeholder"} title={pageDescription || undefined}>{pageDescription || "\u00a0"}</Typography.Paragraph>
+            </div> : pageDescription ? <Typography.Paragraph>{pageDescription}</Typography.Paragraph> : null}
+          </div>
+          <Space className="minecraft-page-heading__controls" size="small" wrap>
+            {currentSection === "logs" ? <Select aria-label="选择日志实例" placeholder="选择实例" value={selectedLogInstance?.id ?? undefined} onChange={(instanceId: string) => { setLogInstanceSelection(instanceId); onNavigate(getInstanceRoute(instanceId, "logs")); }} disabled={!instances.length} options={instances.map((instance) => ({ value: instance.id, label: `${instance.name} · ${instance.coreType} ${instance.releaseId}` }))} /> : null}
+            {!isInstanceConsole ? <Tag role="status" aria-live="polite" color={realtimeStatusColor(realtimeStatus)}>{currentSection === "connectivity" ? `控制端 · ${realtimeStatusLabel(realtimeStatus)}` : realtimeStatusLabel(realtimeStatus)}</Tag> : null}
+            {currentSection === "overview" && !selectedInstance ? <Button type={overviewInstance ? "default" : "primary"} onClick={() => onNavigate("/games/minecraft/deployment")}>{overviewInstance ? "新建服务器" : "开始开服"}</Button> : null}
+            {currentSection === "instances" && !selectedInstance ? <Button type="primary" onClick={() => onNavigate(`${minecraftRoot}/deployment`)}>新建服务器</Button> : null}
+            {isInstanceConsole && selectedInstance ? <>
+              {selectedInstance.state === "stopped" || selectedInstance.state === "error" ? <Button type="primary" disabled={!selectedInstanceCanStart} loading={busy} onClick={() => instanceAction("start")}>启动实例</Button> : null}
+              {["running", "starting"].includes(selectedInstance.state) ? <Popconfirm title={`安全停止“${selectedInstance.name}”？`} description="Daemon 会向服务端发送正常停止指令，并按设置中心的停服时限等待退出。" okText="安全停止" cancelText="取消" onConfirm={() => instanceAction("stop")}>
+                <Button danger disabled={!selectedInstanceCanStop} loading={busy}>安全停止</Button>
+              </Popconfirm> : null}
+              {selectedInstance.state === "running" ? <Button disabled={!selectedInstanceCanRestart} loading={busy} onClick={() => instanceAction("restart")}>安全重启</Button> : null}
+            </> : null}
+            {currentSection === "overview" ? <span className="minecraft-overview-sync">{lastRefreshedAt ? `同步于 ${timeLabel(lastRefreshedAt)}` : "等待首次同步"}</span> : null}
+            {realtimeStatus !== "connected" ? <Button size="small" onClick={reconnectRealtime}>重新连接</Button> : null}
+            <Button onClick={() => void refresh()}>刷新状态</Button>
+          </Space>
+        </header>
+        {refreshError ? <Alert className="minecraft-alert" type="warning" showIcon message="部分 Minecraft 数据暂时无法读取" description={refreshError} /> : null}
+        {actionError ? <Alert className="minecraft-alert" type="error" showIcon closable onClose={() => setActionError(null)} message={actionError} /> : null}
+        {actionNotice ? <Alert className="minecraft-alert" type="success" showIcon closable onClose={() => setActionNotice(null)} message={actionNotice} role="status" /> : null}
+        {selectedInstance ? <nav className="minecraft-instance-tabs" aria-label="Minecraft 实例菜单">
+          {([ ["overview", "实例概览"], ["configuration", "服务器配置"], ["terminal", "控制台"], ["backup", "世界备份"] ] as const).map(([view, label]) => <button key={view} type="button" aria-current={detailView === view ? "page" : undefined} onClick={() => onNavigate(getInstanceRoute(selectedInstance.id, view))}>{label}</button>)}
+        </nav> : null}
+      </div>
       {actionToast && settings.general.notificationPopupsEnabled ? <aside
         key={actionToast.id}
         className="minecraft-action-toast"
@@ -927,9 +932,6 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
       {!selectedInstance && currentSection === "connectivity" ? <MinecraftConnectivityPanel onOpenConnectivity={onOpenConnectivity} /> : null}
 
       {selectedInstance ? <>
-        <nav className="minecraft-instance-tabs" aria-label="Minecraft 实例菜单">
-          {([ ["overview", "实例概览"], ["configuration", "服务器配置"], ["terminal", "控制台"], ["backup", "世界备份"] ] as const).map(([view, label]) => <button key={view} type="button" aria-current={detailView === view ? "page" : undefined} onClick={() => onNavigate(getInstanceRoute(selectedInstance.id, view))}>{label}</button>)}
-        </nav>
         {detailView === "overview" ? <div className="minecraft-instance-overview lfaa-card-motion-list">
           <section className="minecraft-instance-hero lfaa-card-motion" aria-labelledby="minecraft-instance-hero-title">
             <div className="minecraft-instance-hero__art" aria-hidden="true"><img src="/backgrounds/cherry-blossom-waterfront.png" alt="" loading="lazy" decoding="async" /></div>
