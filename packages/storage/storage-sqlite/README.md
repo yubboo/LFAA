@@ -8,7 +8,7 @@ Control Plane 关系型存储 Owner，按递增、可重复运行的 schema 版�
 
 版本 76 为 `writing_books` 增加可空 `directory_name` 和账户内唯一索引，Writing Owner 惰性分配经过跨平台清理的可读作品目录片段。字段不是客户端路径，账户归属和作品关系仍由现有 ID 外键负责；SQLite 迁移只改结构，不触碰用户目录。
 
-版本 77 扩展 `minecraft_tasks.kind`，允许 Minecraft Domain/Jobs 创建节点真实 `server.properties` 只读任务 `properties-read`。迁移重建任务表以更新严格 CHECK 约束，并在同一事务中保留所有任务、索引和外键；`storage-domain` 在 v76 后协调旧库升级。数据库打开兼容上限为 77。
+版本 77 扩展 `minecraft_tasks.kind`，允许 Minecraft Domain/Jobs 创建节点真实 `server.properties` 只读任务 `properties-read`。迁移重建任务表以更新严格 CHECK 约束，并在同一事务中保留所有任务、索引和外键；`storage-domain` 在 v76 后协调旧库升级。当前数据库打开兼容上限为 79。
 
 迁移不得降级数据库、删除现有记录或把编译输出写到包目录。构建只写仓库根 `dist/packages/storage/storage-sqlite/`。
 
@@ -31,3 +31,5 @@ Control Plane 关系型存储 Owner，按递增、可重复运行的 schema 版�
 迁移 73 修复历史数据库版本号已越过 70、但 AI Work 项目结构未完整落库的情况：按需补上项目指令/记忆范围字段、项目源目录与项目记忆表，回填尚未登记主目录的本机项目，并保留现有项目、源目录和会话数据。迁移在同一 SQLite 事务中幂等执行；缺少项目基础表或列时停止而不推进版本。
 
 迁移 74 新增账户隔离的 `agent_deliverables` 元数据表，为 Agent Git 项目保存 Agent 明确发布的最终产物索引。文件字节仍保留在项目目录，下载时由 Project Files Owner 校验路径并流式读取；用户删除、解绑对应 Git 仓库时级联清理索引，不复制或删除项目文件。迁移 75 增加 `artifact_kind`，区分 Minecraft 插件、模组和其他交付物；旧记录以 `other` 兼容，不修改原文件或其 Git 状态。
+
+迁移 78 为 `minecraft_instances` 增加初始堆和 JVM 参数 JSON；按原生/AppContainer 已有启动规则回填旧实例 Xms，保留所有实例记录。迁移 79 增加 `jvm_arguments_configured` 来源标记，旧/未配置记录采用 Minecraft Service 的通用推荐参数，显式保存的空列表仍按用户选择保留；迁移只改结构和来源元数据，不启动或停止实例。两次迁移都在事务中执行，数据库打开兼容上限为 79。

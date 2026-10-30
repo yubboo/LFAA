@@ -14,6 +14,7 @@
     "antd": "^5.0.0",
     "lfaa-client-connection": "workspace:*",
     "lfaa-client-modules": "workspace:*",
+    "lfaa-client-resources": "workspace:*",
     "lfaa-client-store": "workspace:*",
     "lfaa-client-ui-sidebar-terminal": "workspace:*",
     "lfaa-client-ui-workflow": "workspace:*",
@@ -34,12 +35,14 @@
       "inject": [
         "lfaa-client-connection",
         "lfaa-client-modules",
+        "lfaa-client-resources",
         "lfaa-client-store",
         "lfaa-client-ui-sidebar-terminal"
       ]
     }
   },
   "scripts": {
-    "build": "node ../../../scripts/build-harness.mjs package"
+    "build": "node ../../../scripts/build-harness.mjs package",
+    "test": "node --test"
   }
 }

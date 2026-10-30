@@ -33,6 +33,8 @@ test("所有分类共享默认值，直接保存拒绝非法值且重启不重�
       assert.equal(defaultSettings.general.defaultMode,"ai-work","新账户默认进入小鱼工作台");
       assert.equal(defaultSettings.general.defaultStandaloneChat,true,"默认首页固定为小鱼对话区");
       assert.equal(defaultSettings.general.notificationPopupsEnabled,true,"通知总开关默认开启");
+      assert.equal(defaultSettings.general.notificationToastDurationSeconds,5,"操作提示卡默认五秒收起");
+      assert.equal(defaultSettings.general.notificationToastEffect,"fluid","操作提示卡默认柔和流体动效");
       assert.deepEqual(defaultSettings.general.hiddenApplicationNavigationIds,[],"新账户默认显示全部内置应用入口");
       assert.equal(defaultSettings.general.aiProviderReminderEnabled,true,"AI Provider 提醒默认开启");
       assert.equal(defaultSettings.general.setupReminderEnabled,true,"业务内容存储提醒默认开启");
@@ -92,7 +94,11 @@ test("所有分类共享默认值，直接保存拒绝非法值且重启不重�
       for(const {id} of UI_MOTION_EFFECT_OPTIONS){
         assert.equal(settingsSchemas.general.validate({...before.general,cardMotionEffect:id},{convert:false}).error,undefined);
         assert.equal(settingsSchemas.general.validate({...before.general,dialogMotionEffect:id},{convert:false}).error,undefined);
+        assert.equal(settingsSchemas.general.validate({...before.general,notificationToastEffect:id},{convert:false}).error,undefined);
       }
+      for(const seconds of [1,5,60])assert.equal(settingsSchemas.general.validate({...before.general,notificationToastDurationSeconds:seconds},{convert:false}).error,undefined);
+      for(const seconds of [0,61,1.5,"5"])assert.ok(settingsSchemas.general.validate({...before.general,notificationToastDurationSeconds:seconds},{convert:false}).error,"拒绝无效提示卡时长 " + seconds);
+      assert.ok(settingsSchemas.general.validate({...before.general,notificationToastEffect:"bounce"},{convert:false}).error,"拒绝未登记的提示卡动效");
       assert.throws(()=>saveUserSettings('settings-a','permissions',{...before.permissions,mode:'invalid'}),/格式/);
       assert.throws(()=>saveUserSettings('settings-a','general',{...before.general,unknown:true}),/格式/);
       assert.throws(()=>validateSettingsInput('__proto__',{}),/分类/);
@@ -125,8 +131,17 @@ test("所有分类共享默认值，直接保存拒绝非法值且重启不重�
       saveUserSettings('settings-a','general',legacyClientPayload);
       assert.equal(getUserSettings('settings-a').general.cardMotionEffect,"lift","旧客户端保存其他常规项时保留新动效选择");
       assert.equal(getUserSettings('settings-a').general.dialogMotionEffect,"fade","旧客户端保存其他常规项时保留弹窗动效选择");
+      saveUserSettings('settings-a','general',{...getUserSettings('settings-a').general,notificationToastDurationSeconds:12,notificationToastEffect:"lift"});
+      const legacyToastPayload={...getUserSettings('settings-a').general};delete legacyToastPayload.notificationToastDurationSeconds;delete legacyToastPayload.notificationToastEffect;
+      saveUserSettings('settings-a','general',legacyToastPayload);
+      assert.equal(getUserSettings('settings-a').general.notificationToastDurationSeconds,12,"旧客户端省略提示卡时长字段时保留当前账户值");
+      assert.equal(getUserSettings('settings-a').general.notificationToastEffect,"lift","旧客户端省略提示卡动效字段时保留当前账户值");
+      assert.equal(getUserSettings('settings-a').general.notificationToastDurationSeconds,12,"自定义提示卡时长按账户保存");
+      assert.equal(getUserSettings('settings-a').general.notificationToastEffect,"lift","提示卡动效按账户保存");
       assert.throws(()=>saveUserSettings('settings-a','general',{...getUserSettings('settings-a').general,cardMotionEffect:"jelly"}),/格式/);
       assert.throws(()=>saveUserSettings('settings-a','general',{...getUserSettings('settings-a').general,dialogMotionEffect:"jelly"}),/格式/);
+      assert.throws(()=>saveUserSettings('settings-a','general',{...getUserSettings('settings-a').general,notificationToastDurationSeconds:61}),/格式/);
+      assert.throws(()=>saveUserSettings('settings-a','general',{...getUserSettings('settings-a').general,notificationToastEffect:"bounce"}),/格式/);
       saveUserSettings('settings-a','general',{...getUserSettings('settings-a').general,defaultMode:"normal",defaultStandaloneChat:false});
       assert.equal(getUserSettings('settings-a').general.defaultMode,"normal","固定首页不覆盖账户原有模式偏好");
       assert.equal(getUserSettings('settings-a').general.defaultStandaloneChat,false,"固定首页不覆盖账户原有独立会话偏好");
@@ -138,12 +153,15 @@ test("所有分类共享默认值，直接保存拒绝非法值且重启不重�
       assert.throws(()=>saveUserSettings('settings-a','general',{...getUserSettings('settings-a').general,aiProviderReminderEnabled:"false"}),/格式/);
       const legacyStoredPayload={...getUserSettings('settings-a').general};delete legacyStoredPayload.cardMotionEffect;delete legacyStoredPayload.dialogMotionEffect;
       delete legacyStoredPayload.notificationPopupsEnabled;
+      delete legacyStoredPayload.notificationToastDurationSeconds;delete legacyStoredPayload.notificationToastEffect;
       delete legacyStoredPayload.aiProviderReminderEnabled;
       legacyStoredPayload.setupReminderEnabled=false;
       configuration.save('user_settings',{user_id:'settings-a',category:'general',value_json:JSON.stringify(legacyStoredPayload)});
       assert.equal(getUserSettings('settings-a').general.cardMotionEffect,"fluid","旧账户缺字段时回落到共享默认动效");
       assert.equal(getUserSettings('settings-a').general.dialogMotionEffect,"fluid","旧账户缺字段时回落到共享弹窗默认动效");
       assert.equal(getUserSettings('settings-a').general.notificationPopupsEnabled,true,"旧账户缺少通知总开关时采用默认开启");
+      assert.equal(getUserSettings('settings-a').general.notificationToastDurationSeconds,5,"旧账户缺少时长时采用共享默认值");
+      assert.equal(getUserSettings('settings-a').general.notificationToastEffect,"fluid","旧账户缺少动效时采用共享默认值");
       assert.equal(getUserSettings('settings-a').general.setupReminderEnabled,false,"旧账户保留既有业务存储提醒关闭偏好");
       assert.equal(getUserSettings('settings-a').general.aiProviderReminderEnabled,false,"旧账户缺少 AI 提醒字段时沿用既有提醒偏好");
       saveUserSettings('settings-a','general',{...getUserSettings('settings-a').general,aiProviderReminderEnabled:true});
@@ -157,9 +175,9 @@ test("所有分类共享默认值，直接保存拒绝非法值且重启不重�
       assert.equal(migratedAppearance.advanced.contrast,75,"兼容动画字段时保留已保存的外观对比度");
       assert.equal(migratedAppearance.overlay,42,"兼容动画字段时保留已保存的遮罩偏好");
       saveUserSettings('settings-a','appearance',{...migratedAppearance,advanced:{...migratedAppearance.advanced,authTransitionPluginId:"user-animation/auth-entry",writingLightRaysEnabled:false}});
-      saveUserSettings('settings-a','general',{...getUserSettings('settings-a').general,cardMotionEffect:"fade",dialogMotionEffect:"lift"});
+      saveUserSettings('settings-a','general',{...getUserSettings('settings-a').general,cardMotionEffect:"fade",dialogMotionEffect:"lift",notificationToastDurationSeconds:12,notificationToastEffect:"lift"});
       saveUserSettings('settings-a','ai-runtime',{...before.aiRuntime,commandTimeoutSeconds:0});close();
     `);
-    run(`const saved=getUserSettings('settings-a');assert.equal(saved.appearance.advanced.contrast,75);assert.equal(saved.appearance.advanced.reducedMotion,'on');assert.equal(saved.appearance.advanced.authTransitionPluginId,"user-animation/auth-entry");assert.equal(saved.appearance.advanced.writingLightRaysEnabled,false,'the explicit writing light preference survives reload');assert.equal(saved.appearance.overlay,42,'显式保存的旧遮罩偏好不被默认值更改覆盖');assert.equal(saved.appearance.updateSurfaceOpacity,85);assert.equal(saved.general.cardMotionEffect,"fade");assert.equal(saved.general.dialogMotionEffect,"lift");assert.deepEqual(saved.general.hiddenApplicationNavigationIds,['minecraft','writing'],'内置应用开关重启后保留');assert.equal(saved.general.defaultMode,"normal");assert.equal(saved.general.defaultStandaloneChat,false);assert.equal(saved.general.aiProviderReminderEnabled,true,'AI Provider 提醒偏好重启后保留');assert.equal(saved.general.setupReminderEnabled,false,'业务存储提醒偏好重启后保留');assert.deepEqual(saved.plugins.disabledSkillNames,['runtime-fixture'],'Skill 停用偏好重启后保留');assert.equal(getUserSettings('settings-b').general.cardMotionEffect,"fluid");assert.equal(getUserSettings('settings-b').general.dialogMotionEffect,"fluid");assert.equal(saved.aiRuntime.commandTimeoutSeconds,0);close();`);
+    run(`const saved=getUserSettings('settings-a');assert.equal(saved.appearance.advanced.contrast,75);assert.equal(saved.appearance.advanced.reducedMotion,'on');assert.equal(saved.appearance.advanced.authTransitionPluginId,"user-animation/auth-entry");assert.equal(saved.appearance.advanced.writingLightRaysEnabled,false,'the explicit writing light preference survives reload');assert.equal(saved.appearance.overlay,42,'显式保存的旧遮罩偏好不被默认值更改覆盖');assert.equal(saved.appearance.updateSurfaceOpacity,85);assert.equal(saved.general.cardMotionEffect,"fade");assert.equal(saved.general.dialogMotionEffect,"lift");assert.equal(saved.general.notificationToastDurationSeconds,12,'自定义提示卡时长跨重载保留');assert.equal(saved.general.notificationToastEffect,"lift",'提示卡动效跨重载保留');assert.deepEqual(saved.general.hiddenApplicationNavigationIds,['minecraft','writing'],'内置应用开关重启后保留');assert.equal(saved.general.defaultMode,"normal");assert.equal(saved.general.defaultStandaloneChat,false);assert.equal(saved.general.aiProviderReminderEnabled,true,'AI Provider 提醒偏好重启后保留');assert.equal(saved.general.setupReminderEnabled,false,'业务存储提醒偏好重启后保留');assert.deepEqual(saved.plugins.disabledSkillNames,['runtime-fixture'],'Skill 停用偏好重启后保留');assert.equal(getUserSettings('settings-b').general.cardMotionEffect,"fluid");assert.equal(getUserSettings('settings-b').general.dialogMotionEffect,"fluid");assert.equal(saved.aiRuntime.commandTimeoutSeconds,0);close();`);
   } finally { assert.equal(dirname(data), parent); rmSync(data, { recursive: true, force: true }); }
 });

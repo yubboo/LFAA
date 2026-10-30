@@ -118,6 +118,13 @@ function readGeneralSettings(value: Record<string, unknown>): GeneralSettings | 
     questionNotifications: typeof value.questionNotifications === "boolean" ? value.questionNotifications : defaults.questionNotifications,
     sessionIssueNotifications: typeof value.sessionIssueNotifications === "boolean" ? value.sessionIssueNotifications : defaults.sessionIssueNotifications,
     notificationSound: choose(value.notificationSound, ["default", "subtle", "off"], defaults.notificationSound),
+    notificationToastDurationSeconds: typeof value.notificationToastDurationSeconds === "number"
+      && Number.isInteger(value.notificationToastDurationSeconds)
+      && value.notificationToastDurationSeconds >= 1
+      && value.notificationToastDurationSeconds <= 60
+      ? value.notificationToastDurationSeconds
+      : defaults.notificationToastDurationSeconds,
+    notificationToastEffect: choose(value.notificationToastEffect, UI_MOTION_EFFECT_IDS, defaults.notificationToastEffect),
     aiProviderReminderEnabled: typeof value.aiProviderReminderEnabled === "boolean" ? value.aiProviderReminderEnabled : typeof value.setupReminderEnabled === "boolean" ? value.setupReminderEnabled : defaults.aiProviderReminderEnabled,
     setupReminderEnabled: typeof value.setupReminderEnabled === "boolean" ? value.setupReminderEnabled : defaults.setupReminderEnabled,
     defaultAdminCredentialReminderEnabled: typeof value.defaultAdminCredentialReminderEnabled === "boolean" ? value.defaultAdminCredentialReminderEnabled : defaults.defaultAdminCredentialReminderEnabled,
@@ -443,7 +450,7 @@ export function saveUserSettings(
       areaEffects: mergeAppearanceAreaEffects(current.areaEffects, submittedAreaEffects)
     } as AppearanceSettings;
   }
-  if (category === "general" && (!Object.hasOwn(submitted, "cardMotionEffect") || !Object.hasOwn(submitted, "dialogMotionEffect") || !Object.hasOwn(submitted, "defaultAdminCredentialReminderEnabled") || !Object.hasOwn(submitted, "notificationPopupsEnabled") || !Object.hasOwn(submitted, "aiProviderReminderEnabled") || !Object.hasOwn(submitted, "hiddenApplicationNavigationIds"))) {
+  if (category === "general" && (!Object.hasOwn(submitted, "cardMotionEffect") || !Object.hasOwn(submitted, "dialogMotionEffect") || !Object.hasOwn(submitted, "defaultAdminCredentialReminderEnabled") || !Object.hasOwn(submitted, "notificationPopupsEnabled") || !Object.hasOwn(submitted, "aiProviderReminderEnabled") || !Object.hasOwn(submitted, "hiddenApplicationNavigationIds") || !Object.hasOwn(submitted, "notificationToastDurationSeconds") || !Object.hasOwn(submitted, "notificationToastEffect"))) {
     value = { ...getUserSettings(userId).general, ...submitted } as GeneralSettings;
   }
   if (category === "plugins") value = { ...getUserSettings(userId).plugins, ...submitted } as PluginSettings;

@@ -155,6 +155,8 @@ test("Anthropic Models API 验证限制响应大小并拒绝无效响应", async
 test("Agent SDK 只接收单次 relay token、使用临时配置目录和绑定 cwd", async () => {
   let captured;
   let closeCalls = 0;
+  let executableResolverCalls = 0;
+  const verifiedExecutablePath = join(repoPath, "verified-claude.exe");
   const fakeQuery = input => {
     captured = input;
     return {
@@ -173,6 +175,10 @@ test("Agent SDK 只接收单次 relay token、使用临时配置目录和绑定 
   const driver = createClaudeCodeDriver(fakeQuery, 1000, async userId => {
     assert.equal(userId, "fixture-user");
     return "sk-ant-test-key";
+  }, fetch, async ({ signal }) => {
+    executableResolverCalls += 1;
+    assert.equal(signal.aborted, false);
+    return verifiedExecutablePath;
   });
   const result = await driver.run(
     { driver: "claude-code", description: "验证配置", prompt: "fixture", appId: "workspace" },
@@ -198,6 +204,8 @@ test("Agent SDK 只接收单次 relay token、使用临时配置目录和绑定 
     { providerId: "anthropic", modelId: "claude-haiku-4-5", promptTokens: 3, completionTokens: 3, cacheReadTokens: 0 }
   ], "Session 记账使用 SDK 分模型实际 token，prompt 包含普通输入与缓存读写；估算费用不透传");
   assert.equal(captured.options.cwd, repoPath);
+  assert.equal(executableResolverCalls, 1);
+  assert.equal(captured.options.pathToClaudeCodeExecutable, verifiedExecutablePath, "查询必须启动完整性校验后的缓存可执行文件");
   assert.notEqual(captured.options.env.ANTHROPIC_API_KEY, "sk-ant-test-key");
   assert.match(captured.options.env.ANTHROPIC_API_KEY, /^[A-Za-z0-9_-]{40,}$/u);
   assert.match(captured.options.env.ANTHROPIC_BASE_URL, /^http:\/\/127\.0\.0\.1:\d+$/u);
@@ -222,6 +230,35 @@ test("Agent SDK 只接收单次 relay token、使用临时配置目录和绑定 
   assert.equal(captured.options.allowedTools, undefined);
   assert.equal(captured.options.allowDangerouslySkipPermissions, undefined);
   assert.equal(closeCalls, 1);
+});
+
+test("Claude 可执行文件下载在凭据校验之前不得启动", async () => {
+  let executableResolverCalls = 0;
+  const driver = createClaudeCodeDriver(
+    () => { throw new Error("query must not start"); },
+    1000,
+    async () => null,
+    fetch,
+    async () => { executableResolverCalls += 1; return join(repoPath, "verified-claude.exe"); }
+  );
+  const result = await driver.run(
+    { driver: "claude-code", description: "无凭据测试", prompt: "fixture", appId: "workspace" },
+    {
+      userId: "fixture-user",
+      userRole: "user",
+      signal: new AbortController().signal,
+      workingDirectory: repoPath,
+      repositoryId: "repo-1",
+      maxModelRequests: 3,
+      authorizeAction: async () => true,
+      tools: inheritedTools,
+      executeTool: executeInheritedTool,
+      onProgress() {}
+    }
+  );
+  assert.equal(result.stopReason, "error");
+  assert.match(result.diagnostic ?? "", /Anthropic Console API Key/u);
+  assert.equal(executableResolverCalls, 0);
 });
 
 test("Claude SDK 只把脱敏后的顶层文本增量发到临时 Run 通道", async () => {

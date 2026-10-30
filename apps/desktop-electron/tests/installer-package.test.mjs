@@ -47,6 +47,19 @@ test("Windows 安装器绑定 LFAA 图标、同意须知与完成页快捷方式
   assert.deepEqual(dimensions, [16, 32, 48, 256]);
 });
 
+test("Windows 安装包排除 Claude SDK 大型可执行文件并携带锁定组件清单", async () => {
+  const runtimeNodeModules = desktopPackage.build.extraResources.find(resource => resource.to === "app-runtime/apps/cli/node_modules");
+  assert.ok(runtimeNodeModules, "桌面部署依赖目录必须继续装配");
+  assert.ok(runtimeNodeModules.filter.includes("!**/@anthropic-ai/claude-agent-sdk-win32-x64/claude.exe"));
+
+  const runtimePreparation = await readFile(resolve(packageRoot, "scripts/prepare-runtime.mjs"), "utf8");
+  const runtimeVerification = await readFile(resolve(packageRoot, "scripts/verify-packaged-runtime.mjs"), "utf8");
+  assert.match(runtimePreparation, /claude-sdk-component\.json/u);
+  assert.match(runtimePreparation, /CLAUDE_SDK_COMPONENT_INTEGRITY/u);
+  assert.match(runtimeVerification, /bundledClaudeExecutable/u);
+  assert.match(runtimeVerification, /claude-sdk-component\.json/u);
+});
+
 test("PATH 写入错误显示 PowerShell 原因，不能只暴露通用退出码", async () => {
   const installer = await readFile(resolve(packageRoot, "nsis/installer.nsh"), "utf8");
   const pathScriptBytes = await readFile(resolve(packageRoot, "nsis/path-environment.ps1"));

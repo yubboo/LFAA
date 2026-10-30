@@ -25,6 +25,7 @@ function sameConfiguration(left: { memoryMb: number; initialHeapMb: number; jvmA
 }
 
 function matchingPreset(instance: MinecraftInstance): MinecraftJvmPresetId {
+  if (!instance.jvmArgumentsConfigured) return "recommended";
   for (const id of ["recommended", "high-performance", "low-memory"] as const) {
     const preset = getMinecraftJvmPreset(id, { javaMajor: instance.javaMajor, coreType: instance.coreType, memoryMb: instance.memoryMb });
     if (preset && sameConfiguration(preset, { memoryMb: instance.memoryMb, initialHeapMb: instance.initialHeapMb, jvmArguments: instance.jvmArguments })) return id;
@@ -52,6 +53,11 @@ export function MinecraftJvmSettings(props: MinecraftJvmSettingsProps) {
         description={`实例“${instance.name}”（${instance.id}）没有完整返回${missingFields.join("、")}。为避免串用其他实例数据或覆盖已有参数，JVM 编辑已暂停。`}
         action={<Button size="small" onClick={onRefresh}>刷新实例数据</Button>}
       />
+    </Card>;
+  }
+  if (instance.coreType === "PocketMine") {
+    return <Card className="minecraft-card minecraft-jvm-settings lfaa-card-motion">
+      <Alert type="info" showIcon message="PocketMine 不使用 JVM" description="PocketMine 服务端由 PHP 运行，JVM 堆和 GC 参数不会被它消费。" />
     </Card>;
   }
 
@@ -91,9 +97,7 @@ function MinecraftJvmSettingsEditor({ instance, javaLabel, canEdit, busy, onSave
 
   const dirty = memoryMb !== instance.memoryMb || initialHeapMb !== instance.initialHeapMb || argumentsText !== savedArguments;
   const selectedPreset = presetChoices.find(option => option.id === preset) ?? presetChoices[presetChoices.length - 1];
-  const recommendedDescription = instance.coreType === "Paper" && instance.javaMajor <= 16
-    ? `旧版 Paper · Java ${instance.javaMajor} 使用适配的 G1 基础参数。`
-    : `${instance.coreType} · Java ${instance.javaMajor} 的推荐预设不添加额外 GC 参数，使用 Java 默认 GC。`;
+  const recommendedDescription = "所有 Java 核心共用 G1 调优：150 ms 停顿目标、并行引用处理和额外保留堆；停顿目标由 JVM 尽力实现，可能增加 GC 频率。";
   const highPerformanceAvailable = Boolean(getMinecraftJvmPreset("high-performance", {
     javaMajor: instance.javaMajor,
     coreType: instance.coreType,
@@ -128,7 +132,7 @@ function MinecraftJvmSettingsEditor({ instance, javaLabel, canEdit, busy, onSave
   return <Card className="minecraft-card minecraft-jvm-settings lfaa-card-motion">
     <div className="minecraft-jvm-settings__heading">
       <div><Typography.Title level={4}>JVM 参数</Typography.Title><Typography.Text type="secondary">{instance.coreType} · Java {instance.javaMajor} · {javaLabel}</Typography.Text></div>
-      <div className="minecraft-jvm-settings__status"><Tag color={instance.eulaAcceptedAt ? "success" : "default"}>{instance.eulaAcceptedAt ? "许可已记录" : "许可未记录"}</Tag><Tag>{instance.state === "running" ? "运行中 · 只读" : canEdit ? "已停止 · 可编辑" : "只读"}</Tag></div>
+      <div className="minecraft-jvm-settings__status"><Tag color={instance.eulaAcceptedAt ? "success" : "default"}>{instance.eulaAcceptedAt ? "许可已记录" : "许可未记录"}</Tag><Tag color={instance.jvmArgumentsConfigured ? "processing" : "success"}>{instance.jvmArgumentsConfigured ? "参数已保存" : "推荐默认 · 启动时使用"}</Tag><Tag>{instance.state === "running" ? "运行中 · 只读" : canEdit ? "已停止 · 可编辑" : "只读"}</Tag></div>
     </div>
     <div className="minecraft-jvm-presets" role="group" aria-label="JVM 参数预设">
       {presetChoices.map(option => <button
@@ -137,9 +141,9 @@ function MinecraftJvmSettingsEditor({ instance, javaLabel, canEdit, busy, onSave
         key={option.id}
         aria-pressed={preset === option.id}
         disabled={!canEdit || busy || (option.id === "high-performance" && !highPerformanceAvailable)}
-        title={option.id === "high-performance" && !highPerformanceAvailable ? "仅支持 Paper 核心与 Java 8–16" : undefined}
+        title={option.id === "high-performance" && !highPerformanceAvailable ? "当前运行环境不支持 JVM 调优" : undefined}
         onClick={() => applyPreset(option.id)}
-      >{option.title}{option.id === "high-performance" && !highPerformanceAvailable ? <small>旧版 Paper</small> : null}</button>)}
+      >{option.title}</button>)}
     </div>
     <div className="minecraft-jvm-layout">
       <section className="minecraft-jvm-editor" aria-label="实例 JVM 启动参数">
@@ -153,7 +157,7 @@ function MinecraftJvmSettingsEditor({ instance, javaLabel, canEdit, busy, onSave
           disabled={!canEdit || busy}
           spellCheck={false}
           autoSize={{ minRows: 7, maxRows: 18 }}
-          placeholder="每行填写一个经该 Java 版本支持的参数；可留空使用默认 GC"
+          placeholder="每行填写一个 JVM 调优参数；高性能参数由所选 Java 在启动前实际预检"
           onChange={event => { setArgumentsText(event.target.value); setPreset("custom"); }}
         /></label>
         <div className="minecraft-jvm-editor__footer">
@@ -165,14 +169,14 @@ function MinecraftJvmSettingsEditor({ instance, javaLabel, canEdit, busy, onSave
       </section>
       <aside className="minecraft-jvm-info" aria-label="当前预设说明">
         <div className="minecraft-jvm-info__title"><span aria-hidden="true">◈</span><strong>{selectedPreset.title}</strong><Tag color={checked.value ? "success" : "error"}>{checked.value ? `${checked.value.jvmArguments.length} 项有效` : "待修正"}</Tag></div>
-        <Typography.Paragraph>{preset === "high-performance" ? "Paper Aikar G1 参数（已剔除预触整堆与共享内存项）。" : preset === "recommended" ? recommendedDescription : preset === "low-memory" ? "最大堆保持不变。" : "当前编辑值将在下次启动时应用。"}</Typography.Paragraph>
+        <Typography.Paragraph>{preset === "high-performance" ? "扩展 G1 参数适用于 Java 服务端启动，包含 JVM 实验性调优项；不预触整堆或写共享内存。" : preset === "recommended" ? recommendedDescription : preset === "low-memory" ? "最大堆保持不变。" : "当前编辑值将在下次启动时应用。"}</Typography.Paragraph>
         <dl>
           <div><dt>初始堆</dt><dd>{initialHeapMb.toLocaleString()} MB</dd></div>
           <div><dt>最大堆</dt><dd>{memoryMb.toLocaleString()} MB</dd></div>
         </dl>
-        {checked.value?.jvmArguments.length ? <ul className="minecraft-jvm-info__arguments" aria-label="实际生效的 GC 参数">
+        {checked.value?.jvmArguments.length ? <ul className="minecraft-jvm-info__arguments" aria-label="下次启动使用的 GC 参数">
           {checked.value.jvmArguments.map(argument => <li key={argument}><code>{argument}</code></li>)}
-        </ul> : <Typography.Text type="secondary">无额外调优项 · 使用 Java 默认 GC</Typography.Text>}
+        </ul> : <Typography.Text type="secondary">当前使用 Java 自带 G1 GC 默认策略。</Typography.Text>}
       </aside>
     </div>
     {!canEdit ? <Typography.Text className="minecraft-jvm-settings__readonly" type="secondary">只有实例停止、节点在线且当前账户有管理权限时才能保存。</Typography.Text> : null}

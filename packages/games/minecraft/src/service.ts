@@ -8,7 +8,7 @@ import {hasPendingJavaEnvironmentTask} from "lfaa-runtime-manager/src/legacy-jav
 import { protectedDataDirectories } from "lfaa-home-paths/src/reserved-data-paths.mjs";
 import { win32 } from "node:path";
 import { ApiError } from "lfaa-util-values/src/http-error.js";
-import { buildMinecraftJvmArguments, defaultMinecraftInitialHeapMb, parseMinecraftJvmArguments } from "lfaa-util-values/src/minecraft-jvm-contract.mjs";
+import { buildMinecraftJvmArguments, defaultMinecraftInitialHeapMb, parseMinecraftJvmArguments, resolveMinecraftJvmArguments } from "lfaa-util-values/src/minecraft-jvm-contract.mjs";
 import { isSensitiveMinecraftPropertyKey, MINECRAFT_PROPERTY_KEY_PATTERN, validateMinecraftPropertyChanges } from "lfaa-util-values/src/minecraft-property-contract.mjs";
 import { database } from "lfaa-storage-sqlite/src/database.js";
 import { configuration } from "lfaa-storage-domain/src/configuration.js";
@@ -163,6 +163,7 @@ export interface MinecraftInstance {
   memoryMb: number;
   initialHeapMb: number;
   jvmArguments: string[];
+  jvmArgumentsConfigured: boolean;
   coreType: MinecraftCoreName;
   coreBuild: string;
   executionMode: "native" | "appcontainer";
@@ -206,6 +207,7 @@ interface InstanceRow {
   memory_mb: number;
   jvm_initial_heap_mb: number;
   jvm_arguments_json: string;
+  jvm_arguments_configured: number;
   core_type: MinecraftCoreName;
   core_build: string;
   execution_mode: MinecraftInstance["executionMode"];
@@ -220,7 +222,7 @@ interface InstanceRow {
 
 const instanceSelect = `
   SELECT i.id, i.node_id, n.display_name AS node_name, n.status AS node_status,
-    i.name, i.storage_directory, i.release_id, i.java_major, i.java_runtime_id, i.memory_mb, i.jvm_initial_heap_mb, i.jvm_arguments_json, i.core_type, i.core_build, i.execution_mode, i.state, i.eula_accepted_at,
+    i.name, i.storage_directory, i.release_id, i.java_major, i.java_runtime_id, i.memory_mb, i.jvm_initial_heap_mb, i.jvm_arguments_json, i.jvm_arguments_configured, i.core_type, i.core_build, i.execution_mode, i.state, i.eula_accepted_at,
     i.sandbox_status, n.capabilities_json AS node_capabilities_json,
     i.server_properties_json, i.created_at, i.updated_at
   FROM minecraft_instances i JOIN daemon_nodes n ON n.id = i.node_id
@@ -238,6 +240,13 @@ function parseProperties(value: string): MinecraftServerProperties {
 }
 
 function toInstance(row: InstanceRow): MinecraftInstance {
+  const savedJvmArguments = parseMinecraftJvmArgumentList(row.jvm_arguments_json);
+  const usesSavedJvmArguments = row.jvm_arguments_configured === 1 || savedJvmArguments.length > 0;
+  const jvmArguments = resolveMinecraftJvmArguments({ jvmArguments: savedJvmArguments, configured: usesSavedJvmArguments }, {
+    javaMajor: row.java_major,
+    coreType: row.core_type,
+    memoryMb: row.memory_mb
+  });
   return {
     id: row.id,
     nodeId: row.node_id,
@@ -250,7 +259,8 @@ function toInstance(row: InstanceRow): MinecraftInstance {
     javaRuntimeId: row.java_runtime_id,
     memoryMb: row.memory_mb,
     initialHeapMb: row.jvm_initial_heap_mb,
-    jvmArguments: parseMinecraftJvmArgumentList(row.jvm_arguments_json),
+    jvmArguments,
+    jvmArgumentsConfigured: usesSavedJvmArguments,
     coreType: row.core_type,
     coreBuild: row.core_build,
     executionMode: row.execution_mode,
@@ -578,7 +588,7 @@ export async function registerMinecraftDeployment(input: {
     }
     if (existing) {
       database.prepare(`
-        UPDATE minecraft_instances SET release_id = ?, java_major = ?, java_runtime_id = ?, memory_mb = ?, jvm_initial_heap_mb = ?, jvm_arguments_json = '[]', storage_directory = ?, state = 'installing',
+        UPDATE minecraft_instances SET release_id = ?, java_major = ?, java_runtime_id = ?, memory_mb = ?, jvm_initial_heap_mb = ?, jvm_arguments_json = '[]', jvm_arguments_configured = 0, storage_directory = ?, state = 'installing',
           eula_accepted_at = ?, sandbox_status = 'unprepared', updated_at = ? WHERE id = ?
       `).run(currentRow.release_id, currentRow.java_major, javaRuntimeId, input.memoryMb, defaultMinecraftInitialHeapMb(input.memoryMb, executionMode), currentRow.storage_directory, acceptedAt, acceptedAt, instanceId);
     } else {
@@ -587,6 +597,11 @@ export async function registerMinecraftDeployment(input: {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', 'installing', ?)
       `).run(instanceId, node.id, input.userId, name, currentRow.storage_directory, currentRow.release_id, currentRow.java_major, javaRuntimeId, input.memoryMb, defaultMinecraftInitialHeapMb(input.memoryMb, executionMode), acceptedAt);
     }
+    const jvmArguments = resolveMinecraftJvmArguments({ jvmArguments: [], configured: false }, {
+      javaMajor: currentRow.java_major,
+      coreType: currentRow.server_type,
+      memoryMb: input.memoryMb
+    });
     const linked = database.prepare("UPDATE minecraft_deployments SET state = 'registering', instance_id = ?, updated_at = ? WHERE id = ? AND state = 'ready'")
       .run(instanceId, acceptedAt, input.deploymentId);
     if (Number(linked.changes) !== 1) throw new ApiError(409, "minecraft_deployment_not_ready", "这个部署已在处理或已创建实例，请刷新状态后重试。");
@@ -607,7 +622,7 @@ export async function registerMinecraftDeployment(input: {
         javaRuntimeId,
         memoryMb: input.memoryMb,
         initialHeapMb: defaultMinecraftInitialHeapMb(input.memoryMb, executionMode),
-        jvmArguments: [],
+        jvmArguments,
         executionMode,
         eulaAccepted: true,
         downloadTimeoutSeconds: getUserSettings(input.userId).minecraftRuntime.minecraftDownloadTimeoutSeconds
@@ -679,7 +694,7 @@ export function updateMinecraftInstanceJvmConfiguration(instanceId: string, inpu
     }
     const now = new Date().toISOString();
     const result = database.prepare(`UPDATE minecraft_instances
-      SET memory_mb = ?, jvm_initial_heap_mb = ?, jvm_arguments_json = ?, updated_at = ?
+      SET memory_mb = ?, jvm_initial_heap_mb = ?, jvm_arguments_json = ?, jvm_arguments_configured = 1, updated_at = ?
       WHERE id = ? AND state IN ('stopped', 'error')`).run(
       parsed.memoryMb, parsed.initialHeapMb, JSON.stringify(parsed.jvmArguments), now, instanceId
     );

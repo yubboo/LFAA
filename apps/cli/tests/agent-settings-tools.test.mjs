@@ -49,6 +49,21 @@ test("视频语音识别设置默认关闭，并拒绝目录外的账户", () =>
   assert.equal(settings.getUserSettings(owner).aiRuntime.videoTranscriptionAccountId, "");
 });
 
+test("通知设置目录公开提示卡时长和动效，并保存在当前账户 General 分类", () => {
+  const notifications = agentSettings.listAgentSettings(owner, { menuId: "notifications", limit: 50 });
+  const duration = notifications.entries.find(entry => entry.path === "general.notificationToastDurationSeconds");
+  const effect = notifications.entries.find(entry => entry.path === "general.notificationToastEffect");
+  assert.ok(duration?.writable);
+  assert.equal(duration.minimum, 1);
+  assert.equal(duration.maximum, 60);
+  assert.ok(effect?.writable);
+  assert.deepEqual(effect.allowedOptions.map(option => option.value), ["fluid", "fade", "lift", "none"]);
+  agentSettings.updateAgentSetting(owner, "general.notificationToastDurationSeconds", 12);
+  agentSettings.updateAgentSetting(owner, "general.notificationToastEffect", "lift");
+  assert.equal(settings.getUserSettings(owner).general.notificationToastDurationSeconds, 12);
+  assert.equal(settings.getUserSettings(owner).general.notificationToastEffect, "lift");
+});
+
 test("外观目录复用界面背景文案、展示纯色与账户私有选项，且读取不触发图片迁移", () => {
   const uploadedId = `user-${randomUUID()}`;
   const fixtureBytes = Buffer.from("isolated-background-metadata");

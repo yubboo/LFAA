@@ -31,16 +31,46 @@ test("server.properties 表单覆盖真实快照全部属性并只提交有效�
   assert.match(workspace, /replacement\.length > 0 \? \[\[entry\.key, replacement\]\] : \[\[entry\.key, null\]\]/u);
   assert.match(workspace, /敏感值默认隐藏，可输入新值或移除该项/u);
   assert.match(workspace, /setTouchedSensitiveProperties\(\(current\) => new Set\(current\)\.add\(entry\.key\)\); \}\}>移除/u);
-  assert.match(workspace, /配置写入任务已提交；此页会保留在编辑器中/u);
+  assert.match(workspace, /message: "配置写入任务已提交。"/u);
   assert.match(workspace, /显示 \{propertyEditorState\.visible\} \/ \{propertyEditorState\.total\} 项/u);
   assert.doesNotMatch(workspace, /minecraftPropertyEditors|propertyEditorState\.(editable|readonly)/u);
 });
 
 test("删除实例只提交归档任务，不主动导航到任务页", () => {
   const deleteHandler = workspace.match(/const deleteInstance = \(instance: MinecraftInstance\) => \{([\s\S]*?)\n  \};/u)?.[1] ?? "";
-  assert.match(deleteHandler, /submitAction\(\(\) => deleteMinecraftInstance\(instance\.id\), false\)/u);
+  assert.match(deleteHandler, /submitAction\(\(\) => deleteMinecraftInstance\(instance\.id\), \{/u);
   assert.doesNotMatch(deleteHandler, /onNavigate/u);
   assert.match(deleteHandler, /已提交/u);
+});
+
+test("Minecraft 操作成功留在当前页，并提供可关闭、可点击的 5 秒任务提示", () => {
+  const submitAction = workspace.match(/const submitAction = useCallback\(async \([\s\S]*?\n  \}, \[refresh, showActionFeedback\]\);/u)?.[0] ?? "";
+  assert.notEqual(submitAction, "", "共享操作提交器应有统一实现");
+  assert.doesNotMatch(submitAction, /onNavigate|returnToTasks/u);
+  assert.match(submitAction, /showActionFeedback\(feedback\)/u);
+  assert.match(workspace, /settings\.general\.notificationToastDurationSeconds/u);
+  assert.match(workspace, /expiresAt: Date\.now\(\) \+ durationSeconds \* 1_000/u);
+  assert.match(workspace, /playNotificationSound\(settings\.general\.notificationSound\)/u);
+  assert.match(workspace, /data-toast-effect=\{settings\.general\.notificationToastEffect\}/u);
+  assert.match(workspace, /setInterval\(updateCountdown, 1_000\)/u);
+  assert.match(workspace, /return \(\) => window\.clearInterval\(timer\)/u);
+  assert.match(workspace, /remainingSeconds === 0/u);
+  assert.match(workspace, /onClick=\{openActionToastTasks\}/u);
+  assert.match(workspace, /onNavigate\("\/games\/minecraft\/tasks"\)/u);
+  assert.match(workspace, /aria-label="关闭 Minecraft 操作提示"/u);
+  assert.match(workspace, /settings\.general\.notificationPopupsEnabled/u);
+  assert.match(workspace, /\{actionToastSeconds\} 秒后自动收起/u);
+  assert.match(styles, /right: max\(16px, env\(safe-area-inset-right/u);
+  assert.match(styles, /width: min\(380px, calc\(100vw - 32px\)\)/u);
+  assert.match(styles, /data-reduced-motion="system"\] \.minecraft-action-toast/u);
+  for (const effect of ["fluid", "fade", "lift", "none"]) assert.match(styles, new RegExp(`data-toast-effect="${effect}"`, "u"));
+});
+
+test("部署向导提交后也留在部署页并复用任务提示", () => {
+  assert.match(deploymentPanel, /onSubmit: \(operation: \(\) => Promise<unknown>, feedback\?: \{ message: string; showTasksLink: boolean \}\)/u);
+  assert.match(deploymentPanel, /message: "开服部署任务已提交。"/u);
+  assert.match(deploymentPanel, /showTasksLink: true/u);
+  assert.doesNotMatch(deploymentPanel, /returnToTasks|onSubmit\([^\n]*, true\)/u);
 });
 
 test("Minecraft 任务菜单渲染真实快照、空/读取状态和状态计数", () => {
@@ -182,7 +212,7 @@ test("server.properties 分组平衡填列并在窄工作区折为单列", () =>
 test("实例概览突出真实实例信息且任务只在独立任务页展示", () => {
   assert.match(workspace, /className="minecraft-instance-overview lfaa-card-motion-list"/u);
   assert.match(workspace, /className="minecraft-instance-hero lfaa-card-motion"/u);
-  assert.match(workspace, /className="minecraft-card minecraft-instance-detail-summary lfaa-card-motion"/u);
+  assert.match(workspace, /className="minecraft-instance-hero__content"/u);
   assert.match(workspace, /src="\/backgrounds\/cherry-blossom-waterfront\.png"/u);
   assert.match(workspace, /selectedInstance\.serverProperties\.serverPort \?\? "未配置"/u);
   assert.match(workspace, /selectedInstance\.nodeName/u);

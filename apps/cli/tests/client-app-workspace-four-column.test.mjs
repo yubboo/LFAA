@@ -10,6 +10,7 @@ const workspaceCss = [
   "../../../packages/client/ui-workspace/src/css/center-workspace.css",
   "../../../packages/client/ui-workspace/src/css/right-menu.css",
   "../../../packages/client/ui-workspace/src/css/workbench-regions.css",
+  "../../../packages/client/ui-primitives/src/WorkbenchHeader.css",
 ].map(read).join("\n");
 const workbench = read("../../../packages/client/ui-layout/src/Workbench.tsx");
 const workspace = read("../../../packages/client/ui-workspace/src/ApplicationWorkspace.tsx");
@@ -274,8 +275,16 @@ test("工作区通过内外层容器和区域标识独立定位四个布局盒�
   assert.match(workbench, /import "\.\/css\/module-shell\.css"/u, "Workbench owns the shared module-route shell geometry");
   assert.match(moduleShellCss, /\.workbench-shell--module\s*\{[^}]*height:\s*100dvh;[^}]*overflow:\s*hidden/u);
   assert.match(fileManagerCss, /\.module-workbench-stage\.file-manager-stage\s*\{[^}]*width:\s*100%;[^}]*height:\s*100%;[^}]*min-width:\s*0;[^}]*min-height:\s*0;[^}]*overflow:\s*hidden/u, "file manager owns its own outer workbench box geometry");
-  assert.match(fileManagerCss, /\.module-workbench-stage\.file-manager-stage\s*\{[^}]*grid-template-columns:\s*var\(--module-rail-width,\s*64px\)\s+minmax\(0,\s*1fr\)/u);
-  assert.match(fileManagerCss, /\.module-workbench-stage\.file-manager-stage > \.module-navigation-rail\s*\{\s*grid-column:\s*1/u);
+  assert.match(fileManagerCss, /\.module-workbench-stage\.file-manager-stage\s*\{[^}]*--lfaa-leading-width:\s*var\(--module-rail-width,\s*64px\)[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/u);
+  assert.match(fileManagerCss, /\.module-workbench-stage\.file-manager-stage > \.lfaa-workbench\.file-manager-workbench\s*\{[^}]*width:\s*100%;[^}]*height:\s*100%/u);
+  assert.match(fileManagerCss, /\.module-workbench-stage\.file-manager-stage > \.lfaa-workbench\.file-manager-workbench\s*\{[^}]*--lfaa-leading-width:\s*var\(--module-rail-width,\s*64px\)/u, "the DockKit grid root must reserve a real column for the global navigation rail");
+  assert.match(fileManagerPage, /<ResizableWorkbench[\s\S]*?leading=\{<GlobalNavigationRail[\s\S]*?left=\{<aside id="file-manager-resource-navigation"[\s\S]*?center=\{[\s\S]*?className="file-manager-page"[\s\S]*?right=\{<aside id="file-manager-directory-tree"/u, "file manager must expose the global rail, resource navigation, file workflow, and directory tree as DockKit sibling regions");
+  assert.match(fileManagerPage, /useWorkbenchMetrics\(layoutMeasureRef, initialFileManagerMetrics, true, readWorkbenchLeadingInsetWidth\)/u);
+  assert.match(fileManagerPage, /responsiveRightDock\s+responsiveLeftDock/u);
+  assert.match(fileManagerPage, /storageKey=\{`lfaa\.file-manager\.workbench\.v1:\$\{user\.id\}`\}/u);
+  assert.match(dockkit, /initialLeftCollapsed = false,[\s\S]*?initialRightCollapsed = true/u);
+  assert.match(dockkit, /onInitialCollapseState\?\.\(\{ leftCollapsed, rightCollapsed, restored: initial\.restored \}\)/u);
+  assert.doesNotMatch(fileManagerPage, /file-manager__workspace|treeOpen/u, "resource navigation and physical directory tree must not be merged into one custom pane");
   assert.match(workspaceCss, /\.module-workbench-inner\s*\{\s*--lfaa-leading-width:\s*var\(--module-rail-width\)/u);
   assert.match(workspaceCss, /\.module-workbench-stage--voice\s*>\s*\.lfaa-workbench\.module-workbench-inner\s*\{\s*--lfaa-leading-width:\s*0px;[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/u);
   assert.match(dockkitCss, /\.lfaa-workbench\s*\{[^}]*grid-template-columns:[\s\S]*?var\(--lfaa-leading-width\)[\s\S]*?var\(--lfaa-left-column\)/u);
@@ -291,7 +300,8 @@ test("四个工作区大区域内部按功能盒子各自分组", () => {
   assert.match(rail, /module-navigation-rail__top[\s\S]*?module-navigation-rail__primary[\s\S]*?module-navigation-rail__footer-actions[\s\S]*?module-navigation-rail__status-box[\s\S]*?module-navigation-rail__profile/u);
   assert.match(sidebar, /module-sidebar__brand-row[\s\S]*?<ApplicationNavigationPanel[\s\S]*?module-sidebar__sessions[\s\S]*?module-sidebar__sessions-heading[\s\S]*?module-sidebar__session-list[\s\S]*?module-sidebar__provider[\s\S]*?module-sidebar__footer/u);
   assert.match(workspace, /module-sidebar__application-navigation/u);
-  assert.match(center, /module-center__header[\s\S]*?module-center__heading[\s\S]*?module-center__actions[\s\S]*?module-center__content[\s\S]*?module-ai-work-chat/u);
+  assert.match(center, /centerHeader[\s\S]*?module-center__content[\s\S]*?renderAiWorkChatContent\(centerHeader\)/u);
+  assert.match(workspace, /<WorkbenchHeader className="module-center__header"[\s\S]*?data-workbench-header-slot="leading"[\s\S]*?data-workbench-header-slot="center"[\s\S]*?data-workbench-header-slot="actions"/u);
   assert.match(right, /module-context__shell-actions[\s\S]*?module-context__body[\s\S]*?module-context__side-chat[\s\S]*?module-context__default-content[\s\S]*?module-context__tabs/u);
   assert.match(workspace, /import "\.\/css\/secondary-navigation\.css"[\s\S]*?import "\.\/css\/center-workspace\.css"[\s\S]*?import "\.\/css\/right-menu\.css"/u);
   assert.match(workspaceRegionsCss, /\.module-workbench-region--leading,[\s\S]*?color:\s*var\(--color-text-primary\)/u);
@@ -299,9 +309,9 @@ test("四个工作区大区域内部按功能盒子各自分组", () => {
 
 test("App 模式组固定在顶栏中心列并在极窄中心区独占居中行", () => {
   const header = workspace.slice(workspace.indexOf("const centerHeader = ("), workspace.indexOf("const center = ("));
-  const headerRule = workspaceCss.match(/^\.module-center__header\s*\{([^}]+)\}/mu)?.[1] ?? "";
-  const modeSlotRule = workspaceCss.match(/^\.module-center__mode-switch-slot\s*\{([^}]+)\}/mu)?.[1] ?? "";
-  const actionsRule = workspaceCss.match(/^\.module-center__actions\s*\{([^}]+)\}/mu)?.[1] ?? "";
+  const headerRule = workspaceCss.match(/^\.lfaa-workbench-header\s*\{([^}]+)\}/mu)?.[1] ?? "";
+  const modeSlotRule = workspaceCss.match(/^\.lfaa-workbench-header__center\s*\{([^}]+)\}/mu)?.[1] ?? "";
+  const actionsRule = workspaceCss.match(/^\.lfaa-workbench-header__actions\s*\{([^}]+)\}/mu)?.[1] ?? "";
 
   assert.match(header, /module-center__mode-switch-slot[\s\S]*?<Segmented[\s\S]*?mode-option" title="聊天"[\s\S]*?WorkbenchIcon name="chat"[\s\S]*?mode-option" title="画布"[\s\S]*?WorkbenchIcon name="grid"[\s\S]*?mode-option" title="手动"[\s\S]*?WorkbenchIcon name="new"[\s\S]*?module-center__actions/u);
   assert.match(header, /module-center__mode-option-accessible-name">聊天[\s\S]*?module-center__mode-option-accessible-name">画布[\s\S]*?module-center__mode-option-accessible-name">手动/u);
@@ -312,18 +322,16 @@ test("App 模式组固定在顶栏中心列并在极窄中心区独占居中行"
   assert.match(workspaceCss, /\.module-center__actions > \.module-runtime-state\s*\{[^}]*font-size:\s*0/u);
   assert.match(workspaceCss, /\.module-center__actions > \.module-panel-control\s*\{[^}]*font-size:\s*0/u);
   assert.match(workspaceCss, /\.module-center__work-tabs > button:not\(\.module-git-summary-trigger\) > span\s*\{\s*display:\s*none/u);
-  assert.match(workspaceCss, /@container module-center \(max-width:\s*420px\)[\s\S]*?\.module-center__header:has\(> \.module-center__mode-switch-slot\) > \.module-center__mode-switch-slot\s*\{[^}]*grid-column:\s*1 \/ -1; grid-row:\s*2; justify-self:\s*center/u);
+  assert.match(workspaceCss, /@container module-center \(max-width:\s*420px\)[\s\S]*?\.lfaa-workbench-header:has\(> \[data-workbench-header-slot="center"\]\) > \.lfaa-workbench-header__center\s*\{[^}]*grid-column:\s*1 \/ -1; grid-row:\s*2; justify-self:\s*center/u);
 });
 
 test("普通应用页面共用导航与主内容锚点并按中心列宽整体左移", () => {
-  assert.match(workspace, /data-module-mode=\{mode\}/u);
+  assert.match(workspace, /<WorkbenchHeader className="module-center__header" layoutMode=\{metrics\.mode\} moduleMode=\{mode\}/u);
   assert.match(workspace, /mode === "normal" && !writingNormal && !aiVideoNormal \? " module-center__content--application"/u);
-  assert.match(workspaceCss, /\.module-center__header\[data-module-mode="normal"\]\s*\{[^}]*padding-inline-start:\s*calc\(clamp\(20px,\s*2\.5cqi,\s*32px\)\s*-\s*clamp\(8px,\s*1\.2cqi,\s*16px\)\);[^}]*padding-inline-end:\s*calc\(clamp\(20px,\s*2\.5cqi,\s*32px\)\s*\+\s*clamp\(8px,\s*1\.2cqi,\s*16px\)\)/u);
-  assert.match(workspaceCss, /\.module-center__header\[data-layout-mode="mobile"\]:not\(\[data-module-mode="normal"\]\)\s*\{[^}]*padding:\s*5px 9px/u);
+  assert.match(workspaceCss, /\.lfaa-workbench-header\[data-layout-mode="mobile"\]:not\(\[data-module-mode="normal"\]\)\s*\{[^}]*padding:\s*5px 9px/u);
   assert.match(workspaceCss, /\.module-center__content--application\s*\{[^}]*padding-inline-start:\s*calc\(clamp\(20px,\s*2\.5cqi,\s*32px\)\s*-\s*clamp\(8px,\s*1\.2cqi,\s*16px\)\);[^}]*padding-inline-end:\s*calc\(clamp\(20px,\s*2\.5cqi,\s*32px\)\s*\+\s*clamp\(8px,\s*1\.2cqi,\s*16px\)\);[^}]*box-sizing:\s*border-box/u);
-  assert.match(workspaceCss, /@container module-center \(max-width:\s*560px\)[\s\S]*?\.module-center__header\[data-module-mode="normal"\]\s*\{[^}]*padding-inline-start:\s*8px;[^}]*padding-inline-end:\s*24px/u);
   assert.match(workspaceCss, /@container module-center \(max-width:\s*560px\)[\s\S]*?\.module-center__content--application\s*\{[^}]*padding-inline-start:\s*8px;[^}]*padding-inline-end:\s*24px/u);
-  assert.match(workspaceCss, /@container module-center \(max-width:\s*360px\)[\s\S]*?\.module-center__header\[data-module-mode="normal"\]\s*\{[^}]*padding-inline-start:\s*8px;[^}]*padding-inline-end:\s*16px/u);
+  assert.match(workspaceCss, /@container module-center \(max-width:\s*360px\)[\s\S]*?\.lfaa-workbench-header__title strong\s*\{[^}]*font-size:\s*10px/u);
   assert.match(workspaceCss, /@container module-center \(max-width:\s*360px\)[\s\S]*?\.module-center__content--application\s*\{[^}]*padding-inline-start:\s*8px;[^}]*padding-inline-end:\s*16px/u);
   assert.match(workspaceCss, /\.module-center__content:not\(\.module-center__content--application\)\s*\{\s*padding:\s*0;\s*\}/u);
 });

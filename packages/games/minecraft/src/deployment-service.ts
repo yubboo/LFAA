@@ -5,7 +5,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { ApiError } from "lfaa-util-values/src/http-error.js";
-import { defaultMinecraftInitialHeapMb } from "lfaa-util-values/src/minecraft-jvm-contract.mjs";
+import { defaultMinecraftInitialHeapMb, getMinecraftJvmPreset } from "lfaa-util-values/src/minecraft-jvm-contract.mjs";
 import { database } from "lfaa-storage-sqlite/src/database.js";
 import { getDaemonNode } from "lfaa-host-daemon/src/local-daemon.js";
 import { createMinecraftTask, listMinecraftTasks } from "lfaa-jobs/src/minecraft-queue.js";
@@ -53,6 +53,7 @@ export async function provisionMinecraftServer(input: MinecraftProvisionInput) {
   if (!node || node.status !== "online" || node.platform !== "win32" || node.architecture !== "x64") throw new ApiError(409, "minecraft_node_offline", "请选择在线 Windows x64 Daemon。");
   if (!node.capabilities.includes("minecraft-multicore-v1")) throw new ApiError(409, "minecraft_multicore_unavailable", "目标 Daemon 尚未报告多核心部署能力，请更新并重启目标节点。");
   const javaRuntimeId = input.javaRuntimeId ?? null;
+  const jvmArguments = getMinecraftJvmPreset("recommended", { javaMajor: artifact.javaMajor, coreType: artifact.core, memoryMb })?.jvmArguments ?? [];
   if (javaRuntimeId) {
     const runtime = node.javaRuntimes.find(r => r.runtimeId === javaRuntimeId);
     if (!runtime || runtime.major !== artifact.javaMajor) throw new MinecraftProvisionPreparationError(new ApiError(400, "minecraft_java_mismatch", `请选择目标节点上 Java ${artifact.javaMajor} 的有效运行环境，或使用自动准备。`));
@@ -80,7 +81,7 @@ export async function provisionMinecraftServer(input: MinecraftProvisionInput) {
       VALUES (?,?,?,?,?,?,?,?,'queued',?,?,?,1)`).run(deploymentId,node.id,input.userId,name,storageDirectory,artifact.core,input.version,artifact.javaMajor,instanceId,artifact.build,JSON.stringify(artifact));
     const initialHeapMb = defaultMinecraftInitialHeapMb(memoryMb);
     const task = createMinecraftTask({ nodeId: node.id, instanceId, deploymentId, createdBy: input.userId, kind: "install", message: "等待节点自动准备环境、安装并启动服务端。", payload: {
-      operation: "provision", instanceName: name, storageDirectory, artifact, releaseId: input.version, javaMajor: artifact.javaMajor, javaRuntimeId, memoryMb, initialHeapMb, jvmArguments: [], properties: { serverPort }, eulaAccepted: true, executionMode: "native",
+      operation: "provision", instanceName: name, storageDirectory, artifact, releaseId: input.version, javaMajor: artifact.javaMajor, javaRuntimeId, memoryMb, initialHeapMb, jvmArguments, properties: { serverPort }, eulaAccepted: true, executionMode: "native",
       language: userSettings.general.language,
       readyTimeoutSeconds: settings.minecraftReadyTimeoutSeconds, stopTimeoutSeconds: settings.minecraftStopTimeoutSeconds,
       downloadTimeoutSeconds: settings.minecraftDownloadTimeoutSeconds, installTimeoutSeconds: settings.minecraftInstallTimeoutSeconds, proxyBackend

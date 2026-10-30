@@ -53,6 +53,8 @@ export interface GeneralSettings {
   questionNotifications: boolean;
   sessionIssueNotifications: boolean;
   notificationSound: "default" | "subtle" | "off";
+  notificationToastDurationSeconds: number;
+  notificationToastEffect: UiMotionEffect;
   aiProviderReminderEnabled: boolean;
   setupReminderEnabled: boolean;
   defaultAdminCredentialReminderEnabled: boolean;
@@ -457,6 +459,8 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
     questionNotifications: true,
     sessionIssueNotifications: true,
     notificationSound: "default",
+    notificationToastDurationSeconds: 5,
+    notificationToastEffect: "fluid",
     aiProviderReminderEnabled: true,
     setupReminderEnabled: true,
     defaultAdminCredentialReminderEnabled: true,

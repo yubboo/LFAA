@@ -12,9 +12,11 @@
     "@anthropic-ai/claude-agent-sdk": "0.3.310",
     "@deepseek-ai/cordis": "4.0.4",
     "@modelcontextprotocol/sdk": "1.32.2",
+    "lfaa-home-paths": "workspace:*",
     "lfaa-credentials": "workspace:*",
     "lfaa-llm": "workspace:*",
-    "lfaa-subagent": "workspace:*"
+    "lfaa-subagent": "workspace:*",
+    "tar": "7.5.22"
   },
   "devDependencies": {
     "@types/node": "^24.0.0"

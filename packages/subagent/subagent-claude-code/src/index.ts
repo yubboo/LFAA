@@ -12,6 +12,8 @@ import { join } from "node:path";
 import { query, type CanUseTool, type HookCallback, type PreToolUseHookInput } from "@anthropic-ai/claude-agent-sdk";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { CLAUDE_SDK_COMPONENT_VERSION } from "./claude-sdk-component-contract.mjs";
+import { ensureClaudeSdkExecutable } from "./claude-sdk-component.mjs";
 import { credentialReference, type CredentialConsumer, type CredentialRegistry } from "lfaa-credentials/src/index.js";
 import { forwardAnthropicMessages } from "lfaa-llm/src/anthropic-messages.js";
 import type { SubagentDriver, SubagentDriverContext, SubagentRunResult, SubagentTask, SubagentToolActionRequest } from "lfaa-subagent";
@@ -19,7 +21,7 @@ import { resolveSubagentWorkingDirectory } from "lfaa-subagent/src/working-direc
 import { createClaudeAnthropicRelay } from "./anthropic-relay.js";
 
 /** 与 lockfile 中固定的官方 SDK 版本一致；变更 SDK 依赖时同步更新审批工具版本。 */
-export const CLAUDE_AGENT_SDK_VERSION = "0.3.310";
+export const CLAUDE_AGENT_SDK_VERSION = CLAUDE_SDK_COMPONENT_VERSION;
 /** 一次外部子任务的最长运行时间；SDK close() 会终止其 CLI 子进程并清理传输资源。 */
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_SUBAGENT_STREAM_BATCH_CHARS = 2048;
@@ -392,7 +394,8 @@ export function createClaudeCodeDriver(
   queryImplementation: typeof query = query,
   timeoutMilliseconds = DEFAULT_TIMEOUT_MS,
   resolveApiKey?: ClaudeApiKeyResolver,
-  fetcher: typeof fetch = fetch
+  fetcher: typeof fetch = fetch,
+  resolveExecutable: typeof ensureClaudeSdkExecutable = ensureClaudeSdkExecutable
 ): SubagentDriver {
   return {
     name: "claude-code",
@@ -425,6 +428,20 @@ export function createClaudeCodeDriver(
       }
       if (!validAnthropicApiKey(apiKey)) {
         return { runId: "", stopReason: "error", answer: "", diagnostic: "LFAA Settings/Credentials Owner 未提供有效 Anthropic Console API Key，Claude Agent SDK 未启动。" };
+      }
+      let claudeExecutable: string | undefined;
+      try {
+        claudeExecutable = await resolveExecutable({
+          signal,
+          onProgress: message => driverCtx.onProgress(message)
+        });
+      } catch (error) {
+        if (signal.aborted) {
+          const stopReason: SubagentRunResult["stopReason"] = driverCtx.signal.aborted ? "aborted" : "timeout";
+          return { runId: "", stopReason, answer: "", ...(stopReason === "timeout" ? { diagnostic: "获取 Claude SDK 运行组件时达到运行时间上限；没有启动未校验文件。" } : {}) };
+        }
+        const reason = error instanceof Error ? error.message : "未知下载或完整性错误";
+        return { runId: "", stopReason: "error", answer: "", diagnostic: `Claude SDK 运行组件尚未就绪：${reason}；没有启动未校验文件。` };
       }
       const abortController = new AbortController();
       const callbacks = createClaudePermissionCallbacks({
@@ -466,6 +483,7 @@ export function createClaudeCodeDriver(
             abortController,
             cwd: workingDirectory,
             env: safeEnv(relayToken, apiRelay.baseUrl, claudeConfigDirectory),
+            ...(claudeExecutable ? { pathToClaudeCodeExecutable: claudeExecutable } : {}),
             maxTurns,
             systemPrompt: { type: "preset", preset: "claude_code", append: LFAA_CODING_AGENT_SYSTEM_PROMPT, snapshot: true },
             permissionMode: "default",

@@ -18,6 +18,13 @@ export interface WorkbenchPaneLimits {
   initial: number;
 }
 
+export interface WorkbenchCollapseState {
+  leftCollapsed: boolean;
+  rightCollapsed: boolean;
+  /** Whether the state came from a valid saved layout rather than page defaults. */
+  restored: boolean;
+}
+
 export interface ResizableWorkbenchProps {
   left: ReactNode;
   center: ReactNode;
@@ -61,8 +68,13 @@ export interface ResizableWorkbenchProps {
   centerCollapseEnabled?: boolean;
   /** 可选受控左栏宽度；提供后由父组件成为 leftWidth 唯一事实源。 */
   leftWidth?: number;
+  /** Collapse defaults used only when this storage key has no valid saved layout. */
+  initialLeftCollapsed?: boolean;
+  initialRightCollapsed?: boolean;
   leftCollapsed?: boolean;
   rightCollapsed?: boolean;
+  /** Reports the resolved initial collapse state once, so page controls can mirror DockKit restoration. */
+  onInitialCollapseState?: (state: WorkbenchCollapseState) => void;
   bottomOpen?: boolean;
   /** 当前容器布局模式；决定左右栏使用 Dock 还是 Overlay。 */
   layoutMode?: WorkbenchLayoutMode;

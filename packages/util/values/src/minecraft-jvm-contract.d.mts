@@ -5,5 +5,6 @@ export function parseMinecraftJvmArguments(value: string, context: { javaMajor: 
 export function defaultMinecraftInitialHeapMb(memoryMb: number, executionMode?: "native" | "appcontainer"): number;
 export function buildMinecraftJvmArguments(configuration: MinecraftJvmConfiguration, context: { javaMajor: number; coreType: string }): string[];
 export function getMinecraftJvmPreset(preset: MinecraftJvmPresetId, context: { javaMajor: number; coreType: string; memoryMb: number }): MinecraftJvmConfiguration | null;
+export function resolveMinecraftJvmArguments(configuration: { jvmArguments?: string[]; configured?: boolean }, context: { javaMajor: number; coreType: string; memoryMb: number }): string[];
 export function serializeMinecraftJvmArguments(configuration: MinecraftJvmConfiguration): string;
 export const MINECRAFT_JVM_PRESET_IDS: readonly MinecraftJvmPresetId[];

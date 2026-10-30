@@ -15,6 +15,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
+. (Join-Path $PSScriptRoot 'windows-rust-toolchain.ps1')
 $rootManifestPath = Join-Path $projectRoot 'package.json'
 $script:ServiceExitCode = 0
 $script:InitialLfaaDataDirectory = [string]$env:LFAA_DATA_DIR
@@ -50,19 +51,6 @@ function Get-StartupContext {
     $nodeVersion = [version]::new([int]$Matches[1], [int]$Matches[2], [int]$Matches[3])
     if ($nodeVersion -lt $requiredNodeVersion) {
         throw "当前 Node.js 为 $nodeVersion，项目要求 $requiredNodeVersion 或更新版本。"
-    }
-
-    if ($RequiredService -eq 'daemon') {
-        $cargoCommand = Get-Command 'cargo' -ErrorAction SilentlyContinue
-        $rustupCommand = Get-Command 'rustup' -ErrorAction SilentlyContinue
-        if (-not $cargoCommand -or -not $rustupCommand) {
-            throw 'Windows Daemon 需要 Rust stable MSVC 工具链和 rustup；当前未检测到 Cargo/rustup。'
-        }
-
-        $rustTargets = @(& $rustupCommand.Source target list --installed 2>$null)
-        if ($LASTEXITCODE -ne 0 -or $rustTargets -notcontains 'x86_64-pc-windows-msvc') {
-            throw 'Windows Daemon 需要 Rust target x86_64-pc-windows-msvc；请先安装该 target。'
-        }
     }
 
     $serviceScriptName = "dev:$RequiredService"
@@ -469,6 +457,9 @@ if ($Mode -eq 'Service') {
             throw '检测到待迁移的数据目录；请通过项目启动器完整重启全部服务后再单独启动某个服务。'
         }
         if ($Service -in @('server', 'daemon')) { Initialize-LfaaDataDirectory }
+        if ($Service -eq 'daemon') {
+            Initialize-LfaaWindowsRustToolchain -ProjectRoot $projectRoot -DataDirectory $env:LFAA_DATA_DIR
+        }
         if ($Service -eq 'server') { Initialize-LfaaLocalMode }
         Assert-DevelopmentPortsAvailable
         Write-Host "正在启动 LFAA $Service，请查看本窗口的运行日志。" -ForegroundColor Cyan
@@ -498,6 +489,7 @@ try {
     }
     Initialize-LfaaLocalMode
     Initialize-LfaaDataDirectory
+    Initialize-LfaaWindowsRustToolchain -ProjectRoot $projectRoot -DataDirectory $env:LFAA_DATA_DIR
     Stop-PreviousDevelopmentServices
     Complete-LfaaDataDirectoryMigration
     Initialize-LfaaDataDirectory

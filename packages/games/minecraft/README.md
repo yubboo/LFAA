@@ -26,4 +26,4 @@ Paper 官方构建的最低 Java 字节码版本与官方推荐运行版本共�
 
 玩家联机不是此部署服务的副作用。Minecraft App 通过 `lfaa-game-connectivity` 注册 Java TCP 目标适配器；联机 App 只列出当前账户拥有、节点在线且实际运行的实例，并读取真实保存端口生成回环目标。网络路线由跨游戏 Connectivity Owner 管理，不调用 Minecraft 部署或启停服务。
 
-实例 JVM 堆与调优参数保存在 `minecraft_instances`，由本 Service 校验实例停止、节点在线、权限和任务互斥，再通过 `lfaa-util-values/src/minecraft-jvm-contract.mjs` 校验唯一参数白名单。启动/重启事务读取最新实例配置并写入持久任务载荷；`minecraftDefaultMemoryMb` 仅作为新实例默认最大堆，不覆盖已有实例值。SQLite v78 为旧实例保留原有 Xms 初值。
+实例 JVM 堆与调优参数归本 Service 校验，并经 `lfaa-util-values/src/minecraft-jvm-contract.mjs` 的唯一参数白名单保存。所有 Java 服务端核心共用推荐/高性能 G1 参数；未显式配置的实例从同一合同读取推荐参数，首次部署、注册、启动/重启都将真实参数交给目标 Java 预检并传入核心启动命令。SQLite v79 用 `jvm_arguments_configured` 区分自动推荐值与用户显式保存（包括空列表），不覆盖已保存的非空参数。`minecraftDefaultMemoryMb` 仅作为新实例默认最大堆，不覆盖已有实例值。v78 保留旧实例 Xms 初值，v79 标记参数配置来源。PocketMine 使用 PHP，不应用 JVM 参数。

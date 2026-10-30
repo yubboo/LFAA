@@ -2680,6 +2680,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   const completionNotificationLabel = settings.general.completionNotification === "always"
     ? "始终提醒"
     : "仅工作台未聚焦时提醒";
+  const notificationToastEffect = UI_MOTION_EFFECT_OPTIONS.find(({ id }) => id === settings.general.notificationToastEffect) ?? UI_MOTION_EFFECT_OPTIONS[0];
   const notificationGroup = (
     <SettingGroup title="LFAA 通知">
       {!settings.general.notificationPopupsEnabled ? <Alert
@@ -2709,7 +2710,13 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
       <SettingRow title="小鱼智能体 澄清问题" description="当模型判断关键信息不足时，可暂停当前任务并提供选项或自定义回答；此开关控制通知栏和后台系统通知，不会隐藏当前会话中的问题卡。" status={notificationCategoryStatus(settings.general.questionNotifications)}>
         <SettingsSwitch label="澄清问题提醒" checked={settings.general.questionNotifications} onChange={() => updateGeneral({ questionNotifications: !settings.general.questionNotifications })} />
       </SettingRow>
-      <SettingRow title="通知提示音" description="选择 小鱼智能体 回复完成、审批请求、澄清问题和会话错误的提示音；试听音量受浏览器和系统音量控制。" status={notificationCategoryStatus(settings.general.notificationSound !== "off", "提示音已开启")}>
+      <SettingRow title="操作提示卡时长" description="Minecraft 操作成功后，右下角提示卡按此时长倒计时并自动收起；范围 1–60 秒。" status={`${settings.general.notificationToastDurationSeconds} 秒后收起`}>
+        <InputNumber aria-label="操作提示卡时长" min={1} max={60} step={1} precision={0} addonAfter="秒" value={settings.general.notificationToastDurationSeconds} onChange={(value) => { if (typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 60) updateGeneral({ notificationToastDurationSeconds: value }); }} />
+      </SettingRow>
+      <SettingRow title="操作提示卡动效" description={`Minecraft 操作提示卡使用“${notificationToastEffect.label}”：${notificationToastEffect.cardDescription} 外观中的减少动态效果设置会优先关闭动画。`} status={notificationToastEffect.label}>
+        <Select aria-label="操作提示卡动效" value={settings.general.notificationToastEffect} options={UI_MOTION_EFFECT_OPTIONS.map(({ id, label }) => ({ value: id, label }))} onChange={(value) => updateGeneral({ notificationToastEffect: value })} />
+      </SettingRow>
+      <SettingRow title="通知提示音" description="选择 小鱼智能体 回复完成、审批请求、澄清问题、会话错误及 Minecraft 操作成功提示卡的提示音；试听音量受浏览器和系统音量控制。" status={notificationCategoryStatus(settings.general.notificationSound !== "off", "提示音已开启")}>
         <Space>
           <Select value={settings.general.notificationSound} options={[{ value: "default", label: "默认" }, { value: "subtle", label: "轻柔" }, { value: "off", label: "关闭" }]} onChange={(value) => updateGeneral({ notificationSound: value })} />
           <Button onClick={testNotificationSound} disabled={!settings.general.notificationPopupsEnabled || settings.general.notificationSound === "off"}>试听</Button>

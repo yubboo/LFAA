@@ -3,18 +3,23 @@
  * 作用：浏览和搜索受管目录，创建、编辑、上传、下载、重命名与删除文件，并显示真实操作结果。
  * 关联文件：packages/client/connection/src/api.ts、packages/client/ui-sidebar/src/GlobalNavigationRail.tsx、packages/client/ui-sidebar-files/src/FileManagerPage.css、packages/fs/fs/src/queue.ts。
  */
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type Key, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type Key, type ReactNode } from "react";
 import { createSnapshotCache } from "lfaa-client-store/src/snapshot-cache.js";
 import { Alert, Button, Dropdown, Empty, Input, Modal, Popover, Select, Space, Spin, Table, Tag, Tree, Typography, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import type { DataNode, EventDataNode } from "antd/es/tree";
 import { getErrorMessage, loadSystemFileAudit, loadFileResourceLocations, operateSystemFiles, downloadSystemFile, downloadFileTransfer, maximumNodeFileTransferBytes, startSystemFileDownload, uploadSystemFile, type ApplicationId, type FileManagerAuditEntry, type FileManagerOperation, type ManagedFileEntry, type FileResourceLocation, type User, type UserSettings } from "lfaa-client-connection/src/api.js";
-import type { ServiceState } from "lfaa-client-ui-primitives/src/ServiceStatus.js";
-import { GlobalNavigationRail, type ApplicationNavigationItem } from "lfaa-client-ui-sidebar/src/GlobalNavigationRail.js";
+import { ServiceStatus, type ServiceState } from "lfaa-client-ui-primitives/src/ServiceStatus.js";
+import { GLOBAL_NAVIGATION_RAIL_COMPACT_WIDTH, GLOBAL_NAVIGATION_RAIL_WIDTH, GlobalNavigationRail, type ApplicationNavigationItem } from "lfaa-client-ui-sidebar/src/GlobalNavigationRail.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
+import { WorkbenchHeader } from "lfaa-client-ui-primitives/src/WorkbenchHeader.js";
+import { ResizableWorkbench } from "lfaa-client-ui-dockkit/src/ResizableWorkbench.js";
+import { resolveWorkbenchLayoutMetrics, type WorkbenchLayoutMetrics } from "lfaa-client-ui-dockkit/src/workbench-layout.config.js";
+import { readWorkbenchLeadingInsetWidth, useWorkbenchMetrics } from "lfaa-client-ui-dockkit/src/use-workbench-metrics.js";
+import type { WorkbenchCollapseState } from "lfaa-client-ui-dockkit/src/workbench-layout.types.js";
 import { usePointerResize } from "lfaa-client-ui-dockkit/src/ui-resize/use-pointer-resize.js";
 import { createTarArchive } from "./archive.js";
-import { consumeFileManagerLocation, readFileManagerLocation } from "lfaa-client-connection/src/file-manager-location.js";
+import { consumeFileManagerLocation, readFileManagerLocation, readFileManagerReturnPath } from "lfaa-client-connection/src/file-manager-location.js";
 import "./FileManagerPage.css";
 
 interface FileManagerSnapshot {
@@ -74,6 +79,12 @@ function directorySnapshotKey(path: string, query: string, owner: string): strin
 const maximumBatchItems = 50;
 const maximumBatchTransferBytes = 20 * 1024 * 1024;
 const maximumExpandedDirectoryNodes = 200;
+
+function initialFileManagerMetrics(): WorkbenchLayoutMetrics {
+  if (typeof window === "undefined") return resolveWorkbenchLayoutMetrics(1440 - GLOBAL_NAVIGATION_RAIL_WIDTH, 900, true);
+  const railWidth = window.innerWidth <= 420 ? GLOBAL_NAVIGATION_RAIL_COMPACT_WIDTH : GLOBAL_NAVIGATION_RAIL_WIDTH;
+  return resolveWorkbenchLayoutMetrics(window.innerWidth - railWidth, window.innerHeight, true);
+}
 type FileColumnKey = "name" | "fileType" | "size" | "modifiedAt" | "actions";
 interface FileColumnWidths extends Record<FileColumnKey, number> {}
 interface FileColumnResizeEdge { left: FileColumnKey; right: FileColumnKey }
@@ -140,6 +151,10 @@ function getFileManagerModalContainer(): HTMLElement {
 }
 
 export function FileManagerPage({ user, settings, serverState, applications, navigationApplications = applications, onOpenApplication, onOpenApplications, onOpenRecentSessions, onNavigate, onOpenSettings, onLogout }: FileManagerPageProps) {
+  const layoutMeasureRef = useRef<HTMLDivElement | null>(null);
+  const metrics = useWorkbenchMetrics(layoutMeasureRef, initialFileManagerMetrics, true, readWorkbenchLeadingInsetWidth);
+  const [layoutMeasured, setLayoutMeasured] = useState(false);
+  useLayoutEffect(() => { setLayoutMeasured(true); }, []);
   const [messageApi, messageContext] = message.useMessage();
   const [modalApi, modalContext] = Modal.useModal();
   const fileAccess = user.role === "super_admin" && settings.permissions.mode === "full_access";
@@ -153,6 +168,8 @@ export function FileManagerPage({ user, settings, serverState, applications, nav
     if (!fileAccessRef.current || accountContextRef.current !== cacheKey) throw new Error("文件账户或权限已变更，请重新核对设置。");
   };
   const requestedLocation = useRef(readFileManagerLocation(user.id)).current;
+  const [fileEntryContext] = useState(() => ({ userId: user.id, returnPath: readFileManagerReturnPath(user.id) }));
+  const fileEntryReturnPath = fileEntryContext.userId === user.id ? fileEntryContext.returnPath : null;
   const cachedSnapshot = useRef(requestedLocation === null ? fileManagerSnapshots.get(cacheKey) ?? null : null).current;
   const [currentPath, setCurrentPath] = useState(() => requestedLocation ?? cachedSnapshot?.currentPath ?? "");
   useEffect(() => { consumeFileManagerLocation(); }, []);
@@ -202,7 +219,8 @@ export function FileManagerPage({ user, settings, serverState, applications, nav
   const [maximumSize, setMaximumSize] = useState("");
   const [modifiedAfter, setModifiedAfter] = useState("");
   const [modifiedBefore, setModifiedBefore] = useState("");
-  const [treeOpen, setTreeOpen] = useState(false);
+  const [leftCollapsed, setLeftCollapsed] = useState<boolean | undefined>(undefined);
+  const [rightCollapsed, setRightCollapsed] = useState<boolean | undefined>(undefined);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [treeData, setTreeData] = useState<DataNode[]>([{ title: "文件", key: "", isLeaf: false, children: [] }]);
   const [loadedTreeKeys, setLoadedTreeKeys] = useState<Key[]>([]);
@@ -218,6 +236,27 @@ export function FileManagerPage({ user, settings, serverState, applications, nav
   const columnResizeStartRef = useRef<FileColumnWidths | null>(null);
   const columnsManuallyResizedRef = useRef(false);
   const fileManagerBodyRef = useRef<HTMLDivElement | null>(null);
+
+  const applyInitialCollapseState = useCallback((state: WorkbenchCollapseState) => {
+    const initialLeftCollapsed = !state.restored && metrics.mode === "mobile" ? true : state.leftCollapsed;
+    const initialRightCollapsed = !state.restored && metrics.mode !== "desktop" ? true : state.rightCollapsed;
+    setLeftCollapsed(initialLeftCollapsed);
+    setRightCollapsed(metrics.mode === "mobile" && initialLeftCollapsed === false ? true : initialRightCollapsed);
+  }, [metrics.mode]);
+
+  useEffect(() => {
+    if (metrics.mode === "mobile" && leftCollapsed === false && rightCollapsed === false) setRightCollapsed(true);
+  }, [leftCollapsed, metrics.mode, rightCollapsed]);
+
+  const updateResourcePaneCollapsed = useCallback((collapsed: boolean) => {
+    setLeftCollapsed(collapsed);
+    if (!collapsed && metrics.mode === "mobile") setRightCollapsed(true);
+  }, [metrics.mode]);
+
+  const updateDirectoryPaneCollapsed = useCallback((collapsed: boolean) => {
+    setRightCollapsed(collapsed);
+    if (!collapsed && metrics.mode === "mobile") setLeftCollapsed(true);
+  }, [metrics.mode]);
 
   const commitColumnWidths = useCallback((next: FileColumnWidths) => {
     columnWidthsRef.current = next;
@@ -848,36 +887,65 @@ export function FileManagerPage({ user, settings, serverState, applications, nav
   const crumbs = currentPath ? currentPath.split("/").map((name, index, segments) => ({ name: name === ".lfaa-library" ? "应用资源" : name === ".lfaa-resources" ? "受管资源" : segments[1] === "game-instances" && index === 2 ? "实例目录" : segments[1] === "aivideo-projects" && index === 2 ? "项目媒体" : segments[1] === "game-storage" && name === "minecraft" ? "Minecraft 游戏目录" : segments[1] === "game-storage" && name === "steamcmd" ? "Steam 游戏目录" : name === "steamcmd-runtime" ? "SteamCMD 工具目录" : locations.find(location => location.path === segments.slice(0, index + 1).join("/"))?.name ?? (segments[index - 1] === "local-drives" && /^[A-Z]$/iu.test(name) ? `${name}:` : name), path: segments.slice(0, index + 1).join("/") })).filter(crumb => crumb.path !== ".lfaa-resources" && !(crumb.path.startsWith(".lfaa-library/game-storage/") && crumb.path.split("/").length === 3)) : [];
 
   return (
-    <div className="module-workbench-stage file-manager-stage">
+    <div className="module-workbench-stage file-manager-stage" ref={layoutMeasureRef}>
       {messageContext}
       {modalContext}
-      <GlobalNavigationRail
-        username={user.username}
-        role={user.role}
-        serverState={serverState}
-        shortcuts={settings.shortcuts}
-        activePage="files"
-        applications={applications}
-        navigationApplications={navigationApplications}
-        showServiceStatus={settings.general.showServiceStatus}
-        onToggleApplications={onOpenApplications ?? (() => onNavigate("/work"))}
-        onOpenRecentSessions={onOpenRecentSessions}
-        onNavigate={onNavigate}
-        onOpenApplication={onOpenApplication}
-        onOpenFiles={() => onNavigate("/files")}
-        onOpenSettings={onOpenSettings}
-        onLogout={onLogout}
-      />
+      {layoutMeasured ? <ResizableWorkbench
+        className="file-manager-workbench"
+        leading={<GlobalNavigationRail
+          username={user.username}
+          role={user.role}
+          serverState={serverState}
+          shortcuts={settings.shortcuts}
+          activePage="files"
+          applications={applications}
+          navigationApplications={navigationApplications}
+          showServiceStatus={settings.general.showServiceStatus}
+          onToggleApplications={onOpenApplications ?? (() => onNavigate("/work"))}
+          onOpenRecentSessions={onOpenRecentSessions}
+          onNavigate={onNavigate}
+          onOpenApplication={onOpenApplication}
+          onOpenFiles={() => onNavigate("/files")}
+          onOpenSettings={onOpenSettings}
+          onLogout={onLogout}
+        />}
+        left={<aside id="file-manager-resource-navigation" className="file-manager__resource-pane" aria-label="资源导航">
+          <div className="file-manager__pane-heading">
+            <Typography.Text className="file-manager__pane-title">资源导航</Typography.Text>
+            <Button type="text" className="file-manager__pane-close" aria-label="收起资源导航" title="收起资源导航" aria-expanded="true" aria-controls="file-manager-resource-navigation" onClick={() => setLeftCollapsed(true)}>
+              <WorkbenchIcon name="close" size={15} />
+            </Button>
+          </div>
+          <nav className="file-manager__resource-list" aria-label="资源类别">
+            {locations.map(location => <button type="button" key={location.id} title={location.description} aria-current={activeLocation?.id === location.id ? "page" : undefined} disabled={!isOnline || busy} onClick={() => selectLocation(location.path)}><WorkbenchIcon name="folder" size={16} /><span>{location.name}<small lang="en">{resourceEnglishNames[location.id] ?? location.id}</small><small className="file-manager__resource-path">{location.description}</small></span></button>)}
+          </nav>
+        </aside>}
+        center={
       <section className="file-manager-page" aria-labelledby="file-manager-title">
+        <WorkbenchHeader className="file-manager__workbench-header" layoutMode={metrics.mode} moduleMode="normal">
+          <div className="lfaa-workbench-header__leading" data-workbench-header-slot="leading">
+            <Button type="text" className="lfaa-workbench-header__toggle" aria-label={leftCollapsed ? "展开资源导航" : "收起资源导航"} title={leftCollapsed ? "展开资源导航" : "收起资源导航"} aria-expanded={leftCollapsed !== true} aria-controls="file-manager-resource-navigation" onClick={() => updateResourcePaneCollapsed(!Boolean(leftCollapsed))}>
+              <WorkbenchIcon name="panelLeft" size={16} />
+            </Button>
+            <div className="lfaa-workbench-header__title" title="文件管理"><WorkbenchIcon name="folder" size={16} /><strong>文件管理</strong></div>
+          </div>
+          <div className="lfaa-workbench-header__actions" data-workbench-header-slot="actions">
+            {settings.general.showServiceStatus ? <ServiceStatus state={serverState} compact /> : null}
+            <Button type="text" className="lfaa-workbench-header__pane-toggle" aria-label={rightCollapsed ? "展开目录树" : "收起目录树"} title={rightCollapsed ? "展开目录树" : "收起目录树"} aria-expanded={rightCollapsed !== true} aria-controls="file-manager-directory-tree" disabled={!isOnline} onClick={() => updateDirectoryPaneCollapsed(!Boolean(rightCollapsed))}>
+              <WorkbenchIcon name="panelRight" size={16} />
+            </Button>
+          </div>
+        </WorkbenchHeader>
         <header className="file-manager__header">
           <div className="file-manager__heading">
-            <Typography.Title id="file-manager-title" level={2}>文件管理</Typography.Title>
+            <Typography.Title id="file-manager-title" level={2}>文件与资源</Typography.Title>
             <Typography.Text type="secondary">管理游戏、备份和运行资源。</Typography.Text>
           </div>
           <div className="file-manager__header-side">
             {dataRootLabel ? <Typography.Text className="file-manager__root-path" type="secondary" title={dataRootLabel}>当前存储位置：{dataRootLabel}</Typography.Text> : null}
             <div className="file-manager__header-controls">
               <Space wrap className="file-manager__header-actions">
+                {fileEntryReturnPath ? <Button type="primary" disabled={busy} onClick={() => onNavigate(fileEntryReturnPath)}>返回实例</Button> : null}
                 <Button disabled={!isOnline || busy || !directoryReady || !canOperate("trash-list")} onClick={() => void loadTrash()}>回收站</Button>
                 <Button disabled={!fileAccess} onClick={() => void loadAudit()}>操作记录</Button>
               </Space>
@@ -892,9 +960,6 @@ export function FileManagerPage({ user, settings, serverState, applications, nav
 
         <div className="file-manager__toolbar">
           <div className="file-manager__navigation-row">
-            <Button className="file-manager__tree-toggle" aria-expanded={treeOpen} aria-controls="file-manager-directory-tree" onClick={() => setTreeOpen(value => !value)} disabled={!isOnline}>
-              <WorkbenchIcon name="folder" size={15} />目录
-            </Button>
             <div className="file-manager__location">
               <Button aria-label="返回上一级" title="返回上一级" disabled={!isOnline || !currentPath || busy} onClick={navigateUp}><WorkbenchIcon name="chevron" size={15} /></Button>
               <Button aria-label="回到文件总览" title="回到文件总览" disabled={!isOnline || !currentPath || busy} onClick={() => { setCurrentPath(""); setSearchQuery(""); setSearchText(""); }}><WorkbenchIcon name="home" size={15} /></Button>
@@ -949,18 +1014,7 @@ export function FileManagerPage({ user, settings, serverState, applications, nav
           <Button size="small" type="text" onClick={() => setSelectedPaths([])}>清除选择</Button>
         </div> : null}
 
-        <div className="file-manager__workspace is-resources-open">
-          <aside id="file-manager-directory-tree" className="file-manager__tree file-manager__resources" aria-label="资源导航">
-            <nav className="file-manager__resource-list" aria-label="资源类别">
-              {locations.map(location => <button type="button" key={location.id} title={location.description} aria-current={activeLocation?.id === location.id ? "page" : undefined} disabled={!isOnline || busy} onClick={() => selectLocation(location.path)}><WorkbenchIcon name="folder" size={16} /><span>{location.name}<small lang="en">{resourceEnglishNames[location.id] ?? location.id}</small><small className="file-manager__resource-path">{location.description}</small></span></button>)}
-            </nav>
-            {treeOpen ? <><Typography.Text className="file-manager__tree-title">目录树</Typography.Text>
-            <Tree key={cacheKey} blockNode treeData={treeData} loadData={loadTreeChildren} loadedKeys={loadedTreeKeys} onLoad={(keys) => setLoadedTreeKeys(keys)} selectedKeys={[currentPath]} onSelect={(keys) => {
-              if (!keys.length || busy) return;
-              setCurrentPath(String(keys[0])); setSearchQuery(""); setSearchText("");
-            }} /></> : null}
-          </aside>
-          <div className="file-manager__body" ref={fileManagerBodyRef}>
+        <div className="file-manager__body" ref={fileManagerBodyRef}>
           {activeLocation ? <div className="file-manager__resource-context"><strong>{activeLocation.name}</strong><span title={directoryDescription || activeLocation.description}>{directoryDescription || activeLocation.description}</span>{activeLocation.id === "plugins" ? <Button size="small" onClick={onOpenSettings}>管理扩展插件</Button> : null}</div> : null}
           {loading && !showCurrentDirectorySnapshot ? <div className="file-manager__loading" role="status"><Spin /><span>正在读取目录…</span></div>
             : !fileAccess ? <Empty className="file-manager__empty" description="仅超级管理员在完全访问模式下可使用文件管理"><Button onClick={onOpenSettings}>前往设置中心</Button></Empty>
@@ -976,13 +1030,49 @@ export function FileManagerPage({ user, settings, serverState, applications, nav
                         } }} pagination={{ pageSize: 20, showSizeChanger: false }} onRow={(entry) => ({ onDoubleClick: () => void openEntry(entry), onDragOver: event => { if (entry.kind === "directory") event.preventDefault(); }, onDrop: event => { event.preventDefault(); void moveOnDrop(entry); } })} />
                           : <Empty className="file-manager__empty" description={searchQuery ? "没有匹配的文件" : currentPath === ".lfaa-library/game-instances" ? "没有已登记的游戏实例" : currentPath === ".lfaa-library/game-storage" ? "没有报告文件能力的游戏节点" : "此目录为空"} />}
           {truncated ? <Typography.Text className="file-manager__truncated" type="secondary">当前结果最多显示 500 项，请进入子目录进一步筛选。</Typography.Text> : null}
-          </div>
         </div>
         <footer className="file-manager__footer">
           <span>{!isOnline || !directoryUsable ? "目录未读取" : searchQuery ? `搜索结果 ${visibleEntries.length} 项` : `${visibleEntries.length} 个项目`}{loading && showCurrentDirectorySnapshot ? " · 正在同步" : ""}</span>
           <span>统一文件服务 · 敏感文件禁止在线预览</span>
         </footer>
-      </section>
+      </section>}
+        right={<aside id="file-manager-directory-tree" className="file-manager__directory-pane" aria-label="当前目录树">
+          <div className="file-manager__directory-heading">
+            <Typography.Text className="file-manager__tree-title">目录树</Typography.Text>
+            <Button type="text" className="file-manager__pane-close" aria-label="收起目录树" title="收起目录树" aria-expanded="true" aria-controls="file-manager-directory-tree" onClick={() => setRightCollapsed(true)}>
+              <WorkbenchIcon name="close" size={15} />
+            </Button>
+          </div>
+          <div className="file-manager__tree-scroll">
+            <Tree key={cacheKey} blockNode treeData={treeData} loadData={loadTreeChildren} loadedKeys={loadedTreeKeys} onLoad={(keys) => setLoadedTreeKeys(keys)} selectedKeys={[currentPath]} onSelect={(keys) => {
+              if (!keys.length || busy) return;
+              setCurrentPath(String(keys[0])); setSearchQuery(""); setSearchText("");
+            }} />
+          </div>
+        </aside>}
+        leadingRegionClassName="file-manager__leading-region"
+        leftRegionClassName="file-manager__resource-region"
+        centerRegionClassName="file-manager__center-region"
+        rightRegionClassName="file-manager__directory-region"
+        storageKey={`lfaa.file-manager.workbench.v1:${user.id}`}
+        leftLimits={metrics.left}
+        rightLimits={metrics.right}
+        bottomLimits={metrics.bottom}
+        containerWidth={metrics.containerWidth}
+        minCenterWidth={metrics.minCenterWidth}
+        snapCaptureRatio={metrics.snapCaptureRatio}
+        snapHysteresis={metrics.snapHysteresis}
+        initialLeftCollapsed={metrics.mode === "mobile"}
+        initialRightCollapsed={metrics.mode !== "desktop"}
+        leftCollapsed={leftCollapsed}
+        rightCollapsed={rightCollapsed}
+        onLeftCollapsedChange={updateResourcePaneCollapsed}
+        onRightCollapsedChange={updateDirectoryPaneCollapsed}
+        onInitialCollapseState={applyInitialCollapseState}
+        layoutMode={metrics.mode}
+        responsiveRightDock
+        responsiveLeftDock
+      /> : null}
 
       <Modal title={createKind === "folder" ? "新建文件夹" : "新建文件"} open={createKind !== null} getContainer={getFileManagerModalContainer} okText="创建" cancelText="取消" onOk={() => void createEntry()} onCancel={() => setCreateKind(null)} confirmLoading={busy} okButtonProps={{ disabled: !isOnline || !newName.trim() }}>
         <Input autoFocus disabled={!isOnline} value={newName} maxLength={255} placeholder={createKind === "folder" ? "文件夹名称" : "文件名，例如 server.properties"} onChange={(event) => setNewName(event.target.value)} onPressEnter={() => void createEntry()} />

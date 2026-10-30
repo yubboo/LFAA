@@ -237,3 +237,38 @@
 - **用户问题与目标：** 实例概览横幅顶部的“Minecraft 实例”重复表达当前页面对象，占用垂直空间；删除这条可见小标题，保留实例名、运行状态、核心与版本、实例操作和详情菜单。
 - **目标运行入口与 Owner：** `/games/minecraft/instance/:id/overview`；由 `MinecraftWorkspace.tsx` 内 `selectedInstance` 的 overview hero 唯一渲染。仅移除 eyebrow 文本，不改变数据、路由、按钮、权限、状态或持久化。
 - **设置与验收：** 继续使用现有主题/字体映射，不新增或修改设置。桌面及窄短屏确认标题消失、实例信息完整且无溢出；运行 `pnpm run build:web` 和 `git diff --check`。实页验收待本批完成后填写。
+
+### 2026-10-30 操作后留在当前页与任务提示卡
+
+- **用户问题与目标：** Minecraft 工作区中不少操作成功后会自动跳到“任务”，打断当前操作。操作成功后应留在当前页面，并在右下角显示可点击的短时任务提示；用户点提示才进入任务列表。提示显示 5 秒倒计时，到时自动收起，也可以主动关闭。
+- **入口与 Owner：** Minecraft 手动工作区及实例详情路由；`MinecraftWorkspace.tsx` 是操作编排和反馈 Owner，部署向导 `MinecraftDeploymentPanel.tsx` 仅传递真实提交结果及反馈文案，`MinecraftWorkspace.css` 持有局部浮卡样式。任务数据继续来自现有 Minecraft API、Socket 与受限轮询；不复制任务事实或增加路由状态。
+- **设置盘点：** 复用 `general.notificationPopupsEnabled`（Settings Owner 默认 `true`、账户持久化的工作台通知总开关）；开启时显示浮卡，关闭时退回页面内状态提示。继续消费 Appearance 主题、强调色、字体/字号、遮罩/模糊令牌及 `appearance.advanced.reducedMotion`；不新增设置或重置偏好。浮卡入场动效受减少动态效果控制。
+- **数据与权限边界：** 只展示既有 API 已接受的操作结果；卡片点击进入工作区现行任务路由 `/games/minecraft/tasks`。实例、部署、配置、取消及删除继续调用现有认证 API，并保留角色、节点、实例状态、EULA 和 Permission Owner 检查。关闭卡片只关闭提示；只有点击卡片会导航，不触发服务器动作或任务写入。
+- **允许范围：** 将操作成功后的默认自动导航改为留在当前路由，包含部署向导提交；提供单条、有界、可关闭的 5 秒任务提示卡及任务入口；保留错误反馈和通知总开关关闭时的页面内提示；更新直接回归、包 README、本合同和索引。
+- **禁止范围：** 修改 Minecraft API/任务格式/Daemon、认证授权、真实实例/任务数据、用户设置值或权限模式；增加轮询/订阅、动画库、第二套通知服务或无界通知队列；将自动跳转恢复为默认行为。
+- **UI Skills 决策：** Taste app-screen 与 Impeccable Operate 延续当前玩家运维界面的平面层级；UI Motion 仅用一次短淡入/上浮，倒计时直接显示秒数，不增加动画循环；UI/UX Pro Max `ux` 搜索建议提示 3–5 秒自动收起且不抢焦点；Baseline UI 复用当前 CSS 与主题令牌。Audit Skills 仅覆盖 Java/.NET/PHP，不把 TypeScript/CSS 声称为专项扫描通过；安全边界继续按现有认证 API 和操作前置条件审查。
+- **验收条件：** 任一成功操作均留在原路由；默认通知开启时显示可点击“查看任务”的卡片，数字从 5 秒倒数至自动收起；手动关闭有效，点击后才导航到任务页；通知总开关关闭时仍有页面内成功提示；失败留在原页面并显示错误；桌面和窄/短视口无遮挡、横向溢出或不可达操作；不改变真实数据/权限/设置。
+- **实现：** `submitAction` 成功后留在原页并立即显示反馈，再异步刷新真实状态；运行中的成功任务共用单张 5 秒浮卡，点击只跳转至 `/games/minecraft/tasks`，关闭/替换/卸载均清除计时器。部署向导复用相同提交合同。操作失败仍显示原页面错误；通知总开关关闭时改用页内提示；JVM 保存和任务记录删除显示完成提示，不冒充后台任务。
+- **源码验证：** `node --test apps/cli/tests/minecraft-task-workspace.test.mjs` 16/16；`pnpm --filter lfaa-client-ui-minecraft run build`、Client TypeScript 检查、`pnpm run build:control-plane`、`pnpm run build:web`、`node scripts/runtime-build-state.mjs web`（输出 `[]`）及 `git diff --check` 通过。Impeccable detector 输出 `[]`。Taste lint 对三个目标文件仍报告 36 项 FAIL、24 项 WARN，均位于既有 Minecraft 布局/封面/代码样式；本次浮卡的新分隔线已改为色面，叠层阴影和按设置生效的模糊注明为适用例外。
+- **内置浏览器只读验收：** 使用当前 checkout 构建并启动 `127.0.0.1:3000`，最新 Web 通过版本保护；在 ChatGPT 内置浏览器打开 `/games/minecraft/instances`（截图视口 978×925），看到真实实例列表与停止状态，再打开 `/games/minecraft/tasks` 确认现行任务路由可达、显示真实任务。没有点击启动/停止/删除/部署，也没有改变用户设置或任务数据。截图在本轮内置浏览器结果中查看，未另存图片。
+- **未实测与性能边界：** 为避免改变真实服务器数据，本批没有触发实际任务提交，因此浮卡出现、真实 5→0 秒视觉倒计时及卡片点击导航未做浏览器实测；这三项由直接源码回归覆盖，不能标记为实页通过。内置浏览器当前工具没有可用的窄屏/短屏视口设置，故该批窄/短视口也未实测。没有测帧时间；实现仅在卡片可见时使用一个 1 秒计时器，卡片关闭、替换或卸载时清理，不新增请求、订阅或数据增长。
+- **启动流程记录：** `lfaa.bat` 菜单尝试在进入菜单前被工作区已有的 `scripts/windows-rust-toolchain.ps1` PowerShell 解析错误阻断；没有改动该文件。随后按同一运行树规则执行 LFAA Web 写锁预检、Control Plane/Harness 与 Web 构建、指纹复核和源码 CLI 启动。最新正式服务保持运行，构建后页面实测可正常加载。
+
+### 2026-10-30 通知提示卡偏好接入
+
+- **用户目标与入口：** 在设置中心“通知”页配置 Minecraft 操作提示卡停留秒数、几种进场效果与提示音；工作台入口继续是 `/games/minecraft/*`，通知偏好由 `/settings?section=notifications` 管理。
+- **Owner 与配置盘点：** General Settings Owner 继续持有认证、严格校验、旧账户补值和账户持久化。复用已有 `general.notificationPopupsEnabled`（默认开启）和 `general.notificationSound`（新账户默认 `default`）；新增 `general.notificationToastDurationSeconds`（默认 5、范围 1–60 整数）及 `general.notificationToastEffect`（默认 `fluid`，共享 `fluid`/`fade`/`lift`/`none` 四种动效 ID）。旧客户端缺少新字段时合并当前账户值；旧账户缺字段时取共享默认。Appearance 减少动态效果优先关闭卡片动画，未更改任何当前用户偏好。
+- **实现：** SettingsPage 在通知分组增加秒数输入和动效选择；Minecraft `showActionFeedback` 读取保存后的时长并按现有 1 秒间隔更新倒计时，使用所选 CSS 进场效果，并调用 `client-resources` 的 `playNotificationSound` 使用既有声音选择。通知总开关关闭时保持页内提示且不播放声音。Settings Agent 目录通过同一 Schema 暴露新增 General 字段，不增加授权 Owner。
+- **逐批回归与构建：** 定向设置合同、Agent 设置目录、Minecraft 提示卡和通知运行时测试共 5/5 通过。`lfaa-client-ui-minecraft` 包构建、CLI Host TypeScript 检查、Control Plane 构建、Web 类型检查/构建均通过；`runtime-build-state.mjs web` 输出 `[]`；`git diff --check` 通过。未筛选的旧测试组另有一个模型错误文案预期不符，Minecraft 测试文件另有两个现存容器断点断言与当前 CSS 不符；本续批命中的回归均通过，未改这些无关断言。
+- **ChatGPT 内置浏览器实页：** 构建完成后安全确认 `/api/minecraft/tasks` 的 5 条任务全部 `succeeded`，确认无运行中任务后重启本 checkout 的正式 LFAA Web，端口为 `127.0.0.1:3000`。在 `/settings?section=notifications`、截图 1280×720 实际看到 1–60 秒数字控件、当前 5 秒、四种动效当前项、统一提示音选择和试听入口；无重叠或横向溢出，没有编辑或保存任何账户偏好。服务保持启动。
+- **未测与性能边界：** 为不启动/改动真实 Minecraft 实例，本批未触发成功操作，真实浮卡计时、动效、点击任务入口和声音播放未实页触发；由定向回归及构建覆盖。当前 CUA 内置浏览器没有视口尺寸 API；按键缩放未改变截图尺寸，故窄屏/短屏实页验收未完成，不能据此标记通过。实现可见卡片时只有一个每秒计时器，关闭、更换及卸载会清理；不增加轮询、订阅、请求或数据增长，也未测帧时间。
+
+### 2026-10-30 服务器列表窄分栏溢出与 Minecraft 响应式复核
+
+- **用户问题与目标：** `/games/minecraft/instances` 在窄分栏里实例操作区越出右侧。截图显示外层浏览器较窄但服务器卡仍维持桌面三列。
+- **目标入口与 Owner：** Web `/games/minecraft/instances`；页面布局唯一 Owner 为 `packages/client/ui-minecraft/src/MinecraftWorkspace.css`，真实实例/节点状态继续来自 Minecraft API。实例卡原三列最小宽度合计约 900px，另有 28px 列间距和 32px 内边距；既有 800px 内容断点不足以覆盖完整最小宽度。
+- **修复：** 将 `MinecraftWorkspace.css` 中 760/560/480px 的宽度断点改为查询共享 `.module-center-content` 实际宽度；增加 1024px 内容断点，使服务器卡在扣除工作区留白前就改为纵向信息与可换行操作。短屏高度断点仍按实际视口高度处理。`MinecraftWorkflowCanvas.css` 的响应式断点也已核对，按共享内容容器宽度工作；未发现 `inline-block` 布局或页面级横向滚动规则。
+- **设置、数据与权限：** 继续消费现有 Appearance 主题、强调色、字体/字号、对比度、Minecraft 背景槽、区域遮罩透明度/模糊与减少动态效果映射；`general.cardMotionEffect` 保持现有共享动效 Owner。未新增或修改设置、服务端数据或权限；未执行实例操作。实例动作的管理员、节点在线及状态条件未改。
+- **逐批验证：** `pnpm --filter lfaa-web run build` 通过（TypeScript 与 Vite 构建，输出在根 `dist/apps/web`）；`pnpm --filter lfaa-client-ui-minecraft run build` 通过（输出在根 `dist/packages`）；构建 CSS 已含 `module-center-content` 与 1024px 断点；Impeccable detector 返回 `[]`；`git diff --check` 通过。
+- **内置浏览器实页：** 使用当前源码 Vite `http://127.0.0.1:5173/games/minecraft/instances`；服务端 `3000` 已由本仓库 LFAA Web 占用，因此未重启或停止它。浏览器截图为 1280×720，右侧工具栏将 Minecraft 主内容约压至 824px；实例卡已纵向排列，操作区留在卡片内。版本公告遮罩仍打开，未确认公告或改写其浏览器持久状态；检查中出现请求失败与实时连接中断提示，连接显示有波动，因此未验收数据刷新或服务端状态。没有执行启动/停止/删除等操作。
+- **范围限制：** 本轮真实浏览器只复核了实例列表路由的窄嵌入列；未通过手机/平板设备或 390px 视口，也未直接复核 520px 短屏。其他 Minecraft 路由已做 CSS 容器断点静态复核，不能据此声称全路由、物理设备或帧时间验收通过。

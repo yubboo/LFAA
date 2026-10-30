@@ -1,6 +1,9 @@
 /** 功能：回归客户端自动通知总开关。作用：关闭时无 Toast 回调、浏览器系统通知或提示音副作用。 */
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+
+const settingsPage = readFileSync(new URL("../../../packages/client/ui-settings/src/SettingsPage.tsx", import.meta.url), "utf8");
 
 test("关闭通知总开关时完成和操作提醒均无弹出副作用", async () => {
   const oldWindow = globalThis.window;
@@ -31,4 +34,15 @@ test("关闭通知总开关时完成和操作提醒均无弹出副作用", async
     if (oldDocument === undefined) delete globalThis.document;
     else globalThis.document = oldDocument;
   }
+});
+
+test("设置中心通知页配置提示卡时长与效果，并复用统一提示音偏好", () => {
+  assert.match(settingsPage, /title="操作提示卡时长"/u);
+  assert.match(settingsPage, /min=\{1\} max=\{60\} step=\{1\}/u);
+  assert.match(settingsPage, /notificationToastDurationSeconds: value/u);
+  assert.match(settingsPage, /title="操作提示卡动效"/u);
+  assert.match(settingsPage, /notificationToastEffect: value/u);
+  assert.match(settingsPage, /UI_MOTION_EFFECT_OPTIONS\.map\(\(\{ id, label \}\)/u);
+  assert.match(settingsPage, /Minecraft 操作成功提示卡的提示音/u);
+  assert.match(settingsPage, /playNotificationSound\(settings\.general\.notificationSound\)/u);
 });

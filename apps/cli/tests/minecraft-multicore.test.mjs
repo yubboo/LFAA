@@ -11,7 +11,7 @@ import { dirname, basename, join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 const parent = resolve(tmpdir()), data = mkdtempSync(join(parent, 'lfaa-multicore-'));
 process.env.LFAA_DATA_DIR = data; process.env.NODE_ENV = 'test'; process.env.JWT_SECRET = '';
-const { database, closeDatabase, migrateMinecraftCoreSchema, migrateMinecraftInstanceJvmConfigurationSchema } = await import('lfaa-storage-sqlite/src/database.js');
+const { database, closeDatabase, migrateMinecraftCoreSchema, migrateMinecraftInstanceJvmConfigurationSchema, migrateMinecraftInstanceJvmConfiguredSchema } = await import('lfaa-storage-sqlite/src/database.js');
 const settings = await import('lfaa-settings/src/service.js');
 await import('lfaa-session/src/sessions.js');
 const { retireLegacyFileTables } = await import('lfaa-storage-domain/src/migration.js');
@@ -113,11 +113,13 @@ test('迁移保持旧 Vanilla 记录并可重复执行', () => {
     VALUES(?,?,?,'appcontainer-jvm-migration','games/minecraft','fixture',11,1536,'Paper','fixture','appcontainer','stopped',?)`).run(appContainerId, nodeId, userId, new Date().toISOString());
   database.exec("PRAGMA user_version=77;");
   migrateMinecraftInstanceJvmConfigurationSchema(); migrateMinecraftInstanceJvmConfigurationSchema();
-  assert.equal(database.prepare('PRAGMA user_version').get().user_version, 78);
+  migrateMinecraftInstanceJvmConfiguredSchema(); migrateMinecraftInstanceJvmConfiguredSchema();
+  assert.equal(database.prepare('PRAGMA user_version').get().user_version, 79);
   assert.equal(database.prepare('SELECT jvm_initial_heap_mb FROM minecraft_instances WHERE id=?').get(id).jvm_initial_heap_mb, 1024);
   assert.equal(database.prepare('SELECT jvm_initial_heap_mb FROM minecraft_instances WHERE id=?').get(nativeId).jvm_initial_heap_mb, 1024);
   assert.equal(database.prepare('SELECT jvm_initial_heap_mb FROM minecraft_instances WHERE id=?').get(appContainerId).jvm_initial_heap_mb, 768);
   assert.equal(database.prepare('SELECT jvm_arguments_json FROM minecraft_instances WHERE id=?').get(nativeId).jvm_arguments_json, '[]');
+  assert.equal(database.prepare('SELECT jvm_arguments_configured FROM minecraft_instances WHERE id=?').get(nativeId).jvm_arguments_configured, 0);
   assert.deepEqual(database.prepare('PRAGMA foreign_key_check').all(), []);
 });
 test('实例 JVM 参数保存后进入启动任务，运行中及错误参数不能覆盖配置', () => {
@@ -129,10 +131,15 @@ test('实例 JVM 参数保存后进入启动任务，运行中及错误参数不
     database.prepare(`INSERT INTO minecraft_instances(id,node_id,created_by,name,storage_directory,release_id,java_major,java_runtime_id,memory_mb,jvm_initial_heap_mb,jvm_arguments_json,core_type,core_build,execution_mode,state,eula_accepted_at)
       VALUES(?,?,?,'jvm-config-fixture','games/minecraft','1.12.2',11,NULL,2048,512,'[]','Paper','1620','native','stopped',?)`).run(instanceId, nodeId, userId, createdAt);
 
+    const initial = getMinecraftInstance(instanceId);
+    assert.equal(initial.jvmArgumentsConfigured, false);
+    assert.ok(initial.jvmArguments.includes('-XX:+DisableExplicitGC'), '未配置旧实例也暴露并使用通用推荐参数');
+
     const saved = updateMinecraftInstanceJvmConfiguration(instanceId, { memoryMb: 4096, initialHeapMb: 1024, jvmArguments: '-XX:+UseG1GC\n-XX:MaxGCPauseMillis=200' });
     assert.equal(saved.memoryMb, 4096);
     assert.equal(saved.initialHeapMb, 1024);
     assert.deepEqual(saved.jvmArguments, ['-XX:+UseG1GC', '-XX:MaxGCPauseMillis=200']);
+    assert.equal(saved.jvmArgumentsConfigured, true);
     assert.throws(() => updateMinecraftInstanceJvmConfiguration(instanceId, { memoryMb: 4096, initialHeapMb: 1024, jvmArguments: '-XX:G1NewSizePercent=30' }), /G1 专属参数|Java 8–10/u);
     assert.deepEqual(getMinecraftInstance(instanceId).jvmArguments, saved.jvmArguments, '拒绝无效参数时保留上次保存值');
 
@@ -144,6 +151,25 @@ test('实例 JVM 参数保存后进入启动任务，运行中及错误参数不
     assert.deepEqual(task.payload.jvmArguments, saved.jvmArguments);
     assert.equal(task.payload.javaMajor, 11);
     assert.throws(() => updateMinecraftInstanceJvmConfiguration(instanceId, { memoryMb: 4096, initialHeapMb: 1024, jvmArguments: '' }), /停止后/u);
+  } finally {
+    if (taskId) database.prepare('DELETE FROM minecraft_tasks WHERE id = ?').run(taskId);
+    database.prepare('DELETE FROM minecraft_instances WHERE id = ?').run(instanceId);
+    settings.saveUserSettings(userId, 'minecraft-runtime', previousRuntimeSettings);
+  }
+});
+test('从未配置的 Java 核心启动任务携带真实推荐 G1 参数', () => {
+  const instanceId = randomUUID(), createdAt = new Date().toISOString();
+  const previousRuntimeSettings = settings.getUserSettings(userId).minecraftRuntime;
+  let taskId;
+  try {
+    settings.saveUserSettings(userId, 'minecraft-runtime', { ...previousRuntimeSettings, minecraftExecutionMode: 'native' });
+    database.prepare(`INSERT INTO minecraft_instances(id,node_id,created_by,name,storage_directory,release_id,java_major,java_runtime_id,memory_mb,jvm_initial_heap_mb,jvm_arguments_json,core_type,core_build,execution_mode,state,eula_accepted_at)
+      VALUES(?,?,?,'jvm-default-fixture','games/minecraft','1.21.1',21,NULL,4096,1024,'[]','CatServer','fixture','native','stopped',?)`).run(instanceId, nodeId, userId, createdAt);
+    const task = startMinecraftInstance(instanceId, userId);
+    taskId = task.id;
+    assert.deepEqual(task.payload.jvmArguments, getMinecraftInstance(instanceId).jvmArguments);
+    assert.ok(task.payload.jvmArguments.includes('-XX:MaxGCPauseMillis=150'));
+    assert.ok(task.payload.jvmArguments.includes('-XX:G1ReservePercent=20'));
   } finally {
     if (taskId) database.prepare('DELETE FROM minecraft_tasks WHERE id = ?').run(taskId);
     database.prepare('DELETE FROM minecraft_instances WHERE id = ?').run(instanceId);
@@ -197,6 +223,7 @@ test('配置持久化并进入任务；重名冲突不产生额外实例', async
   const input = { nodeId, userId, name: '自动测试实例', core: 'Paper', version: 'fixture-version', build: 'fixture-build', eulaAccepted: true };
   const created = await provisionMinecraftServer(input);
   assert.equal(created.instance.memoryMb, 3072); assert.equal(created.instance.coreType, 'Paper');
+  assert.ok(created.task.payload.jvmArguments.includes('-XX:+UseG1GC'), '首次部署载荷必须携带真实推荐 G1 参数');
   assert.equal(created.task.payload.properties.serverPort, 25577); assert.equal(created.task.payload.downloadTimeoutSeconds, 77); assert.equal(created.task.payload.installTimeoutSeconds, 88); assert.equal(created.task.payload.readyTimeoutSeconds, 64);
   const count = database.prepare('SELECT count(*) AS count FROM minecraft_instances').get().count;
   await assert.rejects(provisionMinecraftServer(input), /已存在/u);

@@ -4,9 +4,8 @@
   flex-direction: column;
   background: transparent;
 }
-
 .module-workbench-stage--voice .module-workbench-region--leading,
-.module-workbench-stage--voice .module-center__header { display: none; }
+.module-workbench-stage--voice .lfaa-workbench-header { display: none; }
 
 .module-workbench-stage--voice .module-workbench-layout,
 .module-workbench-stage--voice .module-center,
@@ -14,55 +13,14 @@
 
 .module-center { position: relative; display: flex; width: 100%; height: 100%; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; background: transparent; container-type: inline-size; container-name: module-center; }
 
-.module-center__header { position: relative; z-index: 2; display: grid; min-height: var(--agent-shell-header-h, 3rem); grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12px; padding: 0 14px; border-bottom: 1px solid var(--color-border); background: color-mix(in srgb, var(--color-surface) 82%, transparent); -webkit-backdrop-filter: blur(var(--settings-glass-blur)); backdrop-filter: blur(var(--settings-glass-blur)); }
-
-.module-center__heading { display: flex; min-width: 0; grid-column: 1; align-items: center; gap: 9px; }
-
-.module-center__title { display: flex; min-width: 0; align-items: center; gap: 8px; color: var(--color-text-secondary); }
-
-.module-center__title strong { overflow: hidden; font-size: 11px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
-
-.module-center__title svg { color: var(--settings-accent, var(--color-brand)); }
-
-/* 模式组独立占据顶栏中列；左右标题和工具宽度变化不改变其水平中心。 */
-.module-center__mode-switch-slot { display: flex; min-width: 0; grid-column: 2; align-items: center; justify-content: center; }
+/* 模式组独立占据共享顶栏中列；左右标题和工具宽度变化不改变其水平中心。 */
 .module-center__mode-switch { flex: 0 0 auto; }
-
-.module-center__actions { display: flex; min-width: 0; grid-column: 3; justify-self: end; align-items: center; gap: 3px; }
 
 .module-center__mode-option { display: inline-flex; align-items: center; justify-content: center; }
 
 .module-center__mode-option-accessible-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 .module-center__actions > .module-runtime-state { width: 30px; height: 30px; flex: 0 0 30px; justify-content: center; gap: 0; margin: 0; font-size: 0; }
-
-@container module-center (max-width: 560px) {
-
-  .module-center__header { gap: 8px; padding-inline: 8px; }
-
-  .module-center__heading { gap: 6px; }
-
-  .module-center__title { max-width: min(190px, 40cqi); flex: 1 1 0; justify-content: flex-start; gap: 6px; }
-
-  .module-center__title strong { min-width: 0; font-size: var(--font-size-xs); }
-
-  .module-center__actions { gap: 1px; }
-
-  .module-center__mode-switch-slot { min-width: 0; }
-
-}
-
-@container module-center (max-width: 420px) {
-
-  .module-center__header:has(> .module-center__mode-switch-slot) { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; gap: 4px 8px; padding-inline: 8px; }
-
-  .module-center__header:has(> .module-center__mode-switch-slot) > .module-center__heading { grid-column: 1; grid-row: 1; }
-
-  .module-center__header:has(> .module-center__mode-switch-slot) > .module-center__mode-switch-slot { grid-column: 1 / -1; grid-row: 2; justify-self: center; }
-
-  .module-center__header:has(> .module-center__mode-switch-slot) > .module-center__actions { grid-column: 2; grid-row: 1; }
-
-}
 
 /* 中间画布保留滚动能力并隐藏滚动条，同时作为命名宽度容器供内部内容按真实列宽排版。 */
 .module-center__content { position: relative; z-index: 1; display: flex; width: 100%; max-width: none; min-height: 0; flex: 1; flex-direction: column; margin: 0; padding: 0; overflow: auto; container-type: inline-size; container-name: module-center-content; background: transparent; }
@@ -288,7 +246,7 @@
 }
 
 .module-ai-work-chat__loading { display: flex; width: 100%; height: 100%; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; }
-.module-ai-work-chat__loading > .module-center__header { width: 100%; flex: 0 0 auto; box-sizing: border-box; }
+.module-ai-work-chat__loading > .lfaa-workbench-header { width: 100%; flex: 0 0 auto; box-sizing: border-box; }
 
 /* 聊天根占满中间列，只负责纵向分配；各直接子盒子分别应用同一份左右间距。 */
 .module-center__content--ai-work > .module-ai-work-chat { width: 100%; height: 100%; min-width: 0; min-height: 0; flex: 1 1 0; align-self: stretch; box-sizing: border-box; }
@@ -349,7 +307,7 @@
 
 /* 常规与 AI Work 共用这一组主要表面；壁纸和遮罩本身只由工作台外壳绘制。 */
 .workbench-shell[data-background-image="true"] :is(
-  .module-center__header,
+  .lfaa-workbench-header,
   .module-center__content:not(.module-center__content--ai-work) > .module-notice-card,
   .module-terminal__header,
   .module-terminal__body
@@ -359,26 +317,19 @@
 
 @container (max-width: 760px) {
 
-  .module-center__header[data-layout-mode="mobile"] { gap: 2px 8px; }
+  .lfaa-workbench-header[data-layout-mode="mobile"] { gap: 2px 8px; }
 
-  .module-center__header[data-layout-mode="mobile"]:not([data-module-mode="normal"]) { padding: 5px 9px; }
+  .lfaa-workbench-header[data-layout-mode="mobile"]:not([data-module-mode="normal"]) { padding: 5px 9px; }
 
-  .module-center__header[data-layout-mode="mobile"] .module-runtime-state { display: none; }
+  .lfaa-workbench-header[data-layout-mode="mobile"] .module-runtime-state,
+  .lfaa-workbench-header[data-layout-mode="mobile"] .service-status { display: none; }
 
-  .module-center__header[data-layout-mode="mobile"] .module-panel-control { width: 29px; justify-content: center; padding: 0; font-size: 0; }
+  .lfaa-workbench-header[data-layout-mode="mobile"] .module-panel-control { width: 29px; justify-content: center; padding: 0; font-size: 0; }
 
   .module-center__work-tabs button { min-height: 27px; padding-inline: 6px; font-size: 10px; }
 
   .module-center__content:not(.module-center__content--application) { padding: 0; }
 
   .module-center__content--ai-work .ai-work-chat__message-list { padding-inline: clamp(4px, 1.25cqi, 10px); }
-
-}
-
-@media (max-width: 720px) {
-
-  .module-center__title { max-width: 150px; }
-
-  .module-center__title strong { font-size: 10px; }
 
 }

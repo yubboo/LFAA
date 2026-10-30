@@ -6,24 +6,25 @@
 
 export const MINECRAFT_JVM_PRESET_IDS = Object.freeze(["recommended", "high-performance", "low-memory", "custom"]);
 
-// 此保守子集来自 Paper 官方 Aikar 参数说明；不包含会预触碰完整堆或引入共享内存文件写入的选项。
-const PAPER_RECOMMENDED_FLAGS = Object.freeze([
+// 面向所有 Java Minecraft 核心的 G1 基础调优；150ms 是暂停目标而非保证值。
+const MINECRAFT_G1_RECOMMENDED_FLAGS = Object.freeze([
   "-XX:+UseG1GC",
   "-XX:+ParallelRefProcEnabled",
-  "-XX:MaxGCPauseMillis=200",
-  "-XX:+DisableExplicitGC"
+  "-XX:MaxGCPauseMillis=150",
+  "-XX:+DisableExplicitGC",
+  "-XX:G1ReservePercent=20",
+  "-XX:InitiatingHeapOccupancyPercent=15"
 ]);
 
-const PAPER_HIGH_PERFORMANCE_FLAGS = Object.freeze([
-  ...PAPER_RECOMMENDED_FLAGS,
+// 扩展方案沿用 PaperMC 发布的 Aikar G1 调优值；移除预触整堆和共享内存写入项。
+const MINECRAFT_G1_HIGH_PERFORMANCE_FLAGS = Object.freeze([
   "-XX:+UnlockExperimentalVMOptions",
+  ...MINECRAFT_G1_RECOMMENDED_FLAGS,
   "-XX:G1NewSizePercent=30",
   "-XX:G1MaxNewSizePercent=40",
   "-XX:G1HeapRegionSize=8M",
-  "-XX:G1ReservePercent=20",
   "-XX:G1HeapWastePercent=5",
   "-XX:G1MixedGCCountTarget=4",
-  "-XX:InitiatingHeapOccupancyPercent=15",
   "-XX:G1MixedGCLiveThresholdPercent=90",
   "-XX:G1RSetUpdatingPauseTimePercent=5",
   "-XX:SurvivorRatio=32",
@@ -44,12 +45,9 @@ function parseHeapArgument(value) {
   return { kind: match[1].toLocaleLowerCase(), memoryMb };
 }
 
-function validateTuningFlag(value, javaMajor) {
+function validateTuningFlag(value) {
   if (value === "-XX:+UseG1GC" || value === "-XX:+ParallelRefProcEnabled" || value === "-XX:+DisableExplicitGC") return value;
-  if (value === "-XX:+UnlockExperimentalVMOptions") {
-    if (javaMajor > 16) throw new Error("Java 17 及以上不接受旧版实验性 G1 参数解锁项。");
-    return value;
-  }
+  if (value === "-XX:+UnlockExperimentalVMOptions") return value;
   const match = /^-XX:([A-Za-z][A-Za-z0-9]*)(?:=(\d{1,3})(M)?)$/u.exec(value);
   if (!match) throw new Error(`JVM 参数不在受支持的安全范围内：${value.slice(0, 80)}`);
   const [, name, rawNumber, suffix] = match;
@@ -62,14 +60,10 @@ function validateTuningFlag(value, javaMajor) {
   };
   if (name === "G1HeapRegionSize") {
     if (suffix !== "M" || ![1, 2, 4, 8, 16, 32].includes(number)) throw new Error("G1HeapRegionSize 须使用 1、2、4、8、16 或 32M。");
-    if (javaMajor > 16) throw new Error("Java 17 及以上沿用 JVM 默认 G1 区域大小，不接受旧版 Paper 调优项。");
     return value;
   }
   const range = limits[name];
   if (!range || suffix || number < range[0] || number > range[1]) throw new Error(`JVM 参数 ${name} 的值不受支持。`);
-  if (name.startsWith("G1") || name === "SurvivorRatio" || name === "MaxTenuringThreshold") {
-    if (javaMajor > 16) throw new Error("Java 17 及以上沿用 JVM 默认 G1 策略，不接受旧版 Paper 调优项。");
-  }
   return value;
 }
 
@@ -104,7 +98,11 @@ export function parseMinecraftJvmArguments(value, { javaMajor, coreType } = {}) 
   if (jvmArguments.length > 20) throw new Error("可调 JVM 参数最多为 20 项。");
   const usesG1SpecificFlags = jvmArguments.some(value => /G1(?:New|MaxNew|Heap|Reserve|Mixed|RSet)|SurvivorRatio|MaxTenuringThreshold/u.test(value));
   if (usesG1SpecificFlags && !jvmArguments.includes("-XX:+UseG1GC")) throw new Error("G1 专属参数必须同时启用 -XX:+UseG1GC。");
-  if (javaMajor <= 10 && usesG1SpecificFlags && !jvmArguments.includes("-XX:+UnlockExperimentalVMOptions")) throw new Error("Java 8–10 的旧版 G1 调优项需要 -XX:+UnlockExperimentalVMOptions。");
+  const usesExperimentalG1Flags = jvmArguments.some(value => /-XX:G1(?:NewSizePercent|MaxNewSizePercent|MixedGCLiveThresholdPercent)=/u.test(value));
+  const unlockIndex = jvmArguments.indexOf("-XX:+UnlockExperimentalVMOptions");
+  if (usesExperimentalG1Flags && (unlockIndex < 0 || jvmArguments.some((value, index) => /-XX:G1(?:NewSizePercent|MaxNewSizePercent|MixedGCLiveThresholdPercent)=/u.test(value) && index < unlockIndex))) {
+    throw new Error("实验性 G1 参数前须加入 -XX:+UnlockExperimentalVMOptions。");
+  }
   const minimumNewSize = jvmArguments.find(value => value.startsWith("-XX:G1NewSizePercent="));
   const maximumNewSize = jvmArguments.find(value => value.startsWith("-XX:G1MaxNewSizePercent="));
   if (minimumNewSize && maximumNewSize && Number(minimumNewSize.split("=")[1]) > Number(maximumNewSize.split("=")[1])) {
@@ -133,7 +131,7 @@ export function buildMinecraftJvmArguments(configuration, { javaMajor, coreType 
   requireInteger(normalized.memoryMb, 1024, 32768, "Minecraft 最大堆超出允许范围。");
   requireInteger(normalized.initialHeapMb, 512, normalized.memoryMb, "Minecraft 初始堆配置无效。");
   if (!Array.isArray(normalized.jvmArguments) || normalized.jvmArguments.length > 20) throw new Error("Minecraft JVM 参数列表无效。");
-  const tuning = normalized.jvmArguments.map(value => validateTuningFlag(value, javaMajor));
+  const tuning = normalized.jvmArguments.map(value => validateTuningFlag(value));
   // 通过同一解析合同校验 GC 依赖和重复项，不允许 Daemon 绕过 API 校验。
   const parsed = parseMinecraftJvmArguments([
     `-Xms${normalized.initialHeapMb}M`, `-Xmx${normalized.memoryMb}M`, ...tuning
@@ -141,22 +139,28 @@ export function buildMinecraftJvmArguments(configuration, { javaMajor, coreType 
   return ["-Dfile.encoding=UTF-8", "-Dsun.stdout.encoding=UTF-8", "-Dsun.stderr.encoding=UTF-8", `-Xms${parsed.initialHeapMb}M`, `-Xmx${parsed.memoryMb}M`, ...parsed.jvmArguments];
 }
 
-/** 返回依目标 Java 与核心兼容的预设；高性能方案只给旧版 Paper/Java。 */
+/** 返回供所有 Java Minecraft 核心共用的 G1 参数预设；目标 Java 启动前仍会做真实参数预检。 */
 export function getMinecraftJvmPreset(preset, { javaMajor, coreType, memoryMb } = {}) {
   requireInteger(javaMajor, 8, 40, "实例 Java 主版本无效。");
   requireInteger(memoryMb, 1024, 32768, "Minecraft 最大堆超出允许范围。");
+  if (coreType === "PocketMine") return null;
   const initialHeapMb = defaultMinecraftInitialHeapMb(memoryMb, "native");
   if (preset === "custom") return null;
   if (preset === "low-memory") return { initialHeapMb: Math.min(512, memoryMb), memoryMb, jvmArguments: [] };
   if (preset === "recommended") {
-    const useLegacyPaper = coreType === "Paper" && javaMajor <= 16;
-    return { initialHeapMb, memoryMb, jvmArguments: useLegacyPaper ? [...PAPER_RECOMMENDED_FLAGS] : [] };
+    return { initialHeapMb, memoryMb, jvmArguments: [...MINECRAFT_G1_RECOMMENDED_FLAGS] };
   }
   if (preset === "high-performance") {
-    if (coreType !== "Paper" || javaMajor > 16) return null;
-    return { initialHeapMb, memoryMb, jvmArguments: [...PAPER_HIGH_PERFORMANCE_FLAGS] };
+    return { initialHeapMb, memoryMb, jvmArguments: [...MINECRAFT_G1_HIGH_PERFORMANCE_FLAGS] };
   }
   throw new Error("JVM 参数预设无效。");
+}
+
+/** 未配置且为空的实例读取通用推荐参数；已保存的参数（包括显式空列表）原样保留。 */
+export function resolveMinecraftJvmArguments(configuration, context) {
+  const stored = Array.isArray(configuration?.jvmArguments) ? configuration.jvmArguments : [];
+  if (configuration?.configured === true || stored.length > 0) return [...stored];
+  return getMinecraftJvmPreset("recommended", context)?.jvmArguments ?? [];
 }
 
 export function serializeMinecraftJvmArguments(configuration) {

@@ -51,6 +51,7 @@ const settingKeyLabels: Record<string, string> = {
   sendShortcut: "发送快捷键", followupBehavior: "后续消息处理方式", popupShortcut: "弹窗快捷键", defaultStandaloneChat: "默认独立聊天",
   notificationPopupsEnabled: "通知总开关", completionNotification: "回复完成通知", permissionNotifications: "权限请求提醒",
   questionNotifications: "澄清问题提醒", sessionIssueNotifications: "会话错误提醒", notificationSound: "通知提示音",
+  notificationToastDurationSeconds: "通知提示卡时长", notificationToastEffect: "通知提示卡动效",
   aiProviderReminderEnabled: "AI Provider 提醒", setupReminderEnabled: "内容存储提醒", defaultAdminCredentialReminderEnabled: "默认管理员凭据提醒",
   confettiEnabled: "庆祝效果", theme: "主题", accentColor: "强调色", sidebarColor: "侧边栏颜色", backgrounds: "背景图片",
   wallpaperEngine: "动态壁纸", enabled: "启用状态", projectId: "壁纸项目", overlay: "背景遮罩透明度", blur: "玻璃模糊",
@@ -105,6 +106,8 @@ const exactSettingLabels: Record<string, string> = {
   "general.permissionNotifications": "AI 工具权限请求提醒",
   "general.questionNotifications": "小鱼智能体澄清问题提醒",
   "general.sessionIssueNotifications": "小鱼智能体会话错误提醒",
+  "general.notificationToastDurationSeconds": "Minecraft 操作提示卡时长",
+  "general.notificationToastEffect": "Minecraft 操作提示卡动效",
   "browserUse.sitePermissionDefaults.camera": "摄像头网站权限默认值",
   "browserUse.sitePermissionDefaults.microphone": "麦克风网站权限默认值",
   "browserUse.sitePermissionDefaults.geolocation": "位置信息网站权限默认值",
@@ -118,7 +121,8 @@ const exactSettingLabels: Record<string, string> = {
 
 const notificationSettingPaths = new Set([
   "general.notificationPopupsEnabled", "general.completionNotification", "general.permissionNotifications",
-  "general.questionNotifications", "general.sessionIssueNotifications", "general.notificationSound"
+  "general.questionNotifications", "general.sessionIssueNotifications", "general.notificationSound",
+  "general.notificationToastDurationSeconds", "general.notificationToastEffect"
 ]);
 
 const exactOptionLabels: Record<string, Record<string, string>> = {
@@ -133,6 +137,7 @@ const exactOptionLabels: Record<string, Record<string, string>> = {
   "general.followupBehavior": { queue: "加入队列", steer: "调整当前任务" },
   "general.completionNotification": { always: "始终", unfocused: "仅工作台未聚焦时", never: "关闭" },
   "general.notificationSound": { default: "默认", subtle: "轻柔", off: "关闭" },
+  "general.notificationToastEffect": { fluid: "柔和流体", fade: "渐隐淡入", lift: "轻盈上浮", none: "静态" },
   "appearance.sidebarColor": { auto: "跟随主题" },
   "appearance.advanced.reducedMotion": { system: "跟随系统", on: "开启", off: "关闭" },
   "appearance.advanced.fonts.interface": { system: "系统默认", sans: "无衬线", serif: "衬线" },

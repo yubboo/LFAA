@@ -337,7 +337,7 @@ async function waitForControlPlane(child, port) {
 
 function createServiceEnvironment(port, runtimeRoot) {
   const { directory: dataDirectory, managedByDesktop } = resolveDesktopDataDirectory(runtimeRoot);
-  return {
+  const environment = {
     ...process.env,
     NODE_ENV: "production",
     LFAA_DESKTOP_MODE: "true",
@@ -356,6 +356,9 @@ function createServiceEnvironment(port, runtimeRoot) {
     WEBAUTHN_RP_ID: "localhost",
     WEBAUTHN_ORIGIN: `http://localhost:${port}`
   };
+  delete environment.LFAA_CLAUDE_SDK_COMPONENT_MANIFEST;
+  if (app.isPackaged) environment.LFAA_CLAUDE_SDK_COMPONENT_MANIFEST = join(runtimeRoot, "claude-sdk-component.json");
+  return environment;
 }
 
 async function startLocalServices(runtimeRoot) {

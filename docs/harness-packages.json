@@ -1486,6 +1486,7 @@
           "packages/client/ui-settings-account",
           "packages/client/ui-sidebar",
           "packages/client/ui-sidebar-files",
+          "packages/client/ui-sidebar-terminal",
           "packages/client/ui-workspace",
           "packages/client/ui-writing",
           "packages/client/web"
@@ -1854,6 +1855,7 @@
         "entry": "packages/client/ui-sidebar-terminal/src/index.ts",
         "readme": "packages/client/ui-sidebar-terminal/README.md",
         "consumers": [
+          "packages/client/ui-layout",
           "packages/client/ui-minecraft",
           "packages/client/ui-workspace"
         ],
@@ -3754,6 +3756,7 @@
           "packages/api/remotes",
           "packages/api/session-controller",
           "packages/api/settings-controller",
+          "packages/api/terminal-controller",
           "packages/core/agent-loop",
           "packages/core/tools",
           "packages/credentials/authorization",
@@ -6397,6 +6400,7 @@
           "packages/settings/settings",
           "packages/spill/spill-local",
           "packages/storage/storage-domain",
+          "packages/subagent/subagent-claude-code",
           "packages/util/launch-environment",
           "packages/video/ai-video",
           "packages/workflow/workflow"

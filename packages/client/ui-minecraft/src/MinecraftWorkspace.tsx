@@ -5,7 +5,9 @@
  */
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { createReadPoller } from "lfaa-client-connection/src/read-poller.js";
+import { setFileManagerLocation } from "lfaa-client-connection/src/file-manager-location.js";
 import { createSnapshotCache } from "lfaa-client-store/src/snapshot-cache.js";
+import { playNotificationSound } from "lfaa-client-resources/src/notification-runtime.js";
 import { Alert, Button, Card, Checkbox, ConfigProvider, Input, InputNumber, Modal, Popconfirm, Progress, Select, Space, Spin, Tag, Typography } from "antd";
 import {
   hasAdminAccess,
@@ -87,6 +89,18 @@ const MINECRAFT_LOG_CONNECTED_RECONCILE_INTERVAL_MS = 30_000;
 const MINECRAFT_LOG_DISCONNECTED_RECONCILE_INTERVAL_MS = 5_000;
 const minecraftTaskSelectionCodec = createJsonPersistenceCodec<string[]>((value): value is string[] => Array.isArray(value) && value.every((id) => typeof id === "string"));
 
+interface MinecraftActionToast {
+  id: number;
+  message: string;
+  showTasksLink: boolean;
+  expiresAt: number;
+}
+
+interface MinecraftActionFeedback {
+  message: string;
+  showTasksLink: boolean;
+}
+
 function realtimeStatusLabel(status: RealtimeConnectionStatus): string {
   return ({ connecting: "实时连接中", connected: "控制端已连接", reconnecting: "实时连接恢复中", disconnected: "实时连接中断" })[status];
 }
@@ -98,6 +112,11 @@ function realtimeStatusColor(status: RealtimeConnectionStatus): string {
 function getInstanceRoute(instanceId: string, view: "overview" | "configuration" | "terminal" | "logs" | "backup"): string {
   if (view === "logs") return `${minecraftRoot}/logs/${encodeURIComponent(instanceId)}`;
   return `${minecraftRoot}/instance/${encodeURIComponent(instanceId)}/${view}`;
+}
+
+function navigateToInstanceFiles(userId: string, instanceId: string, onNavigate: (path: string) => void): void {
+  setFileManagerLocation(userId, `.lfaa-library/game-instances/${encodeURIComponent(instanceId)}`, getInstanceRoute(instanceId, "overview"));
+  onNavigate("/files");
 }
 
 function stateLabel(state: MinecraftInstance["state"]): string {
@@ -244,6 +263,9 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [actionToast, setActionToast] = useState<MinecraftActionToast | null>(null);
+  const [actionToastSeconds, setActionToastSeconds] = useState(settings.general.notificationToastDurationSeconds);
+  const actionToastSequence = useRef(0);
   const [busy, setBusy] = useState(false);
   const [taskDetailId, setTaskDetailId] = useState<string | null>(null);
   const [taskDetails, setTaskDetails] = useState<MinecraftTaskDetails | null>(null);
@@ -648,14 +670,38 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
     void refresh().finally(() => setPropertyReadLoading(false));
   }, [propertyReadTaskId, refresh, tasks]);
 
-  const submitAction = useCallback(async (operation: () => Promise<unknown>, returnToTasks = true): Promise<boolean> => {
+  const showActionFeedback = useCallback((feedback: MinecraftActionFeedback) => {
+    setActionNotice(null);
+    if (settings.general.notificationPopupsEnabled) {
+      const durationSeconds = settings.general.notificationToastDurationSeconds;
+      setActionToast({
+        id: ++actionToastSequence.current,
+        message: feedback.message,
+        showTasksLink: feedback.showTasksLink,
+        expiresAt: Date.now() + durationSeconds * 1_000,
+      });
+      setActionToastSeconds(durationSeconds);
+      playNotificationSound(settings.general.notificationSound);
+      return;
+    }
+    setActionToast(null);
+    setActionNotice(feedback.showTasksLink
+      ? `${feedback.message} 可在 Minecraft“任务”中查看进度。`
+      : feedback.message);
+  }, [settings.general.notificationPopupsEnabled, settings.general.notificationSound, settings.general.notificationToastDurationSeconds]);
+
+  const submitAction = useCallback(async (
+    operation: () => Promise<unknown>,
+    feedback: MinecraftActionFeedback = { message: "操作已提交。", showTasksLink: true },
+  ): Promise<boolean> => {
     setBusy(true);
     setActionError(null);
     setActionNotice(null);
+    setActionToast(null);
     try {
       await operation();
-      await refresh();
-      if (returnToTasks) onNavigate(`${minecraftRoot}/tasks`);
+      showActionFeedback(feedback);
+      void refresh();
       return true;
     } catch (error) {
       setActionError(getErrorMessage(error));
@@ -663,7 +709,28 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
     } finally {
       setBusy(false);
     }
-  }, [onNavigate, refresh]);
+  }, [refresh, showActionFeedback]);
+
+  const actionToastId = actionToast?.id ?? null;
+  useEffect(() => {
+    if (actionToastId === null || !actionToast) return;
+    const updateCountdown = () => {
+      const remainingSeconds = Math.max(0, Math.ceil((actionToast.expiresAt - Date.now()) / 1000));
+      setActionToastSeconds(remainingSeconds);
+      if (remainingSeconds === 0) setActionToast((current) => current?.id === actionToastId ? null : current);
+    };
+    const timer = window.setInterval(updateCountdown, 1_000);
+    return () => window.clearInterval(timer);
+  }, [actionToastId, actionToast]);
+
+  useEffect(() => {
+    if (!settings.general.notificationPopupsEnabled) setActionToast(null);
+  }, [settings.general.notificationPopupsEnabled]);
+
+  const openActionToastTasks = useCallback(() => {
+    setActionToast(null);
+    onNavigate("/games/minecraft/tasks");
+  }, [onNavigate]);
 
   useEffect(() => () => {
     taskDetailSequence.current += 1;
@@ -704,10 +771,12 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
   }, [closeTaskDetails, currentSection, taskDetailId]);
 
   const removeTaskRecords = useCallback(async (taskIds: string[]): Promise<boolean> => {
-    const succeeded = await submitAction(() => deleteMinecraftTaskRecords(taskIds), false);
+    const succeeded = await submitAction(() => deleteMinecraftTaskRecords(taskIds), {
+      message: `已删除 ${taskIds.length} 条终态任务记录及其关联节点日志；Minecraft 实例和部署登记已保留。`,
+      showTasksLink: false,
+    });
     if (succeeded) {
       if (taskDetailId && taskIds.includes(taskDetailId)) closeTaskDetails();
-      setActionNotice(`已删除 ${taskIds.length} 条终态任务记录及其关联节点日志；Minecraft 实例和部署登记已保留。`);
     }
     return succeeded;
   }, [closeTaskDetails, submitAction, taskDetailId]);
@@ -731,23 +800,27 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
   const submitRegisterDeployment = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!registerDeploymentId || !memoryMb || !eulaAccepted) return;
-    void submitAction(() => registerMinecraftDeployment(registerDeploymentId, { memoryMb, eulaAccepted: true, javaRuntimeId: registerJavaRuntimeId || null }), false).then((created) => {
+    void submitAction(() => registerMinecraftDeployment(registerDeploymentId, { memoryMb, eulaAccepted: true, javaRuntimeId: registerJavaRuntimeId || null }), {
+      message: "部署注册任务已提交。",
+      showTasksLink: true,
+    }).then((created) => {
       if (created) setRegisterModalOpen(false);
     });
   };
 
   const retryDeployment = (deploymentId: string) => {
-    void submitAction(() => retryMinecraftDeployment(deploymentId), false);
+    void submitAction(() => retryMinecraftDeployment(deploymentId), { message: "部署重试任务已提交。", showTasksLink: true });
   };
 
   const instanceAction = (action: "start" | "stop" | "backup" | "restart") => {
     if (!selectedInstance) return;
-    void submitAction(() => runMinecraftInstanceAction(selectedInstance.id, action));
+    void submitAction(() => runMinecraftInstanceAction(selectedInstance.id, action), { message: `${taskLabel(action)}任务已提交。`, showTasksLink: true });
   };
 
   const deleteInstance = (instance: MinecraftInstance) => {
-    void submitAction(() => deleteMinecraftInstance(instance.id), false).then((submitted) => {
-      if (submitted) setActionNotice(`已提交“${instance.name}”的归档删除任务；节点完成归档后会移除实例登记，可在“任务”菜单查看进度。`);
+    void submitAction(() => deleteMinecraftInstance(instance.id), {
+      message: `已提交“${instance.name}”的归档删除任务；节点完成归档后会移除实例登记。`,
+      showTasksLink: true,
     });
   };
 
@@ -756,8 +829,7 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
     if (!selectedInstance || !propertySnapshot || !Object.keys(propertyEditorState.changed).length) return;
     void submitAction(async () => {
       await saveMinecraftServerFileProperties(selectedInstance.id, propertyEditorState.changed);
-      setActionNotice("配置写入任务已提交；此页会保留在编辑器中，可到任务页查看进度。");
-    }, false);
+    }, { message: "配置写入任务已提交。", showTasksLink: true });
   };
 
   const selectedInstanceCanStart = Boolean(selectedInstance && canOperate
@@ -802,8 +874,13 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
   return (
     <ConfigProvider theme={{ token: { fontSize: settings.appearance.advanced.interfaceFontSize } }}>
     <section className={`minecraft-workspace minecraft-workspace--${currentSection}${isInstanceConsole ? " minecraft-workspace--instance-console" : ""}`} data-section={currentSection} aria-labelledby="minecraft-page-title">
-      <header className="minecraft-page-heading">
-        <div className="minecraft-page-heading__copy"><Typography.Title id="minecraft-page-title" level={2}>{isInstanceConsole ? "控制台" : selectedInstance ? detailView === "overview" ? "实例概览" : selectedInstance.name : pageTitle}</Typography.Title>{pageDescription ? <Typography.Paragraph>{pageDescription}</Typography.Paragraph> : null}</div>
+      <header className={`minecraft-page-heading${selectedInstance ? " minecraft-page-heading--instance" : ""}`}>
+        <div className="minecraft-page-heading__copy">
+          <Typography.Title id="minecraft-page-title" level={2}>{isInstanceConsole ? "控制台" : selectedInstance ? detailView === "overview" ? "实例概览" : selectedInstance.name : pageTitle}</Typography.Title>
+          {selectedInstance ? <div className="minecraft-page-heading__description-slot" aria-hidden={!pageDescription}>
+            <Typography.Paragraph className={pageDescription ? undefined : "minecraft-page-heading__description-placeholder"} title={pageDescription || undefined}>{pageDescription || "\u00a0"}</Typography.Paragraph>
+          </div> : pageDescription ? <Typography.Paragraph>{pageDescription}</Typography.Paragraph> : null}
+        </div>
         <Space className="minecraft-page-heading__controls" size="small" wrap>
           {currentSection === "logs" ? <Select aria-label="选择日志实例" placeholder="选择实例" value={selectedLogInstance?.id ?? undefined} onChange={(instanceId: string) => { setLogInstanceSelection(instanceId); onNavigate(getInstanceRoute(instanceId, "logs")); }} disabled={!instances.length} options={instances.map((instance) => ({ value: instance.id, label: `${instance.name} · ${instance.coreType} ${instance.releaseId}` }))} /> : null}
           {!isInstanceConsole ? <Tag role="status" aria-live="polite" color={realtimeStatusColor(realtimeStatus)}>{currentSection === "connectivity" ? `控制端 · ${realtimeStatusLabel(realtimeStatus)}` : realtimeStatusLabel(realtimeStatus)}</Tag> : null}
@@ -824,6 +901,28 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
       {refreshError ? <Alert className="minecraft-alert" type="warning" showIcon message="部分 Minecraft 数据暂时无法读取" description={refreshError} /> : null}
       {actionError ? <Alert className="minecraft-alert" type="error" showIcon closable onClose={() => setActionError(null)} message={actionError} /> : null}
       {actionNotice ? <Alert className="minecraft-alert" type="success" showIcon closable onClose={() => setActionNotice(null)} message={actionNotice} role="status" /> : null}
+      {actionToast && settings.general.notificationPopupsEnabled ? <aside
+        key={actionToast.id}
+        className="minecraft-action-toast"
+        data-toast-effect={settings.general.notificationToastEffect}
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        aria-label={actionToast.showTasksLink ? "Minecraft 操作已提交" : "Minecraft 操作已完成"}
+      >
+        {actionToast.showTasksLink ? <button className="minecraft-action-toast__open" type="button" onClick={openActionToastTasks} aria-label="查看 Minecraft 任务">
+          <span className="minecraft-action-toast__copy">
+            <strong>操作已提交</strong>
+            <span>{actionToast.message}</span>
+            <small>点击查看任务</small>
+          </span>
+        </button> : <div className="minecraft-action-toast__message">
+          <strong>操作已完成</strong>
+          <span>{actionToast.message}</span>
+        </div>}
+        <button className="minecraft-action-toast__close" type="button" aria-label="关闭 Minecraft 操作提示" onClick={() => setActionToast(null)}>关闭</button>
+        <div className="minecraft-action-toast__countdown" aria-hidden="true">{actionToastSeconds} 秒后自动收起</div>
+      </aside> : null}
 
       {!selectedInstance && currentSection === "connectivity" ? <MinecraftConnectivityPanel onOpenConnectivity={onOpenConnectivity} /> : null}
 
@@ -845,6 +944,7 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
                   <Popconfirm title={`安全停止“${selectedInstance.name}”？`} description="Daemon 会向服务端发送正常停止指令，并按设置中心的停服时限等待退出。" okText="安全停止" cancelText="取消" disabled={!selectedInstanceCanStop} onConfirm={() => instanceAction("stop")}><Button danger disabled={!selectedInstanceCanStop} loading={busy}>安全停止</Button></Popconfirm>
                   <Button disabled={!selectedInstanceCanRestart} loading={busy} onClick={() => instanceAction("restart")}>安全重启</Button>
                   <Button onClick={() => onNavigate(getInstanceRoute(selectedInstance.id, "terminal"))}>进入控制台</Button>
+                  <Button onClick={() => navigateToInstanceFiles(userId, selectedInstance.id, onNavigate)}>打开实例文件</Button>
                 </div>
               </div>
               <dl className="minecraft-instance-hero__facts">
@@ -866,9 +966,10 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
               busy={busy}
               onRefresh={() => { void refresh(); }}
               onSave={async (value) => {
-                const saved = await submitAction(() => setMinecraftInstanceJvmConfiguration(selectedInstance.id, value), false);
-                if (saved) setActionNotice("JVM 参数已保存，将在下次启动时应用。");
-                return saved;
+                return submitAction(() => setMinecraftInstanceJvmConfiguration(selectedInstance.id, value), {
+                  message: "JVM 参数已保存，将在下次启动时应用。",
+                  showTasksLink: false,
+                });
               }}
             />}
           {settings.minecraftRuntime.minecraftExecutionMode === "appcontainer" && !selectedInstance.sandboxAvailable ? <Alert type="error" showIcon message="当前选择 AppContainer，但节点沙盒不可用。可在设置中心选择推荐的本机原生执行。" /> : null}
@@ -984,11 +1085,12 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
             </div>
             <div className="minecraft-overview-hero__side">
               <div className="minecraft-overview-hero__actions" aria-label={`${overviewInstance.name} 快捷操作`}>
-                {overviewInstanceCanStart ? <Button type="primary" loading={busy} onClick={() => void submitAction(() => runMinecraftInstanceAction(overviewInstance.id, "start"))}>启动</Button> : null}
-                {overviewInstanceCanStop ? <Popconfirm title={`安全停止“${overviewInstance.name}”？`} description="Daemon 会向服务端发送正常停止指令，并按设置中心的停服时限等待退出。" okText="安全停止" cancelText="取消" onConfirm={() => void submitAction(() => runMinecraftInstanceAction(overviewInstance.id, "stop"))}><Button danger loading={busy}>安全停止</Button></Popconfirm> : null}
-                {overviewInstanceCanRestart ? <Button loading={busy} onClick={() => void submitAction(() => runMinecraftInstanceAction(overviewInstance.id, "restart"))}>安全重启</Button> : null}
+                {overviewInstanceCanStart ? <Button type="primary" loading={busy} onClick={() => void submitAction(() => runMinecraftInstanceAction(overviewInstance.id, "start"), { message: `${taskLabel("start")}任务已提交。`, showTasksLink: true })}>启动</Button> : null}
+                {overviewInstanceCanStop ? <Popconfirm title={`安全停止“${overviewInstance.name}”？`} description="Daemon 会向服务端发送正常停止指令，并按设置中心的停服时限等待退出。" okText="安全停止" cancelText="取消" onConfirm={() => void submitAction(() => runMinecraftInstanceAction(overviewInstance.id, "stop"), { message: `${taskLabel("stop")}任务已提交。`, showTasksLink: true })}><Button danger loading={busy}>安全停止</Button></Popconfirm> : null}
+                {overviewInstanceCanRestart ? <Button loading={busy} onClick={() => void submitAction(() => runMinecraftInstanceAction(overviewInstance.id, "restart"), { message: `${taskLabel("restart")}任务已提交。`, showTasksLink: true })}>安全重启</Button> : null}
                 <Button onClick={() => onNavigate(getInstanceRoute(overviewInstance.id, "terminal"))}>终端</Button>
                 <Button onClick={() => onNavigate(getInstanceRoute(overviewInstance.id, "overview"))}>管理实例</Button>
+                <Button onClick={() => navigateToInstanceFiles(userId, overviewInstance.id, onNavigate)}>打开实例文件</Button>
               </div>
               <div className="minecraft-overview-hero__core" aria-label={`${overviewInstance.coreType} 核心，Minecraft ${overviewInstance.releaseId}`}>
                 <span className="minecraft-overview-hero__core-mark" aria-hidden="true">
@@ -1050,7 +1152,7 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
           </section>
           <section className="minecraft-overview-panel">
             <div className="minecraft-card-heading"><Typography.Title level={4}>最近任务</Typography.Title><Button type="link" onClick={() => onNavigate("/games/minecraft/tasks")}>查看全部</Button></div>
-            {tasksLoaded ? <TaskList userId={canOperate ? userId : ""} onCancel={id=>{void submitAction(()=>cancelMinecraftTask(id),false);}} tasks={tasks.slice(0, 4)} /> : <div className="minecraft-empty">{refreshError ? "任务状态暂不可读。" : "正在读取任务状态…"}</div>}
+            {tasksLoaded ? <TaskList userId={canOperate ? userId : ""} onCancel={id=>{void submitAction(()=>cancelMinecraftTask(id), { message: "已提交任务取消请求。", showTasksLink: true });}} tasks={tasks.slice(0, 4)} /> : <div className="minecraft-empty">{refreshError ? "任务状态暂不可读。" : "正在读取任务状态…"}</div>}
           </section>
         </div>
       </> : null}
@@ -1178,11 +1280,12 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
                 {!nodeOnline ? <Typography.Text type="secondary">节点离线；当前状态不可核实，操作会保持禁用。</Typography.Text> : null}
                 {settings.minecraftRuntime.minecraftExecutionMode === "appcontainer" && !instance.sandboxAvailable ? <Typography.Text type="secondary">此节点的 AppContainer 不可用，启动操作已禁用。</Typography.Text> : null}
                 <div className="minecraft-instance-card__actions">
-                  <Button type="primary" disabled={!canStart} loading={busy} onClick={() => void submitAction(() => runMinecraftInstanceAction(instance.id, "start"))}>启动</Button>
-                  <Popconfirm title={`安全停止“${instance.name}”？`} description="Daemon 会向服务端发送正常停止指令，并按设置中心的停服时限等待退出。" okText="安全停止" cancelText="取消" onConfirm={() => void submitAction(() => runMinecraftInstanceAction(instance.id, "stop"))}>
+                  <Button type="primary" disabled={!canStart} loading={busy} onClick={() => void submitAction(() => runMinecraftInstanceAction(instance.id, "start"), { message: `${taskLabel("start")}任务已提交。`, showTasksLink: true })}>启动</Button>
+                  <Popconfirm title={`安全停止“${instance.name}”？`} description="Daemon 会向服务端发送正常停止指令，并按设置中心的停服时限等待退出。" okText="安全停止" cancelText="取消" onConfirm={() => void submitAction(() => runMinecraftInstanceAction(instance.id, "stop"), { message: `${taskLabel("stop")}任务已提交。`, showTasksLink: true })}>
                     <Button danger disabled={!canStop} loading={busy}>安全停止</Button>
                   </Popconfirm>
                   <Button onClick={() => onNavigate(getInstanceRoute(instance.id, "overview"))}>管理实例</Button>
+                  <Button onClick={() => navigateToInstanceFiles(userId, instance.id, onNavigate)}>打开实例文件</Button>
                   <Popconfirm title={`删除“${instance.name}”？`} description="完整实例文件将移入节点备份归档，再移除登记；不会覆盖已有备份。" okText="归档并删除" cancelText="取消" onConfirm={() => deleteInstance(instance)}><Button danger disabled={!canOperate||!nodeOnline||busy||!["stopped","error","unknown"].includes(instance.state)}>删除实例</Button></Popconfirm>
                 </div>
               </Card>;
@@ -1204,7 +1307,7 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
         <Card className="minecraft-card minecraft-tasks-card">
           <div className="minecraft-card-heading"><Typography.Title level={4}>任务记录</Typography.Title><Space size="small"><Tag>{visibleTasks.length} 项</Tag>{taskStatusFilter !== "all" ? <Button type="link" size="small" onClick={() => setTaskStatusFilter("all")}>清除筛选</Button> : null}</Space></div>
           {!tasksLoaded ? <div className="minecraft-empty">{refreshError ? "任务状态暂不可读，请刷新后重试。" : "正在读取任务状态…"}</div>
-            : visibleTasks.length ? <TaskList key={`task-menu:${canOperate ? userId : "read-only"}`} userId={canOperate ? userId : ""} onCancel={(id) => { void submitAction(() => cancelMinecraftTask(id), false); }} onOpenDetails={openTaskDetails} onDelete={removeTaskRecords} canDelete={canOperate} deleting={busy} tasks={visibleTasks} selectionTasks={tasks} />
+            : visibleTasks.length ? <TaskList key={`task-menu:${canOperate ? userId : "read-only"}`} userId={canOperate ? userId : ""} onCancel={(id) => { void submitAction(() => cancelMinecraftTask(id), { message: "已提交任务取消请求。", showTasksLink: true }); }} onOpenDetails={openTaskDetails} onDelete={removeTaskRecords} canDelete={canOperate} deleting={busy} tasks={visibleTasks} selectionTasks={tasks} />
               : <div className="minecraft-empty">{tasks.length ? `${taskStatusFilterLabel}暂无任务。` : "暂无任务记录。部署、启停、配置和归档操作的执行状态会显示在这里。"}</div>}
         </Card>
       </> : null}

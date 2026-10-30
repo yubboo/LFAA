@@ -32,6 +32,8 @@ Windows Electron 桌面安装包内置本机 Daemon，并由桌面主进程自�
 
 根脚本 `build:windows-sandbox-host` 编译的是 Rust `lfaa-sandbox-host.exe`，不是 Daemon 服务本身。Electron 桌面发行脚本会自动调用该构建并将原生宿主随 Daemon 运行树打包；普通用户无需单独构建或启动 Daemon。
 
+Windows 菜单 2 的开发模式和菜单 3 的桌面构建会检查 Rust stable 与 `x86_64-pc-windows-msvc` target。当前机器缺少时，启动器从 Rust 官方 `static.rust-lang.org` 下载 `rustup-init`，校验官方 SHA-256 后将 Rustup、stable 工具链及 Cargo 缓存放到当前 `<LFAA_DATA_DIR>/cache/rust/`；不会修改系统 PATH 或覆盖已有的全局 Rust 安装。Rust MSVC 编译还需要 Microsoft Visual C++ Build Tools 与 Windows SDK；这是系统级构建依赖，不属于 LFAA 数据缓存自动安装范围。
+
 Agent Git 管理使用 `packages/host/git`，由 LFAA 本机 Control Plane 执行；Daemon 不拥有 Agent 仓库清单、会话绑定或 Git 管理 UI。目标节点项目和 Worktree 路由属于可选项目能力。所有 Git 操作仍只接受固定参数化操作，不执行任意 Git 命令或补丁；写入关闭仓库 hooks、禁用终端提示并剔除可重定向仓库/索引/配置的继承环境变量。Agent Git 通过 Credentials Owner 使用账户隔离的 HTTPS 凭据进行 remote 同步；Daemon Git 不承载这些认证信息。SSH 同步与 PR 写入尚未接入。
 
 本机身份只由受保护的 `credentials/daemon-node-id` 精确确认；只有已登记的远端凭据才作为远端身份。未知的非空 `nodeId` 不可推断为本机；本机项目登记以 `nodeId: null` 表示，本机 Host/Git/HTML 预览对显式节点只接受精确匹配的本机 Daemon 身份。

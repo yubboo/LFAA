@@ -20,11 +20,32 @@ const driverManifestPath = resolve(runtimeRoot, "apps/cli/node_modules/@trycua/c
 const sourceManifestPath = resolve(repositoryRoot, "packages/computer-use/computer-use/package.json");
 const driverManifest = JSON.parse(await readFile(driverManifestPath, "utf8"));
 const sourceManifest = JSON.parse(await readFile(sourceManifestPath, "utf8"));
+const claudeSourceManifest = JSON.parse(await readFile(resolve(repositoryRoot, "packages/subagent/subagent-claude-code/package.json"), "utf8"));
+const claudeContract = await import(pathToFileURL(resolve(repositoryRoot, "packages/subagent/subagent-claude-code/src/claude-sdk-component-contract.mjs")).href);
 const expectedVersion = sourceManifest.dependencies?.["@trycua/cua-driver"];
 
 if (driverManifest.name !== "@trycua/cua-driver" || driverManifest.version !== expectedVersion) {
   throw new Error(`Electron 运行树中的 CUA Driver 与源码声明不一致：${driverManifestPath}；期望 ${expectedVersion}，实际 ${driverManifest.version ?? "未知版本"}。`);
 }
+
+const claudeComponentManifestPath = resolve(runtimeRoot, "claude-sdk-component.json");
+const claudeComponentManifest = JSON.parse(await readFile(claudeComponentManifestPath, "utf8"));
+if (claudeSourceManifest.dependencies?.["@anthropic-ai/claude-agent-sdk"] !== claudeContract.CLAUDE_SDK_COMPONENT_VERSION
+  || claudeComponentManifest.packageName !== claudeContract.CLAUDE_SDK_COMPONENT_PACKAGE
+  || claudeComponentManifest.version !== claudeContract.CLAUDE_SDK_COMPONENT_VERSION
+  || claudeComponentManifest.integrity !== claudeContract.CLAUDE_SDK_COMPONENT_INTEGRITY
+  || claudeComponentManifest.tarballUrl !== claudeContract.CLAUDE_SDK_COMPONENT_TARBALL_URL
+  || claudeComponentManifest.binaryFileName !== "claude.exe"
+  || !Number.isSafeInteger(claudeComponentManifest.binarySizeBytes)
+  || typeof claudeComponentManifest.binarySha256 !== "string") {
+  throw new Error(`Electron 运行树中的 Claude SDK 按需组件清单与锁定合同不一致：${claudeComponentManifestPath}`);
+}
+const bundledClaudeExecutable = resolve(runtimeRoot, "apps/cli/node_modules/@anthropic-ai/claude-agent-sdk-win32-x64/claude.exe");
+const bundledClaudeExecutableInfo = await stat(bundledClaudeExecutable).catch(error => {
+  if (error?.code === "ENOENT") return null;
+  throw error;
+});
+if (bundledClaudeExecutableInfo) throw new Error(`Electron 安装包仍包含应按需下载的 Claude 可执行文件：${bundledClaudeExecutable}`);
 
 const nodePath = resolve(runtimeRoot, "node.exe");
 const loaderPath = resolve(runtimeRoot, "apps/cli/register-package-loader.mjs");
@@ -67,6 +88,7 @@ Object.assign(smokeEnvironment, {
   JWT_SECRET: randomBytes(32).toString("hex"),
   LFAA_HOME: smokeDataRoot,
   LFAA_DATA_DIR: resolve(smokeDataRoot, "data"),
+  LFAA_CLAUDE_SDK_COMPONENT_MANIFEST: claudeComponentManifestPath,
   LFAA_DESKTOP_MODE: "true",
   NODE_ENV: "production"
 });

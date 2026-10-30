@@ -22,6 +22,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -48,6 +49,7 @@ interface StoredLayoutState {
   leftCollapsed: boolean;
   rightCollapsed: boolean;
   layoutDefaultsVersion: number;
+  restored: boolean;
 }
 
 interface SnapDragState {
@@ -108,15 +110,18 @@ function loadState(
   right: WorkbenchPaneLimits,
   bottom: WorkbenchPaneLimits,
   containerWidth: number,
+  initialLeftCollapsed: boolean,
+  initialRightCollapsed: boolean,
 ): StoredLayoutState {
   if (typeof window === "undefined") {
     return {
       leftWidth: left.initial,
       rightWidth: right.initial,
       bottomHeight: bottom.initial,
-      leftCollapsed: false,
-      rightCollapsed: true,
+      leftCollapsed: initialLeftCollapsed,
+      rightCollapsed: initialRightCollapsed,
       layoutDefaultsVersion: 4,
+      restored: false,
     };
   }
 
@@ -140,15 +145,17 @@ function loadState(
       leftCollapsed: Boolean(parsed.leftCollapsed),
       rightCollapsed: usesPreviousDefaults ? true : Boolean(parsed.rightCollapsed),
       layoutDefaultsVersion: 4,
+      restored: true,
     };
   } catch {
     return {
       leftWidth: left.initial,
       rightWidth: right.initial,
       bottomHeight: bottom.initial,
-      leftCollapsed: false,
-      rightCollapsed: true,
+      leftCollapsed: initialLeftCollapsed,
+      rightCollapsed: initialRightCollapsed,
       layoutDefaultsVersion: 4,
+      restored: false,
     };
   }
 }
@@ -175,6 +182,8 @@ export function ResizableWorkbench({
   rightLimits = DEFAULT_RIGHT,
   bottomLimits = DEFAULT_BOTTOM,
   containerWidth = 1200,
+  initialLeftCollapsed = false,
+  initialRightCollapsed = true,
   snapCaptureRatio = WORKBENCH_INTERACTION_TOKENS.snap.captureRatio,
   snapHysteresis = 24,
   snapCaptureDurationMs = WORKBENCH_INTERACTION_TOKENS.snap.captureDurationMs,
@@ -193,6 +202,7 @@ export function ResizableWorkbench({
   onLeftWidthChange,
   onLeftCollapsedChange,
   onRightCollapsedChange,
+  onInitialCollapseState,
   onCenterCollapsedChange,
   onCenterCollapsePreviewChange,
   onBottomOpenChange,
@@ -200,24 +210,32 @@ export function ResizableWorkbench({
   const rightEnabled = right !== undefined && right !== null;
   const initial = useMemo(
     () => persistState
-      ? loadState(storageKey, leftLimits, rightLimits, bottomLimits, containerWidth)
+      ? loadState(storageKey, leftLimits, rightLimits, bottomLimits, containerWidth, initialLeftCollapsed, initialRightCollapsed)
       : {
           leftWidth: leftLimits.initial,
           rightWidth: rightLimits.initial,
           bottomHeight: bottomLimits.initial,
-          leftCollapsed: false,
-          rightCollapsed: true,
+          leftCollapsed: initialLeftCollapsed,
+          rightCollapsed: initialRightCollapsed,
           layoutDefaultsVersion: 4,
+          restored: false,
         },
-    [bottomLimits, containerWidth, leftLimits, persistState, rightLimits, storageKey],
+    [bottomLimits, containerWidth, initialLeftCollapsed, initialRightCollapsed, leftLimits, persistState, rightLimits, storageKey],
   );
   const [internalLeftWidth, setInternalLeftWidth] = useState(initial.leftWidth);
   const [bottomHeight, setBottomHeight] = useState(initial.bottomHeight);
   const [internalLeftCollapsed, setInternalLeftCollapsed] = useState(initial.leftCollapsed);
   const [internalRightCollapsed, setInternalRightCollapsed] = useState(initial.rightCollapsed);
+  const initialCollapseStateReportedRef = useRef(false);
   const leftWidth = leftWidthProp ?? internalLeftWidth;
   const leftCollapsed = leftCollapsedProp ?? internalLeftCollapsed;
   const rightCollapsed = rightCollapsedProp ?? internalRightCollapsed;
+
+  useLayoutEffect(() => {
+    if (initialCollapseStateReportedRef.current) return;
+    initialCollapseStateReportedRef.current = true;
+    onInitialCollapseState?.({ leftCollapsed, rightCollapsed, restored: initial.restored });
+  }, [initial.leftCollapsed, initial.restored, leftCollapsed, onInitialCollapseState, rightCollapsed]);
   const rightWidthTouchedRef = useRef(false);
   const mobileLeftDock = layoutMode === "mobile"
     && shouldDockResponsiveLeftPane(containerWidth, minCenterWidth, leftLimits.min, responsiveLeftDock && leftVisible);

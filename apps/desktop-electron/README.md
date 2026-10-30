@@ -10,6 +10,8 @@ Windows NSIS 安装页允许选择安装位置，并在目录无效或空间不�
 
 Windows x64 桌面包的 `node-pty` 预编译目录只保留 Windows x64 运行文件；打包时排除 PDB 调试符号及 ARM64/macOS 预编译文件，避免安装时复制当前目标平台用不到的内容。安装向导展示的所需空间是解压后落盘体积，不是下载的安装器文件大小；Electron/Chromium 与随包 Node、CLI 及控制端运行组件构成了主要体积。
 
+Electron 包会排除约 297 MB 的 Claude Agent SDK Windows 可执行文件，并随包携带其锁定版本、npm 完整性与二进制校验清单。只有账户凭据和既有授权检查通过、且用户实际调用 Claude 子 Agent 时才首次下载到 `<LFAA_HOME>/runtime-components/`；首次调用需联网，下载或校验失败时不会启动 Claude。此改动减少安装器下载量及首次安装写入量，但 Electron/Chromium、Node 和其余约 21,000 个运行文件仍随包安装。
+
 桌面 Browser Dock 的原生网页由 `native-browser-workspace.mjs` 管理，使用专用隔离 Session，不修改应用默认 Electron Session；Cookie、缓存和站点存储可由浏览器设置清理。摄像头、麦克风、位置和通知按账户设置的全局默认值/网站例外执行；“每次询问”由主进程显示来源明确的系统对话框，关闭标签/窗口时回收视图和待处理权限/下载。下载按“下载前询问”偏好使用系统保存对话框或已选本机目录，下载历史与扩展目录记录写入 Electron `userData/native-browser-state.json`；安装已解压扩展前需用户确认权限，扩展 API 受 Chromium 子集限制。原生网页视图的位置由 Client 按动画帧合并，串行发送给主进程；导航在主文档提交后返回，后续资源仍由页面自行加载。主窗口 IPC 只接受当前配置的 LFAA 前端来源。Electron 主进程启用仅绑定 `127.0.0.1`、由系统分配端口的 CDP，用于 Control Plane Browser Owner 按认证账户、LFAA Session 和当前选中的原生标签 Target 附着；端点不传给 Renderer、Agent Tool 或远程网页。设置页中的 Agent 高风险 CDP 工具只附着此当前页面，且仍受 Browser Use/Developer Mode/full CDP 设置与统一 Permission Owner 约束。桌面原生页面交互和下载/扩展/权限 Owner 有隔离回归；真实 Electron 页面、登录与原生响应式交互仍需独立实页验收。
 
 退出被拒绝时撤销“正在关闭”状态并恢复既有更新检查调度，应用保持打开，不留下永久停止检查的状态。`tests/service-shutdown.test.mjs` 除 IPC 原语回归外，还从源码启动隔离 Control Plane，验证 `lfaa-shutdown` 等到 Cordis 资源释放、进程以 0 退出并释放 loopback 端口；这不覆盖真实 Electron 窗口、Daemon 或安装更新顺序。

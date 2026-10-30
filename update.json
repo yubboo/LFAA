@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "enabled": true,
   "channel": "stable",
-  "version": "0.0.14",
-  "title": "LFAA 0.0.14",
-  "publishedAt": "2026-10-28",
+  "version": "0.0.15",
+  "title": "LFAA 0.0.15",
+  "publishedAt": "2026-10-30",
   "releaseNotes": [
-    "优化桌面体验"
+    "0.0.15"
   ],
   "mandatory": false,
   "minimumSupportedVersion": "0.0.1",

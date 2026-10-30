@@ -5,4 +5,5 @@ export const inject = ["clientModules"];
 export function apply(ctx: Context): void {
   ctx.clientModules.register(ctx, "lfaa-client-ui-primitives/src/ServiceStatus.js", () => import("../ServiceStatus.js"));
   ctx.clientModules.register(ctx, "lfaa-client-ui-primitives/src/WorkbenchIcon.js", () => import("../WorkbenchIcon.js"));
+  ctx.clientModules.register(ctx, "lfaa-client-ui-primitives/src/WorkbenchHeader.js", () => import("../WorkbenchHeader.js"));
 }

@@ -2,7 +2,7 @@
 
 共享小鱼工作区接收 Workbench 投递的 `AiWorkGoalRequest` 并传给 `AiWorkChat`；聊天仍通过既有 Agent Loop 执行目标，没有 Provider 时保留草稿。
 
-`ApplicationWorkspace` 为业务 App 共用四栏布局、聊天与画布 UI，并提供“聊天/画布/手动”三种模式。聊天复用唯一 `AiWorkChat` 和 Agent Runtime，绑定当前 App 上下文；画布复用唯一 `CanvasWorkspace` 与节点运行时，按 App 登记节点目录；只有手动面板由各领域 App 自己维护。AI 漫剧的 `/apps/aivideo/normal` 继续承载完整漫剧手动工作台，`/apps/aivideo/ai-work` 与 `/apps/aivideo/canvas` 则共用当前 AI Video 项目定位。通用 App 项目仍使用 Canvas Owner，AI 漫剧项目仍由 AI Video Owner 持有，Agent 通过漫剧工具修改同一份 Owner 数据。Canvas 项目/工作流引用及更新时间仅随当前画布发送的新 Run 传递，不写入会话。已有 Canvas 外观、默认模式和助手栏设置继续生效。
+`ApplicationWorkspace` 为业务 App 共用四栏布局、聊天与画布 UI，并提供“聊天/画布/手动”三种模式。中间区的左侧控制、标题、中间模式槽与右侧操作槽复用 `ui-primitives/WorkbenchHeader`；页面继续持有栏位状态、模式和业务动作。聊天复用唯一 `AiWorkChat` 和 Agent Runtime，绑定当前 App 上下文；画布复用唯一 `CanvasWorkspace` 与节点运行时，按 App 登记节点目录；只有手动面板由各领域 App 自己维护。AI 漫剧的 `/apps/aivideo/normal` 继续承载完整漫剧手动工作台，`/apps/aivideo/ai-work` 与 `/apps/aivideo/canvas` 则共用当前 AI Video 项目定位。通用 App 项目仍使用 Canvas Owner，AI 漫剧项目仍由 AI Video Owner 持有，Agent 通过漫剧工具修改同一份 Owner 数据。Canvas 项目/工作流引用及更新时间仅随当前画布发送的新 Run 传递，不写入会话。已有 Canvas 外观、默认模式和助手栏设置继续生效。
 
 Canvas 模式的 App 聊天复用标准 `module-context` 右栏外壳、标题和关闭按钮；`.module-context--canvas-chat` 只约束聊天正文的容器尺寸与溢出。从 App Chat 进入 Canvas 时展开同一 App、同一项目的聊天；直接进入 Canvas 时读取 `canvas.agentPanelDefaultOpen`。在 Canvas 手动收起只作用于当前画布视图。
 

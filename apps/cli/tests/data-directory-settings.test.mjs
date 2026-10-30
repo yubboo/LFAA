@@ -35,7 +35,7 @@ const projectStorage = await import("lfaa-settings/src/project-storage.js");
 test("空白配置数据根在控制端启动时建立标准分类，不虚构账户、游戏或业务数据", () => {
   const homePaths = resolveHomePaths(home);
   const dataPaths = resolveDataPaths(source);
-  for (const category of ["database", "users", "sessions", "credentials", "storages", "skills"]) {
+  for (const category of ["database", "users", "sessions", "credentials", "storages", "skills", "runtimeComponents"]) {
     const directory = homePaths[category];
     const info = lstatSync(directory);
     assert.ok(info.isDirectory() && !info.isSymbolicLink(), `Home/${category} 应在启动时建立为真实目录`);

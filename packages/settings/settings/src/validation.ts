@@ -46,6 +46,8 @@ export const generalSettingsSchema = Joi.object({
   questionNotifications: Joi.boolean().required(),
   sessionIssueNotifications: Joi.boolean().required(),
   notificationSound: Joi.string().valid("default", "subtle", "off").required(),
+  notificationToastDurationSeconds: Joi.number().integer().min(1).max(60).required(),
+  notificationToastEffect: Joi.string().valid(...UI_MOTION_EFFECT_IDS).required(),
   aiProviderReminderEnabled: Joi.boolean().required(),
   setupReminderEnabled: Joi.boolean().required(),
   defaultAdminCredentialReminderEnabled: Joi.boolean().required(),

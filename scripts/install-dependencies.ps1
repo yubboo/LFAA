@@ -10,6 +10,7 @@ if (-not (Test-Path -LiteralPath $sourceVersionScript -PathType Leaf)) { throw '
 . $sourceVersionScript
 
 $projectRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
+. (Join-Path $PSScriptRoot 'windows-rust-toolchain.ps1')
 $rootManifest = Join-Path $projectRoot 'package.json'
 $workspaceFile = Join-Path $projectRoot 'pnpm-workspace.yaml'
 
@@ -1276,7 +1277,10 @@ while ($true) {
         switch ($choice.Trim()) {
             '1' { Install-WorkspaceDependencies }
             '2' { Start-Harness }
-            '3' { Invoke-WorkspacePnpm -Arguments @('run', 'build:win') }
+            '3' {
+                Initialize-LfaaWindowsRustToolchain -ProjectRoot $projectRoot
+                Invoke-WorkspacePnpm -Arguments @('run', 'build:win')
+            }
             '4' { Show-EnvironmentStatus; Show-DependencyScope }
             '5' { Start-ProjectBackup }
             '6' { Push-GitHubRepository }

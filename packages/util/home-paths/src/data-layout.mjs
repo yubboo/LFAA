@@ -8,7 +8,7 @@ import { lstatSync, mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { protectPrivateDirectory } from "./private-directory.mjs";
 
-const accountDirectoryKeys = Object.freeze(["database", "users", "sessions", "credentials", "storages", "skills"]);
+const accountDirectoryKeys = Object.freeze(["database", "users", "sessions", "credentials", "storages", "skills", "runtimeComponents"]);
 const businessDirectoryKeys = Object.freeze(["users", "games", "environments", "lib", "cache", "tmp", "logs", "backups", "models", "input", "output", "connectivity"]);
 // LFAA model library categories; model family adapters define the native files stored under each category.
 const modelDirectoryNames = Object.freeze(["text", "image", "video", "audio", "encoders", "vae", "adapters", "acceleration", "upscalers"]);
@@ -24,6 +24,7 @@ export function resolveHomePaths(homeDirectory) {
     credentials: path("credentials"),
     storages: path("storages"),
     skills: path("skills"),
+    runtimeComponents: path("runtime-components"),
     directoryGuide: path("目录说明.txt")
   });
 }
@@ -76,7 +77,7 @@ export function ensureHomeDirectories(homeDirectory) {
   return paths;
 }
 
-const homeDirectoryGuide = `LFAA Home 目录说明\n\n此目录保存 LFAA 本机账户与控制端数据。为避免会话、账户资料或凭据损坏，请通过 LFAA 管理数据，不要重命名正在使用的目录。\n\ndatabase/  SQLite 关系数据和索引。\nusers/     按账户隔离的本机设置与账户素材。\nsessions/  Agent 会话事件日志；会话目录名是内部标识。会话目录索引.txt 将标题映射到内部目录。\ncredentials/ 加密凭据；目录受操作系统访问权限保护。\nstorages/  Home 与业务数据位置等存储配置。\nskills/    本机 LFAA 用户 Skill 根。小鱼安装或用户手动放置的 Skill 使用 <技能名>/SKILL.md，可供本机项目与 App 发现。\ndata/      LFAA_DATA_DIR 的默认业务数据根；部署可以将它配置到其他位置。\n\n随 LFAA 提供的内置 Skill 来自软件 packages/skill，无需安装到 Home。项目 Skill 使用项目内 .lfaa/skills/ 或 .agents/skills/。Codex 的 .codex/skills/ 属于 Codex，LFAA 不读写该目录。\n`;
+const homeDirectoryGuide = `LFAA Home 目录说明\n\n此目录保存 LFAA 本机账户与控制端数据。为避免会话、账户资料或凭据损坏，请通过 LFAA 管理数据，不要重命名正在使用的目录。\n\ndatabase/  SQLite 关系数据和索引。\nusers/     按账户隔离的本机设置与账户素材。\nsessions/  Agent 会话事件日志；会话目录名是内部标识。会话目录索引.txt 将标题映射到内部目录。\ncredentials/ 加密凭据；目录受操作系统访问权限保护。\nstorages/  Home 与业务数据位置等存储配置。\nskills/    本机 LFAA 用户 Skill 根。小鱼安装或用户手动放置的 Skill 使用 <技能名>/SKILL.md，可供本机项目与 App 发现。\nruntime-components/ 按需下载并校验的固定版本运行组件，例如 Claude Agent SDK；不存放用户业务文件。\ndata/      LFAA_DATA_DIR 的默认业务数据根；部署可以将它配置到其他位置。\n\n随 LFAA 提供的内置 Skill 来自软件 packages/skill，无需安装到 Home。项目 Skill 使用项目内 .lfaa/skills/ 或 .agents/skills/。Codex 的 .codex/skills/ 属于 Codex，LFAA 不读写该目录。\n`;
 
 function isAlreadyExistsError(error) {
   return typeof error === "object" && error !== null && "code" in error && error.code === "EEXIST";

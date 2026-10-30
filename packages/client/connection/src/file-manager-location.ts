@@ -17,13 +17,20 @@ export function storageFileManagerPath(directory: string, dataRoot: string): str
   if (path.startsWith("/")) return `local-drives/root/${path.slice(1)}`.replace(/\/$/u, "");
   throw new Error("无法将存储目录映射到本机磁盘。");
 }
-export function setFileManagerLocation(userId: string, path: string): void {
-  window.history.replaceState({ ...window.history.state, [locationKey]: { userId, path } }, "");
+export function setFileManagerLocation(userId: string, path: string, returnPath?: string): void {
+  window.history.replaceState({ ...window.history.state, [locationKey]: { userId, path, ...(returnPath ? { returnPath } : {}) } }, "");
 }
 export function readFileManagerLocation(userId: string): string | null {
   const location = window.history.state?.[locationKey];
   if (!location || location.userId !== userId || typeof location.path !== "string" || location.path.length > 1024 || location.path.includes("\\") || location.path.split("/").some((part: string) => part === ".." || part === ".")) return null;
   return location.path;
+}
+export function readFileManagerReturnPath(userId: string): string | null {
+  const location = window.history.state?.[locationKey];
+  if (!location || location.userId !== userId || typeof location.returnPath !== "string") return null;
+  const path = location.returnPath;
+  if (!path.startsWith("/") || path.startsWith("//") || path.length > 1024 || path.includes("\\") || /[?#\u0000-\u001f]/u.test(path) || path.split("/").some((part: string) => part === ".." || part === ".")) return null;
+  return path;
 }
 export function consumeFileManagerLocation(): void {
   if (!window.history.state?.[locationKey]) return;

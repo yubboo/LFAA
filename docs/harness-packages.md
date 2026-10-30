@@ -92,7 +92,7 @@
 | [packages/client/ui-permission-presets](../packages/client/ui-permission-presets) | — | placeholder | 权限预设选择界面，不实现授权策略 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-plan](../packages/client/ui-plan) | — | placeholder | 计划模式和计划结果展示 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-plugin-manager](../packages/client/ui-plugin-manager) | lfaa-client-ui-plugin-manager | implemented | 插件安装、停用和故障管理界面 | [源码](../packages/client/ui-plugin-manager/src/index.ts)；2 个静态消费者；0 个组合声明 | DSH 同名目录 |
-| [packages/client/ui-primitives](../packages/client/ui-primitives) | lfaa-client-ui-primitives | implemented | 跨应用可复用的基础交互组件 | [源码](../packages/client/ui-primitives/src/index.ts)；12 个静态消费者；0 个组合声明 | DSH 同名目录 |
+| [packages/client/ui-primitives](../packages/client/ui-primitives) | lfaa-client-ui-primitives | implemented | 跨应用可复用的基础交互组件 | [源码](../packages/client/ui-primitives/src/index.ts)；13 个静态消费者；0 个组合声明 | DSH 同名目录 |
 | [packages/client/ui-reference](../packages/client/ui-reference) | — | placeholder | 上下文引用与来源展示 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-renderer](../packages/client/ui-renderer) | lfaa-client-ui-renderer | implemented | React 根挂载、账户路由和 Slots 容器 | [源码](../packages/client/ui-renderer/src/index.ts)；1 个静态消费者；0 个组合声明 | DSH 同名目录 |
 | [packages/client/ui-schedule](../packages/client/ui-schedule) | — | placeholder | 定时任务配置与实际状态界面 | 占位不可执行 | DSH 同名目录 |
@@ -114,7 +114,7 @@
 | [packages/client/ui-sidebar-documentpreview](../packages/client/ui-sidebar-documentpreview) | — | placeholder | 文档预览侧栏展示 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-sidebar-files](../packages/client/ui-sidebar-files) | lfaa-client-ui-sidebar-files | implemented | 统一文件列表、预览、编辑与回收站界面 | [源码](../packages/client/ui-sidebar-files/src/index.ts)；2 个静态消费者；0 个组合声明 | DSH 同名目录 |
 | [packages/client/ui-sidebar-right](../packages/client/ui-sidebar-right) | — | placeholder | 共享右侧上下文栏展示 | 占位不可执行 | DSH 同名目录 |
-| [packages/client/ui-sidebar-terminal](../packages/client/ui-sidebar-terminal) | lfaa-client-ui-sidebar-terminal | implemented | 唯一共享 xterm 呈现、主题/容器尺寸映射与原始流/单行命令交互控件；不持有 Shell、Minecraft 命令、日志、权限或生命周期规则 | [源码](../packages/client/ui-sidebar-terminal/src/index.ts)；2 个静态消费者；0 个组合声明 | DSH 同名目录 |
+| [packages/client/ui-sidebar-terminal](../packages/client/ui-sidebar-terminal) | lfaa-client-ui-sidebar-terminal | implemented | 唯一共享 xterm 呈现、主题/容器尺寸映射与原始流/单行命令交互控件；不持有 Shell、Minecraft 命令、日志、权限或生命周期规则 | [源码](../packages/client/ui-sidebar-terminal/src/index.ts)；3 个静态消费者；0 个组合声明 | DSH 同名目录 |
 | [packages/client/ui-skill](../packages/client/ui-skill) | — | placeholder | Skill 摘要和加载状态界面 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-slots](../packages/client/ui-slots) | — | placeholder | 插件 UI 插槽渲染协议和容器 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-subagent](../packages/client/ui-subagent) | — | placeholder | 子 Agent 委派任务与结果展示 | 占位不可执行 | DSH 同名目录 |
@@ -223,7 +223,7 @@
 | [packages/host/tool-daemon](../packages/host/tool-daemon) | lfaa-tool-daemon | implemented | 本机托管节点的状态读取与受控启停工具，只调用启动器 supervisor | [源码](../packages/host/tool-daemon/src/index.ts)；0 个静态消费者；1 个组合声明 | LFAA 扩展 |
 | [packages/host/webserver](../packages/host/webserver) | lfaa-host-webserver | implemented | 共享 HTTP/Socket 服务和静态资源承载 | [源码](../packages/host/webserver/src/index.ts)；0 个静态消费者；1 个组合声明 | DSH 同名目录 |
 | [packages/identity/anonymous-user-id](../packages/identity/anonymous-user-id) | — | placeholder | 匿名用户标识来源适配 | 占位不可执行 | DSH 同名目录 |
-| [packages/identity/auth](../packages/identity/auth) | lfaa-identity-auth | implemented | 账户身份、认证和账户隔离权威 | [源码](../packages/identity/auth/src/index.ts)；12 个静态消费者；1 个组合声明 | LFAA 扩展 |
+| [packages/identity/auth](../packages/identity/auth) | lfaa-identity-auth | implemented | 账户身份、认证和账户隔离权威 | [源码](../packages/identity/auth/src/index.ts)；13 个静态消费者；1 个组合声明 | LFAA 扩展 |
 | [packages/integrations/github](../packages/integrations/github) | lfaa-github-integration | implemented | GitHub App Device Flow、账户令牌与只读 REST 数据 Owner | [源码](../packages/integrations/github/src/index.ts)；1 个静态消费者；1 个组合声明 | LFAA 扩展 |
 | [packages/interaction/commands](../packages/interaction/commands) | — | placeholder | 通用交互命令登记协议 | 占位不可执行 | DSH 同名目录 |
 | [packages/interaction/permission-presets](../packages/interaction/permission-presets) | lfaa-permission-presets | implemented | 三模式授权、审批记忆与执行范围权威 | [源码](../packages/interaction/permission-presets/src/index.ts)；8 个静态消费者；1 个组合声明 | DSH 同名目录 |
@@ -367,7 +367,7 @@
 | [packages/util/code-language](../packages/util/code-language) | — | placeholder | 代码语言与扩展名纯映射 | 占位不可执行 | DSH 同名目录 |
 | [packages/util/crypto](../packages/util/crypto) | — | placeholder | 通用摘要/加密基础辅助 | 占位不可执行 | DSH 同名目录 |
 | [packages/util/deque](../packages/util/deque) | — | placeholder | 双端队列数据结构 | 占位不可执行 | DSH 同名目录 |
-| [packages/util/home-paths](../packages/util/home-paths) | lfaa-home-paths | implemented | LFAA Home/Profile 路径解析权威 | [源码](../packages/util/home-paths/src/index.mjs)；21 个静态消费者；0 个组合声明 | DSH 同名目录 |
+| [packages/util/home-paths](../packages/util/home-paths) | lfaa-home-paths | implemented | LFAA Home/Profile 路径解析权威 | [源码](../packages/util/home-paths/src/index.mjs)；22 个静态消费者；0 个组合声明 | DSH 同名目录 |
 | [packages/util/http-proxy](../packages/util/http-proxy) | — | placeholder | HTTP 代理配置辅助 | 占位不可执行 | DSH 同名目录 |
 | [packages/util/launch-environment](../packages/util/launch-environment) | lfaa-launch-environment | implemented | 启动环境、数据根和进程配置解析 | 仅组合/清单；未证实运行 | DSH 同名目录 |
 | [packages/util/lazy-require](../packages/util/lazy-require) | — | placeholder | 延迟模块加载辅助 | 占位不可执行 | DSH 同名目录 |

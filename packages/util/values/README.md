@@ -51,6 +51,8 @@
 
 `appearance-presets.ts` 持有系统内置预设与纯值快照创建/应用/匹配规则；快照仅覆盖 Appearance 与 General 的白名单视觉布局字段。`AppearanceSettings.presets` 默认空数组，不改变已有外观默认值或其他设置。
 
-`src/minecraft-jvm-contract.mjs` 是 Minecraft JVM 参数的纯值 Owner：统一解析每行参数、堆大小、Java 版本兼容性与 G1 白名单；Minecraft Service、目标 Daemon 和 Client 共用同一合同。这里不持久化账户或实例数据，也不负责下载 Java。
+`src/minecraft-jvm-contract.mjs` 是 Minecraft JVM 参数的纯值 Owner：统一解析 Xms/Xmx、G1 白名单及参数依赖；推荐/高性能预设向所有 Java Minecraft 核心提供，不按 Paper 或 Java 主版本静态置空。目标 Daemon 用实例选择的真实 Java 执行启动前预检，拒绝不支持参数时不启动服务端。Minecraft Service、目标 Daemon 和 Client 共用同一合同；这里不持久化账户或实例数据，也不负责下载 Java。
 
 `builtin-backgrounds.ts` 还登记“云涧书境”写作图片。`applyWritingWorkspacePresetAppearance()` 和 `writingWorkspacePresetMatches()` 仅映射 `appearance.backgrounds.writing`、`appearance.areaEffects.writing` 与 `appearance.advanced.writingLightRaysEnabled`，不能经普通账户级预设路径影响其他区域。
+
+`general.notificationToastDurationSeconds`（1–60 秒，默认 5）和 `general.notificationToastEffect`（复用统一 UI 动效 ID，默认 `fluid`）是通知提示卡偏好；唯一共享类型与默认值由本合同提供，声音继续使用既有 `general.notificationSound`。

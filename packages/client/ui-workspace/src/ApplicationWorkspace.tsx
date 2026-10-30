@@ -33,6 +33,7 @@ import { GLOBAL_NAVIGATION_RAIL_COMPACT_WIDTH, GLOBAL_NAVIGATION_RAIL_WIDTH, Glo
 import { SecondaryNavigation, type SecondaryNavigationGroup } from "lfaa-client-ui-sidebar/src/SecondaryNavigation.js";
 import { resolveShortcutSettings } from "lfaa-client-ui-settings-general/src/default-settings.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
+import { WorkbenchHeader } from "lfaa-client-ui-primitives/src/WorkbenchHeader.js";
 import { resolveBrowserAddress } from "lfaa-client-ui-sidebar-browser/src/browser-address.js";
 import { BUILTIN_BROWSER_WORKSPACE_ID } from "lfaa-util-values/src/browser-provider.js";
 import { matchesAgentBrowserDockSyncRequest, shouldSyncAgentBrowserDockPage, type BrowserDockAgentSyncRequest } from "./browser-dock-sync.js";
@@ -2244,12 +2245,12 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
     </div>
   </>;
   const centerHeader = (
-      <header className="module-center__header" data-layout-mode={metrics.mode} data-module-mode={mode}>
-        <div className="module-center__heading">
-          <button ref={leftPreviewTriggerRef} className="module-shell-icon-button module-shell-icon-button--left-preview" type="button" aria-label={mode === "normal" ? "切换当前应用功能菜单" : "切换会话与项目栏"} aria-expanded={!chrome.leftCollapsed || leftPreviewOpen} aria-keyshortcuts={shortcuts.toggleSidebar.map((chord) => chord.replace("Ctrl", "Control")).join(" ")} title={`${mode === "normal" ? "切换当前应用功能菜单" : "切换会话与项目栏"} · ${shortcuts.toggleSidebar.join(" / ") || "未分配"}`} onClick={toggleLeft} onMouseEnter={openLeftPreview} onMouseLeave={closeLeftPreview} onFocus={(event) => { if (event.currentTarget.matches(":focus-visible")) openLeftPreview(); }} onBlur={closeLeftPreview}><WorkbenchIcon name="panelLeft" size={16} /></button>
-          <div className="module-center__title" title={mode === "ai-work" ? activeChatSessionTitle?.trim() || "小鱼智能体" : activeApplicationTitle}><WorkbenchIcon name={mode === "normal" ? "folder" : "spark"} size={16} /><strong>{mode === "ai-work" ? activeChatSessionTitle?.trim() || "小鱼智能体" : activeApplicationTitle}</strong></div>
+      <WorkbenchHeader className="module-center__header" layoutMode={metrics.mode} moduleMode={mode}>
+        <div className="lfaa-workbench-header__leading module-center__heading" data-workbench-header-slot="leading">
+          <button ref={leftPreviewTriggerRef} className="module-shell-icon-button module-shell-icon-button--left-preview lfaa-workbench-header__toggle" type="button" aria-label={mode === "normal" ? "切换当前应用功能菜单" : "切换会话与项目栏"} aria-expanded={!chrome.leftCollapsed || leftPreviewOpen} aria-keyshortcuts={shortcuts.toggleSidebar.map((chord) => chord.replace("Ctrl", "Control")).join(" ")} title={`${mode === "normal" ? "切换当前应用功能菜单" : "切换会话与项目栏"} · ${shortcuts.toggleSidebar.join(" / ") || "未分配"}`} onClick={toggleLeft} onMouseEnter={openLeftPreview} onMouseLeave={closeLeftPreview} onFocus={(event) => { if (event.currentTarget.matches(":focus-visible")) openLeftPreview(); }} onBlur={closeLeftPreview}><WorkbenchIcon name="panelLeft" size={16} /></button>
+          <div className="lfaa-workbench-header__title module-center__title" title={mode === "ai-work" ? activeChatSessionTitle?.trim() || "小鱼智能体" : activeApplicationTitle}><WorkbenchIcon name={mode === "normal" ? "folder" : "spark"} size={16} /><strong>{mode === "ai-work" ? activeChatSessionTitle?.trim() || "小鱼智能体" : activeApplicationTitle}</strong></div>
         </div>
-        {modeSwitchAppId && section !== "voice" ? <div className="module-center__mode-switch-slot"><Segmented
+        {modeSwitchAppId && section !== "voice" ? <div className="lfaa-workbench-header__center module-center__mode-switch-slot" data-workbench-header-slot="center"><Segmented
           className="module-center__mode-switch"
           size="small"
           aria-label={applicationModeScopeId ? "当前应用工作模式" : "聊天与画布工作模式"}
@@ -2264,7 +2265,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
             else if (value === "manual" && applicationModeScopeId) void openApplication(applicationModeScopeId, "normal");
           }}
         /></div> : null}
-        <div className="module-center__actions">
+        <div className="lfaa-workbench-header__actions module-center__actions" data-workbench-header-slot="actions">
           {app === "workspace" && mode === "ai-work" && section !== "voice" ? <Button className="module-center__voice-button" type="text" size="small" aria-label="语音主脑" title="语音主脑" icon={<WorkbenchIcon name="microphone" size={15} />} onClick={() => onNavigate("/voice")}>语音主脑</Button> : null}
           {settings.general.showServiceStatus ? <span className={`module-runtime-state${serverState === "online" ? " is-connected" : ""}`} role="img" aria-label={statusLabel} title={statusLabel}><i aria-hidden="true" />{statusLabel}</span> : null}
           {gitManagerAvailable ? <div className="module-center__work-tabs" aria-label="Agent Git">
@@ -2291,7 +2292,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
           {terminalPanelAvailable && settings.general.showBottomPanelControl && showCenterPanelControls ? <PanelControl name="terminal" title="底部终端" shortcut={shortcuts.toggleBottomPanel.join(" / ")} active={chrome.terminalOpen} onClick={toggleTerminal} /> : null}
           {canvasWorkspace ? <PanelControl name="panelRight" title={canvasChatOpen ? "收起应用聊天" : "展开应用聊天"} shortcut={shortcuts.toggleContextPanel.join(" / ")} active={canvasChatOpen} onClick={() => setCanvasChatOpen(!canvasChatOpen)} /> : showCenterPanelControls ? <PanelControl name="panelRight" title={chrome.rightCollapsed ? "展开上下文栏" : "收起上下文栏"} shortcut={shortcuts.toggleContextPanel.join(" / ")} active={!chrome.rightCollapsed} onClick={toggleRight} /> : null}
         </div>
-      </header>
+      </WorkbenchHeader>
   );
   const center = (
     <div className="module-center">

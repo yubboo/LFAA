@@ -11,12 +11,12 @@
   min-height: 0;
   overflow: hidden;
   --module-rail-width: 64px; /* 文件页左一导航轨宽度；窄分栏时由父级容器查询切换到 48px。 */
-  grid-template-columns: var(--module-rail-width, 64px) minmax(0, 1fr);
+  --lfaa-leading-width: var(--module-rail-width, 64px); /* 文件页容器测量时扣除左一导航轨，DockKit 按剩余宽度选择栏位模式。 */
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
   background: transparent;
 }
-.module-workbench-stage.file-manager-stage > .module-navigation-rail { grid-column: 1; grid-row: 1; }
-.module-workbench-stage.file-manager-stage > .file-manager-page { grid-column: 2; grid-row: 1; }
+.module-workbench-stage.file-manager-stage > .lfaa-workbench.file-manager-workbench { --lfaa-leading-width: var(--module-rail-width, 64px); /* DockKit 左一列的实际宽度；为全局导航轨预留空间，避免与资源分类栏重叠。 */ width: 100%; height: 100%; min-width: 0; min-height: 0; background: transparent; }
 
 @container (max-width: 420px) {
   .module-workbench-stage.file-manager-stage { --module-rail-width: 48px; /* 窄文件页左一导航轨宽度；按实际嵌入容器宽度切换。 */ }
@@ -29,11 +29,18 @@
   flex: 1;
   flex-direction: column;
   overflow: hidden;
-  container-name: file-manager;
+  container-name: file-manager module-center;
   container-type: inline-size;
   background: color-mix(in srgb, var(--color-canvas) var(--settings-background-surface-opacity), transparent);
   color: var(--color-text-primary);
 }
+
+.file-manager__resource-region { min-width: 0; min-height: 0; overflow: hidden; border-right: 1px solid var(--color-border-subtle); background: color-mix(in srgb, var(--color-surface) var(--settings-background-surface-opacity), transparent); }
+.file-manager__resource-region > .file-manager__resource-pane { display: flex; width: 100%; height: 100%; min-width: 0; min-height: 0; flex-direction: column; gap: 8px; padding: 10px; overflow: hidden; overscroll-behavior: contain; }
+.file-manager__directory-region { min-width: 0; min-height: 0; overflow: hidden; border-left: 1px solid var(--color-border-subtle); background: color-mix(in srgb, var(--color-surface) var(--settings-background-surface-opacity), transparent); }
+.file-manager__directory-region > .file-manager__directory-pane { display: flex; width: 100%; height: 100%; min-width: 0; min-height: 0; flex-direction: column; gap: 10px; padding: 10px; overflow: hidden; }
+.file-manager__center-region { min-width: 0; min-height: 0; overflow: hidden; }
+.file-manager__tree-scroll { min-width: 0; min-height: 0; flex: 1; overflow: auto; overscroll-behavior: contain; }
 
 .file-manager__header {
   display: grid;
@@ -101,11 +108,15 @@
 
 .file-manager__selection { display: flex; min-height: 44px; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 18px; border-bottom: 1px solid var(--color-border-subtle); background: color-mix(in srgb, var(--color-brand) 7%, transparent); }
 .file-manager__selection > span { margin-right: 6px; color: var(--color-text-secondary); font-size: 12px; font-weight: 650; }
-.file-manager__workspace { position: relative; display: flex; min-width: 0; min-height: 0; flex: 1; overflow: hidden; }
-.file-manager__tree { width: clamp(190px, 22%, 250px); min-width: 190px; min-height: 0; flex: 0 0 auto; padding: 14px 10px; overflow: auto; border-right: 1px solid var(--color-border-subtle); background: color-mix(in srgb, var(--color-surface) var(--settings-background-surface-opacity), transparent); }
-.file-manager__tree-title { display: block; margin: 0 8px 9px; color: var(--color-text-muted); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.file-manager__pane-heading,
+.file-manager__directory-heading { display: flex; min-width: 0; min-height: 34px; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 8px; padding: 0 4px; border-bottom: 1px solid var(--color-border-subtle); color: var(--color-text-muted); }
+.file-manager__pane-title,
+.file-manager__tree-title { min-width: 0; color: var(--color-text-muted); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.file-manager__directory-heading > .file-manager__tree-title { margin: 0; }
+.file-manager__pane-close.ant-btn { display: grid; width: 30px; min-width: 30px; height: 30px; flex: 0 0 30px; place-items: center; padding: 0; color: var(--color-text-muted); }
+.file-manager__pane-close.ant-btn:hover { color: var(--color-text-primary); }
 /* 资源类别独立于物理目录；色彩、表面透明度和字号继承账户外观。 */
-.file-manager__resource-list { display: flex; min-width: 0; flex-direction: column; gap: 4px; margin-bottom: 14px; }
+.file-manager__resource-list { display: flex; min-width: 0; min-height: 0; flex: 1; flex-direction: column; gap: 4px; margin-bottom: 0; overflow: auto; overscroll-behavior: contain; }
 .file-manager__resource-list button { display: flex; align-items: center; gap: 9px; padding: 9px 10px; border: 0; border-radius: 7px; background: transparent; color: var(--color-text-primary); font: inherit; text-align: left; cursor: pointer; }
 .file-manager__resource-list button:hover,
 .file-manager__resource-list button[aria-current="page"] { background: var(--color-surface-hover); color: var(--color-accent); }
@@ -218,7 +229,6 @@
 @container file-manager (max-width: 980px) {
   .file-manager__header { gap: 12px; padding: 14px 16px; }
   .file-manager__header-actions { flex: 1 1 auto; }
-  .file-manager__workspace.is-tree-open .file-manager__tree { position: absolute; inset: 0 auto 0 0; z-index: 3; width: min(280px, 82%); min-width: min(190px, 82%); border-right: 1px solid var(--color-border-subtle); }
 }
 
 @container file-manager (max-width: 680px) {
@@ -229,12 +239,8 @@
 }
 
 @container file-manager (max-width: 620px) {
-  /* 窄分栏/手机将资源导航置于列表上方，目录树有界滚动，不遮住文件操作。 */
-  .file-manager__workspace.is-resources-open { flex-direction: column; }
-  .file-manager__resources { width: 100%; min-width: 0; max-height: 210px; padding: 6px 10px; border-right: 0; border-bottom: 1px solid var(--color-border-subtle); }
-  .file-manager__resource-list { flex-direction: row; margin-bottom: 0; overflow-x: auto; }
-  .file-manager__resource-list button { flex: 0 0 auto; padding: 7px 9px; }
-  .file-manager__resources .ant-tree { max-height: 140px; overflow: auto; }
+  .file-manager__resource-region > .file-manager__resource-pane,
+  .file-manager__directory-region > .file-manager__directory-pane { padding: 10px 8px; }
   .file-manager__resource-context { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px 8px; }
   .file-manager__resource-context > span { grid-column: 1 / -1; grid-row: 2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .file-manager__resource-context > .ant-btn { grid-column: 2; grid-row: 1; }

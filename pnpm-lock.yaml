@@ -2754,6 +2754,9 @@ importers:
       lfaa-client-modules:
         specifier: workspace:*
         version: link:../modules
+      lfaa-client-resources:
+        specifier: workspace:*
+        version: link:../resources
       lfaa-client-store:
         specifier: workspace:*
         version: link:../store
@@ -5777,12 +5780,18 @@ importers:
       lfaa-credentials:
         specifier: workspace:*
         version: link:../../credentials/credentials
+      lfaa-home-paths:
+        specifier: workspace:*
+        version: link:../../util/home-paths
       lfaa-llm:
         specifier: workspace:*
         version: link:../../llm/llm
       lfaa-subagent:
         specifier: workspace:*
         version: link:../subagent
+      tar:
+        specifier: 7.5.22
+        version: 7.5.22
     devDependencies:
       '@types/node':
         specifier: ^24.0.0

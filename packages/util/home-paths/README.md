@@ -15,3 +15,5 @@ AI 漫剧与 Writing 的项目专用目录由 `ensureReadableUserDataPaths()` �
 `ensureHomeDirectories()` 与 `ensureDataDirectories()` 由控制端和本机 Daemon 启动时分别调用：前者在 Home 创建账户/控制分类、Skill 根并保护凭据；若 `<LFAA_HOME>/目录说明.txt` 不存在，还会创建仅含相对目录用途的说明文件，不覆盖用户已有文件。后者只在 Data 根创建业务分类。两者不创建账户、作品或游戏实例；重复调用安全。Profile 根由各自 Owner 管理，不由两种分类初始化接管。
 
 `<LFAA_HOME>/skills/` 是本机用户级 Skill 根。小鱼安装和用户手动放置的 Skill 均使用 `<技能名>/SKILL.md`，由 Skill Registry 发现。本机 GitHub Skill 安装的来源和逐文件 SHA-256 清单仍由 Knowledge Library Owner 记录；旧版 `skills/account-installed/<账户 SHA-256>/<技能名>/` 和 `<LFAA_DATA_DIR>/users/<账户 SHA-256>/knowledge/skills/` 安装仍可回读/按 ID 卸载。项目 Skill 独立位于项目 `.lfaa/skills/` 或 `.agents/skills/`；软件内置 Skill 直接随 `packages/skill/*` 装配，不复制到用户目录。`目录说明.txt` 概述这些路径，但不列出实际账户 ID、绝对路径、凭据或会话内容。
+
+`<LFAA_HOME>/runtime-components/` 是按需运行组件的版本缓存，例如经校验的 Claude Agent SDK Windows 可执行文件。组件包 Owner 负责下载与完整性检查；Home Paths 只负责提供稳定路径，并将缓存与业务 `LFAA_DATA_DIR` 分开。

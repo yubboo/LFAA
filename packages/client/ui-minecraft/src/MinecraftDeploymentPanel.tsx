@@ -13,7 +13,7 @@ interface Props {
   userId:string;
   onPrepareWithAi:(prompt:string)=>void;
   nodes: MinecraftNode[]; instances: MinecraftInstance[]; settings: UserSettings; canOperate: boolean;
-  onSubmit: (operation: () => Promise<unknown>, returnToTasks?: boolean) => Promise<boolean>;
+  onSubmit: (operation: () => Promise<unknown>, feedback?: { message: string; showTasksLink: boolean }) => Promise<boolean>;
   onNavigate: (path: string) => void;
 }
 const categoryNames = { pure: "纯净与插件", mod: "模组与混合", vanilla: "原版", proxy: "代理", bedrock: "基岩" };
@@ -50,6 +50,8 @@ interface DeploymentDraft {core:string;version:string;nodeId:string;name:string;
 const draftCache=createSnapshotCache<DeploymentDraft>();
 const coreCatalogCache=createSnapshotCache<Awaited<ReturnType<typeof loadMinecraftCores>>>();
 const coreBuildCache=createSnapshotCache<Awaited<ReturnType<typeof loadMinecraftCoreBuilds>>>();
+// 核心目录上游请求最多等待 20 秒；额外留 5 秒给控制面返回，并保证界面能恢复重试。
+const CORE_CATALOG_REQUEST_TIMEOUT_MS = 25_000;
 export function MinecraftDeploymentPanel({ userId,onPrepareWithAi,nodes, instances, settings, canOperate, onSubmit, onNavigate }: Props) {
   const draft=useRef(draftCache.get(userId)).current;
   const cachedCoreCatalog=useRef(coreCatalogCache.get(userId)??null).current;
@@ -129,8 +131,15 @@ export function MinecraftDeploymentPanel({ userId,onPrepareWithAi,nodes, instanc
   useEffect(() => {
     let alive = true; setCatalogLoading(true);
     const controller=new AbortController();
-    loadMinecraftCores(controller.signal).then(value => { if (alive) { coreCatalogCache.set(userId,value); setCores(value.cores); setSourceErrors(value.errors); } }).catch(reason => { if (alive&&!controller.signal.aborted) { const message=getErrorMessage(reason); const unavailable={cores:[],errors:[message]}; coreCatalogCache.set(userId,unavailable); setCores([]); setSourceErrors(unavailable.errors); } }).finally(() => { if (alive) setCatalogLoading(false); });
-    return () => { alive = false; controller.abort(); };
+    let timedOut = false;
+    const timeout = window.setTimeout(() => { timedOut = true; controller.abort(); }, CORE_CATALOG_REQUEST_TIMEOUT_MS);
+    loadMinecraftCores(controller.signal).then(value => { if (alive) { coreCatalogCache.set(userId,value); setCores(value.cores); setSourceErrors(value.errors); } }).catch(reason => {
+      if (alive && (timedOut || !controller.signal.aborted)) {
+        const message = timedOut ? "核心目录加载超时，请检查网络或服务状态后刷新。" : getErrorMessage(reason);
+        const unavailable={cores:[],errors:[message]}; coreCatalogCache.set(userId,unavailable); setCores([]); setSourceErrors(unavailable.errors);
+      }
+    }).finally(() => { window.clearTimeout(timeout); if (alive) setCatalogLoading(false); });
+    return () => { alive = false; window.clearTimeout(timeout); controller.abort(); };
   }, [reload, userId]);
   useEffect(() => {
     if (catalogLoading) return;
@@ -194,7 +203,10 @@ export function MinecraftDeploymentPanel({ userId,onPrepareWithAi,nodes, instanc
   const submit = async (event: FormEvent) => {
     event.preventDefault(); if (step !== 2 || !valid || !memory || !port) return; setSubmitting(true);
     try {
-      const success = await onSubmit(() => provisionMinecraftServer({ nodeId, name: name.trim(), core, version, build, eulaAccepted: true, memoryMb: memory, serverPort: port,javaRuntimeId:javaRuntimeId||null, ...(activeCore?.category === "proxy" ? { proxyBackendInstanceId: backendId } : {}) }), true);
+      const success = await onSubmit(() => provisionMinecraftServer({ nodeId, name: name.trim(), core, version, build, eulaAccepted: true, memoryMb: memory, serverPort: port,javaRuntimeId:javaRuntimeId||null, ...(activeCore?.category === "proxy" ? { proxyBackendInstanceId: backendId } : {}) }), {
+        message: "开服部署任务已提交。",
+        showTasksLink: true,
+      });
       if (success) {
         draftCache.set(userId,{core,version,nodeId,name:"",backendId:"",memory,port:settings.minecraftRuntime.minecraftDefaultPort,step:0,javaRuntimeId:""});
         setName(""); setEula(false); moveToStep(0);

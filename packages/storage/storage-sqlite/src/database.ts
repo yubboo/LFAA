@@ -27,7 +27,7 @@ function hasColumn(tableName: "ai_tool_approvals" | "ai_tool_permission_grants",
 
 // 版本31由文件存储协调器在回读校验完成后提交，SQLite 保留账户、权限和任务。
 // 数据库打开兼容上限必须与本文件中的最新 schema 迁移版本保持一致。
-const latestSupportedDatabaseVersion = 78;
+const latestSupportedDatabaseVersion = 79;
 if (currentVersion > latestSupportedDatabaseVersion) {
   throw new Error(`数据库版本 ${currentVersion} 高于当前程序支持的版本 ${latestSupportedDatabaseVersion}（${config.databasePath}）。请使用更新版本的 LFAA；为保护数据，本程序不会自动降级数据库结构。`);
 }
@@ -2631,3 +2631,23 @@ export function migrateMinecraftInstanceJvmConfigurationSchema(): void {
   }
 }
 migrateMinecraftInstanceJvmConfigurationSchema();
+
+/** 版本 79：标记实例是否显式保存过 JVM 配置，使旧实例可使用默认调优且保留显式空配置。 */
+export function migrateMinecraftInstanceJvmConfiguredSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 78 || version >= 79) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    const tables = new Set((database.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{ name: string }>).map(row => row.name));
+    if (!tables.has("minecraft_instances")) throw new Error("Minecraft JVM 配置状态迁移缺少实例表；数据库版本未推进。");
+    const columns = new Set((database.prepare("PRAGMA table_info(minecraft_instances)").all() as Array<{ name: string }>).map(row => row.name));
+    if (!columns.has("jvm_arguments_configured")) {
+      database.exec("ALTER TABLE minecraft_instances ADD COLUMN jvm_arguments_configured INTEGER NOT NULL DEFAULT 0 CHECK (jvm_arguments_configured IN (0, 1));");
+    }
+    database.exec("PRAGMA user_version = 79; COMMIT;");
+  } catch (error) {
+    if (database.isTransaction) database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+migrateMinecraftInstanceJvmConfiguredSchema();

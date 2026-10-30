@@ -986,6 +986,7 @@ export interface MinecraftInstance {
   memoryMb: number;
   initialHeapMb: number;
   jvmArguments: string[];
+  jvmArgumentsConfigured: boolean;
   coreType: string;
   coreBuild: string;
   executionMode: "native" | "appcontainer";

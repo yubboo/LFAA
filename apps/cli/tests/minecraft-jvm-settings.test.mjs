@@ -8,6 +8,7 @@ import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { MinecraftJvmSettings } from "../../../packages/client/ui-minecraft/src/MinecraftJvmSettings.tsx";
+import { getMinecraftJvmPreset } from "../../../packages/util/values/src/minecraft-jvm-contract.mjs";
 
 const requireUi = createRequire(new URL("../../../packages/client/modules/package.json", import.meta.url));
 const React = requireUi("react");
@@ -15,11 +16,11 @@ globalThis.React ??= React;
 const { renderToStaticMarkup } = requireUi("react-dom/server");
 const workspaceSource = readFileSync(new URL("../../../packages/client/ui-minecraft/src/MinecraftWorkspace.tsx", import.meta.url), "utf8");
 
-function render(instance) {
+function render(instance, canEdit = false) {
   return renderToStaticMarkup(React.createElement(MinecraftJvmSettings, {
     instance,
     javaLabel: "节点自动管理",
-    canEdit: false,
+    canEdit,
     busy: false,
     onSave: async () => false,
     onRefresh: () => {}
@@ -27,6 +28,10 @@ function render(instance) {
 }
 
 function instance(id, values = {}) {
+  const javaMajor = values.javaMajor ?? 17;
+  const coreType = values.coreType ?? "Paper";
+  const memoryMb = values.memoryMb ?? 4096;
+  const jvmArguments = values.jvmArguments ?? getMinecraftJvmPreset("recommended", { javaMajor, coreType, memoryMb })?.jvmArguments ?? [];
   return {
     id,
     name: id,
@@ -35,12 +40,13 @@ function instance(id, values = {}) {
     nodeStatus: "online",
     storageDirectory: id,
     releaseId: "1.16.5",
-    javaMajor: 17,
+    javaMajor,
     javaRuntimeId: null,
-    memoryMb: 4096,
+    memoryMb,
     initialHeapMb: 1024,
-    jvmArguments: [],
-    coreType: "Paper",
+    jvmArguments,
+    jvmArgumentsConfigured: false,
+    coreType,
     coreBuild: "1",
     executionMode: "native",
     state: "stopped",
@@ -69,7 +75,8 @@ test("每次渲染使用传入实例自己的核心、Java、堆和 JVM 参数",
     javaMajor: 8,
     memoryMb: 6144,
     initialHeapMb: 2048,
-    jvmArguments: ["-XX:+UseG1GC"]
+    jvmArguments: ["-XX:+UseG1GC"],
+    jvmArgumentsConfigured: true
   });
   const markup = render(current);
 
@@ -81,24 +88,42 @@ test("每次渲染使用传入实例自己的核心、Java、堆和 JVM 参数",
   assert.doesNotMatch(markup, /Paper 旧版 G1 基础项/u);
 });
 
-test("非 Paper 核心的推荐预设说明不显示 Paper 专属参数", () => {
-  const current = instance("catserver-default", { coreType: "CatServer", javaMajor: 8, jvmArguments: [] });
+test("未配置的非 Paper 核心显示并使用通用推荐参数", () => {
+  const current = instance("catserver-default", { coreType: "CatServer", javaMajor: 8 });
   const markup = render(current);
 
-  assert.match(markup, /CatServer · Java 8 的推荐预设不添加额外 GC 参数/u);
+  assert.match(markup, /推荐默认 · 启动时使用/u);
+  assert.match(markup, /-XX:\+DisableExplicitGC/u);
+  assert.match(markup, /-XX:G1ReservePercent=20/u);
+  assert.match(markup, /所有 Java 核心共用 G1 调优/u);
   assert.doesNotMatch(markup, /Paper 旧版 G1 基础项/u);
 });
 
-test("Paper 旧版推荐参数仍由 Paper 与 Java 版本共同决定", () => {
+test("Paper 推荐文案不再受 Java 版本或核心名称分支限制", () => {
   const current = instance("paper-instance", {
     coreType: "Paper",
-    javaMajor: 11,
-    jvmArguments: ["-XX:+UseG1GC", "-XX:+ParallelRefProcEnabled", "-XX:MaxGCPauseMillis=200", "-XX:+DisableExplicitGC"]
+    javaMajor: 21
   });
   const markup = render(current);
 
-  assert.match(markup, /旧版 Paper · Java 11 使用适配的 G1 基础参数/u);
-  assert.match(markup, /Paper · Java 11 · 节点自动管理/u);
+  assert.match(markup, /150 ms 停顿目标/u);
+  assert.match(markup, /Paper · Java 21 · 节点自动管理/u);
+  assert.doesNotMatch(markup, /默认 GC|旧版 Paper/u);
+});
+
+test("高性能预设在 Java 21 的非 Paper 核心上保持可用", () => {
+  const markup = render(instance("fabric-modern", { coreType: "Fabric", javaMajor: 21 }), true);
+  const highPerformanceButton = markup.match(/<button[^>]*>高性能<\/button>/u)?.[0];
+  assert.ok(highPerformanceButton);
+  assert.doesNotMatch(highPerformanceButton, /disabled=""/u);
+  assert.doesNotMatch(markup, /仅支持 Paper|Java 8–16/u);
+});
+
+test("PocketMine 清楚说明 PHP 运行时不消费 JVM 参数", () => {
+  const markup = render(instance("pocketmine", { coreType: "PocketMine", jvmArguments: [] }));
+  assert.match(markup, /PocketMine 不使用 JVM/u);
+  assert.match(markup, /由 PHP 运行/u);
+  assert.doesNotMatch(markup, /保存参数/u);
 });
 
 test("实例路由、编辑器状态与保存请求都绑定当前实例 ID", () => {

@@ -67,3 +67,5 @@ Agent 设置目录由 `src/agent-settings.ts` 从当前账户 `UserSettings` 与
 `appearance.advanced.aiWorkOutputFocusBlurEnabled` 默认关闭；共享值和 Appearance Schema 使用相同默认，旧账户缺少该字段时只补关闭值，显式保存的账户开关不因默认变更而重置。
 
 `appearanceBackgroundIdSchema` 与服务层背景白名单共同接受共享清单中的 `writing-yunjian`；该 ID 只能经现有 Settings Owner 认证、校验与账户 Appearance 分类保存。
+
+`general.notificationToastDurationSeconds` 和 `general.notificationToastEffect` 由 General Schema 限定为 1–60 秒及共享动效目录中的 ID，并按账户持久化；旧账户使用共享默认值，旧客户端省略字段时保留当前值。通知提示卡声音继续读取已保存的 `general.notificationSound`，没有第二套声音或授权配置。
