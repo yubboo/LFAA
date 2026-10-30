@@ -30,10 +30,10 @@ Web 实页路由为 `/games/minecraft/instance/<实例 ID>/overview`，覆盖桌
 
 ## 实施记录
 
-- 本轮内置浏览器分别打开 CatServer 实例 `bd7c58bb-a1e1-4d20-b7f6-d66f23841e2d` 与 Paper 实例 `17e265c3-a9a8-419b-b43c-ae4592d2480d`。概览各自显示 CatServer/Java 8/4096 MB/25566 与 Paper/Java 11/4096 MB/25565；没有点击保存、启停服务器或改动实例数据。
-- 不完整字段保护、两个核心各自渲染、路由 ID/编辑器 key/保存 ID 绑定回归均通过；TypeScript 与 Web/Control Plane 构建通过。窄视口在本轮未重复验收。
+- 本轮内置浏览器分别打开 CatServer 实例 `bd7c58bb-a1e1-4d20-b7f6-d66f23841e2d` 与 Paper 实例 `17e265c3-a9a8-419b-b43c-ae4592d2480d`。概览各自显示 CatServer/Java 8/4096 MB/25566 与 Paper/Java 11/4096 MB/25565；推荐预设说明也按 CatServer + Java 8 显示其默认 GC，不再错误显示 Paper 专属说明。没有点击保存、启停服务器或改动实例数据。
+- 不完整字段保护、两个核心各自渲染、推荐文案按核心与 Java 区分、路由 ID/编辑器 key/保存 ID 绑定回归均通过；本轮 JVM 编辑区回归 5/5、TypeScript 与 Web/Control Plane 构建通过。窄视口实页结果见下方记录。
 - 已在目标实例 `17e265c3-a9a8-419b-b43c-ae4592d2480d` 的概览 `/games/minecraft/instance/17e265c3-a9a8-419b-b43c-ae4592d2480d/overview` 完成实页验收。实例原配置为 Xms 1024 MB、Xmx 4096 MB、无额外 GC 参数；没有点击保存、启停服务器或改动实例数据。
 - 推荐预设在本地编辑草稿中显示 4 项 Paper 旧版 G1 参数；高性能预设的参数集通过该实例使用的 Temurin 11 `java.exe -Xms1024M -Xmx4096M ... -version` 实测，退出码 0。启动器还会在真正启动前用实例选定 Java 做有界预检；拒绝参数时不创建服务端进程。Paper 官方建议现代 Java 17 及以上先使用默认 GC，并列出 Aikar 参数及各自用途；界面把易受磁盘延迟影响的共享内存项和启动时预触全部堆的选项排除在预设外。[Paper Aikar 参数文档](https://docs.papermc.io/paper/aikars-flags/) [Paper 启动脚本生成器](https://docs.papermc.io/misc/tools/start-script-gen/)
 - 实例 ID 与不完整字段回归覆盖：具体 ID 查找、编辑器按 ID 重置/绑定、缺少 JVM 字段时保护性错误且不出现保存控件、当前实例自身 core/Java/堆/参数展示。
-- 内置浏览器实际路由在 1750×1244 和 1440×900 桌面视口及 390×600 手机/短屏视口查看。桌面无横向溢出；390×600 下工作区主栏可纵向滚动，JVM 编辑器与摘要自动单列，卡片内宽约 295 px、编辑区域约 261 px、无横向溢出，滚动后保存操作可达。点击推荐预设后参数与摘要更新；离开并重新进入后恢复真实已保存值，保存按钮禁用。
-- 验证通过：Minecraft JVM/启动/多核心相关回归 25/25；JVM 设置实例隔离回归另行运行；Web 与 Control Plane 构建、TypeScript 检查、`cargo check --manifest-path native/system/Cargo.toml`、`git diff --check`。浏览器控制台只保留组件调整前的两条 `InputNumber addonAfter` 历史弃用提示；调整后页面使用 `Space.Compact` 的单位输入方式。实际 Minecraft 启动未用于验收，Java 参数预检和“参数被目标 Java 拒绝则不派生服务端”的回归覆盖启动安全边界。
+- 内置浏览器在正式构建 `http://127.0.0.1:3000/games/minecraft/instance/17e265c3-a9a8-419b-b43c-ae4592d2480d/overview` 验收，并在源码热更新页复查。覆盖 1750×1244、1440×900 桌面视口和 390×600 手机/短屏视口；没有横向溢出。390×600 下工作区主栏可纵向滚动，JVM 编辑器与摘要自动单列，卡片内宽约 295 px、编辑区域约 261 px，滚动后保存操作可达（移动端复核时暂时收起遮挡内容的应用工具面板，并在原用户标签中恢复工作区导航/工具栏）。点击推荐预设后参数与摘要更新；退出临时验收标签后，原用户标签仍显示真实已保存值，保存按钮禁用。
+- 验证通过：Minecraft JVM/启动/多核心回归 25/25、JVM 设置与实例隔离回归 5/5（合计 30/30）；Web 与 Control Plane 构建、Web TypeScript 检查、`cargo check --manifest-path native/system/Cargo.toml`、`git diff --check`。生产构建页没有出现单位输入组件的 `addonAfter` 弃用提示；开发标签仅保留改造前两条历史提示。实际 Minecraft 启动未用于验收，Java 参数预检和“参数被目标 Java 拒绝则不派生服务端”的回归覆盖启动安全边界。

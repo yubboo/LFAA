@@ -44,6 +44,8 @@ Minecraft 环境菜单直接进入共享运行环境页，部署草稿/实例均
 
 任务、节点和实例列表使用 `lfaa-card-motion` / `lfaa-card-motion-list` 注册共享动效，不在页面复制动画实现。实际效果由设置中心“常规 > 整体卡片动效”的账户设置选择；选中和真实状态保持清晰，桌面动作列与窄屏动作区按容器重排。`appearance.advanced.reducedMotion` 与系统减少动态偏好继续由共享 Theme Owner 控制；不增加 JS 动画循环、CSS 自定义属性或设置项。
 
+服务器总览卡片在右上放置现有启停、终端和实例管理操作；右下展示当前真实实例的核心标识、核心名与 Minecraft 版本。Paper 使用未改色的官方标志（来源：[PaperMC Art Assets](https://docs.papermc.io/misc/assets/)），其他核心显示中性方块图标；核心类型和版本直接取自同一个实例快照。
+
 实例详情概览用横向摘要卡组织插画、实例名称、真实状态、节点/端口/运行配置和生命周期按钮；下方展示 JVM 实例配置，不把任务列表混进实例信息。摘要与 JVM 设置卡注册共享入场/悬停动效，由 `general.cardMotionEffect` 选择，减少动态效果与系统偏好优先。所有实例任务继续只在“任务”菜单中浏览。安全启动/停止/重启统一调用已有 Minecraft action API 和权限合同；安全停止完成后，共享 Terminal Manager 收起该实例已退出的终端视图。
 
 实例概览中的 `MinecraftJvmSettings` 只编辑已安装实例的 JVM 堆与受支持参数，不显示 Java 下载入口；参数保存调用 Connection 暴露的 Minecraft Service API，运行中和节点离线时只读。卡片按路由中的实例 ID 重新挂载，始终消费当前实例自己的核心、Java、堆和参数；API 运行时缺少这些字段时只暂停 JVM 编辑并提示刷新，不崩溃，也不以默认值覆盖实例数据。卡片按中间工作区容器宽度重排，并使用共享色板、外观表面透明度与减少动态偏好。

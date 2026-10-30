@@ -221,11 +221,19 @@
 - 视口使用当前源码 Vite `5173`，未重启正式 Web `3000` 或 Daemon。未测物理设备和帧时间。
 - 最终检查：`node --test apps/cli/tests/minecraft-task-workspace.test.mjs` 14/14、Minecraft UI 包构建、Client TypeScript 检查与 `git diff --check` 通过。
 
-### 2026-10-30 概览实例操作区位置调整
+### 2026-10-30 概览实例操作区与核心信息位置调整
 
-- **用户问题：** 总览实例卡内的“启动/安全停止/安全重启/终端/管理实例”挤在节点到实例关系行旁边；用户希望将操作移到截图箭头所指的实例卡片右上空位。
-- **目标运行入口与 Owner：** `/games/minecraft/overview`；唯一 UI Owner 为 `packages/client/ui-minecraft/src/MinecraftWorkspace.tsx` 中的 `.minecraft-overview-hero__actions`，由该包的 `MinecraftWorkspace.css` 管理布局。真实权限、节点在线、实例状态及动作提交继续由原 Minecraft action API/Permission Owner 决定。
+- **用户问题：** 总览实例卡内的“启动/安全停止/安全重启/终端/管理实例”挤在节点到实例关系行旁边；核心名与版本也应从实例标题下移到右侧空位，并增加对应核心图标。
+- **目标运行入口与 Owner：** `/games/minecraft/overview`；唯一 UI Owner 为 `packages/client/ui-minecraft/src/MinecraftWorkspace.tsx` 中的 `.minecraft-overview-hero__actions` 与 `.minecraft-overview-hero__core`，由该包的 `MinecraftWorkspace.css` 管理布局。核心名、版本与图标分支只读取同一 `overviewInstance` 的真实 `coreType`、`releaseId`；Paper 标志使用官方未修改资源，其他核心使用中性方块图标。真实权限、节点在线、实例状态及动作提交继续由原 Minecraft action API/Permission Owner 决定。
 - **设置、数据与权限：** 沿用当前 Appearance 主题、字号与强调色；无新增/修改设置，无配置或运行数据写入。不得更改启停状态判断、操作回调、终端导航或权限流程；本批不执行服务器启停或终端命令。
-- **允许范围：** 调整总览实例摘要卡的操作区对齐与窄容器换行，更新 Minecraft `DESIGN.md` 和本合同验收记录。
-- **验收条件：** 桌面操作按钮出现在摘要卡右上区域且不覆盖实例名称或状态；节点—实例关系信息仍完整；容器变窄时按钮移到主要实例信息之后，保持可触达并且页面无横向溢出；原状态门控与导航行为不变。
+- **允许范围：** 调整总览实例摘要卡的操作区与核心身份区对齐、窄容器换行，更新 Minecraft `DESIGN.md`、README 和本合同验收记录。
+- **验收条件：** 桌面操作按钮出现在摘要卡右上；核心图标、核心名与真实 Minecraft 版本位于右下，不覆盖实例名称或节点—实例关系信息；窄容器中各区域顺序重排且无横向溢出；原状态门控与导航行为不变。
 - **性能与安全边界：** 仅静态布局变更，不增加订阅、请求、动画或主线程计算；沿用已存在的状态、权限和节点校验。
+- **实页验证：** 正式 Web `http://127.0.0.1:3000/games/minecraft/overview`，1440×900 桌面视口显示操作位于卡片右上，当前真实 `CatServer` / `Minecraft 1.16.5` 标识位于右下，控制端已连接；820×520 窄短视口中内容随容器重排，页面无横向溢出且核心信息可滚动到达。刷新仅重新读取状态；没有启动/停止实例、发送终端命令或写入配置。该次总览选择的是 CatServer，所以 Paper 官方图标分支未在本次实页显示验证。
+- **构建与边界：** `pnpm run build:web` 已通过，正式产物输出到仓库根 `dist/`；Impeccable 检查返回 `[]`，`git diff --check` 通过。构建同时将 JVM 标签改为读取 API 已公开的 `major` 字段，以消除旧字段名造成的类型错误，不改变 Java 选择或配置逻辑。窄短屏验证使用 820×520；未对真实手机/平板硬件或帧时间作结论。
+
+### 2026-10-30 实例概览去除冗余标题
+
+- **用户问题与目标：** 实例概览横幅顶部的“Minecraft 实例”重复表达当前页面对象，占用垂直空间；删除这条可见小标题，保留实例名、运行状态、核心与版本、实例操作和详情菜单。
+- **目标运行入口与 Owner：** `/games/minecraft/instance/:id/overview`；由 `MinecraftWorkspace.tsx` 内 `selectedInstance` 的 overview hero 唯一渲染。仅移除 eyebrow 文本，不改变数据、路由、按钮、权限、状态或持久化。
+- **设置与验收：** 继续使用现有主题/字体映射，不新增或修改设置。桌面及窄短屏确认标题消失、实例信息完整且无溢出；运行 `pnpm run build:web` 和 `git diff --check`。实页验收待本批完成后填写。

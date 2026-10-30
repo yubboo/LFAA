@@ -13,11 +13,11 @@ export interface MinecraftJvmSettingsProps {
   onRefresh: () => void;
 }
 
-const presetChoices: Array<{ id: MinecraftJvmPresetId; title: string; detail: string }> = [
-  { id: "recommended", title: "推荐", detail: "Paper 旧版 G1 基础项；新 Java 使用默认 GC。" },
-  { id: "high-performance", title: "高性能", detail: "Paper · Aikar G1 调优项" },
-  { id: "low-memory", title: "低内存", detail: "降低启动初始堆" },
-  { id: "custom", title: "自定义", detail: "白名单参数" }
+const presetChoices: Array<{ id: MinecraftJvmPresetId; title: string }> = [
+  { id: "recommended", title: "推荐" },
+  { id: "high-performance", title: "高性能" },
+  { id: "low-memory", title: "低内存" },
+  { id: "custom", title: "自定义" }
 ];
 
 function sameConfiguration(left: { memoryMb: number; initialHeapMb: number; jvmArguments: string[] }, right: { memoryMb: number; initialHeapMb: number; jvmArguments: string[] }): boolean {
@@ -91,6 +91,9 @@ function MinecraftJvmSettingsEditor({ instance, javaLabel, canEdit, busy, onSave
 
   const dirty = memoryMb !== instance.memoryMb || initialHeapMb !== instance.initialHeapMb || argumentsText !== savedArguments;
   const selectedPreset = presetChoices.find(option => option.id === preset) ?? presetChoices[presetChoices.length - 1];
+  const recommendedDescription = instance.coreType === "Paper" && instance.javaMajor <= 16
+    ? `旧版 Paper · Java ${instance.javaMajor} 使用适配的 G1 基础参数。`
+    : `${instance.coreType} · Java ${instance.javaMajor} 的推荐预设不添加额外 GC 参数，使用 Java 默认 GC。`;
   const highPerformanceAvailable = Boolean(getMinecraftJvmPreset("high-performance", {
     javaMajor: instance.javaMajor,
     coreType: instance.coreType,
@@ -162,7 +165,7 @@ function MinecraftJvmSettingsEditor({ instance, javaLabel, canEdit, busy, onSave
       </section>
       <aside className="minecraft-jvm-info" aria-label="当前预设说明">
         <div className="minecraft-jvm-info__title"><span aria-hidden="true">◈</span><strong>{selectedPreset.title}</strong><Tag color={checked.value ? "success" : "error"}>{checked.value ? `${checked.value.jvmArguments.length} 项有效` : "待修正"}</Tag></div>
-        <Typography.Paragraph>{preset === "high-performance" ? "Paper Aikar G1 参数（已剔除预触整堆与共享内存项）。" : preset === "recommended" ? selectedPreset.detail : preset === "low-memory" ? "最大堆保持不变。" : "当前编辑值将在下次启动时应用。"}</Typography.Paragraph>
+        <Typography.Paragraph>{preset === "high-performance" ? "Paper Aikar G1 参数（已剔除预触整堆与共享内存项）。" : preset === "recommended" ? recommendedDescription : preset === "low-memory" ? "最大堆保持不变。" : "当前编辑值将在下次启动时应用。"}</Typography.Paragraph>
         <dl>
           <div><dt>初始堆</dt><dd>{initialHeapMb.toLocaleString()} MB</dd></div>
           <div><dt>最大堆</dt><dd>{memoryMb.toLocaleString()} MB</dd></div>

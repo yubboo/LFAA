@@ -78,6 +78,27 @@ test("每次渲染使用传入实例自己的核心、Java、堆和 JVM 参数",
   assert.match(markup, /2048/u);
   assert.match(markup, /-XX:\+UseG1GC/u);
   assert.doesNotMatch(markup, /Paper · Java/u);
+  assert.doesNotMatch(markup, /Paper 旧版 G1 基础项/u);
+});
+
+test("非 Paper 核心的推荐预设说明不显示 Paper 专属参数", () => {
+  const current = instance("catserver-default", { coreType: "CatServer", javaMajor: 8, jvmArguments: [] });
+  const markup = render(current);
+
+  assert.match(markup, /CatServer · Java 8 的推荐预设不添加额外 GC 参数/u);
+  assert.doesNotMatch(markup, /Paper 旧版 G1 基础项/u);
+});
+
+test("Paper 旧版推荐参数仍由 Paper 与 Java 版本共同决定", () => {
+  const current = instance("paper-instance", {
+    coreType: "Paper",
+    javaMajor: 11,
+    jvmArguments: ["-XX:+UseG1GC", "-XX:+ParallelRefProcEnabled", "-XX:MaxGCPauseMillis=200", "-XX:+DisableExplicitGC"]
+  });
+  const markup = render(current);
+
+  assert.match(markup, /旧版 Paper · Java 11 使用适配的 G1 基础参数/u);
+  assert.match(markup, /Paper · Java 11 · 节点自动管理/u);
 });
 
 test("实例路由、编辑器状态与保存请求都绑定当前实例 ID", () => {

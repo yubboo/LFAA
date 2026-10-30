@@ -26,6 +26,6 @@
 
 - `packages/games/minecraft/src/core-sources.ts` 为 Mojang `piston-meta` 连接/暂时性 HTTP 错误加入同路径的 `launchermeta.mojang.com` 重试；备用也不可用时给出两个官方来源的诊断。核心版本详情缺失 Java 主版本时不再猜测 Java 8，返回不可核验错误并保持部署未开始。
 - `MinecraftDeploymentPanel.tsx` 把 Java 要求结果按核心、版本、构建、节点和重试序号隔离；输入变化会撤销旧请求。失败显示局部错误与重试，失败后可把同一草稿交给 AI Work 检查来源；目录状态没有伪装成持续加载，最终部署仍要求真实 Java 要求核验成功。无需 Java 的 PHP 核心继续不受该要求阻断。
-- 定向回归 20/20、`pnpm run typecheck`、`pnpm run build:web`、`pnpm run build:control-plane`、`git diff --check` 通过。构建输出位于根目录 `dist/apps/web` 与 `dist/apps/control-plane`；Impeccable 检测结果 `[]`。
+- 定向回归 22/22、`pnpm run typecheck`、`pnpm run build:web`、`pnpm run build:control-plane`、`git diff --check` 通过。构建输出位于根目录 `dist/apps/web` 与 `dist/apps/control-plane`；Impeccable 检测结果 `[]`。
 - ChatGPT 内置浏览器在 `http://127.0.0.1:5173/games/minecraft/deployment` 实际加载核心目录，显示 5 类核心与 Paper 版本目录。Java 失败/重试状态本轮未能在实页触发；窄分栏/手机视口未测。
 - Windows 当前环境可取得 Mojang 1.16.5 版本清单，但直连备用域名的该版本详情请求在 20 秒内超时；所以备用路径的 Java 来源行为由固定主机/路径的模拟回归覆盖，不能据此宣称当前机器的实时备用请求成功。未提交部署、接受 EULA、安装 Java 或修改实例/设置。

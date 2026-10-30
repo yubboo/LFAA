@@ -837,7 +837,6 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
             <div className="minecraft-instance-hero__content">
               <div className="minecraft-instance-hero__heading">
                 <div className="minecraft-instance-hero__identity">
-                  <Typography.Text className="minecraft-instance-hero__eyebrow">Minecraft 实例</Typography.Text>
                   <div className="minecraft-instance-hero__title"><Typography.Title id="minecraft-instance-hero-title" level={3}>{selectedInstance.name}</Typography.Title><Tag color={selectedInstance.state === "running" ? "green" : selectedInstance.state === "error" ? "red" : selectedInstance.state === "unknown" ? "orange" : "default"}>{stateLabel(selectedInstance.state)}</Tag></div>
                   <Typography.Text type="secondary">{selectedInstance.coreType} · Minecraft {selectedInstance.releaseId}</Typography.Text>
                 </div>
