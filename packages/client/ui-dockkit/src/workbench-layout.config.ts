@@ -4,7 +4,7 @@
  * 负责：根据“工作台容器自身”的宽高计算 LayoutMode、左右栏 min/initial/max、底部面板高度、中心区最小宽度和吸附迟滞。
  * 不负责：React 状态、Pointer 事件、CSS 视觉、业务内容。
  * 状态归属：纯函数，无运行时状态。
- * 对外接口：WORKBENCH_LAYOUT_TOKENS、resolveWorkbenchCenterFloor、resolveWorkbenchLayoutMetrics、WorkbenchLayoutMetrics、WorkbenchLayoutMode。
+ * 对外接口：WORKBENCH_LAYOUT_TOKENS、resolveWorkbenchCenterFloor、resolveWorkbenchLayoutMetrics、resolveWorkbenchV3InitialLeftWidth、WorkbenchLayoutMetrics、WorkbenchLayoutMode。
  * 关联文件：AgentWorkbench.tsx、ResizableWorkbench.tsx、workbench-layout.types.ts、css/common.css。
  * 修改注意事项：以后改响应式尺寸优先改这里的比例/上下限；不要再在 App Shell 里直接写侧栏宽度常量。
  */
@@ -23,6 +23,8 @@ interface PaneRuleSet {
   initial: ScalarRule;
   max: ScalarRule;
 }
+
+const LEFT_PANE_MINIMUM_RULE: ScalarRule = { ratio: 0.15, floor: 200, ceiling: 280 };
 
 export interface WorkbenchLayoutMetrics {
   mode: WorkbenchLayoutMode;
@@ -52,8 +54,8 @@ export function resolveWorkbenchCenterFloor(minCenterWidth: number, centerBudget
 export const WORKBENCH_LAYOUT_TOKENS = Object.freeze({
   separator: 1,
   left: {
-    min: { ratio: 0.15, floor: 200, ceiling: 280 },
-    initial: { ratio: 0.16, floor: 200, ceiling: 340 },
+    min: LEFT_PANE_MINIMUM_RULE,
+    initial: LEFT_PANE_MINIMUM_RULE,
     max: { ratio: 0.34, floor: 360, ceiling: 560 },
   } satisfies PaneRuleSet,
   applicationLeftMax: { ratio: 0.26, floor: 320, ceiling: 440 },
@@ -123,6 +125,12 @@ export function resolvePreviousWorkbenchInitialWidths(containerWidth: number): {
     left: resolveScalar(width, { ratio: 0.18, floor: 200, ceiling: 340 }),
     right: resolveScalar(width, { ratio: 0.22, floor: 240, ceiling: 340 }),
   };
+}
+
+/** v3 共享左栏曾将 16% 初始宽度写入偏好；只用于迁移该版本的精确默认值。 */
+export function resolveWorkbenchV3InitialLeftWidth(containerWidth: number): number {
+  const width = Math.max(1, Math.round(containerWidth || 0));
+  return resolveScalar(width, { ratio: 0.16, floor: 200, ceiling: 340 });
 }
 
 function resolvePane(widthOrHeight: number, rules: PaneRuleSet): WorkbenchPaneLimits {

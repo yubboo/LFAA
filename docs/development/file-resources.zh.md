@@ -26,7 +26,7 @@
 | 插件源码、清单/受控运行适配副本 | `<LFAA_HOME>/profiles/<Profile>`；由 Plugin Manager 生命周期维护，不能与游戏 `plugins` 混用，也不随系统数据位置变化 |
 | 插件私有运行数据 | 默认 `<LFAA_HOME>/profiles/<Profile>/runtime-data/<plugin-id>/`；插件自己的存储位置配置（如果有）由对应 Plugin/Runtime Owner 生效 |
 
-游戏实例入口按 Minecraft Owner 保存的实例路径跳转；备份入口只显示 data/backups 下实际的 Minecraft、Steam 分类。SteamCMD 工具目录的 UI 使用节点设置里的实际路径（默认 data/lib/steamcmd）；`steamcmd-runtime` 仅为内部路由 ID，不作为目录名显示。缺失时提示真实路径并引导到运行环境管理，不自动创建或伪装为空目录。SQLite 保存关系、索引、任务和配置；游戏文件/存档、Markdown、大文件与插件源码留在对应主机文件系统。读取投影不能成为第二份权威数据。业务内容位置切换只有经用户选择的业务内容迁移操作才复制并核验受管内容；系统数据与历史目录回读继续遵循各自 Owner。
+游戏实例入口按 Minecraft Owner 保存的实例路径跳转；备份入口只显示 data/backups 下实际的 Minecraft、Steam 分类。SteamCMD 工具目录的 UI 使用节点设置里的实际路径（默认 data/lib/steamcmd）；`steamcmd-runtime` 仅为内部路由 ID，不作为目录名显示。工具目录缺失时提示真实路径并引导到运行环境管理，不自动创建或伪装为空目录。Minecraft/Steam 游戏存储根来自各自节点设置；Daemon 在游戏存储文件操作前逐段核验并补建缺失的配置根，文件列表和 CRUD 始终读取、修改真实目录。SQLite 保存关系、索引、任务和配置；游戏文件/存档、Markdown、大文件与插件源码留在对应主机文件系统。读取投影不能成为第二份权威数据。业务内容位置切换只有经用户选择的业务内容迁移操作才复制并核验受管内容；系统数据与历史目录回读继续遵循各自 Owner。
 
 应用项目私有文件不因“本地化”而直接暴露给通用文件管理，也不复制进 Data 下的共享文件夹。领域 Owner 可按需注册受限的 `SystemFileLibrary` 投影，返回当前账户可见的项目/文件记录，并由原 Owner 执行预览或流式下载；增删改、引用保护与生命周期仍由原 Owner 决定。AI 漫剧的 `aivideo-projects` 是当前账户项目媒体的只读投影，从项目媒体库可定位到当前项目；它不扫描账户磁盘目录，不把通用 Canvas 素材转成漫剧资产。
 

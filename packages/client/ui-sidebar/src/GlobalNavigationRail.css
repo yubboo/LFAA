@@ -112,14 +112,29 @@
 }
 
 .module-navigation-rail__popover--features {
-  top: 50%;
-  bottom: auto;
-  width: min(320px, calc(100vw - 84px));
-  height: min(390px, calc(100% - 24px));
-  max-height: calc(100% - 24px);
+  top: auto;
+  left: 100%;
+  bottom: max(14px, env(safe-area-inset-bottom, 0px));
+  max-width: calc(100vw - 84px);
+  /* 与导航轨底部内边距对齐；短屏顶部留 24px，列表在剩余空间内滚动。 */
+  height: min(390px, calc(100% - max(14px, env(safe-area-inset-bottom, 0px)) - 24px));
+  max-height: calc(100% - max(14px, env(safe-area-inset-bottom, 0px)) - 24px);
   grid-template-rows: auto auto minmax(0, 1fr);
   overflow: hidden;
-  transform: translateY(-50%);
+}
+
+.module-navigation-rail__popover--profile {
+  top: auto;
+  left: 100%;
+  bottom: max(14px, env(safe-area-inset-bottom, 0px));
+  max-width: calc(100vw - 84px);
+}
+
+.module-navigation-rail__popover--shortcuts {
+  top: auto;
+  left: 100%;
+  bottom: max(14px, env(safe-area-inset-bottom, 0px));
+  max-width: calc(100vw - 84px);
 }
 
 body[data-we-wallpaper][data-we-glass-floaters] .workbench-shell[data-wallpaper-engine-owner="true"] .module-navigation-rail__popover {

@@ -575,17 +575,19 @@ function getMinecraftStorageRoot(storageDirectory) {
 async function ensureStorageDirectory(root) {
   const target = win32.resolve(root);
   const volumeRoot = win32.parse(target).root;
-  if (!/^[a-z]:\\$/iu.test(volumeRoot) || target === volumeRoot) throw new Error("存储目录必须位于可用磁盘的普通文件夹中。");
+  if (!/^[a-z]:\\$/iu.test(volumeRoot) || target === volumeRoot) throw new Error("游戏存储目录必须位于可用磁盘的普通文件夹中。");
   let current = volumeRoot;
   for (const segment of win32.relative(volumeRoot, target).split(win32.sep).filter(Boolean)) {
     current = resolve(current, segment);
+    let info;
     try {
-      const info = await lstat(current);
-      if (info.isSymbolicLink() || !info.isDirectory()) throw new Error("Minecraft 存储目录不能是符号链接或非目录路径。");
+      info = await lstat(current);
     } catch (error) {
       if (error?.code !== "ENOENT") throw error;
-      await mkdir(current);
+      try { await mkdir(current); } catch (createError) { if (createError?.code !== "EEXIST") throw createError; }
+      info = await lstat(current);
     }
+    if (info.isSymbolicLink() || !info.isDirectory()) throw new Error("游戏存储目录不能是符号链接或非目录路径。");
   }
   return target;
 }
@@ -1432,6 +1434,7 @@ export async function performNodeFileOperation(operation, payload) {
     const root = payload.gameStorageKind === 'minecraft' ? getMinecraftStorageRoot(minecraftDirectoryRelative)
       : payload.gameStorageKind === 'steamcmd' ? resolveSteamcmdGameDirectory(steamcmdSettings.gameDirectory) : null;
     if (!root) throw new Error('节点游戏存储来源无效。');
+    await ensureStorageDirectory(root);
     return createManagedFileService({ root, mutationRoot: dataDirectory, recycleNamespace: payload.recycleNamespace ?? '', assertCanRead: assertNodeFileReadable, assertCanMutate: assertNoActiveInstanceAffected }).operate(operation, payload);
   }
   if (payload.minecraftInstanceId !== undefined) {
@@ -2175,17 +2178,15 @@ function attachServerOutput(instanceId, child, taskId, options = {}) {
     let rest = "";
     stream.setEncoding("utf8");
     stream.on("data", (chunk) => {
-      if (streamName === "stdout") {
-        const terminalChunk = options.readinessToken
-          ? chunk.replace(`${sandboxReadyPrefix}${options.readinessToken}\u001e`, "")
-          : chunk;
-        const runtime = activeServers.get(instanceId);
-        if (terminalChunk && runtime) {
-          runtime.consoleOutputReplay ??= createTerminalOutputReplayBuffer();
-          runtime.consoleOutputReplay.append(terminalChunk);
-          if (runtime.consoleSubscribers instanceof Map) {
-            for (const subscriber of runtime.consoleSubscribers.values()) subscriber.onOutput(terminalChunk);
-          }
+      const runtime = activeServers.get(instanceId);
+      const terminalChunk = streamName === "stdout" && options.readinessToken
+        ? chunk.replace(`${sandboxReadyPrefix}${options.readinessToken}\u001e`, "")
+        : chunk;
+      if (terminalChunk && runtime) {
+        runtime.consoleOutputReplay ??= createTerminalOutputReplayBuffer();
+        runtime.consoleOutputReplay.append(terminalChunk);
+        if (runtime.consoleSubscribers instanceof Map) {
+          for (const subscriber of runtime.consoleSubscribers.values()) subscriber.onOutput(terminalChunk);
         }
       }
       rest += chunk;

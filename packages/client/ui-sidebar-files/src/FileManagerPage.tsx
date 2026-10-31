@@ -20,7 +20,8 @@ import type { WorkbenchCollapseState } from "lfaa-client-ui-dockkit/src/workbenc
 import { usePointerResize } from "lfaa-client-ui-dockkit/src/ui-resize/use-pointer-resize.js";
 import { createTarArchive } from "./archive.js";
 import { buildFileManagerBreadcrumbs, getFileManagerBreadcrumbTitle } from "./file-manager-breadcrumbs.js";
-import { consumeFileManagerLocation, readFileManagerLocation, readFileManagerReturnPath } from "lfaa-client-connection/src/file-manager-location.js";
+import { getVisibleFileManagerLocations } from "./file-manager-resource-visibility.js";
+import { consumeFileManagerLocation, readFileManagerLocation, readFileManagerReturnApp, readFileManagerReturnPath } from "lfaa-client-connection/src/file-manager-location.js";
 import "./FileManagerPage.css";
 
 const FileCodePreview = lazy(() => import("./FileCodePreview.js"));
@@ -191,9 +192,10 @@ export function FileManagerPage({ user, settings, serverState, applications, nav
   const assertFileContext = () => {
     if (!fileAccessRef.current || accountContextRef.current !== cacheKey) throw new Error("文件账户或权限已变更，请重新核对设置。");
   };
-  const requestedLocation = useRef(readFileManagerLocation(user.id)).current;
-  const [fileEntryContext] = useState(() => ({ userId: user.id, returnPath: readFileManagerReturnPath(user.id) }));
+  const [fileEntryContext, setFileEntryContext] = useState(() => ({ userId: user.id, requestedLocation: readFileManagerLocation(user.id), returnPath: readFileManagerReturnPath(user.id), returnApp: readFileManagerReturnApp(user.id) }));
+  const requestedLocation = fileEntryContext.userId === user.id ? fileEntryContext.requestedLocation : null;
   const fileEntryReturnPath = fileEntryContext.userId === user.id ? fileEntryContext.returnPath : null;
+  const fileEntryReturnLabel = fileEntryContext.returnApp === "minecraft" ? "返回 Minecraft" : fileEntryContext.returnApp === "steamcmd" ? "返回 Steam" : "返回实例";
   const cachedSnapshot = useRef(requestedLocation === null ? fileManagerSnapshots.get(cacheKey) ?? null : null).current;
   const [currentPath, setCurrentPath] = useState(() => requestedLocation ?? cachedSnapshot?.currentPath ?? "");
   useEffect(() => { consumeFileManagerLocation(); }, []);
@@ -369,7 +371,14 @@ export function FileManagerPage({ user, settings, serverState, applications, nav
   const directoryUsable = directoryReady || showCurrentDirectorySnapshot;
   const concreteDirectory = currentPath !== "local-drives" && (!currentPath.startsWith(".lfaa-library") || currentPath.startsWith(".lfaa-library/game-servers/") && currentPath.split("/").length >= 3 || instanceDirectory || gameStorageDirectory);
   const activeLocation = locations.filter(location => currentPath === location.path || location.path && currentPath.startsWith(location.path + "/")).sort((left, right) => right.path.length - left.path.length)[0];
+  const visibleLocations = getVisibleFileManagerLocations(locations, fileEntryContext.userId === user.id ? fileEntryContext.returnApp : null, requestedLocation);
   const selectLocation = (path: string) => { setCurrentPath(path); setSearchQuery(""); setSearchText(""); setDataRootLabel(""); };
+  const openGlobalFileManager = () => {
+    setFileEntryContext({ userId: user.id, requestedLocation: null, returnPath: null, returnApp: null });
+    selectLocation("");
+    setSelectedPaths([]);
+    onNavigate("/files");
+  };
   const canOperate = (operation: FileManagerOperation, entry?: ManagedFileEntry) => entry?.operations ? entry.operations.includes(operation) : availableOperations ? availableOperations.includes(operation) : concreteDirectory;
 
   const runTask = useCallback(async (
@@ -945,6 +954,7 @@ export function FileManagerPage({ user, settings, serverState, applications, nav
       {layoutMeasured ? <ResizableWorkbench
         className="file-manager-workbench"
         leading={<GlobalNavigationRail
+          secondaryNavigationMinWidth={metrics.left.min}
           username={user.username}
           role={user.role}
           serverState={serverState}
@@ -957,7 +967,7 @@ export function FileManagerPage({ user, settings, serverState, applications, nav
           onOpenRecentSessions={onOpenRecentSessions}
           onNavigate={onNavigate}
           onOpenApplication={onOpenApplication}
-          onOpenFiles={() => onNavigate("/files")}
+          onOpenFiles={openGlobalFileManager}
           onOpenSettings={onOpenSettings}
           onLogout={onLogout}
         />}
@@ -969,7 +979,7 @@ export function FileManagerPage({ user, settings, serverState, applications, nav
             </Button>
           </div>
           <nav className="file-manager__resource-list" aria-label="资源类别">
-            {locations.map(location => <button type="button" key={location.id} title={location.description} aria-current={activeLocation?.id === location.id ? "page" : undefined} disabled={!isOnline || busy} onClick={() => selectLocation(location.path)}><WorkbenchIcon name="folder" size={16} /><span>{location.name}<small lang="en">{resourceEnglishNames[location.id] ?? location.id}</small></span></button>)}
+            {visibleLocations.map(location => <button type="button" key={location.id} title={location.description} aria-current={activeLocation?.id === location.id ? "page" : undefined} disabled={!isOnline || busy} onClick={() => selectLocation(location.path)}><WorkbenchIcon name="folder" size={16} /><span>{location.name}<small lang="en">{resourceEnglishNames[location.id] ?? location.id}</small></span></button>)}
           </nav>
         </aside>}
         center={
@@ -999,7 +1009,7 @@ export function FileManagerPage({ user, settings, serverState, applications, nav
             </Typography.Text> : null}
             <div className="file-manager__header-controls">
               <Space wrap className="file-manager__header-actions">
-                {fileEntryReturnPath ? <Button type="primary" disabled={busy} onClick={() => onNavigate(fileEntryReturnPath)}>返回实例</Button> : null}
+                {fileEntryReturnPath ? <Button type="primary" disabled={busy} onClick={() => onNavigate(fileEntryReturnPath)}>{fileEntryReturnLabel}</Button> : null}
                 <Button disabled={!isOnline || busy || !directoryReady || !canOperate("trash-list")} onClick={() => void loadTrash()}>回收站</Button>
                 <Button aria-label="操作记录" title="操作记录" disabled={!fileAccess} onClick={() => void loadAudit()}>
                   <span className="file-manager__audit-full">操作记录</span>
@@ -1045,26 +1055,32 @@ export function FileManagerPage({ user, settings, serverState, applications, nav
               onPressEnter={() => setSearchQuery(searchText.trim())}
               style={{ width: 280 }}
             />
-            <Popover trigger="click" placement="bottomLeft" open={filtersOpen} onOpenChange={setFiltersOpen} content={<div className="file-manager__filter-panel">
-              <label><span>文件类型</span><Select aria-label="文件类型筛选" value={typeFilter} onChange={setTypeFilter} disabled={!directoryUsable || busy} options={[
-                { value: "all", label: "全部类型" }, { value: "folder", label: "文件夹" }, { value: "file", label: "文件" },
-                ...Array.from(new Set(entries.filter(entry => entry.kind === "file").map(entry => entry.fileType).filter((value): value is string => Boolean(value) && value !== "file" && value !== "folder"))).sort().map(value => ({ value, label: `.${value}` }))
-              ]} /></label>
-              <label><span>文件大小（字节）</span><div className="file-manager__filter-range"><Input aria-label="最小大小（字节）" type="number" min={0} placeholder="最小" value={minimumSize} onChange={event => setMinimumSize(event.target.value)} disabled={!directoryUsable || busy} /><span>至</span><Input aria-label="最大大小（字节）" type="number" min={0} placeholder="最大" value={maximumSize} onChange={event => setMaximumSize(event.target.value)} disabled={!directoryUsable || busy} /></div></label>
-              <label><span>修改日期</span><div className="file-manager__filter-range"><Input aria-label="修改时间起始日期" type="date" value={modifiedAfter} onChange={event => setModifiedAfter(event.target.value)} disabled={!directoryUsable || busy} /><span>至</span><Input aria-label="修改时间截止日期" type="date" value={modifiedBefore} onChange={event => setModifiedBefore(event.target.value)} disabled={!directoryUsable || busy} /></div></label>
-              <div className="file-manager__filter-footer"><span>{activeFilterCount ? `已启用 ${activeFilterCount} 项筛选` : "未设置筛选条件"}</span><Button size="small" type="link" disabled={!activeFilterCount} onClick={() => { setTypeFilter("all"); setMinimumSize(""); setMaximumSize(""); setModifiedAfter(""); setModifiedBefore(""); }}>清除筛选</Button></div>
-            </div>}>
-              <Button aria-expanded={filtersOpen} aria-label={activeFilterCount ? `筛选，已启用 ${activeFilterCount} 项` : "筛选文件"}>筛选{activeFilterCount ? ` · ${activeFilterCount}` : ""}</Button>
-            </Popover>
-            <Button aria-label="刷新目录" title="刷新目录" loading={loading} disabled={!isOnline || busy || loading} onClick={() => void refresh()}><WorkbenchIcon name="refresh" size={15} /></Button>
-            <Dropdown trigger={["click"]} menu={{ items: [
-              { key: "folder", label: "新建文件夹", disabled: !canOperate("create-folder") },
-              { key: "file", label: "新建文件", disabled: !canOperate("create-file") }
-            ], onClick: ({ key }) => openCreateDialog(key === "folder" ? "folder" : "file") }}>
-              <Button disabled={!isOnline || !directoryReady || busy || !canOperate("create-file") && !canOperate("create-folder")}><WorkbenchIcon name="plus" size={15} />新建</Button>
-            </Dropdown>
-            <Button type="primary" aria-label="上传 / 导入" disabled={!isOnline || !directoryReady || busy || !canOperate("upload")} onClick={() => uploadInputRef.current?.click()}><WorkbenchIcon name="file" size={15} /><span className="file-manager__upload-full">上传 / 导入</span><span className="file-manager__upload-compact" aria-hidden="true">上传</span></Button>
-            <input ref={uploadInputRef} className="file-manager__upload-input" type="file" multiple onChange={(event) => void uploadSelectedFiles(Array.from(event.target.files ?? []))} />
+            <div className="file-manager__action-group" role="group" aria-label="目录操作">
+              <div className="file-manager__action-item">
+                <Popover trigger="click" placement="bottomLeft" open={filtersOpen} onOpenChange={setFiltersOpen} content={<div className="file-manager__filter-panel">
+                  <label><span>文件类型</span><Select aria-label="文件类型筛选" value={typeFilter} onChange={setTypeFilter} disabled={!directoryUsable || busy} options={[
+                    { value: "all", label: "全部类型" }, { value: "folder", label: "文件夹" }, { value: "file", label: "文件" },
+                    ...Array.from(new Set(entries.filter(entry => entry.kind === "file").map(entry => entry.fileType).filter((value): value is string => Boolean(value) && value !== "file" && value !== "folder"))).sort().map(value => ({ value, label: `.${value}` }))
+                  ]} /></label>
+                  <label><span>文件大小（字节）</span><div className="file-manager__filter-range"><Input aria-label="最小大小（字节）" type="number" min={0} placeholder="最小" value={minimumSize} onChange={event => setMinimumSize(event.target.value)} disabled={!directoryUsable || busy} /><span>至</span><Input aria-label="最大大小（字节）" type="number" min={0} placeholder="最大" value={maximumSize} onChange={event => setMaximumSize(event.target.value)} disabled={!directoryUsable || busy} /></div></label>
+                  <label><span>修改日期</span><div className="file-manager__filter-range"><Input aria-label="修改时间起始日期" type="date" value={modifiedAfter} onChange={event => setModifiedAfter(event.target.value)} disabled={!directoryUsable || busy} /><span>至</span><Input aria-label="修改时间截止日期" type="date" value={modifiedBefore} onChange={event => setModifiedBefore(event.target.value)} disabled={!directoryUsable || busy} /></div></label>
+                  <div className="file-manager__filter-footer"><span>{activeFilterCount ? `已启用 ${activeFilterCount} 项筛选` : "未设置筛选条件"}</span><Button size="small" type="link" disabled={!activeFilterCount} onClick={() => { setTypeFilter("all"); setMinimumSize(""); setMaximumSize(""); setModifiedAfter(""); setModifiedBefore(""); }}>清除筛选</Button></div>
+                </div>}>
+                  <Button aria-expanded={filtersOpen} aria-label={activeFilterCount ? `筛选，已启用 ${activeFilterCount} 项` : "筛选文件"}>筛选{activeFilterCount ? ` · ${activeFilterCount}` : ""}</Button>
+                </Popover>
+              </div>
+              <Button aria-label="刷新目录" title="刷新目录" loading={loading} disabled={!isOnline || busy || loading} onClick={() => void refresh()}><WorkbenchIcon name="refresh" size={15} /></Button>
+              <div className="file-manager__action-item">
+                <Dropdown trigger={["click"]} menu={{ items: [
+                  { key: "folder", label: "新建文件夹", disabled: !canOperate("create-folder") },
+                  { key: "file", label: "新建文件", disabled: !canOperate("create-file") }
+                ], onClick: ({ key }) => openCreateDialog(key === "folder" ? "folder" : "file") }}>
+                  <Button disabled={!isOnline || !directoryReady || busy || !canOperate("create-file") && !canOperate("create-folder")}><WorkbenchIcon name="plus" size={15} />新建</Button>
+                </Dropdown>
+              </div>
+              <Button type="primary" aria-label="上传 / 导入" disabled={!isOnline || !directoryReady || busy || !canOperate("upload")} onClick={() => uploadInputRef.current?.click()}><WorkbenchIcon name="file" size={15} /><span className="file-manager__upload-full">上传 / 导入</span><span className="file-manager__upload-compact" aria-hidden="true">上传</span></Button>
+              <input ref={uploadInputRef} className="file-manager__upload-input" type="file" multiple onChange={(event) => void uploadSelectedFiles(Array.from(event.target.files ?? []))} />
+            </div>
           </div>
         </div>
 

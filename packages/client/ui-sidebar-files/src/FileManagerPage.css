@@ -143,6 +143,8 @@
 .file-manager__tree-toggle { flex: 0 0 auto; }
 .file-manager__actions { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 8px; }
 .file-manager__actions > .ant-input-affix-wrapper { flex: 1 1 260px; max-width: 420px; }
+.file-manager__action-group { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 8px; }
+.file-manager__action-item { display: flex; min-width: 0; }
 .file-manager__upload-input { display: none; }
 .file-manager__upload-compact { display: none; }
 .file-manager__filter-panel { display: grid; width: min(480px, calc(100vw - 40px)); gap: 14px; }
@@ -321,12 +323,12 @@
 @container file-manager (max-width: 980px) {
   .file-manager__header { min-height: 0; grid-template-columns: minmax(0, 1fr); align-items: stretch; gap: 5px; padding: 8px 12px; }
   .file-manager__heading { display: none; }
-  .file-manager__header-side { display: flex; min-width: 0; flex-direction: column; align-items: stretch; justify-items: initial; gap: 6px; }
-  .file-manager__root-path { width: 100%; min-width: 0; text-align: left; }
+  .file-manager__header-side { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px 10px; justify-items: initial; }
+  .file-manager__root-path { width: auto; min-width: 0; text-align: left; }
   .file-manager__root-path-full { display: none; }
   .file-manager__root-path-compact { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .file-manager__header-controls { width: 100%; justify-content: flex-start; }
-  .file-manager__header-actions { width: 100%; flex-wrap: wrap; justify-content: flex-start; gap: 6px; }
+  .file-manager__header-controls { width: auto; justify-content: flex-end; }
+  .file-manager__header-actions { width: auto; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
   .file-manager__header-actions .ant-btn { min-height: 40px; flex: 0 0 auto; }
   .file-manager__audit-full { display: none; }
   .file-manager__audit-compact { display: inline; }
@@ -342,10 +344,14 @@
   .file-manager__breadcrumbs button { max-width: 100%; }
   .file-manager__upload-full { display: none; }
   .file-manager__upload-compact { display: inline; }
-  .file-manager__actions { width: 100%; gap: 6px; }
+  .file-manager__actions { display: grid; width: 100%; grid-template-columns: minmax(0, 1fr); gap: 6px; }
   .file-manager__actions > .ant-input-affix-wrapper { width: 100% !important; min-width: 0; min-height: 40px; flex: 1 1 100%; max-width: none; }
-  .file-manager__actions > .ant-btn,
-  .file-manager__actions > .ant-dropdown > .ant-btn { min-height: 40px; }
+  .file-manager__action-group { display: grid; width: min(100%, 460px); grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  .file-manager__action-group > .ant-btn,
+  .file-manager__action-item { width: 100%; min-width: 0; }
+  .file-manager__action-item > *,
+  .file-manager__action-item .ant-btn { width: 100%; min-width: 0; }
+  .file-manager__action-group .ant-btn { min-height: 40px; }
   .file-manager__body--compact { padding: 8px 10px; overflow-x: hidden; }
   .file-manager__footer { min-height: 32px; padding-inline: 12px; }
   .file-manager__footer > span:nth-child(2) { display: none; }
@@ -362,8 +368,7 @@
   .file-manager__location { min-width: 0; }
   .file-manager__location > .ant-btn { width: 44px; min-width: 44px; height: 44px; }
   .file-manager__actions > .ant-input-affix-wrapper,
-  .file-manager__actions > .ant-btn,
-  .file-manager__actions > .ant-dropdown > .ant-btn { min-height: 44px; }
+  .file-manager__action-group .ant-btn { min-height: 44px; }
   .file-manager__filter-panel { width: min(420px, calc(100vw - 32px)); }
   .file-manager__offline-state { margin: 12px auto; padding: 18px; }
   .file-manager__offline-state--empty,
@@ -384,13 +389,19 @@
   .file-manager__markdown-live-preview { max-height: min(32dvh, calc(100dvh - 280px)); }
 }
 
+@container file-manager (max-width: 520px) {
+  .file-manager__header-side { grid-template-columns: minmax(0, 1fr); }
+  .file-manager__header-controls { grid-column: 1; width: 100%; justify-content: flex-start; }
+  .file-manager__header-actions { width: 100%; justify-content: flex-start; }
+  .file-manager__action-group { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 @container file-manager (max-width: 420px) {
   .file-manager__header-actions .ant-btn { min-height: 44px; }
   .file-manager__root-path { font-size: 12px; }
   .file-manager__breadcrumbs button { min-height: 40px; }
   .file-manager__actions > .ant-input-affix-wrapper,
-  .file-manager__actions > .ant-btn,
-  .file-manager__actions > .ant-dropdown > .ant-btn { min-height: 44px; }
+  .file-manager__action-group .ant-btn { min-height: 44px; }
   .file-manager__body--compact .ant-table-thead > tr > th { padding-inline: 4px; }
   .file-manager__body--compact .ant-table-tbody > tr > td { padding-inline: 4px; }
 }

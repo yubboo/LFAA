@@ -16,9 +16,11 @@ Mobile Overlay 侧栏根据布局根节点的可用宽度铺展，并保留 12px
 
 Mobile 左侧 Overlay 从工作台顶边开始展开；右侧 Overlay 仍避开所属 Surface 的顶栏。左侧栏没有额外的顶栏占位行。
 
+Mobile 左侧栏切换为 responsive Dock 后，中心区域使用 Grid 剩余宽度并清除 Overlay 模式的左缩进；左栏和中心区之间只保留 Dock 布局声明的分隔轨道。
+
 布局断点首帧在布局提交前同步测量工作台真实外框，之后由 `ResizeObserver` 尺寸变化更新，不依赖浏览器窗口宽度；这避免内嵌窄分栏短暂沿用整窗宽度而错排。样式使用共享外观令牌，不创建主题或设置副本。
 
-`ApplicationWorkspace` 启用 `responsiveRightDock` 时，AI Work 中间区在 Desktop/Compact/Mobile 使用 300px 下限，右栏最大值允许覆盖该容器剩余宽度并在拖动时由动态预算保护中心下限。启用中心列吸附时，阈值按“中心列 + 右 Dock”的完整可用宽度计算，不受右 Dock 自身静态最大值截断；收起中心列后右 Dock 才接管容器剩余空间。AI Work 左栏使用专属最大值规则（比例 0.26、320px 下限、440px 上限），其最小值、默认初始宽度和用户持久化格式不变。上述左右栏规则只用于这一模式；未启用它的 Settings、Plugin Manager 等共享 Surface 保留通用宽度计算。
+`ApplicationWorkspace` 启用 `responsiveRightDock` 时，AI Work 中间区在 Desktop/Compact/Mobile 使用 300px 下限，右栏最大值允许覆盖该容器剩余宽度并在拖动时由动态预算保护中心下限。启用中心列吸附时，阈值按“中心列 + 右 Dock”的完整可用宽度计算，不受右 Dock 自身静态最大值截断；收起中心列后右 Dock 才接管容器剩余空间。AI Work 左栏使用专属最大值规则（比例 0.26、320px 下限、440px 上限），默认初始宽度与最小宽度相同；Settings、Plugin Manager 等共享 Surface 也以各自左栏最小宽度作为初始宽度。升级时仅迁移精确匹配旧默认值的宽度，其他手动尺寸继续保留。
 
 中心列普通拖动到 `minCenterWidth` 后保持该宽度；可选 `centerCollapseEnabled` 会让右 Dock 在中心下限后继续累积超拖，达到统一 `snapCaptureRatio` 阈值才进入中心吸附预览，未达到阈值松手仍保持中心下限。`onCenterCollapsePreviewChange` 只在进入/退出阈值和手势结束/取消时通知调用方，不跟随每帧尺寸变化；页面可在按住期间即时展示吸附目标。吸附后同一手势可反向拖回，释放收起时由 `onCenterCollapsedChange` 通知调用方，中心列归零后由右侧 Grid Dock 接管剩余空间；Overlay 模式不启用该手势。中心折叠状态由 `centerCollapsed` 受控，应用标签/路由仍由上层工作区管理；吸附收起不会改写已保存的右 Dock 宽度。未启用 `centerCollapseEnabled` 的 Settings、Plugin Manager 等共享 Surface 继续将中心最小宽度作为硬保护。
 

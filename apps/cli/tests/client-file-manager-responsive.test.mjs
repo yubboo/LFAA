@@ -40,6 +40,17 @@ test("文件管理复用工作区统一标题栏，并在窄容器按内容重�
   assert.match(fileManagerCss, /\.file-manager__root-path\s*\{[^}]*font-size:\s*\.84em[^}]*text-overflow:\s*ellipsis/u);
 });
 
+test("文件管理窄栏把路径快捷项和目录操作排成稳定分组", () => {
+  assert.match(fileManagerPage, /className="file-manager__action-group" role="group" aria-label="目录操作"[\s\S]*?aria-label=\{activeFilterCount \? `筛选，已启用 \$\{activeFilterCount\} 项` : "筛选文件"\}[\s\S]*?aria-label="刷新目录"[\s\S]*?新建[\s\S]*?aria-label="上传 \/ 导入"/u);
+  assert.match(fileManagerCss, /@container file-manager \(max-width: 980px\)[\s\S]*?\.file-manager__header-side\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) auto/u);
+  assert.match(fileManagerCss, /@container file-manager \(max-width: 980px\)[\s\S]*?\.file-manager__actions\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/u);
+  assert.match(fileManagerCss, /@container file-manager \(max-width: 980px\)[\s\S]*?\.file-manager__action-group\s*\{[^}]*grid-template-columns:\s*repeat\(4, minmax\(0, 1fr\)\)/u);
+  assert.match(fileManagerCss, /@container file-manager \(max-width: 520px\)[\s\S]*?\.file-manager__header-side\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/u);
+  assert.match(fileManagerCss, /@container file-manager \(max-width: 520px\)[\s\S]*?\.file-manager__action-group\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/u);
+  assert.match(fileManagerCss, /\.file-manager__action-group \.ant-btn\s*\{\s*min-height:\s*44px;/u);
+  assert.doesNotMatch(fileManagerCss, /display:\s*inline-block/u);
+});
+
 test("文件管理将资源分类与真实目录树接入 DockKit 四区并保留窄容器控制", () => {
   assert.match(fileManagerCss, /\.file-manager__center-region\s*\{[^}]*display:\s*flex;[^}]*min-height:\s*0;[^}]*overflow:\s*hidden/u);
   assert.match(fileManagerPage, /left=\{<aside id="file-manager-resource-navigation" className="file-manager__resource-pane"/u);

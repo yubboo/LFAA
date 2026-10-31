@@ -57,6 +57,22 @@ test("缺失 SteamCMD 工具目录给出可恢复提示且不会自动创建目�
   assert.equal(existsSync(steamcmdDirectory), false);
 });
 
+test("缺失的 Steam 游戏存储根会按节点设置创建，新增目录可由真实列表识别", async () => {
+  const gameDirectory = join(dataDirectory, "games", "steamcmd");
+  const importedServerDirectory = join(gameDirectory, "import-staging");
+  assert.equal(existsSync(gameDirectory), false);
+
+  const initial = await performNodeFileOperation("list", { path: "", gameStorageKind: "steamcmd" });
+  assert.equal(existsSync(gameDirectory), true);
+  assert.deepEqual(initial.entries, []);
+
+  const created = await performNodeFileOperation("create-folder", { path: "import-staging", gameStorageKind: "steamcmd" });
+  assert.equal(created.path, "import-staging");
+  assert.equal(existsSync(importedServerDirectory), true);
+  const refreshed = await performNodeFileOperation("list", { path: "", gameStorageKind: "steamcmd" });
+  assert.ok(refreshed.entries.some(entry => entry.name === "import-staging" && entry.kind === "directory"));
+});
+
 test("preview separates viewing from editing and rejects sensitive path names", async () => {
   mkdirSync(join(dataDirectory, "docs"));
   writeFileSync(join(dataDirectory, "docs", "guide.md"), "# LFAA\n\n**Read only** preview.", "utf8");

@@ -3,6 +3,7 @@ import { Component, useCallback, useEffect, useMemo, useRef, useState, type Reac
 import { Alert, Button, Input, Modal, Select, Spin, Tag, Typography } from "antd";
 import { Menu, MenuItemButton } from "@deepseek-ai/dsh-client-ui-primitives";
 import { getErrorMessage, hasAdminAccess, inspectManagedPlugin, installManagedPlugin, removeManagedPlugin, loadManagedPlugins, setManagedPluginEnabled, type ManagedPluginInstallProgress, type ManagedPluginInspection, type ManagedPluginRecord, type User, type UserSettings } from "lfaa-client-connection/src/api.js";
+import { setFileManagerLocation } from "lfaa-client-connection/src/file-manager-location.js";
 import { DshSlotOutlet, useDshSlotEntries } from "lfaa-client-modules/src/client/index.js";
 import { ResizableWorkbench } from "lfaa-client-ui-dockkit/src/ResizableWorkbench.js";
 import { resolveWorkbenchLayoutMetrics, type WorkbenchLayoutMetrics } from "lfaa-client-ui-dockkit/src/workbench-layout.config.js";
@@ -553,6 +554,7 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
   return (
     <div className="plugin-manager-stage">
       <GlobalNavigationRail
+        secondaryNavigationMinWidth={layout.left.min}
         username={user.username}
         role={user.role}
         serverState={serverState}
@@ -565,7 +567,7 @@ export function PluginManagerPage({ user, settings, resolvedTheme, serverState, 
         onOpenRecentSessions={onOpenRecentSessions}
         onNavigate={onNavigate}
         onOpenApplication={onOpenApplication}
-        onOpenFiles={() => onNavigate("/files")}
+        onOpenFiles={() => { setFileManagerLocation(user.id, ""); onNavigate("/files"); }}
         onOpenSettings={onOpenSettings}
         onLogout={onLogout}
       />

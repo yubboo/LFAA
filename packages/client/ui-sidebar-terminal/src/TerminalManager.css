@@ -325,6 +325,11 @@
   min-height: 0;
 }
 
+.lfaa-terminal-manager__pane--minecraft-embedded > .lfaa-terminal-manager__surface {
+  box-sizing: border-box;
+  padding: 12px;
+}
+
 .lfaa-terminal-manager__alert {
   flex: 0 0 auto;
   margin: 0;

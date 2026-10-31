@@ -2,6 +2,8 @@
 
 常规页“项目外聊天文件夹”只读展示 Workspace Owner 登记的默认工作区路径；项目外新聊天默认归入该工作区，Session Owner 仍将会话事件写入 LFAA Home 的 `.lfaa/sessions`。此位置不新增设置字段、不迁移旧会话。“默认任务文件夹”仍由 Settings Owner 的 `general.taskFolder` 管理并显示在“环境”页；留空时本机无项目文件操作继承 Workspace Owner 默认工作区，自定义值优先。远端节点终端在该项留空时使用节点登记数据目录；显式路径仍按目标执行入口应用。通知偏好仍保存在 `general` 分类，控件仅展示在“通知”页。
 
+常规页“集成终端 Shell”展示现有账户级 `general.integratedShell`，包含系统默认、Windows PowerShell、命令提示符、Bash 和 Zsh。新建交互终端与未按次指定 Shell 的本机/节点命令共用该选择；已经打开的终端不切换进程，按次指定命令 Shell 也不改账户偏好。
+
 设置中心全局导航轨的“应用”图标直接进入 `/work`，使用应用工作区已有四栏布局和左二 `SecondaryNavigation`，不在设置页弹出第二套应用列表。
 
 设置中心的全局“最近会话”入口调用 Workbench 专属导航回调：进入 `/work` 后展开唯一的会话 Dock；普通“工作·小鱼智能体”入口不代替此请求。

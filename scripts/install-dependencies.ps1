@@ -758,11 +758,13 @@ function Get-GitSecretPatterns {
     # Blocking 表示该模式命中即可判定为真实凭据，直接阻止推送；
     # 末尾的通用赋值启发式会把测试夹具（测试进程自设的 JWT_SECRET、测试账号口令）也算进来，
     # 因此只报告给用户确认，不直接阻断。
+    # 模型令牌按受支持的格式识别：无连字符的随机主体、OpenAI 的 proj/svcacct、OpenRouter 的 or-v1 和 Anthropic 的 ant-apiNN 前缀。
+    # 不允许任意自然语言连字符延伸令牌主体，避免文档 slug（如 task-card）被当成凭据。
     return @(
         [PSCustomObject]@{ Name = '私钥标记'; Regex = ('-----BEGIN ' + '(RSA |EC |OPENSSH )?PRIVATE KEY-----'); Blocking = $true },
         [PSCustomObject]@{ Name = '云服务访问密钥'; Regex = ('AKIA' + '[0-9A-Z]{16}'); Blocking = $true },
         [PSCustomObject]@{ Name = 'GitHub 访问令牌'; Regex = ('github_pat_' + '[A-Za-z0-9_]{22,}|gh[pousr]_' + '[A-Za-z0-9_]{20,}'); Blocking = $true },
-        [PSCustomObject]@{ Name = '模型服务令牌'; Regex = ('sk-' + '[A-Za-z0-9_-]{32,}'); Blocking = $true },
+        [PSCustomObject]@{ Name = '模型服务令牌'; Regex = ('sk-(proj-|svcacct-|or-v1-)?[A-Za-z0-9_]{32,}|sk-ant-api[0-9]{2}-[A-Za-z0-9_-]{32,}'); Blocking = $true },
         [PSCustomObject]@{ Name = '明文凭据赋值'; Regex = '(api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|jwt[_-]?secret|account[_-]?key|shared[_-]?access[_-]?signature|password)[[:space:]]*[:=][[:space:]]*["'']?[A-Za-z0-9/+_=-]{24,}'; IgnoreCase = $true; Blocking = $false }
     )
 }

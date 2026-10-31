@@ -74,6 +74,8 @@ Agent Git API 使用账户隔离的本机仓库 ID 与会话绑定 ID调用认�
 
 SteamCMD Client Connection 提供通用服务端列表、创建/配置、运行环境安装/校验/卸载、DST Master/Caves 集群登记和服务端安装/更新/启动/停止任务 API，类型只表达服务端领域结果；权限、参数校验和节点执行继续归服务端 Owner。SteamCMD 工具目录使用账户限定的 `setFileManagerLocation()` 导航提示，进入现有 File Manager 的同节点只读资源，不传物理路径、令牌或创建第二套文件接口。DST 配置文件仍通过相同导航 Owner 进入现有文件管理。调用使用现有认证请求和错误映射，不保存游戏配置副本。构建写根 `dist/packages/client/connection/`。
 
+`setFileManagerLocation()` 可附带来源 App 标识，让共享文件页显示正确的返回入口；该值只与当前账户的单次路由位置一起传递，不改变 File Manager 的认证、授权或目录 Owner。
+
 `loadUserSettingsSyncStatus()` 读取认证后的当前 Control Plane 账户设置元数据，不缓存跨账户或设置值；Electron `mini.open/close` 只透传桌面 Host 的 IPC 操作及真实回执。
 
 `streamAiChat()` 可在新 Run 请求中传递严格受限的 `workspaceView` JSON；它不是消息字段，连接层只随本次初始 POST 发送，不在续接既有 Run 时重放。

@@ -42,8 +42,8 @@ export async function resolveDefaultShell(): Promise<ShellLaunch> {
 /** 读取设置中的 Shell 选择；显式选择不可用时由执行端报错，不悄悄替换。 */
 export async function resolveTerminalShell(shell: string): Promise<ShellLaunch> {
   if (shell === "system") return resolveDefaultShell();
-  if (shell === "powershell") return { executable: process.platform === "win32" ? "powershell.exe" : "pwsh", args: ["-NoLogo", "-NoProfile"] };
-  if (shell === "cmd" && process.platform === "win32") return { executable: "cmd.exe", args: ["/Q", "/K"] };
+  if (shell === "powershell") return { executable: process.platform === "win32" ? "powershell.exe" : "pwsh", args: ["-NoProfile"] };
+  if (shell === "cmd" && process.platform === "win32") return { executable: "cmd.exe", args: [] };
   if (shell === "bash") return { executable: "bash", args: ["--noprofile", "--norc"] };
   if (shell === "zsh") return { executable: "zsh", args: ["-f"] };
   throw new Error("所选 Shell 不适用于当前节点。");

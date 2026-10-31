@@ -4,11 +4,12 @@
  * 关联文件：packages/client/ui-workspace/src/ApplicationWorkspace.tsx、packages/client/ui-settings/src/SettingsPage.tsx、workbench-layout.types.ts。
  */
 import type { WorkbenchPaneLimits } from "./workbench-layout.types";
-import { resolveLegacyWorkbenchInitialWidths, resolvePreviousWorkbenchInitialWidths } from "./workbench-layout.config.ts";
+import { resolveLegacyWorkbenchInitialWidths, resolvePreviousWorkbenchInitialWidths, resolveWorkbenchV3InitialLeftWidth } from "./workbench-layout.config.ts";
 
-export const WORKBENCH_LEFT_WIDTH_KEY = "lfaa.workbench.left-width.v3";
+export const WORKBENCH_LEFT_WIDTH_KEY = "lfaa.workbench.left-width.v4";
 
-const PREVIOUS_SHARED_WIDTH_KEY = "lfaa.workbench.left-width.v2";
+const PREVIOUS_SHARED_WIDTH_KEY = "lfaa.workbench.left-width.v3";
+const OLDER_SHARED_WIDTH_KEY = "lfaa.workbench.left-width.v2";
 const LEGACY_SHARED_WIDTH_KEY = "lfaa.workbench.left-width.v1";
 const LEGACY_APP_WIDTH_KEY = "lfaa.module-workbench.left-width.v1";
 const LEGACY_APP_LAYOUT_KEY = "lfaa.module-workbench.layout.v1";
@@ -28,7 +29,7 @@ function readLayoutWidth(key: string): number | null {
   }
 }
 
-/** 读取统一宽度；旧版默认尺寸迁移到新默认，非默认值继续作为用户偏好保留。 */
+/** 读取统一宽度；精确匹配旧默认的值迁移到最小宽默认，其他尺寸继续作为用户偏好保留。 */
 export function readWorkbenchLeftWidth(limits: WorkbenchPaneLimits, containerWidth: number): number {
   if (typeof window === "undefined") return limits.initial;
 
@@ -38,8 +39,16 @@ export function readWorkbenchLeftWidth(limits: WorkbenchPaneLimits, containerWid
 
     const previousShared = Number(window.localStorage.getItem(PREVIOUS_SHARED_WIDTH_KEY));
     if (Number.isFinite(previousShared) && previousShared > 0) {
-      const previousDefault = resolvePreviousWorkbenchInitialWidths(containerWidth).left;
+      const previousDefault = resolveWorkbenchV3InitialLeftWidth(containerWidth);
       const width = previousShared === previousDefault ? limits.initial : clampWidth(previousShared, limits);
+      window.localStorage.setItem(WORKBENCH_LEFT_WIDTH_KEY, String(width));
+      return width;
+    }
+
+    const olderShared = Number(window.localStorage.getItem(OLDER_SHARED_WIDTH_KEY));
+    if (Number.isFinite(olderShared) && olderShared > 0) {
+      const previousDefault = resolvePreviousWorkbenchInitialWidths(containerWidth).left;
+      const width = olderShared === previousDefault ? limits.initial : clampWidth(olderShared, limits);
       window.localStorage.setItem(WORKBENCH_LEFT_WIDTH_KEY, String(width));
       return width;
     }

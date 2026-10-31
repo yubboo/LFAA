@@ -8,6 +8,7 @@ export interface TerminalSessionController {
   approval?: AiToolApproval;
   error: string;
   busy: boolean;
+  transportDisconnected: boolean;
   start(request: CreateTerminalInput, bypassBusy?: boolean): Promise<void>;
   decide(approved: boolean): Promise<void>;
   stop(): Promise<void>;
@@ -17,7 +18,7 @@ export interface TerminalSessionController {
   resize(size?: TerminalSurfaceSize): void;
 }
 
-export function useTerminalSession({ surface, appId, sessionId, permissionsMode, scopeKey, preserveSurfaceOnConnect = false, quietExit = false }: {
+export function useTerminalSession({ surface, appId, sessionId, permissionsMode, scopeKey, preserveSurfaceOnConnect = false, quietExit = false, quietTransportDisconnect = false }: {
   surface: RefObject<TerminalSurfaceHandle>;
   appId: ApplicationId;
   sessionId: string | null;
@@ -25,8 +26,9 @@ export function useTerminalSession({ surface, appId, sessionId, permissionsMode,
   scopeKey: string;
   preserveSurfaceOnConnect?: boolean;
   quietExit?: boolean;
+  quietTransportDisconnect?: boolean;
 }): TerminalSessionController {
-  const [terminal, setTerminal] = useState<TerminalInfo>(), [approval, setApproval] = useState<AiToolApproval>(), [error, setError] = useState(""), [busy, setBusy] = useState(false);
+  const [terminal, setTerminal] = useState<TerminalInfo>(), [approval, setApproval] = useState<AiToolApproval>(), [error, setError] = useState(""), [busy, setBusy] = useState(false), [transportDisconnected, setTransportDisconnected] = useState(false);
   const active = useRef<TerminalInfo>(), stream = useRef<EventSource>(), pending = useRef<CreateTerminalInput>(), mounted = useRef(false), generation = useRef(0), startInFlight = useRef(false);
   const input = useRef(""), inputBusy = useRef(false), resizeBusy = useRef(false), latestSize = useRef<TerminalSurfaceSize>();
   const send = useRef<(data: string) => void>(() => {}), resize = useRef<(size?: TerminalSurfaceSize) => void>(() => {});
@@ -90,7 +92,7 @@ export function useTerminalSession({ surface, appId, sessionId, permissionsMode,
     if (startInFlight.current) return;
     startInFlight.current = true;
     const requestGeneration = generation.current;
-    setBusy(true); setError("");
+    setBusy(true); setError(""); setTransportDisconnected(false);
     try {
       pending.current = request;
       const result = await createTerminal(request);
@@ -118,14 +120,27 @@ export function useTerminalSession({ surface, appId, sessionId, permissionsMode,
       });
       source.addEventListener("exit", event => {
         const frame = JSON.parse((event as MessageEvent).data);
+        if (quietTransportDisconnect && frame.exitCode === null && frame.message === "节点终端连接已断开，会话已结束。") {
+          setTransportDisconnected(true); setError(""); emulator.reset(); emulator.setInputEnabled(false); source.close(); void stop().catch(() => {}); return;
+        }
         if (active.current) { active.current = { ...active.current, state: "exited", exitCode: frame.exitCode }; setTerminal(active.current); }
         emulator.setInputEnabled(false);
         if (!quietExit) emulator.writeln(`\r\n[会话已结束，退出码：${frame.exitCode ?? "未知"}]`);
         if (frame.message && !quietExit) setError(frame.message); source.close();
       });
-      source.onerror = () => { source.close(); if (mounted.current) { emulator.setInputEnabled(false); setError("终端连接已断开，请重新创建会话。"); void stop().catch(() => {}); } };
+      source.onerror = () => { source.close(); if (mounted.current) {
+        emulator.setInputEnabled(false);
+        if (quietTransportDisconnect) { setTransportDisconnected(true); setError(""); emulator.reset(); }
+        else setError("终端连接已断开，请重新创建会话。");
+        void stop().catch(() => {});
+      } };
       resize.current(); emulator.focus();
-    } catch (error) { if (mounted.current && generation.current === requestGeneration) { pending.current = undefined; setError(getErrorMessage(error)); } }
+    } catch (error) { if (mounted.current && generation.current === requestGeneration) {
+      pending.current = undefined;
+      const message = getErrorMessage(error);
+      if (quietTransportDisconnect && /终端通道不可用|终端通道当前不可用|交互式终端尚未连接|节点终端连接已断开/u.test(message)) { setTransportDisconnected(true); setError(""); surface.current?.reset(); }
+      else setError(message);
+    } }
     finally { startInFlight.current = false; if (mounted.current) setBusy(false); }
   };
 
@@ -146,5 +161,5 @@ export function useTerminalSession({ surface, appId, sessionId, permissionsMode,
     finally { if (mounted.current) setBusy(false); }
   };
 
-  return { terminal, approval, error, busy, start, decide, stop, clearError: () => setError(""), reportError: cause => setError(getErrorMessage(cause)), send: data => send.current(data), resize: size => resize.current(size) };
+  return { terminal, approval, error, busy, transportDisconnected, start, decide, stop, clearError: () => setError(""), reportError: cause => setError(getErrorMessage(cause)), send: data => send.current(data), resize: size => resize.current(size) };
 }

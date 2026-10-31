@@ -17,8 +17,8 @@ import { TerminalManagerRightSidebar } from "lfaa-client-ui-sidebar-terminal/src
 import type { MinecraftInstanceRuntimeContext } from "lfaa-client-ui-minecraft/src/MinecraftWorkspace.js";
 
 import { createElement, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent as ReactFormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
-import { Alert, Button, Dropdown, Popover, Segmented, Tag, Typography } from "antd";
-import { archiveAiSession, getErrorMessage, initializeDefaultWorkspace, isDesktopApp, hasAdminAccess, loadAiExtensions, loadAiSessions, loadAgentGitRepositories, ensureAgentGitSessionRepository, loadAgentGitStatus, loadBrowserRecentSites, recordBrowserRecentSites, loadWorkspaceProjects, loadWorkspaceSessionDirectoryAvailability, loadWritingWorkspace, userRoleLabel, type AgentGitRepository, type AiActivityFileChange, type AiExtension, type AiSession, type AiWorkbenchView, type ApplicationId, type ApplicationMode, type BrowserProviderId, type BrowserRecentSite, type UserRole, type UserSettings, type WorkspaceDaemonNode, type WorkspaceGitStatus, type WorkspaceProject, type WritingWorkspace as WritingWorkspaceData } from "lfaa-client-connection/src/api.js";
+import { Alert, Button, Dropdown, message, Popover, Segmented, Tag, Typography } from "antd";
+import { archiveAiSession, getErrorMessage, initializeDefaultWorkspace, isDesktopApp, hasAdminAccess, loadAiExtensions, loadAiSessions, loadAgentGitRepositories, ensureAgentGitSessionRepository, loadAgentGitStatus, loadBrowserRecentSites, loadMinecraftStorageSettings, loadSteamcmdSettings, recordBrowserRecentSites, loadWorkspaceProjects, loadWorkspaceSessionDirectoryAvailability, loadWritingWorkspace, userRoleLabel, type AgentGitRepository, type AiActivityFileChange, type AiExtension, type AiSession, type AiWorkbenchView, type ApplicationId, type ApplicationMode, type BrowserProviderId, type BrowserRecentSite, type UserRole, type UserSettings, type WorkspaceDaemonNode, type WorkspaceGitStatus, type WorkspaceProject, type WritingWorkspace as WritingWorkspaceData } from "lfaa-client-connection/src/api.js";
 import type { AiWorkGoalRequest, AiWorkNotification, AiWorkNotificationInput } from "lfaa-client-resources/src/notification-runtime.js";
 import { hasUnreadSessionCompletionNotification } from "./session-completion-indicator.js";
 import { resolveWorkbenchLayoutMetrics, type WorkbenchLayoutMetrics } from "lfaa-client-ui-dockkit/src/workbench-layout.config.js";
@@ -278,6 +278,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
 }
 
 interface ApplicationSidebarProps extends Pick<ApplicationWorkspaceProps, "userId" | "app" | "mode" | "section" | "gameLibrary" | "workspaceTitle" | "apps" | "applicationNavigationItems" | "onNavigate" | "onOpenApplication" | "onOpenSelectedApplication"> {
+  onOpenGameFiles?: (app: "minecraft" | "steamcmd") => void;
   layoutMode: WorkbenchLayoutMode;
   onWritingLibraryPortalTargetChange: (target: HTMLDivElement | null) => void;
   onToggleLeft: () => void;
@@ -311,7 +312,7 @@ interface ApplicationSidebarProps extends Pick<ApplicationWorkspaceProps, "userI
   onPreviewBlur: () => void;
 }
 
-function ApplicationSidebar({ userId, app, mode, section, gameLibrary, workspaceTitle, apps, applicationNavigationItems, layoutMode, onWritingLibraryPortalTargetChange, onNavigate, onOpenApplication, onOpenSelectedApplication, onToggleLeft, notifications, onMarkNotificationsRead, onMarkSessionNotificationsRead, onClearNotifications, onOpenNotification, sessions, missingSessionDirectoryIds, aiDraft, pinnedSessionIds, onTogglePinnedSession, workspaceProjects, workspaceProjectsReady, sessionsDataReady, recentSessionsExpandRequestId, projectLoadError, onRetryProjects, activeSessionId, sessionsLoading, sessionsError, providerStatus, gitSummaryOpen, gitSummaryContent, onNewSession, onSelectSession, onArchiveSession, onCloseGitSummary, onPreviewMouseLeave, onPreviewBlur }: ApplicationSidebarProps) {
+function ApplicationSidebar({ userId, app, mode, section, gameLibrary, workspaceTitle, apps, applicationNavigationItems, layoutMode, onWritingLibraryPortalTargetChange, onNavigate, onOpenApplication, onOpenSelectedApplication, onOpenGameFiles, onToggleLeft, notifications, onMarkNotificationsRead, onMarkSessionNotificationsRead, onClearNotifications, onOpenNotification, sessions, missingSessionDirectoryIds, aiDraft, pinnedSessionIds, onTogglePinnedSession, workspaceProjects, workspaceProjectsReady, sessionsDataReady, recentSessionsExpandRequestId, projectLoadError, onRetryProjects, activeSessionId, sessionsLoading, sessionsError, providerStatus, gitSummaryOpen, gitSummaryContent, onNewSession, onSelectSession, onArchiveSession, onCloseGitSummary, onPreviewMouseLeave, onPreviewBlur }: ApplicationSidebarProps) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [sessionMenuId, setSessionMenuId] = useState<string | null>(null);
   const sidebarPreferenceScope = JSON.stringify([userId, app]);
@@ -544,6 +545,7 @@ function ApplicationSidebar({ userId, app, mode, section, gameLibrary, workspace
         applicationNavigationItems={applicationNavigationItems}
         onNavigate={onNavigate}
         onOpenApplication={onOpenApplication}
+        onOpenGameFiles={app === "minecraft" || app === "steamcmd" ? onOpenGameFiles : undefined}
         onWritingLibraryPortalTargetChange={onWritingLibraryPortalTargetChange}
         hidden={false}
       /> : null}
@@ -613,11 +615,12 @@ function ApplicationSidebar({ userId, app, mode, section, gameLibrary, workspace
 
 interface ApplicationNavigationPanelProps extends Pick<ApplicationWorkspaceProps, "app" | "mode" | "section" | "gameLibrary" | "workspaceTitle" | "apps" | "applicationNavigationItems" | "onNavigate" | "onOpenApplication"> {
   userId: string;
+  onOpenGameFiles?: (app: "minecraft" | "steamcmd") => void;
   hidden: boolean;
   onWritingLibraryPortalTargetChange: (target: HTMLDivElement | null) => void;
 }
 
-function ApplicationNavigationPanel({ userId, app, mode, section, gameLibrary = false, workspaceTitle, apps, applicationNavigationItems, hidden, onNavigate, onOpenApplication, onWritingLibraryPortalTargetChange }: ApplicationNavigationPanelProps) {
+function ApplicationNavigationPanel({ userId, app, mode, section, gameLibrary = false, workspaceTitle, apps, applicationNavigationItems, hidden, onNavigate, onOpenApplication, onOpenGameFiles, onWritingLibraryPortalTargetChange }: ApplicationNavigationPanelProps) {
   const appMenuScroll = useScrollRestoration(createScrollRestorationKey(userId, "module-app-menu", app));
   const minecraftMenuCategory = section === "java" ? "environment" : section === "overview" || section === "nodes" ? "monitor" : "management";
   const minecraftLogsSection = section === "logs" || section.startsWith("logs/") || /^instance\/[0-9a-f-]{36}\/logs$/iu.test(section);
@@ -679,6 +682,7 @@ function ApplicationNavigationPanel({ userId, app, mode, section, gameLibrary = 
       {app === "steamcmd" && mode === "normal" ? <nav className="module-context__app-menu" aria-label="Steam 游戏服务器菜单">
         <div className="module-context__section-title"><span>Steam 游戏服务器</span></div>
         <button type="button" className={`module-context__menu-item${section === "overview" ? " is-active" : ""}`} aria-current={section === "overview" ? "page" : undefined} onClick={() => onNavigate("/games/steamcmd")}><span aria-hidden="true" />服务器工作区</button>
+        <button type="button" className="module-context__menu-item" onClick={() => onOpenGameFiles?.("steamcmd")}><span aria-hidden="true" />文件管理</button>
       </nav> : null}
       {app === "minecraft" && mode === "normal" ? <nav className="module-context__app-menu" aria-label="Minecraft 工作区菜单">
         <div className="module-context__section-title"><span>Minecraft 工作区</span></div>
@@ -694,7 +698,7 @@ function ApplicationNavigationPanel({ userId, app, mode, section, gameLibrary = 
             : [["java", "Java 环境"]]
         ).map(([key, label]) => {
           const active = key === "logs" ? minecraftLogsSection : section === key || key === "instances" && minecraftInstanceSection;
-          return <button type="button" key={key} className={`module-context__menu-item${active ? " is-active" : ""}`} aria-current={active ? "page" : undefined} onClick={() => onNavigate(key === "files" ? "/files" : `/games/minecraft/${key}`)}><span aria-hidden="true" />{label}</button>;
+          return <button type="button" key={key} className={`module-context__menu-item${active ? " is-active" : ""}`} aria-current={active ? "page" : undefined} onClick={() => key === "files" ? onOpenGameFiles?.("minecraft") : onNavigate(`/games/minecraft/${key}`)}><span aria-hidden="true" />{label}</button>;
         })}
       </nav> : null}
       {app === "connectivity" && mode === "normal" ? <nav className="module-context__app-menu" aria-label="联机管理菜单">
@@ -858,6 +862,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   const [minecraftContentReady, setMinecraftContentReady] = useState(app !== "minecraft");
   const minecraftRuntimeContextScope = userId + "\u001f" + role;
   const [minecraftRuntimeContextState, setMinecraftRuntimeContextState] = useState<{ scope: string; context: MinecraftInstanceRuntimeContext } | null>(null);
+  const gameFileEntryInFlight = useRef(false);
   const onMinecraftInstanceRuntimeContextChange = useCallback((context: MinecraftInstanceRuntimeContext | null) => {
     setMinecraftRuntimeContextState(context ? { scope: minecraftRuntimeContextScope, context } : null);
   }, [minecraftRuntimeContextScope]);
@@ -1959,6 +1964,30 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
     } else onNavigate(path);
     if (metrics.mode === "mobile") setChrome((current) => ({ ...current, leftCollapsed: true }));
   }, [metrics.mode, onNavigate, openApplication]);
+  const openGameFiles = useCallback(async (sourceApp: "minecraft" | "steamcmd") => {
+    if (gameFileEntryInFlight.current) return;
+    gameFileEntryInFlight.current = true;
+    const sourceLocation = window.location.pathname + window.location.search;
+    const returnPath = window.location.pathname;
+    try {
+      const nodes: Array<{ id: string; status: "online" | "offline" }> = sourceApp === "minecraft"
+        ? (await loadMinecraftStorageSettings()).nodes
+        : (await loadSteamcmdSettings()).nodes;
+      if (window.location.pathname + window.location.search !== sourceLocation) return;
+      const preferredNodeId = (sourceApp === "minecraft" ? visibleMinecraftRuntimeContext?.nodeId : null) ?? new URLSearchParams(window.location.search).get("target");
+      const node = (preferredNodeId ? nodes.find(candidate => candidate.id === preferredNodeId) : undefined)
+        ?? nodes.find(candidate => candidate.status === "online")
+        ?? nodes[0];
+      if (!node) throw new Error(`没有登记的 ${sourceApp === "minecraft" ? "Minecraft" : "Steam"} 存储节点，无法定位游戏主目录。`);
+      const storageKind = sourceApp === "minecraft" ? "minecraft" : "steamcmd";
+      setFileManagerLocation(userId, `.lfaa-library/game-storage/${encodeURIComponent(node.id)}/${storageKind}`, returnPath, sourceApp);
+      onNavigate("/files");
+    } catch (error) {
+      if (window.location.pathname + window.location.search === sourceLocation) message.error(getErrorMessage(error));
+    } finally {
+      gameFileEntryInFlight.current = false;
+    }
+  }, [onNavigate, userId, visibleMinecraftRuntimeContext?.nodeId]);
   const startNewAiSession = (projectId?: string) => {
     onActiveAiSessionChange(null);
     setNewAiSessionProjectId(projectId ?? null);
@@ -2057,6 +2086,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
     workspaceTitle,
     apps,
     applicationNavigationItems,
+    onOpenGameFiles: app === "minecraft" || app === "steamcmd" ? openGameFiles : undefined,
     onOpenSelectedApplication,
     layoutMode: metrics.mode,
     onWritingLibraryPortalTargetChange: setWritingLibraryPortalTarget,
@@ -2539,7 +2569,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
       <ResizableWorkbench
         rootElementRef={layoutRef}
         className="module-workbench-inner module-workbench-layout"
-        leading={<GlobalNavigationRail username={username} role={role} serverState={serverState} shortcuts={shortcuts} activePage="home" applications={applicationNavigationItems} onOpenRecentSessions={showRecentSessions} showServiceStatus={settings.general.showServiceStatus} onNavigate={onNavigate} onOpenApplication={openApplication} isSharedWorkHome={app === "workspace" && mode === "ai-work" && section !== "canvas"} onOpenFiles={() => onNavigate("/files")} onOpenSettings={onOpenSettings} onLogout={onLogout} onToggleTools={openToolsPanel} applicationsExpanded={mode === "normal" ? !chrome.leftCollapsed : activeRightPanelSection === "applications" && !chrome.rightCollapsed} applicationsTargetId="module-context-applications" onToggleApplications={mode === "ai-work" ? toggleApplicationsPanel : undefined} />}
+        leading={<GlobalNavigationRail secondaryNavigationMinWidth={metrics.left.min} username={username} role={role} serverState={serverState} shortcuts={shortcuts} activePage="home" applications={applicationNavigationItems} onOpenRecentSessions={showRecentSessions} showServiceStatus={settings.general.showServiceStatus} onNavigate={onNavigate} onOpenApplication={openApplication} isSharedWorkHome={app === "workspace" && mode === "ai-work" && section !== "canvas"} onOpenFiles={() => { setFileManagerLocation(userId, ""); onNavigate("/files"); }} onOpenSettings={onOpenSettings} onLogout={onLogout} onToggleTools={openToolsPanel} applicationsExpanded={mode === "normal" ? !chrome.leftCollapsed : activeRightPanelSection === "applications" && !chrome.rightCollapsed} applicationsTargetId="module-context-applications" onToggleApplications={mode === "ai-work" ? toggleApplicationsPanel : undefined} />}
         leadingRegionClassName="module-workbench-region--leading"
         leftRegionClassName={leftRegionClassName}
         centerRegionClassName="module-workbench-region--center-workspace"

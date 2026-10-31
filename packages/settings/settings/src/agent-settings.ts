@@ -130,7 +130,7 @@ const exactOptionLabels: Record<string, Record<string, string>> = {
   "general.defaultMode": { normal: "常规", "ai-work": "AI Work" },
   "general.fileOpenLocation": { system: "系统默认应用", ask: "每次询问" },
   "general.agentEnvironment": { system: "系统默认", "windows-native": "Windows 原生", wsl: "WSL", linux: "Linux" },
-  "general.integratedShell": { system: "系统默认", powershell: "PowerShell", cmd: "命令提示符", bash: "Bash", zsh: "Zsh" },
+  "general.integratedShell": { system: "系统默认", powershell: "Windows PowerShell", cmd: "命令提示符", bash: "Bash", zsh: "Zsh" },
   "general.language": { system: "跟随系统", "zh-CN": "简体中文", "en-US": "English" },
   "general.navigationLayout": { "left-two-column": "左侧双列", "three-column": "三列布局", "right-tools": "右侧工具", focus: "专注模式" },
   "general.sendShortcut": { enter: "Enter", "ctrl-enter": "Ctrl+Enter" },

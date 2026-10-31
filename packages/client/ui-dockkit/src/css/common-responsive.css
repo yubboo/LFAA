@@ -210,6 +210,8 @@
   position: relative;
   grid-column: 4;
   grid-row: 1;
+  width: auto;
+  margin-left: 0;
 }
 .lfaa-workbench[data-layout-mode="mobile"][data-mobile-left-layout="dock"] .lfaa-workbench__bottom {
   position: relative;

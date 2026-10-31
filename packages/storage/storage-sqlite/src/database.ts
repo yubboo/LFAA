@@ -2619,6 +2619,14 @@ export function migrateMinecraftInstanceJvmConfigurationSchema(): void {
     if (!columns.has("jvm_arguments_json")) {
       database.exec("ALTER TABLE minecraft_instances ADD COLUMN jvm_arguments_json TEXT NOT NULL DEFAULT '[]';");
     }
+    // 兼容旧数据库：如果缺少 execution_mode 列，先添加它
+    if (!columns.has("execution_mode")) {
+      database.exec("ALTER TABLE minecraft_instances ADD COLUMN execution_mode TEXT NOT NULL DEFAULT 'appcontainer' CHECK (execution_mode IN ('appcontainer', 'native'));");
+    }
+    // 兼容旧数据库：如果缺少 memory_mb 列，先添加它
+    if (!columns.has("memory_mb")) {
+      database.exec("ALTER TABLE minecraft_instances ADD COLUMN memory_mb INTEGER NOT NULL DEFAULT 2048 CHECK (memory_mb BETWEEN 512 AND 32768);");
+    }
     // 保留升级前两条启动路径的实际 Xms 默认；所有后续启动都会消费这列。
     database.exec(`UPDATE minecraft_instances SET jvm_initial_heap_mb = CASE
       WHEN execution_mode = 'appcontainer' THEN MIN(1024, memory_mb / 2)

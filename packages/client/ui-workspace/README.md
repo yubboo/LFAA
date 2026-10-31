@@ -116,6 +116,10 @@ AI Work 的紧凑右栏将工具页签、`+` 新建标签页、底部终端和�
 
 游戏服务四栏 Shell 由 `ui-layout/Workbench` 组合，并通过 `ApplicationWorkspace.applicationContent` 提供中心内容槽；本包继续持有四个同级工作区区域与响应式尺寸，不持有 Minecraft、Steam 游戏服务器或运行环境业务数据。
 
+Minecraft 与 Steam 左二“文件管理”分别从 Minecraft Storage、SteamCMD Storage 设置定位当前节点的真实游戏存储根，并将来源路由与 App 标识交给共享文件页返回；菜单不拼接或持久化物理路径，也不把 SteamCMD 工具安装目录当作 Steam 游戏目录，文件读取仍由文件服务和对应领域/Daemon Owner 校验。
+
+左一全局“文件管理”入口在打开 `/files` 前写入当前账户的 Data 总览位置，清除残留的游戏存储来源和返回标签；共享文件页不会沿用上一次 App 内的目录快照，游戏专用入口仍可按来源返回原 App。
+
 2026-10-23：AI Work 地址栏的 BrowserPanel 固定绑定 `BUILTIN_BROWSER_WORKSPACE_ID`，手动打开网页无需 AI 会话；Agent 首次打开网页时，空白新标签同步其真实页面。窄窗口自动收起左栏时暂存此前开合偏好，回到桌面宽度后恢复，临时响应式状态不覆盖持久化偏好。
 
 2026-10-25：收起左二栏的临时预览只由顶部指定切换按钮/键盘可见焦点打开；鼠标进入左二菜单主体或左侧其他区域不触发展开。预览直接复用 DockKit 左窗格中的唯一 `ApplicationSidebar`，不再并行渲染第二份菜单。程序化或鼠标引发的普通 focus 不会单独展开。焦点离开预览后关闭，`aria-expanded` 同步表示临时预览状态；应用、页面分区或工作区布局模式切换时立即关闭旧预览，避免响应式重排把旧状态带到其他页面；手动展开状态仍按原有工作区偏好保存。

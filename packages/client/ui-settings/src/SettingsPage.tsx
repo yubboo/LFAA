@@ -1,6 +1,7 @@
 /** 功能：呈现现有设置中心。作用：消费已保存设置并组合能力包界面。关联文件：client/connection、ui-settings、ui-theme、ui-commands。 */
 import { memo, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createReadPoller } from "lfaa-client-connection/src/read-poller.js";
+import { setFileManagerLocation } from "lfaa-client-connection/src/file-manager-location.js";
 import { applyAppearancePreset as applyAppearancePresetRequest, autofillBrowserContact, autofillBrowserPassword, clearBrowserData as clearBrowserSessionData, clearBrowserRecentSites, deleteBrowserCredential, deleteBrowserRecentSite, loadBrowserCredentials, loadBrowserRecentSites, loadLocalModels, saveBrowserContact, saveBrowserPassword, startLocalModelDownload, readLocalModelDownload, cancelLocalModelDownload, unloadLocalModel } from "lfaa-client-connection/src/api.js";
 import { downloadAppearanceBackground, loadSettings, validateAppearancePresetSnapshot } from "lfaa-client-connection/src/api.js";
 import { createSnapshotCache } from "lfaa-client-store/src/snapshot-cache.js";
@@ -2957,8 +2958,8 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           <SettingRow title="智能体环境" description="选择 Agent Runtime 执行任务时使用的主机环境；节点能力接入后生效。">
             <Select value={settings.general.agentEnvironment} options={[{ value: "system", label: "自动检测" }, { value: "windows-native", label: "Windows 原生" }, { value: "wsl", label: "WSL" }, { value: "linux", label: "Linux" }]} onChange={(value) => updateGeneral({ agentEnvironment: value })} />
           </SettingRow>
-          <SettingRow title="集成终端 Shell" description="选择 AI Host 在目标 Daemon 上执行命令时使用的 Shell。">
-            <Select value={settings.general.integratedShell} options={[{ value: "system", label: "系统默认" }, { value: "powershell", label: "PowerShell" }, { value: "cmd", label: "命令提示符" }, { value: "bash", label: "Bash" }, { value: "zsh", label: "Zsh" }]} onChange={(value) => updateGeneral({ integratedShell: value })} />
+          <SettingRow title="集成终端 Shell" description="新建终端与未单独指定 Shell 的命令使用此选择；切换后，已打开的终端需新建会话才会生效。">
+            <Select value={settings.general.integratedShell} options={[{ value: "system", label: "系统默认" }, { value: "powershell", label: "Windows PowerShell" }, { value: "cmd", label: "命令提示符" }, { value: "bash", label: "Bash" }, { value: "zsh", label: "Zsh" }]} onChange={(value) => updateGeneral({ integratedShell: value })} />
           </SettingRow>
           <SettingRow title="语言" description="当前界面提供简体中文；其他语言需前端翻译资源接入后生效。">
             <Select value={settings.general.language} options={[{ value: "system", label: "自动检测" }, { value: "zh-CN", label: "简体中文" }, { value: "en-US", label: "English" }]} onChange={(value) => updateGeneral({ language: value })} />
@@ -2969,7 +2970,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           <SettingRow title="底部面板" description="在应用工作区标题栏显示底部终端面板入口。">
             <SettingsSwitch label="底部面板入口" checked={settings.general.showBottomPanelControl} onChange={() => updateGeneral({ showBottomPanelControl: !settings.general.showBottomPanelControl })} />
           </SettingRow>
-          <SettingRow title="默认终端位置" description="选择节点任务输出面板的位置，可显示在底部或右侧。当前面板显示真实执行结果，交互式终端仍待接入。">
+          <SettingRow title="默认终端位置" description="选择节点任务输出面板的位置，可显示在底部或右侧；交互式终端的 Shell 由上方设置控制。">
             <Select value={settings.general.terminalPosition} options={[{ value: "bottom", label: "底部面板" }, { value: "right", label: "右侧面板" }]} onChange={(value) => updateGeneral({ terminalPosition: value })} />
           </SettingRow>
           <SettingRow title="开源许可证" description="查看 LFAA 前端直接依赖的许可证声明。">
@@ -4815,6 +4816,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
         </main>
       </div> : <div ref={rootRef} className="settings-page__stage">
         <GlobalNavigationRail
+          secondaryNavigationMinWidth={layout.left.min}
           username={user.username}
           role={user.role}
           serverState={serverState}
@@ -4827,7 +4829,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           onOpenApplication={onOpenApplication}
           onOpenRecentSessions={onOpenRecentSessions}
           onToggleApplications={onOpenApplications ?? (() => onNavigate("/work"))}
-          onOpenFiles={() => onNavigate("/files")}
+          onOpenFiles={() => { setFileManagerLocation(user.id, ""); onNavigate("/files"); }}
           onOpenSettings={onOpenSettings}
           onLogout={onLogout}
         />

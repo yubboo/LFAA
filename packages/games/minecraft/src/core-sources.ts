@@ -103,7 +103,7 @@ export function requireMinecraftCore(value: string): MinecraftCoreName {
   if (!normalized) throw new ApiError(400, "minecraft_core_unknown", "核心尚未登记。");
   return normalized;
 }
-async function json<T>(url: string): Promise<T> {
+async function json<T>(url: string, allowFallback = true): Promise<T> {
   const hit = cache.get(url);
   if (hit && hit.expiresAt > Date.now()) return hit.data as T;
   const parsed = new URL(url);
@@ -113,9 +113,20 @@ async function json<T>(url: string): Promise<T> {
     data = await readJsonSource<T>(parsed);
   } catch (primaryError) {
     const fallback = officialMojangFallbackUrl(parsed);
-    if (!fallback || !isRetryableSourceFailure(primaryError)) throw primaryError;
+    if (!fallback || !isRetryableSourceFailure(primaryError) || !allowFallback) throw primaryError;
     try {
-      data = await readJsonSource<T>(fallback);
+      // 备用域名使用更短的超时（10秒），避免长时间阻塞
+      const fallbackUrl = fallback;
+      const headers = new Headers();
+      const response = await fetchRuntimeResource(fallbackUrl, { 
+        signal: AbortSignal.timeout(10_000),
+        headers 
+      });
+      if (!response.ok) {
+        await response.body?.cancel();
+        throw new ApiError(502, "minecraft_source_connection_failed", `Mojang 备用元数据来源 ${fallbackUrl.hostname} 暂时不可用。`);
+      }
+      data = await response.json() as T;
     } catch (fallbackError) {
       if (isRetryableSourceFailure(fallbackError)) {
         throw new ApiError(502, "minecraft_source_connection_failed", "无法连接 Mojang 官方元数据主来源 piston-meta.mojang.com 或备用来源 launchermeta.mojang.com，请检查网络后刷新或重试。");

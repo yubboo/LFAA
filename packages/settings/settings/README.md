@@ -24,6 +24,8 @@ Provider 与插件秘密凭据使用 LFAA Home `credentials/settings.key` 执行
 
 常规设置中的 `general.cardMotionEffect` 与 `general.dialogMotionEffect` 由此处执行 Strict 校验、按账户持久化和旧值兼容；旧记录缺字段时分别回落到共享默认值，旧客户端省略动效字段保存其他常规设置时保留已选效果。
 
+`general.integratedShell` 是账户级集成 Shell 选择，默认 `system`，合法值为 `system | powershell | cmd | bash | zsh`。新建交互终端和本机/节点命令未按次指定 Shell 时读取该值；按次显式指定的命令 Shell 优先且不改持久偏好。服务端校验及设置保存沿用共享合同，并在旧客户端省略字段时保留已保存的 Shell 选择。
+
 `general.notificationPopupsEnabled` 是账户级通知总开关，默认开启，统一控制首次登录提醒、版本公告及其他工作台弹出通知。凭据、AI Provider 和业务内容目录类别状态分别保存在 General 的 `defaultAdminCredentialReminderEnabled`、`aiProviderReminderEnabled` 与 `setupReminderEnabled`，由提醒弹窗中的“不更改”更新；设置中心不提供首次登录类别开关。SteamCMD 游戏安装位置由“项目与存储”管理，不作为首次登录提醒。General 读取旧账户缺失字段时使用共享默认值；旧客户端保存其他 General 字段时省略已有字段不会覆盖服务端状态。版本公告的确认状态按账户/版本保存在浏览器本地；公告与桌面更新器合同相互独立。
 
 `general.defaultMode` 与 `general.defaultStandaloneChat` 因首页固定为 `/work` 而不再驱动路由；服务端仍校验、读取并保存账户原值，其他 General 更新不会重置旧账户偏好。

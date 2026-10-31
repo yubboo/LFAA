@@ -66,6 +66,7 @@ interface SessionStatus {
   approval?: AiToolApproval;
   error: string;
   busy: boolean;
+  transportDisconnected?: boolean;
 }
 
 function formatServerUptime(startedAt: string | null): string {
@@ -170,6 +171,7 @@ function TerminalManagerView({ dock, settings, role }: { dock: DockRegistration 
   const managerContext = useContext(TerminalManagerContext);
   const [nodes, setNodes] = useState<TerminalNode[]>([]);
   const [nodeError, setNodeError] = useState("");
+  const [nodeStatusError, setNodeStatusError] = useState("");
   const [nodeId, setNodeId] = useState<string>();
   const [sessions, setSessions] = useState<TerminalSessionDescriptor[]>([]);
   const sessionsRef = useRef<TerminalSessionDescriptor[]>([]);
@@ -183,6 +185,9 @@ function TerminalManagerView({ dock, settings, role }: { dock: DockRegistration 
   const sessionSenders = useRef(new Map<string, { send(data: string): void; focus(): void }>());
   const autoAttachInstance = useRef<string | null>(null);
   const autoAttachTarget = useRef<string | null>(null);
+  const terminalNodeConnectivity = useRef<{ nodeId: string; connected: boolean } | null>(null);
+  const [terminalNodeEpoch, setTerminalNodeEpoch] = useState(0);
+  const shellRecoveryAttempt = useRef("");
   const instance = dock?.placement === "minecraft" ? dock.instance : undefined;
   const registerRightPanelContent = managerContext?.registerRightPanelContent;
   const telemetryInstanceId = instance?.id;
@@ -238,7 +243,7 @@ function TerminalManagerView({ dock, settings, role }: { dock: DockRegistration 
   const activeMinecraftSession = sessions.find(session => session.id === activeId && session.kind === "minecraft" && statuses[session.id]?.terminal?.state === "running");
 
   useEffect(() => {
-    if (!dock || instance) return;
+    if (!dock) return;
     let alive = true;
     const poller = createReadPoller(async () => {
       try {
@@ -246,17 +251,30 @@ function TerminalManagerView({ dock, settings, role }: { dock: DockRegistration 
         if (!alive) return;
         setNodes(current => JSON.stringify(current) === JSON.stringify(result.nodes) ? current : result.nodes);
         setNodeError("");
-        const online = result.nodes.filter(node => node.connected);
-        if (online.length === 1) setNodeId(current => current ?? online[0]!.id);
-      } catch (error) { if (alive) setNodeError(getErrorMessage(error)); }
+        setNodeStatusError("");
+        if (instance) {
+          const connected = result.nodes.find(node => node.id === instance.nodeId)?.connected === true;
+          const previous = terminalNodeConnectivity.current;
+          if (previous?.nodeId === instance.nodeId && !previous.connected && connected) setTerminalNodeEpoch(current => current + 1);
+          terminalNodeConnectivity.current = { nodeId: instance.nodeId, connected };
+        } else {
+          terminalNodeConnectivity.current = null;
+          const online = result.nodes.filter(node => node.connected);
+          if (online.length === 1) setNodeId(current => current ?? online[0]!.id);
+        }
+      } catch (error) {
+        if (!alive) return;
+        if (instance) setNodeStatusError(getErrorMessage(error));
+        else setNodeError(getErrorMessage(error));
+      }
     }, 10_000);
     return () => { alive = false; poller.stop(); };
-  }, [dock?.placement, dock?.appId, Boolean(instance)]);
+  }, [dock?.placement, dock?.appId, Boolean(instance), instance?.nodeId]);
 
   const selectedNodeId = instance?.nodeId ?? nodeId;
   const selectedNode = nodes.find(node => node.id === selectedNodeId);
   const nodeOptions = nodes.map(node => ({ value: node.id, label: `${node.displayName}${node.connected ? "" : " · 未连接"}`, disabled: !node.connected }));
-  const canCreateShell = Boolean(selectedNodeId && (instance ? instance.nodeStatus === "online" && instance.state !== "installing" && hasAdminAccess(role) : selectedNode?.connected));
+  const canCreateShell = Boolean(selectedNodeId && selectedNode?.connected && !nodeStatusError && (instance ? instance.state !== "installing" && hasAdminAccess(role) : true));
   const appendSession = (descriptor: TerminalSessionDescriptor) => {
     const current = sessionsRef.current;
     if (current.length >= 8 || current.some(item => item.id === descriptor.id)) return false;
@@ -287,7 +305,7 @@ function TerminalManagerView({ dock, settings, role }: { dock: DockRegistration 
 
   const createMinecraftShellTab = () => {
     if (!instance || !canCreateShell || !hasAdminAccess(role)) return false;
-    const descriptor: TerminalSessionDescriptor = { id: crypto.randomUUID(), nodeId: instance.nodeId, appId: "minecraft", sessionId: null, target: { kind: "minecraft-shell", instanceId: instance.id }, label: `${instance.name} · Shell`, kind: "minecraft-shell", autoStart: true };
+    const descriptor: TerminalSessionDescriptor = { id: crypto.randomUUID(), nodeId: instance.nodeId, appId: "minecraft", sessionId: null, target: { kind: "minecraft-shell", instanceId: instance.id }, label: instance.name, kind: "minecraft-shell", autoStart: true };
     const appended = appendSession(descriptor);
     if (!appended) setNodeError("当前窗口已打开 8 个终端标签，请先关闭一个标签。");
     return appended;
@@ -302,13 +320,15 @@ function TerminalManagerView({ dock, settings, role }: { dock: DockRegistration 
   };
 
   const reportStatus = useCallback((id: string, status: SessionStatus) => {
+    if (status.transportDisconnected && instance) terminalNodeConnectivity.current = { nodeId: instance.nodeId, connected: false };
     setStatuses(current => {
       const previous = current[id];
       if (previous?.terminal?.id === status.terminal?.id && previous?.terminal?.state === status.terminal?.state
-        && previous?.approval?.id === status.approval?.id && previous?.error === status.error && previous?.busy === status.busy) return current;
+        && previous?.approval?.id === status.approval?.id && previous?.error === status.error && previous?.busy === status.busy
+        && previous?.transportDisconnected === status.transportDisconnected) return current;
       return { ...current, [id]: status };
     });
-  }, []);
+  }, [instance?.id, instance?.nodeId]);
 
   useEffect(() => {
     if (!instance) return;
@@ -326,6 +346,25 @@ function TerminalManagerView({ dock, settings, role }: { dock: DockRegistration 
     if (existing) return;
     createMinecraftShellTab();
   }, [instance?.id, instance?.nodeStatus, instance?.state, canCreateShell, role, sessions]);
+
+  useEffect(() => {
+    if (!instance || !canCreateShell || !hasAdminAccess(role)) return;
+    const shell = sessions.find(session => session.kind === "minecraft-shell" && session.target.kind === "minecraft-shell" && session.target.instanceId === instance.id);
+    const shellStatus = shell ? statuses[shell.id] : undefined;
+    if (!shell || !shellStatus?.transportDisconnected) return;
+    const observedNode = terminalNodeConnectivity.current;
+    const nodeReadConfirmedOnline = observedNode?.nodeId === instance.nodeId && observedNode.connected;
+    if (!nodeReadConfirmedOnline) return;
+    const attemptKey = `${instance.id}:${instance.nodeId}:${terminalNodeEpoch}`;
+    if (shellRecoveryAttempt.current === attemptKey) return;
+    shellRecoveryAttempt.current = attemptKey;
+    const replacement: TerminalSessionDescriptor = { ...shell, id: crypto.randomUUID(), label: instance.name, autoStart: true };
+    const next = sessionsRef.current.map(session => session.id === shell.id ? replacement : session);
+    sessionsRef.current = next;
+    setSessions(next);
+    setStatuses(current => { const updated = { ...current }; delete updated[shell.id]; return updated; });
+    setActiveId(replacement.id);
+  }, [instance?.id, instance?.name, instance?.nodeId, canCreateShell, role, sessions, statuses, terminalNodeEpoch]);
 
   useEffect(() => {
     if (!instance) {
@@ -351,6 +390,10 @@ function TerminalManagerView({ dock, settings, role }: { dock: DockRegistration 
       if (existing) autoAttachInstance.current = instance.id;
       return;
     }
+    if (!selectedNode?.connected) {
+      autoAttachInstance.current = null;
+      return;
+    }
     if (!["starting", "running"].includes(instance.state) || instance.nodeStatus !== "online") {
       autoAttachInstance.current = null;
       return;
@@ -364,7 +407,7 @@ function TerminalManagerView({ dock, settings, role }: { dock: DockRegistration 
     }
 
     if (createMinecraftTab()) autoAttachInstance.current = instance.id;
-  }, [instance?.id, instance?.state, instance?.nodeStatus, instance?.supportsConsole, role, sessions, statuses, activeId]);
+  }, [instance?.id, instance?.state, instance?.nodeStatus, instance?.supportsConsole, selectedNode?.connected, role, sessions, statuses, activeId]);
 
   const activeMinecraftSessionId = activeMinecraftSession?.id ?? null;
   const sendQuickCommand = useCallback((command: string) => {
@@ -377,7 +420,8 @@ function TerminalManagerView({ dock, settings, role }: { dock: DockRegistration 
 
   const instanceTerminalUnavailable = instance && !sessions.some(session => session.kind === "minecraft-shell" && session.target.kind === "minecraft-shell" && session.target.instanceId === instance.id)
     ? instance.state === "installing" ? "实例部署期间暂不可打开目录终端。"
-      : instance.nodeStatus !== "online" ? "运行节点未连接，无法打开实例终端。"
+      : !selectedNode ? nodeStatusError ? "无法读取运行节点终端状态。" : "正在获取运行节点终端状态…"
+        : !selectedNode.connected ? "运行节点的终端通道未连接。"
         : !hasAdminAccess(role) ? "当前账户没有管理权限。"
           : sessions.length >= 8 ? "终端标签已达上限，请先关闭一个标签。"
             : "正在打开实例目录终端…"
@@ -386,6 +430,10 @@ function TerminalManagerView({ dock, settings, role }: { dock: DockRegistration 
     ? sessions.filter(session => session.target.kind !== "shell" && session.target.instanceId === instance.id
       && (session.kind === "minecraft-shell" || (!["stopped", "error"].includes(instance.state) && statuses[session.id]?.terminal?.state !== "exited")))
     : sessions;
+  const showSessionTabs = !instance || visibleSessions.length > 1;
+  const displayedActiveId = visibleSessions.some(session => session.id === activeId)
+    ? activeId
+    : visibleSessions.length === 1 ? visibleSessions[0].id : activeId;
   const telemetryBadge = !instance || instance.state !== "running" ? "未运行"
     : instance.nodeStatus !== "online" ? "节点离线"
       : serverTelemetryError ? "读取失败"
@@ -453,38 +501,45 @@ function TerminalManagerView({ dock, settings, role }: { dock: DockRegistration 
       </div>
     </div> : null}
     {nodeError ? <Alert className="lfaa-terminal-manager__alert" type="error" showIcon message={nodeError} closable onClose={() => setNodeError("")} /> : null}
-    <div className="lfaa-terminal-manager__tabs" role="tablist" aria-label="终端会话">
+    {showSessionTabs ? <div className="lfaa-terminal-manager__tabs" role="tablist" aria-label="终端会话">
       {visibleSessions.map(session => {
-        return <div key={session.id} className={`lfaa-terminal-manager__tab${activeId === session.id ? " is-active" : ""}`} role="presentation">
-          <button type="button" role="tab" id={`terminal-tab-${session.id}`} aria-controls={`terminal-panel-${session.id}`} aria-selected={activeId === session.id} onClick={() => setActiveId(session.id)}><span>{session.label}</span></button>
+        const label = instance && session.kind === "minecraft" ? "服务端控制台"
+          : instance && session.kind === "minecraft-shell" ? "实例 Shell"
+            : session.label;
+        return <div key={session.id} className={`lfaa-terminal-manager__tab${displayedActiveId === session.id ? " is-active" : ""}`} role="presentation">
+          <button type="button" role="tab" id={`terminal-tab-${session.id}`} aria-controls={`terminal-panel-${session.id}`} aria-selected={displayedActiveId === session.id} onClick={() => setActiveId(session.id)}><span>{label}</span></button>
           {!instance ? <button type="button" className="lfaa-terminal-manager__tab-close" aria-label={`关闭 ${session.label}`} onClick={() => closeSessionTab(session.id)}><WorkbenchIcon name="close" size={12} /></button> : null}
         </div>;
       })}
-    </div>
+    </div> : null}
     <div className="lfaa-terminal-manager__panes">
-      {visibleSessions.map(session => <TerminalSessionPane key={session.id} descriptor={session} active={session.id === activeId} placement={dock?.placement ?? "bottom"} settings={settings} minecraftInstanceState={instance?.state} onStatus={reportStatus} registerMinecraftSender={registerMinecraftSender} />)}
+      {visibleSessions.map(session => <TerminalSessionPane key={session.id} descriptor={session} active={session.id === displayedActiveId} showSessionTabs={showSessionTabs} placement={dock?.placement ?? "bottom"} settings={settings} minecraftInstanceState={instance?.state} terminalNodeConnected={selectedNode?.connected} terminalNodeStatusError={nodeStatusError} onStatus={reportStatus} registerMinecraftSender={registerMinecraftSender} />)}
         {instance && !visibleSessions.length
         ? <div className="lfaa-terminal-manager__empty" role="status"><strong>终端暂不可用</strong><span>{instanceTerminalUnavailable}</span></div>
         : !visibleSessions.length ? <div className="lfaa-terminal-manager__empty"><span>无会话</span></div>
-          : !visibleSessions.some(session => session.id === activeId) ? <div className="lfaa-terminal-manager__empty"><span>请选择一个终端标签</span></div> : null}
+          : !visibleSessions.some(session => session.id === displayedActiveId) ? <div className="lfaa-terminal-manager__empty"><span>请选择一个终端标签</span></div> : null}
     </div>
       </main>
     </div>
   </section>;
 }
 
-function TerminalSessionPane({ descriptor, active, placement, settings, minecraftInstanceState, onStatus, registerMinecraftSender }: { descriptor: TerminalSessionDescriptor; active: boolean; placement: "bottom" | "minecraft"; settings: UserSettings; minecraftInstanceState?: string; onStatus: (id: string, status: SessionStatus) => void; registerMinecraftSender: (id: string, sender: { send(data: string): void; focus(): void }) => () => void }) {
+function TerminalSessionPane({ descriptor, active, showSessionTabs, placement, settings, minecraftInstanceState, terminalNodeConnected, terminalNodeStatusError, onStatus, registerMinecraftSender }: { descriptor: TerminalSessionDescriptor; active: boolean; showSessionTabs: boolean; placement: "bottom" | "minecraft"; settings: UserSettings; minecraftInstanceState?: string; terminalNodeConnected?: boolean; terminalNodeStatusError?: string; onStatus: (id: string, status: SessionStatus) => void; registerMinecraftSender: (id: string, sender: { send(data: string): void; focus(): void }) => () => void }) {
   const surface = useRef<TerminalSurfaceHandle>(null);
-  const session = useTerminalSession({ surface, appId: descriptor.appId, sessionId: descriptor.sessionId, permissionsMode: settings.permissions.mode, scopeKey: `terminal-manager:${descriptor.id}`, quietExit: descriptor.kind === "minecraft" });
+  const embeddedMinecraftShell = placement === "minecraft" && descriptor.kind === "minecraft-shell";
+  const embeddedMinecraftPane = placement === "minecraft" && (descriptor.kind === "minecraft" || descriptor.kind === "minecraft-shell");
+  const session = useTerminalSession({ surface, appId: descriptor.appId, sessionId: descriptor.sessionId, permissionsMode: settings.permissions.mode, scopeKey: `terminal-manager:${descriptor.id}`, quietExit: descriptor.kind === "minecraft", quietTransportDisconnect: embeddedMinecraftShell });
   const autoStarted = useRef(false);
-  const status: SessionStatus = { terminal: session.terminal, approval: session.approval, error: session.error, busy: session.busy };
+  const status: SessionStatus = { terminal: session.terminal, approval: session.approval, error: session.error, busy: session.busy, transportDisconnected: session.transportDisconnected };
   const running = session.terminal?.state === "running";
   const sendRef = useRef(session.send);
   sendRef.current = session.send;
   const connecting = session.terminal?.state === "starting" || session.busy;
   const kindLabel = descriptor.kind === "minecraft" ? "服务端控制台" : descriptor.kind === "minecraft-shell" ? "实例 Shell" : "Shell";
+  const shellAvailability = session.transportDisconnected ? terminalNodeConnected ? "正在恢复终端" : terminalNodeStatusError ? "节点状态读取失败" : "节点终端离线"
+    : !session.terminal && !connecting && embeddedMinecraftShell && terminalNodeConnected === false ? "节点终端离线" : !session.terminal && embeddedMinecraftShell ? "终端连接中" : "";
 
-  useEffect(() => onStatus(descriptor.id, status), [descriptor.id, session.terminal, session.approval, session.error, session.busy, onStatus]);
+  useEffect(() => onStatus(descriptor.id, status), [descriptor.id, session.terminal, session.approval, session.error, session.busy, session.transportDisconnected, onStatus]);
 
   useEffect(() => {
     if (descriptor.kind !== "minecraft" || !running) return;
@@ -517,11 +572,12 @@ function TerminalSessionPane({ descriptor, active, placement, settings, minecraf
     await session.start(request);
   };
 
-  return <section className="lfaa-terminal-manager__pane" id={`terminal-panel-${descriptor.id}`} role="tabpanel" aria-labelledby={`terminal-tab-${descriptor.id}`} hidden={!active}>
-    <div className="lfaa-terminal-manager__session-bar"><span>{kindLabel}{session.terminal ? ` · ${session.terminal.cwd}` : ""}</span><div>
-      {!session.terminal || session.terminal.state === "exited" ? descriptor.kind === "minecraft" ? null : <Button size="small" type="primary" disabled={connecting || !!session.approval} loading={connecting} onClick={() => void start().catch(error => session.reportError(error))}>启动 Shell</Button> : descriptor.kind === "minecraft" || (placement === "minecraft" && descriptor.kind === "minecraft-shell") ? null : <Button size="small" onClick={() => void session.stop().catch(error => session.reportError(error))}>断开会话</Button>}
-    </div></div>
-    {session.error ? <Alert className="lfaa-terminal-manager__alert" type="error" showIcon message={session.error} closable onClose={session.clearError} /> : null}
+  return <section className={`lfaa-terminal-manager__pane${embeddedMinecraftPane ? " lfaa-terminal-manager__pane--minecraft-embedded" : ""}`} id={`terminal-panel-${descriptor.id}`} role={showSessionTabs ? "tabpanel" : "region"} aria-labelledby={showSessionTabs ? `terminal-tab-${descriptor.id}` : undefined} aria-label={!showSessionTabs ? `${kindLabel}终端` : undefined} hidden={!active}>
+    {!embeddedMinecraftPane ? <div className="lfaa-terminal-manager__session-bar"><span>{kindLabel}{session.terminal ? ` · ${session.terminal.cwd}` : ""}</span><div>
+      {shellAvailability ? <Tag role="status" aria-live="polite" color={session.transportDisconnected && terminalNodeConnected === false ? "default" : "processing"}>{shellAvailability}</Tag> : null}
+      {!session.terminal || session.terminal.state === "exited" ? descriptor.kind === "minecraft" || (embeddedMinecraftShell && (!session.terminal || session.transportDisconnected)) ? null : <Button size="small" type="primary" disabled={connecting || !!session.approval} loading={connecting} onClick={() => void start().catch(error => session.reportError(error))}>启动 Shell</Button> : descriptor.kind === "minecraft" || embeddedMinecraftShell ? null : <Button size="small" onClick={() => void session.stop().catch(error => session.reportError(error))}>断开会话</Button>}
+    </div></div> : null}
+    {session.error && !(embeddedMinecraftShell && session.transportDisconnected) ? <Alert className="lfaa-terminal-manager__alert" type="error" showIcon message={session.error} closable onClose={session.clearError} /> : null}
     {session.approval ? <div className="lfaa-terminal-manager__approval"><p>{session.approval.summary}</p><small>{session.approval.scopeSummary}</small><div><Button size="small" type="primary" loading={session.busy} onClick={() => void session.decide(true)}>批准本次会话</Button><Button size="small" disabled={session.busy} onClick={() => void session.decide(false)}>拒绝</Button></div></div> : null}
     <TerminalSurface ref={surface} className="lfaa-terminal-manager__surface _block_lfaa_wallpaper_terminal" ariaLabel={`${descriptor.label}终端输入和输出`} inputMode="raw" inputEnabled={running && (descriptor.kind !== "minecraft" || !minecraftInstanceState || minecraftInstanceState === "running")} onData={session.send} onResize={size => session.resize(size)} />
   </section>;

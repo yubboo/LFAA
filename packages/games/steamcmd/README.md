@@ -8,6 +8,8 @@ SteamCMD 配置、节点游戏目录、通用 Steam Dedicated Server Tool AppID 
 
 设置沿用“项目与存储”中 SteamCMD 的工具路径与游戏目录；没有新增设置中心项。数据库持有服务端配置和状态，目标 Windows Daemon 持有实际文件与受管子进程。Agent Tools 与常规页面都调用本服务；Agent 操作经 Permission Owner，常规页面操作走认证管理员与显式用户动作。
 
+文件管理进入节点设置中的 `gameDirectory` 时，Daemon 会先按段核验路径并补建缺失的游戏存储根，再返回磁盘上的真实目录内容；真实文件夹创建后会由同一目录读取识别。此行为不创建或替代 `steamcmdDirectory` 工具安装目录，工具目录仍由安装生命周期管理。
+
 构建只写仓库根 `dist/packages/games/steamcmd/`。定向 Steam 服务端/任务回归、数据库迁移、Daemon 进程控制与节点实测在每轮 `docs/PROMPTS.md` 合同中区分记录；静态/隔离验证不表示真实 Steam 账号、AppID、服务端或网络可用性均已验收。
 
 DST 使用本 Owner 建立共享 `dstClusterId` 与 Master/Caves 两条分片记录；两行引用同一个 Tool AppID 和安装目录，安装/更新任务只派发一次，并在两个分片都确认停止时才允许执行。集群名和分片进入 Daemon 任务合同；运行配置从 SteamCMD 游戏目录下的 `dst-clusters/<clusterId>` 读取，集群令牌正文不写入数据库或任务。客户端商店 AppID 与 Tool AppID 的区别仍适用；未经官方核实的数字 AppID/停服命令由管理员明确填写。

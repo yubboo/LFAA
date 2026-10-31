@@ -193,6 +193,14 @@ test("Mobile 左导航 Dock 复用大屏标准分隔条宽度", () => {
   assert.equal(shouldDockResponsiveLeftPane(500, 300, 200, true), false);
 });
 
+test("Mobile 左导航切换为 Dock 后中间区取消 Overlay 左缩进", () => {
+  const responsiveCss = readFileSync(new URL("../../../packages/client/ui-dockkit/src/css/common-responsive.css", import.meta.url), "utf8");
+  const dockCenter = responsiveCss.match(/\.lfaa-workbench\[data-layout-mode="mobile"\]\[data-mobile-left-layout="dock"\] \.lfaa-workbench__center\s*\{([^}]+)\}/u)?.[1] ?? "";
+
+  assert.match(dockCenter, /width:\s*auto;/u);
+  assert.match(dockCenter, /margin-left:\s*0;/u);
+});
+
 test("Mobile 工作区标题栏只保留一行，并与菜单 Overlay 顶边对齐", () => {
   const workspaceCss = readWorkspaceCss();
   const mobileHeader = workspaceCss.match(/\.module-center__header\[data-layout-mode="mobile"\]\s*\{([^}]+)\}/u)?.[1];

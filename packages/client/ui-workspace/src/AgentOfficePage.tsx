@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Button, Empty, Tag, Typography } from "antd";
 import { loadAiOffice, type AiOfficeEmployee, type AiOfficeRun, type AiOfficeSnapshot, type ApplicationId, type User, type UserSettings } from "lfaa-client-connection/src/api.js";
+import { setFileManagerLocation } from "lfaa-client-connection/src/file-manager-location.js";
 import type { ServiceState } from "lfaa-client-ui-primitives/src/ServiceStatus.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
+import { WORKBENCH_LAYOUT_TOKENS } from "lfaa-client-ui-dockkit/src/workbench-layout.config.js";
 import { GlobalNavigationRail, type ApplicationNavigationItem } from "lfaa-client-ui-sidebar/src/GlobalNavigationRail.js";
 import "./agent-office.css";
 
@@ -176,11 +178,12 @@ export function AgentOfficePage({ user, settings, serverState, applications, nav
   return (
     <div className="agent-office-stage module-workbench-stage">
       <GlobalNavigationRail
+        secondaryNavigationMinWidth={WORKBENCH_LAYOUT_TOKENS.left.min.floor}
         username={user.username} role={user.role} serverState={serverState} shortcuts={settings.shortcuts}
         activePage="office" applications={applications} navigationApplications={navigationApplications}
         showServiceStatus={settings.general.showServiceStatus}
         onToggleApplications={onOpenApplications} onOpenRecentSessions={onOpenRecentSessions} onNavigate={onNavigate}
-        onOpenApplication={onOpenApplication} onOpenFiles={() => onNavigate("/files")}
+        onOpenApplication={onOpenApplication} onOpenFiles={() => { setFileManagerLocation(user.id, ""); onNavigate("/files"); }}
         onOpenSettings={onOpenSettings} onLogout={onLogout}
       />
       <main className="agent-office-page" aria-labelledby="agent-office-title">

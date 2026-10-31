@@ -24,7 +24,7 @@ Minecraft/Steam 的备份分类根分别为 `data/backups/minecraft` 与 `data/b
 
 ## 运行与桌面打包
 
-`terminal-channel.mjs` 在现有控制端地址上建立认证 POST SSE 命令连接，通过顺序 HTTP 批量回报输出和应答；本机与远程节点共用该链，远程仍要求 HTTPS。系统 Shell 与从 Minecraft 实例目录启动的 `minecraft-shell` 都经 subprocess-local 原生 PTY，Shell 选择来自 Settings 并通过 terminal-bash 异步解析，必要 OS 环境采用显式允许集合，不继承模型服务密钥。`minecraft` 目标只附着到该节点 Daemon 当前持有的实例 PTY；启动前允许登记一个待附着订阅，PTY 创建后立即推送原始输出，不等待服务端就绪，也不会把 Java 进程暴露成 OS Shell。写入游戏命令仍要求实际进程已就绪。原生模式复用同一 subprocess-local ConPTY；AppContainer 模式由 Rust Sandbox Host 创建 Windows Pseudo Console，PTY 字节和尺寸通过有长度上限的帧协议送入 Host，Java 仍保留实例 AppContainer、文件 ACL、网络能力和 Job Object。每节点最多 8 个终端会话，发送队列 1 MiB；控制端断线、凭据失效或 Daemon 卸载关闭 Shell PTY 并撤销 Minecraft 附着，不重放输入，也不因终端断开停止 Minecraft 服务端。AppContainer 交互式能力只在 Sandbox Host v2 探测成功后加入节点能力集。Minecraft 受管终端另对目标进程的原始 PTY stdout 保留最多 128 KiB 的临时回放缓冲，竞态期间补齐后继续订阅同一进程流，不读取或持久化实例日志。
+`terminal-channel.mjs` 在现有控制端地址上建立认证 POST SSE 命令连接，通过顺序 HTTP 批量回报输出和应答；本机与远程节点共用该链，远程仍要求 HTTPS。系统 Shell 与从 Minecraft 实例目录启动的 `minecraft-shell` 都经 subprocess-local 原生 PTY，Shell 选择来自 Settings 并通过 terminal-bash 异步解析，必要 OS 环境采用显式允许集合，不继承模型服务密钥。`minecraft` 目标只附着到该节点 Daemon 当前持有的实例 PTY；启动前允许登记一个待附着订阅，PTY 创建后立即推送原始 stdout/stderr，不等待服务端就绪，也不会把 Java 进程暴露成 OS Shell。写入游戏命令仍要求实际进程已就绪。原生模式复用同一 subprocess-local ConPTY；AppContainer 模式由 Rust Sandbox Host 创建 Windows Pseudo Console，PTY 字节和尺寸通过有长度上限的帧协议送入 Host，Java 仍保留实例 AppContainer、文件 ACL、网络能力和 Job Object。每节点最多 8 个终端会话，发送队列 1 MiB；控制端断线、凭据失效或 Daemon 卸载关闭 Shell PTY 并撤销 Minecraft 附着，不重放输入，也不因终端断开停止 Minecraft 服务端。AppContainer 交互式能力只在 Sandbox Host v2 探测成功后加入节点能力集。Minecraft 受管终端另对目标进程的原始 PTY 输出保留最多 128 KiB 的临时回放缓冲，竞态期间补齐后继续订阅同一进程流，不读取或持久化实例日志。
 
 Windows Electron 桌面安装包内置本机 Daemon，并由桌面主进程自动启动和收尾。Daemon 保持独立进程与 `daemon` Profile，控制端通过现有认证节点任务通道单独读取节点状态和派发操作。需要新增远程节点时，管理员通过控制端签发 HTTPS 连接身份，目标 Windows x64 主机导入连接文件后运行 `lfaa daemon`；远程主机安装器和系统服务托管尚未接入。
 
@@ -45,6 +45,8 @@ Daemon 声明 `node-filesystem-binary-transfer-v1` 后，上传从 Control Plane
 ## 游戏文件资源范围（2026-10-14）
 
 节点新增 node-filesystem-instance-v1 与 node-filesystem-game-storage-v1：实例请求只提交已登记实例 ID，目标节点用既有核验索引定位真实目录；Minecraft/SteamCMD 平台目录从节点自己的已保存设置解析，支持原 Owner 允许的绝对自定义位置。实例根、元数据、活动进程或保留进程/安装标记由共享 instance-files 保护。普通 data、实例和平台来源共用文件执行器和串行写锁；回收站命名空间由控制端依据真实账户派生，不能由浏览器覆盖。旧节点不声称支持这些范围。扩展 plugins 目录由 Plugin Manager 生命周期维护，不受通用文件写操作管理。构建和隔离夹具不等于实际节点/游戏进程验收。
+
+访问设置指定的 Minecraft 或 Steam 游戏存储时，Daemon 逐段检查真实路径；游戏根缺失时创建该配置根，之后的列表、创建、修改、移动和删除仍由受管文件执行器对真实文件系统操作。SteamCMD 工具目录是独立只读资源，缺失时仍引导安装，不随游戏根创建。
 
 SteamCMD 工具目录使用内部 `steamcmd-runtime` 路由只读浏览，文件管理展示节点设置中的实际 `steamcmdDirectory`（默认 `data/lib/steamcmd`）；仅 SteamCMD Owner 的节点租约任务可安装、校验或完整卸载。卸载只作用于已配置的 `steamcmdDirectory`，拒绝重解析目录及仍有运行或状态未确认 Steam 游戏服务端的情况；游戏目录不随工具卸载处理。
 

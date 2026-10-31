@@ -1,7 +1,7 @@
 /**
  * 文件：GlobalNavigationRail.tsx
  * 功能：提供应用工作区、文件页和设置中心共用的全局导航轨。
- * 作用：统一小鱼首页、应用菜单、最近会话、工具、设置、快捷键、账户状态与退出登录入口；不把当前应用主页或 AI Work 捷径混入全局图标轨。
+ * 作用：统一小鱼首页、应用菜单、最近会话、设置、文件管理、工具、快捷键、账户状态与退出登录入口；不把当前应用主页或 AI Work 捷径混入全局图标轨。
  * 关联文件：packages/client/ui-sidebar/src/GlobalNavigationRail.css、packages/client/ui-workspace/src/ApplicationWorkspace.tsx、packages/client/ui-settings/src/SettingsPage.tsx、packages/client/ui-sidebar-files/src/FileManagerPage.tsx、packages/client/connection/src/api.ts、packages/client/resources/src/notification-runtime.ts。
  */
 import { useEffect, useRef, useState } from "react";
@@ -36,8 +36,12 @@ interface NavigationFeatureGroup {
   items: NavigationFeatureItem[];
 }
 
+// 左二栏为稳定滚动条槽预留 12px；导航浮卡右侧避开这段空间，避免遮挡滚动条。
+const POPOVER_SCROLLBAR_RESERVE_PX = 12;
+
 interface GlobalNavigationRailProps {
   className?: string;
+  secondaryNavigationMinWidth: number;
   username: string;
   role: UserRole;
   serverState: ServiceState;
@@ -60,7 +64,7 @@ interface GlobalNavigationRailProps {
   onToggleApplications?: () => void;
 }
 
-export function GlobalNavigationRail({ className, username, role, serverState, shortcuts, activePage, applications, navigationApplications = applications, onOpenRecentSessions, showServiceStatus, onNavigate, onOpenApplication, onOpenFiles, onOpenCanvas, isSharedWorkHome = false, onOpenSettings, onLogout, onToggleTools, applicationsExpanded = false, applicationsTargetId = "module-sidebar-applications", onToggleApplications }: GlobalNavigationRailProps) {
+export function GlobalNavigationRail({ className, secondaryNavigationMinWidth, username, role, serverState, shortcuts, activePage, applications, navigationApplications = applications, onOpenRecentSessions, showServiceStatus, onNavigate, onOpenApplication, onOpenFiles, onOpenCanvas, isSharedWorkHome = false, onOpenSettings, onLogout, onToggleTools, applicationsExpanded = false, applicationsTargetId = "module-sidebar-applications", onToggleApplications }: GlobalNavigationRailProps) {
   const [openPopover, setOpenPopover] = useState<"applications" | "menu" | "shortcuts" | "profile" | null>(null);
   const [menuSearch, setMenuSearch] = useState("");
   const railRef = useRef<HTMLElement>(null);
@@ -95,7 +99,6 @@ export function GlobalNavigationRail({ className, username, role, serverState, s
       title: "工作区",
       items: [
         { id: "office", title: "AI 员工办公室", description: "查看员工任务与待命状态", icon: "summary", active: activePage === "office", onSelect: () => onNavigate("/agent-office") },
-        { id: "files", title: "文件管理", description: "浏览当前账户可访问的文件", icon: "folder", active: activePage === "files", onSelect: onOpenFiles },
         { id: "canvas", title: "无限画布", description: "打开工作区画布", icon: "grid", active: activePage === "canvas", onSelect: () => { if (onOpenCanvas) onOpenCanvas(); else onNavigate("/canvas"); } },
       ],
     },
@@ -112,7 +115,9 @@ export function GlobalNavigationRail({ className, username, role, serverState, s
     .map(group => ({ ...group, items: group.items.filter(item => `${item.title} ${item.description}`.toLocaleLowerCase().includes(normalizedMenuSearch)) }))
     .filter(group => group.items.length > 0);
   const applicationsActive = (onToggleApplications ? applicationsExpanded : openPopover === "applications") || (activePage === "home" && !isSharedWorkHome);
-  const featurePageActive = activePage === "office" || activePage === "files" || activePage === "canvas" || activePage === "plugins";
+  const featurePageActive = activePage === "office" || activePage === "canvas" || activePage === "plugins";
+  const navigationPopoverContentWidthPx = Math.max(1, Math.round(secondaryNavigationMinWidth) - POPOVER_SCROLLBAR_RESERVE_PX);
+  const navigationPopoverWidth = `min(${navigationPopoverContentWidthPx}px, calc(100vw - 84px))`;
 
   return (
     <nav className={`module-navigation-rail${className ? ` ${className}` : ""}`} aria-label="LFAA 主导航" ref={railRef}>
@@ -126,6 +131,7 @@ export function GlobalNavigationRail({ className, username, role, serverState, s
           onOpenRecentSessions();
         }}><WorkbenchIcon name="history" size={19} /></button>
         <button className={`module-navigation-rail__button${activePage === "settings" ? " is-active" : ""}`} type="button" aria-label="设置中心" aria-current={activePage === "settings" ? "page" : undefined} title="设置中心" aria-keyshortcuts="Control+, Meta+," onClick={() => { setOpenPopover(null); onOpenSettings(); }}><WorkbenchIcon name="settings" size={19} /></button>
+        <button className={`module-navigation-rail__button${activePage === "files" ? " is-active" : ""}`} type="button" aria-label="文件管理" aria-current={activePage === "files" ? "page" : undefined} title="文件管理" onClick={() => { setOpenPopover(null); onOpenFiles(); }}><WorkbenchIcon name="folder" size={19} /></button>
       </div>
       <div className="module-navigation-rail__footer" role="group" aria-label="底部辅助区">
         {!onToggleApplications && openPopover === "applications" ? <section className="module-navigation-rail__popover module-navigation-rail__popover--applications" id="module-navigation-rail-applications" role="dialog" aria-label="应用">
@@ -141,7 +147,7 @@ export function GlobalNavigationRail({ className, username, role, serverState, s
             </button>)}
           </div>
         </section> : null}
-        {openPopover === "menu" ? <section className="module-navigation-rail__popover module-navigation-rail__popover--features" id="module-navigation-rail-features" role="dialog" aria-label="更多功能">
+        {openPopover === "menu" ? <section className="module-navigation-rail__popover module-navigation-rail__popover--features" id="module-navigation-rail-features" role="dialog" aria-label="更多功能" style={{ width: navigationPopoverWidth }}>
           <header><div><strong>更多功能</strong><span>搜索或浏览其他工作区</span></div><button type="button" aria-label="关闭更多功能" onClick={() => setOpenPopover(null)}><WorkbenchIcon name="close" size={14} /></button></header>
           <label className="module-navigation-rail__feature-search"><WorkbenchIcon name="search" size={16} /><input type="search" value={menuSearch} onChange={event => setMenuSearch(event.currentTarget.value)} placeholder="搜索功能" aria-label="搜索功能" autoComplete="off" /></label>
           <div className="module-navigation-rail__feature-list">
@@ -154,7 +160,7 @@ export function GlobalNavigationRail({ className, username, role, serverState, s
             </section>)}
           </div>
         </section> : null}
-        {openPopover === "shortcuts" ? <section className="module-navigation-rail__popover module-navigation-rail__popover--shortcuts" role="dialog" aria-label="工作台键盘快捷键">
+        {openPopover === "shortcuts" ? <section className="module-navigation-rail__popover module-navigation-rail__popover--shortcuts" role="dialog" aria-label="工作台键盘快捷键" style={{ width: navigationPopoverWidth }}>
           <header><strong>键盘快捷键</strong><button type="button" aria-label="关闭快捷键列表" onClick={() => setOpenPopover(null)}><WorkbenchIcon name="close" size={14} /></button></header>
           <dl>
             {activePage === "home" ? <>
@@ -177,7 +183,7 @@ export function GlobalNavigationRail({ className, username, role, serverState, s
           <button className={`module-navigation-rail__button${openPopover === "menu" || featurePageActive ? " is-active" : ""}`} type="button" aria-label="更多功能" title="更多功能" aria-haspopup="dialog" aria-expanded={openPopover === "menu"} aria-controls={openPopover === "menu" ? "module-navigation-rail-features" : undefined} aria-current={featurePageActive ? "page" : undefined} onClick={() => { setMenuSearch(""); setOpenPopover(current => current === "menu" ? null : "menu"); }}><WorkbenchIcon name="dots" size={19} /></button>
         </div>
         {showServiceStatus ? <div className="module-navigation-rail__status-box"><span className={`module-navigation-rail__status module-navigation-rail__status--${serverState}`} title={serverState === "online" ? "控制端已连接" : serverState === "checking" ? "正在检查控制端" : "控制端未连接"} /></div> : null}
-        {openPopover === "profile" ? <section className="module-navigation-rail__popover module-navigation-rail__popover--profile" role="dialog" aria-label="个人账户">
+        {openPopover === "profile" ? <section className="module-navigation-rail__popover module-navigation-rail__popover--profile" role="dialog" aria-label="个人账户" style={{ width: navigationPopoverWidth }}>
           <header><div><strong>{username}</strong><span>{userRoleLabel(role)}</span></div><button type="button" aria-label="关闭个人账户" onClick={() => setOpenPopover(null)}><WorkbenchIcon name="close" size={14} /></button></header>
           <div className="module-navigation-rail__popover-actions">
             <button type="button" onClick={() => { setOpenPopover(null); onOpenSettings(); }}><WorkbenchIcon name="settings" size={16} /><span>设置中心</span></button>

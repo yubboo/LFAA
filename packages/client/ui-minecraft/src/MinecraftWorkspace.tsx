@@ -512,6 +512,13 @@ function taskDetailStatusLabel(task: MinecraftTask): string {
   return task.result?.forced === true ? "已强制停止" : taskStatusLabel(task.status);
 }
 
+function taskCompactStatusLabel(task: MinecraftTask): string {
+  if (task.result?.forced === true) return "已强制停止";
+  if (task.status === "succeeded") return "完成";
+  if (task.status === "failed" && task.result?.outcome === "unknown") return "异常";
+  return taskStatusLabel(task.status);
+}
+
 function taskProblemLog(logs: MinecraftTaskDetails["logs"]): MinecraftTaskDetails["logs"][number] | null {
   return logs.find((log) => log.stream === "stderr" || /\b(error|exception|failed|failure|fatal|denied|cannot)\b|失败|异常|错误|拒绝|找不到|无法/iu.test(log.line)) ?? null;
 }
@@ -1295,6 +1302,8 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
 
   const closeTaskDetails = useCallback(() => {
     taskDetailSequence.current += 1;
+    taskDetailAbortController.current?.abort();
+    taskDetailAbortController.current = null;
     setTaskDetailId(null);
     setTaskDetails(null);
     setTaskDetailError(null);
@@ -1417,7 +1426,7 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
           <div className="minecraft-page-heading__copy">
             <div className="minecraft-page-heading__title">
               <Typography.Title id="minecraft-page-title" level={2}>{isInstanceConsole ? "控制台" : selectedInstance ? detailView === "overview" ? "实例概览" : selectedInstance.name : pageTitle}</Typography.Title>
-              {isInstanceConsole && selectedInstance && ["starting", "running", "stopping"].includes(selectedInstance.state) ? <Tag role="status" aria-live="polite" color={selectedInstance.state === "running" ? "success" : selectedInstance.state === "starting" ? "processing" : "warning"}>{selectedInstance.state === "running" ? "运行中" : selectedInstance.state === "starting" ? "启动中" : "正在停止"}</Tag> : null}
+              {isInstanceConsole && selectedInstance ? <Tag role="status" aria-live="polite" color={selectedInstance.state === "running" ? "success" : ["starting", "installing"].includes(selectedInstance.state) ? "processing" : selectedInstance.state === "stopping" ? "warning" : selectedInstance.state === "error" ? "error" : selectedInstance.state === "unknown" ? "warning" : "default"}>{stateLabel(selectedInstance.state)}</Tag> : null}
             </div>
             {selectedInstance ? <div className="minecraft-page-heading__description-slot" aria-hidden={!pageDescription}>
               <Typography.Paragraph className={pageDescription ? undefined : "minecraft-page-heading__description-placeholder"} title={pageDescription || undefined}>{pageDescription || "\u00a0"}</Typography.Paragraph>
@@ -1440,7 +1449,7 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
               {selectedInstance.state === "running" ? <Button disabled={!selectedInstanceCanRestart} loading={busy} onClick={() => instanceAction("restart")}>安全重启</Button> : null}
             </> : null}
             {currentSection === "overview" && selectedInstance ? <span className="minecraft-overview-sync">{lastRefreshedAt ? `同步于 ${timeLabel(lastRefreshedAt)}` : "等待首次同步"}</span> : null}
-            {realtimeStatus !== "connected" ? <Button size="small" onClick={reconnectRealtime}>重新连接</Button> : null}
+            {!isInstanceConsole && realtimeStatus !== "connected" ? <Button size="small" onClick={reconnectRealtime}>重新连接</Button> : null}
             <Button onClick={() => void refresh()}>刷新状态</Button>
           </Space>
         </header>
@@ -1745,9 +1754,9 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
               </button>)}
             </div> : <div className="minecraft-empty">还没有运行设备；连接 Daemon 后，服务器才能部署在你的设备上。</div>}
           </section>
-          <section className="minecraft-overview-panel">
+          <section className="minecraft-overview-panel minecraft-overview-task-panel">
             <div className="minecraft-card-heading"><Typography.Title level={4}>最近任务</Typography.Title><Button type="link" onClick={() => onNavigate("/games/minecraft/tasks")}>查看全部</Button></div>
-            {tasksLoaded ? <TaskList userId={canOperate ? userId : ""} onCancel={id=>{void submitAction(()=>cancelMinecraftTask(id), { message: "已提交任务取消请求。", showTasksLink: true });}} tasks={tasks.slice(0, 4)} /> : <div className="minecraft-empty">{refreshError ? "任务状态暂不可读。" : "正在读取任务状态…"}</div>}
+            {tasksLoaded ? <TaskList userId={canOperate ? userId : ""} onCardClick={() => onNavigate("/games/minecraft/tasks")} onCancel={id=>{void submitAction(()=>cancelMinecraftTask(id), { message: "已提交任务取消请求。", showTasksLink: true });}} tasks={tasks.slice(0, 4)} /> : <div className="minecraft-empty">{refreshError ? "任务状态暂不可读。" : "正在读取任务状态…"}</div>}
           </section>
         </div>
       </> : null}
@@ -1966,12 +1975,13 @@ function MinecraftWorkspaceForIdentity(props: MinecraftWorkspaceProps) {
 
 export const MinecraftWorkspace = memo(MinecraftWorkspaceForIdentity);
 
-function TaskList({ tasks, selectionTasks = tasks, userId, onCancel, onOpenDetails, onDelete, canDelete = false, deleting = false }: {
+function TaskList({ tasks, selectionTasks = tasks, userId, onCancel, onOpenDetails, onCardClick, onDelete, canDelete = false, deleting = false }: {
   tasks: MinecraftTask[];
   selectionTasks?: MinecraftTask[];
   userId: string;
   onCancel: (id: string) => void;
   onOpenDetails?: (id: string) => void;
+  onCardClick?: (id: string) => void;
   onDelete?: (ids: string[]) => Promise<boolean>;
   canDelete?: boolean;
   deleting?: boolean;
@@ -2024,6 +2034,8 @@ function TaskList({ tasks, selectionTasks = tasks, userId, onCancel, onOpenDetai
       const selected = selectedIds.includes(task.id);
       const taskLabel = task.kind === "java-install" ? javaTaskLabel(task) : deploymentTaskLabel(task);
       const showMessage = task.status !== "succeeded" || task.message !== "Minecraft 任务已完成。";
+      const statusText = `${taskDetailStatusLabel(task)}${task.status === "running" ? ` · ${task.progress}%` : ""}`;
+      const compactStatusText = taskCompactStatusLabel(task);
       return <article
         className={`minecraft-task-card lfaa-card-motion${selected ? " is-selected" : ""}${selectable ? " is-selectable" : " is-detail-only"}`}
         key={task.id}
@@ -2031,32 +2043,41 @@ function TaskList({ tasks, selectionTasks = tasks, userId, onCancel, onOpenDetai
         <button
           className="minecraft-task-card__select"
           type="button"
-          aria-label={selectable ? `${selected ? "取消选择" : "选择"}任务 ${taskLabel} 以批量删除` : `查看任务详情：${taskLabel}`}
+          aria-label={selectable ? `${selected ? "取消选择" : "选择"}任务 ${taskLabel} 以批量删除` : onCardClick ? `打开任务列表，最近任务：${taskLabel}` : `查看任务详情：${taskLabel}`}
           aria-pressed={selectable ? selected : undefined}
-          onClick={() => selectable ? toggleSelected(task.id, !selected) : onOpenDetails?.(task.id)}
+          onClick={() => selectable ? toggleSelected(task.id, !selected) : (onCardClick ?? onOpenDetails)?.(task.id)}
         />
-        <div className="minecraft-task-heading"><strong>{taskLabel}</strong></div>
-        <div className="minecraft-task-copy">
-          {typeof task.payload.instanceName === "string" ? <small>{task.payload.instanceName}</small> : null}
-          {task.status === "running" ? <Progress aria-label={`${task.message}进度`} percent={task.progress} size="small" status="active" /> : null}
-          {showMessage ? <span className={`minecraft-task-message${task.status === "failed" ? " is-failed" : ""}`}>{task.message}</span> : null}
-          {task.kind === "delete" && task.result?.archived === true ? <small>节点已确认完整目录归档，实例登记已移除。</small> : null}
-          {typeof task.result?.note === "string" ? <small>{task.result.note}</small> : null}{typeof task.result?.backupName === "string" ? <small>节点备份归档：{task.result.backupName}</small> : null}
-          <small>{timeLabel(task.createdAt)}</small>
-        </div>
-        <div className="minecraft-task-footer">
-          <Tag className="minecraft-task-status-tag" color={task.result?.forced === true ? "orange" : task.status === "succeeded" ? "green" : task.status === "failed" ? "red" : "blue"}>{taskDetailStatusLabel(task)}{task.status === "running" ? ` · ${task.progress}%` : ""}</Tag>
-          <div className="minecraft-task-actions">
-            <div className="minecraft-task-actions__controls">
-              <div className="minecraft-task-actions__start">
-                {onOpenDetails ? <Button onClick={() => onOpenDetails(task.id)}>查看详情</Button> : null}
-                {task.createdBy === userId && ["queued", "running"].includes(task.status) && ["install", "start"].includes(task.kind) && task.payload.executionMode === "native" ? <Button onClick={() => onCancel(task.id)}>请求取消任务</Button> : null}
+        <div className="minecraft-task-layout-container">
+          <div className="minecraft-task-layout">
+            <div className="minecraft-task-content">
+              <div className="minecraft-task-heading"><strong>{taskLabel}</strong></div>
+              <div className="minecraft-task-copy">
+                {typeof task.payload.instanceName === "string" ? <small>{task.payload.instanceName}</small> : null}
+                {task.status === "running" ? <Progress aria-label={`${task.message}进度`} percent={task.progress} size="small" status="active" /> : null}
+                {showMessage ? <span className={`minecraft-task-message${task.status === "failed" ? " is-failed" : ""}`}>{task.message}</span> : null}
+                {task.kind === "delete" && task.result?.archived === true ? <small>节点已确认完整目录归档，实例登记已移除。</small> : null}
+                {typeof task.result?.note === "string" ? <small>{task.result.note}</small> : null}{typeof task.result?.backupName === "string" ? <small>节点备份归档：{task.result.backupName}</small> : null}
+                <small>{timeLabel(task.createdAt)}</small>
               </div>
-              {canDelete && terminal && onDelete ? <div className="minecraft-task-actions__end">
-                <Popconfirm title="删除这条终态任务记录？" description="对应节点日志也会清除；Minecraft 实例和部署登记保持不变。" okText="删除记录" cancelText="取消" onConfirm={() => void removeSelected([task.id])}>
-                  <Button danger disabled={deleting}>删除</Button>
-                </Popconfirm>
-              </div> : null}
+            </div>
+            <div className="minecraft-task-side">
+              <Tag aria-label={statusText} className="minecraft-task-status-tag" color={task.result?.forced === true ? "orange" : task.status === "succeeded" ? "green" : task.status === "failed" ? "red" : "blue"}>
+                <span className="minecraft-task-status-tag__full">{statusText}</span>
+                <span aria-hidden="true" className="minecraft-task-status-tag__compact">{compactStatusText}</span>
+              </Tag>
+              <div className="minecraft-task-actions">
+                <div className="minecraft-task-actions__controls">
+                  <div className="minecraft-task-actions__start">
+                    {onOpenDetails ? <Button onClick={() => onOpenDetails(task.id)}>查看详情</Button> : null}
+                    {task.createdBy === userId && ["queued", "running"].includes(task.status) && ["install", "start"].includes(task.kind) && task.payload.executionMode === "native" ? <Button onClick={() => onCancel(task.id)}>请求取消任务</Button> : null}
+                  </div>
+                  {canDelete && terminal && onDelete ? <div className="minecraft-task-actions__end">
+                    <Popconfirm title="删除这条终态任务记录？" description="对应节点日志也会清除；Minecraft 实例和部署登记保持不变。" okText="删除记录" cancelText="取消" onConfirm={() => void removeSelected([task.id])}>
+                      <Button danger disabled={deleting}>删除</Button>
+                    </Popconfirm>
+                  </div> : null}
+                </div>
+              </div>
             </div>
           </div>
         </div>

@@ -10,3 +10,5 @@ Agent tool adapter for the existing local `TerminalService` PTY. It does not cre
 - `close`: terminates the current Run's terminal process tree.
 
 All command input remains a dangerous terminal action handled by the existing Permission Owner. `submit` only represents the Enter key; it does not parse, authorize, or retry a command. Sessions remain bound to their creating account and Run and are closed when that Run is disposed.
+
+New sessions read the account's `general.integratedShell` preference through the existing terminal Shell resolver. Selecting Windows PowerShell or Command Prompt starts that real interactive program; already-open sessions are not switched when the preference changes.
