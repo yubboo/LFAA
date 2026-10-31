@@ -32,6 +32,8 @@ Workbench 提供唯一的 `applicationNavigationItems` 工作台入口清单，�
 
 小鱼智能体工作区是系统级目标执行入口，根地址与登录默认入口都落到 `/work`；旧工作路由归一。右侧“应用与能力”视图区分游戏服务、联机管理、写作空间和 AI 漫剧等领域入口，以及所有领域共用的系统画布。SteamCMD 只作为 Steam 游戏服务器的当前实现依赖，不作为产品边界。常规应用页面管理各自领域数据，小鱼 Agent 负责统一目标交互与能力调度。共用工作区只有一个草稿写入器与活动会话选择；旧 App 草稿保留，首次无共享草稿时回读上次 App。通知直接打开共享会话。General 中旧 `defaultMode/defaultStandaloneChat` 字段保持账户读写兼容，不再改变首页。
 
+Workbench 中非审批/澄清类小鱼工作通知通过 `ui-primitives` 的 `NotificationToast` 呈现，Workbench 仍拥有通知状态、打开会话、关闭与 8 秒自动收起；提示音继续由 Client Resources 按 Settings Owner 执行。共享组件只负责统一紧凑布局和单一背景，不改变通知策略、声音或会话数据。
+
 构建只写仓库根 dist/packages/client/ui-layout/；当前合同见 [开发提示词](../../../docs/development/xiaoyu-agent.zh.md)。构建、合成模型、浏览器与真实模型/节点验收分别报告。
 
 ## 游戏库四栏入口（2026-10-23）

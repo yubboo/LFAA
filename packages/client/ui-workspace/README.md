@@ -1,6 +1,10 @@
 # `lfaa-client-ui-workspace`
 
-共享小鱼工作区接收 Workbench 投递的 `AiWorkGoalRequest` 并传给 `AiWorkChat`；聊天仍通过既有 Agent Loop 执行目标，没有 Provider 时保留草稿。
+Minecraft 实例详情右栏由 ApplicationWorkspace 提供通用分区并挂载 Minecraft 的运行时摘要面板；来源标签、核心类型判断及 Java 字段展示仍归 ui-minecraft。工作区只核对当前路由、账户和角色范围，不读取 Java 数据、不复制领域规则；右栏沿用 Appearance 与现有栏位偏好。
+
+只有精确匹配 `/games/minecraft/instance/:instanceId/overview` 时，右侧栏才额外挂载该实例的服务器信息面板；实例数据加载、状态说明和刷新动作由 Minecraft UI Owner 提供，工作区仅负责路由匹配与打开 Connectivity 的导航回调。离开概览或切换账户后，实例信息随当前上下文卸载。
+
+共享小鱼工作区接收 Workbench 投递的 `AiWorkGoalRequest` 并传给 `AiWorkChat`；聊天仍通过既有 Agent Loop 执行目标，没有 Provider 时保留草稿。Workbench 的小鱼工作通知提示卡复用 `ui-primitives/NotificationToast`；本包不再维护这张卡的局部 CSS。
 
 `ApplicationWorkspace` 为业务 App 共用四栏布局、聊天与画布 UI，并提供“聊天/画布/手动”三种模式。中间区的左侧控制、标题、中间模式槽与右侧操作槽复用 `ui-primitives/WorkbenchHeader`；页面继续持有栏位状态、模式和业务动作。聊天复用唯一 `AiWorkChat` 和 Agent Runtime，绑定当前 App 上下文；画布复用唯一 `CanvasWorkspace` 与节点运行时，按 App 登记节点目录；只有手动面板由各领域 App 自己维护。AI 漫剧的 `/apps/aivideo/normal` 继续承载完整漫剧手动工作台，`/apps/aivideo/ai-work` 与 `/apps/aivideo/canvas` 则共用当前 AI Video 项目定位。通用 App 项目仍使用 Canvas Owner，AI 漫剧项目仍由 AI Video Owner 持有，Agent 通过漫剧工具修改同一份 Owner 数据。Canvas 项目/工作流引用及更新时间仅随当前画布发送的新 Run 传递，不写入会话。已有 Canvas 外观、默认模式和助手栏设置继续生效。
 
@@ -30,7 +34,7 @@ AI 漫剧“媒体与时间线”面板可在项目和时间线均已保存时�
 
 `/canvas` 首页使用 `CanvasHomeFluidBackground` 绘制连续流动的水面折射、高光焦散和空白处点击涟漪；自有 WebGL 波场以 CSS 流光作为无 WebGL 降级。动画读取 Appearance 强调色与 `appearance.advanced.reducedMotion`，按容器尺寸限制绘制像素数，页面隐藏时暂停并在卸载时撤销 RAF、ResizeObserver 和指针/可见性监听。背景透明叠加，不替换 Workbench 的 `appearance.backgrounds.appCenter` 壁纸、主题遮罩或 Wallpaper Engine。视觉参考 [MagineCanvas-Learn](https://github.com/Magine1921/MagineCanvas-Learn) 与 [在线试用页](https://magine-trial.magine1921.workers.dev/)；参考仓库为 AGPL-3.0-only，LFAA 不复制其着色器源码或图片资源，未新增依赖。
 
-整体布局由 `.module-workbench-stage` 外层盒子包住一个 `ResizableWorkbench` 根节点。图标功能区、二级菜单、中间工作区和右侧菜单作为根节点的四个同级区域直接传入；各区域 class 分别为 `module-workbench-region--leading`、`--secondary-navigation`、`--center-workspace`、`--right-menu`。分隔条与浮层是布局辅助元素，不把四个内容区域互相嵌套。公共几何样式从 `ui-dockkit/src/css/common.css` 复用；图标轨样式由 `ui-sidebar/src/GlobalNavigationRail.css` 负责，左二、中间、右侧内容盒子的样式分别由 `src/css/secondary-navigation.css`、`center-workspace.css`、`right-menu.css` 负责；`src/css/workbench-regions.css` 只保留四个同级区域共用的文字基线与底部面板样式。普通应用页面共用 `ApplicationNavigationPanel` 作为左二主导航，但只装配当前 App 的功能菜单；图标轨“应用”打开全局应用切换弹层。AI Work 左二保留会话/项目，右侧“应用”视图保留全局应用目录，工具与资源继续由右侧承载。设置、文件和插件管理等独立页面继续由各自 UI 包维护。图标轨宽度继续使用现有 64px/48px 令牌，并沿用账户外观设置。
+整体布局由 `.module-workbench-stage` 外层盒子包住一个 `ResizableWorkbench` 根节点。图标功能区、二级菜单、中间工作区和右侧菜单作为根节点的四个同级区域直接传入；各区域 class 分别为 `module-workbench-region--leading`、`--secondary-navigation`、`--center-workspace`、`--right-menu`。分隔条与浮层是布局辅助元素，不把四个内容区域互相嵌套。公共几何样式从 `ui-dockkit/src/css/common.css` 复用；图标轨样式由 `ui-sidebar/src/GlobalNavigationRail.css` 负责，左二、中间、右侧内容盒子的样式分别由 `src/css/secondary-navigation.css`、`center-workspace.css`、`right-menu.css` 负责；`src/css/workbench-regions.css` 只保留四个同级区域共用的文字基线与底部面板样式。普通应用页面共用 `ApplicationNavigationPanel` 作为左二主导航，但只装配当前 App 的功能菜单；图标轨“应用”打开全局应用切换弹层。AI Work 左二保留会话/项目，右侧“应用”视图保留全局应用目录，工具与资源继续由右侧承载。普通应用共享右侧栏将上下文标题和收起按钮放在右栏最顶部的 shell-actions 顶栏，与工作区顶栏齐平；按钮沿用 Settings 的 `shortcuts.toggleContextPanel` 与 Workbench 栏位状态，连接状态仍由下方服务状态区展示，不再另占一块重复介绍区。写作作品信息侧栏保留 Writing Owner 自己的标题与关闭按钮，AI Work 的工具页签控制继续使用其原有顶栏。设置、文件和插件管理等独立页面继续由各自 UI 包维护。图标轨宽度继续使用现有 64px/48px 令牌，并沿用账户外观设置。
 
 Minecraft 左二「管理」菜单提供部署、实例、任务、工作流、文件管理和独立日志入口。日志页只在中心区显示实例选择和持久化日志；详情页不再提供重复日志页签。实例详情的概览、服务器配置、控制台和世界备份路由由 `ui-minecraft` 页面切换；实例旧日志路由仍受支持并显示为独立日志页面。实例父级菜单只在实例详情路由选中。
 

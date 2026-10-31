@@ -24,6 +24,26 @@ const javaRuntimeSelectionCapability = "minecraft-java-runtime-selection-v1";
 const serverPropertiesFileCapability = "minecraft-server-properties-file-v1";
 const defaultMinecraftStorageDirectory = "games/minecraft";
 
+export interface MinecraftServerTelemetryReport {
+  onlinePlayers: number | null;
+  maxPlayers: number | null;
+  pingMs: number | null;
+  advertisedVersion: string | null;
+  observedAt: string | null;
+  processStartedAt: string;
+  tps: number | null;
+  tpsObservedAt: string | null;
+  tpsStatus: "available" | "pending" | "unsupported" | "waiting" | "unavailable";
+}
+
+export interface MinecraftServerTelemetry extends Omit<MinecraftServerTelemetryReport, "processStartedAt"> {
+  processStartedAt: string | null;
+  availability: "available" | "waiting" | "unavailable";
+  reason: "instance_not_running" | "node_offline" | "awaiting_node_sample" | "sample_stale" | "server_not_responding" | null;
+}
+
+const minecraftServerTelemetryByInstance = new Map<string, { nodeId: string; receivedAt: number; telemetry: MinecraftServerTelemetryReport }>();
+
 export interface MinecraftStorageSettings {
   instanceDirectory: string;
 }
@@ -365,6 +385,54 @@ export function getMinecraftConnectivityTarget(ownerId: string, instanceId: stri
 export function getMinecraftInstance(instanceId: string): MinecraftInstance | null {
   const row = database.prepare(`${instanceSelect} WHERE i.id = ?`).get(instanceId) as InstanceRow | undefined;
   return row ? toInstance(row) : null;
+}
+
+export function getMinecraftServerTelemetry(instanceId: string): MinecraftServerTelemetry {
+  const instance = getMinecraftInstance(instanceId);
+  if (!instance) {
+    minecraftServerTelemetryByInstance.delete(instanceId);
+    throw new ApiError(404, "minecraft_instance_not_found", "找不到这个 Minecraft 实例。");
+  }
+  const emptyTelemetry = (availability: MinecraftServerTelemetry["availability"], reason: MinecraftServerTelemetry["reason"]): MinecraftServerTelemetry => ({
+    onlinePlayers: null,
+    maxPlayers: null,
+    pingMs: null,
+    advertisedVersion: null,
+    observedAt: null,
+    processStartedAt: null,
+    tps: null,
+    tpsObservedAt: null,
+    tpsStatus: instance.coreType === "Paper" ? "waiting" : "unsupported",
+    availability,
+    reason
+  });
+  if (instance.state !== "running") {
+    minecraftServerTelemetryByInstance.delete(instanceId);
+    return emptyTelemetry("unavailable", "instance_not_running");
+  }
+  if (getDaemonNode(instance.nodeId)?.status !== "online") {
+    minecraftServerTelemetryByInstance.delete(instanceId);
+    return emptyTelemetry("unavailable", "node_offline");
+  }
+  const cached = minecraftServerTelemetryByInstance.get(instanceId);
+  if (!cached || cached.nodeId !== instance.nodeId) return emptyTelemetry("waiting", "awaiting_node_sample");
+  if (Date.now() - cached.receivedAt > 20_000) {
+    minecraftServerTelemetryByInstance.delete(instanceId);
+    return emptyTelemetry("unavailable", "sample_stale");
+  }
+  const telemetry = cached.telemetry;
+  if (!telemetry.observedAt) return { ...telemetry, availability: "waiting", reason: "awaiting_node_sample" };
+  const observedAtMs = Date.parse(telemetry.observedAt);
+  if (!Number.isFinite(observedAtMs) || Date.now() - observedAtMs > 25_000) {
+    minecraftServerTelemetryByInstance.delete(instanceId);
+    return { ...emptyTelemetry("unavailable", "sample_stale"), processStartedAt: telemetry.processStartedAt };
+  }
+  const hasLiveStatus = telemetry.pingMs !== null || telemetry.advertisedVersion !== null || telemetry.onlinePlayers !== null || telemetry.maxPlayers !== null;
+  return {
+    ...telemetry,
+    availability: hasLiveStatus ? "available" : "unavailable",
+    reason: hasLiveStatus ? null : "server_not_responding"
+  };
 }
 
 /** 由 Minecraft Owner 解析受登记的实例工作目录，供实例 Shell 起始位置使用。 */
@@ -1010,14 +1078,26 @@ export function updateInstanceStatesFromDaemon(nodeId: string, reports: Array<{
   id: string;
   state: "stopped" | "running" | "starting" | "installing" | "unknown";
   sandboxStatus: MinecraftInstance["sandboxStatus"];
+  telemetry?: MinecraftServerTelemetryReport;
 }>): string[] {
   // 换 Java 后保留待准备状态，直到下一次启动或成功停止任务确认新运行目录的 ACL。
   const update = database.prepare("UPDATE minecraft_instances SET state = ?, sandbox_status = ?, updated_at = ? WHERE id = ? AND node_id = ? AND NOT EXISTS (SELECT 1 FROM minecraft_tasks WHERE instance_id = minecraft_instances.id AND status IN ('queued', 'running') AND kind IN ('start', 'stop', 'restart', 'install')) AND NOT (state = 'error' AND ? = 'stopped') AND NOT (sandbox_status = 'unprepared' AND ? = 'stopped' AND ? = 'prepared') AND (state IS NOT ? OR sandbox_status IS NOT ?)");
   const now = new Date().toISOString();
   const changed: string[] = [];
+  const reportedIds = new Set(reports.map(report => report.id));
   for (const report of reports) {
     const result = update.run(report.state, report.sandboxStatus, now, report.id, nodeId, report.state, report.state, report.sandboxStatus, report.state, report.sandboxStatus);
     if (Number(result.changes) > 0) changed.push(report.id);
+    const cached = minecraftServerTelemetryByInstance.get(report.id);
+    const instance = report.state === "running" && report.telemetry ? getMinecraftInstance(report.id) : null;
+    if (instance?.nodeId === nodeId && report.state === "running" && report.telemetry) {
+      minecraftServerTelemetryByInstance.set(report.id, { nodeId, receivedAt: Date.now(), telemetry: report.telemetry });
+    } else if (cached?.nodeId === nodeId) {
+      minecraftServerTelemetryByInstance.delete(report.id);
+    }
+  }
+  for (const [instanceId, cached] of minecraftServerTelemetryByInstance) {
+    if (cached.nodeId === nodeId && !reportedIds.has(instanceId)) minecraftServerTelemetryByInstance.delete(instanceId);
   }
   return changed;
 }

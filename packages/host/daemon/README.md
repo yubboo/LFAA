@@ -24,7 +24,7 @@ Minecraft/Steam 的备份分类根分别为 `data/backups/minecraft` 与 `data/b
 
 ## 运行与桌面打包
 
-`terminal-channel.mjs` 在现有控制端地址上建立认证 POST SSE 命令连接，通过顺序 HTTP 批量回报输出和应答；本机与远程节点共用该链，远程仍要求 HTTPS。系统 Shell 与从 Minecraft 实例目录启动的 `minecraft-shell` 都经 subprocess-local 原生 PTY，Shell 选择来自 Settings 并通过 terminal-bash 异步解析，必要 OS 环境采用显式允许集合，不继承模型服务密钥。`minecraft` 目标只附着到该节点 Daemon 当前持有、且已报告就绪的实例 PTY；不会把 Java 进程暴露成 OS Shell。原生模式复用同一 subprocess-local ConPTY；AppContainer 模式由 Rust Sandbox Host 创建 Windows Pseudo Console，PTY 字节和尺寸通过有长度上限的帧协议送入 Host，Java 仍保留实例 AppContainer、文件 ACL、网络能力和 Job Object。每节点最多 8 个终端会话，发送队列 1 MiB；控制端断线、凭据失效或 Daemon 卸载关闭 Shell PTY 并撤销 Minecraft 附着，不重放输入，也不因终端断开停止 Minecraft 服务端。AppContainer 交互式能力只在 Sandbox Host v2 探测成功后加入节点能力集。Minecraft 受管终端另对目标进程的原始 PTY stdout 保留最多 128 KiB 的临时回放缓冲，重连后回放后继续订阅同一进程流，不读取或持久化实例日志。
+`terminal-channel.mjs` 在现有控制端地址上建立认证 POST SSE 命令连接，通过顺序 HTTP 批量回报输出和应答；本机与远程节点共用该链，远程仍要求 HTTPS。系统 Shell 与从 Minecraft 实例目录启动的 `minecraft-shell` 都经 subprocess-local 原生 PTY，Shell 选择来自 Settings 并通过 terminal-bash 异步解析，必要 OS 环境采用显式允许集合，不继承模型服务密钥。`minecraft` 目标只附着到该节点 Daemon 当前持有的实例 PTY；启动前允许登记一个待附着订阅，PTY 创建后立即推送原始输出，不等待服务端就绪，也不会把 Java 进程暴露成 OS Shell。写入游戏命令仍要求实际进程已就绪。原生模式复用同一 subprocess-local ConPTY；AppContainer 模式由 Rust Sandbox Host 创建 Windows Pseudo Console，PTY 字节和尺寸通过有长度上限的帧协议送入 Host，Java 仍保留实例 AppContainer、文件 ACL、网络能力和 Job Object。每节点最多 8 个终端会话，发送队列 1 MiB；控制端断线、凭据失效或 Daemon 卸载关闭 Shell PTY 并撤销 Minecraft 附着，不重放输入，也不因终端断开停止 Minecraft 服务端。AppContainer 交互式能力只在 Sandbox Host v2 探测成功后加入节点能力集。Minecraft 受管终端另对目标进程的原始 PTY stdout 保留最多 128 KiB 的临时回放缓冲，竞态期间补齐后继续订阅同一进程流，不读取或持久化实例日志。
 
 Windows Electron 桌面安装包内置本机 Daemon，并由桌面主进程自动启动和收尾。Daemon 保持独立进程与 `daemon` Profile，控制端通过现有认证节点任务通道单独读取节点状态和派发操作。需要新增远程节点时，管理员通过控制端签发 HTTPS 连接身份，目标 Windows x64 主机导入连接文件后运行 `lfaa daemon`；远程主机安装器和系统服务托管尚未接入。
 
@@ -55,3 +55,7 @@ SteamCMD Dedicated Server 通过 `steamcmd_servers` 配置和现有 SteamCMD 租
 DST 集群由 Master/Caves 两个记录共享一份 SteamCMD 安装；更新前同时检查两个分片与 Daemon 进程标记。每个分片启动时固定生成 `-persistent_storage_root`、`-conf_dir`、`-cluster`、`-shard`、`-console` 参数，不从客户端接受原始路径参数。开服前逐个检查 `cluster.ini`、`cluster_token.txt` 和本分片 `server.ini` 是非空普通文件；Token 只做存在性检查，不读取正文。进程标记登记集群数据目录，任一分片运行时 File Manager 都不得改写集群文件。心跳只证明 PID 存活，不证明游戏或网络已就绪。
 
 Minecraft 实例启动只消费目标节点任务中的堆、Java 主版本和 JVM 白名单值，并在派生服务端进程前调用实例实际 Java 可执行文件运行 `-version` 预检；校验失败或 Daemon 缺少预检能力时 fail closed。原生 Java 与 AppContainer Host 共享 `lfaa-util-values` 的参数构造合同，PHP 核心不接收 JVM 配置。
+
+受管 Minecraft 控制台有订阅时，`minecraft-server-telemetry.mjs` 在目标节点本机按 Java Server List Ping 或 Bedrock RakNet 状态协议读取公布版本、在线/最大人数和节点到服务端往返时延；状态读取每 10 秒至多一次、每次 2 秒超时，结果经认证节点心跳短期回报。运行时间取受管进程 `startedAt`。Paper TPS 只在控制台会话连接且交互输入空闲时每分钟至多查询一次 `tps`，8 秒未收到真实输出即显示不可用；查询写入同一真实 PTY，因此命令和结果会出现在控制台。关闭控制台订阅后停止状态探测并清除瞬时值；节点本机夹具通过只验证协议合同，不等于实际 Paper/Bedrock 服务端验收。
+
+`system-resource-telemetry.mjs` 在节点锁持有期间启动单一只读系统采样进程，每 10 秒回报整机 CPU、物理内存、全部本地固定卷的磁盘合计和 IPv4 默认路由网卡的收发速率。CPU 与网络速率使用相邻系统计数器求差；网络切换接口、首次基线和命令不可用时字段保持 `null`。数据沿现有 Daemon 心跳发送，不读取 Minecraft 进程内部或启动/停止服务器；卸载时会终止提供器进程并撤销重试计时器。

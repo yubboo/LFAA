@@ -27,7 +27,9 @@ Players use the Minecraft workspace to start a deployment, inspect available nod
 - Existing Settings provide server defaults and appearance preferences; the interface consumes those values without replacing account preferences.
 - Deployment, instance lifecycle, task state, logs, and node health come from their existing authenticated domain owners.
 - A displayed server action is available only when the existing role, node, instance, and capability conditions permit it.
-- The current app does not provide CPU, TPS, or memory sampling; it must say so rather than imply that those metrics are measured.
+- The global Minecraft overview displays real whole-node CPU, physical memory, fixed-volume disk, and default-route network samples for the node attached to its current server card. These measurements describe the host, not the Minecraft process; unsupported or missing fields remain visibly unavailable.
+- The global overview exposes one “Instance overview” entry for its selected instance and opens that same instance's overview route; lifecycle, terminal, and file controls live in the instance workspace.
+- Server-specific online players, advertised version, Ping, runtime, and Paper TPS remain separate console telemetry sourced from the running server or managed process. Never imply that a screenshot or sample fixture is a live measurement.
 - EULA acceptance and any other required license action must remain explicit and use the existing permission flow.
 
 ## Brand Commitments
@@ -36,7 +38,7 @@ The user asks for a player-oriented server launch and operations panel that feel
 
 ## Evidence on Hand
 
-The existing UI and package contract cover the real deployment wizard, nodes, instances, tasks, server configuration, backups, and interactive console. No product photography, player testimonials, public hosting claims, or performance-sampling data are supplied.
+The existing UI and package contract cover the real deployment wizard, nodes, instances, tasks, server configuration, backups, and interactive console. The user's resource-card image is a visual reference only; its example values are not product data. Live values must come from the selected node's Daemon system sampler.
 
 ## Product Principles
 

@@ -72,7 +72,7 @@ export function registerTerminalRoutes(router: Router, registry: TerminalRegistr
       if (!instance) throw new ApiError(404, "minecraft_instance_not_found", "找不到这个 Minecraft 实例。");
       nodeId = instance.nodeId;
       if (body.nodeId !== nodeId) throw new ApiError(409, "terminal_target_node_changed", "实例运行节点已变化，请刷新后重新连接。");
-      if (instance.state !== "running" || instance.nodeStatus !== "online") throw new ApiError(409, "minecraft_console_unavailable", "只有节点在线且已就绪的 Minecraft 实例可以连接交互式控制台。");
+      if (!(instance.state === "starting" || instance.state === "running") || instance.nodeStatus !== "online") throw new ApiError(409, "minecraft_console_unavailable", "只有节点在线且正在启动或运行中的 Minecraft 实例可以连接交互式控制台。");
       cwd = `Minecraft · ${instance.name}`;
       const node = listDaemonNodes().find(item => item.id === nodeId);
       if (!node || node.status !== "online" || !registry.connected(nodeId)) throw new ApiError(409, "terminal_node_offline", "实例所在节点的终端通道当前不可用。");
@@ -82,6 +82,7 @@ export function registerTerminalRoutes(router: Router, registry: TerminalRegistr
       parameters = { id: body.id, nodeId, appId: body.appId, target };
     } else {
       if (target.kind === "minecraft-shell") {
+        if (!hasAdminAccess(request.auth!.user.role)) throw new ApiError(403, "minecraft_shell_admin_required", "只有 Minecraft 管理员可以打开实例目录 Shell。");
         if (body.appId !== "minecraft") throw new ApiError(400, "terminal_target_app_invalid", "Minecraft 实例目录 Shell 必须使用 Minecraft 应用身份。");
         const resolved = getMinecraftInstanceShellDirectory(target.instanceId);
         if (resolved.instance.state === "installing") throw new ApiError(409, "minecraft_instance_installing", "实例仍在部署，完成后才能打开其实例目录终端。");

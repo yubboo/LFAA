@@ -17,13 +17,14 @@ export interface TerminalSessionController {
   resize(size?: TerminalSurfaceSize): void;
 }
 
-export function useTerminalSession({ surface, appId, sessionId, permissionsMode, scopeKey, preserveSurfaceOnConnect = false }: {
+export function useTerminalSession({ surface, appId, sessionId, permissionsMode, scopeKey, preserveSurfaceOnConnect = false, quietExit = false }: {
   surface: RefObject<TerminalSurfaceHandle>;
   appId: ApplicationId;
   sessionId: string | null;
   permissionsMode: string;
   scopeKey: string;
   preserveSurfaceOnConnect?: boolean;
+  quietExit?: boolean;
 }): TerminalSessionController {
   const [terminal, setTerminal] = useState<TerminalInfo>(), [approval, setApproval] = useState<AiToolApproval>(), [error, setError] = useState(""), [busy, setBusy] = useState(false);
   const active = useRef<TerminalInfo>(), stream = useRef<EventSource>(), pending = useRef<CreateTerminalInput>(), mounted = useRef(false), generation = useRef(0), startInFlight = useRef(false);
@@ -118,8 +119,9 @@ export function useTerminalSession({ surface, appId, sessionId, permissionsMode,
       source.addEventListener("exit", event => {
         const frame = JSON.parse((event as MessageEvent).data);
         if (active.current) { active.current = { ...active.current, state: "exited", exitCode: frame.exitCode }; setTerminal(active.current); }
-        emulator.setInputEnabled(false); emulator.writeln(`\r\n[会话已结束，退出码：${frame.exitCode ?? "未知"}]`);
-        if (frame.message) setError(frame.message); source.close();
+        emulator.setInputEnabled(false);
+        if (!quietExit) emulator.writeln(`\r\n[会话已结束，退出码：${frame.exitCode ?? "未知"}]`);
+        if (frame.message && !quietExit) setError(frame.message); source.close();
       });
       source.onerror = () => { source.close(); if (mounted.current) { emulator.setInputEnabled(false); setError("终端连接已断开，请重新创建会话。"); void stop().catch(() => {}); } };
       resize.current(); emulator.focus();

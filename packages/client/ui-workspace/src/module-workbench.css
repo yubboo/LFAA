@@ -88,48 +88,6 @@
 
 .module-icon-button--notifications { position: relative; }
 
-.ai-work-notification-toast { position: fixed; z-index: 220; right: max(20px, env(safe-area-inset-right, 0px)); bottom: max(20px, env(safe-area-inset-bottom, 0px)); display: flex; width: min(360px, calc(100vw - 32px)); min-height: 78px; flex-direction: column; overflow: hidden; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface); color: var(--color-text-primary); box-shadow: 0 14px 42px var(--color-shadow-float); }
-
-.ai-work-notification-toast__main { display: flex; min-width: 0; align-items: flex-start; }
-
-.ai-work-notification-toast__open { display: flex; min-width: 0; flex: 1; align-items: flex-start; gap: 11px; padding: 13px 8px 12px 14px; border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; text-align: left; }
-
-.ai-work-notification-toast__open:hover,
-.ai-work-notification-toast__open:focus-visible { outline: none; background: var(--color-surface-hover); }
-
-.ai-work-notification-toast__open:focus-visible { box-shadow: inset 0 0 0 2px var(--color-focus-ring); }
-
-.ai-work-notification-toast__icon { display: grid; width: 30px; height: 30px; flex: 0 0 auto; place-items: center; border-radius: 9px; background: var(--color-brand-subtle); color: var(--color-brand); }
-
-.ai-work-notification-toast--issue .ai-work-notification-toast__icon { background: var(--color-status-error-surface); color: var(--color-status-error-text); }
-
-.ai-work-notification-toast__copy { display: grid; min-width: 0; gap: 5px; }
-
-.ai-work-notification-toast__copy strong { color: var(--color-text-heading); font-size: var(--font-size-sm); font-weight: 650; }
-
-.ai-work-notification-toast__copy > span { overflow: hidden; color: var(--color-text-secondary); font-size: var(--font-size-xs); line-height: 1.45; text-overflow: ellipsis; }
-
-.ai-work-notification-toast__copy small { color: var(--color-brand); font-size: var(--font-size-xs); }
-
-.ai-work-notification-toast__close { display: grid; width: 34px; height: 34px; flex: 0 0 auto; place-items: center; margin: 5px 5px 0 0; border: 0; border-radius: 8px; background: transparent; color: var(--color-text-subtle); cursor: pointer; }
-
-.ai-work-notification-toast__close:hover,
-.ai-work-notification-toast__close:focus-visible { outline: none; background: var(--color-surface-hover); color: var(--color-text-heading); }
-
-.ai-work-notification-toast__close:focus-visible { box-shadow: 0 0 0 2px var(--color-focus-ring); }
-
-.workbench-shell[data-background-image="true"] .ai-work-notification-toast { background: color-mix(in srgb, var(--settings-sidebar-color, var(--color-surface-muted)) var(--settings-background-surface-opacity), transparent); }
-
-.workbench-shell[data-translucent-sidebar="true"] .ai-work-notification-toast { -webkit-backdrop-filter: blur(var(--settings-glass-blur)); backdrop-filter: blur(var(--settings-glass-blur)); }
-
-@media (prefers-reduced-motion: no-preference) {
-
-  .ai-work-notification-toast { animation: ai-work-toast-enter 160ms ease-out both; }
-
-  @keyframes ai-work-toast-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-
-}
-
 @media (prefers-reduced-motion: no-preference) {
 
   @keyframes module-notification-enter { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: translateY(0); } }

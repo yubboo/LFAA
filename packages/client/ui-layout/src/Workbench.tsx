@@ -5,6 +5,7 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import { Button, Checkbox, ConfigProvider, Dropdown, Modal, Popover, Tag, Typography, theme as antdTheme } from "antd";
 import type { MenuProps } from "antd";
 import { ServiceStatus, type ServiceState } from "lfaa-client-ui-primitives/src/ServiceStatus.js";
+import { NotificationToast } from "lfaa-client-ui-primitives/src/NotificationToast.js";
 import { SetupReminder } from "lfaa-client-ui-settings-general/src/SetupReminder.js";
 import { DEFAULT_USER_SETTINGS, resolveAppearanceBackgrounds, resolveShortcutSettings } from "lfaa-client-ui-settings-general/src/default-settings.js";
 import { PasskeySetupPrompt } from "lfaa-client-ui-settings-account/src/PasskeySetupPrompt.js";
@@ -1252,15 +1253,20 @@ export function Workbench({
       </Modal> : null}
       {/* DSH overlay 依赖当前应用工作台的右侧栏 Owner；设置页没有该面板，不挂载不可用的入口。 */}
       {appRoute ? <DshSlotOutlet name="shell.overlay" /> : null}
-      {notificationToast && settings.general.notificationPopupsEnabled ? <aside className={`ai-work-notification-toast ai-work-notification-toast--${notificationToast.kind}`} role={notificationToast.kind === "complete" ? "status" : "alert"} aria-live={notificationToast.kind === "complete" ? "polite" : "assertive"}>
-        <div className="ai-work-notification-toast__main">
-          <button className="ai-work-notification-toast__open" type="button" onClick={() => openNotification(notificationToast)} aria-label={`${notificationToast.title}，点击打开${notificationToast.applicationName}会话`}>
-            <span className="ai-work-notification-toast__icon"><WorkbenchIcon name={notificationToast.kind === "complete" ? "spark" : "close"} size={17} /></span>
-            <span className="ai-work-notification-toast__copy"><strong>{notificationToast.title}</strong><span>{notificationToast.applicationName} · {notificationToast.body}</span><small>点击打开对应会话</small></span>
-          </button>
-          <button className="ai-work-notification-toast__close" type="button" onClick={() => setNotificationToast(null)} aria-label="关闭会话提醒"><WorkbenchIcon name="close" size={14} /></button>
-        </div>
-      </aside> : null}
+      {notificationToast && settings.general.notificationPopupsEnabled ? <NotificationToast
+        key={notificationToast.id}
+        tone={notificationToast.kind === "issue" ? "issue" : "neutral"}
+        role={notificationToast.kind === "complete" ? "status" : "alert"}
+        ariaLive={notificationToast.kind === "complete" ? "polite" : "assertive"}
+        title={notificationToast.title}
+        description={`${notificationToast.applicationName} · ${notificationToast.body}`}
+        icon={<WorkbenchIcon name={notificationToast.kind === "complete" ? "spark" : "close"} size={17} />}
+        actionLabel="点击打开对应会话"
+        actionAriaLabel={`${notificationToast.title}，点击打开${notificationToast.applicationName}会话`}
+        onAction={() => openNotification(notificationToast)}
+        closeLabel="关闭会话提醒"
+        onClose={() => setNotificationToast(null)}
+      /> : null}
       <SetupReminder
         user={user}
         settings={settings}

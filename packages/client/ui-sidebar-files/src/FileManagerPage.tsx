@@ -3,7 +3,7 @@
  * 作用：浏览和搜索受管目录，创建、编辑、上传、下载、重命名与删除文件，并显示真实操作结果。
  * 关联文件：packages/client/connection/src/api.ts、packages/client/ui-sidebar/src/GlobalNavigationRail.tsx、packages/client/ui-sidebar-files/src/FileManagerPage.css、packages/fs/fs/src/queue.ts。
  */
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type Key, type ReactNode } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type Key, type ReactNode } from "react";
 import { createSnapshotCache } from "lfaa-client-store/src/snapshot-cache.js";
 import { Alert, Button, Dropdown, Empty, Input, Modal, Popover, Select, Space, Spin, Table, Tag, Tree, Typography, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
@@ -22,6 +22,8 @@ import { createTarArchive } from "./archive.js";
 import { buildFileManagerBreadcrumbs, getFileManagerBreadcrumbTitle } from "./file-manager-breadcrumbs.js";
 import { consumeFileManagerLocation, readFileManagerLocation, readFileManagerReturnPath } from "lfaa-client-connection/src/file-manager-location.js";
 import "./FileManagerPage.css";
+
+const FileCodePreview = lazy(() => import("./FileCodePreview.js"));
 
 interface FileManagerSnapshot {
   operations?: FileManagerOperation[];
@@ -230,6 +232,7 @@ export function FileManagerPage({ user, settings, serverState, applications, nav
   const [editorSavedContent, setEditorSavedContent] = useState("");
   const [editorSha256, setEditorSha256] = useState("");
   const [editorBusy, setEditorBusy] = useState(false);
+  const editorSaveInFlight = useRef(false);
   const [directorySizes, setDirectorySizes] = useState<Record<string, { totalSize: number; skippedEntries: number }>>({});
   const [calculatingDirectoryPath, setCalculatingDirectoryPath] = useState("");
   const [preview, setPreview] = useState<{ name: string; kind: "text" | "image" | "pdf"; content?: string; mimeType?: string; dataBase64?: string; blob?: Blob } | null>(null);
@@ -765,11 +768,13 @@ export function FileManagerPage({ user, settings, serverState, applications, nav
     }
   };
 
-  const saveEditor = async () => {
+  const saveEditor = async (content = editorContent) => {
+    if (editorSaveInFlight.current || editorBusy || !fileAccess || !isOnline || !editorPath || content === editorSavedContent) return;
+    editorSaveInFlight.current = true;
     setEditorBusy(true);
     try {
-      const result = await runTask("write", { path: editorPath, content: editorContent, expectedSha256: editorSha256 });
-      setEditorSavedContent(editorContent);
+      const result = await runTask("write", { path: editorPath, content, expectedSha256: editorSha256 });
+      setEditorSavedContent(content);
       if (typeof result.sha256 === "string") setEditorSha256(result.sha256);
       setEditorPath("");
       messageApi.success("文件已保存。");
@@ -777,6 +782,7 @@ export function FileManagerPage({ user, settings, serverState, applications, nav
     } catch {
       // 错误显示在工具栏下方。
     } finally {
+      editorSaveInFlight.current = false;
       setEditorBusy(false);
     }
   };
@@ -1007,7 +1013,12 @@ export function FileManagerPage({ user, settings, serverState, applications, nav
         {!fileAccess ? <Alert type="warning" showIcon message="文件管理需要同时满足：超级管理员身份、设置中心的完全访问模式。" /> : null}
         {error ? <Alert className="file-manager__alert" type="error" showIcon message={error} closable onClose={() => setError("")} /> : null}
         {locationError ? <Alert className="file-manager__alert" type="warning" showIcon message={`资源导航读取失败：${locationError}`} /> : null}
-        {busy ? <div className="file-manager__task" role="status"><Spin size="small" /><span>{taskMessage || "正在执行文件操作…"}</span></div> : null}
+        <div className="file-manager__task-layer" data-visible={busy ? "true" : "false"} aria-hidden={!busy}>
+          <div className="file-manager__task" role={busy ? "status" : undefined} aria-live={busy ? "polite" : undefined}>
+            <span className="file-manager__task-icon" aria-hidden="true">{busy ? <Spin size="small" /> : null}</span>
+            <span>{taskMessage || "正在处理文件操作…"}</span>
+          </div>
+        </div>
 
         <div className="file-manager__toolbar">
           <div className="file-manager__navigation-row">
@@ -1134,9 +1145,11 @@ export function FileManagerPage({ user, settings, serverState, applications, nav
       <Modal title={`预览 · ${preview?.name ?? ""}`} open={preview !== null} getContainer={getFileManagerModalContainer} footer={<Button onClick={() => setPreview(null)}>关闭</Button>} width="min(1080px, calc(100vw - 40px))" onCancel={() => setPreview(null)}>
         {preview?.kind === "image" && previewUrl ? <div className="file-manager__image-preview"><img src={previewUrl} alt={preview.name} /></div> : null}
         {preview?.kind === "pdf" && previewUrl ? <iframe className="file-manager__pdf-preview" src={previewUrl} title={`PDF 预览：${preview.name}`} /> : null}
-        {preview?.kind === "text" ? <article className={`file-manager__text-preview${/\.(?:md|markdown)$/iu.test(preview.name) ? " is-markdown" : ""}`}>
-          {/\.(?:md|markdown)$/iu.test(preview.name) ? renderMarkdown(preview.content ?? "") : <pre>{preview.content ?? ""}</pre>}
-        </article> : null}
+        {preview?.kind === "text" ? /\.(?:md|markdown)$/iu.test(preview.name)
+          ? <article className="file-manager__text-preview is-markdown">{renderMarkdown(preview.content ?? "")}</article>
+          : <Suspense fallback={<div className="file-manager__code-loading" role="status">正在加载代码预览…</div>}>
+            <FileCodePreview fileName={preview.name} value={preview.content ?? ""} />
+          </Suspense> : null}
       </Modal>
       <Modal title="移动到目录" open={moveDialogOpen} getContainer={getFileManagerModalContainer} okText="移动" cancelText="取消" confirmLoading={busy} okButtonProps={{ disabled: busy || !isOnline }} onOk={() => void moveSelectedEntries()} onCancel={() => setMoveDialogOpen(false)}>
         <Typography.Paragraph type="secondary">选择同一磁盘或机器内的目标目录。可从目录树复制当前路径。</Typography.Paragraph>
@@ -1179,10 +1192,30 @@ export function FileManagerPage({ user, settings, serverState, applications, nav
       >
         {/\.(?:md|markdown)$/iu.test(editorPath)
           ? <div className="file-manager__markdown-editor">
-            <Input.TextArea className="file-manager__editor-input" aria-label="Markdown 源文编辑" value={editorContent} onChange={(event) => setEditorContent(event.target.value)} spellCheck={false} />
+            <Suspense fallback={<div className="file-manager__code-loading" role="status">正在加载代码编辑器…</div>}>
+              <FileCodePreview
+                fileName={editorPath}
+                value={editorContent}
+                editing
+                editable={fileAccess && isOnline}
+                dirty={editorContent !== editorSavedContent}
+                onChange={setEditorContent}
+                onSave={content => void saveEditor(content)}
+              />
+            </Suspense>
             <article className="file-manager__markdown-live-preview" aria-label="Markdown 实时预览">{renderMarkdown(editorContent)}</article>
           </div>
-          : <Input.TextArea className="file-manager__editor-input" aria-label="文本内容编辑" value={editorContent} onChange={(event) => setEditorContent(event.target.value)} spellCheck={false} />}
+          : <Suspense fallback={<div className="file-manager__code-loading" role="status">正在加载代码编辑器…</div>}>
+            <FileCodePreview
+              fileName={editorPath}
+              value={editorContent}
+              editing
+              editable={fileAccess && isOnline}
+              dirty={editorContent !== editorSavedContent}
+              onChange={setEditorContent}
+              onSave={content => void saveEditor(content)}
+            />
+          </Suspense>}
       </Modal>
     </div>
   );

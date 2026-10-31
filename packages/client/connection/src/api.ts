@@ -936,8 +936,27 @@ export interface MinecraftNode {
   version: string;
   status: "online" | "offline";
   capabilities: string[];
-  javaRuntimes: Array<{ runtimeId: string; distribution?: "temurin" | "zulu"; major: number; vendor: string; managed: boolean; source?: "managed" | "system" | "custom"; executablePath?: string }>;
+  javaRuntimes: Array<{ runtimeId: string; distribution?: "temurin" | "zulu"; version?: string; architecture?: string; os?: string; major: number; vendor: string; managed: boolean; source?: "managed" | "system" | "custom"; executablePath?: string }>;
   lastSeenAt: string;
+}
+
+export interface MinecraftNodeResourceSample {
+  sampledAt: string;
+  cpuUsagePercent: number | null;
+  memoryUsedBytes: number | null;
+  memoryTotalBytes: number | null;
+  memoryUsagePercent: number | null;
+  diskUsedBytes: number | null;
+  diskTotalBytes: number | null;
+  diskUsagePercent: number | null;
+  networkReceiveBytesPerSecond: number | null;
+  networkSendBytesPerSecond: number | null;
+}
+
+export interface MinecraftNodeResourceTelemetry {
+  status: "unsupported" | "waiting" | "ready" | "stale" | "offline";
+  lastUpdatedAt: string | null;
+  samples: MinecraftNodeResourceSample[];
 }
 
 export interface MinecraftRelease {
@@ -997,6 +1016,20 @@ export interface MinecraftInstance {
   serverProperties: MinecraftServerProperties;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface MinecraftServerTelemetry {
+  onlinePlayers: number | null;
+  maxPlayers: number | null;
+  pingMs: number | null;
+  advertisedVersion: string | null;
+  observedAt: string | null;
+  processStartedAt: string | null;
+  tps: number | null;
+  tpsObservedAt: string | null;
+  tpsStatus: "available" | "pending" | "unsupported" | "waiting" | "unavailable";
+  availability: "available" | "waiting" | "unavailable";
+  reason: "instance_not_running" | "node_offline" | "awaiting_node_sample" | "sample_stale" | "server_not_responding" | null;
 }
 
 export interface ConnectivityTarget {
@@ -1981,6 +2014,10 @@ export function loadMinecraftNodes(signal?: AbortSignal): Promise<{ nodes: Minec
   return request("/minecraft/nodes", signal ? { signal } : {});
 }
 
+export function loadMinecraftNodeResources(nodeId: string, signal?: AbortSignal): Promise<{ nodeId: string; nodeName: string; telemetry: MinecraftNodeResourceTelemetry }> {
+  return request(`/minecraft/nodes/${encodeURIComponent(nodeId)}/resources`, signal ? { signal } : {});
+}
+
 export function loadMinecraftReleases(): Promise<{ catalog: MinecraftCatalog }> {
   return request("/minecraft/releases");
 }
@@ -2297,6 +2334,14 @@ export function loadMinecraftInstances(signal?: AbortSignal): Promise<{ instance
   return request("/minecraft/instances", signal ? { signal } : {});
 }
 
+export function loadMinecraftServerTelemetry(instanceId: string, signal?: AbortSignal): Promise<{ telemetry: MinecraftServerTelemetry }> {
+  return request(`/minecraft/instances/${encodeURIComponent(instanceId)}/telemetry`, signal ? { signal } : {});
+}
+
+export function loadMinecraftInstanceDirectory(instanceId: string, signal?: AbortSignal): Promise<{ instanceId: string; directory: string }> {
+  return request(`/minecraft/instances/${encodeURIComponent(instanceId)}/directory`, signal ? { signal } : {});
+}
+
 export function loadMinecraftDeployments(signal?: AbortSignal): Promise<{ deployments: MinecraftDeployment[] }> {
   return request("/minecraft/deployments", signal ? { signal } : {});
 }
@@ -2321,8 +2366,8 @@ export function createMinecraftDeployment(input: { nodeId: string; name: string;
   return request("/minecraft/deployments", { method: "POST", body: JSON.stringify(input) });
 }
 
-export function loadConnectivityOverview(): Promise<ConnectivityOverview> {
-  return request("/connectivity/overview");
+export function loadConnectivityOverview(signal?: AbortSignal): Promise<ConnectivityOverview> {
+  return request("/connectivity/overview", signal ? { signal } : {});
 }
 
 export function loadConnectivityEasyTierTasks(): Promise<{ tasks: ConnectivityEasyTierTask[] }> {

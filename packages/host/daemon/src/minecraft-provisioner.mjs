@@ -194,7 +194,8 @@ export async function startNativeMinecraftServer(task, stored, directory, host) 
   const terminal = await host.spawnTerminal({ target: { kind: "local" }, platform: process.platform, executable: runtime.executable, args, cwd: directory,
     env: minecraftNativeEnvironment(directory, runtime), columns: 120, rows: 30, maxQueuedOutputBytes: 2 * 1024 * 1024, terminationGraceMs: 1000, signal: host.signal });
   const child = terminalHandleToChild(terminal);
-  const record = { child, terminal, writeConsoleInput: data => terminal.writeStdin(Buffer.from(data, "utf8")), resizeConsole: (columns, rows) => terminal.resize(columns, rows), consoleSubscribers: new Map(), javaMajor: metadata.javaMajor, javaRuntimeId, stopTimeoutSeconds, startedAt: Date.now(), taskId: task.id, sandboxReady: false, serverReady: false, executionMode: "native", coreType: metadata.coreType };
+  const record = { child, terminal, writeConsoleInput: data => terminal.writeStdin(Buffer.from(data, "utf8")), resizeConsole: (columns, rows) => terminal.resize(columns, rows), consoleSubscribers: new Map(), javaMajor: metadata.javaMajor, javaRuntimeId, stopTimeoutSeconds, startedAt: Date.now(), taskId: task.id, sandboxReady: false, serverReady: false, executionMode: "native", coreType: metadata.coreType, serverPort: port };
+  host.initializeConsoleSubscribers?.(id, record);
   host.activeServers.set(id, record);
   child.stdin.on("error", () => {});
   host.attachOutput(id, child, task.id, { coreType: metadata.coreType, onFailureLine: line => { if (!record.serverReady && /Caused by:|^(?:Exception in thread|Error:|Fatal error:)/u.test(line)) record.startupError = line.replace(/^\s*Caused by:\s*/u, "").slice(0, 160); }, onServerReady: () => { record.serverReady = true; record.onReady?.(); } });

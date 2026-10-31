@@ -10,6 +10,20 @@
 
 | 编号 | 任务 | 状态 | 合同 |
 |---|---|---|---|
+| LFAA-MINECRAFT-TERMINAL-LIVE-SHELL-LIFECYCLE-20261031 | Minecraft 启动时实时接收受管 PTY 输出；服务端退出后切回绑定实例目录的可交互 Shell | 源码已改，待构建及内置浏览器实页验收 | [本轮合同](development/minecraft-terminal-live-shell-lifecycle-20261031.md#lfaa-minecraft-terminal-live-shell-lifecycle-20261031) |
+| LFAA-MINECRAFT-TASK-STATUS-ALIGNMENT-20261031 | Minecraft 任务卡片底部将状态徽标靠左、详情与删除按钮靠右并排 | 完成；包、Client/Web 构建、类型检查及 IAB 1440×900、1050×640、390×844 实页验收通过，无横向溢出；未运行自动化测试，详见合同 | [本轮合同](development/minecraft-task-status-alignment-20261031.md#lfaa-minecraft-task-status-alignment-20261031) |
+| LFAA-MINECRAFT-ACTION-TOAST-LAYOUT-20261031 | 统一 Minecraft 与小鱼工作通知卡：单一表面背景、右上角小型关闭按钮，Minecraft 倒计时置底 | 已实现；UI 包、Web/Control Plane 构建与指纹通过；IAB 实页桌面及 390×640 检查无横向溢出，提示卡未通过真实操作触发，详见合同 | [本轮合同](development/minecraft-action-toast-layout-20261031.md#lfaa-minecraft-action-toast-layout-20261031) |
+| LFAA-MINECRAFT-OVERVIEW-INSTANCE-ENTRY-20261031 | 收敛 Minecraft 总览实例卡快捷操作，并直达当前卡片对应实例的概览 | 完成；类型检查、正式 Web 构建/指纹及 Impeccable 检查通过；IAB 桌面 1280×720、窄分栏 760×900 和同实例概览跳转通过；手机/短屏被现有右侧上下文栏遮住主画布，未改偏好，详见合同 | [本轮合同](development/minecraft-overview-instance-entry-20261031.md#lfaa-minecraft-overview-instance-entry-20261031) |
+| LFAA-MINECRAFT-OVERVIEW-NODE-RESOURCE-TELEMETRY-20261031 | 在 Minecraft 总览红框区域显示当前实例运行节点的真实整机 CPU、内存、磁盘和网络采样 | 完成；Daemon 心跳实采、节点快照、Control Plane/Web 构建与指纹通过；IAB 1280×720、760×900、390×844、320×568 实页检查通过，采样值随刷新变化；手机右侧上下文栏遮住画布，已记录；未运行自动化测试，详见合同 | [本轮合同](development/minecraft-overview-node-resource-telemetry-20261031.md#lfaa-minecraft-overview-node-resource-telemetry-20261031) |
+| LFAA-MINECRAFT-INSTANCE-SERVER-INFO-RIGHT-SIDEBAR-20261031 | 在实例概览右侧栏显示并复制当前实例真实服务器信息 | 完成；Client/Host 类型、相关包及正式 Control Plane/Web 构建与指纹、内置浏览器桌面/窄分栏/手机短屏实页验收通过；未运行自动化测试，详见合同 | [本轮合同](development/minecraft-instance-server-info-right-sidebar-20261031.md#lfaa-minecraft-instance-server-info-right-sidebar-20261031) |
+| LFAA-MINECRAFT-CONSOLE-LIVE-TELEMETRY-RIGHT-SIDEBAR-20261031 | 在 Minecraft 控制台右侧菜单新增真实服务器运行指标 | 实现、18 项定向回归、类型检查、Harness/Control Plane/Web 构建与运行指纹通过；IAB `/terminal` 桌面实页确认模块在最外层右栏；目标实例已停止，实时 Paper 数据及手机/短屏未实测，详见合同 | [本轮合同](development/minecraft-console-live-telemetry-right-sidebar-20261031.md#lfaa-minecraft-console-live-telemetry-right-sidebar-20261031) |
+| LFAA-WORKSPACE-CONTEXT-PANEL-HEADER-20261031 | 将上下文栏标题与收起按钮移至右侧栏最顶部标题栏，并删除重复介绍区 | 完成；类型检查、Harness/Control Plane/Web 构建与运行指纹通过；内置浏览器实测顶栏 y=0–48、正文从 y=48 开始；1280×720、900×640、390×640 及收起/展开往返通过；未运行自动化测试，详见合同 | [本轮合同](development/workspace-context-panel-header-20261031.md#lfaa-workspace-context-panel-header-20261031) |
+| LFAA-FILE-MANAGER-CODE-EDITOR-20261031 | 将文件管理文本预览与编辑升级为按文件类型着色的代码编辑器，并提供真实 JSON 语法提示 | 原桌面/手机验收及本次 1280×720 注释绿色/行号底色实页复核通过；目标回归、类型检查、正式 Web 构建通过；本次未重测窄屏；实际保存、最大文件响应和帧时间未测，详见合同 | [本轮合同](development/file-manager-code-editor-20261031.md#lfaa-file-manager-code-editor-20261031) |
+| LFAA-FILE-MANAGER-MODAL-JITTER-20261031 | 消除文件管理预览/编辑请求期间任务状态条引起的整页抖动，使用居中轻提示过渡 | 完成；正式 Web 重建、指纹与健康检查通过；内置浏览器 `/files` 桌面约 1750×1244、窄分栏约 889×1244 实测预览/编辑，列表位置稳定，未保存文件；未测帧时间，详见合同 | [本轮合同](development/file-manager-modal-jitter-20261031.md#lfaa-file-manager-modal-jitter-20261031) |
+| LFAA-MINECRAFT-DEPLOYMENT-CORE-CATALOG-CACHE-20261031 | 部署页复用运行期成功目录；选中核心后的版本校验只访问其对应来源 | Minecraft UI/Web、核心来源/Control Plane 构建通过；IAB 路由复用与 Fabric 构建匹配通过，Paper 来源连接失败；补充目视期间 Web 服务停止监听，原因未确认；390×640 无横向溢出；Network 瀑布与帧时间未采，详见合同 | [本轮合同](development/minecraft-deployment-core-catalog-cache-20261031.md#lfaa-minecraft-deployment-core-catalog-cache-20261031) |
+| LFAA-MINECRAFT-INSTANCE-LIFECYCLE-SINGLE-ACTION-20261031 | Minecraft 实例概览将“启动/安全停止”合并为单一状态按钮 | 完成；UI 回归 15/15、Minecraft UI/Web 构建与指纹通过；内置浏览器 1440×900、820×520 实测单按钮可达，390×640 无横向溢出但打开的应用工具侧栏遮挡中心操作，保留原偏好；2 个实例已停止、排队/执行任务为 0，未触发生命周期动作 | [本轮合同](development/minecraft-instance-lifecycle-single-action-20261031.md#lfaa-minecraft-instance-lifecycle-single-action-20261031) |
+| LFAA-MINECRAFT-INSTANCE-DETAIL-RETURN-TO-SERVER-LIST-20261031 | 将实例详情页冗余的控制端连接提示换为返回服务器列表入口 | 完成；定向回归 14/14、Client 类型检查、Minecraft UI 包/Web 构建通过；正式 Web 健康检查与构建指纹通过；内置浏览器 1440×900、390×640 点击均返回实例列表 | [本轮合同](development/minecraft-instance-detail-return-to-server-list-20261031.md#lfaa-minecraft-instance-detail-return-to-server-list-20261031) |
+| LFAA-MINECRAFT-INSTANCE-LIST-MANAGEMENT-ENTRY-20261031 | 实例列表卡片主体与“管理”分别进入实例概览；生命周期及归档操作在实例内部管理 | 完成；UI 回归 13/13、Client 类型、包/Web 构建通过；3000 内置浏览器验收 1440×900、820×520、390×640 的独立链接、悬停与键盘操作；仓库级检查 6 项无关错误见合同 | [本轮合同](development/minecraft-instance-list-management-entry-20261031.md#lfaa-minecraft-instance-list-management-entry-20261031) |
 | LFAA-FILE-MANAGER-INSTANCE-PATH-STALE-NODES-20261031 | 文件管理隐藏实例/节点内部 ID，并避免列出不可用的离线节点存储入口 | 完成；定向回归 5/5、Host 类型检查、Control Plane/Web 构建、3000 正式 Web 内置浏览器往返及 390×844/320×640 无横向溢出通过；全量文件资源测试 3 个既有隔离库缺列失败，详见合同 | [本轮合同](development/file-manager-instance-path-stale-nodes-20261031.md#lfaa-file-manager-instance-path-stale-nodes-20261031) |
 | LFAA-MINECRAFT-OVERVIEW-STATUS-HEADER-LAYOUT-20261031 | 将 Minecraft 总览页的连接状态与同步时间移至标题栏右侧 | 完成；定向回归 6/6、Minecraft UI 包/Client 类型检查/Web 构建通过；3000 内置浏览器覆盖 1440×900、820×520、390×844、390×520（纵向滚动）、360×640、320×640，实例概览返回路径正常 | [本轮合同](development/minecraft-overview-status-header-layout-20261031.md#lfaa-minecraft-overview-status-header-layout-20261031) |
 | LFAA-MINECRAFT-INSTANCE-CARDS-REAL-INTERACTION-20261031 | 让 Minecraft 实例列表状态摘要卡片实际筛选实例并显示选中状态 | 完成；定向回归 3/3、包/Client 类型检查/Web 构建及 1280×720、390×844、320×640 IAB 交互与滚动通过；真实设备和帧时间未测，详见合同 | [本轮合同](development/minecraft-instance-cards-real-interaction-20261031.md#lfaa-minecraft-instance-cards-real-interaction-20261031) |
@@ -8856,3 +8870,24 @@ Owner：依赖由各自 `package.json` 声明，`scripts/check-workspace.mjs` �
 - UI 技能与方向：已读取 Taste Skill、Impeccable、Audit Skills、UI Motion、UI/UX Pro Max、Baseline UI 六项技能及本任务相关参考。Minecraft 工作台属于 Operate 型密集 App 界面，沿用现有视觉合同；以明确父容器收拢标题、反馈与标签导航，组内间距和窄处换行行距使用 8px；实例标题和副标题共行，无副标题不占垂直空行，同时保留标签到内容的通用节奏。遵循响应式容器布局与现有 Ant Design 控件；不加动效、不增加 Tailwind/motion 依赖。Audit Skills 当前支持 Java/.NET/PHP，不覆盖本次 TSX/CSS，不声明专项扫描结论。
 - 单批验收条件：桌面及相关窄分栏/短屏中，标题/状态控件至实例标签栏的空带明显缩小；标签栏至编辑内容的既有间距保持；标题、状态与操作不遮挡或溢出；真实字段和所有标签交互维持原行为。以当前源码启动的正式 Web 服务在 ChatGPT 内置浏览器验收实际实例概览与配置路由，并记录视口、截图及未测边界；运行直接相关构建与差异检查。不得通过验收修改用户偏好或保存服务器配置。
 - 当前阶段：完成。正式菜单重建 Control Plane/Harness、Web 与 Minecraft 能力包成功；`web`/`host` 指纹均为 `[]`。内置浏览器验证 overview/config 1280×720、窄分栏短屏 760×640、手机 overview 390×845；config 首轮重启后读取短暂失败，经原有刷新操作恢复，62 项全部可见、0 项待保存，未修改配置。帧时间、物理设备与屏幕阅读器未测；未运行自动化测试。
+
+<a id="lfaa-minecraft-instance-java-runtime-right-sidebar-20261031"></a>
+
+## LFAA Minecraft 实例内部 Java 环境右侧栏（2026-10-31）
+
+- 用户目标与 Owner、真实数据、角色脱敏、设置边界及验收条件见 [任务合同](development/minecraft-instance-java-runtime-right-sidebar-20261031.md)。
+- 当前阶段：完成；Client 类型检查、Connection/Minecraft UI/Workspace 包构建、正式 Web 构建与启动指纹均通过；内置浏览器验证 Java 8 自动管理真实登记项、Java 11 精确运行时详情及返回列表时清除实例信息。未运行自动化测试；手机/短屏、非管理员身份及帧时间未测，详见合同。
+
+<a id="lfaa-minecraft-instance-server-info-right-sidebar-20261031"></a>
+
+## LFAA Minecraft 实例服务器信息右侧栏（2026-10-31）
+
+- 用户问题、真实字段来源、唯一 Owner、设置与权限边界及验收条件见 [任务合同](development/minecraft-instance-server-info-right-sidebar-20261031.md)。
+- 当前阶段：完成；Connection/Minecraft UI/Workspace/Controller/Minecraft Domain 包构建、Client/Host 类型检查、正式 Control Plane/Web 构建与运行指纹通过；ChatGPT 内置浏览器 1280×720、820×640、390×520 核对两实例真实名称/核心/配置/路径、路由空态与目录复制、切换实例及手机无横向溢出；未运行自动化测试，边界见合同。
+
+<a id="lfaa-minecraft-deployment-core-catalog-cache-20261031"></a>
+
+## LFAA Minecraft 部署核心目录会话缓存（2026-10-31）
+
+- 本轮目标、Owner、设置/数据边界、实际下载合同与验收限制见 [任务合同](development/minecraft-deployment-core-catalog-cache-20261031.md)。
+- 当前阶段：部署页目录缓存、所选核心来源校验、构建与内置浏览器实页验收完成；真实网络瀑布和帧时间未测，详见合同。

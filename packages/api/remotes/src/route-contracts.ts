@@ -383,7 +383,7 @@ export const daemonHeartbeatSchema = Joi.object({
     architecture: Joi.string().valid("x64").required(),
     version: Joi.string().trim().max(40).required(),
     dataRoot: Joi.string().trim().min(3).max(2048).pattern(/^(?:[a-z]:\\|\\\\)/iu).required(),
-    capabilities: Joi.array().items(Joi.string().valid("minecraft-vanilla", "minecraft-native-v1", "minecraft-multicore-v1", "minecraft-interactive-console-v1", "minecraft-instance-archive-v1", "minecraft-server-properties-file-v1", "app-sandbox-windows-appcontainer-v1", "java-environment-manager-v1", "runtime-environment-v1", "minecraft-java-runtime-selection-v1", "node-filesystem-v1", "node-filesystem-v2", "node-filesystem-directory-size-v1", "node-filesystem-instance-v1", "node-filesystem-game-storage-v1", "node-filesystem-binary-transfer-v1", "steamcmd-ready-v1", "agent-shell-v1", "project-files-v1", EASYTIER_RUNTIME_RELEASE.installCapability, EASYTIER_RUNTIME_RELEASE.runtimeCapability)).max(20).unique().required(),
+    capabilities: Joi.array().items(Joi.string().valid("minecraft-vanilla", "minecraft-native-v1", "minecraft-multicore-v1", "minecraft-interactive-console-v1", "minecraft-instance-archive-v1", "minecraft-server-properties-file-v1", "app-sandbox-windows-appcontainer-v1", "java-environment-manager-v1", "runtime-environment-v1", "minecraft-java-runtime-selection-v1", "node-system-resource-telemetry-v1", "node-filesystem-v1", "node-filesystem-v2", "node-filesystem-directory-size-v1", "node-filesystem-instance-v1", "node-filesystem-game-storage-v1", "node-filesystem-binary-transfer-v1", "steamcmd-ready-v1", "agent-shell-v1", "project-files-v1", EASYTIER_RUNTIME_RELEASE.installCapability, EASYTIER_RUNTIME_RELEASE.runtimeCapability)).max(22).unique().required(),
     javaRuntimes: Joi.array().items(Joi.object({
       distribution: Joi.string().valid("temurin", "zulu").optional(),
       version: Joi.string().max(80),
@@ -396,11 +396,34 @@ export const daemonHeartbeatSchema = Joi.object({
       source: Joi.string().valid("managed", "system", "custom").optional(),
       executablePath: Joi.string().max(2048).optional()
     }).unknown(false)).max(128).required(),
+    systemResources: Joi.object({
+      sampledAt: Joi.string().isoDate().required(),
+      cpuUsagePercent: Joi.number().min(0).max(100).allow(null).required(),
+      memoryUsedBytes: Joi.number().integer().min(0).max(Number.MAX_SAFE_INTEGER).allow(null).required(),
+      memoryTotalBytes: Joi.number().integer().min(0).max(Number.MAX_SAFE_INTEGER).allow(null).required(),
+      memoryUsagePercent: Joi.number().min(0).max(100).allow(null).required(),
+      diskUsedBytes: Joi.number().integer().min(0).max(Number.MAX_SAFE_INTEGER).allow(null).required(),
+      diskTotalBytes: Joi.number().integer().min(0).max(Number.MAX_SAFE_INTEGER).allow(null).required(),
+      diskUsagePercent: Joi.number().min(0).max(100).allow(null).required(),
+      networkReceiveBytesPerSecond: Joi.number().min(0).max(1_000_000_000_000).allow(null).required(),
+      networkSendBytesPerSecond: Joi.number().min(0).max(1_000_000_000_000).allow(null).required()
+    }).unknown(false).optional(),
     activeTaskIds: Joi.array().items(Joi.string().guid()).max(32).unique().default([]),
     instances: Joi.array().items(Joi.object({
       id: Joi.string().guid().required(),
       state: Joi.string().valid("stopped", "running", "starting", "installing", "unknown").required(),
-      sandboxStatus: Joi.string().valid("unsupported", "unprepared", "prepared", "running", "unknown").default("unknown")
+      sandboxStatus: Joi.string().valid("unsupported", "unprepared", "prepared", "running", "unknown").default("unknown"),
+      telemetry: Joi.object({
+        onlinePlayers: Joi.number().integer().min(0).max(2_147_483_647).allow(null).required(),
+        maxPlayers: Joi.number().integer().min(0).max(2_147_483_647).allow(null).required(),
+        pingMs: Joi.number().integer().min(0).max(60_000).allow(null).required(),
+        advertisedVersion: Joi.string().max(120).allow(null).required(),
+        observedAt: Joi.string().isoDate().allow(null).required(),
+        processStartedAt: Joi.string().isoDate().required(),
+        tps: Joi.number().min(0).max(100).allow(null).required(),
+        tpsObservedAt: Joi.string().isoDate().allow(null).required(),
+        tpsStatus: Joi.string().valid("available", "pending", "unsupported", "waiting", "unavailable").required()
+      }).unknown(false).optional()
     }).unknown(false)).max(500).required(),
     steamcmdServers: Joi.array().items(Joi.object({
       id: Joi.string().guid().required(),

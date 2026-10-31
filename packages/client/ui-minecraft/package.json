@@ -16,6 +16,7 @@
     "lfaa-client-modules": "workspace:*",
     "lfaa-client-resources": "workspace:*",
     "lfaa-client-store": "workspace:*",
+    "lfaa-client-ui-primitives": "workspace:*",
     "lfaa-client-ui-sidebar-terminal": "workspace:*",
     "lfaa-client-ui-workflow": "workspace:*",
     "react": "^18.0.0",
@@ -37,6 +38,7 @@
         "lfaa-client-modules",
         "lfaa-client-resources",
         "lfaa-client-store",
+        "lfaa-client-ui-primitives",
         "lfaa-client-ui-sidebar-terminal"
       ]
     }

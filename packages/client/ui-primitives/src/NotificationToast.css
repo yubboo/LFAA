@@ -1,0 +1,38 @@
+.lfaa-notification-toast { position: fixed; z-index: 220; right: max(16px, env(safe-area-inset-right, 0px)); bottom: max(16px, env(safe-area-inset-bottom, 0px)); display: grid; width: min(360px, calc(100vw - 32px)); max-height: min(40dvh, 240px); grid-template-columns: minmax(0, 1fr) 48px; grid-template-rows: auto auto; overflow: auto; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface); color: var(--color-text-primary); box-shadow: 0 14px 42px var(--color-shadow-float); animation: none; } /* taste-skill-ignore shadow: the shared floating notice uses the existing Appearance shadow token for separation from page content. */
+.lfaa-notification-toast[data-toast-effect="fluid"] { animation: lfaa-notification-toast-fluid 180ms cubic-bezier(.16, 1, .3, 1) both; }
+.lfaa-notification-toast[data-toast-effect="fade"] { animation: lfaa-notification-toast-fade 180ms ease-out both; }
+.lfaa-notification-toast[data-toast-effect="lift"] { animation: lfaa-notification-toast-lift 220ms cubic-bezier(.16, 1, .3, 1) both; }
+.lfaa-notification-toast[data-toast-effect="none"] { animation: none; }
+
+.lfaa-notification-toast__main { grid-column: 1; grid-row: 1; display: flex; min-width: 0; }
+.lfaa-notification-toast__open,
+.lfaa-notification-toast__plain { display: flex; width: 100%; min-width: 0; align-items: flex-start; gap: 10px; padding: 14px 4px 12px 14px; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; }
+.lfaa-notification-toast__open { cursor: pointer; }
+.lfaa-notification-toast__open:hover { background: var(--color-surface-hover); }
+.lfaa-notification-toast__open:active { background: var(--color-surface-muted); }
+.lfaa-notification-toast__open:focus-visible,
+.lfaa-notification-toast__close:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: -2px; }
+.lfaa-notification-toast__icon { display: grid; width: 26px; height: 26px; flex: 0 0 auto; place-items: center; color: var(--color-brand); }
+.lfaa-notification-toast[data-toast-tone="issue"] .lfaa-notification-toast__icon { color: var(--color-status-error-text); }
+.lfaa-notification-toast__copy { display: grid; min-width: 0; gap: 5px; }
+.lfaa-notification-toast__copy strong { color: var(--color-text-heading); font-size: var(--font-size-sm); font-weight: 650; }
+.lfaa-notification-toast__copy > span { overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: var(--font-size-xs); line-height: 1.5; }
+.lfaa-notification-toast__copy small { color: var(--color-brand); font-size: var(--font-size-xs); }
+
+.lfaa-notification-toast__close { grid-column: 2; grid-row: 1; display: grid; width: 44px; height: 44px; min-width: 44px; min-height: 44px; align-self: start; justify-self: end; place-items: center; margin: 4px 4px 0 0; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--color-text-subtle); cursor: pointer; }
+.lfaa-notification-toast__close:hover { background: var(--color-surface-hover); color: var(--color-text-heading); }
+.lfaa-notification-toast__countdown { grid-column: 1 / -1; grid-row: 2; padding: 6px 14px 7px; border-top: 1px solid var(--color-border-subtle); background: transparent; color: var(--color-text-muted); font-size: var(--font-size-xs); font-variant-numeric: tabular-nums; text-align: right; }
+
+.workbench-shell[data-background-image="true"] .lfaa-notification-toast { background: color-mix(in srgb, var(--settings-sidebar-color, var(--color-surface-muted)) var(--settings-background-surface-opacity), transparent); }
+.workbench-shell[data-translucent-sidebar="true"] .lfaa-notification-toast { -webkit-backdrop-filter: blur(var(--settings-glass-blur)); backdrop-filter: blur(var(--settings-glass-blur)); } /* taste-skill-ignore glass: the shared card follows the user's existing Appearance blur preference. */
+
+@keyframes lfaa-notification-toast-fluid { from { opacity: 0; transform: translateY(6px) scale(.99); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes lfaa-notification-toast-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes lfaa-notification-toast-lift { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: no-preference) {
+  .lfaa-notification-toast:not([data-toast-effect]) { animation: lfaa-notification-toast-fluid 160ms ease-out both; }
+}
+.workbench-shell[data-reduced-motion="on"] .lfaa-notification-toast { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .workbench-shell[data-reduced-motion="system"] .lfaa-notification-toast { animation: none; }
+}

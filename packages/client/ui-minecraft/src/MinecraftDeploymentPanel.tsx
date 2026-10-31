@@ -48,15 +48,21 @@ function orderedVersions(versions: string[]): string[] {
 }
 interface DeploymentDraft {core:string;version:string;nodeId:string;name:string;backendId:string;memory:number|null;port:number|null;step:number;javaRuntimeId:string;}
 const draftCache=createSnapshotCache<DeploymentDraft>();
+// 核心目录只缓存本次运行中至少返回一个可用核心的快照；显式刷新才重新读取上游。
 const coreCatalogCache=createSnapshotCache<Awaited<ReturnType<typeof loadMinecraftCores>>>();
 const coreBuildCache=createSnapshotCache<Awaited<ReturnType<typeof loadMinecraftCoreBuilds>>>();
 // 核心目录上游请求最多等待 20 秒；额外留 5 秒给控制面返回，并保证界面能恢复重试。
 const CORE_CATALOG_REQUEST_TIMEOUT_MS = 25_000;
 export function MinecraftDeploymentPanel({ userId,onPrepareWithAi,nodes, instances, settings, canOperate, onSubmit, onNavigate }: Props) {
   const draft=useRef(draftCache.get(userId)).current;
-  const cachedCoreCatalog=useRef(coreCatalogCache.get(userId)??null).current;
-  const [cores, setCores] = useState<MinecraftCore[]>(()=>cachedCoreCatalog?.cores??[]), [sourceErrors, setSourceErrors] = useState<string[]>(()=>cachedCoreCatalog?.errors??[]);
-  const [catalogLoading, setCatalogLoading] = useState(true), [reload, setReload] = useState(0);
+  const [coreCatalogEntry,setCoreCatalogEntry]=useState(()=>({userId,value:coreCatalogCache.get(userId)??null}));
+  const catalogMatchesUser=coreCatalogEntry.userId===userId;
+  const cachedCoreCatalog=catalogMatchesUser?coreCatalogEntry.value:null;
+  const cores=cachedCoreCatalog?.cores??[], sourceErrors=cachedCoreCatalog?.errors??[];
+  const [catalogLoading,setCatalogLoading]=useState(()=>!coreCatalogCache.get(userId)?.cores.length);
+  const [reloadState,setReloadState]=useState({userId,revision:0});
+  const reload=reloadState.userId===userId?reloadState.revision:0;
+  const catalogLoadingForUser=catalogLoading||!catalogMatchesUser;
   const [core, setCore] = useState(draft?.core??settings.minecraftRuntime.minecraftDefaultCore), [version, setVersion] = useState(draft?.version??""), [build, setBuild] = useState("");
   const [category, setCategory] = useState<MinecraftCore["category"] | "">(""), [coreSearch, setCoreSearch] = useState(""), [visibleVersionCount, setVisibleVersionCount] = useState(24);
   const [packageAvailable, setPackageAvailable] = useState(false), [buildLoading, setBuildLoading] = useState(false);
@@ -129,20 +135,22 @@ export function MinecraftDeploymentPanel({ userId,onPrepareWithAi,nodes, instanc
     previousDefaults.current = settings.minecraftRuntime;
   }, [settings.minecraftRuntime]);
   useEffect(() => {
+    const cached=coreCatalogCache.get(userId);
+    if(reload===0&&cached?.cores.length){setCoreCatalogEntry({userId,value:cached});setCatalogLoading(false);return;}
     let alive = true; setCatalogLoading(true);
     const controller=new AbortController();
     let timedOut = false;
     const timeout = window.setTimeout(() => { timedOut = true; controller.abort(); }, CORE_CATALOG_REQUEST_TIMEOUT_MS);
-    loadMinecraftCores(controller.signal).then(value => { if (alive) { coreCatalogCache.set(userId,value); setCores(value.cores); setSourceErrors(value.errors); } }).catch(reason => {
+    loadMinecraftCores(controller.signal).then(value => { if (alive) { if(value.cores.length)coreCatalogCache.set(userId,value); setCoreCatalogEntry({userId,value}); } }).catch(reason => {
       if (alive && (timedOut || !controller.signal.aborted)) {
         const message = timedOut ? "核心目录加载超时，请检查网络或服务状态后刷新。" : getErrorMessage(reason);
-        const unavailable={cores:[],errors:[message]}; coreCatalogCache.set(userId,unavailable); setCores([]); setSourceErrors(unavailable.errors);
+        setCoreCatalogEntry({userId,value:{cores:[],errors:[message]}});
       }
     }).finally(() => { window.clearTimeout(timeout); if (alive) setCatalogLoading(false); });
     return () => { alive = false; window.clearTimeout(timeout); controller.abort(); };
   }, [reload, userId]);
   useEffect(() => {
-    if (catalogLoading) return;
+    if (catalogLoadingForUser) return;
     if (!selectedCore) {
       if (core) setCore("");
       if (version) setVersion("");
@@ -152,7 +160,7 @@ export function MinecraftDeploymentPanel({ userId,onPrepareWithAi,nodes, instanc
     }
     if (versions.length) setVersion(current => versions.includes(current) ? current : versions[0] ?? "");
     else if (version) setVersion("");
-  }, [catalogLoading, core, selectedCore, version, versions]);
+  }, [catalogLoadingForUser, core, selectedCore, version, versions]);
   useEffect(() => { setVisibleVersionCount(24); }, [core]);
   useEffect(() => { setBackendId(""); }, [core]);
   const soleNodeId = eligible.length === 1 ? eligible[0]!.id : "";
@@ -168,7 +176,7 @@ export function MinecraftDeploymentPanel({ userId,onPrepareWithAi,nodes, instanc
   useEffect(() => {
     const sequence = ++buildSequence.current;
     setPackageAvailable(false); setBuild(""); setError("");
-    if (catalogLoading || !selectedCore || !version) { setBuildLoading(false); return; }
+    if (catalogLoadingForUser || !selectedCore || !version) { setBuildLoading(false); return; }
     const cacheKey=`${userId}\u001f${core}\u001f${version}`;
     const cached=coreBuildCache.get(cacheKey);
     if(cached&&refreshBuildKey.current!==cacheKey){const preferredArtifact=cached.builds[0];setBuild(preferredArtifact?.id??"");setPackageAvailable(Boolean(preferredArtifact?.id));setBuildLoading(false);return()=>{buildSequence.current++;};}
@@ -177,7 +185,7 @@ export function MinecraftDeploymentPanel({ userId,onPrepareWithAi,nodes, instanc
     setBuildLoading(true);
     loadMinecraftCoreBuilds(core, version, 0, controller.signal).then(value => { if (sequence === buildSequence.current) { coreBuildCache.set(cacheKey,value); const preferredArtifact = value.builds[0]; setBuild(preferredArtifact?.id ?? ""); setPackageAvailable(Boolean(preferredArtifact?.id)); } }).catch(reason => { if (!controller.signal.aborted&&sequence === buildSequence.current) setError(getErrorMessage(reason)); }).finally(() => { if (sequence === buildSequence.current) setBuildLoading(false); });
     return () => { buildSequence.current++; controller.abort(); };
-  }, [catalogLoading, core, selectedCore, version, reload, userId]);
+  }, [catalogLoadingForUser, core, selectedCore, version, reload, userId]);
   const changeCore = (value: string) => {
     const next = cores.find(c => c.name === value);
     if (!next) return;
@@ -219,7 +227,7 @@ export function MinecraftDeploymentPanel({ userId,onPrepareWithAi,nodes, instanc
         <Typography.Title level={4}>新建 Minecraft 服务器</Typography.Title>
         <Typography.Paragraph>选核心与版本，设置实例并核对 EULA。</Typography.Paragraph>
       </div>
-      <Button onClick={() => {refreshBuildKey.current=`${userId}\u001f${core}\u001f${version}`;setReload(value => value + 1);}} loading={catalogLoading}>刷新核心目录</Button>
+      <Button onClick={() => {refreshBuildKey.current=`${userId}\u001f${core}\u001f${version}`;setReloadState(value => ({userId,revision:(value.userId===userId?value.revision:0)+1}));}} loading={catalogLoadingForUser}>刷新核心目录</Button>
     </div>
     <div className="minecraft-provision-alerts">
       {sourceErrors.map(message => <Alert key={message} type="warning" showIcon message={message} />)}
@@ -246,10 +254,10 @@ export function MinecraftDeploymentPanel({ userId,onPrepareWithAi,nodes, instanc
         <nav className="minecraft-core-categories" aria-label="服务端类型">
           <div className="minecraft-core-categories__heading">
             <div><Typography.Title level={5}>服务端类型</Typography.Title><Typography.Text type="secondary">仅列出可用类型</Typography.Text></div>
-            <Tag>{catalogLoading ? "读取中" : `${coreCategories.length} 类`}</Tag>
+            <Tag>{catalogLoadingForUser ? "读取中" : `${coreCategories.length} 类`}</Tag>
           </div>
           <div className="minecraft-core-categories__list lfaa-card-motion-list">
-            {catalogLoading && !coreCategories.length ? <Typography.Text type="secondary">正在读取核心分类…</Typography.Text> : null}
+            {catalogLoadingForUser && !coreCategories.length ? <Typography.Text type="secondary">正在读取核心分类…</Typography.Text> : null}
             {coreCategories.map(item => <button
               aria-current={category === item.value ? "true" : undefined}
               className="minecraft-core-category lfaa-card-motion"
@@ -261,7 +269,7 @@ export function MinecraftDeploymentPanel({ userId,onPrepareWithAi,nodes, instanc
               <span className="minecraft-core-category__copy"><strong>{item.label}</strong><small>{categoryDescriptions[item.value]}</small></span>
               <Tag>{item.count}</Tag>
             </button>)}
-            {!catalogLoading && !coreCategories.length ? <Typography.Text type="secondary">目录暂未提供可选分类。</Typography.Text> : null}
+            {!catalogLoadingForUser && !coreCategories.length ? <Typography.Text type="secondary">目录暂未提供可选分类。</Typography.Text> : null}
           </div>
         </nav>
         <div className="minecraft-core-browser">
@@ -273,9 +281,9 @@ export function MinecraftDeploymentPanel({ userId,onPrepareWithAi,nodes, instanc
             <Input aria-label="搜索当前分类核心" allowClear value={coreSearch} onChange={event => setCoreSearch(event.target.value)} placeholder="搜索核心名称…" />
           </div>
           <div className="minecraft-core-option-grid lfaa-card-motion-list" role="group" aria-label="核心分支">
-            {catalogLoading && !cores.length ? <div className="minecraft-core-picker-empty">正在读取核心目录…</div> : null}
-            {!catalogLoading && cores.length > 0 && !categoryCores.length ? <div className="minecraft-core-picker-empty">这个分类当前没有可用核心。</div> : null}
-            {!catalogLoading && categoryCores.length > 0 && !visibleCores.length ? <div className="minecraft-core-picker-empty">当前分类没有匹配“{coreSearch.trim()}”的核心。</div> : null}
+            {catalogLoadingForUser && !cores.length ? <div className="minecraft-core-picker-empty">正在读取核心目录…</div> : null}
+            {!catalogLoadingForUser && cores.length > 0 && !categoryCores.length ? <div className="minecraft-core-picker-empty">这个分类当前没有可用核心。</div> : null}
+            {!catalogLoadingForUser && categoryCores.length > 0 && !visibleCores.length ? <div className="minecraft-core-picker-empty">当前分类没有匹配“{coreSearch.trim()}”的核心。</div> : null}
             {visibleCores.map(item => <button
               aria-pressed={core === item.name}
               className={`minecraft-core-option lfaa-card-motion${core === item.name ? " is-selected" : ""}`}
@@ -301,7 +309,7 @@ export function MinecraftDeploymentPanel({ userId,onPrepareWithAi,nodes, instanc
             {activeCore && versions.length ? <div className="minecraft-core-version-grid lfaa-card-motion-list" role="group" aria-label="可用版本">
               {visibleVersions.map(value => <button aria-pressed={version === value} className={`minecraft-core-version lfaa-card-motion${version === value ? " is-selected" : ""}`} key={value} onClick={() => setVersion(value)} type="button"><span>{value}</span></button>)}
             </div> : null}
-            {activeCore && !versions.length && !catalogLoading ? <div className="minecraft-core-picker-empty">核心目录暂未返回可用版本。</div> : null}
+            {activeCore && !versions.length && !catalogLoadingForUser ? <div className="minecraft-core-picker-empty">核心目录暂未返回可用版本。</div> : null}
             {!activeCore ? <div className="minecraft-core-picker-empty">先选择一个核心分支，版本列表会显示在这里。</div> : null}
             {activeCore && visibleVersionCount < versions.length ? <Button className="minecraft-provision-load-more" htmlType="button" onClick={loadMoreVersions}>加载更多版本（已显示 {visibleVersionCount}/{versions.length}）</Button> : null}
           </section>

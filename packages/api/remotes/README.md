@@ -34,3 +34,7 @@ Daemon 心跳能力列表显式登记 `node-filesystem-binary-transfer-v1`；节
 # Agent 工作台视图
 
 `aiWorkbenchViewSchema` 校验可选的 Canvas/Workflow 当前 App ID、UUID、短标题与 ISO `updatedAt`。它们只是当前工作区定位信息，既不扩展 Tool Scope，也不替代画布/工作流 Owner 的真实读取与版本冲突校验。
+
+Daemon 心跳实例条目可选携带 `telemetry`：Joi 对真实协议采样字段、时间戳、TPS 状态和数值范围做严格校验，并拒绝未登记字段。旧 Daemon 不提供该字段仍兼容，不能从缺失字段推断在线玩家或 TPS。
+
+Daemon 心跳可选携带 `systemResources`：Remote Joi 严格校验 CPU/内存/磁盘百分比、字节量、默认网卡收发速率和 ISO 采样时间，并拒绝未知字段；只读快照由 Host Daemon Owner 缓存，不在 Remote 持久化或推算指标。

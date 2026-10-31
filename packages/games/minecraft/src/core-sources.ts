@@ -161,24 +161,42 @@ async function youerVersions(): Promise<{ versions: string[] }> {
   cache.set(key, { data, expiresAt: Date.now() + 60_000 });
   return data;
 }
+interface FastMirrorCoreEntry { name: string; tag: string; homepage: string; mc_versions: unknown; }
+function fastMirrorCoreSummary(item: FastMirrorCoreEntry): MinecraftCoreSummary | null {
+  if (typeof item.name !== "string" || !(minecraftCoreNames as readonly string[]).includes(item.name) || !Array.isArray(item.mc_versions)) return null;
+  const name = requireMinecraftCore(item.name);
+  const category = ["pure", "mod", "vanilla", "proxy", "bedrock"].includes(item.tag) ? item.tag as CoreCategory : "mod";
+  const homepage = typeof item.homepage === "string" && /^https:\/\//u.test(item.homepage) ? item.homepage : "https://www.fastmirror.net/#/home";
+  return { name, category, homepage, versions: item.mc_versions.filter((v): v is string => typeof v === "string" && v.length <= 120 && !/[\u0000-\u001f/\\?#]/u.test(v)), source: "fastmirror", launchKind: name === "Forge" ? "forge" : name === "SpongeForge" ? "sponge-forge" : name === "SpongeNeo" ? "sponge-neo" : name === "PocketMine" ? "php" : "jar", ...getMinecraftCoreCompatibility(name) };
+}
+function youerCoreSummary(versions: unknown): MinecraftCoreSummary {
+  if (!Array.isArray(versions)) throw new ApiError(502, "minecraft_youer_catalog_invalid", "Mohist Youer 版本目录无效。");
+  return { name: "Youer", category: "mod", homepage: "https://www.mohistmc.cn/download/youer", versions: versions.filter((v): v is string => typeof v === "string"), source: "mohist", launchKind: "jar", ...getMinecraftCoreCompatibility("Youer") };
+}
+async function coreSummaryFromOwner(name: MinecraftCoreName): Promise<MinecraftCoreSummary> {
+  if (name === "Paper") return getPaperCoreSummary();
+  if (name === "Youer") return youerCoreSummary((await youerVersions()).versions);
+  const rows = await mirror<FastMirrorCoreEntry[]>("");
+  if (!Array.isArray(rows)) throw new ApiError(502, "minecraft_core_source_unavailable", "FastMirror 未返回有效核心目录。");
+  const entry = rows.map(fastMirrorCoreSummary).find(core => core?.name === name);
+  if (!entry) throw new ApiError(502, "minecraft_core_source_unavailable", "无法从 FastMirror 确认该核心。");
+  return entry;
+}
 export async function listMinecraftCores(): Promise<{ cores: MinecraftCoreSummary[]; errors: string[] }> {
   const cores: MinecraftCoreSummary[] = [], errors: string[] = [];
   // 来源彼此独立；一个来源故障不会让另一个来源的目录消失。
   const results = await Promise.allSettled([
-    mirror<Array<{ name: string; tag: CoreCategory; homepage: string; mc_versions: string[] }>>(""),
+    mirror<FastMirrorCoreEntry[]>(""),
     youerVersions(), getPaperCoreSummary()
   ]);
   if (results[0].status === "fulfilled" && Array.isArray(results[0].value)) {
     for (const item of results[0].value) {
-      if (!(minecraftCoreNames as readonly string[]).includes(item.name) || !Array.isArray(item.mc_versions)) continue;
-      const name = requireMinecraftCore(item.name);
-      const category = ["pure", "mod", "vanilla", "proxy", "bedrock"].includes(item.tag) ? item.tag : "mod";
-      const homepage = typeof item.homepage === "string" && /^https:\/\//u.test(item.homepage) ? item.homepage : "https://www.fastmirror.net/#/home";
-      cores.push({ name, category, homepage, versions: item.mc_versions.filter(v => typeof v === "string" && v.length <= 120 && !/[\u0000-\u001f/\\?#]/u.test(v)), source: "fastmirror", launchKind: name === "Forge" ? "forge" : name === "SpongeForge" ? "sponge-forge" : name === "SpongeNeo" ? "sponge-neo" : name === "PocketMine" ? "php" : "jar", ...getMinecraftCoreCompatibility(name) });
+      const summary = fastMirrorCoreSummary(item);
+      if (summary) cores.push(summary);
     }
   } else errors.push("FastMirror 核心目录暂不可用。");
   if (results[1].status === "fulfilled" && Array.isArray(results[1].value.versions)) {
-    cores.push({ name: "Youer", category: "mod", homepage: "https://www.mohistmc.cn/download/youer", versions: results[1].value.versions.filter(v => typeof v === "string"), source: "mohist", launchKind: "jar", ...getMinecraftCoreCompatibility("Youer") });
+    cores.push(youerCoreSummary(results[1].value.versions));
   } else errors.push("Mohist Youer 版本目录暂不可用。");
   if (results[2].status === "fulfilled") {
     const previous = cores.findIndex(core => core.name === "Paper");
@@ -195,9 +213,8 @@ export async function listMinecraftCores(): Promise<{ cores: MinecraftCoreSummar
 async function requireCoreVersion(core: string, version: string): Promise<MinecraftCoreSummary> {
   const name = requireMinecraftCore(core);
   validateCoreCoordinate(version);
-  // 已明确 Paper 时只请求其官方目录，避免等候无关核心来源。
-  const entry = name === "Paper" ? await getPaperCoreSummary() : (await listMinecraftCores()).cores.find(c => c.name === name);
-  if (!entry) throw new ApiError(502, "minecraft_core_source_unavailable", "无法从来源确认该核心。");
+  // 已选择核心后只读该来源，避免用其他核心的目录来验证当前版本。
+  const entry = await coreSummaryFromOwner(name);
   if (!entry.versions.includes(version)) throw new ApiError(400, "minecraft_core_version_unknown", "该来源没有此核心版本，请刷新目录。");
   return entry;
 }

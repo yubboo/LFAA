@@ -1,6 +1,6 @@
 /**
  * 功能：维护本机 Windows Daemon 的登记、心跳与运行能力。
- * 作用：将节点平台、能力、数据根目录、Java 环境和最近在线时间保存到控制端数据库。
+ * 作用：将节点平台、能力、数据根目录、Java 环境和最近在线时间保存到控制端数据库；短期整机资源采样只保存在有界内存中。
  * 关联文件：packages/storage/storage-sqlite/src/database.ts、packages/api/gateway/src/index.ts、packages/games/steamcmd/src/service.ts、packages/host/daemon/src/daemon.mjs。
  */
 import { database } from "lfaa-storage-sqlite/src/database.js";
@@ -27,6 +27,26 @@ export interface DaemonHeartbeat {
   dataRoot: string;
   capabilities: string[];
   javaRuntimes: JavaRuntimeSummary[];
+  systemResources?: DaemonSystemResourceSnapshot;
+}
+
+export interface DaemonSystemResourceSnapshot {
+  sampledAt: string;
+  cpuUsagePercent: number | null;
+  memoryUsedBytes: number | null;
+  memoryTotalBytes: number | null;
+  memoryUsagePercent: number | null;
+  diskUsedBytes: number | null;
+  diskTotalBytes: number | null;
+  diskUsagePercent: number | null;
+  networkReceiveBytesPerSecond: number | null;
+  networkSendBytesPerSecond: number | null;
+}
+
+export interface DaemonSystemResourceTelemetry {
+  status: "unsupported" | "waiting" | "ready" | "stale" | "offline";
+  lastUpdatedAt: string | null;
+  samples: DaemonSystemResourceSnapshot[];
 }
 
 export interface DaemonNode {
@@ -54,6 +74,25 @@ interface NodeRow {
 }
 
 const heartbeatLifetimeMs = 20_000;
+const systemResourceSampleFreshnessMs = 30_000;
+const maximumSystemResourceSamplesPerNode = 30;
+const maximumSystemResourceNodes = 256;
+const systemResourceCapability = "node-system-resource-telemetry-v1";
+const systemResourceSamples = new Map<string, Array<{ sample: DaemonSystemResourceSnapshot; receivedAt: string }>>();
+
+function recordSystemResourceSample(nodeId: string, sample: DaemonSystemResourceSnapshot): void {
+  const history = systemResourceSamples.get(nodeId) ?? [];
+  const last = history.at(-1);
+  if (last && Date.parse(sample.sampledAt) <= Date.parse(last.sample.sampledAt)) return;
+  if (!systemResourceSamples.has(nodeId) && systemResourceSamples.size >= maximumSystemResourceNodes) {
+    const oldestNodeId = systemResourceSamples.keys().next().value;
+    if (oldestNodeId) systemResourceSamples.delete(oldestNodeId);
+  }
+  history.push({ sample, receivedAt: new Date().toISOString() });
+  if (history.length > maximumSystemResourceSamplesPerNode) history.splice(0, history.length - maximumSystemResourceSamplesPerNode);
+  systemResourceSamples.delete(nodeId);
+  systemResourceSamples.set(nodeId, history);
+}
 
 function parseJsonList<T>(value: string): T[] {
   try {
@@ -79,6 +118,7 @@ function toNode(row: NodeRow): DaemonNode {
 }
 
 export function recordDaemonHeartbeat(heartbeat: DaemonHeartbeat): boolean {
+  if (heartbeat.systemResources) recordSystemResourceSample(heartbeat.id, heartbeat.systemResources);
   const previous = database.prepare(`
     SELECT display_name, platform, architecture, daemon_version, data_root, status, capabilities_json, java_runtimes_json, last_seen_at
     FROM daemon_nodes WHERE id = ?
@@ -155,4 +195,20 @@ export function getDaemonNode(nodeId: string): DaemonNode | null {
     FROM daemon_nodes WHERE id = ?
   `).get(nodeId) as NodeRow | undefined;
   return row ? toNode(row) : null;
+}
+
+export function getDaemonSystemResourceTelemetry(node: Pick<DaemonNode, "id" | "status" | "capabilities">): DaemonSystemResourceTelemetry {
+  const history = systemResourceSamples.get(node.id) ?? [];
+  const latest = history.at(-1) ?? null;
+  const ageMs = latest ? Date.now() - Date.parse(latest.receivedAt) : Number.POSITIVE_INFINITY;
+  const status: DaemonSystemResourceTelemetry["status"] = node.status === "offline"
+    ? "offline"
+    : latest
+      ? ageMs > systemResourceSampleFreshnessMs ? "stale" : "ready"
+      : node.capabilities.includes(systemResourceCapability) ? "waiting" : "unsupported";
+  return {
+    status,
+    lastUpdatedAt: latest?.receivedAt ?? null,
+    samples: history.map(({ sample }) => ({ ...sample }))
+  };
 }

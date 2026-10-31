@@ -1,5 +1,7 @@
 # LFAA Client Connection
 
+Minecraft Java 环境摘要在运行时返回发行版、完整版本、架构、系统和可执行路径等可选字段；缺失字段保持缺失。认证 API 会按当前角色脱敏路径等受限信息，Client 类型不改变该响应合同。
+
 此包提供已认证控制端 API 和 AI Work SSE 消费协议，不持有模型、Session 或权限业务规则。
 
 `UserPreferences.guidedEntryCompleted` 与最近 App/模式选择共用认证 `/preferences` 读写合同；Connection 只传递账户级偏好，不另存向导状态或工作区内容。
@@ -11,6 +13,8 @@
 Minecraft 首屏、实例日志/任务详情、Agent 节点任务列表与详情读取，以及 SteamCMD 任务详情均接受可选 `AbortSignal`；UI 在身份切换、切换详情、离开页面或卸载时撤销对应的只读 HTTP 请求。
 
 Minecraft 实例配置 Client 提供 `readMinecraftServerProperties()` 只读任务请求、`MinecraftServerPropertiesFileSnapshot` 脱敏快照和 `saveMinecraftServerFileProperties()`。保存传递来自快照的已变更键值，敏感项只传用户新输入或明确清除标记；此处不读取本机实例文件、不补默认值，也不做领域校验。
+
+`loadMinecraftInstanceDirectory()` 只读取 Minecraft Controller 的管理员实例目录投影；`loadConnectivityOverview(signal)` 支持取消，并将真实路线列表交给 Minecraft UI 按当前账户、`sourceAppId` 和实例 ID 精确筛选。Connection 不根据端口、节点名称或本机地址生成玩家连接地址。
 
 `loadAiOffice()` 通过认证 `/ai/office` 读取员工元数据和当前账户的 Agent Run 摘要，可传 AbortSignal 供 UI 隐藏/卸载时取消；不缓存状态快照。
 
@@ -79,3 +83,7 @@ SteamCMD Client Connection 提供通用服务端列表、创建/配置、运行�
 `setMinecraftInstanceJvmConfiguration()` 只提交实例最大堆、初始堆和逐行 JVM 参数至 Minecraft Service；Connection 不做参数判定、持久化或 Java 环境安装。
 
 外观预设连接 API 提供结构校验、原子应用与账户背景二进制读取；导入/导出沿用现有认证背景上传/删除 Owner，不在 Connection 缓存图片字节、保存预设副本或另建设置存储。
+
+`loadMinecraftServerTelemetry()` 只读取认证的 Minecraft 实例实时指标接口，支持 `AbortSignal`；Connection 透传在线人数、服务端公布版本、Ping、进程启动时间和 TPS 的真实状态，不缓存快照或推断缺失值。
+
+`loadMinecraftNodeResources()` 只读取认证的节点整机资源只读接口，支持 `AbortSignal`；Connection 透传有界历史、来源更新时间与等待/不可用/过期/离线状态，不自行计算或持有 CPU、内存、磁盘、网络数据。

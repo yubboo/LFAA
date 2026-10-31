@@ -18,7 +18,7 @@ The signature element is the **real node-to-instance relationship** and the fast
 ## Layout and hierarchy
 
 - Keep the shared LFAA navigation and familiar section controls recognizable; open Minecraft on its title and available server action.
-- Order the overview as current server or the real first-deployment path, three live operational summaries, then open sections for running devices and recent tasks.
+- Order the overview as current server or the real first-deployment path, a four-card whole-node resource strip, three live operational summaries, then open sections for running devices and recent tasks.
 - Treat the deployment flow as a real sequence rather than a decorative banner. Put the primary "开始开服" action in the title row and keep the existing wizard's required review steps intact.
 - Keep the live node-to-instance relationship beside the real server when one exists. Do not draw a route when there is no instance.
 - On the Minecraft overview server card, place the real lifecycle, terminal, and management actions at the upper right beside the instance identity. Put a quiet core identity at the lower right under those actions, using the selected instance's actual core name and Minecraft version; use the unmodified Paper mark only for Paper and a neutral core glyph for other cores. Keep the node-to-instance relationship on its own row. In narrow containers, reflow the actions and core identity without clipping.
@@ -42,7 +42,7 @@ The signature element is the **real node-to-instance relationship** and the fast
 
 - `packages/client/ui-minecraft` is the sole owner of its app-level screen and visual rules. Keep selectors scoped to `.minecraft-workspace` and named child regions.
 - Preserve current Ant Design and CSS dependencies. Do not change the shared Workbench shell, shared App routing, Minecraft API, settings service, permission owner, or domain behavior to achieve appearance changes.
-- Preserve the real deployment wizard, explicit EULA step, role/node/state/capability gating, service actions, task results, logs, backup behavior, and honest gaps in CPU/TPS/player sampling.
+- Preserve the real deployment wizard, explicit EULA step, role/node/state/capability gating, service actions, task results, logs, and backup behavior. The global overview resource strip is whole-node CPU/memory/disk/network only; keep it distinct from per-instance TPS/player availability and never imply process-level metrics.
 - Java Environment and public Connectivity routes keep their existing owning apps; Minecraft only retains its existing navigation into them.
 - The instance configuration center edits every key in the node's real `server.properties` snapshot. Keep status and operations in the existing side rail, keep the editor in the central work area, and send only changed keys through the authenticated Minecraft task owner.
 

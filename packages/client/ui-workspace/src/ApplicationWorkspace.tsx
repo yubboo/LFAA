@@ -14,6 +14,7 @@ import { AiWorkProjectFileDock } from "./AiWorkProjectFileDock.js";
 import { openWorkspaceProjectManager } from "lfaa-client-ui-chat/src/project-manager-events.js";
 import { setFileManagerLocation } from "lfaa-client-connection/src/file-manager-location.js";
 import { TerminalManagerRightSidebar } from "lfaa-client-ui-sidebar-terminal/src/index.js";
+import type { MinecraftInstanceRuntimeContext } from "lfaa-client-ui-minecraft/src/MinecraftWorkspace.js";
 
 import { createElement, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent as ReactFormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { Alert, Button, Dropdown, Popover, Segmented, Tag, Typography } from "antd";
@@ -56,6 +57,8 @@ const BrowserPanel = lazy(() => loadClientModule<typeof import("lfaa-client-ui-s
 const GitChangeSummary = lazy(() => import("./GitChangeSummary.js").then((module) => ({ default: module.GitChangeSummary })));
 const AgentAssetLibrary = lazy(() => loadClientModule<typeof import("lfaa-client-ui-deliverables/src/AgentAssetLibrary.js")>("lfaa-client-ui-deliverables/src/AgentAssetLibrary.js").then(module => ({ default: module.AgentAssetLibrary })));
 const MinecraftWorkspace = lazy(() => loadClientModule<typeof import("lfaa-client-ui-minecraft/src/MinecraftWorkspace.js")>("lfaa-client-ui-minecraft/src/MinecraftWorkspace.js").then((module) => ({ default: module.MinecraftWorkspace })));
+const MinecraftInstanceRuntimeContextPanel = lazy(() => loadClientModule<typeof import("lfaa-client-ui-minecraft/src/MinecraftWorkspace.js")>("lfaa-client-ui-minecraft/src/MinecraftWorkspace.js").then((module) => ({ default: module.MinecraftInstanceRuntimeContextPanel })));
+const MinecraftInstanceServerInfoContextPanel = lazy(() => loadClientModule<typeof import("lfaa-client-ui-minecraft/src/MinecraftWorkspace.js")>("lfaa-client-ui-minecraft/src/MinecraftWorkspace.js").then((module) => ({ default: module.MinecraftInstanceServerInfoContextPanel })));
 const ConnectivityWorkspace = lazy(() => loadClientModule<typeof import("lfaa-client-ui-connectivity/src/ConnectivityWorkspace.js")>("lfaa-client-ui-connectivity/src/ConnectivityWorkspace.js").then((module) => ({ default: module.ConnectivityWorkspace })));
 const WritingBookInfo = lazy(() => loadClientModule<typeof import("lfaa-client-ui-writing/src/normal/WritingBookInfo.js")>("lfaa-client-ui-writing/src/normal/WritingBookInfo.js").then((module) => ({ default: module.WritingBookInfo })));
 const WritingWorkspace = lazy(() => loadClientModule<typeof import("lfaa-client-ui-writing/src/normal/WritingWorkspace.js")>("lfaa-client-ui-writing/src/normal/WritingWorkspace.js").then((module) => ({ default: module.WritingWorkspace })));
@@ -853,6 +856,21 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   const [writingLibraryPortalTarget, setWritingLibraryPortalTarget] = useState<HTMLDivElement | null>(null);
   const writingFlushRef = useRef<(() => Promise<void>) | null>(null);
   const [minecraftContentReady, setMinecraftContentReady] = useState(app !== "minecraft");
+  const minecraftRuntimeContextScope = userId + "\u001f" + role;
+  const [minecraftRuntimeContextState, setMinecraftRuntimeContextState] = useState<{ scope: string; context: MinecraftInstanceRuntimeContext } | null>(null);
+  const onMinecraftInstanceRuntimeContextChange = useCallback((context: MinecraftInstanceRuntimeContext | null) => {
+    setMinecraftRuntimeContextState(context ? { scope: minecraftRuntimeContextScope, context } : null);
+  }, [minecraftRuntimeContextScope]);
+  const visibleMinecraftRuntimeContext = app === "minecraft"
+    && mode === "normal"
+    && minecraftRuntimeContextState?.scope === minecraftRuntimeContextScope
+    && minecraftRuntimeContextState.context.routeSection === section
+    ? minecraftRuntimeContextState.context
+    : null;
+  const overviewInstanceId = /^instance\/([0-9a-f-]{36})\/overview$/iu.exec(section)?.[1] ?? null;
+  const visibleMinecraftServerInfoContext = visibleMinecraftRuntimeContext?.instanceId === overviewInstanceId
+    ? visibleMinecraftRuntimeContext
+    : null;
   useEffect(() => {
     if (workspaceUtilityScope.current.userId === userId && workspaceUtilityScope.current.mode === mode) return;
     workspaceUtilityScope.current = { userId, mode };
@@ -2290,7 +2308,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
             </Popover>}
           </div> : null}
           {terminalPanelAvailable && settings.general.showBottomPanelControl && showCenterPanelControls ? <PanelControl name="terminal" title="底部终端" shortcut={shortcuts.toggleBottomPanel.join(" / ")} active={chrome.terminalOpen} onClick={toggleTerminal} /> : null}
-          {canvasWorkspace ? <PanelControl name="panelRight" title={canvasChatOpen ? "收起应用聊天" : "展开应用聊天"} shortcut={shortcuts.toggleContextPanel.join(" / ")} active={canvasChatOpen} onClick={() => setCanvasChatOpen(!canvasChatOpen)} /> : showCenterPanelControls ? <PanelControl name="panelRight" title={chrome.rightCollapsed ? "展开上下文栏" : "收起上下文栏"} shortcut={shortcuts.toggleContextPanel.join(" / ")} active={!chrome.rightCollapsed} onClick={toggleRight} /> : null}
+          {canvasWorkspace ? <PanelControl name="panelRight" title={canvasChatOpen ? "收起应用聊天" : "展开应用聊天"} shortcut={shortcuts.toggleContextPanel.join(" / ")} active={canvasChatOpen} onClick={() => setCanvasChatOpen(!canvasChatOpen)} /> : (mode === "ai-work" ? showCenterPanelControls : chrome.rightCollapsed) ? <PanelControl name="panelRight" title={chrome.rightCollapsed ? "展开上下文栏" : "收起上下文栏"} shortcut={shortcuts.toggleContextPanel.join(" / ")} active={!chrome.rightCollapsed} onClick={toggleRight} /> : null}
         </div>
       </WorkbenchHeader>
   );
@@ -2313,7 +2331,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
               ? <Suspense fallback={<ApplicationContentLoading />}><MinecraftWorkflowCanvas userId={userId} visible={visible} onWorkflowContextChange={onWorkflowContextChange} /></Suspense>
               : <Suspense fallback={<ApplicationContentLoading />}><ApplicationWorkflowCanvas applicationId={canvasWorkspace.applicationId} userId={userId} visible={visible} onWorkflowContextChange={onWorkflowContextChange} /></Suspense>}
           />
-        </Suspense> : mode === "ai-work" ? renderAiWorkChatContent(centerHeader) : applicationContent ? applicationContent : app === "minecraft" ? <Suspense fallback={<ApplicationContentLoading />}><MinecraftWorkspace onPrepareWithAi={prompt=>{onAiDraftChange(aiDraft.trim()?`${aiDraft}\n\n${prompt}`:prompt);void openApplication("minecraft", "ai-work");}} userId={userId} section={section} role={role} settings={settings} onNavigate={navigateWithinApplication} onOpenConnectivity={() => { void openApplication("connectivity", "normal"); }} onContentReady={setMinecraftContentReady} /></Suspense> : app === "connectivity" && mode === "normal" ? <Suspense fallback={<ApplicationContentLoading />}><ConnectivityWorkspace section={section} isAdmin={hasAdminAccess(role)} /></Suspense> : writingNormal ? <Suspense fallback={<ApplicationContentLoading />}><WritingWorkspace settings={settings} onSettingsChange={onSettingsChange} workspace={writingWorkspace} loading={writingWorkspaceLoading} loadError={writingWorkspaceError} libraryPortalTarget={writingLibraryPortalTarget} onRetry={() => { void retryWritingWorkspace(); }} onWorkspaceChange={setWritingWorkspace} onRegisterFlush={registerWritingFlush} /></Suspense> : aiVideoNormal ? <Suspense fallback={<ApplicationContentLoading />}><AiVideoCanvasWorkspace canOpenFileManager={canOpenSystemFiles} onOpenFileManager={openAiVideoProjectFiles} onOpenSharedCanvas={projectId => onNavigate(`/apps/aivideo/canvas/${encodeURIComponent(projectId)}`)} onProjectContextChange={onApplicationProjectContextChange} /></Suspense> : <>
+        </Suspense> : mode === "ai-work" ? renderAiWorkChatContent(centerHeader) : applicationContent ? applicationContent : app === "minecraft" ? <Suspense fallback={<ApplicationContentLoading />}><MinecraftWorkspace onPrepareWithAi={prompt=>{onAiDraftChange(aiDraft.trim()?`${aiDraft}\n\n${prompt}`:prompt);void openApplication("minecraft", "ai-work");}} userId={userId} section={section} role={role} settings={settings} onNavigate={navigateWithinApplication} onOpenConnectivity={() => { void openApplication("connectivity", "normal"); }} onContentReady={setMinecraftContentReady} onInstanceRuntimeContextChange={onMinecraftInstanceRuntimeContextChange} /></Suspense> : app === "connectivity" && mode === "normal" ? <Suspense fallback={<ApplicationContentLoading />}><ConnectivityWorkspace section={section} isAdmin={hasAdminAccess(role)} /></Suspense> : writingNormal ? <Suspense fallback={<ApplicationContentLoading />}><WritingWorkspace settings={settings} onSettingsChange={onSettingsChange} workspace={writingWorkspace} loading={writingWorkspaceLoading} loadError={writingWorkspaceError} libraryPortalTarget={writingLibraryPortalTarget} onRetry={() => { void retryWritingWorkspace(); }} onWorkspaceChange={setWritingWorkspace} onRegisterFlush={registerWritingFlush} /></Suspense> : aiVideoNormal ? <Suspense fallback={<ApplicationContentLoading />}><AiVideoCanvasWorkspace canOpenFileManager={canOpenSystemFiles} onOpenFileManager={openAiVideoProjectFiles} onOpenSharedCanvas={projectId => onNavigate(`/apps/aivideo/canvas/${encodeURIComponent(projectId)}`)} onProjectContextChange={onApplicationProjectContextChange} /></Suspense> : <>
           <div className={`module-heading module-heading--workspace module-heading--${app}`}>
             <div className="module-heading__labels"><Tag className="development-tag">开发中</Tag><Tag className="module-mode-tag">{modeLabel}</Tag></div>
             <Typography.Title id="module-heading" level={2}>{activeApplicationTitle}</Typography.Title>
@@ -2352,15 +2370,37 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
     </div>
   </section> : null;
 
+  const contextMenuTabs = (
+    <nav className="module-context__tabs" aria-label="右侧菜单">
+      <button type="button" className={sidebarRight.activeId === null && activeRightPanelSection === "context" && aiWorkView === "chat" ? "is-active" : ""} aria-pressed={sidebarRight.activeId === null && activeRightPanelSection === "context" && aiWorkView === "chat"} onClick={() => { setAiWorkView("chat"); showRightPanelSection("context"); }}>{contextLabel}</button>
+      {sidebarRight.tabs.flatMap((tab) => {
+        const guideItems = [...(tab.guide ?? [])].sort((first, second) => first.order - second.order);
+        if (guideItems.length === 0) {
+          return [<button key={tab.id} type="button" className={sidebarRight.activeId === tab.id ? "is-active" : ""} aria-pressed={sidebarRight.activeId === tab.id} onClick={() => { setAiWorkView("chat"); onRightPanelSectionChange("context"); sidebarRightRuntime.control.openTab(tab.kind); }}>{typeof tab.title === "function" ? tab.title() : tab.title}</button>];
+        }
+        return guideItems.map((guide) => {
+          const title = typeof guide.title === "function" ? guide.title() : guide.title;
+          const description = typeof guide.description === "function" ? guide.description() : guide.description;
+          return <button key={`${tab.id}:${guide.id}`} type="button" className={`module-context__tab-guide${sidebarRight.activeId === tab.id ? " is-active" : ""}`} aria-label={title} aria-pressed={sidebarRight.activeId === tab.id} title={description ? `${title} — ${description}` : title} onClick={() => { setAiWorkView("chat"); onRightPanelSectionChange("context"); sidebarRightRuntime.control.openTab(tab.kind); }}>
+            {guide.icon ? createElement(guide.icon, { size: 16, className: "module-context__tab-guide-icon" }) : title}
+          </button>;
+        });
+      })}
+    </nav>
+  );
+  const showContextShellHeader = !chrome.rightCollapsed && (metrics.mode === "desktop" || showWorkbenchTabs || (mode !== "ai-work" && !writingNormal));
+  const showContextBrowserToolbar = mode === "ai-work" && sidebarRight.activeId === null && rightPanelSection === "context" && aiWorkView === "chat" && activeWorkspaceUtilityTabKind === "new";
+
   const right = (
     <aside className="module-context" aria-label={contextLabel} data-layout-mode={metrics.mode}>
-      {((!chrome.rightCollapsed && (metrics.mode === "desktop" || showWorkbenchTabs)) || (mode === "ai-work" && sidebarRight.activeId === null && rightPanelSection === "context" && aiWorkView === "chat" && activeWorkspaceUtilityTabKind === "new")) ? <div className="module-context__browser-controls">
-        {!chrome.rightCollapsed && (metrics.mode === "desktop" || showWorkbenchTabs) ? <header className="module-context__shell-actions">
+      {(showContextShellHeader || showContextBrowserToolbar) ? <div className="module-context__browser-controls">
+        {showContextShellHeader ? <header className="module-context__shell-actions">
           {workbenchTabs}
+          {mode !== "ai-work" && !writingNormal ? <div className="module-context__tabs-row module-context__tabs-row--shell">{contextMenuTabs}<PanelControl name="panelRight" title="收起上下文栏" shortcut={shortcuts.toggleContextPanel.join(" / ")} active onClick={toggleRight} /></div> : null}
           {showRightShellControls && terminalPanelAvailable && settings.general.showBottomPanelControl ? <PanelControl name="terminal" title="底部终端" shortcut={shortcuts.toggleBottomPanel.join(" / ")} active={chrome.terminalOpen} onClick={toggleTerminal} /> : null}
-          {showRightShellControls ? <PanelControl name="panelRight" title="收起上下文栏" shortcut={shortcuts.toggleContextPanel.join(" / ")} active onClick={toggleRight} /> : null}
+          {showRightShellControls && (mode === "ai-work" || writingNormal) ? <PanelControl name="panelRight" title="收起上下文栏" shortcut={shortcuts.toggleContextPanel.join(" / ")} active onClick={toggleRight} /> : null}
         </header> : null}
-      {mode === "ai-work" && sidebarRight.activeId === null && rightPanelSection === "context" && aiWorkView === "chat" && activeWorkspaceUtilityTabKind === "new" ? <div className="module-context__browser-toolbar-wrap">
+      {showContextBrowserToolbar ? <div className="module-context__browser-toolbar-wrap">
           <div className="module-context__browser-toolbar" aria-label="浏览器导航栏">
             <nav className="module-context__browser-navigation" aria-label="浏览器导航">
               <button type="button" aria-label="后退" title="后退" disabled={!hasActiveBrowserOpenTab} onClick={() => openBrowserDockAction("back")}>‹</button>
@@ -2393,22 +2433,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
       </div> : null}
       <div className="module-context__default-content" hidden={mode === "ai-work" && sideChatOpen}>
       {terminalPanelAvailable && chrome.terminalOpen && settings.general.terminalPosition === "right" ? <div style={{ height: metrics.bottom.initial }}><TaskTerminal appId={app} settings={settings} sessionId={activeAiSessionId} role={role} onClose={toggleTerminal} /></div> : null}
-      {mode !== "ai-work" ? <nav className="module-context__tabs" aria-label="右侧菜单">
-        <button type="button" className={sidebarRight.activeId === null && activeRightPanelSection === "context" && aiWorkView === "chat" ? "is-active" : ""} aria-pressed={sidebarRight.activeId === null && activeRightPanelSection === "context" && aiWorkView === "chat"} onClick={() => { setAiWorkView("chat"); showRightPanelSection("context"); }}>{contextLabel}</button>
-        {sidebarRight.tabs.flatMap((tab) => {
-          const guideItems = [...(tab.guide ?? [])].sort((first, second) => first.order - second.order);
-          if (guideItems.length === 0) {
-            return [<button key={tab.id} type="button" className={sidebarRight.activeId === tab.id ? "is-active" : ""} aria-pressed={sidebarRight.activeId === tab.id} onClick={() => { setAiWorkView("chat"); onRightPanelSectionChange("context"); sidebarRightRuntime.control.openTab(tab.kind); }}>{typeof tab.title === "function" ? tab.title() : tab.title}</button>];
-          }
-          return guideItems.map((guide) => {
-            const title = typeof guide.title === "function" ? guide.title() : guide.title;
-            const description = typeof guide.description === "function" ? guide.description() : guide.description;
-            return <button key={`${tab.id}:${guide.id}`} type="button" className={`module-context__tab-guide${sidebarRight.activeId === tab.id ? " is-active" : ""}`} aria-label={title} aria-pressed={sidebarRight.activeId === tab.id} title={description ? `${title} — ${description}` : title} onClick={() => { setAiWorkView("chat"); onRightPanelSectionChange("context"); sidebarRightRuntime.control.openTab(tab.kind); }}>
-              {guide.icon ? createElement(guide.icon, { size: 16, className: "module-context__tab-guide-icon" }) : title}
-            </button>;
-          });
-        })}
-      </nav> : null}
+      {mode !== "ai-work" && writingNormal ? <div className="module-context__tabs-row">{contextMenuTabs}</div> : null}
       {sidebarRight.tabs.map((tab) => tab.keepMounted || sidebarRight.activeId === tab.id ? <div key={tab.id} className="module-context__tab-panel" hidden={sidebarRight.activeId !== tab.id} aria-hidden={sidebarRight.activeId !== tab.id}>{createElement(DshSlotOutlet, { name: "sidebar.right.pane.tab", entryKey: tab.id, fallback: <Alert type="warning" showIcon message="扩展面板尚未加载内容" description="此入口已登记，但当前没有 DSH Client 内容提供面板。请检查当前 Profile 的插件状态及 Client 入口加载错误。" /> })}</div> : null)}
       {mode === "ai-work" ? <ApplicationNavigationPanel userId={userId} app={app} mode={mode} section={section} gameLibrary={gameLibrary} workspaceTitle={workspaceTitle} apps={apps} applicationNavigationItems={applicationNavigationItems} onNavigate={navigateWithinApplication} onOpenApplication={openSidebarMode} onWritingLibraryPortalTargetChange={setWritingLibraryPortalTarget} hidden={activeRightPanelSection !== "applications" || sidebarRight.activeId !== null} /> : null}
       {sidebarRight.activeId === null && activeRightPanelSection === "context" && aiWorkView === "git" ? gitManagerPanel : null}
@@ -2487,12 +2512,13 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
         </div>
         </> : null}
       </> : <>
-        <header className="module-context__heading"><div><strong>{contextLabel}</strong><span>手动操作与管理</span></div><span className={`module-context__connection module-context__connection--${serverState}`}><i aria-hidden="true" />{serverState === "online" ? "已连接" : serverState === "checking" ? "检查中" : "未连接"}</span><button className="module-shell-icon-button module-context__close" type="button" aria-label={`收起${contextLabel}`} title={`收起${contextLabel}`} onClick={toggleRight}><WorkbenchIcon name="close" size={15} /></button></header>
         <div className="module-context__tools">
           <button type="button" onClick={() => onNavigate("/files")} title="打开已接入的节点文件管理"><WorkbenchIcon name="file" size={16} /><span>节点文件</span></button>
         </div>
         <section className="module-context__section"><header><span>当前应用</span><b>1</b></header><div className="module-context__app"><span className={`application-monogram application-monogram--${selectedApp.color}`} aria-hidden="true">{selectedApp.initials}</span><div><strong>{activeApplicationTitle}</strong><small>{modeLabel}</small></div></div></section>
         <section className="module-context__section"><header><span>服务状态</span></header><div className="module-context__service"><ServiceStatus state={serverState} /><small>控制端健康状态</small></div></section>
+        {visibleMinecraftRuntimeContext ? <section className="module-context__section"><Suspense fallback={null}><MinecraftInstanceRuntimeContextPanel context={visibleMinecraftRuntimeContext} /></Suspense></section> : null}
+        {visibleMinecraftServerInfoContext ? <section className="module-context__section"><Suspense fallback={null}><MinecraftInstanceServerInfoContextPanel context={visibleMinecraftServerInfoContext} onOpenConnectivity={() => { void openApplication("connectivity", "normal"); }} /></Suspense></section> : null}
         {app === "minecraft" ? <TerminalManagerRightSidebar /> : null}
         {app !== "minecraft" ? <section className="module-context__note"><strong>领域应用</strong><p>在这里查看和操作当前领域数据；目标理解与工具执行由小鱼 Agent 统一协调。</p></section> : null}
       </>}

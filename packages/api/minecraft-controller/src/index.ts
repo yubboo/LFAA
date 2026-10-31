@@ -4,13 +4,13 @@ import {runtimeManager} from "lfaa-runtime-manager/src/service.js";
 import {requestMinecraftTaskCancellation} from "lfaa-jobs/src/minecraft-queue.js";
 import {resolveMinecraftCoreArtifact} from "lfaa-games-minecraft/src/core-sources.js";
 import { issueDaemonCredential, listDaemonCredentials, revokeDaemonCredential } from "lfaa-host-daemon/src/node-credentials.js";
-import { deleteMinecraftInstance, readMinecraftServerProperties, restartMinecraftInstance, sendMinecraftConsoleCommand } from "lfaa-games-minecraft/src/service.js";
+import { deleteMinecraftInstance, getMinecraftInstanceShellDirectory, getMinecraftServerTelemetry, readMinecraftServerProperties, restartMinecraftInstance, sendMinecraftConsoleCommand } from "lfaa-games-minecraft/src/service.js";
 import Joi from "joi";
 import { ApiError } from "lfaa-util-values/src/http-error.js";
 import { MINECRAFT_PROPERTY_KEY_PATTERN, MINECRAFT_PROPERTY_VALUE_LIMIT, MINECRAFT_PROPERTIES_ENTRY_LIMIT } from "lfaa-util-values/src/minecraft-property-contract.mjs";
 import { requireAuthentication, requireRole } from "lfaa-authorization/src/middleware.js";
 import { assertSystemFileAccess } from "lfaa-fs/src/library.js";
-import { getDaemonNode, listDaemonNodes } from "lfaa-host-daemon/src/local-daemon.js";
+import { getDaemonNode, getDaemonSystemResourceTelemetry, listDaemonNodes } from "lfaa-host-daemon/src/local-daemon.js";
 import { backupMinecraftWorld, createMinecraftDeployment, deleteMinecraftTaskRecords, getMinecraftTaskRecordDetails, getMinecraftInstance, getMinecraftInstanceLogs, getMinecraftOverview, getMinecraftRelease, getMinecraftReleases, getMinecraftStorageSettingsOverview, listMinecraftDeployments, forgetMinecraftJavaPath, installMinecraftJava, listMinecraftInstances, listMinecraftJavaRuntimes, listMinecraftTaskRecords, startMinecraftInstance, stopMinecraftInstance, registerMinecraftDeployment, retryMinecraftDeployment, updateMinecraftInstanceJavaRuntime, updateMinecraftInstanceJvmConfiguration, saveMinecraftNodeStorageSettings, saveMinecraftStorageDefaults, registerMinecraftJavaPath, uninstallMinecraftJava, updateMinecraftServerProperties, validateMinecraftServerProperties, withoutMinecraftTaskPropertySecrets } from "lfaa-games-minecraft/src/service.js";
 import type { AiPluginHost } from "lfaa-app-boot/src/ai-host.js";
 import type { MinecraftRealtimePublisher } from "lfaa-api-remotes/src/socket-server.js";
@@ -82,6 +82,15 @@ router.get("/minecraft/overview", requireAuthentication, asyncHandler(async (_re
 router.get("/minecraft/nodes", requireAuthentication, (request, response) => {
     const nodes = listDaemonNodes(() => realtime.publishMinecraftChange(["state"]));
     response.json({ nodes: request.auth!.user.role !== "member" ? nodes : nodes.map(withoutJavaExecutablePaths) });
+  });
+
+router.get("/minecraft/nodes/:nodeId/resources", requireAuthentication, (request, response) => {
+    const nodeId = request.params.nodeId;
+    if (Joi.string().guid().validate(nodeId).error) throw new ApiError(400, "invalid_daemon_node_id", "节点标识无效。");
+    const node = getDaemonNode(nodeId);
+    if (!node) throw new ApiError(404, "daemon_node_not_found", "找不到目标 daemon 节点。");
+    response.setHeader("Cache-Control", "no-store");
+    response.json({ nodeId: node.id, nodeName: node.displayName, telemetry: getDaemonSystemResourceTelemetry(node) });
   });
 
 router.get("/minecraft/storage-settings", requireAuthentication, requireRole("admin"), (_request, response) => {
@@ -184,6 +193,18 @@ router.post("/minecraft/deployments/:deploymentId/instance", requireAuthenticati
     realtime.publishMinecraftChange(["state", "tasks"], created.instance.id);
     response.status(202).json(created);
   }));
+
+router.get("/minecraft/instances/:instanceId/directory", requireAuthentication, requireRole("admin"), (request, response) => {
+    const instanceId = Joi.string().guid().validate(request.params.instanceId);
+    if (instanceId.error) throw new ApiError(400, "invalid_minecraft_instance_id", "Minecraft 实例 ID 无效。");
+    const resolved = getMinecraftInstanceShellDirectory(instanceId.value);
+    response.json({ instanceId: resolved.instance.id, directory: resolved.directory });
+  });
+
+router.get("/minecraft/instances/:instanceId/telemetry", requireAuthentication, (request, response) => {
+    response.setHeader("Cache-Control", "no-store");
+    response.json({ telemetry: getMinecraftServerTelemetry(request.params.instanceId) });
+  });
 
 router.get("/minecraft/instances/:instanceId", requireAuthentication, (request, response) => {
     const instance = getMinecraftInstance(request.params.instanceId);

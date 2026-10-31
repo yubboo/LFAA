@@ -233,6 +233,8 @@
 
 .module-context__shell-actions { display: flex; min-width: 0; min-height: var(--agent-shell-header-h, 3rem); align-items: center; justify-content: flex-end; gap: 3px; padding: 0 9px; border-bottom: 1px solid var(--color-border); }
 
+.module-context__shell-actions > .module-context__tabs-row--shell { height: 100%; min-height: 0; flex: 1 1 auto; padding: 0; border-bottom: 0; }
+
 .module-context__body { display: flex; min-height: 0; flex: 1; flex-direction: column; overflow: auto; }
 
 /* Canvas 中的应用聊天直接复用标准右栏外框/标题；仅内容盒切换为聊天所需的全高裁剪。 */
@@ -256,6 +258,16 @@
 .module-context__default-content[hidden], .module-context__side-chat[hidden] { display: none; }
 
 .module-context__side-chat { display: flex; min-height: 0; flex: 1; overflow: hidden; }
+
+.module-context__tabs-row { display: flex; min-width: 0; flex: 0 0 auto; align-items: center; gap: 4px; padding: 7px 10px; border-bottom: 1px solid var(--color-border); }
+
+.module-context__tabs-row > .module-context__tabs { min-width: 0; flex: 1 1 auto; gap: 4px; padding: 0; overflow-x: auto; border-bottom: 0; scrollbar-width: thin; }
+
+.module-context__tabs-row > .module-panel-control { width: 30px; min-width: 30px; flex: 0 0 30px; justify-content: center; gap: 0; padding: 0; font-size: 0; }
+
+.module-context__tabs-row > .module-panel-control > span { display: none; }
+
+.module-context__tabs-row > .module-panel-control:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 1px; }
 
 .module-context__tabs { display: flex; flex: 0 0 auto; gap: 4px; padding: 7px 10px; overflow-x: auto; border-bottom: 1px solid var(--color-border); scrollbar-width: thin; }
 

@@ -2,6 +2,8 @@
 
 本包持有共享基础控件、状态组件和通用 SVG 图标。`WorkbenchHeader` 统一工作区的左侧切换入口、页面标题、中间模式槽和右侧操作槽；只负责结构、外观令牌和容器响应式排布，开合状态、路由、按钮行为与模式数据由调用页面持有。`ServiceStatus` 使用 `checking`、`online`、`offline` 真实状态提供统一文案；登录页可选用 `compact` 展示为可聚焦的小圆点，悬停或聚焦时以不参与布局计算的浮层显示状态文字。`WorkbenchIcon` 只负责绘制；图标的业务名称、可访问性文案、路由与点击操作由调用页面持有。共享图标集合包含 `arrowRight` 发送方向图标和 `chat` 对话气泡图标，不增加状态或样式配置。
 
+`NotificationToast` 是 Minecraft 操作通知与 Workbench 小鱼工作通知共用的提示卡外壳，统一负责单一表面背景、信息/图标/操作链接、右上角关闭按钮和可选底部倒计时布局。通知内容、真实状态、计时器、关闭与跳转行为、提示音仍由调用方及其既有 Owner 持有；组件不创建请求、计时器或持久化设置，样式沿用共享主题和减少动态效果映射。
+
 `SettingRow` 可选暴露稳定 DOM id，供同一设置页的定向导航定位，不负责路由、持久化或业务开关。主题颜色和字号从 `ui-theme` 的共享令牌继承；本包不持有领域业务规则或持久化数据。构建只写仓库根 `dist/packages/client/ui-primitives/`。
 
 SettingsSwitch 通过受控的 checked 与 onChange 保持原有开关语义，点击时只在 1/2 间轮换组件本地动画 key，让滑块节点重新播放一次 Jelly Toggle；不新增计时器、订阅或偏好写入路径。轨道颜色、滑块移动与拉伸、hover/press 反馈由 ui-theme/common.css 呈现，并沿用 Workbench 的减少动态效果映射。

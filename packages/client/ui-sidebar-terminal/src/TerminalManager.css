@@ -111,6 +111,16 @@
 .lfaa-terminal-manager__right-panel > .lfaa-terminal-manager__sidebar-card dt { color: var(--color-text-muted); }
 .lfaa-terminal-manager__right-panel > .lfaa-terminal-manager__sidebar-card dd { min-width: 0; margin: 0; overflow-wrap: anywhere; color: var(--color-text-primary); }
 
+.lfaa-terminal-manager__right-panel > .lfaa-terminal-manager__telemetry-card > .lfaa-terminal-manager__telemetry-version > dd > small,
+.lfaa-terminal-manager__right-panel > .lfaa-terminal-manager__telemetry-card > .lfaa-terminal-manager__telemetry-note {
+  display: block;
+  margin-top: 4px;
+  color: var(--color-text-muted);
+  font-size: calc(var(--settings-interface-font-size, 13px) * .82);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
 .lfaa-terminal-manager__right-panel .lfaa-terminal-manager__quick-commands {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

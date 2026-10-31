@@ -6,7 +6,7 @@
 
 `core-sources.ts` 还唯一维护各核心的 `serverType` 和 `compatibleContent`，供模型区分插件、模组、混合、代理和基岩核心。来源 `category` 原样保留给既有端口和部署逻辑，不能代替插件兼容性判断。
 
-`service.ts` 持有实例、配置、部署和 Java 管理事实；`core-sources.ts` 解析 PaperMC Fill v3、FastMirror 和 Mohist Youer 的真实版本、分页构建与校验摘要，并唯一登记核心名称。API 与模型工具共用这些服务，执行位于目标 Daemon。明确 Paper 时只查询官方目录，工件 URL/SHA-256 与最低 Java 来自对应版本/构建元数据；省略 build 时选择该版本最新 STABLE，不静默替换版本。非 Paper 的 Java 要求从 Mojang 版本元数据读取；`piston-meta.mojang.com` 网络/暂时不可用时，仅同路径回退到 Mojang 官方 `launchermeta.mojang.com`，两个来源都不可用则在事务前失败，不猜 Java 版本。未指定端口时在同一数据库事务内从设置默认值起避开已登记实例端口，启动前由节点检查真实监听。设置中心读取核心名称不触发远端版本目录查询；实际部署和版本选择仍使用实时来源合同。
+`service.ts` 持有实例、配置、部署和 Java 管理事实；`core-sources.ts` 解析 PaperMC Fill v3、FastMirror 和 Mohist Youer 的真实版本、分页构建与校验摘要，并唯一登记核心名称。API 与模型工具共用这些服务，执行位于目标 Daemon。完整核心目录按三个登记来源聚合；用户选定核心/版本后的版本存在性校验与构建读取只访问该核心对应来源，FastMirror 继续使用其现有目录与构建 API 合同。明确 Paper 时只查询官方目录，工件 URL/SHA-256 与最低 Java 来自对应版本/构建元数据；省略 build 时选择该版本最新 STABLE，不静默替换版本。非 Paper 的 Java 要求从 Mojang 版本元数据读取；`piston-meta.mojang.com` 网络/暂时不可用时，仅同路径回退到 Mojang 官方 `launchermeta.mojang.com`，两个来源都不可用则在事务前失败，不猜 Java 版本。未指定端口时在同一数据库事务内从设置默认值起避开已登记实例端口，启动前由节点检查真实监听。设置中心读取核心名称不触发远端版本目录查询；实际部署和版本选择仍使用实时来源合同。
 
 `getMinecraftInstanceShellDirectory()` 是 Minecraft Service 提供的实例目录解析 Owner。Terminal Controller 只传递已登记的实例 ID，并将该结果用作 `minecraft-shell` 的 Shell 起始目录；界面或请求体不能自行指定任意 cwd。该 cwd 仅是起始位置，不限制用户随后可访问的 Daemon OS 账户权限范围。
 
@@ -27,3 +27,5 @@ Paper 官方构建的最低 Java 字节码版本与官方推荐运行版本共�
 玩家联机不是此部署服务的副作用。Minecraft App 通过 `lfaa-game-connectivity` 注册 Java TCP 目标适配器；联机 App 只列出当前账户拥有、节点在线且实际运行的实例，并读取真实保存端口生成回环目标。网络路线由跨游戏 Connectivity Owner 管理，不调用 Minecraft 部署或启停服务。
 
 实例 JVM 堆与调优参数归本 Service 校验，并经 `lfaa-util-values/src/minecraft-jvm-contract.mjs` 的唯一参数白名单保存。所有 Java 服务端核心共用推荐/高性能 G1 参数；未显式配置的实例从同一合同读取推荐参数，首次部署、注册、启动/重启都将真实参数交给目标 Java 预检并传入核心启动命令。SQLite v79 用 `jvm_arguments_configured` 区分自动推荐值与用户显式保存（包括空列表），不覆盖已保存的非空参数。`minecraftDefaultMemoryMb` 仅作为新实例默认最大堆，不覆盖已有实例值。v78 保留旧实例 Xms 初值，v79 标记参数配置来源。PocketMine 使用 PHP，不应用 JVM 参数。
+
+控制台运行指标通过 `updateInstanceStatesFromDaemon()` 接收受认证节点的严格快照，并只存于按实例/节点隔离的内存 Map，不新增 SQLite 数据或持久化玩家信息。`getMinecraftServerTelemetry()` 校验实例仍运行、原登记节点在线及心跳/采样时间新鲜后供认证 GET 路由读取；停止、节点离线、报告缺失或过期时删除缓存并返回明确不可用原因。服务端控制台和实例生命周期仍由既有 Owner 管理。

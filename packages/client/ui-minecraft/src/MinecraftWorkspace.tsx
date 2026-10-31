@@ -3,21 +3,25 @@
  * 作用：读取 LFAA 控制端与本机 Daemon 数据，并提交受权限控制的实例任务。
  * 关联文件：packages/client/connection/src/api.ts、packages/client/ui-workspace/src/ApplicationWorkspace.tsx、packages/client/ui-sidebar-terminal/src/TerminalSurface.tsx、packages/client/ui-minecraft/src/MinecraftWorkspace.css。
  */
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent as ReactMouseEvent } from "react";
 import { createReadPoller } from "lfaa-client-connection/src/read-poller.js";
 import { setFileManagerLocation } from "lfaa-client-connection/src/file-manager-location.js";
 import { createSnapshotCache } from "lfaa-client-store/src/snapshot-cache.js";
 import { playNotificationSound } from "lfaa-client-resources/src/notification-runtime.js";
+import { NotificationToast } from "lfaa-client-ui-primitives/src/NotificationToast.js";
 import { Alert, Button, Card, Checkbox, ConfigProvider, Input, InputNumber, Modal, Popconfirm, Progress, Select, Space, Spin, Tag, Typography } from "antd";
 import {
   hasAdminAccess,
   deleteMinecraftInstance,
   deleteMinecraftTaskRecords,
   getErrorMessage,
+  loadConnectivityOverview,
   loadMinecraftDeployments,
   loadMinecraftInstances,
+  loadMinecraftInstanceDirectory,
   loadMinecraftJava,
   loadMinecraftNodes,
+  loadMinecraftNodeResources,
   loadMinecraftOverview,
   loadMinecraftTasks,
   loadMinecraftTaskDetails,
@@ -32,6 +36,9 @@ import {
   type MinecraftInstance,
   type MinecraftLog,
   type MinecraftNode,
+  type MinecraftNodeResourceSample,
+  type MinecraftNodeResourceTelemetry,
+  type ConnectivityRoute,
   type MinecraftTask,
   type MinecraftTaskDetails,
   type UserRole,
@@ -64,10 +71,289 @@ interface MinecraftWorkspaceProps {
   onNavigate: (path: string) => void;
   onOpenConnectivity: () => void;
   onContentReady: (ready: boolean) => void;
+  onInstanceRuntimeContextChange?: (context: MinecraftInstanceRuntimeContext | null) => void;
+}
+
+export interface MinecraftInstanceRuntimeContext {
+  routeSection: string;
+  instanceId: string;
+  instanceName: string;
+  nodeId: string;
+  coreType: string;
+  releaseId: string;
+  coreBuild: string;
+  state: MinecraftInstance["state"];
+  javaMajor: number;
+  javaRuntimeId: string | null;
+  nodeName: string;
+  nodeStatus: MinecraftInstance["nodeStatus"];
+  javaRuntime: MinecraftNode["javaRuntimes"][number] | null;
+  javaRuntimes: MinecraftNode["javaRuntimes"];
+  javaInventoryLoaded: boolean;
+  serverPropertiesSnapshot: { observedAt: string; gameMode: string | null; serverPort: string | null; levelName: string | null } | null;
+  serverPropertiesState: "ready" | "loading" | "failed" | "offline" | "unsupported" | "restricted" | "not-loaded";
+  serverPropertiesError: string | null;
+  directory: string | null;
+  directoryState: "loading" | "ready" | "unavailable" | "restricted";
+  connectivityRoutes: Array<Pick<ConnectivityRoute, "id" | "name" | "playerAddress" | "state">>;
+  connectivityState: "loading" | "ready" | "unavailable";
+  refreshServerInfo: () => void;
+}
+
+type MinecraftClipboardFeedback = { key: string; state: "copied" | "failed" } | null;
+
+type MinecraftNodeResourceViewState = {
+  accountKey: string;
+  nodeId: string;
+  telemetry: MinecraftNodeResourceTelemetry | null;
+  error: string | null;
+};
+
+const minecraftNodeResourceRefreshIntervalMs = 10_000;
+
+function formatResourceBytes(value: number | null): string {
+  if (value === null || !Number.isFinite(value) || value < 0) return "暂不可用";
+  if (value < 1024) return `${Math.round(value)} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let amount = value / 1024;
+  let unitIndex = 0;
+  while (amount >= 1024 && unitIndex < units.length - 1) {
+    amount /= 1024;
+    unitIndex += 1;
+  }
+  return `${amount.toLocaleString("zh-CN", { maximumFractionDigits: 1 })} ${units[unitIndex]}`;
+}
+
+function formatResourceRate(value: number | null): string {
+  if (value === null || !Number.isFinite(value) || value < 0) return "等待基线";
+  if (value < 1024) return `${Math.round(value)} B/s`;
+  const units = ["KB/s", "MB/s", "GB/s"];
+  let amount = value / 1024;
+  let unitIndex = 0;
+  while (amount >= 1024 && unitIndex < units.length - 1) {
+    amount /= 1024;
+    unitIndex += 1;
+  }
+  return `${amount.toLocaleString("zh-CN", { maximumFractionDigits: 1 })} ${units[unitIndex]}`;
+}
+
+function formatResourcePercent(value: number | null): string {
+  if (value === null || !Number.isFinite(value)) return "暂不可用";
+  return `${Number.isInteger(value) ? value : value.toFixed(1)}%`;
+}
+
+function resourceSparklinePath(samples: MinecraftNodeResourceSample[], select: (sample: MinecraftNodeResourceSample) => number | null): string {
+  if (samples.length < 2) return "";
+  const selected = samples.map(select);
+  const finite = selected.filter((value): value is number => value !== null && Number.isFinite(value));
+  if (finite.length < 2) return "";
+  const min = Math.min(...finite);
+  const max = Math.max(...finite);
+  const range = max - min || 1;
+  let previousValid = false;
+  return selected.map((value, index) => {
+    if (value === null || !Number.isFinite(value)) {
+      previousValid = false;
+      return "";
+    }
+    const x = (index / (selected.length - 1)) * 100;
+    const y = 26 - ((value - min) / range) * 22;
+    const command = previousValid ? "L" : "M";
+    previousValid = true;
+    return `${command}${x.toFixed(1)},${y.toFixed(1)}`;
+  }).filter(Boolean).join(" ");
+}
+
+function resourceStatusLabel(status: MinecraftNodeResourceTelemetry["status"] | null, error: string | null): string {
+  if (error) return "读取失败";
+  if (status === "ready") return "实时采样";
+  if (status === "stale") return "采样已过期";
+  if (status === "offline") return "节点离线";
+  if (status === "unsupported") return "节点程序未提供采样";
+  if (status === "waiting") return "等待首次采样";
+  return "尚未连接运行节点";
+}
+
+const minecraftServerModeLabels: Record<string, string> = {
+  survival: "生存",
+  creative: "创造",
+  adventure: "冒险",
+  spectator: "旁观",
+  "0": "生存",
+  "1": "创造",
+  "2": "冒险",
+  "3": "旁观"
+};
+const unavailableValue = "—"; // taste-skill-ignore em-dash: shared placeholder for a value the app has not received.
+
+function minecraftServerRouteStateLabel(state: ConnectivityRoute["state"]): string {
+  if (state === "connected") return "已连接";
+  if (state === "waiting-for-node") return "等待节点接入";
+  if (state === "offline") return "离线";
+  if (state === "failed") return "连接失败";
+  return "手动登记，未验证";
+}
+
+function MinecraftInfoValue({ value, copyKey, feedback, onCopy }: {
+  value: string;
+  copyKey: string;
+  feedback: MinecraftClipboardFeedback;
+  onCopy: (key: string, value: string) => void;
+}) {
+  return <div className="minecraft-server-info-context__copy-row">
+    <span>{value}</span>
+    <Button type="link" size="small" onClick={() => onCopy(copyKey, value)} aria-label="复制信息">
+      {feedback?.key === copyKey && feedback.state === "copied" ? "已复制" : "复制"}
+    </Button>
+  </div>;
+}
+
+export function MinecraftInstanceServerInfoContextPanel({ context, onOpenConnectivity }: {
+  context: MinecraftInstanceRuntimeContext;
+  onOpenConnectivity: () => void;
+}) {
+  const [clipboardFeedback, setClipboardFeedback] = useState<MinecraftClipboardFeedback>(null);
+  useEffect(() => setClipboardFeedback(null), [context.instanceId]);
+
+  const copyValue = useCallback(async (key: string, value: string) => {
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("浏览器剪贴板不可用。");
+      await navigator.clipboard.writeText(value);
+      setClipboardFeedback({ key, state: "copied" });
+    } catch {
+      setClipboardFeedback({ key, state: "failed" });
+    }
+  }, []);
+
+  const snapshot = context.serverPropertiesSnapshot;
+  const propertyStateText = context.serverPropertiesState === "loading" ? "正在读取节点配置。"
+    : context.serverPropertiesState === "failed" ? context.serverPropertiesError || "节点配置读取失败。"
+      : context.serverPropertiesState === "offline" ? "节点离线，尚无可用的节点配置快照。"
+        : context.serverPropertiesState === "unsupported" ? "当前核心或节点未提供 server.properties 快照。"
+          : context.serverPropertiesState === "restricted" ? "需要管理员权限读取节点配置。"
+            : "节点尚未读取 server.properties。";
+  const observedAt = snapshot && Number.isFinite(Date.parse(snapshot.observedAt))
+    ? new Date(snapshot.observedAt).toLocaleString("zh-CN")
+    : "";
+  const addressRoutes = context.connectivityRoutes.filter((route) => typeof route.playerAddress === "string" && route.playerAddress.length > 0);
+
+  return <>
+    <header><span>服务器信息</span><Button type="link" size="small" onClick={context.refreshServerInfo}>刷新信息</Button></header>
+    <div className="minecraft-server-info-context__content">
+      <dl className="minecraft-server-info-context__details">
+        <dt>服务器名称</dt><dd>{context.instanceName}</dd>
+        <dt>服务器地址</dt><dd>
+          {context.connectivityState === "loading" ? <span className="minecraft-server-info-context__note">正在读取此实例登记的联机地址。</span>
+            : context.connectivityState === "unavailable" ? <span className="minecraft-server-info-context__note">联机地址暂时无法读取。</span>
+              : addressRoutes.length ? <ul className="minecraft-server-info-context__addresses" aria-label="此实例已登记的玩家连接地址">
+                {addressRoutes.map((route) => <li key={route.id}>
+                  <MinecraftInfoValue value={route.playerAddress!} copyKey={`address:${route.id}`} feedback={clipboardFeedback} onCopy={copyValue} />
+                  <small>{route.name} · {minecraftServerRouteStateLabel(route.state)}</small>
+                  {clipboardFeedback?.key === `address:${route.id}` && clipboardFeedback.state === "failed" ? <small role="status">复制失败，请检查浏览器剪贴板权限。</small> : null}
+                </li>)}
+              </ul> : <div className="minecraft-server-info-context__empty-address">
+                <span className="minecraft-server-info-context__note">当前账户尚未为此实例登记玩家连接地址。</span>
+                <Button type="link" size="small" onClick={onOpenConnectivity}>管理联机地址</Button>
+              </div>}
+        </dd>
+        <dt>游戏模式</dt><dd>{snapshot ? snapshot.gameMode ? minecraftServerModeLabels[snapshot.gameMode.toLocaleLowerCase()] ?? snapshot.gameMode : "节点未报告" : unavailableValue}</dd>
+        <dt>服务端核心</dt><dd>{context.coreType} · Minecraft {context.releaseId}{context.coreBuild ? ` · ${context.coreBuild}` : ""}</dd>
+        <dt>世界名称</dt><dd>{snapshot ? snapshot.levelName || "节点未报告" : unavailableValue}</dd>
+        <dt>服务端口</dt><dd>{snapshot ? snapshot.serverPort || "节点未报告" : unavailableValue}</dd>
+        <dt>服务器目录</dt><dd>
+          {context.directoryState === "ready" && context.directory ? <>
+            <MinecraftInfoValue value={context.directory} copyKey="directory" feedback={clipboardFeedback} onCopy={copyValue} />
+            {context.nodeStatus === "offline" ? <small className="minecraft-server-info-context__note">节点离线；路径按当前登记配置解析，未由节点重新核验。</small> : null}
+            {clipboardFeedback?.key === "directory" && clipboardFeedback.state === "failed" ? <small role="status">复制失败，请检查浏览器剪贴板权限。</small> : null}
+          </> : <span className="minecraft-server-info-context__note">{context.directoryState === "loading" ? "正在解析实例目录。" : context.directoryState === "restricted" ? "管理员权限可查看实例目录。" : "当前无法解析实例目录。"}</span>}
+        </dd>
+      </dl>
+      {snapshot ? <small className="minecraft-server-info-context__observed">节点配置读取时间：{observedAt || snapshot.observedAt}{context.nodeStatus === "offline" ? " · 节点离线，显示上次读取值" : ""}</small>
+        : <small className="minecraft-server-info-context__note">{propertyStateText}</small>}
+      {clipboardFeedback?.state === "copied" ? <small role="status" className="minecraft-server-info-context__feedback">已复制到剪贴板。</small> : null}
+    </div>
+  </>;
+}
+
+function minecraftJavaRuntimeSource(runtime: NonNullable<MinecraftInstanceRuntimeContext["javaRuntime"]>): string {
+  if (runtime.managed || runtime.source === "managed") return "LFAA 托管";
+  if (runtime.source === "system") return "系统识别";
+  if (runtime.source === "custom") return "手动登记";
+  return "来源未报告";
+}
+
+export function MinecraftInstanceRuntimeContextPanel({ context }: { context: MinecraftInstanceRuntimeContext }) {
+  if (context.coreType === "PocketMine") {
+    return <><header><span>Java 运行环境</span></header><p className="minecraft-runtime-context__note">{context.instanceName} 使用 PHP 核心，不适用 Java。</p></>;
+  }
+
+  const runtime = context.javaRuntime;
+  const compatibleRuntimes = context.javaRuntimeId === null
+    ? context.javaRuntimes.filter((item) => item.major === context.javaMajor)
+    : [];
+  const runtimeStateLabel = context.javaRuntimeId === null
+    ? "节点自动管理"
+    : context.state === "running" && runtime
+      ? "当前使用"
+      : "已选环境";
+  const distribution = runtime?.distribution === "temurin" ? "Eclipse Temurin" : runtime?.distribution === "zulu" ? "Azul Zulu" : null;
+
+  return (
+    <>
+      <header><span>Java 运行环境</span></header>
+      <div className="minecraft-runtime-context__content">
+        <div className="minecraft-runtime-context__title">
+          <strong>Java {runtime?.major ?? context.javaMajor}</strong>
+          <span>{runtimeStateLabel}</span>
+        </div>
+        <small className="minecraft-runtime-context__instance">{context.instanceName} · {context.nodeName}{context.nodeStatus === "offline" ? " · 节点离线" : ""}</small>
+        {context.javaRuntimeId === null ? (
+          <>
+            <p className="minecraft-runtime-context__note">实例只指定 Java 主版本；下列环境由节点实际上报，实例启动时仍由节点自动解析。</p>
+            {compatibleRuntimes.length ? <ul className="minecraft-runtime-context__runtime-list" aria-label={`节点上报的 Java ${context.javaMajor} 环境`}>
+              {compatibleRuntimes.map((item) => <li key={item.runtimeId}>
+                <strong>{item.version || `Java ${item.major}`}</strong>
+                <span>{item.vendor}{item.distribution === "temurin" ? " · Eclipse Temurin" : item.distribution === "zulu" ? " · Azul Zulu" : ""}</span>
+                <small>{[minecraftJavaRuntimeSource(item), item.architecture, item.os].filter(Boolean).join(" · ")}</small>
+                {item.executablePath ? <small className="minecraft-runtime-context__path">{item.executablePath}</small> : null}
+              </li>)}
+            </ul> : <p className="minecraft-runtime-context__note" role="status">
+              {!context.javaInventoryLoaded
+                ? "正在读取节点上报的 Java 环境。"
+                : context.nodeStatus === "offline"
+                  ? "节点离线，无法确认当前可用的 Java 环境。"
+                  : `节点尚未上报 Java ${context.javaMajor} 环境；启动前仍会按节点策略校验。`}
+            </p>}
+            {compatibleRuntimes.length && context.nodeStatus === "offline" ? <p className="minecraft-runtime-context__note">节点离线；所列环境为最近一次上报，不能代表当前可用状态。</p> : null}
+          </>
+        ) : runtime ? (
+          <>
+            <dl className="minecraft-runtime-context__details">
+              <dt>发行商</dt><dd>{runtime.vendor}</dd>
+              {runtime.version ? <><dt>完整版本</dt><dd>{runtime.version}</dd></> : null}
+              {distribution ? <><dt>发行版</dt><dd>{distribution}</dd></> : null}
+              <dt>来源</dt><dd>{minecraftJavaRuntimeSource(runtime)}</dd>
+              {runtime.architecture ? <><dt>架构</dt><dd>{runtime.architecture}</dd></> : null}
+              {runtime.os ? <><dt>系统</dt><dd>{runtime.os}</dd></> : null}
+              {runtime.executablePath ? <><dt>可执行文件</dt><dd className="minecraft-runtime-context__path">{runtime.executablePath}</dd></> : null}
+            </dl>
+            {context.nodeStatus === "offline" ? <p className="minecraft-runtime-context__note">节点离线；以上为最近一次上报的信息。</p> : null}
+          </>
+        ) : (
+          <p className="minecraft-runtime-context__note" role="status">
+            {!context.javaInventoryLoaded
+              ? "正在读取节点上报的 Java 环境。"
+              : context.nodeStatus === "offline"
+                ? "节点离线，暂时无法确认所选 Java 环境的最新状态。"
+                : "节点当前未上报实例指定的 Java 运行时。"}
+          </p>
+        )}
+      </div>
+    </>
+  );
 }
 
 const minecraftRoot = "/apps/minecraft/normal";
-const unavailableValue = "—"; // taste-skill-ignore em-dash: shared placeholder for a value the app has not received.
 type RealtimeConnectionStatus = "connecting" | "connected" | "reconnecting" | "disconnected";
 type MinecraftInstanceFilter = "all" | "needs-review" | MinecraftInstance["state"];
 
@@ -112,6 +398,12 @@ function realtimeStatusColor(status: RealtimeConnectionStatus): string {
 function getInstanceRoute(instanceId: string, view: "overview" | "configuration" | "terminal" | "logs" | "backup"): string {
   if (view === "logs") return `${minecraftRoot}/logs/${encodeURIComponent(instanceId)}`;
   return `${minecraftRoot}/instance/${encodeURIComponent(instanceId)}/${view}`;
+}
+
+function navigateFromInstanceEntry(event: ReactMouseEvent<HTMLAnchorElement>, route: string, onNavigate: (path: string) => void): void {
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  event.preventDefault();
+  onNavigate(route);
 }
 
 function navigateToInstanceFiles(userId: string, instanceId: string, onNavigate: (path: string) => void): void {
@@ -247,7 +539,7 @@ function formatMinecraftLogLine(line: string): string {
     .replace(/\uFFFD$/u, "");
 }
 
-function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, settings, onNavigate, onOpenConnectivity, onContentReady }: MinecraftWorkspaceProps) {
+function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, settings, onNavigate, onOpenConnectivity, onContentReady, onInstanceRuntimeContextChange }: MinecraftWorkspaceProps) {
   const snapshotKey = `${userId}\u001f${role}`;
   const cachedSnapshot = useRef(minecraftWorkspaceSnapshots.get(snapshotKey) ?? null).current;
   const [overview, setOverview] = useState<MinecraftWorkspaceSnapshot["overview"] | null>(() => cachedSnapshot?.overview ?? null);
@@ -264,6 +556,8 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
   const [logs, setLogs] = useState<MinecraftLog[]>([]);
   const [logsInstanceId, setLogsInstanceId] = useState("");
   const [logsLoaded, setLogsLoaded] = useState(false);
+  const [nodeResourceViewState, setNodeResourceViewState] = useState<MinecraftNodeResourceViewState | null>(null);
+  const [nodeResourceRetryCount, setNodeResourceRetryCount] = useState(0);
   const [logInstanceSelection, setLogInstanceSelection] = useState("");
   const [loading, setLoading] = useState(() => cachedSnapshot === null);
   const [refreshError, setRefreshError] = useState<string | null>(null);
@@ -295,9 +589,13 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
   const [propertyReadError, setPropertyReadError] = useState<string | null>(null);
   const propertyReadAttemptedFor = useRef<string | null>(null);
   const handledPropertyReadTask = useRef<string | null>(null);
+  const [instanceDirectoryRead, setInstanceDirectoryRead] = useState<{ key: string; state: "loading" | "ready" | "unavailable"; directory: string | null } | null>(null);
+  const [instanceConnectivityRead, setInstanceConnectivityRead] = useState<{ key: string; state: "loading" | "ready" | "unavailable"; routes: Array<Pick<ConnectivityRoute, "id" | "name" | "playerAddress" | "state">> } | null>(null);
+  const [serverInfoRefreshSequence, setServerInfoRefreshSequence] = useState(0);
+  const serverInfoRefreshInFlight = useRef(false);
+  const serverInfoRefreshCallback = useRef<() => void>(() => undefined);
   const [instanceSearch, setInstanceSearch] = useState("");
   const [instanceStateFilter, setInstanceStateFilter] = useState<MinecraftInstanceFilter>("all");
-  const [managementInstanceId, setManagementInstanceId] = useState<string | null>(null);
   const [taskStatusFilter, setTaskStatusFilter] = useState<MinecraftTask["status"] | "all">("all");
   const mounted = useRef(false);
   const refreshSequence = useRef(0);
@@ -321,6 +619,7 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
   const routeLogInstanceId = standaloneLogsMatch?.[1] ?? legacyLogInstanceId;
   const selectedInstanceId = detailMatch && detailMatch[2] !== "logs" ? detailMatch[1] : "";
   const detailView = standaloneLogs ? "logs" : detailMatch?.[2] ?? "overview";
+  const canOperate = hasAdminAccess(role);
   const preferredLogInstance = instances.find((item) => item.state === "running") ?? instances[0] ?? null;
   const selectedLogInstanceId = routeLogInstanceId
     ? instances.some((item) => item.id === routeLogInstanceId) ? routeLogInstanceId : ""
@@ -384,6 +683,69 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
   const selectedInstanceJavaNode = selectedInstance ? javaNodes.find((node) => node.nodeId === selectedInstance.nodeId) ?? null : null;
   const selectedInstanceJavaRuntimes = selectedInstanceJavaNode?.runtimes ?? selectedInstanceNode?.javaRuntimes ?? [];
   const selectedInstanceJavaRuntime = selectedInstanceJavaRuntimes.find((runtime) => runtime.runtimeId === selectedInstance?.javaRuntimeId) ?? null;
+  const directoryReadKey = detailView === "overview" && selectedInstance && canOperate
+    ? `${userId}\u001f${selectedInstance.id}\u001f${selectedInstance.name}\u001f${selectedInstance.storageDirectory ?? ""}\u001f${selectedInstance.nodeId}`
+    : "";
+  const connectivityReadKey = detailView === "overview" && selectedInstance
+    ? `${userId}\u001f${selectedInstance.id}`
+    : "";
+  const instanceRuntimeContext = useMemo<MinecraftInstanceRuntimeContext | null>(() => {
+    const contextInstance = selectedInstance ?? (routeLogInstanceId ? selectedLogInstance : null);
+    if (!contextInstance) return null;
+    const contextNode = nodes.find((node) => node.id === contextInstance.nodeId) ?? null;
+    const contextJavaNode = javaNodes.find((node) => node.nodeId === contextInstance.nodeId) ?? null;
+    const runtimes = contextJavaNode?.runtimes ?? contextNode?.javaRuntimes ?? [];
+    const runtime = contextInstance.javaRuntimeId
+      ? runtimes.find((item) => item.runtimeId === contextInstance.javaRuntimeId) ?? null
+      : null;
+    const contextPropertySnapshot = contextInstance.id === selectedInstance?.id ? propertySnapshot : null;
+    const propertyEntry = (key: string) => contextPropertySnapshot?.entries.find((entry) => entry.key === key && !entry.sensitive)?.value ?? null;
+    const activePropertyRead = propertyReadAttemptedFor.current === contextInstance.id;
+    const serverPropertiesState = contextPropertySnapshot ? "ready"
+      : activePropertyRead && propertyReadLoading ? "loading"
+        : activePropertyRead && propertyReadError ? "failed"
+          : contextInstance.nodeStatus !== "online" ? "offline"
+            : ["BungeeCord", "Velocity", "Nukkit", "PocketMine"].includes(contextInstance.coreType) || !selectedInstanceSupportsPropertiesFile ? "unsupported"
+              : !canOperate ? "restricted"
+                : "not-loaded";
+    const directoryRead = instanceDirectoryRead?.key === directoryReadKey ? instanceDirectoryRead : null;
+    const connectivityRead = instanceConnectivityRead?.key === connectivityReadKey ? instanceConnectivityRead : null;
+    const scopedConnectivityRoutes = (connectivityRead?.routes ?? []).filter((route) => route.playerAddress);
+    return {
+      routeSection: section,
+      instanceId: contextInstance.id,
+      instanceName: contextInstance.name,
+      nodeId: contextInstance.nodeId,
+      coreType: contextInstance.coreType,
+      releaseId: contextInstance.releaseId,
+      coreBuild: contextInstance.coreBuild ?? "",
+      state: contextInstance.state,
+      javaMajor: contextInstance.javaMajor,
+      javaRuntimeId: contextInstance.javaRuntimeId,
+      nodeName: contextInstance.nodeName,
+      nodeStatus: contextInstance.nodeStatus,
+      javaRuntime: runtime,
+      javaRuntimes: runtimes,
+      javaInventoryLoaded: javaNodesLoaded,
+      serverPropertiesSnapshot: contextPropertySnapshot ? {
+        observedAt: contextPropertySnapshot.observedAt,
+        gameMode: propertyEntry("gamemode"),
+        serverPort: propertyEntry("server-port"),
+        levelName: propertyEntry("level-name")
+      } : null,
+      serverPropertiesState,
+      serverPropertiesError: activePropertyRead ? propertyReadError : null,
+      directory: directoryRead?.directory ?? null,
+      directoryState: !directoryReadKey ? "restricted" : directoryRead?.state ?? "loading",
+      connectivityRoutes: scopedConnectivityRoutes,
+      connectivityState: connectivityRead?.state ?? "loading",
+      refreshServerInfo: () => serverInfoRefreshCallback.current()
+    };
+  }, [canOperate, connectivityReadKey, directoryReadKey, instanceConnectivityRead, instanceDirectoryRead, javaNodes, javaNodesLoaded, nodes, propertyReadError, propertyReadLoading, propertySnapshot, routeLogInstanceId, section, selectedInstance, selectedInstanceSupportsPropertiesFile, selectedLogInstance]);
+  useEffect(() => {
+    onInstanceRuntimeContextChange?.(instanceRuntimeContext);
+    return () => onInstanceRuntimeContextChange?.(null);
+  }, [instanceRuntimeContext, onInstanceRuntimeContextChange]);
   const registerNode = selectedDeployment
     ? nodes.find((node) => node.id === selectedDeployment.nodeId) ?? null
     : null;
@@ -398,25 +760,134 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
     : [];
   const registerSelectedJavaRuntime = registerCompatibleJavaRuntimes.find((runtime) => runtime.runtimeId === registerJavaRuntimeId) ?? null;
   const eligibleNodes = useMemo(() => nodes.filter((node) => node.status === "online" && node.platform === "win32" && node.architecture === "x64" && node.capabilities.includes("minecraft-multicore-v1")), [nodes]);
-  const canOperate = hasAdminAccess(role);
   const onlineNodeCount = nodes.filter((node) => node.status === "online").length;
   const onlineWindowsNodes = nodes.filter((node) => node.status === "online" && node.platform === "win32" && node.architecture === "x64");
   const overviewInstance = useMemo(() => instances.find((instance) => instance.state === "running") ?? instances[0] ?? null, [instances]);
-  const overviewInstanceCanStart = Boolean(overviewInstance && canOperate && overviewInstance.nodeStatus === "online"
-    && (settings.minecraftRuntime.minecraftExecutionMode !== "appcontainer" || overviewInstance.sandboxAvailable)
-    && ["stopped", "error"].includes(overviewInstance.state));
-  const overviewInstanceCanStop = Boolean(overviewInstance && canOperate && overviewInstance.nodeStatus === "online"
-    && ["running", "starting"].includes(overviewInstance.state));
-  const overviewInstanceCanRestart = Boolean(overviewInstance && canOperate && overviewInstance.nodeStatus === "online"
-    && overviewInstance.state === "running");
   useEffect(()=>{if(section==="java")onNavigate(`/games/environments?return=overview`);},[section,onNavigate]);
   const currentSection = standaloneLogs ? "logs" : section === "overview" || section === "nodes" || section === "deployment" || section === "instances" || section === "java" || section === "tasks" || section === "workflows" || section === "connectivity" ? section : detailMatch ? "instances" : "overview";
-  const managedInstance = instances.find((instance) => instance.id === managementInstanceId) ?? null;
+  const overviewResourceNodeId = overviewInstance?.nodeId ?? overview?.node?.id ?? null;
+  const overviewResourceNode = overviewResourceNodeId
+    ? nodes.find((node) => node.id === overviewResourceNodeId) ?? (overview?.node?.id === overviewResourceNodeId ? overview.node : null)
+    : null;
   useEffect(() => {
-    if (managementInstanceId && (currentSection !== "instances" || selectedInstanceId || !managedInstance)) {
-      setManagementInstanceId(null);
+    const nodeId = overviewResourceNodeId;
+    if (currentSection !== "overview" || selectedInstanceId || !nodeId) {
+      setNodeResourceViewState(null);
+      return;
     }
-  }, [currentSection, managedInstance, managementInstanceId, selectedInstanceId]);
+    let active = true;
+    let requestInFlight = false;
+    let rerunWhenSettled = false;
+    let timer: number | null = null;
+    let controller: AbortController | null = null;
+    const poll = async () => {
+      if (!active || document.hidden) return;
+      if (requestInFlight) {
+        rerunWhenSettled = true;
+        return;
+      }
+      requestInFlight = true;
+      const requestController = new AbortController();
+      controller = requestController;
+      try {
+        const response = await loadMinecraftNodeResources(nodeId, requestController.signal);
+        if (response.nodeId !== nodeId) throw new Error("节点监控结果与当前服务器不匹配。");
+        if (active && !requestController.signal.aborted) {
+          setNodeResourceViewState({ accountKey: snapshotKey, nodeId, telemetry: response.telemetry, error: null });
+        }
+      } catch (error) {
+        if (active && !requestController.signal.aborted) {
+          const message = getErrorMessage(error);
+          setNodeResourceViewState((current) => current?.accountKey === snapshotKey && current.nodeId === nodeId
+            ? { ...current, error: message }
+            : { accountKey: snapshotKey, nodeId, telemetry: null, error: message });
+        }
+      } finally {
+        if (controller === requestController) controller = null;
+        requestInFlight = false;
+        if (active && !document.hidden) {
+          if (rerunWhenSettled) {
+            rerunWhenSettled = false;
+            void poll();
+          } else {
+            timer = window.setTimeout(() => { timer = null; void poll(); }, minecraftNodeResourceRefreshIntervalMs);
+          }
+        }
+      }
+    };
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        if (timer !== null) window.clearTimeout(timer);
+        timer = null;
+        controller?.abort();
+      } else if (requestInFlight) {
+        rerunWhenSettled = true;
+      } else {
+        void poll();
+      }
+    };
+    setNodeResourceViewState((current) => current?.accountKey === snapshotKey && current.nodeId === nodeId
+      ? current
+      : { accountKey: snapshotKey, nodeId, telemetry: null, error: null });
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    if (!document.hidden) void poll();
+    return () => {
+      active = false;
+      if (timer !== null) window.clearTimeout(timer);
+      controller?.abort();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [currentSection, nodeResourceRetryCount, overviewResourceNodeId, selectedInstanceId, snapshotKey]);
+  const visibleNodeResourceState = nodeResourceViewState?.accountKey === snapshotKey
+    && nodeResourceViewState.nodeId === overviewResourceNodeId ? nodeResourceViewState : null;
+  const visibleNodeResourceTelemetry = visibleNodeResourceState?.telemetry ?? null;
+  const nodeResourceSamples = visibleNodeResourceTelemetry?.samples ?? [];
+  const latestNodeResourceSample = nodeResourceSamples.at(-1) ?? null;
+  const nodeResourceStatus = resourceStatusLabel(visibleNodeResourceTelemetry?.status ?? null, visibleNodeResourceState?.error ?? null);
+  const nodeResourceStatusColor = visibleNodeResourceState?.error || visibleNodeResourceTelemetry?.status === "stale" || visibleNodeResourceTelemetry?.status === "offline"
+    ? "warning"
+    : visibleNodeResourceTelemetry?.status === "ready" ? "success" : "default";
+  const nodeResourceMetrics = [
+    {
+      key: "cpu",
+      label: "CPU 使用率",
+      value: formatResourcePercent(latestNodeResourceSample?.cpuUsagePercent ?? null),
+      detail: "节点整机",
+      percent: latestNodeResourceSample?.cpuUsagePercent ?? null,
+      trend: resourceSparklinePath(nodeResourceSamples, (sample) => sample.cpuUsagePercent),
+      trendLabel: "最近 CPU 整机使用率趋势"
+    },
+    {
+      key: "memory",
+      label: "内存使用率",
+      value: formatResourcePercent(latestNodeResourceSample?.memoryUsagePercent ?? null),
+      detail: `${formatResourceBytes(latestNodeResourceSample?.memoryUsedBytes ?? null)} / ${formatResourceBytes(latestNodeResourceSample?.memoryTotalBytes ?? null)}`,
+      percent: latestNodeResourceSample?.memoryUsagePercent ?? null,
+      trend: resourceSparklinePath(nodeResourceSamples, (sample) => sample.memoryUsagePercent),
+      trendLabel: "最近物理内存使用率趋势"
+    },
+    {
+      key: "disk",
+      label: "磁盘使用率",
+      value: formatResourcePercent(latestNodeResourceSample?.diskUsagePercent ?? null),
+      detail: `本地固定卷 · ${formatResourceBytes(latestNodeResourceSample?.diskUsedBytes ?? null)} / ${formatResourceBytes(latestNodeResourceSample?.diskTotalBytes ?? null)}`,
+      percent: latestNodeResourceSample?.diskUsagePercent ?? null,
+      trend: resourceSparklinePath(nodeResourceSamples, (sample) => sample.diskUsagePercent),
+      trendLabel: "最近本地固定卷磁盘使用率趋势"
+    },
+    {
+      key: "network",
+      label: "网络流量",
+      receive: latestNodeResourceSample?.networkReceiveBytesPerSecond ?? null,
+      send: latestNodeResourceSample?.networkSendBytesPerSecond ?? null,
+      detail: "当前默认网卡",
+      percent: null,
+      trend: resourceSparklinePath(nodeResourceSamples, (sample) => sample.networkReceiveBytesPerSecond === null || sample.networkSendBytesPerSecond === null
+        ? null
+        : sample.networkReceiveBytesPerSecond + sample.networkSendBytesPerSecond),
+      trendLabel: "最近默认网卡收发流量趋势"
+    }
+  ] as const;
   const visibleInstances = useMemo(() => {
     const query = instanceSearch.trim().toLocaleLowerCase();
     return instances.filter((instance) => matchesMinecraftInstanceFilter(instance, instanceStateFilter)
@@ -528,6 +999,18 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
       setPropertyReadLoading(false);
     }
   }, [refresh, selectedInstance?.id]);
+  const refreshServerInfo = useCallback(() => {
+    if (serverInfoRefreshInFlight.current || detailView !== "overview" || !selectedInstance) return;
+    serverInfoRefreshInFlight.current = true;
+    setServerInfoRefreshSequence((sequence) => sequence + 1);
+    void Promise.allSettled([
+      refresh(),
+      canOperate && selectedInstanceSupportsPropertiesFile && !independentCoreConfiguration && !propertyReadLoading
+        ? requestPropertiesRead()
+        : Promise.resolve()
+    ]).finally(() => { serverInfoRefreshInFlight.current = false; });
+  }, [canOperate, detailView, independentCoreConfiguration, propertyReadLoading, refresh, requestPropertiesRead, selectedInstance, selectedInstanceSupportsPropertiesFile]);
+  serverInfoRefreshCallback.current = refreshServerInfo;
   const updatePropertyDraft = useCallback((key: string, value: string, sensitive = false) => {
     setPropertyDraft((current) => ({ ...current, [key]: value }));
     if (sensitive) setTouchedSensitiveProperties((current) => new Set(current).add(key));
@@ -654,7 +1137,7 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
   }, [selectedInstance?.id, propertySnapshot?.observedAt]);
 
   useEffect(() => {
-    if (detailView !== "configuration") {
+    if (detailView !== "configuration" && detailView !== "overview") {
       propertyReadAttemptedFor.current = null;
       return;
     }
@@ -675,6 +1158,39 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
       void requestPropertiesRead();
     }
   }, [canOperate, detailView, independentCoreConfiguration, propertySnapshot, requestPropertiesRead, selectedInstance, selectedInstanceSupportsPropertiesFile, tasks, tasksLoaded]);
+
+  useEffect(() => {
+    if (!directoryReadKey || !selectedInstance) return;
+    const controller = new AbortController();
+    setInstanceDirectoryRead({ key: directoryReadKey, state: "loading", directory: null });
+    void loadMinecraftInstanceDirectory(selectedInstance.id, controller.signal)
+      .then((result) => {
+        if (!controller.signal.aborted) setInstanceDirectoryRead({ key: directoryReadKey, state: "ready", directory: result.directory });
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setInstanceDirectoryRead({ key: directoryReadKey, state: "unavailable", directory: null });
+      });
+    return () => controller.abort();
+  }, [directoryReadKey, selectedInstance?.id, serverInfoRefreshSequence]);
+
+  useEffect(() => {
+    if (!connectivityReadKey || !selectedInstance) return;
+    const instanceId = selectedInstance.id;
+    const controller = new AbortController();
+    setInstanceConnectivityRead({ key: connectivityReadKey, state: "loading", routes: [] });
+    void loadConnectivityOverview(controller.signal)
+      .then((overview) => {
+        if (controller.signal.aborted) return;
+        const routes = overview.routes
+          .filter((route) => route.sourceAppId === "minecraft" && route.targetId === instanceId)
+          .map(({ id, name, playerAddress, state }) => ({ id, name, playerAddress, state }));
+        setInstanceConnectivityRead({ key: connectivityReadKey, state: "ready", routes });
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setInstanceConnectivityRead({ key: connectivityReadKey, state: "unavailable", routes: [] });
+      });
+    return () => controller.abort();
+  }, [connectivityReadKey, selectedInstance?.id, serverInfoRefreshSequence]);
 
   useEffect(() => {
     const task = tasks.find((item) => item.id === propertyReadTaskId);
@@ -840,6 +1356,8 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
     void submitAction(() => deleteMinecraftInstance(instance.id), {
       message: `已提交“${instance.name}”的归档删除任务；节点完成归档后会移除实例登记。`,
       showTasksLink: true,
+    }).then((submitted) => {
+      if (submitted && selectedInstance?.id === instance.id) onNavigate(`${minecraftRoot}/instances`);
     });
   };
 
@@ -897,7 +1415,10 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
       <div className="minecraft-page-top">
         <header className={`minecraft-page-heading${selectedInstance ? " minecraft-page-heading--instance" : isMinecraftOverviewHome ? " minecraft-page-heading--overview" : ""}`}>
           <div className="minecraft-page-heading__copy">
-            <Typography.Title id="minecraft-page-title" level={2}>{isInstanceConsole ? "控制台" : selectedInstance ? detailView === "overview" ? "实例概览" : selectedInstance.name : pageTitle}</Typography.Title>
+            <div className="minecraft-page-heading__title">
+              <Typography.Title id="minecraft-page-title" level={2}>{isInstanceConsole ? "控制台" : selectedInstance ? detailView === "overview" ? "实例概览" : selectedInstance.name : pageTitle}</Typography.Title>
+              {isInstanceConsole && selectedInstance && ["starting", "running", "stopping"].includes(selectedInstance.state) ? <Tag role="status" aria-live="polite" color={selectedInstance.state === "running" ? "success" : selectedInstance.state === "starting" ? "processing" : "warning"}>{selectedInstance.state === "running" ? "运行中" : selectedInstance.state === "starting" ? "启动中" : "正在停止"}</Tag> : null}
+            </div>
             {selectedInstance ? <div className="minecraft-page-heading__description-slot" aria-hidden={!pageDescription}>
               <Typography.Paragraph className={pageDescription ? undefined : "minecraft-page-heading__description-placeholder"} title={pageDescription || undefined}>{pageDescription || "\u00a0"}</Typography.Paragraph>
             </div> : pageDescription ? <Typography.Paragraph>{pageDescription}</Typography.Paragraph> : null}
@@ -908,7 +1429,7 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
           </div> : null}
           <Space className="minecraft-page-heading__controls" size="small" wrap>
             {currentSection === "logs" ? <Select aria-label="选择日志实例" placeholder="选择实例" value={selectedLogInstance?.id ?? undefined} onChange={(instanceId: string) => { setLogInstanceSelection(instanceId); onNavigate(getInstanceRoute(instanceId, "logs")); }} disabled={!instances.length} options={instances.map((instance) => ({ value: instance.id, label: `${instance.name} · ${instance.coreType} ${instance.releaseId}` }))} /> : null}
-            {!isInstanceConsole && !isMinecraftOverviewHome ? <Tag role="status" aria-live="polite" color={realtimeStatusColor(realtimeStatus)}>{currentSection === "connectivity" ? `控制端 · ${realtimeStatusLabel(realtimeStatus)}` : realtimeStatusLabel(realtimeStatus)}</Tag> : null}
+            {detailView === "overview" && selectedInstanceId ? <Button onClick={() => onNavigate(`${minecraftRoot}/instances`)}>返回服务器列表</Button> : !isInstanceConsole && !isMinecraftOverviewHome ? <Tag role="status" aria-live="polite" color={realtimeStatusColor(realtimeStatus)}>{currentSection === "connectivity" ? `控制端 · ${realtimeStatusLabel(realtimeStatus)}` : realtimeStatusLabel(realtimeStatus)}</Tag> : null}
             {currentSection === "overview" && !selectedInstance ? <Button type={overviewInstance ? "default" : "primary"} onClick={() => onNavigate("/games/minecraft/deployment")}>{overviewInstance ? "新建服务器" : "开始开服"}</Button> : null}
             {currentSection === "instances" && !selectedInstance ? <Button type="primary" onClick={() => onNavigate(`${minecraftRoot}/deployment`)}>新建服务器</Button> : null}
             {isInstanceConsole && selectedInstance ? <>
@@ -930,28 +1451,22 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
           {([ ["overview", "实例概览"], ["configuration", "服务器配置"], ["terminal", "控制台"], ["backup", "世界备份"] ] as const).map(([view, label]) => <button key={view} type="button" aria-current={detailView === view ? "page" : undefined} onClick={() => onNavigate(getInstanceRoute(selectedInstance.id, view))}>{label}</button>)}
         </nav> : null}
       </div>
-      {actionToast && settings.general.notificationPopupsEnabled ? <aside
+      {actionToast && settings.general.notificationPopupsEnabled ? <NotificationToast
         key={actionToast.id}
-        className="minecraft-action-toast"
-        data-toast-effect={settings.general.notificationToastEffect}
+        effect={settings.general.notificationToastEffect}
         role="status"
         aria-live="polite"
         aria-atomic="true"
         aria-label={actionToast.showTasksLink ? "Minecraft 操作已提交" : "Minecraft 操作已完成"}
-      >
-        {actionToast.showTasksLink ? <button className="minecraft-action-toast__open" type="button" onClick={openActionToastTasks} aria-label="查看 Minecraft 任务">
-          <span className="minecraft-action-toast__copy">
-            <strong>操作已提交</strong>
-            <span>{actionToast.message}</span>
-            <small>点击查看任务</small>
-          </span>
-        </button> : <div className="minecraft-action-toast__message">
-          <strong>操作已完成</strong>
-          <span>{actionToast.message}</span>
-        </div>}
-        <button className="minecraft-action-toast__close" type="button" aria-label="关闭 Minecraft 操作提示" onClick={() => setActionToast(null)}>关闭</button>
-        <div className="minecraft-action-toast__countdown" aria-hidden="true">{actionToastSeconds} 秒后自动收起</div>
-      </aside> : null}
+        title={actionToast.showTasksLink ? "操作已提交" : "操作已完成"}
+        description={actionToast.message}
+        actionLabel={actionToast.showTasksLink ? "点击查看任务" : undefined}
+        actionAriaLabel={actionToast.showTasksLink ? "查看 Minecraft 任务" : undefined}
+        onAction={actionToast.showTasksLink ? openActionToastTasks : undefined}
+        countdown={`${actionToastSeconds} 秒后自动收起`}
+        closeLabel="关闭 Minecraft 操作提示"
+        onClose={() => setActionToast(null)}
+      /> : null}
 
       {!selectedInstance && currentSection === "connectivity" ? <MinecraftConnectivityPanel onOpenConnectivity={onOpenConnectivity} /> : null}
 
@@ -966,11 +1481,29 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
                   <Typography.Text type="secondary">{selectedInstance.coreType} · Minecraft {selectedInstance.releaseId}</Typography.Text>
                 </div>
                 <div className="minecraft-instance-hero__actions" aria-label={`${selectedInstance.name} 实例操作`}>
-                  <Button type="primary" disabled={!selectedInstanceCanStart} loading={busy} onClick={() => instanceAction("start")}>启动</Button>
-                  <Popconfirm title={`安全停止“${selectedInstance.name}”？`} description="Daemon 会向服务端发送正常停止指令，并按设置中心的停服时限等待退出。" okText="安全停止" cancelText="取消" disabled={!selectedInstanceCanStop} onConfirm={() => instanceAction("stop")}><Button danger disabled={!selectedInstanceCanStop} loading={busy}>安全停止</Button></Popconfirm>
+                  {["stopped", "error"].includes(selectedInstance.state) ? (
+                    <Button type="primary" disabled={!selectedInstanceCanStart} loading={busy} onClick={() => instanceAction("start")}>启动</Button>
+                  ) : ["running", "starting"].includes(selectedInstance.state) ? (
+                    <Popconfirm title={`安全停止“${selectedInstance.name}”？`} description="Daemon 会向服务端发送正常停止指令，并按设置中心的停服时限等待退出。" okText="安全停止" cancelText="取消" disabled={!selectedInstanceCanStop} onConfirm={() => instanceAction("stop")}>
+                      <Button danger disabled={!selectedInstanceCanStop} loading={busy}>安全停止</Button>
+                    </Popconfirm>
+                  ) : (
+                    <Button disabled loading={busy}>{stateLabel(selectedInstance.state)}</Button>
+                  )}
                   <Button disabled={!selectedInstanceCanRestart} loading={busy} onClick={() => instanceAction("restart")}>安全重启</Button>
                   <Button onClick={() => onNavigate(getInstanceRoute(selectedInstance.id, "terminal"))}>进入控制台</Button>
                   <Button onClick={() => navigateToInstanceFiles(userId, selectedInstance.id, onNavigate)}>打开实例文件</Button>
+                  <Popconfirm
+                    title={`删除“${selectedInstance.name}”？`}
+                    description="完整实例文件将移入节点备份归档，再移除登记；不会覆盖已有备份。"
+                    okText="归档并删除"
+                    cancelText="取消"
+                    okButtonProps={{ danger: true }}
+                    disabled={!canOperate || selectedInstance.nodeStatus !== "online" || busy || !["stopped", "error", "unknown"].includes(selectedInstance.state)}
+                    onConfirm={() => deleteInstance(selectedInstance)}
+                  >
+                    <Button danger disabled={!canOperate || selectedInstance.nodeStatus !== "online" || busy || !["stopped", "error", "unknown"].includes(selectedInstance.state)}>归档并删除</Button>
+                  </Popconfirm>
                 </div>
               </div>
               <dl className="minecraft-instance-hero__facts">
@@ -1110,13 +1643,8 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
               </div>
             </div>
             <div className="minecraft-overview-hero__side">
-              <div className="minecraft-overview-hero__actions" aria-label={`${overviewInstance.name} 快捷操作`}>
-                {overviewInstanceCanStart ? <Button type="primary" loading={busy} onClick={() => void submitAction(() => runMinecraftInstanceAction(overviewInstance.id, "start"), { message: `${taskLabel("start")}任务已提交。`, showTasksLink: true })}>启动</Button> : null}
-                {overviewInstanceCanStop ? <Popconfirm title={`安全停止“${overviewInstance.name}”？`} description="Daemon 会向服务端发送正常停止指令，并按设置中心的停服时限等待退出。" okText="安全停止" cancelText="取消" onConfirm={() => void submitAction(() => runMinecraftInstanceAction(overviewInstance.id, "stop"), { message: `${taskLabel("stop")}任务已提交。`, showTasksLink: true })}><Button danger loading={busy}>安全停止</Button></Popconfirm> : null}
-                {overviewInstanceCanRestart ? <Button loading={busy} onClick={() => void submitAction(() => runMinecraftInstanceAction(overviewInstance.id, "restart"), { message: `${taskLabel("restart")}任务已提交。`, showTasksLink: true })}>安全重启</Button> : null}
-                <Button onClick={() => onNavigate(getInstanceRoute(overviewInstance.id, "terminal"))}>终端</Button>
-                <Button onClick={() => onNavigate(getInstanceRoute(overviewInstance.id, "overview"))}>管理实例</Button>
-                <Button onClick={() => navigateToInstanceFiles(userId, overviewInstance.id, onNavigate)}>打开实例文件</Button>
+              <div className="minecraft-overview-hero__actions" aria-label={`${overviewInstance.name} 实例入口`}>
+                <Button type="primary" aria-label={`打开 ${overviewInstance.name} 的实例概览`} onClick={() => onNavigate(getInstanceRoute(overviewInstance.id, "overview"))}>实例概览</Button>
               </div>
               <div className="minecraft-overview-hero__core" aria-label={`${overviewInstance.coreType} 核心，Minecraft ${overviewInstance.releaseId}`}>
                 <span className="minecraft-overview-hero__core-mark" aria-hidden="true">
@@ -1143,6 +1671,47 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
               <li><span className="minecraft-launch-steps__number" aria-hidden="true">03</span><div><strong>核对并开服</strong><small>确认配置并阅读、同意 EULA</small></div></li> {/* taste-skill-ignore numbering: this is the actual final review step. */}
             </ol>
           </div>}
+        </section>
+        <section className="minecraft-node-resource-monitor" aria-label={`Minecraft 运行节点资源监控：${overviewResourceNode?.displayName ?? overviewInstance?.nodeName ?? "未绑定运行节点"}`}>
+          <header className="minecraft-node-resource-monitor__heading">
+            <div className="minecraft-node-resource-monitor__title">
+              <Typography.Title level={4}>运行节点资源</Typography.Title>
+              <span>整机实测 · {overviewResourceNode?.displayName ?? overviewInstance?.nodeName ?? "未绑定运行节点"}</span>
+            </div>
+            <div className="minecraft-node-resource-monitor__status">
+              <Tag color={nodeResourceStatusColor} title={visibleNodeResourceState?.error ?? undefined}>{nodeResourceStatus}</Tag>
+              <span>{latestNodeResourceSample ? `采样于 ${timeLabel(latestNodeResourceSample.sampledAt)}` : "等待首次实测数据"}</span>
+              {visibleNodeResourceState?.error ? <Button type="link" size="small" onClick={() => setNodeResourceRetryCount((count) => count + 1)}>重试读取</Button> : null}
+            </div>
+          </header>
+          <div className="minecraft-node-resource-monitor__grid">
+            {nodeResourceMetrics.map((metric) => (
+              <article className="minecraft-node-resource-card" data-metric={metric.key} key={metric.key}>
+                <div className="minecraft-node-resource-card__main">
+                  <div className="minecraft-node-resource-card__measure">
+                    <span>{metric.label}</span>
+                    {metric.key === "network" ? (
+                      <strong aria-label={`接收 ${formatResourceRate(metric.receive)}，发送 ${formatResourceRate(metric.send)}`}>
+                        <span>接收 {formatResourceRate(metric.receive)}</span>
+                        <span>发送 {formatResourceRate(metric.send)}</span>
+                      </strong>
+                    ) : <strong>{metric.value}</strong>}
+                  </div>
+                  {metric.trend ? (
+                    <svg className="minecraft-node-resource-card__trend" viewBox="0 0 100 30" role="img" aria-label={`${metric.trendLabel}，基于最近 ${nodeResourceSamples.length} 条节点实测`}>
+                      <path d={metric.trend} />
+                    </svg>
+                  ) : <span className="minecraft-node-resource-card__trend-empty">等待更多实测</span>}
+                </div>
+                {metric.percent !== null ? (
+                  <div className="minecraft-node-resource-card__usage" role="progressbar" aria-label={`${metric.label}实测值`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={metric.percent} aria-valuetext={formatResourcePercent(metric.percent)}>
+                    <span style={{ width: `${Math.min(100, Math.max(0, metric.percent))}%` }} />
+                  </div>
+                ) : <div className="minecraft-node-resource-card__rate-note">网络显示真实收发速率，不换算为占用率</div>}
+                <small className="minecraft-node-resource-card__detail">{metric.detail}</small>
+              </article>
+            ))}
+          </div>
         </section>
         <div className="minecraft-stat-grid lfaa-card-motion-list" role="group" aria-label="Minecraft 管理摘要">
           <button className="minecraft-metric-card lfaa-card-motion" type="button" onClick={() => onNavigate("/apps/minecraft/normal/nodes")} aria-label="查看运行设备状态">
@@ -1297,24 +1866,18 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
             </div>
             {visibleInstances.length ? <div className="minecraft-instance-list lfaa-card-motion-list">{visibleInstances.map((instance) => {
               const nodeOnline = instance.nodeStatus === "online";
-              const canStart = canOperate && nodeOnline && (settings.minecraftRuntime.minecraftExecutionMode !== "appcontainer" || instance.sandboxAvailable) && ["stopped", "error"].includes(instance.state);
-              const canStop = canOperate && nodeOnline && ["running", "starting"].includes(instance.state);
+              const instanceRoute = getInstanceRoute(instance.id, "overview");
               return <Card className="minecraft-card minecraft-instance-card lfaa-card-motion" key={instance.id}>
-                <div className="minecraft-instance-card__top"><div className="minecraft-instance-card__identity"><Typography.Title level={5}>{instance.name}</Typography.Title><Tag color={instance.state === "running" ? "green" : instance.state === "error" ? "red" : instance.state === "unknown" ? "orange" : "default"}>{stateLabel(instance.state)}</Tag></div><Typography.Text type="secondary">{instance.coreType} · Minecraft {instance.releaseId}</Typography.Text></div>
-                <dl className="minecraft-instance-card__facts">
-                  <div><dt>运行节点</dt><dd>{instance.nodeName} · {nodeOnline ? "在线" : "离线"}</dd></div>
-                  <div><dt>运行环境</dt><dd>{instance.coreType === "PocketMine" ? "官方 PHP" : `Java ${instance.javaMajor}`}</dd></div>
-                  <div><dt>资源配置</dt><dd>{instance.coreType === "PocketMine" ? "由 PHP 核心管理" : `${instance.memoryMb} MB`} · 端口 {instance.serverProperties.serverPort ?? unavailableValue}</dd></div>
-                  <div><dt>最近更新</dt><dd>{timeLabel(instance.updatedAt)}</dd></div>
-                </dl>
-                {!nodeOnline ? <Typography.Text type="secondary">节点离线；当前状态不可核实，操作会保持禁用。</Typography.Text> : null}
-                {settings.minecraftRuntime.minecraftExecutionMode === "appcontainer" && !instance.sandboxAvailable ? <Typography.Text type="secondary">此节点的 AppContainer 不可用，启动操作已禁用。</Typography.Text> : null}
-                <div className="minecraft-instance-card__actions">
-                  <Button type="primary" disabled={!canStart} loading={busy} onClick={() => void submitAction(() => runMinecraftInstanceAction(instance.id, "start"), { message: `${taskLabel("start")}任务已提交。`, showTasksLink: true })}>启动</Button>
-                  <Popconfirm title={`安全停止“${instance.name}”？`} description="Daemon 会向服务端发送正常停止指令，并按设置中心的停服时限等待退出。" okText="安全停止" cancelText="取消" onConfirm={() => void submitAction(() => runMinecraftInstanceAction(instance.id, "stop"), { message: `${taskLabel("stop")}任务已提交。`, showTasksLink: true })}>
-                    <Button danger disabled={!canStop} loading={busy}>安全停止</Button>
-                  </Popconfirm>
-                  <Button aria-label={`管理实例 ${instance.name}`} onClick={() => setManagementInstanceId(instance.id)}>管理</Button>
+                <div className="minecraft-instance-card__surface">
+                  <a className="minecraft-instance-card__surface-link" href={instanceRoute} aria-label={`打开实例 ${instance.name}`} onClick={(event) => navigateFromInstanceEntry(event, instanceRoute, onNavigate)} />
+                  <div className="minecraft-instance-card__top"><div className="minecraft-instance-card__identity"><Typography.Title level={5}>{instance.name}</Typography.Title><Tag color={instance.state === "running" ? "green" : instance.state === "error" ? "red" : instance.state === "unknown" ? "orange" : "default"}>{stateLabel(instance.state)}</Tag></div><Typography.Text type="secondary">{instance.coreType} · Minecraft {instance.releaseId}</Typography.Text></div>
+                  <dl className="minecraft-instance-card__facts">
+                    <div><dt>运行节点</dt><dd>{instance.nodeName} · {nodeOnline ? "在线" : "离线"}</dd></div>
+                    <div><dt>运行环境</dt><dd>{instance.coreType === "PocketMine" ? "官方 PHP" : `Java ${instance.javaMajor}`}</dd></div>
+                    <div><dt>资源配置</dt><dd>{instance.coreType === "PocketMine" ? "由 PHP 核心管理" : `${instance.memoryMb} MB`} · 端口 {instance.serverProperties.serverPort ?? unavailableValue}</dd></div>
+                    <div><dt>最近更新</dt><dd>{timeLabel(instance.updatedAt)}</dd></div>
+                  </dl>
+                  <a className="minecraft-instance-card__management-link" href={instanceRoute} aria-label={`管理实例 ${instance.name}`} onClick={(event) => navigateFromInstanceEntry(event, instanceRoute, onNavigate)}>管理</a>
                 </div>
               </Card>;
             })}</div> : <div className="minecraft-empty minecraft-instance-filter-empty"><Typography.Text>没有符合当前搜索和状态筛选的实例。</Typography.Text><Button type="link" onClick={() => { setInstanceSearch(""); setInstanceStateFilter("all"); }}>清除筛选条件</Button></div>}
@@ -1322,35 +1885,9 @@ function MinecraftWorkspaceView({ onPrepareWithAi,userId, section, role, setting
             <div><Typography.Title level={5}>还没有 Minecraft 实例</Typography.Title><Typography.Paragraph type="secondary">先确认一个在线节点，然后按向导选择核心、配置实例并完成许可确认。下载、安装和启动状态会在任务中持续更新。</Typography.Paragraph></div>
             {eligibleNodes.length ? <Typography.Text type="secondary">使用右上角“新建服务器”开始部署。</Typography.Text> : <Button type="link" onClick={() => onNavigate(`${minecraftRoot}/nodes`)}>检查运行设备</Button>}
           </div>}
-          {!canOperate && instances.length ? <Typography.Text className="minecraft-instance-readonly-note" type="secondary">当前账户为只读角色；可查看实例，启动和停止需要管理员权限。</Typography.Text> : null}
+          {!canOperate && instances.length ? <Typography.Text className="minecraft-instance-readonly-note" type="secondary">当前账户为只读角色；可查看实例，写入操作需要管理员权限。</Typography.Text> : null}
         </Card>
       </> : null}
-
-      {managedInstance ? <Modal
-        className="minecraft-instance-action-modal"
-        getContainer={() => document.querySelector<HTMLElement>(".module-center") ?? document.body}
-        centered
-        title={`管理实例 · ${managedInstance.name}`}
-        open={Boolean(managedInstance)}
-        width="min(480px, calc(100vw - 32px), calc(100cqi - 32px))"
-        footer={<Button onClick={() => setManagementInstanceId(null)}>关闭</Button>}
-        onCancel={() => setManagementInstanceId(null)}
-      >
-        <div className="minecraft-instance-action-modal__buttons" role="group" aria-label={`管理 ${managedInstance.name}`}>
-          <Button block onClick={() => { setManagementInstanceId(null); onNavigate(getInstanceRoute(managedInstance.id, "overview")); }}>管理实例</Button>
-          <Button block onClick={() => { setManagementInstanceId(null); navigateToInstanceFiles(userId, managedInstance.id, onNavigate); }}>打开实例文件</Button>
-          <Popconfirm
-            title={`删除“${managedInstance.name}”？`}
-            description="完整实例文件将移入节点备份归档，再移除登记；不会覆盖已有备份。"
-            okText="归档并删除"
-            cancelText="取消"
-            okButtonProps={{ danger: true }}
-            onConfirm={() => { setManagementInstanceId(null); deleteInstance(managedInstance); }}
-          >
-            <Button block danger disabled={!canOperate || managedInstance.nodeStatus !== "online" || busy || !["stopped", "error", "unknown"].includes(managedInstance.state)}>删除实例</Button>
-          </Popconfirm>
-        </div>
-      </Modal> : null}
 
       {!selectedInstance && currentSection === "tasks" ? <>
         <div className="minecraft-task-status-grid lfaa-card-motion-list" role="group" aria-label="按任务状态筛选">
@@ -1498,8 +2035,8 @@ function TaskList({ tasks, selectionTasks = tasks, userId, onCancel, onOpenDetai
           aria-pressed={selectable ? selected : undefined}
           onClick={() => selectable ? toggleSelected(task.id, !selected) : onOpenDetails?.(task.id)}
         />
+        <div className="minecraft-task-heading"><strong>{taskLabel}</strong></div>
         <div className="minecraft-task-copy">
-          <div className="minecraft-task-heading"><strong>{task.kind === "java-install" ? javaTaskLabel(task) : deploymentTaskLabel(task)}</strong><Tag color={task.result?.forced === true ? "orange" : task.status === "succeeded" ? "green" : task.status === "failed" ? "red" : "blue"}>{taskDetailStatusLabel(task)}{task.status === "running" ? ` · ${task.progress}%` : ""}</Tag></div>
           {typeof task.payload.instanceName === "string" ? <small>{task.payload.instanceName}</small> : null}
           {task.status === "running" ? <Progress aria-label={`${task.message}进度`} percent={task.progress} size="small" status="active" /> : null}
           {showMessage ? <span className={`minecraft-task-message${task.status === "failed" ? " is-failed" : ""}`}>{task.message}</span> : null}
@@ -1507,16 +2044,21 @@ function TaskList({ tasks, selectionTasks = tasks, userId, onCancel, onOpenDetai
           {typeof task.result?.note === "string" ? <small>{task.result.note}</small> : null}{typeof task.result?.backupName === "string" ? <small>节点备份归档：{task.result.backupName}</small> : null}
           <small>{timeLabel(task.createdAt)}</small>
         </div>
-        <div className="minecraft-task-actions">
-          <div className="minecraft-task-actions__start">
-            {onOpenDetails ? <Button onClick={() => onOpenDetails(task.id)}>查看详情</Button> : null}
-            {task.createdBy === userId && ["queued", "running"].includes(task.status) && ["install", "start"].includes(task.kind) && task.payload.executionMode === "native" ? <Button onClick={() => onCancel(task.id)}>请求取消任务</Button> : null}
+        <div className="minecraft-task-footer">
+          <Tag className="minecraft-task-status-tag" color={task.result?.forced === true ? "orange" : task.status === "succeeded" ? "green" : task.status === "failed" ? "red" : "blue"}>{taskDetailStatusLabel(task)}{task.status === "running" ? ` · ${task.progress}%` : ""}</Tag>
+          <div className="minecraft-task-actions">
+            <div className="minecraft-task-actions__controls">
+              <div className="minecraft-task-actions__start">
+                {onOpenDetails ? <Button onClick={() => onOpenDetails(task.id)}>查看详情</Button> : null}
+                {task.createdBy === userId && ["queued", "running"].includes(task.status) && ["install", "start"].includes(task.kind) && task.payload.executionMode === "native" ? <Button onClick={() => onCancel(task.id)}>请求取消任务</Button> : null}
+              </div>
+              {canDelete && terminal && onDelete ? <div className="minecraft-task-actions__end">
+                <Popconfirm title="删除这条终态任务记录？" description="对应节点日志也会清除；Minecraft 实例和部署登记保持不变。" okText="删除记录" cancelText="取消" onConfirm={() => void removeSelected([task.id])}>
+                  <Button danger disabled={deleting}>删除</Button>
+                </Popconfirm>
+              </div> : null}
+            </div>
           </div>
-          {canDelete && terminal && onDelete ? <div className="minecraft-task-actions__end">
-            <Popconfirm title="删除这条终态任务记录？" description="对应节点日志也会清除；Minecraft 实例和部署登记保持不变。" okText="删除记录" cancelText="取消" onConfirm={() => void removeSelected([task.id])}>
-              <Button danger disabled={deleting}>删除</Button>
-            </Popconfirm>
-          </div> : null}
         </div>
       </article>;
     })}</div>

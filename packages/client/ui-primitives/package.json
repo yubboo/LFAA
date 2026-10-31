@@ -13,6 +13,7 @@
     "@deepseek-ai/cordis": "4.0.4",
     "antd": "^5.0.0",
     "lfaa-client-modules": "workspace:*",
+    "lfaa-util-values": "workspace:*",
     "react": "^18.0.0",
     "three": "0.186.1"
   },

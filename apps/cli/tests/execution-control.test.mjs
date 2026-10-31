@@ -103,6 +103,44 @@ test("节点真实能力合同接受已接入能力，拒绝虚构能力", () =>
   assert.equal(daemonHeartbeatSchema.validate(value).error, undefined);
   assert.ok(daemonHeartbeatSchema.validate({ ...value, capabilities: ["fictional-desktop-driver"] }).error);
 });
+test("Minecraft 指标心跳严格校验、按节点隔离并在过期/停止后清除", () => {
+  const id = randomUUID();
+  database.prepare("INSERT INTO minecraft_instances(id,node_id,created_by,name,release_id,java_major,memory_mb,core_type,core_build,execution_mode,state,eula_accepted_at) VALUES(?,?,?,?,'fixture-release',21,2048,'Paper','fixture-build','native','stopped',?)")
+    .run(id, nodeId, userId, `telemetry-${id}`, new Date().toISOString());
+  const telemetry = {
+    onlinePlayers: 12, maxPlayers: 100, pingMs: 7, advertisedVersion: "Paper 1.20.4",
+    observedAt: new Date().toISOString(), processStartedAt: new Date(Date.now() - 60_000).toISOString(),
+    tps: 19.8, tpsObservedAt: new Date().toISOString(), tpsStatus: "available"
+  };
+  const heartbeat = {
+    id: nodeId, displayName: "测试节点", platform: "win32", architecture: "x64", version: "test", dataRoot: daemonDataRoot,
+    capabilities: ["minecraft-native-v1"], javaRuntimes: [], activeTaskIds: [],
+    instances: [{ id, state: "running", sandboxStatus: "prepared", telemetry }]
+  };
+  assert.equal(daemonHeartbeatSchema.validate(heartbeat).error, undefined);
+  assert.ok(daemonHeartbeatSchema.validate({ ...heartbeat, instances: [{ ...heartbeat.instances[0], telemetry: { ...telemetry, pingMs: -1 } }] }).error);
+  assert.ok(daemonHeartbeatSchema.validate({ ...heartbeat, instances: [{ ...heartbeat.instances[0], telemetry: { ...telemetry, extra: "unregistered" } }] }).error);
+
+  mc.updateInstanceStatesFromDaemon(nodeId, heartbeat.instances);
+  assert.deepEqual(
+    (({ onlinePlayers, maxPlayers, pingMs, tps, availability }) => ({ onlinePlayers, maxPlayers, pingMs, tps, availability }))(mc.getMinecraftServerTelemetry(id)),
+    { onlinePlayers: 12, maxPlayers: 100, pingMs: 7, tps: 19.8, availability: "available" }
+  );
+  mc.updateInstanceStatesFromDaemon(randomUUID(), [{ ...heartbeat.instances[0], telemetry: { ...telemetry, onlinePlayers: 99 } }]);
+  assert.equal(mc.getMinecraftServerTelemetry(id).onlinePlayers, 12, "其他节点不能覆盖该实例指标");
+
+  const stale = { ...telemetry, observedAt: new Date(Date.now() - 30_000).toISOString() };
+  mc.updateInstanceStatesFromDaemon(nodeId, [{ ...heartbeat.instances[0], telemetry: stale }]);
+  const expired = mc.getMinecraftServerTelemetry(id);
+  assert.equal(expired.availability, "unavailable");
+  assert.equal(expired.reason, "sample_stale");
+  assert.equal(expired.onlinePlayers, null, "过期人数不继续作为实时值展示");
+
+  mc.updateInstanceStatesFromDaemon(nodeId, [{ id, state: "stopped", sandboxStatus: "prepared" }]);
+  const stopped = mc.getMinecraftServerTelemetry(id);
+  assert.equal(stopped.availability, "unavailable");
+  assert.equal(stopped.reason, "instance_not_running");
+});
 test("真实命令允许空 stdout/stderr，未知退出码仍按实际结果接收", () => {
   assert.equal(aiHostTaskCompletionSchema.validate({ nodeId, succeeded: false, message: "运行中夹具", result: { ...output, stdout: "" } }).error, undefined);
   assert.equal(aiHostTaskCompletionSchema.validate({ nodeId, succeeded: false, message: "已取消", result: { ...output, cancelled: true, sandbox: { mode: "danger-full-access", enforcement: "none", denied: false, providerId: "direct-node" } } }).error, undefined);

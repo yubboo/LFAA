@@ -6,6 +6,8 @@
 
 版本 31 是旧文件存储迁移协调点。对新库及旧数据，`retireLegacyFileTables()` 必须先完成会话与配置迁移，之后依序运行版本 32–79；浏览器最近网站表版本 61 只能在版本 60 的工作区迁移完成后创建。SteamCMD 服务端表为版本 62，账户 Agent 使用控制为版本 63，账户资料快照为版本 64，受信联系人与恢复请求为版本 65，DST Master/Caves 集群字段为版本 66，AI Host 沙箱策略为版本 67，账户共享 Skill 安装表为版本 68，AI 消息附件引用为版本 69，ChatGPT 式项目结构为版本 70，项目 App 关联为版本 71，账户背景图片可读文件名为版本 72；依赖表都必须在浏览器最近网站迁移后调用。版本 69 只给 `ai_messages` 增加 `attachments_json`（附件 ID/名称，不含字节），表不存在时只推进版本。版本 72 只给 `appearance_backgrounds` 添加按账户唯一的 `storage_filename`，缺表时只推进版本。版本 73 幂等补齐 v70 项目 schema 的历史缺口，并回填尚未登记源目录的本机项目；其调用发生在版本 70–72 迁移之后。版本 77 在 v76 后扩展 Minecraft 任务种类约束，允许安全的 `properties-read` 只读任务，并保留已有记录、索引与外键。版本 78 增加实例 JVM 初始堆和参数 JSON；版本 79 增加显式配置来源标记，让未配置实例使用 Minecraft Service 的推荐默认值，同时保留用户显式保存的空列表。已迁入用户文件的设置在重复启动时以实际 SQLite 投影为准，不得把进程内合并的文件设置误判为待迁移 SQL 行。不要在 `storage-sqlite` 导入时越过尚未完成的版本 31，也不要单独修改 `user_version`。
 
+版本 76 为 `writing_books` 增加账户内可读目录名；`retireLegacyFileTables()` 必须在 v75 后调用 `migrateReadableWritingProjectDirectoriesSchema()`，再执行 Minecraft v77–79 迁移，避免新库停在 v75 且缺少服务层读取所需的 Minecraft JVM 列。
+
 最近网站本体归 Browser Owner；本包只负责按账户保存 `browserUse.recordRecentSites` 设置并协同 SQLite schema 版本。构建只写仓库根 `dist/packages/storage/storage-domain/`。
 
 Agent 使用限制策略、时段与每日额度由 Identity/Auth Owner 校验和消费；本包仅负责按顺序执行 SQLite 迁移，不实现账户策略或配额规则。

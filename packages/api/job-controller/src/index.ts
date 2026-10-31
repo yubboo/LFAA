@@ -11,7 +11,7 @@ import { discardNodeFileUploadTransfer, FileTransferLimitError, FileTransferNotF
 import { claimNextAiHostTask, completeAiHostTask, getAiHostTask, renewAiHostTaskLeases, listAiHostCancellationRequests, updateAiHostTaskOutput, type AiHostTaskResult } from "lfaa-jobs/src/ai-host-tasks.js";
 import { claimNextMinecraftTask, appendMinecraftTaskLogs, completeMinecraftTask, getMinecraftTask, renewMinecraftTaskLeases, updateMinecraftTaskProgress } from "lfaa-jobs/src/minecraft-queue.js";
 import { claimNextSteamcmdTask, completeSteamcmdTask, getSteamcmdNodeSettings, renewSteamcmdTaskLeases, steamcmdServerIdsForNode, updateSteamcmdServerStatesFromDaemon, updateSteamcmdTaskProgress } from "lfaa-games-steamcmd/src/service.js";
-import { getMinecraftInstance, getMinecraftNodeStorageDirectories, revealMinecraftTaskPropertySecrets, updateInstanceStatesFromDaemon } from "lfaa-games-minecraft/src/service.js";
+import { getMinecraftInstance, getMinecraftNodeStorageDirectories, revealMinecraftTaskPropertySecrets, updateInstanceStatesFromDaemon, type MinecraftServerTelemetryReport } from "lfaa-games-minecraft/src/service.js";
 import type { AiPluginHost } from "lfaa-app-boot/src/ai-host.js";
 import type { MinecraftRealtimePublisher } from "lfaa-api-remotes/src/socket-server.js";
 import { asyncHandler, parseBody, requireLocalDaemon, daemonHeartbeatSchema, minecraftProgressSchema, minecraftLogBatchSchema, minecraftCompletionSchema, steamcmdProgressSchema, steamcmdCompletionSchema, fileTaskCompletionSchema, aiHostTaskCompletionSchema } from "lfaa-api-remotes/src/route-contracts.js";
@@ -21,7 +21,7 @@ registerRuntimeRoutes(router);
 router.post("/daemon/heartbeat", requireLocalDaemon, (request, response) => {
     const body = parseBody<Parameters<typeof recordDaemonHeartbeat>[0] & {
       activeTaskIds: string[];
-      instances: Array<{ id: string; state: "stopped" | "running" | "starting" | "installing" | "unknown"; sandboxStatus: "unsupported" | "unprepared" | "prepared" | "running" | "unknown" }>;
+      instances: Array<{ id: string; state: "stopped" | "running" | "starting" | "installing" | "unknown"; sandboxStatus: "unsupported" | "unprepared" | "prepared" | "running" | "unknown"; telemetry?: MinecraftServerTelemetryReport }>;
       steamcmdServers: Array<{ id: string; status: "unknown" | "stopped" | "running" | "starting" | "stopping"; processId: number | null }>;
     }>(daemonHeartbeatSchema, request.body);
     const { activeTaskIds, instances, steamcmdServers, ...heartbeat } = body;
