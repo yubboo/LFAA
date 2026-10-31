@@ -10,6 +10,7 @@
 
 | 编号 | 任务 | 状态 | 合同 |
 |---|---|---|---|
+| LFAA-RIGHT-TERMINAL-EXCLUSIVE-PANEL-20261031 | 设置终端位置为右侧时，终端独占整块右侧菜单栏；关闭后恢复原右栏内容，并复用同一真实 Shell 会话 | 实现与实页验收进行中，详见合同 | [本轮合同](development/right-terminal-exclusive-panel-20261031.md#lfaa-right-terminal-exclusive-panel-20261031) |
 | LFAA-GITHUB-PUSH-SECRET-SCAN-FALSE-POSITIVE-20261031 | 修复菜单 6 将 Minecraft `task-card` 文档链接中的 `sk-` 子串误判为模型服务令牌；保留真实令牌与本地 Git 历史拦截 | 源码已修复；PowerShell 5.1/7.6.5 AST 解析与差异空白检查通过；自动化回归及实际菜单推送未运行，详见合同 | [本轮合同](development/git-push-secret-scan-false-positive-20261031.md#lfaa-github-push-secret-scan-false-positive-20261031) |
 | LFAA-INTEGRATED-SHELL-CHOICE-20261031 | 设置中心常规页可选择 Windows PowerShell 或命令提示符；新交互终端与未指定 Shell 的命令读取同一偏好 | 源码、相关构建及常规页 IAB 实测完成；真实 Shell 进程欢迎行未测，详见合同 | [本轮合同](development/integrated-shell-choice-20261031.md#lfaa-integrated-shell-choice-20261031) |
 | LFAA-GLOBAL-FEATURE-POPOVER-BOTTOM-ANCHOR-20261031 | 左一功能、账户与快捷键浮卡统一使用左栏最小宽并贴齐导航轨底部安全留白 | 完成；快捷键卡片定向回归 3/3、类型检查、包/Web 构建、源码指纹、服务健康检查与内置浏览器 `/work` 桌面/390×300 实页验收通过，详见合同 | [本轮合同](development/global-feature-popover-bottom-anchor-20261031.md#lfaa-global-feature-popover-bottom-anchor-20261031) |
