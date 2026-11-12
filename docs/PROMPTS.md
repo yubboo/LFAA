@@ -10,6 +10,7 @@
 
 | 编号 | 任务 | 状态 | 合同 |
 |---|---|---|---|
+<<<<<<< HEAD
 | LFAA-RIGHT-TERMINAL-EXCLUSIVE-PANEL-20261031 | 设置终端位置为右侧时，终端独占整块右侧菜单栏；关闭后恢复原右栏内容，并复用同一真实 Shell 会话 | 实现与实页验收进行中，详见合同 | [本轮合同](development/right-terminal-exclusive-panel-20261031.md#lfaa-right-terminal-exclusive-panel-20261031) |
 | LFAA-GITHUB-PUSH-SECRET-SCAN-FALSE-POSITIVE-20261031 | 修复菜单 6 将 Minecraft `task-card` 文档链接中的 `sk-` 子串误判为模型服务令牌；保留真实令牌与本地 Git 历史拦截 | 源码已修复；PowerShell 5.1/7.6.5 AST 解析与差异空白检查通过；自动化回归及实际菜单推送未运行，详见合同 | [本轮合同](development/git-push-secret-scan-false-positive-20261031.md#lfaa-github-push-secret-scan-false-positive-20261031) |
 | LFAA-INTEGRATED-SHELL-CHOICE-20261031 | 设置中心常规页可选择 Windows PowerShell 或命令提示符；新交互终端与未指定 Shell 的命令读取同一偏好 | 源码、相关构建及常规页 IAB 实测完成；真实 Shell 进程欢迎行未测，详见合同 | [本轮合同](development/integrated-shell-choice-20261031.md#lfaa-integrated-shell-choice-20261031) |
@@ -36,6 +37,9 @@
 | LFAA-MINECRAFT-INSTANCE-LIFECYCLE-SINGLE-ACTION-20261031 | Minecraft 实例概览将“启动/安全停止”合并为单一状态按钮 | 完成；UI 回归 15/15、Minecraft UI/Web 构建与指纹通过；内置浏览器 1440×900、820×520 实测单按钮可达，390×640 无横向溢出但打开的应用工具侧栏遮挡中心操作，保留原偏好；2 个实例已停止、排队/执行任务为 0，未触发生命周期动作 | [本轮合同](development/minecraft-instance-lifecycle-single-action-20261031.md#lfaa-minecraft-instance-lifecycle-single-action-20261031) |
 | LFAA-MINECRAFT-INSTANCE-DETAIL-RETURN-TO-SERVER-LIST-20261031 | 将实例详情页冗余的控制端连接提示换为返回服务器列表入口 | 完成；定向回归 14/14、Client 类型检查、Minecraft UI 包/Web 构建通过；正式 Web 健康检查与构建指纹通过；内置浏览器 1440×900、390×640 点击均返回实例列表 | [本轮合同](development/minecraft-instance-detail-return-to-server-list-20261031.md#lfaa-minecraft-instance-detail-return-to-server-list-20261031) |
 | LFAA-MINECRAFT-INSTANCE-LIST-MANAGEMENT-ENTRY-20261031 | 实例列表卡片主体与“管理”分别进入实例概览；生命周期及归档操作在实例内部管理 | 完成；UI 回归 13/13、Client 类型、包/Web 构建通过；3000 内置浏览器验收 1440×900、820×520、390×640 的独立链接、悬停与键盘操作；仓库级检查 6 项无关错误见合同 | [本轮合同](development/minecraft-instance-list-management-entry-20261031.md#lfaa-minecraft-instance-list-management-entry-20261031) |
+=======
+| LFAA-REPOSITORY-SKELETON-MAINTAINABILITY-20261112 | 降低 LFAA 包工作区的维护成本：按真实 Profile 展示入口、Bundle 与插件声明关系，并区分无产品消费者的工程/源码包 | 已完成：新增 Profile-aware 入口图，清单覆盖 226 个工作区包；`sync:workspace`、`check:workspace`、脚本语法与 `git diff --check` 通过；4 个源码包仅列为核查项，未删包或改运行树；未运行产品测试/构建 | [本轮合同](development/repository-skeleton-maintainability-20261112.md#lfaa-repository-skeleton-maintainability-20261112) |
+>>>>>>> d8b9f68 (0.0.76)
 | LFAA-FILE-MANAGER-INSTANCE-PATH-STALE-NODES-20261031 | 文件管理隐藏实例/节点内部 ID，并避免列出不可用的离线节点存储入口 | 完成；定向回归 5/5、Host 类型检查、Control Plane/Web 构建、3000 正式 Web 内置浏览器往返及 390×844/320×640 无横向溢出通过；全量文件资源测试 3 个既有隔离库缺列失败，详见合同 | [本轮合同](development/file-manager-instance-path-stale-nodes-20261031.md#lfaa-file-manager-instance-path-stale-nodes-20261031) |
 | LFAA-MINECRAFT-OVERVIEW-STATUS-HEADER-LAYOUT-20261031 | 将 Minecraft 总览页的连接状态与同步时间移至标题栏右侧 | 完成；定向回归 6/6、Minecraft UI 包/Client 类型检查/Web 构建通过；3000 内置浏览器覆盖 1440×900、820×520、390×844、390×520（纵向滚动）、360×640、320×640，实例概览返回路径正常 | [本轮合同](development/minecraft-overview-status-header-layout-20261031.md#lfaa-minecraft-overview-status-header-layout-20261031) |
 | LFAA-MINECRAFT-INSTANCE-CARDS-REAL-INTERACTION-20261031 | 让 Minecraft 实例列表状态摘要卡片实际筛选实例并显示选中状态 | 完成；定向回归 3/3、包/Client 类型检查/Web 构建及 1280×720、390×844、320×640 IAB 交互与滚动通过；真实设备和帧时间未测，详见合同 | [本轮合同](development/minecraft-instance-cards-real-interaction-20261031.md#lfaa-minecraft-instance-cards-real-interaction-20261031) |

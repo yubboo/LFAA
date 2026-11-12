@@ -1,5 +1,7 @@
 # LFAA-MINECRAFT-MULTICORE-METADATA-RECOVERY-20261030
 
+<a id="lfaa-minecraft-multicore-metadata-recovery-20261030"></a>
+
 ## 目标
 
 修复 Minecraft 手动部署中 Paper 以外的核心依赖 Mojang `piston-meta` 查询 Java 要求、导致来源不可达时无法完成部署的问题。使用 Mojang 官方旧元数据域名作为同源备用地址；来源都不可用时明确显示失败、支持重试，并且不猜 Java 版本或创建部署数据。

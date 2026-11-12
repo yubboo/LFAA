@@ -1,5 +1,7 @@
 # LFAA-JAVA-ENVIRONMENT-MASTER-DETAIL-20261030
 
+<a id="lfaa-java-environment-master-detail-20261030"></a>
+
 ## 用户问题与目标
 
 - 用户提供了 Java 环境管理参考图，希望把当前 `/games/environments` 做成更清楚的版本列表与选中版本详情布局。

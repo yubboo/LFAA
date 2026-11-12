@@ -1,5 +1,7 @@
 # LFAA-MINECRAFT-INSTANCE-JVM-CONFIGURATION-20261030
 
+<a id="lfaa-minecraft-instance-jvm-configuration-20261030"></a>
+
 ## 目标
 
 把实例概览中的“运行环境”内容改为真实可保存的 JVM 参数编辑器。实例卡展示当前 Java/core，提供推荐、高性能、低内存和自定义配置；参数由实例 Owner 持久化，并由目标 Daemon 启动当前实例时实际消费。该区域不展示 Java 下载或安装入口。
