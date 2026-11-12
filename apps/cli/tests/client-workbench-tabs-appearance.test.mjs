@@ -24,6 +24,8 @@ test("工作区当前标签保留中性细边和圆角表面，不绘制蓝色�
 test("窄右栏保留标签标题、横向浏览与独立新建入口", () => {
   assert.match(workspaceCss, /\.module-workbench-tabs--context \.module-workbench-tab > span \{ min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; \}/u);
   assert.match(workspaceCss, /\.module-workbench-tabs \{[^}]*scrollbar-width: none/u);
+  assert.match(workspaceCss, /\.module-workbench-tabs--context > \.module-workbench-tab-item \{[^}]*max-width: min\(42%, 280px\)[^}]*flex: 0 0 auto/u);
+  assert.doesNotMatch(workspaceCss, /\.module-workbench-tabs--context > \.module-workbench-tab-item \{ max-width: 280px; \}/u);
   assert.match(workspaceCss, /@container module-context \(max-width: 340px\)[\s\S]*?\.module-workbench-tabs--context \{ max-width: calc\(100% - 25px\); min-width: 0; gap: 3px; padding-right: 0; overflow-x: auto; overflow-y: hidden; \}/u);
   assert.match(workspaceCss, /\.module-workbench-tabs--context > \.module-workbench-tab-item:only-of-type \{ max-width: 100%; flex: 0 1 auto; \}/u);
 });
