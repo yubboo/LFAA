@@ -25,6 +25,26 @@ test("运行上下文变化不改变系统提示，重复组装逐字节一致",
   assert.equal(composeLfaaSystemPrompt({ ...baseInput }), first);
 });
 
+test("模型路由变化不会关闭或重置系统级缓存友好请求布局", () => {
+  const messages = [{ role: "user", content: "同一条用户输入" }];
+  const signal = new AbortController().signal;
+  const prepareForRoute = account => prepareAiCompletionMessages({
+    ...baseInput,
+    account,
+    settings: {},
+    signal,
+    messages,
+    onDelta() {},
+    onProgress() {},
+    context: "同一段运行上下文"
+  });
+  const firstRoute = prepareForRoute({ accountId: "account-a", providerId: "deepseek", modelId: "flash" });
+  const secondRoute = prepareForRoute({ accountId: "account-b", providerId: "other", modelId: "large" });
+  assert.deepEqual(firstRoute, secondRoute, "模型路由只选择实际 Provider，不改变共享缓存前缀布局");
+  assert.equal(firstRoute[0].role, "system");
+  assert.match(firstRoute.at(-1).content, /^LFAA_RUNTIME_CONTEXT_JSON_V1/u);
+});
+
 test("权限模式与扩展只影响其自身的提示片段", () => {
   const ask = composeLfaaSystemPrompt(baseInput);
   const full = composeLfaaSystemPrompt({ ...baseInput, permissionMode: "full_access" });

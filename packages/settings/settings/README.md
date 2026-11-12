@@ -1,5 +1,7 @@
 # 设置 Owner 与统一数据根
 
+`shortcuts.openModelPicker` 是 AI Work 模型与推理选择快捷键，默认 `Ctrl+Shift+M`；快捷键类型/default 由共享 Settings 合同提供，Settings Owner 使用快捷键 Schema 校验并按账户持久化，设置中心可编辑，旧账户缺少该字段时补共享默认，显式空绑定继续保留。
+
 `preferences/service.ts` 是账户 App/工作模式和首次入口引导标记的唯一 Owner。`guidedEntryCompleted` 默认 `false`，完成后与 `selectedApp/selectedMode` 一起写入现有 `user_preferences` 配置记录；它不是设置中心可切换项，不影响业务数据或权限。
 
 账户外观中的 `appearance.advanced.writingLightRaysEnabled` 由本包设置合同校验并按账户持久化；缺少该字段的旧账户仅补共享默认开启值。设置中心与普通写作工具栏读取同一偏好，Settings Owner 不复制写作背景逻辑。

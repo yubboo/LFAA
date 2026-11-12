@@ -2,7 +2,7 @@ import { memo } from "react";
 import { Button, Popover, Tooltip } from "antd";
 import type { AiContextUsage, AiSessionUsageModelSummary, AiSessionUsageSummary } from "lfaa-client-connection/src/api.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
-import { projectAiSessionUsageDisplay } from "./usage-summary.js";
+import { formatAiSessionUsageEmptyLabel, projectAiSessionUsageDisplay } from "./usage-summary.js";
 
 const integer = new Intl.NumberFormat("zh-CN");
 const compact = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
@@ -104,10 +104,7 @@ export const AiUsageFooter = memo(function AiUsageFooter({ usageSummary, context
   onOpenContextSettings?: () => void;
 }) {
   const display = usageSummary ? projectAiSessionUsageDisplay(usageSummary) : null;
-  const emptyLabel = busy ? "正在获取 Provider 用量…"
-    : usageLoadState === "loading" ? "正在读取会话用量…"
-      : usageLoadState === "error" ? "会话用量读取失败"
-        : hasAssistantMessage ? "Provider 未返回用量" : "发送消息后显示用量";
+  const emptyLabel = formatAiSessionUsageEmptyLabel({ busy, usageLoadState, hasAssistantMessage });
   return <div className="ai-work-chat__usage-footer" aria-label="会话模型用量">
     {usageSummary?.models.length ? <Popover trigger="click" placement="top" overlayClassName="ai-work-chat__usage-popover-overlay" content={<CacheDetails summary={usageSummary} />}>
       <Tooltip trigger={["hover", "focus"]} placement="right" title={`会话 Token 用量：${compactCount(display?.totalTokens ?? null)} · ${display?.cacheLabel ?? "缓存命中未知"} · 点击查看明细`}>

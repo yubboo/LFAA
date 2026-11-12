@@ -33,6 +33,7 @@ interface LiveRun { id: string; userId: string; applicationId: ApplicationId; se
 const liveRuns = new Map<string, LiveRun>();
 const sessionTitleJobs = new Map<string, Promise<{ session: AiSessionView | null; generated: boolean }>>();
 const maximumSessionTitleJobs = 4;
+const maximumSessionTitleOutputTokens = 512;
 let modelResolver: AgentDefaultModelResolver | undefined;
 let approvalNotifications: UserApprovalNotifications | undefined;
 let userQuestions: UserQuestionService | undefined;
@@ -113,7 +114,13 @@ async function runSessionTitleGeneration(userId: string, sessionId: string): Pro
         permissionMode: settings.permissions.mode,
         messages: messages.map(message => ({ role: message.role, content: message.content })),
         extensions: [],
-        settings: { ...settings.aiRuntime, maxOutputTokens: Math.min(settings.aiRuntime.maxOutputTokens > 0 ? settings.aiRuntime.maxOutputTokens : 64, 64) },
+        settings: {
+          ...settings.aiRuntime,
+          maxOutputTokens: Math.min(
+            settings.aiRuntime.maxOutputTokens > 0 ? settings.aiRuntime.maxOutputTokens : maximumSessionTitleOutputTokens,
+            maximumSessionTitleOutputTokens
+          )
+        },
         signal: new AbortController().signal,
         onDelta: delta => { if (output.length < 512) output += delta.slice(0, 512 - output.length); },
         onProgress: () => undefined

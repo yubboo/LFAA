@@ -66,6 +66,7 @@ const settingKeyLabels: Record<string, string> = {
   openMinecraft: "打开 Minecraft 快捷键", openWriting: "打开写作快捷键", toggleSidebar: "切换侧栏快捷键",
   toggleContextPanel: "切换上下文面板快捷键", toggleBottomPanel: "切换底部面板快捷键", openTerminal: "打开终端快捷键",
   switchNormalMode: "切换常规模式快捷键", switchAiWorkMode: "切换 AI Work 模式快捷键", openSideChat: "打开侧聊快捷键",
+  openModelPicker: "打开模型与推理选择快捷键",
   wallpaperSidebarToggle: "切换壁纸侧栏快捷键", speed: "Agent 响应速度", promptSuggestions: "提示建议", showContextUsage: "显示上下文使用情况",
   requestTimeoutSeconds: "模型无进展超时", requestRetries: "模型请求重试次数", retryDelaySeconds: "重试等待时间",
   maxOutputTokens: "最大输出 Token 数", maxModelRequests: "单轮模型请求预算", maxToolCalls: "单轮工具调用预算",

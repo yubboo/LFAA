@@ -24,8 +24,8 @@ test("右侧新标签页将常用工具、更多工具和推荐分为独立区�
   assert.match(launcher, /module-context__launcher-name[\s\S]*?新标签页[\s\S]*?选择工具/u);
   assert.match(launcher, /openBrowserWebsite\(tab\.url\)/u);
   assert.match(launcher, /module-context__launcher-recent[\s\S]*?最近/u);
-  assert.ok(workspace.includes("browserRecentSitesForDisplay.sites.map(site =>"), "最近条目读取 Browser Owner 返回的账户记录并只展示有效时间窗口内的网站");
-  assert.match(workspace, /browserRecentSitesForDisplay\.sites\.length > 0 \? <section className="module-context__launcher-recent"[\s\S]*?<\/section> : null/u, "没有符合时间窗口的记录时整个最近区域隐藏");
+  assert.ok(workspace.includes("browserRecentSitesForDisplay.items.map(site =>"), "最近条目读取 Browser Owner 返回的账户记录并只展示有效时间窗口内的网站");
+  assert.match(workspace, /browserRecentSitesForDisplay\.items\.length > 0 \? <section className="module-context__launcher-recent"[\s\S]*?<\/section> : null/u, "没有符合时间窗口的记录时整个最近区域隐藏");
   assert.ok(workspace.includes("browserSiteHost(site.url)"), "最近条目只展示站点主机名");
   assert.ok(workspace.includes("openBrowserWebsite(site.url)"), "点击最近条目复用现有浏览器导航");
   assert.match(workspace, /loadBrowserRecentSites\(12, controller\.signal\)/u, "最近网站按需加载并可在切换时取消过期请求");

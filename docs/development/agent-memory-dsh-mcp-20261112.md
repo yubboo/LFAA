@@ -28,3 +28,11 @@
 ## 实施记录
 
 实现与验收未完成；完成后逐文件列明职责、命令与真实结果，并记录 DSH 外部配置与模型端边界。
+
+### 2026-11-12 Control Plane 构建错误修复
+
+- 问题：`pnpm run build:control-plane` 在 `agent-memory-mcp.ts` 报两项 TS2379；MCP SDK 的精确可选类型不接受显式 `sessionIdGenerator: undefined`，Express 的 `Request.auth`（LFAA 登录会话形状）与 SDK 的 MCP `AuthInfo` 不兼容。
+- 修复：`StreamableHTTPServerTransport` 省略可选会话生成器，SDK 在未提供生成器时保持无状态；调用处将请求按其 Node `IncomingMessage` 基础类型传入 SDK，保留请求对象和已解析请求体，不把 Express 的认证扩展类型当作 MCP AuthInfo。专用记忆令牌验证、设置门禁、账户数据 Owner 和写入 revision 校验未改变。
+- 设置与权限：未新增或修改设置；继续由 `personalization.memoryEnabled`、`personalization.memorySharedWithAgents` 及写入时的 `personalization.memoryAgentWritesEnabled` 控制。认证仍由记忆连接凭据 Owner 与路由每次请求的校验负责。
+- 验证：`pnpm run build:control-plane` 通过，产物写入根 `dist/apps/control-plane/`。本次只修复构建阻塞；MCP 协议往返、设置页和真实 DSH 连接尚未在本轮验收。
+- 本次变更文件：`packages/api/settings-controller/src/agent-memory-mcp.ts`（MCP HTTP 传输/Node 请求类型边界）；本合同（问题、Owner/设置边界和验证证据）；`docs/PROMPTS.md`（任务索引状态）。

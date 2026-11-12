@@ -6,6 +6,8 @@
 
 AI 对话开始时 Git 摘要自动弹出；摘要仓库行来自账户级 Agent Git 登记表，无法准确表达当前逻辑项目的主文件夹和多个关联文件夹。修复后摘要只在用户主动打开时显示，并按当前会话项目的已登记文件夹逐项展示真实 Git 状态。
 
+追加问题：用户打开后关闭再打开同一项目摘要时，界面再次显示“正在读取当前项目文件夹…”。修复需复用同一账户/App/项目已成功加载的摘要快照，避免仅因面板开合或同项目会话切换重复扫描；切换账户/App、项目或项目目录刷新版本，以及 Run 完成触发刷新时，仍须按当前 Owner 重新对账。失败或被取消的读取不能缓存成成功结果。
+
 ## Owner、入口与边界
 
 - 运行入口：Web/Desktop 共用 AI Work `/work`；目标 UI Owner 为 `packages/client/ui-workspace`。
@@ -22,6 +24,7 @@ AI 对话开始时 Git 摘要自动弹出；摘要仓库行来自账户级 Agent
 2. 摘要仅呈现当前会话项目的主文件夹与关联文件夹，主目录排首位并标明；每个独立 Git 工作区显示其真实分支、改动数量和增删行数。非 Git 文件夹明确显示未初始化，不伪造零变更。
 3. 不同逻辑项目的仓库不会混入当前摘要；同一仓库中的嵌套来源按各自目录范围统计，避免把全仓计数重复显示。
 4. 手动打开/关闭、切换会话、切换项目及卸载时，请求有界、可取消，不重叠覆盖新会话状态；服务端每批最多并行查询四个路径，错误在对应文件夹行显示。
+4a. 同一账户/App/项目下，摘要成功加载后反复关闭和打开、或切换到绑定同一项目的另一会话时应复用快照，不再读取文件夹；账户/App 切换清空缓存，项目/目录刷新版本变化或 Run 完成后重新读取，旧请求/旧账户结果不能覆盖新状态；失败或取消的请求可重试。
 5. 点击可用文件夹的变更入口后进入该仓库 Git 管理器；提交、暂存、分支与同步操作继续使用已有权限/凭据 Owner。
 6. 来源/输出文件行和会话文件清单可点击，并在右侧工作区使用同一 Workspace Project 文件读取 Owner 展示真实文件；越权或不安全路径不能回退读取其他项目。
 7. 后台进程区只列出当前 App 下真实排队/运行的 Agent Host Shell 任务；点击打开右侧命令与 stdout/stderr 详情，停止调用认证任务取消流程并等待 Daemon 终止回报。Agent Run 状态不能伪装成 OS Shell 进程。
@@ -31,7 +34,8 @@ AI 对话开始时 Git 摘要自动弹出；摘要仓库行来自账户级 Agent
 
 - A：移除 Run/容器宽度导致的 Git 摘要自动弹出，保留用户操作与 Run 完成刷新。
 - B：由认证 Workspace Git 摘要 API 按当前 Session 的 `WorkspaceProject` 文件夹集合读取轻量、按目录范围的状态；Client 以主目录优先展示，不再用账户全仓库列表构造摘要；最多展示主目录加 20 个附加源目录。
-- C：按直接相关长期回归、包/Client/Web 构建及 ChatGPT 内置浏览器实页验收逐批记录。
+- C：按账户/App/项目及项目目录刷新版本复用已成功加载的摘要快照，面板单纯开合及同项目会话切换不重复扫描；Run 完成及身份/项目变化仍按边界刷新或丢弃缓存。
+- D：按直接相关长期回归、包/Client/Web 构建及 ChatGPT 内置浏览器实页验收逐批记录。
 
 ## 变更前证据与适用规则
 
@@ -66,6 +70,21 @@ AI 对话开始时 Git 摘要自动弹出；摘要仓库行来自账户级 Agent
 | `apps/cli/tests/client-app-workspace-four-column.test.mjs` | 更新摘要相关的 UI 源码契约断言；整个旧测试文件当前仍有与本任务无关的断言漂移，见下方结果。 |
 | `packages/client/ui-workspace/README.md`、`packages/host/git/README.md`、`packages/api/workspace-controller/README.md` | 更新摘要范围、轻量响应、显式登记和 Host/API 职责说明。 |
 | `docs/系统总体架构.md`、`docs/PROMPTS.md`、本合同 | 同步架构行为、任务索引及实施/验收证据。 |
+
+### 追加修复：摘要面板重复读取
+
+- `packages/client/ui-workspace/src/ApplicationWorkspace.tsx`：在当前组件生命周期内缓存最近一次成功的项目摘要，缓存键包含账户、App、项目和 `workspaceProjectsRevision`；同项目关闭/重开、同项目会话切换及 Run 刷新版本未变化时复用成功快照。账户/App 变化清空快照；项目目录版本或 Run 刷新版本变化时重新读取。失败和取消不缓存，关闭时仍会清理延迟器并 abort 在途请求。缓存只占一个项目快照，不形成随项目数增长的无界数据。
+- `apps/cli/tests/workspace-project-git-summary-contract.test.mjs`：新增摘要缓存生命周期、键范围、成功才缓存及取消清理的源码合同回归。
+- `packages/client/ui-workspace/README.md`、本合同和 `docs/PROMPTS.md`：记录快照边界与验收结果。本任务的来源/完整清单和后台任务其他工作仍进行中。
+
+#### 本专项验证
+
+- `node --test apps/cli/tests/workspace-project-git-summary-contract.test.mjs`：5/5 通过；包括缓存命中先于 API loader、账户/App 隔离、项目目录/Run 刷新版本边界、失败不缓存与关闭取消。
+- `node --test apps/cli/tests/client-workspace-git-summary-responsive.test.mjs`：2/2 通过。
+- `corepack pnpm --filter lfaa-client-ui-workspace run build`、`corepack pnpm run build:web`：通过；Web 构建包含 Client TypeScript 检查，产物位于根 `dist/`。
+- 正式 Web 服务 `http://127.0.0.1:3000/work`，ChatGPT 内置浏览器：桌面默认 `1280×720`、窄视口 `760×520`、手机 `390×560`。默认视口首次打开摘要显示读取中并加载当前 `default-workspace` 的 `main` / `+297 −0`；关闭后重开以及在窄/手机布局重开均直接显示已加载快照，没有再次出现读取提示。手机摘要页有可见内容；三种视口的页面滚动宽度均等于视口宽度（1280、760、390），无横向溢出；完成后已恢复默认视口。
+- 性能证据：源码守卫在 API 调用之前命中时直接恢复快照，面板开合不触发重新扫描；缓存空间固定为一个项目，切换其他项目后再返回可能重新读取。未使用网络瀑布直接计数，也未做帧时间测量；项目目录或 Run 刷新版本改变时重新读取属于预期行为。没有触发目录或 Run 刷新版本的外部文件变更会保留当前快照，直到下一次有效刷新。
+- 设置中心：本专项没有新增、读取或重置新的配置；外观继续使用现有 Appearance/Workbench 主题映射。
 
 ### 自动回归与构建
 

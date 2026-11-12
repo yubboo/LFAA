@@ -13,6 +13,7 @@ test("快捷键兼容补齐缺失设置并保留用户主动清空的数组", ()
 
   assert.deepEqual(resolved.toggleSidebar, ["Ctrl+M"]);
   assert.deepEqual(resolved.openSideChat, []);
+  assert.deepEqual(resolved.openModelPicker, defaults.openModelPicker);
   assert.deepEqual(resolved.toggleContextPanel, defaults.toggleContextPanel);
   assert.deepEqual(resolveShortcutSettings(undefined), defaults);
   assert.deepEqual(resolveShortcutSettings(null).switchNormalMode, defaults.switchNormalMode);
@@ -23,6 +24,7 @@ test("快捷键兼容拒绝非字符串项但不改动其它设置", () => {
 
   assert.deepEqual(resolved.toggleSidebar, DEFAULT_USER_SETTINGS.shortcuts.toggleSidebar);
   assert.deepEqual(resolved.openSideChat, DEFAULT_USER_SETTINGS.shortcuts.openSideChat);
+  assert.deepEqual(resolved.openModelPicker, DEFAULT_USER_SETTINGS.shortcuts.openModelPicker);
 });
 
 test("缺失外观背景回退到现有默认值并保留合法选择", () => {

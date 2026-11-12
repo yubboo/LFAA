@@ -224,7 +224,13 @@ body:has(.workbench-shell[data-theme="dark"]) .module-sidebar-notification-overl
 
 .module-sidebar__session > button:first-child { flex: 1; }
 
-.module-sidebar__session > button:first-child span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.module-sidebar__session > button:first-child > .module-sidebar__session-icon { display: grid; width: 16px; height: 16px; flex: 0 0 16px; place-items: center; color: var(--color-text-muted); }
+
+.module-sidebar__session-icon > svg { display: block; width: 14px; height: 14px; }
+
+.module-sidebar__session > button:first-child > .module-sidebar__session-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.module-sidebar__session > button:hover:not(:disabled) > .module-sidebar__session-icon { color: var(--settings-accent, var(--color-brand)); }
 
 .module-sidebar__session > button:last-child { color: var(--color-text-muted); }
 
@@ -347,7 +353,7 @@ body:has(.workbench-shell[data-theme="dark"]) .module-sidebar-notification-overl
 .module-sidebar__project-sessions { display: grid; min-width: 0; align-content: start; gap: 2px; }
 
 /* 左缩进沿用嵌套会话；左内距补齐 1px 行边、按钮 7px 内距、14px 图标和 7px 图文间距，使“展开显示”与标题文字列对齐。 */
-.module-sidebar__project-more { justify-self: start; min-height: 27px; margin-left: 7px; padding: 0 7px 0 calc(1px + 7px + 14px + 7px); border: 0; border-radius: 7px; background: transparent; color: var(--color-text-muted); cursor: pointer; font: inherit; font-size: var(--font-size-xs); text-align: left; }
+.module-sidebar__project-more { justify-self: stretch; min-height: 27px; margin-left: 7px; padding: 0 7px 0 calc(1px + 7px + 14px + 7px); border: 0; border-radius: 7px; background: transparent; color: var(--color-text-muted); cursor: pointer; font: inherit; font-size: var(--font-size-xs); text-align: left; }
 
 .module-sidebar__project-more:hover { background: var(--color-surface-hover); color: var(--color-text-heading); }
 

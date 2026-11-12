@@ -37,7 +37,8 @@ import { WorkbenchHeader } from "lfaa-client-ui-primitives/src/WorkbenchHeader.j
 import { resolveBrowserAddress } from "lfaa-client-ui-sidebar-browser/src/browser-address.js";
 import { BUILTIN_BROWSER_WORKSPACE_ID } from "lfaa-util-values/src/browser-provider.js";
 import { matchesAgentBrowserDockSyncRequest, shouldSyncAgentBrowserDockPage, type BrowserDockAgentSyncRequest } from "./browser-dock-sync.js";
-import { resolveVisibleBrowserRecentSites } from "./browser-recent-sites-window.js";
+import { resolveRecentItems } from "lfaa-util-values/src/recent-window.js";
+import { resolveAiSessionIconName } from "./session-icon.js";
 import { createAgentWorkbenchView } from "./agent-workbench-view.js";
 import type { BrowserDockTabsUpdate } from "lfaa-client-ui-sidebar-browser/src/browser-tabs-update.js";
 import { TaskTerminal } from "./TaskTerminal.js";
@@ -343,7 +344,9 @@ interface ApplicationSidebarProps extends Pick<ApplicationWorkspaceProps, "userI
 
 function ApplicationSidebar({ userId, app, mode, section, gameLibrary, workspaceTitle, apps, applicationNavigationItems, layoutMode, onWritingLibraryPortalTargetChange, onNavigate, onOpenApplication, onOpenSelectedApplication, onOpenGameFiles, onToggleLeft, notifications, onMarkNotificationsRead, onMarkSessionNotificationsRead, onClearNotifications, onOpenNotification, sessions, missingSessionDirectoryIds, aiDraft, pinnedSessionIds, onTogglePinnedSession, workspaceProjects, workspaceProjectsReady, sessionsDataReady, recentSessionsExpandRequestId, projectLoadError, onRetryProjects, activeSessionId, sessionsLoading, sessionsError, providerStatus, gitSummaryOpen, gitSummaryContent, onNewSession, onSelectSession, onRenameSession, onArchiveSession, onCloseGitSummary, onPreviewMouseLeave, onPreviewBlur }: ApplicationSidebarProps) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [sessionMenuId, setSessionMenuId] = useState<string | null>(null);
+  const [sessionMenuKey, setSessionMenuKey] = useState<string | null>(null);
+  const [recentSessionsNow, setRecentSessionsNow] = useState(() => Date.now());
+  useEffect(() => { setRecentSessionsNow(Date.now()); }, [userId, app]);
   const [renamingSession, setRenamingSession] = useState<AiSession | null>(null);
   const [renameSessionTitle, setRenameSessionTitle] = useState("");
   const [renameSessionError, setRenameSessionError] = useState("");
@@ -428,19 +431,19 @@ function ApplicationSidebar({ userId, app, mode, section, gameLibrary, workspace
   const recentSessionsExpanded = sidebarPreferences.recentSessionsExpanded;
   const collapsedProjectGroups = new Set(sidebarPreferences.collapsedProjectGroups);
   const projectSessionVisibleCounts = sidebarPreferences.projectSessionVisibleCounts;
-  useEffect(() => { setSessionMenuId(null); }, [layoutMode]);
+  useEffect(() => { setSessionMenuKey(null); }, [layoutMode]);
   useEffect(() => {
-    if (!sessionMenuId) return;
+    if (!sessionMenuKey) return;
     const dismissEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
       event.stopPropagation();
-      setSessionMenuId(null);
+      setSessionMenuKey(null);
     };
     const dismissOutside = (event: PointerEvent) => {
       const target = event.target;
       if (target instanceof Element && (target.closest(".module-session-menu") || target.closest('button[aria-haspopup="menu"]'))) return;
-      setSessionMenuId(null);
+      setSessionMenuKey(null);
     };
     window.addEventListener("keydown", dismissEscape, true);
     document.addEventListener("pointerdown", dismissOutside);
@@ -448,9 +451,9 @@ function ApplicationSidebar({ userId, app, mode, section, gameLibrary, workspace
       window.removeEventListener("keydown", dismissEscape, true);
       document.removeEventListener("pointerdown", dismissOutside);
     };
-  }, [sessionMenuId]);
-  const appSessions = sessions.filter((session) => !session.archived);
-  const pinnedSessionSet = new Set(pinnedSessionIds);
+  }, [sessionMenuKey]);
+  const appSessions = useMemo(() => sessions.filter(session => !session.archived), [sessions]);
+  const pinnedSessionSet = useMemo(() => new Set(pinnedSessionIds), [pinnedSessionIds]);
   const pinnedSessions = appSessions.filter(session => pinnedSessionSet.has(session.id));
   const projectsById = new Map(workspaceProjects.map(project => [project.id, project]));
   const pinnedProjectGroups = new Map<string, { project: WorkspaceProject | null; title: string; sessions: AiSession[] }>();
@@ -478,7 +481,18 @@ function ApplicationSidebar({ userId, app, mode, section, gameLibrary, workspace
     group.sessions.push(session);
     projectGroups.set(session.projectId, group);
   }
-  const recentSessions = appSessions.filter(session => !pinnedSessionSet.has(session.id));
+  const recentSessionsView = useMemo(() => resolveRecentItems(
+    appSessions.filter(session => !session.projectId && !pinnedSessionSet.has(session.id)),
+    session => session.updatedAt,
+    recentSessionsNow
+  ), [appSessions, pinnedSessionSet, recentSessionsNow]);
+  const recentSessions = recentSessionsView.items;
+  useEffect(() => {
+    const expiryAt = recentSessionsView.nextExpiryAt;
+    if (expiryAt === null) return;
+    const timeoutId = window.setTimeout(() => setRecentSessionsNow(Date.now()), Math.max(1, expiryAt - Date.now() + 1));
+    return () => window.clearTimeout(timeoutId);
+  }, [recentSessionsView.nextExpiryAt]);
   const hasDraft = app === "workspace" && Boolean(aiDraft.trim());
   const sessionsScroll = useScrollRestoration(createScrollRestorationKey(userId, "module-session-list", app), !sessionsLoading);
   const nextMode: ApplicationMode = mode === "normal" ? "ai-work" : "normal";
@@ -505,27 +519,29 @@ function ApplicationSidebar({ userId, app, mode, section, gameLibrary, workspace
     else collapsed.add(groupKey);
     return { ...current, collapsedProjectGroups: [...collapsed].slice(-MAX_AI_WORK_SIDEBAR_GROUP_PREFERENCES) };
   });
-  const renderSession = (session: AiSession, nested = false) => {
+  const renderSession = (session: AiSession, menuScope: string, nested = false) => {
     const isPinned = pinnedSessionSet.has(session.id);
     const directoryMissing = missingSessionDirectoryIds.has(session.id);
     const hasUnreadCompletion = hasUnreadSessionCompletionNotification(notifications, session.appId, session.id);
+    const iconName = resolveAiSessionIconName(session);
+    const menuKey = menuScope + ":" + session.id;
     const menu = { items: [
       { key: "rename", label: "重命名" },
       { key: "pin", label: isPinned ? "取消置顶" : "置顶" },
       { key: "archive", label: "归档", icon: <WorkbenchIcon name="archive" size={14} /> },
     ], onClick: ({ key }: { key: string }) => {
-      setSessionMenuId(null);
+      setSessionMenuKey(null);
       if (key === "rename") beginRenameSession(session);
       if (key === "pin") onTogglePinnedSession(session.id);
       if (key === "archive") onArchiveSession(session);
     } };
-    return <Dropdown key={session.id} menu={menu} trigger={isDesktopApp() ? ["contextMenu"] : []}
-      open={sessionMenuId === session.id} onOpenChange={open => setSessionMenuId(open ? session.id : null)}
-      placement="bottomRight" autoAdjustOverflow overlayClassName="module-session-menu"
+    return <Dropdown key={menuKey} menu={menu} trigger={isDesktopApp() ? ["contextMenu"] : []}
+      open={sessionMenuKey === menuKey} onOpenChange={open => setSessionMenuKey(current => open ? menuKey : current === menuKey ? null : current)}
+      placement="bottomRight" align={{ points: ["tl", "tr"], offset: [8, 0] }} autoAdjustOverflow overlayClassName="module-session-menu"
       getPopupContainer={trigger => trigger.closest<HTMLElement>(".module-workbench-stage") ?? trigger.parentElement!}>
       <div className={`module-sidebar__session${nested ? " module-sidebar__session--nested" : ""}${session.id === activeSessionId ? " is-active" : ""}${directoryMissing ? " is-project-directory-missing" : ""}`}>
         <button type="button" aria-current={session.id === activeSessionId ? "page" : undefined} aria-label={`${session.title}${hasUnreadCompletion ? "，有未读的回复完成提醒" : ""}`} onClick={event => {
-          setSessionMenuId(null);
+          setSessionMenuKey(null);
           if (event.detail > 1) { clearMobileSessionCloseTimer(); return; }
           if (hasUnreadCompletion) onMarkSessionNotificationsRead(session.appId, session.id);
           onSelectSession(session.id);
@@ -536,10 +552,10 @@ function ApplicationSidebar({ userId, app, mode, section, gameLibrary, workspace
               onToggleLeft();
             }, 550);
           }
-        }} onDoubleClick={() => beginRenameSession(session)} title={`${directoryMissing ? `${session.title} · 项目目录已删除或移动，历史记录仍可查看` : session.title}${hasUnreadCompletion ? " · 回复已完成，打开会话查看" : ""}`}><WorkbenchIcon name="history" size={14} /><span>{session.title}</span></button>
+        }} onDoubleClick={() => beginRenameSession(session)} title={`${directoryMissing ? `${session.title} · 项目目录已删除或移动，历史记录仍可查看` : session.title}${hasUnreadCompletion ? " · 回复已完成，打开会话查看" : ""}`}><span className="module-sidebar__session-icon" aria-hidden="true"><WorkbenchIcon name={iconName} size={14} /></span><span className="module-sidebar__session-title">{session.title}</span></button>
         <div className="module-sidebar__session-actions">
           {hasUnreadCompletion ? <span className="module-sidebar__session-completion-dot" aria-hidden="true" /> : null}
-          <button type="button" aria-label={`会话菜单：${session.title}`} aria-haspopup="menu" aria-expanded={sessionMenuId === session.id} title="会话菜单" onClick={event => { event.stopPropagation(); setSessionMenuId(current => current === session.id ? null : session.id); }}><WorkbenchIcon name="dots" size={15} /></button>
+          <button type="button" aria-label={`会话菜单：${session.title}`} aria-haspopup="menu" aria-expanded={sessionMenuKey === menuKey} title="会话菜单" onClick={event => { event.stopPropagation(); setSessionMenuKey(current => current === menuKey ? null : menuKey); }}><WorkbenchIcon name="dots" size={15} /></button>
         </div>
       </div>
     </Dropdown>;
@@ -563,7 +579,7 @@ function ApplicationSidebar({ userId, app, mode, section, gameLibrary, workspace
         </div>
       </div>
       <div id={groupContentId} className="module-sidebar__project-sessions" hidden={!isExpanded}>
-        {visibleSessions.map(session => renderSession(session, true))}
+        {visibleSessions.map(session => renderSession(session, "group:" + groupKey, true))}
         {hiddenCount > 0 ? <button className="module-sidebar__project-more" type="button" aria-label={`展开显示${group.title}中的更多会话，剩余 ${hiddenCount} 条`} title={`每次展开 ${AI_WORK_PROJECT_SESSION_PAGE_SIZE} 个会话`} onClick={() => updateSidebarPreferences(current => {
           const visibleCounts = { ...current.projectSessionVisibleCounts };
           visibleCounts[groupKey] = Math.min(group.sessions.length, MAX_AI_WORK_SIDEBAR_VISIBLE_SESSIONS, (visibleCounts[groupKey] ?? AI_WORK_PROJECT_SESSION_PAGE_SIZE) + AI_WORK_PROJECT_SESSION_PAGE_SIZE);
@@ -692,7 +708,7 @@ function ApplicationSidebar({ userId, app, mode, section, gameLibrary, workspace
             {recentSessions.length ? <section className="module-sidebar__session-category" aria-label="最近会话">
               <button className="module-sidebar__category-toggle" type="button" aria-expanded={recentSessionsExpanded} aria-controls="module-sidebar-recent-content" onClick={() => updateSidebarPreferences(current => ({ ...current, recentSessionsExpanded: !current.recentSessionsExpanded }))}><span>最近</span><small>{recentSessions.length}</small><WorkbenchIcon name="chevron" size={13} /></button>
               <div id="module-sidebar-recent-content" className="module-sidebar__category-content" hidden={!recentSessionsExpanded}>
-                {recentSessions.map(session => renderSession(session))}
+                {recentSessions.map(session => renderSession(session, "recent"))}
               </div>
             </section> : null}
           </>}
@@ -903,7 +919,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   const [gitSummaryOpen, setGitSummaryOpen] = useState(false);
   const [gitSummaryActionFolderKey, setGitSummaryActionFolderKey] = useState<string | null>(null);
   const [gitManagerActionRequest, setGitManagerActionRequest] = useState<{ repositoryId: string; action: "commit" | "push" | "branch-create" | "branch-switch"; requestId: number } | null>(null);
-  const [gitSummaryFolderState, setGitSummaryFolderState] = useState<{ projectId: string | null; folders: WorkspaceProjectGitSummaryFolder[]; loading: boolean; error: string }>({ projectId: null, folders: [], loading: false, error: "" });
+  const [gitSummaryFolderState, setGitSummaryFolderState] = useState<{ userId: string; app: ApplicationId; projectId: string | null; folders: WorkspaceProjectGitSummaryFolder[]; loading: boolean; error: string }>({ userId, app, projectId: null, folders: [], loading: false, error: "" });
   const [sessionFileChangesState, setSessionFileChangesState] = useState<{ sessionId: string | null; changes: AiActivityFileChange[] }>({ sessionId: null, changes: emptySessionFileChanges });
   const [aiHostTasksState, setAiHostTasksState] = useState<{ userId: string; appId: ApplicationId; tasks: AiHostTask[]; loading: boolean; error: string }>({ userId, appId: app, tasks: [], loading: false, error: "" });
   const [aiHostTaskDetailState, setAiHostTaskDetailState] = useState<{ userId: string; taskId: string; task: AiHostTask | null; loading: boolean; error: string }>({ userId, taskId: "", task: null, loading: false, error: "" });
@@ -918,10 +934,12 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   const [sideChatInitialQuestion, setSideChatInitialQuestion] = useState("");
   const [sideChatQuestionRevision, setSideChatQuestionRevision] = useState(0);
   const [gitRefreshRevision, setGitRefreshRevision] = useState(0);
+  const workspaceGitSummaryCacheRef = useRef<{ key: string; revision: number; summary: WorkspaceProjectGitSummaryFolder[] } | null>(null);
   const aiChatBusyState = useRef(false);
   const [aiWorkView, setAiWorkView] = useState<"chat" | "git">("chat");
   const [workspaceUtilityTabs, setWorkspaceUtilityTabs] = useState<WorkspaceUtilityTab[]>([{ id: "workspace-tab-1", kind: "new" }]);
   const [activeWorkspaceUtilityTabId, setActiveWorkspaceUtilityTabId] = useState("workspace-tab-1");
+  const activeWorkspaceUtilityTab = workspaceUtilityTabs.find(tab => tab.id === activeWorkspaceUtilityTabId) ?? null;
   const [workbenchTabPreviewOpenId, setWorkbenchTabPreviewOpenId] = useState("");
   const [browserTabPreviewRequest, setBrowserTabPreviewRequest] = useState<{ tabId: string; requestId: number } | null>(null);
   const [browserTabPreviewImage, setBrowserTabPreviewImage] = useState<{ tabId: string; requestId: number; dataUrl: string } | null>(null);
@@ -937,7 +955,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   const [browserAddressFocused, setBrowserAddressFocused] = useState(false);
   const browserAddressInputRef = useRef<HTMLInputElement | null>(null);
   const browserAddressEditingRef = useRef(false);
-  const activeWorkspaceUtilityTabKind = workspaceUtilityTabs.find(tab => tab.id === activeWorkspaceUtilityTabId)?.kind ?? null;
+  const activeWorkspaceUtilityTabKind = activeWorkspaceUtilityTab?.kind ?? null;
   const [browserOpenTabs, setBrowserOpenTabs] = useState<BrowserOpenTab[]>([]);
   const [browserRecentSitesState, setBrowserRecentSitesState] = useState<{ userId: string; sites: BrowserRecentSite[] }>({ userId, sites: [] });
   const [browserRecentSitesNow, setBrowserRecentSitesNow] = useState(() => Date.now());
@@ -947,8 +965,8 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   currentRecentSiteOwnerRef.current = userId;
   const browserRecentSitesForDisplay = useMemo(
     () => settings.browserUse.recordRecentSites && browserRecentSitesState.userId === userId
-      ? resolveVisibleBrowserRecentSites(browserRecentSitesState.sites, browserRecentSitesNow)
-      : { sites: [], nextExpiryAt: null },
+      ? resolveRecentItems(browserRecentSitesState.sites, site => site.visitedAt, browserRecentSitesNow)
+      : { items: [] as BrowserRecentSite[], nextExpiryAt: null },
     [browserRecentSitesNow, browserRecentSitesState.sites, browserRecentSitesState.userId, settings.browserUse.recordRecentSites, userId],
   );
   const workspaceUtilityTabId = useRef(1);
@@ -1395,23 +1413,42 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
     return () => { gitStatusRequestRevision.current += 1; };
   }, [activeWorkspaceUtilityTabKind, gitRefreshRevision, mode, refreshGitStatus, selectedAgentGitRepository?.id]);
   useEffect(() => {
+    workspaceGitSummaryCacheRef.current = null;
+  }, [app, userId]);
+  useEffect(() => {
     const projectId = app === "workspace" && !voiceMode && activeAiSession?.appId === "workspace" ? activeAiSession.projectId ?? null : null;
-    if (!gitSummaryOpen || mode !== "ai-work" || !projectId) {
-      setGitSummaryFolderState({ projectId, folders: [], loading: false, error: "" });
+    if (!gitSummaryOpen) return;
+    if (mode !== "ai-work" || !projectId) {
+      setGitSummaryFolderState({ userId, app, projectId, folders: [], loading: false, error: "" });
+      return;
+    }
+    const workspaceGitSummaryCacheKey = JSON.stringify([userId, app, projectId, workspaceProjectsRevision]);
+    const cachedSnapshot = workspaceGitSummaryCacheRef.current;
+    if (cachedSnapshot?.key === workspaceGitSummaryCacheKey && cachedSnapshot.revision === gitRefreshRevision) {
+      setGitSummaryFolderState({ userId, app, projectId, folders: cachedSnapshot.summary, loading: false, error: "" });
       return;
     }
     const controller = new AbortController();
     let active = true;
-    setGitSummaryFolderState({ projectId, folders: [], loading: true, error: "" });
+    setGitSummaryFolderState(current => ({
+      userId,
+      app,
+      projectId,
+      folders: current.userId === userId && current.app === app && current.projectId === projectId ? current.folders : [],
+      loading: true,
+      error: ""
+    }));
     const timer = window.setTimeout(() => {
       void loadWorkspaceProjectGitSummary(projectId, controller.signal).then(({ folders }) => {
-        if (active) setGitSummaryFolderState({ projectId, folders, loading: false, error: "" });
-      }).catch(error => {
-        if (active && !controller.signal.aborted) setGitSummaryFolderState({ projectId, folders: [], loading: false, error: getErrorMessage(error) });
+        if (!active) return;
+        workspaceGitSummaryCacheRef.current = { key: workspaceGitSummaryCacheKey, revision: gitRefreshRevision, summary: folders };
+        setGitSummaryFolderState({ userId, app, projectId, folders, loading: false, error: "" });
+      }).catch((error: unknown) => {
+        if (active && !controller.signal.aborted) setGitSummaryFolderState({ userId, app, projectId, folders: [], loading: false, error: getErrorMessage(error) });
       });
     }, 180);
     return () => { active = false; window.clearTimeout(timer); controller.abort(); };
-  }, [activeAiSession?.appId, activeAiSession?.projectId, app, gitRefreshRevision, gitSummaryOpen, mode, voiceMode]);
+  }, [activeAiSession?.appId, activeAiSession?.projectId, app, gitRefreshRevision, gitSummaryOpen, mode, userId, voiceMode, workspaceProjectsRevision]);
   useEffect(() => {
     if (!gitSummaryActionFolderKey) return;
     const frame = window.requestAnimationFrame(() => gitSummaryActionMenuRef.current?.querySelector<HTMLButtonElement>("[role=menuitem]")?.focus());
@@ -2270,7 +2307,10 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
       setAiSessionsError(getErrorMessage(archiveError));
     }
   };
-  const gitSummaryFolders = gitSummaryFolderState.projectId === activeAiSession?.projectId ? gitSummaryFolderState.folders : [];
+  const gitSummaryFolderStateMatchesContext = gitSummaryFolderState.userId === userId && gitSummaryFolderState.app === app && gitSummaryFolderState.projectId === activeAiSession?.projectId;
+  const gitSummaryFolderLoading = gitSummaryFolderStateMatchesContext && gitSummaryFolderState.loading;
+  const gitSummaryFolderError = gitSummaryFolderStateMatchesContext ? gitSummaryFolderState.error : "";
+  const gitSummaryFolders = gitSummaryFolderStateMatchesContext ? gitSummaryFolderState.folders : [];
   const gitSummaryPrimaryFolder = gitSummaryFolders.find(folder => folder.isPrimary) ?? gitSummaryFolders[0] ?? null;
   const gitSummarySecondaryFolders = gitSummaryFolders.filter(folder => folder !== gitSummaryPrimaryFolder);
   const gitSummaryHostTasks = aiHostTasksState.userId === userId && aiHostTasksState.appId === app ? aiHostTasksState.tasks : [];
@@ -2283,7 +2323,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   const gitSummaryFolderKey = (folder: WorkspaceProjectGitSummaryFolder) => folder.sourceId ?? folder.path;
   const gitSummaryFolderTitle = (folder: WorkspaceProjectGitSummaryFolder) => folder.path.split(/[\\/]/u).filter(Boolean).at(-1) || folder.path;
   const gitSummaryFolderStateLabel = (folder: WorkspaceProjectGitSummaryFolder) => folder.error ? "状态读取失败"
-    : !folder.status ? gitSummaryFolderState.loading ? "正在读取…" : "状态未知"
+    : !folder.status ? gitSummaryFolderLoading ? "正在读取…" : "状态未知"
       : folder.status.repositoryState === "not-repository" ? "未初始化"
         : folder.status.clean ? "工作区干净" : `${folder.status.changedFileCount} 项变更`;
   const gitSummaryContent = <section className={`module-git-summary${gitSummaryActionFolderKey !== null ? " is-actions-open" : ""}${metrics.mode === "mobile" ? " is-embedded" : ""}`} data-layout-mode={metrics.mode} id={metrics.mode === "mobile" ? "module-sidebar-git-summary" : undefined} aria-label="项目摘要">
@@ -2295,15 +2335,15 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
                   }}>{title}</button>)}
                 </div> : null}
                 <div className="module-git-summary__body">
-                  {gitSummaryFolderState.loading ? <p className="module-git-summary__empty">正在读取当前项目文件夹…</p> : null}
-                  {gitSummaryFolderState.error ? <p className="module-git-summary__error" role="alert">{gitSummaryFolderState.error}</p> : null}
-                  {!gitSummaryFolderState.loading && !gitSummaryFolderState.error && !gitSummaryFolders.length ? <p className="module-git-summary__empty">{activeAiSession?.projectId ? "当前会话没有可读取的本机项目文件夹。" : "选择一个项目会话后显示其文件夹 Git 状态。"}</p> : null}
+                  {gitSummaryFolderLoading ? <p className="module-git-summary__empty">正在读取当前项目文件夹…</p> : null}
+                  {gitSummaryFolderError ? <p className="module-git-summary__error" role="alert">{gitSummaryFolderError}</p> : null}
+                  {!gitSummaryFolderLoading && !gitSummaryFolderError && !gitSummaryFolders.length ? <p className="module-git-summary__empty">{activeAiSession?.projectId ? "当前会话没有可读取的本机项目文件夹。" : "选择一个项目会话后显示其文件夹 Git 状态。"}</p> : null}
                   {gitSummaryPrimaryFolder ? (() => {
                     const folder = gitSummaryPrimaryFolder;
                     const status = folder.status;
                     const title = gitSummaryFolderTitle(folder);
                     const state = gitSummaryFolderStateLabel(folder);
-                    const branch = folder.error ? "状态读取失败" : status?.repositoryState === "not-repository" ? "未初始化" : status?.branch || (gitSummaryFolderState.loading ? "读取中…" : "状态未知");
+                    const branch = folder.error ? "状态读取失败" : status?.repositoryState === "not-repository" ? "未初始化" : status?.branch || (gitSummaryFolderLoading ? "读取中…" : "状态未知");
                     const folderKey = gitSummaryFolderKey(folder);
                     return <article className="module-git-summary__project-card">
                       <header className="module-git-summary__project-header">
@@ -2434,7 +2474,6 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   const showRightShellControls = metrics.mode === "desktop" || (showWorkbenchTabs && metrics.mode === "compact");
   const showCenterPanelControls = chrome.rightCollapsed || metrics.mode === "mobile" || (metrics.mode === "compact" && !showWorkbenchTabs);
   const activeCenterCollapsed = centerCollapsePreview ?? centerCollapsed;
-  const activeWorkspaceUtilityTab = workspaceUtilityTabs.find(tab => tab.id === activeWorkspaceUtilityTabId) ?? null;
   const hasActiveBrowserOpenTab = browserOpenTabs.some(tab => tab.active);
   const activeBrowserUrl = browserOpenTabs.find(tab => tab.active)?.url;
   const activeAgentRightPane = sidebarRight.activeId !== null ? "extension"
@@ -2929,10 +2968,10 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
               </button>)}
             </div> : <div className="module-context__launcher-recommendation-empty"><span>打开的网页会显示在这里。</span><button type="button" onClick={() => browserAddressInputRef.current?.focus()}>输入网址</button></div>}
           </section>
-          {browserRecentSitesForDisplay.sites.length > 0 ? <section className="module-context__launcher-recent" aria-labelledby="module-context-launcher-recent-title">
+          {browserRecentSitesForDisplay.items.length > 0 ? <section className="module-context__launcher-recent" aria-labelledby="module-context-launcher-recent-title">
             <header><strong id="module-context-launcher-recent-title">最近</strong></header>
             <div className="module-context__launcher-recent-list">
-              {browserRecentSitesForDisplay.sites.map(site => <button key={site.url} className="module-context__launcher-recent-site" type="button" title={site.url} onClick={() => openBrowserWebsite(site.url)}>
+              {browserRecentSitesForDisplay.items.map(site => <button key={site.url} className="module-context__launcher-recent-site" type="button" title={site.url} onClick={() => openBrowserWebsite(site.url)}>
                 <WorkbenchIcon name="browser" size={18} />
                 <span><strong>{browserSiteHost(site.url)}</strong><small>{site.url}</small></span>
                 <time dateTime={site.visitedAt}>{browserVisitTime(site.visitedAt)}</time>

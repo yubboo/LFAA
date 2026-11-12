@@ -25,7 +25,7 @@
 
 ## 实施与验收记录
 
-- 状态：标签表面和按需预览已实现；Browser Owner 真缩略图已覆盖 Web/Electron 两条现有显示路径；桌面与 820×520 窄分栏已实页检查。390×740 检查发现预览卡超出视口，已加 480px 以下视口贴边规则。用户新增截图指出约 430px 窄面板中的多标签条宽度布局仍异常，定位到后置 `max-width: 280px` 覆盖每标签 `min(42%, 280px)` 的收缩上限；现已移除冲突规则并加入回归。两项响应式样式已通过工作区包构建，但因整站 Web 构建被共享工作区 `AiWorkChat.tsx` 语法错误阻断，最新窄栏截图场景尚未重建或实页复验。
+- 状态：标签表面和按需预览已实现；Browser Owner 真缩略图已覆盖 Web/Electron 两条现有显示路径；桌面与 820×520 窄分栏已实页检查。390×740 检查发现预览卡超出视口，已加 480px 以下视口贴边规则。用户新增截图指出约 430px 窄面板中的多标签条宽度布局仍异常，定位到后置 `max-width: 280px` 覆盖每标签 `min(42%, 280px)` 的收缩上限；现已移除冲突规则并加入回归。后续恢复被错误覆盖的 `AiWorkChat.tsx` 后，整站 Web 构建已通过；最新窄栏标签/预览场景仍未实页复验。
 - 实施：`right-menu.css` 将选中标签保留为圆角表面和适配 Appearance 对比度的中性细边，图标沿用强调色；去掉鼠标点击后的外层蓝色焦点圈，键盘焦点仍可见；关闭按钮默认轻量、悬停显示操作底色，新空白页使用浏览器图标。标签悬停或键盘聚焦展示标题、类型和地址；只在标签当前选中、地址与 Browser Owner 活动页一致且右栏可见时发起一次预览请求。Web 复用当前帧 Canvas 缩至 360×203 内且 JPEG 不超过 512 KiB；Electron IPC 经现有受信任前端校验，只捕获仍可见的活动 WebContents，返回后再次核对标签与可见状态并使用相同上限。缩略图仅存在于当前卡片状态，关闭即清除；不增加后台请求、轮询或数据持久化。窄屏修正将卡片限制在视口左右 12px 内。
 - 设置与持久化：沿用 Settings Owner 的 `appearance.theme`（默认 `system`）、`appearance.accentColor`（默认 `#3457d5`）；`appearance.advanced.separateModes` 默认 `false`，启用时读取当前主题对应 `modeStyles[theme].accentColor`（默认浅/深主题均为 `#3457d5`）。Workbench 将主题和当前强调色映射为共享 CSS 令牌；无设置控件、校验、持久化或既有偏好修改。
 - 文件职责：`packages/client/ui-workspace/src/ApplicationWorkspace.tsx`（标签实际标题、预览卡触发与 Browser Owner 请求）；`packages/client/ui-workspace/src/css/right-menu.css`（标签表面、预览卡和窄屏定位）；`packages/client/ui-sidebar-browser/src/BrowserPanel.tsx`、`NativeBrowserPanel.tsx`（Web/Electron 请求接收和临时截图回传）；`apps/desktop-electron/src/native-browser-workspace.mjs`、`main.mjs`、`preload.cjs`（Electron 活动页有界缩略图及受信 IPC）；`packages/client/connection/src/api.ts`（桥接类型）；`apps/cli/tests/client-workbench-tabs-appearance.test.mjs`、`apps/desktop-electron/tests/native-browser-workspace.test.mjs`（样式与采集边界回归）；三个受影响包 README、本合同及 `docs/PROMPTS.md`（Owner、边界与验收记录）。
@@ -35,3 +35,10 @@
 - 性能与安全：预览只由悬停/键盘聚焦触发一次，不建立轮询、订阅、观察器或计时器；图片有宽高/字节上限并在卡片关闭时清除，不写磁盘或账户历史。Electron 捕获前后校验页面活动与可见状态，IPC 继续受主进程现有前端来源校验。没有量测帧时间/CPU；未做真实 Electron 桌面页面验收。
 - 最新窄栏实页状态：当前内置浏览器 `/work` 显示 1052×869，右上下文栏处于收起状态，无法在不改变其已保存展开偏好的情况下复现用户附图中的两标签右栏。未临时切换该偏好；因此约 430px 场景的最后修正仍仅有 CSS 回归和工作区包构建证据。
 - UI 技能核对：已读取 Taste Skill、Impeccable、Audit Skills、UI Motion、UI/UX Pro Max、Baseline UI。按 Operate 型工作区表面保留现有颜色/字形和主题令牌，以无描边圆角标签表面替代单一底边指示和重复边框；不增加动效。Audit Skills 的目标语言范围不覆盖本次 TypeScript/CSS，不据此声明专项安全审计通过。
+
+### 2026-11-12 Web 构建恢复补记
+
+- 最新源码中 `AiWorkChat.tsx` 曾被提交内容替换成单行 CSS 声明（commit `4e0fcff8`）；从其父提交 `7c5a6406` 恢复完整组件，补回 Session 标题生成接线。恢复后将 `ApplicationWorkspace.tsx` 的活动标签查找移至状态声明之后，消除 Client 类型检查的先用后声明错误。
+- `pnpm run build:web`、`lfaa-client-ui-chat` 与 `lfaa-client-ui-workspace` 构建通过；标签预览定向回归 3/3。`client-workspace-app-tabs.test.mjs` 为 8/10，两项失败是合同中已记录的旧 API/路由断言，本次未改写。
+- `pnpm run check:workspace` 未通过，报告 `docs/PROMPTS.md` 中两个既有合同锚点缺失：`browser-newtab-recent-sites-72h-20261112.md#lfaa-browser-newtab-recent-sites-72h-20261112` 与 `right-terminal-exclusive-panel-20261031.md#lfaa-right-terminal-exclusive-panel-20261031`；这两项不属于本次改动文件，未扩展修复范围。
+- 正式菜单完整 Web 已重建并在 ChatGPT 内置浏览器打开 `http://127.0.0.1:3000/work`，工作台实际可见；当前页面没有活动会话，本轮未触发标题 Provider 请求，也未通过空白工作区验收标签预览交互。最新 390px 手机和约 430px 多标签场景仍待验；构建成功不代表窄屏实页通过。

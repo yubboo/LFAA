@@ -36,7 +36,7 @@ export function reasoningModeLabel(value: string): string {
     low: "低",
     medium: "中",
     high: "高",
-    xhigh: "超高",
+    xhigh: "极高",
     max: "最大",
     enabled: "启用思考"
   };

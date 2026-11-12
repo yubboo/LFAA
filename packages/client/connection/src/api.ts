@@ -809,6 +809,8 @@ export interface AiMessage {
   status: "complete" | "queued" | "streaming" | "interrupted" | "error";
   createdAt: string;
   activity: AiActivityItem[];
+  /** Agent 结合本轮最终答复生成的可选后续提问建议。 */
+  promptSuggestions?: string[];
   usage?: AiMessageUsage;
   parts?: AiReplyPart[];
   feedback?: AiMessageFeedback;
@@ -3443,6 +3445,7 @@ type AiChatStreamInput = {
   onSettingsInvalidated?: () => void;
   onInput?: (message: AiMessage) => void;
   onActivity: (value: { messageId: string; activity: AiActivityItem }) => void;
+  onPromptSuggestions?: (value: { messageId: string; suggestions: string[] }) => void;
   onDelta: (value: AiTextDelta) => void;
   /** 外部子 Agent 顶层助手文本的瞬时流；重新订阅时不重放，也不写入会话。 */
   onSubagentDelta?: (value: { messageId: string; activityId: string; delta: string }) => void;
@@ -3613,6 +3616,10 @@ async function streamAiChatAt(input: AiChatStreamInput, streamEndpoint: string):
         if (eventName === "capability-settings" && payload.changed === true) input.onSettingsInvalidated?.();
         if (eventName === "activity" && typeof payload.messageId === "string" && typeof payload.activity === "object" && payload.activity !== null) {
           input.onActivity({ messageId: payload.messageId, activity: payload.activity as AiActivityItem });
+        }
+        if (eventName === "prompt-suggestions" && typeof payload.messageId === "string" && Array.isArray(payload.suggestions)) {
+          const suggestions = payload.suggestions.flatMap(value => typeof value === "string" && value.trim().length > 0 && [...value].length <= 180 ? [value] : []).slice(0, 3);
+          if (suggestions.length) input.onPromptSuggestions?.({ messageId: payload.messageId, suggestions });
         }
         if (eventName === "delta" && typeof payload.messageId === "string" && typeof payload.delta === "string") deltas.push({ messageId: payload.messageId, delta: payload.delta, ...(typeof payload.partId === "string" && typeof payload.partStart === "number" ? { partId: payload.partId, partStart: payload.partStart } : {}) });
         if (eventName === "subagent-delta" && typeof payload.messageId === "string" && typeof payload.activityId === "string"

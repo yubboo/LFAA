@@ -18,6 +18,7 @@
     "lfaa-client-store": "workspace:*",
     "lfaa-client-ui-primitives": "workspace:*",
     "lfaa-client-ui-settings-models": "workspace:*",
+    "lfaa-client-ui-commands": "workspace:*",
     "react": "^18.0.0",
     "lfaa-util-values": "workspace:*"
   },
@@ -38,7 +39,8 @@
         "lfaa-client-resources",
         "lfaa-client-store",
         "lfaa-client-ui-primitives",
-        "lfaa-client-ui-settings-models"
+        "lfaa-client-ui-settings-models",
+        "lfaa-client-ui-commands"
       ]
     }
   },

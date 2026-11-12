@@ -46,6 +46,14 @@ test("所有分类共享默认值，直接保存拒绝非法值且重启不重�
       assert.equal(defaultSettings.general.dialogMotionEffect,"fluid","新账户默认使用柔和流体弹窗动效");
       assert.deepEqual(defaultSettings.plugins.disabledSkillNames,[],'新账户默认没有停用 Skill');
       assert.deepEqual(CARD_MOTION_EFFECT_OPTIONS.map(({id})=>id),["fluid","fade","lift","none"]);
+      assert.deepEqual(defaultSettings.shortcuts.openModelPicker,["Ctrl+Shift+M"],"模型入口快捷键默认使用共享绑定");
+      assert.equal(settingsSchemas.shortcuts.validate(defaultSettings.shortcuts,{convert:false}).error,undefined,"默认模型入口快捷键通过设置校验");
+      assert.ok(settingsSchemas.shortcuts.validate({...defaultSettings.shortcuts,openModelPicker:["☃"]},{convert:false}).error,"模型入口快捷键拒绝不合法字符");
+      const legacyShortcuts={...defaultSettings.shortcuts};delete legacyShortcuts.openModelPicker;
+      saveUserSettings("settings-b","shortcuts",legacyShortcuts);
+      assert.deepEqual(getUserSettings("settings-b").shortcuts.openModelPicker,["Ctrl+Shift+M"],"旧账户缺失新快捷键时使用共享默认值");
+      saveUserSettings("settings-b","shortcuts",{...defaultSettings.shortcuts,openModelPicker:[]});
+      assert.deepEqual(getUserSettings("settings-b").shortcuts.openModelPicker,[],"设置中心保存的空快捷键仍由用户控制");
       clientDefaults.appearance.advanced.contrast=75;assert.notEqual(defaultSettings.appearance.advanced.contrast,75);
       for(const [category,key] of Object.entries({'general':'general','appearance':'appearance','shortcuts':'shortcuts','ai-runtime':'aiRuntime','minecraft-runtime':'minecraftRuntime','git':'git','permissions':'permissions','plugins':'plugins','personalization':'personalization','computer-control':'computerControl','browser-use':'browserUse'})){
         assert.equal(settingsSchemas[category].validate(DEFAULT_USER_SETTINGS[key],{convert:false}).error,undefined);

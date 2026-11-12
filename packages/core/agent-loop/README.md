@@ -1,8 +1,10 @@
 # LFAA Agent Loop
 
-AI Work 会话标题生成沿用当前账户已选模型和 AI Runtime 设置，只向模型发送有界首条用户输入，不提供工具或插件扩展；输出上限为 64 Token，最多四个标题请求并行，同会话在进程内合并。真实 Provider 用量写回该会话首轮助手消息，Session Owner 的标题比较保护手动改名。生成失败保留短回退名，不伪报成功。构建写入仓库根 `dist/packages/core/agent-loop/`。
+AI Work 会话标题生成沿用当前账户已选模型和 AI Runtime 设置，只向模型发送有界首条用户输入，不提供工具或插件扩展；自动输出上限为 512 Token，显式设置的更低 AI Runtime 上限及模型目录上限仍然生效。最多四个标题请求并行，同会话在进程内合并。真实 Provider 用量写回该会话首轮助手消息，Session Owner 的标题比较保护手动改名。生成失败保留短回退名，不伪报成功。构建写入仓库根 `dist/packages/core/agent-loop/`。
 
 主 Agent 每次请求的 Git、工作区、写作和会话记忆背景由 LLM Owner 放在当前用户消息前部，参与同一条请求的 token 估算与压缩；上下文改写同步回规范历史前先移除临时背景前缀，Session 可见对话不变。Provider/模型选择只影响真实请求路由，不选择缓存布局。
+
+开启设置中心 `aiRuntime.promptSuggestions` 后，每条成功的主回复都应附带 1–3 条上下文后续建议。通常由原最终回复请求给出；若模型漏写建议且 `aiRuntime.maxModelRequests` 仍有可用额度，Agent Loop 至多补发一次同账户、无工具请求，只向模型提供本轮公开问题和最终答复。补充请求计入实际请求数与 Token 用量，失败或预算已用完时不影响主答复，也不生成固定建议。Agent Loop 流式剥离有界元数据，并只把公开回复正文和建议分别交给 Session Owner；补充响应不进入公开正文、助手模型历史或工具派发。
 
 ## Pi Agent Core 回合执行器（2026-10-25）
 
@@ -110,6 +112,8 @@ Settings Center 操作遵循模型→`lfaa_settings_list`/`lfaa_settings_update`
 设置中心 AI Runtime Hook 查询只注入 `aiPluginHost.listHooks()` 的读取闭包；不注入插件回调、源码或生命周期写入能力。目录调用继续沿现有工具发现与 Permission Owner 读取流程运行。
 
 Agent 每轮在首个 Provider 请求前通过 Identity/Auth Owner 预留账户使用时长。策略启用时，当前本地时区窗口和每日剩余额度共同决定本轮最大运行时长；同一账户并行 Run 通过 SQLite 事务预留避免超额。限制在 Provider 与工具执行时沿现有取消信号传播，回合结束按实际持续时间结算；用户主动停止与家长控制到限分别如实展示。没有策略或策略关闭时不改变既有运行行为，也不更改 `permissions.mode`。
+
+设置中心 `aiRuntime.promptSuggestions` 开启时，最终模型回复可在同一响应尾部返回有限建议元数据。若模型已在正文以明确后续问题/建议标题列出项目却漏写协议尾块，Agent Loop 只从该模型生成的结构化列表恢复建议，不从普通操作步骤或关键词模板造建议；不额外请求 Provider。
 
 当设置中心 `aiRuntime.autoCompaction` 开启且上下文压力达到溢出阈值时，Agent Loop 将符合 spill Policy 的较早大型工具结果写入当前 Run 的本机临时 Store，并只把不透明引用放进本次 Provider 请求视图。模型需要原文时，Loop 才向当前 Run 提供 `agent_context_read_spill`，通过 spill-local 的稀疏 UTF-8 字节索引流式回读，按 Unicode 字符偏移返回有界片段；单次最多 16,384 个字符。读取仍经已有 Tool/Permission Owner，引用绑定账户、App、Session 和 Run。成功、失败或取消进入 `finally` 时回收临时会话目录；引用不进入 Session 持久化或跨进程恢复。该能力不改变原始历史/事件记录，也不构成持久化正文的全量裁剪。压缩或溢出钩子失败、取消时不会伪造“已缩减”结果：记录诊断后继续主循环，原始历史与后续 Provider 请求不受影响；用户附件图片只进入用户可见的主请求视图，不随内部摘要请求重复发送。
 

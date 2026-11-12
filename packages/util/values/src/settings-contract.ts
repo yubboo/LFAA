@@ -182,6 +182,7 @@ export interface ShortcutSettings {
   switchNormalMode: string[];
   switchAiWorkMode: string[];
   openSideChat: string[];
+  openModelPicker: string[];
   wallpaperSidebarToggle: string[];
 }
 
@@ -469,7 +470,7 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
     confettiEnabled: false
   },
   appearance: { presets: [], theme: "system", accentColor: "#3457d5", sidebarColor: "auto", backgrounds: { login: "none", appCenter: "none", steamcmd: "none", minecraft: "none", writing: "none", settings: "none" }, areaEffects: structuredClone(DEFAULT_APPEARANCE_AREA_EFFECTS), wallpaperEngine: { enabled: false, projectId: "" }, overlay: 65, blur: 14, updateSurfaceOpacity: 92, advanced: structuredClone(DEFAULT_APPEARANCE_ADVANCED_SETTINGS) },
-  shortcuts: { openSettings: ["Ctrl+,"], openHome: ["Alt+0"], openSteamcmd: ["Ctrl+Alt+1"], openMinecraft: ["Ctrl+Alt+2"], openWriting: ["Ctrl+Alt+3"], toggleSidebar: ["Ctrl+B"], toggleContextPanel: ["Ctrl+Alt+B"], toggleBottomPanel: ["Ctrl+J"], openTerminal: ["Ctrl+`"], switchNormalMode: ["Alt+1"], switchAiWorkMode: ["Alt+2"], openSideChat: ["Ctrl+Alt+S"], wallpaperSidebarToggle: [] },
+  shortcuts: { openSettings: ["Ctrl+,"], openHome: ["Alt+0"], openSteamcmd: ["Ctrl+Alt+1"], openMinecraft: ["Ctrl+Alt+2"], openWriting: ["Ctrl+Alt+3"], toggleSidebar: ["Ctrl+B"], toggleContextPanel: ["Ctrl+Alt+B"], toggleBottomPanel: ["Ctrl+J"], openTerminal: ["Ctrl+`"], switchNormalMode: ["Alt+1"], switchAiWorkMode: ["Alt+2"], openSideChat: ["Ctrl+Alt+S"], openModelPicker: ["Ctrl+Shift+M"], wallpaperSidebarToggle: [] },
   aiRuntime: { executionSandboxMode: "workspace-write", speed: "balanced", promptSuggestions: true, showContextUsage: true, requestTimeoutSeconds: 90, requestRetries: 1, retryDelaySeconds: 1, maxOutputTokens: 0, maxModelRequests: 0, maxToolCalls: 0, subagentAccountId: "", imageGenerationMode: "provider", imageGenerationAccountId: "", imageGenerationModelId: "", imageGenerationLocalModelId: "", imageGenerationLocalTimeoutSeconds: 900, imageGenerationUnloadAfterMinutes: 10, videoGenerationMode: "provider", videoGenerationLocalModelId: "", videoGenerationLocalTimeoutSeconds: 900, videoGenerationUnloadAfterMinutes: 10, videoGenerationAccountId: "", videoGenerationModelId: "", videoTranscriptionAccountId: "", videoGenerationDurationSeconds: 5, videoGenerationRatio: "adaptive", videoGenerationResolution: "720p", videoGenerationGenerateAudio: false, videoGenerationWatermark: true, maxSubagents: 4, maxDelegationDepth: 2, voiceInputEnabled: false, readResponsesAloud: false, commandTimeoutSeconds: 0, autoCompaction: true, contextWindowTokens: 32768 },
   minecraftRuntime: { minecraftReadyTimeoutSeconds: 120, minecraftStopTimeoutSeconds: 30, minecraftDefaultMemoryMb: 4096, minecraftDefaultPort: 25565, minecraftDownloadTimeoutSeconds: 1800, minecraftInstallTimeoutSeconds: 900, minecraftExecutionMode: "native", minecraftDefaultCore: "Paper", minecraftBedrockDefaultPort: 19132 },
   git: { branchPrefix: "codex/" },

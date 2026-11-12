@@ -27,11 +27,27 @@ test("Client loads only the active project folder summary and does not register 
   assert.match(clientFunction, /loadWorkspaceProjectGitSummary\(projectId: string, signal\?: AbortSignal\)/u);
   assert.match(clientFunction, /\/git\/summary/u);
   assert.match(clientFunction, /JSON\.stringify\(\{ appId: "workspace" \}\)/u);
-  const summaryEffect = workspace.match(/useEffect\(\(\) => \{\s*const projectId = app === "workspace"[\s\S]*?loadWorkspaceProjectGitSummary\(projectId, controller\.signal\)[\s\S]*?\}, \[activeAiSession\?\.appId,[^\]]*voiceMode\]\);/u)?.[0] ?? "";
+  const summaryEffect = workspace.match(/useEffect\(\(\) => \{\s*const projectId = app === "workspace"[\s\S]*?loadWorkspaceProjectGitSummary\(projectId, controller\.signal\)[\s\S]*?\}, \[activeAiSession\?\.appId,[^\]]*workspaceProjectsRevision[^\]]*\]\);/u)?.[0] ?? "";
   assert.ok(summaryEffect);
   assert.match(summaryEffect, /activeAiSession\.projectId[\s\S]*?loadWorkspaceProjectGitSummary\(projectId, controller\.signal\)/u);
   assert.doesNotMatch(summaryEffect, /loadAgentGitRepositories|registerAgentGitRepository|loadAgentGitStatus/u);
   assert.match(workspace, /registerAgentGitRepository\(folder\.path, title\)/u);
+});
+
+test("Reopening a loaded project Git summary reuses its snapshot until its account, project, or refresh revision changes", () => {
+  const summaryEffect = workspace.match(/useEffect\(\(\) => \{\s*const projectId = app === "workspace"[\s\S]*?loadWorkspaceProjectGitSummary\(projectId, controller\.signal\)[\s\S]*?\}, \[activeAiSession\?\.appId,[^\]]*workspaceProjectsRevision[^\]]*\]\);/u)?.[0] ?? "";
+  const cacheGuard = summaryEffect.match(/if \(cachedSnapshot\?\.key === workspaceGitSummaryCacheKey && cachedSnapshot\.revision === gitRefreshRevision\) \{[\s\S]*?\}/u)?.[0] ?? "";
+  assert.ok(summaryEffect, "摘要应有一个明确的项目摘要加载 effect");
+  assert.ok(/const workspaceGitSummaryCacheRef = useRef/u.test(workspace), "成功快照应留在当前工作区组件生命周期内");
+  assert.ok(/useEffect\(\(\) => \{\s*workspaceGitSummaryCacheRef\.current = null;\s*\}, \[app, userId\]\)/u.test(workspace), "切换账户或 App 时应清空旧快照");
+  assert.ok(/const workspaceGitSummaryCacheKey = JSON\.stringify\(\[userId, app, projectId, workspaceProjectsRevision\]\)/u.test(summaryEffect), "缓存键应绑定当前账户、App、项目及已刷新项目目录版本");
+  assert.ok(/if \(!gitSummaryOpen\) return;/u.test(summaryEffect), "关闭面板应保留成功快照");
+  assert.ok(cacheGuard, "同一上下文和刷新版本的缓存命中必须早于再次读取");
+  assert.ok(summaryEffect.indexOf(cacheGuard) < summaryEffect.indexOf("loadWorkspaceProjectGitSummary(projectId, controller.signal)"));
+  assert.ok(/workspaceGitSummaryCacheRef\.current = \{ key: workspaceGitSummaryCacheKey, revision: gitRefreshRevision, summary: folders \}/u.test(summaryEffect), "只缓存当前版本的成功结果");
+  assert.ok(!/\.catch\([\s\S]*?workspaceGitSummaryCacheRef\.current\s*=/u.test(summaryEffect), "失败的读取不得缓存");
+  assert.ok(/return \(\) => \{ active = false; window\.clearTimeout\(timer\); controller\.abort\(\); \}/u.test(summaryEffect), "切换项目或关闭面板时应撤销请求");
+  assert.ok(/userId/u.test(summaryEffect) && /workspaceProjectsRevision/u.test(summaryEffect), "账户和项目目录重新对账时应重新读取");
 });
 
 test("Session file sources open in the right workspace and the full list is a real tab", () => {

@@ -26,6 +26,7 @@ test("Provider 目录只提供明确声明的模型力度并保留厂商顺序�
 });
 
 test("设置中心和 AI Work 共用目录选项且 Provider 默认不伪装成无思考", () => {
+  assert.equal(modelOptions.reasoningModeLabel("xhigh"), "极高", "Composer 强度文案与参考图保持简洁，值仍映射到 Provider 的 xhigh");
   const model = {
     id: "provider-model",
     name: "Provider Model",

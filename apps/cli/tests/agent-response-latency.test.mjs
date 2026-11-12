@@ -44,19 +44,26 @@ assert.ok(localTool);
 registerAiBusinessTool({ effect: setup => { const dispose = setup(); disposers.push(dispose); return dispose; } }, localTool);
 test.after(() => { for (const dispose of disposers) dispose(); });
 
-async function run(decide, abortController = new AbortController(), sessionId = null) {
+async function run(decide, abortController = new AbortController(), sessionId = null, maxModelRequests = 4, promptSuggestions = false) {
   const originalFetch = globalThis.fetch, bodies = [], emitted = [];
+  let decisionError;
+  const originalAiRuntime = settings.getUserSettings(owner).aiRuntime;
+  settings.saveUserSettings(owner, "ai-runtime", { ...originalAiRuntime, maxModelRequests, promptSuggestions });
   const turn = sessions.createAiTurn(owner, "workspace", sessionId, "合成简单目标");
   globalThis.fetch = async (_url, options) => {
     const body = JSON.parse(options.body); bodies.push(body);
     assert.equal(body.model, account.modelId);
     assert.equal(body.reasoning_effort, "high", "不能通过降低用户思考力度来缩短耗时");
-    return decide(body, bodies.length);
+    try { return await decide(body, bodies.length); }
+    catch (error) { decisionError = error; throw error; }
   };
   try {
     await executeAiTurn({ userId: owner, userRole: "admin", body: { appId: "workspace", sessionId: turn.session.id, content: "合成简单目标" }, turn, aiPluginHost: host, abortController, emit: (event, data) => emitted.push({ event, data }), modelResolver: { resolve: () => account }, approvalNotifications: {}, allowedToolNames: [localTool.name] });
-    return { bodies, emitted, turn, result: sessions.getAiRun(owner, turn.assistantMessage.id) };
-  } finally { globalThis.fetch = originalFetch; }
+    return { bodies, emitted, turn, result: sessions.getAiRun(owner, turn.assistantMessage.id), decisionError };
+  } finally {
+    globalThis.fetch = originalFetch;
+    settings.saveUserSettings(owner, "ai-runtime", originalAiRuntime);
+  }
 }
 
 test("简单回答只请求一次；推理、正文阶段真实结束且耗时不归零", async () => {
@@ -76,6 +83,106 @@ test("简单回答只请求一次；推理、正文阶段真实结束且耗时�
   assert.equal(stages.length, 3);
   for (const stage of stages) { assert.ok(stage.completedAt); assert.ok(stage.durationMs >= 10); }
   assert.doesNotMatch(JSON.stringify(result.emitted), /隐藏的合成推理/u);
+});
+
+test("最终答复的上下文建议共用同一 Provider 请求并以公开消息元数据保存", async () => {
+  const suggestions = ["为这段改动补一条失败路径回归。", "再检查窄分栏下按钮是否换行。"];
+  const answer = "核心改动已完成，接下来可以核对边界和布局。";
+  const privateTail = `<lfaa-prompt-suggestions>${JSON.stringify({ items: suggestions })}</lfaa-prompt-suggestions>`;
+  const result = await run(() => response({ content: `${answer}\n${privateTail}` }), new AbortController(), null, 4, true);
+
+  assert.equal(result.bodies.length, 1, "建议不得额外触发 Provider 请求");
+  assert.equal(result.result.status, "complete");
+  assert.equal(result.result.message.content, `${answer}\n`);
+  assert.deepEqual(result.result.message.promptSuggestions, suggestions);
+  assert.ok(!result.result.message.activity.some(activity => activity.kind === "prompt-suggestions"));
+  assert.deepEqual(result.emitted.filter(event => event.event === "prompt-suggestions").map(event => event.data.suggestions), [suggestions]);
+  assert.doesNotMatch(JSON.stringify(result.emitted.filter(event => event.event === "delta")), /lfaa-prompt-suggestions/u);
+
+  const page = await sessions.getAiSessionMessagesPage(owner, result.turn.session.id, undefined, 100);
+  const persisted = page.messages.find(message => message.id === result.turn.assistantMessage.id);
+  assert.equal(persisted.content, `${answer}\n`);
+  assert.deepEqual(persisted.promptSuggestions, suggestions);
+  const sessionEvents = sessionRecords.allForSession("session_events", result.turn.session.id);
+  const modelResponses = sessionEvents.filter(event => event.type === "assistant/response");
+  assert.doesNotMatch(JSON.stringify(modelResponses), /lfaa-prompt-suggestions|建议一|建议二/u);
+  assert.doesNotMatch(JSON.stringify(sessionEvents.filter(event => event.type === "activity/change")), /prompt-suggestions|建议一|建议二/u);
+});
+
+test("模型漏写建议协议但正文明确列出后续问题时仍发送建议事件", async () => {
+  const suggestions = [
+    "Cache-Control 的 max-age 与 s-maxage 分别控制哪一层缓存？",
+    "浏览器如何用 ETag 发起协商缓存请求？"
+  ];
+  const answer = [
+    "HTTP 缓存能减少传输、降低服务器压力，并通过缓存策略平衡性能与新鲜度。",
+    "",
+    "两个后续学习问题：",
+    `1. ${suggestions[0]}`,
+    `2. ${suggestions[1]}`
+  ].join("\n");
+  const result = await run(() => response({ content: answer }), new AbortController(), null, 4, true);
+
+  assert.equal(result.bodies.length, 1, "恢复建议不得发起额外 Provider 请求");
+  assert.equal(result.result.message.content, answer);
+  assert.deepEqual(result.result.message.promptSuggestions, suggestions);
+  assert.deepEqual(result.emitted.filter(event => event.event === "prompt-suggestions").map(event => event.data.suggestions), [suggestions]);
+});
+
+test("主回复漏写建议时使用同账户的一次无工具补充请求并只保存私有建议", async () => {
+  const answer = "HTTP 206 表示服务器返回了资源的一部分，常用于断点续传。";
+  const suggestions = ["如何用 Range 请求下载文件的一部分？", "哪些场景会返回 416 Range Not Satisfiable？"];
+  const privateTail = `<lfaa-prompt-suggestions>${JSON.stringify({ items: suggestions })}</lfaa-prompt-suggestions>`;
+  const result = await run((_body, count) => {
+    if (count === 1) return response({ content: answer });
+    assert.equal(count, 2);
+    assert.equal(_body.model, account.modelId, "补充请求必须沿用本轮已选模型");
+    assert.equal(_body.tools, undefined, "补充请求不得向 Provider 提供工具");
+    assert.equal(_body.messages.filter(message => message.role === "user").length, 1);
+    assert.ok(!_body.messages.some(message => message.role === "tool"));
+    const current = _body.messages.at(-1).content;
+    const source = JSON.parse(current.slice(current.indexOf("\n") + 1));
+    assert.equal(source.userRequest, "合成简单目标");
+    assert.equal(source.finalAnswer, answer);
+    assert.match(_body.messages[0].content, /仅生成私有建议元数据/u);
+    return response({ content: privateTail });
+  }, new AbortController(), null, 4, true);
+
+  assert.equal(result.decisionError, undefined);
+  assert.equal(result.bodies.length, 2);
+  assert.equal(result.result.status, "complete");
+  assert.equal(result.result.message.content, answer, "补充响应不能拼进公开答复");
+  assert.deepEqual(result.result.message.promptSuggestions, suggestions);
+  assert.deepEqual(result.emitted.filter(event => event.event === "prompt-suggestions").map(event => event.data.suggestions), [suggestions]);
+  assert.doesNotMatch(JSON.stringify(result.emitted.filter(event => event.event === "delta")), /lfaa-prompt-suggestions|Range Not Satisfiable/u);
+  const usage = result.emitted.find(event => event.event === "usage");
+  assert.equal(usage.data.models[0].requestCount, 2, "补充请求必须计入本轮请求数");
+
+  const events = sessionRecords.allForSession("session_events", result.turn.session.id);
+  assert.equal(events.filter(event => event.type === "assistant/response").length, 1, "补充响应不能进入模型历史");
+  assert.doesNotMatch(JSON.stringify(events.filter(event => event.type === "assistant/response")), /Range Not Satisfiable|lfaa-prompt-suggestions/u);
+});
+
+test("补充请求用尽预算时保留原答复且不生成伪建议", async () => {
+  const answer = "HTTP 206 表示返回了部分内容。";
+  const result = await run(() => response({ content: answer }), new AbortController(), null, 1, true);
+
+  assert.equal(result.bodies.length, 1);
+  assert.equal(result.result.status, "complete");
+  assert.equal(result.result.message.content, answer);
+  assert.deepEqual(result.result.message.promptSuggestions ?? [], []);
+  assert.ok(result.result.message.activity.some(activity => activity.title === "后续建议未生成" && /预算已用完/u.test(activity.detail)));
+});
+
+test("补充请求失败不改变已经生成的主答复", async () => {
+  const answer = "HTTP 206 表示返回了部分内容。";
+  const result = await run((_body, count) => count === 1 ? response({ content: answer }) : Promise.reject(new Error("合成 Provider 故障")), new AbortController(), null, 4, true);
+
+  assert.equal(result.bodies.length, 2);
+  assert.equal(result.result.status, "complete");
+  assert.equal(result.result.message.content, answer);
+  assert.deepEqual(result.result.message.promptSuggestions ?? [], []);
+  assert.ok(result.result.message.activity.some(activity => activity.title === "后续建议未生成"));
 });
 
 test("合成 Provider 单次工具调用与结果续接记录当前端到端 P50/P95", async t => {

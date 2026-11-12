@@ -5,7 +5,7 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { formatAiUsageFooterLabel, projectAiSessionUsageDisplay } from "../../../packages/client/ui-chat/src/usage-summary.ts";
+import { formatAiSessionUsageEmptyLabel, formatAiUsageFooterLabel, projectAiSessionUsageDisplay } from "../../../packages/client/ui-chat/src/usage-summary.ts";
 
 test("缓存标签根据 Provider 回报计算，显式零保持为零", () => {
   assert.equal(formatAiUsageFooterLabel({ providerId: "deepseek", modelId: "deepseek-flash", promptTokens: 1000, completionTokens: 25, cacheReadTokens: 375 }, false, true), "本轮 1,000 输入 · 25 输出 · 缓存命中 37.5% · 375 tokens · deepseek / deepseek-flash");
@@ -24,7 +24,13 @@ test("没有本轮用量时明确区分正在获取、未上报和尚无会话",
   assert.equal(formatAiUsageFooterLabel(null, false, false), "缓存读数会在 Provider 返回用量后显示");
 });
 
-test("会话缓存展示不跨模型合并命中率，缺字段和异常值不伪造结果", () => {
+test("会话用量空态不把没有汇总记录误报为 Provider 丢失统计", () => {
+  assert.equal(formatAiSessionUsageEmptyLabel({ busy: false, usageLoadState: "ready", hasAssistantMessage: true }), "当前会话暂无可用用量记录");
+  assert.equal(formatAiSessionUsageEmptyLabel({ busy: true, usageLoadState: "ready", hasAssistantMessage: true }), "正在获取会话用量…");
+  assert.equal(formatAiSessionUsageEmptyLabel({ busy: false, usageLoadState: "error", hasAssistantMessage: true }), "会话用量读取失败");
+});
+
+test("系统级会话缓存汇总跨模型累计命中率", () => {
   const oneModel = projectAiSessionUsageDisplay({ requestCount: 2, promptTokens: 1500, completionTokens: 35, cacheReadTokens: 375, models: [
     { providerId: "deepseek", modelId: "flash", requestCount: 2, promptTokens: 1500, completionTokens: 35, cacheReadTokens: 375, cacheReadReportedRequestCount: 2 }
   ] });
@@ -34,7 +40,7 @@ test("会话缓存展示不跨模型合并命中率，缺字段和异常值不�
     { providerId: "deepseek", modelId: "flash", requestCount: 1, promptTokens: 100, completionTokens: 10, cacheReadTokens: 50, cacheReadReportedRequestCount: 1 },
     { providerId: "other", modelId: "large", requestCount: 1, promptTokens: 200, completionTokens: 15, cacheReadTokens: 0, cacheReadReportedRequestCount: 1 }
   ] });
-  assert.deepEqual(twoModels, { totalTokens: 325, cachePercent: null, cacheLabel: "多模型缓存明细" });
+  assert.deepEqual(twoModels, { totalTokens: 325, cachePercent: 50 / 300 * 100, cacheLabel: "缓存命中 16.7%" });
 
   const missing = projectAiSessionUsageDisplay({ requestCount: 1, promptTokens: 10, completionTokens: 2, cacheReadTokens: null, models: [
     { providerId: "deepseek", modelId: "flash", requestCount: 1, promptTokens: 10, completionTokens: 2, cacheReadTokens: null, cacheReadReportedRequestCount: 0 }
@@ -47,4 +53,16 @@ test("会话缓存展示不跨模型合并命中率，缺字段和异常值不�
   ] });
   assert.equal(partial.cachePercent, null);
   assert.equal(partial.cacheLabel, "缓存读数不完整");
+});
+
+test("切换模型后保留已知缓存读取量，并标出未返回统计的请求覆盖数", () => {
+  const partialAcrossModels = projectAiSessionUsageDisplay({ requestCount: 3, promptTokens: 400, completionTokens: 20, cacheReadTokens: null, models: [
+    { providerId: "deepseek", modelId: "flash", requestCount: 2, requestCountExact: true, promptTokens: 100, completionTokens: 8, cacheReadTokens: null, cacheReadReportedTokens: 40, cacheReadReportedRequestCount: 1 },
+    { providerId: "other", modelId: "large", requestCount: 1, requestCountExact: true, promptTokens: 300, completionTokens: 12, cacheReadTokens: null, cacheReadReportedTokens: 0, cacheReadReportedRequestCount: 0 }
+  ] });
+  assert.deepEqual(partialAcrossModels, {
+    totalTokens: 420,
+    cachePercent: null,
+    cacheLabel: "缓存读取 40 tokens · 1/3 次模型请求已统计"
+  });
 });

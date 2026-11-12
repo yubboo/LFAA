@@ -96,6 +96,44 @@ test("正文分段和审批记录经 JSONL 重启与分页保留，非法范围�
   }
 });
 
+test("回复后续建议经 JSONL 重启保留为独立展示字段，不进入活动、模型历史或便携导出", () => {
+  const parent = resolve(cli, "../../dist/.tmp"); mkdirSync(parent, { recursive: true });
+  const data = mkdtempSync(join(parent, "lfaa-session-prompt-suggestions-"));
+  try {
+    const output = run(data, `${setup}
+      (await import('lfaa-storage-domain/src/migration.js')).retireLegacyFileTables();
+      database.prepare("INSERT INTO users(id,username,password_salt,password_hash,role) VALUES ('suggest-owner','suggest-owner','salt','hash','admin')").run();
+      const turn=sessions.createAiTurn('suggest-owner','workspace',null,'检查这次改动');
+      sessions.finishAiAssistantMessage('suggest-owner',turn.session.id,turn.assistantMessage.id,'改动已完成。','complete');
+      const suggestions=['补一条失败路径回归。','再检查窄分栏布局。'];
+      assert.deepEqual(sessions.saveAiAssistantPromptSuggestions('suggest-owner',turn.session.id,turn.assistantMessage.id,suggestions),suggestions);
+      const message=sessions.getAiSessionMessages('suggest-owner',turn.session.id).at(-1);
+      assert.deepEqual(message.promptSuggestions,suggestions);
+      assert.deepEqual(message.activity,[]);
+      const activityEvents=sessionRecords.allForSession('session_events',turn.session.id).filter(event=>event.type==='activity/change');
+      assert.doesNotMatch(JSON.stringify(activityEvents),/prompt-suggestions|补一条失败路径/u);
+      console.log(JSON.stringify({sessionId:turn.session.id}));close();
+    `);
+    run(data, `${setup}
+      const {exportPortableAiSessions}=await import('lfaa-session/src/sessions.js');
+      const {sessionId}=${JSON.stringify(JSON.parse(output))};
+      const page=await sessions.getAiSessionMessagesPage('suggest-owner',sessionId,undefined,100);
+      const reply=page.messages.at(-1);
+      assert.deepEqual(reply.promptSuggestions,['补一条失败路径回归。','再检查窄分栏布局。']);
+      assert.equal(reply.content,'改动已完成。');
+      assert.deepEqual(reply.activity,[]);
+      const next=sessions.createAiTurn('suggest-owner','workspace',sessionId,'继续处理建议');
+      assert.doesNotMatch(JSON.stringify(next.history),/prompt-suggestions|补一条失败路径/u);
+      assert.doesNotMatch(JSON.stringify(exportPortableAiSessions('suggest-owner',{includeAgentContext:true})),/prompt-suggestions|补一条失败路径/u);
+      close();
+    `);
+  } finally {
+    assert.equal(dirname(resolve(data)), parent);
+    assert.ok(basename(data).startsWith("lfaa-session-prompt-suggestions-"));
+    rmSync(data, { recursive: true, force: true });
+  }
+});
+
 test("私有 Provider 续接协议经 JSONL 重启恢复，消息、查询与导出始终只返回公开字段", () => {
   const parent = resolve(cli, '../../dist/.tmp');
   mkdirSync(parent, { recursive: true });

@@ -11,14 +11,41 @@ export function projectAiSessionUsageDisplay(summary: AiSessionUsageSummary): Ai
   const totalTokens = summary.promptTokens === null || summary.completionTokens === null
     ? null
     : summary.promptTokens + summary.completionTokens;
-  if (summary.models.length !== 1) return { totalTokens, cachePercent: null, cacheLabel: summary.models.length > 1 ? "多模型缓存明细" : "缓存命中未知" };
-  const model = summary.models[0]!;
-  if (model.cacheReadTokens === null) return { totalTokens, cachePercent: null, cacheLabel: "缓存读数不完整" };
-  if (model.promptTokens === null) return { totalTokens, cachePercent: null, cacheLabel: "输入用量未知，无法计算命中率" };
-  if (model.cacheReadTokens > model.promptTokens) return { totalTokens, cachePercent: null, cacheLabel: "缓存计数与输入量不一致" };
-  if (model.promptTokens === 0) return { totalTokens, cachePercent: model.cacheReadTokens === 0 ? 0 : null, cacheLabel: model.cacheReadTokens === 0 ? "缓存命中 0.0%" : "缓存计数与输入量不一致" };
-  const cachePercent = model.cacheReadTokens / model.promptTokens * 100;
-  return { totalTokens, cachePercent, cacheLabel: `缓存命中 ${cachePercent.toFixed(1)}%` };
+  if (!summary.models.length) return { totalTokens, cachePercent: null, cacheLabel: "缓存命中未知" };
+
+  // 缓存布局与汇总是系统级能力；多模型会话使用同一组累计计数，不因路由变化隐藏此前的命中。
+  if (summary.promptTokens !== null && summary.cacheReadTokens !== null) {
+    if (summary.cacheReadTokens > summary.promptTokens) return { totalTokens, cachePercent: null, cacheLabel: "缓存计数与输入量不一致" };
+    if (summary.promptTokens === 0) return { totalTokens, cachePercent: summary.cacheReadTokens === 0 ? 0 : null, cacheLabel: summary.cacheReadTokens === 0 ? "缓存命中 0.0%" : "缓存计数与输入量不一致" };
+    const cachePercent = summary.cacheReadTokens / summary.promptTokens * 100;
+    return { totalTokens, cachePercent, cacheLabel: `缓存命中 ${cachePercent.toFixed(1)}%` };
+  }
+
+  // 有请求缺少缓存字段时，仍展示已经确认的读取量；只对完整覆盖的会话计算命中率。
+  let reportedTokens = 0;
+  let hasReportedTokens = false;
+  for (const model of summary.models) {
+    const knownTokens = model.cacheReadTokens ?? model.cacheReadReportedTokens;
+    if (knownTokens !== null && knownTokens !== undefined && Number.isSafeInteger(knownTokens) && knownTokens >= 0) {
+      reportedTokens += knownTokens;
+      hasReportedTokens = true;
+    }
+  }
+  if (!hasReportedTokens) return { totalTokens, cachePercent: null, cacheLabel: summary.promptTokens === null ? "输入用量未知，无法计算命中率" : "缓存读数不完整" };
+
+  const exactRequestCounts = summary.requestCountExact !== false && summary.models.every(model => model.requestCountExact !== false);
+  const exactCoverage = exactRequestCounts && summary.models.every(model => model.cacheReadReportedRequestCount !== null && model.cacheReadReportedRequestCount !== undefined);
+  const coverage = exactCoverage
+    ? `${summary.models.reduce((sum, model) => sum + (model.cacheReadReportedRequestCount ?? 0), 0).toLocaleString("zh-CN")}/${summary.models.reduce((sum, model) => sum + model.requestCount, 0).toLocaleString("zh-CN")} 次模型请求已统计`
+    : "缓存统计覆盖数未知";
+  return { totalTokens, cachePercent: null, cacheLabel: `缓存读取 ${reportedTokens.toLocaleString("zh-CN")} tokens · ${coverage}` };
+}
+
+export function formatAiSessionUsageEmptyLabel(input: { busy: boolean; usageLoadState: "loading" | "ready" | "error"; hasAssistantMessage: boolean }): string {
+  if (input.busy) return "正在获取会话用量…";
+  if (input.usageLoadState === "loading") return "正在读取会话用量…";
+  if (input.usageLoadState === "error") return "会话用量读取失败";
+  return input.hasAssistantMessage ? "当前会话暂无可用用量记录" : "发送消息后显示用量";
 }
 
 /** Formats only Provider-reported usage; missing fields stay unknown. */

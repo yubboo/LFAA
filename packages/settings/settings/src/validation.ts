@@ -395,6 +395,7 @@ export const shortcutsSchema = Joi.object({
   switchNormalMode: shortcutBindingsSchema,
   switchAiWorkMode: shortcutBindingsSchema,
   openSideChat: shortcutBindingsSchema.optional().default(DEFAULT_USER_SETTINGS.shortcuts.openSideChat),
+  openModelPicker: shortcutBindingsSchema.optional().default(DEFAULT_USER_SETTINGS.shortcuts.openModelPicker),
   wallpaperSidebarToggle: shortcutBindingsSchema.optional().default(DEFAULT_USER_SETTINGS.shortcuts.wallpaperSidebarToggle)
 }).unknown(false);
 

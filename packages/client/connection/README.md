@@ -6,6 +6,8 @@ Minecraft Java 环境摘要在运行时返回发行版、完整版本、架构�
 
 AI Session Client 暴露 `renameAiSession()` 与 `generateAiSessionTitle()`，只传会话 ID 和用户标题/生成请求，并消费 Session Controller 返回的真实会话标题及状态；Client 不在本地推断持久化是否成功。构建写入仓库根 `dist/packages/client/connection/`。
 
+AI Work SSE 的 `prompt-suggestions` 事件仅传递 Session Owner 已校验的建议数组；历史消息沿独立的 `AiMessage.promptSuggestions` 字段回读，Connection 不生成建议或执行按钮内容。
+
 `UserPreferences.guidedEntryCompleted` 与最近 App/模式选择共用认证 `/preferences` 读写合同；Connection 只传递账户级偏好，不另存向导状态或工作区内容。
 
 `AiWorkbenchView` 只传递当前可见工作区状态，包括 `project-file` 右侧文件页签。Canvas/Workflow 引用含当前 App、真实 Owner ID、标题及 `updatedAt`，只随新 Agent Run 请求发送；不持久化到 Session，也不授予工具或操作权限。`readWorkspaceProjectTextFile`、`loadWorkspaceGitStatus` 和 `loadWorkspaceGitFileDiff` 保持认证项目/节点边界，UI 不访问本机文件系统；项目文件读取、Git 状态和单文件差异均透传活动 `sourceId`，并支持 AbortSignal 取消过期读取。`loadWorkflowRuns` 支持 AbortSignal，供隐藏或卸载的画布面板撤销状态读取。

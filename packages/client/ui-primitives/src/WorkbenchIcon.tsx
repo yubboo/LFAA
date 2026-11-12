@@ -11,8 +11,8 @@
 import type { ReactElement, SVGProps } from "react";
 
 export type WorkbenchIconName =
-  | "archive" | "bolt" | "book" | "branch" | "browser" | "chat" | "check" | "chevron" | "close" | "copy" | "dots" | "file" | "folder" | "grid" | "history"
-  | "help" | "home" | "keyboard" | "microphone" | "moon" | "monitor" | "new" | "panelLeft" | "panelRight" | "plus" | "refresh" | "review" | "search"
+  | "archive" | "bolt" | "book" | "branch" | "browser" | "chat" | "check" | "chevron" | "close" | "copy" | "cube" | "dots" | "file" | "folder" | "grid" | "history"
+  | "film" | "help" | "home" | "keyboard" | "microphone" | "mobile" | "moon" | "monitor" | "new" | "panelLeft" | "panelRight" | "plus" | "refresh" | "review" | "search"
   | "settings" | "shield" | "spark" | "summary" | "sun" | "terminal" | "thumbDown" | "thumbUp" | "tools" | "trash" | "user" | "bell" | "extension" | "arrowRight";
 
 export interface WorkbenchIconProps extends Omit<SVGProps<SVGSVGElement>, "name"> {
@@ -33,8 +33,10 @@ const paths: Record<WorkbenchIconName, ReactElement> = {
   chevron: <path d="m8 10 4 4 4-4"/>,
   close: <><path d="m6 6 12 12"/><path d="M18 6 6 18"/></>,
   copy: <><rect x="9" y="9" width="11" height="12" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></>,
+  cube: <><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5"/><path d="M12 12v9"/></>,
   dots: <><circle cx="6" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18" cy="12" r="1.3"/></>,
   extension: <><path d="M9 3v5a2 2 0 1 1-4 0V7H3v5h5a2 2 0 1 1 0 4H7v5h5v-5a2 2 0 1 1 4 0v1h5v-5h-5a2 2 0 1 1 0-4h1V3h-5v5a2 2 0 1 1-4 0V3Z"/></>,
+  film: <><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/></>,
   file: <><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5"/></>,
   folder: <><path d="M3 6h7l2 2h9v11H3z"/></>,
   grid: <><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></>,
@@ -44,6 +46,7 @@ const paths: Record<WorkbenchIconName, ReactElement> = {
   keyboard: <><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h.01M10 9h.01M13 9h.01M16 9h.01M7 12h.01M10 12h.01M13 12h.01M16 12h.01M8 15h8"/></>,
   moon: <path d="M20 15.2A8.5 8.5 0 0 1 8.8 4 8.8 8.8 0 1 0 20 15.2Z"/>,
   microphone: <><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/></>,
+  mobile: <><rect x="6.5" y="2.5" width="11" height="19" rx="2"/><path d="M10 5h4M11.5 18.5h1"/></>,
   monitor: <><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></>,
   new: <><path d="M5 19h4L19 9l-4-4L5 15v4Z"/><path d="m13 7 4 4"/></>,
   panelLeft: <><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></>,

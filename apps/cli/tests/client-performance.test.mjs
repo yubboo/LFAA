@@ -273,9 +273,12 @@ test("AI Work流式增量保持历史消息行的记忆边界", () => {
   const chat = readFileSync(new URL("../../../packages/client/ui-chat/src/AiWorkChat.tsx", import.meta.url), "utf8");
   assert.match(chat, /const AiWorkMessageRow = memo\(function AiWorkMessageRow/u);
   assert.match(chat, /return <AiWorkMessageRow[\s\S]*?message=\{item\}[\s\S]*?actions=\{messageRowActions\}/u);
+  assert.match(chat, /const EMPTY_PROMPT_SUGGESTIONS: readonly string\[\] = Object\.freeze\(\[\]\)/u);
+  assert.match(chat, /visiblePromptSuggestions=\{item\.promptSuggestions \?\? EMPTY_PROMPT_SUGGESTIONS\}/u);
   assert.match(chat, /editingMessage=\{editingMessage\?\.messageId === item\.id \? editingMessage : null\}/u);
   assert.match(chat, /expandedActivitySteps=\{expandedActivitySteps\?\.messageId === item\.id \? expandedActivitySteps : null\}/u);
-  assert.match(chat, /useLayoutEffect\(\(\) => \{\s*messageRowActionsRef\.current = \{\s*copyMessage,\s*editUserMessage,\s*submitEditedMessage,\s*cancelMessageEditing,\s*openMessageFeedback,\s*toggleActivityStep,\s*openWritingProposal\s*\};\s*\}, \[copyMessage, editUserMessage, submitEditedMessage, cancelMessageEditing, openMessageFeedback, toggleActivityStep, openWritingProposal\]\)/u);
+  assert.match(chat, /messageRowActionsRef\.current = \{[\s\S]*?openWritingProposal,[\s\S]*?submitPromptSuggestion: \(messageId, suggestion\) => promptSuggestionSubmissionGateRef\.current\?\.submit/u);
+  assert.match(chat, /useLayoutEffect\(\(\) => \{[\s\S]*?messageRowActionsRef\.current = \{[\s\S]*?\}, \[[^\]]*hasQueuedRuns\]\)/u);
   assert.match(chat, /setMessages\(current => current\.map\(item => item\.id === value\.messageId \? appendAiTextDelta\(item, value\) : item\)\)/u);
 });
 

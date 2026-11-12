@@ -3312,6 +3312,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           <ShortcutRow title="切换应用导航栏" value={settings.shortcuts.toggleSidebar} onChange={(value) => updateShortcut("toggleSidebar", value)} />
           <ShortcutRow title="切换工具与资源栏" value={settings.shortcuts.toggleContextPanel} onChange={(value) => updateShortcut("toggleContextPanel", value)} />
           <ShortcutRow title="打开侧边聊天" value={settings.shortcuts.openSideChat} onChange={(value) => updateShortcut("openSideChat", value)} />
+          <ShortcutRow title="打开模型与推理选择" value={settings.shortcuts.openModelPicker} onChange={(value) => updateShortcut("openModelPicker", value)} />
           <ShortcutRow title="切换壁纸引擎侧栏" value={settings.shortcuts.wallpaperSidebarToggle} onChange={(value) => updateShortcut("wallpaperSidebarToggle", value)} />
           <ShortcutRow title="切换底部面板" value={settings.shortcuts.toggleBottomPanel} onChange={(value) => updateShortcut("toggleBottomPanel", value)} />
           <ShortcutRow title="打开终端面板" value={settings.shortcuts.openTerminal} onChange={(value) => updateShortcut("openTerminal", value)} />

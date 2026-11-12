@@ -193,10 +193,14 @@ test("后台任务断线继续、账户隔离、协议恢复和取消", () => {
       settings.saveUserSettings('fixture-owner','ai-runtime',settings.defaultSettings.aiRuntime);
       const {shortcutsSchema}=await import('lfaa-api-remotes/src/route-contracts.js');
       assert.deepEqual(settings.defaultSettings.shortcuts.openSideChat,['Ctrl+Alt+S']);
+      assert.deepEqual(settings.defaultSettings.shortcuts.openModelPicker,['Ctrl+Shift+M']);
       assert.equal(shortcutsSchema.validate(settings.defaultSettings.shortcuts).error,undefined);
-      const legacyShortcuts={...settings.defaultSettings.shortcuts};delete legacyShortcuts.openSideChat;
+      const legacyShortcuts={...settings.defaultSettings.shortcuts};delete legacyShortcuts.openSideChat;delete legacyShortcuts.openModelPicker;
       settings.saveUserSettings('fixture-owner','shortcuts',legacyShortcuts);
       assert.deepEqual(settings.getUserSettings('fixture-owner').shortcuts.openSideChat,['Ctrl+Alt+S'],'旧账户快捷键配置应继承新增功能的设置中心默认值');
+      assert.deepEqual(settings.getUserSettings('fixture-owner').shortcuts.openModelPicker,['Ctrl+Shift+M'],'旧账户快捷键配置应继承模型入口的共享默认值');
+      settings.saveUserSettings('fixture-owner','shortcuts',{...settings.defaultSettings.shortcuts,openModelPicker:[]});
+      assert.deepEqual(settings.getUserSettings('fixture-owner').shortcuts.openModelPicker,[],'显式清空模型快捷键应保留用户选择');
       settings.saveUserSettings('fixture-owner','shortcuts',settings.defaultSettings.shortcuts);
       const {pluginsSettingsSchema}=await import('lfaa-api-remotes/src/route-contracts.js');
       const legacyPlugins=pluginsSettingsSchema.validate({enabled:true,mcpServers:[{id:'legacy',name:'旧服务',url:'http://127.0.0.1:1234/mcp',enabled:true}]});

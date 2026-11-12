@@ -79,6 +79,8 @@ export interface AiMessageView {
   status: "complete" | "queued" | "streaming" | "interrupted" | "error";
   createdAt: string;
   activity: AiActivityItem[];
+  /** Agent 依据本轮最终答复生成的有界公开建议；不属于普通执行活动。 */
+  promptSuggestions?: string[];
   usage?: AiMessageUsageView;
   parts?: SessionReplyPart[];
   feedback?: AiMessageFeedbackView;
@@ -130,7 +132,7 @@ export interface AiMessageFeedbackInput {
 
 export interface AiActivityItem {
   id: string;
-  kind: "status" | "skill" | "tool" | "command" | "agent" | "question";
+  kind: "status" | "skill" | "tool" | "command" | "agent" | "question" | "prompt-suggestions";
   title: string;
   status: "running" | "approval_required" | "waiting_input" | "complete" | "error" | "unavailable";
   detail: string;
@@ -1024,6 +1026,11 @@ function mapMessage(row: MessageRow, feedback?: AiMessageFeedbackView, usage?: A
   } catch {
     // 单条消息的旧版或损坏活动 JSON 回退为空，不影响会话文本读取。
   }
+  const promptSuggestionItem = row.role === "assistant" && row.status === "complete"
+    ? activity.find(item => item.kind === "prompt-suggestions")
+    : undefined;
+  const promptSuggestions = promptSuggestionItem?.options;
+  activity = activity.filter(item => item.kind !== "prompt-suggestions");
   let attachments: AiMessageAttachment[] = [];
   try {
     const raw: unknown = row.attachments_json ? JSON.parse(row.attachments_json) : [];
@@ -1031,7 +1038,7 @@ function mapMessage(row: MessageRow, feedback?: AiMessageFeedbackView, usage?: A
   } catch {
     // 损坏的附件引用回退为空，不影响消息正文读取。
   }
-  return { id: row.id, role: row.role, content: row.content, status: row.status, createdAt: row.created_at, activity, ...(row.role === "user" && attachments.length ? { attachments } : {}), ...(usage && row.role === "assistant" ? { usage } : {}), ...(row.parts && isSessionReplyParts(row.parts, row.content.length) ? { parts: row.parts.map(({ id, start, end, kind }) => ({ id, start, end, kind })) } : {}), ...(feedback ? { feedback } : {}) };
+  return { id: row.id, role: row.role, content: row.content, status: row.status, createdAt: row.created_at, activity, ...(promptSuggestions?.length ? { promptSuggestions } : {}), ...(row.role === "user" && attachments.length ? { attachments } : {}), ...(usage && row.role === "assistant" ? { usage } : {}), ...(row.parts && isSessionReplyParts(row.parts, row.content.length) ? { parts: row.parts.map(({ id, start, end, kind }) => ({ id, start, end, kind })) } : {}), ...(feedback ? { feedback } : {}) };
 }
 
 function mapMessageFeedback(event: Extract<SessionEvent, { type: "message/feedback" }>): AiMessageFeedbackView {
@@ -1042,7 +1049,7 @@ function isAiActivityItem(value: unknown): value is AiActivityItem {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
   const item = value as Record<string, unknown>;
   return typeof item.id === "string"
-    && ["status", "skill", "tool", "command", "agent", "question"].includes(String(item.kind))
+    && ["status", "skill", "tool", "command", "agent", "question", "prompt-suggestions"].includes(String(item.kind))
     && typeof item.title === "string"
     && ["running", "approval_required", "waiting_input", "complete", "error", "unavailable"].includes(String(item.status))
     && typeof item.detail === "string"
@@ -1059,7 +1066,9 @@ function isAiActivityItem(value: unknown): value is AiActivityItem {
     && (item.contentOffset === undefined || Number.isSafeInteger(item.contentOffset) && Number(item.contentOffset) >= 0 && Number(item.contentOffset) <= 2_000_000)
     && (item.questionId === undefined || typeof item.questionId === "string")
     && (item.question === undefined || typeof item.question === "string" && item.question.length <= 1200)
-    && (item.options === undefined || Array.isArray(item.options) && item.options.length >= 2 && item.options.length <= 4 && item.options.every(option => typeof option === "string" && option.length > 0 && option.length <= 200))
+    && (item.kind === "prompt-suggestions"
+      ? item.id === "prompt-suggestions" && item.status === "complete" && Array.isArray(item.options) && item.options.length >= 1 && item.options.length <= 3 && item.options.every(option => typeof option === "string" && option.trim().length > 0 && [...option].length <= 180)
+      : item.options === undefined || Array.isArray(item.options) && item.options.length >= 2 && item.options.length <= 4 && item.options.every(option => typeof option === "string" && option.length > 0 && option.length <= 200))
     && (item.writingProposalId === undefined || typeof item.writingProposalId === "string" && /^[0-9a-f-]{36}$/iu.test(item.writingProposalId))
     && (item.fileChanges === undefined || Array.isArray(item.fileChanges) && item.fileChanges.length <= 128 && item.fileChanges.every(isAiActivityFileChange));
 }
@@ -1141,7 +1150,7 @@ export function exportPortableAiSessions(userId: string, options: { includeAgent
         role: row.role, content: row.content, status: row.status as "complete" | "interrupted" | "error", createdAt: row.created_at
       };
       if (options.includeAgentContext) {
-        const activity = parseStoredActivity(row.activity_json).map(portableActivity);
+        const activity = parseStoredActivity(row.activity_json).filter(item => item.kind !== "prompt-suggestions").map(portableActivity);
         if (activity.length) message.activity = activity;
         if (row.parts && isSessionReplyParts(row.parts, row.content.length)) message.parts = row.parts.map(({ id, start, end, kind }) => ({ id, start, end, kind }));
         if (attachments.length) message.attachments = attachments;
@@ -1468,9 +1477,48 @@ export function saveAiAssistantActivity(userId: string, sessionId: string, messa
   if (!sessionRow(userId, sessionId)) return;
   const message = sessionRecords.get("ai_messages", messageId) as MessageRow | undefined;
   if (message?.session_id !== sessionId || message.role !== "assistant") return;
-  commitSessionChanges(userId, sessionId, [change("ai_messages", { ...message, activity_json: JSON.stringify(activity) })], [
+  const persistedSuggestions = parseStoredActivity(message.activity_json).find(item => item.kind === "prompt-suggestions");
+  const nextActivity = activity.filter(item => item.kind !== "prompt-suggestions");
+  if (persistedSuggestions) nextActivity.push(persistedSuggestions);
+  commitSessionChanges(userId, sessionId, [change("ai_messages", { ...message, activity_json: JSON.stringify(nextActivity) })], [
+    eventSpec("activity/change", { runId: messageId, messageId, activity: nextActivity.filter(item => item.kind !== "prompt-suggestions") })
+  ]);
+}
+
+/** 保存模型在本轮最终公开答复后给出的有限建议；投影时与执行活动分开返回。 */
+export function saveAiAssistantPromptSuggestions(userId: string, sessionId: string, messageId: string, values: unknown): string[] {
+  const session = sessionRow(userId, sessionId);
+  const message = sessionRecords.get("ai_messages", messageId) as MessageRow | undefined;
+  if (!session || message?.session_id !== sessionId || message.role !== "assistant") return [];
+  const seen = new Set<string>();
+  const suggestions = Array.isArray(values) ? values.flatMap(value => {
+    if (typeof value !== "string") return [];
+    const suggestion = value.replace(/[\u0000-\u001f\u007f]/gu, " ").replace(/\s+/gu, " ").trim();
+    const key = suggestion.toLocaleLowerCase("zh-CN");
+    if (!suggestion || [...suggestion].length > 180 || seen.has(key)) return [];
+    seen.add(key);
+    return [suggestion];
+  }).slice(0, 3) : [];
+  if (!suggestions.length) return [];
+
+  const now = new Date().toISOString();
+  const item: AiActivityItem = {
+    id: "prompt-suggestions",
+    kind: "prompt-suggestions",
+    title: "回复后续建议",
+    status: "complete",
+    detail: "",
+    startedAt: now,
+    completedAt: now,
+    durationMs: 0,
+    options: suggestions
+  };
+  const activity = parseStoredActivity(message.activity_json).filter(existing => existing.kind !== "prompt-suggestions");
+  const nextActivity = [...activity, item];
+  commitSessionChanges(userId, sessionId, [change("ai_messages", { ...message, activity_json: JSON.stringify(nextActivity) })], [
     eventSpec("activity/change", { runId: messageId, messageId, activity })
   ]);
+  return suggestions;
 }
 
 export function setAiSessionArchived(userId: string, sessionId: string, archived: boolean): AiSessionView | null {

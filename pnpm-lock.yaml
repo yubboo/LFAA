@@ -2523,6 +2523,9 @@ importers:
       lfaa-client-store:
         specifier: workspace:*
         version: link:../store
+      lfaa-client-ui-commands:
+        specifier: workspace:*
+        version: link:../ui-commands
       lfaa-client-ui-primitives:
         specifier: workspace:*
         version: link:../ui-primitives

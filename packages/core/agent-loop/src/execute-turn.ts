@@ -19,7 +19,7 @@ import { domainExpertName, listAiBusinessTools, type AiBusinessTool, type AiExte
 import { capabilitySettingsInstruction } from "lfaa-tools/src/capability-settings.js";
 import { agentSettingsInstruction } from "lfaa-tools/src/settings-tools.js";
 import { discoverMcpTools, type McpServerInstruction } from "lfaa-mcp-client/src/runtime.js";
-import { finishAiAssistantMessage, getAiSessionPlanMode, getAiSessionTokenUsageSummary, previewAiSessionTokenUsageSummary, recordAiModelResponse, recordAiSessionAttempt, recordAiSessionRequest, recordAiSessionStep, recordAiToolCall, recordAiToolResult, recordAiUsage, recordAiUsageBatch, saveAiAssistantActivity, saveAiModelHistory, setAiSessionPlanMode, type AiModelMessage, type AiTurnRows, type AiActivityItem, type AiActivityToolUsage } from "lfaa-session/src/sessions.js";
+import { finishAiAssistantMessage, getAiSessionPlanMode, getAiSessionTokenUsageSummary, previewAiSessionTokenUsageSummary, recordAiModelResponse, recordAiSessionAttempt, recordAiSessionRequest, recordAiSessionStep, recordAiToolCall, recordAiToolResult, recordAiUsage, recordAiUsageBatch, saveAiAssistantActivity, saveAiAssistantPromptSuggestions, saveAiModelHistory, setAiSessionPlanMode, type AiModelMessage, type AiTurnRows, type AiActivityItem, type AiActivityToolUsage } from "lfaa-session/src/sessions.js";
 import { getAgentGitSessionRepository } from "lfaa-workspace-agent-git";
 import { AI_TOOL_APPROVAL_LIFETIME_MS, authorizeAiTool, consumeAiToolApproval, listAiToolApprovals, requestAiToolApproval, type AiToolRisk } from "lfaa-permission-presets/src/permissions.js";
 import type { UserApprovalNotifications } from "lfaa-user-approval/src/index.js";
@@ -32,6 +32,7 @@ import { getConversationMemorySnapshot, getProjectConversationMemorySnapshot, is
 import type { SessionModelMessage } from "lfaa-session/src/kernel.js";
 import { manageContextBeforeRequest, type ContextManagerHooks } from "./runtime-context.js";
 import { appendShellCommandActivityPreview } from "./shell-command-activity.js";
+import { createPromptSuggestionStream, extractPromptSuggestionsFromVisibleAnswer, promptSuggestionFallbackInstruction, promptSuggestionInstruction } from "./prompt-suggestions.js";
 import { buildWebActivityPreview } from "./web-activity.js";
 import { computerUseActivitySummary, computerUseActivityTitle } from "./computer-use-activity.js";
 import { buildAiProjectFileChanges, projectFileActivityInvocation } from "./project-file-activity.js";
@@ -668,6 +669,8 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
 
     let answer = "";
     const replyParts: SessionReplyPart[] = [];
+    let promptSuggestionStream: ReturnType<typeof createPromptSuggestionStream> | null = null;
+    let finalPromptSuggestions: string[] = [];
     let inferenceStatus: "complete" | "error" | "interrupted" = "error";
     let promptTokens: number | null = null;
     let completionTokens: number | null = null;
@@ -688,6 +691,7 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
     let parentalUsageExpired = false;
     try {
       const settings = getUserSettings(userId);
+      if (settings.aiRuntime.promptSuggestions) promptSuggestionStream = createPromptSuggestionStream();
       const usage = reserveAgentUsage(userId, turn.assistantMessage.id);
       if (usage.enforced && !usage.allowed) throw new AiParentalUsageDeniedError(usage.reason);
       if (usage.enforced && usage.allowed) {
@@ -1188,22 +1192,36 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
           abortController.signal.removeEventListener("abort", abortFromRun);
         }
       };
-      const requestModel = async (messages: AiCompletionMessage[], options: { tools?: typeof functionTools; systemPrompt?: string; deltaToUser?: boolean; onPiDelta?: (delta: string) => void }): Promise<Awaited<ReturnType<AiCompletionService["streamCompletion"]>> & { text: string; requestTools?: typeof functionTools }> => {
+      const requestModel = async (messages: AiCompletionMessage[], options: { tools?: typeof functionTools; systemPrompt?: string; deltaToUser?: boolean; onPiDelta?: (delta: string) => void; suggestionOnly?: boolean; skipRouting?: boolean }): Promise<Awaited<ReturnType<AiCompletionService["streamCompletion"]>> & { text: string; requestTools?: typeof functionTools; suggestions?: string[] }> => {
         // 服务退出时只阻止新的模型请求：已派发的工具结果保持有效，不会被迫写成“未知”。
         if (isShutdownRequested()) throw new Error("LFAA 服务正在退出；本轮在派发新的模型请求前停止，已完成的工具结果保持有效。");
         await pauseGate.checkpoint(abortController.signal);
-        if (requestCount >= maxModelRequests) throw new AiModelRequestBudgetError(maxModelRequests);
+        if (options.suggestionOnly
+          ? requestCount + externalAgentModelRequestsUsed + externalAgentModelRequestsReserved >= maxModelRequests
+          : requestCount >= maxModelRequests) throw new AiModelRequestBudgetError(maxModelRequests);
         abortController.signal.throwIfAborted();
-        await routeRequestAccount(messages);
+        if (!options.skipRouting) await routeRequestAccount(messages);
         abortController.signal.throwIfAborted();
         executionPhase = "provider";
         requestCount += 1;
         usageBucket(account).requestCount += 1;
         const partId = `reply-${requestCount}`;
         const partStart = answer.length;
-        recordAiSessionStep(userId, turn.session.id, turn.assistantMessage.id, requestCount, "start");
+        const appendUserVisibleDelta = (delta: string): void => {
+          if (!delta) return;
+          answer += delta;
+          if (answer.length > 2_000_000) throw new Error("模型输出超过允许大小。");
+          let part = replyParts.find(item => item.id === partId);
+          if (!part) { part = { id: partId, start: partStart, end: answer.length, kind: "commentary" }; replyParts.push(part); }
+          part.end = answer.length;
+          emit("delta", { messageId: turn.assistantMessage.id, delta, partId, partStart });
+        };
+        if (!options.suggestionOnly) recordAiSessionStep(userId, turn.session.id, turn.assistantMessage.id, requestCount, "start");
         let roundText = "";
+        let roundRawLength = 0;
         const roundStream: string[] = [];
+        const suggestionOnlyStream = options.suggestionOnly ? createPromptSuggestionStream() : null;
+        let requestSuggestions: string[] = [];
         let progressState: "thinking" | "content" | null = null;
         const planModeActive = planModeEnabled && getAiSessionPlanMode(userId, turn.session.id);
         const projectOnlyMemory = workspaceProject?.appId === "workspace" && workspaceProject.memoryMode === "project_only";
@@ -1213,16 +1231,22 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
         const conversationMemoryContext = memoryEligible && !planModeActive && settings.personalization.memoryEnabled
           ? formatConversationMemoryContext(conversationMemorySnapshot.memories, projectOnlyMemory ? "project" : "account")
           : undefined;
-        const requestContext = [agentGitContextPrompt, workspaceContextPrompt, writingContextPrompt, conversationMemoryContext].filter((part): part is string => Boolean(part)).join("\n\n");
+        const requestContext = options.suggestionOnly ? "" : [agentGitContextPrompt, workspaceContextPrompt, writingContextPrompt, conversationMemoryContext].filter((part): part is string => Boolean(part)).join("\n\n");
         const planModeInstruction = !planModeEnabled ? [] : [planModeActive
           ? "当前会话处于计划讨论模式。先与用户梳理、讨论和修订方案；只可执行风险判定为 read 的只读工具。运行器会在实际派发边界拒绝所有写入、危险操作、电脑操控和领域子 Agent。只有用户明确批准当前计划并要求执行时，才单独调用 lfaa_approve_plan_and_execute；不要与任务工具并行调用，任务工具会在下一次模型请求中按既有权限执行。用户要求补充、比较或修改计划时继续留在计划模式。"
           : "协作计划意图由你根据完整自然语言语义判断，不使用关键词猜测。只有用户明确要求先讨论计划、等待其批准后才执行时，先单独调用 lfaa_enter_plan_mode；本次响应不要调用任何其他任务工具。不要仅因任务复杂就自动进入计划模式。"];
-        const requestExtensions = [...extensionInstructions, ...planModeInstruction];
+        const requestExtensions = options.suggestionOnly ? [promptSuggestionFallbackInstruction] : [
+          ...extensionInstructions,
+          ...(settings.aiRuntime.promptSuggestions && options.deltaToUser !== false ? [promptSuggestionInstruction] : []),
+          ...planModeInstruction
+        ];
         const outputLimit = aiPluginHost.llm.resolveMaxTokens(settings.aiRuntime, account);
         const outputLimitDescription = outputLimit === undefined
           ? "输出上限跟随 Provider 默认（模型目录未提供上限）"
           : `有效输出上限 ${outputLimit.toLocaleString("zh-CN")} tokens`;
-        providerActivityId = addActivity("status", `请求 ${account.providerId} · ${account.modelId}`, "running", `第 ${requestCount} 次模型请求；${outputLimitDescription}；连续无新模型数据 ${settings.aiRuntime.requestTimeoutSeconds} 秒后超时。`);
+        providerActivityId = addActivity("status", options.suggestionOnly ? `生成后续建议 · ${account.providerId} · ${account.modelId}` : `请求 ${account.providerId} · ${account.modelId}`, "running", options.suggestionOnly
+          ? `第 ${requestCount} 次模型请求；只生成本轮后续建议，不提供工具；${outputLimitDescription}。`
+          : `第 ${requestCount} 次模型请求；${outputLimitDescription}；连续无新模型数据 ${settings.aiRuntime.requestTimeoutSeconds} 秒后超时。`);
         let result: Awaited<ReturnType<AiCompletionService["streamCompletion"]>>;
         let requestToolsForRequest = options.tools ?? [];
         let requestMessagesForPi: AiCompletionMessage[] | undefined;
@@ -1237,7 +1261,7 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
           permissionMode,
           // 附件只进用户可见的主请求：上下文压缩摘要等内部请求（deltaToUser:false）不重复携带图片字节。
           messages: options.deltaToUser !== false && attachmentTurnMessages.length ? [...messages, ...attachmentTurnMessages] : messages,
-          extensions: requestUserInput ? [...requestExtensions, "交互约束：当缺少的信息会实质影响任务目标、数据范围、安全或验收结果时，使用 lfaa_ask_user 暂停并向用户确认；普通可逆实现细节可自行判断。提问须一次聚焦一个关键缺口，提供 2 到 4 个清晰选项，并允许用户补充或跳过。收到答案后继续当前任务，不得把未确认内容当作事实。"] : requestExtensions,
+          extensions: options.suggestionOnly ? requestExtensions : requestUserInput ? [...requestExtensions, "交互约束：当缺少的信息会实质影响任务目标、数据范围、安全或验收结果时，使用 lfaa_ask_user 暂停并向用户确认；普通可逆实现细节可自行判断。提问须一次聚焦一个关键缺口，提供 2 到 4 个清晰选项，并允许用户补充或跳过。收到答案后继续当前任务，不得把未确认内容当作事实。"] : requestExtensions,
           settings: settings.aiRuntime,
           signal: abortController.signal,
           onPrepareRequest: options.deltaToUser === false ? undefined : async request => {
@@ -1291,22 +1315,41 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
             emit("context-usage", { messageId: turn.assistantMessage.id, contextUsage });
           },
           onResponse: response => {
+            if (options.suggestionOnly && suggestionOnlyStream) {
+              const output = suggestionOnlyStream.finishRound(response.toolCalls.length === 0);
+              requestSuggestions = output.suggestions.length ? output.suggestions : extractPromptSuggestionsFromVisibleAnswer(output.visibleDelta);
+            } else if (options.deltaToUser !== false && promptSuggestionStream) {
+              const isFinalRound = response.toolCalls.length === 0;
+              const output = promptSuggestionStream.finishRound(isFinalRound);
+              if (output.visibleDelta) {
+                roundText += output.visibleDelta;
+                const previousChunk = roundStream.length - 1;
+                if (previousChunk >= 0 && roundStream[previousChunk]!.length < 4096) roundStream[previousChunk] += output.visibleDelta;
+                else roundStream.push(output.visibleDelta);
+                appendUserVisibleDelta(output.visibleDelta);
+              }
+              finalPromptSuggestions = isFinalRound
+                ? output.suggestions.length ? output.suggestions : extractPromptSuggestionsFromVisibleAnswer(roundText)
+                : [];
+            }
             // 模型可能臆造未在本轮 request/header 中提供的工具名。会话内核按 header 校验 tool/call，
             // 把这种调用写进证据会让整个 Run 致命失败且没有可恢复的工具结果；这里只记录真实提供给
             // 模型的工具调用，未知调用交给循环上方“未提供的工具”分支处理。
-            const offeredNames = new Set(requestToolsForRequest.map(tool => tool.function.name));
-            recordAiModelResponse(
-              userId,
-              turn.session.id,
-              turn.assistantMessage.id,
-              roundText,
-              response.toolCalls.filter(call => offeredNames.has(call.name)).map(call => ({ ...call, arguments: storedToolArguments(call.name, call.arguments) })),
-              roundStream,
-              response.usage,
-              response.providerReplay
-            );
+            if (!options.suggestionOnly) {
+              const offeredNames = new Set(requestToolsForRequest.map(tool => tool.function.name));
+              recordAiModelResponse(
+                userId,
+                turn.session.id,
+                turn.assistantMessage.id,
+                roundText,
+                response.toolCalls.filter(call => offeredNames.has(call.name)).map(call => ({ ...call, arguments: storedToolArguments(call.name, call.arguments) })),
+                roundStream,
+                response.usage,
+                response.providerReplay
+              );
+            }
           },
-          ...(options.tools?.length ? { tools: options.tools } : {}),
+          ...(options.tools !== undefined ? { tools: options.tools } : {}),
           ...((options.systemPrompt ?? systemPrompt) ? { systemPrompt: options.systemPrompt ?? systemPrompt } : {}),
           ...(requestContext ? { context: requestContext } : {}),
           onProgress: (progress) => {
@@ -1316,30 +1359,37 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
             const current = activities.find((activity) => activity.id === providerActivityId);
             if (progress === "thinking") {
               if (current?.status === "running") finishActivity(current.id, "complete", "Provider 正在进行推理；内部推理内容不会展示。");
-              providerActivityId = addActivity("status", `模型推理中 · ${account.modelId}`, "running", "正在等待模型生成回答或选择工具；不会展示隐藏推理文本。");
+              providerActivityId = addActivity("status", options.suggestionOnly ? `生成建议中 · ${account.modelId}` : `模型推理中 · ${account.modelId}`, "running", options.suggestionOnly
+                ? "正在根据本轮公开问题和答复整理后续建议；不提供工具。"
+                : "正在等待模型生成回答或选择工具；不会展示隐藏推理文本。");
             } else {
               if (current?.status === "running") finishActivity(current.id, "complete", "已收到模型首个回答片段，开始流式接收文本。");
-              providerActivityId = addActivity("status", "流式接收回答", "running", "模型文本正逐段写入当前回复。");
+              providerActivityId = addActivity("status", options.suggestionOnly ? "接收后续建议" : "流式接收回答", "running", options.suggestionOnly
+                ? "模型正在返回仅用于建议卡片的私有元数据。"
+                : "模型文本正逐段写入当前回复。");
             }
           },
           onDelta: (delta) => {
-            roundText += delta;
-            options.onPiDelta?.(delta);
+            roundRawLength += delta.length;
+            if (roundRawLength > 2_000_000) throw new Error("模型输出超过允许大小。");
+            if (options.suggestionOnly) {
+              suggestionOnlyStream?.push(delta);
+              return;
+            }
+            const visibleDelta = options.deltaToUser !== false ? promptSuggestionStream?.push(delta) ?? delta : delta;
+            roundText += visibleDelta;
+            if (roundText.length > 2_000_000) throw new Error("模型输出超过允许大小。");
+            options.onPiDelta?.(visibleDelta);
             const previousChunk = roundStream.length - 1;
-            if (previousChunk >= 0 && roundStream[previousChunk]!.length < 4096) roundStream[previousChunk] += delta;
-            else roundStream.push(delta);
+            if (previousChunk >= 0 && roundStream[previousChunk]!.length < 4096) roundStream[previousChunk] += visibleDelta;
+            else if (visibleDelta) roundStream.push(visibleDelta);
             if (options.deltaToUser !== false) {
-              answer += delta;
-              if (answer.length > 2_000_000) throw new Error("模型输出超过允许大小。");
-              let part = replyParts.find(item => item.id === partId);
-              if (!part) { part = { id: partId, start: partStart, end: answer.length, kind: "commentary" }; replyParts.push(part); }
-              part.end = answer.length;
-              emit("delta", { messageId: turn.assistantMessage.id, delta, partId, partStart });
+              appendUserVisibleDelta(visibleDelta);
             }
           }
           });
         } catch (error) {
-          recordAiSessionAttempt(userId, turn.session.id, turn.assistantMessage.id, roundStream, error);
+          if (!options.suggestionOnly) recordAiSessionAttempt(userId, turn.session.id, turn.assistantMessage.id, roundStream, error);
           if (error instanceof AiRecoverableRequestError || error instanceof AiOutputLimitError || error instanceof AiToolArgumentsTooLargeError) accumulateUsage(account, error.usage);
           else accumulateUsage(account, { promptTokens: null, completionTokens: null, cacheReadTokens: null });
           throw error;
@@ -1348,11 +1398,14 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
         const finalActivityId = providerActivityId;
         if (finalActivityId) finishActivity(finalActivityId, "complete", result.toolCalls.length
           ? `模型提出 ${result.toolCalls.length} 项工具调用。`
-          : `模型流已结束；本次输入 ${result.usage.promptTokens ?? "Provider 未提供"}、输出 ${result.usage.completionTokens ?? "Provider 未提供"} tokens。`);
-        const part = replyParts.find(item => item.id === partId);
-        if (part) part.kind = result.toolCalls.length ? "commentary" : "final";
-        emit("presentation", { messageId: turn.assistantMessage.id, parts: replyParts.map(item => ({ ...item })) });
-        finishAiAssistantMessage(userId, turn.session.id, turn.assistantMessage.id, answer, "streaming", replyParts);
+          : options.suggestionOnly ? `建议生成请求已结束；本次输入 ${result.usage.promptTokens ?? "Provider 未提供"}、输出 ${result.usage.completionTokens ?? "Provider 未提供"} tokens。`
+            : `模型流已结束；本次输入 ${result.usage.promptTokens ?? "Provider 未提供"}、输出 ${result.usage.completionTokens ?? "Provider 未提供"} tokens。`);
+        if (!options.suggestionOnly) {
+          const part = replyParts.find(item => item.id === partId);
+          if (part) part.kind = result.toolCalls.length ? "commentary" : "final";
+          emit("presentation", { messageId: turn.assistantMessage.id, parts: replyParts.map(item => ({ ...item })) });
+          finishAiAssistantMessage(userId, turn.session.id, turn.assistantMessage.id, answer, "streaming", replyParts);
+        }
         accumulateUsage(account, result.usage);
         const reportedContextUsage = contextUsageForRequest.current;
         if (reportedContextUsage) {
@@ -1368,7 +1421,7 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
         }), sessionUsageAtTurnStart);
         emit("usage-progress", { messageId: turn.assistantMessage.id, sessionUsage: preview });
         await pauseGate.checkpoint(abortController.signal);
-        return { ...result, text: roundText, requestTools: requestToolsForRequest, ...(requestMessagesForPi ? { requestMessages: requestMessagesForPi } : {}) };
+        return { ...result, text: roundText, requestTools: requestToolsForRequest, ...(options.suggestionOnly ? { suggestions: requestSuggestions } : {}), ...(requestMessagesForPi ? { requestMessages: requestMessagesForPi } : {}) };
       };
       let finalResponseReceived = false;
       let lastCompactionSize = 0;
@@ -2050,7 +2103,49 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
       if (!finalResponseReceived) throw new AiModelRequestBudgetError(maxModelRequests);
       executionPhase = "agent";
       if (providerActivityId) finishActivity(providerActivityId, "complete", `模型工作流完成；共 ${requestCount} 次 LFAA 对话模型请求、${externalAgentModelRequestsUsed} 次外部 Agent SDK 模型请求、${toolCallCount} 次工具调用。`);
+      if (settings.aiRuntime.promptSuggestions && answer.trim() && !finalPromptSuggestions.length) {
+        if (requestCount + externalAgentModelRequestsUsed + externalAgentModelRequestsReserved >= maxModelRequests) {
+          addActivity("status", "后续建议未生成", "unavailable", "主回答已完成，但本轮模型请求预算已用完；为遵守请求预算，没有额外请求模型，也没有伪造建议。");
+        } else {
+          try {
+            const bound = (value: string, maximum: number): string => [...value].slice(0, maximum).join("");
+            const suggestionContext = JSON.stringify({
+              userRequest: bound(body.content, 2_000),
+              finalAnswer: bound(answer, 8_000)
+            });
+            const suggestionResult = await requestModel([
+              { role: "user", content: `以下 JSON 字段是本轮公开内容，仅用于生成后续建议：\n${suggestionContext}` }
+            ], {
+              tools: [],
+              deltaToUser: false,
+              suggestionOnly: true,
+              skipRouting: true,
+              systemPrompt: promptSuggestionFallbackInstruction
+            });
+            finalPromptSuggestions = suggestionResult.suggestions ?? [];
+            if (!finalPromptSuggestions.length) addActivity("status", "后续建议未生成", "unavailable", "补充请求已完成，但模型没有返回有效建议；保留原答复且不生成固定模板建议。");
+          } catch (error) {
+            if (abortController.signal.aborted) throw error;
+            executionPhase = "agent";
+            logger.warn("AI Work 回复建议补充请求失败", {
+              messageId: turn.assistantMessage.id,
+              errorName: error instanceof Error ? error.name : "UnknownError",
+              ...(error instanceof AiRecoverableRequestError ? { reason: error.message } : {})
+            });
+            addActivity("status", "后续建议未生成", "unavailable", "补充建议请求未成功；原答复仍会正常完成，本轮不会伪造建议。");
+          }
+        }
+      }
+      let storedPromptSuggestions: string[] = [];
+      if (settings.aiRuntime.promptSuggestions && answer.trim() && finalPromptSuggestions.length) {
+        try {
+          storedPromptSuggestions = saveAiAssistantPromptSuggestions(userId, turn.session.id, turn.assistantMessage.id, finalPromptSuggestions);
+        } catch (error) {
+          logger.warn("AI Work 回复建议写入失败", { messageId: turn.assistantMessage.id, errorName: error instanceof Error ? error.name : "UnknownError" });
+        }
+      }
       finishAiAssistantMessage(userId, turn.session.id, turn.assistantMessage.id, answer, "complete", replyParts);
+      if (storedPromptSuggestions.length) emit("prompt-suggestions", { messageId: turn.assistantMessage.id, suggestions: storedPromptSuggestions });
       inferenceStatus = "complete";
 
       const memoryPolicy = memoryEligible && !(planModeEnabled && getAiSessionPlanMode(userId, turn.session.id)) ? getUserSettings(userId).personalization : null;

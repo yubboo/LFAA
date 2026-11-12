@@ -5,6 +5,7 @@
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import type { IncomingMessage } from "node:http";
 import { type Request, type Response, Router } from "express";
 import { z } from "zod";
 import { getMemoryAgentAccessStatus, resolveMemoryAgentAccessToken } from "lfaa-identity-auth/src/service.js";
@@ -71,10 +72,11 @@ async function serveRequest(request: Request, response: Response): Promise<void>
     throw new ApiError(413, "memory_agent_request_too_large", "记忆 MCP 请求超出允许大小。");
   }
   const server = createMemoryServer(userId);
-  const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
+  const transport = new StreamableHTTPServerTransport({ enableJsonResponse: true });
   try {
     await server.connect(transport);
-    await transport.handleRequest(request, response, request.body);
+    // Express.Request.auth describes an LFAA session, not the MCP AuthInfo accepted by the transport.
+    await transport.handleRequest(request as IncomingMessage, response, request.body);
   } finally {
     await server.close();
   }

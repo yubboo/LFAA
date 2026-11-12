@@ -10,6 +10,8 @@
 
 AI Work 的模型悬浮卡片展示账户目录中的模型、真实模型思考档位和已有的输出长度策略。输出长度读取 `UserSettings.aiRuntime.speed`，只影响 LFAA 输出上限，不代表 Provider 思考力度；主题、强调色、字体、字号、背景遮罩、模糊和减少动态效果继续由工作区外观设置提供。客户端不读取 Provider 凭据，也不猜测目录未声明的模型能力。
 
+Composer 模型入口显示当前目录的模型名及真实有效档位，短标签不附加目录版本标记或调用 ID；悬浮提示显示“选择推理强度”和可配置账户快捷键 `shortcuts.openModelPicker`（默认 `Ctrl+Shift+M`）。
+
 ## AI Work 侧边聊天
 
 `ui-workspace/src/ApplicationWorkspace.tsx` 在右侧工具与资源栏提供“侧边聊天”，并使用账户快捷键设置 `shortcuts.openSideChat`（默认 `Ctrl+Alt+S`）；旧 Host 响应缺少该新增字段时，读取 `ui-settings-general` 的同一默认值，保留按钮与快捷键且不覆盖已保存的空绑定。`ui-chat/src/client/index.ts` 将 `AiWorkSideChat` 登记到 Client Module Registry，供工作区按需加载。`ui-chat/src/AiWorkChat.tsx` 在主聊天发送前识别 `/side` 命令，后缀文本保留为侧聊草稿。`ui-chat/src/AiWorkSideChat.tsx` 使用独立的 Session、草稿、消息状态和 SSE 流；主聊天 Busy、续问、选中 Session 与取消入口不进入侧聊。侧聊只看到打开时 Session Owner 已记录的上下文，主聊天尚未持久化的流片段/实时进度不复制，面板会明确说明这一点。Server 会基于 `session/side-chat` 来源标记强制零工具、禁止澄清和记忆写入。

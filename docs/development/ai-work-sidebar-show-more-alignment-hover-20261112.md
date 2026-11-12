@@ -36,3 +36,7 @@ UI Workspace 包构建、Client 类型检查、正式 Web 构建和 ChatGPT 内�
 - 当前账户该项目的 6 条会话均已显示，按现有分页偏好没有渲染“展开显示”按钮；没有改动偏好来强行显示。由实际 DOM 测得项目会话容器起点 73px、会话标题起点 108.67px；CSS 为展开按钮预留左缩进 7px 和内部间距 29px，按同一行边框/图标/文字间距落入标题列。故按钮自身没有可供实页截图直接量测的元素，按钮可见时的最终像素比对未实测。
 - 未新增或运行测试；`git diff --check` 通过。帧时间未测，键盘 Tab 聚焦状态由 CSS 覆盖但未在浏览器中逐键验收。
 - 之后共享工作区其他源码文件又有更新（`ApplicationWorkspace.tsx`、`center-workspace.css`、`ai-work-chat.css`、`execute-turn.ts`）。最后一次官方 Web 重建在 `ApplicationWorkspace.tsx` 第 1218、1229 行的 TypeScript 阶段失败；随后单独执行 Client 类型检查通过，说明共享编辑期间的错误未能稳定复现。没有修改这些并行任务文件；另一个 LFAA Web 进程已占用 3000 端口，未中断该进程。交付前检查时 `/api/health` 返回 200，但 `runtime-build-state.mjs web` 返回 `["host","web"]`，因此没有把后续共享源码状态标成最新 Web 构建；本次侧栏快照的构建和浏览器证据仍成立。
+
+### 2026-11-12 当前共享构建复核
+
+- 后续修复了 `ApplicationWorkspace.tsx` 中活动工作区标签变量的声明顺序，并恢复了被错误覆盖的 `AiWorkChat.tsx`；当前 Control Plane 与 Web 正式构建通过，Web 指纹检查返回 `[]`。本轮内置浏览器 `/work` 页面加载正常，但未再次逐视口测量本任务的悬停样式；上述历史视口测量仍属于此前构建快照。
