@@ -174,6 +174,70 @@ export interface AiCompletionInput {
   onProgress: (progress: "thinking" | "content") => void;
 }
 
+const runtimeContextHeader = "LFAA_RUNTIME_CONTEXT_JSON_V1\n";
+const runtimeContextSeparator = "\nLFAA_CURRENT_USER_INPUT_V1\n";
+
+/** 在 LLM Owner 内生成所有 Provider 共用的稳定 system + 历史 + 当前输入请求结构。 */
+export function prepareAiCompletionMessages(input: AiCompletionInput): AiCompletionMessage[] {
+  const messages: AiCompletionMessage[] = [
+    { role: "system", content: composeLfaaSystemPrompt(input) },
+    ...input.messages.map(message => ({ ...message }))
+  ];
+  if (!input.context) return messages;
+
+  let userIndex = -1;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index]!.role === "user") {
+      userIndex = index;
+      break;
+    }
+  }
+
+  const runtimeContextPrefix = `${runtimeContextHeader}${JSON.stringify({ context: input.context })}${runtimeContextSeparator}`;
+  if (userIndex < 0) {
+    messages.push({ role: "user", content: runtimeContextPrefix });
+    return messages;
+  }
+
+  const message = messages[userIndex]!;
+  if (typeof message.content === "string") {
+    if (!message.content.startsWith(runtimeContextHeader)) message.content = runtimeContextPrefix + message.content;
+  } else if (Array.isArray(message.content)) {
+    const firstText = message.content[0];
+    if (!(firstText?.type === "text" && firstText.text.startsWith(runtimeContextHeader))) {
+      message.content = [{ type: "text", text: runtimeContextPrefix }, ...message.content];
+    }
+  } else {
+    message.content = runtimeContextPrefix;
+  }
+  return messages;
+}
+
+/** 从压缩后的规范消息中移除仅供一次 Provider 请求使用的运行上下文前缀。 */
+export function stripAiCompletionRuntimeContext(messages: readonly AiCompletionMessage[]): AiCompletionMessage[] {
+  const result: AiCompletionMessage[] = [];
+  for (const source of messages) {
+    const message = { ...source };
+    if (typeof message.content === "string" && message.content.startsWith(runtimeContextHeader)) {
+      const separatorIndex = message.content.indexOf(runtimeContextSeparator, runtimeContextHeader.length);
+      if (separatorIndex >= 0) {
+        message.content = message.content.slice(separatorIndex + runtimeContextSeparator.length);
+        if (!message.content && message.role === "user") continue;
+      }
+    } else if (Array.isArray(message.content)) {
+      const first = message.content[0];
+      if (first?.type === "text" && first.text.startsWith(runtimeContextHeader)
+        && first.text.includes(runtimeContextSeparator)) {
+        const remaining = message.content.slice(1);
+        if (!remaining.length && message.role === "user") continue;
+        message.content = remaining;
+      }
+    }
+    result.push(message);
+  }
+  return result;
+}
+
 function assertToolCallPairing(messages: readonly AiCompletionMessage[]): void {
   const pendingCallIds = new Set<string>();
   for (const message of messages) {
@@ -232,11 +296,8 @@ function moveToolImagesToUserMessages(messages: readonly AiCompletionMessage[]):
 
 export async function streamAiCompletion(input: AiCompletionInput): Promise<AiCompletionResult> {
   const maxTokens = resolveAiCompletionMaxTokens(input.settings, input.account);
-  const composedSystemPrompt = composeLfaaSystemPrompt(input);
-  let requestMessages: AiCompletionMessage[] = [
-    { role: "system", content: composedSystemPrompt },
-    ...input.messages.map(message => ({ ...message }))
-  ];
+  let requestMessages = prepareAiCompletionMessages(input);
+  const composedSystemPrompt = String(requestMessages[0]?.content ?? "");
   let requestTools = [...(input.tools ?? [])];
   const countReasoningReplayCharacters = (messages: readonly AiCompletionMessage[]): number => messages.reduce((total, message) => {
     const replay = message.providerReplay;
@@ -487,9 +548,11 @@ export async function streamAiCompletion(input: AiCompletionInput): Promise<AiCo
 
 /**
  * A provider-specific protocol implementation. The generic OpenAI-compatible stream remains the fallback.
+ * The LLM owner passes `messages` with the shared system prompt first and the current request context in its final user message.
  * Adapters must run onPrepareRequest against their final model-visible messages/tools before networking and use its returned arrays.
  */
 export interface AiCompletionAdapter {
+  /** 收到由 prepareAiCompletionMessages 统一整理的消息；不得再次组合 system/context，也不得丢弃动态上下文。 */
   stream(input: AiCompletionInput): Promise<AiCompletionResult>;
 }
 
@@ -505,7 +568,14 @@ export function createAiCompletionService(): AiCompletionService {
   const adapters = new Map<string, AiCompletionAdapter>();
   return {
     streamCompletion(input) {
-      return (adapters.get(input.account.providerId)?.stream ?? streamAiCompletion)(input);
+      const adapter = adapters.get(input.account.providerId);
+      if (!adapter) return streamAiCompletion(input);
+      const { context: _context, extensions: _extensions, systemPrompt: _systemPrompt, ...stableInput } = input;
+      return adapter.stream({
+        ...stableInput,
+        messages: prepareAiCompletionMessages(input),
+        extensions: []
+      });
     },
     resolveMaxTokens: resolveAiCompletionMaxTokens,
     registerAdapter(providerId, adapter) {

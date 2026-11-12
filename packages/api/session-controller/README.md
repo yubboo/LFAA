@@ -15,6 +15,8 @@
 
 所有路由沿用账户认证中间件。反馈不调用 Provider。普通记忆分支使用 Agent Loop 摘要 Provider，但不创建工具 Run、调用 Daemon 或重放历史工具；编辑后的新问题由 AI Work 通过原 `/ai/chat/stream` 与 Agent Loop 单独提交。侧聊使用已启用 Provider 和独立 Session/Run；其历史工具事件仅为上下文，不会在侧聊中重放。
 
+`PATCH /ai/sessions/:sessionId/title` 仅接受非空标题并由 Session Owner 再次验证会话归属后持久化；`POST /ai/sessions/:sessionId/title/generate` 复用 AI 推理速率限制，委托 Agent Loop 使用当前已选模型生成首条输入标题。两路由均要求账户认证，Controller 不实现标题存储规则。构建写入仓库根 `dist/packages/api/session-controller/`。
+
 ## 小鱼共享工作入口（2026-10-14）
 
 共享工作读取当前账户全部来源会话，关联更新只允许拥有且空闲的会话，未知字段拒绝；执行仍归原 Agent Loop。

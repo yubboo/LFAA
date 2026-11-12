@@ -11,7 +11,7 @@ import type { AgentDefaultModelResolver } from "lfaa-agent-default-model/src/ind
 import type { UserApprovalNotifications } from "lfaa-user-approval/src/index.js";
 import type { UserQuestionService } from "lfaa-user-questions/src/index.js";
 import { getUserSettings } from "lfaa-settings/src/service.js";
-import { appendAiSteeringInput, createAiSessionBranchWithMemory as persistAiSessionBranchWithMemory, createAiTurn, getAiSessionPlanMode, getAiSideChatParentSessionId, prepareAiSessionBranchSeed, refreshAiTurnHistory, saveAiAssistantActivity, setAiSessionPlanMode, startQueuedAiTurn, finishAiAssistantMessage, getAiRun as readRun, interruptOrphanedAiRuns, listAiSessions, type AiActivityItem, type AiModelMessage, type AiRunView, type AiSessionProjectContext } from "lfaa-session/src/sessions.js";
+import { appendAiSteeringInput, createAiSessionBranchWithMemory as persistAiSessionBranchWithMemory, createAiTurn, getAiSession, getAiSessionPlanMode, getAiSessionTitleCandidate, getAiSideChatParentSessionId, prepareAiSessionBranchSeed, recordAiUsage, refreshAiTurnHistory, saveAiAssistantActivity, setAiSessionPlanMode, setAiSessionTitleIfUnchanged, startQueuedAiTurn, finishAiAssistantMessage, getAiRun as readRun, interruptOrphanedAiRuns, listAiSessions, type AiActivityItem, type AiModelMessage, type AiRunView, type AiSessionProjectContext, type AiSessionView } from "lfaa-session/src/sessions.js";
 import { logger } from "lfaa-telemetry-logger/src/logger.js";
 import { executeAiTurn } from "./execute-turn.js";
 import { summarizeBranchMemory } from "./branch-memory.js";
@@ -20,6 +20,7 @@ import { claimWorkspaceProjectApplication, getWorkspaceProject, type WorkspacePr
 import { bindAgentGitSessionRepository, getAgentGitRepository, getAgentGitSessionRepository, registerAgentGitRepository } from "lfaa-workspace-agent-git";
 import type { SessionReplyPart } from "lfaa-session/src/kernel.js";
 import type { AiCompletionService } from "lfaa-llm/src/completion.js";
+import { generateFirstPromptTitle } from "lfaa-session-title-first-prompt-llm";
 import type { AttachmentStore } from "lfaa-attachment/src/index.js";
 import { resolveAiSessionWorkspaceContext } from "./workspace-context.js";
 import type { AgentWorkbenchView } from "./workbench-context.js";
@@ -30,6 +31,8 @@ interface AiUserQuestion { questionId: string; question: string; options: string
 type Listener = (event: string, data: Record<string, unknown>) => void;
 interface LiveRun { id: string; userId: string; applicationId: ApplicationId; sessionId: string; parentRunId: string | null; employeeId: string; agentLabel: string; startedAt: string; canAskUser: boolean; controller: AbortController; pauseGate: AiRunPauseGate; children: Set<string>; pendingApprovals: Set<string>; listeners: Set<Listener>; completion: Promise<void>; content: string; parts: SessionReplyPart[]; inbox: AiModelMessage[]; pendingQuestion?: AiUserQuestion }
 const liveRuns = new Map<string, LiveRun>();
+const sessionTitleJobs = new Map<string, Promise<{ session: AiSessionView | null; generated: boolean }>>();
+const maximumSessionTitleJobs = 4;
 let modelResolver: AgentDefaultModelResolver | undefined;
 let approvalNotifications: UserApprovalNotifications | undefined;
 let userQuestions: UserQuestionService | undefined;
@@ -83,6 +86,72 @@ export function initializeAiRuns(resolver: AgentDefaultModelResolver, approvals:
   });
   interruptOrphanedAiRuns();
 }
+
+async function runSessionTitleGeneration(userId: string, sessionId: string): Promise<{ session: AiSessionView | null; generated: boolean }> {
+  const currentSession = getAiSession(userId, sessionId);
+  const candidate = getAiSessionTitleCandidate(userId, sessionId);
+  if (!currentSession || !candidate) return { session: currentSession, generated: false };
+
+  const fallback = setAiSessionTitleIfUnchanged(userId, sessionId, candidate.expectedTitle, candidate.expectedSource, candidate.fallbackTitle, "fallback");
+  if (!fallback) return { session: getAiSession(userId, sessionId), generated: false };
+  const resolver = modelResolver;
+  const llm = completionService;
+  if (!resolver || !llm) return { session: fallback, generated: false };
+
+  try {
+    const account = resolver.resolve(userId);
+    if (!account) return { session: fallback, generated: false };
+    const settings = getUserSettings(userId);
+    let output = "";
+    const completion = { usage: null as { promptTokens: number | null; completionTokens: number | null; cacheReadTokens: number | null } | null };
+    let unexpectedToolCalls = false;
+    const title = await generateFirstPromptTitle([candidate.prompt], async messages => {
+      output = "";
+      const result = await llm.streamCompletion({
+        account,
+        applicationId: candidate.appId,
+        permissionMode: settings.permissions.mode,
+        messages: messages.map(message => ({ role: message.role, content: message.content })),
+        extensions: [],
+        settings: { ...settings.aiRuntime, maxOutputTokens: Math.min(settings.aiRuntime.maxOutputTokens > 0 ? settings.aiRuntime.maxOutputTokens : 64, 64) },
+        signal: new AbortController().signal,
+        onDelta: delta => { if (output.length < 512) output += delta.slice(0, 512 - output.length); },
+        onProgress: () => undefined
+      });
+      completion.usage = result.usage;
+      unexpectedToolCalls = result.toolCalls.length > 0;
+      return output;
+    });
+
+    if (completion.usage) recordAiUsage(userId, sessionId, candidate.assistantMessageId, account.providerId, account.modelId,
+      completion.usage.promptTokens, completion.usage.completionTokens, completion.usage.cacheReadTokens, "turn", {
+        requestCount: 1,
+        cacheReadReportedRequestCount: completion.usage.cacheReadTokens === null ? 0 : 1,
+        cacheReadReportedTokens: completion.usage.cacheReadTokens ?? 0
+      });
+    if (unexpectedToolCalls) throw new Error("标题生成请求返回了未请求的工具调用。");
+    if (!title) return { session: getAiSession(userId, sessionId) ?? fallback, generated: false };
+    const updated = setAiSessionTitleIfUnchanged(userId, sessionId, candidate.fallbackTitle, "fallback", title, "generated");
+    return { session: updated ?? getAiSession(userId, sessionId), generated: Boolean(updated) };
+  } catch (error) {
+    logger.warn("AI 会话标题生成失败，保留简短回退标题", { userId, sessionId, errorName: error instanceof Error ? error.name : "UnknownError" });
+    return { session: getAiSession(userId, sessionId) ?? fallback, generated: false };
+  }
+}
+
+/** 为活动标题生成一个简短名称；同会话请求合并，单进程并发保持有界。 */
+export function generateAiSessionTitle(userId: string, sessionId: string): Promise<{ session: AiSessionView | null; generated: boolean }> {
+  const key = `${userId}:${sessionId}`;
+  const existing = sessionTitleJobs.get(key);
+  if (existing) return existing;
+  if (sessionTitleJobs.size >= maximumSessionTitleJobs) return Promise.resolve({ session: getAiSession(userId, sessionId), generated: false });
+  const job = runSessionTitleGeneration(userId, sessionId);
+  sessionTitleJobs.set(key, job);
+  const cleanup = () => { if (sessionTitleJobs.get(key) === job) sessionTitleJobs.delete(key); };
+  void job.then(cleanup, cleanup);
+  return job;
+}
+
 export function getAiRun(userId: string, runId: string): AiRunView | null { const run = readRun(userId, runId); const live = liveRuns.get(runId); return run && live?.userId === userId ? { ...run, message: { ...run.message, content: live.content, parts: live.parts.map(part => ({ ...part })) } } : run; }
 
 interface RunOptions { depth?: number; modelAccountId?: string; allowedToolNames?: string[]; systemPrompt?: string; delegationBudget?: { used: number; maximum: number }; writeGate?: { denied: boolean }; canAskUser?: boolean; requestUserInput?: (input: { questionId: string; question: string; options: string[] }) => Promise<{ answer: string; skipped: boolean }>; memoryEligible?: boolean; workspaceProject?: AiSessionProjectContext | null; gitRepositoryId?: string | null; parentRunId?: string; employeeId?: string; agentLabel?: string }

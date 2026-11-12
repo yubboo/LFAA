@@ -402,6 +402,7 @@ export interface AiSession {
   id: string;
   appId: ApplicationId;
   title: string;
+  titleStatus?: "pending" | "generated" | "manual" | "legacy";
   archived: boolean;
   createdAt: string;
   updatedAt: string;
@@ -503,6 +504,28 @@ export interface WorkspaceGitStatus {
   diff: string;
   diffTruncated: boolean;
   statusTruncated: boolean;
+}
+
+export interface WorkspaceGitSummaryStatus {
+  repositoryState: "not-repository" | "unborn" | "ready";
+  repository: string | null;
+  projectRelativePath: string;
+  worktreeId: string | null;
+  branch: string;
+  clean: boolean;
+  changedFileCount: number;
+  insertions: number;
+  deletions: number;
+  unknownLineCounts: number;
+}
+
+export interface WorkspaceProjectGitSummaryFolder {
+  sourceId: string | null;
+  path: string;
+  position: number;
+  isPrimary: boolean;
+  status?: WorkspaceGitSummaryStatus;
+  error?: string;
 }
 
 export interface AgentGitRepository {
@@ -651,8 +674,9 @@ export interface WorkspaceProjectTextFile {
 }
 
 export interface AiHostTask {
-  id: string; nodeId: string; shell: string; workingDirectory: string; status: "queued" | "running" | "succeeded" | "failed"; message: string; createdAt: string;
-  result?: { stdout: string; stderr: string; exitCode: number | null; timedOut: boolean; outputTruncated: boolean } | null;
+  id: string; nodeId: string; appId: ApplicationId; shell: string; workingDirectory: string; status: "queued" | "running" | "succeeded" | "failed"; message: string; createdAt: string;
+  command?: string; startedAt?: string | null; finishedAt?: string | null; outputSequence?: number;
+  result?: { stdout: string; stderr: string; exitCode: number | null; timedOut: boolean; outputTruncated: boolean; cancelled?: boolean } | null;
   cancelRequested?: boolean;
 }
 export function loadAiHostTasks(signal?: AbortSignal): Promise<{ tasks: AiHostTask[] }> { return request("/ai/host-tasks", signal ? { signal } : {}); }
@@ -1337,6 +1361,7 @@ declare global {
     lfaaDesktop?: {
       nativeBrowser: {
         getState: () => Promise<NativeBrowserState>;
+        capturePreview: (id: string) => Promise<{ dataBase64: string; width: number; height: number } | null>;
         ensureTab: () => Promise<NativeBrowserState>;
         createTab: (url?: string) => Promise<NativeBrowserState>;
         selectTab: (id: string) => Promise<NativeBrowserState>;
@@ -2677,6 +2702,9 @@ export function validateAppearancePresetSnapshot(snapshot: AppearancePresetSnaps
 
 export interface ConversationMemorySnapshot { memories: string[]; revision: number }
 
+export interface MemoryAgentConnectionStatus { active: boolean; createdAt: string | null }
+export interface MemoryAgentConnectionToken { token: string; createdAt: string; endpoint: string }
+
 export function loadConversationMemories(): Promise<{ snapshot: ConversationMemorySnapshot }> {
   return request("/settings/memories");
 }
@@ -2687,6 +2715,18 @@ export function saveConversationMemories(snapshot: ConversationMemorySnapshot): 
 
 export function deleteConversationMemories(): Promise<void> {
   return request<void>("/settings/memories", { method: "DELETE" });
+}
+
+export function loadMemoryAgentConnection(): Promise<{ connection: MemoryAgentConnectionStatus }> {
+  return request("/settings/memory-agent-connection");
+}
+
+export function createMemoryAgentConnectionToken(): Promise<MemoryAgentConnectionToken> {
+  return request("/settings/memory-agent-connection/token", { method: "POST", body: "{}" });
+}
+
+export function revokeMemoryAgentConnectionToken(): Promise<void> {
+  return request<void>("/settings/memory-agent-connection/token", { method: "DELETE" });
 }
 
 export interface AccountAgentUsagePolicy {
@@ -3059,6 +3099,14 @@ export function archiveAiSession(sessionId: string, archived: boolean): Promise<
   return request<{ session: AiSession }>(`/ai/sessions/${encodeURIComponent(sessionId)}/archive`, { method: "PATCH", body: JSON.stringify({ archived }) });
 }
 
+export function renameAiSession(sessionId: string, title: string): Promise<{ session: AiSession }> {
+  return request<{ session: AiSession }>(`/ai/sessions/${encodeURIComponent(sessionId)}/title`, { method: "PATCH", body: JSON.stringify({ title }) });
+}
+
+export function generateAiSessionTitle(sessionId: string): Promise<{ session: AiSession; generated: boolean }> {
+  return request<{ session: AiSession; generated: boolean }>(`/ai/sessions/${encodeURIComponent(sessionId)}/title/generate`, { method: "POST" });
+}
+
 export function setAiSessionProject(sessionId: string, projectId: string | null, appId: WorkspaceProjectApplicationId): Promise<{ session: AiSession }> {
   return request<{ session: AiSession }>(`/workspace/sessions/${encodeURIComponent(sessionId)}/project`, { method: "PATCH", body: JSON.stringify({ appId, projectId }) });
 }
@@ -3152,6 +3200,12 @@ export function removeWorkspaceProject(projectId: string, deleteManagedWorktree:
 
 export function loadWorkspaceGitStatus(projectId: string, appId: WorkspaceProjectApplicationId, sourceId?: string, signal?: AbortSignal): Promise<{ status: WorkspaceGitStatus }> {
   return request<{ status: WorkspaceGitStatus }>(`/workspace/projects/${encodeURIComponent(projectId)}/git/status`, { method: "POST", body: JSON.stringify({ appId, ...(sourceId ? { sourceId } : {}) }), ...(signal ? { signal } : {}) });
+}
+
+export function loadWorkspaceProjectGitSummary(projectId: string, signal?: AbortSignal): Promise<{ folders: WorkspaceProjectGitSummaryFolder[] }> {
+  return request<{ folders: WorkspaceProjectGitSummaryFolder[] }>(`/workspace/projects/${encodeURIComponent(projectId)}/git/summary`, {
+    method: "POST", body: JSON.stringify({ appId: "workspace" }), ...(signal ? { signal } : {})
+  });
 }
 
 export function initializeWorkspaceGitRepository(projectId: string, appId: WorkspaceProjectApplicationId, sourceId?: string): Promise<{ status: WorkspaceGitStatus }> {

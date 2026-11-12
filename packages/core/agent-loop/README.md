@@ -1,5 +1,9 @@
 # LFAA Agent Loop
 
+AI Work 会话标题生成沿用当前账户已选模型和 AI Runtime 设置，只向模型发送有界首条用户输入，不提供工具或插件扩展；输出上限为 64 Token，最多四个标题请求并行，同会话在进程内合并。真实 Provider 用量写回该会话首轮助手消息，Session Owner 的标题比较保护手动改名。生成失败保留短回退名，不伪报成功。构建写入仓库根 `dist/packages/core/agent-loop/`。
+
+主 Agent 每次请求的 Git、工作区、写作和会话记忆背景由 LLM Owner 放在当前用户消息前部，参与同一条请求的 token 估算与压缩；上下文改写同步回规范历史前先移除临时背景前缀，Session 可见对话不变。Provider/模型选择只影响真实请求路由，不选择缓存布局。
+
 ## Pi Agent Core 回合执行器（2026-10-25）
 
 AI 员工办公室从本包读取按账户过滤的活动 Run 摘要。Run 保留真实员工 ID、标签、父 Run、排队/运行/暂停状态及最近三条公开活动标题；不会返回活动详情、原始工具参数或 Provider 隐藏推理。专家子 Run 的名称来自已加载的登记专家，通用子 Run 的短标签由已校验的委派工具提供。构建写入仓库根 `dist/packages/core/agent-loop/`。

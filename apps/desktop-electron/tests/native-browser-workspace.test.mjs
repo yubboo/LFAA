@@ -17,6 +17,7 @@ class FakeWebContents extends EventEmitter {
     this.loading = false;
     this.holdLoad = false;
     this.failNextLoad = false;
+    this.captureCount = 0;
     this.targetId = `fixture_target_${FakeWebContents.nextTarget++}`;
     let attached = false;
     this.debugger = {
@@ -45,6 +46,15 @@ class FakeWebContents extends EventEmitter {
   canGoForward() { return false; }
   getZoomFactor() { return this.zoom; }
   setZoomFactor(value) { this.zoom = value; }
+  async capturePage() {
+    this.captureCount += 1;
+    return {
+      isEmpty: () => false,
+      getSize: () => ({ width: 1280, height: 800 }),
+      resize: ({ width, height }) => ({ width, height, toJPEG: quality => { this.jpegQuality = quality; return Buffer.alloc(64, 1); } }),
+      toJPEG: quality => { this.jpegQuality = quality; return Buffer.alloc(64, 1); }
+    };
+  }
   stopFindInPage() {}
   findInPage() { return { matches: 0, activeMatch: 0 }; }
   print() {}
@@ -173,6 +183,23 @@ test("native browser bounds every tab set", async () => {
   const { workspace } = createFixture();
   for (let index = 0; index < 32; index += 1) await workspace.createTab();
   await assert.rejects(workspace.createTab(), /最多同时打开 32 个/u);
+  workspace.dispose();
+});
+
+test("native tab preview captures only the visible active page and returns a bounded thumbnail", async () => {
+  const { workspace } = createFixture();
+  const first = await workspace.createTab("https://example.com/first");
+  assert.equal(await workspace.capturePreview(first.activeTabId), null, "hidden Browser Owner pages do not capture previews");
+  workspace.setVisible(true);
+  const preview = await workspace.capturePreview(first.activeTabId);
+  assert.deepEqual({ width: preview.width, height: preview.height }, { width: 325, height: 203 });
+  assert.ok(Buffer.from(preview.dataBase64, "base64").byteLength <= 512 * 1024);
+  assert.equal(FakeWebContentsView.created[0].webContents.jpegQuality, 66);
+  const second = await workspace.createTab("https://example.com/second");
+  assert.equal(await workspace.capturePreview(first.activeTabId), null, "inactive tabs cannot be captured");
+  assert.equal((await workspace.capturePreview(second.activeTabId)).width, 325);
+  workspace.setVisible(false);
+  assert.equal(await workspace.capturePreview(second.activeTabId), null, "a page hidden during preview cannot return an image");
   workspace.dispose();
 });
 

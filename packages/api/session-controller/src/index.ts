@@ -9,14 +9,14 @@ import { requireAuthentication } from "lfaa-authorization/src/middleware.js";
 import { createRateLimit } from "lfaa-api-remotes/src/rate-limit.js";
 import type { AiPluginHost } from "lfaa-app-boot/src/ai-host.js";
 import type { MinecraftRealtimePublisher } from "lfaa-api-remotes/src/socket-server.js";
-import { createAiSessionBranchWithMemory, startAiRun, getAiRun, cancelAiRun, pauseAiRun, resumeAiRun, subscribeAiRun, appendAiRunInput, answerAiRunQuestion, listAiOfficeRuns, type AiRunInput } from "lfaa-agent-loop/src/runs.js";
+import { createAiSessionBranchWithMemory, generateAiSessionTitle, startAiRun, getAiRun, cancelAiRun, pauseAiRun, resumeAiRun, subscribeAiRun, appendAiRunInput, answerAiRunQuestion, listAiOfficeRuns, type AiRunInput } from "lfaa-agent-loop/src/runs.js";
 import type { SubagentManager } from "lfaa-subagent/src/manager.js";
-import { forkAiSessionBeforeUserMessage, forkAiSessionForSideChat, getAiSideChatParentSessionId, getAiSession, getAiSessionMessages, getAiSessionMessagesPage, getAiUsageSummary, InvalidAiSessionMessageCursorError, listAiSessions, setAiSessionArchived, setAiSessionPlanMode, submitAiMessageFeedback, type AiMessageFeedbackInput } from "lfaa-session/src/sessions.js";
+import { forkAiSessionBeforeUserMessage, forkAiSessionForSideChat, getAiSideChatParentSessionId, getAiSession, getAiSessionMessages, getAiSessionMessagesPage, getAiUsageSummary, InvalidAiSessionMessageCursorError, listAiSessions, renameAiSession, setAiSessionArchived, setAiSessionPlanMode, submitAiMessageFeedback, type AiMessageFeedbackInput } from "lfaa-session/src/sessions.js";
 import { AiPermissionModeChangedError, decideAiToolApproval, listAiToolApprovals, listAiToolPermissionGrants, revokeAiToolPermissionGrant } from "lfaa-permission-presets/src/permissions.js";
 import type { UserApprovalNotifications } from "lfaa-user-approval/src/index.js";
 import { getUserSettings } from "lfaa-settings/src/service.js";
 import { getAiHostTask, listUserAiHostTasks, requestAiHostTaskCancellation } from "lfaa-jobs/src/ai-host-tasks.js";
-import { asyncHandler, parseBody, aiChatMessageSchema, aiMessageFeedbackSchema, aiSessionArchiveSchema, aiSessionPlanModeSchema, aiSessionForkSchema, aiApprovalDecisionSchema, aiRunQuestionAnswerSchema, writeSse } from "lfaa-api-remotes/src/route-contracts.js";
+import { asyncHandler, parseBody, aiChatMessageSchema, aiMessageFeedbackSchema, aiSessionArchiveSchema, aiSessionPlanModeSchema, aiSessionTitleSchema, aiSessionForkSchema, aiApprovalDecisionSchema, aiRunQuestionAnswerSchema, writeSse } from "lfaa-api-remotes/src/route-contracts.js";
 import { openSseStream } from "lfaa-api-gateway/src/sse.js";
 export function registerRoutes(router: Router, aiPluginHost: AiPluginHost, _realtime: MinecraftRealtimePublisher, approvalNotifications: UserApprovalNotifications, subagents?: Pick<SubagentManager, "listRuns">): void {
 const limitAiInference = createRateLimit(12, 60 * 1000);
@@ -166,6 +166,19 @@ router.patch("/ai/sessions/:sessionId/archive", requireAuthentication, (request,
     if (!session) throw new ApiError(404, "ai_session_not_found", "找不到此 AI 会话。");
     response.json({ session });
   });
+
+router.patch("/ai/sessions/:sessionId/title", requireAuthentication, (request, response) => {
+    const body = parseBody<{ title: string }>(aiSessionTitleSchema, request.body);
+    const session = renameAiSession(request.auth!.user.id, request.params.sessionId, body.title);
+    if (!session) throw new ApiError(404, "ai_session_not_found", "找不到此 AI 会话。");
+    response.json({ session });
+  });
+
+router.post("/ai/sessions/:sessionId/title/generate", requireAuthentication, limitAiInference, asyncHandler(async (request, response) => {
+    const result = await generateAiSessionTitle(request.auth!.user.id, request.params.sessionId);
+    if (!result.session) throw new ApiError(404, "ai_session_not_found", "找不到此 AI 会话。");
+    response.json(result);
+  }));
 
 router.patch("/ai/sessions/:sessionId/plan-mode", requireAuthentication, (request, response) => {
     const body = parseBody<{ active: boolean }>(aiSessionPlanModeSchema, request.body);

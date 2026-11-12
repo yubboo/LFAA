@@ -20,6 +20,8 @@ type Props = {
   actionRequest?: { id: string; action: "back" | "forward" | "reload" } | null;
   onActionRequestHandled?: (requestId: string) => void;
   onOpenTabsChange?: (update: BrowserDockTabsUpdate) => void;
+  previewRequestId?: number;
+  onPreviewCapture?: (requestId: number, dataUrl: string | null) => void;
 };
 type NativeBrowserApi = NonNullable<NonNullable<Window["lfaaDesktop"]>["nativeBrowser"]>;
 
@@ -34,7 +36,7 @@ function isNativeBrowserState(value: unknown): value is NativeBrowserState {
     && typeof (value as { visible?: unknown }).visible === "boolean";
 }
 
-export function NativeBrowserPanel({ sessionId, settings, preferredProviderId, providerSelectionRequestId, hidden = false, navigationRequest, onNavigationRequestHandled, actionRequest, onActionRequestHandled, onOpenTabsChange }: Props) {
+export function NativeBrowserPanel({ sessionId, settings, preferredProviderId, providerSelectionRequestId, hidden = false, navigationRequest, onNavigationRequestHandled, actionRequest, onActionRequestHandled, onOpenTabsChange, previewRequestId, onPreviewCapture }: Props) {
   const api = useMemo(nativeApi, []);
   const [state, setState] = useState<NativeBrowserState>({ tabs: [], activeTabId: null, visible: false });
   const [stateReady, setStateReady] = useState(false);
@@ -43,7 +45,20 @@ export function NativeBrowserPanel({ sessionId, settings, preferredProviderId, p
   const boundTargetRef = useRef("");
   const handledNavigationRequestRef = useRef("");
   const handledActionRequestRef = useRef("");
+  const capturedPreviewRequestRef = useRef(0);
   const activeTab = state.tabs.find(tab => tab.id === state.activeTabId) ?? null;
+
+  useEffect(() => {
+    if (!previewRequestId || previewRequestId === capturedPreviewRequestRef.current || hidden || !state.visible || !api || !activeTab || typeof api.capturePreview !== "function") return;
+    capturedPreviewRequestRef.current = previewRequestId;
+    let current = true;
+    void api.capturePreview(activeTab.id).then(preview => {
+      if (current) onPreviewCapture?.(previewRequestId, preview ? `data:image/jpeg;base64,${preview.dataBase64}` : null);
+    }).catch(() => {
+      if (current) onPreviewCapture?.(previewRequestId, null);
+    });
+    return () => { current = false; };
+  }, [activeTab?.id, api, hidden, onPreviewCapture, previewRequestId, state.visible]);
 
   useEffect(() => {
     const providerSelected = preferredProviderId === "lfaa-native-browser";

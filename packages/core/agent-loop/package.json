@@ -27,6 +27,7 @@
     "lfaa-schedule": "workspace:*",
     "lfaa-scope": "workspace:*",
     "lfaa-session": "workspace:*",
+    "lfaa-session-title-first-prompt-llm": "workspace:*",
     "lfaa-settings": "workspace:*",
     "lfaa-spill": "workspace:*",
     "lfaa-spill-policy": "workspace:*",

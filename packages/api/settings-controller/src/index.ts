@@ -8,6 +8,7 @@ import { raw, Router } from "express";
 import { ApiError } from "lfaa-util-values/src/http-error.js";
 import { requireAuthentication, requireRole, requireSuperAdmin } from "lfaa-authorization/src/middleware.js";
 import { hasAdminAccess, type UserRole } from "lfaa-identity-auth/src/service.js";
+import { createMemoryAgentAccessToken, getMemoryAgentAccessStatus, revokeMemoryAgentAccessToken } from "lfaa-identity-auth/src/service.js";
 import { authorizeExplicitUserAction } from "lfaa-permission-presets/src/permissions.js";
 import type { AiPluginHost } from "lfaa-app-boot/src/ai-host.js";
 import { PluginRuntimeError } from "lfaa-app-boot/src/plugin-runtime.js";
@@ -191,6 +192,23 @@ router.delete("/settings/memories", requireAuthentication, (request, response) =
     const userId = request.auth!.user.id;
     redactConversationMemoryContexts(userId);
     clearConversationMemories(userId);
+    response.status(204).end();
+  });
+
+router.get("/settings/memory-agent-connection", requireAuthentication, (request, response) => {
+    response.json({ connection: getMemoryAgentAccessStatus(request.auth!.user.id) });
+  });
+
+router.post("/settings/memory-agent-connection/token", requireAuthentication, (request, response) => {
+    const personalization = getUserSettings(request.auth!.user.id).personalization;
+    if (!personalization.memoryEnabled || !personalization.memorySharedWithAgents) {
+      throw new ApiError(409, "memory_agent_sharing_disabled", "请先在设置中心启用记忆和外部 Agent 共享。");
+    }
+    response.status(201).json({ ...createMemoryAgentAccessToken(request.auth!.user.id), endpoint: "/api/mcp/agent-memory" });
+  });
+
+router.delete("/settings/memory-agent-connection/token", requireAuthentication, (request, response) => {
+    revokeMemoryAgentAccessToken(request.auth!.user.id);
     response.status(204).end();
   });
 
@@ -535,7 +553,11 @@ router.delete("/data-directory", requireAuthentication, requireSuperAdmin, (_req
 /** 将本控制器的路由层与当前插件生命周期绑定。 */
 import type { Context } from "@deepseek-ai/cordis";
 import "lfaa-api-gateway/src/index.js";
+import { registerAgentMemoryMcpRoute } from "./agent-memory-mcp.js";
 export const inject = ["apiGateway", "lfaaAttachments", "lfaaSubagentClaudeCode"];
 export function apply(ctx: Context): void {
-  ctx.apiGateway.register(ctx, "settings-controller", (router, aiPluginHost, realtime) => registerRoutes(router, aiPluginHost, realtime, ctx.lfaaAttachments, ctx.lfaaSubagentClaudeCode));
+  ctx.apiGateway.register(ctx, "settings-controller", (router, aiPluginHost, realtime) => {
+    registerRoutes(router, aiPluginHost, realtime, ctx.lfaaAttachments, ctx.lfaaSubagentClaudeCode);
+    registerAgentMemoryMcpRoute(router);
+  });
 }

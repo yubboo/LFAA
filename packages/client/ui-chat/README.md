@@ -4,6 +4,8 @@
 
 `lfaa-client-ui-chat` 展示同一 Agent Run 的公开正文、真实工具活动、用户问题和权限审批，执行与持久化仍归原 Agent Loop、Session 与 Permission Owner。
 
+活动会话打开时，聊天按账户、App、Session 范围最多请求一次标题生成；结果经 `onSessionChange` 更新已有列表项，不改变会话排序。标题请求由 Agent Loop 使用当前已选模型，失败时保留 Session Owner 的短回退名。
+
 全局 `/work` 使用 `workspace` 兼容作用域，用户无需先选业务 App 就能讨论、写代码和处理项目；项目目录关联是可选的工作上下文，与业务 App 关联分开。项目文件修改继续按默认工作目录/Agent Git 绑定规则和统一 Permission Owner 执行。全局聊天的可选 App 关联只提供模型参考，不扩张当轮工具范围。输入区按 `APPLICATION_LABELS` 显示真实 App 或“通用工作区”，不把 Agent 本身标成一个业务 App。
 
 业务 App 聊天使用当前 `ApplicationId` 作为 Agent 工具范围；没有活动会话时，标题和无会话状态仍显示当前 App 名称。Workspace 项目选择器只向 `workspace` 与 `minecraft` 显示；AI 漫剧项目通过 `applicationProject`/`canvas` 工作区视图定位同一个 AI Video Owner，项目 ID 只随当前 App 的新 Run 传递，不复制项目正文或扩展工具权限。
@@ -84,7 +86,7 @@ AI Work 首次使用沿用默认项目语义；可用默认项目成为新会话
 
 主聊天和侧边聊天的输入框下方均显示当前会话累计的 Provider 用量。支持缓存的 Provider 按自身能力自动处理前缀缓存，不需要用户为每个会话开启缓存；LFAA 不伪造本地命中或节省量。点击缓存统计可查看输入、未缓存输入、缓存读取、输出和 Provider 统计覆盖请求数；命中率只在同一 Provider/模型分组且真实字段完整时计算，多模型会话分别展示，不跨模型混算。缺失字段显示未知，显式零保留为零，部分请求未返回缓存读数时显示覆盖率并将命中率标为不完整。
 
-刷新或切换会话时，底栏区分读取中的会话用量、读取失败和 Provider 未返回用量，并预留按钮行高；不能在会话读取完成前把空摘要误报为 Provider 缺项。模型账户以本次 Settings/Connection 返回值为准，收起的模型按钮显示目录名称及 `versionTag`，版本标签不改写 Provider 调用 ID。
+刷新或切换会话时，底栏区分读取中的会话用量、读取失败和 Provider 未返回用量，并预留按钮行高；不能在会话读取完成前把空摘要误报为 Provider 缺项。模型账户以本次 Settings/Connection 返回值为准，收起的模型按钮显示目录名称及当前推理档位，不额外展示 `versionTag`；全局输出长度策略只在设置中心“AI 与模型 → 推理参数”配置，模型目录不改变 Provider 调用 ID。
 
 `aiRuntime.showContextUsage` 开启时，两个输入框下方也显示最近一次实际模型请求的上下文占用环。上下文容量取请求使用的模型目录；目录缺失时使用 `aiRuntime.contextWindowTokens`，明细明确标记容量来自模型目录或设置中心兜底。请求发出前按真实系统提示、工具 Schema 和消息估算分项，Provider 返回后总量更新为实际 prompt tokens。分项明确标为估算，图片 token 成本只纳入 Provider 实际总量。主聊与侧聊均从 Session 页面投影恢复累计用量和最近上下文快照，SSE 逐请求更新当前状态；不根据界面常数生成数据。
 

@@ -270,7 +270,9 @@ function readPermissionSettings(value: Record<string, unknown>): PermissionSetti
 function readPersonalizationSettings(value: Record<string, unknown>): PersonalizationSettings {
   return {
     memoryEnabled: typeof value.memoryEnabled === "boolean" ? value.memoryEnabled : defaultSettings.personalization.memoryEnabled,
-    memoryFromToolChats: typeof value.memoryFromToolChats === "boolean" ? value.memoryFromToolChats : defaultSettings.personalization.memoryFromToolChats
+    memoryFromToolChats: typeof value.memoryFromToolChats === "boolean" ? value.memoryFromToolChats : defaultSettings.personalization.memoryFromToolChats,
+    memorySharedWithAgents: typeof value.memorySharedWithAgents === "boolean" ? value.memorySharedWithAgents : defaultSettings.personalization.memorySharedWithAgents,
+    memoryAgentWritesEnabled: typeof value.memoryAgentWritesEnabled === "boolean" ? value.memoryAgentWritesEnabled : defaultSettings.personalization.memoryAgentWritesEnabled
   };
 }
 

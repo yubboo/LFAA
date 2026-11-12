@@ -353,6 +353,41 @@ export function registerRoutes(router: Router, aiPluginHost: AiPluginHost, _real
     response.json({ status: await runLocalGitOperation(project, { operation: "status" }) });
   }));
 
+  router.post("/workspace/projects/:projectId/git/summary", requireAuthentication, asyncHandler(async (request, response) => {
+    const body = parseBody<{ appId: "workspace" }>(Joi.object({ appId: Joi.string().valid("workspace").required() }).unknown(false), request.body);
+    const project = requireProjectForApp(request.auth!.user.id, request.params.projectId, body.appId);
+    requireLocalGitProject(project);
+    const folders = [...project.sources].sort((first, second) => first.position - second.position || first.path.localeCompare(second.path, "en"));
+    if (!folders.some(folder => folder.path === project.path)) folders.unshift({ id: "", path: project.path, position: -1 });
+    const primaryPathKey = process.platform === "win32" ? project.path.toLocaleLowerCase("en-US") : project.path;
+    const uniqueFolders = folders.filter((folder, index) => {
+      const pathKey = process.platform === "win32" ? folder.path.toLocaleLowerCase("en-US") : folder.path;
+      return folders.findIndex(candidate => (process.platform === "win32" ? candidate.path.toLocaleLowerCase("en-US") : candidate.path) === pathKey) === index;
+    }).sort((first, second) => {
+      const firstPathKey = process.platform === "win32" ? first.path.toLocaleLowerCase("en-US") : first.path;
+      const secondPathKey = process.platform === "win32" ? second.path.toLocaleLowerCase("en-US") : second.path;
+      const firstPrimary = firstPathKey === primaryPathKey;
+      const secondPrimary = secondPathKey === primaryPathKey;
+      return Number(secondPrimary) - Number(firstPrimary) || first.position - second.position || first.path.localeCompare(second.path, "en");
+    });
+    const summaries: Array<{ sourceId: string | null; path: string; position: number; isPrimary: boolean; status?: unknown; error?: string }> = [];
+    for (let index = 0; index < uniqueFolders.length; index += 4) {
+      const batch = uniqueFolders.slice(index, index + 4);
+      summaries.push(...await Promise.all(batch.map(async folder => {
+        const folderProject = folder.id ? projectForSource(project, folder.id) : { ...project, path: folder.path };
+        const pathKey = process.platform === "win32" ? folder.path.toLocaleLowerCase("en-US") : folder.path;
+        try {
+          const status = await runLocalGitOperation(folderProject, { operation: "summary" });
+          return { sourceId: folder.id || null, path: folder.path, position: folder.position, isPrimary: pathKey === primaryPathKey, status };
+        } catch (error) {
+          return { sourceId: folder.id || null, path: folder.path, position: folder.position, isPrimary: pathKey === primaryPathKey,
+            error: error instanceof Error ? error.message : "Git 状态读取失败。" };
+        }
+      })));
+    }
+    response.json({ folders: summaries });
+  }));
+
   router.post("/workspace/projects/:projectId/git/operation", requireAuthentication, asyncHandler(async (request, response) => {
     const body = parseBody<{ appId: WorkspaceProjectApplicationId; sourceId?: string; operation: string; paths?: string[]; message?: string; branch?: string; limit?: number }>(gitWorkspaceOperationSchema, request.body);
     const userId = request.auth!.user.id;

@@ -4,6 +4,8 @@ Minecraft Java 环境摘要在运行时返回发行版、完整版本、架构�
 
 此包提供已认证控制端 API 和 AI Work SSE 消费协议，不持有模型、Session 或权限业务规则。
 
+AI Session Client 暴露 `renameAiSession()` 与 `generateAiSessionTitle()`，只传会话 ID 和用户标题/生成请求，并消费 Session Controller 返回的真实会话标题及状态；Client 不在本地推断持久化是否成功。构建写入仓库根 `dist/packages/client/connection/`。
+
 `UserPreferences.guidedEntryCompleted` 与最近 App/模式选择共用认证 `/preferences` 读写合同；Connection 只传递账户级偏好，不另存向导状态或工作区内容。
 
 `AiWorkbenchView` 只传递当前可见工作区状态，包括 `project-file` 右侧文件页签。Canvas/Workflow 引用含当前 App、真实 Owner ID、标题及 `updatedAt`，只随新 Agent Run 请求发送；不持久化到 Session，也不授予工具或操作权限。`readWorkspaceProjectTextFile`、`loadWorkspaceGitStatus` 和 `loadWorkspaceGitFileDiff` 保持认证项目/节点边界，UI 不访问本机文件系统；项目文件读取、Git 状态和单文件差异均透传活动 `sourceId`，并支持 AbortSignal 取消过期读取。`loadWorkflowRuns` 支持 AbortSignal，供隐藏或卸载的画布面板撤销状态读取。
@@ -17,6 +19,8 @@ Minecraft 实例配置 Client 提供 `readMinecraftServerProperties()` 只读任
 `loadMinecraftInstanceDirectory()` 只读取 Minecraft Controller 的管理员实例目录投影；`loadConnectivityOverview(signal)` 支持取消，并将真实路线列表交给 Minecraft UI 按当前账户、`sourceAppId` 和实例 ID 精确筛选。Connection 不根据端口、节点名称或本机地址生成玩家连接地址。
 
 `loadAiOffice()` 通过认证 `/ai/office` 读取员工元数据和当前账户的 Agent Run 摘要，可传 AbortSignal 供 UI 隐藏/卸载时取消；不缓存状态快照。
+
+`loadAiHostTasks()` 读取当前账户最近的真实节点任务元数据；`loadAiHostTask()` 按单个任务读取命令与有界输出；`cancelAiHostTask()` 请求 Job/Daemon Owner 取消该任务。任务摘要不携带命令或输出正文，客户端只在明确打开单项详情后读取；`AiHostTask.appId` 表示 App 归属，不代表 Session 归属。
 
 AI 模型目录由 `/settings/ai/accounts` 按当前登录返回系统级普通 Provider 配置和当前用户自己的火山方舟 Agent Plan/Coding Plan 席位。个人席位使用 Plan 专用端点与手填 Model Name；新建时先真实测试模型，再提交短时一次性验证凭证。凭据替换只发送新 secret；响应不包含密钥，system/user scope 与权限判断归服务端 Owner。
 

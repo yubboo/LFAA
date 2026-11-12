@@ -4881,6 +4881,7 @@
           "apps/cli/tests/minecraft-core-names-api.test.mjs",
           "apps/cli/tests/minecraft-live-deployment.test.mjs",
           "apps/cli/tests/minecraft-overview-fast-path.test.mjs",
+          "apps/cli/tests/minecraft-server-telemetry-api.test.mjs",
           "apps/cli/tests/native-daemon-control.test.mjs",
           "apps/cli/tests/plugin-manager-api.test.mjs",
           "apps/cli/tests/subagent-agent-loop-permission-bridge.test.mjs",
@@ -6757,6 +6758,7 @@
           "packages/client/ui-chat",
           "packages/client/ui-deliverables",
           "packages/client/ui-layout",
+          "packages/client/ui-minecraft",
           "packages/client/ui-plugin-manager",
           "packages/client/ui-renderer",
           "packages/client/ui-settings",
@@ -6784,6 +6786,10 @@
           },
           {
             "consumer": "packages/client/ui-layout",
+            "field": "dependencies"
+          },
+          {
+            "consumer": "packages/client/ui-minecraft",
             "field": "dependencies"
           },
           {
@@ -7369,7 +7375,9 @@
           "packages/client/ui-layout",
           "packages/client/web"
         ],
-        "testConsumers": [],
+        "testConsumers": [
+          "apps/cli/tests/file-manager-code-editor.test.mjs"
+        ],
         "manifestConsumers": [
           {
             "consumer": "apps/web",
@@ -10105,7 +10113,8 @@
           "apps/cli/tests/minecraft-archive.test.mjs",
           "apps/cli/tests/minecraft-core-names-api.test.mjs",
           "apps/cli/tests/minecraft-live-deployment.test.mjs",
-          "apps/cli/tests/minecraft-multicore.test.mjs"
+          "apps/cli/tests/minecraft-multicore.test.mjs",
+          "apps/cli/tests/minecraft-server-telemetry-api.test.mjs"
         ],
         "manifestConsumers": [
           {
@@ -10612,6 +10621,7 @@
           "apps/cli/tests/minecraft-archive.test.mjs",
           "apps/cli/tests/minecraft-live-deployment.test.mjs",
           "apps/cli/tests/minecraft-multicore.test.mjs",
+          "apps/cli/tests/minecraft-server-telemetry-api.test.mjs",
           "apps/cli/tests/realtime-socket.test.mjs",
           "apps/cli/tests/runtime-environment.test.mjs",
           "apps/cli/tests/steamcmd-dst-cluster.test.mjs",
@@ -13685,13 +13695,18 @@
       "responsibility": "会话标题策略服务",
       "evidence": {
         "entry": "packages/session/session-title/src/index.ts",
-        "readme": null,
+        "readme": "packages/session/session-title/README.md",
         "consumers": [
+          "packages/core/session",
           "packages/session/session-title-llm",
           "packages/session/session-turn-outline"
         ],
         "testConsumers": [],
         "manifestConsumers": [
+          {
+            "consumer": "packages/core/session",
+            "field": "dependencies"
+          },
           {
             "consumer": "packages/session/session-title-llm",
             "field": "dependencies"
@@ -13755,10 +13770,17 @@
       "responsibility": "首轮提示的模型标题提供方",
       "evidence": {
         "entry": "packages/session/session-title-first-prompt-llm/src/index.ts",
-        "readme": null,
-        "consumers": [],
+        "readme": "packages/session/session-title-first-prompt-llm/README.md",
+        "consumers": [
+          "packages/core/agent-loop"
+        ],
         "testConsumers": [],
-        "manifestConsumers": [],
+        "manifestConsumers": [
+          {
+            "consumer": "packages/core/agent-loop",
+            "field": "dependencies"
+          }
+        ],
         "profileConsumers": [
           {
             "profile": "desktop",
@@ -13784,7 +13806,7 @@
       "responsibility": "通用模型标题生成适配",
       "evidence": {
         "entry": "packages/session/session-title-llm/src/index.ts",
-        "readme": null,
+        "readme": "packages/session/session-title-llm/README.md",
         "consumers": [
           "packages/session/session-title-all-prompts-llm",
           "packages/session/session-title-first-prompt-llm"
@@ -15557,6 +15579,7 @@
           "apps/cli/tests/minecraft-archive.test.mjs",
           "apps/cli/tests/minecraft-live-deployment.test.mjs",
           "apps/cli/tests/minecraft-multicore.test.mjs",
+          "apps/cli/tests/minecraft-server-telemetry-api.test.mjs",
           "apps/cli/tests/minecraft-task-leases.test.mjs",
           "apps/cli/tests/minecraft-task-records.test.mjs",
           "apps/cli/tests/package-owner-lazy-capabilities.test.mjs",
@@ -16313,7 +16336,7 @@
       "responsibility": "Bash 交互终端适配",
       "evidence": {
         "entry": "packages/terminal/terminal-bash/src/index.ts",
-        "readme": null,
+        "readme": "packages/terminal/terminal-bash/README.md",
         "consumers": [
           "packages/host/daemon",
           "packages/terminal/terminal",
@@ -17408,6 +17431,7 @@
           "packages/client/ui-layout",
           "packages/client/ui-minecraft",
           "packages/client/ui-plugin-manager",
+          "packages/client/ui-primitives",
           "packages/client/ui-renderer",
           "packages/client/ui-settings",
           "packages/client/ui-settings-general",
@@ -17635,6 +17659,10 @@
           },
           {
             "consumer": "packages/client/ui-plugin-manager",
+            "field": "dependencies"
+          },
+          {
+            "consumer": "packages/client/ui-primitives",
             "field": "dependencies"
           },
           {

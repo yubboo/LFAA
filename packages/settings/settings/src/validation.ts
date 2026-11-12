@@ -177,7 +177,9 @@ export const pluginsSettingsSchema = Joi.object({
 
 export const personalizationSettingsSchema = Joi.object({
   memoryEnabled: Joi.boolean().required(),
-  memoryFromToolChats: Joi.boolean().required()
+  memoryFromToolChats: Joi.boolean().required(),
+  memorySharedWithAgents: Joi.boolean().required(),
+  memoryAgentWritesEnabled: Joi.boolean().required()
 }).unknown(false);
 
 export const miniSettingsSchema = Joi.object({

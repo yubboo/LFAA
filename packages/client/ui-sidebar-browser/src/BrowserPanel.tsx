@@ -13,6 +13,7 @@ import "./browser-panel.css";
 
 type BrowserNavigationRequest = { id: string; url: string };
 type BrowserDockActionRequest = { id: string; action: "back" | "forward" | "reload" };
+type BrowserPreviewCapture = (requestId: number, dataUrl: string | null) => void;
 type BrowserPoint = { x: number; y: number };
 type BrowserGesture = { pointerId: number; pointerType: string; start: BrowserPoint; points: Array<BrowserPoint & { delayMs: number }>; last: BrowserPoint; startClientX: number; startClientY: number; lastAt: number };
 type BrowserPanelProps = {
@@ -27,14 +28,42 @@ type BrowserPanelProps = {
   actionRequest?: BrowserDockActionRequest | null;
   onActionRequestHandled?: (requestId: string) => void;
   onOpenTabsChange?: (update: BrowserDockTabsUpdate) => void;
+  previewRequestId?: number;
+  onPreviewCapture?: BrowserPreviewCapture;
 };
+
+function captureBrowserPreview(canvas: HTMLCanvasElement): Promise<string | null> {
+  if (!canvas.width || !canvas.height) return Promise.resolve(null);
+  const scale = Math.min(1, 360 / canvas.width, 203 / canvas.height);
+  const previewCanvas = document.createElement("canvas");
+  previewCanvas.width = Math.max(1, Math.round(canvas.width * scale));
+  previewCanvas.height = Math.max(1, Math.round(canvas.height * scale));
+  try {
+    const context = previewCanvas.getContext("2d", { alpha: false });
+    if (!context) return Promise.resolve(null);
+    context.drawImage(canvas, 0, 0, previewCanvas.width, previewCanvas.height);
+  } catch {
+    return Promise.resolve(null);
+  }
+  return new Promise(resolve => {
+    previewCanvas.toBlob(blob => {
+      previewCanvas.width = 0;
+      previewCanvas.height = 0;
+      if (!blob || blob.size > 512 * 1024) { resolve(null); return; }
+      const reader = new FileReader();
+      reader.onerror = () => resolve(null);
+      reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : null);
+      reader.readAsDataURL(blob);
+    }, "image/jpeg", 0.72);
+  });
+}
 
 function displayAddress(value: string, showFullUrl: boolean): string {
   if (showFullUrl) return value;
   try { return new URL(value).host; } catch { return value; }
 }
 
-function BrowserUsePanel({ sessionId, settings, browserUrl, preferredProviderId = null, providerSelectionRequestId, hidden = false, navigationRequest, onNavigationRequestHandled, actionRequest, onActionRequestHandled, onOpenTabsChange }: BrowserPanelProps) {
+function BrowserUsePanel({ sessionId, settings, browserUrl, preferredProviderId = null, providerSelectionRequestId, hidden = false, navigationRequest, onNavigationRequestHandled, actionRequest, onActionRequestHandled, onOpenTabsChange, previewRequestId, onPreviewCapture }: BrowserPanelProps) {
   const [providers, setProviders] = useState<BrowserProviderSummary[]>([]);
   const [providerId, setProviderId] = useState<BrowserProviderId | "">("");
   const [snapshot, setSnapshot] = useState<BrowserSessionSnapshot | null>(null);
@@ -54,6 +83,7 @@ function BrowserUsePanel({ sessionId, settings, browserUrl, preferredProviderId 
   const reconnectAttemptRef = useRef(0);
   const streamRequestIdRef = useRef(0);
   const streamPendingRef = useRef(false);
+  const previewCapturedRequestRef = useRef(0);
   const pendingFrameRef = useRef<BrowserDockFrame | null>(null);
   const frameDecodingRef = useRef(false);
   const drainFramesRef = useRef<() => void>(() => undefined);
@@ -79,6 +109,18 @@ function BrowserUsePanel({ sessionId, settings, browserUrl, preferredProviderId 
 
   scopeRef.current = { sessionId, providerId, hidden };
   snapshotRef.current = snapshot;
+
+  useEffect(() => {
+    if (!previewRequestId || previewRequestId === previewCapturedRequestRef.current || hidden || !hasRenderedFrame) return;
+    const canvas = canvasRef.current;
+    if (!canvas?.width || !canvas.height) return;
+    previewCapturedRequestRef.current = previewRequestId;
+    let current = true;
+    void captureBrowserPreview(canvas).then(dataUrl => {
+      if (current) onPreviewCapture?.(previewRequestId, dataUrl);
+    });
+    return () => { current = false; };
+  }, [hasRenderedFrame, hidden, onPreviewCapture, previewRequestId]);
 
   useEffect(() => {
     const snapshotMatchesProvider = Boolean(providerId && snapshotBindingRef.current === `${sessionId}:${providerId}`);

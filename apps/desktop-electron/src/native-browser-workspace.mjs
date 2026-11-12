@@ -9,6 +9,9 @@ const MAX_PERMISSION_DECISIONS = 256;
 const MAX_PENDING_PERMISSIONS = 16;
 const MAX_ACTIVE_DOWNLOADS = 8;
 const MAX_DOWNLOAD_HISTORY = 200;
+const MAX_PREVIEW_WIDTH = 360;
+const MAX_PREVIEW_HEIGHT = 203;
+const MAX_PREVIEW_BYTES = 512 * 1024;
 const BROWSER_SESSION_PARTITION = "lfaa-native-browser-v1";
 const PERMISSION_LABELS = new Map([
   ["media", "摄像头或麦克风"], ["geolocation", "位置信息"], ["notifications", "桌面通知"],
@@ -576,6 +579,24 @@ export class NativeBrowserWorkspace {
       };
     });
     return { tabs, activeTabId: this.activeTabId, visible: this.visible };
+  }
+
+  async capturePreview(id) {
+    this.assertActive();
+    if (!this.visible || !id || id !== this.activeTabId) return null;
+    const contents = this.requireTab(id).view.webContents;
+    if (contents.isDestroyed()) return null;
+    const image = await contents.capturePage();
+    if (contents.isDestroyed() || !this.visible || this.activeTabId !== id || image.isEmpty()) return null;
+    const size = image.getSize();
+    if (!Number.isFinite(size.width) || !Number.isFinite(size.height) || size.width <= 0 || size.height <= 0) return null;
+    const scale = Math.min(1, MAX_PREVIEW_WIDTH / size.width, MAX_PREVIEW_HEIGHT / size.height);
+    const width = Math.max(1, Math.round(size.width * scale));
+    const height = Math.max(1, Math.round(size.height * scale));
+    const preview = scale < 1 ? image.resize({ width, height, quality: "good" }) : image;
+    const bytes = preview.toJPEG(66);
+    if (!bytes.byteLength || bytes.byteLength > MAX_PREVIEW_BYTES) return null;
+    return { dataBase64: bytes.toString("base64"), width, height };
   }
 
   publish() {

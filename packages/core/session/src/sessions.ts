@@ -15,6 +15,7 @@ import { sessionRecords } from "lfaa-session-persistence-jsonl/src/repository.js
 import type { SessionChange, SessionCommit } from "lfaa-session-persistence-jsonl/src/persistence.js";
 import type { SessionContextUsage, SessionUsageSummary } from "lfaa-session-persistence-jsonl/src/session-summary.js";
 import type { ApplicationId } from "lfaa-settings/src/preferences/service.js";
+import { compactSessionTitleFromPrompt, normalizeSessionTitle } from "lfaa-session-title";
 import { SessionKernel, SessionStore, sessionRequestHeadersEqual, type SessionEvent, type SessionEventDataMap, type SessionEventType, type SessionModelMessage, type SessionSurfaceOperation } from "./kernel.js";
 export { SessionKernel, SessionStore };
 
@@ -22,6 +23,7 @@ export interface AiSessionView {
   id: string;
   appId: ApplicationId;
   title: string;
+  titleStatus: "pending" | "generated" | "manual" | "legacy";
   archived: boolean;
   createdAt: string;
   updatedAt: string;
@@ -29,6 +31,15 @@ export interface AiSessionView {
   projectTitle: string | null;
   planMode: boolean;
   associations: AgentAssociations;
+}
+
+export interface AiSessionTitleCandidate {
+  appId: ApplicationId;
+  prompt: string;
+  fallbackTitle: string;
+  expectedTitle: string;
+  expectedSource: SessionRow["title_source"];
+  assistantMessageId: string;
 }
 
 export interface AiSessionBranchSourceView {
@@ -172,7 +183,7 @@ export interface AiUsageSummary {
   providers: Array<{ providerId: string; modelId: string; requestCount: number; promptTokens: number | null; completionTokens: number | null }>;
 }
 
-type SessionRow = { user_id: string; id: string; app_id: ApplicationId; title: string; archived: number; created_at: string; updated_at: string; workspace_project_id?: string | null; workspace_node_id?: string | null; workspace_directory?: string | null; workspace_title?: string | null };
+type SessionRow = { user_id: string; id: string; app_id: ApplicationId; title: string; title_source?: "fallback" | "generated" | "manual"; archived: number; created_at: string; updated_at: string; workspace_project_id?: string | null; workspace_node_id?: string | null; workspace_directory?: string | null; workspace_title?: string | null };
 type MessageRow = {
   attachments_json?: string; session_id: string; _order: number; id: string; role: "user" | "assistant"; content: string; status: AiMessageView["status"]; created_at: string; activity_json: string; parts?: SessionReplyPart[]; model_history?: AiModelMessage[]; run_id?: string; kernel_message_id?: string; kernel_run_id?: string };
 
@@ -926,7 +937,8 @@ export function setAiSessionAssociations(userId: string, sessionId: string, asso
 }
 
 function mapSession(row: SessionRow, planMode = planModeForSession(row)): AiSessionView {
-  return { id: row.id, appId: row.app_id, title: row.title, archived: row.archived === 1, createdAt: row.created_at, updatedAt: row.updated_at, projectId: row.workspace_project_id ?? null, projectTitle: row.workspace_title ?? null, planMode, associations: associationsForSession(row) };
+  const titleStatus = row.title_source === "fallback" ? "pending" : row.title_source ?? "legacy";
+  return { id: row.id, appId: row.app_id, title: row.title, titleStatus, archived: row.archived === 1, createdAt: row.created_at, updatedAt: row.updated_at, projectId: row.workspace_project_id ?? null, projectTitle: row.workspace_title ?? null, planMode, associations: associationsForSession(row) };
 }
 
 export interface AiSessionProjectContext {
@@ -1251,10 +1263,10 @@ export function importPortableAiSessions(userId: string, input: unknown, attachm
 /** 为用户发起的交互工具审批创建真实空会话；不伪造模型回复或启动推理。 */
 export function createEmptyAiSession(userId: string, appId: ApplicationId, title: string): AiSessionView {
   const id = randomUUID(), now = new Date().toISOString();
-  const session: SessionRow = { id, user_id: userId, app_id: appId, title: title.trim().slice(0, 72) || "新对话", archived: 0, created_at: now, updated_at: now };
+  const session: SessionRow = { id, user_id: userId, app_id: appId, title: title.trim().slice(0, 72) || "新对话", title_source: "manual", archived: 0, created_at: now, updated_at: now };
   const events = sessionEventChanges(id, [
     eventSpec("session/created", { ownerId: userId, appId, createdAt: now }, now),
-    eventSpec("session/title", { title: session.title }, now)
+    eventSpec("session/title", { title: session.title, source: "manual" }, now)
   ], { userId, appId });
   sessionRecords.commit(id, [change("ai_sessions", session), ...events]);
   return mapSession(session);
@@ -1412,6 +1424,46 @@ export function getAiSessionTitle(userId: string, sessionId: string): string | n
   return row?.title ?? null;
 }
 
+/** 只为仍保留首条输入派生标题的会话生成摘要；手动和已生成标题不会再次覆盖。 */
+export function getAiSessionTitleCandidate(userId: string, sessionId: string): AiSessionTitleCandidate | null {
+  const row = sessionRow(userId, sessionId);
+  if (!row || row.archived === 1 || row.title_source === "manual" || row.title_source === "generated") return null;
+  const rows = messageRows(sessionId, true);
+  const firstUserMessage = rows.find(message => message.role === "user" && message.content.trim());
+  if (!firstUserMessage) return null;
+  const fallbackTitle = compactSessionTitleFromPrompt(firstUserMessage.content) || "新对话";
+  const originalPromptTitle = firstUserMessage.content.trim().replace(/\s+/gu, " ").slice(0, 72) || "新对话";
+  if (row.title_source === "fallback" ? row.title !== fallbackTitle : row.title !== originalPromptTitle) return null;
+  const assistantMessage = rows.find(message => message.role === "assistant" && message._order > firstUserMessage._order);
+  if (!assistantMessage) return null;
+  return { appId: row.app_id, prompt: firstUserMessage.content, fallbackTitle, expectedTitle: row.title, expectedSource: row.title_source, assistantMessageId: assistantMessage.id };
+}
+
+function commitSessionTitle(row: SessionRow, title: string, source: NonNullable<SessionRow["title_source"]>): AiSessionView {
+  const updated = { ...row, title, title_source: source };
+  commitSessionChanges(row.user_id, row.id, [change("ai_sessions", updated)], [eventSpec("session/title", { title, source })]);
+  return mapSession(updated);
+}
+
+/** 仅在当前标题和来源仍匹配时写入自动回退/摘要，避免覆盖并发手动改名。 */
+export function setAiSessionTitleIfUnchanged(userId: string, sessionId: string, expectedTitle: string, expectedSource: SessionRow["title_source"], title: string, source: "fallback" | "generated"): AiSessionView | null {
+  const row = sessionRow(userId, sessionId);
+  if (!row || row.title !== expectedTitle || row.title_source !== expectedSource) return null;
+  const normalized = normalizeSessionTitle(title, 36);
+  if (!normalized) return null;
+  if (row.title === normalized && row.title_source === source) return mapSession(row);
+  return commitSessionTitle(row, normalized, source);
+}
+
+/** 手动标题经认证 API 到达后写入唯一 Session Owner，且不改变会话最近活动时间。 */
+export function renameAiSession(userId: string, sessionId: string, title: string): AiSessionView | null {
+  const row = sessionRow(userId, sessionId);
+  if (!row) return null;
+  const normalized = normalizeSessionTitle(title, 512);
+  if (!normalized || [...normalized].length > 80) throw new Error("聊天标题必须为 1 到 80 个字符。");
+  return commitSessionTitle(row, normalized, "manual");
+}
+
 export function saveAiAssistantActivity(userId: string, sessionId: string, messageId: string, activity: AiActivityItem[]): void {
   if (!sessionRow(userId, sessionId)) return;
   const message = sessionRecords.get("ai_messages", messageId) as MessageRow | undefined;
@@ -1446,7 +1498,7 @@ export function createAiTurn(userId: string, appId: ApplicationId, sessionId: st
   if (!queued && messageRows(id).some(row => row.role === "assistant" && (row.status === "streaming" || row.status === "queued"))) throw new Error("此会话仍有活动任务，请先跟随或停止当前任务。");
   if (existing) ensureSessionEventLog(existing);
   const session: SessionRow = existing ? { ...existing, updated_at: now } : {
-    id, user_id: userId, app_id: appId, title: content.trim().replace(/\s+/gu, " ").slice(0, 72) || "新对话",
+    id, user_id: userId, app_id: appId, title: compactSessionTitleFromPrompt(content) || "新对话", title_source: "fallback",
     archived: 0, created_at: now, updated_at: now,
     workspace_project_id: project?.id ?? null,
     workspace_node_id: project?.nodeId ?? null,
@@ -1462,7 +1514,7 @@ export function createAiTurn(userId: string, appId: ApplicationId, sessionId: st
   if (!existing) {
     specs.push(eventSpec("session/created", { ownerId: userId, appId, createdAt: now }, now));
     if (associations) specs.push(eventSpec("session/associations", structuredClone(associations), now));
-    specs.push(eventSpec("session/title", { title: session.title }, now));
+    specs.push(eventSpec("session/title", { title: session.title, source: "fallback" }, now));
     specs.push(eventSpec("session/project", { projectId: session.workspace_project_id ?? null, nodeId: session.workspace_node_id ?? null, directory: session.workspace_directory ?? null, title: session.workspace_title ?? null }, now));
   }
   if (!queued) specs.push(eventSpec("turn/start", { turnId: assistantMessage.id, userMessageId: userMessage.id, assistantMessageId: assistantMessage.id }, now));

@@ -53,6 +53,7 @@ ipcRenderer.on("lfaa:desktop:update-download-progress", (_event, progress) => {
 contextBridge.exposeInMainWorld("lfaaDesktop", {
   nativeBrowser: {
     getState: () => ipcRenderer.invoke("lfaa:native-browser:state"),
+    capturePreview: id => ipcRenderer.invoke("lfaa:native-browser:capture-preview", id),
     ensureTab: () => ipcRenderer.invoke("lfaa:native-browser:ensure"),
     createTab: (url) => ipcRenderer.invoke("lfaa:native-browser:create-tab", url),
     selectTab: (id) => ipcRenderer.invoke("lfaa:native-browser:select-tab", id),

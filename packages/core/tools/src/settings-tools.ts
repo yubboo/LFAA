@@ -70,7 +70,9 @@ function expandsAccess(path: string, value: unknown): boolean {
     "browserUse.fullCdpAccess",
     "browserUse.useWebsiteToolsByDefault",
     "personalization.memoryEnabled",
-    "personalization.memoryFromToolChats"
+    "personalization.memoryFromToolChats",
+    "personalization.memorySharedWithAgents",
+    "personalization.memoryAgentWritesEnabled"
   ].includes(path)) return true;
   if (value === "allow" && path.startsWith("browserUse.sitePermissionDefaults.")) return true;
   if ((path === "browserUse.sitePermissionOverrides" || path === "browserUse.websiteToolOverrides") && Array.isArray(value)

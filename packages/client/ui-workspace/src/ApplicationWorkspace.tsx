@@ -9,7 +9,6 @@ import { loadAiSkillDirectory } from "lfaa-client-connection/src/api.js";
 import { DshSlotOutlet, loadClientModule } from "lfaa-client-modules/src/client/index.js";
 import { APPLICATION_ROUTE_PATTERN } from "lfaa-util-values/src/application-id.js";
 import { sidebarRightRuntime, useSidebarRightSnapshot } from "./sidebar-right-runtime.js";
-import { shouldAutoOpenGitSummary } from "./git-summary-layout.config.js";
 import { AiWorkProjectFileDock } from "./AiWorkProjectFileDock.js";
 import { openWorkspaceProjectManager } from "lfaa-client-ui-chat/src/project-manager-events.js";
 import { setFileManagerLocation } from "lfaa-client-connection/src/file-manager-location.js";
@@ -17,8 +16,8 @@ import { TerminalManagerRightSidebar } from "lfaa-client-ui-sidebar-terminal/src
 import type { MinecraftInstanceRuntimeContext } from "lfaa-client-ui-minecraft/src/MinecraftWorkspace.js";
 
 import { createElement, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent as ReactFormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
-import { Alert, Button, Dropdown, message, Popover, Segmented, Tag, Typography } from "antd";
-import { archiveAiSession, getErrorMessage, initializeDefaultWorkspace, isDesktopApp, hasAdminAccess, loadAiExtensions, loadAiSessions, loadAgentGitRepositories, ensureAgentGitSessionRepository, loadAgentGitStatus, loadBrowserRecentSites, loadMinecraftStorageSettings, loadSteamcmdSettings, recordBrowserRecentSites, loadWorkspaceProjects, loadWorkspaceSessionDirectoryAvailability, loadWritingWorkspace, userRoleLabel, type AgentGitRepository, type AiActivityFileChange, type AiExtension, type AiSession, type AiWorkbenchView, type ApplicationId, type ApplicationMode, type BrowserProviderId, type BrowserRecentSite, type UserRole, type UserSettings, type WorkspaceDaemonNode, type WorkspaceGitStatus, type WorkspaceProject, type WritingWorkspace as WritingWorkspaceData } from "lfaa-client-connection/src/api.js";
+import { Alert, Button, Dropdown, Input, message, Modal, Popover, Segmented, Tag, Typography } from "antd";
+import { archiveAiSession, cancelAiHostTask, getErrorMessage, loadAiHostTask, loadAiHostTasks, renameAiSession, initializeDefaultWorkspace, isDesktopApp, hasAdminAccess, loadAiExtensions, loadAiSessions, loadAgentGitRepositories, ensureAgentGitSessionRepository, loadAgentGitStatus, registerAgentGitRepository, loadBrowserRecentSites, loadMinecraftStorageSettings, loadSteamcmdSettings, recordBrowserRecentSites, loadWorkspaceProjects, loadWorkspaceProjectGitSummary, loadWorkspaceSessionDirectoryAvailability, loadWritingWorkspace, userRoleLabel, type AgentGitRepository, type AiActivityFileChange, type AiExtension, type AiHostTask, type AiSession, type AiWorkbenchView, type ApplicationId, type ApplicationMode, type BrowserProviderId, type BrowserRecentSite, type UserRole, type UserSettings, type WorkspaceDaemonNode, type WorkspaceGitStatus, type WorkspaceProject, type WorkspaceProjectGitSummaryFolder, type WritingWorkspace as WritingWorkspaceData } from "lfaa-client-connection/src/api.js";
 import type { AiWorkGoalRequest, AiWorkNotification, AiWorkNotificationInput } from "lfaa-client-resources/src/notification-runtime.js";
 import { hasUnreadSessionCompletionNotification } from "./session-completion-indicator.js";
 import { resolveWorkbenchLayoutMetrics, type WorkbenchLayoutMetrics } from "lfaa-client-ui-dockkit/src/workbench-layout.config.js";
@@ -38,6 +37,7 @@ import { WorkbenchHeader } from "lfaa-client-ui-primitives/src/WorkbenchHeader.j
 import { resolveBrowserAddress } from "lfaa-client-ui-sidebar-browser/src/browser-address.js";
 import { BUILTIN_BROWSER_WORKSPACE_ID } from "lfaa-util-values/src/browser-provider.js";
 import { matchesAgentBrowserDockSyncRequest, shouldSyncAgentBrowserDockPage, type BrowserDockAgentSyncRequest } from "./browser-dock-sync.js";
+import { resolveVisibleBrowserRecentSites } from "./browser-recent-sites-window.js";
 import { createAgentWorkbenchView } from "./agent-workbench-view.js";
 import type { BrowserDockTabsUpdate } from "lfaa-client-ui-sidebar-browser/src/browser-tabs-update.js";
 import { TaskTerminal } from "./TaskTerminal.js";
@@ -85,11 +85,15 @@ type BrowserOpenTab = { id: string; title: string; url: string; active: boolean 
 
 type WorkspaceUtilityTab = {
   id: string;
-  kind: "new" | "git" | "assets" | "applications" | "side-chat" | "extension" | "project-file";
+  kind: "new" | "git" | "assets" | "applications" | "side-chat" | "extension" | "project-file" | "session-files" | "agent-host-task";
   projectId?: string;
   filePath?: string;
   sourceId?: string;
   initialView?: "source" | "diff";
+  sessionId?: string;
+  sessionFiles?: AiActivityFileChange[];
+  hostTaskSnapshot?: AiHostTask;
+  hostTaskId?: string;
   browserUrl?: string;
   extensionId?: string;
   browserNavigationRequest?: { id: string; url: string };
@@ -102,6 +106,30 @@ function findGitWorkspaceUtilityTab(tabs: WorkspaceUtilityTab[]): WorkspaceUtili
 
 function findAssetWorkspaceUtilityTab(tabs: WorkspaceUtilityTab[]): WorkspaceUtilityTab | undefined {
   return tabs.find(tab => tab.kind === "assets");
+}
+
+function sameAiHostTaskSummaries(left: AiHostTask[], right: AiHostTask[]): boolean {
+  return left.length === right.length && left.every((task, index) => {
+    const candidate = right[index];
+    return Boolean(candidate && task.id === candidate.id && task.nodeId === candidate.nodeId && task.appId === candidate.appId
+      && task.shell === candidate.shell && task.workingDirectory === candidate.workingDirectory && task.status === candidate.status
+      && task.message === candidate.message && task.createdAt === candidate.createdAt && task.startedAt === candidate.startedAt
+      && task.finishedAt === candidate.finishedAt && task.cancelRequested === candidate.cancelRequested
+      && task.outputSequence === candidate.outputSequence);
+  });
+}
+
+function aiHostTaskShellLabel(shell: string): string {
+  return shell === "powershell" ? "PowerShell" : shell === "cmd" ? "命令提示符" : shell === "bash" ? "Bash" : shell === "zsh" ? "Zsh" : shell === "project-files" ? "项目文件任务" : "系统 Shell";
+}
+
+function aiHostTaskStatusLabel(task: AiHostTask): string {
+  if (task.cancelRequested && task.status === "running") return "等待节点确认停止";
+  return task.status === "queued" ? "排队中" : task.status === "running" ? "运行中" : task.status === "succeeded" ? "已完成" : "已结束";
+}
+
+function isAiHostTaskActive(task: AiHostTask): boolean {
+  return task.status === "queued" || task.status === "running";
 }
 
 function browserSiteHost(url: string): string {
@@ -306,15 +334,69 @@ interface ApplicationSidebarProps extends Pick<ApplicationWorkspaceProps, "userI
   gitSummaryContent: ReactNode;
   onNewSession: (projectId?: string) => void;
   onSelectSession: (sessionId: string) => void;
+  onRenameSession: (sessionId: string, title: string) => Promise<AiSession>;
   onArchiveSession: (session: AiSession) => void;
   onCloseGitSummary: () => void;
   onPreviewMouseLeave: () => void;
   onPreviewBlur: () => void;
 }
 
-function ApplicationSidebar({ userId, app, mode, section, gameLibrary, workspaceTitle, apps, applicationNavigationItems, layoutMode, onWritingLibraryPortalTargetChange, onNavigate, onOpenApplication, onOpenSelectedApplication, onOpenGameFiles, onToggleLeft, notifications, onMarkNotificationsRead, onMarkSessionNotificationsRead, onClearNotifications, onOpenNotification, sessions, missingSessionDirectoryIds, aiDraft, pinnedSessionIds, onTogglePinnedSession, workspaceProjects, workspaceProjectsReady, sessionsDataReady, recentSessionsExpandRequestId, projectLoadError, onRetryProjects, activeSessionId, sessionsLoading, sessionsError, providerStatus, gitSummaryOpen, gitSummaryContent, onNewSession, onSelectSession, onArchiveSession, onCloseGitSummary, onPreviewMouseLeave, onPreviewBlur }: ApplicationSidebarProps) {
+function ApplicationSidebar({ userId, app, mode, section, gameLibrary, workspaceTitle, apps, applicationNavigationItems, layoutMode, onWritingLibraryPortalTargetChange, onNavigate, onOpenApplication, onOpenSelectedApplication, onOpenGameFiles, onToggleLeft, notifications, onMarkNotificationsRead, onMarkSessionNotificationsRead, onClearNotifications, onOpenNotification, sessions, missingSessionDirectoryIds, aiDraft, pinnedSessionIds, onTogglePinnedSession, workspaceProjects, workspaceProjectsReady, sessionsDataReady, recentSessionsExpandRequestId, projectLoadError, onRetryProjects, activeSessionId, sessionsLoading, sessionsError, providerStatus, gitSummaryOpen, gitSummaryContent, onNewSession, onSelectSession, onRenameSession, onArchiveSession, onCloseGitSummary, onPreviewMouseLeave, onPreviewBlur }: ApplicationSidebarProps) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [sessionMenuId, setSessionMenuId] = useState<string | null>(null);
+  const [renamingSession, setRenamingSession] = useState<AiSession | null>(null);
+  const [renameSessionTitle, setRenameSessionTitle] = useState("");
+  const [renameSessionError, setRenameSessionError] = useState("");
+  const [renameSessionSaving, setRenameSessionSaving] = useState(false);
+  const mobileSessionCloseTimerRef = useRef<number | null>(null);
+  useEffect(() => () => {
+    if (mobileSessionCloseTimerRef.current !== null) window.clearTimeout(mobileSessionCloseTimerRef.current);
+  }, []);
+  const clearMobileSessionCloseTimer = () => {
+    if (mobileSessionCloseTimerRef.current === null) return;
+    window.clearTimeout(mobileSessionCloseTimerRef.current);
+    mobileSessionCloseTimerRef.current = null;
+  };
+  useEffect(() => {
+    if (layoutMode === "mobile" || mobileSessionCloseTimerRef.current === null) return;
+    window.clearTimeout(mobileSessionCloseTimerRef.current);
+    mobileSessionCloseTimerRef.current = null;
+  }, [layoutMode]);
+  const beginRenameSession = (session: AiSession) => {
+    clearMobileSessionCloseTimer();
+    setRenameSessionTitle(session.title);
+    setRenameSessionError("");
+    setRenamingSession(session);
+  };
+  const closeRenameSession = () => {
+    if (renameSessionSaving) return;
+    setRenamingSession(null);
+    setRenameSessionTitle("");
+    setRenameSessionError("");
+  };
+  const saveRenameSession = async () => {
+    if (!renamingSession || renameSessionSaving) return;
+    const title = renameSessionTitle.trim();
+    if (!title) {
+      setRenameSessionError("请输入聊天标题。");
+      return;
+    }
+    if ([...title].length > 80) {
+      setRenameSessionError("聊天标题最多 80 个字符。");
+      return;
+    }
+    setRenameSessionSaving(true);
+    setRenameSessionError("");
+    try {
+      await onRenameSession(renamingSession.id, title);
+      closeRenameSession();
+      message.success("聊天已重命名。");
+    } catch (error) {
+      setRenameSessionError(getErrorMessage(error));
+    } finally {
+      setRenameSessionSaving(false);
+    }
+  };
   const sidebarPreferenceScope = JSON.stringify([userId, app]);
   const [sidebarPreferenceRecord, setSidebarPreferenceRecord] = useState(() => ({
     scope: sidebarPreferenceScope,
@@ -428,10 +510,12 @@ function ApplicationSidebar({ userId, app, mode, section, gameLibrary, workspace
     const directoryMissing = missingSessionDirectoryIds.has(session.id);
     const hasUnreadCompletion = hasUnreadSessionCompletionNotification(notifications, session.appId, session.id);
     const menu = { items: [
+      { key: "rename", label: "重命名" },
       { key: "pin", label: isPinned ? "取消置顶" : "置顶" },
       { key: "archive", label: "归档", icon: <WorkbenchIcon name="archive" size={14} /> },
     ], onClick: ({ key }: { key: string }) => {
       setSessionMenuId(null);
+      if (key === "rename") beginRenameSession(session);
       if (key === "pin") onTogglePinnedSession(session.id);
       if (key === "archive") onArchiveSession(session);
     } };
@@ -440,7 +524,19 @@ function ApplicationSidebar({ userId, app, mode, section, gameLibrary, workspace
       placement="bottomRight" autoAdjustOverflow overlayClassName="module-session-menu"
       getPopupContainer={trigger => trigger.closest<HTMLElement>(".module-workbench-stage") ?? trigger.parentElement!}>
       <div className={`module-sidebar__session${nested ? " module-sidebar__session--nested" : ""}${session.id === activeSessionId ? " is-active" : ""}${directoryMissing ? " is-project-directory-missing" : ""}`}>
-        <button type="button" aria-current={session.id === activeSessionId ? "page" : undefined} aria-label={`${session.title}${hasUnreadCompletion ? "，有未读的回复完成提醒" : ""}`} onClick={() => { setSessionMenuId(null); if (hasUnreadCompletion) onMarkSessionNotificationsRead(session.appId, session.id); onSelectSession(session.id); if (layoutMode === "mobile") onToggleLeft(); }} title={`${directoryMissing ? `${session.title} · 项目目录已删除或移动，历史记录仍可查看` : session.title}${hasUnreadCompletion ? " · 回复已完成，打开会话查看" : ""}`}><WorkbenchIcon name="history" size={14} /><span>{session.title}</span></button>
+        <button type="button" aria-current={session.id === activeSessionId ? "page" : undefined} aria-label={`${session.title}${hasUnreadCompletion ? "，有未读的回复完成提醒" : ""}`} onClick={event => {
+          setSessionMenuId(null);
+          if (event.detail > 1) { clearMobileSessionCloseTimer(); return; }
+          if (hasUnreadCompletion) onMarkSessionNotificationsRead(session.appId, session.id);
+          onSelectSession(session.id);
+          if (layoutMode === "mobile") {
+            clearMobileSessionCloseTimer();
+            mobileSessionCloseTimerRef.current = window.setTimeout(() => {
+              mobileSessionCloseTimerRef.current = null;
+              onToggleLeft();
+            }, 550);
+          }
+        }} onDoubleClick={() => beginRenameSession(session)} title={`${directoryMissing ? `${session.title} · 项目目录已删除或移动，历史记录仍可查看` : session.title}${hasUnreadCompletion ? " · 回复已完成，打开会话查看" : ""}`}><WorkbenchIcon name="history" size={14} /><span>{session.title}</span></button>
         <div className="module-sidebar__session-actions">
           {hasUnreadCompletion ? <span className="module-sidebar__session-completion-dot" aria-hidden="true" /> : null}
           <button type="button" aria-label={`会话菜单：${session.title}`} aria-haspopup="menu" aria-expanded={sessionMenuId === session.id} title="会话菜单" onClick={event => { event.stopPropagation(); setSessionMenuId(current => current === session.id ? null : session.id); }}><WorkbenchIcon name="dots" size={15} /></button>
@@ -609,6 +705,35 @@ function ApplicationSidebar({ userId, app, mode, section, gameLibrary, workspace
         <span>当前区域</span>
         <strong>{mode === "normal" ? "应用面板" : "智能体工作区"}</strong>
       </div>
+      <Modal
+        className="module-session-rename-modal"
+        title={<div className="module-session-rename-modal__heading"><strong>重命名聊天</strong><span>保持简短且易于识别</span></div>}
+        open={renamingSession !== null}
+        width="min(560px, calc(100vw - 32px))"
+        confirmLoading={renameSessionSaving}
+        closable={!renameSessionSaving}
+        maskClosable={!renameSessionSaving}
+        keyboard={!renameSessionSaving}
+        cancelButtonProps={{ disabled: renameSessionSaving }}
+        onCancel={closeRenameSession}
+        onOk={() => void saveRenameSession()}
+      >
+        <Input
+          autoFocus
+          maxLength={160}
+          value={renameSessionTitle}
+          showCount={{ formatter: ({ value }) => `${[...value].length}/80` }}
+          onFocus={event => event.currentTarget.select()}
+          onChange={event => {
+            const next = [...event.target.value].slice(0, 80).join("");
+            setRenameSessionTitle(next);
+            if (renameSessionError) setRenameSessionError("");
+          }}
+          onPressEnter={event => { event.preventDefault(); void saveRenameSession(); }}
+          aria-label="聊天标题"
+        />
+        {renameSessionError ? <Alert className="module-session-rename-modal__error" type="error" showIcon message={renameSessionError} /> : null}
+      </Modal>
     </div>
   );
 }
@@ -776,18 +901,14 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   const [gitStatusSnapshot, setGitStatusSnapshot] = useState<{ repositoryId: string | null; status: WorkspaceGitStatus | null; loading: boolean; error: string }>({ repositoryId: null, status: null, loading: false, error: "" });
   const [gitManagerRepositoryState, setGitManagerRepositoryState] = useState<{ userId: string; repositoryId: string | null }>({ userId, repositoryId: null });
   const [gitSummaryOpen, setGitSummaryOpen] = useState(false);
-  const gitSummaryAvailableOnRunRef = useRef(mode === "ai-work" && !voiceMode && !canvasWorkspace);
-  gitSummaryAvailableOnRunRef.current = mode === "ai-work" && !voiceMode && !canvasWorkspace;
-
-  const gitSummaryMobileOnRunRef = useRef(metrics.mode === "mobile");
-  gitSummaryMobileOnRunRef.current = metrics.mode === "mobile";
-  const handleGitSummaryOpenChangeRef = useRef<(open: boolean) => void>(() => undefined);
-  const gitSummaryResponsiveOpenRef = useRef<boolean | null>(null);
-  const [gitSummaryShowAllFiles, setGitSummaryShowAllFiles] = useState(false);
-  const [gitSummaryActionRepositoryId, setGitSummaryActionRepositoryId] = useState<string | null>(null);
+  const [gitSummaryActionFolderKey, setGitSummaryActionFolderKey] = useState<string | null>(null);
   const [gitManagerActionRequest, setGitManagerActionRequest] = useState<{ repositoryId: string; action: "commit" | "push" | "branch-create" | "branch-switch"; requestId: number } | null>(null);
-  const [gitSummaryStatuses, setGitSummaryStatuses] = useState<Record<string, { status?: WorkspaceGitStatus; error?: string }>>({});
+  const [gitSummaryFolderState, setGitSummaryFolderState] = useState<{ projectId: string | null; folders: WorkspaceProjectGitSummaryFolder[]; loading: boolean; error: string }>({ projectId: null, folders: [], loading: false, error: "" });
   const [sessionFileChangesState, setSessionFileChangesState] = useState<{ sessionId: string | null; changes: AiActivityFileChange[] }>({ sessionId: null, changes: emptySessionFileChanges });
+  const [aiHostTasksState, setAiHostTasksState] = useState<{ userId: string; appId: ApplicationId; tasks: AiHostTask[]; loading: boolean; error: string }>({ userId, appId: app, tasks: [], loading: false, error: "" });
+  const [aiHostTaskDetailState, setAiHostTaskDetailState] = useState<{ userId: string; taskId: string; task: AiHostTask | null; loading: boolean; error: string }>({ userId, taskId: "", task: null, loading: false, error: "" });
+  const [stoppingAiHostTaskId, setStoppingAiHostTaskId] = useState<string | null>(null);
+  const [aiHostTaskStopError, setAiHostTaskStopError] = useState("");
   const gitStatusRequestRevision = useRef(0);
   const gitEnsureRequests = useRef(new Map<string, Promise<AgentGitRepository | null>>());
   const gitManagerActionRequestRevision = useRef(0);
@@ -801,6 +922,12 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   const [aiWorkView, setAiWorkView] = useState<"chat" | "git">("chat");
   const [workspaceUtilityTabs, setWorkspaceUtilityTabs] = useState<WorkspaceUtilityTab[]>([{ id: "workspace-tab-1", kind: "new" }]);
   const [activeWorkspaceUtilityTabId, setActiveWorkspaceUtilityTabId] = useState("workspace-tab-1");
+  const [workbenchTabPreviewOpenId, setWorkbenchTabPreviewOpenId] = useState("");
+  const [browserTabPreviewRequest, setBrowserTabPreviewRequest] = useState<{ tabId: string; requestId: number } | null>(null);
+  const [browserTabPreviewImage, setBrowserTabPreviewImage] = useState<{ tabId: string; requestId: number; dataUrl: string } | null>(null);
+  const browserTabPreviewSequenceRef = useRef(0);
+  const browserTabPreviewRequestRef = useRef<{ tabId: string; requestId: number } | null>(null);
+  const workbenchTabPreviewOpenRef = useRef("");
   const handledApplicationsOpenRequestRef = useRef<number | null>(null);
   const [preferredBrowserProvider, setPreferredBrowserProvider] = useState<{ providerId: BrowserProviderId; requestId: number } | null>(null);
   const browserProviderSelectionSequence = useRef(0);
@@ -812,12 +939,18 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   const browserAddressEditingRef = useRef(false);
   const activeWorkspaceUtilityTabKind = workspaceUtilityTabs.find(tab => tab.id === activeWorkspaceUtilityTabId)?.kind ?? null;
   const [browserOpenTabs, setBrowserOpenTabs] = useState<BrowserOpenTab[]>([]);
-  const [browserRecentSitesState, setBrowserRecentSitesState] = useState<{ userId: string; sites: BrowserRecentSite[]; status: "idle" | "loading" | "ready" | "error" }>({ userId, sites: [], status: "idle" });
+  const [browserRecentSitesState, setBrowserRecentSitesState] = useState<{ userId: string; sites: BrowserRecentSite[] }>({ userId, sites: [] });
+  const [browserRecentSitesNow, setBrowserRecentSitesNow] = useState(() => Date.now());
   const reportedBrowserTabUrlsRef = useRef(new Map<string, string>());
   const recentSiteReportTailRef = useRef(Promise.resolve());
   const currentRecentSiteOwnerRef = useRef(userId);
   currentRecentSiteOwnerRef.current = userId;
-  const visibleBrowserRecentSites = browserRecentSitesState.userId === userId ? browserRecentSitesState.sites : [];
+  const browserRecentSitesForDisplay = useMemo(
+    () => settings.browserUse.recordRecentSites && browserRecentSitesState.userId === userId
+      ? resolveVisibleBrowserRecentSites(browserRecentSitesState.sites, browserRecentSitesNow)
+      : { sites: [], nextExpiryAt: null },
+    [browserRecentSitesNow, browserRecentSitesState.sites, browserRecentSitesState.userId, settings.browserUse.recordRecentSites, userId],
+  );
   const workspaceUtilityTabId = useRef(1);
   const browserNavigationRequestSequence = useRef(0);
   const browserActionRequestSequence = useRef(0);
@@ -827,18 +960,21 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   useEffect(() => {
     if (mode !== "ai-work" || activeWorkspaceUtilityTabKind !== "new") return;
     if (!settings.browserUse.recordRecentSites) {
-      setBrowserRecentSitesState({ userId, sites: [], status: "ready" });
+      setBrowserRecentSitesState({ userId, sites: [] });
       return;
     }
     const controller = new AbortController();
-    setBrowserRecentSitesState(current => ({ userId, sites: current.userId === userId ? current.sites : [], status: "loading" }));
     void loadBrowserRecentSites(12, controller.signal).then(result => {
-      if (!controller.signal.aborted) setBrowserRecentSitesState({ userId, sites: result.sites, status: "ready" });
-    }).catch(() => {
-      if (!controller.signal.aborted) setBrowserRecentSitesState(current => ({ userId, sites: current.userId === userId ? current.sites : [], status: "error" }));
-    });
+      if (!controller.signal.aborted) setBrowserRecentSitesState({ userId, sites: result.sites });
+    }).catch(() => undefined);
     return () => controller.abort();
   }, [activeWorkspaceUtilityTabId, activeWorkspaceUtilityTabKind, mode, settings.browserUse.recordRecentSites, userId]);
+  useEffect(() => {
+    const { nextExpiryAt } = browserRecentSitesForDisplay;
+    if (nextExpiryAt === null) return;
+    const timeoutId = window.setTimeout(() => setBrowserRecentSitesNow(Date.now()), Math.max(1, nextExpiryAt - Date.now() + 1));
+    return () => window.clearTimeout(timeoutId);
+  }, [browserRecentSitesForDisplay.nextExpiryAt]);
   const centerCollapsed = chrome.centerCollapsed;
   const setCenterCollapsed = useCallback((next: boolean | ((current: boolean) => boolean)) => {
     setChrome(current => ({
@@ -920,6 +1056,13 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   }, [userId]);
   const rememberAiSession = useCallback((session: AiSession) => {
     updateAiSessions((current) => [session, ...current.filter((item) => item.id !== session.id)]);
+  }, [updateAiSessions]);
+  const updateKnownAiSession = useCallback((session: AiSession) => {
+    updateAiSessions(current => {
+      const index = current.findIndex(item => item.id === session.id);
+      if (index < 0) return [session, ...current];
+      return current.map(item => item.id === session.id ? session : item);
+    });
   }, [updateAiSessions]);
   const refreshAiSessions = useCallback(() => {
     if (mode !== "ai-work") return;
@@ -1073,15 +1216,10 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   }, [userId]);
   const visibleGitStatus = gitStatusSnapshot.repositoryId === selectedAgentGitRepository?.id ? gitStatusSnapshot : { repositoryId: selectedAgentGitRepository?.id ?? null, status: null, loading: false, error: "" };
   const gitSummaryText = !selectedAgentGitRepository ? "当前会话尚未写入项目文件" : visibleGitStatus.loading && !visibleGitStatus.status ? "读取中…" : visibleGitStatus.error ? "读取失败" : !visibleGitStatus.status ? "等待状态" : visibleGitStatus.status.repositoryState === "not-repository" ? "等待 Agent 首次写入" : visibleGitStatus.status.repositoryState === "unborn" ? `新仓库 · ${visibleGitStatus.status.changedFileCount} 项` : visibleGitStatus.status.clean ? "工作区干净" : `${visibleGitStatus.status.changedFileCount} 项 · +${visibleGitStatus.status.insertions} −${visibleGitStatus.status.deletions}`;
-  const gitSummaryPrimaryRepository = agentGitRepositories.find(repository => repository.id === selectedAgentGitRepositoryId) ?? agentGitRepositories[0] ?? null;
-  const gitSummarySecondaryRepositories = agentGitRepositories.filter(repository => repository.id !== gitSummaryPrimaryRepository?.id);
-  const gitSummaryRequestedRepositories = [...(gitSummaryPrimaryRepository ? [gitSummaryPrimaryRepository] : []), ...gitSummarySecondaryRepositories].slice(0, 12);
-  const gitSummaryStatusRequestedIds = new Set(gitSummaryRequestedRepositories.map(repository => repository.id));
   const onSessionFileChanges = useCallback((sessionId: string | null, changes: AiActivityFileChange[]) => {
     setSessionFileChangesState({ sessionId, changes });
   }, []);
   const currentSessionFileChanges = sessionFileChangesState.sessionId === activeAiSessionId ? sessionFileChangesState.changes : emptySessionFileChanges;
-  const gitSummaryWriteSignature = useMemo(() => currentSessionFileChanges.filter(change => change.operation !== "read").map(change => `${change.projectId ?? ""}:${change.operation}:${change.path}`).join("\u0000"), [currentSessionFileChanges]);
   const sessionFileSummary = useMemo(() => {
     const latestWriteByPath = new Map<string, AiActivityFileChange>();
     for (const change of currentSessionFileChanges) {
@@ -1096,9 +1234,139 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
       sources: [...sources.values()].reverse()
     };
   }, [currentSessionFileChanges]);
-  const handleGitSummaryFilesToggle = useCallback(() => setGitSummaryShowAllFiles(value => !value), []);
+  const stopAiHostTask = useCallback(async (task: AiHostTask) => {
+    setStoppingAiHostTaskId(task.id);
+    setAiHostTaskStopError("");
+    try {
+      const { task: updated } = await cancelAiHostTask(task.id);
+      setAiHostTasksState(current => ({ ...current, tasks: isAiHostTaskActive(updated) ? current.tasks.map(item => item.id === updated.id ? updated : item) : current.tasks.filter(item => item.id !== updated.id) }));
+      setAiHostTaskDetailState(current => current.taskId === updated.id ? { ...current, task: updated, loading: false, error: "" } : current);
+    } catch (error) {
+      setAiHostTaskStopError(`停止后台进程失败：${getErrorMessage(error)}`);
+    } finally {
+      setStoppingAiHostTaskId(current => current === task.id ? null : current);
+    }
+  }, []);
+  useEffect(() => setAiHostTaskStopError(""), [app, userId]);
   useEffect(() => {
-    if (mode !== "ai-work" || (!gitSummaryOpen && activeWorkspaceUtilityTabKind !== "git")) {
+    if (mode !== "ai-work" || !gitSummaryOpen) return;
+    let disposed = false;
+    let requestActive = false;
+    let timer: number | undefined;
+    let controller: AbortController | undefined;
+    let nextDelay = 5_000;
+    const clearTimer = () => { if (timer !== undefined) window.clearTimeout(timer); timer = undefined; };
+    const schedule = (delay = 5_000) => {
+      clearTimer();
+      if (!disposed && document.visibilityState === "visible") timer = window.setTimeout(() => void refresh(), delay);
+    };
+    const refresh = async () => {
+      if (disposed || requestActive || document.visibilityState !== "visible") return;
+      requestActive = true;
+      const current = new AbortController();
+      controller = current;
+      setAiHostTasksState(previous => {
+        const sameScope = previous.userId === userId && previous.appId === app;
+        return sameScope ? previous : { userId, appId: app, tasks: [], loading: true, error: "" };
+      });
+      try {
+        const snapshot = await loadAiHostTasks(current.signal);
+        if (!disposed && !current.signal.aborted) {
+          const tasks = snapshot.tasks.filter(task => task.appId === app && task.shell !== "project-files" && isAiHostTaskActive(task));
+          nextDelay = tasks.length ? 3_000 : 5_000;
+          setAiHostTasksState(previous => previous.userId === userId && previous.appId === app
+            && !previous.loading && !previous.error && sameAiHostTaskSummaries(previous.tasks, tasks)
+            ? previous
+            : { userId, appId: app, tasks, loading: false, error: "" });
+        }
+      } catch (error) {
+        if (!disposed && !current.signal.aborted) {
+          const errorMessage = getErrorMessage(error);
+          setAiHostTasksState(previous => previous.userId === userId && previous.appId === app
+            && !previous.loading && previous.error === errorMessage
+            ? previous
+            : { userId, appId: app, tasks: previous.userId === userId && previous.appId === app ? previous.tasks : [], loading: false, error: errorMessage });
+          nextDelay = 5_000;
+        }
+      } finally {
+        if (controller === current) controller = undefined;
+        requestActive = false;
+        if (!disposed) schedule(nextDelay);
+      }
+    };
+    const onVisibilityChange = () => {
+      clearTimer();
+      if (document.visibilityState === "hidden") controller?.abort();
+      else if (!requestActive) void refresh();
+    };
+    void refresh();
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      disposed = true;
+      clearTimer();
+      controller?.abort();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [app, gitSummaryOpen, mode, userId]);
+  useEffect(() => {
+    if (mode !== "ai-work" || activeWorkspaceUtilityTabKind !== "agent-host-task" || !activeWorkspaceUtilityTab?.hostTaskId) return;
+    const taskId = activeWorkspaceUtilityTab.hostTaskId;
+    let disposed = false;
+    let requestActive = false;
+    let timer: number | undefined;
+    let controller: AbortController | undefined;
+    let nextDelay: number | null = 3_000;
+    const clearTimer = () => { if (timer !== undefined) window.clearTimeout(timer); timer = undefined; };
+    const schedule = (delay = 3_000) => {
+      clearTimer();
+      if (!disposed && document.visibilityState === "visible") timer = window.setTimeout(() => void refresh(), delay);
+    };
+    const refresh = async () => {
+      if (disposed || requestActive || document.visibilityState !== "visible") return;
+      requestActive = true;
+      const current = new AbortController();
+      controller = current;
+      setAiHostTaskDetailState(previous => previous.userId === userId && previous.taskId === taskId
+        ? { ...previous, loading: !previous.task, error: "" }
+        : { userId, taskId, task: activeWorkspaceUtilityTab.hostTaskSnapshot ?? null, loading: true, error: "" });
+      try {
+        const { task } = await loadAiHostTask(taskId, current.signal);
+        if (!disposed && !current.signal.aborted) {
+          setAiHostTaskDetailState(previous => previous.userId === userId && previous.taskId === taskId && previous.task
+            && sameAiHostTaskSummaries([previous.task], [task]) && previous.task.command === task.command
+            && previous.task.result?.stdout === task.result?.stdout && previous.task.result?.stderr === task.result?.stderr
+            && previous.task.result?.exitCode === task.result?.exitCode && previous.task.result?.outputTruncated === task.result?.outputTruncated
+            ? { ...previous, loading: false, error: "" }
+            : { userId, taskId, task, loading: false, error: "" });
+          nextDelay = task.status === "queued" || task.status === "running" ? 3_000 : null;
+        }
+      } catch (error) {
+        if (!disposed && !current.signal.aborted) {
+          setAiHostTaskDetailState(previous => ({ ...previous, userId, taskId, loading: false, error: getErrorMessage(error) }));
+          nextDelay = 5_000;
+        }
+      } finally {
+        if (controller === current) controller = undefined;
+        requestActive = false;
+        if (!disposed && nextDelay !== null) schedule(nextDelay);
+      }
+    };
+    const onVisibilityChange = () => {
+      clearTimer();
+      if (document.visibilityState === "hidden") controller?.abort();
+      else if (!requestActive) void refresh();
+    };
+    void refresh();
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      disposed = true;
+      clearTimer();
+      controller?.abort();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [activeWorkspaceUtilityTab?.hostTaskId, activeWorkspaceUtilityTab?.id, activeWorkspaceUtilityTab?.hostTaskSnapshot, activeWorkspaceUtilityTabKind, app, mode, userId]);
+  useEffect(() => {
+    if (mode !== "ai-work" || activeWorkspaceUtilityTabKind !== "git") {
       return;
     }
     const controller = new AbortController();
@@ -1108,7 +1376,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
       if (!controller.signal.aborted) setAgentGitRepositoriesError(getErrorMessage(error));
     }).finally(() => { if (!controller.signal.aborted) setAgentGitRepositoriesLoading(false); });
     return () => controller.abort();
-  }, [activeWorkspaceUtilityTabKind, gitRefreshRevision, gitSummaryOpen, mode, userId]);
+  }, [activeWorkspaceUtilityTabKind, gitRefreshRevision, mode, userId]);
   useEffect(() => {
     if (mode !== "ai-work" || voiceMode || !activeAiSessionId) {
       setSessionGitBinding({ sessionId: "", repositoryId: null, loading: false });
@@ -1118,50 +1386,51 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
     setGitManagerRepositoryState({ userId, repositoryId: null });
   }, [activeAiSessionId, mode, userId, voiceMode]);
   useEffect(() => {
-    if (mode !== "ai-work" || (!gitSummaryOpen && activeWorkspaceUtilityTabKind !== "git") || !selectedAgentGitRepository) {
+    if (mode !== "ai-work" || activeWorkspaceUtilityTabKind !== "git" || !selectedAgentGitRepository) {
       gitStatusRequestRevision.current += 1;
       setGitStatusSnapshot({ repositoryId: null, status: null, loading: false, error: "" });
       return;
     }
     void refreshGitStatus(selectedAgentGitRepository);
     return () => { gitStatusRequestRevision.current += 1; };
-  }, [activeWorkspaceUtilityTabKind, gitRefreshRevision, gitSummaryOpen, mode, refreshGitStatus, selectedAgentGitRepository?.id]);
+  }, [activeWorkspaceUtilityTabKind, gitRefreshRevision, mode, refreshGitStatus, selectedAgentGitRepository?.id]);
   useEffect(() => {
-    if (!gitSummaryOpen || mode !== "ai-work") return;
+    const projectId = app === "workspace" && !voiceMode && activeAiSession?.appId === "workspace" ? activeAiSession.projectId ?? null : null;
+    if (!gitSummaryOpen || mode !== "ai-work" || !projectId) {
+      setGitSummaryFolderState({ projectId, folders: [], loading: false, error: "" });
+      return;
+    }
     const controller = new AbortController();
     let active = true;
-    const visibleRepositories = [...(gitSummaryPrimaryRepository ? [gitSummaryPrimaryRepository] : []), ...agentGitRepositories.filter(repository => repository.id !== gitSummaryPrimaryRepository?.id)].slice(0, 12);
+    setGitSummaryFolderState({ projectId, folders: [], loading: true, error: "" });
     const timer = window.setTimeout(() => {
-      void Promise.all(visibleRepositories.map(async repository => {
-        try {
-          const { status } = await loadAgentGitStatus(repository.id, controller.signal);
-          if (active) setGitSummaryStatuses(current => ({ ...current, [repository.id]: { status } }));
-        } catch (error) {
-          if (active && !controller.signal.aborted) setGitSummaryStatuses(current => ({ ...current, [repository.id]: { error: getErrorMessage(error) } }));
-        }
-      }));
+      void loadWorkspaceProjectGitSummary(projectId, controller.signal).then(({ folders }) => {
+        if (active) setGitSummaryFolderState({ projectId, folders, loading: false, error: "" });
+      }).catch(error => {
+        if (active && !controller.signal.aborted) setGitSummaryFolderState({ projectId, folders: [], loading: false, error: getErrorMessage(error) });
+      });
     }, 180);
     return () => { active = false; window.clearTimeout(timer); controller.abort(); };
-  }, [agentGitRepositories, gitSummaryOpen, gitSummaryPrimaryRepository?.id, gitSummaryWriteSignature, mode]);
+  }, [activeAiSession?.appId, activeAiSession?.projectId, app, gitRefreshRevision, gitSummaryOpen, mode, voiceMode]);
   useEffect(() => {
-    if (!gitSummaryActionRepositoryId) return;
+    if (!gitSummaryActionFolderKey) return;
     const frame = window.requestAnimationFrame(() => gitSummaryActionMenuRef.current?.querySelector<HTMLButtonElement>("[role=menuitem]")?.focus());
     return () => window.cancelAnimationFrame(frame);
-  }, [gitSummaryActionRepositoryId]);
+  }, [gitSummaryActionFolderKey]);
   useEffect(() => {
-    const repositoryId = gitSummaryActionRepositoryId;
-    if (!repositoryId) return;
+    const folderKey = gitSummaryActionFolderKey;
+    if (!folderKey) return;
     const closeOnOutsidePointer = (event: PointerEvent) => {
       const target = event.target;
       if (!(target instanceof Node)) return;
-      if (gitSummaryActionMenuRef.current?.contains(target) || gitSummaryActionTriggerRefs.current.get(repositoryId)?.contains(target)) return;
-      setGitSummaryActionRepositoryId(null);
+      if (gitSummaryActionMenuRef.current?.contains(target) || gitSummaryActionTriggerRefs.current.get(folderKey)?.contains(target)) return;
+      setGitSummaryActionFolderKey(null);
     };
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
-      gitSummaryActionTriggerRefs.current.get(repositoryId)?.focus();
-      setGitSummaryActionRepositoryId(null);
+      gitSummaryActionTriggerRefs.current.get(folderKey)?.focus();
+      setGitSummaryActionFolderKey(null);
     };
     document.addEventListener("pointerdown", closeOnOutsidePointer, true);
     document.addEventListener("keydown", closeOnEscape);
@@ -1169,54 +1438,18 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
       document.removeEventListener("pointerdown", closeOnOutsidePointer, true);
       document.removeEventListener("keydown", closeOnEscape);
     };
-  }, [gitSummaryActionRepositoryId]);
+  }, [gitSummaryActionFolderKey]);
   const handleGitSummaryOpenChange = useCallback((open: boolean) => {
     setGitSummaryOpen(open);
-    if (!open) setGitSummaryActionRepositoryId(null);
-    if (open && mode === "ai-work" && activeAiSessionId) void ensureSessionGitRepository(activeAiSessionId);
-  }, [activeAiSessionId, ensureSessionGitRepository, mode]);
-  handleGitSummaryOpenChangeRef.current = handleGitSummaryOpenChange;
+    if (!open) setGitSummaryActionFolderKey(null);
+  }, []);
   const onAiChatBusyChange = useCallback((busy: boolean) => {
     const wasBusy = aiChatBusyState.current;
     aiChatBusyState.current = busy;
-    if (!wasBusy && busy && gitSummaryAvailableOnRunRef.current) {
-      if (gitSummaryMobileOnRunRef.current) setChrome(current => ({ ...current, leftCollapsed: false, rightCollapsed: true }));
-      handleGitSummaryOpenChangeRef.current(true);
-    }
     if (wasBusy && !busy) setGitRefreshRevision((revision) => revision + 1);
   }, []);
   useEffect(() => {
-    if (mode !== "ai-work" || voiceMode || metrics.mode !== "compact") return;
-    gitSummaryResponsiveOpenRef.current = null;
-    setGitSummaryOpen(false);
-    setGitSummaryActionRepositoryId(null);
-  }, [metrics.mode, mode, voiceMode]);
-  useEffect(() => {
-    if (mode !== "ai-work" || metrics.mode !== "desktop" || voiceMode || chrome.rightCollapsed) return;
-    const workbench = layoutRef.current;
-    const rightPane = workbench?.querySelector<HTMLElement>(".module-workbench-region--right-menu");
-    if (!workbench || !rightPane) return;
-
-    let active = true;
-    const syncSummaryToRightWidth = () => {
-      if (!active) return;
-      const shouldOpen = shouldAutoOpenGitSummary(rightPane.getBoundingClientRect().width, workbench.getBoundingClientRect().width);
-      if (shouldOpen === null || gitSummaryResponsiveOpenRef.current === shouldOpen) return;
-      gitSummaryResponsiveOpenRef.current = shouldOpen;
-      setGitSummaryOpen(shouldOpen);
-      if (!shouldOpen) setGitSummaryActionRepositoryId(null);
-    };
-    const observer = new ResizeObserver(syncSummaryToRightWidth);
-    observer.observe(workbench);
-    observer.observe(rightPane);
-    syncSummaryToRightWidth();
-    return () => {
-      active = false;
-      observer.disconnect();
-    };
-  }, [chrome.rightCollapsed, metrics.mode, mode, voiceMode]);
-  useEffect(() => {
-    if (metrics.mode !== "mobile" || !gitSummaryOpen || gitSummaryActionRepositoryId) return;
+    if (metrics.mode !== "mobile" || !gitSummaryOpen || gitSummaryActionFolderKey) return;
     const closeSummaryOnEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
@@ -1224,7 +1457,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
     };
     window.addEventListener("keydown", closeSummaryOnEscape, true);
     return () => window.removeEventListener("keydown", closeSummaryOnEscape, true);
-  }, [gitSummaryActionRepositoryId, gitSummaryOpen, handleGitSummaryOpenChange, metrics.mode]);
+  }, [gitSummaryActionFolderKey, gitSummaryOpen, handleGitSummaryOpenChange, metrics.mode]);
   const statusLabel = serverState === "online" ? "控制端已连接" : serverState === "checking" ? "正在检查控制端" : "控制端未连接";
   const contextLabel = writingNormal ? "作品信息" : mode === "ai-work" ? "工具与资源" : "应用工具";
 
@@ -1532,7 +1765,31 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
     sidebarRightRuntime.select(null);
     setAiWorkView(tab.kind === "git" ? "git" : "chat");
   }, [metrics.mode, onRightPanelSectionChange, showRightPanelSection, sidebarRight.tabs]);
-  const openWorkspaceUtility = useCallback((kind: Exclude<WorkspaceUtilityTab["kind"], "new" | "project-file">, extensionId?: string) => {
+  const openSessionFiles = useCallback(() => {
+    if (!activeAiSessionId) return;
+    const files = [...sessionFileSummary.outputs, ...sessionFileSummary.sources].slice(0, 256);
+    const existing = workspaceUtilityTabs.find(tab => tab.kind === "session-files" && tab.sessionId === activeAiSessionId);
+    const nextTab: WorkspaceUtilityTab = existing
+      ? { ...existing, sessionFiles: files }
+      : { id: `workspace-tab-${++workspaceUtilityTabId.current}`, kind: "session-files", sessionId: activeAiSessionId, sessionFiles: files };
+    setWorkspaceUtilityTabs(current => existing
+      ? current.map(tab => tab.id === existing.id ? nextTab : tab)
+      : [...current, nextTab]);
+    setActiveWorkspaceUtilityTabId(nextTab.id);
+    showWorkspaceUtilityTab(nextTab);
+  }, [activeAiSessionId, sessionFileSummary.outputs, sessionFileSummary.sources, showWorkspaceUtilityTab, workspaceUtilityTabs]);
+  const openAiHostTask = useCallback((task: AiHostTask) => {
+    const existing = workspaceUtilityTabs.find(tab => tab.kind === "agent-host-task" && tab.hostTaskId === task.id);
+    const nextTab: WorkspaceUtilityTab = existing
+      ? { ...existing, hostTaskSnapshot: task }
+      : { id: `workspace-tab-${++workspaceUtilityTabId.current}`, kind: "agent-host-task", hostTaskId: task.id, hostTaskSnapshot: task };
+    setWorkspaceUtilityTabs(current => existing
+      ? current.map(tab => tab.id === existing.id ? nextTab : tab)
+      : [...current, nextTab]);
+    setActiveWorkspaceUtilityTabId(nextTab.id);
+    showWorkspaceUtilityTab(nextTab);
+  }, [showWorkspaceUtilityTab, workspaceUtilityTabs]);
+  const openWorkspaceUtility = useCallback((kind: Exclude<WorkspaceUtilityTab["kind"], "new" | "project-file" | "session-files" | "agent-host-task">, extensionId?: string) => {
     if (kind === "git") {
       const existingGitTab = findGitWorkspaceUtilityTab(workspaceUtilityTabs);
       if (existingGitTab) {
@@ -1771,7 +2028,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   const openGitManager = useCallback((repositoryId?: string, action?: "commit" | "push" | "branch-create" | "branch-switch") => {
     const targetRepositoryId = repositoryId ?? selectedAgentGitRepositoryId ?? agentGitRepositories[0]?.id ?? null;
     if (targetRepositoryId) setGitManagerRepositoryState({ userId, repositoryId: targetRepositoryId });
-    setGitSummaryActionRepositoryId(null);
+    setGitSummaryActionFolderKey(null);
     setGitManagerActionRequest(action && targetRepositoryId ? { repositoryId: targetRepositoryId, action, requestId: ++gitManagerActionRequestRevision.current } : null);
     setGitSummaryOpen(false);
     openWorkspaceUtility("git");
@@ -1781,6 +2038,16 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
       });
     }
   }, [activeAiSessionId, agentGitRepositories, ensureSessionGitRepository, openWorkspaceUtility, selectedAgentGitRepositoryId, userId]);
+  const openGitSummaryFolder = useCallback(async (folder: WorkspaceProjectGitSummaryFolder, action?: "commit" | "push" | "branch-create" | "branch-switch") => {
+    const title = folder.path.split(/[\\/]/u).filter(Boolean).at(-1) || folder.path;
+    try {
+      const { repository } = await registerAgentGitRepository(folder.path, title);
+      setAgentGitRepositoryState(current => ({ userId, repositories: [repository, ...(current.userId === userId ? current.repositories : []).filter(item => item.id !== repository.id)] }));
+      openGitManager(repository.id, action);
+    } catch (openError) {
+      message.error(`打开 ${title} 的 Git 管理失败：${getErrorMessage(openError)}`);
+    }
+  }, [openGitManager, userId]);
   const toggleApplicationsPanel = useCallback(() => {
     if (rightPanelSection === "applications" && !chrome.rightCollapsed) {
       setChrome((current) => ({ ...current, rightCollapsed: true }));
@@ -2003,79 +2270,109 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
       setAiSessionsError(getErrorMessage(archiveError));
     }
   };
-  const gitSummaryContent = <section className={`module-git-summary${gitSummaryActionRepositoryId !== null ? " is-actions-open" : ""}${metrics.mode === "mobile" ? " is-embedded" : ""}`} data-layout-mode={metrics.mode} id={metrics.mode === "mobile" ? "module-sidebar-git-summary" : undefined} aria-label="项目摘要">
-                {gitSummaryActionRepositoryId ? <div id="module-git-summary-git-actions" ref={gitSummaryActionMenuRef} className="module-git-summary__operations-menu" role="menu" aria-label="Git 操作">
-                  {([
-                    ["commit", "提交"],
-                    ["push", "推送"],
-                    ["branch-create", "创建分支"],
-                    ["branch-switch", "切换分支"]
-                  ] as const).map(([action, title]) => <button key={action} type="button" role="menuitem" onClick={() => {
-                    const repositoryId = gitSummaryActionRepositoryId;
-                    setGitSummaryActionRepositoryId(null);
-                    if (repositoryId) openGitManager(repositoryId, action);
+  const gitSummaryFolders = gitSummaryFolderState.projectId === activeAiSession?.projectId ? gitSummaryFolderState.folders : [];
+  const gitSummaryPrimaryFolder = gitSummaryFolders.find(folder => folder.isPrimary) ?? gitSummaryFolders[0] ?? null;
+  const gitSummarySecondaryFolders = gitSummaryFolders.filter(folder => folder !== gitSummaryPrimaryFolder);
+  const gitSummaryHostTasks = aiHostTasksState.userId === userId && aiHostTasksState.appId === app ? aiHostTasksState.tasks : [];
+  const gitSummaryHostTasksLoading = aiHostTasksState.userId !== userId || aiHostTasksState.appId !== app || aiHostTasksState.loading;
+  const gitSummaryHostTasksError = aiHostTasksState.userId === userId && aiHostTasksState.appId === app ? aiHostTasksState.error : "";
+  const activeHostTaskId = activeWorkspaceUtilityTabKind === "agent-host-task" ? activeWorkspaceUtilityTab?.hostTaskId ?? "" : "";
+  const activeHostTask = aiHostTaskDetailState.userId === userId && aiHostTaskDetailState.taskId === activeHostTaskId
+    ? aiHostTaskDetailState.task
+    : activeHostTaskId === activeWorkspaceUtilityTab?.hostTaskId ? activeWorkspaceUtilityTab?.hostTaskSnapshot ?? null : null;
+  const gitSummaryFolderKey = (folder: WorkspaceProjectGitSummaryFolder) => folder.sourceId ?? folder.path;
+  const gitSummaryFolderTitle = (folder: WorkspaceProjectGitSummaryFolder) => folder.path.split(/[\\/]/u).filter(Boolean).at(-1) || folder.path;
+  const gitSummaryFolderStateLabel = (folder: WorkspaceProjectGitSummaryFolder) => folder.error ? "状态读取失败"
+    : !folder.status ? gitSummaryFolderState.loading ? "正在读取…" : "状态未知"
+      : folder.status.repositoryState === "not-repository" ? "未初始化"
+        : folder.status.clean ? "工作区干净" : `${folder.status.changedFileCount} 项变更`;
+  const gitSummaryContent = <section className={`module-git-summary${gitSummaryActionFolderKey !== null ? " is-actions-open" : ""}${metrics.mode === "mobile" ? " is-embedded" : ""}`} data-layout-mode={metrics.mode} id={metrics.mode === "mobile" ? "module-sidebar-git-summary" : undefined} aria-label="项目摘要">
+                {gitSummaryActionFolderKey ? <div id="module-git-summary-git-actions" ref={gitSummaryActionMenuRef} className="module-git-summary__operations-menu" role="menu" aria-label="Git 操作">
+                  {([ ["commit", "提交"], ["push", "推送"], ["branch-create", "创建分支"], ["branch-switch", "切换分支"] ] as const).map(([action, title]) => <button key={action} type="button" role="menuitem" onClick={() => {
+                    const folder = gitSummaryFolders.find(candidate => gitSummaryFolderKey(candidate) === gitSummaryActionFolderKey);
+                    setGitSummaryActionFolderKey(null);
+                    if (folder) void openGitSummaryFolder(folder, action);
                   }}>{title}</button>)}
                 </div> : null}
                 <div className="module-git-summary__body">
-                  {agentGitRepositoriesLoading ? <p className="module-git-summary__empty">正在读取项目文件夹…</p> : null}
-                  {agentGitRepositoriesError ? <p className="module-git-summary__error" role="alert">{agentGitRepositoriesError}</p> : null}
-                  {!agentGitRepositoriesLoading && !agentGitRepositories.length && !agentGitRepositoriesError ? <p className="module-git-summary__empty">Agent 首次获准在项目文件夹写入时，会自动初始化 Git 并开始版本管理。</p> : null}
-                  {gitSummaryPrimaryRepository ? (() => {
-                    const repository = gitSummaryPrimaryRepository;
-                    const entry = gitSummaryStatuses[repository.id];
-                    const status = entry?.status;
-                    const repositoryTitle = repository.title || repository.path;
-                    const branch = entry?.error ? "状态读取失败" : status?.repositoryState === "not-repository" ? "未初始化" : status?.branch || (gitSummaryStatusRequestedIds.has(repository.id) ? "读取中…" : "状态按需读取");
+                  {gitSummaryFolderState.loading ? <p className="module-git-summary__empty">正在读取当前项目文件夹…</p> : null}
+                  {gitSummaryFolderState.error ? <p className="module-git-summary__error" role="alert">{gitSummaryFolderState.error}</p> : null}
+                  {!gitSummaryFolderState.loading && !gitSummaryFolderState.error && !gitSummaryFolders.length ? <p className="module-git-summary__empty">{activeAiSession?.projectId ? "当前会话没有可读取的本机项目文件夹。" : "选择一个项目会话后显示其文件夹 Git 状态。"}</p> : null}
+                  {gitSummaryPrimaryFolder ? (() => {
+                    const folder = gitSummaryPrimaryFolder;
+                    const status = folder.status;
+                    const title = gitSummaryFolderTitle(folder);
+                    const state = gitSummaryFolderStateLabel(folder);
+                    const branch = folder.error ? "状态读取失败" : status?.repositoryState === "not-repository" ? "未初始化" : status?.branch || (gitSummaryFolderState.loading ? "读取中…" : "状态未知");
+                    const folderKey = gitSummaryFolderKey(folder);
                     return <article className="module-git-summary__project-card">
                       <header className="module-git-summary__project-header">
-                        <strong className="module-git-summary__project-title" title={repository.path}>{repositoryTitle}</strong>
-                        <span className="module-git-summary__branch" title={entry?.error ?? repository.path}>{branch}</span>
+                        <strong className="module-git-summary__project-title" title={folder.path}>{title} · 主要</strong>
+                        <span className="module-git-summary__branch" title={folder.error ?? folder.path}>{branch}</span>
                       </header>
-                      <div className={`module-git-summary__change-row${gitSummaryActionRepositoryId === repository.id ? " is-open" : ""}`}>
-                        <Button className="module-git-summary__root-change" type="text" aria-label={`打开 ${repositoryTitle} 的 Git 变更`} onClick={() => openGitManager(repository.id)}>
+                      <div className={`module-git-summary__change-row${gitSummaryActionFolderKey === folderKey ? " is-open" : ""}`}>
+                        <Button className="module-git-summary__root-change" type="text" aria-label={`打开 ${title} 的 Git 变更`} onClick={() => void openGitSummaryFolder(folder)}>
                           <WorkbenchIcon name="review" size={15} /><span>变更</span>
-                          <span className="module-git-summary__endcap">{status && status.repositoryState !== "not-repository" && !entry?.error ? <span className="module-git-summary__counts" aria-label={`新增 ${status.insertions} 行，删除 ${status.deletions} 行`}><b>+{status.insertions}</b><i>−{status.deletions}</i></span> : <span className="module-git-summary__item-state">{entry?.error ? "状态读取失败" : status?.repositoryState === "not-repository" ? "未初始化" : status ? "暂无变更" : gitSummaryStatusRequestedIds.has(repository.id) ? "正在读取…" : "点击查看"}</span>}<WorkbenchIcon name="chevron" size={14} /></span>
+                          <span className="module-git-summary__endcap">{status && status.repositoryState !== "not-repository" && !folder.error ? <span className="module-git-summary__counts" aria-label={`新增 ${status.insertions} 行，删除 ${status.deletions} 行`}><b>+{status.insertions}</b><i>−{status.deletions}</i></span> : <span className="module-git-summary__item-state">{state}</span>}<WorkbenchIcon name="chevron" size={14} /></span>
                         </Button>
-                        <Button ref={element => { if (element) gitSummaryActionTriggerRefs.current.set(repository.id, element); else gitSummaryActionTriggerRefs.current.delete(repository.id); }} className="module-git-summary__operations-trigger" type="text" aria-label={`打开 ${repositoryTitle} 的 Git 操作`} title="Git 操作" aria-controls="module-git-summary-git-actions" aria-haspopup="menu" aria-expanded={gitSummaryActionRepositoryId === repository.id} onClick={() => setGitSummaryActionRepositoryId(current => current === repository.id ? null : repository.id)}><WorkbenchIcon name="branch" size={17} /></Button>
+                        <Button ref={element => { if (element) gitSummaryActionTriggerRefs.current.set(folderKey, element); else gitSummaryActionTriggerRefs.current.delete(folderKey); }} className="module-git-summary__operations-trigger" type="text" aria-label={`打开 ${title} 的 Git 操作`} title="Git 操作" aria-controls="module-git-summary-git-actions" aria-haspopup="menu" aria-expanded={gitSummaryActionFolderKey === folderKey} onClick={() => setGitSummaryActionFolderKey(current => current === folderKey ? null : folderKey)}><WorkbenchIcon name="branch" size={17} /></Button>
                       </div>
                     </article>;
                   })() : null}
-                  {gitSummarySecondaryRepositories.length ? <div className="module-git-summary__folders" aria-label="其他项目文件夹">
-                    {gitSummarySecondaryRepositories.map(repository => {
-                      const entry = gitSummaryStatuses[repository.id];
-                      const status = entry?.status;
-                      const title = repository.title || repository.path;
-                      const state = entry?.error ? "状态读取失败" : !status ? gitSummaryStatusRequestedIds.has(repository.id) ? "读取中…" : "状态按需读取" : status.repositoryState === "not-repository" ? "未初始化" : status.clean ? "工作区干净" : `${status.changedFileCount} 项变更`;
-                      return <div key={repository.id} className={`module-git-summary__change-row${gitSummaryActionRepositoryId === repository.id ? " is-open" : ""}`}>
-                        <Button className="module-git-summary__folder-row" type="text" aria-label={`打开 ${title} 的 Git 变更：${state}`} onClick={() => openGitManager(repository.id)}>
-                          <WorkbenchIcon name="folder" size={15} /><span className="module-git-summary__folder-name" title={repository.path}>{title}</span>
-                          <span className="module-git-summary__endcap">{status && status.repositoryState !== "not-repository" && !entry?.error ? <span className="module-git-summary__counts" aria-label={`新增 ${status.insertions} 行，删除 ${status.deletions} 行`}><b>+{status.insertions}</b><i>−{status.deletions}</i></span> : <span className="module-git-summary__folder-state">{state}</span>}<WorkbenchIcon name="chevron" size={14} /></span>
+                  {gitSummarySecondaryFolders.length ? <div className="module-git-summary__folders" aria-label="其他项目文件夹">
+                    {gitSummarySecondaryFolders.map(folder => {
+                      const state = gitSummaryFolderStateLabel(folder);
+                      const title = gitSummaryFolderTitle(folder);
+                      const folderKey = gitSummaryFolderKey(folder);
+                      const status = folder.status;
+                      return <div key={folderKey} className={`module-git-summary__change-row${gitSummaryActionFolderKey === folderKey ? " is-open" : ""}`}>
+                        <Button className="module-git-summary__folder-row" type="text" aria-label={`打开 ${title} 的 Git 变更：${state}`} onClick={() => void openGitSummaryFolder(folder)}>
+                          <WorkbenchIcon name="folder" size={15} /><span className="module-git-summary__folder-name" title={folder.path}>{title}</span>
+                          <span className="module-git-summary__endcap">{status && status.repositoryState !== "not-repository" && !folder.error ? <span className="module-git-summary__counts" aria-label={`新增 ${status.insertions} 行，删除 ${status.deletions} 行`}><b>+{status.insertions}</b><i>−{status.deletions}</i></span> : <span className="module-git-summary__folder-state">{state}</span>}<WorkbenchIcon name="chevron" size={14} /></span>
                         </Button>
-                        <Button ref={element => { if (element) gitSummaryActionTriggerRefs.current.set(repository.id, element); else gitSummaryActionTriggerRefs.current.delete(repository.id); }} className="module-git-summary__operations-trigger" type="text" aria-label={`打开 ${title} 的 Git 操作`} title="Git 操作" aria-controls="module-git-summary-git-actions" aria-haspopup="menu" aria-expanded={gitSummaryActionRepositoryId === repository.id} onClick={() => setGitSummaryActionRepositoryId(current => current === repository.id ? null : repository.id)}><WorkbenchIcon name="branch" size={17} /></Button>
+                        <Button ref={element => { if (element) gitSummaryActionTriggerRefs.current.set(folderKey, element); else gitSummaryActionTriggerRefs.current.delete(folderKey); }} className="module-git-summary__operations-trigger" type="text" aria-label={`打开 ${title} 的 Git 操作`} title="Git 操作" aria-controls="module-git-summary-git-actions" aria-haspopup="menu" aria-expanded={gitSummaryActionFolderKey === folderKey} onClick={() => setGitSummaryActionFolderKey(current => current === folderKey ? null : folderKey)}><WorkbenchIcon name="branch" size={17} /></Button>
                       </div>;
                     })}
                   </div> : null}
-                  {agentGitRepositories.length > 12 ? <p className="module-git-summary__footnote">前 12 个文件夹自动读取状态；其他项目点击后读取。</p> : null}
                   <section className="module-git-summary__file-section" aria-label="输出内容">
                     <header><strong>输出内容</strong><span>{sessionFileSummary.outputs.length || ""}</span></header>
-                    {sessionFileChangesState.sessionId !== activeAiSessionId ? <p className="module-git-summary__empty">正在读取当前会话记录…</p> : sessionFileSummary.outputs.length ? sessionFileSummary.outputs.slice(0, gitSummaryShowAllFiles ? undefined : 3).map(change => {
-                      const projectTitle = workspaceProjects.find(project => project.id === change.projectId)?.title ?? gitSummaryPrimaryRepository?.title ?? "默认工作区";
-                      return <div className="module-git-summary__file-row" key={`output:${change.projectId ?? ""}:${change.path}`}>
+                    {sessionFileChangesState.sessionId !== activeAiSessionId ? <p className="module-git-summary__empty">正在读取当前会话记录…</p> : sessionFileSummary.outputs.length ? sessionFileSummary.outputs.slice(0, 3).map(change => {
+                      const projectTitle = workspaceProjects.find(project => project.id === change.projectId)?.title ?? activeAiSession?.projectTitle ?? "默认工作区";
+                      const projectId = change.projectId ?? activeAiSession?.projectId ?? null;
+                      const canOpen = Boolean(projectId && workspaceProjects.some(project => project.id === projectId && (!project.appId || project.appId === app)) && change.path && !change.path.startsWith("/") && !change.path.startsWith("\\") && !change.path.includes("\\") && !change.path.split("/").some(segment => !segment || segment === "." || segment === ".."));
+                      return <Button type="text" className="module-git-summary__file-row" key={`output:${change.projectId ?? ""}:${change.path}`} aria-label={`查看输出文件 ${change.path}`} title={canOpen ? `在右侧查看 ${change.path}` : "此文件没有关联可读取的项目文件夹"} disabled={!canOpen} onClick={() => { if (projectId) openProjectFile(projectId, change.path, change.sourceId); }}>
                         <WorkbenchIcon name="file" size={14} /><span className="module-git-summary__file-copy"><strong title={change.path}>{change.path}</strong><small>{projectTitle} · {change.operation === "created" ? "新建" : "修改"}</small></span>
-                      </div>;
+                      </Button>;
                     }) : <p className="module-git-summary__empty">当前会话暂无文件输出</p>}
+                  </section>
+                  <section className="module-git-summary__file-section" aria-label="后台进程">
+                    <header><strong>后台进程</strong><span>{gitSummaryHostTasks.length || ""}</span></header>
+                    {gitSummaryHostTasksError ? <p className="module-git-summary__error" role="alert">后台进程读取失败：{gitSummaryHostTasksError}</p>
+                      : gitSummaryHostTasksLoading && !gitSummaryHostTasks.length ? <p className="module-git-summary__empty">正在读取后台进程…</p>
+                        : gitSummaryHostTasks.length ? gitSummaryHostTasks.map(task => {
+                            const shellLabel = aiHostTaskShellLabel(task.shell);
+                            return <div className="module-git-summary__process-row" key={task.id}>
+                              <Button type="text" className="module-git-summary__process-open" aria-label={`查看后台进程：${shellLabel}`} title={task.workingDirectory || task.message} onClick={() => openAiHostTask(task)}>
+                                <WorkbenchIcon name="terminal" size={14} /><span className="module-git-summary__file-copy"><strong>{shellLabel}</strong><small>{aiHostTaskStatusLabel(task)} · {task.message}</small></span>
+                              </Button>
+                              <Button type="text" className="module-git-summary__process-stop" aria-label={`停止后台进程：${shellLabel}`} title={task.cancelRequested ? "正在等待节点确认停止" : "停止任务"} disabled={stoppingAiHostTaskId === task.id || task.cancelRequested} onClick={() => void stopAiHostTask(task)}><WorkbenchIcon name="close" size={13} /></Button>
+                            </div>;
+                          }) : <p className="module-git-summary__empty">当前应用没有运行中的后台进程</p>}
+                    {aiHostTaskStopError ? <p className="module-git-summary__error" role="alert">{aiHostTaskStopError}</p> : null}
                   </section>
                   <section className="module-git-summary__file-section" aria-label="来源">
                     <header><strong>来源</strong><span>{sessionFileSummary.sources.length || ""}</span></header>
-                    {sessionFileChangesState.sessionId !== activeAiSessionId ? <p className="module-git-summary__empty">正在读取当前会话记录…</p> : sessionFileSummary.sources.length ? sessionFileSummary.sources.slice(0, gitSummaryShowAllFiles ? undefined : 3).map(change => {
-                      const projectTitle = workspaceProjects.find(project => project.id === change.projectId)?.title ?? gitSummaryPrimaryRepository?.title ?? "默认工作区";
-                      return <div className="module-git-summary__file-row" key={`source:${change.projectId ?? ""}:${change.path}`}>
+                    {sessionFileChangesState.sessionId !== activeAiSessionId ? <p className="module-git-summary__empty">正在读取当前会话记录…</p> : sessionFileSummary.sources.length ? sessionFileSummary.sources.slice(0, 3).map(change => {
+                      const projectTitle = workspaceProjects.find(project => project.id === change.projectId)?.title ?? activeAiSession?.projectTitle ?? "默认工作区";
+                      const projectId = change.projectId ?? activeAiSession?.projectId ?? null;
+                      const canOpen = Boolean(projectId && workspaceProjects.some(project => project.id === projectId && (!project.appId || project.appId === app)) && change.path && !change.path.startsWith("/") && !change.path.startsWith("\\") && !change.path.includes("\\") && !change.path.split("/").some(segment => !segment || segment === "." || segment === ".."));
+                      return <Button type="text" className="module-git-summary__file-row" key={`source:${change.projectId ?? ""}:${change.path}`} aria-label={`查看来源文件 ${change.path}`} title={canOpen ? `在右侧查看 ${change.path}` : "此来源没有关联可读取的项目文件夹"} disabled={!canOpen} onClick={() => { if (projectId) openProjectFile(projectId, change.path, change.sourceId); }}>
                         <WorkbenchIcon name="file" size={14} /><span className="module-git-summary__file-copy"><strong title={change.path}>{change.path}</strong><small>{projectTitle} · 已读取</small></span>
-                      </div>;
+                      </Button>;
                     }) : <p className="module-git-summary__empty">当前会话暂无文件来源</p>}
                   </section>
                 </div>
-                {sessionFileSummary.outputs.length + sessionFileSummary.sources.length > 3 ? <Button className="module-git-summary__view-all" type="text" onClick={handleGitSummaryFilesToggle}>{gitSummaryShowAllFiles ? "收起" : "查看全部"}</Button> : null}
+                {sessionFileSummary.outputs.length + sessionFileSummary.sources.length > 0 ? <Button className="module-git-summary__view-all" type="text" onClick={openSessionFiles}>查看全部</Button> : null}
               </section>;
   const sidebarProps: ApplicationSidebarProps = {
     userId,
@@ -2116,6 +2413,11 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
     gitSummaryOpen,
     gitSummaryContent,
     onNewSession: startNewAiSession,
+    onRenameSession: async (sessionId, title) => {
+      const { session } = await renameAiSession(sessionId, title);
+      updateKnownAiSession(session);
+      return session;
+    },
     onSelectSession: (sessionId) => {
       onActiveAiSessionChange(sessionId);
       setNewAiSessionProjectId(null);
@@ -2182,15 +2484,82 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
     ...(agentBrowserUrl ? { activeBrowserUrl: agentBrowserUrl } : {})
   }), [activeAgentRightPane, agentBrowserUrl, agentCanvasContext.canvas, agentCanvasContext.workflow, applicationProjectContext, canvasWorkspace, chatAppId, chrome.rightCollapsed, chrome.terminalOpen, settings.browserUse.enabled]);
   const workspaceUtilityTabTitle = (tab: WorkspaceUtilityTab): string => {
-    if (tab.kind === "new" && tab.browserUrl) return browserSiteHost(tab.browserUrl);
+    if (tab.kind === "new" && tab.browserUrl) {
+      const activeBrowserTab = browserOpenTabs.find(item => item.active);
+      if (activeBrowserTab?.url === tab.browserUrl && activeBrowserTab.title.trim()) return activeBrowserTab.title.trim();
+      return browserSiteHost(tab.browserUrl);
+    }
     if (tab.kind === "new") return "新标签页";
     if (tab.kind === "git") return "变更";
     if (tab.kind === "assets") return "资产库";
     if (tab.kind === "applications") return "应用";
     if (tab.kind === "side-chat") return "侧边聊天";
     if (tab.kind === "project-file") return tab.filePath?.split("/").at(-1) || "项目文件";
+    if (tab.kind === "session-files") return "会话文件";
+    if (tab.kind === "agent-host-task") return `${aiHostTaskShellLabel(tab.hostTaskSnapshot?.shell ?? "system")} 任务`;
     const extension = sidebarRight.tabs.find(item => item.id === tab.extensionId);
     return extension ? (typeof extension.title === "function" ? extension.title() : extension.title) : "扩展面板";
+  };
+  const handleWorkbenchTabPreviewOpen = (tab: WorkspaceUtilityTab) => {
+    setWorkbenchTabPreviewOpenId(tab.id);
+    workbenchTabPreviewOpenRef.current = tab.id;
+    setBrowserTabPreviewImage(null);
+    const activeBrowserTab = browserOpenTabs.find(item => item.active);
+    if (tab.kind === "new" && selectedWorkbenchTab === tab.id && activeRightPanelSection === "context" && sidebarRight.activeId === null && tab.browserUrl && activeBrowserTab?.url === tab.browserUrl) {
+      const request = { tabId: tab.id, requestId: ++browserTabPreviewSequenceRef.current };
+      browserTabPreviewRequestRef.current = request;
+      setBrowserTabPreviewRequest(request);
+    } else {
+      browserTabPreviewRequestRef.current = null;
+      setBrowserTabPreviewRequest(null);
+    }
+  };
+  const handleWorkbenchTabPreviewClose = (tabId: string) => {
+    if (workbenchTabPreviewOpenRef.current !== tabId) return;
+    workbenchTabPreviewOpenRef.current = "";
+    setWorkbenchTabPreviewOpenId("");
+    browserTabPreviewRequestRef.current = null;
+    setBrowserTabPreviewRequest(null);
+    setBrowserTabPreviewImage(null);
+  };
+  const handleChatTabPreviewOpenChange = (open: boolean) => {
+    if (!open) { handleWorkbenchTabPreviewClose("chat"); return; }
+    workbenchTabPreviewOpenRef.current = "chat";
+    setWorkbenchTabPreviewOpenId("chat");
+    browserTabPreviewRequestRef.current = null;
+    setBrowserTabPreviewRequest(null);
+    setBrowserTabPreviewImage(null);
+  };
+  const handleBrowserTabPreviewCapture = useCallback((requestId: number, dataUrl: string | null) => {
+    const request = browserTabPreviewRequestRef.current;
+    if (!request || request.requestId !== requestId || workbenchTabPreviewOpenRef.current !== request.tabId) return;
+    setBrowserTabPreviewImage(dataUrl ? { ...request, dataUrl } : null);
+  }, []);
+  const renderWorkbenchTabPreview = (tabId: string, title: string, kind: WorkspaceUtilityTab["kind"], browserUrl?: string) => {
+    const request = browserTabPreviewRequest;
+    const preview = browserTabPreviewImage?.tabId === tabId && browserTabPreviewImage.requestId === request?.requestId ? browserTabPreviewImage.dataUrl : null;
+    const activeBrowserTab = browserOpenTabs.find(item => item.active);
+    const hasMatchingBrowserPage = Boolean(browserUrl && activeBrowserTab?.url === browserUrl && selectedWorkbenchTab === tabId && activeRightPanelSection === "context" && sidebarRight.activeId === null);
+    const description = tabId === "chat" ? "当前工作区"
+      : kind === "new"
+      ? hasMatchingBrowserPage ? browserAddressForDisplay(browserUrl!, settings.browserUse.showFullUrl, false) : "浏览器标签页"
+      : kind === "project-file" ? "项目文件"
+        : kind === "session-files" ? "当前会话的文件列表"
+          : kind === "agent-host-task" ? "真实节点任务输出"
+            : kind === "git" ? "项目变更"
+              : kind === "assets" ? "项目素材"
+                : kind === "applications" ? "应用列表"
+                  : kind === "side-chat" ? "侧边聊天"
+                    : kind === "extension" ? "扩展面板"
+                      : "工作区";
+    return <div className="module-workbench-tab-preview">
+      <div className="module-workbench-tab-preview__heading">
+        <WorkbenchIcon name={tabId === "chat" ? "spark" : kind === "new" ? "browser" : kind === "git" ? "branch" : kind === "assets" ? "archive" : kind === "applications" ? "grid" : kind === "project-file" || kind === "session-files" ? "file" : kind === "agent-host-task" ? "terminal" : kind === "extension" ? "extension" : kind === "side-chat" ? "help" : "spark"} size={16} />
+        <div><strong>{title}</strong><span>{description}</span></div>
+      </div>
+      {preview ? <img className="module-workbench-tab-preview__image" src={preview} alt={`${title}页面预览`} />
+        : <div className="module-workbench-tab-preview__empty"><WorkbenchIcon name={tabId === "chat" ? "spark" : kind === "new" ? "browser" : "spark"} size={19} /><span>{tabId === "chat" ? "当前会话工作区" : hasMatchingBrowserPage ? "正在载入当前页面预览…" : kind === "new" ? "当前标签暂无网页画面" : "该面板不提供网页缩略图"}</span></div>}
+    </div>;
   };
   const selectedWorkbenchTab = activeCenterCollapsed ? activeWorkspaceUtilityTab?.id ?? "chat" : activeWorkspaceUtilityTab?.id ?? "";
   const handleWorkbenchTabKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>, tabId: string) => {
@@ -2213,19 +2582,23 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   };
   const workbenchTabs = showWorkbenchTabs ? <div className="module-workbench-tabstrip">
     <nav className="module-workbench-tabs module-workbench-tabs--context" role="tablist" aria-label="工作区标签">
-      {activeCenterCollapsed ? <button id="module-workbench-tab-chat" className="module-workbench-tab" type="button" role="tab" aria-selected={selectedWorkbenchTab === "chat"} aria-controls="module-workbench-tab-panel" tabIndex={selectedWorkbenchTab === "chat" ? 0 : -1} onClick={() => selectWorkbenchTab("chat")} onKeyDown={event => handleWorkbenchTabKeyDown(event, "chat")} aria-label={activeAiSessionTitle?.trim() || "小鱼智能体"} title={activeAiSessionTitle?.trim() || "小鱼智能体"}>
-        <WorkbenchIcon name="spark" size={14} /><span>{activeAiSessionTitle?.trim() || "小鱼智能体"}</span>
-      </button> : null}
+      {activeCenterCollapsed ? <Popover arrow={false} content={renderWorkbenchTabPreview("chat", activeAiSessionTitle?.trim() || "LFAA 工作台", "new")} open={workbenchTabPreviewOpenId === "chat"} onOpenChange={handleChatTabPreviewOpenChange} overlayClassName="module-workbench-tab-preview-popover" placement="bottomLeft" trigger={["hover", "focus"]} mouseEnterDelay={0.35} mouseLeaveDelay={0.12}>
+        <button id="module-workbench-tab-chat" className="module-workbench-tab" type="button" role="tab" aria-selected={selectedWorkbenchTab === "chat"} aria-controls="module-workbench-tab-panel" tabIndex={selectedWorkbenchTab === "chat" ? 0 : -1} onClick={() => { handleWorkbenchTabPreviewClose("chat"); selectWorkbenchTab("chat"); }} onKeyDown={event => handleWorkbenchTabKeyDown(event, "chat")} aria-label={activeAiSessionTitle?.trim() || "小鱼智能体"} title={activeAiSessionTitle?.trim() || "小鱼智能体"}>
+          <WorkbenchIcon name="spark" size={14} /><span>{activeAiSessionTitle?.trim() || "小鱼智能体"}</span>
+        </button>
+      </Popover> : null}
       {workspaceUtilityTabs.map(tab => {
         const title = workspaceUtilityTabTitle(tab);
         const selected = selectedWorkbenchTab === tab.id;
-        const icon = tab.kind === "new" && tab.browserUrl ? "browser" : tab.kind === "git" ? "branch" : tab.kind === "assets" ? "archive" : tab.kind === "applications" ? "grid" : tab.kind === "side-chat" ? "help" : tab.kind === "extension" ? "extension" : tab.kind === "project-file" ? "file" : "new";
-        return <div key={tab.id} className={`module-workbench-tab-item${selected ? " is-active" : ""}`} role="presentation">
-          <button id={`module-workbench-tab-${tab.id}`} className="module-workbench-tab" type="button" role="tab" aria-selected={selected} aria-controls="module-workbench-tab-panel" tabIndex={selected ? 0 : -1} onClick={() => activeCenterCollapsed ? selectWorkbenchTab(tab.id) : selectRightUtilityTab(tab)} onDoubleClick={toggleCenterCollapsed} onKeyDown={event => handleWorkbenchTabKeyDown(event, tab.id)} aria-label={title} title={`${title} · 双击切换中间区`}>
-            <WorkbenchIcon name={icon} size={14} /><span>{title}</span>
-          </button>
-          <button className="module-workbench-tab-close" type="button" aria-label={`关闭${title}`} title={`关闭${title}`} tabIndex={selected ? 0 : -1} onClick={event => { event.stopPropagation(); closeWorkspaceUtilityTab(tab.id); }}><WorkbenchIcon name="close" size={12} /></button>
-        </div>;
+        const icon = tab.kind === "new" ? "browser" : tab.kind === "git" ? "branch" : tab.kind === "assets" ? "archive" : tab.kind === "applications" ? "grid" : tab.kind === "side-chat" ? "help" : tab.kind === "extension" ? "extension" : tab.kind === "project-file" || tab.kind === "session-files" ? "file" : tab.kind === "agent-host-task" ? "terminal" : "new";
+        return <Popover key={tab.id} arrow={false} content={renderWorkbenchTabPreview(tab.id, title, tab.kind, tab.browserUrl)} open={workbenchTabPreviewOpenId === tab.id} onOpenChange={open => open ? handleWorkbenchTabPreviewOpen(tab) : handleWorkbenchTabPreviewClose(tab.id)} overlayClassName="module-workbench-tab-preview-popover" placement="bottomLeft" trigger={["hover", "focus"]} mouseEnterDelay={0.35} mouseLeaveDelay={0.12}>
+          <div className={`module-workbench-tab-item${selected ? " is-active" : ""}`} role="presentation">
+            <button id={`module-workbench-tab-${tab.id}`} className="module-workbench-tab" type="button" role="tab" aria-selected={selected} aria-controls="module-workbench-tab-panel" tabIndex={selected ? 0 : -1} onClick={() => { handleWorkbenchTabPreviewClose(tab.id); activeCenterCollapsed ? selectWorkbenchTab(tab.id) : selectRightUtilityTab(tab); }} onDoubleClick={toggleCenterCollapsed} onKeyDown={event => handleWorkbenchTabKeyDown(event, tab.id)} aria-label={title} title={`${title} · 双击切换中间区`}>
+              <WorkbenchIcon name={icon} size={14} /><span>{title}</span>
+            </button>
+            <button className="module-workbench-tab-close" type="button" aria-label={`关闭${title}`} title={`关闭${title}`} tabIndex={selected ? 0 : -1} onClick={event => { event.stopPropagation(); closeWorkspaceUtilityTab(tab.id); }}><WorkbenchIcon name="close" size={12} /></button>
+          </div>
+        </Popover>;
       })}
     </nav>
     <button className="module-workbench-tab-add" type="button" aria-label="新建标签页" title="新建标签页" onClick={createWorkspaceUtilityTab}><WorkbenchIcon name="plus" size={16} /></button>
@@ -2272,6 +2645,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
           onSessionsChange={(sessions) => {
             updateAiSessions(() => sessions);
           }}
+          onSessionChange={updateKnownAiSession}
           onActiveSessionChange={onActiveAiSessionChange}
           onDraftChange={onAiDraftChange}
           onProviderStatusChange={setAiProviderStatus}
@@ -2296,7 +2670,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
       <WorkbenchHeader className="module-center__header" layoutMode={metrics.mode} moduleMode={mode}>
         <div className="lfaa-workbench-header__leading module-center__heading" data-workbench-header-slot="leading">
           <button ref={leftPreviewTriggerRef} className="module-shell-icon-button module-shell-icon-button--left-preview lfaa-workbench-header__toggle" type="button" aria-label={mode === "normal" ? "切换当前应用功能菜单" : "切换会话与项目栏"} aria-expanded={!chrome.leftCollapsed || leftPreviewOpen} aria-keyshortcuts={shortcuts.toggleSidebar.map((chord) => chord.replace("Ctrl", "Control")).join(" ")} title={`${mode === "normal" ? "切换当前应用功能菜单" : "切换会话与项目栏"} · ${shortcuts.toggleSidebar.join(" / ") || "未分配"}`} onClick={toggleLeft} onMouseEnter={openLeftPreview} onMouseLeave={closeLeftPreview} onFocus={(event) => { if (event.currentTarget.matches(":focus-visible")) openLeftPreview(); }} onBlur={closeLeftPreview}><WorkbenchIcon name="panelLeft" size={16} /></button>
-          <div className="lfaa-workbench-header__title module-center__title" title={mode === "ai-work" ? activeChatSessionTitle?.trim() || "小鱼智能体" : activeApplicationTitle}><WorkbenchIcon name={mode === "normal" ? "folder" : "spark"} size={16} /><strong>{mode === "ai-work" ? activeChatSessionTitle?.trim() || "小鱼智能体" : activeApplicationTitle}</strong></div>
+          <div className={`lfaa-workbench-header__title module-center__title${mode === "ai-work" ? " module-center__title--chat" : ""}`} title={mode === "ai-work" ? activeChatSessionTitle?.trim() || "小鱼智能体" : activeApplicationTitle}><WorkbenchIcon name={mode === "normal" ? "folder" : "spark"} size={16} /><strong>{mode === "ai-work" ? activeChatSessionTitle?.trim() || "小鱼智能体" : activeApplicationTitle}</strong></div>
         </div>
         {modeSwitchAppId && section !== "voice" ? <div className="lfaa-workbench-header__center module-center__mode-switch-slot" data-workbench-header-slot="center"><Segmented
           className="module-center__mode-switch"
@@ -2475,12 +2849,46 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
       /></Suspense> : <>
       {mode === "ai-work" ? <>
         {activeWorkspaceUtilityTabKind === "assets" ? <Suspense fallback={<ApplicationContentLoading />}><AgentAssetLibrary repositoryId={activeSessionAssetRepository?.id ?? null} repositoryTitle={activeSessionAssetRepository?.title ?? "当前对话项目"} repositoryLoading={activeSessionAssetRepositoryLoading} /></Suspense> : null}
-        {activeWorkspaceUtilityTabKind === "new" ? <Suspense fallback={<ApplicationContentLoading />}><BrowserPanel sessionId={BUILTIN_BROWSER_WORKSPACE_ID} settings={settings} browserUrl={activeWorkspaceUtilityTab?.browserUrl} preferredProviderId={preferredBrowserProvider?.providerId} providerSelectionRequestId={preferredBrowserProvider?.requestId} hidden={!activeWorkspaceUtilityTab?.browserUrl} navigationRequest={activeWorkspaceUtilityTab?.browserNavigationRequest ?? null} onNavigationRequestHandled={handleBrowserNavigationRequest} actionRequest={activeWorkspaceUtilityTab?.browserActionRequest ?? null} onActionRequestHandled={handleBrowserActionRequest} onOpenTabsChange={handleBrowserOpenTabsChange} /></Suspense> : null}
+        {activeWorkspaceUtilityTabKind === "new" ? <Suspense fallback={<ApplicationContentLoading />}><BrowserPanel sessionId={BUILTIN_BROWSER_WORKSPACE_ID} settings={settings} browserUrl={activeWorkspaceUtilityTab?.browserUrl} preferredProviderId={preferredBrowserProvider?.providerId} providerSelectionRequestId={preferredBrowserProvider?.requestId} hidden={!activeWorkspaceUtilityTab?.browserUrl} navigationRequest={activeWorkspaceUtilityTab?.browserNavigationRequest ?? null} onNavigationRequestHandled={handleBrowserNavigationRequest} actionRequest={activeWorkspaceUtilityTab?.browserActionRequest ?? null} onActionRequestHandled={handleBrowserActionRequest} onOpenTabsChange={handleBrowserOpenTabsChange} previewRequestId={browserTabPreviewRequest?.tabId === activeWorkspaceUtilityTabId ? browserTabPreviewRequest.requestId : undefined} onPreviewCapture={handleBrowserTabPreviewCapture} /></Suspense> : null}
         {activeWorkspaceUtilityTabKind === "project-file" && activeWorkspaceUtilityTab?.projectId && activeWorkspaceUtilityTab.filePath ? (() => {
           const project = workspaceProjects.find(item => item.id === activeWorkspaceUtilityTab.projectId && (!item.appId || item.appId === app));
           return project && (app === "workspace" || app === "minecraft")
             ? <AiWorkProjectFileDock key={`${project.id}:${activeWorkspaceUtilityTab.sourceId ?? ""}:${activeWorkspaceUtilityTab.filePath}`} project={project} appId={app} path={activeWorkspaceUtilityTab.filePath} sourceId={activeWorkspaceUtilityTab.sourceId} initialView={activeWorkspaceUtilityTab.initialView} onOpenProjectFile={openProjectFile} />
             : <Alert type="warning" showIcon message="项目文件不可用" description="当前账户或应用中没有此活动记录绑定的项目，未改用其他项目读取。" />;
+        })() : null}
+        {activeWorkspaceUtilityTabKind === "session-files" && activeWorkspaceUtilityTab ? <section className="module-git-summary__full-view" aria-label="会话文件完整列表">
+          <header><div><h2>会话文件</h2><span>{aiSessions.find(session => session.id === activeWorkspaceUtilityTab.sessionId)?.title || "当前会话"}</span></div><small>{activeWorkspaceUtilityTab.sessionFiles?.length ?? 0} 项</small></header>
+          {activeWorkspaceUtilityTab.sessionFiles?.length ? <div className="module-git-summary__full-files">{activeWorkspaceUtilityTab.sessionFiles.map((change, index) => {
+            const projectId = change.projectId ?? aiSessions.find(session => session.id === activeWorkspaceUtilityTab.sessionId)?.projectId ?? null;
+            const project = projectId ? workspaceProjects.find(item => item.id === projectId && (!item.appId || item.appId === app)) : null;
+            const canOpen = Boolean(project && change.path && !change.path.startsWith("/") && !change.path.startsWith("\\") && !change.path.includes("\\") && !change.path.split("/").some(segment => !segment || segment === "." || segment === ".."));
+            const source = change.operation === "read";
+            return <Button key={`${source ? "source" : "output"}:${change.projectId ?? ""}:${change.path}:${index}`} type="text" className="module-git-summary__file-row" aria-label={`查看${source ? "来源" : "输出"}文件 ${change.path}`} title={canOpen ? `在右侧查看 ${change.path}` : "此文件没有关联可读取的项目文件夹"} disabled={!canOpen} onClick={() => { if (projectId) openProjectFile(projectId, change.path, change.sourceId); }}>
+              <WorkbenchIcon name="file" size={14} /><span className="module-git-summary__file-copy"><strong title={change.path}>{change.path}</strong><small>{project?.title ?? "项目文件"} · {source ? "来源" : change.operation === "created" ? "新建" : "修改"}</small></span>
+            </Button>;
+          })}</div> : <p className="module-git-summary__empty">此会话没有记录到可展示的文件。</p>}
+        </section> : null}
+        {activeWorkspaceUtilityTabKind === "agent-host-task" && activeWorkspaceUtilityTab ? (() => {
+          const task = activeHostTask;
+          const taskState = task ? aiHostTaskStatusLabel(task) : "正在读取";
+          const isActive = task?.status === "queued" || task?.status === "running";
+          const output = task?.result ? [task.result.stdout, task.result.stderr ? `\n${task.result.stderr}` : ""].filter(Boolean).join("\n") : "";
+          if (!task && aiHostTaskDetailState.error) return <Alert type="error" showIcon message="后台进程不可用" description={aiHostTaskDetailState.error} />;
+          if (!task) return <div className="module-git-summary__task-loading" role="status">{aiHostTaskDetailState.loading ? "正在读取进程命令和输出…" : "正在连接后台进程…"}</div>;
+          if (task.appId !== app) return <Alert type="info" showIcon message="后台进程属于其他应用" description="此页签保留原任务标签；未在当前应用上下文中读取任务内容。" />;
+          return <section className="module-git-summary__task-detail" aria-label="后台进程详情">
+            <header><div><h2>{aiHostTaskShellLabel(task.shell)}</h2><span>{taskState}</span></div>{isActive ? <Button danger type="text" disabled={stoppingAiHostTaskId === task.id || task.cancelRequested} onClick={() => void stopAiHostTask(task)}>停止进程</Button> : null}</header>
+            {aiHostTaskStopError ? <Alert type="error" showIcon message="停止后台进程失败" description={aiHostTaskStopError} /> : null}
+            {aiHostTaskDetailState.error ? <Alert type="error" showIcon message="进程状态读取失败" description={aiHostTaskDetailState.error} /> : null}
+            <p className="module-git-summary__task-message">{task.message}</p>
+            <div className="module-git-summary__task-meta"><span>目标节点：{task.nodeId}</span><span>应用：{task.appId}</span><span>工作目录：{task.workingDirectory || "未提供"}</span>{task.startedAt ? <span>开始时间：{new Date(task.startedAt).toLocaleString()}</span> : null}</div>
+            {task.command ? <section className="module-git-summary__task-output" aria-label="进程命令"><header><strong>运行命令</strong></header><pre>{task.command}</pre></section> : null}
+            <section className="module-git-summary__task-output" aria-label="进程输出"><header><strong>进程输出</strong>{task.result?.outputTruncated ? <small>输出已截断</small> : null}</header>
+              <pre>{output || (task.status === "queued" ? "等待 Daemon 接收命令…" : task.status === "running" ? "进程已启动，等待输出…" : "任务没有保留输出。")}</pre>
+              {task.result ? <small>退出码：{task.result.exitCode ?? "未知"}{task.result.timedOut ? " · 已超时" : ""}{task.result.cancelled ? " · 已取消" : ""}</small> : null}
+            </section>
+            {task.cancelRequested && task.status === "running" ? <p className="module-git-summary__footnote">已请求目标节点终止进程树，等待节点回报停止结果。</p> : null}
+          </section>;
         })() : null}
         {activeWorkspaceUtilityTabKind === "new" && !activeWorkspaceUtilityTab?.browserUrl ? <>
         <div className="module-context__launcher">
@@ -2521,24 +2929,16 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
               </button>)}
             </div> : <div className="module-context__launcher-recommendation-empty"><span>打开的网页会显示在这里。</span><button type="button" onClick={() => browserAddressInputRef.current?.focus()}>输入网址</button></div>}
           </section>
-          <section className="module-context__launcher-recent" aria-labelledby="module-context-launcher-recent-title">
+          {browserRecentSitesForDisplay.sites.length > 0 ? <section className="module-context__launcher-recent" aria-labelledby="module-context-launcher-recent-title">
             <header><strong id="module-context-launcher-recent-title">最近</strong></header>
-            {!settings.browserUse.recordRecentSites
-              ? <p className="module-context__launcher-recent-empty">最近网站记录已在浏览器设置中关闭。</p>
-              : browserRecentSitesState.userId === userId && browserRecentSitesState.status === "loading" && visibleBrowserRecentSites.length === 0
-                ? <p className="module-context__launcher-recent-empty" role="status">正在读取最近访问的网站…</p>
-                : browserRecentSitesState.userId === userId && browserRecentSitesState.status === "error" && visibleBrowserRecentSites.length === 0
-                  ? <p className="module-context__launcher-recent-empty" role="status">最近网站暂时无法读取。</p>
-                  : visibleBrowserRecentSites.length > 0
-                    ? <div className="module-context__launcher-recent-list">
-                      {visibleBrowserRecentSites.map(site => <button key={site.url} className="module-context__launcher-recent-site" type="button" title={site.url} onClick={() => openBrowserWebsite(site.url)}>
-                        <WorkbenchIcon name="browser" size={18} />
-                        <span><strong>{browserSiteHost(site.url)}</strong><small>{site.url}</small></span>
-                        <time dateTime={site.visitedAt}>{browserVisitTime(site.visitedAt)}</time>
-                      </button>)}
-                    </div>
-                    : <p className="module-context__launcher-recent-empty">你或 Agent 在 LFAA 浏览器访问过的网站会显示在这里。</p>}
-          </section>
+            <div className="module-context__launcher-recent-list">
+              {browserRecentSitesForDisplay.sites.map(site => <button key={site.url} className="module-context__launcher-recent-site" type="button" title={site.url} onClick={() => openBrowserWebsite(site.url)}>
+                <WorkbenchIcon name="browser" size={18} />
+                <span><strong>{browserSiteHost(site.url)}</strong><small>{site.url}</small></span>
+                <time dateTime={site.visitedAt}>{browserVisitTime(site.visitedAt)}</time>
+              </button>)}
+            </div>
+          </section> : null}
         </div>
         </> : null}
       </> : <>

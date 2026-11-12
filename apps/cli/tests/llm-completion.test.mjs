@@ -247,6 +247,57 @@ test("LLM Provider adapters replace one provider route and are removed with thei
   assert.deepEqual(service.listAdapters(), []);
 });
 
+test("同一运行上下文布局先于 Provider Adapter 分派，跨模型路由保持一致", async () => {
+  const service = createAiCompletionService();
+  const captured = [];
+  const expected = { text: "adapter result", usage: null, toolCalls: [] };
+  for (const [providerId, modelId] of [["fixture-provider-a", "model-a"], ["fixture-provider-b", "model-b"]]) {
+    service.registerAdapter(providerId, { async stream(input) { captured.push(input); return expected; } });
+    const input = completionInput();
+    input.account = { ...input.account, providerId, modelId };
+    input.messages = [{ role: "user", content: "当前目标" }];
+    input.context = "每轮工作区上下文";
+    await service.streamCompletion(input);
+  }
+
+  assert.equal(captured.length, 2);
+  assert.equal(captured[0].messages[0].role, "system");
+  assert.equal(captured[0].messages[0].content, captured[1].messages[0].content, "Provider/模型变化不改变公共 system 结构");
+  for (const [index, request] of captured.entries()) {
+    assert.equal(Object.hasOwn(request, "context"), false, "适配器使用统一预处理后的消息，不能自行改写缓存布局");
+    assert.deepEqual(request.extensions, []);
+    assert.equal(request.messages.at(-1).role, "user");
+    assert.match(request.messages.at(-1).content, /^LFAA_RUNTIME_CONTEXT_JSON_V1/u);
+    assert.match(request.messages.at(-1).content, /每轮工作区上下文/u);
+    assert.match(request.messages.at(-1).content, /当前目标$/u);
+    assert.equal(request.account.modelId, index === 0 ? "model-a" : "model-b");
+  }
+});
+
+test("通用 Provider 请求把动态运行上下文放在当前 user 消息并参与最终请求观察", async () => {
+  const originalFetch = globalThis.fetch;
+  const bodies = [], prepared = [], snapshots = [];
+  try {
+    globalThis.fetch = async (_url, options) => { bodies.push(JSON.parse(options.body)); return sse([{ content: "已完成" }]); };
+    const input = completionInput();
+    input.messages = [{ role: "user", content: "当前目标" }];
+    input.context = "动态 Git 与工作区资料";
+    input.onPrepareRequest = request => { prepared.push(request.messages); };
+    input.onRequest = request => snapshots.push(request.messages);
+    await streamAiCompletion(input);
+
+    const system = bodies[0].messages[0].content;
+    assert.equal(system.includes("动态 Git 与工作区资料"), false, "动态上下文不能改变 system 前缀");
+    assert.equal(bodies[0].messages[1].role, "user");
+    assert.match(bodies[0].messages[1].content, /^LFAA_RUNTIME_CONTEXT_JSON_V1/u);
+    assert.match(bodies[0].messages[1].content, /动态 Git 与工作区资料/u);
+    assert.match(bodies[0].messages[1].content, /LFAA_CURRENT_USER_INPUT_V1\n当前目标$/u);
+    assert.equal(prepared[0][0].content, system);
+    assert.equal(snapshots[0][1].content, bodies[0].messages[1].content, "最终估算/观察读取模型实际收到的消息");
+    assert.equal(Object.hasOwn(snapshots[0][1], "runtimeContextOriginalContent"), false);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
 const sse = (deltas, end = 'data: [DONE]\n\n') => new Response(deltas.map(delta => 'data: ' + JSON.stringify({ choices: [{ delta }] }) + '\n\n').join('') + end, { headers: { 'Content-Type': 'text/event-stream' } });
 
 test("超长工具参数在派发前以可恢复错误拒绝，并保留安全上限", async () => {

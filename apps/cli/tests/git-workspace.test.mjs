@@ -40,6 +40,11 @@ test("Git status distinguishes a normal directory and exposes only an explicit i
   assert.equal(before.repositoryState, "not-repository");
   assert.equal(before.changedFileCount, 0);
   assert.equal(before.repository, null);
+  const beforeSummary = await executeGitWorkspace({ operation: "summary", projectDirectory: sourceRoot });
+  assert.equal(beforeSummary.repositoryState, "not-repository");
+  assert.equal(beforeSummary.changedFileCount, 0);
+  assert.equal("files" in beforeSummary, false);
+  assert.equal("diff" in beforeSummary, false);
   await assert.rejects(executeGitWorkspace({ operation: "file-diff", projectDirectory: sourceRoot, path: "first.txt" }), /尚未初始化 Git 仓库/u);
 
   const initialized = await executeGitWorkspace({ operation: "initialize", projectDirectory: sourceRoot });
@@ -54,6 +59,49 @@ test("Git status distinguishes a normal directory and exposes only an explicit i
   const unbornFileDiff = await executeGitWorkspace({ operation: "file-diff", projectDirectory: sourceRoot, path: "first.txt" });
   assert.match(unbornFileDiff.diff, /second line/u);
   assert.equal((await executeGitWorkspace({ operation: "status", projectDirectory: sourceRoot })).repositoryState, "unborn");
+  const initializedSummary = await executeGitWorkspace({ operation: "summary", projectDirectory: sourceRoot });
+  assert.equal(initializedSummary.repositoryState, "unborn");
+  assert.equal(initializedSummary.changedFileCount, 1);
+  assert.equal(initializedSummary.insertions, 2);
+  assert.equal("files" in initializedSummary, false);
+  assert.equal("diff" in initializedSummary, false);
+});
+
+test("Git summary counts only the selected folder inside a parent repository and omits file diffs", async t => {
+  await mkdir(join(repositoryRoot, "dist", ".tmp"), { recursive: true });
+  const fixtureRoot = await mkdtemp(join(repositoryRoot, "dist", ".tmp", "git-folder-summary-"));
+  const projectRoot = join(fixtureRoot, "nested-project");
+  await mkdir(projectRoot, { recursive: true });
+  const dataRoot = join(tmpdir(), `lfaa-git-folder-summary-data-${randomUUID()}`);
+  const priorDataRoot = process.env.LFAA_GIT_DATA_ROOT;
+  process.env.LFAA_GIT_DATA_ROOT = dataRoot;
+  t.after(async () => {
+    if (priorDataRoot === undefined) delete process.env.LFAA_GIT_DATA_ROOT;
+    else process.env.LFAA_GIT_DATA_ROOT = priorDataRoot;
+    await rm(fixtureRoot, { recursive: true, force: true });
+    await rm(dataRoot, { recursive: true, force: true });
+  });
+  const git = async (...args) => (await execFileAsync("git", ["--no-pager", "-C", fixtureRoot, ...args], { encoding: "utf8", windowsHide: true })).stdout.trim();
+  await git("init", "--initial-branch=main");
+  await git("config", "user.name", "LFAA Test");
+  await git("config", "user.email", "lfaa-test@example.invalid");
+  await writeFile(join(fixtureRoot, "outside.txt"), "base\n", "utf8");
+  await writeFile(join(projectRoot, "inside.txt"), "base\n", "utf8");
+  await git("add", ".");
+  await git("commit", "-m", "Add folder fixtures");
+  await writeFile(join(fixtureRoot, "outside.txt"), "base\noutside change\n", "utf8");
+  await writeFile(join(projectRoot, "inside.txt"), "base\ninside one\ninside two\n", "utf8");
+
+  const { executeGitWorkspace } = await import("../../../packages/host/git/src/git-workspace.mjs");
+  const summary = await executeGitWorkspace({ operation: "summary", projectDirectory: projectRoot });
+  assert.equal(summary.repositoryState, "ready");
+  assert.equal(summary.projectRelativePath, "nested-project");
+  assert.equal(summary.changedFileCount, 1);
+  assert.equal(summary.insertions, 2);
+  assert.equal(summary.deletions, 0);
+  assert.equal(summary.clean, false);
+  assert.equal("files" in summary, false);
+  assert.equal("diff" in summary, false);
 });
 
 test("local Git operations stage safely, commit staged changes, show history, and manage branches", async t => {

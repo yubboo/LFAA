@@ -83,7 +83,7 @@ const settingKeyLabels: Record<string, string> = {
   minecraftInstallTimeoutSeconds: "Minecraft 安装时限", minecraftExecutionMode: "Minecraft 执行方式",
   minecraftDefaultCore: "Minecraft 默认核心", minecraftBedrockDefaultPort: "Minecraft 基岩版默认端口",
   branchPrefix: "Git 分支名前缀", mode: "操作权限模式", skillDirectories: "Skill 来源目录", disabledSkillNames: "停用的 Skill",
-  mcpServers: "MCP 服务", prompts: "提示词", memoryEnabled: "个性化记忆", memoryFromToolChats: "从工具对话整理记忆",
+  mcpServers: "MCP 服务", prompts: "提示词", memoryEnabled: "个性化记忆", memoryFromToolChats: "从工具对话整理记忆", memorySharedWithAgents: "与外部 Agent 共享记忆", memoryAgentWritesEnabled: "允许外部 Agent 更新记忆",
   webUrlOpenLocation: "网页打开位置", localUrlOpenLocation: "本地 URL 打开位置", enabledProviderIds: "个人浏览器连接",
   showFullUrl: "显示完整网址", recordRecentSites: "记录最近访问网站", allowAgentHistoryAccess: "允许 Agent 读取浏览历史",
   annotateScreenshots: "批注截图策略", useWebsiteToolsByDefault: "默认使用网站工具", websiteToolOverrides: "网站工具权限例外",

@@ -27,7 +27,7 @@ function hasColumn(tableName: "ai_tool_approvals" | "ai_tool_permission_grants",
 
 // 版本31由文件存储协调器在回读校验完成后提交，SQLite 保留账户、权限和任务。
 // 数据库打开兼容上限必须与本文件中的最新 schema 迁移版本保持一致。
-const latestSupportedDatabaseVersion = 79;
+const latestSupportedDatabaseVersion = 80;
 if (currentVersion > latestSupportedDatabaseVersion) {
   throw new Error(`数据库版本 ${currentVersion} 高于当前程序支持的版本 ${latestSupportedDatabaseVersion}（${config.databasePath}）。请使用更新版本的 LFAA；为保护数据，本程序不会自动降级数据库结构。`);
 }
@@ -2659,3 +2659,28 @@ export function migrateMinecraftInstanceJvmConfiguredSchema(): void {
   }
 }
 migrateMinecraftInstanceJvmConfiguredSchema();
+
+/** 版本 80：保存仅限账户记忆 MCP 的外部 Agent 令牌摘要，撤销不影响登录会话。 */
+export function migrateAgentMemoryAccessTokenSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 79 || version >= 80) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    const tables = new Set((database.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{ name: string }>).map(row => row.name));
+    if (!tables.has("users")) throw new Error("Agent 记忆访问令牌迁移缺少账户表；数据库版本未推进。");
+    database.exec(`
+      CREATE TABLE agent_memory_access_tokens (
+        token_id TEXT PRIMARY KEY NOT NULL,
+        user_id TEXT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        token_hash TEXT NOT NULL CHECK (length(token_hash) = 64),
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      );
+      PRAGMA user_version = 80;
+      COMMIT;
+    `);
+  } catch (error) {
+    if (database.isTransaction) database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+migrateAgentMemoryAccessTokenSchema();

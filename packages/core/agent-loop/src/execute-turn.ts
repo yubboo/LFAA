@@ -14,7 +14,7 @@ import type { UserRole } from "lfaa-identity-auth/src/service.js";
 import type { ApplicationId } from "lfaa-settings/src/preferences/service.js";
 import { APPLICATION_LABELS } from "lfaa-util-values/src/application-id.js";
 import { AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN, AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN, type BrowserUseSettings } from "lfaa-util-values/src/settings-contract.js";
-import { AiOutputLimitError, AiRecoverableRequestError, AiToolArgumentsTooLargeError, type AiCompletionContentPart, type AiCompletionMessage, type AiCompletionUsage, type AiCompletionService } from "lfaa-llm/src/completion.js";
+import { AiOutputLimitError, AiRecoverableRequestError, AiToolArgumentsTooLargeError, stripAiCompletionRuntimeContext, type AiCompletionContentPart, type AiCompletionMessage, type AiCompletionUsage, type AiCompletionService } from "lfaa-llm/src/completion.js";
 import { domainExpertName, listAiBusinessTools, type AiBusinessTool, type AiExternalAgentToolContent } from "lfaa-tools/src/business-tools.js";
 import { capabilitySettingsInstruction } from "lfaa-tools/src/capability-settings.js";
 import { agentSettingsInstruction } from "lfaa-tools/src/settings-tools.js";
@@ -1258,7 +1258,7 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
               const attachmentCount = attachmentTurnMessages.length;
               const persistedEnd = Math.max(1, managed.messages.length - attachmentCount);
               completionMessages.length = 0;
-              completionMessages.push(...managed.messages.slice(1, persistedEnd));
+              completionMessages.push(...stripAiCompletionRuntimeContext(managed.messages.slice(1, persistedEnd)));
               requestMessagesForPi = [...completionMessages];
               addActivity("status", "上下文管理", "complete", `已按最终请求估算（约 ${managed.pressure.usedTokens} / ${managed.pressure.contextWindow} tokens；system ${managed.pressure.systemTokens}、tools ${managed.pressure.toolsTokens}、messages ${managed.pressure.messageTokens}）缩减本次历史；外置结果可按需读取。`);
             }

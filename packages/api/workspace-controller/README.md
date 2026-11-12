@@ -8,7 +8,7 @@
 
 `POST /workspace/sessions/directory-availability` 仅接受最多 200 个会话 ID；Controller 按认证账户读取 Session 的轻量项目上下文，再调用 Agent Loop 的 `resolveAiSessionWorkspaceContext`，确保检查路径与真实运行 Owner 解析结果一致，不水合完整会话事件日志。新 AI Work 项目只向 LFAA 本机 Project Files Host 检查源目录；页面加载和消息读取不等待目录检查。响应只返回 `available`、`missing` 或 `unknown`，不暴露路径。只有 Host 明确确认路径不存在或不再是目录才返回 `missing`；权限拒绝、超时与 Host 错误都保持 `unknown`。会话解除项目登记不会清除历史快照；若该快照目录仍存在，历史会话仍可正常使用。
 
-本地 Git 路由还要求节点在线并报告 `git-workspace-v1`。显式初始化只在当前已登记目录创建 `.git` 元数据，不自动暂存或提交；stage/unstage 与提交使用项目相对路径，提交仅接受暂存变更，并拒绝提交当前登记子目录之外的暂存文件。分支前缀读取账户 `git` 设置；分支切换/删除只允许仓库根项目，避免通过子目录登记改变仓库其他项目；AI Worktree 的分支名由 Workspace Owner 管理。所有写操作通过 Permission Owner 的显式用户操作授权。恢复和删除只接受账户已登记的工作树，不接收模型/浏览器提供的绝对路径；不提供任意 Git 命令、远端 Git、推送、合并或 PR。GitHub OAuth 仍是只读 API 凭据，不可用于 Git transport。
+本地 Git 路由使用项目 Owner 当前登记的文件夹，并拒绝不可由本机应用进程访问的远程项目。`POST /workspace/projects/:projectId/git/summary` 只接受逻辑项目 ID，服务端从 Workspace Owner 读取主目录与登记源目录，按主目录优先、最多四个并发查询轻量目录范围摘要；请求只返回分支、仓库状态、变更计数和行数，不返回文件列表或差异正文。它只读，不初始化 Git 或登记 Agent Git 仓库。显式初始化只在当前已登记目录创建 `.git` 元数据，不自动暂存或提交；stage/unstage 与提交使用项目相对路径，提交仅接受暂存变更，并拒绝提交当前登记子目录之外的暂存文件。分支前缀读取账户 `git` 设置；分支切换/删除只允许仓库根项目，避免通过子目录登记改变仓库其他项目；AI Worktree 的分支名由 Workspace Owner 管理。所有写操作通过 Permission Owner 的显式用户操作授权。恢复和删除只接受账户已登记的工作树，不接收模型/浏览器提供的绝对路径；不提供任意 Git 命令、远端 Git、推送、合并或 PR。GitHub OAuth 仍是只读 API 凭据，不可用于 Git transport。
 
 变更审阅通过 `POST /workspace/projects/:projectId/git/file-diff` 返回单文件 Git 差异；`contextLines` 为 0–1000 的整数并默认为 3，供 Client 按需展开真实未变更上下文。`/files/read` 提供分段 UTF-8 文本读取，`/files/write` 只接受带 SHA-256 的用户主动编辑保存。路由用认证账户、项目 ID 与服务端登记的 `sourceId` 解析对应本机源根，不接受任意绝对路径；不同源目录中的活动变更会回到它自己的根审阅。文件读写由 Project Files Host 校验路径、符号链接、文本类型、2 MiB 上限和并发摘要；编辑器 API 不加入模型 `project-tools` 的操作合同。
 

@@ -6,13 +6,13 @@ const read = path => readFileSync(new URL(path, import.meta.url), "utf8");
 const workspace = read("../../../packages/client/ui-workspace/src/ApplicationWorkspace.tsx");
 const rightMenuCss = read("../../../packages/client/ui-workspace/src/css/right-menu.css");
 const right = workspace.match(/const right = \([\s\S]*?\n  const bottom/u)?.[0] ?? "";
-const launcher = right.match(/<div className="module-context__launcher">[\s\S]*?<\/section>\s*<\/div>\s*<\/>\s*:\s*null\}/u)?.[0] ?? "";
+const launcher = right.match(/<div className="module-context__launcher">[\s\S]*?<\/section>(?:\s*:\s*null\})?\s*<\/div>\s*<\/>\s*:\s*null\}/u)?.[0] ?? "";
 
 test("右侧新标签页将常用工具、更多工具和推荐分为独立区域", () => {
   assert.ok(right, "右侧面板 JSX 应可定位");
   assert.match(launcher, /module-context__launcher-quick-tools/u);
   assert.match(launcher, /openWorkspaceUtility\("git"\)/u);
-  assert.match(launcher, /terminalPanelAvailable && settings\.general\.showBottomPanelControl[\s\S]*?onClick=\{openTerminal\}/u);
+  assert.match(right, /showRightShellControls && terminalPanelAvailable && settings\.general\.showBottomPanelControl[\s\S]*?name="terminal"[\s\S]*?onClick=\{toggleTerminal\}/u);
   assert.match(launcher, /onNavigate\("\/files"\)/u);
   assert.match(launcher, /openWorkspaceUtility\("side-chat"\)/u);
   assert.match(launcher, /<details className="module-context__launcher-more">[\s\S]*?<summary>[\s\S]*?更多工具…[\s\S]*?<\/details>/u);
@@ -24,7 +24,8 @@ test("右侧新标签页将常用工具、更多工具和推荐分为独立区�
   assert.match(launcher, /module-context__launcher-name[\s\S]*?新标签页[\s\S]*?选择工具/u);
   assert.match(launcher, /openBrowserWebsite\(tab\.url\)/u);
   assert.match(launcher, /module-context__launcher-recent[\s\S]*?最近/u);
-  assert.ok(workspace.includes("visibleBrowserRecentSites.map(site =>"), "最近条目读取 Browser Owner 返回的账户记录");
+  assert.ok(workspace.includes("browserRecentSitesForDisplay.sites.map(site =>"), "最近条目读取 Browser Owner 返回的账户记录并只展示有效时间窗口内的网站");
+  assert.match(workspace, /browserRecentSitesForDisplay\.sites\.length > 0 \? <section className="module-context__launcher-recent"[\s\S]*?<\/section> : null/u, "没有符合时间窗口的记录时整个最近区域隐藏");
   assert.ok(workspace.includes("browserSiteHost(site.url)"), "最近条目只展示站点主机名");
   assert.ok(workspace.includes("openBrowserWebsite(site.url)"), "点击最近条目复用现有浏览器导航");
   assert.match(workspace, /loadBrowserRecentSites\(12, controller\.signal\)/u, "最近网站按需加载并可在切换时取消过期请求");
@@ -110,8 +111,10 @@ test("推荐区显示 Browser Dock 当前打开标签，并复用一次性导航
   assert.match(workspace, /useEffect\(\(\) => \{ setBrowserOpenTabs\(\[\]\); \}, \[activeAiSessionId, mode, userId\]\)/u);
   const browser = read("../../../packages/client/ui-sidebar-browser/src/BrowserPanel.tsx");
   const nativeBrowser = read("../../../packages/client/ui-sidebar-browser/src/NativeBrowserPanel.tsx");
-  assert.match(browser, /onOpenTabsChange\?\.\(snapshot\?\.tabs \?\? \[\]\)/u);
-  assert.match(nativeBrowser, /onOpenTabsChange\?\.\(state\.tabs\.map\(tab => \(\{ id: tab\.id, title: tab\.title, url: tab\.url, active: tab\.active \}\)\)\)/u);
+  assert.match(browser, /const update: BrowserDockTabsUpdate = \{[\s\S]*?tabs: snapshot\?\.tabs \?\? \[\]/u);
+  assert.match(browser, /onOpenTabsChange\?\.\(update\)/u);
+  assert.match(nativeBrowser, /const update: BrowserDockTabsUpdate = \{[\s\S]*?tabs: state\.tabs\.map\(tab => \(\{ id: tab\.id, title: tab\.title, url: tab\.url, active: tab\.active \}\)\)/u);
+  assert.match(nativeBrowser, /onOpenTabsChange\?\.\(update\)/u);
   assert.match(browser, /navigationRequest[\s\S]*?navigateBrowserDock\(sessionId, providerId, target\)/u);
   assert.match(nativeBrowser, /navigationRequest[\s\S]*?api\.navigate\(activeTab\.id, target\)/u);
   assert.doesNotMatch(workspace, /recommendedSites|管理网站/u);

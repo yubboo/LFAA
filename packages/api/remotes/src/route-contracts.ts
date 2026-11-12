@@ -320,6 +320,7 @@ export const writingCatalogEntrySchema = Joi.object({
 
 export const aiSessionArchiveSchema = Joi.object({ archived: Joi.boolean().required() }).unknown(false);
 export const aiSessionPlanModeSchema = Joi.object({ active: Joi.boolean().required() }).unknown(false);
+export const aiSessionTitleSchema = Joi.object({ title: Joi.string().trim().min(1).max(160).required() }).unknown(false);
 
 export const aiSessionForkSchema = Joi.object({
   messageId: Joi.string().guid({ version: ["uuidv4"] }).required()

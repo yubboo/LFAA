@@ -215,6 +215,9 @@ body:has(.workbench-shell[data-theme="dark"]) .module-sidebar-notification-overl
 
 .module-sidebar__session.is-active { border-color: var(--color-border); background: var(--color-surface-selected); }
 
+.module-sidebar__session:hover:not(.is-active):not(.module-sidebar__session--draft),
+.module-sidebar__session:focus-within:not(.is-active):not(.module-sidebar__session--draft) { background: var(--color-surface-hover); }
+
 .module-sidebar__session.is-project-directory-missing > button:first-child { color: var(--color-text-muted); }
 
 .module-sidebar__session > button { display: flex; min-width: 0; min-height: 34px; align-items: center; gap: 7px; padding: 0 7px; border: 0; border-radius: 7px; background: transparent; color: var(--color-text-primary); cursor: pointer; font-size: var(--font-size-xs); text-align: left; }
@@ -226,6 +229,9 @@ body:has(.workbench-shell[data-theme="dark"]) .module-sidebar-notification-overl
 .module-sidebar__session > button:last-child { color: var(--color-text-muted); }
 
 .module-sidebar__session > button:hover:not(:disabled) { color: var(--settings-accent, var(--color-brand)); }
+
+.module-sidebar__session:hover:not(.is-active):not(.module-sidebar__session--draft) > button:first-child,
+.module-sidebar__session:focus-within:not(.is-active):not(.module-sidebar__session--draft) > button:first-child { color: var(--color-text-heading); }
 
 .module-sidebar__session > button:disabled { opacity: .5; cursor: default; }
 
@@ -276,7 +282,7 @@ body:has(.workbench-shell[data-theme="dark"]) .module-sidebar-notification-overl
 
 .module-sidebar__project-toolbar > button:hover { background: var(--color-surface-hover); color: var(--color-text-heading); }
 
-.module-sidebar__project-toolbar > .module-sidebar__project-section-toggle { display: flex; width: auto; height: auto; min-width: 0; min-height: 32px; flex: 1 1 0; align-items: center; justify-content: flex-start; gap: 7px; padding: 0 9px; border-radius: 7px; color: var(--color-text-muted); font-size: var(--font-size-xs); font-weight: 620; text-align: left; }
+.module-sidebar__project-toolbar > .module-sidebar__project-section-toggle { display: flex; width: auto; height: auto; min-width: 0; min-height: 32px; flex: 1 1 0; align-items: center; justify-content: flex-start; gap: 7px; padding: 0 9px 0 5px; border-radius: 7px; color: var(--color-text-muted); font-size: var(--font-size-xs); font-weight: 620; text-align: left; }
 
 .module-sidebar__project-toolbar > .module-sidebar__project-section-toggle:hover { background: transparent; color: var(--color-text-heading); }
 
@@ -340,7 +346,8 @@ body:has(.workbench-shell[data-theme="dark"]) .module-sidebar-notification-overl
 
 .module-sidebar__project-sessions { display: grid; min-width: 0; align-content: start; gap: 2px; }
 
-.module-sidebar__project-more { justify-self: start; min-height: 27px; margin-left: 7px; padding: 0 7px; border: 0; border-radius: 7px; background: transparent; color: var(--color-text-muted); cursor: pointer; font: inherit; font-size: var(--font-size-xs); text-align: left; }
+/* 左缩进沿用嵌套会话；左内距补齐 1px 行边、按钮 7px 内距、14px 图标和 7px 图文间距，使“展开显示”与标题文字列对齐。 */
+.module-sidebar__project-more { justify-self: start; min-height: 27px; margin-left: 7px; padding: 0 7px 0 calc(1px + 7px + 14px + 7px); border: 0; border-radius: 7px; background: transparent; color: var(--color-text-muted); cursor: pointer; font: inherit; font-size: var(--font-size-xs); text-align: left; }
 
 .module-sidebar__project-more:hover { background: var(--color-surface-hover); color: var(--color-text-heading); }
 
@@ -375,3 +382,11 @@ body:has(.workbench-shell[data-theme="dark"]) .module-sidebar-notification-overl
 .module-session-menu { max-width: calc(100% - 16px); }
 
 .module-session-menu .ant-dropdown-menu { min-width: 140px; max-height: min(320px, calc(100dvh - 24px)); overflow-y: auto; font: inherit; }
+
+.module-session-rename-modal .module-session-rename-modal__heading { display: grid; gap: 4px; }
+
+.module-session-rename-modal .module-session-rename-modal__heading > strong { color: var(--color-text-primary); font-size: var(--font-size-lg); font-weight: 700; }
+
+.module-session-rename-modal .module-session-rename-modal__heading > span { color: var(--color-text-secondary); font-size: var(--font-size-sm); font-weight: 400; }
+
+.module-session-rename-modal .module-session-rename-modal__error { margin-top: 10px; }

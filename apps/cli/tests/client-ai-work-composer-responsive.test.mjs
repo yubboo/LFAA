@@ -28,13 +28,15 @@ test("项目与会话用量在后台读取期间保留稳定且真实的状态",
   assert.match(chatStyles, /\.ai-work-chat__usage-footer\s*\{[^}]*min-height:\s*25px/u);
 });
 
-test("模型按钮等到当前账户校验后显示目录名称与版本标签，并保留固定宽度", () => {
-  assert.match(chatSource, /accountLoadState === "ready" \? accounts\.find\(\(account\) => account\.active\)/u);
+test("模型按钮显示模型名与推理档位，不用目录版本号占位", () => {
+  assert.match(chatSource, /accountLoadState === "ready" \? effectiveAiAccount\(accounts\) : undefined/u);
   assert.match(chatSource, /modelSelectorDisplayLabel\(activeModel\)/u);
   assert.match(chatSource, /aria-busy=\{accountLoadState === "loading" \|\| modelBusy\}/u);
   assert.doesNotMatch(chatSource, /modelBusy \? "保存中…" : activeModel/u);
-  assert.match(chatStyles, /\.ai-work-chat__composer-control--model\.ant-btn\s*\{[^}]*width:\s*min\(18cqi,\s*190px\)/u);
-  assert.match(chatStyles, /\.ai-work-chat__composer-control-label\s*\{[^}]*text-overflow:\s*ellipsis/u);
+  assert.doesNotMatch(chatSource, /ai-work-chat__model-version-tag/u);
+  assert.match(chatSource, /activeModel\?\.thinking \? <small className="ai-work-chat__model-reasoning-label">/u);
+  assert.match(chatStyles, /\.ai-work-chat__composer-control--model\.ant-btn\s*\{[^}]*width:\s*auto/u);
+  assert.match(chatStyles, /\.ai-work-chat__composer-control--model \.ai-work-chat__composer-control-label\s*\{[^}]*display:\s*grid/u);
 });
 
 test("窄中间栏的提问框及 TextArea 随容器收缩，不由隐式 Grid 最小宽度撑开", () => {
@@ -145,7 +147,7 @@ test("输入列不超过 380px 时，项目、权限、更多和模型操作压�
   assert.match(chatSource, /Tooltip trigger=\{\["hover"\]\} placement="top" title=\{applicationNameFor\(appId\)\}>\s*<span className="ai-work-chat__composer-app" aria-label=\{`当前应用：\$\{applicationNameFor\(appId\)\}`\}/u);
   assert.match(chatSource, /className="ai-work-chat__composer-control ai-work-chat__composer-control--permission"[^>]*aria-label=/u);
   assert.match(chatSource, /<Tooltip trigger=\{\["hover", "focus"\]\} placement="bottom" title="关联应用、Skill、提示词和专家">\s*<Button className="ai-work-chat__composer-control ai-work-chat__composer-control--more"[^>]*aria-label="更多输入操作"/u);
-  assert.match(chatSource, /className="ai-work-chat__composer-control ai-work-chat__composer-control--model"[^>]*aria-label=\{activeAccount \? `模型：/u);
+  assert.match(chatSource, /className="ai-work-chat__composer-control ai-work-chat__composer-control--model"[^>]*aria-label=\{activeAccount \? `当前模型/u);
   assert.match(projectPickerSource, /Tooltip trigger=\{\["hover", "focus"\]\} placement="top" title=\{disabled \? undefined : selected\?\.path \?\? unresolvedProjectDescription\}>\s*<Button className="ai-work-chat__project-trigger"[^>]*aria-label=/u);
 });
 
@@ -159,7 +161,7 @@ test("输入操作与用量指标为鼠标和键盘提供真实状态提示，�
   assert.match(composerActions, /Tooltip trigger=\{\["hover", "focus"\]\} placement="bottom" title=\{attachmentError \?\? "添加图片或文本附件（最多 4 个，单个不超过 8 MiB）"\}/u);
   assert.match(composerActions, /Tooltip trigger=\{\["hover", "focus"\]\} placement="bottom" title=\{`更改权限 · 当前为\$\{permissionModeLabels\[settings\.permissions\.mode\]\}`\}/u);
   assert.match(composerActions, /Tooltip trigger=\{\["hover", "focus"\]\} placement="bottom" title="关联应用、Skill、提示词和专家"/u);
-  assert.match(composerActions, /Tooltip trigger=\{\["hover", "focus"\]\} placement="bottom" title=\{activeAccount \? `选择模型/u);
+  assert.match(composerActions, /Tooltip trigger=\{\["hover", "focus"\]\} placement="bottom" title=\{activeAccount \? `推理设置/u);
   assert.match(composerActions, /Tooltip trigger=\{\["hover", "focus"\]\} placement="bottom" title=\{!settings\.aiRuntime\.voiceInputEnabled/u);
   assert.match(chatSource, /settings\.general\.sendShortcut === "enter" \? "发送消息 · Enter" : "发送消息 · Ctrl\+Enter"/u);
   assert.match(composerActions, /Tooltip trigger=\{\["hover", "focus"\]\} placement="bottom" title=\{settings\.general\.sendShortcut === "enter"/u);

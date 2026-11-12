@@ -122,7 +122,7 @@ export interface SessionSubagentTask {
 
 export interface SessionEventDataMap {
   "session/created": { ownerId: string; appId: string; createdAt: string };
-  "session/title": { title: string };
+  "session/title": { title: string; source?: "fallback" | "generated" | "manual" };
   "session/project": { projectId: string | null; nodeId: string | null; directory: string | null; title: string | null };
   "session/archived": { archived: boolean };
   "session/plan-mode": { active: boolean };
@@ -253,7 +253,8 @@ function validatePayload(event: SessionEvent): void {
   const ok = (() => {
     switch (event.type) {
       case "session/created": return string(data.ownerId) && string(data.appId) && string(data.createdAt) && Number.isFinite(Date.parse(data.createdAt));
-      case "session/title": return string(data.title) && data.title.length <= 512;
+      case "session/title": return string(data.title) && data.title.length <= 512
+        && (data.source === undefined || ["fallback", "generated", "manual"].includes(String(data.source)));
       case "session/project": return [data.projectId, data.nodeId, data.directory, data.title].every(value => value === null || string(value));
       case "session/archived": return typeof data.archived === "boolean";
       case "session/plan-mode": return typeof data.active === "boolean";

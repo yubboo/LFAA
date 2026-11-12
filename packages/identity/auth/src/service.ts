@@ -75,6 +75,8 @@ export interface ActiveSession {
   user: PublicUser;
 }
 
+export interface MemoryAgentAccessStatus { active: boolean; createdAt: string | null }
+
 export interface TrustedContactRecord { id: string; username: string; role: UserRole; createdAt: string }
 export interface TrustedRecoveryRequestRecord { id: string; requesterUsername: string; createdAt: string; expiresAt: string; approvedAt: string | null }
 type TrustedContactUserRow = Pick<AccountRow, "id" | "username" | "role" | "is_super_admin" | "created_at">;
@@ -310,6 +312,45 @@ export function findActiveSession(sessionId: string): ActiveSession | null {
 
 export function revokeSession(sessionId: string): void {
   database.prepare("DELETE FROM sessions WHERE id = ?").run(sessionId);
+}
+
+/** 创建只用于 LFAA 账户记忆 MCP 的账户级凭据；原始值只返回一次。 */
+export function createMemoryAgentAccessToken(userId: string): { token: string; createdAt: string } {
+  const user = database.prepare("SELECT 1 AS present FROM users WHERE id = ?").get(userId) as { present: number } | undefined;
+  if (!user) throw new ApiError(404, "memory_agent_account_not_found", "找不到当前账户。");
+  const tokenId = randomUUID();
+  const secret = randomBytes(32).toString("base64url");
+  const token = `lfaa_mem_${tokenId}.${secret}`;
+  const tokenHash = createHash("sha256").update(secret).digest("hex");
+  const createdAt = new Date().toISOString();
+  database.prepare(`
+    INSERT INTO agent_memory_access_tokens (token_id, user_id, token_hash, created_at)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(user_id) DO UPDATE SET token_id = excluded.token_id, token_hash = excluded.token_hash, created_at = excluded.created_at
+  `).run(tokenId, userId, tokenHash, createdAt);
+  return { token, createdAt };
+}
+
+/** 只返回记忆连接令牌是否存在及创建时间，不暴露令牌或摘要。 */
+export function getMemoryAgentAccessStatus(userId: string): MemoryAgentAccessStatus {
+  const row = database.prepare("SELECT created_at FROM agent_memory_access_tokens WHERE user_id = ?").get(userId) as { created_at: string } | undefined;
+  return row ? { active: true, createdAt: row.created_at } : { active: false, createdAt: null };
+}
+
+/** 撤销当前账户唯一的记忆 MCP 令牌；普通登录会话保持有效。 */
+export function revokeMemoryAgentAccessToken(userId: string): void {
+  database.prepare("DELETE FROM agent_memory_access_tokens WHERE user_id = ?").run(userId);
+}
+
+/** 校验仅限记忆 MCP 使用的 bearer 令牌，并返回其账户归属。 */
+export function resolveMemoryAgentAccessToken(token: string): string | null {
+  const match = /^lfaa_mem_([0-9a-f-]{36})\.([A-Za-z0-9_-]{43})$/u.exec(token);
+  if (!match) return null;
+  const row = database.prepare("SELECT user_id, token_hash FROM agent_memory_access_tokens WHERE token_id = ?").get(match[1]) as { user_id: string; token_hash: string } | undefined;
+  if (!row) return null;
+  const expected = Buffer.from(row.token_hash, "hex");
+  const actual = createHash("sha256").update(match[2]!).digest();
+  return expected.length === actual.length && timingSafeEqual(expected, actual) ? row.user_id : null;
 }
 
 function validateStrongCredential(value: string, label: string): void {

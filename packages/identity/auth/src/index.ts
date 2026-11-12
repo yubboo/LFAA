@@ -11,8 +11,12 @@ export {
   getDefaultCredentialReminder,
   createManagedUser,
   createSession,
+  createMemoryAgentAccessToken,
   deleteManagedUser,
   findActiveSession,
+  getMemoryAgentAccessStatus,
+  resolveMemoryAgentAccessToken,
+  revokeMemoryAgentAccessToken,
   searchUsers,
   revokeSession,
   resetPasswordWithRecoveryKey,
@@ -24,7 +28,7 @@ export {
   verifyUserPassword,
   sessionLifetimeSeconds
 } from "./service.js";
-export type { AssignableUserRole, DefaultCredentialReminder, ManagedUserInput, ManagedUserUpdate, PublicUser, UserRole, UserSearchFilters } from "./service.js";
+export type { AssignableUserRole, DefaultCredentialReminder, ManagedUserInput, ManagedUserUpdate, MemoryAgentAccessStatus, PublicUser, UserRole, UserSearchFilters } from "./service.js";
 export {
   DEFAULT_ACCOUNT_AGENT_USAGE_POLICY,
   finishAgentUsageReservation,

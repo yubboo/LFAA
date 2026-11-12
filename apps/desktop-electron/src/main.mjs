@@ -882,6 +882,7 @@ function registerNativeBrowserIpc() {
     return operation(nativeBrowserWorkspace);
   };
   ipcMain.handle("lfaa:native-browser:state", event => callWorkspace(event, workspace => workspace.getState()));
+  ipcMain.handle("lfaa:native-browser:capture-preview", (event, id) => callWorkspace(event, workspace => workspace.capturePreview(id)));
   ipcMain.handle("lfaa:native-browser:ensure", event => callWorkspace(event, workspace => workspace.ensureTab()));
   ipcMain.handle("lfaa:native-browser:create-tab", (event, url) => callWorkspace(event, workspace => workspace.createTab(typeof url === "string" ? url : "about:blank")));
   ipcMain.handle("lfaa:native-browser:select-tab", (event, id) => callWorkspace(event, workspace => workspace.selectTab(id)));

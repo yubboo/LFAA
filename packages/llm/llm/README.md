@@ -12,7 +12,7 @@ SSE 必须收到 `[DONE]` 或正常 `finish_reason` 才能完成；只有 EOF �
 
 单个工具参数仍限制在 32,768 个字符；超限时拒绝整次 Provider 响应并保证不派发工具，返回带工具名、限制值和 usage 的可恢复错误，供 Agent Loop 在既有模型请求预算内向模型说明并重选更短或分段的调用。
 
-Chat Completions usage 保留 DeepSeek `prompt_cache_hit_tokens`，兼容 `prompt_tokens_details.cached_tokens`，并在 Provider 只返回 `prompt_cache_miss_tokens` 时用已返回的输入总量减去 miss 数得到 hit 数；显式的 `0` 是真实冷缓存，缺字段或无效计数为未知。DeepSeek 上下文缓存由 Provider 默认自动处理，支持缓存的会话无需单独开关；LFAA 保持系统提示前缀稳定、把动态运行上下文放在后段，不注入缓存控制字段，也不伪造命中率。会话内前缀复用程度和命中仍由 Provider 决定并以其 usage 为准。
+Chat Completions usage 保留 DeepSeek `prompt_cache_hit_tokens`，兼容 `prompt_tokens_details.cached_tokens`，并在 Provider 只返回 `prompt_cache_miss_tokens` 时用已返回的输入总量减去 miss 数得到 hit 数；显式的 `0` 是真实冷缓存，缺字段或无效计数为未知。LLM 公共入口在 Provider Adapter 分派前统一组装稳定 system 消息，并把每轮变化的 Git、工作区、写作和记忆背景放入当前 user 消息开头，使之前的对话历史保持连续公共前缀；上下文仍参与最终请求估算、压缩和 Provider usage，不写入规范聊天历史。所有模型路由共用这一布局，不注入未经路由合同确认的缓存控制字段，也不伪造命中率。缓存读取只降低支持该功能的 Provider 对命中输入的计费，不减少发送的 prompt token 或上下文占用；实际命中仍由 Provider 决定并以其 usage 为准，模型切换也可能令新路由冷启动。
 
 视觉模型的 Chat Completions 图片内容放在 `user` 消息。Agent Loop 的工具结果仍保留原 `tool_call_id` 与文本 observation；本 Owner 在 Provider 请求序列化时把工具图片附为紧随工具结果的临时 `user` 视觉消息，并标记为不可信外部资料。原始 Agent Loop 历史不改写，Session/request snapshot 由 Agent Loop 持久化投影剥除 Base64；普通用户图片附件保持原位。该协议适配不证明当前所选模型或兼容 Provider 一定支持视觉输入，能力仍以 Provider/model 实测为准。
 

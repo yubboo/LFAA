@@ -313,6 +313,64 @@ async function snapshotStatus(root, projectRelativePath, baseline, worktreeId = 
   };
 }
 
+async function snapshotStatusSummary(root, projectRelativePath, baseline, worktreeId = null) {
+  if (baseline && !shaPattern.test(baseline)) throw new Error("Git 工作树的恢复基线无效。");
+  const scope = projectRelativePath ? ["--", pathspec(projectRelativePath)] : ["--"];
+  const branch = await runGit(root, ["branch", "--show-current"]);
+  const head = baseline ? await runGit(root, ["rev-parse", "--verify", "HEAD"]) : await runGit(root, ["rev-parse", "--verify", "--quiet", "HEAD"]).catch(error => {
+    if (error?.code === 1 || /Needed a single revision/iu.test(String(error.stderr ?? error.message))) return "";
+    throw error;
+  });
+  const compareTo = baseline ?? (head || null);
+  const statusFiles = parseStatus(await runGit(root, ["status", "--porcelain=v1", "-z", "--no-renames", "--untracked-files=all", ...scope]));
+  const changedPaths = new Set(statusFiles.map(file => file.path));
+  const baselineChanges = compareTo
+    ? await runGit(root, ["diff", "--no-ext-diff", "--no-textconv", "--name-status", "-z", "--no-renames", compareTo, ...scope])
+    : await runGit(root, ["diff", "--cached", "--no-ext-diff", "--no-textconv", "--name-status", "-z", "--no-renames", ...scope]);
+  const baselineRows = baselineChanges.split("\0").filter(Boolean);
+  for (let index = 0; index + 1 < baselineRows.length; index += 2) changedPaths.add(baselineRows[index + 1] ?? "");
+
+  const numstat = parseNumstat(await runGit(root, compareTo
+    ? ["diff", "--no-ext-diff", "--no-textconv", "--numstat", "-z", compareTo, ...scope]
+    : ["diff", "--cached", "--no-ext-diff", "--no-textconv", "--numstat", "-z", ...scope]));
+  let insertions = 0;
+  let deletions = 0;
+  let unknownLineCounts = 0;
+  for (const counts of numstat.values()) {
+    if (counts.insertions === null || counts.deletions === null) unknownLineCounts += 1;
+    else { insertions += counts.insertions; deletions += counts.deletions; }
+  }
+
+  let untrackedBytes = 0;
+  for (const file of statusFiles.slice(0, untrackedFileLimit)) {
+    if (!(file.status === "??" || !compareTo && file.status.includes("A")) || numstat.has(file.path)) continue;
+    let counts;
+    try {
+      const size = (await lstat(resolve(root, file.path))).size;
+      if (untrackedBytes + size <= untrackedByteLimit) {
+        untrackedBytes += size;
+        const lines = await countUntrackedTextLines(root, file.path);
+        counts = lines === null ? { insertions: null, deletions: null } : { insertions: lines, deletions: 0 };
+      } else counts = { insertions: null, deletions: null };
+    } catch { counts = { insertions: null, deletions: null }; }
+    if (counts.insertions === null || counts.deletions === null) unknownLineCounts += 1;
+    else { insertions += counts.insertions; deletions += counts.deletions; }
+  }
+
+  return {
+    repository: root,
+    projectRelativePath,
+    worktreeId,
+    branch: branch || (head ? "(分离 HEAD)" : "(未命名分支)"),
+    repositoryState: head ? "ready" : "unborn",
+    clean: changedPaths.size === 0,
+    changedFileCount: changedPaths.size,
+    insertions,
+    deletions,
+    unknownLineCounts
+  };
+}
+
 async function snapshotFileDiff(root, projectRelativePath, baseline, filePath, options = {}) {
   if (typeof filePath !== "string" || !filePath || filePath.startsWith("/") || filePath.includes("\\") || /[\u0000-\u001f\u007f]/u.test(filePath)
     || filePath.split("/").some(segment => !segment || segment === "." || segment === "..")) {
@@ -740,6 +798,21 @@ export async function executeGitWorkspace(input) {
       projectPath: project.projectRelativePath && file.path.startsWith(`${project.projectRelativePath}/`)
         ? file.path.slice(project.projectRelativePath.length + 1) : file.path
     })), repositoryState: project.head ? "ready" : "unborn", projectRelativePath: project.projectRelativePath };
+  }
+  if (input.operation === "summary") {
+    if (typeof input.worktreeId === "string") {
+      const root = await assertManagedWorktree(input.worktreeId);
+      const top = await realpath(await runGit(root, ["rev-parse", "--show-toplevel"]));
+      if (resolve(top) !== resolve(root)) throw new Error("受管 Git 工作树根目录与记录不匹配。");
+      const relativeProject = typeof input.projectRelativePath === "string" ? input.projectRelativePath : "";
+      if (relativeProject.startsWith("/") || relativeProject.split(/[\\/]/u).includes("..")) throw new Error("Git 项目相对路径无效。");
+      return { ...await snapshotStatusSummary(root, "", input.baseline, input.worktreeId), projectRelativePath: relativeProject };
+    }
+    const project = await inspectRepository(input.projectDirectory);
+    if (!project) return { repositoryState: "not-repository", repository: null, projectRelativePath: "", worktreeId: null,
+      branch: "", clean: true, changedFileCount: 0, insertions: 0, deletions: 0, unknownLineCounts: 0 };
+    return { ...await snapshotStatusSummary(project.root, project.projectRelativePath, null), repositoryState: project.head ? "ready" : "unborn",
+      projectRelativePath: project.projectRelativePath };
   }
   if (input.operation === "file-diff") {
     const options = { ignoreWhitespace: input.ignoreWhitespace === true, wordDiff: input.wordDiff === true,

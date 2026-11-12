@@ -16,7 +16,7 @@
 
 ## 个性化设置
 
-`personalization` 是账户级设置分类，由 `settings/src/service.ts` 提供默认值、读取归一化和持久化。`memoryEnabled` 与 `memoryFromToolChats` 均默认关闭；Agent Loop 只读取这两个权威设置决定记忆读取和生成资格。记忆正文由独立 `lfaa-conversation-memory` Owner 保存，不能并入此设置 JSON、工具审批授权或 Markdown 知识库。
+`personalization` 是账户级设置分类，由 `settings/src/service.ts` 提供默认值、读取归一化和持久化。`memoryEnabled`、`memoryFromToolChats`、`memorySharedWithAgents` 与 `memoryAgentWritesEnabled` 均默认关闭；Agent Loop 只读取这些权威设置决定记忆读取、生成和外部 MCP 访问资格。记忆正文由独立 `lfaa-conversation-memory` Owner 保存，不能并入此设置 JSON、工具审批授权或 Markdown 知识库。
 
 ## AI Work 空闲虚化设置
 

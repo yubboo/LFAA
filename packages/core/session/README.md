@@ -10,6 +10,8 @@
 
 `getAiSessionTitle(userId, sessionId)` 只从账户所属的会话头读取轻量来源标题，不恢复消息、计划状态或 JSONL 事件日志，供资产等有限列表展示来源使用。
 
+会话头通过 `title_source` 保存自动回退、模型生成或手动标题来源；首条输入的短回退名、自动生成候选比较写入和手动改名均由本包唯一持有。`renameAiSession()` 只更新标题事件，不改变最近活动时间；`setAiSessionTitleIfUnchanged()` 对会话所有权、原标题和来源做比较，避免迟到的模型结果覆盖手动改名。构建写入仓库根 `dist/packages/core/session/`。
+
 进程恢复发现开放 turn 时，Session Owner 在同一 JSONL 事务中将助手消息标记为 `interrupted`，把仍运行、待审批或待回答的活动标记为 `unavailable`，再为开放工具调用记录 `unconfirmed` 或 `not_started` 并结束 turn。未知副作用不标记成功、不盲目重放；重复读取不会重复修复。
 
 若旧恢复已经记录 `turn/end: interrupted`，但消息投影尚未写回，Session Owner 仍会幂等修正助手状态和未结束的活动卡片，不重复创建工具结果或结束事件。Provider/Agent 运行失败则以 `turn/end: error` 结束；开放工具仍按已派发/未派发分别补为 `unconfirmed`/`not_started`，消息状态保持 `error`。

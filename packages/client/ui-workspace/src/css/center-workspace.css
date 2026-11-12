@@ -13,8 +13,53 @@
 
 .module-center { position: relative; display: flex; width: 100%; height: 100%; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; background: transparent; container-type: inline-size; container-name: module-center; }
 
+.module-center .module-center__title--chat { max-width: min(320px, 32cqi); }
+
 /* 模式组独立占据共享顶栏中列；左右标题和工具宽度变化不改变其水平中心。 */
-.module-center__mode-switch { flex: 0 0 auto; }
+.module-center__mode-switch.ant-segmented {
+  flex: 0 0 auto;
+  min-height: 42px;
+  padding: 3px;
+  border: 0;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-surface) 72%, var(--color-canvas));
+  box-shadow: none;
+}
+
+.module-center__mode-switch .ant-segmented-group { gap: 3px; }
+
+.module-center__mode-switch .ant-segmented-item {
+  min-width: 36px;
+  border: 0;
+  border-radius: 10px;
+  color: var(--color-text-secondary);
+}
+
+.module-center__mode-switch.ant-segmented.ant-segmented-sm .ant-segmented-item .ant-segmented-item-label {
+  display: grid;
+  min-height: 34px;
+  place-items: center;
+  padding-inline: 8px;
+}
+
+.module-center__mode-switch.ant-segmented.ant-segmented-sm .ant-segmented-item-selected {
+  border: 0;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 14%, var(--color-surface));
+  box-shadow: none;
+  color: var(--color-text-primary);
+}
+
+.module-center__mode-switch.ant-segmented.ant-segmented-sm .ant-segmented-item:not(.ant-segmented-item-selected):hover .ant-segmented-item-label {
+  background: var(--color-surface-hover);
+  border-radius: 10px;
+  color: var(--color-text-primary);
+}
+
+.module-center__mode-switch.ant-segmented:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
 
 .module-center__mode-option { display: inline-flex; align-items: center; justify-content: center; }
 
@@ -143,6 +188,10 @@
 
 .module-git-summary__file-row { display: flex; width: 100%; max-width: 100%; min-width: 0; align-items: center; gap: 8px; padding: 4px 0; color: var(--color-text-secondary); box-sizing: border-box; }
 
+.module-git-summary__file-row.ant-btn { min-height: 34px; justify-content: flex-start; border: 0; border-radius: 7px; text-align: left; }
+
+.module-git-summary__file-row.ant-btn:not(:disabled):hover, .module-git-summary__process-open.ant-btn:hover { background: var(--color-surface-hover); }
+
 .module-git-summary__file-row > svg { flex: 0 0 auto; color: var(--color-text-muted); }
 
 .module-git-summary__file-copy { display: grid; min-width: 0; gap: 2px; }
@@ -165,7 +214,45 @@
 
 .module-git-summary__view-all:hover { color: var(--settings-accent, var(--color-brand)); }
 
+.module-git-summary__process-row { display: flex; width: 100%; min-width: 0; align-items: center; gap: 4px; }
+
+.module-git-summary__process-open.ant-btn { display: flex; min-width: 0; min-height: 36px; flex: 1 1 auto; align-items: center; justify-content: flex-start; gap: 8px; padding-inline: 8px; border-radius: 8px; color: var(--color-text-secondary); text-align: left; }
+
+.module-git-summary__process-open.ant-btn > svg { flex: 0 0 auto; color: var(--color-text-muted); }
+
+.module-git-summary__process-stop.ant-btn { width: 32px; min-width: 32px; height: 32px; flex: 0 0 auto; color: var(--color-text-muted); }
+
+.module-git-summary__process-stop.ant-btn:hover { color: var(--color-status-error); }
+
+.module-git-summary__full-view, .module-git-summary__task-detail { display: flex; width: 100%; max-width: 100%; min-width: 0; height: 100%; min-height: 0; flex-direction: column; gap: 12px; padding: 14px; overflow: auto; box-sizing: border-box; }
+
+.module-git-summary__full-view > header, .module-git-summary__task-detail > header { display: flex; min-width: 0; align-items: flex-start; justify-content: space-between; gap: 12px; }
+
+.module-git-summary__full-view > header > div, .module-git-summary__task-detail > header > div { display: grid; min-width: 0; gap: 4px; }
+
+.module-git-summary__full-view h2, .module-git-summary__task-detail h2 { margin: 0; font-size: var(--font-size-lg); font-weight: 600; overflow-wrap: anywhere; }
+
+.module-git-summary__full-view > header span, .module-git-summary__full-view > header small, .module-git-summary__task-detail > header span { color: var(--color-text-muted); font-size: var(--font-size-xs); overflow-wrap: anywhere; }
+
+.module-git-summary__full-files { display: flex; min-height: 0; flex-direction: column; gap: 3px; }
+
+.module-git-summary__task-loading { display: grid; min-height: 120px; place-items: center; color: var(--color-text-muted); font-size: var(--font-size-xs); }
+
+.module-git-summary__task-message { margin: 0; color: var(--color-text-secondary); overflow-wrap: anywhere; white-space: pre-wrap; }
+
+.module-git-summary__task-meta { display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--color-text-muted); font-size: var(--font-size-xs); overflow-wrap: anywhere; }
+
+.module-git-summary__task-output { display: flex; min-width: 0; flex-direction: column; gap: 6px; }
+
+.module-git-summary__task-output > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--color-text-secondary); font-size: var(--font-size-xs); }
+
+.module-git-summary__task-output > header small, .module-git-summary__task-output > small { color: var(--color-text-muted); font-size: var(--font-size-xs); }
+
+.module-git-summary__task-output > pre { max-height: min(60vh, 640px); min-height: 52px; margin: 0; padding: 10px; overflow: auto; border: 1px solid var(--color-border-subtle); border-radius: 8px; background: var(--color-surface-muted); color: var(--color-text-secondary); font-family: var(--font-family-code); font-size: var(--font-size-xs); line-height: 1.5; overflow-wrap: anywhere; white-space: pre-wrap; }
+
 .module-git-summary__root-change:focus-visible, .module-git-summary__folder-row:focus-visible, .module-git-summary__view-all:focus-visible, .module-git-summary-trigger:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+
+.module-git-summary__file-row:focus-visible, .module-git-summary__process-open:focus-visible, .module-git-summary__process-stop:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
 
 .module-git-summary-popover .ant-popover-inner { padding: 8px; border: 1px solid var(--color-border); background: var(--color-surface); box-shadow: 0 14px 38px var(--color-shadow-card-soft); }
 

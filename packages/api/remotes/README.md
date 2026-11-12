@@ -2,6 +2,8 @@
 
 `preferencesSchema` 校验认证 `/preferences` 写入的 App、工作模式与 `guidedEntryCompleted` 布尔标记；该字段归 Preferences Owner，Remote 不创建独立的向导状态。
 
+`aiSessionTitleSchema` 对手动聊天标题执行去首尾空白、非空和 UTF-16 长度边界校验，拒绝未登记字段；账户、App 和字符点数规则仍由 Session Owner/API 认证链校验。
+
 ## 小鱼共享工作入口（2026-10-14）
 
 共享 API 输入合同：可选关联只接受有界 App/能力 ID 引用，不接收正文或权限变更。

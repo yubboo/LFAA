@@ -59,3 +59,13 @@ export function fallbackSessionTitle(input: string, maxWords = 12, maxBytes = 12
   const words = cleanTitleText(input).split(" ").filter(Boolean).slice(0, maxWords);
   return truncateTitleUtf8(words.join(" "), maxBytes).trimEnd();
 }
+
+/** 从首条输入中提取短回退标题；模型摘要尚未返回时避免把整段请求显示为会话名。 */
+export function compactSessionTitleFromPrompt(input: string, maxBytes = 36): string {
+  assertPositiveInteger("maxBytes", maxBytes);
+  let title = cleanTitleText(input).split(/[。！？!?；;，,]/u, 1)[0] ?? "";
+  title = title.replace(/^(?:请帮我|麻烦帮我|能不能帮我|可以帮我|请你|麻烦你|麻烦|帮我|请)\s*/u, "");
+  title = title.replace(/^(?:完成一次|进行一次|做一下|处理一下|完成|进行|做|创建一个|生成一个|实现一个)\s*/u, "");
+  title = title.replace(/[：:。！？!?；;，,]+$/u, "").trim();
+  return truncateTitleUtf8(title || cleanTitleText(input), maxBytes).trimEnd();
+}

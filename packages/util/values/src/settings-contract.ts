@@ -291,6 +291,8 @@ export interface BrowserSitePermissionOverride {
 export interface PersonalizationSettings {
   memoryEnabled: boolean;
   memoryFromToolChats: boolean;
+  memorySharedWithAgents: boolean;
+  memoryAgentWritesEnabled: boolean;
 }
 
 /** 单轮模型请求硬上限，包含重试与上下文摘要请求。设置为 0 时使用此值。 */
@@ -473,7 +475,7 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
   git: { branchPrefix: "codex/" },
   permissions: { mode: "ask" },
   plugins: { enabled: false, mcpServers: [], prompts: [], skillDirectories: [], disabledSkillNames: [] },
-  personalization: { memoryEnabled: false, memoryFromToolChats: false },
+  personalization: { memoryEnabled: false, memoryFromToolChats: false, memorySharedWithAgents: false, memoryAgentWritesEnabled: false },
   computerControl: { enabled: false },
   browserUse: { enabled: false, webUrlOpenLocation: "lfaa", localUrlOpenLocation: "lfaa", enabledProviderIds: [], showFullUrl: false, recordRecentSites: true, allowAgentHistoryAccess: false, annotateScreenshots: "on-demand", useWebsiteToolsByDefault: false, websiteToolOverrides: [], askBeforeDownload: true, sitePermissionDefaults: { camera: "ask", microphone: "ask", geolocation: "ask", notifications: "ask" }, sitePermissionOverrides: [], developerMode: false, fullCdpAccess: false, searchEngine: "bing" },
   mini: { companion: "moss", showCompanion: true, alwaysOnTop: true, opacity: 100 },
