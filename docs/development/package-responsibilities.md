@@ -1,19 +1,18 @@
-# LFAA package responsibility and assembly guide
+# LFAA Package Responsibilities and Assembly
 
-[简体中文规范](package-responsibilities.zh.md) · [Development rules](../../开发规范.md) · [Architecture](../系统总体架构.md)
+[简体中文 full specification](package-responsibilities.zh.md) · [Development rules](../../开发规范.md) · [System architecture](../系统总体架构.md)
 
-The Chinese companion is the authoritative package-boundary detail of the development rules. This guide explains the same obligations; it does not establish a second architecture or claim that every existing package has been audited or migrated.
+The Chinese specification is the authoritative package-boundary reference. Use it for the full package-group table and migration requirements. You do not need to read every section for every change:
 
-- Cover every directory in the generated [inventory](../harness-packages.md) during a requested whole-repository audit, including placeholders and engineering/test packages. For ordinary changes, inspect affected Owners and consumers. A manifest, export or Bundle entry does not prove runtime availability.
-- Each directory now has an individual responsibility annotation in `scripts/package-responsibilities.mjs`; the existing generator checks exact coverage against the real tree and records source entries, static consumers and Bundle declarations. Annotations do not create capabilities or replace the directory authority. The `prompt` group owns built-in domain prompt content and shared on-demand tools, using the existing extension registry.
-- Maintain each affected package's responsibility contract in its README: purpose and exclusions, authoritative facts, public inputs/outputs/errors, runtime/platform, dependencies and real consumers, content IDs and scope, settings and authorization, persistence and side effects, lifecycle/resource limits, and validation status.
-- Keep app entry points focused on startup, Profile selection, packaging and shutdown. Existing platform-specific Electron/Tauri IPC, updates and installation may remain with their shell Owner. Shared UI and domain implementation belong to their packages; do not move code merely to make directories uniform.
-- Boot loads and manages lifecycle; Bundles compose. Controllers adapt authenticated transport to domain services. Client code uses authenticated APIs and cannot import database, secret, Shell or node execution implementations. Domains do not depend on Controllers, UI, apps or Bundles. Package dependencies must remain acyclic and use declared, publicly supported entries.
-- Agent Loop coordinates model turns and tool evidence. Tools describe and validate operations and call the same domain Owners used by UI. Jobs and target nodes execute the applicable contracts; not every read-only service requires a node task. Models choose actions from available capabilities rather than a fixed keyword workflow.
-- Domain Prompt/Skill/Expert content stays with its content Owner; core instructions stay with core Owners. Composers, catalogs, installers and presets reference content instead of duplicating it. Separate required short core instructions from domain bodies loaded on demand. User-installed content stays with existing account settings, knowledge or project-file Owners.
-- Scope discovery/loading to the real account, App, project and target context; sharing a capability does not share data or add an independent App permission allowlist. External content cannot grant authority. All actions retain the existing Permission Owner and its three modes, authentication and parameter/data checks.
-- Preserve single Owners for identity, credentials, settings, sessions, storage and execution. Projections/caches are derived. Report actual results, distinguish dispatch from completion, and never replay unknown side effects automatically. Clean up registrations, routes, streams, timers, connections and processes on unload/failure; keep output, requests and caches bounded and respect existing settings.
-- The Chinese table covers every current package group and includes target responsibilities for placeholders. Confirm individual package behavior through implementation, callers and assembly. New groups require an explicit documented Owner and consumer; do not add duplicate runtimes or registries.
-- Record each audited directory as evidence-backed retention, confirmed mismatch, unavailable placeholder, engineering/test-only, or insufficient evidence. Track mismatches with call-chain evidence, correct Owner, risk, consumers, minimum change and acceptance criteria. Do not substitute a few examples for a complete audit.
-- Migrate stable IDs, consumers, manifests, mappings, assembly and documentation together. Preserve data and public behavior; document migration/rollback and temporary compatibility removal conditions. Do not reorganize real user data without authorization.
-- Run existing workspace synchronization when entries/dependencies/inventory/type mappings change, then workspace checks and relevant regressions/builds. Documentation changes need coverage, link and diff checks. Report all changed file paths, settings, actual validation, performance evidence and untested boundaries. Build success does not prove Provider, browser, node, desktop, device or frame-time acceptance.
+1. For a package change, confirm its real Owner and public contract in the package README and caller code. Review the dependency rules and that package group.
+2. For a capability, content, data, or runtime change, also review the sections on Prompt/Skill/Tool ownership and lifecycle.
+3. For a repository-wide audit or migration, follow the directory-by-directory evidence requirements.
+
+Core rules:
+
+- Directory names and manifests are navigation clues; confirm behavior from implementation, callers, stored data, and execution results.
+- Each business rule and data fact has one Owner. Apps and Bundles assemble capabilities; they do not duplicate domain behavior or content.
+- Keep dependencies acyclic and use declared, public package entries. Separate client, server, and Daemon runtime imports.
+- A source package is not necessarily assembled or usable. Report source, assembly, and real acceptance status separately.
+- Keep authentication, data isolation, parameter checks, and the existing Permission Owner in the execution path. Never treat a model-visible Tool or external Skill as authorization.
+- Ordinary development checks affected packages and consumers. A full audit covers every directory in the generated inventory.

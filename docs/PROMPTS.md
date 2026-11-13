@@ -1,8 +1,12 @@
 # LFAA 提示词与任务合同
 
-本文件登记当前任务的目标、验收条件和修改边界。新任务应从任务索引选择与本轮目标匹配的合同；已完成任务下的合同、实现记录和验证结果是该任务完成时的历史证据，不自动成为当前能力或当前规则。跨任务的当前规则以根 `AGENTS.md`、`开发规范.md` 为准；能力现状以 `docs/系统总体架构.md`、`docs/开发计划.md` 和当前实现为准。任务合同优先于旧阶段草案；实际代码与架构文档需保持一致。
+本文件用于查找和维护**单次任务合同**，不负责维护通用规则或当前产品状态。
 
-历史合同分档保存在 `archive/contracts/`，保留原始实施证据，索引可按编号定位。跨模块新任务必须先登记在本文件，完成后按分类归档；未实测状态不得改写为已验收。
+- 新任务先看下方索引，续用同目标的未完成合同；没有合适合同再新建。
+- 打开对应合同即可查看目标、Owner、修改边界和验收记录，不必通读整份文件。
+- 实施期间更新同一合同；完成后更新索引，并按归档规则保留链接和原始证据。
+- 通用规则见根目录 `AGENTS.md`、`开发规范.md`；当前能力见 `docs/系统总体架构.md`、`docs/开发计划.md` 和源码。
+- 历史记录只证明记录当时的实现与验证。未执行、未完成或未实测的项目不得改写为通过。
 
 <a id="01-插件化架构-20261017"></a>
 
@@ -10,6 +14,7 @@
 
 | 编号 | 任务 | 状态 | 合同 |
 |---|---|---|---|
+| LFAA-DOCUMENTATION-CLARITY-20261113 | 精简根目录与 `docs/` 的现行指南，明确唯一事实来源，并区分操作规则、当前状态与历史证据 | 完成；根指南、架构/计划、开发流程和文档导航已精简；`git diff --check`、226 包 `check:workspace` 通过；未运行产品测试/构建，详见合同 | [本轮合同](development/documentation-clarity-20261113.md#lfaa-documentation-clarity-20261113) |
 | LFAA-WORKSPACE-HTML-PREVIEW-ERROR-RECOVERY-20261113 | 修复工作区 HTML 本地预览响应流异常时重复发送响应头，保持安全边界并恢复 Agent 浏览器预览闭环 | 已修复；Project Files 预览回归 5/5、Browser Owner 隔离实页 1/1、包构建和差异检查通过；Agent Loop 全链路夹具仍有多轮请求/工具目录不匹配，登录态实页未验 | [本轮合同](development/project-preview-error-recovery-20261113.md#lfaa-workspace-html-preview-error-recovery-20261113) |
 | LFAA-AGENT-APP-REARCHITECTURE-P0-20261113 | 按 Agent-first 架构与体验重构计划完成首批 P0 基线、真实调用链审计、热点文件拆分边界及测试矩阵；本批不改产品行为 | P0 文档/定向检查完成并暂停；Canvas workspace→领域工具目标上下文缺口已隔离复现，尚未修复；Host 类型/构建失败及当前源码实页验收边界见合同 | [P0 基线合同](development/lfaa-agent-app-rearchitecture/00-baseline.md#lfaa-agent-app-rearchitecture-p0-20261113) |
 | LFAA-AGENT-APP-REARCHITECTURE-P1-A1-20261113 | 按计划 P1-A 优先顺序先从 ApplicationWorkspace 抽取纯类型/纯函数，保持行为与现有工作树改动 | 完成；纯函数 5/5、原工作区回归 3/3、包构建、全仓类型检查与 226 包 Gate 通过；Web 候选构建和桌面/窄短实页结果及并行 HMR 指纹边界见合同 | [P1-A1 合同](development/lfaa-agent-app-rearchitecture/05-p1a-application-workspace.md#lfaa-agent-app-rearchitecture-p1-a1-20261113) |

@@ -1,5 +1,7 @@
 # Third-party notices
 
+This file records third-party code and product references used by LFAA. Preserve the listed copyright and license notices in any distribution that includes the corresponding material.
+
 ## Ekko Studio capability reference
 
 - Project: [Ekko Studio](https://github.com/EKKOLearnAI/ekko-studio), by EKKOLearnAI.
@@ -7,7 +9,7 @@
 - Repository license at that revision: [Business Source License 1.1](https://github.com/EKKOLearnAI/ekko-studio/blob/1242ac63556491c92ba6dd49d89fd19c91a6bdd5/LICENSE), with a non-commercial Additional Use Grant and a stated change date of 2029-05-10.
 - Referenced behavior: multi-runtime workspaces, coding-agent dispatch, foreground/background delegation, shared task progress, deliverable skills and customizable templates.
 
-The user selected commercial use with LFAA-authored implementations of the corresponding capabilities. This entry acknowledges the product reference; it does not assert that Ekko Studio source, UI assets, prompts, bundled runtimes or skills have been incorporated or commercially licensed. LFAA continues to use its own Agent Loop, Session, Settings, permission and execution owners. Any later third-party skill or code integration needs its own source/version/license entry; the presence of a separate skill license does not by itself establish the provenance of all files in that directory.
+The user selected commercial use with LFAA-authored implementations. This entry records a product reference; it does not claim that Ekko Studio source, UI assets, prompts, runtimes, or Skills were incorporated or commercially licensed. LFAA retains its own Agent Loop, Session, Settings, permission, and execution Owners. Record any later third-party integration with its own source, version, and license; a Skill license alone does not establish the provenance of every file in that directory.
 
 Capability mapping and implementation status: [fusion register](docs/development/ekko-capability-fusion.md).
 
@@ -19,7 +21,7 @@ Capability mapping and implementation status: [fusion register](docs/development
 - Copyright: Copyright (c) 2026 DeepSeek
 - License: MIT
 
-The LFAA Core adapters are implemented for LFAA's existing Settings, Session, permission, tool, domain-service, and Daemon Owners. This change references the upstream package responsibilities and behavior; it does not copy upstream source files. LFAA-authored implementation files are not claimed as DeepSeek work. PTC execution is not included because LFAA does not currently have the required isolated runtime.
+LFAA adapters use its existing Settings, Session, permission, Tool, domain-service, and Daemon Owners. This is a reference to upstream package responsibilities and behavior; no upstream source files are claimed as LFAA work. PTC execution is not included because LFAA lacks the required isolated runtime.
 
 The upstream MIT notice is reproduced here for attribution and license traceability:
 
@@ -52,7 +54,7 @@ The upstream MIT notice is reproduced here for attribution and license traceabil
 - The upstream `node-runtime-NOTICE.md` states that `cua_driver_node_runtime.node` is a compatibility build derived from `uniffi-bindgen-react-native` `0.31.0-3` under MPL-2.0; the Cua repository release matching the package provides its source and deterministic build transformations: [Cua repository](https://github.com/trycua/cua).
 - MPL-2.0 text: [Mozilla Public License 2.0](https://www.mozilla.org/MPL/2.0/).
 
-LFAA consumes these locked packages as dependencies and does not copy their source into the computer-use adapter. A packaged distribution that includes the Windows native runtime must retain the upstream notices and applicable license material.
+LFAA uses these locked dependencies; their source is not copied into the computer-use adapter. Distributions that include the Windows native runtime must retain its upstream notices and applicable license material.
 
 ## EasyTier network runtime
 
@@ -61,4 +63,4 @@ LFAA consumes these locked packages as dependencies and does not copy their sour
 - License: LGPL-3.0. The verified official release files are retained in the node's managed runtime directory, including upstream license and notice files.
 - Official source and release: [EasyTier v2.6.4 release](https://github.com/EasyTier/EasyTier/releases/tag/v2.6.4), [EasyTier license](https://github.com/EasyTier/EasyTier/blob/main/LICENSE).
 
-LFAA currently uses this independent runtime as an external process artifact. No MCTier code, interface assets, or text are included. The download URL, version, expected SHA-256 digest, and byte count are recorded in `packages/network/game-connectivity/src/easytier-release.mjs`; the Daemon rejects any asset that does not match that fixed manifest. EasyTier remains unstarted until a later stage implements its structured instance-management operations.
+LFAA runs this independent runtime as an external process; it does not include MCTier code, interface assets, or text. The download URL, version, SHA-256, and byte count are recorded in `packages/network/game-connectivity/src/easytier-release.mjs`; the Daemon rejects mismatched files. EasyTier remains unstarted until structured instance-management operations are implemented.

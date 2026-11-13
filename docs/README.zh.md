@@ -2,23 +2,23 @@
 
 [English](README.md) · [项目入口](../README.md)
 
-先按任务选择专题。当前架构、版本和任务合同各有一个权威来源；历史记录只能证明当时的实现与验证，不能作为当前状态或操作授权。
+## 按目的查找
 
-| 分类 | 入口 | 内容 |
-|---|---|---|
-| 用户指南 | [启动与命令](user/cli.zh.md) | Web、节点、开发与打包 |
-| 子系统 | [架构导读](subsystems/architecture.zh.md) · [存储](subsystems/storage.zh.md) · [执行控制](subsystems/execution-control.zh.md) | Owner、数据、权限与生命周期 |
-| 开发 | [开发文档索引](development/README.zh.md) · [开发手册](development/handbook.zh.md) | 长期指南、当前目标与按主题整理的实施/验收记录；项目内 UI 手册入口：设置中心 → 关于与更新 |
-| 参考 | [根目录职责](reference/repository-layout.zh.md) · [生成的包清单](harness-packages.md) · [提示词资料](reference/prompts/README.zh.md) | 路径、包状态与非工程资料 |
-| 语言维护 | [中英文配对规则](i18n/README.zh.md) | 对应文件、翻译范围与权威来源 |
-| 历史 | [归档索引](archive/README.zh.md) | 审计快照、旧计划与已完成合同 |
+| 需要做什么 | 从这里开始 |
+|---|---|
+| 安装、启动或配置数据目录 | [CLI 与运行指南](user/cli.zh.md) |
+| 了解当前系统和功能缺口 | [系统架构](系统总体架构.md) · [开发计划](开发计划.md) |
+| 开始修改或验收功能 | [开发文档索引](development/README.zh.md) · [开发手册](development/handbook.zh.md) |
+| 确认包 Owner 和应用装配 | [包职责规范](development/package-responsibilities.zh.md) · [运行入口图](workspace-entry-map.md) |
+| 查找某项实施和验收记录 | [PROMPTS 任务索引](PROMPTS.md) |
+| 查看正式版本变化 | [更新日志](updata-log.md) |
 
-以下入口保留原路径，避免改变仓库治理合同：
+## 文档权威
 
-- [开发规范](../开发规范.md)：修改与交付要求。
-- [系统总体架构](系统总体架构.md)：当前实现事实与边界。
-- [开发计划](开发计划.md)：当前缺口与优先级。
-- [PROMPTS](PROMPTS.md)：合同索引与当前合同。
-- [更新日志](updata-log.md)：产品版本唯一权威；历史版本重置不重新编号。
+- 规则：根目录 [AGENTS.md](../AGENTS.md) 与[开发规范](../开发规范.md)。
+- 当前实现：源码、包 README 和[系统架构](系统总体架构.md)。
+- 待完成目标：[开发计划](开发计划.md)。
+- 单次任务证据：[PROMPTS](PROMPTS.md) 及其链接的合同。
+- 归档：[历史索引](archive/README.zh.md)。历史资料只描述当时的实现和验证，不覆盖当前源码或规则。
 
-专题英文与中文用 `name.md` / `name.zh.md` 配对。归档与既有权威长文保留原语言；英文导读明确链接原文，不冒充完整翻译。没有实现的占位包保持不可用。
+[English documents](README.md) provide navigation to English guides. Chinese architecture, plans, and historical task records remain the authoritative text where no full English version exists.

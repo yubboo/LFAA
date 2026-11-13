@@ -2,25 +2,18 @@
 
 [English](guide.md) · [文档目录](../README.zh.md)
 
-修改前读取根 [AGENTS](../../AGENTS.md)、[开发规范](../../开发规范.md)、[架构](../系统总体架构.md)、[当前计划](../开发计划.md)、[任务合同](../PROMPTS.md) 与目标包 README。先登记运行入口、设置、数据/权限 Owner、允许修改范围和验收条件，再编码。
+## 开始前
 
-每项新功能、修复或架构调整都先在 `docs/PROMPTS.md` 登记任务合同，完成后把实际实现和验收结果写回同一合同。用户可以直接用自然语言描述目标；AI 应从当前源码核实入口和 Owner。可复制的提示词和逐栏记录说明见[项目内开发手册](handbook.zh.md)的“怎么开发与验收”。
+阅读根目录 [AGENTS](../../AGENTS.md)、[开发规范](../../开发规范.md)、[系统架构](../系统总体架构.md)、[当前计划](../开发计划.md) 和目标包 README。检查当前工作区改动，并在 [PROMPTS](../PROMPTS.md) 续用或登记任务合同；沿源码确认运行入口、Owner、设置、数据/权限范围和验收条件。
 
-```sh
-pnpm run check:workspace
-pnpm run typecheck
-```
+## 修改与验证
 
-`check:workspace` 检查实际包入口、内部依赖及环、类型路径、包清单、当前产品版本、日志编号、构建输出边界与当前文档链接。包变更后运行 `pnpm run sync:workspace`，提交前重新执行只读检查；同步命令不修复业务或发布数据。
+- 只改满足目标所需的内容；包边界按[包职责规范](package-responsibilities.zh.md)核对。
+- 根据改动选择直接相关的回归、类型检查、构建和工作区 Gate，不机械运行无关测试或构建。
+- 修改包入口、依赖或类型映射后，运行 `pnpm run sync:workspace` 并检查生成差异；再运行 `pnpm run check:workspace`。
+- Web/UI 改动还须在当前源码服务上用 ChatGPT 内置浏览器验收实际路由和适用视口。
+- 所有产物只写根目录 `dist/`。保留用户数据、备份、旧发行包和要求保留的上游占位。
 
-长期 CLI 回归在 `apps/cli` 执行：
+## 完成后
 
-```sh
-node --import tsx --import ./register-package-loader.mjs --test tests/*.test.mjs
-```
-
-只选择与改动直接相关的回归；共享 Session/Settings/存储修改需覆盖下游。Electron 的纯 Node 测试位于 `apps/desktop-electron/tests`。构建产物只能位于根 `dist/`；隔离 Host 构建为 `node scripts/build-harness.mjs host-staging`。
-
-CI 工作流运行工程检查、类型检查及直接相关的长期回归。CI 配置存在不等于远端已执行；本地构建成功不证明浏览器、桌面、真实 Provider 或设备验收。当前没有 `workspace-preflight` 命令，不能把新的检查冒充该门禁。
-
-不要删除真实数据、备份、旧发行包或已要求保留的上游占位目录。不要以修复为由重启在用服务、重写 Git 历史或发布候选版本。
+更新同一任务合同：列出改动文件和职责、实际运行的检查及结果、失败项与未测范围。构建通过不等于浏览器、Provider、Daemon、桌面或设备验收通过。
