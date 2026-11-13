@@ -1,5 +1,6 @@
 # LFAA AI Work 跨模型缓存前缀优化
 
+<a id="lfaa-ai-work-prompt-cache-universal-20261112"></a>
 <a id="lfaa-ai-work-deepseek-cache-prefix-20261112"></a>
 
 ## 目标、Owner 与设置
@@ -34,3 +35,15 @@
 - 页面：ChatGPT 内置浏览器实际访问 `http://127.0.0.1:3000/work`。桌面视口 1280×720 与窄屏 390×844 均可见已保存的真实会话用量；窄屏页面保留聊天内容、回复区和底部汇总条。最新查看的会话显示 `5.2K tok · 缓存命中 86.4%`。最终 Web 重建包含随后到达的旁路工作区源文件更新并通过 `runtime-build-state`；最后一次启动后健康接口 HTTP 200。内置浏览器没有在最后一次重启后再次刷新：前两次页面重载/服务重启自动触发了两次现有会话标题生成路由，该路径调用当前模型并记录真实 usage；为避免再触发标题请求，没有第三次重载。缓存专项没有发送聊天消息，也没有为验证缓存命中率额外请求模型。
 - 边界：不同模型的统计聚合、未知计数的覆盖展示和请求消息结构由定向回归验证；本轮未实际切换用户模型，也未向多个真实 Provider 发请求，因此没有新增真实跨 Provider usage 样本。缓存命中仍只按 Provider 实际返回的 usage 记录，不从请求结构推断命中率。
 - 设置：没有新增或修改设置中心配置；现有 `aiRuntime.showContextUsage` 用户偏好保持不变。
+
+## 2026-11-13 公共请求与缓存 usage 修正
+
+- 用户截图中 Ark Agent Plan 的 `doubao-seed-2.0-mini` 与 `glm-5.3-flash` 显示“Provider 未返回缓存读取计数”。源码确认所有通用 Chat Completions 流式请求此前都没有发送 `stream_options.include_usage`。方舟 Chat API 默认不会在流式响应中返回 usage；隐式缓存可能已经工作，但 LFAA 无法读取 `prompt_tokens_details.cached_tokens`，因此显示未知。
+- LLM Owner 现在对所有通用 Chat Completions 路由统一发送 `stream_options: { include_usage: true }`；此参数只请求真实 usage，不按 Provider/模型 ID 开关缓存，也不创建缓存或伪造命中。缓存是否启用仍由支持该能力的 Provider 自动处理。
+- 将运行时 Git/工作区/写作/记忆以及经 Settings 校验的当前路由事实统一放到当前 user 请求末端，稳定 system 和此前历史前缀保持不变。上下文仍进入 Provider 请求、token 估算与压缩；压缩同步回规范历史前剥除临时前缀。模型路由变化不会再改写 system prompt。
+- 工具往返时请求可能以 `tool` 消息结尾；此时运行上下文追加为请求末尾的临时 user 消息，不回头改写已进入历史前缀的旧 user 消息。压缩同步会移除这条临时上下文。
+- LLM Owner 统一归一化 Chat、Responses 和 Messages 常见输入/输出及缓存读取字段，Ark 既有用量辅助函数改为委托该单一解析 Owner；缺字段仍保留未知。
+- 真实 Provider 计数、实际缓存命中率与账单节省仍需后续真实账户请求验证；测试夹具只验证请求结构和字段解析，不能作为命中证据。
+- 本轮复归：`corepack pnpm --filter @yubboo/lfaa run test -- tests/llm-completion.test.mjs tests/system-prompt-cache-prefix.test.mjs` 通过 28/28，含工具往返时动态上下文追加到请求末尾、压缩后剥除且不改写已缓存历史的回归。
+- 本轮构建与类型：`corepack pnpm --filter lfaa-llm run build` 通过，输出位于根 `dist/packages/`；`corepack pnpm --filter @yubboo/lfaa run typecheck` 通过。System Prompt、Agent Loop 与 Ark LLM 包构建在本轮前序实现后通过；最终差异检查待本条记录更新后复跑。
+- 未调用真实 Provider、未重启 Web/Daemon；当前实现和请求统计仍未获得本轮真实账单/命中样本。

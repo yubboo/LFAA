@@ -19,6 +19,15 @@ test("未装配人格核心时组合结果保持原样：不注入领域正文",
   assert.match(text, /按需/);
 });
 
+test("代码修改指引要求局部差异核对且不增加审批流程", () => {
+  const text = composeLfaaSystemPrompt(baseInput);
+  assert.match(text, /代码修改先核实/u);
+  assert.match(text, /局部精确编辑/u);
+  assert.match(text, /写后核对差异/u);
+  assert.match(text, /模型自主选上下文和工具/u);
+  assert.doesNotMatch(text, /代码修改.{0,20}必须.{0,12}审批/u);
+});
+
 test("真实插件登记后身份与领域地图排在核心指引之后、领域约定排在 Agent 指引之后", async t => {
   const ctx = new Context();
   const fiber = await ctx.plugin(await import("lfaa-persona"));

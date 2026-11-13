@@ -53,7 +53,7 @@ import { resolveNewSessionWorkspaceProjectId } from "./new-session-project-selec
 import { buildResponseTimeline, splitAiActivityDetail } from "./response-timeline.js";
 import { formatAiActivityDuration, getAiActivityDisplayStatus, getAiActivityDurationSeconds, getAiActivitySummary } from "./activity-duration.js";
 import { buildConversationAnchors, conversationAnchorLabel, conversationAnchorReply, type ConversationAnchorPreview } from "./conversation-anchor-preview.js";
-import { buildConversationAnchorLayout, createConversationScrollTracker, createFrameCoalescer, findNearestConversationAnchorIndex, preserveConversationAnchorViewport, projectConversationWheelScroll, shouldAutoScrollToLatest, shouldFollowLatestMessage, shouldShowScrollToLatest, syncConversationScrollToLatest, updateConversationAnchorPointerTarget, updateResponseProcessFollowState } from "./conversation-scroll.js";
+import { buildConversationAnchorLayout, createConversationScrollTracker, createFrameCoalescer, findNearestConversationAnchorIndex, preserveConversationAnchorViewport, projectConversationWheelScroll, shouldAutoScrollToLatest, shouldFollowLatestMessage, shouldIgnoreMainConversationWheel, shouldRestoreConversationBottomPinned, shouldShowScrollToLatest, syncConversationScrollToLatest, updateConversationAnchorPointerTarget, updateResponseProcessFollowState, type NestedConversationScrollMetrics } from "./conversation-scroll.js";
 import { createOutputIdleBlurController } from "./output-idle-blur.js";
 import { AI_RUN_CONTROL_GUARD_MS, canControlAiRun } from "./run-stop-guard.js";
 import { consumeReplySuggestion, hideSubmittedReplySuggestions, ReplySuggestionSubmissionGate } from "./reply-suggestions.js";
@@ -65,7 +65,7 @@ import { WorkbenchIcon, type WorkbenchIconName } from "lfaa-client-ui-primitives
 import { shortcutMatches } from "lfaa-client-ui-commands/src/shortcuts.js";
 import { DshSlotOutlet } from "lfaa-client-modules/src/client/index.js";
 import { WorkspaceProjectPicker } from "./WorkspaceProjectPicker.js";
-import { aiModelPickerCatalog, effectiveAiAccount, effectiveReasoningMode, fixedThinkingLabel, modelOptionVersionTag, modelSelectorDisplayLabel, reasoningDefaultLabel, reasoningModeLabel, reasoningOptions } from "lfaa-client-ui-settings-models/src/model-options.js";
+import { aiModelPickerCatalog, effectiveAiAccount, effectiveReasoningMode, fixedThinkingLabel, modelCatalogCapabilitySummary, modelOptionVersionTag, modelSelectorDisplayLabel, reasoningDefaultLabel, reasoningModeLabel, reasoningOptions } from "lfaa-client-ui-settings-models/src/model-options.js";
 import "./ai-work-chat.css";
 
 const MODEL_PICKER_RESULT_LIMIT = 60;
@@ -149,6 +149,7 @@ interface AiWorkChatProps {
   workspaceNodes: WorkspaceDaemonNode[];
   workspaceProjectsError: string;
   onRetryWorkspaceProjects: () => void;
+  onWorkspaceProjectCreated?: () => void;
   onWorkspaceProjectsChange: (projects: WorkspaceProject[]) => void;
   initialDraft: string;
   autoSubmitGoal?: AiWorkGoalRequest | null;
@@ -379,7 +380,7 @@ function latestPendingInteractionActivity(activities: AiActivityItem[]): AiActiv
 }
 
 const welcomeContent: Record<ApplicationId, { title: string; description: string }> = {
-  workspace: { title: "小鱼智能体", description: "讨论问题、写代码、处理项目都可以直接开始；需要时再关联领域能力，或切到画布继续。" },
+  workspace: { title: "小鱼智能体", description: "讨论问题、写代码、处理项目都可以直接开始；长期任务可以关联项目文件夹，方便后续继续。" },
   steamcmd: { title: "Steam 游戏服务器", description: "规划专用服务器的安装、更新、备份和日常维护。" },
   minecraft: { title: "Minecraft 服务端", description: "查询 Minecraft 服务端与工具，也可以让 Agent 帮你搭建专属工作流。" },
   connectivity: { title: "联机管理", description: "查看联机服务配置与运行情况，按当前可用能力继续处理。" },
@@ -523,7 +524,7 @@ const ConversationAnchorRail = memo(function ConversationAnchorRail({ anchors, l
   </nav>;
 });
 
-function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, onOpenApplicationCanvas, capabilities = [], capabilitiesError = "", settings, onSettingsChange, sessions, activeSessionId, projectDirectoryMissing, newSessionProjectId, defaultWorkspaceProjectId, newSessionGitRepositoryId, onSelectedProjectChange, workspaceProjects, workspaceProjectsLoadStatus, workspaceProjectsTruncated, workspaceNodes, workspaceProjectsError, onRetryWorkspaceProjects, onWorkspaceProjectsChange, initialDraft, autoSubmitGoal = null, onAutoSubmitGoalConsumed, newSessionKey, onSessionsChange, onSessionChange, onActiveSessionChange, onDraftChange, onProviderStatusChange, onBusyChange, onOpenSettings, onNotification, onOpenSideChat, onOpenProjectFile, onWritingWorkspaceChange, onSessionFileChanges, onBrowserToolCompleted, onCanvasToolsCompleted, voiceMode = false, onExitVoice = () => undefined }: AiWorkChatProps) {
+function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, onOpenApplicationCanvas, capabilities = [], capabilitiesError = "", settings, onSettingsChange, sessions, activeSessionId, projectDirectoryMissing, newSessionProjectId, defaultWorkspaceProjectId, newSessionGitRepositoryId, onSelectedProjectChange, workspaceProjects, workspaceProjectsLoadStatus, workspaceProjectsTruncated, workspaceNodes, workspaceProjectsError, onRetryWorkspaceProjects, onWorkspaceProjectCreated, onWorkspaceProjectsChange, initialDraft, autoSubmitGoal = null, onAutoSubmitGoalConsumed, newSessionKey, onSessionsChange, onSessionChange, onActiveSessionChange, onDraftChange, onProviderStatusChange, onBusyChange, onOpenSettings, onNotification, onOpenSideChat, onOpenProjectFile, onWritingWorkspaceChange, onSessionFileChanges, onBrowserToolCompleted, onCanvasToolsCompleted, voiceMode = false, onExitVoice = () => undefined }: AiWorkChatProps) {
   const currentScrollConversationKey = `${appId}:${activeSessionId ?? "new-session"}`;
   const outputFocusRegionElementRef = useRef<HTMLElement | null>(null);
   const setOutputFocusRegionElement = useCallback((node: HTMLElement | null) => {
@@ -694,6 +695,7 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, onOpenA
   const appIdForTurn = useRef(appId);
   const notifiedTurnEvents = useRef(new Set<string>());
   const canvasMutationObservedRef = useRef(false);
+  const workspaceProjectCreatedObservedRef = useRef(false);
   const messagesElementRef = useRef<HTMLDivElement | null>(null);
   const olderMessagesScrollRestoreRef = useRef<{ height: number; top: number } | null>(null);
   const scrollTrackerRef = useRef<ReturnType<typeof createConversationScrollTracker> | null>(null);
@@ -903,6 +905,21 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, onOpenA
   const handleMessagesWheel = useCallback((event: ReactWheelEvent<HTMLDivElement>) => {
     if (event.deltaY === 0 || event.ctrlKey) return;
     const element = event.currentTarget;
+    const nestedScrollers: NestedConversationScrollMetrics[] = [];
+    let ancestor = event.target instanceof Element ? event.target : null;
+    while (ancestor && ancestor !== element) {
+      if (ancestor instanceof HTMLElement && ancestor.matches(".ai-work-chat__tool-group-items, .ai-work-chat__markdown pre, .ai-work-chat__activity-output-card, .ai-work-chat__tool-contract-body")) {
+        nestedScrollers.push({
+          scrollTop: ancestor.scrollTop,
+          scrollHeight: ancestor.scrollHeight,
+          clientHeight: ancestor.clientHeight,
+          overflowY: "auto",
+          overscrollBehaviorY: "auto"
+        });
+      }
+      ancestor = ancestor.parentElement;
+    }
+    if (shouldIgnoreMainConversationWheel(event.deltaY, nestedScrollers)) return;
     const projectedScroll = projectConversationWheelScroll(element.scrollTop, element.scrollHeight, element.clientHeight, event.deltaY);
     if (!projectedScroll) return;
     updateFollowFromUserScroll(element, projectedScroll.direction, projectedScroll.distanceFromBottom);
@@ -926,8 +943,12 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, onOpenA
       element.scrollTop = restore.top + element.scrollHeight - restore.height;
       return;
     }
-    if (busy) syncConversationScrollToLatest(element, followLatestMessageRef.current);
-  }, [busy, messages]);
+    const conversationKey = `${appId}:${activeSessionId ?? "new-session"}`;
+    // 恢复历史滚动位置后才允许同步；首次恢复前 follow 默认值为 true，提前同步会覆盖用户保存的位置。
+    if (initializedScrollConversationRef.current === conversationKey) {
+      syncConversationScrollToLatest(element, followLatestMessageRef.current);
+    }
+  }, [activeSessionId, appId, busy, messages]);
   const handleMessagesPointerUp = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     if (pointerScrollTopRef.current === null) return;
     pointerScrollTopRef.current = null;
@@ -1218,7 +1239,7 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, onOpenA
       const element = messagesElementRef.current;
       if (element) {
         let distanceFromBottom = element.scrollHeight - element.scrollTop - element.clientHeight;
-        followLatestMessageRef.current = messagesScroll.restoredBottomPinnedRef.current ?? distanceFromBottom <= 64;
+        followLatestMessageRef.current = shouldRestoreConversationBottomPinned(messagesScroll.restoredBottomPinnedRef.current, distanceFromBottom);
         if (followLatestMessageRef.current) {
           syncConversationScrollToLatest(element, true);
           distanceFromBottom = element.scrollHeight - element.scrollTop - element.clientHeight;
@@ -1615,6 +1636,7 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, onOpenA
       if (sendingAttachments.length > 0) messageAttachmentRefs.set(userMessage.id, sendingAttachments.map(file => ({ id: file.id, name: file.name })));
           if (!isCurrentSubscription()) return;
           canvasMutationObservedRef.current = false;
+          workspaceProjectCreatedObservedRef.current = false;
           spokenContent = assistantMessage.content;
           followedExistingCompletion = assistantMessage.status === "complete";
           runMessageId = assistantMessage.id;
@@ -1647,6 +1669,7 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, onOpenA
         onActivity: ({ messageId, activity }) => {
           if (!isCurrentSubscription()) return;
           if (activity.status === "complete" && activity.toolId && canvasMutationToolIds.has(activity.toolId)) canvasMutationObservedRef.current = true;
+          if (activity.status === "complete" && activity.toolUsage?.name === "workspace_create_project") workspaceProjectCreatedObservedRef.current = true;
           if (activity.status === "complete" && activity.toolId?.startsWith("browser-use.") && isBuiltinBrowserProvider(activity.browserProviderId)) {
             onBrowserToolCompleted?.(activity.browserProviderId);
           }
@@ -1693,6 +1716,10 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, onOpenA
           if (canvasMutationObservedRef.current) {
             canvasMutationObservedRef.current = false;
             onCanvasToolsCompleted?.(workspaceView?.canvas?.projectId);
+          }
+          if (workspaceProjectCreatedObservedRef.current) {
+            workspaceProjectCreatedObservedRef.current = false;
+            onWorkspaceProjectCreated?.();
           }
           if (voiceTurn) {
             voiceReplyCompleted = status === "complete";
@@ -2472,7 +2499,7 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, onOpenA
             role="option"
             aria-selected={selected}
             tabIndex={selected || (!visibleModels.some(({ account: listedAccount, model: listedModel }) => listedAccount.id === activeAccount?.id && listedModel.id === activeAccount.modelId) && index === 0) ? 0 : -1}
-            title={`${account.displayName} · ${account.providerId} · ${modelSelectorDisplayLabel(model)} · ${model.id}`}
+            title={`${account.displayName} · ${account.providerId} · ${modelSelectorDisplayLabel(model)} · ${model.id} · ${modelCatalogCapabilitySummary(model)}`}
             disabled={modelBusy || busy}
             onClick={() => selected ? setModelPickerOpen(false) : void selectModel(account.id, model.id)}
             onKeyDown={(event) => {
@@ -2907,7 +2934,7 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, onOpenA
               <DshSlotOutlet name="conversation.input.right" owner={conversationInputSlotOwner} />
               <Popover
                 trigger="click"
-                placement="topRight"
+                placement="top"
                 arrow={false}
                 overlayClassName="ai-work-chat__model-overlay"
                 getPopupContainer={(trigger) => trigger.closest<HTMLElement>(".workbench-shell") ?? trigger.parentElement ?? document.body}
@@ -2926,6 +2953,7 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, onOpenA
                 <Tooltip trigger={["hover", "focus"]} placement="top" title={modelPickerTooltipTitle} open={modelPickerTooltipOpen && !modelPickerOpen} onOpenChange={setModelPickerTooltipOpen}>
                   <span className="ai-work-chat__composer-disabled-wrap" tabIndex={!modelPickerCatalog.length || modelBusy || busy ? 0 : -1}>
                     <Button className="ai-work-chat__composer-control ai-work-chat__composer-control--model" type="text" aria-haspopup="dialog" aria-expanded={modelPickerOpen} aria-busy={accountLoadState === "loading" || modelBusy} aria-label={activeAccount ? `当前模型 ${activeModel?.name ?? activeAccount.modelId}${composerReasoningLabel ? ` · 当前档位 ${composerReasoningLabel}` : ""} · 点击选择推理强度` : modelPickerCatalog.length ? "选择模型和推理强度" : accountLoadState === "loading" ? "模型：正在读取当前配置" : accountLoadState === "error" ? "模型：状态不可用" : "模型：未配置"} disabled={!modelPickerCatalog.length || modelBusy || busy}>
+                      <WorkbenchIcon className="ai-work-chat__composer-model-icon" name="model" size={18} />
                       <span className="ai-work-chat__composer-control-label">{composerModelLabel}</span>
                       <WorkbenchIcon className="ai-work-chat__composer-control-chevron" name="chevron" size={12} />
                     </Button>

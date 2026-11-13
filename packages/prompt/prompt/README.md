@@ -2,7 +2,7 @@
 
 复用原 AiExtensionRegistry，不创建平行目录；安装提示词的持久化、摘要和账户/App 范围仍由 Settings 持有。
 
-公共合同：lfaa_prompt_list/load、lfaa_expert_list/load；保留 minecraft_load_prompt、writing_load_prompt 和 capability_prompts_list/capability_prompt_load。摘要分页最多 40 项，正文由注册表限制 64 KiB。
+公共合同：lfaa_prompt_list/load、lfaa_expert_list/load；这些小型目录/正文加载入口作为 Agent 核心工具常驻首轮请求，领域工具合同仍由模型按目标发现并按需加载。保留 minecraft_load_prompt、writing_load_prompt 和 capability_prompts_list/capability_prompt_load。摘要分页最多 40 项，正文由注册表限制 64 KiB。
 
 运行位置：Control Plane 的 Cordis 插件或内部合同库，由 base Bundle 装配；不运行在浏览器，不将凭据或节点进程带入客户端。依赖以本包 package.json 为准，真实消费者见生成包清单的静态证据。源码/装配声明与现场运行验收分别记录。
 

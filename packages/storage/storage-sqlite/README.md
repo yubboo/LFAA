@@ -2,13 +2,13 @@
 
 Control Plane 关系型存储 Owner，按递增、可重复运行的 schema 版本维护账户、权限、配置与其他结构化数据；会话事件正文继续归 JSONL Session Owner。
 
-迁移 43 新增 `conversation_memories`，由 Conversation Memory Owner 保存账户隔离、有界的长期记忆。启动时在事务锁内复查版本；若表已存在，只在结构与版本 43 完全一致时补齐版本号，保留原有行；结构不匹配时停止启动，不覆盖数据。
+迁移 43 新增 `conversation_memories`，由 Conversation Memory Owner 保存账户隔离、有界的长期记忆。启动时在事务锁内复查版本；若表已存在，只在结构与版本 43 完全一致时补齐版本号，保留原有行；结构不匹配时停止启动，不覆盖数据。迁移 80 新增 `agent_memory_access_tokens`，只保存外部记忆 MCP 凭据的 SHA-256 摘要、账户归属与创建时间，账户删除时级联撤销；明文凭据不写入数据库。
 
 版本 61 新增 `browser_recent_sites`，主键由账户和规范化 HTTP(S) 来源/路径组成，外键在账户删除时级联清理，按账户和访问时间建立有界查询索引。该表只保存 Browser Owner 接收的站点元数据；最多保留 100 个网址、不会写入查询参数、片段、页面标题/正文或表单内容。Settings Owner 的 `browserUse.recordRecentSites` 决定新增与读取行为。
 
 版本 76 为 `writing_books` 增加可空 `directory_name` 和账户内唯一索引，Writing Owner 惰性分配经过跨平台清理的可读作品目录片段。字段不是客户端路径，账户归属和作品关系仍由现有 ID 外键负责；SQLite 迁移只改结构，不触碰用户目录。
 
-版本 77 扩展 `minecraft_tasks.kind`，允许 Minecraft Domain/Jobs 创建节点真实 `server.properties` 只读任务 `properties-read`。迁移重建任务表以更新严格 CHECK 约束，并在同一事务中保留所有任务、索引和外键；`storage-domain` 在 v76 后协调旧库升级。当前数据库打开兼容上限为 79。
+版本 77 扩展 `minecraft_tasks.kind`，允许 Minecraft Domain/Jobs 创建节点真实 `server.properties` 只读任务 `properties-read`。迁移重建任务表以更新严格 CHECK 约束，并在同一事务中保留所有任务、索引和外键；`storage-domain` 协调旧库升级。
 
 迁移不得降级数据库、删除现有记录或把编译输出写到包目录。构建只写仓库根 `dist/packages/storage/storage-sqlite/`。
 
@@ -32,4 +32,6 @@ Control Plane 关系型存储 Owner，按递增、可重复运行的 schema 版�
 
 迁移 74 新增账户隔离的 `agent_deliverables` 元数据表，为 Agent Git 项目保存 Agent 明确发布的最终产物索引。文件字节仍保留在项目目录，下载时由 Project Files Owner 校验路径并流式读取；用户删除、解绑对应 Git 仓库时级联清理索引，不复制或删除项目文件。迁移 75 增加 `artifact_kind`，区分 Minecraft 插件、模组和其他交付物；旧记录以 `other` 兼容，不修改原文件或其 Git 状态。
 
-迁移 78 为 `minecraft_instances` 增加初始堆和 JVM 参数 JSON；按原生/AppContainer 已有启动规则回填旧实例 Xms，保留所有实例记录。迁移 79 增加 `jvm_arguments_configured` 来源标记，旧/未配置记录采用 Minecraft Service 的通用推荐参数，显式保存的空列表仍按用户选择保留；迁移只改结构和来源元数据，不启动或停止实例。两次迁移都在事务中执行，数据库打开兼容上限为 79。
+迁移 78 为 `minecraft_instances` 增加初始堆和 JVM 参数 JSON；按原生/AppContainer 已有启动规则回填旧实例 Xms，保留所有实例记录。迁移 79 增加 `jvm_arguments_configured` 来源标记，旧/未配置记录采用 Minecraft Service 的通用推荐参数，显式保存的空列表仍按用户选择保留；迁移只改结构和来源元数据，不启动或停止实例。两次迁移都在事务中执行。
+
+迁移 80 新增外部 Agent 记忆 MCP 令牌摘要表。迁移 81 将 `workspace_git_worktrees.node_id` 改为可空：既有 Minecraft/App Worktree 仍保留 Daemon ID；AI Work 本机 Host Worktree 使用 `NULL`，不伪造 Daemon 身份。迁移在事务内复制并校验全部原记录，重建按节点与本机 Host 分开的唯一索引；失败回滚且不推进版本，重启不会重复迁移。当前数据库打开兼容上限为 81。

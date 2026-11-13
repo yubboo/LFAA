@@ -6,13 +6,13 @@
 
 账户外观中的 `appearance.advanced.writingLightRaysEnabled` 由本包设置合同校验并按账户持久化；缺少该字段的旧账户仅补共享默认开启值。设置中心与普通写作工具栏读取同一偏好，Settings Owner 不复制写作背景逻辑。
 
-AI 漫剧与画布共用图片账户/模型默认值 `aiRuntime.imageGenerationAccountId/imageGenerationModelId`；`imageGenerationMode` 只控制 AI 漫剧本机/远程引擎，画布使用远程 Provider，可由 Agent 按单次目标选择当前用户账户中的 Agent Plan 图像模型，且不写回默认偏好。视频继续使用 `videoGenerationMode/videoGenerationAccountId/videoGenerationModelId`。Agent Plan 模型目录带官方 `taskType`、支持档位与来源：设置只把图像/视频能力模型放进对应选择器，主模型路由只暴露文本模型。图片/视频账户复用设置中心加密密钥和当前用户所有权；设置中心凭据来源仅向登记的消费者提供账户密钥解析，画布生成 Owner `lfaa-canvas-generation` 已登记为该来源消费者。本机模型 ID、时限和空闲释放仍读取现有 `aiRuntime` 字段，切换漫剧引擎不会清除远程选择。
+AI 漫剧与画布共用图片账户/模型默认值 `aiRuntime.imageGenerationAccountId/imageGenerationModelId`；`imageGenerationMode` 只控制 AI 漫剧本机/远程引擎，画布使用远程 Provider，可由 Agent 按单次目标选择当前用户账户中的 Agent Plan 图像模型，且不写回默认偏好。视频继续使用 `videoGenerationMode/videoGenerationAccountId/videoGenerationModelId`。设置中心把明确标注 `video-generation` 的远程型号与已就绪本机型号合并为一个选择器，在目录成功读取后仅当当前选择无效时自动保存默认目标；切换会更新实际执行读取的模式和对应模型字段，另一模式的选择保留。Agent Plan 模型目录带官方 `taskType`、支持档位与来源：设置只把图像/视频能力模型放进对应选择器，主模型路由只暴露文本模型。图片/视频账户复用设置中心加密密钥和当前用户所有权；设置中心凭据来源仅向登记的消费者提供账户密钥解析，画布生成 Owner `lfaa-canvas-generation` 已登记为该来源消费者。本机模型 ID、时限和空闲释放仍读取现有 `aiRuntime` 字段，切换漫剧引擎不会清除远程选择。
 
 `registerAiProvider` 是 Provider 设置目录的 Cordis 扩展合同：插件可提供受校验的 Provider 选项、模型发现与真实模型测试处理器，列表 API 返回防篡改副本，注销会移除该插件的目录定义。静态账户凭据仍由本包及 Credentials Owner 管理；Provider 连接 URL 必须使用 HTTPS 且不得内嵌身份信息。该扩展接口不改变当前外部插件 Runtime 的隔离边界。
 
 Agent Shell 的文件访问范围由 `aiRuntime.executionSandboxMode` 设置，默认 `workspace-write`，可选只读、工作区读写或完全访问；该字段不是 Permission Owner 的三种授权模式。设置服务负责默认值、枚举校验与账户持久化；受限模式能否执行仍取决于目标平台实际注册的 Sandbox Provider，缺少完整 OS 隔离时失败关闭。
 
-普通 Provider/API Key、模型目录与系统活动模型由 Settings Owner 写入 `ai_accounts` system scope（`configuration_records.user_id = null`），所有登录账户读取同一系统模型集合；系统模型编辑 API 仅管理员可写。火山方舟 Agent Plan 与 Coding Plan 使用 `user_id` 保存席位所有者，每个登录用户只能读取、测试、激活、改密钥或删除自己的 Plan 账户；其活动模型优先于系统活动模型，未配置个人席位时回退到系统活动模型。Plan `options.planTier` 保存个人套餐档位。套餐专属 Key 没有公开 `/models` 目录 API，因此 Settings Owner 使用带修订日期与官方来源 URL 的套餐公开能力目录；文本主模型保存前仍向专属 Chat Completions 端点真实测试，能力目录不伪装成账户实时权限查询。实际可用范围按控制台档位与服务商请求结果验证。
+普通 Provider/API Key、模型目录与系统活动模型由 Settings Owner 写入 `ai_accounts` system scope（`configuration_records.user_id = null`），所有登录账户读取同一系统模型集合；系统模型编辑 API 仅管理员可写。火山方舟 Agent Plan 与 Coding Plan 使用 `user_id` 保存席位所有者，每个登录用户只能读取、测试、激活、改密钥或删除自己的 Plan 账户；其活动模型优先于系统活动模型，未配置个人席位时回退到系统活动模型。Plan `options.planTier` 保存个人套餐档位。套餐专属 Key 没有公开 `/models` 目录 API，因此 Settings Owner 使用带修订日期与官方来源 URL 的套餐公开能力目录；文本主模型保存前仍向专属 Chat Completions 端点真实测试，能力目录不伪装成账户实时权限查询。GLM-5.3-Flash 的 `reasoning_effort` 目录依据 Z.ai 官方模型卡（`low/high/max`，默认 `max`）及方舟 Chat API 参数文档；其它 Plan 型号未获得同等级证据时仍不猜测思考能力。实际可用范围按控制台档位与服务商请求结果验证。
 
 首次读取旧模型配置时，仅在尚无任何 system-scope 配置的情况下，将超级管理员的旧非套餐 Provider 模型记录按原 ID、活动状态、选项和密文原样迁入 system scope；Agent/Coding Plan 记录不参与迁移，其他成员的旧个人记录保留且不进入系统模型列表。此读取迁移不会解密或重写密钥。
 

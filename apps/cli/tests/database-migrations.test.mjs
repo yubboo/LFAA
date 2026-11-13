@@ -182,8 +182,74 @@ function runDatabaseStartup(dataDirectory) {
   });
 }
 
-test("版本 76 数据库通过启动兼容检查并保留原有数据", () => {
-  const dataDirectory = mkdtempSync(join(resolve(tmpdir()), "lfaa-db-v76-current-"));
+test("版本 80 Git Worktree 迁移允许本机 Host 归属并保留已有远程记录", () => {
+  const dataDirectory = mkdtempSync(join(resolve(tmpdir()), "lfaa-db-v80-worktree-host-"));
+  const databaseDirectory = join(dataDirectory, "database");
+  const databasePath = join(databaseDirectory, "lfaa.sqlite");
+  mkdirSync(databaseDirectory, { recursive: true });
+  const legacy = new DatabaseSync(databasePath);
+  try {
+    legacy.exec(`
+      PRAGMA foreign_keys = ON;
+      CREATE TABLE users (id TEXT PRIMARY KEY NOT NULL) STRICT;
+      CREATE TABLE daemon_nodes (id TEXT PRIMARY KEY NOT NULL) STRICT;
+      CREATE TABLE workspace_projects (id TEXT PRIMARY KEY NOT NULL) STRICT;
+      INSERT INTO users (id) VALUES ('owner');
+      INSERT INTO daemon_nodes (id) VALUES ('node');
+      INSERT INTO workspace_projects (id) VALUES ('source'), ('worktree');
+      CREATE TABLE workspace_git_worktrees (
+        project_id TEXT PRIMARY KEY NOT NULL REFERENCES workspace_projects(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        source_project_id TEXT NOT NULL REFERENCES workspace_projects(id) ON DELETE RESTRICT,
+        node_id TEXT NOT NULL REFERENCES daemon_nodes(id) ON DELETE RESTRICT,
+        worktree_id TEXT NOT NULL CHECK (length(worktree_id) = 36),
+        worktree_root TEXT NOT NULL,
+        project_relative_path TEXT NOT NULL DEFAULT '',
+        branch TEXT NOT NULL CHECK (length(branch) BETWEEN 1 AND 255),
+        base_commit TEXT NOT NULL CHECK (length(base_commit) BETWEEN 40 AND 64),
+        source_head TEXT NOT NULL CHECK (length(source_head) BETWEEN 40 AND 64),
+        created_at TEXT NOT NULL
+      ) STRICT;
+      CREATE UNIQUE INDEX workspace_git_worktrees_node_id_idx ON workspace_git_worktrees(node_id, worktree_id);
+      CREATE UNIQUE INDEX workspace_git_worktrees_node_path_idx ON workspace_git_worktrees(node_id, worktree_root);
+      CREATE INDEX workspace_git_worktrees_source_idx ON workspace_git_worktrees(user_id, source_project_id);
+      INSERT INTO workspace_git_worktrees VALUES (
+        'worktree', 'owner', 'source', 'node', '00000000-0000-4000-8000-000000000080',
+        'C:/legacy/worktree', 'repo', 'codex/legacy', '${"a".repeat(40)}', '${"b".repeat(40)}', '2026-11-13T00:00:00.000Z'
+      );
+      PRAGMA user_version = 80;
+    `);
+  } finally { legacy.close(); }
+
+  try {
+    runDatabaseStartup(dataDirectory);
+    const migrated = new DatabaseSync(databasePath, { readOnly: true });
+    try {
+      assert.equal(Number(migrated.prepare("PRAGMA user_version").get().user_version), 81);
+      assert.equal(migrated.prepare("PRAGMA table_info(workspace_git_worktrees)").all().find(column => column.name === "node_id").notnull, 0);
+      assert.deepEqual({ ...migrated.prepare("SELECT project_id, user_id, source_project_id, node_id, worktree_id, worktree_root, branch FROM workspace_git_worktrees").get() }, {
+        project_id: "worktree", user_id: "owner", source_project_id: "source", node_id: "node",
+        worktree_id: "00000000-0000-4000-8000-000000000080", worktree_root: "C:/legacy/worktree", branch: "codex/legacy"
+      });
+      assert.deepEqual(migrated.prepare("PRAGMA foreign_key_check").all(), []);
+    } finally { migrated.close(); }
+
+    runDatabaseStartup(dataDirectory);
+    const restarted = new DatabaseSync(databasePath, { readOnly: true });
+    try {
+      assert.equal(Number(restarted.prepare("PRAGMA user_version").get().user_version), 81);
+      assert.equal(Number(restarted.prepare("SELECT COUNT(*) AS count FROM workspace_git_worktrees").get().count), 1);
+    } finally { restarted.close(); }
+  } finally {
+    const resolvedDataDirectory = resolve(dataDirectory);
+    assert.equal(dirname(resolvedDataDirectory), resolve(tmpdir()));
+    assert.ok(basename(resolvedDataDirectory).startsWith("lfaa-db-v80-worktree-host-"));
+    rmSync(resolvedDataDirectory, { recursive: true, force: true });
+  }
+});
+
+test("当前版本 81 数据库通过启动兼容检查并保留原有数据", () => {
+  const dataDirectory = mkdtempSync(join(resolve(tmpdir()), "lfaa-db-v81-current-"));
   try {
     const databasePath = join(dataDirectory, "database", "lfaa.sqlite");
     mkdirSync(dirname(databasePath), { recursive: true });
@@ -191,7 +257,7 @@ test("版本 76 数据库通过启动兼容检查并保留原有数据", () => {
     fixtureDatabase.exec(`
       CREATE TABLE preserved_fixture (value TEXT NOT NULL) STRICT;
       INSERT INTO preserved_fixture (value) VALUES ('kept');
-      PRAGMA user_version = 76;
+      PRAGMA user_version = 81;
     `);
     fixtureDatabase.close();
 
@@ -199,13 +265,13 @@ test("版本 76 数据库通过启动兼容检查并保留原有数据", () => {
 
     const startedDatabase = new DatabaseSync(databasePath, { readOnly: true });
     try {
-      assert.equal(Number(startedDatabase.prepare("PRAGMA user_version").get().user_version), 76);
+      assert.equal(Number(startedDatabase.prepare("PRAGMA user_version").get().user_version), 81);
       assert.equal(startedDatabase.prepare("SELECT value FROM preserved_fixture").get().value, "kept");
     } finally { startedDatabase.close(); }
   } finally {
     const resolvedDataDirectory = resolve(dataDirectory);
     assert.equal(dirname(resolvedDataDirectory), resolve(tmpdir()));
-    assert.ok(basename(resolvedDataDirectory).startsWith("lfaa-db-v76-current-"));
+    assert.ok(basename(resolvedDataDirectory).startsWith("lfaa-db-v81-current-"));
     rmSync(resolvedDataDirectory, { recursive: true, force: true });
   }
 });

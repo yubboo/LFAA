@@ -4,9 +4,26 @@
  * 关联文件：registry.ts、领域工具、Agent Loop。
  */
 import Joi from "joi";
-import type { ApplicationId } from "lfaa-util-values/src/application-id.js";
+import type { ApplicationId, WorkspaceProjectContextApplicationId } from "lfaa-util-values/src/application-id.js";
 import type { UserRole } from "lfaa-identity-auth/src/service.js";
 export type AiBusinessToolRisk = "read" | "write" | "dangerous";
+export interface AiBusinessWorkspaceProjectContext {
+  /** Informational IDs are present for registered session projects; legacy read-only owner adapters may pass only a verified folder. */
+  id?: string;
+  appId?: Extract<ApplicationId, "workspace" | "minecraft">;
+  nodeId: string | null;
+  path: string;
+  title: string;
+  applicationIds?: WorkspaceProjectContextApplicationId[];
+  instructions?: string;
+  memoryMode?: "default" | "project_only";
+  sources?: string[];
+  sourceDirectories?: Array<{ id: string; path: string }>;
+}
+export interface AiBusinessRegisteredWorkspaceProjectContext extends AiBusinessWorkspaceProjectContext {
+  id: string;
+  appId: Extract<ApplicationId, "workspace" | "minecraft">;
+}
 
 export interface AiExternalAgentToolDefinition {
   name: string;
@@ -73,7 +90,9 @@ export interface AiBusinessToolContext {
     completionTokens: number | null;
     cacheReadTokens: number | null;
   }[]) => void;
-  workspaceProject?: { nodeId: string | null; path: string; title: string; sources?: string[]; sourceDirectories?: Array<{ id: string; path: string }> } | null;
+  workspaceProject?: AiBusinessWorkspaceProjectContext | null;
+  /** Project Owner tool can change the current Run's trusted folder after a successful project creation. */
+  updateWorkspaceProject?: (project: AiBusinessRegisteredWorkspaceProjectContext | null) => void;
   /** Agent Git Workspace Owner 解析出的可信本机仓库上下文，与 workspaceProject/Daemon 节点无关。 */
   agentGitRepository?: { id: string; path: string; title: string } | null;
   /** 由 LFAA 本机 Host 注入的共享受限文件执行器；Daemon 模式下不提供。 */
@@ -98,7 +117,7 @@ export interface AiBusinessTool {
   name: string;
   /** LFAA 必需 Core 管理能力，不随账户的可选 AI 扩展开关关闭。 */
   coreManaged?: boolean;
-  /** 仅模型在本次 Run 显式选择后向 Provider 暴露完整合同，不以 App 自动开启。 */
+  /** 默认 true：仅模型在本次 Run 显式选择后向 Provider 暴露完整合同；仅小型核心入口可显式设为 false。 */
   onDemand?: boolean;
   /** 领域执行器重验互斥及状态的操作，可在不同写工具成功修复后重试已确认失败；未知结果始终禁止重放。 */
   retryAfterRecovery?: boolean;
@@ -120,7 +139,7 @@ export interface AiBusinessTool {
   applicationIds: ApplicationId[];
   schema: Record<string, unknown>;
   risk: (parameters: Record<string, unknown>) => AiBusinessToolRisk;
-  approval: (parameters: Record<string, unknown>, context: Pick<AiBusinessToolContext, "userId" | "applicationId"> & Partial<Pick<AiBusinessToolContext, "agentGitRepository">>) => { scopeKey: string; scopeSummary: string; summary: string };
+  approval: (parameters: Record<string, unknown>, context: Pick<AiBusinessToolContext, "userId" | "applicationId"> & Partial<Pick<AiBusinessToolContext, "agentGitRepository" | "workspaceProject">>) => { scopeKey: string; scopeSummary: string; summary: string };
   prepare?: (parameters: Record<string, unknown>, context: Pick<AiBusinessToolContext, "userId"> & Partial<Pick<AiBusinessToolContext, "userRole" | "workspaceProject" | "agentGitRepository" | "authorizeExternalAgentAction" | "externalAgentTools" | "dispatchExternalAgentTool">>) => Record<string, unknown>;
   parse: (value: unknown) => Record<string, unknown>;
   execute: (parameters: Record<string, unknown>, context: AiBusinessToolContext) => Promise<unknown>;

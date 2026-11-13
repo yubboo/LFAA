@@ -15,7 +15,7 @@ import { createSnapshotCache, clearClientSnapshots } from "../../../packages/cli
 import { createAiActivityClockStore } from "../../../packages/client/ui-chat/src/activity-clock.ts";
 import { observeWorkbenchMetrics } from "../../../packages/client/ui-dockkit/src/use-workbench-metrics.ts";
 import { buildConversationAnchors, conversationAnchorReply } from "../../../packages/client/ui-chat/src/conversation-anchor-preview.ts";
-import { buildConversationAnchorLayout, createConversationScrollTracker, createFrameCoalescer, findNearestConversationAnchorIndex, preserveConversationAnchorViewport, projectConversationWheelScroll, shouldAutoScrollToLatest, shouldFollowLatestMessage, shouldShowScrollToLatest, syncConversationScrollToLatest, updateConversationAnchorPointerTarget, updateResponseProcessFollowState } from "../../../packages/client/ui-chat/src/conversation-scroll.ts";
+import { buildConversationAnchorLayout, createConversationScrollTracker, createFrameCoalescer, findNearestConversationAnchorIndex, preserveConversationAnchorViewport, projectConversationWheelScroll, shouldAutoScrollToLatest, shouldFollowLatestMessage, shouldIgnoreMainConversationWheel, shouldRestoreConversationBottomPinned, shouldShowScrollToLatest, syncConversationScrollToLatest, updateConversationAnchorPointerTarget, updateResponseProcessFollowState } from "../../../packages/client/ui-chat/src/conversation-scroll.ts";
 import { sameTerminalTask } from "../../../packages/client/ui-workspace/src/terminal-snapshot.ts";
 
 function browserEvents(t) {
@@ -741,6 +741,10 @@ test("流式提交后在绘制前同步跟随最新正文，用户上翻时不�
   viewport.scrollTop = 240;
   assert.equal(syncConversationScrollToLatest(viewport, false), false);
   assert.equal(viewport.scrollTop, 240, "用户离开底部后保留用户位置");
+
+  const chatSource = readFileSync(new URL("../../../packages/client/ui-chat/src/AiWorkChat.tsx", import.meta.url), "utf8");
+  assert.match(chatSource, /if \(initializedScrollConversationRef\.current === conversationKey\) \{\s*syncConversationScrollToLatest\(element, followLatestMessageRef\.current\);\s*\}/u,
+    "结束流式输出的最后一次消息提交也同步主滚动条，同时不覆盖首次恢复的位置");
 });
 
 test("刷新恢复时按首次绘制位置同步决定是否显示回到底部", () => {
@@ -749,12 +753,49 @@ test("刷新恢复时按首次绘制位置同步决定是否显示回到底部",
   assert.equal(shouldShowScrollToLatest(500, 0), false);
 });
 
+test("会话恢复时将微小离底误差贴齐，同时保留明确的历史阅读位置", () => {
+  assert.equal(shouldRestoreConversationBottomPinned(true, 400), true, "已保存的贴底状态继续跟随最新消息");
+  assert.equal(shouldRestoreConversationBottomPinned(false, 12), true, "12px 的微小离底误差恢复为精确贴底");
+  assert.equal(shouldRestoreConversationBottomPinned(false, 16), true, "16px 边界内贴底");
+  assert.equal(shouldRestoreConversationBottomPinned(false, 17), false, "超过误差范围的历史位置不被覆盖");
+  assert.equal(shouldRestoreConversationBottomPinned(null, 64), true, "没有语义记录时保留原来的近底恢复行为");
+  assert.equal(shouldRestoreConversationBottomPinned(null, 65), false);
+
+  const chatSource = readFileSync(new URL("../../../packages/client/ui-chat/src/AiWorkChat.tsx", import.meta.url), "utf8");
+  assert.match(chatSource, /shouldRestoreConversationBottomPinned\(messagesScroll\.restoredBottomPinnedRef\.current, distanceFromBottom\)/u,
+    "会话恢复使用容差判断，而非直接沿用可能偏离几像素的旧位置");
+});
+
 test("回到底部的滚轮预测只接受容器真实可滚动的距离", () => {
   assert.equal(projectConversationWheelScroll(0, 436, 436, -120), null);
   assert.equal(projectConversationWheelScroll(0, 900, 436, -120), null);
   assert.equal(projectConversationWheelScroll(464, 900, 436, -120)?.distanceFromBottom, 120);
   assert.deepEqual(projectConversationWheelScroll(240, 900, 436, 120), { direction: "down", distanceFromBottom: 104 });
   assert.equal(projectConversationWheelScroll(464, 900, 436, 120), null);
+});
+
+test("工具明细内层滚轮保持独立，只有可滚动链的边界才交给主对话", () => {
+  const inner = { scrollTop: 80, scrollHeight: 400, clientHeight: 200, overflowY: "auto", overscrollBehaviorY: "auto" };
+  assert.equal(shouldIgnoreMainConversationWheel(-40, [inner]), true, "内层正在向上滚动时不改变主对话跟随状态");
+  assert.equal(shouldIgnoreMainConversationWheel(40, [inner]), true, "内层正在向下滚动时不改变主对话跟随状态");
+  assert.equal(shouldIgnoreMainConversationWheel(-40, [{ ...inner, scrollTop: 0 }]), false, "内层在顶部且允许滚动链时主对话可接续滚动");
+  assert.equal(shouldIgnoreMainConversationWheel(40, [{ ...inner, scrollTop: 200 }]), false, "内层在底部且允许滚动链时主对话可接续滚动");
+  assert.equal(shouldIgnoreMainConversationWheel(40, [{ ...inner, scrollTop: 200, overscrollBehaviorY: "contain" }]), true, "内层明确阻止滚动链时不误改主对话状态");
+  assert.equal(shouldIgnoreMainConversationWheel(40, [{ ...inner, scrollHeight: 150, clientHeight: 200 }]), false, "没有实际溢出的内层不拦截主对话滚动");
+  assert.equal(shouldIgnoreMainConversationWheel(40, [{ ...inner, scrollTop: 200 }, inner]), true, "内层触边后仍有可滚动祖先时由该祖先消费滚轮");
+
+  const chatSource = readFileSync(new URL("../../../packages/client/ui-chat/src/AiWorkChat.tsx", import.meta.url), "utf8");
+  assert.match(chatSource, /shouldIgnoreMainConversationWheel\(event\.deltaY, nestedScrollers\)/u, "主对话 wheel 处理先识别可消费事件的内层滚动区");
+});
+
+test("回复工具组达到六条活动后才启用独立纵向滚动", () => {
+  const responseSource = readFileSync(new URL("../../../packages/client/ui-chat/src/AiWorkResponse.tsx", import.meta.url), "utf8");
+  const chatStyles = readFileSync(new URL("../../../packages/client/ui-chat/src/ai-work-chat.css", import.meta.url), "utf8");
+
+  assert.match(responseSource, /AI_TOOL_GROUP_SCROLL_MIN_ACTIVITY_COUNT = 6/u, "六项门槛明确按工具活动数量设定");
+  assert.match(responseSource, /block\.activities\.length >= AI_TOOL_GROUP_SCROLL_MIN_ACTIVITY_COUNT/u, "短组保持自然展开，长组切换到独立列表");
+  assert.match(chatStyles, /\.ai-work-chat__tool-group-items--scrollable \{ max-height: min\(34dvh, 280px\); overflow-x: hidden; overflow-y: auto; \}/u, "长组只允许纵向滚动，不生成横向滚动条");
+  assert.match(chatStyles, /\.ai-work-chat__tool-group-items \{ display: grid; min-width: 0;/u, "短组基础样式不设置独立溢出滚动");
 });
 
 test("终端同值任务快照不触发更新，输出、取消及任务切换仍能被识别", () => {

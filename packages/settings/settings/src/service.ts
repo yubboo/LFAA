@@ -1309,13 +1309,10 @@ function normalizeSavedModels(providerId: string, value: unknown): AiModelCatalo
   }).slice(0, 500);
   if (!isArkPlanProviderId(providerId)) return savedModels;
   const officialModels = listArkPlanModels(providerId, { planTier: "unknown" });
-  const savedById = new Map(savedModels.map(model => [model.id, model]));
   const officialIds = new Set(officialModels.map(model => model.id));
   return [
-    ...officialModels.map(model => {
-      const saved = savedById.get(model.id);
-      return saved ? { ...model, thinking: saved.thinking, thinkingSource: saved.thinkingSource } : model;
-    }),
+    // 套餐官方目录是当前权威来源；不能让旧账户快照中的 thinking:null 覆盖后来补齐的官方能力。
+    ...officialModels,
     ...savedModels.filter(model => !officialIds.has(model.id)).map(model => ({ ...model, taskType: model.taskType ?? "chat" as const }))
   ].slice(0, 500);
 }

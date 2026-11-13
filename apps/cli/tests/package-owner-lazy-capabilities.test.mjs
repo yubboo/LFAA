@@ -20,6 +20,57 @@ test("普通模型请求只带上下文和发现指引，不随 App 自动注入
   }
 });
 
+test("Settings Schema 通过既有工具目录按需发现和加载，不改变原工具合同", async () => {
+  const { listAiBusinessTools } = await import("lfaa-tools/src/business-tools.js");
+  const { createToolDiscoveryTools } = await import("lfaa-tools/src/discovery-tools.js");
+  const tools = listAiBusinessTools("workspace", "admin", null, "full_access");
+  const visible = tools.filter(tool => !tool.onDemand);
+  const loadedNames = new Set();
+  const [list, load] = createToolDiscoveryTools(() => tools, names => names.forEach(name => loadedNames.add(name)));
+  const context = { signal: new AbortController().signal };
+  assert.ok(!visible.some(tool => tool.name === "lfaa_settings_list"));
+  assert.ok(!visible.some(tool => tool.name === "lfaa_settings_update"));
+  const result = await list.execute(list.parse({ query: "读取设置中心", offset: 0, limit: 40 }), context);
+  assert.ok(result.tools.some(tool => tool.name === "lfaa_settings_list"));
+  const loaded = await load.execute(load.parse({ names: ["lfaa_settings_list"] }), context);
+  assert.deepEqual(loaded.loaded, ["lfaa_settings_list"]);
+  assert.equal(loaded.executed, false, "目录加载只提供真实工具合同，不执行设置读取或写入");
+  assert.ok(loaded.tools.some(tool => tool.name === "lfaa_settings_list" && tool.parameters));
+  assert.deepEqual([...loadedNames], ["lfaa_settings_list"]);
+});
+
+test("Registry 领域工具默认延迟发送完整合同，仍可被模型发现和加载", async () => {
+  const { registerAiBusinessTool, listRegisteredAiTools } = await import("lfaa-tools/src/registry.js");
+  const { createToolDiscoveryTools } = await import("lfaa-tools/src/discovery-tools.js");
+  const owner = new Context();
+  const fiber = await owner.plugin({ name: "fixture-lazy-registry-tool", apply(ctx) {
+    registerAiBusinessTool(ctx, {
+      id: "fixture.lazy-registry-tool",
+      name: "fixture_lazy_registry_tool",
+      applicationIds: ["workspace"],
+      description: "按需读取隔离测试中的目标对象。",
+      schema: { type: "object", properties: { target: { type: "string" } }, required: ["target"], additionalProperties: false },
+      parse: value => value,
+      risk: () => "read",
+      approval: () => ({ scopeKey: "fixture", scopeSummary: "fixture", summary: "读取隔离测试对象" }),
+      execute: async () => ({ result: "fixture" })
+    });
+  } });
+  try {
+    const tool = listRegisteredAiTools().find(item => item.name === "fixture_lazy_registry_tool");
+    assert.equal(tool?.onDemand, true, "没有显式常驻声明的 Registry 工具默认按需加载");
+    let loadedNames = [];
+    const [list, load] = createToolDiscoveryTools(() => [tool], names => { loadedNames = names; });
+    assert.equal((await list.execute(list.parse({ query: "隔离测试目标" }), { signal: new AbortController().signal })).tools[0].name, tool.name);
+    const loaded = await load.execute(load.parse({ names: [tool.name] }), { signal: new AbortController().signal });
+    assert.equal(loaded.executed, false);
+    assert.deepEqual(loadedNames, [tool.name]);
+    assert.equal(loaded.tools[0].parameters.required[0], "target");
+  } finally {
+    await fiber.dispose();
+  }
+});
+
 test("专家和领域提示词不能被扩展目录自动注入，正文由明确加载返回", async () => {
   const ctx = new Context();
   const registry = new AiExtensionRegistry(ctx);
@@ -43,7 +94,7 @@ test("真实装配从其他 App 按需发现 Minecraft 方法，完整合同只�
   const userId = randomUUID();
   database.prepare("INSERT INTO users(id,username,password_salt,password_hash,role) VALUES(?,?,'fixture','fixture','admin')").run(userId, `fixture-${userId}`);
   settings.saveUserSettings(userId, "permissions", { mode: "full_access" });
-  settings.saveUserSettings(userId, "ai-runtime", { ...settings.defaultSettings.aiRuntime, requestRetries: 0 });
+    settings.saveUserSettings(userId, "ai-runtime", { ...settings.defaultSettings.aiRuntime, requestRetries: 0, promptSuggestions: false });
   const ctx = new Context(), fibers = [];
   const native = globalThis.fetch;
   try {
@@ -93,9 +144,15 @@ test("真实装配从其他 App 按需发现 Minecraft 方法，完整合同只�
       const body = JSON.parse(options.body); requests.push(body);
       const names = body.tools.map(tool => tool.function.name);
       if (requests.length === 1) {
+        const candidateCount = ctx.lfaaTools.listAiBusinessTools("workspace", "admin", null, "full_access", true).length;
+        t.diagnostic(`首轮 Provider 收到 ${body.tools.length} 个工具 Schema（${Buffer.byteLength(JSON.stringify(body.tools), "utf8")} 字节）；当前真实目录有 ${candidateCount} 个候选工具。`);
         assert.ok(names.includes("lfaa_tools_load"));
+        assert.ok(!names.includes("lfaa_settings_list"), "Settings Tool Schema remains discoverable but is not sent to unrelated first requests");
         assert.ok(!names.includes("minecraft_list_instances"));
         assert.ok(!names.includes("minecraft_provision_server"));
+        const firstSystem = body.messages.find(message => message.role === "system")?.content ?? "";
+        assert.match(firstSystem, /<active-model-route provider="openai" model="fixture" \/>/u);
+        assert.match(firstSystem, /不要为重复核实它调用 Settings 读取工具/u);
         assert.ok(!JSON.stringify(body.messages).includes("你是 LFAA 的 Minecraft 专用 Agent"));
         assert.ok(JSON.stringify(body.messages).includes("skill.registry/minecraft-server-setup"));
         assert.ok(!JSON.stringify(body.messages).includes("新开服优先使用 `minecraft_provision_server`"), "关联不会加载 Skill 正文");

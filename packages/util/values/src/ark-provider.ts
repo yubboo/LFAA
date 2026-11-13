@@ -1,7 +1,7 @@
 /** 火山方舟公开接入地址的共享事实源。 */
 export const ARK_OPENAI_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3";
 /** 当前在 LFAA 中整理的火山方舟 Agent/Coding Plan 官方目录版本。 */
-export const ARK_PLAN_CATALOG_REVISION = "2026-10-26";
+export const ARK_PLAN_CATALOG_REVISION = "2026-11-13";
 
 export const ARK_PLAN_PROVIDERS = Object.freeze({
   agent: Object.freeze({

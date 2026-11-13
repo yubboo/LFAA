@@ -11,6 +11,8 @@ import { formatAiActivityDuration, getAiActivityActionLabel, getAiActivityDurati
 import { aiActivityClock } from "./activity-clock.js";
 import { buildResponseTimeline, getResponseShimmerHue, latestBrowserPreviewActivity, responseToolGroupLabel, splitAiActivityDetail, type ResponseTimelineBlock } from "./response-timeline.js";
 
+const AI_TOOL_GROUP_SCROLL_MIN_ACTIVITY_COUNT = 6;
+
 export function AiLiveActivityDuration({ activity }: { activity: AiActivityItem }) {
   const now = useSyncExternalStore(aiActivityClock.subscribe, aiActivityClock.getSnapshot, aiActivityClock.getSnapshot);
   return <>{formatAiActivityDuration(getAiActivityDurationSeconds(activity, now))}</>;
@@ -157,13 +159,14 @@ export function AiWorkResponse({ message, pauseLabel, renderActivity, renderInte
       const isWebGroup = block.activities.some(activity => /搜索|网页|浏览/u.test(activity.title));
       const icon = hasFileChanges ? "file" : isCommandGroup ? "terminal" : isWebGroup ? "browser" : "tools";
       const isRunning = block.activities.some(activity => activity.status === "running");
+      const hasManyActivities = block.activities.length >= AI_TOOL_GROUP_SCROLL_MIN_ACTIVITY_COUNT;
       const previousStatus = previousBlock?.kind === "status" && !isToolGroupBlock(presentation.blocks[index - 2]) ? previousBlock : null;
       const inlineStatus = nextBlock?.kind === "status" ? nextBlock : previousStatus;
       return <details className={`ai-work-chat__tool-group${isRunning ? " ai-work-chat__tool-group--running" : ""}`} key={block.id}>
         <summary><WorkbenchIcon name={icon} size={14} /><span className="ai-work-chat__tool-group-label">{responseToolGroupLabel(block.activities)}</span>
           {inlineStatus ? <span className={`ai-work-chat__tool-group-live-status${inlineStatus.isProcessing ? " ai-work-chat__tool-group-live-status--processing" : ""}`} role="status" aria-live="polite" aria-atomic="true"><span>{inlineStatus.label}</span></span> : null}
           <WorkbenchIcon name="chevron" size={13} /></summary>
-        <div className="ai-work-chat__tool-group-items">{block.activities.map(renderActivity)}</div>
+        <div className={`ai-work-chat__tool-group-items${hasManyActivities ? " ai-work-chat__tool-group-items--scrollable" : ""}`}>{block.activities.map(renderActivity)}</div>
       </details>;
     })}
   </div>;

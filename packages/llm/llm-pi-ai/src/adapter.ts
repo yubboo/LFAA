@@ -6,7 +6,7 @@
  *   仅思考参数与 max_tokens 字段名需按模型能力映射。
  * 关联文件：lfaa-llm completion.ts（实际发请求）、models.ts（思考档位）。
  */
-import type { AiCompletionMessage, AiCompletionTool, AiCompletionUsage } from "lfaa-llm/src/completion.js";
+import { normalizeAiCompletionUsage, type AiCompletionMessage, type AiCompletionTool, type AiCompletionUsage } from "lfaa-llm/src/completion.js";
 
 /** 一次豆包对话请求的报文片段（不含 system，system 由 lfaa-llm 统一组装）。 */
 export interface ArkChatRequest {
@@ -48,22 +48,5 @@ export function buildArkChatRequest(
 
 /** 从 Ark 响应 usage 提取 LFAA 用量。 */
 export function readArkUsage(raw: unknown): AiCompletionUsage {
-  if (typeof raw !== "object" || raw === null) return { promptTokens: null, completionTokens: null, cacheReadTokens: null };
-  const usage = raw as Record<string, unknown>;
-  const promptTokens = usage.prompt_tokens;
-  const completionTokens = usage.completion_tokens;
-  const details = typeof usage.prompt_tokens_details === "object" && usage.prompt_tokens_details !== null
-    ? usage.prompt_tokens_details as Record<string, unknown>
-    : null;
-  const nestedCacheReadTokens = details?.cached_tokens;
-  const cacheMissTokens = usage.prompt_cache_miss_tokens;
-  const validCacheCount = (candidate: unknown): candidate is number => typeof candidate === "number" && Number.isSafeInteger(candidate) && candidate >= 0;
-  return {
-    promptTokens: typeof promptTokens === "number" ? promptTokens : null,
-    completionTokens: typeof completionTokens === "number" ? completionTokens : null,
-    cacheReadTokens: validCacheCount(usage.prompt_cache_hit_tokens)
-      ? usage.prompt_cache_hit_tokens
-      : validCacheCount(nestedCacheReadTokens) ? nestedCacheReadTokens
-        : validCacheCount(cacheMissTokens) && typeof promptTokens === "number" && Number.isSafeInteger(promptTokens) && promptTokens >= cacheMissTokens ? promptTokens - cacheMissTokens : null
-  };
+  return normalizeAiCompletionUsage(raw) ?? { promptTokens: null, completionTokens: null, cacheReadTokens: null };
 }

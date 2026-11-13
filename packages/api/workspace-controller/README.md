@@ -1,6 +1,10 @@
 # Workspace Controller
 
+`POST /workspace/projects/:projectId/git/worktrees` 与 Agent 的 `workspace_create_worktree` 共用 `lfaa-workspace-workspace/src/git-worktree-operations.ts`。Workspace Owner 维护源项目限制、Workspace 本机 Host 与 App 本机 Daemon 校验、Host Git 创建、项目登记和失败回收；Controller 只处理认证与 HTTP 错误映射。
+
 本包提供认证后的项目与文件夹 API。AI Work 的 `workspace` 项目按账户保存项目名称、指令、记忆范围、聊天归属、一个项目主目录和多个可选附加本机源文件夹。创建时由 LFAA 本机 Host 在用户选择的工作区父目录下按项目名新建项目文件夹；该主目录始终保留，编辑只能增删附加源文件夹。`GET /workspace/projects?appId=workspace` 只查本机项目，返回空节点列表，不查询 Daemon 节点表或在线状态。`POST /workspace/projects/local/browse`、项目目录创建、编辑及文件读取均经 LFAA 本机 Host；AI Work 创建 API 拒绝 `nodeId` 和 Daemon 路径。历史节点项目记录不会出现在 AI Work 项目选择器中。Minecraft 的目录选择继续使用其独立节点流程。
+
+本机项目目录名称校验复用 Workspace Owner 的 `workspaceProjectDirectoryName`；Agent 项目创建工具直接调用同一 Host 和项目 Owner，不经浏览器绕过认证 API，也不建立第二份目录登记。
 
 `POST /workspace/projects/initialize-default` 实现独立的默认工作区初始化：LFAA 本机 Project Files Host 从操作系统动态解析“文档”位置，在其下创建小写 `lfaa/default-workspace`；不写死盘符/路径，不检查 Daemon 在线状态，也不创建节点任务。首次初始化仍只在账户没有项目与活动/归档会话时创建。迁移 58 前缺少默认身份标记的旧版账户，只通过本机已保存身份定位唯一旧默认路径，再原子清空该项目的 `node_id`；此兼容迁移不连接或等待 Daemon。若既有默认项目登记到其他路径，Controller 只创建规范文件夹并由 Workspace Owner 更新登记；旧目录内容、Session 记录、会话文件及 `.lfaa` 数据保持原样，不复制或移动。SQLite 迁移 60 清除已知默认项目的旧节点绑定，保留项目 ID、路径和内容。默认项目身份单独持久化，移除登记后不自动重建。
 

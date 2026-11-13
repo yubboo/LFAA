@@ -9,3 +9,5 @@
 保存前，Agent Loop 的 Session 投影剥离 `<conversation-memory>` 注入块，不把记忆正文写入新的请求/尝试模型快照。清空记忆时，设置 API 先委托 Session Owner 重写该账户已有 JSONL 会话日志并重新计算完整性哈希链，再递增 revision 清空 SQLite 记忆；聊天原文保留。此操作针对活动数据目录中的权威日志，不触及独立备份副本。
 
 SQLite schema version 43 创建账户外键、长度约束、递增 revision 与更新时间；数据随账户删除级联清除。
+
+Settings Controller 的专用 MCP 路由复用同一 Owner，按认证令牌所属账户读取或替换账户记忆。外部写入仍调用 `validateConversationMemoriesInput` 与 revision CAS；项目记忆不会暴露。路由与外部令牌默认关闭，开关由 Settings Owner 持有，凭据由 Identity/Auth Owner 管理。

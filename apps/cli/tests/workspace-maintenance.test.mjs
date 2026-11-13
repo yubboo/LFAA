@@ -46,6 +46,57 @@ function createUpdateFixture(t) {
   return { root, remote, local, writer, childEnvironment };
 }
 
+function createPushFixture(t) {
+  const root = mkdtempSync(join(repository, "dist/.tmp/git-menu-push-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const remote = join(root, "origin.git");
+  const local = join(root, "local");
+  mkdirSync(local, { recursive: true });
+  git(root, ["init", "--bare", "--initial-branch=main", remote]);
+  git(local, ["init", "--initial-branch=main"]);
+  git(local, ["config", "user.name", "LFAA Push Fixture"]);
+  git(local, ["config", "user.email", "push-fixture@example.invalid"]);
+
+  writeFileSync(join(local, "package.json"), JSON.stringify({ name: "lfaa", version: "0.0.15" }));
+  mkdirSync(join(local, "docs"), { recursive: true });
+  writeFileSync(join(local, "docs", "updata-log.md"), "- **项目版本：** `LFAA 0.0.15`\n");
+  writeFileSync(join(local, "source.ts"), "baseline\n");
+  mkdirSync(join(local, "scripts"), { recursive: true });
+  const pushMenuSource = readFileSync(join(repository, "scripts/install-dependencies.ps1"), "utf8")
+    .replaceAll("https://github.com/yubboo/LFAA.git", remote);
+  writeFileSync(join(local, "scripts/install-dependencies.ps1"), pushMenuSource);
+  for (const file of ["source-version.ps1", "windows-rust-toolchain.ps1", "resolve-data-directory.mjs"]) {
+    cpSync(join(repository, "scripts", file), join(local, "scripts", file));
+  }
+  const homePathsSource = "packages/util/home-paths/src";
+  mkdirSync(join(local, homePathsSource), { recursive: true });
+  cpSync(join(repository, homePathsSource, "resolve-data-directory.mjs"), join(local, homePathsSource, "resolve-data-directory.mjs"));
+
+  git(local, ["add", "-A"]);
+  git(local, ["commit", "-m", "0.0.15 isolated baseline"]);
+  git(local, ["remote", "add", "origin", remote]);
+  git(local, ["push", "--set-upstream", "origin", "main"]);
+
+  const environment = {
+    ...process.env,
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_TERMINAL_PROMPT: "0",
+    LFAA_DATA_DIR: join(root, "runtime-data")
+  };
+  delete environment.GIT_INDEX_FILE;
+  return { root, remote, local, environment };
+}
+
+function runPushMenu(fixture, input) {
+  return spawnSync("powershell.exe", ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", join(fixture.local, "scripts/install-dependencies.ps1")], {
+    cwd: fixture.local,
+    env: fixture.environment,
+    input,
+    encoding: "utf8",
+    windowsHide: true
+  });
+}
+
 function updateProject(fixture, yes = true, environmentOverrides = {}) {
   const args = ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", join(repository, "scripts/update-project.ps1"), "-ProjectRoot", fixture.local];
   if (yes) args.push("-Yes");
@@ -207,6 +258,83 @@ test("Windows 本地源码更新只快进并保留数据根内容", { skip: proc
   assert.equal(git(fixture.local, ["status", "--porcelain"]), "");
 });
 
+test("Windows 菜单 6 拒绝从非 main 分支推送", { skip: process.platform !== "win32" }, t => {
+  const fixture = createPushFixture(t);
+  git(fixture.local, ["checkout", "-b", "codex/wrong-source"]);
+  writeFileSync(join(fixture.local, "source.ts"), "keep this local change\n");
+  const before = git(fixture.local, ["rev-parse", "HEAD"]);
+  const remoteBefore = git(fixture.root, ["--git-dir", fixture.remote, "rev-parse", "refs/heads/main"]);
+
+  const result = runPushMenu(fixture, "6\n\n0\n");
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.match(result.stdout + result.stderr, /codex\/wrong-source/u);
+  assert.equal(git(fixture.local, ["rev-parse", "HEAD"]), before);
+  assert.equal(git(fixture.root, ["--git-dir", fixture.remote, "rev-parse", "refs/heads/main"]), remoteBefore);
+  assert.equal(readFileSync(join(fixture.local, "source.ts"), "utf8"), "keep this local change\n");
+});
+
+test("Windows 菜单 6 在 GitHub main 领先时于本地提交前停止", { skip: process.platform !== "win32" }, t => {
+  const fixture = createPushFixture(t);
+  const writer = join(fixture.root, "writer");
+  git(fixture.root, ["clone", fixture.remote, writer]);
+  git(writer, ["config", "user.name", "LFAA Push Fixture"]);
+  git(writer, ["config", "user.email", "push-fixture@example.invalid"]);
+  writeFileSync(join(writer, "upstream.ts"), "upstream only\n");
+  git(writer, ["add", "upstream.ts"]);
+  git(writer, ["commit", "-m", "0.0.16 upstream update"]);
+  git(writer, ["push", "origin", "main"]);
+
+  const localBefore = git(fixture.local, ["rev-parse", "HEAD"]);
+  const remoteBefore = git(fixture.root, ["--git-dir", fixture.remote, "rev-parse", "refs/heads/main"]);
+  writeFileSync(join(fixture.local, "source.ts"), "keep uncommitted source\n");
+  const status = git(fixture.local, ["status", "--porcelain", "--untracked-files=all"]);
+
+  const result = runPushMenu(fixture, "6\n\n0\n");
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.equal(git(fixture.local, ["rev-parse", "HEAD"]), localBefore);
+  assert.equal(git(fixture.root, ["--git-dir", fixture.remote, "rev-parse", "refs/heads/main"]), remoteBefore);
+  assert.equal(git(fixture.local, ["status", "--porcelain", "--untracked-files=all"]), status);
+  assert.equal(readFileSync(join(fixture.local, "source.ts"), "utf8"), "keep uncommitted source\n");
+});
+
+test("Windows 菜单 6 用户取消时保留暂存、未暂存和未跟踪状态", { skip: process.platform !== "win32" }, t => {
+  const fixture = createPushFixture(t);
+  writeFileSync(join(fixture.local, "source.ts"), "staged version\n");
+  git(fixture.local, ["add", "source.ts"]);
+  writeFileSync(join(fixture.local, "source.ts"), "unstaged version\n");
+  writeFileSync(join(fixture.local, "new-source.ts"), "untracked version\n");
+  const before = git(fixture.local, ["rev-parse", "HEAD"]);
+  const indexTree = git(fixture.local, ["write-tree"]);
+  const status = git(fixture.local, ["status", "--porcelain", "--untracked-files=all"]);
+
+  const result = runPushMenu(fixture, "6\n0.0.16 cancelled menu push\n\n\n0\n");
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.equal(git(fixture.local, ["rev-parse", "HEAD"]), before);
+  assert.equal(git(fixture.local, ["write-tree"]), indexTree);
+  assert.equal(git(fixture.local, ["status", "--porcelain", "--untracked-files=all"]), status);
+  assert.deepEqual(readdirSync(join(fixture.local, ".git")).filter(name => name.startsWith("index.lfaa-push-")), []);
+});
+
+test("Windows 菜单 6 明确确认后只从本地 main 正常推送到隔离远端", { skip: process.platform !== "win32" }, t => {
+  const fixture = createPushFixture(t);
+  const before = git(fixture.local, ["rev-parse", "HEAD"]);
+  writeFileSync(join(fixture.local, "source.ts"), "reviewed source change\n");
+
+  const result = runPushMenu(fixture, "6\n0.0.16 isolated menu push\ny\n\n0\n");
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  const localRevision = git(fixture.local, ["rev-parse", "HEAD"]);
+  const remoteRevision = git(fixture.root, ["--git-dir", fixture.remote, "rev-parse", "refs/heads/main"]);
+  assert.notEqual(localRevision, before, result.stderr || result.stdout);
+  assert.equal(localRevision, remoteRevision);
+  assert.match(git(fixture.local, ["log", "-1", "--format=%s"]), /^0\.0\.16 isolated menu push$/u);
+  assert.equal(git(fixture.local, ["write-tree"]), git(fixture.local, ["rev-parse", "HEAD^{tree}"]));
+  assert.equal(git(fixture.local, ["status", "--porcelain", "--untracked-files=all"]), "");
+});
+
 test("Windows 本地源码更新仅临时信任动态项目根以通过 Git 所有权检查", { skip: process.platform !== "win32" }, t => {
   const fixture = createUpdateFixture(t);
   writeFileSync(join(fixture.writer, "latest-source.ts"), "latest upstream source\n");
@@ -293,6 +421,31 @@ test("Windows 当前分支已最新时仍安全快进未检出的本地 main 引
   assert.equal(git(fixture.local, ["rev-parse", "HEAD"]), currentRevision);
   assert.equal(git(fixture.local, ["rev-parse", "main"]), git(fixture.local, ["rev-parse", "origin/main"]));
   assert.equal(readFileSync(join(fixture.local, "latest-source.ts"), "utf8").replace(/\r\n/g, "\n"), "latest upstream source\n");
+  assert.equal(git(fixture.local, ["status", "--porcelain"]), "");
+});
+
+test("Windows 当前分支领先远端时保留本地提交并继续安全快进本地 main", { skip: process.platform !== "win32" }, t => {
+  const fixture = createUpdateFixture(t);
+  writeFileSync(join(fixture.writer, "latest-source.ts"), "latest upstream source\n");
+  git(fixture.writer, ["add", "latest-source.ts"]);
+  git(fixture.writer, ["commit", "-m", "upstream update"]);
+  git(fixture.writer, ["push", "origin", "main"]);
+  git(fixture.local, ["fetch", "origin", "refs/heads/main:refs/remotes/origin/main"]);
+  git(fixture.local, ["checkout", "-b", "codex/current-source", "origin/main"]);
+  writeFileSync(join(fixture.local, "local-only.ts"), "keep this local commit\n");
+  git(fixture.local, ["add", "local-only.ts"]);
+  git(fixture.local, ["commit", "-m", "local work"]);
+
+  const currentRevision = git(fixture.local, ["rev-parse", "HEAD"]);
+  const remoteRevision = git(fixture.local, ["rev-parse", "origin/main"]);
+  const result = updateProject(fixture);
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.equal(git(fixture.local, ["branch", "--show-current"]), "codex/current-source");
+  assert.equal(git(fixture.local, ["rev-parse", "HEAD"]), currentRevision);
+  assert.equal(git(fixture.local, ["rev-parse", "main"]), remoteRevision);
+  assert.equal(readFileSync(join(fixture.local, "latest-source.ts"), "utf8").replace(/\r\n/g, "\n"), "latest upstream source\n");
+  assert.equal(readFileSync(join(fixture.local, "local-only.ts"), "utf8").replace(/\r\n/g, "\n"), "keep this local commit\n");
   assert.equal(git(fixture.local, ["status", "--porcelain"]), "");
 });
 

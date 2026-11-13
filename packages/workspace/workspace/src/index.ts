@@ -1,6 +1,6 @@
 /**
  * 功能：维护账户及 App 级项目登记。
- * 作用：AI Work 使用本机逻辑项目和零到多个源目录；Minecraft 保留节点目录登记。此 Owner 只保存注册信息，不创建或删除项目文件。
+ * 作用：AI Work 使用本机逻辑项目和零到多个源目录；Minecraft 保留节点目录登记。通过专用协调入口委托 Host Git 管理 Worktree，不直接访问主机文件。
  * 不负责：目录浏览、Daemon 调度、会话运行、权限审批或 Minecraft 实例管理。
  * 关联文件：packages/bundle/base/cordis.patch.yml、packages/api/workspace-controller/src/index.ts、packages/core/session/src/sessions.ts。
  */
@@ -36,7 +36,7 @@ export interface WorkspaceProjectSource { id: string; path: string; position: nu
 export interface WorkspaceGitWorktree {
   projectId: string;
   sourceProjectId: string;
-  nodeId: string;
+  nodeId: string | null;
   worktreeId: string;
   worktreeRoot: string;
   projectRelativePath: string;
@@ -80,9 +80,9 @@ const selectProject = `
 const workspaceProjectResultLimit = 200;
 
 function mapProject(row: WorkspaceProjectRow, sources: WorkspaceProjectSource[] = [], applicationIds: WorkspaceProjectContextApplicationId[] = []): WorkspaceProject {
-  const gitWorktree = row.git_project_id && row.git_source_project_id && row.git_node_id && row.git_worktree_id && row.git_worktree_root
+  const gitWorktree = row.git_project_id && row.git_source_project_id && row.git_node_id !== undefined && row.git_worktree_id && row.git_worktree_root
     && row.git_branch && row.git_base_commit && row.git_source_head && row.git_created_at
-    ? { projectId: row.git_project_id, sourceProjectId: row.git_source_project_id, nodeId: row.git_node_id, worktreeId: row.git_worktree_id,
+    ? { projectId: row.git_project_id, sourceProjectId: row.git_source_project_id, nodeId: row.git_node_id ?? null, worktreeId: row.git_worktree_id,
       worktreeRoot: row.git_worktree_root, projectRelativePath: row.git_project_relative_path ?? "", branch: row.git_branch,
       baseCommit: row.git_base_commit, sourceHead: row.git_source_head, createdAt: row.git_created_at }
     : null;
@@ -346,6 +346,14 @@ export function createWorkspaceProject(input: { userId: string; appId: Workspace
 const workspaceProjectMaximumSources = 20;
 const workspaceProjectMaximumSourcePathCharacters = 16384;
 
+/** 返回可安全创建为本机项目目录的名称；目录字符限制由 Workspace Owner 单独维护。 */
+export function workspaceProjectDirectoryName(title: string): string | null {
+  const name = title.trim().replace(/\s+/gu, " ").replace(/[. ]+$/u, "");
+  return !name || name.length > 120 || /[<>:"/\\|?*\u0000-\u001f]/u.test(name) || /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/iu.test(name)
+    ? null
+    : name;
+}
+
 function normalizeProjectSources(paths: readonly string[], platform: string): string[] {
   if (paths.length > workspaceProjectMaximumSources) throw new Error(`每个项目最多关联 ${workspaceProjectMaximumSources} 个本机文件夹。`);
   const normalized: string[] = [];
@@ -474,17 +482,18 @@ export function replaceLocalWorkspaceProjectSources(userId: string, projectId: s
 }
 
 export function createWorkspaceGitWorktree(input: {
-  userId: string; appId: WorkspaceProjectApplicationId; sourceProjectId: string; nodeId: string; path: string; worktreeRoot: string; worktreeId: string;
+  userId: string; appId: WorkspaceProjectApplicationId; sourceProjectId: string; nodeId: string | null; path: string; worktreeRoot: string; worktreeId: string;
   projectRelativePath: string; branch: string; baseCommit: string; sourceHead: string; platform: string;
 }): WorkspaceProject {
   const source = getWorkspaceProject(input.userId, input.sourceProjectId, input.appId);
-  if (!source || source.appId !== input.appId || source.nodeId !== input.nodeId) throw new Error("Git 源项目不属于当前账户、应用或所选 Daemon。 ");
+  if (!source || source.appId !== input.appId || source.nodeId !== input.nodeId) throw new Error("Git 源项目不属于当前账户、应用或 Host。 ");
+  if (input.appId === "workspace" ? input.nodeId !== null : input.nodeId === null) throw new Error("Git Worktree 的 Host 身份与项目类型不一致。 ");
   if (source.gitWorktree) throw new Error("请从原始项目创建 AI Worktree，不支持从已有 Worktree 再创建。 ");
   const path = input.path.trim();
   const worktreeRoot = input.worktreeRoot.trim();
-  if (!isAbsolute(path) || !isAbsolute(worktreeRoot) || path.length > 32760 || worktreeRoot.length > 32760) throw new Error("Daemon 返回的 Git 工作树路径无效。 ");
+  if (!isAbsolute(path) || !isAbsolute(worktreeRoot) || path.length > 32760 || worktreeRoot.length > 32760) throw new Error("Host 返回的 Git 工作树路径无效。 ");
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(input.worktreeId)
-    || !/^[0-9a-f]{40,64}$/iu.test(input.baseCommit) || !/^[0-9a-f]{40,64}$/iu.test(input.sourceHead)) throw new Error("Daemon 返回的 Git 工作树身份或基线无效。 ");
+    || !/^[0-9a-f]{40,64}$/iu.test(input.baseCommit) || !/^[0-9a-f]{40,64}$/iu.test(input.sourceHead)) throw new Error("Host 返回的 Git 工作树身份或基线无效。 ");
   if (!input.branch.trim() || input.branch.length > 255 || input.projectRelativePath.length > 32760) throw new Error("Git 工作树分支或项目相对路径无效。 ");
   const now = new Date().toISOString();
   const project: WorkspaceProject = {
@@ -500,7 +509,7 @@ export function createWorkspaceGitWorktree(input: {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT DO NOTHING
     `).run(project.id, input.userId, input.appId, input.nodeId, path, pathKey(path, input.platform), project.title, now, now);
-    if (Number(result.changes) !== 1) throw new Error("此 Daemon 工作树路径已经登记为项目。 ");
+    if (Number(result.changes) !== 1) throw new Error("此 Host 工作树路径已经登记为项目。 ");
     database.prepare(`
       INSERT INTO workspace_git_worktrees (project_id, user_id, source_project_id, node_id, worktree_id, worktree_root, project_relative_path, branch, base_commit, source_head, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)

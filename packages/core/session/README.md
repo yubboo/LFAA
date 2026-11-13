@@ -1,5 +1,7 @@
 # LFAA Session 内核
 
+普通界面改绑只接受空闲会话；经统一 Permission Owner 授权的 Agent 项目工具可在当前 Run 中调用 `setAiSessionProjectFromAgent`，并提交预期旧项目 ID，原子记录新建项目与会话的归属事件。活动 Run 限于 Workspace 或 Minecraft 会话，且目标项目必须属于同一 App。
+
 用户消息的附件引用随 JSONL 消息记录保存，普通历史展示读取保留 `attachments_json`；缩略图内容继续从附件 Owner 认证接口读取，不将图片字节写入消息展示投影。
 
 回复后续建议作为受限的私有活动侧车写入现有 JSONL 消息记录，Session Owner 在完成助手消息的展示投影中单独返回 `promptSuggestions`，不混入公开活动、回复正文、模型事件或便携导出；数量最多 3 条，每条最多 180 个字符。

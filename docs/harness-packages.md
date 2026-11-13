@@ -76,7 +76,7 @@
 | [packages/client/ui-attachment](../packages/client/ui-attachment) | — | placeholder | 附件选择、预览与状态界面 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-brand-official](../packages/client/ui-brand-official) | — | placeholder | 产品品牌视觉组件 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-chat](../packages/client/ui-chat) | lfaa-client-ui-chat | implemented | AI Work 输入、消息、公开轨迹、提问和结果界面 | [源码](../packages/client/ui-chat/src/index.ts)；3 个代码消费者；4 个清单消费者；0 个 Profile 角色；0 个 Bundle 声明 | DSH 同名目录 |
-| [packages/client/ui-commands](../packages/client/ui-commands) | lfaa-client-ui-commands | implemented | 键盘命令匹配和交互派发 | [源码](../packages/client/ui-commands/src/index.ts)；2 个代码消费者；3 个清单消费者；0 个 Profile 角色；0 个 Bundle 声明 | DSH 同名目录 |
+| [packages/client/ui-commands](../packages/client/ui-commands) | lfaa-client-ui-commands | implemented | 键盘命令匹配和交互派发 | [源码](../packages/client/ui-commands/src/index.ts)；3 个代码消费者；4 个清单消费者；0 个 Profile 角色；0 个 Bundle 声明 | DSH 同名目录 |
 | [packages/client/ui-connectivity](../packages/client/ui-connectivity) | lfaa-client-ui-connectivity | implemented | 联机 App 工作台和网络任务界面 | [源码](../packages/client/ui-connectivity/src/index.ts)；2 个代码消费者；2 个清单消费者；0 个 Profile 角色；0 个 Bundle 声明 | LFAA 扩展 |
 | [packages/client/ui-conversation](../packages/client/ui-conversation) | — | placeholder | 会话对话容器与消息交互组件 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-deliverables](../packages/client/ui-deliverables) | lfaa-client-ui-deliverables | implemented | 真实交付物与产物展示界面 | [源码](../packages/client/ui-deliverables/src/index.ts)；2 个代码消费者；2 个清单消费者；0 个 Profile 角色；0 个 Bundle 声明 | DSH 同名目录 |
@@ -147,7 +147,7 @@
 | [packages/core/agent-tool-presentation](../packages/core/agent-tool-presentation) | lfaa-agent-tool-presentation | implemented | 注册工具到模型函数协议的单一映射 | [源码](../packages/core/agent-tool-presentation/src/index.ts)；2 个代码消费者；2 个清单消费者；2 个 Profile 角色；0 个 Bundle 声明 | DSH 同名目录 |
 | [packages/core/conversation-memory](../packages/core/conversation-memory) | lfaa-conversation-memory | implemented | 账户对话记忆提取、校验和持久化协调 | [源码](../packages/core/conversation-memory/src/index.ts)；3 个代码消费者；3 个清单消费者；2 个 Profile 角色；0 个 Bundle 声明 | LFAA 扩展 |
 | [packages/core/scope](../packages/core/scope) | lfaa-scope | implemented | 能力可见范围与 Cordis 作用域合同 | [源码](../packages/core/scope/src/index.ts)；4 个代码消费者；4 个清单消费者；2 个 Profile 角色；0 个 Bundle 声明 | DSH 同名目录 |
-| [packages/core/session](../packages/core/session) | lfaa-session | implemented | 账户会话事务、事件与 JSONL 恢复门面 | [源码](../packages/core/session/src/index.ts)；12 个代码消费者；14 个清单消费者；2 个 Profile 角色；1 个 Bundle 声明 | DSH 同名目录 |
+| [packages/core/session](../packages/core/session) | lfaa-session | implemented | 账户会话事务、事件与 JSONL 恢复门面 | [源码](../packages/core/session/src/index.ts)；13 个代码消费者；15 个清单消费者；2 个 Profile 角色；1 个 Bundle 声明 | DSH 同名目录 |
 | [packages/core/system-prompt](../packages/core/system-prompt) | lfaa-system-prompt | implemented | 核心指令/权限/上下文组合，不按 App 注入领域全文 | [源码](../packages/core/system-prompt/src/index.ts)；4 个代码消费者；5 个清单消费者；2 个 Profile 角色；0 个 Bundle 声明 | DSH 同名目录 |
 | [packages/core/tools](../packages/core/tools) | lfaa-tools | implemented | 公共工具合同、参数校验、可撤销注册与 Run 工具发现 | [源码](../packages/core/tools/src/index.ts)；32 个代码消费者；36 个清单消费者；2 个 Profile 角色；1 个 Bundle 声明 | DSH 同名目录 |
 | [packages/credentials/authorization](../packages/credentials/authorization) | lfaa-authorization | implemented | 凭据访问授权合同 | 仅组合/清单；未证实运行 | DSH 同名目录 |
@@ -210,13 +210,13 @@
 | [packages/hooks/hook-protocol](../packages/hooks/hook-protocol) | lfaa-hook-protocol | implemented | 模型请求前后钩子与可撤销事件协议 | [源码](../packages/hooks/hook-protocol/src/index.ts)；1 个代码消费者；3 个清单消费者；2 个 Profile 角色；1 个 Bundle 声明 | DSH 同名目录 |
 | [packages/hooks/hooks-claude-code](../packages/hooks/hooks-claude-code) | — | placeholder | Claude Code 生命周期钩子适配 | 占位不可执行 | DSH 同名目录 |
 | [packages/hooks/hooks-codex](../packages/hooks/hooks-codex) | — | placeholder | Codex 生命周期钩子适配 | 占位不可执行 | DSH 同名目录 |
-| [packages/host/daemon](../packages/host/daemon) | lfaa-host-daemon | implemented | 节点身份、心跳、任务领取、进程/文件执行与回报 | [源码](../packages/host/daemon/src/index.ts)；18 个代码消费者；21 个清单消费者；3 个 Profile 角色；2 个 Bundle 声明 | LFAA 扩展 |
+| [packages/host/daemon](../packages/host/daemon) | lfaa-host-daemon | implemented | 节点身份、心跳、任务领取、进程/文件执行与回报 | [源码](../packages/host/daemon/src/index.ts)；19 个代码消费者；22 个清单消费者；3 个 Profile 角色；2 个 Bundle 声明 | LFAA 扩展 |
 | [packages/host/directory-picker](../packages/host/directory-picker) | — | placeholder | Host 目录选择服务合同 | 占位不可执行 | DSH 同名目录 |
 | [packages/host/directory-picker-auto](../packages/host/directory-picker-auto) | — | placeholder | 目录选择提供方自动适配 | 占位不可执行 | DSH 同名目录 |
 | [packages/host/directory-picker-browse](../packages/host/directory-picker-browse) | — | placeholder | 服务端目录浏览选择适配 | 占位不可执行 | DSH 同名目录 |
 | [packages/host/directory-picker-native](../packages/host/directory-picker-native) | — | placeholder | 平台原生目录选择提供方 | 占位不可执行 | DSH 同名目录 |
 | [packages/host/frontend-static](../packages/host/frontend-static) | — | placeholder | 前端静态资源托管适配 | 占位不可执行 | DSH 同名目录 |
-| [packages/host/git](../packages/host/git) | lfaa-host-git | implemented | 本机 Git 状态、差异、提交和分支固定操作执行 Owner | [源码](../packages/host/git/src/index.ts)；4 个代码消费者；4 个清单消费者；2 个 Profile 角色；0 个 Bundle 声明 | LFAA 扩展 |
+| [packages/host/git](../packages/host/git) | lfaa-host-git | implemented | 本机 Git 状态、差异、提交和分支固定操作执行 Owner | [源码](../packages/host/git/src/index.ts)；5 个代码消费者；5 个清单消费者；2 个 Profile 角色；0 个 Bundle 声明 | LFAA 扩展 |
 | [packages/host/open-in-app](../packages/host/open-in-app) | — | placeholder | 平台应用打开能力提供方 | 占位不可执行 | DSH 同名目录 |
 | [packages/host/plugin-inventory](../packages/host/plugin-inventory) | — | placeholder | Host 插件清单和能力检查 | 占位不可执行 | DSH 同名目录 |
 | [packages/host/product-telemetry-otel](../packages/host/product-telemetry-otel) | — | placeholder | 产品指标 OpenTelemetry 提供方 | 占位不可执行 | DSH 同名目录 |

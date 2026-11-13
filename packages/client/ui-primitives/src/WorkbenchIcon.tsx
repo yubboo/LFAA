@@ -12,7 +12,7 @@ import type { ReactElement, SVGProps } from "react";
 
 export type WorkbenchIconName =
   | "archive" | "bolt" | "book" | "branch" | "browser" | "chat" | "check" | "chevron" | "close" | "copy" | "cube" | "dots" | "file" | "folder" | "grid" | "history"
-  | "film" | "help" | "home" | "keyboard" | "microphone" | "mobile" | "moon" | "monitor" | "new" | "panelLeft" | "panelRight" | "plus" | "refresh" | "review" | "search"
+  | "film" | "help" | "home" | "keyboard" | "microphone" | "mobile" | "model" | "moon" | "monitor" | "new" | "panelLeft" | "panelRight" | "plus" | "refresh" | "review" | "search"
   | "settings" | "shield" | "spark" | "summary" | "sun" | "terminal" | "thumbDown" | "thumbUp" | "tools" | "trash" | "user" | "bell" | "extension" | "arrowRight";
 
 export interface WorkbenchIconProps extends Omit<SVGProps<SVGSVGElement>, "name"> {
@@ -47,6 +47,7 @@ const paths: Record<WorkbenchIconName, ReactElement> = {
   moon: <path d="M20 15.2A8.5 8.5 0 0 1 8.8 4 8.8 8.8 0 1 0 20 15.2Z"/>,
   microphone: <><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/></>,
   mobile: <><rect x="6.5" y="2.5" width="11" height="19" rx="2"/><path d="M10 5h4M11.5 18.5h1"/></>,
+  model: <><rect x="5" y="5" width="14" height="14" rx="3"/><path d="M9 2v3m6-3v3m-6 14v3m6-3v3M2 9h3m-3 6h3m14-6h3m-3 6h3"/><circle cx="9.5" cy="10" r="1"/><circle cx="14.5" cy="10" r="1"/><circle cx="12" cy="14" r="1"/><path d="m10.3 10.6 1.2 2.2m2.2-2.2-1.2 2.2"/></>,
   monitor: <><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></>,
   new: <><path d="M5 19h4L19 9l-4-4L5 15v4Z"/><path d="m13 7 4 4"/></>,
   panelLeft: <><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></>,

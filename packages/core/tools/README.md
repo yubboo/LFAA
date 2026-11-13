@@ -1,8 +1,12 @@
 # 共享工具合同与注册 Owner
 
+`workspace_create_worktree` 是按需发现的写工具。它只接受当前会话绑定的通用 Workspace 本机项目或 Minecraft 当前本机 Daemon 项目，由 Workspace Owner 创建并登记隔离 Git Worktree，再由 Session Owner 条件切换当前会话；模型不能指定项目、路径或 Git 分支前缀。远程节点和从现有 Worktree 嵌套创建均拒绝。执行使用 `git.branchPrefix`，写风险由 Agent Loop 与唯一 Permission Owner 处理。
+
 持有工具类型/参数辅助、可撤销注册/上下文工厂与 Run 摘要目录。领域工具和正文不再集中在 business-tools。
 
-公共合同：registerAiBusinessTool、registerAiBusinessToolFactory、listAiBusinessTools、createToolDiscoveryTools。`lfaa_tools_list` 支持按工具 ID、名称或说明做多词任一命中搜索，结果先按完整查询命中、再按命中词数量排序，并返回 `matchedTerms`；空查询保留注册顺序和分页。`lfaa_tools_load` 仍只按精确工具名加载已有合同，不执行业务。
+全局 `workspace` Run 可发现当前 Runtime 已实际登记的跨 App 领域工具；每个工具仍通过其业务 Owner 执行，单一 App 工具收到自身声明的执行上下文，权限继续由 Agent Loop/Permission Owner 校验。`workspace_create_project` 只创建真实 Workspace 项目目录并请求 Session Owner 绑定当前会话；目录由 Project Files Host 创建，文件工具在同一 Run 中随后切换到新项目上下文。
+
+公共合同：registerAiBusinessTool、registerAiBusinessToolFactory、listAiBusinessTools、createToolDiscoveryTools。已登记工具默认只进入本 Run 的可搜索目录；只有模型按当前目标显式选择并调用 `lfaa_tools_load` 后，完整参数合同才进入下一次 Provider 请求。需要常驻的小型核心入口可显式设置 `onDemand: false`。`lfaa_tools_list` 支持按工具 ID、名称或说明做多词任一命中搜索，结果先按完整查询命中、再按命中词数量排序，并返回 `matchedTerms`；空查询保留注册顺序和分页。`lfaa_tools_load` 仍只按精确工具名加载已有合同，不执行业务。Settings Owner 工具沿用同一发现流程；加载前不会把设置定义塞入无关请求，也不会执行设置读取/写入。目录加载不改变工具权限、参数验证、领域数据归属或原执行 Owner。
 
 `AiBusinessToolContext.externalAgentTools` 仅暴露父 Run 当前继承工具名与原 JSON Schema；`dispatchExternalAgentTool` 是外部 SDK/MCP 调用回到 Agent Loop 共用 dispatch 的桥。目录是发现合同，不授予权限；执行仍由原工具 `parse`、`risk`、`approval`、Permission Owner 和领域 executor 管理。MCP handler 禁止绕过桥直接执行 Registry 工具。
 
@@ -39,6 +43,8 @@ Agent 设置中心工具：`lfaa_settings_list` 按分类/关键词查询 Settin
 `lfaa_settings_list` 返回 `util/values/src/settings-menu-catalog.ts` 的完整设置菜单清单；`menuId` 可精确读取该菜单的账户字段和接入边界。需要菜单动作或读取动态数据时，Agent 按目录 `toolSearchTerms` 搜索并按需加载本次运行真实登记的 Owner Tool；清单说明某功能未接入时不得用通用设置写入或假成功补齐。密码、恢复密钥等安全表单仍由用户直接输入。
 
 代码审查菜单映射到 `project_file_operation` 的 `diff` 操作，使用 Agent Git Workspace 当前绑定仓库与本机 Git Owner 返回的真实差异。模型须围绕改动读取必要上下文并给出只读审查；无绑定仓库或差异读取失败时如实说明，不自动写入、提交或推送。
+
+修改现有项目代码时，模型先读取目标源码及相关差异，默认使用局部 `replace` 并保留目标外内容，写后再读真实 `diff` 核对范围。整文件 `write` 仅在用户要求或目标确需整体重建时使用；最近读取的 SHA-256 只防止基于旧内容覆盖，不能替代模型对语义范围的检查。所有写入仍经 Agent Loop 的 Permission Owner。
 
 钩子菜单提供 `lfaa_settings_runtime_hooks_list`，读取当前 Agent Host 中 Cordis AI Runtime Hook 注册表的 ID 和事件列表；回调与插件代码不离开 Host。没有 Hook Owner 注入时工具会报告不可用；钩子创建、编辑和代码执行仍须由受信任插件 Owner 提供，本工具不伪装为可写。
 

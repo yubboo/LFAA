@@ -964,10 +964,13 @@ export function getAiSessionWorkspaceContext(userId: string, sessionId: string):
   return { id: row.workspace_project_id, appId: row.app_id === "minecraft" ? "minecraft" : "workspace", nodeId: row.workspace_node_id ?? null, path: row.workspace_directory, title: row.workspace_title };
 }
 
-/** 只有空闲的通用 AI 会话可改绑；目录注册与会话历史是独立记录。 */
-export function setAiSessionProject(userId: string, sessionId: string, project: AiSessionProjectContext | null): AiSessionView | null {
+function updateAiSessionProject(userId: string, sessionId: string, project: AiSessionProjectContext | null, options: { allowActiveRun?: boolean; expectedProjectId?: string | null } = {}): AiSessionView | null {
   const row = sessionRow(userId, sessionId);
-  if (!row || project && project.appId !== row.app_id || messageRows(sessionId).some(message => message.role === "assistant" && (message.status === "queued" || message.status === "streaming"))) return null;
+  const hasActiveAssistant = messageRows(sessionId).some(message => message.role === "assistant" && (message.status === "queued" || message.status === "streaming"));
+  if (!row || project && project.appId !== row.app_id || (options.allowActiveRun
+    ? !hasActiveAssistant || row.app_id !== "workspace" && row.app_id !== "minecraft"
+    : hasActiveAssistant)) return null;
+  if (options.expectedProjectId !== undefined && (row.workspace_project_id ?? null) !== options.expectedProjectId) return null;
   const updated: SessionRow = {
     ...row,
     workspace_project_id: project?.id ?? null,
@@ -983,6 +986,16 @@ export function setAiSessionProject(userId: string, sessionId: string, project: 
     title: updated.workspace_title ?? null
   })]);
   return mapSession(updated);
+}
+
+/** 只有空闲的通用 AI 会话可由界面改绑；目录注册与会话历史是独立记录。 */
+export function setAiSessionProject(userId: string, sessionId: string, project: AiSessionProjectContext | null): AiSessionView | null {
+  return updateAiSessionProject(userId, sessionId, project);
+}
+
+/** 已获 Permission Owner 授权的 Agent 可在当前 Run 中把同一 App 的会话绑定到新建项目。 */
+export function setAiSessionProjectFromAgent(userId: string, sessionId: string, project: AiSessionProjectContext, expectedProjectId: string | null): AiSessionView | null {
+  return updateAiSessionProject(userId, sessionId, project, { allowActiveRun: true, expectedProjectId });
 }
 
 /** 移除逻辑项目时，将其会话安全地放回最近聊天；所有目标先通过空闲态检查，再逐条记录项目归属事件。 */

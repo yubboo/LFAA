@@ -5,7 +5,7 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { AiRecoverableRequestError, AiToolArgumentsTooLargeError, createAiCompletionService, streamAiCompletion } from "../../../packages/llm/llm/src/completion.ts";
+import { AiRecoverableRequestError, AiToolArgumentsTooLargeError, createAiCompletionService, normalizeAiCompletionUsage, streamAiCompletion } from "../../../packages/llm/llm/src/completion.ts";
 import { readArkUsage } from "../../../packages/llm/llm-pi-ai/src/adapter.ts";
 
 function completionInput() {
@@ -278,23 +278,43 @@ test("通用 Provider 请求把动态运行上下文放在当前 user 消息并�
   const originalFetch = globalThis.fetch;
   const bodies = [], prepared = [], snapshots = [];
   try {
-    globalThis.fetch = async (_url, options) => { bodies.push(JSON.parse(options.body)); return sse([{ content: "已完成" }]); };
-    const input = completionInput();
-    input.messages = [{ role: "user", content: "当前目标" }];
-    input.context = "动态 Git 与工作区资料";
-    input.onPrepareRequest = request => { prepared.push(request.messages); };
-    input.onRequest = request => snapshots.push(request.messages);
-    await streamAiCompletion(input);
+    globalThis.fetch = async (_url, options) => {
+      bodies.push(JSON.parse(options.body));
+      return new Response([
+        `data: ${JSON.stringify({ choices: [{ delta: { content: "已完成" }, finish_reason: "stop" }] })}\n\n`,
+        `data: ${JSON.stringify({ choices: [], usage: { prompt_tokens: 100, completion_tokens: 8, prompt_tokens_details: { cached_tokens: 64 } } })}\n\n`,
+        "data: [DONE]\n\n"
+      ].join(""), { headers: { "Content-Type": "text/event-stream" } });
+    };
+    const routes = [
+      ["ark-agent-plan", "doubao-seed-2.0-mini"],
+      ["ark-agent-plan", "glm-5.3-flash"],
+      ["deepseek", "deepseek-flash"],
+      ["future-provider", "future-model"]
+    ];
+    const results = [];
+    for (const [providerId, modelId] of routes) {
+      const input = completionInput();
+      input.account = { ...input.account, providerId, modelId };
+      input.messages = [{ role: "user", content: "当前目标" }];
+      input.context = `动态运行上下文 ${providerId}/${modelId}`;
+      input.onPrepareRequest = request => { prepared.push(request.messages); };
+      input.onRequest = request => snapshots.push(request.messages);
+      results.push(await streamAiCompletion(input));
+    }
 
-    const system = bodies[0].messages[0].content;
-    assert.equal(system.includes("动态 Git 与工作区资料"), false, "动态上下文不能改变 system 前缀");
-    assert.equal(bodies[0].messages[1].role, "user");
-    assert.match(bodies[0].messages[1].content, /^LFAA_RUNTIME_CONTEXT_JSON_V1/u);
-    assert.match(bodies[0].messages[1].content, /动态 Git 与工作区资料/u);
-    assert.match(bodies[0].messages[1].content, /LFAA_CURRENT_USER_INPUT_V1\n当前目标$/u);
-    assert.equal(prepared[0][0].content, system);
-    assert.equal(snapshots[0][1].content, bodies[0].messages[1].content, "最终估算/观察读取模型实际收到的消息");
-    assert.equal(Object.hasOwn(snapshots[0][1], "runtimeContextOriginalContent"), false);
+    assert.equal(new Set(bodies.map(body => body.messages[0].content)).size, 1, "切换 Provider/模型不改变公共 system 前缀");
+    for (const [index, body] of bodies.entries()) {
+      assert.deepEqual(body.stream_options, { include_usage: true }, "所有 Chat Completions 路由统一请求真实流式 usage");
+      assert.equal(body.messages[1].role, "user");
+      assert.match(body.messages[1].content, /^LFAA_RUNTIME_CONTEXT_JSON_V1/u);
+      assert.match(body.messages[1].content, new RegExp(`动态运行上下文 ${routes[index][0]}/${routes[index][1]}`, "u"));
+      assert.match(body.messages[1].content, /LFAA_CURRENT_USER_INPUT_V1\n当前目标$/u);
+      assert.equal(prepared[index][0].content, body.messages[0].content);
+      assert.equal(snapshots[index][1].content, body.messages[1].content, "最终估算/观察读取模型实际收到的消息");
+      assert.equal(Object.hasOwn(snapshots[index][1], "runtimeContextOriginalContent"), false);
+      assert.deepEqual(results[index].usage, { promptTokens: 100, completionTokens: 8, cacheReadTokens: 64 }, "同一 usage 解析适用于不同模型路由");
+    }
   } finally { globalThis.fetch = originalFetch; }
 });
 
@@ -373,7 +393,7 @@ test("SSE 提前 EOF 不完成半截回答或派发工具，无输出时仅标�
   } finally { globalThis.fetch = originalFetch; }
 });
 
-test("DeepSeek 流式 usage 保留缓存命中数，兼容嵌套 cached_tokens 且不把 0 当缺失", async () => {
+test("Chat Completions 流式 usage 保留缓存命中数，兼容嵌套 cached_tokens 且不把 0 当缺失", async () => {
   const originalFetch = globalThis.fetch;
   const response = usage => new Response([
     `data: ${JSON.stringify({ choices: [{ delta: { content: "已完成" }, finish_reason: "stop" }], usage })}\n\n`,
@@ -408,6 +428,15 @@ test("Ark usage 只在 Provider 返回命中或 miss 计数时计算缓存读取
   assert.deepEqual(readArkUsage({ prompt_tokens: 100, completion_tokens: 8 }), {
     promptTokens: 100, completionTokens: 8, cacheReadTokens: null
   });
+  assert.deepEqual(readArkUsage({ input_tokens: 100, output_tokens: 8, input_tokens_details: { cached_tokens: 76 } }), {
+    promptTokens: 100, completionTokens: 8, cacheReadTokens: 76
+  }, "Responses API 使用同一个通用用量归一化器");
+  assert.deepEqual(readArkUsage({ input_tokens: 100, output_tokens: 8, cache_read_input_tokens: 76 }), {
+    promptTokens: 100, completionTokens: 8, cacheReadTokens: 76
+  }, "Messages API 的缓存读取字段也归入同一字段");
+  assert.deepEqual(normalizeAiCompletionUsage({ input_tokens: 100, output_tokens: 8, input_tokens_details: { cached_tokens: 0 } }), {
+    promptTokens: 100, completionTokens: 8, cacheReadTokens: 0
+  }, "显式零仍表示真实的未命中读数，不等于 Provider 未提供");
 });
 
 test("无换行 DONE 与正常 finish_reason 均可结束，Provider 错误结束不得视为成功", async () => {

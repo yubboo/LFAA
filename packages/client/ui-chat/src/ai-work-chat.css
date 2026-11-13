@@ -378,7 +378,8 @@ body[data-we-wallpaper] .workbench-shell .ai-work-chat {
 .ai-work-chat__tool-group > summary > svg:first-child { flex: 0 0 auto; color: var(--settings-accent, var(--color-brand)); }
 .ai-work-chat__tool-group > summary > .ai-work-chat__tool-group-label { min-width: 0; overflow-wrap: anywhere; }
 .ai-work-chat__tool-group > summary:hover { color: var(--settings-accent, var(--color-brand)); }
-.ai-work-chat__tool-group-items { display: grid; max-height: min(34dvh, 320px); overflow: auto; gap: 0; margin: 0 0 6px; padding: 3px 0; }
+.ai-work-chat__tool-group-items { display: grid; min-width: 0; gap: 0; margin: 0 0 6px; padding: 3px 0; }
+.ai-work-chat__tool-group-items--scrollable { max-height: min(34dvh, 280px); overflow-x: hidden; overflow-y: auto; }
 .ai-work-chat__tool-group-items .ai-work-chat__activity-row:first-child { border-top: 0; }
 .ai-work-chat__response-interaction { display: grid; min-width: 0; gap: 4px; margin: 0 0 8px; }
 .ai-work-chat__response-interaction :is(.ai-work-chat__question-record, .ai-work-chat__approval-record) { display: grid; min-width: 0; gap: 4px; padding: 5px 0 5px 12px; border: 0; border-inline-start: 1px solid var(--color-border-subtle); border-radius: 0; background: transparent; color: var(--color-text-muted); }
@@ -729,6 +730,9 @@ body[data-we-wallpaper][data-we-glass-floaters] .workbench-shell[data-wallpaper-
 .ai-work-chat__context-breakdown { display: grid; gap: 6px; padding: 8px 0; border-top: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border); }
 .ai-work-chat__usage-popover-overlay .ant-popover-inner { max-width: calc(100vw - 20px); padding: 12px; background: var(--color-surface); box-shadow: 0 8px 26px color-mix(in srgb, var(--color-shadow) 24%, transparent); }
 .ai-work-chat__usage-popover-overlay .ant-popover-inner-content { padding: 0; }
+/* 用量提示挂在实际聊天栏内，宽度受栏位和视口共同限制；长 Token 文案在窄栏中换行显示。 */
+.ai-work-chat__usage-tooltip-overlay { max-width: min(320px, calc(100% - 20px), calc(100vw - 24px)); }
+.ai-work-chat__usage-tooltip-overlay .ant-tooltip-inner { box-sizing: border-box; max-width: 100%; overflow-wrap: anywhere; white-space: normal; line-height: 1.45; }
 .workbench-shell .ai-work-chat__project-trigger.ant-btn { display: inline-flex; max-width: min(46%, 230px); height: 24px; flex: 0 1 auto; align-items: center; gap: 5px; padding: 0 7px; overflow: hidden; border: 1px solid var(--color-border-subtle); border-radius: 7px; background: var(--color-surface-muted); color: var(--color-text-secondary); font-size: 9px; transition: background-color 200ms cubic-bezier(.2,.8,.2,1), border-color 200ms cubic-bezier(.2,.8,.2,1), color 200ms cubic-bezier(.2,.8,.2,1), box-shadow 200ms cubic-bezier(.2,.8,.2,1); }
 .workbench-shell .ai-work-chat__project-trigger.ant-btn:hover:not(:disabled) { border-color: var(--settings-accent, var(--color-brand)); background: var(--color-surface-muted); color: var(--color-text-heading); }
 .ai-work-chat__project-trigger .ant-btn-icon { display: inline-flex; color: var(--settings-accent, var(--color-brand)); }
@@ -884,6 +888,7 @@ body[data-we-wallpaper][data-we-glass-floaters] .workbench-shell[data-wallpaper-
 .ai-work-chat__composer-control--more.ant-btn { height: 34px; flex: 0 0 auto; gap: 5px; padding-inline: 8px; border-radius: 999px; background: var(--color-surface-muted); }
 .ai-work-chat__composer-control-label { display: block; min-width: 0; overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .ai-work-chat__composer-control--model.ant-btn { width: auto; min-width: min(126px, 34cqi); max-width: min(36cqi, 240px); height: 38px; flex: 0 1 auto; justify-content: center; gap: 6px; padding-inline: 11px; border-radius: 999px; background: var(--color-surface-muted); }
+.ai-work-chat__composer-model-icon { display: none; }
 .ai-work-chat__composer-control--model.ant-btn:hover:not(:disabled) { background: var(--color-surface-hover); color: var(--color-text-heading); }
 .ai-work-chat__composer-control--model .ai-work-chat__composer-control-label { display: block; min-width: 0; max-width: min(30cqi, 205px); color: inherit; text-align: center; }
 .ai-work-chat__model-picker-tooltip { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
@@ -1066,35 +1071,45 @@ body[data-we-wallpaper][data-we-glass-floaters] .workbench-shell[data-wallpaper-
   .ai-work-chat__interaction-dock-reply .ant-input { flex-basis: 100%; }
 }
 
-/* 聊天列窄于 620px 时切换为紧凑图标工具栏；操作行按实际容器分配宽度，保留可访问名称与触摸目标。 */
+/* 窄聊天列保持上下文和操作单排；名称通过无障碍标签与悬浮提示保留。 */
 @container ai-work-chat (max-width: 620px) {
-  .ai-work-chat__composer-context { gap: 4px; }
-  .ai-work-chat__composer-app { width: 26px; height: 24px; flex: 0 0 26px; justify-content: center; padding: 0; }
+  .ai-work-chat__composer-context { flex-wrap: nowrap; gap: 4px; }
+  .ai-work-chat__composer-app { width: 30px; min-width: 30px; max-width: 30px; height: 30px; flex: 0 0 30px; justify-content: center; gap: 0; padding: 0; font-size: 0; }
   .ai-work-chat__composer-app-label,
   .ai-work-chat__project-trigger-label { display: none; }
-  .workbench-shell .ai-work-chat__project-trigger.ant-btn { width: 26px; min-width: 26px; max-width: 26px; height: 26px; flex: 0 0 26px; justify-content: center; padding: 0; }
-  .ai-work-chat__composer-actions { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 3px; }
-  .ai-work-chat__composer-actions-group { flex-wrap: nowrap; gap: 1px; }
-  .ai-work-chat__composer-actions-group--right { min-width: 0; flex: 1 1 auto; justify-content: flex-end; margin-left: 0; }
-  .ai-work-chat__composer-actions-group--right > .ai-work-chat__composer-disabled-wrap { min-width: 0; flex: 0 1 auto; }
-  .ai-work-chat__composer-control.ant-btn { width: 30px; min-width: 30px; max-width: 30px; height: 30px; flex: 0 0 30px; gap: 0; padding: 0; }
+  .workbench-shell .ai-work-chat__project-trigger.ant-btn,
+  .ai-work-chat__composer-context .ai-work-chat__composer-project-button { width: 30px; min-width: 30px; max-width: 30px; height: 30px; min-height: 30px; flex: 0 0 30px; justify-content: center; gap: 0; padding: 0; font-size: 0; }
+  .ai-work-chat__composer-actions { flex-wrap: nowrap; gap: 3px; }
+  .ai-work-chat__composer-actions-group { min-width: 0; flex-wrap: nowrap; gap: 2px; }
+  .ai-work-chat__composer-actions-group--right { flex: 0 1 auto; margin-left: auto; }
+  .ai-work-chat__composer-control.ant-btn { width: 36px; min-width: 36px; max-width: 36px; height: 36px; min-height: 36px; flex: 0 0 36px; gap: 0; padding: 0; font-size: 0; }
   .ai-work-chat__composer-control-label,
   .ai-work-chat__composer-control-chevron { display: none; }
-  .ai-work-chat__composer-control--icon.ant-btn { width: 30px; flex-basis: 30px; }
-  .ai-work-chat__composer-control--more.ant-btn { height: 30px; padding: 0; }
-  .ai-work-chat__composer-control--model.ant-btn { width: auto; min-width: 84px; max-width: min(30cqi, 148px); flex: 0 1 auto; gap: 5px; padding-inline: 8px; }
-  .ai-work-chat__composer-control--model .ai-work-chat__composer-control-label { display: block; min-width: 0; max-width: min(26cqi, 108px); font-size: 10px; }
-  .ai-work-chat__composer-control--model .ai-work-chat__composer-control-chevron { display: block; }
-  .ai-work-chat__composer-submit.ant-btn { width: 32px; height: 32px; }
-  .ai-work-chat__composer-submit--pause.ant-btn { width: 30px; height: 30px; flex-basis: 30px; }
+  .ai-work-chat__composer-control--model .ai-work-chat__composer-control-label,
+  .ai-work-chat__composer-control--model .ai-work-chat__composer-control-chevron { display: none; }
+  .ai-work-chat__composer-control--more.ant-btn { width: 36px; min-width: 36px; max-width: 36px; height: 36px; padding: 0; }
+  .ai-work-chat__composer-control--model.ant-btn { width: 36px; min-width: 36px; max-width: 36px; height: 36px; flex: 0 0 36px; padding: 0; }
+  .ai-work-chat__composer-model-icon { display: inline-flex; flex: 0 0 auto; }
+  .ai-work-chat__composer-submit.ant-btn,
+  .ai-work-chat__composer-submit--pause.ant-btn,
+  .ai-work-chat__composer-submit.ant-btn { width: 36px; min-width: 36px; max-width: 36px; height: 36px; flex-basis: 36px; }
+  .ai-work-chat__usage-footer { flex-wrap: nowrap; gap: 4px; padding-inline: 2px; }
+  .ai-work-chat__usage-trigger { max-width: 100%; min-height: 26px; flex: 0 1 auto; gap: 4px; padding-inline: 6px; white-space: nowrap; }
+  .ai-work-chat__usage-trigger:not(.ai-work-chat__usage-trigger--context) { min-width: 0; flex: 1 1 auto; justify-content: flex-start; }
+  .ai-work-chat__usage-trigger--context { flex: 0 0 auto; }
+  .ai-work-chat__usage-trigger > span,
+  .ai-work-chat__usage-empty { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; overflow-wrap: normal; }
 }
 
-/* 极窄嵌入列将附件/权限/更多与模型/语音/发送分两行，保证发送按钮不被挤出容器。 */
+/* 极窄嵌入列略缩图标按钮，整条 Composer 操作区仍维持单行。 */
 @container ai-work-chat (max-width: 320px) {
-  .ai-work-chat__composer-actions { grid-template-columns: minmax(0, 1fr); row-gap: 4px; }
-  .ai-work-chat__composer-actions-group--right { grid-column: 1; }
-  .ai-work-chat__composer-control--model.ant-btn { max-width: min(44cqi, 148px); }
-  .ai-work-chat__composer-control--model .ai-work-chat__composer-control-label { max-width: min(32cqi, 108px); }
+  .ai-work-chat__composer-control.ant-btn,
+  .ai-work-chat__composer-control--more.ant-btn,
+  .ai-work-chat__composer-control--model.ant-btn,
+  .ai-work-chat__composer-submit.ant-btn,
+  .ai-work-chat__composer-submit--pause.ant-btn { width: 30px; min-width: 30px; max-width: 30px; height: 30px; min-height: 30px; flex-basis: 30px; }
+  .ai-work-chat__composer-actions { gap: 2px; }
+  .ai-work-chat__composer-actions-group { gap: 1px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

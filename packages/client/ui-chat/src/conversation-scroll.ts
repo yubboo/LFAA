@@ -13,6 +13,17 @@ export function shouldFollowLatestMessage(
   return currentlyFollowing;
 }
 
+/** 恢复时尊重历史位置；旧的离底标记只在 16px 内视为滚动取整误差。 */
+export function shouldRestoreConversationBottomPinned(
+  savedBottomPinned: boolean | null,
+  distanceFromBottom: number
+): boolean {
+  if (!Number.isFinite(distanceFromBottom)) return savedBottomPinned === true;
+  if (savedBottomPinned === true) return true;
+  if (savedBottomPinned === false) return Math.max(0, distanceFromBottom) <= 16;
+  return distanceFromBottom <= 64;
+}
+
 /** 只有保持跟随且内容布局变化时才调整位置，避免滚动帧覆盖自然/平滑滚动。 */
 export function shouldAutoScrollToLatest(following: boolean, layoutChanged: boolean): boolean {
   return following && layoutChanged;
@@ -84,6 +95,32 @@ export function projectConversationWheelScroll(
     direction: projectedScrollTop < currentScrollTop ? "up" : "down",
     distanceFromBottom: maxScrollTop - projectedScrollTop
   };
+}
+
+export interface NestedConversationScrollMetrics {
+  scrollTop: number;
+  scrollHeight: number;
+  clientHeight: number;
+  overflowY: string;
+  overscrollBehaviorY: string;
+}
+
+/** 内层滚动区仍能消费滚轮，或在边界阻止滚动链时，不更新主对话的跟随状态。 */
+export function shouldIgnoreMainConversationWheel(
+  deltaY: number,
+  nestedScrollers: readonly NestedConversationScrollMetrics[]
+): boolean {
+  if (!Number.isFinite(deltaY) || deltaY === 0) return false;
+  for (const scroller of nestedScrollers) {
+    if (scroller.overflowY !== "auto" && scroller.overflowY !== "scroll" && scroller.overflowY !== "overlay") continue;
+    if (!Number.isFinite(scroller.scrollTop) || !Number.isFinite(scroller.scrollHeight) || !Number.isFinite(scroller.clientHeight)) continue;
+    const maxScrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+    if (maxScrollTop <= 0) continue;
+    const scrollTop = Math.min(maxScrollTop, Math.max(0, scroller.scrollTop));
+    if (deltaY < 0 ? scrollTop > 0 : scrollTop < maxScrollTop) return true;
+    if (scroller.overscrollBehaviorY === "contain" || scroller.overscrollBehaviorY === "none") return true;
+  }
+  return false;
 }
 
 /** 按提问数生成等距整数像素锚点；会话变长时轨道同步增长，达到视口上限后等距压缩。 */

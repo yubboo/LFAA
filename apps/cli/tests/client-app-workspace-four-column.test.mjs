@@ -20,6 +20,7 @@ const workspaceRegionsCss = read("../../../packages/client/ui-workspace/src/css/
 const dockkitCss = ["common-layout.css", "common-responsive.css"].map(file => read(`../../../packages/client/ui-dockkit/src/css/${file}`)).join("\n");
 const commonCss = ["common-layout.css", "common-pane.css", "common-pointer.css", "common-bottom.css", "common-responsive.css"].map(file => read(`../../../packages/client/ui-dockkit/src/css/${file}`)).join("\n");
 const dockkit = read("../../../packages/client/ui-dockkit/src/ResizableWorkbench.tsx");
+const aiWorkChat = read("../../../packages/client/ui-chat/src/AiWorkChat.tsx");
 const aiWorkChatCss = read("../../../packages/client/ui-chat/src/ai-work-chat.css");
 const rail = read("../../../packages/client/ui-sidebar/src/GlobalNavigationRail.tsx");
 const secondaryNavigation = read("../../../packages/client/ui-sidebar/src/SecondaryNavigation.tsx");
@@ -325,6 +326,14 @@ test("App 模式组固定在顶栏中心列并在极窄中心区独占居中行"
   assert.match(workspaceCss, /\.module-center__actions > \.module-panel-control\s*\{[^}]*font-size:\s*0/u);
   assert.match(workspaceCss, /\.module-center__work-tabs > button:not\(\.module-git-summary-trigger\) > span\s*\{\s*display:\s*none/u);
   assert.match(workspaceCss, /@container module-center \(max-width:\s*420px\)[\s\S]*?\.lfaa-workbench-header:has\(> \[data-workbench-header-slot="center"\]\) > \.lfaa-workbench-header__center\s*\{[^}]*grid-column:\s*1 \/ -1; grid-row:\s*2; justify-self:\s*center/u);
+});
+
+test("通用 Work 只提供聊天，画布切换与选择项目入口限于 App 画布聊天", () => {
+  assert.match(workspace, /const applicationModeScopeId = canvasWorkspace\?\.applicationId \?\? \(app === "workspace" \? null : app\);\s*const modeSwitchAppId = applicationModeScopeId;/u);
+  assert.match(workspace, /onOpenApplicationCanvas=\{canvasWorkspace \? \(\) => \{\s*const canvasApplicationId = canvasWorkspace\.applicationId;/u);
+  assert.match(workspace, /mode === "ai-work" && !canvasWorkspace \? null : centerHeader/u);
+  assert.match(aiWorkChat, /workspace: \{ title: "小鱼智能体", description: "[^"]*项目文件夹[^"]*" \}/u);
+  assert.doesNotMatch(aiWorkChat, /切到画布继续/u);
 });
 
 test("普通应用页面共用导航与主内容锚点并按中心列宽整体左移", () => {

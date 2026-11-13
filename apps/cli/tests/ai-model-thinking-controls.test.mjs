@@ -12,6 +12,7 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const capabilities = await import("lfaa-settings/src/model-capabilities.js");
+const arkPlanCatalog = await import("lfaa-settings/src/ark-plan-model-catalog.js");
 const modelOptions = await import("lfaa-client-ui-settings-models/src/model-options.js");
 const cli = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -23,6 +24,22 @@ test("Provider 目录只提供明确声明的模型力度并保留厂商顺序�
   assert.deepEqual(control, { kind: "effort", parameter: "reasoning_effort", values: ["low", "ultra", "high"], defaultValue: "high" });
   assert.equal(capabilities.normalizeProviderModelThinking({ id: "no-capability" }), null);
   assert.equal(capabilities.normalizeProviderModelThinking({ effort: { supported_levels: ["none", "off"] } }), null);
+});
+
+test("方舟套餐目录只为 GLM-5.3-Flash 提供有官方依据的思考档位", () => {
+  const models = arkPlanCatalog.listArkPlanModels("ark-agent-plan", { planTier: "unknown" });
+  const flash = models.find(model => model.id === "glm-5.3-flash");
+  const glm = models.find(model => model.id === "glm-5.3");
+  assert.deepEqual(flash?.thinking, { kind: "effort", parameter: "reasoning_effort", values: ["low", "high", "max"], defaultValue: "max" });
+  assert.equal(flash?.thinkingSource, "provider-model-catalog");
+  assert.match(flash?.catalogNote ?? "", /huggingface\.co\/zai-org\/GLM-5\.3-Flash/u);
+  assert.deepEqual(modelOptions.reasoningOptions(flash), [
+    { value: "default", label: "跟随官方默认 · 最大" },
+    { value: "low", label: "低" },
+    { value: "high", label: "高" },
+    { value: "max", label: "最大 · 官方默认" }
+  ]);
+  assert.equal(glm?.thinking, null, "不能把 GLM-5.3-Flash 能力按系列名扩展到 GLM-5.3");
 });
 
 test("设置中心和 AI Work 共用目录选项且 Provider 默认不伪装成无思考", () => {
@@ -118,7 +135,7 @@ test("账户保存、切换模型与 Agent Runtime 使用同一目录能力", ()
     const output = execFileSync(process.execPath, ["--import", "tsx", "--import", "./register-package-loader.mjs", "--input-type=module", "-e", `
       import assert from 'node:assert/strict';
       const { database, closeDatabase } = await import('lfaa-storage-sqlite/src/database.js');
-      database.prepare("INSERT INTO users(id,uid,username,password_salt,password_hash,role,is_super_admin) VALUES ('thinking-owner',1,'thinking-owner','test-salt','test-hash','admin',1)").run();
+      database.prepare("INSERT INTO users(id,uid,username,password_salt,password_hash,role,is_super_admin) VALUES ('thinking-owner',7310,'thinking-owner','test-salt','test-hash','admin',0)").run();
       const settings = await import('lfaa-settings/src/service.js');
       const { streamAiCompletion } = await import('lfaa-llm/src/completion.js');
       const { configuration } = await import('lfaa-storage-domain/src/configuration.js');
@@ -163,8 +180,69 @@ test("账户保存、切换模型与 Agent Runtime 使用同一目录能力", ()
       configuration.close();
       closeDatabase();
       process.stdout.write('模型思考参数账户与 Runtime 回归通过');
-    `], { cwd: cli, env: { ...process.env, NODE_ENV: "test", LFAA_DATA_DIR: data, JWT_SECRET: "" }, encoding: "utf8", stdio: "pipe", timeout: 20000 });
+    `], { cwd: cli, env: { ...process.env, NODE_ENV: "test", LFAA_HOME: data, LFAA_DATA_DIR: data, LFAA_HARNESS_HOME: "", JWT_SECRET: "" }, encoding: "utf8", stdio: "pipe", timeout: 20000 });
     assert.match(output, /模型思考参数账户与 Runtime 回归通过/u);
+  } finally {
+    assert.equal(dirname(resolve(data)), parent);
+    rmSync(data, { recursive: true, force: true });
+  }
+});
+
+test("方舟 Plan 官方思考档位穿过旧目录快照进入真实请求组装", () => {
+  const parent = resolve(tmpdir());
+  const data = mkdtempSync(join(parent, "lfaa-ark-plan-thinking-"));
+  try {
+    const output = execFileSync(process.execPath, ["--import", "tsx", "--import", "./register-package-loader.mjs", "--input-type=module", "-e", `
+      import assert from 'node:assert/strict';
+      const { database, closeDatabase } = await import('lfaa-storage-sqlite/src/database.js');
+      database.prepare("INSERT INTO users(id,uid,username,password_salt,password_hash,role,is_super_admin) VALUES ('ark-plan-thinking-owner',7311,'ark-plan-thinking-owner','test-salt','test-hash','admin',0)").run();
+      const settings = await import('lfaa-settings/src/service.js');
+      const { streamAiCompletion } = await import('lfaa-llm/src/completion.js');
+      const { configuration } = await import('lfaa-storage-domain/src/configuration.js');
+      const requestBodies = [];
+      const endpoint = 'https://ark.cn-beijing.volces.com/api/plan/v3/chat/completions';
+      globalThis.fetch = async (url, options = {}) => {
+        assert.equal(String(url), endpoint);
+        const body = JSON.parse(options.body);
+        requestBodies.push(body);
+        if (body.stream) return new Response('data: '+JSON.stringify({choices:[{delta:{content:'ok'}}]})+'\\n\\ndata: [DONE]\\n\\n',{headers:{'Content-Type':'text/event-stream'}});
+        return Response.json({choices:[{message:{content:'连接成功'}}]});
+      };
+      try {
+        const base = { providerId: 'ark-agent-plan', options: { planTier: 'large' }, secret: 'fixture-key', modelId: 'glm-5.3-flash' };
+        await settings.testAiProviderModel('ark-plan-thinking-owner', { ...base, reasoningMode: 'default' });
+        assert.equal(Object.hasOwn(requestBodies.at(-1), 'reasoning_effort'), false, '默认偏好继续省略参数，让官方模型默认值生效');
+        const verified = await settings.testAiProviderModel('ark-plan-thinking-owner', { ...base, reasoningMode: 'low' });
+        assert.equal(requestBodies.at(-1).reasoning_effort, 'low');
+        const account = await settings.saveAiAccount('ark-plan-thinking-owner', {
+          ...base, displayName: '隔离 Plan 回归', reasoningMode: 'low', verificationToken: verified.verificationToken
+        });
+        settings.activateAiAccount('ark-plan-thinking-owner', account.id);
+        assert.deepEqual(account.models.find(model => model.id === base.modelId).thinking.values, ['low', 'high', 'max']);
+
+        configuration.update('ai_accounts', row => row.id === account.id, {
+          models_json: JSON.stringify(account.models.map(model => model.id === base.modelId ? { ...model, thinking: null, thinkingSource: null } : model))
+        });
+        const reloaded = settings.listAiAccounts('ark-plan-thinking-owner').find(item => item.id === account.id);
+        assert.deepEqual(reloaded.models.find(model => model.id === base.modelId).thinking, {
+          kind: 'effort', parameter: 'reasoning_effort', values: ['low', 'high', 'max'], defaultValue: 'max'
+        }, '旧账户缓存不能覆盖当前官方目录能力');
+        assert.equal(reloaded.reasoningMode, 'low', '读取补齐目录时保留用户已保存的有效档位');
+
+        const active = settings.resolveActiveAiModelConfiguration('ark-plan-thinking-owner');
+        await streamAiCompletion({
+          account: active, applicationId: 'workspace', permissionMode: 'ask', messages: [{ role: 'user', content: '你好' }],
+          extensions: [], settings: settings.defaultSettings.aiRuntime, signal: new AbortController().signal, onDelta() {}, onProgress() {}
+        });
+        assert.equal(requestBodies.at(-1).model, base.modelId);
+        assert.equal(requestBodies.at(-1).reasoning_effort, 'low', 'Agent Runtime 必须将用户选定档位传给 Provider');
+      } finally {
+        configuration.close();
+        closeDatabase();
+      }
+      process.stdout.write('方舟 Plan GLM-5.3-Flash 思考目录与请求组装回归通过');
+    `], { cwd: cli, env: { ...process.env, NODE_ENV: "test", LFAA_HOME: data, LFAA_DATA_DIR: data, JWT_SECRET: "", LFAA_HARNESS_HOME: "" }, encoding: "utf8", stdio: "pipe", timeout: 30000 });
+    assert.match(output, /方舟 Plan GLM-5\.3-Flash 思考目录与请求组装回归通过/u);
   } finally {
     assert.equal(dirname(resolve(data)), parent);
     rmSync(data, { recursive: true, force: true });

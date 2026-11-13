@@ -1,8 +1,10 @@
 # LFAA Agent Loop
 
+工具 `updateWorkspaceProject` 回调只更新当前 Run 的可信项目文件上下文。Workspace 项目工具创建并绑定项目后，后续工具读取新登记的目录；Run 完成后 Client 回读会话与项目列表，不复制或重写消息历史。
+
 AI Work 会话标题生成沿用当前账户已选模型和 AI Runtime 设置，只向模型发送有界首条用户输入，不提供工具或插件扩展；自动输出上限为 512 Token，显式设置的更低 AI Runtime 上限及模型目录上限仍然生效。最多四个标题请求并行，同会话在进程内合并。真实 Provider 用量写回该会话首轮助手消息，Session Owner 的标题比较保护手动改名。生成失败保留短回退名，不伪报成功。构建写入仓库根 `dist/packages/core/agent-loop/`。
 
-主 Agent 每次请求的 Git、工作区、写作和会话记忆背景由 LLM Owner 放在当前用户消息前部，参与同一条请求的 token 估算与压缩；上下文改写同步回规范历史前先移除临时背景前缀，Session 可见对话不变。Provider/模型选择只影响真实请求路由，不选择缓存布局。
+主 Agent 每次请求的 Git、工作区、写作、会话记忆和已校验路由背景由 LLM Owner 放在请求尾部的临时 user 消息中；若请求最后一条本来就是 user 消息，则放在该消息内容之前。背景参与同一条请求的 token 估算与压缩；上下文改写同步回规范历史前先移除临时内容，Session 可见对话不变。Provider/模型路由事实留在请求上下文中，不再随路由切换改写 system prompt；模型选择只影响真实请求路由，不选择缓存布局。
 
 开启设置中心 `aiRuntime.promptSuggestions` 后，每条成功的主回复都应附带 1–3 条上下文后续建议。通常由原最终回复请求给出；若模型漏写建议且 `aiRuntime.maxModelRequests` 仍有可用额度，Agent Loop 至多补发一次同账户、无工具请求，只向模型提供本轮公开问题和最终答复。补充请求计入实际请求数与 Token 用量，失败或预算已用完时不影响主答复，也不生成固定建议。Agent Loop 流式剥离有界元数据，并只把公开回复正文和建议分别交给 Session Owner；补充响应不进入公开正文、助手模型历史或工具派发。
 
@@ -29,6 +31,8 @@ Claude SDK result 的 `modelUsage` 由 Subagent Tool 桥按 Provider/模型记�
 2026-10-16：第一方子 Agent 工具通过原 delegateSubagent 桥增加进程内后台执行，继承主/子模型、数量/深度、项目、工具范围、写操作拒绝状态和取消。父回复正常完成时子 Run 继续；取消/超时不计为成功。驱动及持久化归原 Subagent/Session Owner，不增加第二套循环；外部 CLI 后台尚未接入。
 
 领域工具经共享目录在本 Run 按需选择完整合同，App 不自动展开 Minecraft/SteamCMD/Writing/Runtime 工具；Prompt、Skill、Expert 正文由各自内容 Owner 提供，主请求不随 App 注入领域全文。模型明确传 expertId 后，原委派链才把该专家方法传给对应子 Run；继承工具范围与三种权限不扩大。设置/卸载刷新会撤销失效能力，目录不伪称已加载。
+
+所有 Registry 工具（包括非 Minecraft/SteamCMD/Writing/Runtime 的领域工具）默认只进入 `lfaa_tools_list` 摘要目录，完整 JSON Schema 仅在模型按用户目标选中并加载后进入下一次 Provider 请求；常驻小型核心入口可显式声明 `onDemand: false`。这样不让普通对话每轮携带整套领域参数表，同时保留模型对当前真实登记能力的跨领域选择。工具加载仍不执行操作，权限、参数、数据归属和实际执行继续走各自原 Owner。
 
 工具结果同时检查任务内和外层的未知副作用标记，取消/中断不记成成功。领域 Owner 明确确认事务前未开始且允许恢复的准备失败，只在有新的成功检查结果后允许同参数再试；失败/未知副作用与已成功写入仍受原防重和预算约束。失败和停止也保存主模型汇总用量，缺少 Provider usage 的分量保持未知，不记作零费用。浏览器真实轨迹及统计边界见 `docs/development/agent-execution-validation-20261014.md`。
 

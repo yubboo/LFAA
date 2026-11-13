@@ -9,7 +9,7 @@ import { preloadWorkbenchForRoute } from "./workbench-preload.js";
 import { clearAppearanceThemeBootstrap } from "lfaa-client-ui-theme/src/appearance-theme-bootstrap.js";
 import { MiniCompanionWindow } from "./MiniCompanionWindow.js";
 import { APPLICATION_ROUTE_PATTERN, SHARED_WORK_ROUTE, normalizeWorkRoute } from "lfaa-util-values/src/application-id.js";
-import { APPLICATION_ENTRY_STATE_KEY as applicationRouteEntryStateKey, readApplicationEntryIdFromHistory } from "./application-entry-state.js";
+import { APPLICATION_ENTRY_STATE_KEY as applicationRouteEntryStateKey, WORK_CONTEXT_APPLICATION_STATE_KEY, readApplicationEntryIdFromHistory } from "./application-entry-state.js";
 
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
@@ -105,9 +105,13 @@ function routeTo(
   const requestedPath=targetUrl.origin===window.location.origin?normalizeWorkRoute(targetUrl.pathname):SHARED_WORK_ROUTE;
   let nextPath = requestedPath;
   const targetApp = applicationIdForRoute(nextPath);
+  const sourceAppRoute = targetUrl.pathname.match(APPLICATION_ROUTE_PATTERN);
+  const workContextApplicationId = sourceAppRoute?.[2] === "ai-work" && sourceAppRoute[1] !== "workspace" ? sourceAppRoute[1] as ApplicationId : null;
 
   if (nextPath === SHARED_WORK_ROUTE) {
     delete nextState[applicationRouteEntryStateKey];
+    if (workContextApplicationId) nextState[WORK_CONTEXT_APPLICATION_STATE_KEY] = workContextApplicationId;
+    else delete nextState[WORK_CONTEXT_APPLICATION_STATE_KEY];
   } else if (options.applicationEntryApp) {
     if (targetApp === options.applicationEntryApp) {
       nextState[applicationRouteEntryStateKey] = options.applicationEntryApp;

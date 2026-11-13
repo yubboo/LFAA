@@ -43,7 +43,7 @@ test("完整 Web Profile 经真实认证提交、断线和读取后台任务", (
         const {database}=await import('lfaa-storage-sqlite/src/database.js');
         database.prepare("INSERT INTO users(id,uid,username,password_salt,password_hash,role) VALUES('other-fixture',2,'other-fixture','test','test','member')").run();
         const conversationMemory=await import('lfaa-conversation-memory/src/index.js');
-        assert.equal(Number(database.prepare('PRAGMA user_version').get().user_version),73);
+          assert.equal(Number(database.prepare('PRAGMA user_version').get().user_version),80);
         assert.deepEqual(conversationMemory.getConversationMemorySnapshot(user.id),{memories:[],revision:0});
         assert.equal(conversationMemory.replaceConversationMemories('other-fixture',['另一账户的偏好'],0),true);
         database.prepare("INSERT INTO daemon_nodes(id,display_name,platform,architecture,daemon_version,status,last_seen_at) VALUES('fixture-node','测试节点','win32','x64','test','offline','2026-09-30T00:00:00Z')").run();
@@ -63,8 +63,15 @@ test("完整 Web Profile 经真实认证提交、断线和读取后台任务", (
         const storageResponse=await fetch(base+'/project-storage-locations',{headers});assert.equal(storageResponse.status,200);
         const storageLocations=(await storageResponse.json()).settings;assert.equal(storageLocations.writingDirectory,join(process.env.LFAA_HOME,'data'));
         assert.equal(storageLocations.dramaDirectory,join(process.env.LFAA_HOME,'data'));
-        assert.deepEqual(initial.personalization,{memoryEnabled:false,memoryFromToolChats:false});
-        const personalization=await fetch(base+'/settings/personalization',{method:'PUT',headers,body:JSON.stringify({memoryEnabled:true,memoryFromToolChats:false})});assert.equal(personalization.status,200);assert.equal((await personalization.json()).settings.personalization.memoryEnabled,true);
+        assert.deepEqual(initial.personalization,{memoryEnabled:false,memoryFromToolChats:false,memorySharedWithAgents:false,memoryAgentWritesEnabled:false});
+        const personalization=await fetch(base+'/settings/personalization',{method:'PUT',headers,body:JSON.stringify({memoryEnabled:true,memoryFromToolChats:false,memorySharedWithAgents:false,memoryAgentWritesEnabled:false})});assert.equal(personalization.status,200);assert.equal((await personalization.json()).settings.personalization.memoryEnabled,true);
+        const disabledMemoryConnection=await fetch(base+'/settings/memory-agent-connection',{headers});assert.equal(disabledMemoryConnection.status,200);assert.deepEqual((await disabledMemoryConnection.json()).connection,{active:false,createdAt:null});
+        const blockedMemoryToken=await fetch(base+'/settings/memory-agent-connection/token',{method:'POST',headers});assert.equal(blockedMemoryToken.status,409,'未启用外部共享时不能创建连接令牌');
+        const sharedMemorySettings=await fetch(base+'/settings/personalization',{method:'PUT',headers,body:JSON.stringify({memoryEnabled:true,memoryFromToolChats:false,memorySharedWithAgents:true,memoryAgentWritesEnabled:false})});assert.equal(sharedMemorySettings.status,200);assert.equal((await sharedMemorySettings.json()).settings.personalization.memoryAgentWritesEnabled,false);
+        const firstMemoryTokenResponse=await fetch(base+'/settings/memory-agent-connection/token',{method:'POST',headers});assert.equal(firstMemoryTokenResponse.status,201);const firstMemoryToken=await firstMemoryTokenResponse.json();assert.match(firstMemoryToken.token,/^lfaa_mem_[0-9a-f-]{36}\.[A-Za-z0-9_-]{43}$/u);assert.equal(firstMemoryToken.endpoint,'/api/mcp/agent-memory');
+        const activeMemoryConnection=await fetch(base+'/settings/memory-agent-connection',{headers});assert.deepEqual((await activeMemoryConnection.json()).connection,{active:true,createdAt:firstMemoryToken.createdAt});
+        const rotatedMemoryTokenResponse=await fetch(base+'/settings/memory-agent-connection/token',{method:'POST',headers});assert.equal(rotatedMemoryTokenResponse.status,201);const rotatedMemoryToken=await rotatedMemoryTokenResponse.json();assert.notEqual(rotatedMemoryToken.token,firstMemoryToken.token,'轮换会替换原始令牌');
+        assert.equal((await fetch(base+'/settings/memory-agent-connection/token',{method:'DELETE',headers})).status,204);assert.deepEqual((await(await fetch(base+'/settings/memory-agent-connection',{headers})).json()).connection,{active:false,createdAt:null});
         const updated={...initial.aiRuntime,maxModelRequests:7,maxToolCalls:9,voiceInputEnabled:true};
         const saved=await fetch(base+'/settings/ai-runtime',{method:'PUT',headers,body:JSON.stringify(updated)});assert.equal(saved.status,200);assert.equal((await saved.json()).settings.aiRuntime.voiceInputEnabled,true);
         const invalid=await fetch(base+'/settings/plugins',{method:'PUT',headers,body:JSON.stringify({enabled:true,mcpServers:[{id:'bad',name:'bad',enabled:true,url:'http://user:secret@localhost/mcp'}]})});assert.equal(invalid.status,400);

@@ -14,6 +14,8 @@ AI Provider 目录由认证用户读取，账户集合由 Settings Owner 按 sys
 
 账户资料 API 复用 `settings-snapshots` 归档 Owner；Control Plane 装配的 `lfaaAttachments` 仅用于 v2 迁移包导出与附件恢复。`/settings/import/export` 导出 v2 gzip 文件，预览与恢复同时接收 v1/v2；上传仍要求认证和既有 Settings/Memory/Session 校验。请求体上限为 256 MiB，附件按目标用户写入 Attachment Owner；不在 Controller 中解析会话或直接读写附件目录。
 
+账户记忆 MCP 端点为 `POST /mcp/agent-memory`，按账户的记忆总开关与外部读取开关校验专用 Bearer 凭据，只暴露 `memory_read`。`memory_replace` 还要求外部写入开关，并复用 Conversation Memory Owner 的敏感内容校验与 revision 冲突保护。连接状态、一次性令牌创建和撤销由 `/settings/memory-agent-connection` 路由管理；令牌摘要存于 Identity/Auth Owner，MCP 凭据不认证普通 API。MCP 请求体上限 16 KiB，无会话并按请求重新校验设置。
+
 ## 小鱼共享工作入口（2026-10-14）
 
 GET /ai/skills 通过实际 Skill Registry 返回当前账户已登记且可见的摘要、来源分类和账户 `plugins.disabledSkillNames` 派生的 `enabled` 状态；`origin` 将 LFAA 内置、账户安装、本机、项目和自定义 Skill 区分开，隐藏 Provider、绝对路径、资源基址和正文。插件总开关关闭时，仍展示内置与账户已安装 Skill，并标记账户 Skill 暂不可用；本机文件系统 Skill 仍遵循现有 Host 访问开关。单项停用由 Skill Tool Owner 在目录和正文加载时执行。

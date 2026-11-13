@@ -9,7 +9,7 @@ import { useWorkbenchMetrics } from "lfaa-client-ui-dockkit/src/use-workbench-me
 import { lfaaProjectBuildInfo } from "lfaa-client-connection/src/project-version.js";
 import { inspectWebUpdateManifest, type WebUpdateCheckResult } from "./web-update.mjs";
 import { Alert, Button, Card, Input, InputNumber, Modal, Popconfirm, Progress, Radio, Select, Slider, Space, Tag, Typography, message } from "antd";
-import { activateAiAccount, changeCurrentPassword, createSteamcmdTask, deleteAppearanceBackground, deleteAiAccount, deleteConversationMemories, loadConversationMemories, saveConversationMemories, archiveAiSession, decideAiApproval, getErrorMessage, hasAdminAccess, isDesktopApp, loadAiAccounts, loadAiApprovals, loadAiPermissionGrants, loadAiExtensions, loadAiSessions, loadAiUsage, loadAppearanceBackgrounds, loadAiProviders, loadClaudeAgentCredentialStatus, saveClaudeAgentCredential, deleteClaudeAgentCredential, loadBrowserProviders, closeBrowserProviderSessions, loadHealth, loadMinecraftStorageSettings, loadMinecraftCoreNames, loadSteamcmdSettings, loadSteamcmdTask, loadProjectStorageLocations, loadWorkspaceProjects, compareProjectContentDirectories, copyProjectContentToDirectory, adoptProjectContentDirectory, importProjectContentArchive, downloadProjectContentArchive, loadCapabilityInstallCatalog, manageAiRuntimePlugin, probeAiProvider, refreshAiAccountModelCatalog, testSavedAiAccountModel, saveAiAccount, testAiAccountCredential, updateAiAccountCredential, testAiProviderModel, saveRecoveryKey, saveSettings, saveSteamcmdConfigurationDefaults, saveSteamcmdNodeConfiguration, saveSteamcmdStorageDefaults, saveSteamcmdNodeStorageSettings, selectDesktopDataDirectory, revokeAiPermissionGrant, uploadAppearanceBackground, updateCurrentUserEmail, updateCurrentUserUsername, userRoleLabel, updateAiAccountModel, updateAiAccountReasoningMode, type ApplicationId, type AiModel, type AiModelTestResult, type AiAccount, type AiExtension, type AiRuntimeHookInfo, type AiProvider, type AiProviderProbe, type AiRuntimePlugin, type CapabilityInstallCatalogEntry, type AiSession, type AiUsageSummary, type AiToolApproval, type AiToolPermissionGrant, type AppearanceBackground, type BrowserProviderSummary, type BrowserRecentSite, type BrowserVaultEntry, type BrowserProviderId, type NativeBrowserDownload, type NativeBrowserDownloadSettings, type NativeBrowserExtension, type ConversationMemorySnapshot, type ProjectContentComparison, type ProjectStorageLocations, type DesktopUpdateCheckResult, type DesktopUpdatePreferences, type DesktopUpdateRuntimeInfo, type ServerHealth, type MinecraftStorageNode, type MinecraftStorageSettings, type SteamcmdConfigurationValues, type SteamcmdSettingsNode, type SteamcmdStorageValues, type SteamcmdTask, type User, type UserSettings, type LocalModelSummary, type LocalModelDownloadSnapshot, type ClaudeAgentCredentialStatus } from "lfaa-client-connection/src/api.js";
+import { activateAiAccount, changeCurrentPassword, createSteamcmdTask, createMemoryAgentConnectionToken, deleteAppearanceBackground, deleteAiAccount, deleteConversationMemories, loadConversationMemories, loadMemoryAgentConnection, revokeMemoryAgentConnectionToken, saveConversationMemories, archiveAiSession, decideAiApproval, getErrorMessage, hasAdminAccess, isDesktopApp, loadAiAccounts, loadAiApprovals, loadAiPermissionGrants, loadAiExtensions, loadAiSessions, loadAiUsage, loadAppearanceBackgrounds, loadAiProviders, loadClaudeAgentCredentialStatus, saveClaudeAgentCredential, deleteClaudeAgentCredential, loadBrowserProviders, closeBrowserProviderSessions, loadHealth, loadMinecraftStorageSettings, loadMinecraftCoreNames, loadSteamcmdSettings, loadSteamcmdTask, loadProjectStorageLocations, loadWorkspaceProjects, compareProjectContentDirectories, copyProjectContentToDirectory, adoptProjectContentDirectory, importProjectContentArchive, downloadProjectContentArchive, loadCapabilityInstallCatalog, manageAiRuntimePlugin, probeAiProvider, refreshAiAccountModelCatalog, testSavedAiAccountModel, saveAiAccount, testAiAccountCredential, updateAiAccountCredential, testAiProviderModel, saveRecoveryKey, saveSettings, saveSteamcmdConfigurationDefaults, saveSteamcmdNodeConfiguration, saveSteamcmdStorageDefaults, saveSteamcmdNodeStorageSettings, selectDesktopDataDirectory, revokeAiPermissionGrant, uploadAppearanceBackground, updateCurrentUserEmail, updateCurrentUserUsername, userRoleLabel, updateAiAccountModel, updateAiAccountReasoningMode, type ApplicationId, type AiModel, type AiModelTestResult, type AiAccount, type AiExtension, type AiRuntimeHookInfo, type AiProvider, type AiProviderProbe, type AiRuntimePlugin, type CapabilityInstallCatalogEntry, type AiSession, type AiUsageSummary, type AiToolApproval, type AiToolPermissionGrant, type AppearanceBackground, type BrowserProviderSummary, type BrowserRecentSite, type BrowserVaultEntry, type BrowserProviderId, type NativeBrowserDownload, type NativeBrowserDownloadSettings, type NativeBrowserExtension, type ConversationMemorySnapshot, type MemoryAgentConnectionStatus, type MemoryAgentConnectionToken, type ProjectContentComparison, type ProjectStorageLocations, type DesktopUpdateCheckResult, type DesktopUpdatePreferences, type DesktopUpdateRuntimeInfo, type ServerHealth, type MinecraftStorageNode, type MinecraftStorageSettings, type SteamcmdConfigurationValues, type SteamcmdSettingsNode, type SteamcmdStorageValues, type SteamcmdTask, type User, type UserSettings, type LocalModelSummary, type LocalModelDownloadSnapshot, type ClaudeAgentCredentialStatus } from "lfaa-client-connection/src/api.js";
 import { appearanceBackgroundOptions, appearanceBackgroundTargets } from "lfaa-util-values/src/builtin-backgrounds.js";
 import { EXECUTION_SANDBOX_MODES } from "lfaa-util-values/src/sandbox-contract.js";
 import { getSettingsCenterMenu, SETTINGS_CENTER_MENUS, type SettingsMenuId } from "lfaa-util-values/src/settings-menu-catalog.js";
@@ -57,6 +57,7 @@ import { DeveloperHandbook } from "./DeveloperHandbook.js";
 import { AccountAgentUsageSettings } from "./AccountAgentUsageSettings.js";
 import { AccountSnapshotsSettings } from "./AccountSnapshotsSettings.js";
 import { TrustedContactsSettings } from "./TrustedContactsSettings.js";
+import { applyVideoModelChoice, buildVideoModelChoices, defaultVideoModelChoice, findSelectedVideoModelChoice } from "./video-model-selection.js";
 
 
 
@@ -619,6 +620,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   const [accounts, setAccounts] = useState<AiAccount[]>(() => cachedSettingsData?.accounts ?? []);
   const [localModels, setLocalModels] = useState<LocalModelSummary[]>([]);
   const [localModelsLoading, setLocalModelsLoading] = useState(false);
+  const [localModelCatalogReady, setLocalModelCatalogReady] = useState(false);
   const [localModelsError, setLocalModelsError] = useState("");
   const [localModelDownload, setLocalModelDownload] = useState<LocalModelDownloadSnapshot | null>(null);
   useEffect(() => {
@@ -640,14 +642,22 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   const isPlanModelAvailableForTier = (account: AiAccount, model: AiModel): boolean => account.providerId !== "ark-agent-plan"
     || !model.planTiers?.length || account.options.planTier === "unknown" || !account.options.planTier
     || model.planTiers.includes(account.options.planTier as NonNullable<AiModel["planTiers"]>[number]);
-  const videoGenerationAccounts = accounts.filter(account => account.providerId === "doubao"
-    || account.providerId === "ark-agent-plan" && account.models.some(model => model.taskType === "video-generation" && isPlanModelAvailableForTier(account, model)));
-  const selectedVideoGenerationAccount = videoGenerationAccounts.find(account => account.id === settings.aiRuntime.videoGenerationAccountId);
   const videoTranscriptionAccounts = accounts.filter(account => account.providerId === "ark-agent-plan"
     && account.models.some(model => model.id === "doubao-seed-asr-2.0" && model.taskType === "speech-to-text" && isPlanModelAvailableForTier(account, model)));
   const selectedVideoTranscriptionAccount = videoTranscriptionAccounts.find(account => account.id === settings.aiRuntime.videoTranscriptionAccountId);
   const localVideoModels = localModels.filter(model => model.modality === "video");
-  const [, setAiAccountsLoadState] = useState<"idle" | "loading" | "ready" | "error">(() => cachedSettingsData?.loadedSections.has("ai") || cachedSettingsData?.loadedSections.has("configuration") ? "ready" : "idle");
+  const videoModelChoices = useMemo(() => buildVideoModelChoices(accounts, localVideoModels), [accounts, localVideoModels]);
+  const hasVerifiedVideoModelChoice = videoModelChoices.some(choice => !choice.capabilityUnverified);
+  const selectedVideoModelChoice = findSelectedVideoModelChoice(videoModelChoices, settings.aiRuntime);
+  const [aiAccountsLoadState, setAiAccountsLoadState] = useState<"idle" | "loading" | "ready" | "error">(() => cachedSettingsData?.loadedSections.has("ai") || cachedSettingsData?.loadedSections.has("configuration") ? "ready" : "idle");
+  useEffect(() => {
+    if (activeSection !== resolveSettingsSection("ai") || aiAccountsLoadState !== "ready" || !localModelCatalogReady || localModelsLoading) return;
+    const current = settingsRef.current.aiRuntime;
+    if (findSelectedVideoModelChoice(videoModelChoices, current)) return;
+    const choice = defaultVideoModelChoice(videoModelChoices, current);
+    if (!choice) return;
+    updateSettings("aiRuntime", applyVideoModelChoice(current, choice));
+  }, [activeSection, aiAccountsLoadState, localModelCatalogReady, localModelsLoading, videoModelChoices]);
   const [extensions, setExtensions] = useState<AiExtension[]>(() => cachedSettingsData?.extensions ?? []);
   const [capabilityInstallCatalog, setCapabilityInstallCatalog] = useState<CapabilityInstallCatalogEntry[]>(() => cachedSettingsData?.capabilityInstallCatalog ?? []);
   const [extensionSearch, setExtensionSearch] = useState("");
@@ -686,6 +696,10 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
   const [conversationMemoryDraft, setConversationMemoryDraft] = useState("");
   const [loadingConversationMemories, setLoadingConversationMemories] = useState(false);
   const [savingConversationMemories, setSavingConversationMemories] = useState(false);
+  const [memoryAgentConnection, setMemoryAgentConnection] = useState<MemoryAgentConnectionStatus | null>(null);
+  const [memoryAgentToken, setMemoryAgentToken] = useState<MemoryAgentConnectionToken | null>(null);
+  const [loadingMemoryAgentConnection, setLoadingMemoryAgentConnection] = useState(false);
+  const [savingMemoryAgentConnection, setSavingMemoryAgentConnection] = useState(false);
   const [steamcmdNodes, setSteamcmdNodes] = useState<SteamcmdSettingsNode[]>(() => cachedSettingsData?.steamcmdNodes ?? []);
   const [steamcmdConfigurationDefaultsConfigured, setSteamcmdConfigurationDefaultsConfigured] = useState(() => cachedSettingsData?.steamcmdConfigurationDefaultsConfigured ?? false);
   const [steamcmdConfigurationDefaults, setSteamcmdConfigurationDefaults] = useState<SteamcmdConfigurationValues>(() => cachedSettingsData?.steamcmdConfigurationDefaults ?? { installMode: "online", steamcmdDirectory: "lib/steamcmd" });
@@ -822,13 +836,17 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     if (activeSection !== resolveSettingsSection("ai")) return;
     const controller = new AbortController();
     setLocalModelsLoading(true);
+    setLocalModelCatalogReady(false);
     setLocalModelsError("");
     void loadLocalModels(controller.signal).then(result => {
       if (controller.signal.aborted) return;
       setLocalModels(result.models);
       setLocalModelDownload(result.activeDownload);
+      setLocalModelCatalogReady(true);
     }).catch(reason => {
-      if (!controller.signal.aborted) setLocalModelsError(getErrorMessage(reason));
+      if (!controller.signal.aborted) {
+        setLocalModelsError(getErrorMessage(reason));
+      }
     }).finally(() => {
       if (!controller.signal.aborted) setLocalModelsLoading(false);
     });
@@ -1186,7 +1204,10 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     let active = true;
     setConversationMemorySnapshot(null);
     setConversationMemoryDraft("");
+    setMemoryAgentConnection(null);
+    setMemoryAgentToken(null);
     setLoadingConversationMemories(true);
+    setLoadingMemoryAgentConnection(true);
     void loadConversationMemories().then(({ snapshot }) => {
       if (!active) return;
       setConversationMemorySnapshot(snapshot);
@@ -1195,6 +1216,13 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
       if (active) messageApi.error(`读取对话记忆失败：${getErrorMessage(loadError)}`);
     }).finally(() => {
       if (active) setLoadingConversationMemories(false);
+    });
+    void loadMemoryAgentConnection().then(({ connection }) => {
+      if (active) setMemoryAgentConnection(connection);
+    }).catch(loadError => {
+      if (active) messageApi.error(`读取外部 Agent 连接状态失败：${getErrorMessage(loadError)}`);
+    }).finally(() => {
+      if (active) setLoadingMemoryAgentConnection(false);
     });
     return () => { active = false; };
   }, [activeSection, user.id, messageApi]);
@@ -2043,6 +2071,48 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     }
   }
 
+  async function createMemoryAgentToken(): Promise<void> {
+    setSavingMemoryAgentConnection(true);
+    try {
+      clearSettingsAutoSave("personalization");
+      await persistLatestSettings("personalization");
+      const connection = await createMemoryAgentConnectionToken();
+      setMemoryAgentConnection({ active: true, createdAt: connection.createdAt });
+      setMemoryAgentToken(connection);
+      messageApi.success("连接凭据已生成，只会显示这一次。请立即复制到 DSH MCP 设置中。");
+    } catch (createError) {
+      messageApi.error(`生成连接凭据失败：${getErrorMessage(createError)}`);
+    } finally {
+      setSavingMemoryAgentConnection(false);
+    }
+  }
+
+  async function revokeMemoryAgentToken(): Promise<void> {
+    setSavingMemoryAgentConnection(true);
+    try {
+      await revokeMemoryAgentConnectionToken();
+      setMemoryAgentConnection({ active: false, createdAt: null });
+      setMemoryAgentToken(null);
+      messageApi.success("外部 Agent 连接凭据已撤销。");
+    } catch (revokeError) {
+      messageApi.error(`撤销连接凭据失败：${getErrorMessage(revokeError)}`);
+    } finally {
+      setSavingMemoryAgentConnection(false);
+    }
+  }
+
+  async function copyMemoryAgentConnectionDetails(): Promise<void> {
+    if (!memoryAgentToken) return;
+    const endpoint = new URL(memoryAgentToken.endpoint, window.location.origin).toString();
+    const details = `MCP 类型：Streamable HTTP\nMCP 地址：${endpoint}\nAuthorization：Bearer ${memoryAgentToken.token}`;
+    try {
+      await navigator.clipboard.writeText(details);
+      messageApi.success("连接地址和令牌已复制；粘贴到 DSH 的 MCP 服务设置中。");
+    } catch {
+      messageApi.error("复制失败，请手动复制下方地址和令牌。");
+    }
+  }
+
   async function persistRecoveryKey(): Promise<void> {
     setError("");
     if (!recoveryCurrentPassword) {
@@ -2200,6 +2270,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
       const result = await loadLocalModels();
       setLocalModels(result.models);
       setLocalModelDownload(result.activeDownload);
+      setLocalModelCatalogReady(true);
     } catch (scanError) {
       const description = getErrorMessage(scanError);
       setLocalModelsError(description);
@@ -3542,12 +3613,26 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
             {!imageGenerationAccounts.length ? <Alert type="info" showIcon message="请先在上方配置并加密保存 OpenAI、豆包按量或 Agent Plan 图片账户。" /> : null}
         </SettingGroup>
         <SettingGroup title="AI 漫剧视频生成">
-          <SettingRow title="视频引擎" description="选择火山方舟异步服务，或 LFAA 本机模型库中的视频模型。两种模式独立保存选择，不会互相覆盖。">
-            <Select value={settings.aiRuntime.videoGenerationMode} options={[{ value: "provider", label: "远程 Provider" }, { value: "local", label: "LFAA 本机模型" }]} onChange={value => updateSettings("aiRuntime", { ...settings.aiRuntime, videoGenerationMode: value })} />
+          <SettingRow title="视频模型" description="远程火山方舟与已就绪的本机视频模型可在此切换。选择会同步生成方式、账户和模型。">
+            <Select
+              showSearch
+              optionFilterProp="label"
+              value={selectedVideoModelChoice?.key}
+              placeholder={videoModelChoices.length ? "选择视频模型" : localModelsLoading || aiAccountsLoadState === "loading" ? "正在读取视频模型…" : "尚无可用视频模型"}
+              disabled={!videoModelChoices.length}
+              options={videoModelChoices.map(choice => ({ value: choice.key, label: choice.label, title: choice.title }))}
+              onChange={value => {
+                const choice = videoModelChoices.find(item => item.key === value);
+                if (choice) updateSettings("aiRuntime", applyVideoModelChoice(settingsRef.current.aiRuntime, choice));
+              }}
+            />
           </SettingRow>
+          {!videoModelChoices.length && localModelCatalogReady && aiAccountsLoadState === "ready" ? <Alert type="info" showIcon message="还没有可用的视频模型" description="配置并保存带视频生成能力的火山方舟账户，或下载并校验一个 LFAA 本机视频模型。模型就绪后会自动选中。" /> : null}
+          {videoModelChoices.length > 0 && !hasVerifiedVideoModelChoice && !selectedVideoModelChoice ? <Alert type="warning" showIcon message="豆包 API 目录没有标注视频能力" description="这些型号可手动选择，但不会被自动当作视频模型。请先确认火山方舟账户中配置的是视频生成 Endpoint；套餐视频型号和已校验的本机型号会自动默认。" /> : null}
+          {selectedVideoModelChoice?.capabilityUnverified ? <Alert type="warning" showIcon message="当前模型目录未标注视频能力" description="LFAA 会按此账户和型号提交视频请求。目录没有能力标记时不会自动猜测；切换前请核对服务商已开通的视频 Endpoint。" /> : null}
           {settings.aiRuntime.videoGenerationMode === "local" ? <>
             <SettingRow title="本机视频模型" description="MiniMax-H3 FL2VA 使用模型原生 Diffusers 目录；支持文字生成视频/音频和单张首帧图，要求兼容的 CUDA GPU。">
-              <Select allowClear showSearch optionFilterProp="label" value={settings.aiRuntime.videoGenerationLocalModelId || undefined} placeholder="先在上方模型库下载并刷新" options={localVideoModels.map(model => ({ value: model.id, label: `${model.name} · ${model.ready ? model.loaded ? "已加载" : "目录完整" : model.installed ? "文件不完整" : "未下载"}`, title: model.reason ?? model.directory, disabled: !model.ready }))} onChange={value => updateSettings("aiRuntime", { ...settings.aiRuntime, videoGenerationLocalModelId: value ?? "" })} />
+              <Typography.Text type="secondary">{selectedVideoModelChoice?.label ?? "下载并校验模型后会自动选择"}</Typography.Text>
             </SettingRow>
             <SettingRow title="本机视频时限" description="包含首次读取权重和生成时间；超时会停止受管进程，不登记生成结果。">
               <InputNumber min={60} max={1800} step={60} value={settings.aiRuntime.videoGenerationLocalTimeoutSeconds} addonAfter="秒" onChange={value => value !== null && updateSettings("aiRuntime", { ...settings.aiRuntime, videoGenerationLocalTimeoutSeconds: value })} />
@@ -3556,11 +3641,8 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
               <InputNumber min={1} max={60} step={1} value={settings.aiRuntime.videoGenerationUnloadAfterMinutes} addonAfter="分钟" onChange={value => value !== null && updateSettings("aiRuntime", { ...settings.aiRuntime, videoGenerationUnloadAfterMinutes: value })} />
             </SettingRow>
           </> : <>
-            <SettingRow title="火山方舟视频账户" description="使用 Agent Plan 视频模型创建官方异步任务；AI 漫剧和无限画布共用此处账户。Agent Plan 仅 Large/Max 提供视频生成。">
-              <Select allowClear value={settings.aiRuntime.videoGenerationAccountId || undefined} placeholder="选择火山方舟账户" options={videoGenerationAccounts.map(account => ({ value: account.id, label: `${account.displayName} · 火山方舟` }))} onChange={value => updateSettings("aiRuntime", { ...settings.aiRuntime, videoGenerationAccountId: value ?? "", videoGenerationModelId: "" })} />
-            </SettingRow>
-            <SettingRow title="视频模型 ID" description="从官方 Agent Plan 视频模型目录选择，不会把普通文本模型当成视频模型。">
-              <Select allowClear showSearch optionFilterProp="label" disabled={!selectedVideoGenerationAccount} value={settings.aiRuntime.videoGenerationModelId || undefined} placeholder={selectedVideoGenerationAccount ? "选择模型目录中的视频模型" : "请先选择火山方舟账户"} options={selectedVideoGenerationAccount?.models.filter(model => selectedVideoGenerationAccount.providerId !== "ark-agent-plan" || model.taskType === "video-generation").filter(model => !model.planTiers?.length || selectedVideoGenerationAccount.options.planTier === "unknown" || !selectedVideoGenerationAccount.options.planTier || model.planTiers.includes(selectedVideoGenerationAccount.options.planTier as NonNullable<AiModel["planTiers"]>[number])).map(model => ({ value: model.id, label: model.id })) ?? []} onChange={value => updateSettings("aiRuntime", { ...settings.aiRuntime, videoGenerationModelId: value ?? "" })} />
+            <SettingRow title="火山方舟视频账户" description="当前视频任务使用上述所选账户。Agent Plan 视频模型按官方目录和当前 Large/Max 套餐档位筛选。">
+              <Typography.Text type="secondary">{selectedVideoModelChoice?.mode === "provider" ? accounts.find(account => account.id === selectedVideoModelChoice.accountId)?.displayName ?? "" : "选择远程视频模型后会同步账户"}</Typography.Text>
             </SettingRow>
           </>}
           <SettingRow title="生成时长" description="时长单位为秒；模型支持范围和可选离散值由火山方舟实际判定。">
@@ -3579,7 +3661,6 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
             <SettingRow title="水印" description="按所选账户模型的水印参数发送偏好；最终结果遵循服务商规则。">
               <SettingsSwitch label="保留水印" checked={settings.aiRuntime.videoGenerationWatermark} onChange={() => updateSettings("aiRuntime", { ...settings.aiRuntime, videoGenerationWatermark: !settings.aiRuntime.videoGenerationWatermark })} />
             </SettingRow>
-            {!videoGenerationAccounts.length ? <Alert type="info" showIcon message="请先在上方配置并加密保存火山方舟账户。" /> : null}
           </> : <Alert type="info" showIcon message="本机 MiniMax-H3 会按模型默认生成音频；角色/场景参考图最多合并为一张首帧。" />}
         </SettingGroup>
         <SettingGroup title="视频链接理解">
@@ -3966,32 +4047,67 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
 
     if (activeSection === "personalization") return (
       <section className="settings-content">
-        <header className="settings-content__heading"><div><span className="settings-eyebrow">个人</span><Typography.Title level={2}>个性化</Typography.Title><Typography.Paragraph>为后续 小鱼智能体 对话保存少量账户级偏好，帮助 LFAA 更贴合你的工作方式。</Typography.Paragraph></div></header>
-        <SettingGroup title="小鱼智能体 记忆">
-          <SettingRow title="启用 小鱼智能体 记忆" description="开启后，LFAA 只会处理启用后新完成的 小鱼智能体 对话，不回看或整理旧聊天。关闭会暂停使用与生成，已有记忆会保留；记忆保存在本机控制端，并按当前账户隔离。" status={settings.personalization.memoryEnabled ? "已开启" : "默认关闭"}>
-            <SettingsSwitch label="启用 小鱼智能体 记忆" checked={settings.personalization.memoryEnabled} onChange={() => updateSettings("personalization", { ...settings.personalization, memoryEnabled: !settings.personalization.memoryEnabled })} />
+        <header className="settings-content__heading"><div><span className="settings-eyebrow">个人</span><Typography.Title level={2}>个性化</Typography.Title><Typography.Paragraph>集中管理 LFAA Agent 的账户记忆，并选择是否连接其他 Agent。</Typography.Paragraph></div></header>
+        <SettingGroup title="账户记忆">
+          <SettingRow title="启用账户记忆" description="LFAA 根级 Agent 可在相关对话中读取本账户的长期偏好，并在符合条件的回答后整理。关闭后暂停读取和生成，已保存内容会保留。记忆正文保存在当前控制端使用的 SQLite 中并按账户隔离；本机部署时数据位于本机 LFAA Home。" status={settings.personalization.memoryEnabled ? "已开启" : "默认关闭"}>
+            <SettingsSwitch label="启用账户记忆" checked={settings.personalization.memoryEnabled} onChange={() => updateSettings("personalization", { ...settings.personalization, memoryEnabled: !settings.personalization.memoryEnabled })} />
           </SettingRow>
-          <SettingRow title="允许从使用工具的聊天中生成记忆" description="开启后，符合条件的工具聊天会把本轮问题、助手最终回复和已有记忆发送到当前 Provider 整理；不会发送原始工具参数或工具输出。每次最多增加一次有界模型请求和相应用量。" status={settings.personalization.memoryFromToolChats ? "已允许" : "默认关闭"}>
-            <SettingsSwitch label="允许从使用工具的聊天中生成记忆" checked={settings.personalization.memoryFromToolChats} disabled={!settings.personalization.memoryEnabled} onChange={() => updateSettings("personalization", { ...settings.personalization, memoryFromToolChats: !settings.personalization.memoryFromToolChats })} />
+          <SettingRow title="允许从使用工具的对话整理记忆" description="开启后，符合条件的工具对话会把本轮问题、最终回复和已有记忆发送给当前 Provider 整理；不会发送原始工具参数或工具输出。每次最多增加一次有界模型请求和相应用量。" status={settings.personalization.memoryFromToolChats ? "已允许" : "默认关闭"}>
+            <SettingsSwitch label="允许整理工具对话" checked={settings.personalization.memoryFromToolChats} disabled={!settings.personalization.memoryEnabled} onChange={() => updateSettings("personalization", { ...settings.personalization, memoryFromToolChats: !settings.personalization.memoryFromToolChats })} />
+          </SettingRow>
+          <SettingRow title="允许外部 Agent 读取记忆" description="开启后，持有下方专用连接凭据的 Agent 可以通过 LFAA 记忆 MCP 读取账户记忆。项目专属记忆、聊天记录、其他设置和工具不会开放。" status={settings.personalization.memorySharedWithAgents ? "已允许" : "默认关闭"}>
+            <SettingsSwitch label="允许外部 Agent 读取" checked={settings.personalization.memorySharedWithAgents} disabled={!settings.personalization.memoryEnabled} onChange={() => updateSettings("personalization", { ...settings.personalization, memorySharedWithAgents: !settings.personalization.memorySharedWithAgents })} />
+          </SettingRow>
+          <SettingRow title="允许外部 Agent 更新记忆" description="单独控制 DSH 等已连接 Agent 能否写入账户记忆。此项默认关闭，开启也要求上方的记忆与读取开关同时开启；与 LFAA 工具对话整理开关互不影响。" status={settings.personalization.memoryAgentWritesEnabled ? "已允许" : "默认关闭"}>
+            <SettingsSwitch label="允许外部 Agent 更新" checked={settings.personalization.memoryAgentWritesEnabled} disabled={!settings.personalization.memoryEnabled || !settings.personalization.memorySharedWithAgents} onChange={() => updateSettings("personalization", { ...settings.personalization, memoryAgentWritesEnabled: !settings.personalization.memoryAgentWritesEnabled })} />
           </SettingRow>
           <div className="settings-memory-editor">
             <div className="settings-memory-editor__heading">
               <strong>查看与编辑已保存的记忆</strong>
               <span>每行一条；最多 16 条、每条 240 字。常见凭据和个人标识会在保存或发送整理请求前过滤，但无法保证识别所有敏感表达。</span>
             </div>
-            <Input.TextArea aria-label="查看与编辑已保存的 小鱼智能体 记忆" rows={7} value={conversationMemoryDraft} disabled={loadingConversationMemories || !conversationMemorySnapshot} onChange={(event) => setConversationMemoryDraft(event.target.value)} placeholder="每行输入一条稳定偏好或长期背景" />
+            <Input.TextArea aria-label="查看与编辑已保存的账户记忆" rows={7} value={conversationMemoryDraft} disabled={loadingConversationMemories || !conversationMemorySnapshot} onChange={(event) => setConversationMemoryDraft(event.target.value)} placeholder="每行输入一条稳定偏好或长期背景" />
             <div className="settings-memory-editor__actions">
               <Typography.Text type={conversationMemoryDraftOverLimit ? "danger" : "secondary"}>{loadingConversationMemories ? "正在读取…" : `${conversationMemoryDraftItems.length} / 16 条${conversationMemoryDraftOverLimit ? " · 检查数量、重复项或长度" : ""}`}</Typography.Text>
               <Button type="primary" loading={savingConversationMemories} disabled={loadingConversationMemories || !conversationMemorySnapshot || conversationMemoryDraftOverLimit} onClick={() => void saveCurrentConversationMemories()}>保存记忆</Button>
             </div>
           </div>
-          <SettingRow title="删除 小鱼智能体 记忆" description="清除当前账户的全部对话记忆，并从已保存的模型请求快照中移除 LFAA 注入的记忆正文；原始聊天消息、工具审批授权和 Markdown 知识库会保留。" status="当前账户">
-            <Popconfirm title="删除当前账户的全部 小鱼智能体 记忆？" description="同时从已保存的模型请求快照中移除注入记忆正文；聊天原文会保留。" okText="删除记忆" cancelText="取消" onConfirm={() => void clearCurrentConversationMemories()}>
+          <SettingRow title="删除账户记忆" description="清除当前账户的全部对话记忆，并从已保存的模型请求快照中移除 LFAA 注入的记忆正文；原始聊天消息、工具审批授权和 Markdown 知识库会保留。" status="当前账户">
+            <Popconfirm title="删除当前账户的全部记忆？" description="同时从已保存的模型请求快照中移除注入记忆正文；聊天原文会保留。" okText="删除记忆" cancelText="取消" onConfirm={() => void clearCurrentConversationMemories()}>
               <Button danger loading={deletingConversationMemories}>删除</Button>
             </Popconfirm>
           </SettingRow>
         </SettingGroup>
-        <Alert className="settings-inline-alert" type="info" showIcon message="记忆整理在回答完成后后台运行，不会拖延主回答；最多同时整理 4 轮，同一账户已有整理任务时会跳过新一轮。它会使用当前已配置的 Provider 并增加模型用量。发送前会在本机过滤可识别的常见敏感内容，但规则无法识别所有情况。仅成功完成的根级 小鱼智能体 轮次可整理；失败、取消和子 Agent 轮次不会生成记忆。" />
+        <Alert className="settings-inline-alert" type="info" showIcon message="被读取的记忆会作为上下文发送给当前对话使用的模型；自动整理也会向当前 Provider 发送经过本机过滤的问题、最终回复和已有记忆，因此可能产生模型用量。敏感内容过滤不完整，请勿存入密码、令牌或其他机密。整理在回答完成后后台运行，最多同时整理 4 轮；失败、取消和子 Agent 轮次不会生成记忆。" />
+        <SettingGroup title="连接 DSH Super Agent">
+          <SettingRow title="连接状态" description={memoryAgentConnection?.active ? `专用凭据已创建于 ${new Date(memoryAgentConnection.createdAt ?? "").toLocaleString("zh-CN")}。关闭共享开关会立即暂停访问；撤销凭据会让旧连接失效。` : "尚未创建外部 Agent 凭据。启用记忆和读取开关后，可以创建一个只访问账户记忆的凭据。"} status={loadingMemoryAgentConnection ? "正在读取…" : memoryAgentConnection?.active ? "凭据已创建" : "未连接"}>
+            <Space wrap>
+              {memoryAgentConnection?.active ? <>
+                <Popconfirm title="轮换外部 Agent 凭据？" description="旧凭据会立即失效，DSH 需要更新为新凭据。" okText="轮换" cancelText="取消" onConfirm={() => void createMemoryAgentToken()}>
+                  <Button loading={savingMemoryAgentConnection} disabled={!settings.personalization.memoryEnabled || !settings.personalization.memorySharedWithAgents}>轮换凭据</Button>
+                </Popconfirm>
+                <Popconfirm title="撤销外部 Agent 凭据？" description="DSH 将无法再连接；之后可以重新创建凭据。" okText="撤销" cancelText="保留" onConfirm={() => void revokeMemoryAgentToken()}>
+                  <Button danger loading={savingMemoryAgentConnection}>撤销连接</Button>
+                </Popconfirm>
+              </> : <Button type="primary" loading={savingMemoryAgentConnection} disabled={loadingMemoryAgentConnection || !settings.personalization.memoryEnabled || !settings.personalization.memorySharedWithAgents} onClick={() => void createMemoryAgentToken()}>创建连接凭据</Button>}
+            </Space>
+          </SettingRow>
+          <div className="settings-memory-editor">
+            <div className="settings-memory-editor__heading">
+              <strong>在 DSH 的 MCP 服务中填写</strong>
+              <span>传输方式选择 Streamable HTTP，填入 MCP 地址，并添加 Authorization 请求头。LFAA 只保存凭据摘要；明文令牌仅在创建后显示一次。DSH 读取到的记忆会随 DSH 当前模型请求发送。</span>
+            </div>
+            {memoryAgentToken ? <>
+              <SettingRow title="MCP 地址" description="将此地址填入 DSH 的 Streamable HTTP MCP 配置。" status="本机 LFAA API">
+                <Typography.Text code copyable>{new URL(memoryAgentToken.endpoint, window.location.origin).toString()}</Typography.Text>
+              </SettingRow>
+              <SettingRow title="Authorization 请求头" description="将下方完整内容作为 Authorization 请求头的值。令牌只在本次创建后可见。" status="仅显示一次">
+                <Input.TextArea aria-label="外部 Agent 记忆连接令牌" value={`Bearer ${memoryAgentToken.token}`} readOnly rows={2} />
+              </SettingRow>
+              <Button onClick={() => void copyMemoryAgentConnectionDetails()}>复制连接信息</Button>
+            </> : <Typography.Text type="secondary">{memoryAgentConnection?.active ? "令牌已妥善保存，出于安全考虑无法再次查看。如需在 DSH 配置新连接，请轮换凭据。" : "创建凭据后，这里会显示 MCP 地址和一次性令牌。"}</Typography.Text>}
+          </div>
+        </SettingGroup>
       </section>
     );
 

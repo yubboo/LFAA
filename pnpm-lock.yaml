@@ -3982,6 +3982,9 @@ importers:
       lfaa-scope:
         specifier: workspace:*
         version: link:../scope
+      lfaa-session:
+        specifier: workspace:*
+        version: link:../session
       lfaa-settings:
         specifier: workspace:*
         version: link:../../settings/settings
@@ -6512,6 +6515,12 @@ importers:
       '@deepseek-ai/cordis':
         specifier: 4.0.4
         version: 4.0.4(@deepseek-ai/cordis-plugin-loader@1.0.5)
+      lfaa-host-daemon:
+        specifier: workspace:*
+        version: link:../../host/daemon
+      lfaa-host-git:
+        specifier: workspace:*
+        version: link:../../host/git
       lfaa-storage-sqlite:
         specifier: workspace:*
         version: link:../../storage/storage-sqlite

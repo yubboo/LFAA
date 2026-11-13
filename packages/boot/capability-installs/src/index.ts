@@ -281,7 +281,7 @@ const kindSchema = Joi.string().valid(...CAPABILITY_KINDS).required();
 const appSchema = Joi.string().valid(...APPLICATION_IDS);
 function strictObject(properties: Record<string, unknown>, required: string[] = []): Record<string, unknown> { return { type: "object", properties, required, additionalProperties: false }; }
 function baseTool(input: Omit<AiBusinessTool, "coreManaged" | "adminOnly" | "risk" | "approval"> & Partial<Pick<AiBusinessTool, "risk" | "approval">>): AiBusinessTool {
-  return { ...input, coreManaged: true, adminOnly: false, risk: input.risk ?? (() => "read"), approval: input.approval ?? (() => ({ scopeKey: "capability-read", scopeSummary: "能力目录只读查询", summary: "查询能力安装适配器" })) };
+  return { ...input, coreManaged: true, onDemand: input.onDemand ?? false, adminOnly: false, risk: input.risk ?? (() => "read"), approval: input.approval ?? (() => ({ scopeKey: "capability-read", scopeSummary: "能力目录只读查询", summary: "查询能力安装适配器" })) };
 }
 
 function isStdioMcpInspection(parameters: Record<string, unknown>): boolean {

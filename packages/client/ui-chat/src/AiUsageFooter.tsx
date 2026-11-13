@@ -9,6 +9,9 @@ const compact = new Intl.NumberFormat("en-US", { notation: "compact", maximumFra
 const tokenCount = (value: number | null): string => value === null ? "Provider 未提供" : `${integer.format(value)} tokens`;
 const compactCount = (value: number | null): string => value === null ? "用量未知" : `${compact.format(value)} tok`;
 const total = (left: number | null, right: number | null): number | null => left === null || right === null ? null : left + right;
+const usageTooltipContainer = (trigger: HTMLElement): HTMLElement => trigger.closest<HTMLElement>(".module-center__content--ai-work, .module-context__body--canvas-chat")
+  ?? trigger.closest<HTMLElement>(".workbench-shell")
+  ?? document.body;
 
 function contextTooltipText(context: AiContextUsage | null): string {
   if (!context) return "背景信息窗口：发送消息后显示本次模型请求用量";
@@ -107,7 +110,7 @@ export const AiUsageFooter = memo(function AiUsageFooter({ usageSummary, context
   const emptyLabel = formatAiSessionUsageEmptyLabel({ busy, usageLoadState, hasAssistantMessage });
   return <div className="ai-work-chat__usage-footer" aria-label="会话模型用量">
     {usageSummary?.models.length ? <Popover trigger="click" placement="top" overlayClassName="ai-work-chat__usage-popover-overlay" content={<CacheDetails summary={usageSummary} />}>
-      <Tooltip trigger={["hover", "focus"]} placement="right" title={`会话 Token 用量：${compactCount(display?.totalTokens ?? null)} · ${display?.cacheLabel ?? "缓存命中未知"} · 点击查看明细`}>
+      <Tooltip trigger={["hover", "focus"]} placement="top" overlayClassName="ai-work-chat__usage-tooltip-overlay" getPopupContainer={usageTooltipContainer} title={`会话 Token 用量：${compactCount(display?.totalTokens ?? null)} · ${display?.cacheLabel ?? "缓存命中未知"} · 点击查看明细`}>
         <button className="ai-work-chat__usage-trigger" type="button" aria-label="查看会话 Token 与缓存用量">
           <WorkbenchIcon name="spark" size={13} />
           <span>{compactCount(display?.totalTokens ?? null)} · {display?.cacheLabel ?? "缓存命中未知"}</span>
@@ -115,14 +118,14 @@ export const AiUsageFooter = memo(function AiUsageFooter({ usageSummary, context
       </Tooltip>
     </Popover> : <span className="ai-work-chat__usage-empty">{emptyLabel}</span>}
     {showContextUsage ? <Popover trigger="click" placement="top" overlayClassName="ai-work-chat__usage-popover-overlay" content={<ContextDetails context={contextUsage} />}>
-      <Tooltip trigger={["hover", "focus"]} placement="right" title={`${contextTooltipText(contextUsage)} · 点击查看分项`}>
+      <Tooltip trigger={["hover", "focus"]} placement="top" overlayClassName="ai-work-chat__usage-tooltip-overlay" getPopupContainer={usageTooltipContainer} title={`${contextTooltipText(contextUsage)} · 点击查看分项`}>
         <button className="ai-work-chat__usage-trigger ai-work-chat__usage-trigger--context" type="button" aria-label="查看上下文占用与估算分项">
           {contextUsage?.contextWindow ? <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" pathLength="100" /><circle className="ai-work-chat__context-ring-value" cx="12" cy="12" r="9" pathLength="100" strokeDasharray={`${Math.min(100, Math.max(0, (contextUsage.promptTokens ?? contextUsage.estimatedPromptTokens) / contextUsage.contextWindow * 100))} 100`} /></svg> : <WorkbenchIcon name="spark" size={13} />}
           <span>{contextUsage ? `${contextUsage.promptTokens === null ? "约 " : ""}${contextUsage.contextWindow ? `${Math.min(100, Math.round((contextUsage.promptTokens ?? contextUsage.estimatedPromptTokens) / contextUsage.contextWindow * 100))}%` : "上下文"}` : "上下文"}</span>
         </button>
       </Tooltip>
     </Popover> : <Popover trigger="click" placement="top" overlayClassName="ai-work-chat__usage-popover-overlay" content={<ContextDisabledDetails onOpenSettings={onOpenContextSettings} />}>
-      <Tooltip trigger={["hover", "focus"]} placement="right" title="背景信息窗口已关闭 · 点击查看设置中心的开启位置">
+      <Tooltip trigger={["hover", "focus"]} placement="top" overlayClassName="ai-work-chat__usage-tooltip-overlay" getPopupContainer={usageTooltipContainer} title="背景信息窗口已关闭 · 点击查看设置中心的开启位置">
         <button className="ai-work-chat__usage-trigger ai-work-chat__usage-trigger--context" type="button" aria-label="上下文用量当前已关闭">
           <WorkbenchIcon name="spark" size={13} />
           <span>上下文已关闭</span>

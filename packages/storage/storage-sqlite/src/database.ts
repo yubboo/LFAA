@@ -27,7 +27,7 @@ function hasColumn(tableName: "ai_tool_approvals" | "ai_tool_permission_grants",
 
 // 版本31由文件存储协调器在回读校验完成后提交，SQLite 保留账户、权限和任务。
 // 数据库打开兼容上限必须与本文件中的最新 schema 迁移版本保持一致。
-const latestSupportedDatabaseVersion = 80;
+const latestSupportedDatabaseVersion = 81;
 if (currentVersion > latestSupportedDatabaseVersion) {
   throw new Error(`数据库版本 ${currentVersion} 高于当前程序支持的版本 ${latestSupportedDatabaseVersion}（${config.databasePath}）。请使用更新版本的 LFAA；为保护数据，本程序不会自动降级数据库结构。`);
 }
@@ -2684,3 +2684,46 @@ export function migrateAgentMemoryAccessTokenSchema(): void {
   }
 }
 migrateAgentMemoryAccessTokenSchema();
+
+/** 版本 81：允许 AI Work 本机 Host 管理的工作树不绑定 Daemon，同时保留 App 项目的 Daemon 身份。 */
+export function migrateWorkspaceGitHostWorktreeSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 80 || version >= 81) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    const tables = new Set((database.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{ name: string }>).map(row => row.name));
+    if (!tables.has("workspace_git_worktrees")) throw new Error("Workspace Git Worktree 迁移缺少现有 Worktree 表；数据库版本未推进。");
+    database.exec(`
+      CREATE TABLE workspace_git_worktrees_v81 (
+        project_id TEXT PRIMARY KEY NOT NULL REFERENCES workspace_projects(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        source_project_id TEXT NOT NULL REFERENCES workspace_projects(id) ON DELETE RESTRICT,
+        node_id TEXT REFERENCES daemon_nodes(id) ON DELETE RESTRICT,
+        worktree_id TEXT NOT NULL CHECK (length(worktree_id) = 36),
+        worktree_root TEXT NOT NULL,
+        project_relative_path TEXT NOT NULL DEFAULT '',
+        branch TEXT NOT NULL CHECK (length(branch) BETWEEN 1 AND 255),
+        base_commit TEXT NOT NULL CHECK (length(base_commit) BETWEEN 40 AND 64),
+        source_head TEXT NOT NULL CHECK (length(source_head) BETWEEN 40 AND 64),
+        created_at TEXT NOT NULL
+      ) STRICT;
+      INSERT INTO workspace_git_worktrees_v81
+        (project_id, user_id, source_project_id, node_id, worktree_id, worktree_root, project_relative_path, branch, base_commit, source_head, created_at)
+      SELECT project_id, user_id, source_project_id, node_id, worktree_id, worktree_root, project_relative_path, branch, base_commit, source_head, created_at
+      FROM workspace_git_worktrees;
+      DROP TABLE workspace_git_worktrees;
+      ALTER TABLE workspace_git_worktrees_v81 RENAME TO workspace_git_worktrees;
+      CREATE UNIQUE INDEX workspace_git_worktrees_node_id_idx ON workspace_git_worktrees(node_id, worktree_id) WHERE node_id IS NOT NULL;
+      CREATE UNIQUE INDEX workspace_git_worktrees_node_path_idx ON workspace_git_worktrees(node_id, worktree_root) WHERE node_id IS NOT NULL;
+      CREATE UNIQUE INDEX workspace_git_worktrees_local_id_idx ON workspace_git_worktrees(worktree_id) WHERE node_id IS NULL;
+      CREATE UNIQUE INDEX workspace_git_worktrees_local_path_idx ON workspace_git_worktrees(worktree_root) WHERE node_id IS NULL;
+      CREATE INDEX workspace_git_worktrees_source_idx ON workspace_git_worktrees(user_id, source_project_id);
+      PRAGMA user_version = 81;
+      COMMIT;
+    `);
+  } catch (error) {
+    if (database.isTransaction) database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+migrateWorkspaceGitHostWorktreeSchema();

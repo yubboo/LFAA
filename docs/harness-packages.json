@@ -4431,6 +4431,7 @@
           "packages/test-support/api"
         ],
         "testConsumers": [
+          "apps/cli/tests/conversation-memory.test.mjs",
           "apps/cli/tests/file-resources.test.mjs",
           "apps/cli/tests/settings-controller-anthropic-credential.test.mjs"
         ],
@@ -6304,6 +6305,7 @@
         "entry": "packages/client/ui-commands/src/index.ts",
         "readme": null,
         "consumers": [
+          "packages/client/ui-chat",
           "packages/client/ui-layout",
           "packages/client/web"
         ],
@@ -6311,6 +6313,10 @@
         "manifestConsumers": [
           {
             "consumer": "apps/web",
+            "field": "dependencies"
+          },
+          {
+            "consumer": "packages/client/ui-chat",
             "field": "dependencies"
           },
           {
@@ -6946,7 +6952,9 @@
           "packages/client/ui-plugin-manager",
           "packages/client/web"
         ],
-        "testConsumers": [],
+        "testConsumers": [
+          "apps/cli/tests/ai-video-model-selection.test.mjs"
+        ],
         "manifestConsumers": [
           {
             "consumer": "apps/web",
@@ -8195,6 +8203,7 @@
           "apps/cli/tests/mcp-tools.test.mjs",
           "apps/cli/tests/package-owner-lazy-capabilities.test.mjs",
           "apps/cli/tests/session-branch-memory.test.mjs",
+          "apps/cli/tests/session-title-generation.test.mjs",
           "apps/cli/tests/subagent-agent-loop-permission-bridge.test.mjs",
           "apps/cli/tests/subagent-background.test.mjs",
           "apps/cli/tests/workspace-projects.test.mjs"
@@ -8403,6 +8412,7 @@
           "packages/api/workspace-controller",
           "packages/core/agent",
           "packages/core/agent-loop",
+          "packages/core/tools",
           "packages/sdk/sdk-protocol",
           "packages/session-query/tool-session-query",
           "packages/settings/settings-snapshots",
@@ -8418,6 +8428,7 @@
           "apps/cli/tests/agent-runtime.test.mjs",
           "apps/cli/tests/agent-settings-tools.test.mjs",
           "apps/cli/tests/agent-workspace-context.test.mjs",
+          "apps/cli/tests/ai-work-unified-chat-projects.test.mjs",
           "apps/cli/tests/capability-mcp.test.mjs",
           "apps/cli/tests/capability-skill.test.mjs",
           "apps/cli/tests/computer-use.test.mjs",
@@ -8442,11 +8453,13 @@
           "apps/cli/tests/session-kernel.test.mjs",
           "apps/cli/tests/session-storage-index.test.mjs",
           "apps/cli/tests/session-storage-info.test.mjs",
+          "apps/cli/tests/session-title-generation.test.mjs",
           "apps/cli/tests/session-usage-summary-performance.test.mjs",
           "apps/cli/tests/subagent-agent-loop-permission-bridge.test.mjs",
           "apps/cli/tests/subagent-background.test.mjs",
           "apps/cli/tests/workspace-projects.test.mjs",
           "apps/cli/tests/workspace-session-directory-availability.test.mjs",
+          "apps/cli/tests/workspace-worktree-tool.test.mjs",
           "apps/cli/tests/xiaoyu-shared-agent.test.mjs"
         ],
         "manifestConsumers": [
@@ -8484,6 +8497,10 @@
           },
           {
             "consumer": "packages/core/agent-loop",
+            "field": "dependencies"
+          },
+          {
+            "consumer": "packages/core/tools",
             "field": "dependencies"
           },
           {
@@ -8631,6 +8648,7 @@
           "apps/cli/tests/agent-runtime.test.mjs",
           "apps/cli/tests/agent-settings-tools.test.mjs",
           "apps/cli/tests/agent-tool-discovery.test.mjs",
+          "apps/cli/tests/ai-work-unified-chat-projects.test.mjs",
           "apps/cli/tests/canvas-tools.test.mjs",
           "apps/cli/tests/capability-install-one-step.test.mjs",
           "apps/cli/tests/computer-use.test.mjs",
@@ -8646,6 +8664,7 @@
           "apps/cli/tests/plugin-manager.test.mjs",
           "apps/cli/tests/subagent-background.test.mjs",
           "apps/cli/tests/system-file-library.test.mjs",
+          "apps/cli/tests/workspace-worktree-tool.test.mjs",
           "apps/cli/tests/writing-analysis-tools.test.mjs",
           "apps/cli/tests/writing-book-profiles.test.mjs",
           "apps/cli/tests/writing-catalog.test.mjs",
@@ -10608,7 +10627,8 @@
           "packages/games/tool-minecraft",
           "packages/games/tool-steamcmd",
           "packages/host/tool-daemon",
-          "packages/jobs/jobs"
+          "packages/jobs/jobs",
+          "packages/workspace/workspace"
         ],
         "testConsumers": [
           "apps/cli/tests/agent-browser-preview.test.mjs",
@@ -10711,6 +10731,10 @@
           },
           {
             "consumer": "packages/jobs/jobs",
+            "field": "dependencies"
+          },
+          {
+            "consumer": "packages/workspace/workspace",
             "field": "dependencies"
           }
         ],
@@ -10839,7 +10863,8 @@
           "packages/api/agent-git-controller",
           "packages/api/workspace-controller",
           "packages/boot/app-boot",
-          "packages/core/tools"
+          "packages/core/tools",
+          "packages/workspace/workspace"
         ],
         "testConsumers": [],
         "manifestConsumers": [
@@ -10857,6 +10882,10 @@
           },
           {
             "consumer": "packages/core/tools",
+            "field": "dependencies"
+          },
+          {
+            "consumer": "packages/workspace/workspace",
             "field": "dependencies"
           }
         ],
@@ -11151,6 +11180,7 @@
           "apps/cli/tests/account-agent-usage.test.mjs",
           "apps/cli/tests/agent-settings-tools.test.mjs",
           "apps/cli/tests/connectivity-easytier-api.test.mjs",
+          "apps/cli/tests/conversation-memory.test.mjs",
           "apps/cli/tests/file-manager-api.test.mjs",
           "apps/cli/tests/file-resources.test.mjs",
           "apps/cli/tests/file-storage.test.mjs",
@@ -11772,6 +11802,7 @@
           "apps/cli/tests/general-agent-capabilities.test.mjs",
           "apps/cli/tests/package-owner-lazy-capabilities.test.mjs",
           "apps/cli/tests/session-branch-memory.test.mjs",
+          "apps/cli/tests/session-title-generation.test.mjs",
           "apps/cli/tests/subagent-claude-sdk-mcp-isolation.test.mjs",
           "apps/cli/tests/turn-attachments.test.mjs"
         ],
@@ -13479,6 +13510,7 @@
           "apps/cli/tests/session-kernel-persistence.test.mjs",
           "apps/cli/tests/session-storage-index.test.mjs",
           "apps/cli/tests/session-storage-info.test.mjs",
+          "apps/cli/tests/session-title-generation.test.mjs",
           "apps/cli/tests/session-usage-summary-performance.test.mjs",
           "apps/cli/tests/settings-contract.test.mjs",
           "apps/cli/tests/steamcmd-dst-cluster.test.mjs",
@@ -13489,6 +13521,7 @@
           "apps/cli/tests/trusted-account-recovery.test.mjs",
           "apps/cli/tests/workspace-projects.test.mjs",
           "apps/cli/tests/workspace-session-directory-availability.test.mjs",
+          "apps/cli/tests/workspace-worktree-tool.test.mjs",
           "apps/cli/tests/writing-analysis-tools.test.mjs",
           "apps/cli/tests/writing-book-profiles.test.mjs",
           "apps/cli/tests/writing-catalog.test.mjs",
@@ -13972,7 +14005,8 @@
           "apps/cli/tests/system-file-library.test.mjs",
           "apps/cli/tests/terminal-api.test.mjs",
           "apps/cli/tests/workspace-projects.test.mjs",
-          "apps/cli/tests/workspace-session-directory-availability.test.mjs"
+          "apps/cli/tests/workspace-session-directory-availability.test.mjs",
+          "apps/cli/tests/workspace-worktree-tool.test.mjs"
         ],
         "manifestConsumers": [
           {
@@ -15263,6 +15297,7 @@
           "apps/cli/tests/ai-model-thinking-controls.test.mjs",
           "apps/cli/tests/ai-provider-extension.test.mjs",
           "apps/cli/tests/ai-video-canvas.test.mjs",
+          "apps/cli/tests/ai-work-unified-chat-projects.test.mjs",
           "apps/cli/tests/canvas-settings.test.mjs",
           "apps/cli/tests/capability-mcp.test.mjs",
           "apps/cli/tests/capability-skill.test.mjs",
@@ -15296,6 +15331,7 @@
           "apps/cli/tests/session-kernel-persistence.test.mjs",
           "apps/cli/tests/session-storage-index.test.mjs",
           "apps/cli/tests/session-storage-info.test.mjs",
+          "apps/cli/tests/session-title-generation.test.mjs",
           "apps/cli/tests/session-usage-summary-performance.test.mjs",
           "apps/cli/tests/settings-contract.test.mjs",
           "apps/cli/tests/steamcmd-dst-cluster.test.mjs",
@@ -15305,6 +15341,7 @@
           "apps/cli/tests/trusted-account-recovery.test.mjs",
           "apps/cli/tests/workspace-projects.test.mjs",
           "apps/cli/tests/workspace-session-directory-availability.test.mjs",
+          "apps/cli/tests/workspace-worktree-tool.test.mjs",
           "apps/cli/tests/writing-analysis-tools.test.mjs",
           "apps/cli/tests/writing-book-profiles.test.mjs",
           "apps/cli/tests/writing-catalog.test.mjs",
@@ -15538,6 +15575,7 @@
           "apps/cli/tests/ai-model-thinking-controls.test.mjs",
           "apps/cli/tests/ai-provider-extension.test.mjs",
           "apps/cli/tests/ai-video-canvas.test.mjs",
+          "apps/cli/tests/ai-work-unified-chat-projects.test.mjs",
           "apps/cli/tests/app-boot-lifecycle-failures.test.mjs",
           "apps/cli/tests/app-boot-plugin-runtime-rollback.test.mjs",
           "apps/cli/tests/app-boot-required-replacement.test.mjs",
@@ -15594,6 +15632,7 @@
           "apps/cli/tests/session-kernel-persistence.test.mjs",
           "apps/cli/tests/session-storage-index.test.mjs",
           "apps/cli/tests/session-storage-info.test.mjs",
+          "apps/cli/tests/session-title-generation.test.mjs",
           "apps/cli/tests/session-usage-summary-performance.test.mjs",
           "apps/cli/tests/settings-contract.test.mjs",
           "apps/cli/tests/steamcmd-dst-cluster.test.mjs",
@@ -15607,6 +15646,7 @@
           "apps/cli/tests/workflow-core.test.mjs",
           "apps/cli/tests/workspace-projects.test.mjs",
           "apps/cli/tests/workspace-session-directory-availability.test.mjs",
+          "apps/cli/tests/workspace-worktree-tool.test.mjs",
           "apps/cli/tests/writing-analysis-tools.test.mjs",
           "apps/cli/tests/writing-book-profiles.test.mjs",
           "apps/cli/tests/writing-catalog.test.mjs",
@@ -17491,6 +17531,7 @@
           "apps/cli/tests/agent-browser-preview.test.mjs",
           "apps/cli/tests/agent-runtime.test.mjs",
           "apps/cli/tests/agent-settings-tools.test.mjs",
+          "apps/cli/tests/ai-work-unified-chat-projects.test.mjs",
           "apps/cli/tests/appearance-preset-file.test.mjs",
           "apps/cli/tests/appearance-preset-owner.test.mjs",
           "apps/cli/tests/application-entry-state.test.mjs",
@@ -18679,11 +18720,13 @@
         "testConsumers": [
           "apps/cli/tests/agent-local-workspace.test.mjs",
           "apps/cli/tests/agent-workspace-context.test.mjs",
+          "apps/cli/tests/ai-work-unified-chat-projects.test.mjs",
           "apps/cli/tests/fixtures/harness-runtime-wiring.mjs",
           "apps/cli/tests/fixtures/xiaoyu-shared-api.mjs",
           "apps/cli/tests/knowledge-library.test.mjs",
           "apps/cli/tests/workspace-projects.test.mjs",
-          "apps/cli/tests/workspace-session-directory-availability.test.mjs"
+          "apps/cli/tests/workspace-session-directory-availability.test.mjs",
+          "apps/cli/tests/workspace-worktree-tool.test.mjs"
         ],
         "manifestConsumers": [
           {

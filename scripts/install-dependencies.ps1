@@ -37,7 +37,7 @@ function Show-MainMenu {
     Write-Host '  【3】构建 Windows Electron 桌面安装包' -ForegroundColor Cyan
     Write-Host '  【4】检查环境与实际工作区包' -ForegroundColor Yellow
     Write-Host '  【5】一键生成纯净源码 ZIP（排除依赖与敏感数据）' -ForegroundColor Green
-    Write-Host '  【6】一键正常推送 GitHub main（不覆盖远端历史）' -ForegroundColor Green
+    Write-Host '  【6】从本地 main 推送 GitHub main（检查文件清单后明确确认）' -ForegroundColor Green
     Write-Host '  【7】一键发布 npm CLI（检查登录与版本，确认后构建并发布）' -ForegroundColor Green
     Write-Host '  【8】安全更新本地源码（检查后同步当前分支及可安全快进的本地 main）' -ForegroundColor Cyan
     Write-Host '  【0】退出' -ForegroundColor Red
@@ -539,6 +539,31 @@ function Invoke-GitChecked {
     }
 }
 
+function Assert-GitHubPushBranch {
+    param([AllowNull()][string]$BranchName)
+
+    if ([string]::IsNullOrWhiteSpace($BranchName)) {
+        throw '当前处于 detached HEAD；菜单 6 只允许从本地 main 推送，请先切换到 main。'
+    }
+    if ($BranchName -ne 'main') {
+        throw ("菜单 6 的目标是 GitHub main，但当前本地分支是 {0}；为避免把其他分支误推到 main，已停止。请先核对并切换到本地 main。" -f $BranchName)
+    }
+}
+
+function Get-FileSha256 {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    $stream = [System.IO.File]::OpenRead($Path)
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        return [System.BitConverter]::ToString($sha256.ComputeHash($stream)).Replace('-', '')
+    }
+    finally {
+        $stream.Dispose()
+        $sha256.Dispose()
+    }
+}
+
 function Get-GitConfigValue {
     param([Parameter(Mandatory = $true)][string]$Key)
 
@@ -937,14 +962,19 @@ function Test-PushVersionIsNewer {
 function Get-LastPushedVersion {
     $remoteMain = @(Invoke-GitOutput -GitArguments @('ls-remote', '--heads', 'origin', 'refs/heads/main'))
     if ($remoteMain.Count -eq 0) {
-        return Resolve-LastPushedVersion
+        $resolvedVersion = Resolve-LastPushedVersion
+        $resolvedVersion | Add-Member -NotePropertyName RemoteRevision -NotePropertyValue ''
+        return $resolvedVersion
     }
 
     # 每次推送前从远端 main 读取最新历史；fetch 只更新本地 Git 对象/FETCH_HEAD，不合并工作区。
     Invoke-GitChecked -GitArguments @('fetch', '--quiet', '--no-tags', 'origin', 'refs/heads/main')
     $remoteSubjects = @(Invoke-GitOutput -GitArguments @('log', '-n', '50', '--format=%s', 'FETCH_HEAD'))
+    $remoteRevision = ((Invoke-GitOutput -GitArguments @('rev-parse', '--verify', 'FETCH_HEAD')) -join '').Trim()
     $localVersion = Get-GitConfigValue -Key 'lfaa.lastPushedVersion'
-    return Resolve-LastPushedVersion -RemoteCommitSubjects $remoteSubjects -LocalVersion $localVersion
+    $resolvedVersion = Resolve-LastPushedVersion -RemoteCommitSubjects $remoteSubjects -LocalVersion $localVersion
+    $resolvedVersion | Add-Member -NotePropertyName RemoteRevision -NotePropertyValue $remoteRevision
+    return $resolvedVersion
 }
 
 function Read-Confirmation {
@@ -1017,11 +1047,15 @@ function Push-GitHubRepository {
     Write-Host ("【GitHub {0}】" -f $pushModeLabel) -ForegroundColor Green
     Write-Host '目标：https://github.com/yubboo/LFAA.git' -ForegroundColor Cyan
     Write-Host '分支：main' -ForegroundColor Cyan
-    # 先说明后续步骤，避免用户在凭据确认处取消后以为漏了「提交说明」这一步。
-    Write-Host '流程：排除依赖与敏感数据 → 扫描凭据 → 输入提交说明 → 创建提交 → 推送到 main。' -ForegroundColor DarkGray
+    Write-Host '流程：确认本地 main 与远端关系 → 检查待推送内容 → 明确确认 → 创建提交并正常推送。' -ForegroundColor DarkGray
 
     if (-not (Get-Command 'git' -ErrorAction SilentlyContinue)) {
         Write-Host '未检测到 Git for Windows，请先安装 Git 并加入 PATH。' -ForegroundColor Red
+        return
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('GIT_INDEX_FILE', 'Process'))) {
+        Write-Host '当前终端设置了 GIT_INDEX_FILE；为避免读写错误的暂存区，已停止推送。' -ForegroundColor Red
         return
     }
 
@@ -1034,12 +1068,11 @@ function Push-GitHubRepository {
         return
     }
 
-    Write-Host '常规推送不会覆盖远端历史；若远端领先，Git 会安全拒绝本次推送。' -ForegroundColor Green
-    if (-not (Read-Confirmation -Prompt '确认推送到 GitHub main？' -DefaultYes)) {
-        Write-Host '已取消推送。' -ForegroundColor DarkGray
-        return
-    }
-
+    Write-Host '常规推送不会覆盖远端历史；若远端在检查后继续前进，Git 仍会安全拒绝本次推送。' -ForegroundColor Green
+    $temporaryIndexPath = ''
+    $alternateIndexActive = $false
+    $commitCreated = $false
+    $pushRevision = ''
     try {
         $projectVersion = Get-ProjectReleaseVersion
         $runtimeDataRoot = Get-ConfiguredDataDirectory
@@ -1056,6 +1089,9 @@ function Push-GitHubRepository {
         if ([System.IO.Path]::GetFullPath($gitRoot) -ne [System.IO.Path]::GetFullPath($projectRoot)) {
             throw "Git 根目录不是当前 LFAA 工作区：$gitRoot"
         }
+
+        $branchName = ((Invoke-GitOutput -GitArguments @('symbolic-ref', '--quiet', '--short', 'HEAD')) -join "`n").Trim()
+        Assert-GitHubPushBranch -BranchName $branchName
 
         $gitName = Get-GitConfigValue -Key 'user.name'
         if ([string]::IsNullOrWhiteSpace($gitName)) {
@@ -1085,9 +1121,52 @@ function Push-GitHubRepository {
         }
         Write-Host ("当前更新日志版本：{0}（来源：docs\updata-log.md；这是产品版本）。" -f $projectVersion.Label) -ForegroundColor DarkGray
 
-        $commitCreated = $false
+        $remoteRevision = [string]$lastPushedVersion.RemoteRevision
+        $headRevision = ''
+        try {
+            $headRevision = ((Invoke-GitOutput -GitArguments @('rev-parse', '--verify', 'HEAD')) -join '').Trim()
+        }
+        catch {
+            $headRevision = ''
+        }
+        if (-not [string]::IsNullOrWhiteSpace($remoteRevision)) {
+            if ([string]::IsNullOrWhiteSpace($headRevision)) {
+                throw 'GitHub main 已有提交而本地 main 尚无提交；请先使用菜单 8 核对源码，已在创建本地提交前停止。'
+            }
+            & git @gitCommonArguments -C $projectRoot merge-base --is-ancestor $remoteRevision $headRevision 2>$null
+            if ($LASTEXITCODE -ne 0) {
+                & git @gitCommonArguments -C $projectRoot merge-base --is-ancestor $headRevision $remoteRevision 2>$null
+                if ($LASTEXITCODE -eq 0) {
+                    throw 'GitHub main 已领先本地 main；请先使用菜单 8 检查更新，再重新推送。尚未创建本地提交。'
+                }
+                throw '本地 main 与 GitHub main 已分叉；为保留两边历史，尚未创建本地提交或推送。请先单独核对分支。'
+            }
+        }
+
+        # 先扫描已有历史；任何历史级风险都在创建新提交之前停止。
+        if (-not [string]::IsNullOrWhiteSpace($headRevision)) {
+            $historyObjects = @(Invoke-GitOutput -GitArguments @('rev-list', '--objects', 'HEAD'))
+            $historyPaths = @($historyObjects | ForEach-Object {
+                $separator = $_.IndexOf(' ')
+                if ($separator -ge 0 -and $separator -lt ($_.Length - 1)) { $_.Substring($separator + 1) }
+            })
+            $blockedHistoryPaths = @(Get-BlockedGitPaths -Paths $historyPaths -DataRoot $runtimeDataRoot)
+            if ($blockedHistoryPaths.Count -gt 0) {
+                throw ("本地 Git 历史含有运行数据、依赖或敏感文件路径；已阻止推送：`n{0}" -f ($blockedHistoryPaths -join "`n"))
+            }
+
+            $oversizedHistoryPaths = @(Get-LargeGitObjectPaths -ObjectLines $historyObjects)
+            if ($oversizedHistoryPaths.Count -gt 0) {
+                throw ("本地 Git 历史含有超过 25 MiB 的文件对象；已阻止推送：`n{0}" -f ($oversizedHistoryPaths -join "`n"))
+            }
+
+            $historySecrets = Get-GitSecretFindings -Scope 'History'
+            Assert-GitSecretFindings -ScopeLabel '本地 Git 历史' -Blocking $historySecrets.Blocking -Advisory $historySecrets.Advisory
+        }
+
         $commitVersion = ''
         $workingChanges = @(Invoke-GitOutput -GitArguments @('status', '--short', '--untracked-files=all'))
+        $stagedPaths = @()
         if ($workingChanges.Count -gt 0) {
             Write-Host ''
             Write-Host '检测到以下工作区变化：' -ForegroundColor Cyan
@@ -1095,7 +1174,27 @@ function Push-GitHubRepository {
                 Write-Host "  $change"
             }
 
-            $gitIndexLockPath = Get-GitIndexLockPath
+            $realIndexLockPath = Get-GitIndexLockPath
+            [void](Remove-StaleGitIndexLock -GitIndexLockPath $realIndexLockPath)
+            $realIndexPath = $realIndexLockPath.Substring(0, $realIndexLockPath.Length - '.lock'.Length)
+            $realIndexFingerprint = ''
+            if (Test-Path -LiteralPath $realIndexPath -PathType Leaf) {
+                $realIndexFingerprint = Get-FileSha256 -Path $realIndexPath
+            }
+
+            # 所有暂存、过滤和暂存区扫描都在独立索引中进行；取消或检查失败不会改写用户原索引。
+            $temporaryIndexPath = Join-Path (Split-Path -Parent $realIndexPath) ("index.lfaa-push-{0}" -f [guid]::NewGuid().ToString('N'))
+            if (Test-Path -LiteralPath $realIndexPath -PathType Leaf) {
+                Copy-Item -LiteralPath $realIndexPath -Destination $temporaryIndexPath
+            }
+            else {
+                $env:GIT_INDEX_FILE = $temporaryIndexPath
+                $alternateIndexActive = $true
+                Invoke-GitChecked -GitArguments @('read-tree', '--empty')
+            }
+            $env:GIT_INDEX_FILE = $temporaryIndexPath
+            $alternateIndexActive = $true
+            $gitIndexLockPath = "$temporaryIndexPath.lock"
             [void](Remove-StaleGitIndexLock -GitIndexLockPath $gitIndexLockPath)
             Invoke-GitChecked -GitArguments @('add', '-A')
 
@@ -1144,10 +1243,15 @@ function Push-GitHubRepository {
                 Assert-GitSecretFindings -ScopeLabel '暂存源码' -Blocking $secretFindings.Blocking -Advisory $secretFindings.Advisory
 
                 $stagedSummary = @(Invoke-GitOutput -GitArguments @('diff', '--cached', '--name-status', '--find-renames'))
+                $stagedDiffStat = @(Invoke-GitOutput -GitArguments @('diff', '--cached', '--stat'))
                 Write-Host ''
                 Write-Host '本次待提交文件：' -ForegroundColor Cyan
                 foreach ($path in $stagedSummary) {
                     Write-Host "  $path"
+                }
+                if ($stagedDiffStat.Count -gt 0) {
+                    Write-Host '待提交差异统计：' -ForegroundColor Cyan
+                    foreach ($line in $stagedDiffStat) { Write-Host "  $line" }
                 }
 
                 Write-Host ''
@@ -1180,9 +1284,48 @@ function Push-GitHubRepository {
                     $validCommitMessage = $true
                 }
 
+                $pushConfirmation = "确认将以上 $($stagedPaths.Count) 个文件按提交说明「$commitMessage」创建提交，并推送本地 main 到 GitHub main？"
+                if (-not (Read-Confirmation -Prompt $pushConfirmation)) {
+                    Write-Host '已取消；临时索引将被删除，原暂存区和全部本地文件保持不变。' -ForegroundColor DarkGray
+                    return
+                }
+
+                $currentRealIndexFingerprint = ''
+                if (Test-Path -LiteralPath $realIndexPath -PathType Leaf) {
+                    $currentRealIndexFingerprint = Get-FileSha256 -Path $realIndexPath
+                }
+                if ($currentRealIndexFingerprint -ne $realIndexFingerprint) {
+                    throw '等待确认期间真实 Git 暂存区被其他进程修改；为避免覆盖并发工作，已取消提交和推送。'
+                }
+
+                $currentBranchName = ((Invoke-GitOutput -GitArguments @('symbolic-ref', '--quiet', '--short', 'HEAD')) -join "`n").Trim()
+                Assert-GitHubPushBranch -BranchName $currentBranchName
+                $currentHeadRevision = ''
+                try {
+                    $currentHeadRevision = ((Invoke-GitOutput -GitArguments @('rev-parse', '--verify', 'HEAD')) -join '').Trim()
+                }
+                catch {
+                    $currentHeadRevision = ''
+                }
+                if ($currentHeadRevision -ne $headRevision) {
+                    throw '等待确认期间本地 main 的提交发生变化；为避免把旧审核内容提交到新 HEAD，已取消。'
+                }
+
                 [void](Remove-StaleGitIndexLock -GitIndexLockPath $gitIndexLockPath)
                 Invoke-GitChecked -GitArguments @('commit', '-m', $commitMessage)
                 $commitCreated = $true
+                $pushRevision = ((Invoke-GitOutput -GitArguments @('rev-parse', '--verify', 'HEAD')) -join '').Trim()
+
+                Remove-Item Env:\GIT_INDEX_FILE -ErrorAction SilentlyContinue
+                $alternateIndexActive = $false
+                $currentRealIndexFingerprint = ''
+                if (Test-Path -LiteralPath $realIndexPath -PathType Leaf) {
+                    $currentRealIndexFingerprint = Get-FileSha256 -Path $realIndexPath
+                }
+                if ($currentRealIndexFingerprint -ne $realIndexFingerprint) {
+                    throw '提交已在本地创建，但真实 Git 暂存区同时被其他进程修改；没有推送，请先检查本地仓库状态。'
+                }
+                Invoke-GitChecked -GitArguments @('reset', '--mixed', 'HEAD')
             }
             else {
                 Write-Host '过滤后没有可提交的源码变化，不创建空提交。' -ForegroundColor Yellow
@@ -1193,22 +1336,28 @@ function Push-GitHubRepository {
         }
 
         if (-not $commitCreated) {
-            # 没有任何代码改动时不做无意义推送：远端已含本地 HEAD 就直接结束。
-            # 若本地还有没推上去的提交（例如上次推送失败），仍然继续推送，避免重试无路可走。
-            $headRevision = ((Invoke-GitOutput -GitArguments @('rev-parse', 'HEAD')) -join '').Trim()
-            $remoteRevision = ''
-            try {
-                $remoteRevision = ((Invoke-GitOutput -GitArguments @('rev-parse', '--verify', 'refs/remotes/origin/main')) -join '').Trim()
-            }
-            catch {
-                $remoteRevision = ''
+            if ([string]::IsNullOrWhiteSpace($headRevision)) {
+                Write-Host '本地没有可推送的提交；过滤后也没有可提交的源码变化。' -ForegroundColor Yellow
+                return
             }
             if ($remoteRevision -eq $headRevision) {
                 Write-Host ''
                 Write-Host '未检测到代码改动，远端 main 已与本地一致，无需推送。' -ForegroundColor Yellow
                 return
             }
-            Write-Host '未检测到代码改动，但本地有尚未推送的提交，将继续推送。' -ForegroundColor Yellow
+            Write-Host '未检测到未提交改动，但本地 main 有尚未推送的提交：' -ForegroundColor Yellow
+            $outgoingCommits = if ([string]::IsNullOrWhiteSpace($remoteRevision)) {
+                @(Invoke-GitOutput -GitArguments @('log', '--oneline', 'HEAD'))
+            }
+            else {
+                @(Invoke-GitOutput -GitArguments @('log', '--oneline', ("{0}..HEAD" -f $remoteRevision)))
+            }
+            $outgoingCommits | Select-Object -First 40 | ForEach-Object { Write-Host "  $_" -ForegroundColor Cyan }
+            if ($outgoingCommits.Count -gt 40) { Write-Host ("  ……还有 {0} 个提交" -f ($outgoingCommits.Count - 40)) -ForegroundColor DarkGray }
+            if (-not [string]::IsNullOrWhiteSpace($remoteRevision)) {
+                $outgoingDiffStat = @(Invoke-GitOutput -GitArguments @('diff', '--stat', $remoteRevision, 'HEAD'))
+                foreach ($line in $outgoingDiffStat) { Write-Host "  $line" }
+            }
         }
 
         $headSubject = ((Invoke-GitOutput -GitArguments @('log', '-1', '--format=%s', 'HEAD')) -join '').Trim()
@@ -1220,32 +1369,26 @@ function Push-GitHubRepository {
             throw ("待推送版本 {0} 不高于上一次推送版本 {1}；已停止推送。" -f $commitVersion, $lastPushedVersion.Number)
         }
 
-        [void](Invoke-GitOutput -GitArguments @('rev-parse', '--verify', 'HEAD'))
-
-        $historyObjects = @(Invoke-GitOutput -GitArguments @('rev-list', '--objects', 'HEAD'))
-        $historyPaths = @($historyObjects | ForEach-Object {
-            $separator = $_.IndexOf(' ')
-            if ($separator -ge 0 -and $separator -lt ($_.Length - 1)) {
-                $_.Substring($separator + 1)
+        if (-not $commitCreated) {
+            [void](Invoke-GitOutput -GitArguments @('rev-parse', '--verify', 'HEAD'))
+            if (-not (Read-Confirmation -Prompt '确认将上面列出的本地提交推送到 GitHub main？')) {
+                Write-Host '已取消推送；本地提交和文件均保持不变。' -ForegroundColor DarkGray
+                return
             }
-        })
-        $blockedHistoryPaths = @(Get-BlockedGitPaths -Paths $historyPaths -DataRoot $runtimeDataRoot)
-        if ($blockedHistoryPaths.Count -gt 0) {
-            throw ("本地 Git 历史含有运行数据、依赖或敏感文件路径；已阻止推送：`n{0}" -f ($blockedHistoryPaths -join "`n"))
+            $pushRevision = $headRevision
         }
 
-        $oversizedHistoryPaths = @(Get-LargeGitObjectPaths -ObjectLines $historyObjects)
-        if ($oversizedHistoryPaths.Count -gt 0) {
-            throw ("本地 Git 历史含有超过 25 MiB 的文件对象；已阻止推送：`n{0}" -f ($oversizedHistoryPaths -join "`n"))
+        $currentBranchName = ((Invoke-GitOutput -GitArguments @('symbolic-ref', '--quiet', '--short', 'HEAD')) -join "`n").Trim()
+        Assert-GitHubPushBranch -BranchName $currentBranchName
+        $currentHeadRevision = ((Invoke-GitOutput -GitArguments @('rev-parse', '--verify', 'HEAD')) -join '').Trim()
+        if ($currentHeadRevision -ne $pushRevision) {
+            throw '确认推送后本地 main 的提交发生变化；已停止推送，请重新检查本地仓库。'
         }
-
-        $historySecrets = Get-GitSecretFindings -Scope 'History'
-        Assert-GitSecretFindings -ScopeLabel '本地 Git 历史' -Blocking $historySecrets.Blocking -Advisory $historySecrets.Advisory
 
         Write-Host ''
         Write-Host 'HTTPS 传输低于 1 KiB/s 持续 60 秒时会超时退出。' -ForegroundColor DarkGray
-        Write-Host '正在执行正常推送：git push origin HEAD:refs/heads/main ……' -ForegroundColor Green
-        Invoke-GitChecked -GitArguments @('-c', 'http.lowSpeedLimit=1024', '-c', 'http.lowSpeedTime=60', 'push', 'origin', 'HEAD:refs/heads/main')
+        Write-Host '正在执行正常推送：git push origin <已审核提交>:refs/heads/main ……' -ForegroundColor Green
+        Invoke-GitChecked -GitArguments @('-c', 'http.lowSpeedLimit=1024', '-c', 'http.lowSpeedTime=60', 'push', 'origin', ("{0}:refs/heads/main" -f $pushRevision))
         try {
             Invoke-GitChecked -GitArguments @('config', '--local', 'lfaa.lastPushedVersion', $commitVersion)
         }
@@ -1258,7 +1401,19 @@ function Push-GitHubRepository {
         if ($_.Exception.Message -match '(?i)non-fast-forward|fetch first|rejected') {
             Write-Host '常规推送被 Git 拒绝：远端包含本地没有的提交；远端历史没有被覆盖。' -ForegroundColor Yellow
         }
+        if ($commitCreated) {
+            Write-Host '本地提交已保留；本次没有覆盖远端。请先检查本地 main 与 GitHub main 的关系，再决定下一步。' -ForegroundColor Yellow
+        }
         Write-Host "GitHub 推送失败：$($_.Exception.Message)" -ForegroundColor Red
+    }
+    finally {
+        if ($alternateIndexActive) {
+            Remove-Item Env:\GIT_INDEX_FILE -ErrorAction SilentlyContinue
+        }
+        if (-not [string]::IsNullOrWhiteSpace($temporaryIndexPath)) {
+            Remove-Item -LiteralPath $temporaryIndexPath -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath "$temporaryIndexPath.lock" -Force -ErrorAction SilentlyContinue
+        }
     }
 }
 

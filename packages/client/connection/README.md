@@ -95,3 +95,5 @@ SteamCMD Client Connection 提供通用服务端列表、创建/配置、运行�
 `loadMinecraftServerTelemetry()` 只读取认证的 Minecraft 实例实时指标接口，支持 `AbortSignal`；Connection 透传在线人数、服务端公布版本、Ping、进程启动时间和 TPS 的真实状态，不缓存快照或推断缺失值。
 
 `loadMinecraftNodeResources()` 只读取认证的节点整机资源只读接口，支持 `AbortSignal`；Connection 透传有界历史、来源更新时间与等待/不可用/过期/离线状态，不自行计算或持有 CPU、内存、磁盘、网络数据。
+
+账户记忆 API 只透传认证的连接状态、一次性 MCP 令牌创建和令牌撤销结果；Connection 不保存明文凭据。记忆 MCP 地址为 `/api/mcp/agent-memory`，外部 Agent 的令牌仅由账户本人在 Settings 页面显式创建。

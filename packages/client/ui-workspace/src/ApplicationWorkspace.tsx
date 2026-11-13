@@ -858,6 +858,8 @@ function PanelControl({ name, title, shortcut, active, onClick }: { name: "termi
 export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary = false, workspaceTitle, applicationContent, canvasWorkspace, apps, applicationNavigationItems, username, role, serverState, error, settings, onSettingsChange, onBack, onOpenSelectedApplication, onNavigate, onOpenSettings, onOpenApplication, recentSessionsOpenRequestId, onRecentSessionsOpenRequestHandled, rightPanelSection, onRightPanelSectionChange, applicationsOpenRequestId, onApplicationsOpenRequestHandled, activeAiSessionId, aiDraft, aiWorkGoal, notifications, onNotification, onMarkNotificationsRead, onMarkSessionNotificationsRead, onClearNotifications, onOpenNotification, onActiveAiSessionChange, onAiDraftChange, onAiWorkGoalConsumed, onLogout }: ApplicationWorkspaceProps) {
   const activeRightPanelSection = mode === "normal" ? "context" : rightPanelSection;
   const voiceMode = app === "workspace" && mode === "ai-work" && section === "voice";
+  const workspaceProjectAppId = mode === "ai-work" ? "workspace" : app === "workspace" || app === "minecraft" ? app : null;
+  const chatSessionAppId = mode === "ai-work" ? "workspace" : app;
   // 旧版 Host 可能缺少后续新增的快捷键项；由 Settings 默认值补齐，不覆盖已保存的空数组。
   const shortcuts = useMemo(() => resolveShortcutSettings(settings.shortcuts), [settings.shortcuts]);
   const sideChatShortcuts = shortcuts.openSideChat;
@@ -895,16 +897,17 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   const [pinnedSessionState, setPinnedSessionState] = useState(() => ({ userId, ids: readPinnedAiSessionIds(userId) }));
   const pinnedSessionIds = pinnedSessionState.userId === userId ? pinnedSessionState.ids : [];
   const [recentSessionsExpandRequestId, setRecentSessionsExpandRequestId] = useState(0);
-  const [workspaceProjects, setWorkspaceProjects] = useState<WorkspaceProject[]>(() => workspaceProjectSnapshots.get(`${userId}:${app}`)?.projects ?? []);
-  const [workspaceProjectsDataScope, setWorkspaceProjectsDataScope] = useState(() => `${userId}:${app}`);
+  const workspaceProjectsScopeKey = `${userId}:${workspaceProjectAppId ?? app}`;
+  const [workspaceProjects, setWorkspaceProjects] = useState<WorkspaceProject[]>(() => workspaceProjectSnapshots.get(workspaceProjectsScopeKey)?.projects ?? []);
+  const [workspaceProjectsDataScope, setWorkspaceProjectsDataScope] = useState(() => workspaceProjectsScopeKey);
   const workspaceProjectDirectorySignature = useMemo(() => {
     const sessionProjectIds = new Set(sessionDirectoryBindings.map(([, projectId]) => projectId));
     return JSON.stringify(workspaceProjects.filter(project => sessionProjectIds.has(project.id)).map(project => [project.id, project.nodeId, project.sources.map(source => source.path), project.path]).sort(([firstId], [secondId]) => String(firstId).localeCompare(String(secondId))));
   }, [sessionDirectoryBindings, workspaceProjects]);
-  const [workspaceNodes, setWorkspaceNodes] = useState<WorkspaceDaemonNode[]>(() => workspaceProjectSnapshots.get(`${userId}:${app}`)?.nodes ?? []);
-  const [workspaceProjectsTruncated, setWorkspaceProjectsTruncated] = useState(() => workspaceProjectSnapshots.get(`${userId}:${app}`)?.truncated ?? false);
-  const [defaultWorkspaceProjectId, setDefaultWorkspaceProjectId] = useState<string | null>(() => workspaceProjectSnapshots.get(`${userId}:${app}`)?.defaultProjectId ?? null);
-  const [workspaceProjectsLoadStatus, setWorkspaceProjectsLoadStatus] = useState<"loading" | "ready" | "error">(() => workspaceProjectSnapshots.has(`${userId}:${app}`) ? "ready" : "loading");
+  const [workspaceNodes, setWorkspaceNodes] = useState<WorkspaceDaemonNode[]>(() => workspaceProjectSnapshots.get(workspaceProjectsScopeKey)?.nodes ?? []);
+  const [workspaceProjectsTruncated, setWorkspaceProjectsTruncated] = useState(() => workspaceProjectSnapshots.get(workspaceProjectsScopeKey)?.truncated ?? false);
+  const [defaultWorkspaceProjectId, setDefaultWorkspaceProjectId] = useState<string | null>(() => workspaceProjectSnapshots.get(workspaceProjectsScopeKey)?.defaultProjectId ?? null);
+  const [workspaceProjectsLoadStatus, setWorkspaceProjectsLoadStatus] = useState<"loading" | "ready" | "error">(() => workspaceProjectSnapshots.has(workspaceProjectsScopeKey) ? "ready" : "loading");
   const [workspaceProjectsError, setWorkspaceProjectsError] = useState("");
   const [workspaceProjectsRevision, setWorkspaceProjectsRevision] = useState(0);
   const [aiSessionsLoading, setAiSessionsLoading] = useState(() => mode === "ai-work" && !aiSessionSnapshots.has(userId));
@@ -1092,7 +1095,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
     aiSessionsRequestRef.current = request;
     setAiSessionsLoading(true);
     setAiSessionsError("");
-    void loadAiSessions({ signal: controller.signal }).then(({ sessions }) => {
+    void loadAiSessions({ appId: chatSessionAppId, signal: controller.signal }).then(({ sessions }) => {
       if (controller.signal.aborted || aiSessionsRequestRef.current !== request) return;
       aiSessionSnapshots.set(userId, sessions);
       setAiSessionsState({ userId, sessions });
@@ -1106,7 +1109,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
         setAiSessionsLoading(false);
       }
     });
-  }, [mode, userId]);
+  }, [chatSessionAppId, mode, userId]);
   const moduleContentScroll = useScrollRestoration(
     mode === "ai-work" ? "" : createScrollRestorationKey(userId, "module-page", app, mode, section),
     minecraftContentReady
@@ -1133,11 +1136,11 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   const activeAiSessionTitle = aiSessions.find((session) => session.id === activeAiSessionId)?.title ?? null;
   const activeAiSession = aiSessions.find((session) => session.id === activeAiSessionId) ?? null;
   const applicationProjectContext = applicationProjectContextState.userId === userId ? applicationProjectContextState.project : undefined;
-  const chatAppId = canvasWorkspace?.applicationId ?? (app === "workspace" ? activeAiSession?.appId ?? "workspace" : app);
-  const activeChatSession = activeAiSession && ((app === "workspace" && !canvasWorkspace) || activeAiSession.appId === chatAppId) ? activeAiSession : null;
+  const chatAppId = chatSessionAppId;
+  const activeChatSession = activeAiSession?.appId === chatAppId ? activeAiSession : null;
   const activeChatSessionId = activeChatSession?.id ?? null;
   const applicationModeScopeId = canvasWorkspace?.applicationId ?? (app === "workspace" ? null : app);
-  const modeSwitchAppId = applicationModeScopeId ?? (app === "workspace" && mode === "ai-work" ? chatAppId : null);
+  const modeSwitchAppId = applicationModeScopeId;
   const activeCanvasProjectId = agentCanvasContext.canvas?.applicationId === modeSwitchAppId
     ? agentCanvasContext.canvas.projectId
     : modeSwitchAppId === "aivideo" && applicationProjectContext?.applicationId === "aivideo"
@@ -1593,8 +1596,8 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   }, [mode, refreshAiSessions, userId]);
 
   useEffect(() => {
-    const cacheKey = `${userId}:${app}`;
-    if (app !== "minecraft" && app !== "workspace") {
+    const cacheKey = workspaceProjectsScopeKey;
+    if (!workspaceProjectAppId) {
       setWorkspaceProjects([]);
       setWorkspaceNodes([]);
       setWorkspaceProjectsTruncated(false);
@@ -1624,7 +1627,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
     const refreshProjects = async () => {
       const sequence = ++projectLoadSequence;
       try {
-        const { projects, nodes, truncated, defaultProjectId } = await loadWorkspaceProjects({ appId: app, signal: controller.signal });
+        const { projects, nodes, truncated, defaultProjectId } = await loadWorkspaceProjects({ appId: workspaceProjectAppId, signal: controller.signal });
         if (controller.signal.aborted || sequence !== projectLoadSequence) return;
         workspaceProjectSnapshots.set(cacheKey, { projects, nodes, truncated, defaultProjectId });
         setWorkspaceProjects(projects);
@@ -1642,7 +1645,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
       }
     };
     void refreshProjects();
-    if (app === "workspace" && !voiceMode && !initializedDefaultWorkspaceUsers.has(userId)) {
+    if (workspaceProjectAppId === "workspace" && !voiceMode && !initializedDefaultWorkspaceUsers.has(userId)) {
       void initializeDefaultWorkspace(controller.signal).then(() => {
         if (controller.signal.aborted) return;
         initializedDefaultWorkspaceUsers.add(userId);
@@ -1658,7 +1661,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
       });
     }
     return () => controller.abort();
-  }, [userId, app, mode, voiceMode, workspaceProjectsRevision]);
+  }, [userId, app, mode, voiceMode, workspaceProjectAppId, workspaceProjectsScopeKey, workspaceProjectsRevision]);
 
   useEffect(() => {
     const key = `${userId}:${app}:${workspaceProjectsRevision}:${sessionDirectorySignature}:${workspaceProjectDirectorySignature}`;
@@ -1689,6 +1692,10 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
   }, [activeAiSessionId, aiSessionsLoading, app, mode, sessionDirectoryCheckRequest?.requestId, sessionDirectoryCheckRequest?.sessionId, sessionDirectorySignature, userId, workspaceProjectDirectorySignature, workspaceProjectsRevision]);
 
   const retryWorkspaceProjects = useCallback(() => setWorkspaceProjectsRevision(revision => revision + 1), []);
+  const handleWorkspaceProjectCreated = useCallback(() => {
+    setWorkspaceProjectsRevision(revision => revision + 1);
+    refreshAiSessions();
+  }, [refreshAiSessions]);
 
   useLayoutEffect(() => {
     const responsiveLayoutKey = `${metrics.mode}:${mode}`;
@@ -2517,9 +2524,9 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
     rightPaneOpen: !chrome.rightCollapsed,
     bottomTerminalOpen: chrome.terminalOpen,
     browserUseEnabled: settings.browserUse.enabled,
-    ...(agentCanvasContext.canvas?.applicationId === chatAppId ? { canvas: agentCanvasContext.canvas } : {}),
-    ...(agentCanvasContext.workflow?.applicationId === chatAppId ? { workflow: agentCanvasContext.workflow } : {}),
-    ...(applicationProjectContext?.applicationId === chatAppId ? { applicationProject: applicationProjectContext } : {}),
+    ...(agentCanvasContext.canvas?.applicationId === (canvasWorkspace?.applicationId ?? chatAppId) ? { canvas: agentCanvasContext.canvas } : {}),
+    ...(agentCanvasContext.workflow?.applicationId === (canvasWorkspace?.applicationId ?? chatAppId) ? { workflow: agentCanvasContext.workflow } : {}),
+    ...(applicationProjectContext?.applicationId === (canvasWorkspace?.applicationId ?? chatAppId) ? { applicationProject: applicationProjectContext } : {}),
     ...(agentBrowserUrl ? { activeBrowserUrl: agentBrowserUrl } : {})
   }), [activeAgentRightPane, agentBrowserUrl, agentCanvasContext.canvas, agentCanvasContext.workflow, applicationProjectContext, canvasWorkspace, chatAppId, chrome.rightCollapsed, chrome.terminalOpen, settings.browserUse.enabled]);
   const workspaceUtilityTabTitle = (tab: WorkspaceUtilityTab): string => {
@@ -2671,9 +2678,10 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
           workspaceNodes={workspaceNodes}
           workspaceProjectsError={workspaceProjectsError}
           onRetryWorkspaceProjects={retryWorkspaceProjects}
+          onWorkspaceProjectCreated={handleWorkspaceProjectCreated}
           onWorkspaceProjectsChange={(projects) => {
             const truncated = workspaceProjectsTruncated || projects.length > 200;
-            workspaceProjectSnapshots.set(`${userId}:${app}`, { projects: projects.slice(0, 200), nodes: workspaceNodes, truncated, defaultProjectId: defaultWorkspaceProjectId });
+            workspaceProjectSnapshots.set(workspaceProjectsScopeKey, { projects: projects.slice(0, 200), nodes: workspaceNodes, truncated, defaultProjectId: defaultWorkspaceProjectId });
             setWorkspaceProjects(projects.slice(0, 200));
             setWorkspaceProjectsTruncated(truncated);
           }}
@@ -2698,7 +2706,10 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
           onSessionFileChanges={onSessionFileChanges}
           onBrowserToolCompleted={openBrowserDockForAgent}
           onCanvasToolsCompleted={onCanvasToolsCompleted}
-          onOpenApplicationCanvas={() => onNavigate(`/apps/${encodeURIComponent(chatAppId)}/canvas${activeCanvasProjectId ? `/${encodeURIComponent(activeCanvasProjectId)}` : ""}`)}
+          onOpenApplicationCanvas={canvasWorkspace ? () => {
+            const canvasApplicationId = canvasWorkspace.applicationId;
+            onNavigate(`/apps/${encodeURIComponent(canvasApplicationId)}/canvas${activeCanvasProjectId ? `/${encodeURIComponent(activeCanvasProjectId)}` : ""}`);
+          } : undefined}
           voiceMode={section === "voice"}
           onExitVoice={() => onNavigate("/work")}
         />
@@ -2751,7 +2762,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
             </Popover>}
           </div> : null}
           {terminalPanelAvailable && settings.general.showBottomPanelControl && showCenterPanelControls ? <PanelControl name="terminal" title="底部终端" shortcut={shortcuts.toggleBottomPanel.join(" / ")} active={chrome.terminalOpen} onClick={toggleTerminal} /> : null}
-          {canvasWorkspace ? <PanelControl name="panelRight" title={canvasChatOpen ? "收起应用聊天" : "展开应用聊天"} shortcut={shortcuts.toggleContextPanel.join(" / ")} active={canvasChatOpen} onClick={() => setCanvasChatOpen(!canvasChatOpen)} /> : (mode === "ai-work" ? showCenterPanelControls : chrome.rightCollapsed) ? <PanelControl name="panelRight" title={chrome.rightCollapsed ? "展开上下文栏" : "收起上下文栏"} shortcut={shortcuts.toggleContextPanel.join(" / ")} active={!chrome.rightCollapsed} onClick={toggleRight} /> : null}
+          {canvasWorkspace ? <PanelControl name="panelRight" title={canvasChatOpen ? "收起小鱼会话" : "展开小鱼会话"} shortcut={shortcuts.toggleContextPanel.join(" / ")} active={canvasChatOpen} onClick={() => setCanvasChatOpen(!canvasChatOpen)} /> : (mode === "ai-work" ? showCenterPanelControls : chrome.rightCollapsed) ? <PanelControl name="panelRight" title={chrome.rightCollapsed ? "展开上下文栏" : "收起上下文栏"} shortcut={shortcuts.toggleContextPanel.join(" / ")} active={!chrome.rightCollapsed} onClick={toggleRight} /> : null}
         </div>
       </WorkbenchHeader>
   );
@@ -3018,13 +3029,13 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
         center={center}
         leftVisible={!voiceMode}
         right={voiceMode ? null : canvasWorkspace ? (
-          <aside className="module-context module-context--canvas-chat" aria-label={`${canvasWorkspace ? canvasApplicationTitle : activeApplicationTitle}聊天`} data-layout-mode={metrics.mode} data-testid="canvas-agent-chat">
+          <aside className="module-context module-context--canvas-chat" aria-label="小鱼智能体通用会话" data-layout-mode={metrics.mode} data-testid="canvas-agent-chat">
             <header className="module-context__heading">
               <div>
                 <strong>{activeChatSessionTitle?.trim() || `${activeApplicationTitle}助手`}</strong>
-                <span>{canvasWorkspace ? "当前项目对话" : `${activeApplicationTitle} · 当前项目对话`}</span>
+                <span>{canvasWorkspace ? `通用 Work 会话 · ${canvasApplicationTitle}画布上下文` : "通用 Work 会话"}</span>
               </div>
-              <button type="button" className="module-shell-icon-button module-context__close" aria-label="收起应用聊天" onClick={() => setCanvasChatOpen(false)}><WorkbenchIcon name="close" size={15} /></button>
+              <button type="button" className="module-shell-icon-button module-context__close" aria-label="收起小鱼会话" onClick={() => setCanvasChatOpen(false)}><WorkbenchIcon name="close" size={15} /></button>
             </header>
             <div className="module-context__body module-context__body--canvas-chat">{renderAiWorkChatContent()}</div>
           </aside>

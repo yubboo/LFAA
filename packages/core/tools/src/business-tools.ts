@@ -4,7 +4,7 @@
  * 关联文件：tool-contract.ts、registry.ts、领域工具插件。
  */
 import Joi from "joi";
-import { projectFileTool } from "./project-tools.js";
+import { createWorkspaceGitWorktreeTool, createWorkspaceProjectTool, projectFileTool } from "./project-tools.js";
 import { capabilitySettingsTools } from "./capability-settings.js";
 import { settingsTools } from "./settings-tools.js";
 import { listRegisteredAiTools } from "./registry.js";
@@ -56,7 +56,8 @@ const delegationTool: AiBusinessTool = makeTool({
 });
 
 export function listAiBusinessTools(applicationId: ApplicationId, userRole: UserRole, writingTarget: AiWritingToolTarget | null = null, permissionMode: "ask" | "approve_remembered" | "full_access" = "ask", includeExtensions = false, includeInstalledPrompts = false, includeComputerControl = false, includeBrowserUse = false, includeBrowserHistoryAccess = false, includeBrowserWebsiteTools = false, includeBrowserDeveloperMode = false, includeBrowserFullCdpAccess = false): AiBusinessTool[] {
-  const available = [...capabilitySettingsTools, ...settingsTools, projectFileTool, delegationTool, fileTool];
+  // Settings Schema 仅在模型通过目录发现后发送；Settings Owner 与原权限合同保持不变。
+  const available = [...capabilitySettingsTools, ...settingsTools.map(tool => ({ ...tool, onDemand: true })), createWorkspaceProjectTool, createWorkspaceGitWorktreeTool, projectFileTool, delegationTool, fileTool];
   const canAdmin = userRole === "admin" || userRole === "super_admin";
   const fullAccess = permissionMode === "full_access";
   // 完全权限由账户持有人显式启用后可调用当前应用的全部已登记控制工具；写作目标仍绑定调用账户自己的作品。
@@ -69,8 +70,20 @@ export function listAiBusinessTools(applicationId: ApplicationId, userRole: User
     .filter((tool) => tool.coreManaged || tool.id === "project.files" || tool.id === "host.execute-command" || tool.id === "host.cancel-task" || fullAccess || canAdmin || tool.id.startsWith("writing.") || tool.risk(objectValue({ operation: "read" })) === "read")
     .filter((tool) => fullAccess || canAdmin || !tool.id.startsWith("minecraft.") || !["minecraft.deploy", "minecraft.retry-deployment", "minecraft.start", "minecraft.stop", "minecraft.backup", "minecraft.update-properties"].includes(tool.id))
     .map((tool) => tool);
-  // 已启用的扩展按声明的应用范围提供给模型；执行时仍由完整风险、参数和当前权限模式决定是否审批。
-  const registered = listRegisteredAiTools(writingTarget).filter(tool => isApplicationInScope(tool.applicationIds, applicationId))
+  // 通用 Work 是跨 App 的唯一自然语言入口；只把当前 Runtime 实际登记的工具纳入目录，执行权限仍由声明范围和 Permission Owner 校验。
+  const registered = listRegisteredAiTools(writingTarget)
+    .filter(tool => applicationId === "workspace" || isApplicationInScope(tool.applicationIds, applicationId))
+    .map(tool => {
+      if (applicationId !== "workspace") return tool;
+      const executionApplicationId = tool.applicationIds.length === 1 ? tool.applicationIds[0] : "workspace";
+      const workspaceApplicationIds = [...new Set([...tool.applicationIds, "workspace" as const])];
+      return {
+        ...tool,
+        applicationIds: workspaceApplicationIds,
+        approval: (parameters: Record<string, unknown>, context: Parameters<typeof tool.approval>[1]) => tool.approval(parameters, { ...context, applicationId: executionApplicationId }),
+        execute: (parameters: Record<string, unknown>, context: Parameters<typeof tool.execute>[1]) => tool.execute(parameters, { ...context, applicationId: executionApplicationId })
+      };
+    })
     .filter(tool => !["capabilities.prompts-list", "capabilities.prompt-load"].includes(tool.id) || includeInstalledPrompts)
     .filter(tool => !tool.onDemand || fullAccess || canAdmin || tool.id.startsWith("writing.") || tool.risk(objectValue({ operation: "read" })) === "read");
   const permitted = (tool: AiBusinessTool) => (!tool.requiresComputerControl || includeComputerControl)

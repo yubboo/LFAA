@@ -24,7 +24,7 @@ export function registerAiBusinessTool(owner: Context, tool: AiBusinessTool): vo
   owner.effect(() => {
     validateToolContract(tool);
     if (tools.has(tool.id) || [...tools.values()].some(item => item.name === tool.name)) throw new Error("可执行工具 ID 或模型调用名称重复。");
-    const registered: AiBusinessTool = Object.freeze({ ...tool, applicationIds: [...tool.applicationIds], schema: structuredClone(tool.schema), execute: async (parameters: Record<string, unknown>, context: AiBusinessToolContext) => {
+    const registered: AiBusinessTool = Object.freeze({ ...tool, onDemand: tool.onDemand ?? true, applicationIds: [...tool.applicationIds], schema: structuredClone(tool.schema), execute: async (parameters: Record<string, unknown>, context: AiBusinessToolContext) => {
       if (tools.get(tool.id) !== registered) throw new Error("工具所属插件已卸载，已拒绝继续执行。");
       return tool.execute(parameters, context);
     } });
@@ -47,6 +47,7 @@ export function listRegisteredAiTools(target: AiWritingToolTarget | null = null)
     validateToolContract(tool);
     return {
       ...tool,
+      onDemand: tool.onDemand ?? true,
       execute: async (parameters: Record<string, unknown>, context: AiBusinessToolContext) => {
         if (factories.get(id) !== entry) throw new Error("领域工具插件已卸载。");
         return tool.execute(parameters, context);

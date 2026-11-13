@@ -20,7 +20,7 @@ export const writeFileTool: Pick<AiBusinessTool, "id" | "name" | "coreManaged" |
   id: "fs.write-file",
   name: "lfaa_write_file",
   coreManaged: true,
-  description: "把完整内容写入当前目标 Daemon 项目中的一个文本文件（不存在则创建；覆盖需携带最近读取的 sha256）。这是覆盖式写入，局部修改请用 lfaa_str_replace。内容上限 2 MiB。有工作区项目时只能写项目目录内文件。",
+  description: "把完整内容写入当前目标 Daemon 项目中的一个文本文件（不存在则创建；覆盖需携带最近读取的 sha256）。这是覆盖式写入；现有代码或工程文件的局部修改应优先用 lfaa_str_replace，不要为了方便整文件重写。仅当用户要求或目标确需整体重建时才覆盖，并先核对完整现文与需保留的行为。内容上限 2 MiB。有工作区项目时只能写项目目录内文件。",
   applicationIds: [...APPLICATION_IDS],
   schema: {
     type: "object",

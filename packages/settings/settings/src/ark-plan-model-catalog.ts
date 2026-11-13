@@ -1,5 +1,5 @@
 /** 功能：提供有官方来源的 Agent/Coding Plan 模型能力目录。作用：套餐专属 API Key 不公开 /models 时仍可配置套餐已发布模型，并区分真实任务类型与套餐档位。 */
-import type { AiModelCatalogEntry, AiPlanTier, AiModelTaskType } from "./model-capabilities.js";
+import { PROVIDER_MODEL_CAPABILITY_SOURCE, type AiModelCatalogEntry, type AiModelThinkingControl, type AiPlanTier, type AiModelTaskType } from "./model-capabilities.js";
 import { ARK_PLAN_CATALOG_REVISION } from "lfaa-util-values/src/ark-provider.js";
 
 export { ARK_PLAN_CATALOG_REVISION };
@@ -32,6 +32,7 @@ type CatalogRow = {
   contextWindow?: number;
   maxOutputTokens?: number;
   inputModalities?: Array<"text" | "image" | "audio" | "video">;
+  thinking?: AiModelThinkingControl;
   note?: string;
 };
 
@@ -39,7 +40,7 @@ const agentText: CatalogRow[] = [
   { id: "doubao-seed-2.0-mini", taskType: "chat", tiers: ["small", "medium", "large", "max"], contextWindow: 256_000, maxOutputTokens: 128_000 },
   { id: "doubao-seed-2.1-lite", taskType: "chat", tiers: ["small", "medium", "large", "max"], contextWindow: 1_024_000, maxOutputTokens: 256_000 },
   { id: "deepseek-v4-flash", taskType: "chat", tiers: ["small", "medium", "large", "max"], contextWindow: 1_024_000, maxOutputTokens: 384_000 },
-  { id: "glm-5.3-flash", taskType: "chat", tiers: ["small", "medium", "large", "max"], contextWindow: 1_024_000, maxOutputTokens: 128_000, inputModalities: ["text", "image"] },
+  { id: "glm-5.3-flash", taskType: "chat", tiers: ["small", "medium", "large", "max"], contextWindow: 1_024_000, maxOutputTokens: 128_000, inputModalities: ["text", "image"], thinking: { kind: "effort", parameter: "reasoning_effort", values: ["low", "high", "max"], defaultValue: "max" }, note: "思考档位来源（Z.ai 官方模型卡）：https://huggingface.co/zai-org/GLM-5.3-Flash；方舟 Chat API 参数说明：https://docs.volcengine.com/docs/ark/chat-api?lang=zh" },
   { id: "doubao-seed-2.1-pro", taskType: "chat", tiers: ["small", "medium", "large", "max"], contextWindow: 1_024_000, maxOutputTokens: 256_000 },
   { id: "doubao-seed-evolving", taskType: "chat", tiers: ["small", "medium", "large", "max"], contextWindow: 1_024_000, maxOutputTokens: 256_000 },
   { id: "minimax-m3", taskType: "chat", tiers: ["small", "medium", "large", "max"], contextWindow: 1_024_000, maxOutputTokens: 128_000 },
@@ -91,8 +92,8 @@ function toEntry(row: CatalogRow, providerId: ArkPlanProviderId): AiModelCatalog
     ...(row.maxOutputTokens ? { maxOutputTokens: row.maxOutputTokens } : {}),
     ...(row.inputModalities ? { inputModalities: [...row.inputModalities] } : {}),
     ...(row.note ? { catalogNote: row.note } : {}),
-    thinking: null,
-    thinkingSource: null
+    thinking: row.thinking ?? null,
+    thinkingSource: row.thinking ? PROVIDER_MODEL_CAPABILITY_SOURCE : null
   };
 }
 

@@ -99,3 +99,25 @@ test("多模态用户消息的临时上下文可在压缩同步后移除", () =>
   assert.match(prepared[1].content[0].text, /工作区上下文/u);
   assert.deepEqual(stripAiCompletionRuntimeContext(prepared.slice(1)), original);
 });
+
+test("工具往返时动态上下文追加到请求末尾，不改写此前用户历史", () => {
+  const original = [
+    { role: "user", content: "当前目标" },
+    { role: "assistant", content: null, tool_calls: [{ id: "call-1", type: "function", function: { name: "inspect", arguments: "{}" } }] },
+    { role: "tool", tool_call_id: "call-1", content: "工具返回结果" }
+  ];
+  const prepared = prepareAiCompletionMessages({
+    ...baseInput,
+    account: {},
+    settings: {},
+    signal: new AbortController().signal,
+    messages: original,
+    onDelta() {},
+    onProgress() {},
+    context: "当前工作区上下文"
+  });
+  assert.deepEqual(prepared.slice(1, -1), original, "不能回头改写已在缓存前缀中的用户消息");
+  assert.equal(prepared.at(-1).role, "user");
+  assert.match(prepared.at(-1).content, /^LFAA_RUNTIME_CONTEXT_JSON_V1/u);
+  assert.deepEqual(stripAiCompletionRuntimeContext(prepared.slice(1)), original, "临时上下文不进入规范工具历史");
+});

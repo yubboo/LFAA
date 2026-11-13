@@ -32,7 +32,7 @@ export interface AiCompletionMessage {
 export interface AiCompletionUsage {
   promptTokens: number | null;
   completionTokens: number | null;
-  /** DeepSeek/兼容 Provider 返回的提示词缓存命中数；未上报时保持未知。 */
+  /** Provider 实际返回的缓存输入读取量；未上报时保持未知。 */
   cacheReadTokens: number | null;
 }
 
@@ -108,22 +108,29 @@ export function resolveAiCompletionMaxTokens(settings: AiRuntimeSettings, accoun
     : Math.min(requestedLimit ?? modelLimit, modelLimit);
 }
 
-function readUsage(value: unknown): AiCompletionUsage | null {
+/** 归一化 Chat Completions、Responses 与 Messages 常见用量字段，不按模型 ID 推断缓存命中。 */
+export function normalizeAiCompletionUsage(value: unknown): AiCompletionUsage | null {
   if (typeof value !== "object" || value === null) return null;
   const usage = value as Record<string, unknown>;
-  const promptTokens = usage.prompt_tokens;
-  const completionTokens = usage.completion_tokens;
+  const promptTokens = usage.prompt_tokens ?? usage.input_tokens;
+  const completionTokens = usage.completion_tokens ?? usage.output_tokens;
   if (typeof promptTokens !== "number" || !Number.isInteger(promptTokens) || promptTokens < 0) return null;
   if (typeof completionTokens !== "number" || !Number.isInteger(completionTokens) || completionTokens < 0) return null;
-  const details = typeof usage.prompt_tokens_details === "object" && usage.prompt_tokens_details !== null
+  const promptDetails = typeof usage.prompt_tokens_details === "object" && usage.prompt_tokens_details !== null
     ? usage.prompt_tokens_details as Record<string, unknown>
     : null;
-  const nestedCacheReadTokens = details?.cached_tokens;
+  const inputDetails = typeof usage.input_tokens_details === "object" && usage.input_tokens_details !== null
+    ? usage.input_tokens_details as Record<string, unknown>
+    : null;
+  const promptCachedTokens = promptDetails?.cached_tokens;
+  const inputCachedTokens = inputDetails?.cached_tokens;
   const validCacheCount = (candidate: unknown): candidate is number => typeof candidate === "number" && Number.isSafeInteger(candidate) && candidate >= 0;
   const cacheMissTokens = usage.prompt_cache_miss_tokens;
   const cacheReadTokens = validCacheCount(usage.prompt_cache_hit_tokens)
     ? usage.prompt_cache_hit_tokens
-    : validCacheCount(nestedCacheReadTokens) ? nestedCacheReadTokens
+    : validCacheCount(promptCachedTokens) ? promptCachedTokens
+      : validCacheCount(inputCachedTokens) ? inputCachedTokens
+        : validCacheCount(usage.cache_read_input_tokens) ? usage.cache_read_input_tokens
       : validCacheCount(cacheMissTokens) && cacheMissTokens <= promptTokens ? promptTokens - cacheMissTokens : null;
   return { promptTokens, completionTokens, cacheReadTokens };
 }
@@ -185,16 +192,9 @@ export function prepareAiCompletionMessages(input: AiCompletionInput): AiComplet
   ];
   if (!input.context) return messages;
 
-  let userIndex = -1;
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    if (messages[index]!.role === "user") {
-      userIndex = index;
-      break;
-    }
-  }
-
   const runtimeContextPrefix = `${runtimeContextHeader}${JSON.stringify({ context: input.context })}${runtimeContextSeparator}`;
-  if (userIndex < 0) {
+  const userIndex = messages.length - 1;
+  if (messages[userIndex]?.role !== "user") {
     messages.push({ role: "user", content: runtimeContextPrefix });
     return messages;
   }
@@ -328,6 +328,7 @@ export async function streamAiCompletion(input: AiCompletionInput): Promise<AiCo
     model: input.account.modelId,
     messages: wireMessages,
     stream: true,
+    stream_options: { include_usage: true },
     ...(maxTokens !== undefined ? { [input.account.maxTokensField]: maxTokens } : {})
   };
   if (requestTools.length) {
@@ -444,7 +445,7 @@ export async function streamAiCompletion(input: AiCompletionInput): Promise<AiCo
       // 错误帧可能包含请求正文或秘密；只报告协议失败，不能吞掉后继续把半截内容标为成功。
       throw new Error("Provider 流返回错误；本轮输出不完整，未派发其中的工具。请检查 Provider 状态与接口协议。");
     }
-    usage = mergeUsage(usage, readUsage((payload as Record<string, unknown> | null)?.usage));
+    usage = mergeUsage(usage, normalizeAiCompletionUsage((payload as Record<string, unknown> | null)?.usage));
     const choices = Array.isArray((payload as Record<string, unknown> | null)?.choices) ? (payload as Record<string, unknown>).choices as unknown[] : [];
     const first = typeof choices[0] === "object" && choices[0] !== null ? choices[0] as Record<string, unknown> : null;
     if (typeof first?.finish_reason === "string") finishReason = first.finish_reason;
@@ -549,7 +550,8 @@ export async function streamAiCompletion(input: AiCompletionInput): Promise<AiCo
 /**
  * A provider-specific protocol implementation. The generic OpenAI-compatible stream remains the fallback.
  * The LLM owner passes `messages` with the shared system prompt first and the current request context in its final user message.
- * Adapters must run onPrepareRequest against their final model-visible messages/tools before networking and use its returned arrays.
+ * Adapters must run onPrepareRequest against their final model-visible messages/tools before networking, request native usage where supported,
+ * normalize returned usage with normalizeAiCompletionUsage, and use the prepared arrays.
  */
 export interface AiCompletionAdapter {
   /** 收到由 prepareAiCompletionMessages 统一整理的消息；不得再次组合 system/context，也不得丢弃动态上下文。 */

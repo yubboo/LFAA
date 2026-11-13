@@ -189,8 +189,8 @@ test("输入操作与用量指标为鼠标和键盘提供真实状态提示，�
   assert.match(composerActions, /Tooltip trigger=\{\["hover", "focus"\]\} placement="top" title=\{!settings\.aiRuntime\.voiceInputEnabled/u);
   assert.match(chatSource, /settings\.general\.sendShortcut === "enter" \? "发送消息 · Enter" : "发送消息 · Ctrl\+Enter"/u);
   assert.match(composerActions, /Tooltip trigger=\{\["hover", "focus"\]\} placement="top" title=\{settings\.general\.sendShortcut === "enter"/u);
-  assert.match(usageFooterSource, /Tooltip trigger=\{\["hover", "focus"\]\} placement="right" title=\{`会话 Token 用量/u);
-  assert.match(usageFooterSource, /Tooltip trigger=\{\["hover", "focus"\]\} placement="right" title=\{`\$\{contextTooltipText\(contextUsage\)\}/u);
+  assert.match(usageFooterSource, /Tooltip trigger=\{\["hover", "focus"\]\} placement="top" overlayClassName="ai-work-chat__usage-tooltip-overlay" getPopupContainer=\{usageTooltipContainer\} title=\{`会话 Token 用量/u);
+  assert.match(usageFooterSource, /Tooltip trigger=\{\["hover", "focus"\]\} placement="top" overlayClassName="ai-work-chat__usage-tooltip-overlay" getPopupContainer=\{usageTooltipContainer\} title=\{`\$\{contextTooltipText\(contextUsage\)\}/u);
   assert.match(usageFooterSource, /function contextTooltipText\(context: AiContextUsage \| null\)/u);
   assert.match(usageFooterSource, /Popover trigger="click"/u);
   assert.match(chatSource, /menu=\{\{[\s\S]*?onClick: \(\{ key \}\) => selectPermissionMode/u);

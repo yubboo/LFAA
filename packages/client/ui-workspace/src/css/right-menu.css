@@ -283,7 +283,7 @@
 .module-context__body { display: flex; min-height: 0; flex: 1; flex-direction: column; overflow: auto; }
 
 /* Canvas 中的应用聊天直接复用标准右栏外框/标题；仅内容盒切换为聊天所需的全高裁剪。 */
-.module-context--canvas-chat > .module-context__body--canvas-chat { min-width: 0; overflow: hidden; padding: 0; }
+.module-context--canvas-chat > .module-context__body--canvas-chat { position: relative; min-width: 0; overflow: hidden; padding: 0; }
 
 .module-context--canvas-chat > .module-context__body--canvas-chat > .page-alert { position: relative; z-index: 1; flex: 0 0 auto; margin: 8px; }
 

@@ -4,10 +4,12 @@
             'Get-CommitMessageVersion' = Join-Path $PSScriptRoot '..\source-version.ps1'
             'Resolve-LastPushedVersion' = Join-Path $PSScriptRoot '..\source-version.ps1'
             'Test-PushVersionIsNewer' = Join-Path $PSScriptRoot '..\install-dependencies.ps1'
+            'Assert-GitHubPushBranch' = Join-Path $PSScriptRoot '..\install-dependencies.ps1'
+            'Get-FileSha256' = Join-Path $PSScriptRoot '..\install-dependencies.ps1'
             'Remove-StaleGitIndexLock' = Join-Path $PSScriptRoot '..\install-dependencies.ps1'
         }
 
-        foreach ($name in @('Get-CommitMessageVersion', 'Test-PushVersionIsNewer', 'Resolve-LastPushedVersion', 'Remove-StaleGitIndexLock')) {
+        foreach ($name in @('Get-CommitMessageVersion', 'Test-PushVersionIsNewer', 'Resolve-LastPushedVersion', 'Assert-GitHubPushBranch', 'Get-FileSha256', 'Remove-StaleGitIndexLock')) {
             $scriptPath = $functionPaths[$name]
             $tokens = $null
             $parseErrors = $null
@@ -60,6 +62,45 @@
         (Test-PushVersionIsNewer -Candidate '0.0.22' -Previous '0.0.24') | Should Be $false
         (Test-PushVersionIsNewer -Candidate '0.0.24' -Previous '0.0.24') | Should Be $false
         (Test-PushVersionIsNewer -Candidate '0.0.100' -Previous '0.0.55') | Should Be $true
+    }
+
+    It 'allows menu 6 to push only from the local main branch' {
+        (Assert-GitHubPushBranch -BranchName 'main') | Should Be $null
+
+        $message = ''
+        try {
+            Assert-GitHubPushBranch -BranchName 'codex/task'
+        }
+        catch {
+            $message = $_.Exception.Message
+        }
+        $message | Should Match '当前本地分支是 codex/task'
+
+        $message = ''
+        try {
+            Assert-GitHubPushBranch -BranchName ''
+        }
+        catch {
+            $message = $_.Exception.Message
+        }
+        $message | Should Match 'detached HEAD'
+    }
+
+    It 'hashes an index file without leaving it locked' {
+        $path = [System.IO.Path]::GetTempFileName()
+        $sha256 = [System.Security.Cryptography.SHA256]::Create()
+        try {
+            [System.IO.File]::WriteAllText($path, 'lfaa-index-fingerprint')
+            $expected = [System.BitConverter]::ToString(
+                $sha256.ComputeHash([System.IO.File]::ReadAllBytes($path))
+            ).Replace('-', '')
+            (Get-FileSha256 -Path $path) | Should Be $expected
+            (Test-Path -LiteralPath $path) | Should Be $true
+        }
+        finally {
+            $sha256.Dispose()
+            if (Test-Path -LiteralPath $path) { [System.IO.File]::Delete($path) }
+        }
     }
 
     It 'does nothing when the Git index lock is absent' {
@@ -160,5 +201,44 @@
             $addLockCheckPosition -lt $addPosition -and
             $commitLockCheckPosition -gt $addLockCheckPosition -and
             $commitLockCheckPosition -lt $commitPosition) | Should Be $true
+    }
+
+    It 'reviews the staged summary before a no-default confirmation and uses an isolated index' {
+        $scriptPath = Join-Path $PSScriptRoot '..\install-dependencies.ps1'
+        $tokens = $null
+        $parseErrors = $null
+        $scriptAst = [System.Management.Automation.Language.Parser]::ParseFile(
+            $scriptPath,
+            [ref]$tokens,
+            [ref]$parseErrors
+        )
+        if ($parseErrors.Count -gt 0) {
+            throw "install-dependencies.ps1 has PowerShell parse errors: $($parseErrors.Count)"
+        }
+
+        $pushFunction = $scriptAst.Find({
+            param($node)
+            $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+                $node.Name -eq 'Push-GitHubRepository'
+        }, $true)
+        if ($null -eq $pushFunction) {
+            throw 'Push-GitHubRepository was not found in install-dependencies.ps1.'
+        }
+
+        $pushSource = $pushFunction.Extent.Text
+        $branchGuardPosition = $pushSource.IndexOf('Assert-GitHubPushBranch -BranchName $branchName')
+        $addPosition = $pushSource.IndexOf("Invoke-GitChecked -GitArguments @('add', '-A')")
+        $reviewPosition = $pushSource.IndexOf("Write-Host '本次待提交文件：'")
+        $confirmationPosition = $pushSource.IndexOf('Read-Confirmation -Prompt $pushConfirmation')
+        $commitPosition = $pushSource.IndexOf("Invoke-GitChecked -GitArguments @('commit', '-m', `$commitMessage)")
+
+        ($branchGuardPosition -ge 0 -and
+            $branchGuardPosition -lt $addPosition -and
+            $addPosition -lt $reviewPosition -and
+            $reviewPosition -lt $confirmationPosition -and
+            $confirmationPosition -lt $commitPosition) | Should Be $true
+        $pushSource | Should Match 'GIT_INDEX_FILE'
+        $pushSource | Should Match 'temporaryIndexPath'
+        $pushSource | Should Not Match 'Read-Confirmation[^\r\n]*DefaultYes'
     }
 }

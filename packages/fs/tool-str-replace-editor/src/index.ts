@@ -16,7 +16,7 @@ const strReplaceTool: Pick<AiBusinessTool, "id" | "name" | "coreManaged" | "desc
   id: "fs.str-replace",
   name: "lfaa_str_replace",
   coreManaged: true,
-  description: "编辑已有文本文件：把文件中唯一出现的 old_string 替换为 new_string。old_string 必须与原文逐字一致（含缩进/换行）；若出现多次会拒绝并要求你给出更长上下文使其唯一。整文件重写请用 lfaa_write_file。",
+  description: "精确编辑已有文件中的局部内容：把唯一出现的 old_string 替换为 new_string。old_string 必须与原文逐字一致（含缩进/换行）；若出现多次会拒绝并要求更长上下文使其唯一。修改现有代码时优先使用局部替换并保留目标外内容；只有用户要求或目标确需整体重建且已核对完整现文时，才用 lfaa_write_file。",
   applicationIds: [...APPLICATION_IDS],
   schema: {
     type: "object",

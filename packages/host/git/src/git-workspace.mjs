@@ -70,7 +70,8 @@ async function runGit(directory, args, options = {}) {
     windowsHide: true,
     timeout: options.timeout ?? 12_000,
     maxBuffer: options.maxBuffer ?? outputLimit,
-    encoding: "utf8"
+    encoding: "utf8",
+    ...(options.signal ? { signal: options.signal } : {})
   });
   return options.preserveTrailingNewline ? result.stdout : result.stdout.trimEnd();
 }
@@ -83,13 +84,13 @@ async function runGitDiff(directory, args, options = {}) {
   }
 }
 
-async function inspectRepository(projectDirectory) {
+async function inspectRepository(projectDirectory, signal) {
   if (typeof projectDirectory !== "string" || !isAbsolute(projectDirectory)) throw new Error("Git 项目必须是已登记的本机绝对路径。");
   const projectPath = await realpath(projectDirectory);
   const projectInfo = await stat(projectPath);
   if (!projectInfo.isDirectory()) throw new Error("Git 项目路径不是目录。");
   let root;
-  try { root = await runGit(projectPath, ["rev-parse", "--show-toplevel"]); }
+  try { root = await runGit(projectPath, ["rev-parse", "--show-toplevel"], { signal }); }
   catch (error) {
     if (error?.code === 128 && /not a git repository/iu.test(String(error.stderr ?? error.message))) return null;
     if (error?.code === "ENOENT") throw new Error("LFAA 本机应用进程找不到 Git 可执行文件，请在运行 LFAA 的主机安装 Git。");
@@ -106,7 +107,7 @@ async function inspectRepository(projectDirectory) {
   if (relativeProject === ".." || relativeProject.startsWith(`..${sep}`) || isAbsolute(relativeProject)) throw new Error("登记的项目目录不在 Git 仓库内。");
   let head = null;
   try {
-    head = await runGit(canonicalRoot, ["rev-parse", "--verify", "--quiet", "HEAD"]);
+    head = await runGit(canonicalRoot, ["rev-parse", "--verify", "--quiet", "HEAD"], { signal });
     if (!shaPattern.test(head)) throw new Error("Git 仓库 HEAD 格式无效。");
   } catch (error) {
     if (error?.code !== 1 && !/Needed a single revision/iu.test(String(error.stderr ?? error.message))) throw error;
@@ -130,8 +131,8 @@ export async function resolveGitWorkspaceDirectory(directory) {
   return repository?.root ?? canonical;
 }
 
-async function findRepository(projectDirectory) {
-  const repository = await inspectRepository(projectDirectory);
+async function findRepository(projectDirectory, signal) {
+  const repository = await inspectRepository(projectDirectory, signal);
   if (!repository) throw new Error("当前项目目录尚未初始化 Git 仓库。");
   if (!repository.head) throw new Error("Git 仓库尚无首次提交，请先创建初始提交。");
   return repository;
@@ -695,19 +696,20 @@ export async function readGitRemoteUrl(projectDirectory, remote) {
   return await assertSafeConfiguredRemote(target.root, remote);
 }
 
-async function createSnapshotCommit(root, head, indexPath, projectTitle) {
+async function createSnapshotCommit(root, head, indexPath, projectTitle, signal) {
   const env = { GIT_INDEX_FILE: indexPath };
-  await runGit(root, ["read-tree", head], { env });
-  await runGit(root, ["add", "-A", "--", "."], { env, timeout: 30_000 });
-  const tree = await runGit(root, ["write-tree"], { env });
-  const headTree = await runGit(root, ["rev-parse", `${head}^{tree}`]);
+  await runGit(root, ["read-tree", head], { env, signal });
+  await runGit(root, ["add", "-A", "--", "."], { env, timeout: 30_000, signal });
+  const tree = await runGit(root, ["write-tree"], { env, signal });
+  const headTree = await runGit(root, ["rev-parse", `${head}^{tree}`], { signal });
   if (tree === headTree) return head;
   const title = String(projectTitle ?? "项目").replace(/[\r\n\0]/gu, " ").slice(0, 60);
-  return runGit(root, ["-c", "user.name=LFAA Worktree Snapshot", "-c", "user.email=lfaa-worktree@invalid", "commit-tree", tree, "-p", head, "-m", `LFAA AI Worktree snapshot: ${title}`], { env });
+  return runGit(root, ["-c", "user.name=LFAA Worktree Snapshot", "-c", "user.email=lfaa-worktree@invalid", "commit-tree", tree, "-p", head, "-m", `LFAA AI Worktree snapshot: ${title}`], { env, signal });
 }
 
 async function createWorktree(input) {
-  const { root, projectPath, projectRelativePath } = await findRepository(input.projectDirectory);
+  input.signal?.throwIfAborted();
+  const { root, projectPath, projectRelativePath } = await findRepository(input.projectDirectory, input.signal);
   if (typeof input.worktreeId !== "string" || !worktreeIdPattern.test(input.worktreeId)) throw new Error("Git 工作树标识无效。");
   const rootForTrees = worktreesRoot();
   const dataRoot = gitDataRoot();
@@ -719,7 +721,7 @@ async function createWorktree(input) {
   assertOutside(root, target, "受管 Git 工作树必须位于源仓库之外。");
   if (isInside(root, canonicalTreesRoot)) throw new Error("LFAA 工作树存储目录不能位于源仓库内。");
   try { await lstat(target); throw new Error("Git 工作树目标已经存在。"); } catch (error) { if (error.code !== "ENOENT") throw error; }
-  const head = await runGit(root, ["rev-parse", "--verify", "HEAD"]);
+  const head = await runGit(root, ["rev-parse", "--verify", "HEAD"], { signal: input.signal });
   if (!shaPattern.test(head)) throw new Error("此 Git 仓库没有可用的 HEAD 提交。");
   const prefix = typeof input.branchPrefix === "string" ? input.branchPrefix : "codex/";
   const prefixSegments = prefix.slice(0, -1).split("/");
@@ -729,17 +731,16 @@ async function createWorktree(input) {
   }
   const slug = String(input.projectTitle ?? "task").normalize("NFKD").replace(/[^A-Za-z0-9-]+/gu, "-").replace(/^-+|-+$/gu, "").toLocaleLowerCase("en-US").slice(0, 36) || "task";
   const branch = `${prefix}${slug}-${input.worktreeId.slice(0, 8).toLocaleLowerCase("en-US")}`;
-  await runGit(root, ["check-ref-format", "--branch", branch]);
+  await runGit(root, ["check-ref-format", "--branch", branch], { signal: input.signal });
   const indexPath = resolve(dataRoot, `git-index-${randomUUID()}`);
-  let added = false;
   try {
-    const baseline = await createSnapshotCommit(root, head, indexPath, input.projectTitle);
-    await runGit(root, ["worktree", "add", "-b", branch, target, baseline], { timeout: 60_000 });
-    added = true;
+    const baseline = await createSnapshotCommit(root, head, indexPath, input.projectTitle, input.signal);
+    await runGit(root, ["worktree", "add", "-b", branch, target, baseline], { timeout: 60_000, signal: input.signal });
     const projectDirectory = projectRelativePath ? resolve(target, projectRelativePath) : target;
     return { worktreeId: input.worktreeId, worktreeRoot: target, projectDirectory, projectRelativePath, branch, baseline, sourceHead: head };
   } catch (error) {
-    if (added) await runGit(root, ["worktree", "remove", "--force", target], { timeout: 30_000 }).catch(() => undefined);
+    // worktree add may be interrupted after Git updates its metadata but before the child reports success.
+    await runGit(root, ["worktree", "remove", "--force", target], { timeout: 30_000 }).catch(() => undefined);
     await rm(target, { recursive: true, force: true }).catch(() => undefined);
     await runGit(root, ["branch", "-D", branch]).catch(() => undefined);
     throw error;

@@ -163,7 +163,7 @@ test("單項更新走 Settings Owner 嚴格校驗與回讀，不可修改权限�
   assert.throws(() => agentSettings.updateAgentSetting(owner, "browserUse.enabledProviderIds", ["tabbit-personal"]), /Browser Owner 管理/u);
   assert.throws(() => agentSettings.updateAgentSetting(owner, "browserUse.fullCdpAccess", true), /先由用户开启浏览器开发者模式/u);
   assert.throws(() => agentSettings.updateAgentSetting(owner, "aiRuntime.subagentAccountId", "unknown-account"), /真实模型路由目录/u);
-  assert.throws(() => agentSettings.updateAgentSetting(owner, "aiRuntime.imageGenerationModelId", "unknown-model"), /真实模型目录/u);
+  assert.throws(() => agentSettings.updateAgentSetting(owner, "aiRuntime.imageGenerationModelId", "unknown-model"), /真实图像能力目录/u);
   assert.equal(settings.getUserSettings(owner).permissions.mode, "ask");
   assert.equal(settings.getUserSettings(owner).general.showServiceStatus, false);
 });
@@ -250,10 +250,21 @@ async function runUpdate(mode, path, value, remember = false) {
   globalThis.fetch = async (_url, options) => {
     const body = JSON.parse(options.body);
     bodies.push(body);
+    const toolNames = body.tools?.map(item => item.function.name) ?? [];
+    const lastToolResult = body.messages.filter(message => message.role === "tool").at(-1)?.content ?? "";
     if (bodies.length === 1) {
-      const toolNames = body.tools?.map(item => item.function.name) ?? [];
+      assert.ok(toolNames.includes("lfaa_tools_list"));
+      assert.ok(toolNames.includes("lfaa_tools_load"));
+      assert.ok(!toolNames.includes("lfaa_settings_update"));
+      return sse(callTool("lfaa_tools_list", { query: "设置 更新" }));
+    }
+    if (bodies.length === 2) {
+      assert.match(lastToolResult, /lfaa_settings_update/u);
+      assert.ok(toolNames.includes("lfaa_tools_load"));
+      return sse(callTool("lfaa_tools_load", { names: ["lfaa_settings_update"] }));
+    }
+    if (bodies.length === 3) {
       assert.ok(toolNames.includes("lfaa_settings_update"));
-      assert.ok(toolNames.includes("lfaa_settings_list"));
       return sse(callTool("lfaa_settings_update", { path, value }));
     }
     return sse({ content: "已根据 Settings Owner 返回值完成隔离设置操作。" });

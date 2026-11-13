@@ -6,11 +6,13 @@
 import Joi from "joi";
 import { APPLICATION_IDS } from "lfaa-util-values/src/application-id.js";
 import { createHash } from "node:crypto";
-import { isAbsolute, resolve } from "node:path";
+import { dirname, isAbsolute, resolve } from "node:path";
 import { isLocalDaemonIdentity } from "lfaa-host-daemon/src/node-credentials.js";
 import { executeGitWorkspace, resolveGitProjectDirectory } from "lfaa-host-git";
 import { getUserSettings } from "lfaa-settings/src/service.js";
-import { getDefaultWorkspaceProjectPath } from "lfaa-workspace-workspace/src/index.js";
+import { createLocalWorkspaceProject, getDefaultWorkspaceProjectId, getDefaultWorkspaceProjectPath, getWorkspaceProject, workspaceProjectDirectoryName, type WorkspaceProjectApplicationId } from "lfaa-workspace-workspace/src/index.js";
+import { createWorkspaceGitWorktreeFromProject } from "lfaa-workspace-workspace/src/git-worktree-operations.js";
+import { getAiSession, setAiSessionProjectFromAgent } from "lfaa-session/src/sessions.js";
 import { createAiHostTask, getAiHostTask, requestAiHostTaskCancellation } from "lfaa-jobs/src/ai-host-tasks.js";
 import { bindAgentGitSessionRepository, registerAgentGitRepository } from "lfaa-workspace-agent-git";
 import type { AiBusinessTool } from "./business-tools.js";
@@ -23,9 +25,121 @@ function samePath(left: string, right: string): boolean {
   return process.platform === "win32" ? normalizedLeft.toLocaleLowerCase("en-US") === normalizedRight.toLocaleLowerCase("en-US") : normalizedLeft === normalizedRight;
 }
 
+const createWorkspaceProjectSchema = Joi.object({ title: Joi.string().trim().min(1).max(120).required() }).unknown(false);
+const createWorkspaceGitWorktreeSchema = Joi.object({}).unknown(false);
+
+export const createWorkspaceProjectTool: AiBusinessTool = {
+  id: "workspace.projects.create",
+  name: "workspace_create_project",
+  applicationIds: ["workspace"],
+  coreManaged: true,
+  activityTitle: "创建工作区项目",
+  description: "按用户目标为可持续、多轮的工作创建一个专用项目文件夹，并把当前通用 Work 会话归入项目；小问题、一次性问答或用户没有要求独立管理时继续使用当前/默认工作区，不要每次聊天都创建项目。项目名优先采用用户指定名称，否则生成简短易辨认名称。文件夹与默认工作区并列创建，用户可在侧栏项目列表中继续查看会话；创建后本轮后续 project_file_operation 也会切换到新目录。只在默认工作区已初始化、当前会话仍使用默认工作区且有本机 Project Files Host 时可用。",
+  schema: { type: "object", additionalProperties: false, properties: { title: { type: "string", minLength: 1, maxLength: 120 } }, required: ["title"] },
+  parse(value) {
+    const validated = createWorkspaceProjectSchema.validate(value);
+    if (validated.error) throw new Error("项目名称无效。请使用 1 至 120 个字符的可用名称。");
+    return validated.value as Record<string, unknown>;
+  },
+  risk: () => "write",
+  approval: parameters => {
+    const title = String(parameters.title ?? "");
+    const scopeKey = createHash("sha256").update(title.trim().toLocaleLowerCase("zh-CN")).digest("hex");
+    return { scopeKey: `workspace:project:create:${scopeKey}`, scopeSummary: title.slice(0, 120), summary: `在默认工作区旁创建项目文件夹“${title.slice(0, 80)}”，并将当前会话归入项目` };
+  },
+  execute: async (parameters, context) => {
+    if (!context.sessionId) throw new Error("当前运行没有可绑定的 Work 会话，项目尚未创建。");
+    if (!context.executeLocalProjectFile) throw new Error("当前 LFAA Host 未提供本机项目文件夹创建能力，项目尚未创建。");
+    const session = getAiSession(context.userId, context.sessionId);
+    if (!session || session.appId !== "workspace") throw new Error("只能为当前账户的通用 Work 会话创建项目。");
+    const defaultProjectId = getDefaultWorkspaceProjectId(context.userId);
+    if (session.projectId && session.projectId !== defaultProjectId) throw new Error("当前会话已关联专用项目；请继续使用该项目或在新会话中创建另一个项目。");
+    const defaultPath = getDefaultWorkspaceProjectPath(context.userId);
+    if (!defaultProjectId || !defaultPath) throw new Error("默认工作区尚未初始化，请先在 AI Work 项目侧栏选择或创建一个可用项目。");
+    const title = String(parameters.title);
+    const directoryName = workspaceProjectDirectoryName(title);
+    if (!directoryName) throw new Error("项目名称不能作为本机文件夹名称，请移除 Windows 不支持的字符或保留设备名。");
+    context.signal.throwIfAborted();
+    const parent = await context.executeLocalProjectFile({ operation: "inspect_directory", path: dirname(defaultPath) }, context.signal) as { path?: unknown; directory?: unknown };
+    if (typeof parent.path !== "string" || parent.directory !== true) throw new Error("默认工作区的父文件夹不可用；没有创建项目。");
+    const createdDirectory = await context.executeLocalProjectFile({ operation: "create_directory", path: parent.path, name: directoryName }, context.signal) as { path?: unknown; created?: unknown };
+    if (createdDirectory.created !== true || typeof createdDirectory.path !== "string") throw new Error(`工作区中已存在“${directoryName}”文件夹，请选择其他项目名称。`);
+    const project = createLocalWorkspaceProject({ userId: context.userId, title, projectDirectoryPath: createdDirectory.path, platform: process.platform });
+    const projectContext = {
+      id: project.id,
+      appId: "workspace" as const,
+      nodeId: null,
+      path: project.path,
+      title: project.title,
+      sources: project.sources.map(source => source.path),
+      sourceDirectories: project.sources.map(source => ({ id: source.id, path: source.path })),
+      ...(project.instructions ? { instructions: project.instructions } : {}),
+      ...(project.applicationIds?.length ? { applicationIds: project.applicationIds } : {}),
+      ...(project.memoryMode ? { memoryMode: project.memoryMode } : {})
+    };
+    const linkedSession = setAiSessionProjectFromAgent(context.userId, context.sessionId, projectContext, session.projectId);
+    if (!linkedSession) return { created: true, projectId: project.id, title: project.title, linkedSession: false, message: "项目文件夹已真实创建并登记，但当前会话状态已变化，未能自动关联。" };
+    context.updateWorkspaceProject?.(projectContext);
+    return { created: true, projectId: project.id, title: project.title, folderName: directoryName, linkedSession: true };
+  }
+};
+
+export const createWorkspaceGitWorktreeTool: AiBusinessTool = {
+  id: "workspace.git-worktree.create",
+  name: "workspace_create_worktree",
+  applicationIds: ["workspace", "minecraft"],
+  coreManaged: true,
+  onDemand: true,
+  activityTitle: "创建并切换 AI Worktree",
+  description: "当当前会话项目需要隔离的 Git 工作区时，为当前绑定项目创建 LFAA 管理的 AI Worktree，并将当前会话和本轮后续项目操作切换到新工作区。通用 AI Work 只操作由 LFAA 本机 Host 管理的项目；Minecraft 等 App 项目只操作绑定当前本机 Daemon 的项目。不能从远程项目或已有 Worktree 再创建。不要指定项目 ID、路径或分支前缀；目标严格来自当前会话，分支前缀读取 Git 设置。",
+  schema: { type: "object", additionalProperties: false, properties: {} },
+  parse(value) {
+    const validated = createWorkspaceGitWorktreeSchema.validate(value);
+    if (validated.error) throw new Error("Worktree 工具不接受参数；它只操作当前会话绑定的项目。 ");
+    return {};
+  },
+  risk: () => "write",
+  approval: (_parameters, context) => {
+    const projectId = context.workspaceProject?.id ?? "unbound";
+    const scopeKey = createHash("sha256").update(JSON.stringify([context.applicationId, projectId])).digest("hex");
+    return { scopeKey: `workspace:git-worktree:${scopeKey}`, scopeSummary: `${context.workspaceProject?.title ?? "当前会话项目"} · AI Worktree`, summary: "在当前会话项目创建隔离 Git Worktree 并切换当前会话" };
+  },
+  async execute(_parameters, context) {
+    const appId = context.applicationId;
+    if (appId !== "workspace" && appId !== "minecraft") throw new Error("当前应用不支持 Workspace Git Worktree。 ");
+    const currentProject = context.workspaceProject;
+    const sessionId = context.sessionId;
+    if (!sessionId || !currentProject?.id) throw new Error("当前 Agent Session 没有已绑定的项目，未创建 Worktree。 ");
+    if (!context.updateWorkspaceProject) throw new Error("当前 Agent Run 无法安全更新项目上下文，未创建 Worktree。 ");
+    const session = getAiSession(context.userId, sessionId);
+    if (!session || session.appId !== appId || session.projectId !== currentProject.id) throw new Error("当前会话项目已变化；请重新读取会话后再创建 Worktree。 ");
+    const source = getWorkspaceProject(context.userId, currentProject.id, appId as WorkspaceProjectApplicationId);
+    if (!source || source.id !== currentProject.id) throw new Error("当前项目已不属于此账户或应用，未创建 Worktree。 ");
+
+    const worktree = await createWorkspaceGitWorktreeFromProject({ userId: context.userId, appId: appId as WorkspaceProjectApplicationId,
+      sourceProjectId: source.id, branchPrefix: getUserSettings(context.userId).git.branchPrefix, signal: context.signal });
+    const projectContext = {
+      id: worktree.id,
+      appId: appId as WorkspaceProjectApplicationId,
+      applicationIds: worktree.applicationIds,
+      nodeId: worktree.nodeId,
+      path: worktree.path,
+      title: worktree.title,
+      sources: worktree.sources.map(item => item.path),
+      sourceDirectories: worktree.sources.map(item => ({ id: item.id, path: item.path })),
+      instructions: worktree.instructions,
+      memoryMode: worktree.memoryMode
+    };
+    const boundSession = setAiSessionProjectFromAgent(context.userId, sessionId, projectContext, source.id);
+    if (!boundSession) return { created: true, switched: false, projectId: worktree.id, title: worktree.title, branch: worktree.gitWorktree?.branch ?? null, message: "Worktree 已创建并登记，但会话项目在切换前发生变化；当前会话未切换。请在项目列表核对新 Worktree。" };
+    context.updateWorkspaceProject(projectContext);
+    return { created: true, switched: true, projectId: worktree.id, title: worktree.title, branch: worktree.gitWorktree?.branch ?? null, baseCommit: worktree.gitWorktree?.baseCommit ?? null };
+  }
+};
+
 export const projectFileTool: AiBusinessTool = {
   id: "project.files", name: "project_file_operation", applicationIds: [...APPLICATION_IDS],
-  description: "在项目根内列目录、检索、读取或按现有合同修改普通文件，也可查询 Git 差异。用户明确给出本机绝对项目目录并要求查看/理解时，将原路径作为 rootDirectory；它优先于当前会话绑定目录，无显式 nodeId 时由 LFAA 本机 Host 读取，不要求 Daemon。未登记的本机目录仅支持只读查看，仍按现有 Permission Owner 的危险读取风险授权；要写入时先把项目登记到 Agent Git 工作区。理解项目时先列根目录，再按需读取 README、AGENTS、包清单、配置和入口文件，配合有界搜索补充证据；优先用项目导航和架构说明建立整体认识，只沿任务相关或主要包的入口继续追踪，不递归读取每个包或整篇大型文档。证据足以说明项目用途、主要边界和运行入口后及时总结，并注明未覆盖部分；用户若明确要求全量文件盘点，再按实际可见数量分阶段处理。只总结真实读到的内容，不尝试一次性读取全部文件，也不声称全量读完。代码审查应先以 diff 读取当前绑定仓库的真实变更，再按变更行查阅相关源码；没有绑定仓库或差异不可用时如实停止，不自动应用补丁、提交或推送。只有模型明确选择远程节点并传入 nodeId 时才走节点执行器。discover_skills 可发现项目 .agents/skills 和 .lfaa/skills 内的真实 SKILL.md，之后由模型按需读取。create_tree 只在目标目录不存在时创建完整文件树，失败时清理暂存目录且不覆盖现有内容。覆盖或替换必须提供最近读取的 sha256；delete 仅删除目标根目录内的普通文件，不递归删除目录。",
+  description: "在项目根内列目录、检索、读取或按现有合同修改普通文件，也可查询 Git 差异。用户明确给出本机绝对项目目录并要求查看/理解时，将原路径作为 rootDirectory；它优先于当前会话绑定目录，无显式 nodeId 时由 LFAA 本机 Host 读取，不要求 Daemon。未登记的本机目录仅支持只读查看，仍按现有 Permission Owner 的危险读取风险授权；要写入时先把项目登记到 Agent Git 工作区。理解项目时先列根目录，再按需读取 README、AGENTS、包清单、配置和入口文件，配合有界搜索补充证据；优先用项目导航和架构说明建立整体认识，只沿任务相关或主要包的入口继续追踪，不递归读取每个包或整篇大型文档。证据足以说明项目用途、主要边界和运行入口后及时总结，并注明未覆盖部分；用户若明确要求全量文件盘点，再按实际可见数量分阶段处理。只总结真实读到的内容，不尝试一次性读取全部文件，也不声称全量读完。修改现有代码时先读取目标源码和相关差异，默认使用局部 replace 并保留其它内容；写后读取真实 diff 核对范围，整文件覆盖仅在用户要求或目标确需整体重建时使用。代码审查应先以 diff 读取当前绑定仓库的真实变更，再按变更行查阅相关源码；没有绑定仓库或差异不可用时如实停止，不自动应用补丁、提交或推送。只有模型明确选择远程节点并传入 nodeId 时才走节点执行器。discover_skills 可发现项目 .agents/skills 和 .lfaa/skills 内的真实 SKILL.md，之后由模型按需读取。create_tree 只在目标目录不存在时创建完整文件树，失败时清理暂存目录且不覆盖现有内容。覆盖或替换必须提供最近读取的 sha256；delete 仅删除目标根目录内的普通文件，不递归删除目录。",
   schema: { type: "object", additionalProperties: false, properties: { nodeId: { type: "string", format: "uuid" }, operation: { type: "string", enum: ["list", "read", "search", "search_markdown", "create", "create_tree", "write", "replace", "delete", "diff", "discover_skills"] }, rootDirectory: { type: "string" }, path: { type: "string" }, offset: { type: "integer", minimum: 0 }, limit: { type: "integer", minimum: 1, maximum: 100000, description: "read 操作的最大字符数。" }, query: { type: "string" }, content: { type: "string" }, files: { type: "array", maxItems: 128, items: { type: "object", additionalProperties: false, properties: { path: { type: "string", maxLength: 512 }, content: { type: "string", maxLength: 3145728 }, encoding: { type: "string", enum: ["base64"] } }, required: ["path", "content"] } }, oldText: { type: "string" }, newText: { type: "string" }, sha256: { type: "string", description: "覆盖或替换已有文件时必须使用最近读取返回的摘要。" } }, required: ["operation"] },
   parse(value) {
     const result = schema.validate(value);

@@ -420,3 +420,43 @@
   .module-center__content--ai-work .ai-work-chat__message-list { padding-inline: clamp(4px, 1.25cqi, 10px); }
 
 }
+
+/* AI Work 窄列把标题、模式和工具压进同一条横栏，操作名称保留在 aria/title 中。 */
+@container module-center (max-width: 520px) {
+  .module-center__header.lfaa-workbench-header:has(> [data-workbench-header-slot="center"]) { min-height: 38px; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-rows: auto; gap: 2px; padding: 4px 6px; }
+  .module-center__header.lfaa-workbench-header:has(> [data-workbench-header-slot="center"]) > .lfaa-workbench-header__leading { min-width: 0; grid-column: 1; grid-row: 1; gap: 4px; }
+  .module-center__header.lfaa-workbench-header:has(> [data-workbench-header-slot="center"]) > .lfaa-workbench-header__center { min-width: 0; grid-column: 2; grid-row: 1; justify-self: center; }
+  .module-center__header.lfaa-workbench-header:has(> [data-workbench-header-slot="center"]) > .lfaa-workbench-header__actions { min-width: 0; grid-column: 3; grid-row: 1; flex-wrap: nowrap; justify-self: end; gap: 1px; }
+  .module-center__title--chat { min-width: 0; max-width: none; flex: 1 1 auto; gap: 4px; }
+  .module-center__header .lfaa-workbench-header__toggle,
+  .module-center__work-tabs button { width: 30px; min-width: 30px; height: 30px; flex-basis: 30px; }
+  .module-center__header.lfaa-workbench-header[data-layout-mode="mobile"] .module-center__actions > .module-runtime-state { display: flex; width: 14px; min-width: 14px; max-width: 14px; height: 30px; flex: 0 0 14px; justify-content: center; gap: 0; margin: 0 1px; font-size: 0; }
+  .module-center__actions > .module-center__voice-button,
+  .module-center__actions > .module-panel-control { width: 30px; min-width: 30px; max-width: 30px; height: 30px; flex: 0 0 30px; justify-content: center; gap: 0; padding: 0; font-size: 0; }
+  .module-center__actions > .module-panel-control > span { display: none; }
+  .module-center__work-tabs > button:not(.module-git-summary-trigger) { width: 30px; min-width: 30px; flex-basis: 30px; justify-content: center; gap: 0; padding: 0; font-size: 0; }
+  .module-center__work-tabs .module-git-summary-trigger { width: 30px; min-width: 30px; height: 30px; flex: 0 0 30px; gap: 0; padding: 0; font-size: 0; }
+  .module-center__mode-switch.ant-segmented { min-height: 30px; padding: 1px; }
+  .module-center__mode-switch .ant-segmented-group { gap: 1px; }
+  .module-center__mode-switch .ant-segmented-item { min-width: 28px; }
+  .module-center__mode-switch.ant-segmented.ant-segmented-sm .ant-segmented-item .ant-segmented-item-label { min-height: 28px; padding-inline: 4px; }
+}
+
+@container module-center (max-width: 360px) {
+  .module-center__header.lfaa-workbench-header:has(> [data-workbench-header-slot="center"]) { gap: 1px; padding-inline: 4px; }
+  .module-center__header .lfaa-workbench-header__toggle,
+  .module-center__work-tabs button,
+  .module-center__actions > .module-center__voice-button,
+  .module-center__actions > .module-panel-control { width: 26px; min-width: 26px; max-width: 26px; height: 26px; min-height: 26px; flex-basis: 26px; }
+  .module-center__mode-switch .ant-segmented-item { min-width: 24px; }
+  .module-center__mode-switch.ant-segmented.ant-segmented-sm .ant-segmented-item .ant-segmented-item-label { min-height: 24px; padding-inline: 2px; }
+}
+
+@container module-center (max-width: 280px) {
+  .module-center__header .lfaa-workbench-header__toggle,
+  .module-center__work-tabs button,
+  .module-center__actions > .module-center__voice-button,
+  .module-center__actions > .module-panel-control { width: 24px; min-width: 24px; max-width: 24px; height: 24px; min-height: 24px; flex-basis: 24px; }
+  .module-center__mode-switch .ant-segmented-item { min-width: 22px; }
+  .module-center__mode-switch.ant-segmented.ant-segmented-sm .ant-segmented-item .ant-segmented-item-label { min-height: 22px; padding-inline: 1px; }
+}

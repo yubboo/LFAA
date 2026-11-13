@@ -7,7 +7,6 @@ import { WORKSPACE_PROJECT_APPLICATION_IDS, WORKSPACE_PROJECT_CONTEXT_APPLICATIO
  */
 import { Router } from "express";
 import Joi from "joi";
-import { randomUUID } from "node:crypto";
 import { ApiError } from "lfaa-util-values/src/http-error.js";
 import { requireAuthentication } from "lfaa-authorization/src/middleware.js";
 import { createRateLimit } from "lfaa-api-remotes/src/rate-limit.js";
@@ -23,7 +22,8 @@ import { asyncHandler, parseBody } from "lfaa-api-remotes/src/route-contracts.js
 import { createAiSessionBranchWithMemory } from "lfaa-agent-loop/src/runs.js";
 import { resolveAiSessionWorkspaceContext } from "lfaa-agent-loop/src/workspace-context.js";
 import { detachAiSessionsFromWorkspaceProject, getAiSession, listAiSessions, setAiSessionProject, type AiSessionProjectContext } from "lfaa-session/src/sessions.js";
-import { claimLegacyLocalDefaultWorkspace, claimWorkspaceProjectApplication, createLocalWorkspaceProject, createWorkspaceGitWorktree, createWorkspaceProject, getDefaultWorkspaceProjectId, getWorkspaceProject, hasWorkspaceGitWorktrees, listWorkspaceProjects, searchWorkspaceProjects, removeWorkspaceProject, renameWorkspaceProject, replaceLocalWorkspaceProjectSources, setDefaultWorkspaceProject, updateDefaultWorkspaceProjectPath, updateLocalWorkspaceProject, type WorkspaceProjectApplicationId, type WorkspaceProjectMemoryMode } from "lfaa-workspace-workspace/src/index.js";
+import { createWorkspaceGitWorktreeFromProject, WorkspaceGitWorktreeError } from "lfaa-workspace-workspace/src/git-worktree-operations.js";
+import { claimLegacyLocalDefaultWorkspace, claimWorkspaceProjectApplication, createLocalWorkspaceProject, createWorkspaceProject, getDefaultWorkspaceProjectId, getWorkspaceProject, hasWorkspaceGitWorktrees, listWorkspaceProjects, searchWorkspaceProjects, removeWorkspaceProject, renameWorkspaceProject, replaceLocalWorkspaceProjectSources, setDefaultWorkspaceProject, updateDefaultWorkspaceProjectPath, updateLocalWorkspaceProject, workspaceProjectDirectoryName, type WorkspaceProjectApplicationId, type WorkspaceProjectMemoryMode } from "lfaa-workspace-workspace/src/index.js";
 
 const projectAppIdSchema = Joi.string().valid(...WORKSPACE_PROJECT_APPLICATION_IDS).required();
 const limitAiBranchMemory = createRateLimit(12, 60 * 1000);
@@ -132,8 +132,8 @@ function projectForSource(project: WorkspaceProjectForApp, sourceId?: string): W
 }
 
 function projectDirectoryName(title: string): string {
-  const name = title.trim().replace(/\s+/gu, " ").replace(/[. ]+$/u, "");
-  if (!name || name.length > 120 || /[<>:"/\\|?*\u0000-\u001f]/u.test(name) || /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/iu.test(name)) {
+  const name = workspaceProjectDirectoryName(title);
+  if (!name) {
     throw new ApiError(400, "workspace_project_directory_name_invalid", "项目名称不能作为本机文件夹名称，请移除 Windows 不支持的字符或保留设备名。");
   }
   return name;
@@ -454,38 +454,12 @@ export function registerRoutes(router: Router, aiPluginHost: AiPluginHost, _real
     const userId = request.auth!.user.id;
     const source = requireProjectForApp(userId, request.params.projectId, body.appId);
     if (!source) throw new ApiError(404, "workspace_project_not_found", "找不到此账户的项目。 ");
-    if (source.gitWorktree) throw new ApiError(409, "workspace_git_nested_worktree_unsupported", "请从原始项目创建 AI Worktree。 ");
-    const node = requireLocalGitProject(source);
-    if (!node) throw new ApiError(409, "workspace_git_worktree_node_required", "当前本机工作区不绑定 Daemon；此可选 Worktree 功能仍要求显式本机节点项目。 ");
-    const worktreeId = randomUUID();
-    const settings = getUserSettings(userId);
-    const result = await runLocalGitOperation(source, {
-      operation: "create-worktree", worktreeId,
-      projectDirectory: source.path, projectTitle: source.title, branchPrefix: settings.git.branchPrefix
-    }) as { projectDirectory?: unknown; worktreeRoot?: unknown; projectRelativePath?: unknown; branch?: unknown; baseline?: unknown; sourceHead?: unknown };
-    if (typeof result.projectDirectory !== "string" || typeof result.worktreeRoot !== "string" || typeof result.projectRelativePath !== "string"
-      || typeof result.branch !== "string" || typeof result.baseline !== "string" || typeof result.sourceHead !== "string") {
-      let cleanupError: unknown = null;
-      if (typeof result.branch === "string") {
-        try { await runLocalGitOperation(source, { operation: "remove-worktree", worktreeId, sourceDirectory: source.path, branch: result.branch }); }
-        catch (error) { cleanupError = error; }
-      }
-      const residualPath = typeof result.worktreeRoot === "string" ? result.worktreeRoot : `<LFAA_DATA_DIR>/git-worktrees/${worktreeId}`;
-      const cleanupMessage = cleanupError ? ` 清理未确认成功；请检查节点 ${node.displayName} 的 ${residualPath}（工作树 ${worktreeId}）。` : "";
-      throw new ApiError(502, "workspace_git_worktree_result_invalid", `Daemon 返回的 Git 工作树身份信息无效；请检查节点状态后再操作。${cleanupMessage}`);
-    }
     try {
-      const project = createWorkspaceGitWorktree({ userId, appId: source.appId, sourceProjectId: source.id, nodeId: node.id,
-        path: result.projectDirectory, worktreeRoot: result.worktreeRoot, worktreeId, projectRelativePath: result.projectRelativePath,
-        branch: result.branch, baseCommit: result.baseline, sourceHead: result.sourceHead, platform: node.platform });
+      const project = await createWorkspaceGitWorktreeFromProject({ userId, appId: body.appId, sourceProjectId: source.id, branchPrefix: getUserSettings(userId).git.branchPrefix });
       response.status(201).json({ project });
     } catch (error) {
-      try {
-        await runLocalGitOperation(source, { operation: "remove-worktree", worktreeId, sourceDirectory: source.path, branch: result.branch });
-      } catch (cleanupError) {
-        throw new ApiError(502, "workspace_git_worktree_cleanup_unconfirmed", `项目登记失败，且 Daemon 未确认清理工作树：${error instanceof Error ? error.message : "登记错误"}。请检查节点 ${node.displayName} 的 ${result.worktreeRoot}（工作树 ${worktreeId}）。`);
-      }
-      throw new ApiError(409, "workspace_git_worktree_registration_failed", error instanceof Error ? error.message : "Git 工作树登记失败。 ");
+      if (error instanceof WorkspaceGitWorktreeError) throw new ApiError(error.status, error.code, error.message);
+      throw error;
     }
   }));
 
@@ -558,7 +532,7 @@ export function registerRoutes(router: Router, aiPluginHost: AiPluginHost, _real
     }
     const worktree = targetProject.gitWorktree;
     if (sourceProject.gitWorktree || !worktree || worktree.sourceProjectId !== sourceProject.id || worktree.nodeId !== sourceProject.nodeId || targetProject.nodeId !== sourceProject.nodeId) {
-      throw new ApiError(409, "workspace_session_fork_worktree_mismatch", "目标必须是在同一账户、App 与 Daemon 下从当前源项目登记的 AI Worktree。");
+      throw new ApiError(409, "workspace_session_fork_worktree_mismatch", "目标必须是在同一账户、App 与 Host 下从当前源项目登记的 AI Worktree。");
     }
     const projectContext: AiSessionProjectContext = {
       id: targetProject.id, appId: body.appId, nodeId: targetProject.nodeId, path: targetProject.path, title: targetProject.title,

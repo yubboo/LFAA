@@ -18,7 +18,7 @@ export function createInstructionTools(registry: AiExtensionRegistry): AiBusines
   for (const kind of ["prompt", "expert"] as const) {
     const available = (userId: string, applicationId: typeof APPLICATION_IDS[number]) => registry.list(kind)
       .filter(entry => isApplicationInScope(entry.applicationIds, applicationId) && (entry.builtIn || getUserSettings(userId).plugins.enabled));
-    result.push(makeTool({ id: `${kind}.list`, name: `lfaa_${kind}_list`, coreManaged: true, applicationIds: [...APPLICATION_IDS],
+    result.push(makeTool({ id: `${kind}.list`, name: `lfaa_${kind}_list`, coreManaged: true, onDemand: false, applicationIds: [...APPLICATION_IDS],
       description: `按当前用户目标发现已登记${kind === "expert" ? "专家角色" : "提示词"}摘要，可跨界面选择内置领域方法；不读取正文，不执行业务。query 用于缩小目录。`,
       schema: strictObject({ query: { type: "string", maxLength: 120 }, offset: { type: "integer", minimum: 0 }, limit: { type: "integer", minimum: 1, maximum: 40 } }),
       parse: value => parseWithSchema(Joi.object({ query: Joi.string().max(120).allow(""), offset: Joi.number().integer().min(0).max(100000).default(0), limit: Joi.number().integer().min(1).max(40).default(20) }).unknown(false), value),
@@ -29,7 +29,7 @@ export function createInstructionTools(registry: AiExtensionRegistry): AiBusines
         return { total: entries.length, entries: entries.slice(Number(parameters.offset), Number(parameters.offset) + Number(parameters.limit)), readOnly: true };
       }
     }));
-    result.push(makeTool({ id: `${kind}.load`, name: `lfaa_${kind}_load`, coreManaged: true, applicationIds: [...APPLICATION_IDS],
+    result.push(makeTool({ id: `${kind}.load`, name: `lfaa_${kind}_load`, coreManaged: true, onDemand: false, applicationIds: [...APPLICATION_IDS],
       description: `仅在任务需要时按目录 id 读取一项${kind === "expert" ? "专家方法；实际委派使用 delegate_domain_expert 并传 expertId" : "提示词全文"}。加载不会执行业务、扩大权限或修改作品/实例。`,
       schema: strictObject({ id: { type: "string", minLength: 1, maxLength: 120 } }, ["id"]),
       parse: value => parseWithSchema(Joi.object({ id: Joi.string().min(1).max(120).required() }).unknown(false), value),
