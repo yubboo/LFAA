@@ -927,7 +927,7 @@ function generateImageTool(service: CanvasService, readGeneration: CanvasGenerat
     coreManaged: true,
     applicationIds: [...CANVAS_TOOL_APPLICATION_IDS],
     activityTitle: "生成画布图片",
-    description: "调用画布生成 Owner 为画布项目生成一张真实图片，并把结果登记为项目素材、返回真实 assetId；通常使用设置中心默认图片模型。若用户指定模型，或没有默认图片模型，先调用 canvas_list_image_models，再将返回的账户与模型以 modelTarget 指定，本次选择不更改用户默认设置。Agent Plan 只接受官方目录中的 image-generation 模型和适用套餐档位。画布使用远程 Provider，AI 漫剧的本机引擎选择不会拦截它。2:1 只表示全景比例图像，不是真全景渲染。该操作可能产生服务商费用，必须服从 Permission Owner。账户/模型/密钥缺失或生成失败时返回真实原因，不伪造成功；必须携带最近读取的 expectedUpdatedAt。",
+    description: "调用画布生成 Owner 为画布项目生成一张真实图片并登记为素材；当前 App 登记了 image 节点时，无 nodeId 的 Agent 生图会把素材和图片节点原子写入同一项目并返回真实节点位置。若指定 nodeId，则将生成状态写回该 generation 节点。通常使用设置中心默认图片模型。若用户指定模型或没有默认图片模型，先调用 canvas_list_image_models，再将返回的账户与模型以 modelTarget 指定，本次选择不更改用户默认设置。Agent Plan 只接受官方目录中的 image-generation 模型和适用套餐档位。画布使用远程 Provider，AI 漫剧的本机引擎选择不会拦截它。2:1 只表示全景比例图像，不是真全景渲染。该操作可能产生服务商费用，必须服从 Permission Owner。账户/模型/密钥缺失或生成失败时返回真实原因，不伪造成功；必须携带最近读取的 expectedUpdatedAt。",
     schema: generateImageSchema,
     parse: value => parseWithSchema(Joi.object({
       applicationId: applicationIdSchema,
@@ -982,10 +982,12 @@ function generateImageTool(service: CanvasService, readGeneration: CanvasGenerat
       if (!result.project.assets.some(asset => asset.assetId === result.asset.assetId)) {
         throw new Error("画布生成结果未出现在项目素材中；不报告生成成功。");
       }
+      const imageNode = result.project.nodes.find(node => node.type === "image" && node.data.assetId === result.asset.assetId);
       return {
         generated: true,
         project: projectSummary(result.project),
         asset: result.asset,
+        ...(imageNode ? { node: { id: imageNode.id, type: imageNode.type, x: imageNode.x, y: imageNode.y } } : {}),
         updatedAt: result.project.updatedAt
       };
     }

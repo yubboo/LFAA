@@ -52,11 +52,11 @@ function generationNode(overrides = {}) {
   return { id: randomUUID(), type: "generation", x: 0, y: 0, width: 360, height: 260, data: {}, ...overrides };
 }
 
-function projectFixture(nodes = []) {
+function projectFixture(nodes = [], applicationId = "writing") {
   return {
     format: "lfaa-canvas-project",
     formatVersion: 2,
-    applicationId: "writing",
+    applicationId,
     id: randomUUID(),
     title: "生成画布",
     viewport: { x: 0, y: 0, zoom: 1 },
@@ -80,12 +80,12 @@ function createFakeCanvas(initialProject, assetBytes = {}) {
     calls,
     current: () => structuredClone(state.project),
     read(userId, applicationId, projectId) {
-      if (userId !== "account-a" || applicationId !== "writing" || projectId !== state.project.id) return null;
+      if (userId !== "account-a" || applicationId !== state.project.applicationId || projectId !== state.project.id) return null;
       return structuredClone(state.project);
     },
     openAsset(userId, applicationId, projectId, assetId) {
       calls.openAsset.push(assetId);
-      if (userId !== "account-a" || applicationId !== "writing" || projectId !== state.project.id) return null;
+      if (userId !== "account-a" || applicationId !== state.project.applicationId || projectId !== state.project.id) return null;
       const asset = state.project.assets.find(item => item.assetId === assetId);
       const bytes = assetBytes[assetId];
       if (!asset || !bytes) return null;
@@ -104,7 +104,7 @@ function createFakeCanvas(initialProject, assetBytes = {}) {
       return structuredClone(state.project);
     },
     commitAsset(userId, applicationId, projectId, input) {
-      calls.commit.push(structuredClone({ expectedUpdatedAt: input.expectedUpdatedAt, name: input.name, mimeType: input.mimeType, bytes: input.bytes.length, assetId: input.assetId, nodeId: input.node?.nodeId }));
+      calls.commit.push(structuredClone({ expectedUpdatedAt: input.expectedUpdatedAt, name: input.name, mimeType: input.mimeType, bytes: input.bytes.length, assetId: input.assetId, nodeId: input.node?.nodeId, newNode: input.newNode }));
       if (state.project.updatedAt !== input.expectedUpdatedAt) throw new (globalThis.CanvasConflictError)();
       const asset = { assetId: input.assetId ?? randomUUID(), name: input.name, mimeType: input.mimeType, bytes: input.bytes.length, createdAt: new Date().toISOString() };
       let nodes = state.project.nodes;
@@ -113,6 +113,7 @@ function createFakeCanvas(initialProject, assetBytes = {}) {
         if (index < 0) throw new Error("找不到要写入生成结果的画布节点；素材没有保存。");
         nodes = nodes.map((node, itemIndex) => itemIndex === index ? { ...node, data: structuredClone(input.node.data) } : node);
       }
+      if (input.newNode) nodes = [...nodes, structuredClone(input.newNode)];
       state.project = { ...state.project, assets: [...state.project.assets, asset], nodes, updatedAt: bump(state.project.updatedAt) };
       return { project: structuredClone(state.project), asset: structuredClone(asset) };
     }
@@ -218,11 +219,11 @@ test("画布图片生成：未配置账户/密钥/模型时 400 原因，不调�
   const serviceWith = options => generation.createCanvasGenerationService(createDeps(createFakeCanvas(baseProject), options));
 
   const cases = [
-    [{ settings: aiRuntime({ imageGenerationAccountId: "", imageGenerationModelId: "" }) }, /设置中心选择图片生成账户和模型/u],
+    [{ settings: aiRuntime({ imageGenerationAccountId: "", imageGenerationModelId: "" }) }, /尚未选择画布图片模型/u],
     [{ settings: aiRuntime({ imageGenerationAccountId: "missing-account" }) }, /找不到所选图片生成账户/u],
     [{ keys: { "account-video": "sk-video" } }, /密钥不可用/u],
-    [{ settings: aiRuntime({ imageGenerationModelId: "not-in-catalog" }) }, /模型目录/u],
-    [{ accounts: [{ id: "account-image", providerId: "deepseek", displayName: "错误账户", modelId: "image-model", models: [{ id: "image-model" }], reasoningMode: "default", active: true, createdAt: START, hasSecret: true }] }, /只支持 OpenAI 和豆包/u]
+    [{ settings: aiRuntime({ imageGenerationModelId: "not-in-catalog" }) }, /所选图片生成模型不在当前账户/u],
+    [{ accounts: [{ id: "account-image", providerId: "deepseek", displayName: "错误账户", modelId: "image-model", models: [{ id: "image-model" }], reasoningMode: "default", active: true, createdAt: START, hasSecret: true }] }, /只支持 OpenAI、豆包/u]
   ];
   for (const [options, pattern] of cases) {
     const canvas = createFakeCanvas(baseProject);
@@ -237,15 +238,16 @@ test("画布图片生成：未配置账户/密钥/模型时 400 原因，不调�
     assert.deepEqual(canvas.current(), baseProject);
   }
 
-  // 本机模型模式本轮未接通：显式 501 语义错误，不调用 Provider。
+  // Canvas 生图使用远程 Provider；AI 漫剧的本机引擎选择不改变画布账户/模型路由。
   const localCanvas = createFakeCanvas(baseProject);
-  const localDeps = createDeps(localCanvas, { settings: aiRuntime({ imageGenerationMode: "local" }) });
+  const localDeps = createDeps(localCanvas, {
+    settings: aiRuntime({ imageGenerationMode: "local" }),
+    generateImage: () => ({ bytes: PNG, mimeType: "image/png" })
+  });
   const localService = generation.createCanvasGenerationService(localDeps);
-  await assert.rejects(
-    localService.generateImage("account-a", "writing", baseProject.id, { expectedUpdatedAt: baseProject.updatedAt, prompt: "一只猫" }),
-    error => error instanceof generation.CanvasGenerationUnsupportedError && /本机 MOSS 模型/u.test(error.message)
-  );
-  assert.equal(localDeps.calls.generateImage.length, 0);
+  const localResult = await localService.generateImage("account-a", "writing", baseProject.id, { expectedUpdatedAt: baseProject.updatedAt, prompt: "一只猫" });
+  assert.equal(localDeps.calls.generateImage.length, 1);
+  assert.equal(localResult.asset.mimeType, "image/png");
 
   // 不存在项目返回 null；过期版本抛 CanvasConflictError 且不调用 Provider。
   assert.equal(await serviceWith({}).generateImage("account-a", "writing", randomUUID(), { expectedUpdatedAt: baseProject.updatedAt, prompt: "一只猫" }), null);
@@ -337,6 +339,31 @@ test("画布图片生成：失败不写可见结果，成功才原子落素材�
     /必须引用本项目素材|不是图片/u
   );
   assert.equal(audioDeps.calls.generateImage.length, 0);
+});
+
+test("画布图片生成：无 nodeId 时在支持图片节点的 App 原子创建节点并引用素材", async () => {
+  const generation = await import("lfaa-canvas-generation/src/index.js");
+  const canvasOwner = await import("lfaa-canvas/src/index.js");
+  globalThis.CanvasConflictError = canvasOwner.CanvasConflictError;
+
+  const project = projectFixture([], "workspace");
+  const canvas = createFakeCanvas(project);
+  const deps = createDeps(canvas, { generateImage: () => ({ bytes: PNG, mimeType: "image/png" }) });
+  const service = generation.createCanvasGenerationService(deps);
+  const result = await service.generateImage("account-a", "workspace", project.id, {
+    expectedUpdatedAt: project.updatedAt,
+    prompt: "雨后的霓虹街道上一只橘猫",
+    aspectRatio: "16:9"
+  });
+
+  assert.equal(canvas.calls.commit.length, 1);
+  assert.equal(canvas.calls.commit[0].nodeId, undefined);
+  assert.equal(canvas.calls.commit[0].newNode.type, "image");
+  assert.equal(result.project.nodes.length, 1);
+  assert.equal(result.project.nodes[0].data.assetId, result.asset.assetId);
+  assert.equal(result.project.nodes[0].data.assetName, result.asset.name);
+  assert.equal(result.project.nodes[0].x, 0);
+  assert.equal(result.project.assets.length, 1);
 });
 
 test("画布视频生成：真实任务状态写入节点，刷新成功才落素材，失败/取消置 failed", async () => {

@@ -4241,6 +4241,7 @@
         "testConsumers": [
           "apps/cli/tests/agent-runtime.test.mjs",
           "apps/cli/tests/agent-workbench-context.test.mjs",
+          "apps/cli/tests/ai-work-unified-chat-projects.test.mjs",
           "apps/cli/tests/capability-mcp.test.mjs",
           "apps/cli/tests/capability-prompt.test.mjs",
           "apps/cli/tests/computer-use.test.mjs",
@@ -7687,6 +7688,8 @@
         "testConsumers": [
           "apps/cli/tests/agent-workbench-context.test.mjs",
           "apps/cli/tests/ai-video-canvas-adapter.test.mjs",
+          "apps/cli/tests/application-navigation-panel.test.mjs",
+          "apps/cli/tests/application-workspace-pure-utils.test.mjs",
           "apps/cli/tests/dsh-wallpaper-engine-runtime.test.mjs"
         ],
         "manifestConsumers": [
@@ -13485,6 +13488,7 @@
           "apps/cli/tests/ai-model-catalog-refresh.test.mjs",
           "apps/cli/tests/ai-provider-extension.test.mjs",
           "apps/cli/tests/ai-video-canvas.test.mjs",
+          "apps/cli/tests/ai-work-unified-chat-projects.test.mjs",
           "apps/cli/tests/canvas-settings.test.mjs",
           "apps/cli/tests/capability-skill.test.mjs",
           "apps/cli/tests/computer-use.test.mjs",

@@ -22,6 +22,38 @@ test("所有 App 的聊天地址都归一到唯一通用 Work", async () => {
   assert.equal(normalizeWorkRoute("/apps/writing/normal"), "/apps/writing/normal");
 });
 
+test("通用 Session 持久化领域 App 上下文，允许空闲切换而不改变会话 App", async () => {
+  const { database } = await import("lfaa-storage-sqlite/src/database.js");
+  const { retireLegacyFileTables } = await import("lfaa-storage-domain/src/migration.js");
+  const { createAiTurn, finishAiAssistantMessage, getAiSession, listAiSessions, setAiSessionContextApplication } = await import("lfaa-session/src/sessions.js");
+  const { sessionRecords } = await import("lfaa-session-persistence-jsonl/src/repository.js");
+  const { aiChatMessageSchema, aiSessionContextApplicationSchema } = await import("lfaa-api-remotes/src/route-contracts.js");
+  const userId = randomUUID();
+  retireLegacyFileTables();
+  database.prepare("INSERT INTO users(id,username,password_salt,password_hash,role) VALUES(?,?,'fixture','fixture','member')").run(userId, `fixture-${userId}`);
+
+  const created = createAiTurn(userId, "workspace", null, "在 AI 漫剧里继续", false, null, undefined, undefined, "aivideo");
+  assert.equal(created.session.appId, "workspace");
+  assert.equal(created.session.contextApplicationId, "aivideo");
+  assert.equal(database.prepare("SELECT context_application_id FROM ai_sessions WHERE id = ?").get(created.session.id).context_application_id, "aivideo");
+  assert.equal(sessionRecords.allForSession("session_events", created.session.id).some(event => event.type === "session/application-context" && event.data.applicationId === "aivideo"), true);
+  assert.equal(setAiSessionContextApplication(userId, created.session.id, "minecraft"), null, "活动 Run 不允许更改 Session 上下文");
+
+  finishAiAssistantMessage(userId, created.session.id, created.assistantMessage.id, "已完成", "complete");
+  const changed = setAiSessionContextApplication(userId, created.session.id, "minecraft");
+  assert.equal(changed.contextApplicationId, "minecraft");
+  assert.equal(getAiSession(userId, created.session.id).contextApplicationId, "minecraft");
+  assert.equal(listAiSessions(userId, false).find(session => session.id === created.session.id).contextApplicationId, "minecraft");
+  assert.equal(setAiSessionContextApplication("another-user", created.session.id, "aivideo"), null, "领域上下文仍按会话账户隔离");
+  assert.equal(setAiSessionContextApplication(userId, created.session.id, null).contextApplicationId, null, "显式通用聊天可清除领域上下文");
+
+  const baseInput = { appId: "workspace", sessionId: null, content: "继续" };
+  assert.equal(aiChatMessageSchema.validate({ ...baseInput, contextApplicationId: "aivideo" }).error, undefined);
+  assert.equal(aiChatMessageSchema.validate({ ...baseInput, contextApplicationId: "workspace" }).error !== undefined, true);
+  assert.equal(aiSessionContextApplicationSchema.validate({ contextApplicationId: null }).error, undefined);
+  assert.equal(aiSessionContextApplicationSchema.validate({ contextApplicationId: "unknown" }).error !== undefined, true);
+});
+
 test("通用 Work 可发现实际登记的 AI Video 工具并使用其声明的业务上下文", async () => {
   const { Context } = await import("@deepseek-ai/cordis");
   const { registerAiBusinessTool } = await import("lfaa-tools/src/registry.js");

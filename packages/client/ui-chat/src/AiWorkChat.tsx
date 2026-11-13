@@ -1,6 +1,6 @@
-import { APPLICATION_IDS, APPLICATION_LABELS } from "lfaa-util-values/src/application-id.js";
+import { APPLICATION_IDS, APPLICATION_LABELS, WORKSPACE_PROJECT_CONTEXT_APPLICATION_IDS } from "lfaa-util-values/src/application-id.js";
 import { isBuiltinBrowserProvider } from "lfaa-util-values/src/browser-provider.js";
-import { setAiSessionAssociations, type AgentAssociations } from "lfaa-client-connection/src/api.js";
+import { setAiSessionAssociations, setAiSessionContextApplication, type AgentAssociations } from "lfaa-client-connection/src/api.js";
 /**
  * 文件：AiWorkChat.tsx
  * 功能：提供 SteamCMD、Minecraft 和写作工作区的 小鱼智能体 流式聊天。
@@ -12,7 +12,7 @@ import { setAiSessionAssociations, type AgentAssociations } from "lfaa-client-co
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type Dispatch, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type SetStateAction, type UIEvent, type WheelEvent as ReactWheelEvent } from "react";
 import { createSnapshotCache } from "lfaa-client-store/src/snapshot-cache.js";
 import { Alert, Button, Dropdown, Input, Modal, Popover, Select, Spin, Tag, Tooltip, Typography } from "antd";
-import { appendAiTextDelta, uploadAttachment, answerAiRunQuestion, appendAiRunInput, applyWritingEditProposal, ApiError, cancelAiRun, createWorkspaceGitWorktree, createAiSessionBranchFromMessage, createAiSessionBranchFromMessageInWorktree, decideAiApproval, forkAiSessionBeforeUserMessage, generateAiSessionTitle, getErrorMessage, loadSettings, loadAiAccounts, loadWritingEditProposal, loadAiMessages, loadAiSessions, loadWritingWorkspace, pauseAiRun, rejectWritingEditProposal, resumeAiRun, saveSettings, selectAiAccountModel, setAiSessionPlanMode, setAiSessionProject, streamAiChat, submitAiMessageFeedback, updateAiAccountReasoningMode, type AiAccount, type AiActivityFileChange, type AiActivityItem, type AiContextUsage, type AiMessage, type AiMessageFeedbackInput, type AiRunPauseState, type AiSession, type AiSessionBranchSource, type AiSessionUsageSummary, type AiWorkbenchView, type ApplicationId, type BrowserProviderId, type UserSettings, type WritingEditProposal, type WritingWorkspace, type WorkspaceDaemonNode, type WorkspaceProject, type WorkspaceProjectApplicationId } from "lfaa-client-connection/src/api.js";
+import { appendAiTextDelta, uploadAttachment, answerAiRunQuestion, appendAiRunInput, applyWritingEditProposal, ApiError, cancelAiRun, createWorkspaceGitWorktree, createAiSessionBranchFromMessage, createAiSessionBranchFromMessageInWorktree, decideAiApproval, forkAiSessionBeforeUserMessage, generateAiSessionTitle, getErrorMessage, loadSettings, loadAiAccounts, loadWritingEditProposal, loadAiMessages, loadAiSessions, loadWritingWorkspace, pauseAiRun, rejectWritingEditProposal, resumeAiRun, saveSettings, selectAiAccountModel, setAiSessionPlanMode, setAiSessionProject, streamAiChat, submitAiMessageFeedback, updateAiAccountReasoningMode, type AiAccount, type AiActivityFileChange, type AiActivityItem, type AiContextUsage, type AiMessage, type AiMessageFeedbackInput, type AiRunPauseState, type AiSession, type AiSessionBranchSource, type AiSessionUsageSummary, type AiWorkbenchView, type ApplicationId, type BrowserProviderId, type UserSettings, type WritingEditProposal, type WritingWorkspace, type WorkspaceDaemonNode, type WorkspaceProject, type WorkspaceProjectApplicationId, type WorkspaceProjectContextApplicationId } from "lfaa-client-connection/src/api.js";
 import { notifyAiWorkAction, notifyAiWorkCompletion, type AiWorkGoalRequest, type AiWorkNotificationInput } from "lfaa-client-resources/src/notification-runtime.js";
 
 // 本次请求携带的附件：只用于当前进程把图片显示在用户气泡里（字节仍不写入会话历史）。
@@ -130,6 +130,7 @@ interface AiWorkChatProps {
   workspaceHeader?: ReactNode;
   userId: string;
   appId: ApplicationId;
+  contextApplicationId: WorkspaceProjectContextApplicationId | null;
   workspaceView?: AiWorkbenchView;
   onOpenApplicationCanvas?: () => void;
   capabilities?: Array<{ id: string; name: string; kind: string }>;
@@ -524,7 +525,7 @@ const ConversationAnchorRail = memo(function ConversationAnchorRail({ anchors, l
   </nav>;
 });
 
-function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, onOpenApplicationCanvas, capabilities = [], capabilitiesError = "", settings, onSettingsChange, sessions, activeSessionId, projectDirectoryMissing, newSessionProjectId, defaultWorkspaceProjectId, newSessionGitRepositoryId, onSelectedProjectChange, workspaceProjects, workspaceProjectsLoadStatus, workspaceProjectsTruncated, workspaceNodes, workspaceProjectsError, onRetryWorkspaceProjects, onWorkspaceProjectCreated, onWorkspaceProjectsChange, initialDraft, autoSubmitGoal = null, onAutoSubmitGoalConsumed, newSessionKey, onSessionsChange, onSessionChange, onActiveSessionChange, onDraftChange, onProviderStatusChange, onBusyChange, onOpenSettings, onNotification, onOpenSideChat, onOpenProjectFile, onWritingWorkspaceChange, onSessionFileChanges, onBrowserToolCompleted, onCanvasToolsCompleted, voiceMode = false, onExitVoice = () => undefined }: AiWorkChatProps) {
+function AiWorkChatView({ workspaceHeader, userId, appId, contextApplicationId, workspaceView, onOpenApplicationCanvas, capabilities = [], capabilitiesError = "", settings, onSettingsChange, sessions, activeSessionId, projectDirectoryMissing, newSessionProjectId, defaultWorkspaceProjectId, newSessionGitRepositoryId, onSelectedProjectChange, workspaceProjects, workspaceProjectsLoadStatus, workspaceProjectsTruncated, workspaceNodes, workspaceProjectsError, onRetryWorkspaceProjects, onWorkspaceProjectCreated, onWorkspaceProjectsChange, initialDraft, autoSubmitGoal = null, onAutoSubmitGoalConsumed, newSessionKey, onSessionsChange, onSessionChange, onActiveSessionChange, onDraftChange, onProviderStatusChange, onBusyChange, onOpenSettings, onNotification, onOpenSideChat, onOpenProjectFile, onWritingWorkspaceChange, onSessionFileChanges, onBrowserToolCompleted, onCanvasToolsCompleted, voiceMode = false, onExitVoice = () => undefined }: AiWorkChatProps) {
   const currentScrollConversationKey = `${appId}:${activeSessionId ?? "new-session"}`;
   const outputFocusRegionElementRef = useRef<HTMLElement | null>(null);
   const setOutputFocusRegionElement = useCallback((node: HTMLElement | null) => {
@@ -573,6 +574,12 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, onOpenA
   const [composerSelectionRevision, setComposerSelectionRevision] = useState(0);
   const [associations, setAssociations] = useState<AgentAssociations>({ applicationIds: [], capabilityIds: [] });
   const [associationsBusy, setAssociationsBusy] = useState(false);
+  const [selectedContextApplicationId, setSelectedContextApplicationId] = useState<WorkspaceProjectContextApplicationId | null>(() => activeSessionId
+    ? sessions.find(session => session.id === activeSessionId)?.contextApplicationId ?? contextApplicationId
+    : contextApplicationId);
+  const contextSelectionOverrideRef = useRef<{ scope: string; value: WorkspaceProjectContextApplicationId | null } | null>(null);
+  const contextSelectionScope = `${activeSessionId ?? "new-session"}\u0000${contextApplicationId ?? ""}`;
+  const [contextApplicationBusy, setContextApplicationBusy] = useState(false);
   const [composerMoreOpen, setComposerMoreOpen] = useState(false);
   const [composerMoreTooltipOpen, setComposerMoreTooltipOpen] = useState(false);
   const [composerMoreSection, setComposerMoreSection] = useState<"applications" | "capabilities" | null>(null);
@@ -993,6 +1000,12 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, onOpenA
   const activeAccount = accountLoadState === "ready" ? effectiveAiAccount(accounts) : undefined;
   const modelPickerCatalog = useMemo(() => aiModelPickerCatalog(accounts), [accounts]);
   const activeSession = sessions.find(session => session.id === activeSessionId) ?? null;
+  useEffect(() => {
+    const override = contextSelectionOverrideRef.current;
+    setSelectedContextApplicationId(override?.scope === contextSelectionScope
+      ? override.value
+      : contextApplicationId ?? activeSession?.contextApplicationId ?? null);
+  }, [activeSessionId, activeSession?.contextApplicationId, contextApplicationId, contextSelectionScope]);
   const activeSessionHasResolvedAssistant = Boolean(activeSessionId && messagesSessionId === activeSessionId && messagesReady
     && messages.some(message => message.role === "assistant" && message.status !== "queued" && message.status !== "streaming"));
   useEffect(() => {
@@ -1131,6 +1144,22 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, onOpenA
       setAssociations(next); setError("");
     } catch (associationError) { setError(getErrorMessage(associationError)); }
     finally { setAssociationsBusy(false); }
+  }
+  async function changeContextApplication(value: "workspace" | WorkspaceProjectContextApplicationId): Promise<void> {
+    if (busy || contextApplicationBusy) return;
+    const next = value === "workspace" ? null : value;
+    contextSelectionOverrideRef.current = { scope: contextSelectionScope, value: next };
+    setSelectedContextApplicationId(next);
+    if (!activeSessionId) return;
+    setContextApplicationBusy(true);
+    try {
+      const { session } = await setAiSessionContextApplication(activeSessionId, next);
+      onSessionsChange([session, ...sessions.filter(item => item.id !== session.id)]);
+      setError("");
+    } catch (contextError) {
+      setSelectedContextApplicationId(activeSession?.contextApplicationId ?? null);
+      setError(getErrorMessage(contextError));
+    } finally { setContextApplicationBusy(false); }
   }
   const branchSourceProject = activeSession?.projectId ? workspaceProjects.find(project => project.id === activeSession.projectId) ?? null : null;
   const branchSourceNode = branchSourceProject ? workspaceNodes.find(node => node.id === branchSourceProject.nodeId) ?? null : null;
@@ -1623,6 +1652,7 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, onOpenA
       await streamAiChat({
         ...(followRunId ? { runId: followRunId } : {}),
         appId,
+        contextApplicationId: selectedContextApplicationId,
         sessionId: requestSessionId,
         ...(!requestSessionId && requestProjectId ? { projectId: requestProjectId } : {}),
         ...(!requestSessionId && newSessionGitRepositoryId ? { gitRepositoryId: newSessionGitRepositoryId } : {}),
@@ -2520,6 +2550,7 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, onOpenA
     </div>
   );
 
+  const associationPickerListHeight = Math.min(232, Math.max(96, window.innerHeight - 174));
   const composerMoreContent = (
     <div className="ai-work-chat__more-menu" aria-label="更多输入操作">
       {composerMoreSection === null ? <>
@@ -2541,8 +2572,8 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, onOpenA
         </button>
         <strong>{composerMoreSection === "applications" ? "关联应用" : "Skill / 提示词 / 专家"}</strong>
         {composerMoreSection === "applications"
-          ? <Select mode="multiple" optionFilterProp="label" allowClear maxCount={APPLICATION_IDS.length} aria-label="关联应用（可选）" aria-description="关联只提供参考，小鱼按目标决定是否加载。" title="关联只提供参考，小鱼按目标决定是否加载。" placeholder="搜索并选择应用" disabled={busy || associationsBusy} value={associations.applicationIds} options={APPLICATION_IDS.filter(id => id !== "workspace").map(id => ({ value: id, label: applicationAssociationLabels[id] }))} onChange={applicationIds => void changeAssociations({ ...associations, applicationIds })} />
-          : <Select mode="multiple" optionFilterProp="label" allowClear maxCount={16} aria-label="关联能力（可选）" aria-description="关联只提供参考，小鱼按目标决定是否加载。" title="关联只提供参考，小鱼按目标决定是否加载。" placeholder="搜索并选择能力" disabled={busy || associationsBusy || capabilities.length === 0} value={associations.capabilityIds} options={capabilities.map(item => ({ value: item.id, label: item.name }))} onChange={capabilityIds => void changeAssociations({ ...associations, capabilityIds })} />}
+          ? <Select mode="multiple" optionFilterProp="label" allowClear maxCount={APPLICATION_IDS.length} aria-label="关联应用（可选）" aria-description="关联只提供参考，小鱼按目标决定是否加载。" title="关联只提供参考，小鱼按目标决定是否加载。" placeholder="搜索并选择应用" disabled={busy || associationsBusy} value={associations.applicationIds} options={APPLICATION_IDS.filter(id => id !== "workspace").map(id => ({ value: id, label: applicationAssociationLabels[id] }))} getPopupContainer={(trigger: HTMLElement) => (trigger.closest(".workbench-shell") as HTMLElement | null) ?? trigger.parentElement ?? document.body} listHeight={associationPickerListHeight} onChange={applicationIds => void changeAssociations({ ...associations, applicationIds })} />
+          : <Select mode="multiple" optionFilterProp="label" allowClear maxCount={16} aria-label="关联能力（可选）" aria-description="关联只提供参考，小鱼按目标决定是否加载。" title="关联只提供参考，小鱼按目标决定是否加载。" placeholder="搜索并选择能力" disabled={busy || associationsBusy || capabilities.length === 0} value={associations.capabilityIds} options={capabilities.map(item => ({ value: item.id, label: item.name }))} getPopupContainer={(trigger: HTMLElement) => (trigger.closest(".workbench-shell") as HTMLElement | null) ?? trigger.parentElement ?? document.body} listHeight={associationPickerListHeight} onChange={capabilityIds => void changeAssociations({ ...associations, capabilityIds })} />}
         <small>关联只提供参考，小鱼按目标决定是否加载。</small>
         {composerMoreSection === "capabilities" && capabilitiesError ? <Typography.Text type="danger">Skill 目录读取失败：{capabilitiesError}</Typography.Text> : null}
       </div>}
@@ -2781,6 +2812,20 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, onOpenA
             <Tooltip trigger={["hover"]} placement="top" title={applicationNameFor(appId)}>
               <span className="ai-work-chat__composer-app" aria-label={`${appId === "workspace" ? "当前工作区" : "当前应用"}：${applicationNameFor(appId)}`}><WorkbenchIcon name="spark" size={13} /><span className="ai-work-chat__composer-app-label">{applicationNameFor(appId)}</span></span>
             </Tooltip>
+            {appId === "workspace" ? <Tooltip trigger={["hover"]} placement="top" title="选择小鱼当前要协助的应用背景；这不会改变已登记工具或权限范围。">
+              <Select
+                className="ai-work-chat__composer-context-selector"
+                size="small"
+                aria-label="当前领域应用上下文"
+                value={selectedContextApplicationId ?? "workspace"}
+                options={[{ value: "workspace", label: "通用聊天" }, ...WORKSPACE_PROJECT_CONTEXT_APPLICATION_IDS.map(id => ({ value: id, label: applicationNameFor(id) }))]}
+                disabled={busy || contextApplicationBusy || projectBusy || Boolean(editingMessage)}
+                loading={contextApplicationBusy}
+                onChange={value => void changeContextApplication(value as "workspace" | WorkspaceProjectContextApplicationId)}
+              />
+            </Tooltip> : <Tooltip trigger={["hover"]} placement="top" title={applicationNameFor(appId)}>
+              <span className="ai-work-chat__composer-app" aria-label="当前应用"><WorkbenchIcon name="spark" size={13} /><span className="ai-work-chat__composer-app-label">{applicationNameFor(appId)}</span></span>
+            </Tooltip>}
             {!workspaceProjectAppId && appId !== "workspace" && appId !== "minecraft" ? (() => {
               const appProject = workspaceView?.applicationProject?.applicationId === appId
                 ? workspaceView.applicationProject
@@ -2916,7 +2961,7 @@ function AiWorkChatView({ workspaceHeader, userId, appId, workspaceView, onOpenA
                 placement="topLeft"
                 arrow={false}
                 overlayClassName="ai-work-chat__more-overlay"
-                getPopupContainer={(trigger) => trigger.closest<HTMLElement>(".ai-work-chat__composer") ?? trigger.closest<HTMLElement>(".workbench-shell") ?? document.body}
+                getPopupContainer={(trigger) => trigger.closest<HTMLElement>(".workbench-shell") ?? trigger.parentElement ?? document.body}
                 open={composerMoreOpen}
                 onOpenChange={(open) => {
                   if (open) setComposerMoreTooltipOpen(false);

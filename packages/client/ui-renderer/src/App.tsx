@@ -9,7 +9,7 @@ import { preloadWorkbenchForRoute } from "./workbench-preload.js";
 import { clearAppearanceThemeBootstrap } from "lfaa-client-ui-theme/src/appearance-theme-bootstrap.js";
 import { MiniCompanionWindow } from "./MiniCompanionWindow.js";
 import { APPLICATION_ROUTE_PATTERN, SHARED_WORK_ROUTE, normalizeWorkRoute } from "lfaa-util-values/src/application-id.js";
-import { APPLICATION_ENTRY_STATE_KEY as applicationRouteEntryStateKey, WORK_CONTEXT_APPLICATION_STATE_KEY, readApplicationEntryIdFromHistory } from "./application-entry-state.js";
+import { APPLICATION_ENTRY_STATE_KEY as applicationRouteEntryStateKey, WORK_CONTEXT_APPLICATION_CHANGE_EVENT, WORK_CONTEXT_APPLICATION_STATE_KEY, readApplicationEntryIdFromHistory, readWorkContextApplicationIdFromHistory, readWorkContextApplicationIdFromRoute } from "./application-entry-state.js";
 
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
@@ -105,8 +105,8 @@ function routeTo(
   const requestedPath=targetUrl.origin===window.location.origin?normalizeWorkRoute(targetUrl.pathname):SHARED_WORK_ROUTE;
   let nextPath = requestedPath;
   const targetApp = applicationIdForRoute(nextPath);
-  const sourceAppRoute = targetUrl.pathname.match(APPLICATION_ROUTE_PATTERN);
-  const workContextApplicationId = sourceAppRoute?.[2] === "ai-work" && sourceAppRoute[1] !== "workspace" ? sourceAppRoute[1] as ApplicationId : null;
+  const workContextApplicationId = readWorkContextApplicationIdFromRoute(targetUrl.pathname)
+    ?? (requestedPath === SHARED_WORK_ROUTE ? readWorkContextApplicationIdFromHistory(currentState) : null);
 
   if (nextPath === SHARED_WORK_ROUTE) {
     delete nextState[applicationRouteEntryStateKey];
@@ -123,6 +123,7 @@ function routeTo(
     nextPath = SHARED_WORK_ROUTE;
     delete nextState[applicationRouteEntryStateKey];
   }
+  if (nextPath !== SHARED_WORK_ROUTE) delete nextState[WORK_CONTEXT_APPLICATION_STATE_KEY];
 
   const nextAddress=nextPath===requestedPath&&targetUrl.origin===window.location.origin?`${nextPath}${targetUrl.search}${targetUrl.hash}`:nextPath;
   const shouldReplace = options.replace || nextPath !== requestedPath;
@@ -132,6 +133,7 @@ function routeTo(
   } else {
     window.history.replaceState(nextState, "", nextAddress);
   }
+  window.dispatchEvent(new Event(WORK_CONTEXT_APPLICATION_CHANGE_EVENT));
   setRoute(nextPath);
   // 滚动位置由各工作区的恢复 Hook 管理，路由切换时不再额外启动全局平滑滚动。
 }
@@ -185,8 +187,19 @@ export default function App() {
   const [sessionRestoreAttempt, setSessionRestoreAttempt] = useState(0);
   const sessionRestoreResolvedRef = useRef(false);
   const [route, setRoute] = useState(window.location.pathname);
+  const [workContextApplicationId, setWorkContextApplicationId] = useState(() => readWorkContextApplicationIdFromHistory(window.history.state));
   const wasInSettingsRouteRef = useRef(route === "/settings");
   const serverState = serverStateFromHealth(health, healthChecking);
+
+  useEffect(() => {
+    const syncWorkContextApplication = () => setWorkContextApplicationId(readWorkContextApplicationIdFromHistory(window.history.state));
+    window.addEventListener(WORK_CONTEXT_APPLICATION_CHANGE_EVENT, syncWorkContextApplication);
+    window.addEventListener("popstate", syncWorkContextApplication);
+    return () => {
+      window.removeEventListener(WORK_CONTEXT_APPLICATION_CHANGE_EVENT, syncWorkContextApplication);
+      window.removeEventListener("popstate", syncWorkContextApplication);
+    };
+  }, []);
 
   useEffect(() => {
     const isSettingsRoute = route === "/settings";
@@ -350,7 +363,7 @@ export default function App() {
     const handlePopState = () => {
       navigationSequence.current += 1;
       const nextPath = normalizeWorkRoute(window.location.pathname);
-      if (nextPath !== window.location.pathname) { routeTo(nextPath, setRoute, { replace: true }); return; }
+      if (nextPath !== window.location.pathname) { routeTo(window.location.pathname, setRoute, { replace: true }); return; }
       const targetApp = applicationIdForRoute(nextPath);
       if (targetApp && readApplicationEntryIdFromHistory(window.history.state) !== targetApp) {
         routeTo(SHARED_WORK_ROUTE, setRoute, { replace: true });
@@ -365,7 +378,7 @@ export default function App() {
   useLayoutEffect(() => {
     if (!user) return;
     const normalized = normalizeWorkRoute(route);
-    if (normalized !== route) { routeTo(normalized, setRoute, { replace: true }); return; }
+    if (normalized !== route) { routeTo(route, setRoute, { replace: true }); return; }
     const targetApp = applicationIdForRoute(route);
     if (targetApp && readApplicationEntryIdFromHistory(window.history.state) !== targetApp) {
       routeTo(SHARED_WORK_ROUTE, setRoute, { replace: true });
@@ -788,6 +801,7 @@ export default function App() {
         preferences={preferences}
         serverState={serverState}
         route={route}
+        workContextApplicationId={workContextApplicationId}
         error={error}
         onNavigate={(path) => {
           if (normalizeWorkRoute(path) === SHARED_WORK_ROUTE) {

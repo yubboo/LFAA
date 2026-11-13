@@ -1,8 +1,9 @@
 /** 功能：解析浏览器历史中的应用入口标记。作用：只接受应用权威清单中的 ID，避免新增应用被旧白名单重定向。 */
-import { APPLICATION_IDS, WORKSPACE_PROJECT_CONTEXT_APPLICATION_IDS, type ApplicationId, type WorkspaceProjectContextApplicationId } from "lfaa-util-values/src/application-id.js";
+import { APPLICATION_IDS, APPLICATION_ROUTE_PATTERN, WORKSPACE_PROJECT_CONTEXT_APPLICATION_IDS, type ApplicationId, type WorkspaceProjectContextApplicationId } from "lfaa-util-values/src/application-id.js";
 
 export const APPLICATION_ENTRY_STATE_KEY = "lfaaApplicationCenterEntry";
 export const WORK_CONTEXT_APPLICATION_STATE_KEY = "lfaaWorkContextApplication";
+export const WORK_CONTEXT_APPLICATION_CHANGE_EVENT = "lfaa:work-context-application-change";
 
 export function readApplicationEntryIdFromHistory(state: unknown): ApplicationId | null {
   if (typeof state !== "object" || state === null || Array.isArray(state)) return null;
@@ -15,5 +16,12 @@ export function readWorkContextApplicationIdFromHistory(state: unknown): Workspa
   const value = (state as Record<string, unknown>)[WORK_CONTEXT_APPLICATION_STATE_KEY];
   return typeof value === "string" && WORKSPACE_PROJECT_CONTEXT_APPLICATION_IDS.includes(value as WorkspaceProjectContextApplicationId)
     ? value as WorkspaceProjectContextApplicationId
+    : null;
+}
+
+export function readWorkContextApplicationIdFromRoute(path: string): WorkspaceProjectContextApplicationId | null {
+  const match = path.match(APPLICATION_ROUTE_PATTERN);
+  return match?.[2] === "ai-work" && WORKSPACE_PROJECT_CONTEXT_APPLICATION_IDS.includes(match[1] as WorkspaceProjectContextApplicationId)
+    ? match[1] as WorkspaceProjectContextApplicationId
     : null;
 }

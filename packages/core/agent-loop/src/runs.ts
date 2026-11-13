@@ -7,6 +7,7 @@ import type { AgentAssociations } from "lfaa-util-values/src/agent-associations.
 import type { AiPluginHost } from "lfaa-app-boot/src/ai-host.js";
 import type { UserRole } from "lfaa-identity-auth/src/service.js";
 import type { ApplicationId } from "lfaa-settings/src/preferences/service.js";
+import type { WorkspaceProjectContextApplicationId } from "lfaa-util-values/src/application-id.js";
 import type { AgentDefaultModelResolver } from "lfaa-agent-default-model/src/index.js";
 import type { UserApprovalNotifications } from "lfaa-user-approval/src/index.js";
 import type { UserQuestionService } from "lfaa-user-questions/src/index.js";
@@ -26,7 +27,7 @@ import { resolveAiSessionWorkspaceContext } from "./workspace-context.js";
 import type { AgentWorkbenchView } from "./workbench-context.js";
 import { requestShutdown } from "./shutdown-state.js";
 
-export interface AiRunInput { appId: ApplicationId; sessionId: string | null; content: string; projectId?: string | null; gitRepositoryId?: string | null; attachmentIds?: string[]; attachments?: Array<{ id: string; name?: string }>; associations?: AgentAssociations; planMode?: boolean; workspaceView?: AgentWorkbenchView }
+export interface AiRunInput { appId: ApplicationId; sessionId: string | null; content: string; projectId?: string | null; gitRepositoryId?: string | null; attachmentIds?: string[]; attachments?: Array<{ id: string; name?: string }>; associations?: AgentAssociations; planMode?: boolean; workspaceView?: AgentWorkbenchView; contextApplicationId?: WorkspaceProjectContextApplicationId | null }
 interface AiUserQuestion { questionId: string; question: string; options: string[]; resolve: (value: { answer: string; skipped: boolean }) => void; signal: AbortSignal; abort: () => void }
 type Listener = (event: string, data: Record<string, unknown>) => void;
 interface LiveRun { id: string; userId: string; applicationId: ApplicationId; sessionId: string; parentRunId: string | null; employeeId: string; agentLabel: string; startedAt: string; canAskUser: boolean; controller: AbortController; pauseGate: AiRunPauseGate; children: Set<string>; pendingApprovals: Set<string>; listeners: Set<Listener>; completion: Promise<void>; content: string; parts: SessionReplyPart[]; inbox: AiModelMessage[]; pendingQuestion?: AiUserQuestion }
@@ -311,7 +312,10 @@ export function startAiRun(userId: string, userRole: UserRole, body: AiRunInput,
   const attachmentsForTurn = body.attachments?.length
     ? body.attachments.slice(0, 4).map(item => ({ id: item.id, name: item.name ?? item.id }))
     : body.attachmentIds?.length ? body.attachmentIds.slice(0, 4).map(id => ({ id, name: id })) : undefined;
-  const turn = createAiTurn(userId, body.appId, body.sessionId, body.content, Boolean(previous), workspaceProject, body.associations, attachmentsForTurn);
+  const contextApplicationId = body.contextApplicationId === undefined && body.sessionId
+    ? getAiSession(userId, body.sessionId)?.contextApplicationId
+    : body.contextApplicationId;
+  const turn = createAiTurn(userId, body.appId, body.sessionId, body.content, Boolean(previous), workspaceProject, body.associations, attachmentsForTurn, contextApplicationId);
   if (!body.sessionId && requestedGitRepositoryId && !bindAgentGitSessionRepository(userId, turn.session.id, requestedGitRepositoryId)) throw new Error("新 Agent 会话未能绑定已登记的 Git 仓库。 ");
   if (body.planMode !== undefined) setAiSessionPlanMode(userId, turn.session.id, body.planMode, { allowActiveRun: true });
   const id = turn.assistantMessage.id;
@@ -359,7 +363,7 @@ export function startAiRun(userId: string, userRole: UserRole, body: AiRunInput,
         logger.warn("AI Work 自动关联本机 Agent Git 失败；继续运行对话", { userId, sessionId: turn.session.id, errorName: error instanceof Error ? error.name : "UnknownError" });
       }
     }
-    return executeAiTurn({ userId, userRole, body: { appId: body.appId, sessionId: turn.session.id, content: body.content, ...(!sideChat && body.workspaceView ? { workspaceView: body.workspaceView } : {}) }, turn, aiPluginHost, abortController: run.controller, pauseGate: run.pauseGate, emit, takeInputs: () => run.inbox.splice(0), modelAccountId: account.accountId, modelResolver: resolver, approvalNotifications: approvals, writeGate, memoryEligible: runOptions.memoryEligible ?? (depth === 0 && !getAiSessionPlanMode(userId, turn.session.id)), planModeEnabled: depth === 0 && !sideChat,
+    return executeAiTurn({ userId, userRole, body: { appId: body.appId, sessionId: turn.session.id, content: body.content, ...(contextApplicationId === undefined ? {} : { contextApplicationId }), ...(!sideChat && body.workspaceView ? { workspaceView: body.workspaceView } : {}) }, turn, aiPluginHost, abortController: run.controller, pauseGate: run.pauseGate, emit, takeInputs: () => run.inbox.splice(0), modelAccountId: account.accountId, modelResolver: resolver, approvalNotifications: approvals, writeGate, memoryEligible: runOptions.memoryEligible ?? (depth === 0 && !getAiSessionPlanMode(userId, turn.session.id)), planModeEnabled: depth === 0 && !sideChat,
       ...(requestUserInput ? { requestUserInput } : {}),
       ...(runOptions.systemPrompt ? { systemPrompt: runOptions.systemPrompt } : {}),
       ...(body.attachmentIds?.length ? { attachmentIds: body.attachmentIds } : {}),

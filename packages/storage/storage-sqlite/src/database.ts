@@ -27,7 +27,7 @@ function hasColumn(tableName: "ai_tool_approvals" | "ai_tool_permission_grants",
 
 // 版本31由文件存储协调器在回读校验完成后提交，SQLite 保留账户、权限和任务。
 // 数据库打开兼容上限必须与本文件中的最新 schema 迁移版本保持一致。
-const latestSupportedDatabaseVersion = 81;
+const latestSupportedDatabaseVersion = 82;
 if (currentVersion > latestSupportedDatabaseVersion) {
   throw new Error(`数据库版本 ${currentVersion} 高于当前程序支持的版本 ${latestSupportedDatabaseVersion}（${config.databasePath}）。请使用更新版本的 LFAA；为保护数据，本程序不会自动降级数据库结构。`);
 }
@@ -2727,3 +2727,21 @@ export function migrateWorkspaceGitHostWorktreeSchema(): void {
   }
 }
 migrateWorkspaceGitHostWorktreeSchema();
+
+/** 版本 82：为通用 Work Session 增加可空领域 App 上下文投影；事件事实仍归 Session JSONL。 */
+export function migrateAiSessionApplicationContextSchema(): void {
+  const version = Number(database.prepare("PRAGMA user_version").get()!.user_version);
+  if (version < 81 || version >= 82) return;
+  database.exec("BEGIN IMMEDIATE;");
+  try {
+    const tables = new Set((database.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{ name: string }>).map(row => row.name));
+    if (!tables.has("ai_sessions")) throw new Error("Session 应用上下文迁移缺少 ai_sessions 表；数据库版本未推进。");
+    const columns = new Set((database.prepare("PRAGMA table_info(ai_sessions)").all() as Array<{ name: string }>).map(row => row.name));
+    if (!columns.has("context_application_id")) database.exec("ALTER TABLE ai_sessions ADD COLUMN context_application_id TEXT;");
+    database.exec("PRAGMA user_version = 82; COMMIT;");
+  } catch (error) {
+    if (database.isTransaction) database.exec("ROLLBACK;");
+    throw error;
+  }
+}
+migrateAiSessionApplicationContextSchema();

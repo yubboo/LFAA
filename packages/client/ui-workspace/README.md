@@ -18,9 +18,9 @@ AI Work 右栏标签使用圆角中性细边选中态、独立关闭操作与浏
 
 左侧会话“最近”依据 Session Owner 的 `updatedAt` 显示滚动三天内未置顶、未归档的会话，并在最早条目到期时用一个可清理的 timeout 更新计数和列表。右侧新标签页最近网站继续依据 Browser Owner 的 `visitedAt` 使用同一 `lfaa-util-values/src/recent-window.ts` 函数；默认天数为共享常量，调用方可传入覆盖值。会话图标由 `session-icon.ts` 根据短标题/项目摘要主题和 App ID 统一解析；不加载正文、不追加 Provider 请求。图标形状归共享 `WorkbenchIcon`，列表槽位固定 16px、SVG 为 14px，颜色沿用 Appearance 文字/强调令牌。
 
-Canvas 模式的 App 聊天复用标准 `module-context` 右栏外壳、标题和关闭按钮；`.module-context--canvas-chat` 只约束聊天正文的容器尺寸与溢出。从 App Chat 进入 Canvas 时展开同一 App、同一项目的聊天；直接进入 Canvas 时读取 `canvas.agentPanelDefaultOpen`。在 Canvas 手动收起只作用于当前画布视图。
+Canvas 模式的 App 聊天复用标准 `module-context` 右栏外壳、标题和关闭按钮；`.module-context--canvas-chat` 只约束聊天正文的容器尺寸与溢出。进入 Canvas 按当前 App 的临时开合选择或 `canvas.agentPanelDefaultOpen` 初始化；收起聊天后恢复右栏原来的上下文内容，右下角入口可重新打开同一通用 Work 会话。拖动 Dock 收起时仍更新 Workbench 右栏折叠状态。
 
-系统画布在“生成”模式中只对选中的图片、视频或生成节点显示上下文生成面板；面板按节点实际屏幕位置锚定在节点上下方，并随拖动、平移、缩放和容器变化重新定位。空画布用“添加生成节点”作为明确入口；新节点选中后再展开面板。选中图片/视频节点时，现有 Canvas Generation Owner 仍负责创建真实生成节点并把结果登记到当前画布项目素材库；选中生成节点时回填其已保存的提示词与参数。模型/账户/凭据、项目数据与生成任务状态继续分别归现有 Settings、Canvas、Credentials、Canvas Generation Owner，界面不复制规则。
+系统画布在“生成”模式中只对选中的图片、视频或生成节点显示上下文生成面板；面板按节点实际屏幕位置锚定在节点下方，并随拖动、平移、缩放和容器变化重新定位。空画布用“添加生成节点”作为明确入口；新节点选中后再展开面板。选中生成节点时，现有 Canvas Generation Owner 创建真实结果并把状态登记到当前画布项目素材库；Agent 不传 `nodeId` 生图且当前 App 登记了图片节点时，Owner 会原子创建引用结果的图片节点，客户端刷新后选中并居中定位。模型/账户/凭据、项目数据与生成任务状态继续分别归现有 Settings、Canvas、Credentials、Canvas Generation Owner，界面不复制规则。
 
 AI Work 活动文件按钮按账户和当前 App 校验登记项目后打开可切换的 `project-file` 右侧标签；`AiWorkProjectFileDock` 通过认证 Workspace File Owner 读取文本并显示项目相对路径面包屑。Git 变更面板按 Workspace Git Owner 的真实状态构建可展开文件树，点击文件读取该项目/来源下的真实文本差异；目录与文件状态只展示服务端返回的变更，读取请求在标签切换或卸载时可取消。项目/Git 状态/来源不匹配时不回退读取其他项目。
 
@@ -38,9 +38,9 @@ AI 漫剧“媒体与时间线”面板可在项目和时间线均已保存时�
 
 系统画布的导演台节点由 `CanvasWorkspace` 打开 `CanvasDirectorDeskEditor`，编辑器消费 `ui-primitives` 的懒加载 `DirectorDeskStage`，提供程序化白模角色/场景块、对象列表与变换、环境/灯光、导演相机与实时取景预览。镜头及场景数据写入当前节点 `desk.scene`，沿用既有 Canvas Project API、账户/App 项目隔离和版本冲突校验；不创建第二份存储，也不调用生成服务。场景拖动吸附读取 `canvas.snapToGrid`，外观沿用 Appearance 共享主题令牌，编辑器按容器宽高适配窄栏与短屏。
 
-`/apps/<app>/canvas` 由 `ApplicationWorkspace` 装配标准四栏 Workbench；中心 Canvas 只负责画布，右栏由外层工作区持有，并挂载同一个 `AiWorkChat` 会话运行时。右栏复用 `module-context` 外框、标题和关闭控件，聊天内容只通过限定的全高内容修饰类适配，不另建一套面板表面样式。画布中的“聊天/画布/手动”切换由共享标题栏管理；Canvas 不再嵌套第二个助手 Dock，也不再单独持有聊天开合状态。右栏开合沿用账户级 `canvas.agentPanelDefaultOpen`，宽度、拖动、键盘调整和释放清理继续由 Workbench/DockKit 负责，不复制会话状态或 Agent 执行链。AI 漫剧从 Canvas 打开的聊天继续使用当前 AI Video 项目定位。
+`/apps/<app>/canvas` 由 `ApplicationWorkspace` 装配标准四栏 Workbench；中心 Canvas 只负责画布，右栏由外层工作区持有，并挂载同一个 `AiWorkChat` 会话运行时。聊天收起后外层右栏恢复上下文面板，画布右下角提供再次打开会话的入口；入口只在 Canvas 视图且聊天已收起时显示。右栏宽度、拖动、键盘调整和释放清理继续由 Workbench/DockKit 负责，不复制会话状态或 Agent 执行链。Canvas 默认开合读取 `canvas.agentPanelDefaultOpen`，显式开合仅保存在当前运行会话的账户/App 覆盖中，不改设置中心偏好。AI 漫剧从 Canvas 打开的聊天继续使用当前 AI Video 项目定位。
 
-右下角“与 AI 对话”入口参考 [React Bits Flying Button](https://www.reactbits.dev/micro/flying-button) 的喷焰起飞视觉，但不复制其 WebGL 源码：桌面悬停时上升 84px；窄于 640px 的画布或高度不超过 640px 的视口收为 38px，并同步缩短喷焰和烟雾，避让窄屏底部控件。双喷焰和烟雾用 Canvas Owner 内的 CSS 渐变绘制；动画读取 Workbench 的 `appearance.advanced.reducedMotion` 映射，并尊重系统减少动态效果，触屏不触发起飞。上游许可证于 2026-10-26 核对为 MIT + Commons Clause；未运行 shadcn CLI、未新增依赖或上游源码，使用独立 CSS 实现以避免随产品打包再分发受限组件。
+画布右下角的“与 AI 对话”入口遵循当前 App 画布容器定位，提供 44px 以上触控区域；窄分栏和短屏会在局部容器内调整边距，不遮住 Workbench 底部的其他区域。该入口复用 ApplicationWorkspace 的同一会话与 App 上下文，不再创建嵌套聊天 Dock。
 
 `/canvas` 首页使用 `CanvasHomeFluidBackground` 绘制连续流动的水面折射、高光焦散和空白处点击涟漪；自有 WebGL 波场以 CSS 流光作为无 WebGL 降级。动画读取 Appearance 强调色与 `appearance.advanced.reducedMotion`，按容器尺寸限制绘制像素数，页面隐藏时暂停并在卸载时撤销 RAF、ResizeObserver 和指针/可见性监听。背景透明叠加，不替换 Workbench 的 `appearance.backgrounds.appCenter` 壁纸、主题遮罩或 Wallpaper Engine。视觉参考 [MagineCanvas-Learn](https://github.com/Magine1921/MagineCanvas-Learn) 与 [在线试用页](https://magine-trial.magine1921.workers.dev/)；参考仓库为 AGPL-3.0-only，LFAA 不复制其着色器源码或图片资源，未新增依赖。
 
@@ -155,3 +155,11 @@ Agent 的内置 Browser Tool 成功后，工作区复用无待处理导航请求
 AI Work 宽中栏的模型配置提示区是会话的直接子盒子，使用与左右留白一致的独立宽度和半间距补偿；420px 及以下继续沿用会话自身的对称内距。消息滚动条仍单独延伸到中心列右缘。
 
 普通写作入口由 `ApplicationWorkspace` 装配 `ui-writing/WritingWorkspace`，并传递 Workbench 的 `UserSettings` 与设置变更回调；写作工具栏快捷控制仍经 Settings Owner 保存同一账户外观字段，不在工作区包另建偏好存储。
+
+`application-workspace/components/ApplicationNavigationPanel.tsx` 展示当前应用菜单及 AI Work 里的应用/共享能力导航；`application-workspace/application-navigation-model.ts` 集中生成分组与选择回调。`ApplicationWorkspace` 继续提供真实应用目录、路由/打开回调和区段状态。组件复用现有 SecondaryNavigation 与滚动恢复，不拥有领域页面、应用目录或设置事实。
+
+`ApplicationWorkspace` 将 `/work` 路由上下文传给共享聊天；系统画布侧聊改用当前 Canvas App 覆盖该值，但仍读取并更新同一 `workspace` Session。领域 App 的 Agent 聊天入口沿此字段传递来源，不复制领域会话。
+
+## ApplicationWorkspace 内部拆分（2026-11-13）
+
+第一批只把内部类型（`ApplicationSummary`、工作区 Utility Tab、Chrome state）和无副作用的 Host Task、Utility Tab、浏览器地址展示及默认 Chrome 计算放入 `src/application-workspace/`。`ApplicationWorkspace` 仍拥有 React 状态、持久化、请求和交互；此目录不是本包新增的公开 API，组件 DOM、CSS、Settings 与 Owner 边界保持原状。

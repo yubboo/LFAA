@@ -17,7 +17,7 @@ import type { MinecraftInstanceRuntimeContext } from "lfaa-client-ui-minecraft/s
 
 import { createElement, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent as ReactFormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { Alert, Button, Dropdown, Input, message, Modal, Popover, Segmented, Tag, Typography } from "antd";
-import { archiveAiSession, cancelAiHostTask, getErrorMessage, loadAiHostTask, loadAiHostTasks, renameAiSession, initializeDefaultWorkspace, isDesktopApp, hasAdminAccess, loadAiExtensions, loadAiSessions, loadAgentGitRepositories, ensureAgentGitSessionRepository, loadAgentGitStatus, registerAgentGitRepository, loadBrowserRecentSites, loadMinecraftStorageSettings, loadSteamcmdSettings, recordBrowserRecentSites, loadWorkspaceProjects, loadWorkspaceProjectGitSummary, loadWorkspaceSessionDirectoryAvailability, loadWritingWorkspace, userRoleLabel, type AgentGitRepository, type AiActivityFileChange, type AiExtension, type AiHostTask, type AiSession, type AiWorkbenchView, type ApplicationId, type ApplicationMode, type BrowserProviderId, type BrowserRecentSite, type UserRole, type UserSettings, type WorkspaceDaemonNode, type WorkspaceGitStatus, type WorkspaceProject, type WorkspaceProjectGitSummaryFolder, type WritingWorkspace as WritingWorkspaceData } from "lfaa-client-connection/src/api.js";
+import { archiveAiSession, cancelAiHostTask, getErrorMessage, loadAiHostTask, loadAiHostTasks, renameAiSession, initializeDefaultWorkspace, isDesktopApp, hasAdminAccess, loadAiExtensions, loadAiSessions, loadAgentGitRepositories, ensureAgentGitSessionRepository, loadAgentGitStatus, registerAgentGitRepository, loadBrowserRecentSites, loadMinecraftStorageSettings, loadSteamcmdSettings, recordBrowserRecentSites, loadWorkspaceProjects, loadWorkspaceProjectGitSummary, loadWorkspaceSessionDirectoryAvailability, loadWritingWorkspace, userRoleLabel, type AgentGitRepository, type AiActivityFileChange, type AiExtension, type AiHostTask, type AiSession, type AiWorkbenchView, type ApplicationId, type ApplicationMode, type BrowserProviderId, type BrowserRecentSite, type UserRole, type UserSettings, type WorkspaceDaemonNode, type WorkspaceGitStatus, type WorkspaceProject, type WorkspaceProjectContextApplicationId, type WorkspaceProjectGitSummaryFolder, type WritingWorkspace as WritingWorkspaceData } from "lfaa-client-connection/src/api.js";
 import type { AiWorkGoalRequest, AiWorkNotification, AiWorkNotificationInput } from "lfaa-client-resources/src/notification-runtime.js";
 import { hasUnreadSessionCompletionNotification } from "./session-completion-indicator.js";
 import { resolveWorkbenchLayoutMetrics, type WorkbenchLayoutMetrics } from "lfaa-client-ui-dockkit/src/workbench-layout.config.js";
@@ -30,7 +30,7 @@ import { MAX_PINNED_AI_SESSIONS, readPinnedAiSessionIds, writePinnedAiSessionIds
 import { MAX_AI_WORK_SIDEBAR_GROUP_PREFERENCES, MAX_AI_WORK_SIDEBAR_VISIBLE_SESSIONS, readAiWorkSidebarPreferences, writeAiWorkSidebarPreferences, type AiWorkSidebarPreferences } from "lfaa-client-store/src/ai-work-sidebar.js";
 import { ServiceStatus, type ServiceState } from "lfaa-client-ui-primitives/src/ServiceStatus.js";
 import { GLOBAL_NAVIGATION_RAIL_COMPACT_WIDTH, GLOBAL_NAVIGATION_RAIL_WIDTH, GlobalNavigationRail, type ApplicationNavigationItem } from "lfaa-client-ui-sidebar/src/GlobalNavigationRail.js";
-import { SecondaryNavigation, type SecondaryNavigationGroup } from "lfaa-client-ui-sidebar/src/SecondaryNavigation.js";
+import { ApplicationNavigationPanel } from "./application-workspace/components/ApplicationNavigationPanel.js";
 import { resolveShortcutSettings } from "lfaa-client-ui-settings-general/src/default-settings.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
 import { WorkbenchHeader } from "lfaa-client-ui-primitives/src/WorkbenchHeader.js";
@@ -40,6 +40,8 @@ import { matchesAgentBrowserDockSyncRequest, shouldSyncAgentBrowserDockPage, typ
 import { resolveRecentItems } from "lfaa-util-values/src/recent-window.js";
 import { resolveAiSessionIconName } from "./session-icon.js";
 import { createAgentWorkbenchView } from "./agent-workbench-view.js";
+import { aiHostTaskShellLabel, aiHostTaskStatusLabel, browserAddressForDisplay, browserSiteHost, defaultChrome, findAssetWorkspaceUtilityTab, findGitWorkspaceUtilityTab, isAiHostTaskActive, sameAiHostTaskSummaries } from "./application-workspace/pure-utils.js";
+import type { ApplicationSummary, BrowserOpenTab, ChromeState, ChromeStorageMetadata, NavigationLayout, WorkspaceUtilityTab } from "./application-workspace/types.js";
 import type { BrowserDockTabsUpdate } from "lfaa-client-ui-sidebar-browser/src/browser-tabs-update.js";
 import { TaskTerminal } from "./TaskTerminal.js";
 import "./module-workbench.css";
@@ -75,76 +77,6 @@ function ApplicationContentLoading() {
   );
 }
 
-type ApplicationSummary = {
-  id: ApplicationId;
-  title: string;
-  initials: string;
-  color: "blue" | "green" | "plum";
-};
-
-type BrowserOpenTab = { id: string; title: string; url: string; active: boolean };
-
-type WorkspaceUtilityTab = {
-  id: string;
-  kind: "new" | "git" | "assets" | "applications" | "side-chat" | "extension" | "project-file" | "session-files" | "agent-host-task";
-  projectId?: string;
-  filePath?: string;
-  sourceId?: string;
-  initialView?: "source" | "diff";
-  sessionId?: string;
-  sessionFiles?: AiActivityFileChange[];
-  hostTaskSnapshot?: AiHostTask;
-  hostTaskId?: string;
-  browserUrl?: string;
-  extensionId?: string;
-  browserNavigationRequest?: { id: string; url: string };
-  browserActionRequest?: { id: string; action: "back" | "forward" | "reload" };
-};
-
-function findGitWorkspaceUtilityTab(tabs: WorkspaceUtilityTab[]): WorkspaceUtilityTab | undefined {
-  return tabs.find(tab => tab.kind === "git");
-}
-
-function findAssetWorkspaceUtilityTab(tabs: WorkspaceUtilityTab[]): WorkspaceUtilityTab | undefined {
-  return tabs.find(tab => tab.kind === "assets");
-}
-
-function sameAiHostTaskSummaries(left: AiHostTask[], right: AiHostTask[]): boolean {
-  return left.length === right.length && left.every((task, index) => {
-    const candidate = right[index];
-    return Boolean(candidate && task.id === candidate.id && task.nodeId === candidate.nodeId && task.appId === candidate.appId
-      && task.shell === candidate.shell && task.workingDirectory === candidate.workingDirectory && task.status === candidate.status
-      && task.message === candidate.message && task.createdAt === candidate.createdAt && task.startedAt === candidate.startedAt
-      && task.finishedAt === candidate.finishedAt && task.cancelRequested === candidate.cancelRequested
-      && task.outputSequence === candidate.outputSequence);
-  });
-}
-
-function aiHostTaskShellLabel(shell: string): string {
-  return shell === "powershell" ? "PowerShell" : shell === "cmd" ? "命令提示符" : shell === "bash" ? "Bash" : shell === "zsh" ? "Zsh" : shell === "project-files" ? "项目文件任务" : "系统 Shell";
-}
-
-function aiHostTaskStatusLabel(task: AiHostTask): string {
-  if (task.cancelRequested && task.status === "running") return "等待节点确认停止";
-  return task.status === "queued" ? "排队中" : task.status === "running" ? "运行中" : task.status === "succeeded" ? "已完成" : "已结束";
-}
-
-function isAiHostTaskActive(task: AiHostTask): boolean {
-  return task.status === "queued" || task.status === "running";
-}
-
-function browserSiteHost(url: string): string {
-  try { return new URL(url).hostname; } catch { return url; }
-}
-
-function browserAddressForDisplay(address: string, showFullUrl: boolean, focused: boolean): string {
-  if (!address || showFullUrl || focused) return address;
-  try {
-    const parsed = new URL(address);
-    return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed.origin : address;
-  } catch { return address; }
-}
-
 function browserVisitTime(value: string): string {
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return "";
@@ -157,6 +89,7 @@ interface ApplicationWorkspaceProps {
   userId: string;
   app: ApplicationId;
   mode: ApplicationMode;
+  workContextApplicationId: WorkspaceProjectContextApplicationId | null;
   section: string;
   gameLibrary?: boolean;
   workspaceTitle?: string;
@@ -200,13 +133,6 @@ interface ApplicationWorkspaceProps {
   onLogout: () => void;
 }
 
-interface ChromeState {
-  leftCollapsed: boolean;
-  centerCollapsed: boolean;
-  rightCollapsed: boolean;
-  terminalOpen: boolean;
-}
-
 const CHROME_KEY = "lfaa.module-workbench.chrome.v2";
 const LEGACY_CHROME_KEY = "lfaa.module-workbench.chrome.v1";
 const LAYOUT_KEY = "lfaa.module-workbench.layout.v1";
@@ -240,23 +166,10 @@ const AI_WORK_PROJECT_SESSION_PAGE_SIZE = 5;
 const emptySessionDirectoryIds: ReadonlySet<string> = new Set();
 const initializedDefaultWorkspaceUsers = new Set<string>();
 const emptySessionFileChanges: AiActivityFileChange[] = [];
-type NavigationLayout = UserSettings["general"]["navigationLayout"];
-
-interface ChromeStorageMetadata {
-  hasSavedState: boolean;
-  navigationLayout: NavigationLayout | null;
-}
-
 function initialMetrics(responsiveRightDock = false): WorkbenchLayoutMetrics {
   if (typeof window === "undefined") return resolveWorkbenchLayoutMetrics(1440 - GLOBAL_NAVIGATION_RAIL_WIDTH, 900, responsiveRightDock);
   const railWidth = window.innerWidth <= 420 ? GLOBAL_NAVIGATION_RAIL_COMPACT_WIDTH : GLOBAL_NAVIGATION_RAIL_WIDTH;
   return resolveWorkbenchLayoutMetrics(window.innerWidth - railWidth, window.innerHeight, responsiveRightDock);
-}
-
-function defaultChrome(mode: WorkbenchLayoutMode): ChromeState {
-  if (mode === "mobile") return { leftCollapsed: true, centerCollapsed: false, rightCollapsed: true, terminalOpen: false };
-  if (mode === "compact") return { leftCollapsed: false, centerCollapsed: false, rightCollapsed: true, terminalOpen: false };
-  return { leftCollapsed: false, centerCollapsed: false, rightCollapsed: false, terminalOpen: false };
 }
 
 function readChrome(mode: WorkbenchLayoutMode, responsiveRightDock = false): ChromeState {
@@ -754,108 +667,12 @@ function ApplicationSidebar({ userId, app, mode, section, gameLibrary, workspace
   );
 }
 
-interface ApplicationNavigationPanelProps extends Pick<ApplicationWorkspaceProps, "app" | "mode" | "section" | "gameLibrary" | "workspaceTitle" | "apps" | "applicationNavigationItems" | "onNavigate" | "onOpenApplication"> {
-  userId: string;
-  onOpenGameFiles?: (app: "minecraft" | "steamcmd") => void;
-  hidden: boolean;
-  onWritingLibraryPortalTargetChange: (target: HTMLDivElement | null) => void;
-}
-
-function ApplicationNavigationPanel({ userId, app, mode, section, gameLibrary = false, workspaceTitle, apps, applicationNavigationItems, hidden, onNavigate, onOpenApplication, onOpenGameFiles, onWritingLibraryPortalTargetChange }: ApplicationNavigationPanelProps) {
-  const appMenuScroll = useScrollRestoration(createScrollRestorationKey(userId, "module-app-menu", app));
-  const minecraftMenuCategory = section === "java" ? "environment" : section === "overview" || section === "nodes" ? "monitor" : "management";
-  const minecraftLogsSection = section === "logs" || section.startsWith("logs/") || /^instance\/[0-9a-f-]{36}\/logs$/iu.test(section);
-  const minecraftInstanceSection = section.startsWith("instance/") && !minecraftLogsSection;
-  const currentApplicationTitle = workspaceTitle ?? apps.find(item => item.id === app)?.title ?? "当前应用";
-  const applicationNavigationGroups = useMemo<SecondaryNavigationGroup[]>(() => {
-    const createItems = (items: ApplicationNavigationItem[]): SecondaryNavigationGroup["items"] => items.map<SecondaryNavigationGroup["items"][number]>((item) => ({
-      id: `module-context-application-${item.id}`,
-      label: item.title,
-      description: item.description,
-      icon: item.id === "games" || item.id === "canvas" ? "grid"
-        : item.id === "steamcmd" ? "terminal"
-          : item.id === "minecraft" ? "monitor"
-            : item.id === "connectivity" ? "branch"
-              : item.id === "writing" ? "book" : "spark",
-      trailingIcon: "chevron",
-      active: Boolean(item.applicationId && item.applicationId === app || item.id === "games" && gameLibrary),
-      onSelect: () => {
-        if (item.route) onNavigate(item.route);
-        else if (item.applicationId) void onOpenApplication(item.applicationId, "ai-work").catch(() => undefined);
-      },
-    }));
-    const domainApplications = applicationNavigationItems.filter(item => item.id !== "canvas");
-    const sharedCapabilities = applicationNavigationItems.filter(item => item.id === "canvas");
-    return [
-      ...(domainApplications.length > 0 ? [{
-        id: "module-context-domain-applications",
-        label: "领域应用",
-        collapsible: false,
-        items: createItems(domainApplications),
-      }] : []),
-      ...(sharedCapabilities.length > 0 ? [{
-        id: "module-context-shared-capabilities",
-        label: "系统共享能力",
-        collapsible: false,
-        items: createItems(sharedCapabilities),
-      }] : []),
-    ];
-  }, [app, applicationNavigationItems, gameLibrary, onNavigate, onOpenApplication]);
-
-  const locationClassName = mode === "normal" ? "module-context__applications module-sidebar__application-navigation" : "module-context__applications";
-  return <section className={locationClassName} id="module-context-applications" aria-label={mode === "normal" ? `${currentApplicationTitle}功能导航` : "领域应用与共享能力导航"} hidden={hidden}>
-    <div ref={appMenuScroll.ref} onScroll={appMenuScroll.onScroll} className="module-context__application-menu">
-      <header className="module-context__heading"><div><strong>{mode === "normal" ? currentApplicationTitle : "应用与能力"}</strong><span>{mode === "normal" ? "当前应用功能" : "领域应用 · 跨应用共享能力"}</span></div></header>
-      {mode === "ai-work" ? <button className="module-context__canvas-entry" type="button" onClick={() => onNavigate(`/apps/${app}/canvas`)} aria-label={`打开 ${applicationNavigationItems.find(item => item.applicationId === app)?.title ?? app} 的项目画布`} title="系统级共享能力：画布可绑定当前领域项目">
-        <WorkbenchIcon name="grid" size={16} />
-        <span><strong>当前项目画布</strong><small>系统共享能力 · 绑定当前领域</small></span>
-        <WorkbenchIcon name="chevron" size={14} />
-      </button> : null}
-      {app === "writing" && mode === "normal" ? <div ref={onWritingLibraryPortalTargetChange} className="module-context__writing-library-portal" /> : null}
-      {mode === "ai-work" ? <SecondaryNavigation ariaLabel="工作台入口导航" className="module-context__application-navigation" groups={applicationNavigationGroups} activateOnArrow /> : null}
-      {gameLibrary && app === "workspace" && mode === "normal" ? <nav className="module-context__app-menu" aria-label="游戏服务菜单">
-        <div className="module-context__section-title"><span>游戏服务</span></div>
-        {([["/games", "服务总览"], ["/games/environments", "运行环境"], ["/games/minecraft", "Minecraft 服务端"], ["/games/steamcmd", "Steam 游戏服务器"]] as const).map(([path, label]) => {
-          const active = path === "/games" ? section === "library" : path.endsWith("/environments") && section === "environments";
-          return <button type="button" key={path} className={`module-context__menu-item${active ? " is-active" : ""}`} aria-current={active ? "page" : undefined} onClick={() => onNavigate(path)}><span aria-hidden="true" />{label}</button>;
-        })}
-      </nav> : null}
-      {app === "steamcmd" && mode === "normal" ? <nav className="module-context__app-menu" aria-label="Steam 游戏服务器菜单">
-        <div className="module-context__section-title"><span>Steam 游戏服务器</span></div>
-        <button type="button" className={`module-context__menu-item${section === "overview" ? " is-active" : ""}`} aria-current={section === "overview" ? "page" : undefined} onClick={() => onNavigate("/games/steamcmd")}><span aria-hidden="true" />服务器工作区</button>
-        <button type="button" className="module-context__menu-item" onClick={() => onOpenGameFiles?.("steamcmd")}><span aria-hidden="true" />文件管理</button>
-      </nav> : null}
-      {app === "minecraft" && mode === "normal" ? <nav className="module-context__app-menu" aria-label="Minecraft 工作区菜单">
-        <div className="module-context__section-title"><span>Minecraft 工作区</span></div>
-        <div className="module-context__menu-tabs" role="group" aria-label="Minecraft 工作区分类">
-          <button type="button" aria-pressed={minecraftMenuCategory === "monitor"} onClick={() => onNavigate("/games/minecraft/overview")}>监控</button>
-          <button type="button" aria-pressed={minecraftMenuCategory === "management"} onClick={() => onNavigate("/games/minecraft/instances")}>管理</button>
-          <button type="button" aria-pressed={minecraftMenuCategory === "environment"} onClick={() => onNavigate("/games/minecraft/java")}>环境</button>
-        </div>
-        {(minecraftMenuCategory === "monitor"
-          ? [["overview", "总览"], ["nodes", "控制节点"]]
-          : minecraftMenuCategory === "management"
-            ? [["deployment", "部署"], ["instances", "实例"], ["tasks", "任务"], ["workflows", "工作流"], ["files", "文件管理"], ["logs", "日志"]]
-            : [["java", "Java 环境"]]
-        ).map(([key, label]) => {
-          const active = key === "logs" ? minecraftLogsSection : section === key || key === "instances" && minecraftInstanceSection;
-          return <button type="button" key={key} className={`module-context__menu-item${active ? " is-active" : ""}`} aria-current={active ? "page" : undefined} onClick={() => key === "files" ? onOpenGameFiles?.("minecraft") : onNavigate(`/games/minecraft/${key}`)}><span aria-hidden="true" />{label}</button>;
-        })}
-      </nav> : null}
-      {app === "connectivity" && mode === "normal" ? <nav className="module-context__app-menu" aria-label="联机管理菜单">
-        <div className="module-context__section-title"><span>联机管理</span></div>
-        {[["overview", "总览"], ["room-domain", "房间域名"], ["self-managed", "自备穿透"], ["providers", "穿透 Provider"], ["plugins", "组网与扩展"]].map(([key, label]) => <button type="button" key={key} className={`module-context__menu-item${section === key ? " is-active" : ""}`} aria-current={section === key ? "page" : undefined} onClick={() => onNavigate(`/apps/connectivity/normal/${key}`)}><span aria-hidden="true" />{label}</button>)}
-      </nav> : null}
-    </div>
-  </section>;
-}
-
 function PanelControl({ name, title, shortcut, active, onClick }: { name: "terminal" | "panelRight"; title: string; shortcut: string; active: boolean; onClick: () => void }) {
   const ariaShortcuts = shortcut.split(" / ").map((chord) => chord.replace("Ctrl", "Control")).join(" ");
   return <button className="module-panel-control" type="button" aria-label={title} aria-keyshortcuts={ariaShortcuts} aria-pressed={active} title={`${title} · ${shortcut || "未分配"}`} onClick={onClick}><WorkbenchIcon name={name} size={16} /><span>{title}</span></button>;
 }
 
-export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary = false, workspaceTitle, applicationContent, canvasWorkspace, apps, applicationNavigationItems, username, role, serverState, error, settings, onSettingsChange, onBack, onOpenSelectedApplication, onNavigate, onOpenSettings, onOpenApplication, recentSessionsOpenRequestId, onRecentSessionsOpenRequestHandled, rightPanelSection, onRightPanelSectionChange, applicationsOpenRequestId, onApplicationsOpenRequestHandled, activeAiSessionId, aiDraft, aiWorkGoal, notifications, onNotification, onMarkNotificationsRead, onMarkSessionNotificationsRead, onClearNotifications, onOpenNotification, onActiveAiSessionChange, onAiDraftChange, onAiWorkGoalConsumed, onLogout }: ApplicationWorkspaceProps) {
+export function ApplicationWorkspace({ userId, app, mode, workContextApplicationId, section, gameLibrary = false, workspaceTitle, applicationContent, canvasWorkspace, apps, applicationNavigationItems, username, role, serverState, error, settings, onSettingsChange, onBack, onOpenSelectedApplication, onNavigate, onOpenSettings, onOpenApplication, recentSessionsOpenRequestId, onRecentSessionsOpenRequestHandled, rightPanelSection, onRightPanelSectionChange, applicationsOpenRequestId, onApplicationsOpenRequestHandled, activeAiSessionId, aiDraft, aiWorkGoal, notifications, onNotification, onMarkNotificationsRead, onMarkSessionNotificationsRead, onClearNotifications, onOpenNotification, onActiveAiSessionChange, onAiDraftChange, onAiWorkGoalConsumed, onLogout }: ApplicationWorkspaceProps) {
   const activeRightPanelSection = mode === "normal" ? "context" : rightPanelSection;
   const voiceMode = app === "workspace" && mode === "ai-work" && section === "voice";
   const workspaceProjectAppId = mode === "ai-work" ? "workspace" : app === "workspace" || app === "minecraft" ? app : null;
@@ -1161,9 +978,8 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
       if (applicationChanged) {
         setCanvasChatOpenState(explicitState ?? settings.canvas.agentPanelDefaultOpen);
       } else if (enteredCanvas) {
-        const open = explicitState ?? true;
+        const open = explicitState ?? settings.canvas.agentPanelDefaultOpen;
         setCanvasChatOpenState(open);
-        if (explicitState === undefined) setCanvasChatOpenOverride(userId, key, open);
       } else if (defaultChanged && explicitState === undefined) {
         setCanvasChatOpenState(settings.canvas.agentPanelDefaultOpen);
       }
@@ -2663,6 +2479,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
           ]}
           capabilitiesError={skillReferencesError}
           appId={chatAppId}
+          contextApplicationId={canvasWorkspace && canvasWorkspace.applicationId !== "workspace" ? canvasWorkspace.applicationId : workContextApplicationId}
           workspaceView={agentWorkbenchView}
           settings={settings}
           onSettingsChange={onSettingsChange}
@@ -2762,7 +2579,11 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
             </Popover>}
           </div> : null}
           {terminalPanelAvailable && settings.general.showBottomPanelControl && showCenterPanelControls ? <PanelControl name="terminal" title="底部终端" shortcut={shortcuts.toggleBottomPanel.join(" / ")} active={chrome.terminalOpen} onClick={toggleTerminal} /> : null}
-          {canvasWorkspace ? <PanelControl name="panelRight" title={canvasChatOpen ? "收起小鱼会话" : "展开小鱼会话"} shortcut={shortcuts.toggleContextPanel.join(" / ")} active={canvasChatOpen} onClick={() => setCanvasChatOpen(!canvasChatOpen)} /> : (mode === "ai-work" ? showCenterPanelControls : chrome.rightCollapsed) ? <PanelControl name="panelRight" title={chrome.rightCollapsed ? "展开上下文栏" : "收起上下文栏"} shortcut={shortcuts.toggleContextPanel.join(" / ")} active={!chrome.rightCollapsed} onClick={toggleRight} /> : null}
+          {canvasWorkspace ? <PanelControl name="panelRight" title={canvasChatOpen ? "收起小鱼会话" : chrome.rightCollapsed ? "展开上下文栏" : "展开小鱼会话"} shortcut={shortcuts.toggleContextPanel.join(" / ")} active={canvasChatOpen || !chrome.rightCollapsed} onClick={() => {
+            if (canvasChatOpen) setCanvasChatOpen(false);
+            else if (chrome.rightCollapsed) setChrome(current => ({ ...current, rightCollapsed: false }));
+            else setCanvasChatOpen(true);
+          }} /> : (mode === "ai-work" ? showCenterPanelControls : chrome.rightCollapsed) ? <PanelControl name="panelRight" title={chrome.rightCollapsed ? "展开上下文栏" : "收起上下文栏"} shortcut={shortcuts.toggleContextPanel.join(" / ")} active={!chrome.rightCollapsed} onClick={toggleRight} /> : null}
         </div>
       </WorkbenchHeader>
   );
@@ -2776,10 +2597,12 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
             initialProjectId={canvasWorkspace.initialProjectId}
             agentChangesRevision={canvasAgentChange.revision}
             agentChangedProjectId={canvasAgentChange.projectId}
+            agentPanelOpen={canvasChatOpen}
             settings={settings}
             applications={canvasWorkspace.applications}
             onNavigate={navigateWithinApplication}
             onOpenSettings={onOpenSettings}
+            onOpenAgentChat={() => setCanvasChatOpen(true)}
             onProjectContextChange={onCanvasProjectContextChange}
             applicationWorkflowPanel={canvasWorkspace.applicationId === "aivideo" ? undefined : visible => canvasWorkspace.applicationId === "minecraft"
               ? <Suspense fallback={<ApplicationContentLoading />}><MinecraftWorkflowCanvas userId={userId} visible={visible} onWorkflowContextChange={onWorkflowContextChange} /></Suspense>
@@ -3028,7 +2851,7 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
         left={left}
         center={center}
         leftVisible={!voiceMode}
-        right={voiceMode ? null : canvasWorkspace ? (
+        right={voiceMode ? null : canvasWorkspace && canvasChatOpen ? (
           <aside className="module-context module-context--canvas-chat" aria-label="小鱼智能体通用会话" data-layout-mode={metrics.mode} data-testid="canvas-agent-chat">
             <header className="module-context__heading">
               <div>
@@ -3060,9 +2883,12 @@ export function ApplicationWorkspace({ userId, app, mode, section, gameLibrary =
         onLeftWidthChange={setLeftPaneWidth}
         leftCollapsed={chrome.leftCollapsed}
         onLeftCollapsedChange={(leftCollapsed) => setChrome((current) => ({ ...current, leftCollapsed }))}
-        rightCollapsed={canvasWorkspace ? !canvasChatOpen : chrome.rightCollapsed}
+        rightCollapsed={canvasWorkspace && canvasChatOpen ? false : chrome.rightCollapsed}
         onRightCollapsedChange={(rightCollapsed) => {
-          if (canvasWorkspace) setCanvasChatOpen(!rightCollapsed);
+          if (canvasWorkspace && canvasChatOpen && rightCollapsed) {
+            setCanvasChatOpen(false);
+            setChrome(current => ({ ...current, rightCollapsed: true }));
+          }
           else setChrome((current) => ({ ...current, rightCollapsed }));
         }}
         bottomOpen={terminalPanelAvailable && chrome.terminalOpen && settings.general.terminalPosition === "bottom"}

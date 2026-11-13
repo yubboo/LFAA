@@ -529,9 +529,10 @@ export class SessionRepository {
   }
   private project(header: SessionRecord): void {
     if (!database.prepare("SELECT id FROM users WHERE id = ?").get(String(header.user_id))) return;
-    database.prepare(`INSERT INTO ai_sessions (id, user_id, app_id, title, archived, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET title = excluded.title,
-      archived = excluded.archived, updated_at = excluded.updated_at`).run(String(header.id), String(header.user_id), String(header.app_id), String(header.title), Number(header.archived), String(header.created_at), String(header.updated_at));
+    const contextApplicationId = typeof header.context_application_id === "string" ? header.context_application_id : null;
+    database.prepare(`INSERT INTO ai_sessions (id, user_id, app_id, title, archived, created_at, updated_at, context_application_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET title = excluded.title,
+      archived = excluded.archived, updated_at = excluded.updated_at, context_application_id = excluded.context_application_id`).run(String(header.id), String(header.user_id), String(header.app_id), String(header.title), Number(header.archived), String(header.created_at), String(header.updated_at), contextApplicationId);
     if (Number(database.prepare("PRAGMA user_version").get()!.user_version) >= 31 && typeof header._revision === "string") database.prepare("UPDATE ai_sessions SET jsonl_revision = ? WHERE id = ?").run(header._revision, String(header.id));
   }
   private migrate(): void {

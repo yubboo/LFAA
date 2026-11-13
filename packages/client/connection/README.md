@@ -1,5 +1,7 @@
 # LFAA Client Connection
 
+通用聊天通过 `contextApplicationId` 传递并读取 Session Owner 持久化的领域 App 背景；它不改变 `appId=workspace`、项目归属、工具范围或权限。临时的 `AiWorkbenchView` 仍只描述本轮可见工作区状态。
+
 Minecraft Java 环境摘要在运行时返回发行版、完整版本、架构、系统和可执行路径等可选字段；缺失字段保持缺失。认证 API 会按当前角色脱敏路径等受限信息，Client 类型不改变该响应合同。
 
 此包提供已认证控制端 API 和 AI Work SSE 消费协议，不持有模型、Session 或权限业务规则。

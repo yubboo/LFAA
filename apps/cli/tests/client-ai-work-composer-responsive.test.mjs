@@ -143,6 +143,26 @@ test("更多菜单采用纵向操作行，选择面板限制最大宽高并跟�
   assert.doesNotMatch(composerRule, /container:\s*ai-work-composer/u);
 });
 
+test("更多弹层及其应用/能力下拉挂到工作区，避开聊天面板的裁剪边界", () => {
+  const moreOverlayStart = chatSource.indexOf('overlayClassName="ai-work-chat__more-overlay"');
+  const moreOverlayEnd = chatSource.indexOf("content={composerMoreContent}", moreOverlayStart);
+  const moreOverlay = chatSource.slice(moreOverlayStart, moreOverlayEnd);
+  const moreContentStart = chatSource.indexOf("const composerMoreContent = (");
+  const moreContentEnd = chatSource.indexOf("function renderPendingComposerInteraction", moreContentStart);
+  const moreContent = chatSource.slice(moreContentStart, moreContentEnd);
+  const applicationSelect = moreContent.match(/placeholder="搜索并选择应用"[\s\S]*?\/>/u)?.[0] ?? "";
+  const capabilitySelect = moreContent.match(/placeholder="搜索并选择能力"[\s\S]*?\/>/u)?.[0] ?? "";
+
+  assert.ok(moreOverlayStart >= 0 && moreOverlayEnd > moreOverlayStart);
+  assert.match(moreOverlay, /getPopupContainer=\{\(trigger\) => trigger\.closest<HTMLElement>\("\.workbench-shell"\)/u);
+  const workbenchSelectContainer = /getPopupContainer=\{\(trigger: HTMLElement\) => \(trigger\.closest\("\.workbench-shell"\) as HTMLElement \| null\)/u;
+  assert.match(applicationSelect, workbenchSelectContainer);
+  assert.match(capabilitySelect, workbenchSelectContainer);
+  assert.match(chatSource, /const associationPickerListHeight = Math\.min\(232, Math\.max\(96, window\.innerHeight - 174\)\)/u);
+  assert.match(applicationSelect, /listHeight=\{associationPickerListHeight\}/u);
+  assert.match(capabilitySelect, /listHeight=\{associationPickerListHeight\}/u);
+});
+
 test("聊天列不超过 620px 时使用紧凑图标工具栏，发送操作保持在容器内", () => {
   const compactRule = chatStyles.match(/@container ai-work-chat \(max-width: 620px\)\s*\{([\s\S]*?)^\}/mu)?.[1] ?? "";
 

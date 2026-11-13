@@ -13,7 +13,7 @@
 - 工具 ID、模型调用名、参数合同和中文能力描述由本包唯一持有；工具通过 `lfaa-tools` 的 `makeTool` 登记，执行时调用 `lfaa-canvas` 的 Cordis 服务 `lfaaCanvas`。
 - 画布数据事实（`lfaa-canvas-project` v2、节点/连线/视口/素材、`expectedUpdatedAt` 并发语义、`CANVAS_LIMITS` 边界）来自 `lfaa-canvas`，本包不复制这些默认值，只引用其导出常量。
 - 节点形状集合按本轮合同 5.2 收敛为 `text/note/image/video/audio/generation/subject/timeline/director-toolbox/director-desk/script/asset/upload`；App 可用类型读取 `lfaa-util-values/src/canvas-node-types.ts` 的共享映射。`applicationId` 必须匹配当前 Agent Run；节点增改只能使用该 App 已登记的节点类型。字段校验保留客户端扩展字段，节点 data ≤64 KiB、文本 ≤20,000 字符。
-- `canvas_list_image_models` 只读返回当前用户设置的默认图片目标及 Agent Plan 官方 `image-generation` 目录项，不含密钥；`canvas_generate_image` 可以用 `modelTarget` 指定其中一项，仅对本轮生效。生成 Owner 再验证账户归属、模型目录、Plan 图像任务类型和套餐档位；未装配、账户/密钥未配置或生成失败时返回真实原因，不返回成功占位。
+- `canvas_list_image_models` 只读返回当前用户设置的默认图片目标及 Agent Plan 官方 `image-generation` 目录项，不含密钥；`canvas_generate_image` 可以用 `modelTarget` 指定其中一项，仅对本轮生效。生成 Owner 再验证账户归属、模型目录、Plan 图像任务类型和套餐档位；在登记了 `image` 节点的 App 中，无 `nodeId` 的成功生图会原子保存素材与图片节点，并返回节点 ID/位置，供客户端定位；显式 `nodeId` 仍更新 generation 节点。未装配、账户/密钥未配置或生成失败时返回真实原因，不返回成功占位。
 
 ## 公共合同
 
@@ -39,7 +39,7 @@
 - 删除节点会同步删除挂在该节点上的连线，避免项目文档引用不存在的端点；调用返回真实删除数量。
 - 节点素材引用（`data.assetId`、`data.assetIds[]`（≤20）、`data.references[].assetId`（≤64）、`subject.assetIds`、`timeline.clips[].assetId`、`generation.assetId`）必须在当前项目素材中真实存在；媒体节点名称取 Owner 保存的真实素材名。
 - 节点 `type` 与 `data` 的形状、文本长度、节点数据 64 KiB 上限在工具 `parse` 阶段校验；素材存在性、生成节点状态与媒体类型匹配在读取真实项目后的 `execute` 阶段校验，两层都拒绝时不会写入。
-- 生成节点的 `running/succeeded/failed` 只能由生成 Owner 在真实结果后写入；工具不能把节点标记成假成功。`canvas_generate_image` 成功后只报告 Owner 返回且已出现在项目素材清单中的 `assetId`。
+- 生成节点的 `running/succeeded/failed` 只能由生成 Owner 在真实结果后写入；工具不能把节点标记成假成功。`canvas_generate_image` 成功后只报告 Owner 返回且已出现在项目素材清单中的 `assetId`，并返回项目内真实存在的对应图片节点位置（当前 App 未登记图片节点时省略）。
 - 读取使用有界分页：节点默认 5 条、最多 20 条并按 JSON 字符预算继续分页；连线默认 50 条、最多 100 条；素材默认 20 条、最多 50 条；模型目录最多 128 项；项目列表受 Owner 每 App 100 项目上限约束。
 
 ## 生命周期与预算

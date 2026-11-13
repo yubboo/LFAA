@@ -16,7 +16,7 @@ import { createAiWorkDraftPersistence, readAiWorkDraft, writeAiWorkDraft } from 
 import { createBrowserPersistence, createDebouncedPersistenceWriter, stringPersistenceCodec, type DebouncedPersistenceWriter } from "lfaa-client-store/src/browser-persistence.js";
 import { createScrollRestorationKey, useScrollRestoration } from "lfaa-client-store/src/scroll-restoration.js";
 import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
-import { saveSettings, userRoleLabel, type ApplicationId, type ApplicationMode, type DesktopAvailableUpdate, type DesktopUpdateDownloadProgress, type DesktopUpdatePreferences, type DesktopUpdatePrompt, type DesktopUpdatePromptAction, type User, type UserPreferences, type UserSettings } from "lfaa-client-connection/src/api.js";
+import { saveSettings, userRoleLabel, type ApplicationId, type ApplicationMode, type DesktopAvailableUpdate, type DesktopUpdateDownloadProgress, type DesktopUpdatePreferences, type DesktopUpdatePrompt, type DesktopUpdatePromptAction, type User, type UserPreferences, type UserSettings, type WorkspaceProjectContextApplicationId } from "lfaa-client-connection/src/api.js";
 import type { ApplicationNavigationItem } from "lfaa-client-ui-sidebar/src/GlobalNavigationRail.js";
 import { lfaaProjectBuildInfo } from "lfaa-client-connection/src/project-version.js";
 import { shortcutMatches } from "lfaa-client-ui-commands/src/shortcuts.js";
@@ -42,6 +42,7 @@ interface WorkbenchProps {
   initialSettings: UserSettings;
   serverState: ServiceState;
   route: string;
+  workContextApplicationId: WorkspaceProjectContextApplicationId | null;
   error: string | null;
   onNavigate: (path: string) => void;
   onOpenApplication: (app: ApplicationId, mode: ApplicationMode) => Promise<void>;
@@ -359,6 +360,7 @@ export function Workbench({
   initialSettings,
   serverState,
   route,
+  workContextApplicationId,
   error,
   onNavigate,
   onOpenApplication,
@@ -972,6 +974,7 @@ export function Workbench({
           userId={user.id}
           app={app}
           mode={mode}
+          workContextApplicationId={app === "workspace" && !canvasMode ? workContextApplicationId : null}
           section={section}
           canvasWorkspace={canvasMode ? {
             applicationId: (appCanvasRoute?.[1] as ApplicationId | undefined) ?? app,

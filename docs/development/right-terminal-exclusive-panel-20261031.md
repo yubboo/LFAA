@@ -1,5 +1,7 @@
 # LFAA-RIGHT-TERMINAL-EXCLUSIVE-PANEL-20261031
 
+<a id="lfaa-right-terminal-exclusive-panel-20261031"></a>
+
 ## 目标
 
 当设置中心“常规”的终端位置为“右侧”且终端打开时，让共享终端管理器独占整个右侧菜单栏：不同时显示应用/节点信息、右栏工具栏、账户栏等右栏内容。用户关闭终端后，原右栏按原有选择和状态恢复。终端会话由 `TerminalManagerProvider` 唯一持有，右侧模式只改变显示位置，不创建第二个 Shell 或 PTY。

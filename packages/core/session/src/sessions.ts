@@ -9,7 +9,7 @@ import { BROWSER_PROVIDER_IDS, type BrowserProviderId } from "lfaa-util-values/s
  * 修改注意事项：查询必须绑定当前 user_id；用量只记录 Provider 返回的 token 数，不估算费用。
  */
 import { randomUUID } from "node:crypto";
-import { APPLICATION_IDS, type WorkspaceProjectContextApplicationId } from "lfaa-util-values/src/application-id.js";
+import { APPLICATION_IDS, WORKSPACE_PROJECT_CONTEXT_APPLICATION_IDS, type WorkspaceProjectContextApplicationId } from "lfaa-util-values/src/application-id.js";
 import { isSessionReplyParts, type SessionReplyPart } from "./kernel.js";
 import { sessionRecords } from "lfaa-session-persistence-jsonl/src/repository.js";
 import type { SessionChange, SessionCommit } from "lfaa-session-persistence-jsonl/src/persistence.js";
@@ -22,6 +22,7 @@ export { SessionKernel, SessionStore };
 export interface AiSessionView {
   id: string;
   appId: ApplicationId;
+  contextApplicationId: WorkspaceProjectContextApplicationId | null;
   title: string;
   titleStatus: "pending" | "generated" | "manual" | "legacy";
   archived: boolean;
@@ -185,7 +186,7 @@ export interface AiUsageSummary {
   providers: Array<{ providerId: string; modelId: string; requestCount: number; promptTokens: number | null; completionTokens: number | null }>;
 }
 
-type SessionRow = { user_id: string; id: string; app_id: ApplicationId; title: string; title_source?: "fallback" | "generated" | "manual"; archived: number; created_at: string; updated_at: string; workspace_project_id?: string | null; workspace_node_id?: string | null; workspace_directory?: string | null; workspace_title?: string | null };
+type SessionRow = { user_id: string; id: string; app_id: ApplicationId; title: string; title_source?: "fallback" | "generated" | "manual"; archived: number; created_at: string; updated_at: string; context_application_id?: WorkspaceProjectContextApplicationId | null; workspace_project_id?: string | null; workspace_node_id?: string | null; workspace_directory?: string | null; workspace_title?: string | null };
 type MessageRow = {
   attachments_json?: string; session_id: string; _order: number; id: string; role: "user" | "assistant"; content: string; status: AiMessageView["status"]; created_at: string; activity_json: string; parts?: SessionReplyPart[]; model_history?: AiModelMessage[]; run_id?: string; kernel_message_id?: string; kernel_run_id?: string };
 
@@ -536,6 +537,7 @@ function ensureSessionEventLog(session: SessionRow): SessionKernel {
     const specs: SessionEventSpec[] = [
       eventSpec("session/created", { ownerId: session.user_id, appId: session.app_id, createdAt: session.created_at }, session.created_at),
       eventSpec("session/title", { title: session.title }, session.created_at),
+      eventSpec("session/application-context", { applicationId: session.context_application_id ?? null }, session.created_at),
       eventSpec("session/project", { projectId: session.workspace_project_id ?? null, nodeId: session.workspace_node_id ?? null, directory: session.workspace_directory ?? null, title: session.workspace_title ?? null }, session.created_at),
       eventSpec("session/archived", { archived: session.archived === 1 }, session.updated_at)
     ];
@@ -735,6 +737,7 @@ export function forkAiSession(userId: string, sessionId: string, sourceSeq: numb
   const projected: SessionChange[] = [change("ai_sessions", header)];
   if (!branch.events.some(event => event.type === "session/created")) branch.append("session/created", { ownerId: userId, appId: source.app_id, createdAt: now }, now);
   branch.append("session/title", { title: header.title }, now);
+  branch.append("session/application-context", { applicationId: header.context_application_id ?? null }, now);
   branch.append("session/project", { projectId: header.workspace_project_id ?? null, nodeId: header.workspace_node_id ?? null, directory: header.workspace_directory ?? null, title: header.workspace_title ?? null }, now);
   if (sideChat) branch.append("session/side-chat", sideChat, now);
   branch.append("session/archived", { archived: false }, now);
@@ -871,6 +874,7 @@ export function createAiSessionBranchWithMemory(
     eventSpec("session/created", { ownerId: userId, appId: source.app_id, createdAt: now }, now),
     eventSpec("session/title", { title: header.title }, now),
     eventSpec("session/associations", structuredClone(seed.associations), now),
+    eventSpec("session/application-context", { applicationId: header.context_application_id ?? null }, now),
     eventSpec("session/project", { projectId: header.workspace_project_id ?? null, nodeId: header.workspace_node_id ?? null, directory: header.workspace_directory ?? null, title: header.workspace_title ?? null }, now),
     ...(seed.planMode ? [eventSpec("session/plan-mode", { active: true }, now)] : []),
     eventSpec("session/archived", { archived: false }, now),
@@ -938,9 +942,20 @@ export function setAiSessionAssociations(userId: string, sessionId: string, asso
   return mapSession(sessionRow(userId, sessionId)!);
 }
 
+/** 通用 Work 会话的领域 App 上下文由 Session Owner 持久化；它不改变 App 归属或工具权限。 */
+export function setAiSessionContextApplication(userId: string, sessionId: string, contextApplicationId: WorkspaceProjectContextApplicationId | null): AiSessionView | null {
+  if (contextApplicationId !== null && !WORKSPACE_PROJECT_CONTEXT_APPLICATION_IDS.includes(contextApplicationId)) throw new Error("会话领域应用无效。");
+  const row = sessionRow(userId, sessionId);
+  if (!row || row.app_id !== "workspace" || row.archived === 1 || messageRows(sessionId).some(message => message.role === "assistant" && (message.status === "queued" || message.status === "streaming"))) return null;
+  if ((row.context_application_id ?? null) === contextApplicationId) return mapSession(row);
+  const updated: SessionRow = { ...row, context_application_id: contextApplicationId, updated_at: new Date().toISOString() };
+  commitSessionChanges(userId, sessionId, [change("ai_sessions", updated)], [eventSpec("session/application-context", { applicationId: contextApplicationId })]);
+  return mapSession(updated);
+}
+
 function mapSession(row: SessionRow, planMode = planModeForSession(row)): AiSessionView {
   const titleStatus = row.title_source === "fallback" ? "pending" : row.title_source ?? "legacy";
-  return { id: row.id, appId: row.app_id, title: row.title, titleStatus, archived: row.archived === 1, createdAt: row.created_at, updatedAt: row.updated_at, projectId: row.workspace_project_id ?? null, projectTitle: row.workspace_title ?? null, planMode, associations: associationsForSession(row) };
+  return { id: row.id, appId: row.app_id, contextApplicationId: row.context_application_id ?? null, title: row.title, titleStatus, archived: row.archived === 1, createdAt: row.created_at, updatedAt: row.updated_at, projectId: row.workspace_project_id ?? null, projectTitle: row.workspace_title ?? null, planMode, associations: associationsForSession(row) };
 }
 
 export interface AiSessionProjectContext {
@@ -1253,10 +1268,11 @@ export function importPortableAiSessions(userId: string, input: unknown, attachm
       const id = existing ? randomUUID() : source.id;
       const createdAt = new Date(source.createdAt).toISOString();
       const title = source.title.trim().slice(0, 72) || "已导入会话";
-      const header: SessionRow = { id, user_id: userId, app_id: source.appId, title, archived: 1, created_at: createdAt, updated_at: createdAt, workspace_project_id: null, workspace_node_id: null, workspace_directory: null, workspace_title: null };
+      const header: SessionRow = { id, user_id: userId, app_id: source.appId, title, archived: 1, created_at: createdAt, updated_at: createdAt, context_application_id: null, workspace_project_id: null, workspace_node_id: null, workspace_directory: null, workspace_title: null };
       const specs: SessionEventSpec[] = [
         eventSpec("session/created", { ownerId: userId, appId: source.appId, createdAt }, createdAt),
         eventSpec("session/title", { title }, createdAt),
+        eventSpec("session/application-context", { applicationId: null }, createdAt),
         ...(source.contextSummary ? [eventSpec("session/portable-context", { summary: source.contextSummary, version: 1 }, createdAt)] : []),
         eventSpec("session/archived", { archived: true }, createdAt)
       ];
@@ -1549,8 +1565,9 @@ export interface AiTurnRows {
   history: AiModelMessage[];
 }
 
-export function createAiTurn(userId: string, appId: ApplicationId, sessionId: string | null, content: string, queued = false, project: AiSessionProjectContext | null = null, associations?: AgentAssociations, attachments?: readonly AiMessageAttachment[]): AiTurnRows {
+export function createAiTurn(userId: string, appId: ApplicationId, sessionId: string | null, content: string, queued = false, project: AiSessionProjectContext | null = null, associations?: AgentAssociations, attachments?: readonly AiMessageAttachment[], contextApplicationId?: WorkspaceProjectContextApplicationId | null): AiTurnRows {
   if (associations && !isAgentAssociations(associations)) throw new Error("关联引用无效。");
+  if (contextApplicationId !== undefined && contextApplicationId !== null && (!WORKSPACE_PROJECT_CONTEXT_APPLICATION_IDS.includes(contextApplicationId) || appId !== "workspace")) throw new Error("会话领域应用无效。");
   const now = new Date().toISOString();
   const id = sessionId ?? randomUUID();
   const existing = sessionId ? sessionRow(userId, sessionId) : undefined;
@@ -1558,9 +1575,10 @@ export function createAiTurn(userId: string, appId: ApplicationId, sessionId: st
   if (existing?.archived === 1) throw new Error("已归档会话不能继续对话，请先恢复会话。");
   if (!queued && messageRows(id).some(row => row.role === "assistant" && (row.status === "streaming" || row.status === "queued"))) throw new Error("此会话仍有活动任务，请先跟随或停止当前任务。");
   if (existing) ensureSessionEventLog(existing);
-  const session: SessionRow = existing ? { ...existing, updated_at: now } : {
+  const session: SessionRow = existing ? { ...existing, ...(contextApplicationId === undefined ? {} : { context_application_id: contextApplicationId }), updated_at: now } : {
     id, user_id: userId, app_id: appId, title: compactSessionTitleFromPrompt(content) || "新对话", title_source: "fallback",
     archived: 0, created_at: now, updated_at: now,
+    context_application_id: contextApplicationId ?? null,
     workspace_project_id: project?.id ?? null,
     workspace_node_id: project?.nodeId ?? null,
     workspace_directory: project?.path ?? null,
@@ -1576,7 +1594,10 @@ export function createAiTurn(userId: string, appId: ApplicationId, sessionId: st
     specs.push(eventSpec("session/created", { ownerId: userId, appId, createdAt: now }, now));
     if (associations) specs.push(eventSpec("session/associations", structuredClone(associations), now));
     specs.push(eventSpec("session/title", { title: session.title, source: "fallback" }, now));
+    specs.push(eventSpec("session/application-context", { applicationId: session.context_application_id ?? null }, now));
     specs.push(eventSpec("session/project", { projectId: session.workspace_project_id ?? null, nodeId: session.workspace_node_id ?? null, directory: session.workspace_directory ?? null, title: session.workspace_title ?? null }, now));
+  } else if (contextApplicationId !== undefined && (existing.context_application_id ?? null) !== contextApplicationId) {
+    specs.push(eventSpec("session/application-context", { applicationId: contextApplicationId }, now));
   }
   if (!queued) specs.push(eventSpec("turn/start", { turnId: assistantMessage.id, userMessageId: userMessage.id, assistantMessageId: assistantMessage.id }, now));
   specs.push(eventSpec("user/message", { messageId: userMessage.id, content }, now));

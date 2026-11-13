@@ -1,5 +1,5 @@
 import type { AgentAssociations } from "lfaa-util-values/src/agent-associations.js";
-import { setAiSessionAssociations } from "lfaa-session/src/sessions.js";
+import { setAiSessionAssociations, setAiSessionContextApplication } from "lfaa-session/src/sessions.js";
 import { agentAssociationsSchema } from "lfaa-api-remotes/src/route-contracts.js";
 /** 功能：提供认证的会话、审批与任务 API。作用：提交任务、查询结果和订阅事件。关联文件：agent-loop/runs.ts、core/session、API Gateway。 */
 import { Router } from "express";
@@ -16,7 +16,7 @@ import { AiPermissionModeChangedError, decideAiToolApproval, listAiToolApprovals
 import type { UserApprovalNotifications } from "lfaa-user-approval/src/index.js";
 import { getUserSettings } from "lfaa-settings/src/service.js";
 import { getAiHostTask, listUserAiHostTasks, requestAiHostTaskCancellation } from "lfaa-jobs/src/ai-host-tasks.js";
-import { asyncHandler, parseBody, aiChatMessageSchema, aiMessageFeedbackSchema, aiSessionArchiveSchema, aiSessionPlanModeSchema, aiSessionTitleSchema, aiSessionForkSchema, aiApprovalDecisionSchema, aiRunQuestionAnswerSchema, writeSse } from "lfaa-api-remotes/src/route-contracts.js";
+import { asyncHandler, parseBody, aiChatMessageSchema, aiMessageFeedbackSchema, aiSessionArchiveSchema, aiSessionPlanModeSchema, aiSessionContextApplicationSchema, aiSessionTitleSchema, aiSessionForkSchema, aiApprovalDecisionSchema, aiRunQuestionAnswerSchema, writeSse } from "lfaa-api-remotes/src/route-contracts.js";
 import { openSseStream } from "lfaa-api-gateway/src/sse.js";
 export function registerRoutes(router: Router, aiPluginHost: AiPluginHost, _realtime: MinecraftRealtimePublisher, approvalNotifications: UserApprovalNotifications, subagents?: Pick<SubagentManager, "listRuns">): void {
 const limitAiInference = createRateLimit(12, 60 * 1000);
@@ -70,6 +70,15 @@ router.patch("/ai/sessions/:sessionId/associations", requireAuthentication, (req
   const associations = parseBody<AgentAssociations>(agentAssociationsSchema, request.body);
   const session = setAiSessionAssociations(userId, request.params.sessionId, associations);
   if (!session) throw new ApiError(409, "ai_session_busy", "会话正在运行或已归档，请在空闲时修改关联。");
+  response.json({ session });
+});
+
+router.patch("/ai/sessions/:sessionId/application-context", requireAuthentication, (request, response) => {
+  const userId = request.auth!.user.id;
+  if (!getAiSession(userId, request.params.sessionId)) throw new ApiError(404, "ai_session_not_found", "找不到当前账户的会话。");
+  const body = parseBody<{ contextApplicationId: import("lfaa-util-values/src/application-id.js").WorkspaceProjectContextApplicationId | null }>(aiSessionContextApplicationSchema, request.body);
+  const session = setAiSessionContextApplication(userId, request.params.sessionId, body.contextApplicationId);
+  if (!session) throw new ApiError(409, "ai_session_busy", "仅可在空闲的通用 Work 会话中切换领域应用。");
   response.json({ session });
 });
 

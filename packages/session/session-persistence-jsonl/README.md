@@ -2,6 +2,8 @@
 
 消息展示投影保留 `attachments_json` 中的附件 ID/名称，使近期缓存、较早消息分页与重启恢复保持一致；图片字节仍由附件 Owner 按账户授权读取，不复制进展示缓存。
 
+SQLite `ai_sessions.context_application_id` 只是 JSONL Session 事件的会话头查询投影；提交任意会话头变更时保持该值，新会话/旧会话缺省投影为空。
+
 `lfaa-session-persistence-jsonl` 为 Session Owner 保存账户隔离的 JSONL 事务日志。每笔追加事务写入前按当前序号与 SHA-256 链校验，提交后 fsync；Session Owner 是本包写入接口的唯一业务调用者。
 
 `会话目录索引.txt` 是同一 Home 下可重建的 UTF-8 标题到哈希目录映射，仅从轻量会话头生成，不读取消息正文。启动时重建；新会话、标题变化与账户会话删除后刷新。索引经同目录临时文件原子替换，失败只记录诊断，不影响 JSONL 会话提交；重放器只忽略此索引文件和其命名格式受限的临时文件。

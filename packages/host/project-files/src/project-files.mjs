@@ -3,7 +3,7 @@
  * 作用：验证规范路径、拒绝越界符号链接，使用文件摘要检测并发修改，返回可核对的内容与差异。
  * 关联文件：daemon.mjs 的 project-files 任务执行器、core/tools/project-tools.ts；可作为独立 Node 任务运行。
  */
-import { constants as fsConstants } from "node:fs";
+import { constants as fsConstants, createReadStream } from "node:fs";
 import { readFile, writeFile, realpath, stat, lstat, readdir, mkdir, opendir, rename, rm, unlink, open as openFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { resolve, relative, dirname, basename, join, isAbsolute, sep, parse } from "node:path";
@@ -344,6 +344,8 @@ export async function createProjectPreviewServer(rootDirectory, entryPath) {
         stream.on("error", () => { if (!response.headersSent) response.writeHead(404); response.destroy(); });
         stream.pipe(response);
       } catch (error) {
+        if (response.destroyed || response.writableEnded) return;
+        if (response.headersSent) { response.destroy(); return; }
         const status = error?.code === "ENOENT" ? 404 : 403;
         response.writeHead(status, { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" });
         response.end();

@@ -46,6 +46,33 @@
   container-name: lfaa-canvas;
 }
 
+.lfaa-cnv-workspace > .lfaa-cnv-chat-launch.ant-btn {
+  position: absolute;
+  z-index: 30;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  min-width: 44px;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--color-text-primary) 18%, transparent);
+}
+
+@container lfaa-canvas (max-width: 640px) {
+  .lfaa-cnv-workspace > .lfaa-cnv-chat-launch.ant-btn {
+    right: 10px;
+    bottom: 10px;
+  }
+}
+
+@media (max-height: 480px) {
+  .lfaa-cnv-workspace > .lfaa-cnv-chat-launch.ant-btn {
+    bottom: 8px;
+  }
+}
+
 .lfaa-cnv-workbench {
   position: relative;
 }

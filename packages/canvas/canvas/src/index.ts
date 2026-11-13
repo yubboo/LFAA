@@ -141,6 +141,8 @@ export interface CanvasAssetCommitInput {
   assetId?: unknown;
   /** 可选：同一次提交中同步更新目标节点的 data，保证素材与节点引用一起落盘。 */
   node?: { nodeId: string; data: Record<string, unknown> };
+  /** 可选：同一次提交中新增引用该素材的节点，避免 Agent 生图留下没有画布节点的素材。 */
+  newNode?: CanvasNode;
 }
 
 export interface CanvasAssetCommitResult {
@@ -864,10 +866,16 @@ export function commitCanvasAsset(userId: string, applicationId: ApplicationId, 
   if (!current) return null;
   if (current.updatedAt !== expected) throw new CanvasConflictError();
   let nodeIndex = -1;
+  if (input.node && input.newNode) return fail("一次素材提交不能同时更新已有节点并新增节点。");
   if (input.node) {
     const nodeId = normalizedUuid(input.node.nodeId, "节点 ID");
     nodeIndex = current.nodes.findIndex(node => node.id === nodeId);
     if (nodeIndex < 0) return fail("找不到要写入生成结果的画布节点；素材没有保存。");
+  }
+  if (input.newNode) {
+    if (current.nodes.length >= CANVAS_LIMITS.nodes) return fail("每个画布最多保存 " + CANVAS_LIMITS.nodes + " 个节点；图片素材没有保存。");
+    const newNodeId = normalizedUuid(input.newNode.id, "新节点 ID");
+    if (current.nodes.some(node => node.id === newNodeId)) return fail("新节点 ID 与现有节点冲突；素材没有保存。");
   }
   if (current.assets.length >= CANVAS_LIMITS.assets) {
     return fail("每个画布最多保存 " + CANVAS_LIMITS.assets + " 个素材；请先删除不再使用的素材。");
@@ -894,6 +902,8 @@ export function commitCanvasAsset(userId: string, applicationId: ApplicationId, 
     if (nodeIndex >= 0) {
       const data = normalizeNodeData(input.node!.data, "第 " + (nodeIndex + 1) + " 个画布节点");
       nodes = normalizeNodes(current.nodes.map((node, index) => index === nodeIndex ? { ...node, data } : node), nextAssets);
+    } else if (input.newNode) {
+      nodes = normalizeNodes([...current.nodes, input.newNode], nextAssets);
     }
     const next: CanvasProject = { ...current, assets: nextAssets, nodes, updatedAt: nextTimestamp(current.updatedAt) };
     writeProject(userId, next, false);

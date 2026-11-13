@@ -695,6 +695,7 @@ body[data-we-wallpaper][data-we-glass-floaters] .workbench-shell[data-wallpaper-
 }
 .ai-work-chat__composer-menu-empty { padding: 12px 9px; color: var(--color-text-muted); font-size: var(--font-size-sm); }
 .ai-work-chat__composer-context { display: flex; min-width: 0; min-height: 24px; align-items: center; gap: 6px; padding: 0 2px; }
+.ai-work-chat__composer-context .ai-work-chat__composer-context-selector.ant-select { width: min(148px, 32cqi); min-width: 104px; flex: 0 1 148px; }
 .ai-work-chat__composer-app { display: inline-flex; min-width: 0; max-width: min(70%, 310px); align-items: center; gap: 5px; padding: 3px 7px; overflow: hidden; border: 1px solid var(--color-border-subtle); border-radius: 7px; background: var(--color-surface-muted); color: var(--color-text-secondary); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .ai-work-chat__composer-app { flex: 0 0 auto; }
 .ai-work-chat__composer-app svg { flex: 0 0 auto; color: var(--settings-accent, var(--color-brand)); }
@@ -1074,6 +1075,7 @@ body[data-we-wallpaper][data-we-glass-floaters] .workbench-shell[data-wallpaper-
 /* 窄聊天列保持上下文和操作单排；名称通过无障碍标签与悬浮提示保留。 */
 @container ai-work-chat (max-width: 620px) {
   .ai-work-chat__composer-context { flex-wrap: nowrap; gap: 4px; }
+  .ai-work-chat__composer-context .ai-work-chat__composer-context-selector.ant-select { width: min(124px, 42cqi); min-width: 96px; flex-basis: 124px; }
   .ai-work-chat__composer-app { width: 30px; min-width: 30px; max-width: 30px; height: 30px; flex: 0 0 30px; justify-content: center; gap: 0; padding: 0; font-size: 0; }
   .ai-work-chat__composer-app-label,
   .ai-work-chat__project-trigger-label { display: none; }

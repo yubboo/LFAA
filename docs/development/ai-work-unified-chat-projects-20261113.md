@@ -1,5 +1,7 @@
 # LFAA-AI-WORK-UNIFIED-CHAT-PROJECTS-20261113
 
+<a id="lfaa-ai-work-unified-chat-projects-20261113"></a>
+
 ## 用户目标
 
 将 `/work` 作为唯一通用聊天入口。用户从 Minecraft、AI 漫剧、写作等 App 打开聊天时进入同一通用会话；小鱼依据用户目标选择当前 Runtime 已登记的领域工具。领域 App 的画布、手动编辑器和数据仍归原 Owner。AI Work 项目就是用户可选的真实本机项目文件夹：新会话可继续使用“默认工作区”，也可由用户选择或让小鱼按用户目标命名并创建项目文件夹；创建后当前会话归入项目，项目文件工具在该项目目录内工作，后续会话可从项目列表查看。
@@ -52,3 +54,11 @@
 - 每次 Run 把当前领域上下文传给 Agent；系统提示清楚说明这是用户当前工作领域的目标背景，不是权限/授权，也不强制某个工具或固定流程。能力目录与执行继续遵循统一 Agent Loop 和 Permission Owner。
 - UI 在 Composer 明示当前领域 App 并可切换；从 App 手动模式进入时预选该 App；从 App Canvas 侧聊进入时使用当前 Canvas App；新会话与既有会话都能继续在默认 Workspace 或用户选定项目文件夹工作。
 - 验收需覆盖来源 App 路由、刷新与会话重开后的领域上下文、领域切换后 Run 提示上下文、工具权限范围保持不变；沿用模型、项目和 `permissions.mode` 配置，不新增设置项。
+
+## App 上下文联动实施与验收补记（2026-11-13）
+
+- 实现：App 的聊天入口统一导航到 `/work` 并在路由状态保留来源 App；`workspace` 会话通过独立的 `contextApplicationId` 持久化领域上下文，Run 时交给 Agent Loop。Composer 可切换通用聊天和已登记 App；App 画布侧聊仍使用同一 `workspace` 会话并以当前画布 App 为上下文。修复会话异步加载覆盖当前会话手动选择的竞态。
+- 持久化与权限：新增 SQLite v82 投影和 JSONL 会话事件。上下文更新经认证 Session API，校验账户归属、`workspace` 会话、归档及运行状态；它只提供用户当前领域背景，不扩大授权、不强制工具。沿用现有 App 注册、模型、项目及 `permissions.mode`，未新增或修改设置中心配置。
+- 回归：App 入口状态、统一聊天/项目和数据库迁移三组定向回归共 17/17 通过；`git diff --check` 通过。ui-chat 在竞态修复后重建通过；`pnpm run build:web` 通过，包含 Client TypeScript 检查和正式 Web 构建。
+- 内置浏览器：管理员实页 `http://127.0.0.1:3000`，Minecraft 手动页聊天入口切入统一 `/work`，Composer 显示 Minecraft 上下文；新会话可切换至 AI 漫剧上下文。既有 `/apps/minecraft/canvas/0d339336-c445-4ee8-9bbc-285d47f55bfc` 画布侧聊显示通用 Work 会话和 Minecraft 画布上下文。验收视口 1280×720；未发送模型请求，未更改或创建会话。
+- 边界：窄视口未复验；本次未发起真实 Provider Run、视频/图片生成、桌面包验收或帧时间测量。服务端画布/漫剧项目清单此前记录的 500 错误不属于本次上下文修复，仍待其 Owner 排查。

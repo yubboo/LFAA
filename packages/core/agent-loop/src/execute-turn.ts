@@ -12,7 +12,7 @@ import { logger } from "lfaa-telemetry-logger/src/logger.js";
 import type { AiPluginHost } from "lfaa-app-boot/src/ai-host.js";
 import type { UserRole } from "lfaa-identity-auth/src/service.js";
 import type { ApplicationId } from "lfaa-settings/src/preferences/service.js";
-import { APPLICATION_LABELS } from "lfaa-util-values/src/application-id.js";
+import { APPLICATION_LABELS, type WorkspaceProjectContextApplicationId } from "lfaa-util-values/src/application-id.js";
 import { AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN, AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN, type BrowserUseSettings } from "lfaa-util-values/src/settings-contract.js";
 import { AiOutputLimitError, AiRecoverableRequestError, AiToolArgumentsTooLargeError, stripAiCompletionRuntimeContext, type AiCompletionContentPart, type AiCompletionMessage, type AiCompletionUsage, type AiCompletionService } from "lfaa-llm/src/completion.js";
 import { domainExpertName, listAiBusinessTools, type AiBusinessTool, type AiExternalAgentToolContent } from "lfaa-tools/src/business-tools.js";
@@ -51,7 +51,7 @@ import { runLfaaPiAgent, type LfaaPiRequestResult } from "./pi-runtime.js";
 import type { Api, Model } from "@earendil-works/pi-ai";
 import type { AgentToolCall, AgentTurnContext } from "@earendil-works/pi-agent-core";
 
-export interface AiTurnInput { userId: string; userRole: UserRole; body: { appId: ApplicationId; content: string; sessionId: string | null; workspaceView?: AgentWorkbenchView }; turn: AiTurnRows; aiPluginHost: AiPluginHost; abortController: AbortController; pauseGate?: AiRunPauseGate; emit: (event: string, data: Record<string, unknown>) => void; takeInputs?: () => AiCompletionMessage[]; requestUserInput?: (input: { questionId: string; question: string; options: string[] }) => Promise<{ answer: string; skipped: boolean }>; modelAccountId?: string; modelResolver: AgentDefaultModelResolver; approvalNotifications: UserApprovalNotifications; systemPrompt?: string; allowedToolNames?: string[]; memoryEligible?: boolean; planModeEnabled?: boolean; attachmentIds?: string[]; attachments?: import("lfaa-attachment/src/index.js").AttachmentStore; writeGate?: { denied: boolean }; delegate?: (parameters: Record<string, unknown>, availableTools: string[], onActivity: (activity: AiActivityItem) => void, execute?: (startChild: (signal?: AbortSignal) => Promise<{ status: string; [key: string]: unknown }>) => Promise<{ status: string; [key: string]: unknown }>) => Promise<{ status: string; [key: string]: unknown }>; /** 上下文管理钩子（compaction/spill）。未注入时行为与现状完全一致；注入后在每次发模型请求前按上下文规模触发。 */ contextManager?: ContextManagerHooks }
+export interface AiTurnInput { userId: string; userRole: UserRole; body: { appId: ApplicationId; content: string; sessionId: string | null; workspaceView?: AgentWorkbenchView; contextApplicationId?: WorkspaceProjectContextApplicationId | null }; turn: AiTurnRows; aiPluginHost: AiPluginHost; abortController: AbortController; pauseGate?: AiRunPauseGate; emit: (event: string, data: Record<string, unknown>) => void; takeInputs?: () => AiCompletionMessage[]; requestUserInput?: (input: { questionId: string; question: string; options: string[] }) => Promise<{ answer: string; skipped: boolean }>; modelAccountId?: string; modelResolver: AgentDefaultModelResolver; approvalNotifications: UserApprovalNotifications; systemPrompt?: string; allowedToolNames?: string[]; memoryEligible?: boolean; planModeEnabled?: boolean; attachmentIds?: string[]; attachments?: import("lfaa-attachment/src/index.js").AttachmentStore; writeGate?: { denied: boolean }; delegate?: (parameters: Record<string, unknown>, availableTools: string[], onActivity: (activity: AiActivityItem) => void, execute?: (startChild: (signal?: AbortSignal) => Promise<{ status: string; [key: string]: unknown }>) => Promise<{ status: string; [key: string]: unknown }>) => Promise<{ status: string; [key: string]: unknown }>; /** 上下文管理钩子（compaction/spill）。未注入时行为与现状完全一致；注入后在每次发模型请求前按上下文规模触发。 */ contextManager?: ContextManagerHooks }
 
 const MAX_CONCURRENT_CONVERSATION_MEMORY_EXTRACTIONS = 4;
 const MAX_FAILED_TOOL_SIGNATURES_PER_RUN = 256;
@@ -796,6 +796,9 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
 
       const hasComputerUseTools = businessTools.some(tool => tool.requiresComputerControl);
       const associationInstruction = `用户可选的关联参考（仅引用，不构成授权或工具范围；按目标决定是否发现/加载，允许跨领域；skill.registry/name 引用可用 lfaa_skill_list/lfaa_skill_load 的 source=registry、name 寻址）：${JSON.stringify(getAiSessionAssociations(userId, turn.session.id))}`;
+      const applicationContextInstruction = body.appId === "workspace" && body.contextApplicationId
+        ? `当前通用 Work 会话的领域应用上下文是“${APPLICATION_LABELS[body.contextApplicationId]}”。将它作为用户当前工作领域和指代对象的背景，依据当前已登记工具目录与真实执行结果判断下一步；此上下文不代表工具可用性、权限或用户批准，也不强制调用某个工具。`
+        : null;
       const workbenchInstruction = formatAgentWorkbenchContext(body.workspaceView, settings.browserUse.enabled, body.appId);
       let extensionInstructions = [
         ...(settings.plugins.enabled ? aiPluginHost.getSystemInstructions(body.appId) : []),
@@ -803,6 +806,7 @@ export async function executeAiTurn({ userId, userRole, body, turn, aiPluginHost
         ...(hasComputerUseTools ? [computerUseInstruction, ...(businessTools.some(tool => tool.id.startsWith("computer-use.local-app-")) ? [localApplicationInstruction, localGameInstruction] : [])] : []),
         ...(businessTools.some(tool => tool.id.startsWith("browser-use.")) ? [browserUseInstruction, browserLocationPreferenceInstruction(settings.browserUse)] : []),
         ...(workbenchInstruction ? [workbenchInstruction] : []),
+        ...(applicationContextInstruction ? [applicationContextInstruction] : []),
         capabilitySettingsInstruction,
         agentSettingsInstruction,
         associationInstruction,

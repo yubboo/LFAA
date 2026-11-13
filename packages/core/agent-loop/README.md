@@ -1,5 +1,7 @@
 # LFAA Agent Loop
 
+通用 Work Run 可携带 Session 的 `contextApplicationId`，Agent Loop 将登记 App 名称作为当前用户目标背景交给模型。该上下文不筛选或增加工具、不授权操作；模型仍依据实际工具目录规划，所有调用继续经过原 Permission Owner。
+
 工具 `updateWorkspaceProject` 回调只更新当前 Run 的可信项目文件上下文。Workspace 项目工具创建并绑定项目后，后续工具读取新登记的目录；Run 完成后 Client 回读会话与项目列表，不复制或重写消息历史。
 
 AI Work 会话标题生成沿用当前账户已选模型和 AI Runtime 设置，只向模型发送有界首条用户输入，不提供工具或插件扩展；自动输出上限为 512 Token，显式设置的更低 AI Runtime 上限及模型目录上限仍然生效。最多四个标题请求并行，同会话在进程内合并。真实 Provider 用量写回该会话首轮助手消息，Session Owner 的标题比较保护手动改名。生成失败保留短回退名，不伪报成功。构建写入仓库根 `dist/packages/core/agent-loop/`。

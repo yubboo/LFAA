@@ -90,6 +90,16 @@ test("画布工具按合同注册、拒绝非法参数，并真实读写画布 O
       await assert.rejects(async () => tool.execute(tool.parse(args), toolContext), pattern);
     };
 
+    await t.test("P0 复现：通用 Work 调用领域 Canvas 工具时当前上下文被拒绝", async () => {
+      const { listAiBusinessTools } = await import("lfaa-tools/src/business-tools.js");
+      const workspaceTool = listAiBusinessTools("workspace", "member", null, "ask").find(item => item.name === "canvas_list_projects");
+      assert.ok(workspaceTool, "通用 Work 目录暴露当前 Runtime 已登记的只读 Canvas 能力");
+      await assert.rejects(
+        () => workspaceTool.execute(workspaceTool.parse({ applicationId: "minecraft" }), toolContext),
+        /画布 Agent 只能操作当前 App 的项目/
+      );
+    });
+
     // 参数校验：非法 App、未知 section/节点类型、超长文本、缺失并发基线与非法比例都必须拒绝。
     assert.throws(() => find("canvas_list_projects").parse({ applicationId: "canvas" }), /applicationId/);
     assert.throws(() => find("canvas_list_projects").parse({ applicationId: "aivideo" }), /applicationId/, "漫剧项目必须走 AI Video Owner，不能通过通用 Canvas 创建第二份数据");
@@ -241,7 +251,8 @@ test("画布工具按合同注册、拒绝非法参数，并真实读写画布 O
         if (generationBehavior === "throw") throw new Error("设置中心没有可用的图片生成账户；未发起 Provider 请求。");
         const current = owner.readCanvasProject(callUserId, callApplicationId, callProjectId);
         const asset = { assetId: randomUUID(), name: "生成图.png", mimeType: "image/png", bytes: PNG.length, createdAt: new Date().toISOString() };
-        return { project: { ...current, assets: [...current.assets, asset], updatedAt: new Date().toISOString() }, asset };
+        const node = { id: randomUUID(), type: "image", x: 500, y: 340, width: 320, height: 260, data: { assetId: asset.assetId, assetName: asset.name } };
+        return { project: { ...current, assets: [...current.assets, asset], nodes: [...current.nodes, node], updatedAt: new Date().toISOString() }, asset };
       }
     };
     context.provide("lfaaCanvasGeneration", fakeGeneration);
@@ -251,6 +262,9 @@ test("画布工具按合同注册、拒绝非法参数，并真实读写画布 O
     });
     assert.equal(generated.generated, true);
     assert.equal(generated.asset.name, "生成图.png");
+    assert.equal(generated.node.type, "image");
+    assert.equal(generated.node.x, 500);
+    assert.equal(generated.node.y, 340);
     assert.equal(generationCalls.length, 1);
     assert.equal(generationCalls[0].userId, userId);
     assert.equal(generationCalls[0].applicationId, "workspace");

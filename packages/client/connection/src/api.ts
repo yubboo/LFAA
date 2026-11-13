@@ -401,6 +401,7 @@ export interface AiSession {
   associations?: AgentAssociations;
   id: string;
   appId: ApplicationId;
+  contextApplicationId: WorkspaceProjectContextApplicationId | null;
   title: string;
   titleStatus?: "pending" | "generated" | "manual" | "legacy";
   archived: boolean;
@@ -2881,6 +2882,9 @@ export function loadAiSkillDirectory(signal?: AbortSignal): Promise<{ skills: Ai
 export function setAiSessionAssociations(sessionId: string, associations: AgentAssociations): Promise<{ session: AiSession }> {
   return request(`/ai/sessions/${encodeURIComponent(sessionId)}/associations`, { method: "PATCH", body: JSON.stringify(associations) });
 }
+export function setAiSessionContextApplication(sessionId: string, contextApplicationId: WorkspaceProjectContextApplicationId | null): Promise<{ session: AiSession }> {
+  return request(`/ai/sessions/${encodeURIComponent(sessionId)}/application-context`, { method: "PATCH", body: JSON.stringify({ contextApplicationId }) });
+}
 
 export function loadAiExtensions(signal?: AbortSignal): Promise<{ plugins: AiRuntimePlugin[]; extensions: AiExtension[]; hooks: AiRuntimeHookInfo[]; hotReloadEnabled: boolean }> {
   return request<{ plugins: AiRuntimePlugin[]; extensions: AiExtension[]; hooks: AiRuntimeHookInfo[]; hotReloadEnabled: boolean }>("/ai/extensions", signal ? { signal } : {});
@@ -3427,6 +3431,7 @@ type AiChatStreamInput = {
   runId?: string;
   associations?: AgentAssociations;
   appId: ApplicationId;
+  contextApplicationId?: WorkspaceProjectContextApplicationId | null;
   sessionId: string | null;
   projectId?: string | null;
   gitRepositoryId?: string | null;
@@ -3558,7 +3563,7 @@ async function streamAiChatAt(input: AiChatStreamInput, streamEndpoint: string):
           method: activeRunId ? "GET" : "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-          ...(!activeRunId ? { body: JSON.stringify({ appId: input.appId, sessionId: input.sessionId, ...(input.associations ? { associations: input.associations } : {}), ...(input.attachmentIds?.length ? { attachmentIds: input.attachmentIds } : {}), ...(input.attachments?.length ? { attachments: input.attachments } : {}), ...(input.projectId ? { projectId: input.projectId } : {}), ...(!input.sessionId && input.gitRepositoryId ? { gitRepositoryId: input.gitRepositoryId } : {}), ...(input.planMode === undefined ? {} : { planMode: input.planMode }), ...(input.workspaceView ? { workspaceView: input.workspaceView } : {}), content: input.content }) } : {}),
+          ...(!activeRunId ? { body: JSON.stringify({ appId: input.appId, sessionId: input.sessionId, ...(input.contextApplicationId === undefined ? {} : { contextApplicationId: input.contextApplicationId }), ...(input.associations ? { associations: input.associations } : {}), ...(input.attachmentIds?.length ? { attachmentIds: input.attachmentIds } : {}), ...(input.attachments?.length ? { attachments: input.attachments } : {}), ...(input.projectId ? { projectId: input.projectId } : {}), ...(!input.sessionId && input.gitRepositoryId ? { gitRepositoryId: input.gitRepositoryId } : {}), ...(input.planMode === undefined ? {} : { planMode: input.planMode }), ...(input.workspaceView ? { workspaceView: input.workspaceView } : {}), content: input.content }) } : {}),
           signal: input.signal
         });
       } catch (error) {

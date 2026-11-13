@@ -4,6 +4,8 @@
 
 `aiSessionTitleSchema` 对手动聊天标题执行去首尾空白、非空和 UTF-16 长度边界校验，拒绝未登记字段；账户、App 和字符点数规则仍由 Session Owner/API 认证链校验。
 
+`aiChatMessageSchema.contextApplicationId` 与 `aiSessionContextApplicationSchema` 只接受已登记的领域 App ID 或显式 `null`，拒绝未知字段；它是通用 Work 的会话背景，不代表权限或工具范围。
+
 ## 小鱼共享工作入口（2026-10-14）
 
 共享 API 输入合同：可选关联只接受有界 App/能力 ID 引用，不接收正文或权限变更。

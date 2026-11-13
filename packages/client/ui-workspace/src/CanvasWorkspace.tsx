@@ -12,7 +12,7 @@ import {
   type Connection, type Edge, type EdgeChange, type NodeChange, type ReactFlowInstance, type Viewport
 } from "@xyflow/react";
 import {
-  AudioOutlined, BarsOutlined, EllipsisOutlined, FileTextOutlined,
+  AudioOutlined, BarsOutlined, EllipsisOutlined, FileTextOutlined, MessageOutlined,
   FolderOpenOutlined, PictureOutlined, RedoOutlined, SaveOutlined,
   SettingOutlined, SmileOutlined, TableOutlined, ToolOutlined, UndoOutlined, UploadOutlined, VideoCameraOutlined
 } from "@ant-design/icons";
@@ -401,10 +401,12 @@ export interface CanvasWorkspaceProps {
   initialProjectId?: string;
   agentChangesRevision?: number;
   agentChangedProjectId?: string | null;
+  agentPanelOpen?: boolean;
   settings: UserSettings;
   applications: Array<{ title: string; applicationId: ApplicationId }>;
   onNavigate: (path: string) => void;
   onOpenSettings: () => void;
+  onOpenAgentChat?: () => void;
   onProjectContextChange?: (project: { applicationId: ApplicationId; projectId: string; title: string; updatedAt: string } | null) => void;
   applicationWorkflowPanel?: (visible: boolean) => ReactNode;
 }
@@ -414,7 +416,7 @@ function initialCanvasWorkbenchMetrics(): WorkbenchLayoutMetrics {
   return resolveWorkbenchLayoutMetrics(window.innerWidth, window.innerHeight, true);
 }
 
-export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesRevision = 0, agentChangedProjectId = null, settings, applications, onNavigate, onOpenSettings, onProjectContextChange, applicationWorkflowPanel }: CanvasWorkspaceProps) {
+export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesRevision = 0, agentChangedProjectId = null, agentPanelOpen = false, settings, applications, onNavigate, onOpenSettings, onOpenAgentChat, onProjectContextChange, applicationWorkflowPanel }: CanvasWorkspaceProps) {
   const canvasSettings = resolveCanvasSettings(settings);
   const owner = useMemo(() => applicationId === "aivideo" ? aiVideoCanvasOwner : genericCanvasOwner, [applicationId]);
   const [loading, setLoading] = useState(true);
@@ -426,6 +428,7 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [agentSyncing, setAgentSyncing] = useState(false);
+  const [agentFocusNodeId, setAgentFocusNodeId] = useState<string | null>(null);
   const [openingId, setOpeningId] = useState<string | null>(null);
   const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null);
   const [deletingAssetId, setDeletingAssetId] = useState<string | null>(null);
@@ -783,6 +786,29 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
     };
   }, [project?.id, flowRevision, fitCanvasToNodes]);
 
+  useEffect(() => {
+    const targetId = agentFocusNodeId;
+    if (!targetId || !project) return;
+    let secondFrame = 0;
+    const firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(() => {
+        const target = flowRef.current?.getNode(targetId);
+        if (target) {
+          setNodes(current => current.map(node => node.id === targetId ? { ...node, selected: true } : { ...node, selected: false }));
+          const width = target.measured?.width ?? target.width ?? NODE_DEFAULT_SIZE.image.width;
+          const height = target.measured?.height ?? target.height ?? NODE_DEFAULT_SIZE.image.height;
+          const zoom = Math.max(0.65, Math.min(viewportRef.current.zoom, 1));
+          void flowRef.current?.setCenter(target.position.x + width / 2, target.position.y + height / 2, { zoom, duration: 220 });
+        }
+        setAgentFocusNodeId(null);
+      });
+    });
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      if (secondFrame) window.cancelAnimationFrame(secondFrame);
+    };
+  }, [agentFocusNodeId, flowRevision, project?.id, setNodes]);
+
   const snapshotNow = useCallback((): CanvasSnapshot => ({ nodes: nodesRef.current, edges: edgesRef.current }), []);
 
   const pushHistorySnapshot = useCallback((snapshot: CanvasSnapshot) => {
@@ -1055,7 +1081,9 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
         setNotice("");
         return;
       }
+      const addedImageNode = loaded.nodes.find(node => node.type === "image" && !current.nodes.some(previous => previous.id === node.id));
       applyProjectRef.current(loaded);
+      if (addedImageNode) setAgentFocusNodeId(addedImageNode.id);
       setSummaries(listed);
       setNotice("已同步小鱼通过对话完成的画布修改。");
     }).catch(refreshError => {
@@ -2045,6 +2073,7 @@ export function CanvasWorkspace({ applicationId, initialProjectId, agentChangesR
   return (
     <div className="lfaa-cnv-outer">
       <section className="lfaa-cnv-workspace" aria-label="无限画布工作区" aria-busy={loading || saving || operation !== null} data-testid="canvas-workspace">
+        {applicationCanvasView === "canvas" && !agentPanelOpen && onOpenAgentChat ? <Button className="lfaa-cnv-chat-launch" type="primary" icon={<MessageOutlined />} aria-label="与 AI 对话" data-testid="canvas-chat-launch" onClick={onOpenAgentChat}>与 AI 对话</Button> : null}
         <ResizableWorkbench
           className="lfaa-cnv-workbench"
           rootElementRef={workbenchRef}

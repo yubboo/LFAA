@@ -6,8 +6,9 @@
 import { randomUUID } from "node:crypto";
 import type { Context } from "@deepseek-ai/cordis";
 import type { CanvasAssetRead, CanvasNode, CanvasProject, CanvasService } from "lfaa-canvas/src/index.js";
-import { CanvasConflictError } from "lfaa-canvas/src/index.js";
+import { CANVAS_LIMITS, CanvasConflictError } from "lfaa-canvas/src/index.js";
 import { credentialReference } from "lfaa-credentials/src/index.js";
+import { CANVAS_NODE_KINDS_BY_APPLICATION } from "lfaa-util-values/src/canvas-node-types.js";
 import type { ApplicationId } from "lfaa-util-values/src/application-id.js";
 import { generateProviderImage, type GeneratedImageMimeType, type ImageGenerationProvider, type ProviderReferenceImage } from "lfaa-llm/src/image-generation.js";
 import { cancelArkVideoTask, createArkVideoTask, downloadArkVideo, getArkVideoTask, type ArkVideoProviderId, type ArkVideoTaskStatus } from "lfaa-llm/src/video-generation.js";
@@ -179,6 +180,26 @@ function generatedAssetName(kind: CanvasGenerationKind, extension: string): stri
 
 function imageExtension(mimeType: GeneratedImageMimeType): "png" | "jpg" | "webp" {
   return mimeType === "image/png" ? "png" : mimeType === "image/jpeg" ? "jpg" : "webp";
+}
+
+function generatedImageNode(project: CanvasProject, assetId: string, assetName: string): CanvasNode | undefined {
+  if (!CANVAS_NODE_KINDS_BY_APPLICATION[project.applicationId].includes("image")) return undefined;
+  const width = 320;
+  const height = 260;
+  const gap = 48;
+  let x = 0;
+  let y = 0;
+  if (project.nodes.length > 0) {
+    const left = Math.min(...project.nodes.map(node => node.x));
+    const right = Math.max(...project.nodes.map(node => node.x + node.width));
+    const top = Math.min(...project.nodes.map(node => node.y));
+    const bottom = Math.max(...project.nodes.map(node => node.y + node.height));
+    x = right + gap;
+    if (x + width > CANVAS_LIMITS.coordinate) x = left - width - gap;
+    x = Math.max(-CANVAS_LIMITS.coordinate, Math.min(CANVAS_LIMITS.coordinate - width, x));
+    y = Math.max(-CANVAS_LIMITS.coordinate, Math.min(CANVAS_LIMITS.coordinate - height, Math.round((top + bottom - height) / 2)));
+  }
+  return { id: randomUUID(), type: "image", x, y, width, height, data: { assetId, assetName } };
 }
 
 /** 图片提示词校验；Provider 协议上限为 1000 字符。 */
@@ -540,13 +561,15 @@ export function createCanvasGenerationService(deps: CanvasGenerationDependencies
       startedAt,
       finishedAt: nowIso()
     };
+    const assetName = generatedAssetName("image", imageExtension(image.mimeType));
+    const newImageNode = node ? undefined : generatedImageNode(project, assetId, assetName);
     const committed = deps.canvas.commitAsset(userId, applicationId, projectId, {
       expectedUpdatedAt: input.expectedUpdatedAt,
-      name: generatedAssetName("image", imageExtension(image.mimeType)),
+      name: assetName,
       mimeType: image.mimeType,
       bytes: image.bytes,
       assetId,
-      ...(node ? { node: { nodeId: node.id, data: { ...node.data, generation } } } : {})
+      ...(node ? { node: { nodeId: node.id, data: { ...node.data, generation } } } : newImageNode ? { newNode: newImageNode } : {})
     });
     if (!committed) return null;
     return {

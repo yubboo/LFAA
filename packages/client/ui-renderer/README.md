@@ -15,3 +15,5 @@ Renderer 从 Account Owner 读取默认凭据待处理状态，并在用户离�
 内置登录转场由 Renderer 预热 Workbench 并持有显示/交互门控；约 420ms 黑洞主动画完成后，Workbench 先在覆盖层后变为可见，再由登录覆盖层做 160ms 淡出，淡出结束后才释放 `inert`/`aria-hidden` 并显示提醒。认证转场合同见 [登录进入动画插件合同](../../../docs/development/auth-transition-plugins.zh.md)。
 
 认证后的 Electron `/?mini=1` 路由读取当前 Settings Owner 偏好并渲染独立 Mini；该路由不预加载 Workbench。Web Host 没有桌面 Mini bridge 时仍显示普通工作区，不声称创建原生窗口。
+
+从领域 App 的 `/ai-work` 别名进入共享 `/work` 时，Renderer 在 History State 保存经登记清单校验的来源 App，上下文随浏览器前进/后退同步；离开 `/work` 后清除该入口上下文。共享会话仍由 Session Owner 统一管理。

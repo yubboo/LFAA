@@ -182,6 +182,92 @@ function runDatabaseStartup(dataDirectory) {
   });
 }
 
+function completePostV73MigrationPrerequisites(database) {
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS daemon_nodes (id TEXT PRIMARY KEY NOT NULL) STRICT;
+    CREATE TABLE IF NOT EXISTS ai_sessions (
+      id TEXT PRIMARY KEY NOT NULL,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      app_id TEXT NOT NULL CHECK (app_id IN ('steamcmd', 'minecraft', 'writing', 'workspace')),
+      title TEXT NOT NULL,
+      archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1)),
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    ) STRICT;
+    CREATE TABLE IF NOT EXISTS agent_git_repositories (
+      id TEXT PRIMARY KEY NOT NULL,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      path TEXT NOT NULL,
+      path_key TEXT NOT NULL,
+      title TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE (user_id, path_key)
+    ) STRICT;
+    CREATE TABLE IF NOT EXISTS agent_git_session_bindings (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      session_id TEXT PRIMARY KEY NOT NULL REFERENCES ai_sessions(id) ON DELETE CASCADE,
+      repository_id TEXT NOT NULL REFERENCES agent_git_repositories(id) ON DELETE CASCADE,
+      updated_at TEXT NOT NULL
+    ) STRICT;
+    CREATE TABLE IF NOT EXISTS writing_books (
+      id TEXT PRIMARY KEY NOT NULL,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      title TEXT NOT NULL
+    ) STRICT;
+    CREATE TABLE IF NOT EXISTS minecraft_instances (
+      id TEXT PRIMARY KEY NOT NULL,
+      node_id TEXT NOT NULL REFERENCES daemon_nodes(id) ON DELETE RESTRICT,
+      created_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+      name TEXT NOT NULL,
+      release_id TEXT NOT NULL,
+      java_major INTEGER NOT NULL,
+      memory_mb INTEGER NOT NULL,
+      state TEXT NOT NULL,
+      eula_accepted_at TEXT NOT NULL,
+      execution_mode TEXT NOT NULL CHECK (execution_mode IN ('appcontainer', 'native')),
+      server_properties_json TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE (node_id, name)
+    ) STRICT;
+    CREATE TABLE IF NOT EXISTS minecraft_tasks (
+      id TEXT PRIMARY KEY NOT NULL,
+      node_id TEXT NOT NULL REFERENCES daemon_nodes(id) ON DELETE RESTRICT,
+      instance_id TEXT REFERENCES minecraft_instances(id) ON DELETE SET NULL,
+      created_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+      kind TEXT NOT NULL CHECK (kind IN ('install', 'start', 'stop', 'properties', 'backup', 'java-install', 'restart', 'console', 'delete')),
+      status TEXT NOT NULL CHECK (status IN ('queued', 'running', 'succeeded', 'failed')),
+      progress INTEGER NOT NULL DEFAULT 0 CHECK (progress BETWEEN 0 AND 100),
+      message TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      result_json TEXT,
+      created_at TEXT NOT NULL,
+      started_at TEXT,
+      finished_at TEXT,
+      cancel_requested INTEGER NOT NULL DEFAULT 0 CHECK (cancel_requested IN (0, 1))
+    ) STRICT;
+    CREATE INDEX IF NOT EXISTS minecraft_tasks_node_queue_idx ON minecraft_tasks(node_id, status, created_at);
+    CREATE INDEX IF NOT EXISTS minecraft_tasks_recent_idx ON minecraft_tasks(created_at DESC);
+    CREATE TABLE IF NOT EXISTS workspace_git_worktrees (
+      project_id TEXT PRIMARY KEY NOT NULL REFERENCES workspace_projects(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      source_project_id TEXT NOT NULL REFERENCES workspace_projects(id) ON DELETE RESTRICT,
+      node_id TEXT NOT NULL REFERENCES daemon_nodes(id) ON DELETE RESTRICT,
+      worktree_id TEXT NOT NULL CHECK (length(worktree_id) = 36),
+      worktree_root TEXT NOT NULL,
+      project_relative_path TEXT NOT NULL DEFAULT '',
+      branch TEXT NOT NULL CHECK (length(branch) BETWEEN 1 AND 255),
+      base_commit TEXT NOT NULL CHECK (length(base_commit) BETWEEN 40 AND 64),
+      source_head TEXT NOT NULL CHECK (length(source_head) BETWEEN 40 AND 64),
+      created_at TEXT NOT NULL
+    ) STRICT;
+    CREATE UNIQUE INDEX IF NOT EXISTS workspace_git_worktrees_node_id_idx ON workspace_git_worktrees(node_id, worktree_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS workspace_git_worktrees_node_path_idx ON workspace_git_worktrees(node_id, worktree_root);
+    CREATE INDEX IF NOT EXISTS workspace_git_worktrees_source_idx ON workspace_git_worktrees(user_id, source_project_id);
+  `);
+}
+
 test("版本 80 Git Worktree 迁移允许本机 Host 归属并保留已有远程记录", () => {
   const dataDirectory = mkdtempSync(join(resolve(tmpdir()), "lfaa-db-v80-worktree-host-"));
   const databaseDirectory = join(dataDirectory, "database");
@@ -210,6 +296,10 @@ test("版本 80 Git Worktree 迁移允许本机 Host 归属并保留已有远程
         source_head TEXT NOT NULL CHECK (length(source_head) BETWEEN 40 AND 64),
         created_at TEXT NOT NULL
       ) STRICT;
+      CREATE TABLE ai_sessions (
+        id TEXT PRIMARY KEY NOT NULL, user_id TEXT NOT NULL, app_id TEXT NOT NULL, title TEXT NOT NULL,
+        archived INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+      ) STRICT;
       CREATE UNIQUE INDEX workspace_git_worktrees_node_id_idx ON workspace_git_worktrees(node_id, worktree_id);
       CREATE UNIQUE INDEX workspace_git_worktrees_node_path_idx ON workspace_git_worktrees(node_id, worktree_root);
       CREATE INDEX workspace_git_worktrees_source_idx ON workspace_git_worktrees(user_id, source_project_id);
@@ -225,7 +315,8 @@ test("版本 80 Git Worktree 迁移允许本机 Host 归属并保留已有远程
     runDatabaseStartup(dataDirectory);
     const migrated = new DatabaseSync(databasePath, { readOnly: true });
     try {
-      assert.equal(Number(migrated.prepare("PRAGMA user_version").get().user_version), 81);
+      assert.equal(Number(migrated.prepare("PRAGMA user_version").get().user_version), 82);
+      assert.ok(migrated.prepare("PRAGMA table_info(ai_sessions)").all().some(column => column.name === "context_application_id"));
       assert.equal(migrated.prepare("PRAGMA table_info(workspace_git_worktrees)").all().find(column => column.name === "node_id").notnull, 0);
       assert.deepEqual({ ...migrated.prepare("SELECT project_id, user_id, source_project_id, node_id, worktree_id, worktree_root, branch FROM workspace_git_worktrees").get() }, {
         project_id: "worktree", user_id: "owner", source_project_id: "source", node_id: "node",
@@ -237,7 +328,7 @@ test("版本 80 Git Worktree 迁移允许本机 Host 归属并保留已有远程
     runDatabaseStartup(dataDirectory);
     const restarted = new DatabaseSync(databasePath, { readOnly: true });
     try {
-      assert.equal(Number(restarted.prepare("PRAGMA user_version").get().user_version), 81);
+      assert.equal(Number(restarted.prepare("PRAGMA user_version").get().user_version), 82);
       assert.equal(Number(restarted.prepare("SELECT COUNT(*) AS count FROM workspace_git_worktrees").get().count), 1);
     } finally { restarted.close(); }
   } finally {
@@ -248,7 +339,7 @@ test("版本 80 Git Worktree 迁移允许本机 Host 归属并保留已有远程
   }
 });
 
-test("当前版本 81 数据库通过启动兼容检查并保留原有数据", () => {
+test("版本 81 数据库迁移 Session 领域上下文并保留原有数据", () => {
   const dataDirectory = mkdtempSync(join(resolve(tmpdir()), "lfaa-db-v81-current-"));
   try {
     const databasePath = join(dataDirectory, "database", "lfaa.sqlite");
@@ -257,6 +348,8 @@ test("当前版本 81 数据库通过启动兼容检查并保留原有数据", (
     fixtureDatabase.exec(`
       CREATE TABLE preserved_fixture (value TEXT NOT NULL) STRICT;
       INSERT INTO preserved_fixture (value) VALUES ('kept');
+      CREATE TABLE ai_sessions (id TEXT PRIMARY KEY NOT NULL, user_id TEXT NOT NULL, app_id TEXT NOT NULL, title TEXT NOT NULL, archived INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL) STRICT;
+      INSERT INTO ai_sessions (id, user_id, app_id, title, archived, created_at, updated_at) VALUES ('kept-session', 'kept-user', 'workspace', '旧会话', 0, '2026-11-13T00:00:00.000Z', '2026-11-13T00:00:00.000Z');
       PRAGMA user_version = 81;
     `);
     fixtureDatabase.close();
@@ -265,8 +358,9 @@ test("当前版本 81 数据库通过启动兼容检查并保留原有数据", (
 
     const startedDatabase = new DatabaseSync(databasePath, { readOnly: true });
     try {
-      assert.equal(Number(startedDatabase.prepare("PRAGMA user_version").get().user_version), 81);
+      assert.equal(Number(startedDatabase.prepare("PRAGMA user_version").get().user_version), 82);
       assert.equal(startedDatabase.prepare("SELECT value FROM preserved_fixture").get().value, "kept");
+      assert.equal(startedDatabase.prepare("SELECT id, context_application_id FROM ai_sessions").get().context_application_id, null);
     } finally { startedDatabase.close(); }
   } finally {
     const resolvedDataDirectory = resolve(dataDirectory);
@@ -462,7 +556,7 @@ test("版本 27 写作作品迁移后保留内容并归入第一卷，重复启�
   }
 });
 
-test("版本 61 数据库依次迁移旧控制表、Skill 安装、ChatGPT 式本机项目、项目 App 关联及外观素材文件名到 73", () => {
+test("版本 61 数据库依次迁移旧控制表、Skill 安装、ChatGPT 式本机项目、项目 App 关联和后续结构到 82", () => {
   const dataDirectory = mkdtempSync(join(resolve(tmpdir()), "lfaa-db-v63-agent-usage-"));
   try {
     const databaseDirectory = join(dataDirectory, "database");
@@ -521,19 +615,23 @@ test("版本 61 数据库依次迁移旧控制表、Skill 安装、ChatGPT 式�
         VALUES ('legacy-steam-server', 'legacy-steam-node', 'legacy-steam-user', '旧服务端', 123456, 'legacy/server', 'server.exe', '["-dedicated"]', 'quit', 30, 1, 'installed', 'stopped', NULL, '2026-09-20T00:00:00.000Z', '2026-09-19T00:00:00.000Z', '2026-09-20T00:00:00.000Z');
       PRAGMA user_version = 61;
     `);
+    completePostV73MigrationPrerequisites(legacyDatabase);
+    legacyDatabase.prepare("INSERT INTO ai_sessions (id, user_id, app_id, title, archived, created_at, updated_at) VALUES (?, ?, ?, ?, 0, ?, ?)")
+      .run("legacy-session-61", "legacy-steam-user", "workspace", "v61 历史会话", "2026-09-01T00:00:00.000Z", "2026-09-01T00:00:00.000Z");
     legacyDatabase.close();
 
     runDatabaseStartup(dataDirectory);
     const databasePath = join(dataDirectory, "database", "lfaa.sqlite");
     const database = new DatabaseSync(databasePath, { readOnly: true });
     try {
-      assert.equal(Number(database.prepare("PRAGMA user_version").get().user_version), 73);
+      assert.equal(Number(database.prepare("PRAGMA user_version").get().user_version), 82);
       assert.ok(database.prepare("PRAGMA table_info(appearance_backgrounds)").all().some(column => column.name === "storage_filename"));
       assert.ok(database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = 'appearance_backgrounds_user_storage_filename_idx'").get());
       const projectColumns = database.prepare("PRAGMA table_info(workspace_projects)").all().map(column => column.name);
       assert.ok(projectColumns.includes("instructions"));
       assert.ok(projectColumns.includes("memory_mode"));
       assert.deepEqual({ ...database.prepare("SELECT instructions, memory_mode FROM workspace_projects WHERE id = 'legacy-local-project'").get() }, { instructions: "", memory_mode: "default" });
+      assert.equal(database.prepare("SELECT context_application_id FROM ai_sessions WHERE id = 'legacy-session-61'").get().context_application_id, null);
       const projectSource = database.prepare("SELECT id, path, position FROM workspace_project_sources WHERE project_id = 'legacy-local-project'").get();
       assert.deepEqual({ path: projectSource.path, position: projectSource.position }, { path: "C:/legacy/project", position: 0 });
       assert.match(projectSource.id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu);
@@ -576,7 +674,7 @@ test("版本 61 数据库依次迁移旧控制表、Skill 安装、ChatGPT 式�
     runDatabaseStartup(dataDirectory);
     const restartedDatabase = new DatabaseSync(databasePath, { readOnly: true });
     try {
-      assert.equal(Number(restartedDatabase.prepare("PRAGMA user_version").get().user_version), 73);
+      assert.equal(Number(restartedDatabase.prepare("PRAGMA user_version").get().user_version), 82);
       assert.equal(Number(restartedDatabase.prepare("SELECT COUNT(*) AS count FROM workspace_project_sources WHERE project_id = 'legacy-local-project'").get().count), 1);
       assert.equal(Number(restartedDatabase.prepare("SELECT COUNT(*) AS count FROM steamcmd_servers").get().count), 1);
       assert.equal(restartedDatabase.prepare("SELECT name FROM steamcmd_servers WHERE id = 'legacy-steam-server'").get().name, "旧服务端");
@@ -590,7 +688,7 @@ test("版本 61 数据库依次迁移旧控制表、Skill 安装、ChatGPT 式�
   }
 });
 
-test("版本 72 项目 schema 缺口恢复保留项目与会话并可重复启动", () => {
+test("版本 72 项目 schema 缺口恢复后续升级到 82，保留项目与会话并可重复启动", () => {
   const dataDirectory = mkdtempSync(join(resolve(tmpdir()), "lfaa-db-v72-project-gap-"));
   try {
     const databaseDirectory = join(dataDirectory, "database");
@@ -601,6 +699,7 @@ test("版本 72 项目 schema 缺口恢复保留项目与会话并可重复启�
       incompleteDatabase.exec(`
         PRAGMA foreign_keys = ON;
         CREATE TABLE users (id TEXT PRIMARY KEY NOT NULL) STRICT;
+        CREATE TABLE daemon_nodes (id TEXT PRIMARY KEY NOT NULL) STRICT;
         CREATE TABLE workspace_projects (
           id TEXT PRIMARY KEY NOT NULL,
           user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -629,12 +728,13 @@ test("版本 72 项目 schema 缺口恢复保留项目与会话并可重复启�
       incompleteDatabase.prepare("INSERT INTO workspace_projects (id, user_id, node_id, path, path_key, title, created_at, updated_at, app_id) VALUES (?, 'legacy-user', NULL, ?, ?, '保留项目', '2026-10-01T00:00:00.000Z', '2026-10-01T00:00:00.000Z', 'workspace')")
         .run(projectId, "C:/legacy/project", "c:/legacy/project");
       incompleteDatabase.prepare("INSERT INTO workspace_default_projects (user_id, app_id, project_id, created_at) VALUES ('legacy-user', 'workspace', ?, '2026-10-01T00:00:00.000Z')").run(projectId);
+      completePostV73MigrationPrerequisites(incompleteDatabase);
     } finally { incompleteDatabase.close(); }
 
     runDatabaseStartup(dataDirectory);
     const recoveredDatabase = new DatabaseSync(databasePath, { readOnly: true });
     try {
-      assert.equal(Number(recoveredDatabase.prepare("PRAGMA user_version").get().user_version), 73);
+      assert.equal(Number(recoveredDatabase.prepare("PRAGMA user_version").get().user_version), 82);
       const project = recoveredDatabase.prepare("SELECT id, title, path, instructions, memory_mode FROM workspace_projects WHERE id = '30000000-0000-4000-8000-000000000001'").get();
       assert.deepEqual({ ...project }, { id: "30000000-0000-4000-8000-000000000001", title: "保留项目", path: "C:/legacy/project", instructions: "", memory_mode: "default" });
       assert.deepEqual({ ...recoveredDatabase.prepare("SELECT user_id, app_id, project_id FROM workspace_default_projects WHERE user_id = 'legacy-user' AND app_id = 'workspace'").get() }, { user_id: "legacy-user", app_id: "workspace", project_id: project.id });
@@ -643,13 +743,14 @@ test("版本 72 项目 schema 缺口恢复保留项目与会话并可重复启�
       assert.match(source.id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu);
       assert.ok(recoveredDatabase.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'project_conversation_memories'").get());
       assert.equal(recoveredDatabase.prepare("SELECT title FROM ai_sessions WHERE id = 'legacy-session'").get().title, "长期迁移夹具");
+      assert.equal(recoveredDatabase.prepare("SELECT context_application_id FROM ai_sessions WHERE id = 'legacy-session'").get().context_application_id, null);
       assert.deepEqual(recoveredDatabase.prepare("PRAGMA foreign_key_check").all(), []);
     } finally { recoveredDatabase.close(); }
 
     runDatabaseStartup(dataDirectory);
     const restartedDatabase = new DatabaseSync(databasePath, { readOnly: true });
     try {
-      assert.equal(Number(restartedDatabase.prepare("PRAGMA user_version").get().user_version), 73);
+      assert.equal(Number(restartedDatabase.prepare("PRAGMA user_version").get().user_version), 82);
       assert.equal(Number(restartedDatabase.prepare("SELECT COUNT(*) AS count FROM workspace_project_sources WHERE project_id = '30000000-0000-4000-8000-000000000001'").get().count), 1);
       assert.equal(Number(restartedDatabase.prepare("SELECT COUNT(*) AS count FROM workspace_default_projects WHERE user_id = 'legacy-user' AND app_id = 'workspace'").get().count), 1);
       assert.equal(restartedDatabase.prepare("SELECT title FROM ai_sessions WHERE id = 'legacy-session'").get().title, "长期迁移夹具");

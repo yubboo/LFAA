@@ -1,4 +1,5 @@
 import { isAgentAssociations, type AgentAssociations } from "lfaa-util-values/src/agent-associations.js";
+import { WORKSPACE_PROJECT_CONTEXT_APPLICATION_IDS, type WorkspaceProjectContextApplicationId } from "lfaa-util-values/src/application-id.js";
 /**
  * LFAA Session 内核：不可变、带序号的事件日志，以及从日志派生的请求和消息视图。
  * 该模块只定义会话语义；身份、持久化、API 和 UI 仍由 LFAA 现有 Owner 管理。
@@ -122,6 +123,7 @@ export interface SessionSubagentTask {
 
 export interface SessionEventDataMap {
   "session/created": { ownerId: string; appId: string; createdAt: string };
+  "session/application-context": { applicationId: WorkspaceProjectContextApplicationId | null };
   "session/title": { title: string; source?: "fallback" | "generated" | "manual" };
   "session/project": { projectId: string | null; nodeId: string | null; directory: string | null; title: string | null };
   "session/archived": { archived: boolean };
@@ -172,7 +174,7 @@ export type SessionSurfaceItem = Readonly<{
 }>;
 
 const knownTypes = new Set<string>([
-  "session/created", "session/title", "session/project", "session/archived", "session/plan-mode", "turn/start", "turn/end", "step/start", "step/end",
+  "session/created", "session/application-context", "session/title", "session/project", "session/archived", "session/plan-mode", "turn/start", "turn/end", "step/start", "step/end",
   "session/side-chat", "session/branch-memory", "session/portable-context", "session/associations", "subagent/task",
   "user/message", "system/message", "developer/message", "assistant/message", "message/feedback", "assistant/response", "assistant/attempt",
   "request/header", "request/context", "tool/call", "tool/result", "activity/change", "usage/record",
@@ -253,6 +255,7 @@ function validatePayload(event: SessionEvent): void {
   const ok = (() => {
     switch (event.type) {
       case "session/created": return string(data.ownerId) && string(data.appId) && string(data.createdAt) && Number.isFinite(Date.parse(data.createdAt));
+      case "session/application-context": return data.applicationId === null || typeof data.applicationId === "string" && WORKSPACE_PROJECT_CONTEXT_APPLICATION_IDS.includes(data.applicationId as WorkspaceProjectContextApplicationId);
       case "session/title": return string(data.title) && data.title.length <= 512
         && (data.source === undefined || ["fallback", "generated", "manual"].includes(String(data.source)));
       case "session/project": return [data.projectId, data.nodeId, data.directory, data.title].every(value => value === null || string(value));

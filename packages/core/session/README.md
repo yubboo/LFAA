@@ -63,6 +63,8 @@ LFAA 适配继续通过既有 `/ai/sessions`、`/ai/runs` 与 AI Work 消息投�
 
 session/associations 为有界、不可变、可重放的引用事件；视图增量缓存，运行/归档时不改关联。记忆分支继承所选回答时点的关联；旧 App ID/历史不改写，共享项目与账户权限分开。
 
+通用 Work 会话用 `session/application-context` 保存可空领域 App 上下文。Session Owner 同步更新 SQLite 会话头投影并在列表/详情视图回读；新建、续问和分支均保留上下文。它只描述当前工作的 App，不改变 `app_id=workspace`、项目归属、工具范围或 Permission Owner。
+
 构建只写仓库根 dist/packages/core/session/；当前合同见 [开发提示词](../../../docs/development/xiaoyu-agent.zh.md)。构建、合成模型、浏览器与真实模型/节点验收分别报告。
 
 `usage/record` 保存 Provider 实际返回的 `requestCount`、`cacheReadReportedRequestCount`、`cacheReadTokens` 和 `promptTokens`；分组汇总用报告计数表示真实字段覆盖率。旧事件缺少请求数或缓存读数时保留为未知，不推导命中数。普通消息投影只附加当前回答的主回合 usage，不把 `purpose=memory` 后处理请求或 `purpose=subagent` 子 Agent 用量混为主回复用量；子 Agent Provider token 仍计入 Session/账户汇总，费用不从 SDK 估值推导。一次外部结果最多 32 个模型的记录在单一 Session 事务中提交，避免每个模型单独落盘。字段随已验证的 Session JSONL 分页回读，不另建用量表或客户端存储。

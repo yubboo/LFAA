@@ -12,7 +12,7 @@ import { authenticateDaemonCredential, isRemoteDaemonIdentity } from "lfaa-host-
 import { type MinecraftTask } from "lfaa-jobs/src/minecraft-queue.js";
 import { createSession, sessionLifetimeSeconds } from "lfaa-identity-auth/src/service.js";
 import { type ShortcutSettings } from "lfaa-settings/src/service.js";
-import { APPLICATION_IDS } from "lfaa-util-values/src/application-id.js";
+import { APPLICATION_IDS, WORKSPACE_PROJECT_CONTEXT_APPLICATION_IDS } from "lfaa-util-values/src/application-id.js";
 import { EXECUTION_SANDBOX_MODES } from "lfaa-util-values/src/sandbox-contract.js";
 import { EASYTIER_RUNTIME_RELEASE } from "lfaa-game-connectivity/src/easytier-release.mjs";
 export type AsyncRequestHandler = (request: Request, response: Response, next: NextFunction) => Promise<void>;
@@ -267,6 +267,8 @@ const aiWorkbenchViewSchema = Joi.object({
 
 export const aiChatMessageSchema = Joi.object({
   appId: Joi.string().valid(...APPLICATION_IDS).required(),
+  /** 当前 Workspace Session 的领域 App 背景；不代表授权或工具范围。 */
+  contextApplicationId: Joi.string().valid(...WORKSPACE_PROJECT_CONTEXT_APPLICATION_IDS).allow(null),
   sessionId: Joi.string().guid({ version: ["uuidv4", "uuidv5"] }).allow(null).default(null),
   projectId: Joi.string().guid({ version: ["uuidv4", "uuidv5"] }).allow(null),
   gitRepositoryId: Joi.string().guid({ version: ["uuidv4", "uuidv5"] }).allow(null),
@@ -320,6 +322,7 @@ export const writingCatalogEntrySchema = Joi.object({
 
 export const aiSessionArchiveSchema = Joi.object({ archived: Joi.boolean().required() }).unknown(false);
 export const aiSessionPlanModeSchema = Joi.object({ active: Joi.boolean().required() }).unknown(false);
+export const aiSessionContextApplicationSchema = Joi.object({ contextApplicationId: Joi.string().valid(...WORKSPACE_PROJECT_CONTEXT_APPLICATION_IDS).allow(null).required() }).unknown(false);
 export const aiSessionTitleSchema = Joi.object({ title: Joi.string().trim().min(1).max(160).required() }).unknown(false);
 
 export const aiSessionForkSchema = Joi.object({

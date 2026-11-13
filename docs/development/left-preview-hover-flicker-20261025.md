@@ -56,7 +56,7 @@
 - 验证：`node --test apps/cli/tests/client-left-preview-hover-flicker.test.mjs apps/cli/tests/client-workbench-responsive.test.mjs` 27/27；`pnpm.cmd run build:web` 通过，含 Client TypeScript 检查与 Vite 2294 模块；`pnpm.cmd --filter lfaa-client-ui-dockkit run build` 通过，输出均在根 dist；`pnpm.cmd run check:workspace` 215 包通过；目标文件 `git diff --check` 通过。首次 pnpm PowerShell shim 因执行策略拒绝，改用 pnpm.cmd 后通过。没有独立 workspace-preflight/quality/release 命令，本轮不重复构建未变化的 Host。
 - 正式服务：核验 3000 监听 PID 45936 为源码 CLI，没有终止或重启它。当前源码 `node scripts/runtime-build-state.mjs web` 返回 `[]`。从当前 checkout 的正式 `apps/cli/bin/lfaa.mjs web --no-local-daemon` 启动隔离 Home/data（`dist/.tmp/hover-flicker-home`），实页路由为 `http://127.0.0.1:31372/work`。首次因继承外部 data 变量被存储独占锁拒绝，没有绕过锁；显式指定隔离 Home/data 后启动成功。
 - 内置浏览器 1173×925：真实拖拽右分隔条将中心从约 643px 拖到约 305px，左二保持 200px；收起左栏后中心可保持 300px，键盘聚焦切换按钮显示 200px 完整预览。双击右侧新标签收起中心后，`data-center-collapsed=true`，左栏展开宽度及隐藏预览仍为 200px，没有归零。拖拽操作未直接触发完全吸附，该边界由双击同一正式折叠入口覆盖。
-- 内置浏览器 820×520：Compact 模式中心 300px、预览 200px，document 无横向溢出，短屏左栏底部可见；临时视口已 reset。截图：[桌面](../../dist/.tmp/hover-flicker-desktop.png)、[窄分栏短屏](../../dist/.tmp/hover-flicker-narrow.png)。
+- 内置浏览器 820×520：Compact 模式中心 300px、预览 200px，document 无横向溢出，短屏左栏底部可见；临时视口已 reset。桌面与窄分栏截图曾保存在 `dist/.tmp/` 临时目录，当前副本未保留；此处保留当时的视口与测量记录。
 - 性能：真实 effect 重复提交回归证明连续 12 次渲染最多一次回写，消除两个约束相互覆盖导致的持续更新；没有新增监听、订阅、RAF 或计时器。没有帧时间/长任务量化；认证、权限及业务数据 Owner 未改。
 - 边界：浏览器工具没有纯鼠标移动/hover 接口，聚焦预览与拖拽检查不替代纯 hover。未测真实 Electron/WebView、用户项目长列表、亮色/高对比度/减少动态组合及设备帧时间；纯 hover 交互仍待验。
 - 清理：已停止本轮 31372 隔离服务，校验绝对路径位于当前 checkout 的 `dist/.tmp/` 后删除本轮隔离 Home/data；仅保留两张验收截图。真实 3000 服务未重启，最终 HTTP 检查 `/work` 返回 503 构建更新保护；需要通过正式菜单安全重启后使用本次构建，不能仅刷新。

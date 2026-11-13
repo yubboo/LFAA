@@ -308,6 +308,19 @@ test("无限画布按账户与 App 隔离、跨 App 拒绝并保持 CRUD/边界/
     /找不到要更新的画布节点/u
   );
 
+  const generatedImageAssetId = randomUUID();
+  const generatedImageNodeId = randomUUID();
+  const generatedImage = owner.commitCanvasAsset("account-a", "writing", writingProject.id, {
+    expectedUpdatedAt: nodeUpdated.updatedAt,
+    name: "无生成节点时的结果.png",
+    mimeType: "image/png",
+    bytes: PNG,
+    assetId: generatedImageAssetId,
+    newNode: { id: generatedImageNodeId, type: "image", x: 480, y: 0, width: 320, height: 260, data: { assetId: generatedImageAssetId } }
+  });
+  assert.equal(generatedImage.project.nodes.at(-1).id, generatedImageNodeId);
+  assert.equal(generatedImage.project.nodes.at(-1).data.assetId, generatedImage.asset.assetId);
+
   // 损坏项目文件保留原样。
   const corrupt = owner.createCanvasProject("corrupt-account", "writing", "损坏项目");
   const corruptPath = resolve(resolveUserDataPaths(process.env.LFAA_DATA_DIR, "corrupt-account").projects, "canvas", "writing", corrupt.id, "project.json");

@@ -65,3 +65,5 @@ AI Work 的右栏正在拖动时，Workbench 根据 `ResizableWorkbench` 的 `da
 Workbench 的 `allApplicationNavigationItems` 是内置应用菜单项的单一清单。设置中心的 `general.hiddenApplicationNavigationIds` 仅过滤传给应用菜单的可见项，所有页面仍持有完整清单用于设置展示和恢复；清单变化不更改路由、授权、应用运行状态或安装内容。
 
 游戏库 `/games/steamcmd` 的 `SteamcmdWorkspace` 复用 SteamCMD Client Connection 展示真实服务端状态和任务。DST 向导创建共享安装的 Master/Caves 集群，并将配置目录作为一次性位置请求交给 File Manager；UI 不接收、缓存或写入 `cluster_token.txt` 内容，也不把 Daemon PID 存为本地偏好。
+
+Workbench 仅在共享 `/work` 非画布页接收 Renderer 的来源 App 上下文；画布 App 身份由画布路由提供。两者都只透传领域背景，不改变 Session 的 `appId=workspace`、能力目录或 Permission Owner。
