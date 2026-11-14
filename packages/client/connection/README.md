@@ -6,6 +6,36 @@ Minecraft Java 环境摘要在运行时返回发行版、完整版本、架构�
 
 此包提供已认证控制端 API 和 AI Work SSE 消费协议，不持有模型、Session 或权限业务规则。
 
+`src/api.ts` 是 53 行兼容聚合入口；认证 JSON/二进制请求、相同只读请求合并和会话失效处理归 `src/http-client.ts`。业务请求与 DTO 按领域迁至独立模块，并继续由 `api.ts` 重导出，既有 `lfaa-client-connection/src/api.js` 调用方无需改变导入路径。写作相关 API 类型与请求集中在 `src/writing-api.ts`；书籍、章节、提案数据和写作操作事务仍由 Writing Owner 持有，Connection 只沿既有认证路径透传。
+
+AI Provider 探测、账户凭据/模型选择 API 集中于 `src/ai-account-api.ts`；Connection 只沿认证 Settings API 传递用户显式提交的请求和服务端结果，不缓存账户凭据或复制模型目录 Owner。
+
+Workspace 项目/本机来源、目录、Git 操作与知识库来源请求集中于 `src/workspace-api.ts`；项目和文件读写仍按原 `appId`、`sourceId` 与 Host 校验合同透传，Connection 不直接访问磁盘或保存项目副本。
+
+浏览器会话/标签/凭据合同与控制端点归 `src/browser-api.ts`；活动 SSE 仍单独校验响应、绑定登录代次、保留 AbortSignal 并对帧/缓冲设置既有大小上限；普通请求复用统一认证传输。不把页面正文、浏览记录或凭据留在 Connection 本地副本中。
+
+文件节点、系统文件操作、上传/下载、传输任务与审计 API 集中于 `src/file-manager-api.ts`；它只描述和调用既有 Files Owner 的认证端点，传输大小合同继续复用共享常量，权限、路径校验、持久化和节点执行仍由服务端持有。`api.ts` 继续重导出这些符号以兼容旧调用方。
+
+Minecraft、SteamCMD 和联网路由 DTO/端点分别集中于 `src/minecraft-api.ts`、`src/steamcmd-api.ts` 与 `src/connectivity-api.ts`。Minecraft 专用 Workflow 投影归 `src/minecraft-workflow-api.ts`，复用通用 Workflow Connection 合同；服务端规则、任务执行和状态 Owner 不随 Client 传输模块移动。
+
+身份角色、登录代次、Passkey、受信任联系人/账户恢复及管理员用户 API 集中于 `src/identity-api.ts`；凭据与用户记录仍只由认证/Identity Owner 保存。本模块仅执行现有认证请求并回传 Owner 结果，不本地缓存密码、Passkey 或账户资料。
+
+AI 漫剧 DTO/生成和媒体资源请求集中于 `src/ai-video-api.ts`；通用 App Workflow DTO/端点集中于 `src/workflow-api.ts`，Minecraft 旧版工作流 DTO 投影归 `src/minecraft-workflow-api.ts`；GitHub Device Flow/仓库读取与 Daemon 凭据操作分别归 `src/github-api.ts`、`src/daemon-connection-api.ts`。响应对象形状窄化使用 `src/value-guards.ts`，这些连接器不保存凭据或领域数据。
+
+Canvas 项目/素材/生成请求与 DTO 归 `src/canvas-api.ts`；Agent Git 仓库与固定操作端点归 `src/agent-git-api.ts`；终端会话类型/命令端点归 `src/terminal-api.ts`。三者保留原控制端路径、同源认证、AbortSignal 和直接下载行为；项目/素材、Git 凭据与终端权限仍由各自 Host/服务 Owner 校验和持有。
+
+账户偏好、Settings API、记忆、AI 账户使用控制、账户快照和外观背景的请求/DTO 归 `src/account-settings-api.ts`；该层不复制账户设置或记忆数据。底层设置仍由 Settings/Memory Owner 持有，UI 使用既有设置中心读写合同。
+
+Session、消息页、消息反馈、分支、上下文关联、消息用量投影与 Session CRUD/用量端点归 `src/ai-session-api.ts`。该模块只传递 Session Owner 返回的数据；Run SSE/流连接、权限决定和持久化执行规则仍归各自 Owner。
+
+Data Directory 与 Project Storage Locations 读写、内容迁移 DTO/端点归 `src/storage-location-api.ts`；桌面 `Window.lfaaDesktop` Host 合同及 Electron/Tauri 文件夹选择器归 `src/desktop-api.ts`。本机选择仍返回路径供原 Workspace/Settings 流程处理，迁移路径校验和复制事务仍留现有 Owner。
+
+已安装 AI 插件/扩展、运行控制与认证 NDJSON 安装流归 `src/plugin-api.ts`；技能/插件可安装目录和来源检查归 `src/capability-api.ts`；本地模型目录及下载生命周期归 `src/local-model-api.ts`。Provider/账户/Claude 外部凭据 API 继续和模型账户选择同属 `src/ai-account-api.ts`，所有密钥仍只在用户提交时沿原认证接口传输。
+
+AI 审批与已记忆权限决定接口归 `src/ai-permission-api.ts`；Run 停止/暂停/继续、追加输入与澄清回答接口归 `src/ai-run-control-api.ts`；Run SSE 请求、事件解析与重连归 `src/ai-run-stream-api.ts`。这些模块只负责 Connection 适配，实际审批和执行生命周期仍由 Permission/Agent Loop/Session Owner 决定。
+
+AI 账户、插件、能力目录、Permission、本地模型和 Workspace/Git DTO 分别归 `src/ai-account-types.ts`、`src/ai-plugin-types.ts`、`src/ai-capability-types.ts`、`src/ai-permission-types.ts`、`src/local-model-types.ts` 与 `src/workspace-types.ts`，请求模块直接引用对应类型文件，避免反向依赖 `api.ts`。Host Task、AI Office、附件上传、健康状态和错误兜底分别归 `src/ai-host-task-api.ts`、`src/ai-office-api.ts`、`src/attachment-api.ts`、`src/health-api.ts` 与 `src/errors.ts`；Typert Remote 调用与身份 API 分别归 `src/typert-client.ts`、`src/identity-api.ts`。
+
 AI Session Client 暴露 `renameAiSession()` 与 `generateAiSessionTitle()`，只传会话 ID 和用户标题/生成请求，并消费 Session Controller 返回的真实会话标题及状态；Client 不在本地推断持久化是否成功。构建写入仓库根 `dist/packages/client/connection/`。
 
 AI Work SSE 的 `prompt-suggestions` 事件仅传递 Session Owner 已校验的建议数组；历史消息沿独立的 `AiMessage.promptSuggestions` 字段回读，Connection 不生成建议或执行按钮内容。

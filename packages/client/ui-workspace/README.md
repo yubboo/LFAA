@@ -1,5 +1,7 @@
 # `lfaa-client-ui-workspace`
 
+`CanvasWorkspace.tsx` 保留画布页面、项目切换/保存、React Flow 交互和领域面板装配；`src/canvas-workspace/project-model.ts` 集中项目摘要、Canvas 项目与 React Flow 节点/连线互转、默认 UI 数据及素材/节点引用整理。节点卡片视图仍归 `CanvasNodeCards.tsx`，导入/导出与字段归一仍归 `CanvasProjectTransfer.ts`；此拆分不复制 Canvas Owner 数据或持久化。
+
 AI Work 中间列不超过 520px 时，标题、模式和常用操作保持在同一条横栏；小屏模式与工具只显示图标，名称继续通过无障碍标签和悬浮提示提供。连接状态点按设置中心 `general.showServiceStatus`（默认开启）显示，并压缩为 14px 的点位。超窄列按容器宽度略缩按钮并截短标题，不把顶栏拆成多行。布局按中心列容器而非窗口宽度适配，Appearance 外观设置保持不变。
 
 `/apps/<app>/ai-work` 归一至 `/work`；App 画布右侧聊天复用同一 `workspace` 会话、项目列表和默认工作区，同时传入当前画布领域上下文。该聊天栏为底部用量提示提供独立定位边界，提示按侧栏宽度收缩并向上居中展开。领域画布与手动工作区仍由原 App Owner 装配。
@@ -157,6 +159,10 @@ AI Work 宽中栏的模型配置提示区是会话的直接子盒子，使用与
 普通写作入口由 `ApplicationWorkspace` 装配 `ui-writing/WritingWorkspace`，并传递 Workbench 的 `UserSettings` 与设置变更回调；写作工具栏快捷控制仍经 Settings Owner 保存同一账户外观字段，不在工作区包另建偏好存储。
 
 `application-workspace/components/ApplicationNavigationPanel.tsx` 展示当前应用菜单及 AI Work 里的应用/共享能力导航；`application-workspace/application-navigation-model.ts` 集中生成分组与选择回调。`ApplicationWorkspace` 继续提供真实应用目录、路由/打开回调和区段状态。组件复用现有 SecondaryNavigation 与滚动恢复，不拥有领域页面、应用目录或设置事实。
+
+2026-11-14：`application-workspace/components/ApplicationSidebar.tsx` 负责左侧工作区栏、应用导航与通知壳层；`ApplicationSidebarSessions.tsx` 独立负责会话/项目分区、改名、滚动恢复和账户/App 偏好；`sidebar-types.ts` 维护这组组件的内部属性合同。`ApplicationWorkspace` 保留工作区布局、数据/状态装配和 Owner 回调。Client Store 偏好、Session/Workspace/Git/Notification Owner 与样式路径均不变。
+
+2026-11-14：继续完成 `ApplicationWorkspace` 拆分，入口文件为 534 行，只组装业务 Hook、聊天内容与 Workbench 区域。`application-workspace/hooks/` 分别承载 Session/Workspace、能力目录、Chrome/响应式布局、浏览器与 Utility Tabs、Writing、Canvas、Minecraft 上下文及 Git/Host Task 状态；`components/` 分别承载侧栏与会话、聊天、中心区、右侧上下文、Git 摘要和工作区页签；`types.ts` 与 `pure-utils.ts` 提供包内共享类型及纯函数。模块只接收现有 Settings、Session、Workspace、Git、Browser、Canvas 与领域 UI Owner 的数据和回调；不新增设置、存储或权限规则，不改包级导出。
 
 `ApplicationWorkspace` 将 `/work` 路由上下文传给共享聊天；系统画布侧聊改用当前 Canvas App 覆盖该值，但仍读取并更新同一 `workspace` Session。领域 App 的 Agent 聊天入口沿此字段传递来源，不复制领域会话。
 

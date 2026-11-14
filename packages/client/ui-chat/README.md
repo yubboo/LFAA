@@ -22,6 +22,8 @@ Composer 按 `.ai-work-chat` 实际容器宽度响应，而非只看浏览器窗
 
 普通 AI Work 的唯一聊天根接收 `ui-workspace` 传入的标题栏 slot，随后按顺序呈现会话消息流、输入区与 `AiUsageFooter`；标题、对话流、输入区和用量盒子分别使用同一套响应式左右间距。输入区把计划提示、待处理澄清/审批卡和 composer 包在同一个父盒子中。消息舞台内部由左锚点导航轨、中间消息流轨和右侧滚动条轨组成；消息列表持有主对话区滚动。单个工具组达到 6 条活动才启用受限纵向列表；1–5 条活动自然展开，不因单个工具说明较长而滚动整组。工具列表不横向滚动，每条工具活动继续独立展开。正文代码围栏、活动输出和操作详情等有界内容也保留自身滚动条。内层滚动时不改变主对话跟随状态，触边后滚轮才传递给消息列表。内部轨道延展进入两侧间距，使锚点及滚动条分别贴近中间列两侧，正文和输入内容共用宽度基准。工作区只限定轨道位置和强调色滚动条。缓存/上下文仍由真实用量与 `aiRuntime.showContextUsage` 设置控制，不新增数据或偏好。
 
+会话问题锚点、预览投影、纯滚动/视口算法与锚点专属 CSS 归 `lfaa-client-ui-conversation`；`hooks/useAiConversationScroll.ts` 负责把该算法接入聊天 DOM，并独立管理账户/App/会话级位置恢复、贴底跟随、用户滚动和锚点测量生命周期。公开执行轨迹的投影、状态/耗时摘要、共享计时器和轨迹布局归 `lfaa-client-ui-trajectory`。此聊天包保留 AI Markdown、Session/Run 协调、权限/问题回调、工具活动详情插槽和文件变更摘要；`activity-duration.ts`、`activity-clock.ts`、`response-timeline.ts` 只作为已有源码/回归的兼容转发入口。
+
 回复运行和完成后都固定显示“小鱼助手 · 已处理/用时”标题与分隔线。思考状态按真实事件落点显示为不可点击状态；公开回复开始后跟随最新可见正文显示“正在回复”，已派发工具则显示对应可展开操作摘要。重复模型请求、推理、接收和准备阶段不进入展示；隐藏推理不展示。处理中状态以回复 ID 稳定派生七色流光相位，不随 token 更新闪色，并采用读取 `appearance.overlay` 与 `appearance.blur` 共享令牌的液态玻璃胶囊；`appearance.advanced.reducedMotion` 生效时保留静态磨砂表面并停止彩色扫光，不增加运行状态订阅或请求。
 
 仅当活动记录标明内置 Browser Tool 与已校验 Provider 且状态为成功时，聊天通知工作区切换到同一 Browser Owner 的 Dock；失败、审批未完成和个人 Tabbit 活动不触发切换。
@@ -32,7 +34,7 @@ Composer 按 `.ai-work-chat` 实际容器宽度响应，而非只看浏览器窗
 
 “回到底部”只在消息区存在实际滚动距离、且离最新回复超过跟随阈值时显示。滚轮在内容无溢出或已到滚动边界时不会凭滚轮幅度虚构离底距离。
 
-全屏 `/voice` 模式仍由 `AiWorkChat` 持有并复用当前会话；语音输入、播报和语言沿用 `aiRuntime.voiceInputEnabled`、`aiRuntime.readResponsesAloud` 与 `general.language`。真实识别文本逐轮自动发送，播报结束或关闭播报时恢复聆听；语音识别与播放由浏览器宿主提供，不创建语音会话或录音存储。独立全屏视觉只展示当前状态、输入控件和当前会话信息，粒子球图片存于 `src/assets/voice-particle-core.png`；会话记录仍由 AI Work 唯一 Owner 管理。
+全屏 `/voice` 模式仍由 `AiWorkChat` 持有并复用当前会话；纯展示、输入控件和状态栏归包内 `components/AiWorkVoiceSurface.tsx`，语音会话状态与回调仍由聊天协调层传入。语音输入、播报和语言沿用 `aiRuntime.voiceInputEnabled`、`aiRuntime.readResponsesAloud` 与 `general.language`。真实识别文本逐轮自动发送，播报结束或关闭播报时恢复聆听；语音识别与播放由浏览器宿主提供，不创建语音会话或录音存储。粒子球图片存于 `src/assets/voice-particle-core.png`；会话记录仍由 AI Work 唯一 Owner 管理。
 
 语音主脑的粒子球由 `VoiceOrb3D` 负责：宿主可用 WebGL 时以固定数量点云绘制带透视的 3D 球，状态控制旋转与呼吸；WebGL 不可用时保留图片并使用 CSS 3D 倾转和双轨道动画。语音模式的 SpeechRecognition 临时结果只发送短暂活动强度给动画，不向输入区展示、提交或持久化临时转写。动效继续读取 Appearance 的强调色、标题色与 `appearance.advanced.reducedMotion`；不新增偏好。WebGL 路径在页面隐藏、离开视口或减少动态效果时停止/冻结逐帧绘制，减少动态效果设置在 CSS 后备中也会关闭动画；卸载时撤销帧循环、观察器、监听器与 GPU 资源。
 
@@ -84,6 +86,19 @@ Composer 按 `.ai-work-chat` 实际容器宽度响应，而非只看浏览器窗
 
 定向验证位于 `apps/cli/tests/ai-work-response-timeline.test.mjs`、`client-performance.test.mjs`、`ai-work-activity-duration.test.mjs` 和 `client-ai-work-composer-responsive.test.mjs`。合成事件/SSR 验证与实际 Provider、浏览器、桌面及帧时间验收分别记录。
 
+## 包内代码边界
+
+- `AiWorkChat.tsx` 是稳定聊天根和 Run/Session/API 协调入口；它持有会话切换、消息加载、流订阅、发送、设置选择和权限交互的既有调用，不成为服务端业务规则 Owner。
+- `components/AiWorkMessageRow.tsx` 只呈现单条持久化消息、活动和消息级动作；`message-types.ts` 定义协调层与展示层共享的窄状态/动作合同。反馈按钮、反馈理由/对话框和专属 CSS 归 `lfaa-client-ui-message-feedback`，本包仍协调反馈状态并调用既有 Connection API。
+- `components/ConversationAnchorRail.tsx` 只呈现会话提问锚点并派发跳转回调；锚点布局和滚动计算继续归 `conversation-anchor-preview.ts`、`conversation-scroll.ts`。
+- 计划状态横幅及专属 CSS 归 `lfaa-client-ui-plan`；消息反馈按钮/表单及专属 CSS 归 `lfaa-client-ui-message-feedback`。计划和反馈的状态、请求及 Session 写入仍由本包调用既有 Owner 完成。
+- 模型目录与推理档位 Popover 视图、专属 CSS 归 `lfaa-client-ui-model-selection`；本包保留目录投影、选择状态、键盘快捷键和 Settings/Connection 写入回调。外层 Popover 定位与 Workbench 表面适配仍由聊天宿主控制。
+- 输入框的 `/` 命令与 `@` 应用/能力候选菜单视图、专属 CSS 归 `lfaa-client-ui-input-trigger`；本包保留触发解析、候选目录与过滤/禁用投影、键盘导航、草稿插入和关联写入。菜单接收当前关联值和能力目录错误，不读取或保存 Session。
+- 审批请求卡/历史决定视图归 `lfaa-client-ui-approval`，澄清问题卡/历史回答视图归 `lfaa-client-ui-user-questions`；本包保留当前 Run、等待状态及回调，既有 Permission/Agent Loop/Session Owner 继续执行审批与答案提交。
+- AI 写作修改提案的原文/新文审阅视图归 `lfaa-client-ui-writing`；本包继续持有提案请求状态，并通过原 Connection API 应用/拒绝、刷新结果，不复制写作规则或持久化。
+- 全屏语音页面视图归包内 `components/AiWorkVoiceSurface.tsx`；本包根持有语音/Run/Session 状态并提供回调，浏览器识别和播报适配仍归 `voice.ts`。
+- `response-timeline.ts`、`activity-duration.ts`、`conversation-scroll.ts`、`reply-suggestions.ts` 等纯逻辑继续放在包级模块；`ai-work-chat.css` 仍是本包聊天界面的样式 Owner。
+
 ## 小鱼共享工作入口（2026-10-14）
 
 可选能力引用按服务端真实目录选择，内置 bundled Skill 不受外部插件总开关误禁；引用不授予执行权限。AI Work 项目管理器支持将项目关联到多个已登记业务 App；关联以 ID 保存并作为项目领域背景传给 Agent，不扩大工具范围或权限，也不关联 Daemon/节点。新建项目选择本机工作区父目录，LFAA 本机 Host 在其下创建同名项目文件夹；编辑时可管理附加本机源目录。
@@ -109,3 +124,4 @@ AI Work 首次使用沿用默认项目语义；可用默认项目成为新会话
 AI Work 新 Run 可选携带 Client 当前 `workspaceView`；续接中的 Run 不重复提交该字段。该 JSON 仅描述选择的工作台面板，不进入消息历史或 Session 持久化。
 
 通用 Composer 的领域上下文选择器读取 App 登记清单；从领域聊天入口进入时预选来源 App，画布侧聊使用当前画布 App。用户切换后由 Session Owner 保存到同一会话，并在每次 Run 传给 Agent；此字段只表达当前目标背景，不扩张已登记工具或授权范围。
+Composer 中的附件选择控件、待发送预览与其样式归 `packages/client/ui-attachment`。本包内 `src/hooks/useComposerAttachments.ts` 持有粘贴上传共用的 MIME/大小反馈、编码、Connection 请求和待发送状态；`AiWorkChat.tsx` 只保留粘贴事件接线、发送闸门、附件消费与 payload 组合。附件视图只接收列表投影及选择/移除回调。

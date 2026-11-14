@@ -2,6 +2,10 @@
 
 本包持有账户设置界面与登录/账户安全提示。账户身份、凭据状态、通行密钥可用性与写入仍由 Account Owner 提供；Client 只展示状态并调用其已认证 API。
 
+账号资料、安全和账号管理分类的受控标签由 `src/AccountSettingsTabs.tsx` 提供，键盘/ARIA 行为和专属样式也由本包持有。设置页传入当前分类、分类目录和切换回调；路由与选择状态继续归 `ui-settings`，真实身份与账户数据不进入本包缓存。
+
+只读资料区由 `src/AccountProfileSettings.tsx` 呈现当前认证会话的 User；`src/AccountSecuritySettings.tsx` 呈现用户名、邮箱、密码、恢复密钥和 Passkey 安全表单。草稿由 `ui-settings` 受控传入，校验、认证 API、恢复密钥生成/清理、持久化和错误反馈仍由 Settings/Account Owner 协调。
+
 `PasskeySetupPrompt` 的自动弹出受账户 `general.notificationPopupsEnabled` 控制；关闭总开关只隐藏提示，不读取或改写通行密钥状态。用户主动进入安全设置后，通行密钥注册、密码验证和凭据操作继续按 Account Owner 与 Permission Owner 的既有合同执行。
 
 通行密钥提示在检查和显示期间向 Workbench 报告弹窗占用状态，使版本公告等待它结束后再展示；不改变原检查、会话内跳过或账户数据行为。

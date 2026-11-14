@@ -1,0 +1,9 @@
+/* 功能：管理聊天中的审批记录与审批状态标记外观；共享交互容器布局归 ui-chat。 */
+.ai-work-chat__response-interaction .ai-work-chat__approval-record { display: grid; min-width: 0; gap: 4px; padding: 5px 0 5px 12px; border: 0; border-inline-start: 1px solid var(--color-border-subtle); border-radius: 0; background: transparent; color: var(--color-text-muted); }
+.ai-work-chat__response-interaction .ai-work-chat__approval-record > strong { color: var(--color-text-secondary); font-size: .9em; font-weight: 600; overflow-wrap: anywhere; }
+.ai-work-chat__approval-record { display: grid; min-width: 0; gap: 7px; margin-top: 12px; padding: 10px 12px; border: 1px solid var(--color-border-subtle); border-inline-start: 2px solid var(--color-status-warning); border-radius: 10px; background: color-mix(in srgb, var(--color-surface-muted) 46%, transparent); color: var(--color-text-secondary); }
+.ai-work-chat__approval-record > strong { color: var(--color-text-heading); font-size: .92em; font-weight: 620; overflow-wrap: anywhere; }
+.ai-work-chat__approval-record .ai-work-chat__question-inline-answer { margin: 0; padding-top: 7px; }
+.ai-work-chat__approval-record .ai-work-chat__activity-row { border-top: 1px solid var(--color-border-subtle); }
+.ai-work-chat__interaction-dock--approval .ai-work-chat__interaction-dock-icon { background: var(--color-status-warning-surface); color: var(--color-status-warning); }
+.ai-work-chat__composer-interaction-detail { max-height: none; gap: 8px; overflow: visible; padding: 8px 10px; }

@@ -1,0 +1,36 @@
+/** 功能：输入触发器候选菜单视觉与窄屏样式。作用：只呈现聊天输入框内的命令/关联菜单，不定义新主题令牌。关联文件：ComposerTriggerMenu.tsx、ui-chat/src/ai-work-chat.css。 */
+.ai-work-chat__composer-menu { position: absolute; z-index: 30; right: 0; bottom: calc(100% + 9px); left: 0; display: grid; width: 100%; max-height: min(68dvh, 480px); min-height: 0; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; box-sizing: border-box; border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-surface); box-shadow: 0 12px 36px color-mix(in srgb, var(--color-shadow) 26%, transparent); color: var(--color-text-primary); font-family: var(--settings-interface-font, var(--font-family-sans)); }
+.ai-work-chat__composer-menu[data-trigger="/"] { grid-template-rows: minmax(0, 1fr); }
+.ai-work-chat__composer-menu[data-trigger="/"] .ai-work-chat__composer-menu-heading,
+.ai-work-chat__composer-menu[data-trigger="/"] .ai-work-chat__composer-menu-group-label { display: none; }
+.ai-work-chat__composer-menu-heading { display: flex; min-width: 0; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; padding: 10px 12px 7px; border-bottom: 1px solid var(--color-border); }
+.ai-work-chat__composer-menu-heading strong { color: var(--color-text-heading); font-size: var(--font-size-sm); font-weight: 620; }
+.ai-work-chat__composer-menu-heading > span { color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.ai-work-chat__composer-menu-list { display: grid; min-height: 0; gap: 4px; align-content: start; overflow: auto; padding: 5px; overscroll-behavior: contain; }
+.ai-work-chat__composer-menu-group { display: grid; min-width: 0; gap: 2px; }
+.ai-work-chat__composer-menu-group-label { padding: 6px 8px 2px; color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.ai-work-chat__composer-menu-option { display: flex; width: 100%; min-width: 0; min-height: 40px; align-items: center; justify-content: flex-start; gap: 11px; padding: 7px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--color-text-primary); cursor: pointer; text-align: left; }
+.ai-work-chat__composer-menu-option[aria-selected="true"],
+.ai-work-chat__composer-menu-option:hover:not(:disabled) { background: var(--color-surface-hover); }
+.ai-work-chat__composer-menu-option:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: -2px; }
+.ai-work-chat__composer-menu-option:disabled { color: var(--color-text-muted); cursor: not-allowed; }
+.ai-work-chat__composer-menu-option-icon { flex: 0 0 18px; color: var(--color-text-muted); }
+.ai-work-chat__composer-menu-option-copy { display: flex; min-width: 0; flex: 1 1 auto; align-items: baseline; gap: 10px; }
+.ai-work-chat__composer-menu-option-copy strong { max-width: min(42%, 280px); flex: 0 1 auto; overflow: hidden; color: var(--color-text-heading); font-size: var(--font-size-sm); font-weight: 560; text-overflow: ellipsis; white-space: nowrap; }
+.ai-work-chat__composer-menu-option-copy small { min-width: 0; flex: 1 1 auto; overflow: hidden; color: var(--color-text-muted); font-size: var(--font-size-xs); line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
+.ai-work-chat__composer-menu-associated { flex: 0 0 auto; color: var(--settings-accent, var(--color-brand)); font-size: var(--font-size-xs); }
+.ai-work-chat__composer-menu-empty { padding: 12px 9px; color: var(--color-text-muted); font-size: var(--font-size-sm); }
+
+/* LFAA 浮层继续跟随 Wallpaper Engine 的独立浮层材质偏好。 */
+body[data-we-wallpaper][data-we-glass-floaters] .workbench-shell[data-wallpaper-engine-owner="true"] .ai-work-chat__composer-menu {
+  background-color: var(--settings-wallpaper-floaters-surface, var(--color-surface));
+  -webkit-backdrop-filter: blur(var(--settings-wallpaper-floaters-blur, var(--settings-glass-blur))) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01);
+  backdrop-filter: blur(var(--settings-wallpaper-floaters-blur, var(--settings-glass-blur))) saturate(var(--we-saturate, 1.8)) brightness(var(--we-glass-brightness, 1.04)) contrast(1.01);
+  border-color: var(--color-border);
+}
+
+@media (max-width: 520px) {
+  .ai-work-chat__composer-menu { max-height: min(44dvh, 360px); }
+  .ai-work-chat__composer-menu-option { align-items: flex-start; }
+  .ai-work-chat__composer-menu-associated { padding-top: 2px; }
+}

@@ -4,7 +4,7 @@
 
 参考 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)，上游基线 commit `639ed015397290b3745d163aafe02ffee4aa3f84`。
 
-当前 388 个两级目录、226 个实际 workspace 包（224 个产品源码/组合包，2 个工程/测试包），162 个占位目录。控制端/节点运行树含 195 个包；客户端源码包单独进入 Web 构建。
+当前 388 个两级目录、236 个实际 workspace 包（234 个产品源码/组合包，2 个工程/测试包），152 个占位目录。控制端/节点运行树含 195 个包；客户端源码包单独进入 Web 构建。
 
 `implemented` 仅表示有 package.json 和源码/装配；不代表已经进入 Profile、通过运行验收或与 DSH 等价。`placeholder` 不可执行。产品能力现状见 [系统总体架构](系统总体架构.md)，历史核验见 [P0 记录](archive/audits/harness-p0-audit.md)。
 
@@ -72,36 +72,36 @@
 | [packages/client/shortcuts](../packages/client/shortcuts) | — | placeholder | 客户端快捷键服务和登记协议 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/store](../packages/client/store) | lfaa-client-store | implemented | 客户端账户、路由及偏好投影状态 | 仅组合/清单；未证实运行 | DSH 同名目录 |
 | [packages/client/ui-agent-preset](../packages/client/ui-agent-preset) | — | placeholder | Agent 预设的选择与展示界面 | 占位不可执行 | DSH 同名目录 |
-| [packages/client/ui-approval](../packages/client/ui-approval) | — | placeholder | 审批请求和真实决定的界面 | 占位不可执行 | DSH 同名目录 |
-| [packages/client/ui-attachment](../packages/client/ui-attachment) | — | placeholder | 附件选择、预览与状态界面 | 占位不可执行 | DSH 同名目录 |
+| [packages/client/ui-approval](../packages/client/ui-approval) | lfaa-client-ui-approval | implemented | 审批请求和真实决定的界面 | [源码](../packages/client/ui-approval/src/index.ts)；1 个代码消费者；1 个清单消费者；0 个 Profile 角色；0 个 Bundle 声明 | DSH 同名目录 |
+| [packages/client/ui-attachment](../packages/client/ui-attachment) | lfaa-client-ui-attachment | implemented | 附件选择、预览与状态界面 | [源码](../packages/client/ui-attachment/src/index.ts)；1 个代码消费者；1 个清单消费者；0 个 Profile 角色；0 个 Bundle 声明 | DSH 同名目录 |
 | [packages/client/ui-brand-official](../packages/client/ui-brand-official) | — | placeholder | 产品品牌视觉组件 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-chat](../packages/client/ui-chat) | lfaa-client-ui-chat | implemented | AI Work 输入、消息、公开轨迹、提问和结果界面 | [源码](../packages/client/ui-chat/src/index.ts)；3 个代码消费者；4 个清单消费者；0 个 Profile 角色；0 个 Bundle 声明 | DSH 同名目录 |
 | [packages/client/ui-commands](../packages/client/ui-commands) | lfaa-client-ui-commands | implemented | 键盘命令匹配和交互派发 | [源码](../packages/client/ui-commands/src/index.ts)；3 个代码消费者；4 个清单消费者；0 个 Profile 角色；0 个 Bundle 声明 | DSH 同名目录 |
 | [packages/client/ui-connectivity](../packages/client/ui-connectivity) | lfaa-client-ui-connectivity | implemented | 联机 App 工作台和网络任务界面 | [源码](../packages/client/ui-connectivity/src/index.ts)；2 个代码消费者；2 个清单消费者；0 个 Profile 角色；0 个 Bundle 声明 | LFAA 扩展 |
-| [packages/client/ui-conversation](../packages/client/ui-conversation) | — | placeholder | 会话对话容器与消息交互组件 | 占位不可执行 | DSH 同名目录 |
+| [packages/client/ui-conversation](../packages/client/ui-conversation) | lfaa-client-ui-conversation | implemented | 会话对话容器与消息交互组件 | [源码](../packages/client/ui-conversation/src/index.ts)；1 个代码消费者；1 个清单消费者；0 个 Profile 角色；0 个 Bundle 声明 | DSH 同名目录 |
 | [packages/client/ui-deliverables](../packages/client/ui-deliverables) | lfaa-client-ui-deliverables | implemented | 真实交付物与产物展示界面 | [源码](../packages/client/ui-deliverables/src/index.ts)；2 个代码消费者；2 个清单消费者；0 个 Profile 角色；0 个 Bundle 声明 | DSH 同名目录 |
 | [packages/client/ui-directory-picker-browse](../packages/client/ui-directory-picker-browse) | — | placeholder | 通过服务浏览目录的选择界面 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-directory-picker-native](../packages/client/ui-directory-picker-native) | — | placeholder | 平台原生目录选择的客户端适配 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-dockkit](../packages/client/ui-dockkit) | lfaa-client-ui-dockkit | implemented | 共享容器尺寸、Dock/Overlay、拖拽和面板布局 | [源码](../packages/client/ui-dockkit/src/index.ts)；5 个代码消费者；6 个清单消费者；0 个 Profile 角色；0 个 Bundle 声明 | DSH 同名目录 |
 | [packages/client/ui-goal](../packages/client/ui-goal) | — | placeholder | 目标状态和操作展示 | 占位不可执行 | DSH 同名目录 |
-| [packages/client/ui-input-trigger](../packages/client/ui-input-trigger) | — | placeholder | 输入触发器与快捷交互组件 | 占位不可执行 | DSH 同名目录 |
+| [packages/client/ui-input-trigger](../packages/client/ui-input-trigger) | lfaa-client-ui-input-trigger | implemented | 输入触发器与快捷交互组件 | [源码](../packages/client/ui-input-trigger/src/index.ts)；1 个代码消费者；1 个清单消费者；0 个 Profile 角色；0 个 Bundle 声明 | DSH 同名目录 |
 | [packages/client/ui-jobs](../packages/client/ui-jobs) | — | placeholder | 后台任务及节点真实进度展示 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-layout](../packages/client/ui-layout) | lfaa-client-ui-layout | implemented | 全局导航、工作台布局和共享设置映射 | [源码](../packages/client/ui-layout/src/index.ts)；2 个代码消费者；3 个清单消费者；0 个 Profile 角色；0 个 Bundle 声明 | DSH 同名目录 |
-| [packages/client/ui-message-feedback](../packages/client/ui-message-feedback) | — | placeholder | 消息反馈交互组件 | 占位不可执行 | DSH 同名目录 |
+| [packages/client/ui-message-feedback](../packages/client/ui-message-feedback) | lfaa-client-ui-message-feedback | implemented | 消息反馈交互组件 | [源码](../packages/client/ui-message-feedback/src/index.ts)；1 个代码消费者；1 个清单消费者；0 个 Profile 角色；0 个 Bundle 声明 | DSH 同名目录 |
 | [packages/client/ui-minecraft](../packages/client/ui-minecraft) | lfaa-client-ui-minecraft | implemented | Minecraft 领域界面与真实状态展示 | [源码](../packages/client/ui-minecraft/src/index.ts)；2 个代码消费者；5 个清单消费者；0 个 Profile 角色；0 个 Bundle 声明 | LFAA 扩展 |
-| [packages/client/ui-model-selection](../packages/client/ui-model-selection) | — | placeholder | 模型目录选择和能力参数展示 | 占位不可执行 | DSH 同名目录 |
+| [packages/client/ui-model-selection](../packages/client/ui-model-selection) | lfaa-client-ui-model-selection | implemented | 模型目录选择和能力参数展示 | [源码](../packages/client/ui-model-selection/src/index.ts)；1 个代码消费者；1 个清单消费者；0 个 Profile 角色；0 个 Bundle 声明 | DSH 同名目录 |
 | [packages/client/ui-open-in-app](../packages/client/ui-open-in-app) | — | placeholder | 平台应用打开动作的客户端入口 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-permission-presets](../packages/client/ui-permission-presets) | — | placeholder | 权限预设选择界面，不实现授权策略 | 占位不可执行 | DSH 同名目录 |
-| [packages/client/ui-plan](../packages/client/ui-plan) | — | placeholder | 计划模式和计划结果展示 | 占位不可执行 | DSH 同名目录 |
+| [packages/client/ui-plan](../packages/client/ui-plan) | lfaa-client-ui-plan | implemented | 计划模式和计划结果展示 | [源码](../packages/client/ui-plan/src/index.ts)；1 个代码消费者；1 个清单消费者；0 个 Profile 角色；0 个 Bundle 声明 | DSH 同名目录 |
 | [packages/client/ui-plugin-manager](../packages/client/ui-plugin-manager) | lfaa-client-ui-plugin-manager | implemented | 插件安装、停用和故障管理界面 | [源码](../packages/client/ui-plugin-manager/src/index.ts)；2 个代码消费者；2 个清单消费者；0 个 Profile 角色；0 个 Bundle 声明 | DSH 同名目录 |
-| [packages/client/ui-primitives](../packages/client/ui-primitives) | lfaa-client-ui-primitives | implemented | 跨应用可复用的基础交互组件 | [源码](../packages/client/ui-primitives/src/index.ts)；14 个代码消费者；17 个清单消费者；0 个 Profile 角色；0 个 Bundle 声明 | DSH 同名目录 |
+| [packages/client/ui-primitives](../packages/client/ui-primitives) | lfaa-client-ui-primitives | implemented | 跨应用可复用的基础交互组件 | [源码](../packages/client/ui-primitives/src/index.ts)；24 个代码消费者；26 个清单消费者；0 个 Profile 角色；0 个 Bundle 声明 | DSH 同名目录 |
 | [packages/client/ui-reference](../packages/client/ui-reference) | — | placeholder | 上下文引用与来源展示 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-renderer](../packages/client/ui-renderer) | lfaa-client-ui-renderer | implemented | React 根挂载、账户路由和 Slots 容器 | [源码](../packages/client/ui-renderer/src/index.ts)；1 个代码消费者；2 个清单消费者；0 个 Profile 角色；0 个 Bundle 声明 | DSH 同名目录 |
 | [packages/client/ui-schedule](../packages/client/ui-schedule) | — | placeholder | 定时任务配置与实际状态界面 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-session](../packages/client/ui-session) | — | placeholder | 会话选择、恢复和生命周期交互 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-settings](../packages/client/ui-settings) | lfaa-client-ui-settings | implemented | 设置中心页面组合与共享控件 | [源码](../packages/client/ui-settings/src/index.ts)；3 个代码消费者；4 个清单消费者；0 个 Profile 角色；0 个 Bundle 声明 | DSH 同名目录 |
 | [packages/client/ui-settings-account](../packages/client/ui-settings-account) | lfaa-client-ui-settings-account | implemented | 账户及 Provider 凭据配置界面 | [源码](../packages/client/ui-settings-account/src/index.ts)；4 个代码消费者；5 个清单消费者；0 个 Profile 角色；0 个 Bundle 声明 | DSH 同名目录 |
-| [packages/client/ui-settings-agent-loop](../packages/client/ui-settings-agent-loop) | — | placeholder | Agent 循环预算设置界面 | 占位不可执行 | DSH 同名目录 |
+| [packages/client/ui-settings-agent-loop](../packages/client/ui-settings-agent-loop) | lfaa-client-ui-settings-agent-loop | implemented | Agent 循环预算设置界面 | [源码](../packages/client/ui-settings-agent-loop/src/index.ts)；1 个代码消费者；1 个清单消费者；0 个 Profile 角色；0 个 Bundle 声明 | DSH 同名目录 |
 | [packages/client/ui-settings-general](../packages/client/ui-settings-general) | lfaa-client-ui-settings-general | implemented | 通用偏好、任务目录和交互设置界面 | [源码](../packages/client/ui-settings-general/src/index.ts)；4 个代码消费者；5 个清单消费者；0 个 Profile 角色；0 个 Bundle 声明 | DSH 同名目录 |
 | [packages/client/ui-settings-models](../packages/client/ui-settings-models) | lfaa-client-ui-settings-models | implemented | 模型/思考档位的共享选项和设置映射 | 仅组合/清单；未证实运行 | DSH 同名目录 |
 | [packages/client/ui-settings-plugin-inventory](../packages/client/ui-settings-plugin-inventory) | — | placeholder | 已登记插件清单设置界面 | 占位不可执行 | DSH 同名目录 |
@@ -122,12 +122,12 @@
 | [packages/client/ui-subagent](../packages/client/ui-subagent) | — | placeholder | 子 Agent 委派任务与结果展示 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-theme](../packages/client/ui-theme) | lfaa-client-ui-theme | implemented | 共享主题、外观令牌、基础及响应式样式 | 仅组合/清单；未证实运行 | DSH 同名目录 |
 | [packages/client/ui-tool](../packages/client/ui-tool) | — | placeholder | 工具调用合同与真实状态展示 | 占位不可执行 | DSH 同名目录 |
-| [packages/client/ui-trajectory](../packages/client/ui-trajectory) | — | placeholder | 公开执行轨迹展示，不暴露隐藏推理 | 占位不可执行 | DSH 同名目录 |
-| [packages/client/ui-user-questions](../packages/client/ui-user-questions) | — | placeholder | 用户澄清问题与答案交互 | 占位不可执行 | DSH 同名目录 |
+| [packages/client/ui-trajectory](../packages/client/ui-trajectory) | lfaa-client-ui-trajectory | implemented | 公开执行轨迹展示，不暴露隐藏推理 | [源码](../packages/client/ui-trajectory/src/index.ts)；1 个代码消费者；1 个清单消费者；0 个 Profile 角色；0 个 Bundle 声明 | DSH 同名目录 |
+| [packages/client/ui-user-questions](../packages/client/ui-user-questions) | lfaa-client-ui-user-questions | implemented | 用户澄清问题与答案交互 | [源码](../packages/client/ui-user-questions/src/index.ts)；1 个代码消费者；1 个清单消费者；0 个 Profile 角色；0 个 Bundle 声明 | DSH 同名目录 |
 | [packages/client/ui-workflow](../packages/client/ui-workflow) | lfaa-client-ui-workflow | implemented | 工作流定义和画布界面 | [源码](../packages/client/ui-workflow/src/index.tsx)；3 个代码消费者；3 个清单消费者；0 个 Profile 角色；0 个 Bundle 声明 | LFAA 扩展 |
 | [packages/client/ui-workflow-run](../packages/client/ui-workflow-run) | — | placeholder | 工作流运行状态与节点结果界面 | 占位不可执行 | DSH 同名目录 |
 | [packages/client/ui-workspace](../packages/client/ui-workspace) | lfaa-client-ui-workspace | implemented | App 工作区、项目、Git 审阅与共享任务界面 | [源码](../packages/client/ui-workspace/src/index.ts)；2 个代码消费者；4 个清单消费者；0 个 Profile 角色；0 个 Bundle 声明 | DSH 同名目录 |
-| [packages/client/ui-writing](../packages/client/ui-writing) | lfaa-client-ui-writing | implemented | 写作作品、章节、资料和提案界面 | [源码](../packages/client/ui-writing/src/index.ts)；2 个代码消费者；3 个清单消费者；0 个 Profile 角色；0 个 Bundle 声明 | LFAA 扩展 |
+| [packages/client/ui-writing](../packages/client/ui-writing) | lfaa-client-ui-writing | implemented | 写作作品、章节、资料和提案界面 | [源码](../packages/client/ui-writing/src/index.ts)；3 个代码消费者；4 个清单消费者；0 个 Profile 角色；0 个 Bundle 声明 | LFAA 扩展 |
 | [packages/client/web](../packages/client/web) | lfaa-client-web | implemented | 共享浏览器应用启动入口与样式装配 | [源码](../packages/client/web/src/index.ts)；1 个代码消费者；1 个清单消费者；0 个 Profile 角色；0 个 Bundle 声明 | DSH 同名目录 |
 | [packages/compaction/command-compact](../packages/compaction/command-compact) | lfaa-command-compact | implemented | 显式压缩命令适配 | [源码](../packages/compaction/command-compact/src/index.ts)；0 个代码消费者；0 个清单消费者；2 个 Profile 角色；1 个 Bundle 声明 | DSH 同名目录 |
 | [packages/compaction/compaction](../packages/compaction/compaction) | lfaa-compaction | implemented | 上下文压缩服务及引擎合同 | [源码](../packages/compaction/compaction/src/index.ts)；2 个代码消费者；2 个清单消费者；2 个 Profile 角色；0 个 Bundle 声明 | DSH 同名目录 |
@@ -143,7 +143,7 @@
 | [packages/context/tmux-context](../packages/context/tmux-context) | — | placeholder | tmux 会话上下文来源适配 | 占位不可执行 | DSH 同名目录 |
 | [packages/core/agent](../packages/core/agent) | lfaa-agent | implemented | AI 扩展元数据与按需指令登记，Agent 类型/投影合同 | [源码](../packages/core/agent/src/index.ts)；3 个代码消费者；8 个清单消费者；2 个 Profile 角色；1 个 Bundle 声明 | DSH 同名目录 |
 | [packages/core/agent-default-model](../packages/core/agent-default-model) | lfaa-agent-default-model | implemented | 当前账户及子 Agent 模型解析 | [源码](../packages/core/agent-default-model/src/index.ts)；1 个代码消费者；2 个清单消费者；2 个 Profile 角色；1 个 Bundle 声明 | DSH 同名目录 |
-| [packages/core/agent-loop](../packages/core/agent-loop) | lfaa-agent-loop | implemented | 模型回合、按需能力选择、授权往返、执行结果与停止协调 | [源码](../packages/core/agent-loop/src/index.ts)；6 个代码消费者；8 个清单消费者；2 个 Profile 角色；1 个 Bundle 声明 | DSH 同名目录 |
+| [packages/core/agent-loop](../packages/core/agent-loop) | lfaa-agent-loop | implemented | 模型回合、按需能力选择、授权往返、执行结果与停止协调 | [源码](../packages/core/agent-loop/src/index.ts)；5 个代码消费者；7 个清单消费者；2 个 Profile 角色；1 个 Bundle 声明 | DSH 同名目录 |
 | [packages/core/agent-tool-presentation](../packages/core/agent-tool-presentation) | lfaa-agent-tool-presentation | implemented | 注册工具到模型函数协议的单一映射 | [源码](../packages/core/agent-tool-presentation/src/index.ts)；2 个代码消费者；2 个清单消费者；2 个 Profile 角色；0 个 Bundle 声明 | DSH 同名目录 |
 | [packages/core/conversation-memory](../packages/core/conversation-memory) | lfaa-conversation-memory | implemented | 账户对话记忆提取、校验和持久化协调 | [源码](../packages/core/conversation-memory/src/index.ts)；3 个代码消费者；3 个清单消费者；2 个 Profile 角色；0 个 Bundle 声明 | LFAA 扩展 |
 | [packages/core/scope](../packages/core/scope) | lfaa-scope | implemented | 能力可见范围与 Cordis 作用域合同 | [源码](../packages/core/scope/src/index.ts)；4 个代码消费者；4 个清单消费者；2 个 Profile 角色；0 个 Bundle 声明 | DSH 同名目录 |
@@ -247,7 +247,7 @@
 | [packages/llm/llm-pi-ai](../packages/llm/llm-pi-ai) | lfaa-llm-pi-ai | implemented | PI AI 模型协议桥接提供方 | [源码](../packages/llm/llm-pi-ai/src/index.ts)；0 个代码消费者；0 个清单消费者；2 个 Profile 角色；1 个 Bundle 声明 | DSH 同名目录 |
 | [packages/llm/llm-retry](../packages/llm/llm-retry) | lfaa-llm-retry | implemented | 有界 Provider 重试策略，不重放工具副作用 | [源码](../packages/llm/llm-retry/src/index.ts)；0 个代码消费者；0 个清单消费者；2 个 Profile 角色；1 个 Bundle 声明 | DSH 同名目录 |
 | [packages/llm/plugin-package-inventory-deepseek](../packages/llm/plugin-package-inventory-deepseek) | — | placeholder | DeepSeek 插件包目录适配 | 占位不可执行 | DSH 同名目录 |
-| [packages/llm/token-meter](../packages/llm/token-meter) | lfaa-token-meter | implemented | 模型上下文/输出令牌估算合同 | [源码](../packages/llm/token-meter/src/index.ts)；2 个代码消费者；2 个清单消费者；2 个 Profile 角色；1 个 Bundle 声明 | DSH 同名目录 |
+| [packages/llm/token-meter](../packages/llm/token-meter) | lfaa-token-meter | implemented | 模型上下文/输出令牌估算合同 | [源码](../packages/llm/token-meter/src/index.ts)；3 个代码消费者；3 个清单消费者；2 个 Profile 角色；1 个 Bundle 声明 | DSH 同名目录 |
 | [packages/lsp/lsp](../packages/lsp/lsp) | — | placeholder | 语言服务协议与服务合同 | 占位不可执行 | DSH 同名目录 |
 | [packages/lsp/lsp-stdio](../packages/lsp/lsp-stdio) | — | placeholder | stdio 语言服务进程提供方 | 占位不可执行 | DSH 同名目录 |
 | [packages/lsp/tool-lsp](../packages/lsp/tool-lsp) | — | placeholder | 代码导航和语言服务工具 | 占位不可执行 | DSH 同名目录 |

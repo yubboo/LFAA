@@ -1,0 +1,43 @@
+/* 锚点轨道悬浮在消息视口上；48px 命中区覆盖横杠与卡片外透明间隙，只有可见卡片本身暂停跟随；刻度位置仍由内层列表保持原位。 */
+.ai-work-chat__anchors { position: absolute; z-index: 4; top: 50%; left: 0; width: 48px; height: 64px; transform: translateY(-50%); opacity: 0; pointer-events: none; transition: opacity 120ms ease; }
+.ai-work-chat__message-stage:hover > .ai-work-chat__navigation-track > .ai-work-chat__anchors,
+.ai-work-chat__message-stage:focus-within > .ai-work-chat__navigation-track > .ai-work-chat__anchors { opacity: 1; pointer-events: auto; }
+.workbench-shell[data-ai-work-output-focus-blur="true"] .ai-work-chat[data-output-idle="false"] .ai-work-chat__message-stage > .ai-work-chat__navigation-track > .ai-work-chat__anchors { opacity: 1; pointer-events: auto; }
+.ai-work-chat__anchor-list { position: absolute; inset-block: 0; left: 0; width: 48px; }
+.ai-work-chat__anchor { position: absolute; left: 0; display: block; width: 48px; height: 12px; padding: 0; box-sizing: border-box; border: 0; background: transparent; cursor: pointer; pointer-events: auto; }
+/* 横杠固定为 2px 高；锚点由整数像素布局定位，避免分数像素抗锯齿造成粗细不一。 */
+.ai-work-chat__anchors[data-mark-height="1"] .ai-work-chat__anchor-mark { height: 1px; }
+.ai-work-chat__anchor-mark { position: absolute; left: 8px; display: block; width: 6px; height: 2px; box-sizing: border-box; border-radius: 1px; background: var(--color-text-subtle); transition: width 180ms cubic-bezier(.2,.8,.2,1), background-color 180ms ease-out; pointer-events: none; }
+.ai-work-chat__anchor.is-active .ai-work-chat__anchor-mark { background: var(--settings-accent, var(--color-brand)); }
+.ai-work-chat__anchor:is(:hover, :focus-visible, [data-pointer-active="true"]) { z-index: 5; }
+.ai-work-chat__anchor:is(:hover, :focus-visible, [data-pointer-active="true"]) .ai-work-chat__anchor-mark { width: 34px; background: var(--settings-accent, var(--color-brand)); }
+.ai-work-chat__anchor-list:has(.ai-work-chat__anchor:is(:hover, :focus-visible, [data-pointer-active="true"])) .ai-work-chat__anchor.is-active:not(:hover, :focus-visible, [data-pointer-active="true"]) .ai-work-chat__anchor-mark { background: var(--color-text-subtle); }
+.ai-work-chat__anchor-list:not(:has(.ai-work-chat__anchor-preview:hover)) .ai-work-chat__anchor:is(:hover, :focus-visible, [data-pointer-active="true"]) + .ai-work-chat__anchor .ai-work-chat__anchor-mark,
+.ai-work-chat__anchor-list:not(:has(.ai-work-chat__anchor-preview:hover)) .ai-work-chat__anchor:has(+ .ai-work-chat__anchor:is(:hover, :focus-visible, [data-pointer-active="true"])) .ai-work-chat__anchor-mark { width: 28px; }
+.ai-work-chat__anchor-list:not(:has(.ai-work-chat__anchor-preview:hover)) .ai-work-chat__anchor:is(:hover, :focus-visible, [data-pointer-active="true"]) + .ai-work-chat__anchor + .ai-work-chat__anchor .ai-work-chat__anchor-mark,
+.ai-work-chat__anchor-list:not(:has(.ai-work-chat__anchor-preview:hover)) .ai-work-chat__anchor:has(+ .ai-work-chat__anchor + .ai-work-chat__anchor:is(:hover, :focus-visible, [data-pointer-active="true"])) .ai-work-chat__anchor-mark { width: 22px; }
+.ai-work-chat__anchor-list:not(:has(.ai-work-chat__anchor-preview:hover)) .ai-work-chat__anchor:is(:hover, :focus-visible, [data-pointer-active="true"]) + .ai-work-chat__anchor + .ai-work-chat__anchor + .ai-work-chat__anchor .ai-work-chat__anchor-mark,
+.ai-work-chat__anchor-list:not(:has(.ai-work-chat__anchor-preview:hover)) .ai-work-chat__anchor:has(+ .ai-work-chat__anchor + .ai-work-chat__anchor + .ai-work-chat__anchor:is(:hover, :focus-visible, [data-pointer-active="true"])) .ai-work-chat__anchor-mark { width: 16px; }
+.ai-work-chat__anchor-list:not(:has(.ai-work-chat__anchor-preview:hover)) .ai-work-chat__anchor:is(:hover, :focus-visible, [data-pointer-active="true"]) + .ai-work-chat__anchor + .ai-work-chat__anchor + .ai-work-chat__anchor + .ai-work-chat__anchor .ai-work-chat__anchor-mark,
+.ai-work-chat__anchor-list:not(:has(.ai-work-chat__anchor-preview:hover)) .ai-work-chat__anchor:has(+ .ai-work-chat__anchor + .ai-work-chat__anchor + .ai-work-chat__anchor + .ai-work-chat__anchor:is(:hover, :focus-visible, [data-pointer-active="true"])) .ai-work-chat__anchor-mark { width: 11px; }
+.ai-work-chat__anchor-list:not(:has(.ai-work-chat__anchor-preview:hover)) .ai-work-chat__anchor:is(:hover, :focus-visible, [data-pointer-active="true"]) + .ai-work-chat__anchor + .ai-work-chat__anchor + .ai-work-chat__anchor + .ai-work-chat__anchor + .ai-work-chat__anchor .ai-work-chat__anchor-mark,
+.ai-work-chat__anchor-list:not(:has(.ai-work-chat__anchor-preview:hover)) .ai-work-chat__anchor:has(+ .ai-work-chat__anchor + .ai-work-chat__anchor + .ai-work-chat__anchor + .ai-work-chat__anchor + .ai-work-chat__anchor:is(:hover, :focus-visible, [data-pointer-active="true"])) .ai-work-chat__anchor-mark { width: 8px; }
+/* 指针进入预览卡时先收回整组邻近刻度，再仅展开卡片对应项。 */
+.ai-work-chat__anchor-list:has(.ai-work-chat__anchor-preview:hover) .ai-work-chat__anchor-mark { width: 6px; background: var(--color-text-subtle); }
+.ai-work-chat__anchor-list:has(.ai-work-chat__anchor-preview:hover) .ai-work-chat__anchor:has(.ai-work-chat__anchor-preview:hover) .ai-work-chat__anchor-mark { width: 34px; background: var(--settings-accent, var(--color-brand)); }
+.ai-work-chat__anchor:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+.ai-work-chat__anchor-preview { position: absolute; left: calc(100% - 4px); display: grid; width: min(340px, calc(100cqi - 56px)); box-sizing: border-box; gap: 4px; transform: translateY(-50%); padding: 10px 11px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); box-shadow: 0 10px 32px color-mix(in srgb, var(--color-shadow) 22%, transparent); color: var(--color-text-muted); font-family: var(--settings-content-font, var(--font-family-sans)); font-size: var(--font-size-sm); line-height: 1.55; opacity: 0; visibility: hidden; transition: opacity 150ms ease-out, visibility 150ms; cursor: pointer; pointer-events: auto; }
+.ai-work-chat__anchor-preview strong { display: -webkit-box; overflow: hidden; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: var(--color-text-primary); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: var(--font-size-xs); font-weight: 620; }
+.ai-work-chat__anchor-preview > span { display: -webkit-box; overflow: hidden; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.ai-work-chat__anchor:is(:hover, :focus-visible, [data-pointer-active="true"]) .ai-work-chat__anchor-preview { opacity: 1; visibility: visible; }
+
+/* 锚点跟随 AI Work 的输出失焦偏好，只在空闲状态使用同一透明度/模糊效果。 */
+.workbench-shell[data-ai-work-output-focus-blur="true"] .ai-work-chat .ai-work-chat__anchors { transition: opacity 240ms ease; }
+.workbench-shell[data-ai-work-output-focus-blur="true"] .ai-work-chat[data-output-idle="true"] .ai-work-chat__anchors { filter: blur(var(--settings-ai-work-output-focus-blur, 8px)); opacity: var(--settings-ai-work-output-focus-opacity, 1); }
+.workbench-shell[data-reduced-motion="on"] .ai-work-chat__anchors { transition: none; }
+@media (hover: none) {
+  .ai-work-chat__anchors { opacity: 1; pointer-events: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .workbench-shell[data-reduced-motion="system"][data-ai-work-output-focus-blur="true"] .ai-work-chat__anchors { transition-duration: 0ms; }
+}

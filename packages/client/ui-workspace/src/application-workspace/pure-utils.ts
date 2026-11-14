@@ -42,6 +42,14 @@ export function browserSiteHost(url: string): string {
   try { return new URL(url).hostname; } catch { return url; }
 }
 
+export function browserVisitTime(value: string): string {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "";
+  const now = new Date();
+  const sameDay = date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate();
+  return new Intl.DateTimeFormat(undefined, { ...(sameDay ? {} : { month: "numeric", day: "numeric" }), hour: "2-digit", minute: "2-digit" }).format(date);
+}
+
 export function browserAddressForDisplay(address: string, showFullUrl: boolean, focused: boolean): string {
   if (!address || showFullUrl || focused) return address;
   try {

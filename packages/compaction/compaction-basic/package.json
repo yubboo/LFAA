@@ -13,7 +13,7 @@
     "lfaa-llm": "workspace:*",
     "lfaa-settings": "workspace:*",
     "lfaa-compaction": "workspace:*",
-    "lfaa-agent-loop": "workspace:*"
+    "lfaa-token-meter": "workspace:*"
   },
   "scripts": {
     "build": "node ../../../scripts/build-harness.mjs package"

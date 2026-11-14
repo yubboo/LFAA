@@ -218,6 +218,12 @@ const markdown = ["# LFAA Harness 目录对标清单", "", "<!-- 由 scripts/che
   "按入口查 Profile、Bundle 和插件包声明，请看[入口装配图](workspace-entry-map.md)。", "",
   "| 仓库相对目录 | 包名 | 状态 | 专属职责 | 源入口/证据边界 | 来源 |", "|---|---|---|---|---|---|",
   ...current.packages.map(pkg => `| [${pkg.path}](../${pkg.path}) | ${pkg.name ?? "—"} | ${pkg.status} | ${pkg.responsibility ?? "缺少注解"} | ${pkg.evidence.entry ? `[源码](../${pkg.evidence.entry})；${pkg.evidence.consumers.length} 个代码消费者；${pkg.evidence.manifestConsumers.length} 个清单消费者；${pkg.evidence.profileConsumers.length} 个 Profile 角色；${pkg.evidence.bundleDeclarations.length} 个 Bundle 声明` : pkg.status === "placeholder" ? "占位不可执行" : "仅组合/清单；未证实运行"} | ${pkg.upstream ? "DSH 同名目录" : "LFAA 扩展"} |`), ""].join("\n");
+const placeholderPackages = current.packages.filter(pkg => pkg.status === "placeholder");
+const placeholderMarkdown = ["# 上游占位包索引（未实现）", "", "<!-- 由 scripts/check-workspace.mjs --write 从 docs/harness-packages.json 的同一目录扫描生成，不手工维护计数或路径。 -->", "",
+  "这些目录当前没有 package.json，不能作为 workspace 包装载或执行。空目录仅表示目标职责尚未实现，不代表已有能力，也不要求机械填充；目录职责、消费者和装配状态以[全包清单](../harness-packages.md)及源码为准。", "",
+  "| # | 目录 | 分组 |", "|---|---|---|",
+  ...placeholderPackages.map((pkg, index) => `| ${index + 1} | \`${pkg.path}\` | ${pkg.path.split("/")[1] ?? "—"} |`), "",
+  `合计 ${placeholderPackages.length} 个占位目录。实现一个目录后重新运行 \`pnpm run sync:workspace\`；本索引由工作区 Gate 检查并同步。`, ""].join("\n");
 const packageLink = name => {
   const pkg = byName.get(name);
   return pkg ? `[\`${name}\`](../${pkg.path})` : `\`${name}\` (外部包)`;
@@ -266,10 +272,13 @@ const entryMap = entryMapMarkdown.join("\n");
 if (writing) {
   writeFileSync(resolve(root, inventoryPath), `${JSON.stringify(current, null, 2)}\n`);
   writeFileSync(resolve(root, "docs/harness-packages.md"), markdown);
+  writeFileSync(resolve(root, "docs/development/placeholder-packages.md"), placeholderMarkdown);
   writeFileSync(resolve(root, entryMapPath), entryMap);
 } else {
   if (JSON.stringify(previous) !== JSON.stringify(current)) errors.push("包目录 JSON 清单过期");
   if (readFileSync(resolve(root, "docs/harness-packages.md"), "utf8").replace(/\r\n?/gu, "\n") !== markdown) errors.push("包目录 Markdown 清单过期");
+  const placeholderIndexPath = resolve(root, "docs/development/placeholder-packages.md");
+  if (!existsSync(placeholderIndexPath) || readFileSync(placeholderIndexPath, "utf8").replace(/\r\n?/gu, "\n") !== placeholderMarkdown) errors.push("上游占位包索引过期，运行 pnpm run sync:workspace");
   if (!existsSync(resolve(root, entryMapPath)) || readFileSync(resolve(root, entryMapPath), "utf8").replace(/\r\n?/gu, "\n") !== entryMap) errors.push("运行入口与包装配图过期，运行 pnpm run sync:workspace");
 }
 const versions = ["apps/cli/package.json", "apps/web/package.json", "apps/desktop-electron/package.json", "update.json"].map(path => readJson(path).version);

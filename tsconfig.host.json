@@ -294,6 +294,18 @@
       "lfaa-client-store/src/*": [
         "packages/client/store/src/*"
       ],
+      "lfaa-client-ui-approval": [
+        "packages/client/ui-approval/src/index.ts"
+      ],
+      "lfaa-client-ui-approval/src/*": [
+        "packages/client/ui-approval/src/*"
+      ],
+      "lfaa-client-ui-attachment": [
+        "packages/client/ui-attachment/src/index.ts"
+      ],
+      "lfaa-client-ui-attachment/src/*": [
+        "packages/client/ui-attachment/src/*"
+      ],
       "lfaa-client-ui-chat": [
         "packages/client/ui-chat/src/index.ts"
       ],
@@ -312,6 +324,12 @@
       "lfaa-client-ui-connectivity/src/*": [
         "packages/client/ui-connectivity/src/*"
       ],
+      "lfaa-client-ui-conversation": [
+        "packages/client/ui-conversation/src/index.ts"
+      ],
+      "lfaa-client-ui-conversation/src/*": [
+        "packages/client/ui-conversation/src/*"
+      ],
       "lfaa-client-ui-deliverables": [
         "packages/client/ui-deliverables/src/index.ts"
       ],
@@ -324,17 +342,41 @@
       "lfaa-client-ui-dockkit/src/*": [
         "packages/client/ui-dockkit/src/*"
       ],
+      "lfaa-client-ui-input-trigger": [
+        "packages/client/ui-input-trigger/src/index.ts"
+      ],
+      "lfaa-client-ui-input-trigger/src/*": [
+        "packages/client/ui-input-trigger/src/*"
+      ],
       "lfaa-client-ui-layout": [
         "packages/client/ui-layout/src/index.ts"
       ],
       "lfaa-client-ui-layout/src/*": [
         "packages/client/ui-layout/src/*"
       ],
+      "lfaa-client-ui-message-feedback": [
+        "packages/client/ui-message-feedback/src/index.ts"
+      ],
+      "lfaa-client-ui-message-feedback/src/*": [
+        "packages/client/ui-message-feedback/src/*"
+      ],
       "lfaa-client-ui-minecraft": [
         "packages/client/ui-minecraft/src/index.ts"
       ],
       "lfaa-client-ui-minecraft/src/*": [
         "packages/client/ui-minecraft/src/*"
+      ],
+      "lfaa-client-ui-model-selection": [
+        "packages/client/ui-model-selection/src/index.ts"
+      ],
+      "lfaa-client-ui-model-selection/src/*": [
+        "packages/client/ui-model-selection/src/*"
+      ],
+      "lfaa-client-ui-plan": [
+        "packages/client/ui-plan/src/index.ts"
+      ],
+      "lfaa-client-ui-plan/src/*": [
+        "packages/client/ui-plan/src/*"
       ],
       "lfaa-client-ui-plugin-manager": [
         "packages/client/ui-plugin-manager/src/index.ts"
@@ -362,6 +404,12 @@
       ],
       "lfaa-client-ui-settings-account/src/*": [
         "packages/client/ui-settings-account/src/*"
+      ],
+      "lfaa-client-ui-settings-agent-loop": [
+        "packages/client/ui-settings-agent-loop/src/index.ts"
+      ],
+      "lfaa-client-ui-settings-agent-loop/src/*": [
+        "packages/client/ui-settings-agent-loop/src/*"
       ],
       "lfaa-client-ui-settings-general": [
         "packages/client/ui-settings-general/src/index.ts"
@@ -404,6 +452,18 @@
       ],
       "lfaa-client-ui-theme/src/*": [
         "packages/client/ui-theme/src/*"
+      ],
+      "lfaa-client-ui-trajectory": [
+        "packages/client/ui-trajectory/src/index.ts"
+      ],
+      "lfaa-client-ui-trajectory/src/*": [
+        "packages/client/ui-trajectory/src/*"
+      ],
+      "lfaa-client-ui-user-questions": [
+        "packages/client/ui-user-questions/src/index.ts"
+      ],
+      "lfaa-client-ui-user-questions/src/*": [
+        "packages/client/ui-user-questions/src/*"
       ],
       "lfaa-client-ui-workflow": [
         "packages/client/ui-workflow/src/index.tsx"

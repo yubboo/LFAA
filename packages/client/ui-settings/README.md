@@ -1,5 +1,7 @@
 # 共享设置界面
 
+`SettingsPage.tsx` 保留 React 页面组合、远端数据读取与缓存、自动保存和领域副作用；分类到菜单/设置组的映射、深链兼容、分类读写和账户级导航偏好由 `settings-page-model.ts` 维护，继续沿用原 URL 参数与 localStorage key。“常规”表单及其布局/动效选择器和专属样式归 `lfaa-client-ui-settings-general/src/GeneralSettingsSection.tsx`、`general-settings.css`。Agent Loop 运行参数组由 `lfaa-client-ui-settings-agent-loop/src/AgentLoopSettingsGroup.tsx` 展示，容器传入现有 `UserSettings.aiRuntime`、模型账户和受控更新回调；设置 schema、自动保存、模型账户、运行策略与权限执行继续归 Settings/Agent Loop/Permission Owner。界面组件只接收现有 `UserSettings.general`、默认工作区读取结果和操作回调；保存仍调用当前 Settings Owner，权限跳转、工作区重试与许可证弹窗仍由容器处理。其余分类按职责继续从本容器逐批拆分。
+
 常规页“项目外聊天文件夹”只读展示 Workspace Owner 登记的默认工作区路径；项目外新聊天默认归入该工作区，Session Owner 仍将会话事件写入 LFAA Home 的 `.lfaa/sessions`。此位置不新增设置字段、不迁移旧会话。“默认任务文件夹”仍由 Settings Owner 的 `general.taskFolder` 管理并显示在“环境”页；留空时本机无项目文件操作继承 Workspace Owner 默认工作区，自定义值优先。远端节点终端在该项留空时使用节点登记数据目录；显式路径仍按目标执行入口应用。通知偏好仍保存在 `general` 分类，控件仅展示在“通知”页。
 
 常规页“集成终端 Shell”展示现有账户级 `general.integratedShell`，包含系统默认、Windows PowerShell、命令提示符、Bash 和 Zsh。新建交互终端与未按次指定 Shell 的本机/节点命令共用该选择；已经打开的终端不切换进程，按次指定命令 Shell 也不改账户偏好。
@@ -8,7 +10,7 @@
 
 设置中心的全局“最近会话”入口调用 Workbench 专属导航回调：进入 `/work` 后展开唯一的会话 Dock；普通“工作·小鱼智能体”入口不代替此请求。
 
-“个人资料 / 安全 / 账号管理”集中在单一“账号”设置入口并通过页内 Tab 切换；资料仍读取当前认证会话，凭据继续调用 Account Owner，账号列表继续使用 `AdminUsersPage` 与管理 API。旧 `section=profile/security/account` 深链映射到对应 Tab；页面继续消费 Appearance 共享令牌，不新增账户设置偏好。设置工具栏按 `settings-main` 实际容器宽度排列；窄容器中设置菜单与自动保存状态并排，恢复默认和立即保存按钮在下一行并排铺满。通知页提示保持现有接入边界，并使用适合窄栏阅读的短文案。
+“个人资料 / 安全 / 账号管理”集中在单一“账号”设置入口并通过页内 Tab 切换；资料和安全表单由 `ui-settings-account` 呈现，资料仍读取当前认证会话，密码与恢复密钥校验/请求由本容器协调并调用 Account Owner，账号列表继续使用 `AdminUsersPage` 与管理 API。旧 `section=profile/security/account` 深链映射到对应 Tab；页面继续消费 Appearance 共享令牌，不新增账户设置偏好。设置工具栏按 `settings-main` 实际容器宽度排列；窄容器中设置菜单与自动保存状态并排，恢复默认和立即保存按钮在下一行并排铺满。通知页提示保持现有接入边界，并使用适合窄栏阅读的短文案。
 
 设置中心“集成”在 `/settings?section=plugins` 内提供“插件、应用、MCP、技能、市场”五个页内 Tab，不切换到 `/plugin-manager` 路由。“插件”展示 Profile 插件，生命周期与数据继续由原 Owner 管理；应用 Tab 展示 LFAA 工作台入口显隐及 GitHub 外部账户连接。插件清单读取真实 Profile 状态，启停复用受认证的 Profile Plugin Manager 生命周期 API，携带固定来源提交和目标 App，并继续经过 Permission Owner；账户 AI 扩展总开关仍由 `plugins.enabled` 保存。工作台入口复用 Workbench 同一导航清单，`general.hiddenApplicationNavigationIds` 只显示/隐藏导航，不改变权限或运行状态。GitHub App Device Flow 展示当前账户可访问的仓库、Issue 和 PR 只读数据，真实 token 由 GitHub Integration 通过现有加密凭据 Owner 持有；缺少服务端 GitHub App Client ID 时如实显示未配置，GitHub 连接不等于 Agent Tool。MCP 复用账户 `plugins.mcpServers` 配置、服务范围与开关；原 MCP 设置表单由 `McpConnectionsSettings` 提供，独立插件工作区继续复用该组件。技能列表与左侧插件工作区共用认证后的 `/ai/extensions` 清单，并按 `kind=skill` 原样显示；`skillId` 指向同一 Skill Registry 规范名称，`plugins.disabledSkillNames` 持久化逐项停用并由 Skill Owner 在模型目录和按需加载中执行。`/ai/skills` 仍是模型运行时目录，不再被当作第二套设置页清单。市场明确标注暂未接入，不显示示例条目。标签、列表、表单沿用 Appearance 主题与容器宽度断点。AI 扩展开关、Skill 目录、能力目录、资料库、Cordis 启停/重建诊断与 DSH 壁纸引擎 Slot 设置仍由本包持有表单和 Owner 调用，但只通过 `lfaa-client-ui-plugin-manager` 的独立模式挂载在最左侧“插件”入口；独立工作区的旧 `plugins` 分区仍显示账户 AI 扩展与 MCP 内容，`plugins.enabled` 仅控制账户 AI 扩展。设置页分组搜索、导航状态、栏宽和拖动仍归各自 Owner。
 
@@ -86,3 +88,5 @@ AI 服务商卡片按已保存的真实账户展示状态。点击已有配置�
 “通知”页通过 General 设置 Owner 配置 Minecraft 操作提示卡自动收起时长（1–60 秒）与进场动效；试听和实际提示卡共用 `general.notificationSound`，减少动态效果继续由 Appearance 设置优先控制。
 
 “个性化”页复用账户 `personalization` 设置管理长期记忆总开关、工具对话整理、外部 Agent 读取与外部写入四项独立权限；记忆正文仍由 Conversation Memory Owner 保存并按账户隔离。DSH Super Agent 通过专用 MCP 凭据连接，创建后仅显示一次令牌；开关默认关闭，页面说明记忆进入外部 Agent 当前模型请求的范围。
+
+个人资料、安全和账号管理标签的视图与专属样式归 `ui-settings-account`；本包只传入分类目录、当前分类与切换回调，账号标签的键盘及 ARIA 交互不再内嵌在设置总页。

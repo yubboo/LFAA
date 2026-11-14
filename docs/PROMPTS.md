@@ -14,6 +14,7 @@
 
 | 编号 | 任务 | 状态 | 合同 |
 |---|---|---|---|
+| LFAA-REPOSITORY-SKELETON-MODULARIZATION-20261114 | 审查并整理整个 `packages/`：逐目录核对 Owner 与装配，纠正错位实现，按职责拆分多职责大文件 | 执行中；`ApplicationWorkspace` 已拆至 534 行；聊天视图、滚动 Hook、输入触发菜单、附件 UI/上传 Hook 与设置/Canvas 模块分批归位；`AiWorkChat.tsx` 已从 3,171 行降至 2,467 行；Connection API 已拆为 53 行兼容入口及按领域请求/类型模块；模型上下文位置已核实；压缩包反向依赖已修复；388 目录均登记，Owner 审查和错位候选仍在继续（236 实现包、152 占位） | [本轮合同](development/repository-skeleton-modularization-20261114.md#lfaa-repository-skeleton-modularization-20261114) · [全仓盘点](development/package-organization-audit-20261114.md) |
 | LFAA-DOCUMENTATION-CLARITY-20261113 | 精简根目录与 `docs/` 的现行指南，明确唯一事实来源，并区分操作规则、当前状态与历史证据 | 完成；根指南、架构/计划、开发流程和文档导航已精简；`git diff --check`、226 包 `check:workspace` 通过；未运行产品测试/构建，详见合同 | [本轮合同](development/documentation-clarity-20261113.md#lfaa-documentation-clarity-20261113) |
 | LFAA-WORKSPACE-HTML-PREVIEW-ERROR-RECOVERY-20261113 | 修复工作区 HTML 本地预览响应流异常时重复发送响应头，保持安全边界并恢复 Agent 浏览器预览闭环 | 已修复；Project Files 预览回归 5/5、Browser Owner 隔离实页 1/1、包构建和差异检查通过；Agent Loop 全链路夹具仍有多轮请求/工具目录不匹配，登录态实页未验 | [本轮合同](development/project-preview-error-recovery-20261113.md#lfaa-workspace-html-preview-error-recovery-20261113) |
 | LFAA-AGENT-APP-REARCHITECTURE-P0-20261113 | 按 Agent-first 架构与体验重构计划完成首批 P0 基线、真实调用链审计、热点文件拆分边界及测试矩阵；本批不改产品行为 | P0 文档/定向检查完成并暂停；Canvas workspace→领域工具目标上下文缺口已隔离复现，尚未修复；Host 类型/构建失败及当前源码实页验收边界见合同 | [P0 基线合同](development/lfaa-agent-app-rearchitecture/00-baseline.md#lfaa-agent-app-rearchitecture-p0-20261113) |

@@ -1,0 +1,10 @@
+.ai-work-chat__plan-mode { display: flex; width: min(100%, 920px); min-width: 0; align-items: center; gap: 9px; align-self: center; margin: 0 0 7px; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--settings-accent, var(--color-brand)) 28%, var(--color-border)); border-radius: 12px; background: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 7%, var(--color-surface)); color: var(--color-text-primary); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: var(--settings-interface-font-size, var(--font-size-base)); }
+.ai-work-chat__plan-mode-icon { display: inline-flex; flex: 0 0 auto; color: var(--settings-accent, var(--color-brand)); }
+.ai-work-chat__plan-mode-copy { display: grid; min-width: 0; gap: 2px; }
+.ai-work-chat__plan-mode-copy strong { color: var(--color-text-heading); font-size: .82em; font-weight: 620; }
+.ai-work-chat__plan-mode-copy span { color: var(--color-text-muted); font-size: .72em; line-height: 1.4; }
+.ai-work-chat__plan-mode-actions { display: flex; flex: 0 0 auto; flex-wrap: wrap; gap: 5px; margin-left: auto; }
+@media (max-width: 520px) {
+  .ai-work-chat__plan-mode { align-items: flex-start; flex-wrap: wrap; }
+  .ai-work-chat__plan-mode-actions { flex: 1 1 100%; margin-left: 24px; }
+}

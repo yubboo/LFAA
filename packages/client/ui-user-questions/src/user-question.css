@@ -1,0 +1,20 @@
+/* 功能：管理澄清选项与回答输入的布局；问题卡片的整体位置由 ui-chat 排布。 */
+.ai-work-chat__response-interaction .ai-work-chat__question-record { display: grid; min-width: 0; gap: 4px; padding: 5px 0 5px 12px; border: 0; border-inline-start: 1px solid var(--color-border-subtle); border-radius: 0; background: transparent; color: var(--color-text-muted); }
+.ai-work-chat__response-interaction .ai-work-chat__question-record > strong { color: var(--color-text-secondary); font-size: .9em; font-weight: 600; overflow-wrap: anywhere; }
+.ai-work-chat__interaction-dock-options { display: grid; gap: 3px; }
+.ai-work-chat__interaction-option { display: grid; min-width: 0; min-height: 36px; grid-template-columns: 22px minmax(0, 1fr) 18px; align-items: center; gap: 8px; padding: 5px 9px; border: 1px solid transparent; border-radius: 9px; background: var(--color-surface-muted); color: var(--color-text-primary); cursor: pointer; font: inherit; text-align: left; }
+.ai-work-chat__interaction-option:hover:not(:disabled),
+.ai-work-chat__interaction-option:focus-visible { border-color: var(--settings-accent, var(--color-brand)); background: var(--color-surface-hover); outline: none; }
+.ai-work-chat__interaction-option:focus-visible { box-shadow: 0 0 0 2px var(--color-focus-ring); }
+.ai-work-chat__interaction-option:disabled { color: var(--color-text-muted); cursor: wait; }
+.ai-work-chat__interaction-option > span:nth-child(2) { min-width: 0; overflow-wrap: anywhere; }
+.ai-work-chat__interaction-option > svg { justify-self: end; transform: rotate(-90deg); color: var(--color-text-muted); }
+.ai-work-chat__interaction-option-number { display: grid; width: 20px; height: 20px; place-items: center; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-surface); color: var(--color-text-secondary); font-size: var(--font-size-xs); font-variant-numeric: tabular-nums; }
+.ai-work-chat__interaction-dock-reply { display: flex; min-width: 0; align-items: center; gap: 7px; }
+.ai-work-chat__interaction-dock-reply .ant-input { min-width: 0; min-height: 34px; flex: 1 1 auto; padding: 6px 3px; border: 0; border-bottom: 1px solid var(--color-border-subtle); border-radius: 0; background: transparent; box-shadow: none; color: var(--color-text-heading); font-family: var(--settings-content-font, var(--settings-interface-font, var(--font-family-sans))); font-size: var(--settings-interface-font-size, var(--font-size-base)); }
+.ai-work-chat__interaction-dock-reply .ant-input:focus { border-color: var(--settings-accent, var(--color-brand)); box-shadow: none; }
+.ai-work-chat__interaction-dock-reply .ant-input::placeholder { color: var(--color-text-subtle); }
+@media (max-width: 520px) {
+  .ai-work-chat__interaction-dock-reply { flex-wrap: wrap; }
+  .ai-work-chat__interaction-dock-reply .ant-input { flex-basis: 100%; }
+}

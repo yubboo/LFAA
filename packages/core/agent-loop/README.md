@@ -8,6 +8,8 @@ AI Work 会话标题生成沿用当前账户已选模型和 AI Runtime 设置，
 
 主 Agent 每次请求的 Git、工作区、写作、会话记忆和已校验路由背景由 LLM Owner 放在请求尾部的临时 user 消息中；若请求最后一条本来就是 user 消息，则放在该消息内容之前。背景参与同一条请求的 token 估算与压缩；上下文改写同步回规范历史前先移除临时内容，Session 可见对话不变。Provider/模型路由事实留在请求上下文中，不再随路由切换改写 system prompt；模型选择只影响真实请求路由，不选择缓存布局。
 
+本轮背景由各自 Session、Memory、Workspace、Agent Git、Writing 与 Settings/凭据 Owner 校验。Agent Loop 的 `src/request-context.ts` 只负责格式化这些背景并按当前请求类型组合，不读取或持有上述数据；LLM Owner 继续独占临时消息注入与规范历史剥离。
+
 开启设置中心 `aiRuntime.promptSuggestions` 后，每条成功的主回复都应附带 1–3 条上下文后续建议。通常由原最终回复请求给出；若模型漏写建议且 `aiRuntime.maxModelRequests` 仍有可用额度，Agent Loop 至多补发一次同账户、无工具请求，只向模型提供本轮公开问题和最终答复。补充请求计入实际请求数与 Token 用量，失败或预算已用完时不影响主答复，也不生成固定建议。Agent Loop 流式剥离有界元数据，并只把公开回复正文和建议分别交给 Session Owner；补充响应不进入公开正文、助手模型历史或工具派发。
 
 ## Pi Agent Core 回合执行器（2026-10-25）

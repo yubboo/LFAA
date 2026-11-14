@@ -1,0 +1,73 @@
+/* 功能：管理模型/推理 Popover 的内部布局；外层弹层位置由 ui-chat 控制。 */
+.ai-work-chat__model-card { max-height: min(560px, calc(100dvh - 28px)); overflow: auto; color: var(--color-text-primary); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: var(--settings-interface-font-size, var(--font-size-base)); }
+.ai-work-chat__model-card[data-view="models"] { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto auto; overflow: hidden; }
+.ai-work-chat__model-card[data-view="reasoning"] { display: grid; width: 100%; grid-template-rows: auto auto; gap: 10px; padding: 10px 12px 12px; overflow: hidden; border-radius: 16px; }
+.ai-work-chat__model-card[data-view="reasoning"] > .ai-work-chat__model-card-header { display: grid; grid-template-columns: 24px minmax(0, 1fr) 28px; align-items: center; gap: 8px; }
+.ai-work-chat__model-card-header > svg { justify-self: center; color: var(--color-text-secondary); }
+.ai-work-chat__model-card-current { display: grid; width: 100%; min-width: 0; justify-items: center; gap: 1px; padding: 2px 5px; border: 0; border-radius: 8px; background: transparent; color: var(--color-text-primary); cursor: pointer; font: inherit; text-align: center; }
+.ai-work-chat__model-card-current:hover:not(:disabled), .ai-work-chat__model-card-current:focus-visible { background: var(--color-surface-hover); }
+.ai-work-chat__model-card-current:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 1px; }
+.ai-work-chat__model-card-current > strong { max-width: 100%; overflow: hidden; color: var(--settings-accent, var(--color-brand)); font-size: 1.02em; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.ai-work-chat__model-card-current > span { display: inline-flex; max-width: 100%; min-width: 0; align-items: center; justify-content: center; gap: 4px; overflow: hidden; color: var(--color-text-secondary); font-size: .78em; text-overflow: ellipsis; white-space: nowrap; }
+.ai-work-chat__model-card-current > span > svg { flex: 0 0 auto; color: var(--color-text-muted); }
+.ai-work-chat__model-card-reset-icon { display: grid; width: 28px; height: 28px; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--color-text-secondary); cursor: pointer; }
+.ai-work-chat__model-card-reset-icon:hover:not(:disabled) { background: var(--color-surface-hover); color: var(--settings-accent, var(--color-brand)); }
+.ai-work-chat__model-card-reset-icon:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 1px; }
+.ai-work-chat__model-card-reset-icon:disabled { color: var(--color-text-subtle); cursor: default; }
+.ai-work-chat__model-card-control { min-width: 0; }
+.ai-work-chat__model-card-range { position: relative; width: 100%; height: 32px; }
+.ai-work-chat__model-range { position: relative; z-index: 1; display: block; width: 100%; height: 32px; margin: 0; padding: 0; appearance: none; border: 0; border-radius: 999px; cursor: pointer; }
+.ai-work-chat__model-range::-webkit-slider-runnable-track { height: 32px; border: 0; border-radius: 999px; background: transparent; }
+.ai-work-chat__model-range::-moz-range-track { height: 32px; border: 0; border-radius: 999px; background: transparent; }
+.ai-work-chat__model-range::-webkit-slider-thumb { width: 32px; height: 32px; appearance: none; border: 2px solid var(--settings-accent, var(--color-brand)); border-radius: 50%; background: var(--color-text-heading); }
+.ai-work-chat__model-range::-moz-range-thumb { width: 28px; height: 28px; border: 2px solid var(--settings-accent, var(--color-brand)); border-radius: 50%; background: var(--color-text-heading); }
+.ai-work-chat__model-range.is-provider-default::-webkit-slider-thumb { visibility: hidden; }
+.ai-work-chat__model-range.is-provider-default::-moz-range-thumb { visibility: hidden; }
+.ai-work-chat__model-range:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 3px; }
+.ai-work-chat__model-range:disabled { cursor: wait; }
+.ai-work-chat__model-card-markers { position: absolute; z-index: 2; inset: 0 16px; display: flex; align-items: center; justify-content: space-between; pointer-events: none; }
+.ai-work-chat__model-card-markers > span { width: 4px; height: 4px; flex: 0 0 4px; border-radius: 50%; background: color-mix(in srgb, var(--color-text-heading) 28%, transparent); }
+.ai-work-chat__model-card-single-level { display: flex; flex-wrap: wrap; gap: 4px; }
+.ai-work-chat__model-card-single-level button { min-width: 0; padding: 4px 9px; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-surface-muted); color: var(--color-text-secondary); cursor: pointer; font: inherit; font-size: .76em; }
+.ai-work-chat__model-card-single-level button[aria-pressed="true"] { background: color-mix(in srgb, var(--settings-accent, var(--color-brand)) 14%, var(--color-surface)); color: var(--settings-accent, var(--color-brand)); font-weight: 620; }
+.ai-work-chat__model-card-single-level button:hover:not(:disabled) { background: var(--color-surface-hover); color: var(--color-text-heading); }
+.ai-work-chat__model-card-single-level button:focus-visible,
+.ai-work-chat__model-card-models button:focus-visible,
+.ai-work-chat__model-card-list-header > button:focus-visible,
+.ai-work-chat__model-card-list-footer > button:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 1px; }
+.ai-work-chat__model-card-note { margin: 0; color: var(--color-text-muted); font-size: .73em; line-height: 1.5; }
+.ai-work-chat__model-card-list-header { display: flex; min-width: 0; align-items: center; gap: 9px; padding: 10px 13px 7px; border-bottom: 1px solid var(--color-border); }
+.ai-work-chat__model-card-list-header > button { display: grid; width: 30px; height: 30px; flex: 0 0 30px; place-items: center; border: 0; border-radius: 7px; background: transparent; color: var(--color-text-secondary); cursor: pointer; }
+.ai-work-chat__model-card-list-header > button svg { transform: rotate(90deg); }
+.ai-work-chat__model-card-list-header > span { display: grid; min-width: 0; gap: 2px; }
+.ai-work-chat__model-card-list-header strong { color: var(--color-text-heading); font-size: .9em; font-weight: 620; }
+.ai-work-chat__model-card-list-header small { color: var(--color-text-muted); font-size: .7em; }
+.ai-work-chat__model-card-search { min-width: 0; padding: 9px 13px 7px; }
+.ai-work-chat__model-card[data-view="models"] > .ant-input-affix-wrapper { width: calc(100% - 26px); justify-self: center; }
+.ai-work-chat__model-card-search .ant-input-affix-wrapper { background: var(--color-surface); }
+.ai-work-chat__model-card-models { display: grid; min-height: 0; max-height: min(320px, 42dvh); gap: 2px; padding: 0 9px 8px; overflow: auto; overscroll-behavior: contain; }
+.ai-work-chat__model-card[data-view="models"] .ai-work-chat__model-card-models { max-height: none; }
+.ai-work-chat__model-card-models button { display: flex; min-width: 0; min-height: 52px; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 9px; border: 0; border-radius: 8px; background: transparent; color: var(--color-text-primary); cursor: pointer; font-family: inherit; text-align: left; }
+.ai-work-chat__model-card-models button:hover:not(:disabled),
+.ai-work-chat__model-card-models button.is-selected { background: var(--color-surface-selected); }
+.ai-work-chat__model-card-models button > span:first-child { display: grid; min-width: 0; gap: 2px; }
+.ai-work-chat__model-card-model-name { color: var(--color-text-heading); font-size: .82em; font-weight: 560; line-height: 1.4; overflow-wrap: anywhere; }
+.ai-work-chat__model-card-models button small { color: var(--color-text-muted); font-size: .68em; line-height: 1.35; overflow-wrap: anywhere; }
+.ai-work-chat__model-card-model-id { color: var(--color-text-secondary) !important; }
+.ai-work-chat__model-card-models button[role="option"]:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: -2px; }
+.ai-work-chat__model-card-models button[aria-disabled="true"] { cursor: wait; }
+.ai-work-chat__model-card-models button > span:last-child { flex: 0 0 auto; color: var(--settings-accent, var(--color-brand)); font-size: .8em; }
+.ai-work-chat__model-card-list-footer { padding: 8px 13px 11px; border-top: 1px solid var(--color-border); }
+.ai-work-chat__model-card-list-footer > button { display: flex; width: 100%; min-height: 42px; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--color-border); border-radius: 9px; background: var(--color-surface-muted); color: var(--color-text-secondary); cursor: pointer; font: inherit; text-align: left; }
+.ai-work-chat__model-card-list-footer > button > svg { flex: 0 0 auto; color: var(--settings-accent, var(--color-brand)); }
+.ai-work-chat__model-card-list-footer > button:hover { background: var(--color-surface-hover); color: var(--color-text-heading); }
+.ai-work-chat__model-card-empty,
+.ai-work-chat__model-card-limit { padding: 3px 2px; color: var(--color-text-muted); font-size: .68em; }
+.ai-work-chat__model-card-load-more { width: 100%; padding: 6px 8px; border: 1px solid var(--color-border); border-radius: 7px; background: var(--color-surface-muted); color: var(--settings-accent, var(--color-brand)); cursor: pointer; font: inherit; font-size: .68em; text-align: center; }
+.ai-work-chat__model-card-load-more:hover { background: var(--color-surface-hover); }
+.ai-work-chat__model-card-load-more:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 1px; }
+.ai-work-chat__model-picker-tooltip { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.ai-work-chat__model-picker-tooltip > kbd { padding: 1px 5px; border: 1px solid color-mix(in srgb, currentColor 24%, transparent); border-radius: 5px; background: color-mix(in srgb, currentColor 14%, transparent); color: inherit; font: inherit; line-height: 1.4; }
+.ai-work-chat__model-name { min-width: 0; overflow: hidden; color: var(--color-text-heading); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.ai-work-chat__model-reasoning-label { overflow: hidden; color: var(--color-text-muted); font-size: 9px; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+.\/* ignore */

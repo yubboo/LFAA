@@ -110,7 +110,7 @@ export function assertCompactableRange(check: CompactionRangeCheck): void {
  * 校验"摘要替换语义"：新摘要必须比它替换掉的原段短，否则压缩是负收益，应当拒绝提交。
  *
  * 对应 DSH region.ts 里 `framedSummaryTokenCount >= shadowedRouteTokenCount` 检查。
- * LFAA 没有 token-meter，这里用字符数粗估（与 estimateMessagesTokens 同一把尺子），
+ * 这里用字符数判断摘要是否比原文短；请求预算和上下文压力仍统一由 Token Meter 估算，
  * 目的一致：保证压缩后下一次请求真的更短。
  */
 export function assertSummaryIsSmaller(input: {

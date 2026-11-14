@@ -11,8 +11,7 @@ import { inspectWebUpdateManifest, type WebUpdateCheckResult } from "./web-updat
 import { Alert, Button, Card, Input, InputNumber, Modal, Popconfirm, Progress, Radio, Select, Slider, Space, Tag, Typography, message } from "antd";
 import { activateAiAccount, changeCurrentPassword, createSteamcmdTask, createMemoryAgentConnectionToken, deleteAppearanceBackground, deleteAiAccount, deleteConversationMemories, loadConversationMemories, loadMemoryAgentConnection, revokeMemoryAgentConnectionToken, saveConversationMemories, archiveAiSession, decideAiApproval, getErrorMessage, hasAdminAccess, isDesktopApp, loadAiAccounts, loadAiApprovals, loadAiPermissionGrants, loadAiExtensions, loadAiSessions, loadAiUsage, loadAppearanceBackgrounds, loadAiProviders, loadClaudeAgentCredentialStatus, saveClaudeAgentCredential, deleteClaudeAgentCredential, loadBrowserProviders, closeBrowserProviderSessions, loadHealth, loadMinecraftStorageSettings, loadMinecraftCoreNames, loadSteamcmdSettings, loadSteamcmdTask, loadProjectStorageLocations, loadWorkspaceProjects, compareProjectContentDirectories, copyProjectContentToDirectory, adoptProjectContentDirectory, importProjectContentArchive, downloadProjectContentArchive, loadCapabilityInstallCatalog, manageAiRuntimePlugin, probeAiProvider, refreshAiAccountModelCatalog, testSavedAiAccountModel, saveAiAccount, testAiAccountCredential, updateAiAccountCredential, testAiProviderModel, saveRecoveryKey, saveSettings, saveSteamcmdConfigurationDefaults, saveSteamcmdNodeConfiguration, saveSteamcmdStorageDefaults, saveSteamcmdNodeStorageSettings, selectDesktopDataDirectory, revokeAiPermissionGrant, uploadAppearanceBackground, updateCurrentUserEmail, updateCurrentUserUsername, userRoleLabel, updateAiAccountModel, updateAiAccountReasoningMode, type ApplicationId, type AiModel, type AiModelTestResult, type AiAccount, type AiExtension, type AiRuntimeHookInfo, type AiProvider, type AiProviderProbe, type AiRuntimePlugin, type CapabilityInstallCatalogEntry, type AiSession, type AiUsageSummary, type AiToolApproval, type AiToolPermissionGrant, type AppearanceBackground, type BrowserProviderSummary, type BrowserRecentSite, type BrowserVaultEntry, type BrowserProviderId, type NativeBrowserDownload, type NativeBrowserDownloadSettings, type NativeBrowserExtension, type ConversationMemorySnapshot, type MemoryAgentConnectionStatus, type MemoryAgentConnectionToken, type ProjectContentComparison, type ProjectStorageLocations, type DesktopUpdateCheckResult, type DesktopUpdatePreferences, type DesktopUpdateRuntimeInfo, type ServerHealth, type MinecraftStorageNode, type MinecraftStorageSettings, type SteamcmdConfigurationValues, type SteamcmdSettingsNode, type SteamcmdStorageValues, type SteamcmdTask, type User, type UserSettings, type LocalModelSummary, type LocalModelDownloadSnapshot, type ClaudeAgentCredentialStatus } from "lfaa-client-connection/src/api.js";
 import { appearanceBackgroundOptions, appearanceBackgroundTargets } from "lfaa-util-values/src/builtin-backgrounds.js";
-import { EXECUTION_SANDBOX_MODES } from "lfaa-util-values/src/sandbox-contract.js";
-import { getSettingsCenterMenu, SETTINGS_CENTER_MENUS, type SettingsMenuId } from "lfaa-util-values/src/settings-menu-catalog.js";
+import { getSettingsCenterMenu } from "lfaa-util-values/src/settings-menu-catalog.js";
 import { cacheLoginAppearance } from "lfaa-client-ui-theme/src/login-appearance.js";
 import { resolveLoginAreaOverlay, resolveWorkbenchAreaEffects } from "lfaa-client-ui-theme/src/appearance-area-effects.js";
 import { getBrowserNotificationPermission, playNotificationSound, requestBrowserNotificationPermission, sendBrowserNotification, type BrowserNotificationPermission } from "lfaa-client-resources/src/notification-runtime.js";
@@ -20,12 +19,15 @@ import { createScrollRestorationKey, useScrollRestoration } from "lfaa-client-st
 import { ResizableWorkbench } from "lfaa-client-ui-dockkit/src/ResizableWorkbench.js";
 import { resolveWorkbenchLayoutMetrics, type WorkbenchLayoutMetrics } from "lfaa-client-ui-dockkit/src/workbench-layout.config.js";
 import { readWorkbenchLeftWidth, saveWorkbenchLeftWidth } from "lfaa-client-ui-dockkit/src/workbench-preferences.js";
-import { WorkbenchIcon, type WorkbenchIconName } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
-import { isPasswordAcceptable, PasswordStrengthIndicator } from "lfaa-client-ui-settings-account/src/PasswordStrengthIndicator.js";
+import { WorkbenchIcon } from "lfaa-client-ui-primitives/src/WorkbenchIcon.js";
+import { isPasswordAcceptable } from "lfaa-client-ui-settings-account/src/PasswordStrengthIndicator.js";
 import { AdminUsersPage } from "lfaa-client-ui-settings-account/src/AdminUsersPage.js";
+import { AccountSettingsTabs } from "lfaa-client-ui-settings-account/src/AccountSettingsTabs.js";
+import { AccountProfileSettings } from "lfaa-client-ui-settings-account/src/AccountProfileSettings.js";
+import { AccountSecuritySettings } from "lfaa-client-ui-settings-account/src/AccountSecuritySettings.js";
+import { AgentLoopSettingsGroup } from "lfaa-client-ui-settings-agent-loop/src/AgentLoopSettingsGroup.js";
 import { GLOBAL_NAVIGATION_RAIL_COMPACT_WIDTH, GLOBAL_NAVIGATION_RAIL_WIDTH, GlobalNavigationRail, type ApplicationNavigationItem } from "lfaa-client-ui-sidebar/src/GlobalNavigationRail.js";
 import { SecondaryNavigation } from "lfaa-client-ui-sidebar/src/SecondaryNavigation.js";
-import { PasskeyManager } from "lfaa-client-ui-settings-account/src/PasskeyManager.js";
 import { McpConnectionsSettings } from "./McpConnectionsSettings.js";
 import { CloudPreferencesSettings } from "./CloudPreferencesSettings.js";
 import { AppearancePresetsPanel } from "./AppearancePresetsPanel.js";
@@ -34,7 +36,10 @@ import "./SettingsPage.css";
 import { hasShortcutConflicts, ShortcutRow } from "lfaa-client-ui-shortcuts/src/settings-shortcuts.js";
 import { defaultReasoningMode, effectiveReasoningMode, reasoningOptions, modelParameterSummary, modelOptionLabel, modelOptionVersionTag, fixedThinkingLabel } from "lfaa-client-ui-settings-models/src/model-options.js";
 import { DEFAULT_USER_SETTINGS } from "lfaa-client-ui-settings-general/src/default-settings.js";
-import { AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN, AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN, APPEARANCE_PRESET_LIMIT, UI_MOTION_EFFECT_OPTIONS, CANVAS_DEFAULT_MODE_OPTIONS, CANVAS_GRID_STYLE_OPTIONS, type AppearancePreset, type UiMotionEffect } from "lfaa-util-values/src/settings-contract.js";
+import { GeneralSettingsSection } from "lfaa-client-ui-settings-general/src/GeneralSettingsSection.js";
+import { ACCOUNT_SETTINGS_TABS, EXTENSION_CATEGORIES, LFAA_CONFIGURATION_SECTION_IDS, LFAA_CONFIGURATION_SECTIONS, PLUGIN_WORKSPACE_TABS, SETTINGS_AUTOSAVE_DELAY_MS, SETTINGS_DATA_SECTIONS, SETTINGS_NAV_GROUPS, getInitialSettingsSection, getSettingsSectionSearchText, isAccountSettingsSection, legacySettingsScrollPositionStorageKey, persistSettingsSection, readExpandedSettingsGroups, readSettingsAppearanceAdvancedOpen, readSettingsBackgroundTarget, resolveSettingsSection, resolveStandalonePluginWorkspaceView, settingsAppearanceAdvancedStorageKey, settingsBackgroundTargetStorageKey, settingsCategoryForSection, settingsNavCollapsedGroupsStorageKey, sections, type PluginWorkspaceTab, type SectionId, type SettingsBackgroundTarget, type StandalonePluginWorkspaceView } from "./settings-page-model.js";
+export type { StandalonePluginWorkspaceView } from "./settings-page-model.js";
+import { APPEARANCE_PRESET_LIMIT, UI_MOTION_EFFECT_OPTIONS, CANVAS_DEFAULT_MODE_OPTIONS, CANVAS_GRID_STYLE_OPTIONS, type AppearancePreset } from "lfaa-util-values/src/settings-contract.js";
 import { applyWritingWorkspacePresetAppearance, createAppearancePresetSnapshot } from "lfaa-util-values/src/appearance-presets.js";
 import { SettingGroup, AdvancedGroup, SettingRow, SettingsSwitch } from "lfaa-client-ui-primitives/src/settings-controls.js";
 import { DshSlotOutlet, LFAA_AUTH_TRANSITION_SLOT, useDshSlotEntries } from "lfaa-client-modules/src/client/index.js";
@@ -115,91 +120,6 @@ function formatStorageBytes(value: number): string {
 
 
 
-type SectionId = SettingsMenuId | "configuration";
-type AccountSettingsSectionId = Extract<SectionId, "profile" | "security" | "account">;
-type PluginWorkspaceTab = "overview" | "catalog" | "knowledge" | "mcp" | "diagnostics";
-export type StandalonePluginWorkspaceView = "all" | "applications" | "tools" | "skills" | "prompts" | "mcp" | "knowledge" | "diagnostics" | "experts";
-
-function resolveStandalonePluginWorkspaceView(view: StandalonePluginWorkspaceView): { tab: PluginWorkspaceTab; kind: AiExtension["kind"] | "all" } {
-  switch (view) {
-    case "all": return { tab: "catalog", kind: "all" };
-    case "applications": return { tab: "overview", kind: "all" };
-    case "tools": return { tab: "catalog", kind: "tool" };
-    case "skills": return { tab: "catalog", kind: "skill" };
-    case "prompts": return { tab: "catalog", kind: "prompt" };
-    case "mcp": return { tab: "mcp", kind: "all" };
-    case "knowledge": return { tab: "knowledge", kind: "all" };
-    case "diagnostics": return { tab: "diagnostics", kind: "all" };
-    case "experts": return { tab: "catalog", kind: "expert" };
-  }
-}
-
-const PLUGIN_WORKSPACE_TABS: Array<{ id: PluginWorkspaceTab; label: string }> = [
-  { id: "overview", label: "总览" },
-  { id: "catalog", label: "能力目录" },
-  { id: "knowledge", label: "我的资料库" },
-  { id: "mcp", label: "MCP 连接" },
-  { id: "diagnostics", label: "运行诊断" }
-];
-const ACCOUNT_SETTINGS_TABS: Array<{ id: AccountSettingsSectionId; label: string }> = [
-  { id: "profile", label: "个人资料" },
-  { id: "security", label: "安全" },
-  { id: "account", label: "账号管理" }
-];
-
-function isAccountSettingsSection(section: SectionId): section is AccountSettingsSectionId {
-  return section === "profile" || section === "security" || section === "account";
-}
-
-function getSettingsSectionSearchText(section: { id: string; title: string; group: string }): string {
-  // 分类搜索词与 Agent 设置目录共用 settings-menu-catalog 的别名/工具搜索词，避免两套中文字典。
-  const menu = getSettingsCenterMenu(section.id);
-  const aliases = section.id === "account" ? "账户 个人资料 安全 账号管理" : "";
-  const catalogTerms = [...(menu?.aliases ?? []), ...(menu?.toolSearchTerms ?? [])].join(" ");
-  return `${section.title} ${section.group} ${aliases} ${catalogTerms}`.trim();
-}
-
-function AccountSettingsTabs({ activeSection, onSelect }: { activeSection: AccountSettingsSectionId; onSelect: (section: AccountSettingsSectionId) => void }) {
-  return (
-    <div className="settings-account-tabs" role="tablist" aria-label="账号设置分类" onKeyDown={(event) => {
-      const tabs = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("[role=tab]"));
-      if (tabs.length === 0) return;
-      const currentIndex = tabs.indexOf(event.target as HTMLButtonElement);
-      const nextIndex = event.key === "ArrowRight" ? (currentIndex + 1) % tabs.length
-        : event.key === "ArrowLeft" ? (currentIndex - 1 + tabs.length) % tabs.length
-          : event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : -1;
-      if (currentIndex >= 0 && nextIndex >= 0) {
-        event.preventDefault();
-        tabs[nextIndex]?.focus();
-        tabs[nextIndex]?.click();
-      }
-    }}>
-      {ACCOUNT_SETTINGS_TABS.map((tab) => <button
-        key={tab.id}
-        id={`settings-account-tab-${tab.id}`}
-        type="button"
-        role="tab"
-        tabIndex={activeSection === tab.id ? 0 : -1}
-        aria-selected={activeSection === tab.id}
-        aria-controls="settings-account-panel"
-        className={activeSection === tab.id ? "is-active" : ""}
-        onClick={() => onSelect(tab.id)}
-      >{tab.label}</button>)}
-    </div>
-  );
-}
-// 只在进入需要真实数据的分类时请求专属数据，避免首次打开设置就并发加载全部分类。
-const SETTINGS_DATA_SECTIONS = new Set<SectionId>(["appearance", "usage", "plugins", "hooks", "archived", "ai", "minecraft", "permissions", "workspace", "developer"]);
-
-const EXTENSION_CATEGORIES: Array<{ kind: AiExtension["kind"]; label: string; description: string; icon: WorkbenchIconName }> = [
-  { kind: "agent", label: "Agent", description: "承担任务规划与执行的 Agent 配置。", icon: "spark" },
-  { kind: "expert", label: "领域专家", description: "围绕特定领域提供专业分析和建议。", icon: "book" },
-  { kind: "prompt", label: "提示词", description: "为 Agent 提供角色、边界和任务指引。", icon: "file" },
-  { kind: "skill", label: "技能", description: "可复用的专业知识与工作流程。", icon: "book" },
-  { kind: "tool", label: "工具", description: "供模型按任务选择并调用的执行能力。", icon: "tools" },
-  { kind: "llm-provider", label: "模型提供方", description: "登记给 AI Runtime 使用的模型服务能力。", icon: "browser" }
-];
-
 interface SettingsDataSnapshot {
   loadedSections: Set<SectionId>;
   providers: AiProvider[];
@@ -249,142 +169,6 @@ function createEmptySettingsDataSnapshot(): SettingsDataSnapshot {
     minecraftStorageDefaults: { instanceDirectory: "games/minecraft" }, minecraftStorageDraft: { instanceDirectory: "games/minecraft" },
     uploadedBackgrounds: []
   };
-}
-
-const SETTINGS_SECTION_ICONS: Record<SettingsMenuId, WorkbenchIconName> = {
-  general: "settings", notifications: "history", import: "file", profile: "user", security: "shield", appearance: "sun",
-  wallpaperEngine: "sun", parental: "shield", trustedContacts: "user", voice: "spark", about: "refresh", personalization: "sun",
-  mini: "bolt", canvas: "grid", shortcuts: "keyboard", usage: "bolt", account: "user", plugins: "grid", profilePlugins: "extension",
-  computerControl: "tools", snapshots: "archive", browser: "browser", hooks: "review", connections: "tools",
-  cloudPreferences: "browser", codeReview: "review", git: "refresh", environment: "terminal", worktrees: "folder",
-  archived: "archive", ai: "spark", minecraft: "settings", permissions: "shield", workspace: "folder", developer: "terminal"
-};
-const sections: Array<{ id: SectionId; title: string; group: string; icon: WorkbenchIconName }> = SETTINGS_CENTER_MENUS.map((section) => ({
-  id: section.id,
-  title: section.label,
-  group: section.group,
-  icon: SETTINGS_SECTION_ICONS[section.id]
-}));
-const LFAA_CONFIGURATION_SECTION_IDS = new Set<SectionId>(["ai", "minecraft", "permissions", "workspace", "developer"]);
-const LFAA_CONFIGURATION_SECTIONS = sections.filter((section) => LFAA_CONFIGURATION_SECTION_IDS.has(section.id));
-const SETTINGS_NAV_GROUPS = [...new Set(sections.map((section) => section.group))];
-
-const SETTINGS_ACTIVE_SECTION_STORAGE_KEY = "lfaa.settings.active-section.v1";
-const SETTINGS_LEGACY_SCROLL_POSITION_STORAGE_KEY = "lfaa.settings.scroll-position.v1";
-const SETTINGS_APPEARANCE_ADVANCED_STORAGE_KEY = "lfaa.settings.appearance-advanced-open.v1";
-const SETTINGS_BACKGROUND_TARGET_STORAGE_KEY = "lfaa.settings.background-target.v1";
-const SETTINGS_NAV_COLLAPSED_GROUPS_STORAGE_KEY = "lfaa.settings.navigation-collapsed-groups.v1";
-const SETTINGS_AUTOSAVE_DELAY_MS = 300;
-const SETTINGS_BACKGROUND_TARGETS = ["login", "appCenter", "steamcmd", "minecraft", "writing", "settings"] as const;
-type SettingsBackgroundTarget = typeof SETTINGS_BACKGROUND_TARGETS[number];
-
-function isSettingsSection(value: string | null): value is SectionId {
-  return value === "configuration" || sections.some((section) => section.id === value);
-}
-
-function resolveSettingsSection(section: SectionId): SectionId {
-  if (section === "configuration") return "workspace";
-  if (section === "plugins") return "profilePlugins";
-  return section;
-}
-
-function settingsCategoryForSection(section: SectionId): keyof UserSettings | null {
-  if (section === "general" || section === "notifications") return "general";
-  if (section === "appearance") return "appearance";
-  if (section === "shortcuts") return "shortcuts";
-  if (section === "ai" || section === "voice") return "aiRuntime";
-  if (section === "minecraft") return "minecraftRuntime";
-  if (section === "permissions") return "permissions";
-  if (section === "computerControl") return "computerControl";
-  if (section === "browser") return "browserUse";
-  if (section === "plugins" || section === "connections") return "plugins";
-  if (section === "personalization") return "personalization";
-  if (section === "git") return "git";
-  if (section === "canvas") return "canvas";
-  return null;
-}
-
-function settingsSectionStorageKey(userId: string): string {
-  return `${SETTINGS_ACTIVE_SECTION_STORAGE_KEY}:${userId}`;
-}
-
-function legacySettingsScrollPositionStorageKey(userId: string, section: SectionId): string {
-  return `${SETTINGS_LEGACY_SCROLL_POSITION_STORAGE_KEY}:${encodeURIComponent(userId)}:${section}`;
-}
-
-function settingsAppearanceAdvancedStorageKey(userId: string): string {
-  return `${SETTINGS_APPEARANCE_ADVANCED_STORAGE_KEY}:${encodeURIComponent(userId)}`;
-}
-
-function settingsBackgroundTargetStorageKey(userId: string): string {
-  return `${SETTINGS_BACKGROUND_TARGET_STORAGE_KEY}:${encodeURIComponent(userId)}`;
-}
-
-function settingsNavCollapsedGroupsStorageKey(userId: string): string {
-  return `${SETTINGS_NAV_COLLAPSED_GROUPS_STORAGE_KEY}:${encodeURIComponent(userId)}`;
-}
-
-function readExpandedSettingsGroups(userId: string): Set<string> {
-  try {
-    const stored = window.localStorage.getItem(settingsNavCollapsedGroupsStorageKey(userId));
-    if (stored === null) return new Set(SETTINGS_NAV_GROUPS);
-    const parsed: unknown = JSON.parse(stored);
-    if (!Array.isArray(parsed)) return new Set(SETTINGS_NAV_GROUPS);
-    const collapsedGroups = new Set(parsed.filter((group): group is string => typeof group === "string"));
-    return new Set(SETTINGS_NAV_GROUPS.filter((group) => !collapsedGroups.has(group)));
-  } catch {
-    return new Set(SETTINGS_NAV_GROUPS);
-  }
-}
-
-function readSettingsAppearanceAdvancedOpen(userId: string): boolean {
-  try {
-    return window.localStorage.getItem(settingsAppearanceAdvancedStorageKey(userId)) === "true";
-  } catch {
-    return false;
-  }
-}
-
-function readSettingsBackgroundTarget(userId: string): SettingsBackgroundTarget {
-  try {
-    const target = window.localStorage.getItem(settingsBackgroundTargetStorageKey(userId));
-    return SETTINGS_BACKGROUND_TARGETS.find((item) => item === target) ?? "login";
-  } catch {
-    return "login";
-  }
-}
-
-function getInitialSettingsSection(initialSection: SectionId | undefined, userId: string, standalonePluginWorkspace = false, standalonePluginSection: "plugins" | "wallpaperEngine" = "plugins"): SectionId {
-  if (standalonePluginWorkspace) return standalonePluginSection;
-  const querySection = new URLSearchParams(window.location.search).get("section");
-  if (isSettingsSection(querySection) && querySection !== "connections" && querySection !== "wallpaperEngine") return resolveSettingsSection(querySection);
-  if (initialSection && initialSection !== "connections" && initialSection !== "wallpaperEngine") return resolveSettingsSection(initialSection);
-
-  try {
-    const storedSection = window.localStorage.getItem(settingsSectionStorageKey(userId));
-    if (isSettingsSection(storedSection) && storedSection !== "connections" && storedSection !== "wallpaperEngine") return resolveSettingsSection(storedSection);
-  } catch {
-    // 浏览器禁用本地存储时仍可通过 URL 保留当前分类。
-  }
-  return "general";
-}
-
-function persistSettingsSection(section: SectionId, userId: string): void {
-  try {
-    window.localStorage.setItem(settingsSectionStorageKey(userId), section);
-  } catch {
-    // 分类不是账户业务数据；存储不可用时仍尝试将其保存在地址栏中。
-  }
-
-  try {
-    const routeSection = section === "profilePlugins" ? "plugins" : section;
-    const url = new URL(window.location.href);
-    if (url.searchParams.get("section") === routeSection) return;
-    url.searchParams.set("section", routeSection);
-    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
-  } catch {
-    // URL 更新失败不影响设置分类切换。
-  }
 }
 
 const accentColors = ["#3457d5", "#1687a7", "#27845b", "#8956bb", "#d05b37", "#d64d8f"];
@@ -456,55 +240,6 @@ const AppearanceFocusBlurSliders = memo(function AppearanceFocusBlurSliders({
     </SettingRow>
   </>;
 });
-
-function MotionEffectSelector({ ariaLabel, previewKind, value, onChange }: {
-  ariaLabel: string;
-  previewKind: "card" | "dialog";
-  value: UiMotionEffect;
-  onChange: (effect: UiMotionEffect) => void;
-}) {
-  return <div
-    className="settings-motion-options"
-    role="radiogroup"
-    aria-label={ariaLabel}
-    onKeyDown={(event) => {
-      const selectedIndex = UI_MOTION_EFFECT_OPTIONS.findIndex(({ id }) => id === value);
-      const delta = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
-      if (!delta) return;
-      event.preventDefault();
-      const nextIndex = (selectedIndex + delta + UI_MOTION_EFFECT_OPTIONS.length) % UI_MOTION_EFFECT_OPTIONS.length;
-      const nextEffect = UI_MOTION_EFFECT_OPTIONS[nextIndex];
-      if (!nextEffect) return;
-      onChange(nextEffect.id);
-      event.currentTarget.querySelectorAll<HTMLButtonElement>("[role='radio']")[nextIndex]?.focus();
-    }}
-  >
-    {UI_MOTION_EFFECT_OPTIONS.map((effect) => {
-      const selected = value === effect.id;
-      const description = previewKind === "card" ? effect.cardDescription : effect.dialogDescription;
-      return <button
-        key={effect.id}
-        type="button"
-        role="radio"
-        className={`settings-motion-option${selected ? " is-selected" : ""}`}
-        aria-label={`${effect.label}：${description}`}
-        aria-checked={selected}
-        tabIndex={selected ? 0 : -1}
-        onClick={() => onChange(effect.id)}
-      >
-        <span className={`settings-motion-option__preview settings-motion-option__preview--${previewKind} settings-motion-option__preview--${effect.id}`} aria-hidden="true">
-          {previewKind === "card" ? <><i /><i /><i /></> : <><i /><i /></>}
-        </span>
-        <strong>{effect.label}</strong>
-        <small>{description}</small>
-      </button>;
-    })}
-  </div>;
-}
-
-
-
-
 
 /** 将节点数据根目录和安全相对路径合成仅管理员可见的安装位置预览。 */
 function displaySteamcmdPath(node: { dataRoot: string | null } | null, relativePath: string): string {
@@ -2930,69 +2665,50 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     if (activeSection === "profile") return (
       <section className="settings-content settings-content--account" role="tabpanel" id="settings-account-panel" aria-labelledby="settings-account-tab-profile" tabIndex={0}>
         <header className="settings-content__heading"><div><span className="settings-eyebrow">个人与账户</span><Typography.Title level={2}>账号</Typography.Title><Typography.Paragraph>管理个人资料、登录安全和本机账号。</Typography.Paragraph></div></header>
-        <AccountSettingsTabs activeSection={activeSection} onSelect={selectSection} />
-        {/* 个人资料直接使用当前认证会话中的用户对象，避免从跨账号共享状态读取身份信息。 */}
-        <SettingGroup title="账户资料">
-          <SettingRow title="用户名" description="当前账户的登录名称。" status="当前账户"><Typography.Text>{user.username}</Typography.Text></SettingRow>
-          <SettingRow title="邮箱" description="当前账户关联的邮箱地址。"><Typography.Text>{user.email ?? "未设置"}</Typography.Text></SettingRow>
-          <SettingRow title="账户 UID" description="用于识别当前账户的编号。"><Typography.Text>{user.uid.toLocaleString("zh-CN")}</Typography.Text></SettingRow>
-          <SettingRow title="账户角色" description="当前账户在 LFAA 中的权限角色。"><Tag color={canAdmin ? "blue" : undefined}>{userRoleLabel(user.role)}</Tag></SettingRow>
-          <SettingRow title="创建时间" description="当前账户的创建时间。"><Typography.Text>{new Date(user.createdAt).toLocaleString("zh-CN")}</Typography.Text></SettingRow>
-        </SettingGroup>
+        <AccountSettingsTabs activeSection={activeSection} onSelect={selectSection} tabs={ACCOUNT_SETTINGS_TABS} />
+        <AccountProfileSettings user={user} canAdmin={canAdmin} />
       </section>
     );
 
     if (activeSection === "security") return (
       <section className="settings-content settings-content--account" role="tabpanel" id="settings-account-panel" aria-labelledby="settings-account-tab-security" tabIndex={0}>
         <header className="settings-content__heading"><div><span className="settings-eyebrow">个人与账户</span><Typography.Title level={2}>账号</Typography.Title><Typography.Paragraph>管理个人资料、登录安全和本机账号。</Typography.Paragraph></div></header>
-        <AccountSettingsTabs activeSection={activeSection} onSelect={selectSection} />
-        <SettingGroup title="登录用户名">
-          <SettingRow title="账户用户名" description="用户名用于登录，修改前需要重新验证当前密码。" status={user.username}>
-            <Space direction="vertical" size="small" style={{ width: "100%" }}>
-              <Input autoComplete="username" maxLength={32} value={usernameDraft} onChange={(event) => setUsernameDraft(event.target.value)} placeholder="3 到 32 个字符" />
-              <Input.Password autoComplete="current-password" value={usernameCurrentPassword} onChange={(event) => setUsernameCurrentPassword(event.target.value)} placeholder="输入当前登录密码以确认修改" />
-              <Button type="primary" loading={savingUsername} disabled={serverState !== "online" || !usernameCurrentPassword || usernameDraft.trim() === user.username} onClick={() => void persistAccountUsername()}>保存用户名</Button>
-            </Space>
-          </SettingRow>
-        </SettingGroup>
-        <SettingGroup title="邮箱资料">
-          <SettingRow title="账户邮箱" description="邮箱目前用于账户资料和管理员检索，尚未接入邮箱验证或邮件找回。清空后会移除当前邮箱。" status={user.email ? "已设置" : "未设置"}>
-            <Space direction="vertical" size="small" style={{ width: "100%" }}>
-              <Input type="email" autoComplete="email" maxLength={254} value={emailDraft} onChange={(event) => setEmailDraft(event.target.value)} placeholder="输入邮箱地址" />
-              <Input.Password autoComplete="current-password" value={emailCurrentPassword} onChange={(event) => setEmailCurrentPassword(event.target.value)} placeholder="输入当前登录密码以确认修改" />
-              <Button type="primary" loading={savingEmail} disabled={serverState !== "online" || !emailCurrentPassword} onClick={() => void persistAccountEmail()}>保存邮箱</Button>
-            </Space>
-          </SettingRow>
-        </SettingGroup>
-        <Card className="settings-card" title="更改登录密码">
-          <Space direction="vertical" size="middle" style={{ width: "100%" }}>
-            <Input.Password autoComplete="current-password" value={passwordChangeCurrent} onChange={(event) => setPasswordChangeCurrent(event.target.value)} placeholder="当前登录密码" />
-            <div>
-              <Input.Password autoComplete="new-password" value={passwordChangeNext} onChange={(event) => setPasswordChangeNext(event.target.value)} placeholder="新密码" />
-              <PasswordStrengthIndicator password={passwordChangeNext} label="新密码" />
-            </div>
-            <Input.Password autoComplete="new-password" value={passwordChangeConfirmation} onChange={(event) => setPasswordChangeConfirmation(event.target.value)} placeholder="再次输入新密码" />
-            <Typography.Text type="secondary">密码至少 8 位，并包含至少 3 类字符。更改后会让其他设备退出登录，当前设备保持登录。</Typography.Text>
-            <Button type="primary" loading={savingPasswordChange} disabled={serverState !== "online"} onClick={() => void persistPasswordChange()}>更新密码</Button>
-          </Space>
-        </Card>
-        <Card className="settings-card" title="密码恢复密钥">
-          <Typography.Paragraph type="secondary">恢复密钥可用于忘记密码时重设登录密码。密钥只在此页内存中暂存，控制端只保存加盐哈希；离开“安全”分类会清除输入内容。</Typography.Paragraph>
-          <Space direction="vertical" size="middle" style={{ width: "100%" }}>
-            <Input.Password autoComplete="current-password" value={recoveryCurrentPassword} onChange={(event) => setRecoveryCurrentPassword(event.target.value)} placeholder="输入当前登录密码" />
-            <Space wrap>
-              <Button onClick={createRecoveryKey}>随机生成</Button>
-              <Button disabled={!recoveryKey} onClick={() => void copyRecoveryKey()}>复制恢复密钥</Button>
-            </Space>
-            <div>
-              <Input.Password autoComplete="new-password" value={recoveryKey} onChange={(event) => setRecoveryKey(event.target.value)} placeholder="设置独立恢复密钥" />
-              <PasswordStrengthIndicator password={recoveryKey} label="恢复密钥" />
-            </div>
-            <Input.Password autoComplete="new-password" value={recoveryKeyConfirmation} onChange={(event) => setRecoveryKeyConfirmation(event.target.value)} placeholder="再次输入恢复密钥" />
-            <Button type="primary" loading={savingRecoveryKey} disabled={serverState !== "online"} onClick={() => void persistRecoveryKey()}>保存恢复密钥</Button>
-          </Space>
-        </Card>
-        <PasskeyManager />
+        <AccountSettingsTabs activeSection={activeSection} onSelect={selectSection} tabs={ACCOUNT_SETTINGS_TABS} />
+        <AccountSecuritySettings
+          username={user.username}
+          email={user.email ?? ""}
+          serverOnline={serverState === "online"}
+          usernameDraft={usernameDraft}
+          onUsernameDraftChange={setUsernameDraft}
+          usernameCurrentPassword={usernameCurrentPassword}
+          onUsernameCurrentPasswordChange={setUsernameCurrentPassword}
+          savingUsername={savingUsername}
+          onSaveUsername={() => void persistAccountUsername()}
+          emailDraft={emailDraft}
+          onEmailDraftChange={setEmailDraft}
+          emailCurrentPassword={emailCurrentPassword}
+          onEmailCurrentPasswordChange={setEmailCurrentPassword}
+          savingEmail={savingEmail}
+          onSaveEmail={() => void persistAccountEmail()}
+          passwordChangeCurrent={passwordChangeCurrent}
+          onPasswordChangeCurrentChange={setPasswordChangeCurrent}
+          passwordChangeNext={passwordChangeNext}
+          onPasswordChangeNextChange={setPasswordChangeNext}
+          passwordChangeConfirmation={passwordChangeConfirmation}
+          onPasswordChangeConfirmationChange={setPasswordChangeConfirmation}
+          savingPasswordChange={savingPasswordChange}
+          onSavePasswordChange={() => void persistPasswordChange()}
+          recoveryCurrentPassword={recoveryCurrentPassword}
+          onRecoveryCurrentPasswordChange={setRecoveryCurrentPassword}
+          recoveryKey={recoveryKey}
+          onRecoveryKeyChange={setRecoveryKey}
+          recoveryKeyConfirmation={recoveryKeyConfirmation}
+          onRecoveryKeyConfirmationChange={setRecoveryKeyConfirmation}
+          savingRecoveryKey={savingRecoveryKey}
+          onSaveRecoveryKey={() => void persistRecoveryKey()}
+          onCreateRecoveryKey={createRecoveryKey}
+          onCopyRecoveryKey={() => void copyRecoveryKey()}
+        />
       </section>
     );
 
@@ -3007,114 +2723,16 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     );
 
     if (activeSection === "general") return (
-      <section className="settings-content">
-        <header className="settings-content__heading"><div><Typography.Title level={2}>常规</Typography.Title></div></header>
-        <SettingGroup title="访问边界">
-          <SettingRow title="小鱼智能体 项目权限模式" description="完全权限下，模型可自主执行当前应用的全部项目操控，不再逐项审批；实际操作由项目 Runtime 与对应 Host/Daemon 执行。" status="账户级设置">
-            <Button onClick={() => selectSection("permissions")}>管理权限</Button>
-          </SettingRow>
-        </SettingGroup>
-        <SettingGroup title="常规">
-          <SettingRow title="项目外聊天文件夹" description="项目外新聊天默认归入此工作区；会话记录仍保存在 LFAA 的 .lfaa 数据目录中。">
-            <div className="settings-folder-value" title={defaultWorkspaceLocation.path ?? (defaultWorkspaceLocation.error || "默认工作区尚未初始化")}>
-              <span>{defaultWorkspaceLocation.status === "loading" ? "正在读取…" : defaultWorkspaceLocation.status === "error" ? "读取失败" : defaultWorkspaceLocation.path ?? "默认工作区尚未初始化"}</span>
-              <Button disabled={defaultWorkspaceLocation.status === "loading"} onClick={() => defaultWorkspaceLocation.status === "error" ? setDefaultWorkspaceReload(value => value + 1) : onNavigate("/work")}>
-                {defaultWorkspaceLocation.status === "error" ? "重试" : "管理工作区"}
-              </Button>
-            </div>
-          </SettingRow>
-          <SettingRow title="默认文件打开位置" description="选择文件操作使用系统默认应用，或在执行时再询问。">
-            <Select value={settings.general.fileOpenLocation} options={[{ value: "system", label: "系统默认应用" }, { value: "ask", label: "每次询问" }]} onChange={(value) => updateGeneral({ fileOpenLocation: value })} />
-          </SettingRow>
-          <SettingRow title="智能体环境" description="选择 Agent Runtime 执行任务时使用的主机环境；节点能力接入后生效。">
-            <Select value={settings.general.agentEnvironment} options={[{ value: "system", label: "自动检测" }, { value: "windows-native", label: "Windows 原生" }, { value: "wsl", label: "WSL" }, { value: "linux", label: "Linux" }]} onChange={(value) => updateGeneral({ agentEnvironment: value })} />
-          </SettingRow>
-          <SettingRow title="集成终端 Shell" description="新建终端与未单独指定 Shell 的命令使用此选择；切换后，已打开的终端需新建会话才会生效。">
-            <Select value={settings.general.integratedShell} options={[{ value: "system", label: "系统默认" }, { value: "powershell", label: "Windows PowerShell" }, { value: "cmd", label: "命令提示符" }, { value: "bash", label: "Bash" }, { value: "zsh", label: "Zsh" }]} onChange={(value) => updateGeneral({ integratedShell: value })} />
-          </SettingRow>
-          <SettingRow title="语言" description="当前界面提供简体中文；其他语言需前端翻译资源接入后生效。">
-            <Select value={settings.general.language} options={[{ value: "system", label: "自动检测" }, { value: "zh-CN", label: "简体中文" }, { value: "en-US", label: "English" }]} onChange={(value) => updateGeneral({ language: value })} />
-          </SettingRow>
-          <SettingRow title="默认使用完整视图" description="保存新工作区优先使用完整布局的偏好；当前应用工作区已使用完整视图。">
-            <SettingsSwitch label="默认使用完整视图" checked={settings.general.defaultFullView} onChange={() => updateGeneral({ defaultFullView: !settings.general.defaultFullView })} />
-          </SettingRow>
-          <SettingRow title="底部面板" description="在应用工作区标题栏显示底部终端面板入口。">
-            <SettingsSwitch label="底部面板入口" checked={settings.general.showBottomPanelControl} onChange={() => updateGeneral({ showBottomPanelControl: !settings.general.showBottomPanelControl })} />
-          </SettingRow>
-          <SettingRow title="默认终端位置" description="选择节点任务输出面板的位置，可显示在底部或右侧；交互式终端的 Shell 由上方设置控制。">
-            <Select value={settings.general.terminalPosition} options={[{ value: "bottom", label: "底部面板" }, { value: "right", label: "右侧面板" }]} onChange={(value) => updateGeneral({ terminalPosition: value })} />
-          </SettingRow>
-          <SettingRow title="开源许可证" description="查看 LFAA 前端直接依赖的许可证声明。">
-            <Button onClick={() => setLicensesModalOpen(true)}>打开许可证</Button>
-          </SettingRow>
-        </SettingGroup>
-        <SettingGroup title="工作台导航布局">
-          <SettingRow title="应用导航栏布局" description="选择应用侧栏、工作区和工具栏的预设排列；可继续拖动分隔线调整宽度。">
-            <div className="settings-layout-options" role="group" aria-label="应用导航栏布局">
-              {([
-                ["left-two-column", "左右布局", "左侧应用导航与主工作区"],
-                ["three-column", "三列布局", "左侧导航、主工作区与右侧工具"],
-                ["right-tools", "工作区 + 工具", "主工作区与右侧工具"],
-                ["focus", "专注模式", "仅显示工作区"]
-              ] as const).map(([layout, title, description]) => (
-                <button key={layout} type="button" className={`settings-layout-option${settings.general.navigationLayout === layout ? " is-selected" : ""}`} aria-pressed={settings.general.navigationLayout === layout} onClick={() => updateGeneral({ navigationLayout: layout })}>
-                  <span className={`settings-layout-option__preview settings-layout-option__preview--${layout}`} aria-hidden="true"><i /><i /><i /></span>
-                  <strong>{title}</strong><small>{description}</small>
-                </button>
-              ))}
-            </div>
-          </SettingRow>
-        </SettingGroup>
-        <SettingGroup title="界面动效">
-          <SettingRow title="卡片动效" description="统一控制已接入共享动效的卡片。普通卡片加入共享标记即可使用；减少动态效果偏好优先生效。">
-            <MotionEffectSelector
-              ariaLabel="卡片动画效果"
-              previewKind="card"
-              value={settings.general.cardMotionEffect ?? DEFAULT_USER_SETTINGS.general.cardMotionEffect}
-              onChange={(cardMotionEffect) => updateGeneral({ cardMotionEffect })}
-            />
-          </SettingRow>
-          <SettingRow title="弹窗动效" description="统一控制应用对话框、确认弹窗和确认气泡；减少动态效果偏好优先。">
-            <MotionEffectSelector
-              ariaLabel="弹窗动画效果"
-              previewKind="dialog"
-              value={settings.general.dialogMotionEffect ?? DEFAULT_USER_SETTINGS.general.dialogMotionEffect}
-              onChange={(dialogMotionEffect) => updateGeneral({ dialogMotionEffect })}
-            />
-          </SettingRow>
-        </SettingGroup>
-        <SettingGroup title="编辑器">
-          <SettingRow title="纯文本编辑器" description="在写作编辑器接入后，按纯文本方式编辑内容。">
-            <SettingsSwitch label="纯文本编辑器" checked={settings.general.plainTextEditor} onChange={() => updateGeneral({ plainTextEditor: !settings.general.plainTextEditor })} />
-          </SettingRow>
-          <SettingRow title="发送快捷键" description="设置 小鱼智能体 输入框按 Enter 时发送，或插入新行。">
-            <Select value={settings.general.sendShortcut} options={[{ value: "enter", label: "Enter 发送" }, { value: "ctrl-enter", label: "Ctrl + Enter 发送" }]} onChange={(value) => updateGeneral({ sendShortcut: value })} />
-          </SettingRow>
-          <SettingRow title="跟进处理方式" description="小鱼智能体 正在运行时，选择后续消息排队或引导当前任务。">
-            <Select value={settings.general.followupBehavior} options={[{ value: "queue", label: "加入队列" }, { value: "steer", label: "引导当前运行" }]} onChange={(value) => updateGeneral({ followupBehavior: value })} />
-          </SettingRow>
-        </SettingGroup>
-        <SettingGroup title="弹出窗口">
-          <SettingRow title="弹出窗口快捷键" description="为桌面弹出窗口保存全局快捷键；不设置则保持关闭。">
-            <Input value={settings.general.popupShortcut} placeholder="关闭" maxLength={48} onChange={(event) => updateGeneral({ popupShortcut: event.target.value })} />
-          </SettingRow>
-        </SettingGroup>
-        <SettingGroup title="趣味实验">
-          <SettingRow title="彩纸礼炮" description="任务完成时显示彩纸效果；需要任务完成事件和桌面动效接入。">
-            <SettingsSwitch label="彩纸礼炮" checked={settings.general.confettiEnabled} onChange={() => updateGeneral({ confettiEnabled: !settings.general.confettiEnabled })} />
-          </SettingRow>
-        </SettingGroup>
-        <SettingGroup title="LFAA 工作台">
-          <SettingRow title="默认首页" description="登录后直接进入小鱼智能体对话；专业应用可从左侧应用菜单打开。">
-            <Typography.Text>小鱼智能体</Typography.Text>
-          </SettingRow>
-          <SettingRow title="服务连接状态" description="控制工作台顶栏和左侧导航中的控制端连接状态显示。">
-            <SettingsSwitch label="服务连接状态" checked={settings.general.showServiceStatus} onChange={() => updateGeneral({ showServiceStatus: !settings.general.showServiceStatus })} />
-          </SettingRow>
-        </SettingGroup>
-      </section>
+      <GeneralSettingsSection
+        settings={settings.general}
+        defaultWorkspaceLocation={defaultWorkspaceLocation}
+        onUpdate={updateGeneral}
+        onSelectPermissions={() => selectSection("permissions")}
+        onRetryDefaultWorkspace={() => setDefaultWorkspaceReload(value => value + 1)}
+        onNavigate={onNavigate}
+        onOpenLicenses={() => setLicensesModalOpen(true)}
+      />
     );
-
     if (activeSection === "notifications") return (
       <section className="settings-content">
         <header className="settings-content__heading"><div><Typography.Title level={2}>通知</Typography.Title></div></header>
@@ -3670,65 +3288,11 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
           {!videoTranscriptionAccounts.length ? <Alert type="info" showIcon message="尚无可用于语音识别的 Ark Agent Plan 账户" description="请先在 AI 与模型的账户目录中配置 Plan 席位并加载包含豆包语音识别的官方目录。公开视频字幕和抽样画面不依赖语音账户。" /> : null}
           {settings.aiRuntime.videoTranscriptionAccountId && !selectedVideoTranscriptionAccount ? <Alert type="warning" showIcon message="当前语音识别账户不可用" description="请重新选择一个可见且包含语音识别模型的 Ark Agent Plan 账户。" /> : null}
         </SettingGroup>
-        <SettingGroup title="推理参数">
-          <SettingRow title="Agent Shell 文件访问限制" description="工作区读写隔离为默认值；只读限制项目文件写入；完全访问仍经现有 Permission Owner 授权。">
-            <Select
-              value={settings.aiRuntime.executionSandboxMode}
-              onChange={value => updateSettings("aiRuntime", { ...settings.aiRuntime, executionSandboxMode: value })}
-              options={[
-                { value: EXECUTION_SANDBOX_MODES[0], label: "只读工作区" },
-                { value: EXECUTION_SANDBOX_MODES[1], label: "工作区读写（默认）" },
-                { value: EXECUTION_SANDBOX_MODES[2], label: "完全访问" },
-              ]}
-              aria-label="Agent Shell 文件访问限制"
-            />
-          </SettingRow>
-          <SettingRow title="输出长度策略" description="快速策略最多请求 1024 tokens；平衡/深入遵循所选模型能力或你填写的上限，不改变模型思考力度。">
-            <Select value={settings.aiRuntime.speed} options={[{ value: "fast", label: "快速 · 最多 1024" }, { value: "balanced", label: "平衡 · 按模型/自定义上限" }, { value: "deep", label: "深入 · 尽量使用模型上限" }]} onChange={(value) => updateSettings("aiRuntime", { ...settings.aiRuntime, speed: value })} />
-          </SettingRow>
-          <SettingRow title="最大输出 tokens" description="0 表示自动：按模型目录声明的单次输出上限发送；目录未提供时省略上限字段，遵循 Provider 对该型号的默认值。正数是你的上限，已验证的模型上限仍会优先约束。部分模型的思考内容也占用 Provider 输出预算。">
-            <InputNumber min={0} max={Number.MAX_SAFE_INTEGER} step={1024} value={settings.aiRuntime.maxOutputTokens} onChange={(value) => value !== null && updateSettings("aiRuntime", { ...settings.aiRuntime, maxOutputTokens: value })} />
-          </SettingRow>
-          <SettingRow title="模型无进展超时" description="Provider 无响应或模型流没有新数据时中止；持续返回内容时不会因累计时长而中断。">
-            <Input type="number" min={10} max={300} value={settings.aiRuntime.requestTimeoutSeconds} onChange={(event) => updateSettings("aiRuntime", { ...settings.aiRuntime, requestTimeoutSeconds: Math.max(10, Math.min(300, Number(event.target.value) || 10)) })} />
-          </SettingRow>
-          <SettingRow title="模型请求重试次数" description="仅在未收到回答或工具选择时恢复临时网络、服务错误或空回答；0 表示关闭。每次重试计入本轮请求预算，已执行工具不会重放。">
-            <InputNumber min={0} max={3} value={settings.aiRuntime.requestRetries} onChange={value => value !== null && updateSettings("aiRuntime", { ...settings.aiRuntime, requestRetries: value })} />
-          </SettingRow>
-          <SettingRow title="模型重试等待（秒）" description="临时请求失败后的基础等待时间，后续重试逐次递增。停止任务会取消等待。">
-            <InputNumber min={0} max={30} value={settings.aiRuntime.retryDelaySeconds} onChange={value => value !== null && updateSettings("aiRuntime", { ...settings.aiRuntime, retryDelaySeconds: value })} />
-          </SettingRow>
-          <SettingRow title="子 Agent 模型账户" description="默认继承主 Agent 的模型账户，也可选择当前账户保存的其他模型；所选账户失效会明确失败，不自动换模型。">
-            <Select value={settings.aiRuntime.subagentAccountId} options={[{ value: "", label: "继承主 Agent" }, ...accounts.map(account => ({ value: account.id, label: account.displayName + " · " + account.modelId }))]} onChange={value => updateSettings("aiRuntime", { ...settings.aiRuntime, subagentAccountId: value })} />
-          </SettingRow>
-          <SettingRow title="每轮子 Agent 数量" description="允许主 Agent 按任务需要委派的子任务数量，0 表示关闭委派。">
-            <InputNumber min={0} max={16} value={settings.aiRuntime.maxSubagents} onChange={value => value !== null && updateSettings("aiRuntime", { ...settings.aiRuntime, maxSubagents: value })} />
-          </SettingRow>
-          <SettingRow title="最大委派深度" description="限制子 Agent 继续派发任务的层数，0 表示关闭委派。">
-            <InputNumber min={0} max={4} value={settings.aiRuntime.maxDelegationDepth} onChange={value => value !== null && updateSettings("aiRuntime", { ...settings.aiRuntime, maxDelegationDepth: value })} />
-          </SettingRow>
-          <SettingRow title="节点命令默认时限（秒）" description="0 表示不限时；模型指定的时限只能缩短已保存的非零上限。停止任务会向执行节点请求终止进程树。">
-            <InputNumber min={0} max={1800} value={settings.aiRuntime.commandTimeoutSeconds} onChange={value => value !== null && updateSettings("aiRuntime", { ...settings.aiRuntime, commandTimeoutSeconds: value })} />
-          </SettingRow>
-          <SettingRow title="每轮模型请求上限" description={`0 使用产品安全上限 ${AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN} 次（含重试和上下文摘要）；正数可设置更低预算。`}>
-            <InputNumber min={0} max={AI_RUNTIME_MAX_MODEL_REQUESTS_PER_RUN} value={settings.aiRuntime.maxModelRequests} onChange={(value) => value !== null && updateSettings("aiRuntime", { ...settings.aiRuntime, maxModelRequests: value })} />
-          </SettingRow>
-          <SettingRow title="每轮工具调用上限" description={`0 使用产品安全上限 ${AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN} 次；正数可设置更低预算。超出预算的本批调用均不会派发。`}>
-            <InputNumber min={0} max={AI_RUNTIME_MAX_TOOL_CALLS_PER_RUN} value={settings.aiRuntime.maxToolCalls} onChange={(value) => value !== null && updateSettings("aiRuntime", { ...settings.aiRuntime, maxToolCalls: value })} />
-          </SettingRow>
-          <SettingRow title="提示词建议" description="在空会话输入区显示当前应用的示例任务。">
-            <SettingsSwitch label="提示词建议" checked={settings.aiRuntime.promptSuggestions} onChange={() => updateSettings("aiRuntime", { ...settings.aiRuntime, promptSuggestions: !settings.aiRuntime.promptSuggestions })} />
-          </SettingRow>
-          <SettingRow title="显示上下文使用情况" id="ai-context-usage-setting" description={<><Tag color={settings.aiRuntime.showContextUsage ? "green" : "default"}>当前已{settings.aiRuntime.showContextUsage ? "开启" : "关闭"}</Tag> 开启后，主聊和侧聊输入框下方显示当前模型的上下文占用与分项；Token 总量和缓存命中统计不受此开关影响。</>}>
-            <SettingsSwitch label="显示上下文使用情况" checked={settings.aiRuntime.showContextUsage} onChange={() => updateSettings("aiRuntime", { ...settings.aiRuntime, showContextUsage: !settings.aiRuntime.showContextUsage })} />
-          </SettingRow>
-          <SettingRow title="自动压缩较早上下文" description="模型上下文接近容量时，先摘要较早对话再继续；关闭后保留现有上下文并遵循模型和请求预算。">
-            <SettingsSwitch label="自动压缩较早上下文" checked={settings.aiRuntime.autoCompaction ?? DEFAULT_USER_SETTINGS.aiRuntime.autoCompaction!} onChange={() => updateSettings("aiRuntime", { ...settings.aiRuntime, autoCompaction: !(settings.aiRuntime.autoCompaction ?? DEFAULT_USER_SETTINGS.aiRuntime.autoCompaction!) })} />
-          </SettingRow>
-          <SettingRow title="模型窗口未知时的上下文容量" description="优先使用模型目录提供的窗口；仅在目录未知时按此容量触发摘要，摘要使用当前模型并计入请求预算。">
-            <InputNumber min={4096} max={2000000} value={settings.aiRuntime.contextWindowTokens ?? DEFAULT_USER_SETTINGS.aiRuntime.contextWindowTokens!} onChange={value => value !== null && updateSettings("aiRuntime", { ...settings.aiRuntime, contextWindowTokens: value })} />
-          </SettingRow>
-        </SettingGroup>
+        <AgentLoopSettingsGroup
+          settings={settings.aiRuntime}
+          accounts={accounts}
+          onChange={aiRuntime => updateSettings("aiRuntime", aiRuntime)}
+        />
       </section>
     );
 
@@ -4232,7 +3796,7 @@ export function SettingsPage({ user, serverState, settings: workbenchSettings, r
     if (activeSection === "account") return (
       <section className="settings-content settings-content--account" role="tabpanel" id="settings-account-panel" aria-labelledby="settings-account-tab-account" tabIndex={0}>
         <header className="settings-content__heading"><div><span className="settings-eyebrow">个人与账户</span><Typography.Title level={2}>账号</Typography.Title><Typography.Paragraph>管理个人资料、登录安全和本机账号。</Typography.Paragraph></div></header>
-        <AccountSettingsTabs activeSection={activeSection} onSelect={selectSection} />
+        <AccountSettingsTabs activeSection={activeSection} onSelect={selectSection} tabs={ACCOUNT_SETTINGS_TABS} />
         {user.role === "super_admin" ? <AdminUsersPage userId={user.id} /> : <Alert type="warning" showIcon message="只有超级管理员可以管理本机账户。" />}
       </section>
     );

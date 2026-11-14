@@ -5733,15 +5733,21 @@
         "readme": "packages/client/connection/README.md",
         "consumers": [
           "packages/client/resources",
+          "packages/client/ui-approval",
           "packages/client/ui-chat",
           "packages/client/ui-connectivity",
+          "packages/client/ui-conversation",
           "packages/client/ui-deliverables",
+          "packages/client/ui-input-trigger",
           "packages/client/ui-layout",
+          "packages/client/ui-message-feedback",
           "packages/client/ui-minecraft",
+          "packages/client/ui-model-selection",
           "packages/client/ui-plugin-manager",
           "packages/client/ui-renderer",
           "packages/client/ui-settings",
           "packages/client/ui-settings-account",
+          "packages/client/ui-settings-agent-loop",
           "packages/client/ui-settings-general",
           "packages/client/ui-settings-models",
           "packages/client/ui-shortcuts",
@@ -5750,6 +5756,8 @@
           "packages/client/ui-sidebar-files",
           "packages/client/ui-sidebar-terminal",
           "packages/client/ui-theme",
+          "packages/client/ui-trajectory",
+          "packages/client/ui-user-questions",
           "packages/client/ui-workflow",
           "packages/client/ui-workspace",
           "packages/client/ui-writing"
@@ -5767,6 +5775,10 @@
             "field": "dependencies"
           },
           {
+            "consumer": "packages/client/ui-approval",
+            "field": "dependencies"
+          },
+          {
             "consumer": "packages/client/ui-chat",
             "field": "dependencies"
           },
@@ -5775,7 +5787,15 @@
             "field": "dependencies"
           },
           {
+            "consumer": "packages/client/ui-conversation",
+            "field": "dependencies"
+          },
+          {
             "consumer": "packages/client/ui-deliverables",
+            "field": "dependencies"
+          },
+          {
+            "consumer": "packages/client/ui-input-trigger",
             "field": "dependencies"
           },
           {
@@ -5783,7 +5803,15 @@
             "field": "dependencies"
           },
           {
+            "consumer": "packages/client/ui-message-feedback",
+            "field": "dependencies"
+          },
+          {
             "consumer": "packages/client/ui-minecraft",
+            "field": "dependencies"
+          },
+          {
+            "consumer": "packages/client/ui-model-selection",
             "field": "dependencies"
           },
           {
@@ -5800,6 +5828,10 @@
           },
           {
             "consumer": "packages/client/ui-settings-account",
+            "field": "dependencies"
+          },
+          {
+            "consumer": "packages/client/ui-settings-agent-loop",
             "field": "dependencies"
           },
           {
@@ -5832,6 +5864,14 @@
           },
           {
             "consumer": "packages/client/ui-theme",
+            "field": "dependencies"
+          },
+          {
+            "consumer": "packages/client/ui-trajectory",
+            "field": "dependencies"
+          },
+          {
+            "consumer": "packages/client/ui-user-questions",
             "field": "dependencies"
           },
           {
@@ -6204,38 +6244,52 @@
     },
     {
       "path": "packages/client/ui-approval",
-      "name": null,
+      "name": "lfaa-client-ui-approval",
       "upstreamName": "@deepseek-ai/dsh-client-ui-approval",
       "upstream": true,
-      "status": "placeholder",
+      "status": "implemented",
       "responsibility": "审批请求和真实决定的界面",
       "evidence": {
-        "entry": null,
-        "readme": null,
-        "consumers": [],
+        "entry": "packages/client/ui-approval/src/index.ts",
+        "readme": "packages/client/ui-approval/README.md",
+        "consumers": [
+          "packages/client/ui-chat"
+        ],
         "testConsumers": [],
-        "manifestConsumers": [],
+        "manifestConsumers": [
+          {
+            "consumer": "packages/client/ui-chat",
+            "field": "dependencies"
+          }
+        ],
         "profileConsumers": [],
         "bundleDeclarations": [],
-        "boundary": "目标职责；占位不可执行"
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
       }
     },
     {
       "path": "packages/client/ui-attachment",
-      "name": null,
+      "name": "lfaa-client-ui-attachment",
       "upstreamName": "@deepseek-ai/dsh-client-ui-attachment",
       "upstream": true,
-      "status": "placeholder",
+      "status": "implemented",
       "responsibility": "附件选择、预览与状态界面",
       "evidence": {
-        "entry": null,
-        "readme": null,
-        "consumers": [],
+        "entry": "packages/client/ui-attachment/src/index.ts",
+        "readme": "packages/client/ui-attachment/README.md",
+        "consumers": [
+          "packages/client/ui-chat"
+        ],
         "testConsumers": [],
-        "manifestConsumers": [],
+        "manifestConsumers": [
+          {
+            "consumer": "packages/client/ui-chat",
+            "field": "dependencies"
+          }
+        ],
         "profileConsumers": [],
         "bundleDeclarations": [],
-        "boundary": "目标职责；占位不可执行"
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
       }
     },
     {
@@ -6366,20 +6420,27 @@
     },
     {
       "path": "packages/client/ui-conversation",
-      "name": null,
+      "name": "lfaa-client-ui-conversation",
       "upstreamName": "@deepseek-ai/dsh-client-ui-conversation",
       "upstream": true,
-      "status": "placeholder",
+      "status": "implemented",
       "responsibility": "会话对话容器与消息交互组件",
       "evidence": {
-        "entry": null,
-        "readme": null,
-        "consumers": [],
+        "entry": "packages/client/ui-conversation/src/index.ts",
+        "readme": "packages/client/ui-conversation/README.md",
+        "consumers": [
+          "packages/client/ui-chat"
+        ],
         "testConsumers": [],
-        "manifestConsumers": [],
+        "manifestConsumers": [
+          {
+            "consumer": "packages/client/ui-chat",
+            "field": "dependencies"
+          }
+        ],
         "profileConsumers": [],
         "bundleDeclarations": [],
-        "boundary": "目标职责；占位不可执行"
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
       }
     },
     {
@@ -6517,20 +6578,27 @@
     },
     {
       "path": "packages/client/ui-input-trigger",
-      "name": null,
+      "name": "lfaa-client-ui-input-trigger",
       "upstreamName": "@deepseek-ai/dsh-client-ui-input-trigger",
       "upstream": true,
-      "status": "placeholder",
+      "status": "implemented",
       "responsibility": "输入触发器与快捷交互组件",
       "evidence": {
-        "entry": null,
-        "readme": null,
-        "consumers": [],
+        "entry": "packages/client/ui-input-trigger/src/index.ts",
+        "readme": "packages/client/ui-input-trigger/README.md",
+        "consumers": [
+          "packages/client/ui-chat"
+        ],
         "testConsumers": [],
-        "manifestConsumers": [],
+        "manifestConsumers": [
+          {
+            "consumer": "packages/client/ui-chat",
+            "field": "dependencies"
+          }
+        ],
         "profileConsumers": [],
         "bundleDeclarations": [],
-        "boundary": "目标职责；占位不可执行"
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
       }
     },
     {
@@ -6589,20 +6657,27 @@
     },
     {
       "path": "packages/client/ui-message-feedback",
-      "name": null,
+      "name": "lfaa-client-ui-message-feedback",
       "upstreamName": "@deepseek-ai/dsh-client-ui-message-feedback",
       "upstream": true,
-      "status": "placeholder",
+      "status": "implemented",
       "responsibility": "消息反馈交互组件",
       "evidence": {
-        "entry": null,
-        "readme": null,
-        "consumers": [],
+        "entry": "packages/client/ui-message-feedback/src/index.ts",
+        "readme": "packages/client/ui-message-feedback/README.md",
+        "consumers": [
+          "packages/client/ui-chat"
+        ],
         "testConsumers": [],
-        "manifestConsumers": [],
+        "manifestConsumers": [
+          {
+            "consumer": "packages/client/ui-chat",
+            "field": "dependencies"
+          }
+        ],
         "profileConsumers": [],
         "bundleDeclarations": [],
-        "boundary": "目标职责；占位不可执行"
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
       }
     },
     {
@@ -6649,20 +6724,27 @@
     },
     {
       "path": "packages/client/ui-model-selection",
-      "name": null,
+      "name": "lfaa-client-ui-model-selection",
       "upstreamName": "@deepseek-ai/dsh-client-ui-model-selection",
       "upstream": true,
-      "status": "placeholder",
+      "status": "implemented",
       "responsibility": "模型目录选择和能力参数展示",
       "evidence": {
-        "entry": null,
-        "readme": null,
-        "consumers": [],
+        "entry": "packages/client/ui-model-selection/src/index.ts",
+        "readme": "packages/client/ui-model-selection/README.md",
+        "consumers": [
+          "packages/client/ui-chat"
+        ],
         "testConsumers": [],
-        "manifestConsumers": [],
+        "manifestConsumers": [
+          {
+            "consumer": "packages/client/ui-chat",
+            "field": "dependencies"
+          }
+        ],
         "profileConsumers": [],
         "bundleDeclarations": [],
-        "boundary": "目标职责；占位不可执行"
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
       }
     },
     {
@@ -6703,20 +6785,27 @@
     },
     {
       "path": "packages/client/ui-plan",
-      "name": null,
+      "name": "lfaa-client-ui-plan",
       "upstreamName": "@deepseek-ai/dsh-client-ui-plan",
       "upstream": true,
-      "status": "placeholder",
+      "status": "implemented",
       "responsibility": "计划模式和计划结果展示",
       "evidence": {
-        "entry": null,
-        "readme": null,
-        "consumers": [],
+        "entry": "packages/client/ui-plan/src/index.ts",
+        "readme": "packages/client/ui-plan/README.md",
+        "consumers": [
+          "packages/client/ui-chat"
+        ],
         "testConsumers": [],
-        "manifestConsumers": [],
+        "manifestConsumers": [
+          {
+            "consumer": "packages/client/ui-chat",
+            "field": "dependencies"
+          }
+        ],
         "profileConsumers": [],
         "bundleDeclarations": [],
-        "boundary": "目标职责；占位不可执行"
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
       }
     },
     {
@@ -6762,17 +6851,27 @@
         "entry": "packages/client/ui-primitives/src/index.ts",
         "readme": "packages/client/ui-primitives/README.md",
         "consumers": [
+          "packages/client/ui-approval",
+          "packages/client/ui-attachment",
           "packages/client/ui-chat",
           "packages/client/ui-deliverables",
+          "packages/client/ui-input-trigger",
           "packages/client/ui-layout",
+          "packages/client/ui-message-feedback",
           "packages/client/ui-minecraft",
+          "packages/client/ui-model-selection",
+          "packages/client/ui-plan",
           "packages/client/ui-plugin-manager",
           "packages/client/ui-renderer",
           "packages/client/ui-settings",
           "packages/client/ui-settings-account",
+          "packages/client/ui-settings-agent-loop",
+          "packages/client/ui-settings-general",
           "packages/client/ui-sidebar",
           "packages/client/ui-sidebar-files",
           "packages/client/ui-sidebar-terminal",
+          "packages/client/ui-trajectory",
+          "packages/client/ui-user-questions",
           "packages/client/ui-workspace",
           "packages/client/ui-writing",
           "packages/client/web"
@@ -6784,6 +6883,14 @@
             "field": "dependencies"
           },
           {
+            "consumer": "packages/client/ui-approval",
+            "field": "dependencies"
+          },
+          {
+            "consumer": "packages/client/ui-attachment",
+            "field": "dependencies"
+          },
+          {
             "consumer": "packages/client/ui-chat",
             "field": "dependencies"
           },
@@ -6792,11 +6899,27 @@
             "field": "dependencies"
           },
           {
+            "consumer": "packages/client/ui-input-trigger",
+            "field": "dependencies"
+          },
+          {
             "consumer": "packages/client/ui-layout",
             "field": "dependencies"
           },
           {
+            "consumer": "packages/client/ui-message-feedback",
+            "field": "dependencies"
+          },
+          {
             "consumer": "packages/client/ui-minecraft",
+            "field": "dependencies"
+          },
+          {
+            "consumer": "packages/client/ui-model-selection",
+            "field": "dependencies"
+          },
+          {
+            "consumer": "packages/client/ui-plan",
             "field": "dependencies"
           },
           {
@@ -6813,6 +6936,10 @@
           },
           {
             "consumer": "packages/client/ui-settings-account",
+            "field": "dependencies"
+          },
+          {
+            "consumer": "packages/client/ui-settings-agent-loop",
             "field": "dependencies"
           },
           {
@@ -6833,6 +6960,14 @@
           },
           {
             "consumer": "packages/client/ui-sidebar-terminal",
+            "field": "dependencies"
+          },
+          {
+            "consumer": "packages/client/ui-trajectory",
+            "field": "dependencies"
+          },
+          {
+            "consumer": "packages/client/ui-user-questions",
             "field": "dependencies"
           },
           {
@@ -7025,20 +7160,27 @@
     },
     {
       "path": "packages/client/ui-settings-agent-loop",
-      "name": null,
+      "name": "lfaa-client-ui-settings-agent-loop",
       "upstreamName": "@deepseek-ai/dsh-client-ui-settings-agent-loop",
       "upstream": true,
-      "status": "placeholder",
+      "status": "implemented",
       "responsibility": "Agent 循环预算设置界面",
       "evidence": {
-        "entry": null,
-        "readme": null,
-        "consumers": [],
+        "entry": "packages/client/ui-settings-agent-loop/src/index.ts",
+        "readme": "packages/client/ui-settings-agent-loop/README.md",
+        "consumers": [
+          "packages/client/ui-settings"
+        ],
         "testConsumers": [],
-        "manifestConsumers": [],
+        "manifestConsumers": [
+          {
+            "consumer": "packages/client/ui-settings",
+            "field": "dependencies"
+          }
+        ],
         "profileConsumers": [],
         "bundleDeclarations": [],
-        "boundary": "目标职责；占位不可执行"
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
       }
     },
     {
@@ -7100,6 +7242,7 @@
         "readme": "packages/client/ui-settings-models/README.md",
         "consumers": [
           "packages/client/ui-chat",
+          "packages/client/ui-model-selection",
           "packages/client/ui-settings"
         ],
         "testConsumers": [
@@ -7113,6 +7256,10 @@
           },
           {
             "consumer": "packages/client/ui-chat",
+            "field": "dependencies"
+          },
+          {
+            "consumer": "packages/client/ui-model-selection",
             "field": "dependencies"
           },
           {
@@ -7584,38 +7731,52 @@
     },
     {
       "path": "packages/client/ui-trajectory",
-      "name": null,
+      "name": "lfaa-client-ui-trajectory",
       "upstreamName": "@deepseek-ai/dsh-client-ui-trajectory",
       "upstream": true,
-      "status": "placeholder",
+      "status": "implemented",
       "responsibility": "公开执行轨迹展示，不暴露隐藏推理",
       "evidence": {
-        "entry": null,
-        "readme": null,
-        "consumers": [],
+        "entry": "packages/client/ui-trajectory/src/index.ts",
+        "readme": "packages/client/ui-trajectory/README.md",
+        "consumers": [
+          "packages/client/ui-chat"
+        ],
         "testConsumers": [],
-        "manifestConsumers": [],
+        "manifestConsumers": [
+          {
+            "consumer": "packages/client/ui-chat",
+            "field": "dependencies"
+          }
+        ],
         "profileConsumers": [],
         "bundleDeclarations": [],
-        "boundary": "目标职责；占位不可执行"
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
       }
     },
     {
       "path": "packages/client/ui-user-questions",
-      "name": null,
+      "name": "lfaa-client-ui-user-questions",
       "upstreamName": "@deepseek-ai/dsh-client-ui-user-questions",
       "upstream": true,
-      "status": "placeholder",
+      "status": "implemented",
       "responsibility": "用户澄清问题与答案交互",
       "evidence": {
-        "entry": null,
-        "readme": null,
-        "consumers": [],
+        "entry": "packages/client/ui-user-questions/src/index.ts",
+        "readme": "packages/client/ui-user-questions/README.md",
+        "consumers": [
+          "packages/client/ui-chat"
+        ],
         "testConsumers": [],
-        "manifestConsumers": [],
+        "manifestConsumers": [
+          {
+            "consumer": "packages/client/ui-chat",
+            "field": "dependencies"
+          }
+        ],
         "profileConsumers": [],
         "bundleDeclarations": [],
-        "boundary": "目标职责；占位不可执行"
+        "boundary": "仅源接口/静态引用/装配声明，不代表已加载或实测"
       }
     },
     {
@@ -7726,6 +7887,7 @@
         "entry": "packages/client/ui-writing/src/index.ts",
         "readme": "packages/client/ui-writing/README.md",
         "consumers": [
+          "packages/client/ui-chat",
           "packages/client/ui-workspace",
           "packages/client/web"
         ],
@@ -7733,6 +7895,10 @@
         "manifestConsumers": [
           {
             "consumer": "apps/web",
+            "field": "dependencies"
+          },
+          {
+            "consumer": "packages/client/ui-chat",
             "field": "dependencies"
           },
           {
@@ -7812,7 +7978,7 @@
       "responsibility": "上下文压缩服务及引擎合同",
       "evidence": {
         "entry": "packages/compaction/compaction/src/index.ts",
-        "readme": null,
+        "readme": "packages/compaction/compaction/README.md",
         "consumers": [
           "packages/compaction/command-compact",
           "packages/compaction/compaction-basic"
@@ -7853,7 +8019,7 @@
       "responsibility": "基础有界摘要压缩引擎",
       "evidence": {
         "entry": "packages/compaction/compaction-basic/src/index.ts",
-        "readme": null,
+        "readme": "packages/compaction/compaction-basic/README.md",
         "consumers": [],
         "testConsumers": [
           "apps/cli/tests/fixtures/harness-runtime-wiring.mjs"
@@ -8184,7 +8350,6 @@
         "consumers": [
           "packages/api/session-controller",
           "packages/api/workspace-controller",
-          "packages/compaction/compaction-basic",
           "packages/sdk/sdk-protocol",
           "packages/workflow/app-agent-adapter",
           "packages/workflow/minecraft-adapter"
@@ -8226,10 +8391,6 @@
           },
           {
             "consumer": "packages/bundle/base",
-            "field": "dependencies"
-          },
-          {
-            "consumer": "packages/compaction/compaction-basic",
             "field": "dependencies"
           },
           {
@@ -12161,11 +12322,16 @@
         "entry": "packages/llm/token-meter/src/index.ts",
         "readme": "packages/llm/token-meter/README.md",
         "consumers": [
+          "packages/compaction/compaction-basic",
           "packages/core/agent-loop",
           "packages/llm/llm-pi-ai"
         ],
         "testConsumers": [],
         "manifestConsumers": [
+          {
+            "consumer": "packages/compaction/compaction-basic",
+            "field": "dependencies"
+          },
           {
             "consumer": "packages/core/agent-loop",
             "field": "dependencies"
@@ -17478,9 +17644,11 @@
           "packages/client/ui-primitives",
           "packages/client/ui-renderer",
           "packages/client/ui-settings",
+          "packages/client/ui-settings-agent-loop",
           "packages/client/ui-settings-general",
           "packages/client/ui-sidebar",
           "packages/client/ui-theme",
+          "packages/client/ui-trajectory",
           "packages/client/ui-workflow",
           "packages/client/ui-workspace",
           "packages/computer-use/computer-use",
@@ -17719,6 +17887,10 @@
             "field": "dependencies"
           },
           {
+            "consumer": "packages/client/ui-settings-agent-loop",
+            "field": "dependencies"
+          },
+          {
             "consumer": "packages/client/ui-settings-general",
             "field": "dependencies"
           },
@@ -17728,6 +17900,10 @@
           },
           {
             "consumer": "packages/client/ui-theme",
+            "field": "dependencies"
+          },
+          {
+            "consumer": "packages/client/ui-trajectory",
             "field": "dependencies"
           },
           {

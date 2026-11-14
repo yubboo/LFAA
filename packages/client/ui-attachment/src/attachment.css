@@ -1,0 +1,39 @@
+/* 待发送附件行：独立一行、可换行，避免挤压发送按钮与输入框 */
+.ai-work-chat__attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 2px;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.ai-work-chat__attachment {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  max-width: 220px;
+  padding: 2px 4px 2px 8px;
+  border-radius: 999px;
+  background: var(--lfaa-surface-muted, rgba(127, 127, 127, 0.12));
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.ai-work-chat__attachment-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 输入框附件缩略图：36px 圆角预览，只用于当前账户自己的附件内容接口 */
+.ai-work-chat__attachment-thumb {
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 8px;
+  flex: none;
+  background: rgba(127, 127, 127, 0.12);
+}

@@ -1,0 +1,16 @@
+/* 功能：写作提案审阅弹窗。作用：并排对照原文与提案，并在窄屏改为单列；关联文件：WritingProposalReviewDialog.tsx。 */
+.writing-proposal-review__body { display: grid; max-height: calc(100vh - 190px); gap: 14px; overflow: auto; }
+.writing-proposal-review__meta { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--color-text-secondary); font-family: var(--settings-interface-font, var(--font-family-sans)); font-size: var(--font-size-sm); }
+.writing-proposal-review__columns { display: grid; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.writing-proposal-review__columns > section { display: grid; min-width: 0; gap: 7px; }
+.writing-proposal-review__columns h3 { margin: 0; color: var(--color-text-heading); font: 600 var(--font-size-sm)/1.4 var(--settings-interface-font, var(--font-family-sans)); }
+.writing-proposal-review__text.ant-input { height: min(55vh, 520px); min-height: 220px; resize: vertical; overflow: auto; border-color: var(--color-border); border-radius: 9px; background: var(--color-surface-muted); color: var(--color-text-primary); font-family: var(--settings-content-font, var(--settings-interface-font, var(--font-family-sans))); font-size: var(--settings-interface-font-size, var(--font-size-base)); line-height: 1.65; white-space: pre-wrap; }
+.writing-proposal-review__text.ant-input:focus { border-color: var(--settings-accent, var(--color-brand)); box-shadow: 0 0 0 2px var(--color-focus-ring); }
+.writing-proposal-review__loading { display: grid; min-height: 260px; place-items: center; }
+.writing-proposal-review__error { margin-bottom: 12px; }
+.writing-proposal-review__footer { display: flex; justify-content: flex-end; gap: 8px; }
+
+@media (max-width: 720px) {
+  .writing-proposal-review__columns { grid-template-columns: minmax(0, 1fr); }
+  .writing-proposal-review__text.ant-input { height: 34vh; min-height: 160px; }
+}

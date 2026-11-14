@@ -1,5 +1,5 @@
 /** 功能：运行环境的认证 API 与共享展示合同。作用：手动页面与 AI 使用同一 RuntimeManager，目标设备不由浏览器操作系统推断。 */
-import { request } from "./api.js";
+import { request } from "./http-client.js";
 export interface RuntimeEnvironment {
   runtimeId: string; type: "java" | "steamcmd" | "visual-cpp" | "directx"; major?: number; version?: string; vendor: string;
   executablePath?: string; managed: boolean; source: "managed" | "system" | "custom";

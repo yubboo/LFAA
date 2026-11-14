@@ -14,8 +14,7 @@
 import { randomUUID } from "node:crypto";
 import type { Context } from "@deepseek-ai/cordis";
 import type { AiCompletionService } from "lfaa-llm/src/completion.js";
-import { estimateMessagesTokens } from "lfaa-agent-loop/src/runtime-context.js";
-import { FALLBACK_CONTEXT_WINDOW_TOKENS } from "lfaa-agent-loop/src/constants.js";
+import { estimatePromptTokens } from "lfaa-token-meter/src/estimate.js";
 import {
   assertCompactableRange,
   assertSummaryIsSmaller,
@@ -84,8 +83,10 @@ export function createBasicCompactionEngine(deps: BasicCompactionDeps): Compacti
   const config = resolveBasicCompactionConfig(deps.config);
   return {
     async compactIfNeeded(input): Promise<CompactionResult | null> {
-      const window = input.contextWindow > 0 ? input.contextWindow : FALLBACK_CONTEXT_WINDOW_TOKENS;
-      const used = estimateMessagesTokens(input.messages, input.tools, input.reasoningReplayCharacters);
+      // Agent Loop 传入已归一化的上下文窗；无效值不触发压缩，也不在策略包复制全局兜底。
+      if (!Number.isFinite(input.contextWindow) || input.contextWindow <= 0) return null;
+      const window = input.contextWindow;
+      const used = estimatePromptTokens(input.messages, input.tools, input.reasoningReplayCharacters);
       const ratio = used / window;
       // 自动压力触发才看阈值；manual/spill-threshold 强制尝试。
       if (input.trigger.reason === "pressure" && ratio < config.thresholdRatio) return null;
@@ -138,7 +139,7 @@ export function createBasicCompactionEngine(deps: BasicCompactionDeps): Compacti
       return {
         messages,
         compactedCount: range.end - range.start,
-        estimatedTokensAfter: estimateMessagesTokens(messages, input.tools, input.reasoningReplayCharacters),
+        estimatedTokensAfter: estimatePromptTokens(messages, input.tools, input.reasoningReplayCharacters),
         summary,
       };
     },
