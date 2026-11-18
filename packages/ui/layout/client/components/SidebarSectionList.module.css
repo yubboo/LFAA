@@ -1,0 +1,293 @@
+/* 统一的左二菜单栏分组、列表、搜索框与空态样式，供工作区与设置中心共用。 */
+.root {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 0.75rem;
+  overflow: hidden;
+}
+
+.searchWrap {
+  display: flex;
+  min-height: 2.3rem;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0.85rem;
+  padding: 0 0.7rem;
+  border: 1px solid var(--glass-border, var(--color-line));
+  border-radius: 999px;
+  background: var(--glass-control-bg, var(--color-surface));
+  color: var(--color-muted);
+}
+
+.searchWrap:focus-within {
+  border-color: var(--color-accent);
+  color: var(--color-ink);
+}
+
+.searchWrap svg {
+  width: 0.95rem;
+  height: 0.95rem;
+  flex: 0 0 auto;
+}
+
+.searchWrap input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.93em;
+}
+
+.searchWrap input::placeholder {
+  color: var(--color-muted);
+}
+
+.groups {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 1.15rem;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0.1rem 0.85rem 0.65rem;
+}
+
+.group {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  gap: 0.28rem;
+  border-radius: 0.65rem;
+  transition: background-color 140ms ease, outline-color 140ms ease;
+}
+
+.groupDropActive {
+  background: rgb(var(--color-accent-rgb, 230 106 168) / 0.1);
+  outline: 1px dashed rgb(var(--color-accent-rgb, 230 106 168) / 0.55);
+}
+
+.headingRow {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 0.6rem;
+  transition: background-color 140ms ease;
+}
+
+.headingRow:has(> .groupHeadingButton):hover {
+  background: var(--color-active);
+}
+
+.headingRow:has(> .groupHeadingButton):hover .groupHeadingButton {
+  color: var(--color-ink);
+}
+
+.groupHeadingButton {
+  display: flex;
+  min-width: 0;
+  min-height: 2.2rem;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0 0.6rem;
+  border: 0;
+  border-radius: 0.6rem;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 0.93em;
+  text-align: left;
+  cursor: pointer;
+}
+
+.groupHeadingButton:hover {
+  color: var(--color-ink);
+}
+
+.groupHeadingButton > svg {
+  width: 0.95rem;
+  height: 0.95rem;
+  flex: 0 0 auto;
+}
+
+.sectionTitle {
+  margin: 0;
+  padding: 0.15rem 0.6rem;
+  color: var(--color-muted);
+  font-size: 0.85em;
+  font-weight: 500;
+}
+
+.list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  gap: 0.14rem;
+}
+
+.item {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 2.2rem;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0 0.65rem;
+  border: 1px solid transparent;
+  border-radius: 0.6rem;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 0.93em;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+
+.item:hover,
+.itemRow:hover {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.itemRow {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 2.2rem;
+  align-items: center;
+  gap: 0.25rem;
+  padding-right: 0.3rem;
+  border: 1px solid transparent;
+  border-radius: 0.6rem;
+  background: transparent;
+  color: var(--color-muted);
+  transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+
+.itemMain {
+  display: flex;
+  min-width: 0;
+  min-height: 2.2rem;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0 0.25rem 0 0.65rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.93em;
+  text-align: left;
+  cursor: pointer;
+}
+
+.itemMain > svg {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
+}
+
+.rowActions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.1rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease;
+}
+
+.itemRow:hover .rowActions,
+.itemRow:has(:focus-visible) .rowActions,
+.itemRow[data-actions-visible="true"] .rowActions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .rowActions {
+    opacity: 0.9;
+    pointer-events: auto;
+  }
+}
+
+.itemActive {
+  border-color: rgb(var(--color-accent-rgb, 230 106 168) / 0.42);
+  background: rgb(var(--color-accent-rgb, 230 106 168) / 0.12);
+  color: var(--color-ink);
+  font-weight: 550;
+}
+
+.item > svg {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
+}
+
+.label {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.emptyAction {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 2.2rem;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0 0.65rem;
+  border: 1px solid transparent;
+  border-radius: 0.6rem;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 0.93em;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.emptyAction:hover {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.emptyAction > svg {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
+}
+
+.emptyGroup,
+.emptySectionHint,
+.localNote,
+.emptySearch {
+  margin: 0.15rem 0.6rem 0.35rem;
+  color: var(--color-muted);
+  font-size: 0.86em;
+  line-height: 1.5;
+}
+
+.emptySectionHint {
+  padding: 0.35rem 0.4rem;
+  border-radius: 0.5rem;
+  font-size: 0.84em;
+}
+
+.localNote {
+  margin-top: 0.2rem;
+  font-size: 0.78em;
+}

@@ -1,0 +1,162 @@
+/* 搜索弹层为 Shell 导航提供聚焦后的快速入口。 */
+.backdrop {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: min(15vh, 8rem) 1rem 1rem;
+  background: rgb(10 11 10 / 42%);
+  backdrop-filter: blur(4px);
+}
+
+.dialog {
+  width: min(38rem, 100%);
+  max-height: min(72vh, 42rem);
+  overflow: hidden;
+  border: 1px solid var(--glass-border, var(--color-line));
+  border-radius: 1.05rem;
+  background: var(--glass-popover-bg, var(--color-popover));
+  background-image: var(--glass-sheen, none);
+  backdrop-filter: blur(26px) saturate(180%);
+  -webkit-backdrop-filter: blur(26px) saturate(180%);
+  box-shadow: var(--glass-specular-shadow, none), var(--color-menu-shadow);
+  color: var(--color-ink);
+}
+
+.searchBox {
+  display: flex;
+  min-height: 3.5rem;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0 1rem;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.searchBox svg {
+  width: 1.2rem;
+  height: 1.2rem;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: var(--color-muted);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.searchBox input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 1rem;
+}
+
+.searchBox input::placeholder {
+  color: var(--color-muted);
+}
+
+.searchBox kbd {
+  padding: 0.18rem 0.38rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.35rem;
+  color: var(--color-muted);
+  font-size: 0.7rem;
+}
+
+.heading {
+  margin: 0;
+  padding: 0.85rem 1rem 0.45rem;
+  color: var(--color-muted);
+  font-size: 0.74rem;
+  font-weight: 550;
+}
+
+.results {
+  max-height: 48vh;
+  overflow: auto;
+  padding: 0.2rem 0.5rem 0.5rem;
+}
+
+.result {
+  display: flex;
+  width: 100%;
+  min-height: 3.3rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.5rem 0.65rem;
+  border: 0;
+  border-radius: 0.6rem;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.result:hover,
+.resultActive {
+  background: var(--color-menu-hover);
+}
+
+.resultText strong,
+.resultText small {
+  display: block;
+}
+
+.resultText strong {
+  font-size: 0.86rem;
+  font-weight: 550;
+}
+
+.resultText small,
+.empty,
+.footer {
+  color: var(--color-muted);
+  font-size: 0.76rem;
+}
+
+.resultText small {
+  margin-top: 0.18rem;
+}
+
+.result > svg {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: var(--color-muted);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
+}
+
+.empty {
+  margin: 0;
+  padding: 1.2rem 0.65rem;
+  line-height: 1.5;
+}
+
+.footer {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--color-line);
+  font-size: 0.7rem;
+}
+
+@media (max-width: 640px) {
+  .backdrop {
+    padding: 0.75rem;
+  }
+
+  .dialog {
+    max-height: calc(100dvh - 1.5rem);
+  }
+
+  .searchBox kbd {
+    display: none;
+  }
+}

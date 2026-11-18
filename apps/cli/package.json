@@ -1,0 +1,10 @@
+{
+  "name": "@lfaa/app-cli",
+  "description": "LFAA 启动命令分发入口。",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@lfaa/app-web": "workspace:*"
+  }
+}

@@ -1,0 +1,306 @@
+/* 左二导航栏顶部工具、模式切换与设置菜单容器。 */
+.sidebar {
+  position: relative;
+  z-index: 10;
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-rows: var(--topbar-height, 3.5rem) minmax(0, 1fr);
+  overflow: visible;
+  padding: 0;
+  border-right: 1px solid var(--color-line);
+  background: var(--color-panel);
+  background-image: var(--glass-sheen, none);
+  backdrop-filter: blur(var(--glass-sidebar-blur, 0px)) saturate(var(--glass-sidebar-saturate, 100%));
+  -webkit-backdrop-filter: blur(var(--glass-sidebar-blur, 0px)) saturate(var(--glass-sidebar-saturate, 100%));
+  color: var(--color-ink);
+}
+
+.header {
+  position: relative;
+  display: flex;
+  height: var(--topbar-height, 3.5rem);
+  min-height: var(--topbar-height, 3.5rem);
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0 0.9rem;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.sidebarBody {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0.85rem 0 0;
+}
+
+.settingsHeader {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 1em;
+  font-weight: 600;
+}
+
+.settingsHeader span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modeRoot {
+  position: relative;
+  min-width: 0;
+}
+
+.modeTrigger {
+  display: inline-flex;
+  max-width: 100%;
+  min-height: 2.2rem;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.25rem 0.5rem;
+  border: 0;
+  border-radius: 0.6rem;
+  background: transparent;
+  color: inherit;
+  font-size: 1.07em;
+  font-weight: 620;
+  letter-spacing: -0.02em;
+  cursor: pointer;
+}
+
+.modeTrigger:hover,
+.modeTriggerOpen {
+  background: var(--color-active);
+}
+
+.modeTrigger svg {
+  width: 0.9rem;
+  height: 0.9rem;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: var(--color-muted);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.headerButton,
+.activityHeading button {
+  position: relative;
+  display: grid;
+  width: 2.15rem;
+  height: 2.15rem;
+  flex: 0 0 auto;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 0.6rem;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.headerButton:hover,
+.headerButtonActive,
+.activityHeading button:hover {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.headerButton > svg,
+.activityHeading button > svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.headerButton[data-tooltip]::after {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 80;
+  width: max-content;
+  max-width: 18rem;
+  padding: 0.42rem 0.65rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.65rem;
+  background: var(--color-popover);
+  box-shadow: var(--color-menu-shadow);
+  color: var(--color-ink);
+  content: attr(data-tooltip);
+  font-size: 0.76rem;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-0.15rem);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.headerButton:hover::after,
+.headerButton:focus-visible::after {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.headerButton[aria-expanded="true"]::after {
+  opacity: 0;
+}
+
+.modeMenu {
+  position: absolute;
+  z-index: 50;
+  top: calc(100% + 0.45rem);
+  left: 0;
+  width: min(22.5rem, calc(100vw - var(--rail-width) - 2rem));
+  min-width: min(20rem, calc(100vw - var(--rail-width) - 2rem));
+  padding: 0.5rem;
+  border: 1px solid var(--color-line);
+  border-radius: 1rem;
+  background: var(--color-popover);
+  box-shadow: var(--color-menu-shadow);
+}
+
+.modeOption {
+  display: flex;
+  width: 100%;
+  min-height: 4rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  padding: 0.55rem 0.65rem;
+  border: 0;
+  border-radius: 0.65rem;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.modeOption:hover {
+  background: var(--color-menu-hover);
+}
+
+.modeOption strong,
+.modeOption small {
+  display: block;
+}
+
+.modeOption strong {
+  font-size: 1.05rem;
+  font-weight: 560;
+}
+
+.modeOption small {
+  margin-top: 0.18rem;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
+
+.check {
+  width: 1.1rem;
+  height: 1.1rem;
+  color: var(--color-muted);
+}
+
+.activityPanel {
+  position: absolute;
+  z-index: 60;
+  top: calc(var(--topbar-height, 3.5rem) + 0.35rem);
+  right: 0.5rem;
+  width: min(21rem, calc(100% - 0.4rem));
+  padding: 0.8rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.9rem;
+  background: var(--color-popover);
+  box-shadow: var(--color-menu-shadow);
+}
+
+.activityHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.activityHeading strong {
+  font-size: 0.86rem;
+}
+
+.activityHeading button {
+  width: 1.9rem;
+  height: 1.9rem;
+}
+
+.activityHeading button > svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.activityPanel p {
+  margin: 0.55rem 0 0.15rem;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 1023px) {
+  .sidebar {
+    position: fixed;
+    z-index: 45;
+    top: 0;
+    bottom: 0;
+    left: var(--rail-width);
+    width: min(21rem, calc(100vw - var(--rail-width) - 1rem));
+    box-shadow: var(--color-menu-shadow);
+    animation: slideInLeft 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}
+
+@media (max-width: 767px) {
+  .sidebar {
+    left: 0;
+    width: min(21rem, 88vw);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .header {
+    padding-inline: 0.75rem;
+  }
+
+  .sidebarBody {
+    padding-inline: 0;
+  }
+
+  .headerButton {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+
+  .modeTrigger {
+    font-size: 1.07em;
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}

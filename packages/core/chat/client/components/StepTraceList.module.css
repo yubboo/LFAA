@@ -1,0 +1,156 @@
+/* Agent Think -> Act -> Check 循环轨迹与审批确认卡片样式。 */
+.traceWrap {
+  display: grid;
+  gap: 0.45rem;
+  margin-bottom: 0.65rem;
+}
+
+.traceToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: fit-content;
+  padding: 0.3rem 0.65rem;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--glass-control-bg, transparent);
+  color: var(--color-muted);
+  font-size: 0.82em;
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.traceToggle:hover {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.traceList {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.85rem;
+  background: var(--glass-card-bg, var(--color-surface));
+}
+
+.stepRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.5rem;
+  font-size: 0.86em;
+  line-height: 1.45;
+}
+
+.phaseBadge {
+  padding: 0.1rem 0.45rem;
+  border-radius: 0.45rem;
+  font-size: 0.82em;
+  font-weight: 600;
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.phaseThink {
+  background: rgb(59 130 246 / 0.14);
+  color: #60a5fa;
+}
+
+.phaseAct {
+  background: rgb(249 115 22 / 0.14);
+  color: #fb923c;
+}
+
+.phaseCheck {
+  background: rgb(16 185 129 / 0.14);
+  color: #34d399;
+}
+
+.stepMain {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.stepTitle {
+  color: var(--color-ink);
+  word-break: break-word;
+}
+
+.stepMeta {
+  margin: 0;
+  color: var(--color-muted);
+  font-family: var(--code-font-family, monospace);
+  font-size: 0.86em;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.statusBadge {
+  color: var(--color-muted);
+  font-size: 0.82em;
+  white-space: nowrap;
+}
+
+.statusError {
+  color: #ef4444;
+}
+
+.approvalCard {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid rgb(var(--color-accent-rgb, 230 106 168) / 0.45);
+  border-radius: 0.85rem;
+  background: rgb(var(--color-accent-rgb, 230 106 168) / 0.08);
+}
+
+.approvalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  color: var(--color-ink);
+  font-size: 0.9em;
+  font-weight: 600;
+}
+
+.approvalArgs {
+  margin: 0;
+  padding: 0.45rem 0.6rem;
+  border-radius: 0.55rem;
+  background: var(--color-panel);
+  color: var(--color-muted);
+  font-family: var(--code-font-family, monospace);
+  font-size: 0.82em;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.approvalActions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.approveBtn,
+.rejectBtn {
+  padding: 0.36rem 0.8rem;
+  border-radius: 0.55rem;
+  font-size: 0.86em;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.approveBtn {
+  border: 0;
+  background: var(--color-accent, #e66aa8);
+  color: #ffffff;
+}
+
+.rejectBtn {
+  border: 1px solid var(--color-line);
+  background: transparent;
+  color: var(--color-ink);
+}

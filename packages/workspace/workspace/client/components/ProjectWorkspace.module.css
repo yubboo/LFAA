@@ -1,0 +1,231 @@
+/* 工作区插件贡献的主工作区视图与真实项目文件树样式，复用液态玻璃变量。 */
+.page {
+  width: min(calc(100% - 3rem), 46rem);
+  margin: clamp(1.75rem, 5vh, 3.25rem) auto;
+}
+
+.headerRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.85rem;
+}
+
+.label {
+  margin: 0 0 0.45rem;
+  color: var(--color-muted);
+  font-size: 0.88em;
+}
+
+.page h1 {
+  margin: 0;
+  font-size: 1.85em;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
+.desc {
+  margin: 0.65rem 0 0;
+  color: var(--color-muted);
+  line-height: 1.6;
+}
+
+.pathBanner {
+  margin: 0.85rem 0 0;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid var(--glass-border, var(--color-line));
+  border-radius: 0.65rem;
+  background: var(--glass-card-bg, var(--color-panel));
+  color: var(--color-ink);
+  font-family: var(--code-font-family, monospace);
+  font-size: 0.86em;
+  word-break: break-all;
+}
+
+.refreshBtn {
+  display: inline-flex;
+  min-height: 2.15rem;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.8rem;
+  border: 1px solid var(--glass-border, var(--color-line));
+  border-radius: 999px;
+  background: var(--glass-control-bg, var(--color-surface));
+  color: var(--color-ink);
+  font-size: 0.85em;
+  cursor: pointer;
+}
+
+.refreshBtn:hover {
+  background: var(--color-active);
+}
+
+.refreshBtn svg {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.empty,
+.statusText {
+  margin: 1rem 0 0;
+  color: var(--color-muted);
+}
+
+.folderTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.85rem;
+}
+
+.folderTab {
+  max-width: 100%;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--glass-border, var(--color-line));
+  border-radius: 0.65rem;
+  background: rgb(128 128 128 / 0.08);
+  color: var(--color-muted);
+  font-family: var(--code-font-family, monospace);
+  font-size: 0.82em;
+  word-break: break-all;
+  cursor: pointer;
+}
+
+.folderTabActive {
+  border-color: rgb(var(--color-accent-rgb, 230 106 168) / 0.45);
+  background: rgb(var(--color-accent-rgb, 230 106 168) / 0.14);
+  color: var(--color-ink);
+}
+
+.error {
+  margin: 1rem 0 0;
+  color: #e06c75;
+}
+
+.treeCard,
+.emptyCard {
+  margin-top: 1.25rem;
+  border: 1px solid var(--glass-border, var(--color-line));
+  border-radius: 0.9rem;
+  background: var(--glass-card-bg, var(--color-surface));
+  background-image: var(--glass-sheen, none);
+  box-shadow: var(--glass-specular-shadow, none);
+}
+
+.emptyCard {
+  padding: 1.1rem;
+  color: var(--color-muted);
+}
+
+.emptyCard p {
+  margin: 0;
+}
+
+.treeSummary {
+  display: flex;
+  gap: 1.15rem;
+  padding: 0.65rem 0.95rem;
+  border-bottom: 1px solid var(--color-line);
+  color: var(--color-muted);
+  font-size: 0.84em;
+}
+
+.treeList {
+  margin: 0;
+  padding: 0.35rem;
+  list-style: none;
+}
+
+.treeRow {
+  display: flex;
+  min-height: 2.25rem;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 0.55rem;
+}
+
+.treeRow:hover {
+  background: var(--color-active);
+}
+
+.treeRow svg {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
+  color: var(--color-muted);
+}
+
+.entryName {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.92em;
+}
+
+.entrySize {
+  flex: 0 0 auto;
+  color: var(--color-muted);
+  font-family: var(--code-font-family, monospace);
+  font-size: 0.8em;
+}
+
+.projectGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(15rem, 100%), 1fr));
+  gap: 0.75rem;
+  margin-top: 1.4rem;
+}
+
+.projectGrid button {
+  display: flex;
+  min-height: 3.75rem;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--glass-border, var(--color-line));
+  border-radius: 0.8rem;
+  background: var(--glass-card-bg, var(--color-panel));
+  color: var(--color-ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.projectGrid button:hover {
+  background: var(--color-active);
+}
+
+.projectGrid svg {
+  width: 1.2rem;
+  height: 1.2rem;
+  flex: 0 0 auto;
+  color: var(--color-muted);
+}
+
+.cardInfo {
+  display: grid;
+  min-width: 0;
+  gap: 0.15rem;
+}
+
+.cardInfo strong,
+.cardInfo small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cardInfo small {
+  color: var(--color-muted);
+  font-family: var(--code-font-family, monospace);
+  font-size: 0.78em;
+}
+
+@media (max-width: 767px) {
+  .page {
+    width: min(calc(100% - 2rem), 46rem);
+    margin: 1.5rem auto 2rem;
+  }
+}

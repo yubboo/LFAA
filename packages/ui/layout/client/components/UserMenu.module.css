@@ -1,0 +1,213 @@
+/* 用户菜单固定在一级图标栏左下角，并跟随 Shell 主题变量。 */
+.root {
+  position: relative;
+  z-index: 25;
+  margin-top: 0.15rem;
+}
+
+.trigger,
+.avatar {
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+}
+
+.trigger {
+  width: 3.25rem;
+  height: 3.25rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.trigger:hover,
+.triggerActive {
+  background: var(--color-active);
+}
+
+.avatar {
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: 0 0 auto;
+  background: #b79150;
+  color: #fff;
+  font-size: 0.66rem;
+  font-weight: 650;
+}
+
+.panel {
+  position: fixed;
+  z-index: 60;
+  left: calc(var(--rail-width) - 0.25rem);
+  bottom: 0.75rem;
+  width: min(21.5rem, calc(100vw - var(--rail-width) - 1.25rem));
+  max-height: calc(100dvh - 1.5rem);
+  overflow: auto;
+  padding: 0.65rem;
+  border: 1px solid var(--glass-border, var(--color-line));
+  border-radius: 1.35rem;
+  background: var(--glass-popover-bg, var(--color-popover));
+  background-image: var(--glass-sheen, none);
+  backdrop-filter: blur(26px) saturate(180%);
+  -webkit-backdrop-filter: blur(26px) saturate(180%);
+  box-shadow: var(--glass-specular-shadow, none), var(--color-menu-shadow);
+  color: var(--color-ink);
+}
+
+.account {
+  display: flex;
+  min-height: 3.6rem;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.35rem 0.45rem 0.8rem;
+}
+
+.accountMeta {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.accountActions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: auto;
+}
+
+.account strong,
+.account small {
+  display: block;
+}
+
+.account strong {
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.account small,
+.action small {
+  margin-top: 0.18rem;
+  color: var(--color-muted);
+  font-size: 0.75rem;
+}
+
+.separator {
+  height: 1px;
+  margin: 0.15rem 0.4rem;
+  background: var(--color-line);
+}
+
+.group {
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.3rem 0;
+}
+
+.action {
+  display: flex;
+  width: 100%;
+  min-height: 2.45rem;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.42rem 0.5rem;
+  border: 0;
+  border-radius: 0.55rem;
+  background: transparent;
+  color: var(--color-ink);
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.action:hover {
+  background: var(--color-menu-hover);
+}
+
+.action > svg {
+  width: 1.2rem;
+  height: 1.2rem;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
+}
+
+.action small {
+  margin: 0 0 0 auto;
+  white-space: nowrap;
+}
+
+.chevron {
+  margin-left: auto;
+  color: var(--color-muted);
+}
+
+.notice {
+  margin: 0.3rem 0.25rem 0.15rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 0.55rem;
+  background: var(--color-menu-hover);
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.trigger[data-tooltip]::after {
+  position: absolute;
+  left: calc(100% + 0.4rem);
+  bottom: 0.5rem;
+  z-index: 60;
+  width: max-content;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.65rem;
+  background: var(--color-popover);
+  box-shadow: var(--color-menu-shadow);
+  color: var(--color-ink);
+  content: attr(data-tooltip);
+  font-size: 0.82rem;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-0.2rem);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.trigger:hover::after,
+.trigger:focus-visible::after {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.trigger[aria-expanded="true"]::after {
+  opacity: 0;
+}
+
+@media (hover: none), (max-width: 767px) {
+  .trigger[data-tooltip]::after {
+    display: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .root {
+    margin-top: 0;
+  }
+
+  .trigger {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  .panel {
+    right: 0.65rem;
+    bottom: calc(4.35rem + env(safe-area-inset-bottom, 0px));
+    left: 0.65rem;
+    width: auto;
+    max-height: min(72dvh, 32rem);
+    border-radius: 1.15rem;
+  }
+}

@@ -1,0 +1,3 @@
+source: README.zh.md
+targets:
+  - README.md

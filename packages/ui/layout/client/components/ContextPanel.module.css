@@ -1,0 +1,145 @@
+/* 四栏右侧菜单栏样式，使用统一主题变量并与左二栏视觉一致。 */
+.panel {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-rows: var(--topbar-height, 3.5rem) minmax(0, 1fr);
+  border-left: 1px solid var(--color-line);
+  background: var(--color-panel);
+  background-image: var(--glass-sheen, none);
+  backdrop-filter: blur(var(--glass-sidebar-blur, 0px)) saturate(var(--glass-sidebar-saturate, 100%));
+  -webkit-backdrop-filter: blur(var(--glass-sidebar-blur, 0px)) saturate(var(--glass-sidebar-saturate, 100%));
+  color: var(--color-ink);
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  height: var(--topbar-height, 3.5rem);
+  min-height: var(--topbar-height, 3.5rem);
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1rem;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.header h2 {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.closeButton {
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 0.6rem;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.closeButton:hover {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.closeButton svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  align-content: start;
+  gap: 0.75rem;
+  padding: 0.9rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.card {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.85rem;
+  border: 1px solid var(--glass-border, var(--color-line));
+  border-radius: 0.85rem;
+  background: var(--glass-card-bg, var(--color-surface));
+  background-image: var(--glass-sheen, none);
+  box-shadow: var(--glass-specular-shadow, none);
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.cardBody {
+  font-size: 0.8rem;
+  color: var(--color-muted);
+  line-height: 1.5;
+}
+
+.empty {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.9rem;
+  border: 1px dashed var(--color-line);
+  border-radius: 0.75rem;
+  color: var(--color-muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.empty p {
+  margin: 0;
+  color: var(--color-ink);
+  font-weight: 500;
+}
+
+.empty small {
+  font-size: 0.75rem;
+}
+
+/* 平板与手机端：右侧上下文栏转为右侧滑出抽屉，不挤压中间工作区。 */
+@media (max-width: 1023px) {
+  .panel {
+    position: fixed;
+    z-index: 45;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(21rem, 86vw);
+    box-shadow: var(--color-menu-shadow);
+    animation: slideInRight 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}
+
+@media (max-width: 767px) {
+  .panel {
+    width: min(21rem, 90vw);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .closeButton {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}

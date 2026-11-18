@@ -1,0 +1,142 @@
+/* 移出项目二次确认弹窗样式，采用居中液态玻璃卡片、柔和暗红警示按钮与高对比度文本。 */
+.backdrop {
+  position: fixed;
+  z-index: 115;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgb(10 11 10 / 48%);
+  backdrop-filter: blur(5px);
+}
+
+.dialog {
+  position: relative;
+  width: min(28rem, 100%);
+  padding: 1.35rem 1.4rem;
+  border: 1px solid var(--glass-border, var(--color-line));
+  border-radius: 1.2rem;
+  background: var(--glass-popover-bg, var(--color-popover));
+  background-image: var(--glass-sheen, none);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  box-shadow: var(--glass-specular-shadow, none), var(--color-menu-shadow);
+  color: var(--color-ink);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.65rem;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.16em;
+  font-weight: 650;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.close {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 auto;
+  margin: -0.2rem -0.25rem 0 0;
+  place-items: center;
+  border: 0;
+  border-radius: 0.55rem;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.close:hover:not(:disabled) {
+  background: var(--color-menu-hover);
+  color: var(--color-ink);
+}
+
+.close:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.close svg {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+.description {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.94em;
+  line-height: 1.55;
+}
+
+.error {
+  margin: 0.75rem 0 0;
+  color: #f06464;
+  font-size: 0.84em;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.65rem;
+  margin-top: 1.45rem;
+}
+
+.cancelBtn,
+.removeBtn {
+  min-height: 2.35rem;
+  padding: 0.42rem 1.08rem;
+  border-radius: 0.72rem;
+  font: inherit;
+  font-size: 0.9em;
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.cancelBtn {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-muted);
+}
+
+.cancelBtn:hover:not(:disabled) {
+  background: var(--color-menu-hover);
+  color: var(--color-ink);
+}
+
+.removeBtn {
+  border: 1px solid rgb(229 72 77 / 0.24);
+  background: rgb(229 72 77 / 0.16);
+  color: #f05252;
+  font-weight: 550;
+}
+
+.removeBtn:hover:not(:disabled) {
+  border-color: rgb(229 72 77 / 0.38);
+  background: rgb(229 72 77 / 0.24);
+}
+
+:global(:root[data-resolved-theme="light"]) .removeBtn {
+  border-color: rgb(220 38 38 / 0.24);
+  background: rgb(220 38 38 / 0.1);
+  color: #c92a2a;
+}
+
+:global(:root[data-resolved-theme="light"]) .removeBtn:hover:not(:disabled) {
+  border-color: rgb(220 38 38 / 0.38);
+  background: rgb(220 38 38 / 0.18);
+}
+
+.cancelBtn:disabled,
+.removeBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

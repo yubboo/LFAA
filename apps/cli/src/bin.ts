@@ -1,0 +1,35 @@
+// 解析 LFAA 启动目标并负责在退出信号到来时关闭 Web 服务。
+import { startWeb } from "@lfaa/app-web/server";
+
+// 当前只暴露 Web 启动目标，后续应用入口由 CLI 集中分发。
+async function main() {
+  const target = process.argv[2];
+
+  if (target === "web") {
+    const stop = await startWeb();
+    let isStopping = false;
+
+    // SIGINT 与 SIGTERM 可能连续到达；幂等标记保证 Vite 服务只关闭一次。
+    const shutdown = () => {
+      if (isStopping) return;
+      isStopping = true;
+      void stop().catch((error: unknown) => {
+        console.error("LFAA 关闭 Web 服务时发生错误：", error);
+        process.exitCode = 1;
+      });
+    };
+
+    process.once("SIGINT", shutdown);
+    process.once("SIGTERM", shutdown);
+    return;
+  }
+
+  console.error("用法：pnpm lfaa web");
+  process.exitCode = 1;
+}
+
+// 把启动阶段错误转换为可见日志和非零退出码。
+main().catch((error: unknown) => {
+  console.error("LFAA 启动失败：", error);
+  process.exitCode = 1;
+});

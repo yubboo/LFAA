@@ -1,0 +1,107 @@
+/* Web 页面基线：主题颜色由 Shell 管理，页面铺满浏览器视口。 */
+:root {
+  font-family: var(--ui-font-family, "Segoe UI", "Microsoft YaHei UI", system-ui, -apple-system, sans-serif);
+  font-size: 16px;
+  font-weight: var(--ui-font-weight, 400);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  color: var(--user-fg, #292b26);
+  background: var(--user-bg, #fff);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-optical-sizing: auto;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--color-accent-rgb, 230 106 168) / 0.5) transparent;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgb(var(--color-accent-rgb, 230 106 168) / 0.44);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--color-accent-rgb, 230 106 168) / 0.76);
+}
+
+::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  font-size: var(--ui-font-size, 14px);
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+
+::selection {
+  background: rgb(var(--color-accent-rgb, 230 106 168) / 26%);
+  color: inherit;
+}
+
+button,
+a {
+  font: inherit;
+}
+
+:root[data-pointer-cursor="false"] button,
+:root[data-pointer-cursor="false"] a,
+:root[data-pointer-cursor="false"] [role="button"],
+:root[data-pointer-cursor="false"] label {
+  cursor: default !important;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--color-accent, #e66aa8);
+  outline-offset: 2px;
+}
+
+:root[data-reduced-motion="on"] *,
+:root[data-reduced-motion="on"] *::before,
+:root[data-reduced-motion="on"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-reduced-motion="off"]) *,
+  :root:not([data-reduced-motion="off"]) *::before,
+  :root:not([data-reduced-motion="off"]) *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "name": "@lfaa/app-web",
+  "description": "LFAA Web 应用入口，负责装配并挂载工作台界面。",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./server": "./src/server.ts"
+  },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "^4.1.0",
+    "@lfaa/agent": "workspace:*",
+    "@lfaa/chat": "workspace:*",
+    "@lfaa/llm": "workspace:*",
+    "@lfaa/memory": "workspace:*",
+    "@lfaa/rules": "workspace:*",
+    "@lfaa/sections": "workspace:*",
+    "@lfaa/tools": "workspace:*",
+    "@lfaa/ui-layout": "workspace:*",
+    "@lfaa/ui-theme": "workspace:*",
+    "@lfaa/workspace": "workspace:*",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.3.0",
+    "vite": "^8.3.8"
+  }
+}

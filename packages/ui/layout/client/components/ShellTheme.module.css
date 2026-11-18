@@ -1,0 +1,112 @@
+/* 四栏工作区明暗主题与液态玻璃色彩变量，对应浅色白底冷雾侧栏与深色中性炭黑配色。 */
+.theme {
+  --glass-contrast: 0.6;
+  --color-shell: var(--user-bg, #ffffff);
+  --color-rail: rgb(236 245 249 / calc(0.88 + var(--glass-contrast) * 0.1));
+  --color-panel: rgb(245 250 252 / calc(0.9 + var(--glass-contrast) * 0.08));
+  --color-topbar: rgb(255 255 255 / 0.9);
+  --color-surface: rgb(255 255 255 / 0.96);
+  --color-ink: var(--user-fg, #171717);
+  --color-muted: #6d7278;
+  --color-line: rgb(15 23 28 / calc(0.05 + var(--glass-contrast) * 0.05));
+  --color-active: rgb(15 23 28 / 0.06);
+  --color-rail-active: rgb(255 255 255 / 0.96);
+  --rail-active-shadow: 0 1px 3px rgb(15 23 28 / 0.08), inset 0 0 0 1px rgb(15 23 28 / 0.05);
+  --color-popover: rgb(255 255 255 / 0.96);
+  --color-menu-hover: rgb(15 23 28 / 0.045);
+  --color-menu-shadow: 0 18px 44px rgb(15 23 28 / 12%);
+  --glass-border: rgb(15 23 28 / calc(0.06 + var(--glass-contrast) * 0.04));
+  --glass-control-bg: rgb(244 246 248 / 0.9);
+  --glass-card-bg: rgb(247 249 250 / calc(0.84 + var(--glass-contrast) * 0.14));
+  --glass-popover-bg: rgb(255 255 255 / 0.94);
+  --glass-sheen: linear-gradient(160deg, rgb(255 255 255 / 0.35) 0%, transparent 55%);
+  --glass-specular-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.9), inset 0 0 0 0.5px rgb(15 23 28 / 0.05), 0 8px 24px rgb(15 23 28 / 0.05);
+  --glass-card-blur: 22px;
+  --glass-card-saturate: 165%;
+  --glass-sidebar-blur: 24px;
+  --glass-sidebar-saturate: 170%;
+  --ambient-glow: none;
+  color-scheme: light;
+}
+
+:global(html[data-theme="dark"]) .theme,
+:global(html[data-resolved-theme="dark"]) .theme {
+  --color-shell: var(--user-bg, #181818);
+  --color-rail: rgb(28 33 35 / calc(0.88 + var(--glass-contrast) * 0.1));
+  --color-panel: rgb(25 26 27 / calc(0.88 + var(--glass-contrast) * 0.1));
+  --color-topbar: rgb(24 24 24 / 0.9);
+  --color-surface: rgb(36 36 37 / calc(0.82 + var(--glass-contrast) * 0.16));
+  --color-ink: var(--user-fg, #f3f3f3);
+  --color-muted: #9a9ca0;
+  --color-line: rgb(255 255 255 / calc(0.05 + var(--glass-contrast) * 0.05));
+  --color-active: rgb(255 255 255 / 0.085);
+  --color-rail-active: rgb(255 255 255 / 0.1);
+  --rail-active-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06);
+  --color-popover: rgb(32 33 35 / 0.94);
+  --color-menu-hover: rgb(255 255 255 / 0.07);
+  --color-menu-shadow: 0 20px 48px rgb(0 0 0 / 56%);
+  --glass-border: rgb(255 255 255 / calc(0.07 + var(--glass-contrast) * 0.05));
+  --glass-control-bg: rgb(255 255 255 / 0.06);
+  --glass-card-bg: rgb(36 36 37 / calc(0.76 + var(--glass-contrast) * 0.18));
+  --glass-popover-bg: rgb(32 33 35 / 0.92);
+  --glass-sheen: linear-gradient(160deg, rgb(255 255 255 / 0.03) 0%, transparent 55%);
+  --glass-specular-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.12), inset 0 0 0 0.5px rgb(255 255 255 / 0.06), 0 14px 36px rgb(0 0 0 / 0.34);
+  --ambient-glow: none;
+  color-scheme: dark;
+}
+
+:global(html[data-theme="system"]) .theme {
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :global(html[data-theme="system"]:not([data-resolved-theme="light"])) .theme {
+    --color-shell: var(--user-bg, #181818);
+    --color-rail: rgb(28 33 35 / calc(0.88 + var(--glass-contrast) * 0.1));
+    --color-panel: rgb(25 26 27 / calc(0.88 + var(--glass-contrast) * 0.1));
+    --color-topbar: rgb(24 24 24 / 0.9);
+    --color-surface: rgb(36 36 37 / calc(0.82 + var(--glass-contrast) * 0.16));
+    --color-ink: var(--user-fg, #f3f3f3);
+    --color-muted: #9a9ca0;
+    --color-line: rgb(255 255 255 / calc(0.05 + var(--glass-contrast) * 0.05));
+    --color-active: rgb(255 255 255 / 0.085);
+    --color-rail-active: rgb(255 255 255 / 0.1);
+    --rail-active-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06);
+    --color-popover: rgb(32 33 35 / 0.94);
+    --color-menu-hover: rgb(255 255 255 / 0.07);
+    --color-menu-shadow: 0 20px 48px rgb(0 0 0 / 56%);
+    --glass-border: rgb(255 255 255 / calc(0.07 + var(--glass-contrast) * 0.05));
+    --glass-control-bg: rgb(255 255 255 / 0.06);
+    --glass-card-bg: rgb(36 36 37 / calc(0.76 + var(--glass-contrast) * 0.18));
+    --glass-popover-bg: rgb(32 33 35 / 0.92);
+    --glass-sheen: linear-gradient(160deg, rgb(255 255 255 / 0.03) 0%, transparent 55%);
+    --glass-specular-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.12), inset 0 0 0 0.5px rgb(255 255 255 / 0.06), 0 14px 36px rgb(0 0 0 / 0.34);
+    --ambient-glow: none;
+  }
+}
+
+:global(html[data-glass="false"]) .theme {
+  --ambient-glow: none;
+  --glass-sheen: none;
+  --glass-specular-shadow: none;
+  --glass-card-blur: 0px;
+  --glass-card-saturate: 100%;
+  --color-rail: #ecf5f9;
+  --color-panel: #f5fafc;
+  --color-topbar: var(--user-bg, #ffffff);
+  --color-surface: var(--user-bg, #ffffff);
+  --glass-card-bg: #f6f8fa;
+}
+
+:global(html[data-glass="false"][data-resolved-theme="dark"]) .theme {
+  --color-rail: #1c2123;
+  --color-panel: #191a1b;
+  --color-topbar: var(--user-bg, #181818);
+  --color-surface: #242425;
+  --glass-card-bg: #242425;
+}
+
+:global(html[data-glass-sidebar="false"]) .theme {
+  --glass-sidebar-blur: 0px;
+  --glass-sidebar-saturate: 100%;
+}

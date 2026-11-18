@@ -1,0 +1,80 @@
+// 定义 @lfaa/memory 的无 DOM 领域契约：会话消息、思考/行动/检查步骤轨迹及长期记忆条目。
+export type AgentLoopPhase = "think" | "act" | "check";
+export type AgentStepStatus = "running" | "waiting_approval" | "done" | "error";
+
+export interface AgentStepTrace {
+  id: string;
+  iteration: number;
+  phase: AgentLoopPhase;
+  status: AgentStepStatus;
+  title: string;
+  detail?: string;
+  toolCallId?: string;
+  toolName?: string;
+  permissionLevel?: "read" | "write" | "exec";
+  argsPreview?: string;
+  resultPreview?: string;
+  timestamp: number;
+}
+
+export interface ChatMessageRecord {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  reasoning?: string;
+  steps?: AgentStepTrace[];
+  status?: "streaming" | "done" | "error" | "aborted";
+  model?: string;
+  createdAt: number;
+}
+
+export interface ChatSessionSummary {
+  id: string;
+  title: string;
+  projectId: string | null;
+  sectionId: string | null;
+  pinned: boolean;
+  archived: boolean;
+  messageCount: number;
+  summary?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface ChatSessionRecord extends ChatSessionSummary {
+  messages: ChatMessageRecord[];
+}
+
+export interface CreateSessionInput {
+  title?: string;
+  projectId?: string | null;
+  sectionId?: string | null;
+}
+
+export interface UpdateSessionInput {
+  title?: string;
+  projectId?: string | null;
+  sectionId?: string | null;
+  pinned?: boolean;
+  archived?: boolean;
+  summary?: string;
+}
+
+export interface MemoryEntry {
+  id: string;
+  scope: "global" | "project";
+  projectId: string | null;
+  content: string;
+  tags: string[];
+  sourceSessionId?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface AddMemoryInput {
+  scope?: "global" | "project";
+  projectId?: string | null;
+  content: string;
+  tags?: string[];
+  sourceSessionId?: string;
+}

@@ -1,0 +1,385 @@
+/* 创建项目与目录信任确认弹窗样式，复用 LFAA 液态玻璃主题变量与强调色。 */
+.backdrop {
+  position: fixed;
+  z-index: 110;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgb(10 11 10 / 48%);
+  backdrop-filter: blur(5px);
+}
+
+.dialog {
+  position: relative;
+  width: min(33rem, 100%);
+  padding: 1.35rem;
+  border: 1px solid var(--glass-border, var(--color-line));
+  border-radius: 1.2rem;
+  background: var(--glass-popover-bg, var(--color-popover));
+  background-image: var(--glass-sheen, none);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  box-shadow: var(--glass-specular-shadow, none), var(--color-menu-shadow);
+  color: var(--color-ink);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.header h2 {
+  margin: 0;
+  font-size: 1.2em;
+  font-weight: 650;
+}
+
+.close {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  border-radius: 0.55rem;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.close:hover {
+  background: var(--color-menu-hover);
+  color: var(--color-ink);
+}
+
+.close svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.nameBox {
+  display: flex;
+  min-height: 2.85rem;
+  align-items: center;
+  border: 1.5px solid var(--glass-border, var(--color-line));
+  border-radius: 0.8rem;
+  background: var(--glass-control-bg, var(--color-surface));
+  overflow: hidden;
+  transition: border-color 140ms ease;
+}
+
+.nameBox:focus-within {
+  border-color: var(--color-accent);
+}
+
+.nameIcon {
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-right: 1px solid var(--color-line);
+  color: var(--color-muted);
+}
+
+.nameIcon svg {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.nameBox input {
+  width: 100%;
+  min-width: 0;
+  padding: 0.5rem 0.85rem;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 1rem;
+}
+
+.sectionLabel {
+  margin: 1.1rem 0 0.5rem;
+  color: var(--color-ink);
+  font-size: 0.9em;
+  font-weight: 600;
+}
+
+.sourceBox {
+  display: grid;
+  gap: 0.85rem;
+  padding: 0.85rem;
+  border: 1px solid var(--glass-border, var(--color-line));
+  border-radius: 0.9rem;
+  background: var(--glass-control-bg, var(--color-surface));
+}
+
+.sourceTabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.25rem;
+  padding: 0.22rem;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: rgb(128 128 128 / 0.08);
+}
+
+.sourceTab {
+  display: inline-flex;
+  min-height: 2.1rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 0.88em;
+  cursor: pointer;
+}
+
+.sourceTab svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.sourceTabActive {
+  background: var(--color-active);
+  color: var(--color-ink);
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 16%);
+}
+
+.emptySource {
+  display: grid;
+  justify-items: center;
+  gap: 0.65rem;
+  padding: 0.85rem 0.5rem;
+  text-align: center;
+}
+
+.emptySourceTitle {
+  margin: 0;
+  color: var(--color-ink);
+  font-size: 0.92em;
+}
+
+.addFolderBtn {
+  display: inline-flex;
+  min-height: 2.25rem;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.95rem;
+  border: 1px solid var(--glass-border, var(--color-line));
+  border-radius: 999px;
+  background: var(--color-active);
+  color: var(--color-ink);
+  font-size: 0.88em;
+  cursor: pointer;
+}
+
+.addFolderBtn:hover:not(:disabled) {
+  border-color: var(--color-accent);
+}
+
+.addFolderBtn svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.manualPathRow {
+  display: flex;
+  width: 100%;
+  max-width: 24rem;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.manualPathInput {
+  min-width: 0;
+  flex: 1 1 auto;
+  height: 2rem;
+  padding: 0 0.7rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.65rem;
+  background: rgb(128 128 128 / 0.08);
+  color: var(--color-ink);
+  font-family: var(--code-font-family, monospace);
+  font-size: 0.8em;
+  outline: none;
+}
+
+.manualPathInput:focus {
+  border-color: var(--color-accent);
+}
+
+.defaultHint,
+.remoteNote {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.78em;
+  line-height: 1.5;
+}
+
+.selectedWrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.selectedInfo {
+  min-width: 0;
+  flex: 1 1 12rem;
+}
+
+.selectedInfo small {
+  color: var(--color-muted);
+  font-size: 0.76em;
+}
+
+.selectedPath {
+  margin: 0.2rem 0 0;
+  color: var(--color-ink);
+  font-family: var(--code-font-family, monospace);
+  font-size: 0.82em;
+  word-break: break-all;
+}
+
+.selectedActions {
+  display: inline-flex;
+  gap: 0.4rem;
+}
+
+.secondaryPill {
+  min-height: 2rem;
+  padding: 0.25rem 0.7rem;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-ink);
+  font-size: 0.8em;
+  cursor: pointer;
+}
+
+.secondaryPill:hover {
+  background: var(--color-menu-hover);
+}
+
+.error {
+  margin: 0.65rem 0 0;
+  color: #e06c75;
+  font-size: 0.84em;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.55rem;
+  margin-top: 1.25rem;
+}
+
+.cancel,
+.submit {
+  min-height: 2.35rem;
+  padding: 0.4rem 1.05rem;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.9em;
+  cursor: pointer;
+}
+
+.cancel {
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-muted);
+}
+
+.cancel:hover {
+  color: var(--color-ink);
+}
+
+.submit {
+  border-color: transparent;
+  background: var(--color-ink);
+  color: var(--color-shell);
+  font-weight: 550;
+}
+
+.trustBody {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 0.75rem;
+  padding: 0.45rem 0.25rem 0.25rem;
+  text-align: center;
+}
+
+.trustClose {
+  position: absolute;
+  top: -0.25rem;
+  right: -0.25rem;
+}
+
+.trustTitle {
+  margin: 0.25rem 0 0;
+  font-size: 1.22em;
+  font-weight: 650;
+}
+
+.trustPath {
+  margin: 0;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.6rem;
+  background: rgb(128 128 128 / 0.08);
+  color: var(--color-ink);
+  font-family: var(--code-font-family, monospace);
+  font-size: 0.86em;
+  word-break: break-all;
+}
+
+.trustDesc {
+  max-width: 25rem;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.86em;
+  line-height: 1.6;
+}
+
+.trustActions {
+  display: grid;
+  width: 100%;
+  gap: 0.55rem;
+  margin-top: 0.45rem;
+}
+
+.trustConfirm,
+.trustCancel {
+  width: 100%;
+  min-height: 2.65rem;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.92em;
+  font-weight: 550;
+  cursor: pointer;
+}
+
+.trustConfirm {
+  border: 0;
+  background: var(--color-ink);
+  color: var(--color-shell);
+}
+
+.trustCancel {
+  border: 1px solid var(--color-line);
+  background: transparent;
+  color: var(--color-ink);
+}

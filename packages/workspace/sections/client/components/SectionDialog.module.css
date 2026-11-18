@@ -1,0 +1,145 @@
+/* 新建/重命名分区整页居中弹窗样式，沿用 LFAA 液态玻璃主题与强调色。 */
+.backdrop {
+  position: fixed;
+  z-index: 112;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgb(10 11 10 / 48%);
+  backdrop-filter: blur(5px);
+}
+
+.dialog {
+  position: relative;
+  width: min(28rem, 100%);
+  padding: 1.3rem;
+  border: 1px solid var(--glass-border, var(--color-line));
+  border-radius: 1.2rem;
+  background: var(--glass-popover-bg, var(--color-popover));
+  background-image: var(--glass-sheen, none);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  box-shadow: var(--glass-specular-shadow, none), var(--color-menu-shadow);
+  color: var(--color-ink);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.header h2 {
+  margin: 0;
+  font-size: 1.15em;
+  font-weight: 650;
+}
+
+.close {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  border-radius: 0.55rem;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.close:hover {
+  background: var(--color-menu-hover);
+  color: var(--color-ink);
+}
+
+.close svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.nameBox {
+  display: flex;
+  width: 100%;
+  min-height: 2.8rem;
+  align-items: center;
+  border: 1px solid var(--color-line);
+  border-radius: 0.75rem;
+  background: rgb(128 128 128 / 0.06);
+  overflow: hidden;
+  transition: border-color 140ms ease;
+}
+
+.nameBox:focus-within {
+  border-color: var(--color-accent);
+}
+
+.nameIcon {
+  display: grid;
+  width: 2.7rem;
+  height: 2.8rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-right: 1px solid var(--color-line);
+  color: var(--color-muted);
+}
+
+.nameIcon svg {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+.nameBox input {
+  width: 100%;
+  min-width: 0;
+  height: 2.8rem;
+  padding: 0 0.85rem;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.95em;
+}
+
+.error {
+  margin: 0.65rem 0 0;
+  color: #e06c75;
+  font-size: 0.84em;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.55rem;
+  margin-top: 1.2rem;
+}
+
+.cancel,
+.submit {
+  min-height: 2.3rem;
+  padding: 0.35rem 1.05rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.9em;
+  cursor: pointer;
+}
+
+.cancel {
+  background: transparent;
+  color: var(--color-muted);
+}
+
+.cancel:hover {
+  color: var(--color-ink);
+}
+
+.submit {
+  background: var(--color-ink);
+  color: var(--color-shell);
+  font-weight: 550;
+}
