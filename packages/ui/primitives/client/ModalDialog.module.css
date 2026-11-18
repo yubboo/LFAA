@@ -6,9 +6,13 @@
   display: grid;
   place-items: center;
   padding: 1.5rem;
-  background: rgb(0 0 0 / 0.54);
+  background: rgb(15 23 28 / 0.34);
   backdrop-filter: blur(6px);
   animation: lfaaBackdropIn 160ms ease-out;
+}
+
+:global(html[data-resolved-theme="dark"]) .backdrop {
+  background: rgb(0 0 0 / 0.56);
 }
 
 .dialog {
@@ -18,9 +22,9 @@
   grid-template-rows: auto minmax(0, 1fr) auto;
   border: 1px solid var(--glass-border, var(--color-line));
   border-radius: 1rem;
-  background: var(--color-surface);
+  background: var(--color-popover, var(--color-surface, #ffffff));
   color: var(--color-ink);
-  box-shadow: 0 24px 64px rgb(0 0 0 / 0.56);
+  box-shadow: var(--color-menu-shadow, 0 24px 64px rgb(15 23 28 / 0.18));
   overflow: hidden;
 }
 
@@ -54,8 +58,8 @@
   justify-content: space-between;
   gap: 0.9rem;
   padding: 1.05rem 1.25rem 0.9rem;
-  border-bottom: 1px solid rgb(255 255 255 / 0.1);
-  background: rgb(255 255 255 / 0.02);
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-panel);
 }
 
 .titleWrap {

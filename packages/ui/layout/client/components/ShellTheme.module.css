@@ -1,4 +1,5 @@
-/* 四栏工作区明暗主题与液态玻璃色彩变量，对应浅色白底冷雾侧栏与深色中性炭黑配色。 */
+/* 四栏工作区明暗主题与液态玻璃色彩变量，同时注入 :root 以保证 Portal 到 body 的弹窗/菜单继承完整主题变量。 */
+:global(:root),
 .theme {
   --glass-contrast: 0.6;
   --color-shell: var(--user-bg, #ffffff);
@@ -29,6 +30,8 @@
   color-scheme: light;
 }
 
+:global(html[data-theme="dark"]),
+:global(html[data-resolved-theme="dark"]),
 :global(html[data-theme="dark"]) .theme,
 :global(html[data-resolved-theme="dark"]) .theme {
   --color-shell: var(--user-bg, #181818);
@@ -55,11 +58,13 @@
   color-scheme: dark;
 }
 
+:global(html[data-theme="system"]),
 :global(html[data-theme="system"]) .theme {
   color-scheme: light dark;
 }
 
 @media (prefers-color-scheme: dark) {
+  :global(html[data-theme="system"]:not([data-resolved-theme="light"])),
   :global(html[data-theme="system"]:not([data-resolved-theme="light"])) .theme {
     --color-shell: var(--user-bg, #181818);
     --color-rail: rgb(28 33 35 / calc(0.88 + var(--glass-contrast) * 0.1));
@@ -85,6 +90,7 @@
   }
 }
 
+:global(html[data-glass="false"]),
 :global(html[data-glass="false"]) .theme {
   --ambient-glow: none;
   --glass-sheen: none;
@@ -98,6 +104,7 @@
   --glass-card-bg: #f6f8fa;
 }
 
+:global(html[data-glass="false"][data-resolved-theme="dark"]),
 :global(html[data-glass="false"][data-resolved-theme="dark"]) .theme {
   --color-rail: #1c2123;
   --color-panel: #191a1b;
@@ -106,6 +113,7 @@
   --glass-card-bg: #242425;
 }
 
+:global(html[data-glass-sidebar="false"]),
 :global(html[data-glass-sidebar="false"]) .theme {
   --glass-sidebar-blur: 0px;
   --glass-sidebar-saturate: 100%;
