@@ -2,7 +2,7 @@
 
 此目录只放仓库级维护与启动辅助脚本。
 
-- `lfaa.ps1`：Windows 菜单，供根目录 `lfaa.bat` 调用。
+- `lfaa.ps1`：Windows 菜单，供根目录 `lfaa.bat` 调用；选择 `0` 退出菜单时会保留当前终端窗口（双击独立启动时停留在工作区命令行，已有终端内启动则返回原提示符）。
 - `ensure-dependencies.mjs`：核对 pnpm workspace、lockfile 与已安装依赖（兼容仓库目录或盘符迁移）；有差异时优先离线复用本地缓存（`--offline`），仅在本地缺少新依赖时才回退 `--prefer-offline` 增量下载缺失包，并拒绝自动确认清空 `node_modules`。
 - `build.mjs`、`check-workspace.mjs`：待确定包与应用结构后再建立，避免把其它仓库专用规则带入本项目。
 

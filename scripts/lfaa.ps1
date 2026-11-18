@@ -495,6 +495,23 @@ function Pull-FromGitHub {
   }
 }
 
+# 检测是否通过双击 lfaa.bat 在独立终端窗口中启动，以便退出菜单时保留窗口不自动关闭。
+function Test-LaunchedStandalone {
+  try {
+    $self = Get-CimInstance Win32_Process -Filter "ProcessId=$PID" -ErrorAction Stop
+    $parent = Get-CimInstance Win32_Process -Filter "ProcessId=$($self.ParentProcessId)" -ErrorAction Stop
+    if ($parent.Name -ieq "cmd.exe") {
+      $grand = Get-CimInstance Win32_Process -Filter "ProcessId=$($parent.ParentProcessId)" -ErrorAction SilentlyContinue
+      if ($null -eq $grand -or $grand.Name -notin @("cmd.exe", "powershell.exe", "pwsh.exe")) {
+        return $true
+      }
+    }
+  } catch {
+    # 进程查询受限时保守退回常规退出。
+  }
+  return $false
+}
+
 while ($true) {
   Write-Host ""
   Write-Host "================ LFAA ================" -ForegroundColor Cyan
@@ -508,7 +525,7 @@ while ($true) {
   Write-Host "  6. 拉取 GitHub 最新源码到本地（预览提交 + 确认）" -ForegroundColor Cyan
   Write-Host ""
   Write-Host "【其他】" -ForegroundColor DarkGray
-  Write-Host "  0. 退出" -ForegroundColor DarkGray
+  Write-Host "  0. 退出菜单（保留终端窗口）" -ForegroundColor DarkGray
   Write-Host "======================================" -ForegroundColor Cyan
   $choice = (Read-Host "请输入数字").Trim()
 
@@ -561,7 +578,14 @@ while ($true) {
     "6" {
       Pull-FromGitHub
     }
-    "0" { exit 0 }
+    "0" {
+      if (Test-LaunchedStandalone) {
+        Write-Host "已退出 LFAA 菜单，当前终端窗口已保留（可继续输入命令，输入 exit 关闭）。" -ForegroundColor DarkGray
+        exit 88
+      }
+      Write-Host "已退出 LFAA 菜单。" -ForegroundColor DarkGray
+      exit 0
+    }
     default { Write-Host "无效选项，请输入 1、2、4、5、6 或 0。" -ForegroundColor Yellow }
   }
 }
