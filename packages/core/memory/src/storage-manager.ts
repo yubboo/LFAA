@@ -27,14 +27,17 @@ export function getCurrentUserHomeDir(): string {
   return resolve(detected);
 }
 
+/** 解析本机用户目录下的 LFAA 根路径，供存储初始化复用。 */
 export function getDefaultLfaaHome(): string {
   return join(getCurrentUserHomeDir(), ".lfaa");
 }
 
+/** 返回资料与其他可迁移数据的默认子目录。 */
 export function getDefaultDataRoot(): string {
   return join(getDefaultLfaaHome(), "data");
 }
 
+/** 返回独立于资料迁移目标的固定会话目录。 */
 export function getFixedSessionsDir(): string {
   return join(getDefaultLfaaHome(), "sessions");
 }
@@ -94,6 +97,7 @@ async function listManagedFiles(rootDir: string): Promise<Array<{ relPath: strin
   return results;
 }
 
+/** 协调数据目录选择、初始化、统计和迁移，固定会话根路径单独管理。 */
 export class StorageManager {
   private readonly configFilePath: string;
   private readonly defaultDataRoot: string;
@@ -129,6 +133,7 @@ export class StorageManager {
     return this.recommendedProjectDataRoot;
   }
 
+  // 建立资料目录与固定会话目录，初始化时保留已有的存储配置。
   async ensureInitialized(): Promise<StorageConfigState> {
     if (this.state) return this.state;
 
@@ -182,6 +187,7 @@ export class StorageManager {
   }
 
   // 首次升级到 dataRoot 结构时，仅接管原 ~/.lfaa/memory.json；会话文件固定保留在 ~/.lfaa/sessions。
+  // 只在目标尚未包含受管理数据时迁入旧资料，避免覆盖已有内容。
   private async adoptLegacyDataIfEmpty(targetRoot: string): Promise<void> {
     if (normalizeCompare(this.legacyHomeDir) === normalizeCompare(targetRoot)) return;
     const legacyMemory = join(this.legacyHomeDir, LEGACY_VAULT_FILES.longTermMemory);

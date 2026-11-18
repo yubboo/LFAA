@@ -31,6 +31,7 @@ export function filterComposerProjects(
   });
 }
 
+/** 控制新消息的工作位置与项目绑定，选择结果由上层同步到聊天会话。 */
 export function ComposerScopeBar({
   locale,
   projects,

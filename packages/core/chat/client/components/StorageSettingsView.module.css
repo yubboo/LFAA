@@ -43,6 +43,7 @@
   font-weight: 600;
 }
 
+/* 将统计数据按指标排列，与路径和模式设置分开。 */
 .statsGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
@@ -118,6 +119,7 @@
   line-height: 1.45;
 }
 
+/* 自定义目录输入和选择按钮成组，提交结果显示在状态区。 */
 .customRow {
   display: flex;
   flex-wrap: wrap;

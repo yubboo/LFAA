@@ -31,10 +31,12 @@ async function resolveNearestRealPath(targetPath: string): Promise<string> {
   }
 }
 
+/** 描述调用方是否已允许工具访问工作区之外的路径。 */
 export interface WorkspacePathOptions {
   allowOutsideWorkspace?: boolean | undefined;
 }
 
+/** 以授权目录为基址解析路径，并按真实文件路径核对归属。 */
 export async function resolveSafeWorkspacePath(
   rawPath: string,
   workspaceRoots: string[],
@@ -69,6 +71,7 @@ export async function resolveSafeWorkspacePath(
   throw new Error(`路径越界拦截：${trimmedInput} 不在已授权的工作区目录内。`);
 }
 
+/** 从同一套路径检查规则获得命令工具的有效工作目录。 */
 export async function resolveSafeWorkspaceRoot(
   workspaceRoots: string[],
   options: WorkspacePathOptions = {},

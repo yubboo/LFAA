@@ -154,8 +154,10 @@ export const workspaceLocales = {
   },
 } as const;
 
+/** 约定项目目录、项目弹窗和右栏使用的共享文案键。 */
 export type WorkspaceLocaleMessages = (typeof workspaceLocales)[keyof typeof workspaceLocales];
 
+/** 按当前语言选择工作区界面的字典。 */
 export function getWorkspaceLocale(): WorkspaceLocaleMessages {
   return typeof navigator !== "undefined" && navigator.language.toLowerCase().startsWith("zh")
     ? workspaceLocales.zh

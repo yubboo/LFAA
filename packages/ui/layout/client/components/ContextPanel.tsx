@@ -5,6 +5,7 @@ import type { LocaleMessages } from "../locales";
 import { NavigationIcon } from "./NavigationIcon";
 import styles from "./ContextPanel.module.css";
 
+/** 在右栏挂载当前业务域注册的内容，面板的展开和关闭由外层工作台负责。 */
 export function ContextPanel({
   locale,
   panels,

@@ -1,14 +1,31 @@
 /* 四栏可折叠工作区主结构，消费 ShellTheme 提供的明暗与玻璃配色变量。 */
 .shell {
   --topbar-height: 3.5rem;
-  --rail-width: 4.35rem;
-  --left-sidebar-base-width: clamp(14.5rem, 19vw, 18.5rem);
+  --rail-width: 3.125rem;
   --right-panel-base-width: clamp(14.5rem, 18vw, 18rem);
-  --left-sidebar-width: var(--left-drag-width, var(--left-sidebar-base-width));
-  --right-panel-width: var(--right-drag-width, var(--right-panel-base-width));
+  /* 静止、刷新和缩窗时也应用拖拽边界。按左栏实际占用计算右栏可用空间。 */
+  --content-width: calc(100% - var(--rail-width));
+  --center-min-width: max(var(--center-min-pixels), calc(var(--content-width) * var(--center-min-share)));
+  --panel-budget: calc(var(--content-width) - var(--center-min-width));
+  --right-reserved-width: var(--panel-min-pixels);
+  /* 默认宽度最多占 15%，已保存的偏好和拖动中的宽度共用更大的上限。 */
+  --left-default-limit: calc(var(--content-width) * var(--left-default-max-share));
+  --left-min-width: min(var(--panel-min-pixels), var(--left-default-limit));
+  --left-sidebar-base-width: min(clamp(14.5rem, 19vw, 18.5rem), var(--left-default-limit));
+  --left-sidebar-width: min(
+    var(--left-drag-width, max(var(--left-min-width), var(--left-sidebar-base-width))),
+    calc(var(--content-width) * var(--left-max-share)),
+    max(0px, calc(var(--panel-budget) - var(--right-reserved-width)))
+  );
+  --left-occupied-width: var(--left-sidebar-width);
+  --right-panel-width: min(
+    var(--right-drag-width, max(var(--panel-min-pixels), var(--right-panel-base-width))),
+    calc(var(--content-width) * var(--right-max-share)),
+    max(0px, calc(var(--panel-budget) - var(--left-occupied-width)))
+  );
   position: relative;
   display: grid;
-  grid-template-columns: var(--rail-width) var(--left-sidebar-width) minmax(0, 1fr) var(--right-panel-width);
+  grid-template-columns: var(--rail-width) var(--left-sidebar-width) minmax(var(--center-min-width), 1fr) var(--right-panel-width);
   width: 100%;
   min-width: 0;
   height: 100dvh;
@@ -19,16 +36,24 @@
   font-family: var(--content-font-family, var(--ui-font-family, inherit));
 }
 
+.shell[data-left-open="false"] {
+  --left-occupied-width: 0px;
+}
+
+.shell[data-right-open="false"] {
+  --right-reserved-width: 0px;
+}
+
 .shell[data-left-open="false"][data-right-open="true"] {
-  grid-template-columns: var(--rail-width) minmax(0, 1fr) var(--right-panel-width);
+  grid-template-columns: var(--rail-width) minmax(var(--center-min-width), 1fr) var(--right-panel-width);
 }
 
 .shell[data-left-open="true"][data-right-open="false"] {
-  grid-template-columns: var(--rail-width) var(--left-sidebar-width) minmax(0, 1fr);
+  grid-template-columns: var(--rail-width) var(--left-sidebar-width) minmax(var(--center-min-width), 1fr);
 }
 
 .shell[data-left-open="false"][data-right-open="false"] {
-  grid-template-columns: var(--rail-width) minmax(0, 1fr);
+  grid-template-columns: var(--rail-width) minmax(var(--center-min-width), 1fr);
 }
 
 /* 中间区域承载真实页面、设置和明确的未接入说明。 */
@@ -86,6 +111,13 @@
   -webkit-backdrop-filter: blur(var(--glass-sidebar-blur)) saturate(var(--glass-sidebar-saturate));
   color: var(--color-muted);
   font-size: 0.93em;
+}
+
+/* 桌面固定栏保留主题底色与渐变，避免分数缩放下背景滤镜的合成层裁掉文字。 */
+.shell[data-device="desktop"] > :is(:global([data-region="primary-navigation"]), :global([data-region="section-navigation"]), :global([data-region="context-panel"])),
+.shell[data-device="desktop"] .workspaceBar {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .barGroup {
@@ -241,11 +273,17 @@
   white-space: nowrap;
 }
 
+/* 触屏的竖栏给 44px 点击区留出两侧间距。 */
+@media (pointer: coarse) and (min-width: 768px) {
+  .shell {
+    --rail-width: 3.375rem;
+  }
+}
+
 /* 平板端（768px–1023px）：保留左一图标栏与宽裕主工作区，左二与右侧栏转为抽屉层。 */
 @media (max-width: 1023px) {
   .shell,
   .shell[data-left-open][data-right-open] {
-    --rail-width: 3.75rem;
     grid-template-columns: var(--rail-width) minmax(0, 1fr);
   }
 

@@ -7,6 +7,7 @@ import type { ToolsService } from "@lfaa/tools";
 import { evaluateToolApproval, type SmartTrustStore } from "./permission-policy";
 import type { AgentPermissionMode, AgentRunEvent } from "./types";
 
+/** 集中提供模型调用、工具执行、事件与持久化依赖，使循环可在测试中独立验证。 */
 export interface RunLoopDeps {
   llm: LlmService;
   tools: ToolsService;
@@ -15,6 +16,7 @@ export interface RunLoopDeps {
   trustStore: SmartTrustStore;
 }
 
+/** 描述启动一次运行所需的会话信息与工具权限上下文。 */
 export interface RunExecutionParams {
   runId: string;
   sessionId: string;
@@ -54,6 +56,7 @@ function safeParseArgs(raw: string): { ok: true; value: Record<string, unknown> 
   }
 }
 
+/** 顺序执行模型推理、工具审批和执行，最终把运行结果写回会话。 */
 export async function executeAgentTaskLoop(
   deps: RunLoopDeps,
   params: RunExecutionParams,

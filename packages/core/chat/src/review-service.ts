@@ -9,6 +9,7 @@ import { getGitDiff, getGitStatus, type GitStatusSnapshot } from "./git-service"
 export type ReviewFindingSeverity = "critical" | "warning" | "info";
 export type ReviewScope = "working_tree" | "staged" | "commit";
 
+/** 描述审查发现的文件位置、严重度与解释文本。 */
 export interface CodeReviewFinding {
   id: string;
   severity: ReviewFindingSeverity;
@@ -19,6 +20,7 @@ export interface CodeReviewFinding {
   suggestion: string;
 }
 
+/** 保存一次审查的范围、结果及可供历史列表展示的摘要。 */
 export interface CodeReviewReport {
   id: string;
   repoRoot: string;
@@ -40,6 +42,7 @@ function resolveUserHome(): string {
   return resolve(homedir() || process.env.USERPROFILE || process.env.HOME || ".");
 }
 
+/** 解析审查报告历史的本机存储位置，允许测试指定临时文件。 */
 export function getCodeReviewHistoryFilePath(overridePath?: string): string {
   if (overridePath) return resolve(overridePath);
   return join(resolveUserHome(), ".lfaa", "code-reviews.json");
@@ -211,6 +214,7 @@ export function analyzeUnifiedDiff(params: {
   };
 }
 
+/** 分析 Git 差异并保存审查报告，供工作台查询历史。 */
 export class CodeReviewService {
   private readonly historyPath: string;
 

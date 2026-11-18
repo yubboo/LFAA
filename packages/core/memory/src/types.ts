@@ -19,6 +19,7 @@ export interface AgentStepTrace {
   timestamp: number;
 }
 
+/** 描述磁盘会话中的任意一条消息及其运行步骤。 */
 export interface ChatMessageRecord {
   id: string;
   role: "user" | "assistant";
@@ -31,6 +32,7 @@ export interface ChatMessageRecord {
   createdAt: number;
 }
 
+/** 提供列表渲染所需的会话归属、标题与状态摘要。 */
 export interface ChatSessionSummary {
   id: string;
   title: string;
@@ -45,6 +47,7 @@ export interface ChatSessionSummary {
   updatedAt: number;
 }
 
+/** 在摘要基础上携带消息内容，供 Host 恢复完整会话。 */
 export interface ChatSessionRecord extends ChatSessionSummary {
   messages: ChatMessageRecord[];
 }
@@ -65,6 +68,7 @@ export interface UpdateSessionInput {
   summary?: string;
 }
 
+/** 表示按项目或全局范围保存的可检索记忆条目。 */
 export interface MemoryEntry {
   id: string;
   scope: "global" | "project";
@@ -86,6 +90,7 @@ export interface AddMemoryInput {
 
 export type LibraryItemCategory = "artifact" | "asset";
 
+/** 提供资料库索引中描述本地资产的公开元数据。 */
 export interface LibraryAssetItem {
   id: string;
   category: LibraryItemCategory;
@@ -119,6 +124,7 @@ export interface SaveLibraryAssetInput {
 
 export type StorageLocationMode = "default" | "project" | "custom";
 
+/** 描述当前资料路径、位置模式与系统推荐路径。 */
 export interface StorageConfigState {
   dataRoot: string;
   defaultDataRoot: string;
@@ -138,6 +144,7 @@ export interface StorageStats {
   totalBytes: number;
 }
 
+/** 返回目录切换执行后的状态及迁移结果。 */
 export interface StorageMigrationResult {
   fromRoot: string;
   toRoot: string;

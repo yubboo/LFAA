@@ -10,6 +10,7 @@ const execFileAsync = promisify(execFile);
 const MAX_WAV_BYTES = 15 * 1024 * 1024;
 const POWERSHELL_TIMEOUT_MS = 35_000;
 
+/** 承载本地语音转录文本及引擎反馈，供聊天 Host 返回给输入栏。 */
 export interface SpeechTranscribeResult {
   text: string;
   engine: string;

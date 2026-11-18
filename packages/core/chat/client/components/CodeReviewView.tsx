@@ -24,8 +24,10 @@ import { CodeReviewDiffPane } from "./CodeReviewDiffPane";
 import { CodeReviewListPane } from "./CodeReviewListPane";
 import styles from "./CodeReviewView.module.css";
 
+/** 定义代码审查工作台的页面标签，左侧导航与中央视图共用。 */
 export type CodeReviewDomainTab = "cr-changes" | "cr-commits" | "cr-reports";
 
+/** 协调已选仓库、变更清单和差异预览，并将 Git 操作发往 Host。 */
 export function CodeReviewView({
   locale,
   store,

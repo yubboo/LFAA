@@ -7,6 +7,7 @@ import type { SectionsLocaleMessages } from "../locales";
 import type { SectionStore } from "../section-store";
 import styles from "./SectionRowActions.module.css";
 
+/** 为自定义分区行提供独立操作菜单和创建会话入口。 */
 export function SectionRowActions({
   locale,
   section,

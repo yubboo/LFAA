@@ -1,6 +1,7 @@
-/* 左二与右侧栏拖拽分割手柄、弹性阻尼透明反馈及平滑磁吸折叠动效样式。 */
+/* 浏览器工作台的左右栏分隔手柄、高亮反馈及拖拽裁剪。 */
 .resizeHandle {
   position: absolute;
+  grid-row: 1;
   top: 0;
   bottom: 0;
   z-index: 25;
@@ -10,16 +11,20 @@
   outline: none;
 }
 
+/* 手柄直接锚定侧栏所在的栅格列，和内容复用同一条边界。 */
 .resizeHandleLeft {
-  left: calc(var(--rail-width) + var(--left-sidebar-width));
-  transform: translateX(-50%);
-}
-
-.resizeHandleRight {
-  right: var(--right-panel-width);
+  grid-column: 2 / 3;
+  right: 0;
   transform: translateX(50%);
 }
 
+.resizeHandleRight {
+  grid-column: -2 / -1;
+  left: 0;
+  transform: translateX(-50%);
+}
+
+/* 交互热区和可见分隔线分开，拖动、键盘焦点和吸附只改变反馈样式。 */
 .resizeHandle::after {
   content: "";
   position: absolute;
@@ -48,45 +53,21 @@
   box-shadow: 0 0 10px rgb(var(--color-accent-rgb, 230 106 168) / 0.45);
 }
 
-:global([data-snap-animating="true"]) {
-  transition: grid-template-columns 190ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-:global([data-snap-animating="true"]) > .resizeHandle {
-  transition: left 190ms cubic-bezier(0.22, 1, 0.36, 1), right 190ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
+/* 使用栅格边界裁剪收缩的左栏，避免整栏位移或透明过渡造成绘制残影。 */
 :global([data-resizing="true"]) > :global([data-region="section-navigation"]) {
-  overflow: hidden;
-  opacity: var(--left-drag-opacity, 1);
-  transition: opacity 150ms ease, transform 190ms cubic-bezier(0.22, 1, 0.36, 1);
+  overflow: clip;
 }
 
-:global([data-resizing="true"]) > :global([data-region="context-panel"]) {
-  overflow: hidden;
-  opacity: var(--right-drag-opacity, 1);
-  transition: opacity 150ms ease, transform 190ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-:global([data-left-drag-collapsed="true"]) > :global([data-region="section-navigation"]) {
-  opacity: 0;
-  transform: translateX(-12px);
-  pointer-events: none;
-  border-color: transparent;
-}
-
+:global([data-left-drag-collapsed="true"]) > :global([data-region="section-navigation"]),
 :global([data-right-drag-collapsed="true"]) > :global([data-region="context-panel"]) {
-  opacity: 0;
-  transform: translateX(12px);
+  visibility: hidden;
   pointer-events: none;
   border-color: transparent;
 }
 
+/* 减少动态效果时立即切换分隔线反馈。 */
 @media (prefers-reduced-motion: reduce) {
-  :global([data-snap-animating="true"]),
-  :global([data-snap-animating="true"]) > .resizeHandle,
-  :global([data-resizing="true"]) > :global([data-region="section-navigation"]),
-  :global([data-resizing="true"]) > :global([data-region="context-panel"]) {
+  .resizeHandle::after {
     transition: none;
   }
 }

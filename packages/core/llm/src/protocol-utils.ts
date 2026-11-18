@@ -8,6 +8,7 @@ const VALID_PROTOCOLS = new Set<LlmApiProtocol>([
   "gemini-generate-content",
 ]);
 
+/** 验证外部协议字段，交给 Host 在字段缺失时执行协议推断。 */
 export function asApiProtocol(raw: unknown): LlmApiProtocol | undefined {
   return typeof raw === "string" && VALID_PROTOCOLS.has(raw as LlmApiProtocol)
     ? (raw as LlmApiProtocol)
@@ -40,6 +41,7 @@ export function resolveEffectiveProtocol(input: {
   return "openai-chat";
 }
 
+/** 校验模型服务采用 HTTP 或 HTTPS，整理拼接 API 路径所需的基址。 */
 export function normalizeHttpBaseUrl(rawUrl: string): string {
   const trimmed = rawUrl.trim().replace(/\/+$/u, "");
   const parsed = new URL(trimmed);
@@ -49,6 +51,7 @@ export function normalizeHttpBaseUrl(rawUrl: string): string {
   return trimmed;
 }
 
+/** 识别需要 DeepSeek 专用请求兼容逻辑的配置。 */
 export function isDeepSeekEndpoint(kind: LlmProviderKind, baseUrl: string, providerId?: string): boolean {
   return kind === "deepseek" || providerId === "deepseek" || baseUrl.toLowerCase().includes("deepseek.com");
 }

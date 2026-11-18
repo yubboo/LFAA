@@ -66,6 +66,7 @@
   white-space: nowrap;
 }
 
+/* 固定入口是独立于打开应用的行内动作，按悬停或键盘焦点显露。 */
 .pinButton {
   position: relative;
   display: grid;
@@ -123,6 +124,16 @@
 }
 
 @media (max-width: 767px) {
+  /* 手机把低频入口集中在列表里，保持完整触控区和当前位置提示。 */
+  .entryAction {
+    min-height: 2.75rem;
+  }
+
+  .entryAction[aria-current="page"] {
+    background: var(--color-active);
+    font-weight: 600;
+  }
+
   .menu {
     top: auto;
     right: 0.65rem;

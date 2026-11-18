@@ -5,6 +5,7 @@
   margin-bottom: 0.65rem;
 }
 
+/* 运行阶段通过胶囊和脉冲灯显示，颜色按阶段变化。 */
 .liveStatusPill {
   display: inline-flex;
   align-items: center;
@@ -206,6 +207,7 @@
   color: #ef4444;
 }
 
+/* 待批准工具使用独立卡片，集中展示风险说明与审批操作。 */
 .approvalCard {
   display: grid;
   gap: 0.5rem;

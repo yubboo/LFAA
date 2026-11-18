@@ -1,4 +1,6 @@
-// OpenAI-Compatible 流式/非流式推理适配器，支持 DeepSeek reasoning_content、OpenAI 与本地 Ollama。
+// Host 侧 Chat Completions 适配器，用统一的 LLM 契约处理方舟、DeepSeek、OpenAI 和 Ollama 的响应。
+// 复用选模界面的方舟能力目录，使可选档位与发给方舟的参数一致。
+import { findArkChatModel, getArkPlanKind, getArkReasoningEffort } from "./ark-plan";
 import { formatLlmHttpError, mapEffortForModelApi, normalizeModelCapability, resolveModelCapabilities } from "./capabilities";
 import type {
   LlmGenerateInput,
@@ -9,6 +11,7 @@ import type {
   LlmToolDefinition,
 } from "./types";
 
+// 统一接口地址的尾部斜杠，再将 HTTP(S) 地址用于拼接聊天请求路径。
 function normalizeBaseUrl(rawUrl: string): string {
   const trimmed = rawUrl.trim().replace(/\/+$/u, "");
   const parsed = new URL(trimmed);
@@ -18,6 +21,7 @@ function normalizeBaseUrl(rawUrl: string): string {
   return trimmed;
 }
 
+// 将内部会话历史转为 Chat Completions 消息，保留工具请求与结果之间的调用 ID。
 function buildApiMessages(
   messages: LlmMessage[],
   includeReasoningContent = false,
@@ -53,6 +57,7 @@ function buildApiMessages(
   });
 }
 
+// 将工具参数模式封装为接口所需的 function 定义，无工具时省略 tools 字段。
 function buildApiTools(tools?: LlmToolDefinition[]): Array<Record<string, unknown>> | undefined {
   if (!tools || tools.length === 0) return undefined;
   return tools.map((tool) => ({
@@ -85,6 +90,7 @@ async function readSseCompletion(
   let usage: LlmGenerateOutput["usage"];
   const toolBuffers = new Map<number, { id: string; name: string; args: string; notified: boolean }>();
 
+  // 单条 SSE 数据可以包含用量、增量文本或工具参数片段，分别归并到本次回复。
   const processLine = (line: string) => {
     const trimmed = line.trim();
     if (!trimmed.startsWith("data:")) return;
@@ -152,6 +158,7 @@ async function readSseCompletion(
     }
   };
 
+  // 网络分块可能拆开一行 SSE 或一个 UTF-8 字符，保留剩余文本等待后续分块。
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -209,13 +216,17 @@ export async function callOpenAiCompatibleChat(
     headers.Authorization = `Bearer ${profile.apiKey.trim()}`;
   }
 
-  const isDeepSeek =
-    profile.kind === "deepseek" || profile.baseUrl.toLowerCase().includes("deepseek.com");
+  // 方舟套餐按模型映射档位。直连 DeepSeek 才附加工具调用所需的 thinking 参数和历史思考内容。
+  const arkPlan = getArkPlanKind(profile.baseUrl);
+  const isDeepSeek = !arkPlan
+    && (profile.kind === "deepseek" || profile.baseUrl.toLowerCase().includes("deepseek.com"));
   const cachedCap = profile.availableModels?.find((m) => m.id === profile.model);
   const capability = cachedCap
     ? normalizeModelCapability(cachedCap, profile.kind)
     : resolveModelCapabilities(profile.model, profile.kind);
-  const mappedEffort = mapEffortForModelApi(input.reasoningEffort, capability);
+  const mappedEffort = arkPlan
+    ? getArkReasoningEffort(findArkChatModel(profile.model), input.reasoningEffort)
+    : mapEffortForModelApi(input.reasoningEffort, capability);
   const enableThinking = Boolean(isDeepSeek && mappedEffort);
 
   const bodyPayload: Record<string, unknown> = {
@@ -256,6 +267,7 @@ export async function callOpenAiCompatibleChat(
     return readSseCompletion(response, profile, input);
   }
 
+  // 兼容请求流式输出后仍返回完整 JSON 的服务，使用非流式响应的字段结构解析。
   const json = (await response.json()) as {
     model?: string;
     usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
@@ -272,6 +284,7 @@ export async function callOpenAiCompatibleChat(
     }>;
   };
 
+  // 使用首个候选，将完整的思考和正文各作为一次增量通知，并整理工具调用。
   const choice = json.choices?.[0];
   const message = choice?.message;
   const content = message?.content ?? "";
@@ -284,6 +297,7 @@ export async function callOpenAiCompatibleChat(
     argumentsJson: call.function?.arguments ?? "{}",
   }));
 
+  // 与 SSE 分支返回同一结果结构，用量字段沿用内部契约的驼峰命名。
   return {
     model: json.model ?? profile.model,
     provider: profile.kind,

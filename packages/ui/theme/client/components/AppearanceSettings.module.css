@@ -107,6 +107,7 @@
   box-shadow: 0 0 0 1px var(--color-accent);
 }
 
+/* 主题卡片通过独立预览区域示意明暗模式。 */
 .preview {
   display: flex;
   width: 4.35rem;

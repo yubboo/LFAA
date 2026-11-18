@@ -20,6 +20,7 @@ export type FollowUpHandleMode = "queue" | "steer";
 export type TurnNotifyMode = "unfocused" | "always" | "off";
 export type NotifySoundMode = "default" | "chime" | "mute";
 
+/** 定义由 Host 保存并通过设置接口返回的用户偏好。 */
 export interface GeneralSettingsConfig {
   schemaVersion?: number;
   outsideProjectFolder: string;
@@ -62,11 +63,13 @@ function resolveUserHome(): string {
   return resolve(homedir() || process.env.USERPROFILE || process.env.HOME || ".");
 }
 
+/** 为常规设置读取和写入解析路径，测试可提供独立档案。 */
 export function getGeneralSettingsFilePath(overridePath?: string): string {
   if (overridePath) return resolve(overridePath);
   return join(resolveUserHome(), ".lfaa", "general-settings.json");
 }
 
+/** 解析未绑定项目会话的默认目录，供 Agent 工作区初始化使用。 */
 export function resolveDefaultOutsideProjectFolder(): string {
   return join(resolveUserHome(), ".lfaa");
 }
@@ -132,6 +135,7 @@ function createDefaultSettings(outsideProjectFolder: string, defaultProjectsFold
 
 const VALID_REASONING = new Set<ReasoningLevelOption>(["minimal", "low", "medium", "high", "max"]);
 
+/** 管理常规偏好的持久化与兼容读取，并公开设置服务使用的用户配置。 */
 export class GeneralSettingsStore {
   private readonly filePath: string;
   private cached: GeneralSettingsConfig | null = null;

@@ -94,6 +94,7 @@
   background: var(--color-line);
 }
 
+/* 有多个目录时保持独立条目，长路径限制在卡片内容区。 */
 .folders {
   display: grid;
   gap: 0.35rem;

@@ -2,9 +2,11 @@
 .sidebar {
   position: relative;
   z-index: 10;
+  container: section-sidebar / inline-size;
   display: grid;
   min-width: 0;
   min-height: 0;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: var(--topbar-height, 3.5rem) minmax(0, 1fr);
   overflow: visible;
   padding: 0;
@@ -52,6 +54,7 @@
   white-space: nowrap;
 }
 
+/* 工作位置切换器和其他头部动作共享左栏空间。 */
 .modeRoot {
   position: relative;
   min-width: 0;
@@ -129,6 +132,32 @@
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 1.7;
+}
+
+/* 左栏收至 15% 时，标题可省略，活动与搜索按钮仍完整留在栏内。 */
+@container section-sidebar (max-width: 12rem) {
+  .header {
+    gap: 0.25rem;
+    padding-inline: 0.45rem;
+  }
+
+  .modeTrigger {
+    gap: 0.25rem;
+    padding-inline: 0.25rem;
+  }
+
+  .modeTrigger span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .headerActions {
+    gap: 0.15rem;
+  }
+
+  .headerButton {
+    width: 1.8rem;
+  }
 }
 
 .headerButton[data-tooltip]::after {
@@ -218,6 +247,7 @@
   color: var(--color-muted);
 }
 
+/* 活动清单在左栏以独立面板展示，头部保留返回动作。 */
 .activityPanel {
   position: absolute;
   z-index: 60;

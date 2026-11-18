@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { MemoryService } from "./index";
 
+/** 将项目根目录解析交给应用，供内存与资料的 HTTP 接口使用。 */
 export interface MemoryHttpOptions {
   resolveActiveProjectRoot?: (projectId?: string | null) => Promise<string | undefined>;
 }
@@ -24,6 +25,7 @@ async function readJsonBody(req: IncomingMessage): Promise<Record<string, unknow
   return typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : {};
 }
 
+/** 将资料、长期记忆和存储设置请求分派给各自的 Host 存储。 */
 export function createMemoryHttpHandler(service: MemoryService, options: MemoryHttpOptions = {}) {
   return async (req: IncomingMessage, res: ServerResponse): Promise<boolean> => {
     const urlObj = new URL(req.url ?? "", "http://127.0.0.1");

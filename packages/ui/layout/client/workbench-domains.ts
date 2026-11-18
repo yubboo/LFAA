@@ -4,6 +4,7 @@ import type { LocaleMessages } from "./locales";
 import { isSettingsView, type LocalProject, type NavigationTarget, type NavigationView, type RecentItem } from "./navigation";
 import { findSettingsCatalogItem } from "./settings-catalog";
 
+/** 定义一级导航可选择的业务域。 */
 export type WorkbenchDomainId =
   | "workspace"
   | "settings"
@@ -14,11 +15,13 @@ export type WorkbenchDomainId =
   | "codeReview"
   | "extension";
 
+/** 描述业务域对左栏头部的布局需求。 */
 export type SidebarHeaderConfig =
   | { kind: "modeSwitcher" }
   | { kind: "backTitle"; title: string; backLabel: string; backView: NavigationView }
   | { kind: "sectionTitle"; title: string };
 
+/** 把当前业务域的导航形态和侧栏配置交给工作台。 */
 export interface WorkbenchDomainConfig {
   id: WorkbenchDomainId;
   // 工作区与资料库启用四栏（含右侧上下文栏）；设置与独立功能视图复用左一+左二+中间呈现三栏。
@@ -164,6 +167,7 @@ export function resolveViewLabel(view: string, locale: LocaleMessages, registere
   return labels[view] ?? view;
 }
 
+/** 将会话摘要映射为侧栏可排序、可选择的列表行。 */
 export function buildChatRecentItems({
   chatSessions,
   chatProvider,

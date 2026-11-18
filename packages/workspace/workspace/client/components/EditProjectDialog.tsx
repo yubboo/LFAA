@@ -18,6 +18,7 @@ function appendUniquePath(list: string[], nextPath: string): string[] {
   return [...list, nextPath];
 }
 
+/** 编辑同一项目的名称和本机源目录，在表单中维护草稿并按确认动作提交。 */
 export function EditProjectDialog({
   locale,
   project,

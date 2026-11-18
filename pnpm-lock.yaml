@@ -103,6 +103,9 @@ importers:
       '@deepseek-ai/cordis':
         specifier: ^4.1.0
         version: 4.1.0
+      '@lfaa/llm':
+        specifier: workspace:*
+        version: link:../llm
       '@lfaa/memory':
         specifier: workspace:*
         version: link:../memory

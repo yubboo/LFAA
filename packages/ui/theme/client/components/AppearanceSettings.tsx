@@ -19,6 +19,7 @@ import styles from "./AppearanceSettings.module.css";
 
 const ADVANCED_OPEN_STORAGE_KEY = "lfaa:appearance-advanced-open";
 
+/** 装配主题、颜色、字体和高级设置，订阅外观状态以即时反映预览。 */
 export function AppearanceSettings({
   locale,
   store,

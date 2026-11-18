@@ -53,6 +53,7 @@
   color: #ffffff;
 }
 
+/* 录音波形独立绘制，避免录音时改变麦克风按钮占位。 */
 .waveBars {
   display: inline-flex;
   align-items: center;

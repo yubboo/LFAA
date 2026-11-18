@@ -96,6 +96,7 @@ button:focus-visible {
   transition-duration: 0.01ms !important;
 }
 
+/* 跟随系统的减少动态效果偏好，在应用入口统一压缩动画和过渡。 */
 @media (prefers-reduced-motion: reduce) {
   :root:not([data-reduced-motion="off"]) *,
   :root:not([data-reduced-motion="off"]) *::before,

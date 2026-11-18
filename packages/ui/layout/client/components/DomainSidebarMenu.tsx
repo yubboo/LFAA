@@ -7,6 +7,7 @@ import type { LibraryTabKey } from "../workbench-service";
 import type { NavigationIconName } from "./NavigationIcon";
 import { SidebarSectionList, type SidebarGroupConfig } from "./SidebarSectionList";
 
+/** 把当前业务域的左侧导航配置转交共享列表，统一选中状态和路由入口。 */
 export function DomainSidebarMenu({
   locale,
   domain,

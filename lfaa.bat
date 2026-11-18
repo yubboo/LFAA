@@ -1,4 +1,5 @@
 @echo off
+rem Windows 双击入口：启动 scripts/lfaa.ps1 的本地菜单，并处理菜单退出状态。
 setlocal
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\lfaa.ps1"
 set "LFAA_EXIT=%ERRORLEVEL%"

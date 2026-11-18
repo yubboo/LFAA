@@ -58,6 +58,7 @@ function formatSize(bytes?: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+/** 展示本地项目概况与进入项目的入口，供工作台未选择具体项目时使用。 */
 export function ProjectsOverview({
   locale,
   projects,
@@ -91,6 +92,7 @@ export function ProjectsOverview({
   );
 }
 
+/** 读取选中项目的目录内容并渲染文件工作区。 */
 export function ProjectDetailView({
   locale,
   project,

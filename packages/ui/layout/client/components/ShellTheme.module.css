@@ -90,6 +90,7 @@
   }
 }
 
+/* 关闭玻璃效果时覆盖语义变量，下游组件沿用原有变量。 */
 :global(html[data-glass="false"]),
 :global(html[data-glass="false"]) .theme {
   --ambient-glow: none;

@@ -1,8 +1,10 @@
 // 在浏览器端通过 Web Audio 采集麦克风音频并编码为 16kHz 单声道 PCM WAV，供 Host 离线语音识别。
 import type { ChatLocaleMessages } from "./locales";
 
+/** 记录输入栏是否优先使用本机语音识别。 */
 export const SPEECH_PREFER_LOCAL_STORAGE_KEY = "lfaa.speech.preferLocal";
 
+/** 采集浏览器麦克风音频并导出符合本地转录接口要求的 WAV。 */
 export interface LocalWavRecorder {
   stopAndBuildWav: () => Promise<Uint8Array>;
   abort: () => void;

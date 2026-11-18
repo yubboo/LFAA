@@ -61,6 +61,7 @@
   height: 1.1rem;
 }
 
+/* 新建和重命名共用分区名称的输入样式。 */
 .nameBox {
   display: flex;
   width: 100%;

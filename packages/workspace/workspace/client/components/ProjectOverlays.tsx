@@ -9,6 +9,7 @@ import { ProjectActionMenu } from "./ProjectActionMenu";
 import { ProjectHoverCard } from "./ProjectHoverCard";
 import { RemoveProjectDialog } from "./RemoveProjectDialog";
 
+/** 统一挂载项目卡片、操作菜单及确认表单，使不同层级共享当前项目上下文。 */
 export function ProjectOverlays({
   locale,
   projectStore,

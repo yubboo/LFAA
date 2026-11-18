@@ -76,6 +76,7 @@
   outline: 1px dashed rgb(var(--color-accent-rgb, 230 106 168) / 0.55);
 }
 
+/* 分组标题同时承载折叠、拖放目标和按需显露的工具入口。 */
 .headingRow {
   position: relative;
   display: flex;
@@ -206,6 +207,7 @@
   flex: 0 0 auto;
 }
 
+/* 行内动作在悬停、聚焦或菜单开启时显示，普通行保留文本宽度。 */
 .rowActions {
   display: none;
   flex: 0 0 auto;
@@ -244,6 +246,7 @@
   display: inline-flex;
 }
 
+/* 触屏没有稳定悬停态，直接展示可点击的行内操作。 */
 @media (hover: none) and (pointer: coarse) {
   .trailingHint {
     display: none;

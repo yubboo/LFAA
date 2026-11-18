@@ -2,6 +2,7 @@
 import type { ReactNode } from "react";
 import styles from "./HoverTip.module.css";
 
+/** 为触发元素提供悬停提示与快捷键标签，并测量触发元素用于定位。 */
 export function HoverTip({
   label,
   shortcut,

@@ -72,6 +72,7 @@ function savePreferLocalSpeech(): void {
   }
 }
 
+/** 协调浏览器与本地转录、录音状态和草稿合并，并在卸载时清理录音。 */
 export function useVoiceDictation({
   locale,
   draft,

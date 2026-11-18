@@ -1,14 +1,18 @@
 // 浏览器端高可用流式订阅器：提供按片段序号幂等去重、RAF 节流批量渲染、心跳看门狗、指数退避重连与完整句边界续写辅助。
 import type { AgentStepItem, PendingApprovalBanner } from "./chat-types";
 
+/** 设置无事件时触发流连接超时判断的间隔。 */
 export const HEARTBEAT_TIMEOUT_MS = 25_000;
+/** 限制单次运行流在断开后自动重试的次数。 */
 export const MAX_RECONNECT_ATTEMPTS = 5;
 
+/** 聚合同一批可交给视图的内容增量，降低频繁刷新。 */
 export interface StreamDeltaBatch {
   text: string;
   reasoning: string;
 }
 
+/** 描述重连时恢复消息和步骤所需的运行快照。 */
 export interface StreamRunSnapshotPayload {
   content: string;
   reasoning: string;
@@ -17,6 +21,7 @@ export interface StreamRunSnapshotPayload {
   pendingApprovals?: PendingApprovalBanner[];
 }
 
+/** 约定流客户端交给聊天 Store 的通知与错误回调。 */
 export interface AgentStreamClientHandlers {
   onSnapshot: (run: StreamRunSnapshotPayload, isReconnect: boolean) => void;
   onDeltaBatch: (batch: StreamDeltaBatch) => void;
@@ -27,6 +32,7 @@ export interface AgentStreamClientHandlers {
   onDegraded: (lastSeq: number, reason: string) => void;
 }
 
+/** 从未完整显示的流式文本中取出到最近完整句子的部分。 */
 export function splitCleanSentenceBoundary(partialText: string): {
   cleanPrefix: string;
   incompleteTail: string;
@@ -45,11 +51,13 @@ export function splitCleanSentenceBoundary(partialText: string): {
   };
 }
 
+/** 计算带抖动的退避延时，避免断线客户端同时重连。 */
 export function computeBackoffWithJitter(attempt: number, baseMs = 500, capMs = 12_000): number {
   const exp = Math.min(capMs, baseMs * Math.pow(2, Math.max(0, attempt - 1)));
   return Math.min(capMs, exp + Math.floor(Math.random() * 220));
 }
 
+/** 订阅 Host 运行流，协调心跳监测、断线恢复和增量批处理。 */
 export class AgentStreamClient {
   private es: EventSource | null = null;
   private closed = false;

@@ -13,6 +13,7 @@ import type { WorkbenchProjectItem } from "@lfaa/ui-layout";
 import type { WorkspaceLocaleMessages } from "../locales";
 import styles from "./ProjectHoverCard.module.css";
 
+/** 保存悬浮卡片触发区域的坐标及尺寸，便于按可用空间定位。 */
 export interface HoverAnchorRect {
   top: number;
   right: number;
@@ -25,6 +26,7 @@ function getFolderName(folderPath: string): string {
   return parts.length ? parts[parts.length - 1]! : folderPath;
 }
 
+/** 在项目行附近提供摘要与编辑入口，避免预览时切换当前工作区。 */
 export function ProjectHoverCard({
   locale,
   project,

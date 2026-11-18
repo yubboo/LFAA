@@ -13,8 +13,8 @@
 }
 
 .trigger {
-  width: 3.25rem;
-  height: 3.25rem;
+  width: var(--rail-control-size);
+  height: var(--rail-control-size);
   padding: 0;
   border: 0;
   background: transparent;
@@ -34,6 +34,12 @@
   color: #fff;
   font-size: 0.66rem;
   font-weight: 650;
+}
+
+/* 竖栏头像与图标按钮对齐，菜单内账户头像沿用原尺寸。 */
+.trigger .avatar {
+  width: 1.5rem;
+  height: 1.5rem;
 }
 
 .panel {
@@ -197,9 +203,9 @@
     margin-top: 0;
   }
 
-  .trigger {
-    width: 2.75rem;
-    height: 2.75rem;
+  .trigger .avatar {
+    width: 2.25rem;
+    height: 2.25rem;
   }
 
   .panel {

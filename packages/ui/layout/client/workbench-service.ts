@@ -21,8 +21,10 @@ import {
   writeBooleanPref,
 } from "./ui-preferences";
 
+/** 约定资料库分类在工作台中的稳定标识。 */
 export type LibraryTabKey = "all" | "artifact" | "asset" | "memory";
 
+/** 约定视图树从工作台服务订阅的状态快照。 */
 export interface WorkbenchSnapshot {
   activeView: string;
   activeProjectId: string | null;
@@ -156,6 +158,7 @@ export class WorkbenchClientService extends Service {
     };
   }
 
+  // 项目来源发生变化时重算工作台快照，卸载后解除原有订阅。
   registerProjectProvider(provider: WorkbenchProjectProvider<ReactNode>): () => void {
     this.unsubscribeProjects?.();
     this.projectProviderValue = provider;

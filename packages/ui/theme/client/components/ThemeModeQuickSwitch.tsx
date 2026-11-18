@@ -24,6 +24,7 @@ function ModeIcon({ mode, className }: { mode: AppearanceMode; className?: strin
   return <IconDeviceDesktop className={className} aria-hidden="true" />;
 }
 
+/** 在账号入口就地切换跟随系统、浅色或深色模式。 */
 export function ThemeModeQuickSwitch({
   locale,
   store,

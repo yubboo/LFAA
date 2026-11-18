@@ -1,11 +1,13 @@
 // 管理左二项目行的 Hover 信息卡、Click 操作菜单、抑制滞留悬停与“编辑项目”弹窗状态。
 import type { HoverAnchorRect } from "./components/ProjectHoverCard";
 
+/** 记录项目菜单锚点与位置，供菜单和预览共用。 */
 export interface PopoverAnchorState {
   projectId: string;
   anchorRect: HoverAnchorRect;
 }
 
+/** 描述项目预览、菜单和表单的当前目标与开关状态。 */
 export interface ProjectMenuSnapshot {
   hoverCard: PopoverAnchorState | null;
   actionMenu: PopoverAnchorState | null;
@@ -26,6 +28,7 @@ function toButtonRect(element: Element): HoverAnchorRect {
   return { top: rect.top, right: rect.right, bottom: rect.bottom, left: rect.left };
 }
 
+/** 协调项目行产生的浮层动作，并向独立浮层宿主发布状态。 */
 export class ProjectMenuStore {
   private readonly listeners = new Set<() => void>();
   private hoverCardValue: PopoverAnchorState | null = null;

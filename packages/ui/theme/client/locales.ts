@@ -102,8 +102,10 @@ export const themeLocales = {
   },
 } as const;
 
+/** 约定外观设置、快捷菜单和主题控件共用的字典键。 */
 export type ThemeLocaleMessages = (typeof themeLocales)[keyof typeof themeLocales];
 
+/** 按当前语言选择外观界面的文案字典。 */
 export function getThemeLocale(): ThemeLocaleMessages {
   return typeof navigator !== "undefined" && navigator.language.toLowerCase().startsWith("zh")
     ? themeLocales.zh

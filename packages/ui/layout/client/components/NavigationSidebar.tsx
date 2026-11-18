@@ -18,6 +18,7 @@ import { SearchDialog } from "./SearchDialog";
 import { SettingsMenu } from "./SettingsMenu";
 import styles from "./NavigationSidebar.module.css";
 
+/** 根据业务域装配左栏头部及列表，将设置页和聊天页复用同一栏位。 */
 export function NavigationSidebar({
   locale,
   domain,

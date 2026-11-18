@@ -16,6 +16,7 @@ declare module "@deepseek-ai/cordis" {
   }
 }
 
+/** 安装项目导航、项目视图和右栏上下文，把工作台动作交给项目 Store。 */
 export const workspaceClientPlugin: Plugin.Object<void> = {
   name: "@lfaa/workspace/client",
   inject: ["workbench"],

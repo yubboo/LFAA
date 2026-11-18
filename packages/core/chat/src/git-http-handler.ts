@@ -3,6 +3,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { CodeReviewCodingSettings, GitCodingSettings } from "./coding-settings";
 import type { ChatService } from "./index";
 
+/** 注入候选目录与目标路径解析，供编码路由处理实际工作区请求。 */
 export interface CodingHttpHandlerOptions {
   resolveProjectCandidates?: () => Promise<Array<{ rootPath: string; name?: string; projectId?: string }>>;
   resolveTargetRoot?: (projectId?: string | null) => Promise<string | undefined>;
@@ -31,6 +32,7 @@ async function readJsonBody(req: IncomingMessage): Promise<Record<string, unknow
   return typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : {};
 }
 
+/** 暴露 Git 状态、变更操作、编码设置及审查相关的 Host 路由。 */
 export function createCodingHttpHandler(service: ChatService, options: CodingHttpHandlerOptions = {}) {
   const resolveRoot = async (projectId?: string | null): Promise<string | undefined> => {
     if (options.resolveTargetRoot) {

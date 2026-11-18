@@ -8,6 +8,7 @@ import styles from "./ComposerRightActions.module.css";
 
 export { mergeDictationTranscript } from "../useVoiceDictation";
 
+/** 按照录音、等待回复和空闲状态显示麦克风、取消或发送动作。 */
 export function ComposerRightActions({
   locale,
   draft,

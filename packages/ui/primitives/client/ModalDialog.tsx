@@ -17,6 +17,7 @@ const ANIM_CLASS: Record<DialogAnimationPreset, string | undefined> = {
   "slide-up": styles.animSlideUp,
 };
 
+/** 定义模态内容、底部操作与关闭策略，供确认弹窗和设置表单复用。 */
 export interface ModalDialogProps {
   open: boolean;
   title: string;
@@ -31,6 +32,7 @@ export interface ModalDialogProps {
   children: ReactNode;
 }
 
+/** 将通用模态层挂载到浏览器 Portal，统一遮罩、退出和进入动画。 */
 export function ModalDialog({
   open,
   title,

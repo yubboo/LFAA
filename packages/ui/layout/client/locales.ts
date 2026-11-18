@@ -41,8 +41,6 @@ export const locales = {
     canva: "Canva",
     data: "Data",
     installedPlugins: "已安装的插件",
-    noPlugins: "当前没有已安装或已连接的插件。",
-    openPluginCenter: "打开插件页",
     pinApp: "固定到图标栏",
     unpinApp: "从图标栏取消固定",
     pinStorageError: "无法保存侧栏固定设置，请检查浏览器存储权限。",
@@ -223,8 +221,6 @@ export const locales = {
     canva: "Canva",
     data: "Data",
     installedPlugins: "Installed plugins",
-    noPlugins: "No plugins are installed or connected.",
-    openPluginCenter: "Open plugins",
     pinApp: "Pin to sidebar",
     unpinApp: "Unpin from sidebar",
     pinStorageError: "Sidebar pins could not be saved. Check browser storage permissions.",
@@ -366,5 +362,7 @@ export const locales = {
   },
 } as const;
 
+/** 定义布局当前支持的界面语言标识。 */
 export type LocaleKey = keyof typeof locales;
+/** 约定四栏布局及工作台导航各语言字典的文案键。 */
 export type LocaleMessages = (typeof locales)[LocaleKey];

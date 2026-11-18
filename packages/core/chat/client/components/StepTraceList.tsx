@@ -67,6 +67,7 @@ function deriveStreamingStatus(
   return { label: isZh ? "正在思考" : "Thinking", kind: "think" };
 }
 
+/** 根据运行阶段更新思考与工具轨迹，完成后保留可展开的历史步骤。 */
 export function StepTraceList({
   locale,
   steps,

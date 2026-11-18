@@ -19,6 +19,7 @@
   z-index: 108;
 }
 
+/* 分区子菜单随着所属行定位，空间不足时可切换到左侧。 */
 .submenuWrap {
   position: relative;
 }

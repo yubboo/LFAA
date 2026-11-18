@@ -11,6 +11,7 @@ import type {
 export * from "./types";
 export { resolveSafeWorkspacePath, resolveSafeWorkspaceRoot } from "./sandbox";
 
+/** 配置 Host 启动时装载的工具定义。 */
 export interface ToolsPluginConfig {
   includeBuiltins?: boolean;
 }
@@ -85,6 +86,7 @@ export class ToolsService extends Service {
   }
 }
 
+/** 向 Cordis 注册工具查询和执行入口，供 Agent 注入使用。 */
 export function toolsPlugin(context: Context, config: ToolsPluginConfig = {}): void {
   new ToolsService(context, config);
 }

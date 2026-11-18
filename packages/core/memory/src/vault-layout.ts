@@ -4,16 +4,19 @@ import { copyFile, mkdir, readdir, readFile, rename, rm, writeFile } from "node:
 import { join } from "node:path";
 import type { LibraryAssetItem } from "./types";
 
+/** 记录新资料库在数据根路径下使用的目录名称。 */
 export const VAULT_DIRS = {
   artifacts: "agent-outputs",
   assets: "user-assets",
 } as const;
 
+/** 记录资料库的配置、索引与说明文件名。 */
 export const VAULT_FILES = {
   longTermMemory: "long-term-memory.json",
   vaultIndex: "vault-index.json",
 } as const;
 
+/** 集中描述初始化时可能存在的旧版目录布局。 */
 export const LEGACY_VAULT_DIRS = {
   artifacts: "artifacts",
   assets: "assets",
@@ -21,6 +24,7 @@ export const LEGACY_VAULT_DIRS = {
   misplacedChatSessions: "chat-sessions",
 } as const;
 
+/** 集中描述读取旧档案时使用的历史文件名。 */
 export const LEGACY_VAULT_FILES = {
   longTermMemory: "memory.json",
   vaultIndex: "library-index.json",

@@ -2,6 +2,7 @@
 import type { ChatSessionItem } from "./chat-types";
 import type { ChatLocaleMessages } from "./locales";
 
+/** 记录已加入输入框并随发送提交的上下文条目。 */
 export interface ComposerAttachment {
   id: string;
   kind: "file" | "folder" | "session" | "mode";
@@ -11,6 +12,7 @@ export interface ComposerAttachment {
   modeId?: "goal" | "plan";
 }
 
+/** 统一提及弹层中的项目、会话及其他可选项。 */
 export interface MentionEntry {
   id: string;
   group: "add" | "sessions" | "plugins";
@@ -40,6 +42,7 @@ export function extractTrailingSlashQuery(
   };
 }
 
+/** 描述输入框可显示和执行的斜杠命令。 */
 export interface SlashCommandEntry {
   id: string;
   command: string;
@@ -48,6 +51,7 @@ export interface SlashCommandEntry {
   actionKind: "mode_plan" | "mode_goal" | "new_chat" | "clear_draft" | "open_settings";
 }
 
+/** 组装输入框当前能提供的斜杠命令及其语言标签。 */
 export function buildSlashCommands(isZh: boolean): SlashCommandEntry[] {
   return [
     {
@@ -88,6 +92,7 @@ export function buildSlashCommands(isZh: boolean): SlashCommandEntry[] {
   ];
 }
 
+/** 按输入内容搜索斜杠命令，供菜单更新当前候选项。 */
 export function filterSlashCommands(entries: SlashCommandEntry[], query: string): SlashCommandEntry[] {
   const q = query.trim().toLowerCase();
   if (!q) return entries;
@@ -115,6 +120,7 @@ export function extractTrailingMentionQuery(
   };
 }
 
+/** 将工作台提供的上下文转换为提及菜单选项。 */
 export function buildMentionEntries({
   locale,
   sessions,
@@ -191,6 +197,7 @@ export function buildMentionEntries({
   return entries;
 }
 
+/** 根据提及查询筛选候选项，保留对应选择信息。 */
 export function filterMentionEntries(entries: MentionEntry[], query: string): MentionEntry[] {
   const needle = query.trim().toLowerCase();
   if (!needle) return entries;

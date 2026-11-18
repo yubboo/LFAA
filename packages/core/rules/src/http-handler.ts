@@ -19,6 +19,7 @@ async function readJsonBody(req: IncomingMessage): Promise<Record<string, unknow
   return typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : {};
 }
 
+/** 暴露生效规则查询和用户规则保存接口，由规则服务处理分层合成。 */
 export function createRulesHttpHandler(service: RulesService) {
   return async (req: IncomingMessage, res: ServerResponse): Promise<boolean> => {
     const rawUrl = req.url ?? "";

@@ -1,6 +1,8 @@
 // 定义「模型管理」提供商卡片目录与官方 API 协议格式映射（OpenAI Chat / Responses / Anthropic Messages / Gemini generateContent）。
 import type { LlmApiProtocolOption, PublicLlmProfileItem } from "./chat-types";
+import { findProviderPlan } from "./provider-plans";
 
+/** 列出配置表单可用的协议和值标签，也为聊天浮层提供简称。 */
 export const LLM_API_PROTOCOL_OPTIONS: ReadonlyArray<{
   id: LlmApiProtocolOption;
   label: string;
@@ -12,10 +14,12 @@ export const LLM_API_PROTOCOL_OPTIONS: ReadonlyArray<{
   { id: "gemini-generate-content", label: "Gemini Native generateContent", shortLabel: "Gemini Native" },
 ];
 
+/** 为模型弹窗的协议标签提供简短名称，历史档案按默认聊天协议显示。 */
 export function getProtocolShortLabel(protocol?: LlmApiProtocolOption): string {
   return LLM_API_PROTOCOL_OPTIONS.find((item) => item.id === protocol)?.shortLabel ?? "Chat Completions";
 }
 
+/** 定义品牌与套餐表单共用的预设数据，业务档案另外存储。 */
 export interface ModelProviderPreset {
   id: string;
   nameZh: string;
@@ -32,8 +36,10 @@ export interface ModelProviderPreset {
   accentColor: string;
   glyph: string;
   isAddStyle?: boolean;
+  subscription?: true;
 }
 
+/** 模型管理显示的品牌卡片目录，独立套餐由接入方式弹窗展开。 */
 export const MODEL_PROVIDER_CATALOG: ModelProviderPreset[] = [
   {
     id: "openai",
@@ -251,6 +257,8 @@ export const MODEL_PROVIDER_CATALOG: ModelProviderPreset[] = [
   },
 ];
 
+const normalizeBaseUrl = (url: string) => url.trim().replace(/\/+$/u, "");
+
 // 根据预设与已有 Base URL 推断默认协议格式，兼容旧配置迁移。
 export function inferProtocolForPreset(
   provider: ModelProviderPreset,
@@ -293,26 +301,32 @@ export function findProfileForProvider(
   profiles: PublicLlmProfileItem[],
   provider: ModelProviderPreset,
 ): PublicLlmProfileItem | undefined {
-  const byProviderId = profiles.find((p) => p.providerId === provider.id);
+  if (provider.subscription) {
+    return profiles.find((p) => findProviderPlan(p)?.id === provider.id);
+  }
+  // 排除已识别的套餐，防止普通 API 卡片回填同品牌的套餐凭据。
+  const ordinary = profiles.filter((p) => !findProviderPlan(p));
+  const byProviderId = ordinary.find((p) => p.providerId === provider.id);
   if (byProviderId) return byProviderId;
   if (provider.id === "deepseek") {
-    return profiles.find((p) => p.kind === "deepseek" || p.baseUrl.includes("deepseek.com"));
+    return ordinary.find((p) => p.kind === "deepseek" || p.baseUrl.includes("deepseek.com"));
   }
   if (provider.id === "local") {
-    return profiles.find((p) => p.kind === "ollama" || p.id === "ollama-local");
+    return ordinary.find((p) => p.kind === "ollama" || p.id === "ollama-local");
   }
   if (provider.id === "openai") {
-    return profiles.find((p) => p.id === "openai-gpt4o" || p.baseUrl.includes("api.openai.com"));
+    return ordinary.find((p) => p.id === "openai-gpt4o" || p.baseUrl.includes("api.openai.com"));
   }
   if (provider.id === "custom") {
     const knownHosts = MODEL_PROVIDER_CATALOG.filter((c) => c.id !== "custom").flatMap((c) => [
       c.defaultBaseUrl,
       ...Object.values(c.protocolBaseUrls ?? {}),
     ]);
-    return profiles.find(
-      (p) => !p.providerId && p.kind === "openai-compatible" && !knownHosts.includes(p.baseUrl) && !p.baseUrl.includes("api.openai.com"),
+    return ordinary.find(
+      (p) => !p.providerId && p.kind === "openai-compatible"
+        && !knownHosts.includes(p.baseUrl) && !p.baseUrl.includes("api.openai.com"),
     );
   }
   const presetUrls = [provider.defaultBaseUrl, ...Object.values(provider.protocolBaseUrls ?? {})];
-  return profiles.find((p) => presetUrls.includes(p.baseUrl));
+  return ordinary.find((p) => presetUrls.includes(normalizeBaseUrl(p.baseUrl)));
 }

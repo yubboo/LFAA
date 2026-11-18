@@ -24,6 +24,7 @@ function asProviderKind(value: unknown): LlmProviderKind {
   return "openai-compatible";
 }
 
+/** 通过本机 HTTP 提供脱敏配置、模型目录和连接测试入口。 */
 export function createLlmHttpHandler(service: LlmService) {
   return async (req: IncomingMessage, res: ServerResponse): Promise<boolean> => {
     const pathname = (req.url ?? "").split("?")[0] ?? "";

@@ -34,6 +34,7 @@ function MentionIcon({ icon }: { icon: MentionEntry["icon"] }) {
   }
 }
 
+/** 展示按来源分组的提及条目，将当前键盘索引对应到可选条目。 */
 export function MentionPopover({
   locale,
   entries,
@@ -96,6 +97,7 @@ export function MentionPopover({
   );
 }
 
+/** 展示输入框匹配到的斜杠命令，将选择交还给聊天输入框。 */
 export function SlashCommandPopover({
   isZh,
   entries,

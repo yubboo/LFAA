@@ -2,6 +2,7 @@
 import type { CodeReviewReport } from "../coding-settings-client";
 import styles from "./CodeReviewView.module.css";
 
+/** 展示当前选中的差异、PR 草案或审查发现，右栏内容跟随清单选择切换。 */
 export function CodeReviewDiffPane({
   isZh,
   diffTitle,

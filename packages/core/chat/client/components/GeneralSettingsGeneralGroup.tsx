@@ -13,6 +13,7 @@ const REASONING_OPTIONS: ReadonlyArray<{ value: ReasoningLevelOption; zh: string
   { value: "max", zh: "极高", en: "Max" },
 ];
 
+/** 渲染常规设置主体，通过统一更新入口提交目录、语言和推理偏好。 */
 export function GeneralSettingsGeneralGroup({
   isZh,
   cfg,

@@ -19,6 +19,7 @@ import type {
 export * from "./types";
 export { createWorkspaceHttpHandler } from "./http-handler";
 
+/** 为应用和隔离测试提供项目存储位置与默认路径解析。 */
 export interface WorkspacePluginConfig {
   storeFilePath?: string;
   documentsDir?: string;
@@ -297,6 +298,7 @@ export class WorkspaceService extends Service {
     return { ...result, path: project.rootPath };
   }
 
+  // 对已登记的项目目录执行只读检查，按当前根目录提供文件列表。
   async inspectProject(projectId: string, requestedRootPath?: string): Promise<WorkspaceInspection | null> {
     const projects = await this.readStoredProjects();
     const project = projects.find((item) => item.id === projectId);

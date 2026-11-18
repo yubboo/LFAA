@@ -12,6 +12,7 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+/** 根据工作台的分类导航查看资料和资产详情，并触发选中资料的管理操作。 */
 export function LibraryView({
   locale,
   store,

@@ -5,6 +5,7 @@ import type { GeneralSettingsConfig } from "../general-settings-client";
 import { SettingGroupCard, SettingRow, SettingSelect, SettingSwitch } from "./GeneralSettingsControls";
 import styles from "./GeneralSettingsView.module.css";
 
+/** 装配编辑器、弹出窗口和通知的次级设置，不单独维护持久化状态。 */
 export function GeneralSettingsSecondary({
   isZh,
   cfg,

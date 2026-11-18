@@ -19,6 +19,7 @@ function previewCustomDataPath(raw: string): string {
   return `${trimmed}${sep}data`;
 }
 
+/** 展示当前资料存储位置与用量，将目录变更和迁移请求交由 Host 处理。 */
 export function StorageSettingsView({
   locale,
   store,

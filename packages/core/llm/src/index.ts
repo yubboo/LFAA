@@ -5,6 +5,7 @@ import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { type Context, Service } from "@deepseek-ai/cordis";
 import { callAnthropicMessagesApi } from "./anthropic-adapter";
+import { findArkChatModel, getArkPlanCatalog, getArkPlanKind } from "./ark-plan";
 import { fetchOfficialModels, normalizeModelCapability, resolveModelCapabilities } from "./capabilities";
 import { callGeminiGenerateContentApi } from "./gemini-adapter";
 import { callOpenAiCompatibleChat } from "./openai-adapter";
@@ -22,11 +23,13 @@ import type {
   SaveLlmProfileInput,
 } from "./types";
 
+// 对外提供模型契约、能力解析与 HTTP 安装入口，应用无需导入 Host 内部模块。
 export * from "./types";
 export { fetchOfficialModels, formatLlmHttpError, resolveModelCapabilities } from "./capabilities";
 export { createLlmHttpHandler } from "./http-handler";
 export { asApiProtocol, resolveEffectiveProtocol } from "./protocol-utils";
 
+/** 允许启动方配置档案文件和适配器，便于测试使用独立存储及模拟模型。 */
 export interface LlmPluginConfig {
   storeFilePath?: string;
   adapter?: LlmAdapter;
@@ -75,6 +78,7 @@ function createDefaultProfiles(): LlmProfile[] {
   ];
 }
 
+/** 生成配置页的凭据提示，公共档案只携带脱敏片段。 */
 export function maskApiKey(apiKey: string): string {
   const trimmed = apiKey.trim();
   if (!trimmed) return "";
@@ -82,13 +86,21 @@ export function maskApiKey(apiKey: string): string {
   return `${trimmed.slice(0, 4)}****${trimmed.slice(-4)}`;
 }
 
+/** 将 Host 档案转换为可发往浏览器的公开模型配置。 */
 export function toPublicProfile(profile: LlmProfile): PublicLlmProfile {
-  const models =
-    profile.availableModels && profile.availableModels.length > 0
-      ? profile.availableModels.map((m) => normalizeModelCapability(m, profile.kind))
-      : [resolveModelCapabilities(profile.model, profile.kind)];
-  const hasApiKey = profile.apiKey.trim().length > 0;
   const apiProtocol = resolveEffectiveProtocol(profile);
+  const plan = apiProtocol === "openai-chat" ? getArkPlanKind(profile.baseUrl) : undefined;
+  // 方舟 Chat 档案使用套餐目录，同时保留用户之前保存的自定义模型 ID。
+  const models =
+    plan ? [
+      ...(findArkChatModel(profile.model) ? [] : [
+        { id: profile.model, supportsReasoning: false, reasoningMode: "none" as const, reasoningLevels: [] },
+      ]),
+      ...getArkPlanCatalog(plan).chatModels,
+    ] : profile.availableModels && profile.availableModels.length > 0
+        ? profile.availableModels.map((m) => normalizeModelCapability(m, profile.kind))
+        : [resolveModelCapabilities(profile.model, profile.kind)];
+  const hasApiKey = profile.apiKey.trim().length > 0;
   return {
     id: profile.id,
     ...(profile.providerId ? { providerId: profile.providerId } : {}),
@@ -366,6 +378,7 @@ export class LlmService extends Service {
   }
 }
 
+/** 为 Host Cordis 上下文注册 LLM 服务，测试可注入独立的存储路径和适配器。 */
 export function llmPlugin(context: Context, config: LlmPluginConfig = {}): void {
   new LlmService(context, config);
 }

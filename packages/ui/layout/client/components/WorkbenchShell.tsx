@@ -283,12 +283,12 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
       data-columns={String(domain.columns)}
       data-left-open={String(leftSidebarOpen)}
       data-right-open={String(showRightPanel)}
-      data-resizing={dragState ? "true" : undefined}
       data-left-drag-collapsed={leftDragCollapsed ? "true" : undefined}
       data-right-drag-collapsed={rightDragCollapsed ? "true" : undefined}
     >
       <NavigationRail
         locale={locale}
+        isMobile={device === "mobile"}
         activeView={activeView as NavigationView}
         activeDomain={domain.id}
         pinnedApps={pinnedApps}

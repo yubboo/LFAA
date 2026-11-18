@@ -2,6 +2,7 @@
 import type { CodeReviewReport, GitStatusSnapshot } from "../coding-settings-client";
 import styles from "./CodeReviewView.module.css";
 
+/** 根据工作台标签显示已暂存和未暂存变更、提交记录或审查报告。 */
 export function CodeReviewListPane({
   isZh,
   activeTab,

@@ -4,11 +4,12 @@ import test from "node:test";
 import { Context } from "@deepseek-ai/cordis";
 import {
   buildSidebarWidthVars,
+  computeKeyResizeWidth,
   computeMaxPanelWidth,
+  computePushedRightWidth,
   computeResizeOutcome,
   DRAG_THRESHOLD_PX,
   hasExceededDragThreshold,
-  MAX_PANEL_WIDTH,
   MIN_PANEL_WIDTH,
   SNAP_REOPEN_THRESHOLD_WIDTH,
   SNAP_THRESHOLD_WIDTH,
@@ -124,31 +125,37 @@ test("ui-preferences 正确读写分组收起、自定义分区折叠、排序�
   }
 });
 
-test("computeResizeOutcome 正确处理最小/最大宽度限制、中心区保护与半阈值吸附收起", () => {
-  // 宽屏 1440px：左一约 70px、对侧约 280px，中心区至少保留 360px 时上限为 MAX_PANEL_WIDTH (440)
-  assert.equal(
-    computeMaxPanelWidth({ shellWidth: 1440, railWidth: 70, oppositeWidth: 280 }),
-    MAX_PANEL_WIDTH,
-  );
+test("拖拽和键盘采用同一比例上限，同时保留中央的百分比和像素下限", () => {
+  const wide = { shellWidth: 4050, railWidth: 50 };
+  assert.equal(computeMaxPanelWidth({ ...wide, side: "left", oppositeWidth: 3000 }), 1000);
+  assert.equal(computeMaxPanelWidth({ ...wide, side: "right", oppositeWidth: 1000 }), 2600);
+  assert.equal(computeMaxPanelWidth({ ...wide, side: "right", oppositeWidth: 0 }), 3000);
+  const narrow = { shellWidth: 1250, railWidth: 50 };
+  assert.equal(computeMaxPanelWidth({ ...narrow, side: "left", oppositeWidth: 660 }), 300);
+  assert.equal(computeMaxPanelWidth({ ...narrow, side: "right", oppositeWidth: 180 }), 660);
+  assert.equal(computeKeyResizeWidth({
+    ...narrow, side: "right", key: "ArrowLeft", shiftKey: true, currentWidth: 650, oppositeWidth: 180,
+  }), 660);
+  assert.equal(computeKeyResizeWidth({
+    ...narrow, side: "left", key: "ArrowRight", shiftKey: true, currentWidth: 180, oppositeWidth: 660,
+  }), 228);
+  assert.equal(computeKeyResizeWidth({
+    ...wide, side: "left", key: "ArrowRight", shiftKey: true, currentWidth: 980, oppositeWidth: 2600,
+  }), 1000);
+});
 
-  // 窄桌面 1060px：1060 - 70 - 360 - 360 = 270，对中心区保护生效
-  assert.equal(
-    computeMaxPanelWidth({ shellWidth: 1060, railWidth: 70, oppositeWidth: 360 }),
-    270,
-  );
-
+test("computeResizeOutcome 保留弹性阻尼、半阈值吸附与重开滞回", () => {
+  const metrics = { side: "left" as const, shellWidth: 2050, railWidth: 50, oppositeWidth: 280 };
   // 低于半阈值 (< 110px) 触发吸附收起，视觉宽度收至 0px 同时保留回退展开宽度
   assert.deepEqual(
-    computeResizeOutcome({ rawWidth: SNAP_THRESHOLD_WIDTH - 1, shellWidth: 1440, railWidth: 70, oppositeWidth: 280 }),
+    computeResizeOutcome({ ...metrics, rawWidth: SNAP_THRESHOLD_WIDTH - 1 }),
     { snappedCollapsed: true, width: MIN_PANEL_WIDTH, visualWidth: 0, tension: 1 },
   );
 
   // 位于 [110, 220) 区间内提供弹性阻尼收缩 visualWidth 与张力值
   const elasticOutcome = computeResizeOutcome({
+    ...metrics,
     rawWidth: SNAP_THRESHOLD_WIDTH,
-    shellWidth: 1440,
-    railWidth: 70,
-    oppositeWidth: 280,
   });
   assert.equal(elasticOutcome.snappedCollapsed, false);
   assert.equal(elasticOutcome.width, MIN_PANEL_WIDTH);
@@ -158,37 +165,65 @@ test("computeResizeOutcome 正确处理最小/最大宽度限制、中心区保�
   // 已处于吸附收起态时，带 14px 滞回窗口避免 110px 临界抖动；拉回超过 124px 即平滑重开
   assert.equal(
     computeResizeOutcome({
+      ...metrics,
       rawWidth: SNAP_REOPEN_THRESHOLD_WIDTH - 1,
-      shellWidth: 1440,
-      railWidth: 70,
-      oppositeWidth: 280,
       wasCollapsed: true,
     }).snappedCollapsed,
     true,
   );
   assert.equal(
     computeResizeOutcome({
+      ...metrics,
       rawWidth: SNAP_REOPEN_THRESHOLD_WIDTH,
-      shellWidth: 1440,
-      railWidth: 70,
-      oppositeWidth: 280,
       wasCollapsed: true,
     }).snappedCollapsed,
     false,
   );
 
-  // 正常区间内四舍五入，超过上限时钳制到 MAX_PANEL_WIDTH
+  // 拖拽画面保留小数，只有写入偏好的宽度才取整。
   assert.deepEqual(
-    computeResizeOutcome({ rawWidth: 340.4, shellWidth: 1440, railWidth: 70, oppositeWidth: 280 }),
-    { snappedCollapsed: false, width: 340, visualWidth: 340, tension: 0 },
+    computeResizeOutcome({ ...metrics, rawWidth: 270.4 }),
+    { snappedCollapsed: false, width: 270, visualWidth: 270.4, tension: 0 },
   );
   assert.deepEqual(
-    computeResizeOutcome({ rawWidth: 620, shellWidth: 1440, railWidth: 70, oppositeWidth: 280 }),
-    { snappedCollapsed: false, width: MAX_PANEL_WIDTH, visualWidth: MAX_PANEL_WIDTH, tension: 0 },
+    computeResizeOutcome({ ...metrics, rawWidth: 620 }),
+    { snappedCollapsed: false, width: 500, visualWidth: 500, tension: 0 },
   );
+
+  // 窄桌面的默认 180px 宽度可直接开始拖动，同时保留原有吸附阈值。
+  const narrow = { ...metrics, shellWidth: 1250, oppositeWidth: 660 };
+  assert.equal(computeResizeOutcome({ ...narrow, rawWidth: 183 }).visualWidth, 183);
+  assert.deepEqual(computeResizeOutcome({ ...narrow, rawWidth: 89 }),
+    { snappedCollapsed: true, width: 180, visualWidth: 0, tension: 1 });
+  assert.deepEqual(computeResizeOutcome({ ...narrow, rawWidth: 180, wasCollapsed: true }),
+    { snappedCollapsed: false, width: 180, visualWidth: 180, tension: 0 });
 });
 
-test("ui-preferences 正确读写并钳制左右侧边栏自定义宽度", () => {
+test("左二能跨过 15%，在带小数的 25% 上限继续右拖时不会回退", () => {
+  const metrics = { side: "left" as const, shellWidth: 2056, railWidth: 50, oppositeWidth: 250 };
+  const available = metrics.shellWidth - metrics.railWidth;
+  const expanded = available * 0.2;
+  const cap = available * 0.25;
+  assert.equal(computeResizeOutcome({ ...metrics, rawWidth: expanded }).visualWidth, expanded);
+  for (const delta of [0, 0.25, 3, 40]) {
+    const outcome = computeResizeOutcome({ ...metrics, rawWidth: cap + delta });
+    assert.equal(outcome.visualWidth, cap);
+  }
+
+  // 上限的小数不足半像素时也要保存能触达上限的偏好值，由 Shell 按比例限制实际宽度。
+  assert.equal(computeResizeOutcome({ ...metrics, shellWidth: 2051, rawWidth: 600 }).width, 501);
+});
+
+test("左二扩宽先使用右栏余量，到右栏最小宽度后停止推挤", () => {
+  assert.equal(computePushedRightWidth(300, 500, 700), 500);
+  assert.equal(computePushedRightWidth(220, 280, 700), 640);
+  assert.equal(computePushedRightWidth(220.25, 221.5, 700.5), 699.25);
+  assert.equal(computePushedRightWidth(220, 300, 250), MIN_PANEL_WIDTH);
+  assert.equal(computePushedRightWidth(220, 300, MIN_PANEL_WIDTH), null);
+  assert.equal(computePushedRightWidth(240, 220, 700), null);
+});
+
+test("ui-preferences 保留宽屏设置并过滤无效的侧栏宽度偏好", () => {
   const mock = installMockWindowStorage();
   try {
     assert.equal(readPanelWidthPref(LEFT_SIDEBAR_WIDTH_STORAGE_KEY), null);
@@ -199,12 +234,14 @@ test("ui-preferences 正确读写并钳制左右侧边栏自定义宽度", () =>
     assert.equal(readPanelWidthPref(LEFT_SIDEBAR_WIDTH_STORAGE_KEY), 333);
     assert.equal(readPanelWidthPref(RIGHT_PANEL_WIDTH_STORAGE_KEY), 290);
 
-    // 超出范围或非法值时安全忽略并回退到 null
-    mock.store.set(LEFT_SIDEBAR_WIDTH_STORAGE_KEY, "90");
+    // 保留窄桌面可出现的宽度，非法值和非正宽度回退。
+    writePanelWidthPref(LEFT_SIDEBAR_WIDTH_STORAGE_KEY, 180);
+    assert.equal(readPanelWidthPref(LEFT_SIDEBAR_WIDTH_STORAGE_KEY), 180);
+    mock.store.set(LEFT_SIDEBAR_WIDTH_STORAGE_KEY, "0");
     assert.equal(readPanelWidthPref(LEFT_SIDEBAR_WIDTH_STORAGE_KEY), null);
 
     mock.store.set(RIGHT_PANEL_WIDTH_STORAGE_KEY, "999");
-    assert.equal(readPanelWidthPref(RIGHT_PANEL_WIDTH_STORAGE_KEY), null);
+    assert.equal(readPanelWidthPref(RIGHT_PANEL_WIDTH_STORAGE_KEY), 999);
 
     mock.store.set(LEFT_SIDEBAR_WIDTH_STORAGE_KEY, "not-a-number");
     assert.equal(readPanelWidthPref(LEFT_SIDEBAR_WIDTH_STORAGE_KEY), null);
@@ -217,6 +254,12 @@ test("buildSidebarWidthVars 保留基础宽度变量且仅在跨过拖拽阈值�
   assert.deepEqual(
     buildSidebarWidthVars({ isCompact: false, leftWidth: 232, rightWidth: 310 }),
     {
+      "--left-default-max-share": "0.15",
+      "--left-max-share": "0.25",
+      "--right-max-share": "0.75",
+      "--center-min-share": "0.1",
+      "--center-min-pixels": "360px",
+      "--panel-min-pixels": "220px",
       "--left-sidebar-base-width": "232px",
       "--right-panel-base-width": "310px",
     },

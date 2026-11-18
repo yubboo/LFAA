@@ -52,6 +52,7 @@
   background: rgb(251 146 60 / 0.12);
 }
 
+/* 将模式选项和提示放到同一面板，完全访问状态用独立的风险色。 */
 .popover {
   position: absolute;
   bottom: calc(100% + 0.55rem);
@@ -69,6 +70,29 @@
   -webkit-backdrop-filter: blur(26px) saturate(180%);
   box-shadow: var(--glass-specular-shadow, none), var(--color-menu-shadow);
   color: var(--color-ink);
+}
+
+/* 收起按钮文案后仍保留当前权限的图标，让菜单沿工具栏左侧展开。 */
+@container chat-composer (max-width: 30rem) {
+  .root {
+    position: static;
+  }
+
+  .trigger {
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+  }
+
+  .triggerLabel {
+    display: none;
+  }
+
+  .popover {
+    box-sizing: border-box;
+    width: min(22.5rem, 100cqi);
+  }
 }
 
 .header {

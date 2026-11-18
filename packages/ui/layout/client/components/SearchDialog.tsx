@@ -5,6 +5,7 @@ import type { NavigationTarget } from "../navigation";
 import { NavigationIcon } from "./NavigationIcon";
 import styles from "./SearchDialog.module.css";
 
+/** 在本地导航和项目列表中筛选目标，选中后由工作台打开对应位置。 */
 export function SearchDialog({
   locale,
   targets,

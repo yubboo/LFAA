@@ -3,6 +3,7 @@ import type { LocaleMessages } from "../locales";
 import { NavigationIcon } from "./NavigationIcon";
 import styles from "./WorkbenchShell.module.css";
 
+/** 展示当前工作区与左右栏控制，折叠事件由四栏骨架处理。 */
 export function WorkspaceBar({
   locale,
   title,

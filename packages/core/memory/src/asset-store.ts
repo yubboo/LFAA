@@ -51,6 +51,7 @@ function isInsideDataRoot(targetPath: string, dataRoot: string): boolean {
   return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
 }
 
+/** 管理资料索引及文件读写，负责保存、查看与移除本地资产。 */
 export class AssetLibraryStore {
   constructor(private dataRoot: string) {}
 

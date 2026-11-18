@@ -57,6 +57,7 @@ async function ensureProjectGitRepo(rootPath: string): Promise<void> {
   }
 }
 
+/** 配置 Agent Host 存储及运行参数，供应用启动和隔离测试注入。 */
 export interface AgentPluginConfig {
   smartTrustFilePath?: string;
 }
@@ -113,6 +114,7 @@ export class AgentService extends Service {
     this.runs.clear();
   }
 
+  // 创建运行时先建立会话中的助手消息，再让后续事件和结果汇入同一条记录。
   async startRun(input: StartAgentRunInput): Promise<{ runId: string; sessionId: string; assistantMessageId: string }> {
     const session = await this.ctx.memory.getSession(input.sessionId);
     if (!session) {
@@ -331,6 +333,7 @@ export class AgentService extends Service {
     };
   }
 
+  // 新连接先收到仍待审批的请求，调用者关闭 SSE 连接时执行返回的取消订阅函数。
   subscribeRun(runId: string, listener: (event: AgentRunEvent) => void): () => void {
     const run = this.runs.get(runId);
     if (!run) return () => {};
@@ -364,6 +367,7 @@ export class AgentService extends Service {
     await this.trustStore.resetAll();
   }
 
+  // 用运行和审批 ID 定位等待中的工具请求，消费该决策后继续执行流程。
   resolveApproval(runId: string, approvalId: string, approved: boolean): boolean {
     const run = this.runs.get(runId);
     const pending = run?.pendingApprovals.get(approvalId);
@@ -430,6 +434,7 @@ export class AgentService extends Service {
   }
 }
 
+/** 通过 Cordis 安装 Agent 服务，由已注入的模型、工具和记忆服务支撑运行。 */
 export function agentPlugin(context: Context, config: AgentPluginConfig = {}): void {
   new AgentService(context, config);
 }

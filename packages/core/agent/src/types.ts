@@ -1,9 +1,12 @@
 // 定义 @lfaa/agent 的运行契约：权限模式、运行输入、Think/Act/Check 流式事件与人工审批句柄。
 import type { AgentStepTrace } from "@lfaa/memory";
 
+/** 定义输入栏与 Host 审批策略共用的三种权限模式。 */
 export type AgentPermissionMode = "ask" | "smart" | "full";
+/** 指定智能审批放行普通操作前必须累计的人工批准次数。 */
 export const SMART_APPROVAL_THRESHOLD = 3;
 
+/** 描述创建运行接收的用户消息、会话上下文与配置。 */
 export interface StartAgentRunInput {
   sessionId: string;
   userMessage: string;
@@ -16,6 +19,7 @@ export interface StartAgentRunInput {
   autoApproveTools?: boolean;
 }
 
+/** 定义流式运行可发给浏览器的事件变体。 */
 export type AgentRunEvent =
   | { type: "run_started"; runId: string; sessionId: string; assistantMessageId: string }
   | { type: "delta"; runId: string; seq: number; kind: "reasoning" | "text"; text: string }
@@ -36,6 +40,7 @@ export type AgentRunEvent =
     }
   | { type: "run_finished"; runId: string; sessionId: string; assistantMessageId: string; status: "done" | "error" | "aborted"; error?: string };
 
+/** 收集暂停执行时向用户展示和恢复所需的工具请求信息。 */
 export interface PendingToolApproval {
   approvalId: string;
   toolName: string;
@@ -49,6 +54,7 @@ export interface PendingToolApproval {
   riskReason?: string;
 }
 
+/** 描述浏览器查询时可恢复的运行阶段、会话标识和待审批信息。 */
 export interface AgentRunStatus {
   runId: string;
   sessionId: string;

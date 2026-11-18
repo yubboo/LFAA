@@ -6,6 +6,7 @@ export interface SessionAnchorRect {
   left: number;
 }
 
+/** 记录会话菜单和确认弹窗的当前目标及开关状态。 */
 export interface SessionMenuSnapshot {
   hoverCard: { sessionId: string; rect: SessionAnchorRect } | null;
   actionMenu: { sessionId: string; rect: SessionAnchorRect } | null;
@@ -18,6 +19,7 @@ function toRect(el: HTMLElement): SessionAnchorRect {
   return { top: r.top, right: r.right, bottom: r.bottom, left: r.left };
 }
 
+/** 统一协调侧栏各会话行的菜单与预览，供浮层宿主订阅。 */
 export class SessionMenuStore {
   private snapshot: SessionMenuSnapshot = {
     hoverCard: null,

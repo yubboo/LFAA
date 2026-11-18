@@ -7,6 +7,7 @@ export interface RunChunkRecord {
   ts: number;
 }
 
+/** 记录运行事件流的发送、重放与连接统计，供诊断使用。 */
 export interface AgentStreamMetrics {
   activeStreams: number;
   totalRuns: number;
@@ -16,6 +17,7 @@ export interface AgentStreamMetrics {
   lastClientFps: number | null;
 }
 
+/** 生成诊断用的运行 ID 片段，降低日志暴露完整标识的风险。 */
 export function maskRunId(id: string): string {
   const trimmed = id.trim();
   if (trimmed.length <= 8) return "***";

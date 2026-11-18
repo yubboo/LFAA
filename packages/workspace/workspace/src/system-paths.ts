@@ -185,6 +185,7 @@ public static class LfaaNativeFolderPicker {
 }
 `;
 
+/** 生成 Host 调用 Windows 原生目录选择器的 PowerShell 脚本。 */
 export function buildFolderPickerPowerShell(description: string, dryRunOnly = false): string {
   const escapedDescription = description.replaceAll("'", "''");
   const script = [

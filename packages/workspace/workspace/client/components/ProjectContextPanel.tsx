@@ -3,6 +3,7 @@ import type { WorkbenchProjectItem } from "@lfaa/ui-layout";
 import type { WorkspaceLocaleMessages } from "../locales";
 import styles from "./ProjectContextPanel.module.css";
 
+/** 展示工作区级项目和存储信息，供右侧上下文槽挂载。 */
 export function WorkspaceContextContent({
   locale,
   projectCount,
@@ -31,6 +32,7 @@ export function WorkspaceContextContent({
   );
 }
 
+/** 在右栏展示已选项目的目录上下文与项目操作。 */
 export function ProjectContextCard({
   locale,
   project,

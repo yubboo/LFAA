@@ -37,6 +37,7 @@
   flex: 0 0 auto;
 }
 
+/* 分组工具按需显露，菜单打开时保持可见。 */
 .groupTools {
   position: relative;
   display: flex;

@@ -1,6 +1,7 @@
 // 为 LFAA 内置 Agent 注册记忆写入与资料库/资产库读写工具（随 AgentService 卸载自动清理）。
 import type { Context } from "@deepseek-ai/cordis";
 
+/** 将资料库和记忆操作注册到工具服务，并返回对应的卸载清理入口。 */
 export function registerAgentLibraryTools(ctx: Context): () => void {
   const offSaveMemory = ctx.tools.registerTool({
     name: "save_memory",

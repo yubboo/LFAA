@@ -37,6 +37,7 @@ function formatRelativeSessionAge(updatedAt?: number): string | undefined {
   return `${days}d`;
 }
 
+/** 组合置顶、项目和最近会话分组，由共享列表处理折叠和行展示。 */
 export function NavigationGroups({
   locale,
   activeView,

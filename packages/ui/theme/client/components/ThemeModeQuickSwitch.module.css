@@ -54,6 +54,7 @@
   transform: rotate(180deg);
 }
 
+/* 快捷菜单将可选模式与当前模式标记一并展示。 */
 .menu {
   position: fixed;
   z-index: 108;

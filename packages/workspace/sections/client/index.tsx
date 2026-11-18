@@ -19,6 +19,7 @@ function SectionsOverlayHost({ locale, store }: { locale: SectionsLocaleMessages
   return <SectionDialog locale={locale} store={store} dialogState={dialogState} />;
 }
 
+/** 注册自定义分区来源及其操作入口，并协调分区删除通知。 */
 export const sectionsClientPlugin: Plugin.Object<void> = {
   name: "@lfaa/sections/client",
   inject: ["workbench"],

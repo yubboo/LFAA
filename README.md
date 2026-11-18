@@ -7,6 +7,7 @@
 - AI 协作入口：[`AGENTS.md`](AGENTS.md)
 - 完整规范：[`docs/standards/AI-Agent-Development-Standards.md`](docs/standards/AI-Agent-Development-Standards.md)
 - 架构基线与待确认决策：[`docs/architecture/overview.md`](docs/architecture/overview.md)
+- [仓库目录说明书](docs/architecture/repository-map.md) · 按路径查找文件和目录的用途
 - 包路径：`packages/<group>/<package>`；pnpm workspace 已包含 `apps/*` 与 `packages/*/*`
 - Windows 启动菜单：根目录 `lfaa.bat`；启动逻辑和依赖检查位于 `scripts/`
 - UI 与领域包同属一个 package，Host 放在 `src/`，需要 UI 时再增加 `client/`

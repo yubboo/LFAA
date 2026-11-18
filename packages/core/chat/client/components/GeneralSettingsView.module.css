@@ -132,6 +132,7 @@
   flex: 0 0 auto;
 }
 
+/* 将搜索输入与可滚动选项分开，避免长列表撑高设置栏。 */
 .selectMenu {
   position: absolute;
   top: calc(100% + 0.35rem);
@@ -325,6 +326,7 @@
   font-size: 0.84em;
 }
 
+/* 许可证详情叠在设置表单之上，列表在弹窗范围内滚动。 */
 .modalBackdrop {
   position: fixed;
   inset: 0;
@@ -381,6 +383,7 @@
   font-size: 0.92em;
 }
 
+/* 窄屏将说明和控件上下排列，让控件在自己的行占用可用宽度。 */
 @media (max-width: 720px) {
   .row {
     flex-direction: column;

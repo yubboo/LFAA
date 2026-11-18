@@ -55,6 +55,7 @@ function isSafeSessionId(sessionId: string): boolean {
   return /^[a-zA-Z0-9_-]{4,80}$/u.test(sessionId);
 }
 
+/** 管理磁盘上的会话记录和列表索引，向 Chat Host 提供统一的增删改读。 */
 export class SessionMemoryStore {
   constructor(private sessionsDir: string) {}
 

@@ -18,6 +18,7 @@ const TONE_CLASS: Record<StatusTone, string | undefined> = {
   loading: styles.toneLoading,
 };
 
+/** 定义通知状态、文案与可选关闭回调，供设置和运行反馈复用。 */
 export interface StatusBannerProps {
   tone?: StatusTone;
   title?: string;
@@ -35,6 +36,7 @@ function renderToneIcon(tone: StatusTone) {
   return <IconInfoCircle size={16} stroke={2} />;
 }
 
+/** 按语义状态呈现统一的通知横幅，加载、失败和成功各自有明确状态。 */
 export function StatusBanner({
   tone = "info",
   title,

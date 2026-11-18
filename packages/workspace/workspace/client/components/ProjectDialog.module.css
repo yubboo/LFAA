@@ -119,6 +119,7 @@
   background: var(--glass-control-bg, var(--color-surface));
 }
 
+/* 本机和远程来源共享选择区，选中的路径在摘要区展示。 */
 .sourceTabs {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -313,6 +314,7 @@
   font-weight: 550;
 }
 
+/* 信任确认单独突出待授权的本机路径及确认操作。 */
 .trustBody {
   position: relative;
   display: grid;

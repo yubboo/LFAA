@@ -10,6 +10,7 @@ export type RepoAutoReviewMode = "inherit" | "enabled" | "disabled";
 export type RepoProviderKind = "local" | "github";
 export type ReviewAgentFocus = "balanced" | "security" | "performance" | "strict";
 
+/** 记录本地 Git 操作与生成提交、PR 文本时使用的偏好。 */
 export interface GitCodingSettings {
   branchPrefix: string;
   prMergeMethod: PrMergeMethod;
@@ -20,6 +21,7 @@ export interface GitCodingSettings {
   prInstructions: string;
 }
 
+/** 保存审查触发方式与审查智能体偏好，独立于 Git 操作设置。 */
 export interface CodeReviewCodingSettings {
   activeSubTab: "preferences" | "agent";
   repoProvider: RepoProviderKind;
@@ -43,11 +45,13 @@ function resolveUserHome(): string {
   return resolve(homedir() || process.env.USERPROFILE || process.env.HOME || ".");
 }
 
+/** 解析编码设置文件地址，允许隔离测试覆盖默认路径。 */
 export function getCodingSettingsFilePath(overridePath?: string): string {
   if (overridePath) return resolve(overridePath);
   return join(resolveUserHome(), ".lfaa", "coding-settings.json");
 }
 
+/** 为首次启动或旧档案缺失字段提供编码设置默认值。 */
 export function createDefaultCodingSettings(): CodingSettingsConfig {
   return {
     schemaVersion: 1,
@@ -141,6 +145,7 @@ function normalizeCodeReviewSettings(
   };
 }
 
+/** 将持久化的偏好与当前默认值合并，校验可枚举字段。 */
 export function normalizeCodingSettings(
   raw: Partial<{ git: Partial<GitCodingSettings>; codeReview: Partial<CodeReviewCodingSettings> }>,
   base: CodingSettingsConfig,
@@ -153,6 +158,7 @@ export function normalizeCodingSettings(
   };
 }
 
+/** 在 Host 持久化 Git 和代码审查设置，统一处理读取和补默认值。 */
 export class CodingSettingsStore {
   private readonly filePath: string;
   private cached: CodingSettingsConfig | null = null;

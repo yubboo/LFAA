@@ -40,6 +40,7 @@ async function readJsonSafe<T>(response: Response): Promise<(T & { error?: strin
   }
 }
 
+/** 维护本机项目缓存与订阅，将创建、编辑和检查交给工作区 Host。 */
 export class LocalProjectStore {
   private readonly listeners = new Set<() => void>();
   private projects: WorkspaceProjectSummary[] = readStoredJson(PROJECTS_CACHE_KEY, [], isProjectArray);

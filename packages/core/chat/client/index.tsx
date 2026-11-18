@@ -18,6 +18,7 @@ import { SessionMenuStore } from "./session-menu-store";
 
 export { ChatClientStore } from "./chat-store";
 
+/** 向工作台注册聊天视图、会话来源和上下文面板，卸载时释放相关贡献。 */
 export const chatClientPlugin: Plugin.Object<void> = {
   name: "@lfaa/chat/client",
   inject: ["workbench"],

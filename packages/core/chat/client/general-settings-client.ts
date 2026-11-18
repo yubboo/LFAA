@@ -12,6 +12,7 @@ export type FollowUpHandleMode = "queue" | "steer";
 export type TurnNotifyMode = "unfocused" | "always" | "off";
 export type NotifySoundMode = "default" | "chime" | "mute";
 
+/** 定义浏览器表单与 Host 之间交换的常规偏好数据。 */
 export interface GeneralSettingsConfig {
   schemaVersion?: number;
   outsideProjectFolder: string;
@@ -44,14 +45,17 @@ export interface GeneralSettingsConfig {
   updatedAt: number;
 }
 
+/** 提供许可证列表需要的依赖名称、版本和授权信息。 */
 export interface OpenSourcePackageInfo {
   name: string;
   version: string;
   scope: string;
 }
 
+/** 约定设置页与字典加载器共用的浏览器语言偏好键。 */
 export const LOCALE_OVERRIDE_STORAGE_KEY = "lfaa:locale-override";
 
+/** 提供 Host 尚未返回偏好时的界面初始值。 */
 export const DEFAULT_GENERAL_SETTINGS: GeneralSettingsConfig = {
   schemaVersion: 2,
   outsideProjectFolder: "",
@@ -109,6 +113,7 @@ export function writeLocaleOverride(pref: AppLanguagePref): void {
   }
 }
 
+/** 取出已保存的语言选择，异常时由调用方使用默认语言。 */
 export function readLocaleOverride(): AppLanguagePref | null {
   if (typeof window === "undefined") return null;
   try {

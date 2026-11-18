@@ -16,6 +16,7 @@ import {
 const MODE_STORAGE_KEY = "lfaa:appearance-mode";
 const CONFIG_STORAGE_KEY = "lfaa:appearance-config-v1";
 
+/** 描述 React 外观界面订阅的配置和解析后模式。 */
 export interface AppearanceSnapshot {
   config: AppearanceConfig;
   resolvedScheme: "light" | "dark";
@@ -72,6 +73,7 @@ function hexToRgbTuple(hex: string): string {
     : "230 106 168";
 }
 
+/** 管理主题偏好、派生界面状态和订阅，向设置页提供统一的更新入口。 */
 export class AppearanceStore {
   private readonly listeners = new Set<() => void>();
   private config: AppearanceConfig = readStoredConfig();

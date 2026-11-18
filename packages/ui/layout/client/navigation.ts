@@ -1,8 +1,10 @@
 // 定义浏览器 Shell 共用的导航与最近列表类型，项目类型由公共契约提供。
 import type { WorkbenchProjectItem } from "../src/index";
 
+/** 描述工作台导航使用的项目摘要与绑定信息。 */
 export type LocalProject = WorkbenchProjectItem;
 
+/** 描述工作台可以打开的中心视图名称。 */
 export type NavigationView =
   | "workspace"
   | "appearance"
@@ -26,8 +28,10 @@ export function isSettingsView(view: string): boolean {
   return view === "appearance" || view.startsWith("settings:");
 }
 
+/** 区分工作台保存和恢复的工作模式。 */
 export type WorkspaceMode = "chatgpt" | "codex";
 
+/** 描述侧栏会话行共享的可展示状态。 */
 export interface RecentItem {
   id: string;
   label: string;
@@ -40,6 +44,7 @@ export interface RecentItem {
   onSelect?: () => void;
 }
 
+/** 组合目标视图及其项目或业务上下文，供工作台统一跳转。 */
 export interface NavigationTarget extends RecentItem {
   description: string;
 }

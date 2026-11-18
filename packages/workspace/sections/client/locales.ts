@@ -34,8 +34,10 @@ export const sectionsLocales = {
   },
 } as const;
 
+/** 约定分区菜单与分区编辑表单共用的语言键。 */
 export type SectionsLocaleMessages = (typeof sectionsLocales)[keyof typeof sectionsLocales];
 
+/** 按当前语言选择分区操作文案。 */
 export function getSectionsLocale(): SectionsLocaleMessages {
   return typeof navigator !== "undefined" && navigator.language.toLowerCase().startsWith("zh")
     ? sectionsLocales.zh

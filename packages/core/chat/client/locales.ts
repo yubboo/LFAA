@@ -1,6 +1,65 @@
 // 管理 @lfaa/chat 浏览器端界面中英文文案字典。
 import { readLocaleOverride } from "./general-settings-client";
 
+// 接入方式选择和套餐配置表单共用的双语文案。
+export const providerAccessMessages = {
+  zh: {
+    title: "选择接入方式",
+    close: "关闭弹窗",
+    api: "API 接入",
+    apiDescription: "使用标准 API Key，按量计费",
+    subscription: "套餐接入",
+    reconfigure: "重新配置",
+    planModel: "填写该套餐支持的官方模型 ID",
+    selectedModel: "套餐已配置模型",
+  },
+  en: {
+    title: "Connection type",
+    close: "Close",
+    api: "Standard API",
+    apiDescription: "Use a standard pay-as-you-go API key",
+    subscription: "Subscription",
+    reconfigure: "Reconfigure",
+    planModel: "Enter an official model ID supported by this subscription",
+    selectedModel: "Configured subscription model",
+  },
+} as const;
+
+// 方舟公开目录与聊天选模共享的模型状态、分类和思考档位文案。
+export const arkModelMessages = {
+  zh: {
+    source: "方舟官方目录 · 账号权限以控制台为准",
+    chat: "语言模型",
+    embedding: "向量模型",
+    vision: "视觉模型",
+    speech: "语音模型",
+    resource: "资源 ID",
+    routed: "控制台路由",
+    retiring: "即将下线",
+    chatCatalog: "方舟官方语言模型目录",
+    off: "关闭",
+    supported: "支持思考 · 方舟未提供可调档位",
+    routedReasoning: "思考能力由方舟控制台所选模型决定",
+    unknownReasoning: "无已确认的思考档位",
+  },
+  en: {
+    source: "Official Ark catalog · Check your console for account access",
+    chat: "Language models",
+    embedding: "Embedding",
+    vision: "Vision",
+    speech: "Speech",
+    resource: "Resource ID",
+    routed: "Console routing",
+    retiring: "Retiring",
+    chatCatalog: "Official Ark language catalog",
+    off: "Off",
+    supported: "Thinking supported · No adjustable levels published",
+    routedReasoning: "Thinking depends on the model selected in the Ark console",
+    unknownReasoning: "No verified reasoning levels",
+  },
+} as const;
+
+/** 约定各语言字典的同一组键，供聊天视图索引文案。 */
 export interface ChatLocaleMessages {
   isZh: boolean;
   workspaceTitle: string;
@@ -535,6 +594,7 @@ const en: ChatLocaleMessages = {
   starterRules: "Explain active system rules, project rules, and tool boundaries",
 };
 
+/** 优先使用设置中的语言，未指定时按浏览器语言选择字典。 */
 export function getChatLocale(): ChatLocaleMessages {
   const override = readLocaleOverride();
   if (override === "zh") return zh;

@@ -1,6 +1,7 @@
 // 定义设置中心左二栏的分组目录与中英文标题，保持未接入项状态透明。
 import type { NavigationIconName } from "./components/NavigationIcon";
 
+/** 描述设置入口、文案与可用状态。 */
 export interface SettingsCatalogItem {
   viewId: string;
   labelZh: string;
@@ -9,6 +10,7 @@ export interface SettingsCatalogItem {
   implemented?: boolean;
 }
 
+/** 将设置入口组织为左栏导航分组。 */
 export interface SettingsCatalogGroup {
   id: string;
   titleZh: string;
@@ -16,6 +18,7 @@ export interface SettingsCatalogGroup {
   items: SettingsCatalogItem[];
 }
 
+/** 维护工作台设置路由的稳定目录，供侧栏和搜索共用。 */
 export const SETTINGS_CATALOG: SettingsCatalogGroup[] = [
   {
     id: "personal",
@@ -67,6 +70,7 @@ export const SETTINGS_CATALOG: SettingsCatalogGroup[] = [
   },
 ];
 
+/** 按设置入口标识定位对应目录项。 */
 export function findSettingsCatalogItem(viewId: string): SettingsCatalogItem | undefined {
   for (const group of SETTINGS_CATALOG) {
     const found = group.items.find((item) => item.viewId === viewId);

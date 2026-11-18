@@ -103,6 +103,7 @@
   color: #e06c75;
 }
 
+/* 路径摘要、目录列表和加载提示复用同一个文件工作区容器。 */
 .treeCard,
 .emptyCard {
   margin-top: 1.25rem;
@@ -223,6 +224,7 @@
   font-size: 0.78em;
 }
 
+/* 窄屏缩小项目页外边距，为目录列表保留更多空间。 */
 @media (max-width: 767px) {
   .page {
     width: min(calc(100% - 2rem), 46rem);

@@ -74,6 +74,7 @@ export {
 } from "./general-settings";
 export { assertValidWavBuffer, transcribeWavAudio, type SpeechTranscribeResult } from "./speech-service";
 
+/** 提供会话与编码配置所需的 Host 路径及可注入依赖。 */
 export interface ChatPluginConfig {
   generalSettingsFilePath?: string;
   codingSettingsFilePath?: string;
@@ -89,6 +90,7 @@ export type {
   ChatSessionSummary,
 } from "@lfaa/memory";
 
+/** 编排会话、语音和编码操作，为聊天与工作台 RPC 提供 Host 入口。 */
 export class ChatService extends Service {
   static inject = ["memory"];
   private readonly generalSettingsStore: GeneralSettingsStore;
@@ -236,6 +238,7 @@ export class ChatService extends Service {
   }
 }
 
+/** 为 Cordis 上下文安装聊天服务，复用已注入的记忆及其他能力。 */
 export function chatPlugin(context: Context, config: ChatPluginConfig = {}): void {
   new ChatService(context, config);
 }

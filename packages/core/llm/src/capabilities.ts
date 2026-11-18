@@ -4,6 +4,7 @@ import type { LlmApiProtocol, LlmProviderKind, ModelCapabilityInfo, ReasoningEff
 
 const VALID_LEVELS = new Set<ReasoningEffortLevel>(["minimal", "low", "medium", "high", "max"]);
 
+/** 校验外部返回的思考档位，只将内部契约支持的值提供给上层。 */
 export function asReasoningLevel(raw: unknown): ReasoningEffortLevel | undefined {
   return typeof raw === "string" && VALID_LEVELS.has(raw as ReasoningEffortLevel)
     ? (raw as ReasoningEffortLevel)
@@ -82,6 +83,7 @@ export function resolveModelCapabilities(
   };
 }
 
+/** 清理远程或历史能力数据，缺少档位时交给模型家族规则兜底。 */
 export function normalizeModelCapability(
   raw: Partial<ModelCapabilityInfo> & { id: string },
   kind?: LlmProviderKind,
@@ -108,6 +110,7 @@ export function normalizeModelCapability(
   };
 }
 
+/** 把界面选择限制到模型可用档位，并处理不兼容或缺失值的回退。 */
 export function mapEffortForModelApi(
   effort: ReasoningEffortLevel | undefined,
   capability: ModelCapabilityInfo,
@@ -176,6 +179,7 @@ function parseRemoteModelItem(raw: RawRemoteModelEntry, kind: LlmProviderKind): 
   };
 }
 
+/** 为 DeepSeek 目录补充可辨认的官方版本显示名，保留实际调用 ID。 */
 export async function enrichDeepSeekReleaseNames(
   models: ModelCapabilityInfo[],
   docsUrl = "https://api-docs.deepseek.com/zh-cn/quick_start/pricing",
@@ -204,6 +208,7 @@ export async function enrichDeepSeekReleaseNames(
   }
 }
 
+/** 按生效协议查询模型目录，解析真实能力并将接口错误反馈给配置页。 */
 export async function fetchOfficialModels(params: {
   kind: LlmProviderKind;
   apiProtocol?: LlmApiProtocol;

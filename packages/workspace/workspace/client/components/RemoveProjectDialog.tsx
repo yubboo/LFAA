@@ -5,6 +5,7 @@ import { ConfirmDialog } from "@lfaa/ui-primitives/client";
 import type { LocalProjectStore } from "../local-project-store";
 import type { WorkspaceLocaleMessages } from "../locales";
 
+/** 请求用户确认从应用列表移出项目，项目文件仍由原目录管理。 */
 export function RemoveProjectDialog({
   locale,
   project,

@@ -114,6 +114,7 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   return payload;
 }
 
+/** 集中维护会话、运行和模型配置的可订阅状态，并通过 Host 接口完成持久化操作。 */
 export class ChatClientStore {
   private readonly listeners = new Set<() => void>();
   private readonly backgroundRunSessionIds = new Set<string>();
@@ -159,6 +160,7 @@ export class ChatClientStore {
     for (const listener of this.listeners) listener();
   }
 
+  // 卸载聊天插件时停止活动流和后台轮询，并释放订阅。
   dispose(): void {
     this.streamClient?.dispose();
     this.streamClient = null;
@@ -214,6 +216,7 @@ export class ChatClientStore {
     }
   }
 
+  // 初始化会话列表和界面元数据，供各视图共享同一份初始快照。
   async hydrate(): Promise<void> {
     if (typeof window === "undefined") return;
     try {
@@ -562,6 +565,7 @@ export class ChatClientStore {
     };
   }
 
+  // 将消息提交到当前或新建会话，随后订阅 Host 为这次运行返回的事件流。
   async sendMessage(text: string): Promise<void> {
     const trimmed = text.trim();
     if (!trimmed || this.state.runningRunId) return;
@@ -610,6 +614,7 @@ export class ChatClientStore {
     this.subscribeRunEvents(started.runId, session.id, started.assistantMessageId);
   }
 
+  // 将 Host 的增量、工具和审批事件归并到当前会话，终止后回收运行状态。
   private subscribeRunEvents(
     runId: string,
     sessionId: string,
@@ -749,6 +754,7 @@ export class ChatClientStore {
     await this.sendMessage(resumePrompt);
   }
 
+  // 把确认提交给当前运行的待审批请求，再按 Host 结果更新提示。
   async resolveApproval(approved: boolean): Promise<void> {
     const pending = this.state.pendingApproval;
     if (!pending) return;
@@ -814,6 +820,7 @@ export class ChatClientStore {
     return fetchJson("/api/llm/test", { method: "POST", body: JSON.stringify({ profileId }) });
   }
 
+  // 同步模型能力后用 Host 返回的公开档案刷新界面状态。
   async fetchRemoteModels(input: {
     profileId?: string;
     kind?: PublicLlmProfileItem["kind"];

@@ -82,6 +82,7 @@
   font-size: 0.84em;
 }
 
+/* 取消和确认各有反馈，等待提交时显示禁用状态。 */
 .actions {
   display: flex;
   justify-content: flex-end;

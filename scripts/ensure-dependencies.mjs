@@ -120,6 +120,16 @@ function digest(value) {
   return createHash("sha256").update(value).digest("hex");
 }
 
+// pnpm 会把 CRLF 仓库 lockfile 规范化为 LF 虚拟副本；摘要前统一换行。
+function normalizeLockfile(value) {
+  return value.replaceAll("\r\n", "\n");
+}
+
+// 判断两份 lockfile 是否只有平台换行差异，供预检与回归测试共用。
+export function lockfilesMatch(repositoryLockfile, installedLockfile) {
+  return digest(normalizeLockfile(repositoryLockfile)) === digest(normalizeLockfile(installedLockfile));
+}
+
 // 将路径分隔符统一，并在 Windows 上消除大小写差异。
 function normalizedPath(path) {
   const normalized = resolve(path).replaceAll("\\", "/");
@@ -180,7 +190,7 @@ async function inspectInstallState() {
   // 比较安装时复制的 lockfile，可识别切换分支或新增依赖后尚未同步的安装目录。
   const rootLock = await readFile(lockfilePath);
   const installedLock = await readFile(installedLockfilePath).catch(() => undefined);
-  if (!installedLock || digest(rootLock) !== digest(installedLock)) {
+  if (!installedLock || !lockfilesMatch(rootLock.toString("utf8"), installedLock.toString("utf8"))) {
     return { ready: false, reason: "已安装依赖与 pnpm-lock.yaml 不一致" };
   }
   const modulesText = await readFile(modulesMetadataPath, "utf8").catch(() => "");
@@ -312,7 +322,10 @@ async function main() {
 }
 
 // 捕获预检入口未处理的异常并转换为失败退出码。
-main().catch((error) => {
-  console.error("依赖状态检查失败：", error);
-  process.exitCode = 1;
-});
+// 仅直接执行脚本时启动预检，允许测试导入纯比较函数。
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    console.error("依赖状态检查失败：", error);
+    process.exitCode = 1;
+  });
+}

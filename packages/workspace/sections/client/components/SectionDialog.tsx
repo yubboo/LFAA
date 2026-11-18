@@ -6,6 +6,7 @@ import type { SectionsLocaleMessages } from "../locales";
 import type { SectionDialogState, SectionStore } from "../section-store";
 import styles from "./SectionDialog.module.css";
 
+/** 共用创建与重命名分区表单，将已确认的名称交给分区 Store。 */
 export function SectionDialog({
   locale,
   store,

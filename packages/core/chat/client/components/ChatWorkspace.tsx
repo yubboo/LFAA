@@ -1,6 +1,6 @@
 // 渲染中央聊天工作区：空会话引导、流式回复、Agent 思考/行动/检查轨迹卡片与底部输入栏。
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { IconArrowDown, IconTrash, IconX } from "@tabler/icons-react";
+import { IconArrowDown, IconGauge, IconTrash, IconX } from "@tabler/icons-react";
 import type { WorkbenchProjectItem, WorkbenchProjectProvider } from "@lfaa/ui-layout";
 import { HoverTip, ModalDialog } from "@lfaa/ui-primitives/client";
 import type { ChatClientStore } from "../chat-store";
@@ -38,6 +38,7 @@ import { StepTraceList } from "./StepTraceList";
 import modalStyles from "./ModelProviderGrid.module.css";
 import styles from "./ChatWorkspace.module.css";
 
+/** 装配会话时间线、流式反馈和输入栏，将发送、停止与历史操作交给聊天 Store。 */
 export function ChatWorkspace({
   locale,
   store,
@@ -312,6 +313,7 @@ export function ChatWorkspace({
   const estimatedContextChars =
     messages.reduce((sum, item) => sum + item.content.length + (item.reasoning?.length ?? 0), 0) + draft.length;
   const estimatedTokens = Math.round(estimatedContextChars / 3.5);
+  const contextUsageLabel = `${locale.isZh ? "上下文估算 Token 用量" : "Estimated context tokens"} · ~${estimatedTokens}`;
 
   return (
     <section className={styles.root} aria-label={locale.workspaceTitle}>
@@ -653,6 +655,7 @@ export function ChatWorkspace({
               }}
             />
 
+            {/* 同一组入口随输入卡片宽度切换文字或图标，避免窄栏出现两排工具。 */}
             <div className={styles.composerBar}>
               <div className={styles.controls}>
                 <ComposerAddMenu
@@ -684,9 +687,10 @@ export function ChatWorkspace({
                 />
 
                 {state.generalSettings.showContextUsage && estimatedTokens > 0 && (
-                  <HoverTip label={locale.isZh ? "上下文估算 Token 用量" : "Estimated context tokens"}>
-                    <span className={styles.contextMeter} tabIndex={0}>
-                      {`~${estimatedTokens} tok`}
+                  <HoverTip label={contextUsageLabel}>
+                    <span className={styles.contextMeter} role="img" aria-label={contextUsageLabel} tabIndex={0}>
+                      <IconGauge size={15} className={styles.contextMeterIcon} aria-hidden="true" />
+                      <span className={styles.contextMeterText}>{`~${estimatedTokens} tok`}</span>
                     </span>
                   </HoverTip>
                 )}

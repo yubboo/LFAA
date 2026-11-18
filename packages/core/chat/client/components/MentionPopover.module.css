@@ -45,6 +45,7 @@
 }
 
 .item:hover,
+/* 键盘定位与鼠标反馈共享候选项的高亮布局。 */
 .itemHighlighted {
   background: var(--color-menu-hover, var(--color-active));
 }

@@ -32,6 +32,7 @@ async function copyTextSafe(text: string): Promise<void> {
   }
 }
 
+/** 将归档、置顶、归属变更与删除等会话动作绑定到打开菜单时的会话。 */
 export function SessionActionMenu({
   isZh,
   session,

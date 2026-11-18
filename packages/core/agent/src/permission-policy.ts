@@ -5,11 +5,13 @@ import { dirname, join } from "node:path";
 import type { ToolPermissionLevel } from "@lfaa/tools";
 import { SMART_APPROVAL_THRESHOLD, type AgentPermissionMode } from "./types";
 
+/** 描述规则识别出的风险及可展示给用户的原因。 */
 export interface ToolRiskAssessment {
   highRisk: boolean;
   reason?: string;
 }
 
+/** 向执行循环提供审批要求、操作归类与累计信任状态。 */
 export interface ApprovalDecision {
   requiresApproval: boolean;
   autoApproved: boolean;
@@ -32,6 +34,7 @@ const DESTRUCTIVE_COMMAND_PATTERNS: RegExp[] = [
 
 const SENSITIVE_FILE_PATTERN = /(?:^|[\\/])(?:\.env(?:\.|$)|\.git(?:[\\/]|$)|id_rsa|id_ed25519)|(?:\.pem|\.key|\.p12|\.pfx)$/iu;
 
+/** 解析新权限模式，同时兼容旧档案的自动审批字段。 */
 export function normalizePermissionMode(mode?: unknown, autoApproveTools?: boolean): AgentPermissionMode {
   if (mode === "ask" || mode === "smart" || mode === "full") return mode;
   return autoApproveTools === true ? "full" : "ask";
@@ -50,6 +53,7 @@ export function buildApprovalPattern(toolName: string, args: Record<string, unkn
   return hasChain ? `run_command:${firstToken}+chain` : `run_command:${firstToken}`;
 }
 
+/** 检查写入目标和命令是否命中高风险规则，为后续审批决策提供依据。 */
 export function assessToolRisk(toolName: string, args: Record<string, unknown>): ToolRiskAssessment {
   if (toolName === "run_command") {
     const command = typeof args.command === "string" ? args.command : "";
@@ -67,6 +71,7 @@ export function assessToolRisk(toolName: string, args: Record<string, unknown>):
   return { highRisk: false };
 }
 
+/** 结合权限模式、工具级别与累计批准数，判断是否应暂停运行等待用户确认。 */
 export function evaluateToolApproval({
   mode,
   permissionLevel,

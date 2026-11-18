@@ -40,6 +40,7 @@
   max-width: 46rem;
 }
 
+/* 入场预设共用弹窗盒，仅通过动画类改变过渡。 */
 .animScale {
   animation: lfaaModalScaleIn 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -119,6 +120,7 @@
   color: var(--color-ink);
 }
 
+/* 内容区处理纵向溢出，标题和底部操作留在各自区域。 */
 .body {
   padding: 1.05rem 1.25rem;
   overflow-y: auto;

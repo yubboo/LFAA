@@ -22,6 +22,7 @@
   height: 0.95rem;
 }
 
+/* 高级区域用同一纵向容器布置设置开关和数值调节。 */
 .advancedStack {
   display: grid;
   gap: 0.15rem;

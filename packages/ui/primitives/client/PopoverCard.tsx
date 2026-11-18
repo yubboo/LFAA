@@ -10,6 +10,7 @@ const PLACEMENT_CLASS: Record<PopoverPlacement, string | undefined> = {
   "bottom-end": styles.bottomEnd,
 };
 
+/** 描述触发锚点、摆放方向和关闭请求的控制契约。 */
 export interface PopoverCardProps {
   open: boolean;
   label: string;
@@ -20,6 +21,7 @@ export interface PopoverCardProps {
   children: ReactNode;
 }
 
+/** 定位锚点浮层，统一处理页面外部点击与 Escape 关闭。 */
 export function PopoverCard({
   open,
   label,

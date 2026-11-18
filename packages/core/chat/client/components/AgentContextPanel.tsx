@@ -4,6 +4,7 @@ import type { ChatClientStore } from "../chat-store";
 import type { ChatLocaleMessages } from "../locales";
 import styles from "./AgentContextPanel.module.css";
 
+/** 订阅聊天 Store，在右栏汇总当前模型、工作位置、记忆和规则状态。 */
 export function AgentContextPanel({
   locale,
   store,

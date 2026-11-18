@@ -112,6 +112,7 @@
   font-weight: 550;
 }
 
+/* 目录来源清单和新增操作成组，各目录行负责处理自己的长路径。 */
 .sourceCard {
   display: grid;
   border: 1px solid var(--color-line);
@@ -249,6 +250,7 @@
   font-size: 0.84em;
 }
 
+/* 移出项目与保存动作分开放置，便于辨认危险操作。 */
 .footer {
   display: flex;
   flex-wrap: wrap;

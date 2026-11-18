@@ -67,6 +67,7 @@
   color: var(--color-ink);
 }
 
+/* 通过语义色区分通知种类，并复用原有的内容排列。 */
 .toneSuccess {
   background: rgb(16 185 129 / 0.14);
   border-color: rgb(52 211 153 / 0.42);

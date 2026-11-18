@@ -23,6 +23,7 @@ import styles from "./MessageActionBars.module.css";
 
 const WEEKDAYS_ZH = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
 
+/** 按界面语言格式化消息气泡的时间标签。 */
 export function formatMessageTimestamp(ts: number, isZh: boolean): string {
   const d = new Date(ts);
   if (Number.isNaN(d.getTime())) return "";
@@ -34,6 +35,7 @@ export function formatMessageTimestamp(ts: number, isZh: boolean): string {
   return `${d.toLocaleDateString("en-US", { weekday: "short" })} ${hh}:${mm}`;
 }
 
+/** 按界面语言格式化时间线中跨日分隔使用的日期。 */
 export function formatDayDivider(ts: number, isZh: boolean): string {
   const d = new Date(ts);
   if (Number.isNaN(d.getTime())) return "";
@@ -57,6 +59,7 @@ function copyText(text: string, onDone: () => void): void {
   void navigator.clipboard?.writeText(text).then(onDone).catch(() => {});
 }
 
+/** 展示用户消息上的复制与编辑动作，具体执行由会话视图处理。 */
 export function UserMessageActions({
   isZh,
   content,
@@ -102,6 +105,7 @@ export function UserMessageActions({
   );
 }
 
+/** 集中展示助手回复上的复制、反馈、朗读和延伸操作。 */
 export function AssistantMessageActions({
   isZh,
   content,
@@ -257,6 +261,7 @@ interface EditedFileSummary {
   removed: number;
 }
 
+/** 把回复对应的文件改动折叠为可展开列表，便于查看具体变更。 */
 export function EditedFilesCard({
   isZh,
   steps,
@@ -387,6 +392,7 @@ export function EditedFilesCard({
   );
 }
 
+/** 展示可继续发送的建议问题，将选中的文本交给调用方。 */
 export function FollowUpSuggestions({
   suggestions,
   onSelect,

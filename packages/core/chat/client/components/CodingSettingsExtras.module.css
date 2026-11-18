@@ -70,6 +70,7 @@
   font-weight: 500;
 }
 
+/* 仓库筛选、逐仓覆盖标记与翻页属于同一清单区。 */
 .repoHeader {
   display: flex;
   align-items: flex-end;

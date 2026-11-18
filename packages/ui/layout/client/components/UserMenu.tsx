@@ -7,6 +7,7 @@ import styles from "./UserMenu.module.css";
 
 type UserAction = "companion" | "invite" | "profile" | "help" | "signOut";
 
+/** 在账号菜单挂载主题快捷切换和设置入口，复用独立外观插件的贡献。 */
 export function UserMenu({
   locale,
   active = false,

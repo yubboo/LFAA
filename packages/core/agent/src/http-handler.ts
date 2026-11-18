@@ -19,10 +19,12 @@ async function readJsonBody(req: IncomingMessage): Promise<Record<string, unknow
   return typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : {};
 }
 
+/** 由应用提供工作区路径解析，使 HTTP 层不直接依赖具体项目存储实现。 */
 export interface AgentHttpBridgeOptions {
   resolveWorkspaceRoots?: (projectId: string | null) => Promise<string[]>;
 }
 
+/** 桥接运行创建、控制与 SSE 订阅，将未匹配的请求留给其他 Host 插件。 */
 export function createAgentHttpHandler(service: AgentService, options: AgentHttpBridgeOptions = {}) {
   return async (req: IncomingMessage, res: ServerResponse): Promise<boolean> => {
     const pathname = (req.url ?? "").split("?")[0] ?? "";

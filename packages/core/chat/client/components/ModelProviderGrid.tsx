@@ -6,8 +6,10 @@ import {
   MODEL_PROVIDER_CATALOG,
   type ModelProviderPreset,
 } from "../provider-catalog";
+import { getProviderPlans } from "../provider-plans";
 import styles from "./ModelProviderGrid.module.css";
 
+/** 汇总品牌的配置与使用状态，打开哪一步弹窗由设置页决定。 */
 export function ModelProviderGrid({
   isZh,
   profiles,
@@ -17,13 +19,18 @@ export function ModelProviderGrid({
   isZh: boolean;
   profiles: PublicLlmProfileItem[];
   activeProfileId: string;
-  onSelectProvider: (provider: ModelProviderPreset, matchedProfile?: PublicLlmProfileItem) => void;
+  onSelectProvider: (provider: ModelProviderPreset) => void;
 }) {
   return (
     <div className={styles.sectionWrap}>
       <div className={styles.grid} role="list" aria-label={isZh ? "模型提供商列表" : "Model Providers"}>
         {MODEL_PROVIDER_CATALOG.map((provider) => {
-          const matched = findProfileForProvider(profiles, provider);
+          // 同一个品牌卡片汇总标准 API 与套餐档案，优先展示当前使用的配置。
+          const matches = [provider, ...getProviderPlans(provider.id)]
+            .map((preset) => findProfileForProvider(profiles, preset));
+          const matched = matches.find((item) => item?.id === activeProfileId)
+            ?? matches.find((item) => item?.hasApiKey)
+            ?? matches.find(Boolean);
           const isActive = Boolean(matched && matched.id === activeProfileId);
           const isConfigured = Boolean(matched && (matched.hasApiKey || matched.kind === "ollama"));
 
@@ -34,7 +41,7 @@ export function ModelProviderGrid({
               role="listitem"
               aria-label={isZh ? provider.nameZh : provider.nameEn}
               className={`${styles.card} ${isActive ? styles.cardActive : ""}`}
-              onClick={() => onSelectProvider(provider, matched)}
+              onClick={() => onSelectProvider(provider)}
             >
               <span
                 className={styles.logoBox}

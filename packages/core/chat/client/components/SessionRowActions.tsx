@@ -6,6 +6,7 @@ import type { ChatClientStore } from "../chat-store";
 import type { SessionMenuStore } from "../session-menu-store";
 import styles from "./SessionRowActions.module.css";
 
+/** 为会话行提供就地操作入口，使按钮点击独立于打开会话的行点击。 */
 export function SessionRowActions({
   isZh,
   session,

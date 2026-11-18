@@ -2,12 +2,15 @@
 .anchor {
   position: relative;
   display: inline-flex;
+  min-width: 0;
   align-items: center;
 }
 
 .triggerPill {
   position: relative;
   display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
   align-items: center;
   gap: 0.35rem;
   height: 1.85rem;
@@ -26,17 +29,69 @@
 }
 
 .modelLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--color-ink);
   font-weight: 500;
 }
 
 .reasoningLabel {
+  flex-shrink: 0;
+  white-space: nowrap;
   color: var(--color-muted);
 }
 
 .chevronIcon {
   color: var(--color-muted);
   flex-shrink: 0;
+}
+
+.modelIcon {
+  display: none;
+}
+
+/* 紧凑布局先让长模型名省略。三种弹层共用工具栏的右边缘，避免触发器过窄时裁切。 */
+@container chat-composer (max-width: 30rem) {
+  .anchor {
+    position: static;
+  }
+
+  .anchor > span {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .pickerPopover {
+    box-sizing: border-box;
+    max-inline-size: 100cqi;
+  }
+
+  .pickerPopover > * {
+    box-sizing: border-box;
+    max-inline-size: 100%;
+  }
+}
+
+/* 最窄布局用处理器图标打开模型选择，完整名称与档位仍可在浮层中阅读。 */
+@container chat-composer (max-width: 19rem) {
+  .triggerPill {
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+  }
+
+  .modelIcon {
+    display: block;
+  }
+
+  .modelLabel,
+  .reasoningLabel,
+  .chevronIcon {
+    display: none;
+  }
 }
 
 .modelPopoverCard {
@@ -146,6 +201,7 @@
   color: var(--color-muted);
 }
 
+/* 目录较长时滚动模型列表，标题和下方操作保留在弹窗内。 */
 .modelList {
   display: grid;
   gap: 0.15rem;

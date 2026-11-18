@@ -20,6 +20,7 @@ function AccountThemeSwitcher({ locale, store }: { locale: ThemeLocaleMessages; 
   return <ThemeModeQuickSwitch locale={locale} store={store} mode={snapshot.config.mode} />;
 }
 
+/** 向工作台注册外观设置与快捷切换入口，按插件生命周期移除贡献。 */
 export const themeClientPlugin: Plugin.Object<void> = {
   name: "@lfaa/ui-theme/client",
   inject: ["workbench"],

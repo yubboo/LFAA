@@ -258,6 +258,7 @@
   min-height: 0;
 }
 
+/* 选中资料后启用预览分栏，卡片区继续随主栏宽度收缩。 */
 .workspaceWithPreview {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(18rem, 0.95fr);
@@ -358,6 +359,7 @@
   color: var(--color-ink);
 }
 
+/* 预览头保留标题和操作，内容随正文区滚动。 */
 .previewCard {
   position: sticky;
   top: 0;
@@ -404,6 +406,7 @@
   word-break: break-word;
 }
 
+/* 窄视口将资料清单与预览变成上下排列。 */
 @media (max-width: 960px) {
   .workspaceWithPreview {
     grid-template-columns: minmax(0, 1fr);

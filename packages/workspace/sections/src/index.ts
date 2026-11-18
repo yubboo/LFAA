@@ -9,6 +9,7 @@ import type { CreateSectionInput, UpdateSectionInput, WorkspaceSectionSummary } 
 export * from "./types";
 export { createSectionsHttpHandler } from "./http-handler";
 
+/** 允许应用或测试指定分区配置的本机存储位置。 */
 export interface SectionsPluginConfig {
   storeFilePath?: string;
 }
@@ -112,6 +113,7 @@ export class SectionsService extends Service {
   }
 }
 
+/** 在 Cordis 中注册分区服务，供工作区维护项目归属。 */
 export function sectionsPlugin(context: Context, config: SectionsPluginConfig = {}): void {
   new SectionsService(context, config);
 }

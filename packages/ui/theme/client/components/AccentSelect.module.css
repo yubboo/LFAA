@@ -38,6 +38,7 @@
   color: var(--color-muted);
 }
 
+/* 自定义颜色通过原生取色器选取，预设列表继续使用自定义菜单。 */
 .customPicker {
   display: inline-flex;
   align-items: center;

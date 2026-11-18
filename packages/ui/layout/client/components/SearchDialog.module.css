@@ -76,6 +76,7 @@
   font-weight: 550;
 }
 
+/* 结果区单独处理滚动，搜索字段保留在弹窗顶部。 */
 .results {
   max-height: 48vh;
   overflow: auto;

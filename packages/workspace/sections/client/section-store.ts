@@ -14,6 +14,7 @@ function isSectionArray(value: unknown): value is WorkspaceSectionSummary[] {
   );
 }
 
+/** 描述当前创建或重命名分区弹窗的可订阅状态。 */
 export type SectionDialogState =
   | { kind: "create" }
   | { kind: "rename"; section: WorkbenchSectionItem }
@@ -29,6 +30,7 @@ async function readJsonSafe<T>(response: Response): Promise<(T & { error?: strin
   }
 }
 
+/** 维护分区列表与相关弹窗状态，将持久化委托给 Host。 */
 export class SectionStore {
   private readonly listeners = new Set<() => void>();
   private readonly dialogListeners = new Set<() => void>();

@@ -17,6 +17,7 @@
 
 .actionBtn:hover,
 .actionBtn:focus-visible,
+/* 菜单开启时保持入口的活动态，避免被误认为普通悬停。 */
 .actionBtnActive {
   background: rgb(255 255 255 / 0.12);
   color: var(--color-ink);

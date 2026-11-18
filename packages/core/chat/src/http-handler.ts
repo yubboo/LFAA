@@ -27,6 +27,7 @@ async function readJsonBody(req: IncomingMessage): Promise<Record<string, unknow
   return typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : {};
 }
 
+/** 把会话读写、常规设置与本地语音请求分派给 Chat Host 服务。 */
 export function createChatHttpHandler(service: ChatService) {
   return async (req: IncomingMessage, res: ServerResponse): Promise<boolean> => {
     const urlObj = new URL(req.url ?? "", "http://127.0.0.1");

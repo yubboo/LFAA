@@ -81,6 +81,7 @@
   background: var(--color-line);
 }
 
+/* 子菜单以对应行定位，空间不足时切到另一侧展开。 */
 .subTriggerWrap {
   position: relative;
 }

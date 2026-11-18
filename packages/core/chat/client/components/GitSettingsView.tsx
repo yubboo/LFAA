@@ -12,6 +12,7 @@ import { SettingGroupCard, SettingRow, SettingSwitch } from "./GeneralSettingsCo
 import baseStyles from "./GeneralSettingsView.module.css";
 import extraStyles from "./CodingSettingsExtras.module.css";
 
+/** 编辑 Git 与 PR 文案偏好，通过编码设置接口保存用户的仓库操作默认值。 */
 export function GitSettingsView({
   locale,
   onOpenCodeReviewWorkbench,

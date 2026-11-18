@@ -95,6 +95,7 @@
   color: var(--color-ink);
 }
 
+/* 填充、粒子与拇指共同反映轨道位置，档位按钮另有焦点反馈。 */
 .trackWrap {
   position: relative;
   height: 2.1rem;

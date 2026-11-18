@@ -6,6 +6,7 @@ export type AgentPermissionMode = "ask" | "smart" | "full";
 export type AgentPhase = "think" | "act" | "check";
 export type AgentStepStatus = "running" | "waiting_approval" | "done" | "error";
 
+/** 统一时间线上思考、操作和检查步骤的公开状态。 */
 export interface AgentStepItem {
   id: string;
   iteration: number;
@@ -23,6 +24,7 @@ export interface AgentStepItem {
   timestamp: number;
 }
 
+/** 提供聊天界面所需的消息内容、时间及运行信息。 */
 export interface ChatMessageItem {
   id: string;
   role: "user" | "assistant";
@@ -35,6 +37,7 @@ export interface ChatMessageItem {
   createdAt: number;
 }
 
+/** 描述侧栏定位与排序使用的会话摘要。 */
 export interface ChatSessionItem {
   id: string;
   title: string;
@@ -49,10 +52,12 @@ export interface ChatSessionItem {
   updatedAt: number;
 }
 
+/** 返回选中会话及其消息，供中央工作区渲染。 */
 export interface ChatSessionDetail extends ChatSessionItem {
   messages: ChatMessageItem[];
 }
 
+/** 定义模型目录中可供浏览器识别的思考档位元数据。 */
 export interface ModelCapabilityItem {
   id: string;
   displayName?: string;
@@ -68,6 +73,7 @@ export type LlmApiProtocolOption =
   | "anthropic-messages"
   | "gemini-generate-content";
 
+/** 表示浏览器可见的模型档案，密钥只以脱敏形式出现。 */
 export interface PublicLlmProfileItem {
   id: string;
   providerId?: string;
@@ -104,6 +110,7 @@ export interface LongTermMemoryItem {
   updatedAt: number;
 }
 
+/** 承载正在等待用户决策的工具请求及其提示。 */
 export interface PendingApprovalBanner {
   runId: string;
   approvalId: string;
@@ -121,6 +128,7 @@ export interface PendingApprovalBanner {
 export type LibraryItemCategory = "artifact" | "asset";
 export type StorageLocationMode = "default" | "project" | "custom";
 
+/** 定义资料库列表与预览使用的资产索引信息。 */
 export interface LibraryAssetItem {
   id: string;
   category: LibraryItemCategory;
@@ -138,6 +146,7 @@ export interface LibraryAssetItem {
   updatedAt: number;
 }
 
+/** 向设置表单提供当前存储模式、目录与迁移相关状态。 */
 export interface StorageConfigState {
   dataRoot: string;
   defaultDataRoot: string;
@@ -167,6 +176,7 @@ export interface StorageMigrationResult {
   stats: StorageStats;
 }
 
+/** 约定聊天 Store 向 React 订阅者提交的会话、设置和运行快照。 */
 export interface ChatStoreSnapshot {
   loaded: boolean;
   sessions: ChatSessionItem[];

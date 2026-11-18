@@ -154,6 +154,7 @@ function CodeBlockCard({
   );
 }
 
+/** 把助手消息解析成安全的 React 文档块，代码和表格由各自的渲染分支处理。 */
 export function MarkdownContent({
   content,
   isZh = true,

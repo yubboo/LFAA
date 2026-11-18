@@ -1,10 +1,12 @@
-// 渲染输入栏单品牌官方模型列表与真实思考强度调节浮窗：
-// 主视图仅显示当前已激活已配置品牌的真实官方模型；「模型管理」在浮窗原地切换已配置品牌卡槽（不跳设置页）；仅「配置模型卡片...」跳转设置中心。
+// 浏览器端聊天输入栏的模型选择器，连接当前模型档案、品牌切换和思考强度调节。
 import { useEffect, useMemo, useRef, useState } from "react";
-import { IconCheck, IconChevronDown, IconChevronLeft, IconChevronRight, IconRefresh, IconSettings, IconX } from "@tabler/icons-react";
+import { IconCheck, IconChevronDown, IconChevronLeft, IconChevronRight, IconCpu, IconRefresh, IconSettings, IconX } from "@tabler/icons-react";
+import { findArkChatModel, getArkPlanKind, getArkPlanCatalog } from "@lfaa/llm/ark-plan";
 import { HoverTip, PopoverCard, StepSliderPopover, type StepSliderOption } from "@lfaa/ui-primitives/client";
 import type { ModelCapabilityItem, PublicLlmProfileItem, ReasoningLevelOption } from "../chat-types";
+import { arkModelMessages, providerAccessMessages } from "../locales";
 import { getProtocolShortLabel } from "../provider-catalog";
+import { findProviderPlan } from "../provider-plans";
 import styles from "./ModelReasoningPicker.module.css";
 
 type PickerPanelMode = "closed" | "models" | "brands" | "reasoning";
@@ -25,6 +27,7 @@ const REASONING_LABELS_EN: Record<ReasoningLevelOption, string> = {
   max: "Max",
 };
 
+/** 管理同一个浮窗内的选模、品牌切换和强度调节，档案与设置由调用方维护。 */
 export function ModelReasoningPicker({
   isZh,
   profiles,
@@ -51,6 +54,7 @@ export function ModelReasoningPicker({
   const [refreshing, setRefreshing] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState<{ tone: "success" | "error"; message?: string } | null>(null);
 
+  // 成功反馈短暂显示，浮窗关闭或组件卸载时清理反馈与计时器。
   useEffect(() => {
     if (syncFeedback?.tone !== "success") return;
     const timer = window.setTimeout(() => setSyncFeedback(null), 3500);
@@ -69,17 +73,31 @@ export function ModelReasoningPicker({
 
   const activeProfile =
     configuredProfiles.find((p) => p.id === activeProfileId) ?? configuredProfiles[0] ?? null;
+  const providerPlan = activeProfile ? findProviderPlan(activeProfile) : undefined;
+  const arkPlan = activeProfile && (activeProfile.apiProtocol ?? "openai-chat") === "openai-chat"
+    ? getArkPlanKind(activeProfile.baseUrl) : undefined;
+  const arkModel = arkPlan && activeProfile ? findArkChatModel(activeProfile.model) : undefined;
+  const arkLabels = arkModelMessages[isZh ? "zh" : "en"];
 
-  // 当前品牌下的真实官方模型清单：已同步过官方清单时严格只列出官方返回模型
+  // 方舟使用套餐公开目录，其他套餐读取当前配置的模型。普通 API 使用已同步的模型清单。
   const brandModels = useMemo<ModelCapabilityItem[]>(() => {
     if (!activeProfile) return [];
     const list = activeProfile.availableModels ?? [];
-    if (list.length > 0) return list;
-    return [{ id: activeProfile.model, supportsReasoning: false, reasoningMode: "none", reasoningLevels: [] }];
-  }, [activeProfile]);
+    if (arkPlan) {
+      const { chatModels } = getArkPlanCatalog(arkPlan);
+      if (findArkChatModel(activeProfile.model)) return [...chatModels];
+      return [
+        { id: activeProfile.model, supportsReasoning: false, reasoningMode: "none", reasoningLevels: [] },
+        ...chatModels,
+      ];
+    }
+    if (!providerPlan && list.length > 0) return list;
+    return [list.find(({ id }) => id === activeProfile.model)
+      ?? { id: activeProfile.model, supportsReasoning: false, reasoningMode: "none", reasoningLevels: [] }];
+  }, [activeProfile, arkPlan, providerPlan]);
 
   const activeModelId =
-    brandModels.find((m) => m.id === activeProfile?.model)?.id ?? brandModels[0]?.id ?? activeProfile?.model ?? "";
+    arkModel?.id ?? brandModels.find((m) => m.id === activeProfile?.model)?.id ?? brandModels[0]?.id ?? "";
 
   const activeModelCap =
     brandModels.find((m) => m.id === activeModelId) ?? {
@@ -89,14 +107,18 @@ export function ModelReasoningPicker({
       reasoningLevels: [],
     };
 
+  // 只有模型支持多档强度才生成滑块选项。方舟的 minimal 若可关闭思考则显示「关闭」。
   const levelOptions = useMemo<Array<StepSliderOption<ReasoningLevelOption>>>(() => {
     if (activeModelCap.reasoningMode !== "effort") return [];
     return activeModelCap.reasoningLevels.map((id) => ({
       id,
-      label: isZh ? REASONING_LABELS_ZH[id] : REASONING_LABELS_EN[id],
+      label: id === "minimal" && arkModel?.offEffort
+        ? arkLabels.off
+        : (isZh ? REASONING_LABELS_ZH[id] : REASONING_LABELS_EN[id]),
     }));
-  }, [activeModelCap.reasoningLevels, activeModelCap.reasoningMode, isZh]);
+  }, [activeModelCap.reasoningLevels, activeModelCap.reasoningMode, arkLabels, arkModel, isZh]);
 
+  // 切换模型后优先保留仍受支持的档位，否则用该模型的默认档。
   const effectiveReasoning = levelOptions.some((o) => o.id === reasoningLevel)
     ? reasoningLevel
     : (activeModelCap.defaultReasoningLevel && levelOptions.some((o) => o.id === activeModelCap.defaultReasoningLevel)
@@ -105,16 +127,21 @@ export function ModelReasoningPicker({
   const activeLevelLabel = levelOptions.find((o) => o.id === effectiveReasoning)?.label ?? "";
 
   if (!activeProfile) {
+    const configureLabel = isZh ? "未配置模型 · 去配置卡片" : "Configure Model";
     return (
       <div className={styles.anchor}>
-        <button
-          type="button"
-          className={styles.triggerPill}
-          onClick={onOpenSettings}
-        >
-          <span>{isZh ? "未配置模型 · 去配置卡片" : "Configure Model"}</span>
-          <IconChevronRight size={13} stroke={1.9} />
-        </button>
+        <HoverTip label={configureLabel}>
+          <button
+            type="button"
+            className={styles.triggerPill}
+            aria-label={configureLabel}
+            onClick={onOpenSettings}
+          >
+            <IconCpu size={16} className={styles.modelIcon} aria-hidden="true" />
+            <span className={styles.modelLabel}>{configureLabel}</span>
+            <IconChevronRight size={13} stroke={1.9} className={styles.chevronIcon} aria-hidden="true" />
+          </button>
+        </HoverTip>
       </div>
     );
   }
@@ -127,9 +154,11 @@ export function ModelReasoningPicker({
           type="button"
           className={styles.triggerPill}
           aria-label={isZh ? "选择模型" : "Select model"}
+          aria-description={[activeModelId, activeLevelLabel].filter(Boolean).join(" · ")}
           aria-expanded={panelMode !== "closed"}
           onClick={() => setPanelMode((prev) => (prev === "closed" ? "models" : "closed"))}
         >
+          <IconCpu size={16} className={styles.modelIcon} aria-hidden="true" />
           <span className={styles.modelLabel}>{activeModelId}</span>
           {activeModelCap.reasoningMode === "effort" && activeLevelLabel && (
             <span className={styles.reasoningLabel}>{activeLevelLabel}</span>
@@ -141,18 +170,19 @@ export function ModelReasoningPicker({
         </button>
       </HoverTip>
 
-      {/* 视图 1：仅展示当前已配置激活品牌的官方真实模型列表 */}
+      {/* 选模视图只展示当前档案可用于聊天的模型，品牌切换在独立视图内处理。 */}
       <PopoverCard
         open={panelMode === "models"}
         label={isZh ? "选择模型" : "Select Model"}
         placement="top-end"
+        className={styles.pickerPopover ?? ""}
         anchorRef={anchorRef}
         onClose={() => setPanelMode("closed")}
       >
         <div className={styles.modelPopoverCard}>
           <div className={styles.modelHeaderRow}>
             <span className={styles.modelHeader}>{activeProfile.name}</span>
-            <button
+            {!providerPlan && <button
               type="button"
               className={`${styles.iconActionBtn} ${
                 syncFeedback?.tone === "success"
@@ -196,20 +226,26 @@ export function ModelReasoningPicker({
                       ? (isZh ? "同步失败" : "Failed")
                       : (isZh ? "同步官方" : "Sync")}
               </span>
-            </button>
+            </button>}
           </div>
 
           {syncFeedback?.tone === "error" && syncFeedback.message && (
             <div className={styles.syncErrorHint} role="alert">{syncFeedback.message}</div>
           )}
 
+          {/* 模型列表的标题说明目录来源，协议标签显示当前档案使用的接口格式。 */}
           <div className={styles.modelSubHeaderRow}>
-            <span className={styles.modelGroupLabel}>{isZh ? "当前品牌官方模型" : "Official Brand Models"}</span>
+            <span className={styles.modelGroupLabel}>
+              {arkPlan ? arkLabels.chatCatalog : providerPlan
+                ? providerAccessMessages[isZh ? "zh" : "en"].selectedModel
+                : (isZh ? "当前品牌官方模型" : "Official Brand Models")}
+            </span>
             <span className={styles.protocolTag}>{getProtocolShortLabel(activeProfile.apiProtocol)}</span>
           </div>
           <div className={styles.modelList}>
             {brandModels.map((item) => {
               const selected = item.id === activeModelId;
+              const status = arkPlan ? findArkChatModel(item.id)?.status : undefined;
               return (
                 <button
                   key={item.id}
@@ -225,6 +261,7 @@ export function ModelReasoningPicker({
                     {item.displayName && item.displayName !== item.id && (
                       <span className={styles.modelSub}>{item.displayName}</span>
                     )}
+                    {status && <span className={styles.modelSub}>{arkLabels[status]}</span>}
                   </div>
                   {selected && <IconCheck size={15} stroke={2} />}
                 </button>
@@ -245,11 +282,16 @@ export function ModelReasoningPicker({
             </button>
           ) : activeModelCap.reasoningMode === "fixed" ? (
             <div className={styles.staticInfoRow}>
-              {isZh ? "思考模式：官方原生固定开启（无多档强度）" : "Reasoning: Fixed native thinking"}
+              {arkPlan
+                ? arkLabels.supported
+                : (isZh ? "思考模式：官方原生固定开启（无多档强度）" : "Reasoning: Fixed native thinking")}
             </div>
           ) : (
             <div className={styles.staticInfoRow}>
-              {isZh ? "当前模型为标准对话模型（无思考强度选项）" : "Standard model (no reasoning effort options)"}
+              {arkModel?.status === "routed"
+                ? arkLabels.routedReasoning
+                : arkPlan ? arkLabels.unknownReasoning
+                  : (isZh ? "当前模型为标准对话模型（无思考强度选项）" : "Standard model (no reasoning effort options)")}
             </div>
           )}
 
@@ -285,6 +327,7 @@ export function ModelReasoningPicker({
         open={panelMode === "brands"}
         label={isZh ? "模型管理" : "Model Manager"}
         placement="top-end"
+        className={styles.pickerPopover ?? ""}
         anchorRef={anchorRef}
         onClose={() => setPanelMode("closed")}
       >
@@ -345,6 +388,7 @@ export function ModelReasoningPicker({
         open={panelMode === "reasoning" && activeModelCap.reasoningMode === "effort"}
         label={isZh ? "选择推理强度" : "Select Reasoning Intensity"}
         placement="top-end"
+        className={styles.pickerPopover ?? ""}
         anchorRef={anchorRef}
         onClose={() => setPanelMode("closed")}
       >

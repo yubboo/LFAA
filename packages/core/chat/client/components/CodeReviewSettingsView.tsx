@@ -27,6 +27,7 @@ const NEXT_OVERRIDE_ORDER: Record<RepoAutoReviewMode, RepoAutoReviewMode> = {
   disabled: "inherit",
 };
 
+/** 载入审查设置和本机仓库清单，在偏好与审查智能体页之间切换。 */
 export function CodeReviewSettingsView({
   locale,
   onOpenCodeReviewWorkbench,

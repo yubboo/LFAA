@@ -4,11 +4,13 @@ import { createPortal } from "react-dom";
 import { IconCheck, IconChevronDown } from "@tabler/icons-react";
 import styles from "./AccentSelect.module.css";
 
+/** 定义外观选择器中提交给设置的值和显示标签。 */
 export interface ThemeSelectOption<T extends string> {
   value: T;
   label: string;
 }
 
+/** 为外观设置提供共享选项菜单，统一当前选择及其更新回调。 */
 export function ThemeSelect<T extends string>({
   label,
   value,

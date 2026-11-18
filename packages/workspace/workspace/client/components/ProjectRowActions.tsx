@@ -6,6 +6,7 @@ import type { WorkspaceLocaleMessages } from "../locales";
 import type { ProjectMenuStore } from "../project-menu-store";
 import styles from "./ProjectRowActions.module.css";
 
+/** 为项目列表行提供独立的操作菜单与绑定项目的新聊天入口。 */
 export function ProjectRowActions({
   locale,
   project,

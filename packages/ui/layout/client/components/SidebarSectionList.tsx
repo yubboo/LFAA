@@ -3,6 +3,7 @@ import { useState, type ReactNode } from "react";
 import { NavigationIcon, type NavigationIconName } from "./NavigationIcon";
 import styles from "./SidebarSectionList.module.css";
 
+/** 定义侧栏列表行的名称、状态、动作和可选子层级。 */
 export interface SidebarItemConfig {
   id: string;
   label: string;
@@ -23,6 +24,7 @@ export interface SidebarItemConfig {
   onDoubleClick?: () => void;
 }
 
+/** 描述侧栏分组的标题、展开方式和内部行列表。 */
 export interface SidebarGroupConfig {
   id: string;
   title: string;
@@ -44,6 +46,7 @@ export interface SidebarGroupConfig {
 
 const DRAG_PROJECT_MIME = "text/lfaa-project-id";
 
+/** 使用统一配置渲染侧栏分组、搜索和行项，折叠、移动与选择由调用方同步。 */
 export function SidebarSectionList({
   ariaLabel,
   search,

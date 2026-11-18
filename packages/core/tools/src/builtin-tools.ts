@@ -33,6 +33,7 @@ function countLineDiff(prevText: string, nextText: string): { added: number; rem
   };
 }
 
+/** 构造默认本地工作区工具，统一通过工具上下文接收路径和权限约束。 */
 export function createBuiltinWorkspaceTools(): AgentToolDefinition[] {
   return [
     {

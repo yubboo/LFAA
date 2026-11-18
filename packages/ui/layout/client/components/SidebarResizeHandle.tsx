@@ -3,6 +3,7 @@ import type { KeyboardEvent, PointerEvent } from "react";
 import type { ResizeSide } from "../useSidebarResize";
 import styles from "./ResizeHandle.module.css";
 
+/** 提供拖拽和键盘可操作的分隔条，通过回调交给外层计算面板宽度。 */
 export function SidebarResizeHandle({
   side,
   label,

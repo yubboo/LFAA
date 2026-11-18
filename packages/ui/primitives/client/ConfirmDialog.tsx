@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { IconX } from "@tabler/icons-react";
 import styles from "./ConfirmDialog.module.css";
 
+/** 规定确认操作、忙碌状态和警示文案的输入，让具体删除行为留在业务组件中。 */
 export interface ConfirmDialogProps {
   open: boolean;
   title: string;
@@ -17,6 +18,7 @@ export interface ConfirmDialogProps {
   onClose: () => void;
 }
 
+/** 复用基础弹窗呈现高风险确认，并在忙碌时保护确认入口免于重复提交。 */
 export function ConfirmDialog({
   open,
   title,

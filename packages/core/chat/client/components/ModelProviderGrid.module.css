@@ -259,6 +259,7 @@
   color: var(--color-ink);
 }
 
+/* 两组弹窗操作可独立换行，避免长按钮文字在窄屏撑出弹窗。 */
 .footerGroup {
   display: flex;
   align-items: center;
@@ -268,11 +269,23 @@
   flex-wrap: wrap;
 }
 
+.footerLeft,
 .footerRight {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.5rem;
+}
+
+.footerRight {
+  justify-content: flex-end;
   margin-left: auto;
+}
+
+.backBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.36rem;
 }
 
 .btn,

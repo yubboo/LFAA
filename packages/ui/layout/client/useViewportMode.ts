@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 
 export type ViewportDevice = "desktop" | "tablet" | "mobile";
 
+/** 供四栏骨架选择当前可用的设备布局模式。 */
 export interface ViewportMode {
   device: ViewportDevice;
   isCompact: boolean;

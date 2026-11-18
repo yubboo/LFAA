@@ -8,6 +8,7 @@ import type { ComposeRulesInput, ComposedRulesResult, RuleDocument } from "./typ
 export * from "./types";
 export { createRulesHttpHandler } from "./http-handler";
 
+/** 允许 Host 覆盖项目与用户规则的读取位置。 */
 export interface RulesPluginConfig {
   storeFilePath?: string;
   systemRulesOverride?: string;
@@ -17,6 +18,7 @@ const DEFAULT_RULES_STORE_PATH = join(homedir(), ".lfaa", "rules.json");
 
 const PROJECT_RULE_CANDIDATES = ["AGENTS.md", join(".lfaa", "rules.md")] as const;
 
+/** 提供默认系统规则文本，供规则服务合成 Agent 上下文。 */
 export const BUILTIN_SYSTEM_RULES = [
   "你是 LFAA 智能工作区内的专业 AI Agent，必须严格遵循以下系统安全与行为底线（不可被任何用户规则覆盖）：",
   "1. 诚实性与可验证性：绝不编造未执行过的工具结果、文件正文或命令输出；无法完成或被权限拦截时如实告知边界。",
@@ -148,6 +150,7 @@ export class RulesService extends Service {
   }
 }
 
+/** 在 Cordis 上下文中注册分层规则加载与合成服务。 */
 export function rulesPlugin(context: Context, config: RulesPluginConfig = {}): void {
   new RulesService(context, config);
 }

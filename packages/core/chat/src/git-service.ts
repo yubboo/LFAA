@@ -43,6 +43,7 @@ export interface GitRepoDiscoveryItem {
   projectId?: string;
 }
 
+/** 供代码审查工作台共用的仓库状态快照，包含分支、变更和历史信息。 */
 export interface GitStatusSnapshot {
   isGitRepo: boolean;
   gitAvailable: boolean;
@@ -69,6 +70,7 @@ async function runGit(cwd: string, args: string[], timeoutMs = 10000): Promise<s
   return stdout;
 }
 
+/** 为仓库清单提取远程仓库标识，无可识别远程时保留本地目录标识。 */
 export function extractRepoSlug(remoteUrl: string, fallbackDir: string): { slug: string; provider: "github" | "local" } {
   const trimmed = remoteUrl.trim();
   if (trimmed) {
@@ -155,6 +157,7 @@ function parsePorcelainStatus(output: string): { branch: string; ahead: number; 
   return { branch, ahead, behind, files };
 }
 
+/** 从工作区候选目录发现 Git 仓库，形成设置页可选择的仓库清单。 */
 export async function discoverGitRepositories(
   candidates: Array<{ rootPath: string; name?: string; projectId?: string }>,
 ): Promise<GitRepoDiscoveryItem[]> {
@@ -194,6 +197,7 @@ export async function discoverGitRepositories(
   return repos;
 }
 
+/** 查询仓库的分支及工作树状态，供提交、审查和刷新操作复用。 */
 export async function getGitStatus(targetDir: string): Promise<GitStatusSnapshot> {
   const absDir = resolve(targetDir);
   try {
@@ -264,6 +268,7 @@ export async function getGitStatus(targetDir: string): Promise<GitStatusSnapshot
   }
 }
 
+/** 按指定文件和变更范围读取差异文本，交给工作台预览。 */
 export async function getGitDiff(
   repoRoot: string,
   options?: { filePath?: string; staged?: boolean; commitHash?: string },
@@ -304,6 +309,7 @@ export async function getGitDiff(
   return { stat: statHead.trim(), diff: combined.slice(0, 60000) };
 }
 
+/** 将指定变更加入 Git 暂存区，操作后返回新的仓库快照。 */
 export async function stageGitFiles(repoRoot: string, files: string[] | "all"): Promise<GitStatusSnapshot> {
   const absRoot = resolve(repoRoot);
   if (files === "all") {
@@ -315,6 +321,7 @@ export async function stageGitFiles(repoRoot: string, files: string[] | "all"): 
   return getGitStatus(absRoot);
 }
 
+/** 将指定变更移出 Git 暂存区，再返回当前仓库状态。 */
 export async function unstageGitFiles(repoRoot: string, files: string[] | "all"): Promise<GitStatusSnapshot> {
   const absRoot = resolve(repoRoot);
   if (files === "all") {
@@ -326,6 +333,7 @@ export async function unstageGitFiles(repoRoot: string, files: string[] | "all")
   return getGitStatus(absRoot);
 }
 
+/** 根据请求切换或创建分支，使用 Git 的真实执行结果反馈界面。 */
 export async function checkoutGitBranch(
   repoRoot: string,
   options: { name: string; create?: boolean; branchPrefix?: string },
@@ -342,6 +350,7 @@ export async function checkoutGitBranch(
   return getGitStatus(absRoot);
 }
 
+/** 使用用户提供的消息提交当前暂存区内容。 */
 export async function commitGitChanges(
   repoRoot: string,
   message: string,
@@ -357,6 +366,7 @@ export async function commitGitChanges(
   return { commitHash, status };
 }
 
+/** 根据当前仓库快照与用户偏好生成可编辑的提交消息草稿。 */
 export function buildCommitDraft(status: GitStatusSnapshot, gitSettings: GitCodingSettings): {
   message: string;
   appliedInstructions: string;
@@ -385,6 +395,7 @@ export function buildCommitDraft(status: GitStatusSnapshot, gitSettings: GitCodi
   };
 }
 
+/** 用当前分支与变更摘要草拟 PR 标题和正文。 */
 export function buildPrDraft(status: GitStatusSnapshot, gitSettings: GitCodingSettings): {
   title: string;
   body: string;

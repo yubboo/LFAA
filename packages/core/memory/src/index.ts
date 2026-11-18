@@ -41,6 +41,7 @@ export {
   VAULT_FILES,
 } from "./storage-manager";
 
+/** 允许应用及测试配置资料目录和存储路径。 */
 export interface MemoryPluginConfig {
   sessionsDir?: string;
   memoryFilePath?: string;
@@ -226,6 +227,7 @@ export class MemoryService extends Service {
   }
 }
 
+/** 注册本机会话、长期记忆、资料与存储位置管理服务。 */
 export function memoryPlugin(context: Context, config: MemoryPluginConfig = {}): void {
   new MemoryService(context, config);
 }

@@ -6,6 +6,7 @@ import { ACCENT_PRESETS, type AccentPresetId } from "../../src/index";
 import type { ThemeLocaleMessages } from "../locales";
 import styles from "./AccentSelect.module.css";
 
+/** 选择预设强调色或自定义颜色，把结果交给共享外观存储。 */
 export function AccentSelect({
   locale,
   accent,

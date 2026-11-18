@@ -57,6 +57,7 @@
   font-size: 0.82em;
 }
 
+/* 移出项目入口单独放在详情底部，与本机目录元数据分开。 */
 .footerAction {
   display: grid;
   gap: 0.35rem;

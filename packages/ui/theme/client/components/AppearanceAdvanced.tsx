@@ -12,6 +12,7 @@ import { ThemeSelect, type ThemeSelectOption } from "./ThemeSelect";
 import advStyles from "./AppearanceAdvanced.module.css";
 import styles from "./AppearanceSettings.module.css";
 
+/** 渲染可折叠的高级外观控制，更新当前主题变体中的显示参数。 */
 export function AppearanceAdvanced({
   locale,
   config,

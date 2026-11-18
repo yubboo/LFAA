@@ -52,6 +52,7 @@
   height: 0.95rem;
 }
 
+/* 分区操作层独立定位，删除项与常规选项区分。 */
 .menu {
   position: fixed;
   z-index: 108;

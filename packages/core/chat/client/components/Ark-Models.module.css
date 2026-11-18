@@ -1,0 +1,51 @@
+/* 方舟套餐目录沿用模型表单的主题变量，为窄屏保留可换行的模型 ID。 */
+.catalog {
+  display: grid;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.group {
+  display: grid;
+  gap: 0.4rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--color-line);
+}
+
+.group h3 {
+  margin: 0;
+  color: var(--color-ink);
+  font-size: 0.78em;
+  font-weight: 600;
+}
+
+.group small {
+  color: var(--color-muted);
+  font-family: var(--font-sans);
+}
+
+/* 模型 ID 在窄屏可整词折行或在任意字符处换行，避免撑宽弹窗。 */
+.group button {
+  max-width: 100%;
+  flex-wrap: wrap;
+  overflow-wrap: anywhere;
+  text-align: start;
+}
+
+/* 专用模型是只读列表，资源 ID 放在模型 ID 下方。 */
+.ids {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.85rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--color-ink);
+  font-size: 0.78em;
+  overflow-wrap: anywhere;
+}
+
+.ids small {
+  display: block;
+  font-size: 0.9em;
+}

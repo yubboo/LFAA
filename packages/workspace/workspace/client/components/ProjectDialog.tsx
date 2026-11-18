@@ -13,6 +13,7 @@ interface PendingTrustTarget {
   usesDefaultLocation: boolean;
 }
 
+/** 收集新项目名称和目录选项，确认本机目录后交由项目 Store 创建。 */
 export function ProjectDialog({
   locale,
   store,

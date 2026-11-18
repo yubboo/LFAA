@@ -8,6 +8,7 @@ import { SessionActionMenu } from "./SessionActionMenu";
 import { SessionHoverCard } from "./SessionHoverCard";
 import styles from "./ModelProviderGrid.module.css";
 
+/** 统一挂载会话菜单、悬浮预览与确认弹窗，协调它们的打开和关闭状态。 */
 export function SessionOverlays({
   isZh,
   chatStore,

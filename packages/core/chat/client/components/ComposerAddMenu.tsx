@@ -48,6 +48,7 @@ async function readPickedFiles(fileList: FileList): Promise<ComposerAttachment[]
   return attachments;
 }
 
+/** 从输入栏打开附件和上下文菜单，将选中的操作交给父级编辑器执行。 */
 export function ComposerAddMenu({
   locale,
   fileInputRef,

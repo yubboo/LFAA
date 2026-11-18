@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { IconCheck, IconChevronDown, IconSearch } from "@tabler/icons-react";
 import styles from "./GeneralSettingsView.module.css";
 
+/** 描述设置下拉菜单可显示和选中的一个值。 */
 export interface SettingSelectOption<T extends string> {
   value: T;
   label: string;
@@ -10,6 +11,7 @@ export interface SettingSelectOption<T extends string> {
   icon?: ReactNode;
 }
 
+/** 将同一主题的设置行分组，作为常规设置各区块的外层容器。 */
 export function SettingGroupCard({
   title,
   children,
@@ -25,6 +27,7 @@ export function SettingGroupCard({
   );
 }
 
+/** 统一设置条目的标签、说明与右侧操作区域。 */
 export function SettingRow({
   title,
   description,
@@ -45,6 +48,7 @@ export function SettingRow({
   );
 }
 
+/** 用受控开关显示已经生效的布尔设置，变更由调用方持久化。 */
 export function SettingSwitch({
   checked,
   label,
@@ -68,6 +72,7 @@ export function SettingSwitch({
   );
 }
 
+/** 为可枚举的设置项提供搜索和选项弹层，通过值回调更新当前选项。 */
 export function SettingSelect<T extends string>({
   value,
   label,

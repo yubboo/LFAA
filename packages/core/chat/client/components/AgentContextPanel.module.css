@@ -14,6 +14,7 @@
   background-image: var(--glass-sheen, none);
 }
 
+/* 模型、工具和记忆使用同一字段布局，允许较长的状态值换行。 */
 .item {
   display: grid;
   gap: 0.15rem;

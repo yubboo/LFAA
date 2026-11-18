@@ -11,6 +11,7 @@ import { GeneralSettingsGeneralGroup } from "./GeneralSettingsGeneralGroup";
 import { GeneralSettingsSecondary } from "./GeneralSettingsSecondary";
 import styles from "./GeneralSettingsView.module.css";
 
+/** 装配设置分组，加载 Host 偏好并管理开源许可证详情。 */
 export function GeneralSettingsView({
   locale,
   store,

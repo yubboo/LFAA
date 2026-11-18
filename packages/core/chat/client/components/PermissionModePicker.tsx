@@ -11,6 +11,7 @@ import type { AgentPermissionMode } from "../chat-types";
 import type { ChatLocaleMessages } from "../locales";
 import styles from "./PermissionModePicker.module.css";
 
+/** 显示当前 Agent 工具权限模式和选项说明，由聊天 Store 持久化选择。 */
 export function PermissionModePicker({
   locale,
   mode,
@@ -92,10 +93,11 @@ export function PermissionModePicker({
           aria-haspopup="dialog"
           aria-expanded={open}
           aria-label={locale.permissionLabel}
+          aria-description={activeTriggerText}
           onClick={() => setOpen((prev) => !prev)}
         >
           <ActiveIcon size={14} aria-hidden="true" />
-          <span>{activeTriggerText}</span>
+          <span className={styles.triggerLabel}>{activeTriggerText}</span>
         </button>
       </HoverTip>
 

@@ -150,6 +150,7 @@
   font-weight: 500;
 }
 
+/* 文件清单与差异预览在宽屏并排，窄屏由断点切为单列。 */
 .splitGrid {
   display: grid;
   grid-template-columns: minmax(17rem, 23rem) minmax(0, 1fr);
@@ -294,6 +295,7 @@
   overflow-x: hidden;
 }
 
+/* 差异预览保留代码缩进，增删与区块标题使用不同状态样式。 */
 .diffBox {
   box-sizing: border-box;
   width: 100%;
@@ -367,6 +369,7 @@
   font-size: 0.82em;
 }
 
+/* 空间不足时将清单和差异预览叠放，给代码行保留横向宽度。 */
 @media (max-width: 960px) {
   .splitGrid {
     grid-template-columns: 1fr;

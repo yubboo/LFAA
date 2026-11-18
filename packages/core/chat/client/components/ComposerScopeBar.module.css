@@ -122,6 +122,7 @@
   color: var(--color-muted);
 }
 
+/* 列表内容独立滚动，项目搜索和工作位置保持可访问。 */
 .list {
   display: grid;
   gap: 0.14rem;
@@ -219,6 +220,7 @@
   line-height: 1.45;
 }
 
+/* 移动端将浮层宽度限制在视口内，保留项目搜索和选择。 */
 @media (max-width: 640px) {
   .shelf {
     margin-inline: 0.45rem;

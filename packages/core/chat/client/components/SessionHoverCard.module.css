@@ -28,6 +28,7 @@
 }
 
 .metaRow,
+/* 未读标记和会话归属、时间一起呈现在预览信息区。 */
 .unreadRow {
   display: flex;
   align-items: center;

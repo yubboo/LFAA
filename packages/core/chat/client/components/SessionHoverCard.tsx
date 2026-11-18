@@ -16,6 +16,7 @@ function formatUpdatedTime(ts: number, isZh: boolean): string {
   return `Updated ${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}, ${hh}:${mm}`;
 }
 
+/** 在侧栏行附近预览会话名称、归属和时间，避免切换当前会话。 */
 export function SessionHoverCard({
   isZh,
   session,

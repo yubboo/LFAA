@@ -40,6 +40,7 @@ import {
 
 type IconComponent = typeof IconHomeFilled;
 
+/** 限制工作台导航可以引用的图标名，确保名称能映射到共享图标集合。 */
 export type NavigationIconName =
   | "home" | "images" | "scheduled" | "library" | "plugins" | "more" | "sites"
   | "companion" | "bell" | "search" | "newChat" | "project" | "filter" | "plus"

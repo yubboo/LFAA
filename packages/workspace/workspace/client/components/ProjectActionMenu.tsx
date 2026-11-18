@@ -17,6 +17,7 @@ import type { WorkspaceLocaleMessages } from "../locales";
 import type { HoverAnchorRect } from "./ProjectHoverCard";
 import styles from "./ProjectActionMenu.module.css";
 
+/** 把置顶、编辑、分区移动与移出动作绑定到当前项目。 */
 export function ProjectActionMenu({
   locale,
   project,

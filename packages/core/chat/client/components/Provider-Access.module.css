@@ -1,0 +1,55 @@
+/* 提供商接入方式选择弹窗，复用工作台的浅色和深色主题变量。 */
+.choices {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.heading {
+  margin: 0.2rem 0 0;
+  color: var(--color-muted);
+  font-size: 0.82em;
+  font-weight: 600;
+}
+
+.choice {
+  display: grid;
+  gap: 0.2rem;
+  min-height: 2.75rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.7rem;
+  background: var(--color-panel);
+  color: var(--color-ink);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+/* 窄屏允许套餐名与重新配置提示分行。 */
+.choiceHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 0.65rem;
+}
+
+.reconfigure {
+  color: var(--color-ink);
+  font-size: 0.85em;
+}
+
+.description {
+  color: var(--color-muted);
+  font-size: 0.85em;
+}
+
+.choice:hover {
+  background: var(--color-active);
+}
+
+/* 通过键盘返回时保留原选项的焦点指示。 */
+.choice:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}

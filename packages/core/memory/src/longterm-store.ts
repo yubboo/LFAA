@@ -12,6 +12,7 @@ function tokenizeQuery(text: string): string[] {
   return [...new Set([...words, ...cjk])];
 }
 
+/** 读写按项目或全局范围保存的长期记忆，提供会话恢复所需的查询入口。 */
 export class LongTermMemoryStore {
   constructor(private filePath: string) {}
 

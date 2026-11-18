@@ -5,6 +5,7 @@
   align-items: center;
 }
 
+/* 提示相对触发元素定位，悬停和键盘聚焦共用显示规则。 */
 .tip {
   position: absolute;
   bottom: calc(100% + 0.45rem);

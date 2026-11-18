@@ -6,6 +6,7 @@ export const WORKBENCH_REGIONS = [
   "context-panel",
 ] as const;
 
+/** 限定插件可注册面板内容的工作台区域。 */
 export type WorkbenchRegion = (typeof WORKBENCH_REGIONS)[number];
 
 // 业务插件注册的本地或远端项目摘要结构，不绑定具体存储或 React 实现。
@@ -67,6 +68,7 @@ export interface WorkbenchSectionProvider<TContent = unknown> {
   renderOverlays: () => TContent;
 }
 
+/** 约定聊天插件向导航提供的会话摘要。 */
 export interface WorkbenchChatSessionSummary {
   id: string;
   title: string;
@@ -80,6 +82,7 @@ export interface WorkbenchChatSessionSummary {
   updatedAt: number;
 }
 
+/** 规定工作台访问会话列表与会话动作的插件契约。 */
 export interface WorkbenchChatProvider<TContent = unknown> {
   getSessions: () => WorkbenchChatSessionSummary[];
   getActiveSessionId: () => string | null;

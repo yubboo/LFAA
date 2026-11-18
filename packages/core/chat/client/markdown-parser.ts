@@ -2,6 +2,7 @@
 
 export type TableAlign = "left" | "center" | "right";
 
+/** 描述解析出的 Markdown 文档块，由对应视图渲染。 */
 export type MarkdownBlock =
   | { type: "heading"; level: number; text: string }
   | { type: "code"; language: string; code: string }
@@ -11,6 +12,7 @@ export type MarkdownBlock =
   | { type: "hr" }
   | { type: "paragraph"; text: string };
 
+/** 区分代码词元的着色类别，交给渲染层应用样式。 */
 export type CodeTokenKind =
   | "keyword"
   | "string"
@@ -20,6 +22,7 @@ export type CodeTokenKind =
   | "function"
   | "plain";
 
+/** 保存代码片段与其着色类别。 */
 export interface CodeToken {
   kind: CodeTokenKind;
   text: string;

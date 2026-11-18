@@ -1,5 +1,6 @@
 // 定义外观与液态玻璃主题系统的数据模型、预设配置及安全序列化工具。
 export type AppearanceMode = "light" | "dark" | "system";
+/** 用稳定标识保存主题预设的选中状态。 */
 export type ThemePresetId = "liquidGlass" | "classic" | "softMist" | "midnightInk";
 export type AccentPresetId = "default" | "blue" | "green" | "yellow" | "pink" | "orange" | "purple" | "white" | "custom";
 export type UiFontId = "system" | "sans" | "serif" | "mono";
@@ -9,6 +10,7 @@ export type FontWeightId = "normal" | "medium" | "semibold";
 export type ReducedMotionMode = "system" | "on" | "off";
 export type DiffMarkerMode = "color" | "markers";
 
+/** 描述一种明暗主题下可单独配置的颜色与呈现设置。 */
 export interface ThemeVariantSettings {
   accent: AccentPresetId;
   customAccent: string;
@@ -17,6 +19,7 @@ export interface ThemeVariantSettings {
   font: UiFontId;
 }
 
+/** 描述外观偏好完整结构，包含主题模式、预设和字体等选项。 */
 export interface AppearanceConfig {
   mode: AppearanceMode;
   preset: ThemePresetId;
@@ -35,6 +38,7 @@ export interface AppearanceConfig {
   pointerCursor: boolean;
 }
 
+/** 定义主题选择器可展示并应用的预设内容。 */
 export interface ThemePresetDefinition {
   id: ThemePresetId;
   labelZh: string;
@@ -44,6 +48,7 @@ export interface ThemePresetDefinition {
   dark: { background: string; foreground: string; accent: AccentPresetId };
 }
 
+/** 提供外观页与主题初始化共用的主题预设。 */
 export const THEME_PRESETS: Record<ThemePresetId, ThemePresetDefinition> = {
   liquidGlass: {
     id: "liquidGlass",
@@ -79,6 +84,7 @@ export const THEME_PRESETS: Record<ThemePresetId, ThemePresetDefinition> = {
   },
 };
 
+/** 集中定义强调色的候选值和展示顺序。 */
 export const ACCENT_PRESETS: Array<{
   id: AccentPresetId;
   color: string;
@@ -96,6 +102,7 @@ export const ACCENT_PRESETS: Array<{
   { id: "custom", color: "#E66AA8", labelZh: "自定义", labelEn: "Custom" },
 ];
 
+/** 按已选 UI 字体映射到浏览器可用的字体回退栈。 */
 export const UI_FONT_STACKS: Record<UiFontId, string> = {
   system: "\"Segoe UI\", \"Microsoft YaHei UI\", system-ui, -apple-system, sans-serif",
   sans: "\"Inter\", \"Segoe UI\", \"PingFang SC\", \"Microsoft YaHei UI\", sans-serif",
@@ -103,6 +110,7 @@ export const UI_FONT_STACKS: Record<UiFontId, string> = {
   mono: "\"JetBrains Mono\", \"Cascadia Code\", \"Consolas\", monospace",
 };
 
+/** 按已选代码字体映射到支持的等宽字体回退栈。 */
 export const CODE_FONT_STACKS: Record<CodeFontId, string> = {
   system: "ui-monospace, \"Cascadia Code\", \"Consolas\", monospace",
   jetbrains: "\"JetBrains Mono\", ui-monospace, \"Consolas\", monospace",
@@ -116,6 +124,7 @@ export const FONT_WEIGHT_VALUES: Record<FontWeightId, string> = {
   semibold: "580",
 };
 
+/** 提供首次打开工作台以及缺少历史设置字段时的外观默认值。 */
 export const DEFAULT_APPEARANCE_CONFIG: AppearanceConfig = {
   mode: "system",
   preset: "liquidGlass",
@@ -146,6 +155,7 @@ export const DEFAULT_APPEARANCE_CONFIG: AppearanceConfig = {
   pointerCursor: true,
 };
 
+/** 整理外部或导入的颜色值，丢弃不符合主题契约的输入。 */
 export function normalizeHexColor(value: string, fallback: string): string {
   const trimmed = value.trim();
   if (/^#[0-9a-fA-F]{6}$/u.test(trimmed)) return trimmed.toUpperCase();
@@ -156,6 +166,7 @@ export function normalizeHexColor(value: string, fallback: string): string {
   return fallback;
 }
 
+/** 从强调色配置解析实际应用于界面的颜色。 */
 export function resolveAccentColor(variant: ThemeVariantSettings, resolvedScheme: "light" | "dark"): string {
   if (variant.accent === "custom") {
     return normalizeHexColor(variant.customAccent, "#E66AA8");

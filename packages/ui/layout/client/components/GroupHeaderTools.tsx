@@ -4,6 +4,7 @@ import type { ProjectSortMode } from "../ui-preferences";
 import { NavigationIcon } from "./NavigationIcon";
 import styles from "./NavigationGroups.module.css";
 
+/** 展示分组排序和快捷创建动作，使分组工具不挤占常规列表行。 */
 export function GroupHeaderTools({
   filterLabel,
   sortByCreatedLabel,

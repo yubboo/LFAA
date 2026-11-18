@@ -5,6 +5,7 @@ import type { NavigationView } from "../navigation";
 import { SETTINGS_CATALOG } from "../settings-catalog";
 import { SidebarSectionList, type SidebarGroupConfig } from "./SidebarSectionList";
 
+/** 把设置目录映射到左栏分组，保持不可用项与当前设置页状态一致。 */
 export function SettingsMenu({
   locale,
   activeView,

@@ -32,6 +32,7 @@ const SLIDER_METEORS: ReadonlyArray<{
   { top: "22%", size: "2.6px", driftY: "1.6px", delaySec: 2.75, durationSec: 3.75 },
 ];
 
+/** 定义离散档位和当前选择，使滑块不依赖具体业务模型。 */
 export interface StepSliderPopoverProps<T extends string = string> {
   options: Array<StepSliderOption<T>>;
   value: T;
@@ -42,6 +43,7 @@ export interface StepSliderPopoverProps<T extends string = string> {
   onChange: (nextValue: T) => void;
 }
 
+/** 把拖拽、点击和键盘输入转换为离散档位，并通过回调提交选择。 */
 export function StepSliderPopover<T extends string = string>({
   options,
   value,
