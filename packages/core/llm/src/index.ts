@@ -4,19 +4,28 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { type Context, Service } from "@deepseek-ai/cordis";
+import { callAnthropicMessagesApi } from "./anthropic-adapter";
+import { fetchOfficialModels, normalizeModelCapability, resolveModelCapabilities } from "./capabilities";
+import { callGeminiGenerateContentApi } from "./gemini-adapter";
 import { callOpenAiCompatibleChat } from "./openai-adapter";
+import { asApiProtocol, resolveEffectiveProtocol } from "./protocol-utils";
+import { callOpenAiResponsesApi } from "./responses-adapter";
 import type {
   LlmAdapter,
+  LlmApiProtocol,
   LlmGenerateInput,
   LlmGenerateOutput,
   LlmProfile,
   LlmProviderKind,
+  ModelCapabilityInfo,
   PublicLlmProfile,
   SaveLlmProfileInput,
 } from "./types";
 
 export * from "./types";
+export { fetchOfficialModels, formatLlmHttpError, resolveModelCapabilities } from "./capabilities";
 export { createLlmHttpHandler } from "./http-handler";
+export { asApiProtocol, resolveEffectiveProtocol } from "./protocol-utils";
 
 export interface LlmPluginConfig {
   storeFilePath?: string;
@@ -74,14 +83,24 @@ export function maskApiKey(apiKey: string): string {
 }
 
 export function toPublicProfile(profile: LlmProfile): PublicLlmProfile {
+  const models =
+    profile.availableModels && profile.availableModels.length > 0
+      ? profile.availableModels.map((m) => normalizeModelCapability(m, profile.kind))
+      : [resolveModelCapabilities(profile.model, profile.kind)];
+  const hasApiKey = profile.apiKey.trim().length > 0;
+  const apiProtocol = resolveEffectiveProtocol(profile);
   return {
     id: profile.id,
+    ...(profile.providerId ? { providerId: profile.providerId } : {}),
     name: profile.name,
     kind: profile.kind,
+    apiProtocol,
     baseUrl: profile.baseUrl,
     model: profile.model,
-    hasApiKey: profile.apiKey.trim().length > 0,
+    hasApiKey,
     apiKeyMasked: maskApiKey(profile.apiKey),
+    configured: Boolean(profile.configured || hasApiKey),
+    availableModels: models,
     ...(typeof profile.temperature === "number" ? { temperature: profile.temperature } : {}),
     ...(typeof profile.maxTokens === "number" ? { maxTokens: profile.maxTokens } : {}),
     updatedAt: profile.updatedAt,
@@ -109,17 +128,31 @@ function sanitizeStoredConfig(raw: unknown): StoredLlmConfig {
             && typeof item.baseUrl === "string"
             && typeof item.model === "string",
         )
-        .map((item) => ({
-          id: item.id as string,
-          name: item.name as string,
-          kind: item.kind as LlmProviderKind,
-          baseUrl: item.baseUrl as string,
-          model: item.model as string,
-          apiKey: typeof item.apiKey === "string" ? item.apiKey : "",
-          ...(typeof item.temperature === "number" ? { temperature: item.temperature } : {}),
-          ...(typeof item.maxTokens === "number" ? { maxTokens: item.maxTokens } : {}),
-          updatedAt: typeof item.updatedAt === "number" ? item.updatedAt : Date.now(),
-        }))
+        .map((item) => {
+          const kind = item.kind as LlmProviderKind;
+          const modelStr = item.model as string;
+          const apiKeyStr = typeof item.apiKey === "string" ? item.apiKey : "";
+          const rawModels = Array.isArray(item.availableModels) ? item.availableModels : [];
+          const parsedModels: ModelCapabilityInfo[] = rawModels
+            .filter((m): m is ModelCapabilityInfo => typeof m === "object" && m !== null && typeof (m as { id?: unknown }).id === "string")
+            .map((m) => normalizeModelCapability(m, kind));
+          const apiProtocol = asApiProtocol(item.apiProtocol);
+          return {
+            id: item.id as string,
+            ...(typeof item.providerId === "string" && item.providerId.trim() ? { providerId: item.providerId.trim() } : {}),
+            name: item.name as string,
+            kind,
+            ...(apiProtocol ? { apiProtocol } : {}),
+            baseUrl: item.baseUrl as string,
+            model: modelStr,
+            apiKey: apiKeyStr,
+            ...(typeof item.configured === "boolean" ? { configured: item.configured } : {}),
+            ...(parsedModels.length > 0 ? { availableModels: parsedModels } : {}),
+            ...(typeof item.temperature === "number" ? { temperature: item.temperature } : {}),
+            ...(typeof item.maxTokens === "number" ? { maxTokens: item.maxTokens } : {}),
+            updatedAt: typeof item.updatedAt === "number" ? item.updatedAt : Date.now(),
+          };
+        })
     : [];
 
   if (profiles.length === 0) {
@@ -135,7 +168,21 @@ function sanitizeStoredConfig(raw: unknown): StoredLlmConfig {
   return { activeProfileId: activeId, profiles };
 }
 
-// Host 侧 LLM 大脑服务：管理模型配置并将推理任务转发给标准适配器。
+async function dispatchByProtocol(profile: LlmProfile, input: LlmGenerateInput): Promise<LlmGenerateOutput> {
+  const protocol = resolveEffectiveProtocol(profile);
+  if (protocol === "openai-responses") {
+    return callOpenAiResponsesApi(profile, input);
+  }
+  if (protocol === "anthropic-messages") {
+    return callAnthropicMessagesApi(profile, input);
+  }
+  if (protocol === "gemini-generate-content") {
+    return callGeminiGenerateContentApi(profile, input);
+  }
+  return callOpenAiCompatibleChat(profile, input);
+}
+
+// Host 侧 LLM 大脑服务：管理模型配置并将推理任务按协议分发至对应适配器。
 export class LlmService extends Service {
   private readonly storeFilePath: string;
   private readonly adapter: LlmAdapter;
@@ -143,7 +190,7 @@ export class LlmService extends Service {
   constructor(ctx: Context, config: LlmPluginConfig = {}) {
     super(ctx, "llm");
     this.storeFilePath = config.storeFilePath ? resolve(config.storeFilePath) : DEFAULT_LLM_STORE_PATH;
-    this.adapter = config.adapter ?? callOpenAiCompatibleChat;
+    this.adapter = config.adapter ?? dispatchByProtocol;
   }
 
   private async readConfig(): Promise<StoredLlmConfig> {
@@ -191,13 +238,22 @@ export class LlmService extends Service {
 
     const config = await this.readConfig();
     const existing = input.id ? config.profiles.find((p) => p.id === input.id) : undefined;
+    const providerId = input.providerId?.trim() || existing?.providerId;
+    const apiProtocol = asApiProtocol(input.apiProtocol) ?? existing?.apiProtocol;
+    const finalApiKey = input.apiKey !== undefined ? input.apiKey.trim() : (existing?.apiKey ?? "");
+    const availableModels = input.availableModels ?? existing?.availableModels;
+    const configured = input.configured ?? (finalApiKey.length > 0 || input.kind === "ollama");
     const nextProfile: LlmProfile = {
       id: existing?.id ?? input.id?.trim() ?? randomUUID(),
+      ...(providerId ? { providerId } : {}),
       name,
       kind: input.kind,
+      ...(apiProtocol ? { apiProtocol } : {}),
       baseUrl: baseUrl.replace(/\/+$/u, ""),
       model,
-      apiKey: input.apiKey !== undefined ? input.apiKey.trim() : (existing?.apiKey ?? ""),
+      apiKey: finalApiKey,
+      configured,
+      ...(availableModels && availableModels.length > 0 ? { availableModels } : {}),
       ...(typeof input.temperature === "number" ? { temperature: input.temperature } : {}),
       ...(typeof input.maxTokens === "number" ? { maxTokens: input.maxTokens } : {}),
       updatedAt: Date.now(),
@@ -238,6 +294,58 @@ export class LlmService extends Service {
   async complete(input: LlmGenerateInput): Promise<LlmGenerateOutput> {
     const profile = await this.resolveProfile(input.profileId);
     return this.adapter(profile, input);
+  }
+
+  async listRemoteModels(input: {
+    profileId?: string;
+    kind?: LlmProviderKind;
+    apiProtocol?: LlmApiProtocol;
+    baseUrl?: string;
+    apiKey?: string;
+  }): Promise<ModelCapabilityInfo[]> {
+    const config = await this.readConfig();
+    const existing = input.profileId ? config.profiles.find((p) => p.id === input.profileId) : undefined;
+    const kind = input.kind ?? existing?.kind ?? "openai-compatible";
+    const apiProtocol = asApiProtocol(input.apiProtocol) ?? existing?.apiProtocol;
+    const baseUrl = input.baseUrl?.trim() || existing?.baseUrl || "";
+    const apiKey = input.apiKey?.trim() || existing?.apiKey || "";
+    const models = await fetchOfficialModels({
+      kind,
+      ...(apiProtocol ? { apiProtocol } : {}),
+      baseUrl,
+      apiKey,
+    });
+    if (existing) {
+      const nextModel = models.some((m) => m.id === existing.model) ? existing.model : (models[0]?.id ?? existing.model);
+      const updated = config.profiles.map((p) =>
+        p.id === existing.id
+          ? {
+              ...p,
+              ...(apiProtocol ? { apiProtocol } : {}),
+              model: nextModel,
+              availableModels: models,
+              configured: true,
+              updatedAt: Date.now(),
+            }
+          : p,
+      );
+      await this.writeConfig({ ...config, profiles: updated });
+    }
+    return models;
+  }
+
+  async selectProfileModel(profileId: string, modelId: string): Promise<PublicLlmProfile> {
+    const cleanModel = modelId.trim();
+    if (!cleanModel) throw new Error("模型 ID 不能为空。");
+    const config = await this.readConfig();
+    const found = config.profiles.find((p) => p.id === profileId);
+    if (!found) throw new Error(`找不到模型配置：${profileId}`);
+    const nextList = config.profiles.map((p) =>
+      p.id === profileId ? { ...p, model: cleanModel, updatedAt: Date.now() } : p,
+    );
+    await this.writeConfig({ activeProfileId: profileId, profiles: nextList });
+    const updated = nextList.find((p) => p.id === profileId)!;
+    return toPublicProfile(updated);
   }
 
   async testConnection(profileId?: string): Promise<{ ok: boolean; model: string; replyPreview: string }> {

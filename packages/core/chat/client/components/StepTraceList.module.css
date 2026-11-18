@@ -5,6 +5,115 @@
   margin-bottom: 0.65rem;
 }
 
+.liveStatusPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: fit-content;
+  padding: 0.34rem 0.72rem;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--glass-card-bg, var(--color-surface));
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.84em;
+  cursor: pointer;
+}
+
+.liveStatusPill:hover {
+  background: var(--color-active);
+}
+
+.livePulseDot {
+  width: 0.46rem;
+  height: 0.46rem;
+  border-radius: 999px;
+  animation: livePulse 1.3s ease-in-out infinite;
+}
+
+.liveDot_think {
+  background: #818cf8;
+  box-shadow: 0 0 0 3px rgb(129 140 248 / 0.2);
+}
+
+.liveDot_explore {
+  background: #38bdf8;
+  box-shadow: 0 0 0 3px rgb(56 189 248 / 0.2);
+}
+
+.liveDot_act {
+  background: #fb923c;
+  box-shadow: 0 0 0 3px rgb(251 146 60 / 0.2);
+}
+
+.liveDot_reply {
+  background: #34d399;
+  box-shadow: 0 0 0 3px rgb(52 211 153 / 0.2);
+}
+
+.liveDot_approval {
+  background: #f59e0b;
+  box-shadow: 0 0 0 3px rgb(245 158 11 / 0.22);
+}
+
+@keyframes livePulse {
+  0%, 100% {
+    opacity: 0.55;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+.liveStatusText {
+  font-weight: 500;
+}
+
+.liveCountBadge {
+  color: var(--color-muted);
+  font-size: 0.9em;
+}
+
+.chevronOpen {
+  transform: rotate(90deg);
+}
+
+.summaryRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.thoughtSummaryBtn,
+.exploreBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.26rem 0.62rem;
+  border-radius: 999px;
+  font-size: 0.82em;
+  color: var(--color-muted);
+}
+
+.thoughtSummaryBtn {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  padding-left: 0.2rem;
+}
+
+.thoughtSummaryBtn:hover {
+  color: var(--color-ink);
+}
+
+.exploreBadge {
+  border: 1px solid var(--color-line);
+  background: var(--glass-control-bg, var(--color-panel));
+}
+
 .traceToggle {
   display: inline-flex;
   align-items: center;
@@ -107,6 +216,11 @@
   background: rgb(var(--color-accent-rgb, 230 106 168) / 0.08);
 }
 
+.approvalCardRisk {
+  border-color: rgb(234 88 12 / 0.55);
+  background: rgb(234 88 12 / 0.1);
+}
+
 .approvalHeader {
   display: flex;
   align-items: center;
@@ -115,6 +229,21 @@
   color: var(--color-ink);
   font-size: 0.9em;
   font-weight: 600;
+}
+
+.approvalHint,
+.approvalHintRisk {
+  margin: 0;
+  font-size: 0.8em;
+  line-height: 1.45;
+}
+
+.approvalHint {
+  color: var(--color-muted);
+}
+
+.approvalHintRisk {
+  color: #fb923c;
 }
 
 .approvalArgs {

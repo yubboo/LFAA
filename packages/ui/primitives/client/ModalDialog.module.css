@@ -1,0 +1,163 @@
+/* @lfaa/ui-primitives 居中弹窗通用样式：遮罩、弹窗尺寸与统一进场动效预设（scale / fade / slide-up）。 */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: rgb(0 0 0 / 0.54);
+  backdrop-filter: blur(6px);
+  animation: lfaaBackdropIn 160ms ease-out;
+}
+
+.dialog {
+  width: 100%;
+  max-height: min(86vh, 46rem);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  border: 1px solid var(--glass-border, var(--color-line));
+  border-radius: 1rem;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  box-shadow: 0 24px 64px rgb(0 0 0 / 0.56);
+  overflow: hidden;
+}
+
+.sizeSm {
+  max-width: 26rem;
+}
+
+.sizeMd {
+  max-width: 34rem;
+}
+
+.sizeLg {
+  max-width: 46rem;
+}
+
+.animScale {
+  animation: lfaaModalScaleIn 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.animFade {
+  animation: lfaaBackdropIn 160ms ease-out;
+}
+
+.animSlideUp {
+  animation: lfaaModalSlideUp 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.9rem;
+  padding: 1.05rem 1.25rem 0.9rem;
+  border-bottom: 1px solid rgb(255 255 255 / 0.1);
+  background: rgb(255 255 255 / 0.02);
+}
+
+.titleWrap {
+  display: flex;
+  align-items: center;
+  gap: 0.72rem;
+  min-width: 0;
+}
+
+.iconSlot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.3rem;
+  height: 2.3rem;
+  border-radius: 0.68rem;
+  border: 1px solid var(--color-line);
+  background: var(--color-panel);
+  flex: 0 0 auto;
+}
+
+.titleText {
+  display: grid;
+  gap: 0.14rem;
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.02em;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.subtitle {
+  margin: 0;
+  font-size: 0.8em;
+  color: var(--color-muted);
+}
+
+.closeBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border: 1px solid transparent;
+  border-radius: 0.55rem;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.closeBtn:hover {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.body {
+  padding: 1.05rem 1.25rem;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+  padding: 0.85rem 1.25rem 1.05rem;
+  border-top: 1px solid var(--color-line);
+}
+
+@keyframes lfaaBackdropIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes lfaaModalScaleIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes lfaaModalSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

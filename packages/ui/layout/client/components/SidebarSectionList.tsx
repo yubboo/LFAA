@@ -7,7 +7,12 @@ export interface SidebarItemConfig {
   id: string;
   label: string;
   icon: NavigationIconName;
+  nested?: boolean;
+  hideIcon?: boolean;
+  expanded?: boolean;
   active?: boolean;
+  unread?: boolean;
+  trailingHint?: string;
   title?: string;
   onClick: () => void;
   actions?: ReactNode;
@@ -15,6 +20,7 @@ export interface SidebarItemConfig {
   draggableProjectId?: string;
   onMouseEnter?: (element: HTMLElement) => void;
   onMouseLeave?: () => void;
+  onDoubleClick?: () => void;
 }
 
 export interface SidebarGroupConfig {
@@ -126,7 +132,7 @@ export function SidebarSectionList({
                       item.actions ? (
                         <div
                           key={item.id}
-                          className={`${styles.itemRow} ${item.active ? styles.itemActive : ""}`}
+                          className={`${styles.itemRow} ${item.nested ? styles.itemNested : ""} ${item.active ? styles.itemActive : ""}`}
                           data-sidebar-item={item.id}
                           data-actions-visible={item.actionsVisible ? "true" : undefined}
                           draggable={Boolean(item.draggableProjectId)}
@@ -141,12 +147,18 @@ export function SidebarSectionList({
                             type="button"
                             className={styles.itemMain}
                             aria-current={item.active ? "page" : undefined}
-                            title={item.title ?? item.label}
+                            aria-expanded={item.expanded}
+                            title={item.onMouseEnter ? undefined : (item.title ?? item.label)}
                             onClick={item.onClick}
+                            onDoubleClick={item.onDoubleClick}
                           >
-                            <NavigationIcon name={item.icon} />
+                            {!item.hideIcon && <NavigationIcon name={item.icon} />}
                             <span className={styles.label}>{item.label}</span>
+                            {item.unread && <span className={styles.unreadDot} aria-label="未读" />}
                           </button>
+                          {item.trailingHint && (
+                            <span className={styles.trailingHint}>{item.trailingHint}</span>
+                          )}
                           <div className={styles.rowActions}>
                             {item.actions}
                           </div>
@@ -155,12 +167,12 @@ export function SidebarSectionList({
                         <button
                           key={item.id}
                           type="button"
-                          className={`${styles.item} ${item.active ? styles.itemActive : ""}`}
+                          className={`${styles.item} ${item.nested ? styles.itemNested : ""} ${item.active ? styles.itemActive : ""}`}
                           aria-current={item.active ? "page" : undefined}
-                          title={item.title ?? item.label}
+                          title={item.onMouseEnter ? undefined : (item.title ?? item.label)}
                           onClick={item.onClick}
                         >
-                          <NavigationIcon name={item.icon} />
+                          {!item.hideIcon && <NavigationIcon name={item.icon} />}
                           <span className={styles.label}>{item.label}</span>
                         </button>
                       )

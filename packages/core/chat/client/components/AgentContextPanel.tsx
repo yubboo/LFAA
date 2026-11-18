@@ -18,6 +18,19 @@ export function AgentContextPanel({
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
   const activeProfile = state.profiles.find((p) => p.id === state.activeProfileId) ?? state.profiles[0];
   const activeRulesCount = state.rules.filter((r) => r.content.trim().length > 0).length;
+  const trustedPatternCount = Object.values(state.smartTrustCounts).filter((count) => count >= 3).length;
+
+  const permissionModeName = state.permissionMode === "full"
+    ? locale.permissionFullLabel
+    : state.permissionMode === "smart"
+      ? locale.permissionSmartLabel
+      : locale.permissionAskLabel;
+
+  const toolsValue = state.permissionMode === "full"
+    ? locale.toolsFullAccess
+    : boundProjectName
+      ? `${boundProjectName} · ${locale.toolsReady}`
+      : locale.toolsUnbound;
 
   return (
     <div className={styles.stack}>
@@ -30,8 +43,15 @@ export function AgentContextPanel({
         </div>
         <div className={styles.item}>
           <span className={styles.label}>{locale.toolsLabel}</span>
-          <span className={styles.value}>
-            {boundProjectName ? `${boundProjectName} · ${locale.toolsReady}` : locale.toolsUnbound}
+          <span className={styles.value}>{toolsValue}</span>
+        </div>
+        <div className={styles.item}>
+          <span className={styles.label}>{locale.permissionLabel}</span>
+          <span className={`${styles.value} ${state.permissionMode === "full" ? styles.valueDanger : ""}`}>
+            {permissionModeName}
+            {state.permissionMode === "smart" && trustedPatternCount > 0
+              ? ` · ${locale.smartTrustedPrefix} ${trustedPatternCount} ${locale.smartTrustedSuffix}`
+              : ""}
           </span>
         </div>
         <div className={styles.item}>
@@ -43,6 +63,16 @@ export function AgentContextPanel({
           <span className={styles.value}>{`${activeRulesCount} ${locale.rulesLayersCountSuffix}`}</span>
         </div>
       </div>
+
+      {Object.keys(state.smartTrustCounts).length > 0 && (
+        <button
+          type="button"
+          className={styles.settingsBtn}
+          onClick={() => void store.resetSmartTrust()}
+        >
+          {locale.resetSmartTrust}
+        </button>
+      )}
 
       <button type="button" className={styles.settingsBtn} onClick={onOpenSettings}>
         {locale.openAgentSettings}

@@ -15,6 +15,7 @@
     "@deepseek-ai/cordis": "^4.1.0",
     "@lfaa/memory": "workspace:*",
     "@lfaa/ui-layout": "workspace:*",
+    "@lfaa/ui-primitives": "workspace:*",
     "@tabler/icons-react": "3.52.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"

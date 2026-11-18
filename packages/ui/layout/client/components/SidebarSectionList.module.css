@@ -160,6 +160,14 @@
   color: var(--color-ink);
 }
 
+.itemNested.item {
+  padding-left: 1.7rem;
+}
+
+.itemNested .itemMain {
+  padding-left: 1.7rem;
+}
+
 .itemRow {
   display: flex;
   width: 100%;
@@ -199,26 +207,51 @@
 }
 
 .rowActions {
-  display: inline-flex;
+  display: none;
   flex: 0 0 auto;
   align-items: center;
   gap: 0.1rem;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 140ms ease;
+}
+
+.trailingHint {
+  flex: 0 0 auto;
+  padding-right: 0.35rem;
+  font-size: 0.78em;
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+
+.unreadDot {
+  flex: 0 0 auto;
+  width: 0.44rem;
+  height: 0.44rem;
+  margin-left: auto;
+  border-radius: 999px;
+  /* 跟随当前主题强调色与柔和外圈光晕 */
+  background: var(--color-accent, #3b82f6);
+  box-shadow: 0 0 0 3.5px rgb(var(--color-accent-rgb, 59 130 246) / 0.2);
+}
+
+.itemRow:hover .trailingHint,
+.itemRow:has(:focus-visible) .trailingHint,
+.itemRow[data-actions-visible="true"] .trailingHint {
+  display: none;
 }
 
 .itemRow:hover .rowActions,
 .itemRow:has(:focus-visible) .rowActions,
 .itemRow[data-actions-visible="true"] .rowActions {
-  opacity: 1;
-  pointer-events: auto;
+  display: inline-flex;
 }
 
 @media (hover: none) and (pointer: coarse) {
+  .trailingHint {
+    display: none;
+  }
+
   .rowActions {
+    display: inline-flex;
     opacity: 0.9;
-    pointer-events: auto;
   }
 }
 

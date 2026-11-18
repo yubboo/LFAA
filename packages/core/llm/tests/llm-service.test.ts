@@ -65,3 +65,283 @@ test("Host llmPlugin 支持模型配置保存、脱敏读取、切换及 dispose
     await fs.rm(tempRoot, { recursive: true, force: true });
   }
 });
+
+test("resolveModelCapabilities 与 normalizeModelCapability 采信真实官方 effort 档位", async () => {
+  const { resolveModelCapabilities, normalizeModelCapability, mapEffortForModelApi } = await import("../src/capabilities");
+
+  const dsChat = resolveModelCapabilities("deepseek-chat", "deepseek");
+  assert.equal(dsChat.supportsReasoning, false);
+  assert.equal(dsChat.reasoningMode, "none");
+  assert.deepEqual(dsChat.reasoningLevels, []);
+
+  const dsFlash = normalizeModelCapability({
+    id: "deepseek-flash",
+    displayName: "DeepSeek-V4.1-Flash",
+    supportsReasoning: true,
+    reasoningMode: "effort",
+    reasoningLevels: ["low", "high", "max"],
+    defaultReasoningLevel: "high",
+  });
+  assert.equal(dsFlash.reasoningMode, "effort");
+  assert.deepEqual(dsFlash.reasoningLevels, ["low", "high", "max"]);
+  assert.equal(dsFlash.defaultReasoningLevel, "high");
+  assert.equal(mapEffortForModelApi("max", dsFlash), "max");
+  assert.equal(mapEffortForModelApi("medium", dsFlash), "high");
+
+  const o3Cap = resolveModelCapabilities("o3-mini", "openai-compatible");
+  assert.equal(o3Cap.reasoningMode, "effort");
+  assert.deepEqual(o3Cap.reasoningLevels, ["low", "medium", "high"]);
+  assert.equal(mapEffortForModelApi("max", o3Cap), "high");
+});
+
+test("formatLlmHttpError 覆盖 DeepSeek 官方 10 类 HTTP 错误码说明", async () => {
+  const { formatLlmHttpError } = await import("../src/capabilities");
+  const expectedCodes: Array<[number, string]> = [
+    [400, "400 格式错误"],
+    [401, "401 认证失败"],
+    [402, "402 余额不足"],
+    [408, "408 请求超时"],
+    [413, "413 请求体过大"],
+    [422, "422 参数错误"],
+    [429, "429 请求速率达到上限"],
+    [500, "500 服务器故障"],
+    [503, "503 服务器繁忙"],
+    [504, "504 网关超时"],
+  ];
+  for (const [code, label] of expectedCodes) {
+    const formatted = formatLlmHttpError(code, JSON.stringify({ error: { message: "detail" } }), "Err");
+    assert.ok(formatted.includes(label), `应包含 ${label}`);
+    assert.ok(formatted.includes("detail"), `应附带上游明细`);
+  }
+});
+
+test("DeepSeek 思考模式下多轮工具调用必须附带 thinking 与 reasoning_content", async () => {
+  const { callOpenAiCompatibleChat } = await import("../src/openai-adapter");
+  const capturedBodies: Array<Record<string, unknown>> = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (_url, init) => {
+    if (typeof init?.body === "string") {
+      capturedBodies.push(JSON.parse(init.body) as Record<string, unknown>);
+    }
+    return new Response(
+      JSON.stringify({
+        model: "deepseek-flash",
+        choices: [{ message: { role: "assistant", content: "OK" }, finish_reason: "stop" }],
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+  }) as typeof fetch;
+
+  try {
+    await callOpenAiCompatibleChat(
+      {
+        id: "ds",
+        name: "DeepSeek",
+        kind: "deepseek",
+        baseUrl: "https://api.deepseek.com/v1",
+        apiKey: "sk-test",
+        model: "deepseek-flash",
+        availableModels: [
+          {
+            id: "deepseek-flash",
+            supportsReasoning: true,
+            reasoningMode: "effort",
+            reasoningLevels: ["low", "high", "max"],
+            defaultReasoningLevel: "high",
+          },
+        ],
+        updatedAt: 1,
+      },
+      {
+        reasoningEffort: "high",
+        messages: [
+          { role: "user", content: "hi" },
+          {
+            role: "assistant",
+            content: "",
+            reasoningContent: "need check",
+            toolCalls: [{ id: "c1", name: "list_dir", argumentsJson: "{}" }],
+          },
+          { role: "tool", toolCallId: "c1", content: "ok" },
+        ],
+      },
+    );
+
+    assert.equal(capturedBodies.length, 1);
+    const body = capturedBodies[0]!;
+    assert.deepEqual(body.thinking, { type: "enabled" });
+    assert.equal(body.reasoning_effort, "high");
+    const msgs = body.messages as Array<Record<string, unknown>>;
+    assert.equal(msgs[1]?.reasoning_content, "need check");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("enrichDeepSeekReleaseNames 从官方文档提取精确版本后缀标签", async () => {
+  const { enrichDeepSeekReleaseNames } = await import("../src/capabilities");
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () =>
+    new Response(
+      "<td>DeepSeek-V4.1-Flash-1017</td><td>DeepSeek-V4-Pro-0813</td>",
+      { status: 200 },
+    )) as typeof fetch;
+
+  try {
+    const out = await enrichDeepSeekReleaseNames([
+      {
+        id: "deepseek-flash",
+        displayName: "DeepSeek-V4.1-Flash",
+        supportsReasoning: true,
+        reasoningMode: "effort",
+        reasoningLevels: ["low", "high", "max"],
+        defaultReasoningLevel: "high",
+      },
+      {
+        id: "deepseek-v4-pro",
+        displayName: "DeepSeek-V4-Pro",
+        supportsReasoning: true,
+        reasoningMode: "effort",
+        reasoningLevels: ["low", "high", "max"],
+        defaultReasoningLevel: "high",
+      },
+    ]);
+    assert.equal(out[0]?.displayName, "DeepSeek-V4.1-Flash-1017");
+    assert.equal(out[1]?.displayName, "DeepSeek-V4-Pro-0813");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("resolveEffectiveProtocol 与四大 API 协议适配器（Responses / Anthropic / Gemini / Chat）请求分发正确", async () => {
+  const { resolveEffectiveProtocol } = await import("../src/protocol-utils");
+  const { callOpenAiResponsesApi } = await import("../src/responses-adapter");
+  const { callAnthropicMessagesApi } = await import("../src/anthropic-adapter");
+  const { callGeminiGenerateContentApi } = await import("../src/gemini-adapter");
+
+  assert.equal(
+    resolveEffectiveProtocol({ kind: "deepseek", baseUrl: "https://api.deepseek.com/anthropic" }),
+    "anthropic-messages",
+  );
+  assert.equal(
+    resolveEffectiveProtocol({ kind: "openai-compatible", baseUrl: "https://generativelanguage.googleapis.com/v1beta" }),
+    "gemini-generate-content",
+  );
+  assert.equal(
+    resolveEffectiveProtocol({ kind: "openai-compatible", apiProtocol: "openai-responses", baseUrl: "https://api.deepseek.com/v1" }),
+    "openai-responses",
+  );
+
+  const calls: Array<{ url: string; headers: Record<string, string>; body: Record<string, unknown> }> = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (inputUrl, init) => {
+    const url = String(inputUrl);
+    const headers = (init?.headers ?? {}) as Record<string, string>;
+    const body = typeof init?.body === "string" ? (JSON.parse(init.body) as Record<string, unknown>) : {};
+    calls.push({ url, headers, body });
+
+    if (url.endsWith("/responses")) {
+      return new Response(
+        JSON.stringify({
+          model: "deepseek-flash",
+          status: "completed",
+          output: [
+            { type: "reasoning", content: [{ type: "reasoning_text", text: "resp-cot" }] },
+            { type: "message", content: [{ type: "output_text", text: "RESP_OK" }] },
+          ],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }
+    if (url.includes("/messages")) {
+      return new Response(
+        JSON.stringify({
+          model: "deepseek-flash",
+          stop_reason: "end_turn",
+          content: [
+            { type: "thinking", thinking: "ant-cot" },
+            { type: "text", text: "ANT_OK" },
+          ],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }
+    return new Response(
+      JSON.stringify({
+        candidates: [
+          {
+            finishReason: "STOP",
+            content: {
+              parts: [{ thought: true, text: "gem-cot" }, { text: "GEM_OK" }],
+            },
+          },
+        ],
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+  }) as typeof fetch;
+
+  try {
+    const baseMsgs = [
+      { role: "system" as const, content: "Be brief" },
+      { role: "user" as const, content: "ping" },
+    ];
+
+    const rOut = await callOpenAiResponsesApi(
+      {
+        id: "ds-resp",
+        name: "DeepSeek",
+        kind: "deepseek",
+        apiProtocol: "openai-responses",
+        baseUrl: "https://api.deepseek.com/v1",
+        model: "deepseek-flash",
+        apiKey: "sk-test",
+        updatedAt: 1,
+      },
+      { messages: baseMsgs, reasoningEffort: "high" },
+    );
+    assert.equal(rOut.content, "RESP_OK");
+    assert.equal(rOut.reasoningContent, "resp-cot");
+    assert.equal(calls[0]?.url, "https://api.deepseek.com/v1/responses");
+    assert.equal(calls[0]?.body.instructions, "Be brief");
+
+    const aOut = await callAnthropicMessagesApi(
+      {
+        id: "ds-ant",
+        name: "DeepSeek Anthropic",
+        kind: "deepseek",
+        apiProtocol: "anthropic-messages",
+        baseUrl: "https://api.deepseek.com/anthropic",
+        model: "deepseek-flash",
+        apiKey: "sk-test",
+        updatedAt: 1,
+      },
+      { messages: baseMsgs, reasoningEffort: "high" },
+    );
+    assert.equal(aOut.content, "ANT_OK");
+    assert.equal(aOut.reasoningContent, "ant-cot");
+    assert.equal(calls[1]?.url, "https://api.deepseek.com/anthropic/v1/messages");
+    assert.equal(calls[1]?.headers["x-api-key"], "sk-test");
+    assert.equal(calls[1]?.headers["anthropic-version"], "2023-06-01");
+
+    const gOut = await callGeminiGenerateContentApi(
+      {
+        id: "gem",
+        name: "Gemini",
+        kind: "openai-compatible",
+        apiProtocol: "gemini-generate-content",
+        baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+        model: "gemini-2.5-flash",
+        apiKey: "gem-test",
+        updatedAt: 1,
+      },
+      { messages: baseMsgs, reasoningEffort: "high" },
+    );
+    assert.equal(gOut.content, "GEM_OK");
+    assert.equal(gOut.reasoningContent, "gem-cot");
+    assert.equal(calls[2]?.headers["x-goog-api-key"], "gem-test");
+    assert.ok(calls[2]?.url.includes("gemini-2.5-flash:streamGenerateContent"));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

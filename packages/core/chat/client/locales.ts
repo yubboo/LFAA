@@ -1,4 +1,6 @@
 // 管理 @lfaa/chat 浏览器端界面中英文文案字典。
+import { readLocaleOverride } from "./general-settings-client";
+
 export interface ChatLocaleMessages {
   isZh: boolean;
   workspaceTitle: string;
@@ -11,6 +13,17 @@ export interface ChatLocaleMessages {
   deleteChat: string;
   noProjectBound: string;
   bindProject: string;
+  workLocation: string;
+  localComputer: string;
+  cloudLocation: string;
+  cloudDefaultEnv: string;
+  cloudLocationUnavailable: string;
+  selectProject: string;
+  searchProjects: string;
+  noMatchingProjects: string;
+  noProjectsYet: string;
+  createNewProject: string;
+  workOutsideProject: string;
   activeModel: string;
   configureModel: string;
   modelKeyMissingHint: string;
@@ -24,6 +37,102 @@ export interface ChatLocaleMessages {
   approveAction: string;
   rejectAction: string;
   approvalRequiredTitle: string;
+  permissionPromptTitle: string;
+  learnMore: string;
+  permissionAskLabel: string;
+  permissionAskDesc: string;
+  permissionSmartLabel: string;
+  permissionSmartDesc: string;
+  permissionFullShort: string;
+  permissionFullLabel: string;
+  permissionFullDesc: string;
+  permissionLearnMoreText: string;
+  permissionLabel: string;
+  toolsFullAccess: string;
+  smartTrustedPrefix: string;
+  smartTrustedSuffix: string;
+  resetSmartTrust: string;
+  smartProgressPrefix: string;
+  smartProgressSuffix: string;
+  highRiskApprovalHint: string;
+  addContextTooltip: string;
+  addContextMenuTitle: string;
+  ctxFile: string;
+  ctxFolder: string;
+  ctxMention: string;
+  ctxActions: string;
+  ctxBrowser: string;
+  ctxCloudDrive: string;
+  ctxSetUp: string;
+  mentionAddGroup: string;
+  mentionFilesAndFolders: string;
+  mentionUseProject: string;
+  mentionGoalTitle: string;
+  mentionGoalDesc: string;
+  mentionPlanTitle: string;
+  mentionPlanDesc: string;
+  mentionSessionsGroup: string;
+  mentionSessionTag: string;
+  mentionPluginsGroup: string;
+  mentionUnconnectedTag: string;
+  mentionEmpty: string;
+  ctxServiceUnavailable: string;
+  recordAudio: string;
+  stopRecording: string;
+  cancelRunTooltip: string;
+  speechUnsupportedNotice: string;
+  speechErrorPrefix: string;
+  speechLocalRecordingNotice: string;
+  speechTranscribingNotice: string;
+  speechNoResultNotice: string;
+  speechMicPermissionDenied: string;
+  speechMicNotFound: string;
+  speechMicBusy: string;
+  speechNetworkFallbackFailed: string;
+  dismissNoticeLabel: string;
+  libraryTitle: string;
+  librarySubtitle: string;
+  libraryStoragePathLabel: string;
+  manageStorageBtn: string;
+  openStorageDirBtn: string;
+  librarySearchPlaceholder: string;
+  libraryTabAll: string;
+  libraryTabArtifacts: string;
+  libraryTabAssets: string;
+  libraryTabMemories: string;
+  importAssetBtn: string;
+  newAssetNoteBtn: string;
+  artifactBadge: string;
+  assetBadge: string;
+  memoryBadge: string;
+  emptyLibraryHint: string;
+  selectItemPreviewHint: string;
+  copyContentBtn: string;
+  copiedNotice: string;
+  storageTitle: string;
+  storageSubtitle: string;
+  storageCurrentPath: string;
+  storageFixedSessionsLabel: string;
+  storageStatsTitle: string;
+  storageSessionsLabel: string;
+  storageArtifactsLabel: string;
+  storageAssetsLabel: string;
+  storageMemoriesLabel: string;
+  storageTotalSizeLabel: string;
+  storageModeDefaultTitle: string;
+  storageModeDefaultDesc: string;
+  storageModeProjectTitle: string;
+  storageModeProjectDesc: string;
+  storageModeCustomTitle: string;
+  storageModeCustomDesc: string;
+  storageCustomPlaceholder: string;
+  storageDetectingUserPath: string;
+  storageDetectingProjectPath: string;
+  storagePickFolderBtn: string;
+  storageResolvedPreview: string;
+  storageApplyMigrateBtn: string;
+  storageMigratingBtn: string;
+  storageMigrationDone: string;
   reasoningSummary: string;
   stepTimelineTitle: string;
   contextTitle: string;
@@ -75,13 +184,24 @@ const zh: ChatLocaleMessages = {
   workspaceTitle: "首页",
   welcomeHeadline: "我们要做什么？",
   welcomeSubtitle: "支持 LLM 思考规划、工作区工具行动、记忆召回与分层规则约束。",
-  composerPlaceholder: "输入你的任务或问题（Enter 发送，Shift+Enter 换行）",
+  composerPlaceholder: "输入任何问题，输入 @ 提及，/触发操作",
   send: "发送",
   stop: "停止",
   newChat: "新聊天",
   deleteChat: "删除会话",
   noProjectBound: "未绑定项目",
   bindProject: "绑定项目",
+  workLocation: "工作位置",
+  localComputer: "此计算机",
+  cloudLocation: "云端",
+  cloudDefaultEnv: "默认环境",
+  cloudLocationUnavailable: "云端环境暂未接入；当前仅支持本地「此计算机」工作区。",
+  selectProject: "选择项目",
+  searchProjects: "搜索项目",
+  noMatchingProjects: "没有匹配的项目",
+  noProjectsYet: "还没有本地项目",
+  createNewProject: "新建项目",
+  workOutsideProject: "不在项目中工作",
   activeModel: "当前模型",
   configureModel: "配置模型 / 规则",
   modelKeyMissingHint: "当前模型尚未配置 API Key，请点击右侧「配置模型 / 规则」填写或改选本地 Ollama。",
@@ -92,9 +212,105 @@ const zh: ChatLocaleMessages = {
   statusWaitingApproval: "待确认",
   statusDone: "已完成",
   statusError: "异常",
-  approveAction: "批准执行",
-  rejectAction: "拒绝",
-  approvalRequiredTitle: "高风险操作需要你的确认",
+  approveAction: "批准 (Yes)",
+  rejectAction: "拒绝 (No)",
+  approvalRequiredTitle: "操作需要你的确认",
+  permissionPromptTitle: "应如何批准 LFAA 操作？",
+  learnMore: "了解更多",
+  permissionAskLabel: "请求批准",
+  permissionAskDesc: "修改文件、执行命令或访问外部路径时始终询问",
+  permissionSmartLabel: "帮我审批",
+  permissionSmartDesc: "同类操作累计批准 3 次后自动放行；高危操作仍询问",
+  permissionFullShort: "完全访问",
+  permissionFullLabel: "完全访问权限",
+  permissionFullDesc: "可不受限制地访问本机任何文件并自动执行，无需确认",
+  permissionLearnMoreText: "「请求批准」每次写文件或跑命令都会弹出 Yes/No；「帮我审批」会记住你在工作区内的选择，同类常规操作批准满 3 次后自动 Yes，遇到破坏性高危命令仍拦截询问；「完全访问权限」将解除目录沙箱限制并全自动执行。",
+  permissionLabel: "权限策略",
+  toolsFullAccess: "完全访问权限（不限本机目录，全自动执行）",
+  smartTrustedPrefix: "已信任",
+  smartTrustedSuffix: "类操作自动放行",
+  resetSmartTrust: "清空自动放行记忆",
+  smartProgressPrefix: "帮我审批：",
+  smartProgressSuffix: "次，满 3 次起自动放行",
+  highRiskApprovalHint: "检测到高危操作，必须手动确认",
+  addContextTooltip: "添加文件等内容",
+  addContextMenuTitle: "添加上下文",
+  ctxFile: "文件",
+  ctxFolder: "文件夹",
+  ctxMention: "提及",
+  ctxActions: "操作",
+  ctxBrowser: "浏览器",
+  ctxCloudDrive: "云端硬盘",
+  ctxSetUp: "Set up",
+  mentionAddGroup: "添加",
+  mentionFilesAndFolders: "文件和文件夹",
+  mentionUseProject: "在项目中使用 · 选择绑定项目",
+  mentionGoalTitle: "目标",
+  mentionGoalDesc: "设置要持续追求的目标",
+  mentionPlanTitle: "计划模式",
+  mentionPlanDesc: "开启计划模式（先给出方案再执行）",
+  mentionSessionsGroup: "LFAA 对话",
+  mentionSessionTag: "LFAA 对话",
+  mentionPluginsGroup: "插件",
+  mentionUnconnectedTag: "未接入",
+  mentionEmpty: "没有匹配的上下文、对话或插件",
+  ctxServiceUnavailable: "暂未接入此扩展服务，目前支持本地文件、文件夹、项目、目标/计划模式与历史对话引用。",
+  recordAudio: "语音输入",
+  stopRecording: "停止录音",
+  cancelRunTooltip: "取消 (Ctrl+D)",
+  speechUnsupportedNotice: "当前浏览器不支持录音，请确认处于本机 localhost/https 安全环境且麦克风可用。",
+  speechErrorPrefix: "语音输入不可用：",
+  speechLocalRecordingNotice: "正在本地录音（离线识别），再次点击麦克风或按 Ctrl+M 停止并识别...",
+  speechTranscribingNotice: "正在本地识别语音...",
+  speechNoResultNotice: "未识别到清晰语音，请靠近麦克风重试。",
+  speechMicPermissionDenied: "未获得麦克风权限，请在浏览器地址栏允许访问麦克风后重试。",
+  speechMicNotFound: "未检测到可用麦克风设备，请检查本机音频输入设备。",
+  speechMicBusy: "麦克风正被其他程序占用，请释放后重试。",
+  speechNetworkFallbackFailed: "在线语音服务不可用，尝试切换本地离线识别失败：",
+  dismissNoticeLabel: "关闭提示",
+  libraryTitle: "资料库与资产库",
+  librarySubtitle: "本地持久化存储 Agent 长期记忆、Agent 生产产物与工作区资产，内置 Agent 可直接读写并自动归档。",
+  libraryStoragePathLabel: "当前存储目录：",
+  manageStorageBtn: "存储位置设置",
+  openStorageDirBtn: "打开目录",
+  librarySearchPlaceholder: "搜索记忆、产物标题、文件名或标签...",
+  libraryTabAll: "全部",
+  libraryTabArtifacts: "Agent 产物",
+  libraryTabAssets: "本地资产",
+  libraryTabMemories: "Agent 记忆",
+  importAssetBtn: "导入文件",
+  newAssetNoteBtn: "新建资产笔记",
+  artifactBadge: "产物",
+  assetBadge: "资产",
+  memoryBadge: "记忆",
+  emptyLibraryHint: "资料库暂无匹配内容。让 Agent 产出报告/文档或导入本地文件即可在此统一管理。",
+  selectItemPreviewHint: "点击左侧任意产物或资产以查看完整内容与存储路径。",
+  copyContentBtn: "复制内容",
+  copiedNotice: "已复制",
+  storageTitle: "存储与资料库位置",
+  storageSubtitle: "管理 LFAA 资料库（长期记忆、Agent 产物与本地资产）的磁盘位置与无损迁移；历史会话固定存在本机 ~/.lfaa/sessions，不跟随项目移动。",
+  storageCurrentPath: "当前资料库目录（可迁移）",
+  storageFixedSessionsLabel: "历史会话目录（固定随本机用户，不跟随项目）",
+  storageStatsTitle: "本地数据统计",
+  storageSessionsLabel: "历史会话",
+  storageArtifactsLabel: "Agent 产物",
+  storageAssetsLabel: "本地资产",
+  storageMemoriesLabel: "长期记忆",
+  storageTotalSizeLabel: "总占用空间",
+  storageModeDefaultTitle: "默认位置（系统用户目录）",
+  storageModeDefaultDesc: "自动检测当前系统用户目录并在其 .lfaa\\data 下保存，不随单个项目移动。",
+  storageModeProjectTitle: "项目推荐目录（跟随项目走）",
+  storageModeProjectDesc: "自动识别当前项目所在根目录并在其下生成 data 文件夹，便于随项目打包携带。",
+  storageModeCustomTitle: "自定义目录",
+  storageModeCustomDesc: "选择或输入任意本机文件夹，系统将自动在该目录下生成并校验 data 目录。",
+  storageCustomPlaceholder: "输入或选择任意本机文件夹路径，将自动生成 data 子目录",
+  storageDetectingUserPath: "正在自动检测系统用户目录...",
+  storageDetectingProjectPath: "正在自动识别当前项目根目录...",
+  storagePickFolderBtn: "选择文件夹",
+  storageResolvedPreview: "最终将使用并生成目录：",
+  storageApplyMigrateBtn: "应用并无损迁移数据",
+  storageMigratingBtn: "正在迁移并校验...",
+  storageMigrationDone: "已完成无损迁移与校验：",
   reasoningSummary: "查看推理过程",
   stepTimelineTitle: "Agent 循环轨迹",
   contextTitle: "Agent 核心能力",
@@ -146,13 +362,24 @@ const en: ChatLocaleMessages = {
   workspaceTitle: "Home",
   welcomeHeadline: "What should we build?",
   welcomeSubtitle: "Powered by LLM thinking, sandboxed workspace tools, memory recall, and layered rules.",
-  composerPlaceholder: "Ask anything or assign a task (Enter to send, Shift+Enter for newline)",
+  composerPlaceholder: "Ask anything, type @ to mention, / for actions",
   send: "Send",
   stop: "Stop",
   newChat: "New chat",
   deleteChat: "Delete chat",
   noProjectBound: "No project",
   bindProject: "Project",
+  workLocation: "Work location",
+  localComputer: "This computer",
+  cloudLocation: "Cloud",
+  cloudDefaultEnv: "Default environment",
+  cloudLocationUnavailable: "Cloud environments are not connected yet. Using local computer.",
+  selectProject: "Select project",
+  searchProjects: "Search projects",
+  noMatchingProjects: "No matching projects",
+  noProjectsYet: "No local projects yet",
+  createNewProject: "New project",
+  workOutsideProject: "Work without a project",
   activeModel: "Model",
   configureModel: "Models & Rules",
   modelKeyMissingHint: "Selected profile has no API Key yet. Configure it in Settings or choose local Ollama.",
@@ -163,9 +390,105 @@ const en: ChatLocaleMessages = {
   statusWaitingApproval: "Approval",
   statusDone: "Done",
   statusError: "Error",
-  approveAction: "Approve",
-  rejectAction: "Deny",
+  approveAction: "Approve (Yes)",
+  rejectAction: "Deny (No)",
   approvalRequiredTitle: "Action requires your confirmation",
+  permissionPromptTitle: "How should LFAA approve actions?",
+  learnMore: "Learn more",
+  permissionAskLabel: "Ask before acting",
+  permissionAskDesc: "Always ask when editing files or running commands",
+  permissionSmartLabel: "Smart auto-approve",
+  permissionSmartDesc: "Auto-approve after 3 approvals; risky commands still ask",
+  permissionFullShort: "Full access",
+  permissionFullLabel: "Full access",
+  permissionFullDesc: "Unrestricted local file access and auto-execution without prompts",
+  permissionLearnMoreText: "Ask mode prompts Yes/No on every write or command. Smart mode auto-approves the same operation pattern after 3 approvals while keeping high-risk guards active. Full access removes workspace path limits and runs without asking.",
+  permissionLabel: "Permission mode",
+  toolsFullAccess: "Full access (unrestricted local files & auto-run)",
+  smartTrustedPrefix: "Trusted",
+  smartTrustedSuffix: "auto-approved patterns",
+  resetSmartTrust: "Reset smart approvals",
+  smartProgressPrefix: "Smart mode:",
+  smartProgressSuffix: "approvals (auto-yes at 3)",
+  highRiskApprovalHint: "High-risk operation detected; manual confirmation required",
+  addContextTooltip: "Add files and more",
+  addContextMenuTitle: "Add context",
+  ctxFile: "Files",
+  ctxFolder: "Folder",
+  ctxMention: "Mention",
+  ctxActions: "Actions",
+  ctxBrowser: "Browser",
+  ctxCloudDrive: "Cloud Drive",
+  ctxSetUp: "Set up",
+  mentionAddGroup: "Add",
+  mentionFilesAndFolders: "Files & folders",
+  mentionUseProject: "Work in project · Pick project",
+  mentionGoalTitle: "Goal",
+  mentionGoalDesc: "Set a persistent goal to pursue",
+  mentionPlanTitle: "Plan mode",
+  mentionPlanDesc: "Outline a plan before making edits",
+  mentionSessionsGroup: "LFAA Chats",
+  mentionSessionTag: "LFAA Chat",
+  mentionPluginsGroup: "Plugins",
+  mentionUnconnectedTag: "Not connected",
+  mentionEmpty: "No matching context, chats, or plugins",
+  ctxServiceUnavailable: "This extension is not connected yet. Local files, folders, goal/plan modes, and chat references are ready.",
+  recordAudio: "Record Audio",
+  stopRecording: "Stop Recording",
+  cancelRunTooltip: "Cancel (Ctrl+D)",
+  speechUnsupportedNotice: "Microphone recording is unavailable in this browser context.",
+  speechErrorPrefix: "Voice input unavailable: ",
+  speechLocalRecordingNotice: "Recording locally (offline mode). Click mic or press Ctrl+M to finish...",
+  speechTranscribingNotice: "Transcribing locally...",
+  speechNoResultNotice: "No clear speech detected. Please try speaking closer to the mic.",
+  speechMicPermissionDenied: "Microphone permission was denied. Allow microphone access in browser settings.",
+  speechMicNotFound: "No microphone input device was detected on this machine.",
+  speechMicBusy: "The microphone is currently in use by another application.",
+  speechNetworkFallbackFailed: "Online speech service unreachable and local offline recognition failed: ",
+  dismissNoticeLabel: "Dismiss notice",
+  libraryTitle: "Library & Assets",
+  librarySubtitle: "Unified local vault for Agent memories, Agent-produced artifacts, and project assets.",
+  libraryStoragePathLabel: "Storage directory:",
+  manageStorageBtn: "Storage Settings",
+  openStorageDirBtn: "Open Folder",
+  librarySearchPlaceholder: "Search memories, artifacts, filenames, or tags...",
+  libraryTabAll: "All",
+  libraryTabArtifacts: "Artifacts",
+  libraryTabAssets: "Assets",
+  libraryTabMemories: "Memories",
+  importAssetBtn: "Import File",
+  newAssetNoteBtn: "New Asset Note",
+  artifactBadge: "Artifact",
+  assetBadge: "Asset",
+  memoryBadge: "Memory",
+  emptyLibraryHint: "No items match. Ask the Agent to produce an artifact or import local files here.",
+  selectItemPreviewHint: "Select an artifact or asset on the left to preview its content and path.",
+  copyContentBtn: "Copy",
+  copiedNotice: "Copied",
+  storageTitle: "Storage & Library Location",
+  storageSubtitle: "Manage the disk location of Agent memories, outputs, and assets; chat sessions stay fixed in ~/.lfaa/sessions.",
+  storageCurrentPath: "Active Library Directory (Migratable)",
+  storageFixedSessionsLabel: "Chat Sessions Directory (Fixed to OS user, never moves with projects)",
+  storageStatsTitle: "Local Vault Statistics",
+  storageSessionsLabel: "Sessions",
+  storageArtifactsLabel: "Artifacts",
+  storageAssetsLabel: "Assets",
+  storageMemoriesLabel: "Memories",
+  storageTotalSizeLabel: "Total size",
+  storageModeDefaultTitle: "Default location (Current OS user)",
+  storageModeDefaultDesc: "Auto-detects the current OS user home folder and stores under .lfaa/data.",
+  storageModeProjectTitle: "Project recommended (Follow project)",
+  storageModeProjectDesc: "Auto-detects the active project root and stores under its data subfolder.",
+  storageModeCustomTitle: "Custom directory",
+  storageModeCustomDesc: "Pick or enter any folder; LFAA will create and migrate into its data subfolder.",
+  storageCustomPlaceholder: "Enter or browse any folder path (a data subfolder will be created)",
+  storageDetectingUserPath: "Detecting OS user folder...",
+  storageDetectingProjectPath: "Detecting active project root...",
+  storagePickFolderBtn: "Browse Folder",
+  storageResolvedPreview: "Resolved target directory:",
+  storageApplyMigrateBtn: "Apply & Migrate Losslessly",
+  storageMigratingBtn: "Migrating & verifying...",
+  storageMigrationDone: "Lossless migration verified:",
   reasoningSummary: "Reasoning",
   stepTimelineTitle: "Agent Loop Trace",
   contextTitle: "Agent Capabilities",
@@ -213,6 +536,9 @@ const en: ChatLocaleMessages = {
 };
 
 export function getChatLocale(): ChatLocaleMessages {
+  const override = readLocaleOverride();
+  if (override === "zh") return zh;
+  if (override === "en") return en;
   if (typeof navigator !== "undefined" && navigator.language.toLowerCase().startsWith("zh")) {
     return zh;
   }

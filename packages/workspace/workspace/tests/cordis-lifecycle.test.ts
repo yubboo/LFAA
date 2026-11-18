@@ -272,3 +272,24 @@ test("LocalProjectStore 从本地缓存首屏秒开并在远端一致时静默�
     }
   }
 });
+
+test("Host workspacePlugin 支持通过 defaultProjectsDirResolver 使用自定义默认新建项目目录", async () => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-ws-resolver-"));
+  const customProjectsBase = path.join(tempRoot, "my-projects");
+  const ctx = new Context();
+  const fiber = ctx.plugin(workspacePlugin, {
+    storeFilePath: path.join(tempRoot, "projects.json"),
+    defaultProjectsDirResolver: async () => customProjectsBase,
+  });
+  await fiber;
+
+  try {
+    const resolved = await ctx.workspace.resolveDefaultProjectPath("demo-app");
+    assert.equal(resolved.targetPath, path.join(customProjectsBase, "demo-app"));
+    const created = await ctx.workspace.createProject({ name: "demo-app", trusted: true });
+    assert.equal(created.rootPath, path.join(customProjectsBase, "demo-app"));
+  } finally {
+    await fiber.dispose();
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  }
+});

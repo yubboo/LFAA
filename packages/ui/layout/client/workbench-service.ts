@@ -21,9 +21,13 @@ import {
   writeBooleanPref,
 } from "./ui-preferences";
 
+export type LibraryTabKey = "all" | "artifact" | "asset" | "memory";
+
 export interface WorkbenchSnapshot {
   activeView: string;
   activeProjectId: string | null;
+  activeLibraryTab: LibraryTabKey;
+  activeDomainItem: string;
   leftSidebarOpen: boolean;
   rightPanelOpen: boolean;
   views: WorkbenchViewContribution<ReactNode>[];
@@ -33,7 +37,7 @@ export interface WorkbenchSnapshot {
   projects: WorkbenchProjectItem[];
   sectionProvider: WorkbenchSectionProvider<ReactNode> | null;
   sections: WorkbenchSectionItem[];
-  chatProvider: WorkbenchChatProvider | null;
+  chatProvider: WorkbenchChatProvider<ReactNode> | null;
   chatSessions: WorkbenchChatSessionSummary[];
   activeChatSessionId: string | null;
 }
@@ -48,10 +52,12 @@ export class WorkbenchClientService extends Service {
   private unsubscribeProjects: (() => void) | null = null;
   private sectionProviderValue: WorkbenchSectionProvider<ReactNode> | null = null;
   private unsubscribeSections: (() => void) | null = null;
-  private chatProviderValue: WorkbenchChatProvider | null = null;
+  private chatProviderValue: WorkbenchChatProvider<ReactNode> | null = null;
   private unsubscribeChats: (() => void) | null = null;
   private activeViewValue: string;
   private activeProjectIdValue: string | null;
+  private activeLibraryTabValue: LibraryTabKey = "all";
+  private activeDomainItemValue = "";
   private leftSidebarOpenValue = readBooleanPref(LEFT_SIDEBAR_STORAGE_KEY, true);
   private rightPanelOpenValue = readBooleanPref(RIGHT_PANEL_STORAGE_KEY, true);
   private cachedSnapshot: WorkbenchSnapshot | null = null;
@@ -99,6 +105,8 @@ export class WorkbenchClientService extends Service {
     this.cachedSnapshot = {
       activeView: this.activeViewValue,
       activeProjectId: this.activeProjectIdValue,
+      activeLibraryTab: this.activeLibraryTabValue,
+      activeDomainItem: this.activeDomainItemValue,
       leftSidebarOpen: this.leftSidebarOpenValue,
       rightPanelOpen: this.rightPanelOpenValue,
       views: [...this.viewMap.values()],
@@ -186,7 +194,7 @@ export class WorkbenchClientService extends Service {
     };
   }
 
-  registerChatProvider(provider: WorkbenchChatProvider): () => void {
+  registerChatProvider(provider: WorkbenchChatProvider<ReactNode>): () => void {
     this.unsubscribeChats?.();
     this.chatProviderValue = provider;
     this.unsubscribeChats = provider.subscribe(() => {
@@ -237,6 +245,18 @@ export class WorkbenchClientService extends Service {
 
   toggleRightPanel(): void {
     this.setRightPanelOpen(!this.rightPanelOpenValue);
+  }
+
+  setLibraryTab(tab: LibraryTabKey): void {
+    if (this.activeLibraryTabValue === tab) return;
+    this.activeLibraryTabValue = tab;
+    this.emit();
+  }
+
+  setDomainItem(itemId: string): void {
+    if (this.activeDomainItemValue === itemId) return;
+    this.activeDomainItemValue = itemId;
+    this.emit();
   }
 }
 

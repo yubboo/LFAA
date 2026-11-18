@@ -8,10 +8,18 @@ function sendJson(res: ServerResponse, statusCode: number, payload: unknown): vo
   res.end(JSON.stringify(payload));
 }
 
+const MAX_JSON_BODY_BYTES = 21 * 1024 * 1024;
+
 async function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown>> {
   const chunks: Buffer[] = [];
+  let total = 0;
   for await (const chunk of req) {
-    chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+    const buf = typeof chunk === "string" ? Buffer.from(chunk) : chunk;
+    total += buf.length;
+    if (total > MAX_JSON_BODY_BYTES) {
+      throw new Error("请求体过大，请缩短单次录音时长。");
+    }
+    chunks.push(buf);
   }
   const raw = Buffer.concat(chunks).toString("utf8").trim();
   if (!raw) return {};
@@ -50,8 +58,52 @@ export function createChatHttpHandler(service: ChatService) {
         return true;
       }
 
+      if (method === "GET" && pathname === "/api/chat/general-settings") {
+        const settings = await service.getGeneralSettings();
+        sendJson(res, 200, { settings });
+        return true;
+      }
+
+      if (method === "PATCH" && pathname === "/api/chat/general-settings") {
+        const body = await readJsonBody(req);
+        const settings = await service.updateGeneralSettings(body);
+        sendJson(res, 200, { settings });
+        return true;
+      }
+
+      if (method === "GET" && pathname === "/api/chat/licenses") {
+        const packages = await service.getOpenSourceLicenses();
+        sendJson(res, 200, { packages });
+        return true;
+      }
+
+      if (method === "POST" && pathname === "/api/chat/transcribe") {
+        const body = await readJsonBody(req);
+        const audioBase64 = typeof body.audioBase64 === "string" ? body.audioBase64.trim() : "";
+        if (!audioBase64) {
+          sendJson(res, 400, { error: "缺少录音音频数据（audioBase64）。" });
+          return true;
+        }
+        const wavBuffer = Buffer.from(audioBase64, "base64");
+        const lang = typeof body.lang === "string" ? body.lang : undefined;
+        const result = await service.transcribeAudio(wavBuffer, lang);
+        sendJson(res, 200, result);
+        return true;
+      }
+
       if (pathname.startsWith("/api/chat/sessions/")) {
-        const sessionId = decodeURIComponent(pathname.slice("/api/chat/sessions/".length));
+        const suffix = pathname.slice("/api/chat/sessions/".length);
+        if (method === "POST" && suffix.endsWith("/fork")) {
+          const sourceId = decodeURIComponent(suffix.slice(0, -"/fork".length));
+          const forked = await service.forkSession(sourceId);
+          if (!forked) {
+            sendJson(res, 404, { error: "聊天会话不存在。" });
+            return true;
+          }
+          sendJson(res, 201, { session: forked });
+          return true;
+        }
+        const sessionId = decodeURIComponent(suffix);
         if (method === "GET") {
           const session = await service.getSession(sessionId);
           if (!session) {
@@ -68,8 +120,12 @@ export function createChatHttpHandler(service: ChatService) {
             ...(body.projectId !== undefined
               ? { projectId: typeof body.projectId === "string" ? body.projectId : null }
               : {}),
+            ...(body.sectionId !== undefined
+              ? { sectionId: typeof body.sectionId === "string" ? body.sectionId : null }
+              : {}),
             ...(typeof body.pinned === "boolean" ? { pinned: body.pinned } : {}),
             ...(typeof body.archived === "boolean" ? { archived: body.archived } : {}),
+            ...(typeof body.unread === "boolean" ? { unread: body.unread } : {}),
           });
           if (!session) {
             sendJson(res, 404, { error: "聊天会话不存在。" });

@@ -38,6 +38,10 @@
   word-break: break-word;
 }
 
+.valueDanger {
+  color: #fb923c;
+}
+
 .settingsBtn {
   width: 100%;
   padding: 0.5rem 0.75rem;

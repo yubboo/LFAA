@@ -26,6 +26,11 @@ test("resolveSafeWorkspacePath 严格拦截工作区外目录与路径穿越", a
       () => resolveSafeWorkspacePath("README.md", []),
       /未绑定授权项目目录/u,
     );
+
+    const unrestricted = await resolveSafeWorkspacePath("../project-a-secret/key.txt", [workspaceDir], {
+      allowOutsideWorkspace: true,
+    });
+    assert.ok(unrestricted.path.startsWith(siblingSecret));
   } finally {
     await fs.rm(tempRoot, { recursive: true, force: true });
   }

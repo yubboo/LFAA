@@ -1,0 +1,88 @@
+/* 输入框上方 @ 提及与扩展上下文分组列表浮层样式（对应图三至图五）。 */
+.popover {
+  position: absolute;
+  bottom: calc(100% + 0.45rem);
+  left: 0;
+  right: 0;
+  z-index: 48;
+  max-height: 18.5rem;
+  overflow-y: auto;
+  padding: 0.45rem;
+  border: 1px solid var(--glass-border, var(--color-line));
+  border-radius: 1.05rem;
+  background: var(--glass-popover-bg, var(--color-popover));
+  background-image: var(--glass-sheen, none);
+  backdrop-filter: blur(26px) saturate(180%);
+  -webkit-backdrop-filter: blur(26px) saturate(180%);
+  box-shadow: var(--glass-specular-shadow, none), var(--color-menu-shadow);
+  color: var(--color-ink);
+}
+
+.groupTitle {
+  padding: 0.35rem 0.6rem 0.22rem;
+  color: var(--color-muted);
+  font-size: 0.78em;
+  font-weight: 500;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  width: 100%;
+  min-height: 2.15rem;
+  padding: 0.35rem 0.6rem;
+  border: 0;
+  border-radius: 0.62rem;
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.88em;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 110ms ease;
+}
+
+.item:hover,
+.itemHighlighted {
+  background: var(--color-menu-hover, var(--color-active));
+}
+
+.itemMain {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.itemMain svg {
+  flex: 0 0 auto;
+  color: var(--color-muted);
+}
+
+.itemTitle {
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.itemDesc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-muted);
+  font-size: 0.92em;
+}
+
+.rightTag {
+  flex: 0 0 auto;
+  color: var(--color-muted);
+  font-size: 0.84em;
+}
+
+.empty {
+  margin: 0;
+  padding: 0.75rem 0.65rem;
+  color: var(--color-muted);
+  font-size: 0.85em;
+}

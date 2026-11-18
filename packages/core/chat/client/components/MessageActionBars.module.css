@@ -1,0 +1,337 @@
+/* 消息操作栏（复制/评价/朗读/更多菜单/编辑消息）与已编辑文件折叠卡片样式。 */
+.userActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.2rem;
+  margin-top: 0.28rem;
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+
+.assistantFooter {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.18rem;
+  margin-top: 0.25rem;
+}
+
+.iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.68rem;
+  height: 1.68rem;
+  border: 0;
+  border-radius: 0.48rem;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.iconBtn:hover {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.iconBtnActive {
+  color: #a594ff;
+  background: rgb(139 92 246 / 0.14);
+}
+
+.timestamp {
+  margin: 0 0.28rem;
+  color: var(--color-muted);
+  font-size: 0.76em;
+  font-variant-numeric: tabular-nums;
+}
+
+.modelTag {
+  color: var(--color-muted);
+  font-size: 0.76em;
+  opacity: 0.85;
+}
+
+.moreAnchor {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.morePopover {
+  position: absolute;
+  bottom: calc(100% + 0.4rem);
+  left: 0;
+  z-index: 60;
+  min-width: 10.5rem;
+  padding: 0.32rem;
+  border: 1px solid var(--glass-border, var(--color-line));
+  border-radius: 0.78rem;
+  background: var(--glass-popover-bg, var(--color-popover));
+  backdrop-filter: blur(22px) saturate(160%);
+  box-shadow: 0 14px 32px rgb(0 0 0 / 0.45);
+  display: grid;
+  gap: 0.15rem;
+}
+
+.moreMenuItem,
+.moreInfoRow {
+  display: flex;
+  align-items: center;
+  gap: 0.48rem;
+  padding: 0.42rem 0.62rem;
+  border: 0;
+  border-radius: 0.52rem;
+  font: inherit;
+  font-size: 0.82em;
+  white-space: nowrap;
+}
+
+.moreMenuItem {
+  background: transparent;
+  color: var(--color-ink);
+  cursor: pointer;
+  text-align: left;
+}
+
+.moreMenuItem:hover {
+  background: var(--color-active);
+}
+
+.moreInfoRow {
+  color: var(--color-muted);
+}
+
+/* 已编辑文件折叠卡片 */
+.filesCard {
+  margin-top: 0.35rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.78rem;
+  background: var(--color-surface);
+  overflow: hidden;
+}
+
+.filesHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.52rem 0.78rem;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.filesHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.filesTitleGroup {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.diffStats {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78em;
+  font-weight: 550;
+  font-variant-numeric: tabular-nums;
+}
+
+.diffAdd {
+  color: #4ade80;
+}
+
+.diffDel {
+  color: #f87171;
+}
+
+:global(:root[data-resolved-theme="light"]) .diffAdd {
+  color: #16a34a;
+}
+
+:global(:root[data-resolved-theme="light"]) .diffDel {
+  color: #dc2626;
+}
+
+.filesHeaderRight {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.filesUndoBtn,
+.filesViewBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  padding: 0.24rem 0.62rem;
+  border-radius: 0.55rem;
+  font: inherit;
+  font-size: 0.78em;
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.filesUndoBtn {
+  border: 0;
+  background: transparent;
+  color: var(--color-muted);
+}
+
+.filesUndoBtn:hover:not(:disabled) {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.filesUndoBtn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.filesViewBtn {
+  border: 1px solid var(--color-line);
+  background: var(--color-panel);
+  color: var(--color-ink);
+}
+
+.filesViewBtn:hover {
+  background: var(--color-active);
+}
+
+.filesFooterToggle {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  width: 100%;
+  padding: 0.46rem 0.78rem;
+  border: 0;
+  border-top: 1px solid var(--color-line);
+  background: transparent;
+  color: var(--color-muted);
+  font: inherit;
+  font-size: 0.8em;
+  cursor: pointer;
+}
+
+.filesFooterToggle:hover {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.filesBadgeIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  border-radius: 0.42rem;
+  background: var(--color-panel);
+  color: var(--color-muted);
+}
+
+.filesTitle {
+  font-size: 0.86em;
+  font-weight: 500;
+  color: var(--color-ink);
+}
+
+.filesToggleBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.24rem;
+  padding: 0.18rem 0.5rem;
+  border: 0;
+  border-radius: 0.45rem;
+  background: transparent;
+  color: var(--color-muted);
+  font: inherit;
+  font-size: 0.78em;
+  cursor: pointer;
+}
+
+.filesToggleBtn:hover {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.filesList {
+  display: grid;
+}
+
+.fileRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  padding: 0.46rem 0.78rem;
+  border-top: 1px solid rgb(255 255 255 / 0.04);
+  font-size: 0.82em;
+}
+
+.filePath {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fileRow:first-child {
+  border-top: 0;
+}
+
+.fileDir {
+  color: var(--color-muted);
+}
+
+.fileName {
+  color: var(--color-ink);
+  font-weight: 500;
+}
+
+/* 延伸追问建议胶囊列表 */
+.followUpList {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.42rem;
+  margin-top: 0.55rem;
+}
+
+.followUpBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 100%;
+  padding: 0.46rem 0.85rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.72rem;
+  background: var(--glass-card-bg, var(--color-surface));
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.86em;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+
+.followUpBtn:hover {
+  background: var(--color-active);
+  border-color: rgb(255 255 255 / 0.22);
+}
+
+.followUpArrow {
+  flex: 0 0 auto;
+  color: var(--color-muted);
+  transition: transform 140ms ease, color 140ms ease;
+}
+
+.followUpBtn:hover .followUpArrow {
+  color: var(--color-ink);
+  transform: translateX(2px);
+}

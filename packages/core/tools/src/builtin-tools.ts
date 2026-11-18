@@ -9,6 +9,30 @@ import type { AgentToolDefinition } from "./types";
 const execAsync = promisify(exec);
 const IGNORED_DIRS = new Set(["node_modules", ".git", "dist", ".next", ".turbo"]);
 
+function countLineDiff(prevText: string, nextText: string): { added: number; removed: number } {
+  const nextLines = nextText ? nextText.split(/\r?\n/) : [];
+  if (!prevText) {
+    return { added: nextLines.length, removed: 0 };
+  }
+  const prevLines = prevText.split(/\r?\n/);
+  const prevCounts = new Map<string, number>();
+  for (const line of prevLines) {
+    prevCounts.set(line, (prevCounts.get(line) ?? 0) + 1);
+  }
+  let matched = 0;
+  for (const line of nextLines) {
+    const count = prevCounts.get(line) ?? 0;
+    if (count > 0) {
+      matched += 1;
+      prevCounts.set(line, count - 1);
+    }
+  }
+  return {
+    added: Math.max(0, nextLines.length - matched),
+    removed: Math.max(0, prevLines.length - matched),
+  };
+}
+
 export function createBuiltinWorkspaceTools(): AgentToolDefinition[] {
   return [
     {
@@ -24,7 +48,9 @@ export function createBuiltinWorkspaceTools(): AgentToolDefinition[] {
       },
       async execute(args, ctx) {
         const rawPath = typeof args.path === "string" ? args.path : ".";
-        const { path: targetDir } = await resolveSafeWorkspacePath(rawPath, ctx.workspaceRoots);
+        const { path: targetDir } = await resolveSafeWorkspacePath(rawPath, ctx.workspaceRoots, {
+          allowOutsideWorkspace: ctx.allowOutsideWorkspace,
+        });
         const entries = await readdir(targetDir, { withFileTypes: true });
         const lines = entries
           .filter((e) => !IGNORED_DIRS.has(e.name))
@@ -54,7 +80,9 @@ export function createBuiltinWorkspaceTools(): AgentToolDefinition[] {
       },
       async execute(args, ctx) {
         const rawPath = typeof args.path === "string" ? args.path : "";
-        const { path: targetFile } = await resolveSafeWorkspacePath(rawPath, ctx.workspaceRoots);
+        const { path: targetFile } = await resolveSafeWorkspacePath(rawPath, ctx.workspaceRoots, {
+          allowOutsideWorkspace: ctx.allowOutsideWorkspace,
+        });
         const raw = await readFile(targetFile, "utf8");
         const allLines = raw.split(/\r?\n/u);
         const start = Math.max(1, typeof args.startLine === "number" ? Math.floor(args.startLine) : 1);
@@ -86,6 +114,7 @@ export function createBuiltinWorkspaceTools(): AgentToolDefinition[] {
         const { path: startDir } = await resolveSafeWorkspacePath(
           typeof args.path === "string" ? args.path : ".",
           ctx.workspaceRoots,
+          { allowOutsideWorkspace: ctx.allowOutsideWorkspace },
         );
         const matches: string[] = [];
         const needle = query.toLowerCase();
@@ -143,13 +172,18 @@ export function createBuiltinWorkspaceTools(): AgentToolDefinition[] {
       async execute(args, ctx) {
         const rawPath = typeof args.path === "string" ? args.path : "";
         const content = typeof args.content === "string" ? args.content : "";
-        const { path: targetFile } = await resolveSafeWorkspacePath(rawPath, ctx.workspaceRoots);
+        const { path: targetFile } = await resolveSafeWorkspacePath(rawPath, ctx.workspaceRoots, {
+          allowOutsideWorkspace: ctx.allowOutsideWorkspace,
+        });
+        const previousContent = await readFile(targetFile, "utf8").catch(() => "");
         await mkdir(dirname(targetFile), { recursive: true });
         await writeFile(targetFile, content, "utf8");
+        const diff = countLineDiff(previousContent, content);
         return {
           ok: true,
           output: `已写入文件：${targetFile}（${content.length} 字符）`,
           summary: `已写入 ${rawPath}`,
+          metadata: { filePath: rawPath, added: diff.added, removed: diff.removed },
         };
       },
     },
@@ -172,17 +206,21 @@ export function createBuiltinWorkspaceTools(): AgentToolDefinition[] {
         const target = typeof args.target === "string" ? args.target : "";
         const replacement = typeof args.replacement === "string" ? args.replacement : "";
         if (!target) return { ok: false, output: "target 不能为空。", summary: "参数无效" };
-        const { path: targetFile } = await resolveSafeWorkspacePath(rawPath, ctx.workspaceRoots);
+        const { path: targetFile } = await resolveSafeWorkspacePath(rawPath, ctx.workspaceRoots, {
+          allowOutsideWorkspace: ctx.allowOutsideWorkspace,
+        });
         const existing = await readFile(targetFile, "utf8");
         if (!existing.includes(target)) {
           return { ok: false, output: `文件 ${rawPath} 中未找到匹配 target 片段。`, summary: "未命中替换文本" };
         }
         const next = existing.split(target).join(replacement);
         await writeFile(targetFile, next, "utf8");
+        const diff = countLineDiff(existing, next);
         return {
           ok: true,
           output: `已更新文件：${rawPath}`,
           summary: `已编辑 ${rawPath}`,
+          metadata: { filePath: rawPath, added: diff.added, removed: diff.removed },
         };
       },
     },
@@ -201,7 +239,9 @@ export function createBuiltinWorkspaceTools(): AgentToolDefinition[] {
       async execute(args, ctx) {
         const command = typeof args.command === "string" ? args.command.trim() : "";
         if (!command) return { ok: false, output: "命令不能为空。", summary: "命令为空" };
-        const cwd = await resolveSafeWorkspaceRoot(ctx.workspaceRoots);
+        const cwd = await resolveSafeWorkspaceRoot(ctx.workspaceRoots, {
+          allowOutsideWorkspace: ctx.allowOutsideWorkspace,
+        });
         const { stdout, stderr } = await execAsync(command, {
           cwd,
           timeout: 15000,

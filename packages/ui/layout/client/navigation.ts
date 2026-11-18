@@ -34,6 +34,8 @@ export interface RecentItem {
   view: NavigationView;
   projectId?: string;
   sessionId?: string;
+  unread?: boolean;
+  updatedAt?: number;
   active?: boolean;
   onSelect?: () => void;
 }

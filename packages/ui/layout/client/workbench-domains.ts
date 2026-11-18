@@ -4,21 +4,32 @@ import type { LocaleMessages } from "./locales";
 import { isSettingsView, type LocalProject, type NavigationTarget, type NavigationView, type RecentItem } from "./navigation";
 import { findSettingsCatalogItem } from "./settings-catalog";
 
-export type WorkbenchDomainId = "workspace" | "settings";
+export type WorkbenchDomainId =
+  | "workspace"
+  | "settings"
+  | "library"
+  | "images"
+  | "scheduled"
+  | "plugins"
+  | "codeReview"
+  | "extension";
 
 export type SidebarHeaderConfig =
   | { kind: "modeSwitcher" }
-  | { kind: "backTitle"; title: string; backLabel: string; backView: NavigationView };
+  | { kind: "backTitle"; title: string; backLabel: string; backView: NavigationView }
+  | { kind: "sectionTitle"; title: string };
 
 export interface WorkbenchDomainConfig {
   id: WorkbenchDomainId;
-  // 工作区启用四栏（含右侧上下文栏）；设置中心复用左一+左二+中间呈现三栏。
+  // 工作区与资料库启用四栏（含右侧上下文栏）；设置与独立功能视图复用左一+左二+中间呈现三栏。
   columns: 3 | 4;
   sidebarAriaLabel: string;
   sidebarHeader: SidebarHeaderConfig;
 }
 
-// 根据当前视图解析所属工作台域配置，统一驱动栏数、左二头部与左一高亮态。
+const EXTENSION_VIEWS = new Set(["sites", "maps", "gpt", "openAiDevelopers", "canva", "data"]);
+
+// 根据当前视图解析所属工作台域配置，统一驱动栏数、左二头部与左二功能菜单内容。
 export function resolveWorkbenchDomain(view: string, locale: LocaleMessages): WorkbenchDomainConfig {
   if (isSettingsView(view)) {
     return {
@@ -31,6 +42,60 @@ export function resolveWorkbenchDomain(view: string, locale: LocaleMessages): Wo
         backLabel: locale.backToWorkspace,
         backView: "workspace",
       },
+    };
+  }
+  if (view === "library") {
+    return {
+      id: "library",
+      columns: 4,
+      sidebarAriaLabel: locale.library,
+      sidebarHeader: {
+        kind: "sectionTitle",
+        title: locale.library,
+      },
+    };
+  }
+  if (view === "images") {
+    return {
+      id: "images",
+      columns: 3,
+      sidebarAriaLabel: locale.images,
+      sidebarHeader: { kind: "sectionTitle", title: locale.images },
+    };
+  }
+  if (view === "scheduled") {
+    return {
+      id: "scheduled",
+      columns: 3,
+      sidebarAriaLabel: locale.scheduled,
+      sidebarHeader: { kind: "sectionTitle", title: locale.scheduled },
+    };
+  }
+  if (view === "plugins") {
+    return {
+      id: "plugins",
+      columns: 3,
+      sidebarAriaLabel: locale.plugins,
+      sidebarHeader: {
+        kind: "sectionTitle",
+        title: locale.settings === "设置" ? "自定义" : "Customize",
+      },
+    };
+  }
+  if (view === "codeReview") {
+    return {
+      id: "codeReview",
+      columns: 3,
+      sidebarAriaLabel: locale.codeReview,
+      sidebarHeader: { kind: "sectionTitle", title: locale.codeReview },
+    };
+  }
+  if (EXTENSION_VIEWS.has(view)) {
+    return {
+      id: "extension",
+      columns: 3,
+      sidebarAriaLabel: resolveViewLabel(view, locale),
+      sidebarHeader: { kind: "sectionTitle", title: resolveViewLabel(view, locale) },
     };
   }
   return {
@@ -104,24 +169,29 @@ export function buildChatRecentItems({
   chatProvider,
   activeView,
   activeChatSessionId,
+  existingProjectIds,
   onSelectSession,
 }: {
   chatSessions: WorkbenchChatSessionSummary[];
   chatProvider: WorkbenchChatProvider;
   activeView: string;
   activeChatSessionId: string | null;
+  existingProjectIds?: Set<string>;
   onSelectSession: (sessionId: string) => void;
 }): RecentItem[] {
   return chatSessions
-    .filter((item) => !item.archived)
+    .filter((item) => !item.archived && (!item.projectId || (existingProjectIds ? !existingProjectIds.has(item.projectId) : false)))
     .map((item) => ({
       id: item.id,
       sessionId: item.id,
       label: item.title,
       view: "workspace",
       ...(item.projectId ? { projectId: item.projectId } : {}),
+      ...(item.unread ? { unread: true } : {}),
+      updatedAt: item.updatedAt,
       active: activeView === "workspace" && activeChatSessionId === item.id,
       onSelect: () => {
+        chatProvider.closeSessionMenus?.();
         onSelectSession(item.id);
         void chatProvider.openSession(item.id);
       },

@@ -23,7 +23,7 @@ export const workspaceLocales = {
     clearFolderButton: "移除",
     pickingFolder: "正在打开资源管理器...",
     selectedFolderLabel: "已选文件夹",
-    defaultFolderHint: "不添加源文件夹时，将自动在系统“文档/lfaa”文件夹下新建同名目录。",
+    defaultFolderHint: "不添加源文件夹时，将自动在默认新建项目目录（可在「设置 → 常规」修改，默认系统“文档/lfaa”）下新建同名目录；历史会话统一存 .lfaa/sessions。",
     remoteUnavailable: "远程工作区连接尚未接入；请切回“本机”添加本地文件夹，或直接按项目名称在本地创建。",
     trustTitle: "信任此文件夹吗？",
     trustDescription: "LFAA 将读取并基于该文件夹中的内容工作。即使未发出请求，项目配置也可能被读取。请仅在你信任列出的文件夹时继续。",

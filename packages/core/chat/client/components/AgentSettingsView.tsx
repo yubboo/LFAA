@@ -1,7 +1,11 @@
-// 渲染“模型、规则与记忆配置”页面（注册在 settings:config）：支持多模型接入、规则分层查看/编辑与长期记忆管理。
+// 渲染“模型、规则与记忆配置”页面（注册在 settings:config）：模型管理采用多提供商卡片网格+居中配置弹窗，并支持规则与长期记忆。
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { StatusBanner } from "@lfaa/ui-primitives/client";
 import type { ChatClientStore, PublicLlmProfileItem } from "../chat-store";
 import type { ChatLocaleMessages } from "../locales";
+import type { ModelProviderPreset } from "../provider-catalog";
+import { ModelProviderGrid } from "./ModelProviderGrid";
+import { ModelProviderModal } from "./ModelProviderModal";
 import styles from "./AgentSettingsView.module.css";
 
 type SettingsTab = "models" | "rules" | "memory";
@@ -18,14 +22,10 @@ export function AgentSettingsView({
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
   const [tab, setTab] = useState<SettingsTab>("models");
   const [statusNote, setStatusNote] = useState("");
-
-  // 模型表单状态
-  const [editId, setEditId] = useState<string | undefined>(undefined);
-  const [kind, setKind] = useState<PublicLlmProfileItem["kind"]>("deepseek");
-  const [name, setName] = useState("");
-  const [baseUrl, setBaseUrl] = useState("https://api.deepseek.com/v1");
-  const [model, setModel] = useState("deepseek-chat");
-  const [apiKey, setApiKey] = useState("");
+  const [modalTarget, setModalTarget] = useState<{
+    provider: ModelProviderPreset;
+    profile?: PublicLlmProfileItem;
+  } | null>(null);
 
   // 规则与记忆表单
   const userRuleDoc = state.rules.find((r) => r.layer === "user");
@@ -36,51 +36,6 @@ export function AgentSettingsView({
   useEffect(() => {
     setUserRulesDraft(userRuleDoc?.content ?? "");
   }, [userRuleDoc?.content]);
-
-  const loadForEdit = (profile: PublicLlmProfileItem) => {
-    setEditId(profile.id);
-    setKind(profile.kind);
-    setName(profile.name);
-    setBaseUrl(profile.baseUrl);
-    setModel(profile.model);
-    setApiKey("");
-  };
-
-  const resetForm = () => {
-    setEditId(undefined);
-    setKind("openai-compatible");
-    setName("");
-    setBaseUrl("https://api.openai.com/v1");
-    setModel("gpt-4o");
-    setApiKey("");
-  };
-
-  const handleSaveProfile = async () => {
-    try {
-      await store.saveLlmProfile({
-        ...(editId ? { id: editId } : {}),
-        name: name.trim() || model.trim(),
-        kind,
-        baseUrl,
-        model,
-        ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
-      });
-      setApiKey("");
-      setStatusNote(locale.savedNotice);
-    } catch (error) {
-      setStatusNote(error instanceof Error ? error.message : String(error));
-    }
-  };
-
-  const handleTest = async (profileId: string) => {
-    setStatusNote("...");
-    try {
-      const res = await store.testLlmProfile(profileId);
-      setStatusNote(`${res.model}: ${res.replyPreview}`);
-    } catch (error) {
-      setStatusNote(error instanceof Error ? error.message : String(error));
-    }
-  };
 
   return (
     <section className={styles.page} aria-label={locale.settingsTitle}>
@@ -113,89 +68,36 @@ export function AgentSettingsView({
         ))}
       </div>
 
-      {statusNote && <p className={styles.statusText} role="status">{statusNote}</p>}
+      {statusNote && (
+        <StatusBanner
+          tone="success"
+          message={statusNote}
+          onDismiss={() => setStatusNote("")}
+        />
+      )}
 
       {tab === "models" && (
-        <div className={styles.panel}>
-          {state.profiles.map((profile) => (
-            <div key={profile.id} className={styles.profileRow}>
-              <div className={styles.profileMeta}>
-                <span className={styles.profileName}>
-                  {profile.name}
-                  {profile.id === state.activeProfileId ? ` · ${locale.activeBadge}` : ""}
-                </span>
-                <span className={styles.profileDetail}>
-                  {`${profile.kind} · ${profile.model} · ${profile.baseUrl} · Key: ${profile.hasApiKey ? profile.apiKeyMasked : "-"}`}
-                </span>
-              </div>
-              <div className={styles.rowActions}>
-                {profile.id !== state.activeProfileId && (
-                  <button type="button" className={styles.btnGhost} onClick={() => void store.setActiveProfile(profile.id)}>
-                    {locale.useProfile}
-                  </button>
-                )}
-                <button type="button" className={styles.btnGhost} onClick={() => loadForEdit(profile)}>
-                  {locale.saveProfile}
-                </button>
-                <button type="button" className={styles.btnGhost} onClick={() => void handleTest(profile.id)}>
-                  {locale.testConnection}
-                </button>
-                {state.profiles.length > 1 && (
-                  <button type="button" className={styles.btnGhost} onClick={() => void store.deleteLlmProfile(profile.id)}>
-                    {locale.deleteProfile}
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
+        <>
+          <ModelProviderGrid
+            isZh={locale.isZh}
+            profiles={state.profiles}
+            activeProfileId={state.activeProfileId}
+            onSelectProvider={(provider, matched) => {
+              setStatusNote("");
+              setModalTarget({ provider, ...(matched ? { profile: matched } : {}) });
+            }}
+          />
 
-          <div className={styles.formGrid}>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>{locale.providerLabel}</span>
-              <select
-                className={styles.input}
-                value={kind}
-                onChange={(e) => setKind(e.target.value as PublicLlmProfileItem["kind"])}
-              >
-                <option value="deepseek">DeepSeek</option>
-                <option value="openai-compatible">OpenAI Compatible</option>
-                <option value="ollama">Ollama (Local)</option>
-              </select>
-            </label>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>{locale.profileNameLabel}</span>
-              <input className={styles.input} value={name} onChange={(e) => setName(e.target.value)} placeholder="DeepSeek Reasoner" />
-            </label>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>{locale.baseUrlLabel}</span>
-              <input className={styles.input} value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
-            </label>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>{locale.modelIdLabel}</span>
-              <input className={styles.input} value={model} onChange={(e) => setModel(e.target.value)} />
-            </label>
-          </div>
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>{locale.apiKeyLabel}</span>
-            <input
-              type="password"
-              className={styles.input}
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder={locale.apiKeyKeepPlaceholder}
-            />
-          </label>
-          <div className={styles.rowActions}>
-            <button type="button" className={styles.btnPrimary} onClick={() => void handleSaveProfile()}>
-              {editId ? locale.saveProfile : locale.addProfile}
-            </button>
-            {editId && (
-              <button type="button" className={styles.btnGhost} onClick={resetForm}>
-                {locale.addProfile}
-              </button>
-            )}
-          </div>
-        </div>
+          <ModelProviderModal
+            open={modalTarget !== null}
+            isZh={locale.isZh}
+            provider={modalTarget?.provider ?? null}
+            profile={modalTarget?.profile}
+            canDelete={state.profiles.length > 1}
+            store={store}
+            onClose={() => setModalTarget(null)}
+          />
+        </>
       )}
 
       {tab === "rules" && (

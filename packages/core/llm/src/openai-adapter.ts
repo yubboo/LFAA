@@ -1,4 +1,5 @@
 // OpenAI-Compatible 流式/非流式推理适配器，支持 DeepSeek reasoning_content、OpenAI 与本地 Ollama。
+import { formatLlmHttpError, mapEffortForModelApi, normalizeModelCapability, resolveModelCapabilities } from "./capabilities";
 import type {
   LlmGenerateInput,
   LlmGenerateOutput,
@@ -17,12 +18,17 @@ function normalizeBaseUrl(rawUrl: string): string {
   return trimmed;
 }
 
-function buildApiMessages(messages: LlmMessage[]): Array<Record<string, unknown>> {
+function buildApiMessages(
+  messages: LlmMessage[],
+  includeReasoningContent = false,
+): Array<Record<string, unknown>> {
   return messages.map((msg) => {
     if (msg.role === "assistant" && msg.toolCalls && msg.toolCalls.length > 0) {
       return {
         role: "assistant",
         content: msg.content || null,
+        // DeepSeek Thinking 模式进行多步工具调用时要求 assistant 消息必须回传 reasoning_content
+        ...(includeReasoningContent ? { reasoning_content: msg.reasoningContent ?? "" } : {}),
         tool_calls: msg.toolCalls.map((call) => ({
           id: call.id,
           type: "function",
@@ -203,9 +209,18 @@ export async function callOpenAiCompatibleChat(
     headers.Authorization = `Bearer ${profile.apiKey.trim()}`;
   }
 
+  const isDeepSeek =
+    profile.kind === "deepseek" || profile.baseUrl.toLowerCase().includes("deepseek.com");
+  const cachedCap = profile.availableModels?.find((m) => m.id === profile.model);
+  const capability = cachedCap
+    ? normalizeModelCapability(cachedCap, profile.kind)
+    : resolveModelCapabilities(profile.model, profile.kind);
+  const mappedEffort = mapEffortForModelApi(input.reasoningEffort, capability);
+  const enableThinking = Boolean(isDeepSeek && mappedEffort);
+
   const bodyPayload: Record<string, unknown> = {
     model: profile.model,
-    messages: buildApiMessages(input.messages),
+    messages: buildApiMessages(input.messages, enableThinking),
     stream: true,
   };
   const apiTools = buildApiTools(input.tools);
@@ -217,6 +232,12 @@ export async function callOpenAiCompatibleChat(
   if (typeof temperature === "number") bodyPayload.temperature = temperature;
   const maxTokens = input.maxTokens ?? profile.maxTokens;
   if (typeof maxTokens === "number") bodyPayload.max_tokens = maxTokens;
+  if (mappedEffort) {
+    if (enableThinking) {
+      bodyPayload.thinking = { type: "enabled" };
+    }
+    bodyPayload.reasoning_effort = mappedEffort;
+  }
 
   const response = await fetch(endpoint, {
     method: "POST",
@@ -227,7 +248,7 @@ export async function callOpenAiCompatibleChat(
 
   if (!response.ok) {
     const errText = await response.text().catch(() => "");
-    throw new Error(`模型接口返回错误 (${response.status}): ${errText.slice(0, 300) || response.statusText}`);
+    throw new Error(formatLlmHttpError(response.status, errText, response.statusText));
   }
 
   const contentType = (response.headers.get("content-type") ?? "").toLowerCase();

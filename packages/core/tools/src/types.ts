@@ -6,6 +6,7 @@ export interface ToolExecutionContext {
   sessionId: string;
   runId: string;
   signal: AbortSignal;
+  allowOutsideWorkspace?: boolean;
 }
 
 export interface ToolExecutionResult {

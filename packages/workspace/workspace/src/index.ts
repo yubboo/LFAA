@@ -22,6 +22,7 @@ export { createWorkspaceHttpHandler } from "./http-handler";
 export interface WorkspacePluginConfig {
   storeFilePath?: string;
   documentsDir?: string;
+  defaultProjectsDirResolver?: () => Promise<string | undefined>;
   folderPicker?: () => Promise<FolderPickResult>;
 }
 
@@ -57,6 +58,7 @@ function normalizeUniquePaths(rawPaths: string[]): string[] {
 export class WorkspaceService extends Service {
   private readonly storeFilePath: string;
   private readonly documentsOverride: string | undefined;
+  private readonly defaultProjectsDirResolver: (() => Promise<string | undefined>) | undefined;
   private readonly folderPicker: () => Promise<FolderPickResult>;
   private cachedDocumentsDir: string | null = null;
 
@@ -64,6 +66,7 @@ export class WorkspaceService extends Service {
     super(ctx, "workspace");
     this.storeFilePath = config.storeFilePath ? resolve(config.storeFilePath) : DEFAULT_STORE_PATH;
     this.documentsOverride = config.documentsDir;
+    this.defaultProjectsDirResolver = config.defaultProjectsDirResolver;
     this.folderPicker = config.folderPicker ?? (() => openNativeFolderPicker("选择项目文件夹"));
   }
 
@@ -75,9 +78,14 @@ export class WorkspaceService extends Service {
     if (!this.cachedDocumentsDir) {
       this.cachedDocumentsDir = await resolveUserDocumentsDir(this.documentsOverride);
     }
+    const configuredDir = !this.documentsOverride && this.defaultProjectsDirResolver
+      ? await this.defaultProjectsDirResolver().catch(() => undefined)
+      : undefined;
     return {
       documentsDir: this.cachedDocumentsDir,
-      workspaceBaseDir: join(this.cachedDocumentsDir, DEFAULT_WORKSPACE_SUBDIR),
+      workspaceBaseDir: configuredDir?.trim()
+        ? resolve(configuredDir.trim())
+        : join(this.cachedDocumentsDir, DEFAULT_WORKSPACE_SUBDIR),
     };
   }
 

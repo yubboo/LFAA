@@ -1,0 +1,109 @@
+/* 聊天会话「⋮」上下文操作菜单样式：自适应深浅主题的毛玻璃弹窗、分隔线、快捷键右对齐与级联子菜单。 */
+.menu {
+  position: fixed;
+  z-index: 75;
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.38rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.85rem;
+  background: var(--glass-card-bg, var(--color-surface));
+  backdrop-filter: blur(18px);
+  box-shadow: 0 14px 38px rgb(0 0 0 / 0.18);
+  color: var(--color-ink);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 0.56rem;
+  width: 100%;
+  padding: 0.44rem 0.62rem;
+  border: 0;
+  border-radius: 0.54rem;
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.84em;
+  text-align: left;
+  cursor: pointer;
+}
+
+.item:hover,
+.item:focus-visible {
+  background: var(--color-active);
+  outline: none;
+}
+
+.item > svg {
+  width: 0.96rem;
+  height: 0.96rem;
+  flex: 0 0 auto;
+  color: var(--color-muted);
+}
+
+.item:hover > svg {
+  color: var(--color-ink);
+}
+
+.itemDanger {
+  color: #f87171;
+}
+
+.itemDanger > svg {
+  color: #f87171;
+}
+
+.label {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shortcut {
+  flex: 0 0 auto;
+  font-size: 0.84em;
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+
+.arrow {
+  width: 0.85rem;
+  height: 0.85rem;
+  margin-left: auto;
+  color: var(--color-muted);
+}
+
+.divider {
+  height: 1px;
+  margin: 0.2rem 0.35rem;
+  background: var(--color-line);
+}
+
+.subTriggerWrap {
+  position: relative;
+}
+
+.submenu {
+  position: absolute;
+  top: -0.25rem;
+  left: calc(100% + 0.3rem);
+  min-width: 11.2rem;
+  max-height: 14rem;
+  overflow-y: auto;
+  display: grid;
+  gap: 0.08rem;
+  padding: 0.36rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.78rem;
+  background: var(--glass-card-bg, var(--color-surface));
+  backdrop-filter: blur(18px);
+  box-shadow: 0 14px 36px rgb(0 0 0 / 0.18);
+  z-index: 80;
+}
+
+.submenuLeft {
+  left: auto;
+  right: calc(100% + 0.3rem);
+}

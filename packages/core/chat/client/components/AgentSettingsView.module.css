@@ -1,57 +1,66 @@
 /* 设置中心“模型、规则与记忆配置”页面样式。 */
 .page {
   display: grid;
-  gap: 1rem;
-  width: min(100%, 54rem);
+  align-content: start;
+  align-self: start;
+  gap: 1.1rem;
+  width: min(100% - 2.5rem, 66rem);
   margin: 0 auto;
-  padding: 1.5rem 1.25rem 2.5rem;
+  padding: 1.75rem 0 2.5rem;
 }
 
 .header {
   display: grid;
-  gap: 0.25rem;
+  align-content: start;
+  gap: 0.3rem;
 }
 
 .title {
   margin: 0;
   color: var(--color-ink);
-  font-size: 1.35rem;
+  font-size: 1.55em;
   font-weight: 600;
 }
 
 .subtitle {
   margin: 0;
   color: var(--color-muted);
-  font-size: 0.9em;
+  font-size: 0.88em;
 }
 
 .tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.45rem;
+  align-items: center;
+  gap: 0.4rem;
   border-bottom: 1px solid var(--color-line);
-  padding-bottom: 0.65rem;
+  padding-bottom: 0.7rem;
 }
 
 .tabBtn {
-  padding: 0.42rem 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  height: 2.1rem;
+  padding: 0 0.85rem;
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: 0.62rem;
   background: transparent;
   color: var(--color-muted);
-  font-size: 0.9em;
+  font: inherit;
+  font-size: 0.86em;
   cursor: pointer;
 }
 
 .tabBtnActive {
   border-color: var(--color-line);
-  background: var(--glass-card-bg, var(--color-surface));
+  background: var(--color-active);
   color: var(--color-ink);
   font-weight: 500;
 }
 
 .panel {
   display: grid;
+  align-content: start;
   gap: 0.9rem;
   padding: 1rem 1.15rem;
   border: 1px solid var(--glass-border, var(--color-line));

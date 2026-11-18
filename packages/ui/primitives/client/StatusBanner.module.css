@@ -1,0 +1,132 @@
+/* @lfaa/ui-primitives 语义化提示通知横幅样式：支持 success / error / warning / info / loading 统一对比度与动效。 */
+.banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.62rem 0.85rem;
+  border-radius: 0.72rem;
+  border: 1px solid var(--color-line);
+  font-size: 0.83em;
+  line-height: 1.45;
+  animation: lfaaBannerIn 150ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.main {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  margin-top: 0.08rem;
+}
+
+.content {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem;
+  min-width: 0;
+  color: var(--color-ink);
+}
+
+.title {
+  font-weight: 600;
+}
+
+.message {
+  color: var(--color-ink);
+  word-break: break-word;
+}
+
+.dismissBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 0;
+  border-radius: 0.42rem;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.dismissBtn:hover {
+  background: rgb(255 255 255 / 0.08);
+  color: var(--color-ink);
+}
+
+.toneSuccess {
+  background: rgb(16 185 129 / 0.14);
+  border-color: rgb(52 211 153 / 0.42);
+}
+
+.toneSuccess .icon,
+.toneSuccess .title {
+  color: #34d399;
+}
+
+.toneError {
+  background: rgb(239 68 68 / 0.14);
+  border-color: rgb(248 113 113 / 0.42);
+}
+
+.toneError .icon,
+.toneError .title {
+  color: #f87171;
+}
+
+.toneWarning {
+  background: rgb(245 158 11 / 0.14);
+  border-color: rgb(251 191 36 / 0.42);
+}
+
+.toneWarning .icon,
+.toneWarning .title {
+  color: #fbbf24;
+}
+
+.toneInfo,
+.toneLoading {
+  background: rgb(56 189 248 / 0.13);
+  border-color: rgb(56 189 248 / 0.36);
+}
+
+.toneInfo .icon,
+.toneInfo .title,
+.toneLoading .icon,
+.toneLoading .title {
+  color: #38bdf8;
+}
+
+.spin {
+  animation: lfaaSpin 1s linear infinite;
+}
+
+@keyframes lfaaBannerIn {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes lfaaSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}

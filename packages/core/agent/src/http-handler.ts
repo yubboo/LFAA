@@ -41,13 +41,25 @@ export function createAgentHttpHandler(service: AgentService, options: AgentHttp
           ? explicitRoots
           : (options.resolveWorkspaceRoots ? await options.resolveWorkspaceRoots(projectId) : []);
 
+        const reasoningEffort =
+          body.reasoningEffort === "minimal" ||
+          body.reasoningEffort === "low" ||
+          body.reasoningEffort === "medium" ||
+          body.reasoningEffort === "high" ||
+          body.reasoningEffort === "max"
+            ? body.reasoningEffort
+            : undefined;
         const started = await service.startRun({
           sessionId,
           userMessage: typeof body.userMessage === "string" ? body.userMessage : "",
           ...(typeof body.profileId === "string" ? { profileId: body.profileId } : {}),
+          ...(reasoningEffort ? { reasoningEffort } : {}),
           projectId,
           workspaceRoots,
           ...(typeof body.maxSteps === "number" ? { maxSteps: body.maxSteps } : {}),
+          ...(body.permissionMode === "ask" || body.permissionMode === "smart" || body.permissionMode === "full"
+            ? { permissionMode: body.permissionMode }
+            : {}),
           autoApproveTools: body.autoApproveTools === true,
         });
         sendJson(res, 201, started);
@@ -55,21 +67,50 @@ export function createAgentHttpHandler(service: AgentService, options: AgentHttp
       }
 
       if (method === "GET" && pathname.startsWith("/api/agent/runs/") && pathname.endsWith("/events")) {
+        const urlObj = new URL(req.url ?? "", "http://127.0.0.1");
         const runId = decodeURIComponent(pathname.slice("/api/agent/runs/".length, -"/events".length));
         const run = service.getRunStatus(runId);
         if (!run) {
           sendJson(res, 404, { error: "运行任务不存在。" });
           return true;
         }
+        const afterSeqParam = urlObj.searchParams.get("afterSeq") ?? (typeof req.headers["last-event-id"] === "string" ? req.headers["last-event-id"] : null);
+        const afterSeq = afterSeqParam !== null && /^\d+$/u.test(afterSeqParam) ? Number(afterSeqParam) : 0;
+        const isReconnect = urlObj.searchParams.has("afterSeq") || typeof req.headers["last-event-id"] === "string";
+
+        // 代理层兼容头：关闭缓冲与压缩，确保流式分片实时直达客户端
         res.statusCode = 200;
         res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
-        res.setHeader("Cache-Control", "no-cache");
+        res.setHeader("Cache-Control", "no-cache, no-transform");
         res.setHeader("Connection", "keep-alive");
+        res.setHeader("X-Accel-Buffering", "no");
+        res.setHeader("Content-Encoding", "identity");
 
-        const writeEvent = (payload: unknown) => {
+        const writeEvent = (payload: Record<string, unknown>, id?: number) => {
+          if (id !== undefined) res.write(`id: ${id}\n`);
           res.write(`data: ${JSON.stringify(payload)}\n\n`);
         };
-        writeEvent({ type: "snapshot", run });
+
+        if (isReconnect) {
+          const replayed = service.getReplayChunks(runId, afterSeq);
+          service.recordReconnect(runId, afterSeq, replayed);
+          writeEvent({
+            type: "snapshot",
+            run: {
+              ...run,
+              content: "",
+              reasoning: "",
+            },
+            reconnect: true,
+            afterSeq,
+          });
+          for (const chunk of replayed) {
+            writeEvent({ type: "delta", runId, seq: chunk.seq, kind: chunk.kind, text: chunk.text }, chunk.seq);
+          }
+        } else {
+          writeEvent({ type: "snapshot", run, reconnect: false, afterSeq: 0 });
+        }
+
         if (run.status !== "running") {
           writeEvent({
             type: "run_finished",
@@ -83,14 +124,44 @@ export function createAgentHttpHandler(service: AgentService, options: AgentHttp
           return true;
         }
 
+        const heartbeatTimer = setInterval(() => {
+          res.write(`event: heartbeat\ndata: ${JSON.stringify({ type: "heartbeat", ts: Date.now() })}\n\n`);
+        }, 10_000);
+
         const off = service.subscribeRun(runId, (evt) => {
-          writeEvent(evt);
+          const seqId = evt.type === "delta" ? evt.seq : undefined;
+          writeEvent(evt as Record<string, unknown>, seqId);
           if (evt.type === "run_finished") {
+            clearInterval(heartbeatTimer);
             off();
             res.end();
           }
         });
-        req.on("close", () => off());
+        req.on("close", () => {
+          clearInterval(heartbeatTimer);
+          off();
+        });
+        return true;
+      }
+
+      if (method === "GET" && pathname.startsWith("/api/agent/sessions/") && pathname.endsWith("/active-run")) {
+        const sessionId = decodeURIComponent(pathname.slice("/api/agent/sessions/".length, -"/active-run".length));
+        const run = service.getActiveRunForSession(sessionId);
+        sendJson(res, 200, { run });
+        return true;
+      }
+
+      if (method === "GET" && pathname === "/api/agent/metrics") {
+        sendJson(res, 200, { metrics: service.getStreamMetrics() });
+        return true;
+      }
+
+      if (method === "POST" && pathname === "/api/agent/metrics/render") {
+        const body = await readJsonBody(req);
+        if (typeof body.fps === "number") {
+          service.recordClientFps(body.fps);
+        }
+        sendJson(res, 200, { ok: true });
         return true;
       }
 
@@ -107,6 +178,18 @@ export function createAgentHttpHandler(service: AgentService, options: AgentHttp
         const runId = decodeURIComponent(pathname.slice("/api/agent/runs/".length, -"/abort".length));
         const aborted = service.abortRun(runId);
         sendJson(res, aborted ? 200 : 404, { aborted });
+        return true;
+      }
+
+      if (method === "GET" && pathname === "/api/agent/trust") {
+        const counts = await service.getSmartTrustCounts();
+        sendJson(res, 200, { counts });
+        return true;
+      }
+
+      if (method === "DELETE" && pathname === "/api/agent/trust") {
+        await service.resetSmartTrust();
+        sendJson(res, 200, { counts: {} });
         return true;
       }
 

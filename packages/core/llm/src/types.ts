@@ -1,13 +1,33 @@
-// 定义 @lfaa/llm 包的 Host 侧无 DOM 公共契约类型：模型配置、对话消息、工具协议与流式事件。
+// 定义 @lfaa/llm 包的 Host 侧无 DOM 公共契约类型：模型配置、API 协议格式、官方模型能力、思考强度与流式事件。
 export type LlmProviderKind = "openai-compatible" | "deepseek" | "ollama";
+export type LlmApiProtocol =
+  | "openai-chat"
+  | "openai-responses"
+  | "anthropic-messages"
+  | "gemini-generate-content";
+export type ReasoningEffortLevel = "minimal" | "low" | "medium" | "high" | "max";
+export type ModelReasoningMode = "none" | "fixed" | "effort";
+
+export interface ModelCapabilityInfo {
+  id: string;
+  displayName?: string;
+  supportsReasoning: boolean;
+  reasoningMode: ModelReasoningMode;
+  reasoningLevels: ReasoningEffortLevel[];
+  defaultReasoningLevel?: ReasoningEffortLevel;
+}
 
 export interface LlmProfile {
   id: string;
+  providerId?: string;
   name: string;
   kind: LlmProviderKind;
+  apiProtocol?: LlmApiProtocol;
   baseUrl: string;
   model: string;
   apiKey: string;
+  configured?: boolean;
+  availableModels?: ModelCapabilityInfo[];
   temperature?: number;
   maxTokens?: number;
   updatedAt: number;
@@ -15,12 +35,16 @@ export interface LlmProfile {
 
 export interface PublicLlmProfile {
   id: string;
+  providerId?: string;
   name: string;
   kind: LlmProviderKind;
+  apiProtocol: LlmApiProtocol;
   baseUrl: string;
   model: string;
   hasApiKey: boolean;
   apiKeyMasked: string;
+  configured: boolean;
+  availableModels: ModelCapabilityInfo[];
   temperature?: number;
   maxTokens?: number;
   updatedAt: number;
@@ -28,11 +52,15 @@ export interface PublicLlmProfile {
 
 export interface SaveLlmProfileInput {
   id?: string;
+  providerId?: string;
   name: string;
   kind: LlmProviderKind;
+  apiProtocol?: LlmApiProtocol;
   baseUrl: string;
   model: string;
   apiKey?: string;
+  configured?: boolean;
+  availableModels?: ModelCapabilityInfo[];
   temperature?: number;
   maxTokens?: number;
 }
@@ -69,6 +97,7 @@ export interface LlmGenerateInput {
   profileId?: string;
   messages: LlmMessage[];
   tools?: LlmToolDefinition[];
+  reasoningEffort?: ReasoningEffortLevel;
   temperature?: number;
   maxTokens?: number;
   signal?: AbortSignal;

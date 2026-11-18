@@ -27,6 +27,8 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
   const {
     activeView,
     activeProjectId,
+    activeLibraryTab,
+    activeDomainItem,
     leftSidebarOpen,
     rightPanelOpen,
     views,
@@ -188,12 +190,14 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
     }
   }, [service]);
 
+  const existingProjectIds = new Set(projects.map((project) => project.id));
   const recents: RecentItem[] = chatProvider
     ? buildChatRecentItems({
         chatSessions,
         chatProvider,
         activeView,
         activeChatSessionId,
+        existingProjectIds,
         onSelectSession: () => {
           service.navigate("workspace", null);
           setNewChatSelected(false);
@@ -247,9 +251,16 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
     }
   }, [activeProjectId, activeView, currentProject, projectProvider, service]);
   const registeredView = views.find((entry) => entry.id === activeView);
+  const activeChatSession = activeChatSessionId
+    ? chatSessions.find((session) => session.id === activeChatSessionId)
+    : undefined;
   const title = activeView === "project" && currentProject
     ? currentProject.name
-    : resolveViewLabel(activeView, locale, registeredView?.title);
+    : activeView === "workspace" && activeChatSession
+      ? activeChatSession.title
+      : activeView === "workspace" && newChatSelected
+        ? locale.newChat
+        : resolveViewLabel(activeView, locale, registeredView?.title);
   const matchingPanels = contextPanels.filter((panel) => !panel.match || panel.match(activeView, activeProjectId));
   const projectContext = activeView === "project" && currentProject && projectProvider?.renderProjectContext
     ? projectProvider.renderProjectContext(currentProject)
@@ -300,12 +311,17 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
           locale={locale}
           domain={domain}
           activeView={activeView as NavigationView}
+          activeLibraryTab={activeLibraryTab}
+          activeDomainItem={activeDomainItem}
           newChatSelected={newChatSelected}
           activeProjectId={activeProjectId}
+          activeChatSessionId={activeChatSessionId}
           mode={mode}
           projects={projects}
           sections={sections}
           recents={recents}
+          chatSessions={chatSessions}
+          chatProvider={chatProvider}
           projectProvider={projectProvider}
           sectionProvider={sectionProvider}
           searchOpen={searchOpen}
@@ -316,7 +332,15 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
           onNewChat={startNewChat}
           onNewChatInProject={startNewChatInProject}
           onNewChatInSection={startNewChatInSection}
+          onSelectChatSession={() => {
+            service.navigate("workspace", null);
+            setNewChatSelected(false);
+            setWorkspaceNotice("");
+            if (isCompact) service.setLeftSidebarOpen(false, false);
+          }}
           onNavigate={navigate}
+          onSelectLibraryTab={(tab) => service.setLibraryTab(tab)}
+          onSelectDomainItem={(id) => service.setDomainItem(id)}
           onOpenProject={openProject}
           onProjectCreated={openProject}
           onProjectUpdated={() => {}}
@@ -365,7 +389,7 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
           <section className={styles.page} aria-busy="true" />
         ) : activeView === "workspace" ? (
           <section className={styles.welcome} aria-labelledby="workspace-title">
-            <p className={styles.welcomeLabel}>{mode === "chatgpt" ? "ChatGPT" : "Codex"}</p>
+            <p className={styles.welcomeLabel}>{mode === "chatgpt" ? locale.chatModeTitle : locale.codexModeTitle}</p>
             <h1 id="workspace-title">{locale.headline}</h1>
             <p className={styles.introduction} role={workspaceNotice ? "status" : undefined}>{workspaceNotice || locale.introduction}</p>
           </section>

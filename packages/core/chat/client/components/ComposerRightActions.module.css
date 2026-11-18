@@ -1,0 +1,147 @@
+/* 输入栏右下角语音输入（Ctrl+M）、三竖条录音波形、发送与停止（Ctrl+D）按钮及快捷键提示样式。 */
+.actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.actionWrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.micBtn,
+.sendBtn,
+.stopBtn {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease, transform 120ms ease;
+}
+
+.micBtn {
+  border: 1px solid transparent;
+  background: var(--color-active);
+  color: var(--color-muted);
+}
+
+.micBtn:hover {
+  color: var(--color-ink);
+  border-color: var(--color-line);
+}
+
+.micBtn:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.micBtnRecording {
+  border: 0;
+  background: #e05252;
+  color: #ffffff;
+}
+
+.micBtnRecording:hover {
+  background: #dc2626;
+  color: #ffffff;
+}
+
+.waveBars {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2.5px;
+  height: 0.9rem;
+}
+
+.waveBars span {
+  width: 2.5px;
+  border-radius: 999px;
+  background: currentColor;
+  animation: wavePulse 900ms ease-in-out infinite;
+}
+
+.waveBars span:nth-child(1) {
+  height: 0.45rem;
+  animation-delay: 0ms;
+}
+
+.waveBars span:nth-child(2) {
+  height: 0.85rem;
+  animation-delay: 160ms;
+}
+
+.waveBars span:nth-child(3) {
+  height: 0.55rem;
+  animation-delay: 320ms;
+}
+
+@keyframes wavePulse {
+  0%, 100% {
+    transform: scaleY(0.65);
+  }
+  50% {
+    transform: scaleY(1.1);
+  }
+}
+
+.sendBtn {
+  border: 0;
+  background: var(--color-ink);
+  color: var(--color-shell);
+}
+
+.sendBtn:disabled {
+  opacity: 0.36;
+  cursor: not-allowed;
+}
+
+.stopBtn {
+  border: 1px solid var(--color-line);
+  background: var(--color-active);
+  color: #ef4444;
+}
+
+.stopBtn:hover {
+  background: rgb(239 68 68 / 0.16);
+}
+
+.tooltip {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 0.45rem);
+  z-index: 46;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.34rem 0.62rem;
+  border: 1px solid var(--glass-border, var(--color-line));
+  border-radius: 0.72rem;
+  background: var(--color-popover);
+  box-shadow: var(--color-menu-shadow);
+  color: var(--color-ink);
+  font-size: 0.8em;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(0.15rem);
+  transition: opacity 130ms ease, transform 130ms ease;
+}
+
+.actionWrap:hover .tooltip,
+.actionWrap button:focus-visible + .tooltip {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.shortcut {
+  color: var(--color-muted);
+  font-size: 0.94em;
+}

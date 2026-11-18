@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { Context } from "@deepseek-ai/cordis";
-import { memoryPlugin } from "../src/index";
+import { getCurrentUserHomeDir, getDefaultDataRoot, memoryPlugin, normalizeCustomDataPath } from "../src/index";
 
 test("Host memoryPlugin 持久化会话消息、裁剪上下文并召回相关长期记忆", async () => {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-memory-test-"));
@@ -64,8 +64,181 @@ test("Host memoryPlugin 持久化会话消息、裁剪上下文并召回相关�
     assert.equal(windowCtx.recentMessages.length, 1);
     assert.ok(windowCtx.summaryNote?.includes("1 条历史消息"));
 
+    // 正在流式输出的空 assistant 占位消息不得进入上下文窗口
+    await ctx.memory.appendMessage(s1.id, {
+      id: "m3-user",
+      role: "user",
+      content: "继续回复",
+      createdAt: Date.now(),
+    });
+    await ctx.memory.appendMessage(s1.id, {
+      id: "m4-placeholder",
+      role: "assistant",
+      content: "",
+      status: "streaming",
+      createdAt: Date.now(),
+    });
+    const cleanCtx = await ctx.memory.buildContextMessages(s1.id, { maxRecentMessages: 10 });
+    assert.equal(cleanCtx.recentMessages.some((m) => m.id === "m4-placeholder"), false);
+    assert.equal(cleanCtx.recentMessages[cleanCtx.recentMessages.length - 1]?.id, "m3-user");
+
     await fiber.dispose();
     assert.equal((ctx as { memory?: unknown }).memory, undefined);
+  } finally {
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("MemoryService 管理资产库产物、自定义路径规范化与无损迁移", async () => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-storage-mig-"));
+  const defaultRoot = path.join(tempRoot, "default-home", "data");
+  const customBase = path.join(tempRoot, "custom-vault");
+  const expectedCustomData = path.join(customBase, "data");
+  assert.equal(normalizeCustomDataPath(customBase), expectedCustomData);
+  assert.equal(normalizeCustomDataPath(expectedCustomData), expectedCustomData);
+
+  const ctx = new Context();
+  await ctx.plugin(memoryPlugin, {
+    dataRoot: defaultRoot,
+    storageConfigFilePath: path.join(tempRoot, "storage-config.json"),
+    recommendedProjectDataRoot: path.join(tempRoot, "project-repo", "data"),
+    legacyHomeDir: path.join(tempRoot, "unused-legacy"),
+  });
+
+  try {
+    await ctx.memory.addMemory({ scope: "global", content: "测试记忆条目" });
+    const session = await ctx.memory.createSession({ title: "资产迁移会话" });
+    const artifact = await ctx.memory.saveLibraryAsset({
+      category: "artifact",
+      title: "架构分析报告",
+      fileName: "report.md",
+      content: "# LFAA 报告\n全部正常",
+      tags: ["报告"],
+      sourceSessionId: session.id,
+    });
+    const asset = await ctx.memory.saveLibraryAsset({
+      category: "asset",
+      title: "参考配置",
+      fileName: "config.json",
+      content: "{\"ok\":true}",
+    });
+
+    const statsBefore = await ctx.memory.getStorageStats();
+    assert.equal(statsBefore.memoryCount, 1);
+    assert.equal(statsBefore.sessionCount, 1);
+    assert.equal(statsBefore.artifactCount, 1);
+    assert.equal(statsBefore.assetCount, 1);
+
+    const migRes = await ctx.memory.migrateStorage({
+      targetPath: customBase,
+      mode: "custom",
+    });
+    assert.equal(migRes.verified, true);
+    assert.equal(migRes.toRoot, expectedCustomData);
+    assert.ok(migRes.copiedFiles >= 3);
+
+    // 验证迁移后读取内容无损且继续从新位置读写
+    const readBack = await ctx.memory.readLibraryAsset(artifact.id);
+    assert.equal(readBack?.content, "# LFAA 报告\n全部正常");
+    assert.equal((await ctx.memory.listLongTermMemories()).length, 1);
+    assert.equal((await ctx.memory.listLibraryAssets()).length, 2);
+
+    const deleted = await ctx.memory.removeLibraryAsset(asset.id);
+    assert.equal(deleted, true);
+    assert.equal((await ctx.memory.listLibraryAssets()).length, 1);
+
+    // 验证动态用户主目录检测不写死用户名
+    assert.equal(getDefaultDataRoot(), path.join(getCurrentUserHomeDir(), ".lfaa", "data"));
+
+    // 验证项目推荐目录迁移会在目标根目录实际生成 data 及资料库子目录，而历史会话固定留在用户 .lfaa/sessions 不随项目迁移
+    const dynamicProjectRoot = path.join(tempRoot, "moved-project-folder");
+    const projectState = await ctx.memory.getStorageState(dynamicProjectRoot);
+    assert.equal(projectState.recommendedProjectDataRoot, path.join(dynamicProjectRoot, "data"));
+    assert.equal(projectState.sessionsRoot, path.join(tempRoot, "unused-legacy", "sessions"));
+    const projMig = await ctx.memory.migrateStorage({
+      targetPath: projectState.recommendedProjectDataRoot,
+      mode: "project",
+      projectRoot: dynamicProjectRoot,
+    });
+    assert.equal(projMig.toRoot, path.join(dynamicProjectRoot, "data"));
+    const dataDirStat = await fs.stat(path.join(dynamicProjectRoot, "data"));
+    assert.equal(dataDirStat.isDirectory(), true);
+    const outputsDirStat = await fs.stat(path.join(dynamicProjectRoot, "data", "agent-outputs"));
+    assert.equal(outputsDirStat.isDirectory(), true);
+    const assetsDirStat = await fs.stat(path.join(dynamicProjectRoot, "data", "user-assets"));
+    assert.equal(assetsDirStat.isDirectory(), true);
+    assert.equal(
+      await fs.stat(path.join(dynamicProjectRoot, "data", "chat-sessions")).then(() => true).catch(() => false),
+      false,
+    );
+    assert.equal(
+      await fs.stat(path.join(tempRoot, "unused-legacy", "sessions", `${session.id}.json`)).then((s) => s.isFile()).catch(() => false),
+      true,
+    );
+    const upgradedReadBack = await ctx.memory.readLibraryAsset(artifact.id);
+    assert.equal(upgradedReadBack?.content, "# LFAA 报告\n全部正常");
+  } finally {
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("StorageManager 自动无损升级旧版目录命名并将误入 data/ 的会话归位至 .lfaa/sessions", async () => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-upgrade-vault-"));
+  const oldRoot = path.join(tempRoot, "legacy-data");
+  await fs.mkdir(path.join(oldRoot, "artifacts", "2026-11-18"), { recursive: true });
+  await fs.mkdir(path.join(oldRoot, "assets"), { recursive: true });
+  await fs.mkdir(path.join(oldRoot, "chat-sessions"), { recursive: true });
+  await fs.writeFile(path.join(oldRoot, "chat-sessions", "s-1.json"), "{\"id\":\"s-1\"}", "utf8");
+  await fs.writeFile(path.join(oldRoot, "artifacts", "2026-11-18", "out.md"), "# 旧产物", "utf8");
+  await fs.writeFile(path.join(oldRoot, "memory.json"), JSON.stringify([{
+    id: "m1",
+    scope: "global",
+    projectId: null,
+    content: "旧记忆",
+    tags: [],
+    createdAt: 1,
+    updatedAt: 1,
+  }]), "utf8");
+  await fs.writeFile(path.join(oldRoot, "library-index.json"), JSON.stringify([{
+    id: "a1",
+    category: "artifact",
+    title: "旧产物标题",
+    fileName: "out.md",
+    relativePath: "artifacts/2026-11-18/out.md",
+    mimeType: "text/markdown",
+    sizeBytes: 7,
+    tags: [],
+    projectId: null,
+    createdAt: 1,
+    updatedAt: 1,
+  }]), "utf8");
+
+  const ctx = new Context();
+  await ctx.plugin(memoryPlugin, {
+    dataRoot: oldRoot,
+    storageConfigFilePath: path.join(tempRoot, "storage-config.json"),
+    recommendedProjectDataRoot: path.join(tempRoot, "proj", "data"),
+    legacyHomeDir: path.join(tempRoot, "home-lfaa"),
+  });
+
+  try {
+    const memories = await ctx.memory.listLongTermMemories();
+    assert.equal(memories.length, 1);
+    assert.equal(memories[0]?.content, "旧记忆");
+
+    const readOut = await ctx.memory.readLibraryAsset("a1");
+    assert.equal(readOut?.content, "# 旧产物");
+    assert.equal(readOut?.item.relativePath, "agent-outputs/2026-11-18/out.md");
+
+    // 确认误放入 data/chat-sessions 的会话已归位至 .lfaa/sessions 且 data/ 下不再残留 chat-sessions
+    assert.equal(
+      await fs.stat(path.join(tempRoot, "home-lfaa", "sessions", "s-1.json")).then((s) => s.isFile()).catch(() => false),
+      true,
+    );
+    assert.equal(
+      await fs.stat(path.join(oldRoot, "chat-sessions")).then(() => true).catch(() => false),
+      false,
+    );
   } finally {
     await fs.rm(tempRoot, { recursive: true, force: true });
   }

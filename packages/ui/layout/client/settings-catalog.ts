@@ -22,7 +22,7 @@ export const SETTINGS_CATALOG: SettingsCatalogGroup[] = [
     titleZh: "个人",
     titleEn: "Personal",
     items: [
-      { viewId: "settings:general", labelZh: "常规", labelEn: "General", icon: "settings" },
+      { viewId: "settings:general", labelZh: "常规", labelEn: "General", icon: "settings", implemented: true },
       { viewId: "settings:notifications", labelZh: "通知", labelEn: "Notifications", icon: "bell" },
       { viewId: "settings:import", labelZh: "导入", labelEn: "Import", icon: "plus" },
       { viewId: "settings:profile", labelZh: "个人资料", labelEn: "Profile", icon: "profile" },
@@ -32,7 +32,7 @@ export const SETTINGS_CATALOG: SettingsCatalogGroup[] = [
       { viewId: "settings:parental", labelZh: "家长控制", labelEn: "Parental controls", icon: "help" },
       { viewId: "settings:contacts", labelZh: "受信任联系人", labelEn: "Trusted contacts", icon: "profile" },
       { viewId: "settings:voice", labelZh: "语音", labelEn: "Voice", icon: "companion" },
-      { viewId: "settings:storage", labelZh: "存储", labelEn: "Storage", icon: "project" },
+      { viewId: "settings:storage", labelZh: "存储", labelEn: "Storage", icon: "project", implemented: true },
       { viewId: "settings:config", labelZh: "模型与规则配置", labelEn: "Models & Rules", icon: "filter", implemented: true },
       { viewId: "settings:personalization", labelZh: "个性化", labelEn: "Personalization", icon: "palette" },
       { viewId: "settings:companion", labelZh: "迷你界面和智能伙伴", labelEn: "Mini & companion", icon: "companion" },
@@ -61,6 +61,8 @@ export const SETTINGS_CATALOG: SettingsCatalogGroup[] = [
     items: [
       { viewId: "settings:hooks", labelZh: "钩子", labelEn: "Hooks", icon: "codeReview" },
       { viewId: "settings:connections", labelZh: "连接", labelEn: "Connections", icon: "openai" },
+      { viewId: "settings:codeReview", labelZh: "代码审查", labelEn: "Code review", icon: "codeReview", implemented: true },
+      { viewId: "settings:git", labelZh: "Git", labelEn: "Git", icon: "codeReview", implemented: true },
     ],
   },
 ];

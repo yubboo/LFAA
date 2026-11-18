@@ -74,17 +74,28 @@ export interface WorkbenchChatSessionSummary {
   sectionId?: string | null;
   pinned?: boolean;
   archived?: boolean;
+  unread?: boolean;
   messageCount: number;
   createdAt: number;
   updatedAt: number;
 }
 
-export interface WorkbenchChatProvider {
+export interface WorkbenchChatProvider<TContent = unknown> {
   getSessions: () => WorkbenchChatSessionSummary[];
   getActiveSessionId: () => string | null;
   subscribe: (listener: () => void) => () => void;
   startNewChat: (options?: { projectId?: string | null; sectionId?: string | null }) => void | Promise<void>;
   openSession: (sessionId: string) => void | Promise<void>;
+  onSessionRowEnter?: (session: WorkbenchChatSessionSummary, rowElement: HTMLElement) => void;
+  onSessionRowLeave?: (session: WorkbenchChatSessionSummary) => void;
+  onSessionRowDoubleClick?: (session: WorkbenchChatSessionSummary) => void;
+  closeSessionMenus?: () => void;
+  isSessionRowHighlighted?: (sessionId: string) => boolean;
+  renderSessionRowActions?: (session: WorkbenchChatSessionSummary) => TContent;
+  renderSessionOverlays?: (params: {
+    projects: WorkbenchProjectItem[];
+    sections: WorkbenchSectionItem[];
+  }) => TContent;
 }
 
 // 项目提供方插件契约，使侧栏与 Shell 无需直接依赖具体项目 UI、弹窗或存储包。

@@ -1,0 +1,226 @@
+// 管理输入栏附件上下文芯片、@ 提及指令检索提取以及发送前上下文拼装的纯函数（无 DOM 依赖）。
+import type { ChatSessionItem } from "./chat-types";
+import type { ChatLocaleMessages } from "./locales";
+
+export interface ComposerAttachment {
+  id: string;
+  kind: "file" | "folder" | "session" | "mode";
+  label: string;
+  detail?: string;
+  contentPreview?: string;
+  modeId?: "goal" | "plan";
+}
+
+export interface MentionEntry {
+  id: string;
+  group: "add" | "sessions" | "plugins";
+  icon: "paperclip" | "folder" | "target" | "bulb" | "chat" | "puzzle" | "browser" | "desktop";
+  title: string;
+  description?: string;
+  rightTag?: string;
+  disabled?: boolean;
+  actionKind: "pick_files" | "focus_project" | "mode_goal" | "mode_plan" | "attach_session" | "unconnected";
+  session?: ChatSessionItem;
+}
+
+// 从光标前文本提取正在输入的 / 斜杠指令关键字；例如 "/pl" 返回 { query: "pl", startIndex: 0 }。
+export function extractTrailingSlashQuery(
+  text: string,
+  cursorPos: number,
+): { query: string; startIndex: number } | null {
+  const head = text.slice(0, Math.max(0, cursorPos));
+  const match = /(?:^|\s)\/([^\s/]*)$/u.exec(head);
+  if (!match) return null;
+  const full = match[0];
+  const slashOffset = full.lastIndexOf("/");
+  const startIndex = head.length - full.length + slashOffset;
+  return {
+    query: match[1] ?? "",
+    startIndex,
+  };
+}
+
+export interface SlashCommandEntry {
+  id: string;
+  command: string;
+  title: string;
+  desc: string;
+  actionKind: "mode_plan" | "mode_goal" | "new_chat" | "clear_draft" | "open_settings";
+}
+
+export function buildSlashCommands(isZh: boolean): SlashCommandEntry[] {
+  return [
+    {
+      id: "slash-plan",
+      command: "/plan",
+      title: isZh ? "计划模式" : "Plan mode",
+      desc: isZh ? "先输出分步计划与影响范围，再执行修改" : "Draft a step-by-step plan before editing",
+      actionKind: "mode_plan",
+    },
+    {
+      id: "slash-goal",
+      command: "/goal",
+      title: isZh ? "长期目标" : "Goal mode",
+      desc: isZh ? "设定可持续追踪与推进的多步目标" : "Set a multi-step persistent goal",
+      actionKind: "mode_goal",
+    },
+    {
+      id: "slash-new",
+      command: "/new",
+      title: isZh ? "新聊天" : "New chat",
+      desc: isZh ? "清空当前会话上下文并开始新对话" : "Start a fresh conversation",
+      actionKind: "new_chat",
+    },
+    {
+      id: "slash-clear",
+      command: "/clear",
+      title: isZh ? "清空输入" : "Clear draft",
+      desc: isZh ? "清除当前输入框中的文字内容" : "Clear the current composer draft",
+      actionKind: "clear_draft",
+    },
+    {
+      id: "slash-settings",
+      command: "/settings",
+      title: isZh ? "打开设置" : "Open settings",
+      desc: isZh ? "前往模型配置与通用设置中心" : "Open model & general settings",
+      actionKind: "open_settings",
+    },
+  ];
+}
+
+export function filterSlashCommands(entries: SlashCommandEntry[], query: string): SlashCommandEntry[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return entries;
+  return entries.filter((item) =>
+    item.command.toLowerCase().includes(q)
+    || item.title.toLowerCase().includes(q)
+    || item.desc.toLowerCase().includes(q),
+  );
+}
+
+// 从光标前文本提取正在输入的 @ 检索关键字；例如 "请参考 @计划" 返回 { query: "计划", startIndex: 4 }。
+export function extractTrailingMentionQuery(
+  text: string,
+  cursorPos: number,
+): { query: string; startIndex: number } | null {
+  const head = text.slice(0, Math.max(0, cursorPos));
+  const match = /(?:^|\s)@([^\s@]*)$/u.exec(head);
+  if (!match) return null;
+  const full = match[0];
+  const atOffset = full.lastIndexOf("@");
+  const startIndex = head.length - full.length + atOffset;
+  return {
+    query: match[1] ?? "",
+    startIndex,
+  };
+}
+
+export function buildMentionEntries({
+  locale,
+  sessions,
+  activeSessionId,
+}: {
+  locale: ChatLocaleMessages;
+  sessions: ChatSessionItem[];
+  activeSessionId: string | null;
+}): MentionEntry[] {
+  const entries: MentionEntry[] = [
+    {
+      id: "add-files",
+      group: "add",
+      icon: "paperclip",
+      title: locale.mentionFilesAndFolders,
+      actionKind: "pick_files",
+    },
+    {
+      id: "add-project",
+      group: "add",
+      icon: "folder",
+      title: locale.mentionUseProject,
+      actionKind: "focus_project",
+    },
+    {
+      id: "add-goal",
+      group: "add",
+      icon: "target",
+      title: locale.mentionGoalTitle,
+      description: locale.mentionGoalDesc,
+      actionKind: "mode_goal",
+    },
+    {
+      id: "add-plan",
+      group: "add",
+      icon: "bulb",
+      title: locale.mentionPlanTitle,
+      description: locale.mentionPlanDesc,
+      actionKind: "mode_plan",
+    },
+  ];
+
+  for (const session of sessions.slice(0, 12)) {
+    if (session.archived || session.id === activeSessionId) continue;
+    entries.push({
+      id: `session-${session.id}`,
+      group: "sessions",
+      icon: "chat",
+      title: session.title,
+      rightTag: locale.mentionSessionTag,
+      actionKind: "attach_session",
+      session,
+    });
+  }
+
+  const placeholderPlugins: Array<{ id: string; title: string; desc: string; icon: MentionEntry["icon"] }> = [
+    { id: "plugin-browser", title: locale.ctxBrowser, desc: "Control the in-app browser", icon: "browser" },
+    { id: "plugin-desktop", title: locale.isZh ? "电脑" : "Desktop", desc: "Control Windows apps", icon: "desktop" },
+    { id: "plugin-canva", title: "Canva", desc: "Create, review, edit designs", icon: "puzzle" },
+    { id: "plugin-docs", title: "Documents", desc: "Create and edit documents", icon: "puzzle" },
+  ];
+  for (const plugin of placeholderPlugins) {
+    entries.push({
+      id: plugin.id,
+      group: "plugins",
+      icon: plugin.icon,
+      title: plugin.title,
+      description: plugin.desc,
+      rightTag: locale.mentionUnconnectedTag,
+      actionKind: "unconnected",
+    });
+  }
+
+  return entries;
+}
+
+export function filterMentionEntries(entries: MentionEntry[], query: string): MentionEntry[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return entries;
+  return entries.filter((entry) =>
+    entry.title.toLowerCase().includes(needle)
+    || Boolean(entry.description && entry.description.toLowerCase().includes(needle)),
+  );
+}
+
+// 把用户勾选的文件、文件夹、历史对话和模式标签注入最终发给 Agent 的消息上下文。
+export function buildContextualMessage(userText: string, attachments: ComposerAttachment[]): string {
+  const cleanText = userText.trim();
+  if (attachments.length === 0) return cleanText;
+
+  const blocks: string[] = [];
+  for (const item of attachments) {
+    if (item.kind === "mode") {
+      if (item.modeId === "goal") {
+        blocks.push("[模式约束：持续目标模式] 请围绕该目标拆分步骤并持续推进验证，直到目标闭环达成。");
+      } else if (item.modeId === "plan") {
+        blocks.push("[模式约束：计划模式] 请先将任务拆分为清晰的分步实施计划（含每步目标、涉及文件与验证方式），然后严格按步骤依次执行并在每步完成后汇报进度与结果。");
+      }
+    } else if (item.kind === "session") {
+      blocks.push(`[引用历史对话：${item.label}]${item.detail ? `\n${item.detail}` : ""}`);
+    } else if (item.kind === "folder") {
+      blocks.push(`[附加文件夹：${item.label}]${item.contentPreview ? `\n${item.contentPreview}` : ""}`);
+    } else {
+      blocks.push(`[附加文件：${item.label}${item.detail ? ` (${item.detail})` : ""}]${item.contentPreview ? `\n\`\`\`\n${item.contentPreview}\n\`\`\`` : ""}`);
+    }
+  }
+
+  return `${blocks.join("\n\n")}\n\n${cleanText}`;
+}

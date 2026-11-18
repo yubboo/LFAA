@@ -1,0 +1,45 @@
+/* 共享悬停提示胶囊样式：正上方居中对齐、暗色半透明磨砂胶囊与快捷键徽章。 */
+.wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.tip {
+  position: absolute;
+  bottom: calc(100% + 0.45rem);
+  left: 50%;
+  transform: translateX(-50%) translateY(2px);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  padding: 0.28rem 0.62rem;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 999px;
+  background: var(--glass-card-bg, rgba(28, 29, 34, 0.96));
+  color: var(--color-ink);
+  font-size: 0.76rem;
+  font-weight: 500;
+  line-height: 1.3;
+  white-space: nowrap;
+  box-shadow: 0 10px 26px rgb(0 0 0 / 0.42);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 120ms ease, transform 120ms ease;
+  z-index: 80;
+}
+
+.wrap:hover:not(.disabled) .tip,
+.wrap:focus-within:not(.disabled) .tip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.kbd {
+  padding: 0.08rem 0.36rem;
+  border-radius: 0.36rem;
+  background: rgb(255 255 255 / 0.12);
+  color: var(--color-muted);
+  font-family: var(--code-font-family, monospace);
+  font-size: 0.9em;
+}

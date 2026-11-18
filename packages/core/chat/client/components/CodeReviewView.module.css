@@ -1,0 +1,374 @@
+/* 内置 Git 与代码审查工作台样式：顶栏分支条、双栏工作区变更/差异视图、提交列表与审查发现卡片。 */
+.root {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 0.9rem;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 1.25rem 1.65rem 1.5rem;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+
+.topBar {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.titleLeft {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.4em;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.metaPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.24rem 0.65rem;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-panel);
+  color: var(--color-muted);
+  font-family: var(--code-font-family, monospace);
+  font-size: 0.78em;
+}
+
+.actionsRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.btn,
+.primaryBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  height: 2.05rem;
+  padding: 0 0.78rem;
+  border-radius: 0.62rem;
+  font: inherit;
+  font-size: 0.82em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn {
+  border: 1px solid var(--color-line);
+  background: var(--color-panel);
+  color: var(--color-ink);
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--color-active);
+}
+
+.primaryBtn {
+  border: 1px solid var(--accent-soft-border, var(--color-line));
+  background: var(--accent-soft-bg, var(--color-active));
+  color: var(--color-ink);
+  font-weight: 500;
+}
+
+.btn:disabled,
+.primaryBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.branchBar {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.input,
+.select {
+  height: 2.05rem;
+  padding: 0 0.7rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.62rem;
+  background: var(--color-panel);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.82em;
+}
+
+.input {
+  flex: 1 1 14rem;
+  min-width: 11rem;
+  max-width: 19rem;
+}
+
+.tabStrip {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding-bottom: 0.55rem;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.tabBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  padding: 0.34rem 0.8rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-muted);
+  font: inherit;
+  font-size: 0.83em;
+  cursor: pointer;
+}
+
+.tabBtnActive {
+  border-color: var(--accent-soft-border, var(--color-line));
+  background: var(--accent-soft-bg, var(--color-active));
+  color: var(--color-ink);
+  font-weight: 500;
+}
+
+.splitGrid {
+  display: grid;
+  grid-template-columns: minmax(17rem, 23rem) minmax(0, 1fr);
+  gap: 0.9rem;
+  min-width: 0;
+  min-height: 0;
+}
+
+.panelCard {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 0.65rem;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 0.9rem;
+  border: 1px solid var(--glass-border, var(--color-line));
+  border-radius: 0.85rem;
+  background: var(--glass-card-bg, var(--color-surface));
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.panelHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.panelTitle {
+  font-size: 0.88em;
+  font-weight: 600;
+  color: var(--color-ink);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fileRow {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  min-width: 0;
+  width: 100%;
+  padding: 0.42rem 0.55rem;
+  border: 1px solid transparent;
+  border-radius: 0.58rem;
+  cursor: pointer;
+}
+
+.fileRow:hover {
+  background: var(--color-panel);
+}
+
+.fileRowActive {
+  border-color: var(--accent-soft-border, var(--color-line));
+  background: var(--color-active);
+}
+
+.fileMain {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.statusTag {
+  flex: 0 0 auto;
+  min-width: 1.55rem;
+  text-align: center;
+  padding: 0.08rem 0.3rem;
+  border-radius: 0.38rem;
+  background: var(--color-panel);
+  color: var(--color-ink);
+  font-family: var(--code-font-family, monospace);
+  font-size: 0.74em;
+}
+
+.fileName {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--code-font-family, monospace);
+  font-size: 0.78em;
+  color: var(--color-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fileDirHint {
+  color: var(--color-muted);
+  margin-left: 0.35rem;
+  font-size: 0.9em;
+}
+
+.miniBtn {
+  flex: 0 0 auto;
+  padding: 0.16rem 0.46rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.45rem;
+  background: var(--color-panel);
+  color: var(--color-muted);
+  font-size: 0.74em;
+  cursor: pointer;
+}
+
+.miniBtn:hover {
+  color: var(--color-ink);
+}
+
+.commitArea {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  gap: 0.45rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--color-line);
+}
+
+.textarea {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 4.5rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.62rem;
+  background: var(--color-panel);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.82em;
+  resize: vertical;
+  overflow-x: hidden;
+}
+
+.diffBox {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.68rem;
+  background: var(--color-panel);
+  font-family: var(--code-font-family, monospace);
+  font-size: 0.77em;
+  line-height: 1.48;
+  overflow-x: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.diffAdd {
+  color: #4ade80;
+}
+
+.diffDel {
+  color: #f87171;
+}
+
+.diffHunk {
+  color: #38bdf8;
+}
+
+.findingCard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  gap: 0.25rem;
+  padding: 0.62rem 0.78rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.68rem;
+  background: var(--color-panel);
+}
+
+.sevCritical {
+  color: #f87171;
+  font-weight: 600;
+}
+
+.sevWarning {
+  color: #fbbf24;
+  font-weight: 600;
+}
+
+.sevInfo {
+  color: #38bdf8;
+  font-weight: 600;
+}
+
+.mutedText {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.81em;
+  line-height: 1.45;
+}
+
+.notice {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.6rem;
+  background: var(--color-panel);
+  color: var(--color-ink);
+  font-size: 0.82em;
+}
+
+@media (max-width: 960px) {
+  .splitGrid {
+    grid-template-columns: 1fr;
+  }
+}

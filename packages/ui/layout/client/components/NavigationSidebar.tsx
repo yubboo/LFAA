@@ -1,6 +1,8 @@
 // 复用同一套左二菜单栏骨架，根据 WorkbenchDomainConfig 切换头部形态与业务菜单内容。
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type {
+  WorkbenchChatProvider,
+  WorkbenchChatSessionSummary,
   WorkbenchProjectProvider,
   WorkbenchSectionItem,
   WorkbenchSectionProvider,
@@ -8,6 +10,8 @@ import type {
 import type { LocaleMessages } from "../locales";
 import type { LocalProject, NavigationTarget, NavigationView, RecentItem, WorkspaceMode } from "../navigation";
 import { buildNavigationTargets, type WorkbenchDomainConfig } from "../workbench-domains";
+import type { LibraryTabKey } from "../workbench-service";
+import { DomainSidebarMenu } from "./DomainSidebarMenu";
 import { NavigationIcon } from "./NavigationIcon";
 import { NavigationGroups } from "./NavigationGroups";
 import { SearchDialog } from "./SearchDialog";
@@ -18,12 +22,17 @@ export function NavigationSidebar({
   locale,
   domain,
   activeView,
+  activeLibraryTab,
+  activeDomainItem,
   newChatSelected,
   activeProjectId,
+  activeChatSessionId,
   mode,
   projects,
   sections,
   recents,
+  chatSessions,
+  chatProvider,
   projectProvider,
   sectionProvider,
   searchOpen,
@@ -34,7 +43,10 @@ export function NavigationSidebar({
   onNewChat,
   onNewChatInProject,
   onNewChatInSection,
+  onSelectChatSession,
   onNavigate,
+  onSelectLibraryTab,
+  onSelectDomainItem,
   onOpenProject,
   onProjectCreated,
   onProjectUpdated,
@@ -47,12 +59,17 @@ export function NavigationSidebar({
   locale: LocaleMessages;
   domain: WorkbenchDomainConfig;
   activeView: NavigationView;
+  activeLibraryTab: LibraryTabKey;
+  activeDomainItem: string;
   newChatSelected: boolean;
   activeProjectId: string | null;
+  activeChatSessionId?: string | null | undefined;
   mode: WorkspaceMode;
   projects: LocalProject[];
   sections: WorkbenchSectionItem[];
   recents: RecentItem[];
+  chatSessions?: WorkbenchChatSessionSummary[];
+  chatProvider?: WorkbenchChatProvider<ReactNode> | null | undefined;
   projectProvider?: WorkbenchProjectProvider<ReactNode> | null | undefined;
   sectionProvider?: WorkbenchSectionProvider<ReactNode> | null | undefined;
   searchOpen: boolean;
@@ -63,7 +80,10 @@ export function NavigationSidebar({
   onNewChat: () => void;
   onNewChatInProject: (project: LocalProject) => void;
   onNewChatInSection: (section: WorkbenchSectionItem) => void;
+  onSelectChatSession?: ((sessionId: string) => void) | undefined;
   onNavigate: (view: NavigationView) => void;
+  onSelectLibraryTab: (tab: LibraryTabKey) => void;
+  onSelectDomainItem: (id: string) => void;
   onOpenProject: (project: LocalProject) => void;
   onProjectCreated: (project: LocalProject) => void;
   onProjectUpdated: (project: LocalProject) => void;
@@ -159,6 +179,10 @@ export function NavigationSidebar({
             </button>
             <span>{header.title}</span>
           </div>
+        ) : header.kind === "sectionTitle" ? (
+          <div className={styles.settingsHeader}>
+            <span>{header.title}</span>
+          </div>
         ) : (
           <div className={styles.modeRoot}>
             <button
@@ -169,13 +193,13 @@ export function NavigationSidebar({
               aria-expanded={modeMenuOpen}
               onClick={() => setModeMenuOpen((open) => !open)}
             >
-              <span>{mode === "chatgpt" ? "ChatGPT" : "Codex"}</span>
+              <span>{mode === "chatgpt" ? locale.chatModeTitle : locale.codexModeTitle}</span>
               <NavigationIcon name="chevronDown" />
             </button>
             {modeMenuOpen && (
               <div className={styles.modeMenu} role="menu" aria-label={locale.workspaceMode}>
-                <ModeOption selected={mode === "chatgpt"} title="ChatGPT" description={locale.chatModeDescription} onClick={() => { onModeChange("chatgpt"); setModeMenuOpen(false); }} />
-                <ModeOption selected={mode === "codex"} title="Codex" description={locale.codexModeDescription} onClick={() => { onModeChange("codex"); setModeMenuOpen(false); }} />
+                <ModeOption selected={mode === "chatgpt"} title={locale.chatModeTitle} description={locale.chatModeDescription} onClick={() => { onModeChange("chatgpt"); setModeMenuOpen(false); }} />
+                <ModeOption selected={mode === "codex"} title={locale.codexModeTitle} description={locale.codexModeDescription} onClick={() => { onModeChange("codex"); setModeMenuOpen(false); }} />
               </div>
             )}
           </div>
@@ -227,20 +251,35 @@ export function NavigationSidebar({
       <div className={styles.sidebarBody}>
         {domain.id === "settings" ? (
           <SettingsMenu locale={locale} activeView={activeView} onNavigate={onNavigate} />
+        ) : domain.id !== "workspace" ? (
+          <DomainSidebarMenu
+            locale={locale}
+            domain={domain}
+            activeView={activeView}
+            activeLibraryTab={activeLibraryTab}
+            activeDomainItem={activeDomainItem}
+            onSelectLibraryTab={onSelectLibraryTab}
+            onSelectDomainItem={onSelectDomainItem}
+            onNavigate={onNavigate}
+          />
         ) : (
           <NavigationGroups
             locale={locale}
             activeView={activeView}
             newChatSelected={newChatSelected}
             activeProjectId={activeProjectId}
+            activeChatSessionId={activeChatSessionId}
             projects={projects}
             sections={sections}
             recents={recents}
+            chatSessions={chatSessions}
+            chatProvider={chatProvider}
             projectProvider={projectProvider}
             sectionProvider={sectionProvider}
             onNewChat={onNewChat}
             onNewChatInProject={onNewChatInProject}
             onNewChatInSection={onNewChatInSection}
+            onSelectChatSession={onSelectChatSession}
             onNavigate={onNavigate}
             onOpenProject={onOpenProject}
             onProjectCreated={onProjectCreated}

@@ -13,7 +13,15 @@ function tokenizeQuery(text: string): string[] {
 }
 
 export class LongTermMemoryStore {
-  constructor(private readonly filePath: string) {}
+  constructor(private filePath: string) {}
+
+  setFilePath(nextPath: string): void {
+    this.filePath = nextPath;
+  }
+
+  getFilePath(): string {
+    return this.filePath;
+  }
 
   private async readEntries(): Promise<MemoryEntry[]> {
     try {

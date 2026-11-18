@@ -1,26 +1,75 @@
 // 渲染中央聊天工作区：空会话引导、流式回复、Agent 思考/行动/检查轨迹卡片与底部输入栏。
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { IconArrowUp, IconPlayerStop, IconSettings, IconTrash } from "@tabler/icons-react";
-import type { WorkbenchProjectItem } from "@lfaa/ui-layout";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { IconArrowDown, IconTrash, IconX } from "@tabler/icons-react";
+import type { WorkbenchProjectItem, WorkbenchProjectProvider } from "@lfaa/ui-layout";
+import { HoverTip, ModalDialog } from "@lfaa/ui-primitives/client";
 import type { ChatClientStore } from "../chat-store";
+import { fetchCodingSettings, postRunCodeReview } from "../coding-settings-client";
+import {
+  buildContextualMessage,
+  buildMentionEntries,
+  buildSlashCommands,
+  extractTrailingMentionQuery,
+  extractTrailingSlashQuery,
+  filterMentionEntries,
+  filterSlashCommands,
+  type ComposerAttachment,
+  type MentionEntry,
+  type SlashCommandEntry,
+} from "../composer-context";
 import type { ChatLocaleMessages } from "../locales";
+import { ChatAnchorBar, buildTurnAnchors } from "./ChatAnchorBar";
+import { ComposerAddMenu } from "./ComposerAddMenu";
+import { ComposerRightActions } from "./ComposerRightActions";
+import { ComposerScopeBar } from "./ComposerScopeBar";
+import { buildFollowUpSuggestions } from "../follow-up-suggestions";
+import { MarkdownContent } from "./MarkdownContent";
+import {
+  AssistantMessageActions,
+  EditedFilesCard,
+  FollowUpSuggestions,
+  UserMessageActions,
+  formatDayDivider,
+} from "./MessageActionBars";
+import { MentionPopover, SlashCommandPopover } from "./MentionPopover";
+import { ModelReasoningPicker } from "./ModelReasoningPicker";
+import { PermissionModePicker } from "./PermissionModePicker";
 import { StepTraceList } from "./StepTraceList";
+import modalStyles from "./ModelProviderGrid.module.css";
 import styles from "./ChatWorkspace.module.css";
 
 export function ChatWorkspace({
   locale,
   store,
   projects,
+  projectProvider,
   onOpenSettings,
+  onOpenGitSettings,
 }: {
   locale: ChatLocaleMessages;
   store: ChatClientStore;
   projects: WorkbenchProjectItem[];
+  projectProvider?: WorkbenchProjectProvider<ReactNode> | null | undefined;
   onOpenSettings: () => void;
+  onOpenGitSettings?: (() => void) | undefined;
 }) {
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
   const [draft, setDraft] = useState("");
+  const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
+  const [mentionTrigger, setMentionTrigger] = useState<{ query: string; startIndex: number } | null>(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const [slashTrigger, setSlashTrigger] = useState<{ query: string; startIndex: number } | null>(null);
+  const [slashIndex, setSlashIndex] = useState(0);
+  const [openProjectSignal, setOpenProjectSignal] = useState(0);
+  const [contextNotice, setContextNotice] = useState("");
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
+  const [activeTurnIndex, setActiveTurnIndex] = useState(0);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const activeSession = state.activeSession;
   const messages = activeSession?.messages ?? [];
@@ -29,47 +78,302 @@ export function ChatWorkspace({
   const needsApiKey = Boolean(activeProfile && activeProfile.kind !== "ollama" && !activeProfile.hasApiKey);
   const isRunning = Boolean(state.runningRunId);
 
+  const allMentionEntries = useMemo(
+    () => buildMentionEntries({ locale, sessions: state.sessions, activeSessionId: state.activeSessionId }),
+    [locale, state.activeSessionId, state.sessions],
+  );
+  const visibleMentionEntries = useMemo(
+    () => (mentionTrigger ? filterMentionEntries(allMentionEntries, mentionTrigger.query) : []),
+    [allMentionEntries, mentionTrigger],
+  );
+  const allSlashCommands = useMemo(() => buildSlashCommands(locale.isZh), [locale.isZh]);
+  const visibleSlashCommands = useMemo(
+    () => (slashTrigger ? filterSlashCommands(allSlashCommands, slashTrigger.query) : []),
+    [allSlashCommands, slashTrigger],
+  );
+  const turnAnchors = useMemo(() => buildTurnAnchors(messages), [messages]);
+
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
   }, [messages.length, state.runningRunId, state.pendingApproval]);
 
-  const handleSubmit = async (customText?: string) => {
-    const content = (customText ?? draft).trim();
-    if (!content || isRunning) return;
-    if (!customText) setDraft("");
+  const appendAttachments = (items: ComposerAttachment[]) => {
+    setContextNotice("");
+    setAttachments((prev) => {
+      const next = [...prev];
+      for (const item of items) {
+        if (item.kind === "mode" && next.some((existing) => existing.kind === "mode" && existing.modeId === item.modeId)) {
+          continue;
+        }
+        next.push(item);
+      }
+      return next;
+    });
+  };
+
+  const focusTextareaAt = (pos: number) => {
+    window.requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(pos, pos);
+    });
+  };
+
+  const syncMentionFromText = (text: string, cursorPos: number | null) => {
+    const pos = cursorPos ?? text.length;
+    const detectedMention = extractTrailingMentionQuery(text, pos);
+    setMentionTrigger(detectedMention);
+    setMentionIndex(0);
+    const detectedSlash = detectedMention ? null : extractTrailingSlashQuery(text, pos);
+    setSlashTrigger(detectedSlash);
+    setSlashIndex(0);
+  };
+
+  const handleTabCompleteSlashCommand = (entry: SlashCommandEntry) => {
+    if (!slashTrigger) return;
+    const before = draft.slice(0, slashTrigger.startIndex);
+    const after = draft.slice(slashTrigger.startIndex + 1 + slashTrigger.query.length);
+    const inserted = `${entry.command} `;
+    const next = `${before}${inserted}${after.replace(/^\s+/u, "")}`;
+    setDraft(next);
+    setSlashTrigger(null);
+    focusTextareaAt(before.length + inserted.length);
+  };
+
+  const handleSelectSlashCommand = (entry: SlashCommandEntry) => {
+    let nextPos = draft.length;
+    if (slashTrigger) {
+      const before = draft.slice(0, slashTrigger.startIndex);
+      const after = draft.slice(slashTrigger.startIndex + 1 + slashTrigger.query.length);
+      const next = `${before}${after}`.replace(/^\s+/u, "");
+      setDraft(next);
+      nextPos = next.length;
+    }
+    setSlashTrigger(null);
+    setContextNotice("");
+
+    if (entry.actionKind === "mode_plan") {
+      appendAttachments([{ id: "mode-plan", kind: "mode", modeId: "plan", label: locale.mentionPlanTitle }]);
+    } else if (entry.actionKind === "mode_goal") {
+      appendAttachments([{ id: "mode-goal", kind: "mode", modeId: "goal", label: locale.mentionGoalTitle }]);
+    } else if (entry.actionKind === "new_chat") {
+      store.startNewChatDraft({ projectId: activeProjectId, sectionId: activeSession?.sectionId ?? null });
+      setDraft("");
+      setAttachments([]);
+      nextPos = 0;
+    } else if (entry.actionKind === "clear_draft") {
+      setDraft("");
+      nextPos = 0;
+    } else if (entry.actionKind === "open_settings") {
+      onOpenSettings();
+      return;
+    }
+    focusTextareaAt(nextPos);
+  };
+
+  const handleSelectMentionEntry = (entry: MentionEntry) => {
+    let nextPos = draft.length;
+    if (mentionTrigger) {
+      const before = draft.slice(0, mentionTrigger.startIndex);
+      const after = draft.slice(mentionTrigger.startIndex + 1 + mentionTrigger.query.length);
+      const next = `${before}${after}`.replace(/^\s+/u, "");
+      setDraft(next);
+      nextPos = next.length;
+    }
+    setMentionTrigger(null);
+    setContextNotice("");
+
+    if (entry.actionKind === "pick_files") {
+      fileInputRef.current?.click();
+    } else if (entry.actionKind === "focus_project") {
+      setOpenProjectSignal((n) => n + 1);
+    } else if (entry.actionKind === "mode_goal") {
+      appendAttachments([{ id: "mode-goal", kind: "mode", modeId: "goal", label: locale.mentionGoalTitle }]);
+    } else if (entry.actionKind === "mode_plan") {
+      appendAttachments([{ id: "mode-plan", kind: "mode", modeId: "plan", label: locale.mentionPlanTitle }]);
+    } else if (entry.actionKind === "attach_session" && entry.session) {
+      appendAttachments([
+        {
+          id: `session-${entry.session.id}`,
+          kind: "session",
+          label: entry.session.title,
+          detail: entry.session.summary || `${entry.session.messageCount} messages`,
+        },
+      ]);
+    } else if (entry.actionKind === "unconnected") {
+      setContextNotice(`${entry.title}：${locale.ctxServiceUnavailable}`);
+    }
+    focusTextareaAt(nextPos);
+  };
+
+  const handleSubmit = async (customText?: string, invertFollowUp = false) => {
+    const raw = (customText ?? draft).trim();
+    if (!raw && attachments.length === 0) return;
+
+    if (!customText) {
+      if (raw === "/new") {
+        store.startNewChatDraft({ projectId: activeProjectId, sectionId: activeSession?.sectionId ?? null });
+        setDraft("");
+        setAttachments([]);
+        setSlashTrigger(null);
+        return;
+      }
+      if (raw === "/clear") {
+        setDraft("");
+        setSlashTrigger(null);
+        return;
+      }
+      if (raw === "/settings") {
+        setDraft("");
+        setSlashTrigger(null);
+        onOpenSettings();
+        return;
+      }
+    }
+
+    let effectiveRaw = raw;
+    let effectiveAttachments = attachments;
+    if (!customText && /^\/plan(?:\s|$)/iu.test(raw)) {
+      const rest = raw.replace(/^\/plan\s*/iu, "").trim();
+      if (!rest) {
+        appendAttachments([{ id: "mode-plan", kind: "mode", modeId: "plan", label: locale.mentionPlanTitle }]);
+        setDraft("");
+        setSlashTrigger(null);
+        return;
+      }
+      effectiveRaw = rest;
+      if (!effectiveAttachments.some((a) => a.kind === "mode" && a.modeId === "plan")) {
+        effectiveAttachments = [
+          ...effectiveAttachments,
+          { id: "mode-plan", kind: "mode", modeId: "plan", label: locale.mentionPlanTitle },
+        ];
+      }
+    } else if (!customText && /^\/goal(?:\s|$)/iu.test(raw)) {
+      const rest = raw.replace(/^\/goal\s*/iu, "").trim();
+      if (!rest) {
+        appendAttachments([{ id: "mode-goal", kind: "mode", modeId: "goal", label: locale.mentionGoalTitle }]);
+        setDraft("");
+        setSlashTrigger(null);
+        return;
+      }
+      effectiveRaw = rest;
+      if (!effectiveAttachments.some((a) => a.kind === "mode" && a.modeId === "goal")) {
+        effectiveAttachments = [
+          ...effectiveAttachments,
+          { id: "mode-goal", kind: "mode", modeId: "goal", label: locale.mentionGoalTitle },
+        ];
+      }
+    }
+
+    let finalMessage = customText ? raw : buildContextualMessage(effectiveRaw, effectiveAttachments);
+    if (!finalMessage) return;
+    if (!customText) {
+      setDraft("");
+      setAttachments([]);
+      setMentionTrigger(null);
+      setSlashTrigger(null);
+      setContextNotice("");
+    }
     try {
-      await store.sendMessage(content);
-    } catch {
-      // 错误消息已统一写入 store.errorMessage。
+      const reviewCmdMatch = raw.match(/^\/review(?:\s+(.*))?$/iu);
+      if (reviewCmdMatch) {
+        const [codingCfg, report] = await Promise.all([
+          fetchCodingSettings().catch(() => null),
+          postRunCodeReview({ projectId: activeProjectId, scope: "working_tree" }),
+        ]);
+        if (codingCfg?.git.reviewDisplayMode === "separate" && activeSession) {
+          store.startNewChatDraft({ projectId: activeProjectId });
+        }
+        const findingsText = report.findings
+          .slice(0, 8)
+          .map((f, i) => `${i + 1}. [${f.severity}] ${f.file}${f.line ? `:${f.line}` : ""} ${f.title} — ${f.suggestion}`)
+          .join("\n");
+        const extraFocus = reviewCmdMatch[1]?.trim() ? `\n补充审查要求：${reviewCmdMatch[1].trim()}` : "";
+        finalMessage = `请审查当前内置 Git 代码变更（${report.repoSlug} / ${report.branch}）：\n${report.summary}${extraFocus}${findingsText ? `\n\n预检发现：\n${findingsText}` : ""}`;
+        if (needsApiKey) {
+          setContextNotice(report.summary);
+          return;
+        }
+      }
+
+      if (isRunning) {
+        await store.submitFollowUp(finalMessage, invertFollowUp);
+      } else {
+        await store.sendMessage(finalMessage);
+      }
+    } catch (err) {
+      if (err instanceof Error && !state.errorMessage) {
+        setContextNotice(err.message);
+      }
     }
   };
 
+  const estimatedContextChars =
+    messages.reduce((sum, item) => sum + item.content.length + (item.reasoning?.length ?? 0), 0) + draft.length;
+  const estimatedTokens = Math.round(estimatedContextChars / 3.5);
+
   return (
     <section className={styles.root} aria-label={locale.workspaceTitle}>
-      <div className={styles.scrollArea}>
+      <div
+        ref={scrollAreaRef}
+        className={styles.scrollArea}
+        onScroll={(event) => {
+          const el = event.currentTarget;
+          const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
+          setShowScrollBottom(dist > 48);
+          if (turnAnchors.length > 0) {
+            const containerTop = el.getBoundingClientRect().top + 96;
+            let bestIdx = 0;
+            const nodes = el.querySelectorAll<HTMLElement>("[data-turn-anchor]");
+            nodes.forEach((node, idx) => {
+              if (node.getBoundingClientRect().top <= containerTop) {
+                bestIdx = idx;
+              }
+            });
+            setActiveTurnIndex(bestIdx);
+          }
+        }}
+      >
         {messages.length === 0 ? (
           <div className={styles.hero}>
             <h1 className={styles.heroTitle}>{locale.welcomeHeadline}</h1>
             <p className={styles.heroSubtitle}>{locale.welcomeSubtitle}</p>
-            <div className={styles.starters}>
-              {[locale.starterInspect, locale.starterMemory, locale.starterRules].map((prompt) => (
-                <button
-                  key={prompt}
-                  type="button"
-                  className={styles.starterChip}
-                  onClick={() => void handleSubmit(prompt)}
-                >
-                  {prompt}
-                </button>
-              ))}
-            </div>
+            {state.generalSettings.homeSuggestions && (
+              <div className={styles.starters}>
+                {[locale.starterInspect, locale.starterMemory, locale.starterRules].map((prompt) => (
+                  <button
+                    key={prompt}
+                    type="button"
+                    className={styles.starterChip}
+                    onClick={() => void handleSubmit(prompt)}
+                  >
+                    {prompt}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         ) : (
           <div className={styles.thread}>
-            {messages.map((msg) =>
+            {messages[0] && (
+              <div className={styles.dayDivider}>
+                {formatDayDivider(messages[0].createdAt, locale.isZh)}
+              </div>
+            )}
+            {messages.map((msg, msgIdx) =>
               msg.role === "user" ? (
-                <div key={msg.id} className={styles.userRow}>
+                <div key={msg.id} className={styles.userRow} data-turn-anchor={msg.id}>
                   <div className={styles.userBubble}>{msg.content}</div>
+                  <UserMessageActions
+                    isZh={locale.isZh}
+                    content={msg.content}
+                    createdAt={msg.createdAt}
+                    onEdit={() => {
+                      setDraft(msg.content);
+                      textareaRef.current?.focus();
+                    }}
+                  />
                 </div>
               ) : (
                 <article key={msg.id} className={styles.assistantRow}>
@@ -77,13 +381,66 @@ export function ChatWorkspace({
                     locale={locale}
                     steps={msg.steps ?? []}
                     reasoning={msg.reasoning}
+                    createdAt={msg.createdAt}
+                    reasoningDurationMs={msg.reasoningDurationMs}
+                    isStreaming={msg.status === "streaming"}
+                    hasContent={Boolean(msg.content.trim())}
                     pendingApproval={msg.status === "streaming" ? state.pendingApproval : null}
                     onResolveApproval={(approved) => void store.resolveApproval(approved)}
                   />
-                  <div className={styles.assistantBody}>
-                    {msg.content || (msg.status === "streaming" ? "..." : "")}
-                  </div>
-                  {msg.model && <span className={styles.assistantMeta}>{msg.model}</span>}
+                  {(msg.content || msg.status !== "streaming") && (
+                    <div className={styles.assistantBody}>
+                      <MarkdownContent content={msg.content} isZh={locale.isZh} />
+                    </div>
+                  )}
+                  <EditedFilesCard
+                    isZh={locale.isZh}
+                    steps={msg.steps ?? []}
+                    projectId={activeProjectId}
+                    onViewChanges={onOpenGitSettings}
+                  />
+                  {msg.status !== "streaming" && msg.content.trim() && (
+                    <AssistantMessageActions
+                      isZh={locale.isZh}
+                      content={msg.content}
+                      createdAt={msg.createdAt}
+                      model={msg.model}
+                      memoryRefCount={state.memories.length}
+                      onBranchToNewChat={() => {
+                        store.startNewChatDraft({
+                          projectId: activeProjectId,
+                          sectionId: activeSession?.sectionId ?? null,
+                        });
+                        setDraft(
+                          locale.isZh
+                            ? `基于以下前文继续探讨：\n> ${msg.content.slice(0, 180).replace(/\n+/g, " ")}\n\n`
+                            : `Continue from:\n> ${msg.content.slice(0, 180).replace(/\n+/g, " ")}\n\n`,
+                        );
+                        textareaRef.current?.focus();
+                      }}
+                    />
+                  )}
+                  {msg.status === "aborted" && !isRunning && msg.content.trim() && (
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                      <button
+                        type="button"
+                        className={styles.noticeLink}
+                        onClick={() => void store.continueInterruptedMessage(msg.id)}
+                      >
+                        {locale.isZh ? "继续生成（从完整句边界续写）" : "Continue from clean boundary"}
+                      </button>
+                    </div>
+                  )}
+                  {msgIdx === messages.length - 1 && !isRunning && msg.status !== "streaming" && msg.content.trim() && (
+                    <FollowUpSuggestions
+                      suggestions={buildFollowUpSuggestions(
+                        messages[msgIdx - 1]?.role === "user" ? (messages[msgIdx - 1]?.content ?? "") : "",
+                        msg.content,
+                        locale.isZh,
+                      )}
+                      onSelect={(question) => void handleSubmit(question)}
+                    />
+                  )}
                 </article>
               ),
             )}
@@ -92,106 +449,334 @@ export function ChatWorkspace({
         )}
       </div>
 
+      <ChatAnchorBar
+        turns={turnAnchors}
+        activeTurnIndex={activeTurnIndex}
+        onJumpToTurn={(anchorMsgId, idx) => {
+          setActiveTurnIndex(idx);
+          const target = scrollAreaRef.current?.querySelector<HTMLElement>(`[data-turn-anchor="${anchorMsgId}"]`);
+          target?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }}
+      />
+
       <div className={styles.composerDock}>
+        {showScrollBottom && messages.length > 0 && (
+          <button
+            type="button"
+            className={styles.scrollBottomBtn}
+            aria-label={locale.isZh ? "回到底部" : "Scroll to bottom"}
+            onClick={() => endRef.current?.scrollIntoView({ block: "end", behavior: "smooth" })}
+          >
+            <IconArrowDown size={15} stroke={2} />
+          </button>
+        )}
         {state.errorMessage && (
           <div className={styles.errorBanner} role="alert">{state.errorMessage}</div>
         )}
-        <div className={styles.composerCard}>
-          {needsApiKey && (
-            <div className={styles.noticeBar}>
-              <span>{locale.modelKeyMissingHint}</span>
-              <button type="button" className={styles.noticeLink} onClick={onOpenSettings}>
-                {locale.configureModel}
-              </button>
-            </div>
-          )}
-
-          <textarea
-            className={styles.textarea}
-            placeholder={locale.composerPlaceholder}
-            value={draft}
-            rows={2}
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-                event.preventDefault();
-                void handleSubmit();
-              }
-            }}
-          />
-
-          <div className={styles.composerBar}>
-            <div className={styles.controls}>
-              <select
-                className={styles.selectPill}
-                aria-label={locale.activeModel}
-                value={state.activeProfileId}
-                onChange={(event) => void store.setActiveProfile(event.target.value)}
-              >
-                {state.profiles.map((profile) => (
-                  <option key={profile.id} value={profile.id}>
-                    {`${profile.name} (${profile.model})`}
-                  </option>
-                ))}
-              </select>
-
-              <select
-                className={styles.selectPill}
-                aria-label={locale.bindProject}
-                value={activeProjectId ?? ""}
-                onChange={(event) => void store.setActiveProjectBinding(event.target.value || null)}
-              >
-                <option value="">{locale.noProjectBound}</option>
-                {projects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.name}
-                  </option>
-                ))}
-              </select>
-
-              <button type="button" className={styles.toolBtn} onClick={onOpenSettings}>
-                <IconSettings size={14} aria-hidden="true" />
-                <span>{locale.configureModel}</span>
-              </button>
-
-              {activeSession && (
-                <button
-                  type="button"
-                  className={styles.toolBtn}
-                  aria-label={locale.deleteChat}
-                  title={locale.deleteChat}
-                  onClick={() => void store.deleteSession(activeSession.id)}
-                >
-                  <IconTrash size={14} aria-hidden="true" />
-                </button>
-              )}
-            </div>
-
-            {isRunning ? (
-              <button
-                type="button"
-                className={styles.stopBtn}
-                aria-label={locale.stop}
-                title={locale.stop}
-                onClick={() => void store.abortActiveRun()}
-              >
-                <IconPlayerStop size={16} aria-hidden="true" />
-              </button>
-            ) : (
-              <button
-                type="button"
-                className={styles.sendBtn}
-                aria-label={locale.send}
-                title={locale.send}
-                disabled={!draft.trim()}
-                onClick={() => void handleSubmit()}
-              >
-                <IconArrowUp size={16} aria-hidden="true" />
+        {state.streamStatusNotice && (
+          <div className={styles.noticeBar} role="status">
+            <span>{state.streamStatusNotice}</span>
+            {state.degradedStream && (
+              <button type="button" className={styles.noticeLink} onClick={() => store.retryDegradedStream()}>
+                {locale.isZh ? "立即重试恢复" : "Retry now"}
               </button>
             )}
           </div>
+        )}
+        <div className={styles.composerStack}>
+          {messages.length === 0 && (
+            <ComposerScopeBar
+              locale={locale}
+              projects={projects}
+              selectedProjectId={activeProjectId}
+              canCreateProject={Boolean(projectProvider)}
+              openProjectSignal={openProjectSignal}
+              onSelectProject={(projectId) => void store.setActiveProjectBinding(projectId)}
+              onCreateProject={() => setCreateDialogOpen(true)}
+            />
+          )}
+          {mentionTrigger && (
+            <MentionPopover
+              locale={locale}
+              entries={visibleMentionEntries}
+              highlightedIndex={mentionIndex}
+              onSelect={handleSelectMentionEntry}
+            />
+          )}
+          {slashTrigger && (
+            <SlashCommandPopover
+              isZh={locale.isZh}
+              entries={visibleSlashCommands}
+              highlightedIndex={slashIndex}
+              onSelect={handleSelectSlashCommand}
+            />
+          )}
+          <div className={styles.composerCard}>
+            {needsApiKey && (
+              <div className={styles.noticeBar}>
+                <span>{locale.modelKeyMissingHint}</span>
+                <button type="button" className={styles.noticeLink} onClick={onOpenSettings}>
+                  {locale.configureModel}
+                </button>
+              </div>
+            )}
+
+            {attachments.length > 0 && (
+              <div className={styles.attachmentRow}>
+                {attachments.map((item) => (
+                  <span key={item.id} className={styles.attachmentChip}>
+                    <span className={styles.attachmentChipLabel}>{item.label}</span>
+                    {item.detail && <span className={styles.attachmentChipDetail}>{item.detail}</span>}
+                    <button
+                      type="button"
+                      className={styles.attachmentChipRemove}
+                      aria-label={item.label}
+                      onClick={() => setAttachments((prev) => prev.filter((x) => x.id !== item.id))}
+                    >
+                      <IconX size={11} aria-hidden="true" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {state.queuedMessages.length > 0 && (
+              <div className={styles.attachmentRow} aria-label={locale.isZh ? "排队消息" : "Queued messages"}>
+                {state.queuedMessages.map((queued, idx) => (
+                  <span key={`${idx}-${queued.slice(0, 12)}`} className={styles.attachmentChip}>
+                    <span className={styles.attachmentChipLabel}>{locale.isZh ? "排队" : "Queued"}</span>
+                    <span className={styles.attachmentChipDetail}>{queued.slice(0, 28)}</span>
+                    <button
+                      type="button"
+                      className={styles.attachmentChipRemove}
+                      aria-label={locale.isZh ? "移除排队消息" : "Remove queued"}
+                      onClick={() => store.removeQueuedMessage(idx)}
+                    >
+                      <IconX size={11} aria-hidden="true" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {contextNotice && (
+              <div className={styles.contextNotice} role="status">
+                <span>{contextNotice}</span>
+                <button
+                  type="button"
+                  className={styles.contextNoticeClose}
+                  aria-label={locale.dismissNoticeLabel}
+                  onClick={() => setContextNotice("")}
+                >
+                  <IconX size={12} aria-hidden="true" />
+                </button>
+              </div>
+            )}
+
+            <textarea
+              ref={textareaRef}
+              className={styles.textarea}
+              placeholder={locale.composerPlaceholder}
+              value={draft}
+              rows={2}
+              onChange={(event) => {
+                const nextVal = event.target.value;
+                setDraft(nextVal);
+                syncMentionFromText(nextVal, event.target.selectionStart);
+              }}
+              onClick={(event) => {
+                syncMentionFromText(draft, event.currentTarget.selectionStart);
+              }}
+              onKeyDown={(event) => {
+                if (mentionTrigger) {
+                  if (event.key === "ArrowDown") {
+                    event.preventDefault();
+                    setMentionIndex((idx) => (visibleMentionEntries.length > 0 ? (idx + 1) % visibleMentionEntries.length : 0));
+                    return;
+                  }
+                  if (event.key === "ArrowUp") {
+                    event.preventDefault();
+                    setMentionIndex((idx) => (visibleMentionEntries.length > 0 ? (idx - 1 + visibleMentionEntries.length) % visibleMentionEntries.length : 0));
+                    return;
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    setMentionTrigger(null);
+                    return;
+                  }
+                  if ((event.key === "Tab" || (event.key === "Enter" && !event.shiftKey)) && !event.nativeEvent.isComposing && visibleMentionEntries.length > 0) {
+                    event.preventDefault();
+                    const picked = visibleMentionEntries[mentionIndex] ?? visibleMentionEntries[0];
+                    if (picked) handleSelectMentionEntry(picked);
+                    return;
+                  }
+                }
+                if (slashTrigger) {
+                  if (event.key === "ArrowDown") {
+                    event.preventDefault();
+                    setSlashIndex((idx) => (visibleSlashCommands.length > 0 ? (idx + 1) % visibleSlashCommands.length : 0));
+                    return;
+                  }
+                  if (event.key === "ArrowUp") {
+                    event.preventDefault();
+                    setSlashIndex((idx) => (visibleSlashCommands.length > 0 ? (idx - 1 + visibleSlashCommands.length) % visibleSlashCommands.length : 0));
+                    return;
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    setSlashTrigger(null);
+                    return;
+                  }
+                  if (event.key === "Tab" && !event.nativeEvent.isComposing && visibleSlashCommands.length > 0) {
+                    event.preventDefault();
+                    const picked = visibleSlashCommands[slashIndex] ?? visibleSlashCommands[0];
+                    if (picked) handleTabCompleteSlashCommand(picked);
+                    return;
+                  }
+                  if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && visibleSlashCommands.length > 0) {
+                    event.preventDefault();
+                    const picked = visibleSlashCommands[slashIndex] ?? visibleSlashCommands[0];
+                    if (picked) handleSelectSlashCommand(picked);
+                    return;
+                  }
+                }
+                if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                  const needCtrl = state.generalSettings.sendShortcut === "ctrl_enter";
+                  if (needCtrl && (event.ctrlKey || event.metaKey)) {
+                    event.preventDefault();
+                    void handleSubmit();
+                  } else if (!needCtrl && !event.shiftKey) {
+                    event.preventDefault();
+                    void handleSubmit(undefined, event.ctrlKey || event.metaKey);
+                  }
+                }
+              }}
+            />
+
+            <div className={styles.composerBar}>
+              <div className={styles.controls}>
+                <ComposerAddMenu
+                  locale={locale}
+                  fileInputRef={fileInputRef}
+                  onAttachItems={appendAttachments}
+                  onTriggerMention={() => {
+                    const nextDraft = draft.endsWith("@") ? draft : `${draft}${draft && !draft.endsWith(" ") ? " " : ""}@`;
+                    setDraft(nextDraft);
+                    setSlashTrigger(null);
+                    setMentionTrigger({ query: "", startIndex: nextDraft.length - 1 });
+                    setMentionIndex(0);
+                    focusTextareaAt(nextDraft.length);
+                  }}
+                  onTriggerSlash={() => {
+                    const nextDraft = draft.endsWith("/") ? draft : `${draft}${draft && !draft.endsWith(" ") ? " " : ""}/`;
+                    setDraft(nextDraft);
+                    setMentionTrigger(null);
+                    setSlashTrigger({ query: "", startIndex: nextDraft.length - 1 });
+                    setSlashIndex(0);
+                    focusTextareaAt(nextDraft.length);
+                  }}
+                />
+
+                <PermissionModePicker
+                  locale={locale}
+                  mode={state.permissionMode}
+                  onSelectMode={(nextMode) => store.setPermissionMode(nextMode)}
+                />
+
+                {state.generalSettings.showContextUsage && estimatedTokens > 0 && (
+                  <HoverTip label={locale.isZh ? "上下文估算 Token 用量" : "Estimated context tokens"}>
+                    <span className={styles.contextMeter} tabIndex={0}>
+                      {`~${estimatedTokens} tok`}
+                    </span>
+                  </HoverTip>
+                )}
+
+                {activeSession && (
+                  <HoverTip label={locale.deleteChat}>
+                    <button
+                      type="button"
+                      className={styles.toolBtn}
+                      aria-label={locale.deleteChat}
+                      onClick={() => setDeleteConfirmOpen(true)}
+                    >
+                      <IconTrash size={14} aria-hidden="true" />
+                    </button>
+                  </HoverTip>
+                )}
+              </div>
+
+              <div className={styles.rightCluster}>
+                <ModelReasoningPicker
+                  isZh={locale.isZh}
+                  profiles={state.profiles}
+                  activeProfileId={state.activeProfileId}
+                  reasoningLevel={state.reasoningLevel}
+                  onSelectProfile={(profileId) => void store.setActiveProfile(profileId)}
+                  onSelectBrandModel={(profileId, modelId) => void store.selectBrandModel(profileId, modelId)}
+                  onRefreshBrandModels={(profileId) => store.fetchRemoteModels({ profileId }).then(() => {})}
+                  onSelectReasoning={(level) => store.setReasoningLevel(level)}
+                  onOpenSettings={onOpenSettings}
+                />
+
+                <ComposerRightActions
+                  locale={locale}
+                  draft={draft}
+                  canSend={Boolean(draft.trim() || attachments.length > 0)}
+                  isRunning={isRunning}
+                  onChangeDraft={setDraft}
+                  onSend={() => void handleSubmit()}
+                  onStop={() => void store.abortActiveRun()}
+                  onNotice={setContextNotice}
+                />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
+
+      {createDialogOpen && projectProvider?.renderCreateDialog({
+        onCreated: (project) => {
+          setCreateDialogOpen(false);
+          void store.setActiveProjectBinding(project.id);
+        },
+        onClose: () => setCreateDialogOpen(false),
+      })}
+
+      <ModalDialog
+        open={Boolean(deleteConfirmOpen && activeSession)}
+        title={locale.isZh ? "删除当前对话" : "Delete Current Chat"}
+        subtitle={activeSession?.title ?? ""}
+        size="sm"
+        closeLabel={locale.isZh ? "关闭" : "Close"}
+        onClose={() => setDeleteConfirmOpen(false)}
+        footer={(
+          <div className={modalStyles.footerRight}>
+            <button
+              type="button"
+              className={modalStyles.btn}
+              onClick={() => setDeleteConfirmOpen(false)}
+            >
+              {locale.isZh ? "取消" : "Cancel"}
+            </button>
+            <button
+              type="button"
+              className={modalStyles.dangerBtn}
+              onClick={() => {
+                if (activeSession) void store.deleteSession(activeSession.id);
+                setDeleteConfirmOpen(false);
+              }}
+            >
+              {locale.isZh ? "确认删除" : "Delete"}
+            </button>
+          </div>
+        )}
+      >
+        <p style={{ margin: 0, fontSize: "0.86em", color: "var(--color-muted)" }}>
+          {locale.isZh
+            ? "确定要删除当前对话吗？删除后该会话的所有聊天记录将永久移除，无法恢复。"
+            : "Delete this chat session permanently? This cannot be undone."}
+        </p>
+      </ModalDialog>
     </section>
   );
 }

@@ -30,6 +30,8 @@ import {
   writeSectionExpandedPref,
   writeWorkspaceModePref,
 } from "../client/ui-preferences";
+import { locales } from "../client/locales";
+import { resolveWorkbenchDomain } from "../client/workbench-domains";
 import { WorkbenchClientService } from "../client/workbench-service";
 
 function installMockWindowStorage() {
@@ -227,4 +229,29 @@ test("buildSidebarWidthVars 保留基础宽度变量且仅在跨过拖拽阈值�
   assert.equal(hasExceededDragThreshold(300, 300 + DRAG_THRESHOLD_PX - 1), false);
   assert.equal(hasExceededDragThreshold(300, 300 + DRAG_THRESHOLD_PX), true);
   assert.equal(hasExceededDragThreshold(300, 300 - DRAG_THRESHOLD_PX), true);
+});
+
+test("resolveWorkbenchDomain 与 WorkbenchClientService 支持领域左二切换及资料库标签页同步", () => {
+  const mock = installMockWindowStorage();
+  try {
+    const zh = locales.zh;
+    assert.equal(resolveWorkbenchDomain("library", zh).id, "library");
+    assert.equal(resolveWorkbenchDomain("library", zh).columns, 4);
+    assert.equal(resolveWorkbenchDomain("plugins", zh).id, "plugins");
+    assert.equal(resolveWorkbenchDomain("plugins", zh).sidebarHeader.kind, "sectionTitle");
+    assert.equal(resolveWorkbenchDomain("scheduled", zh).id, "scheduled");
+    assert.equal(resolveWorkbenchDomain("codeReview", zh).id, "codeReview");
+    assert.equal(resolveWorkbenchDomain("images", zh).id, "images");
+    assert.equal(resolveWorkbenchDomain("canva", zh).id, "extension");
+
+    const ctx = new Context();
+    const service = new WorkbenchClientService(ctx);
+    assert.equal(service.getSnapshot().activeLibraryTab, "all");
+    service.setLibraryTab("artifact");
+    assert.equal(service.getSnapshot().activeLibraryTab, "artifact");
+    service.setDomainItem("plugins:installed");
+    assert.equal(service.getSnapshot().activeDomainItem, "plugins:installed");
+  } finally {
+    mock.restore();
+  }
 });

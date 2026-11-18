@@ -5,7 +5,7 @@ import { WorkbenchShell } from "./components/WorkbenchShell";
 import { WorkbenchClientService } from "./workbench-service";
 
 export { WorkbenchClientService } from "./workbench-service";
-export type { WorkbenchSnapshot } from "./workbench-service";
+export type { LibraryTabKey, WorkbenchSnapshot } from "./workbench-service";
 export { readStoredJson, writeStoredJson } from "./ui-preferences";
 
 // Web 应用提供挂载节点与可选插件就绪信号；插件注册 workbench 服务并在释放时卸载 React。

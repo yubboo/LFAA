@@ -9,7 +9,7 @@ import { llmPlugin, type LlmGenerateInput } from "@lfaa/llm";
 import { memoryPlugin } from "@lfaa/memory";
 import { rulesPlugin } from "@lfaa/rules";
 import { toolsPlugin } from "@lfaa/tools";
-import { agentPlugin, type AgentRunEvent } from "../src/index";
+import { agentPlugin, evaluateToolApproval, SMART_APPROVAL_THRESHOLD, type AgentRunEvent } from "../src/index";
 
 test("AgentService 完成 Think -> Act(读写工具+人工审批) -> Check 闭环并持久化轨迹与记忆", async () => {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-agent-loop-"));
@@ -110,11 +110,14 @@ test("AgentService 完成 Think -> Act(读写工具+人工审批) -> Check 闭�
       });
     });
 
-    // 验证四层上下文全量注入（系统规则 + 项目 AGENTS.md + 用户规则 + 长期记忆）
+    // 验证四层上下文全量注入（系统规则 + 项目 AGENTS.md + 用户规则 + 长期记忆 + 资料库能力）
     assert.ok(capturedSystemPrompt.includes("系统安全与行为底线"));
     assert.ok(capturedSystemPrompt.includes("写入文件前须明确检查内容"));
     assert.ok(capturedSystemPrompt.includes("保持输出简明"));
     assert.ok(capturedSystemPrompt.includes("REPORT.md 用于存放项目检查摘要"));
+    assert.ok(capturedSystemPrompt.includes("LFAA 资料库/资产库本地目录"));
+    assert.ok(ctx.tools.getTool("list_library_assets"));
+    assert.ok(ctx.tools.getTool("save_library_artifact"));
 
     // 验证实际磁盘文件已写入且思考/行动/检查三阶段均被持久化
     const reportBody = await fs.readFile(path.join(workspaceDir, "REPORT.md"), "utf8");
@@ -129,6 +132,250 @@ test("AgentService 完成 Think -> Act(读写工具+人工审批) -> Check 闭�
     assert.ok(assistantMsg?.steps?.some((s) => s.phase === "act" && s.toolName === "write_file"));
     assert.ok(assistantMsg?.steps?.some((s) => s.phase === "check" && s.status === "done"));
     assert.ok(events.some((e) => e.type === "approval_required"));
+  } finally {
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("三种权限模式严格区分 ask / smart(3次自动放行+高危兜底) / full", async () => {
+  // 1. evaluateToolApproval 纯策略验证
+  assert.equal(
+    evaluateToolApproval({
+      mode: "ask",
+      permissionLevel: "write",
+      toolName: "write_file",
+      args: { path: "a.txt", content: "1" },
+      approvedCount: 99,
+    }).requiresApproval,
+    true,
+  );
+
+  // smart 模式：0/1/2 次均询问，达到 3 次自动放行；但高危命令即使 >=3 次仍强制询问
+  assert.equal(
+    evaluateToolApproval({
+      mode: "smart",
+      permissionLevel: "write",
+      toolName: "write_file",
+      args: { path: "a.txt", content: "1" },
+      approvedCount: SMART_APPROVAL_THRESHOLD - 1,
+    }).requiresApproval,
+    true,
+  );
+  const autoSmart = evaluateToolApproval({
+    mode: "smart",
+    permissionLevel: "write",
+    toolName: "write_file",
+    args: { path: "a.txt", content: "1" },
+    approvedCount: SMART_APPROVAL_THRESHOLD,
+  });
+  assert.equal(autoSmart.requiresApproval, false);
+  assert.equal(autoSmart.autoApproved, true);
+
+  const highRiskSmart = evaluateToolApproval({
+    mode: "smart",
+    permissionLevel: "exec",
+    toolName: "run_command",
+    args: { command: "rm -rf /tmp/demo" },
+    approvedCount: 10,
+  });
+  assert.equal(highRiskSmart.requiresApproval, true);
+  assert.equal(highRiskSmart.highRisk, true);
+
+  // full 模式：全部自动放行
+  assert.equal(
+    evaluateToolApproval({
+      mode: "full",
+      permissionLevel: "exec",
+      toolName: "run_command",
+      args: { command: "rm -rf /tmp/demo" },
+      approvedCount: 0,
+    }).autoApproved,
+    true,
+  );
+
+  // 2. 端到端 smart 3 次批准 -> 第 4 次自动执行，以及 full 免审写工作区外文件
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-perm-modes-"));
+  const workspaceDir = path.join(tempRoot, "ws");
+  const outsideFile = path.join(tempRoot, "outside.txt");
+  await fs.mkdir(workspaceDir, { recursive: true });
+
+  let stepIdx = 0;
+  const ctx = new Context();
+  await ctx.plugin(llmPlugin, {
+    storeFilePath: path.join(tempRoot, "llm.json"),
+    adapter: async (profile) => {
+      stepIdx += 1;
+      if (stepIdx <= 4) {
+        return {
+          model: profile.model,
+          provider: profile.kind,
+          content: "",
+          toolCalls: [
+            {
+              id: `w-${stepIdx}`,
+              name: "write_file",
+              argumentsJson: JSON.stringify({ path: `f-${stepIdx}.txt`, content: `v${stepIdx}` }),
+            },
+          ],
+          finishReason: "tool_calls",
+        };
+      }
+      if (stepIdx === 6) {
+        return {
+          model: profile.model,
+          provider: profile.kind,
+          content: "",
+          toolCalls: [
+            {
+              id: "w-outside",
+              name: "write_file",
+              argumentsJson: JSON.stringify({ path: outsideFile, content: "full-access-ok" }),
+            },
+          ],
+          finishReason: "tool_calls",
+        };
+      }
+      return { model: profile.model, provider: profile.kind, content: "ok", toolCalls: [], finishReason: "stop" };
+    },
+  });
+  await ctx.plugin(rulesPlugin, { storeFilePath: path.join(tempRoot, "rules.json") });
+  await ctx.plugin(memoryPlugin, {
+    sessionsDir: path.join(tempRoot, "sessions"),
+    memoryFilePath: path.join(tempRoot, "memory.json"),
+  });
+  await ctx.plugin(toolsPlugin);
+  await ctx.plugin(agentPlugin, { smartTrustFilePath: path.join(tempRoot, "smart-trust.json") });
+
+  try {
+    const session = await ctx.memory.createSession({ projectId: "proj-perm" });
+
+    // smart 模式下前 3 次弹窗审批，第 4 次自动放行
+    let smartPromptCount = 0;
+    const runSmart = await ctx.agent.startRun({
+      sessionId: session.id,
+      userMessage: "连续写 4 个文件",
+      projectId: "proj-perm",
+      workspaceRoots: [workspaceDir],
+      permissionMode: "smart",
+    });
+    await new Promise<void>((resolveDone, rejectDone) => {
+      const timer = setTimeout(() => rejectDone(new Error("smart run 超时")), 5000);
+      const off = ctx.agent.subscribeRun(runSmart.runId, (evt) => {
+        if (evt.type === "approval_required") {
+          smartPromptCount += 1;
+          ctx.agent.resolveApproval(runSmart.runId, evt.approvalId, true);
+        }
+        if (evt.type === "run_finished") {
+          clearTimeout(timer);
+          off();
+          resolveDone();
+        }
+      });
+    });
+    assert.equal(smartPromptCount, 3, "smart 模式前 3 次需人工确认，第 4 次应自动放行");
+    assert.equal(await fs.readFile(path.join(workspaceDir, "f-4.txt"), "utf8"), "v4");
+
+    // full 模式下不弹审批且允许写入工作区外路径
+    let fullPromptCount = 0;
+    const runFull = await ctx.agent.startRun({
+      sessionId: session.id,
+      userMessage: "写外部文件",
+      projectId: "proj-perm",
+      workspaceRoots: [workspaceDir],
+      permissionMode: "full",
+    });
+    await new Promise<void>((resolveDone, rejectDone) => {
+      const timer = setTimeout(() => rejectDone(new Error("full run 超时")), 5000);
+      const off = ctx.agent.subscribeRun(runFull.runId, (evt) => {
+        if (evt.type === "approval_required") fullPromptCount += 1;
+        if (evt.type === "run_finished") {
+          clearTimeout(timer);
+          off();
+          resolveDone();
+        }
+      });
+    });
+    assert.equal(fullPromptCount, 0, "full 模式不应请求人工确认");
+    assert.equal(await fs.readFile(outsideFile, "utf8"), "full-access-ok");
+  } finally {
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("流式断线重连序号补发、完整句边界裁剪、指数退避与四项指标可观测性", async () => {
+  const {
+    computeReconnectBackoffMs,
+    maskRunId,
+    splitAtCleanSentenceBoundary,
+  } = await import("../src/index");
+
+  const split = splitAtCleanSentenceBoundary("今天天气真好。我们去散步吧，但是");
+  assert.equal(split.cleanPrefix, "今天天气真好。");
+  assert.equal(split.incompleteTail, "我们去散步吧，但是");
+
+  assert.equal(maskRunId("1234567890abcdef"), "1234***cdef");
+  const d1 = computeReconnectBackoffMs(1, 500, 12000);
+  const d4 = computeReconnectBackoffMs(4, 500, 12000);
+  assert.ok(d1 >= 500 && d1 <= 720);
+  assert.ok(d4 >= 4000 && d4 <= 4220);
+
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-stream-resume-"));
+  const ctx = new Context();
+  ctx.plugin(memoryPlugin, {
+    sessionsDir: path.join(tempRoot, "sessions"),
+    memoryFilePath: path.join(tempRoot, "memory.json"),
+  });
+  ctx.plugin(rulesPlugin, { storeFilePath: path.join(tempRoot, "rules.json") });
+  ctx.plugin(toolsPlugin);
+  ctx.plugin(llmPlugin, {
+    storeFilePath: path.join(tempRoot, "llm.json"),
+    adapter: async (_profile, input) => {
+      for (const ch of ["第1段。", "第2段。", "第3段。"]) {
+        input.onDelta?.({ type: "text", text: ch });
+        await new Promise((r) => setTimeout(r, 10));
+      }
+      return {
+        model: "mock",
+        provider: "openai-compatible",
+        content: "第1段。第2段。第3段。",
+        toolCalls: [],
+        finishReason: "stop",
+      };
+    },
+  });
+  await ctx.plugin(agentPlugin, { smartTrustFilePath: path.join(tempRoot, "trust.json") });
+
+  try {
+    const session = await ctx.memory.createSession({ title: "流式续传测试" });
+    const started = await ctx.agent.startRun({
+      sessionId: session.id,
+      userMessage: "分段输出",
+    });
+
+    await new Promise<void>((resolveDone) => {
+      const off = ctx.agent.subscribeRun(started.runId, (evt) => {
+        if (evt.type === "run_finished") {
+          off();
+          resolveDone();
+        }
+      });
+    });
+
+    const replayed = ctx.agent.getReplayChunks(started.runId, 1);
+    assert.deepEqual(
+      replayed.map((c) => [c.seq, c.text]),
+      [[2, "第2段。"], [3, "第3段。"]],
+    );
+    ctx.agent.recordReconnect(started.runId, 1, replayed);
+    ctx.agent.recordClientFps(59.4);
+
+    const metrics = ctx.agent.getStreamMetrics();
+    assert.equal(metrics.activeStreams, 0);
+    assert.equal(metrics.totalRuns, 1);
+    assert.equal(metrics.totalReconnects, 1);
+    assert.equal(metrics.replayedChunks, 2);
+    assert.equal(metrics.reconnectRate, 1);
+    assert.equal(metrics.lastClientFps, 59.4);
   } finally {
     await fs.rm(tempRoot, { recursive: true, force: true });
   }

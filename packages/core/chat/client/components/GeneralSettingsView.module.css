@@ -1,0 +1,394 @@
+/* 设置中心「常规」视图样式：高密度原生桌面分组卡片、分隔线、开关滑块、分段选择器与弹窗遮罩。 */
+.root {
+  display: grid;
+  align-content: start;
+  gap: 1.35rem;
+  width: min(100% - 2.5rem, 52rem);
+  margin: 0 auto;
+  padding: 1.75rem 0 3rem;
+}
+
+.pageTitle {
+  margin: 0;
+  color: var(--color-ink);
+  font-size: 1.55em;
+  font-weight: 600;
+}
+
+.groupSection {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.groupTitle {
+  margin: 0;
+  color: var(--color-ink);
+  font-size: 0.88em;
+  font-weight: 600;
+}
+
+.groupCard {
+  display: grid;
+  border: 1px solid var(--glass-border, var(--color-line));
+  border-radius: 0.85rem;
+  background: var(--glass-card-bg, var(--color-surface));
+  overflow: visible;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  padding: 0.85rem 1.05rem;
+}
+
+.row + .row {
+  border-top: 1px solid var(--color-line);
+}
+
+.rowText {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.rowTitle {
+  color: var(--color-ink);
+  font-size: 0.92em;
+  font-weight: 500;
+}
+
+.rowDesc {
+  color: var(--color-muted);
+  font-size: 0.82em;
+  line-height: 1.45;
+}
+
+.inlineLinkBtn {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--color-ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.rowControl {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex: 0 0 auto;
+}
+
+.pathText {
+  color: var(--color-muted);
+  font-family: var(--code-font-family, monospace);
+  font-size: 0.82em;
+  max-width: 17rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actionBtn,
+.selectTrigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.38rem 0.78rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.68rem;
+  background: var(--color-panel);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.84em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.actionBtn:hover,
+.selectTrigger:hover {
+  background: var(--color-active);
+}
+
+.selectWrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.chevronIcon {
+  color: var(--color-muted);
+}
+
+.optionIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.selectMenu {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  z-index: 40;
+  display: grid;
+  gap: 0.3rem;
+  min-width: 14.5rem;
+  max-width: min(22rem, 84vw);
+  padding: 0.35rem;
+  border: 1px solid var(--glass-border, var(--color-line));
+  border-radius: 0.88rem;
+  background: var(--glass-card-bg, var(--color-surface));
+  box-shadow: 0 14px 36px rgb(0 0 0 / 0.42);
+}
+
+.menuSearchWrap {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.55rem;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.menuSearchIcon {
+  color: var(--color-muted);
+  flex: 0 0 auto;
+}
+
+.menuSearchInput {
+  width: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.84em;
+}
+
+.menuList {
+  display: grid;
+  gap: 0.12rem;
+  max-height: 17.5rem;
+  overflow-y: auto;
+}
+
+.menuOption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem;
+  width: 100%;
+  padding: 0.48rem 0.65rem;
+  border: 0;
+  border-radius: 0.58rem;
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menuOption:hover,
+.menuOptionActive {
+  background: var(--color-active);
+}
+
+.menuOptionMain {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.menuOptionText {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.menuOptionLabel {
+  font-size: 0.86em;
+  color: var(--color-ink);
+}
+
+.menuOptionDesc {
+  font-size: 0.76em;
+  color: var(--color-muted);
+  line-height: 1.35;
+}
+
+.checkIcon {
+  flex: 0 0 auto;
+  color: var(--color-ink);
+}
+
+.segmented {
+  display: inline-flex;
+  padding: 0.16rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.55rem;
+  background: var(--color-panel);
+}
+
+.segBtn {
+  padding: 0.24rem 0.65rem;
+  border: 0;
+  border-radius: 0.42rem;
+  background: transparent;
+  color: var(--color-muted);
+  font: inherit;
+  font-size: 0.82em;
+  cursor: pointer;
+}
+
+.segBtnActive {
+  background: var(--color-active);
+  color: var(--color-ink);
+  font-weight: 500;
+}
+
+.switchTrack {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 2.35rem;
+  height: 1.32rem;
+  padding: 0.14rem;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-panel);
+  cursor: pointer;
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+
+.switchChecked {
+  border-color: transparent;
+  background: var(--color-accent, #c73c93);
+}
+
+.switchThumb {
+  width: 0.96rem;
+  height: 0.96rem;
+  border-radius: 999px;
+  background: #ffffff;
+  transform: translateX(0);
+  transition: transform 150ms ease;
+}
+
+.switchChecked .switchThumb {
+  transform: translateX(1.02rem);
+}
+
+.popoverMenu {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  z-index: 25;
+  display: grid;
+  gap: 0.3rem;
+  min-width: 11.5rem;
+  padding: 0.55rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.7rem;
+  background: var(--color-surface);
+  box-shadow: 0 12px 28px rgb(0 0 0 / 0.28);
+}
+
+.checkRow {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.24rem 0.35rem;
+  border-radius: 0.4rem;
+  color: var(--color-ink);
+  font-size: 0.84em;
+  cursor: pointer;
+}
+
+.checkRow:hover {
+  background: var(--color-active);
+}
+
+.notice {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.6rem;
+  background: var(--color-panel);
+  color: var(--color-ink);
+  font-size: 0.84em;
+}
+
+.modalBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 0.55);
+}
+
+.modalCard {
+  display: grid;
+  gap: 0.75rem;
+  width: min(92vw, 34rem);
+  max-height: 75vh;
+  padding: 1.15rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.9rem;
+  background: var(--color-surface);
+}
+
+.modalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.modalList {
+  display: grid;
+  gap: 0.35rem;
+  overflow: auto;
+  max-height: 48vh;
+  padding-right: 0.25rem;
+}
+
+.licenseRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.38rem 0.55rem;
+  border-radius: 0.45rem;
+  background: var(--color-panel);
+  font-size: 0.83em;
+  color: var(--color-ink);
+}
+
+.confettiBurst {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  font-size: 0.92em;
+}
+
+@media (max-width: 720px) {
+  .row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .rowControl {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

@@ -1,4 +1,4 @@
-/* 移出项目二次确认弹窗样式，采用居中液态玻璃卡片、柔和暗红警示按钮与高对比度文本。 */
+/* 共享二次确认弹窗样式：居中液态玻璃卡片、柔和暗红警示按钮与高对比度文本。 */
 .backdrop {
   position: fixed;
   z-index: 115;
@@ -91,7 +91,7 @@
 }
 
 .cancelBtn,
-.removeBtn {
+.confirmBtn {
   min-height: 2.35rem;
   padding: 0.42rem 1.08rem;
   border-radius: 0.72rem;
@@ -112,31 +112,31 @@
   color: var(--color-ink);
 }
 
-.removeBtn {
+.confirmBtn {
   border: 1px solid rgb(229 72 77 / 0.24);
   background: rgb(229 72 77 / 0.16);
   color: #f05252;
   font-weight: 550;
 }
 
-.removeBtn:hover:not(:disabled) {
+.confirmBtn:hover:not(:disabled) {
   border-color: rgb(229 72 77 / 0.38);
   background: rgb(229 72 77 / 0.24);
 }
 
-:global(:root[data-resolved-theme="light"]) .removeBtn {
+:global(:root[data-resolved-theme="light"]) .confirmBtn {
   border-color: rgb(220 38 38 / 0.24);
   background: rgb(220 38 38 / 0.1);
   color: #c92a2a;
 }
 
-:global(:root[data-resolved-theme="light"]) .removeBtn:hover:not(:disabled) {
+:global(:root[data-resolved-theme="light"]) .confirmBtn:hover:not(:disabled) {
   border-color: rgb(220 38 38 / 0.38);
   background: rgb(220 38 38 / 0.18);
 }
 
 .cancelBtn:disabled,
-.removeBtn:disabled {
+.confirmBtn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }

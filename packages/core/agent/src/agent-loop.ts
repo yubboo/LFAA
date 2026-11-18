@@ -4,13 +4,15 @@ import type { LlmMessage, LlmService, LlmToolCall } from "@lfaa/llm";
 import type { AgentStepTrace, MemoryService } from "@lfaa/memory";
 import type { RulesService } from "@lfaa/rules";
 import type { ToolsService } from "@lfaa/tools";
-import type { AgentRunEvent } from "./types";
+import { evaluateToolApproval, type SmartTrustStore } from "./permission-policy";
+import type { AgentPermissionMode, AgentRunEvent } from "./types";
 
 export interface RunLoopDeps {
   llm: LlmService;
   tools: ToolsService;
   memory: MemoryService;
   rules: RulesService;
+  trustStore: SmartTrustStore;
 }
 
 export interface RunExecutionParams {
@@ -19,10 +21,11 @@ export interface RunExecutionParams {
   assistantMessageId: string;
   userMessage: string;
   profileId?: string;
+  reasoningEffort?: "minimal" | "low" | "medium" | "high" | "max";
   projectId?: string | null;
   workspaceRoots: string[];
   maxSteps: number;
-  autoApproveTools: boolean;
+  permissionMode: AgentPermissionMode;
   signal: AbortSignal;
   emit: (event: AgentRunEvent) => void;
   requestApproval: (params: {
@@ -30,6 +33,12 @@ export interface RunExecutionParams {
     toolName: string;
     permissionLevel: "write" | "exec";
     argsPreview: string;
+    permissionMode: AgentPermissionMode;
+    approvalPattern?: string;
+    approvalCount?: number;
+    approvalThreshold?: number;
+    highRisk?: boolean;
+    riskReason?: string;
   }) => Promise<boolean>;
 }
 
@@ -61,12 +70,18 @@ export async function executeAgentTaskLoop(
     params.emit({ type: "step_update", runId: params.runId, step });
   };
 
-  // 1. 装配上下文：规则优先级 + 长期记忆召回 + 短期裁剪历史
-  const memories = await deps.memory.recallRelevantMemories({
-    query: params.userMessage,
-    ...(params.projectId !== undefined ? { projectId: params.projectId } : {}),
-    limit: 6,
-  });
+  // 1. 装配上下文：规则优先级 + 长期记忆召回 + 资料库/资产库摘要 + 短期裁剪历史
+  const [memories, storageState, recentAssets] = await Promise.all([
+    deps.memory.recallRelevantMemories({
+      query: params.userMessage,
+      ...(params.projectId !== undefined ? { projectId: params.projectId } : {}),
+      limit: 6,
+    }),
+    deps.memory.getStorageState(),
+    deps.memory.listLibraryAssets({
+      ...(params.projectId !== undefined ? { projectId: params.projectId } : {}),
+    }),
+  ]);
   const memoryHints = memories.map((m) => `[${m.scope === "project" ? "项目记忆" : "全局记忆"}] ${m.content}`);
   const { systemPrompt } = await deps.rules.composeSystemPrompt({
     projectPaths: params.workspaceRoots,
@@ -77,11 +92,22 @@ export async function executeAgentTaskLoop(
     maxChars: 16000,
   });
 
-  const conversation: LlmMessage[] = [{ role: "system", content: systemPrompt }];
+  const modeHint = params.permissionMode === "full"
+    ? "当前权限模式：完全访问权限（可不受工作区目录限制读写文件并自动执行命令）。"
+    : params.permissionMode === "smart"
+      ? "当前权限模式：帮我审批（受工作区沙箱限制；同类常规操作累计批准 3 次后自动放行，高危操作仍需确认）。"
+      : "当前权限模式：请求批准（受工作区沙箱限制；每次修改文件或执行命令均需用户确认）。";
+
+  const assetPreview = recentAssets.slice(0, 6).map((a) => `${a.title}(${a.fileName})`).join("、");
+  const libraryHint = `LFAA 资料库/资产库本地目录：${storageState.dataRoot}（当前已有 ${recentAssets.length} 项资产/产物${assetPreview ? `：${assetPreview}` : ""}）。你可通过 list_library_assets / read_library_asset 查看资料库内容，产出的报告、文档或成品请优先调用 save_library_artifact 存入资产库以便用户在「资料库」界面统一查看。`;
+  const formatHint = "排版规范：列举 3 个及以上的目录、文件、配置项或路径时，严禁挤在一段长句括号里用顿号堆叠；请使用结构化列表（如 `- \`name/\`：说明`）、Markdown 表格或树形代码块展示，并将文件名与目录名用反引号 `` ` `` 包裹。";
+
+  const conversation: LlmMessage[] = [{ role: "system", content: `${systemPrompt}\n\n${modeHint}\n${libraryHint}\n${formatHint}` }];
   if (contextWindow.summaryNote) {
     conversation.push({ role: "system", content: `前序会话摘要：${contextWindow.summaryNote}` });
   }
   for (const msg of contextWindow.recentMessages) {
+    if (msg.status === "streaming" || (msg.role === "assistant" && !msg.content.trim())) continue;
     conversation.push({ role: msg.role, content: msg.content });
   }
   if (!contextWindow.recentMessages.some((m) => m.role === "user" && m.content === params.userMessage)) {
@@ -107,16 +133,17 @@ export async function executeAgentTaskLoop(
     let iterText = "";
     const output = await deps.llm.complete({
       ...(params.profileId !== undefined ? { profileId: params.profileId } : {}),
+      ...(params.reasoningEffort !== undefined ? { reasoningEffort: params.reasoningEffort } : {}),
       messages: conversation,
       tools: llmTools,
       signal: params.signal,
       onDelta: (delta) => {
         if (delta.type === "reasoning" && delta.text) {
           accumulatedReasoning += delta.text;
-          params.emit({ type: "delta", runId: params.runId, kind: "reasoning", text: delta.text });
+          params.emit({ type: "delta", runId: params.runId, seq: 0, kind: "reasoning", text: delta.text });
         } else if (delta.type === "text" && delta.text) {
           iterText += delta.text;
-          params.emit({ type: "delta", runId: params.runId, kind: "text", text: delta.text });
+          params.emit({ type: "delta", runId: params.runId, seq: 0, kind: "text", text: delta.text });
         }
       },
     });
@@ -156,10 +183,11 @@ export async function executeAgentTaskLoop(
       return { content: finalContent, reasoning: accumulatedReasoning, steps, model: lastModel };
     }
 
-    // 记录模型发出的 assistant + toolCalls 轮次
+    // 记录模型发出的 assistant + toolCalls 轮次（保留 reasoningContent 以适配 DeepSeek 思考模式工具调用回传要求）
     conversation.push({
       role: "assistant",
       content: roundContent,
+      ...(output.reasoningContent !== undefined ? { reasoningContent: output.reasoningContent } : {}),
       toolCalls: output.toolCalls,
     });
 
@@ -191,32 +219,68 @@ export async function executeAgentTaskLoop(
       let toolOutputText = "";
       let stepOk = false;
       let summaryText = "";
+      let addedLines: number | undefined;
+      let removedLines: number | undefined;
 
       if (!parsedArgs.ok) {
         toolOutputText = parsedArgs.error;
         summaryText = "参数格式错误";
       } else {
         let permitted = true;
-        if (toolDef && perm !== "read" && !params.autoApproveTools) {
-          const approvalId = randomUUID();
-          pushOrUpdateStep({
-            id: actStepId,
-            iteration,
-            phase: "act",
-            status: "waiting_approval",
-            title: `等待确认：${toolDef.title} (${call.name})`,
-            toolCallId: call.id,
-            toolName: call.name,
+        let autoApprovalDetail = "";
+        if (toolDef && perm !== "read") {
+          const currentCount = params.permissionMode === "smart"
+            ? await deps.trustStore.getCount(
+              evaluateToolApproval({
+                mode: "smart",
+                permissionLevel: perm,
+                toolName: call.name,
+                args: parsedArgs.value,
+                approvedCount: 0,
+              }).pattern,
+            )
+            : 0;
+          const decision = evaluateToolApproval({
+            mode: params.permissionMode,
             permissionLevel: perm,
-            argsPreview,
-            timestamp: Date.now(),
-          });
-          permitted = await params.requestApproval({
-            approvalId,
             toolName: call.name,
-            permissionLevel: perm,
-            argsPreview,
+            args: parsedArgs.value,
+            approvedCount: currentCount,
           });
+
+          if (decision.requiresApproval) {
+            const approvalId = randomUUID();
+            pushOrUpdateStep({
+              id: actStepId,
+              iteration,
+              phase: "act",
+              status: "waiting_approval",
+              title: `等待确认：${toolDef.title} (${call.name})`,
+              toolCallId: call.id,
+              toolName: call.name,
+              permissionLevel: perm,
+              argsPreview,
+              ...(decision.reason ? { detail: decision.reason } : {}),
+              timestamp: Date.now(),
+            });
+            permitted = await params.requestApproval({
+              approvalId,
+              toolName: call.name,
+              permissionLevel: perm,
+              argsPreview,
+              permissionMode: params.permissionMode,
+              approvalPattern: decision.pattern,
+              ...(decision.approvalCount !== undefined ? { approvalCount: decision.approvalCount } : {}),
+              ...(decision.approvalThreshold !== undefined ? { approvalThreshold: decision.approvalThreshold } : {}),
+              highRisk: decision.highRisk,
+              ...(decision.reason ? { riskReason: decision.reason } : {}),
+            });
+            if (params.permissionMode === "smart") {
+              await deps.trustStore.recordDecision(decision.pattern, permitted, decision.highRisk);
+            }
+          } else if (decision.autoApproved && decision.reason) {
+            autoApprovalDetail = decision.reason;
+          }
         }
 
         if (!permitted) {
@@ -228,10 +292,13 @@ export async function executeAgentTaskLoop(
             sessionId: params.sessionId,
             runId: params.runId,
             signal: params.signal,
+            allowOutsideWorkspace: params.permissionMode === "full",
           });
           stepOk = execRes.ok;
           toolOutputText = execRes.output;
-          summaryText = execRes.summary;
+          summaryText = autoApprovalDetail ? `${execRes.summary} · ${autoApprovalDetail}` : execRes.summary;
+          if (typeof execRes.metadata?.added === "number") addedLines = execRes.metadata.added;
+          if (typeof execRes.metadata?.removed === "number") removedLines = execRes.metadata.removed;
         }
       }
 
@@ -249,6 +316,8 @@ export async function executeAgentTaskLoop(
         permissionLevel: perm,
         argsPreview,
         resultPreview: toolOutputText.slice(0, 240),
+        ...(addedLines !== undefined ? { addedLines } : {}),
+        ...(removedLines !== undefined ? { removedLines } : {}),
         timestamp: Date.now(),
       });
 
@@ -286,7 +355,7 @@ export async function executeAgentTaskLoop(
     signal: params.signal,
     onDelta: (delta) => {
       if (delta.type === "text" && delta.text) {
-        params.emit({ type: "delta", runId: params.runId, kind: "text", text: delta.text });
+        params.emit({ type: "delta", runId: params.runId, seq: 0, kind: "text", text: delta.text });
       }
     },
   });

@@ -226,6 +226,16 @@ shell.nav.right        # 右侧：上下文菜单与操作面板
 - 测试功能插件注册、切换、热重载/卸载时，四栏贡献能正确挂载和释放。
 - 测试 Host/Client 隔离和样式 token，禁止插件用全局 CSS 擅自覆盖 Shell 四栏结构。
 
+### 3.4 浅色/深色双主题与 CSS 变量规范（强制）
+
+1. **必须使用语义化主题变量**：所有 UI 组件（含弹窗、悬浮卡片、右键菜单、表单控件、代码块与徽章）必须使用 `@lfaa/ui-theme` 注入的 CSS 变量：
+   - 画布与表面：`--color-canvas`、`--color-surface`、`--color-panel`、`--color-active`
+   - 边框与文字：`--color-line`、`--color-ink`、`--color-muted`
+   - 强调色联动：`--color-accent`、`--color-accent-rgb`、`--accent-soft-bg`、`--accent-soft-border`、`--accent-text`
+2. **禁止写死暗色/亮色兜底值**：严禁出现 `var(--color-bg, #111216)`、`var(--glass-card-bg, rgba(24, 25, 30, 0.96))` 或裸写 `rgb(255 255 255 / 0.12)` 作为通用表面/边框（未开启玻璃态或切换至浅色背景时会导致黑底黑字或白底白字）。弹窗、悬浮卡统一使用 `var(--glass-card-bg, var(--color-surface))`，边框统一使用 `var(--color-line)`。
+3. **语义色与局部透明度适配**：增删行（`+` / `-`）、危险操作、状态点等语义色若在浅色/深色下对比度不足，须补充 `:global(:root[data-resolved-theme="light"])` 适配规则。
+4. **验收要求**：每次前端界面改动必须在深色和浅色两种主题下实测弹窗、悬浮层、表单控件与正文对比度，确认无暗色残留或不可读问题。
+
 ## 4. 文件命名、语言和国际化
 
 ### 4.1 三种符号的职责：`-`、`_`、`.`
