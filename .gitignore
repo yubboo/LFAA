@@ -1,15 +1,64 @@
-# 依赖与构建产物
+# 依赖、包管理器缓存与构建产物
 node_modules/
+.pnpm/
+.pnpm-store/
+.npm/
+.yarn/
 dist/
+build/
+out/
 coverage/
 .turbo/
 .cache/
+.vite/
 *.tsbuildinfo
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# 本地凭据与环境配置
+# 本地凭据、密钥、运行数据与环境配置
 .env
 .env.*
 !.env.example
+!.env.template
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+id_rsa*
+id_ed25519*
+*credentials*.json
+*secret*.json
+.lfaa/
+*.db
+*.sqlite
+*.sqlite3
+
+# 大型二进制、压缩包与模型文件
+*.zip
+*.7z
+*.rar
+*.tar
+*.tar.gz
+*.tgz
+*.exe
+*.msi
+*.dmg
+*.iso
+*.bin
+*.gguf
+*.onnx
+*.safetensors
+*.pt
+*.pth
+*.ckpt
+*.mp4
+*.mov
+*.avi
 
 # 系统文件
 .DS_Store
