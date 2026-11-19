@@ -10,6 +10,7 @@ import {
   buildMentionEntries,
   buildSlashCommands,
   extractTrailingMentionQuery,
+  extractTrailingSkillQuery,
   extractTrailingSlashQuery,
   filterMentionEntries,
   filterSlashCommands,
@@ -18,6 +19,8 @@ import {
   type SlashCommandEntry,
 } from "../composer-context";
 import type { ChatLocaleMessages } from "../locales";
+import { useChatScroll } from "../useChatScroll";
+import { AssistantTimeline } from "./AssistantTimeline";
 import { ChatAnchorBar, buildTurnAnchors } from "./ChatAnchorBar";
 import { ComposerAddMenu } from "./ComposerAddMenu";
 import { ComposerRightActions } from "./ComposerRightActions";
@@ -34,7 +37,6 @@ import {
 import { MentionPopover, SlashCommandPopover } from "./MentionPopover";
 import { ModelReasoningPicker } from "./ModelReasoningPicker";
 import { PermissionModePicker } from "./PermissionModePicker";
-import { StepTraceList } from "./StepTraceList";
 import modalStyles from "./ModelProviderGrid.module.css";
 import styles from "./ChatWorkspace.module.css";
 
@@ -46,6 +48,7 @@ export function ChatWorkspace({
   projectProvider,
   onOpenSettings,
   onOpenGitSettings,
+  onOpenFilePreview,
 }: {
   locale: ChatLocaleMessages;
   store: ChatClientStore;
@@ -53,6 +56,7 @@ export function ChatWorkspace({
   projectProvider?: WorkbenchProjectProvider<ReactNode> | null | undefined;
   onOpenSettings: () => void;
   onOpenGitSettings?: (() => void) | undefined;
+  onOpenFilePreview: (messageId: string, stepId: string) => void;
 }) {
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
   const [draft, setDraft] = useState("");
@@ -61,14 +65,16 @@ export function ChatWorkspace({
   const [mentionIndex, setMentionIndex] = useState(0);
   const [slashTrigger, setSlashTrigger] = useState<{ query: string; startIndex: number } | null>(null);
   const [slashIndex, setSlashIndex] = useState(0);
+  const [skillTrigger, setSkillTrigger] = useState<{ query: string; startIndex: number } | null>(null);
+  const [skillIndex, setSkillIndex] = useState(0);
+  const [availableSkills, setAvailableSkills] = useState<Array<{ id: string; name: string; description: string; source: string }>>([]);
   const [openProjectSignal, setOpenProjectSignal] = useState(0);
   const [contextNotice, setContextNotice] = useState("");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [bindingProject, setBindingProject] = useState(false);
+  const projectBindingPending = useRef(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [activeTurnIndex, setActiveTurnIndex] = useState(0);
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const endRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -78,6 +84,7 @@ export function ChatWorkspace({
   const activeProfile = state.profiles.find((p) => p.id === state.activeProfileId) ?? state.profiles[0];
   const needsApiKey = Boolean(activeProfile && activeProfile.kind !== "ollama" && !activeProfile.hasApiKey);
   const isRunning = Boolean(state.runningRunId);
+  const selectedFile = state.filePreviewTabs?.find((tab) => tab.id === state.activeFilePreviewId);
 
   const allMentionEntries = useMemo(
     () => buildMentionEntries({ locale, sessions: state.sessions, activeSessionId: state.activeSessionId }),
@@ -93,10 +100,8 @@ export function ChatWorkspace({
     [allSlashCommands, slashTrigger],
   );
   const turnAnchors = useMemo(() => buildTurnAnchors(messages), [messages]);
-
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
-  }, [messages.length, state.runningRunId, state.pendingApproval]);
+  const { scrollAreaRef, threadRef, showScrollBottom, scrollToLatest, pauseFollowing, trackScroll } =
+    useChatScroll(activeSession?.id ?? null, turnAnchors.at(-1)?.anchorMsgId, isRunning);
 
   const appendAttachments = (items: ComposerAttachment[]) => {
     setContextNotice("");
@@ -129,6 +134,75 @@ export function ChatWorkspace({
     const detectedSlash = detectedMention ? null : extractTrailingSlashQuery(text, pos);
     setSlashTrigger(detectedSlash);
     setSlashIndex(0);
+    const detectedSkill = detectedMention || detectedSlash ? null : extractTrailingSkillQuery(text, pos);
+    setSkillTrigger(detectedSkill);
+    setSkillIndex(0);
+    if (detectedSkill) {
+      void fetch("/api/skills?includeDisabled=false")
+        .then((res) => (res.ok ? res.json() : { skills: [] }))
+        .then((data: { skills?: Array<{ id: string; name: string; description: string; source: string }> }) => {
+          if (Array.isArray(data.skills)) setAvailableSkills(data.skills);
+        })
+        .catch(() => {});
+    }
+  };
+
+  const visibleSkillEntries = useMemo<MentionEntry[]>(() => {
+    if (!skillTrigger) return [];
+    const q = skillTrigger.query.trim().toLowerCase();
+    return availableSkills
+      .filter((s) => !q || s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q))
+      .slice(0, 10)
+      .map((s) => ({
+        id: `skill-${s.id}`,
+        group: "plugins",
+        icon: "bulb",
+        title: `$${s.name}`,
+        description: s.description,
+        rightTag: s.source === "personal" ? (locale.isZh ? "个人" : "Personal")
+          : s.source === "builtin" ? (locale.isZh ? "内置" : "Built-in")
+            : s.source === "project" ? (locale.isZh ? "项目" : "Project")
+              : (locale.isZh ? "插件" : "Plugin"),
+        actionKind: "attach_session" as const,
+        session: {
+          id: s.id,
+          title: s.name,
+          summary: s.description,
+          projectId: null,
+          sectionId: null,
+          archived: false,
+          pinned: false,
+          unread: false,
+          updatedAt: 0,
+          createdAt: 0,
+          messageCount: 0,
+        },
+      }));
+  }, [availableSkills, locale.isZh, skillTrigger]);
+
+  const handleSelectSkillEntry = (entry: MentionEntry) => {
+    let nextPos = draft.length;
+    if (skillTrigger) {
+      const before = draft.slice(0, skillTrigger.startIndex);
+      const after = draft.slice(skillTrigger.startIndex + 1 + skillTrigger.query.length);
+      const next = `${before}${after}`.replace(/^\s+/u, "");
+      setDraft(next);
+      nextPos = next.length;
+    }
+    setSkillTrigger(null);
+    setContextNotice("");
+    if (entry.session) {
+      appendAttachments([
+        {
+          id: `skill-${entry.session.id}`,
+          kind: "skill",
+          skillId: entry.session.id,
+          label: `$${entry.session.title}`,
+          ...(entry.rightTag ? { detail: entry.rightTag } : {}),
+        },
+      ]);
+    }
+    focusTextareaAt(nextPos);
   };
 
   const handleTabCompleteSlashCommand = (entry: SlashCommandEntry) => {
@@ -208,7 +282,24 @@ export function ChatWorkspace({
     focusTextareaAt(nextPos);
   };
 
+  // 等待项目绑定写回，避免用户立即发送时沿用旧目录。
+  const changeProjectBinding = async (projectId: string | null) => {
+    if (isRunning || projectBindingPending.current) return;
+    projectBindingPending.current = true;
+    setBindingProject(true);
+    setContextNotice("");
+    try {
+      await store.setActiveProjectBinding(projectId);
+    } catch (error) {
+      setContextNotice(error instanceof Error ? error.message : String(error));
+    } finally {
+      projectBindingPending.current = false;
+      setBindingProject(false);
+    }
+  };
+
   const handleSubmit = async (customText?: string, invertFollowUp = false) => {
+    if (projectBindingPending.current) return;
     const raw = (customText ?? draft).trim();
     if (!raw && attachments.length === 0) return;
 
@@ -267,13 +358,20 @@ export function ChatWorkspace({
       }
     }
 
-    let finalMessage = customText ? raw : buildContextualMessage(effectiveRaw, effectiveAttachments);
+    const selectedSkillIds = effectiveAttachments
+      .filter((a) => a.kind === "skill" && a.skillId)
+      .map((a) => a.skillId!);
+    const nonSkillAttachments = effectiveAttachments.filter((a) => a.kind !== "skill");
+    let finalMessage = customText ? raw : buildContextualMessage(effectiveRaw, nonSkillAttachments);
     if (!finalMessage) return;
+    const prevDraft = draft;
+    const prevAttachments = attachments;
     if (!customText) {
       setDraft("");
       setAttachments([]);
       setMentionTrigger(null);
       setSlashTrigger(null);
+      setSkillTrigger(null);
       setContextNotice("");
     }
     try {
@@ -301,9 +399,13 @@ export function ChatWorkspace({
       if (isRunning) {
         await store.submitFollowUp(finalMessage, invertFollowUp);
       } else {
-        await store.sendMessage(finalMessage);
+        await store.sendMessage(finalMessage, selectedSkillIds);
       }
     } catch (err) {
+      if (!customText) {
+        setDraft(prevDraft);
+        setAttachments(prevAttachments);
+      }
       if (err instanceof Error && !state.errorMessage) {
         setContextNotice(err.message);
       }
@@ -322,8 +424,7 @@ export function ChatWorkspace({
         className={styles.scrollArea}
         onScroll={(event) => {
           const el = event.currentTarget;
-          const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
-          setShowScrollBottom(dist > 48);
+          trackScroll(el);
           if (turnAnchors.length > 0) {
             const containerTop = el.getBoundingClientRect().top + 96;
             let bestIdx = 0;
@@ -357,7 +458,7 @@ export function ChatWorkspace({
             )}
           </div>
         ) : (
-          <div className={styles.thread}>
+          <div ref={threadRef} className={styles.thread}>
             {messages[0] && (
               <div className={styles.dayDivider}>
                 {formatDayDivider(messages[0].createdAt, locale.isZh)}
@@ -379,27 +480,28 @@ export function ChatWorkspace({
                 </div>
               ) : (
                 <article key={msg.id} className={styles.assistantRow}>
-                  <StepTraceList
+                  <AssistantTimeline
                     locale={locale}
+                    content={msg.content}
+                    progressText={msg.progressText}
                     steps={msg.steps ?? []}
-                    reasoning={msg.reasoning}
                     createdAt={msg.createdAt}
+                    runDurationMs={msg.runDurationMs}
                     reasoningDurationMs={msg.reasoningDurationMs}
                     isStreaming={msg.status === "streaming"}
-                    hasContent={Boolean(msg.content.trim())}
                     pendingApproval={msg.status === "streaming" ? state.pendingApproval : null}
                     onResolveApproval={(approved) => void store.resolveApproval(approved)}
+                    onOpenFile={(stepId) => onOpenFilePreview(msg.id, stepId)}
+                    selectedFileStepId={selectedFile?.messageId === msg.id ? selectedFile.stepId : undefined}
+                    bodyClassName={styles.assistantBody}
                   />
-                  {(msg.content || msg.status !== "streaming") && (
-                    <div className={styles.assistantBody}>
-                      <MarkdownContent content={msg.content} isZh={locale.isZh} />
-                    </div>
-                  )}
                   <EditedFilesCard
                     isZh={locale.isZh}
                     steps={msg.steps ?? []}
                     projectId={activeProjectId}
                     onViewChanges={onOpenGitSettings}
+                    onOpenFile={(stepId) => onOpenFilePreview(msg.id, stepId)}
+                    selectedFileStepId={selectedFile?.messageId === msg.id ? selectedFile.stepId : undefined}
                   />
                   {msg.status !== "streaming" && msg.content.trim() && (
                     <AssistantMessageActions
@@ -446,7 +548,6 @@ export function ChatWorkspace({
                 </article>
               ),
             )}
-            <div ref={endRef} />
           </div>
         )}
       </div>
@@ -456,8 +557,14 @@ export function ChatWorkspace({
         activeTurnIndex={activeTurnIndex}
         onJumpToTurn={(anchorMsgId, idx) => {
           setActiveTurnIndex(idx);
-          const target = scrollAreaRef.current?.querySelector<HTMLElement>(`[data-turn-anchor="${anchorMsgId}"]`);
-          target?.scrollIntoView({ behavior: "smooth", block: "start" });
+          const viewport = scrollAreaRef.current;
+          const target = viewport?.querySelector<HTMLElement>(`[data-turn-anchor="${anchorMsgId}"]`);
+          if (!viewport || !target) return;
+          pauseFollowing();
+          viewport.scrollTo({
+            top: viewport.scrollTop + target.getBoundingClientRect().top - viewport.getBoundingClientRect().top,
+            behavior: isRunning ? "instant" : "smooth",
+          });
         }}
       />
 
@@ -467,7 +574,7 @@ export function ChatWorkspace({
             type="button"
             className={styles.scrollBottomBtn}
             aria-label={locale.isZh ? "回到底部" : "Scroll to bottom"}
-            onClick={() => endRef.current?.scrollIntoView({ block: "end", behavior: "smooth" })}
+            onClick={scrollToLatest}
           >
             <IconArrowDown size={15} stroke={2} />
           </button>
@@ -486,17 +593,17 @@ export function ChatWorkspace({
           </div>
         )}
         <div className={styles.composerStack}>
-          {messages.length === 0 && (
-            <ComposerScopeBar
-              locale={locale}
-              projects={projects}
-              selectedProjectId={activeProjectId}
-              canCreateProject={Boolean(projectProvider)}
-              openProjectSignal={openProjectSignal}
-              onSelectProject={(projectId) => void store.setActiveProjectBinding(projectId)}
-              onCreateProject={() => setCreateDialogOpen(true)}
-            />
-          )}
+          <ComposerScopeBar
+            locale={locale}
+            projects={projects}
+            selectedProjectId={activeProjectId}
+            showShelf={messages.length === 0 && !isRunning}
+            canCreateProject={Boolean(projectProvider)}
+            openProjectSignal={openProjectSignal}
+            projectDisabled={isRunning || bindingProject}
+            onSelectProject={(projectId) => void changeProjectBinding(projectId)}
+            onCreateProject={() => setCreateDialogOpen(true)}
+          />
           {mentionTrigger && (
             <MentionPopover
               locale={locale}
@@ -511,6 +618,14 @@ export function ChatWorkspace({
               entries={visibleSlashCommands}
               highlightedIndex={slashIndex}
               onSelect={handleSelectSlashCommand}
+            />
+          )}
+          {skillTrigger && (
+            <MentionPopover
+              locale={locale}
+              entries={visibleSkillEntries}
+              highlightedIndex={skillIndex}
+              onSelect={handleSelectSkillEntry}
             />
           )}
           <div className={styles.composerCard}>
@@ -642,6 +757,29 @@ export function ChatWorkspace({
                     return;
                   }
                 }
+                if (skillTrigger) {
+                  if (event.key === "ArrowDown") {
+                    event.preventDefault();
+                    setSkillIndex((idx) => (visibleSkillEntries.length > 0 ? (idx + 1) % visibleSkillEntries.length : 0));
+                    return;
+                  }
+                  if (event.key === "ArrowUp") {
+                    event.preventDefault();
+                    setSkillIndex((idx) => (visibleSkillEntries.length > 0 ? (idx - 1 + visibleSkillEntries.length) % visibleSkillEntries.length : 0));
+                    return;
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    setSkillTrigger(null);
+                    return;
+                  }
+                  if ((event.key === "Tab" || (event.key === "Enter" && !event.shiftKey)) && !event.nativeEvent.isComposing && visibleSkillEntries.length > 0) {
+                    event.preventDefault();
+                    const picked = visibleSkillEntries[skillIndex] ?? visibleSkillEntries[0];
+                    if (picked) handleSelectSkillEntry(picked);
+                    return;
+                  }
+                }
                 if (event.key === "Enter" && !event.nativeEvent.isComposing) {
                   const needCtrl = state.generalSettings.sendShortcut === "ctrl_enter";
                   if (needCtrl && (event.ctrlKey || event.metaKey)) {
@@ -683,7 +821,7 @@ export function ChatWorkspace({
                 <PermissionModePicker
                   locale={locale}
                   mode={state.permissionMode}
-                  onSelectMode={(nextMode) => store.setPermissionMode(nextMode)}
+                  onSelectMode={(nextMode) => void store.setPermissionMode(nextMode)}
                 />
 
                 {state.generalSettings.showContextUsage && estimatedTokens > 0 && (
@@ -725,7 +863,7 @@ export function ChatWorkspace({
                 <ComposerRightActions
                   locale={locale}
                   draft={draft}
-                  canSend={Boolean(draft.trim() || attachments.length > 0)}
+                  canSend={!bindingProject && Boolean(draft.trim() || attachments.length > 0)}
                   isRunning={isRunning}
                   onChangeDraft={setDraft}
                   onSend={() => void handleSubmit()}
@@ -741,7 +879,7 @@ export function ChatWorkspace({
       {createDialogOpen && projectProvider?.renderCreateDialog({
         onCreated: (project) => {
           setCreateDialogOpen(false);
-          void store.setActiveProjectBinding(project.id);
+          void changeProjectBinding(project.id);
         },
         onClose: () => setCreateDialogOpen(false),
       })}

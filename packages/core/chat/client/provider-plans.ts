@@ -1,7 +1,7 @@
 // 定义模型管理中可直接用专属 API Key 接入的官方套餐，供浏览器选择与档案匹配。
 // 方舟接入地址与 Host 共用公开契约，保证历史档案识别和实际请求使用相同规则。
-import { ARK_PLAN_BASE_URLS, getArkPlanKind } from "@lfaa/llm/ark-plan";
-import type { PublicLlmProfileItem } from "./chat-types";
+import { ARK_PLAN_ANTHROPIC_BASE_URLS, ARK_PLAN_BASE_URLS, getArkPlanKind } from "@lfaa/llm/ark-plan";
+import type { LlmApiProtocolOption, PublicLlmProfileItem } from "./chat-types";
 import type { ModelProviderPreset } from "./provider-catalog";
 
 interface ProviderPlan extends ModelProviderPreset {
@@ -11,13 +11,20 @@ interface ProviderPlan extends ModelProviderPreset {
   exclusiveBaseUrl?: true;
 }
 
-// 套餐预设共用 Chat Completions 表单，各自指定官方地址和默认模型。
-function plan(preset: Omit<ProviderPlan, "kind" | "defaultProtocol" | "supportedProtocols" | "sampleModels" | "subscription">): ProviderPlan {
+// 套餐预设默认使用 Chat Completions，各套餐按官方支持声明多协议与对应端点。
+function plan(
+  preset: Omit<ProviderPlan, "kind" | "defaultProtocol" | "supportedProtocols" | "sampleModels" | "subscription"> & {
+    defaultProtocol?: LlmApiProtocolOption;
+    supportedProtocols?: LlmApiProtocolOption[];
+  },
+): ProviderPlan {
+  const defaultProtocol = preset.defaultProtocol ?? "openai-chat";
+  const supportedProtocols = preset.supportedProtocols ?? [defaultProtocol];
   return {
     ...preset,
     kind: "openai-compatible",
-    defaultProtocol: "openai-chat",
-    supportedProtocols: ["openai-chat"],
+    defaultProtocol,
+    supportedProtocols,
     sampleModels: [],
     subscription: true,
   };
@@ -31,7 +38,12 @@ const arkPlans = {
     accessLabel: "Agent Plan",
     descZh: "使用 Agent Plan 专属 API Key",
     descEn: "Use your dedicated Agent Plan API key",
+    supportedProtocols: ["openai-chat", "anthropic-messages"],
     defaultBaseUrl: ARK_PLAN_BASE_URLS.agent,
+    protocolBaseUrls: {
+      "openai-chat": ARK_PLAN_BASE_URLS.agent,
+      "anthropic-messages": ARK_PLAN_ANTHROPIC_BASE_URLS.agent,
+    },
     defaultModel: "ark-code-latest",
     accentColor: "#38bdf8",
     glyph: "VE",
@@ -43,7 +55,12 @@ const arkPlans = {
     accessLabel: "Coding Plan",
     descZh: "使用 Coding Plan 控制台提供的 API Key",
     descEn: "Use the API key from the Coding Plan console",
+    supportedProtocols: ["openai-chat", "anthropic-messages"],
     defaultBaseUrl: ARK_PLAN_BASE_URLS.coding,
+    protocolBaseUrls: {
+      "openai-chat": ARK_PLAN_BASE_URLS.coding,
+      "anthropic-messages": ARK_PLAN_ANTHROPIC_BASE_URLS.coding,
+    },
     defaultModel: "ark-code-latest",
     accentColor: "#38bdf8",
     glyph: "VE",
@@ -61,7 +78,12 @@ const plansByProvider: Readonly<Record<string, readonly ProviderPlan[]>> = {
       accessLabel: "M Plan / Token Plan",
       descZh: "使用 M Plan 或仍在续订的 Token Plan 订阅 Key",
       descEn: "Use a current M Plan or legacy Token Plan subscription key",
+      supportedProtocols: ["openai-chat", "anthropic-messages"],
       defaultBaseUrl: "https://api.minimax.cn/v1",
+      protocolBaseUrls: {
+        "openai-chat": "https://api.minimax.cn/v1",
+        "anthropic-messages": "https://api.minimax.cn/anthropic",
+      },
       defaultModel: "MiniMax-M3.1-Flash",
       accentColor: "#f43f5e",
       glyph: "MM",
@@ -75,7 +97,12 @@ const plansByProvider: Readonly<Record<string, readonly ProviderPlan[]>> = {
       accessLabel: "Token Plan",
       descZh: "使用百炼 Token Plan 专属 API Key",
       descEn: "Use an Alibaba Model Studio Token Plan API key",
+      supportedProtocols: ["openai-chat", "anthropic-messages"],
       defaultBaseUrl: "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+      protocolBaseUrls: {
+        "openai-chat": "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+        "anthropic-messages": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
+      },
       defaultModel: "qwen3.8-max",
       accentColor: "#6366f1",
       glyph: "QW",
@@ -88,7 +115,12 @@ const plansByProvider: Readonly<Record<string, readonly ProviderPlan[]>> = {
       accessLabel: "Coding Plan",
       descZh: "使用百炼 Coding Plan 专属 API Key，用于交互式编程",
       descEn: "Use an Alibaba Model Studio Coding Plan API key for interactive coding",
+      supportedProtocols: ["openai-chat", "anthropic-messages"],
       defaultBaseUrl: "https://coding.dashscope.aliyuncs.com/v1",
+      protocolBaseUrls: {
+        "openai-chat": "https://coding.dashscope.aliyuncs.com/v1",
+        "anthropic-messages": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
+      },
       defaultModel: "qwen3.7-plus",
       accentColor: "#6366f1",
       glyph: "QW",
@@ -103,7 +135,12 @@ const plansByProvider: Readonly<Record<string, readonly ProviderPlan[]>> = {
       accessLabel: "GLM Coding Plan",
       descZh: "使用智谱个人或团队编程套餐专属 API Key",
       descEn: "Use an individual or team GLM Coding Plan API key",
+      supportedProtocols: ["openai-chat", "anthropic-messages"],
       defaultBaseUrl: "https://open.bigmodel.cn/api/coding/paas/v4",
+      protocolBaseUrls: {
+        "openai-chat": "https://open.bigmodel.cn/api/coding/paas/v4",
+        "anthropic-messages": "https://open.bigmodel.cn/api/anthropic",
+      },
       defaultModel: "glm-5.3",
       accentColor: "#3b82f6",
       glyph: "ZP",
@@ -123,7 +160,13 @@ export function getProviderPlans(providerId: string): readonly ProviderPlan[] {
 export function findProviderPlan(profile: Pick<PublicLlmProfileItem, "baseUrl" | "providerId">): ProviderPlan | undefined {
   const ark = getArkPlanKind(profile.baseUrl);
   if (ark) return arkPlans[ark];
-  const baseUrl = profile.baseUrl.trim().replace(/\/+$/u, "").replace(/\/chat\/completions$/u, "");
-  return allPlans.find((item) => item.exclusiveBaseUrl && item.defaultBaseUrl === baseUrl)
-    ?? allPlans.find((item) => item.id === profile.providerId);
+  const baseUrl = profile.baseUrl
+    .trim()
+    .replace(/\/+$/u, "")
+    .replace(/\/(chat\/completions|v1\/messages|messages)$/u, "");
+  return allPlans.find((item) => {
+    if (!item.exclusiveBaseUrl) return false;
+    const urls = [item.defaultBaseUrl, ...Object.values(item.protocolBaseUrls ?? {})];
+    return urls.includes(baseUrl);
+  }) ?? allPlans.find((item) => item.id === profile.providerId);
 }

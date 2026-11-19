@@ -87,6 +87,9 @@ export const chatClientPlugin: Plugin.Object<void> = {
             projectProvider={wbSnap.projectProvider}
             onOpenSettings={() => context.workbench.navigate("settings:config")}
             onOpenGitSettings={() => context.workbench.navigate("codeReview")}
+            onOpenFilePreview={(messageId, stepId) => {
+              if (store.openFilePreview(messageId, stepId)) context.workbench.setRightPanelOpen(true, false);
+            }}
           />
         );
       },
@@ -197,7 +200,7 @@ export const chatClientPlugin: Plugin.Object<void> = {
 
     const unregisterContextPanel = context.workbench.registerContextPanel({
       id: "agent-capabilities",
-      title: locale.contextTitle,
+      title: locale.isZh ? "工作详情" : "Work details",
       order: 5,
       match: (activeView) =>
         activeView === "workspace"
@@ -214,6 +217,7 @@ export const chatClientPlugin: Plugin.Object<void> = {
             locale={locale}
             store={store}
             boundProjectName={boundName}
+            showFilePreview={wbSnap.activeView === "workspace"}
             onOpenSettings={() => context.workbench.navigate("settings:config")}
           />
         );

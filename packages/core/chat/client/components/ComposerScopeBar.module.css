@@ -48,6 +48,11 @@
   background: var(--color-active);
 }
 
+.triggerBase:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+
 .triggerBase svg {
   flex: 0 0 auto;
 }
@@ -227,7 +232,10 @@
     padding: 0.35rem 0.5rem 0.72rem;
   }
 
-  .popover {
-    width: min(17.5rem, calc(100vw - 1.5rem));
-  }
+}
+
+/* 让较窄的中央栏以整条工具栏定位弹层，避免第二个按钮把弹层推到栏外。 */
+@container (max-width: 36rem) {
+  .anchor { position: static; }
+  .popover { width: min(17.5rem, 100%); }
 }

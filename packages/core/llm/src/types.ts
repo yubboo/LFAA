@@ -111,6 +111,7 @@ export interface LlmGenerateInput {
   maxTokens?: number;
   signal?: AbortSignal;
   onDelta?: (delta: LlmStreamDelta) => void;
+  onActivity?: () => void;
 }
 
 export interface LlmUsage {

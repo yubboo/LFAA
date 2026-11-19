@@ -1,5 +1,7 @@
 packages:
   - "apps/*"
   - "packages/*/*"
+  - "packages/skills"
+  - "packages/plugins"
 allowBuilds:
   esbuild: true

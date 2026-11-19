@@ -1,13 +1,37 @@
 // 提供内置核心工作区工具集（读文件、列目录、文本搜索、写文件、局部替换、命令执行）。
-import { exec } from "node:child_process";
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
-import { promisify } from "node:util";
-import { resolveSafeWorkspacePath, resolveSafeWorkspaceRoot } from "./sandbox";
-import type { AgentToolDefinition } from "./types";
+import { executeShell, type ShellService } from "@lfaa/shell";
+import { createPrivatePathFilter, resolveSafeWorkspacePath, resolveSafeWorkspaceRoot } from "./sandbox";
+import type { AgentToolDefinition, ToolFileChange } from "./types";
 
-const execAsync = promisify(exec);
 const IGNORED_DIRS = new Set(["node_modules", ".git", "dist", ".next", ".turbo"]);
+
+/** 去掉双方共有的首尾行，限制为本次写入的变更片段。 */
+function captureFileChange(path: string, resolvedPath: string, previous: string | null, next: string): ToolFileChange {
+  const beforeLines = previous ? previous.split("\n") : [];
+  const afterLines = next ? next.split("\n") : [];
+  let start = 0;
+  let beforeEnd = beforeLines.length;
+  let afterEnd = afterLines.length;
+  while (start < beforeEnd && start < afterEnd && beforeLines[start] === afterLines[start]) start += 1;
+  while (beforeEnd > start && afterEnd > start && beforeLines[beforeEnd - 1] === afterLines[afterEnd - 1]) {
+    beforeEnd -= 1;
+    afterEnd -= 1;
+  }
+  const before = beforeLines.slice(start, beforeEnd).join("\n");
+  const after = afterLines.slice(start, afterEnd).join("\n");
+  const limit = 8000;
+  return {
+    path,
+    resolvedPath,
+    operation: previous === null ? "created" : "edited",
+    firstLine: start + 1,
+    before: before.slice(0, limit),
+    after: after.slice(0, limit),
+    truncated: before.length > limit || after.length > limit,
+  };
+}
 
 function countLineDiff(prevText: string, nextText: string): { added: number; removed: number } {
   const nextLines = nextText ? nextText.split(/\r?\n/) : [];
@@ -34,7 +58,7 @@ function countLineDiff(prevText: string, nextText: string): { added: number; rem
 }
 
 /** 构造默认本地工作区工具，统一通过工具上下文接收路径和权限约束。 */
-export function createBuiltinWorkspaceTools(): AgentToolDefinition[] {
+export function createBuiltinWorkspaceTools(executeCommand: ShellService["execute"] = executeShell): AgentToolDefinition[] {
   return [
     {
       name: "list_dir",
@@ -53,15 +77,16 @@ export function createBuiltinWorkspaceTools(): AgentToolDefinition[] {
           allowOutsideWorkspace: ctx.allowOutsideWorkspace,
         });
         const entries = await readdir(targetDir, { withFileTypes: true });
-        const lines = entries
-          .filter((e) => !IGNORED_DIRS.has(e.name))
+        const isPrivate = await createPrivatePathFilter();
+        const visible = entries.filter((entry) => !IGNORED_DIRS.has(entry.name) && !isPrivate(join(targetDir, entry.name)));
+        const lines = visible
           .slice(0, 120)
           .sort((a, b) => Number(b.isDirectory()) - Number(a.isDirectory()) || a.name.localeCompare(b.name))
           .map((e) => `${e.isDirectory() ? "[dir] " : "[file]"} ${e.name}`);
         return {
           ok: true,
           output: lines.join("\n") || "(空目录)",
-          summary: `列出 ${entries.length} 项内容`,
+          summary: `列出 ${visible.length} 项内容`,
         };
       },
     },
@@ -119,6 +144,7 @@ export function createBuiltinWorkspaceTools(): AgentToolDefinition[] {
         );
         const matches: string[] = [];
         const needle = query.toLowerCase();
+        const isPrivate = await createPrivatePathFilter();
 
         const walk = async (dir: string): Promise<void> => {
           if (ctx.signal.aborted || matches.length >= 40) return;
@@ -127,10 +153,12 @@ export function createBuiltinWorkspaceTools(): AgentToolDefinition[] {
             if (matches.length >= 40) break;
             if (IGNORED_DIRS.has(entry.name)) continue;
             const full = join(dir, entry.name);
+            if (isPrivate(full)) continue;
             if (entry.isDirectory()) {
               await walk(full);
               continue;
             }
+            if (!entry.isFile()) continue;
             try {
               const info = await stat(full);
               if (info.size > 256 * 1024) continue;
@@ -176,15 +204,19 @@ export function createBuiltinWorkspaceTools(): AgentToolDefinition[] {
         const { path: targetFile } = await resolveSafeWorkspacePath(rawPath, ctx.workspaceRoots, {
           allowOutsideWorkspace: ctx.allowOutsideWorkspace,
         });
-        const previousContent = await readFile(targetFile, "utf8").catch(() => "");
+        const previousContent = await readFile(targetFile, "utf8").catch((error: NodeJS.ErrnoException) => {
+          if (error.code === "ENOENT") return null;
+          throw error;
+        });
         await mkdir(dirname(targetFile), { recursive: true });
-        await writeFile(targetFile, content, "utf8");
-        const diff = countLineDiff(previousContent, content);
+        await writeFile(targetFile, content, { encoding: "utf8", flag: previousContent === null ? "wx" : "w" });
+        const diff = countLineDiff(previousContent ?? "", content);
         return {
           ok: true,
           output: `已写入文件：${targetFile}（${content.length} 字符）`,
           summary: `已写入 ${rawPath}`,
           metadata: { filePath: rawPath, added: diff.added, removed: diff.removed },
+          fileChange: captureFileChange(rawPath, targetFile, previousContent, content),
         };
       },
     },
@@ -222,6 +254,7 @@ export function createBuiltinWorkspaceTools(): AgentToolDefinition[] {
           output: `已更新文件：${rawPath}`,
           summary: `已编辑 ${rawPath}`,
           metadata: { filePath: rawPath, added: diff.added, removed: diff.removed },
+          fileChange: captureFileChange(rawPath, targetFile, existing, next),
         };
       },
     },
@@ -243,17 +276,12 @@ export function createBuiltinWorkspaceTools(): AgentToolDefinition[] {
         const cwd = await resolveSafeWorkspaceRoot(ctx.workspaceRoots, {
           allowOutsideWorkspace: ctx.allowOutsideWorkspace,
         });
-        const { stdout, stderr } = await execAsync(command, {
-          cwd,
-          timeout: 15000,
-          maxBuffer: 512 * 1024,
-          signal: ctx.signal,
-        });
-        const combined = [stdout.trim(), stderr.trim()].filter(Boolean).join("\n--- stderr ---\n");
+        const result = await executeCommand({ command, cwd, signal: ctx.signal, onOutput: ctx.onCommandOutput });
         return {
-          ok: true,
-          output: (combined || "(命令执行完成，无输出)").slice(0, 16000),
-          summary: `命令执行成功：${command.slice(0, 40)}`,
+          ok: result.ok,
+          output: result.output || "(命令执行完成，无输出)",
+          summary: result.ok ? "命令执行成功" : result.exitCode === undefined ? "命令执行中断" : `命令执行失败，退出码 ${result.exitCode}`,
+          ...(result.exitCode === undefined ? {} : { metadata: { exitCode: result.exitCode } }),
         };
       },
     },

@@ -206,16 +206,18 @@ export async function callOpenAiResponsesApi(
       const item = payload.item as Record<string, unknown>;
       if (item.type === "function_call") {
         const itemId = typeof item.id === "string" ? item.id : `fc_${toolMap.size}`;
-        const callId = typeof item.call_id === "string" ? item.call_id : itemId;
+        const streamedCallId = typeof item.call_id === "string" ? item.call_id : "";
+        const callId = streamedCallId || itemId;
         const name = typeof item.name === "string" ? item.name : "";
         toolMap.set(itemId, { id: callId, name, args: typeof item.arguments === "string" ? item.arguments : "" });
-        if (name) input.onDelta?.({ type: "tool_call", toolCallId: callId, toolName: name });
+        if (name && streamedCallId) input.onDelta?.({ type: "tool_call", toolCallId: callId, toolName: name });
       }
     } else if (type === "response.function_call_arguments.delta") {
       const itemId = typeof payload.item_id === "string" ? payload.item_id : "";
       const slot = toolMap.get(itemId);
-      if (slot && typeof payload.delta === "string") {
+      if (slot && typeof payload.delta === "string" && payload.delta) {
         slot.args += payload.delta;
+        input.onActivity?.();
       }
     } else if (type === "response.completed" && typeof payload.response === "object" && payload.response !== null) {
       completedPayload = payload.response as Record<string, unknown>;

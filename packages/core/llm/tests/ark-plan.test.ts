@@ -1,7 +1,8 @@
 // 验证方舟套餐目录、官方思考档位及 OpenAI Chat 适配器发送的实际参数。
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ARK_PLAN_BASE_URLS, findArkChatModel, getArkPlanCatalog, getArkPlanKind } from "../src/ark-plan";
+import { ARK_PLAN_ANTHROPIC_BASE_URLS, ARK_PLAN_BASE_URLS, findArkChatModel, getArkPlanCatalog, getArkPlanKind } from "../src/ark-plan";
+import { fetchOfficialModels } from "../src/capabilities";
 import { toPublicProfile } from "../src/index";
 import { callOpenAiCompatibleChat } from "../src/openai-adapter";
 import type { LlmProfile, ReasoningEffortLevel } from "../src/types";
@@ -60,4 +61,22 @@ test("关闭思考按真实模型映射，控制台路由和未知 ID 不发送�
   assert.deepEqual(payloads.map(({ model, reasoning_effort }) => [model, reasoning_effort]),
     cases.map(([model, , expected]) => [model, expected]));
   assert.ok(payloads.every((payload) => !("thinking" in payload)));
+});
+
+test("方舟套餐支持 Anthropic 协议识别，本地 Ollama 拉取失败给出友好提示", async (t) => {
+  assert.equal(getArkPlanKind(ARK_PLAN_ANTHROPIC_BASE_URLS.agent), "agent");
+  const antPublic = toPublicProfile({
+    ...profile,
+    apiProtocol: "anthropic-messages",
+    baseUrl: ARK_PLAN_ANTHROPIC_BASE_URLS.agent,
+  });
+  assert.equal(antPublic.availableModels.length, 14);
+
+  t.mock.method(globalThis, "fetch", async () => {
+    throw new TypeError("fetch failed");
+  });
+  await assert.rejects(
+    () => fetchOfficialModels({ kind: "ollama", baseUrl: "http://127.0.0.1:11434/v1" }),
+    /无法连接到本地模型服务/,
+  );
 });

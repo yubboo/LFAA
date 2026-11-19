@@ -31,6 +31,13 @@ test("resolveSafeWorkspacePath 严格拦截工作区外目录与路径穿越", a
       allowOutsideWorkspace: true,
     });
     assert.ok(unrestricted.path.startsWith(siblingSecret));
+    const appHome = path.join(os.homedir(), ".lfaa");
+    for (const privateFile of ["llm-config.json", "credentials/test.txt", "sessions/test.json"]) {
+      await assert.rejects(
+        () => resolveSafeWorkspacePath(path.join(appHome, privateFile), [appHome], { allowOutsideWorkspace: true }),
+        /应用私有文件/u,
+      );
+    }
   } finally {
     await fs.rm(tempRoot, { recursive: true, force: true });
   }
@@ -56,6 +63,8 @@ test("Host toolsPlugin 支持内置文件读写检索及自定义工具热插拔
       execCtx,
     );
     assert.equal(writeRes.ok, true);
+    assert.equal(writeRes.fileChange?.operation, "created");
+    assert.equal(writeRes.fileChange?.after, "LFAA Agent Sandbox Check\nLine 2");
 
     const readRes = await ctx.tools.executeTool(
       "read_file",
@@ -72,6 +81,17 @@ test("Host toolsPlugin 支持内置文件读写检索及自定义工具热插拔
     );
     assert.equal(searchRes.ok, true);
     assert.ok(searchRes.output.includes("hello.txt:1"));
+
+    const editRes = await ctx.tools.executeTool(
+      "edit_file",
+      { path: "notes/hello.txt", target: "Line 2", replacement: "New line" },
+      execCtx,
+    );
+    assert.deepEqual(editRes.fileChange, {
+      path: "notes/hello.txt", operation: "edited", firstLine: 2,
+      resolvedPath: path.join(tempRoot, "notes", "hello.txt"),
+      before: "Line 2", after: "New line", truncated: false,
+    });
 
     const unregister = ctx.tools.registerTool({
       name: "ping_tool",

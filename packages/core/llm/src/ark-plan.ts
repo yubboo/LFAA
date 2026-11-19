@@ -10,6 +10,12 @@ export const ARK_PLAN_BASE_URLS = {
   coding: "https://ark.cn-beijing.volces.com/api/coding/v3",
 } as const;
 
+/** 两种北京区套餐的 Anthropic Messages 兼容 Base URL。 */
+export const ARK_PLAN_ANTHROPIC_BASE_URLS = {
+  agent: "https://ark.cn-beijing.volces.com/api/plan",
+  coding: "https://ark.cn-beijing.volces.com/api/coding",
+} as const;
+
 interface ArkChatModel extends ModelCapabilityInfo {
   offEffort?: "none" | "minimal";
   status?: "retiring" | "routed";
@@ -79,9 +85,9 @@ const codingGroups: readonly ArkCatalogGroup[] = [embeddingGroup];
 
 // 仅匹配方舟官方套餐地址，普通 API 与转发地址继续使用原有能力探测。
 export function getArkPlanKind(baseUrl: string): ArkPlanKind | undefined {
-  const base = baseUrl.trim().replace(/\/+$/u, "").replace(/\/chat\/completions$/u, "");
-  if (base === ARK_PLAN_BASE_URLS.agent || base === ARK_PLAN_BASE_URLS.agent.replace(/\/v3$/u, "")) return "agent";
-  if (base === ARK_PLAN_BASE_URLS.coding || base === ARK_PLAN_BASE_URLS.coding.replace(/\/v3$/u, "")) return "coding";
+  const base = baseUrl.trim().replace(/\/+$/u, "").replace(/\/(chat\/completions|v1\/messages|messages)$/u, "");
+  if (base === ARK_PLAN_BASE_URLS.agent || base === ARK_PLAN_ANTHROPIC_BASE_URLS.agent) return "agent";
+  if (base === ARK_PLAN_BASE_URLS.coding || base === ARK_PLAN_ANTHROPIC_BASE_URLS.coding) return "coding";
 }
 
 /** 返回指定套餐的公开模型目录，语言模型可聊天，其余分类供配置页查阅。 */

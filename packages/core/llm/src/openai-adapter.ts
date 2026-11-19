@@ -89,6 +89,7 @@ async function readSseCompletion(
   let responseModel = profile.model;
   let usage: LlmGenerateOutput["usage"];
   const toolBuffers = new Map<number, { id: string; name: string; args: string; notified: boolean }>();
+  const toolNames = input.tools?.map((tool) => tool.name);
 
   // 单条 SSE 数据可以包含用量、增量文本或工具参数片段，分别归并到本次回复。
   const processLine = (line: string) => {
@@ -141,16 +142,20 @@ async function readSseCompletion(
       for (const tc of delta.tool_calls) {
         const idx = typeof tc.index === "number" ? tc.index : 0;
         const entry = toolBuffers.get(idx) ?? {
-          id: tc.id || `call_${idx + 1}`,
+          id: "",
           name: "",
           args: "",
           notified: false,
         };
         if (tc.id) entry.id = tc.id;
         if (tc.function?.name) entry.name += tc.function.name;
-        if (tc.function?.arguments) entry.args += tc.function.arguments;
+        if (tc.function?.arguments) {
+          entry.args += tc.function.arguments;
+          input.onActivity?.();
+        }
         toolBuffers.set(idx, entry);
-        if (entry.name && !entry.notified) {
+        // 等待真实 ID 和完整工具名，避免同一调用在时间线上产生两条记录。
+        if (entry.id && entry.name && !entry.notified && (!toolNames || toolNames.includes(entry.name))) {
           entry.notified = true;
           input.onDelta?.({ type: "tool_call", toolCallId: entry.id, toolName: entry.name });
         }
@@ -177,8 +182,8 @@ async function readSseCompletion(
 
   const toolCalls: LlmToolCall[] = [...toolBuffers.entries()]
     .sort((left, right) => left[0] - right[0])
-    .map(([, item]) => ({
-      id: item.id,
+    .map(([index, item]) => ({
+      id: item.id || `call_${index + 1}`,
       name: item.name,
       argumentsJson: item.args || "{}",
     }));

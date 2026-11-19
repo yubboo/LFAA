@@ -256,11 +256,14 @@ test("Host 常规设置持久化、项目外聊天默认目录动态解析与 /a
 
   assert.equal(middleTruncatePath("C:\\Users\\Administrator\\Documents\\LFAA", 30).includes("..."), true);
   const autoOutside = resolveDefaultOutsideProjectFolder();
-  assert.ok(autoOutside.endsWith(`${path.sep}.lfaa`), "项目外聊天目录默认应为当前用户 ~/.lfaa");
+  assert.ok(autoOutside.endsWith(path.join(".lfaa", "workspace")), "项目外聊天默认使用专用工作目录");
   const autoProjects = await resolveDefaultProjectsFolder();
   assert.ok(autoProjects.endsWith(`${path.sep}lfaa`), "默认新建项目目录应以 lfaa 结尾且不写死用户名");
 
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-general-cfg-"));
+  const legacy = path.join(tempRoot, "legacy-general.json");
+  await fs.writeFile(legacy, JSON.stringify({ schemaVersion: 2, outsideProjectFolder: path.dirname(autoOutside) }));
+  assert.equal((await new GeneralSettingsStore(legacy).get()).outsideProjectFolder, autoOutside);
   const store = new GeneralSettingsStore(path.join(tempRoot, "general-settings.json"));
   const initial = await store.get();
   assert.equal(initial.integratedShell, "powershell");

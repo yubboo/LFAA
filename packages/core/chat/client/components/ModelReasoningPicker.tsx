@@ -74,12 +74,13 @@ export function ModelReasoningPicker({
   const activeProfile =
     configuredProfiles.find((p) => p.id === activeProfileId) ?? configuredProfiles[0] ?? null;
   const providerPlan = activeProfile ? findProviderPlan(activeProfile) : undefined;
-  const arkPlan = activeProfile && (activeProfile.apiProtocol ?? "openai-chat") === "openai-chat"
+  const activeProtocol = activeProfile?.apiProtocol ?? "openai-chat";
+  const arkPlan = activeProfile && (activeProtocol === "openai-chat" || activeProtocol === "anthropic-messages")
     ? getArkPlanKind(activeProfile.baseUrl) : undefined;
   const arkModel = arkPlan && activeProfile ? findArkChatModel(activeProfile.model) : undefined;
   const arkLabels = arkModelMessages[isZh ? "zh" : "en"];
 
-  // 方舟使用套餐公开目录，其他套餐读取当前配置的模型。普通 API 使用已同步的模型清单。
+  // 方舟使用套餐公开目录，其余档案（含普通 API、其他套餐与本地服务）优先展示已同步的模型清单。
   const brandModels = useMemo<ModelCapabilityItem[]>(() => {
     if (!activeProfile) return [];
     const list = activeProfile.availableModels ?? [];
@@ -91,10 +92,9 @@ export function ModelReasoningPicker({
         ...chatModels,
       ];
     }
-    if (!providerPlan && list.length > 0) return list;
-    return [list.find(({ id }) => id === activeProfile.model)
-      ?? { id: activeProfile.model, supportsReasoning: false, reasoningMode: "none", reasoningLevels: [] }];
-  }, [activeProfile, arkPlan, providerPlan]);
+    if (list.length > 0) return list;
+    return [{ id: activeProfile.model, supportsReasoning: false, reasoningMode: "none", reasoningLevels: [] }];
+  }, [activeProfile, arkPlan]);
 
   const activeModelId =
     arkModel?.id ?? brandModels.find((m) => m.id === activeProfile?.model)?.id ?? brandModels[0]?.id ?? "";
@@ -182,7 +182,7 @@ export function ModelReasoningPicker({
         <div className={styles.modelPopoverCard}>
           <div className={styles.modelHeaderRow}>
             <span className={styles.modelHeader}>{activeProfile.name}</span>
-            {!providerPlan && <button
+            <button
               type="button"
               className={`${styles.iconActionBtn} ${
                 syncFeedback?.tone === "success"
@@ -224,9 +224,11 @@ export function ModelReasoningPicker({
                     ? (isZh ? `已同步 · ${brandModels.length} 个` : `Synced · ${brandModels.length}`)
                     : syncFeedback?.tone === "error"
                       ? (isZh ? "同步失败" : "Failed")
-                      : (isZh ? "同步官方" : "Sync")}
+                      : activeProfile.kind === "ollama"
+                        ? (isZh ? "同步本地" : "Sync Local")
+                        : (isZh ? "同步官方" : "Sync")}
               </span>
-            </button>}
+            </button>
           </div>
 
           {syncFeedback?.tone === "error" && syncFeedback.message && (

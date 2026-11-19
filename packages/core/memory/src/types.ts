@@ -1,6 +1,24 @@
 // 定义 @lfaa/memory 的无 DOM 领域契约：会话消息、思考/行动/检查步骤轨迹及长期记忆条目。
 export type AgentLoopPhase = "think" | "act" | "check";
-export type AgentStepStatus = "running" | "waiting_approval" | "done" | "error";
+export type AgentStepStatus = "preparing" | "running" | "waiting_approval" | "done" | "error";
+
+/** 终端步骤可回看的命令与执行结果，未取得退出码时省略该字段。 */
+export interface AgentCommandTrace {
+  command: string;
+  output?: string;
+  exitCode?: number;
+}
+
+/** 持久保存工具成功写入时的变更范围，区别于工作区当前的 Git 差异。 */
+export interface AgentFileChange {
+  path: string;
+  resolvedPath?: string;
+  operation: "created" | "edited";
+  firstLine: number;
+  before: string;
+  after: string;
+  truncated: boolean;
+}
 
 export interface AgentStepTrace {
   id: string;
@@ -16,6 +34,10 @@ export interface AgentStepTrace {
   resultPreview?: string;
   addedLines?: number;
   removedLines?: number;
+  textOffset?: number;
+  modelStage?: "reasoning" | "replying";
+  commandTrace?: AgentCommandTrace;
+  fileChange?: AgentFileChange;
   timestamp: number;
 }
 
@@ -26,6 +48,8 @@ export interface ChatMessageRecord {
   content: string;
   reasoning?: string;
   reasoningDurationMs?: number;
+  runDurationMs?: number;
+  progressText?: string;
   steps?: AgentStepTrace[];
   status?: "streaming" | "done" | "error" | "aborted";
   model?: string;

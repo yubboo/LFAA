@@ -1,5 +1,6 @@
 // @lfaa/tools Host 侧 Cordis 服务：统一管理工具注册表、内置工作区工具与权限安全执行。
 import { type Context, Service } from "@deepseek-ai/cordis";
+import type { ShellService } from "@lfaa/shell";
 import { createBuiltinWorkspaceTools } from "./builtin-tools";
 import type {
   AgentToolDefinition,
@@ -14,16 +15,18 @@ export { resolveSafeWorkspacePath, resolveSafeWorkspaceRoot } from "./sandbox";
 /** 配置 Host 启动时装载的工具定义。 */
 export interface ToolsPluginConfig {
   includeBuiltins?: boolean;
+  executeCommand?: ShellService["execute"];
+  describeCommandShell?: () => Promise<string>;
 }
 
 // Host 侧工具服务（Agent 手脚注册表与执行调度）。
 export class ToolsService extends Service {
   private readonly registry = new Map<string, AgentToolDefinition>();
 
-  constructor(ctx: Context, config: ToolsPluginConfig = {}) {
+  constructor(ctx: Context, private readonly config: ToolsPluginConfig = {}) {
     super(ctx, "tools");
     if (config.includeBuiltins !== false) {
-      for (const tool of createBuiltinWorkspaceTools()) {
+      for (const tool of createBuiltinWorkspaceTools(config.executeCommand)) {
         this.registry.set(tool.name, tool);
       }
     }
@@ -40,6 +43,10 @@ export class ToolsService extends Service {
 
   getTool(name: string): AgentToolDefinition | undefined {
     return this.registry.get(name);
+  }
+
+  describeCommandShell(): Promise<string> {
+    return this.config.describeCommandShell?.() ?? Promise.resolve("");
   }
 
   listDefinitions(): PublicToolSummary[] {

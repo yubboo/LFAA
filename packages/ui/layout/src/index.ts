@@ -37,6 +37,7 @@ export interface WorkbenchViewContribution<TContent = unknown> {
   title: string;
   subtitle?: string;
   badge?: string;
+  domain?: "plugins";
   render: () => TContent;
 }
 

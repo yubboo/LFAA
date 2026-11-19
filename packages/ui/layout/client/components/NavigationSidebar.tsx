@@ -6,6 +6,7 @@ import type {
   WorkbenchProjectProvider,
   WorkbenchSectionItem,
   WorkbenchSectionProvider,
+  WorkbenchViewContribution,
 } from "../../src/index";
 import type { LocaleMessages } from "../locales";
 import type { LocalProject, NavigationTarget, NavigationView, RecentItem, WorkspaceMode } from "../navigation";
@@ -25,6 +26,7 @@ export function NavigationSidebar({
   activeView,
   activeLibraryTab,
   activeDomainItem,
+  pluginViews,
   newChatSelected,
   activeProjectId,
   activeChatSessionId,
@@ -62,6 +64,7 @@ export function NavigationSidebar({
   activeView: NavigationView;
   activeLibraryTab: LibraryTabKey;
   activeDomainItem: string;
+  pluginViews: WorkbenchViewContribution<ReactNode>[];
   newChatSelected: boolean;
   activeProjectId: string | null;
   activeChatSessionId?: string | null | undefined;
@@ -259,6 +262,7 @@ export function NavigationSidebar({
             activeView={activeView}
             activeLibraryTab={activeLibraryTab}
             activeDomainItem={activeDomainItem}
+            pluginViews={pluginViews}
             onSelectLibraryTab={onSelectLibraryTab}
             onSelectDomainItem={onSelectDomainItem}
             onNavigate={onNavigate}

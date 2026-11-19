@@ -1,0 +1,21 @@
+{
+  "name": "@lfaa/shell",
+  "description": "Shell 进程执行、取消及输出收集",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "^4.1.0",
+    "@lfaa/shell-env": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "typescript": "^5.9.3"
+  }
+}

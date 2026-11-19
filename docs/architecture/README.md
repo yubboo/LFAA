@@ -9,6 +9,8 @@
 
 ## 能力设计
 
+- [助手回复过程](assistant-timeline.md)：正文流、活动分组、运行状态与历史回看。
+- [Agent 会话工作区](agent-workspace.md)：项目绑定、生效目录和应用私有文件边界。
 - [Plan 模式](plan-mode.md)：计划模式的交互、Host/Client 契约、实施顺序与验收要求。状态以文档内说明为准。
 - [扩展中心](extensions.md)：技能与插件的职责、公开契约、Cordis 生命周期及实施方案。当前为草案，新增包与能力需按 A1 流程确认。
 

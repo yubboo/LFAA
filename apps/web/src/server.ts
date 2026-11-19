@@ -5,11 +5,16 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Context } from "@deepseek-ai/cordis";
 import { agentPlugin, createAgentHttpHandler } from "@lfaa/agent";
+import { resolveBash } from "@lfaa/bash-local";
 import { chatPlugin, createChatHttpHandler, createCodingHttpHandler } from "@lfaa/chat";
 import { createLlmHttpHandler, llmPlugin } from "@lfaa/llm";
 import { createMemoryHttpHandler, memoryPlugin } from "@lfaa/memory";
+import { createPluginsHttpHandler, pluginsPlugin } from "@lfaa/plugins";
+import { resolveCmd, resolvePowerShell } from "@lfaa/pwsh-local";
 import { createRulesHttpHandler, rulesPlugin } from "@lfaa/rules";
 import { createSectionsHttpHandler, sectionsPlugin } from "@lfaa/sections";
+import { shellPlugin } from "@lfaa/shell";
+import { createSkillsHttpHandler, skillsPlugin } from "@lfaa/skills";
 import { toolsPlugin } from "@lfaa/tools";
 import { createWorkspaceHttpHandler, workspacePlugin } from "@lfaa/workspace";
 import { createServer } from "vite";
@@ -48,18 +53,59 @@ export async function startWeb(): Promise<() => Promise<void>> {
   const memoryFiber = hostContext.plugin(memoryPlugin, {
     recommendedProjectDataRoot: resolve(detectedProjectRoot, "data"),
   });
-  const toolsFiber = hostContext.plugin(toolsPlugin);
-  await Promise.all([sectionsFiber, workspaceFiber, llmFiber, rulesFiber, memoryFiber, toolsFiber]);
+  const getShellKind = async () => process.platform === "win32"
+    ? (await hostContext.chat.getGeneralSettings()).integratedShell : "native" as const;
+  const shellNames = { powershell: "PowerShell", cmd: "Windows CMD", git_bash: "Git Bash", wsl: "WSL Bash", native: "Bash" };
+  const shellFiber = hostContext.plugin(shellPlugin, {
+    resolveInvocation: async (command, cwd) => {
+      const shellKind = await getShellKind();
+      if (shellKind === "powershell") return resolvePowerShell(command);
+      if (shellKind === "cmd") return resolveCmd(command);
+      return resolveBash(command, cwd, shellKind);
+    },
+  });
+  const toolsFiber = hostContext.plugin(toolsPlugin, {
+    executeCommand: (request) => hostContext.shell.execute(request),
+    describeCommandShell: async () => `run_command 的当前 Shell 为 ${shellNames[await getShellKind()]}。请使用该 Shell 的原生命令语法和路径格式。`,
+  });
+  const skillsFiber = hostContext.plugin(skillsPlugin);
+  await Promise.all([sectionsFiber, workspaceFiber, llmFiber, rulesFiber, memoryFiber, shellFiber, toolsFiber, skillsFiber]);
 
+  const pluginsFiber = hostContext.plugin(pluginsPlugin, { profile: "web" });
   const agentFiber = hostContext.plugin(agentPlugin);
   const chatFiber = hostContext.plugin(chatPlugin, { repoRoot: detectedProjectRoot });
-  await Promise.all([agentFiber, chatFiber]);
+  await Promise.all([pluginsFiber, agentFiber, chatFiber]);
+
+  hostContext.plugins.setSkillRegistrar((pluginId, list) => hostContext.skills.registerPluginSkills(pluginId, list));
+  await hostContext.plugins.restoreEnabledPlugins();
+  const offSkillResolver = hostContext.agent.setSkillResolver(async (skillIds, roots) => {
+    const resolvedRoots = roots.length > 0
+      ? roots
+      : (await hostContext.workspace.listProjects())
+          .flatMap((p) => p.rootPaths ?? (p.rootPath ? [p.rootPath] : []))
+          .filter(Boolean);
+    return hostContext.skills.resolveSkillsForRun(skillIds, resolvedRoots);
+  });
+  const offSkillCatalog = hostContext.agent.setSkillCatalogProvider(async (roots) => {
+    const list = await hostContext.skills.listSkills({ projectRoots: roots, includeDisabled: false });
+    return list.map((s) => ({ id: s.id, name: s.name, source: s.source, description: s.description }));
+  });
 
   const offSectionRemoved = hostContext.sections.onSectionRemoved((sectionId) =>
     hostContext.workspace.clearSection(sectionId),
   );
   const handleSectionsRequest = createSectionsHttpHandler(hostContext.sections);
   const handleWorkspaceRequest = createWorkspaceHttpHandler(hostContext.workspace);
+  const handleSkillsRequest = createSkillsHttpHandler(hostContext.skills, {
+    resolveProjectRoots: async () => {
+      const projects = await hostContext.workspace.listProjects();
+      const roots = projects
+        .flatMap((p) => p.rootPaths ?? (p.rootPath ? [p.rootPath] : []))
+        .filter(Boolean);
+      return roots.length > 0 ? roots : [detectedProjectRoot];
+    },
+  });
+  const handlePluginsRequest = createPluginsHttpHandler(hostContext.plugins);
   const handleLlmRequest = createLlmHttpHandler(hostContext.llm);
   const handleRulesRequest = createRulesHttpHandler(hostContext.rules);
   const handleMemoryRequest = createMemoryHttpHandler(hostContext.memory, {
@@ -70,7 +116,9 @@ export async function startWeb(): Promise<() => Promise<void>> {
       return matched?.rootPath || matched?.rootPaths?.[0] || detectedProjectRoot;
     },
   });
-  const handleChatRequest = createChatHttpHandler(hostContext.chat);
+  const handleChatRequest = createChatHttpHandler(hostContext.chat, {
+    withIdleSession: (sessionId, action) => hostContext.agent.withIdleSession(sessionId, action),
+  });
   const handleCodingRequest = createCodingHttpHandler(hostContext.chat, {
     resolveProjectCandidates: async () => {
       const projects = await hostContext.workspace.listProjects();
@@ -94,15 +142,19 @@ export async function startWeb(): Promise<() => Promise<void>> {
       if (!projectId) {
         const general = await hostContext.chat.getGeneralSettings();
         if (general.outsideProjectFolder) {
-          await mkdir(general.outsideProjectFolder, { recursive: true }).catch(() => {});
+          await mkdir(general.outsideProjectFolder, { recursive: true });
           return [general.outsideProjectFolder];
         }
         return [];
       }
       const projects = await hostContext.workspace.listProjects();
       const matched = projects.find((item) => item.id === projectId);
-      if (!matched) return [];
-      return matched.rootPaths?.length ? matched.rootPaths : (matched.rootPath ? [matched.rootPath] : []);
+      if (!matched?.exists || !matched.trusted) {
+        throw new Error("当前会话绑定的项目不可用，请重新选择已授权的项目目录。");
+      }
+      const roots = matched.rootPaths?.length ? matched.rootPaths : (matched.rootPath ? [matched.rootPath] : []);
+      if (!roots.length) throw new Error("当前会话绑定的项目没有可用工作目录。");
+      return roots;
     },
   });
 
@@ -118,6 +170,8 @@ export async function startWeb(): Promise<() => Promise<void>> {
             void (async () => {
               if (await handleSectionsRequest(req, res)) return;
               if (await handleWorkspaceRequest(req, res)) return;
+              if (await handleSkillsRequest(req, res)) return;
+              if (await handlePluginsRequest(req, res)) return;
               if (await handleLlmRequest(req, res)) return;
               if (await handleRulesRequest(req, res)) return;
               if (await handleMemoryRequest(req, res)) return;
@@ -133,9 +187,14 @@ export async function startWeb(): Promise<() => Promise<void>> {
   });
 
   const disposeFibers = async () => {
+    offSkillResolver();
+    offSkillCatalog();
     await chatFiber.dispose();
     await agentFiber.dispose();
+    await pluginsFiber.dispose();
+    await skillsFiber.dispose();
     await toolsFiber.dispose();
+    await shellFiber.dispose();
     await memoryFiber.dispose();
     await rulesFiber.dispose();
     await llmFiber.dispose();

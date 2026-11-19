@@ -5,7 +5,8 @@ import type { AgentStepTrace, MemoryService } from "@lfaa/memory";
 import type { RulesService } from "@lfaa/rules";
 import type { ToolsService } from "@lfaa/tools";
 import { evaluateToolApproval, type SmartTrustStore } from "./permission-policy";
-import type { AgentPermissionMode, AgentRunEvent } from "./types";
+import type { AgentPermissionMode, AgentRunEvent, ApprovalAnswer, ResolvedSkillContext } from "./types";
+import { completeAgentRound } from "./model-round";
 
 /** 集中提供模型调用、工具执行、事件与持久化依赖，使循环可在测试中独立验证。 */
 export interface RunLoopDeps {
@@ -26,8 +27,10 @@ export interface RunExecutionParams {
   reasoningEffort?: "minimal" | "low" | "medium" | "high" | "max";
   projectId?: string | null;
   workspaceRoots: string[];
+  resolvedSkills?: ResolvedSkillContext[];
+  availableSkillCatalog?: Array<{ id: string; name: string; source: string; description: string }>;
   maxSteps: number;
-  permissionMode: AgentPermissionMode;
+  getPermissionMode: () => AgentPermissionMode;
   signal: AbortSignal;
   emit: (event: AgentRunEvent) => void;
   requestApproval: (params: {
@@ -41,7 +44,7 @@ export interface RunExecutionParams {
     approvalThreshold?: number;
     highRisk?: boolean;
     riskReason?: string;
-  }) => Promise<boolean>;
+  }) => Promise<ApprovalAnswer>;
 }
 
 function safeParseArgs(raw: string): { ok: true; value: Record<string, unknown> } | { ok: false; error: string } {
@@ -60,10 +63,10 @@ function safeParseArgs(raw: string): { ok: true; value: Record<string, unknown> 
 export async function executeAgentTaskLoop(
   deps: RunLoopDeps,
   params: RunExecutionParams,
-): Promise<{ content: string; reasoning: string; steps: AgentStepTrace[]; model?: string }> {
+): Promise<{ content: string; progressText: string; reasoning: string; steps: AgentStepTrace[]; model?: string }> {
   const steps: AgentStepTrace[] = [];
   let accumulatedReasoning = "";
-  let finalContent = "";
+  let progressText = "";
   let lastModel: string | undefined;
 
   const pushOrUpdateStep = (step: AgentStepTrace) => {
@@ -86,7 +89,7 @@ export async function executeAgentTaskLoop(
     }),
   ]);
   const memoryHints = memories.map((m) => `[${m.scope === "project" ? "项目记忆" : "全局记忆"}] ${m.content}`);
-  const { systemPrompt } = await deps.rules.composeSystemPrompt({
+  const { systemPrompt, documents } = await deps.rules.composeSystemPrompt({
     projectPaths: params.workspaceRoots,
     memoryHints,
   });
@@ -95,17 +98,67 @@ export async function executeAgentTaskLoop(
     maxChars: 16000,
   });
 
-  const modeHint = params.permissionMode === "full"
-    ? "当前权限模式：完全访问权限（可不受工作区目录限制读写文件并自动执行命令）。"
-    : params.permissionMode === "smart"
-      ? "当前权限模式：帮我审批（受工作区沙箱限制；同类常规操作累计批准 3 次后自动放行，高危操作仍需确认）。"
-      : "当前权限模式：请求批准（受工作区沙箱限制；每次修改文件或执行命令均需用户确认）。";
+  const modeHints = {
+    full: "当前权限模式：完全访问权限（内置文件工具不受工作区目录限制，但应用私有文件始终受保护；命令沿用系统用户权限）。",
+    smart: "当前权限模式：帮我审批（内置文件工具仅可访问工作区；同类常规操作累计批准 3 次后自动放行，高危操作仍需确认）。",
+    ask: "当前权限模式：请求批准（内置文件工具仅可访问工作区；每次修改文件或执行命令均需用户确认）。",
+  };
+  const projectRuleNames = documents.filter((doc) => doc.layer === "project").map((doc) => doc.source);
+  const workspaceHint = [
+    `会话工作位置：${params.projectId ? "已绑定项目" : "项目外聊天"}。`,
+    `已授权目录：${params.workspaceRoots.join("、") || "无"}。`,
+    `本轮加载的项目规则：${projectRuleNames.join("、") || "无"}。`,
+    "以本轮生效上下文和工具清单为准；会话记录与其他应用配置不能证明当前权限。需要另一个项目时，请用户在新聊天选择该项目，或在既有聊天输入框使用 @项目。",
+    "终端命令从工作目录启动，子进程当前没有 OS 路径隔离，必须遵守授权目录与操作审批。",
+  ].join("\n");
 
   const assetPreview = recentAssets.slice(0, 6).map((a) => `${a.title}(${a.fileName})`).join("、");
   const libraryHint = `LFAA 资料库/资产库本地目录：${storageState.dataRoot}（当前已有 ${recentAssets.length} 项资产/产物${assetPreview ? `：${assetPreview}` : ""}）。你可通过 list_library_assets / read_library_asset 查看资料库内容，产出的报告、文档或成品请优先调用 save_library_artifact 存入资产库以便用户在「资料库」界面统一查看。`;
   const formatHint = "排版规范：列举 3 个及以上的目录、文件、配置项或路径时，严禁挤在一段长句括号里用顿号堆叠；请使用结构化列表（如 `- \`name/\`：说明`）、Markdown 表格或树形代码块展示，并将文件名与目录名用反引号 `` ` `` 包裹。";
 
-  const conversation: LlmMessage[] = [{ role: "system", content: `${systemPrompt}\n\n${modeHint}\n${libraryHint}\n${formatHint}` }];
+  const skillsSection = params.resolvedSkills && params.resolvedSkills.length > 0
+    ? `\n\n本轮显式选用的技能（仅本轮生效）：\n${params.resolvedSkills
+        .map((s) => `### 技能：${s.name} (v${s.revision})\n${s.content}`)
+        .join("\n\n")}`
+    : "";
+
+  if (params.resolvedSkills && params.resolvedSkills.length > 0) {
+    pushOrUpdateStep({
+      id: "skills-loaded",
+      iteration: 0,
+      phase: "act",
+      status: "done",
+      title: `已载入技能：${params.resolvedSkills.map((s) => `${s.name} (v${s.revision})`).join("、")}`,
+      toolName: "load_skill",
+      textOffset: 0,
+      timestamp: Date.now(),
+    });
+  }
+
+  const activeProfile = typeof deps.llm.resolveProfile === "function"
+    ? await deps.llm.resolveProfile(params.profileId).catch(() => null)
+    : null;
+  const lastRoutedModel = [...contextWindow.recentMessages]
+    .reverse()
+    .find((m) => m.role === "assistant" && typeof m.model === "string" && m.model.trim())?.model;
+  const modelHint = activeProfile
+    ? `当前调用的模型配置：${activeProfile.name}（配置模型 ID：${activeProfile.model}${activeProfile.model === "ark-code-latest" ? "，方舟控制台动态路由" : ""}${lastRoutedModel && lastRoutedModel !== activeProfile.model ? `，前序响应实际路由模型：${lastRoutedModel}` : ""}）。当用户询问当前使用的模型时，请如实告知以上信息；若使用 ark-code-latest 且尚未收到本轮响应，可说明具体模型由方舟控制台路由决定。`
+    : "";
+
+  const skillsCatalogHint = params.availableSkillCatalog && params.availableSkillCatalog.length > 0
+    ? `\n\n可用技能目录（按需调用 load_skill 读取正文；若用户要求从 Git 安装技能请调用 install_skill_from_git；若用户要求创建个人技能请调用 save_user_skill 存入 ~/.lfaa/skills/）：\n${params.availableSkillCatalog
+        .slice(0, 30)
+        .map((s) => `- ${s.name} (id: ${s.id}, 来源: ${s.source})${s.description ? `：${s.description}` : ""}`)
+        .join("\n")}`
+    : "";
+
+  const progressHint = "多步任务的进度写入用户可见的正文。首次调用工具前，简短交代准备核查或执行的事项；得到实际结果、发现异常或进入下一阶段时，再说明进展和接下来的动作。连续的小操作可共用一段，直接问答无需播报。命令和工具详情由运行时展示。";
+  const shellHint = await deps.tools.describeCommandShell();
+  const systemMessage: LlmMessage = { role: "system", content: "" };
+  const updateSystemMessage = () => {
+    systemMessage.content = `${systemPrompt}\n\n${modeHints[params.getPermissionMode()]}\n${workspaceHint}\n${modelHint ? `${modelHint}\n` : ""}${shellHint ? `${shellHint}\n` : ""}${libraryHint}\n${formatHint}\n${progressHint}${skillsCatalogHint}${skillsSection}`;
+  };
+  const conversation: LlmMessage[] = [systemMessage];
   if (contextWindow.summaryNote) {
     conversation.push({ role: "system", content: `前序会话摘要：${contextWindow.summaryNote}` });
   }
@@ -124,34 +177,71 @@ export async function executeAgentTaskLoop(
     if (params.signal.aborted) throw new Error("用户已中止本次任务。");
 
     const thinkStepId = `think-${iteration}`;
-    pushOrUpdateStep({
+    const thinkStep: AgentStepTrace = {
       id: thinkStepId,
       iteration,
       phase: "think",
       status: "running",
       title: `第 ${iteration} 轮思考：规划与决策`,
       timestamp: Date.now(),
-    });
+    };
+    pushOrUpdateStep(thinkStep);
 
     let iterText = "";
-    const output = await deps.llm.complete({
+    let modelStage: AgentStepTrace["modelStage"];
+    const preparing = new Map<string, AgentStepTrace>();
+    let lastActivity = thinkStep.timestamp;
+    const noteModelActivity = (stage = modelStage) => {
+      const now = Date.now();
+      if (modelStage === stage && now - lastActivity < 4_000) return;
+      lastActivity = now;
+      modelStage = stage;
+      pushOrUpdateStep({ ...thinkStep, ...(modelStage ? { modelStage } : {}), timestamp: now });
+    };
+    updateSystemMessage();
+    const output = await completeAgentRound(deps.llm, {
       ...(params.profileId !== undefined ? { profileId: params.profileId } : {}),
       ...(params.reasoningEffort !== undefined ? { reasoningEffort: params.reasoningEffort } : {}),
       messages: conversation,
       tools: llmTools,
       signal: params.signal,
+      onActivity: () => noteModelActivity(),
       onDelta: (delta) => {
+        if ((delta.type === "reasoning" || delta.type === "text") && delta.text) {
+          noteModelActivity(delta.type === "reasoning" ? "reasoning" : "replying");
+        }
         if (delta.type === "reasoning" && delta.text) {
           accumulatedReasoning += delta.text;
           params.emit({ type: "delta", runId: params.runId, seq: 0, kind: "reasoning", text: delta.text });
         } else if (delta.type === "text" && delta.text) {
           iterText += delta.text;
           params.emit({ type: "delta", runId: params.runId, seq: 0, kind: "text", text: delta.text });
+        } else if (delta.type === "tool_call" && delta.toolCallId && delta.toolName && !preparing.has(delta.toolCallId)) {
+          // 工具名已到达，等模型返回完整调用后才解析参数、审批和执行。
+          const preparation: AgentStepTrace = {
+            id: `act-${iteration}-${delta.toolCallId}`,
+            iteration,
+            phase: "act",
+            status: "preparing",
+            title: `准备工具：${delta.toolName}`,
+            toolCallId: delta.toolCallId,
+            toolName: delta.toolName,
+            textOffset: progressText.length + iterText.length,
+            timestamp: Date.now(),
+          };
+          preparing.set(delta.toolCallId, preparation);
+          pushOrUpdateStep(preparation);
         }
       },
     });
     lastModel = output.model;
     const roundContent = output.content || iterText;
+    // 非流式适配器也在工具之前交付正文，偏移始终使用实际发出的前缀。
+    if (!iterText && roundContent) {
+      iterText = roundContent;
+      pushOrUpdateStep({ ...thinkStep, modelStage: "replying", timestamp: Date.now() });
+      params.emit({ type: "delta", runId: params.runId, seq: 0, kind: "text", text: iterText });
+    }
 
     const thinkDetail = output.reasoningContent?.slice(0, 240);
     pushOrUpdateStep({
@@ -166,25 +256,48 @@ export async function executeAgentTaskLoop(
       timestamp: Date.now(),
     });
 
+    // 未完成的工具请求仍保留真实的失败状态，不能遗留为进行中。
+    const completeCallIds = new Set(output.toolCalls.map((call) => call.id));
+    for (const [id, preparation] of preparing) {
+      if (completeCallIds.has(id)) continue;
+      pushOrUpdateStep({
+        ...preparation,
+        status: "error",
+        detail: "模型未返回完整工具请求。",
+        textOffset: output.toolCalls.length > 0 ? progressText.length + iterText.length : progressText.length,
+        timestamp: Date.now(),
+      });
+    }
+
     // 无工具调用：执行终结检查后完成闭环
     if (output.toolCalls.length === 0) {
-      finalContent = roundContent.trim();
+      const finalContent = roundContent.trim();
       const checkStepId = `check-${iteration}`;
       const isEmpty = !finalContent;
-      if (isEmpty) {
-        finalContent = "模型返回了空内容，未能生成有效答复。";
-      }
       pushOrUpdateStep({
         id: checkStepId,
         iteration,
         phase: "check",
         status: isEmpty ? "error" : "done",
-        title: isEmpty ? "最终检查：响应为空" : "最终检查：任务目标已达成",
-        detail: isEmpty ? "请检查模型接口与提示词配置。" : "已验证上下文与工具观察结果，输出最终结论。",
+        title: isEmpty ? "最终检查：响应为空" : "最终检查：已收到答复",
+        ...(isEmpty ? { detail: "请检查模型接口与提示词配置。" } : {}),
         timestamp: Date.now(),
       });
-      return { content: finalContent, reasoning: accumulatedReasoning, steps, model: lastModel };
+      return {
+        content: finalContent || "模型返回了空内容，未能生成有效答复。",
+        progressText,
+        reasoning: accumulatedReasoning,
+        steps,
+        model: lastModel,
+      };
     }
+
+    if (iterText && !iterText.endsWith("\n\n")) {
+      iterText += "\n\n";
+      params.emit({ type: "delta", runId: params.runId, seq: 0, kind: "text", text: "\n\n" });
+    }
+    progressText += iterText;
+    const roundTextOffset = progressText.length;
 
     // 记录模型发出的 assistant + toolCalls 轮次（保留 reasoningContent 以适配 DeepSeek 思考模式工具调用回传要求）
     conversation.push({
@@ -205,7 +318,11 @@ export async function executeAgentTaskLoop(
       const toolDef = deps.tools.getTool(call.name);
       const perm = toolDef?.permissionLevel ?? "read";
 
-      pushOrUpdateStep({
+      const parsedArgs = safeParseArgs(call.argumentsJson);
+      const command = call.name === "run_command" && parsedArgs.ok && typeof parsedArgs.value.command === "string"
+        ? parsedArgs.value.command.trim().slice(0, 16000)
+        : "";
+      const action: AgentStepTrace = {
         id: actStepId,
         iteration,
         phase: "act",
@@ -215,15 +332,18 @@ export async function executeAgentTaskLoop(
         toolName: call.name,
         permissionLevel: perm,
         argsPreview,
+        textOffset: roundTextOffset,
+        ...(command ? { commandTrace: { command } } : {}),
         timestamp: Date.now(),
-      });
+      };
 
-      const parsedArgs = safeParseArgs(call.argumentsJson);
       let toolOutputText = "";
       let stepOk = false;
       let summaryText = "";
       let addedLines: number | undefined;
       let removedLines: number | undefined;
+      let exitCode: number | undefined;
+      let fileChange: AgentStepTrace["fileChange"];
 
       if (!parsedArgs.ok) {
         toolOutputText = parsedArgs.error;
@@ -231,8 +351,10 @@ export async function executeAgentTaskLoop(
       } else {
         let permitted = true;
         let autoApprovalDetail = "";
-        if (toolDef && perm !== "read") {
-          const currentCount = params.permissionMode === "smart"
+        while (toolDef && perm !== "read") {
+          params.signal.throwIfAborted();
+          const mode = params.getPermissionMode();
+          const currentCount = mode === "smart"
             ? await deps.trustStore.getCount(
               evaluateToolApproval({
                 mode: "smart",
@@ -243,8 +365,9 @@ export async function executeAgentTaskLoop(
               }).pattern,
             )
             : 0;
+          if (params.getPermissionMode() !== mode) continue;
           const decision = evaluateToolApproval({
-            mode: params.permissionMode,
+            mode,
             permissionLevel: perm,
             toolName: call.name,
             args: parsedArgs.value,
@@ -254,54 +377,57 @@ export async function executeAgentTaskLoop(
           if (decision.requiresApproval) {
             const approvalId = randomUUID();
             pushOrUpdateStep({
-              id: actStepId,
-              iteration,
-              phase: "act",
+              ...action,
               status: "waiting_approval",
               title: `等待确认：${toolDef.title} (${call.name})`,
-              toolCallId: call.id,
-              toolName: call.name,
-              permissionLevel: perm,
-              argsPreview,
               ...(decision.reason ? { detail: decision.reason } : {}),
               timestamp: Date.now(),
             });
-            permitted = await params.requestApproval({
+            const answer = await params.requestApproval({
               approvalId,
               toolName: call.name,
               permissionLevel: perm,
               argsPreview,
-              permissionMode: params.permissionMode,
+              permissionMode: mode,
               approvalPattern: decision.pattern,
               ...(decision.approvalCount !== undefined ? { approvalCount: decision.approvalCount } : {}),
               ...(decision.approvalThreshold !== undefined ? { approvalThreshold: decision.approvalThreshold } : {}),
               highRisk: decision.highRisk,
               ...(decision.reason ? { riskReason: decision.reason } : {}),
             });
-            if (params.permissionMode === "smart") {
+            if (answer === "mode_changed") continue;
+            permitted = answer;
+            if (mode === "smart") {
               await deps.trustStore.recordDecision(decision.pattern, permitted, decision.highRisk);
             }
           } else if (decision.autoApproved && decision.reason) {
             autoApprovalDetail = decision.reason;
           }
+          break;
         }
 
         if (!permitted) {
           toolOutputText = "用户拒绝执行此修改/命令工具，请改用只读核查或向用户说明替代方案。";
           summaryText = "用户已拒绝";
         } else {
+          pushOrUpdateStep({ ...action, timestamp: Date.now() });
           const execRes = await deps.tools.executeTool(call.name, parsedArgs.value, {
             workspaceRoots: params.workspaceRoots,
             sessionId: params.sessionId,
             runId: params.runId,
             signal: params.signal,
-            allowOutsideWorkspace: params.permissionMode === "full",
+            allowOutsideWorkspace: params.getPermissionMode() === "full",
+            ...(command ? { onCommandOutput: (output: string) => pushOrUpdateStep({
+              ...action, commandTrace: { command, output }, timestamp: Date.now(),
+            }) } : {}),
           });
           stepOk = execRes.ok;
           toolOutputText = execRes.output;
           summaryText = autoApprovalDetail ? `${execRes.summary} · ${autoApprovalDetail}` : execRes.summary;
           if (typeof execRes.metadata?.added === "number") addedLines = execRes.metadata.added;
           if (typeof execRes.metadata?.removed === "number") removedLines = execRes.metadata.removed;
+          if (typeof execRes.metadata?.exitCode === "number") exitCode = execRes.metadata.exitCode;
+          if (execRes.ok) fileChange = execRes.fileChange;
         }
       }
 
@@ -309,18 +435,18 @@ export async function executeAgentTaskLoop(
       actSummaries.push(`${call.name}: ${summaryText}`);
 
       pushOrUpdateStep({
-        id: actStepId,
-        iteration,
-        phase: "act",
+        ...action,
         status: stepOk ? "done" : "error",
         title: `行动：${call.name} (${summaryText})`,
-        toolCallId: call.id,
-        toolName: call.name,
-        permissionLevel: perm,
-        argsPreview,
         resultPreview: toolOutputText.slice(0, 240),
+        ...(command ? { commandTrace: {
+          command,
+          output: toolOutputText.slice(0, 16000),
+          ...(exitCode === undefined ? {} : { exitCode }),
+        } } : {}),
         ...(addedLines !== undefined ? { addedLines } : {}),
         ...(removedLines !== undefined ? { removedLines } : {}),
+        ...(fileChange ? { fileChange } : {}),
         timestamp: Date.now(),
       });
 
@@ -348,7 +474,18 @@ export async function executeAgentTaskLoop(
   }
 
   // 达到最大步数保护时执行收口总结
-  const fallback = await deps.llm.complete({
+  const fallbackStep: AgentStepTrace = {
+    id: "think-final",
+    iteration: params.maxSteps + 1,
+    phase: "think",
+    status: "running",
+    title: "生成运行总结",
+    timestamp: Date.now(),
+  };
+  pushOrUpdateStep(fallbackStep);
+  let fallbackText = "";
+  updateSystemMessage();
+  const fallback = await completeAgentRound(deps.llm, {
     ...(params.profileId !== undefined ? { profileId: params.profileId } : {}),
     messages: [
       ...conversation,
@@ -358,10 +495,19 @@ export async function executeAgentTaskLoop(
     signal: params.signal,
     onDelta: (delta) => {
       if (delta.type === "text" && delta.text) {
+        if (!fallbackText) {
+          pushOrUpdateStep({ ...fallbackStep, modelStage: "replying", timestamp: Date.now() });
+        }
+        fallbackText += delta.text;
         params.emit({ type: "delta", runId: params.runId, seq: 0, kind: "text", text: delta.text });
       }
     },
   });
-  finalContent = fallback.content.trim() || "已达到单轮最大步数上限，请根据步骤轨迹继续指令。";
-  return { content: finalContent, reasoning: accumulatedReasoning, steps, model: fallback.model ?? lastModel };
+  const finalContent = (fallback.content || fallbackText).trim() || "已达到单轮最大步数上限，请根据步骤轨迹继续指令。";
+  if (!fallbackText) {
+    pushOrUpdateStep({ ...fallbackStep, modelStage: "replying", timestamp: Date.now() });
+    params.emit({ type: "delta", runId: params.runId, seq: 0, kind: "text", text: finalContent });
+  }
+  pushOrUpdateStep({ ...fallbackStep, status: "done", timestamp: Date.now() });
+  return { content: finalContent, progressText, reasoning: accumulatedReasoning, steps, model: fallback.model ?? lastModel };
 }

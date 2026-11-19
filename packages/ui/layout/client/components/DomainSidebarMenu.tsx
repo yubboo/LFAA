@@ -1,5 +1,7 @@
 // 根据左一导航栏选中的功能域（资料库、图像、定时任务、插件、代码审查与扩展），动态渲染对应的左二功能菜单。
 import { useMemo, useState } from "react";
+import type { ReactNode } from "react";
+import type { WorkbenchViewContribution } from "../../src/index";
 import type { LocaleMessages } from "../locales";
 import type { NavigationView } from "../navigation";
 import { resolveViewLabel, type WorkbenchDomainConfig } from "../workbench-domains";
@@ -14,6 +16,7 @@ export function DomainSidebarMenu({
   activeView,
   activeLibraryTab,
   activeDomainItem,
+  pluginViews,
   onSelectLibraryTab,
   onSelectDomainItem,
   onNavigate,
@@ -23,6 +26,7 @@ export function DomainSidebarMenu({
   activeView: NavigationView;
   activeLibraryTab: LibraryTabKey;
   activeDomainItem: string;
+  pluginViews: WorkbenchViewContribution<ReactNode>[];
   onSelectLibraryTab: (tab: LibraryTabKey) => void;
   onSelectDomainItem: (id: string) => void;
   onNavigate: (view: NavigationView) => void;
@@ -132,24 +136,29 @@ export function DomainSidebarMenu({
     }
 
     if (domain.id === "plugins") {
+      const installedItems = [
+        ...pluginViews.map((view) => ({
+          id: `ext-${view.id}`,
+          label: view.title,
+          icon: "plugins" as NavigationIconName,
+          active: activeView === (view.id as NavigationView),
+          onClick: () => onNavigate(view.id as NavigationView),
+        })),
+        { id: "plug-codereview", label: locale.codeReview, icon: "codeReview" as NavigationIconName, onClick: () => onNavigate("codeReview") },
+      ];
       return [
         {
           id: "plugins-main",
           title: isZh ? "扩展与技能" : "Extensions",
           items: [
-            { id: "plug-list", label: locale.plugins, icon: "plugins", active: !activeDomainItem || activeDomainItem === "plug-list", onClick: () => onSelectDomainItem("plug-list") },
-            { id: "plug-skills", label: isZh ? "技能" : "Skills", icon: "filter", active: activeDomainItem === "plug-skills", onClick: () => onSelectDomainItem("plug-skills") },
+            { id: "plug-list", label: locale.plugins, icon: "plugins", active: activeView === "plugins", onClick: () => onNavigate("plugins") },
+            { id: "plug-skills", label: isZh ? "技能" : "Skills", icon: "filter", active: activeView === ("skills" as NavigationView), onClick: () => onNavigate("skills" as NavigationView) },
           ],
         },
         {
           id: "plugins-installed",
           title: locale.installedPlugins,
-          items: [
-            { id: "plug-canva", label: locale.canva, icon: "canva", onClick: () => onNavigate("canva") },
-            { id: "plug-openai", label: locale.openAiDevelopers, icon: "openai", onClick: () => onNavigate("openAiDevelopers") },
-            { id: "plug-data", label: locale.data, icon: "data", onClick: () => onNavigate("data") },
-            { id: "plug-codereview", label: locale.codeReview, icon: "codeReview", onClick: () => onNavigate("codeReview") },
-          ],
+          items: installedItems,
         },
       ];
     }
@@ -213,7 +222,7 @@ export function DomainSidebarMenu({
         ],
       },
     ];
-  }, [activeDomainItem, activeLibraryTab, activeView, domain.id, isZh, locale, onNavigate, onSelectDomainItem, onSelectLibraryTab]);
+  }, [activeDomainItem, activeLibraryTab, activeView, domain.id, isZh, locale, onNavigate, onSelectDomainItem, onSelectLibraryTab, pluginViews]);
 
   const filteredGroups = useMemo<SidebarGroupConfig[]>(() => {
     if (!normalized) return rawGroups;

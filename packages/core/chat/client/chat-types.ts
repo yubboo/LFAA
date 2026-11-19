@@ -1,28 +1,13 @@
 // 声明 @lfaa/chat/client 浏览器端状态与 API 数据模型（无 Node 专有依赖）。
 import type { GeneralSettingsConfig, ReasoningLevelOption } from "./general-settings-client";
+import type { AgentStepTrace } from "@lfaa/memory";
 
 export type { GeneralSettingsConfig, OpenSourcePackageInfo, ReasoningLevelOption } from "./general-settings-client";
 export type AgentPermissionMode = "ask" | "smart" | "full";
-export type AgentPhase = "think" | "act" | "check";
-export type AgentStepStatus = "running" | "waiting_approval" | "done" | "error";
-
 /** 统一时间线上思考、操作和检查步骤的公开状态。 */
-export interface AgentStepItem {
-  id: string;
-  iteration: number;
-  phase: AgentPhase;
-  status: AgentStepStatus;
-  title: string;
-  detail?: string;
-  toolCallId?: string;
-  toolName?: string;
-  permissionLevel?: "read" | "write" | "exec";
-  argsPreview?: string;
-  resultPreview?: string;
-  addedLines?: number;
-  removedLines?: number;
-  timestamp: number;
-}
+export type AgentStepItem = AgentStepTrace;
+export type AgentPhase = AgentStepItem["phase"];
+export type AgentStepStatus = AgentStepItem["status"];
 
 /** 提供聊天界面所需的消息内容、时间及运行信息。 */
 export interface ChatMessageItem {
@@ -31,6 +16,8 @@ export interface ChatMessageItem {
   content: string;
   reasoning?: string;
   reasoningDurationMs?: number;
+  runDurationMs?: number;
+  progressText?: string;
   steps?: AgentStepItem[];
   status?: "streaming" | "done" | "error" | "aborted";
   model?: string;
@@ -177,6 +164,13 @@ export interface StorageMigrationResult {
 }
 
 /** 约定聊天 Store 向 React 订阅者提交的会话、设置和运行快照。 */
+export interface FilePreviewTab {
+  id: string;
+  path: string;
+  messageId: string;
+  stepId: string;
+}
+
 export interface ChatStoreSnapshot {
   loaded: boolean;
   sessions: ChatSessionItem[];
@@ -187,6 +181,8 @@ export interface ChatStoreSnapshot {
   runningRunId: string | null;
   queuedMessages: string[];
   pendingApproval: PendingApprovalBanner | null;
+  filePreviewTabs: FilePreviewTab[];
+  activeFilePreviewId: string | null;
   permissionMode: AgentPermissionMode;
   smartTrustCounts: Record<string, number>;
   activeProfileId: string;

@@ -1,210 +1,304 @@
-/* Agent Think -> Act -> Check 循环轨迹与审批确认卡片样式。 */
-.traceWrap {
-  display: grid;
-  gap: 0.45rem;
-  margin-bottom: 0.65rem;
-}
-
-/* 运行阶段通过胶囊和脉冲灯显示，颜色按阶段变化。 */
-.liveStatusPill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  width: fit-content;
-  padding: 0.34rem 0.72rem;
-  border: 1px solid var(--color-line);
-  border-radius: 999px;
-  background: var(--glass-card-bg, var(--color-surface));
-  color: var(--color-ink);
-  font: inherit;
-  font-size: 0.84em;
-  cursor: pointer;
-}
-
-.liveStatusPill:hover {
-  background: var(--color-active);
-}
-
-.livePulseDot {
-  width: 0.46rem;
-  height: 0.46rem;
-  border-radius: 999px;
-  animation: livePulse 1.3s ease-in-out infinite;
-}
-
-.liveDot_think {
-  background: #818cf8;
-  box-shadow: 0 0 0 3px rgb(129 140 248 / 0.2);
-}
-
-.liveDot_explore {
-  background: #38bdf8;
-  box-shadow: 0 0 0 3px rgb(56 189 248 / 0.2);
-}
-
-.liveDot_act {
-  background: #fb923c;
-  box-shadow: 0 0 0 3px rgb(251 146 60 / 0.2);
-}
-
-.liveDot_reply {
-  background: #34d399;
-  box-shadow: 0 0 0 3px rgb(52 211 153 / 0.2);
-}
-
-.liveDot_approval {
-  background: #f59e0b;
-  box-shadow: 0 0 0 3px rgb(245 158 11 / 0.22);
-}
-
-@keyframes livePulse {
-  0%, 100% {
-    opacity: 0.55;
-    transform: scale(0.9);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.15);
-  }
-}
-
-.liveStatusText {
-  font-weight: 500;
-}
-
-.liveCountBadge {
-  color: var(--color-muted);
-  font-size: 0.9em;
-}
-
-.chevronOpen {
-  transform: rotate(90deg);
-}
-
-.summaryRow {
+/* 助手状态、活动折叠行及终端详情，使用工作区浅色和深色主题变量。 */
+.liveStatus,
+.disclosure,
+.activityRow {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: 0.45rem;
-}
-
-.thoughtSummaryBtn,
-.exploreBadge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.26rem 0.62rem;
-  border-radius: 999px;
-  font-size: 0.82em;
+  min-width: 0;
+  min-height: 1.75rem;
   color: var(--color-muted);
-}
-
-.thoughtSummaryBtn {
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  padding-left: 0.2rem;
-}
-
-.thoughtSummaryBtn:hover {
-  color: var(--color-ink);
-}
-
-.exploreBadge {
-  border: 1px solid var(--color-line);
-  background: var(--glass-control-bg, var(--color-panel));
-}
-
-.traceToggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  width: fit-content;
-  padding: 0.3rem 0.65rem;
-  border: 1px solid var(--color-line);
-  border-radius: 999px;
-  background: var(--glass-control-bg, transparent);
-  color: var(--color-muted);
-  font-size: 0.82em;
-  cursor: pointer;
-  transition: background-color 140ms ease, color 140ms ease;
-}
-
-.traceToggle:hover {
-  background: var(--color-active);
-  color: var(--color-ink);
-}
-
-.traceList {
-  display: grid;
-  gap: 0.35rem;
-  padding: 0.65rem 0.75rem;
-  border: 1px solid var(--color-line);
-  border-radius: 0.85rem;
-  background: var(--glass-card-bg, var(--color-surface));
-}
-
-.stepRow {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 0.5rem;
+  font: inherit;
   font-size: 0.86em;
-  line-height: 1.45;
+  text-align: start;
 }
 
-.phaseBadge {
-  padding: 0.1rem 0.45rem;
-  border-radius: 0.45rem;
-  font-size: 0.82em;
-  font-weight: 600;
-  background: var(--color-active);
+.liveStatus {
   color: var(--color-ink);
 }
 
-.phaseThink {
-  background: rgb(59 130 246 / 0.14);
-  color: #60a5fa;
+.elapsed {
+  color: var(--color-muted);
+  font-size: 0.86em;
+  font-variant-numeric: tabular-nums;
 }
 
-.phaseAct {
-  background: rgb(249 115 22 / 0.14);
-  color: #fb923c;
+.liveDot {
+  flex: none;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--color-accent);
 }
 
-.phaseCheck {
-  background: rgb(16 185 129 / 0.14);
-  color: #34d399;
+@media (prefers-reduced-motion: no-preference) {
+  .liveDot {
+    animation: pulse 1.4s ease-in-out infinite alternate;
+  }
 }
 
-.stepMain {
+@keyframes pulse {
+  from { opacity: 0.45; }
+  to { opacity: 1; }
+}
+
+.timelineDivider {
+  border: 0;
+  border-top: 1px solid var(--color-line);
+  margin: 0.25rem 0;
+}
+
+.flow {
   display: grid;
-  gap: 0.2rem;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.65rem;
   min-width: 0;
 }
 
-.stepTitle {
+.flow[hidden] {
+  display: none;
+}
+
+.disclosure,
+.activityRow {
+  width: fit-content;
+  max-width: 100%;
+  padding: 0.12rem 0.32rem;
+  border: 0;
+  border-radius: 0.35rem;
+  background: transparent;
+  list-style: none;
+}
+
+.disclosure,
+summary.activityRow {
+  cursor: pointer;
+}
+
+.disclosure::-webkit-details-marker,
+.activityRow::-webkit-details-marker {
+  display: none;
+}
+
+.disclosure:hover,
+summary.activityRow:hover,
+.fileActivity:hover {
   color: var(--color-ink);
-  word-break: break-word;
+  background: var(--color-active);
 }
 
-.stepMeta {
-  margin: 0;
-  color: var(--color-muted);
-  font-family: var(--code-font-family, monospace);
-  font-size: 0.86em;
-  white-space: pre-wrap;
-  word-break: break-word;
+.disclosure:focus-visible,
+.activityRow:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
-.statusBadge {
-  color: var(--color-muted);
-  font-size: 0.82em;
+.disclosure:active,
+summary.activityRow:active,
+.fileActivity:active {
+  transform: scale(0.98);
+}
+
+.icon,
+.chevron {
+  flex: none;
+}
+
+.disclosure,
+.activityRow,
+.chevron {
+  transition: transform 170ms cubic-bezier(.22, 1, .36, 1), color 150ms ease-out, background-color 150ms ease-out;
+}
+
+.disclosure[aria-expanded="true"] > .chevron,
+details[open] > summary > .chevron {
+  transform: rotate(90deg);
+}
+
+.activityTitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.statusError {
-  color: #ef4444;
+.activityList {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.15rem;
+  margin: 0.2rem 0 0 0.65rem;
+  padding-inline-start: 0.65rem;
+  border-inline-start: 1px solid var(--color-line);
+}
+
+.activityDetail {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.4rem;
+  margin: 0.2rem 0 0.35rem 0.35rem;
+  padding: 0.65rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.55rem;
+  background: var(--color-panel);
+  color: var(--color-ink);
+  font-size: 0.84em;
+}
+
+.activityDetail pre {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--code-font-family, monospace);
+}
+
+/* 准备和执行共用柔和高光，审批和终态停在实际结果。 */
+:is(.disclosure, .activityRow):is([data-status="preparing"], [data-status="running"]),
+.activityDetail[data-kind="command"][data-status="running"] .terminalHeader {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background-color: color-mix(in srgb, var(--color-accent) 8%, var(--color-surface));
+}
+
+:is(.disclosure, .activityRow):is([data-status="preparing"], [data-status="running"])::before,
+.activityDetail[data-kind="command"][data-status="running"] .terminalHeader::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  background: linear-gradient(100deg, transparent 15%, rgb(var(--color-accent-rgb) / 0.19) 50%, transparent 85%);
+  animation: active-sweep 1.7s ease-in-out infinite;
+}
+
+:is(.disclosure, .activityRow)[data-status="waiting_approval"] {
+  color: var(--color-ink);
+  background: var(--color-active);
+}
+
+@keyframes active-sweep {
+  from { opacity: 0; transform: translateX(-75%); }
+  45%, 65% { opacity: 1; }
+  to { opacity: 0; transform: translateX(75%); }
+}
+
+/* 原生 details 保留键盘语义，靠近标题的滑入表达展开方向。 */
+.process:not([hidden]) {
+  animation: activity-reveal 220ms cubic-bezier(.22, 1, .36, 1) both;
+}
+
+@keyframes activity-reveal {
+  from { opacity: 0; transform: translateY(-3px); }
+}
+
+@supports selector(details::details-content) {
+  .activityDisclosure::details-content {
+    opacity: 0;
+    transform: translateY(-3px);
+    transition: opacity 210ms ease-out, transform 210ms ease-out, content-visibility 210ms allow-discrete;
+  }
+
+  .activityDisclosure[open]::details-content { opacity: 1; transform: none; }
+}
+
+.fileActivity { cursor: pointer; }
+.fileActivity[aria-pressed="true"] {
+  color: var(--color-ink);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--color-accent) 14%, var(--color-surface)), var(--color-active));
+}
+
+.fileActivity > span:nth-child(2) { flex: none; }
+.fileName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-ink);
+  text-decoration: underline dotted var(--color-muted);
+  text-underline-offset: 3px;
+}
+
+.activityRow {
+  --activity-positive: #82cba6;
+  --activity-negative: #f19eaa;
+}
+
+:global(:root[data-resolved-theme="light"]) .activityRow {
+  --activity-positive: #226945;
+  --activity-negative: #a32540;
+}
+
+.activityRow[data-kind="created"] > .icon:first-child,
+.lineCounts [data-change="add"],
+.activityStatus[data-status="done"] { color: var(--activity-positive); }
+.activityRow[data-kind="deleted"] > .icon:first-child,
+.lineCounts [data-change="remove"],
+.activityStatus[data-status="error"] { color: var(--activity-negative); }
+.activityRow[data-kind="edited"] > .icon:first-child,
+.activityRow[data-kind="skill"] > .icon:first-child { color: var(--color-accent); }
+
+.fileActivity[data-kind="created"] > .icon:first-child,
+.activityStatus[data-status="done"] > svg { animation: activity-confirm 210ms ease-out both; }
+.fileActivity[data-kind="edited"] > .icon:first-child { animation: activity-edit 210ms ease-out both; }
+
+@keyframes activity-confirm {
+  from { opacity: 0.5; transform: scale(0.78) rotate(-8deg); }
+}
+
+@keyframes activity-edit {
+  from { opacity: 0.5; transform: translate(-3px, 1px); }
+}
+
+.lineCounts,
+.activityStatus {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  gap: 0.25rem;
+  font-size: 0.85em;
+  white-space: nowrap;
+}
+
+.terminalHeader {
+  padding: 0.3rem 0.45rem;
+  border-radius: 0.35rem;
+  background: var(--color-active);
+  color: var(--color-muted);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  clip-path: inset(50%);
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .process:not([hidden]),
+  :is(.disclosure, .activityRow):is([data-status="preparing"], [data-status="running"])::before,
+  .activityDetail[data-kind="command"][data-status="running"] .terminalHeader::before,
+  .fileActivity > .icon:first-child,
+  .activityStatus > svg { animation: none; }
+
+  .activityDisclosure::details-content,
+  .disclosure,
+  .activityRow,
+  .chevron { transition: none; }
+
+  .disclosure:active,
+  summary.activityRow:active,
+  .fileActivity:active { transform: none; }
+}
+
+.output {
+  max-block-size: 14rem;
+  overflow: auto;
+}
+
+.failed {
+  flex: none;
+  color: var(--color-ink);
+  font-size: 0.85em;
 }
 
 /* 待批准工具使用独立卡片，集中展示风险说明与审批操作。 */
@@ -213,14 +307,14 @@
   gap: 0.5rem;
   margin-top: 0.35rem;
   padding: 0.75rem 0.9rem;
-  border: 1px solid rgb(var(--color-accent-rgb, 230 106 168) / 0.45);
+  border: 1px solid rgb(var(--color-accent-rgb) / 0.45);
   border-radius: 0.85rem;
-  background: rgb(var(--color-accent-rgb, 230 106 168) / 0.08);
+  background: rgb(var(--color-accent-rgb) / 0.08);
 }
 
 .approvalCardRisk {
-  border-color: rgb(234 88 12 / 0.55);
-  background: rgb(234 88 12 / 0.1);
+  border-color: var(--color-accent);
+  background: var(--color-panel);
 }
 
 .approvalHeader {
@@ -245,7 +339,7 @@
 }
 
 .approvalHintRisk {
-  color: #fb923c;
+  color: var(--color-ink);
 }
 
 .approvalArgs {
@@ -276,8 +370,8 @@
 
 .approveBtn {
   border: 0;
-  background: var(--color-accent, #e66aa8);
-  color: #ffffff;
+  background: var(--color-active);
+  color: var(--color-ink);
 }
 
 .rejectBtn {

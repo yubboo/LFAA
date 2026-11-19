@@ -260,12 +260,19 @@ export async function fetchOfficialModels(params: {
   }
 
   let lastResponse: Response | null = null;
+  let lastNetworkError: unknown = null;
   for (const endpoint of [...new Set(candidateEndpoints)]) {
-    const response = await fetch(endpoint, {
-      method: "GET",
-      headers,
-      signal: AbortSignal.timeout(10000),
-    });
+    let response: Response;
+    try {
+      response = await fetch(endpoint, {
+        method: "GET",
+        headers,
+        signal: AbortSignal.timeout(10000),
+      });
+    } catch (err) {
+      lastNetworkError = err;
+      continue;
+    }
     lastResponse = response;
     if (!response.ok) continue;
 
@@ -292,23 +299,38 @@ export async function fetchOfficialModels(params: {
   }
 
   if (params.kind === "ollama") {
-    const rootUrl = normalizedBase.replace(/\/v1$/u, "");
-    const ollamaRes = await fetch(`${rootUrl}/api/tags`, {
-      method: "GET",
-      signal: AbortSignal.timeout(6000),
-    });
-    if (ollamaRes.ok) {
-      const json = (await ollamaRes.json()) as { models?: Array<{ name?: unknown }> };
-      const ids = (Array.isArray(json.models) ? json.models.map((m) => m.name) : [])
-        .filter((name): name is string => typeof name === "string" && name.trim().length > 0);
-      if (ids.length > 0) {
-        return [...new Set(ids)].map((id) => resolveModelCapabilities(id, params.kind));
+    const rootUrl = normalizedBase.replace(/\/(v1|anthropic)$/iu, "");
+    try {
+      const ollamaRes = await fetch(`${rootUrl}/api/tags`, {
+        method: "GET",
+        signal: AbortSignal.timeout(6000),
+      });
+      if (ollamaRes.ok) {
+        const json = (await ollamaRes.json()) as { models?: Array<{ name?: unknown }> };
+        const ids = (Array.isArray(json.models) ? json.models.map((m) => m.name) : [])
+          .filter((name): name is string => typeof name === "string" && name.trim().length > 0);
+        if (ids.length > 0) {
+          return [...new Set(ids)].map((id) => resolveModelCapabilities(id, params.kind));
+        }
       }
+    } catch (err) {
+      lastNetworkError = lastNetworkError ?? err;
     }
   }
 
   if (lastResponse && lastResponse.ok) {
     throw new Error("官方模型接口未返回可用模型列表。");
+  }
+  if (!lastResponse && lastNetworkError) {
+    const isLocalHost = params.kind === "ollama"
+      || parsed.hostname === "127.0.0.1"
+      || parsed.hostname === "localhost"
+      || parsed.hostname === "::1";
+    if (isLocalHost) {
+      throw new Error(`无法连接到本地模型服务（${normalizedBase}），请确认 Ollama / LM Studio 等服务已启动且端口正确。`);
+    }
+    const detail = lastNetworkError instanceof Error ? lastNetworkError.message : String(lastNetworkError);
+    throw new Error(`无法连接到模型接口（${normalizedBase}）：${detail}`);
   }
   const errBody = lastResponse ? await lastResponse.text().catch(() => "") : "";
   throw new Error(

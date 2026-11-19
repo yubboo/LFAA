@@ -88,8 +88,12 @@ export const MODEL_PROVIDER_CATALOG: ModelProviderPreset[] = [
     descEn: "MiniMax official API",
     kind: "openai-compatible",
     defaultProtocol: "openai-chat",
-    supportedProtocols: ["openai-chat"],
+    supportedProtocols: ["openai-chat", "anthropic-messages"],
     defaultBaseUrl: "https://api.minimax.chat/v1",
+    protocolBaseUrls: {
+      "openai-chat": "https://api.minimax.chat/v1",
+      "anthropic-messages": "https://api.minimaxi.com/anthropic",
+    },
     defaultModel: "MiniMax-Text-01",
     sampleModels: ["MiniMax-Text-01", "abab6.5s-chat"],
     accentColor: "#f43f5e",
@@ -103,8 +107,13 @@ export const MODEL_PROVIDER_CATALOG: ModelProviderPreset[] = [
     descEn: "Alibaba Bailian compatible",
     kind: "openai-compatible",
     defaultProtocol: "openai-chat",
-    supportedProtocols: ["openai-chat"],
+    supportedProtocols: ["openai-chat", "openai-responses", "anthropic-messages"],
     defaultBaseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    protocolBaseUrls: {
+      "openai-chat": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "openai-responses": "https://dashscope.aliyuncs.com/api/v2/apps/protocols/compatible-mode/v1",
+      "anthropic-messages": "https://dashscope.aliyuncs.com/apps/anthropic",
+    },
     defaultModel: "qwen-max",
     sampleModels: ["qwen-max", "qwen-plus", "qwq-plus"],
     accentColor: "#6366f1",
@@ -118,8 +127,13 @@ export const MODEL_PROVIDER_CATALOG: ModelProviderPreset[] = [
     descEn: "Doubao / Ark compatible",
     kind: "openai-compatible",
     defaultProtocol: "openai-chat",
-    supportedProtocols: ["openai-chat"],
+    supportedProtocols: ["openai-chat", "openai-responses", "anthropic-messages"],
     defaultBaseUrl: "https://ark.cn-beijing.volces.com/api/v3",
+    protocolBaseUrls: {
+      "openai-chat": "https://ark.cn-beijing.volces.com/api/v3",
+      "openai-responses": "https://ark.cn-beijing.volces.com/api/v3",
+      "anthropic-messages": "https://ark.cn-beijing.volces.com/api/compatible",
+    },
     defaultModel: "doubao-pro-32k",
     sampleModels: ["doubao-pro-32k", "doubao-1-5-pro-32k"],
     accentColor: "#38bdf8",
@@ -133,8 +147,12 @@ export const MODEL_PROVIDER_CATALOG: ModelProviderPreset[] = [
     descEn: "Zhipu Open Platform",
     kind: "openai-compatible",
     defaultProtocol: "openai-chat",
-    supportedProtocols: ["openai-chat"],
+    supportedProtocols: ["openai-chat", "anthropic-messages"],
     defaultBaseUrl: "https://open.bigmodel.cn/api/paas/v4",
+    protocolBaseUrls: {
+      "openai-chat": "https://open.bigmodel.cn/api/paas/v4",
+      "anthropic-messages": "https://open.bigmodel.cn/api/anthropic",
+    },
     defaultModel: "glm-4-plus",
     sampleModels: ["glm-4-plus", "glm-z1-air"],
     accentColor: "#3b82f6",
@@ -148,8 +166,12 @@ export const MODEL_PROVIDER_CATALOG: ModelProviderPreset[] = [
     descEn: "Multi-model router",
     kind: "openai-compatible",
     defaultProtocol: "openai-chat",
-    supportedProtocols: ["openai-chat"],
+    supportedProtocols: ["openai-chat", "anthropic-messages"],
     defaultBaseUrl: "https://api.siliconflow.cn/v1",
+    protocolBaseUrls: {
+      "openai-chat": "https://api.siliconflow.cn/v1",
+      "anthropic-messages": "https://api.siliconflow.cn",
+    },
     defaultModel: "Qwen/Qwen2.5-72B-Instruct",
     sampleModels: ["Qwen/Qwen2.5-72B-Instruct", "deepseek-ai/DeepSeek-R1"],
     accentColor: "#7c3aed",
@@ -163,8 +185,13 @@ export const MODEL_PROVIDER_CATALOG: ModelProviderPreset[] = [
     descEn: "Unified model router",
     kind: "openai-compatible",
     defaultProtocol: "openai-chat",
-    supportedProtocols: ["openai-chat"],
+    supportedProtocols: ["openai-chat", "openai-responses", "anthropic-messages"],
     defaultBaseUrl: "https://openrouter.ai/api/v1",
+    protocolBaseUrls: {
+      "openai-chat": "https://openrouter.ai/api/v1",
+      "openai-responses": "https://openrouter.ai/api/v1",
+      "anthropic-messages": "https://openrouter.ai/api",
+    },
     defaultModel: "openai/gpt-4o",
     sampleModels: ["openai/gpt-4o", "anthropic/claude-sonnet-4"],
     accentColor: "#a855f7",
@@ -216,8 +243,13 @@ export const MODEL_PROVIDER_CATALOG: ModelProviderPreset[] = [
     descEn: "xAI Grok API",
     kind: "openai-compatible",
     defaultProtocol: "openai-chat",
-    supportedProtocols: ["openai-chat"],
+    supportedProtocols: ["openai-chat", "openai-responses", "anthropic-messages"],
     defaultBaseUrl: "https://api.x.ai/v1",
+    protocolBaseUrls: {
+      "openai-chat": "https://api.x.ai/v1",
+      "openai-responses": "https://api.x.ai/v1",
+      "anthropic-messages": "https://api.x.ai",
+    },
     defaultModel: "grok-3",
     sampleModels: ["grok-3", "grok-3-mini"],
     accentColor: "#94a3b8",
@@ -231,8 +263,13 @@ export const MODEL_PROVIDER_CATALOG: ModelProviderPreset[] = [
     descEn: "Ollama / LM Studio local server, no API key needed",
     kind: "ollama",
     defaultProtocol: "openai-chat",
-    supportedProtocols: ["openai-chat"],
+    supportedProtocols: ["openai-chat", "openai-responses", "anthropic-messages"],
     defaultBaseUrl: "http://127.0.0.1:11434/v1",
+    protocolBaseUrls: {
+      "openai-chat": "http://127.0.0.1:11434/v1",
+      "openai-responses": "http://127.0.0.1:11434/v1",
+      "anthropic-messages": "http://127.0.0.1:11434",
+    },
     defaultModel: "qwen2.5-coder:7b",
     sampleModels: ["qwen2.5-coder:7b", "deepseek-r1:14b", "llama3.2:latest"],
     accentColor: "#eab308",
@@ -255,6 +292,18 @@ export const MODEL_PROVIDER_CATALOG: ModelProviderPreset[] = [
     glyph: "+",
     isAddStyle: true,
   },
+];
+
+/** 本地部署常用运行时快捷端口预设。 */
+export const LOCAL_RUNTIME_PRESETS: ReadonlyArray<{
+  id: string;
+  label: string;
+  baseUrl: string;
+}> = [
+  { id: "ollama", label: "Ollama (11434)", baseUrl: "http://127.0.0.1:11434/v1" },
+  { id: "lmstudio", label: "LM Studio (1234)", baseUrl: "http://127.0.0.1:1234/v1" },
+  { id: "vllm", label: "vLLM (8000)", baseUrl: "http://127.0.0.1:8000/v1" },
+  { id: "llamacpp", label: "llama.cpp (8080)", baseUrl: "http://127.0.0.1:8080/v1" },
 ];
 
 const normalizeBaseUrl = (url: string) => url.trim().replace(/\/+$/u, "");

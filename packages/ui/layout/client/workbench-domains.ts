@@ -74,7 +74,7 @@ export function resolveWorkbenchDomain(view: string, locale: LocaleMessages): Wo
       sidebarHeader: { kind: "sectionTitle", title: locale.scheduled },
     };
   }
-  if (view === "plugins") {
+  if (view === "plugins" || view === "skills" || view.startsWith("ext:")) {
     return {
       id: "plugins",
       columns: 3,

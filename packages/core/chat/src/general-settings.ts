@@ -71,7 +71,15 @@ export function getGeneralSettingsFilePath(overridePath?: string): string {
 
 /** 解析未绑定项目会话的默认目录，供 Agent 工作区初始化使用。 */
 export function resolveDefaultOutsideProjectFolder(): string {
-  return join(resolveUserHome(), ".lfaa");
+  return join(resolveUserHome(), ".lfaa", "workspace");
+}
+
+/** 兼容旧版使用应用数据根作为默认值，项目外产物写入专用目录。 */
+function normalizeOutsideProjectFolder(input: string): string {
+  const path = resolve(input.trim());
+  const legacy = join(resolveUserHome(), ".lfaa");
+  const same = process.platform === "win32" ? path.toLowerCase() === legacy.toLowerCase() : path === legacy;
+  return same ? resolveDefaultOutsideProjectFolder() : path;
 }
 
 // 动态解析当前登录 Windows/POSIX 用户的“文档\lfaa”路径，供未添加源文件夹直接按名称新建项目时存放项目目录（不存会话）。
@@ -153,7 +161,7 @@ export class GeneralSettingsStore {
       const raw = await readFile(this.filePath, "utf8");
       const parsed = JSON.parse(raw) as Partial<GeneralSettingsConfig>;
       let merged = this.mergePatch(defaults, parsed);
-      // 自动升级旧 v1 配置：旧版把 文档\LFAA 错当成项目外目录，纠正为 ~/.lfaa（项目外/应用数据）与 文档\lfaa（默认新建项目）。
+      // 兼容旧 v1 的文档目录默认值，项目外任务与应用数据使用独立位置。
       if ((parsed.schemaVersion ?? 1) < 2) {
         const legacyDocsTail = parsed.outsideProjectFolder?.replaceAll("/", "\\").toLowerCase();
         if (legacyDocsTail && legacyDocsTail.endsWith("\\documents\\lfaa")) {
@@ -188,7 +196,7 @@ export class GeneralSettingsStore {
   private mergePatch(base: GeneralSettingsConfig, patch: Partial<GeneralSettingsConfig>): GeneralSettingsConfig {
     const next: GeneralSettingsConfig = { ...base };
     if (typeof patch.outsideProjectFolder === "string" && patch.outsideProjectFolder.trim()) {
-      next.outsideProjectFolder = resolve(patch.outsideProjectFolder.trim());
+      next.outsideProjectFolder = normalizeOutsideProjectFolder(patch.outsideProjectFolder);
     }
     if (typeof patch.defaultProjectsFolder === "string" && patch.defaultProjectsFolder.trim()) {
       next.defaultProjectsFolder = resolve(patch.defaultProjectsFolder.trim());

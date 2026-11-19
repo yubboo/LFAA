@@ -8,6 +8,7 @@ export interface ToolExecutionContext {
   runId: string;
   signal: AbortSignal;
   allowOutsideWorkspace?: boolean;
+  onCommandOutput?: (output: string) => void;
 }
 
 /** 规定工具返回给 Agent 的执行结果与可展示内容。 */
@@ -16,6 +17,18 @@ export interface ToolExecutionResult {
   output: string;
   summary: string;
   metadata?: Record<string, unknown>;
+  fileChange?: ToolFileChange;
+}
+
+/** 成功写入时捕获限长的真实变更片段，供宿主记录。 */
+export interface ToolFileChange {
+  path: string;
+  resolvedPath: string;
+  operation: "created" | "edited";
+  firstLine: number;
+  before: string;
+  after: string;
+  truncated: boolean;
 }
 
 /** 定义工具的参数、权限分级和执行契约，供注册与审批共用。 */

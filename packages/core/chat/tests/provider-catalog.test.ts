@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { PublicLlmProfileItem } from "../client/chat-types";
-import { MODEL_PROVIDER_CATALOG, findProfileForProvider } from "../client/provider-catalog";
+import { MODEL_PROVIDER_CATALOG, findProfileForProvider, resolveNextBaseUrlForProtocol } from "../client/provider-catalog";
 import { findProviderPlan, getProviderPlans } from "../client/provider-plans";
 
 function profile(id: string, baseUrl: string, providerId?: string): PublicLlmProfileItem {
@@ -69,4 +69,20 @@ test("MiniMax 共用地址仅按档案类型区分普通 API 与套餐", () => {
   assert.equal(findProfileForProvider([standard], planPreset), undefined);
   assert.equal(findProfileForProvider([plan, standard], ordinary)?.id, standard.id);
   assert.equal(findProfileForProvider([standard, plan], planPreset)?.id, plan.id);
+});
+
+test("所有常规提供商与官方套餐均支持多协议及端点联动", () => {
+  for (const preset of MODEL_PROVIDER_CATALOG) {
+    assert.ok(preset.supportedProtocols.length >= 2, `${preset.id} 应至少支持 2 种协议`);
+    for (const planItem of getProviderPlans(preset.id)) {
+      assert.ok(planItem.supportedProtocols.length >= 2, `${planItem.id} 应至少支持 2 种协议`);
+    }
+  }
+
+  const [agent] = getProviderPlans("volcengine");
+  assert.ok(agent);
+  const antUrl = resolveNextBaseUrlForProtocol(agent, agent.defaultBaseUrl, "anthropic-messages");
+  assert.equal(antUrl, "https://ark.cn-beijing.volces.com/api/plan");
+  const antProfile = profile("agent-ant", antUrl, agent.id);
+  assert.equal(findProfileForProvider([antProfile], agent)?.id, antProfile.id);
 });

@@ -1,7 +1,7 @@
 // 校验工作区路径沙箱，防止路径穿越、前缀伪装或符号链接逃逸到授权目录之外；仅完全访问权限模式允许越界。
 import { realpath } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, isAbsolute, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 function normalizeForCompare(targetPath: string): string {
   const resolved = resolve(targetPath);
@@ -10,7 +10,7 @@ function normalizeForCompare(targetPath: string): string {
 
 function isInsideRoot(targetPath: string, rootPath: string): boolean {
   const rel = relative(normalizeForCompare(rootPath), normalizeForCompare(targetPath));
-  return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+  return rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel);
 }
 
 async function resolveNearestRealPath(targetPath: string): Promise<string> {
@@ -31,6 +31,15 @@ async function resolveNearestRealPath(targetPath: string): Promise<string> {
   }
 }
 
+/** 同时识别应用私有路径及其磁盘指向，用于单文件校验与目录遍历。 */
+export async function createPrivatePathFilter(): Promise<(candidate: string) => boolean> {
+  const appHome = join(homedir(), ".lfaa");
+  const paths = ["llm-config.json", "credentials", "sessions"].map((entry) => join(appHome, entry));
+  const resolved = await Promise.all(paths.map(resolveNearestRealPath));
+  const protectedPaths = [...paths, ...resolved];
+  return (candidate) => protectedPaths.some((path) => isInsideRoot(candidate, path));
+}
+
 /** 描述调用方是否已允许工具访问工作区之外的路径。 */
 export interface WorkspacePathOptions {
   allowOutsideWorkspace?: boolean | undefined;
@@ -44,23 +53,18 @@ export async function resolveSafeWorkspacePath(
 ): Promise<{ path: string; root: string }> {
   const cleanRoots = workspaceRoots.map((r) => r.trim()).filter(Boolean);
   const trimmedInput = rawPath.trim() || ".";
-
-  if (options.allowOutsideWorkspace) {
-    const baseRoot = cleanRoots.length > 0 ? resolve(cleanRoots[0]!) : resolve(homedir());
-    const candidate = isAbsolute(trimmedInput) ? resolve(trimmedInput) : resolve(baseRoot, trimmedInput);
-    const realCandidate = await resolveNearestRealPath(candidate);
-    const realBase = await resolveNearestRealPath(baseRoot);
-    return { path: realCandidate, root: realBase };
-  }
-
-  if (cleanRoots.length === 0) {
+  const allowOutside = options.allowOutsideWorkspace === true;
+  if (!allowOutside && cleanRoots.length === 0) {
     throw new Error("当前会话未绑定授权项目目录，无法访问本地文件或执行命令。");
   }
 
-  const primaryRoot = resolve(cleanRoots[0]!);
+  const primaryRoot = resolve(cleanRoots[0] ?? homedir());
   const candidate = isAbsolute(trimmedInput) ? resolve(trimmedInput) : resolve(primaryRoot, trimmedInput);
-
-  const realCandidate = await resolveNearestRealPath(candidate);
+  const [realCandidate, isPrivate] = await Promise.all([resolveNearestRealPath(candidate), createPrivatePathFilter()]);
+  if (isPrivate(candidate) || isPrivate(realCandidate)) {
+    throw new Error("应用私有文件不可由 Agent 文件工具访问。请使用相应设置或会话界面。");
+  }
+  if (allowOutside) return { path: realCandidate, root: await resolveNearestRealPath(primaryRoot) };
   for (const root of cleanRoots) {
     const realRoot = await resolveNearestRealPath(resolve(root));
     if (isInsideRoot(realCandidate, realRoot)) {

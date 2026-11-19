@@ -313,6 +313,7 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
           activeView={activeView as NavigationView}
           activeLibraryTab={activeLibraryTab}
           activeDomainItem={activeDomainItem}
+          pluginViews={views.filter((v) => v.domain === "plugins")}
           newChatSelected={newChatSelected}
           activeProjectId={activeProjectId}
           activeChatSessionId={activeChatSessionId}

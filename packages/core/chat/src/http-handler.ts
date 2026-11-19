@@ -28,7 +28,9 @@ async function readJsonBody(req: IncomingMessage): Promise<Record<string, unknow
 }
 
 /** 把会话读写、常规设置与本地语音请求分派给 Chat Host 服务。 */
-export function createChatHttpHandler(service: ChatService) {
+export function createChatHttpHandler(service: ChatService, options: {
+  withIdleSession?: <T>(sessionId: string, action: () => Promise<T>) => Promise<T>;
+} = {}) {
   return async (req: IncomingMessage, res: ServerResponse): Promise<boolean> => {
     const urlObj = new URL(req.url ?? "", "http://127.0.0.1");
     const pathname = urlObj.pathname;
@@ -116,7 +118,7 @@ export function createChatHttpHandler(service: ChatService) {
         }
         if (method === "PATCH") {
           const body = await readJsonBody(req);
-          const session = await service.updateSession(sessionId, {
+          const write = () => service.updateSession(sessionId, {
             ...(typeof body.title === "string" ? { title: body.title } : {}),
             ...(body.projectId !== undefined
               ? { projectId: typeof body.projectId === "string" ? body.projectId : null }
@@ -128,6 +130,9 @@ export function createChatHttpHandler(service: ChatService) {
             ...(typeof body.archived === "boolean" ? { archived: body.archived } : {}),
             ...(typeof body.unread === "boolean" ? { unread: body.unread } : {}),
           });
+          const session = body.projectId !== undefined && options.withIdleSession
+            ? await options.withIdleSession(sessionId, write)
+            : await write();
           if (!session) {
             sendJson(res, 404, { error: "聊天会话不存在。" });
             return true;

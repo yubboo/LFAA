@@ -1,5 +1,5 @@
 // 浏览器端高可用流式订阅器：提供按片段序号幂等去重、RAF 节流批量渲染、心跳看门狗、指数退避重连与完整句边界续写辅助。
-import type { AgentStepItem, PendingApprovalBanner } from "./chat-types";
+import type { AgentStepItem, ChatMessageItem, PendingApprovalBanner } from "./chat-types";
 
 /** 设置无事件时触发流连接超时判断的间隔。 */
 export const HEARTBEAT_TIMEOUT_MS = 25_000;
@@ -27,8 +27,9 @@ export interface AgentStreamClientHandlers {
   onDeltaBatch: (batch: StreamDeltaBatch) => void;
   onStepUpdate: (step: AgentStepItem) => void;
   onApprovalRequired: (approval: Omit<PendingApprovalBanner, "runId">) => void;
+  onApprovalResolved: (approvalId: string) => void;
   onStatusNotice: (notice: string) => void;
-  onFinished: (payload: { status: "done" | "error" | "aborted"; error?: string; fps?: number }) => void;
+  onFinished: (payload: { status: "done" | "error" | "aborted"; message?: ChatMessageItem; error?: string; fps?: number }) => void;
   onDegraded: (lastSeq: number, reason: string) => void;
 }
 
@@ -196,11 +197,12 @@ export class AgentStreamClient {
         riskReason?: string;
         status?: "done" | "error" | "aborted";
         error?: string;
+        message?: ChatMessageItem;
         run?: StreamRunSnapshotPayload;
       };
 
       if (data.type === "snapshot" && data.run) {
-        if (typeof data.run.lastSeq === "number" && data.run.lastSeq > this.lastSeq && data.run.content) {
+        if (!data.reconnect && typeof data.run.lastSeq === "number" && data.run.lastSeq > this.lastSeq) {
           this.lastSeq = data.run.lastSeq;
           for (let i = 1; i <= data.run.lastSeq; i += 1) {
             this.seenSeqs.add(i);
@@ -235,6 +237,8 @@ export class AgentStreamClient {
           ...(data.highRisk !== undefined ? { highRisk: data.highRisk } : {}),
           ...(data.riskReason !== undefined ? { riskReason: data.riskReason } : {}),
         });
+      } else if (data.type === "approval_resolved" && data.approvalId) {
+        this.handlers.onApprovalResolved(data.approvalId);
       } else if (data.type === "run_finished") {
         this.finished = true;
         this.flushNow();
@@ -245,6 +249,7 @@ export class AgentStreamClient {
         const fps = this.flushCount > 0 ? Math.min(120, this.flushCount / elapsedSec) : undefined;
         this.handlers.onFinished({
           status: data.status ?? "done",
+          ...(data.message ? { message: data.message } : {}),
           ...(data.error ? { error: data.error } : {}),
           ...(fps !== undefined ? { fps } : {}),
         });

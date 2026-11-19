@@ -11,6 +11,7 @@ import "@lfaa/rules";
 import "@lfaa/tools";
 import type { AgentStepTrace } from "@lfaa/memory";
 import { executeAgentTaskLoop } from "./agent-loop";
+import { readActivitySource } from "./activity-file";
 import { registerAgentLibraryTools } from "./builtin-agent-tools";
 import { normalizePermissionMode, SmartTrustStore } from "./permission-policy";
 import {
@@ -18,7 +19,7 @@ import {
   type AgentStreamMetrics,
   type RunChunkRecord,
 } from "./stream-journal";
-import type { AgentPermissionMode, AgentRunEvent, AgentRunStatus, StartAgentRunInput } from "./types";
+import type { AgentPermissionMode, AgentRunEvent, AgentRunStatus, ApprovalAnswer, ResolvedSkillContext, StartAgentRunInput } from "./types";
 
 export * from "./types";
 export * from "./permission-policy";
@@ -73,7 +74,7 @@ interface PendingApprovalRecord {
   approvalThreshold?: number;
   highRisk?: boolean;
   riskReason?: string;
-  resolve: (approved: boolean) => void;
+  resolve: (answer: ApprovalAnswer) => void;
 }
 
 interface ActiveRunRecord {
@@ -81,6 +82,7 @@ interface ActiveRunRecord {
   controller: AbortController;
   listeners: Set<(event: AgentRunEvent) => void>;
   pendingApprovals: Map<string, PendingApprovalRecord>;
+  permissionMode: AgentPermissionMode;
   chunks: RunChunkRecord[];
   persistChain: Promise<void>;
   lastPersistAt: number;
@@ -91,8 +93,11 @@ export class AgentService extends Service {
   static inject = ["llm", "tools", "memory", "rules"];
 
   private readonly runs = new Map<string, ActiveRunRecord>();
+  private readonly sessionTransitions = new Set<string>();
   private readonly trustStore: SmartTrustStore;
   private unregisterBuiltinTools: (() => void) | null = null;
+  private skillResolver: ((skillIds: string[], projectRoots: string[]) => Promise<ResolvedSkillContext[]>) | null = null;
+  private skillCatalogProvider: ((projectRoots: string[]) => Promise<Array<{ id: string; name: string; source: string; description: string }>>) | null = null;
   private totalRunsCount = 0;
   private totalReconnectsCount = 0;
   private replayedChunksCount = 0;
@@ -107,6 +112,8 @@ export class AgentService extends Service {
   protected stop(): void {
     this.unregisterBuiltinTools?.();
     this.unregisterBuiltinTools = null;
+    this.skillResolver = null;
+    this.skillCatalogProvider = null;
     for (const run of this.runs.values()) {
       run.controller.abort();
       for (const pending of run.pendingApprovals.values()) pending.resolve(false);
@@ -114,8 +121,49 @@ export class AgentService extends Service {
     this.runs.clear();
   }
 
-  // 创建运行时先建立会话中的助手消息，再让后续事件和结果汇入同一条记录。
-  async startRun(input: StartAgentRunInput): Promise<{ runId: string; sessionId: string; assistantMessageId: string }> {
+  /** 注册可选的技能摘要列表提供器，使 Agent 能感知已启用技能并按需调用 load_skill。 */
+  setSkillCatalogProvider(
+    provider: ((projectRoots: string[]) => Promise<Array<{ id: string; name: string; source: string; description: string }>>) | null,
+  ): () => void {
+    this.skillCatalogProvider = provider;
+    return () => {
+      if (this.skillCatalogProvider === provider) {
+        this.skillCatalogProvider = null;
+      }
+    };
+  }
+
+  /** 注册可选的技能解析器，供应用装配层将 @lfaa/skills 接入运行前校验。 */
+  setSkillResolver(
+    resolver: ((skillIds: string[], projectRoots: string[]) => Promise<ResolvedSkillContext[]>) | null,
+  ): () => void {
+    this.skillResolver = resolver;
+    return () => {
+      if (this.skillResolver === resolver) {
+        this.skillResolver = null;
+      }
+    };
+  }
+
+  /** 启动和改绑共用会话锁，审批中的任务继续使用启动时的授权目录。 */
+  async withIdleSession<T>(sessionId: string, action: () => Promise<T>): Promise<T> {
+    if (this.sessionTransitions.has(sessionId) || this.getActiveRunForSession(sessionId)) {
+      throw new Error("这条会话仍有任务或项目切换在进行，请在结束后再操作。");
+    }
+    this.sessionTransitions.add(sessionId);
+    try {
+      return await action();
+    } finally {
+      this.sessionTransitions.delete(sessionId);
+    }
+  }
+
+  /** Web 启动使用持久会话解析授权根，可信的本地调用仍可显式提供根目录。 */
+  async startRun(input: StartAgentRunInput, resolveRoots?: (projectId: string | null) => Promise<string[]>) {
+    return this.withIdleSession(input.sessionId, () => this.beginRun(input, resolveRoots));
+  }
+
+  private async beginRun(input: StartAgentRunInput, resolveRoots?: (projectId: string | null) => Promise<string[]>) {
     const session = await this.ctx.memory.getSession(input.sessionId);
     if (!session) {
       throw new Error(`找不到聊天会话：${input.sessionId}`);
@@ -129,8 +177,17 @@ export class AgentService extends Service {
       throw new Error("发送内容不能为空。");
     }
 
-    const primaryProjectRoot = input.workspaceRoots?.[0];
-    if ((input.projectId ?? session.projectId) && primaryProjectRoot) {
+    const projectId = resolveRoots ? session.projectId : (input.projectId ?? session.projectId);
+    const workspaceRoots = resolveRoots ? await resolveRoots(projectId) : (input.workspaceRoots ?? []);
+    const resolvedSkills = input.skillIds && input.skillIds.length > 0 && this.skillResolver
+      ? await this.skillResolver(input.skillIds, workspaceRoots)
+      : [];
+    const availableSkillCatalog = this.skillCatalogProvider
+      ? await this.skillCatalogProvider(workspaceRoots).catch(() => [])
+      : [];
+
+    const primaryProjectRoot = workspaceRoots[0];
+    if (projectId && primaryProjectRoot) {
       await ensureProjectGitRepo(primaryProjectRoot).catch(() => {});
     }
 
@@ -140,13 +197,14 @@ export class AgentService extends Service {
       content: trimmedInput,
       createdAt: Date.now(),
     });
+    const runStartedAt = Date.now();
     await this.ctx.memory.appendMessage(session.id, {
       id: assistantMessageId,
       role: "assistant",
       content: "",
       steps: [],
       status: "streaming",
-      createdAt: Date.now(),
+      createdAt: runStartedAt,
     });
 
     const controller = new AbortController();
@@ -164,6 +222,7 @@ export class AgentService extends Service {
       controller,
       listeners: new Set(),
       pendingApprovals: new Map(),
+      permissionMode: normalizePermissionMode(input.permissionMode, input.autoApproveTools),
       chunks: [],
       persistChain: Promise.resolve(),
       lastPersistAt: 0,
@@ -213,11 +272,8 @@ export class AgentService extends Service {
       }
     };
 
-    const permissionMode = normalizePermissionMode(input.permissionMode, input.autoApproveTools);
-
     queueMicrotask(() => {
       void (async () => {
-        const runStartedAt = Date.now();
         try {
           emit({ type: "run_started", runId, sessionId: session.id, assistantMessageId });
           const result = await executeAgentTaskLoop(
@@ -235,22 +291,25 @@ export class AgentService extends Service {
               userMessage: trimmedInput,
               ...(input.profileId !== undefined ? { profileId: input.profileId } : {}),
               ...(input.reasoningEffort !== undefined ? { reasoningEffort: input.reasoningEffort } : {}),
-              projectId: input.projectId ?? session.projectId,
-              workspaceRoots: input.workspaceRoots ?? [],
+              projectId,
+              workspaceRoots,
+              ...(resolvedSkills.length > 0 ? { resolvedSkills } : {}),
+              ...(availableSkillCatalog.length > 0 ? { availableSkillCatalog } : {}),
               maxSteps: input.maxSteps ?? 10,
-              permissionMode,
+              getPermissionMode: () => record.permissionMode,
               signal: controller.signal,
               emit,
               requestApproval: (req) =>
-                new Promise<boolean>((resolve) => {
-                  record.pendingApprovals.set(req.approvalId, {
-                    ...req,
-                    resolve,
-                  });
-                  const onAbort = () => {
-                    record.pendingApprovals.delete(req.approvalId);
-                    resolve(false);
+                new Promise<ApprovalAnswer>((resolve) => {
+                  if (controller.signal.aborted) { resolve(false); return; }
+                  const onAbort = () => settle(false);
+                  const settle = (answer: ApprovalAnswer) => {
+                    if (!record.pendingApprovals.delete(req.approvalId)) return;
+                    controller.signal.removeEventListener("abort", onAbort);
+                    emit({ type: "approval_resolved", runId, approvalId: req.approvalId });
+                    resolve(answer);
                   };
+                  record.pendingApprovals.set(req.approvalId, { ...req, resolve: settle });
                   controller.signal.addEventListener("abort", onAbort, { once: true });
                   emit({
                     type: "approval_required",
@@ -270,48 +329,64 @@ export class AgentService extends Service {
             },
           );
 
-          record.status.status = "done";
-          record.status.content = result.content;
-          record.status.reasoning = result.reasoning;
-          const reasoningDurationMs = result.reasoning ? Math.max(1000, Date.now() - runStartedAt) : undefined;
+          const runDurationMs = Date.now() - runStartedAt;
           await record.persistChain;
-          await this.ctx.memory.updateMessage(session.id, assistantMessageId, {
+          const saved = await this.ctx.memory.updateMessage(session.id, assistantMessageId, {
             content: result.content,
+            ...(result.progressText ? { progressText: result.progressText } : {}),
             ...(result.reasoning ? { reasoning: result.reasoning } : {}),
-            ...(reasoningDurationMs !== undefined ? { reasoningDurationMs } : {}),
+            runDurationMs,
             steps: result.steps,
             status: "done",
             ...(result.model ? { model: result.model } : {}),
           });
           // 后台生成完成先标记未读，若前端当前正停留在当前会话则由前端清除未读
           await this.ctx.memory.updateSession(session.id, { unread: true });
-          emit({ type: "run_finished", runId, sessionId: session.id, assistantMessageId, status: "done" });
+          const message = saved.messages.find((item) => item.id === assistantMessageId);
+          record.status.status = "done";
+          record.status.content = result.content;
+          record.status.reasoning = result.reasoning;
+          if (message) record.status.message = message;
+          emit({ type: "run_finished", runId, sessionId: session.id, assistantMessageId, status: "done", ...(message ? { message } : {}) });
         } catch (error) {
           const aborted = controller.signal.aborted;
           const msg = error instanceof Error ? error.message : String(error);
           const finalStatus = aborted ? "aborted" : "error";
-          record.status.status = finalStatus;
-          record.status.error = msg;
+          const finishedAt = Date.now();
+          const steps = record.status.steps.map((step): AgentStepTrace =>
+            step.status === "preparing" || step.status === "running" || step.status === "waiting_approval"
+              ? { ...step, status: "error", detail: msg, timestamp: finishedAt }
+              : step,
+          );
+          const boundary = steps.reduce((offset, step) => Math.max(offset, step.textOffset ?? 0), 0);
+          const progressText = record.status.content.slice(0, boundary);
+          const content = record.status.content.slice(boundary).trim();
+          const persistedContent = content || (aborted ? "（任务已手动中止）" : `执行异常：${msg}`);
           await record.persistChain;
-          const persistedContent = record.status.content.trim()
-            || (aborted ? "（任务已手动中止）" : `执行异常：${msg}`);
-          const reasoningDurationMs = record.status.reasoning ? Math.max(1000, Date.now() - runStartedAt) : undefined;
-          await this.ctx.memory.updateMessage(session.id, assistantMessageId, {
+          const saved = await this.ctx.memory.updateMessage(session.id, assistantMessageId, {
             content: persistedContent,
+            ...(progressText ? { progressText } : {}),
             ...(record.status.reasoning ? { reasoning: record.status.reasoning } : {}),
-            ...(reasoningDurationMs !== undefined ? { reasoningDurationMs } : {}),
-            steps: record.status.steps,
+            runDurationMs: finishedAt - runStartedAt,
+            steps,
             status: finalStatus,
           });
           if (!aborted) {
             await this.ctx.memory.updateSession(session.id, { unread: true });
           }
+          const message = saved.messages.find((item) => item.id === assistantMessageId);
+          record.status.status = finalStatus;
+          record.status.error = msg;
+          record.status.content = persistedContent;
+          record.status.steps = steps;
+          if (message) record.status.message = message;
           emit({
             type: "run_finished",
             runId,
             sessionId: session.id,
             assistantMessageId,
             status: finalStatus,
+            ...(message ? { message } : {}),
             error: msg,
           });
         }
@@ -319,6 +394,18 @@ export class AgentService extends Service {
     });
 
     return { runId, sessionId: session.id, assistantMessageId };
+  }
+
+  /** 浏览器仅提交记录标识，文件路径取自会话的真实工具结果。 */
+  async readFileActivity(
+    sessionId: string, messageId: string, stepId: string,
+    resolveRoots: (projectId: string | null) => Promise<string[]>,
+  ) {
+    const session = await this.ctx.memory.getSession(sessionId);
+    const step = session?.messages.find((message) => message.id === messageId && message.role === "assistant")
+      ?.steps?.find((item) => item.id === stepId);
+    if (!session || !step?.fileChange || step.phase !== "act" || step.status !== "done") return null;
+    return readActivitySource(step.fileChange, await resolveRoots(session.projectId));
   }
 
   getRunStatus(runId: string): AgentRunStatus | null {
@@ -372,8 +459,17 @@ export class AgentService extends Service {
     const run = this.runs.get(runId);
     const pending = run?.pendingApprovals.get(approvalId);
     if (!pending) return false;
-    run?.pendingApprovals.delete(approvalId);
     pending.resolve(approved);
+    return true;
+  }
+
+  /** 本轮后续操作使用新策略，旧策略产生的待审批交回执行循环重新判断。 */
+  setRunPermissionMode(runId: string, mode: AgentPermissionMode): boolean {
+    const run = this.runs.get(runId);
+    if (!run || run.status.status !== "running" || run.controller.signal.aborted) return false;
+    if (run.permissionMode === mode) return true;
+    run.permissionMode = mode;
+    for (const pending of run.pendingApprovals.values()) pending.resolve("mode_changed");
     return true;
   }
 

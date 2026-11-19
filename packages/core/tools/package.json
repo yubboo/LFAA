@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@deepseek-ai/cordis": "^4.1.0"
+    "@deepseek-ai/cordis": "^4.1.0",
+    "@lfaa/shell": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.10.0",

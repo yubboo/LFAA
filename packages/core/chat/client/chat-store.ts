@@ -8,6 +8,7 @@ import {
   type ReasoningLevelOption,
 } from "./general-settings-client";
 import { AgentStreamClient, splitCleanSentenceBoundary } from "./stream-client";
+import { getActivityFilePath } from "./file-activity";
 import type {
   AgentPermissionMode,
   AgentStepItem,
@@ -120,6 +121,7 @@ export class ChatClientStore {
   private readonly backgroundRunSessionIds = new Set<string>();
   private backgroundPollTimer: ReturnType<typeof setTimeout> | null = null;
   private streamClient: AgentStreamClient | null = null;
+  private permissionUpdate = Promise.resolve();
   private state: ChatStoreSnapshot = {
     loaded: false,
     sessions: [],
@@ -130,6 +132,8 @@ export class ChatClientStore {
     runningRunId: null,
     queuedMessages: [],
     pendingApproval: null,
+    filePreviewTabs: [],
+    activeFilePreviewId: null,
     permissionMode: readStoredPermissionMode(),
     smartTrustCounts: {},
     activeProfileId: "",
@@ -156,8 +160,55 @@ export class ChatClientStore {
   getSnapshot = (): ChatStoreSnapshot => this.state;
 
   private updateState(patch: Partial<ChatStoreSnapshot>): void {
+    if (patch.activeSessionId !== undefined && patch.activeSessionId !== this.state.activeSessionId) {
+      patch = { ...patch, filePreviewTabs: [], activeFilePreviewId: null };
+    }
     this.state = { ...this.state, ...patch };
     for (const listener of this.listeners) listener();
+  }
+
+  /** 右栏只选择当前会话中已有成功记录的文件步骤。 */
+  openFilePreview(messageId: string, stepId: string): boolean {
+    const step = this.state.activeSession?.messages.find((message) => message.id === messageId)
+      ?.steps?.find((item) => item.id === stepId);
+    const path = step && getActivityFilePath(step);
+    if (!step || step.status !== "done" || !path) return false;
+    const normalized = (step.fileChange?.resolvedPath ?? path).replace(/\\/gu, "/");
+    const id = /^(?:[a-z]:\/|\/\/)/iu.test(normalized) ? normalized.toLowerCase() : normalized;
+    const next = { id, path, messageId, stepId };
+    const tabs = this.state.filePreviewTabs;
+    this.updateState({
+      activeFilePreviewId: id,
+      filePreviewTabs: tabs.some((tab) => tab.id === id)
+        ? tabs.map((tab) => tab.id === id ? next : tab)
+        : [...tabs, next],
+    });
+    return true;
+  }
+
+  selectFilePreview(id: string): void {
+    if (this.state.filePreviewTabs.some((tab) => tab.id === id)) {
+      this.updateState({ activeFilePreviewId: id });
+    }
+  }
+
+  closeFilePreview(id: string): void {
+    const index = this.state.filePreviewTabs.findIndex((tab) => tab.id === id);
+    if (index < 0) return;
+    const remaining = this.state.filePreviewTabs.filter((tab) => tab.id !== id);
+    this.updateState({
+      filePreviewTabs: remaining,
+      activeFilePreviewId: this.state.activeFilePreviewId === id
+        ? (remaining[Math.min(index, remaining.length - 1)]?.id ?? null)
+        : this.state.activeFilePreviewId,
+    });
+  }
+
+  readFileActivity(sessionId: string, messageId: string, stepId: string, signal: AbortSignal) {
+    const query = new URLSearchParams({ messageId, stepId });
+    return fetchJson<{ content: string; truncated: boolean }>(
+      `/api/agent/sessions/${encodeURIComponent(sessionId)}/file-activity?${query}`, { signal },
+    );
   }
 
   // 卸载聊天插件时停止活动流和后台轮询，并释放订阅。
@@ -403,9 +454,23 @@ export class ChatClientStore {
     await this.sendMessage(trimmed);
   }
 
-  setPermissionMode(mode: AgentPermissionMode): void {
-    writeStoredPermissionMode(mode);
-    this.updateState({ permissionMode: mode });
+  setPermissionMode(mode: AgentPermissionMode): Promise<void> {
+    const runId = this.state.runningRunId;
+    this.permissionUpdate = this.permissionUpdate.then(async () => {
+      if (runId && this.state.runningRunId === runId) await this.updateRunPermission(runId, mode);
+      writeStoredPermissionMode(mode);
+      this.updateState({ permissionMode: mode });
+    }).catch((error: unknown) => {
+      this.updateState({ errorMessage: error instanceof Error ? error.message : String(error) });
+    });
+    return this.permissionUpdate;
+  }
+
+  private async updateRunPermission(runId: string, mode: AgentPermissionMode): Promise<void> {
+    await fetchJson(`/api/agent/runs/${encodeURIComponent(runId)}/permission`, {
+      method: "PATCH",
+      body: JSON.stringify({ mode }),
+    });
   }
 
   async resetSmartTrust(): Promise<void> {
@@ -464,32 +529,39 @@ export class ChatClientStore {
 
   private async resumeActiveRunIfAny(sessionId: string): Promise<void> {
     const active = await fetchJson<{
-      run: { runId: string; assistantMessageId: string; status: string; lastSeq?: number } | null;
+      run: { runId: string; assistantMessageId: string; status: string } | null;
     }>(`/api/agent/sessions/${encodeURIComponent(sessionId)}/active-run`).catch(() => null);
-    if (!active?.run || active.run.status !== "running") return;
     if (this.state.activeSessionId !== sessionId) return;
+    if (!active?.run || active.run.status !== "running") {
+      // 会话读取与查询运行之间可能刚好收尾，补读已落盘的最终消息。
+      if (active && this.state.activeSession?.messages.at(-1)?.status === "streaming") {
+        const latest = await fetchJson<{ session: ChatSessionDetail }>(`/api/chat/sessions/${encodeURIComponent(sessionId)}`).catch(() => null);
+        if (latest && this.state.activeSessionId === sessionId && !this.state.runningRunId) {
+          this.updateState({ activeSession: latest.session });
+        }
+      }
+      return;
+    }
     this.updateState({ runningRunId: active.run.runId });
-    this.subscribeRunEvents(
-      active.run.runId,
-      sessionId,
-      active.run.assistantMessageId,
-      active.run.lastSeq ?? 0,
-      true,
-    );
+    this.subscribeRunEvents(active.run.runId, sessionId, active.run.assistantMessageId);
   }
 
   async setActiveProjectBinding(projectId: string | null): Promise<void> {
-    if (!this.state.activeSession) {
+    const current = this.state.activeSession;
+    if (!current) {
       this.updateState({ draftProjectId: projectId });
       return;
     }
+    if (current.projectId === projectId) return;
     const res = await fetchJson<{ session: ChatSessionDetail }>(
-      `/api/chat/sessions/${encodeURIComponent(this.state.activeSession.id)}`,
+      `/api/chat/sessions/${encodeURIComponent(current.id)}`,
       { method: "PATCH", body: JSON.stringify({ projectId }) },
     );
     this.updateState({
-      activeSession: res.session,
-      draftProjectId: res.session.projectId,
+      ...(this.state.activeSessionId === current.id ? {
+        activeSession: res.session,
+        draftProjectId: res.session.projectId,
+      } : {}),
       sessions: this.state.sessions.map((s) => (s.id === res.session.id ? res.session : s)),
     });
   }
@@ -566,7 +638,7 @@ export class ChatClientStore {
   }
 
   // 将消息提交到当前或新建会话，随后订阅 Host 为这次运行返回的事件流。
-  async sendMessage(text: string): Promise<void> {
+  async sendMessage(text: string, skillIds?: string[]): Promise<void> {
     const trimmed = text.trim();
     if (!trimmed || this.state.runningRunId) return;
     this.updateState({ errorMessage: "", pendingApproval: null });
@@ -589,6 +661,7 @@ export class ChatClientStore {
       });
     }
 
+    const startingMode = this.state.permissionMode;
     const started = await fetchJson<{ runId: string; sessionId: string; assistantMessageId: string }>(
       "/api/agent/runs",
       {
@@ -598,12 +671,20 @@ export class ChatClientStore {
           userMessage: trimmed,
           ...(this.state.activeProfileId ? { profileId: this.state.activeProfileId } : {}),
           reasoningEffort: this.state.reasoningLevel,
-          projectId: session.projectId,
-          permissionMode: this.state.permissionMode,
+          permissionMode: startingMode,
+          ...(skillIds && skillIds.length > 0 ? { skillIds } : {}),
         }),
       },
     );
 
+    this.updateState({ runningRunId: started.runId });
+    if (this.state.permissionMode !== startingMode) {
+      try {
+        await this.updateRunPermission(started.runId, this.state.permissionMode);
+      } catch (error) {
+        this.updateState({ errorMessage: error instanceof Error ? error.message : String(error) });
+      }
+    }
     const detail = await fetchJson<{ session: ChatSessionDetail }>(`/api/chat/sessions/${encodeURIComponent(session.id)}`);
     this.updateState({
       activeSession: detail.session,
@@ -619,8 +700,6 @@ export class ChatClientStore {
     runId: string,
     sessionId: string,
     assistantMessageId: string,
-    initialLastSeq = 0,
-    isResume = false,
   ): void {
     this.streamClient?.dispose();
     const patchAssistant = (updater: (msg: ChatMessageItem) => ChatMessageItem) => {
@@ -640,14 +719,11 @@ export class ChatClientStore {
         onSnapshot: (run, reconnect) => {
           patchAssistant((m) => ({
             ...m,
-            ...(!reconnect && run.content ? { content: run.content } : {}),
-            ...(!reconnect && run.reasoning ? { reasoning: run.reasoning } : {}),
-            steps: run.steps.length > 0 ? run.steps : (m.steps ?? []),
+            ...(!reconnect ? { content: run.content, reasoning: run.reasoning } : {}),
+            steps: run.steps,
           }));
           const firstPending = run.pendingApprovals?.[0];
-          if (firstPending) {
-            this.updateState({ pendingApproval: { ...firstPending, runId } });
-          }
+          this.updateState({ pendingApproval: firstPending ? { ...firstPending, runId } : null });
         },
         onDeltaBatch: (batch) => {
           patchAssistant((m) => ({
@@ -672,13 +748,18 @@ export class ChatClientStore {
           }
           this.updateState({ pendingApproval: { ...approval, runId } });
         },
+        onApprovalResolved: (approvalId) => {
+          const pending = this.state.pendingApproval;
+          if (pending?.runId === runId && pending.approvalId === approvalId) this.updateState({ pendingApproval: null });
+        },
         onStatusNotice: (notice) => {
           if (this.state.streamStatusNotice !== notice) {
             this.updateState({ streamStatusNotice: notice, degradedStream: null });
           }
         },
-        onFinished: ({ fps }) => {
+        onFinished: ({ fps, message, status, error }) => {
           if (this.streamClient === client) this.streamClient = null;
+          if (message?.id === assistantMessageId) patchAssistant(() => message);
           if (fps !== undefined) {
             void fetchJson("/api/agent/metrics/render", {
               method: "POST",
@@ -695,11 +776,13 @@ export class ChatClientStore {
             pendingApproval: null,
             streamStatusNotice: "",
             degradedStream: null,
+            ...(status === "error" && error ? { errorMessage: error } : {}),
             queuedMessages: restQueued,
           });
           if (this.state.activeSessionId === sessionId) {
             void this.updateSessionMeta(sessionId, { unread: false });
-            void this.openSession(sessionId).then(() => {
+            const ready = message ? Promise.resolve() : this.openSession(sessionId);
+            void ready.then(() => {
               void this.refreshMeta();
               if (nextQueued) {
                 void this.sendMessage(nextQueued);
@@ -725,11 +808,10 @@ export class ChatClientStore {
             .catch(() => {});
         },
       },
-      initialLastSeq,
     );
 
     this.streamClient = client;
-    client.start(isResume);
+    client.start();
   }
 
   retryDegradedStream(): void {
@@ -740,7 +822,7 @@ export class ChatClientStore {
       streamStatusNotice: "正在尝试恢复流式连接…",
       degradedStream: null,
     });
-    this.subscribeRunEvents(info.runId, info.sessionId, info.assistantMessageId, info.lastSeq, true);
+    this.subscribeRunEvents(info.runId, info.sessionId, info.assistantMessageId);
   }
 
   async continueInterruptedMessage(assistantMessageId: string): Promise<void> {

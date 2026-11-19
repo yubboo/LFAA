@@ -2,6 +2,7 @@
 import { useSyncExternalStore } from "react";
 import type { ChatClientStore } from "../chat-store";
 import type { ChatLocaleMessages } from "../locales";
+import { WorkspaceFileTabs } from "./WorkspaceFileTabs";
 import styles from "./AgentContextPanel.module.css";
 
 /** 订阅聊天 Store，在右栏汇总当前模型、工作位置、记忆和规则状态。 */
@@ -9,14 +10,32 @@ export function AgentContextPanel({
   locale,
   store,
   boundProjectName,
+  showFilePreview,
   onOpenSettings,
 }: {
   locale: ChatLocaleMessages;
   store: ChatClientStore;
   boundProjectName: string | null;
+  showFilePreview: boolean;
   onOpenSettings: () => void;
 }) {
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+  const selection = showFilePreview ? state.filePreviewTabs?.find((tab) => tab.id === state.activeFilePreviewId) : undefined;
+  const selectedStep = state.activeSession?.messages.find((message) => message.id === selection?.messageId)
+    ?.steps?.find((step) => step.id === selection?.stepId);
+  if (selection && selectedStep && state.activeSession) {
+    return (
+      <WorkspaceFileTabs
+        active={selection}
+        tabs={state.filePreviewTabs}
+        step={selectedStep}
+        sessionId={state.activeSession.id}
+        projectId={state.activeSession.projectId}
+        isZh={locale.isZh}
+        store={store}
+      />
+    );
+  }
   const activeProfile = state.profiles.find((p) => p.id === state.activeProfileId) ?? state.profiles[0];
   const activeRulesCount = state.rules.filter((r) => r.content.trim().length > 0).length;
   const trustedPatternCount = Object.values(state.smartTrustCounts).filter((count) => count >= 3).length;

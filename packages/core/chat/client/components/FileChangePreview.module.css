@@ -1,0 +1,120 @@
+/* 右栏文件预览，利用短距离淡入表达从活动行选中到预览的切换。 */
+.preview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.65rem;
+  min-width: 0;
+  color: var(--color-ink);
+  animation: preview-enter 300ms cubic-bezier(.22, 1, .36, 1) both;
+}
+
+@keyframes preview-enter {
+  from { opacity: 0; transform: translateX(5px); }
+}
+
+.header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.path, .preview small { color: var(--color-muted); font-size: 0.85em; }
+.path { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.preview p { margin: 0; font-size: 0.9em; }
+
+.mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.32rem 0.5rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.4rem;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.mode:hover { background: var(--color-active); }
+.mode:active { transform: scale(0.97); }
+
+/* 代码区独立滚动，定位改动行时不会带动聊天或标签栏。 */
+.source {
+  position: relative;
+  min-width: 0;
+  min-height: min(22rem, 50dvh);
+  max-height: max(12rem, calc(100dvh - 14rem));
+  padding-block: 0.5rem;
+  overflow: auto;
+  border: 1px solid var(--color-line);
+  border-radius: 0.55rem;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font: 0.88em/1.65 var(--code-font-family, monospace);
+  tab-size: 4;
+  --source-keyword: #ccb4ff;
+  --source-string: #a4d5af;
+}
+
+:global(:root[data-resolved-theme="light"]) .source {
+  --source-keyword: #6338a1;
+  --source-string: #26674e;
+}
+
+.sourceLine {
+  display: flex;
+  min-width: 100%;
+  width: max-content;
+  min-height: 1.65em;
+}
+
+.sourceLine[data-changed="true"] {
+  background: color-mix(in srgb, var(--color-accent) 12%, var(--color-canvas));
+  box-shadow: inset 2px 0 var(--color-accent);
+}
+
+.lineNumber {
+  flex: 0 0 3em;
+  padding-inline-end: 0.6em;
+  text-align: end;
+  user-select: none;
+  color: var(--color-muted);
+}
+
+.sourceLine code { font: inherit; white-space: pre; padding-inline-end: 0.55em; }
+.sourceLine [data-token="keyword"] { color: var(--source-keyword); }
+.sourceLine [data-token="string"] { color: var(--source-string); }
+.sourceLine [data-token="comment"] { color: var(--color-muted); }
+.readState { padding: 0.65rem; color: var(--color-muted); }
+
+.fragment {
+  min-width: 0;
+  border: 1px solid var(--color-line);
+  border-inline-start: 2px solid var(--color-accent);
+  border-radius: 0.45rem;
+  background: var(--color-surface);
+  overflow: hidden;
+}
+
+.fragment[data-side="before"] { border-inline-start-color: var(--color-muted); }
+.fragment > div {
+  padding: 0.4rem 0.55rem;
+  border-block-end: 1px solid var(--color-line);
+  background: var(--color-active);
+  font-size: 0.83em;
+}
+
+.fragment pre, .fragment p {
+  max-height: 22rem;
+  margin: 0;
+  padding: 0.55rem;
+  overflow: auto;
+}
+
+.fragment pre { color: var(--color-ink); font: 0.84em/1.55 var(--code-font-family, monospace); }
+
+@media (prefers-reduced-motion: reduce) {
+  .preview { animation: none; }
+  .mode:active { transform: none; }
+}

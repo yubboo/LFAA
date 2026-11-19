@@ -89,7 +89,9 @@ export function maskApiKey(apiKey: string): string {
 /** 将 Host 档案转换为可发往浏览器的公开模型配置。 */
 export function toPublicProfile(profile: LlmProfile): PublicLlmProfile {
   const apiProtocol = resolveEffectiveProtocol(profile);
-  const plan = apiProtocol === "openai-chat" ? getArkPlanKind(profile.baseUrl) : undefined;
+  const plan = (apiProtocol === "openai-chat" || apiProtocol === "anthropic-messages")
+    ? getArkPlanKind(profile.baseUrl)
+    : undefined;
   // 方舟 Chat 档案使用套餐目录，同时保留用户之前保存的自定义模型 ID。
   const models =
     plan ? [
@@ -321,12 +323,20 @@ export class LlmService extends Service {
     const apiProtocol = asApiProtocol(input.apiProtocol) ?? existing?.apiProtocol;
     const baseUrl = input.baseUrl?.trim() || existing?.baseUrl || "";
     const apiKey = input.apiKey?.trim() || existing?.apiKey || "";
-    const models = await fetchOfficialModels({
-      kind,
-      ...(apiProtocol ? { apiProtocol } : {}),
-      baseUrl,
-      apiKey,
-    });
+    let models: ModelCapabilityInfo[];
+    try {
+      models = await fetchOfficialModels({
+        kind,
+        ...(apiProtocol ? { apiProtocol } : {}),
+        baseUrl,
+        apiKey,
+      });
+    } catch (err) {
+      const arkKind = getArkPlanKind(baseUrl);
+      if (!arkKind) throw err;
+      // 部分套餐端点不开放 /models，同步时回退到最新官方套餐目录。
+      models = getArkPlanCatalog(arkKind).chatModels.map((m) => normalizeModelCapability(m, kind));
+    }
     if (existing) {
       const nextModel = models.some((m) => m.id === existing.model) ? existing.model : (models[0]?.id ?? existing.model);
       const updated = config.profiles.map((p) =>

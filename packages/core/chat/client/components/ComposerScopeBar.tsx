@@ -38,6 +38,8 @@ export function ComposerScopeBar({
   selectedProjectId,
   canCreateProject,
   openProjectSignal = 0,
+  showShelf = true,
+  projectDisabled = false,
   onSelectProject,
   onCreateProject,
 }: {
@@ -46,6 +48,8 @@ export function ComposerScopeBar({
   selectedProjectId: string | null;
   canCreateProject: boolean;
   openProjectSignal?: number;
+  showShelf?: boolean;
+  projectDisabled?: boolean;
   onSelectProject: (projectId: string | null) => void;
   onCreateProject: () => void;
 }) {
@@ -108,10 +112,12 @@ export function ComposerScopeBar({
     || locale.cloudLocation.toLowerCase().includes(normalizedLocQuery)
     || locale.cloudDefaultEnv.toLowerCase().includes(normalizedLocQuery);
 
+  if (!showShelf && (openMenu !== "project" || projectDisabled)) return null;
+
   return (
     <div ref={rootRef} className={styles.wrapper}>
-      <div className={styles.shelf}>
-        <div className={styles.anchor}>
+      <div className={showShelf ? styles.shelf : undefined}>
+        {showShelf && <div className={styles.anchor}>
           <HoverTip label={locale.workLocation} disabled={openMenu === "location"}>
             <button
               type="button"
@@ -183,15 +189,18 @@ export function ComposerScopeBar({
               </div>
             </div>
           )}
-        </div>
+        </div>}
 
-        <div className={styles.anchor}>
-          <HoverTip
-            label={locale.isZh ? "更改此聊天的项目" : "Change project for this chat"}
+        <div className={showShelf ? styles.anchor : undefined}>
+          {showShelf && <HoverTip
+            label={projectDisabled
+              ? (locale.isZh ? "运行或保存结束后可更改项目" : "Change the project when the run or save finishes")
+              : (selectedProject?.rootPath || (locale.isZh ? "更改此聊天的项目" : "Change project for this chat"))}
             disabled={openMenu === "project"}
           >
             <button
               type="button"
+              disabled={projectDisabled}
               className={`${styles.triggerBase} ${selectedProject ? "" : styles.projectEmpty} ${openMenu === "project" ? styles.triggerOpen : ""}`}
               aria-haspopup="dialog"
               aria-expanded={openMenu === "project"}
@@ -203,9 +212,9 @@ export function ComposerScopeBar({
                 {selectedProject ? selectedProject.name : locale.selectProject}
               </span>
             </button>
-          </HoverTip>
+          </HoverTip>}
 
-          {openMenu === "project" && (
+          {openMenu === "project" && !projectDisabled && (
             <div className={styles.popover} role="dialog" aria-label={locale.bindProject}>
               <div className={styles.searchRow}>
                 <IconSearch size={14} aria-hidden="true" />

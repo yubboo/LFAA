@@ -1,10 +1,12 @@
 /* 中央核心聊天与 Agent 任务工作区样式，对齐深色炭黑与浅色纯白画布层次。 */
 .root {
+  --chat-side-padding: 1.25rem;
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr) auto;
   height: 100%;
+  min-width: 0;
   min-height: 0;
   overflow: hidden;
 }
@@ -13,7 +15,14 @@
   /* 消息流只纵向滚动，宽表格和代码块由各自的容器横向滚动。 */
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 1.5rem 1.25rem 1rem;
+  scrollbar-width: auto;
+  margin-inline-end: var(--pane-scroll-inset, 8px);
+  padding: 1.5rem var(--chat-side-padding) 1rem;
+  padding-inline-end: calc(var(--chat-side-padding) - var(--pane-scroll-inset, 8px));
+}
+
+.scrollArea::-webkit-scrollbar {
+  width: var(--pane-scrollbar-width, 12px);
 }
 
 .thread {
@@ -161,7 +170,7 @@
 
 .composerDock {
   position: relative;
-  padding: 0.5rem 1.25rem 1.15rem;
+  padding: 0.5rem var(--chat-side-padding) 1.15rem;
 }
 
 .composerStack {
@@ -413,8 +422,7 @@
 
 /* 窄视口已隐藏锚点刻度，收紧正文与输入栏的两侧留白。 */
 @media (max-width: 900px) {
-  .scrollArea,
-  .composerDock {
-    padding-inline: clamp(0.75rem, 3cqi, 1.25rem);
+  .root {
+    --chat-side-padding: clamp(0.75rem, 3cqi, 1.25rem);
   }
 }

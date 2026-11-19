@@ -19,6 +19,8 @@ import {
 import { HoverTip } from "@lfaa/ui-primitives/client";
 import type { AgentStepItem } from "../chat-types";
 import { postGitRevertFiles } from "../coding-settings-client";
+import { getActivityFilePath } from "../file-activity";
+import { timelineMessages } from "../locales";
 import styles from "./MessageActionBars.module.css";
 
 const WEEKDAYS_ZH = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
@@ -246,17 +248,9 @@ export function AssistantMessageActions({
   );
 }
 
-const EDIT_TOOL_NAMES = new Set(["write_file", "edit_file", "create_file", "patch_file", "delete_file"]);
-
-function extractPathFromArgs(argsPreview: string | undefined): string | null {
-  if (!argsPreview) return null;
-  const match = /"(?:path|Path|file|filePath)"\s*:\s*"([^"]+)"/.exec(argsPreview);
-  if (match?.[1]) return match[1].replace(/\\\\/g, "/");
-  return null;
-}
-
 interface EditedFileSummary {
   path: string;
+  stepId: string;
   added: number;
   removed: number;
 }
@@ -267,11 +261,15 @@ export function EditedFilesCard({
   steps,
   projectId,
   onViewChanges,
+  onOpenFile,
+  selectedFileStepId,
 }: {
   isZh: boolean;
   steps: AgentStepItem[];
   projectId?: string | null | undefined;
   onViewChanges?: (() => void) | undefined;
+  onOpenFile: (stepId: string) => void;
+  selectedFileStepId?: string | undefined;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [reverting, setReverting] = useState(false);
@@ -280,14 +278,17 @@ export function EditedFilesCard({
   const editedFiles = useMemo(() => {
     const byPath = new Map<string, EditedFileSummary>();
     for (const step of steps) {
-      if (step.toolName && EDIT_TOOL_NAMES.has(step.toolName) && step.status !== "error") {
-        const filePath = extractPathFromArgs(step.argsPreview) ?? step.title;
-        if (!filePath) continue;
-        const prev = byPath.get(filePath) ?? { path: filePath, added: 0, removed: 0 };
-        prev.added += step.addedLines ?? 0;
-        prev.removed += step.removedLines ?? 0;
-        byPath.set(filePath, prev);
-      }
+      if (step.status !== "done") continue;
+      const path = getActivityFilePath(step);
+      if (!path) continue;
+      const key = path.replace(/\\/gu, "/");
+      const previous = byPath.get(key);
+      byPath.set(key, {
+        path,
+        stepId: step.id,
+        added: (previous?.added ?? 0) + (step.addedLines ?? 0),
+        removed: (previous?.removed ?? 0) + (step.removedLines ?? 0),
+      });
     }
     return Array.from(byPath.values());
   }, [steps]);
@@ -321,7 +322,7 @@ export function EditedFilesCard({
           </span>
           <div className={styles.filesTitleGroup}>
             <span className={styles.filesTitle}>
-              {isZh ? `已编辑 ${editedFiles.length} 个文件` : `Edited ${editedFiles.length} files`}
+              {timelineMessages[isZh ? "zh" : "en"].files(editedFiles.length)}
             </span>
             {(totalAdded > 0 || totalRemoved > 0) && (
               <span className={styles.diffStats}>
@@ -359,7 +360,14 @@ export function EditedFilesCard({
           const fileName = parts.pop() ?? normalized;
           const dir = parts.length > 0 ? `${parts.join("/")}/` : "";
           return (
-            <div key={item.path} className={styles.fileRow} title={item.path}>
+            <button
+              type="button"
+              key={item.path}
+              className={styles.fileRow}
+              title={item.path}
+              aria-pressed={selectedFileStepId === item.stepId}
+              onClick={() => onOpenFile(item.stepId)}
+            >
               <span className={styles.filePath}>
                 {dir && <span className={styles.fileDir}>{dir}</span>}
                 <span className={styles.fileName}>{fileName}</span>
@@ -370,7 +378,7 @@ export function EditedFilesCard({
                   <span className={styles.diffDel}>{`-${item.removed}`}</span>
                 </span>
               )}
-            </div>
+            </button>
           );
         })}
       </div>

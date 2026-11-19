@@ -6,7 +6,7 @@
   "packageManager": "pnpm@11.17.0",
   "scripts": {
     "lfaa": "tsx apps/cli/src/bin.ts",
-    "typecheck": "tsc --noEmit -p apps/cli/tsconfig.json && tsc --noEmit -p apps/web/tsconfig.json && tsc --noEmit -p packages/core/llm/tsconfig.json && tsc --noEmit -p packages/core/rules/tsconfig.json && tsc --noEmit -p packages/core/memory/tsconfig.json && tsc --noEmit -p packages/core/tools/tsconfig.json && tsc --noEmit -p packages/core/agent/tsconfig.json && tsc --noEmit -p packages/core/chat/tsconfig.json && tsc --noEmit -p packages/ui/layout/tsconfig.json && tsc --noEmit -p packages/ui/primitives/tsconfig.json && tsc --noEmit -p packages/ui/theme/tsconfig.json && tsc --noEmit -p packages/workspace/sections/tsconfig.json && tsc --noEmit -p packages/workspace/workspace/tsconfig.json",
+    "typecheck": "tsc --noEmit -p apps/cli/tsconfig.json && tsc --noEmit -p apps/web/tsconfig.json && tsc --noEmit -p packages/core/llm/tsconfig.json && tsc --noEmit -p packages/core/rules/tsconfig.json && tsc --noEmit -p packages/core/memory/tsconfig.json && tsc --noEmit -p packages/core/tools/tsconfig.json && tsc --noEmit -p packages/core/agent/tsconfig.json && tsc --noEmit -p packages/core/chat/tsconfig.json && tsc --noEmit -p packages/skills/tsconfig.json && tsc --noEmit -p packages/plugins/tsconfig.json && tsc --noEmit -p packages/ui/layout/tsconfig.json && tsc --noEmit -p packages/ui/primitives/tsconfig.json && tsc --noEmit -p packages/ui/theme/tsconfig.json && tsc --noEmit -p packages/workspace/sections/tsconfig.json && tsc --noEmit -p packages/workspace/workspace/tsconfig.json",
     "build": "pnpm --filter @lfaa/app-web run build"
   },
   "devDependencies": {

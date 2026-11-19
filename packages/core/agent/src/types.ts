@@ -1,10 +1,19 @@
 // 定义 @lfaa/agent 的运行契约：权限模式、运行输入、Think/Act/Check 流式事件与人工审批句柄。
-import type { AgentStepTrace } from "@lfaa/memory";
+import type { AgentStepTrace, ChatMessageRecord } from "@lfaa/memory";
 
 /** 定义输入栏与 Host 审批策略共用的三种权限模式。 */
 export type AgentPermissionMode = "ask" | "smart" | "full";
+export type ApprovalAnswer = boolean | "mode_changed";
 /** 指定智能审批放行普通操作前必须累计的人工批准次数。 */
 export const SMART_APPROVAL_THRESHOLD = 3;
+
+/** 本轮运行解析到的技能正文摘要，仅注入当轮模型上下文。 */
+export interface ResolvedSkillContext {
+  id: string;
+  name: string;
+  revision: number;
+  content: string;
+}
 
 /** 描述创建运行接收的用户消息、会话上下文与配置。 */
 export interface StartAgentRunInput {
@@ -14,6 +23,7 @@ export interface StartAgentRunInput {
   reasoningEffort?: "minimal" | "low" | "medium" | "high" | "max";
   projectId?: string | null;
   workspaceRoots?: string[];
+  skillIds?: string[];
   maxSteps?: number;
   permissionMode?: AgentPermissionMode;
   autoApproveTools?: boolean;
@@ -24,6 +34,7 @@ export type AgentRunEvent =
   | { type: "run_started"; runId: string; sessionId: string; assistantMessageId: string }
   | { type: "delta"; runId: string; seq: number; kind: "reasoning" | "text"; text: string }
   | { type: "step_update"; runId: string; step: AgentStepTrace }
+  | { type: "approval_resolved"; runId: string; approvalId: string }
   | {
       type: "approval_required";
       runId: string;
@@ -38,7 +49,7 @@ export type AgentRunEvent =
       highRisk?: boolean;
       riskReason?: string;
     }
-  | { type: "run_finished"; runId: string; sessionId: string; assistantMessageId: string; status: "done" | "error" | "aborted"; error?: string };
+  | { type: "run_finished"; runId: string; sessionId: string; assistantMessageId: string; status: "done" | "error" | "aborted"; message?: ChatMessageRecord; error?: string };
 
 /** 收集暂停执行时向用户展示和恢复所需的工具请求信息。 */
 export interface PendingToolApproval {
@@ -65,5 +76,6 @@ export interface AgentRunStatus {
   reasoning: string;
   lastSeq: number;
   pendingApprovals?: PendingToolApproval[];
+  message?: ChatMessageRecord;
   error?: string;
 }

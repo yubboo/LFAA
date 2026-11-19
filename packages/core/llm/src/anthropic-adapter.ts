@@ -113,7 +113,7 @@ export async function callAnthropicMessagesApi(
     ? baseUrl
     : (baseUrl.endsWith("/v1") ? `${baseUrl}/messages` : `${baseUrl}/v1/messages`);
 
-  if (!profile.apiKey.trim()) {
+  if (profile.kind !== "ollama" && !profile.apiKey.trim()) {
     throw new Error(`模型配置“${profile.name}”尚未设置 API Key，请在「设置 → 模型与规则配置」中填写。`);
   }
 
@@ -152,14 +152,18 @@ export async function callAnthropicMessagesApi(
     bodyPayload.temperature = temperature;
   }
 
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Accept: "text/event-stream, application/json",
+    "anthropic-version": "2023-06-01",
+  };
+  if (profile.apiKey.trim()) {
+    headers["x-api-key"] = profile.apiKey.trim();
+  }
+
   const response = await fetch(endpoint, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "text/event-stream, application/json",
-      "x-api-key": profile.apiKey.trim(),
-      "anthropic-version": "2023-06-01",
-    },
+    headers,
     body: JSON.stringify(bodyPayload),
     ...(input.signal ? { signal: input.signal } : {}),
   });
@@ -216,7 +220,10 @@ export async function callAnthropicMessagesApi(
         && typeof delta.partial_json === "string"
       ) {
         const slot = toolBlocks.get(payload.index);
-        if (slot) slot.jsonBuf += delta.partial_json;
+        if (slot && delta.partial_json) {
+          slot.jsonBuf += delta.partial_json;
+          input.onActivity?.();
+        }
       }
     } else if (eventType === "message_delta" && typeof payload.delta === "object" && payload.delta !== null) {
       const delta = payload.delta as Record<string, unknown>;

@@ -178,6 +178,37 @@ test("DeepSeek 思考模式下多轮工具调用必须附带 thinking 与 reason
   }
 });
 
+test("OpenAI 兼容 SSE 工具 ID 和名称分片归并为同一次准备和调用", async () => {
+  const { callOpenAiCompatibleChat } = await import("../src/openai-adapter");
+  const originalFetch = globalThis.fetch;
+  const deltas = [
+    { index: 0, function: { name: "write_" } },
+    { index: 0, id: "call_write", function: { name: "file", arguments: '{"path":' } },
+    { index: 0, function: { arguments: '"demo.txt"}' } },
+  ];
+  globalThis.fetch = async () => new Response(
+    deltas.map((delta) => `data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [delta] } }] })}\n\n`).join("")
+      + "data: [DONE]\n\n",
+    { headers: { "content-type": "text/event-stream" } },
+  );
+
+  try {
+    const received: unknown[] = [];
+    const output = await callOpenAiCompatibleChat(
+      { id: "local", name: "Local", kind: "ollama", baseUrl: "http://localhost/v1", apiKey: "", model: "fixture", updatedAt: 1 },
+      {
+        messages: [{ role: "user", content: "Create the fixture." }],
+        tools: [{ name: "write_file", description: "Write file", parameters: {} }],
+        onDelta: (delta) => received.push(delta),
+      },
+    );
+    assert.deepEqual(received, [{ type: "tool_call", toolCallId: "call_write", toolName: "write_file" }]);
+    assert.deepEqual(output.toolCalls, [{ id: "call_write", name: "write_file", argumentsJson: '{"path":"demo.txt"}' }]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("enrichDeepSeekReleaseNames 从官方文档提取精确版本后缀标签", async () => {
   const { enrichDeepSeekReleaseNames } = await import("../src/capabilities");
   const originalFetch = globalThis.fetch;

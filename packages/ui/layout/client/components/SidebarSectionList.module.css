@@ -59,7 +59,14 @@
   flex: 1 1 auto;
   overflow-y: auto;
   overflow-x: hidden;
+  scrollbar-width: auto;
+  margin-inline-end: var(--pane-scroll-inset, 8px);
   padding: 0.1rem 0.85rem 0.65rem;
+  padding-inline-end: calc(0.85rem - var(--pane-scroll-inset, 8px));
+}
+
+.groups::-webkit-scrollbar {
+  width: var(--pane-scrollbar-width, 12px);
 }
 
 .group {

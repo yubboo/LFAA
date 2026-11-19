@@ -32,16 +32,20 @@ export function createAgentHttpHandler(service: AgentService, options: AgentHttp
     const method = (req.method ?? "GET").toUpperCase();
 
     try {
+      const fileRoute = /^\/api\/agent\/sessions\/([^/]+)\/file-activity$/u.exec(pathname);
+      if (method === "GET" && fileRoute?.[1]) {
+        const params = new URL(req.url ?? pathname, "http://localhost").searchParams;
+        const preview = await service.readFileActivity(
+          decodeURIComponent(fileRoute[1]), params.get("messageId") ?? "", params.get("stepId") ?? "",
+          options.resolveWorkspaceRoots ?? (async () => []),
+        );
+        sendJson(res, preview ? 200 : 404, preview ?? { error: "这条活动没有可定位的源文件。" });
+        return true;
+      }
+
       if (method === "POST" && pathname === "/api/agent/runs") {
         const body = await readJsonBody(req);
         const sessionId = typeof body.sessionId === "string" ? body.sessionId : "";
-        const projectId = typeof body.projectId === "string" ? body.projectId : null;
-        const explicitRoots = Array.isArray(body.workspaceRoots)
-          ? body.workspaceRoots.filter((r): r is string => typeof r === "string")
-          : [];
-        const workspaceRoots = explicitRoots.length > 0
-          ? explicitRoots
-          : (options.resolveWorkspaceRoots ? await options.resolveWorkspaceRoots(projectId) : []);
 
         const reasoningEffort =
           body.reasoningEffort === "minimal" ||
@@ -51,19 +55,21 @@ export function createAgentHttpHandler(service: AgentService, options: AgentHttp
           body.reasoningEffort === "max"
             ? body.reasoningEffort
             : undefined;
+        const skillIds = Array.isArray(body.skillIds)
+          ? body.skillIds.filter((id): id is string => typeof id === "string" && id.trim().length > 0)
+          : undefined;
         const started = await service.startRun({
           sessionId,
           userMessage: typeof body.userMessage === "string" ? body.userMessage : "",
           ...(typeof body.profileId === "string" ? { profileId: body.profileId } : {}),
           ...(reasoningEffort ? { reasoningEffort } : {}),
-          projectId,
-          workspaceRoots,
+          ...(skillIds && skillIds.length > 0 ? { skillIds } : {}),
           ...(typeof body.maxSteps === "number" ? { maxSteps: body.maxSteps } : {}),
           ...(body.permissionMode === "ask" || body.permissionMode === "smart" || body.permissionMode === "full"
             ? { permissionMode: body.permissionMode }
             : {}),
           autoApproveTools: body.autoApproveTools === true,
-        });
+        }, options.resolveWorkspaceRoots ?? (async () => []));
         sendJson(res, 201, started);
         return true;
       }
@@ -93,7 +99,7 @@ export function createAgentHttpHandler(service: AgentService, options: AgentHttp
           res.write(`data: ${JSON.stringify(payload)}\n\n`);
         };
 
-        if (isReconnect) {
+        if (isReconnect && run.status === "running") {
           const replayed = service.getReplayChunks(runId, afterSeq);
           service.recordReconnect(runId, afterSeq, replayed);
           writeEvent({
@@ -109,7 +115,7 @@ export function createAgentHttpHandler(service: AgentService, options: AgentHttp
           for (const chunk of replayed) {
             writeEvent({ type: "delta", runId, seq: chunk.seq, kind: chunk.kind, text: chunk.text }, chunk.seq);
           }
-        } else {
+        } else if (run.status === "running" || !run.message) {
           writeEvent({ type: "snapshot", run, reconnect: false, afterSeq: 0 });
         }
 
@@ -120,6 +126,7 @@ export function createAgentHttpHandler(service: AgentService, options: AgentHttp
             sessionId: run.sessionId,
             assistantMessageId: run.assistantMessageId,
             status: run.status,
+            ...(run.message ? { message: run.message } : {}),
             ...(run.error ? { error: run.error } : {}),
           });
           res.end();
@@ -164,6 +171,17 @@ export function createAgentHttpHandler(service: AgentService, options: AgentHttp
           service.recordClientFps(body.fps);
         }
         sendJson(res, 200, { ok: true });
+        return true;
+      }
+
+      if (method === "PATCH" && pathname.startsWith("/api/agent/runs/") && pathname.endsWith("/permission")) {
+        const runId = decodeURIComponent(pathname.slice("/api/agent/runs/".length, -"/permission".length));
+        const { mode } = await readJsonBody(req);
+        if (mode !== "ask" && mode !== "smart" && mode !== "full") {
+          sendJson(res, 400, { error: "无效的权限模式。" });
+          return true;
+        }
+        sendJson(res, 200, { applied: service.setRunPermissionMode(runId, mode) });
         return true;
       }
 

@@ -8,6 +8,7 @@ import { providerAccessMessages } from "../locales";
 import {
   inferProtocolForPreset,
   LLM_API_PROTOCOL_OPTIONS,
+  LOCAL_RUNTIME_PRESETS,
   resolveNextBaseUrlForProtocol,
   type ModelProviderPreset,
 } from "../provider-catalog";
@@ -73,15 +74,22 @@ export function ModelProviderModal({
     if (initKeyRef.current === openKey) return;
     initKeyRef.current = openKey;
 
-    const nextProtocol = provider.subscription ? provider.defaultProtocol : inferProtocolForPreset(provider, profile);
+    const nextProtocol = inferProtocolForPreset(provider, profile);
+    const nextBaseUrl = provider.subscription
+      ? (provider.protocolBaseUrls?.[nextProtocol] ?? provider.defaultBaseUrl)
+      : (profile?.baseUrl ?? provider.defaultBaseUrl);
     setName(profile?.name ?? (isZh ? provider.nameZh : provider.nameEn));
     setKind(profile?.kind ?? provider.kind);
     setApiProtocol(nextProtocol);
-    setBaseUrl(provider.subscription ? provider.defaultBaseUrl : (profile?.baseUrl ?? provider.defaultBaseUrl));
+    setBaseUrl(nextBaseUrl);
     setModel(profile?.model ?? provider.defaultModel);
     setApiKey("");
     setStatusNotice(null);
-    const cached = profile?.availableModels?.length ? profile.availableModels : [];
+    const isOllamaDefaultPlaceholder =
+      (profile?.kind ?? provider.kind) === "ollama"
+      && !profile?.configured
+      && (profile?.availableModels?.length ?? 0) <= 1;
+    const cached = !isOllamaDefaultPlaceholder && profile?.availableModels?.length ? profile.availableModels : [];
     setOfficialModels(cached);
 
     // 仅在弹窗初次打开时自动同步一次真实官方模型清单，避免保存或测试后重复触发清空状态提示。
@@ -113,11 +121,14 @@ export function ModelProviderModal({
 
   if (!provider) return null;
   const subscription = provider.subscription === true;
+  const isLocal = provider.id === "local" || kind === "ollama";
   const arkPlan = subscription ? getArkPlanKind(provider.defaultBaseUrl) : undefined;
   const visibleOfficialModels = provider.id === "volcengine" ? officialModels : officialModels.slice(0, 18);
-  // 套餐的保存和测试都使用官方预设地址及协议，防止凭据随表单草稿发送到普通 API。
-  const configBaseUrl = subscription ? provider.defaultBaseUrl : baseUrl.trim();
-  const configProtocol = subscription ? provider.defaultProtocol : apiProtocol;
+  // 套餐的保存和测试都使用当前所选协议对应的官方预设地址，防止凭据随表单草稿发送到普通 API。
+  const configProtocol = apiProtocol;
+  const configBaseUrl = subscription
+    ? (provider.protocolBaseUrls?.[apiProtocol] ?? provider.defaultBaseUrl)
+    : baseUrl.trim();
 
   // 原地状态按钮：同步中/测试中 → 成功（连接成功 · OK）/ 失败，成功态数秒后自动复位
   const tone = statusNotice?.tone;
@@ -128,7 +139,7 @@ export function ModelProviderModal({
         : tone === "loading" ? styles.inlineBtnLoading
           : "";
   const inlineLabel = !statusNotice
-    ? (isZh ? "获取官方模型" : "Fetch Official Models")
+    ? (isLocal ? (isZh ? "获取本地模型" : "Fetch Local Models") : (isZh ? "获取官方模型" : "Fetch Official Models"))
     : tone === "loading"
       ? `${statusNotice.title ?? ""}…`
       : tone === "success" && statusNotice.message
@@ -166,7 +177,9 @@ export function ModelProviderModal({
       setStatusNotice({
         tone: "success",
         title: isZh ? "已同步" : "Synced",
-        message: isZh ? `${list.length} 个官方模型` : `${list.length} models`,
+        message: isLocal
+          ? (isZh ? `${list.length} 个本地模型` : `${list.length} local models`)
+          : (isZh ? `${list.length} 个官方模型` : `${list.length} models`),
       });
     } catch (err) {
       setStatusNotice({
@@ -362,9 +375,29 @@ export function ModelProviderModal({
           </div>
         </div>
 
-        {/* 普通 API 可编辑地址，套餐地址与接入方式绑定。 */}
+        {/* 普通 API 可编辑地址，套餐地址与所选协议的官方端点绑定。 */}
         <label className={styles.field}>
           <span className={styles.fieldLabel}>{isZh ? "接口地址 (Base URL)" : "Base URL"}</span>
+          {provider.id === "local" && (
+            <div className={styles.chipsRow}>
+              {LOCAL_RUNTIME_PRESETS.map((preset) => {
+                const targetUrl = apiProtocol === "anthropic-messages"
+                  ? preset.baseUrl.replace(/\/v1$/u, "")
+                  : preset.baseUrl;
+                const active = baseUrl.trim().replace(/\/+$/u, "") === targetUrl;
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    className={`${styles.chipBtn} ${active ? styles.chipBtnActive : ""}`}
+                    onClick={() => setBaseUrl(targetUrl)}
+                  >
+                    {preset.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           <input
             className={styles.input}
             value={subscription ? configBaseUrl : baseUrl}
@@ -422,7 +455,9 @@ export function ModelProviderModal({
             </div>
           ) : (
             <span className={styles.fieldHint}>
-              {isZh ? "填写凭据后点击「获取官方模型」从官方接口实时加载真实可用模型" : "Click Fetch Official Models after entering credentials"}
+              {isLocal
+                ? (isZh ? "请先启动本地模型服务（如 Ollama / LM Studio），再点击「获取本地模型」" : "Start your local server (Ollama / LM Studio) and click Fetch Local Models")
+                : (isZh ? "填写凭据后点击「获取官方模型」从官方接口实时加载真实可用模型" : "Click Fetch Official Models after entering credentials")}
             </span>
           )}
         </div>

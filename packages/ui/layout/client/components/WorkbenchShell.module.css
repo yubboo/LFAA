@@ -3,6 +3,9 @@
   --topbar-height: 3.5rem;
   --rail-width: 3.125rem;
   --right-panel-base-width: clamp(14.5rem, 18vw, 18rem);
+  /* 滚动区域的末端避开分隔手柄向内覆盖的 5px。 */
+  --pane-scroll-inset: 8px;
+  --pane-scrollbar-width: 12px;
   /* 静止、刷新和缩窗时也应用拖拽边界。按左栏实际占用计算右栏可用空间。 */
   --content-width: calc(100% - var(--rail-width));
   --center-min-width: max(var(--center-min-pixels), calc(var(--content-width) * var(--center-min-share)));
@@ -62,6 +65,8 @@
   display: grid;
   min-width: 0;
   min-height: 0;
+  /* 长标题或消息的最小内容宽度不能把滚动视口推到分隔线外。 */
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: var(--topbar-height) minmax(0, 1fr);
   overflow-y: auto;
   overflow-x: hidden;

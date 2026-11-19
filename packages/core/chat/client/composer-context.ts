@@ -5,11 +5,12 @@ import type { ChatLocaleMessages } from "./locales";
 /** 记录已加入输入框并随发送提交的上下文条目。 */
 export interface ComposerAttachment {
   id: string;
-  kind: "file" | "folder" | "session" | "mode";
+  kind: "file" | "folder" | "session" | "mode" | "skill";
   label: string;
   detail?: string;
   contentPreview?: string;
   modeId?: "goal" | "plan";
+  skillId?: string;
 }
 
 /** 统一提及弹层中的项目、会话及其他可选项。 */
@@ -23,6 +24,23 @@ export interface MentionEntry {
   disabled?: boolean;
   actionKind: "pick_files" | "focus_project" | "mode_goal" | "mode_plan" | "attach_session" | "unconnected";
   session?: ChatSessionItem;
+}
+
+// 从光标前文本提取正在输入的 $ 技能指令关键字；例如 "$count" 返回 { query: "count", startIndex: 0 }。
+export function extractTrailingSkillQuery(
+  text: string,
+  cursorPos: number,
+): { query: string; startIndex: number } | null {
+  const head = text.slice(0, Math.max(0, cursorPos));
+  const match = /(?:^|\s)\$([^\s$]*)$/u.exec(head);
+  if (!match) return null;
+  const full = match[0];
+  const dollarOffset = full.lastIndexOf("$");
+  const startIndex = head.length - full.length + dollarOffset;
+  return {
+    query: match[1] ?? "",
+    startIndex,
+  };
 }
 
 // 从光标前文本提取正在输入的 / 斜杠指令关键字；例如 "/pl" 返回 { query: "pl", startIndex: 0 }。
