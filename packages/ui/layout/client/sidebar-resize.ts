@@ -136,10 +136,12 @@ export function buildSidebarWidthVars({
   isCompact,
   leftWidth,
   rightWidth,
+  rightWide = false,
 }: {
   isCompact: boolean;
   leftWidth: number | null;
   rightWidth: number | null;
+  rightWide?: boolean;
 }): Record<string, string> {
   if (isCompact) return {};
   const vars: Record<string, string> = {
@@ -154,6 +156,7 @@ export function buildSidebarWidthVars({
     vars["--left-sidebar-base-width"] = `${leftWidth}px`;
   }
   if (rightWidth !== null) {
+    // 一旦用户手动调宽过右栏，严格按已保存宽度定格；仅在未调宽过时由 CSS right-wide 提供宽默认值。
     vars["--right-panel-base-width"] = `${rightWidth}px`;
   }
   return vars;

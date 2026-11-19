@@ -6,7 +6,7 @@ import { formatCommandOutput } from "@lfaa/shell-env";
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
-const timeLimitMs = 15_000;
+const timeLimitMs = 90_000;
 const byteLimit = 512 * 1024;
 const textLimit = 16_000;
 
@@ -91,6 +91,10 @@ export async function executeShell(request: ShellRequest, invocation?: ShellInvo
 export class ShellService extends Service {
   constructor(ctx: Context, private readonly config: ShellPluginConfig) {
     super(ctx, "shell");
+  }
+
+  resolveInvocation(command: string, cwd: string): Promise<ShellInvocation> {
+    return this.config.resolveInvocation(command, cwd);
   }
 
   async execute(request: ShellRequest): Promise<ShellResult> {

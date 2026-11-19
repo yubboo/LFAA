@@ -9,7 +9,7 @@ import type { AgentStepItem, PendingApprovalBanner } from "../chat-types";
 import { getActivityFilePath, getFileActivityKind } from "../file-activity";
 import { timelineMessages, type ChatLocaleMessages } from "../locales";
 import { MarkdownContent } from "./MarkdownContent";
-import { StepTraceList, TimelineApproval } from "./StepTraceList";
+import { LiveExecutionTail, StepTraceList, TimelineApproval } from "./StepTraceList";
 import styles from "./StepTraceList.module.css";
 
 interface ActivityGroup {
@@ -140,6 +140,7 @@ function ActivityGroupRow({ group, locale, ...fileActions }: {
   return (
     <details className={styles.activityDisclosure}>
       <summary className={styles.disclosure} data-kind={kind} data-status={active?.status}>
+        {active && active.status !== "waiting_approval" && <span className={styles.liveDot} aria-hidden="true" />}
         <Icon size={14} className={styles.icon} aria-hidden="true" />
         <span className={styles.activityTitle} title={summary}>{summary}</span>
         {failed > 0 && <span className={styles.failed}>{labels.failures(failed)}</span>}
@@ -192,6 +193,17 @@ export function AssistantTimeline({
   const finalText = isStreaming ? text.slice(groups.at(-1)?.offset ?? 0) : content;
   const processOpen = isStreaming ? (liveOpen ?? hasProcess) : historyOpen;
   const hasDisclosure = isStreaming || hasProcess;
+  const lastGroup = groups.at(-1);
+  const hasActiveTailGroup = Boolean(
+    processOpen && lastGroup?.steps.some(
+      (step) => step.status === "preparing" || step.status === "running" || step.status === "waiting_approval",
+    ),
+  );
+  // 只要还在流式执行且末尾没有活跃的工具分组，就持续显示实时运行状态行，防止轮次切换出现完成错觉。
+  const showLiveTail = isStreaming
+    && !pendingApproval
+    && !(hasActiveTailGroup && !finalText.trim())
+    && (groups.length > 0 || Boolean(finalText.trim()) || processOpen);
 
   return (
     <>
@@ -236,6 +248,14 @@ export function AssistantTimeline({
       )}
       {pendingApproval && <TimelineApproval locale={locale} pendingApproval={pendingApproval} onResolveApproval={onResolveApproval} />}
       {finalText.trim() && <div className={bodyClassName}><MarkdownContent content={finalText} isZh={locale.isZh} /></div>}
+      {showLiveTail && (
+        <LiveExecutionTail
+          isZh={locale.isZh}
+          steps={steps}
+          createdAt={createdAt}
+          includeToolName={!processOpen || Boolean(finalText.trim())}
+        />
+      )}
     </>
   );
 }

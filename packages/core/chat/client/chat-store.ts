@@ -9,6 +9,7 @@ import {
 } from "./general-settings-client";
 import { AgentStreamClient, splitCleanSentenceBoundary } from "./stream-client";
 import { getActivityFilePath } from "./file-activity";
+import { patchWorkbenchSessionState, readWorkbenchSessionState } from "./workbench-persist";
 import type {
   AgentPermissionMode,
   AgentStepItem,
@@ -16,6 +17,7 @@ import type {
   ChatSessionDetail,
   ChatSessionItem,
   ChatStoreSnapshot,
+  FilePreviewTab,
   LibraryAssetItem,
   LibraryItemCategory,
   LlmApiProtocolOption,
@@ -122,18 +124,23 @@ export class ChatClientStore {
   private backgroundPollTimer: ReturnType<typeof setTimeout> | null = null;
   private streamClient: AgentStreamClient | null = null;
   private permissionUpdate = Promise.resolve();
+  private readonly initialSessionId = readStoredSessionId();
+  private readonly initialWorkbench = readWorkbenchSessionState(this.initialSessionId ?? "default");
   private state: ChatStoreSnapshot = {
     loaded: false,
     sessions: [],
-    activeSessionId: readStoredSessionId(),
+    activeSessionId: this.initialSessionId,
     activeSession: null,
     draftProjectId: null,
     draftSectionId: null,
     runningRunId: null,
     queuedMessages: [],
     pendingApproval: null,
-    filePreviewTabs: [],
-    activeFilePreviewId: null,
+    filePreviewTabs: this.initialWorkbench.filePreviewTabs,
+    activeFilePreviewId: this.initialWorkbench.activeFilePreviewId,
+    rightStageKind: this.initialWorkbench.rightStageKind,
+    rightPanelRequest: null,
+    pendingComposerInsert: null,
     permissionMode: readStoredPermissionMode(),
     smartTrustCounts: {},
     activeProfileId: "",
@@ -161,13 +168,29 @@ export class ChatClientStore {
 
   private updateState(patch: Partial<ChatStoreSnapshot>): void {
     if (patch.activeSessionId !== undefined && patch.activeSessionId !== this.state.activeSessionId) {
-      patch = { ...patch, filePreviewTabs: [], activeFilePreviewId: null };
+      const persisted = readWorkbenchSessionState(patch.activeSessionId ?? "default");
+      patch = {
+        ...patch,
+        filePreviewTabs: persisted.filePreviewTabs,
+        activeFilePreviewId: persisted.activeFilePreviewId,
+        rightStageKind: persisted.rightStageKind,
+      };
     }
     this.state = { ...this.state, ...patch };
+    if (
+      patch.activeSessionId === undefined
+      && (patch.filePreviewTabs !== undefined || patch.activeFilePreviewId !== undefined || patch.rightStageKind !== undefined)
+    ) {
+      patchWorkbenchSessionState(this.state.activeSessionId ?? "default", {
+        filePreviewTabs: this.state.filePreviewTabs,
+        activeFilePreviewId: this.state.activeFilePreviewId,
+        rightStageKind: this.state.rightStageKind ?? null,
+      });
+    }
     for (const listener of this.listeners) listener();
   }
 
-  /** 右栏只选择当前会话中已有成功记录的文件步骤。 */
+  /** 右栏打开会话中已有成功记录的文件步骤，并精确记录定位行号。 */
   openFilePreview(messageId: string, stepId: string): boolean {
     const step = this.state.activeSession?.messages.find((message) => message.id === messageId)
       ?.steps?.find((item) => item.id === stepId);
@@ -175,10 +198,24 @@ export class ChatClientStore {
     if (!step || step.status !== "done" || !path) return false;
     const normalized = (step.fileChange?.resolvedPath ?? path).replace(/\\/gu, "/");
     const id = /^(?:[a-z]:\/|\/\/)/iu.test(normalized) ? normalized.toLowerCase() : normalized;
-    const next = { id, path, messageId, stepId };
+    const targetLine = step.fileChange?.firstLine;
+    const endLine = targetLine !== undefined
+      ? targetLine + Math.max(0, (step.fileChange?.after.split("\n").length ?? 1) - 1)
+      : undefined;
+    const next: FilePreviewTab = {
+      id,
+      path: step.fileChange?.resolvedPath ?? path,
+      relativePath: path.replace(/\\/gu, "/"),
+      projectId: this.state.activeSession?.projectId ?? null,
+      messageId,
+      stepId,
+      ...(targetLine !== undefined ? { targetLine } : {}),
+      ...(endLine !== undefined ? { endLine } : {}),
+    };
     const tabs = this.state.filePreviewTabs;
     this.updateState({
       activeFilePreviewId: id,
+      rightStageKind: "file",
       filePreviewTabs: tabs.some((tab) => tab.id === id)
         ? tabs.map((tab) => tab.id === id ? next : tab)
         : [...tabs, next],
@@ -186,22 +223,81 @@ export class ChatClientStore {
     return true;
   }
 
+  /** 从右侧文件树或路径引用直接打开项目内只读源码文件。 */
+  openWorkspaceFile(projectId: string, filePath: string, relativePath?: string, targetLine?: number, endLine?: number): void {
+    const normalized = filePath.replace(/\\/gu, "/");
+    const id = /^(?:[a-z]:\/|\/\/)/iu.test(normalized) ? normalized.toLowerCase() : normalized;
+    const existing = this.state.filePreviewTabs.find((tab) => tab.id === id);
+    const next = {
+      ...(existing ?? {}),
+      id,
+      path: filePath,
+      relativePath: (relativePath ?? existing?.relativePath ?? filePath).replace(/\\/gu, "/"),
+      projectId,
+      ...(targetLine !== undefined ? { targetLine, endLine: endLine ?? targetLine } : {}),
+    };
+    const tabs = this.state.filePreviewTabs;
+    this.updateState({
+      activeFilePreviewId: id,
+      rightStageKind: "file",
+      filePreviewTabs: tabs.some((tab) => tab.id === id)
+        ? tabs.map((tab) => tab.id === id ? next : tab)
+        : [...tabs, next],
+    });
+  }
+
   selectFilePreview(id: string): void {
     if (this.state.filePreviewTabs.some((tab) => tab.id === id)) {
-      this.updateState({ activeFilePreviewId: id });
+      this.updateState({ activeFilePreviewId: id, rightStageKind: "file" });
     }
+  }
+
+  setRightStageKind(kind: "file" | "browser" | "review" | null): void {
+    if (this.state.rightStageKind === kind) return;
+    this.updateState({ rightStageKind: kind });
+  }
+
+  enqueueComposerInsert(text: string): void {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    this.updateState({
+      pendingComposerInsert: { text: trimmed, nonce: Date.now() },
+    });
+  }
+
+  consumeComposerInsert(): void {
+    if (!this.state.pendingComposerInsert) return;
+    this.updateState({ pendingComposerInsert: null });
+  }
+
+  requestRightPanel(tab: string, url?: string): void {
+    const stageKind = tab === "browser" ? "browser" : tab === "files" ? "file" : this.state.rightStageKind ?? null;
+    this.updateState({
+      rightStageKind: stageKind,
+      rightPanelRequest: { tab, ...(url ? { url } : {}), nonce: Date.now() },
+    });
   }
 
   closeFilePreview(id: string): void {
     const index = this.state.filePreviewTabs.findIndex((tab) => tab.id === id);
     if (index < 0) return;
     const remaining = this.state.filePreviewTabs.filter((tab) => tab.id !== id);
+    const nextActiveId = this.state.activeFilePreviewId === id
+      ? (remaining[Math.min(index, remaining.length - 1)]?.id ?? null)
+      : this.state.activeFilePreviewId;
     this.updateState({
       filePreviewTabs: remaining,
-      activeFilePreviewId: this.state.activeFilePreviewId === id
-        ? (remaining[Math.min(index, remaining.length - 1)]?.id ?? null)
-        : this.state.activeFilePreviewId,
+      activeFilePreviewId: nextActiveId,
+      ...(this.state.rightStageKind === "file" && !nextActiveId ? { rightStageKind: null } : {}),
     });
+  }
+
+  readProjectFile(projectId: string, filePath: string, signal: AbortSignal) {
+    const query = new URLSearchParams({ path: filePath });
+    return fetchJson<{ path: string; relativePath: string; content: string; truncated: boolean; size: number }>(
+      `/api/workspace/projects/${encodeURIComponent(projectId)}/file?${query}`,
+      { signal },
+    );
   }
 
   readFileActivity(sessionId: string, messageId: string, stepId: string, signal: AbortSignal) {

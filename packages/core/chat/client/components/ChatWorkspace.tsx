@@ -49,6 +49,7 @@ export function ChatWorkspace({
   onOpenSettings,
   onOpenGitSettings,
   onOpenFilePreview,
+  onOpenBrowser,
 }: {
   locale: ChatLocaleMessages;
   store: ChatClientStore;
@@ -57,6 +58,7 @@ export function ChatWorkspace({
   onOpenSettings: () => void;
   onOpenGitSettings?: (() => void) | undefined;
   onOpenFilePreview: (messageId: string, stepId: string) => void;
+  onOpenBrowser?: (() => void) | undefined;
 }) {
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
   const [draft, setDraft] = useState("");
@@ -125,6 +127,17 @@ export function ChatWorkspace({
       el.setSelectionRange(pos, pos);
     });
   };
+
+  useEffect(() => {
+    const req = state.pendingComposerInsert;
+    if (!req) return;
+    setDraft((prev) => {
+      const next = prev.trim() ? `${prev.trimEnd()}\n\n${req.text}` : req.text;
+      focusTextareaAt(next.length);
+      return next;
+    });
+    store.consumeComposerInsert();
+  }, [state.pendingComposerInsert, store]);
 
   const syncMentionFromText = (text: string, cursorPos: number | null) => {
     const pos = cursorPos ?? text.length;
@@ -816,6 +829,7 @@ export function ChatWorkspace({
                     setSlashIndex(0);
                     focusTextareaAt(nextDraft.length);
                   }}
+                  onOpenBrowser={onOpenBrowser}
                 />
 
                 <PermissionModePicker

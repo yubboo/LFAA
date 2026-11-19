@@ -1,0 +1,27 @@
+{
+  "name": "@lfaa/browser",
+  "description": "LFAA 内置浏览器服务与可视化控制面板：遵循 DSH browser-use 独占注册契约，基于 playwright-core 复用本机 Edge/Chrome 驱动。",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./client/index.tsx"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "^4.1.0",
+    "@lfaa/tools": "workspace:*",
+    "@lfaa/ui-layout": "workspace:*",
+    "@tabler/icons-react": "3.52.0",
+    "playwright-core": "^1.65.1",
+    "react": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "@types/react": "^19.3.0",
+    "typescript": "^5.9.3"
+  }
+}

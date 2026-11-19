@@ -97,3 +97,27 @@ test("技能新增、版本冲突保护、项目技能发现、二创复制与�
   await ctx.skills.setSkillEnabled(forked.id, true, [projectDir]);
   assert.equal(await ctx.skills.deleteSkill(forked.id), true);
 });
+
+test("默认内置技能目录包含 minecraft-plugin-dev 与 lfaa-skill-creator 且可读取正文", async (t) => {
+  const personalDir = await mkdtemp(join(tmpdir(), "lfaa-builtin-skills-"));
+  t.after(async () => {
+    await rm(personalDir, { recursive: true, force: true });
+  });
+
+  const ctx = new Context();
+  const fiber = ctx.plugin(skillsPlugin, { personalDir });
+  await fiber;
+  t.after(async () => {
+    await fiber.dispose();
+  });
+
+  const list = await ctx.skills.listSkills({ includeDisabled: false });
+  assert.ok(list.some((s) => s.id === "builtin:lfaa-skill-creator"));
+  const mcSkill = list.find((s) => s.id === "builtin:minecraft-plugin-dev");
+  assert.ok(mcSkill, "应发现内置 minecraft-plugin-dev 技能");
+
+  const detail = await ctx.skills.getSkillDetail("builtin:minecraft-plugin-dev");
+  assert.ok(detail?.content.includes("Paper"));
+  assert.ok(detail?.content.includes("Comparator"));
+  assert.ok(detail?.content.includes("run_command"));
+});

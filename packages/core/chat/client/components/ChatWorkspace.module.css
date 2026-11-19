@@ -1,5 +1,6 @@
 /* 中央核心聊天与 Agent 任务工作区样式，对齐深色炭黑与浅色纯白画布层次。 */
 .root {
+  container-type: inline-size;
   --chat-side-padding: 1.25rem;
   position: relative;
   display: grid;
@@ -9,6 +10,12 @@
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+}
+
+@container (max-width: 880px) {
+  .root {
+    grid-template-rows: minmax(0, 1fr) auto auto;
+  }
 }
 
 .scrollArea {
@@ -137,6 +144,15 @@
 
 .scrollBottomBtn:hover {
   background: var(--color-active);
+}
+
+@container (max-width: 880px) {
+  .scrollBottomBtn {
+    left: auto;
+    right: max(1.6rem, calc((100% - 48rem) / 2 + 0.35rem));
+    bottom: calc(100% - 0.1rem);
+    transform: none;
+  }
 }
 
 .assistantRow {

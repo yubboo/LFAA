@@ -71,6 +71,21 @@ export function createWorkspaceHttpHandler(service: WorkspaceService) {
         return true;
       }
 
+      const fileMatch = pathname.match(/^\/api\/workspace\/projects\/([^/]+)\/file$/u);
+      if (method === "GET" && fileMatch?.[1]) {
+        const queryStart = rawUrl.indexOf("?");
+        const requestedPath = queryStart >= 0
+          ? new URLSearchParams(rawUrl.slice(queryStart + 1)).get("path") ?? ""
+          : "";
+        const fileData = await service.readProjectFile(decodeURIComponent(fileMatch[1]), requestedPath);
+        if (!fileData) {
+          sendJson(res, 404, { error: "项目不存在。" });
+          return true;
+        }
+        sendJson(res, 200, fileData);
+        return true;
+      }
+
       const inspectMatch = pathname.match(/^\/api\/workspace\/projects\/([^/]+)\/inspect$/u);
       if (method === "GET" && inspectMatch?.[1]) {
         const queryStart = rawUrl.indexOf("?");
@@ -83,6 +98,15 @@ export function createWorkspaceHttpHandler(service: WorkspaceService) {
           return true;
         }
         sendJson(res, 200, inspection);
+        return true;
+      }
+
+      const revealFileMatch = pathname.match(/^\/api\/workspace\/projects\/([^/]+)\/reveal-file$/u);
+      if (method === "POST" && revealFileMatch?.[1]) {
+        const body = await readJsonBody(req);
+        const pathValue = typeof body.path === "string" ? body.path : "";
+        const result = await service.revealProjectFileInExplorer(decodeURIComponent(revealFileMatch[1]), pathValue);
+        sendJson(res, 200, result);
         return true;
       }
 

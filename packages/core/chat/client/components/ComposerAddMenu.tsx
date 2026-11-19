@@ -55,12 +55,14 @@ export function ComposerAddMenu({
   onAttachItems,
   onTriggerMention,
   onTriggerSlash,
+  onOpenBrowser,
 }: {
   locale: ChatLocaleMessages;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   onAttachItems: (items: ComposerAttachment[]) => void;
   onTriggerMention: (initialQuery?: string) => void;
   onTriggerSlash: () => void;
+  onOpenBrowser?: (() => void) | undefined;
 }) {
   const [open, setOpen] = useState(false);
   const [notice, setNotice] = useState("");
@@ -216,7 +218,14 @@ export function ComposerAddMenu({
           <button
             type="button"
             className={styles.menuItem}
-            onClick={() => setNotice(locale.ctxServiceUnavailable)}
+            onClick={() => {
+              if (onOpenBrowser) {
+                setOpen(false);
+                onOpenBrowser();
+              } else {
+                setNotice(locale.ctxServiceUnavailable);
+              }
+            }}
           >
             <span className={styles.menuItemMain}>
               <IconBrandChrome size={15} aria-hidden="true" />
@@ -227,7 +236,14 @@ export function ComposerAddMenu({
           <button
             type="button"
             className={styles.menuItem}
-            onClick={() => setNotice(locale.ctxServiceUnavailable)}
+            onClick={() => {
+              if (onOpenBrowser) {
+                setOpen(false);
+                onOpenBrowser();
+              } else {
+                setNotice(locale.ctxServiceUnavailable);
+              }
+            }}
           >
             <span className={styles.menuItemMain}>
               <IconCloud size={15} aria-hidden="true" />

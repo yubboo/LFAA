@@ -41,13 +41,28 @@ export interface WorkbenchViewContribution<TContent = unknown> {
   render: () => TContent;
 }
 
+// 向全高右工作台插件传入同级辅助面板、项目上下文及抽屉关闭回调。
+export interface WorkbenchContextPanelRenderContext<TContent = unknown> {
+  utilityPanels: WorkbenchContextPanelContribution<TContent>[];
+  projectContext: TContent | null;
+  compact: boolean;
+  rightPanelMaximized: boolean;
+  onToggleMaximizeRightPanel: () => void;
+  onCollapseRightPanel: () => void;
+  onCloseDrawer: () => void;
+}
+
 // 业务插件向右侧菜单栏贡献的上下文面板契约。
 export interface WorkbenchContextPanelContribution<TContent = unknown> {
   id: string;
   title: string;
   order?: number;
+  /** "card" 使用默认卡片与标题框；"workbench" 由插件接管顶部对齐 Tab 与全高 IDE 布局。 */
+  chrome?: "card" | "workbench";
+  /** "utility" 面板在主右区采用 "workbench" 模式时收纳进最右图标轨与辅助栏。 */
+  placement?: "primary" | "utility";
   match?: (activeView: string, activeProjectId: string | null) => boolean;
-  render: () => TContent;
+  render: (context?: WorkbenchContextPanelRenderContext<TContent>) => TContent;
 }
 
 // 业务插件向左下角用户账户菜单头部右侧贡献快捷操作按钮的契约。
@@ -55,6 +70,13 @@ export interface WorkbenchAccountActionContribution<TContent = unknown> {
   id: string;
   order?: number;
   render: () => TContent;
+}
+
+// 业务插件向中央工作区顶栏（WorkspaceBar 右侧、紧邻右工作台左缘）贡献操作按钮的契约。
+export interface WorkbenchWorkspaceActionContribution<TContent = unknown> {
+  id: string;
+  order?: number;
+  render: (context: { compact: boolean; rightPanelOpen: boolean; rightPanelMaximized: boolean }) => TContent;
 }
 
 // 分区提供方插件契约，由 @lfaa/sections 贡献并在左侧栏展示与管理自定义分区。

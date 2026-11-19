@@ -265,6 +265,19 @@ test("buildSidebarWidthVars 保留基础宽度变量且仅在跨过拖拽阈值�
     },
   );
   assert.deepEqual(
+    buildSidebarWidthVars({ isCompact: false, leftWidth: 232, rightWidth: 310, rightWide: true }),
+    {
+      "--left-default-max-share": "0.15",
+      "--left-max-share": "0.25",
+      "--right-max-share": "0.75",
+      "--center-min-share": "0.1",
+      "--center-min-pixels": "360px",
+      "--panel-min-pixels": "220px",
+      "--left-sidebar-base-width": "232px",
+      "--right-panel-base-width": "310px",
+    },
+  );
+  assert.deepEqual(
     buildSidebarWidthVars({ isCompact: true, leftWidth: 232, rightWidth: 310 }),
     {},
   );

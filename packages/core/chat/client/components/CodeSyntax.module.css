@@ -1,0 +1,39 @@
+/* 代码查看器多语言词法高亮与嵌套标签/括号 5 色彩虹循环配对着色，明暗双主题高对比度适配。 */
+.syntax :global([data-token="keyword"]) { color: #c084fc; }
+.syntax :global([data-token="string"]) { color: #86efac; }
+.syntax :global([data-token="comment"]) { color: #64748b; font-style: italic; }
+.syntax :global([data-token="literal"]) { color: #fb923c; }
+.syntax :global([data-token="fn"]) { color: #fde047; }
+.syntax :global([data-token="attr"]) { color: #7dd3fc; }
+.syntax :global([data-token="type"]) { color: #2dd4bf; }
+
+/* 括号 () {} [] 与成对 HTML/JSX 标签按嵌套层级 5 色循环高亮，一眼区分对应作用域盒子。 */
+.syntax :global([data-rainbow="0"]),
+.syntax :global([data-tag-rainbow="0"]) { color: #fbbf24; font-weight: 500; }
+.syntax :global([data-rainbow="1"]),
+.syntax :global([data-tag-rainbow="1"]) { color: #f87171; font-weight: 500; }
+.syntax :global([data-rainbow="2"]),
+.syntax :global([data-tag-rainbow="2"]) { color: #38bdf8; font-weight: 500; }
+.syntax :global([data-rainbow="3"]),
+.syntax :global([data-tag-rainbow="3"]) { color: #e879f9; font-weight: 500; }
+.syntax :global([data-rainbow="4"]),
+.syntax :global([data-tag-rainbow="4"]) { color: #4ade80; font-weight: 500; }
+
+:global(:root[data-resolved-theme="light"]) .syntax :global([data-token="keyword"]) { color: #7c3aed; }
+:global(:root[data-resolved-theme="light"]) .syntax :global([data-token="string"]) { color: #15803d; }
+:global(:root[data-resolved-theme="light"]) .syntax :global([data-token="comment"]) { color: #64748b; }
+:global(:root[data-resolved-theme="light"]) .syntax :global([data-token="literal"]) { color: #c2410c; }
+:global(:root[data-resolved-theme="light"]) .syntax :global([data-token="fn"]) { color: #a16207; }
+:global(:root[data-resolved-theme="light"]) .syntax :global([data-token="attr"]) { color: #0369a1; }
+:global(:root[data-resolved-theme="light"]) .syntax :global([data-token="type"]) { color: #0f766e; }
+
+:global(:root[data-resolved-theme="light"]) .syntax :global([data-rainbow="0"]),
+:global(:root[data-resolved-theme="light"]) .syntax :global([data-tag-rainbow="0"]) { color: #b45309; font-weight: 600; }
+:global(:root[data-resolved-theme="light"]) .syntax :global([data-rainbow="1"]),
+:global(:root[data-resolved-theme="light"]) .syntax :global([data-tag-rainbow="1"]) { color: #dc2626; font-weight: 600; }
+:global(:root[data-resolved-theme="light"]) .syntax :global([data-rainbow="2"]),
+:global(:root[data-resolved-theme="light"]) .syntax :global([data-tag-rainbow="2"]) { color: #0284c7; font-weight: 600; }
+:global(:root[data-resolved-theme="light"]) .syntax :global([data-rainbow="3"]),
+:global(:root[data-resolved-theme="light"]) .syntax :global([data-tag-rainbow="3"]) { color: #9333ea; font-weight: 600; }
+:global(:root[data-resolved-theme="light"]) .syntax :global([data-rainbow="4"]),
+:global(:root[data-resolved-theme="light"]) .syntax :global([data-tag-rainbow="4"]) { color: #15803d; font-weight: 600; }

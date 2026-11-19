@@ -6,7 +6,9 @@ import { fileURLToPath } from "node:url";
 import { Context } from "@deepseek-ai/cordis";
 import { agentPlugin, createAgentHttpHandler } from "@lfaa/agent";
 import { resolveBash } from "@lfaa/bash-local";
+import { browserPlugin, createBrowserHttpHandler } from "@lfaa/browser";
 import { chatPlugin, createChatHttpHandler, createCodingHttpHandler } from "@lfaa/chat";
+import { createJobsHttpHandler, jobsPlugin } from "@lfaa/jobs";
 import { createLlmHttpHandler, llmPlugin } from "@lfaa/llm";
 import { createMemoryHttpHandler, memoryPlugin } from "@lfaa/memory";
 import { createPluginsHttpHandler, pluginsPlugin } from "@lfaa/plugins";
@@ -15,6 +17,7 @@ import { createRulesHttpHandler, rulesPlugin } from "@lfaa/rules";
 import { createSectionsHttpHandler, sectionsPlugin } from "@lfaa/sections";
 import { shellPlugin } from "@lfaa/shell";
 import { createSkillsHttpHandler, skillsPlugin } from "@lfaa/skills";
+import { createSubagentHttpHandler, subagentPlugin } from "@lfaa/subagent";
 import { toolsPlugin } from "@lfaa/tools";
 import { createWorkspaceHttpHandler, workspacePlugin } from "@lfaa/workspace";
 import { createServer } from "vite";
@@ -72,9 +75,14 @@ export async function startWeb(): Promise<() => Promise<void>> {
   await Promise.all([sectionsFiber, workspaceFiber, llmFiber, rulesFiber, memoryFiber, shellFiber, toolsFiber, skillsFiber]);
 
   const pluginsFiber = hostContext.plugin(pluginsPlugin, { profile: "web" });
+  const jobsFiber = hostContext.plugin(jobsPlugin, {
+    resolveInvocation: (command, cwd) => hostContext.shell.resolveInvocation(command, cwd),
+  });
+  const browserFiber = hostContext.plugin(browserPlugin);
   const agentFiber = hostContext.plugin(agentPlugin);
+  const subagentFiber = hostContext.plugin(subagentPlugin);
   const chatFiber = hostContext.plugin(chatPlugin, { repoRoot: detectedProjectRoot });
-  await Promise.all([pluginsFiber, agentFiber, chatFiber]);
+  await Promise.all([pluginsFiber, jobsFiber, browserFiber, agentFiber, subagentFiber, chatFiber]);
 
   hostContext.plugins.setSkillRegistrar((pluginId, list) => hostContext.skills.registerPluginSkills(pluginId, list));
   await hostContext.plugins.restoreEnabledPlugins();
@@ -137,25 +145,33 @@ export async function startWeb(): Promise<() => Promise<void>> {
       return matched?.rootPath || matched?.rootPaths?.[0] || detectedProjectRoot;
     },
   });
+  const resolveWorkspaceRoots = async (projectId: string | null): Promise<string[]> => {
+    if (!projectId) {
+      const general = await hostContext.chat.getGeneralSettings();
+      if (general.outsideProjectFolder) {
+        await mkdir(general.outsideProjectFolder, { recursive: true });
+        return [general.outsideProjectFolder];
+      }
+      return [];
+    }
+    const projects = await hostContext.workspace.listProjects();
+    const matched = projects.find((item) => item.id === projectId);
+    if (!matched?.exists || !matched.trusted) {
+      throw new Error("当前会话绑定的项目不可用，请重新选择已授权的项目目录。");
+    }
+    const roots = matched.rootPaths?.length ? matched.rootPaths : (matched.rootPath ? [matched.rootPath] : []);
+    if (!roots.length) throw new Error("当前会话绑定的项目没有可用工作目录。");
+    return roots;
+  };
+  const handleJobsRequest = createJobsHttpHandler(hostContext.jobs, async (sessionId) => {
+    const session = sessionId && sessionId !== "default" ? await hostContext.memory.getSession(sessionId).catch(() => null) : null;
+    const roots = await resolveWorkspaceRoots(session?.projectId ?? null).catch(() => []);
+    return roots[0] ?? detectedProjectRoot;
+  });
+  const handleBrowserRequest = createBrowserHttpHandler(hostContext.browser);
+  const handleSubagentRequest = createSubagentHttpHandler(hostContext.subagent);
   const handleAgentRequest = createAgentHttpHandler(hostContext.agent, {
-    resolveWorkspaceRoots: async (projectId) => {
-      if (!projectId) {
-        const general = await hostContext.chat.getGeneralSettings();
-        if (general.outsideProjectFolder) {
-          await mkdir(general.outsideProjectFolder, { recursive: true });
-          return [general.outsideProjectFolder];
-        }
-        return [];
-      }
-      const projects = await hostContext.workspace.listProjects();
-      const matched = projects.find((item) => item.id === projectId);
-      if (!matched?.exists || !matched.trusted) {
-        throw new Error("当前会话绑定的项目不可用，请重新选择已授权的项目目录。");
-      }
-      const roots = matched.rootPaths?.length ? matched.rootPaths : (matched.rootPath ? [matched.rootPath] : []);
-      if (!roots.length) throw new Error("当前会话绑定的项目没有可用工作目录。");
-      return roots;
-    },
+    resolveWorkspaceRoots,
   });
 
   const server = await createServer({
@@ -177,6 +193,9 @@ export async function startWeb(): Promise<() => Promise<void>> {
               if (await handleMemoryRequest(req, res)) return;
               if (await handleCodingRequest(req, res)) return;
               if (await handleChatRequest(req, res)) return;
+              if (await handleJobsRequest(req, res)) return;
+              if (await handleBrowserRequest(req, res)) return;
+              if (await handleSubagentRequest(req, res)) return;
               if (await handleAgentRequest(req, res)) return;
               next();
             })().catch(next);
@@ -190,7 +209,10 @@ export async function startWeb(): Promise<() => Promise<void>> {
     offSkillResolver();
     offSkillCatalog();
     await chatFiber.dispose();
+    await subagentFiber.dispose();
     await agentFiber.dispose();
+    await browserFiber.dispose();
+    await jobsFiber.dispose();
     await pluginsFiber.dispose();
     await skillsFiber.dispose();
     await toolsFiber.dispose();

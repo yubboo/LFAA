@@ -34,6 +34,7 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
     views,
     contextPanels,
     accountActions,
+    workspaceActions,
     projectProvider,
     projects,
     sectionProvider,
@@ -228,6 +229,16 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
         event.preventDefault();
         setActivityOpen(true);
         setSearchOpen(false);
+      } else if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "b") {
+        if (hasRightColumn) {
+          event.preventDefault();
+          toggleRightPanel();
+        }
+      } else if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "m") {
+        if (hasRightColumn && !isCompact) {
+          event.preventDefault();
+          service.toggleRightPanelMaximized();
+        }
       } else if (event.key === "Escape") {
         setSearchOpen(false);
         setActivityOpen(false);
@@ -239,7 +250,7 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
     };
     document.addEventListener("keydown", onShortcut);
     return () => document.removeEventListener("keydown", onShortcut);
-  }, [isCompact, leftSidebarOpen, rightPanelOpen, service]);
+  }, [hasRightColumn, isCompact, leftSidebarOpen, rightPanelOpen, service, toggleRightPanel]);
 
   const currentProject = projects.find((project) => project.id === activeProjectId);
 
@@ -262,6 +273,8 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
         ? locale.newChat
         : resolveViewLabel(activeView, locale, registeredView?.title);
   const matchingPanels = contextPanels.filter((panel) => !panel.match || panel.match(activeView, activeProjectId));
+  const hasWorkbenchHost = matchingPanels.some((panel) => panel.chrome === "workbench");
+  const isRightMaximized = showRightPanel && snapshot.rightPanelMaximized && !isCompact;
   const projectContext = activeView === "project" && currentProject && projectProvider?.renderProjectContext
     ? projectProvider.renderProjectContext(currentProject)
     : null;
@@ -272,6 +285,7 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
     isCompact,
     leftWidth,
     rightWidth,
+    rightWide: snapshot.rightWorkbenchWide,
   }) as CSSProperties;
 
   return (
@@ -283,6 +297,8 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
       data-columns={String(domain.columns)}
       data-left-open={String(leftSidebarOpen)}
       data-right-open={String(showRightPanel)}
+      data-right-wide={snapshot.rightWorkbenchWide ? "true" : undefined}
+      data-right-maximized={isRightMaximized ? "true" : undefined}
       data-left-drag-collapsed={leftDragCollapsed ? "true" : undefined}
       data-right-drag-collapsed={rightDragCollapsed ? "true" : undefined}
     >
@@ -372,7 +388,11 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
           leftDragCollapsed={leftDragCollapsed}
           hasRightColumn={hasRightColumn}
           rightOpen={rightPanelOpen}
+          hideRightToggleWhenOpen={hasWorkbenchHost}
           rightDragCollapsed={rightDragCollapsed}
+          compact={isCompact}
+          rightPanelMaximized={isRightMaximized}
+          workspaceActions={workspaceActions}
           onToggleLeft={toggleLeftSidebar}
           onToggleRight={toggleRightPanel}
         />
@@ -403,7 +423,7 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
         )}
       </main>
 
-      {!isCompact && showRightPanel && (
+      {!isCompact && showRightPanel && !isRightMaximized && (
         <SidebarResizeHandle
           side="right"
           label={locale.resizeRightPanel}
@@ -420,6 +440,9 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
           panels={matchingPanels}
           projectContext={projectContext}
           compact={isCompact}
+          rightPanelMaximized={isRightMaximized}
+          onToggleMaximizeRightPanel={() => service.toggleRightPanelMaximized()}
+          onCollapseRightPanel={() => service.setRightPanelOpen(false, !isCompact)}
           onCloseDrawer={() => service.setRightPanelOpen(false, !isCompact)}
         />
       )}

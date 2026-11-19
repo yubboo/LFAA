@@ -104,6 +104,7 @@ export const workspaceClientPlugin: Plugin.Object<void> = {
       id: "workspace-context",
       title: locale.contextTitle,
       order: 10,
+      placement: "utility",
       match: (activeView) => activeView === "workspace" || activeView === "projects",
       render: () => (
         <WorkspaceContextContent locale={locale} projectCount={store.getProjects().length} />

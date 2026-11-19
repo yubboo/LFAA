@@ -133,6 +133,8 @@ test("AgentService 完成 Think -> Act(读写工具+人工审批) -> Check 闭�
 
     // 验证四层上下文全量注入（系统规则 + 项目 AGENTS.md + 用户规则 + 长期记忆 + 资料库能力）
     assert.ok(capturedSystemPrompt.includes("系统安全与行为底线"));
+    assert.ok(capturedSystemPrompt.includes("自主排查与闭环修复"));
+    assert.ok(capturedSystemPrompt.includes("自主排查与编辑准则"));
     assert.ok(capturedSystemPrompt.includes("写入文件前须明确检查内容"));
     assert.ok(capturedSystemPrompt.includes(`已授权目录：${workspaceDir}`));
     assert.ok(capturedSystemPrompt.includes("保持输出简明"));
@@ -480,6 +482,95 @@ test("流式断线重连序号补发、完整句边界裁剪、指数退避与�
     assert.equal(metrics.replayedChunks, 2);
     assert.equal(metrics.reconnectRate, 1);
     assert.equal(metrics.lastClientFps, 59.4);
+  } finally {
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("默认 maxSteps 支持超过 10 轮的多步工程任务，达到上限收口也会保留推理进展", async () => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-maxsteps-"));
+  const ctx = new Context();
+  let turn = 0;
+
+  await ctx.plugin(llmPlugin, {
+    storeFilePath: path.join(tempRoot, "llm.json"),
+    adapter: async (profile, input) => {
+      turn += 1;
+      if (turn <= 12 && (input.tools?.length ?? 0) > 0) {
+        return {
+          model: profile.model,
+          provider: profile.kind,
+          content: "",
+          toolCalls: [{ id: `ls-${turn}`, name: "list_dir", argumentsJson: "{}" }],
+          finishReason: "tool_calls",
+        };
+      }
+      input.onDelta?.({ type: "reasoning", text: "汇总所有轮次结果。" });
+      input.onActivity?.();
+      input.onDelta?.({ type: "text", text: "12 轮步骤已完成。" });
+      return {
+        model: profile.model,
+        provider: profile.kind,
+        content: "12 轮步骤已完成。",
+        reasoningContent: "汇总所有轮次结果。",
+        toolCalls: [],
+        finishReason: "stop",
+      };
+    },
+  });
+  await ctx.plugin(rulesPlugin, { storeFilePath: path.join(tempRoot, "rules.json") });
+  await ctx.plugin(memoryPlugin, {
+    sessionsDir: path.join(tempRoot, "sessions"),
+    memoryFilePath: path.join(tempRoot, "memory.json"),
+  });
+  await ctx.plugin(toolsPlugin);
+  await ctx.plugin(agentPlugin, { smartTrustFilePath: path.join(tempRoot, "trust.json") });
+
+  try {
+    const session = await ctx.memory.createSession({ title: "多轮默认上限测试" });
+    const started = await ctx.agent.startRun({
+      sessionId: session.id,
+      userMessage: "连续检查 12 次",
+      workspaceRoots: [tempRoot],
+    });
+    await new Promise<void>((resolveDone, rejectDone) => {
+      const timer = setTimeout(() => rejectDone(new Error("多轮任务超时")), 5000);
+      const off = ctx.agent.subscribeRun(started.runId, (evt) => {
+        if (evt.type === "run_finished") {
+          clearTimeout(timer);
+          off();
+          resolveDone();
+        }
+      });
+    });
+
+    const msg = (await ctx.memory.getSession(session.id))?.messages.find((m) => m.id === started.assistantMessageId);
+    assert.equal(msg?.status, "done");
+    assert.equal(msg?.content, "12 轮步骤已完成。");
+    assert.equal(msg?.steps?.filter((s) => s.phase === "act").length, 12);
+
+    // 显式 maxSteps=1 时触发收口分支，验证 reasoning 与回复均正确保留。
+    turn = 0;
+    const capped = await ctx.agent.startRun({
+      sessionId: session.id,
+      userMessage: "触发上限",
+      workspaceRoots: [tempRoot],
+      maxSteps: 1,
+    });
+    await new Promise<void>((resolveDone, rejectDone) => {
+      const timer = setTimeout(() => rejectDone(new Error("收口任务超时")), 5000);
+      const off = ctx.agent.subscribeRun(capped.runId, (evt) => {
+        if (evt.type === "run_finished") {
+          clearTimeout(timer);
+          off();
+          resolveDone();
+        }
+      });
+    });
+    const cappedMsg = (await ctx.memory.getSession(session.id))?.messages.find((m) => m.id === capped.assistantMessageId);
+    assert.equal(cappedMsg?.status, "done");
+    assert.equal(cappedMsg?.content, "12 轮步骤已完成。");
+    assert.ok(cappedMsg?.reasoning?.includes("汇总所有轮次结果"));
   } finally {
     await fs.rm(tempRoot, { recursive: true, force: true });
   }

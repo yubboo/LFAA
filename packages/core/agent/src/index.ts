@@ -25,6 +25,7 @@ export * from "./types";
 export * from "./permission-policy";
 export * from "./stream-journal";
 export { createAgentHttpHandler } from "./http-handler";
+export { executeAgentTaskLoop, type RunExecutionParams, type RunLoopDeps } from "./agent-loop";
 
 const execFileAsync = promisify(execFile);
 
@@ -295,7 +296,7 @@ export class AgentService extends Service {
               workspaceRoots,
               ...(resolvedSkills.length > 0 ? { resolvedSkills } : {}),
               ...(availableSkillCatalog.length > 0 ? { availableSkillCatalog } : {}),
-              maxSteps: input.maxSteps ?? 10,
+              maxSteps: input.maxSteps ?? 28,
               getPermissionMode: () => record.permissionMode,
               signal: controller.signal,
               emit,
@@ -527,6 +528,20 @@ export class AgentService extends Service {
       replayedChunks: this.replayedChunksCount,
       lastClientFps: this.lastClientFpsValue,
     };
+  }
+
+  /** 在不写入主对话历史的情况下，基于当前规则与可选上下文快速回答右侧栏轻量提问。 */
+  async answerSideQuestion(question: string, contextHint = "", profileId?: string): Promise<string> {
+    const { systemPrompt } = await this.ctx.rules.composeSystemPrompt({});
+    const out = await this.ctx.llm.complete({
+      ...(profileId ? { profileId } : {}),
+      messages: [
+        { role: "system", content: `${systemPrompt}\n\n请以简明准确的中文直接回答右侧栏快捷提问。` },
+        ...(contextHint.trim() ? [{ role: "system" as const, content: `当前上下文摘要：\n${contextHint.slice(0, 3000)}` }] : []),
+        { role: "user", content: question },
+      ],
+    });
+    return out.content.trim() || "模型未返回内容。";
   }
 }
 

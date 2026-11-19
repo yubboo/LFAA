@@ -1,9 +1,350 @@
-/* 右侧栏 Agent 四大核心能力实时状态卡样式。 */
+/* 右侧工作台控制面板与子视图统一样式，全部复用 @lfaa/ui-theme 浅色/深色语义变量。 */
 .stack {
   display: grid;
   gap: 0.75rem;
 }
 
+.topBar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.searchWrap {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  gap: 0.4rem;
+  height: 2.15rem;
+  padding: 0 0.7rem;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--glass-control-bg, var(--color-panel));
+  color: var(--color-muted);
+}
+
+.searchWrap:focus-within {
+  border-color: var(--color-accent);
+  color: var(--color-ink);
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.84em;
+}
+
+.moreBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  border: 0;
+  border-radius: 0.55rem;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.moreBtn:hover {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.moreMenu {
+  position: absolute;
+  top: 2.4rem;
+  right: 0;
+  z-index: 20;
+  display: grid;
+  gap: 0.2rem;
+  min-width: 11.5rem;
+  padding: 0.35rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.65rem;
+  background: var(--color-surface);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.16);
+}
+
+.menuList {
+  display: grid;
+  gap: 0.12rem;
+}
+
+.menuRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.55rem;
+  width: 100%;
+  padding: 0.45rem 0.55rem;
+  border: 0;
+  border-radius: 0.55rem;
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.86em;
+  text-align: start;
+  cursor: pointer;
+}
+
+.menuRow:hover {
+  background: var(--color-active);
+}
+
+.menuRowLeft {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.menuRowLeft > svg {
+  flex: none;
+  color: var(--color-muted);
+}
+
+.menuChevron {
+  color: var(--color-muted);
+  flex: none;
+}
+
+.sectionBlock {
+  display: grid;
+  gap: 0.25rem;
+  padding-top: 0.35rem;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.15rem 0.55rem;
+  color: var(--color-muted);
+  font-size: 0.8em;
+}
+
+.sectionCount {
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.taskTitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viewAllBtn {
+  width: fit-content;
+  padding: 0.25rem 0.55rem;
+  border: 0;
+  border-radius: 0.45rem;
+  background: transparent;
+  color: var(--color-muted);
+  font: inherit;
+  font-size: 0.8em;
+  cursor: pointer;
+}
+
+.viewAllBtn:hover {
+  color: var(--color-ink);
+  background: var(--color-active);
+}
+
+.subviewHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.backBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.45rem;
+  border: 0;
+  border-radius: 0.45rem;
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.84em;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.backBtn:hover {
+  background: var(--color-active);
+}
+
+.subviewStack,
+.listStack {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.inlineForm {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.inlineInput {
+  flex: 1;
+  min-width: 0;
+  height: 1.95rem;
+  padding: 0 0.6rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.55rem;
+  background: var(--color-panel);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.82em;
+}
+
+.inlineBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.7rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.55rem;
+  background: var(--glass-control-bg, var(--color-surface));
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.82em;
+  cursor: pointer;
+}
+
+.inlineBtn:hover:not(:disabled) {
+  background: var(--color-active);
+}
+
+.inlineBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.taskCard {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.65rem;
+  background: var(--glass-card-bg, var(--color-surface));
+}
+
+.taskCardActive {
+  border-color: rgb(var(--color-accent-rgb) / 0.45);
+}
+
+.taskHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.taskSelectBtn {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.83em;
+  text-align: start;
+  cursor: pointer;
+}
+
+.stopMiniBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.4rem;
+  background: transparent;
+  color: var(--color-ink);
+  cursor: pointer;
+}
+
+.metaTag {
+  flex: none;
+  padding: 0.08rem 0.35rem;
+  border-radius: 0.35rem;
+  background: var(--color-active);
+  color: var(--color-muted);
+  font-size: 0.78em;
+}
+
+.statusIcon[data-status="running"] { color: var(--color-accent); }
+.statusIcon[data-status="done"] { color: #82cba6; }
+.statusIcon[data-status="error"],
+.statusIcon[data-status="killed"],
+.statusIcon[data-status="stopped"] { color: #f19eaa; }
+
+:global(:root[data-resolved-theme="light"]) .statusIcon[data-status="done"] { color: #226945; }
+:global(:root[data-resolved-theme="light"]) .statusIcon[data-status="error"],
+:global(:root[data-resolved-theme="light"]) .statusIcon[data-status="killed"],
+:global(:root[data-resolved-theme="light"]) .statusIcon[data-status="stopped"] { color: #a32540; }
+
+.logOutput {
+  margin: 0;
+  max-height: 11rem;
+  overflow: auto;
+  padding: 0.5rem;
+  border-radius: 0.45rem;
+  background: var(--color-panel);
+  color: var(--color-ink);
+  font-family: var(--code-font-family, monospace);
+  font-size: 0.76em;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.subagentDetail { display: grid; gap: 0.35rem; }
+.subagentPrompt { color: var(--color-muted); font-size: 0.78em; line-height: 1.4; }
+.sideAskQ { color: var(--color-ink); font-size: 0.84em; font-weight: 600; }
+.sideAskA { color: var(--color-muted); font-size: 0.82em; line-height: 1.5; white-space: pre-wrap; }
+
+.emptyBox {
+  display: grid;
+  gap: 0.4rem;
+  justify-items: center;
+  padding: 1.2rem 0.75rem;
+  border: 1px dashed var(--color-line);
+  border-radius: 0.7rem;
+  color: var(--color-muted);
+  font-size: 0.82em;
+  text-align: center;
+}
+
+.errorBanner {
+  margin: 0;
+  color: #f19eaa;
+  font-size: 0.8em;
+}
+
+:global(:root[data-resolved-theme="light"]) .errorBanner { color: #a32540; }
+
+/* 保留原工作详情卡样式，供从 ⋮ 菜单查看模型、权限、记忆与规则层级。 */
 .card {
   display: grid;
   gap: 0.45rem;
@@ -11,38 +352,12 @@
   border: 1px solid var(--glass-border, var(--color-line));
   border-radius: 0.85rem;
   background: var(--glass-card-bg, var(--color-surface));
-  background-image: var(--glass-sheen, none);
 }
-
-/* 模型、工具和记忆使用同一字段布局，允许较长的状态值换行。 */
-.item {
-  display: grid;
-  gap: 0.15rem;
-  padding-bottom: 0.45rem;
-  border-bottom: 1px solid var(--color-line);
-}
-
-.item:last-of-type {
-  padding-bottom: 0;
-  border-bottom: 0;
-}
-
-.label {
-  color: var(--color-muted);
-  font-size: 0.8em;
-}
-
-.value {
-  color: var(--color-ink);
-  font-size: 0.88em;
-  font-weight: 500;
-  word-break: break-word;
-}
-
-.valueDanger {
-  color: #fb923c;
-}
-
+.item { display: grid; gap: 0.15rem; padding-bottom: 0.45rem; border-bottom: 1px solid var(--color-line); }
+.item:last-of-type { padding-bottom: 0; border-bottom: 0; }
+.label { color: var(--color-muted); font-size: 0.8em; }
+.value { color: var(--color-ink); font-size: 0.88em; font-weight: 500; word-break: break-word; }
+.valueDanger { color: var(--color-accent); }
 .settingsBtn {
   width: 100%;
   padding: 0.5rem 0.75rem;
@@ -53,7 +368,4 @@
   font-size: 0.86em;
   cursor: pointer;
 }
-
-.settingsBtn:hover {
-  background: var(--color-active);
-}
+.settingsBtn:hover { background: var(--color-active); }

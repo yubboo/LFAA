@@ -1,5 +1,6 @@
 /* 助手状态、活动折叠行及终端详情，使用工作区浅色和深色主题变量。 */
 .liveStatus,
+.liveTail,
 .disclosure,
 .activityRow {
   display: flex;
@@ -60,7 +61,8 @@
 }
 
 .disclosure,
-.activityRow {
+.activityRow,
+.liveTail {
   width: fit-content;
   max-width: 100%;
   padding: 0.12rem 0.32rem;
@@ -68,6 +70,11 @@
   border-radius: 0.35rem;
   background: transparent;
   list-style: none;
+}
+
+.liveTail {
+  padding: 0.14rem 0.48rem;
+  border-radius: 0.45rem;
 }
 
 .disclosure,
@@ -152,15 +159,17 @@ details[open] > summary > .chevron {
 }
 
 /* 准备和执行共用柔和高光，审批和终态停在实际结果。 */
-:is(.disclosure, .activityRow):is([data-status="preparing"], [data-status="running"]),
+:is(.disclosure, .activityRow, .liveTail):is([data-status="preparing"], [data-status="running"]),
 .activityDetail[data-kind="command"][data-status="running"] .terminalHeader {
   position: relative;
   isolation: isolate;
   overflow: hidden;
+  color: var(--color-ink);
   background-color: color-mix(in srgb, var(--color-accent) 8%, var(--color-surface));
+  box-shadow: inset 0 0 0 1px rgb(var(--color-accent-rgb) / 0.22);
 }
 
-:is(.disclosure, .activityRow):is([data-status="preparing"], [data-status="running"])::before,
+:is(.disclosure, .activityRow, .liveTail):is([data-status="preparing"], [data-status="running"])::before,
 .activityDetail[data-kind="command"][data-status="running"] .terminalHeader::before {
   position: absolute;
   z-index: -1;
@@ -274,8 +283,9 @@ details[open] > summary > .chevron {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .liveDot,
   .process:not([hidden]),
-  :is(.disclosure, .activityRow):is([data-status="preparing"], [data-status="running"])::before,
+  :is(.disclosure, .activityRow, .liveTail):is([data-status="preparing"], [data-status="running"])::before,
   .activityDetail[data-kind="command"][data-status="running"] .terminalHeader::before,
   .fileActivity > .icon:first-child,
   .activityStatus > svg { animation: none; }

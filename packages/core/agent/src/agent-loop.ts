@@ -146,13 +146,17 @@ export async function executeAgentTaskLoop(
     : "";
 
   const skillsCatalogHint = params.availableSkillCatalog && params.availableSkillCatalog.length > 0
-    ? `\n\n可用技能目录（按需调用 load_skill 读取正文；若用户要求从 Git 安装技能请调用 install_skill_from_git；若用户要求创建个人技能请调用 save_user_skill 存入 ~/.lfaa/skills/）：\n${params.availableSkillCatalog
+    ? `\n\n可用技能目录（当任务命中某个技能的适用场景时，请先调用 load_skill 读取完整正文再按规范执行；若用户要求从 Git 安装技能请调用 install_skill_from_git；若用户要求创建个人技能请调用 save_user_skill 存入 ~/.lfaa/skills/）：\n${params.availableSkillCatalog
         .slice(0, 30)
         .map((s) => `- ${s.name} (id: ${s.id}, 来源: ${s.source})${s.description ? `：${s.description}` : ""}`)
         .join("\n")}`
     : "";
 
-  const progressHint = "多步任务的进度写入用户可见的正文。首次调用工具前，简短交代准备核查或执行的事项；得到实际结果、发现异常或进入下一阶段时，再说明进展和接下来的动作。连续的小操作可共用一段，直接问答无需播报。命令和工具详情由运行时展示。";
+  const progressHint = [
+    "多步任务的进度写入用户可见的正文。首次调用工具前，简短交代准备核查或执行的事项；得到实际结果、发现异常或进入下一阶段时，再说明进展和接下来的动作。连续的小操作可共用一段，直接问答无需播报。命令和工具详情由运行时展示。",
+    "自主排查与编辑准则：定位问题时先用 search_files / list_dir / read_file 检索并精读关键源码上下文再动手；需要修改代码或修复报错时，直接调用 edit_file / write_file 落实修改并立即通过 run_command 验证，遇到新报错继续读取对应行并修正闭环，不得停在只给建议或让用户手动改代码。",
+    "工具效率与核验规范：创建或读取多个互相独立的文件时，请在同轮并行发起多个 read_file / write_file / edit_file 调用，避免逐个文件串行消耗步数；执行构建/测试请直接用 run_command 验证，不可将“静态自审”等价于编译或运行通过；向用户提供复现命令时，必须严格匹配当前终端语法（CMD 用 `set \"VAR=...\"`，PowerShell 用 `$env:VAR=\"...\"`），严禁混写。",
+  ].join("\n");
   const shellHint = await deps.tools.describeCommandShell();
   const systemMessage: LlmMessage = { role: "system", content: "" };
   const updateSystemMessage = () => {
@@ -484,6 +488,15 @@ export async function executeAgentTaskLoop(
   };
   pushOrUpdateStep(fallbackStep);
   let fallbackText = "";
+  let fallbackStage: AgentStepTrace["modelStage"];
+  let lastFallbackActivity = fallbackStep.timestamp;
+  const noteFallbackStage = (stage = fallbackStage) => {
+    const now = Date.now();
+    if (fallbackStage === stage && now - lastFallbackActivity < 4_000) return;
+    lastFallbackActivity = now;
+    fallbackStage = stage;
+    pushOrUpdateStep({ ...fallbackStep, ...(fallbackStage ? { modelStage: fallbackStage } : {}), timestamp: now });
+  };
   updateSystemMessage();
   const fallback = await completeAgentRound(deps.llm, {
     ...(params.profileId !== undefined ? { profileId: params.profileId } : {}),
@@ -493,11 +506,14 @@ export async function executeAgentTaskLoop(
     ],
     tools: [],
     signal: params.signal,
+    onActivity: () => noteFallbackStage(),
     onDelta: (delta) => {
-      if (delta.type === "text" && delta.text) {
-        if (!fallbackText) {
-          pushOrUpdateStep({ ...fallbackStep, modelStage: "replying", timestamp: Date.now() });
-        }
+      if (delta.type === "reasoning" && delta.text) {
+        noteFallbackStage("reasoning");
+        accumulatedReasoning += delta.text;
+        params.emit({ type: "delta", runId: params.runId, seq: 0, kind: "reasoning", text: delta.text });
+      } else if (delta.type === "text" && delta.text) {
+        noteFallbackStage("replying");
         fallbackText += delta.text;
         params.emit({ type: "delta", runId: params.runId, seq: 0, kind: "text", text: delta.text });
       }

@@ -300,3 +300,35 @@ export async function openFolderInExplorer(folderPath: string): Promise<{ opened
     };
   }
 }
+
+// 在 Windows 文件资源管理器中选中并高亮目标文件。
+export async function revealFileInExplorer(filePath: string): Promise<{ opened: boolean; error?: string }> {
+  const target = resolve(filePath);
+  if (!existsSync(target)) {
+    return { opened: false, error: `找不到目标文件：${target}` };
+  }
+  if (process.platform !== "win32") {
+    return { opened: false, error: "当前仅支持在 Windows 本地环境在文件资源管理器中显示。" };
+  }
+  try {
+    const desktopName = await detectWindowsDesktopName();
+    if (desktopName && desktopName.toLowerCase() !== "default") {
+      return {
+        opened: false,
+        error: "当前开发服务运行在沙箱隔离桌面，无法向主屏幕弹出资源管理器窗口；请在本地终端运行 pnpm lfaa web。",
+      };
+    }
+    const child = spawn("explorer.exe", [`/select,${target}`], {
+      detached: true,
+      stdio: "ignore",
+      windowsHide: false,
+    });
+    child.unref();
+    return { opened: true };
+  } catch (error) {
+    return {
+      opened: false,
+      error: error instanceof Error ? `在资源管理器中显示失败：${error.message}` : String(error),
+    };
+  }
+}

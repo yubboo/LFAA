@@ -11,6 +11,7 @@ import type {
   WorkbenchSectionItem,
   WorkbenchSectionProvider,
   WorkbenchViewContribution,
+  WorkbenchWorkspaceActionContribution,
 } from "../src/index";
 import {
   LEFT_SIDEBAR_STORAGE_KEY,
@@ -32,9 +33,12 @@ export interface WorkbenchSnapshot {
   activeDomainItem: string;
   leftSidebarOpen: boolean;
   rightPanelOpen: boolean;
+  rightWorkbenchWide: boolean;
+  rightPanelMaximized: boolean;
   views: WorkbenchViewContribution<ReactNode>[];
   contextPanels: WorkbenchContextPanelContribution<ReactNode>[];
   accountActions: WorkbenchAccountActionContribution<ReactNode>[];
+  workspaceActions: WorkbenchWorkspaceActionContribution<ReactNode>[];
   projectProvider: WorkbenchProjectProvider<ReactNode> | null;
   projects: WorkbenchProjectItem[];
   sectionProvider: WorkbenchSectionProvider<ReactNode> | null;
@@ -50,6 +54,7 @@ export class WorkbenchClientService extends Service {
   private readonly viewMap = new Map<string, WorkbenchViewContribution<ReactNode>>();
   private readonly panelMap = new Map<string, WorkbenchContextPanelContribution<ReactNode>>();
   private readonly accountActionMap = new Map<string, WorkbenchAccountActionContribution<ReactNode>>();
+  private readonly workspaceActionMap = new Map<string, WorkbenchWorkspaceActionContribution<ReactNode>>();
   private projectProviderValue: WorkbenchProjectProvider<ReactNode> | null = null;
   private unsubscribeProjects: (() => void) | null = null;
   private sectionProviderValue: WorkbenchSectionProvider<ReactNode> | null = null;
@@ -62,6 +67,8 @@ export class WorkbenchClientService extends Service {
   private activeDomainItemValue = "";
   private leftSidebarOpenValue = readBooleanPref(LEFT_SIDEBAR_STORAGE_KEY, true);
   private rightPanelOpenValue = readBooleanPref(RIGHT_PANEL_STORAGE_KEY, true);
+  private rightWorkbenchWideValue = false;
+  private rightPanelMaximizedValue = false;
   private cachedSnapshot: WorkbenchSnapshot | null = null;
 
   constructor(ctx: Context) {
@@ -91,6 +98,9 @@ export class WorkbenchClientService extends Service {
     const accountActions = [...this.accountActionMap.values()].sort(
       (left, right) => (left.order ?? 0) - (right.order ?? 0),
     );
+    const workspaceActions = [...this.workspaceActionMap.values()].sort(
+      (left, right) => (left.order ?? 0) - (right.order ?? 0),
+    );
     const chatSessions = this.chatProviderValue ? this.chatProviderValue.getSessions() : [];
     const activeChatSessionId = this.chatProviderValue ? this.chatProviderValue.getActiveSessionId() : null;
     const rawProjects = this.projectProviderValue ? this.projectProviderValue.getProjects() : [];
@@ -111,9 +121,12 @@ export class WorkbenchClientService extends Service {
       activeDomainItem: this.activeDomainItemValue,
       leftSidebarOpen: this.leftSidebarOpenValue,
       rightPanelOpen: this.rightPanelOpenValue,
+      rightWorkbenchWide: this.rightWorkbenchWideValue,
+      rightPanelMaximized: this.rightPanelMaximizedValue,
       views: [...this.viewMap.values()],
       contextPanels,
       accountActions,
+      workspaceActions,
       projectProvider: this.projectProviderValue,
       projects,
       sectionProvider: this.sectionProviderValue,
@@ -153,6 +166,17 @@ export class WorkbenchClientService extends Service {
     return () => {
       if (this.accountActionMap.get(contribution.id) === contribution) {
         this.accountActionMap.delete(contribution.id);
+        this.emit();
+      }
+    };
+  }
+
+  registerWorkspaceAction(contribution: WorkbenchWorkspaceActionContribution<ReactNode>): () => void {
+    this.workspaceActionMap.set(contribution.id, contribution);
+    this.emit();
+    return () => {
+      if (this.workspaceActionMap.get(contribution.id) === contribution) {
+        this.workspaceActionMap.delete(contribution.id);
         this.emit();
       }
     };
@@ -242,12 +266,33 @@ export class WorkbenchClientService extends Service {
   setRightPanelOpen(open: boolean, persist = true): void {
     if (this.rightPanelOpenValue === open) return;
     this.rightPanelOpenValue = open;
+    if (!open) this.rightPanelMaximizedValue = false;
     if (persist) writeBooleanPref(RIGHT_PANEL_STORAGE_KEY, open);
     this.emit();
   }
 
   toggleRightPanel(): void {
     this.setRightPanelOpen(!this.rightPanelOpenValue);
+  }
+
+  setRightPanelMaximized(maximized: boolean): void {
+    if (this.rightPanelMaximizedValue === maximized && (!maximized || this.rightPanelOpenValue)) return;
+    this.rightPanelMaximizedValue = maximized;
+    if (maximized && !this.rightPanelOpenValue) {
+      this.rightPanelOpenValue = true;
+      writeBooleanPref(RIGHT_PANEL_STORAGE_KEY, true);
+    }
+    this.emit();
+  }
+
+  toggleRightPanelMaximized(): void {
+    this.setRightPanelMaximized(!this.rightPanelMaximizedValue);
+  }
+
+  setRightWorkbenchWide(wide: boolean): void {
+    if (this.rightWorkbenchWideValue === wide) return;
+    this.rightWorkbenchWideValue = wide;
+    this.emit();
   }
 
   setLibraryTab(tab: LibraryTabKey): void {

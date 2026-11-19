@@ -155,6 +155,22 @@ test("Host workspacePlugin 支持默认 Documents/lfaa 路径解析、重名递�
     assert.equal(extraInspection.rootPath, secondFolder);
     assert.ok(extraInspection.entries.some((entry) => entry.name === "EXTRA.txt" && entry.kind === "file"));
 
+    const subInspection = await ctx.workspace.inspectProject(createdPicked.id, path.join(externalFolder, "src"));
+    assert.ok(subInspection);
+    assert.equal(subInspection.rootPath, path.join(externalFolder, "src"));
+
+    const readmeData = await ctx.workspace.readProjectFile(createdPicked.id, "README.md");
+    assert.ok(readmeData);
+    assert.equal(readmeData.relativePath, "README.md");
+    assert.ok(readmeData.content.length > 0);
+    await assert.rejects(
+      () => ctx.workspace.readProjectFile(createdPicked.id, "../outside.txt"),
+      /超出当前项目授权目录边界/,
+    );
+    const revealBlocked = await ctx.workspace.revealProjectFileInExplorer(createdPicked.id, "../outside.txt");
+    assert.equal(revealBlocked.opened, false);
+    assert.match(revealBlocked.error ?? "", /边界/);
+
     const listed = await ctx.workspace.listProjects();
     assert.equal(listed.length, 2);
 

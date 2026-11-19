@@ -213,6 +213,22 @@ export function createAgentHttpHandler(service: AgentService, options: AgentHttp
         return true;
       }
 
+      if (method === "POST" && pathname === "/api/agent/side-ask") {
+        const body = await readJsonBody(req);
+        const question = typeof body.question === "string" ? body.question.trim() : "";
+        if (!question) {
+          sendJson(res, 400, { error: "提问内容不能为空。" });
+          return true;
+        }
+        const answer = await service.answerSideQuestion(
+          question,
+          typeof body.contextHint === "string" ? body.contextHint : "",
+          typeof body.profileId === "string" ? body.profileId : undefined,
+        );
+        sendJson(res, 200, { answer });
+        return true;
+      }
+
       sendJson(res, 404, { error: "未找到 Agent 接口路由。" });
       return true;
     } catch (error) {

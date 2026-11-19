@@ -1,0 +1,664 @@
+// IDE 化右侧工作台主壳：对齐中间栏顶栏的统一 Tab 栏、全高代码/浏览器舞台、可折叠右辅助栏与最右图标轨。
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
+import {
+  IconCheck, IconClock, IconCircleX, IconFileDiff,
+  IconPlus, IconSearch, IconTerminal2, IconWorld, IconX,
+} from "@tabler/icons-react";
+import { fetchBrowserState, manageBrowserTab, RightBrowserPane, type BrowserSessionSnapshot, type BrowserTabItem } from "@lfaa/browser/client";
+import type { WorkbenchContextPanelContribution } from "@lfaa/ui-layout";
+import type { ChatClientStore } from "../chat-store";
+import type { ChatLocaleMessages } from "../locales";
+import { useAuxResize } from "../useAuxResize";
+import { patchWorkbenchSessionState, readWorkbenchSessionState } from "../workbench-persist";
+import { FileChangePreview } from "./FileChangePreview";
+import { FileTypeIcon } from "./file-icons";
+import { RightFileTreePane } from "./RightFileTreePane";
+import { RightGitReviewPane } from "./RightGitReviewPane";
+import { RightSideAskPane } from "./RightSideAskPane";
+import { RightSubagentsPane, type RightSubagentItem } from "./RightSubagentsPane";
+import { RightTerminalPane, type RightJobItem } from "./RightTerminalPane";
+import { RightUtilityRail, type RightAuxTab } from "./RightUtilityRail";
+import { RightWorkbenchActions } from "./RightWorkbenchActions";
+import styles from "./RightWorkbenchPane.module.css";
+
+function baseFileName(filePath: string): string {
+  const parts = filePath.replace(/\\/gu, "/").split("/");
+  return parts[parts.length - 1] || filePath;
+}
+
+export function RightWorkbenchPane({
+  locale,
+  store,
+  boundProjectId,
+  boundProjectName,
+  showFilePreview,
+  utilityPanels = [],
+  projectContext = null,
+  compact = false,
+  rightPanelMaximized = false,
+  onToggleMaximizeRightPanel,
+  onCollapseRightPanel,
+  onCloseDrawer,
+  onOpenSettings,
+  onOpenCodeReview,
+  onOpenExtensions,
+  onStageWideChange,
+}: {
+  locale: ChatLocaleMessages;
+  store: ChatClientStore;
+  boundProjectId: string | null;
+  boundProjectName: string | null;
+  showFilePreview: boolean;
+  utilityPanels?: WorkbenchContextPanelContribution<ReactNode>[] | undefined;
+  projectContext?: ReactNode | null | undefined;
+  compact?: boolean | undefined;
+  rightPanelMaximized?: boolean | undefined;
+  onToggleMaximizeRightPanel?: (() => void) | undefined;
+  onCollapseRightPanel?: (() => void) | undefined;
+  onCloseDrawer?: (() => void) | undefined;
+  onOpenSettings: () => void;
+  onOpenCodeReview?: (() => void) | undefined;
+  onOpenExtensions?: (() => void) | undefined;
+  onStageWideChange?: ((wide: boolean) => void) | undefined;
+}) {
+  const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+  const sessionId = state.activeSession?.id ?? state.activeSessionId ?? "default";
+  const persistedInit = readWorkbenchSessionState(sessionId);
+  const [browserOpen, setBrowserOpen] = useState(persistedInit.browserOpen);
+  const [browserTabs, setBrowserTabs] = useState<BrowserTabItem[]>([]);
+  const [browserInitialUrl, setBrowserInitialUrl] = useState<string | undefined>(persistedInit.browserUrl);
+  const [browserExternalState, setBrowserExternalState] = useState<{ snap: BrowserSessionSnapshot; nonce: number }>();
+  const [reviewTabOpen, setReviewTabOpen] = useState(persistedInit.reviewTabOpen);
+  const [selectedJobId, setSelectedJobId] = useState<string>();
+  const [selectedSubagentId, setSelectedSubagentId] = useState<string>();
+  const [fileTreeOpen, setFileTreeOpen] = useState(persistedInit.fileTreeOpen);
+  const [auxOpen, setAuxOpen] = useState(persistedInit.auxOpen);
+  const [activeAux, setActiveAux] = useState<RightAuxTab>(persistedInit.activeAux);
+  const [urlQuery, setUrlQuery] = useState("");
+  const [jobs, setJobs] = useState<RightJobItem[]>([]);
+  const [subagents, setSubagents] = useState<RightSubagentItem[]>([]);
+  const syncedSessionRef = useRef<string | null>(null);
+  const splitAreaRef = useRef<HTMLDivElement>(null);
+  const { auxWidth, dragging: auxDragging, startResize: startAuxResize, handleKeyResize: handleAuxKeyResize } = useAuxResize(splitAreaRef);
+
+  const fileTabs = showFilePreview ? state.filePreviewTabs : [];
+  const activeFileTab = fileTabs.find((tab) => tab.id === state.activeFilePreviewId);
+  const selectedStep = activeFileTab?.messageId && activeFileTab?.stepId
+    ? state.activeSession?.messages.find((m) => m.id === activeFileTab.messageId)?.steps?.find((s) => s.id === activeFileTab.stepId)
+    : undefined;
+
+  const stageKind: "file" | "browser" | "review" | "welcome" = state.rightStageKind === "review" && reviewTabOpen
+    ? "review"
+    : state.rightStageKind === "browser" && browserOpen
+      ? "browser"
+      : activeFileTab
+        ? "file"
+        : browserOpen
+          ? "browser"
+          : reviewTabOpen
+            ? "review"
+            : "welcome";
+
+  // 文件视图默认与「工作区文件树」同屏联动；浏览器/审查视图严禁混入文件树（浏览器就浏览器）。
+  const effectiveAuxTab: RightAuxTab | null = stageKind === "file"
+    ? (auxOpen && activeAux !== "filesTree" ? activeAux : (fileTreeOpen ? "filesTree" : null))
+    : (stageKind === "browser" || stageKind === "review")
+      ? (auxOpen && activeAux !== "filesTree" ? activeAux : null)
+      : (auxOpen ? activeAux : null);
+
+  // 切换会话或刷新挂载时恢复已持久化的右侧栏状态，并拉取宿主机已开启的浏览器标签。
+  useEffect(() => {
+    const saved = readWorkbenchSessionState(sessionId);
+    syncedSessionRef.current = null;
+    setBrowserOpen(saved.browserOpen);
+    setBrowserInitialUrl(saved.browserUrl);
+    setBrowserTabs([]);
+    setBrowserExternalState(undefined);
+    setReviewTabOpen(saved.reviewTabOpen);
+    setFileTreeOpen(saved.fileTreeOpen);
+    setAuxOpen(saved.auxOpen);
+    setActiveAux(saved.activeAux);
+    syncedSessionRef.current = sessionId;
+
+    let current = true;
+    void fetchBrowserState(sessionId).then((res) => {
+      if (!current) return;
+      if (res.state.active && res.state.tabs.length > 0) {
+        setBrowserTabs(res.state.tabs);
+        setBrowserExternalState((prev) => ({ snap: res.state, nonce: (prev?.nonce ?? 0) + 1 }));
+        setBrowserOpen(true);
+      }
+    }).catch(() => {});
+    return () => { current = false; };
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (syncedSessionRef.current !== sessionId) return;
+    patchWorkbenchSessionState(sessionId, {
+      browserOpen,
+      ...(browserInitialUrl ? { browserUrl: browserInitialUrl } : {}),
+      reviewTabOpen,
+      fileTreeOpen,
+      auxOpen,
+      activeAux,
+    });
+  }, [activeAux, auxOpen, browserInitialUrl, browserOpen, fileTreeOpen, reviewTabOpen, sessionId]);
+
+  useEffect(() => {
+    onStageWideChange?.(stageKind !== "welcome" || effectiveAuxTab !== null);
+  }, [effectiveAuxTab, onStageWideChange, stageKind]);
+
+  // 响应聊天消息打开文件或「浏览器」入口请求。
+  useEffect(() => {
+    if (!state.rightPanelRequest) return;
+    const req = state.rightPanelRequest;
+    if (req.tab === "browser") {
+      setBrowserOpen(true);
+      store.setRightStageKind("browser");
+      if (req.url) setBrowserInitialUrl(req.url);
+    } else if (req.tab === "review") {
+      setReviewTabOpen(true);
+      store.setRightStageKind("review");
+    } else if (req.tab === "files") {
+      if (state.filePreviewTabs.length > 0) {
+        store.setRightStageKind("file");
+        setAuxOpen(false);
+        setFileTreeOpen(true);
+      } else {
+        store.setRightStageKind(null);
+        setActiveAux("filesTree");
+        setAuxOpen(true);
+      }
+    } else if (req.tab === "terminal") {
+      if (req.url) setSelectedJobId(req.url);
+      setActiveAux("terminal");
+      setAuxOpen(true);
+    } else if (req.tab === "subagents") {
+      if (req.url) setSelectedSubagentId(req.url);
+      setActiveAux("subagents");
+      setAuxOpen(true);
+    } else if (req.tab === "sideAsk" || req.tab === "details") {
+      setActiveAux(req.tab);
+      setAuxOpen(true);
+    }
+  }, [state.filePreviewTabs.length, state.rightPanelRequest, store]);
+
+  useEffect(() => {
+    let active = true;
+    const loadSummary = async () => {
+      try {
+        const [jobsRes, subsRes] = await Promise.all([
+          fetch(`/api/jobs?sessionId=${encodeURIComponent(sessionId)}`).then((r) => (r.ok ? r.json() : { jobs: [] })),
+          fetch(`/api/subagents?sessionId=${encodeURIComponent(sessionId)}`).then((r) => (r.ok ? r.json() : { subagents: [] })),
+        ]);
+        if (!active) return;
+        if (Array.isArray(jobsRes.jobs)) setJobs(jobsRes.jobs);
+        if (Array.isArray(subsRes.subagents)) setSubagents(subsRes.subagents);
+      } catch {
+        // 忽略后台概览轮询偶发失败
+      }
+    };
+    void loadSummary();
+    const timer = setInterval(() => void loadSummary(), 2500);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [sessionId]);
+
+  const handleBrowserSnapshot = useCallback((snap: BrowserSessionSnapshot) => {
+    setBrowserTabs(snap.tabs ?? []);
+    if (snap.url && snap.url !== "about:blank") {
+      setBrowserInitialUrl(snap.url);
+      patchWorkbenchSessionState(sessionId, { browserOpen: true, browserUrl: snap.url });
+    }
+  }, [sessionId]);
+
+  const handleOpenNewBrowserTab = () => {
+    const wasOpen = browserOpen;
+    setBrowserOpen(true);
+    store.setRightStageKind("browser");
+    if (!wasOpen && browserTabs.length === 0) return;
+    void manageBrowserTab(sessionId, { action: "new" })
+      .then((r) => {
+        setBrowserTabs(r.state.tabs ?? []);
+        setBrowserExternalState((prev) => ({ snap: r.state, nonce: (prev?.nonce ?? 0) + 1 }));
+      })
+      .catch(() => {});
+  };
+
+  const handleCloseBrowserTab = (tabId?: string) => {
+    if (!tabId || browserTabs.length <= 1) {
+      setBrowserOpen(false);
+      setBrowserTabs([]);
+      setBrowserInitialUrl(undefined);
+      setBrowserExternalState(undefined);
+      patchWorkbenchSessionState(sessionId, { browserOpen: false, browserUrl: "" });
+      store.setRightStageKind(activeFileTab ? "file" : null);
+      return;
+    }
+    void manageBrowserTab(sessionId, { action: "close", tabId })
+      .then((r) => {
+        setBrowserTabs(r.state.tabs ?? []);
+        setBrowserExternalState((prev) => ({ snap: r.state, nonce: (prev?.nonce ?? 0) + 1 }));
+      })
+      .catch(() => {});
+  };
+
+  const handleToggleAux = (tab: RightAuxTab) => {
+    if (tab === "filesTree") {
+      if (stageKind === "file") {
+        if (auxOpen && activeAux !== "filesTree") {
+          setAuxOpen(false);
+          setFileTreeOpen(true);
+        } else {
+          setFileTreeOpen((v) => !v);
+        }
+        return;
+      }
+      if (stageKind === "browser" || stageKind === "review") {
+        if (fileTabs.length > 0) {
+          store.setRightStageKind("file");
+          setAuxOpen(false);
+          setFileTreeOpen(true);
+        } else {
+          store.setRightStageKind(null);
+          setActiveAux("filesTree");
+          setAuxOpen(true);
+        }
+        return;
+      }
+    }
+    if (auxOpen && activeAux === tab) {
+      setAuxOpen(false);
+    } else {
+      setActiveAux(tab);
+      setAuxOpen(true);
+    }
+  };
+
+  const handleUrlJump = (e: FormEvent) => {
+    e.preventDefault();
+    const val = urlQuery.trim();
+    if (!val) return;
+    setBrowserInitialUrl(val);
+    setBrowserOpen(true);
+    store.setRightStageKind("browser");
+  };
+
+  const activeProfile = state.profiles.find((p) => p.id === state.activeProfileId) ?? state.profiles[0];
+  const activeRulesCount = state.rules.filter((r) => r.content.trim().length > 0).length;
+  const runningJobsCount = jobs.filter((j) => j.status === "running").length;
+  const runningSubsCount = subagents.filter((s) => s.status === "running").length;
+
+  const auxTitles: Record<RightAuxTab, string> = {
+    filesTree: locale.isZh ? "工作区文件" : "Workspace Files",
+    workspaceContext: locale.isZh ? "工作区上下文" : "Workspace Context",
+    terminal: locale.isZh ? "终端与后台任务" : "Terminal & Tasks",
+    subagents: locale.isZh ? "子智能体团队" : "Subagents",
+    sideAsk: locale.isZh ? "侧边提问" : "Side Ask",
+    details: locale.isZh ? "工作详情" : "Work Details",
+  };
+
+  const renderBrowserHeaderTabs = () => {
+    if (!browserOpen) return null;
+    if (browserTabs.length === 0) {
+      return (
+        <div className={`${styles.tabItem} ${stageKind === "browser" ? styles.tabItemActive : ""}`}>
+          <button
+            type="button"
+            className={styles.tabBtn}
+            onClick={() => store.setRightStageKind("browser")}
+          >
+            <IconWorld size={13} aria-hidden="true" />
+            <span>{locale.isZh ? "内置浏览器" : "Browser"}</span>
+          </button>
+          <button type="button" className={styles.tabClose} aria-label="Close browser" onClick={() => handleCloseBrowserTab()}>
+            <IconX size={11} />
+          </button>
+        </div>
+      );
+    }
+    return browserTabs.map((bTab) => {
+      const active = stageKind === "browser" && bTab.active;
+      const tabLabel = bTab.title && bTab.title !== "about:blank"
+        ? bTab.title
+        : (bTab.url && bTab.url !== "about:blank" ? bTab.url : (locale.isZh ? "新标签页" : "New Tab"));
+      return (
+        <div key={bTab.tabId} className={`${styles.tabItem} ${active ? styles.tabItemActive : ""}`}>
+          <button
+            type="button"
+            className={styles.tabBtn}
+            title={bTab.url && bTab.url !== "about:blank" ? bTab.url : tabLabel}
+            onClick={() => {
+              store.setRightStageKind("browser");
+              if (!bTab.active) {
+                void manageBrowserTab(sessionId, { action: "activate", tabId: bTab.tabId })
+                  .then((r) => {
+                    setBrowserTabs(r.state.tabs ?? []);
+                    setBrowserExternalState((prev) => ({ snap: r.state, nonce: (prev?.nonce ?? 0) + 1 }));
+                  })
+                  .catch(() => {});
+              }
+            }}
+          >
+            <IconWorld size={13} aria-hidden="true" />
+            <span>{tabLabel}</span>
+          </button>
+          <button
+            type="button"
+            className={styles.tabClose}
+            aria-label={locale.isZh ? "关闭浏览器标签" : "Close browser tab"}
+            onClick={() => handleCloseBrowserTab(bTab.tabId)}
+          >
+            <IconX size={11} />
+          </button>
+        </div>
+      );
+    });
+  };
+
+  const renderAuxBody = (tab: RightAuxTab) => {
+    if (tab === "filesTree") {
+      return (
+        <RightFileTreePane
+          projectId={boundProjectId}
+          projectName={boundProjectName}
+          activeFilePath={stageKind === "file" ? activeFileTab?.path : undefined}
+          isZh={locale.isZh}
+          store={store}
+        />
+      );
+    }
+    if (tab === "workspaceContext") {
+      return (
+        <div className={styles.auxScroll}>
+          {projectContext}
+          {utilityPanels.map((p) => (
+            <section key={p.id} className={styles.auxCard}>
+              <h4 className={styles.auxCardTitle}>{p.title}</h4>
+              <div className={styles.auxCardBody}>{p.render()}</div>
+            </section>
+          ))}
+        </div>
+      );
+    }
+    if (tab === "terminal") return <div className={styles.auxPad}><RightTerminalPane sessionId={sessionId} isZh={locale.isZh} selectedJobId={selectedJobId} /></div>;
+    if (tab === "subagents") return <div className={styles.auxPad}><RightSubagentsPane sessionId={sessionId} isZh={locale.isZh} selectedSubagentId={selectedSubagentId} /></div>;
+    if (tab === "sideAsk") {
+      return (
+        <div className={styles.auxPad}>
+          <RightSideAskPane
+            isZh={locale.isZh}
+            profileId={state.activeProfileId || undefined}
+            contextHint={boundProjectName ? `当前绑定项目：${boundProjectName}` : ""}
+          />
+        </div>
+      );
+    }
+    return (
+      <div className={styles.auxScroll}>
+        <div className={styles.auxCard}>
+          <div className={styles.detailRow}><span>{locale.brainLabel}</span><strong>{activeProfile ? `${activeProfile.name} (${activeProfile.model})` : "-"}</strong></div>
+          <div className={styles.detailRow}><span>{locale.toolsLabel}</span><strong>{boundProjectName || locale.toolsUnbound}</strong></div>
+          <div className={styles.detailRow}><span>{locale.memoryLabel}</span><strong>{`${state.memories.length} ${locale.memoryCountSuffix}`}</strong></div>
+          <div className={styles.detailRow}><span>{locale.rulesLabel}</span><strong>{`${activeRulesCount} ${locale.rulesLayersCountSuffix}`}</strong></div>
+        </div>
+        <button type="button" className={styles.auxActionBtn} onClick={onOpenSettings}>{locale.openAgentSettings}</button>
+      </div>
+    );
+  };
+
+  return (
+    <div className={styles.workbench}>
+      <header className={styles.topHeader}>
+        <div className={styles.tabBar} role="tablist" aria-label={locale.isZh ? "右侧打开标签" : "Right workbench tabs"}>
+          {fileTabs.map((tab) => {
+            const active = stageKind === "file" && tab.id === activeFileTab?.id;
+            const fileName = baseFileName(tab.path);
+            return (
+              <div key={tab.id} className={`${styles.tabItem} ${active ? styles.tabItemActive : ""}`}>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  className={styles.tabBtn}
+                  title={tab.path}
+                  onClick={() => store.selectFilePreview(tab.id)}
+                >
+                  <FileTypeIcon name={fileName} kind="file" />
+                  <span>{fileName}</span>
+                </button>
+                <button
+                  type="button"
+                  className={styles.tabClose}
+                  aria-label={locale.isZh ? `关闭 ${baseFileName(tab.path)}` : `Close ${baseFileName(tab.path)}`}
+                  onClick={() => store.closeFilePreview(tab.id)}
+                >
+                  <IconX size={11} />
+                </button>
+              </div>
+            );
+          })}
+          {renderBrowserHeaderTabs()}
+          {reviewTabOpen && (
+            <div className={`${styles.tabItem} ${stageKind === "review" ? styles.tabItemActive : ""}`}>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={stageKind === "review"}
+                className={styles.tabBtn}
+                onClick={() => store.setRightStageKind("review")}
+              >
+                <IconFileDiff size={13} aria-hidden="true" />
+                <span>{locale.isZh ? "审查" : "Review"}</span>
+              </button>
+              <button
+                type="button"
+                className={styles.tabClose}
+                aria-label={locale.isZh ? "关闭审查标签" : "Close review tab"}
+                onClick={() => {
+                  setReviewTabOpen(false);
+                  if (state.rightStageKind === "review") {
+                    store.setRightStageKind(activeFileTab ? "file" : browserOpen ? "browser" : null);
+                  }
+                }}
+              >
+                <IconX size={11} />
+              </button>
+            </div>
+          )}
+          <button
+            type="button"
+            className={styles.addTabBtn}
+            title={locale.isZh ? "打开内置浏览器标签页" : "New built-in browser tab"}
+            aria-label={locale.isZh ? "新建浏览器标签页" : "New browser tab"}
+            onClick={handleOpenNewBrowserTab}
+          >
+            <IconPlus size={14} />
+          </button>
+        </div>
+
+        <div className={styles.topActions}>
+          <RightWorkbenchActions
+            variant={compact || rightPanelMaximized ? "full" : "workbenchOnly"}
+            isZh={locale.isZh}
+            store={store}
+            projectId={boundProjectId}
+            jobs={jobs}
+            subagents={subagents}
+            compact={compact}
+            rightPanelMaximized={rightPanelMaximized}
+            onOpenReviewTab={() => {
+              setReviewTabOpen(true);
+              store.setRightStageKind("review");
+            }}
+            onOpenFileTree={() => {
+              setActiveAux("filesTree");
+              setAuxOpen(true);
+            }}
+            onOpenTerminal={(jobId) => {
+              setSelectedJobId(jobId);
+              setActiveAux("terminal");
+              setAuxOpen(true);
+            }}
+            onOpenSubagents={(subId) => {
+              setSelectedSubagentId(subId);
+              setActiveAux("subagents");
+              setAuxOpen(true);
+            }}
+            onNewBrowserTab={handleOpenNewBrowserTab}
+            onOpenExtensions={onOpenExtensions}
+            onToggleMaximize={onToggleMaximizeRightPanel}
+            onCollapsePanel={() => {
+              if (compact && onCloseDrawer) {
+                onCloseDrawer();
+                return;
+              }
+              onCollapseRightPanel?.();
+            }}
+          />
+        </div>
+      </header>
+
+      <div ref={splitAreaRef} className={styles.bodySplit}>
+        {(() => {
+          const hideAuxHeader = stageKind === "file" && effectiveAuxTab === "filesTree";
+          const auxPaneNode = effectiveAuxTab ? (
+            <>
+              {!compact && (
+                <div
+                  role="separator"
+                  tabIndex={0}
+                  aria-orientation="vertical"
+                  aria-label={locale.isZh ? "调整工作区文件树与辅助栏宽度" : "Resize utility sidebar"}
+                  className={`${styles.auxResizer} ${auxDragging ? styles.auxResizerActive : ""}`}
+                  onPointerDown={startAuxResize}
+                  onKeyDown={(e) => handleAuxKeyResize(e.key)}
+                />
+              )}
+              <aside
+                className={styles.auxDrawer}
+                style={!compact ? { flexBasis: `${auxWidth}px` } : undefined}
+                aria-label={auxTitles[effectiveAuxTab]}
+              >
+                {!hideAuxHeader && (
+                  <div className={styles.auxHeader}>
+                    <span>{auxTitles[effectiveAuxTab]}</span>
+                    <button type="button" className={styles.tabClose} aria-label="Close pane" onClick={() => setAuxOpen(false)}>
+                      <IconX size={12} />
+                    </button>
+                  </div>
+                )}
+                <div className={styles.auxContent}>{renderAuxBody(effectiveAuxTab)}</div>
+              </aside>
+            </>
+          ) : null;
+
+          if (stageKind === "file" && activeFileTab) {
+            return (
+              <div className={styles.mainStage}>
+                <FileChangePreview
+                  step={selectedStep}
+                  tab={activeFileTab}
+                  sessionId={sessionId}
+                  projectId={boundProjectId}
+                  boundProjectName={boundProjectName}
+                  sidebarOpen={effectiveAuxTab === "filesTree"}
+                  auxPane={auxPaneNode}
+                  isZh={locale.isZh}
+                  store={store}
+                  onToggleSidebar={() => {
+                    if (auxOpen && activeAux !== "filesTree") {
+                      setAuxOpen(false);
+                      setFileTreeOpen(true);
+                    } else {
+                      setFileTreeOpen((v) => !v);
+                    }
+                  }}
+                />
+              </div>
+            );
+          }
+
+          return (
+            <>
+              <div className={styles.mainStage}>
+                {stageKind === "review" ? (
+                  <RightGitReviewPane
+                    isZh={locale.isZh}
+                    projectId={boundProjectId}
+                    store={store}
+                    onOpenFullCodeReview={onOpenCodeReview}
+                  />
+                ) : stageKind === "browser" ? (
+                  <RightBrowserPane
+                    sessionId={sessionId}
+                    isZh={locale.isZh}
+                    initialUrl={browserInitialUrl}
+                    hideTabStrip={true}
+                    externalState={browserExternalState}
+                    onSnapshotChange={handleBrowserSnapshot}
+                    onAttachPage={(snap) => {
+                      store.enqueueComposerInsert(`当前内置浏览器页面：${snap.title || "未命名"} (${snap.url})，控制台异常数：${snap.errorCount}`);
+                    }}
+                  />
+                ) : (
+                  <div className={styles.welcomeStage}>
+                    <form className={styles.welcomeUrlForm} onSubmit={handleUrlJump}>
+                      <IconSearch size={14} aria-hidden="true" />
+                      <input
+                        value={urlQuery}
+                        onChange={(e) => setUrlQuery(e.target.value)}
+                        placeholder={locale.isZh ? "输入网址直接用内置浏览器打开，如 127.0.0.1:5173" : "Enter URL to open built-in browser..."}
+                      />
+                    </form>
+                    <div className={styles.welcomeActions}>
+                      <button type="button" className={styles.welcomeCardBtn} onClick={handleOpenNewBrowserTab}>
+                        <IconWorld size={16} />
+                        <span>{locale.isZh ? "打开内置浏览器" : "Open Built-in Browser"}</span>
+                      </button>
+                      <button type="button" className={styles.welcomeCardBtn} onClick={() => { setActiveAux("filesTree"); setAuxOpen(true); }}>
+                        <IconTerminal2 size={16} />
+                        <span>{locale.isZh ? "浏览工作区文件" : "Browse Files"}</span>
+                      </button>
+                    </div>
+                    {(jobs.length > 0 || subagents.length > 0) && (
+                      <div className={styles.welcomeStatusList}>
+                        {subagents.slice(0, 3).map((sub) => (
+                          <button key={sub.id} type="button" className={styles.statusRow} onClick={() => { setActiveAux("subagents"); setAuxOpen(true); }}>
+                            {sub.status === "running" ? <IconClock size={13} /> : sub.status === "done" ? <IconCheck size={13} /> : <IconCircleX size={13} />}
+                            <span>{sub.role}</span>
+                          </button>
+                        ))}
+                        {jobs.slice(0, 3).map((job) => (
+                          <button key={job.id} type="button" className={styles.statusRow} onClick={() => { setActiveAux("terminal"); setAuxOpen(true); }}>
+                            {job.status === "running" ? <IconClock size={13} /> : job.status === "done" ? <IconCheck size={13} /> : <IconCircleX size={13} />}
+                            <span>{job.title}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              {auxPaneNode}
+            </>
+          );
+        })()}
+
+        <RightUtilityRail
+          isZh={locale.isZh}
+          activeAux={effectiveAuxTab ?? activeAux}
+          auxOpen={effectiveAuxTab !== null}
+          runningJobsCount={runningJobsCount}
+          runningSubagentsCount={runningSubsCount}
+          onToggleAux={handleToggleAux}
+          onOpenCodeReview={onOpenCodeReview}
+          onOpenExtensions={onOpenExtensions}
+          onOpenSettings={onOpenSettings}
+        />
+      </div>
+    </div>
+  );
+}

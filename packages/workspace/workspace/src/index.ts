@@ -1,11 +1,11 @@
 // 声明工作区包的 Host 侧 Cordis 服务与无 DOM 领域契约，严禁导入 React、DOM 或 CSS。
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, open, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { type Context, Service } from "@deepseek-ai/cordis";
-import { openFolderInExplorer, openNativeFolderPicker, resolveUniqueSubfolder, resolveUserDocumentsDir } from "./system-paths";
+import { openFolderInExplorer, openNativeFolderPicker, resolveUniqueSubfolder, resolveUserDocumentsDir, revealFileInExplorer } from "./system-paths";
 import type {
   CreateProjectInput,
   FolderPickResult,
@@ -30,6 +30,38 @@ export interface WorkspacePluginConfig {
 const DEFAULT_STORE_PATH = join(homedir(), ".lfaa", "projects.json");
 const DEFAULT_WORKSPACE_SUBDIR = "lfaa";
 const MAX_TREE_ENTRIES = 200;
+const MAX_PREVIEW_FILE_BYTES = 256 * 1024;
+
+function isWithinRoot(candidatePath: string, rootPath: string): boolean {
+  const normalizedCandidate = resolve(candidatePath);
+  const normalizedRoot = resolve(rootPath);
+  const rel = relative(normalizedRoot, normalizedCandidate);
+  return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+}
+
+function resolveWithinProjectRoots(
+  project: WorkspaceProjectSummary,
+  requestedPath?: string,
+): { matchedRoot: string; resolvedPath: string; relativePath: string } | null {
+  const trimmed = requestedPath?.trim();
+  if (!trimmed) {
+    const root = resolve(project.rootPath);
+    return { matchedRoot: root, resolvedPath: root, relativePath: "" };
+  }
+  const roots = project.rootPaths.length > 0 ? project.rootPaths : [project.rootPath];
+  const candidate = isAbsolute(trimmed) ? resolve(trimmed) : resolve(project.rootPath, trimmed);
+  for (const rawRoot of roots) {
+    const root = resolve(rawRoot);
+    if (isWithinRoot(candidate, root)) {
+      return {
+        matchedRoot: root,
+        resolvedPath: candidate,
+        relativePath: relative(root, candidate).replace(/\\/gu, "/"),
+      };
+    }
+  }
+  return null;
+}
 
 function isValidProjectRecord(item: unknown): item is WorkspaceProjectSummary {
   if (typeof item !== "object" || item === null) return false;
@@ -298,15 +330,32 @@ export class WorkspaceService extends Service {
     return { ...result, path: project.rootPath };
   }
 
-  // 对已登记的项目目录执行只读检查，按当前根目录提供文件列表。
+  /** 在文件资源管理器中定位并高亮项目内指定文件。 */
+  async revealProjectFileInExplorer(
+    projectId: string,
+    requestedPath: string,
+  ): Promise<{ opened: boolean; path?: string; error?: string }> {
+    const projects = await this.readStoredProjects();
+    const project = projects.find((item) => item.id === projectId);
+    if (!project) {
+      return { opened: false, error: "项目不存在。" };
+    }
+    const resolved = resolveWithinProjectRoots(project, requestedPath);
+    if (!resolved) {
+      return { opened: false, error: "文件路径超出当前项目授权目录边界。" };
+    }
+    const result = await revealFileInExplorer(resolved.resolvedPath);
+    return { ...result, path: resolved.resolvedPath };
+  }
+
+  // 对已登记的项目目录（及其任意子目录）执行只读检查，严格限制在项目根目录边界内。
   async inspectProject(projectId: string, requestedRootPath?: string): Promise<WorkspaceInspection | null> {
     const projects = await this.readStoredProjects();
     const project = projects.find((item) => item.id === projectId);
     if (!project) return null;
 
-    const targetRoot = requestedRootPath && project.rootPaths.includes(requestedRootPath)
-      ? requestedRootPath
-      : project.rootPath;
+    const resolved = resolveWithinProjectRoots(project, requestedRootPath);
+    const targetRoot = resolved ? resolved.resolvedPath : project.rootPath;
 
     const rootInfo = await stat(targetRoot).catch(() => null);
     if (!rootInfo || !rootInfo.isDirectory()) {
@@ -355,6 +404,54 @@ export class WorkspaceService extends Service {
       fileCount,
       entries,
     };
+  }
+
+  /** 安全只读项目内单个文本文件，拦截路径穿越并限制最大预览字节数。 */
+  async readProjectFile(
+    projectId: string,
+    requestedPath: string,
+  ): Promise<{ path: string; relativePath: string; content: string; truncated: boolean; size: number } | null> {
+    const projects = await this.readStoredProjects();
+    const project = projects.find((item) => item.id === projectId);
+    if (!project) return null;
+
+    const resolved = resolveWithinProjectRoots(project, requestedPath);
+    if (!resolved) {
+      throw new Error("文件路径超出当前项目授权目录边界。");
+    }
+    const info = await stat(resolved.resolvedPath).catch(() => null);
+    if (!info || !info.isFile()) {
+      throw new Error("目标路径不存在或不是可读文件。");
+    }
+
+    const readBytes = Math.min(info.size, MAX_PREVIEW_FILE_BYTES);
+    const truncated = info.size > MAX_PREVIEW_FILE_BYTES;
+    const handle = await open(resolved.resolvedPath, "r");
+    try {
+      const buffer = Buffer.alloc(readBytes);
+      let offset = 0;
+      while (offset < readBytes) {
+        const { bytesRead } = await handle.read(buffer, offset, readBytes - offset, offset);
+        if (bytesRead <= 0) break;
+        offset += bytesRead;
+      }
+      const slice = buffer.subarray(0, offset);
+      const sampleEnd = Math.min(slice.length, 4096);
+      for (let i = 0; i < sampleEnd; i += 1) {
+        if (slice[i] === 0) {
+          throw new Error("二进制文件暂不支持在代码查看器中直接预览。");
+        }
+      }
+      return {
+        path: resolved.resolvedPath.replace(/\\/gu, "/"),
+        relativePath: resolved.relativePath || basename(resolved.resolvedPath),
+        content: slice.toString("utf8"),
+        truncated,
+        size: info.size,
+      };
+    } finally {
+      await handle.close();
+    }
   }
 }
 

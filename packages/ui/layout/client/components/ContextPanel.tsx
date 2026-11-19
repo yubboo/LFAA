@@ -5,20 +5,48 @@ import type { LocaleMessages } from "../locales";
 import { NavigationIcon } from "./NavigationIcon";
 import styles from "./ContextPanel.module.css";
 
-/** 在右栏挂载当前业务域注册的内容，面板的展开和关闭由外层工作台负责。 */
+/** 在右栏挂载当前业务域注册的内容；存在 workbench 模式面板时去除多余套娃壳并对齐顶栏。 */
 export function ContextPanel({
   locale,
   panels,
   projectContext,
   compact = false,
+  rightPanelMaximized = false,
+  onToggleMaximizeRightPanel,
+  onCollapseRightPanel,
   onCloseDrawer,
 }: {
   locale: LocaleMessages;
   panels: WorkbenchContextPanelContribution<ReactNode>[];
   projectContext: ReactNode | null;
   compact?: boolean;
+  rightPanelMaximized?: boolean;
+  onToggleMaximizeRightPanel?: () => void;
+  onCollapseRightPanel?: () => void;
   onCloseDrawer?: () => void;
 }) {
+  const workbenchPanel = panels.find((panel) => panel.chrome === "workbench");
+  if (workbenchPanel) {
+    const utilityPanels = panels.filter((panel) => panel !== workbenchPanel);
+    return (
+      <aside
+        className={`${styles.panel} ${styles.panelWorkbench}`}
+        aria-label={locale.contextPanel}
+        data-region="context-panel"
+      >
+        {workbenchPanel.render({
+          utilityPanels,
+          projectContext,
+          compact,
+          rightPanelMaximized,
+          onToggleMaximizeRightPanel: onToggleMaximizeRightPanel ?? (() => {}),
+          onCollapseRightPanel: onCollapseRightPanel ?? onCloseDrawer ?? (() => {}),
+          onCloseDrawer: onCloseDrawer ?? (() => {}),
+        })}
+      </aside>
+    );
+  }
+
   const hasContent = Boolean(projectContext) || panels.length > 0;
 
   return (

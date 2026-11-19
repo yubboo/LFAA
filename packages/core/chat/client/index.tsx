@@ -2,7 +2,8 @@
 import type { Context, Plugin } from "@deepseek-ai/cordis";
 import "@lfaa/ui-layout/client";
 import { ChatClientStore } from "./chat-store";
-import { AgentContextPanel } from "./components/AgentContextPanel";
+import { RightWorkbenchActions } from "./components/RightWorkbenchActions";
+import { RightWorkbenchPane } from "./components/RightWorkbenchPane";
 import { AgentSettingsView } from "./components/AgentSettingsView";
 import { ChatWorkspace } from "./components/ChatWorkspace";
 import { CodeReviewSettingsView } from "./components/CodeReviewSettingsView";
@@ -88,7 +89,16 @@ export const chatClientPlugin: Plugin.Object<void> = {
             onOpenSettings={() => context.workbench.navigate("settings:config")}
             onOpenGitSettings={() => context.workbench.navigate("codeReview")}
             onOpenFilePreview={(messageId, stepId) => {
-              if (store.openFilePreview(messageId, stepId)) context.workbench.setRightPanelOpen(true, false);
+              if (store.openFilePreview(messageId, stepId)) {
+                store.requestRightPanel("files");
+                context.workbench.setRightWorkbenchWide(true);
+                context.workbench.setRightPanelOpen(true, false);
+              }
+            }}
+            onOpenBrowser={() => {
+              store.requestRightPanel("browser");
+              context.workbench.setRightWorkbenchWide(true);
+              context.workbench.setRightPanelOpen(true, false);
             }}
           />
         );
@@ -200,25 +210,63 @@ export const chatClientPlugin: Plugin.Object<void> = {
 
     const unregisterContextPanel = context.workbench.registerContextPanel({
       id: "agent-capabilities",
-      title: locale.isZh ? "工作详情" : "Work details",
+      title: locale.isZh ? "工作台" : "Workbench",
       order: 5,
+      chrome: "workbench",
       match: (activeView) =>
         activeView === "workspace"
         || activeView === "project"
         || activeView === "library"
         || activeView === "settings:storage",
-      render: () => {
+      render: (renderCtx) => {
         const chatSnap = store.getSnapshot();
         const wbSnap = context.workbench.getSnapshot();
         const boundId = chatSnap.activeSession?.projectId ?? chatSnap.draftProjectId ?? wbSnap.activeProjectId;
         const boundName = boundId ? (wbSnap.projects.find((p) => p.id === boundId)?.name ?? null) : null;
         return (
-          <AgentContextPanel
+          <RightWorkbenchPane
             locale={locale}
             store={store}
+            boundProjectId={boundId}
             boundProjectName={boundName}
             showFilePreview={wbSnap.activeView === "workspace"}
+            utilityPanels={renderCtx?.utilityPanels}
+            projectContext={renderCtx?.projectContext}
+            compact={renderCtx?.compact}
+            rightPanelMaximized={renderCtx?.rightPanelMaximized}
+            onToggleMaximizeRightPanel={renderCtx?.onToggleMaximizeRightPanel}
+            onCollapseRightPanel={renderCtx?.onCollapseRightPanel}
+            onCloseDrawer={renderCtx?.onCloseDrawer}
+            onStageWideChange={(wide) => context.workbench.setRightWorkbenchWide(wide)}
             onOpenSettings={() => context.workbench.navigate("settings:config")}
+            onOpenCodeReview={() => context.workbench.navigate("codeReview")}
+            onOpenExtensions={() => context.workbench.navigate("plugins")}
+          />
+        );
+      },
+    });
+
+    const unregisterWorkspaceAction = context.workbench.registerWorkspaceAction({
+      id: "agent-session-actions",
+      order: 5,
+      render: (actionCtx) => {
+        const wbSnap = context.workbench.getSnapshot();
+        const showHere =
+          wbSnap.activeView === "workspace"
+          || wbSnap.activeView === "project"
+          || wbSnap.activeView === "library"
+          || wbSnap.activeView === "settings:storage";
+        if (!showHere || actionCtx.compact || actionCtx.rightPanelMaximized) return null;
+        const chatSnap = store.getSnapshot();
+        const boundId = chatSnap.activeSession?.projectId ?? chatSnap.draftProjectId ?? wbSnap.activeProjectId;
+        return (
+          <RightWorkbenchActions
+            variant="sessionOnly"
+            isZh={locale.isZh}
+            store={store}
+            projectId={boundId}
+            onEnsureRightPanelOpen={() => context.workbench.setRightPanelOpen(true)}
+            onOpenExtensions={() => context.workbench.navigate("plugins")}
           />
         );
       },
@@ -234,6 +282,7 @@ export const chatClientPlugin: Plugin.Object<void> = {
     });
 
     context.effect(() => () => {
+      unregisterWorkspaceAction();
       unregisterContextPanel();
       unregisterCodeReviewView();
       unregisterCodeReviewSettingsView();

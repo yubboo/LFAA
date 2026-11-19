@@ -1,0 +1,426 @@
+/* 全高全宽内置浏览器容器、多标签栏、工具栏、交互视口与 DevTools 样式，全量使用 @lfaa/ui-theme 语义变量。 */
+.panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  background: var(--color-shell);
+  color: var(--color-ink);
+}
+
+.tabStrip {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.35rem 0.6rem;
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-panel);
+  overflow-x: auto;
+}
+
+.browserTab {
+  display: inline-flex;
+  align-items: center;
+  max-width: 11.5rem;
+  border: 1px solid transparent;
+  border-radius: 0.45rem;
+  background: transparent;
+}
+
+.browserTabActive {
+  border-color: var(--color-line);
+  background: var(--color-surface);
+}
+
+.browserTabBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  padding: 0.25rem 0.4rem;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink);
+  font-size: 0.74rem;
+  cursor: pointer;
+}
+
+.browserTabBtn span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tabCloseBtn,
+.newTabBtn {
+  display: inline-flex;
+  width: 1.35rem;
+  height: 1.35rem;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.tabCloseBtn:hover,
+.newTabBtn:hover {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.toolbar {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  padding: 0.42rem 0.65rem;
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-surface);
+}
+
+.navButtons,
+.toolGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.22rem;
+  flex: 0 0 auto;
+}
+
+.navBtn {
+  position: relative;
+  display: inline-flex;
+  width: 1.75rem;
+  height: 1.75rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 0.42rem;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.navBtn:hover:not(:disabled) {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.navBtn:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.navBtnActive {
+  background: var(--color-active);
+  border-color: var(--color-line);
+  color: var(--color-ink);
+}
+
+.badgeDot {
+  position: absolute;
+  top: 0.2rem;
+  right: 0.2rem;
+  width: 0.38rem;
+  height: 0.38rem;
+  border-radius: 999px;
+  background: #f87171;
+}
+
+.urlForm {
+  display: flex;
+  flex: 1 1 12rem;
+  min-width: 0;
+  height: 1.85rem;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0 0.65rem;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-panel);
+}
+
+.urlForm:focus-within {
+  border-color: var(--color-accent);
+}
+
+.urlIcon {
+  flex: 0 0 auto;
+  color: var(--color-muted);
+}
+
+.urlInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink);
+  font-size: 0.78rem;
+  outline: none;
+}
+
+.loadingHint {
+  flex: 0 0 auto;
+  color: var(--color-muted);
+  font-size: 0.7rem;
+}
+
+.pillBtn {
+  display: inline-flex;
+  height: 1.75rem;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0 0.55rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.45rem;
+  background: var(--color-panel);
+  color: var(--color-ink);
+  font-size: 0.73rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.pillBtn:hover:not(:disabled) {
+  background: var(--color-active);
+}
+
+.pillBtnActive {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.errorBanner {
+  padding: 0.4rem 0.75rem;
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-surface);
+  color: #f87171;
+  font-size: 0.76rem;
+}
+
+:global(:root[data-resolved-theme="light"]) .errorBanner,
+:global(:root[data-resolved-theme="light"]) .logLine[data-level="error"],
+:global(:root[data-resolved-theme="light"]) .netStatus[data-failed="true"] {
+  color: #dc2626;
+}
+
+.viewportStage {
+  position: relative;
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-shell);
+  overflow: auto;
+  outline: none;
+}
+
+.viewportStage:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+
+.viewportImg {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  cursor: pointer;
+  user-select: none;
+}
+
+.viewportImg[data-preset="auto"] {
+  width: 100%;
+  height: 100%;
+}
+
+.takeoverBanner {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.32rem 0.7rem;
+  border-bottom: 1px solid var(--color-line);
+  background: rgba(var(--color-accent-rgb), 0.14);
+  color: var(--color-ink);
+  font-size: 0.74rem;
+}
+
+.takeoverResumeBtn {
+  flex: 0 0 auto;
+  padding: 0.18rem 0.55rem;
+  border: 1px solid var(--color-accent);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-accent);
+  font-size: 0.71rem;
+  cursor: pointer;
+}
+
+.viewportImg[data-preset="mobile"] {
+  width: auto;
+  max-width: 100%;
+  height: 100%;
+  border-inline: 1px solid var(--color-line);
+  box-shadow: var(--color-menu-shadow);
+}
+
+.emptyStage {
+  display: grid;
+  justify-items: center;
+  gap: 0.65rem;
+  max-width: 24rem;
+  padding: 1.5rem;
+  color: var(--color-muted);
+  text-align: center;
+}
+
+.emptyStage h4 {
+  margin: 0;
+  color: var(--color-ink);
+  font-size: 0.96rem;
+}
+
+.emptyStage p {
+  margin: 0;
+  font-size: 0.79rem;
+  line-height: 1.55;
+}
+
+.quickLinks {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.45rem;
+}
+
+.quickBtn {
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.quickBtn:hover {
+  background: var(--color-active);
+}
+
+.devtools {
+  display: grid;
+  flex: 0 0 auto;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 11.5rem;
+  border-top: 1px solid var(--color-line);
+  background: var(--color-panel);
+}
+
+.devtoolsHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.25rem 0.55rem;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.devtoolsTabs,
+.devtoolsActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.devtoolsTab {
+  padding: 0.2rem 0.55rem;
+  border: 0;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 0.73rem;
+  cursor: pointer;
+}
+
+.devtoolsTabActive {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.smallIconBtn {
+  display: inline-flex;
+  width: 1.45rem;
+  height: 1.45rem;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.smallIconBtn:hover {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.devtoolsBody {
+  display: grid;
+  align-content: start;
+  gap: 0.25rem;
+  padding: 0.45rem 0.65rem;
+  overflow: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+}
+
+.emptyLog {
+  color: var(--color-muted);
+  padding: 0.35rem 0;
+}
+
+.logLine {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  word-break: break-all;
+}
+
+.logLine[data-level="error"],
+.logLine[data-level="network"] {
+  color: #f87171;
+}
+
+.logLine[data-level="warning"] {
+  color: #fbbf24;
+}
+
+.logTag,
+.netMethod {
+  flex: 0 0 auto;
+  color: var(--color-muted);
+}
+
+.netStatus {
+  flex: 0 0 auto;
+  color: #4ade80;
+}
+
+.netStatus[data-failed="true"] {
+  color: #f87171;
+}
+
+.logText {
+  min-width: 0;
+}

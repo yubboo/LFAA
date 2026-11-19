@@ -1,4 +1,6 @@
-// 渲染工作区顶部栏：左侧栏展开/收起按钮、当前标题、本地模式状态与右侧栏展开/收起按钮。
+// 渲染工作区顶部栏：左侧栏展开/收起按钮、当前标题、本地模式状态、插件工作区快捷入口与右侧栏展开/收起按钮。
+import type { ReactNode } from "react";
+import type { WorkbenchWorkspaceActionContribution } from "../../src/index";
 import type { LocaleMessages } from "../locales";
 import { NavigationIcon } from "./NavigationIcon";
 import styles from "./WorkbenchShell.module.css";
@@ -11,7 +13,11 @@ export function WorkspaceBar({
   leftDragCollapsed,
   hasRightColumn,
   rightOpen,
+  hideRightToggleWhenOpen = false,
   rightDragCollapsed,
+  compact = false,
+  rightPanelMaximized = false,
+  workspaceActions = [],
   onToggleLeft,
   onToggleRight,
 }: {
@@ -21,7 +27,11 @@ export function WorkspaceBar({
   leftDragCollapsed: boolean;
   hasRightColumn: boolean;
   rightOpen: boolean;
+  hideRightToggleWhenOpen?: boolean;
   rightDragCollapsed: boolean;
+  compact?: boolean;
+  rightPanelMaximized?: boolean;
+  workspaceActions?: WorkbenchWorkspaceActionContribution<ReactNode>[];
   onToggleLeft: () => void;
   onToggleRight: () => void;
 }) {
@@ -45,7 +55,12 @@ export function WorkspaceBar({
           <span className={styles.statusDot} aria-hidden="true" />
           <span className={styles.statusText}>{locale.ready}</span>
         </span>
-        {hasRightColumn && (
+        {workspaceActions.map((action) => (
+          <span key={action.id} className={styles.barActionSlot}>
+            {action.render({ compact, rightPanelOpen: rightOpen && !rightDragCollapsed, rightPanelMaximized })}
+          </span>
+        ))}
+        {hasRightColumn && (!hideRightToggleWhenOpen || !rightOpen || rightDragCollapsed) && (
           <button
             className={`${styles.toggleButton} ${rightOpen && !rightDragCollapsed ? styles.toggleButtonActive : ""}`}
             type="button"

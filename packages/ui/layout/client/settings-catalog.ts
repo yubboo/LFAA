@@ -53,7 +53,7 @@ export const SETTINGS_CATALOG: SettingsCatalogGroup[] = [
       { viewId: "settings:passwords", labelZh: "密码", labelEn: "Passwords", icon: "settings" },
       { viewId: "settings:computer", labelZh: "电脑控制", labelEn: "Computer use", icon: "sites" },
       { viewId: "settings:snapshots", labelZh: "应用快照", labelEn: "App snapshots", icon: "images" },
-      { viewId: "settings:browser", labelZh: "浏览器", labelEn: "Browser", icon: "map" },
+      { viewId: "settings:browser", labelZh: "浏览器", labelEn: "Browser", icon: "map", implemented: true },
       { viewId: "settings:cloud", labelZh: "云电脑", labelEn: "Cloud desktop", icon: "gpt" },
     ],
   },

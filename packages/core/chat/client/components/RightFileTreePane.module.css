@@ -1,0 +1,198 @@
+/* 右辅助栏 VS Code 风格工作区文件树样式：含树形缩进线、文件类型着色与明暗双主题适配。 */
+.panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+}
+
+.rootHeader {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  height: 2.15rem;
+  padding: 0 0.5rem 0 0.65rem;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.workspaceTitleBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  padding: 0.18rem 0.25rem;
+  border: 0;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: var(--color-ink);
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.workspaceTitleBtn:hover {
+  background: var(--color-active);
+}
+
+.titleChevron {
+  color: var(--color-muted);
+  transition: transform 120ms ease;
+}
+
+.titleChevronCollapsed {
+  transform: rotate(-90deg);
+}
+
+.refreshBtn {
+  display: inline-flex;
+  width: 1.5rem;
+  height: 1.5rem;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.refreshBtn:hover {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.treeBody {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0.35rem 0.35rem 0.9rem;
+}
+
+.treeNodeWrap {
+  display: block;
+}
+
+.treeChildren {
+  margin-left: 0.68rem;
+  padding-left: 0.35rem;
+  border-left: 1px solid var(--color-line);
+}
+
+.treeRow {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.32rem;
+  padding: 0.22rem 0.4rem;
+  border: 0;
+  border-radius: 0.38rem;
+  background: transparent;
+  color: var(--color-ink);
+  font-size: 0.77rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.treeRow[data-dim="true"] {
+  opacity: 0.56;
+}
+
+.treeRow:hover {
+  background: var(--color-active);
+}
+
+.treeRowActive {
+  background: var(--color-active);
+  box-shadow: inset 2px 0 0 var(--color-accent);
+  font-weight: 500;
+}
+
+.treeChevron {
+  display: inline-flex;
+  width: 0.85rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-muted);
+}
+
+.rootFolderLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.treeLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dirIcon { flex: 0 0 auto; color: var(--color-muted); }
+.dirIcon[data-dir-tone="git"] { color: #f87171; }
+.dirIcon[data-dir-tone="src"] { color: #fb923c; }
+.dirIcon[data-dir-tone="ui"] { color: #34d399; }
+.dirIcon[data-dir-tone="pkg"] { color: #60a5fa; }
+.dirIcon[data-dir-tone="docs"] { color: #a78bfa; }
+
+.fileBadgeIcon { flex: 0 0 auto; color: var(--color-muted); }
+.fileBadgeIcon[data-file-tone="react"] { color: #38bdf8; }
+
+.fileTypeText {
+  display: inline-flex;
+  width: 1.05rem;
+  flex: 0 0 auto;
+  justify-content: center;
+  font-family: var(--code-font-family, ui-monospace, monospace);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  white-space: nowrap;
+}
+
+.fileTypeText[data-file-tone="ts"] { color: #38bdf8; }
+.fileTypeText[data-file-tone="js"] { color: #facc15; }
+.fileTypeText[data-file-tone="css"] { color: #7dd3fc; }
+.fileTypeText[data-file-tone="json"] { color: #4ade80; }
+.fileTypeText[data-file-tone="html"] { color: #fb923c; }
+.fileTypeText[data-file-tone="md"] { color: #60a5fa; }
+.fileTypeText[data-file-tone="shell"] { color: #34d399; }
+.fileTypeText[data-file-tone="git"] { color: #f87171; }
+
+:global(:root[data-resolved-theme="light"]) .dirIcon[data-dir-tone="git"] { color: #dc2626; }
+:global(:root[data-resolved-theme="light"]) .dirIcon[data-dir-tone="src"] { color: #ea580c; }
+:global(:root[data-resolved-theme="light"]) .dirIcon[data-dir-tone="ui"] { color: #059669; }
+:global(:root[data-resolved-theme="light"]) .dirIcon[data-dir-tone="pkg"] { color: #2563eb; }
+:global(:root[data-resolved-theme="light"]) .dirIcon[data-dir-tone="docs"] { color: #7c3aed; }
+:global(:root[data-resolved-theme="light"]) .fileBadgeIcon[data-file-tone="react"] { color: #0284c7; }
+:global(:root[data-resolved-theme="light"]) .fileTypeText[data-file-tone="ts"] { color: #0284c7; }
+:global(:root[data-resolved-theme="light"]) .fileTypeText[data-file-tone="js"] { color: #ca8a04; }
+:global(:root[data-resolved-theme="light"]) .fileTypeText[data-file-tone="css"] { color: #0369a1; }
+:global(:root[data-resolved-theme="light"]) .fileTypeText[data-file-tone="json"] { color: #16a34a; }
+:global(:root[data-resolved-theme="light"]) .fileTypeText[data-file-tone="html"] { color: #ea580c; }
+:global(:root[data-resolved-theme="light"]) .fileTypeText[data-file-tone="md"] { color: #2563eb; }
+:global(:root[data-resolved-theme="light"]) .fileTypeText[data-file-tone="shell"] { color: #059669; }
+:global(:root[data-resolved-theme="light"]) .fileTypeText[data-file-tone="git"] { color: #dc2626; }
+
+.empty,
+.loadingText,
+.errorText {
+  padding: 0.75rem;
+  color: var(--color-muted);
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
+.errorText {
+  color: #f87171;
+}
+
+:global(:root[data-resolved-theme="light"]) .errorText {
+  color: #dc2626;
+}

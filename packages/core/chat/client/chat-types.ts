@@ -167,8 +167,12 @@ export interface StorageMigrationResult {
 export interface FilePreviewTab {
   id: string;
   path: string;
-  messageId: string;
-  stepId: string;
+  relativePath?: string;
+  projectId?: string | null;
+  messageId?: string;
+  stepId?: string;
+  targetLine?: number;
+  endLine?: number;
 }
 
 export interface ChatStoreSnapshot {
@@ -183,6 +187,9 @@ export interface ChatStoreSnapshot {
   pendingApproval: PendingApprovalBanner | null;
   filePreviewTabs: FilePreviewTab[];
   activeFilePreviewId: string | null;
+  rightStageKind?: "file" | "browser" | "review" | null;
+  rightPanelRequest?: { tab: string; url?: string; nonce: number } | null;
+  pendingComposerInsert?: { text: string; nonce: number } | null;
   permissionMode: AgentPermissionMode;
   smartTrustCounts: Record<string, number>;
   activeProfileId: string;

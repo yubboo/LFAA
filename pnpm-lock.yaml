@@ -35,9 +35,15 @@ importers:
       '@lfaa/bash-local':
         specifier: workspace:*
         version: link:../../packages/shell/bash-local
+      '@lfaa/browser':
+        specifier: workspace:*
+        version: link:../../packages/core/browser
       '@lfaa/chat':
         specifier: workspace:*
         version: link:../../packages/core/chat
+      '@lfaa/jobs':
+        specifier: workspace:*
+        version: link:../../packages/core/jobs
       '@lfaa/llm':
         specifier: workspace:*
         version: link:../../packages/core/llm
@@ -62,6 +68,9 @@ importers:
       '@lfaa/skills':
         specifier: workspace:*
         version: link:../../packages/skills
+      '@lfaa/subagent':
+        specifier: workspace:*
+        version: link:../../packages/core/subagent
       '@lfaa/tools':
         specifier: workspace:*
         version: link:../../packages/core/tools
@@ -113,11 +122,45 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
+  packages/core/browser:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.1.0
+        version: 4.1.0
+      '@lfaa/tools':
+        specifier: workspace:*
+        version: link:../tools
+      '@lfaa/ui-layout':
+        specifier: workspace:*
+        version: link:../../ui/layout
+      '@tabler/icons-react':
+        specifier: 3.52.0
+        version: 3.52.0(react@19.3.1)
+      playwright-core:
+        specifier: ^1.65.1
+        version: 1.65.1
+      react:
+        specifier: ^19.3.1
+        version: 19.3.1
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.19.2
+      '@types/react':
+        specifier: ^19.3.0
+        version: 19.3.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
   packages/core/chat:
     dependencies:
       '@deepseek-ai/cordis':
         specifier: ^4.1.0
         version: 4.1.0
+      '@lfaa/browser':
+        specifier: workspace:*
+        version: link:../browser
       '@lfaa/llm':
         specifier: workspace:*
         version: link:../llm
@@ -153,6 +196,28 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
+  packages/core/jobs:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.1.0
+        version: 4.1.0
+      '@lfaa/shell':
+        specifier: workspace:*
+        version: link:../../shell/shell
+      '@lfaa/shell-env':
+        specifier: workspace:*
+        version: link:../../shell/shell-env
+      '@lfaa/tools':
+        specifier: workspace:*
+        version: link:../tools
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.19.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
   packages/core/llm:
     dependencies:
       '@deepseek-ai/cordis':
@@ -184,6 +249,34 @@ importers:
       '@deepseek-ai/cordis':
         specifier: ^4.1.0
         version: 4.1.0
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.19.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/core/subagent:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.1.0
+        version: 4.1.0
+      '@lfaa/agent':
+        specifier: workspace:*
+        version: link:../agent
+      '@lfaa/llm':
+        specifier: workspace:*
+        version: link:../llm
+      '@lfaa/memory':
+        specifier: workspace:*
+        version: link:../memory
+      '@lfaa/rules':
+        specifier: workspace:*
+        version: link:../rules
+      '@lfaa/tools':
+        specifier: workspace:*
+        version: link:../tools
     devDependencies:
       '@types/node':
         specifier: ^24.10.0
@@ -793,8 +886,8 @@ packages:
       oxc-transform-react:
         optional: true
 
-  csstype@3.2.3:
-    resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
+  csstype@3.2.4:
+    resolution: {integrity: sha512-PoKaoPzQapnEoqUSnHx1u6W6ku8CVEgKsnpmmzU3m1nwkidpPBQ8V/Zq2+bWNrsOKoKLwTGdbx6xF7BXP1zLVQ==}
 
   detect-libc@2.1.2:
     resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
@@ -908,6 +1001,11 @@ packages:
   picomatch@4.0.7:
     resolution: {integrity: sha512-qcJu88Q2IWqJsDD529JKMdwGm/dvInW4HvQnRwiH9JtihJvzGOscDtHE3x1pBKeUOTysQ8kVmLnJ2kJu7yhcGA==}
     engines: {node: '>=12'}
+
+  playwright-core@1.65.1:
+    resolution: {integrity: sha512-hqPpz7blSMPxWVdoeE1yiBSzXsKiVOd2k+kjCvmUywD2GPO2Dd9HfcWnq9NN0GHbNZDFgZ9JfBFr+X5/BLo0qw==}
+    engines: {node: '>=20'}
+    hasBin: true
 
   postcss@8.5.33:
     resolution: {integrity: sha512-RVHEU9/Pp1Fnjr/MpAJsZoADukCKhfIi15OunEYiGktIkYLkPVvC1sioWolGDS7XByMTx9m/IGbro0Js13zhnQ==}
@@ -1190,14 +1288,14 @@ snapshots:
 
   '@types/react@19.3.0':
     dependencies:
-      csstype: 3.2.3
+      csstype: 3.2.4
 
   '@vitejs/plugin-react@6.3.0(vite@8.3.8(@types/node@24.19.2)(esbuild@0.28.2)(tsx@4.23.15))':
     dependencies:
       '@rolldown/pluginutils': 1.1.1
       vite: 8.3.8(@types/node@24.19.2)(esbuild@0.28.2)(tsx@4.23.15)
 
-  csstype@3.2.3: {}
+  csstype@3.2.4: {}
 
   detect-libc@2.1.2: {}
 
@@ -1295,6 +1393,8 @@ snapshots:
   picocolors@1.1.1: {}
 
   picomatch@4.0.7: {}
+
+  playwright-core@1.65.1: {}
 
   postcss@8.5.33:
     dependencies:

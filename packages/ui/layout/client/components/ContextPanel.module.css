@@ -13,6 +13,11 @@
   overflow: hidden;
 }
 
+/* IDE 化右工作台模式：取消静态标题行与卡片边框，使内部 Tab 顶栏与中间栏完全齐平。 */
+.panelWorkbench {
+  grid-template-rows: minmax(0, 1fr);
+}
+
 .header {
   display: flex;
   height: var(--topbar-height, 3.5rem);
@@ -121,12 +126,20 @@
     box-shadow: var(--color-menu-shadow);
     animation: slideInRight 180ms cubic-bezier(0.22, 1, 0.36, 1);
   }
+
+  .panelWorkbench {
+    width: min(32rem, 94vw);
+  }
 }
 
 @media (max-width: 767px) {
   .panel {
     width: min(21rem, 90vw);
     padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .panelWorkbench {
+    width: min(28rem, 95vw);
   }
 
   .closeButton {

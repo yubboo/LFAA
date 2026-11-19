@@ -33,6 +33,7 @@ test("Host rulesPlugin 按系统规则 > 项目规则 > 用户规则顺序拼装
     const memIdx = composed.systemPrompt.indexOf("[长期记忆参考]");
 
     assert.ok(sysIdx >= 0 && projIdx > sysIdx && projExtraIdx > projIdx && userIdx > projExtraIdx && memIdx > userIdx);
+    assert.ok(composed.systemPrompt.includes("自主排查与闭环修复"));
     assert.ok(composed.systemPrompt.includes("必须运行测试再汇报完成。"));
     assert.ok(composed.systemPrompt.includes("回答请始终保持简练中文。"));
 
