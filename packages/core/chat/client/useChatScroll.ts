@@ -8,13 +8,15 @@ export function useChatScroll(sessionId: string | null, latestTurnId: string | u
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const threadRef = useRef<HTMLDivElement>(null);
   const followBottom = useRef(true);
+  const lastScrollTop = useRef(0);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
 
   const scrollToLatest = useCallback(() => {
     const viewport = scrollAreaRef.current;
     if (!viewport) return;
     followBottom.current = true;
-    viewport.scrollTop = viewport.scrollHeight;
+    viewport.scrollTo({ top: viewport.scrollHeight, behavior: "instant" });
+    lastScrollTop.current = viewport.scrollTop;
     setShowScrollBottom(false);
   }, []);
 
@@ -42,9 +44,17 @@ export function useChatScroll(sessionId: string | null, latestTurnId: string | u
   }, [sessionId, latestTurnId, streaming, scrollToLatest]);
 
   const trackScroll = (viewport: HTMLDivElement) => {
-    const away = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight > BOTTOM_THRESHOLD;
-    followBottom.current = !away;
-    setShowScrollBottom(away);
+    const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+    const top = viewport.scrollTop;
+    // 忽略程序定位后延迟到达的事件和内容缩短时浏览器对滚动位置的修正。
+    const previousTop = Math.min(lastScrollTop.current, maxScrollTop);
+    lastScrollTop.current = top;
+    if (Math.abs(top - previousTop) < 1) return;
+
+    const nearBottom = maxScrollTop - top <= BOTTOM_THRESHOLD;
+    if (top < previousTop && !nearBottom) followBottom.current = false;
+    if (top > previousTop && nearBottom) followBottom.current = true;
+    setShowScrollBottom((!streaming || !followBottom.current) && !nearBottom);
   };
 
   const pauseFollowing = () => {

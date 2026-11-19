@@ -1,9 +1,17 @@
 // Agent Host 模型轮次的超时与有限重试，保留已发出的正文和工具进度。
 import type { LlmGenerateInput, LlmGenerateOutput, LlmService } from "@lfaa/llm";
 
-export const modelRoundLimits = { idleMs: 45_000, totalMs: 180_000, reasoningChars: 64_000, reasoningMs: 55_000 };
+/** 普通模型的单轮时限：空闲 45 秒判定中断，单轮最多 10 分钟，连续纯推理 3 分钟后重试。 */
+export const modelRoundLimits = { idleMs: 45_000, totalMs: 600_000, reasoningChars: 128_000, reasoningMs: 180_000 };
+/** 思考型模型的单轮时限：允许 10 分钟连续推理与 20 分钟总时长，避免长任务被过早掐断。 */
+export const reasoningModelRoundLimits = { idleMs: 60_000, totalMs: 1_200_000, reasoningChars: 256_000, reasoningMs: 600_000 };
 type RoundLimits = Omit<typeof modelRoundLimits, "reasoningMs"> & { reasoningMs?: number };
 type RoundInput = LlmGenerateInput & { onRetry?: (reason: "reasoning" | "network") => void };
+
+/** 按当前模型是否支持思考选择轮次时限，普通模型沿用较短阈值。 */
+export function resolveModelRoundLimits(options: { supportsReasoning?: boolean } = {}): RoundLimits {
+  return options.supportsReasoning === true ? reasoningModelRoundLimits : modelRoundLimits;
+}
 
 class ReasoningLimitError extends Error {
   constructor() {

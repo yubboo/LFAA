@@ -117,6 +117,13 @@
   gap: 0.36rem;
 }
 
+/* 成本单价三列输入：输入 / 输出 / 缓存读取。 */
+.priceRow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
 .fieldHeaderRow {
   display: flex;
   align-items: center;

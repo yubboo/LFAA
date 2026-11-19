@@ -22,6 +22,7 @@
   /* 消息流只纵向滚动，宽表格和代码块由各自的容器横向滚动。 */
   overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior-y: none;
   scrollbar-width: auto;
   margin-inline-end: var(--pane-scroll-inset, 8px);
   padding: 1.5rem var(--chat-side-padding) 1rem;
@@ -384,19 +385,6 @@
   color: var(--color-ink);
 }
 
-.contextMeter {
-  padding: 0.18rem 0.5rem;
-  border-radius: 999px;
-  background: var(--color-active);
-  color: var(--color-muted);
-  font-size: 0.76em;
-  white-space: nowrap;
-}
-
-.contextMeterIcon {
-  display: none;
-}
-
 /* 窄栏缩短次要控件并保留一行。弹层以整条工具栏为定位范围。 */
 @container chat-composer (max-width: 30rem) {
   .composerBar {
@@ -416,7 +404,6 @@
     gap: 0.25rem;
   }
 
-  .contextMeter,
   .toolBtn {
     display: inline-flex;
     align-items: center;
@@ -425,14 +412,6 @@
     height: 2rem;
     box-sizing: border-box;
     padding: 0;
-  }
-
-  .contextMeterIcon {
-    display: block;
-  }
-
-  .contextMeterText {
-    display: none;
   }
 }
 

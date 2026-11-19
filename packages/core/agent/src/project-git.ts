@@ -7,6 +7,21 @@ import { promisify } from "node:util";
 const execGit = promisify(execFile);
 const pending = new Map<string, Promise<void>>();
 
+/** 自动 Git 基线会提交整个目录，命中这些名字时跳过，避免把密钥写进项目历史。 */
+const SENSITIVE_FILE_PATTERNS: RegExp[] = [
+  /(?:^|\/)\.env(?:\.[^/]*)?$/iu,
+  /(?:^|\/)(?:\.npmrc|\.pypirc|\.netrc|\.pgpass|id_rsa|id_ed25519|id_dsa)$/iu,
+  /\.(?:pem|key|p12|pfx|jks|keystore)$/iu,
+  /(?:^|\/)(?:credentials|secrets?)(?:\/|$)/iu,
+];
+
+/** 判断待提交路径是否像密钥或凭据文件；示例/模板文件不算。 */
+export function isSensitiveProjectFile(filePath: string): boolean {
+  const normalized = filePath.replace(/\\/gu, "/");
+  if (/(?:\.example|\.sample|\.template|\.dist)$/iu.test(normalized)) return false;
+  return SENSITIVE_FILE_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
 function hasErrorCode(error: unknown, code: string | number): boolean {
   return error instanceof Error && "code" in error && error.code === code;
 }
@@ -35,6 +50,18 @@ async function prepareRepository(root: string): Promise<void> {
   const repoRoot = await realpath(await git("rev-parse", "--show-toplevel"));
   if (relative(root, repoRoot)) throw new Error("Git 工作树与已绑定的项目根目录不一致。");
   if (await readOptional("rev-parse", "--quiet", "--verify", "HEAD")) return;
+
+  // 自动基线会把整个目录提交一次；先确认没有疑似密钥文件，避免写进 Git 历史。
+  const untracked = await git("ls-files", "--others", "--exclude-standard", "-z");
+  const tracked = await git("ls-files", "-z");
+  const candidates = `${untracked}\u0000${tracked}`.split("\u0000").filter(Boolean);
+  const sensitive = [...new Set(candidates)].filter(isSensitiveProjectFile);
+  if (sensitive.length > 0) {
+    const preview = sensitive.slice(0, 3).join("、");
+    throw new Error(
+      `项目包含疑似密钥/凭据文件（${preview}${sensitive.length > 3 ? " 等" : ""}），已跳过自动 Git 基线。请先将它们加入 .gitignore 或手动提交。`,
+    );
+  }
 
   if (!await readOptional("config", "--get", "user.name")) await git("config", "--local", "user.name", "LFAA User");
   if (!await readOptional("config", "--get", "user.email")) await git("config", "--local", "user.email", "lfaa@local");

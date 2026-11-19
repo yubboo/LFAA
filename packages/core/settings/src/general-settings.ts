@@ -40,6 +40,8 @@ export interface GeneralSettingsConfig {
   enablePlugins: boolean;
   plainTextEditor: boolean;
   showContextUsage: boolean;
+  /** 连续相同工具调用的提醒阈值；空数组表示关闭提醒。 */
+  repeatToolThresholds: number[];
   sendShortcut: SendShortcutMode;
   followUpMode: FollowUpHandleMode;
   popoutShortcut: string;
@@ -127,6 +129,7 @@ function createDefaultSettings(outsideProjectFolder: string, defaultProjectsFold
     enablePlugins: true,
     plainTextEditor: false,
     showContextUsage: true,
+    repeatToolThresholds: [3, 5, 8],
     sendShortcut: "enter",
     followUpMode: "queue",
     popoutShortcut: "",
@@ -139,6 +142,12 @@ function createDefaultSettings(outsideProjectFolder: string, defaultProjectsFold
     confettiEffect: true,
     updatedAt: Date.now(),
   };
+}
+
+/** 归一化重复调用阈值：整数、>=2、去重升序，最多 6 个；空数组表示关闭。 */
+function normalizeRepeatThresholds(values: readonly unknown[]): number[] {
+  const numbers = values.filter((value): value is number => typeof value === "number" && Number.isInteger(value) && value >= 2);
+  return Array.from(new Set(numbers)).sort((a, b) => a - b).slice(0, 6);
 }
 
 const VALID_REASONING = new Set<ReasoningLevelOption>(["minimal", "low", "medium", "high", "max"]);
@@ -233,6 +242,7 @@ export class GeneralSettingsStore {
     if (typeof patch.enablePlugins === "boolean") next.enablePlugins = patch.enablePlugins;
     if (typeof patch.plainTextEditor === "boolean") next.plainTextEditor = patch.plainTextEditor;
     if (typeof patch.showContextUsage === "boolean") next.showContextUsage = patch.showContextUsage;
+    if (Array.isArray(patch.repeatToolThresholds)) next.repeatToolThresholds = normalizeRepeatThresholds(patch.repeatToolThresholds);
     if (patch.sendShortcut === "enter" || patch.sendShortcut === "ctrl_enter") next.sendShortcut = patch.sendShortcut;
     if (patch.followUpMode === "queue" || patch.followUpMode === "steer") next.followUpMode = patch.followUpMode;
     if (typeof patch.popoutShortcut === "string") next.popoutShortcut = patch.popoutShortcut.trim().slice(0, 40);

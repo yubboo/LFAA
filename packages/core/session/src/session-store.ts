@@ -2,6 +2,8 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { collectHistoryDigest, formatHistoryDigest } from "./session-digest";
+import { generateConciseSessionTitle } from "./session-title";
 import type {
   ChatMessageRecord,
   ChatSessionRecord,
@@ -24,31 +26,6 @@ function toSummary(session: ChatSessionRecord): ChatSessionSummary {
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,
   };
-}
-
-const FILLER_PREFIX_RE =
-  /^(?:你好[，,！!。.\s]*|您好[，,！!。.\s]*|请问[，,\s]*|请只[：:\s]*|请(?:你|帮我|帮忙)?(?:不要调用工具[，,\s]*)?(?:直接)?(?:用\s*\d+\s*[句话个自然段条项]+[，,\s]*)?(?:简短|详细)?(?:介绍一下|介绍|输出一个|输出|生成一个|生成|写一个|写|解释|分析|总结|对比|帮我|告诉我|回答)[：:\s]*|帮我(?:看看|检查|修复|优化|实现|写)[：:\s]*|hi[,\s]+|hello[,\s]+|please[,\s]+|can you[,\s]+|could you[,\s]+|help me[,\s]+)/iu;
-
-/** 根据用户首条提问提炼简洁语义标题（去除客套与指令前缀，避免整段原句直接截断） */
-export function generateConciseSessionTitle(rawContent: string): string {
-  const firstLine = rawContent
-    .replace(/```[\s\S]*?```/gu, " ")
-    .replace(/[#>*_`]/gu, "")
-    .trim()
-    .split(/\r?\n/u)[0] ?? "";
-  let text = firstLine.replace(/\s+/gu, " ").trim();
-  for (let i = 0; i < 4; i += 1) {
-    const stripped = text.replace(FILLER_PREFIX_RE, "").trim();
-    if (stripped === text || !stripped) break;
-    text = stripped;
-  }
-  const primaryClause = text.split(/[。！？；;\n]|，不要|，并且|，然后/u)[0]?.trim() || text;
-  const cleaned = primaryClause.replace(/^[，,：:\s]+|[，,。.！!？?：:;；\s]+$/gu, "");
-  const fallback = firstLine.replace(/\s+/gu, " ").trim();
-  const base = cleaned || fallback || "新聊天";
-  const cjkCount = (base.match(/[\u4e00-\u9fff]/gu) ?? []).length;
-  const maxLen = cjkCount >= 3 ? 16 : 24;
-  return base.length > maxLen ? base.slice(0, maxLen).trim() : base;
 }
 
 function isSafeSessionId(sessionId: string): boolean {
@@ -89,6 +66,9 @@ export class SessionMemoryStore {
         ...(parsed.unread === true ? { unread: true } : {}),
         messageCount: Array.isArray(parsed.messages) ? parsed.messages.length : 0,
         ...(typeof parsed.summary === "string" && parsed.summary ? { summary: parsed.summary } : {}),
+        ...(typeof parsed.contextSummary === "string" && parsed.contextSummary
+          ? { contextSummary: parsed.contextSummary }
+          : {}),
         createdAt: typeof parsed.createdAt === "number" ? parsed.createdAt : Date.now(),
         updatedAt: typeof parsed.updatedAt === "number" ? parsed.updatedAt : Date.now(),
         messages: Array.isArray(parsed.messages) ? parsed.messages : [],
@@ -168,6 +148,7 @@ export class SessionMemoryStore {
       ...(patch.archived !== undefined ? { archived: patch.archived } : {}),
       ...(patch.unread !== undefined ? { unread: patch.unread } : {}),
       ...(patch.summary !== undefined ? { summary: patch.summary } : {}),
+      ...(patch.contextSummary !== undefined ? { contextSummary: patch.contextSummary } : {}),
       updatedAt: Date.now(),
     };
     await this.writeSession(updated);
@@ -188,6 +169,7 @@ export class SessionMemoryStore {
       archived: false,
       messageCount: existing.messages.length,
       ...(existing.summary ? { summary: existing.summary } : {}),
+      ...(existing.contextSummary ? { contextSummary: existing.contextSummary } : {}),
       createdAt: now,
       updatedAt: now,
       messages: existing.messages.map((m) => ({ ...m })),
@@ -203,6 +185,65 @@ export class SessionMemoryStore {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * 结算应用退出时遗留的流式消息：把无活跃运行的 streaming 助手消息改为 aborted，
+   * 保留中断前的内容与步骤，并清理写入中断产生的临时文件。
+   */
+  async reconcileInterruptedRuns(): Promise<{ sessions: number; messages: number; tmpRemoved: number }> {
+    let entries: string[] = [];
+    try {
+      entries = await readdir(this.sessionsDir);
+    } catch {
+      return { sessions: 0, messages: 0, tmpRemoved: 0 };
+    }
+
+    let sessionsChanged = 0;
+    let messagesChanged = 0;
+    let tmpRemoved = 0;
+    for (const entry of entries) {
+      const fullPath = join(this.sessionsDir, entry);
+      if (entry.endsWith(".tmp")) {
+        const removed = await rm(fullPath, { force: true }).then(() => true).catch(() => false);
+        if (removed) tmpRemoved += 1;
+        continue;
+      }
+      if (!entry.endsWith(".json")) continue;
+      const session = await this.readSessionFile(fullPath);
+      if (!session) continue;
+      let changed = false;
+      const messages = session.messages.map((message) => {
+        if (message.role !== "assistant" || message.status !== "streaming") return message;
+        changed = true;
+        messagesChanged += 1;
+        const steps = (message.steps ?? []).map((step) =>
+          step.status === "preparing" || step.status === "running" || step.status === "waiting_approval"
+            ? { ...step, status: "error" as const, detail: step.detail ?? "应用退出导致运行中断。", timestamp: Date.now() }
+            : step,
+        );
+        const lastIteration = steps.reduce((max, step) => Math.max(max, step.iteration), 0);
+        steps.push({
+          id: `interrupted-${message.id}`,
+          iteration: lastIteration + 1,
+          phase: "check",
+          status: "error",
+          title: "运行在应用退出时中断",
+          detail: "已保留中断前产生的内容与步骤，可直接继续提问。",
+          timestamp: Date.now(),
+        });
+        return {
+          ...message,
+          status: "aborted" as const,
+          content: message.content.trim() ? message.content : "（上次运行在应用退出时被中断，可继续发送指令。）",
+          steps,
+        };
+      });
+      if (!changed) continue;
+      await this.writeSession({ ...session, messages, messageCount: messages.length });
+      sessionsChanged += 1;
+    }
+    return { sessions: sessionsChanged, messages: messagesChanged, tmpRemoved };
   }
 
   async appendMessage(sessionId: string, message: ChatMessageRecord): Promise<ChatSessionRecord> {
@@ -279,14 +320,16 @@ export class SessionMemoryStore {
       return { recentMessages: selected };
     }
 
-    const archivedTopics = eligibleMessages
-      .slice(0, omittedCount)
+    const omittedMessages = eligibleMessages.slice(0, omittedCount);
+    const archivedTopics = omittedMessages
       .filter((m) => m.role === "user")
       .slice(-3)
       .map((m) => m.content.trim().slice(0, 60))
       .filter(Boolean);
-    const summaryNote = session.summary
-      || `较早已有 ${omittedCount} 条历史消息；近期关注点：${archivedTopics.join(" / ") || "前序上下文"}`;
+    // 除关注点外补一行真实工具轨迹，让模型知道哪些文件已改、哪些命令已跑，避免每轮重新探索。
+    const historyDigest = formatHistoryDigest(collectHistoryDigest(omittedMessages));
+    const summaryNote = session.contextSummary
+      || `较早已有 ${omittedCount} 条历史消息；近期关注点：${archivedTopics.join(" / ") || "前序上下文"}${historyDigest ? `\n前序工具轨迹：${historyDigest}` : ""}`;
 
     return { summaryNote, recentMessages: selected };
   }

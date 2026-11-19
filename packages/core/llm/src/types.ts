@@ -33,6 +33,14 @@ export interface LlmProfile {
   availableModels?: ModelCapabilityInfo[];
   temperature?: number;
   maxTokens?: number;
+  /** 该模型可用的上下文窗口（token）；缺省表示未知，界面不显示占比。 */
+  contextWindowTokens?: number;
+  /** 每百万未缓存输入 token 的人民币单价。 */
+  inputPricePerMillion?: number;
+  /** 每百万输出 token 的人民币单价。 */
+  outputPricePerMillion?: number;
+  /** 每百万缓存读取 token 的人民币单价；缺省按输入单价计算。 */
+  cachedInputPricePerMillion?: number;
   updatedAt: number;
 }
 
@@ -51,6 +59,10 @@ export interface PublicLlmProfile {
   availableModels: ModelCapabilityInfo[];
   temperature?: number;
   maxTokens?: number;
+  contextWindowTokens?: number;
+  inputPricePerMillion?: number;
+  outputPricePerMillion?: number;
+  cachedInputPricePerMillion?: number;
   updatedAt: number;
 }
 
@@ -68,6 +80,10 @@ export interface SaveLlmProfileInput {
   availableModels?: ModelCapabilityInfo[];
   temperature?: number;
   maxTokens?: number;
+  contextWindowTokens?: number;
+  inputPricePerMillion?: number;
+  outputPricePerMillion?: number;
+  cachedInputPricePerMillion?: number;
 }
 
 /** 描述可提供给模型的工具名称和参数模式。 */
@@ -119,6 +135,8 @@ export interface LlmUsage {
   promptTokens?: number;
   completionTokens?: number;
   totalTokens?: number;
+  /** 命中提示缓存的输入 token；供应商未提供时缺省。 */
+  cachedPromptTokens?: number;
 }
 
 /** 统一提供商回复、工具调用、完成原因和用量。 */

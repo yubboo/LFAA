@@ -1,9 +1,23 @@
 // 验证模型请求静默退出、长推理限制及工具参数增量。
 import assert from "node:assert/strict";
 import test from "node:test";
-import { completeAgentRound } from "../src/model-round";
+import {
+  completeAgentRound,
+  modelRoundLimits,
+  reasoningModelRoundLimits,
+  resolveModelRoundLimits,
+} from "../src/model-round";
 
 const reply = { model: "mock", provider: "openai-compatible", content: "收到", toolCalls: [], finishReason: "stop" } as const;
+
+test("按模型能力放宽轮次时限，纯推理不再沿用 55 秒阈值", () => {
+  assert.deepEqual(resolveModelRoundLimits({ supportsReasoning: false }), modelRoundLimits);
+  assert.deepEqual(resolveModelRoundLimits({ supportsReasoning: true }), reasoningModelRoundLimits);
+  assert.ok(modelRoundLimits.reasoningMs >= 180_000, "普通模型连续纯推理至少保留 3 分钟");
+  assert.ok(modelRoundLimits.totalMs >= 600_000, "普通模型单轮总时长至少 10 分钟");
+  assert.ok(reasoningModelRoundLimits.reasoningMs >= 600_000, "思考型模型连续推理念少保留 10 分钟");
+  assert.ok(reasoningModelRoundLimits.totalMs > modelRoundLimits.totalMs);
+});
 
 test("静默模型会停止并向底层请求发送取消", async () => {
   let signal: AbortSignal | undefined;

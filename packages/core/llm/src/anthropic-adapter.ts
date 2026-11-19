@@ -89,6 +89,9 @@ function parseAnthropicJsonResponse(payload: Record<string, unknown>, profile: L
     ? {
         ...(typeof rawUsage.input_tokens === "number" ? { promptTokens: rawUsage.input_tokens } : {}),
         ...(typeof rawUsage.output_tokens === "number" ? { completionTokens: rawUsage.output_tokens } : {}),
+        ...(typeof rawUsage.cache_read_input_tokens === "number"
+          ? { cachedPromptTokens: rawUsage.cache_read_input_tokens }
+          : {}),
       }
     : undefined;
 

@@ -4,7 +4,7 @@ import { existsSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { basename, isAbsolute, relative, resolve } from "node:path";
 import { promisify } from "node:util";
-import type { GitCodingSettings } from "./coding-settings";
+import type { GitCodingSettings } from "@lfaa/settings";
 
 const execFileAsync = promisify(execFile);
 

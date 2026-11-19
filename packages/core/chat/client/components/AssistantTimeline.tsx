@@ -87,14 +87,20 @@ function ActivityRow({ step, locale, onOpenFile, selectedFileStepId }: {
   const statusLabel = step.status === "done" ? locale.statusDone : step.status === "error" ? locale.statusError
     : step.status === "preparing" ? labels.preparing
     : step.status === "waiting_approval" ? locale.statusWaitingApproval : locale.statusRunning;
+  const showLeadingStatus = isCommand && step.status === "running";
+  // 命令开始时提示紧跟类型图标，结束后在展开箭头前显示结果。
+  const status = (
+    <span key={step.status} className={styles.activityStatus} data-status={step.status} title={statusLabel}>
+      {active ? <span className={styles.liveDot} aria-hidden="true" /> : <StatusIcon size={13} aria-hidden="true" />}
+      <span className={showLeadingStatus || (command && step.status !== "done") ? undefined : styles.srOnly}>{statusLabel}</span>
+    </span>
+  );
   const row = (
     <>
-      <Icon size={14} className={styles.icon} aria-hidden="true" />
+      <Icon size={isCommand ? 15 : 14} className={styles.icon} aria-hidden="true" />
+      {showLeadingStatus && status}
       <span className={styles.activityTitle} title={title}>{title}</span>
-      <span key={step.status} className={styles.activityStatus} data-status={step.status} title={statusLabel}>
-        {active ? <span className={styles.liveDot} aria-hidden="true" /> : <StatusIcon size={13} aria-hidden="true" />}
-        <span className={command && step.status !== "done" ? undefined : styles.srOnly}>{statusLabel}</span>
-      </span>
+      {!showLeadingStatus && status}
       {hasDetails && <IconChevronRight size={13} className={styles.chevron} aria-hidden="true" />}
     </>
   );
@@ -178,6 +184,7 @@ export function AssistantTimeline({
   createdAt,
   runDurationMs,
   reasoningDurationMs,
+  tokenUsage,
   isStreaming,
   pendingApproval,
   onResolveApproval,
@@ -192,6 +199,7 @@ export function AssistantTimeline({
   createdAt: number;
   runDurationMs?: number | undefined;
   reasoningDurationMs?: number | undefined;
+  tokenUsage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number } | undefined;
   isStreaming: boolean;
   pendingApproval: PendingApprovalBanner | null;
   onResolveApproval: (approved: boolean) => void;
@@ -205,7 +213,7 @@ export function AssistantTimeline({
   const hasProcess = groups.length > 0 || (!isStreaming && Boolean(text.trim()));
   const lastEvent = steps.reduce((latest, step) => Math.max(latest, step.timestamp), 0);
   const durationMs = runDurationMs ?? reasoningDurationMs ?? (lastEvent >= createdAt ? lastEvent - createdAt : undefined);
-  const hasStatus = isStreaming || durationMs !== undefined || hasProcess;
+  const hasStatus = isStreaming || durationMs !== undefined || hasProcess || tokenUsage !== undefined;
   const finalText = isStreaming ? text.slice(groups.at(-1)?.offset ?? 0) : content;
   const processOpen = isStreaming ? (liveOpen ?? hasProcess) : historyOpen;
   const hasDisclosure = isStreaming || hasProcess;
@@ -228,6 +236,7 @@ export function AssistantTimeline({
           steps={steps}
           createdAt={createdAt}
           durationMs={durationMs}
+          tokenUsage={tokenUsage}
           isStreaming={isStreaming}
           expanded={processOpen}
           processId={processId}

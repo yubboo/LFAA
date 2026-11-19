@@ -15,6 +15,8 @@
     "@deepseek-ai/cordis": "^4.1.0",
     "@lfaa/browser": "workspace:*",
     "@lfaa/llm": "workspace:*",
+    "@lfaa/metrics": "workspace:*",
+    "@lfaa/settings": "workspace:*",
     "@lfaa/memory": "workspace:*",
     "@lfaa/ui-layout": "workspace:*",
     "@lfaa/ui-primitives": "workspace:*",

@@ -8,7 +8,8 @@ import type { InvokeSubagentInput, SubagentMode, SubagentPluginConfig, SubagentS
 
 const SUBAGENT_BLOCKED_TOOLS = new Set(["invoke_subagent", "message_subagent", "list_subagents", "stop_subagent"]);
 const DEFAULT_MAX_CONCURRENT = 4;
-const DEFAULT_MAX_STEPS = 12;
+// 子智能体默认 40 步硬上限：足够覆盖多文件调研与改造，但不参与主任务的自动延长。
+const DEFAULT_MAX_STEPS = 40;
 
 interface SubagentRecord {
   item: SubagentSummaryItem;

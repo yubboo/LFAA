@@ -1,0 +1,17 @@
+{
+  "name": "@lfaa/storage",
+  "description": "LFAA 资料库与存储：数据根路径、资产/产物保存读取、资料库布局与跨目录迁移。",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "typescript": "^5.9.3"
+  }
+}

@@ -93,11 +93,16 @@ function parseResponsesOutput(
   const rawUsage = (typeof payload.usage === "object" && payload.usage !== null
     ? (payload.usage as Record<string, unknown>)
     : undefined);
+  const inputDetails = typeof rawUsage?.input_tokens_details === "object" && rawUsage.input_tokens_details !== null
+    ? (rawUsage.input_tokens_details as { cached_tokens?: unknown })
+    : undefined;
+  const cachedPromptTokens = typeof inputDetails?.cached_tokens === "number" ? inputDetails.cached_tokens : undefined;
   const usage: LlmUsage | undefined = rawUsage
     ? {
         ...(typeof rawUsage.input_tokens === "number" ? { promptTokens: rawUsage.input_tokens } : {}),
         ...(typeof rawUsage.output_tokens === "number" ? { completionTokens: rawUsage.output_tokens } : {}),
         ...(typeof rawUsage.total_tokens === "number" ? { totalTokens: rawUsage.total_tokens } : {}),
+        ...(cachedPromptTokens === undefined ? {} : { cachedPromptTokens }),
       }
     : undefined;
 

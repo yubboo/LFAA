@@ -1,5 +1,5 @@
 // 定义 @lfaa/agent 的运行契约：权限模式、运行输入、Think/Act/Check 流式事件与人工审批句柄。
-import type { AgentStepTrace, ChatMessageRecord } from "@lfaa/memory";
+import type { AgentRunCost, AgentRunMetrics, AgentStepTrace, ChatMessageRecord, ChatTokenUsage } from "@lfaa/memory";
 
 /** 定义输入栏与 Host 审批策略共用的三种权限模式。 */
 export type AgentPermissionMode = "ask" | "smart" | "full";
@@ -25,6 +25,10 @@ export interface StartAgentRunInput {
   workspaceRoots?: string[];
   skillIds?: string[];
   maxSteps?: number;
+  /** 与显式 maxSteps 搭配：软预算用尽后按该步数自动延长，0 表示硬上限。 */
+  autoExtendSteps?: number;
+  /** 连续相同工具调用的提醒阈值；空数组表示关闭提醒。 */
+  repeatToolThresholds?: number[];
   permissionMode?: AgentPermissionMode;
   autoApproveTools?: boolean;
 }
@@ -34,6 +38,13 @@ export type AgentRunEvent =
   | { type: "run_started"; runId: string; sessionId: string; assistantMessageId: string }
   | { type: "delta"; runId: string; seq: number; kind: "reasoning" | "text"; text: string }
   | { type: "step_update"; runId: string; step: AgentStepTrace }
+  | {
+      type: "run_usage";
+      runId: string;
+      tokenUsage: ChatTokenUsage;
+      metrics: AgentRunMetrics;
+      cost?: AgentRunCost;
+    }
   | { type: "approval_resolved"; runId: string; approvalId: string }
   | {
       type: "approval_required";
@@ -75,6 +86,12 @@ export interface AgentRunStatus {
   content: string;
   reasoning: string;
   lastSeq: number;
+  /** 本轮运行累计的模型用量，供应商未返回时为 undefined。 */
+  tokenUsage?: ChatTokenUsage;
+  /** 本轮运行的耗时与上下文构成，供实时统计与断线恢复。 */
+  metrics?: AgentRunMetrics;
+  /** 本轮按模型单价换算的人民币成本。 */
+  cost?: AgentRunCost;
   pendingApprovals?: PendingToolApproval[];
   message?: ChatMessageRecord;
   error?: string;

@@ -23,11 +23,32 @@ registerHooks({
 });
 
 const { AssistantTimeline } = await import("../client/components/AssistantTimeline");
+const { StepTraceList } = await import("../client/components/StepTraceList");
+
+test("中文顶部计时区分运行和结束，保留时分秒及展开控件", () => {
+  const props = {
+    isZh: true,
+    steps: [],
+    createdAt: Date.now() - 5_000,
+    durationMs: 3_723_000,
+    expanded: false,
+    processId: "run-timer",
+    onToggle: () => {},
+  };
+  const live = renderToStaticMarkup(createElement(StepTraceList, { ...props, isStreaming: true }));
+  const done = renderToStaticMarkup(createElement(StepTraceList, { ...props, isStreaming: false }));
+
+  assert.match(live, /aria-label="思考 0 时 0 分 \d+ 秒"/u);
+  assert.match(live, /aria-controls="run-timer"/u);
+  assert.match(done, /用时 1 时 2 分 3 秒/u);
+  assert.match(done, /aria-controls="run-timer"/u);
+});
 
 function renderTimeline(overrides: {
   content?: string;
   progressText?: string;
   steps?: AgentStepItem[];
+  tokenUsage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number };
   isStreaming: boolean;
 }) {
   const locale = getChatLocale();
@@ -39,6 +60,7 @@ function renderTimeline(overrides: {
       progressText: overrides.progressText,
       steps: overrides.steps ?? [],
       createdAt: now - 5000,
+      tokenUsage: overrides.tokenUsage,
       isStreaming: overrides.isStreaming,
       pendingApproval: null,
       onResolveApproval: () => {},
@@ -47,6 +69,44 @@ function renderTimeline(overrides: {
   );
   return { html, lang: (locale.isZh ? "zh" : "en") as "zh" | "en" };
 }
+
+test("命令行的运行提示在命令前，结果图标在命令后和展开箭头前", () => {
+  const command = "status-layout-fixture";
+  const locale = getChatLocale();
+  const statuses = ["running", "done", "error"] as const;
+  for (const status of statuses) {
+    const { html } = renderTimeline({
+      isStreaming: true,
+      steps: [{ id: "cmd", iteration: 1, phase: "act", status, title: "执行命令", toolName: "run_command",
+        commandTrace: { command }, timestamp: Date.now() }],
+    });
+    const row = html.match(/<summary class="activityRow" data-kind="command"[^>]*>.*?<\/summary>/u)?.[0];
+    assert.ok(row);
+    const titleAt = row.indexOf('class="activityTitle"');
+    const statusAt = row.indexOf('class="activityStatus"');
+    assert.ok(titleAt >= 0 && statusAt >= 0);
+    if (status === "running") {
+      assert.ok(statusAt < titleAt);
+      assert.ok(row.includes(`>${locale.statusRunning}</span>`));
+      assert.match(row, /class="liveDot"/u);
+    } else {
+      assert.ok(titleAt < statusAt && statusAt < row.indexOf("tabler-icon-chevron-right"));
+      assert.ok(row.includes(status === "done" ? "tabler-icon-check" : "tabler-icon-alert-circle"));
+    }
+  }
+});
+
+test("完成态展示本轮 token 用量，没有用量时不显示", () => {
+  const { html } = renderTimeline({
+    isStreaming: false,
+    content: "全部完成。",
+    tokenUsage: { promptTokens: 900, completionTokens: 300, totalTokens: 1_200 },
+  });
+  assert.match(html, /1\.2k tokens/u);
+
+  const noUsage = renderTimeline({ isStreaming: false, content: "完成。" });
+  assert.doesNotMatch(noUsage.html, /tokens/u);
+});
 
 test("流式工具轮次完成后进入下一轮思考时，底部持续显示实时运行状态行", () => {
   const now = Date.now();

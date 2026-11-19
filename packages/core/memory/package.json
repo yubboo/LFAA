@@ -11,6 +11,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@lfaa/session": "workspace:*",
+    "@lfaa/storage": "workspace:*",
     "@deepseek-ai/cordis": "^4.1.0"
   },
   "devDependencies": {

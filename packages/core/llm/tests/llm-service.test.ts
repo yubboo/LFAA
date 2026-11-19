@@ -379,3 +379,86 @@ test("resolveEffectiveProtocol 与四大 API 协议适配器（Responses / Anthr
     globalThis.fetch = originalFetch;
   }
 });
+
+test("OpenAI 兼容流式请求声明 include_usage 并解析末尾用量分片", async () => {
+  const { callOpenAiCompatibleChat } = await import("../src/openai-adapter");
+  const originalFetch = globalThis.fetch;
+  let body: Record<string, unknown> = {};
+  globalThis.fetch = (async (_url, init) => {
+    body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+    return new Response(
+      `data: ${JSON.stringify({ choices: [{ delta: { content: "ok" } }] })}\n\n`
+      + `data: ${JSON.stringify({ choices: [], usage: { prompt_tokens: 11, completion_tokens: 3, total_tokens: 14, prompt_tokens_details: { cached_tokens: 7 } } })}\n\n`
+      + "data: [DONE]\n\n",
+      { headers: { "content-type": "text/event-stream" } },
+    );
+  }) as typeof fetch;
+
+  try {
+    const output = await callOpenAiCompatibleChat(
+      { id: "local", name: "Local", kind: "openai-compatible", baseUrl: "http://localhost/v1", apiKey: "test-key", model: "fixture", updatedAt: 1 },
+      { messages: [{ role: "user", content: "hi" }] },
+    );
+    assert.deepEqual(body.stream_options, { include_usage: true });
+    assert.deepEqual(output.usage, { promptTokens: 11, completionTokens: 3, totalTokens: 14, cachedPromptTokens: 7 });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("不识别 stream_options 的服务会自动去掉该字段重试一次", async () => {
+  const { callOpenAiCompatibleChat } = await import("../src/openai-adapter");
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = (async (_url, init) => {
+    calls += 1;
+    const body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+    if (body.stream_options) {
+      return new Response("unknown field: stream_options", { status: 400 });
+    }
+    return new Response(
+      `data: ${JSON.stringify({ choices: [{ delta: { content: "ok" } }] })}\n\n` + "data: [DONE]\n\n",
+      { headers: { "content-type": "text/event-stream" } },
+    );
+  }) as typeof fetch;
+
+  try {
+    const output = await callOpenAiCompatibleChat(
+      { id: "local", name: "Local", kind: "ollama", baseUrl: "http://localhost/v1", apiKey: "", model: "fixture", updatedAt: 1 },
+      { messages: [{ role: "user", content: "hi" }] },
+    );
+    assert.equal(calls, 2);
+    assert.equal(output.content, "ok");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("模型配置保存并公开上下文窗口", async () => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-llm-window-"));
+  const ctx = new Context();
+  await ctx.plugin(llmPlugin, { storeFilePath: path.join(tempRoot, "llm.json") });
+  try {
+    const saved = await ctx.llm.saveProfile({
+      name: "Window Model",
+      kind: "openai-compatible",
+      baseUrl: "https://example.test/v1",
+      model: "fixture",
+      apiKey: "test-key",
+      contextWindowTokens: 200_000,
+      inputPricePerMillion: 2,
+      outputPricePerMillion: 8,
+      cachedInputPricePerMillion: 0.2,
+    });
+    assert.equal(saved.contextWindowTokens, 200_000);
+    assert.equal(saved.inputPricePerMillion, 2);
+    assert.equal(saved.outputPricePerMillion, 8);
+    assert.equal(saved.cachedInputPricePerMillion, 0.2);
+    const reloaded = await ctx.llm.resolveProfile(saved.id);
+    assert.equal(reloaded.contextWindowTokens, 200_000);
+    assert.equal(reloaded.inputPricePerMillion, 2);
+    assert.equal(reloaded.outputPricePerMillion, 8);
+  } finally {
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  }
+});

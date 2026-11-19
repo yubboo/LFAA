@@ -32,6 +32,8 @@ export interface GeneralSettingsConfig {
   enablePlugins: boolean;
   plainTextEditor: boolean;
   showContextUsage: boolean;
+  /** 连续相同工具调用的提醒阈值；空数组表示关闭提醒。 */
+  repeatToolThresholds: number[];
   sendShortcut: SendShortcutMode;
   followUpMode: FollowUpHandleMode;
   popoutShortcut: string;
@@ -75,6 +77,7 @@ export const DEFAULT_GENERAL_SETTINGS: GeneralSettingsConfig = {
   enablePlugins: true,
   plainTextEditor: false,
   showContextUsage: true,
+  repeatToolThresholds: [3, 5, 8],
   sendShortcut: "enter",
   followUpMode: "queue",
   popoutShortcut: "",

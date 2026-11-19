@@ -58,6 +58,9 @@ export function createAgentHttpHandler(service: AgentService, options: AgentHttp
         const skillIds = Array.isArray(body.skillIds)
           ? body.skillIds.filter((id): id is string => typeof id === "string" && id.trim().length > 0)
           : undefined;
+        const repeatToolThresholds = Array.isArray(body.repeatToolThresholds)
+          ? body.repeatToolThresholds.filter((value): value is number => typeof value === "number" && Number.isInteger(value) && value >= 2)
+          : undefined;
         const started = await service.startRun({
           sessionId,
           userMessage: typeof body.userMessage === "string" ? body.userMessage : "",
@@ -65,6 +68,7 @@ export function createAgentHttpHandler(service: AgentService, options: AgentHttp
           ...(reasoningEffort ? { reasoningEffort } : {}),
           ...(skillIds && skillIds.length > 0 ? { skillIds } : {}),
           ...(typeof body.maxSteps === "number" ? { maxSteps: body.maxSteps } : {}),
+          ...(repeatToolThresholds ? { repeatToolThresholds } : {}),
           ...(body.permissionMode === "ask" || body.permissionMode === "smart" || body.permissionMode === "full"
             ? { permissionMode: body.permissionMode }
             : {}),

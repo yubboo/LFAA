@@ -1,77 +1,29 @@
 // 实现 Agent 核心任务循环：思考（Think）-> 行动（Act）-> 检查（Check）。
-import { randomUUID } from "node:crypto";
-import type { LlmMessage, LlmService, LlmToolCall } from "@lfaa/llm";
-import type { AgentStepTrace, MemoryService } from "@lfaa/memory";
-import type { RulesService } from "@lfaa/rules";
-import type { ToolsService } from "@lfaa/tools";
-import { evaluateToolApproval, type SmartTrustStore } from "./permission-policy";
-import type { AgentPermissionMode, AgentRunEvent, ApprovalAnswer, ResolvedSkillContext } from "./types";
-import { completeAgentRound } from "./model-round";
+import { compactConversation, DEFAULT_CONTEXT_BUDGET_CHARS, isContextOverflowError } from "@lfaa/context";
+import { REPEAT_THRESHOLDS, RepeatCallTracker } from "@lfaa/guard";
+import { type LlmGenerateOutput, type LlmMessage, type LlmUsage, resolveModelCapabilities } from "@lfaa/llm";
+import { collectHistoryDigest, formatHistoryDigest, type AgentRunCost, type AgentRunMetrics, type AgentStepTrace } from "@lfaa/memory";
+import {
+  computeTokenCost,
+  estimateMessageTokens,
+  estimateSystemPromptTokens,
+  estimateToolsTokens,
+  type TokenPricing,
+} from "@lfaa/metrics";
+import { runActPhase } from "./act-runner";
+import { completeAgentRound, resolveModelRoundLimits } from "./model-round";
+import type { RunExecutionParams, RunLoopDeps } from "./run-types";
+import { MAX_STEP_BUDGET } from "./step-budget";
+import { readStreamingPath } from "./tool-call-args";
+import { isCodePath, isVerificationCommand } from "./verification";
 
-/** 集中提供模型调用、工具执行、事件与持久化依赖，使循环可在测试中独立验证。 */
-export interface RunLoopDeps {
-  llm: LlmService;
-  tools: ToolsService;
-  memory: MemoryService;
-  rules: RulesService;
-  trustStore: SmartTrustStore;
-}
-
-/** 描述启动一次运行所需的会话信息与工具权限上下文。 */
-export interface RunExecutionParams {
-  runId: string;
-  sessionId: string;
-  assistantMessageId: string;
-  userMessage: string;
-  profileId?: string;
-  reasoningEffort?: "minimal" | "low" | "medium" | "high" | "max";
-  projectId?: string | null;
-  workspaceRoots: string[];
-  resolvedSkills?: ResolvedSkillContext[];
-  availableSkillCatalog?: Array<{ id: string; name: string; source: string; description: string }>;
-  maxSteps: number;
-  getPermissionMode: () => AgentPermissionMode;
-  signal: AbortSignal;
-  emit: (event: AgentRunEvent) => void;
-  requestApproval: (params: {
-    approvalId: string;
-    toolName: string;
-    permissionLevel: "write" | "exec";
-    argsPreview: string;
-    permissionMode: AgentPermissionMode;
-    approvalPattern?: string;
-    approvalCount?: number;
-    approvalThreshold?: number;
-    highRisk?: boolean;
-    riskReason?: string;
-  }) => Promise<ApprovalAnswer>;
-}
-
-function safeParseArgs(raw: string): { ok: true; value: Record<string, unknown> } | { ok: false; error: string } {
-  try {
-    const parsed: unknown = JSON.parse(raw || "{}");
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-      return { ok: false, error: "工具参数必须为 JSON 对象。" };
-    }
-    return { ok: true, value: parsed as Record<string, unknown> };
-  } catch (err) {
-    return { ok: false, error: `工具参数 JSON 解析失败：${err instanceof Error ? err.message : String(err)}` };
-  }
-}
-
-// 参数流可能还没结束。只识别已闭合的首个 path 字段，不发布其余参数。
-function readStreamingPath(prefix: string): string | undefined {
-  const quoted = /^\s*\{\s*"path"\s*:\s*("(?:\\.|[^"\\])*")/u.exec(prefix)?.[1];
-  if (!quoted) return undefined;
-  const parsed = safeParseArgs('{"path":' + quoted + '}');
-  return parsed.ok && typeof parsed.value.path === "string" ? parsed.value.path.slice(0, 500) : undefined;
-}
+export type { RunExecutionParams, RunLoopDeps };
 
 /** 顺序执行模型推理、工具审批和执行，最终把运行结果写回会话。 */
 export async function executeAgentTaskLoop(
   deps: RunLoopDeps,
   params: RunExecutionParams,
-): Promise<{ content: string; progressText: string; reasoning: string; steps: AgentStepTrace[]; model?: string }> {
+): Promise<{ content: string; progressText: string; reasoning: string; steps: AgentStepTrace[]; model?: string; usage?: LlmUsage; metrics: AgentRunMetrics; cost?: AgentRunCost }> {
   const steps: AgentStepTrace[] = [];
   let accumulatedReasoning = "";
   let progressText = "";
@@ -106,6 +58,8 @@ export async function executeAgentTaskLoop(
     maxRecentMessages: 16,
     maxChars: 16000,
   });
+  // 历史工具轨迹只保留一行式要点，避免模型为确认既有改动而重复读取文件。
+  const historyDigest = formatHistoryDigest(collectHistoryDigest(contextWindow.recentMessages));
 
   const modeHints = {
     full: "当前权限模式：完全访问权限（内置文件工具不受工作区目录限制，但应用私有文件始终受保护；命令沿用系统用户权限）。",
@@ -118,7 +72,7 @@ export async function executeAgentTaskLoop(
     `已授权目录：${params.workspaceRoots.join("、") || "无"}。`,
     `本轮加载的项目规则：${projectRuleNames.join("、") || "无"}。`,
     "以本轮生效上下文和工具清单为准；会话记录与其他应用配置不能证明当前权限。需要另一个项目时，请用户在新聊天选择该项目，或在既有聊天输入框使用 @项目。",
-    "终端命令从工作目录启动，子进程当前没有 OS 路径隔离，必须遵守授权目录与操作审批。",
+    "终端命令从工作目录启动，子进程当前没有 OS 路径隔离，必须遵守授权目录与操作审批；禁止读取 ~/.lfaa 下的配置、凭据与会话文件（会被拦截并记录审计）。",
   ].join("\n");
 
   const assetPreview = recentAssets.slice(0, 6).map((a) => `${a.title}(${a.fileName})`).join("、");
@@ -153,6 +107,44 @@ export async function executeAgentTaskLoop(
   const modelHint = activeProfile
     ? `当前调用的模型配置：${activeProfile.name}（配置模型 ID：${activeProfile.model}${activeProfile.model === "ark-code-latest" ? "，方舟控制台动态路由" : ""}${lastRoutedModel && lastRoutedModel !== activeProfile.model ? `，前序响应实际路由模型：${lastRoutedModel}` : ""}）。当用户询问当前使用的模型时，请如实告知以上信息；若使用 ark-code-latest 且尚未收到本轮响应，可说明具体模型由方舟控制台路由决定。`
     : "";
+  // 思考型模型允许更长的连续推理时限，普通模型沿用较短阈值。
+  const modelCapability = activeProfile
+    ? activeProfile.availableModels?.find((item) => item.id === activeProfile.model)
+      ?? resolveModelCapabilities(activeProfile.model, activeProfile.kind)
+    : undefined;
+  const roundLimits = resolveModelRoundLimits({ supportsReasoning: modelCapability?.supportsReasoning === true });
+  // 运行指标快照：上下文窗口来自当前模型配置，未配置时不显示占比。
+  const buildMetrics = () => ({
+    ...perf,
+    context: contextSnapshot,
+    ...(typeof activeProfile?.contextWindowTokens === "number" && activeProfile.contextWindowTokens > 0
+      ? { contextWindowTokens: activeProfile.contextWindowTokens }
+      : {}),
+  });
+  // 模型配置里填写了输入/输出单价时，按真实 token 用量换算人民币成本。
+  const tokenPricing: TokenPricing | undefined = activeProfile
+    && typeof activeProfile.inputPricePerMillion === "number"
+    && typeof activeProfile.outputPricePerMillion === "number"
+    ? {
+        inputPricePerMillion: activeProfile.inputPricePerMillion,
+        outputPricePerMillion: activeProfile.outputPricePerMillion,
+        ...(typeof activeProfile.cachedInputPricePerMillion === "number"
+          ? { cachedInputPricePerMillion: activeProfile.cachedInputPricePerMillion }
+          : {}),
+      }
+    : undefined;
+  // 每轮模型/工具结束后推送累计用量，浏览器统计栏随之实时变化。
+  const emitUsage = () => {
+    if (!hasUsage) return;
+    const cost = computeTokenCost(usage, tokenPricing);
+    params.emit({
+      type: "run_usage",
+      runId: params.runId,
+      tokenUsage: { ...usage },
+      metrics: buildMetrics(),
+      ...(cost ? { cost } : {}),
+    });
+  };
 
   const skillsCatalogHint = params.availableSkillCatalog && params.availableSkillCatalog.length > 0
     ? `\n\n可用技能目录（当任务命中某个技能的适用场景时，请先调用 load_skill 读取完整正文再按规范执行；若用户要求从 Git 安装技能请调用 install_skill_from_git；若用户要求创建个人技能请调用 save_user_skill 存入 ~/.lfaa/skills/）：\n${params.availableSkillCatalog
@@ -164,13 +156,19 @@ export async function executeAgentTaskLoop(
   const progressHint = [
     "较大的代码变更分成有明确文件落点的小批次。已有工具结果足以行动时，直接发出下一项必要调用。可见进度只说实际完成、正在处理的目标或当前阻塞。",
     "多步任务的进度写入用户可见的正文。首次调用工具前，简短交代准备核查或执行的事项；得到实际结果、发现异常或进入下一阶段时，再说明进展和接下来的动作。连续的小操作可共用一段，直接问答无需播报。命令和工具详情由运行时展示。",
-    "自主排查与编辑准则：定位问题时先用 search_files / list_dir / read_file 检索并精读关键源码上下文再动手；需要修改代码或修复报错时，直接调用 edit_file / write_file 落实修改并立即通过 run_command 验证，遇到新报错继续读取对应行并修正闭环，不得停在只给建议或让用户手动改代码。",
-    "工具效率与核验规范：创建或读取多个互相独立的文件时，请在同轮并行发起多个 read_file / write_file / edit_file 调用，避免逐个文件串行消耗步数；执行构建/测试请直接用 run_command 验证，不可将“静态自审”等价于编译或运行通过；向用户提供复现命令时，必须严格匹配当前终端语法（CMD 用 `set \"VAR=...\"`，PowerShell 用 `$env:VAR=\"...\"`），严禁混写。",
+    "自主排查与编辑准则：定位问题时先用 grep（正则内容）/ glob（文件名模式）/ list_dir / read_file 检索并精读关键源码上下文再动手；修改代码或修复报错时，直接调用 edit_file / write_file 落实修改并立即通过 run_command 验证，遇到新报错继续读取对应行并修正闭环，不得停在只给建议或让用户手动改代码。edit_file 的 target 必须在文件中唯一命中，命中多处时请补充上下文行或显式传 replaceAll；新建文件用 write_file。",
+    "工具效率与核验规范：创建或读取多个互相独立的文件时，请在同轮并行发起多个 read_file / write_file / edit_file 调用，避免逐个文件串行消耗步数；执行构建/测试请直接用 run_command 验证，不可将“静态自审”等价于编译或运行通过；前台命令默认 10 分钟超时，构建、安装等长命令可传 timeoutMs，服务器或监听类命令请用 start_background_task 启动并用 get_background_task 轮询；向用户提供复现命令时，必须严格匹配当前终端语法（CMD 用 `set \"VAR=...\"`，PowerShell 用 `$env:VAR=\"...\"`），严禁混写。",
+    "长期记忆：当用户明确陈述跨会话仍需记住的偏好、约定或项目约束（如“以后统一用 pnpm”“这个项目不要改 X”），调用 save_memory 保存，一次只记一条可独立复述的事实；临时进度与本次任务的中间结果不要写入长期记忆。",
   ].join("\n");
   const shellHint = await deps.tools.describeCommandShell();
   const systemMessage: LlmMessage = { role: "system", content: "" };
-  const updateSystemMessage = () => {
-    systemMessage.content = `${systemPrompt}\n\n${modeHints[params.getPermissionMode()]}\n${workspaceHint}\n${modelHint ? `${modelHint}\n` : ""}${shellHint ? `${shellHint}\n` : ""}${libraryHint}\n${formatHint}\n${progressHint}${skillsCatalogHint}${skillsSection}`;
+  const updateSystemMessage = (remainingSteps?: number) => {
+    // 步数只在接近上限时才写进 system，避免每轮改动前缀、让提示缓存整段失效。
+    const budgetHint = remainingSteps !== undefined && remainingSteps <= 8
+      ? `\n步数预算：本轮仅剩 ${remainingSteps} 次工具步数，已接近上限。请先完成关键动作并收口；任务仍大时先交付可运行的一小步。`
+      : "";
+    const digestHint = historyDigest ? `\n前序工具轨迹（来自历史步骤，可直接复用，无需重复探查）：${historyDigest}` : "";
+    systemMessage.content = `${systemPrompt}\n\n${modeHints[params.getPermissionMode()]}\n${workspaceHint}\n${modelHint ? `${modelHint}\n` : ""}${shellHint ? `${shellHint}\n` : ""}${libraryHint}\n${formatHint}\n${progressHint}${skillsCatalogHint}${skillsSection}${digestHint}${budgetHint}${truncationHint}`;
   };
   const conversation: LlmMessage[] = [systemMessage];
   if (contextWindow.summaryNote) {
@@ -185,9 +183,63 @@ export async function executeAgentTaskLoop(
   }
 
   const llmTools = deps.tools.getLlmToolSchemas();
+  const contextBudgetChars = Math.max(8_000, Math.floor(params.contextBudgetChars ?? DEFAULT_CONTEXT_BUDGET_CHARS));
+  let overflowRetried = false;
+  let truncationHint = "";
+  // 汇总每轮供应商返回的用量，运行结束后随消息持久化，供界面与成本核算使用。
+  const usage: LlmUsage = {};
+  let hasUsage = false;
+  // 会话统计：模型/工具耗时、首 token 延迟、解码耗时与上下文构成。
+  const perf = { llmMs: 0, toolMs: 0, ttftMs: 0, ttftSteps: 0, decodeMs: 0, decodeTokens: 0 };
+  let contextSnapshot: { systemTokens: number; toolsTokens: number; messageTokens: number } = {
+    systemTokens: 0,
+    toolsTokens: 0,
+    messageTokens: 0,
+  };
+  const addUsage = (roundUsage?: LlmUsage) => {
+    if (!roundUsage) return;
+    hasUsage = true;
+    usage.promptTokens = (usage.promptTokens ?? 0) + (roundUsage.promptTokens ?? 0);
+    usage.completionTokens = (usage.completionTokens ?? 0) + (roundUsage.completionTokens ?? 0);
+    usage.totalTokens = (usage.totalTokens ?? 0) + (roundUsage.totalTokens ?? 0);
+    if (roundUsage.cachedPromptTokens !== undefined) {
+      usage.cachedPromptTokens = (usage.cachedPromptTokens ?? 0) + roundUsage.cachedPromptTokens;
+    }
+  };
 
   // 2. Think -> Act -> Check 任务循环
-  for (let iteration = 1; iteration <= params.maxSteps; iteration += 1) {
+  // 步数预算用尽时不再直接收口：只要上一轮确实执行了工具，就自动追加预算继续推进。
+  let budget = Math.max(1, Math.floor(params.maxSteps));
+  const extensionSteps = Math.max(0, Math.floor(params.autoExtendSteps ?? 0));
+  const hardBudget = extensionSteps > 0 ? Math.max(budget, MAX_STEP_BUDGET) : budget;
+  let iteration = 0;
+  let lastRoundExecutedTools = false;
+  // 空阈值数组表示用户关闭重复调用提醒。
+  const repeatTracker = params.repeatToolThresholds !== undefined && params.repeatToolThresholds.length === 0
+    ? undefined
+    : new RepeatCallTracker(params.repeatToolThresholds ?? REPEAT_THRESHOLDS);
+  let pendingRepeatReminders: string[] = [];
+  // 完成前自检：记录最后一次代码修改与最后一次验证命令所在的轮次。
+  let lastCodeEditIteration = 0;
+  let lastVerificationIteration = 0;
+  let verificationNudged = false;
+  while (true) {
+    iteration += 1;
+    if (iteration > budget) {
+      if (extensionSteps === 0 || budget >= hardBudget || !lastRoundExecutedTools) break;
+      const previousBudget = budget;
+      budget = Math.min(hardBudget, budget + extensionSteps);
+      pushOrUpdateStep({
+        id: `budget-${iteration}`,
+        iteration,
+        phase: "check",
+        status: "done",
+        title: `步数预算已用尽：自动延长 ${budget - previousBudget} 步继续推进`,
+        detail: "上一轮仍产生了有效工具结果，任务保持运行；需要停止请手动中止。",
+        timestamp: Date.now(),
+      });
+    }
+
     if (params.signal.aborted) throw new Error("用户已中止本次任务。");
 
     const thinkStepId = `think-${iteration}`;
@@ -212,8 +264,33 @@ export async function executeAgentTaskLoop(
       modelStage = stage;
       pushOrUpdateStep({ ...thinkStep, ...(modelStage ? { modelStage } : {}), timestamp: now });
     };
-    updateSystemMessage();
-    const output = await completeAgentRound(deps.llm, {
+    const roundStartedAt = Date.now();
+    let firstTokenAt: number | undefined;
+    updateSystemMessage(Math.max(0, budget - iteration + 1));
+    // 发送前按预算压缩：保留结构与最近轮次，早期工具结果压成尾部片段。
+    const compaction = compactConversation(conversation, { budgetChars: contextBudgetChars });
+    if (compaction.compacted) {
+      conversation.splice(0, conversation.length, ...compaction.messages);
+      conversation[0] = systemMessage;
+      pushOrUpdateStep({
+        id: "context-compaction",
+        iteration,
+        phase: "check",
+        status: "done",
+        title: `上下文已压缩：省略 ${compaction.droppedMessages} 条早期消息，压缩 ${compaction.truncatedResults} 条工具结果`,
+        timestamp: Date.now(),
+      });
+    }
+    // 记录本轮实际发送的上下文构成，估算口径与 DSH token-meter 对齐。
+    contextSnapshot = {
+      systemTokens: estimateSystemPromptTokens(systemMessage.content),
+      toolsTokens: estimateToolsTokens(llmTools),
+      messageTokens: conversation.reduce(
+        (sum, message) => (message.role === "system" ? sum : sum + estimateMessageTokens(message)),
+        0,
+      ),
+    };
+    const callModel = () => completeAgentRound(deps.llm, {
       ...(params.profileId !== undefined ? { profileId: params.profileId } : {}),
       ...(params.reasoningEffort !== undefined ? { reasoningEffort: params.reasoningEffort } : {}),
       messages: conversation,
@@ -238,6 +315,7 @@ export async function executeAgentTaskLoop(
       },
       onDelta: (delta) => {
         if ((delta.type === "reasoning" || delta.type === "text") && delta.text) {
+          firstTokenAt ??= Date.now();
           noteModelActivity(delta.type === "reasoning" ? "reasoning" : "replying");
         }
         if (delta.type === "reasoning" && delta.text) {
@@ -263,7 +341,57 @@ export async function executeAgentTaskLoop(
           pushOrUpdateStep(preparation);
         }
       },
-    });
+    }, roundLimits);
+    let output: LlmGenerateOutput;
+    try {
+      output = await callModel();
+    } catch (error) {
+      // 供应商报“上下文超限”时不再直接失败：强制压缩一半预算后重试一次。
+      if (overflowRetried || !isContextOverflowError(error)) throw error;
+      overflowRetried = true;
+      const forced = compactConversation(conversation, {
+        budgetChars: Math.floor(contextBudgetChars / 2),
+        toolCapChars: 600,
+        keepRecentRounds: 2,
+      });
+      conversation.splice(0, conversation.length, ...forced.messages);
+      conversation[0] = systemMessage;
+      pushOrUpdateStep({
+        id: "context-overflow",
+        iteration,
+        phase: "check",
+        status: "done",
+        title: "模型上下文超限：已强制压缩并重试",
+        detail: error instanceof Error ? error.message.slice(0, 200) : String(error),
+        timestamp: Date.now(),
+      });
+      output = await callModel();
+    }
+    const truncatedOutput = /^(?:length|max_tokens|MAX_TOKENS|incomplete)$/iu.test(output.finishReason);
+    addUsage(output.usage);
+    // 模型轮次耗时与首 token 延迟：解码吞吐只按首 token 之后的时间计算。
+    const roundEndedAt = Date.now();
+    perf.llmMs += roundEndedAt - roundStartedAt;
+    if (firstTokenAt !== undefined) {
+      perf.ttftMs += firstTokenAt - roundStartedAt;
+      perf.ttftSteps += 1;
+      perf.decodeMs += roundEndedAt - firstTokenAt;
+      perf.decodeTokens += output.usage?.completionTokens ?? 0;
+    }
+    emitUsage();
+    truncationHint = truncatedOutput
+      ? "\n注意：上一轮模型输出达到长度上限被截断。请把大文件拆成多次写入（write_file 先写骨架，再用 edit_file 分段补充），或缩短单次输出后继续。"
+      : "";
+    if (truncatedOutput) {
+      pushOrUpdateStep({
+        id: `truncated-${iteration}`,
+        iteration,
+        phase: "check",
+        status: "done",
+        title: "模型输出达到长度上限：已提示拆分写入",
+        timestamp: Date.now(),
+      });
+    }
     lastModel = output.model;
     const roundContent = output.content || iterText;
     // 非流式适配器也在工具之前交付正文，偏移始终使用实际发出的前缀。
@@ -299,9 +427,39 @@ export async function executeAgentTaskLoop(
       });
     }
 
-    // 无工具调用：执行终结检查后完成闭环
+    // 无工具调用：先做完成前自检，再执行终结检查。
     if (output.toolCalls.length === 0) {
       const finalContent = roundContent.trim();
+      const needsVerification = lastCodeEditIteration > lastVerificationIteration;
+      // 改过代码却没有运行验证时，给模型一次补验证的机会（每次运行最多提示一次）。
+      if (needsVerification && !verificationNudged && budget - iteration >= 2) {
+        verificationNudged = true;
+        pushOrUpdateStep({
+          id: "verification-gate",
+          iteration,
+          phase: "check",
+          status: "error",
+          title: "完成前自检：本轮修改了代码但尚未运行验证",
+          detail: "已要求模型先执行构建/测试/类型检查，或说明本次修改无需验证的原因。",
+          timestamp: Date.now(),
+        });
+        conversation.push({
+          role: "user",
+          content: "完成前请先验证本次修改：运行构建、测试或类型检查（如 pnpm build、pnpm test、mvn package、tsc --noEmit）。如果本次修改确实不需要验证（例如只改了文档或当前环境没有可用构建），请明确说明原因后再结束。",
+        });
+        continue;
+      }
+      if (needsVerification && verificationNudged) {
+        pushOrUpdateStep({
+          id: "verification-result",
+          iteration,
+          phase: "check",
+          status: "error",
+          title: "完成前自检：模型未执行验证即结束",
+          detail: finalContent.slice(0, 160) || "未说明原因",
+          timestamp: Date.now(),
+        });
+      }
       const checkStepId = `check-${iteration}`;
       const isEmpty = !finalContent;
       pushOrUpdateStep({
@@ -313,12 +471,16 @@ export async function executeAgentTaskLoop(
         ...(isEmpty ? { detail: "请检查模型接口与提示词配置。" } : {}),
         timestamp: Date.now(),
       });
+      const cost = computeTokenCost(usage, tokenPricing);
       return {
         content: finalContent || "模型返回了空内容，未能生成有效答复。",
         progressText,
         reasoning: accumulatedReasoning,
         steps,
         model: lastModel,
+        ...(hasUsage ? { usage } : {}),
+        ...(cost ? { cost } : {}),
+        metrics: buildMetrics(),
       };
     }
 
@@ -337,158 +499,47 @@ export async function executeAgentTaskLoop(
       toolCalls: output.toolCalls,
     });
 
-    // Act 阶段：逐项校验并执行工具调用
-    let failureCount = 0;
-    const actSummaries: string[] = [];
-
-    for (const call of output.toolCalls) {
-      if (params.signal.aborted) throw new Error("用户已中止本次任务。");
-      const actStepId = `act-${iteration}-${call.id}`;
-      const argsPreview = (call.argumentsJson || "{}").slice(0, 200);
-      const toolDef = deps.tools.getTool(call.name);
-      const perm = toolDef?.permissionLevel ?? "read";
-
-      const parsedArgs = safeParseArgs(call.argumentsJson);
-      const command = call.name === "run_command" && parsedArgs.ok && typeof parsedArgs.value.command === "string"
-        ? parsedArgs.value.command.trim().slice(0, 16000)
-        : "";
-      const action: AgentStepTrace = {
-        id: actStepId,
-        iteration,
-        phase: "act",
-        status: "running",
-        title: `行动：调用 ${call.name}`,
-        toolCallId: call.id,
-        toolName: call.name,
-        permissionLevel: perm,
-        argsPreview,
-        ...(parsedArgs.ok && typeof parsedArgs.value.path === "string"
-          ? { toolTarget: parsedArgs.value.path.slice(0, 500) } : {}),
-        textOffset: roundTextOffset,
-        ...(command ? { commandTrace: { command } } : {}),
-        timestamp: Date.now(),
-      };
-
-      let toolOutputText = "";
-      let stepOk = false;
-      let summaryText = "";
-      let addedLines: number | undefined;
-      let removedLines: number | undefined;
-      let exitCode: number | undefined;
-      let fileChange: AgentStepTrace["fileChange"];
-
-      if (!parsedArgs.ok) {
-        toolOutputText = parsedArgs.error;
-        summaryText = "参数格式错误";
-      } else {
-        let permitted = true;
-        let autoApprovalDetail = "";
-        while (toolDef && perm !== "read") {
-          params.signal.throwIfAborted();
-          const mode = params.getPermissionMode();
-          const currentCount = mode === "smart"
-            ? await deps.trustStore.getCount(
-              evaluateToolApproval({
-                mode: "smart",
-                permissionLevel: perm,
-                toolName: call.name,
-                args: parsedArgs.value,
-                approvedCount: 0,
-              }).pattern,
-            )
-            : 0;
-          if (params.getPermissionMode() !== mode) continue;
-          const decision = evaluateToolApproval({
-            mode,
-            permissionLevel: perm,
-            toolName: call.name,
-            args: parsedArgs.value,
-            approvedCount: currentCount,
-          });
-
-          if (decision.requiresApproval) {
-            const approvalId = randomUUID();
+    // Act 阶段：交给工具执行器；连续只读调用并行，写文件与命令串行，结果按模型顺序回填。
+    const act = await runActPhase(deps, params, output.toolCalls, {
+      iteration,
+      roundTextOffset,
+      conversation,
+      pushOrUpdateStep,
+      onExecuted: (outcome) => {
+        // 完成前自检：记录最后一次代码修改与最后一次验证命令所在的轮次。
+        const modifiedPath = outcome.fileChange?.path ?? outcome.action.toolTarget;
+        const modified = Boolean(outcome.fileChange) || outcome.call.name === "write_file" || outcome.call.name === "edit_file";
+        if (outcome.executed && outcome.ok && modified && isCodePath(modifiedPath)) {
+          lastCodeEditIteration = iteration;
+        }
+        if (outcome.executed && outcome.command && isVerificationCommand(outcome.command)) {
+          lastVerificationIteration = iteration;
+        }
+        // 连续相同调用只给建议性提醒，不阻断执行；提醒在工具结果回填后再进入上下文。
+        if (outcome.executed && outcome.ok) {
+          const repeat = repeatTracker?.observe(outcome.call.name, outcome.call.argumentsJson);
+          if (repeat?.reminder) {
+            pendingRepeatReminders.push(repeat.reminder);
             pushOrUpdateStep({
-              ...action,
-              status: "waiting_approval",
-              title: `等待确认：${toolDef.title} (${call.name})`,
-              ...(decision.reason ? { detail: decision.reason } : {}),
+              id: `repeat-call-${iteration}-${repeat.count}`,
+              iteration,
+              phase: "check",
+              status: "done",
+              title: `检测到重复工具调用：${outcome.call.name}（连续 ${repeat.count} 次）`,
+              detail: "已向模型追加建议性提醒，要求换方法或结束任务；不阻断本次执行。",
               timestamp: Date.now(),
             });
-            const answer = await params.requestApproval({
-              approvalId,
-              toolName: call.name,
-              permissionLevel: perm,
-              argsPreview,
-              permissionMode: mode,
-              approvalPattern: decision.pattern,
-              ...(decision.approvalCount !== undefined ? { approvalCount: decision.approvalCount } : {}),
-              ...(decision.approvalThreshold !== undefined ? { approvalThreshold: decision.approvalThreshold } : {}),
-              highRisk: decision.highRisk,
-              ...(decision.reason ? { riskReason: decision.reason } : {}),
-            });
-            if (answer === "mode_changed") continue;
-            permitted = answer;
-            if (mode === "smart") {
-              await deps.trustStore.recordDecision(decision.pattern, permitted, decision.highRisk);
-            }
-          } else if (decision.autoApproved && decision.reason) {
-            autoApprovalDetail = decision.reason;
           }
-          break;
         }
-
-        if (!permitted) {
-          toolOutputText = "用户拒绝执行此修改/命令工具，请改用只读核查或向用户说明替代方案。";
-          summaryText = "用户已拒绝";
-        } else {
-          pushOrUpdateStep({ ...action, timestamp: Date.now() });
-          const execRes = await deps.tools.executeTool(call.name, parsedArgs.value, {
-            workspaceRoots: params.workspaceRoots,
-            sessionId: params.sessionId,
-            runId: params.runId,
-            signal: params.signal,
-            allowOutsideWorkspace: params.getPermissionMode() === "full",
-            ...(command ? { onCommandOutput: (output: string) => pushOrUpdateStep({
-              ...action, commandTrace: { command, output }, timestamp: Date.now(),
-            }) } : {}),
-          });
-          stepOk = execRes.ok;
-          toolOutputText = execRes.output;
-          summaryText = autoApprovalDetail ? `${execRes.summary} · ${autoApprovalDetail}` : execRes.summary;
-          if (typeof execRes.metadata?.added === "number") addedLines = execRes.metadata.added;
-          if (typeof execRes.metadata?.removed === "number") removedLines = execRes.metadata.removed;
-          if (typeof execRes.metadata?.exitCode === "number") exitCode = execRes.metadata.exitCode;
-          if (execRes.ok) fileChange = execRes.fileChange;
-        }
-      }
-
-      if (!stepOk) failureCount += 1;
-      actSummaries.push(`${call.name}: ${summaryText}`);
-
-      pushOrUpdateStep({
-        ...action,
-        status: stepOk ? "done" : "error",
-        title: `行动：${call.name} (${summaryText})`,
-        resultPreview: toolOutputText.slice(0, 240),
-        ...(command ? { commandTrace: {
-          command,
-          output: toolOutputText.slice(0, 16000),
-          ...(exitCode === undefined ? {} : { exitCode }),
-        } } : {}),
-        ...(addedLines !== undefined ? { addedLines } : {}),
-        ...(removedLines !== undefined ? { removedLines } : {}),
-        ...(fileChange ? { fileChange } : {}),
-        timestamp: Date.now(),
-      });
-
-      conversation.push({
-        role: "tool",
-        toolCallId: call.id,
-        name: call.name,
-        content: toolOutputText,
-      });
+      },
+    });
+    perf.toolMs += act.toolMs;
+    emitUsage();
+    // 工具结果已回填，再把重复调用提醒追加为独立的用户消息，保持 tool_call/tool_result 配对。
+    for (const reminder of pendingRepeatReminders) {
+      conversation.push({ role: "user", content: reminder });
     }
+    pendingRepeatReminders = [];
 
     // Check 阶段：评估行动结果并驱动下一轮思考
     const checkStepId = `check-${iteration}`;
@@ -496,19 +547,21 @@ export async function executeAgentTaskLoop(
       id: checkStepId,
       iteration,
       phase: "check",
-      status: failureCount > 0 ? "error" : "done",
-      title: failureCount > 0
-        ? `第 ${iteration} 轮检查：${failureCount}/${output.toolCalls.length} 项执行异常，反馈模型调整`
+      status: act.failureCount > 0 ? "error" : "done",
+      title: act.failureCount > 0
+        ? `第 ${iteration} 轮检查：${act.failureCount}/${output.toolCalls.length} 项执行异常，反馈模型调整`
         : `第 ${iteration} 轮检查：工具观察已回收，继续推进判断`,
-      detail: actSummaries.join("；"),
+      detail: act.summaries.join("；"),
       timestamp: Date.now(),
     });
+    // 只有真正执行过工具的一轮才值得继续消耗预算；全部被拒绝或解析失败时按收口处理。
+    lastRoundExecutedTools = act.executedToolCount > 0;
   }
 
-  // 达到最大步数保护时执行收口总结
+  // 达到步数预算且无自动延长空间时执行收口总结
   const fallbackStep: AgentStepTrace = {
     id: "think-final",
-    iteration: params.maxSteps + 1,
+    iteration,
     phase: "think",
     status: "running",
     title: "生成运行总结",
@@ -525,7 +578,15 @@ export async function executeAgentTaskLoop(
     fallbackStage = stage;
     pushOrUpdateStep({ ...fallbackStep, ...(fallbackStage ? { modelStage: fallbackStage } : {}), timestamp: now });
   };
+  // 收口总结前再压缩一次，避免追加提示后刚好越过上下文上限。
+  const fallbackCompaction = compactConversation(conversation, { budgetChars: contextBudgetChars });
+  if (fallbackCompaction.compacted) {
+    conversation.splice(0, conversation.length, ...fallbackCompaction.messages);
+    conversation[0] = systemMessage;
+  }
   updateSystemMessage();
+  const fallbackStartedAt = Date.now();
+  let fallbackFirstTokenAt: number | undefined;
   const fallback = await completeAgentRound(deps.llm, {
     ...(params.profileId !== undefined ? { profileId: params.profileId } : {}),
     messages: [
@@ -538,21 +599,43 @@ export async function executeAgentTaskLoop(
     onActivity: () => noteFallbackStage(),
     onDelta: (delta) => {
       if (delta.type === "reasoning" && delta.text) {
+        fallbackFirstTokenAt ??= Date.now();
         noteFallbackStage("reasoning");
         accumulatedReasoning += delta.text;
         params.emit({ type: "delta", runId: params.runId, seq: 0, kind: "reasoning", text: delta.text });
       } else if (delta.type === "text" && delta.text) {
+        fallbackFirstTokenAt ??= Date.now();
         noteFallbackStage("replying");
         fallbackText += delta.text;
         params.emit({ type: "delta", runId: params.runId, seq: 0, kind: "text", text: delta.text });
       }
     },
-  });
+  }, roundLimits);
+  const fallbackEndedAt = Date.now();
+  perf.llmMs += fallbackEndedAt - fallbackStartedAt;
+  if (fallbackFirstTokenAt !== undefined) {
+    perf.ttftMs += fallbackFirstTokenAt - fallbackStartedAt;
+    perf.ttftSteps += 1;
+    perf.decodeMs += fallbackEndedAt - fallbackFirstTokenAt;
+    perf.decodeTokens += fallback.usage?.completionTokens ?? 0;
+  }
   const finalContent = (fallback.content || fallbackText).trim() || "已达到单轮最大步数上限，请根据步骤轨迹继续指令。";
+  addUsage(fallback.usage);
+  emitUsage();
   if (!fallbackText) {
     pushOrUpdateStep({ ...fallbackStep, modelStage: "replying", timestamp: Date.now() });
     params.emit({ type: "delta", runId: params.runId, seq: 0, kind: "text", text: finalContent });
   }
   pushOrUpdateStep({ ...fallbackStep, status: "done", timestamp: Date.now() });
-  return { content: finalContent, progressText, reasoning: accumulatedReasoning, steps, model: fallback.model ?? lastModel };
+  const cost = computeTokenCost(usage, tokenPricing);
+  return {
+    content: finalContent,
+    progressText,
+    reasoning: accumulatedReasoning,
+    steps,
+    model: fallback.model ?? lastModel,
+    ...(hasUsage ? { usage } : {}),
+    ...(cost ? { cost } : {}),
+    metrics: buildMetrics(),
+  };
 }

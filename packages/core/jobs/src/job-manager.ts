@@ -2,7 +2,7 @@
 import { execFile, spawn, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { formatCommandOutput } from "@lfaa/shell-env";
-import type { ShellInvocation } from "@lfaa/shell";
+import { sanitizeCommandEnv, type ShellInvocation } from "@lfaa/shell";
 import type { BackgroundJobItem, JobsPluginConfig, StartBackgroundJobInput } from "./types";
 
 const MAX_BYTES = 512 * 1024;
@@ -108,12 +108,14 @@ export class BackgroundJobManager {
           windowsHide: true,
           windowsVerbatimArguments: invocation.windowsVerbatimArguments ?? false,
           stdio: ["ignore", "pipe", "pipe"],
+          env: sanitizeCommandEnv(),
         })
       : spawn(command, {
           cwd: input.cwd,
           shell: true,
           windowsHide: true,
           stdio: ["ignore", "pipe", "pipe"],
+          env: sanitizeCommandEnv(),
         });
 
     entry.child = child;

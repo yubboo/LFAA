@@ -1,11 +1,14 @@
 // @lfaa/jobs Host 侧 Cordis 服务：注册后台命令工具并管理会话级后台进程池。
 import { type Context, Service } from "@deepseek-ai/cordis";
-import { resolveSafeWorkspaceRoot } from "@lfaa/tools";
+import { appendCommandAudit, findProtectedPathInCommand, resolveSafeWorkspaceRoot } from "@lfaa/tools";
 import { BackgroundJobManager } from "./job-manager";
 import type { BackgroundJobItem, JobsPluginConfig, StartBackgroundJobInput } from "./types";
 
 export * from "./types";
 export { createJobsHttpHandler } from "./http-handler";
+
+/** 前台命令超时转后台后的执行时限：30 分钟，覆盖完整构建或依赖安装。 */
+const BACKGROUND_FALLBACK_TIMEOUT_MS = 30 * 60_000;
 
 /** Host 侧后台任务服务，挂载于 Cordis `jobs` 属性。 */
 export class JobsService extends Service {
@@ -13,12 +16,26 @@ export class JobsService extends Service {
 
   private readonly manager: BackgroundJobManager;
   private unregisterTools: (() => void) | null = null;
+  private unregisterTimeoutHandler: (() => void) | null = null;
 
   constructor(ctx: Context, config: JobsPluginConfig = {}) {
     super(ctx, "jobs");
     this.manager = new BackgroundJobManager(config);
     this.unregisterTools = this.registerAgentTools();
+    // 前台命令触发时限时由后台任务接管，长构建不再被直接判定失败。
+    this.unregisterTimeoutHandler = ctx.tools.setCommandTimeoutHandler(async (input) => {
+      const job = await this.manager.start({
+        sessionId: input.sessionId,
+        command: input.command,
+        title: `超时转后台：${input.command.slice(0, 48)}`,
+        cwd: input.cwd,
+        timeoutMs: BACKGROUND_FALLBACK_TIMEOUT_MS,
+      });
+      return { taskId: job.id, title: job.title };
+    });
     ctx.effect(() => () => {
+      this.unregisterTimeoutHandler?.();
+      this.unregisterTimeoutHandler = null;
       this.unregisterTools?.();
       this.unregisterTools = null;
       this.manager.disposeAll();
@@ -47,12 +64,26 @@ export class JobsService extends Service {
           const cwd = await resolveSafeWorkspaceRoot(execCtx.workspaceRoots, {
             allowOutsideWorkspace: execCtx.allowOutsideWorkspace,
           });
+          const protectedTarget = findProtectedPathInCommand(command);
+          if (protectedTarget) {
+            await appendCommandAudit({
+              at: Date.now(), sessionId: execCtx.sessionId, runId: execCtx.runId, cwd, command, ok: false,
+            });
+            return {
+              ok: false,
+              output: `命令引用了应用私有${protectedTarget}，已拦截。`,
+              summary: "命令已安全拦截",
+            };
+          }
           const job = await this.manager.start({
             sessionId: execCtx.sessionId,
             command,
             ...(typeof args.title === "string" ? { title: args.title } : {}),
             cwd,
             ...(typeof args.timeoutMs === "number" ? { timeoutMs: args.timeoutMs } : {}),
+          });
+          await appendCommandAudit({
+            at: Date.now(), sessionId: execCtx.sessionId, runId: execCtx.runId, cwd, command, ok: true,
           });
           return {
             ok: true,
@@ -133,6 +164,8 @@ export class JobsService extends Service {
   }
 
   protected stop(): void {
+    this.unregisterTimeoutHandler?.();
+    this.unregisterTimeoutHandler = null;
     this.unregisterTools?.();
     this.unregisterTools = null;
     this.manager.disposeAll();

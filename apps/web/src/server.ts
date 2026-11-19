@@ -99,6 +99,15 @@ export async function startWeb(): Promise<() => Promise<void>> {
     return list.map((s) => ({ id: s.id, name: s.name, source: s.source, description: s.description }));
   });
 
+  // 应用启动时结算上次退出遗留的流式消息与临时文件，避免界面一直显示“生成中”。
+  const reconciled = await hostContext.memory.reconcileInterruptedRuns().catch((error: unknown) => {
+    console.warn("结算上次中断运行时出错：", error);
+    return null;
+  });
+  if (reconciled && (reconciled.messages > 0 || reconciled.tmpRemoved > 0)) {
+    console.info(`[agent] 已结算中断运行：${reconciled.messages} 条消息，清理 ${reconciled.tmpRemoved} 个临时文件`);
+  }
+
   const offSectionRemoved = hostContext.sections.onSectionRemoved((sectionId) =>
     hostContext.workspace.clearSection(sectionId),
   );

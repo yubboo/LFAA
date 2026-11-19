@@ -11,6 +11,19 @@ import type {
   LlmToolDefinition,
 } from "./types";
 
+// 兼容 OpenAI 的 prompt_tokens_details.cached_tokens 与 DeepSeek 的 prompt_cache_hit_tokens。
+function readCachedPromptTokens(raw: {
+  prompt_tokens_details?: { cached_tokens?: number } | null;
+  prompt_cache_hit_tokens?: number;
+} | undefined): number | undefined {
+  if (!raw) return undefined;
+  const nested = typeof raw.prompt_tokens_details?.cached_tokens === "number"
+    ? raw.prompt_tokens_details.cached_tokens
+    : undefined;
+  const direct = typeof raw.prompt_cache_hit_tokens === "number" ? raw.prompt_cache_hit_tokens : undefined;
+  return nested ?? direct;
+}
+
 // 统一接口地址的尾部斜杠，再将 HTTP(S) 地址用于拼接聊天请求路径。
 function normalizeBaseUrl(rawUrl: string): string {
   const trimmed = rawUrl.trim().replace(/\/+$/u, "");
@@ -100,7 +113,13 @@ async function readSseCompletion(
 
     const parsed = JSON.parse(payload) as {
       model?: string;
-      usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+      usage?: {
+        prompt_tokens?: number;
+        completion_tokens?: number;
+        total_tokens?: number;
+        prompt_tokens_details?: { cached_tokens?: number } | null;
+        prompt_cache_hit_tokens?: number;
+      };
       choices?: Array<{
         finish_reason?: string | null;
         delta?: {
@@ -117,10 +136,12 @@ async function readSseCompletion(
 
     if (parsed.model) responseModel = parsed.model;
     if (parsed.usage) {
+      const cachedPromptTokens = readCachedPromptTokens(parsed.usage);
       usage = {
         ...(typeof parsed.usage.prompt_tokens === "number" ? { promptTokens: parsed.usage.prompt_tokens } : {}),
         ...(typeof parsed.usage.completion_tokens === "number" ? { completionTokens: parsed.usage.completion_tokens } : {}),
         ...(typeof parsed.usage.total_tokens === "number" ? { totalTokens: parsed.usage.total_tokens } : {}),
+        ...(cachedPromptTokens === undefined ? {} : { cachedPromptTokens }),
       };
     }
     const choice = parsed.choices?.[0];
@@ -242,6 +263,8 @@ export async function callOpenAiCompatibleChat(
     model: profile.model,
     messages: buildApiMessages(input.messages, enableThinking),
     stream: true,
+    // 流式调用默认不带用量；声明后多数兼容服务会在末尾分片返回 usage，供成本核算。
+    stream_options: { include_usage: true },
   };
   const apiTools = buildApiTools(input.tools);
   if (apiTools) {
@@ -259,16 +282,27 @@ export async function callOpenAiCompatibleChat(
     bodyPayload.reasoning_effort = mappedEffort;
   }
 
-  const response = await fetch(endpoint, {
+  const post = () => fetch(endpoint, {
     method: "POST",
     headers,
     body: JSON.stringify(bodyPayload),
     ...(input.signal ? { signal: input.signal } : {}),
   });
 
+  let response = await post();
   if (!response.ok) {
     const errText = await response.text().catch(() => "");
-    throw new Error(formatLlmHttpError(response.status, errText, response.statusText));
+    // 少数兼容服务不识别 stream_options：去掉该字段重试一次，用量退回由非流式统计。
+    if (response.status === 400 && /stream_options|include_usage|unknown.*(?:field|parameter)|unrecognized/iu.test(errText)) {
+      delete bodyPayload.stream_options;
+      response = await post();
+      if (!response.ok) {
+        const retryText = await response.text().catch(() => "");
+        throw new Error(formatLlmHttpError(response.status, retryText, response.statusText));
+      }
+    } else {
+      throw new Error(formatLlmHttpError(response.status, errText, response.statusText));
+    }
   }
 
   const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
@@ -279,7 +313,13 @@ export async function callOpenAiCompatibleChat(
   // 兼容请求流式输出后仍返回完整 JSON 的服务，使用非流式响应的字段结构解析。
   const json = (await response.json()) as {
     model?: string;
-    usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+    usage?: {
+      prompt_tokens?: number;
+      completion_tokens?: number;
+      total_tokens?: number;
+      prompt_tokens_details?: { cached_tokens?: number } | null;
+      prompt_cache_hit_tokens?: number;
+    };
     choices?: Array<{
       finish_reason?: string;
       message?: {
@@ -307,6 +347,7 @@ export async function callOpenAiCompatibleChat(
   }));
 
   // 与 SSE 分支返回同一结果结构，用量字段沿用内部契约的驼峰命名。
+  const cachedPromptTokens = json.usage ? readCachedPromptTokens(json.usage) : undefined;
   return {
     model: json.model ?? profile.model,
     provider: profile.kind,
@@ -320,6 +361,7 @@ export async function callOpenAiCompatibleChat(
             ...(typeof json.usage.prompt_tokens === "number" ? { promptTokens: json.usage.prompt_tokens } : {}),
             ...(typeof json.usage.completion_tokens === "number" ? { completionTokens: json.usage.completion_tokens } : {}),
             ...(typeof json.usage.total_tokens === "number" ? { totalTokens: json.usage.total_tokens } : {}),
+            ...(cachedPromptTokens === undefined ? {} : { cachedPromptTokens }),
           },
         }
       : {}),

@@ -25,6 +25,7 @@ export const timelineMessages = {
     activityWaiting: (action: string) => `等待确认 · ${action}`,
     activityFailed: (action: string) => `未完成 · ${action}`,
     waiting: "等待确认操作",
+    thinkingElapsed: "思考",
     elapsed: "用时",
     process: "执行过程",
     command: "终端",
@@ -74,6 +75,7 @@ export const timelineMessages = {
     activityWaiting: (action: string) => `Approval required · ${action}`,
     activityFailed: (action: string) => `Unsuccessful · ${action}`,
     waiting: "Waiting for approval",
+    thinkingElapsed: "Thinking",
     elapsed: "Elapsed",
     process: "Activity",
     command: "Terminal",
@@ -185,6 +187,10 @@ export interface ChatLocaleMessages {
   stop: string;
   newChat: string;
   deleteChat: string;
+  sessionTurns: string;
+  sessionSteps: string;
+  sessionCache: string;
+  sessionContext: string;
   noProjectBound: string;
   bindProject: string;
   workLocation: string;
@@ -363,6 +369,10 @@ const zh: ChatLocaleMessages = {
   stop: "停止",
   newChat: "新聊天",
   deleteChat: "删除会话",
+  sessionTurns: "轮",
+  sessionSteps: "步",
+  sessionCache: "缓存",
+  sessionContext: "上下文",
   noProjectBound: "未绑定项目",
   bindProject: "绑定项目",
   workLocation: "工作位置",
@@ -541,6 +551,10 @@ const en: ChatLocaleMessages = {
   stop: "Stop",
   newChat: "New chat",
   deleteChat: "Delete chat",
+  sessionTurns: "turns",
+  sessionSteps: "steps",
+  sessionCache: "cache",
+  sessionContext: "context",
   noProjectBound: "No project",
   bindProject: "Project",
   workLocation: "Work location",

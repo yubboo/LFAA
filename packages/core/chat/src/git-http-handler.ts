@@ -1,6 +1,6 @@
 // 为本机 Web 服务提供 /api/chat/coding-settings、/api/git/* 与 /api/code-review/* 内置 Git 与审查接口。
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { CodeReviewCodingSettings, GitCodingSettings } from "./coding-settings";
+import type { CodeReviewCodingSettings, GitCodingSettings } from "@lfaa/settings";
 import type { ChatService } from "./index";
 
 /** 注入候选目录与目标路径解析，供编码路由处理实际工作区请求。 */

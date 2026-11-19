@@ -9,6 +9,18 @@ export type AgentStepItem = AgentStepTrace;
 export type AgentPhase = AgentStepItem["phase"];
 export type AgentStepStatus = AgentStepItem["status"];
 
+/** 单次运行的耗时与上下文构成，字段与 Host 的 AgentRunMetrics 对应。 */
+export interface ChatRunMetrics {
+  llmMs: number;
+  toolMs: number;
+  ttftMs: number;
+  ttftSteps: number;
+  decodeMs: number;
+  decodeTokens: number;
+  context: { systemTokens: number; toolsTokens: number; messageTokens: number };
+  contextWindowTokens?: number;
+}
+
 /** 提供聊天界面所需的消息内容、时间及运行信息。 */
 export interface ChatMessageItem {
   id: string;
@@ -21,6 +33,17 @@ export interface ChatMessageItem {
   steps?: AgentStepItem[];
   status?: "streaming" | "done" | "error" | "aborted";
   model?: string;
+  /** 本轮运行累计的模型用量，供应商未返回时缺省。 */
+  tokenUsage?: {
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
+    cachedPromptTokens?: number;
+  };
+  /** 本轮运行的耗时与上下文构成，旧消息可能缺省。 */
+  metrics?: ChatRunMetrics;
+  /** 本轮按模型单价换算的人民币成本。 */
+  cost?: { amount: number; currency: "CNY"; input: number; cachedInput: number; output: number };
   createdAt: number;
 }
 
@@ -75,6 +98,10 @@ export interface PublicLlmProfileItem {
   availableModels: ModelCapabilityItem[];
   temperature?: number;
   maxTokens?: number;
+  contextWindowTokens?: number;
+  inputPricePerMillion?: number;
+  outputPricePerMillion?: number;
+  cachedInputPricePerMillion?: number;
   updatedAt: number;
 }
 

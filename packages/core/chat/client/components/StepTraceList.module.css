@@ -258,6 +258,15 @@ details[open] > summary > .chevron {
   white-space: nowrap;
 }
 
+/* 命令结果与展开箭头贴齐末端，空间不足时只截断命令正文。 */
+.activityRow[data-kind="command"] {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.activityRow[data-kind="command"] > .activityTitle { flex: 1; }
+.activityRow[data-kind="command"][data-status="running"] > .activityStatus { font-size: inherit; }
+
 .terminalHeader {
   display: flex;
   align-items: center;

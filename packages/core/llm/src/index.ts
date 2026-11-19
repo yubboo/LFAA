@@ -117,6 +117,14 @@ export function toPublicProfile(profile: LlmProfile): PublicLlmProfile {
     availableModels: models,
     ...(typeof profile.temperature === "number" ? { temperature: profile.temperature } : {}),
     ...(typeof profile.maxTokens === "number" ? { maxTokens: profile.maxTokens } : {}),
+    ...(typeof profile.contextWindowTokens === "number" && profile.contextWindowTokens > 0
+      ? { contextWindowTokens: profile.contextWindowTokens }
+      : {}),
+    ...(typeof profile.inputPricePerMillion === "number" ? { inputPricePerMillion: profile.inputPricePerMillion } : {}),
+    ...(typeof profile.outputPricePerMillion === "number" ? { outputPricePerMillion: profile.outputPricePerMillion } : {}),
+    ...(typeof profile.cachedInputPricePerMillion === "number"
+      ? { cachedInputPricePerMillion: profile.cachedInputPricePerMillion }
+      : {}),
     updatedAt: profile.updatedAt,
   };
 }
@@ -164,6 +172,14 @@ function sanitizeStoredConfig(raw: unknown): StoredLlmConfig {
             ...(parsedModels.length > 0 ? { availableModels: parsedModels } : {}),
             ...(typeof item.temperature === "number" ? { temperature: item.temperature } : {}),
             ...(typeof item.maxTokens === "number" ? { maxTokens: item.maxTokens } : {}),
+            ...(typeof item.contextWindowTokens === "number" && item.contextWindowTokens > 0
+              ? { contextWindowTokens: Math.floor(item.contextWindowTokens) }
+              : {}),
+            ...(typeof item.inputPricePerMillion === "number" ? { inputPricePerMillion: item.inputPricePerMillion } : {}),
+            ...(typeof item.outputPricePerMillion === "number" ? { outputPricePerMillion: item.outputPricePerMillion } : {}),
+            ...(typeof item.cachedInputPricePerMillion === "number"
+              ? { cachedInputPricePerMillion: item.cachedInputPricePerMillion }
+              : {}),
             updatedAt: typeof item.updatedAt === "number" ? item.updatedAt : Date.now(),
           };
         })
@@ -180,6 +196,27 @@ function sanitizeStoredConfig(raw: unknown): StoredLlmConfig {
       : profiles[0]!.id;
 
   return { activeProfileId: activeId, profiles };
+}
+
+/** 校验并保留非负单价；未提供时沿用已有值。 */
+function readPrice(input: number | undefined, existing: number | undefined): number | undefined {
+  if (typeof input === "number" && Number.isFinite(input) && input >= 0) return input;
+  return existing;
+}
+
+/** 组装模型档案的计价字段，未提供的沿用已有值。 */
+function priceFields(
+  input: Pick<SaveLlmProfileInput, "inputPricePerMillion" | "outputPricePerMillion" | "cachedInputPricePerMillion">,
+  existing: LlmProfile | undefined,
+): Pick<LlmProfile, "inputPricePerMillion" | "outputPricePerMillion" | "cachedInputPricePerMillion"> {
+  const inputPrice = readPrice(input.inputPricePerMillion, existing?.inputPricePerMillion);
+  const outputPrice = readPrice(input.outputPricePerMillion, existing?.outputPricePerMillion);
+  const cachedPrice = readPrice(input.cachedInputPricePerMillion, existing?.cachedInputPricePerMillion);
+  return {
+    ...(inputPrice !== undefined ? { inputPricePerMillion: inputPrice } : {}),
+    ...(outputPrice !== undefined ? { outputPricePerMillion: outputPrice } : {}),
+    ...(cachedPrice !== undefined ? { cachedInputPricePerMillion: cachedPrice } : {}),
+  };
 }
 
 async function dispatchByProtocol(profile: LlmProfile, input: LlmGenerateInput): Promise<LlmGenerateOutput> {
@@ -270,6 +307,12 @@ export class LlmService extends Service {
       ...(availableModels && availableModels.length > 0 ? { availableModels } : {}),
       ...(typeof input.temperature === "number" ? { temperature: input.temperature } : {}),
       ...(typeof input.maxTokens === "number" ? { maxTokens: input.maxTokens } : {}),
+      ...(typeof input.contextWindowTokens === "number" && input.contextWindowTokens > 0
+        ? { contextWindowTokens: Math.floor(input.contextWindowTokens) }
+        : existing?.contextWindowTokens !== undefined
+          ? { contextWindowTokens: existing.contextWindowTokens }
+          : {}),
+      ...priceFields(input, existing),
       updatedAt: Date.now(),
     };
 

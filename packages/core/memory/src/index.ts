@@ -1,9 +1,9 @@
 // @lfaa/memory Host 侧 Cordis 服务：统一对外提供短期会话记忆、长期事实记忆、资料库资产/产物及存储迁移服务。
 import { join, resolve } from "node:path";
 import { type Context, Service } from "@deepseek-ai/cordis";
-import { AssetLibraryStore } from "./asset-store";
+import { AssetLibraryStore } from "@lfaa/storage";
 import { LongTermMemoryStore } from "./longterm-store";
-import { SessionMemoryStore } from "./session-store";
+import { SessionMemoryStore } from "@lfaa/session";
 import {
   getDefaultDataRoot,
   getFixedSessionsDir,
@@ -11,7 +11,7 @@ import {
   StorageManager,
   VAULT_DIRS,
   VAULT_FILES,
-} from "./storage-manager";
+} from "@lfaa/storage";
 import type {
   AddMemoryInput,
   ChatMessageRecord,
@@ -30,6 +30,14 @@ import type {
 } from "./types";
 
 export * from "./types";
+export {
+  buildRunSummaryEntry,
+  collectHistoryDigest,
+  collectStepDigest,
+  formatHistoryDigest,
+  rollSessionSummary,
+  type HistoryDigest,
+} from "@lfaa/session";
 export { createMemoryHttpHandler } from "./http-handler";
 export {
   getCurrentUserHomeDir,
@@ -39,7 +47,7 @@ export {
   normalizeCustomDataPath,
   VAULT_DIRS,
   VAULT_FILES,
-} from "./storage-manager";
+} from "@lfaa/storage";
 
 /** 允许应用及测试配置资料目录和存储路径。 */
 export interface MemoryPluginConfig {
@@ -132,6 +140,12 @@ export class MemoryService extends Service {
   async deleteSession(sessionId: string): Promise<boolean> {
     await this.ensureReady();
     return this.sessionStore.delete(sessionId);
+  }
+
+  /** 应用启动时结算上次退出遗留的流式消息与临时文件。 */
+  async reconcileInterruptedRuns(): Promise<{ sessions: number; messages: number; tmpRemoved: number }> {
+    await this.ensureReady();
+    return this.sessionStore.reconcileInterruptedRuns();
   }
 
   async forkSession(sessionId: string): Promise<ChatSessionRecord | null> {

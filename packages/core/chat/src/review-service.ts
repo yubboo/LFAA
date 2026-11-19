@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import type { CodeReviewCodingSettings } from "./coding-settings";
+import type { CodeReviewCodingSettings } from "@lfaa/settings";
 import { getGitDiff, getGitStatus, type GitStatusSnapshot } from "./git-service";
 
 export type ReviewFindingSeverity = "critical" | "warning" | "info";

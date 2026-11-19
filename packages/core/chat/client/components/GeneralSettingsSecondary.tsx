@@ -5,6 +5,15 @@ import type { GeneralSettingsConfig } from "../general-settings-client";
 import { SettingGroupCard, SettingRow, SettingSelect, SettingSwitch } from "./GeneralSettingsControls";
 import styles from "./GeneralSettingsView.module.css";
 
+/** 解析“3, 5, 8”形式的阈值文本；只保留 >=2 的整数并去重升序。 */
+function parseThresholds(text: string): number[] {
+  const values = text
+    .split(/[\s,，]+/u)
+    .map((part) => Number(part))
+    .filter((value) => Number.isInteger(value) && value >= 2);
+  return Array.from(new Set(values)).sort((a, b) => a - b);
+}
+
 /** 装配编辑器、弹出窗口和通知的次级设置，不单独维护持久化状态。 */
 export function GeneralSettingsSecondary({
   isZh,
@@ -18,6 +27,12 @@ export function GeneralSettingsSecondary({
   onTriggerConfetti: () => void;
 }) {
   const [recordingShortcut, setRecordingShortcut] = useState(false);
+  // 阈值输入使用本地草稿，失焦时再归一化提交，避免输入逗号时被格式化打断。
+  const [thresholdDraft, setThresholdDraft] = useState(cfg.repeatToolThresholds.join(", "));
+
+  useEffect(() => {
+    setThresholdDraft(cfg.repeatToolThresholds.join(", "));
+  }, [cfg.repeatToolThresholds]);
 
   useEffect(() => {
     if (!recordingShortcut) return;
@@ -105,6 +120,34 @@ export function GeneralSettingsSecondary({
                 {isZh ? "引导" : "Steer"}
               </button>
             </div>
+          )}
+        />
+      </SettingGroupCard>
+
+      <SettingGroupCard title={isZh ? "Agent 行为" : "Agent behavior"}>
+        <SettingRow
+          title={isZh ? "重复工具调用提醒" : "Repeated tool-call reminders"}
+          description={
+            isZh
+              ? "同一工具以完全相同的参数连续调用到这些次数时，提醒模型换方法或结束任务；留空关闭。"
+              : "Remind the model when identical tool calls repeat at these counts; leave empty to disable."
+          }
+          control={(
+            <input
+              className={styles.thresholdInput}
+              value={thresholdDraft}
+              placeholder={isZh ? "如 3, 5, 8（留空关闭）" : "e.g. 3, 5, 8 (empty disables)"}
+              aria-label={isZh ? "重复工具调用提醒阈值" : "Repeated tool-call reminder thresholds"}
+              onChange={(event) => setThresholdDraft(event.target.value)}
+              onBlur={() => {
+                const next = parseThresholds(thresholdDraft);
+                setThresholdDraft(next.join(", "));
+                onPatch({ repeatToolThresholds: next });
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") event.currentTarget.blur();
+              }}
+            />
           )}
         />
       </SettingGroupCard>

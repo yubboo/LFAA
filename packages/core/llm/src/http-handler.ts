@@ -52,6 +52,12 @@ export function createLlmHttpHandler(service: LlmService) {
           ...(typeof body.apiKey === "string" ? { apiKey: body.apiKey } : {}),
           ...(typeof body.temperature === "number" ? { temperature: body.temperature } : {}),
           ...(typeof body.maxTokens === "number" ? { maxTokens: body.maxTokens } : {}),
+          ...(typeof body.contextWindowTokens === "number" ? { contextWindowTokens: body.contextWindowTokens } : {}),
+          ...(typeof body.inputPricePerMillion === "number" ? { inputPricePerMillion: body.inputPricePerMillion } : {}),
+          ...(typeof body.outputPricePerMillion === "number" ? { outputPricePerMillion: body.outputPricePerMillion } : {}),
+          ...(typeof body.cachedInputPricePerMillion === "number"
+            ? { cachedInputPricePerMillion: body.cachedInputPricePerMillion }
+            : {}),
         });
         const list = await service.listPublicProfiles();
         sendJson(res, 200, { profile, ...list });

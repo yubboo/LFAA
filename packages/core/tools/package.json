@@ -11,6 +11,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@lfaa/fs": "workspace:*",
+    "@lfaa/guard": "workspace:*",
     "@deepseek-ai/cordis": "^4.1.0",
     "@lfaa/shell": "workspace:*"
   },

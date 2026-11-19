@@ -323,9 +323,14 @@ test("Host 常规设置持久化、项目外聊天默认目录动态解析与 /a
     const patchRes = await callRoute("PATCH", "/api/chat/general-settings", {
       sendShortcut: "ctrl_enter",
       confettiEffect: false,
+      repeatToolThresholds: [5, 3, 3, 1, 8],
     });
     assert.equal(patchRes.status, 200);
     assert.equal((patchRes.json.settings as { confettiEffect: boolean }).confettiEffect, false);
+    assert.deepEqual(
+      (patchRes.json.settings as { repeatToolThresholds: number[] }).repeatToolThresholds,
+      [3, 5, 8],
+    );
 
     const licRes = await callRoute("GET", "/api/chat/licenses");
     assert.equal(licRes.status, 200);
@@ -341,7 +346,7 @@ test("Host 内置 Git 服务、编码设置与代码审查引擎完整闭环", a
   const { execFile } = await import("node:child_process");
   const { promisify } = await import("node:util");
   const execFileAsync = promisify(execFile);
-  const { CodingSettingsStore } = await import("../src/coding-settings");
+  const { CodingSettingsStore } = await import("@lfaa/settings");
   const { createCodingHttpHandler } = await import("../src/git-http-handler");
 
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-git-review-"));

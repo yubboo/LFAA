@@ -1,0 +1,103 @@
+/* 会话状态栏与明细浮层的样式，全部使用主题语义变量以适配深浅色。 */
+.bar {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0.35rem 0.2rem 0;
+}
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  padding: 0.18rem 0.45rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 0.72rem;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.trigger:hover,
+.trigger[aria-expanded="true"] {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.trigger:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.panel {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 15rem;
+  max-width: 19rem;
+  padding: 0.7rem 0.75rem 0.65rem;
+}
+
+.panelTitle {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.headline {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.74rem;
+  color: var(--color-muted);
+}
+
+.headline strong {
+  font-size: 0.95rem;
+  color: var(--color-ink);
+}
+
+.meter {
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-active);
+}
+
+.meter span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-accent);
+}
+
+.rows {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.74rem;
+  color: var(--color-muted);
+}
+
+.strong {
+  color: var(--color-ink);
+  font-weight: 600;
+}
+
+.hint {
+  margin: 0.15rem 0 0;
+  font-size: 0.7rem;
+  line-height: 1.45;
+  color: var(--color-muted);
+}

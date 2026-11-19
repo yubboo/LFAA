@@ -19,6 +19,9 @@ export interface StreamRunSnapshotPayload {
   steps: AgentStepItem[];
   lastSeq?: number;
   pendingApprovals?: PendingApprovalBanner[];
+  tokenUsage?: ChatMessageItem["tokenUsage"];
+  metrics?: ChatMessageItem["metrics"];
+  cost?: ChatMessageItem["cost"];
 }
 
 /** 约定流客户端交给聊天 Store 的通知与错误回调。 */
@@ -26,6 +29,12 @@ export interface AgentStreamClientHandlers {
   onSnapshot: (run: StreamRunSnapshotPayload, isReconnect: boolean) => void;
   onDeltaBatch: (batch: StreamDeltaBatch) => void;
   onStepUpdate: (step: AgentStepItem) => void;
+  /** 每轮模型/工具结束后的累计用量，用于统计栏实时刷新。 */
+  onUsage: (payload: {
+    tokenUsage: NonNullable<ChatMessageItem["tokenUsage"]>;
+    metrics?: ChatMessageItem["metrics"];
+    cost?: ChatMessageItem["cost"];
+  }) => void;
   onApprovalRequired: (approval: Omit<PendingApprovalBanner, "runId">) => void;
   onApprovalResolved: (approvalId: string) => void;
   onStatusNotice: (notice: string) => void;
@@ -199,6 +208,9 @@ export class AgentStreamClient {
         error?: string;
         message?: ChatMessageItem;
         run?: StreamRunSnapshotPayload;
+        tokenUsage?: ChatMessageItem["tokenUsage"];
+        metrics?: ChatMessageItem["metrics"];
+        cost?: ChatMessageItem["cost"];
       };
 
       if (data.type === "snapshot" && data.run) {
@@ -223,6 +235,12 @@ export class AgentStreamClient {
       } else if (data.type === "step_update" && data.step) {
         this.flushNow();
         this.handlers.onStepUpdate(data.step);
+      } else if (data.type === "run_usage" && data.tokenUsage) {
+        this.handlers.onUsage({
+          tokenUsage: data.tokenUsage,
+          ...(data.metrics ? { metrics: data.metrics } : {}),
+          ...(data.cost ? { cost: data.cost } : {}),
+        });
       } else if (data.type === "approval_required" && data.approvalId && data.toolName && data.permissionLevel) {
         this.flushNow();
         this.handlers.onApprovalRequired({

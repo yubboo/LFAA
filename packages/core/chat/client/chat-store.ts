@@ -768,6 +768,7 @@ export class ChatClientStore {
           ...(this.state.activeProfileId ? { profileId: this.state.activeProfileId } : {}),
           reasoningEffort: this.state.reasoningLevel,
           permissionMode: startingMode,
+          repeatToolThresholds: this.state.generalSettings.repeatToolThresholds,
           ...(skillIds && skillIds.length > 0 ? { skillIds } : {}),
         }),
       },
@@ -817,6 +818,9 @@ export class ChatClientStore {
             ...m,
             ...(!reconnect ? { content: run.content, reasoning: run.reasoning } : {}),
             steps: run.steps,
+            ...(run.tokenUsage ? { tokenUsage: run.tokenUsage } : {}),
+            ...(run.metrics ? { metrics: run.metrics } : {}),
+            ...(run.cost ? { cost: run.cost } : {}),
           }));
           const firstPending = run.pendingApprovals?.[0];
           this.updateState({ pendingApproval: firstPending ? { ...firstPending, runId } : null });
@@ -837,6 +841,15 @@ export class ChatClientStore {
               : [...existing, step];
             return { ...m, steps: nextSteps };
           });
+        },
+        // 实时用量随每轮模型/工具结束推送，保证统计栏在运行中也持续变化。
+        onUsage: ({ tokenUsage, metrics, cost }) => {
+          patchAssistant((m) => ({
+            ...m,
+            tokenUsage,
+            ...(metrics ? { metrics } : {}),
+            ...(cost ? { cost } : {}),
+          }));
         },
         onApprovalRequired: (approval) => {
           if (this.state.generalSettings.enableApprovalNotification) {
@@ -973,6 +986,10 @@ export class ChatClientStore {
     model: string;
     apiKey?: string;
     availableModels?: ModelCapabilityItem[];
+    contextWindowTokens?: number;
+    inputPricePerMillion?: number;
+    outputPricePerMillion?: number;
+    cachedInputPricePerMillion?: number;
     activate?: boolean;
   }): Promise<PublicLlmProfileItem | null> {
     const res = await fetchJson<{ profile?: PublicLlmProfileItem; activeProfileId: string; profiles: PublicLlmProfileItem[] }>("/api/llm/profiles", {

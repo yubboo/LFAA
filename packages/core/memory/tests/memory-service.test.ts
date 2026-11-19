@@ -5,7 +5,14 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { Context } from "@deepseek-ai/cordis";
-import { getCurrentUserHomeDir, getDefaultDataRoot, memoryPlugin, normalizeCustomDataPath } from "../src/index";
+import {
+  buildRunSummaryEntry,
+  getCurrentUserHomeDir,
+  getDefaultDataRoot,
+  memoryPlugin,
+  normalizeCustomDataPath,
+  rollSessionSummary,
+} from "../src/index";
 
 test("Host memoryPlugin 持久化会话消息、裁剪上下文并召回相关长期记忆", async () => {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-memory-test-"));
@@ -40,7 +47,8 @@ test("Host memoryPlugin 持久化会话消息、裁剪上下文并召回相关�
     assert.equal(countsWithArchived["proj-1"], 2);
 
     const loaded = await ctx.memory.getSession(s1.id);
-    assert.equal(loaded?.title, "帮我检查 src/index.ts 中的服务导出");
+    // 0.0.4 起会话标题采用“简洁标题”约定：去掉“帮我检查”等客套前缀并截断，旧断言未同步。
+    assert.equal(loaded?.title, "src/index.ts 中的服");
     assert.equal(loaded?.messages.length, 2);
 
     await ctx.memory.addMemory({
@@ -239,6 +247,112 @@ test("StorageManager 自动无损升级旧版目录命名并将误入 data/ 的�
       await fs.stat(path.join(oldRoot, "chat-sessions")).then(() => true).catch(() => false),
       false,
     );
+  } finally {
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("上下文摘要携带历史工具轨迹，滚动摘要保留最近运行结论", async () => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-memory-digest-"));
+  const ctx = new Context();
+  const fiber = ctx.plugin(memoryPlugin, {
+    sessionsDir: path.join(tempRoot, "sessions"),
+    memoryFilePath: path.join(tempRoot, "memory.json"),
+  });
+  await fiber;
+
+  try {
+    const session = await ctx.memory.createSession({ title: "轨迹摘要" });
+    const steps = [
+      {
+        id: "act-1", iteration: 1, phase: "act" as const, status: "done" as const,
+        title: "行动：write_file", toolName: "write_file",
+        fileChange: {
+          path: "src/app.ts", operation: "edited" as const, firstLine: 1,
+          before: "", after: "", truncated: false,
+        },
+        timestamp: Date.now(),
+      },
+      {
+        id: "act-2", iteration: 1, phase: "act" as const, status: "done" as const,
+        title: "行动：run_command", toolName: "run_command",
+        commandTrace: { command: "pnpm build", exitCode: 0 },
+        timestamp: Date.now(),
+      },
+    ];
+    await ctx.memory.appendMessage(session.id, { id: "u1", role: "user", content: "改一下 app.ts", createdAt: Date.now() });
+    await ctx.memory.appendMessage(session.id, {
+      id: "a1", role: "assistant", content: "已改好并构建通过。", steps, status: "done", createdAt: Date.now(),
+    });
+    await ctx.memory.appendMessage(session.id, { id: "u2", role: "user", content: "再补一个测试", createdAt: Date.now() });
+    await ctx.memory.appendMessage(session.id, {
+      id: "a2", role: "assistant", content: "测试已补。", status: "done", createdAt: Date.now(),
+    });
+
+    const windowCtx = await ctx.memory.buildContextMessages(session.id, { maxRecentMessages: 1 });
+    assert.equal(windowCtx.recentMessages.length, 1);
+    assert.match(windowCtx.summaryNote ?? "", /前序工具轨迹/u);
+    assert.match(windowCtx.summaryNote ?? "", /src\/app\.ts/u);
+    assert.match(windowCtx.summaryNote ?? "", /pnpm build`→0/u);
+
+    const entry = buildRunSummaryEntry({
+      userMessage: "改一下 app.ts",
+      content: "已改好并构建通过。",
+      digest: "已改动 1 个文件（src/app.ts）",
+    });
+    const rolled = rollSessionSummary("第一轮：初始化", entry);
+    assert.match(rolled, /第一轮：初始化/u);
+    assert.match(rolled, /本轮：改一下 app\.ts/u);
+    const capped = rollSessionSummary("旧".repeat(400), entry, 100);
+    assert.ok(capped.startsWith("…"));
+    assert.ok(capped.length <= 101);
+  } finally {
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("启动时结算遗留的流式消息并清理写入中断的临时文件", async () => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-memory-reconcile-"));
+  const sessionsDir = path.join(tempRoot, "sessions");
+  const ctx = new Context();
+  await ctx.plugin(memoryPlugin, {
+    sessionsDir,
+    memoryFilePath: path.join(tempRoot, "memory.json"),
+  });
+
+  try {
+    const session = await ctx.memory.createSession({ title: "中断恢复" });
+    await ctx.memory.appendMessage(session.id, { id: "u1", role: "user", content: "跑一个长任务", createdAt: Date.now() });
+    await ctx.memory.appendMessage(session.id, {
+      id: "a1",
+      role: "assistant",
+      content: "已经完成一半",
+      status: "streaming",
+      steps: [{
+        id: "act-1", iteration: 1, phase: "act", status: "running",
+        title: "行动：调用 run_command", timestamp: Date.now(),
+      }],
+      createdAt: Date.now(),
+    });
+    await fs.writeFile(path.join(sessionsDir, "a1.abandoned.tmp"), "{}", "utf8");
+
+    const result = await ctx.memory.reconcileInterruptedRuns();
+    assert.equal(result.messages, 1);
+    assert.equal(result.tmpRemoved, 1);
+
+    const saved = await ctx.memory.getSession(session.id);
+    const message = saved?.messages.find((item) => item.id === "a1");
+    assert.equal(message?.status, "aborted");
+    assert.equal(message?.content, "已经完成一半");
+    assert.equal(message?.steps?.find((step) => step.id === "act-1")?.status, "error");
+    assert.ok(message?.steps?.some((step) => step.title.includes("应用退出时中断")));
+    assert.equal(
+      await fs.stat(path.join(sessionsDir, "a1.abandoned.tmp")).then(() => true).catch(() => false),
+      false,
+    );
+    // 再次结算不应重复改写
+    const again = await ctx.memory.reconcileInterruptedRuns();
+    assert.equal(again.messages, 0);
   } finally {
     await fs.rm(tempRoot, { recursive: true, force: true });
   }

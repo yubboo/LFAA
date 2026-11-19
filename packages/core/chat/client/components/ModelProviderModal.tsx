@@ -53,6 +53,10 @@ export function ModelProviderModal({
   const [baseUrl, setBaseUrl] = useState("");
   const [model, setModel] = useState("");
   const [apiKey, setApiKey] = useState("");
+  const [contextWindow, setContextWindow] = useState("");
+  const [inputPrice, setInputPrice] = useState("");
+  const [outputPrice, setOutputPrice] = useState("");
+  const [cachedInputPrice, setCachedInputPrice] = useState("");
   const [officialModels, setOfficialModels] = useState<ModelCapabilityItem[]>([]);
   const [fetchingModels, setFetchingModels] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -84,6 +88,10 @@ export function ModelProviderModal({
     setBaseUrl(nextBaseUrl);
     setModel(profile?.model ?? provider.defaultModel);
     setApiKey("");
+    setContextWindow(profile?.contextWindowTokens ? String(profile.contextWindowTokens) : "");
+    setInputPrice(profile?.inputPricePerMillion ? String(profile.inputPricePerMillion) : "");
+    setOutputPrice(profile?.outputPricePerMillion ? String(profile.outputPricePerMillion) : "");
+    setCachedInputPrice(profile?.cachedInputPricePerMillion ? String(profile.cachedInputPricePerMillion) : "");
     setStatusNotice(null);
     const isOllamaDefaultPlaceholder =
       (profile?.kind ?? provider.kind) === "ollama"
@@ -205,6 +213,10 @@ export function ModelProviderModal({
         apiProtocol: configProtocol,
         baseUrl: configBaseUrl,
         model: model.trim(),
+        ...(Number(contextWindow) > 0 ? { contextWindowTokens: Math.floor(Number(contextWindow)) } : {}),
+        inputPricePerMillion: Number(inputPrice) || 0,
+        outputPricePerMillion: Number(outputPrice) || 0,
+        cachedInputPricePerMillion: Number(cachedInputPrice) || 0,
         ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
         ...(!subscription && officialModels.length > 0 ? { availableModels: officialModels } : {}),
         activate,
@@ -260,6 +272,10 @@ export function ModelProviderModal({
         apiProtocol: configProtocol,
         baseUrl: configBaseUrl,
         model: model.trim(),
+        ...(Number(contextWindow) > 0 ? { contextWindowTokens: Math.floor(Number(contextWindow)) } : {}),
+        inputPricePerMillion: Number(inputPrice) || 0,
+        outputPricePerMillion: Number(outputPrice) || 0,
+        cachedInputPricePerMillion: Number(cachedInputPrice) || 0,
         ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
         ...(fetched.length > 0 ? { availableModels: fetched } : {}),
       });
@@ -460,6 +476,64 @@ export function ModelProviderModal({
                 : (isZh ? "填写凭据后点击「获取官方模型」从官方接口实时加载真实可用模型" : "Click Fetch Official Models after entering credentials")}
             </span>
           )}
+        </div>
+
+        <label className={styles.field}>
+          <span className={styles.fieldLabel}>
+            {isZh ? "上下文窗口（tokens，可选）" : "Context window (tokens, optional)"}
+          </span>
+          <input
+            type="number"
+            min={1000}
+            step={1000}
+            className={styles.input}
+            value={contextWindow}
+            placeholder={isZh ? "留空使用提供商默认值，不显示上下文占比" : "Empty = provider default; context % hidden"}
+            onChange={(e) => setContextWindow(e.target.value)}
+          />
+        </label>
+
+        <div className={styles.field}>
+          <span className={styles.fieldLabel}>
+            {isZh ? "成本单价（元 / 百万 tokens，可选）" : "Price per 1M tokens (CNY, optional)"}
+          </span>
+          <div className={styles.priceRow}>
+            <input
+              type="number"
+              min={0}
+              step={0.01}
+              className={styles.input}
+              value={inputPrice}
+              placeholder={isZh ? "输入" : "Input"}
+              aria-label={isZh ? "输入单价" : "Input price"}
+              onChange={(event) => setInputPrice(event.target.value)}
+            />
+            <input
+              type="number"
+              min={0}
+              step={0.01}
+              className={styles.input}
+              value={outputPrice}
+              placeholder={isZh ? "输出" : "Output"}
+              aria-label={isZh ? "输出单价" : "Output price"}
+              onChange={(event) => setOutputPrice(event.target.value)}
+            />
+            <input
+              type="number"
+              min={0}
+              step={0.01}
+              className={styles.input}
+              value={cachedInputPrice}
+              placeholder={isZh ? "缓存读取" : "Cached"}
+              aria-label={isZh ? "缓存读取单价" : "Cached input price"}
+              onChange={(event) => setCachedInputPrice(event.target.value)}
+            />
+          </div>
+          <span className={styles.fieldHint}>
+            {isZh
+              ? "仅用于本地成本估算，不参与计费；缓存读取留空按输入单价计算。"
+              : "Local cost estimate only; cached input falls back to the input price when empty."}
+          </span>
         </div>
 
         <label className={styles.field}>

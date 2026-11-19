@@ -7,14 +7,14 @@ import { timelineMessages, type ChatLocaleMessages } from "../locales";
 import styles from "./StepTraceList.module.css";
 
 /** 以整秒显示实际经过的时间，兼容短于一秒和长时间运行。 */
-export function formatDuration(ms: number, isZh: boolean): string {
+export function formatDuration(ms: number, isZh: boolean, showAllUnits = false): string {
   const totalSeconds = Math.floor(Math.max(0, ms) / 1000);
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
   const parts = [
-    hours > 0 ? `${hours}${isZh ? " 时" : "h"}` : "",
-    hours > 0 || minutes > 0 ? `${minutes}${isZh ? " 分" : "m"}` : "",
+    showAllUnits || hours > 0 ? `${hours}${isZh ? " 时" : "h"}` : "",
+    showAllUnits || hours > 0 || minutes > 0 ? `${minutes}${isZh ? " 分" : "m"}` : "",
     `${seconds}${isZh ? " 秒" : "s"}`,
   ];
   return parts.filter(Boolean).join(" ");
@@ -107,11 +107,26 @@ export function LiveExecutionTail({
   );
 }
 
+/** 把 token 总量格式化为紧凑标签：1200 → 1.2k tokens。 */
+export function formatTokenUsage(
+  usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number },
+): string | undefined {
+  if (!usage) return undefined;
+  const total = usage.totalTokens
+    ?? (usage.promptTokens !== undefined || usage.completionTokens !== undefined
+      ? (usage.promptTokens ?? 0) + (usage.completionTokens ?? 0)
+      : undefined);
+  if (!total || total <= 0) return undefined;
+  const text = total >= 1_000 ? `${(total / 1_000).toFixed(1)}k` : String(total);
+  return `${text} tokens`;
+}
+
 export function StepTraceList({
   isZh,
   steps,
   createdAt,
   durationMs,
+  tokenUsage,
   isStreaming,
   expanded,
   processId,
@@ -121,6 +136,7 @@ export function StepTraceList({
   steps: AgentStepItem[];
   createdAt: number;
   durationMs: number | undefined;
+  tokenUsage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number } | undefined;
   isStreaming: boolean;
   expanded: boolean;
   processId: string;
@@ -137,17 +153,18 @@ export function StepTraceList({
   if (isStreaming) {
     const state = getLiveStage(steps, now);
     const phase = labels[state];
-    const elapsed = formatDuration(now - createdAt, isZh);
+    const elapsed = formatDuration(now - createdAt, isZh, true);
     const status = (
       <>
         {state !== "waiting" && <span className={styles.liveDot} aria-hidden="true" />}
-        <span className={styles.activityTitle} role="status">{phase}</span>
+        <span className={styles.activityTitle}>{labels.thinkingElapsed}</span>
+        <span className={styles.srOnly} role="status">{phase}</span>
         <span className={styles.elapsed}>{elapsed}</span>
       </>
     );
     return onToggle ? (
       <button type="button" className={`${styles.disclosure} ${styles.liveStatus}`} data-status={state === "waiting" ? undefined : "running"}
-        aria-label={`${phase} ${elapsed}`} aria-expanded={expanded} aria-controls={processId} onClick={onToggle}>
+        aria-label={`${labels.thinkingElapsed} ${elapsed}`} aria-expanded={expanded} aria-controls={processId} onClick={onToggle}>
         {status}
         <IconChevronRight size={14} className={styles.chevron} aria-hidden="true" />
       </button>
@@ -156,13 +173,21 @@ export function StepTraceList({
     );
   }
 
-  const label = durationMs === undefined ? labels.process : `${labels.elapsed} ${formatDuration(durationMs, isZh)}`;
+  const usageLabel = formatTokenUsage(tokenUsage);
+  const label = durationMs === undefined ? labels.process : `${labels.elapsed} ${formatDuration(durationMs, isZh, true)}`;
   return onToggle ? (
     <button type="button" className={styles.disclosure} aria-expanded={expanded} aria-controls={processId} onClick={onToggle}>
       <span>{label}</span>
+      {usageLabel && <span className={styles.elapsed}>{usageLabel}</span>}
       <IconChevronRight size={14} className={styles.chevron} aria-hidden="true" />
     </button>
-  ) : durationMs !== undefined ? <span className={styles.elapsed}>{label}</span> : null;
+  ) : durationMs !== undefined || usageLabel ? (
+    <span className={styles.elapsed}>
+      {durationMs !== undefined ? label : ""}
+      {durationMs !== undefined && usageLabel ? " · " : ""}
+      {usageLabel ?? ""}
+    </span>
+  ) : null;
 }
 
 /** 审批提示独立于折叠状态，用户可以直接批准或拒绝当前请求。 */

@@ -5,12 +5,20 @@ import "@lfaa/llm";
 import "@lfaa/memory";
 import "@lfaa/rules";
 import "@lfaa/tools";
-import type { AgentStepTrace } from "@lfaa/memory";
+import {
+  buildRunSummaryEntry,
+  collectStepDigest,
+  formatHistoryDigest,
+  rollSessionSummary,
+  type AgentStepTrace,
+} from "@lfaa/memory";
 import { executeAgentTaskLoop } from "./agent-loop";
 import { readActivitySource } from "./activity-file";
 import { registerAgentLibraryTools } from "./builtin-agent-tools";
 import { normalizePermissionMode, SmartTrustStore } from "./permission-policy";
 import { ensureProjectGitRepo } from "./project-git";
+import { extractExplicitMemory } from "./memory-autosave";
+import { resolveStepBudget } from "./step-budget";
 import {
   maskRunId,
   type AgentStreamMetrics,
@@ -222,11 +230,19 @@ export class AgentService extends Service {
         record.chunks.push({ seq, kind: rawEvent.kind, text: rawEvent.text, ts: Date.now() });
         // 保证先写入增量落盘队列再广播至 SSE 订阅者
         scheduleStreamingPersist(seq === 1);
+      } else if (rawEvent.type === "run_usage") {
+        // 实时用量只更新内存状态，最终仍以 run_finished 的消息落盘为准。
+        record.status.tokenUsage = rawEvent.tokenUsage;
+        record.status.metrics = rawEvent.metrics;
+        if (rawEvent.cost) record.status.cost = rawEvent.cost;
       } else if (rawEvent.type === "step_update") {
         const idx = record.status.steps.findIndex((s: AgentStepTrace) => s.id === rawEvent.step.id);
         if (idx >= 0) record.status.steps[idx] = rawEvent.step;
         else record.status.steps.push(rawEvent.step);
-        scheduleStreamingPersist(true);
+        // 与增量正文共用节流窗口：命令输出高频到达时不再每个事件全量重写会话文件。
+        // 审批等待与失败是断线恢复的关键节点，仍立即落盘。
+        const critical = rawEvent.step.status === "waiting_approval" || rawEvent.step.status === "error";
+        scheduleStreamingPersist(critical);
       }
       for (const listener of record.listeners) {
         listener(event);
@@ -238,6 +254,12 @@ export class AgentService extends Service {
         try {
           emit({ type: "run_started", runId, sessionId: session.id, assistantMessageId });
           const primaryProjectRoot = projectId ? workspaceRoots[0] : undefined;
+          // 默认 100 步软预算，用尽后仍有关键进展会自动延长；显式 maxSteps 保持硬上限语义。
+          const stepBudget = resolveStepBudget(input.maxSteps);
+          const requestedExtension = typeof input.autoExtendSteps === "number"
+            ? Math.max(0, Math.floor(input.autoExtendSteps))
+            : undefined;
+          const autoExtendSteps = requestedExtension ?? stepBudget.autoExtendSteps;
           let gitStep: AgentStepTrace | undefined;
           if (primaryProjectRoot) {
             try {
@@ -272,7 +294,9 @@ export class AgentService extends Service {
               workspaceRoots,
               ...(resolvedSkills.length > 0 ? { resolvedSkills } : {}),
               ...(availableSkillCatalog.length > 0 ? { availableSkillCatalog } : {}),
-              maxSteps: input.maxSteps ?? 28,
+              maxSteps: stepBudget.budget,
+              ...(autoExtendSteps > 0 ? { autoExtendSteps } : {}),
+              ...(input.repeatToolThresholds !== undefined ? { repeatToolThresholds: input.repeatToolThresholds } : {}),
               getPermissionMode: () => record.permissionMode,
               signal: controller.signal,
               emit,
@@ -308,21 +332,40 @@ export class AgentService extends Service {
 
           const runDurationMs = Date.now() - runStartedAt;
           await record.persistChain;
+          // 用户明确陈述的偏好/约定在模型未主动保存时自动沉淀，避免“记忆”只写不读或只读不写。
+          const autoMemory = await this.sedimentExplicitMemory(session.id, projectId, trimmedInput, result.steps);
+          const resultSteps = autoMemory ? [...result.steps, autoMemory] : result.steps;
           const saved = await this.ctx.memory.updateMessage(session.id, assistantMessageId, {
             content: result.content,
             ...(result.progressText ? { progressText: result.progressText } : {}),
             ...(result.reasoning ? { reasoning: result.reasoning } : {}),
             runDurationMs,
-            steps: gitStep ? [gitStep, ...result.steps] : result.steps,
+            steps: gitStep ? [gitStep, ...resultSteps] : resultSteps,
             status: "done",
             ...(result.model ? { model: result.model } : {}),
+            ...(result.usage ? { tokenUsage: result.usage } : {}),
+            metrics: result.metrics,
+            ...(result.cost ? { cost: result.cost } : {}),
           });
-          // 后台生成完成先标记未读，若前端当前正停留在当前会话则由前端清除未读
-          await this.ctx.memory.updateSession(session.id, { unread: true });
+          // 后台生成完成先标记未读，若前端当前正停留在当前会话则由前端清除未读。
+          // 同时把本轮结论与真实工具轨迹滚动写入会话上下文摘要，长会话恢复时不再只有"较早已有 N 条消息"。
+          const digestText = formatHistoryDigest(collectStepDigest(result.steps));
+          const nextSummary = rollSessionSummary(session.contextSummary, buildRunSummaryEntry({
+            userMessage: trimmedInput,
+            content: result.content,
+            ...(digestText ? { digest: digestText } : {}),
+          }));
+          await this.ctx.memory.updateSession(session.id, {
+            unread: true,
+            ...(nextSummary ? { contextSummary: nextSummary } : {}),
+          });
           const message = saved.messages.find((item) => item.id === assistantMessageId);
           record.status.status = "done";
           record.status.content = result.content;
           record.status.reasoning = result.reasoning;
+          if (result.usage) record.status.tokenUsage = result.usage;
+          record.status.metrics = result.metrics;
+          if (result.cost) record.status.cost = result.cost;
           if (message) record.status.message = message;
           emit({ type: "run_finished", runId, sessionId: session.id, assistantMessageId, status: "done", ...(message ? { message } : {}) });
         } catch (error) {
@@ -373,9 +416,43 @@ export class AgentService extends Service {
     return { runId, sessionId: session.id, assistantMessageId };
   }
 
+  // 用户明确陈述的偏好/约定在模型未主动保存时自动写入长期记忆，并在轨迹中留痕。
+  private async sedimentExplicitMemory(
+    sessionId: string,
+    projectId: string | null | undefined,
+    userMessage: string,
+    steps: AgentStepTrace[],
+  ): Promise<AgentStepTrace | null> {
+    const content = extractExplicitMemory(userMessage);
+    if (!content) return null;
+    if (steps.some((step) => step.toolName === "save_memory" && step.status === "done")) return null;
+    const scope = projectId ? "project" : "global";
+    try {
+      await this.ctx.memory.addMemory({
+        scope,
+        ...(projectId ? { projectId } : {}),
+        content,
+        tags: ["auto"],
+        sourceSessionId: sessionId,
+      });
+    } catch {
+      return null;
+    }
+    return {
+      id: "memory-autosave",
+      iteration: steps.reduce((max, step) => Math.max(max, step.iteration), 0) + 1,
+      phase: "act",
+      status: "done",
+      title: "已自动沉淀长期记忆",
+      detail: content,
+      toolName: "save_memory",
+      permissionLevel: "read",
+      timestamp: Date.now(),
+    };
+  }
+
   /** 浏览器仅提交记录标识，文件路径取自会话的真实工具结果。 */
-  async readFileActivity(
-    sessionId: string, messageId: string, stepId: string,
+  async readFileActivity(    sessionId: string, messageId: string, stepId: string,
     resolveRoots: (projectId: string | null) => Promise<string[]>,
   ) {
     const session = await this.ctx.memory.getSession(sessionId);

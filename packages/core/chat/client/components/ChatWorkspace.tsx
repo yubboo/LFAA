@@ -1,6 +1,6 @@
 // 渲染中央聊天工作区：空会话引导、流式回复、Agent 思考/行动/检查轨迹卡片与底部输入栏。
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { IconArrowDown, IconGauge, IconTrash, IconX } from "@tabler/icons-react";
+import { IconArrowDown, IconTrash, IconX } from "@tabler/icons-react";
 import type { WorkbenchProjectItem, WorkbenchProjectProvider } from "@lfaa/ui-layout";
 import { HoverTip, ModalDialog } from "@lfaa/ui-primitives/client";
 import type { ChatClientStore } from "../chat-store";
@@ -21,6 +21,7 @@ import {
 import type { ChatLocaleMessages } from "../locales";
 import { useChatScroll } from "../useChatScroll";
 import { AssistantTimeline } from "./AssistantTimeline";
+import { SessionStatsBar } from "./SessionStatsBar";
 import { ChatAnchorBar, buildTurnAnchors } from "./ChatAnchorBar";
 import { ComposerAddMenu } from "./ComposerAddMenu";
 import { ComposerRightActions } from "./ComposerRightActions";
@@ -427,8 +428,7 @@ export function ChatWorkspace({
 
   const estimatedContextChars =
     messages.reduce((sum, item) => sum + item.content.length + (item.reasoning?.length ?? 0), 0) + draft.length;
-  const estimatedTokens = Math.round(estimatedContextChars / 3.5);
-  const contextUsageLabel = `${locale.isZh ? "上下文估算 Token 用量" : "Estimated context tokens"} · ~${estimatedTokens}`;
+  const estimatedTokens = Math.round(estimatedContextChars / 4);
 
   return (
     <section className={styles.root} aria-label={locale.workspaceTitle}>
@@ -501,6 +501,7 @@ export function ChatWorkspace({
                     createdAt={msg.createdAt}
                     runDurationMs={msg.runDurationMs}
                     reasoningDurationMs={msg.reasoningDurationMs}
+                    tokenUsage={msg.tokenUsage}
                     isStreaming={msg.status === "streaming"}
                     pendingApproval={msg.status === "streaming" ? state.pendingApproval : null}
                     onResolveApproval={(approved) => void store.resolveApproval(approved)}
@@ -838,15 +839,6 @@ export function ChatWorkspace({
                   onSelectMode={(nextMode) => void store.setPermissionMode(nextMode)}
                 />
 
-                {state.generalSettings.showContextUsage && estimatedTokens > 0 && (
-                  <HoverTip label={contextUsageLabel}>
-                    <span className={styles.contextMeter} role="img" aria-label={contextUsageLabel} tabIndex={0}>
-                      <IconGauge size={15} className={styles.contextMeterIcon} aria-hidden="true" />
-                      <span className={styles.contextMeterText}>{`~${estimatedTokens} tok`}</span>
-                    </span>
-                  </HoverTip>
-                )}
-
                 {activeSession && (
                   <HoverTip label={locale.deleteChat}>
                     <button
@@ -887,6 +879,12 @@ export function ChatWorkspace({
               </div>
             </div>
           </div>
+          <SessionStatsBar
+            messages={messages}
+            locale={locale}
+            draftChars={draft.length}
+            {...(state.generalSettings.showContextUsage ? { estimatedContextTokens: estimatedTokens } : {})}
+          />
         </div>
       </div>
 

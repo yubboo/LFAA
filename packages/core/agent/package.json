@@ -12,7 +12,10 @@
   },
   "dependencies": {
     "@deepseek-ai/cordis": "^4.1.0",
+    "@lfaa/context": "workspace:*",
+    "@lfaa/guard": "workspace:*",
     "@lfaa/llm": "workspace:*",
+    "@lfaa/metrics": "workspace:*",
     "@lfaa/memory": "workspace:*",
     "@lfaa/rules": "workspace:*",
     "@lfaa/tools": "workspace:*"

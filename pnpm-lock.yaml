@@ -102,12 +102,21 @@ importers:
       '@deepseek-ai/cordis':
         specifier: ^4.1.0
         version: 4.1.0
+      '@lfaa/context':
+        specifier: workspace:*
+        version: link:../context
+      '@lfaa/guard':
+        specifier: workspace:*
+        version: link:../guard
       '@lfaa/llm':
         specifier: workspace:*
         version: link:../llm
       '@lfaa/memory':
         specifier: workspace:*
         version: link:../memory
+      '@lfaa/metrics':
+        specifier: workspace:*
+        version: link:../metrics
       '@lfaa/rules':
         specifier: workspace:*
         version: link:../rules
@@ -167,6 +176,12 @@ importers:
       '@lfaa/memory':
         specifier: workspace:*
         version: link:../memory
+      '@lfaa/metrics':
+        specifier: workspace:*
+        version: link:../metrics
+      '@lfaa/settings':
+        specifier: workspace:*
+        version: link:../settings
       '@lfaa/ui-layout':
         specifier: workspace:*
         version: link:../../ui/layout
@@ -192,6 +207,41 @@ importers:
       '@types/react-dom':
         specifier: ^19.3.0
         version: 19.3.0(@types/react@19.3.0)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/core/context:
+    dependencies:
+      '@lfaa/llm':
+        specifier: workspace:*
+        version: link:../llm
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.19.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/core/fs:
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.19.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/core/guard:
+    dependencies:
+      '@lfaa/shell':
+        specifier: workspace:*
+        version: link:../../shell/shell
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.19.2
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -236,6 +286,28 @@ importers:
       '@deepseek-ai/cordis':
         specifier: ^4.1.0
         version: 4.1.0
+      '@lfaa/session':
+        specifier: workspace:*
+        version: link:../session
+      '@lfaa/storage':
+        specifier: workspace:*
+        version: link:../storage
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.19.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/core/metrics:
+    dependencies:
+      '@lfaa/llm':
+        specifier: workspace:*
+        version: link:../llm
+      '@lfaa/memory':
+        specifier: workspace:*
+        version: link:../memory
     devDependencies:
       '@types/node':
         specifier: ^24.10.0
@@ -249,6 +321,33 @@ importers:
       '@deepseek-ai/cordis':
         specifier: ^4.1.0
         version: 4.1.0
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.19.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/core/session:
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.19.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/core/settings:
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.19.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/core/storage:
     devDependencies:
       '@types/node':
         specifier: ^24.10.0
@@ -290,6 +389,12 @@ importers:
       '@deepseek-ai/cordis':
         specifier: ^4.1.0
         version: 4.1.0
+      '@lfaa/fs':
+        specifier: workspace:*
+        version: link:../fs
+      '@lfaa/guard':
+        specifier: workspace:*
+        version: link:../guard
       '@lfaa/shell':
         specifier: workspace:*
         version: link:../../shell/shell

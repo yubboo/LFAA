@@ -14,7 +14,7 @@ import {
   type CodeReviewCodingSettings,
   type CodingSettingsConfig,
   type GitCodingSettings,
-} from "./coding-settings";
+} from "@lfaa/settings";
 import {
   GeneralSettingsStore,
   readBundledOpenSourceLicenses,
@@ -22,7 +22,7 @@ import {
   resolveDefaultProjectsFolder,
   type GeneralSettingsConfig,
   type OpenSourcePackageInfo,
-} from "./general-settings";
+} from "@lfaa/settings";
 import {
   buildCommitDraft,
   buildPrDraft,
@@ -48,7 +48,7 @@ export {
   type CodeReviewCodingSettings,
   type CodingSettingsConfig,
   type GitCodingSettings,
-} from "./coding-settings";
+} from "@lfaa/settings";
 export {
   discoverGitRepositories,
   type GitBranchInfo,
@@ -71,7 +71,7 @@ export {
   resolveDefaultProjectsFolder,
   type GeneralSettingsConfig,
   type OpenSourcePackageInfo,
-} from "./general-settings";
+} from "@lfaa/settings";
 export { assertValidWavBuffer, transcribeWavAudio, type SpeechTranscribeResult } from "./speech-service";
 
 /** 提供会话与编码配置所需的 Host 路径及可注入依赖。 */

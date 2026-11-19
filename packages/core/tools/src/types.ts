@@ -49,3 +49,22 @@ export interface PublicToolSummary {
   permissionLevel: ToolPermissionLevel;
   parameters: Record<string, unknown>;
 }
+
+/** 前台命令超时后转后台任务所需的上下文。 */
+export interface CommandTimeoutFallbackInput {
+  command: string;
+  cwd: string;
+  sessionId: string;
+  runId: string;
+}
+
+/** 后台任务服务返回的任务标识，供 Agent 继续轮询。 */
+export interface CommandTimeoutFallbackResult {
+  taskId: string;
+  title: string;
+}
+
+/** 由后台任务服务注册的前台超时兜底回调；返回 null 表示当前无可用后台能力。 */
+export type CommandTimeoutHandler = (
+  input: CommandTimeoutFallbackInput,
+) => Promise<CommandTimeoutFallbackResult | null>;

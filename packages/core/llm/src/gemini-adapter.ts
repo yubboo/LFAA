@@ -101,6 +101,7 @@ function appendGeminiParts(
       ...(typeof u.promptTokenCount === "number" ? { promptTokens: u.promptTokenCount } : {}),
       ...(typeof u.candidatesTokenCount === "number" ? { completionTokens: u.candidatesTokenCount } : {}),
       ...(typeof u.totalTokenCount === "number" ? { totalTokens: u.totalTokenCount } : {}),
+      ...(typeof u.cachedContentTokenCount === "number" ? { cachedPromptTokens: u.cachedContentTokenCount } : {}),
     };
   }
 }
