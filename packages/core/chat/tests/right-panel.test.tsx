@@ -93,6 +93,28 @@ test("RightWorkbenchPane 渲染顶部标签栏、最右图标轨与工作区文�
   assert.ok(normalizedHtml.includes(isZh ? "子智能体团队" : "Subagents"));
 });
 
+test("RightWorkbenchPane 启动页提供文件路径、网址及四个快捷入口", () => {
+  const locale = getChatLocale();
+  const html = renderToStaticMarkup(createElement(RightWorkbenchPane, {
+    locale,
+    store: new ChatClientStore(),
+    boundProjectId: "proj-1",
+    boundProjectName: "fixture-project",
+    showFilePreview: true,
+    onOpenSettings: () => {},
+  }));
+
+  assert.ok(html.includes('role="search"'));
+  assert.ok(html.includes("fixture-project"));
+  assert.ok(html.includes(locale.isZh ? "文件路径或 https:// 网址" : "File path or https:// URL"));
+  const groupLabel = locale.isZh ? "快捷操作" : "Shortcuts";
+  const group = html.split(`role="group" aria-label="${groupLabel}"`)[1]?.split("</div>")[0] ?? "";
+  assert.equal((group.match(/<button\b/gu) ?? []).length, 4);
+  for (const label of locale.isZh ? ["终端", "变更", "文件", "侧边提问"] : ["Terminal", "Changes", "Files", "Side chat"]) {
+    assert.ok(group.includes(`>${label}</span>`));
+  }
+});
+
 test("highlightDocumentLines 按嵌套层级配对着色成对标签与括号", () => {
   const rendered = highlightDocumentLines([
     "<div>",

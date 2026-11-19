@@ -47,10 +47,12 @@ export function createWorkspaceHttpHandler(service: WorkspaceService) {
         const body = await readJsonBody(req);
         const name = typeof body.name === "string" ? body.name : "";
         const rootPath = typeof body.rootPath === "string" ? body.rootPath : undefined;
+        const confirmedDefaultPath = typeof body.confirmedDefaultPath === "string" ? body.confirmedDefaultPath : undefined;
         const trusted = body.trusted === true;
         const project = await service.createProject({
           name,
           ...(rootPath !== undefined ? { rootPath } : {}),
+          ...(confirmedDefaultPath !== undefined ? { confirmedDefaultPath } : {}),
           trusted,
         });
         sendJson(res, 201, { project });

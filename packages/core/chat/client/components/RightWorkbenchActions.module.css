@@ -118,6 +118,10 @@
 :global(:root[data-resolved-theme="light"]) .diffMinus { color: #dc2626; }
 
 .statusIcon { flex: 0 0 auto; color: var(--color-muted); }
+@media (prefers-reduced-motion: no-preference) {
+  .statusIcon[data-status="running"] { animation: status-spin 900ms linear infinite; }
+}
+@keyframes status-spin { to { transform: rotate(1turn); } }
 .statusIcon[data-status="done"] { color: #4ade80; }
 .statusIcon[data-status="error"] { color: #f87171; }
 :global(:root[data-resolved-theme="light"]) .statusIcon[data-status="done"] { color: #16a34a; }

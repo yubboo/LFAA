@@ -217,7 +217,9 @@ export async function callOpenAiResponsesApi(
       const slot = toolMap.get(itemId);
       if (slot && typeof payload.delta === "string" && payload.delta) {
         slot.args += payload.delta;
-        input.onActivity?.();
+        input.onActivity?.({
+          toolCallId: slot.id, argumentChars: slot.args.length, argumentPrefix: slot.args.slice(0, 768),
+        });
       }
     } else if (type === "response.completed" && typeof payload.response === "object" && payload.response !== null) {
       completedPayload = payload.response as Record<string, unknown>;

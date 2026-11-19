@@ -35,7 +35,11 @@ export interface AgentStepTrace {
   addedLines?: number;
   removedLines?: number;
   textOffset?: number;
-  modelStage?: "reasoning" | "replying";
+  modelStage?: "reasoning" | "replying" | "retrying";
+  /** Host 首次观测步骤的时间，与后续流活动更新时间分开。 */
+  startedAt?: number;
+  toolTarget?: string;
+  argumentChars?: number;
   commandTrace?: AgentCommandTrace;
   fileChange?: AgentFileChange;
   timestamp: number;

@@ -1,5 +1,6 @@
 // 验证 @lfaa/agent 集成四大能力并完成 Think -> Act(含审批) -> Check 任务闭环。
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -15,6 +16,7 @@ test("AgentService 完成 Think -> Act(读写工具+人工审批) -> Check 闭�
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-agent-loop-"));
   const workspaceDir = path.join(tempRoot, "demo-project");
   await fs.mkdir(workspaceDir, { recursive: true });
+  execFileSync("git", ["init", "--quiet"], { cwd: tempRoot });
   await fs.writeFile(path.join(workspaceDir, "AGENTS.md"), "项目规则：写入文件前须明确检查内容。", "utf8");
   await fs.writeFile(path.join(workspaceDir, "README.md"), "# Demo Project\nVersion 1", "utf8");
 
@@ -48,6 +50,7 @@ test("AgentService 完成 Think -> Act(读写工具+人工审批) -> Check 闭�
         const lastToolMsg = input.messages.at(-1)?.content ?? "";
         assert.ok(lastToolMsg.includes("Version 1"), "应将第一步读取结果注入第二轮思考上下文");
         input.onDelta?.({ type: "tool_call", toolCallId: "tc-write", toolName: "write_file" });
+        input.onActivity?.({ toolCallId: "tc-write", argumentChars: 42, argumentPrefix: '{"path":"REPORT.md","content":"partial' });
         return {
           model: profile.model,
           provider: profile.kind,
@@ -131,6 +134,10 @@ test("AgentService 完成 Think -> Act(读写工具+人工审批) -> Check 闭�
       });
     });
 
+    // 子项目对话建立自己的基线，父仓库保持未提交状态。
+    assert.equal(execFileSync("git", ["show", "HEAD:README.md"], { cwd: workspaceDir, encoding: "utf8" }), "# Demo Project\nVersion 1");
+    assert.throws(() => execFileSync("git", ["rev-parse", "--quiet", "--verify", "HEAD"], { cwd: tempRoot }));
+
     // 验证四层上下文全量注入（系统规则 + 项目 AGENTS.md + 用户规则 + 长期记忆 + 资料库能力）
     assert.ok(capturedSystemPrompt.includes("系统安全与行为底线"));
     assert.ok(capturedSystemPrompt.includes("自主排查与闭环修复"));
@@ -186,9 +193,13 @@ test("AgentService 完成 Think -> Act(读写工具+人工审批) -> Check 闭�
     assert.deepEqual(actUpdates.filter((step) => step.id === "act-1-tc-read").map((step) => step.status), [
       "preparing", "running", "done",
     ]);
-    assert.deepEqual(actUpdates.filter((step) => step.id === "act-2-tc-write").map((step) => step.status), [
-      "preparing", "waiting_approval", "running", "done",
+    const writeUpdates = actUpdates.filter((step) => step.id === "act-2-tc-write");
+    assert.deepEqual(writeUpdates.map((step) => step.status), [
+      "preparing", "preparing", "waiting_approval", "running", "done",
     ]);
+    assert.equal(writeUpdates[1]?.toolTarget, "REPORT.md");
+    assert.equal(writeUpdates[1]?.argumentChars, 42);
+    assert.equal(new Set(writeUpdates.map((step) => step.startedAt)).size, 1);
     assert.ok(actUpdates.filter((step) => step.status === "preparing").every((step) => !step.argsPreview && !step.commandTrace));
     assert.ok(events.findIndex((event) => event.type === "step_update" && event.step.id === "act-1-tc-read" && event.step.status === "preparing")
       < events.findIndex((event) => event.type === "delta" && event.text === "确认项目版本。"));
@@ -237,6 +248,7 @@ test("运行中切换到完全访问会结算当前审批并继续真实工具�
     assert.equal(events.filter((event) => event.type === "approval_required").length, 1);
     assert.equal(events.filter((event) => event.type === "approval_resolved").length, 1);
     assert.equal(await fs.readFile(path.join(root, "result.txt"), "utf8"), "通过");
+    await assert.rejects(fs.stat(path.join(root, ".git")), { code: "ENOENT" });
     assert.equal(ctx.agent.getRunStatus(started.runId)?.status, "done");
   } finally {
     await fs.rm(root, { recursive: true, force: true });

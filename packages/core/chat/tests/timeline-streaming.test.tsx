@@ -79,7 +79,24 @@ test("流式工具轮次完成后进入下一轮思考时，底部持续显示�
 
   assert.ok(html.includes(activityVerbs.read_file[lang][2]));
   assert.match(html, /class="liveTail"/);
+  assert.match(html, /<details class="liveTail"/);
   assert.ok(html.includes(timelineMessages[lang].reasoning));
+});
+
+test("从 Host 的轮次起点恢复计时，即使流式事件刚更新", () => {
+  const now = Date.now();
+  const { html, lang } = renderTimeline({
+    isStreaming: true,
+    content: "检查完成。",
+    steps: [{
+      id: "think-2", iteration: 2, phase: "think", status: "running",
+      title: "请求模型", modelStage: "reasoning",
+      startedAt: now - 2_500, timestamp: now - 50,
+    }],
+  });
+  const tail = html.split('class="liveTail"')[1] ?? "";
+  assert.ok(tail.includes(lang === "zh" ? "2 秒" : "2s"));
+  assert.match(tail, /<summary/);
 });
 
 test("正在执行工具分组在末尾时展示动态点与文案，不重复渲染尾部行；完成后收起尾部行", () => {

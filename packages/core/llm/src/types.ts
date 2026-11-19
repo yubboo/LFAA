@@ -111,7 +111,8 @@ export interface LlmGenerateInput {
   maxTokens?: number;
   signal?: AbortSignal;
   onDelta?: (delta: LlmStreamDelta) => void;
-  onActivity?: () => void;
+  /** 参数流的已接收长度和有限前缀仅供 Host 识别目标，不随 SSE 发布原文。 */
+  onActivity?: (progress?: { toolCallId: string; argumentChars: number; argumentPrefix: string }) => void;
 }
 
 export interface LlmUsage {

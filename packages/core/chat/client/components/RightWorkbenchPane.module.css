@@ -1,5 +1,6 @@
 /* IDE 化右侧工作台样式：顶栏与中间栏齐平、全高主舞台、可折叠辅助抽屉及最右图标轨，全量消费 @lfaa/ui-theme 变量。 */
 .workbench {
+  container-type: inline-size;
   position: relative;
   display: grid;
   grid-template-rows: var(--topbar-height, 3.5rem) minmax(0, 1fr);
@@ -17,7 +18,7 @@
   gap: 0.4rem;
   height: var(--topbar-height, 3.5rem);
   min-width: 0;
-  padding: 0 0.5rem 0 0.45rem;
+  padding: 0 0.55rem 0 0.55rem;
   border-bottom: 1px solid var(--color-line);
   background: var(--color-topbar, var(--color-panel));
 }
@@ -28,6 +29,7 @@
   align-items: center;
   gap: 0.28rem;
   min-width: 0;
+  padding: 0.2rem;
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -37,8 +39,8 @@
   align-items: center;
   max-width: 11.5rem;
   flex: 0 0 auto;
-  height: 2rem;
-  padding: 0 0.25rem 0 0.45rem;
+  height: 2.15rem;
+  padding: 0 0.25rem 0 0.55rem;
   border: 1px solid transparent;
   border-radius: 0.48rem;
   background: transparent;
@@ -49,9 +51,7 @@
 }
 
 .tabItemActive {
-  border-color: var(--color-line);
   background: var(--color-surface);
-  box-shadow: var(--rail-active-shadow, none);
 }
 
 .tabBtn {
@@ -66,6 +66,9 @@
   font-size: 0.77rem;
   cursor: pointer;
 }
+
+.tabBtn > svg { flex: none; }
+.tabBtn:not(button) { cursor: default; }
 
 .tabItemActive .tabBtn {
   color: var(--color-ink);
@@ -100,6 +103,7 @@
 }
 
 .tabClose {
+  flex: none;
   width: 1.25rem;
   height: 1.25rem;
   margin-left: 0.2rem;
@@ -123,7 +127,23 @@
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: 0.2rem;
+  gap: 0.3rem;
+}
+
+.tabBar > .addTabBtn {
+  position: sticky;
+  inset-inline-end: 0;
+  background: var(--color-surface);
+}
+.tabBar > .addTabBtn:hover { background: var(--color-active); }
+
+.tabBtn:focus-visible,
+.tabClose:focus-visible,
+.addTabBtn:focus-visible,
+.railBtn:focus-visible,
+.statusRow:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
 }
 
 .bodySplit {
@@ -134,12 +154,27 @@
 }
 
 .mainStage {
+  position: relative;
   flex: 1 1 0;
   min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
   background: var(--color-shell);
+}
+
+.browserView {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+.browserView[data-covered="true"] {
+  position: absolute;
+  inset: 0;
+  visibility: hidden;
 }
 
 .auxResizer {
@@ -252,7 +287,10 @@
   flex-direction: column;
   align-items: center;
   justify-content: space-between;
-  padding: 0.5rem 0.25rem;
+  gap: 0.65rem;
+  padding: 0.55rem 0.25rem;
+  overflow-y: auto;
+  scrollbar-width: none;
   border-left: 1px solid var(--color-line);
   background: var(--color-rail, var(--color-panel));
 }
@@ -284,8 +322,7 @@
 
 .railBtnActive {
   background: var(--color-rail-active, var(--color-active));
-  box-shadow: var(--rail-active-shadow, none);
-  color: var(--color-accent);
+  color: var(--color-ink);
 }
 
 .railBadge {
@@ -296,73 +333,17 @@
   height: 0.85rem;
   padding: 0 0.2rem;
   border-radius: 999px;
-  background: var(--color-accent);
-  color: #ffffff;
+  background: var(--color-active);
+  color: var(--color-ink);
   font-size: 0.62rem;
   line-height: 0.85rem;
   text-align: center;
 }
 
-.welcomeStage {
-  flex: 1 1 0;
-  display: grid;
-  align-content: center;
-  justify-items: center;
-  gap: 0.9rem;
-  padding: 1.5rem;
-}
-
-.welcomeUrlForm {
-  display: flex;
-  width: min(100%, 24rem);
-  height: 2.3rem;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0 0.85rem;
-  border: 1px solid var(--color-line);
-  border-radius: 999px;
-  background: var(--color-surface);
-  color: var(--color-muted);
-}
-
-.welcomeUrlForm input {
-  flex: 1 1 auto;
-  min-width: 0;
-  border: 0;
-  background: transparent;
-  color: var(--color-ink);
-  font-size: 0.8rem;
-  outline: none;
-}
-
-.welcomeActions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.55rem;
-}
-
-.welcomeCardBtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  padding: 0.55rem 0.95rem;
-  border: 1px solid var(--color-line);
-  border-radius: 0.65rem;
-  background: var(--color-surface);
-  color: var(--color-ink);
-  font-size: 0.8rem;
-  cursor: pointer;
-}
-
-.welcomeCardBtn:hover {
-  background: var(--color-active);
-}
-
 .welcomeStatusList {
   display: grid;
   gap: 0.35rem;
-  width: min(100%, 22rem);
+  min-width: 0;
 }
 
 .statusRow {
@@ -382,6 +363,21 @@
 .statusRow:hover {
   background: var(--color-active);
   color: var(--color-ink);
+}
+
+.statusRow span { overflow-wrap: anywhere; }
+
+/* 拖窄工作台时让文件、终端和侧问覆盖启动页，避免同时挤压两块内容。 */
+@container (max-width: 28rem) {
+  .bodySplit[data-start="true"]:has(> .auxDrawer) > .mainStage { visibility: hidden; }
+  .bodySplit[data-start="true"] > .auxResizer { display: none; }
+  .bodySplit[data-start="true"] > .auxDrawer {
+    position: absolute;
+    inset: 0 2.65rem 0 0;
+    z-index: 6;
+    min-width: 0;
+    max-width: none;
+  }
 }
 
 /* 窄屏与平板抽屉下，辅助栏覆盖主舞台而不与主舞台互相挤压宽度。 */

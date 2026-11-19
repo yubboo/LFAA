@@ -1,11 +1,11 @@
 // 声明工作区包的 Host 侧 Cordis 服务与无 DOM 领域契约，严禁导入 React、DOM 或 CSS。
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, open, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { lstat, mkdir, open, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { type Context, Service } from "@deepseek-ai/cordis";
-import { openFolderInExplorer, openNativeFolderPicker, resolveUniqueSubfolder, resolveUserDocumentsDir, revealFileInExplorer } from "./system-paths";
+import { openFolderInExplorer, openNativeFolderPicker, resolveNamedSubfolder, resolveUserDocumentsDir, revealFileInExplorer } from "./system-paths";
 import type {
   CreateProjectInput,
   FolderPickResult,
@@ -85,6 +85,17 @@ function normalizeUniquePaths(rawPaths: string[]): string[] {
     result.push(resolved);
   }
   return result;
+}
+
+// 默认路径只可复用同名的真实目录，文件和链接需要用户另行选择。
+async function defaultFolderExists(targetPath: string): Promise<boolean> {
+  try {
+    if ((await lstat(targetPath)).isDirectory()) return true;
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") return false;
+    throw error;
+  }
+  throw new Error(`默认项目路径被文件或链接占用：${targetPath}。请更换项目名称或选择源文件夹。`);
 }
 
 // Host 侧工作区服务：持久化项目列表、动态检测默认工作目录、调起资源管理器选目录并读取真实目录内容。
@@ -188,8 +199,9 @@ export class WorkspaceService extends Service {
     const existing = await this.readStoredProjects();
     this.assertUniqueInList(existing, trimmed);
     const { documentsDir, workspaceBaseDir } = await this.getBaseWorkspaceRoot();
-    const { targetPath, folderName } = resolveUniqueSubfolder(workspaceBaseDir, trimmed);
-    return { targetPath, documentsDir, folderName };
+    const targetPath = resolveNamedSubfolder(workspaceBaseDir, trimmed);
+    await defaultFolderExists(targetPath);
+    return { targetPath, documentsDir, folderName: trimmed };
   }
 
   async pickLocalFolder(): Promise<FolderPickResult> {
@@ -233,7 +245,14 @@ export class WorkspaceService extends Service {
     } else {
       const defaultTarget = await this.resolveDefaultProjectPath(name);
       resolvedPath = defaultTarget.targetPath;
+      if (input.confirmedDefaultPath !== undefined
+          && (!isAbsolute(input.confirmedDefaultPath) || relative(input.confirmedDefaultPath, resolvedPath))) {
+        throw new Error("默认项目路径已变化，请重新确认要信任的文件夹。");
+      }
       await mkdir(resolvedPath, { recursive: true });
+      if (!await defaultFolderExists(resolvedPath)) {
+        throw new Error("默认项目文件夹已变化，请重新确认要信任的文件夹。");
+      }
     }
 
     const project: WorkspaceProjectSummary = {

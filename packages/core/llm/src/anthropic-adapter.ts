@@ -222,7 +222,9 @@ export async function callAnthropicMessagesApi(
         const slot = toolBlocks.get(payload.index);
         if (slot && delta.partial_json) {
           slot.jsonBuf += delta.partial_json;
-          input.onActivity?.();
+          input.onActivity?.({
+            toolCallId: slot.id, argumentChars: slot.jsonBuf.length, argumentPrefix: slot.jsonBuf.slice(0, 768),
+          });
         }
       }
     } else if (eventType === "message_delta" && typeof payload.delta === "object" && payload.delta !== null) {

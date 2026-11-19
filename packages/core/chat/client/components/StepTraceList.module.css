@@ -1,6 +1,5 @@
 /* 助手状态、活动折叠行及终端详情，使用工作区浅色和深色主题变量。 */
 .liveStatus,
-.liveTail,
 .disclosure,
 .activityRow {
   display: flex;
@@ -26,21 +25,23 @@
 
 .liveDot {
   flex: none;
-  width: 0.45rem;
-  height: 0.45rem;
+  width: 0.8rem;
+  height: 0.8rem;
+  box-sizing: border-box;
+  border: 1.5px solid currentColor;
+  border-inline-end-color: transparent;
   border-radius: 50%;
-  background: var(--color-accent);
+  color: color-mix(in srgb, var(--color-accent) 55%, var(--color-ink));
 }
 
 @media (prefers-reduced-motion: no-preference) {
   .liveDot {
-    animation: pulse 1.4s ease-in-out infinite alternate;
+    animation: live-spin 900ms linear infinite;
   }
 }
 
-@keyframes pulse {
-  from { opacity: 0.45; }
-  to { opacity: 1; }
+@keyframes live-spin {
+  to { transform: rotate(1turn); }
 }
 
 .timelineDivider {
@@ -61,8 +62,7 @@
 }
 
 .disclosure,
-.activityRow,
-.liveTail {
+.activityRow {
   width: fit-content;
   max-width: 100%;
   padding: 0.12rem 0.32rem;
@@ -73,8 +73,7 @@
 }
 
 .liveTail {
-  padding: 0.14rem 0.48rem;
-  border-radius: 0.45rem;
+  min-width: 0;
 }
 
 .disclosure,
@@ -158,26 +157,19 @@ details[open] > summary > .chevron {
   font-family: var(--code-font-family, monospace);
 }
 
-/* 准备和执行共用柔和高光，审批和终态停在实际结果。 */
-:is(.disclosure, .activityRow, .liveTail):is([data-status="preparing"], [data-status="running"]),
-.activityDetail[data-kind="command"][data-status="running"] .terminalHeader {
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  color: var(--color-ink);
-  background-color: color-mix(in srgb, var(--color-accent) 8%, var(--color-surface));
-  box-shadow: inset 0 0 0 1px rgb(var(--color-accent-rgb) / 0.22);
-}
-
-:is(.disclosure, .activityRow, .liveTail):is([data-status="preparing"], [data-status="running"])::before,
-.activityDetail[data-kind="command"][data-status="running"] .terminalHeader::before {
-  position: absolute;
-  z-index: -1;
-  inset: 0;
-  pointer-events: none;
-  content: "";
-  background: linear-gradient(100deg, transparent 15%, rgb(var(--color-accent-rgb) / 0.19) 50%, transparent 85%);
-  animation: active-sweep 1.7s ease-in-out infinite;
+/* 渐变只随实际准备、执行事件显示，并以当前强调色与正文色混合。 */
+@media (prefers-reduced-motion: no-preference) {
+  @supports (background-clip: text) {
+    :is(.disclosure, .activityRow):is([data-status="preparing"], [data-status="running"]) > .activityTitle,
+    .activityDetail[data-status="running"] .terminalHeader > .activityTitle {
+      --activity-ink: color-mix(in srgb, var(--color-accent) 35%, var(--color-ink));
+      background: linear-gradient(105deg, var(--color-ink) 20%, var(--activity-ink) 48%, var(--color-ink) 72%);
+      background-size: 230% 100%;
+      background-clip: text;
+      color: transparent;
+      animation: active-sweep 2.15s linear infinite;
+    }
+  }
 }
 
 :is(.disclosure, .activityRow)[data-status="waiting_approval"] {
@@ -186,9 +178,8 @@ details[open] > summary > .chevron {
 }
 
 @keyframes active-sweep {
-  from { opacity: 0; transform: translateX(-75%); }
-  45%, 65% { opacity: 1; }
-  to { opacity: 0; transform: translateX(75%); }
+  from { background-position: 100% 50%; }
+  to { background-position: -60% 50%; }
 }
 
 /* 原生 details 保留键盘语义，靠近标题的滑入表达展开方向。 */
@@ -268,11 +259,36 @@ details[open] > summary > .chevron {
 }
 
 .terminalHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
   padding: 0.3rem 0.45rem;
   border-radius: 0.35rem;
   background: var(--color-active);
   color: var(--color-muted);
 }
+
+.liveFacts {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0.15rem 0 0.35rem 0.45rem;
+  padding-inline-start: 0.65rem;
+  border-inline-start: 1px solid var(--color-line);
+  color: var(--color-muted);
+  font-size: 0.83em;
+  overflow-wrap: anywhere;
+}
+
+.commandResult {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  color: var(--color-ink);
+}
+
+.commandResult span { color: var(--color-muted); }
 
 .srOnly {
   position: absolute;
@@ -285,8 +301,6 @@ details[open] > summary > .chevron {
 @media (prefers-reduced-motion: reduce) {
   .liveDot,
   .process:not([hidden]),
-  :is(.disclosure, .activityRow, .liveTail):is([data-status="preparing"], [data-status="running"])::before,
-  .activityDetail[data-kind="command"][data-status="running"] .terminalHeader::before,
   .fileActivity > .icon:first-child,
   .activityStatus > svg { animation: none; }
 

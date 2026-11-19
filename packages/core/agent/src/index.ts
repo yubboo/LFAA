@@ -1,9 +1,5 @@
 // @lfaa/agent Host 侧 Cordis 服务：连接 llm/tools/memory/rules 四大能力并管理任务运行态、SSE 订阅与工具审批。
-import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { existsSync } from "node:fs";
-import { join } from "node:path";
-import { promisify } from "node:util";
 import { type Context, Service } from "@deepseek-ai/cordis";
 import "@lfaa/llm";
 import "@lfaa/memory";
@@ -14,6 +10,7 @@ import { executeAgentTaskLoop } from "./agent-loop";
 import { readActivitySource } from "./activity-file";
 import { registerAgentLibraryTools } from "./builtin-agent-tools";
 import { normalizePermissionMode, SmartTrustStore } from "./permission-policy";
+import { ensureProjectGitRepo } from "./project-git";
 import {
   maskRunId,
   type AgentStreamMetrics,
@@ -26,38 +23,6 @@ export * from "./permission-policy";
 export * from "./stream-journal";
 export { createAgentHttpHandler } from "./http-handler";
 export { executeAgentTaskLoop, type RunExecutionParams, type RunLoopDeps } from "./agent-loop";
-
-const execFileAsync = promisify(execFile);
-
-/** 当用户在绑定项目中发起对话时，若项目目录尚未建立 .git 仓库则自动初始化并生成首个基线提交 */
-async function ensureProjectGitRepo(rootPath: string): Promise<void> {
-  if (!rootPath || !existsSync(rootPath)) return;
-  const gitEnv = { ...process.env, GIT_TERMINAL_PROMPT: "0", LC_ALL: "C" };
-  const runGit = (args: string[]) =>
-    execFileAsync("git", args, { cwd: rootPath, timeout: 10000, windowsHide: true, env: gitEnv });
-
-  const isRepo = existsSync(join(rootPath, ".git"))
-    || await runGit(["rev-parse", "--is-inside-work-tree"]).then(() => true).catch(() => false);
-
-  if (!isRepo) {
-    await runGit(["init"]).catch(() => {});
-  }
-
-  const hasName = await runGit(["config", "user.name"]).then((r) => Boolean(r.stdout.trim())).catch(() => false);
-  if (!hasName) {
-    await runGit(["config", "user.name", "LFAA User"]).catch(() => {});
-  }
-  const hasEmail = await runGit(["config", "user.email"]).then((r) => Boolean(r.stdout.trim())).catch(() => false);
-  if (!hasEmail) {
-    await runGit(["config", "user.email", "lfaa@local"]).catch(() => {});
-  }
-
-  const hasHead = await runGit(["rev-parse", "--verify", "HEAD"]).then(() => true).catch(() => false);
-  if (!hasHead) {
-    await runGit(["add", "-A"]).catch(() => {});
-    await runGit(["commit", "--allow-empty", "-m", "chore: init project repository"]).catch(() => {});
-  }
-}
 
 /** 配置 Agent Host 存储及运行参数，供应用启动和隔离测试注入。 */
 export interface AgentPluginConfig {
@@ -187,11 +152,6 @@ export class AgentService extends Service {
       ? await this.skillCatalogProvider(workspaceRoots).catch(() => [])
       : [];
 
-    const primaryProjectRoot = workspaceRoots[0];
-    if (projectId && primaryProjectRoot) {
-      await ensureProjectGitRepo(primaryProjectRoot).catch(() => {});
-    }
-
     await this.ctx.memory.appendMessage(session.id, {
       id: userMessageId,
       role: "user",
@@ -277,6 +237,22 @@ export class AgentService extends Service {
       void (async () => {
         try {
           emit({ type: "run_started", runId, sessionId: session.id, assistantMessageId });
+          const primaryProjectRoot = projectId ? workspaceRoots[0] : undefined;
+          let gitStep: AgentStepTrace | undefined;
+          if (primaryProjectRoot) {
+            try {
+              await ensureProjectGitRepo(primaryProjectRoot);
+            } catch (error) {
+              // Git 可用性问题写入现有运行轨迹，用户仍可得到模型答复。
+              gitStep = {
+                id: "project-git", iteration: 0, phase: "check", status: "error",
+                title: "项目 Git 基线准备失败",
+                detail: error instanceof Error ? error.message.trim().split(/\r?\n/u).slice(0, 2).join("\n") : String(error),
+                timestamp: Date.now(),
+              };
+              emit({ type: "step_update", runId, step: gitStep });
+            }
+          }
           const result = await executeAgentTaskLoop(
             {
               llm: this.ctx.llm,
@@ -337,7 +313,7 @@ export class AgentService extends Service {
             ...(result.progressText ? { progressText: result.progressText } : {}),
             ...(result.reasoning ? { reasoning: result.reasoning } : {}),
             runDurationMs,
-            steps: result.steps,
+            steps: gitStep ? [gitStep, ...result.steps] : result.steps,
             status: "done",
             ...(result.model ? { model: result.model } : {}),
           });

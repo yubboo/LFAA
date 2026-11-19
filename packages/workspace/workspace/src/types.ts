@@ -50,6 +50,8 @@ export interface ResolveDefaultPathResult {
 export interface CreateProjectInput {
   name: string;
   rootPath?: string;
+  /** 浏览器在信任弹窗中展示的默认路径，创建时由 Host 重新核对。 */
+  confirmedDefaultPath?: string;
   trusted: boolean;
 }
 

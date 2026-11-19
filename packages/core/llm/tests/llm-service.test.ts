@@ -194,15 +194,18 @@ test("OpenAI 兼容 SSE 工具 ID 和名称分片归并为同一次准备和调�
 
   try {
     const received: unknown[] = [];
+    const progress: Array<number | undefined> = [];
     const output = await callOpenAiCompatibleChat(
       { id: "local", name: "Local", kind: "ollama", baseUrl: "http://localhost/v1", apiKey: "", model: "fixture", updatedAt: 1 },
       {
         messages: [{ role: "user", content: "Create the fixture." }],
         tools: [{ name: "write_file", description: "Write file", parameters: {} }],
         onDelta: (delta) => received.push(delta),
+        onActivity: (item) => progress.push(item?.argumentChars),
       },
     );
     assert.deepEqual(received, [{ type: "tool_call", toolCallId: "call_write", toolName: "write_file" }]);
+    assert.deepEqual(progress, ['{"path":'.length, '{"path":"demo.txt"}'.length]);
     assert.deepEqual(output.toolCalls, [{ id: "call_write", name: "write_file", argumentsJson: '{"path":"demo.txt"}' }]);
   } finally {
     globalThis.fetch = originalFetch;

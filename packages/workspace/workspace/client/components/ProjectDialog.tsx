@@ -150,7 +150,9 @@ export function ProjectDialog({
     try {
       const created = await store.createProject({
         name: trustTarget.name,
-        ...(trustTarget.usesDefaultLocation ? {} : { rootPath: trustTarget.targetPath }),
+        ...(trustTarget.usesDefaultLocation
+          ? { confirmedDefaultPath: trustTarget.targetPath }
+          : { rootPath: trustTarget.targetPath }),
         trusted: true,
       });
       onCreated(created);

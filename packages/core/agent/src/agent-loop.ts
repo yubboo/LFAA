@@ -59,6 +59,14 @@ function safeParseArgs(raw: string): { ok: true; value: Record<string, unknown> 
   }
 }
 
+// 参数流可能还没结束。只识别已闭合的首个 path 字段，不发布其余参数。
+function readStreamingPath(prefix: string): string | undefined {
+  const quoted = /^\s*\{\s*"path"\s*:\s*("(?:\\.|[^"\\])*")/u.exec(prefix)?.[1];
+  if (!quoted) return undefined;
+  const parsed = safeParseArgs('{"path":' + quoted + '}');
+  return parsed.ok && typeof parsed.value.path === "string" ? parsed.value.path.slice(0, 500) : undefined;
+}
+
 /** 顺序执行模型推理、工具审批和执行，最终把运行结果写回会话。 */
 export async function executeAgentTaskLoop(
   deps: RunLoopDeps,
@@ -69,8 +77,9 @@ export async function executeAgentTaskLoop(
   let progressText = "";
   let lastModel: string | undefined;
 
-  const pushOrUpdateStep = (step: AgentStepTrace) => {
-    const idx = steps.findIndex((s) => s.id === step.id);
+  const pushOrUpdateStep = (update: AgentStepTrace) => {
+    const idx = steps.findIndex((s) => s.id === update.id);
+    const step = { ...update, startedAt: steps[idx]?.startedAt ?? update.startedAt ?? update.timestamp };
     if (idx >= 0) steps[idx] = step;
     else steps.push(step);
     params.emit({ type: "step_update", runId: params.runId, step });
@@ -153,6 +162,7 @@ export async function executeAgentTaskLoop(
     : "";
 
   const progressHint = [
+    "较大的代码变更分成有明确文件落点的小批次。已有工具结果足以行动时，直接发出下一项必要调用。可见进度只说实际完成、正在处理的目标或当前阻塞。",
     "多步任务的进度写入用户可见的正文。首次调用工具前，简短交代准备核查或执行的事项；得到实际结果、发现异常或进入下一阶段时，再说明进展和接下来的动作。连续的小操作可共用一段，直接问答无需播报。命令和工具详情由运行时展示。",
     "自主排查与编辑准则：定位问题时先用 search_files / list_dir / read_file 检索并精读关键源码上下文再动手；需要修改代码或修复报错时，直接调用 edit_file / write_file 落实修改并立即通过 run_command 验证，遇到新报错继续读取对应行并修正闭环，不得停在只给建议或让用户手动改代码。",
     "工具效率与核验规范：创建或读取多个互相独立的文件时，请在同轮并行发起多个 read_file / write_file / edit_file 调用，避免逐个文件串行消耗步数；执行构建/测试请直接用 run_command 验证，不可将“静态自审”等价于编译或运行通过；向用户提供复现命令时，必须严格匹配当前终端语法（CMD 用 `set \"VAR=...\"`，PowerShell 用 `$env:VAR=\"...\"`），严禁混写。",
@@ -209,7 +219,23 @@ export async function executeAgentTaskLoop(
       messages: conversation,
       tools: llmTools,
       signal: params.signal,
-      onActivity: () => noteModelActivity(),
+      onRetry: () => noteModelActivity("retrying"),
+      onActivity: (progress) => {
+        noteModelActivity();
+        if (!progress) return;
+        const pending = preparing.get(progress.toolCallId);
+        if (!pending) return;
+        const target = pending.toolTarget ?? readStreamingPath(progress.argumentPrefix);
+        const now = Date.now();
+        // 路径首次到达时立即更新，后续参数按时间合并，避免每个 token 都落盘。
+        if (target === pending.toolTarget && pending.argumentChars !== undefined && now - pending.timestamp < 500) return;
+        const next = {
+          ...pending, ...(target ? { toolTarget: target } : {}),
+          argumentChars: progress.argumentChars, timestamp: now,
+        };
+        preparing.set(progress.toolCallId, next);
+        pushOrUpdateStep(next);
+      },
       onDelta: (delta) => {
         if ((delta.type === "reasoning" || delta.type === "text") && delta.text) {
           noteModelActivity(delta.type === "reasoning" ? "reasoning" : "replying");
@@ -336,6 +362,8 @@ export async function executeAgentTaskLoop(
         toolName: call.name,
         permissionLevel: perm,
         argsPreview,
+        ...(parsedArgs.ok && typeof parsedArgs.value.path === "string"
+          ? { toolTarget: parsedArgs.value.path.slice(0, 500) } : {}),
         textOffset: roundTextOffset,
         ...(command ? { commandTrace: { command } } : {}),
         timestamp: Date.now(),
@@ -506,6 +534,7 @@ export async function executeAgentTaskLoop(
     ],
     tools: [],
     signal: params.signal,
+    onRetry: () => noteFallbackStage("retrying"),
     onActivity: () => noteFallbackStage(),
     onDelta: (delta) => {
       if (delta.type === "reasoning" && delta.text) {

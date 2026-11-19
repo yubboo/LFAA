@@ -35,17 +35,17 @@ async function fileExists(path) {
   }
 }
 
-// 按 workspace 目录深度收集应用或 package 项目路径。
-async function collectPackages(parent, depth, output = []) {
-  const folder = resolve(repositoryRoot, parent);
+// 按 workspace 目录深度收集项目；一级显式包与分组下的二级包都可登记。
+export async function collectPackages(parent, depth, root = repositoryRoot, output = []) {
+  const folder = resolve(root, parent);
   for (const entry of await readdir(folder, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
     const childPath = resolve(folder, entry.name);
-    const relativePath = relative(repositoryRoot, childPath).split(sep).join("/");
-    if (depth === 1) {
-      if (await fileExists(resolve(childPath, "package.json"))) output.push(relativePath);
-    } else {
-      await collectPackages(relative(repositoryRoot, childPath), depth - 1, output);
+    const relativePath = relative(root, childPath).split(sep).join("/");
+    if (await fileExists(resolve(childPath, "package.json"))) {
+      output.push(relativePath);
+    } else if (depth > 1) {
+      await collectPackages(relativePath, depth - 1, root, output);
     }
   }
   return output;

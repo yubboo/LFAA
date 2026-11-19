@@ -1,0 +1,141 @@
+/* 浏览器与空白工作台共用的启动页，按实际窗格宽度排列快捷操作。 */
+.stage {
+  container-type: inline-size;
+  flex: 1 1 0;
+  min-height: 0;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  overflow: auto;
+  padding: clamp(1rem, 21vh, 16rem) clamp(0.6rem, 4%, 2.4rem) 1.25rem;
+  background: var(--color-shell);
+}
+
+.content {
+  display: grid;
+  gap: 0.8rem;
+  width: min(100%, 38rem);
+  min-width: 0;
+}
+
+.heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.7rem;
+  min-width: 0;
+}
+
+.heading h2 {
+  margin: 0;
+  color: var(--color-ink);
+  font-size: 1.05rem;
+  font-weight: 650;
+}
+
+.heading span {
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+  padding: 0.25rem 0.3rem 0.25rem 0.7rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.76rem;
+  background: var(--color-surface);
+  color: var(--color-muted);
+}
+
+.field:focus-within { border-color: var(--color-accent); }
+.field > svg { flex: none; }
+
+.field input {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.84rem;
+}
+
+.field input::placeholder { color: var(--color-muted); opacity: 1; }
+
+.field button {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2.15rem;
+  height: 2.15rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0.5rem;
+  background: var(--color-active);
+  color: var(--color-ink);
+  cursor: pointer;
+}
+
+.field button:disabled {
+  background: transparent;
+  color: var(--color-muted);
+  cursor: default;
+}
+
+.feedback {
+  margin: 0;
+  color: var(--color-ink);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.shortcuts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.shortcuts button {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.52rem;
+  min-height: 3.2rem;
+  min-width: 0;
+  padding: 0.48rem 0.65rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.52rem;
+  background: var(--color-panel);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.79rem;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.shortcuts button > svg { flex: none; color: var(--color-muted); }
+.shortcuts button:hover { background: var(--color-active); }
+.shortcuts button:hover > svg { color: var(--color-ink); }
+.field button:focus-visible,
+.shortcuts button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+
+@container (min-width: 30rem) {
+  .shortcuts { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+@container (max-width: 12rem) {
+  .shortcuts button { gap: 0.3rem; padding-inline: 0.35rem; }
+}
+
+@media (max-height: 520px) {
+  .stage { padding-block-start: 1rem; }
+}

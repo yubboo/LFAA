@@ -5,7 +5,6 @@ import {
   IconCheck,
   IconChevronRight,
   IconCircleX,
-  IconClock,
   IconCopy,
   IconDotsVertical,
   IconFile,
@@ -14,6 +13,7 @@ import {
   IconLayoutColumns,
   IconLayoutList,
   IconLayoutSidebarRight,
+  IconLoader2,
   IconMaximize,
   IconMinimize,
   IconPencil,
@@ -25,7 +25,8 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import type { ChatClientStore } from "../chat-store";
-import { fetchGitDiff } from "../coding-settings-client";
+import { fetchGitDiff, fetchGitStatus } from "../coding-settings-client";
+import activityStyles from "./StepTraceList.module.css";
 import type { RightJobItem } from "./RightTerminalPane";
 import type { RightSubagentItem } from "./RightSubagentsPane";
 import styles from "./RightWorkbenchActions.module.css";
@@ -85,15 +86,21 @@ export function RightWorkbenchActions({
   const [showAllSubs, setShowAllSubs] = useState(false);
   const [showAllJobs, setShowAllJobs] = useState(false);
   const [diffSummary, setDiffSummary] = useState<{ added: number; removed: number }>({ added: 0, removed: 0 });
-  const [fetchedJobs, setFetchedJobs] = useState<RightJobItem[]>([]);
-  const [fetchedSubagents, setFetchedSubagents] = useState<RightSubagentItem[]>([]);
+  const [changedFiles, setChangedFiles] = useState<number | null>(null);
+  const [fetchedJobs, setFetchedJobs] = useState<RightJobItem[] | null>(null);
+  const [fetchedSubagents, setFetchedSubagents] = useState<RightSubagentItem[] | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
 
   const snap = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
   const activeSession = snap.activeSession;
   const sessionId = activeSession?.id ?? "default";
-  const effectiveJobs = jobs ?? fetchedJobs;
-  const effectiveSubagents = subagents ?? fetchedSubagents;
+  const effectiveJobs = jobs ?? fetchedJobs ?? [];
+  const effectiveSubagents = subagents ?? fetchedSubagents ?? [];
+  const hasJobFeed = jobs !== undefined;
+  const hasSubagentFeed = subagents !== undefined;
+  const foreground = snap.runningRunId
+    ? activeSession?.messages.at(-1)?.steps?.find((step) => step.status === "running" && step.commandTrace)
+    : undefined;
 
   useEffect(() => {
     if (!showSessionControls) return;
@@ -123,22 +130,34 @@ export function RightWorkbenchActions({
   useEffect(() => {
     if (!showSessionControls || menuOpen !== "overview") return;
     let current = true;
-    void fetchGitDiff({ projectId }).then(
-      (res) => { if (current) setDiffSummary(parseDiffSummary(res.diff)); },
-      () => {},
-    );
-    if (!jobs || !subagents) {
-      void Promise.all([
-        jobs ? Promise.resolve(null) : fetch(`/api/jobs?sessionId=${encodeURIComponent(sessionId)}`).then((r) => (r.ok ? r.json() : { jobs: [] })),
-        subagents ? Promise.resolve(null) : fetch(`/api/subagents?sessionId=${encodeURIComponent(sessionId)}`).then((r) => (r.ok ? r.json() : { subagents: [] })),
-      ]).then(([jobsRes, subsRes]) => {
-        if (!current) return;
-        if (jobsRes && Array.isArray(jobsRes.jobs)) setFetchedJobs(jobsRes.jobs);
-        if (subsRes && Array.isArray(subsRes.subagents)) setFetchedSubagents(subsRes.subagents);
-      }).catch(() => {});
-    }
-    return () => { current = false; };
-  }, [jobs, menuOpen, projectId, sessionId, showSessionControls, subagents]);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    setChangedFiles(null);
+    setDiffSummary({ added: 0, removed: 0 });
+    setFetchedJobs(null);
+    setFetchedSubagents(null);
+    const refresh = async () => {
+      // Git 状态包含尚未暂存的新文件，独立于差异行数。
+      await Promise.allSettled([
+        projectId && fetchGitStatus(projectId).then((git) => {
+          if (current) setChangedFiles(git.isGitRepo ? git.files.length : null);
+        }),
+        projectId && fetchGitDiff({ projectId }).then((res) => {
+          if (current) setDiffSummary(parseDiffSummary(res.diff));
+        }),
+        !hasJobFeed && fetch(`/api/jobs?sessionId=${encodeURIComponent(sessionId)}`)
+          .then((r) => r.ok ? r.json() : null).then((list) => {
+            if (current && Array.isArray(list?.jobs)) setFetchedJobs(list.jobs);
+          }),
+        !hasSubagentFeed && fetch(`/api/subagents?sessionId=${encodeURIComponent(sessionId)}`)
+          .then((r) => r.ok ? r.json() : null).then((list) => {
+            if (current && Array.isArray(list?.subagents)) setFetchedSubagents(list.subagents);
+          }),
+      ]);
+      if (current) timer = setTimeout(() => void refresh(), 2000);
+    };
+    void refresh();
+    return () => { current = false; clearTimeout(timer); };
+  }, [hasJobFeed, hasSubagentFeed, menuOpen, projectId, sessionId, showSessionControls]);
 
   const handleRenameSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -341,6 +360,7 @@ export function RightWorkbenchActions({
           <button type="button" className={styles.menuItem} onClick={triggerReview}>
             <IconFileDiff size={14} />
             <span>{isZh ? "审查" : "Review"}</span>
+            {changedFiles !== null && <span className={styles.countPill}>{isZh ? `${changedFiles} 项变更` : `${changedFiles} changed`}</span>}
             {(diffSummary.added > 0 || diffSummary.removed > 0) && (
               <span className={styles.diffDelta}>
                 <em className={styles.diffPlus}>+{diffSummary.added}</em>
@@ -356,6 +376,12 @@ export function RightWorkbenchActions({
             <IconTerminal2 size={14} />
             <span>{isZh ? "终端" : "Terminal"}</span>
           </button>
+          {foreground?.commandTrace && (
+            <div className={styles.overviewSectionHead} title={foreground.commandTrace.command}>
+              <span className={activityStyles.liveDot} aria-hidden="true" />
+              <span className={styles.itemEllipsis}>{isZh ? "前台命令" : "Foreground command"} · {foreground.commandTrace.command}</span>
+            </div>
+          )}
           {onOpenExtensions && (
             <button type="button" className={styles.menuItem} onClick={() => { onOpenExtensions(); setMenuOpen(null); }}>
               <IconPuzzle size={14} />
@@ -365,12 +391,13 @@ export function RightWorkbenchActions({
           )}
 
           <div className={styles.divider} />
-          <div className={styles.overviewSectionHead}>
+          <button type="button" className={styles.menuItem} onClick={() => triggerSubagents()}>
             <span>{isZh ? "子智能体" : "Subagents"}</span>
-            <span className={styles.countPill}>{effectiveSubagents.length}</span>
-          </div>
+            <span className={styles.countPill}>{hasSubagentFeed || fetchedSubagents !== null ? effectiveSubagents.length : "—"}</span>
+            <IconChevronRight size={13} className={styles.trailingIcon} aria-hidden="true" />
+          </button>
           {visibleSubs.map((sub) => {
-            const Icon = sub.status === "running" ? IconClock : sub.status === "done" ? IconCheck : IconCircleX;
+            const Icon = sub.status === "running" ? IconLoader2 : sub.status === "done" ? IconCheck : IconCircleX;
             return (
               <button key={sub.id} type="button" className={styles.menuItem} onClick={() => triggerSubagents(sub.id)}>
                 <Icon size={13} className={styles.statusIcon} data-status={sub.status} />
@@ -385,12 +412,13 @@ export function RightWorkbenchActions({
           )}
 
           <div className={styles.divider} />
-          <div className={styles.overviewSectionHead}>
+          <button type="button" className={styles.menuItem} onClick={() => triggerTerminal()}>
             <span>{isZh ? "后台任务" : "Background tasks"}</span>
-            <span className={styles.countPill}>{effectiveJobs.length}</span>
-          </div>
+            <span className={styles.countPill}>{hasJobFeed || fetchedJobs !== null ? effectiveJobs.length : "—"}</span>
+            <IconChevronRight size={13} className={styles.trailingIcon} aria-hidden="true" />
+          </button>
           {visibleJobs.map((job) => {
-            const Icon = job.status === "running" ? IconTerminal2 : job.status === "done" ? IconCheck : IconCircleX;
+            const Icon = job.status === "running" ? IconLoader2 : job.status === "done" ? IconCheck : IconCircleX;
             return (
               <div key={job.id} className={styles.jobRowWrap}>
                 <button type="button" className={styles.menuItem} onClick={() => triggerTerminal(job.id)}>

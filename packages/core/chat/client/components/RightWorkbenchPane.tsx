@@ -1,10 +1,10 @@
 // IDE 化右侧工作台主壳：对齐中间栏顶栏的统一 Tab 栏、全高代码/浏览器舞台、可折叠右辅助栏与最右图标轨。
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import {
   IconCheck, IconClock, IconCircleX, IconFileDiff,
-  IconPlus, IconSearch, IconTerminal2, IconWorld, IconX,
+  IconLayoutGrid, IconPlus, IconWorld, IconX,
 } from "@tabler/icons-react";
-import { fetchBrowserState, manageBrowserTab, RightBrowserPane, type BrowserSessionSnapshot, type BrowserTabItem } from "@lfaa/browser/client";
+import { fetchBrowserState, manageBrowserTab, navigateBrowser, RightBrowserPane, type BrowserSessionSnapshot, type BrowserTabItem } from "@lfaa/browser/client";
 import type { WorkbenchContextPanelContribution } from "@lfaa/ui-layout";
 import type { ChatClientStore } from "../chat-store";
 import type { ChatLocaleMessages } from "../locales";
@@ -19,6 +19,7 @@ import { RightSubagentsPane, type RightSubagentItem } from "./RightSubagentsPane
 import { RightTerminalPane, type RightJobItem } from "./RightTerminalPane";
 import { RightUtilityRail, type RightAuxTab } from "./RightUtilityRail";
 import { RightWorkbenchActions } from "./RightWorkbenchActions";
+import { RightWorkbenchStart } from "./Right-Workbench-Start";
 import styles from "./RightWorkbenchPane.module.css";
 
 function baseFileName(filePath: string): string {
@@ -74,7 +75,6 @@ export function RightWorkbenchPane({
   const [fileTreeOpen, setFileTreeOpen] = useState(persistedInit.fileTreeOpen);
   const [auxOpen, setAuxOpen] = useState(persistedInit.auxOpen);
   const [activeAux, setActiveAux] = useState<RightAuxTab>(persistedInit.activeAux);
-  const [urlQuery, setUrlQuery] = useState("");
   const [jobs, setJobs] = useState<RightJobItem[]>([]);
   const [subagents, setSubagents] = useState<RightSubagentItem[]>([]);
   const syncedSessionRef = useRef<string | null>(null);
@@ -99,10 +99,14 @@ export function RightWorkbenchPane({
             ? "review"
             : "welcome";
 
-  // 文件视图默认与「工作区文件树」同屏联动；浏览器/审查视图严禁混入文件树（浏览器就浏览器）。
+  const activeBrowserTab = browserTabs.find((tab) => tab.active);
+  const browserIsBlank = activeBrowserTab ? !activeBrowserTab.url || activeBrowserTab.url === "about:blank" : !browserInitialUrl;
+  const showStartPage = stageKind === "welcome" || (stageKind === "browser" && browserIsBlank);
+
+  // 文件树可在启动页打开，浏览网页或审查时保留现有的全宽舞台。
   const effectiveAuxTab: RightAuxTab | null = stageKind === "file"
     ? (auxOpen && activeAux !== "filesTree" ? activeAux : (fileTreeOpen ? "filesTree" : null))
-    : (stageKind === "browser" || stageKind === "review")
+    : (stageKind === "review" || (stageKind === "browser" && !showStartPage))
       ? (auxOpen && activeAux !== "filesTree" ? activeAux : null)
       : (auxOpen ? activeAux : null);
 
@@ -256,7 +260,7 @@ export function RightWorkbenchPane({
         }
         return;
       }
-      if (stageKind === "browser" || stageKind === "review") {
+      if (stageKind === "review" || (stageKind === "browser" && !showStartPage)) {
         if (fileTabs.length > 0) {
           store.setRightStageKind("file");
           setAuxOpen(false);
@@ -277,13 +281,25 @@ export function RightWorkbenchPane({
     }
   };
 
-  const handleUrlJump = (e: FormEvent) => {
-    e.preventDefault();
-    const val = urlQuery.trim();
-    if (!val) return;
-    setBrowserInitialUrl(val);
+  const handleOpenUrl = async (url: string) => {
+    const { state: snap } = await navigateBrowser(sessionId, url);
+    if (syncedSessionRef.current !== sessionId) return;
+    setBrowserInitialUrl(undefined);
+    setBrowserTabs(snap.tabs);
+    setBrowserExternalState((prev) => ({ snap, nonce: (prev?.nonce ?? 0) + 1 }));
     setBrowserOpen(true);
+    patchWorkbenchSessionState(sessionId, { browserOpen: true, browserUrl: snap.url });
     store.setRightStageKind("browser");
+  };
+
+  const openAux = (tab: RightAuxTab) => {
+    setActiveAux(tab);
+    setAuxOpen(true);
+  };
+
+  const openReview = () => {
+    setReviewTabOpen(true);
+    store.setRightStageKind("review");
   };
 
   const activeProfile = state.profiles.find((p) => p.id === state.activeProfileId) ?? state.profiles[0];
@@ -307,13 +323,15 @@ export function RightWorkbenchPane({
         <div className={`${styles.tabItem} ${stageKind === "browser" ? styles.tabItemActive : ""}`}>
           <button
             type="button"
+            role="tab"
+            aria-selected={stageKind === "browser"}
             className={styles.tabBtn}
             onClick={() => store.setRightStageKind("browser")}
           >
             <IconWorld size={13} aria-hidden="true" />
-            <span>{locale.isZh ? "内置浏览器" : "Browser"}</span>
+            <span>{browserIsBlank ? (locale.isZh ? "新标签页" : "New tab") : (locale.isZh ? "内置浏览器" : "Browser")}</span>
           </button>
-          <button type="button" className={styles.tabClose} aria-label="Close browser" onClick={() => handleCloseBrowserTab()}>
+          <button type="button" className={styles.tabClose} aria-label={locale.isZh ? "关闭浏览器标签" : "Close browser tab"} onClick={() => handleCloseBrowserTab()}>
             <IconX size={11} />
           </button>
         </div>
@@ -328,6 +346,8 @@ export function RightWorkbenchPane({
         <div key={bTab.tabId} className={`${styles.tabItem} ${active ? styles.tabItemActive : ""}`}>
           <button
             type="button"
+            role="tab"
+            aria-selected={active}
             className={styles.tabBtn}
             title={bTab.url && bTab.url !== "about:blank" ? bTab.url : tabLabel}
             onClick={() => {
@@ -413,6 +433,14 @@ export function RightWorkbenchPane({
     <div className={styles.workbench}>
       <header className={styles.topHeader}>
         <div className={styles.tabBar} role="tablist" aria-label={locale.isZh ? "右侧打开标签" : "Right workbench tabs"}>
+          {stageKind === "welcome" && (
+            <div className={`${styles.tabItem} ${styles.tabItemActive}`}>
+              <span className={styles.tabBtn} role="tab" aria-selected="true">
+                <IconLayoutGrid size={14} aria-hidden="true" />
+                <span>{locale.isZh ? "工作台" : "Workbench"}</span>
+              </span>
+            </div>
+          )}
           {fileTabs.map((tab) => {
             const active = stageKind === "file" && tab.id === activeFileTab?.id;
             const fileName = baseFileName(tab.path);
@@ -471,11 +499,11 @@ export function RightWorkbenchPane({
           <button
             type="button"
             className={styles.addTabBtn}
-            title={locale.isZh ? "打开内置浏览器标签页" : "New built-in browser tab"}
+            title={locale.isZh ? "新建浏览器标签页" : "New browser tab"}
             aria-label={locale.isZh ? "新建浏览器标签页" : "New browser tab"}
             onClick={handleOpenNewBrowserTab}
           >
-            <IconPlus size={14} />
+            <IconPlus size={16} aria-hidden="true" />
           </button>
         </div>
 
@@ -489,14 +517,8 @@ export function RightWorkbenchPane({
             subagents={subagents}
             compact={compact}
             rightPanelMaximized={rightPanelMaximized}
-            onOpenReviewTab={() => {
-              setReviewTabOpen(true);
-              store.setRightStageKind("review");
-            }}
-            onOpenFileTree={() => {
-              setActiveAux("filesTree");
-              setAuxOpen(true);
-            }}
+            onOpenReviewTab={openReview}
+            onOpenFileTree={() => openAux("filesTree")}
             onOpenTerminal={(jobId) => {
               setSelectedJobId(jobId);
               setActiveAux("terminal");
@@ -521,7 +543,7 @@ export function RightWorkbenchPane({
         </div>
       </header>
 
-      <div ref={splitAreaRef} className={styles.bodySplit}>
+      <div ref={splitAreaRef} className={styles.bodySplit} data-start={showStartPage || undefined}>
         {(() => {
           const hideAuxHeader = stageKind === "file" && effectiveAuxTab === "filesTree";
           const auxPaneNode = effectiveAuxTab ? (
@@ -584,62 +606,60 @@ export function RightWorkbenchPane({
           return (
             <>
               <div className={styles.mainStage}>
-                {stageKind === "review" ? (
+                {stageKind === "review" && (
                   <RightGitReviewPane
                     isZh={locale.isZh}
                     projectId={boundProjectId}
                     store={store}
                     onOpenFullCodeReview={onOpenCodeReview}
                   />
-                ) : stageKind === "browser" ? (
-                  <RightBrowserPane
-                    sessionId={sessionId}
+                )}
+                {stageKind === "browser" && (
+                  // 空白时浏览器仍订阅宿主机状态，小鱼打开页面后可直接切回实时视口。
+                  <div className={styles.browserView} data-covered={showStartPage || undefined} inert={showStartPage}>
+                    <RightBrowserPane
+                      sessionId={sessionId}
+                      isZh={locale.isZh}
+                      initialUrl={browserInitialUrl}
+                      hideTabStrip={true}
+                      externalState={browserExternalState}
+                      onSnapshotChange={handleBrowserSnapshot}
+                      onAttachPage={(snap) => {
+                        store.enqueueComposerInsert(`当前内置浏览器页面：${snap.title || "未命名"} (${snap.url})，控制台异常数：${snap.errorCount}`);
+                      }}
+                    />
+                  </div>
+                )}
+                {showStartPage && (
+                  <RightWorkbenchStart
+                    key={`${sessionId}:${boundProjectId ?? ""}:${activeBrowserTab?.tabId ?? stageKind}`}
                     isZh={locale.isZh}
-                    initialUrl={browserInitialUrl}
-                    hideTabStrip={true}
-                    externalState={browserExternalState}
-                    onSnapshotChange={handleBrowserSnapshot}
-                    onAttachPage={(snap) => {
-                      store.enqueueComposerInsert(`当前内置浏览器页面：${snap.title || "未命名"} (${snap.url})，控制台异常数：${snap.errorCount}`);
-                    }}
-                  />
-                ) : (
-                  <div className={styles.welcomeStage}>
-                    <form className={styles.welcomeUrlForm} onSubmit={handleUrlJump}>
-                      <IconSearch size={14} aria-hidden="true" />
-                      <input
-                        value={urlQuery}
-                        onChange={(e) => setUrlQuery(e.target.value)}
-                        placeholder={locale.isZh ? "输入网址直接用内置浏览器打开，如 127.0.0.1:5173" : "Enter URL to open built-in browser..."}
-                      />
-                    </form>
-                    <div className={styles.welcomeActions}>
-                      <button type="button" className={styles.welcomeCardBtn} onClick={handleOpenNewBrowserTab}>
-                        <IconWorld size={16} />
-                        <span>{locale.isZh ? "打开内置浏览器" : "Open Built-in Browser"}</span>
-                      </button>
-                      <button type="button" className={styles.welcomeCardBtn} onClick={() => { setActiveAux("filesTree"); setAuxOpen(true); }}>
-                        <IconTerminal2 size={16} />
-                        <span>{locale.isZh ? "浏览工作区文件" : "Browse Files"}</span>
-                      </button>
-                    </div>
+                    store={store}
+                    projectId={boundProjectId}
+                    projectName={boundProjectName}
+                    onOpenUrl={handleOpenUrl}
+                    onOpenTerminal={() => openAux("terminal")}
+                    onOpenReview={openReview}
+                    onOpenFiles={() => openAux("filesTree")}
+                    onOpenSideAsk={() => openAux("sideAsk")}
+                  >
                     {(jobs.length > 0 || subagents.length > 0) && (
                       <div className={styles.welcomeStatusList}>
                         {subagents.slice(0, 3).map((sub) => (
-                          <button key={sub.id} type="button" className={styles.statusRow} onClick={() => { setActiveAux("subagents"); setAuxOpen(true); }}>
+                          <button key={sub.id} type="button" className={styles.statusRow} onClick={() => { setSelectedSubagentId(sub.id); openAux("subagents"); }}>
                             {sub.status === "running" ? <IconClock size={13} /> : sub.status === "done" ? <IconCheck size={13} /> : <IconCircleX size={13} />}
                             <span>{sub.role}</span>
                           </button>
                         ))}
                         {jobs.slice(0, 3).map((job) => (
-                          <button key={job.id} type="button" className={styles.statusRow} onClick={() => { setActiveAux("terminal"); setAuxOpen(true); }}>
+                          <button key={job.id} type="button" className={styles.statusRow} onClick={() => { setSelectedJobId(job.id); openAux("terminal"); }}>
                             {job.status === "running" ? <IconClock size={13} /> : job.status === "done" ? <IconCheck size={13} /> : <IconCircleX size={13} />}
                             <span>{job.title}</span>
                           </button>
                         ))}
                       </div>
                     )}
-                  </div>
+                  </RightWorkbenchStart>
                 )}
               </div>
               {auxPaneNode}

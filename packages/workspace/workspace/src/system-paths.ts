@@ -37,30 +37,13 @@ export async function resolveUserDocumentsDir(overrideDir?: string): Promise<str
   return join(homedir(), "Documents");
 }
 
-// 过滤路径分隔符与 Windows 非法字符，保留中文等合法字符。
-export function sanitizeFolderName(rawName: string): string {
-  const cleaned = rawName
-    .trim()
-    .replace(/[<>:"/\\|?*\u0000-\u001F]/gu, "-")
-    .replace(/[. ]+$/gu, "");
-  if (!cleaned || cleaned === "." || cleaned === "..") return "project";
-  return cleaned.slice(0, 80);
-}
-
-// 当目标文件夹已存在时自动顺延后缀（如 app1 2、app1 3），避免覆盖既有内容。
-export function resolveUniqueSubfolder(baseDir: string, rawName: string): { targetPath: string; folderName: string } {
-  const baseName = sanitizeFolderName(rawName);
-  let candidateName = baseName;
-  let candidatePath = join(baseDir, candidateName);
-  let index = 2;
-
-  while (existsSync(candidatePath)) {
-    candidateName = `${baseName} ${index}`;
-    candidatePath = join(baseDir, candidateName);
-    index += 1;
+// 默认文件夹与项目同名，非法目录名应由用户调整或显式选择源文件夹。
+export function resolveNamedSubfolder(baseDir: string, name: string): string {
+  const reserved = /^(?:con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\.|$)/iu;
+  if (!name || name.length > 80 || /[<>:"/\\|?*\u0000-\u001F]/u.test(name) || name.endsWith(".") || reserved.test(name)) {
+    throw new Error("项目名称不能作为本地文件夹名。请调整名称，或选择一个源文件夹。");
   }
-
-  return { targetPath: candidatePath, folderName: candidateName };
+  return join(baseDir, name);
 }
 
 const FOLDER_PICKER_CSHARP = `

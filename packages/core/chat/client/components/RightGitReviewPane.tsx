@@ -1,5 +1,5 @@
 // 右侧工作台「审查」标签页视图（图九）：同屏呈现 Git 分支统计、多文件 Unified Diff 与右侧变更文件清单（支持暂存/取消暂存及跳转到代码视图）。
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { IconCheck, IconCode, IconGitBranch, IconPlus, IconRefresh } from "@tabler/icons-react";
 import type { ChatClientStore } from "../chat-store";
 import {
@@ -38,33 +38,46 @@ export function RightGitReviewPane({
   const [diffText, setDiffText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const running = useSyncExternalStore(store.subscribe, () => Boolean(store.getSnapshot().runningRunId), () => false);
+  const loadSequence = useRef(0);
 
   const loadGit = useCallback(async (filePath?: string | null) => {
-    setError("");
+    const sequence = ++loadSequence.current;
     try {
       const [gitSnap, diffRes] = await Promise.all([
         fetchGitStatus(projectId),
         fetchGitDiff({ projectId, ...(filePath ? { filePath } : {}) }),
       ]);
-      setStatus(gitSnap);
-      setDiffText(diffRes.diff);
+      if (sequence === loadSequence.current) {
+        setStatus(gitSnap);
+        setDiffText(diffRes.diff);
+        setError("");
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      if (sequence === loadSequence.current) setError(err instanceof Error ? err.message : String(err));
     }
   }, [projectId]);
 
   useEffect(() => {
-    void loadGit(selectedFile);
-  }, [loadGit, selectedFile]);
+    if (busy) return;
+    let active = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const refresh = async () => {
+      await loadGit(selectedFile);
+      if (active && running) timer = setTimeout(() => void refresh(), 2000);
+    };
+    void refresh();
+    return () => { active = false; clearTimeout(timer); ++loadSequence.current; };
+  }, [busy, loadGit, running, selectedFile]);
 
   const counts = countDiffLines(diffText);
   const files = status?.files ?? [];
   const diffLines = diffText ? diffText.split(/\r?\n/u).slice(0, 600) : [];
 
-  const handleStageToggle = async (filePath: string, staged: boolean) => {
+  const handleStageToggle = async (filePath: string[] | "all", staged: boolean) => {
     setBusy(true);
     try {
-      const next = staged ? await postGitUnstage(projectId, [filePath]) : await postGitStage(projectId, [filePath]);
+      const next = staged && filePath !== "all" ? await postGitUnstage(projectId, filePath) : await postGitStage(projectId, filePath);
       setStatus(next);
       const diffRes = await fetchGitDiff({ projectId, ...(selectedFile ? { filePath: selectedFile } : {}) });
       setDiffText(diffRes.diff);
@@ -111,7 +124,9 @@ export function RightGitReviewPane({
             <div className={styles.reviewEmpty}>
               {!status?.isGitRepo
                 ? (status?.error || (isZh ? "当前工作区尚未初始化 Git 仓库。" : "Not a Git repository."))
-                : (isZh ? "工作区干净，暂无未提交 Diff。" : "Working tree clean.")}
+                : files.length > 0
+                  ? (isZh ? "此视图暂无差异文本。可从变更文件列表打开源码。" : "No diff text here. Open a changed file to view its source.")
+                  : (isZh ? "工作区干净，暂无未提交 Diff。" : "Working tree clean.")}
             </div>
           ) : (
             <pre className={styles.diffCode}>
@@ -141,7 +156,7 @@ export function RightGitReviewPane({
                 type="button"
                 className={styles.reviewChipBtn}
                 disabled={busy}
-                onClick={() => void postGitStage(projectId, "all").then((s) => setStatus(s))}
+                onClick={() => void handleStageToggle("all", false)}
               >
                 {isZh ? "全部暂存" : "Stage all"}
               </button>
@@ -181,7 +196,7 @@ export function RightGitReviewPane({
                       className={styles.reviewMiniAction}
                       disabled={busy}
                       title={file.staged ? (isZh ? "取消暂存" : "Unstage") : (isZh ? "暂存" : "Stage")}
-                      onClick={() => void handleStageToggle(file.path, file.staged)}
+                      onClick={() => void handleStageToggle([file.path], file.staged)}
                     >
                       {file.staged ? <IconCheck size={12} /> : <IconPlus size={12} />}
                     </button>

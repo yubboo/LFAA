@@ -9,7 +9,7 @@ import type { AgentStepItem, PendingApprovalBanner } from "../chat-types";
 import { getActivityFilePath, getFileActivityKind } from "../file-activity";
 import { timelineMessages, type ChatLocaleMessages } from "../locales";
 import { MarkdownContent } from "./MarkdownContent";
-import { LiveExecutionTail, StepTraceList, TimelineApproval } from "./StepTraceList";
+import { LiveExecutionTail, LiveStageDetails, StepTraceList, TimelineApproval } from "./StepTraceList";
 import styles from "./StepTraceList.module.css";
 
 interface ActivityGroup {
@@ -79,7 +79,8 @@ function ActivityRow({ step, locale, onOpenFile, selectedFileStepId }: {
   const command = step.commandTrace;
   const kind = getActivityKind(step);
   const isCommand = kind === "command";
-  const hasDetails = Boolean(command || step.argsPreview || step.resultPreview || step.detail);
+  const active = step.status === "preparing" || step.status === "running";
+  const hasDetails = Boolean(active || command || step.argsPreview || step.resultPreview || step.detail || step.toolTarget || step.argumentChars !== undefined);
   const Icon = activityIcons[kind];
   const title = command?.command ?? getActivityLabel(step, locale.isZh, true);
   const StatusIcon = step.status === "done" ? IconCheck : step.status === "error" ? IconAlertCircle : IconClock;
@@ -91,7 +92,7 @@ function ActivityRow({ step, locale, onOpenFile, selectedFileStepId }: {
       <Icon size={14} className={styles.icon} aria-hidden="true" />
       <span className={styles.activityTitle} title={title}>{title}</span>
       <span key={step.status} className={styles.activityStatus} data-status={step.status} title={statusLabel}>
-        <StatusIcon size={13} aria-hidden="true" />
+        {active ? <span className={styles.liveDot} aria-hidden="true" /> : <StatusIcon size={13} aria-hidden="true" />}
         <span className={command && step.status !== "done" ? undefined : styles.srOnly}>{statusLabel}</span>
       </span>
       {hasDetails && <IconChevronRight size={13} className={styles.chevron} aria-hidden="true" />}
@@ -105,13 +106,25 @@ function ActivityRow({ step, locale, onOpenFile, selectedFileStepId }: {
       <div className={styles.activityDetail} data-kind={isCommand ? "command" : undefined} data-status={step.status}>
         {command ? (
           <>
-            <div className={styles.terminalHeader}>{step.status === "running" ? labels.runningCommand : labels.command}</div>
+            <div className={styles.terminalHeader}>
+              {step.status === "running" && <span className={styles.liveDot} aria-hidden="true" />}
+              <span className={styles.activityTitle}>{step.status === "running" ? labels.runningCommand : labels.command}</span>
+            </div>
             <pre>{`$ ${command.command}`}</pre>
             {command.output && <pre className={styles.output}>{command.output}</pre>}
-            {command.exitCode !== undefined && <div>{labels.exitCode} {command.exitCode}</div>}
+            {(step.status === "done" || step.status === "error") && (
+              <div className={styles.commandResult} data-status={step.status}>
+                <StatusIcon size={13} aria-hidden="true" />
+                {step.status === "done" ? labels.commandSucceeded : labels.commandFailed}
+                {command.exitCode !== undefined && <span>{labels.exitCode} {command.exitCode}</span>}
+              </div>
+            )}
           </>
         ) : (
           <>
+            {step.toolTarget && <div>{step.toolTarget}</div>}
+            {step.argumentChars !== undefined && <div>{labels.receivedArgs(step.argumentChars)}</div>}
+            {step.status === "preparing" && step.argumentChars === undefined && <div>{labels.awaitingArgs}</div>}
             {step.argsPreview && <pre>{step.argsPreview}</pre>}
             {step.resultPreview && <pre>{step.resultPreview}</pre>}
           </>
@@ -143,6 +156,9 @@ function ActivityGroupRow({ group, locale, ...fileActions }: {
         {active && active.status !== "waiting_approval" && <span className={styles.liveDot} aria-hidden="true" />}
         <Icon size={14} className={styles.icon} aria-hidden="true" />
         <span className={styles.activityTitle} title={summary}>{summary}</span>
+        {active?.status === "preparing" && active.argumentChars !== undefined && (
+          <span className={styles.elapsed}>{labels.receivedArgs(active.argumentChars)}</span>
+        )}
         {failed > 0 && <span className={styles.failed}>{labels.failures(failed)}</span>}
         <IconChevronRight size={14} className={styles.chevron} aria-hidden="true" />
       </summary>
@@ -202,8 +218,7 @@ export function AssistantTimeline({
   // 只要还在流式执行且末尾没有活跃的工具分组，就持续显示实时运行状态行，防止轮次切换出现完成错觉。
   const showLiveTail = isStreaming
     && !pendingApproval
-    && !(hasActiveTailGroup && !finalText.trim())
-    && (groups.length > 0 || Boolean(finalText.trim()) || processOpen);
+    && !(hasActiveTailGroup && !finalText.trim());
 
   return (
     <>
@@ -225,9 +240,7 @@ export function AssistantTimeline({
       {hasStatus && (content.trim() || hasProcess) && <hr className={styles.timelineDivider} />}
       {hasDisclosure && (
         <div id={processId} hidden={!processOpen} className={`${styles.flow} ${styles.process}`}>
-          {isStreaming && groups.length === 0 && (
-            <span className={styles.elapsed}>{timelineMessages[locale.isZh ? "zh" : "en"].modelProgressDetail}</span>
-          )}
+          {isStreaming && <LiveStageDetails isZh={locale.isZh} steps={steps} />}
           {groups.map((group, index) => {
             const precedingText = text.slice(groups[index - 1]?.offset ?? 0, group.offset);
             return (

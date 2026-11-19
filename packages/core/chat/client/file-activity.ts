@@ -12,6 +12,7 @@ export function getActivityFilePath(step: AgentStepItem): string | undefined {
 
 /** 提取活动的路径标签，是否属于可打开的文件变更由调用方判断。 */
 export function getActivityArgumentPath(step: AgentStepItem): string | undefined {
+  if (step.toolTarget) return step.toolTarget;
   const quoted = /"(?:path|Path|file|filePath)"\s*:\s*("(?:\\.|[^"\\])*")/u.exec(step.argsPreview ?? "")?.[1];
   if (!quoted) return undefined;
   try {

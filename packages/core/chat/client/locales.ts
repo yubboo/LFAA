@@ -4,10 +4,19 @@ import { readLocaleOverride } from "./general-settings-client";
 /** 助手运行状态、活动摘要和命令详情。 */
 export const timelineMessages = {
   zh: {
-    thinking: "正在思考",
-    reasoning: "深度思考",
+    thinking: "等待模型首包",
+    reasoning: "模型正在推理",
     waitingModel: "正在等待模型响应",
-    modelProgressDetail: "模型正在处理本轮请求。收到可见回复或工具事件后会在这里继续显示。",
+    waitingTool: "正在等待剩余工具参数",
+    retrying: "正在重新请求模型",
+    starting: "正在准备任务",
+    round: (iteration: number) => `第 ${iteration} 轮`,
+    lastUpdate: (age: string) => `最近更新 ${age}前`,
+    latestAction: "最近完成的操作",
+    receivedArgs: (count: number) => `已接收 ${count.toLocaleString("zh-CN")} 字符的工具参数`,
+    awaitingArgs: "已收到工具名称，等待模型发送参数",
+    commandSucceeded: "成功",
+    commandFailed: "未成功",
     replying: "正在回复",
     exploring: "正在探索",
     executing: "正在执行",
@@ -44,10 +53,19 @@ export const timelineMessages = {
     closeTab: (name: string) => `关闭 ${name}`,
   },
   en: {
-    thinking: "Thinking",
-    reasoning: "Deep thinking",
+    thinking: "Waiting for first model response",
+    reasoning: "Model is reasoning",
     waitingModel: "Waiting for the model",
-    modelProgressDetail: "The model is processing this round. Replies and tool activity will appear as they arrive.",
+    waitingTool: "Waiting for remaining tool arguments",
+    retrying: "Retrying the model request",
+    starting: "Preparing the run",
+    round: (iteration: number) => `Round ${iteration}`,
+    lastUpdate: (age: string) => `Last update ${age} ago`,
+    latestAction: "Latest completed action",
+    receivedArgs: (count: number) => `Received ${count.toLocaleString("en-US")} characters of tool arguments`,
+    awaitingArgs: "Tool name received. Waiting for model arguments.",
+    commandSucceeded: "Succeeded",
+    commandFailed: "Unsuccessful",
     replying: "Replying",
     exploring: "Exploring",
     executing: "Running tools",
@@ -701,3 +719,15 @@ export function getChatLocale(): ChatLocaleMessages {
   }
   return typeof navigator === "undefined" ? zh : en;
 }
+
+/** 右侧启动页入口与当前项目文件路径的提示。 */
+export const rightWorkbenchStartLabels = {
+  zh: {
+    title: "快速打开", url: "输入网址", fileOrUrl: "文件路径或 https:// 网址", open: "打开", opening: "正在打开…",
+    shortcuts: "快捷操作", terminal: "终端", changes: "变更", files: "文件", sideAsk: "侧边提问",
+  },
+  en: {
+    title: "Quick open", url: "Enter a URL", fileOrUrl: "File path or https:// URL", open: "Open", opening: "Opening…",
+    shortcuts: "Shortcuts", terminal: "Terminal", changes: "Changes", files: "Files", sideAsk: "Side chat",
+  },
+};

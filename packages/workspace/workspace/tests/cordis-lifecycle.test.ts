@@ -46,7 +46,7 @@ test("Host workspacePlugin 在无 DOM 环境下注册 workspace 服务并随 dis
   assert.equal((ctx as { workspace?: unknown }).workspace, undefined);
 });
 
-test("Host workspacePlugin 支持默认 Documents/lfaa 路径解析、重名递增与信任校验", async () => {
+test("Host workspacePlugin 在确认后使用默认同名目录并保留文件", async () => {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-ws-test-"));
   const documentsDir = path.join(tempRoot, "Documents");
   const storeFilePath = path.join(tempRoot, "projects.json");
@@ -94,10 +94,21 @@ test("Host workspacePlugin 支持默认 Documents/lfaa 路径解析、重名递�
     );
 
     await ctx.workspace.removeProject(createdDefault.id);
+    const savedFile = path.join(createdDefault.rootPath, "existing.txt");
+    await fs.writeFile(savedFile, "已有项目文件", "utf8");
     const secondPath = await ctx.workspace.resolveDefaultProjectPath("app1");
-    assert.equal(secondPath.folderName, "app1 2");
-    assert.equal(secondPath.targetPath, path.join(documentsDir, "lfaa", "app1 2"));
-    await ctx.workspace.createProject({ name: "app1", trusted: true });
+    assert.equal(secondPath.folderName, "app1");
+    assert.equal(secondPath.targetPath, createdDefault.rootPath);
+    const recreated = await ctx.workspace.createProject({ name: "app1", trusted: true, confirmedDefaultPath: secondPath.targetPath });
+    assert.equal(recreated.rootPath, secondPath.targetPath);
+    assert.equal(await fs.readFile(savedFile, "utf8"), "已有项目文件");
+    await assert.rejects(fs.stat(path.join(documentsDir, "lfaa", "app1 2")), { code: "ENOENT" });
+
+    const blocked = path.join(documentsDir, "lfaa", "blocked");
+    await fs.writeFile(blocked, "保持内容", "utf8");
+    await assert.rejects(() => ctx.workspace.resolveDefaultProjectPath("blocked"), /被文件或链接占用/u);
+    await assert.rejects(() => ctx.workspace.createProject({ name: "blocked", trusted: true }), /被文件或链接占用/u);
+    assert.equal(await fs.readFile(blocked, "utf8"), "保持内容");
 
     const picked = await ctx.workspace.pickLocalFolder();
     assert.deepEqual(picked, { cancelled: false, path: externalFolder });
@@ -292,17 +303,24 @@ test("LocalProjectStore 从本地缓存首屏秒开并在远端一致时静默�
 test("Host workspacePlugin 支持通过 defaultProjectsDirResolver 使用自定义默认新建项目目录", async () => {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-ws-resolver-"));
   const customProjectsBase = path.join(tempRoot, "my-projects");
+  let currentBase = customProjectsBase;
   const ctx = new Context();
   const fiber = ctx.plugin(workspacePlugin, {
     storeFilePath: path.join(tempRoot, "projects.json"),
-    defaultProjectsDirResolver: async () => customProjectsBase,
+    defaultProjectsDirResolver: async () => currentBase,
   });
   await fiber;
 
   try {
     const resolved = await ctx.workspace.resolveDefaultProjectPath("demo-app");
     assert.equal(resolved.targetPath, path.join(customProjectsBase, "demo-app"));
-    const created = await ctx.workspace.createProject({ name: "demo-app", trusted: true });
+    currentBase = path.join(tempRoot, "changed-default");
+    await assert.rejects(() => ctx.workspace.createProject({
+      name: "demo-app", trusted: true, confirmedDefaultPath: resolved.targetPath,
+    }), /重新确认/u);
+    await assert.rejects(fs.stat(currentBase), { code: "ENOENT" });
+    currentBase = customProjectsBase;
+    const created = await ctx.workspace.createProject({ name: "demo-app", trusted: true, confirmedDefaultPath: resolved.targetPath });
     assert.equal(created.rootPath, path.join(customProjectsBase, "demo-app"));
   } finally {
     await fiber.dispose();

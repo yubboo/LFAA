@@ -151,13 +151,17 @@ async function readSseCompletion(
         if (tc.function?.name) entry.name += tc.function.name;
         if (tc.function?.arguments) {
           entry.args += tc.function.arguments;
-          input.onActivity?.();
         }
         toolBuffers.set(idx, entry);
         // 等待真实 ID 和完整工具名，避免同一调用在时间线上产生两条记录。
         if (entry.id && entry.name && !entry.notified && (!toolNames || toolNames.includes(entry.name))) {
           entry.notified = true;
           input.onDelta?.({ type: "tool_call", toolCallId: entry.id, toolName: entry.name });
+        }
+        if (tc.function?.arguments) {
+          input.onActivity?.(entry.notified ? {
+            toolCallId: entry.id, argumentChars: entry.args.length, argumentPrefix: entry.args.slice(0, 768),
+          } : undefined);
         }
       }
     }
