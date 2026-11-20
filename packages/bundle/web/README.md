@@ -39,6 +39,7 @@ This assembly bundle lives in `packages/bundle/web`.
 - `@lfaa/subagent`
 - `@lfaa/tools`
 - `@lfaa/workspace`
+- `@lfaa/tool-todo`
 
 ## Dev Note
 

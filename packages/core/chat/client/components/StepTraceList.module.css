@@ -437,3 +437,63 @@ details[open] > summary > .chevron {
 @media (prefers-reduced-motion: reduce) {
   .activityTitle { animation: none; }
 }
+
+/* 留痕滚动区：固定最大高度，长任务在内部滚动而不是撑开整页 */
+.traceScroll {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 22rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+}
+
+.traceScroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.traceScroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--color-line);
+}
+
+.traceScroll::-webkit-scrollbar-thumb:hover {
+  background: var(--color-muted);
+}
+
+/* 分组：标题行可点开，组内缩进 */
+.traceGroup > summary {
+  list-style: none;
+}
+
+.traceGroupBody {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-left: 1.15rem;
+  border-left: 1px solid var(--color-line);
+  margin-left: 0.45rem;
+}
+
+/* 可点击的步骤行：去掉按钮默认样式，保留行内布局 */
+.stepRowButton {
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.stepRowButton:hover {
+  color: var(--color-ink);
+}
+
+.stepRowButton:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}

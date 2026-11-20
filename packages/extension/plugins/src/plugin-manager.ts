@@ -36,6 +36,7 @@ function defaultProfilesBaseDir(): string {
 const INSTALLABLE_PACKAGES: ReadonlyArray<{ moduleName: string; name: string; description: string }> = [
   { moduleName: "@lfaa/tools", name: "工具注册表", description: "文件读写、检索与命令执行等内置工具。" },
   { moduleName: "@lfaa/tool-todo", name: "任务清单", description: "让 AI 创建和更新任务待办清单。" },
+  { moduleName: "@lfaa/tool-web", name: "网页读取", description: "抓取公开网页并转成可读正文。" },
   { moduleName: "@lfaa/rules", name: "规则装配", description: "系统规则、项目规则与用户规则的提示词拼装。" },
   { moduleName: "@lfaa/llm", name: "模型接入", description: "多提供商大模型接入与流式推理。" },
   { moduleName: "@lfaa/memory", name: "记忆", description: "会话轨迹持久化与长期记忆检索。" },

@@ -237,7 +237,7 @@ function checkStrayEmit(file, rel) {
 
 /** 已登记的包分组；新组必须先写进 docs/architecture/package-taxonomy.md 再扩展此处。 */
 const ALLOWED_GROUPS = new Set([
-  "api", "bundle", "core", "extension", "host", "sandbox", "ui", "workspace", "shell", "util", "test-support",
+  "api", "bundle", "core", "extension", "host", "sandbox", "ui", "workspace", "shell", "util", "test-support", "web",
   // 规划中、落地时同轮登记：extension / web / mcp / session / interaction / credentials / sandbox / subprocess / telemetry / schedule / todo / goal / plan
 ]);
 /** 历史遗留的根级单包；已完成迁移，保持为空以禁止新增。 */

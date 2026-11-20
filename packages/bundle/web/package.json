@@ -47,7 +47,8 @@
                          "@lfaa/subagent":  "workspace:*",
                          "@lfaa/tools":  "workspace:*",
                          "@lfaa/workspace":  "workspace:*",
-                         "@lfaa/tool-todo":  "workspace:*"
+                         "@lfaa/tool-todo":  "workspace:*",
+                         "@lfaa/tool-web":  "workspace:*"
                      },
     "devDependencies":  {
                             "@types/node":  "^24.10.0",

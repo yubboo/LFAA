@@ -11,6 +11,7 @@ import { callGeminiGenerateContentApi } from "./gemini-adapter";
 import { callOpenAiCompatibleChat } from "./openai-adapter";
 import { asApiProtocol, resolveEffectiveProtocol } from "./protocol-utils";
 import { callOpenAiResponsesApi } from "./responses-adapter";
+import { inferContextWindow } from "./context-window";
 import type {
   LlmAdapter,
   LlmApiProtocol,
@@ -87,6 +88,14 @@ export function maskApiKey(apiKey: string): string {
 }
 
 /** 将 Host 档案转换为可发往浏览器的公开模型配置。 */
+/** 取上下文窗口：优先用户配置，其次按模型名推断，无法确定时返回空对象。 */
+function resolveContextWindow(profile: { model?: string; contextWindowTokens?: number }): { contextWindowTokens?: number } {
+  if (typeof profile.contextWindowTokens === "number" && profile.contextWindowTokens > 0) {
+    return { contextWindowTokens: profile.contextWindowTokens };
+  }
+  const inferred = inferContextWindow(profile.model);
+  return inferred ? { contextWindowTokens: inferred } : {};
+}
 export function toPublicProfile(profile: LlmProfile): PublicLlmProfile {
   const apiProtocol = resolveEffectiveProtocol(profile);
   const plan = (apiProtocol === "openai-chat" || apiProtocol === "anthropic-messages")
@@ -117,9 +126,8 @@ export function toPublicProfile(profile: LlmProfile): PublicLlmProfile {
     availableModels: models,
     ...(typeof profile.temperature === "number" ? { temperature: profile.temperature } : {}),
     ...(typeof profile.maxTokens === "number" ? { maxTokens: profile.maxTokens } : {}),
-    ...(typeof profile.contextWindowTokens === "number" && profile.contextWindowTokens > 0
-      ? { contextWindowTokens: profile.contextWindowTokens }
-      : {}),
+    // 用户未填写时按模型名/家族推断；仍无法确定则不设值，界面显示"未配置"而不是编造。
+    ...resolveContextWindow(profile),
     ...(typeof profile.inputPricePerMillion === "number" ? { inputPricePerMillion: profile.inputPricePerMillion } : {}),
     ...(typeof profile.outputPricePerMillion === "number" ? { outputPricePerMillion: profile.outputPricePerMillion } : {}),
     ...(typeof profile.cachedInputPricePerMillion === "number"

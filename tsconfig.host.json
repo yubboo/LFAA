@@ -42,6 +42,7 @@
     { "path": "./packages/ui/layout" },
     { "path": "./packages/ui/primitives" },
     { "path": "./packages/ui/theme" },
+    { "path": "./packages/web/tool-web" },
     { "path": "./packages/workspace/sections" },
     { "path": "./packages/workspace/workspace" },
     { "path": "./vendor/loader" }

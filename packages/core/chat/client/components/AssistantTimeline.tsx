@@ -9,7 +9,7 @@ import type { AgentStepItem, PendingApprovalBanner } from "../chat-types";
 import { getActivityFilePath, getFileActivityKind } from "../file-activity";
 import { timelineMessages, type ChatLocaleMessages } from "../locales";
 import { MarkdownContent } from "./MarkdownContent";
-import { LiveExecutionTail, LiveStageDetails, StepTraceList, TimelineApproval } from "./StepTraceList";
+import { LiveExecutionTail, StepTraceList, TimelineApproval } from "./StepTraceList";
 import styles from "./StepTraceList.module.css";
 
 interface ActivityGroup {
@@ -227,6 +227,8 @@ export function AssistantTimeline({
   // 模型开始输出最终答案时，实时行应跟随答案之后，不能再夹在步骤与答案之间。
   // 此时面板内的实时行让位给答案正文尾部的位置。
   const answerStreaming = isStreaming && Boolean(finalText.trim());
+  // 已有工具分组时，分组行本身就承载执行过程（已读取文件 / 正在运行命令），
+  // 再显示实时行会与分组重复；只在还没有任何分组时才用实时行占位。
   const showLiveTail = isStreaming
     && !pendingApproval
     && !(hasActiveTailGroup && !finalText.trim());
@@ -252,7 +254,6 @@ export function AssistantTimeline({
       {hasStatus && (content.trim() || hasProcess) && <hr className={styles.timelineDivider} />}
       {hasDisclosure && (
         <div id={processId} hidden={!processOpen} className={`${styles.flow} ${styles.process}`}>
-          {isStreaming && <LiveStageDetails isZh={locale.isZh} steps={steps} />}
           {groups.map((group, index) => {
             const precedingText = text.slice(groups[index - 1]?.offset ?? 0, group.offset);
             return (

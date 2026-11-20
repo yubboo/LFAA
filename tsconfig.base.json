@@ -79,6 +79,8 @@
       "@lfaa/subagent/client": ["./packages/core/subagent/client"],
       "@lfaa/tool-todo": ["./packages/core/tool-todo/src"],
       "@lfaa/tool-todo/client": ["./packages/core/tool-todo/client"],
+      "@lfaa/tool-web": ["./packages/web/tool-web/src"],
+      "@lfaa/tool-web/client": ["./packages/web/tool-web/client"],
       "@lfaa/tools": ["./packages/core/tools/src"],
       "@lfaa/tools/client": ["./packages/core/tools/client"],
       "@lfaa/ui-layout": ["./packages/ui/layout/src"],

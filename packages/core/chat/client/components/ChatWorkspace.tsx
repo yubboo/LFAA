@@ -26,7 +26,6 @@ import { ChatAnchorBar, buildTurnAnchors } from "./ChatAnchorBar";
 import { ComposerAddMenu } from "./ComposerAddMenu";
 import { ComposerRightActions } from "./ComposerRightActions";
 import { ComposerScopeBar } from "./ComposerScopeBar";
-import { buildFollowUpSuggestions } from "../follow-up-suggestions";
 import { MarkdownContent } from "./MarkdownContent";
 import {
   AssistantMessageActions,
@@ -74,6 +73,8 @@ export function ChatWorkspace({
   const [openProjectSignal, setOpenProjectSignal] = useState(0);
   const [contextNotice, setContextNotice] = useState("");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  // 追问建议由模型生成：按消息 id 缓存，失败或为空则不展示（不回退模板）。
+  const [suggestionsByMessage, setSuggestionsByMessage] = useState<Record<string, string[]>>({});
   const [bindingProject, setBindingProject] = useState(false);
   const projectBindingPending = useRef(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -83,6 +84,31 @@ export function ChatWorkspace({
 
   const activeSession = state.activeSession;
   const messages = activeSession?.messages ?? [];
+
+  // 最后一条助手消息完成后，向 Host 请求模型生成的追问建议（按消息缓存）。
+  useEffect(() => {
+    const last = messages[messages.length - 1];
+    if (!last || last.role !== "assistant" || last.status === "streaming" || !last.content.trim()) return;
+    if (suggestionsByMessage[last.id]) return;
+    const prompt = messages[messages.length - 2]?.role === "user" ? (messages[messages.length - 2]?.content ?? "") : "";
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/chat/suggestions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userPrompt: prompt, assistantReply: last.content }),
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as { suggestions?: string[] };
+        if (cancelled || !Array.isArray(data.suggestions) || data.suggestions.length === 0) return;
+        setSuggestionsByMessage((prev) => ({ ...prev, [last.id]: data.suggestions ?? [] }));
+      } catch {
+        // 生成失败时不展示建议，不回退到模板。
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [messages, suggestionsByMessage]);
   const activeProjectId = activeSession ? activeSession.projectId : state.draftProjectId;
   const activeProfile = state.profiles.find((p) => p.id === state.activeProfileId) ?? state.profiles[0];
   const needsApiKey = Boolean(activeProfile && activeProfile.kind !== "ollama" && !activeProfile.hasApiKey);
@@ -551,11 +577,7 @@ export function ChatWorkspace({
                   )}
                   {msgIdx === messages.length - 1 && !isRunning && msg.status !== "streaming" && msg.content.trim() && (
                     <FollowUpSuggestions
-                      suggestions={buildFollowUpSuggestions(
-                        messages[msgIdx - 1]?.role === "user" ? (messages[msgIdx - 1]?.content ?? "") : "",
-                        msg.content,
-                        locale.isZh,
-                      )}
+                      suggestions={suggestionsByMessage[msg.id] ?? []}
                       onSelect={(question) => void handleSubmit(question)}
                     />
                   )}

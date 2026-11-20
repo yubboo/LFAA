@@ -24,6 +24,7 @@
     { "path": "../../core/subagent" },
     { "path": "../../core/tools" },
     { "path": "../../workspace/workspace" },
-    { "path": "../../core/tool-todo" }
+    { "path": "../../core/tool-todo" },
+    { "path": "../../web/tool-web" }
   ]
 }

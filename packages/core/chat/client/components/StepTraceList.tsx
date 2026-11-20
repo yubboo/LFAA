@@ -6,6 +6,8 @@ import type { AgentStepItem, PendingApprovalBanner } from "../chat-types";
 import { timelineMessages, type ChatLocaleMessages } from "../locales";
 import styles from "./StepTraceList.module.css";
 import { LiveFish } from "./Live-Fish";
+import { groupTrace } from "./trace-groups";
+import { StepDetail } from "./Step-Detail";
 
 /** 以整秒显示实际经过的时间，兼容短于一秒和长时间运行。 */
 export function formatDuration(ms: number, isZh: boolean, showAllUnits = false): string {
@@ -19,6 +21,24 @@ export function formatDuration(ms: number, isZh: boolean, showAllUnits = false):
     `${seconds}${isZh ? " 秒" : "s"}`,
   ];
   return parts.filter(Boolean).join(" ");
+}
+
+/** 把步骤渲染成一句有信息量的话：思考给出具体计划/判断，动作给出目标或命令。 */
+export function describeStep(step: AgentStepItem, isZh: boolean): string {
+  if (step.phase === "think") {
+    const raw = (step.detail || step.title || "").replace(/^第\s*\d+\s*轮\s*/u, "").trim();
+    if (raw) return raw;
+    return step.status === "running" ? (isZh ? "正在思考" : "Thinking") : (isZh ? "已思考" : "Thought");
+  }
+  const label = getActivityLabel(step, isZh, true);
+  const command = step.commandTrace?.command?.trim();
+  if (command && !label.includes(command)) {
+    const short = command.length > 60 ? `${command.slice(0, 60)}…` : command;
+    return `${label} · ${short}`;
+  }
+  const target = step.toolTarget?.trim();
+  if (target && !label.includes(target)) return `${label} · ${target}`;
+  return label;
 }
 
 function getLiveStep(steps: AgentStepItem[]): AgentStepItem | undefined {
@@ -57,7 +77,7 @@ export function LiveStageDetails({ isZh, steps, now: clock }: { isZh: boolean; s
       {current && (
         <div>
           {/* 轮次与步数统一在底部状态条展示，这里只留阶段与更新时间，避免重复 */}
-          {labels[getLiveStage(steps, now)]} · {labels.lastUpdate(formatDuration(now - current.timestamp, isZh))}
+          {labels[getLiveStage(steps, now)]} · {labels.lastUpdate(formatDuration(now - (current.startedAt ?? current.timestamp), isZh))}
         </div>
       )}
       {current?.phase === "act" && <div>{current.toolTarget ?? getActivityLabel(current, isZh, true)}</div>}
@@ -88,23 +108,68 @@ export function LiveExecutionTail({
     return () => clearInterval(timer);
   }, []);
 
+  // 明细直接并进这一行：当前动作 + 已接收参数 + 用时，随执行过程原地变化。
   const labels = timelineMessages[isZh ? "zh" : "en"];
   const stage = getLiveStage(steps, now);
   const current = getLiveStep(steps);
-  const label = includeToolName && current?.phase === "act" && stage !== "waitingTool"
-    ? getActivityLabel(current, isZh, true)
-    : labels[stage];
+  const activity = current && stage !== "waiting" ? getActivityLabel(current, isZh, true) : "";
+  const label = includeToolName && activity ? activity : labels[stage];
+  const argsHint = current?.argumentChars !== undefined ? labels.receivedArgs(current.argumentChars) : "";
   const stageElapsed = formatDuration(now - (current?.startedAt ?? createdAt), isZh);
+  const [openStepId, setOpenStepId] = useState<string | null>(null);
 
   return (
-    <details className={styles.liveTail}>
-      <summary className={styles.disclosure} data-status={stage === "waiting" ? undefined : "running"}>
-        {stage !== "waiting" && <span className={styles.liveDot} aria-hidden="true" />}
+    // 收起时只有一行；点开列出本轮已执行的每一步（读文件、跑命令与失败状态）。
+    <details className={styles.liveTail} data-status={stage === "waiting" ? undefined : "running"}>
+      <summary className={styles.disclosure}>
+        {stage !== "waiting" && <LiveFish />}
         <span className={styles.activityTitle} role="status">{label}</span>
+        {argsHint && <span className={styles.elapsed}>{argsHint}</span>}
         <span className={styles.elapsed}>{stageElapsed}</span>
+        {/* 箭头提示可展开，点开看 Agent 本轮具体在做什么 */}
         <IconChevronRight size={14} className={styles.chevron} aria-hidden="true" />
       </summary>
-      <LiveStageDetails isZh={isZh} steps={steps} now={now} />
+      {/* 展开区限制高度并可滚动，避免长任务把整页撑开 */}
+      <div className={`${styles.liveFacts} ${styles.traceScroll}`}>
+        {/* 工作留痕：按动作类型分组，组默认收起，点开看该类型的每一条动作 */}
+        {groupTrace(steps, isZh).map((group) => (
+          <details key={group.key} className={styles.traceGroup} open={group.key === "think" ? undefined : undefined}>
+            <summary className={styles.activityRow} data-status={group.failed ? "error" : undefined}>
+              <IconChevronRight size={12} className={styles.chevron} aria-hidden="true" />
+              <span>{group.title}</span>
+              <span className={styles.elapsed}>{group.steps.length}</span>
+              {group.failed && <span className={styles.elapsed}>{isZh ? "含失败" : "has failure"}</span>}
+            </summary>
+            <div className={styles.traceGroupBody}>
+              {group.steps.map((step, index) => (
+                <div key={step.id}>
+                  {index > 0 && group.steps[index - 1]?.iteration !== step.iteration && (
+                    <div className={styles.elapsed}>{isZh ? `第 ${step.iteration} 轮` : `Round ${step.iteration}`}</div>
+                  )}
+                  <button
+                    type="button"
+                    className={`${styles.activityRow} ${styles.stepRowButton}`}
+                    data-status={step.status}
+                    aria-expanded={openStepId === step.id}
+                    onClick={() => setOpenStepId((current) => (current === step.id ? null : step.id))}
+                  >
+                    <span>{describeStep(step, isZh)}</span>
+                    {step.status === "error" && <span className={styles.elapsed}>{isZh ? "异常" : "error"}</span>}
+                    {step.commandTrace?.exitCode !== undefined && (
+                      <span className={styles.elapsed}>{labels.exitCode} {step.commandTrace.exitCode}</span>
+                    )}
+                    {step.status === "done" && <span className={styles.elapsed}>✓</span>}
+                  </button>
+                  {openStepId === step.id && <StepDetail step={step} isZh={isZh} />}
+                </div>
+              ))}
+            </div>
+          </details>
+        ))}
+        {steps.length === 0 && (
+          <div className={styles.activityRow}>{isZh ? "正在思考，暂无可展开的执行步骤" : "Thinking — no executable steps yet"}</div>
+        )}
+      </div>
     </details>
   );
 }

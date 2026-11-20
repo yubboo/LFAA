@@ -88,6 +88,38 @@ export async function startWeb(options: WebServerOptions): Promise<() => Promise
   if (!chatService) throw new Error("chat 服务未装配，无法提供会话接口。");
   const handleChatRequest = createChatHttpHandler(chatService, {
     withIdleSession: (sessionId, action) => hostContext.agent.withIdleSession(sessionId, action),
+    // 追问建议由模型根据本轮问答生成，不再使用前端模板。
+    suggestFollowUps: async ({ userPrompt, assistantReply }) => {
+      const output = await hostContext.llm.complete({
+        messages: [
+          {
+            role: "system",
+            content: "你是追问建议生成器。根据用户提问与助手回答，给出 3 条用户最可能继续追问的简短问题。只输出 JSON 字符串数组，不要任何解释。",
+          },
+          {
+            role: "user",
+            content: `用户提问：${userPrompt.slice(0, 800)}\n\n助手回答：${assistantReply.slice(0, 2000)}`,
+          },
+        ],
+        // 该模型先输出推理再输出正文，200 token 会被推理吃光（finishReason=length），此处放宽。
+        maxTokens: 900,
+        temperature: 0.7,
+      });
+      // LlmGenerateOutput 的正文放在 content 字段（不是 text）。
+      const text = (output as { content?: string }).content ?? "";
+      const start = text.indexOf("[");
+      const end = text.lastIndexOf("]");
+      if (start < 0 || end <= start) return [];
+      let parsed: unknown = [];
+      try {
+        parsed = JSON.parse(text.slice(start, end + 1));
+      } catch {
+        return [];
+      }
+      return Array.isArray(parsed)
+        ? parsed.filter((item): item is string => typeof item === "string" && item.trim().length > 0).slice(0, 3)
+        : [];
+    },
   });
   const handleCodingRequest = createCodingHttpHandler(chatService, {
     resolveProjectCandidates: async () => {

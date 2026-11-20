@@ -9,6 +9,7 @@ export const CORE_MODULES: readonly string[] = [
   "@lfaa/shell",
   "@lfaa/tools",
   "@lfaa/tool-todo",
+  "@lfaa/tool-web",
   "@lfaa/skills",
   "@lfaa/plugins",
   "@lfaa/agent",

@@ -1,0 +1,89 @@
+/* 步骤详情面板样式：标签页 + 键值行 + 等宽文本块，全部使用主题变量。 */
+.panel {
+  margin: 0.25rem 0 0.35rem 0.6rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.7rem;
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 0.5rem;
+}
+
+.tab {
+  padding: 0.2rem 0.6rem;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.tab:hover {
+  background: var(--color-menu-hover);
+  color: var(--color-ink);
+}
+
+.tabActive {
+  background: var(--color-active);
+  color: var(--color-accent);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.row {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: var(--color-ink);
+}
+
+.row > span:first-child {
+  color: var(--color-muted);
+  flex: none;
+}
+
+.wrap {
+  word-break: break-all;
+  text-align: right;
+}
+
+.block {
+  margin-top: 0.5rem;
+}
+
+.blockLabel {
+  font-size: 0.72rem;
+  color: var(--color-muted);
+  margin-bottom: 2px;
+}
+
+.pre {
+  margin: 0;
+  max-height: 12rem;
+  overflow: auto;
+  padding: 8px 10px;
+  border-radius: 0.5rem;
+  border: 1px solid var(--color-line);
+  background: var(--color-canvas);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.empty {
+  padding: 0.4rem 0;
+  font-size: 0.78rem;
+  color: var(--color-muted);
+}

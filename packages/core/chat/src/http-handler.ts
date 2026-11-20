@@ -30,6 +30,8 @@ async function readJsonBody(req: IncomingMessage): Promise<Record<string, unknow
 /** 把会话读写、常规设置与本地语音请求分派给 Chat Host 服务。 */
 export function createChatHttpHandler(service: ChatService, options: {
   withIdleSession?: <T>(sessionId: string, action: () => Promise<T>) => Promise<T>;
+  /** 由模型生成追问建议；未提供时该接口返回空数组，客户端不展示。 */
+  suggestFollowUps?: (input: { userPrompt: string; assistantReply: string }) => Promise<string[]>;
 } = {}) {
   return async (req: IncomingMessage, res: ServerResponse): Promise<boolean> => {
     const urlObj = new URL(req.url ?? "", "http://127.0.0.1");
@@ -47,6 +49,19 @@ export function createChatHttpHandler(service: ChatService, options: {
         });
         const countsByProject = await service.countByProject(false);
         sendJson(res, 200, { sessions, countsByProject });
+        return true;
+      }
+
+      if (method === "POST" && pathname === "/api/chat/suggestions") {
+        const body = await readJsonBody(req);
+        const userPrompt = typeof body.userPrompt === "string" ? body.userPrompt : "";
+        const assistantReply = typeof body.assistantReply === "string" ? body.assistantReply : "";
+        if (!options.suggestFollowUps || !assistantReply.trim()) {
+          sendJson(res, 200, { suggestions: [] });
+          return true;
+        }
+        const suggestions = await options.suggestFollowUps({ userPrompt, assistantReply });
+        sendJson(res, 200, { suggestions: suggestions.slice(0, 3) });
         return true;
       }
 

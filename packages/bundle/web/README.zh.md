@@ -39,6 +39,7 @@ LFAA Web 装配包：按 Cordis 约定把 Host 基础能力与 Loader 组合成�
 - `@lfaa/subagent`
 - `@lfaa/tools`
 - `@lfaa/workspace`
+- `@lfaa/tool-todo`
 
 ## 开发说明
 

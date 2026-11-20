@@ -20,6 +20,7 @@ import { shellPlugin } from "@lfaa/shell";
 import { skillsPlugin } from "@lfaa/skills";
 import { subagentPlugin } from "@lfaa/subagent";
 import toolTodoPlugin from "@lfaa/tool-todo";
+import toolWebPlugin from "@lfaa/tool-web";
 import { toolsPlugin } from "@lfaa/tools";
 import { workspacePlugin } from "@lfaa/workspace";
 
@@ -102,7 +103,8 @@ export const webBundlePlugin: Plugin.Object<WebBundleConfig> = {
     const skillsFiber = ctx.plugin(skillsPlugin);
     // 待办工具依赖工具注册表，排在 toolsFiber 之后。
     const toolTodoFiber = ctx.plugin(toolTodoPlugin);
-    await Promise.all([sectionsFiber, workspaceFiber, llmFiber, rulesFiber, memoryFiber, shellFiber, toolsFiber, skillsFiber, toolTodoFiber]);
+    const toolWebFiber = ctx.plugin(toolWebPlugin);
+    await Promise.all([sectionsFiber, workspaceFiber, llmFiber, rulesFiber, memoryFiber, shellFiber, toolsFiber, skillsFiber, toolTodoFiber, toolWebFiber]);
 
     const loaderFiber = ctx.plugin(Loader, { baseUrl: config.loaderBaseUrl });
     await loaderFiber;
