@@ -57,8 +57,20 @@ jobs:
       - name: 类型检查
         run: pnpm typecheck
 
+      # 失败时把失败用例写成 annotation 与 job summary，避免必须登录才能看原始日志。
       - name: 单元测试
-        run: pnpm test
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Continue"
+          pnpm test 2>&1 | Tee-Object -Variable testOutput | Out-Host
+          $code = $LASTEXITCODE
+          if ($code -ne 0) {
+            $failures = @($testOutput | Select-String -Pattern '^(✖|  ✖)|failing tests|AssertionError|Error: |test at ' | Select-Object -First 40)
+            foreach ($failure in $failures) { Write-Host "::error title=单元测试失败::$($failure.Line.Trim())" }
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "## 单元测试失败摘要" -Encoding utf8
+            foreach ($failure in $failures) { Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value ("- " + $failure.Line.Trim()) -Encoding utf8 }
+          }
+          exit $code
 
       - name: 完整构建
         run: pnpm build
