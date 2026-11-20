@@ -6,13 +6,13 @@
   display: grid;
   place-items: center;
   padding: 1.5rem;
-  background: rgb(15 23 28 / 0.34);
+  background: var(--color-scrim);
   backdrop-filter: blur(6px);
   animation: lfaaBackdropIn 160ms ease-out;
 }
 
 :global(html[data-resolved-theme="dark"]) .backdrop {
-  background: rgb(0 0 0 / 0.56);
+  background: var(--color-scrim);
 }
 
 .dialog {
@@ -22,7 +22,7 @@
   grid-template-rows: auto minmax(0, 1fr) auto;
   border: 1px solid var(--glass-border, var(--color-line));
   border-radius: 1rem;
-  background: var(--color-popover, var(--color-surface, #ffffff));
+  background: var(--color-popover, var(--color-surface));
   color: var(--color-ink);
   box-shadow: var(--color-menu-shadow, 0 24px 64px rgb(15 23 28 / 0.18));
   overflow: hidden;

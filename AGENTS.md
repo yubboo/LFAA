@@ -37,8 +37,9 @@
 
 ## 2.2 浅色/深色双主题与 CSS 变量规范（强制）
 
-- **禁止硬编码主题色**：所有组件样式中的背景、边框、文字、悬停/激活态与强调色，必须优先使用 `@lfaa/ui-theme` 提供的语义化 CSS 变量（`var(--color-canvas)`、`var(--color-surface)`、`var(--color-panel)`、`var(--color-line)`、`var(--color-active)`、`var(--color-ink)`、`var(--color-muted)`、`var(--color-accent)`、`var(--color-accent-rgb)`、`var(--color-danger)` 等），禁止写死暗色或亮色十六进制/RGBA（如 `#111216`、`rgba(24, 25, 30, 0.96)`、`rgb(255 255 255 / 0.14)`），也禁止引用不存在的变量回退到暗色（如 `var(--color-bg, #111216)`、`var(--glass-card-bg, rgba(24, 25, 30, 0.96))`）。
-- **状态色与玻璃态双端适配**：若语义色（如增删绿/红、错误红）或半透明边框在浅色/深色下对比度不足，必须通过 `:global(:root[data-resolved-theme="light"])` 显式提供浅色适配值。
+- **项目代码严禁写死颜色。** 组件样式只允许消费 `@lfaa/ui-theme` 语义变量（定义在 `@lfaa/ui-theme` 的 `client/tokens.css`，浅色/深色成对）：`--color-shell`/`--color-rail`/`--color-panel`/`--color-topbar`/`--color-surface`/`--color-popover`/`--color-active`/`--color-line`/`--color-ink`/`--color-muted`/`--color-accent`(`-rgb`)/`--color-success*`/`--color-warning*`/`--color-danger*`/`--color-info*`/`--color-link`(`-hover`)/`--color-violet*`/`--color-orange*`/`--color-teal*`/`--color-activity-positive*`/`--color-activity-negative*`/`--color-code-bg*`/`--color-code-ink`/`--color-code-muted`/`--color-on-accent`/`--color-scrim` 等；禁止直接写十六进制、`rgb()`、`hsl()`，也禁止 `var(--x, #固定色)` 回退。
+- **规则由 `pnpm check` 的 `css-theme-literal` 强制**：只读 `client/**` 样式；阴影/滤镜/玻璃材质与 α ≤ 0.2 的半透明叠层自动放行；允许写具体色值的文件只有变量定义层（`@lfaa/ui-theme/client/tokens.css`）、代码高亮调色板、主题预览样张，登记在 `scripts/check-allowlist.json` 且只减不增。新增状态色必须在浅色与深色块成对定义并保证正文对比度 ≥ 4.5:1，组件里不再写 `:global(:root[data-resolved-theme="light"])` 颜色覆盖。
+- **状态色与玻璃态双端适配**：若语义色（如增删绿/红、错误红）或半透明边框在浅色/深色下对比度不足，必须回到 `@lfaa/ui-theme` 的 `tokens.css` 成对修正变量值，而不是在组件里加浅色覆盖。
 - **双主题实测验收**：涉及 Web UI 的每次修改，交付前须同时在**深色与浅色主题**下目视/实测确认文字对比度、弹窗、输入框及悬浮层均正常。
 
 ## 2.3 活动行对齐（强制）
@@ -67,6 +68,7 @@
 
 - `*.tsx` 超过 250 行、`*.ts/js/mjs` 超过 300 行、`*.module.css` 超过 250 行，必须检查是否需要按职责拆分。
 - `*.tsx` 超过 400 行、`*.ts/js/mjs` 超过 500 行、`*.module.css` 超过 400 行，必须给出保留理由并在 dev-log 记录。
+- 上述两条由 `pnpm check` 强制：`file-size` 拦硬上限，`client-host-relative` 禁止 Client 用相对路径导入同包 `src/`，`css-theme-literal` 禁止 Client 样式写死颜色。既有债务按规则登记在 `scripts/check-allowlist.json`，该清单只允许减少：拆分或修复后同轮删除条目，新增违规必须直接修掉，不得往清单里加。
 - 不得将多个无关功能全部放在一个入口/组件中；不得用 `part1.ts` 等无语义拆分逃避规则。
 - 修改前搜索已有实现：避免复制逻辑、重复状态、死代码、无用文件、僵尸事件监听器。
 - 仅允许最小必要差异，未经授权不“顺便重构”无关模块。
@@ -87,6 +89,7 @@
 - Bug 修复优先补回归测试；Cordis 注入/安装/卸载/重载及 Host/Client 隔离有测试依据。
 - **内置浏览器实测验收（强制）**：每次涉及 Web UI、布局、样式或前端交互的任务，交付前必须启动本地 Web 服务并使用 Agent 内置浏览器（`browser` 子代理）实际打开页面完成交互与视觉验收（确认控制台无新增报错且实际交互符合预期）；不得以静态构建或单测替代内置浏览器实测。
 - 所有构建命令必须实际存在于项目 scripts；失败或未运行都应如实报告。
+- **门禁位置**：克隆后执行一次 `pnpm hooks:install` 启用本地提交前检查（`.githooks/pre-commit`：空白检查 + `check` + `lint`，跳过用 `--no-verify`）；完整门禁在 `.github/workflows/ci.yml`，顺序为 `install --frozen-lockfile → check → lint → readme:pair → typecheck → test → build → probe:loader`。其中 Lint 由 `pnpm lint`（`scripts/lint-workspace.mjs`，AST 规则：未使用导入、显式 any、调试输出、宽松相等、空 catch、TS 抑制指令）执行。改完必须让这些步骤真实通过，不能只跑一部分就报告完成。
 - 未经负责人明确要求，**不得 git commit、git push、合并 PR、强制 reset、覆盖用户本地改动**。
 - 不泄漏密钥、不静默清除数据、不改动无关系统文件。高风险操作必须单独审批。
 

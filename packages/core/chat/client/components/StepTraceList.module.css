@@ -1,4 +1,4 @@
-/* 助手状态、活动折叠行及终端详情，使用工作区浅色和深色主题变量。 */
+/* 助手状态、活动折叠行及终端详情，使用工作区浅色和深色主题变量；审批卡片样式见 StepTraceList.approval.module.css。 */
 .liveStatus,
 .disclosure,
 .activityRow {
@@ -215,13 +215,8 @@ details[open] > summary > .chevron {
 }
 
 .activityRow {
-  --activity-positive: #82cba6;
-  --activity-negative: #f19eaa;
-}
-
-:global(:root[data-resolved-theme="light"]) .activityRow {
-  --activity-positive: #226945;
-  --activity-negative: #a32540;
+  --activity-positive: var(--color-activity-positive);
+  --activity-negative: var(--color-activity-negative);
 }
 
 .activityRow[data-kind="created"] > .icon:first-child,
@@ -332,85 +327,6 @@ details[open] > summary > .chevron {
   flex: none;
   color: var(--color-ink);
   font-size: 0.85em;
-}
-
-/* 待批准工具使用独立卡片，集中展示风险说明与审批操作。 */
-.approvalCard {
-  display: grid;
-  gap: 0.5rem;
-  margin-top: 0.35rem;
-  padding: 0.75rem 0.9rem;
-  border: 1px solid rgb(var(--color-accent-rgb) / 0.45);
-  border-radius: 0.85rem;
-  background: rgb(var(--color-accent-rgb) / 0.08);
-}
-
-.approvalCardRisk {
-  border-color: var(--color-accent);
-  background: var(--color-panel);
-}
-
-.approvalHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  color: var(--color-ink);
-  font-size: 0.9em;
-  font-weight: 600;
-}
-
-.approvalHint,
-.approvalHintRisk {
-  margin: 0;
-  font-size: 0.8em;
-  line-height: 1.45;
-}
-
-.approvalHint {
-  color: var(--color-muted);
-}
-
-.approvalHintRisk {
-  color: var(--color-ink);
-}
-
-.approvalArgs {
-  margin: 0;
-  padding: 0.45rem 0.6rem;
-  border-radius: 0.55rem;
-  background: var(--color-panel);
-  color: var(--color-muted);
-  font-family: var(--code-font-family, monospace);
-  font-size: 0.82em;
-  white-space: pre-wrap;
-  word-break: break-all;
-}
-
-.approvalActions {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.approveBtn,
-.rejectBtn {
-  padding: 0.36rem 0.8rem;
-  border-radius: 0.55rem;
-  font-size: 0.86em;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.approveBtn {
-  border: 0;
-  background: var(--color-active);
-  color: var(--color-ink);
-}
-
-.rejectBtn {
-  border: 1px solid var(--color-line);
-  background: transparent;
-  color: var(--color-ink);
 }
 
 /* 运行中文案：渐变流体，颜色沿文字横向流动，用主题强调色派生 */

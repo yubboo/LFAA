@@ -8,7 +8,7 @@ import {
   type AppearanceMode,
   type ThemePresetId,
   type UiFontId,
-} from "../../src/index";
+} from "../../contract/index";
 import type { AppearanceSnapshot, AppearanceStore } from "../appearance-store";
 import type { ThemeLocaleMessages } from "../locales";
 import { AccentSelect } from "./AccentSelect";

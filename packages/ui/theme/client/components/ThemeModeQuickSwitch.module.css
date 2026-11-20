@@ -18,7 +18,7 @@
 .trigger:hover,
 .triggerActive {
   background: var(--color-menu-hover);
-  border-color: rgb(var(--color-accent-rgb, 230 106 168) / 0.42);
+  border-color: rgb(var(--color-accent-rgb) / 0.42);
 }
 
 .triggerIcon {
@@ -64,7 +64,7 @@
   padding: 0.4rem;
   border: 1px solid var(--glass-border, var(--color-line));
   border-radius: 0.95rem;
-  background: color-mix(in srgb, var(--user-bg, #181b1f) 94%, var(--user-fg, #ffffff) 6%);
+  background: color-mix(in srgb, var(--user-bg, var(--color-shell)) 94%, var(--user-fg, var(--color-ink)) 6%);
   background-image: var(--glass-sheen, none);
   backdrop-filter: blur(28px) saturate(180%);
   -webkit-backdrop-filter: blur(28px) saturate(180%);

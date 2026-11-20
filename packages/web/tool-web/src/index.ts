@@ -1,5 +1,5 @@
 // @lfaa/tool-web 插件入口：提供 fetch_url 工具，抓取公开网页并转成可读正文。
-import type { Context, Plugin } from "@deepseek-ai/cordis";
+import type { Plugin } from "@deepseek-ai/cordis";
 import "@lfaa/tools";
 
 /** 单次抓取允许的最大字节数，避免把整站拉进上下文。 */

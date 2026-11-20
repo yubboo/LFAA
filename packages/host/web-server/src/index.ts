@@ -1,9 +1,10 @@
 // @lfaa/web-server：在 Node 环境中装配 bundle、挂载各能力 HTTP 接口并托管 Vite 开发服务器。
+import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
-import { createApiGateway } from "@lfaa/api-gateway";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { checkApiAuth, createApiGateway } from "@lfaa/api-gateway";
 import { sandboxLocalPlugin } from "@lfaa/sandbox-local";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { Context } from "@deepseek-ai/cordis";
@@ -48,6 +49,9 @@ export interface WebServerOptions {
 export async function startWeb(options: WebServerOptions): Promise<() => Promise<void>> {
   const appRoot = resolve(options.webRoot);
   const detectedProjectRoot = detectProjectRoot(appRoot);
+  // 每次启动生成一次性令牌：只有拿到本进程注入到页面的值才能调用 /api。
+  // 这挡住任意网页对 127.0.0.1 的跨站请求，且不进入命令行/日志。
+  const apiToken = randomBytes(32).toString("hex");
   const hostContext = new Context();
 
   // 沙箱先落在根上下文：bundle 内的工具通过父级服务取到判定器。
@@ -55,9 +59,14 @@ export async function startWeb(options: WebServerOptions): Promise<() => Promise
   await sandboxFiber;
 
   // 装配全部 Host 能力与 Loader：应用层只保留 HTTP 适配与 Vite。
+  // Loader 按包名解析插件，基准必须落在「声明了全部可安装插件包」的装配包内；
+  // apps/web 只声明前端入口，用它当基准会让 @lfaa/tools 这类插件解析不到。
+  const bundleManifest = pathToFileURL(
+    resolve(dirname(fileURLToPath(import.meta.resolve("@lfaa/bundle-web"))), "..", "package.json"),
+  ).href;
   const bundleFiber = hostContext.plugin(webBundlePlugin, {
     repoRoot: detectedProjectRoot,
-    loaderBaseUrl: pathToFileURL(resolve(appRoot, "index.html")).href,
+    loaderBaseUrl: bundleManifest,
     profile: "web",
   });
   await bundleFiber;
@@ -207,11 +216,29 @@ export async function startWeb(options: WebServerOptions): Promise<() => Promise
     configFile: resolve(appRoot, "vite.config.ts"),
     plugins: [
       {
+        name: "lfaa-api-token",
+        // 把本次启动的令牌注入页面 head：客户端从 meta 读取并附加到 /api 请求。
+        apply: "serve",
+        transformIndexHtml(html) {
+          const meta = `<meta name="lfaa-api-token" content="${apiToken}" />`;
+          return html.replace("</head>", `    ${meta}\n  </head>`);
+        },
+      },
+      {
         name: "lfaa-host-apis",
         // 在 Vite 内置 SPA 回退中间件之前挂载核心 Agent/聊天、工作区与分区 Host API。
         configureServer(viteServer) {
-          // 路由表集中在 api/gateway 包，顺序即派发顺序；未命中交给 Vite 后续中间件。
+          // 先鉴权再派发：未通过鉴权的请求不会进入任何业务处理器。
           viteServer.middlewares.use((req, res, next) => {
+            const decision = checkApiAuth(req, { token: apiToken });
+            if (!decision.allowed) {
+              res.statusCode = decision.status;
+              res.setHeader("Content-Type", "application/json; charset=utf-8");
+              res.setHeader("Cache-Control", "no-store");
+              res.end(JSON.stringify({ error: decision.reason }));
+              return;
+            }
+            // 路由表集中在 api/gateway 包，顺序即派发顺序；未命中交给 Vite 后续中间件。
             gateway.handle(req, res).then((handled) => {
               if (!handled) next();
             }, next);

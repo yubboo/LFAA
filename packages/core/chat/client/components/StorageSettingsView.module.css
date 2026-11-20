@@ -100,7 +100,7 @@
 }
 
 .modeOptionActive {
-  border-color: rgb(var(--color-accent-rgb, 230 106 168) / 0.55);
+  border-color: rgb(var(--color-accent-rgb) / 0.55);
   background: var(--color-active);
 }
 
@@ -165,8 +165,8 @@
 
 .primaryBtn {
   border: 0;
-  background: var(--color-accent, #e66aa8);
-  color: #ffffff;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
 }
 
 .primaryBtn:disabled {
@@ -184,19 +184,19 @@
 .noticeOk {
   margin: 0;
   padding: 0.6rem 0.8rem;
-  border: 1px solid rgb(16 185 129 / 0.4);
+  border: 1px solid rgb(var(--color-success-rgb) / 0.4);
   border-radius: 0.65rem;
-  background: rgb(16 185 129 / 0.1);
-  color: #34d399;
+  background: rgb(var(--color-success-rgb) / 0.1);
+  color: var(--color-success);
   font-size: 0.86em;
 }
 
 .noticeErr {
   margin: 0;
   padding: 0.6rem 0.8rem;
-  border: 1px solid rgb(239 68 68 / 0.4);
+  border: 1px solid rgb(var(--color-danger-rgb) / 0.4);
   border-radius: 0.65rem;
-  background: rgb(239 68 68 / 0.1);
-  color: #f87171;
+  background: rgb(var(--color-danger-rgb) / 0.1);
+  color: var(--color-danger-strong);
   font-size: 0.86em;
 }

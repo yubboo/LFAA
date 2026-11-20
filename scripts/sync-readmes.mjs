@@ -92,7 +92,19 @@ function dependencyRows(manifest) {
     .map(([name]) => `- \`${name}\``);
 }
 
-function renderEnglish(pkg, meta) {
+/**
+ * 读取已有 README 的手写「Dev Note / 开发说明」段落。
+ * 生成器只负责结构与导出表，人工补充的开发说明必须原样保留，否则 `pnpm sync` 会静默覆盖。
+ */
+function readDevNote(file, heading) {
+  if (!existsSync(file)) return null;
+  const text = readFileSync(file, "utf8").replace(/^\uFEFF/u, "");
+  const match = new RegExp(`## ${heading}\\s*\\n([\\s\\S]*?)(?=\\n## |$)`, "u").exec(text);
+  const body = (match?.[1] ?? "").trim();
+  return body.length > 0 ? body : null;
+}
+
+function renderEnglish(pkg, meta, devNote) {
   const { manifest, rel } = pkg;
   const deps = dependencyRows(manifest);
   const rows = exportRows(manifest, "en");
@@ -125,11 +137,11 @@ ${deps.length > 0 ? deps.join("\n") : "No workspace dependencies."}
 
 ## Dev Note
 
-None.
+${devNote ?? "None."}
 `;
 }
 
-function renderChinese(pkg) {
+function renderChinese(pkg, devNote) {
   const { manifest, rel } = pkg;
   const deps = dependencyRows(manifest);
   const rows = exportRows(manifest, "zh");
@@ -161,7 +173,7 @@ ${deps.length > 0 ? deps.join("\n") : "无 workspace 依赖。"}
 
 ## 开发说明
 
-无。
+${devNote ?? "无。"}
 `;
 }
 
@@ -172,8 +184,11 @@ for (const pkg of discover()) {
     report.push(`SKIP ${pkg.manifest.name}（未登记英文摘要）`);
     continue;
   }
-  writeFileSync(join(pkg.dir, "README.md"), renderEnglish(pkg, meta), "utf8");
-  writeFileSync(join(pkg.dir, "README.zh.md"), renderChinese(pkg), "utf8");
+  // 先读旧 README 的 Dev Note，再覆盖写：人工补充的说明不能丢。
+  const devNoteEn = readDevNote(join(pkg.dir, "README.md"), "Dev Note");
+  const devNoteZh = readDevNote(join(pkg.dir, "README.zh.md"), "开发说明");
+  writeFileSync(join(pkg.dir, "README.md"), renderEnglish(pkg, meta, devNoteEn), "utf8");
+  writeFileSync(join(pkg.dir, "README.zh.md"), renderChinese(pkg, devNoteZh), "utf8");
   report.push(`OK   ${pkg.manifest.name}`);
 }
 

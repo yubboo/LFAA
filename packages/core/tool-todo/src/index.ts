@@ -1,5 +1,5 @@
 // @lfaa/tool-todo 插件入口：向工具注册表贡献待办清单的读取与写入能力，按会话隔离存储。
-import type { Context, Plugin } from "@deepseek-ai/cordis";
+import type { Plugin } from "@deepseek-ai/cordis";
 import "@lfaa/tools";
 
 /** 单条待办的状态取值。 */

@@ -1,4 +1,4 @@
-/* 四栏可折叠工作区主结构，消费 ShellTheme 提供的明暗与玻璃配色变量。 */
+/* 四栏可折叠工作区主结构，消费 @lfaa/ui-theme 提供的明暗与玻璃配色变量。 */
 .shell {
   --topbar-height: 3.5rem;
   --rail-width: 3.125rem;
@@ -102,7 +102,7 @@
   position: fixed;
   z-index: 40;
   inset: 0;
-  background: rgb(10 11 10 / 38%);
+  background: var(--color-scrim);
   backdrop-filter: blur(2px);
   animation: fadeIn 160ms ease-out;
 }
@@ -200,7 +200,7 @@
   height: 0.4rem;
   flex: 0 0 auto;
   border-radius: 50%;
-  background: #61a36d;
+  background: var(--color-success);
 }
 
 .welcome,

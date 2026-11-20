@@ -47,11 +47,11 @@
 }
 
 .itemDanger {
-  color: #f87171;
+  color: var(--color-danger-strong);
 }
 
 .itemDanger > svg {
-  color: #f87171;
+  color: var(--color-danger-strong);
 }
 
 .label {

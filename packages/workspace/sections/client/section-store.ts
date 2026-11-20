@@ -1,7 +1,7 @@
 // 通过 /api/workspace/sections* 与 Host SectionsService 同步分区列表，并用本地缓存实现首屏无闪烁秒开与静默校对。
 import type { WorkbenchSectionItem } from "@lfaa/ui-layout";
 import { readStoredJson, writeStoredJson } from "@lfaa/ui-layout/client";
-import type { WorkspaceSectionSummary } from "../src/types";
+import type { WorkspaceSectionSummary } from "../contract/index";
 
 const SECTIONS_CACHE_KEY = "lfaa:cache-sections";
 

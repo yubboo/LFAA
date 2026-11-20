@@ -135,14 +135,14 @@
 }
 
 .dirIcon { flex: 0 0 auto; color: var(--color-muted); }
-.dirIcon[data-dir-tone="git"] { color: #f87171; }
-.dirIcon[data-dir-tone="src"] { color: #fb923c; }
-.dirIcon[data-dir-tone="ui"] { color: #34d399; }
-.dirIcon[data-dir-tone="pkg"] { color: #60a5fa; }
-.dirIcon[data-dir-tone="docs"] { color: #a78bfa; }
+.dirIcon[data-dir-tone="git"] { color: var(--color-danger-strong); }
+.dirIcon[data-dir-tone="src"] { color: var(--color-orange); }
+.dirIcon[data-dir-tone="ui"] { color: var(--color-success); }
+.dirIcon[data-dir-tone="pkg"] { color: var(--color-link); }
+.dirIcon[data-dir-tone="docs"] { color: var(--color-violet-strong); }
 
 .fileBadgeIcon { flex: 0 0 auto; color: var(--color-muted); }
-.fileBadgeIcon[data-file-tone="react"] { color: #38bdf8; }
+.fileBadgeIcon[data-file-tone="react"] { color: var(--color-info); }
 
 .fileTypeText {
   display: inline-flex;
@@ -156,29 +156,29 @@
   white-space: nowrap;
 }
 
-.fileTypeText[data-file-tone="ts"] { color: #38bdf8; }
-.fileTypeText[data-file-tone="js"] { color: #facc15; }
-.fileTypeText[data-file-tone="css"] { color: #7dd3fc; }
-.fileTypeText[data-file-tone="json"] { color: #4ade80; }
-.fileTypeText[data-file-tone="html"] { color: #fb923c; }
-.fileTypeText[data-file-tone="md"] { color: #60a5fa; }
-.fileTypeText[data-file-tone="shell"] { color: #34d399; }
-.fileTypeText[data-file-tone="git"] { color: #f87171; }
+.fileTypeText[data-file-tone="ts"] { color: var(--color-info); }
+.fileTypeText[data-file-tone="js"] { color: var(--color-warning); }
+.fileTypeText[data-file-tone="css"] { color: var(--color-info-strong); }
+.fileTypeText[data-file-tone="json"] { color: var(--color-success); }
+.fileTypeText[data-file-tone="html"] { color: var(--color-orange); }
+.fileTypeText[data-file-tone="md"] { color: var(--color-link); }
+.fileTypeText[data-file-tone="shell"] { color: var(--color-success); }
+.fileTypeText[data-file-tone="git"] { color: var(--color-danger-strong); }
 
-:global(:root[data-resolved-theme="light"]) .dirIcon[data-dir-tone="git"] { color: #dc2626; }
-:global(:root[data-resolved-theme="light"]) .dirIcon[data-dir-tone="src"] { color: #ea580c; }
-:global(:root[data-resolved-theme="light"]) .dirIcon[data-dir-tone="ui"] { color: #059669; }
-:global(:root[data-resolved-theme="light"]) .dirIcon[data-dir-tone="pkg"] { color: #2563eb; }
-:global(:root[data-resolved-theme="light"]) .dirIcon[data-dir-tone="docs"] { color: #7c3aed; }
-:global(:root[data-resolved-theme="light"]) .fileBadgeIcon[data-file-tone="react"] { color: #0284c7; }
-:global(:root[data-resolved-theme="light"]) .fileTypeText[data-file-tone="ts"] { color: #0284c7; }
-:global(:root[data-resolved-theme="light"]) .fileTypeText[data-file-tone="js"] { color: #ca8a04; }
-:global(:root[data-resolved-theme="light"]) .fileTypeText[data-file-tone="css"] { color: #0369a1; }
-:global(:root[data-resolved-theme="light"]) .fileTypeText[data-file-tone="json"] { color: #16a34a; }
-:global(:root[data-resolved-theme="light"]) .fileTypeText[data-file-tone="html"] { color: #ea580c; }
-:global(:root[data-resolved-theme="light"]) .fileTypeText[data-file-tone="md"] { color: #2563eb; }
-:global(:root[data-resolved-theme="light"]) .fileTypeText[data-file-tone="shell"] { color: #059669; }
-:global(:root[data-resolved-theme="light"]) .fileTypeText[data-file-tone="git"] { color: #dc2626; }
+:global(:root[data-resolved-theme="light"]) .dirIcon[data-dir-tone="git"] { color: var(--color-danger); }
+:global(:root[data-resolved-theme="light"]) .dirIcon[data-dir-tone="src"] { color: var(--color-orange); }
+:global(:root[data-resolved-theme="light"]) .dirIcon[data-dir-tone="ui"] { color: var(--color-success); }
+:global(:root[data-resolved-theme="light"]) .dirIcon[data-dir-tone="pkg"] { color: var(--color-link); }
+:global(:root[data-resolved-theme="light"]) .dirIcon[data-dir-tone="docs"] { color: var(--color-violet-strong); }
+:global(:root[data-resolved-theme="light"]) .fileBadgeIcon[data-file-tone="react"] { color: var(--color-info-strong); }
+:global(:root[data-resolved-theme="light"]) .fileTypeText[data-file-tone="ts"] { color: var(--color-info-strong); }
+:global(:root[data-resolved-theme="light"]) .fileTypeText[data-file-tone="js"] { color: var(--color-warning-strong); }
+:global(:root[data-resolved-theme="light"]) .fileTypeText[data-file-tone="css"] { color: var(--color-info); }
+:global(:root[data-resolved-theme="light"]) .fileTypeText[data-file-tone="json"] { color: var(--color-success-strong); }
+:global(:root[data-resolved-theme="light"]) .fileTypeText[data-file-tone="html"] { color: var(--color-orange); }
+:global(:root[data-resolved-theme="light"]) .fileTypeText[data-file-tone="md"] { color: var(--color-link); }
+:global(:root[data-resolved-theme="light"]) .fileTypeText[data-file-tone="shell"] { color: var(--color-success); }
+:global(:root[data-resolved-theme="light"]) .fileTypeText[data-file-tone="git"] { color: var(--color-danger); }
 
 .empty,
 .loadingText,
@@ -190,9 +190,9 @@
 }
 
 .errorText {
-  color: #f87171;
+  color: var(--color-danger-strong);
 }
 
 :global(:root[data-resolved-theme="light"]) .errorText {
-  color: #dc2626;
+  color: var(--color-danger);
 }

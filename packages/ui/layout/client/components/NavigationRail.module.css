@@ -13,8 +13,8 @@
   border-right: 1px solid var(--color-line);
   background: var(--color-rail);
   background-image: var(--glass-sheen, none);
-  backdrop-filter: blur(var(--glass-sidebar-blur, 0px)) saturate(var(--glass-sidebar-saturate, 100%));
-  -webkit-backdrop-filter: blur(var(--glass-sidebar-blur, 0px)) saturate(var(--glass-sidebar-saturate, 100%));
+  backdrop-filter: blur(var(--glass-sidebar-blur, 0px)) saturate(var(--glass-sidebar-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-sidebar-blur, 0px)) saturate(var(--glass-sidebar-saturate));
 }
 
 .topGroup,

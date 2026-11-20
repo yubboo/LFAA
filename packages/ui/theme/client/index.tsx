@@ -1,4 +1,6 @@
 // 导出主题包的 Client Cordis 插件入口：启动即同步主题 CSS 变量，并向工作台注册“外观”设置视图。
+// tokens.css 是语义变量定义层（浅色/深色/系统主题成对定义），必须随本入口副作用引入。
+import "./tokens.css";
 import { useSyncExternalStore } from "react";
 import type { Context, Plugin } from "@deepseek-ai/cordis";
 import "@lfaa/ui-layout/client";

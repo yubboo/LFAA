@@ -1,4 +1,4 @@
-/* 聊天输入框上方挂载的工作位置与项目选择条及弹出浮层样式，消费 ShellTheme 变量兼容明暗主题。 */
+/* 聊天输入框上方挂载的工作位置与项目选择条及弹出浮层样式，消费 @lfaa/ui-theme 语义变量兼容明暗主题。 */
 .wrapper {
   position: relative;
   z-index: 3;

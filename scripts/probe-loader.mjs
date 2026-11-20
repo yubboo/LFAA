@@ -9,8 +9,8 @@ import Loader from "../vendor/loader/lib/index.js";
 
 const ROOT = resolve(import.meta.dirname, "..");
 const PROFILE = mkdtempSync(join(tmpdir(), "lfaa-profile-probe-"));
-// 以 apps/web 作为解析基准：那里有全部 @lfaa/* 的 workspace 链接。
-const BASE_URL = pathToFileURL(join(ROOT, "apps", "web", "index.html")).href;
+// 以 bundle/web 的清单作为解析基准：它声明了全部可安装插件包；apps/web 只有前端入口依赖。
+const BASE_URL = pathToFileURL(join(ROOT, "packages", "bundle", "web", "package.json")).href;
 
 const CORDIS_YML = `# 插件装载探针：直接按包名声明插件，不再依赖导出夹具
 plugins:

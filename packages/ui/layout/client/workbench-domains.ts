@@ -1,5 +1,5 @@
 // 集中定义四栏/三栏工作台域配置、共用导航目标与视图标题解析，避免各组件分散硬编码。
-import type { WorkbenchChatProvider, WorkbenchChatSessionSummary } from "../src/index";
+import type { WorkbenchChatProvider, WorkbenchChatSessionSummary } from "../contract/index";
 import type { LocaleMessages } from "./locales";
 import { isSettingsView, type LocalProject, type NavigationTarget, type NavigationView, type RecentItem } from "./navigation";
 import { findSettingsCatalogItem } from "./settings-catalog";

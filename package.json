@@ -8,6 +8,7 @@
                     "lfaa":  "node scripts/ensure-lib.mjs \u0026\u0026 tsx apps/cli/src/bin.ts",
                     "typecheck":  "tsc -b tsconfig.host.json",
                     "check":  "node scripts/check-workspace.mjs",
+                    "lint":  "node scripts/lint-workspace.mjs",
                     "test":  "node scripts/test.mjs",
                     "test:pkg":  "node scripts/test.mjs --filter",
                     "probe:loader":  "node scripts/probe-loader.mjs",
@@ -17,6 +18,7 @@
                     "build:web":  "pnpm --filter @lfaa/app-web run build",
                     "readme:sync":  "node scripts/sync-readmes.mjs .",
                     "readme:pair":  "node scripts/verify-translation-pairing.mjs",
+                    "hooks:install":  "node scripts/install-hooks.mjs",
                     "sync":  "node scripts/sync-tsconfig.mjs . \u0026\u0026 node scripts/sync-manifests.mjs . \u0026\u0026 node scripts/sync-readmes.mjs ."
                 },
     "devDependencies":  {

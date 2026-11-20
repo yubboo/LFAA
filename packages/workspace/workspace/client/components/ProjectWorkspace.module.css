@@ -93,14 +93,14 @@
 }
 
 .folderTabActive {
-  border-color: rgb(var(--color-accent-rgb, 230 106 168) / 0.45);
-  background: rgb(var(--color-accent-rgb, 230 106 168) / 0.14);
+  border-color: rgb(var(--color-accent-rgb) / 0.45);
+  background: rgb(var(--color-accent-rgb) / 0.14);
   color: var(--color-ink);
 }
 
 .error {
   margin: 1rem 0 0;
-  color: #e06c75;
+  color: var(--color-danger);
 }
 
 /* 路径摘要、目录列表和加载提示复用同一个文件工作区容器。 */

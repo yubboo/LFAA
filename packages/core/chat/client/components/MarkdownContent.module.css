@@ -75,7 +75,7 @@
   border-radius: 0.42rem;
   border: 1px solid rgb(255 255 255 / 0.08);
   background: rgb(255 255 255 / 0.06);
-  color: #a5d6ff;
+  color: var(--color-code-ink);
   font-family: var(--code-font-family, ui-monospace, SFMono-Regular, Menlo, monospace);
   font-size: 0.87em;
   overflow-wrap: anywhere;
@@ -83,38 +83,38 @@
 }
 
 .fileChip {
-  color: #cbd5e1;
+  color: var(--color-code-ink);
   background: rgb(255 255 255 / 0.055);
 }
 
 :global(:root[data-resolved-theme="light"]) .inlineCode {
   border-color: rgb(15 23 42 / 0.08);
   background: rgb(15 23 42 / 0.05);
-  color: #1d4ed8;
+  color: var(--color-link);
 }
 
 :global(:root[data-resolved-theme="light"]) .fileChip {
   border-color: rgb(15 23 42 / 0.08);
   background: rgb(15 23 42 / 0.045);
-  color: #334155;
+  color: var(--color-code-ink);
 }
 
 .link {
-  color: #60a5fa;
+  color: var(--color-link);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
 .link:hover {
-  color: #93c5fd;
+  color: var(--color-link-hover);
 }
 
 .blockquote {
   margin: 0;
   padding: 0.45rem 0.85rem;
-  border-left: 3px solid #6366f1;
+  border-left: 3px solid var(--color-violet);
   border-radius: 0 0.55rem 0.55rem 0;
-  background: rgb(99 102 241 / 0.08);
+  background: rgb(var(--color-violet-rgb) / 0.08);
   color: var(--color-muted);
   display: grid;
   gap: 0.25rem;
@@ -181,12 +181,12 @@
 .codeCard {
   border: 1px solid var(--color-line);
   border-radius: 0.82rem;
-  background: #101218;
+  background: var(--color-code-bg);
   overflow: hidden;
 }
 
 :global(:root[data-resolved-theme="light"]) .codeCard {
-  background: #f6f8fa;
+  background: var(--color-code-bg);
 }
 
 .codeHeader {
@@ -237,11 +237,11 @@
   font-family: var(--code-font-family, ui-monospace, SFMono-Regular, Menlo, monospace);
   font-size: 0.87em;
   line-height: 1.6;
-  color: #e2e8f0;
+  color: var(--color-code-ink);
 }
 
 :global(:root[data-resolved-theme="light"]) .codePre {
-  color: #1e293b;
+  color: var(--color-code-ink);
 }
 
 .codeLine {
@@ -258,7 +258,7 @@
 }
 
 .tok_comment {
-  color: #64748b;
+  color: var(--color-code-muted);
   font-style: italic;
 }
 
@@ -271,12 +271,12 @@
 }
 
 .tok_function {
-  color: #60a5fa;
+  color: var(--color-link);
 }
 
 :global(:root[data-resolved-theme="light"]) .tok_keyword { color: #7c3aed; }
 :global(:root[data-resolved-theme="light"]) .tok_string { color: #059669; }
-:global(:root[data-resolved-theme="light"]) .tok_comment { color: #64748b; }
+:global(:root[data-resolved-theme="light"]) .tok_comment { color: var(--color-code-muted); }
 :global(:root[data-resolved-theme="light"]) .tok_number { color: #ea580c; }
 :global(:root[data-resolved-theme="light"]) .tok_type { color: #0284c7; }
 :global(:root[data-resolved-theme="light"]) .tok_function { color: #2563eb; }

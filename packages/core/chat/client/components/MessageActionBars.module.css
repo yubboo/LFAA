@@ -38,8 +38,8 @@
 }
 
 .iconBtnActive {
-  color: #a594ff;
-  background: rgb(139 92 246 / 0.14);
+  color: var(--color-violet);
+  background: rgb(var(--color-violet-rgb) / 0.14);
 }
 
 .timestamp {
@@ -144,19 +144,19 @@
 }
 
 .diffAdd {
-  color: #4ade80;
+  color: var(--color-success);
 }
 
 .diffDel {
-  color: #f87171;
+  color: var(--color-danger-strong);
 }
 
 :global(:root[data-resolved-theme="light"]) .diffAdd {
-  color: #16a34a;
+  color: var(--color-success-strong);
 }
 
 :global(:root[data-resolved-theme="light"]) .diffDel {
-  color: #dc2626;
+  color: var(--color-danger);
 }
 
 .filesHeaderRight {
@@ -316,7 +316,7 @@
 
 .followUpBtn:hover {
   background: var(--color-active);
-  border-color: rgb(255 255 255 / 0.22);
+  border-color: color-mix(in srgb, var(--color-on-accent) 22%, transparent);
 }
 
 .followUpArrow {

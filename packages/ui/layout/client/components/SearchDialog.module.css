@@ -7,7 +7,7 @@
   align-items: flex-start;
   justify-content: center;
   padding: min(15vh, 8rem) 1rem 1rem;
-  background: rgb(10 11 10 / 42%);
+  background: var(--color-scrim);
   backdrop-filter: blur(4px);
 }
 

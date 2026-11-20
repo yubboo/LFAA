@@ -1,0 +1,34 @@
+{
+    "no-unused-import": {
+        "note": "导入但未被引用的绑定。只允许减少：新代码必须直接删掉未使用导入，不得往清单里加。",
+        "files": []
+    },
+    "no-explicit-any": {
+        "note": "显式 any 类型。确需逃逸时必须改用 unknown + 收窄，确属上游边界才登记（vendor 不在扫描范围）。",
+        "files": []
+    },
+    "no-console-log": {
+        "note": "console.log/debug/trace 等调试输出；console.warn/error 允许。CLI 与 scripts 不在扫描范围。",
+        "files": []
+    },
+    "no-debugger": {
+        "note": "残留 debugger 语句，一律不允许登记。",
+        "files": []
+    },
+    "loose-equality": {
+        "note": "== / !=（null 比较放行）。",
+        "files": []
+    },
+    "empty-catch": {
+        "note": "空 catch 静默吞异常；带注释说明理由的不拦。",
+        "files": []
+    },
+    "ts-ignore": {
+        "note": "@ts-ignore / @ts-nocheck 一律禁止；修复类型问题而不是压制。",
+        "files": []
+    },
+    "ts-expect-error-description": {
+        "note": "@ts-expect-error 必须写说明文字。",
+        "files": []
+    }
+}

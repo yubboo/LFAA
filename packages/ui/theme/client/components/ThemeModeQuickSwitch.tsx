@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { IconCheck, IconChevronDown, IconDeviceDesktop, IconMoon, IconSun } from "@tabler/icons-react";
-import type { AppearanceMode } from "../../src/index";
+import type { AppearanceMode } from "../../contract/index";
 import type { AppearanceStore } from "../appearance-store";
 import type { ThemeLocaleMessages } from "../locales";
 import styles from "./ThemeModeQuickSwitch.module.css";

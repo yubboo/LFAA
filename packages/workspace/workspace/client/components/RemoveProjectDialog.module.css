@@ -6,7 +6,7 @@
   display: grid;
   place-items: center;
   padding: 1rem;
-  background: rgb(10 11 10 / 48%);
+  background: var(--color-scrim);
   backdrop-filter: blur(5px);
 }
 
@@ -78,7 +78,7 @@
 
 .error {
   margin: 0.75rem 0 0;
-  color: #f06464;
+  color: var(--color-danger);
   font-size: 0.84em;
 }
 
@@ -114,26 +114,26 @@
 }
 
 .removeBtn {
-  border: 1px solid rgb(229 72 77 / 0.24);
-  background: rgb(229 72 77 / 0.16);
-  color: #f05252;
+  border: 1px solid rgb(var(--color-danger-rgb) / 0.24);
+  background: rgb(var(--color-danger-rgb) / 0.16);
+  color: var(--color-danger);
   font-weight: 550;
 }
 
 .removeBtn:hover:not(:disabled) {
-  border-color: rgb(229 72 77 / 0.38);
-  background: rgb(229 72 77 / 0.24);
+  border-color: rgb(var(--color-danger-rgb) / 0.38);
+  background: rgb(var(--color-danger-rgb) / 0.24);
 }
 
 :global(:root[data-resolved-theme="light"]) .removeBtn {
-  border-color: rgb(220 38 38 / 0.24);
-  background: rgb(220 38 38 / 0.1);
-  color: #c92a2a;
+  border-color: rgb(var(--color-danger-rgb) / 0.24);
+  background: rgb(var(--color-danger-rgb) / 0.1);
+  color: var(--color-danger);
 }
 
 :global(:root[data-resolved-theme="light"]) .removeBtn:hover:not(:disabled) {
-  border-color: rgb(220 38 38 / 0.38);
-  background: rgb(220 38 38 / 0.18);
+  border-color: rgb(var(--color-danger-rgb) / 0.38);
+  background: rgb(var(--color-danger-rgb) / 0.18);
 }
 
 .cancelBtn:disabled,

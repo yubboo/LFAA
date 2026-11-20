@@ -30,8 +30,8 @@
   width: 2.25rem;
   height: 2.25rem;
   flex: 0 0 auto;
-  background: #b79150;
-  color: #fff;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
   font-size: 0.66rem;
   font-weight: 650;
 }

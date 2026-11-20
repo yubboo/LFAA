@@ -98,7 +98,7 @@
 }
 
 .menuItemDanger {
-  color: #e87a82;
+  color: var(--color-danger-strong);
 }
 
 .menuItemDanger > svg {

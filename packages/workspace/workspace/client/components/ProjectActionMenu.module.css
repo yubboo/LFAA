@@ -107,8 +107,8 @@
   margin: 0.25rem 0.35rem 0.15rem;
   padding: 0.4rem 0.55rem;
   border-radius: 0.5rem;
-  background: rgb(224 108 117 / 0.14);
-  color: #e87a82;
+  background: rgb(var(--color-danger-rgb) / 0.14);
+  color: var(--color-danger-strong);
   font-size: 0.78em;
   line-height: 1.45;
   word-break: break-word;

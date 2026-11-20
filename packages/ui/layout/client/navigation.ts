@@ -1,5 +1,5 @@
 // 定义浏览器 Shell 共用的导航与最近列表类型，项目类型由公共契约提供。
-import type { WorkbenchProjectItem } from "../src/index";
+import type { WorkbenchProjectItem } from "../contract/index";
 
 /** 描述工作台导航使用的项目摘要与绑定信息。 */
 export type LocalProject = WorkbenchProjectItem;

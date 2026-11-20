@@ -18,6 +18,7 @@ This package lives in `packages/core/browser`.
 | Entry | Target | Purpose |
 |---|---|---|
 | `.` | `./lib/index.js` | Host entry (default-exports the plugin) |
+| `./contract` | `./lib/types/contract/index.js` | Public contract with no Node or DOM dependency |
 | `./src/*` | `./src/*` | Source escape hatch for this repository's tooling |
 | `./client` | `./client/index.tsx` | Browser entry consumed by Vite |
 | `./package.json` | `./package.json` | Package manifest |

@@ -7,7 +7,7 @@ import {
   IconLoader2,
   IconX,
 } from "@tabler/icons-react";
-import type { StatusTone } from "../src/index";
+import type { StatusTone } from "../contract/index";
 import styles from "./StatusBanner.module.css";
 
 const TONE_CLASS: Record<StatusTone, string | undefined> = {

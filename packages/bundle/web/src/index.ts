@@ -1,8 +1,5 @@
 // @lfaa/bundle-web 装配插件：把 Web Host 的基础能力、Loader 与跨服务联线组合成一个 bundle。
 import { type Context, type Plugin } from "@deepseek-ai/cordis";
-import { readFile } from "node:fs/promises";
-import { homedir } from "node:os";
-import { join, resolve } from "node:path";
 import { CORE_MODULES, OPTIONAL_MODULES, PRESETS } from "./presets";
 import Loader from "@deepseek-ai/cordis-plugin-loader";
 import { agentPlugin } from "@lfaa/agent";
@@ -32,7 +29,7 @@ export const WEB_BUNDLE_MODULES = CORE_MODULES;
 export interface WebBundleConfig {
   /** 仓库根目录：用于资料库数据根与聊天工作台的项目根。 */
   repoRoot: string;
-  /** Loader 的解析基准（通常是 apps/web/index.html 的 file URL）。 */
+  /** Loader 的解析基准：必须是声明了全部可安装插件包的装配包内文件（见 web-server 的装配点）。 */
   loaderBaseUrl: string;
   /** 插件 profile 名称，默认 web。 */
   profile?: string;

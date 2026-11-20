@@ -17,7 +17,7 @@
   padding: 0.28rem 0.62rem;
   border: 1px solid rgb(255 255 255 / 0.12);
   border-radius: 999px;
-  background: var(--glass-card-bg, rgba(28, 29, 34, 0.96));
+  background: var(--glass-card-bg);
   color: var(--color-ink);
   font-size: 0.76rem;
   font-weight: 500;

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { IconFile, IconFolder, IconRefresh } from "@tabler/icons-react";
 import type { WorkbenchProjectItem } from "@lfaa/ui-layout";
 import { readStoredJson, writeStoredJson } from "@lfaa/ui-layout/client";
-import type { WorkspaceInspection } from "../../src/types";
+import type { WorkspaceInspection } from "../../contract/index";
 import type { LocalProjectStore } from "../local-project-store";
 import type { WorkspaceLocaleMessages } from "../locales";
 import styles from "./ProjectWorkspace.module.css";

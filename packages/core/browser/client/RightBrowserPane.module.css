@@ -131,7 +131,7 @@
   width: 0.38rem;
   height: 0.38rem;
   border-radius: 999px;
-  background: #f87171;
+  background: var(--color-danger-strong);
 }
 
 .urlForm {
@@ -200,14 +200,14 @@
   padding: 0.4rem 0.75rem;
   border-bottom: 1px solid var(--color-line);
   background: var(--color-surface);
-  color: #f87171;
+  color: var(--color-danger-strong);
   font-size: 0.76rem;
 }
 
 :global(:root[data-resolved-theme="light"]) .errorBanner,
 :global(:root[data-resolved-theme="light"]) .logLine[data-level="error"],
 :global(:root[data-resolved-theme="light"]) .netStatus[data-failed="true"] {
-  color: #dc2626;
+  color: var(--color-danger);
 }
 
 .viewportStage {
@@ -251,7 +251,7 @@
   gap: 0.5rem;
   padding: 0.32rem 0.7rem;
   border-bottom: 1px solid var(--color-line);
-  background: rgba(var(--color-accent-rgb), 0.14);
+  background: rgb(var(--color-accent-rgb) / 0.14);
   color: var(--color-ink);
   font-size: 0.74rem;
 }
@@ -399,11 +399,11 @@
 
 .logLine[data-level="error"],
 .logLine[data-level="network"] {
-  color: #f87171;
+  color: var(--color-danger-strong);
 }
 
 .logLine[data-level="warning"] {
-  color: #fbbf24;
+  color: var(--color-warning);
 }
 
 .logTag,
@@ -414,11 +414,11 @@
 
 .netStatus {
   flex: 0 0 auto;
-  color: #4ade80;
+  color: var(--color-success);
 }
 
 .netStatus[data-failed="true"] {
-  color: #f87171;
+  color: var(--color-danger-strong);
 }
 
 .logText {

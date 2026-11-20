@@ -1,10 +1,11 @@
-﻿// 统一测试入口：枚举 packages 下全部 node:test 用例文件，交给 Node 测试运行器执行。
+// 统一测试入口：枚举 packages 与 scripts 下的 node:test 用例文件，交给 Node 测试运行器执行。
 import { spawnSync } from "node:child_process";
 import { readdirSync, statSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
 
 const ROOT = resolve(import.meta.dirname, "..");
 const PACKAGES_DIR = join(ROOT, "packages");
+const SCRIPTS_DIR = join(ROOT, "scripts");
 
 /** 解析 --filter / --reporter 参数；其余原样交给 Node。 */
 function parseArgs(argv) {
@@ -22,8 +23,8 @@ function parseArgs(argv) {
   return options;
 }
 
-/** 递归收集测试用例文件，跳过依赖与产物目录。 */
-function walk(dir, out = []) {
+/** 递归收集测试用例文件，跳过依赖与产物目录；`pattern` 决定文件名形态。 */
+function walk(dir, pattern, out = []) {
   let entries;
   try {
     entries = readdirSync(dir);
@@ -33,8 +34,8 @@ function walk(dir, out = []) {
   for (const entry of entries) {
     if (entry === "node_modules" || entry === "dist" || entry === "lib") continue;
     const full = join(dir, entry);
-    if (statSync(full).isDirectory()) walk(full, out);
-    else if (/\.test\.(ts|tsx)$/u.test(entry)) out.push(full);
+    if (statSync(full).isDirectory()) walk(full, pattern, out);
+    else if (pattern.test(entry)) out.push(full);
   }
   return out;
 }
@@ -46,7 +47,10 @@ function toRelative(file) {
 
 function main() {
   const options = parseArgs(process.argv.slice(2));
-  const all = walk(PACKAGES_DIR).map((file) => ({ file, rel: toRelative(file) }));
+  const all = [
+    ...walk(PACKAGES_DIR, /\.test\.(ts|tsx)$/u),
+    ...walk(SCRIPTS_DIR, /\.test\.mjs$/u),
+  ].map((file) => ({ file, rel: toRelative(file) }));
   const selected = options.filter
     ? all.filter((item) => item.rel.includes(options.filter))
     : all;

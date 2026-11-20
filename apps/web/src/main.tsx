@@ -8,7 +8,11 @@ import { skillsClientPlugin } from "@lfaa/skills/client";
 import { workbenchPlugin } from "@lfaa/ui-layout/client";
 import { themeClientPlugin } from "@lfaa/ui-theme/client";
 import { workspaceClientPlugin } from "@lfaa/workspace/client";
+import { installApiToken } from "./api-auth";
 import "./app.css";
+
+// 必须先装好令牌注入：插件在实例化时就会发起 /api 请求。
+installApiToken();
 
 const rootElement = document.getElementById("root");
 

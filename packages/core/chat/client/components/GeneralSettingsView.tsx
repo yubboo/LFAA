@@ -10,6 +10,7 @@ import { SettingGroupCard, SettingRow, SettingSwitch } from "./GeneralSettingsCo
 import { GeneralSettingsGeneralGroup } from "./GeneralSettingsGeneralGroup";
 import { GeneralSettingsSecondary } from "./GeneralSettingsSecondary";
 import styles from "./GeneralSettingsView.module.css";
+import overlayStyles from "./GeneralSettingsView.overlays.module.css";
 
 /** 装配设置分组，加载 Host 偏好并管理开源许可证详情。 */
 export function GeneralSettingsView({
@@ -148,15 +149,15 @@ export function GeneralSettingsView({
       />
 
       {confettiActive && (
-        <div className={styles.confettiBurst} role="status">
+        <div className={overlayStyles.confettiBurst} role="status">
           <span className={styles.notice}>{isZh ? "已触发应用内庆祝特效" : "Celebration effect triggered"}</span>
         </div>
       )}
 
       {licensesOpen && (
-        <div className={styles.modalBackdrop} role="dialog" aria-modal="true" aria-label={isZh ? "开源许可证" : "Open-source licenses"}>
-          <div className={styles.modalCard}>
-            <div className={styles.modalHeader}>
+        <div className={overlayStyles.modalBackdrop} role="dialog" aria-modal="true" aria-label={isZh ? "开源许可证" : "Open-source licenses"}>
+          <div className={overlayStyles.modalCard}>
+            <div className={overlayStyles.modalHeader}>
               <h2 className={styles.groupTitle}>{isZh ? "开源依赖与许可证声明" : "Bundled Open-Source Dependencies"}</h2>
               <button
                 type="button"
@@ -167,9 +168,9 @@ export function GeneralSettingsView({
                 <IconX size={14} aria-hidden="true" />
               </button>
             </div>
-            <div className={styles.modalList}>
+            <div className={overlayStyles.modalList}>
               {licenses.map((pkg) => (
-                <div key={pkg.name} className={styles.licenseRow}>
+                <div key={pkg.name} className={overlayStyles.licenseRow}>
                   <span>{pkg.name}</span>
                   <span>{pkg.version}</span>
                 </div>

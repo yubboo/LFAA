@@ -5,6 +5,7 @@ import { getActivityLabel } from "../activity-label";
 import type { AgentStepItem, PendingApprovalBanner } from "../chat-types";
 import { timelineMessages, type ChatLocaleMessages } from "../locales";
 import styles from "./StepTraceList.module.css";
+import approvalStyles from "./StepTraceList.approval.module.css";
 
 /** 以整秒显示实际经过的时间，兼容短于一秒和长时间运行。 */
 export function formatDuration(ms: number, isZh: boolean, showAllUnits = false): string {
@@ -146,29 +147,29 @@ export function TimelineApproval({
 }) {
   return (
     <div
-      className={`${styles.approvalCard} ${pendingApproval.highRisk ? styles.approvalCardRisk : ""}`}
+      className={`${approvalStyles.approvalCard} ${pendingApproval.highRisk ? approvalStyles.approvalCardRisk : ""}`}
       role="alertdialog"
       aria-label={locale.approvalRequiredTitle}
     >
-      <div className={styles.approvalHeader}>
+      <div className={approvalStyles.approvalHeader}>
         <span>{`${locale.approvalRequiredTitle}: ${pendingApproval.toolName}`}</span>
         <span>{pendingApproval.permissionLevel.toUpperCase()}</span>
       </div>
       {pendingApproval.highRisk ? (
-        <p className={styles.approvalHintRisk}>
+        <p className={approvalStyles.approvalHintRisk}>
           {pendingApproval.riskReason || locale.highRiskApprovalHint}
         </p>
       ) : pendingApproval.permissionMode === "smart" && pendingApproval.approvalThreshold ? (
-        <p className={styles.approvalHint}>
+        <p className={approvalStyles.approvalHint}>
           {`${locale.smartProgressPrefix}${pendingApproval.approvalPattern ? `${pendingApproval.approvalPattern} ` : ""}${pendingApproval.approvalCount ?? 0}/${pendingApproval.approvalThreshold} ${locale.smartProgressSuffix}`}
         </p>
       ) : null}
-      <pre className={styles.approvalArgs}>{pendingApproval.argsPreview}</pre>
-      <div className={styles.approvalActions}>
-        <button type="button" className={styles.approveBtn} onClick={() => onResolveApproval(true)}>
+      <pre className={approvalStyles.approvalArgs}>{pendingApproval.argsPreview}</pre>
+      <div className={approvalStyles.approvalActions}>
+        <button type="button" className={approvalStyles.approveBtn} onClick={() => onResolveApproval(true)}>
           {locale.approveAction}
         </button>
-        <button type="button" className={styles.rejectBtn} onClick={() => onResolveApproval(false)}>
+        <button type="button" className={approvalStyles.rejectBtn} onClick={() => onResolveApproval(false)}>
           {locale.rejectAction}
         </button>
       </div>

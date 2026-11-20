@@ -3,7 +3,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { HoverTip } from "@lfaa/ui-primitives/client";
 import {
   IconCheck,
-  IconChevronDown,
   IconChevronRight,
   IconCloud,
   IconDeviceLaptop,

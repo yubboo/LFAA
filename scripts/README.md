@@ -7,16 +7,26 @@
 - `sync-tsconfig.mjs`：按 DSH 模型生成 `tsconfig.base.json`（含 `@lfaa/*` paths 门面）、`tsconfig.json`（兼容壳）、`tsconfig.host.json`（聚合工程）与 27 个包的 `tsconfig.json`。新增或删除包后重跑。
 - `sync-manifests.mjs`：写入各包 `main` / `types` / `exports` / `files` / `publishConfig` / `repository`，并移除 `private`。出口形状固定为 `types → lib/types/index.d.ts`、`default → lib/index.js`、`"./src/*": "./src/*"`。
 - `build.mjs`：完整构建。清空各包 `lib` → `tsc -b tsconfig.host.json` 产出 `lib/types` → `tsdown` 打包出 `lib/index.js` → 校验产物 → 构建 Web 产物。对应 `pnpm build`；分段可用 `pnpm build:lib` / `pnpm build:bundle` / `pnpm build:web`。
-- `check-workspace.mjs`：仓库边界检查（只扫 `packages/`；`vendor/` 为上游源码，不套用本仓规范）。校验包名 kebab-case 与 `exports` 存在、禁止 `@lfaa/*/src|client/*` 深层导入、Host 侧禁止 React/DOM/样式、Client 侧禁止 Node 内建模块、依赖必须声明且无循环依赖、插件包必须有默认导出（`plugin-default-export`）、`apps/` 只能导入 client 子路径与 boot 包（`app-host-import`）、每个包必须有 README 双语三件套（`readme-pair`）、包必须落在已登记分组（`package-group`）、源码目录不得残留构建产物（`stray-emit`），并把缺少中文首行注释记为警告。有错误时退出码 1。支持 `--root <dir>` 指向任意目录，便于用临时夹具验证规则本身。
-- `sync-readmes.mjs`：按 DSH 结构为每个包生成 `README.md`（英文）与 `README.zh.md`（中文）；英文摘要登记在脚本的 `META` 中，中文摘要取自 `package.json` 的 `description`。新增包必须先在 `META` 登记。
+- `check-workspace.mjs`：仓库边界检查（只扫 `packages/` 与 `apps/`；`vendor/` 为上游源码，不套用本仓规范）。校验包名 kebab-case 与 `exports` 存在、禁止 `@lfaa/*/src|client/*` 深层导入、Host 侧禁止 React/DOM/样式、Client 侧禁止 Node 内建模块、**Client 侧禁止用相对路径导入 `src/`（`client-host-relative`）**、依赖必须声明且无循环依赖、插件包必须有默认导出（`plugin-default-export`）、`apps/` 只能导入 client 子路径与 boot 包（`app-host-import`）、每个包必须有 README 双语三件套（`readme-pair`）、包必须落在已登记分组（`package-group`）、源码目录不得残留构建产物（`stray-emit`）、**文件规模硬上限（`file-size`：`tsx` 400 / `ts` 500 / `module.css` 400 行）**、**client 样式禁止写死颜色（`css-theme-literal`）**，并把缺少中文首行注释记为警告。有错误时退出码 1。
+- `check-allowlist.json`：上一条规则的棘轮豁免清单，按规则名登记「已存在且已知」的违规文件，只允许减少不允许增加；某条目不再违规时会以 `allowlist-stale` 警告提示删除，写了未登记的规则名会直接报错。拆分/修复后请同轮删除对应条目。
+- `check-workspace.mjs` 开关：`--root <dir>` 指向任意目录，便于用临时夹具验证规则本身；`--verbose` 展开「处于拆分提示区间」的逐文件明细（默认只汇总成一条警告）；`--no-allowlist` 忽略全部豁免、按「如果现在没有豁免」报告，用于盘点存量债务。
+- `css-theme-literal` 判定细节：只扫 `client/**` 样式；阴影/滤镜/玻璃材质（`box-shadow`、`filter`、`--*shadow/sheen/glow*`）与 α ≤ 0.2 的半透明背景/边框属于表面质感，自动放行；`var(--x, #固定色)` 形式回退无论出现在哪一行都算违规。允许写具体色值的只有变量定义层、代码高亮调色板与主题预览样张，登记在 `check-allowlist.json`（当前 5 个文件），只减不增。
+- `lint-workspace.mjs`：仓库级 Lint（AST 规则，复用仓库已有的 TypeScript 编译器 API，无需额外依赖或联网）。扫描各包 `src|client|contract` 与 `apps/*/src`，规则：未使用导入、显式 `any`、调试用 `console.log`（`warn`/`error` 允许）、`debugger`、宽松相等（`== null` 放行）、空 `catch`（带注释说明的放行）、`@ts-ignore`/`@ts-nocheck`、无说明的 `@ts-expect-error`。命中即退出码 1；支持 `--root <dir>` 跑临时夹具。对应 `pnpm lint`。
+- `lint-allowlist.json`：Lint 的棘轮豁免清单（schema 同 `check-allowlist.json`）。当前为空，表示规则已零违规：以后出现命中应先修代码，而不是登记豁免。
+- `check-workspace.test.mjs` / `lint-workspace.test.mjs`：两套规则的回归测试，用 `--root` 临时夹具验证「能拦住 / 豁免生效 / 过期提示 / 未知规则报错」，不往仓库写违规样本。
+- `sync-readmes.mjs`：按 DSH 结构为每个包生成 `README.md`（英文）与 `README.zh.md`（中文）；英文摘要登记在脚本的 `META` 中，中文摘要取自 `package.json` 的 `description`。新增包必须先在 `META` 登记。**生成时保留各包手写的 `Dev Note` / `开发说明` 段落**（旧版会覆盖成 `None.`/`无。`，属数据丢失缺陷，已修复）；导出表按 `package.json` 的 `exports` 生成，含 `./contract`。
 - `verify-translation-pairing.mjs`：双语配对校验。按英文标题分段计算中英段落哈希并写入 `README.i18n.yaml`；`--write` 生成记录，不带参数则校验，漂移时报错。
-- `test.mjs`：统一测试入口。枚举 `packages/**/tests/*.test.ts(x)` 后交给 Node 测试运行器（`node:test` + `tsx`）；`tsx` 读取 tsconfig 的 `paths` 门面，因此测试直接跑源码而不是 `lib`。支持 `--filter <子串>` 与 `--reporter <名称>`。
+- `probe-loader.mjs`：Loader 按包名装载探针。以 `packages/bundle/web/package.json` 为解析基准（该包声明了全部可安装插件包；`apps/web` 只有前端入口依赖，作基准会导致 `@lfaa/tools` 解析失败）。覆盖装载/卸载/重装/并存/二创全链路，需先 `pnpm build`。对应 `pnpm probe:loader`。
+- `install-hooks.mjs`：把当前克隆的 `core.hooksPath` 指向 `.githooks`，启用提交前门禁（空白检查 + `node scripts/check-workspace.mjs`，约 1-2 秒）。只改本地配置，不影响全局；撤销用 `git config --local --unset core.hooksPath`。对应 `pnpm hooks:install`。
+- `test.mjs`：统一测试入口。枚举 `packages/**/tests/*.test.ts(x)` 与 `scripts/**/*.test.mjs` 后交给 Node 测试运行器（`node:test` + `tsx`）；`tsx` 读取 tsconfig 的 `paths` 门面，因此包测试直接跑源码而不是 `lib`。支持 `--filter <子串>` 与 `--reporter <名称>`。
 
 ## 目录职责
 
 - `packages/`：本仓自研插件包，遵循全部命名与注释规范。
 - `vendor/`：内嵌的上游运行时源码，放宽编译选项、单独构建，见 `vendor/README.md`。
 - `patches/`：第三方依赖补丁（pnpm patch），见 `patches/README.md`。
+- `.githooks/`：仓库级提交钩子，由 `pnpm hooks:install` 启用（空白检查 + `check` + `lint`）。
+- `.github/workflows/`：CI。在 `windows-latest` 上按 `install --frozen-lockfile → check → lint → readme:pair → typecheck → test → build → probe:loader` 顺序跑完整门禁（仓库有 Windows 专有实现与测试，暂不套用 Linux runner）。
 
 ## 构建与解析模型
 

@@ -1,31 +1,12 @@
-// 浏览器端模型配置表单，通过聊天 Store 调用 Host 查询模型、保存档案和测试连接。
+// 浏览器端模型配置弹窗：持有表单状态与初始化回填，处理模型同步、保存、测试、删除，并组合表单主体与底部操作栏。
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { IconArrowLeft, IconCheck, IconLoader2, IconPlus, IconX } from "@tabler/icons-react";
+import { IconPlus } from "@tabler/icons-react";
 import { getArkPlanKind } from "@lfaa/llm/ark-plan";
-import { ModalDialog, type StatusTone } from "@lfaa/ui-primitives/client";
+import { ModalDialog } from "@lfaa/ui-primitives/client";
 import type { ChatClientStore, LlmApiProtocolOption, ModelCapabilityItem, PublicLlmProfileItem } from "../chat-store";
-import { providerAccessMessages } from "../locales";
-import {
-  inferProtocolForPreset,
-  LLM_API_PROTOCOL_OPTIONS,
-  LOCAL_RUNTIME_PRESETS,
-  resolveNextBaseUrlForProtocol,
-  type ModelProviderPreset,
-} from "../provider-catalog";
-import { ArkModels } from "./Ark-Models";
-import styles from "./ModelProviderGrid.module.css";
-
-// 只为明确支持思考的模型生成档位标签，能力未知时留空。
-function formatCapabilityTag(cap: ModelCapabilityItem, isZh: boolean): string {
-  if (cap.reasoningMode === "fixed") return isZh ? "深度思考" : "Reasoning";
-  if (cap.reasoningMode === "effort" && cap.reasoningLevels.length > 0) {
-    const labelMap: Record<string, string> = isZh
-      ? { minimal: "极简", low: "低", medium: "中", high: "高", max: "极高" }
-      : { minimal: "Min", low: "Low", medium: "Med", high: "High", max: "Max" };
-    return cap.reasoningLevels.map((lvl) => labelMap[lvl] ?? lvl).join("/");
-  }
-  return "";
-}
+import { inferProtocolForPreset, type ModelProviderPreset } from "../provider-catalog";
+import { ModelProviderFooter } from "./ModelProviderFooter";
+import { ModelProviderForm, type ModelProviderStatusNotice } from "./ModelProviderForm";
 
 /** 共用普通 API 和套餐表单，从接入方式进入时提供返回入口。 */
 export function ModelProviderModal({
@@ -60,7 +41,7 @@ export function ModelProviderModal({
   const [officialModels, setOfficialModels] = useState<ModelCapabilityItem[]>([]);
   const [fetchingModels, setFetchingModels] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [statusNotice, setStatusNotice] = useState<{ tone: StatusTone; title?: string; message: string } | null>(null);
+  const [statusNotice, setStatusNotice] = useState<ModelProviderStatusNotice | null>(null);
   const initKeyRef = useRef<string | null>(null);
   const modelInputId = useId();
   const focusFormOnOpen = Boolean(onBack);
@@ -131,33 +112,11 @@ export function ModelProviderModal({
   const subscription = provider.subscription === true;
   const isLocal = provider.id === "local" || kind === "ollama";
   const arkPlan = subscription ? getArkPlanKind(provider.defaultBaseUrl) : undefined;
-  const visibleOfficialModels = provider.id === "volcengine" ? officialModels : officialModels.slice(0, 18);
   // 套餐的保存和测试都使用当前所选协议对应的官方预设地址，防止凭据随表单草稿发送到普通 API。
   const configProtocol = apiProtocol;
   const configBaseUrl = subscription
     ? (provider.protocolBaseUrls?.[apiProtocol] ?? provider.defaultBaseUrl)
     : baseUrl.trim();
-
-  // 原地状态按钮：同步中/测试中 → 成功（连接成功 · OK）/ 失败，成功态数秒后自动复位
-  const tone = statusNotice?.tone;
-  const isErrorTone = tone === "error" || tone === "warning";
-  const inlineToneClass =
-    tone === "success" ? styles.inlineBtnSuccess
-      : isErrorTone ? styles.inlineBtnError
-        : tone === "loading" ? styles.inlineBtnLoading
-          : "";
-  const inlineLabel = !statusNotice
-    ? (isLocal ? (isZh ? "获取本地模型" : "Fetch Local Models") : (isZh ? "获取官方模型" : "Fetch Official Models"))
-    : tone === "loading"
-      ? `${statusNotice.title ?? ""}…`
-      : tone === "success" && statusNotice.message
-        ? `${statusNotice.title ?? ""} · ${statusNotice.message}`
-        : (statusNotice.title ?? "");
-  const inlineIcon =
-    tone === "loading" ? <IconLoader2 size={13} stroke={2} className={styles.spinIcon} />
-      : tone === "success" ? <IconCheck size={13} stroke={2.2} />
-        : isErrorTone ? <IconX size={13} stroke={2.2} />
-          : null;
 
   const title = isZh ? `${provider.nameZh} 模型配置` : `${provider.nameEn} Configuration`;
   const subtitle = isZh ? provider.descZh : provider.descEn;
@@ -337,220 +296,38 @@ export function ModelProviderModal({
         </span>
       )}
       footer={(
-        <div className={styles.footerGroup}>
-          {/* 返回和删除放在左侧，测试、保存和启用在右侧，窄屏下可分行。 */}
-          <div className={styles.footerLeft}>
-            {onBack && (
-              <button type="button" className={`${styles.btn} ${styles.backBtn}`} disabled={busy} onClick={onBack}>
-                <IconArrowLeft size={14} aria-hidden="true" />
-                {isZh ? "返回" : "Back"}
-              </button>
-            )}
-            {profile?.id && canDelete && (
-              <button type="button" className={styles.dangerBtn} disabled={busy} onClick={() => void handleDelete()}>
-                {isZh ? "删除配置" : "Delete"}
-              </button>
-            )}
-          </div>
-          <div className={styles.footerRight}>
-            <button type="button" className={styles.btn} disabled={busy} onClick={() => void handleTest()}>
-              {isZh ? "测试连接" : "Test"}
-            </button>
-            <button type="button" className={styles.btn} disabled={busy} onClick={() => void saveConfig(false)}>
-              {isZh ? "保存" : "Save"}
-            </button>
-            <button type="button" className={styles.primaryBtn} disabled={busy} onClick={() => void saveConfig(true)}>
-              {isZh ? "保存并设为当前模型" : "Save & Use"}
-            </button>
-          </div>
-        </div>
+        <ModelProviderFooter
+          isZh={isZh}
+          busy={busy}
+          canDelete={canDelete}
+          profileId={profile?.id}
+          onBack={onBack}
+          onDelete={() => void handleDelete()}
+          onTest={() => void handleTest()}
+          onSave={() => void saveConfig(false)}
+          onSaveAndUse={() => void saveConfig(true)}
+        />
       )}
     >
-      <div className={styles.modalForm} ref={focusForm} tabIndex={focusFormOnOpen ? -1 : undefined}>
-        <label className={styles.field}>
-          <span className={styles.fieldLabel}>{isZh ? "显示名称" : "Display Name"}</span>
-          <input className={styles.input} value={name} onChange={(e) => setName(e.target.value)} />
-        </label>
-
-        <div className={styles.field}>
-          <span className={styles.fieldLabel}>{isZh ? "API 协议格式" : "API Protocol"}</span>
-          <div className={styles.chipsRow} role="group" aria-label={isZh ? "API 协议格式" : "API Protocol"}>
-            {LLM_API_PROTOCOL_OPTIONS.filter((opt) => provider.supportedProtocols.includes(opt.id)).map((opt) => (
-              <button
-                key={opt.id}
-                type="button"
-                className={`${styles.chipBtn} ${apiProtocol === opt.id ? styles.chipBtnActive : ""}`}
-                onClick={() => {
-                  setApiProtocol(opt.id);
-                  setBaseUrl((prev) => resolveNextBaseUrlForProtocol(provider, prev, opt.id));
-                }}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* 普通 API 可编辑地址，套餐地址与所选协议的官方端点绑定。 */}
-        <label className={styles.field}>
-          <span className={styles.fieldLabel}>{isZh ? "接口地址 (Base URL)" : "Base URL"}</span>
-          {provider.id === "local" && (
-            <div className={styles.chipsRow}>
-              {LOCAL_RUNTIME_PRESETS.map((preset) => {
-                const targetUrl = apiProtocol === "anthropic-messages"
-                  ? preset.baseUrl.replace(/\/v1$/u, "")
-                  : preset.baseUrl;
-                const active = baseUrl.trim().replace(/\/+$/u, "") === targetUrl;
-                return (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    className={`${styles.chipBtn} ${active ? styles.chipBtnActive : ""}`}
-                    onClick={() => setBaseUrl(targetUrl)}
-                  >
-                    {preset.label}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-          <input
-            className={styles.input}
-            value={subscription ? configBaseUrl : baseUrl}
-            readOnly={subscription}
-            onChange={(e) => setBaseUrl(e.target.value)}
-          />
-        </label>
-
-        <div className={styles.field}>
-          <div className={styles.fieldHeaderRow}>
-            <label htmlFor={modelInputId} className={styles.fieldLabel}>{isZh ? "模型 ID (Model)" : "Model ID"}</label>
-            {/* 同步 / 测试 / 保存状态直接在此按钮原地切换展示，不再弹出顶部横幅 */}
-            {subscription ? (statusNotice && (
-              <span className={`${styles.inlineActionBtn} ${inlineToneClass}`} role="status">
-                {inlineIcon}<span>{inlineLabel}</span>
-              </span>
-            )) : <button
-              type="button"
-              className={`${styles.inlineActionBtn} ${inlineToneClass}`}
-              disabled={fetchingModels || busy}
-              title={statusNotice?.message || undefined}
-              aria-live="polite"
-              onClick={() => void handleFetchModels()}
-            >
-              {inlineIcon}
-              <span>{inlineLabel}</span>
-            </button>}
-          </div>
-          <input id={modelInputId} className={styles.input} value={model} onChange={(e) => setModel(e.target.value)} />
-          {isErrorTone && statusNotice?.message && (
-            <span className={styles.errorHint} role="alert">{statusNotice.message}</span>
-          )}
-          {/* 方舟展示公开套餐目录，其他套餐允许填写官方 ID，普通 API 展示查询结果。 */}
-          {arkPlan ? (
-            <ArkModels plan={arkPlan} model={model} isZh={isZh} onSelect={setModel} />
-          ) : subscription ? (
-            <span className={styles.fieldHint}>{providerAccessMessages[isZh ? "zh" : "en"].planModel}</span>
-          ) : officialModels.length > 0 ? (
-            <div className={styles.chipsRow}>
-              {visibleOfficialModels.map((item) => {
-                const capText = formatCapabilityTag(item, isZh);
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    title={item.displayName ? `${item.displayName} (${item.id})` : item.id}
-                    className={`${styles.chipBtn} ${model === item.id ? styles.chipBtnActive : ""}`}
-                    onClick={() => setModel(item.id)}
-                  >
-                    <span>{item.displayName && item.displayName !== item.id ? `${item.displayName} (${item.id})` : item.id}</span>
-                    {capText && <span className={styles.capTag}>· {capText}</span>}
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            <span className={styles.fieldHint}>
-              {isLocal
-                ? (isZh ? "请先启动本地模型服务（如 Ollama / LM Studio），再点击「获取本地模型」" : "Start your local server (Ollama / LM Studio) and click Fetch Local Models")
-                : (isZh ? "填写凭据后点击「获取官方模型」从官方接口实时加载真实可用模型" : "Click Fetch Official Models after entering credentials")}
-            </span>
-          )}
-        </div>
-
-        <label className={styles.field}>
-          <span className={styles.fieldLabel}>
-            {isZh ? "上下文窗口（tokens，可选）" : "Context window (tokens, optional)"}
-          </span>
-          <input
-            type="number"
-            min={1000}
-            step={1000}
-            className={styles.input}
-            value={contextWindow}
-            placeholder={isZh ? "留空使用提供商默认值，不显示上下文占比" : "Empty = provider default; context % hidden"}
-            onChange={(e) => setContextWindow(e.target.value)}
-          />
-        </label>
-
-        <div className={styles.field}>
-          <span className={styles.fieldLabel}>
-            {isZh ? "成本单价（元 / 百万 tokens，可选）" : "Price per 1M tokens (CNY, optional)"}
-          </span>
-          <div className={styles.priceRow}>
-            <input
-              type="number"
-              min={0}
-              step={0.01}
-              className={styles.input}
-              value={inputPrice}
-              placeholder={isZh ? "输入" : "Input"}
-              aria-label={isZh ? "输入单价" : "Input price"}
-              onChange={(event) => setInputPrice(event.target.value)}
-            />
-            <input
-              type="number"
-              min={0}
-              step={0.01}
-              className={styles.input}
-              value={outputPrice}
-              placeholder={isZh ? "输出" : "Output"}
-              aria-label={isZh ? "输出单价" : "Output price"}
-              onChange={(event) => setOutputPrice(event.target.value)}
-            />
-            <input
-              type="number"
-              min={0}
-              step={0.01}
-              className={styles.input}
-              value={cachedInputPrice}
-              placeholder={isZh ? "缓存读取" : "Cached"}
-              aria-label={isZh ? "缓存读取单价" : "Cached input price"}
-              onChange={(event) => setCachedInputPrice(event.target.value)}
-            />
-          </div>
-          <span className={styles.fieldHint}>
-            {isZh
-              ? "仅用于本地成本估算，不参与计费；缓存读取留空按输入单价计算。"
-              : "Local cost estimate only; cached input falls back to the input price when empty."}
-          </span>
-        </div>
-
-        <label className={styles.field}>
-          <span className={styles.fieldLabel}>{isZh ? "API Key" : "API Key"}</span>
-          <input
-            type="password"
-            className={styles.input}
-            value={apiKey}
-            placeholder={
-              kind === "ollama"
-                ? (isZh ? "本地服务通常无需填写 API Key" : "Optional for local Ollama")
-                : (profile?.hasApiKey ? `${profile.apiKeyMasked}（留空保持不变）` : (isZh ? "输入 API Key..." : "Enter API Key..."))
-            }
-            onChange={(e) => setApiKey(e.target.value)}
-          />
-        </label>
-      </div>
+      <ModelProviderForm
+        isZh={isZh}
+        provider={provider}
+        profile={profile}
+        subscription={subscription}
+        isLocal={isLocal}
+        arkPlan={arkPlan}
+        configBaseUrl={configBaseUrl}
+        values={{ name, kind, apiProtocol, baseUrl, model, apiKey, contextWindow, inputPrice, outputPrice, cachedInputPrice }}
+        setters={{ setName, setApiProtocol, setBaseUrl, setModel, setApiKey, setContextWindow, setInputPrice, setOutputPrice, setCachedInputPrice }}
+        officialModels={officialModels}
+        fetchingModels={fetchingModels}
+        busy={busy}
+        statusNotice={statusNotice}
+        modelInputId={modelInputId}
+        focusForm={focusForm}
+        focusFormOnOpen={focusFormOnOpen}
+        onFetchModels={() => void handleFetchModels()}
+      />
     </ModalDialog>
   );
 }

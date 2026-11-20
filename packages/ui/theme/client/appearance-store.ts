@@ -11,7 +11,7 @@ import {
   type AppearanceMode,
   type ThemePresetId,
   type ThemeVariantSettings,
-} from "../src/index";
+} from "../contract/index";
 
 const MODE_STORAGE_KEY = "lfaa:appearance-mode";
 const CONFIG_STORAGE_KEY = "lfaa:appearance-config-v1";

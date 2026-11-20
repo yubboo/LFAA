@@ -230,13 +230,18 @@ shell.nav.right        # 右侧：上下文菜单与操作面板
 
 ### 3.4 浅色/深色双主题与 CSS 变量规范（强制）
 
-1. **必须使用语义化主题变量**：所有 UI 组件（含弹窗、悬浮卡片、右键菜单、表单控件、代码块与徽章）必须使用 `@lfaa/ui-theme` 注入的 CSS 变量：
-   - 画布与表面：`--color-canvas`、`--color-surface`、`--color-panel`、`--color-active`
-   - 边框与文字：`--color-line`、`--color-ink`、`--color-muted`
-   - 强调色联动：`--color-accent`、`--color-accent-rgb`、`--accent-soft-bg`、`--accent-soft-border`、`--accent-text`
-2. **禁止写死暗色/亮色兜底值**：严禁出现 `var(--color-bg, #111216)`、`var(--glass-card-bg, rgba(24, 25, 30, 0.96))` 或裸写 `rgb(255 255 255 / 0.12)` 作为通用表面/边框（未开启玻璃态或切换至浅色背景时会导致黑底黑字或白底白字）。弹窗、悬浮卡统一使用 `var(--glass-card-bg, var(--color-surface))`，边框统一使用 `var(--color-line)`。
-3. **语义色与局部透明度适配**：增删行（`+` / `-`）、危险操作、状态点等语义色若在浅色/深色下对比度不足，须补充 `:global(:root[data-resolved-theme="light"])` 适配规则。
-4. **验收要求**：每次前端界面改动必须在深色和浅色两种主题下实测弹窗、悬浮层、表单控件与正文对比度，确认无暗色残留或不可读问题。
+**项目代码严禁写死颜色。** 组件里只允许出现 `var(--…)`；具体色值只允许出现在变量定义层，由 `@lfaa/ui-theme` 语义变量统一注入，并由 `pnpm check` 的 `css-theme-literal` 规则强制（含 `var(--x, #hex)` 形式的固定色回退一律禁止）。
+
+1. **必须使用语义化主题变量**：所有 UI 组件（含弹窗、悬浮卡片、右键菜单、表单控件、代码块与徽章）只能消费 `@lfaa/ui-theme` 的 `client/tokens.css` 注入的变量：
+   - 画布与表面：`--color-shell`、`--color-rail`、`--color-panel`、`--color-topbar`、`--color-surface`、`--color-popover`、`--color-active`、`--color-menu-hover`
+   - 边框与文字：`--color-line`、`--glass-border`、`--color-ink`、`--color-muted`
+   - 强调色联动：`--color-accent`、`--color-accent-rgb`
+   - 状态与语义：`--color-success`/`--color-success-strong`/`--color-success-rgb`、`--color-warning*`、`--color-danger`/`--color-danger-strong`/`--color-danger-rgb`、`--color-info*`、`--color-link`/`--color-link-hover`、`--color-violet*`、`--color-orange*`、`--color-teal*`、`--color-activity-positive*`、`--color-activity-negative*`
+   - 代码与彩色底：`--color-code-bg`/`--color-code-bg-alt`/`--color-code-ink`/`--color-code-muted`、`--color-on-accent`、`--color-scrim`
+2. **禁止写死与固定色回退**：严禁裸写十六进制、`rgb()`、`hsl()` 作为通用表面/边框/文字/状态色，也禁止 `var(--color-bg, #111216)`、`var(--glass-card-bg, rgba(24, 25, 30, 0.96))` 这类回退；变量缺失时必须暴露问题，而不是退回某个固定色。
+3. **状态色成对定义，组件只消费**：新增状态色必须在 `@lfaa/ui-theme` 的 `tokens.css` 浅色与深色块（含系统主题媒体查询块）成对提供，并保证正文对比度 ≥ 4.5:1；组件不得自带 `:global(:root[data-resolved-theme="light"])` 颜色覆盖（变量已带两端值，覆盖属重复定义）。仅半透明叠层可用 `rgb(var(--color-*-rgb) / α)`。
+4. **允许的具体色值只有三类**，且必须登记在 `scripts/check-allowlist.json`：变量定义层（`@lfaa/ui-theme/client/tokens.css`）、代码高亮调色板（`CodeSyntax` / `MarkdownContent` / `FileChangePreview` 中的 token 色）、主题预览样张（`AppearanceSettings`）。阴影、滤镜、玻璃材质与 α ≤ 0.2 的半透明叠层属于表面质感，规则自动放行。豁免清单只减不增。
+5. **验收要求**：每次前端界面改动必须在深色和浅色两种主题下实测弹窗、悬浮层、表单控件与正文对比度，确认无暗色残留或不可读问题；新增/调整状态色时给出对比度计算或实测结论。
 
 ### 3.5 活动行对齐与状态排布（强制）
 

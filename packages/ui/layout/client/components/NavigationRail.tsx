@@ -1,6 +1,6 @@
 // 呈现工作台一级图标栏，负责直接导航、更多菜单及本地工作区状态。
 import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
-import type { WorkbenchAccountActionContribution } from "../../src/index";
+import type { WorkbenchAccountActionContribution } from "../../contract/index";
 import type { LocaleMessages } from "../locales";
 import type { NavigationView } from "../navigation";
 import type { WorkbenchDomainId } from "../workbench-domains";

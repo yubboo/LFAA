@@ -93,7 +93,7 @@
 
 .badgeRunning {
   border-color: var(--color-accent);
-  background: rgba(var(--color-accent-rgb), 0.14);
+  background: rgb(var(--color-accent-rgb) / 0.14);
   color: var(--color-ink);
 }
 

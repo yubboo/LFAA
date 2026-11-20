@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { IconCheck, IconChevronDown } from "@tabler/icons-react";
-import { ACCENT_PRESETS, type AccentPresetId } from "../../src/index";
+import { ACCENT_PRESETS, type AccentPresetId } from "../../contract/index";
 import type { ThemeLocaleMessages } from "../locales";
 import styles from "./AccentSelect.module.css";
 

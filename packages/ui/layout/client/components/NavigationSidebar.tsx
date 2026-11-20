@@ -7,7 +7,7 @@ import type {
   WorkbenchSectionItem,
   WorkbenchSectionProvider,
   WorkbenchViewContribution,
-} from "../../src/index";
+} from "../../contract/index";
 import type { LocaleMessages } from "../locales";
 import type { LocalProject, NavigationTarget, NavigationView, RecentItem, WorkspaceMode } from "../navigation";
 import { buildNavigationTargets, type WorkbenchDomainConfig } from "../workbench-domains";

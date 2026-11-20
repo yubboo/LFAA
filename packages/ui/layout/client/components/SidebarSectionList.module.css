@@ -79,8 +79,8 @@
 }
 
 .groupDropActive {
-  background: rgb(var(--color-accent-rgb, 230 106 168) / 0.1);
-  outline: 1px dashed rgb(var(--color-accent-rgb, 230 106 168) / 0.55);
+  background: rgb(var(--color-accent-rgb) / 0.1);
+  outline: 1px dashed rgb(var(--color-accent-rgb) / 0.55);
 }
 
 /* 分组标题同时承载折叠、拖放目标和按需显露的工具入口。 */
@@ -237,8 +237,8 @@
   margin-left: auto;
   border-radius: 999px;
   /* 跟随当前主题强调色与柔和外圈光晕 */
-  background: var(--color-accent, #3b82f6);
-  box-shadow: 0 0 0 3.5px rgb(var(--color-accent-rgb, 59 130 246) / 0.2);
+  background: var(--color-accent);
+  box-shadow: 0 0 0 3.5px rgb(var(--color-accent-rgb) / 0.2);
 }
 
 .itemRow:hover .trailingHint,
@@ -266,8 +266,8 @@
 }
 
 .itemActive {
-  border-color: rgb(var(--color-accent-rgb, 230 106 168) / 0.42);
-  background: rgb(var(--color-accent-rgb, 230 106 168) / 0.12);
+  border-color: rgb(var(--color-accent-rgb) / 0.42);
+  background: rgb(var(--color-accent-rgb) / 0.12);
   color: var(--color-ink);
   font-weight: 550;
 }

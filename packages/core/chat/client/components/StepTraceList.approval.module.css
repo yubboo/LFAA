@@ -1,0 +1,83 @@
+/* 待审批工具卡片样式：卡片容器、标题提示、参数块与批准/拒绝按钮，从 StepTraceList.module.css 拆出。 */
+
+/* 区块：审批卡片容器，高风险时改用强调色描边与面板底色。 */
+.approvalCard {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid rgb(var(--color-accent-rgb) / 0.45);
+  border-radius: 0.85rem;
+  background: rgb(var(--color-accent-rgb) / 0.08);
+}
+
+.approvalCardRisk {
+  border-color: var(--color-accent);
+  background: var(--color-panel);
+}
+
+/* 区块：审批标题与提示文案。 */
+.approvalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  color: var(--color-ink);
+  font-size: 0.9em;
+  font-weight: 600;
+}
+
+.approvalHint,
+.approvalHintRisk {
+  margin: 0;
+  font-size: 0.8em;
+  line-height: 1.45;
+}
+
+.approvalHint {
+  color: var(--color-muted);
+}
+
+.approvalHintRisk {
+  color: var(--color-ink);
+}
+
+/* 区块：参数预览块，等宽字体保留原始参数格式。 */
+.approvalArgs {
+  margin: 0;
+  padding: 0.45rem 0.6rem;
+  border-radius: 0.55rem;
+  background: var(--color-panel);
+  color: var(--color-muted);
+  font-family: var(--code-font-family, monospace);
+  font-size: 0.82em;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* 区块：批准 / 拒绝操作按钮。 */
+.approvalActions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.approveBtn,
+.rejectBtn {
+  padding: 0.36rem 0.8rem;
+  border-radius: 0.55rem;
+  font-size: 0.86em;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.approveBtn {
+  border: 0;
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.rejectBtn {
+  border: 1px solid var(--color-line);
+  background: transparent;
+  color: var(--color-ink);
+}

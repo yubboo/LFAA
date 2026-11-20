@@ -256,7 +256,7 @@ packages/core/  # Agent、聊天、模型、存储、规则和工具等核心能
 │   │   │   ├── ComposerAddMenu.tsx  # 聊天输入框的加号菜单，提供添加文件和其他上下文的入口
 │   │   │   ├── ComposerRightActions.module.css  # 输入栏右下角语音输入（Ctrl+M）、三竖条录音波形、发送与停止（Ctrl+D）按钮及快捷键提示样式
 │   │   │   ├── ComposerRightActions.tsx  # 渲染输入栏右下角语音输入（Ctrl+M 波形状态）、发送与运行中取消（Ctrl+D）按钮及快捷键提示
-│   │   │   ├── ComposerScopeBar.module.css  # 聊天输入框上方挂载的工作位置与项目选择条及弹出浮层样式，消费 ShellTheme 变量兼容明暗主题
+│   │   │   ├── ComposerScopeBar.module.css  # 聊天输入框上方挂载的工作位置与项目选择条及弹出浮层样式，消费 @lfaa/ui-theme 语义变量兼容明暗主题
 │   │   │   ├── ComposerScopeBar.tsx  # 渲染聊天输入框上方的工作位置（此计算机/云端）与项目选择挂载条及搜索弹出浮层
 │   │   │   ├── GeneralSettingsControls.tsx  # 提供设置中心「常规」页复用的分组卡片、条目行、开关与圆角弹出式下拉选择菜单（支持图标、副标题与搜索过滤）
 │   │   │   ├── GeneralSettingsGeneralGroup.tsx  # 渲染设置中心「常规」页中的核心「常规」设置分组（项目外聊天目录、Shell、语言、历史、推理强度、开源许可证与插件等）
@@ -398,13 +398,12 @@ packages/ui/  # 公共 Shell、主题与跨业务交互原语
 │   │   │   ├── SearchDialog.module.css  # 搜索弹层为 Shell 导航提供聚焦后的快速入口
 │   │   │   ├── SearchDialog.tsx  # 本地导航与项目搜索弹层，支持聚焦和键盘操作
 │   │   │   ├── SettingsMenu.tsx  # 将设置中心目录映射为通用 SidebarSectionList 配置，复用同一套左二菜单栏组件与样式
-│   │   │   ├── ShellTheme.module.css  # 四栏工作区明暗主题与液态玻璃色彩变量，同时注入 :root 以保证 Portal 到 body 的弹窗/菜单继承完整主题变量
 │   │   │   ├── SidebarResizeHandle.tsx  # 渲染桌面端左二栏或右侧栏边缘的垂直拖拽调宽手柄
 │   │   │   ├── SidebarSectionList.module.css  # 统一的左二菜单栏分组、列表、搜索框与空态样式，供工作区与设置中心共用
 │   │   │   ├── SidebarSectionList.tsx  # 统一的左二菜单栏列表原语，复用搜索框、分组标题、折叠能力、拖拽分区、空态与液态玻璃交互样式
 │   │   │   ├── UserMenu.module.css  # 用户菜单固定在一级图标栏左下角，并跟随 Shell 主题变量
 │   │   │   ├── UserMenu.tsx  # 展示本地用户菜单，并复用现有外观设置入口与主题插件提供的头部快捷操作
-│   │   │   ├── WorkbenchShell.module.css  # 四栏可折叠工作区主结构，消费 ShellTheme 提供的明暗与玻璃配色变量
+│   │   │   ├── WorkbenchShell.module.css  # 四栏可折叠工作区主结构，消费 @lfaa/ui-theme 提供的明暗与玻璃配色变量
 │   │   │   ├── WorkbenchShell.tsx  # 装配主题、四栏可折叠骨架，并通过 Cordis workbench 服务响应业务插件贡献
 │   │   │   └── WorkspaceBar.tsx  # 渲染工作区顶部栏，左侧栏展开/收起按钮、当前标题、本地模式状态与右侧栏展开/收起按钮
 │   │   ├── css-modules.d.ts  # 为 Client 中的 CSS Modules 提供静态类名类型
@@ -465,7 +464,8 @@ packages/ui/  # 公共 Shell、主题与跨业务交互原语
     │   ├── appearance-store.ts  # 在浏览器端管理 LFAA 主题与液态玻璃配置，启动即同步至根元素 CSS 变量并监听系统明暗切换
     │   ├── css-modules.d.ts  # 为主题包 Client 侧 CSS Modules 提供类型声明
     │   ├── index.tsx  # 导出主题包的 Client Cordis 插件入口，启动即同步主题 CSS 变量，并向工作台注册“外观”设置视图
-    │   └── locales.ts  # 集中维护主题与外观设置页面在中英文环境下的展示文案
+    │   ├── locales.ts  # 集中维护主题与外观设置页面在中英文环境下的展示文案
+    │   └── tokens.css  # 主题语义变量定义层：浅色/深色/系统主题成对定义，组件只消费变量
     ├── src/  # 主题预设、外观配置、色值与序列化契约
     │   └── index.ts  # 定义外观与液态玻璃主题系统的数据模型、预设配置及安全序列化工具
     ├── tests/  # 包级行为与回归测试

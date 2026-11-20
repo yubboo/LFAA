@@ -1,0 +1,14 @@
+#!/bin/sh
+# 提交前门禁：只跑快速规则检查与空白校验，完整测试/构建交给 CI。
+# 需要跳过时用 git commit --no-verify（先确认不是真问题）。
+set -e
+
+# 已暂存内容的空白错误（行尾空格、冲突标记）直接拦下。
+git diff --cached --check
+
+# 仓库边界、文件规模、Client 隔离与主题色规则；约 1-2 秒。
+# 直接调用 node 而不是 pnpm：Git Bash 下 pnpm 的 .cmd 包装不一定可执行。
+node scripts/check-workspace.mjs
+
+# AST 规则：未使用导入、显式 any、调试输出、宽松相等、空 catch、TS 抑制指令。
+node scripts/lint-workspace.mjs

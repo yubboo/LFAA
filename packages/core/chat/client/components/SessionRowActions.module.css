@@ -25,7 +25,7 @@
 }
 
 .actionBtnPinned {
-  color: var(--accent-text, #f472b6);
+  color: var(--accent-text, var(--color-accent));
 }
 
 .actionBtn > svg {

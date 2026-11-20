@@ -48,7 +48,7 @@
   height: 0.5rem;
   border-radius: 999px;
   /* 跟随当前主题强调色与柔和外圈光晕 */
-  background: var(--color-accent, #3b82f6);
-  box-shadow: 0 0 0 3px rgb(var(--color-accent-rgb, 59 130 246) / 0.2);
+  background: var(--color-accent);
+  box-shadow: 0 0 0 3px rgb(var(--color-accent-rgb) / 0.2);
   flex: 0 0 auto;
 }

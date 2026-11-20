@@ -1,6 +1,6 @@
 // 渲染工作区顶部栏：左侧栏展开/收起按钮、当前标题、本地模式状态、插件工作区快捷入口与右侧栏展开/收起按钮。
 import type { ReactNode } from "react";
-import type { WorkbenchWorkspaceActionContribution } from "../../src/index";
+import type { WorkbenchWorkspaceActionContribution } from "../../contract/index";
 import type { LocaleMessages } from "../locales";
 import { NavigationIcon } from "./NavigationIcon";
 import styles from "./WorkbenchShell.module.css";

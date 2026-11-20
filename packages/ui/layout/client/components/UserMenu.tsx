@@ -1,6 +1,6 @@
 // 展示本地用户菜单，并复用现有外观设置入口与主题插件提供的头部快捷操作。
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
-import type { WorkbenchAccountActionContribution } from "../../src/index";
+import type { WorkbenchAccountActionContribution } from "../../contract/index";
 import type { LocaleMessages } from "../locales";
 import { NavigationIcon } from "./NavigationIcon";
 import styles from "./UserMenu.module.css";

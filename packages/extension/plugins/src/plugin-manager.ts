@@ -1,7 +1,6 @@
 // @lfaa/plugins Host 侧插件生命周期管理器：基于 Cordis Loader 实现真实装载、卸载与 profile 持久化。
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { spawn } from "node:child_process";
 import { cp, mkdir, readdir, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
@@ -10,6 +9,7 @@ import type { Context } from "@deepseek-ai/cordis";
 import "@lfaa/tools";
 import type { PluginCatalogItem, PluginManifest, PluginRecord, PluginRunStatus, PresetSummary } from "../contract/index";
 import { parseInstallSpec as parseSpec } from "./install-spec";
+import { spawnPnpm } from "./pnpm-spawn";
 
 /** Loader 的最小结构化契约：避免本包反向依赖内嵌 loader 的类型。 */
 interface LoaderLike {
@@ -414,13 +414,11 @@ export class PluginManager {
     const lockFlag = args[0] === "install" ? ["--no-frozen-lockfile"] : [];
     // append-only 让 pnpm 输出退化为逐行日志，SSE 才能实时看到进展。
     const full = [...args, "--dir", this.profileRoot, "--prefer-offline", "--reporter=append-only", ...lockFlag];
-    const shellArgs = full.map((arg) => (arg.includes(" ") ? `"${arg}"` : arg)).join(" ");
-    const child = process.platform === "win32"
-      ? spawn(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", `pnpm ${shellArgs}`], { cwd: this.profileRoot, stdio: ["ignore", "pipe", "pipe"] })
-      : spawn("pnpm", full, { cwd: this.profileRoot, stdio: ["ignore", "pipe", "pipe"] });
+    // 参数校验与平台差异都在 spawnPnpm 内处理：Windows 不再拼接裸命令行。
+    const child = spawnPnpm(full, this.profileRoot);
     let output = "";
-    child.stdout.on("data", (chunk) => { output += String(chunk); });
-    child.stderr.on("data", (chunk) => { output += String(chunk); });
+    child.stdout?.on("data", (chunk) => { output += String(chunk); });
+    child.stderr?.on("data", (chunk) => { output += String(chunk); });
     const code = await new Promise<number>((done) => child.on("close", (value) => done(value ?? 1)));
     return { code, output };
   }
@@ -619,17 +617,11 @@ export class PluginManager {
     await writeFile(join(this.profileRoot, "package.json"), `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
 
     const args = ["install", "--dir", this.profileRoot, "--prefer-offline", "--no-frozen-lockfile"];
-    // Node 20+ 禁止无 shell 直接 spawn .cmd；Windows 上经 cmd.exe 转发，POSIX 直接执行。
-    const install = process.platform === "win32"
-      ? spawn(
-        process.env.ComSpec ?? "cmd.exe",
-        ["/d", "/s", "/c", `pnpm ${args.map((arg) => (arg.includes(" ") ? `"${arg}"` : arg)).join(" ")}`],
-        { cwd: this.profileRoot, stdio: ["ignore", "pipe", "pipe"] },
-      )
-      : spawn("pnpm", args, { cwd: this.profileRoot, stdio: ["ignore", "pipe", "pipe"] });
+    // 统一走 spawnPnpm：参数校验与平台差异集中在一处，Windows 不再手工拼接命令行。
+    const install = spawnPnpm(args, this.profileRoot);
     let output = "";
-    install.stdout.on("data", (chunk) => { output += String(chunk); });
-    install.stderr.on("data", (chunk) => { output += String(chunk); });
+    install.stdout?.on("data", (chunk) => { output += String(chunk); });
+    install.stderr?.on("data", (chunk) => { output += String(chunk); });
     const code = await new Promise<number>((done) => install.on("close", (value) => done(value ?? 1)));
     if (code !== 0) {
       throw new Error(`profile 依赖安装失败（退出码 ${code}）：${output.trim().slice(-300)}`);

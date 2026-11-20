@@ -1,5 +1,5 @@
 // @lfaa/plugins 插件中心主视图：汇总真实状态与可安装目录，操作前二次确认并展示执行进度。
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { IconRefresh } from "@tabler/icons-react";
 import { ConfirmDialog } from "@lfaa/ui-primitives/client";
 import type { PluginRecord } from "../contract/index";

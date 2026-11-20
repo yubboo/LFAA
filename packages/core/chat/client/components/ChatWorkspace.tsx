@@ -29,7 +29,6 @@ import { ChatAnchorBar, buildTurnAnchors } from "./ChatAnchorBar";
 import { ComposerAddMenu } from "./ComposerAddMenu";
 import { ComposerRightActions } from "./ComposerRightActions";
 import { ComposerScopeBar } from "./ComposerScopeBar";
-import { MarkdownContent } from "./MarkdownContent";
 import {
   AssistantMessageActions,
   EditedFilesCard,

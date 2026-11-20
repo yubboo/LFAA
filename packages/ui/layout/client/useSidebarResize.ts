@@ -1,6 +1,6 @@
 // 管理浏览器工作台的左右栏调宽、弹性吸附和本地宽度偏好。
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type RefObject } from "react";
-import { WORKBENCH_REGIONS } from "../src/index";
+import { WORKBENCH_REGIONS } from "../contract/index";
 import {
   computeKeyResizeWidth,
   computeMaxPanelWidth,

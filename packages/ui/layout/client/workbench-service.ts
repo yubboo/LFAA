@@ -12,7 +12,7 @@ import type {
   WorkbenchSectionProvider,
   WorkbenchViewContribution,
   WorkbenchWorkspaceActionContribution,
-} from "../src/index";
+} from "../contract/index";
 import {
   LEFT_SIDEBAR_STORAGE_KEY,
   RIGHT_PANEL_STORAGE_KEY,

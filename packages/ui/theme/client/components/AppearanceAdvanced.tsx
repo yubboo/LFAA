@@ -6,7 +6,7 @@ import type {
   DiffMarkerMode,
   FontWeightId,
   ReducedMotionMode,
-} from "../../src/index";
+} from "../../contract/index";
 import type { ThemeLocaleMessages } from "../locales";
 import { ThemeSelect, type ThemeSelectOption } from "./ThemeSelect";
 import advStyles from "./AppearanceAdvanced.module.css";

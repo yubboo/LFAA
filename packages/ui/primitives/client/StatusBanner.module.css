@@ -69,46 +69,46 @@
 
 /* 通过语义色区分通知种类，并复用原有的内容排列。 */
 .toneSuccess {
-  background: rgb(16 185 129 / 0.14);
-  border-color: rgb(52 211 153 / 0.42);
+  background: rgb(var(--color-success-rgb) / 0.14);
+  border-color: rgb(var(--color-success-rgb) / 0.42);
 }
 
 .toneSuccess .icon,
 .toneSuccess .title {
-  color: #34d399;
+  color: var(--color-success);
 }
 
 .toneError {
-  background: rgb(239 68 68 / 0.14);
-  border-color: rgb(248 113 113 / 0.42);
+  background: rgb(var(--color-danger-rgb) / 0.14);
+  border-color: rgb(var(--color-danger-rgb) / 0.42);
 }
 
 .toneError .icon,
 .toneError .title {
-  color: #f87171;
+  color: var(--color-danger-strong);
 }
 
 .toneWarning {
-  background: rgb(245 158 11 / 0.14);
-  border-color: rgb(251 191 36 / 0.42);
+  background: rgb(var(--color-warning-rgb) / 0.14);
+  border-color: rgb(var(--color-warning-rgb) / 0.42);
 }
 
 .toneWarning .icon,
 .toneWarning .title {
-  color: #fbbf24;
+  color: var(--color-warning);
 }
 
 .toneInfo,
 .toneLoading {
-  background: rgb(56 189 248 / 0.13);
-  border-color: rgb(56 189 248 / 0.36);
+  background: rgb(var(--color-info-rgb) / 0.13);
+  border-color: rgb(var(--color-info-rgb) / 0.36);
 }
 
 .toneInfo .icon,
 .toneInfo .title,
 .toneLoading .icon,
 .toneLoading .title {
-  color: #38bdf8;
+  color: var(--color-info);
 }
 
 .spin {

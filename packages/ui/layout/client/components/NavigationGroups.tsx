@@ -6,7 +6,7 @@ import type {
   WorkbenchProjectProvider,
   WorkbenchSectionItem,
   WorkbenchSectionProvider,
-} from "../../src/index";
+} from "../../contract/index";
 import type { LocaleMessages } from "../locales";
 import type { LocalProject, NavigationView, RecentItem } from "../navigation";
 import {
@@ -22,20 +22,15 @@ import {
   type ProjectSortMode,
 } from "../ui-preferences";
 import { GroupHeaderTools } from "./GroupHeaderTools";
-import { NavigationIcon } from "./NavigationIcon";
-import { SidebarSectionList, type SidebarGroupConfig, type SidebarItemConfig } from "./SidebarSectionList";
+import {
+  createProjectWithChatItems,
+  createRecentSidebarItems,
+  type ProjectItemDeps,
+  type SessionItemDeps,
+} from "./navigation-items";
+import { NavigationNewChatButton } from "./NavigationNewChatButton";
+import { SidebarSectionList, type SidebarGroupConfig } from "./SidebarSectionList";
 import styles from "./NavigationGroups.module.css";
-
-function formatRelativeSessionAge(updatedAt?: number): string | undefined {
-  if (!updatedAt || !Number.isFinite(updatedAt)) return undefined;
-  const diffMs = Math.max(0, Date.now() - updatedAt);
-  const mins = Math.floor(diffMs / 60000);
-  if (mins < 60) return mins < 1 ? "刚刚" : `${mins}m`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h`;
-  const days = Math.floor(hours / 24);
-  return `${days}d`;
-}
 
 /** 组合置顶、项目和最近会话分组，由共享列表处理折叠和行展示。 */
 export function NavigationGroups({
@@ -95,6 +90,9 @@ export function NavigationGroups({
   const toggleProjectExpanded = (projectId: string) => {
     setProjectExpanded((current) => ({ ...current, [projectId]: !(current[projectId] ?? true) }));
   };
+  const expandProject = (projectId: string) => {
+    setProjectExpanded((current) => ({ ...current, [projectId]: true }));
+  };
   const [sort, setSort] = useState<ProjectSortMode>(readProjectSortPref);
   const [recentSort, setRecentSort] = useState<ProjectSortMode>(readRecentSortPref);
   const [openToolMenu, setOpenToolMenu] = useState<"projects" | "recent" | null>(null);
@@ -117,6 +115,20 @@ export function NavigationGroups({
     () => sortedProjects.filter((item) => !item.pinned && (!item.sectionId || !sectionIds.has(item.sectionId))),
     [sortedProjects, sectionIds],
   );
+
+  // 侧栏行构建器所需的当前渲染状态与事件入口，供项目行、子会话行与最近分组复用。
+  const itemDeps: ProjectItemDeps & SessionItemDeps = {
+    activeProjectId,
+    activeView,
+    activeChatSessionId,
+    chatProvider,
+    projectProvider,
+    onNewChatInProject,
+    onSelectChatSession,
+    isProjectExpanded: (projectId) => projectExpanded[projectId] ?? true,
+    onToggleProjectExpanded: toggleProjectExpanded,
+    onExpandProject: expandProject,
+  };
 
   const updateBuiltinExpanded = (
     updater: (current: Record<BuiltinGroupName, boolean>) => Record<BuiltinGroupName, boolean>,
@@ -194,77 +206,6 @@ export function NavigationGroups({
     onProjectCreated(project);
   };
 
-  const toProjectSidebarItem = (project: LocalProject, groupKey: string): SidebarItemConfig => ({
-    id: `${groupKey}:${project.id}`,
-    label: project.name,
-    icon: "project",
-    expanded: projectExpanded[project.id] ?? true,
-    active: activeProjectId === project.id,
-    actionsVisible: projectProvider?.isProjectRowHighlighted?.(project.id) ?? false,
-    draggableProjectId: project.id,
-    onMouseEnter: (element) => projectProvider?.onProjectRowEnter?.(project, element),
-    onMouseLeave: () => projectProvider?.onProjectRowLeave?.(project),
-    onClick: () => {
-      projectProvider?.closeProjectMenus?.();
-      toggleProjectExpanded(project.id);
-    },
-    actions: projectProvider?.renderProjectRowActions?.({
-      project,
-      onNewChatInProject: (targetProject) => {
-        setProjectExpanded((current) => ({ ...current, [targetProject.id]: true }));
-        onNewChatInProject(targetProject);
-      },
-    }),
-  });
-
-  // 将会话条目转换为统一侧栏行（同时服务于“项目下子会话”与“最近”分组）
-  const toSessionSidebarItem = (
-    sessionObj: WorkbenchChatSessionSummary,
-    opts?: { idPrefix?: string; nested?: boolean; hideIcon?: boolean },
-  ): SidebarItemConfig => {
-    const trailingHint = formatRelativeSessionAge(sessionObj.updatedAt);
-    const actions = chatProvider?.renderSessionRowActions?.(sessionObj);
-    return {
-      id: `${opts?.idPrefix ?? ""}${sessionObj.id}`,
-      label: sessionObj.title,
-      icon: "newChat",
-      ...(opts?.nested ? { nested: true } : {}),
-      ...(opts?.hideIcon ? { hideIcon: true } : {}),
-      active: activeView === "workspace" && activeChatSessionId === sessionObj.id,
-      ...(sessionObj.unread ? { unread: true } : {}),
-      ...(trailingHint ? { trailingHint } : {}),
-      ...(actions ? { actions } : {}),
-      actionsVisible: chatProvider?.isSessionRowHighlighted?.(sessionObj.id) ?? false,
-      onMouseEnter: (element: HTMLElement) => chatProvider?.onSessionRowEnter?.(sessionObj, element),
-      onMouseLeave: () => chatProvider?.onSessionRowLeave?.(sessionObj),
-      onDoubleClick: () => chatProvider?.onSessionRowDoubleClick?.(sessionObj),
-      onClick: () => {
-        chatProvider?.closeSessionMenus?.();
-        onSelectChatSession?.(sessionObj.id);
-        void chatProvider?.openSession(sessionObj.id);
-      },
-    };
-  };
-
-  // 将项目及其所属的未归档聊天会话展开为“项目行 + 缩进子会话行”
-  const toProjectWithChatsItems = (projectList: LocalProject[], groupKey: string): SidebarItemConfig[] =>
-    projectList.flatMap((project) => {
-      const isExpanded = projectExpanded[project.id] ?? true;
-      const childSessions = isExpanded
-        ? chatSessions.filter((s) => !s.archived && s.projectId === project.id)
-        : [];
-      return [
-        toProjectSidebarItem(project, groupKey),
-        ...childSessions.map((sessionObj) =>
-          toSessionSidebarItem(sessionObj, {
-            idPrefix: `${groupKey}:${project.id}:`,
-            nested: true,
-            hideIcon: true,
-          }),
-        ),
-      ];
-    });
-
   const handleDropToPinned = (projectId: string) => {
     const project = projects.find((item) => item.id === projectId);
     if (!project || project.pinned) return;
@@ -332,7 +273,7 @@ export function NavigationGroups({
         section,
         onNewChatInSection,
       }),
-      items: toProjectWithChatsItems(sectionProjects, `sec-${section.id}`),
+      items: createProjectWithChatItems(sectionProjects, `sec-${section.id}`, chatSessions, itemDeps),
       emptyText: locale.emptySectionDropHint,
       onDropProject: (projectId) => handleDropToCustomSection(projectId, section.id),
     };
@@ -345,7 +286,7 @@ export function NavigationGroups({
       collapsible: true,
       expanded: expanded.pinned,
       onToggle: () => toggleBuiltin("pinned"),
-      items: toProjectWithChatsItems(pinnedProjects, "pinned"),
+      items: createProjectWithChatItems(pinnedProjects, "pinned", chatSessions, itemDeps),
       emptyText: locale.noPinnedItems,
       onDropProject: handleDropToPinned,
     },
@@ -357,7 +298,7 @@ export function NavigationGroups({
       expanded: expanded.projects,
       onToggle: () => toggleBuiltin("projects"),
       tools: projectTools,
-      items: toProjectWithChatsItems(unassignedProjects, "project"),
+      items: createProjectWithChatItems(unassignedProjects, "project", chatSessions, itemDeps),
       emptyText: !renderCreateDialog
         ? locale.projectsPluginMissing
         : pinnedProjects.length > 0 && sortedProjects.length === pinnedProjects.length
@@ -381,39 +322,14 @@ export function NavigationGroups({
       expanded: expanded.recent,
       onToggle: () => toggleBuiltin("recent"),
       tools: recentTools,
-      items: sortedRecents.map((item) => {
-        const sessionObj = item.sessionId
-          ? chatSessions.find((s) => s.id === item.sessionId)
-          : undefined;
-        const trailingHint = formatRelativeSessionAge(sessionObj?.updatedAt ?? item.updatedAt);
-        const actions = sessionObj ? chatProvider?.renderSessionRowActions?.(sessionObj) : undefined;
-        return {
-          id: item.id,
-          label: item.label,
-          icon: "newChat" as const,
-          active: item.active ?? (activeView === item.view && (item.projectId ?? null) === activeProjectId),
-          ...(sessionObj?.unread ?? item.unread ? { unread: true } : {}),
-          ...(trailingHint ? { trailingHint } : {}),
-          ...(actions ? { actions } : {}),
-          ...(sessionObj ? {
-            actionsVisible: chatProvider?.isSessionRowHighlighted?.(sessionObj.id) ?? false,
-            onMouseEnter: (element: HTMLElement) => chatProvider?.onSessionRowEnter?.(sessionObj, element),
-            onMouseLeave: () => chatProvider?.onSessionRowLeave?.(sessionObj),
-            onDoubleClick: () => chatProvider?.onSessionRowDoubleClick?.(sessionObj),
-          } : {}),
-          onClick: () => {
-            if (item.onSelect) {
-              item.onSelect();
-              return;
-            }
-            if (item.projectId) {
-              const project = projects.find((candidate) => candidate.id === item.projectId);
-              if (project) onOpenProject(project);
-            } else {
-              onNavigate(item.view);
-            }
-          },
-        };
+      items: createRecentSidebarItems(sortedRecents, {
+        projects,
+        chatSessions,
+        activeView,
+        activeProjectId,
+        chatProvider,
+        onOpenProject,
+        onNavigate,
       }),
       emptyText: locale.noRecentItems,
     },
@@ -435,15 +351,11 @@ export function NavigationGroups({
       <SidebarSectionList
         ariaLabel={locale.sectionNavigation}
         topSlot={(
-          <button
-            className={`${styles.newChat} ${newChatSelected ? styles.newChatActive : ""}`}
-            type="button"
-            aria-current={newChatSelected ? "page" : undefined}
+          <NavigationNewChatButton
+            label={locale.newChat}
+            selected={newChatSelected}
             onClick={onNewChat}
-          >
-            <NavigationIcon name="newChat" />
-            <span>{locale.newChat}</span>
-          </button>
+          />
         )}
         groups={groups}
       />

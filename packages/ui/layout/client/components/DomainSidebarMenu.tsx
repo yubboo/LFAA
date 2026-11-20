@@ -1,7 +1,7 @@
 // 根据左一导航栏选中的功能域（资料库、图像、定时任务、插件、代码审查与扩展），动态渲染对应的左二功能菜单。
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import type { WorkbenchViewContribution } from "../../src/index";
+import type { WorkbenchViewContribution } from "../../contract/index";
 import type { LocaleMessages } from "../locales";
 import type { NavigationView } from "../navigation";
 import { resolveViewLabel, type WorkbenchDomainConfig } from "../workbench-domains";

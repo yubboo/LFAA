@@ -6,7 +6,7 @@ import type {
   BrowserSettingsConfig,
   BrowserStreamFramePayload,
   BrowserTabItem,
-} from "../src/types";
+} from "../contract/index";
 
 export type {
   BrowserConsoleItem,

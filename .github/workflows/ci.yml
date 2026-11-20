@@ -1,0 +1,63 @@
+# LFAA 持续集成：在 Windows runner 上跑完整门禁。
+# 选择 windows-latest 是因为仓库有 Windows 专有实现与测试（COM 文件选择器、taskkill、SAPI、pwsh）。
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# 只需要读代码；不写回仓库、不发版。
+permissions:
+  contents: read
+
+# 同一分支的新推送取消上一次未完成的运行，避免排队浪费。
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: check / typecheck / test / build / probe
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      # 关掉 pnpm 的更新提示与遥测，减少无关输出。
+      NO_COLOR: "1"
+    steps:
+      - name: 检出
+        uses: actions/checkout@v4
+
+      - name: 安装 pnpm（版本取自 packageManager）
+        uses: pnpm/action-setup@v4
+
+      - name: 安装 Node 24 并缓存 pnpm store
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: 安装依赖（锁定版本）
+        run: pnpm install --frozen-lockfile
+
+      - name: 仓库边界、规模与主题色规则
+        run: pnpm check
+
+      - name: AST Lint（未使用导入 / any / 调试输出 / 抑制指令）
+        run: pnpm lint
+
+      - name: README 双语配对
+        run: pnpm readme:pair -- .
+
+      - name: 类型检查
+        run: pnpm typecheck
+
+      - name: 单元测试
+        run: pnpm test
+
+      - name: 完整构建
+        run: pnpm build
+
+      - name: Loader 按包名装载探针
+        run: pnpm probe:loader

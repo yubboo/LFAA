@@ -295,15 +295,13 @@
 }
 
 .statusIcon[data-status="running"] { color: var(--color-accent); }
-.statusIcon[data-status="done"] { color: #82cba6; }
+.statusIcon[data-status="done"] { color: var(--color-activity-positive); }
 .statusIcon[data-status="error"],
 .statusIcon[data-status="killed"],
-.statusIcon[data-status="stopped"] { color: #f19eaa; }
-
-:global(:root[data-resolved-theme="light"]) .statusIcon[data-status="done"] { color: #226945; }
+.statusIcon[data-status="stopped"] { color: var(--color-activity-negative); }
 :global(:root[data-resolved-theme="light"]) .statusIcon[data-status="error"],
 :global(:root[data-resolved-theme="light"]) .statusIcon[data-status="killed"],
-:global(:root[data-resolved-theme="light"]) .statusIcon[data-status="stopped"] { color: #a32540; }
+:global(:root[data-resolved-theme="light"]) .statusIcon[data-status="stopped"] { color: var(--color-activity-negative); }
 
 .logOutput {
   margin: 0;
@@ -338,11 +336,11 @@
 
 .errorBanner {
   margin: 0;
-  color: #f19eaa;
+  color: var(--color-activity-negative);
   font-size: 0.8em;
 }
 
-:global(:root[data-resolved-theme="light"]) .errorBanner { color: #a32540; }
+:global(:root[data-resolved-theme="light"]) .errorBanner { color: var(--color-activity-negative); }
 
 /* 保留原工作详情卡样式，供从 ⋮ 菜单查看模型、权限、记忆与规则层级。 */
 .card {

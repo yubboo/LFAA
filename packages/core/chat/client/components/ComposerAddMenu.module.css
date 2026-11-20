@@ -135,7 +135,7 @@
 }
 
 .setupTag {
-  color: #3b82f6;
+  color: var(--color-link);
   font-size: 0.85em;
   font-weight: 500;
 }

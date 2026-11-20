@@ -8,7 +8,7 @@ import type {
   UpdateProjectInput,
   WorkspaceInspection,
   WorkspaceProjectSummary,
-} from "../src/types";
+} from "../contract/index";
 
 const PROJECTS_CACHE_KEY = "lfaa:cache-projects";
 

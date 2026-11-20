@@ -39,18 +39,18 @@
 
 .resizeHandle:hover::after,
 .resizeHandle:focus-visible::after {
-  background: rgb(var(--color-accent-rgb, 230 106 168) / 0.65);
+  background: rgb(var(--color-accent-rgb) / 0.65);
 }
 
 .resizeHandle[data-dragging="true"]::after {
   width: 2.5px;
-  background: var(--color-accent, #e66aa8);
+  background: var(--color-accent);
 }
 
 .resizeHandle[data-snapped="true"]::after {
   width: 3px;
-  background: var(--color-accent, #e66aa8);
-  box-shadow: 0 0 10px rgb(var(--color-accent-rgb, 230 106 168) / 0.45);
+  background: var(--color-accent);
+  box-shadow: 0 0 10px rgb(var(--color-accent-rgb) / 0.45);
 }
 
 /* 使用栅格边界裁剪收缩的左栏，避免整栏位移或透明过渡造成绘制残影。 */

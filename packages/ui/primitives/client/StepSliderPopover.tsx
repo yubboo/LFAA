@@ -1,7 +1,7 @@
 // 提供可复用的离散档位滑块弹窗内容组件（如推理强度调节）：支持平滑拖拽与磁吸阈值、圆点点击、键盘调节、无规则流星粒子流及闪电极强开关。
 import { useRef, useState } from "react";
 import { IconBolt, IconChevronRight, IconRotateClockwise2 } from "@tabler/icons-react";
-import { computeStepRatio, type StepSliderOption } from "../src/index";
+import { computeStepRatio, type StepSliderOption } from "../contract/index";
 import styles from "./StepSliderPopover.module.css";
 
 // 18 颗错落分布的圆形微光流星（含独立垂直漂移量与周期），随强度档位动态增减数量

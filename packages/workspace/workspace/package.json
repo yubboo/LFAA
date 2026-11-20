@@ -5,8 +5,12 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./lib/types/index.d.ts",
+      "types": "./lib/types/src/index.d.ts",
       "default": "./lib/index.js"
+    },
+    "./contract": {
+      "types": "./lib/types/contract/index.d.ts",
+      "default": "./lib/types/contract/index.js"
     },
     "./src/*": "./src/*",
     "./client": "./client/index.tsx",
@@ -29,10 +33,11 @@
     "typescript": "^5.9.3"
   },
   "main": "./lib/index.js",
-  "types": "./lib/types/index.d.ts",
+  "types": "./lib/types/src/index.d.ts",
   "files": [
     "lib",
     "src",
+    "contract",
     "client"
   ],
   "publishConfig": {

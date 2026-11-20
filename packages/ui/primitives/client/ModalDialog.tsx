@@ -2,7 +2,7 @@
 import { useEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { IconX } from "@tabler/icons-react";
-import type { DialogAnimationPreset, DialogSize } from "../src/index";
+import type { DialogAnimationPreset, DialogSize } from "../contract/index";
 import styles from "./ModalDialog.module.css";
 
 const SIZE_CLASS: Record<DialogSize, string | undefined> = {

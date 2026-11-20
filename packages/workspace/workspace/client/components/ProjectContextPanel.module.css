@@ -78,8 +78,8 @@
 }
 
 .removeBtn:hover {
-  border-color: rgb(224 108 117 / 50%);
-  color: #e06c75;
+  border-color: rgb(var(--color-danger-rgb) / 50%);
+  color: var(--color-danger);
 }
 
 .hint {

@@ -12,7 +12,6 @@ import { getActivityFilePath } from "./file-activity";
 import { patchWorkbenchSessionState, readWorkbenchSessionState } from "./workbench-persist";
 import type {
   AgentPermissionMode,
-  AgentStepItem,
   ChatMessageItem,
   ChatSessionDetail,
   ChatSessionItem,
@@ -23,7 +22,6 @@ import type {
   LlmApiProtocolOption,
   LongTermMemoryItem,
   ModelCapabilityItem,
-  PendingApprovalBanner,
   PublicLlmProfileItem,
   RuleDocumentItem,
   StorageConfigState,

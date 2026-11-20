@@ -13,7 +13,6 @@ import type {
   CommandTimeoutHandler,
   PublicToolSummary,
   ToolExecutionContext,
-  SubagentActivityUpdate,
   ToolExecutionResult,
 } from "./types";
 

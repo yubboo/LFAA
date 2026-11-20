@@ -64,7 +64,7 @@
 }
 
 .chipBtnActive {
-  background: rgba(var(--color-accent-rgb), 0.14);
+  background: rgb(var(--color-accent-rgb) / 0.14);
   border-color: var(--color-accent);
   color: var(--color-ink);
 }

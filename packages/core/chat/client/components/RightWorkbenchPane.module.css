@@ -191,7 +191,7 @@
 
 .auxResizer:hover,
 .auxResizerActive {
-  background: rgba(var(--color-accent-rgb), 0.45);
+  background: rgb(var(--color-accent-rgb) / 0.45);
 }
 
 .auxDrawer {

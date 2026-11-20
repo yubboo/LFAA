@@ -1,6 +1,6 @@
 // 提供可复用的锚点浮层卡片容器：自动处理外部点击关闭与 Escape 退出，供模型选择器和工具浮窗复用。
 import { useEffect, useRef, type ReactNode } from "react";
-import type { PopoverPlacement } from "../src/index";
+import type { PopoverPlacement } from "../contract/index";
 import styles from "./PopoverCard.module.css";
 
 const PLACEMENT_CLASS: Record<PopoverPlacement, string | undefined> = {

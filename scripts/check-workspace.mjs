@@ -1,6 +1,6 @@
-// 仓库边界检查：校验包命名、跨包子路径、Host/Client 隔离、依赖一致性、循环依赖与中文文件头。
+// 仓库边界检查：校验包命名、跨包子路径、Host/Client 隔离、依赖一致性、循环依赖、中文文件头与文件规模。
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { basename, dirname, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, join, posix, relative, resolve, sep } from "node:path";
 import ts from "typescript";
 
 // 支持 --root <dir> 指向任意仓库根，便于用临时夹具验证检查规则本身。
@@ -27,6 +27,60 @@ const findings = [];
 
 function report(level, rule, file, message) {
   findings.push({ level, rule, file: file ? relative(ROOT, file).split(sep).join("/") : "", message });
+}
+
+// ---------------------------------------------------------------------------
+// 规则棘轮：新增规则不能一次性把既有债务变成红灯，但也不允许债务继续扩大。
+// `scripts/check-allowlist.json` 只登记「已存在且已知」的违规文件；新增违规必须直接修掉。
+// 豁免项一旦不再违规会以 warn 提示删除，保证清单只会变短。
+// ---------------------------------------------------------------------------
+const ALLOWLIST_RULES = ["file-size", "client-host-relative", "css-theme-literal"];
+const ALLOWLIST_PATH = join(ROOT, "scripts", "check-allowlist.json");
+const allowlist = new Map(ALLOWLIST_RULES.map((rule) => [rule, new Set()]));
+const usedAllowlist = new Set();
+
+/** 读取豁免清单；文件不存在时视为空清单，便于只读夹具直接跑规则。 */
+function loadAllowlist() {
+  if (!existsSync(ALLOWLIST_PATH)) return;
+  let raw;
+  try {
+    raw = JSON.parse(readFileSync(ALLOWLIST_PATH, "utf8").replace(/^\uFEFF/u, ""));
+  } catch (error) {
+    report(LEVELS.error, "allowlist", ALLOWLIST_PATH, `清单不是合法 JSON：${error.message}`);
+    return;
+  }
+  for (const [rule, entries] of Object.entries(raw)) {
+    if (rule.startsWith("$")) continue;
+    const target = allowlist.get(rule);
+    if (!target) {
+      report(LEVELS.error, "allowlist", ALLOWLIST_PATH, `未登记的规则名「${rule}」；可用规则：${ALLOWLIST_RULES.join(" / ")}`);
+      continue;
+    }
+    for (const entry of Array.isArray(entries) ? entries : Array.isArray(entries?.files) ? entries.files : []) {
+      target.add(String(entry).split("\\").join("/"));
+    }
+  }
+}
+
+/** 判断某文件的违规是否已登记豁免；命中时记录使用情况，供末尾清理过期条目。 */
+function isAllowed(rule, relPath) {
+  // --no-allowlist 按「如果现在没有豁免」来报告，便于盘点存量债务。
+  if (process.argv.includes("--no-allowlist")) return false;
+  const entries = allowlist.get(rule);
+  if (!entries?.has(relPath)) return false;
+  usedAllowlist.add(`${rule}\u0000${relPath}`);
+  return true;
+}
+
+/** 汇总豁免清单里本轮未命中的条目：文件已修好或已删除，提示同步删清单。 */
+function reportStaleAllowlist() {
+  for (const [rule, entries] of allowlist) {
+    for (const entry of entries) {
+      if (!usedAllowlist.has(`${rule}\u0000${entry}`)) {
+        report(LEVELS.warn, "allowlist-stale", join(ROOT, entry), `豁免已不再违规（${rule}），请从 scripts/check-allowlist.json 删除`);
+      }
+    }
+  }
 }
 
 /** 读取目录下所有匹配后缀的文件，跳过 node_modules 与产物目录。 */
@@ -133,6 +187,7 @@ function checkDeclared(manifest, pkgDir) {
 
 function checkFile(file, pkgDir, manifest, declared) {
   const rel = relative(pkgDir, file).split(sep).join("/");
+  const repoRel = relative(ROOT, file).split(sep).join("/");
   const role = rel.startsWith("client/") ? "client" : rel.startsWith("src/") || rel.startsWith("contract/") ? "host" : null;
   if (!role) return null;
 
@@ -147,6 +202,10 @@ function checkFile(file, pkgDir, manifest, declared) {
     if (spec.startsWith(".")) {
       const depth = spec.split("/").filter((part) => part === "..").length;
       if (depth >= 3) report(LEVELS.error, "cross-package-relative", file, `相对导入越界：${spec}`);
+      // client 只能用相对路径在 client/ 与 contract/ 内走动；跨到 src/ 就是绕过公开契约。
+      if (role === "client" && !isClientSafeTarget(rel, spec) && !isAllowed("client-host-relative", repoRel)) {
+        report(LEVELS.error, "client-isolation", file, `Client 侧禁止相对导入 Host 内部文件：${spec}（改用 contract 或 @lfaa/*/client 公开入口）`);
+      }
       continue;
     }
     const scoped = parseScoped(spec);
@@ -198,6 +257,120 @@ function checkPluginDefault(file, text) {
   report(LEVELS.error, "plugin-default-export", file, "导出 *Plugin 但缺少 export default（Loader 依赖默认导出）");
 }
 
+/** 文件规模阈值（AGENTS §4）：软阈值提示拆分，硬阈值必须拆分或登记豁免。 */
+const SIZE_LIMITS = [
+  { suffix: ".module.css", warn: 250, error: 400 },
+  { suffix: ".tsx", warn: 250, error: 400 },
+  { suffix: ".ts", warn: 300, error: 500 },
+];
+
+/** 统计物理行数；剥离 BOM，末尾换行不计入。 */
+function countLines(file) {
+  const text = readFileSync(file, "utf8").replace(/^\uFEFF/u, "");
+  if (text.length === 0) return 0;
+  const lines = text.split(/\r?\n/u);
+  return text.endsWith("\n") ? lines.length - 1 : lines.length;
+}
+
+/** 文件规模：越过硬上限必须按职责拆分，确需保留的要登记到豁免清单。 */
+const softSizeFindings = [];
+
+function checkFileSize(file) {
+  const limit = SIZE_LIMITS.find((item) => file.endsWith(item.suffix));
+  if (!limit) return;
+  const relPath = relative(ROOT, file).split(sep).join("/");
+  const lines = countLines(file);
+  if (lines > limit.error) {
+    if (isAllowed("file-size", relPath)) return;
+    report(
+      LEVELS.error,
+      "file-size",
+      file,
+      `${lines} 行超过硬上限 ${limit.error}（按职责拆分；确需保留须在 scripts/check-allowlist.json 登记）`,
+    );
+    return;
+  }
+  if (lines > limit.warn) softSizeFindings.push(`${relPath} (${lines})`);
+}
+
+/** client 内相对导入只允许落在 client/ 或 contract/，其余视为越界访问 Host 内部。 */
+function isClientSafeTarget(relPath, spec) {
+  const target = posix.normalize(posix.join(posix.dirname(relPath), spec));
+  return (
+    target === "client" || target.startsWith("client/")
+    || target === "contract" || target.startsWith("contract/")
+  );
+}
+
+/** CSS 里颜色字面量的判定：`url(#id)`、注释与语义变量不算。 */
+const CSS_COLOR_LITERAL = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\(/gu;
+
+/** 逐条取出颜色字面量并解析其透明度；hex 与 hsl 没有 alpha 时返回 null。 */
+function extractColorLiterals(value) {
+  const found = [];
+  const pattern = /#([0-9a-fA-F]{3,8})\b|rgba?\(\s*(\d+)\s+(\d+)\s+(\d+)\s*\/\s*([\d.]+%?)\s*\)|rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([\d.]+)\s*\)|hsla?\([^)]*\)/gu;
+  for (const match of value.matchAll(pattern)) {
+    let alpha = null;
+    const rawAlpha = match[5] ?? match[9];
+    if (rawAlpha !== undefined) {
+      alpha = rawAlpha.endsWith("%") ? Number.parseFloat(rawAlpha) / 100 : Number.parseFloat(rawAlpha);
+    } else if (match[1]?.length === 8) {
+      alpha = Number.parseInt(match[1].slice(6, 8), 16) / 255;
+    } else if (match[1]?.length === 4) {
+      alpha = Number.parseInt(`${match[1][3]}${match[1][3]}`, 16) / 255;
+    }
+    found.push({ text: match[0], alpha });
+  }
+  return found;
+}
+
+/** 阴影/滤镜/材质叠层属于表面质感而不是主题色：允许写具体数值。 */
+const SHADOW_PROPERTY = /(?:shadow|filter|sheen|glow|overlay|scrim)/u;
+const MATERIAL_PROPERTY = /^(?:background|background-color|border|border-[a-z]+|border-[a-z]+-color|outline|outline-color)$/u;
+/** 写死颜色作为 var() 回退一律禁止：变量缺失时必须暴露问题，而不是退回某个固定色。 */
+const LITERAL_FALLBACK = /var\(\s*--[a-z0-9-]+\s*,\s*(?:#|rgba?\(|hsla?\()/iu;
+
+/**
+ * 禁止 client 样式写死主题色：文本/边框/背景/状态色必须来自语义变量。
+ * 例外只有两类，且有明确理由：
+ * - 阴影、滤镜、玻璃材质与半透明叠层（alpha ≤ 0.2 的背景/边框）属于表面质感；
+ * - 变量定义层与代码高亮调色板、主题预览样张需要具体色值（登记在豁免清单里）。
+ */
+function checkCssThemeLiteral(file) {
+  const relPath = relative(ROOT, file).split(sep).join("/");
+  if (!relPath.split("/").includes("client")) return;
+  const text = readFileSync(file, "utf8").replace(/^\uFEFF/u, "");
+  const hits = [];
+  const lines = text.split(/\r?\n/u);
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index] ?? "";
+    const trimmed = line.trim();
+    if (trimmed.startsWith("/*") || trimmed.startsWith("*") || trimmed.startsWith("//")) continue;
+    const sanitized = line.replace(/url\([^)]*\)/gu, "").replace(/\/\*.*?\*\//gu, "");
+    const literals = extractColorLiterals(sanitized);
+    if (literals.length === 0) continue;
+    // 颜色写进 var() 回退：无论出现在哪一行都算违规。
+    if (LITERAL_FALLBACK.test(sanitized)) {
+      hits.push(index + 1);
+      continue;
+    }
+    const property = (/^\s*([a-z-]+)\s*:/iu.exec(sanitized)?.[1] ?? "").toLowerCase();
+    if (SHADOW_PROPERTY.test(property)) continue;
+    const isMaterial = MATERIAL_PROPERTY.test(property);
+    const themeColor = literals.some((item) => !(isMaterial && item.alpha !== null && item.alpha <= 0.2));
+    if (themeColor) hits.push(index + 1);
+  }
+  if (hits.length === 0) return;
+  if (isAllowed("css-theme-literal", relPath)) return;
+  const sample = hits.slice(0, 5).join(", ");
+  report(
+    LEVELS.error,
+    "css-theme-literal",
+    file,
+    `${hits.length} 处写死颜色（行 ${sample}${hits.length > 5 ? " …" : ""}）；改用 @lfaa/ui-theme 语义变量（定义层在 client/tokens.css），禁止并排放浅色值与暗色值`,
+  );
+}
+
 /**
  * apps 只做启动：禁止直接依赖 Host 包（装配必须下沉到 packages/bundle 或 packages/host）。
  * 允许项：`@lfaa/*` 的 client 子路径，以及显式 boot 包。
@@ -205,6 +378,7 @@ function checkPluginDefault(file, text) {
 function checkApps() {
   const appsDir = join(ROOT, "apps");
   if (!existsSync(appsDir)) return 0;
+  for (const asset of walk(appsDir, [".ts", ".tsx", ".module.css"])) checkFileSize(asset);
   const files = walk(appsDir, [".ts", ".tsx"]).filter((file) => !file.includes(`${sep}tests${sep}`));
   for (const file of files) {
     const { specs } = collectImports(file);
@@ -303,6 +477,7 @@ function main() {
   const pkgDirs = discoverPackages();
   const graph = new Map();
   let fileCount = 0;
+  loadAllowlist();
 
   for (const pkgDir of pkgDirs) {
     const manifest = readJson(join(pkgDir, "package.json"));
@@ -312,6 +487,12 @@ function main() {
     for (const stray of walk(pkgDir, [".js", ".jsx", ".d.ts", ".map"])) {
       const relToPkg = relative(pkgDir, stray).split(sep).join("/");
       checkStrayEmit(stray, relToPkg);
+    }
+    // 规模与主题色只扫源码，不区分 tests/src/client：规范对全部手写文件生效。
+    // 规模与主题色扫描覆盖全部手写样式：主题变量定义层是全局 .css，也必须受主题色规则约束。
+    for (const asset of walk(pkgDir, [".ts", ".tsx", ".css"])) {
+      checkFileSize(asset);
+      if (asset.endsWith(".css")) checkCssThemeLiteral(asset);
     }
     const declared = checkDeclared(manifest, pkgDir);
     const used = new Set();
@@ -341,6 +522,20 @@ function main() {
   checkCycles(graph);
   const appFiles = checkApps();
   fileCount += appFiles;
+  reportStaleAllowlist();
+  // 软阈值只汇总成一条提示：逐文件刷屏会淹没真正的错误与新警告，需要明细时加 --verbose。
+  if (softSizeFindings.length > 0) {
+    if (process.argv.includes("--verbose")) {
+      for (const item of softSizeFindings) report(LEVELS.warn, "file-size", null, `超过拆分提示阈值：${item}`);
+    } else {
+      report(
+        LEVELS.warn,
+        "file-size",
+        null,
+        `${softSizeFindings.length} 个文件处于拆分提示区间（250–400 / 300–500 行），明细用 --verbose 查看`,
+      );
+    }
+  }
 
   const errors = findings.filter((item) => item.level === LEVELS.error);
   const warns = findings.filter((item) => item.level === LEVELS.warn);
@@ -349,7 +544,8 @@ function main() {
     const prefix = item.file ? `${item.file}: ` : "";
     console.log(`${item.level === LEVELS.error ? "✖" : "⚠"} [${item.rule}] ${prefix}${item.message}`);
   }
-  console.log(`\n检查 ${pkgDirs.length} 个包、${fileCount} 个源文件：${errors.length} 个错误，${warns.length} 个警告。`);
+  const allowedNote = usedAllowlist.size > 0 ? `（其中 ${usedAllowlist.size} 项沿用既有豁免）` : "";
+  console.log(`\n检查 ${pkgDirs.length} 个包、${fileCount} 个源文件：${errors.length} 个错误，${warns.length} 个警告${allowedNote}。`);
   process.exitCode = errors.length > 0 ? 1 : 0;
 }
 

@@ -1,21 +1,18 @@
 // 装配主题、四栏可折叠骨架，并通过 Cordis workbench 服务响应业务插件贡献。
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
-import { WORKBENCH_REGIONS, type WorkbenchSectionItem } from "../../src/index";
+import type { WorkbenchSectionItem } from "../../contract/index";
 import { locales } from "../locales";
-import type { LocalProject, NavigationView, RecentItem, WorkspaceMode } from "../navigation";
+import type { LocalProject, NavigationView, WorkspaceMode } from "../navigation";
 import { usePinnedApps } from "../usePinnedApps";
 import { useSidebarResize, type ResizeSide } from "../useSidebarResize";
 import { buildSidebarWidthVars } from "../sidebar-resize";
 import { readWorkspaceModePref, writeWorkspaceModePref } from "../ui-preferences";
 import { useViewportMode } from "../useViewportMode";
-import { buildChatRecentItems, resolveViewLabel, resolveWorkbenchDomain } from "../workbench-domains";
+import { resolveWorkbenchDomain } from "../workbench-domains";
 import type { WorkbenchClientService } from "../workbench-service";
-import { ContextPanel } from "./ContextPanel";
-import { NavigationRail } from "./NavigationRail";
-import { NavigationSidebar } from "./NavigationSidebar";
-import { SidebarResizeHandle } from "./SidebarResizeHandle";
-import { WorkspaceBar } from "./WorkspaceBar";
-import themeStyles from "./ShellTheme.module.css";
+import { ShellLeftColumn } from "./ShellLeftColumn";
+import { ShellRightColumn } from "./ShellRightColumn";
+import { ShellWorkspace } from "./ShellWorkspace";
 import styles from "./WorkbenchShell.module.css";
 
 // Shell 是四栏/三栏统一复用骨架与折叠状态的唯一所有者；根据域配置决定是否启用右侧栏。
@@ -27,21 +24,14 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
   const {
     activeView,
     activeProjectId,
-    activeLibraryTab,
-    activeDomainItem,
     leftSidebarOpen,
     rightPanelOpen,
-    views,
     contextPanels,
-    accountActions,
-    workspaceActions,
+    chatProvider,
     projectProvider,
     projects,
-    sectionProvider,
-    sections,
-    chatProvider,
-    chatSessions,
-    activeChatSessionId,
+    rightPanelMaximized,
+    rightWorkbenchWide,
   } = snapshot;
 
   const [newChatSelected, setNewChatSelected] = useState(false);
@@ -191,22 +181,13 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
     }
   }, [service]);
 
-  const existingProjectIds = new Set(projects.map((project) => project.id));
-  const recents: RecentItem[] = chatProvider
-    ? buildChatRecentItems({
-        chatSessions,
-        chatProvider,
-        activeView,
-        activeChatSessionId,
-        existingProjectIds,
-        onSelectSession: () => {
-          service.navigate("workspace", null);
-          setNewChatSelected(false);
-          setWorkspaceNotice("");
-          if (isCompact) service.setLeftSidebarOpen(false, false);
-        },
-      })
-    : [];
+  // 选中会话统一回到工作区视图并清理临时提示，供左栏最近列表与会话入口复用。
+  const handleSelectChatSession = useCallback(() => {
+    service.navigate("workspace", null);
+    setNewChatSelected(false);
+    setWorkspaceNotice("");
+    if (isCompact) service.setLeftSidebarOpen(false, false);
+  }, [isCompact, service]);
 
   const closeActivity = useCallback(() => setActivityOpen(false), []);
   const closeSearch = useCallback(() => setSearchOpen(false), []);
@@ -261,20 +242,9 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
       service.navigate("workspace", null);
     }
   }, [activeProjectId, activeView, currentProject, projectProvider, service]);
-  const registeredView = views.find((entry) => entry.id === activeView);
-  const activeChatSession = activeChatSessionId
-    ? chatSessions.find((session) => session.id === activeChatSessionId)
-    : undefined;
-  const title = activeView === "project" && currentProject
-    ? currentProject.name
-    : activeView === "workspace" && activeChatSession
-      ? activeChatSession.title
-      : activeView === "workspace" && newChatSelected
-        ? locale.newChat
-        : resolveViewLabel(activeView, locale, registeredView?.title);
   const matchingPanels = contextPanels.filter((panel) => !panel.match || panel.match(activeView, activeProjectId));
   const hasWorkbenchHost = matchingPanels.some((panel) => panel.chrome === "workbench");
-  const isRightMaximized = showRightPanel && snapshot.rightPanelMaximized && !isCompact;
+  const isRightMaximized = showRightPanel && rightPanelMaximized && !isCompact;
   const projectContext = activeView === "project" && currentProject && projectProvider?.renderProjectContext
     ? projectProvider.renderProjectContext(currentProject)
     : null;
@@ -285,167 +255,88 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
     isCompact,
     leftWidth,
     rightWidth,
-    rightWide: snapshot.rightWorkbenchWide,
+    rightWide: rightWorkbenchWide,
   }) as CSSProperties;
 
   return (
     <div
       ref={shellRef}
-      className={`${themeStyles.theme} ${styles.shell}`}
+      className={styles.shell}
       style={shellStyle}
       data-device={device}
       data-columns={String(domain.columns)}
       data-left-open={String(leftSidebarOpen)}
       data-right-open={String(showRightPanel)}
-      data-right-wide={snapshot.rightWorkbenchWide ? "true" : undefined}
+      data-right-wide={rightWorkbenchWide ? "true" : undefined}
       data-right-maximized={isRightMaximized ? "true" : undefined}
       data-left-drag-collapsed={leftDragCollapsed ? "true" : undefined}
       data-right-drag-collapsed={rightDragCollapsed ? "true" : undefined}
     >
-      <NavigationRail
+      <ShellLeftColumn
+        snapshot={snapshot}
         locale={locale}
-        isMobile={device === "mobile"}
-        activeView={activeView as NavigationView}
-        activeDomain={domain.id}
+        domain={domain}
         pinnedApps={pinnedApps}
-        accountActions={accountActions}
+        isMobile={device === "mobile"}
+        isCompact={isCompact}
+        mode={mode}
+        newChatSelected={newChatSelected}
+        searchOpen={searchOpen}
+        activityOpen={activityOpen}
+        dragging={dragState?.side === "left"}
+        dragCollapsed={leftDragCollapsed}
         onNavigate={navigate}
         onTogglePinned={togglePinnedApp}
         onOpenAppearance={openAppearance}
+        onBackdropClick={closeCompactDrawers}
+        onCloseDrawer={() => service.setLeftSidebarOpen(false, !isCompact)}
+        onModeChange={handleModeChange}
+        onNewChat={startNewChat}
+        onNewChatInProject={startNewChatInProject}
+        onNewChatInSection={startNewChatInSection}
+        onSelectChatSession={handleSelectChatSession}
+        onSelectLibraryTab={(tab) => service.setLibraryTab(tab)}
+        onSelectDomainItem={(id) => service.setDomainItem(id)}
+        onOpenProject={openProject}
+        onProjectRemoved={handleProjectRemoved}
+        onToggleSearch={toggleSearch}
+        onCloseSearch={closeSearch}
+        onToggleActivity={toggleActivity}
+        onCloseActivity={closeActivity}
+        onStartResize={startResize}
+        onKeyResize={handleKeyResize}
       />
 
-      {isCompact && (leftSidebarOpen || showRightPanel) && (
-        <div
-          className={styles.drawerBackdrop}
-          aria-hidden="true"
-          onClick={closeCompactDrawers}
-        />
-      )}
+      <ShellWorkspace
+        snapshot={snapshot}
+        locale={locale}
+        mode={mode}
+        newChatSelected={newChatSelected}
+        workspaceNotice={workspaceNotice}
+        isCompact={isCompact}
+        isRightMaximized={isRightMaximized}
+        hasRightColumn={hasRightColumn}
+        hasWorkbenchHost={hasWorkbenchHost}
+        leftDragCollapsed={leftDragCollapsed}
+        rightDragCollapsed={rightDragCollapsed}
+        onToggleLeft={toggleLeftSidebar}
+        onToggleRight={toggleRightPanel}
+      />
 
-      {leftSidebarOpen && (
-        <NavigationSidebar
-          locale={locale}
-          domain={domain}
-          activeView={activeView as NavigationView}
-          activeLibraryTab={activeLibraryTab}
-          activeDomainItem={activeDomainItem}
-          pluginViews={views.filter((v) => v.domain === "plugins")}
-          newChatSelected={newChatSelected}
-          activeProjectId={activeProjectId}
-          activeChatSessionId={activeChatSessionId}
-          mode={mode}
-          projects={projects}
-          sections={sections}
-          recents={recents}
-          chatSessions={chatSessions}
-          chatProvider={chatProvider}
-          projectProvider={projectProvider}
-          sectionProvider={sectionProvider}
-          searchOpen={searchOpen}
-          activityOpen={activityOpen}
-          compact={isCompact}
-          onCloseDrawer={() => service.setLeftSidebarOpen(false, !isCompact)}
-          onModeChange={handleModeChange}
-          onNewChat={startNewChat}
-          onNewChatInProject={startNewChatInProject}
-          onNewChatInSection={startNewChatInSection}
-          onSelectChatSession={() => {
-            service.navigate("workspace", null);
-            setNewChatSelected(false);
-            setWorkspaceNotice("");
-            if (isCompact) service.setLeftSidebarOpen(false, false);
-          }}
-          onNavigate={navigate}
-          onSelectLibraryTab={(tab) => service.setLibraryTab(tab)}
-          onSelectDomainItem={(id) => service.setDomainItem(id)}
-          onOpenProject={openProject}
-          onProjectCreated={openProject}
-          onProjectUpdated={() => {}}
-          onProjectRemoved={handleProjectRemoved}
-          onToggleSearch={toggleSearch}
-          onCloseSearch={closeSearch}
-          onToggleActivity={toggleActivity}
-          onCloseActivity={closeActivity}
-        />
-      )}
-
-      {!isCompact && leftSidebarOpen && (
-        <SidebarResizeHandle
-          side="left"
-          label={locale.resizeLeftSidebar}
-          dragging={dragState?.side === "left"}
-          snapped={leftDragCollapsed}
-          onStartResize={startResize}
-          onKeyResize={handleKeyResize}
-        />
-      )}
-
-      <main className={styles.workspace} data-region={WORKBENCH_REGIONS[2]}>
-        <WorkspaceBar
-          locale={locale}
-          title={title}
-          leftOpen={leftSidebarOpen}
-          leftDragCollapsed={leftDragCollapsed}
-          hasRightColumn={hasRightColumn}
-          rightOpen={rightPanelOpen}
-          hideRightToggleWhenOpen={hasWorkbenchHost}
-          rightDragCollapsed={rightDragCollapsed}
-          compact={isCompact}
-          rightPanelMaximized={isRightMaximized}
-          workspaceActions={workspaceActions}
-          onToggleLeft={toggleLeftSidebar}
-          onToggleRight={toggleRightPanel}
-        />
-
-        {registeredView ? (
-          registeredView.render()
-        ) : activeView === "project" && currentProject && projectProvider ? (
-          <div className={styles.projectViewHost}>
-            {workspaceNotice && (
-              <p className={styles.projectNotice} role="status">{workspaceNotice}</p>
-            )}
-            {projectProvider.renderProjectView(currentProject)}
-          </div>
-        ) : activeView === "project" && projectProvider && !projectProvider.hasLoaded?.() ? (
-          <section className={styles.page} aria-busy="true" />
-        ) : activeView === "workspace" ? (
-          <section className={styles.welcome} aria-labelledby="workspace-title">
-            <p className={styles.welcomeLabel}>{mode === "chatgpt" ? locale.chatModeTitle : locale.codexModeTitle}</p>
-            <h1 id="workspace-title">{locale.headline}</h1>
-            <p className={styles.introduction} role={workspaceNotice ? "status" : undefined}>{workspaceNotice || locale.introduction}</p>
-          </section>
-        ) : (
-          <section className={styles.page} aria-labelledby="feature-title">
-            <p className={styles.welcomeLabel}>{locale.localMode}</p>
-            <h1 id="feature-title">{title}</h1>
-            <p>{locale.featureUnavailable}</p>
-          </section>
-        )}
-      </main>
-
-      {!isCompact && showRightPanel && !isRightMaximized && (
-        <SidebarResizeHandle
-          side="right"
-          label={locale.resizeRightPanel}
-          dragging={dragState?.side === "right"}
-          snapped={rightDragCollapsed}
-          onStartResize={startResize}
-          onKeyResize={handleKeyResize}
-        />
-      )}
-
-      {showRightPanel && (
-        <ContextPanel
-          locale={locale}
-          panels={matchingPanels}
-          projectContext={projectContext}
-          compact={isCompact}
-          rightPanelMaximized={isRightMaximized}
-          onToggleMaximizeRightPanel={() => service.toggleRightPanelMaximized()}
-          onCollapseRightPanel={() => service.setRightPanelOpen(false, !isCompact)}
-          onCloseDrawer={() => service.setRightPanelOpen(false, !isCompact)}
-        />
-      )}
+      <ShellRightColumn
+        locale={locale}
+        panels={matchingPanels}
+        projectContext={projectContext}
+        compact={isCompact}
+        showPanel={showRightPanel}
+        rightPanelMaximized={isRightMaximized}
+        dragging={dragState?.side === "right"}
+        snapped={rightDragCollapsed}
+        onStartResize={startResize}
+        onKeyResize={handleKeyResize}
+        onToggleMaximize={() => service.toggleRightPanelMaximized()}
+        onClosePanel={() => service.setRightPanelOpen(false, !isCompact)}
+      />
     </div>
   );
 }

@@ -1,31 +1,28 @@
 // 浏览器端聊天输入栏的模型选择器，连接当前模型档案、品牌切换和思考强度调节。
 import { useEffect, useMemo, useRef, useState } from "react";
-import { IconCheck, IconChevronDown, IconChevronLeft, IconChevronRight, IconCpu, IconRefresh, IconSettings, IconX } from "@tabler/icons-react";
-import { findArkChatModel, getArkPlanKind, getArkPlanCatalog } from "@lfaa/llm/ark-plan";
-import { HoverTip, PopoverCard, StepSliderPopover, type StepSliderOption } from "@lfaa/ui-primitives/client";
-import type { ModelCapabilityItem, PublicLlmProfileItem, ReasoningLevelOption } from "../chat-types";
+import { IconCheck, IconChevronLeft, IconChevronRight, IconRefresh, IconSettings, IconX } from "@tabler/icons-react";
+import { PopoverCard, StepSliderPopover } from "@lfaa/ui-primitives/client";
+import type { PublicLlmProfileItem, ReasoningLevelOption } from "../chat-types";
 import { arkModelMessages, providerAccessMessages } from "../locales";
 import { getProtocolShortLabel } from "../provider-catalog";
 import { findProviderPlan } from "../provider-plans";
+import { ModelOptionRow, ProfileSlotRow } from "./ModelReasoningList";
+import {
+  buildBrandModels,
+  buildLevelOptions,
+  filterConfiguredProfiles,
+  resolveActiveModelCap,
+  resolveActiveModelId,
+  resolveActiveProfile,
+  resolveArkModel,
+  resolveArkPlan,
+  resolveEffectiveReasoning,
+  resolveResetReasoning,
+} from "./model-reasoning-options";
+import { ConfigureModelTrigger, ModelReasoningTrigger } from "./ModelReasoningTrigger";
 import styles from "./ModelReasoningPicker.module.css";
 
 type PickerPanelMode = "closed" | "models" | "brands" | "reasoning";
-
-const REASONING_LABELS_ZH: Record<ReasoningLevelOption, string> = {
-  minimal: "最低",
-  low: "低",
-  medium: "中",
-  high: "高",
-  max: "极高",
-};
-
-const REASONING_LABELS_EN: Record<ReasoningLevelOption, string> = {
-  minimal: "Minimal",
-  low: "Low",
-  medium: "Medium",
-  high: "High",
-  max: "Max",
-};
 
 /** 管理同一个浮窗内的选模、品牌切换和强度调节，档案与设置由调用方维护。 */
 export function ModelReasoningPicker({
@@ -67,81 +64,40 @@ export function ModelReasoningPicker({
 
   // 仅加载在设置中心完成配置或已填凭据的提供商
   const configuredProfiles = useMemo(
-    () => profiles.filter((p) => p.configured || p.hasApiKey),
+    () => filterConfiguredProfiles(profiles),
     [profiles],
   );
 
-  const activeProfile =
-    configuredProfiles.find((p) => p.id === activeProfileId) ?? configuredProfiles[0] ?? null;
+  const activeProfile = resolveActiveProfile(configuredProfiles, activeProfileId);
   const providerPlan = activeProfile ? findProviderPlan(activeProfile) : undefined;
-  const activeProtocol = activeProfile?.apiProtocol ?? "openai-chat";
-  const arkPlan = activeProfile && (activeProtocol === "openai-chat" || activeProtocol === "anthropic-messages")
-    ? getArkPlanKind(activeProfile.baseUrl) : undefined;
-  const arkModel = arkPlan && activeProfile ? findArkChatModel(activeProfile.model) : undefined;
+  const arkPlan = resolveArkPlan(activeProfile);
+  const arkModel = resolveArkModel(activeProfile, arkPlan);
   const arkLabels = arkModelMessages[isZh ? "zh" : "en"];
 
   // 方舟使用套餐公开目录，其余档案（含普通 API、其他套餐与本地服务）优先展示已同步的模型清单。
-  const brandModels = useMemo<ModelCapabilityItem[]>(() => {
-    if (!activeProfile) return [];
-    const list = activeProfile.availableModels ?? [];
-    if (arkPlan) {
-      const { chatModels } = getArkPlanCatalog(arkPlan);
-      if (findArkChatModel(activeProfile.model)) return [...chatModels];
-      return [
-        { id: activeProfile.model, supportsReasoning: false, reasoningMode: "none", reasoningLevels: [] },
-        ...chatModels,
-      ];
-    }
-    if (list.length > 0) return list;
-    return [{ id: activeProfile.model, supportsReasoning: false, reasoningMode: "none", reasoningLevels: [] }];
-  }, [activeProfile, arkPlan]);
+  const brandModels = useMemo(
+    () => buildBrandModels(activeProfile, arkPlan),
+    [activeProfile, arkPlan],
+  );
 
-  const activeModelId =
-    arkModel?.id ?? brandModels.find((m) => m.id === activeProfile?.model)?.id ?? brandModels[0]?.id ?? "";
+  const activeModelId = resolveActiveModelId(arkModel, brandModels, activeProfile);
 
-  const activeModelCap =
-    brandModels.find((m) => m.id === activeModelId) ?? {
-      id: activeModelId,
-      supportsReasoning: false,
-      reasoningMode: "none" as const,
-      reasoningLevels: [],
-    };
+  const activeModelCap = resolveActiveModelCap(brandModels, activeModelId);
 
   // 只有模型支持多档强度才生成滑块选项。方舟的 minimal 若可关闭思考则显示「关闭」。
-  const levelOptions = useMemo<Array<StepSliderOption<ReasoningLevelOption>>>(() => {
-    if (activeModelCap.reasoningMode !== "effort") return [];
-    return activeModelCap.reasoningLevels.map((id) => ({
-      id,
-      label: id === "minimal" && arkModel?.offEffort
-        ? arkLabels.off
-        : (isZh ? REASONING_LABELS_ZH[id] : REASONING_LABELS_EN[id]),
-    }));
-  }, [activeModelCap.reasoningLevels, activeModelCap.reasoningMode, arkLabels, arkModel, isZh]);
+  const levelOptions = useMemo(
+    () => buildLevelOptions({ activeModelCap, arkModel, arkLabels, isZh }),
+    [activeModelCap.reasoningLevels, activeModelCap.reasoningMode, arkLabels, arkModel, isZh],
+  );
 
   // 切换模型后优先保留仍受支持的档位，否则用该模型的默认档。
-  const effectiveReasoning = levelOptions.some((o) => o.id === reasoningLevel)
-    ? reasoningLevel
-    : (activeModelCap.defaultReasoningLevel && levelOptions.some((o) => o.id === activeModelCap.defaultReasoningLevel)
-        ? activeModelCap.defaultReasoningLevel
-        : (levelOptions[Math.max(0, levelOptions.length - 1)]?.id ?? "high"));
+  const effectiveReasoning = resolveEffectiveReasoning(levelOptions, reasoningLevel, activeModelCap);
   const activeLevelLabel = levelOptions.find((o) => o.id === effectiveReasoning)?.label ?? "";
 
   if (!activeProfile) {
-    const configureLabel = isZh ? "未配置模型 · 去配置卡片" : "Configure Model";
     return (
       <div className={styles.anchor}>
-        <HoverTip label={configureLabel}>
-          <button
-            type="button"
-            className={styles.triggerPill}
-            aria-label={configureLabel}
-            onClick={onOpenSettings}
-          >
-            <IconCpu size={16} className={styles.modelIcon} aria-hidden="true" />
-            <span className={styles.modelLabel}>{configureLabel}</span>
-            <IconChevronRight size={13} stroke={1.9} className={styles.chevronIcon} aria-hidden="true" />
-          </button>
-        </HoverTip>
+        <ConfigureModelTrigger isZh={isZh} onOpenSettings={onOpenSettings} />
       </div>
     );
   }
@@ -149,26 +105,14 @@ export function ModelReasoningPicker({
   return (
     <div ref={anchorRef} className={styles.anchor}>
       {/* 整体模型选择胶囊：统一弹出模型列表，推理强度仅在弹窗内调节 */}
-      <HoverTip label={isZh ? "选择模型" : "Select model"} disabled={panelMode !== "closed"}>
-        <button
-          type="button"
-          className={styles.triggerPill}
-          aria-label={isZh ? "选择模型" : "Select model"}
-          aria-description={[activeModelId, activeLevelLabel].filter(Boolean).join(" · ")}
-          aria-expanded={panelMode !== "closed"}
-          onClick={() => setPanelMode((prev) => (prev === "closed" ? "models" : "closed"))}
-        >
-          <IconCpu size={16} className={styles.modelIcon} aria-hidden="true" />
-          <span className={styles.modelLabel}>{activeModelId}</span>
-          {activeModelCap.reasoningMode === "effort" && activeLevelLabel && (
-            <span className={styles.reasoningLabel}>{activeLevelLabel}</span>
-          )}
-          {activeModelCap.reasoningMode === "fixed" && (
-            <span className={styles.reasoningLabel}>{isZh ? "深度思考" : "Thinking"}</span>
-          )}
-          <IconChevronDown size={13} stroke={1.9} className={styles.chevronIcon} />
-        </button>
-      </HoverTip>
+      <ModelReasoningTrigger
+        isZh={isZh}
+        isOpen={panelMode !== "closed"}
+        activeModelId={activeModelId}
+        activeLevelLabel={activeLevelLabel}
+        reasoningMode={activeModelCap.reasoningMode}
+        onToggle={() => setPanelMode((prev) => (prev === "closed" ? "models" : "closed"))}
+      />
 
       {/* 选模视图只展示当前档案可用于聊天的模型，品牌切换在独立视图内处理。 */}
       <PopoverCard
@@ -245,30 +189,19 @@ export function ModelReasoningPicker({
             <span className={styles.protocolTag}>{getProtocolShortLabel(activeProfile.apiProtocol)}</span>
           </div>
           <div className={styles.modelList}>
-            {brandModels.map((item) => {
-              const selected = item.id === activeModelId;
-              const status = arkPlan ? findArkChatModel(item.id)?.status : undefined;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={`${styles.modelItem} ${selected ? styles.modelItemActive : ""}`}
-                  onClick={() => {
-                    onSelectBrandModel(activeProfile.id, item.id);
-                    setPanelMode("closed");
-                  }}
-                >
-                  <div className={styles.modelMeta}>
-                    <span>{item.id}</span>
-                    {item.displayName && item.displayName !== item.id && (
-                      <span className={styles.modelSub}>{item.displayName}</span>
-                    )}
-                    {status && <span className={styles.modelSub}>{arkLabels[status]}</span>}
-                  </div>
-                  {selected && <IconCheck size={15} stroke={2} />}
-                </button>
-              );
-            })}
+            {brandModels.map((item) => (
+              <ModelOptionRow
+                key={item.id}
+                item={item}
+                selected={item.id === activeModelId}
+                arkPlan={arkPlan}
+                arkLabels={arkLabels}
+                onSelect={() => {
+                  onSelectBrandModel(activeProfile.id, item.id);
+                  setPanelMode("closed");
+                }}
+              />
+            ))}
           </div>
 
           <div className={styles.popoverDivider} />
@@ -348,26 +281,17 @@ export function ModelReasoningPicker({
 
           <div className={styles.modelGroupLabel}>{isZh ? "切换已配置品牌卡槽" : "Configured Providers"}</div>
           <div className={styles.modelList}>
-            {configuredProfiles.map((p) => {
-              const isCurrent = p.id === activeProfile.id;
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  className={`${styles.modelItem} ${isCurrent ? styles.modelItemActive : ""}`}
-                  onClick={() => {
-                    onSelectProfile(p.id);
-                    setPanelMode("models");
-                  }}
-                >
-                  <div className={styles.modelMeta}>
-                    <span>{p.name}</span>
-                    <span className={styles.modelSub}>{p.model}</span>
-                  </div>
-                  {isCurrent && <IconCheck size={15} stroke={2} />}
-                </button>
-              );
-            })}
+            {configuredProfiles.map((p) => (
+              <ProfileSlotRow
+                key={p.id}
+                profile={p}
+                current={p.id === activeProfile.id}
+                onSelect={() => {
+                  onSelectProfile(p.id);
+                  setPanelMode("models");
+                }}
+              />
+            ))}
           </div>
 
           <div className={styles.popoverDivider} />
@@ -401,11 +325,7 @@ export function ModelReasoningPicker({
           onSubtitleClick={() => setPanelMode("models")}
           resetLabel={isZh ? "恢复官方默认强度" : "Reset default effort"}
           onReset={() => {
-            const fallback =
-              activeModelCap.defaultReasoningLevel && levelOptions.some((o) => o.id === activeModelCap.defaultReasoningLevel)
-                ? activeModelCap.defaultReasoningLevel
-                : (levelOptions[0]?.id ?? "high");
-            onSelectReasoning(fallback);
+            onSelectReasoning(resolveResetReasoning(levelOptions, activeModelCap));
           }}
           onChange={(nextLevel) => onSelectReasoning(nextLevel)}
         />

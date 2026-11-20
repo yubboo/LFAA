@@ -1,6 +1,6 @@
 // 呈现四栏布局的右侧上下文菜单栏，渲染插件注册的上下文面板。
 import type { ReactNode } from "react";
-import type { WorkbenchContextPanelContribution } from "../../src/index";
+import type { WorkbenchContextPanelContribution } from "../../contract/index";
 import type { LocaleMessages } from "../locales";
 import { NavigationIcon } from "./NavigationIcon";
 import styles from "./ContextPanel.module.css";

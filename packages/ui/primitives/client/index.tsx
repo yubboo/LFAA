@@ -15,4 +15,4 @@ export {
   type PopoverPlacement,
   type StatusTone,
   type StepSliderOption,
-} from "../src/index";
+} from "../contract/index";

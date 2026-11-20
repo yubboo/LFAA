@@ -1,6 +1,7 @@
+/* 主题语义变量定义层：浅色/深色（含系统主题与关闭玻璃态）成对定义，组件只消费变量。
+   由 @lfaa/ui-theme Client 入口以副作用方式引入；具体色值只允许出现在本文件。 */
 /* 四栏工作区明暗主题与液态玻璃色彩变量，同时注入 :root 以保证 Portal 到 body 的弹窗/菜单继承完整主题变量。 */
-:global(:root),
-.theme {
+:root {
   --glass-contrast: 0.6;
   --color-shell: var(--user-bg, #ffffff);
   --color-rail: rgb(236 245 249 / calc(0.88 + var(--glass-contrast) * 0.1));
@@ -10,6 +11,39 @@
   --color-ink: var(--user-fg, #171717);
   --color-muted: #6d7278;
   --color-danger: #b3261e;
+  /* 状态与语义色：浅色用深色值保证正文对比度，深色在下方成对覆盖。 */
+  --color-success: #15803d;
+  --color-success-strong: #166534;
+  --color-success-rgb: 22 163 74;
+  --color-warning: #b45309;
+  --color-warning-strong: #92400e;
+  --color-warning-rgb: 180 83 9;
+  --color-danger-strong: #991b1b;
+  --color-danger-rgb: 179 38 30;
+  --color-info: #0369a1;
+  --color-info-strong: #075985;
+  --color-info-rgb: 3 105 161;
+  --color-link: #1d4ed8;
+  --color-link-hover: #1e40af;
+  --color-violet: #6d28d9;
+  --color-violet-strong: #7c3aed;
+  --color-violet-rgb: 109 40 217;
+  --color-orange: #c2410c;
+  --color-orange-rgb: 194 65 12;
+  --color-teal: #0f766e;
+  --color-slate: #475569;
+  --color-activity-positive: #15803d;
+  --color-activity-positive-rgb: 22 163 74;
+  --color-activity-negative: #b91c1c;
+  --color-activity-negative-rgb: 185 28 28;
+  --color-code-bg: #f6f8fa;
+  --color-code-bg-alt: #eef2f7;
+  --color-code-ink: #1e293b;
+  --color-code-muted: #64748b;
+  /* 彩色底上的文字与全屏遮罩：与强调色/状态色配对，不写死在组件里。 */
+  --color-on-accent: #ffffff;
+  --color-scrim: rgb(15 23 28 / 0.42);
+  --color-teal-rgb: 15 118 110;
   --color-line: rgb(15 23 28 / calc(0.05 + var(--glass-contrast) * 0.05));
   --color-active: rgb(15 23 28 / 0.06);
   --color-rail-active: rgb(255 255 255 / 0.96);
@@ -31,10 +65,8 @@
   color-scheme: light;
 }
 
-:global(html[data-theme="dark"]),
-:global(html[data-resolved-theme="dark"]),
-:global(html[data-theme="dark"]) .theme,
-:global(html[data-resolved-theme="dark"]) .theme {
+html[data-theme="dark"],
+html[data-resolved-theme="dark"] {
   --color-shell: var(--user-bg, #181818);
   --color-rail: rgb(28 33 35 / calc(0.88 + var(--glass-contrast) * 0.1));
   --color-panel: rgb(25 26 27 / calc(0.88 + var(--glass-contrast) * 0.1));
@@ -43,6 +75,37 @@
   --color-ink: var(--user-fg, #f3f3f3);
   --color-muted: #9a9ca0;
   --color-danger: #f2b8b5;
+    --color-success: #4ade80;
+    --color-success-strong: #22c55e;
+    --color-success-rgb: 74 222 128;
+    --color-warning: #fbbf24;
+    --color-warning-strong: #f59e0b;
+    --color-warning-rgb: 251 191 36;
+    --color-danger-strong: #f87171;
+    --color-danger-rgb: 242 184 181;
+    --color-info: #38bdf8;
+    --color-info-strong: #7dd3fc;
+    --color-info-rgb: 56 189 248;
+    --color-link: #60a5fa;
+    --color-link-hover: #93c5fd;
+    --color-violet: #c4b5fd;
+    --color-violet-strong: #a78bfa;
+    --color-violet-rgb: 196 181 253;
+    --color-orange: #fb923c;
+    --color-orange-rgb: 251 146 60;
+    --color-teal: #2dd4bf;
+    --color-slate: #cbd5e1;
+    --color-activity-positive: #86efac;
+    --color-activity-positive-rgb: 134 239 172;
+    --color-activity-negative: #f19eaa;
+    --color-activity-negative-rgb: 241 158 170;
+    --color-code-bg: #101218;
+    --color-code-bg-alt: #16181f;
+    --color-code-ink: #e2e8f0;
+    --color-code-muted: #94a3b8;
+    --color-on-accent: #ffffff;
+    --color-scrim: rgb(0 0 0 / 0.56);
+    --color-teal-rgb: 45 212 191;
   --color-line: rgb(255 255 255 / calc(0.05 + var(--glass-contrast) * 0.05));
   --color-active: rgb(255 255 255 / 0.085);
   --color-rail-active: rgb(255 255 255 / 0.1);
@@ -60,14 +123,12 @@
   color-scheme: dark;
 }
 
-:global(html[data-theme="system"]),
-:global(html[data-theme="system"]) .theme {
+html[data-theme="system"] {
   color-scheme: light dark;
 }
 
 @media (prefers-color-scheme: dark) {
-  :global(html[data-theme="system"]:not([data-resolved-theme="light"])),
-  :global(html[data-theme="system"]:not([data-resolved-theme="light"])) .theme {
+html[data-theme="system"]:not([data-resolved-theme="light"]) {
     --color-shell: var(--user-bg, #181818);
     --color-rail: rgb(28 33 35 / calc(0.88 + var(--glass-contrast) * 0.1));
     --color-panel: rgb(25 26 27 / calc(0.88 + var(--glass-contrast) * 0.1));
@@ -76,6 +137,37 @@
     --color-ink: var(--user-fg, #f3f3f3);
     --color-muted: #9a9ca0;
   --color-danger: #f2b8b5;
+    --color-success: #4ade80;
+    --color-success-strong: #22c55e;
+    --color-success-rgb: 74 222 128;
+    --color-warning: #fbbf24;
+    --color-warning-strong: #f59e0b;
+    --color-warning-rgb: 251 191 36;
+    --color-danger-strong: #f87171;
+    --color-danger-rgb: 242 184 181;
+    --color-info: #38bdf8;
+    --color-info-strong: #7dd3fc;
+    --color-info-rgb: 56 189 248;
+    --color-link: #60a5fa;
+    --color-link-hover: #93c5fd;
+    --color-violet: #c4b5fd;
+    --color-violet-strong: #a78bfa;
+    --color-violet-rgb: 196 181 253;
+    --color-orange: #fb923c;
+    --color-orange-rgb: 251 146 60;
+    --color-teal: #2dd4bf;
+    --color-slate: #cbd5e1;
+    --color-activity-positive: #86efac;
+    --color-activity-positive-rgb: 134 239 172;
+    --color-activity-negative: #f19eaa;
+    --color-activity-negative-rgb: 241 158 170;
+    --color-code-bg: #101218;
+    --color-code-bg-alt: #16181f;
+    --color-code-ink: #e2e8f0;
+    --color-code-muted: #94a3b8;
+    --color-on-accent: #ffffff;
+    --color-scrim: rgb(0 0 0 / 0.56);
+    --color-teal-rgb: 45 212 191;
     --color-line: rgb(255 255 255 / calc(0.05 + var(--glass-contrast) * 0.05));
     --color-active: rgb(255 255 255 / 0.085);
     --color-rail-active: rgb(255 255 255 / 0.1);
@@ -94,8 +186,7 @@
 }
 
 /* 关闭玻璃效果时覆盖语义变量，下游组件沿用原有变量。 */
-:global(html[data-glass="false"]),
-:global(html[data-glass="false"]) .theme {
+html[data-glass="false"] {
   --ambient-glow: none;
   --glass-sheen: none;
   --glass-specular-shadow: none;
@@ -108,8 +199,7 @@
   --glass-card-bg: #f6f8fa;
 }
 
-:global(html[data-glass="false"][data-resolved-theme="dark"]),
-:global(html[data-glass="false"][data-resolved-theme="dark"]) .theme {
+html[data-glass="false"][data-resolved-theme="dark"] {
   --color-rail: #1c2123;
   --color-panel: #191a1b;
   --color-topbar: var(--user-bg, #181818);
@@ -117,8 +207,7 @@
   --glass-card-bg: #242425;
 }
 
-:global(html[data-glass-sidebar="false"]),
-:global(html[data-glass-sidebar="false"]) .theme {
+html[data-glass-sidebar="false"] {
   --glass-sidebar-blur: 0px;
   --glass-sidebar-saturate: 100%;
 }

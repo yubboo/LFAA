@@ -5,6 +5,7 @@ import type { LibraryTabKey } from "@lfaa/ui-layout/client";
 import type { ChatClientStore, LibraryAssetItem, LongTermMemoryItem } from "../chat-store";
 import type { ChatLocaleMessages } from "../locales";
 import styles from "./LibraryView.module.css";
+import cardStyles from "./LibraryView.cards.module.css";
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -240,52 +241,52 @@ export function LibraryView({
             </div>
           </div>
         ) : (
-          <div className={previewData ? styles.workspaceWithPreview : styles.cardsOnly}>
-            <div className={styles.cardsGrid}>
+          <div className={previewData ? cardStyles.workspaceWithPreview : styles.cardsOnly}>
+            <div className={cardStyles.cardsGrid}>
               {filteredAssets.map((item) => (
                 <button
                   key={item.id}
                   type="button"
-                  className={`${styles.vaultCard} ${selectedAssetId === item.id ? styles.vaultCardSelected : ""}`}
+                  className={`${cardStyles.vaultCard} ${selectedAssetId === item.id ? cardStyles.vaultCardSelected : ""}`}
                   onClick={() => void handleSelectAsset(item)}
                 >
-                  <div className={styles.cardTopRow}>
-                    <span className={styles.badge}>
+                  <div className={cardStyles.cardTopRow}>
+                    <span className={cardStyles.badge}>
                       {item.category === "artifact" ? locale.artifactBadge : locale.assetBadge}
                     </span>
-                    <span className={styles.cardSize}>{formatSize(item.sizeBytes)}</span>
+                    <span className={cardStyles.cardSize}>{formatSize(item.sizeBytes)}</span>
                   </div>
-                  <strong className={styles.cardTitle}>{item.title}</strong>
-                  <span className={styles.cardPath}>{item.relativePath}</span>
+                  <strong className={cardStyles.cardTitle}>{item.title}</strong>
+                  <span className={cardStyles.cardPath}>{item.relativePath}</span>
                 </button>
               ))}
 
               {filteredMemories.map((mem) => (
-                <div key={mem.id} className={styles.vaultCard}>
-                  <div className={styles.cardTopRow}>
-                    <span className={styles.badge}>{locale.memoryBadge}</span>
+                <div key={mem.id} className={cardStyles.vaultCard}>
+                  <div className={cardStyles.cardTopRow}>
+                    <span className={cardStyles.badge}>{locale.memoryBadge}</span>
                     <button
                       type="button"
-                      className={styles.deleteBtn}
+                      className={cardStyles.deleteBtn}
                       aria-label={locale.deleteMemory}
                       onClick={() => void store.removeLongTermMemory(mem.id)}
                     >
                       <IconTrash size={13} aria-hidden="true" />
                     </button>
                   </div>
-                  <p className={styles.memoryContent}>{mem.content}</p>
+                  <p className={cardStyles.memoryContent}>{mem.content}</p>
                 </div>
               ))}
             </div>
 
             {previewData && (
-              <aside className={styles.previewCard} aria-label={previewData.item.title}>
-                <div className={styles.previewHeader}>
-                  <div className={styles.previewTitleWrap}>
-                    <strong className={styles.cardTitle}>{previewData.item.title}</strong>
-                    <span className={styles.cardPath}>{previewData.item.relativePath}</span>
+              <aside className={cardStyles.previewCard} aria-label={previewData.item.title}>
+                <div className={cardStyles.previewHeader}>
+                  <div className={cardStyles.previewTitleWrap}>
+                    <strong className={cardStyles.cardTitle}>{previewData.item.title}</strong>
+                    <span className={cardStyles.cardPath}>{previewData.item.relativePath}</span>
                   </div>
-                  <div className={styles.previewActions}>
+                  <div className={cardStyles.previewActions}>
                     <button
                       type="button"
                       className={styles.secondaryBtn}
@@ -298,7 +299,7 @@ export function LibraryView({
                     </button>
                     <button
                       type="button"
-                      className={styles.deleteBtn}
+                      className={cardStyles.deleteBtn}
                       aria-label={locale.deleteMemory}
                       onClick={() => {
                         void store.removeLibraryAsset(previewData.item.id).then(() => {
@@ -311,7 +312,7 @@ export function LibraryView({
                     </button>
                     <button
                       type="button"
-                      className={styles.deleteBtn}
+                      className={cardStyles.deleteBtn}
                       aria-label={locale.isZh ? "关闭预览" : "Close preview"}
                       onClick={() => {
                         setPreviewData(null);
@@ -322,7 +323,7 @@ export function LibraryView({
                     </button>
                   </div>
                 </div>
-                <pre className={styles.previewBody}>{previewData.content}</pre>
+                <pre className={cardStyles.previewBody}>{previewData.content}</pre>
               </aside>
             )}
           </div>

@@ -166,7 +166,7 @@
 .copiedPill {
   padding: 0.12rem 0.45rem;
   border-radius: 999px;
-  background: rgba(var(--color-accent-rgb), 0.16);
+  background: rgb(var(--color-accent-rgb) / 0.16);
   color: var(--color-accent);
   font-size: 0.7rem;
 }
@@ -235,12 +235,12 @@
 .searchHighlight {
   padding: 0 0.08rem;
   border-radius: 0.2rem;
-  background: rgba(251, 191, 36, 0.38);
+  background: rgb(var(--color-warning-rgb) / 0.38);
   color: var(--color-ink);
 }
 
 .sourceLine[data-search-match="true"] {
-  background: rgba(var(--color-accent-rgb), 0.14);
+  background: rgb(var(--color-accent-rgb) / 0.14);
 }
 
 .fileBadge {
@@ -328,8 +328,8 @@
 }
 
 .sourceLine[data-changed="true"] {
-  border-left-color: rgba(74, 222, 128, 0.85);
-  background: rgba(34, 197, 94, 0.12);
+  border-left-color: rgb(var(--color-success-rgb) / 0.85);
+  background: rgb(var(--color-success-rgb) / 0.12);
 }
 
 .addCommentGutter {
@@ -342,7 +342,7 @@
   border: 0;
   border-radius: 0.28rem;
   background: var(--color-accent);
-  color: #ffffff;
+  color: var(--color-on-accent);
   opacity: 0;
   cursor: pointer;
   transition: opacity 100ms ease;
@@ -373,8 +373,8 @@
 .codeContent :global([data-token="literal"]) { color: #fbbf24; }
 
 :global(:root[data-resolved-theme="light"]) .sourceLine[data-changed="true"] {
-  border-left-color: #16a34a;
-  background: rgba(22, 163, 74, 0.1);
+  border-left-color: var(--color-success-strong);
+  background: rgb(var(--color-success-rgb) / 0.1);
 }
 
 :global(:root[data-resolved-theme="light"]) .codeContent :global([data-token="keyword"]) { color: #7c3aed; }
@@ -439,7 +439,7 @@
 .commentSubmit {
   border: 0;
   background: var(--color-accent);
-  color: #ffffff;
+  color: var(--color-on-accent);
   font-weight: 500;
 }
 

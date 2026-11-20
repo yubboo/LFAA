@@ -1,5 +1,6 @@
 // 插件安装来源解析：把用户输入的包名 / GitHub 地址 / 本地路径 / tarball 归类，供 profile 安装使用。
 import { isAbsolute, resolve } from "node:path";
+import { findUnsafeSpecCharacter } from "./pnpm-spawn";
 
 /** 安装来源形态。 */
 export type InstallSpecKind = "registry" | "git" | "path" | "tarball";
@@ -46,6 +47,10 @@ const TARBALL = /\.(?:tgz|tar\.gz)(?:#.*)?$/iu;
 export function parseInstallSpec(raw: string): ParsedInstallSpec {
   const spec = raw.trim();
   if (spec.length === 0) throw new InvalidInstallSpecError(spec, "输入为空");
+
+  // 来源最终会作为 pnpm 参数交给子进程；含 shell 元字符的输入一律拒绝，不做转义猜测。
+  const unsafe = findUnsafeSpecCharacter(spec);
+  if (unsafe) throw new InvalidInstallSpecError(spec, `包含不允许的字符「${unsafe}」`);
 
   const withoutProtocol = spec.replace(/^(?:file|link):/u, "");
   const looksPath = withoutProtocol !== spec || isAbsolute(withoutProtocol) || /^[A-Za-z]:[\\/]/u.test(withoutProtocol);
