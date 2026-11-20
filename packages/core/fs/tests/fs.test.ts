@@ -10,8 +10,10 @@ test("拒绝工作区之外的路径", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-fs-root-"));
   try {
     await fs.writeFile(path.join(root, "a.txt"), "ok", "utf8");
+    // 解析结果按真实路径返回（防符号链接逃逸）；Windows CI 的临时目录可能是 RUNNER~1 短路径，比较前先归一。
+    const realRoot = await fs.realpath(root);
     const inside = await resolveSafeWorkspacePath("a.txt", [root]);
-    assert.equal(inside.path, path.join(root, "a.txt"));
+    assert.equal(inside.path, path.join(realRoot, "a.txt"));
     await assert.rejects(() => resolveSafeWorkspacePath("../escape.txt", [root]), /路径越界拦截/u);
   } finally {
     await fs.rm(root, { recursive: true, force: true });

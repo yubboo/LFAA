@@ -19,8 +19,10 @@ test("resolveSafeWorkspacePath 严格拦截工作区外目录与路径穿越", a
   await fs.mkdir(siblingSecret, { recursive: true });
 
   try {
+    // 沙箱按真实路径返回；Windows CI 临时目录可能是 RUNNER~1 短路径，期望值先取 realpath。
+    const realWorkspaceDir = await fs.realpath(workspaceDir);
     const inside = await resolveSafeWorkspacePath("src/app.ts", [workspaceDir]);
-    assert.ok(inside.path.startsWith(workspaceDir));
+    assert.ok(inside.path.startsWith(realWorkspaceDir));
 
     await assert.rejects(
       () => resolveSafeWorkspacePath("../project-a-secret/key.txt", [workspaceDir]),
@@ -34,7 +36,7 @@ test("resolveSafeWorkspacePath 严格拦截工作区外目录与路径穿越", a
     const unrestricted = await resolveSafeWorkspacePath("../project-a-secret/key.txt", [workspaceDir], {
       allowOutsideWorkspace: true,
     });
-    assert.ok(unrestricted.path.startsWith(siblingSecret));
+    assert.ok(unrestricted.path.startsWith(await fs.realpath(siblingSecret)));
     const appHome = path.join(os.homedir(), ".lfaa");
     for (const privateFile of ["llm-config.json", "credentials/test.txt", "sessions/test.json"]) {
       await assert.rejects(
@@ -93,7 +95,7 @@ test("Host toolsPlugin 支持内置文件读写检索及自定义工具热插拔
     );
     assert.deepEqual(editRes.fileChange, {
       path: "notes/hello.txt", operation: "edited", firstLine: 2,
-      resolvedPath: path.join(tempRoot, "notes", "hello.txt"),
+      resolvedPath: path.join(await fs.realpath(tempRoot), "notes", "hello.txt"),
       before: "Line 2", after: "New line", truncated: false,
     });
 

@@ -221,22 +221,36 @@ test("本地 16kHz WAV 编码、错误映射与 /api/chat/transcribe 离线语�
     const invalidWavRes = await callApi({ audioBase64: Buffer.from("invalid").toString("base64") });
     assert.equal(invalidWavRes.status, 400);
 
+    // 端点参数校验与引擎标识在所有 Windows 机器上都应成立；非空转写依赖本机装了对应语言的离线识别包（CI 机器通常只有英文包）。
+    const silentRes = await callApi({ audioBase64: Buffer.from(wav).toString("base64"), lang: "zh-CN" });
+    assert.equal(silentRes.status, 200);
+    assert.equal(silentRes.json.engine, "windows-sapi");
+
     if (process.platform === "win32") {
       const { execFile } = await import("node:child_process");
       const { promisify } = await import("node:util");
       const execFileAsync = promisify(execFile);
-      const ttsWav = path.join(tempRoot, "sample.wav");
-      const psScript = `Add-Type -AssemblyName System.Speech; $s = New-Object System.Speech.Synthesis.SpeechSynthesizer; $s.SetOutputToWaveFile($env:LFAA_TTS_WAV); $s.Speak('打开工作区'); $s.SetOutputToNull(); $s.Dispose()`;
-      await execFileAsync(
-        "powershell.exe",
-        ["-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(psScript, "utf16le").toString("base64")],
-        { env: { ...process.env, LFAA_TTS_WAV: ttsWav }, windowsHide: true },
-      );
-      const wavBuf = await fs.readFile(ttsWav);
-      const okRes = await callApi({ audioBase64: wavBuf.toString("base64"), lang: "zh-CN" });
-      assert.equal(okRes.status, 200);
-      assert.equal(okRes.json.engine, "windows-sapi");
-      assert.ok((okRes.json.text ?? "").length > 0, "离线语音识别应返回非空文本");
+      const runPowerShell = async (script: string, env: Record<string, string> = {}): Promise<string> => {
+        const { stdout } = await execFileAsync(
+          "powershell.exe",
+          ["-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(script, "utf16le").toString("base64")],
+          { env: { ...process.env, ...env }, windowsHide: true },
+        );
+        return stdout;
+      };
+      const cultures = (await runPowerShell(
+        "Add-Type -AssemblyName System.Speech; [System.Speech.Recognition.SpeechRecognitionEngine]::InstalledRecognizers() | ForEach-Object { $_.Culture.Name }",
+      )).split(/\r?\n/u).map((line) => line.trim()).filter(Boolean);
+      if (cultures.some((culture) => culture.toLowerCase().startsWith("zh"))) {
+        const ttsWav = path.join(tempRoot, "sample.wav");
+        const psScript = `Add-Type -AssemblyName System.Speech; $s = New-Object System.Speech.Synthesis.SpeechSynthesizer; $s.SetOutputToWaveFile($env:LFAA_TTS_WAV); $s.Speak('打开工作区'); $s.SetOutputToNull(); $s.Dispose()`;
+        await runPowerShell(psScript, { LFAA_TTS_WAV: ttsWav });
+        const wavBuf = await fs.readFile(ttsWav);
+        const okRes = await callApi({ audioBase64: wavBuf.toString("base64"), lang: "zh-CN" });
+        assert.equal(okRes.status, 200);
+        assert.equal(okRes.json.engine, "windows-sapi");
+        assert.ok((okRes.json.text ?? "").length > 0, "离线语音识别应返回非空文本");
+      }
     }
   } finally {
     await chatFiber.dispose();
