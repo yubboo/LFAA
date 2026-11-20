@@ -45,8 +45,19 @@ function toRelative(file) {
   return relative(ROOT, file).split(sep).join("/");
 }
 
+/** 测试前确保运行期 lib 产物存在：全新克隆（如 CI）没有 lib，插件生命周期用例会因 import 失败而挂掉。 */
+function ensureRuntimeLibs() {
+  const result = spawnSync(process.execPath, [join(ROOT, "scripts", "ensure-lib.mjs")], { cwd: ROOT, stdio: "inherit" });
+  return result.status === 0;
+}
+
 function main() {
   const options = parseArgs(process.argv.slice(2));
+  if (!ensureRuntimeLibs()) {
+    console.error("运行期 lib 产物准备失败，已中止测试。");
+    process.exitCode = 1;
+    return;
+  }
   const all = [
     ...walk(PACKAGES_DIR, /\.test\.(ts|tsx)$/u),
     ...walk(SCRIPTS_DIR, /\.test\.mjs$/u),
