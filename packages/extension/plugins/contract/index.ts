@@ -35,15 +35,18 @@ export interface PluginRecord {
   updatedAt: number;
 }
 
-/** 可安装插件目录项。 */
 /** 模式预设摘要：会话插件是该模式启用的模块子集。 */
 export interface PresetSummary {
   id: string;
   name: string;
   description: string;
   modules: string[];
+  nameEn: string;
+  descriptionEn: string;
+  unavailable?: boolean;
 }
 
+/** 可安装插件目录项。 */
 export interface PluginCatalogItem {
   manifest: PluginManifest;
   installed: boolean;

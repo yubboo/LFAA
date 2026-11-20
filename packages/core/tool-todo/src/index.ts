@@ -43,6 +43,7 @@ const todoPlugin: Plugin.Object<void> = {
 
     ctx.effect(() => {
       const cleanupWrite = ctx.tools.registerTool({
+        moduleName: "@lfaa/tool-todo",
         name: "todo_write",
         title: "更新任务清单",
         description: "创建或更新当前会话的任务清单。传入完整列表，同 id 覆盖、新 id 追加。",
@@ -93,6 +94,7 @@ const todoPlugin: Plugin.Object<void> = {
       });
 
       const cleanupRead = ctx.tools.registerTool({
+        moduleName: "@lfaa/tool-todo",
         name: "todo_read",
         title: "读取任务清单",
         description: "读取当前会话的任务清单与完成进度。",

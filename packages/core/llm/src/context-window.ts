@@ -1,6 +1,22 @@
 // @lfaa/llm 上下文窗口推断：模型名里的容量标记优先（如 32k / 128k / 1m），
 // 其次按已知模型家族取公开值；无法确定时返回 undefined，由调用方显示"未配置"而不是编造数字。
 
+/** 统计以实际响应模型为准；方舟规格仅适用于已知官方档案与型号。 */
+export function resolveReportedContextWindow(
+  profile: { model: string; providerId?: string; contextWindowTokens?: number },
+  responseModel: string,
+): { tokens: number; source: "configured" | "provider-spec" } | undefined {
+  if (responseModel === profile.model && profile.contextWindowTokens && profile.contextWindowTokens > 0) {
+    return { tokens: profile.contextWindowTokens, source: "configured" };
+  }
+  // 火山方舟 Agent/Coding Plan 官方模型规格。仅匹配这些已公布型号与版本后缀。
+  if (/^volcengine(?:-agent-plan|-coding-plan)?$/u.test(profile.providerId ?? "")
+    && /^deepseek-v(?:4[.-]1-flash(?:-economy)?|4-(?:flash|pro))(?:-(?:ga-)?\d{6})?$/iu.test(responseModel)) {
+    return { tokens: 1_048_576, source: "provider-spec" };
+  }
+  return undefined;
+}
+
 /** 模型名里形如 32k / 128k / 1m 的容量标记。 */
 const NAME_CAPACITY = /(?:^|[-_@/])(\d+(?:\.\d+)?)\s*([km])(?:$|[-_@/.])/iu;
 

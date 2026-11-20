@@ -30,4 +30,6 @@ This package lives in `packages/core/tools`.
 
 ## Dev Note
 
-None.
+Tool definitions declare their owning module. The scoped registry applies the session module set to both model schemas and execution, including indirect tool calls and timeout fallback.
+
+The execution context has an optional callback for a delegated tool to report child activity to the parent run.

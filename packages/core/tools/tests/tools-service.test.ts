@@ -101,6 +101,7 @@ test("Host toolsPlugin 支持内置文件读写检索及自定义工具热插拔
       name: "ping_tool",
       title: "Ping",
       description: "测试工具",
+      moduleName: "@lfaa/test-ping",
       permissionLevel: "read",
       parameters: { type: "object", properties: {} },
       async execute() {
@@ -108,7 +109,16 @@ test("Host toolsPlugin 支持内置文件读写检索及自定义工具热插拔
       },
     });
     assert.equal((await ctx.tools.executeTool("ping_tool", {}, execCtx)).output, "pong");
+    const minimal = ctx.tools.scope(new Set(["@lfaa/tools"]), true);
+    const standard = ctx.tools.scope(new Set(["@lfaa/tools", "@lfaa/test-ping"]));
+    assert.ok(minimal.getLlmToolSchemas().some(({ name }) => name === "read_file"));
+    assert.ok(!minimal.getLlmToolSchemas().some(({ name }) => name === "ping_tool" || name === "write_file"));
+    assert.equal((await minimal.executeTool("ping_tool", {}, execCtx)).ok, false);
+    assert.equal((await minimal.executeTool("write_file", { path: "blocked.txt", content: "blocked" }, execCtx)).ok, false);
+    await assert.rejects(fs.access(path.join(tempRoot, "blocked.txt")), { code: "ENOENT" });
+    assert.equal((await standard.executeTool("ping_tool", {}, execCtx)).output, "pong");
     unregister();
+    assert.equal((await standard.executeTool("ping_tool", {}, execCtx)).ok, false);
     assert.equal(ctx.tools.getTool("ping_tool"), undefined);
 
     await fiber.dispose();

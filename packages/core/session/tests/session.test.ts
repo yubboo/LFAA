@@ -27,3 +27,23 @@ test("会话可创建、追加消息并按摘要列出", async () => {
     await fs.rm(root, { recursive: true, force: true });
   }
 });
+
+test("会话预设随持久化与分叉保留，旧会话保持缺省", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-session-preset-"));
+  try {
+    const store = new SessionMemoryStore(root);
+    const selected = await store.create({ sessionPreset: "standard", sessionModules: ["@lfaa/tools"] });
+    const old = await store.create();
+    assert.equal((await store.get(selected.id))?.sessionPreset, "standard");
+    assert.equal((await store.fork(selected.id))?.sessionPreset, "standard");
+    assert.equal((await store.get(old.id))?.sessionPreset, undefined);
+    await store.update(selected.id, { sessionPreset: "minimal", sessionModules: ["@lfaa/tools", "@lfaa/rules"] });
+    await store.appendMessage(selected.id, { id: "first", role: "user", content: "测试", createdAt: Date.now() });
+    await assert.rejects(() => store.update(selected.id, { sessionPreset: "standard" }));
+    const reopened = await new SessionMemoryStore(root).get(selected.id);
+    assert.equal(reopened?.sessionPreset, "minimal");
+    assert.deepEqual(reopened?.sessionModules, ["@lfaa/tools", "@lfaa/rules"]);
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});

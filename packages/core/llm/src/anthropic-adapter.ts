@@ -3,6 +3,18 @@ import { formatLlmHttpError, mapEffortForModelApi, normalizeModelCapability, res
 import { isDeepSeekEndpoint, iterateSseJsonPayloads, normalizeHttpBaseUrl } from "./protocol-utils";
 import type { LlmGenerateInput, LlmGenerateOutput, LlmMessage, LlmProfile, LlmToolCall, LlmUsage } from "./types";
 
+/** Anthropic 分列未缓存、缓存写入和缓存读取，输入总量需要合并三项。 */
+function readAnthropicUsage(raw: Record<string, unknown>): LlmUsage {
+  const input = typeof raw.input_tokens === "number" ? raw.input_tokens : undefined;
+  const cacheRead = typeof raw.cache_read_input_tokens === "number" ? raw.cache_read_input_tokens : undefined;
+  const cacheWrite = typeof raw.cache_creation_input_tokens === "number" ? raw.cache_creation_input_tokens : 0;
+  return {
+    ...(input !== undefined ? { promptTokens: input + cacheWrite + (cacheRead ?? 0) } : {}),
+    ...(cacheRead !== undefined ? { cachedPromptTokens: cacheRead } : {}),
+    ...(typeof raw.output_tokens === "number" ? { completionTokens: raw.output_tokens } : {}),
+  };
+}
+
 function buildAnthropicPayloadMessages(messages: LlmMessage[]): {
   system?: string;
   messages: Array<Record<string, unknown>>;
@@ -85,15 +97,7 @@ function parseAnthropicJsonResponse(payload: Record<string, unknown>, profile: L
   const rawUsage = typeof payload.usage === "object" && payload.usage !== null
     ? (payload.usage as Record<string, unknown>)
     : undefined;
-  const usage: LlmUsage | undefined = rawUsage
-    ? {
-        ...(typeof rawUsage.input_tokens === "number" ? { promptTokens: rawUsage.input_tokens } : {}),
-        ...(typeof rawUsage.output_tokens === "number" ? { completionTokens: rawUsage.output_tokens } : {}),
-        ...(typeof rawUsage.cache_read_input_tokens === "number"
-          ? { cachedPromptTokens: rawUsage.cache_read_input_tokens }
-          : {}),
-      }
-    : undefined;
+  const usage = rawUsage ? readAnthropicUsage(rawUsage) : undefined;
 
   return {
     model: typeof payload.model === "string" ? payload.model : profile.model,
@@ -189,6 +193,7 @@ export async function callAnthropicMessagesApi(
   let reasoningContent = "";
   let responseModel = profile.model;
   let finishReason = "end_turn";
+  let rawStreamUsage: Record<string, unknown> | undefined;
   const toolBlocks = new Map<number, { id: string; name: string; jsonBuf: string }>();
 
   await iterateSseJsonPayloads(response, (payload) => {
@@ -196,6 +201,7 @@ export async function callAnthropicMessagesApi(
     if (eventType === "message_start" && typeof payload.message === "object" && payload.message !== null) {
       const msgObj = payload.message as Record<string, unknown>;
       if (typeof msgObj.model === "string") responseModel = msgObj.model;
+      if (msgObj.usage && typeof msgObj.usage === "object") rawStreamUsage = { ...msgObj.usage };
     } else if (
       eventType === "content_block_start"
       && typeof payload.index === "number"
@@ -233,6 +239,7 @@ export async function callAnthropicMessagesApi(
     } else if (eventType === "message_delta" && typeof payload.delta === "object" && payload.delta !== null) {
       const delta = payload.delta as Record<string, unknown>;
       if (typeof delta.stop_reason === "string") finishReason = delta.stop_reason;
+      if (payload.usage && typeof payload.usage === "object") rawStreamUsage = { ...rawStreamUsage, ...payload.usage };
     }
   });
 
@@ -249,5 +256,6 @@ export async function callAnthropicMessagesApi(
     ...(reasoningContent ? { reasoningContent } : {}),
     toolCalls,
     finishReason,
+    ...(rawStreamUsage ? { usage: readAnthropicUsage(rawStreamUsage) } : {}),
   };
 }

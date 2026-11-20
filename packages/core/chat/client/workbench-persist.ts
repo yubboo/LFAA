@@ -13,6 +13,7 @@ export interface PersistedWorkbenchSessionState {
   browserOpen: boolean;
   browserUrl?: string;
   reviewTabOpen: boolean;
+  reviewMessageId?: string | undefined;
   fileTreeOpen: boolean;
   auxOpen: boolean;
   activeAux: RightAuxTab;
@@ -25,7 +26,7 @@ export function createDefaultWorkbenchSessionState(): PersistedWorkbenchSessionS
     rightStageKind: null,
     browserOpen: false,
     reviewTabOpen: false,
-    fileTreeOpen: true,
+    fileTreeOpen: false,
     auxOpen: false,
     activeAux: "terminal",
   };
@@ -57,7 +58,8 @@ export function readWorkbenchSessionState(sessionId: string | null | undefined):
       browserOpen: Boolean(parsed.browserOpen),
       ...(typeof parsed.browserUrl === "string" && parsed.browserUrl.trim() ? { browserUrl: parsed.browserUrl.trim() } : {}),
       reviewTabOpen: Boolean(parsed.reviewTabOpen),
-      fileTreeOpen: typeof parsed.fileTreeOpen === "boolean" ? parsed.fileTreeOpen : true,
+      ...(typeof parsed.reviewMessageId === "string" ? { reviewMessageId: parsed.reviewMessageId } : {}),
+      fileTreeOpen: parsed.fileTreeOpen === true,
       auxOpen: Boolean(parsed.auxOpen),
       activeAux,
     };

@@ -89,6 +89,7 @@ const toolWebPlugin: Plugin.Object<void> = {
   inject: ["tools"],
   apply(ctx) {
     ctx.effect(() => ctx.tools.registerTool({
+      moduleName: "@lfaa/tool-web",
       name: "fetch_url",
       title: "读取网页",
       description: "抓取公开网页并返回可读正文，用于查阅文档、博客与在线资料。",

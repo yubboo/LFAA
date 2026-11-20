@@ -30,6 +30,7 @@ import type {
 } from "./types";
 
 export * from "./types";
+export type { UserClarification } from "@lfaa/session";
 export {
   buildRunSummaryEntry,
   collectHistoryDigest,

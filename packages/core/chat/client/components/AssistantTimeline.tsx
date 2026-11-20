@@ -1,52 +1,62 @@
 // 以正文偏移和真实操作记录渲染流式回复及完成后的过程回看。
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import {
   IconAlertCircle, IconArrowUpRight, IconCheck, IconChevronRight, IconClock,
-  IconFileMinus, IconFilePlus, IconFileSearch, IconPencil, IconSparkles, IconTerminal2, IconTool,
+  IconFileMinus, IconFilePlus, IconFileSearch, IconPencil, IconRobot, IconSparkles, IconTerminal2, IconTool,
 } from "@tabler/icons-react";
 import { getActivityKind, getActivityLabel } from "../activity-label";
 import type { AgentStepItem, PendingApprovalBanner } from "../chat-types";
 import { getActivityFilePath, getFileActivityKind } from "../file-activity";
 import { timelineMessages, type ChatLocaleMessages } from "../locales";
 import { MarkdownContent } from "./MarkdownContent";
-import { LiveExecutionTail, StepTraceList, TimelineApproval } from "./StepTraceList";
+import { formatDuration, getLiveStage, StepTraceList, TimelineApproval } from "./StepTraceList";
 import styles from "./StepTraceList.module.css";
 
 interface ActivityGroup {
-  lastIteration: number;
+  key: string;
+  model?: AgentStepItem;
+  live?: boolean;
   offset: number;
   steps: AgentStepItem[];
 }
 
-const activityIcons = { command: IconTerminal2, file: IconPencil, read: IconFileSearch, skill: IconSparkles, tool: IconTool };
+const activityIcons = { command: IconTerminal2, file: IconPencil, read: IconFileSearch, skill: IconSparkles, subagent: IconRobot, tool: IconTool };
 
 interface FileActivityActions {
   onOpenFile: (stepId: string) => void;
+  onOpenTrace?: ((stepId: string) => void) | undefined;
   selectedFileStepId?: string | undefined;
 }
 
-/** 正文之间的连续操作原位追加，包括模型未输出新正文的后续工具轮。 */
-function groupActivities(steps: AgentStepItem[], textLength: number): ActivityGroup[] {
-  const groups: ActivityGroup[] = [];
+/** 轮次是活动行的身份，思考、工具事件和后续的子任务更新共用它。 */
+function groupActivities(steps: AgentStepItem[], textLength: number, isStreaming: boolean): ActivityGroup[] {
+  const groups = new Map<string, ActivityGroup>();
+  const currentModel = [...steps].reverse().find((step) => step.phase === "think");
   for (const step of steps) {
-    if (step.phase !== "act" && step.id !== "skills-loaded") continue;
-    const last = groups.at(-1);
-    // 同轮迟到的正文继续显示在准备中的工具之前。
+    const initialSkill = step.id === "skills-loaded";
+    if (step.phase !== "act" && step !== currentModel && !initialSkill) continue;
+    const key = initialSkill ? step.id : `round-${step.iteration}`;
+    const group = groups.get(key) ?? { key, offset: 0, steps: [] };
     const offset = step.status === "preparing" ? textLength : Math.min(textLength, step.textOffset ?? 0);
-    const sameBoundary = last?.offset === offset && step.textOffset !== undefined
-      && last.steps[0]?.textOffset !== undefined && last.steps[0]?.id !== "skills-loaded";
-    if (last && (last.lastIteration === step.iteration || sameBoundary)) {
-      last.lastIteration = step.iteration;
-      last.offset = Math.max(last.offset, offset);
-      last.steps.push(step);
-    } else {
-      groups.push({ lastIteration: step.iteration, offset: Math.max(last?.offset ?? 0, offset), steps: [step] });
-    }
+    group.offset = Math.max(group.offset, offset);
+    if (step.phase === "think") group.model = step;
+    else group.steps.push(step);
+    groups.set(key, group);
   }
-  return groups;
+  // 模型事件到来前即预留首轮行，使初始化及首个实际步骤复用同一个节点。
+  if (isStreaming && !currentModel && ![...groups.keys()].some((key) => key.startsWith("round-"))) {
+    groups.set("round-1", { key: "round-1", offset: 0, steps: [], live: true });
+  }
+  const result = [...groups.values()];
+  let offset = 0;
+  for (const group of result) {
+    group.offset = offset = Math.max(offset, group.offset);
+    if (group.model === currentModel && currentModel) group.live = isStreaming;
+  }
+  return result;
 }
 
-function ActivityRow({ step, locale, onOpenFile, selectedFileStepId }: {
+function ActivityRow({ step, locale, onOpenFile, onOpenTrace, selectedFileStepId }: {
   step: AgentStepItem;
   locale: ChatLocaleMessages;
 } & FileActivityActions) {
@@ -80,7 +90,7 @@ function ActivityRow({ step, locale, onOpenFile, selectedFileStepId }: {
   const kind = getActivityKind(step);
   const isCommand = kind === "command";
   const active = step.status === "preparing" || step.status === "running";
-  const hasDetails = Boolean(active || command || step.argsPreview || step.resultPreview || step.detail || step.toolTarget || step.argumentChars !== undefined);
+  const hasDetails = Boolean(onOpenTrace || active || command || step.argsPreview || step.resultPreview || step.detail || step.toolTarget || step.argumentChars !== undefined);
   const Icon = activityIcons[kind];
   const title = command?.command ?? getActivityLabel(step, locale.isZh, true);
   const StatusIcon = step.status === "done" ? IconCheck : step.status === "error" ? IconAlertCircle : IconClock;
@@ -101,7 +111,7 @@ function ActivityRow({ step, locale, onOpenFile, selectedFileStepId }: {
       {showLeadingStatus && status}
       <span className={styles.activityTitle} title={title}>{title}</span>
       {!showLeadingStatus && status}
-      {hasDetails && <IconChevronRight size={13} className={styles.chevron} aria-hidden="true" />}
+      {(hasDetails || onOpenTrace) && <IconChevronRight size={13} className={styles.chevron} aria-hidden="true" />}
     </>
   );
   if (!hasDetails) return <div className={styles.activityRow} data-kind={kind} data-status={step.status}>{row}</div>;
@@ -136,41 +146,55 @@ function ActivityRow({ step, locale, onOpenFile, selectedFileStepId }: {
           </>
         )}
         {step.detail && <pre>{step.detail}</pre>}
+        {onOpenTrace && kind !== "read" && kind !== "file" && (
+          <button type="button" className={styles.traceLink} onClick={() => onOpenTrace(step.id)}>{locale.isZh ? "查看" : "View"}</button>
+        )}
       </div>
     </details>
   );
 }
 
-function ActivityGroupRow({ group, locale, ...fileActions }: {
-  group: ActivityGroup; locale: ChatLocaleMessages;
+function ActivityGroupRow({ group, locale, createdAt, ...fileActions }: {
+  group: ActivityGroup; locale: ChatLocaleMessages; createdAt: number;
 } & FileActivityActions) {
   const labels = timelineMessages[locale.isZh ? "zh" : "en"];
   const failed = group.steps.filter((step) => step.status === "error").length;
-  const active = group.steps.find((step) => step.status === "running" || step.status === "waiting_approval")
-    ?? group.steps.find((step) => step.status === "preparing");
-  const current = active ?? group.steps[0]!;
-  const kind = getActivityKind(current);
-  const Icon = activityIcons[kind];
-  const single = Boolean(active) || group.steps.length === 1;
-  const summary = single
-    ? [getActivityLabel(current, locale.isZh, true), current.commandTrace?.command].filter(Boolean).join(" ")
-    : [...new Set(group.steps.map((step) => getActivityLabel(step, locale.isZh)))].join(locale.isZh ? "、" : ", ");
-
+  const newest = [...group.steps].reverse();
+  const active = newest.find((step) => step.status === "waiting_approval")
+    ?? newest.find((step) => step.status === "preparing" || step.status === "running");
+  const current = active ?? group.steps.at(-1);
+  const kind = current ? getActivityKind(current) : "model";
+  const Icon = kind === "model" ? IconSparkles : activityIcons[kind];
+  const [now, setNow] = useState(Date.now);
+  const modelActive = Boolean(group.live && !current);
+  useEffect(() => {
+    if (!modelActive) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [modelActive]);
+  const modelState = group.model?.status === "error" ? "modelFailed"
+    : group.model?.status === "done" || !group.live ? "thought"
+    : group.model ? getLiveStage([group.model], now) : "starting";
+  const summary = current ? [getActivityLabel(current, locale.isZh, true), current.commandTrace?.command].filter(Boolean).join(" ")
+    : labels[modelState];
   return (
-    <details className={styles.activityDisclosure}>
-      <summary className={styles.disclosure} data-kind={kind} data-status={active?.status}>
-        {active && active.status !== "waiting_approval" && <span className={styles.liveDot} aria-hidden="true" />}
+    <details className={styles.activityDisclosure} data-activity-segment={group.key}>
+      <summary className={styles.disclosure} data-kind={kind} data-status={active?.status ?? (modelActive ? "running" : undefined)}>
+        {((active && active.status !== "waiting_approval") || modelActive) && <span className={styles.liveDot} aria-hidden="true" />}
         <Icon size={14} className={styles.icon} aria-hidden="true" />
-        <span className={styles.activityTitle} title={summary}>{summary}</span>
+        <span className={styles.activityTitle} title={summary} aria-live={group.live || active ? "polite" : undefined}>{summary}</span>
+        {modelActive && <span className={styles.elapsed}>{formatDuration(now - (group.model?.startedAt ?? createdAt), locale.isZh)}</span>}
         {active?.status === "preparing" && active.argumentChars !== undefined && (
           <span className={styles.elapsed}>{labels.receivedArgs(active.argumentChars)}</span>
         )}
         {failed > 0 && <span className={styles.failed}>{labels.failures(failed)}</span>}
-        <IconChevronRight size={14} className={styles.chevron} aria-hidden="true" />
+        {current && <IconChevronRight size={14} className={styles.chevron} aria-hidden="true" />}
       </summary>
-      <div className={styles.activityList}>
-        {group.steps.map((step) => <ActivityRow key={step.id} step={step} locale={locale} {...fileActions} />)}
-      </div>
+      {current && (
+        <div className={styles.activityList}>
+          {group.steps.map((step) => <ActivityRow key={step.id} step={step} locale={locale} {...fileActions} />)}
+        </div>
+      )}
     </details>
   );
 }
@@ -189,6 +213,7 @@ export function AssistantTimeline({
   pendingApproval,
   onResolveApproval,
   onOpenFile,
+  onOpenTrace,
   selectedFileStepId,
   bodyClassName,
 }: {
@@ -205,40 +230,24 @@ export function AssistantTimeline({
   onResolveApproval: (approved: boolean) => void;
   bodyClassName?: string | undefined;
 } & FileActivityActions) {
-  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(true);
   const [liveOpen, setLiveOpen] = useState<boolean>();
   const processId = useId();
   const text = isStreaming ? content : (progressText ?? "");
-  const groups = groupActivities(steps, text.length);
+  const groups = groupActivities(steps, text.length, isStreaming);
   const hasProcess = groups.length > 0 || (!isStreaming && Boolean(text.trim()));
   const lastEvent = steps.reduce((latest, step) => Math.max(latest, step.timestamp), 0);
   const durationMs = runDurationMs ?? reasoningDurationMs ?? (lastEvent >= createdAt ? lastEvent - createdAt : undefined);
   const hasStatus = isStreaming || durationMs !== undefined || hasProcess || tokenUsage !== undefined;
   const finalText = isStreaming ? text.slice(groups.at(-1)?.offset ?? 0) : content;
-  const processOpen = isStreaming ? (liveOpen ?? hasProcess) : historyOpen;
+  const processOpen = isStreaming ? (liveOpen ?? hasProcess) : (liveOpen ?? historyOpen);
   const hasDisclosure = isStreaming || hasProcess;
-  const lastGroup = groups.at(-1);
-  const hasActiveTailGroup = Boolean(
-    processOpen && lastGroup?.steps.some(
-      (step) => step.status === "preparing" || step.status === "running" || step.status === "waiting_approval",
-    ),
-  );
-  // 只要还在流式执行且末尾没有活跃的工具分组，就持续显示实时运行状态行，防止轮次切换出现完成错觉。
-  // 模型开始输出最终答案时，实时行应跟随答案之后，不能再夹在步骤与答案之间。
-  // 此时面板内的实时行让位给答案正文尾部的位置。
-  const answerStreaming = isStreaming && Boolean(finalText.trim());
-  // 已有工具分组时，分组行本身就承载执行过程（已读取文件 / 正在运行命令），
-  // 再显示实时行会与分组重复；只在还没有任何分组时才用实时行占位。
-  const showLiveTail = isStreaming
-    && !pendingApproval
-    && !(hasActiveTailGroup && !finalText.trim());
 
   return (
     <>
       {hasStatus && (
         <StepTraceList
           isZh={locale.isZh}
-          steps={steps}
           createdAt={createdAt}
           durationMs={durationMs}
           tokenUsage={tokenUsage}
@@ -247,7 +256,7 @@ export function AssistantTimeline({
           processId={processId}
           onToggle={hasDisclosure ? () => {
             if (isStreaming) setLiveOpen(!processOpen);
-            else setHistoryOpen((open) => !open);
+            else { setLiveOpen(undefined); setHistoryOpen(!processOpen); }
           } : undefined}
         />
       )}
@@ -257,11 +266,11 @@ export function AssistantTimeline({
           {groups.map((group, index) => {
             const precedingText = text.slice(groups[index - 1]?.offset ?? 0, group.offset);
             return (
-              <div key={group.steps[0]?.id} className={styles.flow}>
+              <div key={group.key} className={styles.flow}>
                 {precedingText.trim() && (
                   <div className={bodyClassName}><MarkdownContent content={precedingText} isZh={locale.isZh} /></div>
                 )}
-                <ActivityGroupRow group={group} locale={locale} onOpenFile={onOpenFile} selectedFileStepId={selectedFileStepId} />
+                <ActivityGroupRow group={group} locale={locale} createdAt={createdAt} onOpenFile={onOpenFile} onOpenTrace={onOpenTrace} selectedFileStepId={selectedFileStepId} />
               </div>
             );
           })}
@@ -270,17 +279,10 @@ export function AssistantTimeline({
               <MarkdownContent content={text.slice(groups.at(-1)?.offset ?? 0)} isZh={locale.isZh} />
             </div>
           )}
-          {/* 实时进度贴着思考过程底部；一旦开始输出最终答案，改由正文之后的位置显示 */}
-          {showLiveTail && !answerStreaming && (
-            <LiveExecutionTail isZh={locale.isZh} steps={steps} createdAt={createdAt} includeToolName />
-          )}
         </div>
       )}
       {pendingApproval && <TimelineApproval locale={locale} pendingApproval={pendingApproval} onResolveApproval={onResolveApproval} />}
       {finalText.trim() && <div className={bodyClassName}><MarkdownContent content={finalText} isZh={locale.isZh} /></div>}
-      {showLiveTail && answerStreaming && (
-        <LiveExecutionTail isZh={locale.isZh} steps={steps} createdAt={createdAt} includeToolName />
-      )}
     </>
   );
 }

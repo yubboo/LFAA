@@ -32,4 +32,4 @@ This package lives in `packages/extension/plugins`.
 
 ## Dev Note
 
-None.
+The plugin center selects the default for new chats. The Host validates the selected preset and snapshots its module list into each session. Available tools also depend on the running global plugins.

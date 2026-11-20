@@ -97,7 +97,11 @@ export const webBundlePlugin: Plugin.Object<WebBundleConfig> = {
     const sandbox = ctx.sandbox;
     const toolsFiber = ctx.plugin(toolsPlugin, {
       ...(sandbox ? { sandbox } : {}),
-      executeCommand: (request) => ctx.shell.execute(request),
+      executeCommand: (request) => {
+        const shell = ctx.get("shell");
+        if (!shell) throw new Error("Shell 服务未装配。");
+        return shell.execute(request);
+      },
       describeCommandShell: async () => `run_command 的当前 Shell 为 ${SHELL_NAMES[await currentShellKind(ctx)] ?? "Bash"}。请使用该 Shell 的原生命令语法和路径格式。`,
     });
     const skillsFiber = ctx.plugin(skillsPlugin);
@@ -116,7 +120,11 @@ export const webBundlePlugin: Plugin.Object<WebBundleConfig> = {
     if (OPTIONAL_MODULES.includes("@lfaa/jobs")) {
       mountedOptional.push("@lfaa/jobs");
       optionalFibers.push(ctx.plugin(jobsPlugin, {
-        resolveInvocation: (command: string, cwd: string) => ctx.shell.resolveInvocation(command, cwd),
+        resolveInvocation: (command: string, cwd: string) => {
+          const shell = ctx.get("shell");
+          if (!shell) throw new Error("Shell 服务未装配。");
+          return shell.resolveInvocation(command, cwd);
+        },
       }));
     }
     if (OPTIONAL_MODULES.includes("@lfaa/browser")) {

@@ -1,13 +1,10 @@
-// 显示 Agent 当前运行阶段、尾部实时执行行、完成用时和现有的工具审批操作。
+// 显示 Agent 运行用时和现有的工具审批操作。
 import { useEffect, useState } from "react";
 import { IconChevronRight } from "@tabler/icons-react";
 import { getActivityLabel } from "../activity-label";
 import type { AgentStepItem, PendingApprovalBanner } from "../chat-types";
 import { timelineMessages, type ChatLocaleMessages } from "../locales";
 import styles from "./StepTraceList.module.css";
-import { LiveFish } from "./Live-Fish";
-import { groupTrace } from "./trace-groups";
-import { StepDetail } from "./Step-Detail";
 
 /** 以整秒显示实际经过的时间，兼容短于一秒和长时间运行。 */
 export function formatDuration(ms: number, isZh: boolean, showAllUnits = false): string {
@@ -60,120 +57,6 @@ export function getLiveStage(steps: AgentStepItem[], now: number) {
   return current.modelStage ?? "thinking";
 }
 
-/** 将运行步骤与最近结果显示为可检查的时间线信息。 */
-export function LiveStageDetails({ isZh, steps, now: clock }: { isZh: boolean; steps: AgentStepItem[]; now?: number }) {
-  const [fallbackClock, setFallbackClock] = useState(Date.now);
-  useEffect(() => {
-    if (clock !== undefined) return;
-    const timer = setInterval(() => setFallbackClock(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, [clock]);
-  const now = clock ?? fallbackClock;
-  const labels = timelineMessages[isZh ? "zh" : "en"];
-  const current = getLiveStep(steps);
-  const latest = [...steps].reverse().find((step) => step.phase === "act" && (step.status === "done" || step.status === "error"));
-  return (
-    <div className={styles.liveFacts}>
-      {current && (
-        <div>
-          {/* 轮次与步数统一在底部状态条展示，这里只留阶段与更新时间，避免重复 */}
-          {labels[getLiveStage(steps, now)]} · {labels.lastUpdate(formatDuration(now - (current.startedAt ?? current.timestamp), isZh))}
-        </div>
-      )}
-      {current?.phase === "act" && <div>{current.toolTarget ?? getActivityLabel(current, isZh, true)}</div>}
-      {current?.argumentChars !== undefined && <div>{labels.receivedArgs(current.argumentChars)}</div>}
-      {latest && <div>{labels.latestAction} · {latest.commandTrace?.command ?? getActivityLabel(latest, isZh, true)}
-        {latest.commandTrace?.exitCode !== undefined && ` · ${labels.exitCode} ${latest.commandTrace.exitCode}`}
-      </div>}
-      {!current && !latest && <div>{labels.starting}</div>}
-    </div>
-  );
-}
-
-/** 尾部状态可直接展开，起点来自 Host，旧记录使用不会随流更新的消息时间。 */
-export function LiveExecutionTail({
-  isZh,
-  steps,
-  createdAt,
-  includeToolName = false,
-}: {
-  isZh: boolean;
-  steps: AgentStepItem[];
-  createdAt: number;
-  includeToolName?: boolean;
-}) {
-  const [now, setNow] = useState(Date.now);
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  // 明细直接并进这一行：当前动作 + 已接收参数 + 用时，随执行过程原地变化。
-  const labels = timelineMessages[isZh ? "zh" : "en"];
-  const stage = getLiveStage(steps, now);
-  const current = getLiveStep(steps);
-  const activity = current && stage !== "waiting" ? getActivityLabel(current, isZh, true) : "";
-  const label = includeToolName && activity ? activity : labels[stage];
-  const argsHint = current?.argumentChars !== undefined ? labels.receivedArgs(current.argumentChars) : "";
-  const stageElapsed = formatDuration(now - (current?.startedAt ?? createdAt), isZh);
-  const [openStepId, setOpenStepId] = useState<string | null>(null);
-
-  return (
-    // 收起时只有一行；点开列出本轮已执行的每一步（读文件、跑命令与失败状态）。
-    <details className={styles.liveTail} data-status={stage === "waiting" ? undefined : "running"}>
-      <summary className={styles.disclosure}>
-        {stage !== "waiting" && <LiveFish />}
-        <span className={styles.activityTitle} role="status">{label}</span>
-        {argsHint && <span className={styles.elapsed}>{argsHint}</span>}
-        <span className={styles.elapsed}>{stageElapsed}</span>
-        {/* 箭头提示可展开，点开看 Agent 本轮具体在做什么 */}
-        <IconChevronRight size={14} className={styles.chevron} aria-hidden="true" />
-      </summary>
-      {/* 展开区限制高度并可滚动，避免长任务把整页撑开 */}
-      <div className={`${styles.liveFacts} ${styles.traceScroll}`}>
-        {/* 工作留痕：按动作类型分组，组默认收起，点开看该类型的每一条动作 */}
-        {groupTrace(steps, isZh).map((group) => (
-          <details key={group.key} className={styles.traceGroup} open={group.key === "think" ? undefined : undefined}>
-            <summary className={styles.activityRow} data-status={group.failed ? "error" : undefined}>
-              <IconChevronRight size={12} className={styles.chevron} aria-hidden="true" />
-              <span>{group.title}</span>
-              <span className={styles.elapsed}>{group.steps.length}</span>
-              {group.failed && <span className={styles.elapsed}>{isZh ? "含失败" : "has failure"}</span>}
-            </summary>
-            <div className={styles.traceGroupBody}>
-              {group.steps.map((step, index) => (
-                <div key={step.id}>
-                  {index > 0 && group.steps[index - 1]?.iteration !== step.iteration && (
-                    <div className={styles.elapsed}>{isZh ? `第 ${step.iteration} 轮` : `Round ${step.iteration}`}</div>
-                  )}
-                  <button
-                    type="button"
-                    className={`${styles.activityRow} ${styles.stepRowButton}`}
-                    data-status={step.status}
-                    aria-expanded={openStepId === step.id}
-                    onClick={() => setOpenStepId((current) => (current === step.id ? null : step.id))}
-                  >
-                    <span>{describeStep(step, isZh)}</span>
-                    {step.status === "error" && <span className={styles.elapsed}>{isZh ? "异常" : "error"}</span>}
-                    {step.commandTrace?.exitCode !== undefined && (
-                      <span className={styles.elapsed}>{labels.exitCode} {step.commandTrace.exitCode}</span>
-                    )}
-                    {step.status === "done" && <span className={styles.elapsed}>✓</span>}
-                  </button>
-                  {openStepId === step.id && <StepDetail step={step} isZh={isZh} />}
-                </div>
-              ))}
-            </div>
-          </details>
-        ))}
-        {steps.length === 0 && (
-          <div className={styles.activityRow}>{isZh ? "正在思考，暂无可展开的执行步骤" : "Thinking — no executable steps yet"}</div>
-        )}
-      </div>
-    </details>
-  );
-}
-
 /** 把 token 总量格式化为紧凑标签：1200 → 1.2k tokens。 */
 export function formatTokenUsage(
   usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number },
@@ -190,7 +73,6 @@ export function formatTokenUsage(
 
 export function StepTraceList({
   isZh,
-  steps,
   createdAt,
   durationMs,
   tokenUsage,
@@ -200,7 +82,6 @@ export function StepTraceList({
   onToggle,
 }: {
   isZh: boolean;
-  steps: AgentStepItem[];
   createdAt: number;
   durationMs: number | undefined;
   tokenUsage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number } | undefined;
@@ -218,20 +99,16 @@ export function StepTraceList({
 
   const labels = timelineMessages[isZh ? "zh" : "en"];
   if (isStreaming) {
-    const state = getLiveStage(steps, now);
-    const phase = labels[state];
     const elapsed = formatDuration(now - createdAt, isZh);
     const status = (
       <>
-        {state !== "waiting" && <LiveFish />}
-        <span className={styles.activityTitle}>{labels.thinkingElapsed}</span>
-        <span className={styles.srOnly} role="status">{phase}</span>
+        <span className={styles.activityTitle}>{labels.elapsed}</span>
         <span className={styles.elapsed}>{elapsed}</span>
       </>
     );
     return onToggle ? (
-      <button type="button" className={`${styles.disclosure} ${styles.liveStatus}`} data-status={state === "waiting" ? undefined : "running"}
-        aria-label={`${labels.thinkingElapsed} ${elapsed}`} aria-expanded={expanded} aria-controls={processId} onClick={onToggle}>
+      <button type="button" className={`${styles.disclosure} ${styles.liveStatus}`}
+        aria-label={`${labels.elapsed} ${elapsed}`} aria-expanded={expanded} aria-controls={processId} onClick={onToggle}>
         {status}
         <IconChevronRight size={14} className={styles.chevron} aria-hidden="true" />
       </button>

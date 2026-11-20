@@ -5,7 +5,7 @@
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   height: 100%;
   min-width: 0;
   min-height: 0;
@@ -14,23 +14,30 @@
 
 @container (max-width: 880px) {
   .root {
-    grid-template-rows: minmax(0, 1fr) auto auto;
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
   }
 }
+
+/* 对话与轨迹共享中央工作区，输入栏始终保留。 */
+.viewTabs { display: flex; gap: 1.4rem; padding: 0 var(--chat-side-padding); border-bottom: 1px solid var(--color-line); }
+.viewTabs button { padding: .75rem 0; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--color-muted); cursor: pointer; }
+.viewTabs button[aria-current="page"] { border-bottom-color: var(--color-accent); color: var(--color-ink); }
+.viewTabs button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
+.scrollArea[hidden] { display: none; }
 
 .scrollArea {
   /* 消息流只纵向滚动，宽表格和代码块由各自的容器横向滚动。 */
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior-y: none;
-  scrollbar-width: auto;
+  scrollbar-width: thin;
   margin-inline-end: var(--pane-scroll-inset, 8px);
   padding: 1.5rem var(--chat-side-padding) 1rem;
   padding-inline-end: calc(var(--chat-side-padding) - var(--pane-scroll-inset, 8px));
 }
 
 .scrollArea::-webkit-scrollbar {
-  width: var(--pane-scrollbar-width, 12px);
+  width: var(--pane-scrollbar-width, 6px);
 }
 
 .thread {
@@ -421,3 +428,21 @@
     --chat-side-padding: clamp(0.75rem, 3cqi, 1.25rem);
   }
 }
+.turnChangesTrigger {
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+  margin-inline-end: auto;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.5rem;
+  background: var(--color-panel);
+  color: var(--color-ink);
+  font-size: 0.73rem;
+  cursor: pointer;
+}
+
+.turnChangesTrigger:hover { background: var(--color-active); }
+.turnChangesTrigger:focus-visible { outline: 2px solid var(--color-accent); }
+.turnChangesTrigger [data-change="add"] { color: var(--color-accent); }
+.turnChangesTrigger [data-change="remove"] { color: var(--color-danger); }

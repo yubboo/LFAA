@@ -180,7 +180,7 @@ export class ChatService extends Service {
 
   getGitDiff(
     targetDir: string | undefined,
-    options?: { filePath?: string; staged?: boolean; commitHash?: string },
+    options?: { filePath?: string; staged?: boolean; commitHash?: string; statOnly?: boolean },
   ) {
     return getGitDiff(targetDir || this.repoRoot, options);
   }

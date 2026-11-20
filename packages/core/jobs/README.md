@@ -29,4 +29,4 @@ This package lives in `packages/core/jobs`.
 
 ## Dev Note
 
-None.
+The background job is registered only after resolving the Shell invocation and spawning a child process.

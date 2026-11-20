@@ -27,4 +27,6 @@ No workspace dependencies.
 
 ## Dev Note
 
-None.
+Session records retain their validated preset and module list through reload and fork. Preset changes are rejected once the session contains messages. Older sessions can leave both fields unspecified.
+
+Assistant records can retain a structured clarification and child-run steps with their identity and state.

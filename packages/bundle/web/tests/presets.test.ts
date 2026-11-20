@@ -6,7 +6,7 @@ import { GLOBAL_MODULES, PRESETS, isSessionModule, resolvePreset } from "../src/
 test("每个预设的会话插件都来自全局清单", () => {
   const global = new Set(GLOBAL_MODULES);
   for (const preset of PRESETS) {
-    assert.ok(preset.sessionModules.length > 0, `${preset.id} 不能为空`);
+    assert.equal(preset.sessionModules.length === 0, preset.unavailable === true, preset.id);
     for (const moduleName of preset.sessionModules) {
       assert.ok(global.has(moduleName), `${preset.id} 引用了不存在的全局插件：${moduleName}`);
     }

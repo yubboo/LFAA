@@ -1,0 +1,29 @@
+/* 澄清问题卡，选项、自由输入和提交使用现有语义主题色。 */
+.card {
+  display: grid;
+  gap: 0.45rem;
+  margin-bottom: 0.55rem;
+  padding: 0.85rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.8rem;
+  background: var(--color-panel);
+  color: var(--color-ink);
+}
+
+.card p { margin: 0 0 0.35rem; font-weight: 600; }
+
+.card button, .actions input {
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.45rem;
+  background: var(--color-surface);
+  color: var(--color-ink);
+}
+
+.card button:not(:disabled) { cursor: pointer; }
+.card button:disabled { opacity: 0.55; }
+.card button:focus-visible, .actions input:focus-visible { outline: 2px solid var(--color-accent); }
+.option { text-align: start; }
+.option[aria-pressed="true"] { border-color: var(--color-accent); background: var(--color-active); }
+.actions { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.actions input { flex: 1 1 9rem; min-width: 0; }

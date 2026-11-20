@@ -20,25 +20,32 @@ import {
   IconPin,
   IconPlayerStop,
   IconPuzzle,
+  IconRobot,
   IconTerminal2,
   IconWorld,
   IconX,
 } from "@tabler/icons-react";
 import type { ChatClientStore } from "../chat-store";
-import { fetchGitDiff, fetchGitStatus } from "../coding-settings-client";
+import { fetchGitDiff, fetchGitStatus, parseDiffSummary } from "../coding-settings-client";
 import activityStyles from "./StepTraceList.module.css";
 import type { RightJobItem } from "./RightTerminalPane";
 import type { RightSubagentItem } from "./RightSubagentsPane";
 import styles from "./RightWorkbenchActions.module.css";
 
-function parseDiffSummary(diffText: string): { added: number; removed: number } {
-  let added = 0;
-  let removed = 0;
-  for (const line of diffText.split(/\r?\n/u)) {
-    if (line.startsWith("+") && !line.startsWith("+++")) added += 1;
-    else if (line.startsWith("-") && !line.startsWith("---")) removed += 1;
-  }
-  return { added, removed };
+/** 概览使用当前会话任务的实际状态，逐项详情仍通过原来的工作台入口打开。 */
+function overviewActivity(items: readonly (RightJobItem | RightSubagentItem)[], loaded: boolean, isZh: boolean): string {
+  if (!loaded) return isZh ? "等待读取" : "Waiting for data";
+  if (!items.length) return isZh ? "暂无" : "None yet";
+  const running = items.filter(({ status }) => status === "running").length;
+  const done = items.filter(({ status }) => status === "done").length;
+  const failed = items.filter(({ status }) => status === "error").length;
+  const stopped = items.length - running - done - failed;
+  return [
+    running ? (isZh ? `${running} 项运行中` : `${running} running`) : "",
+    done ? (isZh ? `${done} 项完成` : `${done} completed`) : "",
+    failed ? (isZh ? `${failed} 项失败` : `${failed} failed`) : "",
+    stopped ? (isZh ? `${stopped} 项已停止` : `${stopped} stopped`) : "",
+  ].filter(Boolean).join(" · ");
 }
 
 export function RightWorkbenchActions({
@@ -46,6 +53,7 @@ export function RightWorkbenchActions({
   isZh,
   store,
   projectId,
+  projectName,
   jobs,
   subagents,
   compact = false,
@@ -64,6 +72,7 @@ export function RightWorkbenchActions({
   isZh: boolean;
   store: ChatClientStore;
   projectId: string | null;
+  projectName?: string | undefined;
   jobs?: RightJobItem[] | undefined;
   subagents?: RightSubagentItem[] | undefined;
   compact?: boolean | undefined;
@@ -85,7 +94,8 @@ export function RightWorkbenchActions({
   const [renameText, setRenameText] = useState("");
   const [showAllSubs, setShowAllSubs] = useState(false);
   const [showAllJobs, setShowAllJobs] = useState(false);
-  const [diffSummary, setDiffSummary] = useState<{ added: number; removed: number }>({ added: 0, removed: 0 });
+  const [diffSummary, setDiffSummary] = useState<{ added: number; removed: number } | null>(null);
+  const [diffError, setDiffError] = useState(false);
   const [changedFiles, setChangedFiles] = useState<number | null>(null);
   const [fetchedJobs, setFetchedJobs] = useState<RightJobItem[] | null>(null);
   const [fetchedSubagents, setFetchedSubagents] = useState<RightSubagentItem[] | null>(null);
@@ -132,18 +142,19 @@ export function RightWorkbenchActions({
     let current = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
     setChangedFiles(null);
-    setDiffSummary({ added: 0, removed: 0 });
+    setDiffSummary(null);
+    setDiffError(false);
     setFetchedJobs(null);
     setFetchedSubagents(null);
     const refresh = async () => {
       // Git 状态包含尚未暂存的新文件，独立于差异行数。
       await Promise.allSettled([
         projectId && fetchGitStatus(projectId).then((git) => {
-          if (current) setChangedFiles(git.isGitRepo ? git.files.length : null);
-        }),
-        projectId && fetchGitDiff({ projectId }).then((res) => {
-          if (current) setDiffSummary(parseDiffSummary(res.diff));
-        }),
+          if (current) { setChangedFiles(git.isGitRepo ? git.files.length : null); if (!git.isGitRepo) setDiffError(true); }
+        }).catch(() => { if (current) setDiffError(true); }),
+        projectId && fetchGitDiff({ projectId, statOnly: true }).then((res) => {
+          if (current) setDiffSummary(parseDiffSummary(res.stat));
+        }).catch(() => { if (current) setDiffError(true); }),
         !hasJobFeed && fetch(`/api/jobs?sessionId=${encodeURIComponent(sessionId)}`)
           .then((r) => r.ok ? r.json() : null).then((list) => {
             if (current && Array.isArray(list?.jobs)) setFetchedJobs(list.jobs);
@@ -209,6 +220,12 @@ export function RightWorkbenchActions({
 
   const visibleSubs = showAllSubs ? effectiveSubagents : effectiveSubagents.slice(0, 2);
   const visibleJobs = showAllJobs ? effectiveJobs : effectiveJobs.slice(0, 2);
+  const numberLocale = isZh ? "zh-CN" : "en";
+  const changeLabel = !projectId ? (isZh ? "未绑定项目" : "No linked project")
+    : diffError ? (isZh ? "Git 统计不可用" : "Git statistics unavailable")
+      : changedFiles === null ? (isZh ? "正在读取变更…" : "Loading changes…")
+        : (isZh ? `${changedFiles.toLocaleString(numberLocale)} 个变更文件`
+          : `${changedFiles.toLocaleString(numberLocale)} changed ${changedFiles === 1 ? "file" : "files"}`);
 
   return (
     <div ref={wrapRef} className={styles.actionsWrap}>
@@ -356,25 +373,21 @@ export function RightWorkbenchActions({
 
       {showSessionControls && menuOpen === "overview" && (
         <div className={`${styles.popover} ${styles.overviewPopover}`} role="dialog" aria-label={isZh ? "工作台概览" : "Workbench overview"}>
-          <div className={styles.overviewSectionHead}>{isZh ? "概览" : "Overview"}</div>
-          <button type="button" className={styles.menuItem} onClick={triggerReview}>
-            <IconFileDiff size={14} />
-            <span>{isZh ? "审查" : "Review"}</span>
-            {changedFiles !== null && <span className={styles.countPill}>{isZh ? `${changedFiles} 项变更` : `${changedFiles} changed`}</span>}
-            {(diffSummary.added > 0 || diffSummary.removed > 0) && (
-              <span className={styles.diffDelta}>
-                <em className={styles.diffPlus}>+{diffSummary.added}</em>
-                <em className={styles.diffMinus}>-{diffSummary.removed}</em>
+          <div className={styles.overviewHeader}>
+            <IconFolder size={15} aria-hidden="true" />
+            <h2 className={styles.overviewTitle} title={projectName}>{projectName || (isZh ? "工作台概览" : "Workbench overview")}</h2>
+          </div>
+          <button type="button" className={`${styles.menuItem} ${styles.overviewChanges}`} onClick={triggerReview}>
+            <IconFileDiff size={16} aria-hidden="true" />
+            <strong>{isZh ? "变更" : "Changes"}</strong>
+            <span className={styles.overviewMeta}>{changeLabel}</span>
+            {!diffError && diffSummary && (
+              <span className={styles.diffDelta} title={isZh ? "已跟踪文件相对 HEAD 的差异；不含未跟踪文件" : "Tracked changes relative to HEAD; untracked files excluded"}>
+                <em className={styles.diffPlus}>+{diffSummary.added.toLocaleString(numberLocale)}</em>
+                <em className={styles.diffMinus}>−{diffSummary.removed.toLocaleString(numberLocale)}</em>
               </span>
             )}
-          </button>
-          <button type="button" className={styles.menuItem} onClick={triggerFiles}>
-            <IconFile size={14} />
-            <span>{isZh ? "文件" : "Files"}</span>
-          </button>
-          <button type="button" className={styles.menuItem} onClick={() => triggerTerminal()}>
-            <IconTerminal2 size={14} />
-            <span>{isZh ? "终端" : "Terminal"}</span>
+            <IconChevronRight size={13} className={styles.trailingIcon} aria-hidden="true" />
           </button>
           {foreground?.commandTrace && (
             <div className={styles.overviewSectionHead} title={foreground.commandTrace.command}>
@@ -382,25 +395,20 @@ export function RightWorkbenchActions({
               <span className={styles.itemEllipsis}>{isZh ? "前台命令" : "Foreground command"} · {foreground.commandTrace.command}</span>
             </div>
           )}
-          {onOpenExtensions && (
-            <button type="button" className={styles.menuItem} onClick={() => { onOpenExtensions(); setMenuOpen(null); }}>
-              <IconPuzzle size={14} />
-              <span>{isZh ? "扩展" : "Extensions"}</span>
-              <IconChevronRight size={13} className={styles.trailingIcon} />
-            </button>
-          )}
-
           <div className={styles.divider} />
-          <button type="button" className={styles.menuItem} onClick={() => triggerSubagents()}>
-            <span>{isZh ? "子智能体" : "Subagents"}</span>
-            <span className={styles.countPill}>{hasSubagentFeed || fetchedSubagents !== null ? effectiveSubagents.length : "—"}</span>
+          <button type="button" className={`${styles.menuItem} ${styles.overviewGroup}`} onClick={() => triggerSubagents()}>
+            <IconRobot size={16} aria-hidden="true" />
+            <span className={styles.overviewLabel}>
+              <strong>{isZh ? "子智能体" : "Subagents"}</strong>
+              <span className={styles.overviewMeta}>{overviewActivity(effectiveSubagents, hasSubagentFeed || fetchedSubagents !== null, isZh)}</span>
+            </span>
             <IconChevronRight size={13} className={styles.trailingIcon} aria-hidden="true" />
           </button>
           {visibleSubs.map((sub) => {
             const Icon = sub.status === "running" ? IconLoader2 : sub.status === "done" ? IconCheck : IconCircleX;
             return (
-              <button key={sub.id} type="button" className={styles.menuItem} onClick={() => triggerSubagents(sub.id)}>
-                <Icon size={13} className={styles.statusIcon} data-status={sub.status} />
+              <button key={sub.id} type="button" className={`${styles.menuItem} ${styles.overviewDetail}`} title={sub.role} onClick={() => triggerSubagents(sub.id)}>
+                <Icon size={13} className={styles.statusIcon} data-status={sub.status} aria-hidden="true" />
                 <span className={styles.itemEllipsis}>{sub.role}</span>
               </button>
             );
@@ -412,17 +420,20 @@ export function RightWorkbenchActions({
           )}
 
           <div className={styles.divider} />
-          <button type="button" className={styles.menuItem} onClick={() => triggerTerminal()}>
-            <span>{isZh ? "后台任务" : "Background tasks"}</span>
-            <span className={styles.countPill}>{hasJobFeed || fetchedJobs !== null ? effectiveJobs.length : "—"}</span>
+          <button type="button" className={`${styles.menuItem} ${styles.overviewGroup}`} onClick={() => triggerTerminal()}>
+            <IconTerminal2 size={16} aria-hidden="true" />
+            <span className={styles.overviewLabel}>
+              <strong>{isZh ? "后台任务" : "Background tasks"}</strong>
+              <span className={styles.overviewMeta}>{overviewActivity(effectiveJobs, hasJobFeed || fetchedJobs !== null, isZh)}</span>
+            </span>
             <IconChevronRight size={13} className={styles.trailingIcon} aria-hidden="true" />
           </button>
           {visibleJobs.map((job) => {
             const Icon = job.status === "running" ? IconLoader2 : job.status === "done" ? IconCheck : IconCircleX;
             return (
               <div key={job.id} className={styles.jobRowWrap}>
-                <button type="button" className={styles.menuItem} onClick={() => triggerTerminal(job.id)}>
-                  <Icon size={13} className={styles.statusIcon} data-status={job.status} />
+                <button type="button" className={`${styles.menuItem} ${styles.overviewDetail}`} title={job.title} onClick={() => triggerTerminal(job.id)}>
+                  <Icon size={13} className={styles.statusIcon} data-status={job.status} aria-hidden="true" />
                   <span className={styles.itemEllipsis}>{job.title}</span>
                 </button>
                 {job.status === "running" && (
@@ -443,6 +454,22 @@ export function RightWorkbenchActions({
               {showAllJobs ? (isZh ? "收起" : "Show less") : (isZh ? "查看全部" : "View all")}
             </button>
           )}
+          <div className={styles.overviewShortcuts} aria-label={isZh ? "工作台快捷操作" : "Workbench shortcuts"}>
+            <button type="button" className={styles.menuItem} onClick={triggerFiles}>
+              <IconFile size={15} aria-hidden="true" />
+              <span>{isZh ? "文件" : "Files"}</span>
+            </button>
+            <button type="button" className={styles.menuItem} onClick={() => triggerTerminal()}>
+              <IconTerminal2 size={15} aria-hidden="true" />
+              <span>{isZh ? "终端" : "Terminal"}</span>
+            </button>
+            {onOpenExtensions && (
+              <button type="button" className={styles.menuItem} onClick={() => { onOpenExtensions(); setMenuOpen(null); }}>
+                <IconPuzzle size={15} aria-hidden="true" />
+                <span>{isZh ? "扩展" : "Extensions"}</span>
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>

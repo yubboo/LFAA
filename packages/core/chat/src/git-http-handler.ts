@@ -92,6 +92,7 @@ export function createCodingHttpHandler(service: ChatService, options: CodingHtt
           ...(filePath ? { filePath } : {}),
           ...(commitHash ? { commitHash } : {}),
           ...(staged ? { staged: true } : {}),
+          ...(urlObj.searchParams.get("statOnly") === "1" ? { statOnly: true } : {}),
         });
         sendJson(res, 200, diff);
         return true;

@@ -174,6 +174,7 @@ export class ChatClientStore {
         filePreviewTabs: persisted.filePreviewTabs,
         activeFilePreviewId: persisted.activeFilePreviewId,
         rightStageKind: persisted.rightStageKind,
+        rightPanelRequest: null,
       };
     }
     this.state = { ...this.state, ...patch };
@@ -271,7 +272,8 @@ export class ChatClientStore {
   }
 
   requestRightPanel(tab: string, url?: string): void {
-    const stageKind = tab === "browser" ? "browser" : tab === "files" ? "file" : this.state.rightStageKind ?? null;
+    const stageKind = tab === "browser" ? "browser" : tab === "file-preview" ? "file"
+      : tab === "review" ? "review" : this.state.rightStageKind ?? null;
     this.updateState({
       rightStageKind: stageKind,
       rightPanelRequest: { tab, ...(url ? { url } : {}), nonce: Date.now() },
@@ -584,6 +586,7 @@ export class ChatClientStore {
       activeSession: null,
       draftProjectId: options.projectId ?? null,
       draftSectionId: options.sectionId ?? null,
+      draftSessionPreset: undefined,
       runningRunId: null,
       pendingApproval: null,
       errorMessage: "",
@@ -733,10 +736,42 @@ export class ChatClientStore {
     };
   }
 
+  /** 草稿选择随首条消息保存，已有空会话由 Host 验证后更新。 */
+  async selectSessionPreset(id: string): Promise<void> {
+    const current = this.state.activeSession;
+    if (this.state.submittingMessage || this.state.runningRunId || current?.messages.length) return;
+    if (!current) {
+      this.updateState({ draftSessionPreset: id });
+      return;
+    }
+    this.updateState({ submittingMessage: true });
+    try {
+      const { session } = await fetchJson<{ session: ChatSessionDetail }>(`/api/chat/sessions/${encodeURIComponent(current.id)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ sessionPreset: id }),
+      });
+      this.updateState({
+        ...(this.state.activeSessionId === current.id ? { activeSession: session } : {}),
+        sessions: this.state.sessions.map((item) => item.id === current.id ? session : item),
+      });
+    } finally {
+      this.updateState({ submittingMessage: false });
+    }
+  }
+
   // 将消息提交到当前或新建会话，随后订阅 Host 为这次运行返回的事件流。
   async sendMessage(text: string, skillIds?: string[]): Promise<void> {
     const trimmed = text.trim();
-    if (!trimmed || this.state.runningRunId) return;
+    if (!trimmed || this.state.runningRunId || this.state.submittingMessage) return;
+    this.updateState({ submittingMessage: true });
+    try {
+      await this.startMessage(trimmed, skillIds);
+    } finally {
+      this.updateState({ submittingMessage: false });
+    }
+  }
+
+  private async startMessage(trimmed: string, skillIds?: string[]): Promise<void> {
     this.updateState({ errorMessage: "", pendingApproval: null });
 
     let session = this.state.activeSession;
@@ -746,6 +781,7 @@ export class ChatClientStore {
         body: JSON.stringify({
           projectId: this.state.draftProjectId,
           sectionId: this.state.draftSectionId,
+          sessionPreset: this.state.draftSessionPreset,
         }),
       });
       session = created.session;
@@ -753,6 +789,7 @@ export class ChatClientStore {
       this.updateState({
         activeSessionId: session.id,
         activeSession: session,
+        draftSessionPreset: undefined,
         sessions: [session, ...this.state.sessions],
       });
     }
@@ -886,14 +923,14 @@ export class ChatClientStore {
             streamStatusNotice: "",
             degradedStream: null,
             ...(status === "error" && error ? { errorMessage: error } : {}),
-            queuedMessages: restQueued,
+            queuedMessages: message?.clarification ? this.state.queuedMessages : restQueued,
           });
           if (this.state.activeSessionId === sessionId) {
             void this.updateSessionMeta(sessionId, { unread: false });
             const ready = message ? Promise.resolve() : this.openSession(sessionId);
             void ready.then(() => {
               void this.refreshMeta();
-              if (nextQueued) {
+              if (nextQueued && !message?.clarification) {
                 void this.sendMessage(nextQueued);
               }
             });

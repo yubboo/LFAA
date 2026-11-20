@@ -72,9 +72,6 @@
   list-style: none;
 }
 
-.liveTail {
-  min-width: 0;
-}
 
 .disclosure,
 summary.activityRow {
@@ -277,17 +274,6 @@ details[open] > summary > .chevron {
   color: var(--color-muted);
 }
 
-.liveFacts {
-  display: grid;
-  gap: 0.25rem;
-  margin: 0.15rem 0 0.35rem 0.45rem;
-  padding-inline-start: 0.65rem;
-  border-inline-start: 1px solid var(--color-line);
-  color: var(--color-muted);
-  font-size: 0.83em;
-  overflow-wrap: anywhere;
-}
-
 .commandResult {
   display: flex;
   justify-content: flex-end;
@@ -298,6 +284,20 @@ details[open] > summary > .chevron {
 }
 
 .commandResult span { color: var(--color-muted); }
+
+/* 仅明确点击查看才切换轨迹；活动行仍负责展开内容。 */
+.traceLink {
+  margin-top: 0.5rem;
+  padding: 0.22rem 0.65rem;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: inherit;
+  cursor: pointer;
+}
+.traceLink:hover { background: var(--color-active); }
+.traceLink:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 
 .srOnly {
   position: absolute;
@@ -436,64 +436,4 @@ details[open] > summary > .chevron {
 
 @media (prefers-reduced-motion: reduce) {
   .activityTitle { animation: none; }
-}
-
-/* 留痕滚动区：固定最大高度，长任务在内部滚动而不是撑开整页 */
-.traceScroll {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  max-height: 22rem;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding-right: 4px;
-}
-
-.traceScroll::-webkit-scrollbar {
-  width: 8px;
-}
-
-.traceScroll::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: var(--color-line);
-}
-
-.traceScroll::-webkit-scrollbar-thumb:hover {
-  background: var(--color-muted);
-}
-
-/* 分组：标题行可点开，组内缩进 */
-.traceGroup > summary {
-  list-style: none;
-}
-
-.traceGroupBody {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  padding-left: 1.15rem;
-  border-left: 1px solid var(--color-line);
-  margin-left: 0.45rem;
-}
-
-/* 可点击的步骤行：去掉按钮默认样式，保留行内布局 */
-.stepRowButton {
-  width: 100%;
-  border: none;
-  background: transparent;
-  padding: 0;
-  font: inherit;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.stepRowButton:hover {
-  color: var(--color-ink);
-}
-
-.stepRowButton:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-  border-radius: 4px;
 }

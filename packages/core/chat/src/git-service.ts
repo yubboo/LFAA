@@ -271,8 +271,8 @@ export async function getGitStatus(targetDir: string): Promise<GitStatusSnapshot
 /** 按指定文件和变更范围读取差异文本，交给工作台预览。 */
 export async function getGitDiff(
   repoRoot: string,
-  options?: { filePath?: string; staged?: boolean; commitHash?: string },
-): Promise<{ diff: string; stat: string }> {
+  options?: { filePath?: string; staged?: boolean; commitHash?: string; statOnly?: boolean },
+): Promise<{ diff: string; stat: string; truncated?: boolean }> {
   const absRoot = resolve(repoRoot);
   if (options?.commitHash) {
     const hash = options.commitHash.trim();
@@ -283,16 +283,22 @@ export async function getGitDiff(
       runGit(absRoot, ["show", "--stat", "--format=%h %s (%an, %ai)", hash]),
       runGit(absRoot, ["show", "--format=", "--no-color", hash]).catch(() => ""),
     ]);
-    return { stat: stat.trim(), diff: diff.slice(0, 60000) };
+    return { stat: stat.trim(), diff: diff.slice(0, 60000), ...(diff.length > 60000 ? { truncated: true } : {}) };
   }
 
   const fileArgs = options?.filePath ? ["--", validateSafeRelativeFile(absRoot, options.filePath)] : [];
+  if (options?.statOnly && !options.staged) {
+    const stat = await runGit(absRoot, ["diff", "HEAD", "--shortstat", ...fileArgs]).catch(() =>
+      runGit(absRoot, ["diff", "--shortstat", ...fileArgs]).catch(() => ""),
+    );
+    return { stat: stat.trim(), diff: "" };
+  }
   if (options?.staged) {
     const [stat, diff] = await Promise.all([
       runGit(absRoot, ["diff", "--cached", "--stat", ...fileArgs]).catch(() => ""),
       runGit(absRoot, ["diff", "--cached", "--no-color", ...fileArgs]).catch(() => ""),
     ]);
-    return { stat: stat.trim(), diff: diff.slice(0, 60000) };
+    return { stat: stat.trim(), diff: diff.slice(0, 60000), ...(diff.length > 60000 ? { truncated: true } : {}) };
   }
 
   const [statHead, diffUnstaged, diffStaged] = await Promise.all([
@@ -306,7 +312,7 @@ export async function getGitDiff(
   const combined = [diffStaged && `# Staged Diff\n${diffStaged}`, diffUnstaged && `# Unstaged Diff\n${diffUnstaged}`]
     .filter(Boolean)
     .join("\n\n");
-  return { stat: statHead.trim(), diff: combined.slice(0, 60000) };
+  return { stat: statHead.trim(), diff: combined.slice(0, 60000), ...(combined.length > 60000 ? { truncated: true } : {}) };
 }
 
 /** 将指定变更加入 Git 暂存区，操作后返回新的仓库快照。 */

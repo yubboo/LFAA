@@ -165,7 +165,6 @@
   gap: 0.45rem;
 }
 
-.filesUndoBtn,
 .filesViewBtn {
   display: inline-flex;
   align-items: center;
@@ -176,22 +175,6 @@
   font-size: 0.78em;
   cursor: pointer;
   transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
-}
-
-.filesUndoBtn {
-  border: 0;
-  background: transparent;
-  color: var(--color-muted);
-}
-
-.filesUndoBtn:hover:not(:disabled) {
-  background: var(--color-active);
-  color: var(--color-ink);
-}
-
-.filesUndoBtn:disabled {
-  opacity: 0.55;
-  cursor: default;
 }
 
 .filesViewBtn {

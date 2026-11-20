@@ -27,6 +27,9 @@ const messages: SessionMessage[] = [
       decodeTokens: 50,
       context: { systemTokens: 10, toolsTokens: 20, messageTokens: 70 },
       contextWindowTokens: 1_000,
+      contextPromptTokens: 95,
+      contextWindowSource: "configured",
+      cacheMeasurement: { promptTokens: 100, cachedTokens: 80 },
     },
   },
   {
@@ -43,6 +46,8 @@ const messages: SessionMessage[] = [
       decodeMs: 400,
       decodeTokens: 50,
       context: { systemTokens: 12, toolsTokens: 20, messageTokens: 80 },
+      contextPromptTokens: 100,
+      contextModel: "actual-model",
     },
   },
 ];
@@ -61,19 +66,15 @@ test("汇总轮次、工具步数、耗时、首 token、吞吐、token、上下
   assert.equal(metrics.ttftMs, 1_400);
   assert.equal(metrics.decodeMs, 1_100);
   assert.equal(metrics.tokensPerSecond, 100 / 1.1);
-  assert.equal(metrics.cacheHitRate, 0.5);
+  assert.equal(metrics.cacheHitRate, 0.8);
   assert.ok(metrics.cost, "应汇总成本");
   assert.ok(Math.abs(metrics.cost.amount - 0.35) < 1e-9);
   assert.ok(Math.abs(metrics.cost.input - 0.15) < 1e-9);
   assert.ok(Math.abs(metrics.cost.cachedInput - 0.07) < 1e-9);
   assert.ok(Math.abs(metrics.cost.output - 0.13) < 1e-9);
   assert.deepEqual(metrics.context, {
-    systemTokens: 12,
-    toolsTokens: 20,
-    messageTokens: 80,
-    totalTokens: 112,
-    windowTokens: 1_000,
-    percent: 11,
+    totalTokens: 100,
+    model: "actual-model",
   });
 });
 
@@ -94,13 +95,18 @@ test("运行中的消息也计入用量与上下文，但轮次只在完成后�
         decodeTokens: 20,
         context: { systemTokens: 10, toolsTokens: 20, messageTokens: 30 },
         contextWindowTokens: 1_000,
+        contextWindowSource: "provider-spec",
+        contextPromptTokens: 100,
+        cacheMeasurement: { promptTokens: 100, cachedTokens: 0 },
       },
     },
   ]);
   assert.equal(metrics.turns, 0);
   assert.equal(metrics.steps, 1);
   assert.equal(metrics.totalTokens, 120);
-  assert.equal(metrics.context?.totalTokens, 60);
+  assert.equal(metrics.context?.totalTokens, 100);
+  assert.equal(metrics.context?.percent, 10);
+  assert.equal(metrics.cacheHitRate, 0);
   assert.equal(metrics.cost?.amount, 0.01);
   assert.equal(metrics.tokensPerSecond, 20 / 0.3);
 });

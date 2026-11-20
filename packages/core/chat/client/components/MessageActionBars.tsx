@@ -1,7 +1,6 @@
 // 消息操作栏与文件变更汇总卡片：提供用户消息复制/编辑、助手消息复制/评价/朗读/分支与记忆引用菜单及已编辑文件折叠卡片。
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  IconArrowBackUp,
   IconArrowRight,
   IconBrain,
   IconCheck,
@@ -18,8 +17,7 @@ import {
 } from "@tabler/icons-react";
 import { HoverTip } from "@lfaa/ui-primitives/client";
 import type { AgentStepItem } from "../chat-types";
-import { postGitRevertFiles } from "../coding-settings-client";
-import { getActivityFilePath } from "../file-activity";
+import { collectEditedFiles } from "../file-activity";
 import { timelineMessages } from "../locales";
 import styles from "./MessageActionBars.module.css";
 
@@ -248,50 +246,22 @@ export function AssistantMessageActions({
   );
 }
 
-interface EditedFileSummary {
-  path: string;
-  stepId: string;
-  added: number;
-  removed: number;
-}
-
 /** 把回复对应的文件改动折叠为可展开列表，便于查看具体变更。 */
 export function EditedFilesCard({
   isZh,
   steps,
-  projectId,
   onViewChanges,
   onOpenFile,
   selectedFileStepId,
 }: {
   isZh: boolean;
   steps: AgentStepItem[];
-  projectId?: string | null | undefined;
   onViewChanges?: (() => void) | undefined;
   onOpenFile: (stepId: string) => void;
   selectedFileStepId?: string | undefined;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const [reverting, setReverting] = useState(false);
-  const [reverted, setReverted] = useState(false);
-
-  const editedFiles = useMemo(() => {
-    const byPath = new Map<string, EditedFileSummary>();
-    for (const step of steps) {
-      if (step.status !== "done") continue;
-      const path = getActivityFilePath(step);
-      if (!path) continue;
-      const key = path.replace(/\\/gu, "/");
-      const previous = byPath.get(key);
-      byPath.set(key, {
-        path,
-        stepId: step.id,
-        added: (previous?.added ?? 0) + (step.addedLines ?? 0),
-        removed: (previous?.removed ?? 0) + (step.removedLines ?? 0),
-      });
-    }
-    return Array.from(byPath.values());
-  }, [steps]);
+  const editedFiles = useMemo(() => collectEditedFiles(steps), [steps]);
 
   if (editedFiles.length === 0) return null;
 
@@ -299,19 +269,6 @@ export function EditedFilesCard({
   const totalRemoved = editedFiles.reduce((acc, f) => acc + f.removed, 0);
   const visibleFiles = expanded ? editedFiles : editedFiles.slice(0, 3);
   const hiddenCount = editedFiles.length - 3;
-
-  const handleUndo = async () => {
-    if (reverting || reverted) return;
-    setReverting(true);
-    try {
-      await postGitRevertFiles(projectId, editedFiles.map((f) => f.path));
-      setReverted(true);
-    } catch {
-      // 忽略撤销异常，保留按钮状态以便重试
-    } finally {
-      setReverting(false);
-    }
-  };
 
   return (
     <div className={styles.filesCard}>
@@ -333,15 +290,6 @@ export function EditedFilesCard({
           </div>
         </div>
         <div className={styles.filesHeaderRight}>
-          <button
-            type="button"
-            className={styles.filesUndoBtn}
-            disabled={reverting || reverted}
-            onClick={() => void handleUndo()}
-          >
-            <span>{reverted ? (isZh ? "已撤销" : "Reverted") : (isZh ? "撤销" : "Undo")}</span>
-            <IconArrowBackUp size={13} stroke={1.8} />
-          </button>
           {onViewChanges && (
             <button
               type="button"

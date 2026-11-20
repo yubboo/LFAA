@@ -184,20 +184,31 @@ export async function fetchGitStatus(projectId?: string | null): Promise<GitStat
   return res.status;
 }
 
+/** 从 Git 的完整统计获取增删行数，独立于预览正文的截断。 */
+export function parseDiffSummary(stat: string): { added: number; removed: number } {
+  const summary = stat.trimEnd().split(/\r?\n/u).at(-1) ?? "";
+  return {
+    added: Number(summary.match(/(\d+) insertions?\(\+\)/u)?.[1] ?? 0),
+    removed: Number(summary.match(/(\d+) deletions?\(-\)/u)?.[1] ?? 0),
+  };
+}
+
 /** 查询当前范围的差异文本，供差异视图着色与定位。 */
 export async function fetchGitDiff(options: {
   projectId?: string | null;
   filePath?: string;
   staged?: boolean;
   commitHash?: string;
-}): Promise<{ diff: string; stat: string }> {
+  statOnly?: boolean;
+}): Promise<{ diff: string; stat: string; truncated?: boolean }> {
   const sp = new URLSearchParams();
   if (options.projectId) sp.set("projectId", options.projectId);
   if (options.filePath) sp.set("filePath", options.filePath);
   if (options.commitHash) sp.set("commitHash", options.commitHash);
   if (options.staged) sp.set("staged", "1");
+  if (options.statOnly) sp.set("statOnly", "1");
   const qs = sp.toString();
-  return requestJson<{ diff: string; stat: string }>(`/api/git/diff${qs ? `?${qs}` : ""}`);
+  return requestJson<{ diff: string; stat: string; truncated?: boolean }>(`/api/git/diff${qs ? `?${qs}` : ""}`);
 }
 
 /** 请求 Host 暂存选择的文件，并取得操作后的状态。 */

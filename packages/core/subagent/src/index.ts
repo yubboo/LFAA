@@ -31,6 +31,7 @@ export class SubagentService extends Service {
   private registerAgentTools(): () => void {
     const cleanups = [
       this.ctx.tools.registerTool({
+        moduleName: "@lfaa/subagent",
         name: "invoke_subagent",
         title: "派发子智能体",
         description: "创建一个独立隔离的子智能体执行子任务（支持只读调研或写入修改，设 wait=false 可并发派发多个后用 list_subagents 回收）。",
@@ -52,10 +53,16 @@ export class SubagentService extends Service {
             prompt: typeof args.prompt === "string" ? args.prompt : "",
             mode: args.mode === "write" ? "write" : "read",
             workspaceRoots: execCtx.workspaceRoots,
+            parentSignal: execCtx.signal,
+            onSubagentActivity: execCtx.onSubagentActivity,
+            parentRunId: execCtx.runId,
+            parentProfileId: execCtx.parentProfileId,
+            ...(execCtx.allowsTool ? { allowsTool: execCtx.allowsTool } : {}),
+            ...(execCtx.parentApproval ? { parentApproval: execCtx.parentApproval } : {}),
             wait: args.wait !== false,
           });
           return {
-            ok: item.status !== "error",
+            ok: item.status === "running" || item.status === "done",
             output: JSON.stringify({
               subagentId: item.id,
               role: item.role,
@@ -68,6 +75,7 @@ export class SubagentService extends Service {
         },
       }),
       this.ctx.tools.registerTool({
+        moduleName: "@lfaa/subagent",
         name: "message_subagent",
         title: "向子智能体发送后续指令",
         description: "延续既有子智能体的上下文继续提问或下达补充任务。",
@@ -84,7 +92,7 @@ export class SubagentService extends Service {
         execute: async (args, execCtx) => {
           const id = typeof args.subagentId === "string" ? args.subagentId.trim() : "";
           const msg = typeof args.message === "string" ? args.message : "";
-          const item = await this.coordinator.message(id, execCtx.sessionId, msg, args.wait !== false);
+          const item = await this.coordinator.message(id, execCtx.sessionId, msg, args.wait !== false, execCtx);
           return {
             ok: item.status !== "error",
             output: JSON.stringify({ subagentId: item.id, status: item.status, output: item.output }, null, 2),
@@ -93,6 +101,7 @@ export class SubagentService extends Service {
         },
       }),
       this.ctx.tools.registerTool({
+        moduleName: "@lfaa/subagent",
         name: "list_subagents",
         title: "查询或等待子智能体",
         description: "列出当前会话派发的所有子智能体状态；传入 waitForIds 可阻塞等待指定并发子智能体全部完成并汇总结果。",
@@ -118,6 +127,7 @@ export class SubagentService extends Service {
         },
       }),
       this.ctx.tools.registerTool({
+        moduleName: "@lfaa/subagent",
         name: "stop_subagent",
         title: "停止子智能体",
         description: "中止当前会话指定的运行中子智能体。",

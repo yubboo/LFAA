@@ -4,6 +4,7 @@ import { fileActivityTools, getActivityArgumentPath, getActivityFilePath, getFil
 import { activityVerbs, timelineMessages } from "./locales";
 
 export function getActivityKind(step: AgentStepItem) {
+  if (step.subagent) return "subagent";
   const name = step.toolName;
   if (name === "run_command") return "command";
   if (step.id === "skills-loaded" || (name && /(?:^|_)skills?(?:_|$)/u.test(name))) return "skill";
@@ -15,6 +16,7 @@ export function getActivityKind(step: AgentStepItem) {
 export function getActivityLabel(step: AgentStepItem, isZh: boolean, includePath = false): string {
   const language = isZh ? "zh" : "en";
   const labels = timelineMessages[language];
+  if (step.subagent) return labels.subagentStates[step.subagent.status](step.subagent.role);
   const name = step.toolName === "patch_file" ? "edit_file" : step.toolName;
   const verbs = name && Object.hasOwn(activityVerbs, name)
     ? activityVerbs[name as keyof typeof activityVerbs][language]

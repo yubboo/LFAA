@@ -2,7 +2,7 @@
 import { execFile, spawn, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { formatCommandOutput } from "@lfaa/shell-env";
-import { sanitizeCommandEnv, type ShellInvocation } from "@lfaa/shell";
+import { sanitizeCommandEnv } from "@lfaa/shell";
 import type { BackgroundJobItem, JobsPluginConfig, StartBackgroundJobInput } from "./types";
 
 const MAX_BYTES = 512 * 1024;
@@ -78,6 +78,8 @@ export class BackgroundJobManager {
   async start(input: StartBackgroundJobInput): Promise<BackgroundJobItem> {
     const command = input.command.trim();
     if (!command) throw new Error("后台任务命令不能为空。");
+    // 解析失败不登记虚假的运行中任务。
+    const invocation = await this.config.resolveInvocation?.(command, input.cwd);
     const id = `job-${randomUUID().slice(0, 8)}`;
     const title = (input.title?.trim() || command).slice(0, 72);
     const entry: JobEntry = {
@@ -96,12 +98,6 @@ export class BackgroundJobManager {
       totalBytes: 0,
       stoppedByUser: false,
     };
-    this.jobs.set(id, entry);
-
-    const invocation: ShellInvocation | undefined = this.config.resolveInvocation
-      ? await this.config.resolveInvocation(command, input.cwd)
-      : undefined;
-
     const child = invocation
       ? spawn(invocation.file, invocation.args, {
           cwd: input.cwd,
@@ -119,6 +115,7 @@ export class BackgroundJobManager {
         });
 
     entry.child = child;
+    this.jobs.set(id, entry);
     const scheduleRefresh = () => {
       if (entry.flushTimer) return;
       entry.flushTimer = setTimeout(() => {

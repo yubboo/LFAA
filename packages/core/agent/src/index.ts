@@ -153,10 +153,16 @@ export class AgentService extends Service {
 
     const projectId = resolveRoots ? session.projectId : (input.projectId ?? session.projectId);
     const workspaceRoots = resolveRoots ? await resolveRoots(projectId) : (input.workspaceRoots ?? []);
-    const resolvedSkills = input.skillIds && input.skillIds.length > 0 && this.skillResolver
+    // 旧会话没有已确认组合，沿用历史能力；新会话按已保存的组合执行。
+    const modules = session.sessionModules ? new Set(session.sessionModules) : undefined;
+    const tools = modules ? this.ctx.tools.scope(modules, session.sessionPreset === "minimal") : this.ctx.tools;
+    const skillsAllowed = !modules || modules.has("@lfaa/skills");
+    const memoryAllowed = !modules || modules.has("@lfaa/memory");
+    if (!skillsAllowed && input.skillIds?.length) throw new Error("当前会话模式不支持技能。");
+    const resolvedSkills = skillsAllowed && input.skillIds && input.skillIds.length > 0 && this.skillResolver
       ? await this.skillResolver(input.skillIds, workspaceRoots)
       : [];
-    const availableSkillCatalog = this.skillCatalogProvider
+    const availableSkillCatalog = skillsAllowed && this.skillCatalogProvider
       ? await this.skillCatalogProvider(workspaceRoots).catch(() => [])
       : [];
 
@@ -261,7 +267,10 @@ export class AgentService extends Service {
             : undefined;
           const autoExtendSteps = requestedExtension ?? stepBudget.autoExtendSteps;
           let gitStep: AgentStepTrace | undefined;
-          if (primaryProjectRoot) {
+          let gitPrepared = false;
+          const beforeWorkspaceMutation = async () => {
+            if (!primaryProjectRoot || gitPrepared) return;
+            gitPrepared = true;
             try {
               await ensureProjectGitRepo(primaryProjectRoot);
             } catch (error) {
@@ -274,11 +283,11 @@ export class AgentService extends Service {
               };
               emit({ type: "step_update", runId, step: gitStep });
             }
-          }
+          };
           const result = await executeAgentTaskLoop(
             {
               llm: this.ctx.llm,
-              tools: this.ctx.tools,
+              tools,
               memory: this.ctx.memory,
               rules: this.ctx.rules,
               trustStore: this.trustStore,
@@ -292,6 +301,9 @@ export class AgentService extends Service {
               ...(input.reasoningEffort !== undefined ? { reasoningEffort: input.reasoningEffort } : {}),
               projectId,
               workspaceRoots,
+              enableClarification: true,
+              beforeWorkspaceMutation,
+              enableMemoryContext: memoryAllowed,
               ...(resolvedSkills.length > 0 ? { resolvedSkills } : {}),
               ...(availableSkillCatalog.length > 0 ? { availableSkillCatalog } : {}),
               maxSteps: stepBudget.budget,
@@ -300,18 +312,18 @@ export class AgentService extends Service {
               getPermissionMode: () => record.permissionMode,
               signal: controller.signal,
               emit,
-              requestApproval: (req) =>
+              requestApproval: (req, signal = controller.signal) =>
                 new Promise<ApprovalAnswer>((resolve) => {
-                  if (controller.signal.aborted) { resolve(false); return; }
+                  if (controller.signal.aborted || signal.aborted) { resolve(false); return; }
                   const onAbort = () => settle(false);
                   const settle = (answer: ApprovalAnswer) => {
                     if (!record.pendingApprovals.delete(req.approvalId)) return;
-                    controller.signal.removeEventListener("abort", onAbort);
+                    signal.removeEventListener("abort", onAbort);
                     emit({ type: "approval_resolved", runId, approvalId: req.approvalId });
                     resolve(answer);
                   };
                   record.pendingApprovals.set(req.approvalId, { ...req, resolve: settle });
-                  controller.signal.addEventListener("abort", onAbort, { once: true });
+                  signal.addEventListener("abort", onAbort, { once: true });
                   emit({
                     type: "approval_required",
                     runId,
@@ -330,10 +342,12 @@ export class AgentService extends Service {
             },
           );
 
+          // 同步关闭仍存活的子任务，在保存父消息之前记录真实停止状态。
+          controller.abort();
           const runDurationMs = Date.now() - runStartedAt;
           await record.persistChain;
           // 用户明确陈述的偏好/约定在模型未主动保存时自动沉淀，避免“记忆”只写不读或只读不写。
-          const autoMemory = await this.sedimentExplicitMemory(session.id, projectId, trimmedInput, result.steps);
+          const autoMemory = memoryAllowed && !result.clarification ? await this.sedimentExplicitMemory(session.id, projectId, trimmedInput, result.steps) : null;
           const resultSteps = autoMemory ? [...result.steps, autoMemory] : result.steps;
           const saved = await this.ctx.memory.updateMessage(session.id, assistantMessageId, {
             content: result.content,
@@ -342,6 +356,7 @@ export class AgentService extends Service {
             runDurationMs,
             steps: gitStep ? [gitStep, ...resultSteps] : resultSteps,
             status: "done",
+            ...(result.clarification ? { clarification: result.clarification } : {}),
             ...(result.model ? { model: result.model } : {}),
             ...(result.usage ? { tokenUsage: result.usage } : {}),
             metrics: result.metrics,
@@ -372,6 +387,7 @@ export class AgentService extends Service {
           const aborted = controller.signal.aborted;
           const msg = error instanceof Error ? error.message : String(error);
           const finalStatus = aborted ? "aborted" : "error";
+          controller.abort();
           const finishedAt = Date.now();
           const steps = record.status.steps.map((step): AgentStepTrace =>
             step.status === "preparing" || step.status === "running" || step.status === "waiting_approval"
@@ -409,6 +425,9 @@ export class AgentService extends Service {
             ...(message ? { message } : {}),
             error: msg,
           });
+        } finally {
+          // 父运行结束后停止仍在运行的子任务，避免留下无人接收结果的执行。
+          controller.abort();
         }
       })();
     });

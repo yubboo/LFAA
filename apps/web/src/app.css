@@ -21,7 +21,7 @@
 @supports not selector(::-webkit-scrollbar) {
   * {
     scrollbar-width: thin;
-    scrollbar-color: rgb(var(--color-accent-rgb, 230 106 168) / 0.5) transparent;
+    scrollbar-color: color-mix(in srgb, var(--color-muted) 55%, transparent) transparent;
   }
 }
 
@@ -36,11 +36,11 @@
 
 ::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: rgb(var(--color-accent-rgb, 230 106 168) / 0.44);
+  background: color-mix(in srgb, var(--color-muted) 48%, transparent);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgb(var(--color-accent-rgb, 230 106 168) / 0.76);
+  background: color-mix(in srgb, var(--color-muted) 75%, transparent);
 }
 
 ::-webkit-scrollbar-button {

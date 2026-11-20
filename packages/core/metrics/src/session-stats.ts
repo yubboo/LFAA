@@ -4,10 +4,9 @@
 export const SESSION_CONTEXT_BUDGET_CHARS = 160_000;
 
 export interface SessionContext {
-  systemTokens: number;
-  toolsTokens: number;
-  messageTokens: number;
   totalTokens: number;
+  model?: string;
+  windowSource?: "configured" | "provider-spec";
   windowTokens?: number;
   percent?: number;
 }
@@ -27,6 +26,7 @@ export interface SessionMetrics {
   promptTokens: number;
   completionTokens: number;
   cachedPromptTokens: number;
+  cacheMeasurement?: { promptTokens: number; cachedTokens: number };
   llmMs: number;
   toolMs: number;
   ttftMs: number;
@@ -59,6 +59,10 @@ export interface SessionMessage {
     decodeTokens: number;
     context: { systemTokens: number; toolsTokens: number; messageTokens: number };
     contextWindowTokens?: number;
+    contextPromptTokens?: number;
+    contextModel?: string;
+    contextWindowSource?: "configured" | "provider-spec";
+    cacheMeasurement?: { promptTokens: number; cachedTokens: number };
   };
   cost?: SessionCost;
   runDurationMs?: number;
@@ -71,7 +75,6 @@ function usageTotal(usage: NonNullable<SessionMessage["tokenUsage"]>): number {
 /** 从消息记录计算会话级指标；缺失字段保持零值或缺省，由界面决定是否展示。 */
 export function computeSessionMetrics(
   messages: ReadonlyArray<SessionMessage>,
-  options: { extraChars?: number } = {},
 ): SessionMetrics {
   let turns = 0;
   let steps = 0;
@@ -86,8 +89,9 @@ export function computeSessionMetrics(
   let decodeMs = 0;
   let decodeTokens = 0;
   let durationMs = 0;
-  let latestContext: Omit<SessionContext, "windowTokens" | "percent"> | undefined;
-  let latestWindowTokens: number | undefined;
+  let latestContext: SessionContext | undefined;
+  let observedPrompt = 0;
+  let observedCache = 0;
   let cost: SessionCost | undefined;
 
   for (const message of messages) {
@@ -113,6 +117,7 @@ export function computeSessionMetrics(
       cost.output += runCost.output;
     }
     const metrics = message.metrics;
+    latestContext = undefined;
     if (!metrics) continue;
     llmMs += metrics.llmMs;
     toolMs += metrics.toolMs;
@@ -120,21 +125,22 @@ export function computeSessionMetrics(
     ttftSteps += metrics.ttftSteps;
     decodeMs += metrics.decodeMs;
     decodeTokens += metrics.decodeTokens;
-    const total = metrics.context.systemTokens + metrics.context.toolsTokens + metrics.context.messageTokens;
-    if (typeof metrics.contextWindowTokens === "number" && metrics.contextWindowTokens > 0) {
-      latestWindowTokens = metrics.contextWindowTokens;
+    const measured = metrics.cacheMeasurement;
+    if (measured && measured.promptTokens > 0 && measured.cachedTokens >= 0 && measured.cachedTokens <= measured.promptTokens) {
+      observedPrompt += measured.promptTokens;
+      observedCache += measured.cachedTokens;
     }
-    latestContext = { ...metrics.context, totalTokens: total };
+    const used = metrics.contextPromptTokens;
+    if (typeof used === "number" && Number.isFinite(used) && used >= 0) {
+      const window = metrics.contextWindowTokens;
+      latestContext = {
+        totalTokens: used,
+        ...(metrics.contextModel ? { model: metrics.contextModel } : {}),
+        ...(window && window > 0 && metrics.contextWindowSource
+          ? { windowTokens: window, windowSource: metrics.contextWindowSource, percent: (used / window) * 100 } : {}),
+      };
+    }
   }
-
-  const context: SessionContext | undefined = latestContext
-    ? {
-        ...latestContext,
-        ...(latestWindowTokens
-          ? { windowTokens: latestWindowTokens, percent: Math.min(100, Math.round((latestContext.totalTokens / latestWindowTokens) * 100)) }
-          : {}),
-      }
-    : undefined;
 
   return {
     turns,
@@ -155,10 +161,10 @@ export function computeSessionMetrics(
       : durationMs > 0 && completionTokens > 0
         ? { tokensPerSecond: completionTokens / (durationMs / 1000) }
         : {}),
-    ...(promptTokens > 0 && cachedPromptTokens > 0
-      ? { cacheHitRate: Math.min(1, cachedPromptTokens / promptTokens) }
+    ...(observedPrompt > 0
+      ? { cacheHitRate: observedCache / observedPrompt, cacheMeasurement: { promptTokens: observedPrompt, cachedTokens: observedCache } }
       : {}),
-    ...(context ? { context } : {}),
+    ...(latestContext ? { context: latestContext } : {}),
     ...(cost ? { cost } : {}),
   };
 }

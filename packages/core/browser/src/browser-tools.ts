@@ -20,6 +20,7 @@ export function registerBrowserAgentTools(tools: ToolsService, runtime: BrowserR
 
   const cleanups = [
     tools.registerTool({
+      moduleName: "@lfaa/browser",
       name: "browser_navigate",
       title: "内置浏览器打开网页",
       description: "使用内置浏览器打开指定 http/https 网址并返回页面元素快照与控制台错误数。",
@@ -37,6 +38,7 @@ export function registerBrowserAgentTools(tools: ToolsService, runtime: BrowserR
       },
     }),
     tools.registerTool({
+      moduleName: "@lfaa/browser",
       name: "browser_snapshot",
       title: "读取网页元素快照",
       description: "读取内置浏览器当前页面的文本摘要、可交互元素索引（如 e1、e2）及控制台错误计数。",
@@ -48,6 +50,7 @@ export function registerBrowserAgentTools(tools: ToolsService, runtime: BrowserR
       },
     }),
     tools.registerTool({
+      moduleName: "@lfaa/browser",
       name: "browser_click",
       title: "点击网页元素",
       description: "根据 browser_snapshot 返回的元素引用（如 e3）或 CSS 选择器点击网页元素。",
@@ -68,6 +71,7 @@ export function registerBrowserAgentTools(tools: ToolsService, runtime: BrowserR
       },
     }),
     tools.registerTool({
+      moduleName: "@lfaa/browser",
       name: "browser_type",
       title: "网页输入文本",
       description: "向指定输入框元素填写文本，可选自动回车提交。",
@@ -93,6 +97,7 @@ export function registerBrowserAgentTools(tools: ToolsService, runtime: BrowserR
       },
     }),
     tools.registerTool({
+      moduleName: "@lfaa/browser",
       name: "browser_scroll",
       title: "滚动网页",
       description: "纵向滚动内置浏览器当前页面（正数向下，负数向上）。",
@@ -109,6 +114,7 @@ export function registerBrowserAgentTools(tools: ToolsService, runtime: BrowserR
       },
     }),
     tools.registerTool({
+      moduleName: "@lfaa/browser",
       name: "browser_press_key",
       title: "网页按键",
       description: "向当前页面发送键盘按键（如 Enter、Escape、Tab、ArrowDown）。",
@@ -125,6 +131,7 @@ export function registerBrowserAgentTools(tools: ToolsService, runtime: BrowserR
       },
     }),
     tools.registerTool({
+      moduleName: "@lfaa/browser",
       name: "browser_screenshot",
       title: "截取网页画面",
       description: "抓取当前内置浏览器页面截图并同步刷新右栏浏览器预览。",
@@ -140,6 +147,7 @@ export function registerBrowserAgentTools(tools: ToolsService, runtime: BrowserR
       },
     }),
     tools.registerTool({
+      moduleName: "@lfaa/browser",
       name: "browser_console",
       title: "读取网页控制台日志",
       description: "读取内置浏览器累计捕获的 Console 错误、警告及 HTTP >= 400 失败请求。",
@@ -155,6 +163,7 @@ export function registerBrowserAgentTools(tools: ToolsService, runtime: BrowserR
       },
     }),
     tools.registerTool({
+      moduleName: "@lfaa/browser",
       name: "browser_tabs",
       title: "管理浏览器标签页",
       description: "新建、切换、关闭或列出当前会话内置浏览器的所有真实标签页。",
@@ -187,6 +196,7 @@ export function registerBrowserAgentTools(tools: ToolsService, runtime: BrowserR
       },
     }),
     tools.registerTool({
+      moduleName: "@lfaa/browser",
       name: "browser_hover",
       title: "悬停网页元素",
       description: "将鼠标移动到指定元素或坐标，用于触发悬停菜单或提示。",
@@ -211,6 +221,7 @@ export function registerBrowserAgentTools(tools: ToolsService, runtime: BrowserR
       },
     }),
     tools.registerTool({
+      moduleName: "@lfaa/browser",
       name: "browser_network",
       title: "读取网页网络请求",
       description: "读取内置浏览器近期 HTTP 请求记录、状态码与失败请求详情。",

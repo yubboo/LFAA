@@ -4,7 +4,7 @@ import { readLocaleOverride } from "./general-settings-client";
 /** 助手运行状态、活动摘要和命令详情。 */
 export const timelineMessages = {
   zh: {
-    thinking: "等待模型首包",
+    thinking: "正在思考",
     reasoning: "模型正在推理",
     waitingModel: "正在等待模型响应",
     waitingTool: "正在等待剩余工具参数",
@@ -25,7 +25,14 @@ export const timelineMessages = {
     activityWaiting: (action: string) => `等待确认 · ${action}`,
     activityFailed: (action: string) => `未完成 · ${action}`,
     waiting: "等待确认操作",
-    thinkingElapsed: "思考",
+    subagentStates: {
+      running: (role: string) => `${role} 正在执行`,
+      done: (role: string) => `${role} 已完成`,
+      error: (role: string) => `${role} 执行失败`,
+      stopped: (role: string) => `${role} 已停止`,
+    },
+    thought: "已思考",
+    modelFailed: "模型请求未完成",
     elapsed: "用时",
     process: "执行过程",
     command: "终端",
@@ -54,7 +61,7 @@ export const timelineMessages = {
     closeTab: (name: string) => `关闭 ${name}`,
   },
   en: {
-    thinking: "Waiting for first model response",
+    thinking: "Thinking",
     reasoning: "Model is reasoning",
     waitingModel: "Waiting for the model",
     waitingTool: "Waiting for remaining tool arguments",
@@ -75,7 +82,14 @@ export const timelineMessages = {
     activityWaiting: (action: string) => `Approval required · ${action}`,
     activityFailed: (action: string) => `Unsuccessful · ${action}`,
     waiting: "Waiting for approval",
-    thinkingElapsed: "Thinking",
+    subagentStates: {
+      running: (role: string) => `${role} is working`,
+      done: (role: string) => `${role} completed`,
+      error: (role: string) => `${role} failed`,
+      stopped: (role: string) => `${role} stopped`,
+    },
+    thought: "Thought",
+    modelFailed: "Model request unsuccessful",
     elapsed: "Elapsed",
     process: "Activity",
     command: "Terminal",

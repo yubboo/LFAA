@@ -8,7 +8,7 @@ import { dirname, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { Context } from "@deepseek-ai/cordis";
 import "@lfaa/tools";
-import type { PluginCatalogItem, PluginManifest, PluginRecord, PluginRunStatus } from "../contract/index";
+import type { PluginCatalogItem, PluginManifest, PluginRecord, PluginRunStatus, PresetSummary } from "../contract/index";
 import { parseInstallSpec as parseSpec } from "./install-spec";
 
 /** Loader 的最小结构化契约：避免本包反向依赖内嵌 loader 的类型。 */
@@ -74,14 +74,14 @@ export class PluginManager {
 
   private readonly provided: Set<string>;
   private readonly repoRoot: string | null;
-  private readonly presets: ReadonlyArray<{ id: string; name: Record<"zh" | "en", string>; description: Record<"zh" | "en", string>; sessionModules: readonly string[] }>;
+  private readonly presets: ReadonlyArray<{ id: string; name: Record<"zh" | "en", string>; description: Record<"zh" | "en", string>; sessionModules: readonly string[]; unavailable?: boolean }>;
 
   constructor(ctx: Context, options: {
     profile?: string;
     profilesBaseDir?: string;
     storePath?: string;
     providedModules?: readonly string[];
-    presets?: ReadonlyArray<{ id: string; name: Record<"zh" | "en", string>; description: Record<"zh" | "en", string>; sessionModules: readonly string[] }>;
+    presets?: PluginManager["presets"];
     repoRoot?: string;
   } = {}) {
     this.ctx = ctx;
@@ -216,28 +216,36 @@ export class PluginManager {
     const fallback = this.presets[0]?.id ?? "standard";
     try {
       const raw = JSON.parse(await readFile(this.presetPath(), "utf8")) as { id?: string };
-      return this.presets.some((preset) => preset.id === raw.id) ? (raw.id as string) : fallback;
+      return this.presets.find((preset) => preset.id === raw.id && !preset.unavailable)?.id ?? fallback;
     } catch {
       return fallback;
     }
   }
 
-  /** 运行期回填"已装配"集合：bundle 按模式挂载完可选模块后调用。 */
+  /** 运行期回填当前宿主已装配的模块。 */
   setProvided(modules: readonly string[]): void {
     this.provided.clear();
     for (const moduleName of modules) this.provided.add(moduleName);
   }
 
-  /** 读取当前模式的 id 与其会话插件清单，供 bundle 决定装配范围。 */
+  /** 读取新会话默认模式的标识及能力组合。 */
   async getActivePreset(): Promise<{ id: string; modules: string[] }> {
     const id = await this.readPresetId();
     const preset = this.presets.find((item) => item.id === id);
     return { id, modules: preset ? [...preset.sessionModules] : [] };
   }
 
-  /** 切换模式并持久化；未知模式直接拒绝。 */
+  /** 全局默认仅用于新会话，已选择的组合由会话本身保存。 */
+  async resolveSessionPreset(id?: string): Promise<{ sessionPreset: string; sessionModules: string[] }> {
+    const selected = id ?? await this.readPresetId();
+    const preset = this.presets.find((item) => item.id === selected && !item.unavailable);
+    if (!preset) throw new Error(`会话模式不可用：${selected}`);
+    return { sessionPreset: preset.id, sessionModules: [...preset.sessionModules] };
+  }
+
+  /** 保存新会话默认模式；拒绝未知或不可用模式。 */
   async setPreset(id: string): Promise<void> {
-    if (!this.presets.some((preset) => preset.id === id)) {
+    if (!this.presets.some((preset) => preset.id === id && !preset.unavailable)) {
       throw new Error(`未知模式：${id}`);
     }
     await mkdir(dirname(this.presetPath()), { recursive: true });
@@ -248,7 +256,7 @@ export class PluginManager {
     profileRoot: string;
     installed: PluginRecord[];
     availableCatalog: PluginCatalogItem[];
-    presets: Array<{ id: string; name: string; description: string; modules: string[] }>;
+    presets: PresetSummary[];
     activePreset: string;
   }> {
     await this.ensureProfileLayout();
@@ -275,7 +283,10 @@ export class PluginManager {
     const presets = this.presets.map((preset) => ({
       id: preset.id,
       name: preset.name.zh,
+      nameEn: preset.name.en,
       description: preset.description.zh,
+      descriptionEn: preset.description.en,
+      ...(preset.unavailable ? { unavailable: true } : {}),
       modules: [...preset.sessionModules],
     }));
     return { profile: this.profile, profileRoot: this.profileRoot, installed, availableCatalog, presets, activePreset };

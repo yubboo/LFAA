@@ -104,7 +104,7 @@ export function PluginsView({
 
   const confirmText = pending ? t.confirm[pending.action] : null;
 
-  // 会话插件 = 当前模式启用的子集；其余都归全局插件。
+  // 插件中心按新会话的默认模式展示其能力组合。
   const catalog = state.availableCatalog.filter((entry) =>
     matches(entry.manifest.name, entry.manifest.description, entry.moduleName));
   const activePreset = state.presets?.find((preset) => preset.id === state.activePreset) ?? state.presets?.[0];
@@ -112,7 +112,7 @@ export function PluginsView({
   const sessionCatalog = catalog.filter((entry) => sessionModules.has(entry.moduleName));
   const globalCatalog = catalog.filter((entry) => !sessionModules.has(entry.moduleName));
 
-  /** 切换模式并刷新状态。 */
+  /** 更新新会话默认模式并刷新状态。 */
   const switchPreset = async (id: string) => {
     setSwitching(true);
     setError(null);
@@ -142,7 +142,9 @@ export function PluginsView({
                 onChange={(event) => void switchPreset(event.target.value)}
               >
                 {state.presets.map((preset) => (
-                  <option key={preset.id} value={preset.id}>{preset.name}</option>
+                  <option key={preset.id} value={preset.id} disabled={preset.unavailable}>
+                    {isZh ? preset.name : preset.nameEn}
+                  </option>
                 ))}
               </select>
             </label>

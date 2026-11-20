@@ -27,6 +27,7 @@ export class SkillsService extends Service {
       apply: (childCtx) => {
         const cleanups = [
           childCtx.tools.registerTool({
+            moduleName: "@lfaa/skills",
             name: "list_skills",
             title: "列出可用技能",
             description: "列出小鱼当前已启用的用户级（~/.lfaa/skills）、内置与插件技能摘要。",
@@ -45,6 +46,7 @@ export class SkillsService extends Service {
             },
           }),
           childCtx.tools.registerTool({
+            moduleName: "@lfaa/skills",
             name: "load_skill",
             title: "按需加载技能正文",
             description: "根据技能 ID 或名称读取已启用技能的完整 SKILL.md 指令内容。",
@@ -70,6 +72,7 @@ export class SkillsService extends Service {
             },
           }),
           childCtx.tools.registerTool({
+            moduleName: "@lfaa/skills",
             name: "install_skill_from_git",
             title: "从 Git 仓库安装技能",
             description: "从 GitHub/Git 仓库 URL 克隆并提取 SKILL.md 安装到用户级目录（~/.lfaa/skills/）。",
@@ -90,6 +93,7 @@ export class SkillsService extends Service {
             },
           }),
           childCtx.tools.registerTool({
+            moduleName: "@lfaa/skills",
             name: "save_user_skill",
             title: "保存用户级技能",
             description: "在用户级目录（~/.lfaa/skills/）创建或更新一个个人技能（SKILL.md）。",

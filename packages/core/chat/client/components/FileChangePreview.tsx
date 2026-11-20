@@ -57,7 +57,7 @@ export function FileChangePreview({
   const { path, relativePath, messageId, stepId, targetLine, endLine } = tab;
   const change = step?.fileChange;
   const hasStepSource = Boolean(messageId && stepId);
-  const [showChanges, setShowChanges] = useState(Boolean(step && !change));
+  const [showChanges, setShowChanges] = useState(false);
   const [source, setSource] = useState<{ content: string; truncated: boolean; error?: string } | null>(null);
   const [legacyDiff, setLegacyDiff] = useState<{ text: string; error?: string } | null>(null);
   const [reloadNonce, setReloadNonce] = useState(0);
@@ -74,7 +74,7 @@ export function FileChangePreview({
   const commentInputRef = useRef<HTMLTextAreaElement>(null);
 
   const effectiveProjectId = tab.projectId ?? projectId;
-  const canReadGit = Boolean(effectiveProjectId) && (!change || showChanges);
+  const canReadGit = Boolean(effectiveProjectId) && showChanges;
   const displayPath = (relativePath || path).replace(/\\/gu, "/");
   const focusStart = targetLine ?? change?.firstLine ?? 1;
   const focusEnd = endLine ?? (change ? change.firstLine + Math.max(0, change.after.split("\n").length - 1) : focusStart);
@@ -83,8 +83,8 @@ export function FileChangePreview({
     setCommentLine(null);
     setCommentDraft("");
     setNotice("");
-    setShowChanges(Boolean(step && !change));
-  }, [tab.id, change, step]);
+    setShowChanges(false);
+  }, [tab.id]);
 
   useEffect(() => {
     const controller = new AbortController();

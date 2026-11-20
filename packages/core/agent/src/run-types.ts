@@ -17,6 +17,8 @@ export interface RunLoopDeps {
 
 /** 描述启动一次运行所需的会话信息与工具权限上下文。 */
 export interface RunExecutionParams {
+  enableClarification?: boolean;
+  beforeWorkspaceMutation?: () => Promise<void>;
   runId: string;
   sessionId: string;
   assistantMessageId: string;
@@ -25,6 +27,7 @@ export interface RunExecutionParams {
   reasoningEffort?: "minimal" | "low" | "medium" | "high" | "max";
   projectId?: string | null;
   workspaceRoots: string[];
+  enableMemoryContext?: boolean;
   resolvedSkills?: ResolvedSkillContext[];
   availableSkillCatalog?: Array<{ id: string; name: string; source: string; description: string }>;
   maxSteps: number;
@@ -48,5 +51,5 @@ export interface RunExecutionParams {
     approvalThreshold?: number;
     highRisk?: boolean;
     riskReason?: string;
-  }) => Promise<ApprovalAnswer>;
+  }, signal?: AbortSignal) => Promise<ApprovalAnswer>;
 }

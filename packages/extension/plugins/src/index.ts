@@ -20,6 +20,7 @@ export interface PluginsPluginConfig {
     name: Record<"zh" | "en", string>;
     description: Record<"zh" | "en", string>;
     sessionModules: readonly string[];
+    unavailable?: boolean;
   }>;
 }
 
@@ -60,6 +61,11 @@ export class PluginsService extends Service {
   /** 当前模式及其会话插件清单。 */
   getActivePreset(): Promise<{ id: string; modules: string[] }> {
     return this.manager.getActivePreset();
+  }
+
+  /** 解析新会话选择，校验后返回要持久化的能力组合。 */
+  resolveSessionPreset(id?: string): Promise<{ sessionPreset: string; sessionModules: string[] }> {
+    return this.manager.resolveSessionPreset(id);
   }
 
   /** 切换当前模式；返回新状态。 */

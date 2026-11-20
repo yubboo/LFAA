@@ -3,6 +3,26 @@ import type { AgentStepItem } from "./chat-types";
 
 export const fileActivityTools = new Set(["write_file", "edit_file", "create_file", "patch_file", "delete_file"]);
 
+/** 按真实工具记录归并同一文件。行数累加每次操作，保留每次可回看的快照。 */
+export function collectEditedFiles(steps: readonly AgentStepItem[]) {
+  const files = new Map<string, { path: string; stepId: string; steps: AgentStepItem[]; added: number; removed: number; hasCounts: boolean }>();
+  for (const step of steps) {
+    if (step.phase !== "act" || step.status !== "done") continue;
+    const path = getActivityFilePath(step);
+    if (!path || (step.addedLines === 0 && step.removedLines === 0
+      && step.fileChange?.operation !== "created" && step.fileChange?.before === step.fileChange?.after)) continue;
+    const key = (step.fileChange?.resolvedPath ?? path).replace(/\\/gu, "/");
+    const file = files.get(key) ?? { path, stepId: step.id, steps: [], added: 0, removed: 0, hasCounts: true };
+    file.stepId = step.id;
+    file.steps.push(step);
+    file.added += step.addedLines ?? 0;
+    file.removed += step.removedLines ?? 0;
+    file.hasCounts &&= step.addedLines !== undefined && step.removedLines !== undefined;
+    files.set(key, file);
+  }
+  return [...files.values()];
+}
+
 /** 旧记录的参数可能在文件名之后截断，单独解码仍完整的路径字符串。 */
 export function getActivityFilePath(step: AgentStepItem): string | undefined {
   if (step.fileChange?.path) return step.fileChange.path;

@@ -45,6 +45,7 @@ export class JobsService extends Service {
   private registerAgentTools(): () => void {
     const cleanups = [
       this.ctx.tools.registerTool({
+        moduleName: "@lfaa/jobs",
         name: "start_background_task",
         title: "启动后台任务",
         description: "在工作区根目录启动长时间运行的后台命令（如开发服务、构建或监听任务），立即返回 taskId。",
@@ -93,6 +94,7 @@ export class JobsService extends Service {
         },
       }),
       this.ctx.tools.registerTool({
+        moduleName: "@lfaa/jobs",
         name: "get_background_task",
         title: "查看后台任务状态",
         description: "按 taskId 查看后台任务运行状态、退出码与最新输出日志。",
@@ -118,6 +120,7 @@ export class JobsService extends Service {
         },
       }),
       this.ctx.tools.registerTool({
+        moduleName: "@lfaa/jobs",
         name: "list_background_tasks",
         title: "列出后台任务",
         description: "列出当前会话已启动的所有后台任务及运行状态。",
@@ -133,6 +136,7 @@ export class JobsService extends Service {
         },
       }),
       this.ctx.tools.registerTool({
+        moduleName: "@lfaa/jobs",
         name: "stop_background_task",
         title: "停止后台任务",
         description: "终止当前会话指定的运行中后台任务。",

@@ -21,7 +21,10 @@ import {
 import type { ChatLocaleMessages } from "../locales";
 import { useChatScroll } from "../useChatScroll";
 import { AssistantTimeline } from "./AssistantTimeline";
+import { ConversationTrace } from "./Conversation-Trace";
 import { SessionStatsBar } from "./SessionStatsBar";
+import { ClarificationCard } from "./Clarification-Card";
+import { collectEditedFiles } from "../file-activity";
 import { ChatAnchorBar, buildTurnAnchors } from "./ChatAnchorBar";
 import { ComposerAddMenu } from "./ComposerAddMenu";
 import { ComposerRightActions } from "./ComposerRightActions";
@@ -37,6 +40,7 @@ import {
 import { MentionPopover, SlashCommandPopover } from "./MentionPopover";
 import { ModelReasoningPicker } from "./ModelReasoningPicker";
 import { PermissionModePicker } from "./PermissionModePicker";
+import { SessionMode } from "./Session-Mode";
 import modalStyles from "./ModelProviderGrid.module.css";
 import styles from "./ChatWorkspace.module.css";
 
@@ -47,7 +51,7 @@ export function ChatWorkspace({
   projects,
   projectProvider,
   onOpenSettings,
-  onOpenGitSettings,
+  onOpenTurnChanges,
   onOpenFilePreview,
   onOpenBrowser,
 }: {
@@ -56,12 +60,14 @@ export function ChatWorkspace({
   projects: WorkbenchProjectItem[];
   projectProvider?: WorkbenchProjectProvider<ReactNode> | null | undefined;
   onOpenSettings: () => void;
-  onOpenGitSettings?: (() => void) | undefined;
+  onOpenTurnChanges?: ((messageId: string) => void) | undefined;
   onOpenFilePreview: (messageId: string, stepId: string) => void;
   onOpenBrowser?: (() => void) | undefined;
 }) {
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
   const [draft, setDraft] = useState("");
+  const [view, setView] = useState<"chat" | "trace">("chat");
+  const [traceTarget, setTraceTarget] = useState<{ messageId: string; stepId: string } | null>(null);
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
   const [mentionTrigger, setMentionTrigger] = useState<{ query: string; startIndex: number } | null>(null);
   const [mentionIndex, setMentionIndex] = useState(0);
@@ -84,11 +90,17 @@ export function ChatWorkspace({
 
   const activeSession = state.activeSession;
   const messages = activeSession?.messages ?? [];
+  const lastMessage = messages.at(-1);
+  const clarification = lastMessage?.status === "done" ? lastMessage.clarification : undefined;
+  const latestFiles = collectEditedFiles(lastMessage?.role === "assistant" ? lastMessage.steps ?? [] : []);
+  const countedChanges = latestFiles.length > 0 && latestFiles.every((file) => file.hasCounts);
+  const latestAdded = latestFiles.reduce((sum, file) => sum + file.added, 0);
+  const latestRemoved = latestFiles.reduce((sum, file) => sum + file.removed, 0);
 
   // 最后一条助手消息完成后，向 Host 请求模型生成的追问建议（按消息缓存）。
   useEffect(() => {
     const last = messages[messages.length - 1];
-    if (!last || last.role !== "assistant" || last.status === "streaming" || !last.content.trim()) return;
+    if (!last || last.role !== "assistant" || last.status === "streaming" || last.clarification || !last.content.trim()) return;
     if (suggestionsByMessage[last.id]) return;
     const prompt = messages[messages.length - 2]?.role === "user" ? (messages[messages.length - 2]?.content ?? "") : "";
     let cancelled = false;
@@ -339,7 +351,7 @@ export function ChatWorkspace({
   };
 
   const handleSubmit = async (customText?: string, invertFollowUp = false) => {
-    if (projectBindingPending.current) return;
+    if (projectBindingPending.current || state.submittingMessage) return;
     const raw = (customText ?? draft).trim();
     if (!raw && attachments.length === 0) return;
 
@@ -452,15 +464,17 @@ export function ChatWorkspace({
     }
   };
 
-  const estimatedContextChars =
-    messages.reduce((sum, item) => sum + item.content.length + (item.reasoning?.length ?? 0), 0) + draft.length;
-  const estimatedTokens = Math.round(estimatedContextChars / 4);
-
   return (
     <section className={styles.root} aria-label={locale.workspaceTitle}>
+      <nav className={styles.viewTabs} aria-label={locale.isZh ? "会话视图" : "Conversation views"}>
+        <button type="button" aria-current={view === "chat" ? "page" : undefined} onClick={() => setView("chat")}>{locale.isZh ? "对话" : "Chat"}</button>
+        <button type="button" aria-current={view === "trace" ? "page" : undefined} onClick={() => setView("trace")}>{locale.isZh ? "轨迹" : "Trace"}</button>
+      </nav>
+      {view === "trace" && <ConversationTrace key={activeSession?.id ?? "draft"} messages={messages} locale={locale} target={traceTarget} pendingApproval={state.pendingApproval} onResolveApproval={(approved) => void store.resolveApproval(approved)} />}
       <div
         ref={scrollAreaRef}
         className={styles.scrollArea}
+        hidden={view !== "chat"}
         onScroll={(event) => {
           const el = event.currentTarget;
           trackScroll(el);
@@ -521,7 +535,7 @@ export function ChatWorkspace({
                 <article key={msg.id} className={styles.assistantRow}>
                   <AssistantTimeline
                     locale={locale}
-                    content={msg.content}
+                    content={clarification && msg.id === lastMessage?.id ? "" : msg.content}
                     progressText={msg.progressText}
                     steps={msg.steps ?? []}
                     createdAt={msg.createdAt}
@@ -532,14 +546,14 @@ export function ChatWorkspace({
                     pendingApproval={msg.status === "streaming" ? state.pendingApproval : null}
                     onResolveApproval={(approved) => void store.resolveApproval(approved)}
                     onOpenFile={(stepId) => onOpenFilePreview(msg.id, stepId)}
+                    onOpenTrace={(stepId) => { setTraceTarget({ messageId: msg.id, stepId }); setView("trace"); }}
                     selectedFileStepId={selectedFile?.messageId === msg.id ? selectedFile.stepId : undefined}
                     bodyClassName={styles.assistantBody}
                   />
                   <EditedFilesCard
                     isZh={locale.isZh}
                     steps={msg.steps ?? []}
-                    projectId={activeProjectId}
-                    onViewChanges={onOpenGitSettings}
+                    onViewChanges={onOpenTurnChanges ? () => onOpenTurnChanges(msg.id) : undefined}
                     onOpenFile={(stepId) => onOpenFilePreview(msg.id, stepId)}
                     selectedFileStepId={selectedFile?.messageId === msg.id ? selectedFile.stepId : undefined}
                   />
@@ -588,7 +602,7 @@ export function ChatWorkspace({
         )}
       </div>
 
-      <ChatAnchorBar
+      {view === "chat" && <ChatAnchorBar
         turns={turnAnchors}
         activeTurnIndex={activeTurnIndex}
         onJumpToTurn={(anchorMsgId, idx) => {
@@ -602,7 +616,7 @@ export function ChatWorkspace({
             behavior: isRunning ? "instant" : "smooth",
           });
         }}
-      />
+      />}
 
       <div className={styles.composerDock}>
         {showScrollBottom && messages.length > 0 && (
@@ -629,6 +643,11 @@ export function ChatWorkspace({
           </div>
         )}
         <div className={styles.composerStack}>
+          {clarification && (
+            <ClarificationCard key={lastMessage?.id} isZh={locale.isZh} prompt={clarification}
+              busy={state.submittingMessage || isRunning}
+              onAnswer={(answer) => void store.sendMessage(answer).catch((error: unknown) => setContextNotice(String(error)))} />
+          )}
           <ComposerScopeBar
             locale={locale}
             projects={projects}
@@ -861,6 +880,16 @@ export function ChatWorkspace({
                   onSelectMode={(nextMode) => void store.setPermissionMode(nextMode)}
                 />
 
+                <SessionMode
+                  isZh={locale.isZh}
+                  selected={activeSession ? activeSession.sessionPreset : state.draftSessionPreset}
+                  locked={messages.length > 0 || isRunning}
+                  busy={Boolean(state.submittingMessage)}
+                  onSelect={(id) => void store.selectSessionPreset(id).catch((error: unknown) => {
+                    setContextNotice(error instanceof Error ? error.message : String(error));
+                  })}
+                />
+
                 {activeSession && (
                   <HoverTip label={locale.deleteChat}>
                     <button
@@ -904,8 +933,15 @@ export function ChatWorkspace({
           <SessionStatsBar
             messages={messages}
             locale={locale}
-            draftChars={draft.length}
-            {...(state.generalSettings.showContextUsage ? { estimatedContextTokens: estimatedTokens } : {})}
+            showContext={state.generalSettings.showContextUsage}
+            leading={lastMessage && onOpenTurnChanges && latestFiles.length > 0 ? (
+              <button type="button" className={styles.turnChangesTrigger}
+                title={locale.isZh ? "查看本轮变更。增删为已记录操作的行数" : "Review changes this turn. Line counts are per recorded edit."}
+                onClick={() => onOpenTurnChanges(lastMessage.id)}>
+                {locale.isZh ? `${latestFiles.length} 个文件已变更` : `${latestFiles.length} files changed`}
+                {countedChanges && <><span data-change="add">+{latestAdded}</span><span data-change="remove">−{latestRemoved}</span></>}
+              </button>
+            ) : undefined}
           />
         </div>
       </div>

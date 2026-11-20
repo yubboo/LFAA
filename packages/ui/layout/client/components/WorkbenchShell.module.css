@@ -5,7 +5,7 @@
   --right-panel-base-width: clamp(14.5rem, 18vw, 18rem);
   /* 滚动区域的末端避开分隔手柄向内覆盖的 5px。 */
   --pane-scroll-inset: 8px;
-  --pane-scrollbar-width: 12px;
+  --pane-scrollbar-width: 6px;
   /* 静止、刷新和缩窗时也应用拖拽边界。按左栏实际占用计算右栏可用空间。 */
   --content-width: calc(100% - var(--rail-width));
   --center-min-width: max(var(--center-min-pixels), calc(var(--content-width) * var(--center-min-share)));

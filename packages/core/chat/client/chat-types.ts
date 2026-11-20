@@ -1,6 +1,6 @@
 // 声明 @lfaa/chat/client 浏览器端状态与 API 数据模型（无 Node 专有依赖）。
 import type { GeneralSettingsConfig, ReasoningLevelOption } from "./general-settings-client";
-import type { AgentStepTrace } from "@lfaa/memory";
+import type { AgentRunMetrics, AgentStepTrace, UserClarification } from "@lfaa/memory";
 
 export type { GeneralSettingsConfig, OpenSourcePackageInfo, ReasoningLevelOption } from "./general-settings-client";
 export type AgentPermissionMode = "ask" | "smart" | "full";
@@ -10,16 +10,7 @@ export type AgentPhase = AgentStepItem["phase"];
 export type AgentStepStatus = AgentStepItem["status"];
 
 /** 单次运行的耗时与上下文构成，字段与 Host 的 AgentRunMetrics 对应。 */
-export interface ChatRunMetrics {
-  llmMs: number;
-  toolMs: number;
-  ttftMs: number;
-  ttftSteps: number;
-  decodeMs: number;
-  decodeTokens: number;
-  context: { systemTokens: number; toolsTokens: number; messageTokens: number };
-  contextWindowTokens?: number;
-}
+export type ChatRunMetrics = AgentRunMetrics;
 
 /** 提供聊天界面所需的消息内容、时间及运行信息。 */
 export interface ChatMessageItem {
@@ -33,6 +24,7 @@ export interface ChatMessageItem {
   steps?: AgentStepItem[];
   status?: "streaming" | "done" | "error" | "aborted";
   model?: string;
+  clarification?: UserClarification;
   /** 本轮运行累计的模型用量，供应商未返回时缺省。 */
   tokenUsage?: {
     promptTokens?: number;
@@ -58,6 +50,7 @@ export interface ChatSessionItem {
   unread?: boolean;
   messageCount: number;
   summary?: string;
+  sessionPreset?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -209,6 +202,8 @@ export interface ChatStoreSnapshot {
   activeSession: ChatSessionDetail | null;
   draftProjectId: string | null;
   draftSectionId: string | null;
+  draftSessionPreset?: string | undefined;
+  submittingMessage?: boolean;
   runningRunId: string | null;
   queuedMessages: string[];
   pendingApproval: PendingApprovalBanner | null;

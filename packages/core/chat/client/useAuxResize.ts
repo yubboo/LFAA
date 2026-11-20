@@ -28,7 +28,7 @@ function writeStoredAuxWidth(width: number): void {
 }
 
 export function useAuxResize(containerRef: RefObject<HTMLDivElement | null>) {
-  const [auxWidth, setAuxWidth] = useState<number>(readStoredAuxWidth);
+  const [auxWidth, setAuxWidth] = useState(readStoredAuxWidth);
   const [dragging, setDragging] = useState(false);
   const cleanupRef = useRef<(() => void) | null>(null);
 
@@ -42,7 +42,7 @@ export function useAuxResize(containerRef: RefObject<HTMLDivElement | null>) {
     cleanupRef.current?.();
 
     const startX = event.clientX;
-    const startW = auxWidth;
+    const startW = event.currentTarget.nextElementSibling?.getBoundingClientRect().width ?? auxWidth;
     const maxAllowed = Math.max(MIN_AUX_WIDTH, Math.min(MAX_AUX_WIDTH, container.getBoundingClientRect().width - MIN_STAGE_WIDTH));
     let latestW = startW;
     setDragging(true);
@@ -70,11 +70,12 @@ export function useAuxResize(containerRef: RefObject<HTMLDivElement | null>) {
 
   const handleKeyResize = useCallback((key: string) => {
     if (key === "ArrowLeft") {
-      setAuxWidth((w) => { const next = Math.min(MAX_AUX_WIDTH, w + 16); writeStoredAuxWidth(next); return next; });
+      const max = Math.max(MIN_AUX_WIDTH, Math.min(MAX_AUX_WIDTH, (containerRef.current?.clientWidth ?? MAX_AUX_WIDTH) - MIN_STAGE_WIDTH));
+      setAuxWidth((w) => { const next = Math.min(max, w + 16); writeStoredAuxWidth(next); return next; });
     } else if (key === "ArrowRight") {
       setAuxWidth((w) => { const next = Math.max(MIN_AUX_WIDTH, w - 16); writeStoredAuxWidth(next); return next; });
     }
-  }, []);
+  }, [containerRef]);
 
   return { auxWidth, dragging, startResize, handleKeyResize };
 }

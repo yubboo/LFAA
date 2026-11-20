@@ -33,6 +33,7 @@ export interface Preset {
   description: Record<"zh" | "en", string>;
   /** 本模式启用的会话插件（必须来自全局清单）。 */
   sessionModules: readonly string[];
+  unavailable?: boolean;
 }
 
 /** 全局清单：核心 + 可选，会话插件只能从这里挑。 */
@@ -43,31 +44,32 @@ export const PRESETS: readonly Preset[] = [
   {
     id: "standard",
     name: { zh: "标准模式（默认）", en: "Standard (default)" },
-    description: { zh: "通用对话所需的最小组合。", en: "The minimal set for general conversation." },
+    description: { zh: "完整工作模式，支持技能、浏览器、后台任务和子智能体协作。", en: "Full workspace mode with skills, browser, jobs, and subagents." },
     sessionModules: [
       "@lfaa/agent", "@lfaa/tools", "@lfaa/llm", "@lfaa/rules",
-      "@lfaa/memory", "@lfaa/skills", "@lfaa/browser", "@lfaa/jobs", "@lfaa/subagent",
+      "@lfaa/memory", "@lfaa/skills", "@lfaa/browser", "@lfaa/jobs", "@lfaa/subagent", "@lfaa/tool-web", "@lfaa/tool-todo",
     ],
   },
   {
     id: "ptc",
     name: { zh: "PTC 模式", en: "PTC" },
-    description: { zh: "在标准模式上加入程序化工具调用与工作流。", en: "Standard plus programmatic tool calling and workflows." },
-    sessionModules: ["@lfaa/agent", "@lfaa/tools", "@lfaa/llm", "@lfaa/rules", "@lfaa/memory", "@lfaa/skills"],
+    description: { zh: "程序化工具调用尚未接入。", en: "Programmatic tool calling is not available yet." },
+    unavailable: true,
+    sessionModules: [],
   },
   {
     id: "minimal",
     name: { zh: "极简模式", en: "Minimal" },
-    description: { zh: "只保留模型与工具，适合快速问答。", en: "Only the model and tools, for quick questions." },
-    sessionModules: ["@lfaa/llm", "@lfaa/tools"],
+    description: { zh: "轻量问答与只读文件检索。", en: "Lightweight chat and read-only file search." },
+    sessionModules: ["@lfaa/agent", "@lfaa/llm", "@lfaa/rules", "@lfaa/tools"],
   },
   {
     id: "creative",
     name: { zh: "创造模式", en: "Creative" },
-    description: { zh: "在标准模式上放开浏览器与后台任务。", en: "Standard plus the browser and background jobs." },
+    description: { zh: "适合生成内容与产物，包含网页、技能和后台任务。", en: "Create content and artifacts with web, skills, and background jobs." },
     sessionModules: [
       "@lfaa/agent", "@lfaa/tools", "@lfaa/llm", "@lfaa/rules",
-      "@lfaa/memory", "@lfaa/skills", "@lfaa/browser", "@lfaa/jobs",
+      "@lfaa/memory", "@lfaa/skills", "@lfaa/browser", "@lfaa/jobs", "@lfaa/tool-web", "@lfaa/tool-todo",
     ],
   },
 ];

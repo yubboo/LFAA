@@ -262,7 +262,7 @@ export function createBuiltinWorkspaceTools(
         const elapsedSeconds = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
         if (result.timedOut) {
           // 前台时限只负责拦住“无限等待”，长构建交给后台任务继续跑，避免整轮任务被判定失败。
-          const fallback = hooks.onCommandTimeout
+          const fallback = hooks.onCommandTimeout && ctx.allowsTool?.("start_background_task") !== false
             ? await hooks.onCommandTimeout({
               command,
               cwd,

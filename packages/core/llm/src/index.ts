@@ -11,7 +11,6 @@ import { callGeminiGenerateContentApi } from "./gemini-adapter";
 import { callOpenAiCompatibleChat } from "./openai-adapter";
 import { asApiProtocol, resolveEffectiveProtocol } from "./protocol-utils";
 import { callOpenAiResponsesApi } from "./responses-adapter";
-import { inferContextWindow } from "./context-window";
 import type {
   LlmAdapter,
   LlmApiProtocol,
@@ -29,6 +28,7 @@ export * from "./types";
 export { fetchOfficialModels, formatLlmHttpError, resolveModelCapabilities } from "./capabilities";
 export { createLlmHttpHandler } from "./http-handler";
 export { asApiProtocol, resolveEffectiveProtocol } from "./protocol-utils";
+export { resolveReportedContextWindow } from "./context-window";
 
 /** 允许启动方配置档案文件和适配器，便于测试使用独立存储及模拟模型。 */
 export interface LlmPluginConfig {
@@ -88,14 +88,6 @@ export function maskApiKey(apiKey: string): string {
 }
 
 /** 将 Host 档案转换为可发往浏览器的公开模型配置。 */
-/** 取上下文窗口：优先用户配置，其次按模型名推断，无法确定时返回空对象。 */
-function resolveContextWindow(profile: { model?: string; contextWindowTokens?: number }): { contextWindowTokens?: number } {
-  if (typeof profile.contextWindowTokens === "number" && profile.contextWindowTokens > 0) {
-    return { contextWindowTokens: profile.contextWindowTokens };
-  }
-  const inferred = inferContextWindow(profile.model);
-  return inferred ? { contextWindowTokens: inferred } : {};
-}
 export function toPublicProfile(profile: LlmProfile): PublicLlmProfile {
   const apiProtocol = resolveEffectiveProtocol(profile);
   const plan = (apiProtocol === "openai-chat" || apiProtocol === "anthropic-messages")
@@ -127,7 +119,8 @@ export function toPublicProfile(profile: LlmProfile): PublicLlmProfile {
     ...(typeof profile.temperature === "number" ? { temperature: profile.temperature } : {}),
     ...(typeof profile.maxTokens === "number" ? { maxTokens: profile.maxTokens } : {}),
     // 用户未填写时按模型名/家族推断；仍无法确定则不设值，界面显示"未配置"而不是编造。
-    ...resolveContextWindow(profile),
+    ...(profile.contextWindowTokens && profile.contextWindowTokens > 0
+      ? { contextWindowTokens: profile.contextWindowTokens } : {}),
     ...(typeof profile.inputPricePerMillion === "number" ? { inputPricePerMillion: profile.inputPricePerMillion } : {}),
     ...(typeof profile.outputPricePerMillion === "number" ? { outputPricePerMillion: profile.outputPricePerMillion } : {}),
     ...(typeof profile.cachedInputPricePerMillion === "number"
@@ -210,6 +203,13 @@ function sanitizeStoredConfig(raw: unknown): StoredLlmConfig {
 function readPrice(input: number | undefined, existing: number | undefined): number | undefined {
   if (typeof input === "number" && Number.isFinite(input) && input >= 0) return input;
   return existing;
+}
+
+/** 手动配置的窗口只适用于对应模型。 */
+function withSelectedModel(profile: LlmProfile, model: string): LlmProfile {
+  if (profile.model === model) return profile;
+  const { contextWindowTokens: _oldWindow, ...rest } = profile;
+  return { ...rest, model };
 }
 
 /** 组装模型档案的计价字段，未提供的沿用已有值。 */
@@ -317,7 +317,7 @@ export class LlmService extends Service {
       ...(typeof input.maxTokens === "number" ? { maxTokens: input.maxTokens } : {}),
       ...(typeof input.contextWindowTokens === "number" && input.contextWindowTokens > 0
         ? { contextWindowTokens: Math.floor(input.contextWindowTokens) }
-        : existing?.contextWindowTokens !== undefined
+        : existing?.model === model && existing.contextWindowTokens !== undefined
           ? { contextWindowTokens: existing.contextWindowTokens }
           : {}),
       ...priceFields(input, existing),
@@ -393,9 +393,8 @@ export class LlmService extends Service {
       const updated = config.profiles.map((p) =>
         p.id === existing.id
           ? {
-              ...p,
+              ...withSelectedModel(p, nextModel),
               ...(apiProtocol ? { apiProtocol } : {}),
-              model: nextModel,
               availableModels: models,
               configured: true,
               updatedAt: Date.now(),
@@ -414,7 +413,7 @@ export class LlmService extends Service {
     const found = config.profiles.find((p) => p.id === profileId);
     if (!found) throw new Error(`找不到模型配置：${profileId}`);
     const nextList = config.profiles.map((p) =>
-      p.id === profileId ? { ...p, model: cleanModel, updatedAt: Date.now() } : p,
+      p.id === profileId ? { ...withSelectedModel(p, cleanModel), updatedAt: Date.now() } : p,
     );
     await this.writeConfig({ activeProfileId: profileId, profiles: nextList });
     const updated = nextList.find((p) => p.id === profileId)!;

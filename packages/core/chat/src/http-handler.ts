@@ -30,6 +30,7 @@ async function readJsonBody(req: IncomingMessage): Promise<Record<string, unknow
 /** 把会话读写、常规设置与本地语音请求分派给 Chat Host 服务。 */
 export function createChatHttpHandler(service: ChatService, options: {
   withIdleSession?: <T>(sessionId: string, action: () => Promise<T>) => Promise<T>;
+  resolveSessionPreset?: (id?: string) => Promise<{ sessionPreset: string; sessionModules: string[] }>;
   /** 由模型生成追问建议；未提供时该接口返回空数组，客户端不展示。 */
   suggestFollowUps?: (input: { userPrompt: string; assistantReply: string }) => Promise<string[]>;
 } = {}) {
@@ -67,7 +68,9 @@ export function createChatHttpHandler(service: ChatService, options: {
 
       if (method === "POST" && pathname === "/api/chat/sessions") {
         const body = await readJsonBody(req);
+        const preset = await resolvePreset(body.sessionPreset);
         const session = await service.createSession({
+          ...preset,
           ...(typeof body.title === "string" ? { title: body.title } : {}),
           projectId: typeof body.projectId === "string" ? body.projectId : null,
           sectionId: typeof body.sectionId === "string" ? body.sectionId : null,
@@ -133,7 +136,10 @@ export function createChatHttpHandler(service: ChatService, options: {
         }
         if (method === "PATCH") {
           const body = await readJsonBody(req);
-          const write = () => service.updateSession(sessionId, {
+          const changesPreset = Object.hasOwn(body, "sessionPreset");
+          if (changesPreset && !options.withIdleSession) throw new Error("会话模式修改不可用。");
+          const write = async () => service.updateSession(sessionId, {
+            ...(changesPreset ? await resolvePreset(body.sessionPreset) : {}),
             ...(typeof body.title === "string" ? { title: body.title } : {}),
             ...(body.projectId !== undefined
               ? { projectId: typeof body.projectId === "string" ? body.projectId : null }
@@ -145,7 +151,7 @@ export function createChatHttpHandler(service: ChatService, options: {
             ...(typeof body.archived === "boolean" ? { archived: body.archived } : {}),
             ...(typeof body.unread === "boolean" ? { unread: body.unread } : {}),
           });
-          const session = body.projectId !== undefined && options.withIdleSession
+          const session = (body.projectId !== undefined || changesPreset) && options.withIdleSession
             ? await options.withIdleSession(sessionId, write)
             : await write();
           if (!session) {
@@ -173,4 +179,11 @@ export function createChatHttpHandler(service: ChatService, options: {
       return true;
     }
   };
+
+  async function resolvePreset(id: unknown) {
+    if (id !== undefined && (typeof id !== "string" || !id.trim() || !options.resolveSessionPreset)) {
+      throw new Error("会话模式不可用。");
+    }
+    return options.resolveSessionPreset?.(typeof id === "string" ? id : undefined);
+  }
 }

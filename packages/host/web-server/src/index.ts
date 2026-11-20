@@ -87,6 +87,7 @@ export async function startWeb(options: WebServerOptions): Promise<() => Promise
   const chatService = hostContext.get("chat");
   if (!chatService) throw new Error("chat 服务未装配，无法提供会话接口。");
   const handleChatRequest = createChatHttpHandler(chatService, {
+    resolveSessionPreset: (id) => hostContext.plugins.resolveSessionPreset(id),
     withIdleSession: (sessionId, action) => hostContext.agent.withIdleSession(sessionId, action),
     // 追问建议由模型根据本轮问答生成，不再使用前端模板。
     suggestFollowUps: async ({ userPrompt, assistantReply }) => {

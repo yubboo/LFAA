@@ -1,12 +1,12 @@
 // @lfaa/plugins 浏览器端 HTTP 请求封装，与 Host /api/plugins 接口通信。
-import type { PluginCatalogItem, PluginRecord } from "../contract/index";
+import type { PluginCatalogItem, PluginRecord, PresetSummary } from "../contract/index";
 
 export interface PluginsStatePayload {
   profile?: string;
   profileRoot?: string;
   installed: PluginRecord[];
   availableCatalog: PluginCatalogItem[];
-  presets?: Array<{ id: string; name: string; description: string; modules: string[] }>;
+  presets?: PresetSummary[];
   activePreset?: string;
 }
 
@@ -47,7 +47,7 @@ export async function installPluginRequest(moduleName: string): Promise<PluginsS
   return { ...payload, plugin: payload.plugin };
 }
 
-/** 切换当前模式预设。 */
+/** 更新新会话的默认模式。 */
 export async function setPresetRequest(id: string): Promise<PluginsStatePayload> {
   const res = await fetch("/api/plugins/preset", {
     method: "POST",

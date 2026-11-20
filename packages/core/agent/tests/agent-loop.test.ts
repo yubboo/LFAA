@@ -15,6 +15,49 @@ import { agentPlugin, evaluateToolApproval, SMART_APPROVAL_THRESHOLD, type Agent
 // 命令审计写入临时文件，避免测试污染用户目录。
 process.env.LFAA_COMMAND_AUDIT_LOG = path.join(os.tmpdir(), `lfaa-agent-audit-${process.pid}.jsonl`);
 
+test("需求澄清随消息保存并阻止同一批次的文件修改", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-clarification-"));
+  const ctx = new Context();
+  await ctx.plugin(llmPlugin, {
+    storeFilePath: path.join(dir, "llm.json"),
+    adapter: async (profile, input) => {
+      assert.ok(input.tools?.some((tool) => tool.name === "ask_user"));
+      return {
+        model: profile.model, provider: profile.kind, content: "", finishReason: "tool_calls",
+        usage: { promptTokens: 100, completionTokens: 12, cachedPromptTokens: 0 },
+        toolCalls: [
+          { id: "write", name: "write_file", argumentsJson: '{"path":"unwanted.txt","content":"should not write"}' },
+          { id: "question", name: "ask_user", argumentsJson: '{"question":"页面用于什么？","options":["个人介绍","产品展示"]}' },
+        ],
+      };
+    },
+  });
+  await ctx.plugin(rulesPlugin, { storeFilePath: path.join(dir, "rules.json") });
+  await ctx.plugin(memoryPlugin, { sessionsDir: path.join(dir, "sessions"), memoryFilePath: path.join(dir, "memory.json") });
+  await ctx.plugin(toolsPlugin);
+  await ctx.plugin(agentPlugin);
+  try {
+    const session = await ctx.memory.createSession({ projectId: "clarification-test" });
+    const started = await ctx.agent.startRun({
+      sessionId: session.id, userMessage: "给我做个简单网站", workspaceRoots: [dir], permissionMode: "full",
+    });
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("等待澄清消息超时")), 5000);
+      const off = ctx.agent.subscribeRun(started.runId, (event) => {
+        if (event.type === "run_finished") { clearTimeout(timer); off(); resolve(); }
+      });
+    });
+    const saved = (await ctx.memory.getSession(session.id))?.messages.at(-1);
+    assert.deepEqual(saved?.clarification, { question: "页面用于什么？", options: ["个人介绍", "产品展示"] });
+    assert.equal(saved?.metrics?.contextPromptTokens, 100);
+    assert.deepEqual(saved?.metrics?.cacheMeasurement, { promptTokens: 100, cachedTokens: 0 });
+    await assert.rejects(fs.access(path.join(dir, "unwanted.txt")), { code: "ENOENT" });
+    await assert.rejects(fs.access(path.join(dir, ".git")), { code: "ENOENT" });
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("AgentService 完成 Think -> Act(读写工具+人工审批) -> Check 闭环并持久化轨迹与记忆", async () => {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-agent-loop-"));
   const workspaceDir = path.join(tempRoot, "demo-project");

@@ -13,6 +13,7 @@ import type {
   CommandTimeoutHandler,
   PublicToolSummary,
   ToolExecutionContext,
+  SubagentActivityUpdate,
   ToolExecutionResult,
 } from "./types";
 
@@ -57,7 +58,7 @@ export class ToolsService extends Service {
         ...createSearchTools(),
       ];
       for (const tool of tools) {
-        this.registry.set(tool.name, tool);
+        this.registry.set(tool.name, { ...tool, moduleName: "@lfaa/tools" });
       }
     }
   }
@@ -92,6 +93,22 @@ export class ToolsService extends Service {
 
   getTool(name: string): AgentToolDefinition | undefined {
     return this.registry.get(name);
+  }
+
+  /** 同一份会话策略用于模型声明、审批前查询和执行时校验。 */
+  scope(modules: ReadonlySet<string>, readOnly = false): ToolsService {
+    const allowsTool = (name: string) => {
+      const tool = this.getTool(name);
+      return Boolean(tool?.moduleName && modules.has(tool.moduleName) && (!readOnly || tool.permissionLevel === "read"));
+    };
+    const view = Object.create(this) as ToolsService;
+    view.getTool = (name) => allowsTool(name) ? this.getTool(name) : undefined;
+    view.getLlmToolSchemas = () => this.getLlmToolSchemas().filter(({ name }) => allowsTool(name));
+    view.executeTool = (name, args, context) => this.executeTool(name, args, {
+      ...context,
+      allowsTool: (candidate) => allowsTool(candidate) && (context.allowsTool?.(candidate) ?? true),
+    });
+    return view;
   }
 
   describeCommandShell(): Promise<string> {
@@ -145,6 +162,9 @@ export class ToolsService extends Service {
     args: Record<string, unknown>,
     execContext: ToolExecutionContext,
   ): Promise<ToolExecutionResult> {
+    if (execContext.allowsTool?.(name) === false) {
+      return { ok: false, output: `当前会话或子任务不能调用工具：${name}`, summary: "工具不可用" };
+    }
     const tool = this.registry.get(name);
     if (!tool) {
       return {

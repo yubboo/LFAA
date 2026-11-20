@@ -45,7 +45,107 @@
 }
 
 .overviewPopover {
-  min-width: 17.5rem;
+  box-sizing: border-box;
+  width: min(22rem, calc(100vw - 1rem));
+  min-width: 0;
+  max-width: none;
+  max-height: min(70dvh, 32rem);
+  padding: 0.65rem;
+  gap: 0.14rem;
+  background: linear-gradient(var(--color-surface), var(--color-surface)), var(--color-shell);
+}
+
+/* 项目、变更和会话活动组成单列，次级入口集中在底部。 */
+.overviewHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.3rem 0.55rem 0.42rem;
+  color: var(--color-muted);
+}
+
+.overviewHeader svg {
+  flex: none;
+}
+
+.overviewTitle {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.79rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overviewPopover .overviewChanges {
+  gap: 0.48rem;
+  min-height: 2.5rem;
+}
+
+.overviewChanges > strong {
+  flex: none;
+  font-weight: 600;
+}
+
+.overviewChanges .diffDelta + .trailingIcon {
+  flex: none;
+  margin-left: 0.14rem;
+}
+
+.overviewLabel {
+  display: grid;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 0.16rem;
+}
+
+.overviewLabel strong {
+  font-weight: 600;
+}
+
+.overviewMeta {
+  color: var(--color-muted);
+  font-size: 0.7rem;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+.overviewShortcuts {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 0.2rem;
+  margin-top: 0.35rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--color-line);
+}
+
+.overviewShortcuts .menuItem {
+  justify-content: center;
+  min-height: 2rem;
+  padding-inline: 0.25rem;
+}
+
+.overviewShortcuts svg,
+.overviewChanges > svg:first-child,
+.overviewGroup > svg:first-child {
+  flex: none;
+  color: var(--color-muted);
+}
+
+.overviewGroup {
+  min-height: 2.75rem;
+}
+
+.overviewPopover .overviewDetail {
+  padding-inline-start: 1.25rem;
+  min-height: 1.9rem;
+}
+
+.overviewPopover button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
 }
 
 .menuItem {
@@ -95,16 +195,11 @@
   font-weight: 600;
 }
 
-.countPill {
-  padding: 0.05rem 0.42rem;
-  border-radius: 999px;
-  background: var(--color-active);
-  color: var(--color-ink);
-  font-size: 0.68rem;
-}
-
 .diffDelta {
   display: inline-flex;
+  flex: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 0.32rem;
   margin-left: auto;
   font-family: var(--code-font-family, ui-monospace, monospace);
@@ -198,6 +293,7 @@
 
 /* Git 审查 Tab 内部布局 */
 .reviewRoot {
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -209,6 +305,7 @@
 
 .reviewHeader {
   display: flex;
+  flex-wrap: wrap;
   flex: 0 0 auto;
   align-items: center;
   justify-content: space-between;
@@ -222,6 +319,7 @@
 .reviewHeaderRight {
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.45rem;
   min-width: 0;
 }
@@ -241,6 +339,7 @@
   background: var(--color-panel);
   color: var(--color-ink);
   font-size: 0.72rem;
+  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -268,17 +367,21 @@
   font-size: 0.75rem;
 }
 
-.reviewSplit {
-  flex: 1 1 0;
-  min-height: 0;
-  display: flex;
+.reviewDiffPane {
+  min-width: 0;
+  overflow-x: auto;
+  padding-block: 0.6rem;
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-canvas);
 }
 
-.reviewDiffPane {
-  flex: 1 1 0;
-  min-width: 0;
-  overflow: auto;
-  padding: 0.5rem 0;
+.reviewChevron {
+  flex: none;
+  color: var(--color-muted);
+}
+
+.reviewFileBtn[aria-expanded="true"] .reviewChevron {
+  transform: rotate(90deg);
 }
 
 .diffCode {
@@ -300,15 +403,6 @@
 :global(:root[data-resolved-theme="light"]) .diffLine[data-diff-kind="add"] { color: #15803d; }
 :global(:root[data-resolved-theme="light"]) .diffLine[data-diff-kind="del"] { color: #b91c1c; }
 :global(:root[data-resolved-theme="light"]) .diffLine[data-diff-kind="hunk"] { color: #0284c7; }
-
-.reviewFilesPane {
-  flex: 0 0 13.5rem;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  border-left: 1px solid var(--color-line);
-  background: var(--color-panel);
-}
 
 .reviewFilesHead {
   display: flex;
@@ -357,6 +451,7 @@
 }
 
 .reviewFileName {
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;

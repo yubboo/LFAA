@@ -87,11 +87,13 @@ export const chatClientPlugin: Plugin.Object<void> = {
             projects={wbSnap.projects}
             projectProvider={wbSnap.projectProvider}
             onOpenSettings={() => context.workbench.navigate("settings:config")}
-            onOpenGitSettings={() => context.workbench.navigate("codeReview")}
+            onOpenTurnChanges={(messageId) => {
+              store.requestRightPanel("review", messageId);
+              context.workbench.setRightPanelOpen(true, false);
+            }}
             onOpenFilePreview={(messageId, stepId) => {
               if (store.openFilePreview(messageId, stepId)) {
-                store.requestRightPanel("files");
-                context.workbench.setRightWorkbenchWide(true);
+                store.requestRightPanel("file-preview");
                 context.workbench.setRightPanelOpen(true, false);
               }
             }}
@@ -265,6 +267,7 @@ export const chatClientPlugin: Plugin.Object<void> = {
             isZh={locale.isZh}
             store={store}
             projectId={boundId}
+            projectName={wbSnap.projects.find((project) => project.id === boundId)?.name}
             onEnsureRightPanelOpen={() => context.workbench.setRightPanelOpen(true)}
             onOpenExtensions={() => context.workbench.navigate("plugins")}
           />

@@ -20,6 +20,7 @@ import { RightTerminalPane, type RightJobItem } from "./RightTerminalPane";
 import { RightUtilityRail, type RightAuxTab } from "./RightUtilityRail";
 import { RightWorkbenchActions } from "./RightWorkbenchActions";
 import { RightWorkbenchStart } from "./Right-Workbench-Start";
+import { TurnChanges } from "./Turn-Changes";
 import styles from "./RightWorkbenchPane.module.css";
 
 function baseFileName(filePath: string): string {
@@ -70,10 +71,11 @@ export function RightWorkbenchPane({
   const [browserInitialUrl, setBrowserInitialUrl] = useState<string | undefined>(persistedInit.browserUrl);
   const [browserExternalState, setBrowserExternalState] = useState<{ snap: BrowserSessionSnapshot; nonce: number }>();
   const [reviewTabOpen, setReviewTabOpen] = useState(persistedInit.reviewTabOpen);
+  const [reviewMessageId, setReviewMessageId] = useState(persistedInit.reviewMessageId);
   const [selectedJobId, setSelectedJobId] = useState<string>();
   const [selectedSubagentId, setSelectedSubagentId] = useState<string>();
-  const [fileTreeOpen, setFileTreeOpen] = useState(persistedInit.fileTreeOpen);
-  const [auxOpen, setAuxOpen] = useState(persistedInit.auxOpen);
+  const [fileTreeOpen, setFileTreeOpen] = useState(false);
+  const [auxOpen, setAuxOpen] = useState(false);
   const [activeAux, setActiveAux] = useState<RightAuxTab>(persistedInit.activeAux);
   const [jobs, setJobs] = useState<RightJobItem[]>([]);
   const [subagents, setSubagents] = useState<RightSubagentItem[]>([]);
@@ -87,7 +89,9 @@ export function RightWorkbenchPane({
     ? state.activeSession?.messages.find((m) => m.id === activeFileTab.messageId)?.steps?.find((s) => s.id === activeFileTab.stepId)
     : undefined;
 
-  const stageKind: "file" | "browser" | "review" | "welcome" = state.rightStageKind === "review" && reviewTabOpen
+  const stageKind = auxOpen && !(activeAux === "filesTree" && state.rightStageKind === "file" && activeFileTab)
+    ? "utility"
+    : state.rightStageKind === "review" && reviewTabOpen
     ? "review"
     : state.rightStageKind === "browser" && browserOpen
       ? "browser"
@@ -103,12 +107,9 @@ export function RightWorkbenchPane({
   const browserIsBlank = activeBrowserTab ? !activeBrowserTab.url || activeBrowserTab.url === "about:blank" : !browserInitialUrl;
   const showStartPage = stageKind === "welcome" || (stageKind === "browser" && browserIsBlank);
 
-  // 文件树可在启动页打开，浏览网页或审查时保留现有的全宽舞台。
-  const effectiveAuxTab: RightAuxTab | null = stageKind === "file"
-    ? (auxOpen && activeAux !== "filesTree" ? activeAux : (fileTreeOpen ? "filesTree" : null))
-    : (stageKind === "review" || (stageKind === "browser" && !showStartPage))
-      ? (auxOpen && activeAux !== "filesTree" ? activeAux : null)
-      : (auxOpen ? activeAux : null);
+  // 只有用户主动打开的文件树可与文件共用舞台。
+  const effectiveAuxTab = stageKind === "utility" ? activeAux
+    : stageKind === "file" && (fileTreeOpen || (auxOpen && activeAux === "filesTree")) ? "filesTree" : null;
 
   // 切换会话或刷新挂载时恢复已持久化的右侧栏状态，并拉取宿主机已开启的浏览器标签。
   useEffect(() => {
@@ -119,8 +120,9 @@ export function RightWorkbenchPane({
     setBrowserTabs([]);
     setBrowserExternalState(undefined);
     setReviewTabOpen(saved.reviewTabOpen);
-    setFileTreeOpen(saved.fileTreeOpen);
-    setAuxOpen(saved.auxOpen);
+    setReviewMessageId(saved.reviewMessageId);
+    setFileTreeOpen(false);
+    setAuxOpen(false);
     setActiveAux(saved.activeAux);
     syncedSessionRef.current = sessionId;
 
@@ -142,11 +144,12 @@ export function RightWorkbenchPane({
       browserOpen,
       ...(browserInitialUrl ? { browserUrl: browserInitialUrl } : {}),
       reviewTabOpen,
+      reviewMessageId,
       fileTreeOpen,
       auxOpen,
       activeAux,
     });
-  }, [activeAux, auxOpen, browserInitialUrl, browserOpen, fileTreeOpen, reviewTabOpen, sessionId]);
+  }, [activeAux, auxOpen, browserInitialUrl, browserOpen, fileTreeOpen, reviewMessageId, reviewTabOpen, sessionId]);
 
   useEffect(() => {
     onStageWideChange?.(stageKind !== "welcome" || effectiveAuxTab !== null);
@@ -157,22 +160,22 @@ export function RightWorkbenchPane({
     if (!state.rightPanelRequest) return;
     const req = state.rightPanelRequest;
     if (req.tab === "browser") {
+      setAuxOpen(false);
       setBrowserOpen(true);
       store.setRightStageKind("browser");
       if (req.url) setBrowserInitialUrl(req.url);
     } else if (req.tab === "review") {
+      setAuxOpen(false);
+      setReviewMessageId(req.url);
       setReviewTabOpen(true);
       store.setRightStageKind("review");
+    } else if (req.tab === "file-preview") {
+      setAuxOpen(false);
+      setFileTreeOpen(false);
     } else if (req.tab === "files") {
-      if (state.filePreviewTabs.length > 0) {
-        store.setRightStageKind("file");
-        setAuxOpen(false);
-        setFileTreeOpen(true);
-      } else {
-        store.setRightStageKind(null);
-        setActiveAux("filesTree");
-        setAuxOpen(true);
-      }
+      store.setRightStageKind(null);
+      setActiveAux("filesTree");
+      setAuxOpen(true);
     } else if (req.tab === "terminal") {
       if (req.url) setSelectedJobId(req.url);
       setActiveAux("terminal");
@@ -185,7 +188,7 @@ export function RightWorkbenchPane({
       setActiveAux(req.tab);
       setAuxOpen(true);
     }
-  }, [state.filePreviewTabs.length, state.rightPanelRequest, store]);
+  }, [state.rightPanelRequest, store]);
 
   useEffect(() => {
     let active = true;
@@ -219,6 +222,7 @@ export function RightWorkbenchPane({
   }, [sessionId]);
 
   const handleOpenNewBrowserTab = () => {
+    setAuxOpen(false);
     const wasOpen = browserOpen;
     setBrowserOpen(true);
     store.setRightStageKind("browser");
@@ -250,32 +254,15 @@ export function RightWorkbenchPane({
   };
 
   const handleToggleAux = (tab: RightAuxTab) => {
-    if (tab === "filesTree") {
-      if (stageKind === "file") {
-        if (auxOpen && activeAux !== "filesTree") {
-          setAuxOpen(false);
-          setFileTreeOpen(true);
-        } else {
-          setFileTreeOpen((v) => !v);
-        }
-        return;
-      }
-      if (stageKind === "review" || (stageKind === "browser" && !showStartPage)) {
-        if (fileTabs.length > 0) {
-          store.setRightStageKind("file");
-          setAuxOpen(false);
-          setFileTreeOpen(true);
-        } else {
-          store.setRightStageKind(null);
-          setActiveAux("filesTree");
-          setAuxOpen(true);
-        }
-        return;
-      }
+    if (tab === "filesTree" && stageKind === "file") {
+      setFileTreeOpen(effectiveAuxTab !== "filesTree");
+      setAuxOpen(false);
+      return;
     }
     if (auxOpen && activeAux === tab) {
       setAuxOpen(false);
     } else {
+      if (tab === "filesTree") store.setRightStageKind(null);
       setActiveAux(tab);
       setAuxOpen(true);
     }
@@ -293,11 +280,15 @@ export function RightWorkbenchPane({
   };
 
   const openAux = (tab: RightAuxTab) => {
+    if (tab === "filesTree") store.setRightStageKind(null);
     setActiveAux(tab);
     setAuxOpen(true);
   };
 
   const openReview = () => {
+    setAuxOpen(false);
+    setFileTreeOpen(false);
+    setReviewMessageId(undefined);
     setReviewTabOpen(true);
     store.setRightStageKind("review");
   };
@@ -326,7 +317,7 @@ export function RightWorkbenchPane({
             role="tab"
             aria-selected={stageKind === "browser"}
             className={styles.tabBtn}
-            onClick={() => store.setRightStageKind("browser")}
+            onClick={() => { setAuxOpen(false); store.setRightStageKind("browser"); }}
           >
             <IconWorld size={13} aria-hidden="true" />
             <span>{browserIsBlank ? (locale.isZh ? "新标签页" : "New tab") : (locale.isZh ? "内置浏览器" : "Browser")}</span>
@@ -351,6 +342,7 @@ export function RightWorkbenchPane({
             className={styles.tabBtn}
             title={bTab.url && bTab.url !== "about:blank" ? bTab.url : tabLabel}
             onClick={() => {
+              setAuxOpen(false);
               store.setRightStageKind("browser");
               if (!bTab.active) {
                 void manageBrowserTab(sessionId, { action: "activate", tabId: bTab.tabId })
@@ -433,11 +425,11 @@ export function RightWorkbenchPane({
     <div className={styles.workbench}>
       <header className={styles.topHeader}>
         <div className={styles.tabBar} role="tablist" aria-label={locale.isZh ? "右侧打开标签" : "Right workbench tabs"}>
-          {stageKind === "welcome" && (
+          {(stageKind === "welcome" || stageKind === "utility") && (
             <div className={`${styles.tabItem} ${styles.tabItemActive}`}>
               <span className={styles.tabBtn} role="tab" aria-selected="true">
                 <IconLayoutGrid size={14} aria-hidden="true" />
-                <span>{locale.isZh ? "工作台" : "Workbench"}</span>
+                <span>{stageKind === "utility" ? auxTitles[activeAux] : locale.isZh ? "工作台" : "Workbench"}</span>
               </span>
             </div>
           )}
@@ -452,7 +444,7 @@ export function RightWorkbenchPane({
                   aria-selected={active}
                   className={styles.tabBtn}
                   title={tab.path}
-                  onClick={() => store.selectFilePreview(tab.id)}
+                  onClick={() => { setAuxOpen(false); setFileTreeOpen(false); store.selectFilePreview(tab.id); }}
                 >
                   <FileTypeIcon name={fileName} kind="file" />
                   <span>{fileName}</span>
@@ -476,10 +468,10 @@ export function RightWorkbenchPane({
                 role="tab"
                 aria-selected={stageKind === "review"}
                 className={styles.tabBtn}
-                onClick={() => store.setRightStageKind("review")}
+                onClick={() => { setAuxOpen(false); store.setRightStageKind("review"); }}
               >
                 <IconFileDiff size={13} aria-hidden="true" />
-                <span>{locale.isZh ? "审查" : "Review"}</span>
+                <span>{reviewMessageId ? (locale.isZh ? "本轮变更" : "Turn changes") : (locale.isZh ? "工作区变更" : "Workspace changes")}</span>
               </button>
               <button
                 type="button"
@@ -513,6 +505,7 @@ export function RightWorkbenchPane({
             isZh={locale.isZh}
             store={store}
             projectId={boundProjectId}
+            projectName={boundProjectName ?? undefined}
             jobs={jobs}
             subagents={subagents}
             compact={compact}
@@ -543,8 +536,19 @@ export function RightWorkbenchPane({
         </div>
       </header>
 
-      <div ref={splitAreaRef} className={styles.bodySplit} data-start={showStartPage || undefined}>
+      <div ref={splitAreaRef} className={styles.bodySplit}>
         {(() => {
+          if (stageKind === "utility") return (
+            <div className={styles.mainStage}>
+              <div className={styles.auxHeader}>
+                <span>{auxTitles[activeAux]}</span>
+                <button type="button" className={styles.tabClose} aria-label={locale.isZh ? "关闭面板" : "Close pane"} onClick={() => setAuxOpen(false)}>
+                  <IconX size={12} />
+                </button>
+              </div>
+              <div className={styles.auxContent}>{renderAuxBody(activeAux)}</div>
+            </div>
+          );
           const hideAuxHeader = stageKind === "file" && effectiveAuxTab === "filesTree";
           const auxPaneNode = effectiveAuxTab ? (
             <>
@@ -590,14 +594,7 @@ export function RightWorkbenchPane({
                   auxPane={auxPaneNode}
                   isZh={locale.isZh}
                   store={store}
-                  onToggleSidebar={() => {
-                    if (auxOpen && activeAux !== "filesTree") {
-                      setAuxOpen(false);
-                      setFileTreeOpen(true);
-                    } else {
-                      setFileTreeOpen((v) => !v);
-                    }
-                  }}
+                  onToggleSidebar={() => { setAuxOpen(false); setFileTreeOpen(effectiveAuxTab !== "filesTree"); }}
                 />
               </div>
             );
@@ -606,14 +603,19 @@ export function RightWorkbenchPane({
           return (
             <>
               <div className={styles.mainStage}>
-                {stageKind === "review" && (
+                {stageKind === "review" && (reviewMessageId ? (
+                  <TurnChanges key={reviewMessageId} isZh={locale.isZh}
+                    message={state.activeSession?.messages.find((message) => message.id === reviewMessageId)}
+                    onOpenWorkspace={openReview} />
+                ) : (
                   <RightGitReviewPane
+                    key={boundProjectId}
                     isZh={locale.isZh}
                     projectId={boundProjectId}
                     store={store}
                     onOpenFullCodeReview={onOpenCodeReview}
                   />
-                )}
+                ))}
                 {stageKind === "browser" && (
                   // 空白时浏览器仍订阅宿主机状态，小鱼打开页面后可直接切回实时视口。
                   <div className={styles.browserView} data-covered={showStartPage || undefined} inert={showStartPage}>

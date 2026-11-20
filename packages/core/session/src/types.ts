@@ -40,6 +40,12 @@ export interface AgentStepTrace {
   startedAt?: number;
   toolTarget?: string;
   argumentChars?: number;
+  /** 子运行的身份和状态随父消息保存，结果与动作明细使用现有字段。 */
+  subagent?: {
+    id: string;
+    role: string;
+    status: "running" | "done" | "error" | "stopped";
+  };
   commandTrace?: AgentCommandTrace;
   fileChange?: AgentFileChange;
   timestamp: number;
@@ -69,6 +75,11 @@ export interface AgentRunMetrics {
   };
   /** 本次运行所用模型配置的上下文窗口；未配置时缺省。 */
   contextWindowTokens?: number;
+  contextPromptTokens?: number;
+  contextModel?: string;
+  contextWindowSource?: "configured" | "provider-spec";
+  /** 只包含同时返回输入总量和缓存读取量的模型请求。 */
+  cacheMeasurement?: { promptTokens: number; cachedTokens: number };
 }
 
 /** 单次运行按模型单价换算的人民币成本；未配置单价时缺省。 */
@@ -81,6 +92,11 @@ export interface AgentRunCost {
 }
 
 /** 描述磁盘会话中的任意一条消息及其运行步骤。 */
+export interface UserClarification {
+  question: string;
+  options: string[];
+}
+
 export interface ChatMessageRecord {
   id: string;
   role: "user" | "assistant";
@@ -92,6 +108,7 @@ export interface ChatMessageRecord {
   steps?: AgentStepTrace[];
   status?: "streaming" | "done" | "error" | "aborted";
   model?: string;
+  clarification?: UserClarification;
   /** 本轮运行累计的模型用量，缺省表示供应商未返回 usage。 */
   tokenUsage?: ChatTokenUsage;
   /** 本轮运行的耗时与上下文构成，缺省表示未采集。 */
@@ -112,6 +129,10 @@ export interface ChatSessionSummary {
   unread?: boolean;
   messageCount: number;
   summary?: string;
+  /** 新会话固定的能力预设；缺省表示旧会话，不能推断历史配置。 */
+  sessionPreset?: string;
+  /** 选择时保存的插件组合，避免后续默认值或预设调整改变旧会话。 */
+  sessionModules?: string[];
   createdAt: number;
   updatedAt: number;
 }
@@ -127,9 +148,13 @@ export interface CreateSessionInput {
   title?: string;
   projectId?: string | null;
   sectionId?: string | null;
+  sessionPreset?: string;
+  sessionModules?: string[];
 }
 
 export interface UpdateSessionInput {
+  sessionPreset?: string;
+  sessionModules?: string[];
   title?: string;
   projectId?: string | null;
   sectionId?: string | null;

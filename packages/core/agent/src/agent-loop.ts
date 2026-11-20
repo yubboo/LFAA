@@ -1,8 +1,8 @@
 // 实现 Agent 核心任务循环：思考（Think）-> 行动（Act）-> 检查（Check）。
 import { compactConversation, DEFAULT_CONTEXT_BUDGET_CHARS, isContextOverflowError } from "@lfaa/context";
 import { REPEAT_THRESHOLDS, RepeatCallTracker } from "@lfaa/guard";
-import { type LlmGenerateOutput, type LlmMessage, type LlmUsage, resolveModelCapabilities } from "@lfaa/llm";
-import { collectHistoryDigest, formatHistoryDigest, type AgentRunCost, type AgentRunMetrics, type AgentStepTrace } from "@lfaa/memory";
+import { type LlmGenerateOutput, type LlmMessage, type LlmUsage, resolveModelCapabilities, resolveReportedContextWindow } from "@lfaa/llm";
+import { collectHistoryDigest, formatHistoryDigest, type AgentRunCost, type AgentRunMetrics, type AgentStepTrace, type UserClarification } from "@lfaa/memory";
 import {
   computeTokenCost,
   estimateMessageTokens,
@@ -11,6 +11,7 @@ import {
   type TokenPricing,
 } from "@lfaa/metrics";
 import { runActPhase } from "./act-runner";
+import { clarificationTool, readClarification } from "./clarification";
 import { completeAgentRound, resolveModelRoundLimits } from "./model-round";
 import type { RunExecutionParams, RunLoopDeps } from "./run-types";
 import { MAX_STEP_BUDGET } from "./step-budget";
@@ -23,7 +24,7 @@ export type { RunExecutionParams, RunLoopDeps };
 export async function executeAgentTaskLoop(
   deps: RunLoopDeps,
   params: RunExecutionParams,
-): Promise<{ content: string; progressText: string; reasoning: string; steps: AgentStepTrace[]; model?: string; usage?: LlmUsage; metrics: AgentRunMetrics; cost?: AgentRunCost }> {
+): Promise<{ content: string; progressText: string; reasoning: string; steps: AgentStepTrace[]; model?: string; usage?: LlmUsage; metrics: AgentRunMetrics; cost?: AgentRunCost; clarification?: UserClarification }> {
   const steps: AgentStepTrace[] = [];
   let accumulatedReasoning = "";
   let progressText = "";
@@ -38,7 +39,7 @@ export async function executeAgentTaskLoop(
   };
 
   // 1. 装配上下文：规则优先级 + 长期记忆召回 + 资料库/资产库摘要 + 短期裁剪历史
-  const [memories, storageState, recentAssets] = await Promise.all([
+  const [memories, storageState, recentAssets] = params.enableMemoryContext === false ? [[], null, []] as const : await Promise.all([
     deps.memory.recallRelevantMemories({
       query: params.userMessage,
       ...(params.projectId !== undefined ? { projectId: params.projectId } : {}),
@@ -76,7 +77,7 @@ export async function executeAgentTaskLoop(
   ].join("\n");
 
   const assetPreview = recentAssets.slice(0, 6).map((a) => `${a.title}(${a.fileName})`).join("、");
-  const libraryHint = `LFAA 资料库/资产库本地目录：${storageState.dataRoot}（当前已有 ${recentAssets.length} 项资产/产物${assetPreview ? `：${assetPreview}` : ""}）。你可通过 list_library_assets / read_library_asset 查看资料库内容，产出的报告、文档或成品请优先调用 save_library_artifact 存入资产库以便用户在「资料库」界面统一查看。`;
+  const libraryHint = storageState ? `LFAA 资料库/资产库本地目录：${storageState.dataRoot}（当前已有 ${recentAssets.length} 项资产/产物${assetPreview ? `：${assetPreview}` : ""}）。你可通过 list_library_assets / read_library_asset 查看资料库内容，产出的报告、文档或成品请优先调用 save_library_artifact 存入资产库以便用户在「资料库」界面统一查看。` : "";
   const formatHint = "排版规范：列举 3 个及以上的目录、文件、配置项或路径时，严禁挤在一段长句括号里用顿号堆叠；请使用结构化列表（如 `- \`name/\`：说明`）、Markdown 表格或树形代码块展示，并将文件名与目录名用反引号 `` ` `` 包裹。";
 
   const skillsSection = params.resolvedSkills && params.resolvedSkills.length > 0
@@ -113,14 +114,17 @@ export async function executeAgentTaskLoop(
       ?? resolveModelCapabilities(activeProfile.model, activeProfile.kind)
     : undefined;
   const roundLimits = resolveModelRoundLimits({ supportsReasoning: modelCapability?.supportsReasoning === true });
-  // 运行指标快照：上下文窗口来自当前模型配置，未配置时不显示占比。
-  const buildMetrics = () => ({
-    ...perf,
-    context: contextSnapshot,
-    ...(typeof activeProfile?.contextWindowTokens === "number" && activeProfile.contextWindowTokens > 0
-      ? { contextWindowTokens: activeProfile.contextWindowTokens }
-      : {}),
-  });
+  const buildMetrics = (): AgentRunMetrics => {
+    const window = activeProfile && lastModel ? resolveReportedContextWindow(activeProfile, lastModel) : undefined;
+    return {
+      ...perf,
+      context: contextSnapshot,
+      ...(lastModel ? { contextModel: lastModel } : {}),
+      ...(latestPromptTokens !== undefined ? { contextPromptTokens: latestPromptTokens } : {}),
+      ...(window ? { contextWindowTokens: window.tokens, contextWindowSource: window.source } : {}),
+      ...(cacheMeasurement.promptTokens > 0 ? { cacheMeasurement: { ...cacheMeasurement } } : {}),
+    };
+  };
   // 模型配置里填写了输入/输出单价时，按真实 token 用量换算人民币成本。
   const tokenPricing: TokenPricing | undefined = activeProfile
     && typeof activeProfile.inputPricePerMillion === "number"
@@ -154,13 +158,19 @@ export async function executeAgentTaskLoop(
     : "";
 
   const progressHint = [
+    params.enableClarification
+      ? "需求澄清：若目标、操作对象或交付范围有多种合理解释，且会改变实施方向，先用 ask_user 提一个关键问题，必要时给出 2–4 个选项，并等待下一条用户消息；本轮不要同时修改文件、执行命令或委派。简短问候、明确请求和可安全从上下文确认的细节无需提问。"
+      : "",
     "较大的代码变更分成有明确文件落点的小批次。已有工具结果足以行动时，直接发出下一项必要调用。可见进度只说实际完成、正在处理的目标或当前阻塞。",
     "多步任务的进度写入用户可见的正文。首次调用工具前，简短交代准备核查或执行的事项；得到实际结果、发现异常或进入下一阶段时，再说明进展和接下来的动作。连续的小操作可共用一段，直接问答无需播报。命令和工具详情由运行时展示。",
+    deps.tools.getTool("invoke_subagent")
+      ? "多智能体协作：用户明确要求委派，或任务存在可独立并行的调研、实现或验证时，用 invoke_subagent 设 wait=false 派发，并用 list_subagents 的 waitForIds 收集结果再汇总。无独立分工的简单任务直接完成。子任务失败时如实说明。"
+      : "",
     "自主排查与编辑准则：定位问题时先用 grep（正则内容）/ glob（文件名模式）/ list_dir / read_file 检索并精读关键源码上下文再动手；修改代码或修复报错时，直接调用 edit_file / write_file 落实修改并立即通过 run_command 验证，遇到新报错继续读取对应行并修正闭环，不得停在只给建议或让用户手动改代码。edit_file 的 target 必须在文件中唯一命中，命中多处时请补充上下文行或显式传 replaceAll；新建文件用 write_file。",
     "工具效率与核验规范：创建或读取多个互相独立的文件时，请在同轮并行发起多个 read_file / write_file / edit_file 调用，避免逐个文件串行消耗步数；执行构建/测试请直接用 run_command 验证，不可将“静态自审”等价于编译或运行通过；前台命令默认 10 分钟超时，构建、安装等长命令可传 timeoutMs，服务器或监听类命令请用 start_background_task 启动并用 get_background_task 轮询；向用户提供复现命令时，必须严格匹配当前终端语法（CMD 用 `set \"VAR=...\"`，PowerShell 用 `$env:VAR=\"...\"`），严禁混写。",
     "长期记忆：当用户明确陈述跨会话仍需记住的偏好、约定或项目约束（如“以后统一用 pnpm”“这个项目不要改 X”），调用 save_memory 保存，一次只记一条可独立复述的事实；临时进度与本次任务的中间结果不要写入长期记忆。",
   ].join("\n");
-  const shellHint = await deps.tools.describeCommandShell();
+  const shellHint = deps.tools.getTool("run_command") ? await deps.tools.describeCommandShell() : "";
   const systemMessage: LlmMessage = { role: "system", content: "" };
   const updateSystemMessage = (remainingSteps?: number) => {
     // 步数只在接近上限时才写进 system，避免每轮改动前缀、让提示缓存整段失效。
@@ -182,13 +192,15 @@ export async function executeAgentTaskLoop(
     conversation.push({ role: "user", content: params.userMessage });
   }
 
-  const llmTools = deps.tools.getLlmToolSchemas();
+  let llmTools = deps.tools.getLlmToolSchemas();
   const contextBudgetChars = Math.max(8_000, Math.floor(params.contextBudgetChars ?? DEFAULT_CONTEXT_BUDGET_CHARS));
   let overflowRetried = false;
   let truncationHint = "";
   // 汇总每轮供应商返回的用量，运行结束后随消息持久化，供界面与成本核算使用。
   const usage: LlmUsage = {};
   let hasUsage = false;
+  let latestPromptTokens: number | undefined;
+  const cacheMeasurement = { promptTokens: 0, cachedTokens: 0 };
   // 会话统计：模型/工具耗时、首 token 延迟、解码耗时与上下文构成。
   const perf = { llmMs: 0, toolMs: 0, ttftMs: 0, ttftSteps: 0, decodeMs: 0, decodeTokens: 0 };
   let contextSnapshot: { systemTokens: number; toolsTokens: number; messageTokens: number } = {
@@ -196,14 +208,22 @@ export async function executeAgentTaskLoop(
     toolsTokens: 0,
     messageTokens: 0,
   };
-  const addUsage = (roundUsage?: LlmUsage) => {
+  const addUsage = ({ usage: roundUsage, model }: LlmGenerateOutput) => {
+    lastModel = model;
+    latestPromptTokens = roundUsage?.promptTokens;
     if (!roundUsage) return;
     hasUsage = true;
-    usage.promptTokens = (usage.promptTokens ?? 0) + (roundUsage.promptTokens ?? 0);
-    usage.completionTokens = (usage.completionTokens ?? 0) + (roundUsage.completionTokens ?? 0);
-    usage.totalTokens = (usage.totalTokens ?? 0) + (roundUsage.totalTokens ?? 0);
-    if (roundUsage.cachedPromptTokens !== undefined) {
-      usage.cachedPromptTokens = (usage.cachedPromptTokens ?? 0) + roundUsage.cachedPromptTokens;
+    const total = roundUsage.totalTokens ?? (roundUsage.promptTokens !== undefined && roundUsage.completionTokens !== undefined
+      ? roundUsage.promptTokens + roundUsage.completionTokens : undefined);
+    for (const key of ["promptTokens", "completionTokens", "totalTokens", "cachedPromptTokens"] as const) {
+      const value = key === "totalTokens" ? total : roundUsage[key];
+      if (typeof value === "number" && Number.isFinite(value) && value >= 0) usage[key] = (usage[key] ?? 0) + value;
+    }
+    if (roundUsage.promptTokens !== undefined && roundUsage.cachedPromptTokens !== undefined
+      && Number.isSafeInteger(roundUsage.promptTokens) && Number.isSafeInteger(roundUsage.cachedPromptTokens)
+      && roundUsage.cachedPromptTokens >= 0 && roundUsage.cachedPromptTokens <= roundUsage.promptTokens) {
+      cacheMeasurement.promptTokens += roundUsage.promptTokens;
+      cacheMeasurement.cachedTokens += roundUsage.cachedPromptTokens;
     }
   };
 
@@ -249,6 +269,7 @@ export async function executeAgentTaskLoop(
       phase: "think",
       status: "running",
       title: `第 ${iteration} 轮思考：规划与决策`,
+      textOffset: progressText.length,
       timestamp: Date.now(),
     };
     pushOrUpdateStep(thinkStep);
@@ -264,6 +285,8 @@ export async function executeAgentTaskLoop(
       modelStage = stage;
       pushOrUpdateStep({ ...thinkStep, ...(modelStage ? { modelStage } : {}), timestamp: now });
     };
+    llmTools = deps.tools.getLlmToolSchemas();
+    if (params.enableClarification) llmTools = [...llmTools, clarificationTool];
     const roundStartedAt = Date.now();
     let firstTokenAt: number | undefined;
     updateSystemMessage(Math.max(0, budget - iteration + 1));
@@ -368,7 +391,7 @@ export async function executeAgentTaskLoop(
       output = await callModel();
     }
     const truncatedOutput = /^(?:length|max_tokens|MAX_TOKENS|incomplete)$/iu.test(output.finishReason);
-    addUsage(output.usage);
+    addUsage(output);
     // 模型轮次耗时与首 token 延迟：解码吞吐只按首 token 之后的时间计算。
     const roundEndedAt = Date.now();
     perf.llmMs += roundEndedAt - roundStartedAt;
@@ -392,7 +415,6 @@ export async function executeAgentTaskLoop(
         timestamp: Date.now(),
       });
     }
-    lastModel = output.model;
     const roundContent = output.content || iterText;
     // 非流式适配器也在工具之前交付正文，偏移始终使用实际发出的前缀。
     if (!iterText && roundContent) {
@@ -403,9 +425,7 @@ export async function executeAgentTaskLoop(
 
     const thinkDetail = output.reasoningContent?.slice(0, 240);
     pushOrUpdateStep({
-      id: thinkStepId,
-      iteration,
-      phase: "think",
+      ...thinkStep,
       status: "done",
       title: output.toolCalls.length > 0
         ? `第 ${iteration} 轮思考：计划调用 ${output.toolCalls.length} 项工具`
@@ -425,6 +445,23 @@ export async function executeAgentTaskLoop(
         textOffset: output.toolCalls.length > 0 ? progressText.length + iterText.length : progressText.length,
         timestamp: Date.now(),
       });
+    }
+
+    const clarificationCall = params.enableClarification && output.toolCalls.find((call) => call.name === clarificationTool.name);
+    if (clarificationCall) {
+      const clarification = readClarification(clarificationCall.argumentsJson);
+      const content = clarification
+        ? [clarification.question, ...clarification.options.map((option) => `- ${option}`)].join("\n")
+        : "请补充你想实现的目标和希望我处理的范围。";
+      // 同批的修改类工具都不执行，用户回答后以新一轮运行继续。
+      for (const preparation of preparing.values()) {
+        pushOrUpdateStep({ ...preparation, status: preparation.toolName === clarificationTool.name ? "done" : "error",
+          detail: preparation.toolName === clarificationTool.name ? content : "等待用户澄清，本次调用未执行。", timestamp: Date.now() });
+      }
+      const cost = computeTokenCost(usage, tokenPricing);
+      return { content, progressText: progressText + iterText, reasoning: accumulatedReasoning, steps, model: output.model,
+        ...(hasUsage ? { usage } : {}), ...(cost ? { cost } : {}), metrics: buildMetrics(),
+        clarification: clarification ?? { question: content, options: [] } };
     }
 
     // 无工具调用：先做完成前自检，再执行终结检查。
@@ -477,7 +514,7 @@ export async function executeAgentTaskLoop(
         progressText,
         reasoning: accumulatedReasoning,
         steps,
-        model: lastModel,
+        model: output.model,
         ...(hasUsage ? { usage } : {}),
         ...(cost ? { cost } : {}),
         metrics: buildMetrics(),
@@ -560,6 +597,7 @@ export async function executeAgentTaskLoop(
 
   // 达到步数预算且无自动延长空间时执行收口总结
   const fallbackStep: AgentStepTrace = {
+    textOffset: progressText.length,
     id: "think-final",
     iteration,
     phase: "think",
@@ -620,7 +658,7 @@ export async function executeAgentTaskLoop(
     perf.decodeTokens += fallback.usage?.completionTokens ?? 0;
   }
   const finalContent = (fallback.content || fallbackText).trim() || "已达到单轮最大步数上限，请根据步骤轨迹继续指令。";
-  addUsage(fallback.usage);
+  addUsage(fallback);
   emitUsage();
   if (!fallbackText) {
     pushOrUpdateStep({ ...fallbackStep, modelStage: "replying", timestamp: Date.now() });

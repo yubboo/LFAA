@@ -4,6 +4,7 @@ import type { Context } from "@deepseek-ai/cordis";
 /** 将资料库和记忆操作注册到工具服务，并返回对应的卸载清理入口。 */
 export function registerAgentLibraryTools(ctx: Context): () => void {
   const offSaveMemory = ctx.tools.registerTool({
+    moduleName: "@lfaa/memory",
     name: "save_memory",
     title: "记录长期记忆",
     description: "将重要的项目约束或用户长期偏好保存至资料库记忆库，供后续对话自动召回。",
@@ -36,6 +37,7 @@ export function registerAgentLibraryTools(ctx: Context): () => void {
   });
 
   const offListLibrary = ctx.tools.registerTool({
+    moduleName: "@lfaa/memory",
     name: "list_library_assets",
     title: "查看资料库与资产库",
     description: "列出 LFAA 本地资料库中的长期记忆、Agent 产物与本地资产，并显示当前存储目录。",
@@ -82,6 +84,7 @@ export function registerAgentLibraryTools(ctx: Context): () => void {
   });
 
   const offReadLibrary = ctx.tools.registerTool({
+    moduleName: "@lfaa/memory",
     name: "read_library_asset",
     title: "读取资料库资产",
     description: "根据资产 ID 或标题读取资料库中的产物/资产文本内容。",
@@ -115,6 +118,7 @@ export function registerAgentLibraryTools(ctx: Context): () => void {
   });
 
   const offSaveArtifact = ctx.tools.registerTool({
+    moduleName: "@lfaa/memory",
     name: "save_library_artifact",
     title: "保存产物到资产库",
     description: "将 Agent 生成的报告、文档、代码成品或分析结果保存到 LFAA 资料库/资产库，方便用户在「资料库」查看。",

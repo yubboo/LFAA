@@ -29,3 +29,5 @@ This package lives in `packages/core/metrics`.
 ## Dev Note
 
 None.
+
+Use the latest model request’s reported input to calculate context occupancy. Cache ratios use only requests reporting both input and cached input.

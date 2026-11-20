@@ -198,8 +198,8 @@ test("RightWorkbenchActions 渲染右侧顶栏 4 项去重控制，WorkbenchClie
       store,
     }),
   );
-  assert.ok(reviewHtml.includes(locale.isZh ? "未提交变更" : "Uncommitted"));
-  assert.ok(reviewHtml.includes("+0"));
+  assert.ok(reviewHtml.includes(locale.isZh ? "先绑定 Git 项目" : "Link a Git project"));
+  assert.ok(!reviewHtml.includes("+0"));
 
   const wb = new WorkbenchClientService(new Context());
   const disposeAction = wb.registerWorkspaceAction({ id: "test-act", render: () => null });

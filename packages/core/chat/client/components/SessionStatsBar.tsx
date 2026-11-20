@@ -1,5 +1,5 @@
 // 会话状态栏：显示轮次/步数、token 用量与上下文占用，点击展开明细浮层。
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { IconChartPie, IconClock, IconCoin } from "@tabler/icons-react";
 import { PopoverCard } from "@lfaa/ui-primitives/client";
 import type { ChatMessageItem } from "../chat-types";
@@ -13,35 +13,31 @@ type Panel = "context" | "usage" | "stats" | null;
 export function SessionStatsBar({
   messages,
   locale,
-  draftChars = 0,
-  estimatedContextTokens,
+  showContext = true,
+  leading,
 }: {
   messages: ChatMessageItem[];
   locale: ChatLocaleMessages;
-  draftChars?: number;
-  /** 无消息指标时的输入框上下文估算（token），用于把上下文移到输入框下方展示。 */
-  estimatedContextTokens?: number;
+  showContext?: boolean;
+  leading?: ReactNode;
 }) {
   const [open, setOpen] = useState<Panel>(null);
   const barRef = useRef<HTMLDivElement | null>(null);
-  const metrics = computeSessionMetrics(messages, { extraChars: draftChars });
+  const metrics = computeSessionMetrics(messages);
   const context = metrics.context;
-  const estimatedTokens = estimatedContextTokens && estimatedContextTokens > 0 ? estimatedContextTokens : undefined;
   const isZh = locale.isZh;
 
-  if (metrics.turns === 0 && metrics.totalTokens === 0 && !context && !estimatedTokens) return null;
+  if (metrics.turns === 0 && metrics.totalTokens === 0 && !context && !leading) return null;
 
   const toggle = (panel: Exclude<Panel, null>) => setOpen((current) => (current === panel ? null : panel));
   const close = () => setOpen(null);
   const tps = metrics.tokensPerSecond;
-  const cache = metrics.cacheHitRate;
-  const contextLabel = context
-    ? (typeof context.percent === "number"
-      ? `${locale.sessionContext} ${context.percent}%`
-      : `${locale.sessionContext} ~${formatCompactTokens(context.totalTokens)} tok`)
-    : estimatedTokens
-      ? `${locale.sessionContext} ~${formatCompactTokens(estimatedTokens)} tok`
-      : "";
+  const cache = metrics.cacheMeasurement ? metrics.cacheHitRate : undefined;
+  const percent = context?.percent?.toFixed(1);
+  const contextLabel = context ? (context.windowTokens
+    ? `${locale.sessionContext} ${formatCompactTokens(context.totalTokens)} / ${formatCompactTokens(context.windowTokens)}`
+    : `${locale.sessionContext} ${formatCompactTokens(context.totalTokens)} tok`)
+    : isZh ? "上下文暂无数据" : "Context unavailable";
 
   return (
     <div
@@ -50,14 +46,13 @@ export function SessionStatsBar({
       role="group"
       aria-label={isZh ? "会话统计" : "Session statistics"}
     >
-      {(context || estimatedTokens) && (
+      {leading}
+      {showContext && messages.length > 0 && (
         <button
           type="button"
           className={styles.trigger}
           aria-expanded={open === "context"}
-          aria-label={context
-            ? (isZh ? `上下文已用 ${context.percent ?? 0}%` : `Context used ${context.percent ?? 0}%`)
-            : (isZh ? "上下文估算用量" : "Estimated context tokens")}
+          aria-label={contextLabel}
           onClick={() => toggle("context")}
         >
           <IconChartPie size={12} aria-hidden="true" />
@@ -74,7 +69,7 @@ export function SessionStatsBar({
         >
           <IconCoin size={12} aria-hidden="true" />
           <span>{`${formatCompactTokens(metrics.totalTokens)} tok`}</span>
-          {cache !== undefined && <span>{`${locale.sessionCache} ${(cache * 100).toFixed(1)}%`}</span>}
+          {cache !== undefined && <span>{`${isZh ? "上报缓存" : "Reported cache"} ${(cache * 100).toFixed(1)}%`}</span>}
           {metrics.cost && <span>{`≈ ${formatCost(metrics.cost.amount)}`}</span>}
         </button>
       )}
@@ -100,48 +95,23 @@ export function SessionStatsBar({
         onClose={close}
       >
         <div className={styles.panel}>
-          <div className={styles.panelTitle}>{isZh ? "上下文已用" : "Context used"}</div>
+          <div className={styles.panelTitle}>{isZh ? "最近一次模型请求的上下文" : "Context for the latest model request"}</div>
           {context ? (
             <>
-              <div className={styles.headline}>
-                <strong>{typeof context.percent === "number" ? `${context.percent}%` : "—"}</strong>
-                <span>
-                  {context.windowTokens
-                    ? `~${formatCompactTokens(context.totalTokens)} / ${formatCompactTokens(context.windowTokens)} tok`
-                    : `~${formatCompactTokens(context.totalTokens)} tok`}
-                </span>
-              </div>
-              {typeof context.percent === "number" && (
-                <div className={styles.meter} aria-hidden="true">
-                  <span style={{ width: `${context.percent}%` }} />
-                </div>
+              <Row label={isZh ? "实际输入" : "Reported input"} value={context.totalTokens.toLocaleString() + " tok"} strong />
+              {context.model && <Row label={isZh ? "响应模型" : "Response model"} value={context.model} />}
+              {context.windowTokens && (
+                <Row label={context.windowSource === "configured" ? (isZh ? "档案配置窗口" : "Configured window") : (isZh ? "供应商规格窗口" : "Provider-specified window")} value={context.windowTokens.toLocaleString() + " tok"} />
               )}
-              <div className={styles.rows}>
-                <Row label={isZh ? "系统提示词" : "System prompt"} value={`~${formatCompactTokens(context.systemTokens)}`} />
-                <Row label={isZh ? "工具定义" : "Tool definitions"} value={`~${formatCompactTokens(context.toolsTokens)}`} />
-                <Row label={isZh ? "对话消息" : "Conversation"} value={`~${formatCompactTokens(context.messageTokens)}`} />
-              </div>
-              {typeof context.percent !== "number" && (
-                <p className={styles.hint}>
-                  {isZh
-                    ? "未配置模型上下文窗口，暂无占比。可在「配置模型」中填写窗口 token 数。"
-                    : "No model context window configured. Set it in the model settings to see a percentage."}
-                </p>
+              {percent !== undefined && (
+                <>
+                  <Row label={isZh ? "占用" : "Used"} value={percent + "%"} />
+                  <div className={styles.meter} aria-hidden="true"><span style={{ width: Math.min(100, Number(percent)) + "%" }} /></div>
+                </>
               )}
+              {!context.windowTokens && <p className={styles.hint}>{isZh ? "此响应模型的窗口大小暂无可靠数据。" : "No verified context limit for this response model."}</p>}
             </>
-          ) : estimatedTokens ? (
-            <>
-              <div className={styles.headline}>
-                <strong>{`~${formatCompactTokens(estimatedTokens)}`}</strong>
-                <span>tok</span>
-              </div>
-              <p className={styles.hint}>
-                {isZh
-                  ? "运行后显示系统提示、工具定义与对话消息的拆分。"
-                  : "The system / tools / conversation breakdown appears after the next run."}
-              </p>
-            </>
-          ) : null}
+          ) : <p className={styles.hint}>{isZh ? "最近的会话记录暂无模型实际输入量。" : "The latest chat record has no reported input count."}</p>}
         </div>
       </PopoverCard>
 
@@ -156,15 +126,13 @@ export function SessionStatsBar({
           <div className={styles.panelTitle}>{isZh ? "Token 用量" : "Token usage"}</div>
           <div className={styles.rows}>
             <Row label={isZh ? "总计" : "Total"} value={`${metrics.totalTokens.toLocaleString()} tok`} strong />
-            {cache !== undefined && <Row label={isZh ? "缓存命中" : "Cache hit"} value={`${(cache * 100).toFixed(1)}%`} />}
-            <Row
-              label={isZh ? "未缓存输入" : "Uncached input"}
-              value={`${Math.max(0, metrics.promptTokens - metrics.cachedPromptTokens).toLocaleString()} tok`}
-            />
-            <Row
-              label={isZh ? "缓存读取" : "Cache read"}
-              value={`${metrics.cachedPromptTokens.toLocaleString()} tok`}
-            />
+            {metrics.cacheMeasurement && cache !== undefined ? (
+              <>
+                <Row label={isZh ? "缓存命中率（有上报的请求）" : "Cache hit (reported requests)"} value={(cache * 100).toFixed(1) + "%"} />
+                <Row label={isZh ? "计入缓存统计的输入" : "Measured input"} value={metrics.cacheMeasurement.promptTokens.toLocaleString() + " tok"} />
+                <Row label={isZh ? "缓存读取" : "Cache read"} value={metrics.cacheMeasurement.cachedTokens.toLocaleString() + " tok"} />
+              </>
+            ) : <Row label={isZh ? "缓存命中率" : "Cache hit"} value={isZh ? "暂无可核对数据" : "Unavailable"} />}
             <Row label={isZh ? "输出" : "Output"} value={`${metrics.completionTokens.toLocaleString()} tok`} />
             {metrics.cost && (
               <>

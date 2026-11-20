@@ -23,6 +23,8 @@ function toSummary(session: ChatSessionRecord): ChatSessionSummary {
     ...(session.unread ? { unread: true } : {}),
     messageCount: session.messages.length,
     ...(session.summary ? { summary: session.summary } : {}),
+    ...(session.sessionPreset ? { sessionPreset: session.sessionPreset } : {}),
+    ...(session.sessionModules ? { sessionModules: session.sessionModules } : {}),
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,
   };
@@ -66,6 +68,8 @@ export class SessionMemoryStore {
         ...(parsed.unread === true ? { unread: true } : {}),
         messageCount: Array.isArray(parsed.messages) ? parsed.messages.length : 0,
         ...(typeof parsed.summary === "string" && parsed.summary ? { summary: parsed.summary } : {}),
+        ...(typeof parsed.sessionPreset === "string" && parsed.sessionPreset ? { sessionPreset: parsed.sessionPreset } : {}),
+        ...(Array.isArray(parsed.sessionModules) ? { sessionModules: parsed.sessionModules.filter((module) => typeof module === "string") } : {}),
         ...(typeof parsed.contextSummary === "string" && parsed.contextSummary
           ? { contextSummary: parsed.contextSummary }
           : {}),
@@ -125,6 +129,8 @@ export class SessionMemoryStore {
       title: input.title?.trim() || "新聊天",
       projectId: input.projectId ?? null,
       sectionId: input.sectionId ?? null,
+      ...(input.sessionPreset ? { sessionPreset: input.sessionPreset } : {}),
+      ...(input.sessionModules ? { sessionModules: input.sessionModules } : {}),
       pinned: false,
       archived: false,
       messageCount: 0,
@@ -139,8 +145,13 @@ export class SessionMemoryStore {
   async update(sessionId: string, patch: UpdateSessionInput): Promise<ChatSessionRecord | null> {
     const existing = await this.get(sessionId);
     if (!existing) return null;
+    if ((patch.sessionPreset !== undefined || patch.sessionModules !== undefined) && existing.messages.length > 0) {
+      throw new Error("会话模式已锁定，请新建会话选择其他模式。");
+    }
     const updated: ChatSessionRecord = {
       ...existing,
+      ...(patch.sessionPreset !== undefined ? { sessionPreset: patch.sessionPreset } : {}),
+      ...(patch.sessionModules !== undefined ? { sessionModules: patch.sessionModules } : {}),
       ...(patch.title !== undefined ? { title: patch.title.trim() || existing.title } : {}),
       ...(patch.projectId !== undefined ? { projectId: patch.projectId } : {}),
       ...(patch.sectionId !== undefined ? { sectionId: patch.sectionId } : {}),
@@ -165,6 +176,8 @@ export class SessionMemoryStore {
       title: `${existing.title} (分支)`,
       projectId: existing.projectId,
       sectionId: existing.sectionId,
+      ...(existing.sessionPreset ? { sessionPreset: existing.sessionPreset } : {}),
+      ...(existing.sessionModules ? { sessionModules: existing.sessionModules } : {}),
       pinned: false,
       archived: false,
       messageCount: existing.messages.length,

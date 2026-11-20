@@ -29,3 +29,5 @@ No workspace dependencies.
 ## Dev Note
 
 None.
+
+Context occupancy uses reported input tokens with a window matched to the actual response model. Anthropic-format input includes uncached tokens, cache creation and cache reads.

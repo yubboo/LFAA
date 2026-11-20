@@ -1,5 +1,6 @@
 // 执行一轮模型给出的工具调用：连续只读调用并行、写文件与命令串行，并按模型给出的顺序回填步骤与工具消息。
 import { randomUUID } from "node:crypto";
+import type { SubagentActivityUpdate } from "@lfaa/tools";
 import type { LlmMessage, LlmToolCall } from "@lfaa/llm";
 import type { AgentStepTrace } from "@lfaa/memory";
 import { tailCommandOutput } from "./command-trace";
@@ -146,7 +147,7 @@ export async function runActPhase(
             ...(decision.approvalThreshold !== undefined ? { approvalThreshold: decision.approvalThreshold } : {}),
             highRisk: decision.highRisk,
             ...(decision.reason ? { riskReason: decision.reason } : {}),
-          });
+          }, params.signal);
           if (answer === "mode_changed") continue;
           permitted = answer;
           if (mode === "smart") {
@@ -162,16 +163,41 @@ export async function runActPhase(
         toolOutputText = "用户拒绝执行此修改/命令工具，请改用只读核查或向用户说明替代方案。";
         summaryText = "用户已拒绝";
       } else {
+        params.signal.throwIfAborted();
+        if (toolDef && perm !== "read") await params.beforeWorkspaceMutation?.();
+        params.signal.throwIfAborted();
         executed = true;
         executedToolCount += 1;
         pushOrUpdateStep({ ...action, timestamp: Date.now() });
         const execStartedAt = Date.now();
+        const childSteps = new Map<string, Map<string, NonNullable<SubagentActivityUpdate["activity"]>>>();
         const execRes = await deps.tools.executeTool(call.name, parsedArgs.value, {
           workspaceRoots: params.workspaceRoots,
           sessionId: params.sessionId,
           runId: params.runId,
           signal: params.signal,
+          parentApproval: { getPermissionMode: params.getPermissionMode, requestApproval: params.requestApproval },
+          ...(params.profileId ? { parentProfileId: params.profileId } : {}),
           allowOutsideWorkspace: params.getPermissionMode() === "full",
+          ...((call.name === "invoke_subagent" || call.name === "message_subagent") ? {
+            onSubagentActivity: ({ id, role, status, activity, result }) => {
+              const work = childSteps.get(id) ?? new Map();
+              if (activity) work.set(activity.id, activity);
+              childSteps.set(id, work);
+              pushOrUpdateStep({
+                id: `child-${action.id}-${id}`,
+                iteration,
+                phase: "act",
+                status: status === "stopped" ? "error" : status,
+                title: role,
+                subagent: { id, role, status },
+                textOffset: roundTextOffset,
+                ...(work.size ? { detail: [...work.values()].map((item) => `${item.name} · ${item.status}`).join("\n").slice(-4000) } : {}),
+                ...(result ? { resultPreview: result.slice(0, 2000) } : {}),
+                timestamp: Date.now(),
+              });
+            },
+          } : {}),
           ...(command ? { onCommandOutput: (output: string) => pushOrUpdateStep({
             // 运行中的命令只保留尾部快照，长构建日志不再整段写进会话文件。
             ...action, commandTrace: { command, output: tailCommandOutput(output) }, timestamp: Date.now(),

@@ -9,6 +9,7 @@
 
 .tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   margin-bottom: 0.5rem;
 }
@@ -50,6 +51,12 @@
 .row > span:first-child {
   color: var(--color-muted);
   flex: none;
+}
+
+.row > span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: right;
 }
 
 .wrap {
