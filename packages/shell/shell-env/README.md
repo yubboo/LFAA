@@ -1,3 +1,30 @@
+---
+description: "Shell environment preparation, raw byte handling, and local code-page detection."
+kind: "package"
+---
+
 # @lfaa/shell-env
 
-负责命令管道的编码。stdout 和 stderr 分别识别 Unicode。Windows 原生命令的遗留字节使用活动控制台代码页或系统 OEM 代码页解码。实时快照保留尚未接收完整的尾部字符。
+English | [中文](README.zh.md)
+
+## Summary
+
+Shell environment preparation, raw byte handling, and local code-page detection.
+
+This package lives in `packages/shell/shell-env`.
+
+## Exports
+
+| Entry | Target | Purpose |
+|---|---|---|
+| `.` | `./lib/index.js` | Host entry (default-exports the plugin) |
+| `./src/*` | `./src/*` | Source escape hatch for this repository's tooling |
+| `./package.json` | `./package.json` | Package manifest |
+
+## Dependencies
+
+No workspace dependencies.
+
+## Dev Note
+
+None.

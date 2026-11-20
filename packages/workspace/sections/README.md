@@ -1,3 +1,31 @@
+---
+description: "User-defined sidebar sections with persisted storage and editing UI."
+kind: "package"
+---
+
 # @lfaa/sections
 
-LFAA custom sidebar sections package providing Host persistence (`~/.lfaa/sections.json`) with uniqueness checks (`.`) and the browser Cordis `workbench` UI plugin (`./client`).
+English | [中文](README.zh.md)
+
+## Summary
+
+User-defined sidebar sections with persisted storage and editing UI.
+
+This package lives in `packages/workspace/sections`.
+
+## Exports
+
+| Entry | Target | Purpose |
+|---|---|---|
+| `.` | `./lib/index.js` | Host entry (default-exports the plugin) |
+| `./src/*` | `./src/*` | Source escape hatch for this repository's tooling |
+| `./client` | `./client/index.tsx` | Browser entry consumed by Vite |
+| `./package.json` | `./package.json` | Package manifest |
+
+## Dependencies
+
+- `@lfaa/ui-layout`
+
+## Dev Note
+
+None.

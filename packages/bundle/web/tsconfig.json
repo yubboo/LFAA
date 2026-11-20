@@ -1,0 +1,29 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types",
+    "types": ["node"]
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../../../vendor/loader" },
+    { "path": "../../core/agent" },
+    { "path": "../../shell/bash-local" },
+    { "path": "../../core/browser" },
+    { "path": "../../core/chat" },
+    { "path": "../../core/jobs" },
+    { "path": "../../core/llm" },
+    { "path": "../../core/memory" },
+    { "path": "../../extension/plugins" },
+    { "path": "../../shell/pwsh-local" },
+    { "path": "../../core/rules" },
+    { "path": "../../workspace/sections" },
+    { "path": "../../shell/shell" },
+    { "path": "../../extension/skills" },
+    { "path": "../../core/subagent" },
+    { "path": "../../core/tools" },
+    { "path": "../../workspace/workspace" },
+    { "path": "../../core/tool-todo" }
+  ]
+}

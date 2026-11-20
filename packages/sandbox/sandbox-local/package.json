@@ -1,0 +1,39 @@
+{
+  "name": "@lfaa/sandbox-local",
+  "description": "LFAA 本地沙箱后端：在工具层按模式判定写入与命令，不具备进程级强制。",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./lib/index.js",
+  "types": "./lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "src"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yubboo/LFAA.git",
+    "directory": "packages/sandbox/sandbox-local"
+  },
+  "scripts": {
+    "typecheck": "tsc -b ."
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "^4.1.0",
+    "@lfaa/sandbox": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "typescript": "^5.9.3"
+  }
+}

@@ -2,13 +2,17 @@
   "name": "@lfaa/metrics",
   "description": "LFAA 运行指标与成本：token 密度估算、按单价换算人民币成本、会话统计聚合（参考 DSH token-meter / session-stats 的包设计，独立实现）。",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc -b ."
   },
   "dependencies": {
     "@lfaa/llm": "workspace:*",
@@ -17,5 +21,19 @@
   "devDependencies": {
     "@types/node": "^24.10.0",
     "typescript": "^5.9.3"
+  },
+  "main": "./lib/index.js",
+  "types": "./lib/types/index.d.ts",
+  "files": [
+    "lib",
+    "src"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yubboo/LFAA.git",
+    "directory": "packages/core/metrics"
   }
 }

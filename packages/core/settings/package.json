@@ -2,16 +2,34 @@
   "name": "@lfaa/settings",
   "description": "LFAA 持久化设置：常规偏好与编码（Git/代码审查）配置的读取、归一化与写入，存于 ~/.lfaa。",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc -b ."
   },
   "devDependencies": {
     "@types/node": "^24.10.0",
     "typescript": "^5.9.3"
+  },
+  "main": "./lib/index.js",
+  "types": "./lib/types/index.d.ts",
+  "files": [
+    "lib",
+    "src"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yubboo/LFAA.git",
+    "directory": "packages/core/settings"
   }
 }

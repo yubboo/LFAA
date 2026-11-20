@@ -1,3 +1,17 @@
-source: README.zh.md
-targets:
-  - README.md
+# 双语配对记录：按英文标题分段记录英文 / 中文段落哈希。
+# 修改任意一侧后，同步另一侧并重新生成：pnpm run readme:pair -- . --write
+/:
+  en: 9203f0967b844ddf
+  zh: b408e200dfb6a89b
+/summary:
+  en: f646b16c7347391c
+  zh: 2396d29887591e9d
+/exports:
+  en: bfce717dbdbb2525
+  zh: a2445f343ed12149
+/dependencies:
+  en: 08b57ce5483132d7
+  zh: 08b57ce5483132d7
+/dev-note:
+  en: 903ea500e7ccf842
+  zh: 969e7bb7bf0a7e1d

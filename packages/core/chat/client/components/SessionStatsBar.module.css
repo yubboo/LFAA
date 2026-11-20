@@ -101,3 +101,21 @@
   line-height: 1.45;
   color: var(--color-muted);
 }
+
+/* 上下文占比环：窄屏显示，宽屏隐藏文字由 wideOnly 控制 */
+.ring {
+  display: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: conic-gradient(var(--color-accent) var(--ring-percent, 0%), var(--color-line) 0);
+  font-size: 0;
+}
+
+.narrowOnly { display: none; }
+
+@media (max-width: 720px) {
+  .wideOnly { display: none; }
+  .ring { display: inline-block; }
+  .narrowOnly { display: inline; }
+}

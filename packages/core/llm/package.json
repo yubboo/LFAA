@@ -2,14 +2,21 @@
   "name": "@lfaa/llm",
   "description": "LFAA Agent 核心大脑能力包，提供多提供商大模型接入、流式推理、Tool Calling 与安全凭据管理。",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./ark-plan": "./src/ark-plan.ts"
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./ark-plan": {
+      "types": "./lib/types/ark-plan.d.ts",
+      "default": "./lib/ark-plan.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc -b ."
   },
   "dependencies": {
     "@deepseek-ai/cordis": "^4.1.0"
@@ -17,5 +24,19 @@
   "devDependencies": {
     "@types/node": "^24.10.0",
     "typescript": "^5.9.3"
+  },
+  "main": "./lib/index.js",
+  "types": "./lib/types/index.d.ts",
+  "files": [
+    "lib",
+    "src"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yubboo/LFAA.git",
+    "directory": "packages/core/llm"
   }
 }

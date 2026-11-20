@@ -18,6 +18,7 @@ const lockfilePath = resolve(repositoryRoot, "pnpm-lock.yaml");
 const installedLockfilePath = resolve(repositoryRoot, "node_modules/.pnpm/lock.yaml");
 const modulesMetadataPath = resolve(repositoryRoot, "node_modules/.modules.yaml");
 const workspaceStatePath = resolve(repositoryRoot, "node_modules/.pnpm-workspace-state-v1.json");
+const workspaceFile = resolve(repositoryRoot, "pnpm-workspace.yaml");
 const dependencySections = ["dependencies", "devDependencies", "optionalDependencies"];
 
 // 读取并解析 JSON 文件，供 package 清单和 pnpm 状态复用。
@@ -49,6 +50,68 @@ export async function collectPackages(parent, depth, root = repositoryRoot, outp
     }
   }
   return output;
+}
+
+// 解析 pnpm-workspace.yaml 的 packages 列表，避免预检目录与真实工作区脱节。
+async function readWorkspacePatterns() {
+  let raw;
+  try {
+    raw = await readFile(workspaceFile, "utf8");
+  } catch {
+    return [];
+  }
+  const patterns = [];
+  let inPackages = false;
+  for (const line of raw.split(/\r?\n/u)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    if (!line.startsWith(" ") && !line.startsWith("-")) {
+      inPackages = trimmed === "packages:";
+      continue;
+    }
+    if (!inPackages) continue;
+    const match = /^-\s*["']?([^"']+?)["']?\s*$/u.exec(trimmed);
+    if (match) patterns.push(match[1]);
+  }
+  return patterns;
+}
+
+// 展开单个 workspace 模式：`*` 匹配任意单层目录，末层必须包含 package.json。
+async function expandWorkspacePattern(segments, current, root, output) {
+  if (segments.length === 0) {
+    if (await fileExists(resolve(current, "package.json"))) {
+      output.push(relative(root, current).split(sep).join("/"));
+    }
+    return;
+  }
+  const [head, ...rest] = segments;
+  if (head === "*") {
+    let entries;
+    try {
+      entries = await readdir(current, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.name === "node_modules") continue;
+      await expandWorkspacePattern(rest, resolve(current, entry.name), root, output);
+    }
+    return;
+  }
+  await expandWorkspacePattern(rest, resolve(current, head), root, output);
+}
+
+/** 按 workspace 配置枚举全部项目；配置缺失时回退到历史目录约定。 */
+export async function collectWorkspaceProjects() {
+  const output = [];
+  for (const pattern of await readWorkspacePatterns()) {
+    if (pattern.startsWith("!")) continue;
+    await expandWorkspacePattern(pattern.split("/"), repositoryRoot, repositoryRoot, output);
+  }
+  if (output.length > 0) return [...new Set(output)];
+  const appPaths = await collectPackages("apps", 1);
+  const packagePaths = await collectPackages("packages", 2);
+  return [...appPaths, ...packagePaths];
 }
 
 // 去掉 lockfile 键和值外围的 YAML 引号，并还原转义引号。
@@ -145,9 +208,8 @@ function dependencyLinkExists(packageFolder, dependencyName) {
 // 综合核对依赖声明、lockfile、链接和 workspace 登记，决定是否需要安装。
 async function inspectInstallState() {
   const rootManifest = await readJson(rootManifestPath);
-  const appPaths = await collectPackages("apps", 1);
-  const packagePaths = await collectPackages("packages", 2);
-  const projectPaths = [".", ...appPaths, ...packagePaths];
+  const workspaceProjects = await collectWorkspaceProjects();
+  const projectPaths = [".", ...workspaceProjects];
   const projectRecords = [];
   const importers = parseLockImporters(await readFile(lockfilePath, "utf8"));
 
@@ -159,6 +221,8 @@ async function inspectInstallState() {
     if (!lockDependencies) return { ready: false, reason: `pnpm-lock.yaml 缺少工作区入口 ${projectPath}` };
 
     for (const section of dependencySections) {
+      // 声明项 = 该 section 的依赖 + 非可选 peer；peer 会被 pnpm 记入同一 section，
+      // 因此只校验「声明项都被锁文件覆盖」，多出的可选 peer 不视为不一致。
       const declared = section === "dependencies"
         ? {
           ...(manifest.dependencies ?? {}),
@@ -169,8 +233,10 @@ async function inspectInstallState() {
         .filter(([key]) => key.startsWith(`${section}\0`))
         .map(([key, specifier]) => [key.slice(section.length + 1), specifier]);
 
-      if (locked.length !== Object.keys(declared).length) {
-        return { ready: false, reason: `${projectPath} 的 ${section} 与 pnpm-lock.yaml 不一致` };
+      const lockedNames = new Set(locked.map(([name]) => name));
+      const missing = Object.keys(declared).filter((name) => !lockedNames.has(name));
+      if (missing.length > 0) {
+        return { ready: false, reason: `${projectPath} 的 ${section} 缺少 ${missing.join("、")}` };
       }
 
       // lockfile 已更新但链接未落盘时也要补装；正常就绪路径不会触碰 node_modules。

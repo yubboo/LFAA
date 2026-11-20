@@ -1,12 +1,15 @@
 // 解析 LFAA 启动目标并负责在退出信号到来时关闭 Web 服务。
-import { startWeb } from "@lfaa/app-web/server";
+import { startWeb } from "@lfaa/web-server";
+import { fileURLToPath } from "node:url";
 
 // 当前只暴露 Web 启动目标，后续应用入口由 CLI 集中分发。
 async function main() {
   const target = process.argv[2];
 
   if (target === "web") {
-    const stop = await startWeb();
+    // Web 前端根目录固定在 apps/web；服务实现位于 @lfaa/web-server，apps 只做启动。
+    const webRoot = fileURLToPath(new URL("../../web/", import.meta.url));
+    const stop = await startWeb({ webRoot });
     let isStopping = false;
 
     // SIGINT 与 SIGTERM 可能连续到达；幂等标记保证 Vite 服务只关闭一次。

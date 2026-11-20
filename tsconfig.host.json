@@ -1,0 +1,49 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node", "react", "react-dom"]
+  },
+  "include": [
+    "packages/*/*/tests/**/*.ts",
+    "packages/*/*/tests/**/*.tsx",
+    "packages/*/*/client/**/*.ts",
+    "packages/*/*/client/**/*.tsx"
+  ],
+  "references": [
+    { "path": "./packages/api/gateway" },
+    { "path": "./packages/bundle/web" },
+    { "path": "./packages/core/agent" },
+    { "path": "./packages/core/browser" },
+    { "path": "./packages/core/chat" },
+    { "path": "./packages/core/context" },
+    { "path": "./packages/core/fs" },
+    { "path": "./packages/core/guard" },
+    { "path": "./packages/core/jobs" },
+    { "path": "./packages/core/llm" },
+    { "path": "./packages/core/memory" },
+    { "path": "./packages/core/metrics" },
+    { "path": "./packages/core/rules" },
+    { "path": "./packages/core/session" },
+    { "path": "./packages/core/settings" },
+    { "path": "./packages/core/storage" },
+    { "path": "./packages/core/subagent" },
+    { "path": "./packages/core/tool-todo" },
+    { "path": "./packages/core/tools" },
+    { "path": "./packages/extension/plugins" },
+    { "path": "./packages/extension/skills" },
+    { "path": "./packages/host/web-server" },
+    { "path": "./packages/sandbox/sandbox" },
+    { "path": "./packages/sandbox/sandbox-local" },
+    { "path": "./packages/shell/bash-local" },
+    { "path": "./packages/shell/pwsh-local" },
+    { "path": "./packages/shell/shell" },
+    { "path": "./packages/shell/shell-env" },
+    { "path": "./packages/ui/layout" },
+    { "path": "./packages/ui/primitives" },
+    { "path": "./packages/ui/theme" },
+    { "path": "./packages/workspace/sections" },
+    { "path": "./packages/workspace/workspace" },
+    { "path": "./vendor/loader" }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "name": "@lfaa/api-gateway",
+  "description": "LFAA 接口边界：集中登记与派发 Host HTTP 路由，替代散落在各处的路由注册。",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./lib/index.js",
+  "types": "./lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "src"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yubboo/LFAA.git",
+    "directory": "packages/api/gateway"
+  },
+  "scripts": {
+    "typecheck": "tsc -b ."
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "typescript": "^5.9.3"
+  }
+}

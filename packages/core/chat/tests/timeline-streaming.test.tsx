@@ -38,7 +38,8 @@ test("中文顶部计时区分运行和结束，保留时分秒及展开控件",
   const live = renderToStaticMarkup(createElement(StepTraceList, { ...props, isStreaming: true }));
   const done = renderToStaticMarkup(createElement(StepTraceList, { ...props, isStreaming: false }));
 
-  assert.match(live, /aria-label="思考 0 时 0 分 \d+ 秒"/u);
+  // 步骤计时按需显示单位：未满一分钟时只出现「秒」，不再出现 0 时 / 0 分。
+  assert.match(live, /aria-label="思考 \d+ 秒"/u);
   assert.match(live, /aria-controls="run-timer"/u);
   assert.match(done, /用时 1 时 2 分 3 秒/u);
   assert.match(done, /aria-controls="run-timer"/u);

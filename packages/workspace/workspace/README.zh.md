@@ -1,8 +1,32 @@
-# `@lfaa/workspace`
+---
+description: "LFAA 工作区与本地项目插件包，提供 Host 服务契约与 Client 侧栏/工作区/右侧上下文面板贡献。"
+kind: "package"
+---
 
-LFAA 的工作区与本地项目插件包。
+# @lfaa/workspace
 
-- `src/index.ts`：Host 侧 Cordis 服务（`WorkspaceService`），不包含任何 React、DOM 或 CSS 依赖。
-- `client/index.tsx`：Client 侧 Cordis 插件（`inject: ["workbench"]`），向四栏 Shell 注册本地项目存储、项目概览与详情视图、创建弹窗以及右侧上下文面板，并在插件卸载时自动清理全部贡献。
+[English](README.md) | 中文
 
-仅填写项目名时，默认目录下创建同名文件夹。已有同名文件夹时，用户确认信任后使用该文件夹，保留其中的内容。信任弹窗显示的默认路径变化时，需重新确认后才能保存绑定。
+## 摘要
+
+LFAA 工作区与本地项目插件包，提供 Host 服务契约与 Client 侧栏/工作区/右侧上下文面板贡献。
+
+本包位于 `packages/workspace/workspace`。
+
+## 导出
+
+| 子路径 | 目标 | 用途 |
+|---|---|---|
+| `.` | `./lib/index.js` | Host 入口（默认导出插件本体） |
+| `./src/*` | `./src/*` | 源码逃生口，仅供本仓工具链 |
+| `./client` | `./client/index.tsx` | 浏览器入口，供 Vite 消费 |
+| `./package.json` | `./package.json` | 清单文件 |
+
+## 依赖
+
+- `@lfaa/ui-layout`
+- `@lfaa/ui-primitives`
+
+## 开发说明
+
+无。

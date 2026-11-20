@@ -117,3 +117,5 @@ declare module "@deepseek-ai/cordis" {
     browser: BrowserService;
   }
 }
+/** 默认导出插件本体，供 Cordis Loader 以包名直接装载。 */
+export default browserPlugin;

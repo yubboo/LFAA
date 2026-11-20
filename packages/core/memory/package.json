@@ -2,13 +2,17 @@
   "name": "@lfaa/memory",
   "description": "LFAA Agent 核心记忆能力包，管理短期会话轨迹持久化、上下文窗口裁剪摘要与长期记忆检索。",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc -b ."
   },
   "dependencies": {
     "@lfaa/session": "workspace:*",
@@ -18,5 +22,19 @@
   "devDependencies": {
     "@types/node": "^24.10.0",
     "typescript": "^5.9.3"
+  },
+  "main": "./lib/index.js",
+  "types": "./lib/types/index.d.ts",
+  "files": [
+    "lib",
+    "src"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yubboo/LFAA.git",
+    "directory": "packages/core/memory"
   }
 }

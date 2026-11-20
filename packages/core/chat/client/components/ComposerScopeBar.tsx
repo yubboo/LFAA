@@ -3,12 +3,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { HoverTip } from "@lfaa/ui-primitives/client";
 import {
   IconCheck,
+  IconChevronDown,
   IconChevronRight,
   IconCloud,
   IconDeviceLaptop,
   IconFolder,
   IconPlus,
   IconSearch,
+  IconSparkles,
   IconX,
 } from "@tabler/icons-react";
 import type { WorkbenchProjectItem } from "@lfaa/ui-layout";
@@ -54,10 +56,49 @@ export function ComposerScopeBar({
   onCreateProject: () => void;
 }) {
   const [openMenu, setOpenMenu] = useState<OpenMenuKind>(null);
+  // 会话模式：与插件页共用 /api/plugins 预设数据，模式决定会话级插件子集。
+  const [presets, setPresets] = useState<Array<{ id: string; name: string; description: string }>>([]);
+  const [activePreset, setActivePreset] = useState("");
+  const [modeOpen, setModeOpen] = useState(false);
   const [projectQuery, setProjectQuery] = useState("");
   const [locationQuery, setLocationQuery] = useState("");
   const [cloudHintVisible, setCloudHintVisible] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/plugins");
+        if (!res.ok) return;
+        const state = (await res.json()) as {
+          presets?: Array<{ id: string; name: string; description: string }>;
+          activePreset?: string;
+        };
+        if (cancelled) return;
+        setPresets(state.presets ?? []);
+        setActivePreset(state.activePreset ?? "");
+      } catch {
+        // 插件服务不可用时静默降级，不影响输入框。
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  /** 切换模式：写入后立即采用新值，界面无需刷新。 */
+  const choosePreset = async (id: string) => {
+    setModeOpen(false);
+    setActivePreset(id);
+    try {
+      await fetch("/api/plugins/preset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+    } catch {
+      // 失败时保留乐观值，下次打开插件页会纠正。
+    }
+  };
   const projectSearchRef = useRef<HTMLInputElement>(null);
 
   const selectedProject = useMemo(
@@ -116,7 +157,40 @@ export function ComposerScopeBar({
 
   return (
     <div ref={rootRef} className={styles.wrapper}>
-      <div className={showShelf ? styles.shelf : undefined}>
+      {presets.length > 0 && (
+      <div className={styles.modeRow}>
+        <button
+          type="button"
+          className={styles.modeTrigger}
+          aria-expanded={modeOpen}
+          onClick={() => setModeOpen((open) => !open)}
+        >
+          <IconSparkles size={13} aria-hidden="true" />
+          <span>{presets.find((preset) => preset.id === activePreset)?.name ?? presets[0]?.name}</span>
+          <IconChevronDown size={12} aria-hidden="true" />
+        </button>
+        {modeOpen && (
+          <div className={styles.modeMenu} role="menu">
+            {presets.map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                role="menuitemradio"
+                aria-checked={preset.id === activePreset}
+                className={styles.modeItem}
+                onClick={() => void choosePreset(preset.id)}
+              >
+                <span className={styles.modeName}>{preset.name}</span>
+                <span className={styles.modeDesc}>{preset.description}</span>
+                {preset.id === activePreset && <IconCheck size={14} aria-hidden="true" />}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    )}
+
+    <div className={showShelf ? styles.shelf : undefined}>
         {showShelf && <div className={styles.anchor}>
           <HoverTip label={locale.workLocation} disabled={openMenu === "location"}>
             <button

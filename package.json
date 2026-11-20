@@ -1,17 +1,33 @@
 {
-  "name": "lfaa",
-  "version": "0.1.0",
-  "private": true,
-  "type": "module",
-  "packageManager": "pnpm@11.17.0",
-  "scripts": {
-    "lfaa": "tsx apps/cli/src/bin.ts",
-    "typecheck": "tsc --noEmit -p apps/cli/tsconfig.json && tsc --noEmit -p apps/web/tsconfig.json && tsc --noEmit -p packages/core/llm/tsconfig.json && tsc --noEmit -p packages/core/rules/tsconfig.json && tsc --noEmit -p packages/core/guard/tsconfig.json && tsc --noEmit -p packages/core/fs/tsconfig.json && tsc --noEmit -p packages/core/storage/tsconfig.json && tsc --noEmit -p packages/core/session/tsconfig.json && tsc --noEmit -p packages/core/settings/tsconfig.json && tsc --noEmit -p packages/core/context/tsconfig.json && tsc --noEmit -p packages/core/memory/tsconfig.json && tsc --noEmit -p packages/core/metrics/tsconfig.json && tsc --noEmit -p packages/core/tools/tsconfig.json && tsc --noEmit -p packages/core/jobs/tsconfig.json && tsc --noEmit -p packages/core/browser/tsconfig.json && tsc --noEmit -p packages/core/agent/tsconfig.json && tsc --noEmit -p packages/core/subagent/tsconfig.json && tsc --noEmit -p packages/core/chat/tsconfig.json && tsc --noEmit -p packages/skills/tsconfig.json && tsc --noEmit -p packages/plugins/tsconfig.json && tsc --noEmit -p packages/ui/layout/tsconfig.json && tsc --noEmit -p packages/ui/primitives/tsconfig.json && tsc --noEmit -p packages/ui/theme/tsconfig.json && tsc --noEmit -p packages/workspace/sections/tsconfig.json && tsc --noEmit -p packages/workspace/workspace/tsconfig.json",
-    "build": "pnpm --filter @lfaa/app-web run build"
-  },
-  "devDependencies": {
-    "@types/node": "^24.10.0",
-    "tsx": "^4.23.15",
-    "typescript": "^5.9.3"
-  }
+    "name":  "lfaa",
+    "version":  "0.1.0",
+    "private":  true,
+    "type":  "module",
+    "packageManager":  "pnpm@11.17.0",
+    "scripts":  {
+                    "lfaa":  "node scripts/ensure-lib.mjs \u0026\u0026 tsx apps/cli/src/bin.ts",
+                    "typecheck":  "tsc -b tsconfig.host.json",
+                    "check":  "node scripts/check-workspace.mjs",
+                    "test":  "node scripts/test.mjs",
+                    "test:pkg":  "node scripts/test.mjs --filter",
+                    "probe:loader":  "node scripts/probe-loader.mjs",
+                    "build":  "node scripts/build.mjs",
+                    "build:lib":  "tsc -b tsconfig.host.json",
+                    "build:bundle":  "tsdown",
+                    "build:web":  "pnpm --filter @lfaa/app-web run build",
+                    "readme:sync":  "node scripts/sync-readmes.mjs .",
+                    "readme:pair":  "node scripts/verify-translation-pairing.mjs",
+                    "sync":  "node scripts/sync-tsconfig.mjs . \u0026\u0026 node scripts/sync-manifests.mjs . \u0026\u0026 node scripts/sync-readmes.mjs ."
+                },
+    "devDependencies":  {
+                            "@deepseek-ai/cordis":  "^4.1.0",
+                            "@types/js-yaml":  "^4.0.9",
+                            "@types/node":  "^24.10.0",
+                            "@types/react":  "^19.3.0",
+                            "@types/react-dom":  "^19.3.0",
+                            "js-yaml":  "^4.3.2",
+                            "tsdown":  "^0.23.7",
+                            "tsx":  "^4.23.15",
+                            "typescript":  "^5.9.3"
+                        }
 }

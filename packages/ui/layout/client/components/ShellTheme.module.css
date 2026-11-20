@@ -9,6 +9,7 @@
   --color-surface: rgb(255 255 255 / 0.96);
   --color-ink: var(--user-fg, #171717);
   --color-muted: #6d7278;
+  --color-danger: #b3261e;
   --color-line: rgb(15 23 28 / calc(0.05 + var(--glass-contrast) * 0.05));
   --color-active: rgb(15 23 28 / 0.06);
   --color-rail-active: rgb(255 255 255 / 0.96);
@@ -41,6 +42,7 @@
   --color-surface: rgb(36 36 37 / calc(0.82 + var(--glass-contrast) * 0.16));
   --color-ink: var(--user-fg, #f3f3f3);
   --color-muted: #9a9ca0;
+  --color-danger: #f2b8b5;
   --color-line: rgb(255 255 255 / calc(0.05 + var(--glass-contrast) * 0.05));
   --color-active: rgb(255 255 255 / 0.085);
   --color-rail-active: rgb(255 255 255 / 0.1);
@@ -73,6 +75,7 @@
     --color-surface: rgb(36 36 37 / calc(0.82 + var(--glass-contrast) * 0.16));
     --color-ink: var(--user-fg, #f3f3f3);
     --color-muted: #9a9ca0;
+  --color-danger: #f2b8b5;
     --color-line: rgb(255 255 255 / calc(0.05 + var(--glass-contrast) * 0.05));
     --color-active: rgb(255 255 255 / 0.085);
     --color-rail-active: rgb(255 255 255 / 0.1);

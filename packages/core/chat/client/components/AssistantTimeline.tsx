@@ -224,6 +224,9 @@ export function AssistantTimeline({
     ),
   );
   // 只要还在流式执行且末尾没有活跃的工具分组，就持续显示实时运行状态行，防止轮次切换出现完成错觉。
+  // 模型开始输出最终答案时，实时行应跟随答案之后，不能再夹在步骤与答案之间。
+  // 此时面板内的实时行让位给答案正文尾部的位置。
+  const answerStreaming = isStreaming && Boolean(finalText.trim());
   const showLiveTail = isStreaming
     && !pendingApproval
     && !(hasActiveTailGroup && !finalText.trim());
@@ -266,17 +269,16 @@ export function AssistantTimeline({
               <MarkdownContent content={text.slice(groups.at(-1)?.offset ?? 0)} isZh={locale.isZh} />
             </div>
           )}
+          {/* 实时进度贴着思考过程底部；一旦开始输出最终答案，改由正文之后的位置显示 */}
+          {showLiveTail && !answerStreaming && (
+            <LiveExecutionTail isZh={locale.isZh} steps={steps} createdAt={createdAt} includeToolName />
+          )}
         </div>
       )}
       {pendingApproval && <TimelineApproval locale={locale} pendingApproval={pendingApproval} onResolveApproval={onResolveApproval} />}
       {finalText.trim() && <div className={bodyClassName}><MarkdownContent content={finalText} isZh={locale.isZh} /></div>}
-      {showLiveTail && (
-        <LiveExecutionTail
-          isZh={locale.isZh}
-          steps={steps}
-          createdAt={createdAt}
-          includeToolName={!processOpen || Boolean(finalText.trim())}
-        />
+      {showLiveTail && answerStreaming && (
+        <LiveExecutionTail isZh={locale.isZh} steps={steps} createdAt={createdAt} includeToolName />
       )}
     </>
   );

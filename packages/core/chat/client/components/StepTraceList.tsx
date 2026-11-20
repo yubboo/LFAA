@@ -5,6 +5,7 @@ import { getActivityLabel } from "../activity-label";
 import type { AgentStepItem, PendingApprovalBanner } from "../chat-types";
 import { timelineMessages, type ChatLocaleMessages } from "../locales";
 import styles from "./StepTraceList.module.css";
+import { LiveFish } from "./Live-Fish";
 
 /** 以整秒显示实际经过的时间，兼容短于一秒和长时间运行。 */
 export function formatDuration(ms: number, isZh: boolean, showAllUnits = false): string {
@@ -55,7 +56,8 @@ export function LiveStageDetails({ isZh, steps, now: clock }: { isZh: boolean; s
     <div className={styles.liveFacts}>
       {current && (
         <div>
-          {labels.round(current.iteration)} · {labels[getLiveStage(steps, now)]} · {labels.lastUpdate(formatDuration(now - current.timestamp, isZh))}
+          {/* 轮次与步数统一在底部状态条展示，这里只留阶段与更新时间，避免重复 */}
+          {labels[getLiveStage(steps, now)]} · {labels.lastUpdate(formatDuration(now - current.timestamp, isZh))}
         </div>
       )}
       {current?.phase === "act" && <div>{current.toolTarget ?? getActivityLabel(current, isZh, true)}</div>}
@@ -153,10 +155,10 @@ export function StepTraceList({
   if (isStreaming) {
     const state = getLiveStage(steps, now);
     const phase = labels[state];
-    const elapsed = formatDuration(now - createdAt, isZh, true);
+    const elapsed = formatDuration(now - createdAt, isZh);
     const status = (
       <>
-        {state !== "waiting" && <span className={styles.liveDot} aria-hidden="true" />}
+        {state !== "waiting" && <LiveFish />}
         <span className={styles.activityTitle}>{labels.thinkingElapsed}</span>
         <span className={styles.srOnly} role="status">{phase}</span>
         <span className={styles.elapsed}>{elapsed}</span>
@@ -174,7 +176,7 @@ export function StepTraceList({
   }
 
   const usageLabel = formatTokenUsage(tokenUsage);
-  const label = durationMs === undefined ? labels.process : `${labels.elapsed} ${formatDuration(durationMs, isZh, true)}`;
+  const label = durationMs === undefined ? labels.process : `${labels.elapsed} ${formatDuration(durationMs, isZh)}`;
   return onToggle ? (
     <button type="button" className={styles.disclosure} aria-expanded={expanded} aria-controls={processId} onClick={onToggle}>
       <span>{label}</span>

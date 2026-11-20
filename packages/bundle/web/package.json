@@ -1,0 +1,56 @@
+{
+    "name":  "@lfaa/bundle-web",
+    "description":  "LFAA Web 装配包：按 Cordis 约定把 Host 基础能力与 Loader 组合成一个可装载的 bundle。",
+    "version":  "0.1.0",
+    "type":  "module",
+    "main":  "./lib/index.js",
+    "types":  "./lib/types/index.d.ts",
+    "exports":  {
+                    ".":  {
+                              "types":  "./lib/types/index.d.ts",
+                              "default":  "./lib/index.js"
+                          },
+                    "./src/*":  "./src/*",
+                    "./package.json":  "./package.json"
+                },
+    "files":  [
+                  "lib",
+                  "src"
+              ],
+    "publishConfig":  {
+                          "access":  "public"
+                      },
+    "repository":  {
+                       "type":  "git",
+                       "url":  "git+https://github.com/yubboo/LFAA.git",
+                       "directory":  "packages/bundle/web"
+                   },
+    "scripts":  {
+                    "typecheck":  "tsc -b ."
+                },
+    "dependencies":  {
+                         "@deepseek-ai/cordis":  "^4.1.0",
+                         "@deepseek-ai/cordis-plugin-loader":  "workspace:*",
+                         "@lfaa/agent":  "workspace:*",
+                         "@lfaa/bash-local":  "workspace:*",
+                         "@lfaa/browser":  "workspace:*",
+                         "@lfaa/chat":  "workspace:*",
+                         "@lfaa/jobs":  "workspace:*",
+                         "@lfaa/llm":  "workspace:*",
+                         "@lfaa/memory":  "workspace:*",
+                         "@lfaa/plugins":  "workspace:*",
+                         "@lfaa/pwsh-local":  "workspace:*",
+                         "@lfaa/rules":  "workspace:*",
+                         "@lfaa/sections":  "workspace:*",
+                         "@lfaa/shell":  "workspace:*",
+                         "@lfaa/skills":  "workspace:*",
+                         "@lfaa/subagent":  "workspace:*",
+                         "@lfaa/tools":  "workspace:*",
+                         "@lfaa/workspace":  "workspace:*",
+                         "@lfaa/tool-todo":  "workspace:*"
+                     },
+    "devDependencies":  {
+                            "@types/node":  "^24.10.0",
+                            "typescript":  "^5.9.3"
+                        }
+}

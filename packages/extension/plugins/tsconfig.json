@@ -1,0 +1,15 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "lib/types",
+    "types": ["node"]
+  },
+  "include": ["src", "contract"],
+  "references": [
+    { "path": "../skills" },
+    { "path": "../../core/tools" },
+    { "path": "../../ui/layout" },
+    { "path": "../../ui/primitives" }
+  ]
+}

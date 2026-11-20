@@ -1,3 +1,30 @@
+---
+description: "Shell process execution: invocation resolution, cancellation, and output collection."
+kind: "package"
+---
+
 # @lfaa/shell
 
-Host 侧的 Cordis Shell 服务。执行器提供程序与参数，服务从已确认的工作目录启动命令，采集原始管道输出，并向调用方提供最多每 125 毫秒一次的有界文本快照。前台调用遵循 15 秒超时和调用方的取消信号。
+English | [中文](README.zh.md)
+
+## Summary
+
+Shell process execution: invocation resolution, cancellation, and output collection.
+
+This package lives in `packages/shell/shell`.
+
+## Exports
+
+| Entry | Target | Purpose |
+|---|---|---|
+| `.` | `./lib/index.js` | Host entry (default-exports the plugin) |
+| `./src/*` | `./src/*` | Source escape hatch for this repository's tooling |
+| `./package.json` | `./package.json` | Package manifest |
+
+## Dependencies
+
+- `@lfaa/shell-env`
+
+## Dev Note
+
+None.

@@ -1,5 +1,7 @@
 // @lfaa/tools Host 侧 Cordis 服务：统一管理工具注册表、内置工作区工具与权限安全执行。
+import { resolve } from "node:path";
 import { type Context, Service } from "@deepseek-ai/cordis";
+import type { SandboxDecision, SandboxPolicy } from "@lfaa/sandbox";
 import type { ShellService } from "@lfaa/shell";
 import { createBuiltinWorkspaceTools } from "./builtin-tools";
 import { createEditTools } from "./edit-tools";
@@ -27,6 +29,11 @@ export interface ToolsPluginConfig {
   includeBuiltins?: boolean;
   executeCommand?: ShellService["execute"];
   describeCommandShell?: () => Promise<string>;
+  /** 执行前沙箱判定；未装配时不做限制（由调用方自行保证边界）。 */
+  sandbox?: {
+    checkWrite(targetPath: string, policy: SandboxPolicy): SandboxDecision;
+    checkCommand(command: string, policy: SandboxPolicy): SandboxDecision;
+  };
   /** 前台命令超时后转后台任务的可选兜底，由 Jobs 服务在装配时注册。 */
   onCommandTimeout?: CommandTimeoutHandler;
 }
@@ -35,10 +42,12 @@ export interface ToolsPluginConfig {
 export class ToolsService extends Service {
   private readonly registry = new Map<string, AgentToolDefinition>();
   private commandTimeoutHandler: CommandTimeoutHandler | null;
+  private readonly sandbox: ToolsPluginConfig["sandbox"];
 
   constructor(ctx: Context, private readonly config: ToolsPluginConfig = {}) {
     super(ctx, "tools");
     this.commandTimeoutHandler = config.onCommandTimeout ?? null;
+    this.sandbox = config.sandbox;
     if (config.includeBuiltins !== false) {
       const tools = [
         ...createBuiltinWorkspaceTools(config.executeCommand, {
@@ -107,6 +116,30 @@ export class ToolsService extends Service {
     }));
   }
 
+  /** 执行前按策略判定写入与命令；拒绝时返回可展示原因，不执行工具本体。 */
+  private checkSandbox(
+    name: string,
+    args: Record<string, unknown>,
+    execContext: ToolExecutionContext,
+  ): string | null {
+    if (!this.sandbox) return null;
+    const mode = execContext.sandboxMode ?? "workspace-write";
+    const policy: SandboxPolicy = { mode, workspaceRoots: execContext.workspaceRoots };
+    if (name === "write_file" || name === "edit_file") {
+      const rawPath = typeof args.path === "string" ? args.path : "";
+      const base = execContext.workspaceRoots[0] ?? process.cwd();
+      const target = rawPath.startsWith("/") || /^[A-Za-z]:[\\/]/u.test(rawPath) ? rawPath : resolve(base, rawPath);
+      const decision = this.sandbox.checkWrite(target, policy);
+      return decision.allowed ? null : decision.reason;
+    }
+    if (name === "run_command") {
+      const command = typeof args.command === "string" ? args.command : "";
+      const decision = this.sandbox.checkCommand(command, policy);
+      return decision.allowed ? null : decision.reason;
+    }
+    return null;
+  }
+
   async executeTool(
     name: string,
     args: Record<string, unknown>,
@@ -119,6 +152,10 @@ export class ToolsService extends Service {
         output: `未注册的工具：${name}`,
         summary: `工具不存在: ${name}`,
       };
+    }
+    const denial = this.checkSandbox(name, args, execContext);
+    if (denial) {
+      return { ok: false, output: denial, summary: `沙箱拒绝: ${denial.slice(0, 60)}` };
     }
     try {
       return await tool.execute(args, execContext);
@@ -143,3 +180,5 @@ declare module "@deepseek-ai/cordis" {
     tools: ToolsService;
   }
 }
+/** 默认导出插件本体，供 Cordis Loader 以包名直接装载。 */
+export default toolsPlugin;

@@ -199,3 +199,5 @@ declare module "@deepseek-ai/cordis" {
     shell: ShellService;
   }
 }
+/** 默认导出插件本体，供 Cordis Loader 以包名直接装载。 */
+export default shellPlugin;

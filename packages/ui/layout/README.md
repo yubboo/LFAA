@@ -1,9 +1,31 @@
-# LFAA Workbench Layout
+---
+description: "Four-column shell: navigation, sidebars, context panel, and the workbench contribution service."
+kind: "package"
+---
 
-Shared three-region layout contract and browser shell for LFAA applications. The regions are primary navigation, section navigation, and workspace. The shell includes the screenshot-referenced navigation rail, collapsible sections, mode selector, activity panel, local navigation search, local project list, appearance settings, and user menu.
+# @lfaa/ui-layout
 
-On phones, the bottom navigation shows Home, More, and the user menu. Images, scheduled tasks, Library, Plugins, and other apps are available under More. On tablets and desktops, the Plugins icon opens the Plugins page directly, and the vertical navigation supports pinning shortcuts.
+English | [中文](README.zh.md)
 
-Desktop resize limits use the width remaining after the primary navigation rail. The section sidebar defaults to at most 15% and can be manually widened to 25%. The context panel can grow to 75%. The main workspace keeps at least 10% and at least 360px. Expanding the section sidebar pushes the workspace and context panel to the right until the context panel reaches its minimum width. Expanding the context panel takes space from the workspace and keeps the section sidebar in place. Saved widths are constrained to the current space when the window resizes or reloads.
+## Summary
 
-Project names, pinned app entries, and appearance preference are saved in this browser. Sites is pinned by default; app entries can be pinned or unpinned from the More menu. Recent navigation is kept for the current page session and resets on refresh. Search covers navigation and local projects; activity and pinned conversation sections show truthful empty states until those services exist. Image generation, scheduled tasks, library, plugins, sites, maps, GPT, code review, and external providers are navigation-only destinations until their services are integrated. The mode selector is visual only. Account, invitation, and companion services are not connected and are identified as unavailable. Feature packages provide their own browser UI and connect through public slot contracts defined with actual consumers.
+Four-column shell: navigation, sidebars, context panel, and the workbench contribution service.
+
+This package lives in `packages/ui/layout`.
+
+## Exports
+
+| Entry | Target | Purpose |
+|---|---|---|
+| `.` | `./lib/index.js` | Host entry (default-exports the plugin) |
+| `./src/*` | `./src/*` | Source escape hatch for this repository's tooling |
+| `./client` | `./client/index.tsx` | Browser entry consumed by Vite |
+| `./package.json` | `./package.json` | Package manifest |
+
+## Dependencies
+
+No workspace dependencies.
+
+## Dev Note
+
+None.

@@ -1,3 +1,30 @@
+---
+description: "Resolves the local Bash flavour (Git Bash, WSL, or native) for command execution."
+kind: "package"
+---
+
 # @lfaa/bash-local
 
-提供原生 Bash、Windows Git Bash 与 WSL 的执行参数。Git Bash 从标准安装目录或已加入 PATH 的 Git 安装解析。WSL 通过其启动器接收当前经过授权的 Windows 工作目录。
+English | [中文](README.zh.md)
+
+## Summary
+
+Resolves the local Bash flavour (Git Bash, WSL, or native) for command execution.
+
+This package lives in `packages/shell/bash-local`.
+
+## Exports
+
+| Entry | Target | Purpose |
+|---|---|---|
+| `.` | `./lib/index.js` | Host entry (default-exports the plugin) |
+| `./src/*` | `./src/*` | Source escape hatch for this repository's tooling |
+| `./package.json` | `./package.json` | Package manifest |
+
+## Dependencies
+
+- `@lfaa/shell`
+
+## Dev Note
+
+None.

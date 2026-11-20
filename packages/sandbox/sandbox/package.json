@@ -1,0 +1,38 @@
+{
+  "name": "@lfaa/sandbox",
+  "description": "LFAA 沙箱抽象契约：文件影响模式、沙箱策略与执行前判定接口，不绑定具体后端。",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./lib/index.js",
+  "types": "./lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "src"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yubboo/LFAA.git",
+    "directory": "packages/sandbox/sandbox"
+  },
+  "scripts": {
+    "typecheck": "tsc -b ."
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "typescript": "^5.9.3"
+  }
+}

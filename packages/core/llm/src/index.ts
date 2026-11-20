@@ -441,3 +441,5 @@ declare module "@deepseek-ai/cordis" {
     llm: LlmService;
   }
 }
+/** 默认导出插件本体，供 Cordis Loader 以包名直接装载。 */
+export default llmPlugin;

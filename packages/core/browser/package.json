@@ -2,14 +2,18 @@
   "name": "@lfaa/browser",
   "description": "LFAA 内置浏览器服务与可视化控制面板：遵循 DSH browser-use 独占注册契约，基于 playwright-core 复用本机 Edge/Chrome 驱动。",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./client": "./client/index.tsx"
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./src/*": "./src/*",
+    "./client": "./client/index.tsx",
+    "./package.json": "./package.json"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc -b ."
   },
   "dependencies": {
     "@deepseek-ai/cordis": "^4.1.0",
@@ -23,5 +27,20 @@
     "@types/node": "^24.10.0",
     "@types/react": "^19.3.0",
     "typescript": "^5.9.3"
+  },
+  "main": "./lib/index.js",
+  "types": "./lib/types/index.d.ts",
+  "files": [
+    "lib",
+    "src",
+    "client"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yubboo/LFAA.git",
+    "directory": "packages/core/browser"
   }
 }

@@ -1,0 +1,26 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types",
+    "types": ["node"]
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../../core/agent" },
+    { "path": "../../core/browser" },
+    { "path": "../../bundle/web" },
+    { "path": "../../core/chat" },
+    { "path": "../../core/jobs" },
+    { "path": "../../core/llm" },
+    { "path": "../../core/memory" },
+    { "path": "../../extension/plugins" },
+    { "path": "../../core/rules" },
+    { "path": "../../workspace/sections" },
+    { "path": "../../extension/skills" },
+    { "path": "../../core/subagent" },
+    { "path": "../../workspace/workspace" },
+    { "path": "../../api/gateway" },
+    { "path": "../../sandbox/sandbox-local" }
+  ]
+}

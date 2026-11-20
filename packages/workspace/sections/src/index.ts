@@ -123,3 +123,5 @@ declare module "@deepseek-ai/cordis" {
     sections: SectionsService;
   }
 }
+/** 默认导出插件本体，供 Cordis Loader 以包名直接装载。 */
+export default sectionsPlugin;

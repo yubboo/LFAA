@@ -412,3 +412,28 @@ details[open] > summary > .chevron {
   background: transparent;
   color: var(--color-ink);
 }
+
+/* 运行中文案：渐变流体，颜色沿文字横向流动，用主题强调色派生 */
+.activityTitle {
+  background-image: linear-gradient(
+    100deg,
+    var(--color-accent) 0%,
+    color-mix(in oklab, var(--color-accent) 45%, var(--color-ink)) 35%,
+    var(--color-accent) 60%,
+    color-mix(in oklab, var(--color-accent) 60%, var(--color-muted)) 100%
+  );
+  background-size: 260% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  animation: textFlow 5.5s linear infinite;
+}
+
+@keyframes textFlow {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 260% 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .activityTitle { animation: none; }
+}

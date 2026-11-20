@@ -239,3 +239,70 @@
   .anchor { position: static; }
   .popover { width: min(17.5rem, 100%); }
 }
+
+/* 会话模式：输入框上方的模式切换，与工作位置并排 */
+.modeRow {
+  position: relative;
+  display: inline-flex;
+}
+
+.modeTrigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.modeTrigger:hover {
+  color: var(--color-ink);
+  border-color: var(--color-accent);
+}
+
+.modeMenu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 30;
+  width: 280px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-radius: 12px;
+  border: 1px solid var(--color-line);
+  background: var(--color-popover, var(--color-surface));
+  box-shadow: var(--color-menu-shadow);
+}
+
+.modeItem {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 8px;
+  padding: 7px 9px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.modeItem:hover {
+  background: var(--color-menu-hover);
+}
+
+.modeName {
+  font-size: 0.78rem;
+}
+
+.modeDesc {
+  grid-column: 1 / -1;
+  font-size: 0.7rem;
+  color: var(--color-muted);
+}

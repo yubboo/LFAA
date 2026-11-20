@@ -1,7 +1,18 @@
 {
-  "extends": "../../../tsconfig.json",
+  "extends": "../../../tsconfig.base.json",
   "compilerOptions": {
-    "types": ["react", "react-dom", "node"]
+    "rootDir": "src",
+    "outDir": "lib/types",
+    "types": ["node"]
   },
-  "include": ["src", "client", "tests"]
+  "include": ["src"],
+  "references": [
+    { "path": "../browser" },
+    { "path": "../llm" },
+    { "path": "../metrics" },
+    { "path": "../settings" },
+    { "path": "../memory" },
+    { "path": "../../ui/layout" },
+    { "path": "../../ui/primitives" }
+  ]
 }

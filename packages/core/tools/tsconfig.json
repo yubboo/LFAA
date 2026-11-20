@@ -1,7 +1,15 @@
 {
-  "extends": "../../../tsconfig.json",
+  "extends": "../../../tsconfig.base.json",
   "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types",
     "types": ["node"]
   },
-  "include": ["src", "tests"]
+  "include": ["src"],
+  "references": [
+    { "path": "../fs" },
+    { "path": "../guard" },
+    { "path": "../../shell/shell" },
+    { "path": "../../sandbox/sandbox" }
+  ]
 }

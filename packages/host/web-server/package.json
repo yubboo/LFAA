@@ -1,0 +1,54 @@
+{
+  "name": "@lfaa/web-server",
+  "description": "LFAA Web 宿主服务：装配 bundle、挂载各能力 HTTP 接口并托管 Vite 开发服务器。",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./lib/index.js",
+  "types": "./lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "src"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yubboo/LFAA.git",
+    "directory": "packages/host/web-server"
+  },
+  "scripts": {
+    "typecheck": "tsc -b ."
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "^4.1.0",
+    "@lfaa/agent": "workspace:*",
+    "@lfaa/browser": "workspace:*",
+    "@lfaa/bundle-web": "workspace:*",
+    "@lfaa/chat": "workspace:*",
+    "@lfaa/jobs": "workspace:*",
+    "@lfaa/llm": "workspace:*",
+    "@lfaa/memory": "workspace:*",
+    "@lfaa/plugins": "workspace:*",
+    "@lfaa/rules": "workspace:*",
+    "@lfaa/sections": "workspace:*",
+    "@lfaa/skills": "workspace:*",
+    "@lfaa/subagent": "workspace:*",
+    "@lfaa/workspace": "workspace:*",
+    "vite": "^8.3.8",
+    "@lfaa/api-gateway": "workspace:*",
+    "@lfaa/sandbox-local": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "typescript": "^5.9.3"
+  }
+}

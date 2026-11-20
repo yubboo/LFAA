@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="LFAA">
+  <!-- LFAA 应用图标：圆角方块 + 中心留白，与 favicon.ico 保持一致 -->
+  <rect x="1" y="1" width="30" height="30" rx="8" fill="#3b82f6" />
+  <rect x="9" y="9" width="14" height="14" rx="3" fill="#ffffff" />
+</svg>

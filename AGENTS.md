@@ -6,7 +6,9 @@
 
 - 使用 TypeScript + React（TS/TSX）+ CSS Modules + pnpm Monorepo + Cordis 插件机制。
 - 主包位于 `packages/<group>/<package>`（`pnpm-workspace.yaml` 含 `packages/*/*`）。
+- **包必须先分类再创建**：新增包必须落在已登记分组（`api` / `bundle` / `core` / `host` / `ui` / `workspace` / `shell` / `util` / `test-support` 等），完整职责与决策流程见 [包分类规范](docs/architecture/package-taxonomy.md)。禁止在 `packages/` 根目录建散包，禁止东放西放；接口边界进 `api/`，装配进 `bundle/`，内核进 `core/`。`pnpm check` 的 `package-group` 规则会拒绝未登记分组。
 - `apps/` 只负责启动、平台适配和插件装配；主要业务核心在 `packages/`。
+- **装配必须下沉到包**：`apps/` 禁止自建服务端装配文件（如 `server.ts`）与 HTTP 路由注册；服务实现放 `packages/host/*`，装配组合放 `packages/bundle/*`，`apps/web` 只保留前端资源。`apps/` 只允许导入 `@lfaa/*/client` 或显式 boot 包（`@lfaa/web-server`），由 `pnpm check` 的 `app-host-import` 规则强制。
 - 项目按需保留 `docs/`、`native/`、`patches/`、`scripts/`、`vendor/`；不得创建无用途的空壳包。
 - 参考 DeepSeek Harness 架构，但不是旧项目的延续，不得导入此前项目专用逻辑与目录名。
 
@@ -22,6 +24,7 @@
 - Host 代码禁止导入 React、DOM、CSS；Client 代码禁止导入 Node 专有实现、凭据或 Host 内部模块。
 - 共享基础 UI 独立放在 `packages/ui/primitives`、`packages/ui/theme`、`packages/ui/slots` 等真正通用包。
 - 每个插件应具有明确 Service 定义、`inject`、公开导出和生命周期清理；禁止跨包深层导入和循环依赖。
+- **插件包必须默认导出插件本体**：Host 侧 `src/index.ts` 需 `export default xxxPlugin`。Cordis Loader 按 `default` 取插件，只有具名导出会导致「装得上但拿不到插件」；`pnpm check` 的 `plugin-default-export` 规则会强制这一条。
 
 ## 2.1 首版主界面布局约定
 
@@ -34,7 +37,7 @@
 
 ## 2.2 浅色/深色双主题与 CSS 变量规范（强制）
 
-- **禁止硬编码主题色**：所有组件样式中的背景、边框、文字、悬停/激活态与强调色，必须优先使用 `@lfaa/ui-theme` 提供的语义化 CSS 变量（`var(--color-canvas)`、`var(--color-surface)`、`var(--color-panel)`、`var(--color-line)`、`var(--color-active)`、`var(--color-ink)`、`var(--color-muted)`、`var(--color-accent)`、`var(--color-accent-rgb)` 等），禁止写死暗色或亮色十六进制/RGBA（如 `#111216`、`rgba(24, 25, 30, 0.96)`、`rgb(255 255 255 / 0.14)`），也禁止引用不存在的变量回退到暗色（如 `var(--color-bg, #111216)`、`var(--glass-card-bg, rgba(24, 25, 30, 0.96))`）。
+- **禁止硬编码主题色**：所有组件样式中的背景、边框、文字、悬停/激活态与强调色，必须优先使用 `@lfaa/ui-theme` 提供的语义化 CSS 变量（`var(--color-canvas)`、`var(--color-surface)`、`var(--color-panel)`、`var(--color-line)`、`var(--color-active)`、`var(--color-ink)`、`var(--color-muted)`、`var(--color-accent)`、`var(--color-accent-rgb)`、`var(--color-danger)` 等），禁止写死暗色或亮色十六进制/RGBA（如 `#111216`、`rgba(24, 25, 30, 0.96)`、`rgb(255 255 255 / 0.14)`），也禁止引用不存在的变量回退到暗色（如 `var(--color-bg, #111216)`、`var(--glass-card-bg, rgba(24, 25, 30, 0.96))`）。
 - **状态色与玻璃态双端适配**：若语义色（如增删绿/红、错误红）或半透明边框在浅色/深色下对比度不足，必须通过 `:global(:root[data-resolved-theme="light"])` 显式提供浅色适配值。
 - **双主题实测验收**：涉及 Web UI 的每次修改，交付前须同时在**深色与浅色主题**下目视/实测确认文字对比度、弹窗、输入框及悬浮层均正常。
 
@@ -54,7 +57,8 @@
 - 新建前检查目录命名；重命名须修复 import/exports/测试/文档，不能只靠大小写区分文件；旧文件不得未经批准全量重命名。
 - 文件名必须**短、准确、有语义**：普通手写文件基础名建议不超过 30 个英文字符、原则上不超过 3 个语义单词；超过 40 个字符必须解释（固定工具/协议/生成名例外）。
 - 禁止 `Workspace-Client-Menu-Navigation-Panel-View.tsx` 等无意义长串、`Data.ts` / `Helper.ts` / `Final2.ts` 等含糊名、`xwsp-hnd.ts` 等自造缩写。优先 `Workspace-Menu.tsx`、`session-service.ts` 等“实体 + 职责”命名；先用目录上下文减重复、再查是否混合职责。
-- 功能 Client 使用 `locales.ts` 管理中英文字典，`css-modules.d.ts` 声明样式模块；包 README 翻译源采用 `README.i18n.yaml`。
+- 功能 Client 使用 `locales.ts` 管理中英文字典，`css-modules.d.ts` 声明样式模块。
+- **每个包必须有双语文档三件套**：`README.md`（英文）、`README.zh.md`（中文）、`README.i18n.yaml`（双语配对哈希记录，由 `pnpm readme:pair -- . --write` 生成，不是翻译源）。三件套由 `pnpm check` 的 `readme-pair` 规则强制；改任一侧后须同步另一侧并重新生成记录。
 - 每个 TS、TSX、JS、MJS、CSS、HTML 源码文件必须有简洁中文文件头，说明职责、关联及运行环境。
 - 重要函数、类、导出/重导出、特殊导入分组、主要 UI 区块和 CSS 分组需有必要中文注释；不逐行解释自明语句，不写冗长废话。
 - 具体边界及例外以详细规范 **§4.1** 为准，变更行为后同步更新注释和 README。

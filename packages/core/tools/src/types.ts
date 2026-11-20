@@ -8,6 +8,8 @@ export interface ToolExecutionContext {
   runId: string;
   signal: AbortSignal;
   allowOutsideWorkspace?: boolean;
+  /** 本次执行的沙箱模式；缺省按工作区可写处理。 */
+  sandboxMode?: "read-only" | "workspace-write" | "danger-full-access";
   onCommandOutput?: (output: string) => void;
 }
 

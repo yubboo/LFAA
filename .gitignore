@@ -4,6 +4,7 @@ node_modules/
 .pnpm-store/
 .npm/
 .yarn/
+lib/
 dist/
 build/
 out/

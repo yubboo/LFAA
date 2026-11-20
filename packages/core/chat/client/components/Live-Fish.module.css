@@ -1,0 +1,49 @@
+/* 小鱼游动动画：水平往返 + 轻微上下浮动 + 尾巴摆动，全部使用主题变量。 */
+.swimmer {
+  display: inline-flex;
+  flex: none;
+  width: 1.35rem;
+  height: 0.9rem;
+  color: var(--color-accent);
+  animation: swimAcross 2.6s ease-in-out infinite;
+}
+
+.fish {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.body {
+  fill: currentColor;
+  opacity: 0.9;
+}
+
+.tail {
+  fill: currentColor;
+  opacity: 0.65;
+  transform-origin: 24px 8px;
+  animation: tailWag 0.7s ease-in-out infinite;
+}
+
+.eye {
+  fill: var(--color-canvas);
+}
+
+@keyframes swimAcross {
+  0% { transform: translateX(0) translateY(0); }
+  25% { transform: translateX(2px) translateY(-1px); }
+  50% { transform: translateX(0) translateY(0); }
+  75% { transform: translateX(-2px) translateY(1px); }
+  100% { transform: translateX(0) translateY(0); }
+}
+
+@keyframes tailWag {
+  0%, 100% { transform: rotate(-9deg); }
+  50% { transform: rotate(9deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .swimmer { animation-duration: 6s; }
+  .tail { animation-duration: 2.4s; }
+}

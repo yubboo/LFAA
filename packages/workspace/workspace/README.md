@@ -1,8 +1,32 @@
-# `@lfaa/workspace`
+---
+description: "Local project CRUD, directory inspection, project menus, and the right-hand workspace panes."
+kind: "package"
+---
 
-Workspace and local-project plugin package for LFAA.
+# @lfaa/workspace
 
-- `src/index.ts`: Host Cordis service (`WorkspaceService`) with zero React/DOM/CSS dependencies.
-- `client/index.tsx`: Browser Cordis plugin (`inject: ["workbench"]`) contributing local project storage, project overview/detail views, creation dialog, and right-side context panels to the four-column Shell.
+English | [中文](README.zh.md)
 
-Creating a project by name uses a same-name folder in the default projects location. If the folder already exists, confirming trust binds the project to it and preserves its contents. The user confirms again if the default path changes before creation.
+## Summary
+
+Local project CRUD, directory inspection, project menus, and the right-hand workspace panes.
+
+This package lives in `packages/workspace/workspace`.
+
+## Exports
+
+| Entry | Target | Purpose |
+|---|---|---|
+| `.` | `./lib/index.js` | Host entry (default-exports the plugin) |
+| `./src/*` | `./src/*` | Source escape hatch for this repository's tooling |
+| `./client` | `./client/index.tsx` | Browser entry consumed by Vite |
+| `./package.json` | `./package.json` | Package manifest |
+
+## Dependencies
+
+- `@lfaa/ui-layout`
+- `@lfaa/ui-primitives`
+
+## Dev Note
+
+None.

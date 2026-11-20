@@ -1,7 +1,18 @@
 {
-  "extends": "../../../tsconfig.json",
+  "extends": "../../../tsconfig.base.json",
   "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types",
     "types": ["node"]
   },
-  "include": ["src", "tests"]
+  "include": ["src"],
+  "references": [
+    { "path": "../context" },
+    { "path": "../guard" },
+    { "path": "../llm" },
+    { "path": "../metrics" },
+    { "path": "../memory" },
+    { "path": "../rules" },
+    { "path": "../tools" }
+  ]
 }

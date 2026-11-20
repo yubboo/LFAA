@@ -1,3 +1,30 @@
+---
+description: "Resolves PowerShell and CMD invocations for Windows command execution."
+kind: "package"
+---
+
 # @lfaa/pwsh-local
 
-为 Windows PowerShell、PowerShell 7 和显式选择的 CMD 提供启动参数。PowerShell 用 UTF-8 输出，通过独立进程执行脚本。CMD 使用系统安装目录中的解释器。
+English | [中文](README.zh.md)
+
+## Summary
+
+Resolves PowerShell and CMD invocations for Windows command execution.
+
+This package lives in `packages/shell/pwsh-local`.
+
+## Exports
+
+| Entry | Target | Purpose |
+|---|---|---|
+| `.` | `./lib/index.js` | Host entry (default-exports the plugin) |
+| `./src/*` | `./src/*` | Source escape hatch for this repository's tooling |
+| `./package.json` | `./package.json` | Package manifest |
+
+## Dependencies
+
+- `@lfaa/shell`
+
+## Dev Note
+
+None.
