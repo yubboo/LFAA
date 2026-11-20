@@ -1,6 +1,6 @@
 # 插件分层与模式预设
 
-状态：**模型已定，预设数据已落地（DEV-000208）**；全局插件清单扩充与界面分区待实施。
+状态：**模型已定（DEV-000208 / 000209）；全局清单已从 16 项扩到 34 项，P0 全部落地，P1 进行中（DEV-000274 ~ 000289）**。
 
 ## 1. 两层结构（对齐 DSH）
 
@@ -26,10 +26,61 @@
 
 | 项 | DSH | LFAA 现状 |
 |---|---|---|
-| 全局插件数量 | ~100（截图可见 60+） | **14** |
-| 会话/全局分区 | 两段，各自分组 | 只有一段"可安装" |
-| 模式预设 | 标准 / PTC / 极简 / 创造 | **无** |
-| 每项详情 | 完整名称、来自、配置状态、运行状态 | 只有包名 |
+| 全局插件数量 | ~100（截图可见 60+） | **34**（原 14 + web seam / web-fetch-http / goal / tool-goal / timeout-policy / spill-local / plan-mode / fs-observation-policy / compaction-basic / tool-result-pruner / tool-schedule / system-prompt / command-compact / sandbox-policy / message-feedback / attachment-local / session-title / commands） |
+| 会话/全局分区 | 两段，各自分组 | 两段（DEV-000209） |
+| 模式预设 | 标准 / PTC / 极简 / 创造 | 标准 / 极简 / 创造可用，PTC 未接入 |
+| 每项详情 | 完整名称、来自、配置状态、运行状态 | 名称、包名、内置标记、已装配状态 |
+
+## 2.1 已完成（P0 全部 + P1 进行中）
+
+| 包 | 状态 | 说明 |
+|---|---|---|
+| `tool-todo` | 完成 | `todo_write` / `todo_read` |
+| `tool-web` | 完成 | 网页读取工具 |
+| `web`（`packages/web/web`） | 完成 | 网页能力 seam：按优先级注册抓取实现 |
+| `web-fetch-http` | 完成 | HTTP 实现：仅 http/https、超时、字节上限与截断标记 |
+| `goal`（`packages/goal/goal`） | 完成 | 目标服务：`~/.lfaa/goals.json`，进度 + 最近 50 条进展 |
+| `tool-goal` | 完成 | `goal_create` / `goal_update` / `goal_list` |
+| `timeout-policy` | 完成 | 通过 `@lfaa/tools` 的 `useToolMiddleware` 给每次执行套超时，超时中止 signal 并返回可读结果 |
+| `spill-local` | 完成 | 同一 seam 的 `afterExecute`：超长输出落盘 `~/.lfaa/spills/<session>/`，只回首尾窗口与路径（`spill-policy` 的阈值判断已合并进本包配置） |
+| `plan-mode` | 完成 | 计划模式：`plan_mode_enter/exit/status` + 中间件拦截写/执行工具，只读探查保留 |
+| `fs-observation-policy` | 完成（P1 提前） | 写前必读：已存在文件未读过时拦截 `write_file`/`edit_file`，新建文件放行，按会话隔离 |
+| `compaction-basic` | 完成 | 压缩做成 `ctx.compaction` 服务，Agent 运行时优先用它，未挂载回落到内置函数；预算/窗口/保留轮次可配 |
+| `tool-result-pruner` | 完成 | 中间件 `afterExecute`：清 ANSI/空行噪声，按行与字符保首尾并标注省略量，失败结果不动 |
+| `tool-schedule` | 完成 | `schedule_create/list/cancel/due`：一次性与重复任务持久化到 `~/.lfaa/schedules.json`；无后台定时器，到期由工具领取（边界写进 README） |
+| `system-prompt` | 完成 | `ctx.prompt` 分段注册 + `compose()`；Agent 开局取一次追加在系统提示末尾（`RunLoopDeps.extraSystemPrompt`），保持前缀稳定 |
+| `command-compact` | 完成 | `compact_context` 工具向压缩服务登记一次性强制请求，下一次模型调用前按 4k 预算硬压（`compaction-basic` 内实现，Agent 循环零改动） |
+| `sandbox-policy` | 完成（P1 提前） | `ToolsService.setSandboxResolver` seam：按工具指定本次沙箱模式，在判定之前生效；未配置时沿用调用方 |
+| `message-feedback`（`packages/feedback/message-feedback`） | 完成（P1 首项） | 赞/踩与备注持久化到 `~/.lfaa/feedback.json`；`/api/feedback` 支持 GET / POST / DELETE；聊天消息操作栏已接入并可在刷新后回读 |
+| `attachment-local`（`packages/attachment/attachment-local`） | 完成（P1 第二项） | 附件字节落盘 `~/.lfaa/attachments/<session>/`；`/api/attachments` 上传/列出/读取/删除；聊天输入栏附件上传后写入附件库，Agent 可用 `list_attachments` / `read_attachment` 读取 |
+| `session-title`（`packages/session/session-title`） | 完成（P1 第三项） | 启发式简洁标题 + 模型生成（失败自动回落）；`core/session` 的标题函数改为依赖本包；`POST /api/session-title` 已接入 |
+| `commands`（`packages/interaction/commands`） | 完成（P1 第四项） | 斜杠命令注册 seam：`ctx.commands.register` 注册、`/api/commands` 发现与执行；输入栏已合并 Host 命令（`/summarize`、`/explain` 为内置示例） |
+
+接入方式：加入 `bundle/web` 的 `CORE_MODULES` 并挂载，`plugin-catalog.ts` 登记名称/描述，插件页「全局插件」即可见；每个包带双语 README 三件套与回归测试。`@lfaa/tools` 新增 `useToolMiddleware` seam（`aroundExecute` / `afterExecute`），后续超时、精简、落盘类策略都挂在这里，不再各自改工具实现。
+
+## 2.2 未完成（按优先级）
+
+- **P0 已全部落地**（`tool-ask-user` 关闭：由 Agent 内置 `clarificationTool` 与聊天澄清卡片覆盖，不重复建包）。
+- **P1（下一批从这里开始）**：`session-persistence-jsonl`、`session-projection`、`session-query-sqlite`、`permission` / `approval`、`subagent-spawn` / `fork`。
+- **P2**：`mcp-client`、`lsp`、`workflow` / `tool-workflow`、`ptc-runtime`、`otel`、`open-in-app`、`document`、`acp` / `sdk`。
+
+## 2.3 阶段收口（DEV-000283）
+
+本轮全局插件扩充已交付 **14 个新包**（16 → 30 项），全部具备：Host 实现 + 注册进 `CORE_MODULES` + 插件页可见 + 双语 README 三件套 + 回归测试。
+
+配套新增 5 个可复用 seam，后续插件不必再改核心实现：
+
+| seam | 位置 | 用途 |
+|---|---|---|
+| `useToolMiddleware` | `@lfaa/tools` | 包裹执行（超时/取消）与改写结果（精简/落盘），按注册顺序组合 |
+| `setSandboxResolver` | `@lfaa/tools` | 逐次沙箱策略，在判定前决定本次模式 |
+| `ctx.compaction` + `RunLoopDeps.compaction` | `@lfaa/compaction-basic` + agent | 压缩策略可替换，未挂载时回落内置实现 |
+| `ctx.prompt` + `RunLoopDeps.extraSystemPrompt` | `@lfaa/system-prompt` + agent | 插件按序追加系统提示段落，开局取一次 |
+| `ctx.web` | `@lfaa/web` | 网页抓取实现按优先级注册，工具只依赖 seam |
+
+新增包清单（按落地顺序）：`web`、`web-fetch-http`、`goal`、`tool-goal`、`timeout-policy`、`spill-local`、`plan-mode`、`fs-observation-policy`、`compaction-basic`、`tool-result-pruner`、`tool-schedule`、`system-prompt`、`command-compact`、`sandbox-policy`。
+
+**已知约束**：`agent-loop.ts` 恰好 500 行（硬上限），再改必须先拆；`plugins/tool-web` 与两条内置 README 仍缺 YAML 头，属既有豁免。
 
 ## 3. 全局插件清单规划（按 DSH 分组归位）
 

@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import test from "node:test";
-import { API_TOKEN_HEADER, checkApiAuth, createApiGateway, type ApiRoute } from "../src/index";
+import { API_TOKEN_HEADER, checkApiAuth, checkApiWriteContentType, createApiGateway, type ApiRoute } from "../src/index";
 
 /** 构造最小请求/响应替身，只关心被哪个路由命中。 */
 function fakeRequest(url: string): IncomingMessage {
@@ -145,4 +145,61 @@ test("Sec-Fetch-Site 为 cross-site 时直接拒绝，不依赖 Origin 头是否
 
 test("OPTIONS 预检本身放行，避免影响后续合法请求", () => {
   assert.deepEqual(checkApiAuth(authRequest("/api/chat/sessions", "OPTIONS"), OPTIONS), { allowed: true });
+});
+
+/** 构造带请求体长度或传输编码的写请求替身。 */
+function writeRequest(
+  url: string,
+  method: string,
+  headers: Record<string, string> = {},
+): IncomingMessage {
+  return { url, method, headers } as unknown as IncomingMessage;
+}
+
+test("写请求携带请求体时必须是 application/json，否则返回 415", () => {
+  assert.deepEqual(
+    checkApiWriteContentType(writeRequest("/api/chat/sessions", "POST", { "content-length": "12" })),
+    { allowed: false, status: 415, reason: "写接口的请求体必须是 application/json。" },
+  );
+  assert.equal(
+    checkApiWriteContentType(writeRequest("/api/chat/sessions", "POST", {
+      "content-length": "12",
+      "content-type": "text/plain",
+    })).allowed,
+    false,
+  );
+  assert.deepEqual(
+    checkApiWriteContentType(writeRequest("/api/chat/sessions", "POST", {
+      "content-length": "12",
+      "content-type": "application/json; charset=utf-8",
+    })),
+    { allowed: true },
+  );
+});
+
+test("无请求体的写动作与非 /api 路径不受内容类型限制", () => {
+  assert.deepEqual(checkApiWriteContentType(writeRequest("/api/jobs/1/stop", "POST")), { allowed: true });
+  assert.deepEqual(checkApiWriteContentType(writeRequest("/api/agent/trust", "DELETE", { "content-length": "0" })), { allowed: true });
+  assert.deepEqual(
+    checkApiWriteContentType(writeRequest("/src/main.tsx", "POST", { "content-length": "5" })),
+    { allowed: true },
+  );
+  assert.deepEqual(
+    checkApiWriteContentType(writeRequest("/api/chat/sessions", "GET", { "content-length": "5" })),
+    { allowed: true },
+  );
+});
+
+test("分块传输且未声明 JSON 时同样拒绝", () => {
+  assert.equal(
+    checkApiWriteContentType(writeRequest("/api/chat/sessions", "PUT", { "transfer-encoding": "chunked" })).allowed,
+    false,
+  );
+  assert.deepEqual(
+    checkApiWriteContentType(writeRequest("/api/chat/sessions", "PUT", {
+      "transfer-encoding": "chunked",
+      "content-type": "application/json",
+    })),
+    { allowed: true },
+  );
 });

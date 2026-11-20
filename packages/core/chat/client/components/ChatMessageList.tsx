@@ -1,5 +1,6 @@
 // 聊天消息区：空会话引导（标题/副标题/起步提示）与消息线程（按日分隔、用户气泡、助手时间线与完成态操作）。
 import type { RefObject } from "react";
+import { IconArrowRight } from "@tabler/icons-react";
 import type { ChatMessageItem, FilePreviewTab, PendingApprovalBanner } from "../chat-types";
 import type { ChatLocaleMessages } from "../locales";
 import { AssistantTimeline } from "./AssistantTimeline";
@@ -17,12 +18,14 @@ export function ChatMessageList({
   messages,
   lastMessage,
   clarification,
+  starterSuggestions,
   suggestionsByMessage,
   selectedFile,
   pendingApproval,
   memoriesCount,
   isRunning,
   showHomeSuggestions,
+  activeSessionId,
   assistantBodyClass,
   noticeLinkClass,
   onOpenFilePreview,
@@ -39,12 +42,14 @@ export function ChatMessageList({
   messages: ChatMessageItem[];
   lastMessage: ChatMessageItem | undefined;
   clarification: ChatMessageItem["clarification"];
+  starterSuggestions: string[] | null;
   suggestionsByMessage: Record<string, string[]>;
   selectedFile: FilePreviewTab | undefined;
   pendingApproval: PendingApprovalBanner | null;
   memoriesCount: number;
   isRunning: boolean;
   showHomeSuggestions: boolean;
+  activeSessionId: string | null | undefined;
   assistantBodyClass: string | undefined;
   noticeLinkClass: string | undefined;
   onOpenFilePreview: (messageId: string, stepId: string) => void;
@@ -62,7 +67,26 @@ export function ChatMessageList({
       <div className={styles.hero}>
         <h1 className={styles.heroTitle}>{locale.welcomeHeadline}</h1>
         <p className={styles.heroSubtitle}>{locale.welcomeSubtitle}</p>
-        {showHomeSuggestions && (
+        {showHomeSuggestions && (starterSuggestions && starterSuggestions.length > 0 ? (
+          <div className={styles.projectStarters} role="list">
+            {starterSuggestions.map((prompt, index) => (
+              <button
+                key={prompt}
+                type="button"
+                role="listitem"
+                className={styles.projectStarterBtn}
+                onClick={() => onSubmitQuestion(prompt)}
+              >
+                <span className={styles.projectStarterIndex}>{index + 1}</span>
+                <span className={styles.projectStarterText}>{prompt}</span>
+                {index === 0 && (
+                  <span className={styles.projectStarterRecommended}>{locale.isZh ? "推荐" : "Recommended"}</span>
+                )}
+                <IconArrowRight size={14} stroke={1.8} className={styles.projectStarterArrow} aria-hidden="true" />
+              </button>
+            ))}
+          </div>
+        ) : (
           <div className={styles.starters}>
             {[locale.starterInspect, locale.starterMemory, locale.starterRules].map((prompt) => (
               <button
@@ -75,7 +99,7 @@ export function ChatMessageList({
               </button>
             ))}
           </div>
-        )}
+        ))}
       </div>
     );
   }
@@ -116,6 +140,7 @@ export function ChatMessageList({
               onOpenTrace={(stepId) => onOpenTrace(msg.id, stepId)}
               selectedFileStepId={selectedFile?.messageId === msg.id ? selectedFile.stepId : undefined}
               bodyClassName={assistantBodyClass ?? ""}
+              onSelectAdvice={(text) => onSubmitQuestion(text)}
             />
             <EditedFilesCard
               isZh={locale.isZh}
@@ -127,6 +152,8 @@ export function ChatMessageList({
             {msg.status !== "streaming" && msg.content.trim() && (
               <AssistantMessageActions
                 isZh={locale.isZh}
+                sessionId={activeSessionId ?? ""}
+                messageId={msg.id}
                 content={msg.content}
                 createdAt={msg.createdAt}
                 model={msg.model}
@@ -147,6 +174,7 @@ export function ChatMessageList({
             )}
             {msgIdx === messages.length - 1 && !isRunning && msg.status !== "streaming" && msg.content.trim() && (
               <FollowUpSuggestions
+                isZh={locale.isZh}
                 suggestions={suggestionsByMessage[msg.id] ?? []}
                 onSelect={(question) => onSubmitQuestion(question)}
               />

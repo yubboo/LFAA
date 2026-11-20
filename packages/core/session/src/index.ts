@@ -2,4 +2,4 @@
 export * from "./types";
 export * from "./session-store";
 export * from "./session-digest";
-export * from "./session-title";
+export { generateConciseSessionTitle } from "@lfaa/session-title";

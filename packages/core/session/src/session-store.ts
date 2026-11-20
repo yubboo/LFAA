@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { collectHistoryDigest, formatHistoryDigest } from "./session-digest";
-import { generateConciseSessionTitle } from "./session-title";
+import { generateConciseSessionTitle } from "@lfaa/session-title";
 import type {
   ChatMessageRecord,
   ChatSessionRecord,

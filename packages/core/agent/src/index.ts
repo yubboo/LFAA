@@ -9,6 +9,7 @@ import { readActivitySource } from "./activity-file";
 import { registerAgentLibraryTools } from "./builtin-agent-tools";
 import { SmartTrustStore } from "./permission-policy";
 import { beginAgentRun, type SkillCatalogProvider, type SkillResolver } from "./run-begin";
+import type { CompactionHook } from "./run-types";
 import { pendingApprovalSummary, type ActiveRunRecord } from "./run-records";
 import {
   maskRunId,
@@ -100,12 +101,16 @@ export class AgentService extends Service {
   }
 
   private async beginRun(input: StartAgentRunInput, resolveRoots?: (projectId: string | null) => Promise<string[]>) {
+    const compaction = this.ctx.get("compaction") as CompactionHook | undefined;
+    const prompt = this.ctx.get("prompt") as { compose(): Promise<string> } | undefined;
     return beginAgentRun({
       llm: this.ctx.llm,
       tools: this.ctx.tools,
       memory: this.ctx.memory,
       rules: this.ctx.rules,
       trustStore: this.trustStore,
+      ...(compaction ? { compaction } : {}),
+      ...(prompt ? { extraSystemPrompt: () => prompt.compose() } : {}),
       skillResolver: this.skillResolver,
       skillCatalogProvider: this.skillCatalogProvider,
       onRunCreated: (record) => {

@@ -6,19 +6,37 @@ import { agentPlugin } from "@lfaa/agent";
 import { resolveBash } from "@lfaa/bash-local";
 import { browserPlugin } from "@lfaa/browser";
 import { chatPlugin } from "@lfaa/chat";
+import commandCompactPlugin from "@lfaa/command-compact";
+import compactionBasicPlugin from "@lfaa/compaction-basic";
+import fsObservationPlugin from "@lfaa/fs-observation-policy";
+import { goalPlugin } from "@lfaa/goal";
 import { jobsPlugin } from "@lfaa/jobs";
 import { llmPlugin } from "@lfaa/llm";
 import { memoryPlugin } from "@lfaa/memory";
 import { pluginsPlugin } from "@lfaa/plugins";
+import planModePlugin from "@lfaa/plan-mode";
 import { resolveCmd, resolvePowerShell } from "@lfaa/pwsh-local";
 import { rulesPlugin } from "@lfaa/rules";
+import sandboxPolicyPlugin from "@lfaa/sandbox-policy";
 import { sectionsPlugin } from "@lfaa/sections";
 import { shellPlugin } from "@lfaa/shell";
 import { skillsPlugin } from "@lfaa/skills";
+import spillLocalPlugin from "@lfaa/spill-local";
+import systemPromptPlugin from "@lfaa/system-prompt";
 import { subagentPlugin } from "@lfaa/subagent";
+import timeoutPolicyPlugin from "@lfaa/timeout-policy";
+import toolGoalPlugin from "@lfaa/tool-goal";
+import toolResultPrunerPlugin from "@lfaa/tool-result-pruner";
+import toolSchedulePlugin from "@lfaa/tool-schedule";
+import feedbackPlugin from "@lfaa/message-feedback";
+import attachmentPlugin from "@lfaa/attachment-local";
+import sessionTitlePlugin from "@lfaa/session-title";
+import commandsPlugin from "@lfaa/commands";
 import toolTodoPlugin from "@lfaa/tool-todo";
 import toolWebPlugin from "@lfaa/tool-web";
 import { toolsPlugin } from "@lfaa/tools";
+import { webPlugin } from "@lfaa/web";
+import httpFetchPlugin from "@lfaa/web-fetch-http";
 import { workspacePlugin } from "@lfaa/workspace";
 
 export { CORE_MODULES, OPTIONAL_MODULES } from "./presets";
@@ -102,10 +120,37 @@ export const webBundlePlugin: Plugin.Object<WebBundleConfig> = {
       describeCommandShell: async () => `run_command 的当前 Shell 为 ${SHELL_NAMES[await currentShellKind(ctx)] ?? "Bash"}。请使用该 Shell 的原生命令语法和路径格式。`,
     });
     const skillsFiber = ctx.plugin(skillsPlugin);
-    // 待办工具依赖工具注册表，排在 toolsFiber 之后。
+    // 网页能力 seam 先于抓取实现挂载，目标服务先于目标工具挂载。
+    const webFiber = ctx.plugin(webPlugin);
+    const webFetchFiber = ctx.plugin(httpFetchPlugin, {});
+    const goalFiber = ctx.plugin(goalPlugin);
+    // 待办与目标工具依赖工具注册表，排在 toolsFiber 之后。
     const toolTodoFiber = ctx.plugin(toolTodoPlugin);
     const toolWebFiber = ctx.plugin(toolWebPlugin);
-    await Promise.all([sectionsFiber, workspaceFiber, llmFiber, rulesFiber, memoryFiber, shellFiber, toolsFiber, skillsFiber, toolTodoFiber, toolWebFiber]);
+    const toolGoalFiber = ctx.plugin(toolGoalPlugin);
+    const toolScheduleFiber = ctx.plugin(toolSchedulePlugin, {});
+    // 消息反馈服务只做持久化，不依赖工具注册表。
+    const feedbackFiber = ctx.plugin(feedbackPlugin, {});
+    // 附件存储依赖工具注册表（read_attachment / list_attachments），排在 tools 之后。
+    const attachmentFiber = ctx.plugin(attachmentPlugin, {});
+    // 标题服务依赖模型服务，排在 llm 之后。
+    const sessionTitleFiber = ctx.plugin(sessionTitlePlugin);
+    // 斜杠命令注册表只依赖自身，先于界面装配更稳。
+    const commandsFiber = ctx.plugin(commandsPlugin);
+    // 执行策略中间件挂在工具注册表之后：写前必读 → 超时兜底 → 计划模式 → 长结果落盘。
+    const observationFiber = ctx.plugin(fsObservationPlugin, {});
+    const timeoutFiber = ctx.plugin(timeoutPolicyPlugin, {});
+    const planModeFiber = ctx.plugin(planModePlugin, {});
+    // 精简必须在落盘之前：先把常规噪声与超长片段压掉，真正超大的再由 spill 落盘。
+    const prunerFiber = ctx.plugin(toolResultPrunerPlugin, {});
+    const spillFiber = ctx.plugin(spillLocalPlugin, {});
+    // 压缩服务要先于 agent 挂载，agent 启动运行时才能拿到 ctx.compaction。
+    const compactionFiber = ctx.plugin(compactionBasicPlugin, {});
+    // 提示词服务必须在 agent 之前挂载，运行开局才能合成插件段落。
+    const promptFiber = ctx.plugin(systemPromptPlugin);
+    const compactCommandFiber = ctx.plugin(commandCompactPlugin);
+    const sandboxPolicyFiber = ctx.plugin(sandboxPolicyPlugin, {});
+    await Promise.all([sectionsFiber, workspaceFiber, llmFiber, rulesFiber, memoryFiber, shellFiber, toolsFiber, skillsFiber, webFiber, webFetchFiber, goalFiber, toolTodoFiber, toolWebFiber, toolGoalFiber, toolScheduleFiber, feedbackFiber, attachmentFiber, sessionTitleFiber, commandsFiber, observationFiber, timeoutFiber, planModeFiber, prunerFiber, spillFiber, compactionFiber, promptFiber, compactCommandFiber, sandboxPolicyFiber]);
 
     const loaderFiber = ctx.plugin(Loader, { baseUrl: config.loaderBaseUrl });
     await loaderFiber;

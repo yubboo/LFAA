@@ -6,7 +6,7 @@
 
 Host 接口挂在 Vite 开发服务器的 middleware 上，只监听 `127.0.0.1`。监听回环不等于安全：
 浏览器里的任意网页、其他标签页、扩展都能向 `http://127.0.0.1:<port>` 发请求，而其中
-`GET /api/plugins/add/stream` 会安装插件（`pnpm add` + 动态装载），`POST /api/llm/profiles`
+`POST /api/plugins/add/stream` 会安装插件（`pnpm add` + 动态装载），`POST /api/llm/profiles`
 能改写档案地址并保留旧 API Key。没有鉴权时，这两条都不需要知道任何秘密即可触发。
 
 ## 机制
@@ -33,6 +33,19 @@ Host 接口挂在 Vite 开发服务器的 middleware 上，只监听 `127.0.0.1`
 
 令牌同时存在于请求头与查询串时以请求头为准；查询串方式仅对 `GET` 生效。
 
+## 写请求内容类型（纵深防御）
+
+鉴权通过之后，`lfaa-host-apis` 还会对写请求调用 `checkApiWriteContentType`：非只读方法只要携带请求体，就必须声明 `application/json`，否则直接返回 `415`，不进入业务处理器。
+
+| 条件 | 结果 |
+|---|---|
+| 路径不是 `/api/*`，或方法为 `GET`/`HEAD`/`OPTIONS` | 放行 |
+| 无请求体（无 `content-length` 或为 0，且无 `transfer-encoding`） | 放行（启停、中止等动作型 POST） |
+| 有请求体且 `Content-Type` 的 MIME 为 `application/json` | 放行（`charset` 等参数允许） |
+| 有请求体但 MIME 是表单/文本/其他 | `415` |
+
+这样所有带载荷的写入口都统一走 JSON 解析路径，避免表单或纯文本编码绕过 `readJsonBody`。前端 `fetchJson` 与各 client 请求封装已统一附加 `Content-Type: application/json`，浏览器实测不受影响。
+
 ## 安装来源加固（同一轮）
 
 安装来源来自浏览器输入，最终作为 `pnpm add` 的参数执行：
@@ -50,6 +63,9 @@ Host 接口挂在 Vite 开发服务器的 middleware 上，只监听 `127.0.0.1`
 
 ## 后续
 
-- `GET /api/plugins/add/stream` 仍有副作用，计划改为 `POST` + 一次性确认。
-- 写接口尚未强制 `application/json` Content-Type（令牌已挡住跨站，此项属纵深防御）。
 - 修改已有档案的 `baseUrl` 时仍会沿用旧 Key，应改为要求重新输入或显式确认。
+- 同机同权限进程仍可直接读取页面令牌；若要更强边界需要 OS 级沙箱（见 [sandbox](sandbox.md)）。
+
+## 变更记录
+
+- 2026-11-20：`GET /api/plugins/add/stream` 改为 `POST` + JSON 请求体（客户端改用 `fetch` 读 SSE 流），非 POST 返回 `405`；新增写请求 `application/json` 强制校验（`415`），带新增回归测试。

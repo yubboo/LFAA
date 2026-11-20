@@ -98,6 +98,15 @@
   font-weight: 500;
 }
 
+/* 标题右侧的状态控件（会话模式等）：自身不压缩，宽度让给标题省略。 */
+.barTitleActions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  min-width: 0;
+  align-items: center;
+  gap: 0.4rem;
+}
+
 .drawerBackdrop {
   position: fixed;
   z-index: 40;

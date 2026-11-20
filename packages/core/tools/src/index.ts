@@ -12,8 +12,11 @@ import type {
   CommandTimeoutFallbackResult,
   CommandTimeoutHandler,
   PublicToolSummary,
+  SandboxModeResolver,
   ToolExecutionContext,
+  ToolExecutionMiddleware,
   ToolExecutionResult,
+  ToolMiddlewareInfo,
 } from "./types";
 
 export * from "./types";
@@ -41,6 +44,8 @@ export interface ToolsPluginConfig {
 // Host 侧工具服务（Agent 手脚注册表与执行调度）。
 export class ToolsService extends Service {
   private readonly registry = new Map<string, AgentToolDefinition>();
+  private readonly middlewares = new Map<string, ToolExecutionMiddleware>();
+  private sandboxResolver: SandboxModeResolver | null = null;
   private commandTimeoutHandler: CommandTimeoutHandler | null;
   private readonly sandbox: ToolsPluginConfig["sandbox"];
 
@@ -156,6 +161,47 @@ export class ToolsService extends Service {
     return null;
   }
 
+  /** 注册执行中间件（超时、结果精简、落盘等策略），返回注销函数。 */
+  useToolMiddleware(middleware: ToolExecutionMiddleware): () => void {
+    const id = middleware.id.trim();
+    if (!id) throw new Error("工具中间件的 id 不能为空。");
+    this.middlewares.set(id, middleware);
+    return () => {
+      if (this.middlewares.get(id) === middleware) this.middlewares.delete(id);
+    };
+  }
+
+  /** 注册逐次沙箱策略；返回注销函数。策略返回 undefined 时沿用调用方模式。 */
+  setSandboxResolver(resolver: SandboxModeResolver | null): () => void {
+    this.sandboxResolver = resolver;
+    return () => {
+      if (this.sandboxResolver === resolver) this.sandboxResolver = null;
+    };
+  }
+
+  /** 按注册顺序把中间件套在真实执行外并改写结果；任一中间件抛错按工具执行失败处理。 */
+  private async runWithMiddleware(
+    tool: AgentToolDefinition,
+    args: Record<string, unknown>,
+    execContext: ToolExecutionContext,
+  ): Promise<ToolExecutionResult> {
+    const wrappers = [...this.middlewares.values()].filter((middleware) => middleware.aroundExecute);
+    const invoke = (index: number, context: ToolExecutionContext): Promise<ToolExecutionResult> => {
+      const middleware = wrappers[index];
+      if (!middleware?.aroundExecute) return tool.execute(args, context);
+      return middleware.aroundExecute(
+        (nextContext) => invoke(index + 1, nextContext ?? context),
+        { name: tool.name, args, context },
+      );
+    };
+    const info: ToolMiddlewareInfo = { name: tool.name, args, context: execContext };
+    let result = await invoke(0, execContext);
+    for (const middleware of this.middlewares.values()) {
+      if (middleware.afterExecute) result = await middleware.afterExecute(result, info);
+    }
+    return result;
+  }
+
   async executeTool(
     name: string,
     args: Record<string, unknown>,
@@ -172,12 +218,14 @@ export class ToolsService extends Service {
         summary: `工具不存在: ${name}`,
       };
     }
-    const denial = this.checkSandbox(name, args, execContext);
+    const resolvedMode = this.sandboxResolver?.(name, args, execContext);
+    const context = resolvedMode ? { ...execContext, sandboxMode: resolvedMode } : execContext;
+    const denial = this.checkSandbox(name, args, context);
     if (denial) {
       return { ok: false, output: denial, summary: `沙箱拒绝: ${denial.slice(0, 60)}` };
     }
     try {
-      return await tool.execute(args, execContext);
+      return await this.runWithMiddleware(tool, args, context);
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       return {

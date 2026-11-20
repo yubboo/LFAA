@@ -12,6 +12,8 @@ import {
   extractTrailingSlashQuery,
   filterMentionEntries,
   filterSlashCommands,
+  mergeHostCommands,
+  type HostCommandItem,
   type ComposerAttachment,
   type MentionEntry,
   type SlashCommandEntry,
@@ -119,7 +121,22 @@ export function useChatComposer({
     () => (mentionTrigger ? filterMentionEntries(allMentionEntries, mentionTrigger.query) : []),
     [allMentionEntries, mentionTrigger],
   );
-  const allSlashCommands = useMemo(() => buildSlashCommands(locale.isZh), [locale.isZh]);
+  const [hostCommands, setHostCommands] = useState<HostCommandItem[]>([]);
+  // Host 注册的斜杠命令只拉一次；失败时保留内置命令，不阻塞输入。
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/commands")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { commands?: HostCommandItem[] } | null) => {
+        if (!cancelled && Array.isArray(data?.commands)) setHostCommands(data.commands);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+  const allSlashCommands = useMemo(
+    () => mergeHostCommands(buildSlashCommands(locale.isZh), hostCommands, locale.isZh),
+    [hostCommands, locale.isZh],
+  );
   const visibleSlashCommands = useMemo(
     () => (slashTrigger ? filterSlashCommands(allSlashCommands, slashTrigger.query) : []),
     [allSlashCommands, slashTrigger],
@@ -220,6 +237,23 @@ export function useChatComposer({
       nextPos = 0;
     } else if (entry.actionKind === "open_settings") {
       onOpenSettings();
+      return;
+    } else if (entry.actionKind === "host" && entry.hostName) {
+      void fetch("/api/commands/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: entry.hostName }),
+      })
+        .then((res) => (res.ok ? res.json() : res.json().then((data: { error?: string }) => { throw new Error(data.error || `命令执行失败 (${res.status})`); })))
+        .then((data: { prompt?: string; message?: string }) => {
+          if (data.prompt) {
+            setDraft(data.prompt);
+            focusTextareaAt(data.prompt.length);
+          } else if (data.message) {
+            setContextNotice(data.message);
+          }
+        })
+        .catch((error: unknown) => setContextNotice(error instanceof Error ? error.message : String(error)));
       return;
     }
     focusTextareaAt(nextPos);

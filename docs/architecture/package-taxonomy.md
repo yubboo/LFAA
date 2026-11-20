@@ -2,11 +2,22 @@
 
 状态：**强制规范**。新增包必须先按本文找到归属组，再动手；`pnpm check` 的 `package-group` 规则会拒绝未登记的分组。
 
-## 0. 已登记分组（本轮新增 web）
+## 0. 已登记分组（已启用 web / goal / guard / spill / plan / fs / compaction / schedule / feedback / attachment / session / interaction）
 
 | 分组 | 职责 |
 | --- | --- |
-| `web` | 网页访问与抓取工具（`tool-web`；后续 `web` seam 与 `web-fetch-http`）。 |
+| `web` | 网页访问与抓取：`tool-web`、能力 seam `web`、HTTP 实现 `web-fetch-http`。 |
+| `goal` | 长期目标：目标服务 `goal` 与目标工具 `tool-goal`（进度、受阻原因持久化）。 |
+| `guard` | 执行策略：`timeout-policy` 统一工具超时（`core/guard` 是既有的命令安全服务，两者职责不同）。 |
+| `spill` | 长结果治理：`spill-local` 把超长工具输出落盘并只回首尾窗口。 |
+| `plan` | 计划模式：`plan-mode` 用中间件拦截写/执行工具，只留只读探查。 |
+| `fs` | 文件策略：`fs-observation-policy` 强制写前必读（`core/fs` 是路径安全与遍历实现）。 |
+| `compaction` | 上下文治理：`compaction-basic` 提供可替换的压缩服务，`tool-result-pruner` 精简单条工具结果。 |
+| `schedule` | 定时任务：`tool-schedule` 持久化一次性/重复任务并提供领取工具（无后台定时器）。 |
+| `feedback` | 消息反馈：`message-feedback` 持久化对助手回复的赞/踩与备注，供聊天界面回读。 |
+| `attachment` | 会话附件：`attachment-local` 把附件字节存到本机并按会话提供列出/读取工具。 |
+| `session` | 会话领域扩展：`session-title` 提供启发式 + 模型会话标题服务（`core/session` 依赖其纯函数）。 |
+| `interaction` | 交互扩展：`commands` 提供斜杠命令注册 seam（`/api/commands` 发现与执行）。 |
 
 ## 1. 为什么必须先分类
 

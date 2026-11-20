@@ -1,0 +1,14 @@
+# 双语配对记录：按英文标题分段记录英文 / 中文段落哈希。
+# 修改任意一侧后，同步另一侧并重新生成：pnpm run readme:pair -- . --write
+/:
+  en: f726e1e590e44da6
+  zh: 3a4ebe20be9eb0c8
+/kinds:
+  en: 412f940d92a4a174
+  zh: 95ea409972a12032
+/built-ins:
+  en: c8a67a05cccc1cf4
+  zh: cf3ace2062c01c88
+/scope:
+  en: 5d7111ce8bb6db34
+  zh: 31f362758eb7b73e

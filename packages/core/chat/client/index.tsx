@@ -12,6 +12,7 @@ import { GeneralSettingsView } from "./components/GeneralSettingsView";
 import { GitSettingsView } from "./components/GitSettingsView";
 import { LibraryView } from "./components/LibraryView";
 import { SessionOverlays } from "./components/SessionOverlays";
+import { SessionModeBar } from "./components/SessionModeBar";
 import { SessionRowActions } from "./components/SessionRowActions";
 import { StorageSettingsView } from "./components/StorageSettingsView";
 import { getChatLocale } from "./locales";
@@ -248,6 +249,15 @@ export const chatClientPlugin: Plugin.Object<void> = {
       },
     });
 
+    const unregisterTitleAction = context.workbench.registerTitleAction({
+      id: "chat-session-mode",
+      order: 10,
+      render: () => {
+        if (context.workbench.getSnapshot().activeView !== "workspace") return null;
+        return <SessionModeBar store={store} isZh={locale.isZh} />;
+      },
+    });
+
     const unregisterWorkspaceAction = context.workbench.registerWorkspaceAction({
       id: "agent-session-actions",
       order: 5,
@@ -286,6 +296,7 @@ export const chatClientPlugin: Plugin.Object<void> = {
 
     context.effect(() => () => {
       unregisterWorkspaceAction();
+      unregisterTitleAction();
       unregisterContextPanel();
       unregisterCodeReviewView();
       unregisterCodeReviewSettingsView();

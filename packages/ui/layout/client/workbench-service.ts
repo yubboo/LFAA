@@ -10,6 +10,7 @@ import type {
   WorkbenchProjectProvider,
   WorkbenchSectionItem,
   WorkbenchSectionProvider,
+  WorkbenchTitleActionContribution,
   WorkbenchViewContribution,
   WorkbenchWorkspaceActionContribution,
 } from "../contract/index";
@@ -38,6 +39,7 @@ export interface WorkbenchSnapshot {
   views: WorkbenchViewContribution<ReactNode>[];
   contextPanels: WorkbenchContextPanelContribution<ReactNode>[];
   accountActions: WorkbenchAccountActionContribution<ReactNode>[];
+  titleActions: WorkbenchTitleActionContribution<ReactNode>[];
   workspaceActions: WorkbenchWorkspaceActionContribution<ReactNode>[];
   projectProvider: WorkbenchProjectProvider<ReactNode> | null;
   projects: WorkbenchProjectItem[];
@@ -54,6 +56,7 @@ export class WorkbenchClientService extends Service {
   private readonly viewMap = new Map<string, WorkbenchViewContribution<ReactNode>>();
   private readonly panelMap = new Map<string, WorkbenchContextPanelContribution<ReactNode>>();
   private readonly accountActionMap = new Map<string, WorkbenchAccountActionContribution<ReactNode>>();
+  private readonly titleActionMap = new Map<string, WorkbenchTitleActionContribution<ReactNode>>();
   private readonly workspaceActionMap = new Map<string, WorkbenchWorkspaceActionContribution<ReactNode>>();
   private projectProviderValue: WorkbenchProjectProvider<ReactNode> | null = null;
   private unsubscribeProjects: (() => void) | null = null;
@@ -98,6 +101,9 @@ export class WorkbenchClientService extends Service {
     const accountActions = [...this.accountActionMap.values()].sort(
       (left, right) => (left.order ?? 0) - (right.order ?? 0),
     );
+    const titleActions = [...this.titleActionMap.values()].sort(
+      (left, right) => (left.order ?? 0) - (right.order ?? 0),
+    );
     const workspaceActions = [...this.workspaceActionMap.values()].sort(
       (left, right) => (left.order ?? 0) - (right.order ?? 0),
     );
@@ -126,6 +132,7 @@ export class WorkbenchClientService extends Service {
       views: [...this.viewMap.values()],
       contextPanels,
       accountActions,
+      titleActions,
       workspaceActions,
       projectProvider: this.projectProviderValue,
       projects,
@@ -166,6 +173,18 @@ export class WorkbenchClientService extends Service {
     return () => {
       if (this.accountActionMap.get(contribution.id) === contribution) {
         this.accountActionMap.delete(contribution.id);
+        this.emit();
+      }
+    };
+  }
+
+  // 标题右侧的状态控件（如会话模式）与右侧动作分开登记，避免挤占工作台按钮位。
+  registerTitleAction(contribution: WorkbenchTitleActionContribution<ReactNode>): () => void {
+    this.titleActionMap.set(contribution.id, contribution);
+    this.emit();
+    return () => {
+      if (this.titleActionMap.get(contribution.id) === contribution) {
+        this.titleActionMap.delete(contribution.id);
         this.emit();
       }
     };

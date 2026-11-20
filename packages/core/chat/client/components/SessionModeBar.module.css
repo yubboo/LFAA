@@ -1,0 +1,11 @@
+/* 顶栏模式徽标容器：失败时只加一圈提示色，不挤占标题。 */
+.root {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.root[data-failed] {
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px rgb(var(--color-danger-rgb) / 0.45);
+}

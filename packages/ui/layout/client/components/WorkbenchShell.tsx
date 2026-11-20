@@ -152,9 +152,13 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
     if (isCompact) service.setLeftSidebarOpen(false, false);
   }, [chatProvider, isCompact, service]);
 
+  // 在项目上下文里开新聊天时继承当前项目，项目起步建议才能围绕该项目生成。
   const startNewChat = useCallback(
-    () => startChatSession({ unavailableNotice: locale.newChatUnavailable }),
-    [locale.newChatUnavailable, startChatSession],
+    () => startChatSession({
+      projectId: service.getSnapshot().activeProjectId,
+      unavailableNotice: locale.newChatUnavailable,
+    }),
+    [locale.newChatUnavailable, service, startChatSession],
   );
 
   const startNewChatInProject = useCallback(

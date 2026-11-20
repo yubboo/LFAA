@@ -1,4 +1,4 @@
-// 输入栏的会话模式选择与锁定展示，由 Host 提供可用预设。
+// 会话模式选择与锁定展示：渲染在顶栏标题右侧，由 Host 提供可用预设。
 import { useEffect, useState } from "react";
 import { IconLock, IconSparkles } from "@tabler/icons-react";
 import styles from "./Session-Mode.module.css";
@@ -30,12 +30,20 @@ export function SessionMode({ isZh, selected, locked, busy, onSelect }: {
   }, [locked]);
 
   const label = isZh ? "会话模式" : "Session mode";
-  const value = selected ?? (locked ? "" : catalog?.activePreset ?? "");
+  // 早期会话没有记录预设，实际按当时的默认预设运行：展示当前默认预设名，而不是「旧会话」。
+  const value = selected ?? catalog?.activePreset ?? "";
   const name = (preset: ModeCatalog["presets"][number]) => isZh ? preset.name : (preset.nameEn ?? preset.name);
   const current = catalog?.presets.find((preset) => preset.id === value);
+  const defaultPreset = catalog?.presets.find((preset) => preset.id === catalog.activePreset);
   const lockedHint = isZh ? "会话模式已锁定。新建会话可切换。" : "Mode locked. Start a new chat to change it.";
   const unavailable = isZh ? "模式不可用" : "Mode unavailable";
-  const modeName = current ? name(current) : value || (isZh ? "旧会话" : "Legacy chat");
+  const modeName = current
+    ? name(current)
+    : failed
+      ? unavailable
+      : defaultPreset
+        ? name(defaultPreset)
+        : value || label;
 
   return (
     <div className={styles.root}>

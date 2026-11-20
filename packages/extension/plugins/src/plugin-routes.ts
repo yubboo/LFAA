@@ -45,9 +45,16 @@ export function createPluginsHttpHandler(service: PluginsService) {
         return true;
       }
 
-      // 流式安装：GET + SSE，逐行推送 pnpm 输出，最后一条 done 携带完整状态。
-      if (method === "GET" && pathname === "/api/plugins/add/stream") {
-        const spec = urlObj.searchParams.get("spec") ?? "";
+      // 流式安装：POST + JSON 请求体 + SSE 响应，逐行推送 pnpm 输出，最后一条 done 携带完整状态。
+      // 安装会写入 profile 依赖，必须保持非幂等语义，因此不再接受 GET 触发。
+      if (pathname === "/api/plugins/add/stream" && method !== "POST") {
+        res.setHeader("Allow", "POST");
+        sendJson(res, 405, { error: "流式安装只接受 POST。" });
+        return true;
+      }
+      if (method === "POST" && pathname === "/api/plugins/add/stream") {
+        const body = await readJsonBody(req);
+        const spec = typeof body.spec === "string" ? body.spec : "";
         res.statusCode = 200;
         res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
         res.setHeader("Cache-Control", "no-cache, no-transform");

@@ -13,7 +13,6 @@ import { ComposerScopeBar } from "./ComposerScopeBar";
 import { MentionPopover, SlashCommandPopover } from "./MentionPopover";
 import { ModelReasoningPicker } from "./ModelReasoningPicker";
 import { PermissionModePicker } from "./PermissionModePicker";
-import { SessionMode } from "./Session-Mode";
 import { SessionStatsBar } from "./SessionStatsBar";
 import styles from "./ChatWorkspace.module.css";
 import composerStyles from "./ChatWorkspace.composer.module.css";
@@ -82,7 +81,7 @@ export function ChatComposer({
   const removeAttachment = (id: string) => setAttachments((prev) => prev.filter((x) => x.id !== id));
 
   return (
-    <div className={composerStyles.composerStack}>
+    <div className={styles.composerStack}>
       {clarification && (
         <ClarificationCard key={lastMessageId} isZh={locale.isZh} prompt={clarification}
           busy={state.submittingMessage || isRunning}
@@ -293,6 +292,7 @@ export function ChatComposer({
           <div className={composerStyles.controls}>
             <ComposerAddMenu
               locale={locale}
+              sessionId={activeSession?.id ?? ""}
               fileInputRef={fileInputRef}
               onAttachItems={appendAttachments}
               onTriggerMention={() => {
@@ -318,16 +318,6 @@ export function ChatComposer({
               locale={locale}
               mode={state.permissionMode}
               onSelectMode={(nextMode) => void store.setPermissionMode(nextMode)}
-            />
-
-            <SessionMode
-              isZh={locale.isZh}
-              selected={activeSession ? activeSession.sessionPreset : state.draftSessionPreset}
-              locked={messagesCount > 0 || isRunning}
-              busy={Boolean(state.submittingMessage)}
-              onSelect={(id) => void store.selectSessionPreset(id).catch((error: unknown) => {
-                setContextNotice(error instanceof Error ? error.message : String(error));
-              })}
             />
 
             {activeSession && (

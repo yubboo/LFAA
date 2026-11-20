@@ -118,8 +118,9 @@ test("完成后进度正文和步骤默认仍可见", () => {
 });
 
 test("文件活动保留文件入口，命令活动提供轨迹入口", () => {
+  const locale = getChatLocale();
   const html = renderToStaticMarkup(createElement(AssistantTimeline, {
-    locale: getChatLocale(), content: "完成", progressText: "检查", createdAt: 1, isStreaming: false,
+    locale, content: "完成", progressText: "检查", createdAt: 1, isStreaming: false,
     pendingApproval: null, onResolveApproval: () => {}, onOpenFile: () => {}, onOpenTrace: () => {},
     steps: [
       { id: "file", iteration: 1, phase: "act", status: "done", title: "写入", toolName: "write_file", toolTarget: "src/a.ts", timestamp: 2 },
@@ -128,7 +129,8 @@ test("文件活动保留文件入口，命令活动提供轨迹入口", () => {
   }));
   assert.match(html, /title="src\/a\.ts"/u);
   assert.match(html, /<summary class="activityRow" data-kind="command"/u);
-  assert.match(html, /class="traceLink">View<\/button>/u);
+  // 轨迹入口文案随语言切换，使用同一 locale 断言避免本机中文环境误报。
+  assert.ok(html.includes(`class="traceLink">${locale.isZh ? "查看" : "View"}</button>`));
 });
 
 test("流式工具轮次完成后进入下一轮思考时，底部持续显示实时运行状态行", () => {

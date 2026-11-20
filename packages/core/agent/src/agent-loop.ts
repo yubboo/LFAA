@@ -1,5 +1,5 @@
 // 实现 Agent 核心任务循环：思考（Think）-> 行动（Act）-> 检查（Check）。
-import { compactConversation, DEFAULT_CONTEXT_BUDGET_CHARS, isContextOverflowError } from "@lfaa/context";
+import { DEFAULT_CONTEXT_BUDGET_CHARS, isContextOverflowError } from "@lfaa/context";
 import { REPEAT_THRESHOLDS, RepeatCallTracker } from "@lfaa/guard";
 import { type LlmGenerateOutput, type LlmMessage, type LlmUsage } from "@lfaa/llm";
 import type { AgentRunCost, AgentRunMetrics, AgentStepTrace, UserClarification } from "@lfaa/memory";
@@ -18,6 +18,8 @@ import { finishWithClarification } from "./agent-completion";
 import { runFallbackConclusion } from "./agent-fallback";
 import { RunUsageTracker } from "./agent-usage";
 import { runActPhase } from "./act-runner";
+import { compactForRun } from "./run-compaction";
+import { renderSystemContent } from "./run-system";
 import { clarificationTool } from "./clarification";
 import { completeAgentRound } from "./model-round";
 import type { RunExecutionParams, RunLoopDeps } from "./run-types";
@@ -69,17 +71,16 @@ export async function executeAgentTaskLoop(
   );
   const tracker = new RunUsageTracker(params, activeProfile, tokenPricing);
 
-  const skillsCatalogHint = buildSkillsCatalogHint(params.availableSkillCatalog);
   const shellHint = deps.tools.getTool("run_command") ? await deps.tools.describeCommandShell() : "";
+  const extraSystemHint = deps.extraSystemPrompt ? (await deps.extraSystemPrompt()).trim() : "";
   const systemMessage: LlmMessage = { role: "system", content: "" };
   let truncationHint = "";
   const updateSystemMessage = (remainingSteps?: number) => {
-    // 步数只在接近上限时才写进 system，避免每轮改动前缀、让提示缓存整段失效。
-    const budgetHint = remainingSteps !== undefined && remainingSteps <= 8
-      ? `\n步数预算：本轮仅剩 ${remainingSteps} 次工具步数，已接近上限。请先完成关键动作并收口；任务仍大时先交付可运行的一小步。`
-      : "";
-    const digestHint = historyDigest ? `\n前序工具轨迹（来自历史步骤，可直接复用，无需重复探查）：${historyDigest}` : "";
-    systemMessage.content = `${systemPrompt}\n\n${MODE_HINTS[params.getPermissionMode()]}\n${workspaceHint}\n${modelHint ? `${modelHint}\n` : ""}${shellHint ? `${shellHint}\n` : ""}${libraryHint}\n${FORMAT_HINT}\n${buildProgressHint(deps, params)}${skillsCatalogHint}${skillsSection}${digestHint}${budgetHint}${truncationHint}`;
+    systemMessage.content = renderSystemContent({
+      systemPrompt, permissionHint: MODE_HINTS[params.getPermissionMode()], workspaceHint, modelHint, shellHint,
+      libraryHint, progressHint: `${FORMAT_HINT}\n${buildProgressHint(deps, params)}`, skillsCatalogHint: buildSkillsCatalogHint(params.availableSkillCatalog), skillsSection,
+      historyDigest, ...(remainingSteps !== undefined ? { remainingSteps } : {}), truncationHint, extraSystemHint,
+    });
   };
   const conversation: LlmMessage[] = [systemMessage];
   if (contextWindow.summaryNote) {
@@ -161,7 +162,7 @@ export async function executeAgentTaskLoop(
     let firstTokenAt: number | undefined;
     updateSystemMessage(Math.max(0, budget - iteration + 1));
     // 发送前按预算压缩：保留结构与最近轮次，早期工具结果压成尾部片段。
-    const compaction = compactConversation(conversation, { budgetChars: contextBudgetChars });
+    const compaction = compactForRun(deps.compaction, conversation, { budgetChars: contextBudgetChars });
     if (compaction.compacted) {
       conversation.splice(0, conversation.length, ...compaction.messages);
       conversation[0] = systemMessage;
@@ -242,7 +243,7 @@ export async function executeAgentTaskLoop(
       // 供应商报“上下文超限”时不再直接失败：强制压缩一半预算后重试一次。
       if (overflowRetried || !isContextOverflowError(error)) throw error;
       overflowRetried = true;
-      const forced = compactConversation(conversation, {
+      const forced = compactForRun(deps.compaction, conversation, {
         budgetChars: Math.floor(contextBudgetChars / 2),
         toolCapChars: 600,
         keepRecentRounds: 2,

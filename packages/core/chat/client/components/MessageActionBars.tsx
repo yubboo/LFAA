@@ -19,6 +19,7 @@ import { HoverTip } from "@lfaa/ui-primitives/client";
 import type { AgentStepItem } from "../chat-types";
 import { collectEditedFiles } from "../file-activity";
 import { timelineMessages } from "../locales";
+import { useMessageFeedback } from "../useMessageFeedback";
 import styles from "./MessageActionBars.module.css";
 
 const WEEKDAYS_ZH = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
@@ -112,6 +113,8 @@ export function AssistantMessageActions({
   createdAt,
   model,
   memoryRefCount,
+  sessionId,
+  messageId,
   onBranchToNewChat,
 }: {
   isZh: boolean;
@@ -119,11 +122,13 @@ export function AssistantMessageActions({
   createdAt: number;
   model?: string | undefined;
   memoryRefCount: number;
+  sessionId: string;
+  messageId: string;
   onBranchToNewChat: () => void;
 }) {
   const [copied, setCopied] = useState(false);
-  const [liked, setLiked] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  const { liked, toggleLiked } = useMessageFeedback(sessionId, messageId);
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
 
@@ -184,7 +189,7 @@ export function AssistantMessageActions({
           className={`${styles.iconBtn} ${liked ? styles.iconBtnActive : ""}`}
           aria-label={isZh ? "评价回复" : "Rate reply"}
           aria-pressed={liked}
-          onClick={() => setLiked((prev) => !prev)}
+          onClick={() => void toggleLiked()}
         >
           <IconThumbUp size={14} stroke={1.8} />
         </button>
@@ -349,10 +354,14 @@ export function EditedFilesCard({
 }
 
 /** 展示可继续发送的建议问题，将选中的文本交给调用方。 */
+
+/** 模型/回答给出的后续建议：编号后由用户自行选择，点击即作为下一条消息发送。 */
 export function FollowUpSuggestions({
+  isZh,
   suggestions,
   onSelect,
 }: {
+  isZh: boolean;
   suggestions: string[];
   onSelect: (question: string) => void;
 }) {
@@ -360,15 +369,17 @@ export function FollowUpSuggestions({
 
   return (
     <div className={styles.followUpList} role="list">
-      {suggestions.map((question) => (
+      {suggestions.map((question, index) => (
         <button
-          key={question}
+          key={`${index}-${question}`}
           type="button"
           className={styles.followUpBtn}
           role="listitem"
           onClick={() => onSelect(question)}
         >
-          <span>{question}</span>
+          <span className={styles.followUpIndex}>{index + 1}</span>
+          <span className={styles.followUpText}>{question}</span>
+          {index === 0 && <span className={styles.followUpRecommended}>{isZh ? "推荐" : "Recommended"}</span>}
           <IconArrowRight size={14} stroke={1.8} className={styles.followUpArrow} />
         </button>
       ))}

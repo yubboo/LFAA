@@ -6,6 +6,7 @@ import type { ChatClientStore } from "../chat-store";
 import type { ChatMessageItem } from "../chat-types";
 import type { ChatLocaleMessages } from "../locales";
 import { collectEditedFiles } from "../file-activity";
+import { extractAdviceOptions } from "../advice-options";
 import { useChatScroll } from "../useChatScroll";
 import { ChatAnchorBar, buildTurnAnchors } from "./ChatAnchorBar";
 import { ChatComposer } from "./ChatComposer";
@@ -40,6 +41,8 @@ export function ChatWorkspace({
   const [view, setView] = useState<"chat" | "trace">("chat");
   const [traceTarget, setTraceTarget] = useState<{ messageId: string; stepId: string } | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  // 项目起步建议：空会话且绑定项目时按项目缓存一次，围绕该项目给出起步请求。
+  const [startersByProject, setStartersByProject] = useState<Record<string, string[]>>({});
   // 追问建议由模型生成：按消息 id 缓存，失败或为空则不展示（不回退模板）。
   const [suggestionsByMessage, setSuggestionsByMessage] = useState<Record<string, string[]>>({});
   const [bindingProject, setBindingProject] = useState(false);
@@ -56,11 +59,40 @@ export function ChatWorkspace({
   const latestAdded = latestFiles.reduce((sum, file) => sum + file.added, 0);
   const latestRemoved = latestFiles.reduce((sum, file) => sum + file.removed, 0);
 
-  // 最后一条助手消息完成后，向 Host 请求模型生成的追问建议（按消息缓存）。
+  const activeProjectId = activeSession ? activeSession.projectId : state.draftProjectId;
+
+  // 空会话且绑定项目时，向 Host 请求围绕该项目的起步建议（按项目缓存，失败回退通用引导）。
+  useEffect(() => {
+    if (messages.length > 0 || !activeProjectId || !state.generalSettings.homeSuggestions) return;
+    if (startersByProject[activeProjectId]) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/chat/starter-suggestions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ projectId: activeProjectId }),
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as { suggestions?: string[] };
+        if (cancelled || !Array.isArray(data.suggestions) || data.suggestions.length === 0) return;
+        setStartersByProject((prev) => ({ ...prev, [activeProjectId]: data.suggestions ?? [] }));
+      } catch {
+        // 生成失败时回退到通用引导。
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [messages.length, activeProjectId, state.generalSettings.homeSuggestions, startersByProject]);
+
+  // 智能建议：回答里的「建议/下一步」清单在正文内联为编号选项（不重复出现在底部）；
+  // 底部生成式推荐只在新会话的第一轮触发，多轮后不再机械追问。
   useEffect(() => {
     const last = messages[messages.length - 1];
     if (!last || last.role !== "assistant" || last.status === "streaming" || last.clarification || !last.content.trim()) return;
     if (suggestionsByMessage[last.id]) return;
+    if (extractAdviceOptions(last.content).length >= 2) return;
+    const assistantTurns = messages.filter((message) => message.role === "assistant").length;
+    if (assistantTurns !== 1) return;
     const prompt = messages[messages.length - 2]?.role === "user" ? (messages[messages.length - 2]?.content ?? "") : "";
     let cancelled = false;
     void (async () => {
@@ -72,16 +104,19 @@ export function ChatWorkspace({
         });
         if (!res.ok) return;
         const data = (await res.json()) as { suggestions?: string[] };
-        if (cancelled || !Array.isArray(data.suggestions) || data.suggestions.length === 0) return;
-        setSuggestionsByMessage((prev) => ({ ...prev, [last.id]: data.suggestions ?? [] }));
+        if (cancelled || !Array.isArray(data.suggestions)) return;
+        const fresh = data.suggestions
+          .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+          .slice(0, 3);
+        if (fresh.length === 0) return;
+        setSuggestionsByMessage((prev) => ({ ...prev, [last.id]: fresh }));
       } catch {
-        // 生成失败时不展示建议，不回退到模板。
+        // 生成失败时不出选项，不回退到模板。
       }
     })();
     return () => { cancelled = true; };
   }, [messages, suggestionsByMessage]);
 
-  const activeProjectId = activeSession ? activeSession.projectId : state.draftProjectId;
   const activeProfile = state.profiles.find((p) => p.id === state.activeProfileId) ?? state.profiles[0];
   const needsApiKey = Boolean(activeProfile && activeProfile.kind !== "ollama" && !activeProfile.hasApiKey);
   const isRunning = Boolean(state.runningRunId);
@@ -169,12 +204,14 @@ export function ChatWorkspace({
           messages={messages}
           lastMessage={lastMessage}
           clarification={clarification}
+          starterSuggestions={activeProjectId ? startersByProject[activeProjectId] ?? null : null}
           suggestionsByMessage={suggestionsByMessage}
           selectedFile={selectedFile}
           pendingApproval={state.pendingApproval}
           memoriesCount={state.memories.length}
           isRunning={isRunning}
           showHomeSuggestions={state.generalSettings.homeSuggestions}
+          activeSessionId={activeSession?.id ?? ""}
           assistantBodyClass={styles.assistantBody}
           noticeLinkClass={composerStyles.noticeLink}
           threadRef={threadRef}

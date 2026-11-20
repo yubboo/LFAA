@@ -32,7 +32,9 @@ export function useChatScroll(sessionId: string | null, latestTurnId: string | u
     // 流结束时也定位一次，接住与最终正文一起出现的交付卡片。
     if (followBottom.current) scrollToLatest();
     const observer = new ResizeObserver(() => {
-      if (streaming && followBottom.current) {
+      // 跟随只取决于读者是否仍贴底：交付卡片、追问建议和消息页脚都在流结束后才挂载，
+      // 若只在 streaming 期间定位，这些后到的增高会把视口留在半途。
+      if (followBottom.current) {
         scrollToLatest();
       } else {
         setShowScrollBottom(viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight > BOTTOM_THRESHOLD);

@@ -12,6 +12,8 @@ registerHooks({ load(url, context, nextLoad) {
   return nextLoad(url, context);
 } });
 const { ConversationTrace } = await import("../client/components/Conversation-Trace");
+// 组件文案随本机语言切换，断言使用同一份 locale，避免 en-US 之外的环境误报。
+const locale = getChatLocale();
 
 test("轨迹按正文与步骤顺序展示运行中的真实数据", () => {
   const html = renderToStaticMarkup(createElement(ConversationTrace, {
@@ -22,7 +24,7 @@ test("轨迹按正文与步骤顺序展示运行中的真实数据", () => {
   }));
   assert.ok(html.indexOf("先检查") < html.indexOf("读取文件"));
   assert.ok(html.indexOf("读取文件") < html.indexOf("再回答"));
-  assert.match(html, /Running/u);
+  assert.ok(html.includes(locale.isZh ? "进行中" : "Running"));
 });
 
 test("来自对话的定位选中对应消息步骤", () => {
@@ -33,5 +35,5 @@ test("来自对话的定位选中对应消息步骤", () => {
     ] })),
   }));
   assert.match(html, /aria-pressed="true"/u);
-  assert.match(html, /Event details/u);
+  assert.ok(html.includes(locale.isZh ? "轨迹详情" : "Event details"));
 });

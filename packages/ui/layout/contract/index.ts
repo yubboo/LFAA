@@ -79,6 +79,13 @@ export interface WorkbenchWorkspaceActionContribution<TContent = unknown> {
   render: (context: { compact: boolean; rightPanelOpen: boolean; rightPanelMaximized: boolean }) => TContent;
 }
 
+// 业务插件向顶栏标题右侧贡献轻量状态控件（如会话模式徽标）的契约；与右侧动作分开排序。
+export interface WorkbenchTitleActionContribution<TContent = unknown> {
+  id: string;
+  order?: number;
+  render: (context: { compact: boolean }) => TContent;
+}
+
 // 分区提供方插件契约，由 @lfaa/sections 贡献并在左侧栏展示与管理自定义分区。
 export interface WorkbenchSectionProvider<TContent = unknown> {
   getSections: () => WorkbenchSectionItem[];

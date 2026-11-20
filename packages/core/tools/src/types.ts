@@ -90,3 +90,36 @@ export interface CommandTimeoutFallbackResult {
 export type CommandTimeoutHandler = (
   input: CommandTimeoutFallbackInput,
 ) => Promise<CommandTimeoutFallbackResult | null>;
+
+/** 中间件拿到的本次调用信息；around 可替换执行上下文（例如换上带超时的 signal）。 */
+export interface ToolMiddlewareInfo {
+  name: string;
+  args: Record<string, unknown>;
+  context: ToolExecutionContext;
+}
+
+/**
+ * 逐次沙箱策略：按工具与调用上下文决定本次使用的沙箱模式；返回 undefined 表示沿用调用方。
+ * 策略插件（如 sandbox-policy）通过 ToolsService.setSandboxResolver 注册。
+ */
+export type SandboxModeResolver = (
+  name: string,
+  args: Record<string, unknown>,
+  context: ToolExecutionContext,
+) => ToolExecutionContext["sandboxMode"] | undefined;
+
+/**
+ * 工具执行中间件，供超时策略、结果精简与长结果落盘等策略插件接入。
+ * aroundExecute 包裹真实执行（按注册顺序由外到内），afterExecute 按顺序改写结果。
+ */
+export interface ToolExecutionMiddleware {
+  id: string;
+  aroundExecute?: (
+    next: (context?: ToolExecutionContext) => Promise<ToolExecutionResult>,
+    info: ToolMiddlewareInfo,
+  ) => Promise<ToolExecutionResult>;
+  afterExecute?: (
+    result: ToolExecutionResult,
+    info: ToolMiddlewareInfo,
+  ) => Promise<ToolExecutionResult> | ToolExecutionResult;
+}

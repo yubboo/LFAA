@@ -1,7 +1,7 @@
 // 助手消息富文本 Markdown 渲染组件：消除原始 ** / - 等标记符，提供精美排版、表格、代码块语法高亮与一键复制。
 import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { IconCheck, IconCopy } from "@tabler/icons-react";
-import { parseMarkdownBlocks, tokenizeCodeLines } from "../markdown-parser";
+import { isAdviceHeading, parseMarkdownBlocks, tokenizeCodeLines } from "../markdown-parser";
 import styles from "./MarkdownContent.module.css";
 
 const INLINE_RE =
@@ -15,6 +15,16 @@ const ASCII_ENUM_RE =
 
 function isSafeLink(href: string): boolean {
   return /^(https?:\/\/|mailto:|\/)/i.test(href);
+}
+
+/** 去掉行内 Markdown 标记，得到可直接发送的纯文本建议。 */
+function plainText(text: string): string {
+  return text
+    .replace(/`([^`]*)`/gu, "$1")
+    .replace(/\*\*([^*]*)\*\*/gu, "$1")
+    .replace(/__([^_]*)__/gu, "$1")
+    .replace(/\[([^\]]*)\]\([^)]*\)/gu, "$1")
+    .trim();
 }
 
 /** 将普通文本中的显式文件名（含扩展名）或连续英文目录/文件枚举渲染为清晰的行内胶囊 */
@@ -158,11 +168,30 @@ function CodeBlockCard({
 export function MarkdownContent({
   content,
   isZh = true,
+  onSelectAdvice,
 }: {
   content: string;
   isZh?: boolean;
+  /** 点击「建议/下一步」列表项时回调，用于把该条建议直接作为下一条消息发送。 */
+  onSelectAdvice?: ((text: string) => void) | undefined;
 }) {
   const blocks = useMemo(() => parseMarkdownBlocks(content), [content]);
+  // 标记每个块是否属于「建议/下一步」段落：属于则列表项渲染为编号可点选项。
+  const adviceFlags = useMemo(() => {
+    let active = false;
+    return blocks.map((block) => {
+      if (block.type === "heading") {
+        active = isAdviceHeading(block.text);
+        return false;
+      }
+      // 有的回答用加粗短句引出建议（如「下一步去哪些页面」），同样视为建议段落起点。
+      if (block.type === "paragraph" && block.text.trim().length <= 80 && isAdviceHeading(block.text)) {
+        active = true;
+        return false;
+      }
+      return active;
+    });
+  }, [blocks]);
 
   return (
     <div className={styles.root}>
@@ -171,9 +200,11 @@ export function MarkdownContent({
         switch (block.type) {
           case "heading": {
             const level = Math.min(4, Math.max(1, block.level));
-            const cls = styles[`h${level}`];
+            const base = styles[`h${level}`];
+            // 建议/下一步类标题用强调色突出，Agent 的结论推荐一眼可见。
+            const cls = isAdviceHeading(block.text) ? `${base} ${styles.adviceHeading}` : base;
             return (
-              <div key={key} role="heading" aria-level={block.level} className={cls}>
+              <div key={key} role="heading" aria-level={block.level} className={cls} data-advice={isAdviceHeading(block.text) ? "true" : undefined}>
                 {renderInline(block.text, key)}
               </div>
             );
@@ -207,7 +238,30 @@ export function MarkdownContent({
                 </table>
               </div>
             );
-          case "list":
+          case "list": {
+            // 建议段落的列表项：编号 + 可点击，直接作为下一条消息发送（用户自行选择）。
+            if (adviceFlags[idx] && onSelectAdvice) {
+              return (
+                <div key={key} className={styles.adviceOptions} role="list">
+                  {block.items.map((item, itemIdx) => (
+                    <button
+                      key={itemIdx}
+                      type="button"
+                      role="listitem"
+                      className={styles.adviceOptionBtn}
+                      onClick={() => onSelectAdvice(plainText(item))}
+                    >
+                      <span className={styles.adviceOptionIndex}>{itemIdx + 1}</span>
+                      <span className={styles.adviceOptionText}>{renderInline(item, `${key}-li-${itemIdx}`)}</span>
+                      {itemIdx === 0 && (
+                        <span className={styles.adviceOptionRecommended}>{isZh ? "推荐" : "Recommended"}</span>
+                      )}
+                      <span className={styles.adviceOptionArrow} aria-hidden="true">→</span>
+                    </button>
+                  ))}
+                </div>
+              );
+            }
             return block.ordered ? (
               <ol key={key} className={styles.ol}>
                 {block.items.map((item, itemIdx) => (
@@ -221,6 +275,7 @@ export function MarkdownContent({
                 ))}
               </ul>
             );
+          }
           case "blockquote":
             return (
               <blockquote key={key} className={styles.blockquote}>

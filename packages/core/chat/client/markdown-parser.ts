@@ -2,6 +2,17 @@
 
 export type TableAlign = "left" | "center" | "right";
 
+/** 建议类标题：命中后整段用强调色突出，便于一眼看到 Agent 给出的下一步建议。 */
+const ADVICE_HEADING_ZH = /建议|下一步|推荐|执行顺序|行动项|后续步骤|可改进|待办|方案/iu;
+const ADVICE_HEADING_EN = /suggest|next step|recommend|plan|todo|action item|improve/iu;
+
+/** 判断标题是否属于「建议/下一步」类，供渲染层加强调样式。 */
+export function isAdviceHeading(text: string): boolean {
+  const value = text.trim();
+  if (!value) return false;
+  return ADVICE_HEADING_ZH.test(value) || ADVICE_HEADING_EN.test(value);
+}
+
 /** 描述解析出的 Markdown 文档块，由对应视图渲染。 */
 export type MarkdownBlock =
   | { type: "heading"; level: number; text: string }

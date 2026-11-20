@@ -9,6 +9,8 @@ export interface ComposerAttachment {
   label: string;
   detail?: string;
   contentPreview?: string;
+  /** 已上传到本机会话附件库后的 id；Agent 可用 read_attachment 读取。 */
+  attachmentId?: string;
   modeId?: "goal" | "plan";
   skillId?: string;
 }
@@ -66,7 +68,41 @@ export interface SlashCommandEntry {
   command: string;
   title: string;
   desc: string;
-  actionKind: "mode_plan" | "mode_goal" | "new_chat" | "clear_draft" | "open_settings";
+  actionKind: "mode_plan" | "mode_goal" | "new_chat" | "clear_draft" | "open_settings" | "host";
+  /** Host 注册命令的名称（不含前导 /），仅 actionKind === "host" 时存在。 */
+  hostName?: string;
+}
+
+/** Host 通过 /api/commands 暴露的命令视图。 */
+export interface HostCommandItem {
+  name: string;
+  title: string;
+  description: string;
+  argsHint?: string;
+  kind: "prompt" | "message";
+  source: string;
+}
+
+/** 把 Host 注册命令合并进客户端内置斜杠命令列表。 */
+export function mergeHostCommands(
+  base: SlashCommandEntry[],
+  hostCommands: HostCommandItem[],
+  isZh: boolean,
+): SlashCommandEntry[] {
+  const merged = [...base];
+  for (const command of hostCommands) {
+    const slash = `/${command.name}`;
+    if (merged.some((entry) => entry.command === slash)) continue;
+    merged.push({
+      id: `host-${command.name}`,
+      command: slash,
+      title: command.title,
+      desc: command.argsHint ? `${command.description} ${isZh ? "参数" : "args"}：${command.argsHint}` : command.description,
+      actionKind: "host",
+      hostName: command.name,
+    });
+  }
+  return merged;
 }
 
 /** 组装输入框当前能提供的斜杠命令及其语言标签。 */
@@ -243,7 +279,8 @@ export function buildContextualMessage(userText: string, attachments: ComposerAt
     } else if (item.kind === "folder") {
       blocks.push(`[附加文件夹：${item.label}]${item.contentPreview ? `\n${item.contentPreview}` : ""}`);
     } else {
-      blocks.push(`[附加文件：${item.label}${item.detail ? ` (${item.detail})` : ""}]${item.contentPreview ? `\n\`\`\`\n${item.contentPreview}\n\`\`\`` : ""}`);
+      const savedHint = item.attachmentId ? `\n附件已保存到本机会话附件库（id=${item.attachmentId}），需要完整原文时调用 read_attachment 读取。` : "";
+      blocks.push(`[附加文件：${item.label}${item.detail ? ` (${item.detail})` : ""}]${savedHint}${item.contentPreview ? `\n\`\`\`\n${item.contentPreview}\n\`\`\`` : ""}`);
     }
   }
 

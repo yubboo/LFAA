@@ -4,7 +4,7 @@ import {
   IconAlertCircle, IconArrowUpRight, IconCheck, IconChevronRight, IconClock,
   IconFileMinus, IconFilePlus, IconFileSearch, IconPencil, IconRobot, IconSparkles, IconTerminal2, IconTool,
 } from "@tabler/icons-react";
-import { getActivityKind, getActivityLabel } from "../activity-label";
+import { getActivityKind, getActivityLabel, getActivitySubject } from "../activity-label";
 import type { AgentStepItem, PendingApprovalBanner } from "../chat-types";
 import { getActivityFilePath, getFileActivityKind } from "../file-activity";
 import { timelineMessages, type ChatLocaleMessages } from "../locales";
@@ -181,7 +181,11 @@ function ActivityGroupRow({ group, locale, createdAt, live, ...fileActions }: {
   const modelState = group.model?.status === "error" ? "modelFailed"
     : group.model?.status === "done" || !group.live ? "thought"
     : group.model ? getLiveStage([group.model], now) : "starting";
-  const summary = current ? [getActivityLabel(current, locale.isZh, true), current.commandTrace?.command].filter(Boolean).join(" ")
+  // 有失败项时用中性动作名，避免「已完成：网页抓取 1 项执行失败」这类自相矛盾的摘要。
+  const summary = current
+    ? [failed > 0 ? getActivitySubject(current, locale.isZh) : getActivityLabel(current, locale.isZh, true), current.commandTrace?.command]
+      .filter(Boolean)
+      .join(" ")
     : labels[modelState];
   const groupLive = live && (Boolean(active) || modelActive);
   return (
@@ -223,6 +227,7 @@ export function AssistantTimeline({
   onOpenTrace,
   selectedFileStepId,
   bodyClassName,
+  onSelectAdvice,
 }: {
   locale: ChatLocaleMessages;
   content: string;
@@ -236,6 +241,7 @@ export function AssistantTimeline({
   pendingApproval: PendingApprovalBanner | null;
   onResolveApproval: (approved: boolean) => void;
   bodyClassName?: string | undefined;
+  onSelectAdvice?: ((text: string) => void) | undefined;
 } & FileActivityActions) {
   const [historyOpen, setHistoryOpen] = useState(true);
   const [liveOpen, setLiveOpen] = useState<boolean>();
@@ -275,7 +281,7 @@ export function AssistantTimeline({
             return (
               <div key={group.key} className={styles.flow}>
                 {precedingText.trim() && (
-                  <div className={bodyClassName}><MarkdownContent content={precedingText} isZh={locale.isZh} /></div>
+                  <div className={bodyClassName}><MarkdownContent content={precedingText} isZh={locale.isZh} onSelectAdvice={onSelectAdvice} /></div>
                 )}
                 <ActivityGroupRow group={group} locale={locale} createdAt={createdAt} live={isStreaming} onOpenFile={onOpenFile} onOpenTrace={onOpenTrace} selectedFileStepId={selectedFileStepId} />
               </div>
@@ -283,13 +289,13 @@ export function AssistantTimeline({
           })}
           {!isStreaming && text.slice(groups.at(-1)?.offset ?? 0).trim() && (
             <div className={bodyClassName}>
-              <MarkdownContent content={text.slice(groups.at(-1)?.offset ?? 0)} isZh={locale.isZh} />
+              <MarkdownContent content={text.slice(groups.at(-1)?.offset ?? 0)} isZh={locale.isZh} onSelectAdvice={onSelectAdvice} />
             </div>
           )}
         </div>
       )}
       {pendingApproval && <TimelineApproval locale={locale} pendingApproval={pendingApproval} onResolveApproval={onResolveApproval} />}
-      {finalText.trim() && <div className={bodyClassName}><MarkdownContent content={finalText} isZh={locale.isZh} /></div>}
+      {finalText.trim() && <div className={bodyClassName}><MarkdownContent content={finalText} isZh={locale.isZh} onSelectAdvice={onSelectAdvice} /></div>}
     </>
   );
 }

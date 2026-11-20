@@ -1,10 +1,18 @@
 // 定义 Agent 运行循环的依赖与输入契约，供循环主体与工具执行器共用，避免循环文件继续膨胀。
-import type { LlmService } from "@lfaa/llm";
+import type { LlmMessage, LlmService } from "@lfaa/llm";
 import type { MemoryService } from "@lfaa/memory";
 import type { RulesService } from "@lfaa/rules";
 import type { ToolsService } from "@lfaa/tools";
 import type { SmartTrustStore } from "./permission-policy";
 import type { AgentPermissionMode, AgentRunEvent, ApprovalAnswer, ResolvedSkillContext } from "./types";
+
+/** 压缩实现的结构化契约：可由 @lfaa/compaction-basic 服务提供，缺省回落到内置函数。 */
+export interface CompactionHook {
+  compact(
+    messages: ReadonlyArray<LlmMessage>,
+    options: { budgetChars: number; toolCapChars?: number; keepRecentRounds?: number },
+  ): { messages: LlmMessage[]; compacted: boolean; truncatedResults: number; droppedMessages: number };
+}
 
 /** 集中提供模型调用、工具执行、事件与持久化依赖，使循环可在测试中独立验证。 */
 export interface RunLoopDeps {
@@ -13,6 +21,10 @@ export interface RunLoopDeps {
   memory: MemoryService;
   rules: RulesService;
   trustStore: SmartTrustStore;
+  /** 可选压缩服务；未挂载 @lfaa/compaction-basic 时使用内置实现。 */
+  compaction?: CompactionHook;
+  /** 可选：由 @lfaa/system-prompt 合成的追加段落，每轮运行取一次。 */
+  extraSystemPrompt?: () => Promise<string>;
 }
 
 /** 描述启动一次运行所需的会话信息与工具权限上下文。 */

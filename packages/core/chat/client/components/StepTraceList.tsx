@@ -1,11 +1,13 @@
 // 显示 Agent 运行用时和现有的工具审批操作。
 import { useEffect, useState } from "react";
 import { IconChevronRight } from "@tabler/icons-react";
-import { getActivityLabel } from "../activity-label";
-import type { AgentStepItem, PendingApprovalBanner } from "../chat-types";
+import { describeStep, getLiveStage } from "../activity-label";
+import type { PendingApprovalBanner } from "../chat-types";
 import { timelineMessages, type ChatLocaleMessages } from "../locales";
 import styles from "./StepTraceList.module.css";
 import approvalStyles from "./StepTraceList.approval.module.css";
+
+export { describeStep, getLiveStage };
 
 /** 以整秒显示实际经过的时间，兼容短于一秒和长时间运行。 */
 export function formatDuration(ms: number, isZh: boolean, showAllUnits = false): string {
@@ -21,44 +23,6 @@ export function formatDuration(ms: number, isZh: boolean, showAllUnits = false):
   return parts.filter(Boolean).join(" ");
 }
 
-/** 把步骤渲染成一句有信息量的话：思考给出具体计划/判断，动作给出目标或命令。 */
-export function describeStep(step: AgentStepItem, isZh: boolean): string {
-  if (step.phase === "think") {
-    const raw = (step.detail || step.title || "").replace(/^第\s*\d+\s*轮\s*/u, "").trim();
-    if (raw) return raw;
-    return step.status === "running" ? (isZh ? "正在思考" : "Thinking") : (isZh ? "已思考" : "Thought");
-  }
-  const label = getActivityLabel(step, isZh, true);
-  const command = step.commandTrace?.command?.trim();
-  if (command && !label.includes(command)) {
-    const short = command.length > 60 ? `${command.slice(0, 60)}…` : command;
-    return `${label} · ${short}`;
-  }
-  const target = step.toolTarget?.trim();
-  if (target && !label.includes(target)) return `${label} · ${target}`;
-  return label;
-}
-
-function getLiveStep(steps: AgentStepItem[]): AgentStepItem | undefined {
-  const recent = [...steps].reverse();
-  return recent.find((step) => step.status === "waiting_approval")
-    ?? recent.find((step) => step.phase === "act" && step.status === "running")
-    ?? recent.find((step) => step.status === "preparing")
-    ?? recent.find((step) => step.phase === "think" && step.status === "running");
-}
-
-/** 使用 Host 步骤更新时间区分活跃阶段和等待阶段。 */
-export function getLiveStage(steps: AgentStepItem[], now: number) {
-  const current = getLiveStep(steps);
-  if (current?.status === "waiting_approval") return "waiting";
-  if (current?.status === "preparing") return now - current.timestamp >= 15_000 ? "waitingTool" : "preparing";
-  if (current?.phase === "act") return current.permissionLevel === "read" ? "exploring" : "executing";
-  if (!current) return "starting";
-  if (now - current.timestamp >= 15_000) return "waitingModel";
-  return current.modelStage ?? "thinking";
-}
-
-/** 把 token 总量格式化为紧凑标签：1200 → 1.2k tokens。 */
 export function formatTokenUsage(
   usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number },
 ): string | undefined {

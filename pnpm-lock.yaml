@@ -94,6 +94,22 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
+  packages/attachment/attachment-local:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
+      '@lfaa/tools':
+        specifier: workspace:*
+        version: link:../../core/tools
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.19.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
   packages/bundle/web:
     dependencies:
       '@deepseek-ai/cordis':
@@ -105,6 +121,9 @@ importers:
       '@lfaa/agent':
         specifier: workspace:*
         version: link:../../core/agent
+      '@lfaa/attachment-local':
+        specifier: workspace:*
+        version: link:../../attachment/attachment-local
       '@lfaa/bash-local':
         specifier: workspace:*
         version: link:../../shell/bash-local
@@ -114,6 +133,21 @@ importers:
       '@lfaa/chat':
         specifier: workspace:*
         version: link:../../core/chat
+      '@lfaa/command-compact':
+        specifier: workspace:*
+        version: link:../../compaction/command-compact
+      '@lfaa/commands':
+        specifier: workspace:*
+        version: link:../../interaction/commands
+      '@lfaa/compaction-basic':
+        specifier: workspace:*
+        version: link:../../compaction/compaction-basic
+      '@lfaa/fs-observation-policy':
+        specifier: workspace:*
+        version: link:../../fs/fs-observation-policy
+      '@lfaa/goal':
+        specifier: workspace:*
+        version: link:../../goal/goal
       '@lfaa/jobs':
         specifier: workspace:*
         version: link:../../core/jobs
@@ -123,6 +157,12 @@ importers:
       '@lfaa/memory':
         specifier: workspace:*
         version: link:../../core/memory
+      '@lfaa/message-feedback':
+        specifier: workspace:*
+        version: link:../../feedback/message-feedback
+      '@lfaa/plan-mode':
+        specifier: workspace:*
+        version: link:../../plan/plan-mode
       '@lfaa/plugins':
         specifier: workspace:*
         version: link:../../extension/plugins
@@ -132,18 +172,42 @@ importers:
       '@lfaa/rules':
         specifier: workspace:*
         version: link:../../core/rules
+      '@lfaa/sandbox-policy':
+        specifier: workspace:*
+        version: link:../../sandbox/sandbox-policy
       '@lfaa/sections':
         specifier: workspace:*
         version: link:../../workspace/sections
+      '@lfaa/session-title':
+        specifier: workspace:*
+        version: link:../../session/session-title
       '@lfaa/shell':
         specifier: workspace:*
         version: link:../../shell/shell
       '@lfaa/skills':
         specifier: workspace:*
         version: link:../../extension/skills
+      '@lfaa/spill-local':
+        specifier: workspace:*
+        version: link:../../spill/spill-local
       '@lfaa/subagent':
         specifier: workspace:*
         version: link:../../core/subagent
+      '@lfaa/system-prompt':
+        specifier: workspace:*
+        version: link:../../core/system-prompt
+      '@lfaa/timeout-policy':
+        specifier: workspace:*
+        version: link:../../guard/timeout-policy
+      '@lfaa/tool-goal':
+        specifier: workspace:*
+        version: link:../../goal/tool-goal
+      '@lfaa/tool-result-pruner':
+        specifier: workspace:*
+        version: link:../../compaction/tool-result-pruner
+      '@lfaa/tool-schedule':
+        specifier: workspace:*
+        version: link:../../schedule/tool-schedule
       '@lfaa/tool-todo':
         specifier: workspace:*
         version: link:../../core/tool-todo
@@ -153,9 +217,69 @@ importers:
       '@lfaa/tools':
         specifier: workspace:*
         version: link:../../core/tools
+      '@lfaa/web':
+        specifier: workspace:*
+        version: link:../../web/web
+      '@lfaa/web-fetch-http':
+        specifier: workspace:*
+        version: link:../../web/web-fetch-http
       '@lfaa/workspace':
         specifier: workspace:*
         version: link:../../workspace/workspace
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.19.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/compaction/command-compact:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
+      '@lfaa/compaction-basic':
+        specifier: workspace:*
+        version: link:../compaction-basic
+      '@lfaa/tools':
+        specifier: workspace:*
+        version: link:../../core/tools
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.19.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/compaction/compaction-basic:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
+      '@lfaa/context':
+        specifier: workspace:*
+        version: link:../../core/context
+      '@lfaa/llm':
+        specifier: workspace:*
+        version: link:../../core/llm
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.19.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/compaction/tool-result-pruner:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
+      '@lfaa/tools':
+        specifier: workspace:*
+        version: link:../../core/tools
     devDependencies:
       '@types/node':
         specifier: ^24.10.0
@@ -397,6 +521,10 @@ importers:
         version: 5.9.3
 
   packages/core/session:
+    dependencies:
+      '@lfaa/session-title':
+        specifier: workspace:*
+        version: link:../../session/session-title
     devDependencies:
       '@types/node':
         specifier: ^24.10.0
@@ -443,6 +571,19 @@ importers:
       '@lfaa/tools':
         specifier: workspace:*
         version: link:../tools
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.19.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/core/system-prompt:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
     devDependencies:
       '@types/node':
         specifier: ^24.10.0
@@ -557,6 +698,86 @@ importers:
         specifier: ^19.3.0
         version: 19.3.0(@types/react@19.3.0)
 
+  packages/feedback/message-feedback:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.19.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/fs/fs-observation-policy:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
+      '@lfaa/fs':
+        specifier: workspace:*
+        version: link:../../core/fs
+      '@lfaa/tools':
+        specifier: workspace:*
+        version: link:../../core/tools
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.19.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/goal/goal:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.19.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/goal/tool-goal:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
+      '@lfaa/goal':
+        specifier: workspace:*
+        version: link:../goal
+      '@lfaa/tools':
+        specifier: workspace:*
+        version: link:../../core/tools
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.19.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/guard/timeout-policy:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
+      '@lfaa/tools':
+        specifier: workspace:*
+        version: link:../../core/tools
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.19.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
   packages/host/web-server:
     dependencies:
       '@deepseek-ai/cordis':
@@ -568,6 +789,9 @@ importers:
       '@lfaa/api-gateway':
         specifier: workspace:*
         version: link:../../api/gateway
+      '@lfaa/attachment-local':
+        specifier: workspace:*
+        version: link:../../attachment/attachment-local
       '@lfaa/browser':
         specifier: workspace:*
         version: link:../../core/browser
@@ -577,6 +801,9 @@ importers:
       '@lfaa/chat':
         specifier: workspace:*
         version: link:../../core/chat
+      '@lfaa/commands':
+        specifier: workspace:*
+        version: link:../../interaction/commands
       '@lfaa/jobs':
         specifier: workspace:*
         version: link:../../core/jobs
@@ -586,6 +813,9 @@ importers:
       '@lfaa/memory':
         specifier: workspace:*
         version: link:../../core/memory
+      '@lfaa/message-feedback':
+        specifier: workspace:*
+        version: link:../../feedback/message-feedback
       '@lfaa/plugins':
         specifier: workspace:*
         version: link:../../extension/plugins
@@ -598,6 +828,9 @@ importers:
       '@lfaa/sections':
         specifier: workspace:*
         version: link:../../workspace/sections
+      '@lfaa/session-title':
+        specifier: workspace:*
+        version: link:../../session/session-title
       '@lfaa/skills':
         specifier: workspace:*
         version: link:../../extension/skills
@@ -610,6 +843,35 @@ importers:
       vite:
         specifier: ^8.3.8
         version: 8.3.8(@types/node@24.19.2)(esbuild@0.28.2)(tsx@4.23.15)
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.19.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/interaction/commands:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.19.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/plan/plan-mode:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
+      '@lfaa/tools':
+        specifier: workspace:*
+        version: link:../../core/tools
     devDependencies:
       '@types/node':
         specifier: ^24.10.0
@@ -639,6 +901,54 @@ importers:
       '@lfaa/sandbox':
         specifier: workspace:*
         version: link:../sandbox
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.19.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/sandbox/sandbox-policy:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
+      '@lfaa/tools':
+        specifier: workspace:*
+        version: link:../../core/tools
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.19.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/schedule/tool-schedule:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
+      '@lfaa/tools':
+        specifier: workspace:*
+        version: link:../../core/tools
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.19.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/session/session-title:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
+      '@lfaa/llm':
+        specifier: workspace:*
+        version: link:../../core/llm
     devDependencies:
       '@types/node':
         specifier: ^24.10.0
@@ -694,6 +1004,22 @@ importers:
       iconv-lite:
         specifier: ^0.7.3
         version: 0.7.3
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.19.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/spill/spill-local:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
+      '@lfaa/tools':
+        specifier: workspace:*
+        version: link:../../core/tools
     devDependencies:
       '@types/node':
         specifier: ^24.10.0
@@ -788,6 +1114,35 @@ importers:
       '@lfaa/tools':
         specifier: workspace:*
         version: link:../../core/tools
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.19.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/web/web:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.19.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/web/web-fetch-http:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
+      '@lfaa/web':
+        specifier: workspace:*
+        version: link:../web
     devDependencies:
       '@types/node':
         specifier: ^24.10.0

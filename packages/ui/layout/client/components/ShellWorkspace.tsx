@@ -37,7 +37,7 @@ export function ShellWorkspace({
   onToggleLeft: () => void;
   onToggleRight: () => void;
 }) {
-  const { activeView, activeProjectId, activeChatSessionId, leftSidebarOpen, rightPanelOpen, projects, views, chatSessions, projectProvider, workspaceActions } = snapshot;
+  const { activeView, activeProjectId, activeChatSessionId, leftSidebarOpen, rightPanelOpen, projects, views, chatSessions, projectProvider, workspaceActions, titleActions } = snapshot;
   const registeredView = views.find((entry) => entry.id === activeView);
   const currentProject = projects.find((project) => project.id === activeProjectId);
   const activeChatSession = activeChatSessionId
@@ -64,6 +64,7 @@ export function ShellWorkspace({
         rightDragCollapsed={rightDragCollapsed}
         compact={isCompact}
         rightPanelMaximized={isRightMaximized}
+        titleActions={titleActions}
         workspaceActions={workspaceActions}
         onToggleLeft={onToggleLeft}
         onToggleRight={onToggleRight}

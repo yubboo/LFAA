@@ -25,6 +25,24 @@
     { "path": "../../core/tools" },
     { "path": "../../workspace/workspace" },
     { "path": "../../core/tool-todo" },
-    { "path": "../../web/tool-web" }
+    { "path": "../../web/tool-web" },
+    { "path": "../../goal/tool-goal" },
+    { "path": "../../goal/goal" },
+    { "path": "../../web/web" },
+    { "path": "../../web/web-fetch-http" },
+    { "path": "../../guard/timeout-policy" },
+    { "path": "../../spill/spill-local" },
+    { "path": "../../plan/plan-mode" },
+    { "path": "../../fs/fs-observation-policy" },
+    { "path": "../../compaction/compaction-basic" },
+    { "path": "../../compaction/tool-result-pruner" },
+    { "path": "../../schedule/tool-schedule" },
+    { "path": "../../feedback/message-feedback" },
+    { "path": "../../attachment/attachment-local" },
+    { "path": "../../session/session-title" },
+    { "path": "../../interaction/commands" },
+    { "path": "../../core/system-prompt" },
+    { "path": "../../compaction/command-compact" },
+    { "path": "../../sandbox/sandbox-policy" }
   ]
 }

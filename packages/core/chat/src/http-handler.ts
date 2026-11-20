@@ -31,6 +31,8 @@ async function readJsonBody(req: IncomingMessage): Promise<Record<string, unknow
 export function createChatHttpHandler(service: ChatService, options: {
   withIdleSession?: <T>(sessionId: string, action: () => Promise<T>) => Promise<T>;
   resolveSessionPreset?: (id?: string) => Promise<{ sessionPreset: string; sessionModules: string[] }>;
+  /** 由 Host 生成项目起步建议；未提供或无项目时返回空数组，客户端回退通用引导。 */
+  suggestStarters?: (input: { projectId: string | null }) => Promise<string[]>;
   /** 由模型生成追问建议；未提供时该接口返回空数组，客户端不展示。 */
   suggestFollowUps?: (input: { userPrompt: string; assistantReply: string }) => Promise<string[]>;
 } = {}) {
@@ -62,6 +64,18 @@ export function createChatHttpHandler(service: ChatService, options: {
           return true;
         }
         const suggestions = await options.suggestFollowUps({ userPrompt, assistantReply });
+        sendJson(res, 200, { suggestions: suggestions.slice(0, 3) });
+        return true;
+      }
+
+      if (method === "POST" && pathname === "/api/chat/starter-suggestions") {
+        const body = await readJsonBody(req);
+        const projectId = typeof body.projectId === "string" && body.projectId.trim() ? body.projectId.trim() : null;
+        if (!options.suggestStarters || !projectId) {
+          sendJson(res, 200, { suggestions: [] });
+          return true;
+        }
+        const suggestions = await options.suggestStarters({ projectId });
         sendJson(res, 200, { suggestions: suggestions.slice(0, 3) });
         return true;
       }

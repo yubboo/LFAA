@@ -1,6 +1,6 @@
 // 渲染工作区顶部栏：左侧栏展开/收起按钮、当前标题、本地模式状态、插件工作区快捷入口与右侧栏展开/收起按钮。
 import type { ReactNode } from "react";
-import type { WorkbenchWorkspaceActionContribution } from "../../contract/index";
+import type { WorkbenchTitleActionContribution, WorkbenchWorkspaceActionContribution } from "../../contract/index";
 import type { LocaleMessages } from "../locales";
 import { NavigationIcon } from "./NavigationIcon";
 import styles from "./WorkbenchShell.module.css";
@@ -17,6 +17,7 @@ export function WorkspaceBar({
   rightDragCollapsed,
   compact = false,
   rightPanelMaximized = false,
+  titleActions = [],
   workspaceActions = [],
   onToggleLeft,
   onToggleRight,
@@ -31,6 +32,8 @@ export function WorkspaceBar({
   rightDragCollapsed: boolean;
   compact?: boolean;
   rightPanelMaximized?: boolean;
+  /** 标题右侧的状态控件（会话模式等），窄栏也不隐藏，只压缩标题。 */
+  titleActions?: WorkbenchTitleActionContribution<ReactNode>[];
   workspaceActions?: WorkbenchWorkspaceActionContribution<ReactNode>[];
   onToggleLeft: () => void;
   onToggleRight: () => void;
@@ -49,6 +52,13 @@ export function WorkspaceBar({
           <NavigationIcon name="sidebarLeft" />
         </button>
         <span className={styles.barTitle}>{title}</span>
+        {titleActions.length > 0 && (
+          <span className={styles.barTitleActions}>
+            {titleActions.map((action) => (
+              <span key={action.id}>{action.render({ compact })}</span>
+            ))}
+          </span>
+        )}
       </div>
       <div className={styles.barGroup}>
         <span className={styles.status} title={locale.ready}>

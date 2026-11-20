@@ -78,6 +78,40 @@ function tokenEquals(received: string, expected: string): boolean {
   return timingSafeEqual(left, right);
 }
 
+/** 写请求内容类型判定结果；拒绝时给出 415 与可展示原因。 */
+export type ApiContentTypeDecision =
+  | { allowed: true }
+  | { allowed: false; status: 415; reason: string };
+
+/** 请求是否携带请求体：有非零 content-length 或非 identity 的 transfer-encoding。 */
+function requestHasBody(req: IncomingMessage): boolean {
+  const rawLength = firstHeader(req.headers["content-length"]);
+  if (rawLength !== undefined) {
+    const length = Number(rawLength);
+    if (Number.isFinite(length) && length > 0) return true;
+  }
+  const encoding = firstHeader(req.headers["transfer-encoding"]);
+  if (!encoding) return false;
+  const normalized = encoding.trim().toLowerCase();
+  return normalized !== "" && normalized !== "identity";
+}
+
+/**
+ * 写请求内容类型校验：非只读方法只要携带请求体，就必须声明 application/json。
+ * 目的不是替代业务校验，而是让所有写入口统一走 JSON 解析路径，避免表单/文本编码绕过。
+ * 无请求体的 POST（启停、中止等动作）不受影响；GET/HEAD/OPTIONS 与非 /api 路径直接放行。
+ */
+export function checkApiWriteContentType(req: IncomingMessage): ApiContentTypeDecision {
+  if (!isApiPath(req.url)) return { allowed: true };
+  const method = (req.method ?? "GET").toUpperCase();
+  if (method === "GET" || method === "HEAD" || method === "OPTIONS") return { allowed: true };
+  if (!requestHasBody(req)) return { allowed: true };
+  const raw = firstHeader(req.headers["content-type"]) ?? "";
+  const mime = raw.split(";")[0]?.trim().toLowerCase() ?? "";
+  if (mime === "application/json") return { allowed: true };
+  return { allowed: false, status: 415, reason: "写接口的请求体必须是 application/json。" };
+}
+
 /** 取单值请求头；重复头在 Node 中会变成数组，这里只认同名首个值。 */
 function firstHeader(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
