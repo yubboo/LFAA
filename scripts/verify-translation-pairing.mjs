@@ -104,7 +104,8 @@ for (const pkgDir of discover()) {
     continue;
   }
 
-  const previous = readFileSync(recordPath, "utf8").replace(/^\uFEFF/u, "");
+  // 旧记录可能来自 Windows CRLF 检出：统一行尾再比较，避免把换行差异误报成"记录过期"。
+  const previous = readFileSync(recordPath, "utf8").replace(/^\uFEFF/u, "").replace(/\r\n/gu, "\n");
   if (previous !== next) {
     problems.push(`${label}: 双语配对记录过期（运行 pnpm run readme:pair -- . --write 更新）`);
     continue;
