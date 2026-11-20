@@ -1,0 +1,61 @@
+/* 代码查看器的内嵌搜索栏、输入框、结果计数与命中高亮样式，双主题变量适配。 */
+
+.searchBar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.65rem;
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-panel);
+}
+
+.searchInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 1.65rem;
+  padding: 0 0.55rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.4rem;
+  background: var(--color-shell);
+  color: var(--color-ink);
+  font-size: 0.76rem;
+  outline: none;
+}
+
+.searchInput:focus { border-color: var(--color-accent); }
+
+.searchBtn {
+  display: inline-flex;
+  min-width: 1.55rem;
+  height: 1.55rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.32rem;
+  border: 1px solid transparent;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.searchBtn:hover:not(:disabled) {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.searchBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.searchCount {
+  color: var(--color-muted);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.searchHighlight {
+  padding: 0 0.08rem;
+  border-radius: 0.2rem;
+  background: rgb(var(--color-warning-rgb) / 0.38);
+  color: var(--color-ink);
+}

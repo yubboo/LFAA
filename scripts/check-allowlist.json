@@ -2,19 +2,7 @@
     "file-size": {
         "note": "AGENTS §4 硬上限的既有超限文件。只允许减少：拆分后请删除对应条目；新增超限必须直接拆分。",
         "files": [
-            "packages/core/agent/src/agent-loop.ts",
-            "packages/core/agent/src/index.ts",
-            "packages/core/browser/client/RightBrowserPane.module.css",
-            "packages/core/browser/client/RightBrowserPane.tsx",
-            "packages/core/browser/src/browser-service.ts",
-            "packages/core/chat/client/chat-store.ts",
-            "packages/core/chat/client/components/ChatWorkspace.module.css",
-            "packages/core/chat/client/components/ChatWorkspace.tsx",
-            "packages/core/chat/client/components/FileChangePreview.module.css",
-            "packages/core/chat/client/components/RightWorkbenchActions.module.css",
-            "packages/core/chat/client/components/RightWorkbenchPane.tsx",
-            "packages/extension/plugins/src/plugin-manager.ts"
-        ]
+                    ]
     },
     "client-host-relative": {
         "note": "client 用相对路径导入同包 src/ 的既有越界。当前已全部迁到 contract/，清单保持为空：新增越界必须直接改用 contract 或 @lfaa/*/client 公开入口。",

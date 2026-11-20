@@ -1,0 +1,114 @@
+/* 内置浏览器 DevTools 抽屉：标签、控制台/网络列表与日志行样式，双主题变量适配。 */
+
+.devtools {
+  display: grid;
+  flex: 0 0 auto;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 11.5rem;
+  border-top: 1px solid var(--color-line);
+  background: var(--color-panel);
+}
+
+.devtoolsHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.25rem 0.55rem;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.devtoolsTabs,
+.devtoolsActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.devtoolsTab {
+  padding: 0.2rem 0.55rem;
+  border: 0;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 0.73rem;
+  cursor: pointer;
+}
+
+.devtoolsTabActive {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.smallIconBtn {
+  display: inline-flex;
+  width: 1.45rem;
+  height: 1.45rem;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.smallIconBtn:hover {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.devtoolsBody {
+  display: grid;
+  align-content: start;
+  gap: 0.25rem;
+  padding: 0.45rem 0.65rem;
+  overflow: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+}
+
+.emptyLog {
+  color: var(--color-muted);
+  padding: 0.35rem 0;
+}
+
+.logLine {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  word-break: break-all;
+}
+
+.logLine[data-level="error"],
+.logLine[data-level="network"] {
+  color: var(--color-danger-strong);
+}
+
+.logLine[data-level="warning"] {
+  color: var(--color-warning);
+}
+
+.logTag,
+.netMethod {
+  flex: 0 0 auto;
+  color: var(--color-muted);
+}
+
+.netStatus {
+  flex: 0 0 auto;
+  color: var(--color-success);
+}
+
+.netStatus[data-failed="true"] {
+  color: var(--color-danger-strong);
+}
+
+.logText {
+  min-width: 0;
+}
+
+/* 浅色主题下错误日志与失败请求需要更强的红，深色沿用上面的柔和色。 */
+:global(:root[data-resolved-theme="light"]) .logLine[data-level="error"],
+:global(:root[data-resolved-theme="light"]) .netStatus[data-failed="true"] {
+  color: var(--color-danger);
+}

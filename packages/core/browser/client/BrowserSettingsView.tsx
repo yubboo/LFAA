@@ -1,7 +1,7 @@
 // 设置中心「浏览器」视图：配置驱动通道（Edge/Chrome）、自定义路径、无头模式与本地调试免审开关。
 import { useEffect, useState } from "react";
 import { fetchBrowserConfig, saveBrowserConfig, type BrowserSettingsConfig } from "./browser-client";
-import styles from "./RightBrowserPane.module.css";
+import styles from "./BrowserSettings.module.css";
 
 export function BrowserSettingsView({ isZh }: { isZh: boolean }) {
   const [cfg, setCfg] = useState<BrowserSettingsConfig>({
@@ -24,13 +24,13 @@ export function BrowserSettingsView({ isZh }: { isZh: boolean }) {
   };
 
   return (
-    <div className={styles.settingsPage}>
-      <h2>{isZh ? "内置浏览器设置" : "Built-in Browser Settings"}</h2>
-      <div className={styles.settingsCard}>
+    <div className={styles.root}>
+      <h2 className={styles.title}>{isZh ? "内置浏览器设置" : "Built-in Browser Settings"}</h2>
+      <div className={styles.card}>
         <label className={styles.field}>
           <span className={styles.fieldLabel}>{isZh ? "浏览器驱动" : "Browser Channel"}</span>
           <select
-            className={styles.urlInput}
+            className={styles.control}
             value={cfg.preferredChannel}
             onChange={(e) => setCfg({ ...cfg, preferredChannel: e.target.value as BrowserSettingsConfig["preferredChannel"] })}
           >
@@ -43,7 +43,7 @@ export function BrowserSettingsView({ isZh }: { isZh: boolean }) {
         <label className={styles.field}>
           <span className={styles.fieldLabel}>{isZh ? "自定义浏览器路径（留空则自动探测）" : "Custom Executable Path (Optional)"}</span>
           <input
-            className={styles.urlInput}
+            className={styles.control}
             value={cfg.customExecutablePath}
             placeholder="C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
             onChange={(e) => setCfg({ ...cfg, customExecutablePath: e.target.value })}
@@ -68,11 +68,11 @@ export function BrowserSettingsView({ isZh }: { isZh: boolean }) {
           <span>{isZh ? "允许在对话中通过「浏览器」面板直接调试本地 127.0.0.1 / localhost 页面" : "Allow localhost browser debugging"}</span>
         </label>
 
-        <div>
-          <button type="button" className={styles.actionBtn} onClick={() => void handleSave()}>
+        <div className={styles.actions}>
+          <button type="button" className={styles.primaryBtn} onClick={() => void handleSave()}>
             {isZh ? "保存配置" : "Save"}
           </button>
-          {savedNotice && <span style={{ marginInlineStart: "0.75rem", fontSize: "0.85em" }}>{savedNotice}</span>}
+          {savedNotice && <span className={styles.savedNotice}>{savedNotice}</span>}
         </div>
       </div>
     </div>

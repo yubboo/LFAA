@@ -1,15 +1,17 @@
 // @lfaa/plugins Host 侧插件生命周期管理器：基于 Cordis Loader 实现真实装载、卸载与 profile 持久化。
 import { randomUUID } from "node:crypto";
-import { existsSync } from "node:fs";
-import { cp, mkdir, readdir, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { Context } from "@deepseek-ai/cordis";
 import "@lfaa/tools";
 import type { PluginCatalogItem, PluginManifest, PluginRecord, PluginRunStatus, PresetSummary } from "../contract/index";
 import { parseInstallSpec as parseSpec } from "./install-spec";
-import { spawnPnpm } from "./pnpm-spawn";
+import { buildCatalog, INSTALLABLE_PACKAGES, toRecordId, type PluginPresetDefinition } from "./plugin-catalog";
+import { PluginPresets } from "./plugin-presets";
+import { PluginRecordStore } from "./plugin-records";
+import { ProfilePackages } from "./profile-packages";
 
 /** Loader 的最小结构化契约：避免本包反向依赖内嵌 loader 的类型。 */
 interface LoaderLike {
@@ -24,41 +26,8 @@ export type PluginSkillRegistrar = (
   skills: Array<{ id: string; name: string; description: string; content: string }>,
 ) => () => void;
 
-interface StoredPluginsFile {
-  records: PluginRecord[];
-}
-
 function defaultProfilesBaseDir(): string {
   return join(homedir(), ".lfaa", "profiles");
-}
-
-/** 可安装目录：本仓已具备默认导出的插件包，安装时直接按包名交给 Loader。 */
-const INSTALLABLE_PACKAGES: ReadonlyArray<{ moduleName: string; name: string; description: string }> = [
-  { moduleName: "@lfaa/tools", name: "工具注册表", description: "文件读写、检索与命令执行等内置工具。" },
-  { moduleName: "@lfaa/tool-todo", name: "任务清单", description: "让 AI 创建和更新任务待办清单。" },
-  { moduleName: "@lfaa/tool-web", name: "网页读取", description: "抓取公开网页并转成可读正文。" },
-  { moduleName: "@lfaa/rules", name: "规则装配", description: "系统规则、项目规则与用户规则的提示词拼装。" },
-  { moduleName: "@lfaa/llm", name: "模型接入", description: "多提供商大模型接入与流式推理。" },
-  { moduleName: "@lfaa/memory", name: "记忆", description: "会话轨迹持久化与长期记忆检索。" },
-  { moduleName: "@lfaa/subagent", name: "子智能体", description: "进程内子智能体与并发协作。" },
-  { moduleName: "@lfaa/jobs", name: "后台任务", description: "会话隔离的后台命令与日志流。" },
-  { moduleName: "@lfaa/browser", name: "内置浏览器", description: "本机 Edge/Chrome 驱动的浏览器工具。" },
-  { moduleName: "@lfaa/agent", name: "Agent 循环", description: "Think → Act → Check 任务闭环。" },
-  { moduleName: "@lfaa/shell", name: "Shell 运行时", description: "进程执行、取消与输出收集。" },
-  { moduleName: "@lfaa/skills", name: "技能中心", description: "按需加载技能与 Git 安装。" },
-  { moduleName: "@lfaa/plugins", name: "插件管理", description: "插件安装、启停与二创。" },
-  { moduleName: "@lfaa/workspace", name: "工作区", description: "本地项目增删改与路径绑定。" },
-  { moduleName: "@lfaa/sections", name: "自定义分区", description: "侧栏分区持久化与编辑。" },
-  { moduleName: "@lfaa/chat", name: "聊天工作台", description: "会话、流式输出与工作台界面。" },
-];
-
-/** 把包名或路径规整成稳定的记录 id。 */
-function toRecordId(moduleName: string): string {
-  return moduleName
-    .replace(/^@lfaa\//u, "")
-    .replace(/[^a-z0-9-]+/giu, "-")
-    .replace(/^-+|-+$/gu, "")
-    .toLowerCase();
 }
 
 /** Host 侧插件管理器，负责安装校验、串行状态切换与 Loader 条目管理。 */
@@ -74,24 +43,28 @@ export class PluginManager {
 
   private readonly provided: Set<string>;
   private readonly repoRoot: string | null;
-  private readonly presets: ReadonlyArray<{ id: string; name: Record<"zh" | "en", string>; description: Record<"zh" | "en", string>; sessionModules: readonly string[]; unavailable?: boolean }>;
+  private readonly presets: PluginPresets;
+  private readonly packages: ProfilePackages;
+  private readonly records: PluginRecordStore;
 
   constructor(ctx: Context, options: {
     profile?: string;
     profilesBaseDir?: string;
     storePath?: string;
     providedModules?: readonly string[];
-    presets?: PluginManager["presets"];
+    presets?: readonly PluginPresetDefinition[];
     repoRoot?: string;
   } = {}) {
     this.ctx = ctx;
     this.provided = new Set(options.providedModules ?? []);
     this.repoRoot = options.repoRoot ? resolve(options.repoRoot) : null;
-    this.presets = options.presets ?? [];
     this.profile = options.profile?.trim() || "web";
     const baseDir = resolve(options.profilesBaseDir ?? defaultProfilesBaseDir());
     this.profileRoot = join(baseDir, this.profile);
     this.storePath = options.storePath ? resolve(options.storePath) : join(this.profileRoot, ".plugin-manager", "installed.json");
+    this.packages = new ProfilePackages(this.profile, this.profileRoot, this.repoRoot);
+    this.presets = new PluginPresets(this.profileRoot, options.presets ?? []);
+    this.records = new PluginRecordStore(this.storePath, () => this.ensureProfileLayout(), (records) => this.packages.syncCordisYml(records));
   }
 
   /** Host 侧的 Loader 服务；未装配时插件无法启停。 */
@@ -103,42 +76,7 @@ export class PluginManager {
 
   /** 按 DSH Profile 规范初始化 ~/.lfaa/profiles/<web|desktop>/ 目录骨架。 */
   async ensureProfileLayout(): Promise<void> {
-    await mkdir(join(this.profileRoot, ".plugin-manager"), { recursive: true });
-    await mkdir(join(this.profileRoot, "node_modules"), { recursive: true });
-
-    const ensureFile = async (fileName: string, content: string) => {
-      const target = join(this.profileRoot, fileName);
-      if (!existsSync(target)) await writeFile(target, content, "utf8");
-    };
-
-    await ensureFile(
-      "package.json",
-      JSON.stringify({ name: `@lfaa/profile-${this.profile}`, private: true, type: "module", dependencies: {} }, null, 2),
-    );
-    await ensureFile("pnpm-workspace.yaml", "packages:\n  - \"plugins/*\"\n");
-    await ensureFile("cordis.yml", "plugins: {}\n");
-    await ensureFile("cordis.patch.yml", "# 用户本地插件配置补丁\n");
-    await ensureFile("pnpm-lock.yaml", "lockfileVersion: '9.0'\n");
-  }
-
-  /** 把已启用记录同步进 cordis.yml，作为 profile 的可读快照。 */
-  private async syncCordisYml(records: PluginRecord[]): Promise<void> {
-    const lines = ["plugins:"];
-    const enabled = records.filter((r) => r.enabled);
-    if (enabled.length === 0) {
-      lines.push("  {}");
-    } else {
-      for (const rec of enabled) {
-        lines.push(`  ${rec.id}:`);
-        lines.push(`    name: "${rec.moduleName}"`);
-        lines.push(`    version: "${rec.manifest.version}"`);
-      }
-    }
-    const target = join(this.profileRoot, "cordis.yml");
-    await mkdir(this.profileRoot, { recursive: true });
-    const tmp = `${target}.${randomUUID()}.tmp`;
-    await writeFile(tmp, `${lines.join("\n")}\n`, "utf8");
-    await rename(tmp, target);
+    return this.packages.ensureLayout();
   }
 
   setSkillRegistrar(registrar: PluginSkillRegistrar | null): void {
@@ -155,23 +93,11 @@ export class PluginManager {
   }
 
   private async readRecords(): Promise<PluginRecord[]> {
-    if (!existsSync(this.storePath)) return [];
-    try {
-      const raw = await readFile(this.storePath, "utf8");
-      const parsed = JSON.parse(raw) as Partial<StoredPluginsFile>;
-      return Array.isArray(parsed.records) ? parsed.records : [];
-    } catch {
-      return [];
-    }
+    return this.records.read();
   }
 
   private async writeRecords(records: PluginRecord[]): Promise<void> {
-    await this.ensureProfileLayout();
-    await mkdir(dirname(this.storePath), { recursive: true });
-    const tmp = `${this.storePath}.${randomUUID()}.tmp`;
-    await writeFile(tmp, JSON.stringify({ records }, null, 2), "utf8");
-    await rename(tmp, this.storePath);
-    await this.syncCordisYml(records);
+    return this.records.write(records);
   }
 
   /** 以 Loader 实际条目为准判定运行状态，避免记录与运行时漂移。 */
@@ -206,20 +132,9 @@ export class PluginManager {
     }
   }
 
-  /** 预设状态文件：记录当前模式，供下次启动沿用。 */
-  private presetPath(): string {
-    return join(this.profileRoot, ".plugin-manager", "preset.json");
-  }
-
   /** 读取当前模式；未设置或非法时回退到第一个预设。 */
   private async readPresetId(): Promise<string> {
-    const fallback = this.presets[0]?.id ?? "standard";
-    try {
-      const raw = JSON.parse(await readFile(this.presetPath(), "utf8")) as { id?: string };
-      return this.presets.find((preset) => preset.id === raw.id && !preset.unavailable)?.id ?? fallback;
-    } catch {
-      return fallback;
-    }
+    return this.presets.readActiveId();
   }
 
   /** 运行期回填当前宿主已装配的模块。 */
@@ -230,26 +145,17 @@ export class PluginManager {
 
   /** 读取新会话默认模式的标识及能力组合。 */
   async getActivePreset(): Promise<{ id: string; modules: string[] }> {
-    const id = await this.readPresetId();
-    const preset = this.presets.find((item) => item.id === id);
-    return { id, modules: preset ? [...preset.sessionModules] : [] };
+    return this.presets.getActive();
   }
 
   /** 全局默认仅用于新会话，已选择的组合由会话本身保存。 */
   async resolveSessionPreset(id?: string): Promise<{ sessionPreset: string; sessionModules: string[] }> {
-    const selected = id ?? await this.readPresetId();
-    const preset = this.presets.find((item) => item.id === selected && !item.unavailable);
-    if (!preset) throw new Error(`会话模式不可用：${selected}`);
-    return { sessionPreset: preset.id, sessionModules: [...preset.sessionModules] };
+    return this.presets.resolveSession(id);
   }
 
   /** 保存新会话默认模式；拒绝未知或不可用模式。 */
   async setPreset(id: string): Promise<void> {
-    if (!this.presets.some((preset) => preset.id === id && !preset.unavailable)) {
-      throw new Error(`未知模式：${id}`);
-    }
-    await mkdir(dirname(this.presetPath()), { recursive: true });
-    await writeFile(this.presetPath(), `${JSON.stringify({ id }, null, 2)}\n`, "utf8");
+    return this.presets.setActive(id);
   }
 
   async listState(): Promise<{    profile: string;
@@ -263,32 +169,9 @@ export class PluginManager {
     const records = await this.readRecords();
     const installed = records.map((record) => this.hydrateRecord(record));
     const installedIds = new Set(records.map((record) => record.id));
-    const availableCatalog: PluginCatalogItem[] = INSTALLABLE_PACKAGES.map((item) => ({
-      moduleName: item.moduleName,
-      // 内置插件来自本仓 packages（bundle 清单）：只能启停，不存在安装/卸载。
-      kind: "builtin" as const,
-      provided: this.provided.has(item.moduleName),
-      manifest: {
-        id: toRecordId(item.moduleName),
-        name: item.name,
-        version: "0.1.0",
-        description: item.description,
-        entryType: "builtin-local",
-        compatibleLfaa: ">=0.1.0",
-        capabilities: { tools: [], skills: [], views: [] },
-      },
-      installed: installedIds.has(toRecordId(item.moduleName)),
-    }));
-    const activePreset = await this.readPresetId();
-    const presets = this.presets.map((preset) => ({
-      id: preset.id,
-      name: preset.name.zh,
-      nameEn: preset.name.en,
-      description: preset.description.zh,
-      descriptionEn: preset.description.en,
-      ...(preset.unavailable ? { unavailable: true } : {}),
-      modules: [...preset.sessionModules],
-    }));
+    const availableCatalog = buildCatalog(this.provided, installedIds);
+    const activePreset = await this.presets.readActiveId();
+    const presets = this.presets.summaries();
     return { profile: this.profile, profileRoot: this.profileRoot, installed, availableCatalog, presets, activePreset };
   }
 
@@ -410,70 +293,22 @@ export class PluginManager {
   /** 卸载：先停用再从 profile 记录中删除。 */
   /** 执行一条 profile 内的 pnpm 命令并回传输出尾部，供安装/回滚共用。 */
   private async runPnpm(args: string[], onLine?: (line: string) => void): Promise<{ code: number; output: string }> {
-    // `--no-frozen-lockfile` 只对 install 有效；add/remove 会报未知选项。
-    const lockFlag = args[0] === "install" ? ["--no-frozen-lockfile"] : [];
-    // append-only 让 pnpm 输出退化为逐行日志，SSE 才能实时看到进展。
-    const full = [...args, "--dir", this.profileRoot, "--prefer-offline", "--reporter=append-only", ...lockFlag];
-    // 参数校验与平台差异都在 spawnPnpm 内处理：Windows 不再拼接裸命令行。
-    const child = spawnPnpm(full, this.profileRoot);
-    let output = "";
-    child.stdout?.on("data", (chunk) => { output += String(chunk); });
-    child.stderr?.on("data", (chunk) => { output += String(chunk); });
-    const code = await new Promise<number>((done) => child.on("close", (value) => done(value ?? 1)));
-    return { code, output };
+    return this.packages.run(args, onLine);
   }
 
   /** 确保 profile 有一份可安装的 manifest 与 workspace 声明。 */
   private async ensureProfileManifest(): Promise<void> {
-    await this.ensureProfileLayout();
-    const manifestPath = join(this.profileRoot, "package.json");
-    if (!existsSync(manifestPath)) {
-      await writeFile(manifestPath, `${JSON.stringify({ name: `@lfaa/profile-${this.profile}`, private: true, type: "module", dependencies: {} }, null, 2)}\n`, "utf8");
-    }
-    const workspacePath = join(this.profileRoot, "pnpm-workspace.yaml");
-    if (!existsSync(workspacePath)) {
-      await writeFile(workspacePath, "packages:\n  - \"plugins/*\"\n", "utf8");
-    }
+    return this.packages.ensureManifest();
   }
 
   /** 从 profile 依赖里找出刚落盘的包名：registry 用名字，其余按值匹配。 */
   private async resolveInstalledName(spec: string, fallbackName?: string): Promise<string> {
-    const raw = await readFile(join(this.profileRoot, "package.json"), "utf8");
-    const manifest = JSON.parse(raw) as { dependencies?: Record<string, string> };
-    const entries = Object.entries(manifest.dependencies ?? {});
-    if (fallbackName) {
-      const byName = entries.find(([name]) => name === fallbackName);
-      if (byName) return byName[0];
-    }
-    const normalized = spec.replace(/^(?:file|link):/u, "").split("\\").join("/").toLowerCase();
-    const hit = entries.find(([, value]) => {
-      const recorded = value.replace(/^(?:file|link):/u, "").split("\\").join("/").toLowerCase();
-      return recorded.includes(normalized) || normalized.includes(recorded) || value === spec;
-    });
-    if (!hit) throw new Error("安装完成但未能从 profile 依赖中识别出包名。");
-    return hit[0];
+    return this.packages.resolveInstalledName(spec, fallbackName);
   }
 
   /** 读取已安装包在 profile 中的入口文件，返回 file: URL。 */
   private async resolvePackageEntry(name: string): Promise<string> {
-    const dir = join(this.profileRoot, "node_modules", name);
-    const manifest = JSON.parse(await readFile(join(dir, "package.json"), "utf8")) as {
-      main?: string;
-      module?: string;
-      exports?: Record<string, unknown> | string;
-    };
-    let entry = manifest.main ?? manifest.module ?? "index.js";
-    const root = manifest.exports;
-    if (root && typeof root === "object") {
-      const dot = (root as Record<string, unknown>)["."];
-      if (typeof dot === "string") entry = dot;
-      else if (dot && typeof dot === "object") {
-        const cond = dot as Record<string, unknown>;
-        const candidate = cond.default ?? cond.import ?? cond.require;
-        if (typeof candidate === "string") entry = candidate;
-      }
-    }
-    return pathToFileURL(join(dir, entry)).href;
+    return this.packages.resolvePackageEntry(name);
   }
   /**
    * 安装外部插件：校验来源 → `pnpm add` → 识别包名 → 登记 → 自动启用。
@@ -549,115 +384,9 @@ export class PluginManager {
     });
   }
 
-  /** 枚举仓库内的全部包：名称 → 绝对目录。 */
-  private async repoPackages(): Promise<Map<string, string>> {
-    const found = new Map<string, string>();
-    if (!this.repoRoot) return found;
-    const walk = async (dir: string, depth: number): Promise<void> => {
-      let entries;
-      try {
-        entries = await readdir(dir, { withFileTypes: true });
-      } catch {
-        return;
-      }
-      for (const entry of entries) {
-        if (!entry.isDirectory() || entry.name === "node_modules") continue;
-        const child = join(dir, entry.name);
-        try {
-          const manifest = JSON.parse(await readFile(join(child, "package.json"), "utf8")) as { name?: string };
-          if (manifest.name) found.set(manifest.name, child);
-        } catch {
-          if (depth > 0) await walk(child, depth - 1);
-        }
-      }
-    };
-    await walk(join(this.repoRoot, "packages"), 1);
-    await walk(join(this.repoRoot, "vendor"), 0);
-    return found;
-  }
-
-  /**
-   * profile 级依赖安装：把仓库包以 link: 写进 profile manifest，
-   * 并带上副本包的第三方依赖，然后执行 pnpm install。
-   * 这样副本的 lib/index.js 从 <profile>/node_modules 解析，不再依赖 junction。
-   */
-  private async installProfileDependencies(sourceDir: string): Promise<void> {
-    const packages = await this.repoPackages();
-    if (packages.size === 0) throw new Error("未找到仓库包，无法建立 profile 依赖解析。");
-
-    const dependencies: Record<string, string> = {};
-    for (const [name, dir] of packages) {
-      dependencies[name] = `link:${relative(this.profileRoot, dir).split(sep).join("/")}`;
-    }
-
-    // 副本包的第三方依赖（非 @lfaa/*）交给 pnpm 安装。
-    try {
-      const sourceManifest = JSON.parse(await readFile(join(sourceDir, "package.json"), "utf8")) as {
-        dependencies?: Record<string, string>;
-        peerDependencies?: Record<string, string>;
-      };
-      for (const [name, spec] of Object.entries({ ...(sourceManifest.dependencies ?? {}), ...(sourceManifest.peerDependencies ?? {}) })) {
-        if (name.startsWith("@lfaa/") || name in dependencies) continue;
-        if (spec.startsWith("workspace:")) continue;
-        // 优先复用源包已经解析好的依赖目录（link:），避免 profile 安装时再联网。
-        const resolved = await realpath(join(sourceDir, "node_modules", name)).catch(() => null);
-        dependencies[name] = resolved ? `link:${resolved.split(sep).join("/")}` : spec;
-      }
-    } catch {
-      // 读取失败时只保留仓库包链接。
-    }
-
-    const manifest = {
-      name: `@lfaa/profile-${this.profile}`,
-      private: true,
-      type: "module",
-      dependencies,
-    };
-    await mkdir(this.profileRoot, { recursive: true });
-    await writeFile(join(this.profileRoot, "package.json"), `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
-
-    const args = ["install", "--dir", this.profileRoot, "--prefer-offline", "--no-frozen-lockfile"];
-    // 统一走 spawnPnpm：参数校验与平台差异集中在一处，Windows 不再手工拼接命令行。
-    const install = spawnPnpm(args, this.profileRoot);
-    let output = "";
-    install.stdout?.on("data", (chunk) => { output += String(chunk); });
-    install.stderr?.on("data", (chunk) => { output += String(chunk); });
-    const code = await new Promise<number>((done) => install.on("close", (value) => done(value ?? 1)));
-    if (code !== 0) {
-      throw new Error(`profile 依赖安装失败（退出码 ${code}）：${output.trim().slice(-300)}`);
-    }
-  }
-
   /** 定位插件包目录：本仓包按清单名查找，本地插件按 file: URL 反查。 */
   private async locatePackage(moduleName: string): Promise<string> {
-    if (moduleName.startsWith("file:")) return dirname(dirname(new URL(moduleName).pathname.replace(/^\//u, "")));
-    if (!this.repoRoot) throw new Error("未配置仓库根目录，无法定位插件包。");
-    const want = moduleName;
-    const search = async (dir: string, depth: number): Promise<string | null> => {
-      let entries;
-      try {
-        entries = await readdir(dir, { withFileTypes: true });
-      } catch {
-        return null;
-      }
-      for (const entry of entries) {
-        if (!entry.isDirectory() || entry.name === "node_modules") continue;
-        const child = join(dir, entry.name);
-        try {
-          const manifest = JSON.parse(await readFile(join(child, "package.json"), "utf8")) as { name?: string };
-          if (manifest.name === want) return child;
-        } catch {
-          if (depth > 0) {
-            const hit = await search(child, depth - 1);
-            if (hit) return hit;
-          }
-        }
-      }
-      return null;
-    };
-    const found = await search(join(this.repoRoot, "packages"), 1) ?? await search(join(this.repoRoot, "vendor"), 0);
-    if (!found) throw new Error(`找不到插件包目录：${moduleName}`);
-    return found;
+    return this.packages.locatePackage(moduleName);
   }
 
   /** 二创：把插件包复制到 profile/plugins/<新 id>，并建立依赖解析后登记为新记录。 */
@@ -699,7 +428,7 @@ export class PluginManager {
 
     // 依赖解析：写入 profile 级 manifest 并执行 pnpm install，
     // 让副本从 <profile>/node_modules 解析（不再依赖 Windows junction）。
-    await this.installProfileDependencies(sourceDir);
+    await this.packages.installProfileDependencies(sourceDir);
     const entryFile = join(targetDir, "lib", "index.js");
 
     // 依赖可达性探测：Windows 上 pnpm 的相对软链经 junction 后可能失效，

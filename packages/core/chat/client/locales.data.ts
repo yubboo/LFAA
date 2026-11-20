@@ -140,7 +140,7 @@ export const providerAccessMessages = {
     apiDescription: "使用标准 API Key，按量计费",
     subscription: "套餐接入",
     reconfigure: "重新配置",
-    planModel: "填写该套餐支持的官方模型 ID",
+    planFetchHint: "点击「获取官方模型」拉取该套餐下全部可用模型",
     selectedModel: "套餐已配置模型",
   },
   en: {
@@ -150,7 +150,7 @@ export const providerAccessMessages = {
     apiDescription: "Use a standard pay-as-you-go API key",
     subscription: "Subscription",
     reconfigure: "Reconfigure",
-    planModel: "Enter an official model ID supported by this subscription",
+    planFetchHint: "Click Fetch Official Models to load every model included in this subscription",
     selectedModel: "Configured subscription model",
   },
 } as const;

@@ -154,11 +154,13 @@ details[open] > summary > .chevron {
   font-family: var(--code-font-family, monospace);
 }
 
-/* 渐变只随实际准备、执行事件显示，并以当前强调色与正文色混合。 */
+/* 渐变动效只属于运行中的行：组件仅在流式运行且该行正在准备/执行时写 data-live，
+   给出最终结果后（或中止、降级）立刻回落到普通文字色，不再无限变色。 */
 @media (prefers-reduced-motion: no-preference) {
   @supports (background-clip: text) {
-    :is(.disclosure, .activityRow):is([data-status="preparing"], [data-status="running"]) > .activityTitle,
-    .activityDetail[data-status="running"] .terminalHeader > .activityTitle {
+    :is(.disclosure, .activityRow)[data-live="true"] > .activityTitle,
+    .activityDetail[data-live="true"] .terminalHeader > .activityTitle,
+    .liveStatus[data-live="true"] > .activityTitle {
       --activity-ink: color-mix(in srgb, var(--color-accent) 35%, var(--color-ink));
       background: linear-gradient(105deg, var(--color-ink) 20%, var(--activity-ink) 48%, var(--color-ink) 72%);
       background-size: 230% 100%;
@@ -327,29 +329,4 @@ details[open] > summary > .chevron {
   flex: none;
   color: var(--color-ink);
   font-size: 0.85em;
-}
-
-/* 运行中文案：渐变流体，颜色沿文字横向流动，用主题强调色派生 */
-.activityTitle {
-  background-image: linear-gradient(
-    100deg,
-    var(--color-accent) 0%,
-    color-mix(in oklab, var(--color-accent) 45%, var(--color-ink)) 35%,
-    var(--color-accent) 60%,
-    color-mix(in oklab, var(--color-accent) 60%, var(--color-muted)) 100%
-  );
-  background-size: 260% 100%;
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
-  animation: textFlow 5.5s linear infinite;
-}
-
-@keyframes textFlow {
-  0% { background-position: 0% 50%; }
-  100% { background-position: 260% 50%; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .activityTitle { animation: none; }
 }

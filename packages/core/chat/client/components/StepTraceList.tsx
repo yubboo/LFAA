@@ -108,13 +108,13 @@ export function StepTraceList({
       </>
     );
     return onToggle ? (
-      <button type="button" className={`${styles.disclosure} ${styles.liveStatus}`}
+      <button type="button" className={`${styles.disclosure} ${styles.liveStatus}`} data-live="true"
         aria-label={`${labels.elapsed} ${elapsed}`} aria-expanded={expanded} aria-controls={processId} onClick={onToggle}>
         {status}
         <IconChevronRight size={14} className={styles.chevron} aria-hidden="true" />
       </button>
     ) : (
-      <div className={styles.liveStatus}>{status}</div>
+      <div className={styles.liveStatus} data-live="true">{status}</div>
     );
   }
 

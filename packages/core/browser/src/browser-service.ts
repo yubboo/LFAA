@@ -1,107 +1,51 @@
 // 基于 playwright-core 驱动本机 Edge/Chrome，支持会话多标签页、动态视口同步、真实键鼠操作及 Console/Network 采集。
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
-import { chromium, type Browser, type BrowserContext, type Page } from "playwright-core";
-import { clampViewport, detectLocalBrowserExecutable, extractPageStructure, validateBrowserUrl } from "./runtime-utils";
-import { ScreencastManager, type ScreencastTabMeta, type StreamFrameListener } from "./screencast-manager";
+import { chromium, type Browser } from "playwright-core";
+import { BrowserSettingsStore, clampDpr } from "./browser-settings";
+import {
+  applyAppearance,
+  buildScreencastMeta,
+  captureState,
+  inactiveSnapshot,
+  takeoverSnapshot,
+  type SnapshotRuntime,
+} from "./browser-snapshot";
+import { attachTabListeners, openInternalPage } from "./browser-tabs";
+import type { BrowserTabEntry, SessionBrowserState } from "./browser-session-types";
+import { ScreencastManager, type StreamFrameListener } from "./screencast-manager";
+import { clampViewport, detectLocalBrowserExecutable, validateBrowserUrl } from "./runtime-utils";
 import type {
   BrowserConsoleItem,
   BrowserNetworkItem,
   BrowserSessionSnapshot,
   BrowserSettingsConfig,
-  BrowserTabItem,
 } from "./types";
 
 export { detectLocalBrowserExecutable, validateBrowserUrl };
-
-const DEFAULT_SETTINGS_PATH = join(homedir(), ".lfaa", "browser-settings.json");
-const MAX_LOG_ITEMS = 120;
-
-function clampDpr(raw?: number): number {
-  if (typeof raw !== "number" || !Number.isFinite(raw)) return 2;
-  return Math.max(1, Math.min(2.5, Math.round(raw * 100) / 100));
-}
-
-const DEFAULT_SETTINGS: BrowserSettingsConfig = {
-  preferredChannel: "auto",
-  customExecutablePath: "",
-  headless: true,
-  autoApproveLocalhost: true,
-};
-
-interface BrowserTabEntry {
-  tabId: string;
-  page: Page;
-  title: string;
-  history: string[];
-  historyIndex: number;
-  lastScreenshotBase64?: string;
-  lastScreenshotMime?: "image/png" | "image/jpeg";
-}
-
-interface SessionBrowserState {
-  sessionId: string;
-  context: BrowserContext;
-  tabs: Map<string, BrowserTabEntry>;
-  activeTabId: string;
-  viewport: { width: number; height: number };
-  deviceScaleFactor: number;
-  colorScheme: "dark" | "light";
-  internalPageOpening: number;
-  takeoverPaused: boolean;
-  consoleItems: BrowserConsoleItem[];
-  networkItems: BrowserNetworkItem[];
-  lastError?: string;
-  updatedAt: number;
-}
+export { BrowserSettingsStore, clampDpr } from "./browser-settings";
 
 export class BrowserRuntime {
-  private readonly storeFilePath: string;
+  private readonly settings: BrowserSettingsStore;
   private browser: Browser | null = null;
   private launchedHeadless: boolean | null = null;
   private executablePath: string | undefined;
   private readonly sessions = new Map<string, SessionBrowserState>();
   private readonly screencast = new ScreencastManager();
-  private settingsCache: BrowserSettingsConfig | null = null;
 
   constructor(storeFilePath?: string) {
-    this.storeFilePath = storeFilePath ? resolve(storeFilePath) : DEFAULT_SETTINGS_PATH;
+    this.settings = new BrowserSettingsStore(storeFilePath);
   }
 
   async getSettings(): Promise<BrowserSettingsConfig> {
-    if (this.settingsCache) return this.settingsCache;
-    try {
-      const raw = await readFile(this.storeFilePath, "utf8");
-      const parsed = JSON.parse(raw) as Partial<BrowserSettingsConfig>;
-      this.settingsCache = {
-        preferredChannel: parsed.preferredChannel === "msedge" || parsed.preferredChannel === "chrome" ? parsed.preferredChannel : "auto",
-        customExecutablePath: typeof parsed.customExecutablePath === "string" ? parsed.customExecutablePath : "",
-        headless: typeof parsed.headless === "boolean" ? parsed.headless : true,
-        autoApproveLocalhost: typeof parsed.autoApproveLocalhost === "boolean" ? parsed.autoApproveLocalhost : true,
-      };
-    } catch {
-      this.settingsCache = { ...DEFAULT_SETTINGS };
-    }
-    return this.settingsCache;
+    return this.settings.get();
   }
 
   async updateSettings(patch: Partial<BrowserSettingsConfig>): Promise<BrowserSettingsConfig> {
-    const current = await this.getSettings();
-    const next: BrowserSettingsConfig = {
-      preferredChannel: patch.preferredChannel ?? current.preferredChannel,
-      customExecutablePath: typeof patch.customExecutablePath === "string" ? patch.customExecutablePath.trim() : current.customExecutablePath,
-      headless: typeof patch.headless === "boolean" ? patch.headless : current.headless,
-      autoApproveLocalhost: typeof patch.autoApproveLocalhost === "boolean" ? patch.autoApproveLocalhost : current.autoApproveLocalhost,
-    };
-    this.settingsCache = next;
-    await mkdir(dirname(this.storeFilePath), { recursive: true });
-    await writeFile(this.storeFilePath, JSON.stringify(next, null, 2), "utf8");
-    if (this.launchedHeadless !== null && this.launchedHeadless !== next.headless) {
+    const { config } = await this.settings.update(patch);
+    if (this.launchedHeadless !== null && this.launchedHeadless !== config.headless) {
       await this.closeAll();
     }
-    return next;
+    return config;
   }
 
   private async ensureBrowser(): Promise<Browser> {
@@ -124,89 +68,13 @@ export class BrowserRuntime {
     return this.browser;
   }
 
-  private attachTabListeners(state: SessionBrowserState, page: Page, tabId: string): BrowserTabEntry {
-    const entry: BrowserTabEntry = {
-      tabId,
-      page,
-      title: "",
-      history: [],
-      historyIndex: -1,
-    };
-    const pushConsole = (item: BrowserConsoleItem) => {
-      state.consoleItems.push(item);
-      if (state.consoleItems.length > MAX_LOG_ITEMS) {
-        state.consoleItems.splice(0, state.consoleItems.length - MAX_LOG_ITEMS);
-      }
-      state.updatedAt = Date.now();
-    };
-    const pushNetwork = (item: BrowserNetworkItem) => {
-      state.networkItems.push(item);
-      if (state.networkItems.length > MAX_LOG_ITEMS) {
-        state.networkItems.splice(0, state.networkItems.length - MAX_LOG_ITEMS);
-      }
-      state.updatedAt = Date.now();
-    };
-
-    page.on("console", (msg) => {
-      const type = msg.type();
-      const level = type === "error" ? "error" : type === "warning" ? "warning" : "log";
-      pushConsole({ level, text: msg.text().slice(0, 500), timestamp: Date.now() });
-    });
-    page.on("pageerror", (err) => {
-      pushConsole({ level: "error", text: err.message.slice(0, 500), timestamp: Date.now() });
-    });
-    page.on("response", (res) => {
-      const url = res.url();
-      const status = res.status();
-      pushNetwork({
-        id: randomUUID(),
-        method: res.request().method(),
-        status,
-        url,
-        failed: status >= 400,
-        timestamp: Date.now(),
-      });
-      if (status >= 400) {
-        pushConsole({ level: "network", text: `HTTP ${status} ${url}`, url, timestamp: Date.now() });
-      }
-    });
-    page.on("framenavigated", (frame) => {
-      if (frame === page.mainFrame()) {
-        const landed = frame.url();
-        if (landed && landed !== "about:blank" && entry.history[entry.historyIndex] !== landed) {
-          entry.history = entry.history.slice(0, entry.historyIndex + 1);
-          entry.history.push(landed);
-          entry.historyIndex = entry.history.length - 1;
-        }
-      }
-    });
-    page.on("close", () => {
-      state.tabs.delete(tabId);
-      if (state.activeTabId === tabId) {
-        const next = state.tabs.keys().next().value;
-        state.activeTabId = typeof next === "string" ? next : "";
-      }
-    });
-    state.tabs.set(tabId, entry);
-    return entry;
-  }
-
-  private async openInternalPage(state: SessionBrowserState): Promise<Page> {
-    state.internalPageOpening += 1;
-    try {
-      return await state.context.newPage();
-    } finally {
-      state.internalPageOpening -= 1;
-    }
-  }
-
   private async ensureSession(
     sessionId: string,
     appearance?: { deviceScaleFactor?: number; colorScheme?: "dark" | "light" },
   ): Promise<{ state: SessionBrowserState; tab: BrowserTabEntry }> {
     const existing = this.sessions.get(sessionId);
     if (existing) {
-      await this.applyAppearance(existing, appearance);
+      await applyAppearance(existing, appearance);
       const active = existing.tabs.get(existing.activeTabId);
       if (active && !active.page.isClosed()) {
         return { state: existing, tab: active };
@@ -216,10 +84,10 @@ export class BrowserRuntime {
         existing.activeTabId = firstOpen.tabId;
         return { state: existing, tab: firstOpen };
       }
-      const page = await this.openInternalPage(existing).catch(() => null);
+      const page = await openInternalPage(existing).catch(() => null);
       if (page) {
         const tabId = `tab-${randomUUID().slice(0, 6)}`;
-        const entry = this.attachTabListeners(existing, page, tabId);
+        const entry = attachTabListeners(existing, page, tabId);
         existing.activeTabId = tabId;
         return { state: existing, tab: entry };
       }
@@ -246,7 +114,7 @@ export class BrowserRuntime {
       networkItems: [],
       updatedAt: Date.now(),
     };
-    const tab = this.attachTabListeners(state, page, tabId);
+    const tab = attachTabListeners(state, page, tabId);
 
     // 捕获网页内 window.open 或 target="_blank" 新开窗口，忽略内部 newPage 调用。
     context.on("page", (popup) => {
@@ -256,7 +124,7 @@ export class BrowserRuntime {
       }
       const newTabId = `tab-${randomUUID().slice(0, 6)}`;
       void popup.setViewportSize(state.viewport).catch(() => {});
-      this.attachTabListeners(state, popup, newTabId);
+      attachTabListeners(state, popup, newTabId);
       state.activeTabId = newTabId;
       state.updatedAt = Date.now();
     });
@@ -271,66 +139,26 @@ export class BrowserRuntime {
     }
   }
 
-  private buildScreencastMeta(state: SessionBrowserState): ScreencastTabMeta | null {
-    const tab = state.tabs.get(state.activeTabId);
-    if (!tab || tab.page.isClosed()) return null;
+  /** 快照组装所需的运行时依赖：可执行文件、SSE 订阅查询与帧流保活。 */
+  private get snapshotRuntime(): SnapshotRuntime {
     return {
-      tabId: tab.tabId,
-      page: tab.page,
-      title: tab.title,
-      canGoBack: tab.historyIndex > 0,
-      canGoForward: tab.historyIndex >= 0 && tab.historyIndex < tab.history.length - 1,
-      errorCount: state.consoleItems.filter((c) => c.level === "error" || c.level === "network").length,
-      consoleCount: state.consoleItems.length,
-      networkCount: state.networkItems.length,
-      viewport: state.viewport,
-      deviceScaleFactor: state.deviceScaleFactor,
-      colorScheme: state.colorScheme,
-      onFrameStored: (data) => {
-        tab.lastScreenshotBase64 = data;
-        tab.lastScreenshotMime = "image/jpeg";
-        state.updatedAt = Date.now();
+      executablePath: () => this.executablePath,
+      hasStreamSubscribers: (sessionId) => this.screencast.hasSubscribers(sessionId),
+      ensureScreencast: (state) => {
+        void this.screencast.ensureRunning(state.sessionId, state.context, () => buildScreencastMeta(state), false);
       },
     };
   }
 
-  private async applyAppearance(
+  /** 组装快照时统一读取 headless 设置，调用点保持与拆分前一致。 */
+  private async capture(
     state: SessionBrowserState,
-    appearance?: { deviceScaleFactor?: number; colorScheme?: "dark" | "light" },
-  ): Promise<boolean> {
-    let changed = false;
-    if (appearance?.colorScheme && appearance.colorScheme !== state.colorScheme) {
-      state.colorScheme = appearance.colorScheme;
-      changed = true;
-      await Promise.all(
-        [...state.tabs.values()]
-          .filter((t) => !t.page.isClosed())
-          .map((t) => t.page.emulateMedia({ colorScheme: appearance.colorScheme! }).catch(() => {})),
-      );
-    }
-    if (typeof appearance?.deviceScaleFactor === "number") {
-      const nextDpr = clampDpr(appearance.deviceScaleFactor);
-      if (Math.abs(nextDpr - state.deviceScaleFactor) > 0.05) {
-        state.deviceScaleFactor = nextDpr;
-        changed = true;
-        const activeTab = state.tabs.get(state.activeTabId);
-        if (activeTab && !activeTab.page.isClosed()) {
-          try {
-            const cdp = await state.context.newCDPSession(activeTab.page);
-            await cdp.send("Emulation.setDeviceMetricsOverride", {
-              width: state.viewport.width,
-              height: state.viewport.height,
-              deviceScaleFactor: nextDpr,
-              mobile: false,
-            });
-            await cdp.detach().catch(() => {});
-          } catch {
-            // 忽略非 CDP 上下文
-          }
-        }
-      }
-    }
-    return changed;
+    tab: BrowserTabEntry,
+    withScreenshot = true,
+    includeStructure = true,
+  ): Promise<BrowserSessionSnapshot> {
+    const { headless } = await this.getSettings();
+    return captureState(this.snapshotRuntime, state, tab, headless, withScreenshot, includeStructure);
   }
 
   subscribeStream(
@@ -341,105 +169,21 @@ export class BrowserRuntime {
     const off = this.screencast.subscribe(sessionId, listener);
     const existing = this.sessions.get(sessionId);
     if (existing) {
-      void this.applyAppearance(existing, appearance).then((changed) =>
-        this.screencast.ensureRunning(sessionId, existing.context, () => this.buildScreencastMeta(existing), changed),
+      void applyAppearance(existing, appearance).then((changed) =>
+        this.screencast.ensureRunning(sessionId, existing.context, () => buildScreencastMeta(existing), changed),
       );
     }
     return off;
   }
 
-  private async captureState(
-    state: SessionBrowserState,
-    tab: BrowserTabEntry,
-    withScreenshot = true,
-    includeStructure = true,
-  ): Promise<BrowserSessionSnapshot> {
-    const settings = await this.getSettings();
-    const url = tab.page.url();
-    const title = await tab.page.title().catch(() => "");
-    tab.title = title;
-    const extracted = includeStructure
-      ? await extractPageStructure(tab.page)
-      : { elements: [], textExcerpt: "" };
-    if (withScreenshot) {
-      const useJpeg = !includeStructure;
-      const buf = await tab.page.screenshot(useJpeg ? { type: "jpeg", quality: 90 } : { type: "png" }).catch(() => null);
-      if (buf) {
-        tab.lastScreenshotBase64 = buf.toString("base64");
-        tab.lastScreenshotMime = useJpeg ? "image/jpeg" : "image/png";
-      }
-    }
-    if (this.screencast.hasSubscribers(state.sessionId)) {
-      void this.screencast.ensureRunning(state.sessionId, state.context, () => this.buildScreencastMeta(state), false);
-    }
-    state.updatedAt = Date.now();
-    const tabs: BrowserTabItem[] = [...state.tabs.values()]
-      .filter((t) => !t.page.isClosed())
-      .map((t) => ({
-        tabId: t.tabId,
-        title: t.title || t.page.url() || "新标签页",
-        url: t.page.url(),
-        active: t.tabId === state.activeTabId,
-      }));
-    const errorCount = state.consoleItems.filter((c) => c.level === "error" || c.level === "network").length;
-    return {
-      sessionId: state.sessionId,
-      active: true,
-      providerName: "playwright-local",
-      ...(this.executablePath ? { executablePath: this.executablePath } : {}),
-      activeTabId: tab.tabId,
-      tabs,
-      viewport: state.viewport,
-      deviceScaleFactor: state.deviceScaleFactor,
-      colorScheme: state.colorScheme,
-      url,
-      title,
-      canGoBack: tab.historyIndex > 0,
-      canGoForward: tab.historyIndex >= 0 && tab.historyIndex < tab.history.length - 1,
-      takeoverPaused: state.takeoverPaused,
-      headless: settings.headless,
-      elements: extracted.elements,
-      textExcerpt: extracted.textExcerpt,
-      consoleCount: state.consoleItems.length,
-      networkCount: state.networkItems.length,
-      errorCount,
-      ...(tab.lastScreenshotBase64 ? {
-        screenshotBase64: tab.lastScreenshotBase64,
-        screenshotMime: tab.lastScreenshotMime ?? "image/png",
-      } : {}),
-      updatedAt: state.updatedAt,
-      ...(state.lastError ? { lastError: state.lastError } : {}),
-    };
-  }
-
   async getSnapshot(sessionId: string): Promise<BrowserSessionSnapshot> {
-    const settings = await this.getSettings();
+    const { headless } = await this.getSettings();
     const state = this.sessions.get(sessionId);
     const activeTab = state?.tabs.get(state.activeTabId);
     if (!state || !activeTab || activeTab.page.isClosed()) {
-      return {
-        sessionId,
-        active: false,
-        activeTabId: "",
-        tabs: [],
-        viewport: state?.viewport ?? { width: 1024, height: 768 },
-        deviceScaleFactor: state?.deviceScaleFactor ?? 2,
-        colorScheme: state?.colorScheme ?? "dark",
-        url: "",
-        title: "",
-        canGoBack: false,
-        canGoForward: false,
-        takeoverPaused: false,
-        headless: settings.headless,
-        elements: [],
-        textExcerpt: "",
-        consoleCount: state?.consoleItems.length ?? 0,
-        networkCount: state?.networkItems.length ?? 0,
-        errorCount: 0,
-        updatedAt: Date.now(),
-      };
+      return inactiveSnapshot(sessionId, state, headless);
     }
-    return this.captureState(state, activeTab, false, false);
+    return this.capture(state, activeTab, false, false);
   }
 
   async setViewport(
@@ -451,7 +195,7 @@ export class BrowserRuntime {
     const next = clampViewport(width, height);
     const state = this.sessions.get(sessionId);
     if (!state) return this.getSnapshot(sessionId);
-    const appearanceChanged = await this.applyAppearance(state, appearance);
+    const appearanceChanged = await applyAppearance(state, appearance);
     const sizeChanged = state.viewport.width !== next.width || state.viewport.height !== next.height;
     if (!sizeChanged && !appearanceChanged) {
       return this.getSnapshot(sessionId);
@@ -462,8 +206,8 @@ export class BrowserRuntime {
       if (sizeChanged) {
         await activeTab.page.setViewportSize(next).catch(() => {});
       }
-      await this.screencast.ensureRunning(sessionId, state.context, () => this.buildScreencastMeta(state), true);
-      return this.captureState(state, activeTab, !this.screencast.hasSubscribers(sessionId), false);
+      await this.screencast.ensureRunning(sessionId, state.context, () => buildScreencastMeta(state), true);
+      return this.capture(state, activeTab, !this.screencast.hasSubscribers(sessionId), false);
     }
     return this.getSnapshot(sessionId);
   }
@@ -480,17 +224,17 @@ export class BrowserRuntime {
     if (viewport) {
       state.viewport = clampViewport(viewport.width, viewport.height);
     }
-    const page = await this.openInternalPage(state);
+    const page = await openInternalPage(state);
     await page.setViewportSize(state.viewport).catch(() => {});
     const tabId = `tab-${randomUUID().slice(0, 6)}`;
-    const entry = this.attachTabListeners(state, page, tabId);
+    const entry = attachTabListeners(state, page, tabId);
     state.activeTabId = tabId;
     if (rawUrl?.trim()) {
       const { url } = validateBrowserUrl(rawUrl);
       await page.goto(url, { waitUntil: "domcontentloaded", timeout: 25_000 });
       await page.waitForLoadState("networkidle", { timeout: 2500 }).catch(() => {});
     }
-    return this.captureState(state, entry, true, fromAgent);
+    return this.capture(state, entry, true, fromAgent);
   }
 
   async activateTab(sessionId: string, tabId: string): Promise<BrowserSessionSnapshot> {
@@ -502,8 +246,8 @@ export class BrowserRuntime {
     state.activeTabId = tabId;
     await target.page.setViewportSize(state.viewport).catch(() => {});
     await target.page.bringToFront().catch(() => {});
-    await this.screencast.ensureRunning(sessionId, state.context, () => this.buildScreencastMeta(state), true);
-    return this.captureState(state, target, !this.screencast.hasSubscribers(sessionId) || !target.lastScreenshotBase64, false);
+    await this.screencast.ensureRunning(sessionId, state.context, () => buildScreencastMeta(state), true);
+    return this.capture(state, target, !this.screencast.hasSubscribers(sessionId) || !target.lastScreenshotBase64, false);
   }
 
   async closeTab(sessionId: string, tabId: string): Promise<BrowserSessionSnapshot> {
@@ -514,18 +258,18 @@ export class BrowserRuntime {
       state.tabs.delete(tabId);
     }
     if (state.tabs.size === 0) {
-      const page = await this.openInternalPage(state);
+      const page = await openInternalPage(state);
       await page.setViewportSize(state.viewport).catch(() => {});
       const nextId = `tab-${randomUUID().slice(0, 6)}`;
-      const entry = this.attachTabListeners(state, page, nextId);
+      const entry = attachTabListeners(state, page, nextId);
       state.activeTabId = nextId;
-      await this.screencast.ensureRunning(sessionId, state.context, () => this.buildScreencastMeta(state), true);
-      return this.captureState(state, entry, !this.screencast.hasSubscribers(sessionId), false);
+      await this.screencast.ensureRunning(sessionId, state.context, () => buildScreencastMeta(state), true);
+      return this.capture(state, entry, !this.screencast.hasSubscribers(sessionId), false);
     }
     const nextTab = state.tabs.get(state.activeTabId) ?? state.tabs.values().next().value!;
     state.activeTabId = nextTab.tabId;
-    await this.screencast.ensureRunning(sessionId, state.context, () => this.buildScreencastMeta(state), true);
-    return this.captureState(state, nextTab, !this.screencast.hasSubscribers(sessionId) || !nextTab.lastScreenshotBase64, false);
+    await this.screencast.ensureRunning(sessionId, state.context, () => buildScreencastMeta(state), true);
+    return this.capture(state, nextTab, !this.screencast.hasSubscribers(sessionId) || !nextTab.lastScreenshotBase64, false);
   }
 
   async navigate(
@@ -551,9 +295,9 @@ export class BrowserRuntime {
     await tab.page.goto(url, { waitUntil: "domcontentloaded", timeout: 25_000 });
     await tab.page.waitForLoadState("networkidle", { timeout: fromAgent ? 2500 : 1000 }).catch(() => {});
     if (vpChanged && this.screencast.hasSubscribers(sessionId)) {
-      await this.screencast.ensureRunning(sessionId, state.context, () => this.buildScreencastMeta(state), true);
+      await this.screencast.ensureRunning(sessionId, state.context, () => buildScreencastMeta(state), true);
     }
-    return this.captureState(state, tab, true, fromAgent);
+    return this.capture(state, tab, true, fromAgent);
   }
 
   async goBack(sessionId: string): Promise<BrowserSessionSnapshot> {
@@ -562,7 +306,7 @@ export class BrowserRuntime {
       await tab.page.goBack({ waitUntil: "domcontentloaded", timeout: 15_000 }).catch(() => {});
       tab.historyIndex -= 1;
     }
-    return this.captureState(state, tab, true, false);
+    return this.capture(state, tab, true, false);
   }
 
   async goForward(sessionId: string): Promise<BrowserSessionSnapshot> {
@@ -571,7 +315,7 @@ export class BrowserRuntime {
       await tab.page.goForward({ waitUntil: "domcontentloaded", timeout: 15_000 }).catch(() => {});
       tab.historyIndex += 1;
     }
-    return this.captureState(state, tab, true, false);
+    return this.capture(state, tab, true, false);
   }
 
   async reload(sessionId: string): Promise<BrowserSessionSnapshot> {
@@ -579,12 +323,12 @@ export class BrowserRuntime {
     if (tab.page.url() && tab.page.url() !== "about:blank") {
       await tab.page.reload({ waitUntil: "domcontentloaded", timeout: 15_000 }).catch(() => {});
     }
-    return this.captureState(state, tab, true, false);
+    return this.capture(state, tab, true, false);
   }
 
   async snapshot(sessionId: string, withScreenshot = true): Promise<BrowserSessionSnapshot> {
     const { state, tab } = await this.ensureSession(sessionId);
-    return this.captureState(state, tab, withScreenshot, true);
+    return this.capture(state, tab, withScreenshot, true);
   }
 
   async click(
@@ -610,7 +354,7 @@ export class BrowserRuntime {
     if (fromAgent) await tab.page.waitForTimeout(200);
     else if (!fast) await tab.page.waitForTimeout(25);
     const needShot = fromAgent || (!fast && !this.screencast.hasSubscribers(sessionId));
-    return this.captureState(state, tab, needShot, fromAgent);
+    return this.capture(state, tab, needShot, fromAgent);
   }
 
   async hover(
@@ -630,7 +374,7 @@ export class BrowserRuntime {
     }
     if (fromAgent) await tab.page.waitForTimeout(120);
     const needShot = fromAgent || (!fast && !this.screencast.hasSubscribers(sessionId));
-    return this.captureState(state, tab, needShot, fromAgent);
+    return this.capture(state, tab, needShot, fromAgent);
   }
 
   async typeText(
@@ -655,7 +399,7 @@ export class BrowserRuntime {
     }
     if (fromAgent) await tab.page.waitForTimeout(150);
     const needShot = fromAgent || (!fast && !this.screencast.hasSubscribers(sessionId));
-    return this.captureState(state, tab, needShot, fromAgent);
+    return this.capture(state, tab, needShot, fromAgent);
   }
 
   async scroll(sessionId: string, deltaY: number, deltaX = 0, fromAgent = false, fast = false): Promise<BrowserSessionSnapshot> {
@@ -664,7 +408,7 @@ export class BrowserRuntime {
     await tab.page.mouse.wheel(deltaX, deltaY);
     if (fromAgent) await tab.page.waitForTimeout(120);
     const needShot = fromAgent || (!fast && !this.screencast.hasSubscribers(sessionId));
-    return this.captureState(state, tab, needShot, fromAgent);
+    return this.capture(state, tab, needShot, fromAgent);
   }
 
   async pressKey(sessionId: string, key: string, fromAgent = false, fast = false): Promise<BrowserSessionSnapshot> {
@@ -673,7 +417,7 @@ export class BrowserRuntime {
     await tab.page.keyboard.press(key);
     if (fromAgent) await tab.page.waitForTimeout(120);
     const needShot = fromAgent || (!fast && !this.screencast.hasSubscribers(sessionId));
-    return this.captureState(state, tab, needShot, fromAgent);
+    return this.capture(state, tab, needShot, fromAgent);
   }
 
   setTakeover(sessionId: string, paused: boolean): BrowserSessionSnapshot | null {
@@ -681,36 +425,7 @@ export class BrowserRuntime {
     if (!state) return null;
     state.takeoverPaused = paused;
     state.updatedAt = Date.now();
-    const activeTab = state.tabs.get(state.activeTabId);
-    const tabs: BrowserTabItem[] = [...state.tabs.values()]
-      .filter((t) => !t.page.isClosed())
-      .map((t) => ({
-        tabId: t.tabId,
-        title: t.title || t.page.url() || "新标签页",
-        url: t.page.url(),
-        active: t.tabId === state.activeTabId,
-      }));
-    return {
-      sessionId: state.sessionId,
-      active: Boolean(activeTab && !activeTab.page.isClosed()),
-      ...(this.executablePath ? { executablePath: this.executablePath } : {}),
-      activeTabId: state.activeTabId,
-      tabs,
-      viewport: state.viewport,
-      url: activeTab?.page.url() ?? "",
-      title: activeTab?.title ?? "",
-      canGoBack: Boolean(activeTab && activeTab.historyIndex > 0),
-      canGoForward: Boolean(activeTab && activeTab.historyIndex >= 0 && activeTab.historyIndex < activeTab.history.length - 1),
-      takeoverPaused: state.takeoverPaused,
-      headless: Boolean(this.launchedHeadless ?? true),
-      elements: [],
-      textExcerpt: "",
-      consoleCount: state.consoleItems.length,
-      networkCount: state.networkItems.length,
-      errorCount: state.consoleItems.filter((c) => c.level === "error" || c.level === "network").length,
-      ...(activeTab?.lastScreenshotBase64 ? { screenshotBase64: activeTab.lastScreenshotBase64 } : {}),
-      updatedAt: state.updatedAt,
-    };
+    return takeoverSnapshot(state, this.executablePath, Boolean(this.launchedHeadless ?? true));
   }
 
   async setTakeoverAndSnapshot(sessionId: string, paused: boolean): Promise<BrowserSessionSnapshot> {
@@ -729,7 +444,7 @@ export class BrowserRuntime {
     if (activeUrl && activeUrl !== "about:blank") {
       await tab.page.goto(activeUrl, { waitUntil: "domcontentloaded", timeout: 25_000 }).catch(() => {});
     }
-    return this.captureState(nextState, tab, true);
+    return this.capture(nextState, tab, true);
   }
 
   getConsole(sessionId: string): BrowserConsoleItem[] {

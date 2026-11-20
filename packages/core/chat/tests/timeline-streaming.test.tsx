@@ -248,3 +248,52 @@ test("正在执行工具分组在末尾时展示动态点与文案，不重复�
   assert.match(doneHtml, /data-activity-segment="round-1"/u);
   assert.match(doneHtml, /全部文件已写入。/);
 });
+
+test("渐变动效只跟随运行中的回复，给出结果后即使残留运行步骤也不再标记", () => {
+  const now = Date.now();
+  const runningStep: AgentStepItem = {
+    id: "act-live",
+    iteration: 1,
+    phase: "act",
+    status: "running",
+    title: "运行命令",
+    toolName: "run_command",
+    commandTrace: { command: "echo test" },
+    timestamp: now,
+  };
+  const live = renderTimeline({ isStreaming: true, content: "执行中。", steps: [runningStep] });
+  assert.match(live.html, /data-live="true"/u);
+
+  // 正常完成：步骤回到 done，不再有运行态标记。
+  const finished = renderTimeline({
+    isStreaming: false,
+    progressText: "执行中。",
+    content: "完成。",
+    steps: [{ ...runningStep, status: "done" }],
+  });
+  assert.doesNotMatch(finished.html, /data-live/u);
+
+  // 中止或降级时 Host 可能残留 running 步骤，同样不允许继续渐变动效。
+  const interrupted = renderTimeline({
+    isStreaming: false,
+    progressText: "执行中。",
+    content: "任务已手动中止。",
+    steps: [runningStep],
+  });
+  assert.doesNotMatch(interrupted.html, /data-live/u);
+});
+
+test("顶部用时行只在运行中标记渐变动效", () => {
+  const props = {
+    isZh: true,
+    createdAt: Date.now() - 1_000,
+    durationMs: 1_000,
+    expanded: false,
+    processId: "run-live-dot",
+    onToggle: () => {},
+  };
+  const live = renderToStaticMarkup(createElement(StepTraceList, { ...props, isStreaming: true }));
+  const done = renderToStaticMarkup(createElement(StepTraceList, { ...props, isStreaming: false }));
+  assert.match(live, /data-live="true"/u);
+  assert.doesNotMatch(done, /data-live/u);
+});

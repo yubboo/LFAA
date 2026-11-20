@@ -56,9 +56,11 @@ function groupActivities(steps: AgentStepItem[], textLength: number, isStreaming
   return result;
 }
 
-function ActivityRow({ step, locale, onOpenFile, onOpenTrace, selectedFileStepId }: {
+function ActivityRow({ step, locale, live, onOpenFile, onOpenTrace, selectedFileStepId }: {
   step: AgentStepItem;
   locale: ChatLocaleMessages;
+  /** 当前回复是否仍在流式运行：只有运行中的行才允许播放渐变动效。 */
+  live: boolean;
 } & FileActivityActions) {
   const labels = timelineMessages[locale.isZh ? "zh" : "en"];
   const path = getActivityFilePath(step);
@@ -90,6 +92,8 @@ function ActivityRow({ step, locale, onOpenFile, onOpenTrace, selectedFileStepId
   const kind = getActivityKind(step);
   const isCommand = kind === "command";
   const active = step.status === "preparing" || step.status === "running";
+  // 只有仍在运行中的步骤才标记为活动行，结束后即使事件残留运行状态也不再渐变。
+  const liveRow = live && active;
   const hasDetails = Boolean(onOpenTrace || active || command || step.argsPreview || step.resultPreview || step.detail || step.toolTarget || step.argumentChars !== undefined);
   const Icon = activityIcons[kind];
   const title = command?.command ?? getActivityLabel(step, locale.isZh, true);
@@ -114,12 +118,12 @@ function ActivityRow({ step, locale, onOpenFile, onOpenTrace, selectedFileStepId
       {(hasDetails || onOpenTrace) && <IconChevronRight size={13} className={styles.chevron} aria-hidden="true" />}
     </>
   );
-  if (!hasDetails) return <div className={styles.activityRow} data-kind={kind} data-status={step.status}>{row}</div>;
+  if (!hasDetails) return <div className={styles.activityRow} data-kind={kind} data-status={step.status} data-live={liveRow ? "true" : undefined}>{row}</div>;
 
   return (
     <details className={styles.activityDisclosure}>
-      <summary className={styles.activityRow} data-kind={kind} data-status={step.status}>{row}</summary>
-      <div className={styles.activityDetail} data-kind={isCommand ? "command" : undefined} data-status={step.status}>
+      <summary className={styles.activityRow} data-kind={kind} data-status={step.status} data-live={liveRow ? "true" : undefined}>{row}</summary>
+      <div className={styles.activityDetail} data-kind={isCommand ? "command" : undefined} data-status={step.status} data-live={liveRow ? "true" : undefined}>
         {command ? (
           <>
             <div className={styles.terminalHeader}>
@@ -154,8 +158,10 @@ function ActivityRow({ step, locale, onOpenFile, onOpenTrace, selectedFileStepId
   );
 }
 
-function ActivityGroupRow({ group, locale, createdAt, ...fileActions }: {
+function ActivityGroupRow({ group, locale, createdAt, live, ...fileActions }: {
   group: ActivityGroup; locale: ChatLocaleMessages; createdAt: number;
+  /** 当前回复是否仍在流式运行：结束后即使步骤残留运行状态也不再渐变。 */
+  live: boolean;
 } & FileActivityActions) {
   const labels = timelineMessages[locale.isZh ? "zh" : "en"];
   const failed = group.steps.filter((step) => step.status === "error").length;
@@ -177,9 +183,10 @@ function ActivityGroupRow({ group, locale, createdAt, ...fileActions }: {
     : group.model ? getLiveStage([group.model], now) : "starting";
   const summary = current ? [getActivityLabel(current, locale.isZh, true), current.commandTrace?.command].filter(Boolean).join(" ")
     : labels[modelState];
+  const groupLive = live && (Boolean(active) || modelActive);
   return (
     <details className={styles.activityDisclosure} data-activity-segment={group.key}>
-      <summary className={styles.disclosure} data-kind={kind} data-status={active?.status ?? (modelActive ? "running" : undefined)}>
+      <summary className={styles.disclosure} data-kind={kind} data-status={active?.status ?? (modelActive ? "running" : undefined)} data-live={groupLive ? "true" : undefined}>
         {((active && active.status !== "waiting_approval") || modelActive) && <span className={styles.liveDot} aria-hidden="true" />}
         <Icon size={14} className={styles.icon} aria-hidden="true" />
         <span className={styles.activityTitle} title={summary} aria-live={group.live || active ? "polite" : undefined}>{summary}</span>
@@ -192,7 +199,7 @@ function ActivityGroupRow({ group, locale, createdAt, ...fileActions }: {
       </summary>
       {current && (
         <div className={styles.activityList}>
-          {group.steps.map((step) => <ActivityRow key={step.id} step={step} locale={locale} {...fileActions} />)}
+          {group.steps.map((step) => <ActivityRow key={step.id} step={step} locale={locale} live={live} {...fileActions} />)}
         </div>
       )}
     </details>
@@ -270,7 +277,7 @@ export function AssistantTimeline({
                 {precedingText.trim() && (
                   <div className={bodyClassName}><MarkdownContent content={precedingText} isZh={locale.isZh} /></div>
                 )}
-                <ActivityGroupRow group={group} locale={locale} createdAt={createdAt} onOpenFile={onOpenFile} onOpenTrace={onOpenTrace} selectedFileStepId={selectedFileStepId} />
+                <ActivityGroupRow group={group} locale={locale} createdAt={createdAt} live={isStreaming} onOpenFile={onOpenFile} onOpenTrace={onOpenTrace} selectedFileStepId={selectedFileStepId} />
               </div>
             );
           })}

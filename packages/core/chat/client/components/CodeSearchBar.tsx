@@ -2,6 +2,7 @@
 import { useEffect, useRef } from "react";
 import { IconArrowDown, IconArrowUp, IconX } from "@tabler/icons-react";
 import styles from "./FileChangePreview.module.css";
+import searchStyles from "./FileChangePreview.search.module.css";
 
 export function CodeSearchBar({
   isZh,
@@ -34,10 +35,10 @@ export function CodeSearchBar({
   }, []);
 
   return (
-    <div className={styles.searchBar} role="search" aria-label={isZh ? "代码内搜索" : "Find in file"}>
+    <div className={searchStyles.searchBar} role="search" aria-label={isZh ? "代码内搜索" : "Find in file"}>
       <input
         ref={inputRef}
-        className={styles.searchInput}
+        className={searchStyles.searchInput}
         value={query}
         placeholder={isZh ? "搜索当前文件内容…" : "Find in file..."}
         onChange={(e) => onChangeQuery(e.target.value)}
@@ -49,23 +50,23 @@ export function CodeSearchBar({
       />
       <button
         type="button"
-        className={`${styles.searchBtn} ${caseSensitive ? styles.modeBtnActive : ""}`}
+        className={`${searchStyles.searchBtn} ${caseSensitive ? styles.modeBtnActive : ""}`}
         title={isZh ? "区分大小写" : "Match case"}
         aria-pressed={caseSensitive}
         onClick={onToggleCase}
       >
         Aa
       </button>
-      <span className={styles.searchCount}>
+      <span className={searchStyles.searchCount}>
         {query ? (matchCount > 0 ? `${activeIndex + 1}/${matchCount}` : (isZh ? "无结果" : "No results")) : ""}
       </span>
-      <button type="button" className={styles.searchBtn} disabled={matchCount === 0} title={isZh ? "上一处" : "Previous"} onClick={onPrev}>
+      <button type="button" className={searchStyles.searchBtn} disabled={matchCount === 0} title={isZh ? "上一处" : "Previous"} onClick={onPrev}>
         <IconArrowUp size={13} />
       </button>
-      <button type="button" className={styles.searchBtn} disabled={matchCount === 0} title={isZh ? "下一处" : "Next"} onClick={onNext}>
+      <button type="button" className={searchStyles.searchBtn} disabled={matchCount === 0} title={isZh ? "下一处" : "Next"} onClick={onNext}>
         <IconArrowDown size={13} />
       </button>
-      <button type="button" className={styles.searchBtn} title={isZh ? "关闭搜索" : "Close"} onClick={onClose}>
+      <button type="button" className={searchStyles.searchBtn} title={isZh ? "关闭搜索" : "Close"} onClick={onClose}>
         <IconX size={13} />
       </button>
     </div>

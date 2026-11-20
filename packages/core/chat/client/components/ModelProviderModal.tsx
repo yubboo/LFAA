@@ -8,6 +8,12 @@ import { inferProtocolForPreset, type ModelProviderPreset } from "../provider-ca
 import { ModelProviderFooter } from "./ModelProviderFooter";
 import { ModelProviderForm, type ModelProviderStatusNotice } from "./ModelProviderForm";
 
+// 模型清单统一从 Chat Completions 端点查询：套餐地址固定跟随该端点，普通档案用已保存地址。
+function resolveListBaseUrl(provider: ModelProviderPreset, profile?: PublicLlmProfileItem): string {
+  if (provider.subscription) return provider.protocolBaseUrls?.["openai-chat"] ?? provider.defaultBaseUrl;
+  return profile?.baseUrl ?? provider.defaultBaseUrl;
+}
+
 /** 共用普通 API 和套餐表单，从接入方式进入时提供返回入口。 */
 export function ModelProviderModal({
   open,
@@ -82,14 +88,15 @@ export function ModelProviderModal({
     setOfficialModels(cached);
 
     // 仅在弹窗初次打开时自动同步一次真实官方模型清单，避免保存或测试后重复触发清空状态提示。
-    if (!provider.subscription && (profile?.configured || profile?.hasApiKey || (profile?.kind ?? provider.kind) === "ollama")) {
+    // 套餐同样按已保存凭据拉取，确保千问等套餐能列出名下全部模型，而不是只认一个模型 ID。
+    if (profile?.configured || profile?.hasApiKey || (profile?.kind ?? provider.kind) === "ollama") {
       setFetchingModels(true);
       void store
         .fetchRemoteModels({
           ...(profile?.id ? { profileId: profile.id } : {}),
           kind: profile?.kind ?? provider.kind,
           apiProtocol: nextProtocol,
-          baseUrl: profile?.baseUrl ?? provider.defaultBaseUrl,
+          baseUrl: resolveListBaseUrl(provider, profile),
         })
         .then((list) => {
           setOfficialModels(list);
@@ -134,7 +141,7 @@ export function ModelProviderModal({
         ...(profile?.id ? { profileId: profile.id } : {}),
         kind,
         apiProtocol: configProtocol,
-        baseUrl: configBaseUrl,
+        baseUrl: resolveListBaseUrl(provider, profile),
         ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
       });
       setOfficialModels(list);
@@ -177,7 +184,7 @@ export function ModelProviderModal({
         outputPricePerMillion: Number(outputPrice) || 0,
         cachedInputPricePerMillion: Number(cachedInputPrice) || 0,
         ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
-        ...(!subscription && officialModels.length > 0 ? { availableModels: officialModels } : {}),
+        ...(officialModels.length > 0 ? { availableModels: officialModels } : {}),
         activate,
       });
       setApiKey("");
@@ -201,7 +208,7 @@ export function ModelProviderModal({
     }
   };
 
-  // 先保存当前表单，再按档案 ID 发起真实连接测试。套餐跳过普通 API 的模型目录查询。
+  // 先保存当前表单，再按档案 ID 发起真实连接测试；套餐同样在保存前补齐真实模型清单。
   const handleTest = async () => {
     setBusy(true);
     setStatusNotice({
@@ -210,14 +217,14 @@ export function ModelProviderModal({
       message: "",
     });
     try {
-      const fetched = subscription ? [] : officialModels.length > 0
+      const fetched = officialModels.length > 0
         ? officialModels
         : await store
             .fetchRemoteModels({
               ...(profile?.id ? { profileId: profile.id } : {}),
               kind,
               apiProtocol: configProtocol,
-              baseUrl: configBaseUrl,
+              baseUrl: resolveListBaseUrl(provider, profile),
               ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
             })
             .catch(() => officialModels);

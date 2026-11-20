@@ -11,6 +11,9 @@ import { CodeBreadcrumbBar } from "./CodeBreadcrumbBar";
 import { CodeSearchBar } from "./CodeSearchBar";
 import syntaxStyles from "./CodeSyntax.module.css";
 import styles from "./FileChangePreview.module.css";
+import searchStyles from "./FileChangePreview.search.module.css";
+import commentStyles from "./FileChangePreview.comment.module.css";
+import diffStyles from "./FileChangePreview.diff.module.css";
 
 function renderLineWithSearch(line: string, query: string, caseSensitive: boolean, highlighted: ReactNode[]) {
   if (!query) return highlighted;
@@ -22,7 +25,7 @@ function renderLineWithSearch(line: string, query: string, caseSensitive: boolea
   let idx = hay.indexOf(needle, cursor);
   while (idx >= 0) {
     if (idx > cursor) nodes.push(line.slice(cursor, idx));
-    nodes.push(<mark key={idx} className={styles.searchHighlight}>{line.slice(idx, idx + query.length)}</mark>);
+    nodes.push(<mark key={idx} className={searchStyles.searchHighlight}>{line.slice(idx, idx + query.length)}</mark>);
     cursor = idx + query.length;
     idx = hay.indexOf(needle, cursor);
   }
@@ -310,13 +313,13 @@ export function FileChangePreview({
                         </div>
 
                         {commentOpen && (
-                          <form className={styles.inlineCommentBox} onSubmit={(e) => handleSubmitComment(e, number, line)}>
-                            <div className={styles.commentMeta}>
+                          <form className={commentStyles.inlineCommentBox} onSubmit={(e) => handleSubmitComment(e, number, line)}>
+                            <div className={commentStyles.commentMeta}>
                               {isZh ? `第 ${number} 行批注 · 提交后写入对话输入框` : `Line ${number} comment · inserts into chat`}
                             </div>
                             <textarea
                               ref={commentInputRef}
-                              className={styles.commentTextarea}
+                              className={commentStyles.commentTextarea}
                               rows={2}
                               value={commentDraft}
                               placeholder={isZh ? "输入修改建议或提问 (Ctrl+Enter 添加)…" : "Leave a comment (Ctrl+Enter to add)..."}
@@ -330,11 +333,11 @@ export function FileChangePreview({
                                 }
                               }}
                             />
-                            <div className={styles.commentActions}>
-                              <button type="button" className={styles.commentCancel} onClick={() => setCommentLine(null)}>
+                            <div className={commentStyles.commentActions}>
+                              <button type="button" className={commentStyles.commentCancel} onClick={() => setCommentLine(null)}>
                                 {isZh ? "取消" : "Cancel"}
                               </button>
-                              <button type="submit" className={styles.commentSubmit} disabled={!commentDraft.trim()}>
+                              <button type="submit" className={commentStyles.commentSubmit} disabled={!commentDraft.trim()}>
                                 {isZh ? "添加到对话" : "Add Comment"}
                               </button>
                             </div>
@@ -350,36 +353,36 @@ export function FileChangePreview({
               </>
             )
           ) : (
-            <div className={styles.diffBody}>
+            <div className={diffStyles.diffBody}>
               {change ? (
                 <>
-                  <div className={styles.diffMeta}>
+                  <div className={diffStyles.diffMeta}>
                     <span>{labels.fileKinds[getFileActivityKind(step!)]}</span>
                     {(change.before || change.after) && <span>{labels.fromLine(change.firstLine)}</span>}
                   </div>
                   {change.before && (
-                    <div className={styles.fragment} data-side="before">
-                      <div className={styles.fragmentHead}>{labels.before}</div>
+                    <div className={diffStyles.fragment} data-side="before">
+                      <div className={diffStyles.fragmentHead}>{labels.before}</div>
                       <pre tabIndex={0}>{change.before}</pre>
                     </div>
                   )}
                   {change.after && (
-                    <div className={styles.fragment} data-side="after">
-                      <div className={styles.fragmentHead}>{labels.after}</div>
+                    <div className={diffStyles.fragment} data-side="after">
+                      <div className={diffStyles.fragmentHead}>{labels.after}</div>
                       <pre tabIndex={0}>{change.after}</pre>
                     </div>
                   )}
                   {!change.before && !change.after && (
-                    <p className={styles.diffHint}>{change.operation === "created" ? labels.emptyFile : labels.noTextChange}</p>
+                    <p className={diffStyles.diffHint}>{change.operation === "created" ? labels.emptyFile : labels.noTextChange}</p>
                   )}
-                  {change.truncated && <small className={styles.diffHint}>{labels.clipped}</small>}
+                  {change.truncated && <small className={diffStyles.diffHint}>{labels.clipped}</small>}
                 </>
               ) : (
-                <div className={styles.fragment} aria-live="polite">
-                  <div className={styles.fragmentHead}>{labels.currentDiff}</div>
+                <div className={diffStyles.fragment} aria-live="polite">
+                  <div className={diffStyles.fragmentHead}>{labels.currentDiff}</div>
                   {legacyDiff?.text
                     ? <pre tabIndex={0}>{legacyDiff.text}</pre>
-                    : <p className={styles.diffHint}>{legacyDiff === null ? labels.loadingDiff : (legacyDiff.error || labels.noDiff)}</p>}
+                    : <p className={diffStyles.diffHint}>{legacyDiff === null ? labels.loadingDiff : (legacyDiff.error || labels.noDiff)}</p>}
                 </div>
               )}
             </div>

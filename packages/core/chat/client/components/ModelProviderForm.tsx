@@ -100,7 +100,8 @@ export function ModelProviderForm({
 }) {
   const { name, kind, apiProtocol, baseUrl, model, apiKey, contextWindow, inputPrice, outputPrice, cachedInputPrice } = values;
   const { setName, setApiProtocol, setBaseUrl, setModel, setApiKey, setContextWindow, setInputPrice, setOutputPrice, setCachedInputPrice } = setters;
-  const visibleOfficialModels = provider.id === "volcengine" ? officialModels : officialModels.slice(0, 18);
+  // 套餐列出拉取到的全部模型，普通接口沿用首屏截断避免刷屏。
+  const visibleOfficialModels = subscription ? officialModels : officialModels.slice(0, 18);
 
   // 原地状态按钮：同步中/测试中 → 成功（连接成功 · OK）/ 失败，成功态数秒后自动复位
   const tone = statusNotice?.tone;
@@ -183,12 +184,8 @@ export function ModelProviderForm({
       <div className={styles.field}>
         <div className={styles.fieldHeaderRow}>
           <label htmlFor={modelInputId} className={styles.fieldLabel}>{isZh ? "模型 ID (Model)" : "Model ID"}</label>
-          {/* 同步 / 测试 / 保存状态直接在此按钮原地切换展示，不再弹出顶部横幅 */}
-          {subscription ? (statusNotice && (
-            <span className={`${styles.inlineActionBtn} ${inlineToneClass}`} role="status">
-              {inlineIcon}<span>{inlineLabel}</span>
-            </span>
-          )) : <button
+          {/* 同步 / 测试 / 保存状态直接在此按钮原地切换展示，不再弹出顶部横幅；套餐与普通接口一样可拉取。 */}
+          <button
             type="button"
             className={`${styles.inlineActionBtn} ${inlineToneClass}`}
             disabled={fetchingModels || busy}
@@ -198,17 +195,15 @@ export function ModelProviderForm({
           >
             {inlineIcon}
             <span>{inlineLabel}</span>
-          </button>}
+          </button>
         </div>
         <input id={modelInputId} className={styles.input} value={model} onChange={(e) => setModel(e.target.value)} />
         {isErrorTone && statusNotice?.message && (
           <span className={styles.errorHint} role="alert">{statusNotice.message}</span>
         )}
-        {/* 方舟展示公开套餐目录，其他套餐允许填写官方 ID，普通 API 展示查询结果。 */}
+        {/* 方舟套餐展示公开目录；其他套餐展示拉取到的真实模型清单，未拉取时提示先同步。 */}
         {arkPlan ? (
           <ArkModels plan={arkPlan} model={model} isZh={isZh} onSelect={setModel} />
-        ) : subscription ? (
-          <span className={styles.fieldHint}>{providerAccessMessages[isZh ? "zh" : "en"].planModel}</span>
         ) : officialModels.length > 0 ? (
           <div className={styles.chipsRow}>
             {visibleOfficialModels.map((item) => {
@@ -229,9 +224,11 @@ export function ModelProviderForm({
           </div>
         ) : (
           <span className={styles.fieldHint}>
-            {isLocal
-              ? (isZh ? "请先启动本地模型服务（如 Ollama / LM Studio），再点击「获取本地模型」" : "Start your local server (Ollama / LM Studio) and click Fetch Local Models")
-              : (isZh ? "填写凭据后点击「获取官方模型」从官方接口实时加载真实可用模型" : "Click Fetch Official Models after entering credentials")}
+            {subscription
+              ? providerAccessMessages[isZh ? "zh" : "en"].planFetchHint
+              : isLocal
+                ? (isZh ? "请先启动本地模型服务（如 Ollama / LM Studio），再点击「获取本地模型」" : "Start your local server (Ollama / LM Studio) and click Fetch Local Models")
+                : (isZh ? "填写凭据后点击「获取官方模型」从官方接口实时加载真实可用模型" : "Click Fetch Official Models after entering credentials")}
           </span>
         )}
       </div>
@@ -296,10 +293,15 @@ export function ModelProviderForm({
 
       <label className={styles.field}>
         <span className={styles.fieldLabel}>{isZh ? "API Key" : "API Key"}</span>
+        {/* 明确声明 new-password：否则浏览器会把其他平台保存过的 Key 自动填充进来，保存时覆盖当前凭据。 */}
         <input
           type="password"
           className={styles.input}
           value={apiKey}
+          autoComplete="new-password"
+          autoCapitalize="off"
+          autoCorrect="off"
+          spellCheck={false}
           placeholder={
             kind === "ollama"
               ? (isZh ? "本地服务通常无需填写 API Key" : "Optional for local Ollama")

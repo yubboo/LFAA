@@ -115,6 +115,17 @@ test("formatLlmHttpError 覆盖 DeepSeek 官方 10 类 HTTP 错误码说明", as
   }
 });
 
+test("401/402 提示不写死某家控制台地址，接入地址换到别家也不会指错平台", async () => {
+  const { formatLlmHttpError } = await import("../src/capabilities");
+  for (const code of [401, 402]) {
+    const formatted = formatLlmHttpError(code, JSON.stringify({ error: { message: "invalid_api_key" } }), "Err");
+    assert.ok(!/deepseek\.com|openai\.com|aliyuncs|volces/iu.test(formatted), `不应指向具体厂商：${formatted}`);
+    assert.ok(formatted.includes("invalid_api_key"), "应保留上游明细供排查");
+  }
+  // 千问排在方舟之后出现过的真实事故：401 却提示去 DeepSeek 控制台。改为引导核对接口地址。
+  assert.match(formatLlmHttpError(401, "", "Unauthorized"), /接口地址/u);
+});
+
 test("DeepSeek 思考模式下多轮工具调用必须附带 thinking 与 reasoning_content", async () => {
   const { callOpenAiCompatibleChat } = await import("../src/openai-adapter");
   const capturedBodies: Array<Record<string, unknown>> = [];

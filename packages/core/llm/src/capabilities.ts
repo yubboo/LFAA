@@ -344,12 +344,13 @@ const HTTP_ERROR_GUIDE: Record<number, { title: string; guide: string }> = {
     guide: "请求体格式错误，请根据错误提示检查并修改请求体。",
   },
   401: {
+    // 档案可指向任意厂商，这里不下结论、不写死某家的控制台地址，避免把用户引到错误平台。
     title: "401 认证失败",
-    guide: "API Key 错误或无效，请核对凭据或前往 platform.deepseek.com/api_keys 创建。",
+    guide: "API Key 错误或无效：请确认这把 Key 属于当前「接口地址」对应的平台，且没有被浏览器自动填充换成其他平台的 Key。",
   },
   402: {
     title: "402 余额不足",
-    guide: "账号余额不足，请确认账户余额并前往 platform.deepseek.com/top_up 充值。",
+    guide: "当前账号余额或套餐额度不足，请到接口地址对应的平台控制台确认额度。",
   },
   408: {
     title: "408 请求超时",

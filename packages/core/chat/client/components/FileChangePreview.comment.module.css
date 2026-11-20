@@ -1,0 +1,67 @@
+/* 代码查看器的行内批注表单（批注框、文本域与操作按钮）样式，双主题变量适配。 */
+
+.inlineCommentBox {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0.35rem 1rem 0.5rem 3.5rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.75rem;
+  background: var(--color-surface);
+  box-shadow: var(--color-menu-shadow);
+  font-family: var(--ui-font-family, sans-serif);
+}
+
+.commentMeta {
+  color: var(--color-muted);
+  font-size: 0.72rem;
+}
+
+.commentTextarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid var(--color-line);
+  border-radius: 0.5rem;
+  padding: 0.45rem 0.55rem;
+  background: var(--color-shell);
+  color: var(--color-ink);
+  font-family: inherit;
+  font-size: 0.8rem;
+  outline: none;
+}
+
+.commentTextarea:focus {
+  border-color: var(--color-accent);
+}
+
+.commentActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
+.commentCancel,
+.commentSubmit {
+  padding: 0.32rem 0.78rem;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+
+.commentCancel {
+  border: 1px solid var(--color-line);
+  background: transparent;
+  color: var(--color-muted);
+}
+
+.commentSubmit {
+  border: 0;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-weight: 500;
+}
+
+.commentSubmit:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

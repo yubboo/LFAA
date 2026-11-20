@@ -2,6 +2,7 @@
 import { type Context, type Plugin, Service } from "@deepseek-ai/cordis";
 import type { PluginCatalogItem, PluginManifest, PluginRecord, PresetSummary } from "../contract/index";
 import { PluginManager, type PluginSkillRegistrar } from "./plugin-manager";
+import type { PluginPresetDefinition } from "./plugin-catalog";
 
 export * from "../contract/index";
 export { createPluginsHttpHandler } from "./plugin-routes";
@@ -15,13 +16,7 @@ export interface PluginsPluginConfig {
   /** 仓库根目录：二创复制包与依赖软链需要。 */
   repoRoot?: string;
   /** 模式预设（由 bundle 提供，避免插件包反向依赖 bundle）。 */
-  presets?: ReadonlyArray<{
-    id: string;
-    name: Record<"zh" | "en", string>;
-    description: Record<"zh" | "en", string>;
-    sessionModules: readonly string[];
-    unavailable?: boolean;
-  }>;
+  presets?: readonly PluginPresetDefinition[];
 }
 
 /** Host 侧插件服务，挂载于 Cordis `plugins` 属性。 */

@@ -1,6 +1,17 @@
 // 为本机 Web 服务提供 /api/llm/* HTTP 接口，绝不向浏览器返回原始 API Key。
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { asApiProtocol, type LlmProviderKind, type LlmService } from "./index";
+import type { ModelCapabilityInfo } from "./types";
+
+// 浏览器提交的模型清单只接受带 id 的对象并限长，写入后由 Host 读取时统一归一化。
+function asModelList(value: unknown): ModelCapabilityInfo[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
+    .filter((item) => typeof item.id === "string" && item.id.trim().length > 0)
+    .slice(0, 500)
+    .map((item) => item as unknown as ModelCapabilityInfo);
+}
 
 function sendJson(res: ServerResponse, statusCode: number, payload: unknown): void {
   res.statusCode = statusCode;
@@ -41,6 +52,7 @@ export function createLlmHttpHandler(service: LlmService) {
       if (method === "POST" && pathname === "/api/llm/profiles") {
         const body = await readJsonBody(req);
         const apiProtocol = asApiProtocol(body.apiProtocol);
+        const availableModels = asModelList(body.availableModels);
         const profile = await service.saveProfile({
           ...(typeof body.id === "string" ? { id: body.id } : {}),
           ...(typeof body.providerId === "string" ? { providerId: body.providerId } : {}),
@@ -49,6 +61,7 @@ export function createLlmHttpHandler(service: LlmService) {
           ...(apiProtocol ? { apiProtocol } : {}),
           baseUrl: typeof body.baseUrl === "string" ? body.baseUrl : "",
           model: typeof body.model === "string" ? body.model : "",
+          ...(availableModels.length > 0 ? { availableModels } : {}),
           ...(typeof body.apiKey === "string" ? { apiKey: body.apiKey } : {}),
           ...(typeof body.temperature === "number" ? { temperature: body.temperature } : {}),
           ...(typeof body.maxTokens === "number" ? { maxTokens: body.maxTokens } : {}),
