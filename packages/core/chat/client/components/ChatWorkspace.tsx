@@ -61,6 +61,22 @@ export function ChatWorkspace({
   const latestAdded = latestFiles.reduce((sum, file) => sum + file.added, 0);
   const latestRemoved = latestFiles.reduce((sum, file) => sum + file.removed, 0);
 
+  // 搜索结果打开会话后滚动到命中的消息并短暂高亮；定位完成即消费请求。
+  const pendingJump = state.pendingMessageJump;
+  useEffect(() => {
+    if (!pendingJump || state.activeSessionId !== pendingJump.sessionId) return;
+    if (!activeSession?.messages.some((message) => message.id === pendingJump.messageId)) return;
+    const timer = window.setTimeout(() => {
+      const element = document.getElementById(`chat-message-${pendingJump.messageId}`);
+      if (!element) return;
+      element.scrollIntoView({ block: "center", behavior: "smooth" });
+      element.setAttribute("data-search-hit", "true");
+      window.setTimeout(() => element.removeAttribute("data-search-hit"), 2400);
+      store.consumeMessageJump(pendingJump.nonce);
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [activeSession, pendingJump, state.activeSessionId, store]);
+
   const activeProjectId = activeSession ? activeSession.projectId : state.draftProjectId;
   const activeProfile = state.profiles.find((p) => p.id === state.activeProfileId) ?? state.profiles[0];
   const activeKind = activeProfile?.availableModels?.find((model) => model.id === activeProfile.model)?.modelKind;
@@ -129,8 +145,20 @@ export function ChatWorkspace({
   const selectedFile = state.filePreviewTabs?.find((tab) => tab.id === state.activeFilePreviewId);
 
   const turnAnchors = useMemo(() => buildTurnAnchors(messages), [messages]);
-  // 任务清单从步骤里取最近一次 todo_write 的结果，刷新历史会话同样可用。
-  const sessionTodos = useMemo(() => latestSessionTodos(messages), [messages]);
+  // 任务清单以会话记录为准（手动勾选、重启后都保留），旧会话没有该字段时回落到步骤里的最近一次。
+  const sessionTodos = useMemo(
+    () => (activeSession?.todos && activeSession.todos.length > 0 ? activeSession.todos : latestSessionTodos(messages)),
+    [activeSession?.todos, messages],
+  );
+  const toggleTodo = useMemo(() => {
+    if (!sessionTodos) return undefined;
+    return (todo: { id: string; status: string }) => {
+      const next = sessionTodos.map((item) => item.id === todo.id
+        ? { ...item, status: item.status === "completed" ? "pending" as const : "completed" as const }
+        : item);
+      void store.updateSessionTodos(next);
+    };
+  }, [sessionTodos, store]);
   const { scrollAreaRef, threadRef, showScrollBottom, scrollToLatest, pauseFollowing, trackScroll } =
     useChatScroll(activeSession?.id ?? null, turnAnchors.at(-1)?.anchorMsgId, isRunning);
 
@@ -219,6 +247,7 @@ export function ChatWorkspace({
           memoriesCount={state.memories.length}
           isRunning={isRunning}
           showHomeSuggestions={state.generalSettings.homeSuggestions}
+          brandWatermark={state.generalSettings.imageWatermark}
           activeSessionId={activeSession?.id ?? ""}
           assistantBodyClass={styles.assistantBody}
           noticeLinkClass={composerStyles.noticeLink}
@@ -291,7 +320,12 @@ export function ChatWorkspace({
             )}
           </div>
         )}
-        {sessionTodos && sessionTodos.length > 0 && <TodoDock todos={sessionTodos} isZh={locale.isZh} />}
+        {/* 轨迹视图自带任务卡，这里只在对话视图渲染，避免两张卡片叠在一起；外层与输入框共用同一列宽。 */}
+        {view === "chat" && sessionTodos && sessionTodos.length > 0 && (
+          <div className={styles.composerStack}>
+            <TodoDock todos={sessionTodos} isZh={locale.isZh} onToggle={toggleTodo} />
+          </div>
+        )}
         <ChatComposer
           locale={locale}
           store={store}
@@ -312,6 +346,11 @@ export function ChatWorkspace({
           onSelectProject={(projectId) => void changeProjectBinding(projectId)}
           onCreateProject={() => setCreateDialogOpen(true)}
           onAnswerClarification={(answer) => void store.sendMessage(answer).catch((error: unknown) => composer.setContextNotice(String(error)))}
+          onSkipClarification={() => {
+            const sessionId = activeSession?.id;
+            if (!sessionId) return;
+            void store.dismissClarification(sessionId).catch((error: unknown) => composer.setContextNotice(String(error)));
+          }}
           onOpenSettings={onOpenSettings}
           onOpenBrowser={onOpenBrowser}
           onDeleteRequest={() => setDeleteConfirmOpen(true)}

@@ -55,6 +55,8 @@ export interface ChatSessionItem {
   pinned: boolean;
   archived: boolean;
   unread?: boolean;
+  /** 静音该会话的通知与侧栏待处理徽标。 */
+  muted?: boolean;
   messageCount: number;
   summary?: string;
   sessionPreset?: string;
@@ -74,17 +76,39 @@ export interface ChatSessionAttention {
   messageId?: string;
 }
 
+/** 会话全文搜索命中项；与 Host `/api/chat/search` 返回结构一致。 */
+export interface ChatSearchResult {
+  sessionId: string;
+  sessionTitle: string;
+  archived: boolean;
+  projectId: string | null;
+  messageId?: string;
+  role?: "user" | "assistant";
+  snippet: string;
+  match: "title" | "message";
+  updatedAt: number;
+}
+
+/** 待滚动到并高亮的目标消息；跨搜索弹窗与聊天视图共享。 */
+export interface MessageJumpRequest {
+  sessionId: string;
+  messageId: string;
+  nonce: number;
+}
+
 /** 返回选中会话及其消息，供中央工作区渲染。 */
 export interface ChatSessionDetail extends ChatSessionItem {
   messages: ChatMessageItem[];
+  /** 会话当前任务清单；旧会话缺省，界面按「没有清单」处理。 */
+  todos?: AgentStepItem["todos"];
 }
 
 /** 定义模型目录中可供浏览器识别的思考档位元数据。 */
 export interface ModelCapabilityItem {
   id: string;
   displayName?: string;
-  /** 模型用途：对话 / 生图 / 生视频 / 语音。 */
-  modelKind?: "chat" | "image" | "video" | "audio";
+  /** 模型用途：对话 / 生图 / 生视频 / 语音 / 向量化。 */
+  modelKind?: "chat" | "image" | "video" | "audio" | "embedding";
   supportsReasoning: boolean;
   reasoningMode: "none" | "fixed" | "effort";
   reasoningLevels: ReasoningLevelOption[];
@@ -230,6 +254,8 @@ export interface ChatStoreSnapshot {
   runningSessionIds: string[];
   /** 当前需要用户确认或回答的会话；用于侧栏徽标与系统通知。 */
   attention: ChatSessionAttention[];
+  /** 搜索结果点击后待定位的消息；聊天视图消费后清空。 */
+  pendingMessageJump: MessageJumpRequest | null;
   queuedMessages: QueuedMessage[];
   pendingApproval: PendingApprovalBanner | null;
   filePreviewTabs: FilePreviewTab[];

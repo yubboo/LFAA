@@ -38,6 +38,7 @@ import {
   type GitStatusSnapshot,
 } from "./git-service";
 import { CodeReviewService, type CodeReviewReport, type ReviewScope } from "./review-service";
+import { searchSessionRecords, type ChatSearchResponse } from "./session-search";
 import { transcribeWavAudio, type SpeechTranscribeResult } from "./speech-service";
 
 export { createChatHttpHandler } from "./http-handler";
@@ -73,6 +74,7 @@ export {
   type OpenSourcePackageInfo,
 } from "@lfaa/settings";
 export { assertValidWavBuffer, transcribeWavAudio, type SpeechTranscribeResult } from "./speech-service";
+export { searchSessionRecords, type ChatSearchResponse, type ChatSearchResult } from "./session-search";
 
 /** 提供会话与编码配置所需的 Host 路径及可注入依赖。 */
 export interface ChatPluginConfig {
@@ -116,6 +118,15 @@ export class ChatService extends Service {
 
   getSession(sessionId: string): Promise<ChatSessionRecord | null> {
     return this.ctx.memory.getSession(sessionId);
+  }
+
+  /** 搜索全部本地会话（含归档）的标题与消息正文；按需读取，查询为空时返回空结果。 */
+  async searchSessions(query: string): Promise<ChatSearchResponse> {
+    if (!query.trim()) return { results: [], truncated: false };
+    const summaries = await this.ctx.memory.listSessions({ includeArchived: true });
+    const records = (await Promise.all(summaries.map((summary) => this.ctx.memory.getSession(summary.id))))
+      .filter((record): record is ChatSessionRecord => Boolean(record));
+    return searchSessionRecords(records, query);
   }
 
   createSession(input?: CreateSessionInput): Promise<ChatSessionRecord> {

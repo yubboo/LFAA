@@ -17,6 +17,7 @@ import { ChatSessionActions } from "./chat-session-actions";
 import type { ChatSessionMetaPatch, ChatStorePort } from "./chat-store-port";
 import type {
   AgentPermissionMode,
+  ChatSearchResult,
   ChatSessionAttention,
   ChatSessionDetail,
   ChatSessionItem,
@@ -49,6 +50,7 @@ export class ChatClientStore {
     runningRunId: null,
     runningSessionIds: [],
     attention: [],
+    pendingMessageJump: null,
     queuedMessages: [],
     pendingApproval: null,
     filePreviewTabs: this.initialWorkbench.filePreviewTabs,
@@ -121,15 +123,27 @@ export class ChatClientStore {
   /** 会话当前的待处理状态；关闭「会话状态提醒」时不在侧栏显示徽标。 */
   getSessionAttention(sessionId: string): "approval" | "question" | null {
     if (!this.state.generalSettings.enableDotNotification) return null;
+    const session = this.state.sessions.find((entry) => entry.id === sessionId);
+    if (session?.muted) return null;
     const item = this.state.attention.find((entry) => entry.sessionId === sessionId);
     if (item) return item.kind;
-    return this.state.sessions.find((session) => session.id === sessionId)?.pendingQuestion ? "question" : null;
+    return session?.pendingQuestion ? "question" : null;
   }
 
   /** 用户已回应/已处理会话后先撤掉徽标，Host 轮询随后校正。 */
   markAttentionResolved(sessionId: string): void {
     this.background.markAttentionResolved(sessionId);
   }
+
+  /** 跳过澄清：清除 Host 的待回答状态与本地徽标。 */
+  dismissClarification(sessionId: string): Promise<void> {
+    return this.sessionActions.dismissClarification(sessionId);
+  }
+
+  /** 全文搜索与结果消息定位，状态动作由 ChatSessionActions 承担。 */
+  searchChat(query: string): Promise<ChatSearchResult[]> { return this.sessionActions.searchChat(query); }
+  requestMessageJump(sessionId: string, messageId: string): void { this.sessionActions.requestMessageJump(sessionId, messageId); }
+  consumeMessageJump(nonce: number): void { this.sessionActions.consumeMessageJump(nonce); }
 
   /** 开始/结束运行：开始新一轮时清掉上一轮的完成提醒记录。 */
   markSessionRunning(sessionId: string, running: boolean): void {
@@ -307,6 +321,22 @@ export class ChatClientStore {
 
   updateSessionMeta(sessionId: string, patch: ChatSessionMetaPatch): Promise<ChatSessionDetail | null> {
     return this.sessionActions.updateSessionMeta(sessionId, patch);
+  }
+
+  /** 手动勾选任务：先本地生效再落库，失败回滚并提示，避免界面与磁盘不一致。 */
+  async updateSessionTodos(todos: NonNullable<ChatSessionDetail["todos"]>): Promise<void> {
+    const sessionId = this.state.activeSessionId;
+    const previous = this.state.activeSession;
+    if (!sessionId || !previous) return;
+    this.updateState({ activeSession: { ...previous, todos } });
+    try {
+      await this.sessionActions.updateSessionTodos(sessionId, todos);
+    } catch (error) {
+      this.updateState({
+        activeSession: previous,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   forkSession(sessionId: string): Promise<ChatSessionDetail | null> {

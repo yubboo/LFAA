@@ -184,6 +184,13 @@ export function createAgentHttpHandler(service: AgentService, options: AgentHttp
         return true;
       }
 
+      const dismissClarificationRoute = /^\/api\/agent\/sessions\/([^/]+)\/clarification\/dismiss$/u.exec(pathname);
+      if (method === "POST" && dismissClarificationRoute?.[1]) {
+        const ok = await service.dismissPendingQuestion(decodeURIComponent(dismissClarificationRoute[1]));
+        sendJson(res, ok ? 200 : 404, { ok });
+        return true;
+      }
+
       if (method === "GET" && pathname === "/api/agent/attention") {
         // 只暴露需要用户处理的会话与简短原因，供侧栏「待确认/待回答」和通知使用。
         sendJson(res, 200, { items: await service.listAttention() });

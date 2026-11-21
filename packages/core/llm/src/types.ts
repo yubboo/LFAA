@@ -11,7 +11,7 @@ export type ModelReasoningMode = "none" | "fixed" | "effort";
 
 /** 描述可选模型公开能力，包括固定思考或可调档位。 */
 /** 模型用途：对话、生图、生视频、语音（TTS/ASR/实时语音）。 */
-export type ModelKind = "chat" | "image" | "video" | "audio";
+export type ModelKind = "chat" | "image" | "video" | "audio" | "embedding";
 
 export interface ModelCapabilityInfo {
   id: string;

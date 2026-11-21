@@ -163,6 +163,8 @@ export interface ChatSessionSummary {
   pinned: boolean;
   archived: boolean;
   unread?: boolean;
+  /** 静音该会话的通知与侧栏待确认/待回答徽标。 */
+  muted?: boolean;
   messageCount: number;
   summary?: string;
   /** 新会话固定的能力预设；缺省表示旧会话，不能推断历史配置。 */
@@ -201,6 +203,8 @@ export interface UpdateSessionInput {
   pinned?: boolean;
   archived?: boolean;
   unread?: boolean;
+  /** 静音该会话的通知与侧栏徽标；不影响运行转圈与未读点。 */
+  muted?: boolean;
   summary?: string;
   contextSummary?: string;
   /** 覆盖会话的任务清单；传空数组表示显式清空。 */

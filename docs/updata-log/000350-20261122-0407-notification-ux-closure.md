@@ -1,0 +1,12 @@
+# UPDATA-000350｜通知体验收尾：点击直达会话、跳过清徽标、按会话静音
+
+- 时间：2026-11-22 04:07 +0800。负责人在“通知体验收尾”方向下要求：点击通知直达会话/审批、澄清跳过即清徽标、支持按会话静音。
+- 点击直达：系统通知的 `onclick` 聚焦窗口并派发 `lfaa:open-session` 事件；聊天插件切回工作区并打开对应会话，审批横幅/澄清卡片自然出现。
+- 跳过清徽标：澄清卡片「跳过」调用新增的 `POST /api/agent/sessions/:id/clarification/dismiss`，Host 清除 `pendingQuestion`，客户端同步清掉本地会话字段与待处理徽标，刷新后不再残留。
+- 按会话静音：会话「⋮」菜单新增「静音通知 / 开启通知」，写入会话 `muted`；静音后隐藏待确认/待回答徽标、不播放提示音与桌面通知，但保留运行转圈与未读点，并在行内显示铃铛关闭标记。
+- 实测（独立 5174 宿主 + 真实 Agent 运行 + 无头 Edge）：澄清运行产生「会话等待回答」系统通知；点击通知后实际请求该会话并显示「网站用途是什么？」澄清卡片；点击「跳过」后 `/api/agent/attention` 为空、侧栏徽标消失；对第二个会话执行「⋮ → 静音通知」后 `muted=true`、徽标消失并出现铃铛关闭标记。截图：`%TEMP%\lfaa-pw\notify\12-notification-click-opens.png`、`13-muted-session.png`。
+- 测试：全仓 `pnpm test` **508 项通过**；`pnpm check` 0 错误 / 4 条既有警告（53 包 / 445 源文件）；`pnpm lint` 436 文件 0 问题；`pnpm typecheck`、`pnpm build` 通过。
+- 收尾：删除两个测试会话，提示音设置与模型恢复，临时 5174 宿主关闭，未触碰其它并发会话的测试会话。
+- 说明：5173 运行中宿主早于 dismiss 与 `muted` 字段改动，点击通知相关的前端逻辑已热更新，但“跳过清徽标/静音持久化”需重启一次 `pnpm lfaa web`（或桌面端）才完全生效。
+- 本轮文件：`docs/updata-log/000350-20261122-0407-notification-ux-closure.md`、`docs/architecture/notifications.md`、`packages/core/session/src/types.ts`、`packages/core/session/src/session-store.ts`、`packages/core/session/tests/session.test.ts`、`packages/core/chat/src/http-handler.ts`、`packages/core/chat/client/chat-types.ts`、`packages/core/chat/client/chat-store.ts`、`packages/core/chat/client/chat-store-port.ts`、`packages/core/chat/client/chat-session-actions.ts`、`packages/core/chat/client/chat-session-notifier.ts`、`packages/core/chat/client/notifications.ts`、`packages/core/chat/client/index.tsx`、`packages/core/chat/client/components/ChatComposer.tsx`、`packages/core/chat/client/components/ChatWorkspace.tsx`、`packages/core/chat/client/components/SessionActionMenu.tsx`、`packages/core/agent/src/index.ts`、`packages/core/agent/src/http-handler.ts`、`packages/core/agent/tests/agent-http-active-sessions.test.ts`、`packages/ui/layout/contract/index.ts`、`packages/ui/layout/client/components/navigation-items.ts`、`packages/ui/layout/client/components/SidebarSectionList.tsx`、`packages/ui/layout/client/components/SidebarStatus.module.css`、`packages/ui/layout/client/components/NavigationIcon.tsx`、`docs/dev-log/000201-000400.md`。
+- Git：本会话未提交或推送；工作区仍有其它未提交改动。

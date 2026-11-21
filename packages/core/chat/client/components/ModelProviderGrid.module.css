@@ -170,6 +170,34 @@
   gap: 0.42rem;
 }
 
+/* 模型按用途分组展示：与非方舟套餐的配置卡片保持一致的分层。 */
+.modelGroups {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.modelGroup {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.modelGroup + .modelGroup {
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--color-line);
+}
+
+.modelGroupTitle {
+  margin: 0;
+  color: var(--color-ink);
+  font-size: 0.78em;
+  font-weight: 600;
+}
+
+/* 只读模型（向量化）与可点击模型同款外观，仅去掉手型光标。 */
+.chipBtn[data-static="true"] {
+  cursor: default;
+}
+
 .chipBtn {
   display: inline-flex;
   align-items: center;

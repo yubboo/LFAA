@@ -28,6 +28,7 @@ export function ChatMessageList({
   memoriesCount,
   isRunning,
   showHomeSuggestions,
+  brandWatermark,
   activeSessionId,
   assistantBodyClass,
   noticeLinkClass,
@@ -53,6 +54,8 @@ export function ChatMessageList({
   memoriesCount: number;
   isRunning: boolean;
   showHomeSuggestions: boolean;
+  /** 生成的图片是否叠加「小鱼 agent 生成」水印（设置中心可关闭）。 */
+  brandWatermark: boolean;
   activeSessionId: string | null | undefined;
   assistantBodyClass: string | undefined;
   noticeLinkClass: string | undefined;
@@ -120,7 +123,7 @@ export function ChatMessageList({
         if (msg.role === "user") {
           const hasMedia = Boolean(msg.attachments?.length || msg.references?.length);
           return (
-            <div key={msg.id} className={styles.userRow} data-turn-anchor={msg.id}>
+            <div key={msg.id} id={`chat-message-${msg.id}`} className={styles.userRow} data-turn-anchor={msg.id}>
               {/* 带图时不再套背景气泡：图片本身即卡片，文字收成一枚胶囊标签跟在图下。 */}
               <div className={styles.userBubble} data-media={hasMedia ? "true" : undefined}>
                 {hasMedia ? (
@@ -148,7 +151,7 @@ export function ChatMessageList({
           );
         }
         return (
-          <article key={msg.id} className={styles.assistantRow}>
+          <article key={msg.id} id={`chat-message-${msg.id}`} className={styles.assistantRow}>
             {msg.mediaGenerating ? (
               <MediaGeneratingCard
                 kind={msg.mediaGenerating.kind}
@@ -157,7 +160,7 @@ export function ChatMessageList({
               />
             ) : (
               <MediaResultContext.Provider value={activeSessionId && msg.status !== "streaming"
-                ? { ...mediaActions, sessionId: activeSessionId, messageId: msg.id, isZh: locale.isZh } : null}>
+                ? { ...mediaActions, sessionId: activeSessionId, messageId: msg.id, isZh: locale.isZh, brandWatermark } : null}>
               <AssistantTimeline
                 locale={locale}
                 content={clarification && msg.id === lastMessage?.id ? "" : msg.content}

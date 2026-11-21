@@ -31,3 +31,29 @@ test("编码设置可读写", async () => {
     await fs.rm(root, { recursive: true, force: true });
   }
 });
+
+test("事件提示音分别保存内置与自定义 id，非法值不覆盖旧值", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-settings-sounds-"));
+  try {
+    const store = new GeneralSettingsStore(path.join(root, "general.json"));
+    const updated = await store.update({
+      completionSound: "bell",
+      questionSound: "custom:12345678-1234-1234-1234-123456789abc",
+      approvalSound: "mute",
+    });
+    assert.equal(updated.completionSound, "bell");
+    assert.equal(updated.questionSound, "custom:12345678-1234-1234-1234-123456789abc");
+    assert.equal(updated.approvalSound, "mute");
+
+    const rejected = await store.update({
+      completionSound: "javascript:alert(1)",
+      questionSound: "custom:../../outside",
+      approvalSound: "",
+    });
+    assert.equal(rejected.completionSound, "bell");
+    assert.equal(rejected.questionSound, "custom:12345678-1234-1234-1234-123456789abc");
+    assert.equal(rejected.approvalSound, "mute");
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});

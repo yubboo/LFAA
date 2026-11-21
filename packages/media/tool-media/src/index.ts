@@ -7,6 +7,7 @@ import type { Context } from "@deepseek-ai/cordis";
 import { buildMediaFileUrl, writeMediaMetadata } from "./media-http";
 import { fallbackImageSize, resolveImagePlan } from "./image-ratio";
 export { buildMediaFileUrl, createMediaHttpHandler, createMediaLibraryHttpHandler, findSessionImagePath, mediaMetadataPath } from "./media-http";
+export { createMediaThumbHttpHandler, mediaThumbCacheName, type MediaThumbHttpOptions } from "./media-thumb";
 export { createMediaGenerateHttpHandler, createMediaPlanHttpHandler, isRefinementPrompt, type MediaGenerateOptions, type MediaSource } from "./media-direct";
 export {
   DEFAULT_IMAGE_RATIO, buildRatioHint, detectImageRatio, fallbackImageSize, resolveImagePlan, sizeToRatio,

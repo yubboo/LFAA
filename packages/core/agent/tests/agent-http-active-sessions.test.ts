@@ -4,8 +4,8 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import test from "node:test";
 import { createAgentHttpHandler, type AgentService } from "../src/index";
 
-function fakeRequest(url = "/api/agent/active-sessions"): IncomingMessage {
-  return { url, method: "GET" } as unknown as IncomingMessage;
+function fakeRequest(url = "/api/agent/active-sessions", method = "GET"): IncomingMessage {
+  return { url, method } as unknown as IncomingMessage;
 }
 
 function fakeResponse(): { res: ServerResponse; status: () => number; text: () => string } {
@@ -48,4 +48,23 @@ test("待处理接口返回需要用户确认或回答的会话", async () => {
   assert.equal(handled, true);
   assert.equal(response.status(), 200);
   assert.deepEqual(JSON.parse(response.text()), { items });
+});
+
+test("跳过澄清接口清除会话的待回答状态", async () => {
+  const dismissed: string[] = [];
+  const service = {
+    dismissPendingQuestion: async (sessionId: string) => {
+      dismissed.push(sessionId);
+      return true;
+    },
+  } as unknown as AgentService;
+  const handler = createAgentHttpHandler(service);
+  const response = fakeResponse();
+
+  const handled = await handler(fakeRequest("/api/agent/sessions/s-1/clarification/dismiss", "POST"), response.res);
+
+  assert.equal(handled, true);
+  assert.equal(response.status(), 200);
+  assert.deepEqual(dismissed, ["s-1"]);
+  assert.deepEqual(JSON.parse(response.text()), { ok: true });
 });

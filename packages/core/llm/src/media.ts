@@ -200,8 +200,9 @@ export function buildImageRequestBody(
     return { model, input: { messages: [{ role: "user", content: [{ text: prompt }] }] }, parameters };
   }
   if (style === "ark") {
+    // 方舟生图默认带「AI 生成」水印：默认关闭，由应用自己的设置决定是否展示水印。
     return { model, prompt, ...(input.size?.trim() ? { size: input.size.trim() } : {}),
-      ...(typeof input.watermark === "boolean" ? { watermark: input.watermark } : {}) };
+      watermark: input.watermark ?? false };
   }
   const body: Record<string, unknown> = { model, prompt, n };
   if (input.size?.trim()) body.size = input.size.trim();

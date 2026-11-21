@@ -15,6 +15,8 @@ export interface SidebarItemConfig {
   expanded?: boolean;
   active?: boolean;
   unread?: boolean;
+  /** 会话通知已静音，显示铃铛关闭标记。 */
+  muted?: boolean;
   /** 会话需要用户处理时的状态：等待审批或等待回答澄清。 */
   attention?: "approval" | "question";
   /** 徽标文案，例如「待确认」「待回答」。 */
@@ -173,6 +175,7 @@ export function SidebarSectionList({
                               <NavigationIcon name={item.icon} className={item.icon === "working" ? statusStyles.workingIcon : undefined} />
                             )}
                             <span className={styles.label}>{item.label}</span>
+                            {item.muted && <NavigationIcon name="muted" className={statusStyles.mutedMarker} />}
                             {item.unread && <span className={statusStyles.unreadDot} aria-label="未读" />}
                             {item.attention && item.attentionLabel && (
                               <span
@@ -224,6 +227,7 @@ export function SidebarSectionList({
                             <NavigationIcon name={item.icon} className={item.icon === "working" ? statusStyles.workingIcon : undefined} />
                           )}
                           <span className={styles.label}>{item.label}</span>
+                          {item.muted && <NavigationIcon name="muted" className={statusStyles.mutedMarker} />}
                           {item.pinned && <NavigationIcon name="pin" className={styles.pinMarker} />}
                           {item.attention && item.attentionLabel && (
                             <span

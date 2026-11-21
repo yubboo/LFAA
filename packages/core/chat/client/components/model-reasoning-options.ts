@@ -70,7 +70,10 @@ export function buildBrandModels(
   arkPlan: ArkPlanKind | undefined,
 ): ModelCapabilityItem[] {
   if (!activeProfile) return [];
-  const list = activeProfile.availableModels ?? [];
+  // 未配置凭据的档案不展示任何模型：模型必须来自真实同步或官方目录，不能凭空出现。
+  if (!activeProfile.configured) return [];
+  // 向量化模型不能用于对话或生成，仅出现在配置卡片的分类里，不进入选择器。
+  const list = (activeProfile.availableModels ?? []).filter((model) => model.modelKind !== "embedding");
   if (list.length > 0) return list;
   if (arkPlan) {
     const { chatModels } = getArkPlanCatalog(arkPlan);
@@ -81,6 +84,54 @@ export function buildBrandModels(
     ];
   }
   return [{ id: activeProfile.model, supportsReasoning: false, reasoningMode: "none", reasoningLevels: [] }];
+}
+
+/** 用一句话介绍某类模型能做什么，作为选择器底部的能力说明。 */
+export function describeModelCapability(
+  modelKind: "chat" | "image" | "video" | "audio" | "embedding",
+  isZh: boolean,
+): string {
+  if (modelKind === "image") {
+    return isZh
+      ? "视觉模型 · 文生图 / 图生图，支持参考图与画幅比例"
+      : "Vision model · text-to-image and image editing with references and aspect ratio";
+  }
+  if (modelKind === "video") {
+    return isZh
+      ? "视觉模型 · 文生视频，支持时长与画幅比例"
+      : "Vision model · text-to-video with duration and aspect ratio";
+  }
+  if (modelKind === "audio") {
+    return isZh ? "语音模型 · 语音合成 / 识别" : "Speech model · synthesis and recognition";
+  }
+  if (modelKind === "embedding") {
+    return isZh ? "向量化模型 · 文本与图像向量化，用于检索" : "Embedding model · text and image vectors for retrieval";
+  }
+  return isZh ? "语言模型 · 对话与工具调用" : "Language model · chat and tool use";
+}
+
+/** 配置卡片里的模型分类：语言 / 向量化 / 视觉（图像与视频）/ 语音，顺序固定。 */
+export function groupModelsByKind<T extends { modelKind?: "chat" | "image" | "video" | "audio" | "embedding" }>(
+  models: readonly T[],
+  isZh: boolean,
+): Array<{ key: string; label: string; items: T[] }> {
+  const groups = new Map<string, { label: string; items: T[] }>();
+  for (const model of models) {
+    const kind = model.modelKind ?? "chat";
+    const key = kind === "image" || kind === "video" ? "vision" : kind === "audio" ? "speech" : kind;
+    const label = key === "vision"
+      ? (isZh ? "视觉模型" : "Vision models")
+      : key === "speech" ? (isZh ? "语音模型" : "Speech models")
+        : key === "embedding" ? (isZh ? "向量化模型" : "Embedding models")
+          : (isZh ? "语言模型" : "Language models");
+    const group = groups.get(key) ?? { label, items: [] };
+    group.items.push(model);
+    groups.set(key, group);
+  }
+  return ["chat", "embedding", "vision", "speech"].flatMap((key) => {
+    const group = groups.get(key);
+    return group ? [{ key, label: group.label, items: group.items }] : [];
+  });
 }
 
 /** 计算当前生效的模型 ID：优先方舟目录命中，其次档案当前模型，最后回退列表首项。 */

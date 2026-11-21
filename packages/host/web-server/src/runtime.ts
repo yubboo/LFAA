@@ -82,6 +82,7 @@ export async function createHostRuntime(options: HostRuntimeOptions): Promise<Ho
     { id: "commands", handle: common.commands },
     { id: "media", handle: common.mediaFile },
     { id: "media-library", handle: common.mediaLibrary },
+    { id: "media-thumb", handle: common.mediaThumb },
     { id: "media-generate", handle: sessions.mediaGenerate },
     { id: "media-plan", handle: sessions.mediaPlan },
     { id: "coding", handle: sessions.coding },

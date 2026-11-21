@@ -293,7 +293,15 @@ export function NavigationSidebar({
           />
         )}
       </div>
-      {searchOpen && <SearchDialog locale={locale} targets={targets} onClose={onCloseSearch} onChoose={chooseTarget} />}
+      {searchOpen && (
+        <SearchDialog
+          locale={locale}
+          targets={targets}
+          chatProvider={chatProvider}
+          onClose={onCloseSearch}
+          onChoose={chooseTarget}
+        />
+      )}
     </aside>
   );
 }

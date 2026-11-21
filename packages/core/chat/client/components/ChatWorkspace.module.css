@@ -55,6 +55,24 @@
   margin: 0 auto;
 }
 
+/* 搜索结果定位到消息时短暂描边并淡入高亮，帮助用户快速找到命中项。 */
+.thread [data-search-hit="true"] {
+  border-radius: 0.8rem;
+  outline: 2px solid rgb(var(--color-accent-rgb) / 0.55);
+  outline-offset: 6px;
+  animation: searchHitPulse 2.2s ease-out both;
+}
+
+@keyframes searchHitPulse {
+  from {
+    background: rgb(var(--color-accent-rgb) / 0.18);
+  }
+
+  to {
+    background: transparent;
+  }
+}
+
 .hero {
   display: grid;
   justify-items: center;

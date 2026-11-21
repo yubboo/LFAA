@@ -303,7 +303,7 @@ packages/core/  # Agent、聊天、模型、存储、规则和工具等核心能
 │   │   ├── follow-up-suggestions.ts  # 根据最新一轮问答上下文生成 3 条轻量延伸追问建议，显示在助手最新回复下方供一键点击追问
 │   │   ├── general-settings-client.ts  # 提供浏览器端通用设置默认结构、长路径中间省略格式化、开源依赖读取及轻量提示音播放辅助
 │   │   ├── index.tsx  # 导出 @lfaa/chat/client Cordis 插件，装配主聊天工作台、资料库检视器、能力上下文栏与模型规则设置页
-│   │   ├── media-thumb-cache.ts  # 生成素材缩略图缓存：懒加载后缩到 480px WebP，写入 Cache Storage 供后续加载复用
+│   │   ├── media-thumb-cache.ts  # 生成素材缩略图缓存：优先宿主缩略图接口，未命中才取原图缩成 480/960px WebP 并回传宿主与浏览器缓存
 │   │   ├── library-store.ts  # 资料库中心页与右栏检视器共享的选中项与生成素材列表存储（唯一所有者，删除两处同步）
 │   │   ├── local-speech.ts  # 在浏览器端通过 Web Audio 采集麦克风音频并编码为 16kHz 单声道 PCM WAV，供 Host 离线语音识别
 │   │   ├── locales.ts  # 管理 @lfaa/chat 浏览器端界面中英文文案字典

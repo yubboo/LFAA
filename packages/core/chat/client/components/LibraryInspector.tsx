@@ -13,7 +13,7 @@ import {
 import type { ChatClientStore, LibraryAssetItem } from "../chat-store";
 import type { ChatLocaleMessages } from "../locales";
 import { formatByteSize, mediaKindLabel } from "../media-library";
-import { getMediaThumbnail } from "../media-thumb-cache";
+import { getMediaThumbnail, PREVIEW_WIDTH } from "../media-thumb-cache";
 import { libraryMediaStore, librarySelectionStore } from "../library-store";
 import { useLibraryMedia, useLibrarySelection } from "../useLibraryState";
 import { useMediaBlob } from "./MediaThumb";
@@ -68,16 +68,25 @@ export function LibraryInspector({
   const [deleting, setDeleting] = useState(false);
   const [actionError, setActionError] = useState(false);
   const [thumbUrl, setThumbUrl] = useState<string | null>(null);
-  const mediaUrl = useMediaBlob(selection?.kind === "media" ? selection.item.path : "");
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  // 图片用 960px 缓存预览，视频/音频才需要完整文件；避免每点一张图都拉一次原图。
+  const needsFullMedia = selection?.kind === "media" && selection.item.kind !== "image";
+  const mediaUrl = useMediaBlob(needsFullMedia ? selection.item.path : "");
 
-  // 先拿缓存里的 480px 缩略图垫底，完整原图到达后再替换，选中时不会先空一秒。
+  // 先用 480px 缩略图垫底，再换成 960px 预览；两者都走同一份缓存。
   useEffect(() => {
     setThumbUrl(null);
+    setPreviewUrl(null);
     if (selection?.kind !== "media") return;
     let cancelled = false;
     void getMediaThumbnail(selection.item).then((url) => {
       if (!cancelled) setThumbUrl(url);
     });
+    if (selection.item.kind === "image") {
+      void getMediaThumbnail(selection.item, PREVIEW_WIDTH).then((url) => {
+        if (!cancelled) setPreviewUrl(url);
+      });
+    }
     return () => {
       cancelled = true;
     };
@@ -227,16 +236,34 @@ export function LibraryInspector({
 
         {selection?.kind === "media" && (
           <div className={styles.detail}>
-            {mediaUrl ? (
+            {selection.item.kind === "image" ? (
+              previewUrl || thumbUrl ? (
+                <img
+                  className={styles.media}
+                  src={previewUrl ?? thumbUrl ?? ""}
+                  alt={selection.item.prompt || selection.item.name}
+                  onError={() => {
+                    // 960 坏掉就退回 480；两者都坏则显示加载/占位，而不是浏览器坏图标。
+                    if (previewUrl) setPreviewUrl(null);
+                    else setThumbUrl(null);
+                  }}
+                />
+              ) : (
+                <p className={styles.status}>{locale.libraryMediaLoading}</p>
+              )
+            ) : mediaUrl ? (
               selection.item.kind === "video" ? (
                 <video className={styles.media} src={mediaUrl} controls playsInline preload="metadata" />
-              ) : selection.item.kind === "audio" ? (
-                <audio className={styles.audio} src={mediaUrl} controls preload="metadata" />
               ) : (
-                <img className={styles.media} src={mediaUrl} alt={selection.item.prompt || selection.item.name} />
+                <audio className={styles.audio} src={mediaUrl} controls preload="metadata" />
               )
-            ) : selection.item.kind !== "audio" && thumbUrl ? (
-              <img className={styles.media} src={thumbUrl} alt={selection.item.prompt || selection.item.name} />
+            ) : selection.item.kind === "video" && thumbUrl ? (
+              <img
+                className={styles.media}
+                src={thumbUrl}
+                alt={selection.item.prompt || selection.item.name}
+                onError={() => setThumbUrl(null)}
+              />
             ) : (
               <p className={styles.status}>{locale.libraryMediaLoading}</p>
             )}

@@ -162,6 +162,16 @@
   overflow: auto;
 }
 
+/* 图像面板常驻挂载，分类切换只切显隐，避免重建全部卡片与缩略图。 */
+.mediaPanel {
+  display: grid;
+  min-height: 0;
+}
+
+.mediaPanelHidden {
+  display: none;
+}
+
 .quickMemoryBar {
   display: flex;
   align-items: center;

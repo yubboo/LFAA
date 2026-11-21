@@ -107,8 +107,23 @@ export interface WorkbenchChatSessionSummary {
   pinned?: boolean;
   archived?: boolean;
   unread?: boolean;
+  /** 会话通知已静音；不显示待处理徽标、不播放该会话的提醒音。 */
+  muted?: boolean;
   messageCount: number;
   createdAt: number;
+  updatedAt: number;
+}
+
+/** 聊天全文搜索命中项：标题命中或某条消息命中。 */
+export interface WorkbenchChatSearchResult {
+  sessionId: string;
+  sessionTitle: string;
+  archived: boolean;
+  projectId: string | null;
+  messageId?: string;
+  role?: "user" | "assistant";
+  snippet: string;
+  match: "title" | "message";
   updatedAt: number;
 }
 
@@ -120,6 +135,10 @@ export interface WorkbenchChatProvider<TContent = unknown> {
   isSessionRunning?: (sessionId: string) => boolean;
   /** 该会话是否在等待用户确认或回答；用于左二栏「待确认/待回答」徽标。 */
   getSessionAttention?: (sessionId: string) => "approval" | "question" | null;
+  /** 搜索会话标题与消息正文；未提供时搜索框只展示功能与项目。 */
+  searchChat?: (query: string) => Promise<WorkbenchChatSearchResult[]>;
+  /** 打开会话并可选跳转到具体消息；用于搜索结果定位。 */
+  openSessionMessage?: (sessionId: string, messageId?: string) => void | Promise<void>;
   subscribe: (listener: () => void) => () => void;
   startNewChat: (options?: { projectId?: string | null; sectionId?: string | null }) => void | Promise<void>;
   openSession: (sessionId: string) => void | Promise<void>;

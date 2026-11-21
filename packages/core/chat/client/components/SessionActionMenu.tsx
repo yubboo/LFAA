@@ -5,6 +5,8 @@ import {
   IconAppWindow,
   IconArchive,
   IconArchiveOff,
+  IconBell,
+  IconBellOff,
   IconCheck,
   IconChevronRight,
   IconCopy,
@@ -124,6 +126,14 @@ export function SessionActionMenu({
           {session.unread ? (isZh ? "标为已读" : "Mark read") : (isZh ? "标记为未读" : "Mark unread")}
         </span>
         <span className={styles.shortcut}>Ctrl+Shift+U</span>
+      </button>
+
+      <button type="button" className={styles.item} role="menuitem" onClick={() => {
+        menuStore.closeAll();
+        void chatStore.updateSessionMeta(session.id, { muted: !session.muted });
+      }}>
+        {session.muted ? <IconBell aria-hidden="true" /> : <IconBellOff aria-hidden="true" />}
+        <span className={styles.label}>{session.muted ? (isZh ? "开启通知" : "Unmute notifications") : (isZh ? "静音通知" : "Mute notifications")}</span>
       </button>
 
       <div

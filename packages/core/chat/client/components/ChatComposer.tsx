@@ -43,6 +43,7 @@ export function ChatComposer({
   stats,
   onSelectProject,
   onCreateProject,
+  onSkipClarification,
   onAnswerClarification,
   onOpenSettings,
   onOpenBrowser,
@@ -67,6 +68,7 @@ export function ChatComposer({
   stats: { filesCount: number; countedChanges: boolean; added: number; removed: number };
   onSelectProject: (projectId: string | null) => void;
   onCreateProject: () => void;
+  onSkipClarification: () => void;
   onAnswerClarification: (answer: string) => void;
   onOpenSettings: () => void;
   onOpenBrowser?: (() => void) | undefined;
@@ -102,7 +104,7 @@ export function ChatComposer({
         <ClarificationCard key={lastMessageId} messageId={lastMessageId} isZh={locale.isZh} prompt={clarification}
           busy={state.submittingMessage || isRunning}
           chatRequired={Boolean(selectedMediaKind)}
-          onSkip={() => { setContextNotice(""); focusTextareaAt(draft.length); }}
+          onSkip={() => { setContextNotice(""); focusTextareaAt(draft.length); onSkipClarification(); }}
           onAnswer={(answer) => onAnswerClarification(answer)} />
       )}
       <ComposerScopeBar

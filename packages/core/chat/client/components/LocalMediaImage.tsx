@@ -90,6 +90,7 @@ export function LocalMediaImage({ src, alt }: { src: string; alt: string }) {
       <span className={styles.result}>
         <span className={styles.frame}>
           {preview}
+          {actions.brandWatermark ? <span className={styles.brandMark} aria-hidden="true">小鱼 agent 生成</span> : null}
           <span className={styles.overlay} role="group" aria-label={labels.previewActions}>
             <a
               className={styles.iconAction}

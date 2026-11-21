@@ -90,6 +90,31 @@
   overflow-wrap: anywhere;
 }
 
+.toggle {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.toggle:hover .content {
+  color: var(--color-accent);
+}
+
+.toggle:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 .item[data-status="completed"] .content {
   color: var(--color-muted);
 }
@@ -98,4 +123,17 @@
   color: var(--color-muted);
   font-size: 12px;
   padding-left: 15px;
+}
+
+.moreBtn {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-link);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.moreBtn:hover {
+  color: var(--color-link-hover);
 }

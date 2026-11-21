@@ -16,14 +16,22 @@ function progressText(counts: SessionTodoCounts, isZh: boolean): string {
   return parts.join(" · ");
 }
 
-/** 任务卡：默认展开，可折叠；条目按状态显示状态点。 */
-export function TodoDock({ todos, isZh }: { todos: readonly SessionTodo[]; isZh: boolean }) {
-  const [collapsed, setCollapsed] = useState(false);
+/** 任务卡：默认展开，可折叠；条目按状态显示状态点，超过上限时可展开全部。 */
+export function TodoDock({ todos, isZh, defaultCollapsed = false, onToggle }: {
+  todos: readonly SessionTodo[];
+  isZh: boolean;
+  /** 轨迹视图等空间紧张处默认收起，只留摘要行。 */
+  defaultCollapsed?: boolean;
+  /** 传入时每条任务可点击勾选；缺省表示只读展示。 */
+  onToggle?: ((todo: SessionTodo) => void) | undefined;
+}) {
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  const [showAll, setShowAll] = useState(false);
   if (todos.length === 0) return null;
 
   const counts = countSessionTodos(todos);
-  const visible = todos.slice(0, TODO_DOCK_VISIBLE_LIMIT);
-  const hidden = todos.length - visible.length;
+  const visible = showAll ? todos : todos.slice(0, TODO_DOCK_VISIBLE_LIMIT);
+  const hidden = todos.length - Math.min(todos.length, TODO_DOCK_VISIBLE_LIMIT);
   const title = isZh ? "任务清单" : "Tasks";
 
   return (
@@ -43,14 +51,43 @@ export function TodoDock({ todos, isZh }: { todos: readonly SessionTodo[]; isZh:
       </button>
       {!collapsed && (
         <ul className={styles.list}>
-          {visible.map((item, index) => (
-            <li key={`${item.id}-${index}`} className={styles.item} data-status={item.status}>
-              <span className={styles.dot} data-status={item.status} aria-hidden="true" />
-              <span className={styles.content}>{item.content}</span>
-            </li>
-          ))}
+          {visible.map((item, index) => {
+            const body = (
+              <>
+                <span className={styles.dot} data-status={item.status} aria-hidden="true" />
+                <span className={styles.content}>{item.content}</span>
+              </>
+            );
+            return (
+              <li key={`${item.id}-${index}`} className={styles.item} data-status={item.status}>
+                {onToggle ? (
+                  <button
+                    type="button"
+                    className={styles.toggle}
+                    role="checkbox"
+                    aria-checked={item.status === "completed"}
+                    aria-label={isZh ? `切换「${item.content}」的完成状态` : `Toggle “${item.content}”`}
+                    onClick={() => onToggle(item)}
+                  >
+                    {body}
+                  </button>
+                ) : body}
+              </li>
+            );
+          })}
           {hidden > 0 && (
-            <li className={styles.more}>{isZh ? `还有 ${hidden} 条` : `${hidden} more`}</li>
+            <li className={styles.more}>
+              <button
+                type="button"
+                className={styles.moreBtn}
+                aria-expanded={showAll}
+                onClick={() => setShowAll((value) => !value)}
+              >
+                {showAll
+                  ? (isZh ? "收起多余条目" : "Show less")
+                  : (isZh ? `展开全部 ${todos.length} 条` : `Show all ${todos.length}`)}
+              </button>
+            </li>
           )}
         </ul>
       )}

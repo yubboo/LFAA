@@ -19,7 +19,13 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
 }
 
 /** 弹出系统通知；应用自己的提示音由调用方播放，因此这里静音避免双重声音。 */
-export function showDesktopNotification(input: { title: string; body: string; tag?: string }): boolean {
+export function showDesktopNotification(input: {
+  title: string;
+  body: string;
+  tag?: string;
+  /** 点击通知后的业务动作（例如打开对应会话）；窗口聚焦由本函数负责。 */
+  onClick?: () => void;
+}): boolean {
   if (notificationPermission() !== "granted") return false;
   try {
     const notification = new Notification(input.title, {
@@ -32,6 +38,11 @@ export function showDesktopNotification(input: { title: string; body: string; ta
         window.focus();
       } catch {
         // 某些桌面环境不允许脚本聚焦窗口，忽略即可。
+      }
+      try {
+        input.onClick?.();
+      } catch {
+        // 通知点击后的导航失败不应影响系统通知本身。
       }
       notification.close();
     };

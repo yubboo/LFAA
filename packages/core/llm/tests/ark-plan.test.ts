@@ -26,7 +26,13 @@ test("方舟官方套餐模型按能力归类，公开档案包含语言模型�
   ]);
   assert.deepEqual(getArkPlanCatalog("coding").otherGroups.map(({ kind }) => kind), ["embedding"]);
   assert.deepEqual(toPublicProfile(profile).availableModels.map(({ id }) => id), [
-    ...chatModels.map(({ id }) => id), "doubao-seedream-5.0-flash", "doubao-seedance-2.0-mini",
+    ...chatModels.map(({ id }) => id),
+    "doubao-seedream-5-0-pro",
+    "doubao-seedream-5.5",
+    "doubao-seedream-5.0-flash",
+    "doubao-seed-tts-2.0",
+    "doubao-seed-asr-2.0",
+    "doubao-seedance-2.0-mini",
   ]);
   assert.equal(getArkPlanKind(`${ARK_PLAN_BASE_URLS.agent}/chat/completions/`), "agent");
   assert.equal(getArkPlanKind("https://ark.cn-beijing.volces.com/api/v3"), undefined);
@@ -90,7 +96,8 @@ test("方舟套餐支持 Anthropic 协议识别，本地 Ollama 拉取失败给�
     apiProtocol: "anthropic-messages",
     baseUrl: ARK_PLAN_ANTHROPIC_BASE_URLS.agent,
   });
-  assert.deepEqual(antPublic.availableModels.filter(({ modelKind }) => modelKind).map(({ modelKind }) => modelKind), ["image", "video"]);
+  // 官方目录补齐视觉与语音模型：3 个生图、2 个语音，加上已同步的视频模型。
+  assert.deepEqual(antPublic.availableModels.filter(({ modelKind }) => modelKind).map(({ modelKind }) => modelKind), ["image", "image", "image", "audio", "audio", "video"]);
 
   t.mock.method(globalThis, "fetch", async () => {
     throw new TypeError("fetch failed");

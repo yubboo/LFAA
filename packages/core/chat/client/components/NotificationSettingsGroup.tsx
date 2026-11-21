@@ -48,12 +48,14 @@ function NotificationPermissionControl({ isZh }: { isZh: boolean }) {
 /** 事件提示音选择器：内置音、自定义音、静音与试听。 */
 function SoundPicker({
   isZh,
+  label,
   value,
   fallback,
   customSounds,
   onChange,
 }: {
   isZh: boolean;
+  label: string;
   value: string | undefined;
   fallback: string | undefined;
   customSounds: CustomNotificationSound[];
@@ -72,7 +74,7 @@ function SoundPicker({
     <div className={styles.rowControl}>
       <SettingSelect
         value={selected}
-        label={isZh ? "提示音" : "Notification sound"}
+        label={label}
         options={options}
         onChange={onChange}
       />
@@ -240,6 +242,7 @@ export function NotificationSettingsGroup({
         control={(
           <SoundPicker
             isZh={isZh}
+            label={isZh ? "轮次完成提示音" : "Completion sound"}
             value={cfg.completionSound}
             fallback={cfg.notificationSound}
             customSounds={customSounds}
@@ -253,6 +256,7 @@ export function NotificationSettingsGroup({
         control={(
           <SoundPicker
             isZh={isZh}
+            label={isZh ? "澄清 / 待回答提示音" : "Question sound"}
             value={cfg.questionSound}
             fallback={cfg.notificationSound}
             customSounds={customSounds}
@@ -266,6 +270,7 @@ export function NotificationSettingsGroup({
         control={(
           <SoundPicker
             isZh={isZh}
+            label={isZh ? "待确认 / 关键决策提示音" : "Approval / decision sound"}
             value={cfg.approvalSound}
             fallback={cfg.notificationSound}
             customSounds={customSounds}

@@ -16,7 +16,7 @@ import { createSectionsHttpHandler } from "@lfaa/sections";
 import { createSessionTitleHttpHandler } from "@lfaa/session-title";
 import { createSkillsHttpHandler } from "@lfaa/skills";
 import { createSubagentHttpHandler } from "@lfaa/subagent";
-import { createMediaHttpHandler, createMediaLibraryHttpHandler } from "@lfaa/tool-media";
+import { createMediaHttpHandler, createMediaLibraryHttpHandler, createMediaThumbHttpHandler } from "@lfaa/tool-media";
 import { createWorkspaceHttpHandler } from "@lfaa/workspace";
 
 /** 构造常规处理器所需的已装配上下文、默认工作根与会话服务。 */
@@ -43,6 +43,7 @@ export interface CommonHandlers {
   commands: ApiHandler;
   mediaFile: ApiHandler;
   mediaLibrary: ApiHandler;
+  mediaThumb: ApiHandler;
   jobs: ApiHandler;
   browser: ApiHandler;
   subagent: ApiHandler;
@@ -146,6 +147,7 @@ export function createCommonHandlers(deps: CommonHandlerDeps): CommonHandlers {
     commands: createCommandsHttpHandler(context.commands),
     mediaFile: createMediaHttpHandler({ resolveAllowedRoots: resolveMediaAllowedRoots }),
     mediaLibrary: createMediaLibraryHttpHandler({ resolveAllowedRoots: resolveMediaAllowedRoots }),
+    mediaThumb: createMediaThumbHttpHandler({ resolveAllowedRoots: resolveMediaAllowedRoots }),
     jobs,
     browser,
     subagent,

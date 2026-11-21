@@ -55,7 +55,8 @@ function comparablePath(value: string): string {
   return process.platform === "win32" ? normalized.toLowerCase() : normalized;
 }
 
-function isWithinRoot(target: string, root: string): boolean {
+/** 判断目标路径是否位于允许根内；Windows 上按大小写不敏感比较。 */
+export function isWithinRoot(target: string, root: string): boolean {
   const base = comparablePath(root);
   const full = comparablePath(target);
   return full === base || full.startsWith(`${base}${sep}`);

@@ -52,6 +52,9 @@
   display: grid;
   grid-template-rows: auto auto;
   align-self: start;
+  /* 屏幕外的卡片跳过绘制与解码，素材多时仍保持切换/滚动开销稳定。 */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 163px;
   padding: 0;
   overflow: hidden;
   border: 1px solid var(--color-line);

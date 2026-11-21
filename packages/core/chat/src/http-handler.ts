@@ -1,5 +1,6 @@
 // 为本机 Web 服务提供 /api/chat/* 聊天会话 CRUD 与项目聊天数统计接口。
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { normalizeTodoList } from "@lfaa/memory";
 import type { ChatService } from "./index";
 
 function sendJson(res: ServerResponse, statusCode: number, payload: unknown): void {
@@ -43,6 +44,12 @@ export function createChatHttpHandler(service: ChatService, options: {
     const method = (req.method ?? "GET").toUpperCase();
 
     try {
+      if (method === "GET" && pathname === "/api/chat/search") {
+        const query = urlObj.searchParams.get("q") ?? "";
+        sendJson(res, 200, await service.searchSessions(query));
+        return true;
+      }
+
       if (method === "GET" && pathname === "/api/chat/sessions") {
         const includeArchived = urlObj.searchParams.get("includeArchived") === "1";
         const projectId = urlObj.searchParams.get("projectId");
@@ -164,6 +171,9 @@ export function createChatHttpHandler(service: ChatService, options: {
             ...(typeof body.pinned === "boolean" ? { pinned: body.pinned } : {}),
             ...(typeof body.archived === "boolean" ? { archived: body.archived } : {}),
             ...(typeof body.unread === "boolean" ? { unread: body.unread } : {}),
+            ...(typeof body.muted === "boolean" ? { muted: body.muted } : {}),
+            // 手动勾选任务：只接受合法条目，非法输入整体拒绝而不是部分写入。
+            ...(body.todos !== undefined ? { todos: normalizeTodoList(body.todos) ?? [] } : {}),
           });
           const session = (body.projectId !== undefined || changesPreset) && options.withIdleSession
             ? await options.withIdleSession(sessionId, write)

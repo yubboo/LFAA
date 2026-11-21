@@ -48,6 +48,9 @@ test("模型用途识别：生图/生视频/语音与对话模型区分", () => 
   assert.equal(resolveModelKind("qwen3.7-max"), "chat");
   assert.equal(resolveModelKind("glm-5.2"), "chat");
   assert.equal(resolveModelKind("unknown-model"), "chat");
+  assert.equal(resolveModelKind("text-embedding-3-large"), "embedding");
+  assert.equal(resolveModelKind("doubao-embedding-vision"), "embedding");
+  assert.equal(resolveModelKind("bge-m3"), "embedding");
 });
 
 test("媒体模型不提供思考能力，避免 UI 误判为对话模型", () => {

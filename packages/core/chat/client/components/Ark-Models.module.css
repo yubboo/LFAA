@@ -32,20 +32,10 @@
   text-align: start;
 }
 
-/* 专用模型是只读列表，资源 ID 放在模型 ID 下方。 */
-.ids {
-  display: flex;
+/* 只读模型（向量化）与可点击模型使用同一套 chip 外观，仅去掉手型光标。 */
+.group [data-static="true"] {
+  cursor: default;
+  max-width: 100%;
   flex-wrap: wrap;
-  gap: 0.35rem 0.85rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  color: var(--color-ink);
-  font-size: 0.78em;
   overflow-wrap: anywhere;
-}
-
-.ids small {
-  display: block;
-  font-size: 0.9em;
 }

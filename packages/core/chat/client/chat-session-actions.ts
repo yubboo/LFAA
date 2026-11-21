@@ -1,8 +1,16 @@
 // 会话动作：新建草稿、打开/删除/分叉/导出会话、改绑项目、会话元信息与默认模式。
-import type { ChatSessionDetail } from "./chat-types";
+import type { ChatSearchResult, ChatSessionDetail, ChatSessionItem } from "./chat-types";
 import { fetchJson } from "./chat-http";
 import { writeStoredSessionId } from "./chat-preferences";
 import type { ChatSessionMetaPatch, ChatStorePort } from "./chat-store-port";
+
+/** 清除会话摘要上的待回答字段；没有时原样返回，避免无谓的状态变更。 */
+function clearPendingQuestion<T extends ChatSessionItem>(session: T): T {
+  if (!session.pendingQuestion) return session;
+  const next = { ...session };
+  delete next.pendingQuestion;
+  return next;
+}
 
 export class ChatSessionActions {
   constructor(private readonly port: ChatStorePort) {}
@@ -53,6 +61,36 @@ export class ChatSessionActions {
     }
   }
 
+  /** 跳过澄清：清除 Host 的待回答状态与本地徽标，避免「待回答」永久残留。 */
+  async dismissClarification(sessionId: string): Promise<void> {
+    await fetchJson(`/api/agent/sessions/${encodeURIComponent(sessionId)}/clarification/dismiss`, { method: "POST" });
+    this.port.markAttentionResolved(sessionId);
+    const state = this.port.getState();
+    const active = state.activeSession;
+    this.port.patchState({
+      sessions: state.sessions.map((session) => (session.id === sessionId ? clearPendingQuestion(session) : session)),
+      activeSession: active && active.id === sessionId ? clearPendingQuestion(active) : active,
+    });
+  }
+
+  /** 搜索会话标题与消息正文；搜索弹窗在输入变化时调用。 */
+  async searchChat(query: string): Promise<ChatSearchResult[]> {
+    const res = await fetchJson<{ results: ChatSearchResult[] }>(`/api/chat/search?q=${encodeURIComponent(query)}`);
+    return Array.isArray(res.results) ? res.results : [];
+  }
+
+  /** 请求聊天视图滚动到搜索结果命中的消息并短暂高亮。 */
+  requestMessageJump(sessionId: string, messageId: string): void {
+    this.port.patchState({ pendingMessageJump: { sessionId, messageId, nonce: Date.now() } });
+  }
+
+  /** 聊天视图完成跳转后消费请求，避免重复滚动。 */
+  consumeMessageJump(nonce: number): void {
+    if (this.port.getState().pendingMessageJump?.nonce === nonce) {
+      this.port.patchState({ pendingMessageJump: null });
+    }
+  }
+
   async setActiveProjectBinding(projectId: string | null): Promise<void> {
     const current = this.port.getState().activeSession;
     if (!current) {
@@ -98,6 +136,19 @@ export class ChatSessionActions {
     }
     await this.port.refreshMeta();
     return updated ?? null;
+  }
+
+  /** 手动更新会话任务清单；PATCH 成功后以服务端回读的会话为准。 */
+  async updateSessionTodos(sessionId: string, todos: NonNullable<ChatSessionDetail["todos"]>): Promise<ChatSessionDetail | null> {
+    const res = await fetchJson<{ session: ChatSessionDetail }>(
+      `/api/chat/sessions/${encodeURIComponent(sessionId)}`,
+      { method: "PATCH", body: JSON.stringify({ todos }) },
+    );
+    const updated = res.session ?? null;
+    if (updated && this.port.getState().activeSessionId === sessionId) {
+      this.port.patchState({ activeSession: updated });
+    }
+    return updated;
   }
 
   async forkSession(sessionId: string): Promise<ChatSessionDetail | null> {

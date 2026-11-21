@@ -14,10 +14,11 @@ export class ChatSessionNotifier {
     this.finishedNotified.delete(sessionId);
   }
 
-  /** 会话进入待确认/待回答时提醒；当前会话由界面自身提示，避免重复打扰。 */
+  /** 会话进入待确认/待回答时提醒；当前会话由界面自身提示，静音会话不打扰。 */
   notifyAttention(item: ChatSessionAttention): void {
     const state = this.getState();
     if (item.sessionId === state.activeSessionId) return;
+    if (this.isMuted(item.sessionId)) return;
     const settings = state.generalSettings;
     if (item.kind === "approval" && !settings.enableApprovalNotification) return;
     if (item.kind === "question" && !settings.enableQuestionNotification) return;
@@ -32,6 +33,7 @@ export class ChatSessionNotifier {
         ? `${title}：${item.toolName ? `需要批准 ${item.toolName}` : "需要你的批准"}`
         : `${title}：${item.question ?? "有一个问题需要你回答"}`,
       tag: `lfaa-attention-${item.sessionId}`,
+      onClick: () => openSessionFromNotification(item.sessionId),
     });
   }
 
@@ -41,6 +43,7 @@ export class ChatSessionNotifier {
     const last = this.finishedNotified.get(sessionId) ?? 0;
     if (now - last < 4_000) return;
     const state = this.getState();
+    if (this.isMuted(sessionId)) return;
     // 同一轮已经出现待回答徽标时，问题通知已经提示过，不再叠加完成提醒。
     if (state.attention.some((item) => item.sessionId === sessionId && item.kind === "question")) return;
     if (!shouldNotifyTurn(state.generalSettings.turnCompleteNotification)) return;
@@ -50,10 +53,21 @@ export class ChatSessionNotifier {
       title: "轮次完成 · LFAA",
       body: `“${this.sessionTitle(sessionId)}”已完成本轮回复`,
       tag: `lfaa-finished-${sessionId}`,
+      onClick: () => openSessionFromNotification(sessionId),
     });
   }
 
   private sessionTitle(sessionId: string): string {
     return this.getState().sessions.find((session) => session.id === sessionId)?.title ?? "聊天会话";
   }
+
+  private isMuted(sessionId: string): boolean {
+    return Boolean(this.getState().sessions.find((session) => session.id === sessionId)?.muted);
+  }
+}
+
+/** 把系统通知点击转成聊天插件的导航事件，由 Client 入口打开对应会话。 */
+function openSessionFromNotification(sessionId: string): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent("lfaa:open-session", { detail: { sessionId } }));
 }

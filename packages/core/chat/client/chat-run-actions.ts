@@ -336,6 +336,7 @@ export class ChatRunActions {
             return { ...m, steps: nextSteps };
           });
         },
+        onTodos: (todos) => { const active = this.port.getState().activeSession; if (active?.id === sessionId) this.port.patchState({ activeSession: { ...active, todos } }); },
         // 实时用量随每轮模型/工具结束推送，保证统计栏在运行中也持续变化。
         onUsage: ({ tokenUsage, metrics, cost }) => {
           patchAssistant((m) => ({

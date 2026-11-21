@@ -8,6 +8,7 @@ export interface ChatSessionMetaPatch {
   pinned?: boolean;
   archived?: boolean;
   unread?: boolean;
+  muted?: boolean;
 }
 
 export interface ChatStorePort {

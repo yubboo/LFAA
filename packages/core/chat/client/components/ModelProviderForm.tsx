@@ -12,6 +12,7 @@ import {
   type ModelProviderPreset,
 } from "../provider-catalog";
 import { ArkModels } from "./Ark-Models";
+import { groupModelsByKind } from "./model-reasoning-options";
 import styles from "./ModelProviderGrid.module.css";
 
 /** 弹窗内联状态提示：同步 / 测试 / 保存的结果统一用这个结构展示。 */
@@ -203,24 +204,49 @@ export function ModelProviderForm({
         )}
         {/* 方舟套餐展示公开目录；其他套餐展示拉取到的真实模型清单，未拉取时提示先同步。 */}
         {arkPlan ? (
-          <ArkModels plan={arkPlan} model={model} isZh={isZh} onSelect={setModel} />
+          <ArkModels
+            plan={arkPlan}
+            model={model}
+            isZh={isZh}
+            onSelect={setModel}
+            configured={Boolean(profile?.configured || profile?.hasApiKey || officialModels.length > 0)}
+            syncedModels={officialModels.length > 0 ? officialModels : profile?.availableModels ?? []}
+          />
         ) : officialModels.length > 0 ? (
-          <div className={styles.chipsRow}>
-            {visibleOfficialModels.map((item) => {
-              const capText = formatCapabilityTag(item, isZh);
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  title={item.displayName ? `${item.displayName} (${item.id})` : item.id}
-                  className={`${styles.chipBtn} ${model === item.id ? styles.chipBtnActive : ""}`}
-                  onClick={() => setModel(item.id)}
-                >
-                  <span>{item.displayName && item.displayName !== item.id ? `${item.displayName} (${item.id})` : item.id}</span>
-                  {capText && <span className={styles.capTag}>· {capText}</span>}
-                </button>
-              );
-            })}
+          <div className={styles.modelGroups}>
+            {groupModelsByKind(visibleOfficialModels, isZh).map((group) => (
+              <section key={group.key} className={styles.modelGroup} aria-label={group.label}>
+                <h3 className={styles.modelGroupTitle}>{group.label}</h3>
+                <div className={styles.chipsRow}>
+                  {group.items.map((item) => {
+                    const capText = formatCapabilityTag(item, isZh);
+                    const label = item.displayName && item.displayName !== item.id
+                      ? `${item.displayName} (${item.id})` : item.id;
+                    // 向量化模型只用于检索，不参与对话/生成，因此只展示不可选。
+                    if (group.key === "embedding") {
+                      return (
+                        <span key={item.id} className={styles.chipBtn} data-static="true" title={item.id}>
+                          <span>{label}</span>
+                          {capText && <span className={styles.capTag}>· {capText}</span>}
+                        </span>
+                      );
+                    }
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        title={item.displayName ? `${item.displayName} (${item.id})` : item.id}
+                        className={`${styles.chipBtn} ${model === item.id ? styles.chipBtnActive : ""}`}
+                        onClick={() => setModel(item.id)}
+                      >
+                        <span>{label}</span>
+                        {capText && <span className={styles.capTag}>· {capText}</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
           </div>
         ) : (
           <span className={styles.fieldHint}>

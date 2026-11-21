@@ -49,8 +49,8 @@ test("超过上限时只渲染前 12 条并提示余量", () => {
     status: "pending" as const,
   }));
   const html = renderToStaticMarkup(createElement(TodoDock, { todos: many, isZh: true }));
-  assert.match(html, /还有 3 条/u);
-  // 12 个任务行 + 1 行「还有 3 条」；状态点与条目共用 data-status，因此不按状态计数。
+  assert.match(html, new RegExp(`展开全部 ${TODO_DOCK_VISIBLE_LIMIT + 3} 条`, "u"));
+  // 12 个任务行 + 1 行展开按钮；状态点与条目共用 data-status，因此不按状态计数。
   assert.equal((html.match(/<li/gu) ?? []).length, TODO_DOCK_VISIBLE_LIMIT + 1);
   assert.doesNotMatch(html, /任务 14/u);
 });
@@ -59,4 +59,16 @@ test("英文界面使用英文文案", () => {
   const html = renderToStaticMarkup(createElement(TodoDock, { todos: LIST, isZh: false }));
   assert.match(html, /Tasks/u);
   assert.match(html, /1 done · 1 active · 1 pending/u);
+});
+
+test("传入 onToggle 时每条任务渲染为可勾选控件，状态由 aria-checked 表达", () => {
+  const html = renderToStaticMarkup(createElement(TodoDock, {
+    todos: LIST,
+    isZh: true,
+    onToggle: () => undefined,
+  }));
+  assert.equal((html.match(/role="checkbox"/gu) ?? []).length, LIST.length);
+  assert.equal((html.match(/aria-checked="true"/gu) ?? []).length, 1);
+  assert.equal((html.match(/aria-checked="false"/gu) ?? []).length, 2);
+  assert.match(html, /切换「读源码」的完成状态/u);
 });

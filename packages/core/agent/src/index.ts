@@ -240,6 +240,12 @@ export class AgentService extends Service {
     return [...sessionIds];
   }
 
+  /** 用户跳过澄清时清除待回答状态；返回是否找到该会话。 */
+  async dismissPendingQuestion(sessionId: string): Promise<boolean> {
+    const updated = await this.ctx.memory.updateSession(sessionId, { pendingQuestion: null });
+    return Boolean(updated);
+  }
+
   /** 汇总需要用户处理的会话：等待工具审批，或等待回答澄清问题；同一会话优先返回审批。 */
   async listAttention(): Promise<AgentAttentionItem[]> {
     const items = new Map<string, AgentAttentionItem>();

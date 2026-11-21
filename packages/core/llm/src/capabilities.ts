@@ -11,7 +11,7 @@ export function asReasoningLevel(raw: unknown): ReasoningEffortLevel | undefined
     : undefined;
 }
 
-/** 依次匹配生图、生视频、语音类模型 ID，命中即不是对话模型。 */
+/** 依次匹配生图、生视频、语音、向量化模型 ID，命中即不是对话模型。 */
 export function resolveModelKind(rawModelId: string): ModelKind {
   const id = rawModelId.trim().toLowerCase();
   if (!id) return "chat";
@@ -26,6 +26,10 @@ export function resolveModelKind(rawModelId: string): ModelKind {
   if (/(?:^|[-_/])(?:tts|asr|audio|speech|voice|realtime|whisper|cosyvoice|sambert)(?:[-_/]|$)/u.test(id)
     || /audio\d|-audio-/u.test(id)) {
     return "audio";
+  }
+  if (/(?:^|[-_/])(?:embedding|embed|bge|gte|m3e|jina-embed)(?:[-_/]|$)/u.test(id)
+    || /text-embedding|embedding-/u.test(id)) {
+    return "embedding";
   }
   return "chat";
 }

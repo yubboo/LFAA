@@ -227,6 +227,19 @@ export function GeneralSettingsSecondary({
 
       <SettingGroupCard title={isZh ? "趣味实验" : "Experiments"}>
         <SettingRow
+          title={isZh ? "生图水印" : "Image watermark"}
+          description={isZh
+            ? "默认不出水印（也会抑制模型厂商的「AI 生成」水印）；开启后只在聊天里的生成图上叠加「小鱼 agent 生成」。"
+            : "Off by default (provider AI watermark is suppressed). When on, generated images show a small “小鱼 agent” badge."}
+          control={(
+            <SettingSwitch
+              checked={cfg.imageWatermark}
+              label={isZh ? "生图水印" : "Image watermark"}
+              onChange={(imageWatermark) => onPatch({ imageWatermark })}
+            />
+          )}
+        />
+        <SettingRow
           title={isZh ? "彩纸礼炮" : "Confetti celebration"}
           description={isZh ? "按你的要求，在应用内展示彩纸礼炮特效！" : "Display an in-app celebration effect on request!"}
           control={(

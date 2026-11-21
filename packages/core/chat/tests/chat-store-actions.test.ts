@@ -27,6 +27,7 @@ function createState(overrides: Partial<ChatStoreSnapshot> = {}): ChatStoreSnaps
     runningRunId: null,
     runningSessionIds: [],
     attention: [],
+    pendingMessageJump: null,
     queuedMessages: [],
     pendingApproval: null,
     filePreviewTabs: [],

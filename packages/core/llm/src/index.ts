@@ -8,6 +8,7 @@ import { callAnthropicMessagesApi } from "./anthropic-adapter";
 import { findArkChatModel, getArkPlanCatalog, getArkPlanKind } from "./ark-plan";
 import { knownMediaModels } from "./media-models";
 import { fetchOfficialModels, normalizeModelCapability, resolveModelCapabilities, resolveModelKind } from "./capabilities";
+import { isTokenPlanBaseUrl, tokenPlanCatalogModels } from "./token-plan";
 import {
   generateConfiguredAudio,
   generateConfiguredVideo,
@@ -69,6 +70,9 @@ export function toPublicProfile(profile: LlmProfile): PublicLlmProfile {
     ? getArkPlanKind(profile.baseUrl)
     : undefined;
   const synced = knownMediaModels(profile);
+  const hasApiKey = profile.apiKey.trim().length > 0;
+  // 没有凭据时不展示任何模型：模型必须来自真实配置的接口与套餐，不能凭空出现。
+  const usable = hasApiKey || profile.kind === "ollama";
   // 方舟套餐以官方目录为准：语言模型 + 视觉/语音模型都补齐，避免同步接口漏返回时用户选不到 5.0-pro / 5.5。
   const catalogMedia = plan
     ? getArkPlanCatalog(plan).otherGroups
@@ -87,18 +91,18 @@ export function toPublicProfile(profile: LlmProfile): PublicLlmProfile {
       ...catalogMedia,
       ...synced.filter((model) => model.modelKind && model.modelKind !== "chat" && !findArkChatModel(model.id)),
     ]
-    : synced;
+    // 千问 Token Plan 的 /models 不返回视频模型（如 happyhorse），按官方套餐清单补齐，已返回的以 API 为准。
+    : [...synced, ...(isTokenPlanBaseUrl(profile.baseUrl) ? tokenPlanCatalogModels(synced) : [])];
   // 目录与同步结果可能重复，按模型 ID 去重后保持「语言 → 视觉/语音 → 已同步补充」的顺序。
   const seenModels = new Set<string>();
-  const models = baseModels.filter((model) => {
+  const models = (usable ? baseModels : []).filter((model) => {
     if (seenModels.has(model.id)) return false;
     seenModels.add(model.id);
     return true;
   });
-  if (!models.some((model) => model.id === profile.model)) {
+  if (models.length > 0 && !models.some((model) => model.id === profile.model)) {
     models.unshift((plan && findArkChatModel(profile.model)) || resolveModelCapabilities(profile.model, profile.kind));
   }
-  const hasApiKey = profile.apiKey.trim().length > 0;
   return {
     id: profile.id,
     ...(profile.providerId ? { providerId: profile.providerId } : {}),
@@ -318,6 +322,8 @@ export class LlmService extends Service {
       // 部分套餐端点不开放 /models，同步时回退到最新官方套餐目录。
       models = getArkPlanCatalog(arkKind).chatModels.map((m) => normalizeModelCapability(m, kind));
     }
+    // 千问 Token Plan 的 /models 不返回视频模型，按官方套餐清单补齐，保证套餐内模型都能选到。
+    if (isTokenPlanBaseUrl(baseUrl)) models = [...models, ...tokenPlanCatalogModels(models)];
     if (existing) {
       const nextModel = models.some((m) => m.id === existing.model) ? existing.model : (models[0]?.id ?? existing.model);
       const updated = config.profiles.map((p) =>

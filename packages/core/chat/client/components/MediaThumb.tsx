@@ -45,6 +45,7 @@ export function MediaThumb({
   const holderRef = useRef<HTMLSpanElement>(null);
   const [visible, setVisible] = useState(false);
   const [url, setUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
   const [done, setDone] = useState(false);
   const isAudio = item.kind === "audio";
 
@@ -87,10 +88,23 @@ export function MediaThumb({
       </span>
     );
   }
-  if (url) return <img className={mediaClassName} src={url} alt={item.name} decoding="async" />;
+  if (url) {
+    return (
+      <img
+        className={mediaClassName}
+        src={url}
+        alt={item.name}
+        decoding="async"
+        onError={() => {
+          setFailed(true);
+          setUrl(null);
+        }}
+      />
+    );
+  }
   return (
     <span className={fallbackClassName} ref={holderRef} aria-hidden="true">
-      {done ? (item.kind === "video" ? <IconVideo size={26} stroke={1.6} /> : <IconPhoto size={26} stroke={1.6} />) : null}
+      {failed || done ? (item.kind === "video" ? <IconVideo size={26} stroke={1.6} /> : <IconPhoto size={26} stroke={1.6} />) : null}
     </span>
   );
 }

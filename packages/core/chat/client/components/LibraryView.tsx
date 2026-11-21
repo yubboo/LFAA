@@ -212,7 +212,8 @@ export function LibraryView({
       </header>
 
       <div className={styles.mainBody}>
-        {isMediaTab && (
+        {/* 图像面板保持挂载、仅切显隐：来回切分类时不再重建 30+ 张卡片与已解码缩略图。 */}
+        <div className={isMediaTab ? styles.mediaPanel : styles.mediaPanelHidden}>
           <LibraryMediaGrid
             locale={locale}
             items={media.items}
@@ -221,7 +222,7 @@ export function LibraryView({
             query={query}
             onSelect={handleSelectMedia}
           />
-        )}
+        </div>
 
         {!isMediaTab && (tab === "all" || tab === "memory") && (
           <div className={styles.quickMemoryBar}>

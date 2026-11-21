@@ -276,7 +276,7 @@ export const arkModelMessages = {
   zh: {
     source: "方舟官方目录 · 账号权限以控制台为准",
     chat: "语言模型",
-    embedding: "向量模型",
+    embedding: "向量化模型",
     vision: "视觉模型",
     speech: "语音模型",
     resource: "资源 ID",

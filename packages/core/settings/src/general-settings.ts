@@ -58,6 +58,8 @@ export interface GeneralSettingsConfig {
   /** 待确认/关键决策提示音。 */
   approvalSound?: string;
   confettiEffect: boolean;
+  /** 生成的图片是否叠加「小鱼 agent 生成」水印（提供方自带水印始终抑制）。 */
+  imageWatermark: boolean;
   updatedAt: number;
 }
 
@@ -149,6 +151,7 @@ function createDefaultSettings(outsideProjectFolder: string, defaultProjectsFold
     questionSound: "bell",
     approvalSound: "alert",
     confettiEffect: true,
+    imageWatermark: false,
     updatedAt: Date.now(),
   };
 }
@@ -278,6 +281,7 @@ export class GeneralSettingsStore {
     const approvalSound = readSoundId(patch.approvalSound);
     if (approvalSound) next.approvalSound = approvalSound;
     if (typeof patch.confettiEffect === "boolean") next.confettiEffect = patch.confettiEffect;
+    if (typeof patch.imageWatermark === "boolean") next.imageWatermark = patch.imageWatermark;
     return next;
   }
 }

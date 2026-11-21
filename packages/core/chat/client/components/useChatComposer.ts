@@ -66,7 +66,7 @@ export function useChatComposer({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const submitProfile = resolveActiveProfile(filterConfiguredProfiles(state.profiles), state.activeProfileId);
   const submitKind = submitProfile?.availableModels?.find((item) => item.id === submitProfile.model)?.modelKind;
-  const selectedMediaKind = submitKind !== "chat" ? submitKind : undefined;
+  const selectedMediaKind = submitKind === "image" || submitKind === "video" || submitKind === "audio" ? submitKind : undefined;
 
   useEffect(() => {
     const req = state.pendingComposerInsert;

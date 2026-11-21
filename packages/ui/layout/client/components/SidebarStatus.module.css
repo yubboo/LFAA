@@ -1,3 +1,11 @@
+/* 静音会话的小铃铛关闭标记：只表达通知状态，不抢主标签。 */
+.mutedMarker {
+  width: 0.78rem;
+  height: 0.78rem;
+  flex: 0 0 auto;
+  color: var(--color-muted);
+}
+
 /* 左二列表的会话状态标记：Agent 进行中旋转圆弧与任务完成未读小圆点，两者互斥出现。 */
 .workingIcon {
   color: var(--color-accent);

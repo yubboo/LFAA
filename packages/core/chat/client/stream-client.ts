@@ -29,6 +29,8 @@ export interface AgentStreamClientHandlers {
   onSnapshot: (run: StreamRunSnapshotPayload, isReconnect: boolean) => void;
   onDeltaBatch: (batch: StreamDeltaBatch) => void;
   onStepUpdate: (step: AgentStepItem) => void;
+  /** 运行中任务清单更新：来自 todo_write / plan_mode_exit 等工具的 metadata.todos。 */
+  onTodos: (todos: NonNullable<AgentStepItem["todos"]>) => void;
   /** 每轮模型/工具结束后的累计用量，用于统计栏实时刷新。 */
   onUsage: (payload: {
     tokenUsage: NonNullable<ChatMessageItem["tokenUsage"]>;
@@ -194,6 +196,7 @@ export class AgentStreamClient {
         kind?: "reasoning" | "text";
         text?: string;
         step?: AgentStepItem;
+        todos?: AgentStepItem["todos"];
         approvalId?: string;
         toolName?: string;
         permissionLevel?: "write" | "exec";
@@ -235,6 +238,9 @@ export class AgentStreamClient {
       } else if (data.type === "step_update" && data.step) {
         this.flushNow();
         this.handlers.onStepUpdate(data.step);
+      } else if (data.type === "todos" && Array.isArray(data.todos)) {
+        // 清单是会话状态：运行中随工具调用推送，刷新后由会话详情回读。
+        this.handlers.onTodos(data.todos);
       } else if (data.type === "run_usage" && data.tokenUsage) {
         this.handlers.onUsage({
           tokenUsage: data.tokenUsage,

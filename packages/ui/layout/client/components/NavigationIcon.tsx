@@ -4,6 +4,7 @@ import {
   IconAffiliate,
   IconArrowLeft,
   IconBell,
+  IconBellOff,
   IconBooks,
   IconBrandOpenai,
   IconChartBar,
@@ -44,7 +45,7 @@ type IconComponent = typeof IconHomeFilled;
 /** 限制工作台导航可以引用的图标名，确保名称能映射到共享图标集合。 */
 export type NavigationIconName =
   | "home" | "images" | "scheduled" | "library" | "plugins" | "more" | "sites"
-  | "companion" | "bell" | "search" | "newChat" | "project" | "filter" | "plus"
+  | "companion" | "bell" | "muted" | "search" | "newChat" | "project" | "filter" | "plus"
   | "pin" | "map" | "gpt" | "codeReview" | "openai" | "canva" | "data"
   | "chevronDown" | "chevronRight" | "arrowLeft" | "close" | "settings" | "palette"
   | "copy" | "import" | "invite" | "profile" | "help" | "signOut" | "check"
@@ -62,6 +63,7 @@ const icons: Record<NavigationIconName, IconComponent> = {
   sidebarRight: IconLayoutSidebarRight,
   companion: IconCircleDashed,
   bell: IconBell,
+  muted: IconBellOff,
   search: IconSearch,
   newChat: IconEdit,
   project: IconFolder,

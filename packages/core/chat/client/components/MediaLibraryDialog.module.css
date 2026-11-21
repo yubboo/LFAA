@@ -105,6 +105,9 @@
   color: var(--color-ink);
   cursor: pointer;
   text-align: left;
+  /* 弹窗里一次挂几十张卡：屏幕外的卡片跳过绘制，打开弹窗不被整批缩略图拖慢。 */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 220px;
 }
 
 .card:hover,

@@ -82,6 +82,21 @@
   transition: opacity 140ms ease;
 }
 
+/* 应用水印：默认不显示，设置中心开启后只在聊天里的生成图上叠加，不写进文件图片。 */
+.brandMark {
+  position: absolute;
+  right: 0.5rem;
+  bottom: 0.5rem;
+  z-index: 1;
+  padding: 0.14rem 0.45rem;
+  border-radius: 999px;
+  background: var(--color-scrim);
+  color: var(--color-on-accent);
+  font-size: 0.68em;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+}
+
 .frame:hover .overlay,
 .frame:focus-within .overlay {
   opacity: 1;

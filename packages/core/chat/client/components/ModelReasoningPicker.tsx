@@ -10,6 +10,7 @@ import { ModelOptionRow, ProfileSlotRow } from "./ModelReasoningList";
 import {
   buildBrandModels,
   buildLevelOptions,
+  describeModelCapability,
   filterConfiguredProfiles,
   resolveActiveModelCap,
   resolveActiveModelId,
@@ -248,11 +249,7 @@ export function ModelReasoningPicker({
             </div>
           ) : activeModelCap.modelKind && activeModelCap.modelKind !== "chat" ? (
             <div className={styles.staticInfoRow}>
-              {activeModelCap.modelKind === "image"
-                ? (isZh ? "生图模式：直接输入描述即生成，可继续说「再亮一点」「改成水彩」调整；切换对话模型可正常聊天" : "Image mode: type a prompt to generate; refine with follow-ups. Switch to a chat model to chat.")
-                : activeModelCap.modelKind === "video"
-                  ? (isZh ? "生视频模型：用于视频生成，聊天请切换到对话模型" : "Video model: generate videos instead of chat")
-                  : (isZh ? "语音模型：用于语音合成/识别，聊天请切换到对话模型" : "Audio model: speech synthesis/recognition, not chat")}
+              {describeModelCapability(activeModelCap.modelKind, isZh)}
             </div>
           ) : (
             <div className={styles.staticInfoRow}>

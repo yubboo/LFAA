@@ -53,6 +53,8 @@ export interface GeneralSettingsConfig {
   /** 待确认/关键决策提示音。 */
   approvalSound?: string;
   confettiEffect: boolean;
+  /** 生成的图片是否叠加「小鱼 agent 生成」水印（提供方自带水印始终抑制）。 */
+  imageWatermark: boolean;
   updatedAt: number;
 }
 
@@ -100,6 +102,7 @@ export const DEFAULT_GENERAL_SETTINGS: GeneralSettingsConfig = {
   questionSound: "bell",
   approvalSound: "alert",
   confettiEffect: true,
+  imageWatermark: false,
   updatedAt: 0,
 };
 

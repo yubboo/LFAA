@@ -184,7 +184,7 @@ function ActivityGroupRow({ group, locale, createdAt, live, ...fileActions }: {
   // 有失败项时用中性动作名，避免「已完成：网页抓取 1 项执行失败」这类自相矛盾的摘要。
   // 多步轮次在摘要前标注操作数，避免只看最后一步就把整轮的动作（例如同时跑了命令和清单）藏掉。
   const stepCount = group.steps.length > 1
-    ? locale.isZh ? `${group.steps.length} 项操作` : `${group.steps.length} steps`
+    ? locale.isZh ? `${group.steps.length} 项操作 ·` : `${group.steps.length} steps ·`
     : "";
   const summary = current
     ? [stepCount, failed > 0 ? getActivitySubject(current, locale.isZh) : getActivityLabel(current, locale.isZh, true), current.commandTrace?.command]

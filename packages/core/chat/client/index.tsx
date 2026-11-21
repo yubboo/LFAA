@@ -32,6 +32,18 @@ export const chatClientPlugin: Plugin.Object<void> = {
     const menuStore = new SessionMenuStore();
     const locale = getChatLocale();
 
+    // 点击系统通知时打开对应会话并回到聊天工作区；会话打开后审批横幅/澄清卡片自然出现。
+    const onOpenSessionNotification = (event: Event) => {
+      const sessionId = (event as CustomEvent<{ sessionId?: string }>).detail?.sessionId;
+      if (!sessionId) return;
+      menuStore.closeAll();
+      context.workbench.navigate("workspace");
+      void store.openSession(sessionId);
+    };
+    if (typeof window !== "undefined") {
+      window.addEventListener("lfaa:open-session", onOpenSessionNotification);
+    }
+
     const unregisterProvider = context.workbench.registerChatProvider({
       getSessions: () => store.getSnapshot().sessions,
       getActiveSessionId: () => store.getSnapshot().activeSessionId,
@@ -39,6 +51,12 @@ export const chatClientPlugin: Plugin.Object<void> = {
       isSessionRunning: (sessionId: string) => store.isSessionRunning(sessionId),
       // 会话需要确认/回答时，左二栏显示对应徽标；由通知设置控制是否展示。
       getSessionAttention: (sessionId: string) => store.getSessionAttention(sessionId),
+      searchChat: (query: string) => store.searchChat(query),
+      openSessionMessage: async (sessionId: string, messageId?: string) => {
+        menuStore.closeAll();
+        await store.openSession(sessionId);
+        if (messageId) store.requestMessageJump(sessionId, messageId);
+      },
       subscribe: (listener) => {
         const u1 = store.subscribe(listener);
         const u2 = menuStore.subscribe(listener);
@@ -329,6 +347,9 @@ export const chatClientPlugin: Plugin.Object<void> = {
     });
 
     context.effect(() => () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("lfaa:open-session", onOpenSessionNotification);
+      }
       unregisterWorkspaceAction();
       unregisterTitleAction();
       unregisterLibraryInspector();

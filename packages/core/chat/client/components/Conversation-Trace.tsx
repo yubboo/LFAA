@@ -2,8 +2,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { AgentStepItem, ChatMessageItem, PendingApprovalBanner } from "../chat-types";
 import type { ChatLocaleMessages } from "../locales";
+import { latestSessionTodos } from "../session-todos";
 import { describeStep, TimelineApproval } from "./StepTraceList";
 import { StepDetail } from "./Step-Detail";
+import { TodoDock } from "./TodoDock";
 import styles from "./Conversation-Trace.module.css";
 
 /** 轨迹行与详情共用步骤对象，更新时按 id 重新读取而非保存旧快照。 */
@@ -38,9 +40,12 @@ export function ConversationTrace({ messages, locale, target, pendingApproval, o
   }), [messages, locale.isZh]);
   const filtered = rows.filter((row) => `${row.kind} ${row.label} ${row.step?.argsPreview ?? ""} ${row.step?.resultPreview ?? ""}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
   const selected = filtered.find((row) => row.id === selectedId);
+  // 轨迹视图同样展示会话当前清单，便于对照「第几轮做了什么、还剩哪些」。
+  const sessionTodos = useMemo(() => latestSessionTodos(messages), [messages]);
 
   return (
     <section className={styles.root} aria-label={locale.isZh ? "会话轨迹" : "Conversation trace"}>
+      {sessionTodos && sessionTodos.length > 0 && <TodoDock todos={sessionTodos} isZh={locale.isZh} defaultCollapsed />}
       <div className={styles.toolbar}>
         <span>{locale.isZh ? `${rows.length} 条记录` : `${rows.length} events`}</span>
         <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={locale.isZh ? "搜索轨迹" : "Search trace"} aria-label={locale.isZh ? "搜索轨迹" : "Search trace"} />

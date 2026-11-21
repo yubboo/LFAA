@@ -37,3 +37,19 @@ export function fakeJsonReq(url: string, payload: unknown): IncomingMessage {
     async *[Symbol.asyncIterator]() { yield body; },
   } as unknown as IncomingMessage;
 }
+
+/** 带任意请求体与请求头的假入参，供二进制/JSON 上传处理器测试。 */
+export function fakeBodyReq(
+  url: string,
+  body: Buffer | string,
+  method = "POST",
+  headers: Record<string, string> = {},
+): IncomingMessage {
+  const buffer = Buffer.isBuffer(body) ? body : Buffer.from(body);
+  return {
+    url,
+    method,
+    headers: { "content-type": "application/json", ...headers },
+    async *[Symbol.asyncIterator]() { yield buffer; },
+  } as unknown as IncomingMessage;
+}

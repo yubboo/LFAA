@@ -93,3 +93,22 @@ test("待回答澄清随摘要持久化，回答后清除且残缺字段被忽�
     await fs.rm(root, { recursive: true, force: true });
   }
 });
+
+test("会话静音状态随摘要持久化并可取消", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-session-muted-"));
+  try {
+    const store = new SessionMemoryStore(root);
+    const session = await store.create();
+    await store.update(session.id, { muted: true });
+
+    const reopened = new SessionMemoryStore(root);
+    assert.equal((await reopened.get(session.id))?.muted, true);
+    assert.equal((await reopened.list())[0]?.muted, true);
+
+    await reopened.update(session.id, { muted: false });
+    assert.notEqual((await reopened.list())[0]?.muted, true);
+    assert.notEqual((await reopened.get(session.id))?.muted, true);
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});

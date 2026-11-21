@@ -76,6 +76,43 @@
   font-weight: 550;
 }
 
+/* 会话/消息与功能/项目分成两组，分组之间用细线分隔。 */
+.group + .group {
+  margin-top: 0.35rem;
+  padding-top: 0.2rem;
+  border-top: 1px solid var(--color-line);
+}
+
+.hint {
+  margin: 0;
+  padding: 0.25rem 0.65rem 0.5rem;
+  color: var(--color-muted);
+  font-size: 0.76rem;
+}
+
+.resultText mark {
+  padding: 0 0.08em;
+  border-radius: 0.2rem;
+  background: rgb(var(--color-accent-rgb) / 0.22);
+  color: inherit;
+}
+
+.badge {
+  margin-left: 0.45rem;
+  padding: 0.05rem 0.32rem;
+  border-radius: 999px;
+  background: var(--color-active);
+  color: var(--color-muted);
+  font-size: 0.66rem;
+  font-weight: 500;
+  vertical-align: middle;
+}
+
+.meta {
+  color: var(--color-muted);
+  font-size: 0.7rem;
+}
+
 /* 结果区单独处理滚动，搜索字段保留在弹窗顶部。 */
 .results {
   max-height: 48vh;
