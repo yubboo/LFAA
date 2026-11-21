@@ -3,12 +3,14 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { collectHistoryDigest, formatHistoryDigest } from "./session-digest";
+import { normalizeTodoList } from "./todos";
 import { generateConciseSessionTitle } from "@lfaa/session-title";
 import type {
   ChatMessageRecord,
   ChatSessionRecord,
   ChatSessionSummary,
   CreateSessionInput,
+  PendingQuestion,
   UpdateSessionInput,
 } from "./types";
 
@@ -25,6 +27,7 @@ function toSummary(session: ChatSessionRecord): ChatSessionSummary {
     ...(session.summary ? { summary: session.summary } : {}),
     ...(session.sessionPreset ? { sessionPreset: session.sessionPreset } : {}),
     ...(session.sessionModules ? { sessionModules: session.sessionModules } : {}),
+    ...(session.pendingQuestion ? { pendingQuestion: session.pendingQuestion } : {}),
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,
   };
@@ -32,6 +35,18 @@ function toSummary(session: ChatSessionRecord): ChatSessionSummary {
 
 function isSafeSessionId(sessionId: string): boolean {
   return /^[a-zA-Z0-9_-]{4,80}$/u.test(sessionId);
+}
+
+/** 读取磁盘上的待回答澄清；字段不完整时视为没有待回答问题。 */
+function readPendingQuestion(value: unknown): PendingQuestion | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const raw = value as Partial<PendingQuestion>;
+  if (typeof raw.messageId !== "string" || !raw.messageId.trim() || typeof raw.question !== "string") return undefined;
+  return {
+    messageId: raw.messageId,
+    question: raw.question,
+    options: Array.isArray(raw.options) ? raw.options.filter((option): option is string => typeof option === "string") : [],
+  };
 }
 
 /** 管理磁盘上的会话记录和列表索引，向 Chat Host 提供统一的增删改读。 */
@@ -58,6 +73,7 @@ export class SessionMemoryStore {
       const raw = await readFile(filePath, "utf8");
       const parsed = JSON.parse(raw) as Partial<ChatSessionRecord>;
       if (!parsed || typeof parsed.id !== "string" || typeof parsed.title !== "string") return null;
+      const pendingQuestion = readPendingQuestion(parsed.pendingQuestion);
       return {
         id: parsed.id,
         title: parsed.title,
@@ -70,9 +86,11 @@ export class SessionMemoryStore {
         ...(typeof parsed.summary === "string" && parsed.summary ? { summary: parsed.summary } : {}),
         ...(typeof parsed.sessionPreset === "string" && parsed.sessionPreset ? { sessionPreset: parsed.sessionPreset } : {}),
         ...(Array.isArray(parsed.sessionModules) ? { sessionModules: parsed.sessionModules.filter((module) => typeof module === "string") } : {}),
+        ...(pendingQuestion ? { pendingQuestion } : {}),
         ...(typeof parsed.contextSummary === "string" && parsed.contextSummary
           ? { contextSummary: parsed.contextSummary }
           : {}),
+        ...(Array.isArray(parsed.todos) ? { todos: normalizeTodoList(parsed.todos) ?? [] } : {}),
         createdAt: typeof parsed.createdAt === "number" ? parsed.createdAt : Date.now(),
         updatedAt: typeof parsed.updatedAt === "number" ? parsed.updatedAt : Date.now(),
         messages: Array.isArray(parsed.messages) ? parsed.messages : [],
@@ -82,6 +100,16 @@ export class SessionMemoryStore {
     }
   }
 
+  private readonly writeQueues = new Map<string, Promise<void>>();
+
+  /** 同一会话的写入串行化：中止运行与立即发消息会同时落盘，并发 rename 在 Windows 上会 EPERM。 */
+  private serializeWrite(sessionId: string, task: () => Promise<void>): Promise<void> {
+    const previous = this.writeQueues.get(sessionId) ?? Promise.resolve();
+    const next = previous.then(task, task);
+    this.writeQueues.set(sessionId, next.catch(() => undefined));
+    return next;
+  }
+
   private async writeSession(session: ChatSessionRecord): Promise<void> {
     await mkdir(this.sessionsDir, { recursive: true });
     const normalized: ChatSessionRecord = {
@@ -89,9 +117,23 @@ export class SessionMemoryStore {
       messageCount: session.messages.length,
     };
     const targetPath = this.sessionFile(normalized.id);
-    const tempPath = `${targetPath}.${randomUUID()}.tmp`;
-    await writeFile(tempPath, JSON.stringify(normalized, null, 2), "utf8");
-    await rename(tempPath, targetPath);
+    const payload = JSON.stringify(normalized, null, 2);
+    await this.serializeWrite(normalized.id, async () => {
+      // 临时文件 + rename 保证原子性；Windows 上目标被短时占用时重试，最后回退直接覆盖。
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const tempPath = `${targetPath}.${randomUUID()}.tmp`;
+        await writeFile(tempPath, payload, "utf8");
+        try {
+          await rename(tempPath, targetPath);
+          return;
+        } catch (error) {
+          const code = (error as NodeJS.ErrnoException).code;
+          if (code !== "EPERM" && code !== "EBUSY" && code !== "EACCES") throw error;
+          await new Promise((resolve) => setTimeout(resolve, 40 * (attempt + 1)));
+        }
+      }
+      await writeFile(targetPath, payload, "utf8");
+    });
   }
 
   async list(options: { includeArchived?: boolean; projectId?: string | null } = {}): Promise<ChatSessionSummary[]> {
@@ -160,8 +202,14 @@ export class SessionMemoryStore {
       ...(patch.unread !== undefined ? { unread: patch.unread } : {}),
       ...(patch.summary !== undefined ? { summary: patch.summary } : {}),
       ...(patch.contextSummary !== undefined ? { contextSummary: patch.contextSummary } : {}),
+      ...(patch.todos !== undefined ? { todos: patch.todos } : {}),
       updatedAt: Date.now(),
     };
+    if (patch.pendingQuestion === null) {
+      delete updated.pendingQuestion;
+    } else if (patch.pendingQuestion !== undefined) {
+      updated.pendingQuestion = { ...patch.pendingQuestion, options: [...patch.pendingQuestion.options] };
+    }
     await this.writeSession(updated);
     return updated;
   }
@@ -183,6 +231,7 @@ export class SessionMemoryStore {
       messageCount: existing.messages.length,
       ...(existing.summary ? { summary: existing.summary } : {}),
       ...(existing.contextSummary ? { contextSummary: existing.contextSummary } : {}),
+      ...(existing.todos?.length ? { todos: existing.todos.map((todo) => ({ ...todo })) } : {}),
       createdAt: now,
       updatedAt: now,
       messages: existing.messages.map((m) => ({ ...m })),

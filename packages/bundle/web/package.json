@@ -64,6 +64,7 @@
                          "@lfaa/attachment-local": "workspace:*",
                          "@lfaa/session-title": "workspace:*",
                          "@lfaa/commands": "workspace:*",
+                         "@lfaa/tool-media": "workspace:*",
                          "@lfaa/system-prompt":  "workspace:*",
                          "@lfaa/command-compact":  "workspace:*",
                          "@lfaa/sandbox-policy":  "workspace:*"

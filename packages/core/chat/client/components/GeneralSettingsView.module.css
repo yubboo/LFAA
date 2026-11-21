@@ -355,3 +355,38 @@
   outline: 2px solid var(--color-accent);
   outline-offset: 1px;
 }
+
+/* 后续消息处理方式的行为预览：与输入框排队/插话逻辑保持一致的极简说明。 */
+.followUpPreview {
+  display: grid;
+  gap: 0.28rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px dashed var(--color-line);
+  border-radius: 0.6rem;
+  background: var(--color-panel);
+  color: var(--color-muted);
+  font-size: 0.82em;
+}
+
+.followUpPreviewLabel {
+  color: var(--color-ink);
+  font-weight: 600;
+}
+
+.followUpPreviewRow {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  line-height: 1.5;
+}
+
+.followUpPreviewKey {
+  flex: 0 0 auto;
+  padding: 0.08rem 0.42rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.35rem;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.9em;
+}

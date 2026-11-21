@@ -6,6 +6,7 @@ import type { AgentRunCost, AgentRunMetrics, AgentStepTrace, UserClarification }
 import { estimateMessageTokens, estimateSystemPromptTokens, estimateToolsTokens } from "@lfaa/metrics";
 import {
   buildProgressHint,
+  buildRecentConversation,
   buildSkillsCatalogHint,
   buildSkillsSection,
   buildWorkspaceHint,
@@ -15,6 +16,7 @@ import {
   resolveModelContext,
 } from "./agent-context";
 import { finishWithClarification } from "./agent-completion";
+import { appendMediaPreviews, buildMediaHint, collectMediaPreviews } from "./agent-media";
 import { runFallbackConclusion } from "./agent-fallback";
 import { RunUsageTracker } from "./agent-usage";
 import { runActPhase } from "./act-runner";
@@ -24,9 +26,10 @@ import { clarificationTool } from "./clarification";
 import { completeAgentRound } from "./model-round";
 import type { RunExecutionParams, RunLoopDeps } from "./run-types";
 import { MAX_STEP_BUDGET } from "./step-budget";
+import { injectSteeringMessages } from "./steering";
 import { readStreamingPath } from "./tool-call-args";
+import { preferTodoFirst } from "./todo-plan";
 import { isCodePath, isVerificationCommand } from "./verification";
-
 export type { RunExecutionParams, RunLoopDeps };
 
 /** 顺序执行模型推理、工具审批和执行，最终把运行结果写回会话。 */
@@ -37,6 +40,7 @@ export async function executeAgentTaskLoop(
   const steps: AgentStepTrace[] = [];
   let accumulatedReasoning = "";
   let progressText = "";
+  const mediaPreviews = new Map<string, string>();
 
   const pushOrUpdateStep = (update: AgentStepTrace) => {
     const idx = steps.findIndex((s) => s.id === update.id);
@@ -72,7 +76,8 @@ export async function executeAgentTaskLoop(
   const tracker = new RunUsageTracker(params, activeProfile, tokenPricing);
 
   const shellHint = deps.tools.getTool("run_command") ? await deps.tools.describeCommandShell() : "";
-  const extraSystemHint = deps.extraSystemPrompt ? (await deps.extraSystemPrompt()).trim() : "";
+  const extraSystemHint = [deps.extraSystemPrompt ? (await deps.extraSystemPrompt()).trim() : "", buildMediaHint(deps.tools)]
+    .filter(Boolean).join("\n\n");
   const systemMessage: LlmMessage = { role: "system", content: "" };
   let truncationHint = "";
   const updateSystemMessage = (remainingSteps?: number) => {
@@ -82,22 +87,11 @@ export async function executeAgentTaskLoop(
       historyDigest, ...(remainingSteps !== undefined ? { remainingSteps } : {}), truncationHint, extraSystemHint,
     });
   };
-  const conversation: LlmMessage[] = [systemMessage];
-  if (contextWindow.summaryNote) {
-    conversation.push({ role: "system", content: `前序会话摘要：${contextWindow.summaryNote}` });
-  }
-  for (const msg of contextWindow.recentMessages) {
-    if (msg.status === "streaming" || (msg.role === "assistant" && !msg.content.trim())) continue;
-    conversation.push({ role: msg.role, content: msg.content });
-  }
-  if (!contextWindow.recentMessages.some((m) => m.role === "user" && m.content === params.userMessage)) {
-    conversation.push({ role: "user", content: params.userMessage });
-  }
+  const conversation = buildRecentConversation(systemMessage, contextWindow, params.userMessage);
 
-  let llmTools = deps.tools.getLlmToolSchemas();
+  let llmTools = preferTodoFirst(deps.tools.getLlmToolSchemas());
   const contextBudgetChars = Math.max(8_000, Math.floor(params.contextBudgetChars ?? DEFAULT_CONTEXT_BUDGET_CHARS));
   let overflowRetried = false;
-
   // 2. Think -> Act -> Check 任务循环
   // 步数预算用尽时不再直接收口：只要上一轮确实执行了工具，就自动追加预算继续推进。
   let budget = Math.max(1, Math.floor(params.maxSteps));
@@ -156,7 +150,7 @@ export async function executeAgentTaskLoop(
       modelStage = stage;
       pushOrUpdateStep({ ...thinkStep, ...(modelStage ? { modelStage } : {}), timestamp: now });
     };
-    llmTools = deps.tools.getLlmToolSchemas();
+    llmTools = preferTodoFirst(deps.tools.getLlmToolSchemas());
     if (params.enableClarification) llmTools = [...llmTools, clarificationTool];
     const roundStartedAt = Date.now();
     let firstTokenAt: number | undefined;
@@ -175,6 +169,7 @@ export async function executeAgentTaskLoop(
         timestamp: Date.now(),
       });
     }
+    injectSteeringMessages(deps, conversation, iteration, pushOrUpdateStep);
     // 记录本轮实际发送的上下文构成，估算口径与 DSH token-meter 对齐。
     tracker.setContextSnapshot({
       systemTokens: estimateSystemPromptTokens(systemMessage.content),
@@ -378,7 +373,7 @@ export async function executeAgentTaskLoop(
       const usage = tracker.usageSnapshot;
       const cost = tracker.cost();
       return {
-        content: finalContent || "模型返回了空内容，未能生成有效答复。",
+        content: appendMediaPreviews(finalContent, mediaPreviews) || "模型返回了空内容，未能生成有效答复。",
         progressText,
         reasoning: accumulatedReasoning,
         steps,
@@ -422,6 +417,7 @@ export async function executeAgentTaskLoop(
         }
         // 连续相同调用只给建议性提醒，不阻断执行；提醒在工具结果回填后再进入上下文。
         if (outcome.executed && outcome.ok) {
+          collectMediaPreviews(mediaPreviews, outcome.call.name, outcome.output);
           const repeat = repeatTracker?.observe(outcome.call.name, outcome.call.argumentsJson);
           if (repeat?.reminder) {
             pendingRepeatReminders.push(repeat.reminder);
@@ -488,7 +484,7 @@ export async function executeAgentTaskLoop(
   const usage = tracker.usageSnapshot;
   const cost = tracker.cost();
   return {
-    content: fallback.content,
+    content: appendMediaPreviews(fallback.content, mediaPreviews),
     progressText,
     reasoning: accumulatedReasoning,
     steps,

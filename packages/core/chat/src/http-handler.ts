@@ -63,7 +63,7 @@ export function createChatHttpHandler(service: ChatService, options: {
           sendJson(res, 200, { suggestions: [] });
           return true;
         }
-        const suggestions = await options.suggestFollowUps({ userPrompt, assistantReply });
+        const suggestions = await options.suggestFollowUps({ userPrompt, assistantReply }).catch(() => []);
         sendJson(res, 200, { suggestions: suggestions.slice(0, 3) });
         return true;
       }
@@ -75,7 +75,7 @@ export function createChatHttpHandler(service: ChatService, options: {
           sendJson(res, 200, { suggestions: [] });
           return true;
         }
-        const suggestions = await options.suggestStarters({ projectId });
+        const suggestions = await options.suggestStarters({ projectId }).catch(() => []);
         sendJson(res, 200, { suggestions: suggestions.slice(0, 3) });
         return true;
       }

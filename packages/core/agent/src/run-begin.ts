@@ -26,6 +26,7 @@ export type SkillCatalogProvider = (
 export interface BeginRunDeps extends RunLoopDeps {
   skillResolver: SkillResolver | null;
   skillCatalogProvider: SkillCatalogProvider | null;
+  resolveSessionModules?: (presetId: string | undefined, modules: readonly string[]) => readonly string[];
   /** 把新运行登记到服务层运行表并计数。 */
   onRunCreated: (record: ActiveRunRecord) => void;
 }
@@ -88,7 +89,8 @@ export async function beginAgentRun(
   const projectId = resolveRoots ? session.projectId : (input.projectId ?? session.projectId);
   const workspaceRoots = resolveRoots ? await resolveRoots(projectId) : (input.workspaceRoots ?? []);
   // 旧会话没有已确认组合，沿用历史能力；新会话按已保存的组合执行。
-  const modules = session.sessionModules ? new Set(session.sessionModules) : undefined;
+  const storedModules = session.sessionModules;
+  const modules = storedModules ? new Set(deps.resolveSessionModules?.(session.sessionPreset, storedModules) ?? storedModules) : undefined;
   const tools = modules ? deps.tools.scope(modules, session.sessionPreset === "minimal") : deps.tools;
   const skillsAllowed = !modules || modules.has("@lfaa/skills");
   const memoryAllowed = !modules || modules.has("@lfaa/memory");
@@ -105,7 +107,13 @@ export async function beginAgentRun(
     role: "user",
     content: trimmedInput,
     createdAt: Date.now(),
+    ...(input.attachments?.length ? { attachments: input.attachments } : {}),
+    ...(input.references?.length ? { references: input.references } : {}),
   });
+  // 用户已用新消息回应，旧澄清问题不再处于「待回答」。
+  if (session.pendingQuestion) {
+    await deps.memory.updateSession(session.id, { pendingQuestion: null });
+  }
   const runStartedAt = Date.now();
   await deps.memory.appendMessage(session.id, {
     id: assistantMessageId,
@@ -135,6 +143,7 @@ export async function beginAgentRun(
     chunks: [],
     persistChain: Promise.resolve(),
     lastPersistAt: 0,
+    steering: [],
   };
   deps.onRunCreated(record);
 
@@ -182,6 +191,9 @@ export async function beginAgentRun(
       // 审批等待与失败是断线恢复的关键节点，仍立即落盘。
       const critical = rawEvent.step.status === "waiting_approval" || rawEvent.step.status === "error";
       scheduleStreamingPersist(critical);
+    } else if (rawEvent.type === "todos") {
+      // 清单已由 todo_write 写入会话记录，这里只维护快照供断线重连恢复。
+      record.status.todos = rawEvent.todos;
     }
     for (const listener of record.listeners) {
       listener(event);
@@ -224,6 +236,7 @@ export async function beginAgentRun(
             memory: deps.memory,
             rules: deps.rules,
             trustStore: deps.trustStore,
+            drainSteering: () => record.steering.splice(0),
           },
           {
             runId,
@@ -231,6 +244,7 @@ export async function beginAgentRun(
             assistantMessageId,
             userMessage: trimmedInput,
             ...(input.profileId !== undefined ? { profileId: input.profileId } : {}),
+            ...(input.referenceImages?.length ? { referenceImages: input.referenceImages } : {}),
             ...(input.reasoningEffort !== undefined ? { reasoningEffort: input.reasoningEffort } : {}),
             projectId,
             workspaceRoots,
@@ -307,6 +321,13 @@ export async function beginAgentRun(
         }));
         await deps.memory.updateSession(session.id, {
           unread: true,
+          pendingQuestion: result.clarification
+            ? ({
+              messageId: assistantMessageId,
+              question: result.clarification.question,
+              options: [...result.clarification.options],
+            })
+            : null,
           ...(nextSummary ? { contextSummary: nextSummary } : {}),
         });
         const message = saved.messages.find((item) => item.id === assistantMessageId);
@@ -343,7 +364,7 @@ export async function beginAgentRun(
           status: finalStatus,
         });
         if (!aborted) {
-          await deps.memory.updateSession(session.id, { unread: true });
+          await deps.memory.updateSession(session.id, { unread: true, pendingQuestion: null });
         }
         const message = saved.messages.find((item) => item.id === assistantMessageId);
         record.status.status = finalStatus;

@@ -41,6 +41,7 @@
     { "path": "../../attachment/attachment-local" },
     { "path": "../../session/session-title" },
     { "path": "../../interaction/commands" },
+    { "path": "../../media/tool-media" },
     { "path": "../../core/system-prompt" },
     { "path": "../../compaction/command-compact" },
     { "path": "../../sandbox/sandbox-policy" }

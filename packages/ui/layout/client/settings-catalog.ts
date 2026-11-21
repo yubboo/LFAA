@@ -26,7 +26,7 @@ export const SETTINGS_CATALOG: SettingsCatalogGroup[] = [
     titleEn: "Personal",
     items: [
       { viewId: "settings:general", labelZh: "常规", labelEn: "General", icon: "settings", implemented: true },
-      { viewId: "settings:notifications", labelZh: "通知", labelEn: "Notifications", icon: "bell" },
+      { viewId: "settings:notifications", labelZh: "通知", labelEn: "Notifications", icon: "bell", implemented: true },
       { viewId: "settings:import", labelZh: "导入", labelEn: "Import", icon: "plus" },
       { viewId: "settings:profile", labelZh: "个人资料", labelEn: "Profile", icon: "profile" },
       { viewId: "appearance", labelZh: "外观", labelEn: "Appearance", icon: "palette", implemented: true },

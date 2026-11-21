@@ -64,14 +64,14 @@ export function resolveArkModel(
   return activeProfile && arkPlan ? findArkChatModel(activeProfile.model) : undefined;
 }
 
-// 方舟使用套餐公开目录，其余档案（含普通 API、其他套餐与本地服务）优先展示已同步的模型清单。
-/** 计算当前档案可展示的品牌/官方模型清单，保证至少包含当前模型一项。 */
+/** 优先使用宿主下发的模型用途与目录，空目录兼容旧版方舟档案。 */
 export function buildBrandModels(
   activeProfile: PublicLlmProfileItem | null,
   arkPlan: ArkPlanKind | undefined,
 ): ModelCapabilityItem[] {
   if (!activeProfile) return [];
   const list = activeProfile.availableModels ?? [];
+  if (list.length > 0) return list;
   if (arkPlan) {
     const { chatModels } = getArkPlanCatalog(arkPlan);
     if (findArkChatModel(activeProfile.model)) return [...chatModels];
@@ -80,7 +80,6 @@ export function buildBrandModels(
       ...chatModels,
     ];
   }
-  if (list.length > 0) return list;
   return [{ id: activeProfile.model, supportsReasoning: false, reasoningMode: "none", reasoningLevels: [] }];
 }
 

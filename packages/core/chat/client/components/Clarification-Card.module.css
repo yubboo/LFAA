@@ -1,29 +1,52 @@
-/* 澄清问题卡，选项、自由输入和提交使用现有语义主题色。 */
+/* 输入区澄清卡：问题、选项和操作分层，窄栏时输入框独占一行。 */
 .card {
   display: grid;
-  gap: 0.45rem;
-  margin-bottom: 0.55rem;
-  padding: 0.85rem;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
   border: 1px solid var(--color-line);
-  border-radius: 0.8rem;
+  border-radius: 0.9rem;
   background: var(--color-panel);
   color: var(--color-ink);
 }
 
-.card p { margin: 0 0 0.35rem; font-weight: 600; }
+.card h2 {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.options {
+  display: grid;
+  gap: 0.2rem;
+  max-block-size: min(24dvh, 13rem);
+  overflow: auto;
+  padding: 0.15rem;
+}
+
+.options:empty { display: none; }
 
 .card button, .actions input {
-  padding: 0.45rem 0.65rem;
-  border: 1px solid var(--color-line);
-  border-radius: 0.45rem;
-  background: var(--color-surface);
+  min-block-size: 2.15rem;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
   color: var(--color-ink);
+  font: inherit;
+  font-size: 0.85rem;
+  line-height: 1.35;
 }
 
 .card button:not(:disabled) { cursor: pointer; }
-.card button:disabled { opacity: 0.55; }
+.card button:disabled { opacity: 0.6; }
 .card button:focus-visible, .actions input:focus-visible { outline: 2px solid var(--color-accent); }
-.option { text-align: start; }
-.option[aria-pressed="true"] { border-color: var(--color-accent); background: var(--color-active); }
-.actions { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-.actions input { flex: 1 1 9rem; min-width: 0; }
+.option { text-align: start; background: transparent; overflow-wrap: anywhere; }
+.option:hover:not(:disabled), .option[aria-pressed="true"] { background: var(--color-active); }
+.option[aria-pressed="true"] { border-color: var(--color-accent); }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem; }
+.actions input { flex: 1 1 15rem; min-width: 0; border-color: var(--color-line); background: var(--color-surface); }
+.actions input::placeholder { color: var(--color-muted); }
+.skip { margin-inline-start: auto; background: transparent; }
+.skip:hover:not(:disabled) { background: var(--color-active); }
+.actions .send { background: var(--color-ink); color: var(--color-shell); }

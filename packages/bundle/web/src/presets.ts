@@ -28,6 +28,7 @@ export const CORE_MODULES: readonly string[] = [
   "@lfaa/attachment-local",
   "@lfaa/session-title",
   "@lfaa/commands",
+  "@lfaa/tool-media",
   "@lfaa/skills",
   "@lfaa/plugins",
   "@lfaa/agent",
@@ -43,6 +44,8 @@ export const OPTIONAL_MODULES: readonly string[] = [
 
 /** 可选模式标识。 */
 export type PresetId = "standard" | "ptc" | "minimal" | "creative";
+
+const MEDIA_MODULE = "@lfaa/tool-media";
 
 /** 一个模式预设：名称、说明与它启用的会话插件。 */
 export interface Preset {
@@ -65,7 +68,7 @@ export const PRESETS: readonly Preset[] = [
     description: { zh: "完整工作模式，支持技能、浏览器、后台任务和子智能体协作。", en: "Full workspace mode with skills, browser, jobs, and subagents." },
     sessionModules: [
       "@lfaa/agent", "@lfaa/tools", "@lfaa/llm", "@lfaa/rules",
-      "@lfaa/memory", "@lfaa/skills", "@lfaa/browser", "@lfaa/jobs", "@lfaa/subagent", "@lfaa/tool-web", "@lfaa/tool-todo",
+      "@lfaa/memory", "@lfaa/skills", "@lfaa/browser", "@lfaa/jobs", "@lfaa/subagent", "@lfaa/tool-web", "@lfaa/tool-todo", MEDIA_MODULE,
     ],
   },
   {
@@ -87,10 +90,18 @@ export const PRESETS: readonly Preset[] = [
     description: { zh: "适合生成内容与产物，包含网页、技能和后台任务。", en: "Create content and artifacts with web, skills, and background jobs." },
     sessionModules: [
       "@lfaa/agent", "@lfaa/tools", "@lfaa/llm", "@lfaa/rules",
-      "@lfaa/memory", "@lfaa/skills", "@lfaa/browser", "@lfaa/jobs", "@lfaa/tool-web", "@lfaa/tool-todo",
+      "@lfaa/memory", "@lfaa/skills", "@lfaa/browser", "@lfaa/jobs", "@lfaa/tool-web", "@lfaa/tool-todo", MEDIA_MODULE,
     ],
   },
 ];
+
+/** 只补齐媒体工具遗漏的既有标准、创造预设，保留其他已锁定组合。 */
+export function resolveLegacySessionModules(presetId: string | undefined, modules: readonly string[]): readonly string[] {
+  if (presetId !== "standard" && presetId !== "creative") return modules;
+  const previous = resolvePreset(presetId).sessionModules.filter((name) => name !== MEDIA_MODULE);
+  return modules.length === previous.length && previous.every((name) => modules.includes(name))
+    ? [...modules, MEDIA_MODULE] : modules;
+}
 
 /** 按 id 取预设；未知 id 回退到标准模式。 */
 export function resolvePreset(id: string | undefined): Preset {

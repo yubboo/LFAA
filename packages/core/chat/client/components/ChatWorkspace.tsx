@@ -13,6 +13,8 @@ import { ChatComposer } from "./ChatComposer";
 import { ChatDeleteDialog } from "./ChatDeleteDialog";
 import { ChatMessageList } from "./ChatMessageList";
 import { ConversationTrace } from "./Conversation-Trace";
+import { TodoDock } from "./TodoDock";
+import { latestSessionTodos } from "../session-todos";
 import { useChatComposer } from "./useChatComposer";
 import styles from "./ChatWorkspace.module.css";
 import composerStyles from "./ChatWorkspace.composer.module.css";
@@ -60,10 +62,12 @@ export function ChatWorkspace({
   const latestRemoved = latestFiles.reduce((sum, file) => sum + file.removed, 0);
 
   const activeProjectId = activeSession ? activeSession.projectId : state.draftProjectId;
+  const activeProfile = state.profiles.find((p) => p.id === state.activeProfileId) ?? state.profiles[0];
+  const activeKind = activeProfile?.availableModels?.find((model) => model.id === activeProfile.model)?.modelKind;
 
   // 空会话且绑定项目时，向 Host 请求围绕该项目的起步建议（按项目缓存，失败回退通用引导）。
   useEffect(() => {
-    if (messages.length > 0 || !activeProjectId || !state.generalSettings.homeSuggestions) return;
+    if (messages.length > 0 || !activeProjectId || !state.generalSettings.homeSuggestions || (activeKind && activeKind !== "chat")) return;
     if (startersByProject[activeProjectId]) return;
     let cancelled = false;
     void (async () => {
@@ -82,14 +86,17 @@ export function ChatWorkspace({
       }
     })();
     return () => { cancelled = true; };
-  }, [messages.length, activeProjectId, state.generalSettings.homeSuggestions, startersByProject]);
+  }, [messages.length, activeProjectId, activeKind, state.generalSettings.homeSuggestions, startersByProject]);
 
   // 智能建议：回答里的「建议/下一步」清单在正文内联为编号选项（不重复出现在底部）；
   // 底部生成式推荐只在新会话的第一轮触发，多轮后不再机械追问。
   useEffect(() => {
     const last = messages[messages.length - 1];
+    if (activeKind && activeKind !== "chat") return;
     if (!last || last.role !== "assistant" || last.status === "streaming" || last.clarification || !last.content.trim()) return;
     if (suggestionsByMessage[last.id]) return;
+    // 媒体生成结果（图片/视频/语音）不生成后续对话推荐，避免用媒体模型发聊天请求。
+    if (/!\[[^\]]*\]\(\/api\/media\/file\?/u.test(last.content)) return;
     if (extractAdviceOptions(last.content).length >= 2) return;
     const assistantTurns = messages.filter((message) => message.role === "assistant").length;
     if (assistantTurns !== 1) return;
@@ -115,14 +122,15 @@ export function ChatWorkspace({
       }
     })();
     return () => { cancelled = true; };
-  }, [messages, suggestionsByMessage]);
+  }, [activeKind, messages, suggestionsByMessage]);
 
-  const activeProfile = state.profiles.find((p) => p.id === state.activeProfileId) ?? state.profiles[0];
   const needsApiKey = Boolean(activeProfile && activeProfile.kind !== "ollama" && !activeProfile.hasApiKey);
   const isRunning = Boolean(state.runningRunId);
   const selectedFile = state.filePreviewTabs?.find((tab) => tab.id === state.activeFilePreviewId);
 
   const turnAnchors = useMemo(() => buildTurnAnchors(messages), [messages]);
+  // 任务清单从步骤里取最近一次 todo_write 的结果，刷新历史会话同样可用。
+  const sessionTodos = useMemo(() => latestSessionTodos(messages), [messages]);
   const { scrollAreaRef, threadRef, showScrollBottom, scrollToLatest, pauseFollowing, trackScroll } =
     useChatScroll(activeSession?.id ?? null, turnAnchors.at(-1)?.anchorMsgId, isRunning);
 
@@ -223,6 +231,23 @@ export function ChatWorkspace({
           onContinueInterrupted={(messageId) => void store.continueInterruptedMessage(messageId)}
           onSubmitQuestion={(question) => void composer.handleSubmit(question)}
           onResolveApproval={(approved) => void store.resolveApproval(approved)}
+          mediaActions={{
+            busy: isRunning || state.submittingMessage === true || bindingProject,
+            onQuote: (source, url, label) => {
+              if (!activeSession) return;
+              composer.appendAttachments([{
+                id: `media-${source.messageId}-${source.path}`, kind: "file", label,
+                path: source.path, mediaSource: { ...source, sessionId: activeSession.id, url },
+              }]);
+              composer.focusTextareaAt(composer.draft.length);
+            },
+            onRegenerate: (source, ratio) => {
+              // 生成中的进度由消息区占位呈现；这里只在失败时提示，不再占用输入框上方状态条。
+              void store.generateMediaFromPrompt({ regenerate: source, ...(ratio ? { ratio } : {}) }).then((result) => {
+                if (!result.ok) composer.setContextNotice(result.error ?? (locale.isZh ? "再次生图失败" : "Regenerate failed"));
+              });
+            },
+          }}
         />
       </div>
 
@@ -266,6 +291,7 @@ export function ChatWorkspace({
             )}
           </div>
         )}
+        {sessionTodos && sessionTodos.length > 0 && <TodoDock todos={sessionTodos} isZh={locale.isZh} />}
         <ChatComposer
           locale={locale}
           store={store}

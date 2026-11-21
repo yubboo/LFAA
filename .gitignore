@@ -19,6 +19,9 @@ pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# 桌面端 staging 与安装包产物（与 DSH 一致放在应用目录内）
+apps/desktop/.desktop-build/
+
 # 本地凭据、密钥、运行数据与环境配置
 .env
 .env.*

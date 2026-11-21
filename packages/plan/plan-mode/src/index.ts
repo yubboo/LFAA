@@ -1,5 +1,7 @@
 // @lfaa/plan-mode：计划模式。开启后写/执行类工具被中间件拦截，只留下只读探查，先给计划再动手。
 import type { Context, Plugin } from "@deepseek-ai/cordis";
+import type { TodoItem } from "@lfaa/memory";
+import "@lfaa/memory";
 import "@lfaa/tools";
 import type { ToolPermissionLevel } from "@lfaa/tools";
 
@@ -56,6 +58,26 @@ export class PlanModeService {
 export function blockedMessage(toolName: string, objective = ""): string {
   const target = objective ? `（计划目标：${objective}）` : "";
   return `当前处于计划模式${target}，工具 ${toolName} 属于写/执行类，已被拦截。请先输出完整计划，再调用 plan_mode_exit 退出计划模式后执行。`;
+}
+
+/** 清单条数上限：计划文本通常只有几步，超过上限的部分不再转成任务，避免误解成完整待办。 */
+export const PLAN_TODO_LIMIT = 20;
+
+/**
+ * 把退出计划时给出的计划文本转成任务清单：
+ * 按行切分、去掉列表符号与标题井号，至少两行才认为是「分步计划」，否则返回空数组表示不建清单。
+ */
+export function planToTodos(plan: string): TodoItem[] {
+  const items = plan
+    .split(/\r?\n/u)
+    .map((line) => line.replace(/^\s*(?:[-*+]\s+|\d+[.)、]\s*|#{1,6}\s+)/u, "").trim())
+    .filter(Boolean);
+  if (items.length < 2) return [];
+  return items.slice(0, PLAN_TODO_LIMIT).map((content, index) => ({
+    id: String(index + 1),
+    content,
+    status: "pending",
+  }));
 }
 
 const STATUS_TOOL = {
@@ -124,11 +146,22 @@ export function installPlanMode(ctx: Context, config: PlanModeConfig = {}): Plan
         execute: async (args, execCtx) => {
           const intent = service.exit(execCtx.sessionId);
           const plan = typeof args.plan === "string" ? args.plan.trim() : "";
+          // 计划文本只有分步（≥2 项）才转成任务清单，避免把一句目标误存成待办。
+          const todos = planToTodos(plan);
+          if (todos.length > 0) {
+            await ctx.memory.updateSession(execCtx.sessionId, { todos }).catch(() => null);
+          }
+          const parts = [
+            "已退出计划模式。",
+            ...(plan ? [`计划：${plan}`] : intent?.objective ? [`计划目标：${intent.objective}`] : []),
+            ...(todos.length > 0 ? [`已把计划转为 ${todos.length} 条任务清单，可直接从第一条开始执行。`] : []),
+            "现在可以执行写与命令工具。",
+          ];
           return {
             ok: true,
-            output: `已退出计划模式。${plan ? `计划：${plan}` : intent?.objective ? `计划目标：${intent.objective}` : ""}现在可以执行写与命令工具。`,
-            summary: "退出计划模式",
-            metadata: { planMode: false },
+            output: parts.join(""),
+            summary: todos.length > 0 ? `退出计划模式并建清单（${todos.length} 条）` : "退出计划模式",
+            metadata: { planMode: false, ...(todos.length > 0 ? { todos } : {}) },
           };
         },
       }),
@@ -156,7 +189,7 @@ export function installPlanMode(ctx: Context, config: PlanModeConfig = {}): Plan
 
 const planModeCore: Plugin.Object<PlanModeConfig> = {
   name: "lfaa-plan-mode",
-  inject: ["tools"],
+  inject: ["tools", "memory"],
   apply(ctx, config) {
     installPlanMode(ctx, config ?? {});
   },

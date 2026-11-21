@@ -51,6 +51,12 @@ export interface GeneralSettingsConfig {
   enableQuestionNotification: boolean;
   enableDotNotification: boolean;
   notificationSound: NotifySoundMode;
+  /** 轮次完成提示音：内置 id、custom:<uuid> 或 mute。 */
+  completionSound?: string;
+  /** 澄清/等待回答提示音。 */
+  questionSound?: string;
+  /** 待确认/关键决策提示音。 */
+  approvalSound?: string;
   confettiEffect: boolean;
   updatedAt: number;
 }
@@ -139,6 +145,9 @@ function createDefaultSettings(outsideProjectFolder: string, defaultProjectsFold
     enableQuestionNotification: true,
     enableDotNotification: true,
     notificationSound: "default",
+    completionSound: "default",
+    questionSound: "bell",
+    approvalSound: "alert",
     confettiEffect: true,
     updatedAt: Date.now(),
   };
@@ -151,6 +160,12 @@ function normalizeRepeatThresholds(values: readonly unknown[]): number[] {
 }
 
 const VALID_REASONING = new Set<ReasoningLevelOption>(["minimal", "low", "medium", "high", "max"]);
+const SOUND_ID_PATTERN = /^(?:default|chime|bell|pop|alert|mute|custom:[0-9a-fA-F-]{8,64})$/u;
+
+/** 校验提示音 id：内置音或 custom:<uuid>；不合法时返回 undefined 由调用方保留旧值。 */
+function readSoundId(value: unknown): string | undefined {
+  return typeof value === "string" && SOUND_ID_PATTERN.test(value) ? value : undefined;
+}
 
 /** 管理常规偏好的持久化与兼容读取，并公开设置服务使用的用户配置。 */
 export class GeneralSettingsStore {
@@ -256,6 +271,12 @@ export class GeneralSettingsStore {
     if (patch.notificationSound === "default" || patch.notificationSound === "chime" || patch.notificationSound === "mute") {
       next.notificationSound = patch.notificationSound;
     }
+    const completionSound = readSoundId(patch.completionSound);
+    if (completionSound) next.completionSound = completionSound;
+    const questionSound = readSoundId(patch.questionSound);
+    if (questionSound) next.questionSound = questionSound;
+    const approvalSound = readSoundId(patch.approvalSound);
+    if (approvalSound) next.approvalSound = approvalSound;
     if (typeof patch.confettiEffect === "boolean") next.confettiEffect = patch.confettiEffect;
     return next;
   }

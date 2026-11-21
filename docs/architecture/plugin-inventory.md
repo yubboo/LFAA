@@ -26,7 +26,7 @@
 
 | 项 | DSH | LFAA 现状 |
 |---|---|---|
-| 全局插件数量 | ~100（截图可见 60+） | **34**（原 14 + web seam / web-fetch-http / goal / tool-goal / timeout-policy / spill-local / plan-mode / fs-observation-policy / compaction-basic / tool-result-pruner / tool-schedule / system-prompt / command-compact / sandbox-policy / message-feedback / attachment-local / session-title / commands） |
+| 全局插件数量 | ~100（截图可见 60+） | **35**（原 14 + web seam / web-fetch-http / goal / tool-goal / timeout-policy / spill-local / plan-mode / fs-observation-policy / compaction-basic / tool-result-pruner / tool-schedule / system-prompt / command-compact / sandbox-policy / message-feedback / attachment-local / session-title / commands / tool-media） |
 | 会话/全局分区 | 两段，各自分组 | 两段（DEV-000209） |
 | 模式预设 | 标准 / PTC / 极简 / 创造 | 标准 / 极简 / 创造可用，PTC 未接入 |
 | 每项详情 | 完整名称、来自、配置状态、运行状态 | 名称、包名、内置标记、已装配状态 |
@@ -55,6 +55,7 @@
 | `attachment-local`（`packages/attachment/attachment-local`） | 完成（P1 第二项） | 附件字节落盘 `~/.lfaa/attachments/<session>/`；`/api/attachments` 上传/列出/读取/删除；聊天输入栏附件上传后写入附件库，Agent 可用 `list_attachments` / `read_attachment` 读取 |
 | `session-title`（`packages/session/session-title`） | 完成（P1 第三项） | 启发式简洁标题 + 模型生成（失败自动回落）；`core/session` 的标题函数改为依赖本包；`POST /api/session-title` 已接入 |
 | `commands`（`packages/interaction/commands`） | 完成（P1 第四项） | 斜杠命令注册 seam：`ctx.commands.register` 注册、`/api/commands` 发现与执行；输入栏已合并 Host 命令（`/summarize`、`/explain` 为内置示例） |
+| `tool-media`（`packages/media/tool-media`） | 完成（媒体生成 P2 生图 + P3 视频） | `generate_image` / `generate_video` / `get_video` 工具：调用套餐生图/视频模型（百炼原生接口 / 方舟 / OpenAI 兼容），媒体保存到 `.lfaa-media/{images,videos}` 并在聊天内预览；真实生成已验证 |
 
 接入方式：加入 `bundle/web` 的 `CORE_MODULES` 并挂载，`plugin-catalog.ts` 登记名称/描述，插件页「全局插件」即可见；每个包带双语 README 三件套与回归测试。`@lfaa/tools` 新增 `useToolMiddleware` seam（`aroundExecute` / `afterExecute`），后续超时、精简、落盘类策略都挂在这里，不再各自改工具实现。
 

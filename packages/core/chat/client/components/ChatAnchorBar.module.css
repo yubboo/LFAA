@@ -15,6 +15,15 @@
   gap: 0.34rem;
 }
 
+/* 轮次多时在 pill 尾部提示总轮次，避免用户误以为刻度就是全部历史。 */
+.tickCount {
+  display: none;
+  color: var(--color-muted);
+  font-size: 0.7em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .tickSlot {
   position: relative;
   display: flex;
@@ -183,6 +192,11 @@
     align-items: center;
     justify-content: center;
     gap: 0.3rem;
+  }
+
+  .tickCount {
+    display: inline-block;
+    margin-left: 0.3rem;
   }
 
   .tickSlot {

@@ -3,8 +3,8 @@
   --topbar-height: 3.5rem;
   --rail-width: 3.125rem;
   --right-panel-base-width: clamp(14.5rem, 18vw, 18rem);
-  /* 滚动区域的末端避开分隔手柄向内覆盖的 5px。 */
-  --pane-scroll-inset: 8px;
+  /* 滚动区域的末端避开分隔手柄向内覆盖的 4px；数值越小滚动条越贴近栏边界。 */
+  --pane-scroll-inset: 4px;
   --pane-scrollbar-width: 6px;
   /* 静止、刷新和缩窗时也应用拖拽边界。按左栏实际占用计算右栏可用空间。 */
   --content-width: calc(100% - var(--rail-width));

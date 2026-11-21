@@ -1,6 +1,6 @@
 // @lfaa/bundle-web 装配插件：把 Web Host 的基础能力、Loader 与跨服务联线组合成一个 bundle。
 import { type Context, type Plugin } from "@deepseek-ai/cordis";
-import { CORE_MODULES, OPTIONAL_MODULES, PRESETS } from "./presets";
+import { CORE_MODULES, OPTIONAL_MODULES, PRESETS, resolveLegacySessionModules } from "./presets";
 import Loader from "@deepseek-ai/cordis-plugin-loader";
 import { agentPlugin } from "@lfaa/agent";
 import { resolveBash } from "@lfaa/bash-local";
@@ -32,6 +32,7 @@ import feedbackPlugin from "@lfaa/message-feedback";
 import attachmentPlugin from "@lfaa/attachment-local";
 import sessionTitlePlugin from "@lfaa/session-title";
 import commandsPlugin from "@lfaa/commands";
+import mediaToolsPlugin from "@lfaa/tool-media";
 import toolTodoPlugin from "@lfaa/tool-todo";
 import toolWebPlugin from "@lfaa/tool-web";
 import { toolsPlugin } from "@lfaa/tools";
@@ -137,6 +138,8 @@ export const webBundlePlugin: Plugin.Object<WebBundleConfig> = {
     const sessionTitleFiber = ctx.plugin(sessionTitlePlugin);
     // 斜杠命令注册表只依赖自身，先于界面装配更稳。
     const commandsFiber = ctx.plugin(commandsPlugin);
+    // 媒体生成工具依赖工具注册表与模型服务。
+    const mediaToolsFiber = ctx.plugin(mediaToolsPlugin);
     // 执行策略中间件挂在工具注册表之后：写前必读 → 超时兜底 → 计划模式 → 长结果落盘。
     const observationFiber = ctx.plugin(fsObservationPlugin, {});
     const timeoutFiber = ctx.plugin(timeoutPolicyPlugin, {});
@@ -150,7 +153,7 @@ export const webBundlePlugin: Plugin.Object<WebBundleConfig> = {
     const promptFiber = ctx.plugin(systemPromptPlugin);
     const compactCommandFiber = ctx.plugin(commandCompactPlugin);
     const sandboxPolicyFiber = ctx.plugin(sandboxPolicyPlugin, {});
-    await Promise.all([sectionsFiber, workspaceFiber, llmFiber, rulesFiber, memoryFiber, shellFiber, toolsFiber, skillsFiber, webFiber, webFetchFiber, goalFiber, toolTodoFiber, toolWebFiber, toolGoalFiber, toolScheduleFiber, feedbackFiber, attachmentFiber, sessionTitleFiber, commandsFiber, observationFiber, timeoutFiber, planModeFiber, prunerFiber, spillFiber, compactionFiber, promptFiber, compactCommandFiber, sandboxPolicyFiber]);
+    await Promise.all([sectionsFiber, workspaceFiber, llmFiber, rulesFiber, memoryFiber, shellFiber, toolsFiber, skillsFiber, webFiber, webFetchFiber, goalFiber, toolTodoFiber, toolWebFiber, toolGoalFiber, toolScheduleFiber, feedbackFiber, attachmentFiber, sessionTitleFiber, commandsFiber, mediaToolsFiber, observationFiber, timeoutFiber, planModeFiber, prunerFiber, spillFiber, compactionFiber, promptFiber, compactCommandFiber, sandboxPolicyFiber]);
 
     const loaderFiber = ctx.plugin(Loader, { baseUrl: config.loaderBaseUrl });
     await loaderFiber;
@@ -180,7 +183,7 @@ export const webBundlePlugin: Plugin.Object<WebBundleConfig> = {
 
     const providedModules = [...CORE_MODULES, ...mountedOptional];
     const pluginsFiber = ctx.plugin(pluginsPlugin, { profile, providedModules, repoRoot: config.repoRoot, presets: PRESETS });
-    const agentFiber = ctx.plugin(agentPlugin);
+    const agentFiber = ctx.plugin(agentPlugin, { resolveSessionModules: resolveLegacySessionModules });
     const chatFiber = ctx.plugin(chatPlugin, { repoRoot: config.repoRoot });
     await Promise.all([pluginsFiber, agentFiber, chatFiber, ...optionalFibers]);
 

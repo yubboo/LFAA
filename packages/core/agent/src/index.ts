@@ -16,7 +16,7 @@ import {
   type AgentStreamMetrics,
   type RunChunkRecord,
 } from "./stream-journal";
-import type { AgentPermissionMode, AgentRunEvent, AgentRunStatus, StartAgentRunInput } from "./types";
+import type { AgentAttentionItem, AgentPermissionMode, AgentRunEvent, AgentRunStatus, StartAgentRunInput } from "./types";
 
 export * from "./types";
 export * from "./permission-policy";
@@ -27,6 +27,8 @@ export { executeAgentTaskLoop, type RunExecutionParams, type RunLoopDeps } from 
 /** 配置 Agent Host 存储及运行参数，供应用启动和隔离测试注入。 */
 export interface AgentPluginConfig {
   smartTrustFilePath?: string;
+  /** 装配层可兼容已存会话的旧预设组合。 */
+  resolveSessionModules?: (presetId: string | undefined, modules: readonly string[]) => readonly string[];
 }
 
 // Host 侧 Agent 任务调度服务。
@@ -44,7 +46,7 @@ export class AgentService extends Service {
   private replayedChunksCount = 0;
   private lastClientFpsValue: number | null = null;
 
-  constructor(ctx: Context, config: AgentPluginConfig = {}) {
+  constructor(ctx: Context, private readonly config: AgentPluginConfig = {}) {
     super(ctx, "agent");
     this.trustStore = new SmartTrustStore(config.smartTrustFilePath);
     this.unregisterBuiltinTools = registerAgentLibraryTools(ctx);
@@ -100,7 +102,18 @@ export class AgentService extends Service {
     return this.withIdleSession(input.sessionId, () => this.beginRun(input, resolveRoots));
   }
 
+  /** 拒绝用生图/生视频/语音模型发起对话运行，提示改用媒体直连或切换对话模型。 */
+  private async assertChatModel(input: StartAgentRunInput): Promise<void> {
+    const catalog = await this.ctx.llm.listPublicProfiles().catch(() => ({ activeProfileId: "", profiles: [] }));
+    const profile = catalog.profiles.find((item) => item.id === (input.profileId ?? catalog.activeProfileId)) ?? catalog.profiles[0];
+    const kind = profile?.availableModels?.find((model) => model.id === profile.model)?.modelKind;
+    if (!kind || kind === "chat") return;
+    const label = kind === "image" ? "生图" : kind === "video" ? "生视频" : "语音";
+    throw new Error(`当前选中的是${label}模型，不能用于对话。请直接在输入框发送生成描述，或切换回对话模型后重试。`);
+  }
+
   private async beginRun(input: StartAgentRunInput, resolveRoots?: (projectId: string | null) => Promise<string[]>) {
+    await this.assertChatModel(input);
     const compaction = this.ctx.get("compaction") as CompactionHook | undefined;
     const prompt = this.ctx.get("prompt") as { compose(): Promise<string> } | undefined;
     return beginAgentRun({
@@ -113,6 +126,7 @@ export class AgentService extends Service {
       ...(prompt ? { extraSystemPrompt: () => prompt.compose() } : {}),
       skillResolver: this.skillResolver,
       skillCatalogProvider: this.skillCatalogProvider,
+      ...(this.config.resolveSessionModules ? { resolveSessionModules: this.config.resolveSessionModules } : {}),
       onRunCreated: (record) => {
         this.runs.set(record.status.runId, record);
         this.totalRunsCount += 1;
@@ -129,6 +143,22 @@ export class AgentService extends Service {
       ?.steps?.find((item) => item.id === stepId);
     if (!session || !step?.fileChange || step.phase !== "act" || step.status !== "done") return null;
     return readActivitySource(step.fileChange, await resolveRoots(session.projectId));
+  }
+
+  /** 把新问题追加到正在运行的对话（插话），不打断当前生成。 */
+  async steerRun(runId: string, text: string): Promise<boolean> {
+    const run = this.runs.get(runId);
+    const content = text.trim();
+    if (!run || !content) return false;
+    run.steering.push(content);
+    // 同时落库为用户消息，刷新/断线后历史仍能看到这次插话。
+    await this.ctx.memory.appendMessage(run.status.sessionId, {
+      id: `steer-${runId}-${Date.now()}`,
+      role: "user",
+      content,
+      createdAt: Date.now(),
+    }).catch(() => {});
+    return true;
   }
 
   getRunStatus(runId: string): AgentRunStatus | null {
@@ -199,6 +229,42 @@ export class AgentService extends Service {
       }
     }
     return null;
+  }
+
+  /** 列出所有仍在运行的会话，供侧栏在切走会话后继续显示 Agent 工作状态。 */
+  listRunningSessionIds(): string[] {
+    const sessionIds = new Set<string>();
+    for (const run of this.runs.values()) {
+      if (run.status.status === "running") sessionIds.add(run.status.sessionId);
+    }
+    return [...sessionIds];
+  }
+
+  /** 汇总需要用户处理的会话：等待工具审批，或等待回答澄清问题；同一会话优先返回审批。 */
+  async listAttention(): Promise<AgentAttentionItem[]> {
+    const items = new Map<string, AgentAttentionItem>();
+    for (const run of this.runs.values()) {
+      if (run.status.status !== "running" || run.pendingApprovals.size === 0) continue;
+      const sessionId = run.status.sessionId;
+      const pending = [...run.pendingApprovals.values()][0];
+      items.set(sessionId, {
+        sessionId,
+        kind: "approval",
+        ...(pending?.toolName ? { toolName: pending.toolName } : {}),
+      });
+    }
+    const sessions = await this.ctx.memory.listSessions().catch(() => []);
+    for (const session of sessions) {
+      if (!session.pendingQuestion || items.has(session.id)) continue;
+      items.set(session.id, {
+        sessionId: session.id,
+        kind: "question",
+        question: session.pendingQuestion.question,
+        options: [...session.pendingQuestion.options],
+        messageId: session.pendingQuestion.messageId,
+      });
+    }
+    return [...items.values()];
   }
 
   getReplayChunks(runId: string, afterSeq: number): RunChunkRecord[] {

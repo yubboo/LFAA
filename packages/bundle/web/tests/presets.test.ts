@@ -1,7 +1,7 @@
 // 验证模式预设：会话插件必须是全局清单的子集，未知模式回退标准模式。
 import assert from "node:assert/strict";
 import test from "node:test";
-import { GLOBAL_MODULES, PRESETS, isSessionModule, resolvePreset } from "../src/presets";
+import { GLOBAL_MODULES, PRESETS, isSessionModule, resolveLegacySessionModules, resolvePreset } from "../src/presets";
 
 test("每个预设的会话插件都来自全局清单", () => {
   const global = new Set(GLOBAL_MODULES);
@@ -29,4 +29,17 @@ test("会话归属判定与预设一致", () => {
   const minimal = resolvePreset("minimal");
   assert.equal(isSessionModule("@lfaa/tools", minimal), true);
   assert.equal(isSessionModule("@lfaa/browser", minimal), false);
+});
+
+test("生成工具兼容旧标准与创造会话，保持极简和自定义组合的限制", () => {
+  for (const id of ["standard", "creative"] as const) {
+    const current = resolvePreset(id).sessionModules;
+    const previous = current.filter((module) => module !== "@lfaa/tool-media");
+    assert.ok(current.includes("@lfaa/tool-media"));
+    assert.deepEqual(resolveLegacySessionModules(id, previous), current);
+    assert.deepEqual(resolveLegacySessionModules(id, previous.slice(1)), previous.slice(1));
+  }
+  const minimal = resolvePreset("minimal").sessionModules;
+  assert.equal(resolveLegacySessionModules("minimal", minimal), minimal);
+  assert.ok(!minimal.includes("@lfaa/tool-media"));
 });

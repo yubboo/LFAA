@@ -4,4 +4,8 @@ packages:
   # 内嵌的上游运行时源码：可改、可调试，版本与本仓对齐（见 vendor/README.md）。
   - "vendor/*"
 allowBuilds:
+  # Electron 需要 postinstall 下载对应平台的二进制；否则桌面端无法启动。
+  electron: true
+  # 仅构建脚本会用到，桌面端运行与 NSIS 打包不需要它执行安装脚本。
+  electron-winstaller: false
   esbuild: true

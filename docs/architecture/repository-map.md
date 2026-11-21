@@ -264,8 +264,11 @@ packages/core/  # Agent、聊天、模型、存储、规则和工具等核心能
 │   │   │   ├── GeneralSettingsView.module.css  # 设置中心「常规」视图样式，高密度原生桌面分组卡片、分隔线、开关滑块、分段选择器与弹窗遮罩
 │   │   │   ├── GeneralSettingsView.tsx  # 渲染设置中心「常规」主页面，权限卡片、常规/编辑器/通知子分组装配与开源许可证弹窗
 │   │   │   ├── GitSettingsView.tsx  # 渲染设置中心「编码 → Git」配置页，分支前缀、PR 合并策略、强制推送、草稿 PR、/review 展示方式及提交/PR 指令
-│   │   │   ├── LibraryView.module.css  # 资料库与资产库页面样式，紧凑顶部操作栏、横向分类标签、卡片网格、空态引导与右侧按需预览面板
-│   │   │   ├── LibraryView.tsx  # 渲染「资料库」视图，参考画廊网格与顶部筛选栏布局，并与左二「资料库」分类菜单双向同步
+│   │   │   ├── LibraryView.module.css  # 资料库页面样式，紧凑顶部操作栏、分类标题与数量、主区容器与空态引导
+│   │   │   ├── LibraryInspector.tsx  # 资料库右栏检视器，未选中展示存储概览，选中后展示媒体/资产详情与操作
+│   │   │   ├── LibraryInspector.module.css  # 检视器样式，头部与顶栏齐平，概览/媒体/资产分区块与操作按钮
+│   │   │   ├── LibraryMediaGrid.tsx  # 资料库「图像」分类的全宽缩略图网格与类型筛选，点击卡片交给右栏检视器
+│   │   │   ├── LibraryView.tsx  # 渲染「资料库」中心页，按左二分类展示图像/资产/记忆，标题带数量、选中项交给右栏检视器
 │   │   │   ├── MarkdownContent.module.css  # 助手消息富文本 Markdown 排版样式，标题层级、列表圆点、表格、语法高亮代码块与行内代码胶囊
 │   │   │   ├── MarkdownContent.tsx  # 助手消息富文本 Markdown 渲染组件，消除原始 ** / - 等标记符，提供精美排版、表格、代码块语法高亮与一键复制
 │   │   │   ├── MentionPopover.module.css  # 输入框上方 @ 提及与扩展上下文分组列表浮层样式（对应图三至图五）
@@ -299,7 +302,9 @@ packages/core/  # Agent、聊天、模型、存储、规则和工具等核心能
 │   │   ├── css-modules.d.ts  # 声明 @lfaa/chat/client 中 CSS Modules 的类型定义
 │   │   ├── follow-up-suggestions.ts  # 根据最新一轮问答上下文生成 3 条轻量延伸追问建议，显示在助手最新回复下方供一键点击追问
 │   │   ├── general-settings-client.ts  # 提供浏览器端通用设置默认结构、长路径中间省略格式化、开源依赖读取及轻量提示音播放辅助
-│   │   ├── index.tsx  # 导出 @lfaa/chat/client Cordis 插件，装配主聊天工作台、最近会话提供方、能力上下文栏与模型规则设置页
+│   │   ├── index.tsx  # 导出 @lfaa/chat/client Cordis 插件，装配主聊天工作台、资料库检视器、能力上下文栏与模型规则设置页
+│   │   ├── media-thumb-cache.ts  # 生成素材缩略图缓存：懒加载后缩到 480px WebP，写入 Cache Storage 供后续加载复用
+│   │   ├── library-store.ts  # 资料库中心页与右栏检视器共享的选中项与生成素材列表存储（唯一所有者，删除两处同步）
 │   │   ├── local-speech.ts  # 在浏览器端通过 Web Audio 采集麦克风音频并编码为 16kHz 单声道 PCM WAV，供 Host 离线语音识别
 │   │   ├── locales.ts  # 管理 @lfaa/chat 浏览器端界面中英文文案字典
 │   │   ├── markdown-parser.ts  # 轻量流式安全 Markdown 块级解析与代码语法分词器，用于渲染助手消息中的标题、列表、表格、引用与高亮代码块
@@ -307,6 +312,7 @@ packages/core/  # Agent、聊天、模型、存储、规则和工具等核心能
 │   │   ├── provider-plans.ts  # 定义模型管理中可直接用专属 API Key 接入的官方套餐，供浏览器选择与档案匹配
 │   │   ├── session-menu-store.ts  # 管理左二聊天会话行的右侧悬浮信息卡与「⋮」操作菜单状态，支持悬停延迟平滑过渡
 │   │   ├── stream-client.ts  # 浏览器端高可用流式订阅器，提供按片段序号幂等去重、RAF 节流批量渲染、心跳看门狗、指数退避重连与完整句边界续写辅助
+│   │   ├── useLibraryState.ts  # 订阅资料库选中项与素材列表的 React 入口，供中心页与右栏检视器共用
 │   │   └── useVoiceDictation.ts  # 管理聊天输入栏的语音听写状态与双引擎切换（优先浏览器在线识别，network 失败自动无缝切换本机离线 WAV 转写）
 │   ├── src/  # 聊天 CRUD、语音转写、用户设置、Git 与代码审查服务
 │   │   ├── coding-settings.ts  # 管理 LFAA「设置 → 编码（Git 与代码审查）」持久化配置（存于 ~/.lfaa/coding-settings.json）
@@ -385,7 +391,7 @@ packages/ui/  # 公共 Shell、主题与跨业务交互原语
 │   │   │   ├── AppMenu.tsx  # 展示更多应用。桌面支持固定入口，手机汇总从底栏移入的功能
 │   │   │   ├── ContextPanel.module.css  # 四栏右侧菜单栏样式，使用统一主题变量并与左二栏视觉一致
 │   │   │   ├── ContextPanel.tsx  # 呈现四栏布局的右侧上下文菜单栏，渲染插件注册的上下文面板
-│   │   │   ├── DomainSidebarMenu.tsx  # 根据左一导航栏选中的功能域（资料库、图像、定时任务、插件、代码审查与扩展），动态渲染对应的左二功能菜单
+│   │   │   ├── DomainSidebarMenu.tsx  # 根据左一导航栏选中的功能域（资料库含图像分类、定时任务、插件、代码审查与扩展），动态渲染对应的左二功能菜单
 │   │   │   ├── GroupHeaderTools.tsx  # 渲染左二分组标题栏右侧按需显现的排序下拉按钮与快捷操作按钮（如新建项目 / 新聊天）
 │   │   │   ├── NavigationGroups.module.css  # 工作区侧栏专属“新聊天”按钮与项目排序/创建工具栏样式（其余列表样式复用 SidebarSectionList）
 │   │   │   ├── NavigationGroups.tsx  # 管理工作区“新聊天”与置顶、自定义分区、项目、最近聊天分组，并复用 SidebarSectionList 渲染

@@ -1,11 +1,12 @@
 // 助手消息富文本 Markdown 渲染组件：消除原始 ** / - 等标记符，提供精美排版、表格、代码块语法高亮与一键复制。
 import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { IconCheck, IconCopy } from "@tabler/icons-react";
-import { isAdviceHeading, parseMarkdownBlocks, tokenizeCodeLines } from "../markdown-parser";
+import { isAdviceHeading, isAdviceLeadIn, normalizeLegacyMediaOutput, parseMarkdownBlocks, tokenizeCodeLines } from "../markdown-parser";
+import { LocalMediaImage } from "./LocalMediaImage";
 import styles from "./MarkdownContent.module.css";
 
 const INLINE_RE =
-  /(`[^`\n]+`|\*\*[^*\n]+?\*\*|__[^_\n]+?__|~~[^~\n]+?~~|\*[^*\n]+?\*|\[([^\]\n]+)\]\(([^)\s]+)\))/g;
+  /(!\[[^\]\n]*\]\([^)\s]+\)|`[^`\n]+`|\*\*[^*\n]+?\*\*|__[^_\n]+?__|~~[^~\n]+?~~|\*[^*\n]+?\*|\[([^\]\n]+)\]\(([^)\s]+)\))/g;
 
 const FILE_EXT_RE =
   /(?<![A-Za-z0-9_./:-])([A-Za-z0-9_\u4e00-\u9fa5-]+\.(?:json|ya?ml|toml|txt|md|sqlite|db|ts|tsx|js|jsx|mjs|cjs|css|html|svg|png|jpg|webp|sh|ps1|py|rs|go|env|lock|log))\b/gi;
@@ -87,6 +88,10 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
       nodes.push(<del key={key}>{renderInline(token.slice(2, -2), key)}</del>);
     } else if (token.startsWith("*") && token.endsWith("*")) {
       nodes.push(<em key={key}>{renderInline(token.slice(1, -1), key)}</em>);
+    } else if (token.startsWith("![")) {
+      // 图片：本机媒体经 /api/media 预览，外链图片直接渲染。
+      const image = /^!\[([^\]]*)\]\(([^)\s]+)\)$/u.exec(token);
+      if (image) nodes.push(<LocalMediaImage key={key} src={image[2] ?? ""} alt={image[1] ?? ""} />);
     } else if (token.startsWith("[")) {
       const label = match[2] ?? token;
       const href = match[3] ?? "";
@@ -175,7 +180,8 @@ export function MarkdownContent({
   /** 点击「建议/下一步」列表项时回调，用于把该条建议直接作为下一条消息发送。 */
   onSelectAdvice?: ((text: string) => void) | undefined;
 }) {
-  const blocks = useMemo(() => parseMarkdownBlocks(content), [content]);
+  // 先兼容旧版媒体输出（列表里的绝对路径），再解析块级结构，历史消息也按新排版显示。
+  const blocks = useMemo(() => parseMarkdownBlocks(normalizeLegacyMediaOutput(content)), [content]);
   // 标记每个块是否属于「建议/下一步」段落：属于则列表项渲染为编号可点选项。
   const adviceFlags = useMemo(() => {
     let active = false;
@@ -185,7 +191,7 @@ export function MarkdownContent({
         return false;
       }
       // 有的回答用加粗短句引出建议（如「下一步去哪些页面」），同样视为建议段落起点。
-      if (block.type === "paragraph" && block.text.trim().length <= 80 && isAdviceHeading(block.text)) {
+      if (block.type === "paragraph" && isAdviceLeadIn(block.text)) {
         active = true;
         return false;
       }

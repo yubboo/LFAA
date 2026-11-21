@@ -2,6 +2,16 @@
 export type AgentLoopPhase = "think" | "act" | "check";
 export type AgentStepStatus = "preparing" | "running" | "waiting_approval" | "done" | "error";
 
+/** 任务清单条目的状态取值；由模型通过 todo_write 维护。 */
+export type TodoStatus = "pending" | "in_progress" | "completed";
+
+/** 一条任务清单条目；id 允许缺省，缺省时调用方按内容生成稳定标识。 */
+export interface TodoItem {
+  id: string;
+  content: string;
+  status: TodoStatus;
+}
+
 /** 终端步骤可回看的命令与执行结果，未取得退出码时省略该字段。 */
 export interface AgentCommandTrace {
   command: string;
@@ -34,6 +44,8 @@ export interface AgentStepTrace {
   resultPreview?: string;
   addedLines?: number;
   removedLines?: number;
+  /** 任务清单类工具在本次调用后回传的完整清单，供时间线与任务面板还原。 */
+  todos?: TodoItem[];
   textOffset?: number;
   modelStage?: "reasoning" | "replying" | "retrying";
   /** Host 首次观测步骤的时间，与后续流活动更新时间分开。 */
@@ -97,6 +109,26 @@ export interface UserClarification {
   options: string[];
 }
 
+/** 会话中等待用户回答的澄清问题；回答（发送新消息）后清除。 */
+export interface PendingQuestion extends UserClarification {
+  /** 产生该问题的助手消息 id，用于定位澄清卡片。 */
+  messageId: string;
+}
+
+/** 指向会话附件存储中仍可读取的图片素材，不内嵌图片字节。 */
+export interface ChatMessageAttachment {
+  id: string;
+  kind: "image";
+}
+
+/** 指向会话中已生成媒体文件的引用图；素材由 /api/media/file 按路径读取。 */
+export interface ChatMessageReference {
+  /** 产生该图片的助手消息 id。 */
+  messageId: string;
+  /** 宿主校验过的本地绝对路径。 */
+  path: string;
+}
+
 export interface ChatMessageRecord {
   id: string;
   role: "user" | "assistant";
@@ -109,6 +141,10 @@ export interface ChatMessageRecord {
   status?: "streaming" | "done" | "error" | "aborted";
   model?: string;
   clarification?: UserClarification;
+  /** 用户消息关联的附件引用；历史文本消息与助手消息可缺省。 */
+  attachments?: ChatMessageAttachment[];
+  /** 用户消息引用过的会话内生成图片；用于在气泡里还原「说的就是这张」。 */
+  references?: ChatMessageReference[];
   /** 本轮运行累计的模型用量，缺省表示供应商未返回 usage。 */
   tokenUsage?: ChatTokenUsage;
   /** 本轮运行的耗时与上下文构成，缺省表示未采集。 */
@@ -133,6 +169,8 @@ export interface ChatSessionSummary {
   sessionPreset?: string;
   /** 选择时保存的插件组合，避免后续默认值或预设调整改变旧会话。 */
   sessionModules?: string[];
+  /** 等待用户回答的澄清问题；回答后清除。 */
+  pendingQuestion?: PendingQuestion;
   createdAt: number;
   updatedAt: number;
 }
@@ -142,6 +180,8 @@ export interface ChatSessionRecord extends ChatSessionSummary {
   messages: ChatMessageRecord[];
   /** 长会话滚动摘要：仅供模型恢复上下文，不参与会话列表摘要展示。 */
   contextSummary?: string;
+  /** 会话当前的任务清单；缺省表示本轮还没建清单。 */
+  todos?: TodoItem[];
 }
 
 export interface CreateSessionInput {
@@ -163,4 +203,8 @@ export interface UpdateSessionInput {
   unread?: boolean;
   summary?: string;
   contextSummary?: string;
+  /** 覆盖会话的任务清单；传空数组表示显式清空。 */
+  todos?: TodoItem[];
+  /** 写入等待回答的澄清问题；传 null 表示清除（回答后）。 */
+  pendingQuestion?: PendingQuestion | null;
 }

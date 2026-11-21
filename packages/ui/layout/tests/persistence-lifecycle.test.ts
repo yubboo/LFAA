@@ -297,7 +297,8 @@ test("resolveWorkbenchDomain 与 WorkbenchClientService 支持领域左二切换
     assert.equal(resolveWorkbenchDomain("plugins", zh).sidebarHeader.kind, "sectionTitle");
     assert.equal(resolveWorkbenchDomain("scheduled", zh).id, "scheduled");
     assert.equal(resolveWorkbenchDomain("codeReview", zh).id, "codeReview");
-    assert.equal(resolveWorkbenchDomain("images", zh).id, "images");
+    // 「图像」入口已并入资料库：旧视图不再有独立领域，退回工作区默认配置。
+    assert.equal(resolveWorkbenchDomain("images", zh).id, "workspace");
     assert.equal(resolveWorkbenchDomain("canva", zh).id, "extension");
 
     const ctx = new Context();
@@ -305,8 +306,30 @@ test("resolveWorkbenchDomain 与 WorkbenchClientService 支持领域左二切换
     assert.equal(service.getSnapshot().activeLibraryTab, "all");
     service.setLibraryTab("artifact");
     assert.equal(service.getSnapshot().activeLibraryTab, "artifact");
+    service.setLibraryTab("media");
+    assert.equal(service.getSnapshot().activeLibraryTab, "media");
+    // 分类标签只在左二：刷新后要能恢复上次查看的分类。
+    const reloaded = new WorkbenchClientService(new Context());
+    assert.equal(reloaded.getSnapshot().activeLibraryTab, "media");
     service.setDomainItem("plugins:installed");
     assert.equal(service.getSnapshot().activeDomainItem, "plugins:installed");
+  } finally {
+    mock.restore();
+  }
+});
+
+test("旧「图像」路由恢复时归一化为资料库图像分类，并写回偏好", () => {
+  const mock = installMockWindowStorage();
+  try {
+    mock.store.set("lfaa:active-route", JSON.stringify({ activeView: "images", activeProjectId: null }));
+    const ctx = new Context();
+    const service = new WorkbenchClientService(ctx);
+    const snapshot = service.getSnapshot();
+    assert.equal(snapshot.activeView, "library");
+    assert.equal(snapshot.activeProjectId, null);
+    assert.equal(snapshot.activeLibraryTab, "media");
+    assert.deepEqual(readActiveRoutePref(), { activeView: "library", activeProjectId: null });
+    assert.equal(mock.store.get("lfaa:library-tab"), JSON.stringify("media"));
   } finally {
     mock.restore();
   }

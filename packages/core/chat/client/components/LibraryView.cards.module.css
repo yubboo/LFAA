@@ -1,13 +1,4 @@
-/* 资料库卡片与预览样式：资产/记忆卡片网格、选中分栏与右侧预览面板，从 LibraryView.module.css 拆出。 */
-
-/* 区块：选中资料后启用预览分栏，卡片区继续随主栏宽度收缩。 */
-.workspaceWithPreview {
-  display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(18rem, 0.95fr);
-  gap: 0.9rem;
-  min-height: 0;
-  align-items: start;
-}
+/* 资料库卡片与选中态样式：资产/记忆卡片网格与删除按钮；详情改由右栏检视器展示。 */
 
 /* 区块：资产与记忆卡片网格。 */
 .cardsGrid {
@@ -100,58 +91,4 @@
 .deleteBtn:hover {
   background: var(--color-active);
   color: var(--color-ink);
-}
-
-/* 区块：右侧预览面板，头部固定保留标题和操作，正文区滚动。 */
-.previewCard {
-  position: sticky;
-  top: 0;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 0.65rem;
-  max-height: 68vh;
-  padding: 0.95rem 1rem;
-  border: 1px solid var(--color-line);
-  border-radius: 0.9rem;
-  background: var(--glass-card-bg, var(--color-surface));
-}
-
-.previewHeader {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.65rem;
-  padding-bottom: 0.55rem;
-  border-bottom: 1px solid var(--color-line);
-}
-
-.previewTitleWrap {
-  display: grid;
-  gap: 0.2rem;
-  min-width: 0;
-}
-
-.previewActions {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  flex: 0 0 auto;
-}
-
-.previewBody {
-  margin: 0;
-  overflow: auto;
-  color: var(--color-ink);
-  font-family: var(--code-font-family, monospace);
-  font-size: 0.83em;
-  line-height: 1.55;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-/* 区块：窄视口将资料清单与预览改为上下排列。 */
-@media (max-width: 960px) {
-  .workspaceWithPreview {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }

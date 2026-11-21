@@ -1,5 +1,5 @@
 // Agent 运行上下文装配：记忆召回、规则提示词、资料库摘要、技能/进度提示与模型能力价格解析。
-import { resolveModelCapabilities, type LlmProfile } from "@lfaa/llm";
+import { resolveModelCapabilities, type LlmMessage, type LlmProfile } from "@lfaa/llm";
 import type { TokenPricing } from "@lfaa/metrics";
 import { formatHistoryDigest, collectHistoryDigest } from "@lfaa/memory";
 import type { RunExecutionParams, RunLoopDeps } from "./run-types";
@@ -21,6 +21,20 @@ export interface RecalledContext {
   contextWindow: Awaited<ReturnType<RunLoopDeps["memory"]["buildContextMessages"]>>;
   historyDigest: string;
   libraryHint: string;
+}
+
+/** 装入已保存的上下文并补齐尚未写入的新消息。 */
+export function buildRecentConversation(system: LlmMessage, window: RecalledContext["contextWindow"], prompt: string): LlmMessage[] {
+  const messages: LlmMessage[] = [system];
+  if (window.summaryNote) messages.push({ role: "system", content: `前序会话摘要：${window.summaryNote}` });
+  for (const msg of window.recentMessages) {
+    if (msg.status === "streaming" || (msg.role === "assistant" && !msg.content.trim())) continue;
+    messages.push({ role: msg.role, content: msg.content });
+  }
+  if (!window.recentMessages.some((message) => message.role === "user" && message.content === prompt)) {
+    messages.push({ role: "user", content: prompt });
+  }
+  return messages;
 }
 
 /** 召回长期记忆与资料库状态，并组装规则提示词与短期上下文窗口。 */
@@ -98,6 +112,7 @@ export function buildProgressHint(deps: RunLoopDeps, params: RunExecutionParams)
       : "",
     "较大的代码变更分成有明确文件落点的小批次。已有工具结果足以行动时，直接发出下一项必要调用。可见进度只说实际完成、正在处理的目标或当前阻塞。",
     "多步任务的进度写入用户可见的正文。首次调用工具前，简短交代准备核查或执行的事项；得到实际结果、发现异常或进入下一阶段时，再说明进展和接下来的动作。连续的小操作可共用一段，直接问答无需播报。命令和工具详情由运行时展示。",
+    "任务清单：只要任务需要新建或修改 2 个及以上文件、或需要 2 条以上命令步骤，就必须先调用 todo_write 列出可执行步骤再动手；开始某项时把该项标成 in_progress，完成立即标成 completed，同一时刻只保留一条进行中。单步问答、纯解释和小改动不必建清单。",
     deps.tools.getTool("invoke_subagent")
       ? "多智能体协作：用户明确要求委派，或任务存在可独立并行的调研、实现或验证时，用 invoke_subagent 设 wait=false 派发，并用 list_subagents 的 waitForIds 收集结果再汇总。无独立分工的简单任务直接完成。子任务失败时如实说明。"
       : "",

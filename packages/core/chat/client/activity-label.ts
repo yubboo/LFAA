@@ -48,6 +48,14 @@ export function getActivityLabel(step: AgentStepItem, isZh: boolean, includePath
     case "error": label = labels.activityFailed(action); break;
     case "running": label = verbs?.[1] ?? (isZh ? `正在运行：${action}` : `Running: ${action}`); break;
     case "done":
+      // 任务清单优先显示真实进度，方便用户一眼看到「做完几项 / 共几项」。
+      if (step.todos && step.todos.length > 0) {
+        const done = step.todos.filter((item) => item.status === "completed").length;
+        label = isZh
+          ? `已更新任务清单（完成 ${done} / 共 ${step.todos.length}）`
+          : `Updated task list (${done}/${step.todos.length} done)`;
+        break;
+      }
       label = step.fileChange
         ? `${labels.fileKinds[getFileActivityKind(step)]}${fileName ? "" : isZh ? "文件" : " file"}`
         : verbs?.[2] ?? (name ? (isZh ? `已完成：${action}` : `Done: ${action}`) : step.title);

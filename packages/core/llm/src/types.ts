@@ -10,9 +10,14 @@ export type ReasoningEffortLevel = "minimal" | "low" | "medium" | "high" | "max"
 export type ModelReasoningMode = "none" | "fixed" | "effort";
 
 /** 描述可选模型公开能力，包括固定思考或可调档位。 */
+/** 模型用途：对话、生图、生视频、语音（TTS/ASR/实时语音）。 */
+export type ModelKind = "chat" | "image" | "video" | "audio";
+
 export interface ModelCapabilityInfo {
   id: string;
   displayName?: string;
+  /** 模型用途；缺省按对话模型处理，兼容历史数据。 */
+  modelKind?: ModelKind;
   supportsReasoning: boolean;
   reasoningMode: ModelReasoningMode;
   reasoningLevels: ReasoningEffortLevel[];
@@ -120,6 +125,8 @@ export interface LlmStreamDelta {
 /** 封装完成一次推理所需的消息、工具、档位和取消信号。 */
 export interface LlmGenerateInput {
   profileId?: string;
+  /** 在所选配置内临时指定模型（如同一套餐里的对话模型）；缺省用配置当前模型。 */
+  modelId?: string;
   messages: LlmMessage[];
   tools?: LlmToolDefinition[];
   reasoningEffort?: ReasoningEffortLevel;

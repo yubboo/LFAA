@@ -149,7 +149,7 @@ export function checkApiAuth(req: IncomingMessage, options: ApiAuthOptions): Api
   const headerToken = firstHeader(req.headers[API_TOKEN_HEADER]);
   const received = headerToken ?? (method === "GET" ? readQueryToken(req.url ?? "") : undefined);
   if (!received || !tokenEquals(received, options.token)) {
-    return { allowed: false, status: 401, reason: "缺少或无效的本机接口令牌：请通过 pnpm lfaa web 打开工作区。" };
+    return { allowed: false, status: 401, reason: "缺少或无效的本机接口令牌：请重新启动 LFAA 工作区后再试。" };
   }
   return { allowed: true };
 }

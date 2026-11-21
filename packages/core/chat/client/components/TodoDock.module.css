@@ -1,0 +1,101 @@
+/* 输入框上方任务卡：浅色/深色都只用 ui-theme 语义变量，避免写死颜色。 */
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  background: var(--color-panel);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 2px 2px;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.lead {
+  color: var(--color-accent);
+  flex: none;
+}
+
+.title {
+  font-weight: 600;
+  flex: none;
+}
+
+.progress {
+  color: var(--color-muted);
+  font-size: 12px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chevron {
+  color: var(--color-muted);
+  flex: none;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0 2px;
+  padding: 0 2px 0 2px;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--color-ink);
+}
+
+.dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-muted);
+  transform: translateY(-1px);
+}
+
+.dot[data-status="completed"] {
+  background: var(--color-success);
+}
+
+.dot[data-status="in_progress"] {
+  background: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-line);
+}
+
+.content {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.item[data-status="completed"] .content {
+  color: var(--color-muted);
+}
+
+.more {
+  color: var(--color-muted);
+  font-size: 12px;
+  padding-left: 15px;
+}

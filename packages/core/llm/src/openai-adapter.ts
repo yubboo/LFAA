@@ -276,10 +276,23 @@ export async function callOpenAiCompatibleChat(
   const maxTokens = input.maxTokens ?? profile.maxTokens;
   if (typeof maxTokens === "number") bodyPayload.max_tokens = maxTokens;
   if (mappedEffort) {
-    if (enableThinking) {
+    const modelLower = profile.model.toLowerCase();
+    // 方舟套餐走自己的目录映射（reasoning_effort）；只有直连/qwen 等兼容端点才用专属参数。
+    const isQwenThinking = !arkPlan && (/(?:^|[/-])qwen3(?:[.\-]|$)/u.test(modelLower) || modelLower.startsWith("qwen3"));
+    const isZhipuThinking = !arkPlan && /glm-(?:5|4\.6|4\.5)/u.test(modelLower);
+    if (isQwenThinking) {
+      // 百炼 Qwen3：思考强度用 thinking_budget 映射，避免发送其不支持的 reasoning_effort。
+      bodyPayload.enable_thinking = true;
+      bodyPayload.thinking_budget = mappedEffort === "low" ? 1_024 : mappedEffort === "medium" ? 4_096 : 8_192;
+    } else if (isZhipuThinking) {
+      // 智谱 GLM：原生思考开关，无多档 effort 参数。
       bodyPayload.thinking = { type: "enabled" };
+    } else if (enableThinking) {
+      bodyPayload.thinking = { type: "enabled" };
+      bodyPayload.reasoning_effort = mappedEffort;
+    } else {
+      bodyPayload.reasoning_effort = mappedEffort;
     }
-    bodyPayload.reasoning_effort = mappedEffort;
   }
 
   const post = () => fetch(endpoint, {

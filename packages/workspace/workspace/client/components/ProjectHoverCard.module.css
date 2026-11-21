@@ -58,7 +58,9 @@
   color: var(--color-ink);
 }
 
-.pinButtonActive {
+/* 已置顶时图钉始终使用强调色，悬停也不回退成普通文字色。 */
+.pinButtonActive,
+.pinButtonActive:hover {
   color: var(--color-accent);
 }
 

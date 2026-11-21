@@ -25,6 +25,8 @@ function createState(overrides: Partial<ChatStoreSnapshot> = {}): ChatStoreSnaps
     draftProjectId: null,
     draftSectionId: null,
     runningRunId: null,
+    runningSessionIds: [],
+    attention: [],
     queuedMessages: [],
     pendingApproval: null,
     filePreviewTabs: [],
@@ -76,6 +78,9 @@ function createFakeStore(initial?: Partial<ChatStoreSnapshot>): FakeStore {
     refreshMeta: async () => { fake.calls.refreshMeta += 1; },
     trackLeavingActiveRun: () => {},
     scheduleBackgroundRunPoll: () => {},
+    markSessionRunning: () => {},
+    markAttentionResolved: () => {},
+    notifyRunFinished: () => {},
     resumeRun: async (sessionId) => { fake.calls.resumeRun.push(sessionId); },
     openSession: async (sessionId) => { fake.calls.resumeRun.push(`open:${sessionId}`); },
     updateSessionMeta: async () => null,
@@ -193,7 +198,7 @@ test("运行动作：排队追问写入队列而不打断运行", async () => {
   const fake = createFakeStore({ runningRunId: "run-1" });
   const runs = new ChatRunActions(fake.port);
   await runs.submitFollowUp("补充一句");
-  assert.deepEqual(fake.state.queuedMessages, ["补充一句"]);
+  assert.deepEqual(fake.state.queuedMessages.map((item) => item.text), ["补充一句"]);
   runs.removeQueuedMessage(0);
   assert.deepEqual(fake.state.queuedMessages, []);
 });

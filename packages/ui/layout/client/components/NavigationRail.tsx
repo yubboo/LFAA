@@ -54,7 +54,6 @@ export function NavigationRail({
   }, [openMenu]);
 
   const primaryActions: RailAction[] = [
-    { view: "images", label: locale.images, icon: "images" },
     { view: "scheduled", label: locale.scheduled, icon: "scheduled" },
     { view: "library", label: locale.library, icon: "library" },
     { view: "plugins", label: locale.plugins, icon: "plugins" },

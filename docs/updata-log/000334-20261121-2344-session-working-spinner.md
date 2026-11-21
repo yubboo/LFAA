@@ -1,0 +1,15 @@
+# UPDATA-000334｜左二会话行显示「Agent 正在工作」转圈
+
+- 时间：2026-11-21 23:44 +0800。
+- 需求：负责人指出用户与 Agent 对话、Agent 进入工作后，若再新建或切换到别的会话，原来那条正在工作的会话就完全没有进行中反馈；要求像 DS Harness 的会话列表一样，在左二菜单栏的会话行显示「工作转圈圈」，代表该会话的 Agent 仍在工作（对应截图红框标出的会话行左侧图标位置）。
+- Host：`AgentService` 新增 `listRunningSessionIds()`，汇总所有 `running` 运行所属的会话；`GET /api/agent/active-sessions` 返回 `{ sessionIds }`，只暴露会话 id，不泄漏运行内容。
+- 客户端状态：`ChatStoreSnapshot.runningSessionIds` 记录运行中的会话；`ChatBackgroundRuns` 改为维护该集合——发送后立即标记、运行结束立即撤销、切走会话时保留，集合非空时每 1.5s 向 Host 校正一次，集合发生变化就刷新会话列表（补未读与排序）；`hydrate` 首屏也会同步 Host 的运行集合，覆盖刷新页面或流断开后的恢复。
+- 契约与 UI：`WorkbenchChatProvider.isSessionRunning(sessionId)` 暴露运行状态；`createSessionSidebarItem` 与 `createRecentSidebarItems` 把运行中会话左侧的铅笔图标换成 `working`（Tabler `IconLoader2`）；`SidebarSectionList` 给该图标附加强调色 0.9s 线性旋转，并尊重 `prefers-reduced-motion`。项目下原本隐藏图标的子会话，运行中会显示转圈，未运行时仍保持原来的隐藏图标与缩进。
+- 实测（真实 5173 + 无头 Edge，浅色主题）：在 5173 上把模型切到 DeepSeek Chat，新建会话发送「请运行 PowerShell 命令 `Start-Sleep -Seconds 120`」；发送后当前会话行出现旋转圆弧（`loader-2` + 0.9s 动画）；点击「新聊天」切走后，该会话行仍显示转圈，间隔 2.6s 两次采样旋转角度不同；中止运行后转圈消失并恢复铅笔图标；全程功能正常，控制台仅有旧宿主缺少新接口的 404 噪声。截图：`%TEMP%\lfaa-pw\agent-working\02-active-working.png`、`03-background-working.png`、`04-background-spinning.png`、`05-after-abort.png`。
+- 深色实测（同一 5173，`lfaa:appearance-mode=dark`）：在 app1 项目内新建会话并通过 `/api/agent/runs` 启动 120 秒睡眠任务，打开会话后「置顶 / 项目」两份子行都显示转圈（强调色 rgb(230,106,168)、0.9s 旋转）；切到「新聊天」后仍转圈，中止后消失，控制台无 5xx。截图：`%TEMP%\lfaa-pw\agent-working\07-dark-active.png`、`08-dark-background.png`、`09-dark-after-abort.png`。测试会话与运行已删除。
+- 宿主说明：本次实测所在 `pnpm lfaa web` 进程启动于新接口加入之前，因此 `/api/agent/active-sessions` 在刷新页面后的状态恢复要等宿主重启才生效；不重启时「发送 → 切走 → 结束」的主路径已在本轮真实验收中通过。
+- 测试：新增 `packages/ui/layout/tests/session-running-indicator.test.tsx`（运行中图标、项目子行、未运行回退、最近分组、渲染旋转 svg）、`packages/core/chat/tests/chat-running-sessions.test.ts`（集合去重、开始/结束即时发布、切走保留）、`packages/core/agent/tests/agent-http-active-sessions.test.ts`（接口返回运行会话）；`pnpm test` **428 项全部通过**。
+- 门禁：`pnpm typecheck`、`pnpm build` 通过；`pnpm check` 0 错误 / 5 条既有警告（53 包 / 425 源文件）；`pnpm lint` 416 文件 0 问题。实测期间因并发会话正在改 `ModelProvider*` / `ChatWorkspace` 收到过 Vite 热更新失败提示，与本次改动无关，刷新后正常。
+- 本轮文件：`docs/updata-log/000334-20261121-2344-session-working-spinner.md`、`packages/core/agent/src/index.ts`、`packages/core/agent/src/http-handler.ts`、`packages/core/agent/tests/agent-http-active-sessions.test.ts`、`packages/core/chat/client/chat-types.ts`、`packages/core/chat/client/chat-store.ts`、`packages/core/chat/client/chat-store-port.ts`、`packages/core/chat/client/chat-background-runs.ts`、`packages/core/chat/client/chat-run-actions.ts`、`packages/core/chat/client/index.tsx`、`packages/core/chat/tests/chat-store-actions.test.ts`、`packages/core/chat/tests/chat-running-sessions.test.ts`、`packages/ui/layout/contract/index.ts`、`packages/ui/layout/client/components/navigation-items.ts`、`packages/ui/layout/client/components/NavigationIcon.tsx`、`packages/ui/layout/client/components/SidebarSectionList.tsx`、`packages/ui/layout/client/components/SidebarSectionList.module.css`、`packages/ui/layout/tests/session-running-indicator.test.tsx`、`docs/dev-log/000201-000400.md`。
+- Git：保留工作区内此前未提交的改动；未提交或推送。
+- 编号说明：本轮与并发会话的 000333（pin-row-toggle）撞号，已改用 000334。

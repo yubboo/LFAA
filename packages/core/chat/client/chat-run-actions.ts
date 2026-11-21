@@ -2,9 +2,12 @@
 import { AgentStreamClient, splitCleanSentenceBoundary } from "./stream-client";
 import { fetchJson } from "./chat-http";
 import { writeStoredPermissionMode } from "./chat-preferences";
-import { playGentleNotificationSound } from "./general-settings-client";
+import { playNotificationSound } from "./notification-sounds";
 import type { AgentPermissionMode, ChatMessageItem, ChatSessionDetail } from "./chat-types";
+import { enqueueMessage, moveQueuedAt, removeQueuedAt, takeQueuedHead, updateQueuedAt } from "./chat-queue";
 import type { ChatStorePort } from "./chat-store-port";
+import type { MediaGenerationInput, MediaSource } from "./chat-media";
+import { uploadAttachment } from "./composer-attachments";
 
 export class ChatRunActions {
   private streamClient: AgentStreamClient | null = null;
@@ -13,10 +16,47 @@ export class ChatRunActions {
   constructor(private readonly port: ChatStorePort) {}
 
   removeQueuedMessage(index: number): void {
-    const state = this.port.getState();
-    this.port.patchState({
-      queuedMessages: state.queuedMessages.filter((_, idx) => idx !== index),
-    });
+    this.port.patchState({ queuedMessages: removeQueuedAt(this.port.getState().queuedMessages, index) });
+  }
+
+  /** 编辑某条排队消息；编辑成空文本等价于删除。 */
+  updateQueuedMessage(index: number, text: string): void {
+    this.port.patchState({ queuedMessages: updateQueuedAt(this.port.getState().queuedMessages, index, text) });
+  }
+
+  /** 上移/下移排队消息，调整发送顺序。 */
+  moveQueuedMessage(index: number, delta: number): void {
+    this.port.patchState({ queuedMessages: moveQueuedAt(this.port.getState().queuedMessages, index, delta) });
+  }
+
+  /** 清空全部排队消息。 */
+  clearQueuedMessages(): void {
+    this.port.patchState({ queuedMessages: [] });
+  }
+
+  /** 立即把某条排队消息作为插话发送（必要时中止当前运行）。 */
+  async sendQueuedNow(index: number): Promise<void> {
+    const queue = this.port.getState().queuedMessages;
+    const target = queue[index];
+    if (!target) return;
+    this.port.patchState({ queuedMessages: removeQueuedAt(queue, index) });
+    await this.submitFollowUp(target.text, true);
+  }
+
+  /** 插话发送全部排队消息：优先追加进当前运行，不打断生成。 */
+  async flushQueuedMessages(): Promise<void> {
+    const queue = this.port.getState().queuedMessages;
+    if (queue.length === 0) return;
+    const combined = queue.map((item) => item.text).join("\n\n");
+    this.port.patchState({ queuedMessages: [] });
+    if (!this.port.getState().runningRunId) {
+      await this.sendMessage(combined);
+      return;
+    }
+    if (await this.steerActiveRun(combined).catch(() => false)) return;
+    await this.abortActiveRun();
+    this.port.patchState({ runningRunId: null });
+    await this.sendMessage(combined);
   }
 
   async submitFollowUp(text: string, invertMode = false): Promise<void> {
@@ -29,12 +69,118 @@ export class ChatRunActions {
     const baseMode = this.port.getState().generalSettings.followUpMode;
     const effectiveMode = invertMode ? (baseMode === "queue" ? "steer" : "queue") : baseMode;
     if (effectiveMode === "queue") {
-      this.port.patchState({ queuedMessages: [...this.port.getState().queuedMessages, trimmed] });
+      this.port.patchState({ queuedMessages: enqueueMessage(this.port.getState().queuedMessages, trimmed) });
+      return;
+    }
+    // 插话：优先追加到当前运行（不打断生成）；运行已结束时回退为普通发送。
+    if (await this.steerActiveRun(trimmed).catch(() => false)) return;
+    if (!this.port.getState().runningRunId) {
+      await this.sendMessage(trimmed);
       return;
     }
     await this.abortActiveRun();
     this.port.patchState({ runningRunId: null });
     await this.sendMessage(trimmed);
+  }
+
+  /** 媒体生成与再次生图锁住发送入口，完成时只刷新仍打开的原会话。 */
+  async generateMediaFromPrompt(input: MediaGenerationInput): Promise<{ ok: boolean; error?: string; ratio?: string }> {
+    const state = this.port.getState();
+    if (state.submittingMessage || state.runningRunId) return { ok: false, error: "请等待当前任务结束。" };
+    this.port.patchState({ submittingMessage: true, errorMessage: "" });
+    let session: ChatSessionDetail | null = null;
+    try {
+      session = await this.ensureActiveSession();
+      const kind = "kind" in input ? input.kind : "image";
+      const prompt = "prompt" in input ? input.prompt : "";
+      const requestedRatio = "ratio" in input ? input.ratio : undefined;
+      // 先取画幅计划：消息区按目标比例立刻出现生成占位（本地宿主毫秒级，失败不影响生成）。
+      const plan = prompt.trim() && kind === "image"
+        ? await fetchJson<{ ratio?: string }>("/api/media/plan", {
+          method: "POST",
+          body: JSON.stringify({ prompt, ...(requestedRatio ? { ratio: requestedRatio } : {}) }),
+        }).catch(() => null)
+        : null;
+      this.showLocalMediaPlaceholder(session, kind, prompt, plan?.ratio ?? requestedRatio);
+      let payload: object = input;
+      if ("prompt" in input) {
+        const { imageFiles, attachmentIds = [], ...fields } = input;
+        const ids = [...attachmentIds];
+        for (const file of (imageFiles ?? []).slice(0, Math.max(0, 3 - ids.length))) {
+          const id = await uploadAttachment(session.id, file);
+          if (!id) throw new Error("参考图上传失败，请检查图片大小并重试。");
+          ids.push(id);
+        }
+        payload = { ...fields, ...(ids.length ? { attachmentIds: ids } : {}) };
+      }
+      const res = await fetchJson<{ ok?: boolean; error?: string }>("/api/media/generate", {
+        method: "POST",
+        body: JSON.stringify({ sessionId: session.id, ...payload }),
+      });
+      if (!res.ok) {
+        this.dropLocalMediaPlaceholder(session.id);
+        return { ok: false, ...(res.error ? { error: res.error } : {}) };
+      }
+      if (this.port.getState().activeSessionId === session.id) await this.port.openSession(session.id);
+      return { ok: true, ...(plan?.ratio ? { ratio: plan.ratio } : {}) };
+    } catch (error) {
+      if (session) this.dropLocalMediaPlaceholder(session.id);
+      return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    } finally {
+      this.port.patchState({ submittingMessage: false });
+    }
+  }
+
+  /** 在消息区插入本轮的临时用户消息与生成占位；真实消息在生成完成后由 openSession 覆盖。 */
+  private showLocalMediaPlaceholder(session: ChatSessionDetail, kind: "image" | "video" | "audio", prompt: string, ratio?: string): void {
+    const now = Date.now();
+    const messages = [...session.messages];
+    if (prompt.trim()) {
+      messages.push({ id: `local-media-user-${now}`, role: "user", content: prompt, createdAt: now });
+    }
+    messages.push({
+      id: `local-media-assistant-${now}`,
+      role: "assistant",
+      content: "",
+      status: "streaming",
+      mediaGenerating: { kind, ...(ratio ? { ratio } : {}) },
+      createdAt: now,
+    });
+    this.port.patchState({ activeSession: { ...session, messages } });
+  }
+
+  /** 生成失败时只移除本轮临时消息，保留用户其余记录。 */
+  private dropLocalMediaPlaceholder(sessionId: string): void {
+    const session = this.port.getState().activeSession;
+    if (!session || session.id !== sessionId) return;
+    this.port.patchState({
+      activeSession: { ...session, messages: session.messages.filter((message) => !message.id.startsWith("local-media-")) },
+    });
+  }
+
+  /** 把一条消息插话进当前运行；运行已结束返回 false。成功后乐观追加用户消息气泡。 */
+  async steerActiveRun(text: string): Promise<boolean> {
+    const trimmed = text.trim();
+    const runId = this.port.getState().runningRunId;
+    if (!trimmed || !runId) return false;
+    const res = await fetchJson<{ steered?: boolean }>(`/api/agent/runs/${encodeURIComponent(runId)}/steer`, {
+      method: "POST",
+      body: JSON.stringify({ text: trimmed }),
+    });
+    if (!res.steered) return false;
+    const session = this.port.getState().activeSession;
+    if (session) {
+      this.port.patchState({
+        activeSession: {
+          ...session,
+          messages: [
+            ...session.messages,
+            { id: `local-steer-${Date.now()}`, role: "user", content: trimmed, createdAt: Date.now() },
+          ],
+        },
+      });
+    }
+    return true;
   }
 
   setPermissionMode(mode: AgentPermissionMode): Promise<void> {
@@ -62,40 +208,45 @@ export class ChatRunActions {
   }
 
   // 将消息提交到当前或新建会话，随后订阅 Host 为这次运行返回的事件流。
-  async sendMessage(text: string, skillIds?: string[]): Promise<void> {
+  async sendMessage(text: string, skillIds?: string[], referenceSources?: MediaSource[], attachmentIds?: string[]): Promise<void> {
     const trimmed = text.trim();
     const state = this.port.getState();
     if (!trimmed || state.runningRunId || state.submittingMessage) return;
     this.port.patchState({ submittingMessage: true });
     try {
-      await this.startMessage(trimmed, skillIds);
+      await this.startMessage(trimmed, skillIds, referenceSources, attachmentIds);
     } finally {
       this.port.patchState({ submittingMessage: false });
     }
   }
 
-  private async startMessage(trimmed: string, skillIds?: string[]): Promise<void> {
+  /** 确保存在打开的会话：新会话草稿首次发送时自动创建，供普通消息与媒体直连共用。 */
+  private async ensureActiveSession(): Promise<ChatSessionDetail> {
+    const session = this.port.getState().activeSession;
+    if (session) return session;
+    const created = await fetchJson<{ session: ChatSessionDetail }>("/api/chat/sessions", {
+      method: "POST",
+      body: JSON.stringify({
+        projectId: this.port.getState().draftProjectId,
+        sectionId: this.port.getState().draftSectionId,
+        sessionPreset: this.port.getState().draftSessionPreset,
+      }),
+    });
+    this.port.patchState({
+      activeSessionId: created.session.id,
+      activeSession: created.session,
+      draftSessionPreset: undefined,
+      sessions: [created.session, ...this.port.getState().sessions],
+    });
+    return created.session;
+  }
+
+  private async startMessage(trimmed: string, skillIds?: string[], referenceSources?: MediaSource[], attachmentIds?: string[]): Promise<void> {
     this.port.patchState({ errorMessage: "", pendingApproval: null });
 
-    let session = this.port.getState().activeSession;
-    if (!session) {
-      const created = await fetchJson<{ session: ChatSessionDetail }>("/api/chat/sessions", {
-        method: "POST",
-        body: JSON.stringify({
-          projectId: this.port.getState().draftProjectId,
-          sectionId: this.port.getState().draftSectionId,
-          sessionPreset: this.port.getState().draftSessionPreset,
-        }),
-      });
-      session = created.session;
-      const createdSession = session;
-      this.port.patchState({
-        activeSessionId: createdSession.id,
-        activeSession: createdSession,
-        draftSessionPreset: undefined,
-        sessions: [createdSession, ...this.port.getState().sessions],
-      });
-    }
+    const session = await this.ensureActiveSession();
+    // 用户已经用新消息回应，之前那条会话的「待回答」徽标立即撤下。
+    this.port.markAttentionResolved(session.id);
 
     const startingMode = this.port.getState().permissionMode;
     const started = await fetchJson<{ runId: string; sessionId: string; assistantMessageId: string }>(
@@ -110,11 +261,14 @@ export class ChatRunActions {
           permissionMode: startingMode,
           repeatToolThresholds: this.port.getState().generalSettings.repeatToolThresholds,
           ...(skillIds && skillIds.length > 0 ? { skillIds } : {}),
+          ...(referenceSources?.length ? { referenceSources } : {}),
+          ...(attachmentIds?.length ? { attachmentIds } : {}),
         }),
       },
     );
 
     this.port.patchState({ runningRunId: started.runId });
+    this.port.markSessionRunning(session.id, true);
     if (this.port.getState().permissionMode !== startingMode) {
       try {
         await this.updateRunPermission(started.runId, this.port.getState().permissionMode);
@@ -192,9 +346,11 @@ export class ChatRunActions {
           }));
         },
         onApprovalRequired: (approval) => {
+          // 只有当前打开的会话才占用审批横幅与提示音；后台会话交给侧栏徽标和轮询通知。
+          if (this.port.getState().activeSessionId !== sessionId) return;
           const settings = this.port.getState().generalSettings;
           if (settings.enableApprovalNotification) {
-            playGentleNotificationSound(settings.notificationSound);
+            void playNotificationSound(settings.approvalSound ?? settings.notificationSound);
           }
           this.port.patchState({ pendingApproval: { ...approval, runId } });
         },
@@ -209,6 +365,8 @@ export class ChatRunActions {
         },
         onFinished: ({ fps, message, status, error }) => {
           if (this.streamClient === client) this.streamClient = null;
+          // 结束即撤掉侧栏转圈；即使已切到别的会话，后台轮询也会兜底校正。
+          this.port.markSessionRunning(sessionId, false);
           if (message?.id === assistantMessageId) patchAssistant(() => message);
           if (fps !== undefined) {
             void fetchJson("/api/agent/metrics/render", {
@@ -216,12 +374,12 @@ export class ChatRunActions {
               body: JSON.stringify({ fps }),
             }).catch(() => {});
           }
-          const settings = this.port.getState().generalSettings;
-          const turnNotify = settings.turnCompleteNotification;
-          if (turnNotify === "always" || (turnNotify === "unfocused" && typeof document !== "undefined" && document.hidden)) {
-            playGentleNotificationSound(settings.notificationSound);
+          // 澄清问题在后台由轮询的「待回答」通知统一提示；普通结束才发轮次完成提醒。
+          const hasQuestion = Boolean(message?.clarification);
+          if (!hasQuestion || this.port.getState().activeSessionId === sessionId) {
+            this.port.notifyRunFinished(sessionId);
           }
-          const [nextQueued, ...restQueued] = this.port.getState().queuedMessages;
+          const { head: nextQueued, rest: restQueued } = takeQueuedHead(this.port.getState().queuedMessages);
           this.port.patchState({
             runningRunId: null,
             pendingApproval: null,
@@ -236,7 +394,7 @@ export class ChatRunActions {
             void ready.then(() => {
               void this.port.refreshMeta();
               if (nextQueued && !message?.clarification) {
-                void this.port.sendMessage(nextQueued);
+                void this.port.sendMessage(nextQueued.text);
               }
             });
           } else {
@@ -296,6 +454,8 @@ export class ChatRunActions {
       method: "POST",
       body: JSON.stringify({ approvalId: pending.approvalId, approved }),
     });
+    const activeSessionId = this.port.getState().activeSessionId;
+    if (activeSessionId) this.port.markAttentionResolved(activeSessionId);
     const trustRes = await fetchJson<{ counts: Record<string, number> }>("/api/agent/trust").catch(() => null);
     if (trustRes) {
       this.port.patchState({ smartTrustCounts: trustRes.counts });
@@ -316,6 +476,7 @@ export class ChatRunActions {
     if (this.port.getState().activeSessionId !== sessionId) return;
     if (!active?.run || active.run.status !== "running") {
       // 会话读取与查询运行之间可能刚好收尾，补读已落盘的最终消息。
+      this.port.markSessionRunning(sessionId, false);
       if (active && this.port.getState().activeSession?.messages.at(-1)?.status === "streaming") {
         const latest = await fetchJson<{ session: ChatSessionDetail }>(`/api/chat/sessions/${encodeURIComponent(sessionId)}`).catch(() => null);
         if (latest && this.port.getState().activeSessionId === sessionId && !this.port.getState().runningRunId) {
@@ -325,6 +486,7 @@ export class ChatRunActions {
       return;
     }
     this.port.patchState({ runningRunId: active.run.runId });
+    this.port.markSessionRunning(sessionId, true);
     this.subscribeRunEvents(active.run.runId, sessionId, active.run.assistantMessageId);
   }
 

@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "composite": false,
+    "incremental": false,
+    "noEmit": true
+  },
+  "include": ["src", "tsdown.config.ts"]
+}

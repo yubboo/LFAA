@@ -1,0 +1,20 @@
+{
+  "name": "@lfaa/app-desktop",
+  "description": "LFAA 桌面端入口：Electron 主进程，启动本机 Host 服务并加载四栏工作台。",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsdown",
+    "start": "node scripts/start.mjs",
+    "package": "node scripts/package.mjs",
+    "package:dir": "node scripts/package.mjs --dir",
+    "make-icon": "node scripts/make-icon.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit --composite false --incremental false"
+  },
+  "devDependencies": {
+    "electron": "45.4.1",
+    "electron-builder": "26.18.0"
+  }
+}

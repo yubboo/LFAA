@@ -10,7 +10,10 @@ import { CodeReviewSettingsView } from "./components/CodeReviewSettingsView";
 import { CodeReviewView } from "./components/CodeReviewView";
 import { GeneralSettingsView } from "./components/GeneralSettingsView";
 import { GitSettingsView } from "./components/GitSettingsView";
+import { LibraryInspector } from "./components/LibraryInspector";
 import { LibraryView } from "./components/LibraryView";
+import { NotificationSettingsView } from "./components/NotificationSettingsView";
+// 资料库中心页与右栏检视器共用 library-store 的选中项；检视器仅在 library 视图挂载。
 import { SessionOverlays } from "./components/SessionOverlays";
 import { SessionModeBar } from "./components/SessionModeBar";
 import { SessionRowActions } from "./components/SessionRowActions";
@@ -32,6 +35,10 @@ export const chatClientPlugin: Plugin.Object<void> = {
     const unregisterProvider = context.workbench.registerChatProvider({
       getSessions: () => store.getSnapshot().sessions,
       getActiveSessionId: () => store.getSnapshot().activeSessionId,
+      // 左二栏据此在后台仍在工作的会话上显示转圈；与当前打开了哪条会话无关。
+      isSessionRunning: (sessionId: string) => store.isSessionRunning(sessionId),
+      // 会话需要确认/回答时，左二栏显示对应徽标；由通知设置控制是否展示。
+      getSessionAttention: (sessionId: string) => store.getSessionAttention(sessionId),
       subscribe: (listener) => {
         const u1 = store.subscribe(listener);
         const u2 = menuStore.subscribe(listener);
@@ -56,7 +63,7 @@ export const chatClientPlugin: Plugin.Object<void> = {
       onSessionRowLeave: (session) => menuStore.onRowLeave(session.id),
       onSessionRowDoubleClick: (session) => menuStore.openRename(session.id),
       closeSessionMenus: () => menuStore.closeAll(),
-      isSessionRowHighlighted: (sessionId) => menuStore.isHighlighted(sessionId),
+      isSessionRowHighlighted: (sessionId, rowKey) => menuStore.isHighlighted(sessionId, rowKey),
       renderSessionRowActions: (session) => (
         <SessionRowActions
           isZh={locale.isZh}
@@ -137,17 +144,45 @@ export const chatClientPlugin: Plugin.Object<void> = {
             store={store}
             boundProjectId={boundProjectId}
             activeTab={wbSnap.activeLibraryTab}
-            onChangeTab={(nextTab) => context.workbench.setLibraryTab(nextTab)}
+            onSelectTab={(nextTab) => context.workbench.setLibraryTab(nextTab)}
+            onShowDetails={() => context.workbench.setRightPanelOpen(true, false)}
             onOpenStorageSettings={() => context.workbench.navigate("settings:storage")}
           />
         );
       },
     });
 
+    // 资料库域右栏改为检视器：未选中展示存储概览，选中后展示媒体或资产详情。
+    const unregisterLibraryInspector = context.workbench.registerContextPanel({
+      id: "library-inspector",
+      title: locale.libraryTitle,
+      order: 4,
+      chrome: "workbench",
+      match: (activeView) => activeView === "library",
+      render: (renderCtx) => (
+        <LibraryInspector
+          locale={locale}
+          store={store}
+          compact={renderCtx?.compact ?? false}
+          maximized={renderCtx?.rightPanelMaximized ?? false}
+          onToggleMaximize={renderCtx?.onToggleMaximizeRightPanel}
+          onCollapse={renderCtx?.onCollapseRightPanel}
+          onCloseDrawer={renderCtx?.onCloseDrawer}
+          onOpenStorageSettings={() => context.workbench.navigate("settings:storage")}
+        />
+      ),
+    });
+
     const unregisterGeneralView = context.workbench.registerView({
       id: "settings:general",
       title: locale.isZh ? "常规" : "General",
       render: () => <GeneralSettingsView locale={getChatLocale()} store={store} />,
+    });
+
+    const unregisterNotificationView = context.workbench.registerView({
+      id: "settings:notifications",
+      title: locale.isZh ? "通知" : "Notifications",
+      render: () => <NotificationSettingsView locale={getChatLocale()} store={store} />,
     });
 
     const unregisterStorageView = context.workbench.registerView({
@@ -219,7 +254,6 @@ export const chatClientPlugin: Plugin.Object<void> = {
       match: (activeView) =>
         activeView === "workspace"
         || activeView === "project"
-        || activeView === "library"
         || activeView === "settings:storage",
       render: (renderCtx) => {
         const chatSnap = store.getSnapshot();
@@ -297,11 +331,13 @@ export const chatClientPlugin: Plugin.Object<void> = {
     context.effect(() => () => {
       unregisterWorkspaceAction();
       unregisterTitleAction();
+      unregisterLibraryInspector();
       unregisterContextPanel();
       unregisterCodeReviewView();
       unregisterCodeReviewSettingsView();
       unregisterGitSettingsView();
       unregisterStorageView();
+      unregisterNotificationView();
       unregisterGeneralView();
       unregisterLibraryView();
       unregisterConfigView();

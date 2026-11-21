@@ -5,6 +5,24 @@ import type { ChatMessageItem } from "../chat-types";
 import styles from "./ChatAnchorBar.module.css";
 
 const PREVIEW_CLOSE_DELAY_MS = 300;
+/** 刻度条最多展示的轮次数；超过后显示以当前轮次为中心的滑动窗口，兼顾密度与全量跳转。 */
+export const MAX_VISIBLE_TICKS = 20;
+
+/** 计算实际渲染的轮次下标：≤20 全量；更多时显示以当前轮次居中的 20 格窗口，边界自动夹紧。 */
+export function selectVisibleTurnIndexes(total: number, activeIndex: number, limit = MAX_VISIBLE_TICKS): number[] {
+  if (total <= 0) return [];
+  if (total <= limit) return Array.from({ length: total }, (_, index) => index);
+  const active = Math.max(0, Math.min(activeIndex, total - 1));
+  const half = Math.floor((limit - 1) / 2);
+  const start = Math.max(0, Math.min(active - half, total - limit));
+  return Array.from({ length: limit }, (_, index) => start + index);
+}
+
+/** 窗口标签：显示当前可见范围与总轮次（如「10–29 / 49 轮」）；轮次少时不显示。 */
+export function formatTickWindowLabel(indexes: readonly number[], total: number): string {
+  if (total <= MAX_VISIBLE_TICKS || indexes.length === 0) return "";
+  return `${(indexes[0] ?? 0) + 1}–${(indexes.at(-1) ?? 0) + 1} / ${total} 轮`;
+}
 
 /** 记录成对消息的轮次坐标和跳转目标，供刻度、预览和书签共用。 */
 export interface ChatTurnAnchor {
@@ -64,6 +82,7 @@ export function ChatAnchorBar({
   useEffect(() => () => window.clearTimeout(closeTimer.current), []);
 
   if (turns.length === 0) return null;
+  const visibleIndexes = selectVisibleTurnIndexes(turns.length, activeTurnIndex);
 
   // 移入刻度或聚焦时取消挂起的关闭，切换刻度也不会被旧计时器打断。
   const cancelClose = () => window.clearTimeout(closeTimer.current);
@@ -102,7 +121,8 @@ export function ChatAnchorBar({
       }}
     >
       <div className={styles.ticks}>
-        {turns.map((turn, idx) => {
+        {visibleIndexes.map((idx) => {
+          const turn = turns[idx]!;
           const isActive = idx === activeTurnIndex;
           const isHovered = idx === hoveredIdx;
           const isBookmarked = bookmarkedIds.has(turn.anchorMsgId);
@@ -163,6 +183,11 @@ export function ChatAnchorBar({
           );
         })}
       </div>
+      {turns.length > MAX_VISIBLE_TICKS && (
+        <span className={styles.tickCount} aria-hidden="true">
+          {formatTickWindowLabel(visibleIndexes, turns.length)}
+        </span>
+      )}
     </nav>
   );
 }

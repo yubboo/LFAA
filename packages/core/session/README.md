@@ -30,3 +30,4 @@ No workspace dependencies.
 Session records retain their validated preset and module list through reload and fork. Preset changes are rejected once the session contains messages. Older sessions can leave both fields unspecified.
 
 Assistant records can retain a structured clarification and child-run steps with their identity and state.
+User message records can retain session-scoped image attachment references so chat history can restore previews after reload.

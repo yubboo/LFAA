@@ -9,7 +9,6 @@ export type NavigationView =
   | "workspace"
   | "appearance"
   | `settings:${string}`
-  | "images"
   | "scheduled"
   | "library"
   | "plugins"

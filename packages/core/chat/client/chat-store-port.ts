@@ -16,6 +16,12 @@ export interface ChatStorePort {
   refreshMeta(projectPath?: string): Promise<void>;
   trackLeavingActiveRun(nextSessionId: string | null): void;
   scheduleBackgroundRunPoll(): void;
+  /** 标记会话的运行状态，用于左二栏工作转圈（开始/结束都立即反映）。 */
+  markSessionRunning(sessionId: string, running: boolean): void;
+  /** 用户已回应/已处理后撤掉会话的待确认/待回答徽标。 */
+  markAttentionResolved(sessionId: string): void;
+  /** 由 SSE 收尾触发轮次完成提醒；内部与轮询兜底去重。 */
+  notifyRunFinished(sessionId: string): void;
   resumeRun(sessionId: string): Promise<void>;
   openSession(sessionId: string): Promise<void>;
   updateSessionMeta(sessionId: string, patch: ChatSessionMetaPatch): Promise<ChatSessionDetail | null>;

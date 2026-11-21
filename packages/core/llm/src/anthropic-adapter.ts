@@ -149,9 +149,10 @@ export async function callAnthropicMessagesApi(
 
   const temperature = input.temperature ?? profile.temperature;
   if (mappedEffort) {
+    const effortBudget = mappedEffort === "low" ? 1_024 : mappedEffort === "medium" ? 4_096 : 8_192;
     bodyPayload.thinking = isDeepSeekEndpoint(profile.kind, baseUrl, profile.providerId)
       ? { type: "enabled" }
-      : { type: "enabled", budget_tokens: Math.max(1024, Math.min(maxTokens - 256, 8192)) };
+      : { type: "enabled", budget_tokens: Math.max(1_024, Math.min(maxTokens - 256, effortBudget)) };
     if (isDeepSeekEndpoint(profile.kind, baseUrl, profile.providerId)) {
       bodyPayload.reasoning_effort = mappedEffort;
     }

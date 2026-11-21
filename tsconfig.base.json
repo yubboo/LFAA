@@ -107,6 +107,8 @@
       "@lfaa/timeout-policy/client": ["./packages/guard/timeout-policy/client"],
       "@lfaa/tool-goal": ["./packages/goal/tool-goal/src"],
       "@lfaa/tool-goal/client": ["./packages/goal/tool-goal/client"],
+      "@lfaa/tool-media": ["./packages/media/tool-media/src"],
+      "@lfaa/tool-media/client": ["./packages/media/tool-media/client"],
       "@lfaa/tool-result-pruner": ["./packages/compaction/tool-result-pruner/src"],
       "@lfaa/tool-result-pruner/client": ["./packages/compaction/tool-result-pruner/client"],
       "@lfaa/tool-schedule": ["./packages/schedule/tool-schedule/src"],

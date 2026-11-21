@@ -20,13 +20,18 @@
 }
 
 .attachmentChipLabel {
+  max-width: 12rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .attachmentChipDetail {
+  max-width: 11rem;
+  overflow: hidden;
   color: var(--color-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .attachmentChipRemove {
@@ -47,6 +52,31 @@
   background: var(--color-active);
   color: var(--color-ink);
 }
+
+/* 图片附件使用方形缩略图，移除控件保留在图内右上角。 */
+.attachmentChip[data-kind="image"] {
+  position: relative;
+  padding: 0;
+  border-radius: 0.6rem;
+}
+
+.attachmentPreview {
+  width: 3.75rem;
+  height: 3.75rem;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
+.attachmentChip[data-kind="image"] .attachmentChipRemove {
+  position: absolute;
+  inset: 0.15rem 0.15rem auto auto;
+  width: 1.4rem;
+  height: 1.4rem;
+  background: var(--color-panel);
+  color: var(--color-ink);
+}
+
+.attachmentChipRemove:focus-visible { outline: 2px solid var(--color-accent); }
 
 .contextNotice {
   display: flex;
@@ -120,6 +150,7 @@
   width: 100%;
   min-height: 2.6rem;
   max-height: 10rem;
+  overflow-y: hidden;
   resize: none;
   border: 0;
   outline: none;
@@ -217,4 +248,36 @@
     box-sizing: border-box;
     padding: 0;
   }
+}
+
+/* 拖拽文件到输入卡片时的落点高亮。 */
+.composerCard[data-dragging="true"] {
+  border-color: rgb(var(--color-accent-rgb) / 0.55);
+  box-shadow: 0 0 0 3px rgb(var(--color-accent-rgb) / 0.12);
+}
+
+/* 绝对路径附件用虚线边框区分（内容不复制字节，只把路径交给 Agent）。 */
+.attachmentChip[data-kind="path"] {
+  border-style: dashed;
+  border-color: rgb(var(--color-accent-rgb) / 0.45);
+}
+
+/* 输入框工具栏的图标按钮（生成素材库等），与 + 按钮同尺寸。 */
+.toolButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.toolButton:hover {
+  background: var(--color-active);
+  color: var(--color-ink);
 }

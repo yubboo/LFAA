@@ -7,11 +7,16 @@ export type {
   AgentRunMetrics,
   AgentStepStatus,
   AgentStepTrace,
+  ChatMessageAttachment,
   ChatMessageRecord,
+  ChatMessageReference,
   ChatSessionRecord,
   ChatSessionSummary,
   ChatTokenUsage,
   CreateSessionInput,
+  PendingQuestion,
+  TodoItem,
+  TodoStatus,
   UpdateSessionInput,
 } from "@lfaa/session";
 

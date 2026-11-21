@@ -18,13 +18,13 @@
   box-sizing: border-box;
 }
 
-@supports not selector(::-webkit-scrollbar) {
-  * {
-    scrollbar-width: thin;
-    scrollbar-color: color-mix(in srgb, var(--color-muted) 55%, transparent) transparent;
-  }
+/* 滚动条统一为细条并跟随设置中心的强调色；标准属性在 Chromium / Firefox 下生效。 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--color-accent, #e66aa8) 62%, transparent) transparent;
 }
 
+/* 不支持标准属性的浏览器沿用 webkit 伪元素，颜色同样取强调色。 */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -36,11 +36,11 @@
 
 ::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: color-mix(in srgb, var(--color-muted) 48%, transparent);
+  background: color-mix(in srgb, var(--color-accent, #e66aa8) 60%, transparent);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--color-muted) 75%, transparent);
+  background: color-mix(in srgb, var(--color-accent, #e66aa8) 85%, transparent);
 }
 
 ::-webkit-scrollbar-button {

@@ -15,6 +15,12 @@ export function useChatScroll(sessionId: string | null, latestTurnId: string | u
     const viewport = scrollAreaRef.current;
     if (!viewport) return;
     followBottom.current = true;
+    // 已经在底部时不再发出 scrollTo：避免内容高度轻微变化时反复滚动造成抖动。
+    const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+    if (Math.abs(viewport.scrollTop - maxScrollTop) < 1) {
+      setShowScrollBottom(false);
+      return;
+    }
     viewport.scrollTo({ top: viewport.scrollHeight, behavior: "instant" });
     lastScrollTop.current = viewport.scrollTop;
     setShowScrollBottom(false);

@@ -25,6 +25,8 @@ export interface ActiveRunRecord {
   chunks: RunChunkRecord[];
   persistChain: Promise<void>;
   lastPersistAt: number;
+  /** 运行期间追加的用户消息（插话），下一轮模型调用前由循环取出。 */
+  steering: string[];
 }
 
 /** 对外暴露待审批请求时去掉内部的 resolve 回调。 */

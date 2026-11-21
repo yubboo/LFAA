@@ -116,6 +116,10 @@ export interface WorkbenchChatSessionSummary {
 export interface WorkbenchChatProvider<TContent = unknown> {
   getSessions: () => WorkbenchChatSessionSummary[];
   getActiveSessionId: () => string | null;
+  /** 该会话是否有 Agent 正在工作；切到别的会话后仍为真，供左二栏显示工作转圈。 */
+  isSessionRunning?: (sessionId: string) => boolean;
+  /** 该会话是否在等待用户确认或回答；用于左二栏「待确认/待回答」徽标。 */
+  getSessionAttention?: (sessionId: string) => "approval" | "question" | null;
   subscribe: (listener: () => void) => () => void;
   startNewChat: (options?: { projectId?: string | null; sectionId?: string | null }) => void | Promise<void>;
   openSession: (sessionId: string) => void | Promise<void>;
@@ -123,7 +127,8 @@ export interface WorkbenchChatProvider<TContent = unknown> {
   onSessionRowLeave?: (session: WorkbenchChatSessionSummary) => void;
   onSessionRowDoubleClick?: (session: WorkbenchChatSessionSummary) => void;
   closeSessionMenus?: () => void;
-  isSessionRowHighlighted?: (sessionId: string) => boolean;
+  /** `rowKey` 标识具体侧栏行：同一会话可能同时出现在「置顶」与「项目」分组，只高亮被交互的那一行。 */
+  isSessionRowHighlighted?: (sessionId: string, rowKey?: string) => boolean;
   renderSessionRowActions?: (session: WorkbenchChatSessionSummary) => TContent;
   renderSessionOverlays?: (params: {
     projects: WorkbenchProjectItem[];
@@ -145,7 +150,8 @@ export interface WorkbenchProjectProvider<TContent = unknown> {
   onProjectRowEnter?: (project: WorkbenchProjectItem, rowElement: HTMLElement) => void;
   onProjectRowLeave?: (project: WorkbenchProjectItem) => void;
   closeProjectMenus?: () => void;
-  isProjectRowHighlighted?: (projectId: string) => boolean;
+  /** `rowKey` 标识具体侧栏行：同一项目可能同时出现在「置顶」与「项目」分组，只高亮被交互的那一行。 */
+  isProjectRowHighlighted?: (projectId: string, rowKey?: string) => boolean;
   renderProjectRowActions?: (params: {
     project: WorkbenchProjectItem;
     onNewChatInProject: (project: WorkbenchProjectItem) => void;

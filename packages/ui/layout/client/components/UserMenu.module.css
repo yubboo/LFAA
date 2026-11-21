@@ -42,9 +42,18 @@
   height: 1.5rem;
 }
 
+/* 透明遮罩：菜单打开时第一下点击只关闭菜单，不触发下层元素（避免误点会话/按钮）。 */
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 239;
+  background: transparent;
+}
+
 .panel {
   position: fixed;
-  z-index: 60;
+  /* 菜单 portal 到 body 并高于工作区悬浮卡/提示层，避免被覆盖或透出内容。 */
+  z-index: 240;
   left: calc(var(--rail-width) - 0.25rem);
   bottom: 0.75rem;
   width: min(21.5rem, calc(100vw - var(--rail-width) - 1.25rem));
@@ -53,8 +62,9 @@
   padding: 0.65rem;
   border: 1px solid var(--glass-border, var(--color-line));
   border-radius: 1.35rem;
-  background: var(--glass-popover-bg, var(--color-popover));
-  background-image: var(--glass-sheen, none);
+  /* 实底 + 半透明玻璃色叠加：既保留质感，又绝不透出下层聊天内容（避免穿模观感）。 */
+  background-color: var(--color-shell);
+  background-image: linear-gradient(var(--color-popover), var(--color-popover)), var(--glass-sheen, none);
   backdrop-filter: blur(26px) saturate(180%);
   -webkit-backdrop-filter: blur(26px) saturate(180%);
   box-shadow: var(--glass-specular-shadow, none), var(--color-menu-shadow);

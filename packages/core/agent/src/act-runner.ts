@@ -2,12 +2,14 @@
 import { randomUUID } from "node:crypto";
 import type { SubagentActivityUpdate } from "@lfaa/tools";
 import type { LlmMessage, LlmToolCall } from "@lfaa/llm";
-import type { AgentStepTrace } from "@lfaa/memory";
+import type { AgentStepTrace, TodoItem } from "@lfaa/memory";
+import { normalizeTodoList } from "@lfaa/memory";
 import { tailCommandOutput } from "./command-trace";
 import { evaluateToolApproval } from "./permission-policy";
 import type { RunExecutionParams, RunLoopDeps } from "./run-types";
 import { safeParseArgs } from "./tool-call-args";
 import { limitToolResult } from "./tool-result";
+import { TODO_NUDGE_MARK, TODO_NUDGE_TEXT, shouldNudgeTodos } from "./todo-plan";
 
 /** 同一轮中连续只读工具的最大并行数；写文件与命令仍保持串行。 */
 export const PARALLEL_READ_LIMIT = 4;
@@ -27,6 +29,8 @@ export interface ActOutcome {
   removedLines?: number;
   exitCode?: number;
   fileChange?: AgentStepTrace["fileChange"];
+  /** 工具（如 todo_write）回传的最新任务清单，供运行事件与快照使用。 */
+  todos?: TodoItem[];
 }
 
 /** 运行循环提供给工具执行器的上下文，避免执行器直接依赖循环内部状态。 */
@@ -45,6 +49,8 @@ export interface ActResult {
   summaries: string[];
   /** 本阶段工具实际执行耗时总和。 */
   toolMs: number;
+  /** 本阶段是否出现任务清单（todo_write 回传 metadata.todos）。 */
+  sawTodos: boolean;
 }
 
 /** 顺序推进一轮工具调用；连续的只读调用按批并行，写操作与命令保持串行。 */
@@ -59,6 +65,7 @@ export async function runActPhase(
   let executedToolCount = 0;
   let toolMs = 0;
   const summaries: string[] = [];
+  let sawTodos = false;
 
   const runToolCall = async (call: LlmToolCall): Promise<ActOutcome> => {
     if (params.signal.aborted) throw new Error("用户已中止本次任务。");
@@ -68,6 +75,10 @@ export async function runActPhase(
     const perm = toolDef?.permissionLevel ?? "read";
 
     const parsedArgs = safeParseArgs(call.argumentsJson);
+    if (parsedArgs.ok && call.name === "generate_image" && params.referenceImages?.length) {
+      // 参考图是用户当轮选择或宿主从会话解析的产物，模型遗漏也会随生成请求传入。
+      parsedArgs.value.referenceImages = params.referenceImages;
+    }
     const command = call.name === "run_command" && parsedArgs.ok && typeof parsedArgs.value.command === "string"
       ? parsedArgs.value.command.trim().slice(0, 16000)
       : "";
@@ -97,6 +108,7 @@ export async function runActPhase(
     let removedLines: number | undefined;
     let exitCode: number | undefined;
     let fileChange: AgentStepTrace["fileChange"];
+    let todos: TodoItem[] | undefined;
 
     if (!parsedArgs.ok) {
       toolOutputText = parsedArgs.error;
@@ -210,6 +222,8 @@ export async function runActPhase(
         if (typeof execRes.metadata?.added === "number") addedLines = execRes.metadata.added;
         if (typeof execRes.metadata?.removed === "number") removedLines = execRes.metadata.removed;
         if (typeof execRes.metadata?.exitCode === "number") exitCode = execRes.metadata.exitCode;
+        // 任务清单是会话状态：工具回传后既进步骤流也广播给前端，刷新/重连都能恢复。
+        todos = normalizeTodoList(execRes.metadata?.todos);
         if (execRes.ok) fileChange = execRes.fileChange;
       }
     }
@@ -227,6 +241,7 @@ export async function runActPhase(
       ...(removedLines !== undefined ? { removedLines } : {}),
       ...(exitCode !== undefined ? { exitCode } : {}),
       ...(fileChange ? { fileChange } : {}),
+      ...(todos ? { todos } : {}),
     };
   };
 
@@ -237,6 +252,10 @@ export async function runActPhase(
     if (outcome.executed) toolMs += outcome.durationMs;
     summaries.push(`${call.name}: ${outcome.summary}`);
     ctx.onExecuted?.(outcome);
+    if (outcome.todos) {
+      sawTodos = true;
+      params.emit({ type: "todos", runId: params.runId, todos: outcome.todos });
+    }
 
     pushOrUpdateStep({
       ...action,
@@ -250,6 +269,7 @@ export async function runActPhase(
       } } : {}),
       ...(outcome.addedLines !== undefined ? { addedLines: outcome.addedLines } : {}),
       ...(outcome.removedLines !== undefined ? { removedLines: outcome.removedLines } : {}),
+      ...(outcome.todos ? { todos: outcome.todos } : {}),
       ...(outcome.fileChange ? { fileChange: outcome.fileChange } : {}),
       timestamp: Date.now(),
     });
@@ -288,5 +308,24 @@ export async function runActPhase(
     }
   }
 
-  return { failureCount, executedToolCount, summaries, toolMs };
+  // 多步任务迟迟不建清单时补一条提醒：只在会话还没有清单、本轮已执行多次工具时触发一次。
+  if (!sawTodos && executedToolCount >= 3) {
+    const alreadyNudged = conversation.some((message) =>
+      message.role === "user" && typeof message.content === "string" && message.content.includes(TODO_NUDGE_MARK));
+    const existing = params.signal.aborted ? 0 : ((await deps.memory.getSession(params.sessionId).catch(() => null))?.todos?.length ?? 0);
+    if (shouldNudgeTodos({ existingTodos: existing, executedToolCount, alreadyNudged })) {
+      conversation.push({ role: "user", content: TODO_NUDGE_TEXT });
+      pushOrUpdateStep({
+        id: `todo-nudge-${iteration}`,
+        iteration,
+        phase: "check",
+        status: "done",
+        title: "已提醒模型建立任务清单",
+        detail: "本轮已执行多次工具调用但会话没有清单；追加一次建议性提醒，不阻断执行。",
+        timestamp: Date.now(),
+      });
+    }
+  }
+
+  return { failureCount, executedToolCount, summaries, toolMs, sawTodos };
 }

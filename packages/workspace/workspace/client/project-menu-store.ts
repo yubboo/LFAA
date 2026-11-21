@@ -5,6 +5,8 @@ import type { HoverAnchorRect } from "./components/ProjectHoverCard";
 export interface PopoverAnchorState {
   projectId: string;
   anchorRect: HoverAnchorRect;
+  /** 触发该浮层的侧栏行 id：同一项目在「置顶」和「项目」各有一行时只高亮被交互的那行。 */
+  rowKey?: string;
 }
 
 /** 描述项目预览、菜单和表单的当前目标与开关状态。 */
@@ -26,6 +28,11 @@ function toSidebarAnchorRect(element: Element): HoverAnchorRect {
 function toButtonRect(element: Element): HoverAnchorRect {
   const rect = element.getBoundingClientRect();
   return { top: rect.top, right: rect.right, bottom: rect.bottom, left: rect.left };
+}
+
+/** 读取元素所属侧栏行 id，用于把悬停/菜单状态限定到具体那一行。 */
+function rowKeyOf(element: Element): string | undefined {
+  return element.closest("[data-sidebar-item]")?.getAttribute("data-sidebar-item") ?? undefined;
 }
 
 /** 协调项目行产生的浮层动作，并向独立浮层宿主发布状态。 */
@@ -86,8 +93,10 @@ export class ProjectMenuStore {
     this.listeners.clear();
   }
 
-  isRowHighlighted(projectId: string): boolean {
-    return this.hoverCardValue?.projectId === projectId || this.actionMenuValue?.projectId === projectId;
+  isRowHighlighted(projectId: string, rowKey?: string): boolean {
+    const matches = (entry: PopoverAnchorState | null) =>
+      entry?.projectId === projectId && (!rowKey || !entry.rowKey || entry.rowKey === rowKey);
+    return matches(this.hoverCardValue) || matches(this.actionMenuValue);
   }
 
   onRowEnter(projectId: string, element: Element): void {
@@ -108,7 +117,8 @@ export class ProjectMenuStore {
     ) {
       return;
     }
-    this.hoverCardValue = { projectId, anchorRect };
+    const rowKey = rowKeyOf(element);
+    this.hoverCardValue = { projectId, anchorRect, ...(rowKey ? { rowKey } : {}) };
     this.emit();
   }
 
@@ -124,9 +134,10 @@ export class ProjectMenuStore {
     this.hoverCardValue = null;
     this.suppressHoverId = projectId;
     const anchorRect = toButtonRect(element);
+    const rowKey = rowKeyOf(element);
     this.actionMenuValue = this.actionMenuValue?.projectId === projectId
       ? null
-      : { projectId, anchorRect };
+      : { projectId, anchorRect, ...(rowKey ? { rowKey } : {}) };
     this.emit();
   }
 

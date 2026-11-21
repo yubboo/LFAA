@@ -209,6 +209,24 @@
   overflow-y: auto;
 }
 
+/* 模型按用途分组：组标题 + 组内行，避免语言/视觉/语音模型混成一个长列表。 */
+.modelSection {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.modelSection + .modelSection {
+  margin-top: 0.35rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--color-line);
+}
+
+.modelSectionLabel {
+  padding: 0.15rem 0.3rem 0.1rem;
+  color: var(--color-muted);
+  font-size: 0.74em;
+}
+
 .modelItem {
   display: flex;
   align-items: center;

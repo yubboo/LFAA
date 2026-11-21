@@ -24,6 +24,7 @@ export const INSTALLABLE_PACKAGES: ReadonlyArray<{ moduleName: string; name: str
   { moduleName: "@lfaa/attachment-local", name: "会话附件", description: "附件存本机，支持按会话列出与读取。" },
   { moduleName: "@lfaa/session-title", name: "会话标题", description: "启发式 / 模型双通道生成会话标题。" },
   { moduleName: "@lfaa/commands", name: "斜杠命令", description: "插件注册命令，输入栏发现并执行。" },
+  { moduleName: "@lfaa/tool-media", name: "媒体生成", description: "用套餐生图模型生成图片并保存到工作区。" },
   { moduleName: "@lfaa/rules", name: "规则装配", description: "系统规则、项目规则与用户规则的提示词拼装。" },
   { moduleName: "@lfaa/llm", name: "模型接入", description: "多提供商大模型接入与流式推理。" },
   { moduleName: "@lfaa/memory", name: "记忆", description: "会话轨迹持久化与长期记忆检索。" },

@@ -17,6 +17,7 @@ export const RIGHT_PANEL_STORAGE_KEY = "lfaa:right-panel-open";
 export const LEFT_SIDEBAR_WIDTH_STORAGE_KEY = "lfaa:left-sidebar-width";
 export const RIGHT_PANEL_WIDTH_STORAGE_KEY = "lfaa:right-panel-width";
 export const ACTIVE_ROUTE_STORAGE_KEY = "lfaa:active-route";
+export const LIBRARY_TAB_STORAGE_KEY = "lfaa:library-tab";
 export const WORKSPACE_MODE_STORAGE_KEY = "lfaa:workspace-mode";
 export const NAV_GROUP_EXPANDED_KEY = "lfaa:nav-group-expanded";
 export const SECTION_EXPANDED_KEY = "lfaa:section-expanded";

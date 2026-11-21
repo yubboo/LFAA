@@ -1,7 +1,7 @@
-/* 资料库与资产库页面样式：紧凑顶部操作栏、横向分类标签、主区容器与空态引导；卡片网格与预览面板见 LibraryView.cards.module.css。 */
+/* 资料库与资产库页面样式：紧凑顶部操作栏、分类标题与数量、主区容器与空态引导；卡片网格与选中态见 LibraryView.cards.module.css。 */
 .root {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 0.9rem;
   height: 100%;
   min-height: 0;
@@ -145,44 +145,13 @@
   background: var(--color-active);
 }
 
-.tabStrip {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.35rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid var(--color-line);
-}
-
-.tabItem {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.34rem 0.75rem;
-  border: 1px solid transparent;
+/* 分类标题后的数量胶囊：分类入口只保留左二一套，数量显示在这里。 */
+.titleCount {
+  padding: 0.1rem 0.5rem;
   border-radius: 999px;
-  background: transparent;
-  color: var(--color-muted);
-  font: inherit;
-  font-size: 0.85em;
-  cursor: pointer;
-}
-
-.tabItem:hover {
   background: var(--color-panel);
-  color: var(--color-ink);
-}
-
-.tabItemActive {
-  background: var(--color-active);
-  border-color: var(--color-line);
-  color: var(--color-ink);
-  font-weight: 560;
-}
-
-.tabCount {
-  font-size: 0.8em;
   color: var(--color-muted);
+  font-size: 0.78em;
 }
 
 .mainBody {
@@ -252,8 +221,4 @@
   flex-wrap: wrap;
   justify-content: center;
   gap: 0.5rem;
-}
-
-.cardsOnly {
-  min-height: 0;
 }

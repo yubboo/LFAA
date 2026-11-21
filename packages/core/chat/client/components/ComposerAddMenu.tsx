@@ -10,74 +10,9 @@ import {
   IconPlus,
 } from "@tabler/icons-react";
 import type { ComposerAttachment } from "../composer-context";
+import { filesToAttachments } from "../composer-attachments";
 import type { ChatLocaleMessages } from "../locales";
 import styles from "./ComposerAddMenu.module.css";
-
-const TEXT_EXTENSIONS = new Set([
-  "ts", "tsx", "js", "jsx", "mjs", "cjs", "json", "md", "txt", "css", "html",
-  "yaml", "yml", "toml", "py", "rs", "go", "java", "sh", "ps1", "bat", "sql",
-]);
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-/** 把文件字节转成 base64（分块拼接，避免超长 apply 栈溢出）。 */
-async function toBase64(file: File): Promise<string> {
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  let binary = "";
-  const chunk = 0x8000;
-  for (let offset = 0; offset < bytes.length; offset += chunk) {
-    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunk));
-  }
-  return btoa(binary);
-}
-
-/** 上传到本机会话附件库；失败时返回 undefined，退回旧的仅前端预览行为。 */
-async function uploadAttachment(sessionId: string, file: File): Promise<string | undefined> {
-  if (!sessionId || file.size > 10 * 1024 * 1024) return undefined;
-  try {
-    const contentBase64 = await toBase64(file);
-    const res = await fetch("/api/attachments", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId, name: file.name, mime: file.type, contentBase64 }),
-    });
-    if (!res.ok) return undefined;
-    const data = (await res.json()) as { item?: { id?: string } };
-    return data.item?.id;
-  } catch {
-    return undefined;
-  }
-}
-
-async function readPickedFiles(fileList: FileList, sessionId: string): Promise<ComposerAttachment[]> {
-  const attachments: ComposerAttachment[] = [];
-  for (const file of Array.from(fileList).slice(0, 8)) {
-    const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
-    const isText = file.type.startsWith("text/") || TEXT_EXTENSIONS.has(ext);
-    let contentPreview: string | undefined;
-    if (isText && file.size <= 128 * 1024) {
-      try {
-        contentPreview = (await file.text()).slice(0, 6000);
-      } catch {
-        // 忽略读取失败。
-      }
-    }
-    const attachmentId = await uploadAttachment(sessionId, file);
-    attachments.push({
-      id: `file-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      kind: "file",
-      label: file.name,
-      detail: `${formatBytes(file.size)}${attachmentId ? " · 已存入附件库" : ""}`,
-      ...(contentPreview ? { contentPreview } : {}),
-      ...(attachmentId ? { attachmentId } : {}),
-    });
-  }
-  return attachments;
-}
 
 /** 从输入栏打开附件和上下文菜单，将选中的操作交给父级编辑器执行。 */
 export function ComposerAddMenu({
@@ -124,7 +59,7 @@ export function ComposerAddMenu({
   const handleFilesSelected = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
-    const items = await readPickedFiles(files, sessionId);
+    const items = await filesToAttachments(files, sessionId);
     onAttachItems(items);
     event.target.value = "";
     setOpen(false);

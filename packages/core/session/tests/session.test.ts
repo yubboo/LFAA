@@ -47,3 +47,49 @@ test("会话预设随持久化与分叉保留，旧会话保持缺省", async ()
     await fs.rm(root, { recursive: true, force: true });
   }
 });
+
+test("会话重新读取后仍保留用户消息的图片附件引用", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-session-attachment-"));
+  try {
+    const store = new SessionMemoryStore(root);
+    const session = await store.create();
+    await store.appendMessage(session.id, {
+      id: "image-request",
+      role: "user",
+      content: "美化一下图片",
+      attachments: [{ id: "uploaded-image", kind: "image" }],
+      createdAt: Date.now(),
+    });
+
+    const reopened = await new SessionMemoryStore(root).get(session.id);
+    assert.deepEqual(reopened?.messages[0]?.attachments, [{ id: "uploaded-image", kind: "image" }]);
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+test("待回答澄清随摘要持久化，回答后清除且残缺字段被忽略", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-session-question-"));
+  try {
+    const store = new SessionMemoryStore(root);
+    const session = await store.create();
+    const pendingQuestion = { messageId: "assistant-1", question: "选哪个？", options: ["A", "B"] };
+    await store.update(session.id, { unread: true, pendingQuestion });
+
+    const reopened = new SessionMemoryStore(root);
+    assert.deepEqual((await reopened.get(session.id))?.pendingQuestion, pendingQuestion);
+    assert.deepEqual((await reopened.list())[0]?.pendingQuestion, pendingQuestion);
+
+    await reopened.update(session.id, { pendingQuestion: null });
+    assert.equal((await reopened.get(session.id))?.pendingQuestion, undefined);
+    assert.equal((await reopened.list())[0]?.pendingQuestion, undefined);
+
+    await fs.writeFile(path.join(root, `${session.id}.json`), JSON.stringify({
+      ...(await reopened.get(session.id)),
+      pendingQuestion: { messageId: "", question: "残缺" },
+    }), "utf8");
+    assert.equal((await reopened.get(session.id))?.pendingQuestion, undefined);
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});

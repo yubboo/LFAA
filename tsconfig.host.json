@@ -44,6 +44,7 @@
     { "path": "./packages/guard/timeout-policy" },
     { "path": "./packages/host/web-server" },
     { "path": "./packages/interaction/commands" },
+    { "path": "./packages/media/tool-media" },
     { "path": "./packages/plan/plan-mode" },
     { "path": "./packages/sandbox/sandbox" },
     { "path": "./packages/sandbox/sandbox-local" },

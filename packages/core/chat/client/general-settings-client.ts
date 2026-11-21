@@ -1,4 +1,6 @@
 // 提供浏览器端通用设置默认结构、长路径中间省略格式化、开源依赖读取及轻量提示音播放辅助。
+import { playNotificationSound } from "./notification-sounds";
+
 export type FileOpenerKind = "explorer" | "vscode" | "cursor" | "antigravity" | "system";
 export type AgentEnvKind = "windows_native" | "wsl" | "auto";
 export type IntegratedShellKind = "powershell" | "cmd" | "git_bash" | "wsl";
@@ -42,7 +44,14 @@ export interface GeneralSettingsConfig {
   enableApprovalNotification: boolean;
   enableQuestionNotification: boolean;
   enableDotNotification: boolean;
+  /** 旧版统一提示音；新配置按事件分别保存，缺省时回退到这里。 */
   notificationSound: NotifySoundMode;
+  /** 轮次完成提示音：内置 id、custom:<uuid> 或 mute。 */
+  completionSound?: string;
+  /** 澄清/等待回答提示音。 */
+  questionSound?: string;
+  /** 待确认/关键决策提示音。 */
+  approvalSound?: string;
   confettiEffect: boolean;
   updatedAt: number;
 }
@@ -87,6 +96,9 @@ export const DEFAULT_GENERAL_SETTINGS: GeneralSettingsConfig = {
   enableQuestionNotification: true,
   enableDotNotification: true,
   notificationSound: "default",
+  completionSound: "default",
+  questionSound: "bell",
+  approvalSound: "alert",
   confettiEffect: true,
   updatedAt: 0,
 };
@@ -128,26 +140,7 @@ export function readLocaleOverride(): AppLanguagePref | null {
   return null;
 }
 
-// 使用 Web Audio 合成轻柔短提示音，不依赖外部音频文件。
+// 兼容旧调用：统一走新的内置/自定义提示音播放层。
 export function playGentleNotificationSound(mode: NotifySoundMode): void {
-  if (mode === "mute" || typeof window === "undefined") return;
-  const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-  if (!AudioCtx) return;
-  try {
-    const ctx = new AudioCtx();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = mode === "chime" ? "triangle" : "sine";
-    osc.frequency.setValueAtTime(mode === "chime" ? 880 : 660, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(mode === "chime" ? 1174 : 880, ctx.currentTime + 0.14);
-    gain.gain.setValueAtTime(0.04, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.18);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.19);
-    window.setTimeout(() => void ctx.close().catch(() => {}), 300);
-  } catch {
-    // 忽略自动播放策略拦截异常。
-  }
+  void playNotificationSound(mode);
 }

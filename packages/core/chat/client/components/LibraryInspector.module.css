@@ -1,0 +1,253 @@
+/* 资料库右栏检视器样式：头部与顶栏齐平，主体按概览/媒体/资产分区块；全部消费主题语义变量。 */
+
+/* 区块：面板外壳，行高与顶栏对齐。 */
+.panel {
+  display: grid;
+  grid-template-rows: var(--topbar-height, 3.5rem) minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+  color: var(--color-ink);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0 0.75rem 0 0.9rem;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.title {
+  overflow: hidden;
+  color: var(--color-ink);
+  font-size: 0.85em;
+  font-weight: 560;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.headerActions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.iconBtn {
+  display: grid;
+  place-items: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.iconBtn:hover {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+/* 区块：主体滚动区。 */
+.body {
+  display: grid;
+  align-content: start;
+  gap: 0.9rem;
+  min-height: 0;
+  padding: 0.9rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.overview,
+.detail {
+  display: grid;
+  gap: 0.9rem;
+  min-width: 0;
+}
+
+.section {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.sectionTitle {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.76em;
+  font-weight: 500;
+}
+
+.path {
+  margin: 0;
+  color: var(--color-muted);
+  font-family: var(--code-font-family, monospace);
+  font-size: 0.75em;
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+.hint {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.78em;
+  line-height: 1.55;
+}
+
+/* 区块：概览数量卡片。 */
+.counts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.countCard {
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.7rem;
+  background: var(--glass-card-bg, var(--color-surface));
+}
+
+.countValue {
+  color: var(--color-ink);
+  font-size: 1.02em;
+  font-weight: 600;
+}
+
+.countLabel {
+  color: var(--color-muted);
+  font-size: 0.72em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 区块：媒体与资产详情。 */
+.media {
+  width: 100%;
+  max-height: 42vh;
+  border-radius: 0.7rem;
+  background: var(--color-panel);
+  object-fit: contain;
+}
+
+.audio {
+  width: 100%;
+}
+
+.meta {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.75em;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.promptText {
+  margin: 0;
+  color: var(--color-ink);
+  font-size: 0.83em;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.fileName {
+  margin: 0;
+  color: var(--color-muted);
+  font-family: var(--code-font-family, monospace);
+  font-size: 0.72em;
+  word-break: break-all;
+}
+
+.assetTitle {
+  color: var(--color-ink);
+  font-size: 0.9em;
+  font-weight: 560;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.content {
+  margin: 0;
+  max-height: 46vh;
+  padding: 0.6rem 0.7rem;
+  overflow: auto;
+  border: 1px solid var(--color-line);
+  border-radius: 0.6rem;
+  background: var(--color-panel);
+  color: var(--color-ink);
+  font-family: var(--code-font-family, monospace);
+  font-size: 0.78em;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 区块：操作按钮。 */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.secondaryBtn,
+.dangerBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.34rem 0.7rem;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-panel);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.78em;
+  cursor: pointer;
+}
+
+.secondaryBtn:hover {
+  background: var(--color-active);
+}
+
+.dangerBtn {
+  color: var(--color-danger);
+}
+
+.dangerBtn:hover {
+  background: rgb(var(--color-danger-rgb) / 0.1);
+}
+
+.dangerBtn:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.dangerBtnArmed {
+  border-color: var(--color-danger);
+  background: rgb(var(--color-danger-rgb) / 0.12);
+  color: var(--color-danger);
+}
+
+/* 区块：状态提示。 */
+.status,
+.error {
+  margin: 0;
+  font-size: 0.8em;
+}
+
+.status {
+  color: var(--color-muted);
+}
+
+.error {
+  color: var(--color-danger);
+}

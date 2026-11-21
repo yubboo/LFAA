@@ -22,14 +22,17 @@ import {
   type ProjectSortMode,
 } from "../ui-preferences";
 import { GroupHeaderTools } from "./GroupHeaderTools";
+import { buildProjectGroups, buildRecentGroup } from "./navigation-groups-config";
 import {
-  createProjectWithChatItems,
   createRecentSidebarItems,
+  groupNavigationProjects,
+  resolveActiveGroupKey,
   type ProjectItemDeps,
   type SessionItemDeps,
 } from "./navigation-items";
 import { NavigationNewChatButton } from "./NavigationNewChatButton";
 import { SidebarSectionList, type SidebarGroupConfig } from "./SidebarSectionList";
+import { useSessionWindow } from "./use-session-window";
 import styles from "./NavigationGroups.module.css";
 
 /** 组合置顶、项目和最近会话分组，由共享列表处理折叠和行展示。 */
@@ -87,11 +90,19 @@ export function NavigationGroups({
   }));
   const [sectionExpanded, setSectionExpanded] = useState<Record<string, boolean>>(readSectionExpandedPref);
   const [projectExpanded, setProjectExpanded] = useState<Record<string, boolean>>({});
-  const toggleProjectExpanded = (projectId: string) => {
-    setProjectExpanded((current) => ({ ...current, [projectId]: !(current[projectId] ?? true) }));
+  // 项目子会话与「最近」分组的展开批次由会话窗口状态统一管理。
+  const sessionWindow = useSessionWindow({
+    expandLabel: locale.expandSessions,
+    collapseLabel: locale.collapseSessions,
+  });
+  // 展开状态按行 id 记录：同一项目在「置顶」与「项目」各有一行时互不影响。
+  const toggleProjectExpanded = (rowId: string) => {
+    const nextExpanded = !(projectExpanded[rowId] ?? true);
+    setProjectExpanded((current) => ({ ...current, [rowId]: nextExpanded }));
+    if (!nextExpanded) sessionWindow.resetProject(rowId);
   };
-  const expandProject = (projectId: string) => {
-    setProjectExpanded((current) => ({ ...current, [projectId]: true }));
+  const expandProject = (rowId: string) => {
+    setProjectExpanded((current) => ({ ...current, [rowId]: true }));
   };
   const [sort, setSort] = useState<ProjectSortMode>(readProjectSortPref);
   const [recentSort, setRecentSort] = useState<ProjectSortMode>(readRecentSortPref);
@@ -110,25 +121,56 @@ export function NavigationGroups({
       : recents
   ), [recents, recentSort]);
   const sectionIds = useMemo(() => new Set(sections.map((section) => section.id)), [sections]);
-  const pinnedProjects = useMemo(() => sortedProjects.filter((item) => item.pinned), [sortedProjects]);
-  const unassignedProjects = useMemo(
-    () => sortedProjects.filter((item) => !item.pinned && (!item.sectionId || !sectionIds.has(item.sectionId))),
+  // 置顶只增加顶部快捷入口：置顶项目同时保留在「项目」或它所属的自定义分区里。
+  const projectGroups = useMemo(
+    () => groupNavigationProjects(sortedProjects, sectionIds),
     [sortedProjects, sectionIds],
   );
+  const pinnedProjects = projectGroups.pinned;
+  const unassignedProjects = projectGroups.unassigned;
 
-  // 侧栏行构建器所需的当前渲染状态与事件入口，供项目行、子会话行与最近分组复用。
-  const itemDeps: ProjectItemDeps & SessionItemDeps = {
+  // 同一项目/会话会同时出现在「置顶」与原分组：只让用户最后点击的那一组显示选中态。
+  const [activeGroupKey, setActiveGroupKey] = useState<string | null>(null);
+  const activeProject = useMemo(() => {
+    const projectId = activeProjectId
+      ?? chatSessions.find((session) => session.id === activeChatSessionId)?.projectId
+      ?? null;
+    return projectId ? sortedProjects.find((item) => item.id === projectId) ?? null : null;
+  }, [activeChatSessionId, activeProjectId, chatSessions, sortedProjects]);
+  const activeSessionPinned = useMemo(() => {
+    const session = chatSessions.find((item) => item.id === activeChatSessionId);
+    return Boolean(session?.pinned && !session.archived);
+  }, [activeChatSessionId, chatSessions]);
+  const resolvedActiveGroupKey = resolveActiveGroupKey(
+    activeGroupKey,
+    activeProject,
+    sectionIds,
+    { pinnedSession: activeSessionPinned },
+  );
+
+  // 侧栏行构建器所需的当前渲染状态与事件入口；`showActive` 决定该分组是否显示选中态。
+  const createItemDeps = (showActive: boolean): ProjectItemDeps & SessionItemDeps => ({
     activeProjectId,
     activeView,
     activeChatSessionId,
+    showActive,
+    onRowActivate: setActiveGroupKey,
     chatProvider,
     projectProvider,
     onNewChatInProject,
     onSelectChatSession,
-    isProjectExpanded: (projectId) => projectExpanded[projectId] ?? true,
+    attentionLabels: { approval: locale.awaitingApproval, question: locale.awaitingAnswer },
+    isProjectExpanded: (rowId) => projectExpanded[rowId] ?? true,
     onToggleProjectExpanded: toggleProjectExpanded,
     onExpandProject: expandProject,
-  };
+    onToggleProjectPin: (projectId) => {
+      void projectProvider?.togglePinProject?.(projectId);
+    },
+    sessionVisibleCount: sessionWindow.projectVisibleCount,
+    sessionListControl: sessionWindow.projectControl,
+    pinProjectLabel: locale.pinProject,
+    unpinProjectLabel: locale.unpinProject,
+  });
 
   const updateBuiltinExpanded = (
     updater: (current: Record<BuiltinGroupName, boolean>) => Record<BuiltinGroupName, boolean>,
@@ -221,9 +263,7 @@ export function NavigationGroups({
   const handleDropToProjects = (projectId: string) => {
     const project = projects.find((item) => item.id === projectId);
     if (!project) return;
-    if (project.pinned) {
-      void projectProvider?.togglePinProject?.(projectId);
-    }
+    // 置顶只是快捷入口，拖回「项目」分组不再顺带取消置顶，只把项目从自定义分区移出。
     if (project.sectionId) {
       void projectProvider?.assignProjectSection?.(projectId, null);
     }
@@ -260,79 +300,50 @@ export function NavigationGroups({
     />
   );
 
-  const customSectionGroups: SidebarGroupConfig[] = sections.map((section) => {
-    const sectionProjects = sortedProjects.filter((item) => !item.pinned && item.sectionId === section.id);
-    return {
-      id: `section:${section.id}`,
-      title: section.name,
-      collapsible: true,
-      isCustomSection: true,
-      expanded: sectionExpanded[section.id] ?? true,
-      onToggle: () => toggleCustomSection(section.id),
-      tools: sectionProvider?.renderSectionTools?.({
-        section,
-        onNewChatInSection,
-      }),
-      items: createProjectWithChatItems(sectionProjects, `sec-${section.id}`, chatSessions, itemDeps),
-      emptyText: locale.emptySectionDropHint,
-      onDropProject: (projectId) => handleDropToCustomSection(projectId, section.id),
-    };
+  const projectGroupsConfig = buildProjectGroups({
+    locale,
+    pinnedProjects,
+    unassignedProjects,
+    sections,
+    sectionProjects: projectGroups.inSection,
+    chatSessions,
+    expanded,
+    sectionExpanded,
+    resolvedActiveGroupKey,
+    createItemDeps,
+    projectTools,
+    sectionTools: (section) => sectionProvider?.renderSectionTools?.({ section, onNewChatInSection }),
+    canCreateProject: Boolean(renderCreateDialog),
+    projectCount: sortedProjects.length,
+    onCreateProject: () => setProjectDialogOpen(true),
+    onToggleSection: toggleCustomSection,
+    onToggleBuiltin: toggleBuiltin,
+    onDropProjectToSection: handleDropToCustomSection,
+    onDropProjectToPinned: handleDropToPinned,
+    onDropProjectToProjects: handleDropToProjects,
   });
 
+  const recentItems = createRecentSidebarItems(sortedRecents, {
+    projects,
+    chatSessions,
+    activeView,
+    activeProjectId,
+    chatProvider,
+    attentionLabels: { approval: locale.awaitingApproval, question: locale.awaitingAnswer },
+    onOpenProject,
+    onNavigate,
+  });
   const groups: SidebarGroupConfig[] = [
-    {
-      id: "pinned",
-      title: locale.pinned,
-      collapsible: true,
-      expanded: expanded.pinned,
-      onToggle: () => toggleBuiltin("pinned"),
-      items: createProjectWithChatItems(pinnedProjects, "pinned", chatSessions, itemDeps),
-      emptyText: locale.noPinnedItems,
-      onDropProject: handleDropToPinned,
-    },
-    ...customSectionGroups,
-    {
-      id: "projects",
-      title: locale.projects,
-      collapsible: true,
-      expanded: expanded.projects,
-      onToggle: () => toggleBuiltin("projects"),
-      tools: projectTools,
-      items: createProjectWithChatItems(unassignedProjects, "project", chatSessions, itemDeps),
-      emptyText: !renderCreateDialog
-        ? locale.projectsPluginMissing
-        : pinnedProjects.length > 0 && sortedProjects.length === pinnedProjects.length
-          ? locale.allProjectsPinned
-          : locale.noProjects,
-      ...(renderCreateDialog && sortedProjects.length === 0
-        ? {
-            emptyAction: {
-              label: locale.createNewProject,
-              icon: "plus" as const,
-              onClick: () => setProjectDialogOpen(true),
-            },
-          }
-        : {}),
-      onDropProject: handleDropToProjects,
-    },
-    {
-      id: "recent",
-      title: locale.recent,
-      collapsible: true,
+    ...projectGroupsConfig,
+    buildRecentGroup({
+      locale,
+      items: recentItems,
       expanded: expanded.recent,
       onToggle: () => toggleBuiltin("recent"),
       tools: recentTools,
-      items: createRecentSidebarItems(sortedRecents, {
-        projects,
-        chatSessions,
-        activeView,
-        activeProjectId,
-        chatProvider,
-        onOpenProject,
-        onNavigate,
-      }),
-      emptyText: locale.noRecentItems,
-    },
+      visibleCount: sessionWindow.recentVisibleCount(recentItems.length),
+      control: sessionWindow.recentControl(recentItems.length),
+    }),
   ];
 
   return (

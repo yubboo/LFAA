@@ -1,0 +1,15 @@
+{
+  "name": "@lfaa/app-desktop-host",
+  "description": "桌面端宿主进程：以 Electron 的 Node 模式运行 @lfaa/web-server 生产宿主，由 apps/desktop 作为子进程拉起。",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json --noEmit --composite false --incremental false"
+  },
+  "dependencies": {
+    "@lfaa/web-server": "workspace:*"
+  }
+}

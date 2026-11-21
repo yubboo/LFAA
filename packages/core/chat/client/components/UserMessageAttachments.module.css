@@ -1,0 +1,69 @@
+/* 用户消息图片：图片即卡片，多张时按 2–3 列排开，不留气泡内边距。 */
+.list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.3rem;
+  margin: 0;
+  /* 横向缩略卡：比原来的方形气泡更宽、更矮。 */
+  max-width: 21rem;
+  justify-items: end;
+  white-space: normal;
+}
+
+.list[data-count="2"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 26rem;
+}
+
+.list[data-count="3"] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  max-width: 30rem;
+}
+
+/* 竖图把容器收窄，避免裁掉主体，也避免两侧留白。 */
+.list:has(img[data-orientation="tall"]) {
+  max-width: 15rem;
+}
+
+/* 横图与方图按 16:10 缩略卡裁切（保留中间主体），竖图保留完整比例。 */
+.image {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: 1rem;
+  object-fit: cover;
+  background: var(--color-panel);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.1), 0 14px 30px -22px rgb(0 0 0 / 0.5);
+}
+
+.image[data-orientation="tall"] {
+  /* 竖图按高度定尺寸、宽度自适应：贴合画面，不再出现左右留白。 */
+  width: auto;
+  height: 20rem;
+  max-height: 20rem;
+  aspect-ratio: auto;
+  object-fit: contain;
+}
+
+.state {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--color-muted);
+  font-size: 0.84em;
+}
+
+.state button {
+  padding: 0.15rem 0.45rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.4rem;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.state button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}

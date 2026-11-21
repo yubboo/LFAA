@@ -82,6 +82,7 @@ test("Client chatClientPlugin 注册 workspace/配置视图/上下文面板与 c
   assert.ok(snap.views.some((v) => v.id === "settings:codeReview"), "应注册 settings:codeReview 代码审查设置页");
   assert.ok(snap.views.some((v) => v.id === "codeReview"), "应注册 codeReview 代码审查工作台");
   assert.ok(snap.contextPanels.some((p) => p.id === "agent-capabilities"), "应注册右侧 Agent 能力栏");
+  assert.ok(snap.contextPanels.some((p) => p.id === "library-inspector"), "应注册资料库右栏检视器");
   assert.ok(snap.chatProvider !== null, "应注册 chatProvider");
 
   await fiber.dispose();
@@ -95,6 +96,7 @@ test("Client chatClientPlugin 注册 workspace/配置视图/上下文面板与 c
   assert.equal(afterDispose.views.some((v) => v.id === "settings:codeReview"), false);
   assert.equal(afterDispose.views.some((v) => v.id === "codeReview"), false);
   assert.equal(afterDispose.contextPanels.some((p) => p.id === "agent-capabilities"), false);
+  assert.equal(afterDispose.contextPanels.some((p) => p.id === "library-inspector"), false);
   assert.equal(afterDispose.chatProvider, null);
 });
 

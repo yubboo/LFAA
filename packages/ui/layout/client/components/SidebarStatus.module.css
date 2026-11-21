@@ -1,0 +1,47 @@
+/* 左二列表的会话状态标记：Agent 进行中旋转圆弧与任务完成未读小圆点，两者互斥出现。 */
+.workingIcon {
+  color: var(--color-accent);
+  transform-origin: center;
+  animation: sidebarWorkingSpin 0.9s linear infinite;
+}
+
+@keyframes sidebarWorkingSpin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+.unreadDot {
+  flex: 0 0 auto;
+  width: 0.44rem;
+  height: 0.44rem;
+  margin-left: auto;
+  border-radius: 999px;
+  /* 跟随当前主题强调色与柔和外圈光晕 */
+  background: var(--color-accent);
+  box-shadow: 0 0 0 3.5px rgb(var(--color-accent-rgb) / 0.2);
+  /* 任务完成时由转圈切换成小圆点，轻微放大淡入让状态变化被看见。 */
+  animation: sidebarDoneDot 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes sidebarDoneDot {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workingIcon {
+    animation-duration: 2.4s;
+  }
+
+  .unreadDot {
+    animation: none;
+  }
+}

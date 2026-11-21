@@ -66,16 +66,19 @@ export function UserMessageActions({
   content,
   createdAt,
   onEdit,
+  persistent = false,
 }: {
   isZh: boolean;
   content: string;
   createdAt: number;
   onEdit: () => void;
+  /** 图片消息常驻时间与动作：图下需要一行时间戳，和图片卡片一起构成完整的消息块。 */
+  persistent?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
 
   return (
-    <div className={styles.userActions}>
+    <div className={styles.userActions} data-persistent={persistent ? "true" : undefined}>
       <span className={styles.timestamp}>{formatMessageTimestamp(createdAt, isZh)}</span>
       <HoverTip label={copied ? (isZh ? "已复制" : "Copied") : (isZh ? "复制消息" : "Copy message")}>
         <button

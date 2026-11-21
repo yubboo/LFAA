@@ -50,6 +50,13 @@ export function DomainSidebarMenu({
               onClick: () => onSelectLibraryTab("all"),
             },
             {
+              id: "lib-media",
+              label: isZh ? "图像" : "Images",
+              icon: "images",
+              active: activeLibraryTab === "media",
+              onClick: () => onSelectLibraryTab("media"),
+            },
+            {
               id: "lib-artifact",
               label: isZh ? "Agent 产物" : "Agent Outputs",
               icon: "gpt",
@@ -88,28 +95,6 @@ export function DomainSidebarMenu({
               icon: "home",
               onClick: () => onNavigate("workspace"),
             },
-          ],
-        },
-      ];
-    }
-
-    if (domain.id === "images") {
-      return [
-        {
-          id: "images-views",
-          title: isZh ? "图像画廊" : "Images",
-          items: [
-            { id: "img-hot", label: isZh ? "热门" : "Featured", icon: "images", active: !activeDomainItem || activeDomainItem === "img-hot", onClick: () => onSelectDomainItem("img-hot") },
-            { id: "img-templates", label: isZh ? "模板" : "Templates", icon: "palette", active: activeDomainItem === "img-templates", onClick: () => onSelectDomainItem("img-templates") },
-            { id: "img-mine", label: isZh ? "我的图像" : "My Images", icon: "project", active: activeDomainItem === "img-mine", onClick: () => onSelectDomainItem("img-mine") },
-          ],
-        },
-        {
-          id: "images-links",
-          title: isZh ? "快速跳转" : "Navigation",
-          items: [
-            { id: "img-lib", label: locale.library, icon: "library", onClick: () => onNavigate("library") },
-            { id: "img-home", label: locale.backToWorkspace, icon: "home", onClick: () => onNavigate("workspace") },
           ],
         },
       ];

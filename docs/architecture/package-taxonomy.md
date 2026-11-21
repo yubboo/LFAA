@@ -2,7 +2,7 @@
 
 状态：**强制规范**。新增包必须先按本文找到归属组，再动手；`pnpm check` 的 `package-group` 规则会拒绝未登记的分组。
 
-## 0. 已登记分组（已启用 web / goal / guard / spill / plan / fs / compaction / schedule / feedback / attachment / session / interaction）
+## 0. 已登记分组（已启用 web / goal / guard / spill / plan / fs / compaction / schedule / feedback / attachment / session / interaction / media）
 
 | 分组 | 职责 |
 | --- | --- |
@@ -18,6 +18,7 @@
 | `attachment` | 会话附件：`attachment-local` 把附件字节存到本机并按会话提供列出/读取工具。 |
 | `session` | 会话领域扩展：`session-title` 提供启发式 + 模型会话标题服务（`core/session` 依赖其纯函数）。 |
 | `interaction` | 交互扩展：`commands` 提供斜杠命令注册 seam（`/api/commands` 发现与执行）。 |
+| `media` | 媒体生成：`tool-media` 调用套餐生图模型生成图片并落盘到工作区（视频/语音后续）。 |
 
 ## 1. 为什么必须先分类
 

@@ -1,0 +1,83 @@
+/* 生成中的消息占位：按目标比例的骨架卡片 + 进度行，替代输入框上方的旧式状态条。 */
+.card {
+  display: grid;
+  gap: 0.6rem;
+  justify-items: start;
+  margin: 0.15rem 0 0.35rem;
+}
+
+/* 骨架用语义底色 + 扫光，深浅主题都不需要额外覆盖。 */
+.skeleton {
+  position: relative;
+  max-width: 100%;
+  border-radius: 1rem;
+  background: var(--color-active);
+  overflow: hidden;
+}
+
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 25%, rgb(255 255 255 / 0.14) 50%, transparent 75%);
+  transform: translateX(-100%);
+  animation: media-sweep 1.7s ease-in-out infinite;
+}
+
+.pulse {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  width: 1.9rem;
+  height: 1.9rem;
+  margin: -0.95rem 0 0 -0.95rem;
+  border-radius: 999px;
+  background: rgb(var(--color-accent-rgb) / 0.16);
+  animation: media-pulse 1.8s ease-in-out infinite;
+}
+
+.meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--color-muted);
+  font-size: 0.86em;
+}
+
+.ratioChip {
+  padding: 0.05rem 0.42rem;
+  border-radius: 999px;
+  background: var(--color-active);
+  color: var(--color-ink);
+  font-size: 0.94em;
+  font-variant-numeric: tabular-nums;
+}
+
+.spinner {
+  width: 0.72rem;
+  height: 0.72rem;
+  border: 2px solid rgb(var(--color-accent-rgb) / 0.3);
+  border-top-color: var(--color-accent);
+  border-radius: 999px;
+  animation: media-spin 0.9s linear infinite;
+}
+
+@keyframes media-sweep {
+  to { transform: translateX(100%); }
+}
+
+@keyframes media-pulse {
+  0%, 100% { transform: scale(0.85); opacity: 0.5; }
+  50% { transform: scale(1.08); opacity: 0.9; }
+}
+
+@keyframes media-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after,
+  .pulse,
+  .spinner {
+    animation: none;
+  }
+}

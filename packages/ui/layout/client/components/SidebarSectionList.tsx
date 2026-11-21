@@ -1,7 +1,9 @@
 // 统一的左二菜单栏列表原语：复用搜索框、分组标题、折叠能力、拖拽分区、空态与液态玻璃交互样式。
 import { useState, type ReactNode } from "react";
 import { NavigationIcon, type NavigationIconName } from "./NavigationIcon";
+import controlStyles from "./SidebarSectionList.controls.module.css";
 import styles from "./SidebarSectionList.module.css";
+import statusStyles from "./SidebarStatus.module.css";
 
 /** 定义侧栏列表行的名称、状态、动作和可选子层级。 */
 export interface SidebarItemConfig {
@@ -13,6 +15,18 @@ export interface SidebarItemConfig {
   expanded?: boolean;
   active?: boolean;
   unread?: boolean;
+  /** 会话需要用户处理时的状态：等待审批或等待回答澄清。 */
+  attention?: "approval" | "question";
+  /** 徽标文案，例如「待确认」「待回答」。 */
+  attentionLabel?: string;
+  /** 已置顶项目显示强调色图钉；未置顶的行不出现任何强调色标记。 */
+  pinned?: boolean;
+  /** 图钉按钮的悬停提示与无障碍文案。 */
+  pinLabel?: string;
+  /** 末尾的会话窗口控件（展开其余 / 收起）：不承载选中态与行内动作。 */
+  control?: boolean;
+  /** 点击图钉取消置顶；不传时图钉只作状态标记。 */
+  onTogglePin?: () => void;
   trailingHint?: string;
   title?: string;
   onClick: () => void;
@@ -132,7 +146,7 @@ export function SidebarSectionList({
                 <div className={styles.list}>
                   {group.items.length > 0 ? (
                     group.items.map((item) => (
-                      item.actions ? (
+                      item.actions || item.onTogglePin ? (
                         <div
                           key={item.id}
                           className={`${styles.itemRow} ${item.nested ? styles.itemNested : ""} ${item.active ? styles.itemActive : ""}`}
@@ -155,28 +169,71 @@ export function SidebarSectionList({
                             onClick={item.onClick}
                             onDoubleClick={item.onDoubleClick}
                           >
-                            {!item.hideIcon && <NavigationIcon name={item.icon} />}
+                            {!item.hideIcon && (
+                              <NavigationIcon name={item.icon} className={item.icon === "working" ? statusStyles.workingIcon : undefined} />
+                            )}
                             <span className={styles.label}>{item.label}</span>
-                            {item.unread && <span className={styles.unreadDot} aria-label="未读" />}
+                            {item.unread && <span className={statusStyles.unreadDot} aria-label="未读" />}
+                            {item.attention && item.attentionLabel && (
+                              <span
+                                className={styles.attentionBadge}
+                                data-attention={item.attention}
+                                title={item.attentionLabel}
+                              >
+                                {item.attentionLabel}
+                              </span>
+                            )}
                           </button>
-                          {item.trailingHint && (
+                          {!item.attention && item.trailingHint && (
                             <span className={styles.trailingHint}>{item.trailingHint}</span>
                           )}
                           <div className={styles.rowActions}>
                             {item.actions}
                           </div>
+                          {item.onTogglePin ? (
+                            <button
+                              type="button"
+                              className={`${styles.pinButton} ${item.pinned ? styles.pinButtonActive : ""}`}
+                              aria-label={item.pinLabel}
+                              aria-pressed={Boolean(item.pinned)}
+                              title={item.pinLabel}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                item.onTogglePin?.();
+                              }}
+                            >
+                              <NavigationIcon name="pin" />
+                            </button>
+                          ) : item.pinned ? (
+                            <NavigationIcon name="pin" className={styles.pinMarker} />
+                          ) : null}
                         </div>
                       ) : (
                         <button
                           key={item.id}
                           type="button"
-                          className={`${styles.item} ${item.nested ? styles.itemNested : ""} ${item.active ? styles.itemActive : ""}`}
+                          className={`${styles.item} ${item.nested ? styles.itemNested : ""} ${item.active ? styles.itemActive : ""} ${item.control ? controlStyles.moreButton : ""}`}
                           aria-current={item.active ? "page" : undefined}
+                          aria-expanded={item.expanded}
                           title={item.onMouseEnter ? undefined : (item.title ?? item.label)}
+                          data-sidebar-item={item.id}
+                          data-sidebar-control={item.control ? "true" : undefined}
                           onClick={item.onClick}
                         >
-                          {!item.hideIcon && <NavigationIcon name={item.icon} />}
+                          {!item.hideIcon && (
+                            <NavigationIcon name={item.icon} className={item.icon === "working" ? statusStyles.workingIcon : undefined} />
+                          )}
                           <span className={styles.label}>{item.label}</span>
+                          {item.pinned && <NavigationIcon name="pin" className={styles.pinMarker} />}
+                          {item.attention && item.attentionLabel && (
+                            <span
+                              className={styles.attentionBadge}
+                              data-attention={item.attention}
+                              title={item.attentionLabel}
+                            >
+                              {item.attentionLabel}
+                            </span>
+                          )}
                         </button>
                       )
                     ))

@@ -1,6 +1,6 @@
 // 解析并优先采信模型提供商 /models 返回的真实思考强度能力（effort.supported_levels），无多档参数时不虚构假数据。
 import { isDeepSeekEndpoint, resolveEffectiveProtocol } from "./protocol-utils";
-import type { LlmApiProtocol, LlmProviderKind, ModelCapabilityInfo, ReasoningEffortLevel } from "./types";
+import type { LlmApiProtocol, LlmProviderKind, ModelCapabilityInfo, ModelKind, ReasoningEffortLevel } from "./types";
 
 const VALID_LEVELS = new Set<ReasoningEffortLevel>(["minimal", "low", "medium", "high", "max"]);
 
@@ -11,6 +11,25 @@ export function asReasoningLevel(raw: unknown): ReasoningEffortLevel | undefined
     : undefined;
 }
 
+/** 依次匹配生图、生视频、语音类模型 ID，命中即不是对话模型。 */
+export function resolveModelKind(rawModelId: string): ModelKind {
+  const id = rawModelId.trim().toLowerCase();
+  if (!id) return "chat";
+  if (/(?:^|[-_/])(?:image|img|seedream|dall-e|flux|sdxl|kolors|wan\d*\.?\d*-image|qwen-image|image\d)(?:[-_/]|$)/u.test(id)
+    || /text2image|image-synthesis/u.test(id)) {
+    return "image";
+  }
+  if (/(?:^|[-_/])(?:video|seedance|veo|sora|wan\d*\.?\d*-video|video\d)(?:[-_/]|$)/u.test(id)
+    || /text2video|video-generation|video-synthesis/u.test(id)) {
+    return "video";
+  }
+  if (/(?:^|[-_/])(?:tts|asr|audio|speech|voice|realtime|whisper|cosyvoice|sambert)(?:[-_/]|$)/u.test(id)
+    || /audio\d|-audio-/u.test(id)) {
+    return "audio";
+  }
+  return "chat";
+}
+
 // 当 /models 接口未附带 effort 元数据时，基于公开模型家族规格兜底判断能力。
 export function resolveModelCapabilities(
   rawModelId: string,
@@ -18,6 +37,10 @@ export function resolveModelCapabilities(
 ): ModelCapabilityInfo {
   const id = rawModelId.trim();
   const lower = id.toLowerCase();
+  const modelKind = resolveModelKind(id);
+  if (modelKind !== "chat") {
+    return { id, modelKind, supportsReasoning: false, reasoningMode: "none", reasoningLevels: [] };
+  }
 
   if (
     lower.includes("deepseek-reasoner") ||
@@ -65,6 +88,46 @@ export function resolveModelCapabilities(
     };
   }
 
+  // 国产套餐常见思考模型：/models 列表通常不带 effort 元数据，按公开家族规格兜底。
+  if (/^qwen3(?:[.\-]|$)/u.test(lower) || lower.includes("/qwen3") || lower.includes("qwen3-max") || lower.includes("qwen3-plus")) {
+    // 百炼 Qwen3 通过 enable_thinking + thinking_budget 调节思考深度。
+    return {
+      id,
+      supportsReasoning: true,
+      reasoningMode: "effort",
+      reasoningLevels: ["low", "medium", "high"],
+      defaultReasoningLevel: "medium",
+    };
+  }
+
+  if (lower.includes("glm-5") || lower.includes("glm-4.6") || lower.includes("glm-4.5")) {
+    // 智谱 GLM 系思考为原生固定开启，不提供多档强度。
+    return {
+      id,
+      supportsReasoning: true,
+      reasoningMode: "fixed",
+      reasoningLevels: [],
+    };
+  }
+
+  if (lower.includes("kimi-k2") && lower.includes("thinking")) {
+    return {
+      id,
+      supportsReasoning: true,
+      reasoningMode: "fixed",
+      reasoningLevels: [],
+    };
+  }
+
+  if (lower.includes("minimax-m3") || lower.includes("minimax-m2")) {
+    return {
+      id,
+      supportsReasoning: true,
+      reasoningMode: "fixed",
+      reasoningLevels: [],
+    };
+  }
+
   if (lower.includes("grok-3-mini")) {
     return {
       id,
@@ -107,6 +170,7 @@ export function normalizeModelCapability(
   return {
     ...fallback,
     ...(raw.displayName ? { displayName: raw.displayName } : {}),
+    ...(raw.modelKind ? { modelKind: raw.modelKind } : {}),
   };
 }
 

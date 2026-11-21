@@ -53,7 +53,7 @@ export const workspaceClientPlugin: Plugin.Object<void> = {
       onProjectRowEnter: (project, element) => menuStore.onRowEnter(project.id, element),
       onProjectRowLeave: (project) => menuStore.onRowLeave(project.id),
       closeProjectMenus: () => menuStore.closeAll(),
-      isProjectRowHighlighted: (projectId) => menuStore.isRowHighlighted(projectId),
+      isProjectRowHighlighted: (projectId, rowKey) => menuStore.isRowHighlighted(projectId, rowKey),
       renderProjectRowActions: ({ project, onNewChatInProject }) => (
         <ProjectRowActions
           locale={locale}

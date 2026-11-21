@@ -74,7 +74,7 @@ export function ModelReasoningPicker({
   const arkModel = resolveArkModel(activeProfile, arkPlan);
   const arkLabels = arkModelMessages[isZh ? "zh" : "en"];
 
-  // 方舟使用套餐公开目录，其余档案（含普通 API、其他套餐与本地服务）优先展示已同步的模型清单。
+  // 使用当前档案下发的模型清单，让选择器与发送路由共用同一份能力信息。
   const brandModels = useMemo(
     () => buildBrandModels(activeProfile, arkPlan),
     [activeProfile, arkPlan],
@@ -83,6 +83,26 @@ export function ModelReasoningPicker({
   const activeModelId = resolveActiveModelId(arkModel, brandModels, activeProfile);
 
   const activeModelCap = resolveActiveModelCap(brandModels, activeModelId);
+
+  // 模型按用途分组：语言 / 视觉（图像与视频）/ 语音，避免所有模型挤在一个长列表里。
+  const modelSections = useMemo(() => {
+    type Item = (typeof brandModels)[number];
+    const groups = new Map<string, { label: string; items: Item[] }>();
+    for (const item of brandModels) {
+      const kind = item.modelKind ?? "chat";
+      const key = kind === "image" || kind === "video" ? "vision" : kind === "audio" ? "speech" : "chat";
+      const label = key === "vision"
+        ? (isZh ? "视觉模型" : "Vision models")
+        : key === "speech" ? (isZh ? "语音模型" : "Speech models") : (isZh ? "语言模型" : "Language models");
+      const group = groups.get(key) ?? { label, items: [] };
+      group.items.push(item);
+      groups.set(key, group);
+    }
+    return ["chat", "vision", "speech"].flatMap((key) => {
+      const group = groups.get(key);
+      return group ? [{ key, label: group.label, items: group.items }] : [];
+    });
+  }, [brandModels, isZh]);
 
   // 只有模型支持多档强度才生成滑块选项。方舟的 minimal 若可关闭思考则显示「关闭」。
   const levelOptions = useMemo(
@@ -114,7 +134,7 @@ export function ModelReasoningPicker({
         onToggle={() => setPanelMode((prev) => (prev === "closed" ? "models" : "closed"))}
       />
 
-      {/* 选模视图只展示当前档案可用于聊天的模型，品牌切换在独立视图内处理。 */}
+      {/* 选模视图展示当前档案的模型，品牌切换在独立视图内处理。 */}
       <PopoverCard
         open={panelMode === "models"}
         label={isZh ? "选择模型" : "Select Model"}
@@ -182,25 +202,30 @@ export function ModelReasoningPicker({
           {/* 模型列表的标题说明目录来源，协议标签显示当前档案使用的接口格式。 */}
           <div className={styles.modelSubHeaderRow}>
             <span className={styles.modelGroupLabel}>
-              {arkPlan ? arkLabels.chatCatalog : providerPlan
+              {arkPlan ? (isZh ? "方舟官方模型目录" : "Official Ark catalog") : providerPlan
                 ? providerAccessMessages[isZh ? "zh" : "en"].selectedModel
                 : (isZh ? "当前品牌官方模型" : "Official Brand Models")}
             </span>
             <span className={styles.protocolTag}>{getProtocolShortLabel(activeProfile.apiProtocol)}</span>
           </div>
           <div className={styles.modelList}>
-            {brandModels.map((item) => (
-              <ModelOptionRow
-                key={item.id}
-                item={item}
-                selected={item.id === activeModelId}
-                arkPlan={arkPlan}
-                arkLabels={arkLabels}
-                onSelect={() => {
-                  onSelectBrandModel(activeProfile.id, item.id);
-                  setPanelMode("closed");
-                }}
-              />
+            {modelSections.map((section) => (
+              <div key={section.key} className={styles.modelSection} role="group" aria-label={section.label}>
+                <div className={styles.modelSectionLabel}>{section.label}</div>
+                {section.items.map((item) => (
+                  <ModelOptionRow
+                    key={item.id}
+                    item={item}
+                    selected={item.id === activeModelId}
+                    arkPlan={arkPlan}
+                    arkLabels={arkLabels}
+                    onSelect={() => {
+                      onSelectBrandModel(activeProfile.id, item.id);
+                      setPanelMode("closed");
+                    }}
+                  />
+                ))}
+              </div>
             ))}
           </div>
 
@@ -220,6 +245,14 @@ export function ModelReasoningPicker({
               {arkPlan
                 ? arkLabels.supported
                 : (isZh ? "思考模式：官方原生固定开启（无多档强度）" : "Reasoning: Fixed native thinking")}
+            </div>
+          ) : activeModelCap.modelKind && activeModelCap.modelKind !== "chat" ? (
+            <div className={styles.staticInfoRow}>
+              {activeModelCap.modelKind === "image"
+                ? (isZh ? "生图模式：直接输入描述即生成，可继续说「再亮一点」「改成水彩」调整；切换对话模型可正常聊天" : "Image mode: type a prompt to generate; refine with follow-ups. Switch to a chat model to chat.")
+                : activeModelCap.modelKind === "video"
+                  ? (isZh ? "生视频模型：用于视频生成，聊天请切换到对话模型" : "Video model: generate videos instead of chat")
+                  : (isZh ? "语音模型：用于语音合成/识别，聊天请切换到对话模型" : "Audio model: speech synthesis/recognition, not chat")}
             </div>
           ) : (
             <div className={styles.staticInfoRow}>

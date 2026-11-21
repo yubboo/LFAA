@@ -28,4 +28,4 @@ This package lives in `packages/core/memory`.
 
 ## Dev Note
 
-None.
+Session records keep image attachment references with their user messages; attachment bytes remain in the session-scoped attachment store.

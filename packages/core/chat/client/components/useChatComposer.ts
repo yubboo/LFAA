@@ -3,6 +3,9 @@ import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import type { ChatClientStore } from "../chat-store";
 import type { ChatLocaleMessages } from "../locales";
 import type { ChatSessionDetail, ChatStoreSnapshot } from "../chat-types";
+import { collectImageAttachmentIds } from "../composer-attachments";
+import { useMediaOptions } from "./useMediaOptions";
+import { submitMediaGeneration } from "../media-submit";
 import {
   buildContextualMessage,
   buildMentionEntries,
@@ -19,6 +22,7 @@ import {
   type SlashCommandEntry,
 } from "../composer-context";
 import { fetchCodingSettings, postRunCodeReview } from "../coding-settings-client";
+import { filterConfiguredProfiles, resolveActiveProfile } from "./model-reasoning-options";
 
 interface SkillItem { id: string; name: string; description: string; source: string }
 
@@ -45,7 +49,8 @@ export function useChatComposer({
 }) {
   const projectId = activeProjectId ?? null;
   const [draft, setDraft] = useState("");
-  const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
+  const [allAttachments, setAttachments] = useState<ComposerAttachment[]>([]);
+  const attachments = allAttachments.filter((item) => !item.mediaSource || item.mediaSource.sessionId === activeSession?.id);
   const [mentionTrigger, setMentionTrigger] = useState<{ query: string; startIndex: number } | null>(null);
   const [mentionIndex, setMentionIndex] = useState(0);
   const [slashTrigger, setSlashTrigger] = useState<{ query: string; startIndex: number } | null>(null);
@@ -55,8 +60,13 @@ export function useChatComposer({
   const [availableSkills, setAvailableSkills] = useState<SkillItem[]>([]);
   const [openProjectSignal, setOpenProjectSignal] = useState(0);
   const [contextNotice, setContextNotice] = useState("");
+  // 生图选项：画幅与风格（auto 交给宿主识别 / 提示词导演），发送后按实际比例回写。
+  const media = useMediaOptions();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const submitProfile = resolveActiveProfile(filterConfiguredProfiles(state.profiles), state.activeProfileId);
+  const submitKind = submitProfile?.availableModels?.find((item) => item.id === submitProfile.model)?.modelKind;
+  const selectedMediaKind = submitKind !== "chat" ? submitKind : undefined;
 
   useEffect(() => {
     const req = state.pendingComposerInsert;
@@ -74,6 +84,7 @@ export function useChatComposer({
     setAttachments((prev) => {
       const next = [...prev];
       for (const item of items) {
+        if (item.mediaSource && next.some((existing) => existing.id === item.id)) continue;
         if (item.kind === "mode" && next.some((existing) => existing.kind === "mode" && existing.modeId === item.modeId)) {
           continue;
         }
@@ -299,6 +310,36 @@ export function useChatComposer({
     const raw = (customText ?? draft).trim();
     if (!raw && attachments.length === 0) return;
 
+    // 选中生图/生视频/语音模型时：把描述直接交给媒体生成链路，不再拦截。
+    if (selectedMediaKind) {
+      if (isRunning) return;
+      const mediaKind = selectedMediaKind;
+      if (!raw) { focusTextareaAt(0); return; }
+      setDraft("");
+      setAttachments([]);
+      setSlashTrigger(null);
+      // 生成中的进度由消息区的生成占位呈现，不再占用输入框上方的状态行。
+      const result: { ok: boolean; error?: string; ratio?: string } = await submitMediaGeneration({
+        store,
+        kind: mediaKind,
+        prompt: raw,
+        attachments,
+        profile: submitProfile,
+        ratio: media.ratio,
+        style: media.style,
+      }).catch((error: unknown) => ({ ok: false, error: error instanceof Error ? error.message : String(error) }));
+      if (!result.ok) {
+        setDraft((current) => current || raw);
+        setAttachments((current) => current.length ? current : attachments);
+      }
+      setContextNotice(result.ok
+        ? ""
+        : (result.error ?? (locale.isZh ? "生成失败，请稍后重试。" : "Generation failed.")));
+      if (result.ok) media.syncRatio(result.ratio);
+      focusTextareaAt(0);
+      return;
+    }
+
     if (!customText) {
       if (raw === "/new") {
         store.startNewChatDraft({ projectId, sectionId: activeSession?.sectionId ?? null });
@@ -357,7 +398,15 @@ export function useChatComposer({
     const selectedSkillIds = effectiveAttachments
       .filter((a) => a.kind === "skill" && a.skillId)
       .map((a) => a.skillId!);
-    const nonSkillAttachments = effectiveAttachments.filter((a) => a.kind !== "skill");
+    const referenceSources = effectiveAttachments.flatMap((item) => item.mediaSource
+      ? [{ messageId: item.mediaSource.messageId, path: item.mediaSource.path }] : []);
+    // 图片附件同样交给 Host 记录到用户消息，气泡才能像直连生图一样显示缩略图。
+    const imageAttachmentIds = collectImageAttachmentIds(effectiveAttachments);
+    if (isRunning && (referenceSources.length || imageAttachmentIds.length)) {
+      setContextNotice(locale.isZh ? "请等待当前任务结束，再发带图片的消息。" : "Wait for the current run before sending images.");
+      return;
+    }
+    const nonSkillAttachments = effectiveAttachments.filter((a) => a.kind !== "skill" && !a.mediaSource);
     let finalMessage = customText ? raw : buildContextualMessage(effectiveRaw, nonSkillAttachments);
     if (!finalMessage) return;
     const prevDraft = draft;
@@ -395,7 +444,7 @@ export function useChatComposer({
       if (isRunning) {
         await store.submitFollowUp(finalMessage, invertFollowUp);
       } else {
-        await store.sendMessage(finalMessage, selectedSkillIds);
+        await store.sendMessage(finalMessage, selectedSkillIds, referenceSources, imageAttachmentIds);
       }
     } catch (err) {
       if (!customText) {
@@ -412,6 +461,11 @@ export function useChatComposer({
     draft,
     setDraft,
     attachments,
+    selectedMediaKind,
+    mediaRatio: media.ratio,
+    setMediaRatio: media.setRatio,
+    mediaStyle: media.style,
+    setMediaStyle: media.setStyle,
     setAttachments,
     appendAttachments,
     contextNotice,

@@ -18,10 +18,18 @@ process.env.LFAA_COMMAND_AUDIT_LOG = path.join(os.tmpdir(), `lfaa-agent-audit-${
 
 test("需求澄清随消息保存并阻止同一批次的文件修改", async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-clarification-"));
+  let callCount = 0;
   const ctx = new Context();
   await ctx.plugin(llmPlugin, {
     storeFilePath: path.join(dir, "llm.json"),
     adapter: async (profile, input) => {
+      callCount += 1;
+      if (callCount > 1) {
+        return {
+          model: profile.model, provider: profile.kind, content: "好的，按个人介绍处理。", finishReason: "stop",
+          usage: { promptTokens: 30, completionTokens: 6, cachedPromptTokens: 0 }, toolCalls: [],
+        };
+      }
       assert.ok(input.tools?.some((tool) => tool.name === "ask_user"));
       return {
         model: profile.model, provider: profile.kind, content: "", finishReason: "tool_calls",
@@ -52,6 +60,31 @@ test("需求澄清随消息保存并阻止同一批次的文件修改", async ()
     assert.deepEqual(saved?.clarification, { question: "页面用于什么？", options: ["个人介绍", "产品展示"] });
     assert.equal(saved?.metrics?.contextPromptTokens, 100);
     assert.deepEqual(saved?.metrics?.cacheMeasurement, { promptTokens: 100, cachedTokens: 0 });
+    // 澄清问题同时进入会话摘要与待处理列表，侧栏可据此显示「待回答」。
+    assert.deepEqual((await ctx.memory.getSession(session.id))?.pendingQuestion, {
+      messageId: saved?.id,
+      question: "页面用于什么？",
+      options: ["个人介绍", "产品展示"],
+    });
+    assert.deepEqual(await ctx.agent.listAttention(), [{
+      sessionId: session.id,
+      kind: "question",
+      question: "页面用于什么？",
+      options: ["个人介绍", "产品展示"],
+      messageId: saved?.id,
+    }]);
+    // 用户回答（新消息）后待回答状态清除。
+    const followUp = await ctx.agent.startRun({
+      sessionId: session.id, userMessage: "个人介绍", workspaceRoots: [dir], permissionMode: "full",
+    });
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("等待回答后的运行超时")), 5000);
+      const off = ctx.agent.subscribeRun(followUp.runId, (event) => {
+        if (event.type === "run_finished") { clearTimeout(timer); off(); resolve(); }
+      });
+    });
+    assert.equal((await ctx.memory.getSession(session.id))?.pendingQuestion, undefined);
+    assert.deepEqual(await ctx.agent.listAttention(), []);
     await assert.rejects(fs.access(path.join(dir, "unwanted.txt")), { code: "ENOENT" });
     await assert.rejects(fs.access(path.join(dir, ".git")), { code: "ENOENT" });
   } finally {

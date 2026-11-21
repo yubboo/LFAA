@@ -9,7 +9,6 @@ export type WorkbenchDomainId =
   | "workspace"
   | "settings"
   | "library"
-  | "images"
   | "scheduled"
   | "plugins"
   | "codeReview"
@@ -56,14 +55,6 @@ export function resolveWorkbenchDomain(view: string, locale: LocaleMessages): Wo
         kind: "sectionTitle",
         title: locale.library,
       },
-    };
-  }
-  if (view === "images") {
-    return {
-      id: "images",
-      columns: 3,
-      sidebarAriaLabel: locale.images,
-      sidebarHeader: { kind: "sectionTitle", title: locale.images },
     };
   }
   if (view === "scheduled") {
@@ -113,7 +104,6 @@ export function resolveWorkbenchDomain(view: string, locale: LocaleMessages): Wo
 export function buildNavigationTargets(locale: LocaleMessages, projects: LocalProject[]): NavigationTarget[] {
   const destinations: Array<[NavigationView, string, string]> = [
     ["workspace", locale.home, locale.chatModeDescription],
-    ["images", locale.images, locale.imagesUnavailable],
     ["scheduled", locale.scheduled, locale.scheduledUnavailable],
     ["library", locale.library, locale.libraryUnavailable],
     ["plugins", locale.plugins, locale.pluginsUnavailable],
@@ -150,7 +140,6 @@ export function resolveViewLabel(view: string, locale: LocaleMessages, registere
   const labels: Record<string, string> = {
     workspace: locale.home,
     appearance: locale.appearance,
-    images: locale.images,
     scheduled: locale.scheduled,
     library: locale.library,
     plugins: locale.plugins,

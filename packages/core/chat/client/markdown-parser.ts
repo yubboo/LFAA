@@ -3,14 +3,47 @@
 export type TableAlign = "left" | "center" | "right";
 
 /** 建议类标题：命中后整段用强调色突出，便于一眼看到 Agent 给出的下一步建议。 */
-const ADVICE_HEADING_ZH = /建议|下一步|推荐|执行顺序|行动项|后续步骤|可改进|待办|方案/iu;
-const ADVICE_HEADING_EN = /suggest|next step|recommend|plan|todo|action item|improve/iu;
+// 行动类标题：顺序、步骤、排查、修正、检查等同样属于「接下来怎么做」，一并高亮并可点选。
+const ADVICE_HEADING_ZH = /建议|下一步|推荐|顺序|步骤|方案|计划|排查|修复|修正|实施|流程|清单|行动|待办|做法|如何|检查|确认|改进|优化|交付|测试|部署|优先级|取舍/iu;
+const ADVICE_HEADING_EN = /suggest|next step|recommend|plan|todo|action item|improve|steps?|procedure|checklist|fix|verify|priority/iu;
+// 事实/结论类标题即使含「检查、验证」等词也不转换成可点选项。
+const FACT_HEADING_ZH = /事实|结论|背景|原因|现状|数据|结果|说明|已验证|历史|概述|摘要|参考/iu;
+const FACT_HEADING_EN = /fact|conclusion|background|reason|status|data|result|summary|history|context/iu;
 
-/** 判断标题是否属于「建议/下一步」类，供渲染层加强调样式。 */
+// 段落引导句比标题更严格：只认明确的行动词，避免「这轮还确认了两点」这类事实段被误转。
+const ADVICE_LEAD_IN_ZH = /建议|下一步|推荐|顺序|步骤|方案|计划|排查|修复|修正|做法|如何|待办|行动项|实施|流程/iu;
+const ADVICE_LEAD_IN_EN = /suggest|next step|recommend|steps?|plan|todo|action item|how to|procedure/iu;
+
+/** 判断标题是否属于「建议/下一步/行动」类：行动词命中且不是事实结论段。 */
 export function isAdviceHeading(text: string): boolean {
   const value = text.trim();
   if (!value) return false;
+  if (FACT_HEADING_ZH.test(value) || FACT_HEADING_EN.test(value)) return false;
   return ADVICE_HEADING_ZH.test(value) || ADVICE_HEADING_EN.test(value);
+}
+
+/** 判断一句引导语是否足以把后续列表当作行动建议（比标题判定更严格）。 */
+export function isAdviceLeadIn(text: string): boolean {
+  const value = text.trim();
+  if (!value || value.length > 80) return false;
+  if (FACT_HEADING_ZH.test(value) || FACT_HEADING_EN.test(value)) return false;
+  return ADVICE_LEAD_IN_ZH.test(value) || ADVICE_LEAD_IN_EN.test(value);
+}
+
+// 旧版媒体工具把绝对路径写进列表项：`- 本地文件：C:\...\a.png（7510.8 KB）` 后面跟缩进的图片。
+// 显示时只留图片本身，连同历史消息一起保持新版排版；路径信息仍留在会话记录的 metadata 里。
+const LEGACY_MEDIA_FILE_RE =
+  /^[ \t]*[-*]\s*本地文件：(.+?)[（(]([^）)]*)[）)][ \t]*\r?\n[ \t]*(!\[[^\]]*\]\([^)\s]+\))/gmu;
+
+// 过渡版本的「已保存：xxx.png（8.1 MB）」独立段落同样含文件细节，一并收掉，避免同一会话新旧排版混用。
+const LEGACY_SAVED_LINE_RE = /^[ \t]*已保存：[^\n（(]+[（(][^）)]*[）)][ \t]*\r?\n?/gmu;
+
+/** 把历史消息里的「本地文件：绝对路径 + 缩进图片」「已保存：文件名（大小）」收成只含图片的新版段落。 */
+export function normalizeLegacyMediaOutput(content: string): string {
+  if (!content.includes("本地文件：") && !content.includes("已保存：")) return content;
+  return content
+    .replace(LEGACY_MEDIA_FILE_RE, (_matched, _path: string, _size: string, image: string) => `\n${image}`)
+    .replace(LEGACY_SAVED_LINE_RE, "");
 }
 
 /** 描述解析出的 Markdown 文档块，由对应视图渲染。 */

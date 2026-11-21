@@ -44,3 +44,5 @@ This assembly bundle lives in `packages/bundle/web`.
 ## Dev Note
 
 The Web bundle defines the built-in session presets. Standard includes delegation, Creative focuses on content and artifacts, and Minimal enables lightweight read-only work. PTC remains unavailable until its runtime is integrated.
+
+Standard and Creative include media generation tools. Existing sessions with the original built-in combinations receive the same media capability at runtime.

@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { IconPencil, IconSparkles, IconX } from "@tabler/icons-react";
 import type { GeneralSettingsConfig } from "../general-settings-client";
+import { NotificationSettingsGroup } from "./NotificationSettingsGroup";
 import { SettingGroupCard, SettingRow, SettingSelect, SettingSwitch } from "./GeneralSettingsControls";
 import styles from "./GeneralSettingsView.module.css";
 
@@ -122,6 +123,29 @@ export function GeneralSettingsSecondary({
             </div>
           )}
         />
+
+        {/* 行为预览：与输入框实际排队/插话逻辑保持一致，设置切换即时更新。 */}
+        <div className={styles.followUpPreview} aria-live="polite">
+          <span className={styles.followUpPreviewLabel}>
+            {isZh ? "行为预览" : "Preview"}
+          </span>
+          <span className={styles.followUpPreviewRow}>
+            <span className={styles.followUpPreviewKey}>Enter</span>
+            <span>
+              {cfg.followUpMode === "queue"
+                ? (isZh ? "→ 加入排队，当前运行结束后依次发送" : "→ queues; sends after the run finishes")
+                : (isZh ? "→ 立即插话，中止当前运行并继续提问" : "→ steers now, interrupting the run")}
+            </span>
+          </span>
+          <span className={styles.followUpPreviewRow}>
+            <span className={styles.followUpPreviewKey}>Ctrl+Enter</span>
+            <span>
+              {cfg.followUpMode === "queue"
+                ? (isZh ? "→ 单条立即插话；有排队时发送全部" : "→ steer one; flushes all queued when any")
+                : (isZh ? "→ 改为排队；有排队时发送全部" : "→ queue instead; flushes all queued when any")}
+            </span>
+          </span>
+        </div>
       </SettingGroupCard>
 
       <SettingGroupCard title={isZh ? "Agent 行为" : "Agent behavior"}>
@@ -198,71 +222,7 @@ export function GeneralSettingsSecondary({
       </SettingGroupCard>
 
       <SettingGroupCard title={isZh ? "通知" : "Notifications"}>
-        <SettingRow
-          title={isZh ? "轮次完成通知" : "Turn completion alerts"}
-          description={isZh ? "设置 LFAA 完成后何时提醒你" : "Choose when to alert after a turn finishes"}
-          control={(
-            <SettingSelect
-              value={cfg.turnCompleteNotification}
-              label={isZh ? "轮次完成通知" : "Turn completion alerts"}
-              options={[
-                { value: "unfocused", label: isZh ? "仅在未聚焦时" : "When unfocused" },
-                { value: "always", label: isZh ? "始终通知" : "Always" },
-                { value: "off", label: isZh ? "关闭" : "Off" },
-              ]}
-              onChange={(turnCompleteNotification) => onPatch({ turnCompleteNotification })}
-            />
-          )}
-        />
-        <SettingRow
-          title={isZh ? "启用权限通知" : "Permission notifications"}
-          description={isZh ? "当对话串需要你批准时显示提醒" : "Notify when an action needs your approval"}
-          control={(
-            <SettingSwitch
-              checked={cfg.enableApprovalNotification}
-              label={isZh ? "启用权限通知" : "Permission notifications"}
-              onChange={(enableApprovalNotification) => onPatch({ enableApprovalNotification })}
-            />
-          )}
-        />
-        <SettingRow
-          title={isZh ? "启用问题通知" : "Question notifications"}
-          description={isZh ? "当对话串中有人提问时显示提醒" : "Notify when a thread asks a question"}
-          control={(
-            <SettingSwitch
-              checked={cfg.enableQuestionNotification}
-              label={isZh ? "启用问题通知" : "Question notifications"}
-              onChange={(enableQuestionNotification) => onPatch({ enableQuestionNotification })}
-            />
-          )}
-        />
-        <SettingRow
-          title={isZh ? "启用 Dot 通知" : "Dot notifications"}
-          description={isZh ? "当智能体向你发送消息或需要你提供意见时显示提醒" : "Notify when the assistant requests input"}
-          control={(
-            <SettingSwitch
-              checked={cfg.enableDotNotification}
-              label={isZh ? "启用 Dot 通知" : "Dot notifications"}
-              onChange={(enableDotNotification) => onPatch({ enableDotNotification })}
-            />
-          )}
-        />
-        <SettingRow
-          title={isZh ? "通知提示音" : "Notification sound"}
-          description={isZh ? "任务完成、请求权限和提问时的提示音" : "Sound played for completion and approval prompts"}
-          control={(
-            <SettingSelect
-              value={cfg.notificationSound}
-              label={isZh ? "通知提示音" : "Notification sound"}
-              options={[
-                { value: "default", label: isZh ? "默认" : "Default" },
-                { value: "chime", label: isZh ? "清脆提示音" : "Chime" },
-                { value: "mute", label: isZh ? "静音" : "Muted" },
-              ]}
-              onChange={(notificationSound) => onPatch({ notificationSound })}
-            />
-          )}
-        />
+        <NotificationSettingsGroup isZh={isZh} cfg={cfg} onPatch={onPatch} />
       </SettingGroupCard>
 
       <SettingGroupCard title={isZh ? "趣味实验" : "Experiments"}>

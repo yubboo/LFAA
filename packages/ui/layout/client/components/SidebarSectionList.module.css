@@ -230,15 +230,30 @@
   white-space: nowrap;
 }
 
-.unreadDot {
+/* 会话状态徽标：待确认用警示色，待回答用信息色；悬停让位给行内操作。 */
+.attentionBadge {
   flex: 0 0 auto;
-  width: 0.44rem;
-  height: 0.44rem;
-  margin-left: auto;
+  padding: 0.05rem 0.38rem;
+  border: 1px solid rgb(var(--color-warning-rgb) / 0.35);
   border-radius: 999px;
-  /* 跟随当前主题强调色与柔和外圈光晕 */
-  background: var(--color-accent);
-  box-shadow: 0 0 0 3.5px rgb(var(--color-accent-rgb) / 0.2);
+  background: rgb(var(--color-warning-rgb) / 0.12);
+  color: var(--color-warning);
+  font-size: 0.72em;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.attentionBadge[data-attention="question"] {
+  border-color: rgb(var(--color-info-rgb) / 0.35);
+  background: rgb(var(--color-info-rgb) / 0.12);
+  color: var(--color-info);
+}
+
+.itemRow:hover .attentionBadge,
+.itemRow:has(:focus-visible) .attentionBadge,
+.itemRow[data-actions-visible="true"] .attentionBadge {
+  display: none;
 }
 
 .itemRow:hover .trailingHint,
@@ -283,6 +298,48 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* 项目行图钉：未置顶为中性色，已置顶用强调色（强调色只代表置顶）。 */
+.pinButton {
+  display: grid;
+  width: 1.4rem;
+  height: 1.4rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  border-radius: 0.4rem;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.pinButton:hover {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.pinButtonActive,
+.pinButtonActive:hover {
+  color: var(--color-accent);
+}
+
+.pinButtonActive:hover {
+  background: rgb(var(--color-accent-rgb) / 0.14);
+}
+
+.pinButton > svg {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+.itemRow > .pinMarker,
+.item > .pinMarker {
+  width: 0.8rem;
+  height: 0.8rem;
+  flex: 0 0 auto;
+  color: var(--color-accent);
 }
 
 .emptyAction {

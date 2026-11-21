@@ -512,12 +512,41 @@ function Test-LaunchedStandalone {
   return $false
 }
 
+# 启动前释放 LFAA Web 占用的本地端口：仅结束后台监听且命令行属于本仓库的 node/pnpm 进程，避免误杀其他程序。
+function Stop-LfaaWebListeners {
+  $ports = @(5173, 5174, 5175, 5176, 5177)
+  $released = 0
+  foreach ($port in $ports) {
+    $conn = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $conn) { continue }
+    $processId = $conn.OwningProcess
+    if (-not $processId) { continue }
+    $process = Get-CimInstance Win32_Process -Filter "ProcessId=$processId" -ErrorAction SilentlyContinue
+    $commandLine = $process.CommandLine
+    if (-not $commandLine) { continue }
+    $isLfaaProcess = $commandLine -match "lfaa" -or $commandLine -match [regex]::Escape($repoRoot)
+    if (-not $isLfaaProcess) {
+      Write-Host "端口 $port 被其他程序占用（PID $processId），未自动释放。" -ForegroundColor Yellow
+      continue
+    }
+    Write-Host "释放端口 $port：结束旧的 LFAA Web 进程（PID $processId）..." -ForegroundColor Cyan
+    Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
+    $released += 1
+    Start-Sleep -Milliseconds 600
+  }
+  if ($released -eq 0) {
+    Write-Host "端口 5173 空闲，直接启动。" -ForegroundColor DarkGray
+  }
+}
+
 while ($true) {
   Write-Host ""
   Write-Host "================ LFAA ================" -ForegroundColor Cyan
   Write-Host "【开发与运行】" -ForegroundColor Cyan
   Write-Host "  1. 安装依赖（pnpm install --prefer-offline）" -ForegroundColor White
-  Write-Host "  2. 启动 Web（pnpm lfaa web）" -ForegroundColor Green
+  Write-Host "  2. 启动 Web（自动结束旧进程并占用 5173 重启）" -ForegroundColor Green
+  Write-Host "  3. 启动桌面端（Electron 窗口，复用已构建产物）" -ForegroundColor Green
+  Write-Host "  7. 构建桌面端安装包（NSIS → apps/desktop/.desktop-build/release）" -ForegroundColor Yellow
   Write-Host ""
   Write-Host "【GitHub 源码同步 · yubboo/LFAA】" -ForegroundColor Magenta
   Write-Host "  4. 一键推送到 GitHub（普通推送 + 安全检测）" -ForegroundColor White
@@ -556,6 +585,9 @@ while ($true) {
         continue
       }
 
+      # 启动前释放被占用的 5173~5177 端口，避免每次都要手动关掉旧进程。
+      Stop-LfaaWebListeners
+
       # 依赖状态检查成功后才启动，避免把依赖错误隐藏为服务启动失败。
       & node (Join-Path $PSScriptRoot "ensure-dependencies.mjs")
       $exitCode = $LASTEXITCODE
@@ -567,6 +599,33 @@ while ($true) {
       }
       if ($exitCode -ne 0) {
         Write-Host "LFAA Web 启动失败，退出码：$exitCode" -ForegroundColor Red
+      }
+    }
+    "3" {
+      # 桌面端依赖 packages/lib 与 Web 产物；缺产物时给出明确构建入口，不静默启动空窗口。
+      $desktopEntry = Join-Path $repoRoot "apps/desktop/dist/main.js"
+      $webDist = Join-Path $repoRoot "apps/web/dist/index.html"
+      $hostLib = Join-Path $repoRoot "packages/host/web-server/lib/index.js"
+      if (-not (Test-Path -LiteralPath $desktopEntry) -or -not (Test-Path -LiteralPath $webDist) -or -not (Test-Path -LiteralPath $hostLib)) {
+        Write-Host "桌面端产物不完整，请先执行菜单 7 或命令 pnpm build:desktop。" -ForegroundColor Yellow
+        continue
+      }
+      Invoke-Pnpm -Arguments @("desktop")
+      if ($script:PnpmExitCode -ne 0) {
+        Write-Host "LFAA 桌面端启动失败，退出码：$($script:PnpmExitCode)" -ForegroundColor Red
+      }
+    }
+    "7" {
+      Write-Host "开始构建桌面端安装包（全量构建 + staging + NSIS，通常需要几分钟）..." -ForegroundColor Cyan
+      Invoke-Pnpm -Arguments @("build:desktop")
+      if ($script:PnpmExitCode -eq 0) {
+        $releaseDir = Join-Path $repoRoot "apps/desktop/.desktop-build/release"
+        Write-Host "桌面端安装包已生成：$releaseDir" -ForegroundColor Green
+        Get-ChildItem -LiteralPath $releaseDir -Filter "*.exe" -ErrorAction SilentlyContinue | ForEach-Object {
+          Write-Host "  · $($_.Name)" -ForegroundColor White
+        }
+      } else {
+        Write-Host "桌面端构建失败，退出码：$($script:PnpmExitCode)" -ForegroundColor Red
       }
     }
     "4" {
@@ -586,6 +645,6 @@ while ($true) {
       Write-Host "已退出 LFAA 菜单。" -ForegroundColor DarkGray
       exit 0
     }
-    default { Write-Host "无效选项，请输入 1、2、4、5、6 或 0。" -ForegroundColor Yellow }
+    default { Write-Host "无效选项，请输入 1、2、3、7、4、5、6 或 0。" -ForegroundColor Yellow }
   }
 }

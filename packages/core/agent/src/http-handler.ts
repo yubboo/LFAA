@@ -1,6 +1,17 @@
 // 为本机 Web 服务提供 /api/agent/* 任务启动、SSE 轨迹推送、人工审批与任务中止接口。
 import type { IncomingMessage, ServerResponse } from "node:http";
+import type { ChatMessageAttachment, ChatMessageReference } from "@lfaa/memory";
 import type { AgentService } from "./index";
+
+/** 把客户端来源与宿主解析出的路径配对成可落库的引用图，数量或字段不符时丢弃。 */
+function buildMessageReferences(sources: unknown, paths: string[] | undefined): ChatMessageReference[] {
+  if (!Array.isArray(sources) || !paths?.length || sources.length !== paths.length) return [];
+  return sources.flatMap((source, index) => {
+    const messageId = (source as Partial<ChatMessageReference> | null)?.messageId;
+    const path = paths[index];
+    return typeof messageId === "string" && messageId.trim() && path ? [{ messageId, path }] : [];
+  });
+}
 
 function sendJson(res: ServerResponse, statusCode: number, payload: unknown): void {
   res.statusCode = statusCode;
@@ -22,6 +33,9 @@ async function readJsonBody(req: IncomingMessage): Promise<Record<string, unknow
 /** 由应用提供工作区路径解析，使 HTTP 层不直接依赖具体项目存储实现。 */
 export interface AgentHttpBridgeOptions {
   resolveWorkspaceRoots?: (projectId: string | null) => Promise<string[]>;
+  resolveReferenceImages?: (sessionId: string, prompt: string, sources: unknown) => Promise<string[]>;
+  /** 校验上传附件属于当前会话且是图片，返回可写入用户消息的引用。 */
+  resolveAttachments?: (sessionId: string, ids: unknown) => Promise<ChatMessageAttachment[]>;
 }
 
 /** 桥接运行创建、控制与 SSE 订阅，将未匹配的请求留给其他 Host 插件。 */
@@ -46,6 +60,7 @@ export function createAgentHttpHandler(service: AgentService, options: AgentHttp
       if (method === "POST" && pathname === "/api/agent/runs") {
         const body = await readJsonBody(req);
         const sessionId = typeof body.sessionId === "string" ? body.sessionId : "";
+        const userMessage = typeof body.userMessage === "string" ? body.userMessage : "";
 
         const reasoningEffort =
           body.reasoningEffort === "minimal" ||
@@ -61,19 +76,31 @@ export function createAgentHttpHandler(service: AgentService, options: AgentHttp
         const repeatToolThresholds = Array.isArray(body.repeatToolThresholds)
           ? body.repeatToolThresholds.filter((value): value is number => typeof value === "number" && Number.isInteger(value) && value >= 2)
           : undefined;
-        const started = await service.startRun({
-          sessionId,
-          userMessage: typeof body.userMessage === "string" ? body.userMessage : "",
-          ...(typeof body.profileId === "string" ? { profileId: body.profileId } : {}),
-          ...(reasoningEffort ? { reasoningEffort } : {}),
-          ...(skillIds && skillIds.length > 0 ? { skillIds } : {}),
-          ...(typeof body.maxSteps === "number" ? { maxSteps: body.maxSteps } : {}),
-          ...(repeatToolThresholds ? { repeatToolThresholds } : {}),
-          ...(body.permissionMode === "ask" || body.permissionMode === "smart" || body.permissionMode === "full"
-            ? { permissionMode: body.permissionMode }
-            : {}),
-          autoApproveTools: body.autoApproveTools === true,
-        }, options.resolveWorkspaceRoots ?? (async () => []));
+        let started: Awaited<ReturnType<typeof service.startRun>>;
+        try {
+          const referenceImages = await options.resolveReferenceImages?.(sessionId, userMessage, body.referenceSources);
+          const references = buildMessageReferences(body.referenceSources, referenceImages);
+          const attachments = await options.resolveAttachments?.(sessionId, body.attachmentIds) ?? [];
+          started = await service.startRun({
+            sessionId,
+            userMessage,
+            ...(referenceImages?.length ? { referenceImages } : {}),
+            ...(attachments.length ? { attachments } : {}),
+            ...(references.length ? { references } : {}),
+            ...(typeof body.profileId === "string" ? { profileId: body.profileId } : {}),
+            ...(reasoningEffort ? { reasoningEffort } : {}),
+            ...(skillIds && skillIds.length > 0 ? { skillIds } : {}),
+            ...(typeof body.maxSteps === "number" ? { maxSteps: body.maxSteps } : {}),
+            ...(repeatToolThresholds ? { repeatToolThresholds } : {}),
+            ...(body.permissionMode === "ask" || body.permissionMode === "smart" || body.permissionMode === "full"
+              ? { permissionMode: body.permissionMode }
+              : {}),
+            autoApproveTools: body.autoApproveTools === true,
+          }, options.resolveWorkspaceRoots ?? (async () => []));
+        } catch (error) {
+          sendJson(res, 400, { error: error instanceof Error ? error.message : String(error) });
+          return true;
+        }
         sendJson(res, 201, started);
         return true;
       }
@@ -157,6 +184,18 @@ export function createAgentHttpHandler(service: AgentService, options: AgentHttp
         return true;
       }
 
+      if (method === "GET" && pathname === "/api/agent/attention") {
+        // 只暴露需要用户处理的会话与简短原因，供侧栏「待确认/待回答」和通知使用。
+        sendJson(res, 200, { items: await service.listAttention() });
+        return true;
+      }
+
+      if (method === "GET" && pathname === "/api/agent/active-sessions") {
+        // 只暴露会话 id：客户端据此在左二栏给后台仍在工作的会话显示转圈。
+        sendJson(res, 200, { sessionIds: service.listRunningSessionIds() });
+        return true;
+      }
+
       if (method === "GET" && pathname.startsWith("/api/agent/sessions/") && pathname.endsWith("/active-run")) {
         const sessionId = decodeURIComponent(pathname.slice("/api/agent/sessions/".length, -"/active-run".length));
         const run = service.getActiveRunForSession(sessionId);
@@ -195,6 +234,19 @@ export function createAgentHttpHandler(service: AgentService, options: AgentHttp
         const approvalId = typeof body.approvalId === "string" ? body.approvalId : "";
         const resolved = service.resolveApproval(runId, approvalId, body.approved === true);
         sendJson(res, resolved ? 200 : 404, { resolved });
+        return true;
+      }
+
+      if (method === "POST" && pathname.startsWith("/api/agent/runs/") && pathname.endsWith("/steer")) {
+        const runId = decodeURIComponent(pathname.slice("/api/agent/runs/".length, -"/steer".length));
+        const body = await readJsonBody(req);
+        const text = typeof body.text === "string" ? body.text.trim() : "";
+        if (!text) {
+          sendJson(res, 400, { error: "缺少插话内容 text。" });
+          return true;
+        }
+        const steered = await service.steerRun(runId, text);
+        sendJson(res, steered ? 200 : 404, { steered });
         return true;
       }
 

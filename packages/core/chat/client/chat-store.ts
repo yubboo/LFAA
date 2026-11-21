@@ -9,6 +9,7 @@ import { patchWorkbenchSessionState, readWorkbenchSessionState } from "./workben
 import { fetchJson } from "./chat-http";
 import { readStoredPermissionMode, readStoredReasoningLevel, readStoredSessionId, writeStoredSessionId } from "./chat-preferences";
 import { ChatBackgroundRuns } from "./chat-background-runs";
+import { ChatSessionNotifier } from "./chat-session-notifier";
 import { ChatDataActions } from "./chat-data-actions";
 import { ChatFileActions } from "./chat-file-actions";
 import { ChatRunActions } from "./chat-run-actions";
@@ -16,6 +17,7 @@ import { ChatSessionActions } from "./chat-session-actions";
 import type { ChatSessionMetaPatch, ChatStorePort } from "./chat-store-port";
 import type {
   AgentPermissionMode,
+  ChatSessionAttention,
   ChatSessionDetail,
   ChatSessionItem,
   ChatStoreSnapshot,
@@ -45,6 +47,8 @@ export class ChatClientStore {
     draftProjectId: null,
     draftSectionId: null,
     runningRunId: null,
+    runningSessionIds: [],
+    attention: [],
     queuedMessages: [],
     pendingApproval: null,
     filePreviewTabs: this.initialWorkbench.filePreviewTabs,
@@ -75,6 +79,9 @@ export class ChatClientStore {
     refreshMeta: (projectPath) => this.refreshMeta(projectPath),
     trackLeavingActiveRun: (nextSessionId) => this.background.trackLeavingActiveRun(nextSessionId),
     scheduleBackgroundRunPoll: () => this.background.schedule(),
+    markSessionRunning: (sessionId, running) => this.markSessionRunning(sessionId, running),
+    markAttentionResolved: (sessionId) => this.markAttentionResolved(sessionId),
+    notifyRunFinished: (sessionId) => this.notifier.notifyTurnFinished(sessionId),
     resumeRun: (sessionId) => this.runActions.resumeRun(sessionId),
     openSession: (sessionId) => this.sessionActions.openSession(sessionId),
     updateSessionMeta: (sessionId, patch) => this.sessionActions.updateSessionMeta(sessionId, patch),
@@ -86,7 +93,16 @@ export class ChatClientStore {
   private readonly runActions = new ChatRunActions(this.port);
   private readonly dataActions = new ChatDataActions(this.port);
   private readonly fileActions = new ChatFileActions(this.port);
-  private readonly background = new ChatBackgroundRuns(() => this.state, (projectPath) => this.refreshMeta(projectPath));
+  /** 近期已发过“轮次完成”通知的会话由通知器维护，避免 SSE 收尾与轮询兜底重复提醒。 */
+  private readonly notifier = new ChatSessionNotifier(() => this.state);
+  private readonly background = new ChatBackgroundRuns(
+    () => this.state,
+    (sessionIds) => this.updateState({ runningSessionIds: sessionIds }),
+    (attention) => this.updateState({ attention }),
+    (item) => this.notifier.notifyAttention(item),
+    (sessionId) => this.notifier.notifyTurnFinished(sessionId),
+    (projectPath) => this.refreshMeta(projectPath),
+  );
 
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
@@ -96,6 +112,30 @@ export class ChatClientStore {
   };
 
   getSnapshot = (): ChatStoreSnapshot => this.state;
+
+  /** 该会话是否有 Agent 正在运行；与当前打开的是哪条会话无关，供侧栏工作转圈使用。 */
+  isSessionRunning(sessionId: string): boolean {
+    return this.state.runningSessionIds.includes(sessionId);
+  }
+
+  /** 会话当前的待处理状态；关闭「会话状态提醒」时不在侧栏显示徽标。 */
+  getSessionAttention(sessionId: string): "approval" | "question" | null {
+    if (!this.state.generalSettings.enableDotNotification) return null;
+    const item = this.state.attention.find((entry) => entry.sessionId === sessionId);
+    if (item) return item.kind;
+    return this.state.sessions.find((session) => session.id === sessionId)?.pendingQuestion ? "question" : null;
+  }
+
+  /** 用户已回应/已处理会话后先撤掉徽标，Host 轮询随后校正。 */
+  markAttentionResolved(sessionId: string): void {
+    this.background.markAttentionResolved(sessionId);
+  }
+
+  /** 开始/结束运行：开始新一轮时清掉上一轮的完成提醒记录。 */
+  markSessionRunning(sessionId: string, running: boolean): void {
+    if (running) this.notifier.markRunStarted(sessionId);
+    this.background.markRunning(sessionId, running);
+  }
 
   private updateState(patch: Partial<ChatStoreSnapshot>): void {
     if (patch.activeSessionId !== undefined && patch.activeSessionId !== this.state.activeSessionId) {
@@ -174,8 +214,10 @@ export class ChatClientStore {
   async hydrate(): Promise<void> {
     if (typeof window === "undefined") return;
     try {
-      const [sessRes, llmRes, rulesRes, memRes, trustRes, libRes, storageRes, generalRes] = await Promise.all([
+      const [sessRes, activeRes, attentionRes, llmRes, rulesRes, memRes, trustRes, libRes, storageRes, generalRes] = await Promise.all([
         fetchJson<{ sessions: ChatSessionItem[] }>("/api/chat/sessions"),
+        fetchJson<{ sessionIds: string[] }>("/api/agent/active-sessions").catch(() => ({ sessionIds: [] })),
+        fetchJson<{ items: ChatSessionAttention[] }>("/api/agent/attention").catch(() => ({ items: [] })),
         fetchJson<{ activeProfileId: string; profiles: PublicLlmProfileItem[] }>("/api/llm/profiles"),
         fetchJson<{ documents: RuleDocumentItem[] }>("/api/rules"),
         fetchJson<{ memories: LongTermMemoryItem[] }>("/api/memory"),
@@ -213,6 +255,8 @@ export class ChatClientStore {
       if (targetId) {
         void this.runActions.resumeRun(targetId);
       }
+      // 刷新后仍有 Agent 在后台运行的会话继续显示转圈；待确认/待回答也会恢复成侧栏徽标。
+      this.background.sync({ sessionIds: activeRes.sessionIds, attention: attentionRes.items });
     } catch (error) {
       this.updateState({
         loaded: true,
@@ -278,8 +322,8 @@ export class ChatClientStore {
   }
 
   // ---- 运行动作（实现见 chat-run-actions） ----
-  sendMessage(text: string, skillIds?: string[]): Promise<void> {
-    return this.runActions.sendMessage(text, skillIds);
+  sendMessage(text: string, skillIds?: string[], referenceSources?: import("./chat-media").MediaSource[], attachmentIds?: string[]): Promise<void> {
+    return this.runActions.sendMessage(text, skillIds, referenceSources, attachmentIds);
   }
 
   submitFollowUp(text: string, invertMode = false): Promise<void> {
@@ -296,6 +340,30 @@ export class ChatClientStore {
 
   removeQueuedMessage(index: number): void {
     this.runActions.removeQueuedMessage(index);
+  }
+
+  updateQueuedMessage(index: number, text: string): void {
+    this.runActions.updateQueuedMessage(index, text);
+  }
+
+  moveQueuedMessage(index: number, delta: number): void {
+    this.runActions.moveQueuedMessage(index, delta);
+  }
+
+  clearQueuedMessages(): void {
+    this.runActions.clearQueuedMessages();
+  }
+
+  sendQueuedNow(index: number): Promise<void> {
+    return this.runActions.sendQueuedNow(index);
+  }
+
+  generateMediaFromPrompt(input: import("./chat-media").MediaGenerationInput) {
+    return this.runActions.generateMediaFromPrompt(input);
+  }
+
+  flushQueuedMessages(): Promise<void> {
+    return this.runActions.flushQueuedMessages();
   }
 
   retryDegradedStream(): void {

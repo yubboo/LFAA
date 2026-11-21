@@ -9,6 +9,11 @@
   transition: opacity 140ms ease;
 }
 
+/* 图片消息的动作行常驻：时间戳与图片卡片一起构成完整消息块。 */
+.userActions[data-persistent="true"] {
+  opacity: 1;
+}
+
 .assistantFooter {
   position: relative;
   display: flex;

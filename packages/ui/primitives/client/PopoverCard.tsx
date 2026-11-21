@@ -15,7 +15,8 @@ export interface PopoverCardProps {
   open: boolean;
   label: string;
   placement?: PopoverPlacement;
-  className?: string;
+  // CSS Modules 的样式键可能为 undefined，允许显式传入以配合 exactOptionalPropertyTypes。
+  className?: string | undefined;
   anchorRef?: { current: HTMLElement | null };
   onClose: () => void;
   children: ReactNode;

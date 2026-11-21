@@ -1,5 +1,27 @@
 // 管理 @lfaa/chat 浏览器端的纯数据文案表：时间线、活动动词、接入方式、方舟目录与右侧启动页。
 
+/** 澄清卡与聊天内生成素材操作。 */
+export const mediaChatMessages = {
+  zh: { question: "Agent 提问", custom: "自定义答复", placeholder: "或输入你的答复", skip: "跳过", send: "发送答复",
+    chatRequired: "切回聊天模型可答复，也可以直接跳过。",
+    download: "下载原文件", quote: "引用", regenerate: "再次生图", loading: "媒体加载中…", failed: "媒体加载失败", retry: "重试",
+    userImage: "用户附带图片", attachmentFailed: "附件图片暂不可用", referenceImage: "用户引用图片", referenceFailed: "引用图片暂不可用",
+    generatingImage: "正在生成图片…", generatingVideo: "正在生成视频…", generatingAudio: "正在生成语音…",
+    ratio: "比例", ratioAuto: "自动", ratioTitle: "选择图片比例", previewActions: "图片操作",
+    styleLabel: "风格", styleTitle: "选择画面风格",
+    styleNames: { auto: "自动", photo: "写真", cinematic: "电影感", illustration: "插画", anime: "二次元", watercolor: "水彩", "3d": "3D" },
+    imagePrompt: "描述你想生成或修改的图片", videoPrompt: "描述你想生成的视频", audioPrompt: "输入要生成语音的文本" },
+  en: { question: "Agent question", custom: "Custom answer", placeholder: "Or type your answer", skip: "Skip", send: "Send answer",
+    chatRequired: "Switch to a chat model to answer, or skip this question.",
+    download: "Download original", quote: "Reference", regenerate: "Regenerate image", loading: "Loading media…", failed: "Couldn't load media", retry: "Retry",
+    userImage: "Attached image", attachmentFailed: "Attached image is unavailable", referenceImage: "Quoted image", referenceFailed: "Quoted image is unavailable",
+    generatingImage: "Generating image…", generatingVideo: "Generating video…", generatingAudio: "Generating speech…",
+    ratio: "Ratio", ratioAuto: "Auto", ratioTitle: "Image ratio", previewActions: "Image actions",
+    styleLabel: "Style", styleTitle: "Image style",
+    styleNames: { auto: "Auto", photo: "Photo", cinematic: "Cinematic", illustration: "Illustration", anime: "Anime", watercolor: "Watercolor", "3d": "3D" },
+    imagePrompt: "Describe the image to generate or edit", videoPrompt: "Describe the video to generate", audioPrompt: "Enter text to turn into speech" },
+};
+
 /** 助手运行状态、活动摘要和命令详情。 */
 export const timelineMessages = {
   zh: {
@@ -131,6 +153,7 @@ export const activityVerbs = {
   delete_file: { zh: ["删除文件", "删除中", "已删除"], en: ["delete file", "Deleting", "Deleted"] },
   run_command: { zh: ["运行命令", "正在运行命令", "已运行命令"], en: ["run command", "Running command", "Ran command"] },
   load_skill: { zh: ["加载技能", "正在加载技能", "已加载技能"], en: ["load skill", "Loading skill", "Loaded skill"] },
+  todo_write: { zh: ["任务清单", "正在更新任务清单", "已更新任务清单"], en: ["task list", "Updating task list", "Updated task list"] },
 } as const;
 
 /**

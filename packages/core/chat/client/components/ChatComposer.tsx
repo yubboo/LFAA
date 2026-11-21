@@ -1,14 +1,20 @@
 // 聊天输入区：范围/项目栏、@ 提及 / 斜杠命令 / 技能弹层、附件与排队提示、输入框及其工具条、统计栏。
-import { IconTrash, IconX } from "@tabler/icons-react";
+import { IconTrash } from "@tabler/icons-react";
 import { HoverTip } from "@lfaa/ui-primitives/client";
 import type { ChatClientStore } from "../chat-store";
-import type { ChatLocaleMessages } from "../locales";
+import { mediaChatMessages, type ChatLocaleMessages } from "../locales";
 import type { ChatMessageItem, ChatSessionDetail, ChatStoreSnapshot } from "../chat-types";
-import type { ComposerAttachment } from "../composer-context";
+import { useComposerAttachInput, useComposerAutoGrow } from "./useComposerInput";
 import type { useChatComposer } from "./useChatComposer";
 import { ClarificationCard } from "./Clarification-Card";
 import { ComposerAddMenu } from "./ComposerAddMenu";
+import { ComposerAttachmentChip } from "./ComposerAttachmentChip";
+import { ComposerMediaLibrary } from "./ComposerMediaLibrary";
+import { ComposerNotice } from "./ComposerNotice";
+import { ComposerFollowUpHint, ComposerQueuePanel } from "./ComposerQueuePanel";
 import { ComposerRightActions } from "./ComposerRightActions";
+import { MediaRatioPicker } from "./MediaRatioPicker";
+import { MediaStylePicker } from "./MediaStylePicker";
 import { ComposerScopeBar } from "./ComposerScopeBar";
 import { MentionPopover, SlashCommandPopover } from "./MentionPopover";
 import { ModelReasoningPicker } from "./ModelReasoningPicker";
@@ -75,16 +81,28 @@ export function ChatComposer({
     openProjectSignal, visibleMentionEntries, visibleSlashCommands, visibleSkillEntries,
     textareaRef, fileInputRef, syncMentionFromText, focusTextareaAt,
     handleSelectSkillEntry, handleTabCompleteSlashCommand, handleSelectSlashCommand,
-    handleSelectMentionEntry, handleSubmit, appendAttachments,
+    handleSelectMentionEntry, handleSubmit, appendAttachments, selectedMediaKind,
+    mediaRatio, setMediaRatio, mediaStyle, setMediaStyle,
   } = composer;
+
+  const mediaLabels = mediaChatMessages[locale.isZh ? "zh" : "en"];
+  const placeholder = selectedMediaKind ? mediaLabels[`${selectedMediaKind}Prompt`] : locale.composerPlaceholder;
 
   const removeAttachment = (id: string) => setAttachments((prev) => prev.filter((x) => x.id !== id));
 
+  useComposerAutoGrow(composer.textareaRef, composer.draft);
+  const { draggingFiles, setDraggingFiles, handlePaste, handleDrop } = useComposerAttachInput({
+    sessionId: activeSession?.id ?? "",
+    appendAttachments,
+  });
+
   return (
     <div className={styles.composerStack}>
-      {clarification && (
-        <ClarificationCard key={lastMessageId} isZh={locale.isZh} prompt={clarification}
+      {clarification && lastMessageId && (
+        <ClarificationCard key={lastMessageId} messageId={lastMessageId} isZh={locale.isZh} prompt={clarification}
           busy={state.submittingMessage || isRunning}
+          chatRequired={Boolean(selectedMediaKind)}
+          onSkip={() => { setContextNotice(""); focusTextareaAt(draft.length); }}
           onAnswer={(answer) => onAnswerClarification(answer)} />
       )}
       <ComposerScopeBar
@@ -122,7 +140,13 @@ export function ChatComposer({
           onSelect={handleSelectSkillEntry}
         />
       )}
-      <div className={composerStyles.composerCard}>
+      <div
+        className={composerStyles.composerCard}
+        data-dragging={draggingFiles ? "true" : undefined}
+        onDragOver={(event) => { event.preventDefault(); setDraggingFiles(true); }}
+        onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setDraggingFiles(false); }}
+        onDrop={handleDrop}
+      >
         {needsApiKey && (
           <div className={composerStyles.noticeBar}>
             <span>{locale.modelKeyMissingHint}</span>
@@ -134,60 +158,33 @@ export function ChatComposer({
 
         {attachments.length > 0 && (
           <div className={composerStyles.attachmentRow}>
-            {attachments.map((item: ComposerAttachment) => (
-              <span key={item.id} className={composerStyles.attachmentChip}>
-                <span className={composerStyles.attachmentChipLabel}>{item.label}</span>
-                {item.detail && <span className={composerStyles.attachmentChipDetail}>{item.detail}</span>}
-                <button
-                  type="button"
-                  className={composerStyles.attachmentChipRemove}
-                  aria-label={item.label}
-                  onClick={() => removeAttachment(item.id)}
-                >
-                  <IconX size={11} aria-hidden="true" />
-                </button>
-              </span>
+            {attachments.map((item) => (
+              <ComposerAttachmentChip key={item.id} item={item} onRemove={() => removeAttachment(item.id)} />
             ))}
           </div>
         )}
 
-        {state.queuedMessages.length > 0 && (
-          <div className={composerStyles.attachmentRow} aria-label={locale.isZh ? "排队消息" : "Queued messages"}>
-            {state.queuedMessages.map((queued, idx) => (
-              <span key={`${idx}-${queued.slice(0, 12)}`} className={composerStyles.attachmentChip}>
-                <span className={composerStyles.attachmentChipLabel}>{locale.isZh ? "排队" : "Queued"}</span>
-                <span className={composerStyles.attachmentChipDetail}>{queued.slice(0, 28)}</span>
-                <button
-                  type="button"
-                  className={composerStyles.attachmentChipRemove}
-                  aria-label={locale.isZh ? "移除排队消息" : "Remove queued"}
-                  onClick={() => store.removeQueuedMessage(idx)}
-                >
-                  <IconX size={11} aria-hidden="true" />
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
+        <ComposerQueuePanel
+          isZh={locale.isZh}
+          queue={state.queuedMessages}
+          onEdit={(index, text) => store.updateQueuedMessage(index, text)}
+          onRemove={(index) => store.removeQueuedMessage(index)}
+          onMove={(index) => store.moveQueuedMessage(index, -1)}
+          onSendNow={(index) => void store.sendQueuedNow(index)}
+          onClear={() => store.clearQueuedMessages()}
+          onFlush={() => void store.flushQueuedMessages()}
+        />
 
-        {contextNotice && (
-          <div className={composerStyles.contextNotice} role="status">
-            <span>{contextNotice}</span>
-            <button
-              type="button"
-              className={composerStyles.contextNoticeClose}
-              aria-label={locale.dismissNoticeLabel}
-              onClick={() => setContextNotice("")}
-            >
-              <IconX size={12} aria-hidden="true" />
-            </button>
-          </div>
-        )}
+        <ComposerNotice
+          message={contextNotice}
+          dismissLabel={locale.dismissNoticeLabel}
+          onDismiss={() => setContextNotice("")}
+        />
 
         <textarea
           ref={textareaRef}
           className={composerStyles.textarea}
-          placeholder={locale.composerPlaceholder}
+          placeholder={placeholder}
           value={draft}
           rows={2}
           onChange={(event) => {
@@ -198,6 +195,7 @@ export function ChatComposer({
           onClick={(event) => {
             syncMentionFromText(draft, event.currentTarget.selectionStart);
           }}
+          onPaste={handlePaste}
           onKeyDown={(event) => {
             if (mentionTrigger) {
               if (event.key === "ArrowDown") {
@@ -274,6 +272,12 @@ export function ChatComposer({
                 return;
               }
             }
+            if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && state.queuedMessages.length > 0 && !event.nativeEvent.isComposing) {
+              // 有排队消息时，Ctrl/Cmd+Enter 直接把全部排队消息作为插话发出。
+              event.preventDefault();
+              void store.flushQueuedMessages();
+              return;
+            }
             if (event.key === "Enter" && !event.nativeEvent.isComposing) {
               const needCtrl = state.generalSettings.sendShortcut === "ctrl_enter";
               if (needCtrl && (event.ctrlKey || event.metaKey)) {
@@ -287,9 +291,23 @@ export function ChatComposer({
           }}
         />
 
+        <ComposerFollowUpHint
+          isZh={locale.isZh}
+          followUpMode={state.generalSettings.followUpMode}
+          running={isRunning}
+          queuedCount={state.queuedMessages.length}
+        />
+
         {/* 同一组入口随输入卡片宽度切换文字或图标，避免窄栏出现两排工具。 */}
         <div className={composerStyles.composerBar}>
           <div className={composerStyles.controls}>
+            <ComposerMediaLibrary
+              isZh={locale.isZh}
+              onUsePrompt={(prompt) => {
+                setDraft(prompt);
+                focusTextareaAt(prompt.length);
+              }}
+            />
             <ComposerAddMenu
               locale={locale}
               sessionId={activeSession?.id ?? ""}
@@ -335,6 +353,8 @@ export function ChatComposer({
           </div>
 
           <div className={composerStyles.rightCluster}>
+            {selectedMediaKind === "image" && <MediaStylePicker isZh={locale.isZh} value={mediaStyle} onChange={setMediaStyle} />}
+            {selectedMediaKind === "image" && <MediaRatioPicker isZh={locale.isZh} value={mediaRatio} onChange={setMediaRatio} />}
             <ModelReasoningPicker
               isZh={locale.isZh}
               profiles={state.profiles}

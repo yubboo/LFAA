@@ -1,56 +1,65 @@
-// 渲染「资料库」视图：参考画廊网格与顶部筛选栏布局，并与左二「资料库」分类菜单双向同步。
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ChangeEvent } from "react";
-import { IconBooks, IconFolderOpen, IconPlus, IconSearch, IconSettings, IconTrash, IconUpload, IconX } from "@tabler/icons-react";
+// 渲染「资料库」中心页：按左二分类展示生成素材、资产与记忆；选中项交给右栏检视器，页面本身不再放预览列。
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ChangeEvent } from "react";
+import { IconBooks, IconFolderOpen, IconPlus, IconSearch, IconSettings, IconTrash, IconUpload } from "@tabler/icons-react";
 import type { LibraryTabKey } from "@lfaa/ui-layout/client";
-import type { ChatClientStore, LibraryAssetItem, LongTermMemoryItem } from "../chat-store";
+import type { ChatClientStore, LongTermMemoryItem } from "../chat-store";
 import type { ChatLocaleMessages } from "../locales";
+import { formatByteSize, type MediaLibraryItem } from "../media-library";
+import { libraryMediaStore, librarySelectionStore, type LibrarySelection } from "../library-store";
+import { useLibraryMedia, useLibrarySelection } from "../useLibraryState";
+import { LibraryMediaGrid } from "./LibraryMediaGrid";
 import styles from "./LibraryView.module.css";
 import cardStyles from "./LibraryView.cards.module.css";
 
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-/** 根据工作台的分类导航查看资料和资产详情，并触发选中资料的管理操作。 */
+/** 根据左二分类查看资料和资产详情，选中项交给右栏检视器展示内容与操作。 */
 export function LibraryView({
   locale,
   store,
   boundProjectId,
   activeTab = "all",
-  onChangeTab,
+  onSelectTab,
+  onShowDetails,
   onOpenStorageSettings,
 }: {
   locale: ChatLocaleMessages;
   store: ChatClientStore;
   boundProjectId: string | null;
   activeTab?: LibraryTabKey;
-  onChangeTab?: (tab: LibraryTabKey) => void;
+  onSelectTab: (tab: LibraryTabKey) => void;
+  onShowDetails: () => void;
   onOpenStorageSettings: () => void;
 }) {
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
-  const [localTab, setLocalTab] = useState<LibraryTabKey>(activeTab);
-  const tab = onChangeTab ? activeTab : localTab;
-  const setTab = (next: LibraryTabKey) => {
-    setLocalTab(next);
-    onChangeTab?.(next);
-  };
-
+  const media = useLibraryMedia();
+  const selection = useLibrarySelection();
   const [query, setQuery] = useState("");
-  const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
-  const [previewData, setPreviewData] = useState<{ item: LibraryAssetItem; content: string } | null>(null);
   const [newMemoryText, setNewMemoryText] = useState("");
-  const [copiedNotice, setCopiedNotice] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+  const tab = activeTab;
+  const isMediaTab = tab === "media";
 
   useEffect(() => {
     void store.refreshLibraryAndStorage(boundProjectId);
   }, [boundProjectId, store]);
 
+  // 生成素材来自工作区/媒体目录，与资料库存储分离；读取由共享存储去重。
+  useEffect(() => {
+    void libraryMediaStore.reload();
+  }, []);
+
+  // 分类切换后，只保留与新分类兼容的选中项；离开资料库时清空，避免右栏残留旧详情。
+  useEffect(() => {
+    const current = librarySelectionStore.getSnapshot();
+    if (!current) return;
+    const visible = current.kind === "media" ? tab === "media" : tab === "asset";
+    if (!visible && tab !== "all") librarySelectionStore.clear();
+  }, [tab]);
+
+  useEffect(() => () => librarySelectionStore.clear(), []);
+
   const q = query.trim().toLowerCase();
   const filteredAssets = useMemo(() => {
-    if (tab === "memory") return [];
+    if (tab === "memory" || tab === "media") return [];
     return state.libraryAssets.filter((item) => {
       if ((tab === "artifact" || tab === "asset") && item.category !== tab) return false;
       if (!q) return true;
@@ -62,7 +71,7 @@ export function LibraryView({
   }, [q, state.libraryAssets, tab]);
 
   const filteredMemories = useMemo<LongTermMemoryItem[]>(() => {
-    if (tab === "artifact" || tab === "asset") return [];
+    if (tab === "artifact" || tab === "asset" || tab === "media") return [];
     return state.memories.filter((m) => {
       if (!q) return true;
       return m.content.toLowerCase().includes(q) || m.tags.some((t) => t.toLowerCase().includes(q));
@@ -72,18 +81,37 @@ export function LibraryView({
   const artifactCount = state.libraryAssets.filter((a) => a.category === "artifact").length;
   const assetCount = state.libraryAssets.filter((a) => a.category === "asset").length;
   const memoryCount = state.memories.length;
+  const mediaCount = media.items.length;
   const totalCount = state.libraryAssets.length + memoryCount;
+  const count = tab === "media"
+    ? mediaCount
+    : tab === "artifact"
+      ? artifactCount
+      : tab === "asset"
+        ? assetCount
+        : tab === "memory"
+          ? memoryCount
+          : totalCount;
 
-  const handleSelectAsset = async (asset: LibraryAssetItem) => {
-    setSelectedAssetId(asset.id);
-    setCopiedNotice("");
-    try {
-      const detail = await store.readLibraryAsset(asset.id);
-      setPreviewData({ item: detail.item, content: detail.content });
-    } catch {
-      setPreviewData({ item: asset, content: asset.summary || asset.relativePath });
-    }
+  const category = tab === "media"
+    ? { label: locale.libraryTabImages, hint: locale.libraryCategoryHintMedia }
+    : tab === "artifact"
+      ? { label: locale.libraryTabArtifacts, hint: locale.libraryCategoryHintArtifact }
+      : tab === "asset"
+        ? { label: locale.libraryTabAssets, hint: locale.libraryCategoryHintAsset }
+        : tab === "memory"
+          ? { label: locale.libraryTabMemories, hint: locale.libraryCategoryHintMemory }
+          : { label: locale.libraryTabAll, hint: locale.libraryCategoryHintAll };
+
+  const reveal = (next: Exclude<LibrarySelection, null>) => {
+    librarySelectionStore.set(next);
+    onShowDetails();
   };
+
+  const handleSelectMedia = useCallback((item: MediaLibraryItem) => {
+    librarySelectionStore.set({ kind: "media", item });
+    onShowDetails();
+  }, [onShowDetails]);
 
   const handleImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -100,7 +128,8 @@ export function LibraryView({
         encoding: "utf8",
         projectId: boundProjectId,
       });
-      await handleSelectAsset(created);
+      onSelectTab("asset");
+      reveal({ kind: "asset", id: created.id, title: created.title });
     } else {
       const buf = await file.arrayBuffer();
       const bytes = new Uint8Array(buf);
@@ -115,7 +144,8 @@ export function LibraryView({
         mimeType: file.type || "application/octet-stream",
         projectId: boundProjectId,
       });
-      await handleSelectAsset(created);
+      onSelectTab("asset");
+      reveal({ kind: "asset", id: created.id, title: created.title });
     }
     event.target.value = "";
   };
@@ -138,7 +168,8 @@ export function LibraryView({
       <header className={styles.topBar}>
         <div className={styles.titleBlock}>
           <div className={styles.titleLine}>
-            <h1 className={styles.title}>{locale.libraryTitle}</h1>
+            <h1 className={styles.title}>{category.label}</h1>
+            <span className={styles.titleCount}>{count}</span>
             <button
               type="button"
               className={styles.pathBadge}
@@ -149,7 +180,7 @@ export function LibraryView({
               <span>{state.storageState?.dataRoot || "..."}</span>
             </button>
           </div>
-          <p className={styles.subtitle}>{locale.librarySubtitle}</p>
+          <p className={styles.subtitle}>{category.hint}</p>
         </div>
 
         <div className={styles.topControls}>
@@ -180,27 +211,19 @@ export function LibraryView({
         </div>
       </header>
 
-      <nav className={styles.tabStrip} aria-label={locale.libraryTitle}>
-        {([
-          ["all", locale.libraryTabAll, totalCount],
-          ["artifact", locale.libraryTabArtifacts, artifactCount],
-          ["asset", locale.libraryTabAssets, assetCount],
-          ["memory", locale.libraryTabMemories, memoryCount],
-        ] as const).map(([key, label, count]) => (
-          <button
-            key={key}
-            type="button"
-            className={`${styles.tabItem} ${tab === key ? styles.tabItemActive : ""}`}
-            onClick={() => setTab(key)}
-          >
-            <span>{label}</span>
-            <span className={styles.tabCount}>{count}</span>
-          </button>
-        ))}
-      </nav>
-
       <div className={styles.mainBody}>
-        {(tab === "all" || tab === "memory") && (
+        {isMediaTab && (
+          <LibraryMediaGrid
+            locale={locale}
+            items={media.items}
+            loading={media.loading}
+            error={media.error}
+            query={query}
+            onSelect={handleSelectMedia}
+          />
+        )}
+
+        {!isMediaTab && (tab === "all" || tab === "memory") && (
           <div className={styles.quickMemoryBar}>
             <input
               type="text"
@@ -219,7 +242,7 @@ export function LibraryView({
           </div>
         )}
 
-        {!showItems ? (
+        {!isMediaTab && (!showItems ? (
           <div className={styles.emptyState}>
             <div className={styles.emptyIcon}>
               <IconBooks size={28} aria-hidden="true" />
@@ -241,93 +264,43 @@ export function LibraryView({
             </div>
           </div>
         ) : (
-          <div className={previewData ? cardStyles.workspaceWithPreview : styles.cardsOnly}>
-            <div className={cardStyles.cardsGrid}>
-              {filteredAssets.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={`${cardStyles.vaultCard} ${selectedAssetId === item.id ? cardStyles.vaultCardSelected : ""}`}
-                  onClick={() => void handleSelectAsset(item)}
-                >
-                  <div className={cardStyles.cardTopRow}>
-                    <span className={cardStyles.badge}>
-                      {item.category === "artifact" ? locale.artifactBadge : locale.assetBadge}
-                    </span>
-                    <span className={cardStyles.cardSize}>{formatSize(item.sizeBytes)}</span>
-                  </div>
-                  <strong className={cardStyles.cardTitle}>{item.title}</strong>
-                  <span className={cardStyles.cardPath}>{item.relativePath}</span>
-                </button>
-              ))}
-
-              {filteredMemories.map((mem) => (
-                <div key={mem.id} className={cardStyles.vaultCard}>
-                  <div className={cardStyles.cardTopRow}>
-                    <span className={cardStyles.badge}>{locale.memoryBadge}</span>
-                    <button
-                      type="button"
-                      className={cardStyles.deleteBtn}
-                      aria-label={locale.deleteMemory}
-                      onClick={() => void store.removeLongTermMemory(mem.id)}
-                    >
-                      <IconTrash size={13} aria-hidden="true" />
-                    </button>
-                  </div>
-                  <p className={cardStyles.memoryContent}>{mem.content}</p>
+          <div className={cardStyles.cardsGrid}>
+            {filteredAssets.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={`${cardStyles.vaultCard} ${selection?.kind === "asset" && selection.id === item.id ? cardStyles.vaultCardSelected : ""}`}
+                onClick={() => reveal({ kind: "asset", id: item.id, title: item.title })}
+              >
+                <div className={cardStyles.cardTopRow}>
+                  <span className={cardStyles.badge}>
+                    {item.category === "artifact" ? locale.artifactBadge : locale.assetBadge}
+                  </span>
+                  <span className={cardStyles.cardSize}>{formatByteSize(item.sizeBytes)}</span>
                 </div>
-              ))}
-            </div>
+                <strong className={cardStyles.cardTitle}>{item.title}</strong>
+                <span className={cardStyles.cardPath}>{item.relativePath}</span>
+              </button>
+            ))}
 
-            {previewData && (
-              <aside className={cardStyles.previewCard} aria-label={previewData.item.title}>
-                <div className={cardStyles.previewHeader}>
-                  <div className={cardStyles.previewTitleWrap}>
-                    <strong className={cardStyles.cardTitle}>{previewData.item.title}</strong>
-                    <span className={cardStyles.cardPath}>{previewData.item.relativePath}</span>
-                  </div>
-                  <div className={cardStyles.previewActions}>
-                    <button
-                      type="button"
-                      className={styles.secondaryBtn}
-                      onClick={() => {
-                        void navigator.clipboard?.writeText(previewData.content);
-                        setCopiedNotice(locale.copiedNotice);
-                      }}
-                    >
-                      {copiedNotice || locale.copyContentBtn}
-                    </button>
-                    <button
-                      type="button"
-                      className={cardStyles.deleteBtn}
-                      aria-label={locale.deleteMemory}
-                      onClick={() => {
-                        void store.removeLibraryAsset(previewData.item.id).then(() => {
-                          setPreviewData(null);
-                          setSelectedAssetId(null);
-                        });
-                      }}
-                    >
-                      <IconTrash size={14} aria-hidden="true" />
-                    </button>
-                    <button
-                      type="button"
-                      className={cardStyles.deleteBtn}
-                      aria-label={locale.isZh ? "关闭预览" : "Close preview"}
-                      onClick={() => {
-                        setPreviewData(null);
-                        setSelectedAssetId(null);
-                      }}
-                    >
-                      <IconX size={14} aria-hidden="true" />
-                    </button>
-                  </div>
+            {filteredMemories.map((mem) => (
+              <div key={mem.id} className={cardStyles.vaultCard}>
+                <div className={cardStyles.cardTopRow}>
+                  <span className={cardStyles.badge}>{locale.memoryBadge}</span>
+                  <button
+                    type="button"
+                    className={cardStyles.deleteBtn}
+                    aria-label={locale.deleteMemory}
+                    onClick={() => void store.removeLongTermMemory(mem.id)}
+                  >
+                    <IconTrash size={13} aria-hidden="true" />
+                  </button>
                 </div>
-                <pre className={cardStyles.previewBody}>{previewData.content}</pre>
-              </aside>
-            )}
+                <p className={cardStyles.memoryContent}>{mem.content}</p>
+              </div>
+            ))}
           </div>
-        )}
+        ))}
       </div>
     </section>
   );

@@ -25,6 +25,8 @@ export interface RunLoopDeps {
   compaction?: CompactionHook;
   /** 可选：由 @lfaa/system-prompt 合成的追加段落，每轮运行取一次。 */
   extraSystemPrompt?: () => Promise<string>;
+  /** 可选：取出运行期间追加的用户消息（插话），在下一轮模型调用前并入对话。 */
+  drainSteering?: () => string[];
 }
 
 /** 描述启动一次运行所需的会话信息与工具权限上下文。 */
@@ -39,6 +41,7 @@ export interface RunExecutionParams {
   reasoningEffort?: "minimal" | "low" | "medium" | "high" | "max";
   projectId?: string | null;
   workspaceRoots: string[];
+  referenceImages?: string[];
   enableMemoryContext?: boolean;
   resolvedSkills?: ResolvedSkillContext[];
   availableSkillCatalog?: Array<{ id: string; name: string; source: string; description: string }>;

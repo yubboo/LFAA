@@ -1,11 +1,26 @@
 // 定义 @lfaa/agent 的运行契约：权限模式、运行输入、Think/Act/Check 流式事件与人工审批句柄。
-import type { AgentRunCost, AgentRunMetrics, AgentStepTrace, ChatMessageRecord, ChatTokenUsage } from "@lfaa/memory";
+import type { AgentRunCost, AgentRunMetrics, AgentStepTrace, ChatMessageAttachment, ChatMessageRecord, ChatMessageReference, ChatTokenUsage, TodoItem } from "@lfaa/memory";
 
 /** 定义输入栏与 Host 审批策略共用的三种权限模式。 */
 export type AgentPermissionMode = "ask" | "smart" | "full";
 export type ApprovalAnswer = boolean | "mode_changed";
 /** 指定智能审批放行普通操作前必须累计的人工批准次数。 */
 export const SMART_APPROVAL_THRESHOLD = 3;
+
+/** 会话需要用户处理的状态：等待工具审批，或等待回答澄清问题。 */
+export type AgentAttentionKind = "approval" | "question";
+
+export interface AgentAttentionItem {
+  sessionId: string;
+  kind: AgentAttentionKind;
+  /** 等待审批的工具名，供会话列表与通知文案使用。 */
+  toolName?: string;
+  /** 等待回答的澄清问题。 */
+  question?: string;
+  options?: string[];
+  /** 产生问题的助手消息 id。 */
+  messageId?: string;
+}
 
 /** 本轮运行解析到的技能正文摘要，仅注入当轮模型上下文。 */
 export interface ResolvedSkillContext {
@@ -23,6 +38,12 @@ export interface StartAgentRunInput {
   reasoningEffort?: "minimal" | "low" | "medium" | "high" | "max";
   projectId?: string | null;
   workspaceRoots?: string[];
+  /** 已经宿主校验的图片路径，供本轮生图使用。 */
+  referenceImages?: string[];
+  /** 宿主已校验的会话图片附件引用，写入本轮用户消息，供气泡显示缩略图。 */
+  attachments?: ChatMessageAttachment[];
+  /** 宿主已校验的引用图（会话内生成图片），写入本轮用户消息。 */
+  references?: ChatMessageReference[];
   skillIds?: string[];
   maxSteps?: number;
   /** 与显式 maxSteps 搭配：软预算用尽后按该步数自动延长，0 表示硬上限。 */
@@ -38,6 +59,7 @@ export type AgentRunEvent =
   | { type: "run_started"; runId: string; sessionId: string; assistantMessageId: string }
   | { type: "delta"; runId: string; seq: number; kind: "reasoning" | "text"; text: string }
   | { type: "step_update"; runId: string; step: AgentStepTrace }
+  | { type: "todos"; runId: string; todos: TodoItem[] }
   | {
       type: "run_usage";
       runId: string;
@@ -92,6 +114,8 @@ export interface AgentRunStatus {
   metrics?: AgentRunMetrics;
   /** 本轮按模型单价换算的人民币成本。 */
   cost?: AgentRunCost;
+  /** 当前会话的任务清单；运行中由 todo_write 更新，供断线重连恢复。 */
+  todos?: TodoItem[];
   pendingApprovals?: PendingToolApproval[];
   message?: ChatMessageRecord;
   error?: string;

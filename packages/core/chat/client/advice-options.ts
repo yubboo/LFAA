@@ -1,5 +1,5 @@
 // 从助手最终回答的「建议/下一步」段落提取可选后续项，供界面编号展示、用户点选发送。
-import { isAdviceHeading, parseMarkdownBlocks } from "./markdown-parser";
+import { isAdviceHeading, isAdviceLeadIn, parseMarkdownBlocks } from "./markdown-parser";
 
 const MAX_OPTIONS = 5;
 const MIN_LEN = 4;
@@ -27,7 +27,7 @@ export function extractAdviceOptions(content: string, max = MAX_OPTIONS): string
     }
     if (!inAdviceSection) {
       // 加粗短句引出的建议段落（如「下一步去哪些页面」）同样采纳。
-      if (block.type === "paragraph" && block.text.trim().length <= 80 && isAdviceHeading(block.text)) {
+      if (block.type === "paragraph" && isAdviceLeadIn(block.text)) {
         inAdviceSection = true;
       }
       continue;

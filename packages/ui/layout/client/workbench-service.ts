@@ -16,15 +16,25 @@ import type {
 } from "../contract/index";
 import {
   LEFT_SIDEBAR_STORAGE_KEY,
+  LIBRARY_TAB_STORAGE_KEY,
   RIGHT_PANEL_STORAGE_KEY,
   readActiveRoutePref,
   readBooleanPref,
+  readStoredJson,
   writeActiveRoutePref,
   writeBooleanPref,
+  writeStoredJson,
 } from "./ui-preferences";
 
-/** 约定资料库分类在工作台中的稳定标识。 */
-export type LibraryTabKey = "all" | "artifact" | "asset" | "memory";
+/** 约定资料库分类在工作台中的稳定标识；`media` 为并入资料库的图像（生成素材）分类。 */
+export type LibraryTabKey = "all" | "media" | "artifact" | "asset" | "memory";
+
+const LIBRARY_TABS: readonly LibraryTabKey[] = ["all", "media", "artifact", "asset", "memory"];
+
+/** 校验浏览器记忆里的资料库分类，非法值回退到全部。 */
+function isLibraryTabKey(value: unknown): value is LibraryTabKey {
+  return typeof value === "string" && (LIBRARY_TABS as readonly string[]).includes(value);
+}
 
 /** 约定视图树从工作台服务订阅的状态快照。 */
 export interface WorkbenchSnapshot {
@@ -51,6 +61,7 @@ export interface WorkbenchSnapshot {
 }
 
 // 统一持有四栏导航、折叠状态及插件注册表；注册项随返回的清理函数撤销。
+// 资料库分类与当前路由一样写入浏览器偏好，刷新后仍停在左二选中的分类。
 export class WorkbenchClientService extends Service {
   private readonly listeners = new Set<() => void>();
   private readonly viewMap = new Map<string, WorkbenchViewContribution<ReactNode>>();
@@ -76,7 +87,19 @@ export class WorkbenchClientService extends Service {
 
   constructor(ctx: Context) {
     super(ctx, "workbench");
+    // 分类标签已并入左二，刷新后仍恢复上次查看的分类。
+    const storedTab = readStoredJson<unknown>(LIBRARY_TAB_STORAGE_KEY, null);
+    if (isLibraryTabKey(storedTab)) this.activeLibraryTabValue = storedTab;
     const initialRoute = readActiveRoutePref();
+    // 「图像」入口已并入资料库：旧路由恢复时落到资料库的图像分类，并把归一化结果写回偏好。
+    if (initialRoute.activeView === "images") {
+      this.activeViewValue = "library";
+      this.activeProjectIdValue = null;
+      this.activeLibraryTabValue = "media";
+      writeActiveRoutePref("library", null);
+      writeStoredJson(LIBRARY_TAB_STORAGE_KEY, "media");
+      return;
+    }
     this.activeViewValue = initialRoute.activeView;
     this.activeProjectIdValue = initialRoute.activeProjectId;
   }
@@ -317,6 +340,7 @@ export class WorkbenchClientService extends Service {
   setLibraryTab(tab: LibraryTabKey): void {
     if (this.activeLibraryTabValue === tab) return;
     this.activeLibraryTabValue = tab;
+    writeStoredJson(LIBRARY_TAB_STORAGE_KEY, tab);
     this.emit();
   }
 

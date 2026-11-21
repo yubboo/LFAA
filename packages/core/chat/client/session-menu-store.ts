@@ -8,8 +8,8 @@ export interface SessionAnchorRect {
 
 /** 记录会话菜单和确认弹窗的当前目标及开关状态。 */
 export interface SessionMenuSnapshot {
-  hoverCard: { sessionId: string; rect: SessionAnchorRect } | null;
-  actionMenu: { sessionId: string; rect: SessionAnchorRect } | null;
+  hoverCard: { sessionId: string; rect: SessionAnchorRect; rowKey?: string } | null;
+  actionMenu: { sessionId: string; rect: SessionAnchorRect; rowKey?: string } | null;
   renameTargetId: string | null;
   deleteTargetId: string | null;
 }
@@ -17,6 +17,11 @@ export interface SessionMenuSnapshot {
 function toRect(el: HTMLElement): SessionAnchorRect {
   const r = el.getBoundingClientRect();
   return { top: r.top, right: r.right, bottom: r.bottom, left: r.left };
+}
+
+/** 读取元素所属侧栏行 id：同一会话同时出现在「置顶」和「项目」时只高亮被交互的那一行。 */
+function rowKeyOf(el: Element): string | undefined {
+  return el.closest("[data-sidebar-item]")?.getAttribute("data-sidebar-item") ?? undefined;
 }
 
 /** 统一协调侧栏各会话行的菜单与预览，供浮层宿主订阅。 */
@@ -67,7 +72,8 @@ export class SessionMenuStore {
       this.openTimer = null;
       this.pendingSessionId = null;
       if (this.snapshot.actionMenu || !rowEl.isConnected) return;
-      this.update({ hoverCard: { sessionId, rect } });
+      const rowKey = rowKeyOf(rowEl);
+      this.update({ hoverCard: { sessionId, rect, ...(rowKey ? { rowKey } : {}) } });
     }, delay);
   }
 
@@ -109,9 +115,10 @@ export class SessionMenuStore {
   toggleActionMenu(sessionId: string, triggerEl: HTMLElement): void {
     this.clearTimers();
     const isSame = this.snapshot.actionMenu?.sessionId === sessionId;
+    const rowKey = rowKeyOf(triggerEl);
     this.update({
       hoverCard: null,
-      actionMenu: isSame ? null : { sessionId, rect: toRect(triggerEl) },
+      actionMenu: isSame ? null : { sessionId, rect: toRect(triggerEl), ...(rowKey ? { rowKey } : {}) },
     });
   }
 
@@ -135,11 +142,10 @@ export class SessionMenuStore {
     this.update({ hoverCard: null, actionMenu: null });
   }
 
-  isHighlighted(sessionId: string): boolean {
-    return (
-      this.snapshot.actionMenu?.sessionId === sessionId
-      || this.snapshot.hoverCard?.sessionId === sessionId
-    );
+  isHighlighted(sessionId: string, rowKey?: string): boolean {
+    const matches = (entry: SessionMenuSnapshot["hoverCard"]) =>
+      entry?.sessionId === sessionId && (!rowKey || !entry.rowKey || entry.rowKey === rowKey);
+    return matches(this.snapshot.actionMenu) || matches(this.snapshot.hoverCard);
   }
 
   dispose(): void {

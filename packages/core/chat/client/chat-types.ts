@@ -1,6 +1,7 @@
 // 声明 @lfaa/chat/client 浏览器端状态与 API 数据模型（无 Node 专有依赖）。
 import type { GeneralSettingsConfig, ReasoningLevelOption } from "./general-settings-client";
-import type { AgentRunMetrics, AgentStepTrace, UserClarification } from "@lfaa/memory";
+import type { AgentRunMetrics, AgentStepTrace, ChatMessageAttachment, ChatMessageReference, PendingQuestion, UserClarification } from "@lfaa/memory";
+import type { QueuedMessage } from "./chat-queue";
 
 export type { GeneralSettingsConfig, OpenSourcePackageInfo, ReasoningLevelOption } from "./general-settings-client";
 export type AgentPermissionMode = "ask" | "smart" | "full";
@@ -25,6 +26,12 @@ export interface ChatMessageItem {
   status?: "streaming" | "done" | "error" | "aborted";
   model?: string;
   clarification?: UserClarification;
+  /** 用户消息上传的图片引用，旧消息与助手消息可缺省。 */
+  attachments?: ChatMessageAttachment[];
+  /** 用户消息引用过的会话内生成图片，旧消息可缺省。 */
+  references?: ChatMessageReference[];
+  /** 媒体生成中的占位消息：消息区按目标比例显示生成卡片，完成前没有正文。 */
+  mediaGenerating?: { kind: "image" | "video" | "audio"; ratio?: string };
   /** 本轮运行累计的模型用量，供应商未返回时缺省。 */
   tokenUsage?: {
     promptTokens?: number;
@@ -51,8 +58,20 @@ export interface ChatSessionItem {
   messageCount: number;
   summary?: string;
   sessionPreset?: string;
+  /** 等待用户回答的澄清问题；回答或开始新一轮后清除。 */
+  pendingQuestion?: PendingQuestion;
   createdAt: number;
   updatedAt: number;
+}
+
+/** 会话需要用户处理的状态，供左二栏徽标与通知使用。 */
+export interface ChatSessionAttention {
+  sessionId: string;
+  kind: "approval" | "question";
+  toolName?: string;
+  question?: string;
+  options?: string[];
+  messageId?: string;
 }
 
 /** 返回选中会话及其消息，供中央工作区渲染。 */
@@ -64,6 +83,8 @@ export interface ChatSessionDetail extends ChatSessionItem {
 export interface ModelCapabilityItem {
   id: string;
   displayName?: string;
+  /** 模型用途：对话 / 生图 / 生视频 / 语音。 */
+  modelKind?: "chat" | "image" | "video" | "audio";
   supportsReasoning: boolean;
   reasoningMode: "none" | "fixed" | "effort";
   reasoningLevels: ReasoningLevelOption[];
@@ -205,7 +226,11 @@ export interface ChatStoreSnapshot {
   draftSessionPreset?: string | undefined;
   submittingMessage?: boolean;
   runningRunId: string | null;
-  queuedMessages: string[];
+  /** 正在运行 Agent 的会话 id：切走会话后仍用于在左二栏显示工作转圈。 */
+  runningSessionIds: string[];
+  /** 当前需要用户确认或回答的会话；用于侧栏徽标与系统通知。 */
+  attention: ChatSessionAttention[];
+  queuedMessages: QueuedMessage[];
   pendingApproval: PendingApprovalBanner | null;
   filePreviewTabs: FilePreviewTab[];
   activeFilePreviewId: string | null;

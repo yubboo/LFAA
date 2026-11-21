@@ -1,6 +1,8 @@
 // 管理输入栏附件上下文芯片、@ 提及指令检索提取以及发送前上下文拼装的纯函数（无 DOM 依赖）。
 import type { ChatSessionItem } from "./chat-types";
+import { extractAbsolutePaths } from "./composer-paths";
 import type { ChatLocaleMessages } from "./locales";
+import type { MediaSource } from "./chat-media";
 
 /** 记录已加入输入框并随发送提交的上下文条目。 */
 export interface ComposerAttachment {
@@ -11,6 +13,12 @@ export interface ComposerAttachment {
   contentPreview?: string;
   /** 已上传到本机会话附件库后的 id；Agent 可用 read_attachment 读取。 */
   attachmentId?: string;
+  /** 本地图片原件仅用于浏览器预览及会话附件上传。 */
+  imageFile?: File;
+  /** 聊天内生成图片的来源，用于宿主校验引用归属。 */
+  mediaSource?: MediaSource & { sessionId: string; url: string };
+  /** 本机绝对路径（粘贴/输入路径时只传路径，不复制字节）。 */
+  path?: string;
   modeId?: "goal" | "plan";
   skillId?: string;
 }
@@ -264,7 +272,8 @@ export function filterMentionEntries(entries: MentionEntry[], query: string): Me
 // 把用户勾选的文件、文件夹、历史对话和模式标签注入最终发给 Agent 的消息上下文。
 export function buildContextualMessage(userText: string, attachments: ComposerAttachment[]): string {
   const cleanText = userText.trim();
-  if (attachments.length === 0) return cleanText;
+  const typedPathsAll = extractAbsolutePaths(cleanText);
+  if (attachments.length === 0 && typedPathsAll.length === 0) return cleanText;
 
   const blocks: string[] = [];
   for (const item of attachments) {
@@ -278,11 +287,17 @@ export function buildContextualMessage(userText: string, attachments: ComposerAt
       blocks.push(`[引用历史对话：${item.label}]${item.detail ? `\n${item.detail}` : ""}`);
     } else if (item.kind === "folder") {
       blocks.push(`[附加文件夹：${item.label}]${item.contentPreview ? `\n${item.contentPreview}` : ""}`);
+    } else if (item.path) {
+      blocks.push(`[本地文件路径：${item.path}] 需要内容时直接读取该绝对路径。`);
     } else {
       const savedHint = item.attachmentId ? `\n附件已保存到本机会话附件库（id=${item.attachmentId}），需要完整原文时调用 read_attachment 读取。` : "";
       blocks.push(`[附加文件：${item.label}${item.detail ? ` (${item.detail})` : ""}]${savedHint}${item.contentPreview ? `\n\`\`\`\n${item.contentPreview}\n\`\`\`` : ""}`);
     }
   }
+
+  // 文本里直接输入的绝对路径也补一条本地文件上下文，避免用户手打路径时丢失意图。
+  const typedPaths = extractAbsolutePaths(cleanText).filter((path) => !blocks.some((block) => block.includes(path)));
+  for (const path of typedPaths) blocks.push(`[本地文件路径：${path}] 需要内容时直接读取该绝对路径。`);
 
   return `${blocks.join("\n\n")}\n\n${cleanText}`;
 }

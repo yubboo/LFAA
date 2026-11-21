@@ -4,6 +4,9 @@ import { IconArrowRight } from "@tabler/icons-react";
 import type { ChatMessageItem, FilePreviewTab, PendingApprovalBanner } from "../chat-types";
 import type { ChatLocaleMessages } from "../locales";
 import { AssistantTimeline } from "./AssistantTimeline";
+import { MediaGeneratingCard } from "./Media-Generating-Card";
+import { UserMessageAttachments } from "./UserMessageAttachments";
+import { MediaResultContext, type MediaResultContextValue } from "./media-result-context";
 import {
   AssistantMessageActions,
   EditedFilesCard,
@@ -36,6 +39,7 @@ export function ChatMessageList({
   onContinueInterrupted,
   onSubmitQuestion,
   onResolveApproval,
+  mediaActions,
   threadRef,
 }: {
   locale: ChatLocaleMessages;
@@ -60,6 +64,7 @@ export function ChatMessageList({
   onContinueInterrupted: (messageId: string) => void;
   onSubmitQuestion: (question: string) => void;
   onResolveApproval: (approved: boolean) => void;
+  mediaActions: Pick<MediaResultContextValue, "busy" | "onQuote" | "onRegenerate">;
   threadRef: RefObject<HTMLDivElement | null>;
 }) {
   if (messages.length === 0) {
@@ -111,37 +116,68 @@ export function ChatMessageList({
           {formatDayDivider(messages[0].createdAt, locale.isZh)}
         </div>
       )}
-      {messages.map((msg, msgIdx) =>
-        msg.role === "user" ? (
-          <div key={msg.id} className={styles.userRow} data-turn-anchor={msg.id}>
-            <div className={styles.userBubble}>{msg.content}</div>
-            <UserMessageActions
-              isZh={locale.isZh}
-              content={msg.content}
-              createdAt={msg.createdAt}
-              onEdit={() => onEditContent(msg.content)}
-            />
-          </div>
-        ) : (
+      {messages.map((msg, msgIdx) => {
+        if (msg.role === "user") {
+          const hasMedia = Boolean(msg.attachments?.length || msg.references?.length);
+          return (
+            <div key={msg.id} className={styles.userRow} data-turn-anchor={msg.id}>
+              {/* 带图时不再套背景气泡：图片本身即卡片，文字收成一枚胶囊标签跟在图下。 */}
+              <div className={styles.userBubble} data-media={hasMedia ? "true" : undefined}>
+                {hasMedia ? (
+                  <>
+                    <UserMessageAttachments
+                      attachments={msg.attachments}
+                      references={msg.references}
+                      sessionId={activeSessionId ?? null}
+                      isZh={locale.isZh}
+                    />
+                    {msg.content.trim() ? <p className={styles.userMediaCaption}>{msg.content}</p> : null}
+                  </>
+                ) : (
+                  <div>{msg.content}</div>
+                )}
+              </div>
+              <UserMessageActions
+                isZh={locale.isZh}
+                content={msg.content}
+                createdAt={msg.createdAt}
+                persistent={hasMedia}
+                onEdit={() => onEditContent(msg.content)}
+              />
+            </div>
+          );
+        }
+        return (
           <article key={msg.id} className={styles.assistantRow}>
-            <AssistantTimeline
-              locale={locale}
-              content={clarification && msg.id === lastMessage?.id ? "" : msg.content}
-              progressText={msg.progressText}
-              steps={msg.steps ?? []}
-              createdAt={msg.createdAt}
-              runDurationMs={msg.runDurationMs}
-              reasoningDurationMs={msg.reasoningDurationMs}
-              tokenUsage={msg.tokenUsage}
-              isStreaming={msg.status === "streaming"}
-              pendingApproval={msg.status === "streaming" ? pendingApproval : null}
-              onResolveApproval={onResolveApproval}
-              onOpenFile={(stepId) => onOpenFilePreview(msg.id, stepId)}
-              onOpenTrace={(stepId) => onOpenTrace(msg.id, stepId)}
-              selectedFileStepId={selectedFile?.messageId === msg.id ? selectedFile.stepId : undefined}
-              bodyClassName={assistantBodyClass ?? ""}
-              onSelectAdvice={(text) => onSubmitQuestion(text)}
-            />
+            {msg.mediaGenerating ? (
+              <MediaGeneratingCard
+                kind={msg.mediaGenerating.kind}
+                ratio={msg.mediaGenerating.ratio}
+                isZh={locale.isZh}
+              />
+            ) : (
+              <MediaResultContext.Provider value={activeSessionId && msg.status !== "streaming"
+                ? { ...mediaActions, sessionId: activeSessionId, messageId: msg.id, isZh: locale.isZh } : null}>
+              <AssistantTimeline
+                locale={locale}
+                content={clarification && msg.id === lastMessage?.id ? "" : msg.content}
+                progressText={msg.progressText}
+                steps={msg.steps ?? []}
+                createdAt={msg.createdAt}
+                runDurationMs={msg.runDurationMs}
+                reasoningDurationMs={msg.reasoningDurationMs}
+                tokenUsage={msg.tokenUsage}
+                isStreaming={msg.status === "streaming"}
+                pendingApproval={msg.status === "streaming" ? pendingApproval : null}
+                onResolveApproval={onResolveApproval}
+                onOpenFile={(stepId) => onOpenFilePreview(msg.id, stepId)}
+                onOpenTrace={(stepId) => onOpenTrace(msg.id, stepId)}
+                selectedFileStepId={selectedFile?.messageId === msg.id ? selectedFile.stepId : undefined}
+                bodyClassName={assistantBodyClass ?? ""}
+                onSelectAdvice={(text) => onSubmitQuestion(text)}
+              />
+              </MediaResultContext.Provider>
+            )}
             <EditedFilesCard
               isZh={locale.isZh}
               steps={msg.steps ?? []}
@@ -180,8 +216,8 @@ export function ChatMessageList({
               />
             )}
           </article>
-        ),
-      )}
+        );
+      })}
     </div>
   );
 }

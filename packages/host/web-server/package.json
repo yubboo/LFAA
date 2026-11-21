@@ -1,6 +1,6 @@
 {
   "name": "@lfaa/web-server",
-  "description": "LFAA Web 宿主服务：装配 bundle、挂载各能力 HTTP 接口并托管 Vite 开发服务器。",
+  "description": "LFAA Web 宿主服务：装配运行时与全部 HTTP 接口，开发态托管 Vite、生产态托管 Web 产物。",
   "version": "0.1.0",
   "type": "module",
   "main": "./lib/index.js",
@@ -41,6 +41,7 @@
     "@lfaa/attachment-local": "workspace:*",
     "@lfaa/session-title": "workspace:*",
     "@lfaa/commands": "workspace:*",
+    "@lfaa/tool-media": "workspace:*",
     "@lfaa/plugins": "workspace:*",
     "@lfaa/rules": "workspace:*",
     "@lfaa/sections": "workspace:*",

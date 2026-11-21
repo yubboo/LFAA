@@ -1,0 +1,17 @@
+# UPDATA-000344｜会话待确认/待回答提醒 + 设置中心「通知」接入
+
+- 时间：2026-11-22 00:58 +0800。负责人要求：当用户不在需要澄清的会话里时，会话列表要显示「待确认 / 待回答」这类会话通知；同时把设置中心的「通知」真正接入，包括轮次完成、权限通知、问题通知、提示音。
+- Host：会话摘要新增持久化 `pendingQuestion`（问题、选项、来源消息 id）。Agent 收到用户新消息时清除；以 `ask_user` 澄清结束本轮时写入并标记未读。新增 `GET /api/agent/attention`，返回等待工具审批或等待回答的会话（审批优先），只暴露会话 id、工具名与问题文本。
+- 客户端：`ChatStoreSnapshot.attention` + `ChatSessionNotifier`。后台每 1.5s（有运行任务）或 4s（只剩待回答问题）同步运行集合与待处理集合；首屏只恢复状态不补发历史通知。新出现的审批/问题按对应开关播放提示音并弹桌面通知；后台轮次完成按「未聚焦/始终/关闭」提醒，同一轮已有待回答徽标时跳过，避免双重提示。
+- 左二栏：`getSessionAttention` 将「待确认」用警示色、「待回答」用信息色徽标显示；审批中的会话保留左侧转圈 + 右侧徽标；当前打开的会话不显示徽标；徽标优先于完成未读小圆点。后台审批不再抢占当前会话的审批横幅。
+- 设置中心：新增独立「通知」页（`settings:notifications`，目录标记为可用），复用同一份 `NotificationSettingsGroup` 到「常规」页；提供桌面通知权限状态/申请、发送测试通知、轮次完成/权限/问题/会话状态开关、提示音选择与试听。所有开关写入 Host 通用设置，通知器读取同一份配置。
+- 实测（独立 5174 宿主 + 无头 Edge，真实模型与真实 Agent 运行）：
+  - 发送需要执行命令的消息并停在工具审批：会话行出现转圈 + 「待确认」，桌面通知标题「会话等待确认 · LFAA」，提示音触发。
+  - 发送 `ask_user` 澄清：新会话行出现「待回答」，桌面通知「会话等待回答 · LFAA」。
+  - 设置中心「通知」页显示桌面通知权限、测试通知、全部开关与提示音；点击「测试」实际产生一条系统通知并播放提示音。
+  - 截图：`%TEMP%\lfaa-pw\notify\05-badge-visible.png`（两个徽标）、`07-notifications-page.png`（通知设置页）。
+- 收尾：删除自建测试会话、中止运行、恢复模型为千问 Token Plan，关闭临时 5174 宿主；未触碰其它并发会话创建的测试会话。
+- 测试：全仓 `pnpm test` **477 项通过**；`pnpm check` 0 错误 / 4 条既有警告（53 包 / 439 源文件）；`pnpm lint` 430 文件 0 问题；`pnpm typecheck`、`pnpm build` 通过。
+- 说明：当前用户正在使用的 5173 宿主启动早于新接口，需重启一次 `pnpm lfaa web`（或桌面端）后才能在刷新恢复/跨会话通知上使用新 Host 能力。
+- 本轮文件：`docs/updata-log/000344-20261122-0058-session-attention-notifications.md`、`docs/architecture/notifications.md`、`docs/architecture/README.md`、`packages/core/session/src/types.ts`、`packages/core/session/src/session-store.ts`、`packages/core/session/tests/session.test.ts`、`packages/core/memory/src/types.ts`、`packages/core/memory/src/index.ts`、`packages/core/agent/src/types.ts`、`packages/core/agent/src/index.ts`、`packages/core/agent/src/http-handler.ts`、`packages/core/agent/src/run-begin.ts`、`packages/core/agent/tests/agent-loop.core.test.ts`、`packages/core/agent/tests/agent-http-active-sessions.test.ts`、`packages/core/chat/client/chat-types.ts`、`packages/core/chat/client/chat-store.ts`、`packages/core/chat/client/chat-store-port.ts`、`packages/core/chat/client/chat-background-runs.ts`、`packages/core/chat/client/chat-session-notifier.ts`、`packages/core/chat/client/notifications.ts`、`packages/core/chat/client/chat-run-actions.ts`、`packages/core/chat/client/index.tsx`、`packages/core/chat/client/components/NotificationSettingsGroup.tsx`、`packages/core/chat/client/components/NotificationSettingsView.tsx`、`packages/core/chat/client/components/GeneralSettingsSecondary.tsx`、`packages/core/chat/tests/chat-running-sessions.test.ts`、`packages/core/chat/tests/chat-store-actions.test.ts`、`packages/core/chat/tests/notifications.test.ts`、`packages/ui/layout/contract/index.ts`、`packages/ui/layout/client/components/navigation-items.ts`、`packages/ui/layout/client/components/NavigationGroups.tsx`、`packages/ui/layout/client/components/SidebarSectionList.tsx`、`packages/ui/layout/client/components/SidebarSectionList.module.css`、`packages/ui/layout/client/locales.ts`、`packages/ui/layout/client/settings-catalog.ts`、`packages/ui/layout/tests/session-running-indicator.test.tsx`、`docs/dev-log/000201-000400.md`。
+- Git：保留工作区内此前未提交的改动；未提交或推送。

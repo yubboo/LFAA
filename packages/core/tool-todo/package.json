@@ -16,6 +16,8 @@
   },
   "dependencies": {
     "@deepseek-ai/cordis": "^4.1.0",
+    "@lfaa/memory": "workspace:*",
+    "@lfaa/session": "workspace:*",
     "@lfaa/tools": "workspace:*"
   },
   "devDependencies": {

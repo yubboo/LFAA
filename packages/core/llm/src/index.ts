@@ -6,10 +6,26 @@ import { dirname, join, resolve } from "node:path";
 import { type Context, Service } from "@deepseek-ai/cordis";
 import { callAnthropicMessagesApi } from "./anthropic-adapter";
 import { findArkChatModel, getArkPlanCatalog, getArkPlanKind } from "./ark-plan";
-import { fetchOfficialModels, normalizeModelCapability, resolveModelCapabilities } from "./capabilities";
+import { knownMediaModels } from "./media-models";
+import { fetchOfficialModels, normalizeModelCapability, resolveModelCapabilities, resolveModelKind } from "./capabilities";
+import {
+  generateConfiguredAudio,
+  generateConfiguredVideo,
+  generateMediaImage,
+  getConfiguredVideoTask,
+  selectImageProfile,
+  type MediaImageInput,
+  type MediaImageResult,
+  type MediaVideoInput,
+  type MediaVideoResult,
+  type MediaAudioInput,
+  type MediaAudioResult,
+} from "./media";
+export type { MediaImageInput, MediaImageResult, MediaVideoInput, MediaVideoResult, MediaAudioInput, MediaAudioResult } from "./media";
 import { callGeminiGenerateContentApi } from "./gemini-adapter";
 import { callOpenAiCompatibleChat } from "./openai-adapter";
 import { asApiProtocol, resolveEffectiveProtocol } from "./protocol-utils";
+import { priceFields, sanitizeStoredConfig, withSelectedModel, type StoredLlmConfig } from "./config-sanitize";
 import { callOpenAiResponsesApi } from "./responses-adapter";
 import type {
   LlmAdapter,
@@ -36,48 +52,7 @@ export interface LlmPluginConfig {
   adapter?: LlmAdapter;
 }
 
-interface StoredLlmConfig {
-  activeProfileId: string;
-  profiles: LlmProfile[];
-}
-
 const DEFAULT_LLM_STORE_PATH = join(homedir(), ".lfaa", "llm-config.json");
-
-function createDefaultProfiles(): LlmProfile[] {
-  const now = Date.now();
-  return [
-    {
-      id: "deepseek-chat",
-      name: "DeepSeek Chat",
-      kind: "deepseek",
-      baseUrl: "https://api.deepseek.com/v1",
-      model: "deepseek-chat",
-      apiKey: "",
-      temperature: 0.3,
-      updatedAt: now,
-    },
-    {
-      id: "openai-gpt4o",
-      name: "OpenAI Compatible",
-      kind: "openai-compatible",
-      baseUrl: "https://api.openai.com/v1",
-      model: "gpt-4o",
-      apiKey: "",
-      temperature: 0.3,
-      updatedAt: now,
-    },
-    {
-      id: "ollama-local",
-      name: "Ollama 本地模型",
-      kind: "ollama",
-      baseUrl: "http://127.0.0.1:11434/v1",
-      model: "qwen2.5-coder:7b",
-      apiKey: "",
-      temperature: 0.2,
-      updatedAt: now,
-    },
-  ];
-}
 
 /** 生成配置页的凭据提示，公共档案只携带脱敏片段。 */
 export function maskApiKey(apiKey: string): string {
@@ -93,16 +68,36 @@ export function toPublicProfile(profile: LlmProfile): PublicLlmProfile {
   const plan = (apiProtocol === "openai-chat" || apiProtocol === "anthropic-messages")
     ? getArkPlanKind(profile.baseUrl)
     : undefined;
-  // 方舟 Chat 档案使用套餐目录，同时保留用户之前保存的自定义模型 ID。
-  const models =
-    plan ? [
-      ...(findArkChatModel(profile.model) ? [] : [
-        { id: profile.model, supportsReasoning: false, reasoningMode: "none" as const, reasoningLevels: [] },
-      ]),
+  const synced = knownMediaModels(profile);
+  // 方舟套餐以官方目录为准：语言模型 + 视觉/语音模型都补齐，避免同步接口漏返回时用户选不到 5.0-pro / 5.5。
+  const catalogMedia = plan
+    ? getArkPlanCatalog(plan).otherGroups
+      .filter((group) => group.kind !== "embedding")
+      .flatMap((group) => group.models.map((model) => ({
+        id: model.id,
+        modelKind: (group.kind === "vision" ? "image" : "audio") as "image" | "audio",
+        supportsReasoning: false,
+        reasoningMode: "none" as const,
+        reasoningLevels: [],
+      })))
+    : [];
+  const baseModels = plan
+    ? [
       ...getArkPlanCatalog(plan).chatModels,
-    ] : profile.availableModels && profile.availableModels.length > 0
-        ? profile.availableModels.map((m) => normalizeModelCapability(m, profile.kind))
-        : [resolveModelCapabilities(profile.model, profile.kind)];
+      ...catalogMedia,
+      ...synced.filter((model) => model.modelKind && model.modelKind !== "chat" && !findArkChatModel(model.id)),
+    ]
+    : synced;
+  // 目录与同步结果可能重复，按模型 ID 去重后保持「语言 → 视觉/语音 → 已同步补充」的顺序。
+  const seenModels = new Set<string>();
+  const models = baseModels.filter((model) => {
+    if (seenModels.has(model.id)) return false;
+    seenModels.add(model.id);
+    return true;
+  });
+  if (!models.some((model) => model.id === profile.model)) {
+    models.unshift((plan && findArkChatModel(profile.model)) || resolveModelCapabilities(profile.model, profile.kind));
+  }
   const hasApiKey = profile.apiKey.trim().length > 0;
   return {
     id: profile.id,
@@ -127,103 +122,6 @@ export function toPublicProfile(profile: LlmProfile): PublicLlmProfile {
       ? { cachedInputPricePerMillion: profile.cachedInputPricePerMillion }
       : {}),
     updatedAt: profile.updatedAt,
-  };
-}
-
-function isValidProviderKind(kind: unknown): kind is LlmProviderKind {
-  return kind === "openai-compatible" || kind === "deepseek" || kind === "ollama";
-}
-
-function sanitizeStoredConfig(raw: unknown): StoredLlmConfig {
-  if (typeof raw !== "object" || raw === null) {
-    const defaults = createDefaultProfiles();
-    return { activeProfileId: defaults[0]!.id, profiles: defaults };
-  }
-  const record = raw as Record<string, unknown>;
-  const profiles: LlmProfile[] = Array.isArray(record.profiles)
-    ? record.profiles
-        .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
-        .filter(
-          (item) =>
-            typeof item.id === "string"
-            && typeof item.name === "string"
-            && isValidProviderKind(item.kind)
-            && typeof item.baseUrl === "string"
-            && typeof item.model === "string",
-        )
-        .map((item) => {
-          const kind = item.kind as LlmProviderKind;
-          const modelStr = item.model as string;
-          const apiKeyStr = typeof item.apiKey === "string" ? item.apiKey : "";
-          const rawModels = Array.isArray(item.availableModels) ? item.availableModels : [];
-          const parsedModels: ModelCapabilityInfo[] = rawModels
-            .filter((m): m is ModelCapabilityInfo => typeof m === "object" && m !== null && typeof (m as { id?: unknown }).id === "string")
-            .map((m) => normalizeModelCapability(m, kind));
-          const apiProtocol = asApiProtocol(item.apiProtocol);
-          return {
-            id: item.id as string,
-            ...(typeof item.providerId === "string" && item.providerId.trim() ? { providerId: item.providerId.trim() } : {}),
-            name: item.name as string,
-            kind,
-            ...(apiProtocol ? { apiProtocol } : {}),
-            baseUrl: item.baseUrl as string,
-            model: modelStr,
-            apiKey: apiKeyStr,
-            ...(typeof item.configured === "boolean" ? { configured: item.configured } : {}),
-            ...(parsedModels.length > 0 ? { availableModels: parsedModels } : {}),
-            ...(typeof item.temperature === "number" ? { temperature: item.temperature } : {}),
-            ...(typeof item.maxTokens === "number" ? { maxTokens: item.maxTokens } : {}),
-            ...(typeof item.contextWindowTokens === "number" && item.contextWindowTokens > 0
-              ? { contextWindowTokens: Math.floor(item.contextWindowTokens) }
-              : {}),
-            ...(typeof item.inputPricePerMillion === "number" ? { inputPricePerMillion: item.inputPricePerMillion } : {}),
-            ...(typeof item.outputPricePerMillion === "number" ? { outputPricePerMillion: item.outputPricePerMillion } : {}),
-            ...(typeof item.cachedInputPricePerMillion === "number"
-              ? { cachedInputPricePerMillion: item.cachedInputPricePerMillion }
-              : {}),
-            updatedAt: typeof item.updatedAt === "number" ? item.updatedAt : Date.now(),
-          };
-        })
-    : [];
-
-  if (profiles.length === 0) {
-    const defaults = createDefaultProfiles();
-    return { activeProfileId: defaults[0]!.id, profiles: defaults };
-  }
-
-  const activeId =
-    typeof record.activeProfileId === "string" && profiles.some((p) => p.id === record.activeProfileId)
-      ? record.activeProfileId
-      : profiles[0]!.id;
-
-  return { activeProfileId: activeId, profiles };
-}
-
-/** 校验并保留非负单价；未提供时沿用已有值。 */
-function readPrice(input: number | undefined, existing: number | undefined): number | undefined {
-  if (typeof input === "number" && Number.isFinite(input) && input >= 0) return input;
-  return existing;
-}
-
-/** 手动配置的窗口只适用于对应模型。 */
-function withSelectedModel(profile: LlmProfile, model: string): LlmProfile {
-  if (profile.model === model) return profile;
-  const { contextWindowTokens: _oldWindow, ...rest } = profile;
-  return { ...rest, model };
-}
-
-/** 组装模型档案的计价字段，未提供的沿用已有值。 */
-function priceFields(
-  input: Pick<SaveLlmProfileInput, "inputPricePerMillion" | "outputPricePerMillion" | "cachedInputPricePerMillion">,
-  existing: LlmProfile | undefined,
-): Pick<LlmProfile, "inputPricePerMillion" | "outputPricePerMillion" | "cachedInputPricePerMillion"> {
-  const inputPrice = readPrice(input.inputPricePerMillion, existing?.inputPricePerMillion);
-  const outputPrice = readPrice(input.outputPricePerMillion, existing?.outputPricePerMillion);
-  const cachedPrice = readPrice(input.cachedInputPricePerMillion, existing?.cachedInputPricePerMillion);
-  return {
-    ...(inputPrice !== undefined ? { inputPricePerMillion: inputPrice } : {}),
-    ...(outputPrice !== undefined ? { outputPricePerMillion: outputPrice } : {}),
-    ...(cachedPrice !== undefined ? { cachedInputPricePerMillion: cachedPrice } : {}),
   };
 }
 
@@ -255,7 +153,11 @@ export class LlmService extends Service {
   private async readConfig(): Promise<StoredLlmConfig> {
     try {
       const raw = await readFile(this.storeFilePath, "utf8");
-      return sanitizeStoredConfig(JSON.parse(raw));
+      let repaired = false;
+      const config = sanitizeStoredConfig(JSON.parse(raw), () => { repaired = true; });
+      // 修复了历史乱码名称就立即回写，避免每次启动都重复修复。
+      if (repaired) await this.writeConfig(config).catch(() => {});
+      return config;
     } catch {
       return sanitizeStoredConfig(null);
     }
@@ -264,6 +166,31 @@ export class LlmService extends Service {
   private async writeConfig(config: StoredLlmConfig): Promise<void> {
     await mkdir(dirname(this.storeFilePath), { recursive: true });
     await writeFile(this.storeFilePath, JSON.stringify(config, null, 2), "utf8");
+  }
+
+  /** 生成图片：按档案找到厂商图片接口并返回图片数据。 */
+  async generateImage(input: MediaImageInput): Promise<MediaImageResult> {
+    const config = await this.readConfig();
+    const { profile, modelId } = selectImageProfile(config.profiles, config.activeProfileId, input);
+    return { ...await generateMediaImage({ ...profile, model: modelId }, input), profileId: profile.id };
+  }
+
+  /** 生成视频：创建异步任务并轮询，超时返回 taskId 供后续查询。 */
+  async generateVideo(input: MediaVideoInput): Promise<MediaVideoResult> {
+    const config = await this.readConfig();
+    return generateConfiguredVideo(config.profiles, config.activeProfileId, input);
+  }
+
+  /** 查询视频任务：按 taskId 取当前状态与视频地址。 */
+  async getVideoTask(input: { taskId: string; profileId?: string; modelId?: string }): Promise<MediaVideoResult> {
+    const config = await this.readConfig();
+    return getConfiguredVideoTask(config.profiles, config.activeProfileId, input);
+  }
+
+  /** 语音合成：按配置调用 TTS 模型，返回可下载的音频地址。 */
+  async generateAudio(input: MediaAudioInput): Promise<MediaAudioResult> {
+    const config = await this.readConfig();
+    return generateConfiguredAudio(config.profiles, config.activeProfileId, input);
   }
 
   async listPublicProfiles(): Promise<{ activeProfileId: string; profiles: PublicLlmProfile[] }> {
@@ -358,7 +285,10 @@ export class LlmService extends Service {
 
   async complete(input: LlmGenerateInput): Promise<LlmGenerateOutput> {
     const profile = await this.resolveProfile(input.profileId);
-    return this.adapter(profile, input);
+    // 允许在同一个配置里临时指定对话模型：图片配置里通常也带对话模型，提示词扩写就复用它。
+    const model = input.modelId?.trim() || profile.model;
+    if (resolveModelKind(model) !== "chat") throw new Error("此模型用于媒体生成，请使用相应的生成入口。");
+    return this.adapter({ ...profile, model }, input);
   }
 
   async listRemoteModels(input: {

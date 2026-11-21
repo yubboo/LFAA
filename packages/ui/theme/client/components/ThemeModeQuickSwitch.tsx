@@ -162,8 +162,9 @@ export function ThemeModeQuickSwitch({
         <IconChevronDown className={styles.triggerChevron} aria-hidden="true" />
       </button>
 
+      {/* 挂到 body：账号面板与其遮罩都在 body 级层叠，挂在应用容器里会被遮罩盖住导致点不动。 */}
       {menuNode && typeof document !== "undefined"
-        ? createPortal(menuNode, document.querySelector("[data-device]") ?? document.body)
+        ? createPortal(menuNode, document.body)
         : menuNode}
     </>
   );

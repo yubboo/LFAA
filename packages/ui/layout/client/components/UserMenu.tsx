@@ -1,5 +1,6 @@
 // 展示本地用户菜单，并复用现有外观设置入口与主题插件提供的头部快捷操作。
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import type { WorkbenchAccountActionContribution } from "../../contract/index";
 import type { LocaleMessages } from "../locales";
 import { NavigationIcon } from "./NavigationIcon";
@@ -22,19 +23,47 @@ export function UserMenu({
   const [open, setOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const rootRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const [panelPos, setPanelPos] = useState<{ left: number; bottom: number; width: number } | null>(null);
 
   useEffect(() => {
     if (!open) return;
+    const computePosition = () => {
+      const rect = triggerRef.current?.getBoundingClientRect();
+      const compact = window.matchMedia("(max-width: 767px)").matches;
+      if (!rect || compact) {
+        setPanelPos(null);
+        return;
+      }
+      const gap = 8;
+      setPanelPos({
+        left: rect.right + gap,
+        bottom: Math.max(8, window.innerHeight - rect.bottom),
+        width: Math.min(344, window.innerWidth - rect.right - gap * 2),
+      });
+    };
+    computePosition();
+    window.addEventListener("resize", computePosition);
     const closeOnOutside = (event: PointerEvent) => {
       const target = event.target;
       if (!(target instanceof Node)) return;
-      if (rootRef.current?.contains(target)) return;
+      if (rootRef.current?.contains(target) || panelRef.current?.contains(target)) return;
       if (target instanceof Element && target.closest("[data-theme-quick-menu]")) return;
       setOpen(false);
     };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setOpen(false);
+      triggerRef.current?.focus();
+    };
     document.addEventListener("pointerdown", closeOnOutside);
-    return () => document.removeEventListener("pointerdown", closeOnOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.removeEventListener("resize", computePosition);
+      document.removeEventListener("pointerdown", closeOnOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
   }, [open]);
 
   const showNotice = (action: UserAction) => {
@@ -55,8 +84,16 @@ export function UserMenu({
       setOpen(false);
       triggerRef.current?.focus();
     }}>
-      {open && (
-        <section className={styles.panel} id="lfaa-user-menu" aria-label={locale.accountMenu}>
+      {open && createPortal(
+        <>
+          <div className={styles.scrim} aria-hidden="true" onClick={() => setOpen(false)} />
+          <section
+            className={styles.panel}
+            id="lfaa-user-menu"
+            aria-label={locale.accountMenu}
+            ref={panelRef}
+            style={panelPos ? { left: `${panelPos.left}px`, bottom: `${panelPos.bottom}px`, width: `${panelPos.width}px` } : undefined}
+          >
           <header className={styles.account}>
             <span className={styles.avatar} aria-hidden="true">LF</span>
             <span className={styles.accountMeta}><strong>{locale.localUser}</strong><small>{locale.localMode}</small></span>
@@ -96,7 +133,9 @@ export function UserMenu({
             </button>
           </div>
           {notice && <p className={styles.notice} role="status">{notice}</p>}
-        </section>
+          </section>
+        </>,
+        document.body,
       )}
       <button
         className={`${styles.trigger} ${open || active ? styles.triggerActive : ""}`}
