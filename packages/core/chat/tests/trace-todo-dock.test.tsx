@@ -1,10 +1,11 @@
 // 验证轨迹视图顶部复用任务卡：有清单时渲染，没有清单时不渲染。
+// 断言固定使用中文词典：CI（en-US）与本地（zh-CN）的 navigator.language 不同，不能让用例随宿主语言漂移。
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import test from "node:test";
 import React, { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { getChatLocale } from "../client/locales";
+import { zhMessages } from "../client/locales.zh";
 import type { ChatMessageItem } from "../client/chat-types";
 
 (globalThis as { React?: typeof React }).React = React;
@@ -51,7 +52,7 @@ function messages(withTodos: boolean): ChatMessageItem[] {
 function render(list: ChatMessageItem[]) {
   return renderToStaticMarkup(createElement(ConversationTrace, {
     messages: list,
-    locale: getChatLocale(),
+    locale: zhMessages,
     target: null,
     pendingApproval: null,
     onResolveApproval: () => undefined,

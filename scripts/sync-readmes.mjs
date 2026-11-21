@@ -47,6 +47,7 @@ const EXPORT_PURPOSE = {
   "./client": { zh: "浏览器入口，供 Vite 消费", en: "Browser entry consumed by Vite" },
   "./contract": { zh: "公开契约，无 Node 或 DOM 依赖", en: "Public contract with no Node or DOM dependency" },
   "./ark-plan": { zh: "方舟套餐模型路由子路径", en: "Ark plan model routing subpath" },
+  "./token-plan": { zh: "千问 Token Plan 套餐模型目录子路径", en: "Qwen Token Plan model catalog subpath" },
   "./src/*": { zh: "源码逃生口，仅供本仓工具链", en: "Source escape hatch for this repository's tooling" },
   "./package.json": { zh: "清单文件", en: "Package manifest" },
 };

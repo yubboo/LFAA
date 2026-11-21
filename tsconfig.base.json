@@ -57,6 +57,7 @@
       "@lfaa/jobs/client": ["./packages/core/jobs/client"],
       "@lfaa/llm": ["./packages/core/llm/src"],
       "@lfaa/llm/ark-plan": ["./packages/core/llm/src/ark-plan.ts"],
+      "@lfaa/llm/token-plan": ["./packages/core/llm/src/token-plan.ts"],
       "@lfaa/llm/client": ["./packages/core/llm/client"],
       "@lfaa/memory": ["./packages/core/memory/src"],
       "@lfaa/memory/client": ["./packages/core/memory/client"],

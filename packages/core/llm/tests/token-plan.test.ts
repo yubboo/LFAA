@@ -1,7 +1,21 @@
 // 验证千问 Token Plan 官方套餐目录补齐：/models 不返回的视频模型（happyhorse）也要出现在清单里。
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isTokenPlanBaseUrl, TOKEN_PLAN_MODELS, tokenPlanCatalogModels } from "../src/token-plan";
+import {
+  describeTokenPlanBrand, describeTokenPlanCapability, isTokenPlanBaseUrl, TOKEN_PLAN_MODELS, tokenPlanCatalogModels,
+} from "../src/token-plan";
+
+test("套餐模型带品牌与能力说明（千问 / 万相 / HappyHorse…）", () => {
+  assert.equal(describeTokenPlanBrand("wan2.7-image", true), "万相");
+  assert.equal(describeTokenPlanCapability("wan2.7-image", true), "图片生成");
+  assert.equal(describeTokenPlanBrand("happyhorse-1.1-t2v", true), "HappyHorse");
+  assert.equal(describeTokenPlanCapability("happyhorse-1.1-t2v", true), "视频生成");
+  assert.equal(describeTokenPlanBrand("glm-5.3", true), "智谱AI");
+  assert.equal(describeTokenPlanBrand("deepseek-v4-pro", true), "DeepSeek");
+  assert.equal(describeTokenPlanBrand("wan2.7-image", false), "Wanxiang");
+  assert.equal(describeTokenPlanCapability("happyhorse-1.1-t2v", false), "Video generation");
+  assert.equal(describeTokenPlanBrand("not-in-catalog", true), undefined);
+});
 
 test("千问 Token Plan 目录包含全部套餐模型（含 happyhorse 视频模型）", () => {
   const ids = TOKEN_PLAN_MODELS.map((model) => model.id);
@@ -21,7 +35,8 @@ test("补齐时跳过 /models 已返回的模型，并识别 Token Plan 地址",
     { id: "wan2.7-image", supportsReasoning: false, reasoningMode: "none" as const, reasoningLevels: [] },
   ];
   const extra = tokenPlanCatalogModels(existing);
-  assert.ok(!extra.some((model) => model.id === "wan2.7-image"));
+  assert.equal(extra.find((model) => model.id === "wan2.7-image")?.displayName, "万相 · 图片生成");
+  assert.equal(extra.filter((model) => model.id === "wan2.7-image").length, 1);
   assert.ok(extra.some((model) => model.id === "happyhorse-1.1-i2v"));
   assert.equal(isTokenPlanBaseUrl("https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"), true);
   assert.equal(isTokenPlanBaseUrl("https://api.openai.com/v1"), false);

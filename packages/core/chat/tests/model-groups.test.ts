@@ -1,7 +1,19 @@
 // 验证配置卡片的模型分类：按用途归组，顺序固定，未知用途按对话模型处理。
 import assert from "node:assert/strict";
 import test from "node:test";
-import { describeModelCapability, groupModelsByKind } from "../client/components/model-reasoning-options";
+import { describeModelCapability, groupModelsByBrand, groupModelsByKind } from "../client/components/model-reasoning-options";
+
+test("同一用途内按品牌细分（千问 / 万相 / HappyHorse），无品牌归到末尾", () => {
+  const groups = groupModelsByBrand([
+    { id: "wan2.7-image" },
+    { id: "qwen-image-3.0-pro" },
+    { id: "happyhorse-1.1-t2v" },
+    { id: "custom-model" },
+  ], true);
+  assert.deepEqual(groups.map((group) => group.label), ["万相", "千问", "HappyHorse", undefined]);
+  assert.deepEqual(groups[2]?.items.map((item) => item.id), ["happyhorse-1.1-t2v"]);
+  assert.deepEqual(groups[3]?.items.map((item) => item.id), ["custom-model"]);
+});
 
 test("模型能力简介按用途给出简短说明", () => {
   assert.match(describeModelCapability("image", true), /文生图/u);

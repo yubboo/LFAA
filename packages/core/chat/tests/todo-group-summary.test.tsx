@@ -1,10 +1,11 @@
 // 验证一轮里有多步操作时，活动摘要会标注操作数，避免只显示最后一步而把同轮动作藏起来。
+// 断言固定使用中文词典：CI（en-US）与本地（zh-CN）的 navigator.language 不同，不能让用例随宿主语言漂移。
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import test from "node:test";
 import React, { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { getChatLocale } from "../client/locales";
+import { zhMessages } from "../client/locales.zh";
 import type { AgentStepItem } from "../client/chat-types";
 
 (globalThis as { React?: typeof React }).React = React;
@@ -43,7 +44,7 @@ function step(overrides: Partial<AgentStepItem>): AgentStepItem {
 
 function render(steps: AgentStepItem[]) {
   return renderToStaticMarkup(createElement(AssistantTimeline, {
-    locale: getChatLocale(),
+    locale: zhMessages,
     content: "完成。",
     steps,
     createdAt: 1,

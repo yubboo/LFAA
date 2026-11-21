@@ -19,6 +19,7 @@ This package lives in `packages/core/llm`.
 |---|---|---|
 | `.` | `./lib/index.js` | Host entry (default-exports the plugin) |
 | `./ark-plan` | `./lib/ark-plan.js` | Ark plan model routing subpath |
+| `./token-plan` | `./lib/token-plan.js` | Qwen Token Plan model catalog subpath |
 | `./src/*` | `./src/*` | Source escape hatch for this repository's tooling |
 | `./package.json` | `./package.json` | Package manifest |
 

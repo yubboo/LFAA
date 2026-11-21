@@ -11,8 +11,9 @@ import {
   resolveNextBaseUrlForProtocol,
   type ModelProviderPreset,
 } from "../provider-catalog";
+import { describeTokenPlanCapability } from "@lfaa/llm/token-plan";
 import { ArkModels } from "./Ark-Models";
-import { groupModelsByKind } from "./model-reasoning-options";
+import { groupModelsByBrand, groupModelsByKind } from "./model-reasoning-options";
 import styles from "./ModelProviderGrid.module.css";
 
 /** 弹窗内联状态提示：同步 / 测试 / 保存的结果统一用这个结构展示。 */
@@ -102,7 +103,8 @@ export function ModelProviderForm({
   const { name, kind, apiProtocol, baseUrl, model, apiKey, contextWindow, inputPrice, outputPrice, cachedInputPrice } = values;
   const { setName, setApiProtocol, setBaseUrl, setModel, setApiKey, setContextWindow, setInputPrice, setOutputPrice, setCachedInputPrice } = setters;
   // 套餐列出拉取到的全部模型，普通接口沿用首屏截断避免刷屏。
-  const visibleOfficialModels = subscription ? officialModels : officialModels.slice(0, 18);
+  const visibleOfficialModels = (subscription ? officialModels : officialModels.slice(0, 18))
+    .filter((item, index, list) => list.findIndex((other) => other.id === item.id) === index);
 
   // 原地状态按钮：同步中/测试中 → 成功（连接成功 · OK）/ 失败，成功态数秒后自动复位
   const tone = statusNotice?.tone;
@@ -217,34 +219,41 @@ export function ModelProviderForm({
             {groupModelsByKind(visibleOfficialModels, isZh).map((group) => (
               <section key={group.key} className={styles.modelGroup} aria-label={group.label}>
                 <h3 className={styles.modelGroupTitle}>{group.label}</h3>
-                <div className={styles.chipsRow}>
-                  {group.items.map((item) => {
-                    const capText = formatCapabilityTag(item, isZh);
-                    const label = item.displayName && item.displayName !== item.id
-                      ? `${item.displayName} (${item.id})` : item.id;
-                    // 向量化模型只用于检索，不参与对话/生成，因此只展示不可选。
-                    if (group.key === "embedding") {
-                      return (
-                        <span key={item.id} className={styles.chipBtn} data-static="true" title={item.id}>
-                          <span>{label}</span>
-                          {capText && <span className={styles.capTag}>· {capText}</span>}
-                        </span>
-                      );
-                    }
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        title={item.displayName ? `${item.displayName} (${item.id})` : item.id}
-                        className={`${styles.chipBtn} ${model === item.id ? styles.chipBtnActive : ""}`}
-                        onClick={() => setModel(item.id)}
-                      >
-                        <span>{label}</span>
-                        {capText && <span className={styles.capTag}>· {capText}</span>}
-                      </button>
-                    );
-                  })}
-                </div>
+                {/* 同一用途内再按品牌（千问 / 万相 / HappyHorse / DeepSeek…）分组，避免混在一起。 */}
+                {groupModelsByBrand(group.items, isZh).map((brandGroup) => (
+                  <div key={brandGroup.key} className={styles.brandGroup}>
+                    {brandGroup.label ? <span className={styles.brandLabel}>{brandGroup.label}</span> : null}
+                    <div className={styles.chipsRow}>
+                      {brandGroup.items.map((item) => {
+                        const tokenPlanCapability = describeTokenPlanCapability(item.id, isZh);
+                        const capText = tokenPlanCapability ?? formatCapabilityTag(item, isZh);
+                        const label = tokenPlanCapability ? item.id
+                          : item.displayName && item.displayName !== item.id ? `${item.displayName} (${item.id})` : item.id;
+                        // 向量化模型只用于检索，不参与对话/生成，因此只展示不可选。
+                        if (group.key === "embedding") {
+                          return (
+                            <span key={item.id} className={styles.chipBtn} data-static="true" title={item.id}>
+                              <span>{label}</span>
+                              {capText && <span className={styles.capTag}>· {capText}</span>}
+                            </span>
+                          );
+                        }
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            title={item.displayName ? `${item.displayName} (${item.id})` : item.id}
+                            className={`${styles.chipBtn} ${model === item.id ? styles.chipBtnActive : ""}`}
+                            onClick={() => setModel(item.id)}
+                          >
+                            <span>{label}</span>
+                            {capText && <span className={styles.capTag}>· {capText}</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </section>
             ))}
           </div>

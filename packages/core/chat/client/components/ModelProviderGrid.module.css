@@ -193,6 +193,17 @@
   font-weight: 600;
 }
 
+/* 用途分组内的品牌小组：品牌名作为更小的标题，chips 紧随其后。 */
+.brandGroup {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.brandLabel {
+  color: var(--color-muted);
+  font-size: 0.72em;
+}
+
 /* 只读模型（向量化）与可点击模型同款外观，仅去掉手型光标。 */
 .chipBtn[data-static="true"] {
   cursor: default;

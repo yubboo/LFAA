@@ -213,7 +213,7 @@ function checkFile(file, pkgDir, manifest, declared) {
       const head = scoped.subpath.split("/")[0];
       if (scoped.subpath && /^(src|client)\//u.test(scoped.subpath)) {
         report(LEVELS.error, "subpath-import", file, `禁止深层导入：${spec}`);
-      } else if (scoped.subpath && !["client", "contract", "ark-plan"].includes(head)) {
+      } else if (scoped.subpath && !["client", "contract", "ark-plan", "token-plan"].includes(head)) {
         report(LEVELS.error, "subpath-import", file, `未声明的子路径导入：${spec}`);
       }
       if (scoped.pkg !== manifest.name && !declared.has(scoped.pkg)) {

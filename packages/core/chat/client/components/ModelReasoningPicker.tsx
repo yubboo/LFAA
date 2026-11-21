@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { IconCheck, IconChevronLeft, IconChevronRight, IconRefresh, IconSettings, IconX } from "@tabler/icons-react";
 import { PopoverCard, StepSliderPopover } from "@lfaa/ui-primitives/client";
+import { describeTokenPlanModel } from "@lfaa/llm/token-plan";
 import type { PublicLlmProfileItem, ReasoningLevelOption } from "../chat-types";
 import { arkModelMessages, providerAccessMessages } from "../locales";
 import { getProtocolShortLabel } from "../provider-catalog";
@@ -77,8 +78,12 @@ export function ModelReasoningPicker({
 
   // 使用当前档案下发的模型清单，让选择器与发送路由共用同一份能力信息。
   const brandModels = useMemo(
-    () => buildBrandModels(activeProfile, arkPlan),
-    [activeProfile, arkPlan],
+    () => buildBrandModels(activeProfile, arkPlan).map((item) => {
+      // 套餐模型的副标题显示「品牌 · 能力」的中英文对应文案。
+      const label = describeTokenPlanModel(item.id, isZh);
+      return label ? { ...item, displayName: label } : item;
+    }),
+    [activeProfile, arkPlan, isZh],
   );
 
   const activeModelId = resolveActiveModelId(arkModel, brandModels, activeProfile);

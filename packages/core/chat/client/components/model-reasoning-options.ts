@@ -1,5 +1,6 @@
 // 模型选择器的档位常量与纯计算：解析当前模型档案、可选模型清单、生效模型与推理档位，不涉及 React。
 import { findArkChatModel, getArkPlanCatalog, getArkPlanKind, type ArkPlanKind } from "@lfaa/llm/ark-plan";
+import { describeTokenPlanBrand } from "@lfaa/llm/token-plan";
 import type { StepSliderOption } from "@lfaa/ui-primitives/client";
 import type { ModelCapabilityItem, PublicLlmProfileItem, ReasoningLevelOption } from "../chat-types";
 import { arkModelMessages } from "../locales";
@@ -108,6 +109,22 @@ export function describeModelCapability(
     return isZh ? "向量化模型 · 文本与图像向量化，用于检索" : "Embedding model · text and image vectors for retrieval";
   }
   return isZh ? "语言模型 · 对话与工具调用" : "Language model · chat and tool use";
+}
+
+/** 在同一用途分组内再按品牌细分（仅套餐目录里的模型有品牌），没有品牌的条目归到末尾。 */
+export function groupModelsByBrand<T extends { id: string }>(
+  models: readonly T[],
+  isZh: boolean,
+): Array<{ key: string; label?: string; items: T[] }> {
+  const groups = new Map<string, { label?: string; items: T[] }>();
+  for (const model of models) {
+    const brand = describeTokenPlanBrand(model.id, isZh);
+    const key = brand ?? "__other";
+    const group = groups.get(key) ?? (brand ? { label: brand, items: [] } : { items: [] });
+    group.items.push(model);
+    groups.set(key, group);
+  }
+  return [...groups.entries()].map(([key, group]) => ({ key, ...(group.label ? { label: group.label } : {}), items: group.items }));
 }
 
 /** 配置卡片里的模型分类：语言 / 向量化 / 视觉（图像与视频）/ 语音，顺序固定。 */

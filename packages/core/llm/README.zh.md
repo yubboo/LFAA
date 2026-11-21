@@ -19,6 +19,7 @@ LFAA Agent 核心大脑能力包，提供多提供商大模型接入、流式推
 |---|---|---|
 | `.` | `./lib/index.js` | Host 入口（默认导出插件本体） |
 | `./ark-plan` | `./lib/ark-plan.js` | 方舟套餐模型路由子路径 |
+| `./token-plan` | `./lib/token-plan.js` | 千问 Token Plan 套餐模型目录子路径 |
 | `./src/*` | `./src/*` | 源码逃生口，仅供本仓工具链 |
 | `./package.json` | `./package.json` | 清单文件 |
 

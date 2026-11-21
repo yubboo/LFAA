@@ -92,7 +92,7 @@ export function toPublicProfile(profile: LlmProfile): PublicLlmProfile {
       ...synced.filter((model) => model.modelKind && model.modelKind !== "chat" && !findArkChatModel(model.id)),
     ]
     // 千问 Token Plan 的 /models 不返回视频模型（如 happyhorse），按官方套餐清单补齐，已返回的以 API 为准。
-    : [...synced, ...(isTokenPlanBaseUrl(profile.baseUrl) ? tokenPlanCatalogModels(synced) : [])];
+    : (isTokenPlanBaseUrl(profile.baseUrl) ? tokenPlanCatalogModels(synced) : synced);
   // 目录与同步结果可能重复，按模型 ID 去重后保持「语言 → 视觉/语音 → 已同步补充」的顺序。
   const seenModels = new Set<string>();
   const models = (usable ? baseModels : []).filter((model) => {
@@ -323,7 +323,7 @@ export class LlmService extends Service {
       models = getArkPlanCatalog(arkKind).chatModels.map((m) => normalizeModelCapability(m, kind));
     }
     // 千问 Token Plan 的 /models 不返回视频模型，按官方套餐清单补齐，保证套餐内模型都能选到。
-    if (isTokenPlanBaseUrl(baseUrl)) models = [...models, ...tokenPlanCatalogModels(models)];
+    if (isTokenPlanBaseUrl(baseUrl)) models = tokenPlanCatalogModels(models);
     if (existing) {
       const nextModel = models.some((m) => m.id === existing.model) ? existing.model : (models[0]?.id ?? existing.model);
       const updated = config.profiles.map((p) =>

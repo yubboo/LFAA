@@ -1,4 +1,4 @@
-﻿// 仓库构建配置生成器：按 DSH 模型生成 tsconfig.base.json 的 paths 门面、每包 tsconfig 与 host 聚合工程。
+// 仓库构建配置生成器：按 DSH 模型生成 tsconfig.base.json 的 paths 门面、每包 tsconfig 与 host 聚合工程。
 import { existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 
@@ -51,6 +51,9 @@ const pathLines = packages
     if (pkg.hasContract) lines.push(`      "${pkg.manifest.name}/contract": ["${base}/contract/index.ts"]`);
     if (existsSync(join(pkg.dir, "src", "ark-plan.ts"))) {
       lines.push(`      "${pkg.manifest.name}/ark-plan": ["${base}/src/ark-plan.ts"]`);
+    }
+    if (existsSync(join(pkg.dir, "src", "token-plan.ts"))) {
+      lines.push(`      "${pkg.manifest.name}/token-plan": ["${base}/src/token-plan.ts"]`);
     }
     // client 子路径供 Vite/测试解析到源码；不进入对外 exports。
     lines.push(`      "${pkg.manifest.name}/client": ["${base}/client"]`);

@@ -12,6 +12,10 @@
       "types": "./lib/types/ark-plan.d.ts",
       "default": "./lib/ark-plan.js"
     },
+    "./token-plan": {
+      "types": "./lib/types/token-plan.d.ts",
+      "default": "./lib/token-plan.js"
+    },
     "./src/*": "./src/*",
     "./package.json": "./package.json"
   },

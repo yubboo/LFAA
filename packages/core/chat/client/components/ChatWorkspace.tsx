@@ -61,22 +61,6 @@ export function ChatWorkspace({
   const latestAdded = latestFiles.reduce((sum, file) => sum + file.added, 0);
   const latestRemoved = latestFiles.reduce((sum, file) => sum + file.removed, 0);
 
-  // 搜索结果打开会话后滚动到命中的消息并短暂高亮；定位完成即消费请求。
-  const pendingJump = state.pendingMessageJump;
-  useEffect(() => {
-    if (!pendingJump || state.activeSessionId !== pendingJump.sessionId) return;
-    if (!activeSession?.messages.some((message) => message.id === pendingJump.messageId)) return;
-    const timer = window.setTimeout(() => {
-      const element = document.getElementById(`chat-message-${pendingJump.messageId}`);
-      if (!element) return;
-      element.scrollIntoView({ block: "center", behavior: "smooth" });
-      element.setAttribute("data-search-hit", "true");
-      window.setTimeout(() => element.removeAttribute("data-search-hit"), 2400);
-      store.consumeMessageJump(pendingJump.nonce);
-    }, 120);
-    return () => window.clearTimeout(timer);
-  }, [activeSession, pendingJump, state.activeSessionId, store]);
-
   const activeProjectId = activeSession ? activeSession.projectId : state.draftProjectId;
   const activeProfile = state.profiles.find((p) => p.id === state.activeProfileId) ?? state.profiles[0];
   const activeKind = activeProfile?.availableModels?.find((model) => model.id === activeProfile.model)?.modelKind;
@@ -161,6 +145,27 @@ export function ChatWorkspace({
   }, [sessionTodos, store]);
   const { scrollAreaRef, threadRef, showScrollBottom, scrollToLatest, pauseFollowing, trackScroll } =
     useChatScroll(activeSession?.id ?? null, turnAnchors.at(-1)?.anchorMsgId, isRunning);
+
+  // 搜索结果打开会话后暂停触底跟随，滚动到命中的消息并短暂高亮；定位完成即消费请求。
+  const pendingJump = state.pendingMessageJump;
+  useEffect(() => {
+    if (!pendingJump || state.activeSessionId !== pendingJump.sessionId) return;
+    if (!activeSession?.messages.some((message) => message.id === pendingJump.messageId)) return;
+    pauseFollowing();
+    const highlight = (attempt: number) => {
+      const element = document.getElementById(`chat-message-${pendingJump.messageId}`);
+      if (!element) {
+        if (attempt < 3) window.setTimeout(() => highlight(attempt + 1), 180);
+        return;
+      }
+      element.scrollIntoView({ block: "center", behavior: "smooth" });
+      element.setAttribute("data-search-hit", "true");
+      window.setTimeout(() => element.removeAttribute("data-search-hit"), 3200);
+      store.consumeMessageJump(pendingJump.nonce);
+    };
+    const timer = window.setTimeout(() => highlight(0), 260);
+    return () => window.clearTimeout(timer);
+  }, [activeSession, pendingJump, state.activeSessionId, store]);
 
   const composer = useChatComposer({
     store,

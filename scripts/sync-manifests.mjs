@@ -35,6 +35,7 @@ for (const pkgDir of discover()) {
   const hasContract = existsSync(join(pkgDir, "contract", "index.ts"));
   const hasClient = existsSync(join(pkgDir, "client"));
   const hasArkPlan = existsSync(join(pkgDir, "src", "ark-plan.ts"));
+  const hasTokenPlan = existsSync(join(pkgDir, "src", "token-plan.ts"));
   // 带 contract 的包 rootDir 上提到包根，主入口因此落在 lib/types/src 下。
   const typesBase = hasContract ? "lib/types/src" : "lib/types";
 
@@ -54,6 +55,12 @@ for (const pkgDir of discover()) {
     exportsField["./ark-plan"] = {
       types: "./lib/types/ark-plan.d.ts",
       default: "./lib/ark-plan.js",
+    };
+  }
+  if (hasTokenPlan) {
+    exportsField["./token-plan"] = {
+      types: "./lib/types/token-plan.d.ts",
+      default: "./lib/token-plan.js",
     };
   }
   // 源码逃生口：仅供本仓工具链、测试与热重载使用，运行时不走这条。
