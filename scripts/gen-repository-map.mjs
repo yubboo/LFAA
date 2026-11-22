@@ -98,14 +98,61 @@ for (const link of QUICK_LINKS) {
   lines.push(`| ${link.label} | ${links.join(" → ")} |`);
 }
 lines.push("");
-lines.push("## 2. 目录总览", "", "```text");
-const topDirs = [...new Set(allFiles.map((file) => file.split("/")[0]))].filter((name) => !allFiles.includes(name));
-for (const dir of topDirs.sort()) {
-  const count = allFiles.filter((file) => file.startsWith(`${dir}/`)).length;
-  lines.push(`${dir}/  # ${count} 个文件`);
+lines.push("## 2. 项目总览", "");
+lines.push("### 2.1 目录树", "");
+lines.push("目录后标注其下文件数；包目录标注包名。完整文件清单见第 3 节。", "");
+lines.push("```text", "lfaa/");
+
+const dirSet = new Set(["."]);
+for (const file of allFiles) {
+  let dir = dirname(file);
+  while (dir !== "." && dir !== "") {
+    dirSet.add(dir);
+    dir = dirname(dir);
+  }
 }
-for (const file of allFiles.filter((item) => !item.includes("/"))) lines.push(file);
+const countFilesUnder = (dir) => allFiles.filter((file) => file.startsWith(`${dir}/`)).length;
+const packageInfo = new Map();
+for (const dir of dirSet) {
+  if (!/^packages\/[^/]+\/[^/]+$/u.test(dir)) continue;
+  const manifestPath = join(ROOT, dir, "package.json");
+  if (!existsSync(manifestPath)) continue;
+  try {
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    packageInfo.set(dir, manifest.name ?? dir.split("/").pop());
+  } catch {
+    // 清单损坏由 check-workspace 报错，这里只跳过标注。
+  }
+}
+const renderTree = (dir, prefix) => {
+  const children = [...dirSet].filter((child) => child !== "." && dirname(child) === dir).sort();
+  children.forEach((child, index) => {
+    const last = index === children.length - 1;
+    const label = `${child.split("/").pop()}/`;
+    const name = packageInfo.get(child);
+    lines.push(`${prefix}${last ? "└── " : "├── "}${label}${name ? `  # ${name}` : ""}  (${countFilesUnder(child)} 个文件)`);
+    renderTree(child, `${prefix}${last ? "    " : "│   "}`);
+  });
+};
+renderTree(".", "");
+for (const file of allFiles.filter((item) => !item.includes("/"))) lines.push(`# ${file}`);
 lines.push("```", "");
+
+lines.push("### 2.2 包清单", "");
+lines.push("| 分组 | 包名 | 路径 | 职责 |", "| --- | --- | --- | --- |");
+const packageRows = [...packageInfo.keys()].sort().map((dir) => {
+  const manifest = JSON.parse(readFileSync(join(ROOT, dir, "package.json"), "utf8"));
+  return {
+    group: dir.split("/")[1],
+    name: manifest.name ?? dir,
+    dir,
+    description: (manifest.description ?? "").replace(/\|/gu, "\\|"),
+  };
+});
+for (const row of packageRows) {
+  lines.push(`| ${row.group} | \`${row.name}\` | \`${row.dir}\` | ${row.description} |`);
+}
+lines.push("");
 lines.push("## 3. 文件清单", "");
 lines.push("每条为「文件 — 首行职责注释」。没有首行注释的文件只列文件名，语义由路径承担。", "");
 for (const [dir, files] of groupByDirectory(detailedOnly)) {

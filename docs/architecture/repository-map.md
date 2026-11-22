@@ -20,32 +20,357 @@
 | 主题与共享控件 | [index.tsx](../../packages/ui/theme/client/index.tsx) → [index.tsx](../../packages/ui/primitives/client/index.tsx) |
 | 仓库门禁与探针 | [check-workspace.mjs](../../scripts/check-workspace.mjs) → [check-logs.mjs](../../scripts/check-logs.mjs) → [probe-boot.mjs](../../scripts/probe-boot.mjs) → [verify-web.mts](../../scripts/verify-web.mts) |
 
-## 2. 目录总览
+## 2. 项目总览
+
+### 2.1 目录树
+
+目录后标注其下文件数；包目录标注包名。完整文件清单见第 3 节。
 
 ```text
-.agent/  # 106 个文件
-.githooks/  # 1 个文件
-.github/  # 1 个文件
-apps/  # 34 个文件
-docs/  # 340 个文件
-packages/  # 972 个文件
-patches/  # 1 个文件
-scripts/  # 26 个文件
-vendor/  # 14 个文件
-.editorconfig
-.gitattributes
-.gitignore
-AGENTS.md
-README.md
-lfaa.bat
-package.json
-pnpm-lock.yaml
-pnpm-workspace.yaml
-tsconfig.base.json
-tsconfig.host.json
-tsconfig.json
-tsdown.config.ts
+lfaa/
+├── .agent/  (106 个文件)
+│   └── skills/  (106 个文件)
+│       ├── antfu/  (6 个文件)
+│       │   └── references/  (5 个文件)
+│       ├── design-taste-frontend/  (37 个文件)
+│       │   ├── library/  (2 个文件)
+│       │   ├── references/  (22 个文件)
+│       │   └── scripts/  (12 个文件)
+│       ├── frontend-design/  (2 个文件)
+│       └── impeccable/  (61 个文件)
+│           ├── reference/  (50 个文件)
+│           │   └── degraded/  (5 个文件)
+│           └── scripts/  (10 个文件)
+├── .githooks/  (1 个文件)
+├── .github/  (1 个文件)
+│   └── workflows/  (1 个文件)
+├── apps/  (34 个文件)
+│   ├── cli/  (3 个文件)
+│   │   └── src/  (1 个文件)
+│   ├── desktop/  (15 个文件)
+│   │   ├── resources/  (1 个文件)
+│   │   ├── scripts/  (3 个文件)
+│   │   └── src/  (6 个文件)
+│   ├── desktop-host/  (5 个文件)
+│   │   └── src/  (1 个文件)
+│   └── web/  (10 个文件)
+│       ├── public/  (2 个文件)
+│       └── src/  (3 个文件)
+├── docs/  (340 个文件)
+│   ├── architecture/  (31 个文件)
+│   ├── dev-log/  (3 个文件)
+│   ├── standards/  (1 个文件)
+│   ├── templates/  (2 个文件)
+│   └── updata-log/  (302 个文件)
+├── packages/  (972 个文件)
+│   ├── api/  (7 个文件)
+│   │   └── gateway/  # @lfaa/api-gateway  (7 个文件)
+│   │       ├── src/  (1 个文件)
+│   │       └── tests/  (1 个文件)
+│   ├── attachment/  (7 个文件)
+│   │   └── attachment-local/  # @lfaa/attachment-local  (7 个文件)
+│   │       ├── src/  (1 个文件)
+│   │       └── tests/  (1 个文件)
+│   ├── bundle/  (8 个文件)
+│   │   └── web/  # @lfaa/bundle-web  (8 个文件)
+│   │       ├── src/  (2 个文件)
+│   │       └── tests/  (1 个文件)
+│   ├── chat/  (262 个文件)
+│   │   ├── chat/  # @lfaa/chat  (222 个文件)
+│   │   │   ├── client/  (178 个文件)
+│   │   │   │   ├── composer/  (34 个文件)
+│   │   │   │   ├── conversation/  (33 个文件)
+│   │   │   │   ├── models/  (16 个文件)
+│   │   │   │   ├── session/  (17 个文件)
+│   │   │   │   ├── settings/  (10 个文件)
+│   │   │   │   ├── shared/  (4 个文件)
+│   │   │   │   ├── store/  (16 个文件)
+│   │   │   │   └── workbench/  (41 个文件)
+│   │   │   ├── src/  (4 个文件)
+│   │   │   └── tests/  (35 个文件)
+│   │   ├── library/  # @lfaa/library  (20 个文件)
+│   │   │   ├── client/  (11 个文件)
+│   │   │   │   ├── settings/  (2 个文件)
+│   │   │   │   └── views/  (7 个文件)
+│   │   │   ├── src/  (1 个文件)
+│   │   │   └── tests/  (3 个文件)
+│   │   └── review/  # @lfaa/review  (20 个文件)
+│   │       ├── client/  (9 个文件)
+│   │       │   ├── settings/  (3 个文件)
+│   │       │   └── views/  (4 个文件)
+│   │       ├── src/  (4 个文件)
+│   │       └── tests/  (2 个文件)
+│   ├── compaction/  (12 个文件)
+│   │   └── compaction/  # @lfaa/compaction  (12 个文件)
+│   │       ├── src/  (4 个文件)
+│   │       └── tests/  (3 个文件)
+│   ├── core/  (253 个文件)
+│   │   ├── agent/  # @lfaa/agent  (53 个文件)
+│   │   │   ├── src/  (30 个文件)
+│   │   │   │   ├── context/  (4 个文件)
+│   │   │   │   ├── run/  (18 个文件)
+│   │   │   │   └── tools/  (4 个文件)
+│   │   │   └── tests/  (18 个文件)
+│   │   ├── browser/  # @lfaa/browser  (33 个文件)
+│   │   │   ├── client/  (12 个文件)
+│   │   │   │   ├── panes/  (7 个文件)
+│   │   │   │   └── settings/  (2 个文件)
+│   │   │   ├── contract/  (1 个文件)
+│   │   │   ├── src/  (12 个文件)
+│   │   │   │   ├── session/  (5 个文件)
+│   │   │   │   ├── settings/  (1 个文件)
+│   │   │   │   ├── snapshot/  (1 个文件)
+│   │   │   │   └── tools/  (1 个文件)
+│   │   │   └── tests/  (1 个文件)
+│   │   ├── context/  # @lfaa/context  (8 个文件)
+│   │   │   ├── src/  (2 个文件)
+│   │   │   └── tests/  (1 个文件)
+│   │   ├── fs/  # @lfaa/fs  (9 个文件)
+│   │   │   ├── src/  (3 个文件)
+│   │   │   └── tests/  (1 个文件)
+│   │   ├── guard/  # @lfaa/guard  (11 个文件)
+│   │   │   ├── src/  (4 个文件)
+│   │   │   └── tests/  (2 个文件)
+│   │   ├── jobs/  # @lfaa/jobs  (10 个文件)
+│   │   │   ├── src/  (4 个文件)
+│   │   │   └── tests/  (1 个文件)
+│   │   ├── llm/  # @lfaa/llm  (31 个文件)
+│   │   │   ├── src/  (17 个文件)
+│   │   │   │   ├── adapters/  (4 个文件)
+│   │   │   │   └── media/  (3 个文件)
+│   │   │   └── tests/  (8 个文件)
+│   │   ├── memory/  # @lfaa/memory  (10 个文件)
+│   │   │   ├── src/  (4 个文件)
+│   │   │   └── tests/  (1 个文件)
+│   │   ├── metrics/  # @lfaa/metrics  (12 个文件)
+│   │   │   ├── src/  (4 个文件)
+│   │   │   └── tests/  (3 个文件)
+│   │   ├── rules/  # @lfaa/rules  (9 个文件)
+│   │   │   ├── src/  (3 个文件)
+│   │   │   └── tests/  (1 个文件)
+│   │   ├── session/  # @lfaa/session  (12 个文件)
+│   │   │   ├── src/  (5 个文件)
+│   │   │   └── tests/  (2 个文件)
+│   │   ├── settings/  # @lfaa/settings  (9 个文件)
+│   │   │   ├── src/  (3 个文件)
+│   │   │   └── tests/  (1 个文件)
+│   │   ├── storage/  # @lfaa/storage  (11 个文件)
+│   │   │   ├── src/  (5 个文件)
+│   │   │   └── tests/  (1 个文件)
+│   │   ├── subagent/  # @lfaa/subagent  (10 个文件)
+│   │   │   ├── src/  (4 个文件)
+│   │   │   └── tests/  (1 个文件)
+│   │   ├── system-prompt/  # @lfaa/system-prompt  (7 个文件)
+│   │   │   ├── src/  (1 个文件)
+│   │   │   └── tests/  (1 个文件)
+│   │   ├── tool-todo/  # @lfaa/tool-todo  (7 个文件)
+│   │   │   ├── src/  (1 个文件)
+│   │   │   └── tests/  (1 个文件)
+│   │   └── tools/  # @lfaa/tools  (11 个文件)
+│   │       ├── src/  (5 个文件)
+│   │       └── tests/  (1 个文件)
+│   ├── extension/  (55 个文件)
+│   │   ├── plugins/  # @lfaa/plugins  (36 个文件)
+│   │   │   ├── client/  (11 个文件)
+│   │   │   │   ├── components/  (6 个文件)
+│   │   │   │   └── stream/  (1 个文件)
+│   │   │   ├── contract/  (1 个文件)
+│   │   │   ├── src/  (13 个文件)
+│   │   │   │   ├── catalog/  (4 个文件)
+│   │   │   │   ├── manager/  (7 个文件)
+│   │   │   │   └── routes/  (1 个文件)
+│   │   │   └── tests/  (5 个文件)
+│   │   └── skills/  # @lfaa/skills  (19 个文件)
+│   │       ├── client/  (6 个文件)
+│   │       ├── contract/  (1 个文件)
+│   │       ├── src/  (5 个文件)
+│   │       │   └── builtin-skills/  (2 个文件)
+│   │       │       ├── lfaa-skill-creator/  (1 个文件)
+│   │       │       └── minecraft-plugin-dev/  (1 个文件)
+│   │       └── tests/  (1 个文件)
+│   ├── feedback/  (7 个文件)
+│   │   └── message-feedback/  # @lfaa/message-feedback  (7 个文件)
+│   │       ├── src/  (1 个文件)
+│   │       └── tests/  (1 个文件)
+│   ├── fs/  (7 个文件)
+│   │   └── fs-observation-policy/  # @lfaa/fs-observation-policy  (7 个文件)
+│   │       ├── src/  (1 个文件)
+│   │       └── tests/  (1 个文件)
+│   ├── goal/  (12 个文件)
+│   │   └── goal/  # @lfaa/goal  (12 个文件)
+│   │       ├── src/  (4 个文件)
+│   │       │   └── tool/  (1 个文件)
+│   │       └── tests/  (3 个文件)
+│   ├── guard/  (7 个文件)
+│   │   └── timeout-policy/  # @lfaa/timeout-policy  (7 个文件)
+│   │       ├── src/  (1 个文件)
+│   │       └── tests/  (1 个文件)
+│   ├── host/  (16 个文件)
+│   │   └── web-server/  # @lfaa/web-server  (16 个文件)
+│   │       ├── src/  (9 个文件)
+│   │       │   └── handlers/  (3 个文件)
+│   │       └── tests/  (2 个文件)
+│   ├── interaction/  (7 个文件)
+│   │   └── commands/  # @lfaa/commands  (7 个文件)
+│   │       ├── src/  (1 个文件)
+│   │       └── tests/  (1 个文件)
+│   ├── media/  (42 个文件)
+│   │   └── tool-media/  # @lfaa/tool-media  (42 个文件)
+│   │       ├── client/  (20 个文件)
+│   │       ├── src/  (5 个文件)
+│   │       └── tests/  (12 个文件)
+│   ├── plan/  (8 个文件)
+│   │   └── plan-mode/  # @lfaa/plan-mode  (8 个文件)
+│   │       ├── src/  (1 个文件)
+│   │       └── tests/  (2 个文件)
+│   ├── sandbox/  (14 个文件)
+│   │   └── sandbox/  # @lfaa/sandbox  (14 个文件)
+│   │       ├── src/  (5 个文件)
+│   │       │   └── local/  (2 个文件)
+│   │       └── tests/  (4 个文件)
+│   ├── schedule/  (7 个文件)
+│   │   └── tool-schedule/  # @lfaa/tool-schedule  (7 个文件)
+│   │       ├── src/  (1 个文件)
+│   │       └── tests/  (1 个文件)
+│   ├── session/  (7 个文件)
+│   │   └── session-title/  # @lfaa/session-title  (7 个文件)
+│   │       ├── src/  (1 个文件)
+│   │       └── tests/  (1 个文件)
+│   ├── shell/  (11 个文件)
+│   │   └── shell/  # @lfaa/shell  (11 个文件)
+│   │       ├── src/  (4 个文件)
+│   │       │   ├── bash/  (1 个文件)
+│   │       │   ├── env/  (1 个文件)
+│   │       │   └── pwsh/  (1 个文件)
+│   │       └── tests/  (2 个文件)
+│   ├── spill/  (7 个文件)
+│   │   └── spill-local/  # @lfaa/spill-local  (7 个文件)
+│   │       ├── src/  (1 个文件)
+│   │       └── tests/  (1 个文件)
+│   ├── ui/  (125 个文件)
+│   │   ├── icons/  # @lfaa/ui-icons  (15 个文件)
+│   │   │   ├── LICENSES/  (1 个文件)
+│   │   │   ├── client/  (4 个文件)
+│   │   │   ├── contract/  (2 个文件)
+│   │   │   ├── src/  (1 个文件)
+│   │   │   └── tests/  (1 个文件)
+│   │   ├── layout/  # @lfaa/ui-layout  (62 个文件)
+│   │   │   ├── client/  (48 个文件)
+│   │   │   │   ├── navigation/  (21 个文件)
+│   │   │   │   ├── panels/  (11 个文件)
+│   │   │   │   └── shell/  (12 个文件)
+│   │   │   ├── contract/  (1 个文件)
+│   │   │   ├── src/  (1 个文件)
+│   │   │   └── tests/  (6 个文件)
+│   │   ├── primitives/  # @lfaa/ui-primitives  (25 个文件)
+│   │   │   ├── client/  (16 个文件)
+│   │   │   │   └── settings/  (2 个文件)
+│   │   │   ├── contract/  (1 个文件)
+│   │   │   ├── src/  (1 个文件)
+│   │   │   └── tests/  (1 个文件)
+│   │   └── theme/  # @lfaa/ui-theme  (23 个文件)
+│   │       ├── client/  (14 个文件)
+│   │       │   └── components/  (9 个文件)
+│   │       ├── contract/  (1 个文件)
+│   │       ├── src/  (1 个文件)
+│   │       └── tests/  (1 个文件)
+│   ├── web/  (12 个文件)
+│   │   └── web/  # @lfaa/web  (12 个文件)
+│   │       ├── src/  (4 个文件)
+│   │       │   ├── fetch/  (1 个文件)
+│   │       │   └── tool/  (1 个文件)
+│   │       └── tests/  (3 个文件)
+│   └── workspace/  (78 个文件)
+│       ├── sections/  # @lfaa/sections  (19 个文件)
+│       │   ├── client/  (8 个文件)
+│       │   │   └── components/  (4 个文件)
+│       │   ├── contract/  (1 个文件)
+│       │   ├── src/  (3 个文件)
+│       │   └── tests/  (1 个文件)
+│       ├── workspace/  # @lfaa/workspace  (45 个文件)
+│       │   ├── client/  (30 个文件)
+│       │   │   ├── project/  (20 个文件)
+│       │   │   ├── store/  (2 个文件)
+│       │   │   └── worktree/  (5 个文件)
+│       │   ├── contract/  (1 个文件)
+│       │   ├── src/  (6 个文件)
+│       │   └── tests/  (2 个文件)
+│       └── worktree/  # @lfaa/worktree  (14 个文件)
+│           ├── contract/  (1 个文件)
+│           ├── src/  (5 个文件)
+│           └── tests/  (2 个文件)
+├── patches/  (1 个文件)
+├── scripts/  (26 个文件)
+└── vendor/  (14 个文件)
+    └── loader/  (13 个文件)
+        └── src/  (9 个文件)
+            └── config/  (6 个文件)
+# .editorconfig
+# .gitattributes
+# .gitignore
+# AGENTS.md
+# README.md
+# lfaa.bat
+# package.json
+# pnpm-lock.yaml
+# pnpm-workspace.yaml
+# tsconfig.base.json
+# tsconfig.host.json
+# tsconfig.json
+# tsdown.config.ts
 ```
+
+### 2.2 包清单
+
+| 分组 | 包名 | 路径 | 职责 |
+| --- | --- | --- | --- |
+| api | `@lfaa/api-gateway` | `packages/api/gateway` | LFAA 接口边界：集中登记与派发 Host HTTP 路由，替代散落在各处的路由注册。 |
+| attachment | `@lfaa/attachment-local` | `packages/attachment/attachment-local` | LFAA 会话附件本机存储：附件字节落到 ~/.lfaa/attachments/<session>/，并提供列出/读取工具。 |
+| bundle | `@lfaa/bundle-web` | `packages/bundle/web` | LFAA Web 装配包：按 Cordis 约定把 Host 基础能力与 Loader 组合成一个可装载的 bundle。 |
+| chat | `@lfaa/chat` | `packages/chat/chat` | LFAA 核心聊天与 Agent 工作台业务包，提供会话管理、流式思考/行动/检查步骤可视化与模型规则设置界面。 |
+| chat | `@lfaa/library` | `packages/chat/library` | LFAA 资料库功能包：图像/资产/记忆分类浏览、右栏检视器与存储位置设置。 |
+| chat | `@lfaa/review` | `packages/chat/review` | LFAA 代码审查功能包：内置 Git 变更操作、编码设置与代码审查工作台，含审查报告 Host 服务。 |
+| compaction | `@lfaa/compaction` | `packages/compaction/compaction` | LFAA 上下文治理包：可替换的上下文压缩服务、单条工具结果精简与 /compact 命令。 |
+| core | `@lfaa/agent` | `packages/core/agent` | LFAA Agent 任务循环引擎，聚合 LLM 大脑、工具手脚、记忆与规则四大能力执行 Think -> Act -> Check 闭环。 |
+| core | `@lfaa/browser` | `packages/core/browser` | LFAA 内置浏览器服务与可视化控制面板：遵循 DSH browser-use 独占注册契约，基于 playwright-core 复用本机 Edge/Chrome 驱动。 |
+| core | `@lfaa/context` | `packages/core/context` | LFAA 上下文预算与压缩：按字符预算压缩早期工具结果、保留最近轮次，并识别上下文超限错误（参考 DSH context 包的独立职责）。 |
+| core | `@lfaa/fs` | `packages/core/fs` | LFAA 工作区文件系统边界：安全路径解析、私有路径过滤与忽略目录遍历，供工具与运行时复用。 |
+| core | `@lfaa/guard` | `packages/core/guard` | LFAA 命令安全与超时策略：拦截引用应用私有文件的命令、记录命令审计、归一化前台命令时限（参考 DSH guard 包的独立职责）。 |
+| core | `@lfaa/jobs` | `packages/core/jobs` | LFAA 会话隔离后台任务管理器：支持后台命令启动、实时日志流解码、状态查询与进程树终止。 |
+| core | `@lfaa/llm` | `packages/core/llm` | LFAA Agent 核心大脑能力包，提供多提供商大模型接入、流式推理、Tool Calling 与安全凭据管理。 |
+| core | `@lfaa/memory` | `packages/core/memory` | LFAA Agent 核心记忆能力包，管理短期会话轨迹持久化、上下文窗口裁剪摘要与长期记忆检索。 |
+| core | `@lfaa/metrics` | `packages/core/metrics` | LFAA 运行指标与成本：token 密度估算、按单价换算人民币成本、会话统计聚合（参考 DSH token-meter / session-stats 的包设计，独立实现）。 |
+| core | `@lfaa/rules` | `packages/core/rules` | LFAA Agent 核心规则包，分层管理不可覆盖的系统规则、项目级规则（AGENTS.md / .lfaa/rules.md）与用户全局规则。 |
+| core | `@lfaa/session` | `packages/core/session` | LFAA 会话领域：消息/步骤/指标契约、本地会话文件读写、标题生成与历史摘要。 |
+| core | `@lfaa/settings` | `packages/core/settings` | LFAA 持久化设置：常规偏好与编码（Git/代码审查）配置的读取、归一化与写入，存于 ~/.lfaa。 |
+| core | `@lfaa/storage` | `packages/core/storage` | LFAA 资料库与存储：数据根路径、资产/产物保存读取、资料库布局与跨目录迁移。 |
+| core | `@lfaa/subagent` | `packages/core/subagent` | LFAA 进程内子智能体与多 Agent 并发协作引擎：隔离上下文循环、只读/读写授权边界、并发限流及消息通信。 |
+| core | `@lfaa/system-prompt` | `packages/core/system-prompt` | LFAA 系统提示词分段服务：插件注册段落，Agent 在组装系统提示时统一合并。 |
+| core | `@lfaa/tool-todo` | `packages/core/tool-todo` | LFAA 待办清单工具包：为智能体提供创建、更新与查询任务清单的工具。 |
+| core | `@lfaa/tools` | `packages/core/tools` | LFAA Agent 核心手脚能力包，提供可插拔工具注册表、工作区路径沙箱与内置文件/检索/命令工具。 |
+| extension | `@lfaa/plugins` | `packages/extension/plugins` |  |
+| extension | `@lfaa/skills` | `packages/extension/skills` |  |
+| feedback | `@lfaa/message-feedback` | `packages/feedback/message-feedback` | LFAA 消息反馈服务：持久化对助手回复的赞/踩与备注，供聊天界面记录与回读。 |
+| fs | `@lfaa/fs-observation-policy` | `packages/fs/fs-observation-policy` | LFAA 写前必读策略：写文件或改文件之前，同一会话必须先读取过该文件。 |
+| goal | `@lfaa/goal` | `packages/goal/goal` | LFAA 目标服务：把会话目标、进度与受阻原因持久化，供目标工具与界面读取。 |
+| guard | `@lfaa/timeout-policy` | `packages/guard/timeout-policy` | LFAA 工具超时策略：为每次工具执行套统一超时，超时中止信号并返回可读结果。 |
+| host | `@lfaa/web-server` | `packages/host/web-server` | LFAA Web 宿主服务：装配运行时与全部 HTTP 接口，开发态托管 Vite、生产态托管 Web 产物。 |
+| interaction | `@lfaa/commands` | `packages/interaction/commands` | LFAA 斜杠命令注册 seam：插件注册命令，聊天输入栏通过 /api/commands 发现并执行。 |
+| media | `@lfaa/tool-media` | `packages/media/tool-media` | LFAA 媒体生成工具：调用套餐里的生图模型生成图片，保存到工作区并返回文件路径。 |
+| plan | `@lfaa/plan-mode` | `packages/plan/plan-mode` | LFAA 计划模式：开启后只允许只读工具，写与执行类工具被中间件拦截。 |
+| sandbox | `@lfaa/sandbox` | `packages/sandbox/sandbox` | LFAA 沙箱抽象契约：文件影响模式、沙箱策略与执行前判定接口，不绑定具体后端。 |
+| schedule | `@lfaa/tool-schedule` | `packages/schedule/tool-schedule` | LFAA 定时任务工具：持久化一次性/重复任务，提供创建、查看、取消与到期领取。 |
+| session | `@lfaa/session-title` | `packages/session/session-title` | LFAA 会话标题服务：启发式简洁标题 + 可选模型生成（失败自动回落），供聊天与 Host 接口复用。 |
+| shell | `@lfaa/shell` | `packages/shell/shell` | Shell 进程执行、取消及输出收集 |
+| spill | `@lfaa/spill-local` | `packages/spill/spill-local` | LFAA 长结果落盘：超长工具输出写入本机文件，只保留首尾窗口与路径回给模型。 |
+| ui | `@lfaa/ui-icons` | `packages/ui/icons` | LFAA 共享文件类型图标包：彩色文件/文件夹图标与扩展名映射，供文件树、标签栏、面包屑与变更列表复用。 |
+| ui | `@lfaa/ui-layout` | `packages/ui/layout` | LFAA 应用共享四栏可折叠布局契约、侧栏导航、工作区 Shell、Cordis workbench 服务与外观设置。 |
+| ui | `@lfaa/ui-primitives` | `packages/ui/primitives` | LFAA 共享交互基础 UI 原语包：统一封装居中弹窗（ModalDialog）、浮层卡片（PopoverCard）与步进滑块弹窗（StepSliderPopover）及统一样式动效。 |
+| ui | `@lfaa/ui-theme` | `packages/ui/theme` | LFAA 液态玻璃主题系统与外观设置插件包，提供无 DOM 主题预设契约及 Cordis Client 外观视图贡献。 |
+| web | `@lfaa/web` | `packages/web/web` | LFAA 网页能力 seam：按优先级注册抓取实现，供工具与 Agent 统一取正文。 |
+| workspace | `@lfaa/sections` | `packages/workspace/sections` | LFAA 工作区自定义分区管理包，提供 Host 分区持久化服务、HTTP RPC 与侧栏分区交互 UI 插件。 |
+| workspace | `@lfaa/workspace` | `packages/workspace/workspace` | LFAA 工作区与本地项目插件包，提供 Host 服务契约与 Client 侧栏/工作区/右侧上下文面板贡献。 |
+| workspace | `@lfaa/worktree` | `packages/workspace/worktree` | Git 工作树隔离：按会话创建独立检出目录、读取状态并在安全校验后清理。 |
 
 ## 3. 文件清单
 
