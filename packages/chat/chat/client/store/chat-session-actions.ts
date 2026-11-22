@@ -33,6 +33,7 @@ export class ChatSessionActions {
       runningRunId: null,
       pendingApproval: null,
       errorMessage: "",
+      workspaceConflict: false,
     });
   }
 
@@ -56,6 +57,7 @@ export class ChatSessionActions {
         streamStatusNotice: "",
         degradedStream: null,
         errorMessage: "",
+        workspaceConflict: false,
       });
       if (res.session.unread) {
         void this.updateSessionMeta(res.session.id, { unread: false });
@@ -129,6 +131,37 @@ export class ChatSessionActions {
       if (this.port.getState().activeSessionId === sessionId) {
         this.port.patchState({ activeGoal: res.goal, errorMessage: "" });
       }
+      return true;
+    } catch (error) {
+      this.port.patchState({ errorMessage: error instanceof Error ? error.message : String(error) });
+      return false;
+    }
+  }
+
+  /** 工作区被占用时，为当前会话创建并绑定独立工作树；成功后清掉冲突提示，由用户重发。 */
+  async isolateWorkspace(): Promise<boolean> {
+    const state = this.port.getState();
+    const session = state.activeSession;
+    if (!session?.projectId) {
+      this.port.patchState({ errorMessage: "当前会话未绑定项目，无法创建工作树。" });
+      return false;
+    }
+    try {
+      const branch = `parallel-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+      const created = await fetchJson<{ worktree: { id: string; branch: string; path: string } }>("/api/worktrees", {
+        method: "POST",
+        body: JSON.stringify({ projectId: session.projectId, branch }),
+      });
+      const bound = await fetchJson<{ session: ChatSessionDetail }>(
+        `/api/chat/sessions/${encodeURIComponent(session.id)}`,
+        { method: "PATCH", body: JSON.stringify({ worktreeId: created.worktree.id }) },
+      );
+      this.port.patchState({
+        activeSession: bound.session,
+        sessions: this.port.getState().sessions.map((item) => (item.id === bound.session.id ? bound.session : item)),
+        errorMessage: "",
+        workspaceConflict: false,
+      });
       return true;
     } catch (error) {
       this.port.patchState({ errorMessage: error instanceof Error ? error.message : String(error) });

@@ -1,0 +1,39 @@
+/* 输入区上方的错误条：单行文案 + 可选的「用工作树并行」动作；只用 ui-theme 语义变量。 */
+.root {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: var(--chat-column-width);
+  margin: 0 auto 0.6rem;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid rgb(var(--color-danger-rgb) / 0.4);
+  border-radius: 0.75rem;
+  background: rgb(var(--color-danger-rgb) / 0.08);
+  color: var(--color-danger-strong);
+  font-size: 0.86em;
+}
+
+.text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.action {
+  flex: none;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid rgb(var(--color-danger-rgb) / 0.4);
+  border-radius: 0.5rem;
+  background: rgb(var(--color-danger-rgb) / 0.12);
+  color: var(--color-danger-strong);
+  font: inherit;
+  cursor: pointer;
+}
+
+.action:hover {
+  background: rgb(var(--color-danger-rgb) / 0.2);
+}
+
+.action:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}

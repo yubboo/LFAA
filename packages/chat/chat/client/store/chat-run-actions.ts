@@ -147,7 +147,11 @@ export class ChatRunActions {
       await this.startMessage(trimmed, skillIds, referenceSources, attachmentIds);
     } catch (error) {
       // 工作区占用（409）等启动失败在这里落到全局提示，输入框负责恢复草稿。
-      this.port.patchState({ errorMessage: error instanceof Error ? error.message : String(error) });
+      const code = (error as { code?: string }).code;
+      this.port.patchState({
+        errorMessage: error instanceof Error ? error.message : String(error),
+        workspaceConflict: code === "workspace_busy",
+      });
       throw error;
     } finally {
       this.port.patchState({ submittingMessage: false });
@@ -178,7 +182,7 @@ export class ChatRunActions {
   }
 
   private async startMessage(trimmed: string, skillIds?: string[], referenceSources?: MediaSource[], attachmentIds?: string[], continuation?: { assistantMessageId: string }): Promise<void> {
-    this.port.patchState({ errorMessage: "", pendingApproval: null });
+    this.port.patchState({ errorMessage: "", pendingApproval: null, workspaceConflict: false });
 
     const session = await this.ensureActiveSession();
     // 用户已经用新消息回应，之前那条会话的「待回答」徽标立即撤下。

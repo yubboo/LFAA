@@ -274,6 +274,11 @@ export class ChatClientStore extends ChatDataFacade {
     return this.sessionActions.setGoalAutoContinue(autoContinue);
   }
 
+  /** 工作区被占用时给当前会话创建工作树并绑定，随后可并行重试。 */
+  isolateWorkspace(): Promise<boolean> {
+    return this.sessionActions.isolateWorkspace();
+  }
+
   forkSession(sessionId: string): Promise<ChatSessionDetail | null> {
     return this.sessionActions.forkSession(sessionId);
   }

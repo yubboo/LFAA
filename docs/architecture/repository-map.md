@@ -3,7 +3,7 @@
 > 本文件由 `pnpm map:sync`（[scripts/gen-repository-map.mjs](../../scripts/gen-repository-map.mjs)）按真实文件系统生成，**不要手改**。
 > 骨架发生变化（新增/删除/移动文件、包或目录）后，必须在同一轮运行 `pnpm map:sync` 并提交，否则 `pnpm check` 会失败。
 
-当前快照：**47 个包、1534 个文件、251 个子目录**（不含 node_modules、构建产物与运行数据）。
+当前快照：**47 个包、1538 个文件、251 个子目录**（不含 node_modules、构建产物与运行数据）。
 
 ## 1. 快速索引
 
@@ -62,7 +62,7 @@ lfaa/
 │   ├── standards/  (1 个文件)
 │   ├── templates/  (2 个文件)
 │   └── updata-log/  (302 个文件)
-├── packages/  (995 个文件)
+├── packages/  (999 个文件)
 │   ├── api/  (7 个文件)
 │   │   └── gateway/  # @lfaa/api-gateway  (7 个文件)
 │   │       ├── src/  (1 个文件)
@@ -75,11 +75,11 @@ lfaa/
 │   │   └── web/  # @lfaa/bundle-web  (8 个文件)
 │   │       ├── src/  (2 个文件)
 │   │       └── tests/  (1 个文件)
-│   ├── chat/  (270 个文件)
-│   │   ├── chat/  # @lfaa/chat  (227 个文件)
-│   │   │   ├── client/  (182 个文件)
+│   ├── chat/  (274 个文件)
+│   │   ├── chat/  # @lfaa/chat  (231 个文件)
+│   │   │   ├── client/  (184 个文件)
 │   │   │   │   ├── composer/  (34 个文件)
-│   │   │   │   ├── conversation/  (35 个文件)
+│   │   │   │   ├── conversation/  (37 个文件)
 │   │   │   │   ├── models/  (16 个文件)
 │   │   │   │   ├── session/  (17 个文件)
 │   │   │   │   ├── settings/  (10 个文件)
@@ -87,7 +87,7 @@ lfaa/
 │   │   │   │   ├── store/  (18 个文件)
 │   │   │   │   └── workbench/  (41 个文件)
 │   │   │   ├── src/  (4 个文件)
-│   │   │   └── tests/  (36 个文件)
+│   │   │   └── tests/  (38 个文件)
 │   │   ├── library/  # @lfaa/library  (20 个文件)
 │   │   │   ├── client/  (11 个文件)
 │   │   │   │   ├── settings/  (2 个文件)
@@ -613,6 +613,8 @@ lfaa/
 - `ChatAnchorBar.module.css` — 聊天区左侧导航刻度锚点条样式：Dock 波形悬停放大、液态玻璃预览浮卡与书签高亮。
 - `ChatAnchorBar.tsx` — 中央聊天区左侧「导航刻度锚点条」：按对话轮次展示刻度线、悬停波浪放大、预览浮卡、书签标记与点击平滑跳转。
 - `ChatDeleteDialog.tsx` — 删除当前对话的二次确认弹窗：说明删除不可恢复，并由调用方执行真正的删除。
+- `ChatErrorBanner.module.css` — 输入区上方的错误条：单行文案 + 可选的「用工作树并行」动作；只用 ui-theme 语义变量。
+- `ChatErrorBanner.tsx` — 输入区上方的错误条：展示启动失败文案；工作区被占用时提供「用工作树并行」入口。
 - `ChatMessageList.tsx` — 聊天消息区：空会话引导（标题/副标题/起步提示）与消息线程（按日分隔、用户气泡、助手时间线与完成态操作）。
 - `ChatWorkspace.composer.module.css` — 聊天输入区（附件、上下文提示、输入卡片与工具栏）样式，双主题变量适配。
 - `ChatWorkspace.module.css` — 中央核心聊天与 Agent 任务工作区样式，对齐深色炭黑与浅色纯白画布层次。
@@ -783,6 +785,7 @@ lfaa/
 - `advice-options.test.ts` — 验证智能追问提取：只从「建议/下一步」段落的列表项生成可选项，普通列表或不足两条时不出选项。
 - `ark-models.test.tsx` — 验证方舟套餐目录：未配置凭据不显示模型；配置后四类模型统一用 chip，并标记非接口返回的「目录」条目。
 - `chat-anchor-bar.test.ts` — 验证轮次导航刻度滑动窗口：最多 20 根，以当前轮次居中并夹紧边界，保证所有轮次都能通过滚动/点击到达。
+- `chat-error-banner.test.tsx` — 验证错误条：文案常驻，工作区冲突时多出「用工作树并行」入口。
 - `chat-http-worktree.test.ts` — 验证聊天会话接口的工作树绑定：只接受 id、由 Host 解析快照，未知 id 明确拒绝，null 表示解绑。
 - `chat-lifecycle.test.ts` — 验证 @lfaa/chat Host/Client 双端 Cordis 生命周期、最近会话注入与项目聊天计数统计。
 - `chat-queue.test.ts` — 验证排队消息纯操作：新增去空、删除、编辑（空文本删除）、上下移动与队首取出。
@@ -814,6 +817,7 @@ lfaa/
 - `trace-groups.test.ts` — 验证留痕分组：按动作类型归并、保持出现顺序、统计数量并标记失败。
 - `trace-todo-dock.test.tsx` — 验证轨迹视图顶部复用任务卡：有清单时渲染，没有清单时不渲染。
 - `user-message-attachments.test.tsx` — 验证用户消息附件能进入对话气泡并提供可理解的图片加载状态。
+- `workspace-isolate.test.ts` — 验证工作区占用后的「用工作树并行」：创建 worktree → 绑定会话 → 清掉冲突提示；未绑定项目时不发请求。
 
 ### packages/chat/library
 

@@ -16,6 +16,7 @@ import { latestSessionTodos } from "../session/session-todos";
 import { useChatComposer } from "../composer/useChatComposer";
 import { useMessageActions } from "./useMessageActions";
 import { WorkspaceDialogs } from "./WorkspaceDialogs";
+import { ChatErrorBanner } from "./ChatErrorBanner";
 import styles from "./ChatWorkspace.module.css";
 import composerStyles from "./ChatWorkspace.composer.module.css";
 
@@ -295,7 +296,12 @@ export function ChatWorkspace({
           </button>
         )}
         {state.errorMessage && (
-          <div className={styles.errorBanner} role="alert">{state.errorMessage}</div>
+          <ChatErrorBanner
+            message={state.errorMessage}
+            isZh={locale.isZh}
+            showIsolate={state.workspaceConflict === true}
+            onIsolate={() => void store.isolateWorkspace()}
+          />
         )}
         {state.streamStatusNotice && (
           <div className={composerStyles.noticeBar} role="status">

@@ -320,17 +320,6 @@
   font-size: 0.78em;
 }
 
-.errorBanner {
-  width: var(--chat-column-width);
-  margin: 0 auto 0.6rem;
-  padding: 0.6rem 0.9rem;
-  border: 1px solid rgb(var(--color-danger-rgb) / 0.4);
-  border-radius: 0.75rem;
-  background: rgb(var(--color-danger-rgb) / 0.08);
-  color: var(--color-danger-strong);
-  font-size: 0.86em;
-}
-
 .composerDock {
   position: relative;
   padding: 0.5rem var(--chat-side-padding) 1.15rem;

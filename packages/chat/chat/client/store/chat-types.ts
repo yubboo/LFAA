@@ -315,4 +315,6 @@ export interface ChatStoreSnapshot {
   streamStatusNotice: string;
   degradedStream: { runId: string; sessionId: string; assistantMessageId: string; lastSeq: number } | null;
   errorMessage: string;
+  /** 启动被工作区租约拒绝：显示「用工作树并行」入口，下一次发送或隔离成功后清除。 */
+  workspaceConflict?: boolean;
 }
