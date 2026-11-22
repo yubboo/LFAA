@@ -145,6 +145,10 @@ export class ChatRunActions {
     this.port.patchState({ submittingMessage: true });
     try {
       await this.startMessage(trimmed, skillIds, referenceSources, attachmentIds);
+    } catch (error) {
+      // 工作区占用（409）等启动失败在这里落到全局提示，输入框负责恢复草稿。
+      this.port.patchState({ errorMessage: error instanceof Error ? error.message : String(error) });
+      throw error;
     } finally {
       this.port.patchState({ submittingMessage: false });
     }

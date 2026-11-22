@@ -2,6 +2,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ChatMessageAttachment, ChatMessageReference } from "@lfaa/memory";
 import type { AgentService } from "./index";
+import { WorkspaceBusyError } from "./run/workspace-lease";
 
 /** 把客户端来源与宿主解析出的路径配对成可落库的引用图，数量或字段不符时丢弃。 */
 function buildMessageReferences(sources: unknown, paths: string[] | undefined): ChatMessageReference[] {
@@ -103,6 +104,10 @@ export function createAgentHttpHandler(service: AgentService, options: AgentHttp
             autoApproveTools: body.autoApproveTools === true,
           }, options.resolveWorkspaceRoots ?? (async () => []));
         } catch (error) {
+          if (error instanceof WorkspaceBusyError) {
+            sendJson(res, 409, { error: error.message, code: error.code, scope: error.scope, holder: error.holder });
+            return true;
+          }
           sendJson(res, 400, { error: error instanceof Error ? error.message : String(error) });
           return true;
         }

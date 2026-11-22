@@ -3,7 +3,7 @@
 > 本文件由 `pnpm map:sync`（[scripts/gen-repository-map.mjs](../../scripts/gen-repository-map.mjs)）按真实文件系统生成，**不要手改**。
 > 骨架发生变化（新增/删除/移动文件、包或目录）后，必须在同一轮运行 `pnpm map:sync` 并提交，否则 `pnpm check` 会失败。
 
-当前快照：**47 个包、1529 个文件、251 个子目录**（不含 node_modules、构建产物与运行数据）。
+当前快照：**47 个包、1534 个文件、251 个子目录**（不含 node_modules、构建产物与运行数据）。
 
 ## 1. 快速索引
 
@@ -62,7 +62,7 @@ lfaa/
 │   ├── standards/  (1 个文件)
 │   ├── templates/  (2 个文件)
 │   └── updata-log/  (302 个文件)
-├── packages/  (990 个文件)
+├── packages/  (995 个文件)
 │   ├── api/  (7 个文件)
 │   │   └── gateway/  # @lfaa/api-gateway  (7 个文件)
 │   │       ├── src/  (1 个文件)
@@ -104,13 +104,13 @@ lfaa/
 │   │   └── compaction/  # @lfaa/compaction  (12 个文件)
 │   │       ├── src/  (4 个文件)
 │   │       └── tests/  (3 个文件)
-│   ├── core/  (261 个文件)
-│   │   ├── agent/  # @lfaa/agent  (60 个文件)
-│   │   │   ├── src/  (36 个文件)
+│   ├── core/  (266 个文件)
+│   │   ├── agent/  # @lfaa/agent  (65 个文件)
+│   │   │   ├── src/  (39 个文件)
 │   │   │   │   ├── context/  (4 个文件)
-│   │   │   │   ├── run/  (24 个文件)
+│   │   │   │   ├── run/  (27 个文件)
 │   │   │   │   └── tools/  (4 个文件)
-│   │   │   └── tests/  (19 个文件)
+│   │   │   └── tests/  (21 个文件)
 │   │   ├── browser/  # @lfaa/browser  (34 个文件)
 │   │   │   ├── client/  (12 个文件)
 │   │   │   │   ├── panes/  (7 个文件)
@@ -949,12 +949,14 @@ lfaa/
 - `command-trace.ts` — 裁剪终端输出快照：步骤轨迹只保留尾部有限行数与字符，避免长日志把会话文件撑到兆字节级。
 - `finish-round.ts` — 无工具调用时的收口：完成前自检（改了代码没验证先给一次补验证机会）→ 空响应判定 → 最终检查步骤 → 结果组装。
 - `goal-continuation.ts` — 目标自动续跑判定：一轮结束后根据目标状态、轮次上限、暂停开关与会话忙闲决定是否继续。
+- `goal-scheduler.ts` — 目标续跑调度：运行正常收尾后延迟判断并自动开下一轮；停止条件由 goal-continuation 纯函数决定。
 - `loop-state.ts` — Agent 单次运行的循环状态：把预算、轮次、用量累积与完成前自检标记收进一个对象。
 - `memory-autosave.ts` — 从用户明确陈述中提取值得跨会话记住的偏好或约定，作为长期记忆的确定性沉淀来源。
 - `model-round.ts` — Agent Host 模型轮次的超时与有限重试，保留已发出的正文和工具进度。
 - `run-begin.ts` — Agent 运行启动器：校验会话与授权根、落盘用户/助手消息、登记运行记录并把执行循环交给 agent-loop。
 - `run-compaction.ts` — 运行期压缩入口：优先使用挂载的压缩服务，未挂载时回落到 @lfaa/context 的内置实现。
 - `run-context.ts` — 运行上下文装配：召回规则/记忆/资料库，拼装工作区与技能提示，创建用量跟踪、系统消息与初始对话。
+- `run-options.ts` — 续跑复用的运行选项：延续用户上一轮选的模型、预算与权限模式，避免续跑悄悄退回默认值。
 - `run-records.ts` — Agent 运行记录类型：活动运行、待审批请求与审批摘要，供服务层与运行启动器共用。
 - `run-system.ts` — 系统提示词渲染：把各段提示按固定顺序拼成一条 system 消息内容，供运行循环每轮复用。
 - `run-types.ts` — 定义 Agent 运行循环的依赖与输入契约，供循环主体与工具执行器共用，避免循环文件继续膨胀。
@@ -963,6 +965,7 @@ lfaa/
 - `think-round.ts` — Agent 单轮「思考」：渲染系统提示 → 预算内压缩 → 注入 steering → 记录 token 快照 → 调模型（含超限重试）。
 - `todo-plan.ts` — 任务清单策略：把 todo_write 排到工具列表首位，并在多步任务迟迟不建清单时给一次提醒。
 - `verification.ts` — 判断一次运行是否修改了需要验证的代码，以及命令是否属于构建/测试/类型检查这类验证动作。
+- `workspace-lease.ts` — 工作区租约：以「工作树路径 / 项目 / 授权根」为 scope，保证同一工作区同时只有一个会话在跑。
 
 ### packages/core/agent/src/tools
 
@@ -991,6 +994,8 @@ lfaa/
 - `todo-plan.test.ts` — 验证任务清单策略：todo_write 排到工具首位，且提醒只在「没清单 + 已多步 + 没提醒过」时触发一次。
 - `tool-result.test.ts` — 验证工具结果进入模型上下文前的统一限长与续读提示。
 - `verification.test.ts` — 验证完成前自检对代码路径与构建/测试命令的识别规则。
+- `workspace-lease-run.test.ts` — 验证运行级工作区租约：同工作区第二个会话被拒绝，首个运行收尾后可以接手，租约随运行释放。
+- `workspace-lease.test.ts` — 验证工作区租约：scope 解析、跨会话冲突拒绝、释放后接手与同会话重入。
 - `worktree-roots.test.ts` — 验证绑定工作树的会话使用工作树根运行，并在工作树失效时明确失败而不是回退项目主目录。
 
 ### packages/core/browser

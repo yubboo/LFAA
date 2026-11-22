@@ -10,7 +10,14 @@ import { readActivitySource } from "./run/activity-file";
 import { registerAgentLibraryTools } from "./tools/builtin-agent-tools";
 import { SmartTrustStore } from "./tools/permission-policy";
 import { beginAgentRun, type SkillCatalogProvider, type SkillResolver } from "./run/run-begin";
-import { decideGoalContinuation, type GoalContinuationSnapshot } from "./run/goal-continuation";
+import { GoalContinuationScheduler, type GoalServicePort } from "./run/goal-scheduler";
+import { pickRunOptions, type RunOptionCache } from "./run/run-options";
+import {
+  resolveWorkspaceScope,
+  WorkspaceBusyError,
+  WorkspaceLeaseRegistry,
+  type LeaseHolder,
+} from "./run/workspace-lease";
 import type { CompactionHook } from "./run/run-types";
 import { pendingApprovalSummary, type ActiveRunRecord } from "./run/run-records";
 import {
@@ -33,45 +40,20 @@ export interface AgentPluginConfig {
   resolveSessionModules?: (presetId: string | undefined, modules: readonly string[]) => readonly string[];
 }
 
-/** 目标服务的最小结构，避免 Agent 包反向依赖 @lfaa/goal。 */
-interface GoalServicePort {
-  list(filter: { sessionId?: string }): Promise<GoalContinuationSnapshot[]>;
-  advanceRound(id: string, note?: string): Promise<unknown>;
-}
-
-/** 目标续跑的调度延迟：给客户端留出收尾与用户抢跑的时间。 */
-const GOAL_CONTINUATION_DELAY_MS = 200;
-
-/** 续跑时复用的运行选项：沿用用户上一轮选的模型、预算与权限模式。 */
-type RunOptionCache = Pick<
-  StartAgentRunInput,
-  "profileId" | "reasoningEffort" | "permissionMode" | "maxSteps" | "autoExtendSteps" | "repeatToolThresholds"
->;
-
-/** 只挑续跑需要的字段，避免把消息、附件等一次性输入带进下一轮。 */
-function pickRunOptions(input: StartAgentRunInput): RunOptionCache {
-  return {
-    ...(input.profileId !== undefined ? { profileId: input.profileId } : {}),
-    ...(input.reasoningEffort !== undefined ? { reasoningEffort: input.reasoningEffort } : {}),
-    ...(input.permissionMode !== undefined ? { permissionMode: input.permissionMode } : {}),
-    ...(input.maxSteps !== undefined ? { maxSteps: input.maxSteps } : {}),
-    ...(input.autoExtendSteps !== undefined ? { autoExtendSteps: input.autoExtendSteps } : {}),
-    ...(input.repeatToolThresholds !== undefined ? { repeatToolThresholds: input.repeatToolThresholds } : {}),
-  };
-}
-
 // Host 侧 Agent 任务调度服务。
 export class AgentService extends Service {
   static inject = ["llm", "tools", "memory", "rules"];
 
   private readonly runs = new Map<string, ActiveRunRecord>();
   private readonly sessionTransitions = new Set<string>();
-  /** 目标续跑的调度定时器：同一会话只保留一个。 */
-  private readonly continuationTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  /** 目标续跑调度器：运行收尾后按停止条件决定是否自动开下一轮。 */
+  private readonly goalScheduler: GoalContinuationScheduler;
   /** 缓存每个会话最近一次运行的授权根，供续跑直接复用。 */
   private readonly sessionRootsCache = new Map<string, string[]>();
   /** 缓存每个会话最近一次的运行选项，供续跑沿用模型、预算与权限。 */
   private readonly sessionRunOptions = new Map<string, RunOptionCache>();
+  /** 工作区租约：同一工作区同时只允许一个会话运行。 */
+  private readonly workspaceLeases = new WorkspaceLeaseRegistry();
   private readonly trustStore: SmartTrustStore;
   private unregisterBuiltinTools: (() => void) | null = null;
   private skillResolver: SkillResolver | null = null;
@@ -87,6 +69,15 @@ export class AgentService extends Service {
     super(ctx, "agent");
     this.trustStore = new SmartTrustStore(config.smartTrustFilePath);
     this.unregisterBuiltinTools = registerAgentLibraryTools(ctx);
+    this.goalScheduler = new GoalContinuationScheduler({
+      memory: ctx.memory,
+      resolveGoalService: () => ctx.get("goal") as GoalServicePort | undefined,
+      isSessionRunning: (sessionId) => Boolean(this.getActiveRunForSession(sessionId)),
+      startRun: (input) => this.startRun(input),
+      getRoots: (sessionId) => this.sessionRootsCache.get(sessionId),
+      getRunOptions: (sessionId) => this.sessionRunOptions.get(sessionId) ?? {},
+      warn: (message) => console.warn(message),
+    });
   }
 
   protected stop(): void {
@@ -100,10 +91,10 @@ export class AgentService extends Service {
       run.controller.abort();
       for (const pending of run.pendingApprovals.values()) pending.resolve(false);
     }
-    for (const timer of this.continuationTimers.values()) clearTimeout(timer);
-    this.continuationTimers.clear();
+    this.goalScheduler.dispose();
     this.sessionRootsCache.clear();
     this.sessionRunOptions.clear();
+    this.workspaceLeases.clear();
     this.runs.clear();
   }
 
@@ -164,62 +155,39 @@ export class AgentService extends Service {
 
   /** Web 启动使用持久会话解析授权根，可信的本地调用仍可显式提供根目录。 */
   async startRun(input: StartAgentRunInput, resolveRoots?: (projectId: string | null) => Promise<string[]>) {
-    const started = await this.withIdleSession(input.sessionId, () => this.beginRun(input, resolveRoots));
+    const session = await this.ctx.memory.getSession(input.sessionId);
+    if (!session) throw new Error(`找不到聊天会话：${input.sessionId}`);
+    const roots = input.workspaceRoots ?? (resolveRoots ? await resolveRoots(session.projectId) : []);
+    const scope = resolveWorkspaceScope({
+      worktreePath: session.worktree?.path,
+      projectId: session.projectId,
+      roots,
+    });
+    const started = await this.withIdleSession(input.sessionId, async () => {
+      const acquired = this.workspaceLeases.acquire(scope, session.id, session.title);
+      if (!acquired.ok) throw new WorkspaceBusyError(scope, acquired.holder);
+      try {
+        return await this.beginRun(input, resolveRoots);
+      } catch (error) {
+        this.workspaceLeases.release(session.id);
+        throw error;
+      }
+    });
     if (started.workspaceRoots.length > 0) this.sessionRootsCache.set(input.sessionId, started.workspaceRoots);
     this.sessionRunOptions.set(input.sessionId, pickRunOptions(input));
     return started;
   }
 
-  /** 运行收口后调度目标续跑；同一会话只保留一个待触发定时器。 */
-  private handleRunFinished(record: ActiveRunRecord): void {
-    const sessionId = record.status.sessionId;
-    const previous = this.continuationTimers.get(sessionId);
-    if (previous) clearTimeout(previous);
-    this.continuationTimers.delete(sessionId);
-    if (record.status.status !== "done") return;
-    const timer = setTimeout(() => {
-      this.continuationTimers.delete(sessionId);
-      void this.maybeContinueGoal(sessionId);
-    }, GOAL_CONTINUATION_DELAY_MS);
-    this.continuationTimers.set(sessionId, timer);
+  /** 当前工作区租约快照，供会话工具与状态展示读取。 */
+  listWorkspaceLeases(): LeaseHolder[] {
+    return this.workspaceLeases.list();
   }
 
-  /** 目标仍 active 且未暂停、未到上限时，自动开下一轮；失败只记日志，不打断收口。 */
-  private async maybeContinueGoal(sessionId: string): Promise<void> {
-    const goalService = this.ctx.get("goal") as GoalServicePort | undefined;
-    if (!goalService) return;
-    const session = await this.ctx.memory.getSession(sessionId).catch(() => null);
-    if (!session || session.archived) return;
-    const goals = await goalService.list({ sessionId }).catch(() => []);
-    const decision = decideGoalContinuation({
-      runStatus: "done",
-      pendingQuestion: Boolean(session.pendingQuestion),
-      sessionRunning: Boolean(this.getActiveRunForSession(sessionId)),
-      goals,
-    });
-    if (!decision.continue) return;
-    const roots = this.sessionRootsCache.get(sessionId) ?? [];
-    const options = this.sessionRunOptions.get(sessionId) ?? {};
-    try {
-      await this.startRun({
-        sessionId,
-        goalContinuation: {
-          goalId: decision.goal.id,
-          title: decision.goal.title,
-          objective: decision.goal.objective,
-        },
-        ...(roots.length > 0 ? { workspaceRoots: roots } : {}),
-        ...options,
-      });
-    } catch (error) {
-      console.warn(`[agent] 目标续跑未启动：${error instanceof Error ? error.message : String(error)}`);
-      return;
-    }
-    try {
-      await goalService.advanceRound(decision.goal.id);
-    } catch (error) {
-      console.warn(`[agent] 目标续跑轮次记录失败：${error instanceof Error ? error.message : String(error)}`);
-    }
+  /** 运行收口后释放工作区租约并调度目标续跑；停止条件与延迟见 goal-scheduler.ts。 */
+  private handleRunFinished(record: ActiveRunRecord): void {
+    const sessionId = record.status.sessionId;
+    this.workspaceLeases.release(sessionId);
+    this.goalScheduler.schedule(sessionId, record.status.status === "done");
   }
 
   /** 拒绝用生图/生视频/语音模型发起对话运行，提示改用媒体直连或切换对话模型。 */
