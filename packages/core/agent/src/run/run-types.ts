@@ -1,10 +1,23 @@
 // 定义 Agent 运行循环的依赖与输入契约，供循环主体与工具执行器共用，避免循环文件继续膨胀。
-import type { LlmMessage, LlmService } from "@lfaa/llm";
-import type { MemoryService, SessionWorktree } from "@lfaa/memory";
+import type { LlmMessage, LlmService, LlmUsage } from "@lfaa/llm";
+import type { AgentRunCost, AgentRunMetrics, AgentStepTrace, MemoryService, SessionWorktree, UserClarification } from "@lfaa/memory";
 import type { RulesService } from "@lfaa/rules";
 import type { ToolsService } from "@lfaa/tools";
 import type { SmartTrustStore } from "../tools/permission-policy";
 import type { AgentPermissionMode, AgentRunEvent, ApprovalAnswer, ProjectScope, ResolvedSkillContext } from "../types";
+
+/** Agent 单次运行的最终结果：正文、轨迹、用量与成本；澄清时附带待回答的问题。 */
+export interface AgentRunResult {
+  content: string;
+  progressText: string;
+  reasoning: string;
+  steps: AgentStepTrace[];
+  model?: string;
+  usage?: LlmUsage;
+  metrics: AgentRunMetrics;
+  cost?: AgentRunCost;
+  clarification?: UserClarification;
+}
 
 /** 压缩实现的结构化契约：可由 @lfaa/compaction-basic 服务提供，缺省回落到内置函数。 */
 export interface CompactionHook {

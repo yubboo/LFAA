@@ -1,7 +1,7 @@
 // 实现 Agent 核心任务循环：思考（Think）-> 行动（Act）-> 检查（Check）。
 import { DEFAULT_CONTEXT_BUDGET_CHARS } from "@lfaa/context";
-import { type LlmMessage, type LlmUsage } from "@lfaa/llm";
-import type { AgentRunCost, AgentRunMetrics, AgentStepTrace, UserClarification } from "@lfaa/memory";
+import { type LlmMessage } from "@lfaa/llm";
+import type { AgentStepTrace } from "@lfaa/memory";
 import {
   buildProgressHint,
   buildProjectScopeHint,
@@ -15,23 +15,23 @@ import {
   resolveModelContext,
 } from "../context/agent-context";
 import { finishWithClarification } from "./agent-completion";
-import { appendMediaPreviews, buildMediaHint, collectMediaPreviews } from "../context/agent-media";
+import { appendMediaPreviews, buildMediaHint } from "../context/agent-media";
 import { runFallbackConclusion } from "./agent-fallback";
 import { RunUsageTracker } from "./agent-usage";
-import { runActPhase } from "./act-runner";
 import { renderSystemContent } from "./run-system";
 import { clarificationTool } from "../context/clarification";
 import { runThinkRound } from "./think-round";
-import type { RunExecutionParams, RunLoopDeps } from "./run-types";
+import type { AgentRunResult, RunExecutionParams, RunLoopDeps } from "./run-types";
+import { finishWithoutTools } from "./finish-round";
+import { runToolRound } from "./act-round";
 import { createLoopState, extendBudget, recordStep } from "./loop-state";
-import { isCodePath, isVerificationCommand } from "./verification";
 export type { RunExecutionParams, RunLoopDeps };
 
 /** 顺序执行模型推理、工具审批和执行，最终把运行结果写回会话。 */
 export async function executeAgentTaskLoop(
   deps: RunLoopDeps,
   params: RunExecutionParams,
-): Promise<{ content: string; progressText: string; reasoning: string; steps: AgentStepTrace[]; model?: string; usage?: LlmUsage; metrics: AgentRunMetrics; cost?: AgentRunCost; clarification?: UserClarification }> {
+): Promise<AgentRunResult> {
   const state = createLoopState(params);
   const pushOrUpdateStep = (update: AgentStepTrace) => recordStep(state, params, update);
 
@@ -81,9 +81,6 @@ export async function executeAgentTaskLoop(
   // 2. Think -> Act -> Check 任务循环；预算、轮次与自检标记统一收在 state 里（见 loop-state.ts）。
   const steps = state.steps;
   const mediaPreviews = state.mediaPreviews;
-  const repeatTracker = state.repeat;
-  const pendingRepeatReminders = state.pendingReminders;
-  const verification = state.verification;
   while (true) {
     state.iteration += 1;
     if (state.iteration > state.budget.limit) {
@@ -135,137 +132,19 @@ export async function executeAgentTaskLoop(
       });
     }
 
-    // 无工具调用：先做完成前自检，再执行终结检查。
+    // 无工具调用：交给收口模块；要求补验证时重来一轮。
     if (output.toolCalls.length === 0) {
-      const finalContent = roundContent.trim();
-      const needsVerification = verification.lastCodeEditIteration > verification.lastVerificationIteration;
-      // 改过代码却没有运行验证时，给模型一次补验证的机会（每次运行最多提示一次）。
-      if (needsVerification && !verification.nudged && state.budget.limit - iteration >= 2) {
-        verification.nudged = true;
-        pushOrUpdateStep({
-          id: "verification-gate",
-          iteration,
-          phase: "check",
-          status: "error",
-          title: "完成前自检：本轮修改了代码但尚未运行验证",
-          detail: "已要求模型先执行构建/测试/类型检查，或说明本次修改无需验证的原因。",
-          timestamp: Date.now(),
-        });
-        conversation.push({
-          role: "user",
-          content: "完成前请先验证本次修改：运行构建、测试或类型检查（如 pnpm build、pnpm test、mvn package、tsc --noEmit）。如果本次修改确实不需要验证（例如只改了文档或当前环境没有可用构建），请明确说明原因后再结束。",
-        });
-        continue;
-      }
-      if (needsVerification && verification.nudged) {
-        pushOrUpdateStep({
-          id: "verification-result",
-          iteration,
-          phase: "check",
-          status: "error",
-          title: "完成前自检：模型未执行验证即结束",
-          detail: finalContent.slice(0, 160) || "未说明原因",
-          timestamp: Date.now(),
-        });
-      }
-      const checkStepId = `check-${iteration}`;
-      const isEmpty = !finalContent;
-      pushOrUpdateStep({
-        id: checkStepId,
-        iteration,
-        phase: "check",
-        status: isEmpty ? "error" : "done",
-        title: isEmpty ? "最终检查：响应为空" : "最终检查：已收到答复",
-        ...(isEmpty ? { detail: "请检查模型接口与提示词配置。" } : {}),
-        timestamp: Date.now(),
+      const outcome = finishWithoutTools({
+        state, tracker, iteration, output, roundContent, conversation, steps, mediaPreviews, pushStep: pushOrUpdateStep,
       });
-      const usage = tracker.usageSnapshot;
-      const cost = tracker.cost();
-      return {
-        content: appendMediaPreviews(finalContent, mediaPreviews) || "模型返回了空内容，未能生成有效答复。",
-        progressText: state.progressText,
-        reasoning: state.reasoning,
-        steps,
-        model: output.model,
-        ...(usage ? { usage } : {}),
-        ...(cost ? { cost } : {}),
-        metrics: tracker.buildMetrics(),
-      };
+      if (outcome.kind === "retry") continue;
+      return outcome.result;
     }
 
-    if (iterText && !iterText.endsWith("\n\n")) {
-      iterText += "\n\n";
-      params.emit({ type: "delta", runId: params.runId, seq: 0, kind: "text", text: "\n\n" });
-    }
-    state.progressText += iterText;
-    const roundTextOffset = state.progressText.length;
-
-    // 记录模型发出的 assistant + toolCalls 轮次（保留 reasoningContent 以适配 DeepSeek 思考模式工具调用回传要求）
-    conversation.push({
-      role: "assistant",
-      content: roundContent,
-      ...(output.reasoningContent !== undefined ? { reasoningContent: output.reasoningContent } : {}),
-      toolCalls: output.toolCalls,
+    await runToolRound({
+      deps, params, state, tracker, iteration, output, roundContent, iterText, conversation,
+      pushStep: pushOrUpdateStep,
     });
-
-    // Act 阶段：交给工具执行器；连续只读调用并行，写文件与命令串行，结果按模型顺序回填。
-    const act = await runActPhase(deps, params, output.toolCalls, {
-      iteration,
-      roundTextOffset,
-      conversation,
-      pushOrUpdateStep,
-      onExecuted: (outcome) => {
-        // 完成前自检：记录最后一次代码修改与最后一次验证命令所在的轮次。
-        const modifiedPath = outcome.fileChange?.path ?? outcome.action.toolTarget;
-        const modified = Boolean(outcome.fileChange) || outcome.call.name === "write_file" || outcome.call.name === "edit_file";
-        if (outcome.executed && outcome.ok && modified && isCodePath(modifiedPath)) {
-          verification.lastCodeEditIteration = iteration;
-        }
-        if (outcome.executed && outcome.command && isVerificationCommand(outcome.command)) {
-          verification.lastVerificationIteration = iteration;
-        }
-        // 连续相同调用只给建议性提醒，不阻断执行；提醒在工具结果回填后再进入上下文。
-        if (outcome.executed && outcome.ok) {
-          collectMediaPreviews(mediaPreviews, outcome.call.name, outcome.output);
-          const repeat = repeatTracker?.observe(outcome.call.name, outcome.call.argumentsJson);
-          if (repeat?.reminder) {
-            pendingRepeatReminders.push(repeat.reminder);
-            pushOrUpdateStep({
-              id: `repeat-call-${iteration}-${repeat.count}`,
-              iteration,
-              phase: "check",
-              status: "done",
-              title: `检测到重复工具调用：${outcome.call.name}（连续 ${repeat.count} 次）`,
-              detail: "已向模型追加建议性提醒，要求换方法或结束任务；不阻断本次执行。",
-              timestamp: Date.now(),
-            });
-          }
-        }
-      },
-    });
-    tracker.addToolMs(act.toolMs);
-    tracker.emitUsage();
-    // 工具结果已回填，再把重复调用提醒追加为独立的用户消息，保持 tool_call/tool_result 配对。
-    for (const reminder of pendingRepeatReminders) {
-      conversation.push({ role: "user", content: reminder });
-    }
-    pendingRepeatReminders.length = 0;
-
-    // Check 阶段：评估行动结果并驱动下一轮思考
-    const checkStepId = `check-${iteration}`;
-    pushOrUpdateStep({
-      id: checkStepId,
-      iteration,
-      phase: "check",
-      status: act.failureCount > 0 ? "error" : "done",
-      title: act.failureCount > 0
-        ? `第 ${iteration} 轮检查：${act.failureCount}/${output.toolCalls.length} 项执行异常，反馈模型调整`
-        : `第 ${iteration} 轮检查：工具观察已回收，继续推进判断`,
-      detail: act.summaries.join("；"),
-      timestamp: Date.now(),
-    });
-    // 只有真正执行过工具的一轮才值得继续消耗预算；全部被拒绝或解析失败时按收口处理。
-    state.lastRoundExecutedTools = act.executedToolCount > 0;
   }
 
   // 达到步数预算且无自动延长空间时执行收口总结。

@@ -3,7 +3,7 @@
 > 本文件由 `pnpm map:sync`（[scripts/gen-repository-map.mjs](../../scripts/gen-repository-map.mjs)）按真实文件系统生成，**不要手改**。
 > 骨架发生变化（新增/删除/移动文件、包或目录）后，必须在同一轮运行 `pnpm map:sync` 并提交，否则 `pnpm check` 会失败。
 
-当前快照：**47 个包、1520 个文件、251 个子目录**（不含 node_modules、构建产物与运行数据）。
+当前快照：**47 个包、1522 个文件、251 个子目录**（不含 node_modules、构建产物与运行数据）。
 
 ## 1. 快速索引
 
@@ -62,7 +62,7 @@ lfaa/
 │   ├── standards/  (1 个文件)
 │   ├── templates/  (2 个文件)
 │   └── updata-log/  (302 个文件)
-├── packages/  (982 个文件)
+├── packages/  (984 个文件)
 │   ├── api/  (7 个文件)
 │   │   └── gateway/  # @lfaa/api-gateway  (7 个文件)
 │   │       ├── src/  (1 个文件)
@@ -104,11 +104,11 @@ lfaa/
 │   │   └── compaction/  # @lfaa/compaction  (12 个文件)
 │   │       ├── src/  (4 个文件)
 │   │       └── tests/  (3 个文件)
-│   ├── core/  (256 个文件)
-│   │   ├── agent/  # @lfaa/agent  (55 个文件)
-│   │   │   ├── src/  (32 个文件)
+│   ├── core/  (258 个文件)
+│   │   ├── agent/  # @lfaa/agent  (57 个文件)
+│   │   │   ├── src/  (34 个文件)
 │   │   │   │   ├── context/  (4 个文件)
-│   │   │   │   ├── run/  (20 个文件)
+│   │   │   │   ├── run/  (22 个文件)
 │   │   │   │   └── tools/  (4 个文件)
 │   │   │   └── tests/  (18 个文件)
 │   │   ├── browser/  # @lfaa/browser  (34 个文件)
@@ -935,6 +935,7 @@ lfaa/
 
 ### packages/core/agent/src/run
 
+- `act-round.ts` — 工具轮编排：补齐正文边界 → 记录 assistant 轮次 → 执行工具 → 回填重复提醒 → 写检查步骤 → 记录是否执行过工具。
 - `act-runner.ts` — 执行一轮模型给出的工具调用：连续只读调用并行、写文件与命令串行，并按模型给出的顺序回填步骤与工具消息。
 - `activity-file.ts` — 读取成功文件步骤关联的当前文本，只允许访问会话授权工作区。
 - `agent-completion.ts` — 澄清请求收口：模型调用 ask_user 时终止本轮其余工具，把问题与选项作为本轮结论返回。
@@ -942,6 +943,7 @@ lfaa/
 - `agent-loop.ts` — 实现 Agent 核心任务循环：思考（Think）-> 行动（Act）-> 检查（Check）。
 - `agent-usage.ts` — 运行用量与性能统计：累计 token/缓存命中、模型与工具耗时，并组装上下文构成与成本。
 - `command-trace.ts` — 裁剪终端输出快照：步骤轨迹只保留尾部有限行数与字符，避免长日志把会话文件撑到兆字节级。
+- `finish-round.ts` — 无工具调用时的收口：完成前自检（改了代码没验证先给一次补验证机会）→ 空响应判定 → 最终检查步骤 → 结果组装。
 - `loop-state.ts` — Agent 单次运行的循环状态：把预算、轮次、用量累积与完成前自检标记收进一个对象。
 - `memory-autosave.ts` — 从用户明确陈述中提取值得跨会话记住的偏好或约定，作为长期记忆的确定性沉淀来源。
 - `model-round.ts` — Agent Host 模型轮次的超时与有限重试，保留已发出的正文和工具进度。
