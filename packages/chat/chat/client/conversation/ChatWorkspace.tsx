@@ -315,6 +315,7 @@ export function ChatWorkspace({
           isZh={locale.isZh}
           className={styles.composerStack}
           onEditGoal={(objective) => store.editGoal(objective)}
+          onToggleGoalAuto={(next) => store.setGoalAutoContinue(next)}
         />
         <ChatComposer
           locale={locale}

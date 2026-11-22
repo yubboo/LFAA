@@ -1,6 +1,6 @@
 // 验证目标服务的持久化往返、状态流转与进度归一。
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { Context } from "@deepseek-ai/cordis";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -69,4 +69,49 @@ test("按会话过滤与未知目标报错", async () => {
     await assert.rejects(() => service.update("missing", { note: "x" }), /目标不存在/u);
     await assert.rejects(() => service.create({ title: " ", objective: "x" }), /标题不能为空/u);
   });
+});
+
+test("自动续跑字段：默认值、暂停恢复、轮次推进与上限归一", async () => {
+  await withService(async (service) => {
+    const goal = await service.create({ title: "T", objective: "O" });
+    assert.equal(goal.rounds, 0);
+    assert.equal(goal.maxRounds, 10);
+    assert.equal(goal.autoContinue, true);
+
+    assert.equal((await service.update(goal.id, { autoContinue: false })).autoContinue, false);
+    assert.equal((await service.update(goal.id, { autoContinue: true })).autoContinue, true);
+    assert.equal((await service.update(goal.id, { maxRounds: 99 })).maxRounds, 50);
+    assert.equal((await service.create({ title: "L", objective: "o", maxRounds: 3 })).maxRounds, 3);
+
+    const advanced = await service.advanceRound(goal.id);
+    assert.equal(advanced.rounds, 1);
+    assert.equal(advanced.log.at(-1)?.note, "自动继续第 1 轮");
+    assert.ok((advanced.lastContinuedAt ?? 0) > 0);
+  });
+});
+
+test("旧 goals.json 缺少续跑字段时按默认值补齐", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "lfaa-goal-"));
+  try {
+    const path = join(dir, "goals.json");
+    await writeFile(path, JSON.stringify({
+      version: 1,
+      goals: [{
+        id: "legacy",
+        title: "旧目标",
+        objective: "兼容旧数据",
+        status: "active",
+        createdAt: 1,
+        updatedAt: 1,
+        progress: { done: 0, total: 0 },
+        log: [],
+      }],
+    }), "utf8");
+    const listed = await new GoalService(new Context(), { storeFilePath: path }).list();
+    assert.equal(listed[0]?.rounds, 0);
+    assert.equal(listed[0]?.maxRounds, 10);
+    assert.equal(listed[0]?.autoContinue, true);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });

@@ -15,6 +15,8 @@ export interface RunStreamContext {
   assistantMessageId: string;
   /** 流已终止（正常结束或降级）：调用方据此清理持有的客户端实例。 */
   onStreamClosed: () => void;
+  /** 运行正常收尾后回调：调度层用它探测目标自动续跑是否已经启动。 */
+  onSettled?: () => void;
 }
 
 /** 组装十个事件回调；每个回调只做「读取当前状态 → 必要校验 → patch」。 */
@@ -24,6 +26,7 @@ export function createRunStreamHandlers({
   sessionId,
   assistantMessageId,
   onStreamClosed,
+  onSettled,
 }: RunStreamContext): AgentStreamClientHandlers {
   const patchAssistant = (updater: (msg: ChatMessageItem) => ChatMessageItem) => {
     const curr = port.getState().activeSession;
@@ -136,6 +139,7 @@ export function createRunStreamHandlers({
       } else {
         void port.refreshMeta();
       }
+      onSettled?.();
     },
     onDegraded: (lastSeq, reason) => {
       onStreamClosed();

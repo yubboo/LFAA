@@ -52,6 +52,11 @@ test("目标接口按会话读取并可编辑目标文字", async () => {
     assert.equal(missing.status, 400);
     const empty = await call(handler, "PATCH", `/api/goals/${goal.id}`, { sessionId: "s1", objective: "   " });
     assert.equal(empty.status, 400);
+    const paused = await call(handler, "PATCH", `/api/goals/${goal.id}`, { sessionId: "s1", autoContinue: false });
+    assert.equal(paused.status, 200);
+    assert.equal((paused.json.goal as { autoContinue: boolean }).autoContinue, false);
+    const noFields = await call(handler, "PATCH", `/api/goals/${goal.id}`, { sessionId: "s1" });
+    assert.equal(noFields.status, 400);
     const crossSession = await call(handler, "PATCH", `/api/goals/${goal.id}`, { sessionId: "other", objective: "越权" });
     assert.equal(crossSession.status, 404);
     const wrongMethod = await call(handler, "POST", "/api/goals");

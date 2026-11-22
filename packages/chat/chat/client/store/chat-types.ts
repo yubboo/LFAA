@@ -125,6 +125,14 @@ export interface ChatGoalItem {
   status: ChatGoalStatus;
   progress: { done: number; total: number };
   updatedAt: number;
+  /** 已自动续跑的轮次。 */
+  rounds: number;
+  /** 自动续跑轮数上限。 */
+  maxRounds: number;
+  /** 是否允许自动续跑；用户可在 GoalBar 暂停。 */
+  autoContinue: boolean;
+  /** 最近一次自动续跑时间。 */
+  lastContinuedAt?: number;
 }
 
 /** 定义模型目录中可供浏览器识别的思考档位元数据。 */

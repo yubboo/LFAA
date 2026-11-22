@@ -10,6 +10,7 @@ import {
   type MemoryService,
 } from "@lfaa/memory";
 import { executeAgentTaskLoop } from "./agent-loop";
+import { buildGoalContinuationMessage } from "./goal-continuation";
 import { ensureProjectGitRepo } from "../context/project-git";
 import { extractExplicitMemory } from "./memory-autosave";
 import { normalizePermissionMode } from "../tools/permission-policy";
@@ -34,6 +35,8 @@ export interface BeginRunDeps extends RunLoopDeps {
   resolveSessionModules?: (presetId: string | undefined, modules: readonly string[]) => readonly string[];
   /** 把新运行登记到服务层运行表并计数。 */
   onRunCreated: (record: ActiveRunRecord) => void;
+  /** 运行收口后回调：调度层用于释放工作区租约并判断目标续跑。 */
+  onRunFinished?: (record: ActiveRunRecord) => void;
 }
 
 // 用户明确陈述的偏好/约定在模型未主动保存时自动写入长期记忆，并在轨迹中留痕。
@@ -77,7 +80,7 @@ export async function beginAgentRun(
   deps: BeginRunDeps,
   input: StartAgentRunInput,
   resolveRoots?: (projectId: string | null) => Promise<string[]>,
-): Promise<{ runId: string; sessionId: string; assistantMessageId: string }> {
+): Promise<{ runId: string; sessionId: string; assistantMessageId: string; workspaceRoots: string[] }> {
   const session = await deps.memory.getSession(input.sessionId);
   if (!session) {
     throw new Error(`找不到聊天会话：${input.sessionId}`);
@@ -87,6 +90,10 @@ export async function beginAgentRun(
   const userMessageId = randomUUID();
   const assistantMessageId = randomUUID();
   const continuationId = input.continuation?.assistantMessageId;
+  const goalContinuation = input.goalContinuation;
+  if (goalContinuation && (!goalContinuation.goalId.trim() || !goalContinuation.objective.trim())) {
+    throw new Error("目标续跑参数不完整。");
+  }
   const continuationMessage = continuationId
     ? session.messages.find((message) => message.id === continuationId)
     : undefined;
@@ -94,16 +101,18 @@ export async function beginAgentRun(
     throw new Error("找不到可续写的助手回复。");
   }
   const trimmedInput = (input.userMessage ?? "").trim();
-  if (!continuationId && !trimmedInput) {
+  if (!continuationId && !goalContinuation && !trimmedInput) {
     throw new Error("发送内容不能为空。");
   }
-  // 续写只把指令放进模型上下文，不落成用户消息；普通新消息才需要校验内容。
-  const effectiveUserMessage = continuationId
-    ? "请紧接上一条助手回复的完整句边界继续往下回答，不要重复前文。"
-    : trimmedInput;
+  // 续写与目标续跑都只把指令放进模型上下文，不落成用户消息；普通新消息才需要校验内容。
+  const effectiveUserMessage = goalContinuation
+    ? buildGoalContinuationMessage(goalContinuation)
+    : continuationId
+      ? "请紧接上一条助手回复的完整句边界继续往下回答，不要重复前文。"
+      : trimmedInput;
 
-  // 任务清单是单轮计划：普通新一轮清空上一轮；续写同一轮必须保留当前清单。
-  if (!continuationId && session.todos?.length) {
+  // 任务清单是单轮计划：普通新一轮清空上一轮；续写与目标续跑必须保留当前清单。
+  if (!continuationId && !goalContinuation && session.todos?.length) {
     await deps.memory.updateSession(session.id, { todos: [] });
   }
 
@@ -133,7 +142,7 @@ export async function beginAgentRun(
     ? await deps.skillCatalogProvider(workspaceRoots).catch(() => [])
     : [];
 
-  if (!continuationId) {
+  if (!continuationId && !goalContinuation) {
     await deps.memory.appendMessage(session.id, {
       id: userMessageId,
       role: "user",
@@ -419,9 +428,14 @@ export async function beginAgentRun(
       } finally {
         // 父运行结束后停止仍在运行的子任务，避免留下无人接收结果的执行。
         controller.abort();
+        try {
+          deps.onRunFinished?.(record);
+        } catch (error) {
+          console.warn(`[agent] 运行结束回调失败：${error instanceof Error ? error.message : String(error)}`);
+        }
       }
     })();
   });
 
-  return { runId, sessionId: session.id, assistantMessageId };
+  return { runId, sessionId: session.id, assistantMessageId, workspaceRoots };
 }

@@ -269,6 +269,11 @@ export class ChatClientStore extends ChatDataFacade {
     return this.sessionActions.editGoal(objective);
   }
 
+  /** 暂停/恢复目标自动续跑；是否继续仍由 Host 在每轮结束时判定。 */
+  setGoalAutoContinue(autoContinue: boolean): Promise<boolean> {
+    return this.sessionActions.setGoalAutoContinue(autoContinue);
+  }
+
   forkSession(sessionId: string): Promise<ChatSessionDetail | null> {
     return this.sessionActions.forkSession(sessionId);
   }

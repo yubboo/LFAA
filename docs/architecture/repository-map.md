@@ -3,7 +3,7 @@
 > 本文件由 `pnpm map:sync`（[scripts/gen-repository-map.mjs](../../scripts/gen-repository-map.mjs)）按真实文件系统生成，**不要手改**。
 > 骨架发生变化（新增/删除/移动文件、包或目录）后，必须在同一轮运行 `pnpm map:sync` 并提交，否则 `pnpm check` 会失败。
 
-当前快照：**47 个包、1527 个文件、251 个子目录**（不含 node_modules、构建产物与运行数据）。
+当前快照：**47 个包、1529 个文件、251 个子目录**（不含 node_modules、构建产物与运行数据）。
 
 ## 1. 快速索引
 
@@ -62,7 +62,7 @@ lfaa/
 │   ├── standards/  (1 个文件)
 │   ├── templates/  (2 个文件)
 │   └── updata-log/  (302 个文件)
-├── packages/  (988 个文件)
+├── packages/  (990 个文件)
 │   ├── api/  (7 个文件)
 │   │   └── gateway/  # @lfaa/api-gateway  (7 个文件)
 │   │       ├── src/  (1 个文件)
@@ -104,13 +104,13 @@ lfaa/
 │   │   └── compaction/  # @lfaa/compaction  (12 个文件)
 │   │       ├── src/  (4 个文件)
 │   │       └── tests/  (3 个文件)
-│   ├── core/  (259 个文件)
-│   │   ├── agent/  # @lfaa/agent  (58 个文件)
-│   │   │   ├── src/  (35 个文件)
+│   ├── core/  (261 个文件)
+│   │   ├── agent/  # @lfaa/agent  (60 个文件)
+│   │   │   ├── src/  (36 个文件)
 │   │   │   │   ├── context/  (4 个文件)
-│   │   │   │   ├── run/  (23 个文件)
+│   │   │   │   ├── run/  (24 个文件)
 │   │   │   │   └── tools/  (4 个文件)
-│   │   │   └── tests/  (18 个文件)
+│   │   │   └── tests/  (19 个文件)
 │   │   ├── browser/  # @lfaa/browser  (34 个文件)
 │   │   │   ├── client/  (12 个文件)
 │   │   │   │   ├── panes/  (7 个文件)
@@ -948,6 +948,7 @@ lfaa/
 - `agent-usage.ts` — 运行用量与性能统计：累计 token/缓存命中、模型与工具耗时，并组装上下文构成与成本。
 - `command-trace.ts` — 裁剪终端输出快照：步骤轨迹只保留尾部有限行数与字符，避免长日志把会话文件撑到兆字节级。
 - `finish-round.ts` — 无工具调用时的收口：完成前自检（改了代码没验证先给一次补验证机会）→ 空响应判定 → 最终检查步骤 → 结果组装。
+- `goal-continuation.ts` — 目标自动续跑判定：一轮结束后根据目标状态、轮次上限、暂停开关与会话忙闲决定是否继续。
 - `loop-state.ts` — Agent 单次运行的循环状态：把预算、轮次、用量累积与完成前自检标记收进一个对象。
 - `memory-autosave.ts` — 从用户明确陈述中提取值得跨会话记住的偏好或约定，作为长期记忆的确定性沉淀来源。
 - `model-round.ts` — Agent Host 模型轮次的超时与有限重试，保留已发出的正文和工具进度。
@@ -972,7 +973,7 @@ lfaa/
 
 ### packages/core/agent/tests
 
-- `agent-continuation.test.ts` — 验证续写运行：不写用户消息、保留任务清单，只新增一条助手消息。
+- `agent-continuation.test.ts` — 验证续写运行：不写用户消息、保留任务清单，只新增一条助手消息；目标续跑自动接下一轮并停在上限。
 - `agent-http-active-sessions.test.ts` — 验证 /api/agent/active-sessions 返回所有仍在运行的会话 id，供左二栏显示工作转圈。
 - `agent-http-attachments.test.ts` — 验证 /api/agent/runs 把附件与引用图转成宿主校验后的落库字段，并忽略无法校验的来源。
 - `agent-loop.context.test.ts` — 验证 @lfaa/agent 的上下文压缩、记忆召回与并行工具。
@@ -981,6 +982,7 @@ lfaa/
 - `agent-loop.todos.test.ts` — 验证新一轮运行先清空上一轮清单，工具回传的 todos 仍广播事件并进入运行快照。
 - `agent-loop.verify.test.ts` — 验证 @lfaa/agent 的完成前自检、耗时统计与重复调用提醒。
 - `agent-media.test.ts` — 验证媒体指引包含「禁止编造链接」约束：Agent 未调用工具时不能声称图片已生成。
+- `goal-continuation.test.ts` — 验证目标自动续跑的停止条件矩阵与续跑指令内容（纯函数，不启动真实运行）。
 - `memory-autosave.test.ts` — 验证只把用户明确的偏好/约定沉淀为长期记忆，普通任务描述不命中。
 - `model-round.test.ts` — 验证模型请求静默退出、长推理限制及工具参数增量。
 - `project-git.test.ts` — 验证自动 Git 基线会跳过疑似密钥文件，并仍尊重 .gitignore。

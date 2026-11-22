@@ -235,6 +235,14 @@ export class ChatRunActions {
       onStreamClosed: () => {
         if (this.streamClient === client) this.streamClient = null;
       },
+      onSettled: () => {
+        // 目标自动续跑由 Host 异步启动：两次探测，避免启动稍晚时错过重新订阅。
+        const probe = () => {
+          if (!this.port.getState().runningRunId) void this.resumeRun(sessionId);
+        };
+        setTimeout(probe, 600);
+        setTimeout(probe, 2200);
+      },
     });
     client = new AgentStreamClient(runId, handlers);
     this.streamClient = client;

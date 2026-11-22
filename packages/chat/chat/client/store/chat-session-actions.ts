@@ -115,6 +115,27 @@ export class ChatSessionActions {
     }
   }
 
+  /** 暂停/恢复目标自动续跑；只改开关，不影响目标状态与轮次。 */
+  async setGoalAutoContinue(autoContinue: boolean): Promise<boolean> {
+    const state = this.port.getState();
+    const goal = state.activeGoal;
+    const sessionId = state.activeSession?.id;
+    if (!goal || !sessionId) return false;
+    try {
+      const res = await fetchJson<{ goal: ChatGoalItem }>(`/api/goals/${encodeURIComponent(goal.id)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ sessionId, autoContinue }),
+      });
+      if (this.port.getState().activeSessionId === sessionId) {
+        this.port.patchState({ activeGoal: res.goal, errorMessage: "" });
+      }
+      return true;
+    } catch (error) {
+      this.port.patchState({ errorMessage: error instanceof Error ? error.message : String(error) });
+      return false;
+    }
+  }
+
   /** 跳过澄清：清除 Host 的待回答状态与本地徽标，避免「待回答」永久残留。 */
   async dismissClarification(sessionId: string): Promise<void> {
     await fetchJson(`/api/agent/sessions/${encodeURIComponent(sessionId)}/clarification/dismiss`, { method: "POST" });

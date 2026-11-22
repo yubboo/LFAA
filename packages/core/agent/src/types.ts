@@ -45,6 +45,8 @@ export interface StartAgentRunInput {
   userMessage?: string;
   /** 从指定助手消息继续：不写用户消息，指令只进入模型上下文。 */
   continuation?: { assistantMessageId: string };
+  /** 目标自动续跑：不写用户消息，把目标指令放进模型上下文（仅由 Host 内部发起）。 */
+  goalContinuation?: { goalId: string; title: string; objective: string };
   profileId?: string;
   reasoningEffort?: "minimal" | "low" | "medium" | "high" | "max";
   projectId?: string | null;

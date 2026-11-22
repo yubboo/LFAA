@@ -33,7 +33,7 @@ const toolGoalPlugin: Plugin.Object<void> = {
         moduleName: "@lfaa/goal",
         name: "goal_create",
         title: "新建目标",
-        description: "为本次长任务登记一个目标。后续用 goal_update 记录进展，完成后把状态改为 complete。",
+        description: "为本次长任务登记一个目标。目标保持 active 时会自动续跑，直到调用 goal_update 标记 complete 或 blocked；每轮结束自动开始下一轮。",
         permissionLevel: "read",
         parameters: {
           type: "object",
@@ -41,16 +41,19 @@ const toolGoalPlugin: Plugin.Object<void> = {
             title: { type: "string", description: "简短目标名" },
             objective: { type: "string", description: "可验收的完成条件" },
             total: { type: "number", description: "可选的步骤总数" },
+            maxRounds: { type: "number", description: "自动续跑轮数上限（默认 10，最多 50）" },
           },
           required: ["title", "objective"],
         },
         execute: async (args, execCtx) => {
           const total = toCount(args.total);
+          const maxRounds = toCount(args.maxRounds);
           const goal = await ctx.goal.create({
             title: String(args.title ?? ""),
             objective: String(args.objective ?? ""),
             sessionId: execCtx.sessionId,
             ...(total !== undefined ? { total } : {}),
+            ...(maxRounds !== undefined ? { maxRounds } : {}),
           });
           return { ok: true, output: formatGoalLine(goal), summary: `已登记目标：${goal.title}` };
         },

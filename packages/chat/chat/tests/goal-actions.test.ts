@@ -12,6 +12,9 @@ const GOAL: ChatGoalItem = {
   status: "active",
   progress: { done: 1, total: 7 },
   updatedAt: 1,
+  rounds: 0,
+  maxRounds: 10,
+  autoContinue: true,
 };
 
 function createPort() {

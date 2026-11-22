@@ -52,18 +52,23 @@ export function createGoalHttpHandler(service: GoalService) {
       return true;
     }
     if (req.method !== "PATCH") {
-      sendJson(res, 405, { error: "目标只支持 PATCH 编辑目标文字。" });
+      sendJson(res, 405, { error: "目标只支持 PATCH 更新。" });
       return true;
     }
 
     try {
       const body = await readJsonBody(req);
-      const objective = typeof body.objective === "string" ? body.objective.trim() : "";
-      if (!objective) {
+      const objective = typeof body.objective === "string" ? body.objective.trim() : undefined;
+      const autoContinue = typeof body.autoContinue === "boolean" ? body.autoContinue : undefined;
+      if (objective === undefined && autoContinue === undefined) {
+        sendJson(res, 400, { error: "没有可更新的字段。" });
+        return true;
+      }
+      if (objective !== undefined && !objective) {
         sendJson(res, 400, { error: "目标文字不能为空。" });
         return true;
       }
-      if (objective.length > MAX_OBJECTIVE_CHARS) {
+      if (objective !== undefined && objective.length > MAX_OBJECTIVE_CHARS) {
         sendJson(res, 400, { error: `目标文字不能超过 ${MAX_OBJECTIVE_CHARS} 个字符。` });
         return true;
       }
@@ -77,7 +82,10 @@ export function createGoalHttpHandler(service: GoalService) {
         sendJson(res, 404, { error: "未找到目标。" });
         return true;
       }
-      const updated = await service.update(id, { objective });
+      const updated = await service.update(id, {
+        ...(objective !== undefined ? { objective } : {}),
+        ...(autoContinue !== undefined ? { autoContinue } : {}),
+      });
       sendJson(res, 200, { goal: updated });
       return true;
     } catch (error) {
