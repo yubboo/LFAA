@@ -3,7 +3,7 @@
 > 本文件由 `pnpm map:sync`（[scripts/gen-repository-map.mjs](../../scripts/gen-repository-map.mjs)）按真实文件系统生成，**不要手改**。
 > 骨架发生变化（新增/删除/移动文件、包或目录）后，必须在同一轮运行 `pnpm map:sync` 并提交，否则 `pnpm check` 会失败。
 
-当前快照：**48 个包、1555 个文件、255 个子目录**（不含 node_modules、构建产物与运行数据）。
+当前快照：**48 个包、1556 个文件、255 个子目录**（不含 node_modules、构建产物与运行数据）。
 
 ## 1. 快速索引
 
@@ -304,7 +304,7 @@ lfaa/
 │           ├── src/  (5 个文件)
 │           └── tests/  (2 个文件)
 ├── patches/  (1 个文件)
-├── scripts/  (26 个文件)
+├── scripts/  (27 个文件)
 └── vendor/  (14 个文件)
     └── loader/  (13 个文件)
         └── src/  (9 个文件)
@@ -2200,6 +2200,7 @@ lfaa/
 - `sync-readmes.mjs` — 包 README 生成器：按 DSH 结构生成每个包的 README.md（英文）与 README.zh.md（中文）。
 - `sync-tsconfig.mjs` — 仓库构建配置生成器：按 DSH 模型生成 tsconfig.base.json 的 paths 门面、每包 tsconfig 与 host 聚合工程。
 - `test.mjs` — 统一测试入口：枚举 packages 与 scripts 下的 node:test 用例文件，交给 Node 测试运行器执行。
+- `verify-coordination.mts` — 交接条与目标条真实浏览器验收：在隔离 HOME 中启动 Host，创建两个会话并 seed 一条交接，
 - `verify-translation-pairing.mjs` — 包 README 双语配对校验：按英文标题分段哈希，记录到 README.i18n.yaml，并在校验模式下报告漂移。
 - `verify-translation-pairing.test.mjs` — 回归测试：README 双语配对脚本必须在 Windows CRLF 检出下判定一致，避免 CI 因换行差异误报过期。
 - `verify-web.mts` — 生产构建产物浏览器验收：用本机 Edge/Chrome 无头打开工作台，依次检查壳层、资料库、代码审查、

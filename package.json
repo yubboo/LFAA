@@ -14,6 +14,7 @@
                     "probe:loader":  "node scripts/probe-loader.mjs",
                     "probe:boot":  "node --import tsx scripts/probe-boot.mjs",
                     "verify:web":  "node --import tsx scripts/verify-web.mts",
+                    "verify:coordination":  "node --import tsx scripts/verify-coordination.mts",
                     "build":  "node scripts/build.mjs",
                     "build:lib":  "tsc -b tsconfig.host.json",
                     "build:bundle":  "tsdown",

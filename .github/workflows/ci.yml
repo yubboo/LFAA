@@ -86,3 +86,8 @@ jobs:
       # 没有可用浏览器时脚本自行跳过并以 0 退出（见 scripts/verify-web.mts）。
       - name: 生产构建浏览器验收
         run: pnpm verify:web
+
+      # 交接条与目标条的隔离浏览器验收：临时 HOME + seed 交接，真实点击接手与暂停/恢复。
+      # 没有可用浏览器时同样自行跳过并以 0 退出（见 scripts/verify-coordination.mts）。
+      - name: 交接与目标浏览器验收
+        run: pnpm verify:coordination
