@@ -28,6 +28,7 @@
 - [插件分层与模式预设](plugin-inventory.md)：会话插件 ⊆ 全局插件、四种模式预设、全局清单扩充规划（P0/P1/P2）。
 - [插件模型：内置 vs 外部](plugin-model.md)：内置插件只能启停、不可卸载；外部插件支持 npm / Git / 本地路径 / 压缩包四类来源。**先读这篇再改插件页**。
 - [插件运行时](plugin-runtime.md)：Loader 按包名装载 / 卸载 / 重装 / 二创的已验证结论、默认导出约束、插件页接入现状与仍未完成项（版本兼容、依赖图、HMR）。
+- [两个巨型循环拆分方案](loop-refactor-plan.md)：Agent Loop 与 Chat Run Actions 的状态归属、分阶段边界与验收标准。当前为**待评审**方案，通过后按阶段实施。
 - [构建、测试与边界地基方案](engineering-foundation.md)：统一测试入口、包级 `dist` 构建、Host/Client 边界检查的实施顺序与验收条件。当前为待评审方案，未开工。
 
 ## 维护约定
