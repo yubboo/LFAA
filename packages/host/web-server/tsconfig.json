@@ -18,6 +18,7 @@
     { "path": "../../core/memory" },
     { "path": "../../feedback/message-feedback" },
     { "path": "../../attachment/attachment-local" },
+    { "path": "../../session/handoff" },
     { "path": "../../session/session-title" },
     { "path": "../../interaction/commands" },
     { "path": "../../media/tool-media" },

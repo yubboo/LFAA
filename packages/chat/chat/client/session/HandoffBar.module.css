@@ -1,0 +1,80 @@
+/* 输入区上方的交接条：单行展示标题与摘要，右侧接手/忽略；只用 ui-theme 语义变量。 */
+.root {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: var(--chat-column-width);
+  margin: 0 auto 8px;
+  padding: 7px 10px;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  background: var(--color-panel);
+  color: var(--color-ink);
+  font-size: 12.5px;
+}
+
+.lead {
+  flex: none;
+  color: var(--color-accent);
+}
+
+.label {
+  flex: none;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.title {
+  flex: none;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.summary {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-muted);
+}
+
+.primary {
+  flex: none;
+  padding: 3px 10px;
+  border: 1px solid var(--color-accent);
+  border-radius: 6px;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.primary:hover {
+  background: var(--color-link-hover);
+}
+
+.ghost {
+  flex: none;
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.ghost:hover {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.primary:focus-visible,
+.ghost:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}

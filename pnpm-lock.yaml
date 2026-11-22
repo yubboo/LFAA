@@ -166,6 +166,9 @@ importers:
       '@lfaa/goal':
         specifier: workspace:*
         version: link:../../goal/goal
+      '@lfaa/handoff':
+        specifier: workspace:*
+        version: link:../../session/handoff
       '@lfaa/jobs':
         specifier: workspace:*
         version: link:../../core/jobs
@@ -851,6 +854,9 @@ importers:
       '@lfaa/goal':
         specifier: workspace:*
         version: link:../../goal/goal
+      '@lfaa/handoff':
+        specifier: workspace:*
+        version: link:../../session/handoff
       '@lfaa/jobs':
         specifier: workspace:*
         version: link:../../core/jobs
@@ -997,6 +1003,28 @@ importers:
       '@deepseek-ai/cordis':
         specifier: ^4.1.0
         version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
+      '@lfaa/tools':
+        specifier: workspace:*
+        version: link:../../core/tools
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.19.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/session/handoff:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
+      '@lfaa/goal':
+        specifier: workspace:*
+        version: link:../../goal/goal
+      '@lfaa/memory':
+        specifier: workspace:*
+        version: link:../../core/memory
       '@lfaa/tools':
         specifier: workspace:*
         version: link:../../core/tools

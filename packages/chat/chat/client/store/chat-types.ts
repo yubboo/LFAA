@@ -274,6 +274,18 @@ export interface FilePreviewTab {
   endLine?: number;
 }
 
+/** 交接条展示的待接手任务；字段与 @lfaa/handoff 的列表接口一致。 */
+export interface ChatHandoffItem {
+  id: string;
+  title: string;
+  summary: string;
+  nextSteps: string[];
+  fromSessionId: string;
+  toSessionId?: string;
+  projectId: string | null;
+  createdAt: number;
+}
+
 export interface ChatStoreSnapshot {
   loaded: boolean;
   sessions: ChatSessionItem[];
@@ -295,6 +307,8 @@ export interface ChatStoreSnapshot {
   /** 搜索结果点击后待定位的消息；聊天视图消费后清空。 */
   pendingMessageJump: MessageJumpRequest | null;
   queuedMessages: QueuedMessage[];
+  /** 当前会话待接手的交接（同一项目、pending）；只在输入框上方展示第一条。 */
+  handoffs: ChatHandoffItem[];
   pendingApproval: PendingApprovalBanner | null;
   filePreviewTabs: FilePreviewTab[];
   activeFilePreviewId: string | null;

@@ -12,6 +12,7 @@ import { ChatComposer } from "../composer/ChatComposer";
 import { ChatMessageList } from "./ChatMessageList";
 import { ConversationTrace } from "./Conversation-Trace";
 import { SessionBars } from "../session/SessionBars";
+import { HandoffBar } from "../session/HandoffBar";
 import { latestSessionTodos } from "../session/session-todos";
 import { useChatComposer } from "../composer/useChatComposer";
 import { useMessageActions } from "./useMessageActions";
@@ -311,6 +312,16 @@ export function ChatWorkspace({
                 {locale.isZh ? "立即重试恢复" : "Retry now"}
               </button>
             )}
+          </div>
+        )}
+        {state.handoffs.length > 0 && (
+          <div className={styles.composerStack}>
+            <HandoffBar
+              handoff={state.handoffs[0]!}
+              isZh={locale.isZh}
+              onAccept={() => void store.acceptHandoff(state.handoffs[0]!.id)}
+              onDismiss={() => store.dismissHandoff(state.handoffs[0]!.id)}
+            />
           </div>
         )}
         <SessionBars

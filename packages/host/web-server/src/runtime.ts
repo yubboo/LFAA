@@ -7,6 +7,7 @@ import { Context } from "@deepseek-ai/cordis";
 import { createApiGateway, type ApiGateway } from "@lfaa/api-gateway";
 import { webBundlePlugin } from "@lfaa/bundle-web";
 import { createGoalHttpHandler } from "@lfaa/goal";
+import { createHandoffHttpHandler } from "@lfaa/handoff";
 import { sandboxLocalPlugin } from "@lfaa/sandbox";
 import { createAgentHandlers } from "./handlers/handlers-chat";
 import { createCommonHandlers } from "./handlers/handlers";
@@ -60,6 +61,11 @@ export async function createHostRuntime(options: HostRuntimeOptions): Promise<Ho
   if (!chatService) throw new Error("chat 服务未装配，无法提供会话接口。");
   const goalService = hostContext.get("goal");
   const goalHandler = goalService ? createGoalHttpHandler(goalService) : null;
+  const handoffService = hostContext.get("handoff");
+  const memoryService = hostContext.get("memory");
+  const handoffHandler = handoffService && memoryService
+    ? createHandoffHttpHandler(handoffService, memoryService, goalService)
+    : null;
   const reviewService = hostContext.get("review");
   if (!reviewService) throw new Error("review 服务未装配，无法提供 Git 与代码审查接口。");
 
@@ -96,6 +102,7 @@ export async function createHostRuntime(options: HostRuntimeOptions): Promise<Ho
     { id: "coding", handle: sessions.coding },
     { id: "notification-sounds", handle: notificationSounds },
     ...(goalHandler ? [{ id: "goal", handle: goalHandler }] : []),
+    ...(handoffHandler ? [{ id: "handoffs", handle: handoffHandler }] : []),
     { id: "chat", handle: sessions.chat },
     { id: "jobs", handle: common.jobs },
     { id: "browser", handle: common.browser },

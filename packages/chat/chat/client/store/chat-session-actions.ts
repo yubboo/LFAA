@@ -1,5 +1,5 @@
 // 会话动作：新建草稿、打开/删除/分叉/导出会话、改绑项目、会话元信息与默认模式。
-import type { ChatGoalItem, ChatSearchResult, ChatSessionDetail, ChatSessionItem, ChatSessionWorktree } from "./chat-types";
+import type { ChatGoalItem, ChatHandoffItem, ChatSearchResult, ChatSessionDetail, ChatSessionItem, ChatSessionWorktree } from "./chat-types";
 import { fetchJson } from "./chat-http";
 import { writeStoredSessionId } from "./chat-preferences";
 import type { ChatSessionMetaPatch, ChatStorePort } from "./chat-store-port";
@@ -34,6 +34,7 @@ export class ChatSessionActions {
       pendingApproval: null,
       errorMessage: "",
       workspaceConflict: false,
+      handoffs: [],
     });
   }
 
@@ -58,11 +59,13 @@ export class ChatSessionActions {
         degradedStream: null,
         errorMessage: "",
         workspaceConflict: false,
+        handoffs: [],
       });
       if (res.session.unread) {
         void this.updateSessionMeta(res.session.id, { unread: false });
       }
       void this.loadGoal(res.session.id);
+      void this.loadHandoffs(res.session.id);
       void this.port.resumeRun(res.session.id);
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
@@ -167,6 +170,43 @@ export class ChatSessionActions {
       this.port.patchState({ errorMessage: error instanceof Error ? error.message : String(error) });
       return false;
     }
+  }
+
+  /** 读取当前会话的待接手交接；接口不可用或失败时保持为空，不影响聊天。 */
+  async loadHandoffs(sessionId: string): Promise<void> {
+    try {
+      const projectId = this.port.getState().activeSession?.projectId ?? "";
+      const res = await fetchJson<{ handoffs?: ChatHandoffItem[] }>(
+        `/api/handoffs?sessionId=${encodeURIComponent(sessionId)}&direction=incoming&projectId=${encodeURIComponent(projectId)}`,
+      );
+      if (this.port.getState().activeSessionId !== sessionId) return;
+      this.port.patchState({ handoffs: res.handoffs ?? [] });
+    } catch {
+      if (this.port.getState().activeSessionId === sessionId) this.port.patchState({ handoffs: [] });
+    }
+  }
+
+  /** 接手交接：Host 创建同目标 goal，随后刷新目标条。 */
+  async acceptHandoff(id: string): Promise<boolean> {
+    const sessionId = this.port.getState().activeSession?.id;
+    if (!sessionId) return false;
+    try {
+      await fetchJson(`/api/handoffs/${encodeURIComponent(id)}/accept`, {
+        method: "POST",
+        body: JSON.stringify({ sessionId }),
+      });
+      this.port.patchState({ handoffs: this.port.getState().handoffs.filter((item) => item.id !== id) });
+      await this.loadGoal(sessionId);
+      return true;
+    } catch (error) {
+      this.port.patchState({ errorMessage: error instanceof Error ? error.message : String(error) });
+      return false;
+    }
+  }
+
+  /** 本地忽略一条交接：只从当前列表移除，不改变服务端状态。 */
+  dismissHandoff(id: string): void {
+    this.port.patchState({ handoffs: this.port.getState().handoffs.filter((item) => item.id !== id) });
   }
 
   /** 跳过澄清：清除 Host 的待回答状态与本地徽标，避免「待回答」永久残留。 */

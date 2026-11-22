@@ -35,6 +35,7 @@
     "@lfaa/bundle-web": "workspace:*",
     "@lfaa/chat": "workspace:*",
     "@lfaa/goal": "workspace:*",
+    "@lfaa/handoff": "workspace:*",
     "@lfaa/review": "workspace:*",
     "@lfaa/jobs": "workspace:*",
     "@lfaa/llm": "workspace:*",

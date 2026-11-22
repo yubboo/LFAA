@@ -47,6 +47,7 @@
     { "path": "./packages/plan/plan-mode" },
     { "path": "./packages/sandbox/sandbox" },
     { "path": "./packages/schedule/tool-schedule" },
+    { "path": "./packages/session/handoff" },
     { "path": "./packages/session/session-title" },
     { "path": "./packages/shell/shell" },
     { "path": "./packages/spill/spill-local" },

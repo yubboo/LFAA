@@ -49,6 +49,7 @@
     "@lfaa/worktree": "workspace:*",
     "@lfaa/tool-todo": "workspace:*",
     "@lfaa/goal": "workspace:*",
+    "@lfaa/handoff": "workspace:*",
     "@lfaa/web": "workspace:*",
     "@lfaa/timeout-policy": "workspace:*",
     "@lfaa/spill-local": "workspace:*",

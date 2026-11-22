@@ -49,6 +49,7 @@
       "@lfaa/goal/client": ["./packages/goal/goal/client"],
       "@lfaa/guard": ["./packages/core/guard/src"],
       "@lfaa/guard/client": ["./packages/core/guard/client"],
+      "@lfaa/handoff": ["./packages/session/handoff/src"],
       "@lfaa/jobs": ["./packages/core/jobs/src"],
       "@lfaa/jobs/client": ["./packages/core/jobs/client"],
       "@lfaa/library": ["./packages/chat/library/src"],

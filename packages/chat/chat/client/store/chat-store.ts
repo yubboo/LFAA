@@ -40,6 +40,7 @@ export class ChatClientStore extends ChatDataFacade {
     attention: [],
     pendingMessageJump: null,
     queuedMessages: [],
+    handoffs: [],
     pendingApproval: null,
     filePreviewTabs: this.initialWorkbench.filePreviewTabs,
     activeFilePreviewId: this.initialWorkbench.activeFilePreviewId,
@@ -277,6 +278,21 @@ export class ChatClientStore extends ChatDataFacade {
   /** 工作区被占用时给当前会话创建工作树并绑定，随后可并行重试。 */
   isolateWorkspace(): Promise<boolean> {
     return this.sessionActions.isolateWorkspace();
+  }
+
+  /** 读取当前会话的待接手交接；没有接口或失败时保持为空，不影响聊天。 */
+  loadHandoffs(sessionId: string): Promise<void> {
+    return this.sessionActions.loadHandoffs(sessionId);
+  }
+
+  /** 接手一条交接：创建同目标 goal 并刷新目标条。 */
+  acceptHandoff(id: string): Promise<boolean> {
+    return this.sessionActions.acceptHandoff(id);
+  }
+
+  /** 本地忽略一条交接（服务端仍保留，刷新后可能再次出现）。 */
+  dismissHandoff(id: string): void {
+    this.sessionActions.dismissHandoff(id);
   }
 
   forkSession(sessionId: string): Promise<ChatSessionDetail | null> {

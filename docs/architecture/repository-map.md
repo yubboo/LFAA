@@ -3,7 +3,7 @@
 > 本文件由 `pnpm map:sync`（[scripts/gen-repository-map.mjs](../../scripts/gen-repository-map.mjs)）按真实文件系统生成，**不要手改**。
 > 骨架发生变化（新增/删除/移动文件、包或目录）后，必须在同一轮运行 `pnpm map:sync` 并提交，否则 `pnpm check` 会失败。
 
-当前快照：**47 个包、1540 个文件、251 个子目录**（不含 node_modules、构建产物与运行数据）。
+当前快照：**48 个包、1555 个文件、255 个子目录**（不含 node_modules、构建产物与运行数据）。
 
 ## 1. 快速索引
 
@@ -62,7 +62,7 @@ lfaa/
 │   ├── standards/  (1 个文件)
 │   ├── templates/  (2 个文件)
 │   └── updata-log/  (302 个文件)
-├── packages/  (1001 个文件)
+├── packages/  (1016 个文件)
 │   ├── api/  (7 个文件)
 │   │   └── gateway/  # @lfaa/api-gateway  (7 个文件)
 │   │       ├── src/  (1 个文件)
@@ -75,19 +75,19 @@ lfaa/
 │   │   └── web/  # @lfaa/bundle-web  (8 个文件)
 │   │       ├── src/  (2 个文件)
 │   │       └── tests/  (1 个文件)
-│   ├── chat/  (274 个文件)
-│   │   ├── chat/  # @lfaa/chat  (231 个文件)
-│   │   │   ├── client/  (184 个文件)
+│   ├── chat/  (278 个文件)
+│   │   ├── chat/  # @lfaa/chat  (235 个文件)
+│   │   │   ├── client/  (186 个文件)
 │   │   │   │   ├── composer/  (34 个文件)
 │   │   │   │   ├── conversation/  (37 个文件)
 │   │   │   │   ├── models/  (16 个文件)
-│   │   │   │   ├── session/  (17 个文件)
+│   │   │   │   ├── session/  (19 个文件)
 │   │   │   │   ├── settings/  (10 个文件)
 │   │   │   │   ├── shared/  (4 个文件)
 │   │   │   │   ├── store/  (18 个文件)
 │   │   │   │   └── workbench/  (41 个文件)
 │   │   │   ├── src/  (4 个文件)
-│   │   │   └── tests/  (38 个文件)
+│   │   │   └── tests/  (40 个文件)
 │   │   ├── library/  # @lfaa/library  (20 个文件)
 │   │   │   ├── client/  (11 个文件)
 │   │   │   │   ├── settings/  (2 个文件)
@@ -232,7 +232,11 @@ lfaa/
 │   │   └── tool-schedule/  # @lfaa/tool-schedule  (7 个文件)
 │   │       ├── src/  (1 个文件)
 │   │       └── tests/  (1 个文件)
-│   ├── session/  (7 个文件)
+│   ├── session/  (18 个文件)
+│   │   ├── handoff/  # @lfaa/handoff  (11 个文件)
+│   │   │   ├── src/  (4 个文件)
+│   │   │   │   └── tool/  (1 个文件)
+│   │   │   └── tests/  (2 个文件)
 │   │   └── session-title/  # @lfaa/session-title  (7 个文件)
 │   │       ├── src/  (1 个文件)
 │   │       └── tests/  (1 个文件)
@@ -360,6 +364,7 @@ lfaa/
 | plan | `@lfaa/plan-mode` | `packages/plan/plan-mode` | LFAA 计划模式：开启后只允许只读工具，写与执行类工具被中间件拦截。 |
 | sandbox | `@lfaa/sandbox` | `packages/sandbox/sandbox` | LFAA 沙箱抽象契约：文件影响模式、沙箱策略与执行前判定接口，不绑定具体后端。 |
 | schedule | `@lfaa/tool-schedule` | `packages/schedule/tool-schedule` | LFAA 定时任务工具：持久化一次性/重复任务，提供创建、查看、取消与到期领取。 |
+| session | `@lfaa/handoff` | `packages/session/handoff` | LFAA 会话交接：把任务摘要、下一步与目标从一个会话交到另一个会话。 |
 | session | `@lfaa/session-title` | `packages/session/session-title` | LFAA 会话标题服务：启发式简洁标题 + 可选模型生成（失败自动回落），供聊天与 Host 接口复用。 |
 | shell | `@lfaa/shell` | `packages/shell/shell` | Shell 进程执行、取消及输出收集 |
 | spill | `@lfaa/spill-local` | `packages/spill/spill-local` | LFAA 长结果落盘：超长工具输出写入本机文件，只保留首尾窗口与路径回给模型。 |
@@ -670,6 +675,8 @@ lfaa/
 
 - `GoalBar.module.css` — 输入框上方的目标条：单行、可编辑目标文字；只用 ui-theme 语义变量。
 - `GoalBar.tsx` — 输入框上方的目标条：只读展示 Agent 维护的当前目标，允许用户编辑目标文字，完成状态不由界面改。
+- `HandoffBar.module.css` — 输入区上方的交接条：单行展示标题与摘要，右侧接手/忽略；只用 ui-theme 语义变量。
+- `HandoffBar.tsx` — 输入区上方的交接条：展示一条待接手任务的标题、摘要与来源，提供接手/忽略。
 - `SessionActionMenu.module.css` — 聊天会话「⋮」上下文操作菜单样式：自适应深浅主题的毛玻璃弹窗、分隔线、快捷键右对齐与级联子菜单。
 - `SessionActionMenu.tsx` — 渲染聊天会话「⋮」完整上下文操作菜单（重命名、置顶、标记未读、项目/分区归属、分叉、分享、复制、新窗口、归档与永久删除）。
 - `SessionBars.tsx` — 输入区上方的会话固定条：未完成的任务卡与进行中的目标栏，按视图与状态决定是否占位。
@@ -798,6 +805,8 @@ lfaa/
 - `diff-view.test.ts` — 验证 Diff 分栏数据层：统一 diff 解析、修改前后片段对照、行号与空占位。
 - `goal-actions.test.ts` — 验证目标文字编辑：PATCH 携带 sessionId 与 objective，成功后更新当前目标，空值不发请求。
 - `goal-bar.test.tsx` — 验证输入框目标条：进行中/受阻文案、进度、编辑入口，以及完成后不渲染。
+- `handoff-actions.test.ts` — 验证交接动作：加载待接手、接手后移除并刷新目标、忽略只本地移除。
+- `handoff-bar.test.tsx` — 验证交接条：标题、摘要、来源与接手/忽略按钮。
 - `inline-comment.test.tsx` — 验证行内批注框的结构：行号提示、输入框、取消/添加按钮，以及空草稿时禁用提交。
 - `markdown-advice.test.ts` — 验证 Markdown 建议标题判定：命中建议/下一步类标题用强调样式，普通标题不受影响。
 - `markdown-image.test.tsx` — 验证 Markdown 图片语法接入聊天渲染：本机媒体走 LocalMediaImage（SSR 阶段显示加载占位），不再输出原始 ![] 文本。
@@ -1713,6 +1722,29 @@ lfaa/
 ### packages/schedule/tool-schedule/tests
 
 - `tool-schedule.test.ts` — 验证定时任务：时间解析、重复推进、到期领取与工具端到端（临时存储）。
+
+### packages/session/handoff
+
+- `README.i18n.yaml` — 双语配对记录：按英文标题分段记录英文 / 中文段落哈希。
+- `README.md`
+- `README.zh.md`
+- `package.json`
+- `tsconfig.json`
+
+### packages/session/handoff/src
+
+- `http-handler.ts` — @lfaa/handoff：交接 HTTP 接口，供聊天界面读取待处理交接并接手/取消；接手时创建同目标 goal。
+- `index.ts` — @lfaa/handoff 交接能力包入口：导出交接服务、工具与 HTTP 接口，并组合成默认插件。
+- `service.ts` — @lfaa/handoff：会话交接服务。交接单持久化在 ~/.lfaa/handoffs.json，供交接工具与界面读取。
+
+### packages/session/handoff/src/tool
+
+- `handoff-tool.ts` — @lfaa/tool-handoff：把交接服务包装成模型可调用的交接工具（创建 / 查看 / 接手 / 取消）。
+
+### packages/session/handoff/tests
+
+- `handoff-service.test.ts` — 验证交接服务：创建/方向过滤/项目隔离、接手与取消权限、持久化往返。
+- `http-handler.test.ts` — 验证交接 HTTP：按会话列待接手、接手时创建目标、跨项目拒绝、取消。
 
 ### packages/session/session-title
 
