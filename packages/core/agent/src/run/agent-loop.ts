@@ -1,8 +1,7 @@
 // 实现 Agent 核心任务循环：思考（Think）-> 行动（Act）-> 检查（Check）。
-import { DEFAULT_CONTEXT_BUDGET_CHARS, isContextOverflowError } from "@lfaa/context";
-import { type LlmGenerateOutput, type LlmMessage, type LlmUsage } from "@lfaa/llm";
+import { DEFAULT_CONTEXT_BUDGET_CHARS } from "@lfaa/context";
+import { type LlmMessage, type LlmUsage } from "@lfaa/llm";
 import type { AgentRunCost, AgentRunMetrics, AgentStepTrace, UserClarification } from "@lfaa/memory";
-import { estimateMessageTokens, estimateSystemPromptTokens, estimateToolsTokens } from "@lfaa/metrics";
 import {
   buildProgressHint,
   buildProjectScopeHint,
@@ -20,15 +19,11 @@ import { appendMediaPreviews, buildMediaHint, collectMediaPreviews } from "../co
 import { runFallbackConclusion } from "./agent-fallback";
 import { RunUsageTracker } from "./agent-usage";
 import { runActPhase } from "./act-runner";
-import { compactForRun } from "./run-compaction";
 import { renderSystemContent } from "./run-system";
 import { clarificationTool } from "../context/clarification";
-import { completeAgentRound } from "./model-round";
+import { runThinkRound } from "./think-round";
 import type { RunExecutionParams, RunLoopDeps } from "./run-types";
 import { createLoopState, extendBudget, recordStep } from "./loop-state";
-import { injectSteeringMessages } from "./steering";
-import { readStreamingPath } from "../tools/tool-call-args";
-import { preferTodoFirst } from "./todo-plan";
 import { isCodePath, isVerificationCommand } from "./verification";
 export type { RunExecutionParams, RunLoopDeps };
 
@@ -82,7 +77,6 @@ export async function executeAgentTaskLoop(
   };
   const conversation = buildRecentConversation(systemMessage, contextWindow, params.userMessage);
 
-  let llmTools = preferTodoFirst(deps.tools.getLlmToolSchemas());
   const contextBudgetChars = Math.max(8_000, Math.floor(params.contextBudgetChars ?? DEFAULT_CONTEXT_BUDGET_CHARS));
   // 2. Think -> Act -> Check 任务循环；预算、轮次与自检标记统一收在 state 里（见 loop-state.ts）。
   const steps = state.steps;
@@ -109,189 +103,22 @@ export async function executeAgentTaskLoop(
     const iteration = state.iteration;
     if (params.signal.aborted) throw new Error("用户已中止本次任务。");
 
-    const thinkStepId = `think-${iteration}`;
-    const thinkStep: AgentStepTrace = {
-      id: thinkStepId,
+    const think = await runThinkRound({
+      deps,
+      params,
+      state,
+      tracker,
       iteration,
-      phase: "think",
-      status: "running",
-      title: `第 ${iteration} 轮思考：规划与决策`,
-      textOffset: state.progressText.length,
-      timestamp: Date.now(),
-    };
-    pushOrUpdateStep(thinkStep);
-
-    let iterText = "";
-    let modelStage: AgentStepTrace["modelStage"];
-    const preparing = new Map<string, AgentStepTrace>();
-    let lastActivity = thinkStep.timestamp;
-    const noteModelActivity = (stage = modelStage) => {
-      const now = Date.now();
-      if (modelStage === stage && now - lastActivity < 4_000) return;
-      lastActivity = now;
-      modelStage = stage;
-      pushOrUpdateStep({ ...thinkStep, ...(modelStage ? { modelStage } : {}), timestamp: now });
-    };
-    llmTools = preferTodoFirst(deps.tools.getLlmToolSchemas());
-    if (params.enableClarification) llmTools = [...llmTools, clarificationTool];
-    const roundStartedAt = Date.now();
-    let firstTokenAt: number | undefined;
-    updateSystemMessage(Math.max(0, state.budget.limit - iteration + 1));
-    // 发送前按预算压缩：保留结构与最近轮次，早期工具结果压成尾部片段。
-    const compaction = compactForRun(deps.compaction, conversation, { budgetChars: contextBudgetChars });
-    if (compaction.compacted) {
-      conversation.splice(0, conversation.length, ...compaction.messages);
-      conversation[0] = systemMessage;
-      pushOrUpdateStep({
-        id: "context-compaction",
-        iteration,
-        phase: "check",
-        status: "done",
-        title: `上下文已压缩：省略 ${compaction.droppedMessages} 条早期消息，压缩 ${compaction.truncatedResults} 条工具结果`,
-        timestamp: Date.now(),
-      });
-    }
-    injectSteeringMessages(deps, conversation, iteration, pushOrUpdateStep);
-    // 记录本轮实际发送的上下文构成，估算口径与 DSH token-meter 对齐。
-    tracker.setContextSnapshot({
-      systemTokens: estimateSystemPromptTokens(systemMessage.content),
-      toolsTokens: estimateToolsTokens(llmTools),
-      messageTokens: conversation.reduce(
-        (sum, message) => (message.role === "system" ? sum : sum + estimateMessageTokens(message)),
-        0,
-      ),
+      systemMessage,
+      conversation,
+      contextBudgetChars,
+      roundLimits,
+      updateSystemMessage,
+      pushStep: pushOrUpdateStep,
     });
-    const callModel = () => completeAgentRound(deps.llm, {
-      ...(params.profileId !== undefined ? { profileId: params.profileId } : {}),
-      ...(params.reasoningEffort !== undefined ? { reasoningEffort: params.reasoningEffort } : {}),
-      messages: conversation,
-      tools: llmTools,
-      signal: params.signal,
-      onRetry: () => noteModelActivity("retrying"),
-      onActivity: (progress) => {
-        noteModelActivity();
-        if (!progress) return;
-        const pending = preparing.get(progress.toolCallId);
-        if (!pending) return;
-        const target = pending.toolTarget ?? readStreamingPath(progress.argumentPrefix);
-        const now = Date.now();
-        // 路径首次到达时立即更新，后续参数按时间合并，避免每个 token 都落盘。
-        if (target === pending.toolTarget && pending.argumentChars !== undefined && now - pending.timestamp < 500) return;
-        const next = {
-          ...pending, ...(target ? { toolTarget: target } : {}),
-          argumentChars: progress.argumentChars, timestamp: now,
-        };
-        preparing.set(progress.toolCallId, next);
-        pushOrUpdateStep(next);
-      },
-      onDelta: (delta) => {
-        if ((delta.type === "reasoning" || delta.type === "text") && delta.text) {
-          firstTokenAt ??= Date.now();
-          noteModelActivity(delta.type === "reasoning" ? "reasoning" : "replying");
-        }
-        if (delta.type === "reasoning" && delta.text) {
-          state.reasoning += delta.text;
-          params.emit({ type: "delta", runId: params.runId, seq: 0, kind: "reasoning", text: delta.text });
-        } else if (delta.type === "text" && delta.text) {
-          iterText += delta.text;
-          params.emit({ type: "delta", runId: params.runId, seq: 0, kind: "text", text: delta.text });
-        } else if (delta.type === "tool_call" && delta.toolCallId && delta.toolName && !preparing.has(delta.toolCallId)) {
-          // 工具名已到达，等模型返回完整调用后才解析参数、审批和执行。
-          const preparation: AgentStepTrace = {
-            id: `act-${iteration}-${delta.toolCallId}`,
-            iteration,
-            phase: "act",
-            status: "preparing",
-            title: `准备工具：${delta.toolName}`,
-            toolCallId: delta.toolCallId,
-            toolName: delta.toolName,
-            textOffset: state.progressText.length + iterText.length,
-            timestamp: Date.now(),
-          };
-          preparing.set(delta.toolCallId, preparation);
-          pushOrUpdateStep(preparation);
-        }
-      },
-    }, roundLimits);
-    let output: LlmGenerateOutput;
-    try {
-      output = await callModel();
-    } catch (error) {
-      // 供应商报“上下文超限”时不再直接失败：强制压缩一半预算后重试一次。
-      if (state.overflowRetried || !isContextOverflowError(error)) throw error;
-      state.overflowRetried = true;
-      const forced = compactForRun(deps.compaction, conversation, {
-        budgetChars: Math.floor(contextBudgetChars / 2),
-        toolCapChars: 600,
-        keepRecentRounds: 2,
-      });
-      conversation.splice(0, conversation.length, ...forced.messages);
-      conversation[0] = systemMessage;
-      pushOrUpdateStep({
-        id: "context-overflow",
-        iteration,
-        phase: "check",
-        status: "done",
-        title: "模型上下文超限：已强制压缩并重试",
-        detail: error instanceof Error ? error.message.slice(0, 200) : String(error),
-        timestamp: Date.now(),
-      });
-      output = await callModel();
-    }
-    const truncatedOutput = /^(?:length|max_tokens|MAX_TOKENS|incomplete)$/iu.test(output.finishReason);
-    tracker.addUsage(output);
-    // 模型轮次耗时与首 token 延迟：解码吞吐只按首 token 之后的时间计算。
-    tracker.addModelRound({
-      startedAt: roundStartedAt,
-      firstTokenAt,
-      endedAt: Date.now(),
-      completionTokens: output.usage?.completionTokens ?? 0,
-    });
-    tracker.emitUsage();
-    truncationHint = truncatedOutput
-      ? "\n注意：上一轮模型输出达到长度上限被截断。请把大文件拆成多次写入（write_file 先写骨架，再用 edit_file 分段补充），或缩短单次输出后继续。"
-      : "";
-    if (truncatedOutput) {
-      pushOrUpdateStep({
-        id: `truncated-${iteration}`,
-        iteration,
-        phase: "check",
-        status: "done",
-        title: "模型输出达到长度上限：已提示拆分写入",
-        timestamp: Date.now(),
-      });
-    }
-    const roundContent = output.content || iterText;
-    // 非流式适配器也在工具之前交付正文，偏移始终使用实际发出的前缀。
-    if (!iterText && roundContent) {
-      iterText = roundContent;
-      pushOrUpdateStep({ ...thinkStep, modelStage: "replying", timestamp: Date.now() });
-      params.emit({ type: "delta", runId: params.runId, seq: 0, kind: "text", text: iterText });
-    }
-
-    const thinkDetail = output.reasoningContent?.slice(0, 240);
-    pushOrUpdateStep({
-      ...thinkStep,
-      status: "done",
-      title: output.toolCalls.length > 0
-        ? `第 ${iteration} 轮思考：计划调用 ${output.toolCalls.length} 项工具`
-        : `第 ${iteration} 轮思考：形成最终方案`,
-      ...(thinkDetail ? { detail: thinkDetail } : {}),
-      timestamp: Date.now(),
-    });
-
-    // 未完成的工具请求仍保留真实的失败状态，不能遗留为进行中。
-    const completeCallIds = new Set(output.toolCalls.map((call) => call.id));
-    for (const [id, preparation] of preparing) {
-      if (completeCallIds.has(id)) continue;
-      pushOrUpdateStep({
-        ...preparation,
-        status: "error",
-        detail: "模型未返回完整工具请求。",
-        textOffset: output.toolCalls.length > 0 ? state.progressText.length + iterText.length : state.progressText.length,
-        timestamp: Date.now(),
-      });
-    }
+    truncationHint = think.truncationHint;
+    const { output, preparing, roundContent } = think;
+    let iterText = think.iterText;
 
     const clarificationCall = params.enableClarification && output.toolCalls.find((call) => call.name === clarificationTool.name);
     if (clarificationCall) {

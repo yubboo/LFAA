@@ -3,7 +3,7 @@
 > 本文件由 `pnpm map:sync`（[scripts/gen-repository-map.mjs](../../scripts/gen-repository-map.mjs)）按真实文件系统生成，**不要手改**。
 > 骨架发生变化（新增/删除/移动文件、包或目录）后，必须在同一轮运行 `pnpm map:sync` 并提交，否则 `pnpm check` 会失败。
 
-当前快照：**47 个包、1519 个文件、251 个子目录**（不含 node_modules、构建产物与运行数据）。
+当前快照：**47 个包、1520 个文件、251 个子目录**（不含 node_modules、构建产物与运行数据）。
 
 ## 1. 快速索引
 
@@ -62,7 +62,7 @@ lfaa/
 │   ├── standards/  (1 个文件)
 │   ├── templates/  (2 个文件)
 │   └── updata-log/  (302 个文件)
-├── packages/  (981 个文件)
+├── packages/  (982 个文件)
 │   ├── api/  (7 个文件)
 │   │   └── gateway/  # @lfaa/api-gateway  (7 个文件)
 │   │       ├── src/  (1 个文件)
@@ -104,11 +104,11 @@ lfaa/
 │   │   └── compaction/  # @lfaa/compaction  (12 个文件)
 │   │       ├── src/  (4 个文件)
 │   │       └── tests/  (3 个文件)
-│   ├── core/  (255 个文件)
-│   │   ├── agent/  # @lfaa/agent  (54 个文件)
-│   │   │   ├── src/  (31 个文件)
+│   ├── core/  (256 个文件)
+│   │   ├── agent/  # @lfaa/agent  (55 个文件)
+│   │   │   ├── src/  (32 个文件)
 │   │   │   │   ├── context/  (4 个文件)
-│   │   │   │   ├── run/  (19 个文件)
+│   │   │   │   ├── run/  (20 个文件)
 │   │   │   │   └── tools/  (4 个文件)
 │   │   │   └── tests/  (18 个文件)
 │   │   ├── browser/  # @lfaa/browser  (34 个文件)
@@ -952,6 +952,7 @@ lfaa/
 - `run-types.ts` — 定义 Agent 运行循环的依赖与输入契约，供循环主体与工具执行器共用，避免循环文件继续膨胀。
 - `steering.ts` — 运行期插话：把运行中追加的用户消息（steer）并入当前对话，并在轨迹中留记录。
 - `step-budget.ts` — 计算单轮 Agent 任务的工具步数预算：默认软预算可自动延长，显式上限保持硬约束。
+- `think-round.ts` — Agent 单轮「思考」：渲染系统提示 → 预算内压缩 → 注入 steering → 记录 token 快照 → 调模型（含超限重试）。
 - `todo-plan.ts` — 任务清单策略：把 todo_write 排到工具列表首位，并在多步任务迟迟不建清单时给一次提醒。
 - `verification.ts` — 判断一次运行是否修改了需要验证的代码，以及命令是否属于构建/测试/类型检查这类验证动作。
 
