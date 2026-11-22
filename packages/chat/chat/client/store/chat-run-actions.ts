@@ -1,10 +1,10 @@
 // 运行动作：发送消息、SSE 事件归并与断线恢复、审批决策、中止、权限模式与排队消息。
 import { AgentStreamClient } from "./stream-client";
+import { createRunStreamHandlers } from "./run-stream-handler";
 import { fetchJson } from "./chat-http";
 import { writeStoredPermissionMode } from "./chat-preferences";
-import { playNotificationSound } from "../shared/notification-sounds";
-import type { AgentPermissionMode, ChatMessageItem, ChatSessionDetail } from "./chat-types";
-import { enqueueMessage, moveQueuedAt, removeQueuedAt, takeQueuedHead, updateQueuedAt } from "./chat-queue";
+import type { AgentPermissionMode, ChatSessionDetail } from "./chat-types";
+import { enqueueMessage, moveQueuedAt, removeQueuedAt, updateQueuedAt } from "./chat-queue";
 import type { ChatStorePort } from "./chat-store-port";
 import type { MediaGenerationInput, MediaSource } from "@lfaa/tool-media/client";
 import { uploadAttachment } from "../composer/composer-attachments";
@@ -289,142 +289,24 @@ export class ChatRunActions {
     this.subscribeRunEvents(started.runId, session.id, started.assistantMessageId);
   }
 
-  // 将 Host 的增量、工具和审批事件归并到当前会话，终止后回收运行状态。
+  // 将 Host 的增量、工具和审批事件归并到当前会话，终止后回收运行状态；回调实现在 run-stream-handler.ts。
   private subscribeRunEvents(
     runId: string,
     sessionId: string,
     assistantMessageId: string,
   ): void {
     this.streamClient?.dispose();
-    const patchAssistant = (updater: (msg: ChatMessageItem) => ChatMessageItem) => {
-      const curr = this.port.getState().activeSession;
-      if (!curr || curr.id !== sessionId) return;
-      this.port.patchState({
-        activeSession: {
-          ...curr,
-          messages: curr.messages.map((m) => (m.id === assistantMessageId ? updater(m) : m)),
-        },
-      });
-    };
-
-    const client = new AgentStreamClient(
+    let client: AgentStreamClient | null = null;
+    const handlers = createRunStreamHandlers({
+      port: this.port,
       runId,
-      {
-        onSnapshot: (run, reconnect) => {
-          patchAssistant((m) => ({
-            ...m,
-            ...(!reconnect ? { content: run.content, reasoning: run.reasoning } : {}),
-            steps: run.steps,
-            ...(run.tokenUsage ? { tokenUsage: run.tokenUsage } : {}),
-            ...(run.metrics ? { metrics: run.metrics } : {}),
-            ...(run.cost ? { cost: run.cost } : {}),
-          }));
-          const firstPending = run.pendingApprovals?.[0];
-          this.port.patchState({ pendingApproval: firstPending ? { ...firstPending, runId } : null });
-        },
-        onDeltaBatch: (batch) => {
-          patchAssistant((m) => ({
-            ...m,
-            ...(batch.reasoning ? { reasoning: `${m.reasoning ?? ""}${batch.reasoning}` } : {}),
-            ...(batch.text ? { content: `${m.content}${batch.text}` } : {}),
-          }));
-        },
-        onStepUpdate: (step) => {
-          patchAssistant((m) => {
-            const existing = m.steps ?? [];
-            const idx = existing.findIndex((s) => s.id === step.id);
-            const nextSteps = idx >= 0
-              ? existing.map((s, i) => (i === idx ? step : s))
-              : [...existing, step];
-            return { ...m, steps: nextSteps };
-          });
-          if (step.toolName?.startsWith("goal_") && step.status === "done") void this.port.refreshGoal(sessionId);
-        },
-        onTodos: (todos) => { const active = this.port.getState().activeSession; if (active?.id === sessionId) this.port.patchState({ activeSession: { ...active, todos } }); },
-        // 实时用量随每轮模型/工具结束推送，保证统计栏在运行中也持续变化。
-        onUsage: ({ tokenUsage, metrics, cost }) => {
-          patchAssistant((m) => ({
-            ...m,
-            tokenUsage,
-            ...(metrics ? { metrics } : {}),
-            ...(cost ? { cost } : {}),
-          }));
-        },
-        onApprovalRequired: (approval) => {
-          // 只有当前打开的会话才占用审批横幅与提示音；后台会话交给侧栏徽标和轮询通知。
-          if (this.port.getState().activeSessionId !== sessionId) return;
-          const settings = this.port.getState().generalSettings;
-          if (settings.enableApprovalNotification) {
-            void playNotificationSound(settings.approvalSound ?? settings.notificationSound);
-          }
-          this.port.patchState({ pendingApproval: { ...approval, runId } });
-        },
-        onApprovalResolved: (approvalId) => {
-          const pending = this.port.getState().pendingApproval;
-          if (pending?.runId === runId && pending.approvalId === approvalId) this.port.patchState({ pendingApproval: null });
-        },
-        onStatusNotice: (notice) => {
-          if (this.port.getState().streamStatusNotice !== notice) {
-            this.port.patchState({ streamStatusNotice: notice, degradedStream: null });
-          }
-        },
-        onFinished: ({ fps, message, status, error }) => {
-          if (this.streamClient === client) this.streamClient = null;
-          // 结束即撤掉侧栏转圈；即使已切到别的会话，后台轮询也会兜底校正。
-          this.port.markSessionRunning(sessionId, false);
-          void this.port.refreshGoal(sessionId);
-          if (message?.id === assistantMessageId) patchAssistant(() => message);
-          if (fps !== undefined) {
-            void fetchJson("/api/agent/metrics/render", {
-              method: "POST",
-              body: JSON.stringify({ fps }),
-            }).catch(() => {});
-          }
-          // 澄清问题在后台由轮询的「待回答」通知统一提示；普通结束才发轮次完成提醒。
-          const hasQuestion = Boolean(message?.clarification);
-          if (!hasQuestion || this.port.getState().activeSessionId === sessionId) {
-            this.port.notifyRunFinished(sessionId);
-          }
-          const { head: nextQueued, rest: restQueued } = takeQueuedHead(this.port.getState().queuedMessages);
-          this.port.patchState({
-            runningRunId: null,
-            pendingApproval: null,
-            streamStatusNotice: "",
-            degradedStream: null,
-            ...(status === "error" && error ? { errorMessage: error } : {}),
-            queuedMessages: message?.clarification ? this.port.getState().queuedMessages : restQueued,
-          });
-          if (this.port.getState().activeSessionId === sessionId) {
-            void this.port.updateSessionMeta(sessionId, { unread: false });
-            const ready = message ? Promise.resolve() : this.port.openSession(sessionId);
-            void ready.then(() => {
-              void this.port.refreshMeta();
-              if (nextQueued && !message?.clarification) {
-                void this.port.sendMessage(nextQueued.text);
-              }
-            });
-          } else {
-            void this.port.refreshMeta();
-          }
-        },
-        onDegraded: (lastSeq, reason) => {
-          if (this.streamClient === client) this.streamClient = null;
-          this.port.patchState({
-            runningRunId: null,
-            streamStatusNotice: `流式连接中断（${reason}），已加载服务端已保存内容，可手动重试恢复。`,
-            degradedStream: { runId, sessionId, assistantMessageId, lastSeq },
-          });
-          void fetchJson<{ session: ChatSessionDetail }>(`/api/chat/sessions/${encodeURIComponent(sessionId)}`)
-            .then((res) => {
-              if (this.port.getState().activeSessionId === sessionId) {
-                this.port.patchState({ activeSession: res.session });
-              }
-            })
-            .catch(() => {});
-        },
+      sessionId,
+      assistantMessageId,
+      onStreamClosed: () => {
+        if (this.streamClient === client) this.streamClient = null;
       },
-    );
-
+    });
+    client = new AgentStreamClient(runId, handlers);
     this.streamClient = client;
     client.start();
   }
