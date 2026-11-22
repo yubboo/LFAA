@@ -98,7 +98,7 @@ try {
   await page.addInitScript((sessionId) => {
     window.localStorage.setItem("lfaa:active-chat-session-id", sessionId);
   }, second.id);
-  await page.goto(`${baseUrl}/?sessionId=${encodeURIComponent(second.id)}`, { waitUntil: "domcontentloaded" });
+  await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
 
   const handoffBar = page.getByTestId("handoff-bar");
   await handoffBar.waitFor({ state: "visible", timeout: 20_000 });

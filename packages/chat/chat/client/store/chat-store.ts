@@ -229,6 +229,11 @@ export class ChatClientStore extends ChatDataFacade {
       resumeRun: (sessionId) => this.runActions.resumeRun(sessionId),
       syncBackground: (sessionIds, attention) => this.background.sync({ sessionIds, attention }),
     });
+    // 详情恢复后补拉目标与待接手交接：刷新页面时两者不应等到用户切换会话才出现。
+    const sessionId = this.state.activeSessionId;
+    if (!sessionId) return;
+    void this.sessionActions.loadGoal(sessionId);
+    void this.sessionActions.loadHandoffs(sessionId);
   }
 
   async refreshMeta(projectPath?: string): Promise<void> {
