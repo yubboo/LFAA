@@ -11,6 +11,7 @@ import {
   type SnapshotRuntime,
 } from "../snapshot/browser-snapshot";
 import { attachPopupHandler, attachTabListeners, openInternalPage } from "./browser-tabs";
+import { SessionDriver, type SessionDriverHost } from "./session-driver";
 import type { BrowserTabEntry, SessionBrowserState } from "./browser-session-types";
 import { ScreencastManager, type StreamFrameListener } from "./screencast-manager";
 import { clampViewport, detectLocalBrowserExecutable, validateBrowserUrl } from "../runtime-utils";
@@ -24,8 +25,9 @@ import type {
 export { detectLocalBrowserExecutable, validateBrowserUrl };
 export { BrowserSettingsStore, clampDpr } from "../settings/browser-settings";
 
-export class BrowserRuntime {
+export class BrowserRuntime implements SessionDriverHost {
   private readonly settings: BrowserSettingsStore;
+  private readonly driver = new SessionDriver(this);
   private browser: Browser | null = null;
   private launchedHeadless: boolean | null = null;
   private executablePath: string | undefined;
@@ -68,7 +70,8 @@ export class BrowserRuntime {
     return this.browser;
   }
 
-  private async ensureSession(
+  /** @internal 由 SessionDriver 使用：准备（或复用）会话与活动标签。 */
+  async ensureSession(
     sessionId: string,
     appearance?: { deviceScaleFactor?: number; colorScheme?: "dark" | "light" },
   ): Promise<{ state: SessionBrowserState; tab: BrowserTabEntry }> {
@@ -123,7 +126,8 @@ export class BrowserRuntime {
     return { state, tab };
   }
 
-  private assertNotTakeoverPaused(state: SessionBrowserState, fromAgent: boolean): void {
+  /** @internal 由 SessionDriver 使用：Agent 操作前确认用户没有接管暂停。 */
+  assertNotTakeoverPaused(state: SessionBrowserState, fromAgent: boolean): void {
     if (fromAgent && state.takeoverPaused) {
       throw new Error("用户已在右侧浏览器面板开启「人工接管」暂停，请等待用户在面板操作后点击继续。");
     }
@@ -140,8 +144,8 @@ export class BrowserRuntime {
     };
   }
 
-  /** 组装快照时统一读取 headless 设置，调用点保持与拆分前一致。 */
-  private async capture(
+  /** @internal 由 SessionDriver 使用：按需截图并组装快照。 */
+  async capture(
     state: SessionBrowserState,
     tab: BrowserTabEntry,
     withScreenshot = true,
@@ -149,6 +153,16 @@ export class BrowserRuntime {
   ): Promise<BrowserSessionSnapshot> {
     const { headless } = await this.getSettings();
     return captureState(this.snapshotRuntime, state, tab, headless, withScreenshot, includeStructure);
+  }
+
+  /** @internal 由 SessionDriver 使用：当前会话是否有串流订阅者。 */
+  hasStreamSubscribers(sessionId: string): boolean {
+    return this.screencast.hasSubscribers(sessionId);
+  }
+
+  /** @internal 由 SessionDriver 使用：视口变化后重启串流，保持帧尺寸与新视口一致。 */
+  async refreshStream(sessionId: string, state: SessionBrowserState): Promise<void> {
+    await this.screencast.ensureRunning(sessionId, state.context, () => buildScreencastMeta(state), true);
   }
 
   subscribeStream(
@@ -262,171 +276,21 @@ export class BrowserRuntime {
     return this.capture(state, nextTab, !this.screencast.hasSubscribers(sessionId) || !nextTab.lastScreenshotBase64, false);
   }
 
-  async navigate(
-    sessionId: string,
-    rawUrl: string,
-    fromAgent = false,
-    viewport?: { width: number; height: number },
-    appearance?: { deviceScaleFactor?: number; colorScheme?: "dark" | "light" },
-  ): Promise<BrowserSessionSnapshot> {
-    const { url } = validateBrowserUrl(rawUrl);
-    const { state, tab } = await this.ensureSession(sessionId, appearance);
-    this.assertNotTakeoverPaused(state, fromAgent);
-    let vpChanged = false;
-    if (viewport) {
-      const nextVp = clampViewport(viewport.width, viewport.height);
-      if (state.viewport.width !== nextVp.width || state.viewport.height !== nextVp.height) {
-        state.viewport = nextVp;
-        vpChanged = true;
-        await tab.page.setViewportSize(nextVp).catch(() => {});
-      }
-    }
-    delete state.lastError;
-    await tab.page.goto(url, { waitUntil: "domcontentloaded", timeout: 25_000 });
-    await tab.page.waitForLoadState("networkidle", { timeout: fromAgent ? 2500 : 1000 }).catch(() => {});
-    if (vpChanged && this.screencast.hasSubscribers(sessionId)) {
-      await this.screencast.ensureRunning(sessionId, state.context, () => buildScreencastMeta(state), true);
-    }
-    return this.capture(state, tab, true, fromAgent);
+  // 页面交互方法统一委托给 SessionDriver；host 只需提供会话准备、截图与串流能力。
+  async navigate(sessionId: string, rawUrl: string, fromAgent = false, viewport?: { width: number; height: number }, appearance?: { deviceScaleFactor?: number; colorScheme?: "dark" | "light" }): Promise<BrowserSessionSnapshot> {
+    return this.driver.navigate(sessionId, rawUrl, fromAgent, viewport, appearance);
   }
 
-  async goBack(sessionId: string): Promise<BrowserSessionSnapshot> {
-    const { state, tab } = await this.ensureSession(sessionId);
-    if (tab.historyIndex > 0) {
-      await tab.page.goBack({ waitUntil: "domcontentloaded", timeout: 15_000 }).catch(() => {});
-      tab.historyIndex -= 1;
-    }
-    return this.capture(state, tab, true, false);
-  }
-
-  async goForward(sessionId: string): Promise<BrowserSessionSnapshot> {
-    const { state, tab } = await this.ensureSession(sessionId);
-    if (tab.historyIndex < tab.history.length - 1) {
-      await tab.page.goForward({ waitUntil: "domcontentloaded", timeout: 15_000 }).catch(() => {});
-      tab.historyIndex += 1;
-    }
-    return this.capture(state, tab, true, false);
-  }
-
-  async reload(sessionId: string): Promise<BrowserSessionSnapshot> {
-    const { state, tab } = await this.ensureSession(sessionId);
-    if (tab.page.url() && tab.page.url() !== "about:blank") {
-      await tab.page.reload({ waitUntil: "domcontentloaded", timeout: 15_000 }).catch(() => {});
-    }
-    return this.capture(state, tab, true, false);
-  }
-
-  async snapshot(sessionId: string, withScreenshot = true): Promise<BrowserSessionSnapshot> {
-    const { state, tab } = await this.ensureSession(sessionId);
-    return this.capture(state, tab, withScreenshot, true);
-  }
-
-  /** 在当前页面上下文执行表达式，用于读取 DOM、computed style、尺寸与动画等文本模型看不到的状态。 */
-  async evaluate(sessionId: string, expression: string, awaitPromise = false, fromAgent = false): Promise<unknown> {
-    const { state, tab } = await this.ensureSession(sessionId);
-    this.assertNotTakeoverPaused(state, fromAgent);
-    const source = expression.trim();
-    if (!source) throw new Error("要执行的表达式不能为空。");
-    return tab.page.evaluate(
-      async ({ source: code, awaitPromise: wait }) => {
-        // 页面上下文里执行；不经过 Node，也不读取本机文件。
-        const value = new Function(`return (${code})`)();
-        return wait && value && typeof (value as Promise<unknown>).then === "function"
-          ? await (value as Promise<unknown>)
-          : value;
-      },
-      { source, awaitPromise },
-    );
-  }
-
-  async click(
-    sessionId: string,
-    target: { ref?: string; selector?: string; x?: number; y?: number; button?: "left" | "right" | "middle"; clickCount?: number },
-    fromAgent = false,
-    fast = false,
-  ): Promise<BrowserSessionSnapshot> {
-    const { state, tab } = await this.ensureSession(sessionId);
-    this.assertNotTakeoverPaused(state, fromAgent);
-    if (typeof target.x === "number" && typeof target.y === "number") {
-      await tab.page.mouse.click(target.x, target.y, {
-        button: target.button ?? "left",
-        clickCount: target.clickCount ?? 1,
-      });
-    } else if (target.ref) {
-      await tab.page.locator(`[data-lfaa-ref="${target.ref}"]`).first().click({ timeout: 8000 });
-    } else if (target.selector) {
-      await tab.page.locator(target.selector).first().click({ timeout: 8000 });
-    } else {
-      throw new Error("请提供 ref、selector 或坐标 (x, y)。");
-    }
-    if (fromAgent) await tab.page.waitForTimeout(200);
-    else if (!fast) await tab.page.waitForTimeout(25);
-    const needShot = fromAgent || (!fast && !this.screencast.hasSubscribers(sessionId));
-    return this.capture(state, tab, needShot, fromAgent);
-  }
-
-  async hover(
-    sessionId: string,
-    target: { ref?: string; selector?: string; x?: number; y?: number },
-    fromAgent = false,
-    fast = false,
-  ): Promise<BrowserSessionSnapshot> {
-    const { state, tab } = await this.ensureSession(sessionId);
-    this.assertNotTakeoverPaused(state, fromAgent);
-    if (typeof target.x === "number" && typeof target.y === "number") {
-      await tab.page.mouse.move(target.x, target.y);
-    } else if (target.ref) {
-      await tab.page.locator(`[data-lfaa-ref="${target.ref}"]`).first().hover({ timeout: 8000 });
-    } else if (target.selector) {
-      await tab.page.locator(target.selector).first().hover({ timeout: 8000 });
-    }
-    if (fromAgent) await tab.page.waitForTimeout(120);
-    const needShot = fromAgent || (!fast && !this.screencast.hasSubscribers(sessionId));
-    return this.capture(state, tab, needShot, fromAgent);
-  }
-
-  async typeText(
-    sessionId: string,
-    target: { ref?: string; selector?: string; text: string; submit?: boolean },
-    fromAgent = false,
-    fast = false,
-  ): Promise<BrowserSessionSnapshot> {
-    const { state, tab } = await this.ensureSession(sessionId);
-    this.assertNotTakeoverPaused(state, fromAgent);
-    const locator = target.ref
-      ? tab.page.locator(`[data-lfaa-ref="${target.ref}"]`).first()
-      : target.selector
-        ? tab.page.locator(target.selector).first()
-        : null;
-    if (locator) {
-      await locator.fill(target.text, { timeout: 8000 });
-      if (target.submit) await locator.press("Enter");
-    } else {
-      await tab.page.keyboard.type(target.text);
-      if (target.submit) await tab.page.keyboard.press("Enter");
-    }
-    if (fromAgent) await tab.page.waitForTimeout(150);
-    const needShot = fromAgent || (!fast && !this.screencast.hasSubscribers(sessionId));
-    return this.capture(state, tab, needShot, fromAgent);
-  }
-
-  async scroll(sessionId: string, deltaY: number, deltaX = 0, fromAgent = false, fast = false): Promise<BrowserSessionSnapshot> {
-    const { state, tab } = await this.ensureSession(sessionId);
-    this.assertNotTakeoverPaused(state, fromAgent);
-    await tab.page.mouse.wheel(deltaX, deltaY);
-    if (fromAgent) await tab.page.waitForTimeout(120);
-    const needShot = fromAgent || (!fast && !this.screencast.hasSubscribers(sessionId));
-    return this.capture(state, tab, needShot, fromAgent);
-  }
-
-  async pressKey(sessionId: string, key: string, fromAgent = false, fast = false): Promise<BrowserSessionSnapshot> {
-    const { state, tab } = await this.ensureSession(sessionId);
-    this.assertNotTakeoverPaused(state, fromAgent);
-    await tab.page.keyboard.press(key);
-    if (fromAgent) await tab.page.waitForTimeout(120);
-    const needShot = fromAgent || (!fast && !this.screencast.hasSubscribers(sessionId));
-    return this.capture(state, tab, needShot, fromAgent);
-  }
+  async goBack(sessionId: string): Promise<BrowserSessionSnapshot> { return this.driver.goBack(sessionId); }
+  async goForward(sessionId: string): Promise<BrowserSessionSnapshot> { return this.driver.goForward(sessionId); }
+  async reload(sessionId: string): Promise<BrowserSessionSnapshot> { return this.driver.reload(sessionId); }
+  async snapshot(sessionId: string, withScreenshot = true): Promise<BrowserSessionSnapshot> { return this.driver.snapshot(sessionId, withScreenshot); }
+  async evaluate(sessionId: string, expression: string, awaitPromise = false, fromAgent = false): Promise<unknown> { return this.driver.evaluate(sessionId, expression, awaitPromise, fromAgent); }
+  async click(sessionId: string, target: { ref?: string; selector?: string; x?: number; y?: number; button?: "left" | "right" | "middle"; clickCount?: number }, fromAgent = false, fast = false): Promise<BrowserSessionSnapshot> { return this.driver.click(sessionId, target, fromAgent, fast); }
+  async hover(sessionId: string, target: { ref?: string; selector?: string; x?: number; y?: number }, fromAgent = false, fast = false): Promise<BrowserSessionSnapshot> { return this.driver.hover(sessionId, target, fromAgent, fast); }
+  async typeText(sessionId: string, target: { ref?: string; selector?: string; text: string; submit?: boolean }, fromAgent = false, fast = false): Promise<BrowserSessionSnapshot> { return this.driver.typeText(sessionId, target, fromAgent, fast); }
+  async pressKey(sessionId: string, key: string, fromAgent = false, fast = false): Promise<BrowserSessionSnapshot> { return this.driver.pressKey(sessionId, key, fromAgent, fast); }
+  async scroll(sessionId: string, deltaY: number, deltaX = 0, fromAgent = false, fast = false): Promise<BrowserSessionSnapshot> { return this.driver.scroll(sessionId, deltaY, deltaX, fromAgent, fast); }
 
   setTakeover(sessionId: string, paused: boolean): BrowserSessionSnapshot | null {
     const state = this.sessions.get(sessionId);

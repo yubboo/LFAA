@@ -3,7 +3,7 @@
 > 本文件由 `pnpm map:sync`（[scripts/gen-repository-map.mjs](../../scripts/gen-repository-map.mjs)）按真实文件系统生成，**不要手改**。
 > 骨架发生变化（新增/删除/移动文件、包或目录）后，必须在同一轮运行 `pnpm map:sync` 并提交，否则 `pnpm check` 会失败。
 
-当前快照：**47 个包、1515 个文件、251 个子目录**（不含 node_modules、构建产物与运行数据）。
+当前快照：**47 个包、1517 个文件、251 个子目录**（不含 node_modules、构建产物与运行数据）。
 
 ## 1. 快速索引
 
@@ -56,13 +56,13 @@ lfaa/
 │   └── web/  (10 个文件)
 │       ├── public/  (2 个文件)
 │       └── src/  (3 个文件)
-├── docs/  (340 个文件)
+├── docs/  (341 个文件)
 │   ├── architecture/  (31 个文件)
-│   ├── dev-log/  (3 个文件)
+│   ├── dev-log/  (4 个文件)
 │   ├── standards/  (1 个文件)
 │   ├── templates/  (2 个文件)
 │   └── updata-log/  (302 个文件)
-├── packages/  (979 个文件)
+├── packages/  (980 个文件)
 │   ├── api/  (7 个文件)
 │   │   └── gateway/  # @lfaa/api-gateway  (7 个文件)
 │   │       ├── src/  (1 个文件)
@@ -104,20 +104,20 @@ lfaa/
 │   │   └── compaction/  # @lfaa/compaction  (12 个文件)
 │   │       ├── src/  (4 个文件)
 │   │       └── tests/  (3 个文件)
-│   ├── core/  (253 个文件)
+│   ├── core/  (254 个文件)
 │   │   ├── agent/  # @lfaa/agent  (53 个文件)
 │   │   │   ├── src/  (30 个文件)
 │   │   │   │   ├── context/  (4 个文件)
 │   │   │   │   ├── run/  (18 个文件)
 │   │   │   │   └── tools/  (4 个文件)
 │   │   │   └── tests/  (18 个文件)
-│   │   ├── browser/  # @lfaa/browser  (33 个文件)
+│   │   ├── browser/  # @lfaa/browser  (34 个文件)
 │   │   │   ├── client/  (12 个文件)
 │   │   │   │   ├── panes/  (7 个文件)
 │   │   │   │   └── settings/  (2 个文件)
 │   │   │   ├── contract/  (1 个文件)
-│   │   │   ├── src/  (12 个文件)
-│   │   │   │   ├── session/  (5 个文件)
+│   │   │   ├── src/  (13 个文件)
+│   │   │   │   ├── session/  (6 个文件)
 │   │   │   │   ├── settings/  (1 个文件)
 │   │   │   │   ├── snapshot/  (1 个文件)
 │   │   │   │   └── tools/  (1 个文件)
@@ -1030,6 +1030,7 @@ lfaa/
 - `browser-tabs.ts` — 浏览器标签监听：为新建 Page 挂 Console/网络/导航/关闭事件并维护会话状态里的标签表。
 - `registry.ts` — 参考 DSH @deepseek-ai/dsh-browser-use 的独占命名注册槽位，确保同一时刻仅有一个浏览器实现注册并受 Cordis 生命周期托管。
 - `screencast-manager.ts` — 管理基于 Playwright CDPSession 的 Chromium Screencast 实时推流，代替低帧率截屏轮询。
+- `session-driver.ts` — 浏览器页面驱动：导航、前进后退、刷新、快照、求值，以及点击/悬停/输入/按键/滚动等页面交互。
 
 ### packages/core/browser/src/settings
 
@@ -2152,6 +2153,6 @@ lfaa/
 
 | 目录 | 文件数 | 子目录数 | 说明 |
 | --- | --- | --- | --- |
-| `docs/dev-log` | 3 | 1 | 按每 200 条任务编号汇总的开发日志卷 |
+| `docs/dev-log` | 4 | 1 | 按每 200 条任务编号汇总的开发日志卷 |
 | `docs/updata-log` | 302 | 1 | 面向用户的单条更新说明 |
 | `vendor` | 14 | 4 | 内嵌的上游运行时源码 |
