@@ -1,12 +1,14 @@
 // 创建项目弹窗：支持输入名称、本机资源管理器选目录 / 远程说明，以及按“文档/lfaa”生成前的目录信任确认。
 import { useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
-import { IconCloud, IconDeviceDesktop, IconFolder, IconFolderPlus, IconX } from "@tabler/icons-react";
+import { IconCloud, IconDeviceDesktop, IconFolder, IconX } from "@tabler/icons-react";
 import type { WorkbenchProjectItem } from "@lfaa/ui-layout";
 import type { LocalProjectStore } from "../store/local-project-store";
 import type { WorkspaceLocaleMessages } from "../locales";
 import { useProjectBrief } from "./useProjectBrief";
 import { ProjectBriefField } from "./ProjectBriefField";
+import { ProjectSourcePicker } from "./ProjectSourcePicker";
+import { ProjectTrustPrompt } from "./ProjectTrustPrompt";
 import styles from "./ProjectDialog.module.css";
 
 interface PendingTrustTarget {
@@ -190,39 +192,14 @@ export function ProjectDialog({
         }}
       >
         {trustTarget ? (
-          <div className={styles.trustBody}>
-            <button
-              className={`${styles.close} ${styles.trustClose}`}
-              type="button"
-              aria-label={locale.close}
-              disabled={submitting}
-              onClick={() => setTrustTarget(null)}
-            >
-              <IconX />
-            </button>
-            <h2 id="lfaa-project-title" className={styles.trustTitle}>{locale.trustTitle}</h2>
-            <p className={styles.trustPath}>{trustTarget.targetPath}</p>
-            <p className={styles.trustDesc}>{locale.trustDescription}</p>
-            {error && <p className={styles.error} role="alert">{error}</p>}
-            <div className={styles.trustActions}>
-              <button
-                type="button"
-                className={styles.trustConfirm}
-                disabled={submitting}
-                onClick={() => { void handleConfirmTrust(); }}
-              >
-                {locale.trustConfirm}
-              </button>
-              <button
-                type="button"
-                className={styles.trustCancel}
-                disabled={submitting}
-                onClick={() => setTrustTarget(null)}
-              >
-                {locale.cancel}
-              </button>
-            </div>
-          </div>
+          <ProjectTrustPrompt
+            locale={locale}
+            targetPath={trustTarget.targetPath}
+            submitting={submitting}
+            error={error}
+            onConfirm={() => { void handleConfirmTrust(); }}
+            onCancel={() => setTrustTarget(null)}
+          />
         ) : (
           <>
             <header className={styles.header}>
@@ -283,81 +260,23 @@ export function ProjectDialog({
                   </button>
                 </div>
 
-                {sourceTab === "local" ? (
-                  selectedFolder ? (
-                    <div className={styles.selectedWrap}>
-                      <div className={styles.selectedInfo}>
-                        <small>{locale.selectedFolderLabel}</small>
-                        <p className={styles.selectedPath}>{selectedFolder}</p>
-                      </div>
-                      <div className={styles.selectedActions}>
-                        <button
-                          type="button"
-                          className={styles.secondaryPill}
-                          disabled={picking}
-                          onClick={() => { void handlePickFolder(); }}
-                        >
-                          {locale.changeFolderButton}
-                        </button>
-                        <button
-                          type="button"
-                          className={styles.secondaryPill}
-                          onClick={() => {
-                            setSelectedFolder("");
-                            setManualPath("");
-                          }}
-                        >
-                          {locale.clearFolderButton}
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className={styles.emptySource}>
-                      <p className={styles.emptySourceTitle}>{locale.addFolderOnComputer}</p>
-                      <button
-                        type="button"
-                        className={styles.addFolderBtn}
-                        disabled={picking}
-                        onClick={() => { void handlePickFolder(); }}
-                      >
-                        <IconFolderPlus />
-                        <span>{picking ? locale.pickingFolder : locale.addFolderButton}</span>
-                      </button>
-                      <div className={styles.manualPathRow}>
-                        <input
-                          type="text"
-                          className={styles.manualPathInput}
-                          aria-label={locale.manualPathPlaceholder}
-                          placeholder={locale.manualPathPlaceholder}
-                          value={manualPath}
-                          onChange={(event) => {
-                            setManualPath(event.currentTarget.value);
-                            setError("");
-                          }}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter" && manualPath.trim()) {
-                              event.preventDefault();
-                              void handleApplyManualPath();
-                            }
-                          }}
-                        />
-                        <button
-                          type="button"
-                          className={styles.secondaryPill}
-                          disabled={picking || !manualPath.trim()}
-                          onClick={() => { void handleApplyManualPath(); }}
-                        >
-                          {locale.applyPathButton}
-                        </button>
-                      </div>
-                      <small className={styles.defaultHint}>{locale.defaultFolderHint}</small>
-                    </div>
-                  )
-                ) : (
-                  <div className={styles.emptySource}>
-                    <p className={styles.remoteNote}>{locale.remoteUnavailable}</p>
-                  </div>
-                )}
+                <ProjectSourcePicker
+                  locale={locale}
+                  sourceTab={sourceTab}
+                  selectedFolder={selectedFolder}
+                  manualPath={manualPath}
+                  picking={picking}
+                  onPickFolder={() => { void handlePickFolder(); }}
+                  onClearFolder={() => {
+                    setSelectedFolder("");
+                    setManualPath("");
+                  }}
+                  onManualPathChange={(value) => {
+                    setManualPath(value);
+                    setError("");
+                  }}
+                  onApplyManualPath={() => { void handleApplyManualPath(); }}
+                />
               </div>
 
               {sourceTab === "local" && (

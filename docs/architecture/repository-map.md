@@ -3,7 +3,7 @@
 > 本文件由 `pnpm map:sync`（[scripts/gen-repository-map.mjs](../../scripts/gen-repository-map.mjs)）按真实文件系统生成，**不要手改**。
 > 骨架发生变化（新增/删除/移动文件、包或目录）后，必须在同一轮运行 `pnpm map:sync` 并提交，否则 `pnpm check` 会失败。
 
-当前快照：**47 个包、1510 个文件、251 个子目录**（不含 node_modules、构建产物与运行数据）。
+当前快照：**47 个包、1512 个文件、251 个子目录**（不含 node_modules、构建产物与运行数据）。
 
 ## 1. 快速索引
 
@@ -62,7 +62,7 @@ lfaa/
 │   ├── standards/  (1 个文件)
 │   ├── templates/  (2 个文件)
 │   └── updata-log/  (302 个文件)
-├── packages/  (974 个文件)
+├── packages/  (976 个文件)
 │   ├── api/  (7 个文件)
 │   │   └── gateway/  # @lfaa/api-gateway  (7 个文件)
 │   │       ├── src/  (1 个文件)
@@ -280,16 +280,16 @@ lfaa/
 │   │       │   ├── fetch/  (1 个文件)
 │   │       │   └── tool/  (1 个文件)
 │   │       └── tests/  (3 个文件)
-│   └── workspace/  (78 个文件)
+│   └── workspace/  (80 个文件)
 │       ├── sections/  # @lfaa/sections  (19 个文件)
 │       │   ├── client/  (8 个文件)
 │       │   │   └── components/  (4 个文件)
 │       │   ├── contract/  (1 个文件)
 │       │   ├── src/  (3 个文件)
 │       │   └── tests/  (1 个文件)
-│       ├── workspace/  # @lfaa/workspace  (45 个文件)
-│       │   ├── client/  (30 个文件)
-│       │   │   ├── project/  (20 个文件)
+│       ├── workspace/  # @lfaa/workspace  (47 个文件)
+│       │   ├── client/  (32 个文件)
+│       │   │   ├── project/  (22 个文件)
 │       │   │   ├── store/  (2 个文件)
 │       │   │   └── worktree/  (5 个文件)
 │       │   ├── contract/  (1 个文件)
@@ -2047,6 +2047,8 @@ lfaa/
 - `ProjectOverlays.tsx` — 宿主工作区项目悬浮卡片、操作下拉菜单与“编辑项目”整页弹窗的统一挂载宿主。
 - `ProjectRowActions.module.css` — 左二项目行尾“···”与新建聊天操作按钮样式。
 - `ProjectRowActions.tsx` — 渲染左二项目行右侧的两个快捷操作图标（··· 详情/操作菜单 与 ✎ 项目内新建聊天）。
+- `ProjectSourcePicker.tsx` — 项目创建对话框的「来源文件夹」区域：已选目录的更换/清除，或选择目录 + 手填路径；远端来源显示未接入说明。
+- `ProjectTrustPrompt.tsx` — 项目创建前的信任确认视图：展示目标路径与风险说明，确认后才真正落盘。
 - `ProjectWorkspace.module.css` — 工作区插件贡献的主工作区视图与真实项目文件树样式，复用液态玻璃变量。
 - `ProjectWorkspace.tsx` — 渲染由 @lfaa/workspace 插件贡献的项目概览页与绑定真实本地目录的文件工作区。
 - `RemoveProjectDialog.module.css` — 移出项目二次确认弹窗样式，采用居中液态玻璃卡片、柔和暗红警示按钮与高对比度文本。
