@@ -3,7 +3,7 @@
 > 本文件由 `pnpm map:sync`（[scripts/gen-repository-map.mjs](../../scripts/gen-repository-map.mjs)）按真实文件系统生成，**不要手改**。
 > 骨架发生变化（新增/删除/移动文件、包或目录）后，必须在同一轮运行 `pnpm map:sync` 并提交，否则 `pnpm check` 会失败。
 
-当前快照：**47 个包、1526 个文件、251 个子目录**（不含 node_modules、构建产物与运行数据）。
+当前快照：**47 个包、1527 个文件、251 个子目录**（不含 node_modules、构建产物与运行数据）。
 
 ## 1. 快速索引
 
@@ -56,8 +56,8 @@ lfaa/
 │   └── web/  (10 个文件)
 │       ├── public/  (2 个文件)
 │       └── src/  (3 个文件)
-├── docs/  (342 个文件)
-│   ├── architecture/  (32 个文件)
+├── docs/  (343 个文件)
+│   ├── architecture/  (33 个文件)
 │   ├── dev-log/  (4 个文件)
 │   ├── standards/  (1 个文件)
 │   ├── templates/  (2 个文件)
@@ -465,6 +465,7 @@ lfaa/
 - `dsh-package-reuse.md` — DSH 包跨仓库复用评估
 - `engineering-foundation.md` — 构建、测试与分包地基（对齐 DSH）
 - `extensions.md` — LFAA 扩展中心开发方案
+- `goal-coordination-plan.md` — 目标自动续跑与跨会话协调方案
 - `library-media-hub.md` — 资料库合并「图像」入口（Library + Images）
 - `local-api-auth.md` — 本机接口鉴权
 - `loop-refactor-plan.md` — 两个巨型循环的拆分方案（Agent Loop / Chat Run Actions）
