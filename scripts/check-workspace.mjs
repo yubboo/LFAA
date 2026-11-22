@@ -193,7 +193,10 @@ function checkFile(file, pkgDir, manifest, declared) {
 
   const { text, specs } = collectImports(file);
   // 只约束 Host 侧入口：client 插件由 Vite 静态装配，不经过 Loader。
-  if (role === "host" && rel === "src/index.ts") checkPluginDefault(file, text);
+  if (role === "host" && rel === "src/index.ts") {
+    checkPluginDefault(file, text);
+    checkPluginInject(file, text);
+  }
   if (!/^\/\/.*[\u4e00-\u9fff]/u.test(text.split("\n")[0] ?? "")) {
     report(LEVELS.warn, "cjk-header", file, "首行缺少中文职责注释");
   }
@@ -255,6 +258,74 @@ function checkPluginDefault(file, text) {
   if (!/^\s*export\s+(?:function|const)\s+\w+Plugin\b/mu.test(text)) return;
   if (/^\s*export\s+default\s+/mu.test(text)) return;
   report(LEVELS.error, "plugin-default-export", file, "导出 *Plugin 但缺少 export default（Loader 依赖默认导出）");
+}
+
+/**
+ * Cordis Context 自带成员不是服务：`ctx.get("x")` 这类读取不计入 inject 覆盖检查。
+ * 其余 `ctx.x` 一律视为服务依赖，必须出现在插件声明的 inject 里，否则装配顺序不保证。
+ */
+const CONTEXT_MEMBERS = new Set([
+  "get", "set", "plugin", "effect", "on", "off", "once", "emit", "parallel", "waterfall", "bail", "serial",
+  "provide", "inject", "logger", "loader", "fiber", "reflect", "scope", "root", "name", "registry",
+]);
+
+/**
+ * 插件声明的 inject 必须覆盖它实际访问的 `ctx.*` 服务。
+ * 反例：Service.static inject 补了 `llm`，插件级 `xxx.inject` 没补，构造函数读 `ctx.llm` 时 Host 启动即崩。
+ * 只检查自己声明了 inject 的入口；没声明的插件由 Service 基类或调用方负责，不在本规则范围。
+ */
+function checkPluginInject(file, text) {
+  if (!/\binject\b/u.test(text)) return;
+  const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const provided = new Set();
+  const selfServices = new Set();
+  const accessed = new Map();
+  let partial = false;
+
+  const readStringArray = (node) => {
+    // 去掉 `as const` / 括号 / satisfies，拿到真正的数组字面量。
+    let current = node;
+    while (ts.isAsExpression(current) || ts.isParenthesizedExpression(current) || ts.isSatisfiesExpression?.(current)) {
+      current = current.expression;
+    }
+    if (!ts.isArrayLiteralExpression(current)) return;
+    for (const element of current.elements) {
+      if (ts.isStringLiteral(element)) provided.add(element.text);
+      else partial = true; // 展开或变量：无法静态判断，放弃本文件的覆盖检查以免误报
+    }
+  };
+
+  const walk = (node) => {
+    if (ts.isPropertyAssignment(node) && ts.isIdentifier(node.name) && node.name.text === "inject") {
+      readStringArray(node.initializer);
+    }
+    if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken
+      && ts.isPropertyAccessExpression(node.left) && node.left.name.text === "inject") {
+      readStringArray(node.right);
+    }
+    // Service 构造器里的 `super(ctx, "serviceName")`：自身服务不需要注入。
+    if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.SuperKeyword
+      && node.arguments.length >= 2 && ts.isIdentifier(node.arguments[0]) && node.arguments[0].text === "ctx") {
+      const serviceName = node.arguments[1];
+      if (ts.isStringLiteral(serviceName)) selfServices.add(serviceName.text);
+    }
+    if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "ctx") {
+      const name = node.name.text;
+      if (!CONTEXT_MEMBERS.has(name) && !accessed.has(name)) accessed.set(name, node.getStart(source));
+    }
+    ts.forEachChild(node, walk);
+  };
+  walk(source);
+
+  if (partial) return;
+  const missing = [...accessed.keys()].filter((name) => !provided.has(name) && !selfServices.has(name));
+  if (missing.length === 0) return;
+  report(
+    LEVELS.error,
+    "plugin-inject",
+    file,
+    `访问了 ${missing.map((name) => `ctx.${name}`).join("、")} 但 inject 未声明（Cordis 会在服务就绪前构建插件）`,
+  );
 }
 
 /** 文件规模阈值（AGENTS §4）：软阈值提示拆分，硬阈值必须拆分或登记豁免。 */

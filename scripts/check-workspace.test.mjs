@@ -153,3 +153,52 @@ test("豁免清单里的未知规则名直接报错，避免拼写导致豁免�
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+/** 造一个只含插件入口的夹具；inject 由参数决定，用于验证 inject 覆盖规则。 */
+function makePluginFixture(inject) {
+  const root = mkdtempSync(join(tmpdir(), "lfaa-check-inject-"));
+  const pkg = join(root, "packages", "core", "demo");
+  mkdirSync(join(pkg, "src"), { recursive: true });
+  mkdirSync(join(root, "scripts"), { recursive: true });
+  writeFileSync(join(pkg, "package.json"), JSON.stringify({ name: "@lfaa/demo", private: true, exports: { ".": "./src/index.ts" } }));
+  writeFileSync(join(pkg, "README.md"), '---\ndescription: "demo"\nkind: "core"\n---\n\n# demo\n');
+  writeFileSync(join(pkg, "README.zh.md"), '---\ndescription: "demo"\nkind: "core"\n---\n');
+  writeFileSync(join(pkg, "README.i18n.yaml"), "/:\n  en: 0\n  zh: 0\n");
+  writeFileSync(
+    join(pkg, "src", "index.ts"),
+    [
+      "// 夹具：插件入口，构造时访问 ctx.llm 与 ctx.tools。",
+      "export function demoPlugin(ctx) {",
+      "  const llm = ctx.llm;",
+      "  const tools = ctx.tools;",
+      "  void llm;",
+      "  void tools;",
+      "}",
+      `demoPlugin.inject = ${JSON.stringify(inject)} as const;`,
+      "export default demoPlugin;",
+      "",
+    ].join("\n"),
+  );
+  return root;
+}
+
+test("插件 inject 漏声明实际访问的服务会被拦下（Host 启动崩溃的回归）", () => {
+  const root = makePluginFixture(["tools"]);
+  try {
+    const { status, output } = runCheck(root);
+    assert.equal(status, 1, `漏声明 inject 时必须失败：${output}`);
+    assert.match(output, /\[plugin-inject\].*访问了 ctx\.llm 但 inject 未声明/u);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("插件 inject 覆盖全部访问的服务时通过", () => {
+  const root = makePluginFixture(["tools", "llm"]);
+  try {
+    const { status, output } = runCheck(root);
+    assert.equal(status, 0, `声明完整时不应失败：${output}`);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
