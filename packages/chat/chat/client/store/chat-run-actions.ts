@@ -7,7 +7,7 @@ import type { AgentPermissionMode, ChatSessionDetail } from "./chat-types";
 import { enqueueMessage, moveQueuedAt, removeQueuedAt, updateQueuedAt } from "./chat-queue";
 import type { ChatStorePort } from "./chat-store-port";
 import type { MediaGenerationInput, MediaSource } from "@lfaa/tool-media/client";
-import { uploadAttachment } from "../composer/composer-attachments";
+import { generateMedia, type MediaGenerationResult } from "./run-media-actions";
 
 export class ChatRunActions {
   private streamClient: AgentStreamClient | null = null;
@@ -83,79 +83,9 @@ export class ChatRunActions {
     await this.sendMessage(trimmed);
   }
 
-  /** 媒体生成与再次生图锁住发送入口，完成时只刷新仍打开的原会话。 */
-  async generateMediaFromPrompt(input: MediaGenerationInput): Promise<{ ok: boolean; error?: string; ratio?: string }> {
-    const state = this.port.getState();
-    if (state.submittingMessage || state.runningRunId) return { ok: false, error: "请等待当前任务结束。" };
-    this.port.patchState({ submittingMessage: true, errorMessage: "" });
-    let session: ChatSessionDetail | null = null;
-    try {
-      session = await this.ensureActiveSession();
-      const kind = "kind" in input ? input.kind : "image";
-      const prompt = "prompt" in input ? input.prompt : "";
-      const requestedRatio = "ratio" in input ? input.ratio : undefined;
-      // 先取画幅计划：消息区按目标比例立刻出现生成占位（本地宿主毫秒级，失败不影响生成）。
-      const plan = prompt.trim() && kind === "image"
-        ? await fetchJson<{ ratio?: string }>("/api/media/plan", {
-          method: "POST",
-          body: JSON.stringify({ prompt, ...(requestedRatio ? { ratio: requestedRatio } : {}) }),
-        }).catch(() => null)
-        : null;
-      this.showLocalMediaPlaceholder(session, kind, prompt, plan?.ratio ?? requestedRatio);
-      let payload: object = input;
-      if ("prompt" in input) {
-        const { imageFiles, attachmentIds = [], ...fields } = input;
-        const ids = [...attachmentIds];
-        for (const file of (imageFiles ?? []).slice(0, Math.max(0, 3 - ids.length))) {
-          const id = await uploadAttachment(session.id, file);
-          if (!id) throw new Error("参考图上传失败，请检查图片大小并重试。");
-          ids.push(id);
-        }
-        payload = { ...fields, ...(ids.length ? { attachmentIds: ids } : {}) };
-      }
-      const res = await fetchJson<{ ok?: boolean; error?: string }>("/api/media/generate", {
-        method: "POST",
-        body: JSON.stringify({ sessionId: session.id, ...payload }),
-      });
-      if (!res.ok) {
-        this.dropLocalMediaPlaceholder(session.id);
-        return { ok: false, ...(res.error ? { error: res.error } : {}) };
-      }
-      if (this.port.getState().activeSessionId === session.id) await this.port.openSession(session.id);
-      return { ok: true, ...(plan?.ratio ? { ratio: plan.ratio } : {}) };
-    } catch (error) {
-      if (session) this.dropLocalMediaPlaceholder(session.id);
-      return { ok: false, error: error instanceof Error ? error.message : String(error) };
-    } finally {
-      this.port.patchState({ submittingMessage: false });
-    }
-  }
-
-  /** 在消息区插入本轮的临时用户消息与生成占位；真实消息在生成完成后由 openSession 覆盖。 */
-  private showLocalMediaPlaceholder(session: ChatSessionDetail, kind: "image" | "video" | "audio", prompt: string, ratio?: string): void {
-    const now = Date.now();
-    const messages = [...session.messages];
-    if (prompt.trim()) {
-      messages.push({ id: `local-media-user-${now}`, role: "user", content: prompt, createdAt: now });
-    }
-    messages.push({
-      id: `local-media-assistant-${now}`,
-      role: "assistant",
-      content: "",
-      status: "streaming",
-      mediaGenerating: { kind, ...(ratio ? { ratio } : {}) },
-      createdAt: now,
-    });
-    this.port.patchState({ activeSession: { ...session, messages } });
-  }
-
-  /** 生成失败时只移除本轮临时消息，保留用户其余记录。 */
-  private dropLocalMediaPlaceholder(sessionId: string): void {
-    const session = this.port.getState().activeSession;
-    if (!session || session.id !== sessionId) return;
-    this.port.patchState({
-      activeSession: { ...session, messages: session.messages.filter((message) => !message.id.startsWith("local-media-")) },
-    });
+  /** 媒体生成入口：状态锁、占位、上传与请求细节见 run-media-actions.ts。 */
+  async generateMediaFromPrompt(input: MediaGenerationInput): Promise<MediaGenerationResult> {
+    return generateMedia(this.port, input, () => this.ensureActiveSession());
   }
 
   /** 把一条消息插话进当前运行；运行已结束返回 false。成功后乐观追加用户消息气泡。 */

@@ -3,7 +3,7 @@
 > 本文件由 `pnpm map:sync`（[scripts/gen-repository-map.mjs](../../scripts/gen-repository-map.mjs)）按真实文件系统生成，**不要手改**。
 > 骨架发生变化（新增/删除/移动文件、包或目录）后，必须在同一轮运行 `pnpm map:sync` 并提交，否则 `pnpm check` 会失败。
 
-当前快照：**47 个包、1525 个文件、251 个子目录**（不含 node_modules、构建产物与运行数据）。
+当前快照：**47 个包、1526 个文件、251 个子目录**（不含 node_modules、构建产物与运行数据）。
 
 ## 1. 快速索引
 
@@ -62,7 +62,7 @@ lfaa/
 │   ├── standards/  (1 个文件)
 │   ├── templates/  (2 个文件)
 │   └── updata-log/  (302 个文件)
-├── packages/  (987 个文件)
+├── packages/  (988 个文件)
 │   ├── api/  (7 个文件)
 │   │   └── gateway/  # @lfaa/api-gateway  (7 个文件)
 │   │       ├── src/  (1 个文件)
@@ -75,16 +75,16 @@ lfaa/
 │   │   └── web/  # @lfaa/bundle-web  (8 个文件)
 │   │       ├── src/  (2 个文件)
 │   │       └── tests/  (1 个文件)
-│   ├── chat/  (269 个文件)
-│   │   ├── chat/  # @lfaa/chat  (226 个文件)
-│   │   │   ├── client/  (181 个文件)
+│   ├── chat/  (270 个文件)
+│   │   ├── chat/  # @lfaa/chat  (227 个文件)
+│   │   │   ├── client/  (182 个文件)
 │   │   │   │   ├── composer/  (34 个文件)
 │   │   │   │   ├── conversation/  (35 个文件)
 │   │   │   │   ├── models/  (16 个文件)
 │   │   │   │   ├── session/  (17 个文件)
 │   │   │   │   ├── settings/  (10 个文件)
 │   │   │   │   ├── shared/  (4 个文件)
-│   │   │   │   ├── store/  (17 个文件)
+│   │   │   │   ├── store/  (18 个文件)
 │   │   │   │   └── workbench/  (41 个文件)
 │   │   │   ├── src/  (4 个文件)
 │   │   │   └── tests/  (36 个文件)
@@ -719,6 +719,7 @@ lfaa/
 - `chat-store-port.ts` — 聊天 Store 内部端口：核心壳向各动作模块暴露的最小状态与跨模块操作，避免模块互相直接依赖实现。
 - `chat-store.ts` — 管理 @lfaa/chat 浏览器端会话列表、流式运行 SSE 订阅、工具审批、权限模式、模型配置、规则与长期记忆状态。
 - `chat-types.ts` — 声明 @lfaa/chat/client 浏览器端状态与 API 数据模型（无 Node 专有依赖）。
+- `run-media-actions.ts` — 媒体生成动作：画幅计划、参考图上传、生成请求与本地占位插入/移除。
 - `run-stream-handler.ts` — 运行事件归并：把 Host 推送的快照、增量、步骤、审批与结束事件写进当前会话，断流时记录降级状态。
 - `stream-client.ts` — 浏览器端高可用流式订阅器：提供按片段序号幂等去重、RAF 节流批量渲染、心跳看门狗、指数退避重连与完整句边界续写辅助。
 - `workbench-persist.ts` — 管理右侧工作台标签页、当前舞台、工作区文件树显隐与目录展开状态的浏览器持久化偏好。
