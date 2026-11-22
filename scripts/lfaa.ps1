@@ -1,5 +1,8 @@
 ﻿# LFAA Windows 菜单入口：安装当前工作区依赖，并在应用入口就绪后启动 Web。
 $ErrorActionPreference = "Stop"
+# 原生命令（git / pnpm / node）在 Windows 上输出 UTF-8；Windows PowerShell 5.1 默认按本地 OEM 代码页解码，
+# 会把中文提交信息读成乱码。显式按 UTF-8 解码；PowerShell 自身输出走 WriteConsoleW，不受影响。
+try { [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false) } catch { }
 $repoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $repoRoot
 
