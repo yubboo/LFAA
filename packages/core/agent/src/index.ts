@@ -8,6 +8,7 @@ import type { ChatSessionRecord } from "@lfaa/memory";
 import { executeAgentTaskLoop } from "./run/agent-loop";
 import { readActivitySource } from "./run/activity-file";
 import { registerAgentLibraryTools } from "./tools/builtin-agent-tools";
+import { registerAgentSessionTools, type SessionGoalSnapshot } from "./tools/session-tools";
 import { SmartTrustStore } from "./tools/permission-policy";
 import { beginAgentRun, type SkillCatalogProvider, type SkillResolver } from "./run/run-begin";
 import { GoalContinuationScheduler, type GoalServicePort } from "./run/goal-scheduler";
@@ -56,6 +57,7 @@ export class AgentService extends Service {
   private readonly workspaceLeases = new WorkspaceLeaseRegistry();
   private readonly trustStore: SmartTrustStore;
   private unregisterBuiltinTools: (() => void) | null = null;
+  private unregisterSessionTools: (() => void) | null = null;
   private skillResolver: SkillResolver | null = null;
   private skillCatalogProvider: SkillCatalogProvider | null = null;
   private projectScopeProvider: ((projectId: string) => Promise<ProjectScope | null>) | null = null;
@@ -69,6 +71,17 @@ export class AgentService extends Service {
     super(ctx, "agent");
     this.trustStore = new SmartTrustStore(config.smartTrustFilePath);
     this.unregisterBuiltinTools = registerAgentLibraryTools(ctx);
+    this.unregisterSessionTools = registerAgentSessionTools(ctx, {
+      listSessions: (options) => ctx.memory.listSessions(options),
+      getSession: (id) => ctx.memory.getSession(id),
+      isRunning: (sessionId) => Boolean(this.getActiveRunForSession(sessionId)),
+      listActiveGoals: async () => {
+        const goalService = ctx.get("goal") as {
+          list(filter: { status: "active" }): Promise<SessionGoalSnapshot[]>;
+        } | undefined;
+        return goalService ? goalService.list({ status: "active" }).catch(() => []) : [];
+      },
+    });
     this.goalScheduler = new GoalContinuationScheduler({
       memory: ctx.memory,
       resolveGoalService: () => ctx.get("goal") as GoalServicePort | undefined,
@@ -83,6 +96,8 @@ export class AgentService extends Service {
   protected stop(): void {
     this.unregisterBuiltinTools?.();
     this.unregisterBuiltinTools = null;
+    this.unregisterSessionTools?.();
+    this.unregisterSessionTools = null;
     this.skillResolver = null;
     this.skillCatalogProvider = null;
     this.projectScopeProvider = null;

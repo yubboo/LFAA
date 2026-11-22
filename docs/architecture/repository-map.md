@@ -3,7 +3,7 @@
 > 本文件由 `pnpm map:sync`（[scripts/gen-repository-map.mjs](../../scripts/gen-repository-map.mjs)）按真实文件系统生成，**不要手改**。
 > 骨架发生变化（新增/删除/移动文件、包或目录）后，必须在同一轮运行 `pnpm map:sync` 并提交，否则 `pnpm check` 会失败。
 
-当前快照：**47 个包、1538 个文件、251 个子目录**（不含 node_modules、构建产物与运行数据）。
+当前快照：**47 个包、1540 个文件、251 个子目录**（不含 node_modules、构建产物与运行数据）。
 
 ## 1. 快速索引
 
@@ -62,7 +62,7 @@ lfaa/
 │   ├── standards/  (1 个文件)
 │   ├── templates/  (2 个文件)
 │   └── updata-log/  (302 个文件)
-├── packages/  (999 个文件)
+├── packages/  (1001 个文件)
 │   ├── api/  (7 个文件)
 │   │   └── gateway/  # @lfaa/api-gateway  (7 个文件)
 │   │       ├── src/  (1 个文件)
@@ -104,13 +104,13 @@ lfaa/
 │   │   └── compaction/  # @lfaa/compaction  (12 个文件)
 │   │       ├── src/  (4 个文件)
 │   │       └── tests/  (3 个文件)
-│   ├── core/  (266 个文件)
-│   │   ├── agent/  # @lfaa/agent  (65 个文件)
-│   │   │   ├── src/  (39 个文件)
+│   ├── core/  (268 个文件)
+│   │   ├── agent/  # @lfaa/agent  (67 个文件)
+│   │   │   ├── src/  (40 个文件)
 │   │   │   │   ├── context/  (4 个文件)
 │   │   │   │   ├── run/  (27 个文件)
-│   │   │   │   └── tools/  (4 个文件)
-│   │   │   └── tests/  (21 个文件)
+│   │   │   │   └── tools/  (5 个文件)
+│   │   │   └── tests/  (22 个文件)
 │   │   ├── browser/  # @lfaa/browser  (34 个文件)
 │   │   │   ├── client/  (12 个文件)
 │   │   │   │   ├── panes/  (7 个文件)
@@ -975,6 +975,7 @@ lfaa/
 
 - `builtin-agent-tools.ts` — 为 LFAA 内置 Agent 注册记忆写入与资料库/资产库读写工具（随 AgentService 卸载自动清理）。
 - `permission-policy.ts` — 实现三种权限模式（请求批准 ask / 帮我审批 smart / 完全访问 full）的审批决策、风险识别与 3 次自动放行计数持久化。
+- `session-tools.ts` — 跨会话可见性工具：列出同一项目的会话、读取最近事件、等待另一个会话结束。
 - `tool-call-args.ts` — 工具调用参数的解析与流式路径识别，供运行循环与工具执行器共用。
 - `tool-result.ts` — 统一限制单个工具结果进入模型上下文的字符数，避免一次读取或检索把运行上下文撑爆。
 
@@ -995,6 +996,7 @@ lfaa/
 - `project-git.test.ts` — 验证自动 Git 基线会跳过疑似密钥文件，并仍尊重 .gitignore。
 - `project-scope.test.ts` — 验证项目范围锚定：提示词内容，以及绑定项目的运行确实把项目名与简介送入系统提示。
 - `run-message-attachments.test.ts` — 验证 Agent 运行把用户图片附件与引用图写入用户消息，供聊天气泡还原缩略图。
+- `session-tools.test.ts` — 验证会话可见性工具：项目隔离、会话行格式、消息/步骤摘要与有界等待。
 - `todo-plan.test.ts` — 验证任务清单策略：todo_write 排到工具首位，且提醒只在「没清单 + 已多步 + 没提醒过」时触发一次。
 - `tool-result.test.ts` — 验证工具结果进入模型上下文前的统一限长与续读提示。
 - `verification.test.ts` — 验证完成前自检对代码路径与构建/测试命令的识别规则。
