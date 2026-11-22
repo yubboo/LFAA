@@ -12,3 +12,6 @@ node scripts/check-workspace.mjs
 
 # AST 规则：未使用导入、显式 any、调试输出、宽松相等、空 catch、TS 抑制指令。
 node scripts/lint-workspace.mjs
+
+# 日志编号必须六位全局递增：同类日志内重号直接拦下（历史重号已登记基线）。
+node scripts/check-logs.mjs
