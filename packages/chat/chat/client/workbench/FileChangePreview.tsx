@@ -1,5 +1,5 @@
 // VS Code 风格只读代码与 Diff 查看器：支持可点击面包屑、更多菜单 5 项、内嵌搜索、刷新、切换侧栏、精确行定位及行内 + 批注；代码区支持自动换行开关。
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { IconPlus } from "@tabler/icons-react";
 import type { ChatClientStore } from "../store/chat-store";
 import type { AgentStepItem, FilePreviewTab } from "../store/chat-types";
@@ -11,9 +11,9 @@ import { CodeBreadcrumbBar } from "./CodeBreadcrumbBar";
 import { CodeSearchBar } from "./CodeSearchBar";
 import { splitFromFragments, splitFromUnifiedDiff, type SplitLine, type SplitSide } from "./diff-view";
 import { renderLineWithSearch } from "./file-search-highlight";
+import { InlineComment } from "./InlineComment";
 import syntaxStyles from "./CodeSyntax.module.css";
 import styles from "./FileChangePreview.module.css";
-import commentStyles from "./FileChangePreview.comment.module.css";
 import diffStyles from "./FileChangePreview.diff.module.css";
 
 /** Diff 分栏中的单侧行：行号、+/- 标记与代码文本。 */
@@ -86,11 +86,9 @@ export function FileChangePreview({
   const [wrap, setWrap] = useState(true);
   const [activeMatchIdx, setActiveMatchIdx] = useState(0);
   const [commentLine, setCommentLine] = useState<number | null>(null);
-  const [commentDraft, setCommentDraft] = useState("");
   const sourceRef = useRef<HTMLDivElement>(null);
   const focusLineRef = useRef<HTMLDivElement>(null);
   const matchLineRef = useRef<HTMLDivElement>(null);
-  const commentInputRef = useRef<HTMLTextAreaElement>(null);
 
   const effectiveProjectId = tab.projectId ?? projectId;
   const effectiveWorktreeId = tab.worktreeId ?? worktreeId;
@@ -101,7 +99,6 @@ export function FileChangePreview({
 
   useEffect(() => {
     setCommentLine(null);
-    setCommentDraft("");
     setNotice("");
     setShowChanges(false);
   }, [tab.id]);
@@ -153,10 +150,6 @@ export function FileChangePreview({
     );
     return () => { current = false; };
   }, [canReadGit, change, displayPath, effectiveProjectId, reloadNonce]);
-
-  useEffect(() => {
-    if (commentLine !== null) commentInputRef.current?.focus();
-  }, [commentLine]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -234,17 +227,6 @@ export function FileChangePreview({
       .catch((err) => setNotice(err instanceof Error ? err.message : String(err)));
   };
 
-  const handleSubmitComment = (e: FormEvent, lineNum: number, lineText: string) => {
-    e.preventDefault();
-    const note = commentDraft.trim();
-    if (!note) return;
-    const snippet = lineText.trim().slice(0, 140);
-    const refText = `针对 \`${displayPath}#L${lineNum}\`${snippet ? `\n> \`${snippet}\`` : ""}\n${note}`;
-    store.enqueueComposerInsert(refText);
-    setCommentLine(null);
-    setCommentDraft("");
-  };
-
   const focusBadge = (change || targetLine)
     ? (focusEnd > focusStart ? `L${focusStart}-${focusEnd}` : `L${focusStart}`)
     : undefined;
@@ -319,10 +301,7 @@ export function FileChangePreview({
                             className={styles.addCommentGutter}
                             aria-label={isZh ? `在第 ${number} 行添加批注` : `Comment on line ${number}`}
                             title={isZh ? "添加行内批注发给 Agent" : "Add line comment"}
-                            onClick={() => {
-                              setCommentLine((prev) => (prev === number ? null : number));
-                              setCommentDraft("");
-                            }}
+                            onClick={() => setCommentLine((prev) => (prev === number ? null : number))}
                           >
                             <IconPlus size={12} />
                           </button>
@@ -333,31 +312,15 @@ export function FileChangePreview({
                         </div>
 
                         {commentOpen && (
-                          <form className={commentStyles.inlineCommentBox} onSubmit={(e) => handleSubmitComment(e, number, line)}>
-                            <div className={commentStyles.commentMeta}>
-                              {isZh ? `第 ${number} 行批注 · 提交后写入对话输入框` : `Line ${number} comment · inserts into chat`}
-                            </div>
-                            <textarea
-                              ref={commentInputRef}
-                              className={commentStyles.commentTextarea}
-                              rows={2}
-                              value={commentDraft}
-                              placeholder={isZh ? "输入修改建议或提问 (Ctrl+Enter 添加)…" : "Leave a comment (Ctrl+Enter to add)..."}
-                              onChange={(e) => setCommentDraft(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Escape") {
-                                  setCommentLine(null);
-                                } else if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-                                  e.preventDefault();
-                                  handleSubmitComment(e, number, line);
-                                }
-                              }}
-                            />
-                            <div className={commentStyles.commentActions}>
-                              <button type="button" className={commentStyles.commentCancel} onClick={() => setCommentLine(null)}>{isZh ? "取消" : "Cancel"}</button>
-                              <button type="submit" className={commentStyles.commentSubmit} disabled={!commentDraft.trim()}>{isZh ? "添加到对话" : "Add Comment"}</button>
-                            </div>
-                          </form>
+                          <InlineComment
+                            key={number}
+                            lineNumber={number}
+                            lineText={line}
+                            displayPath={displayPath}
+                            isZh={isZh}
+                            store={store}
+                            onClose={() => setCommentLine(null)}
+                          />
                         )}
                       </Fragment>
                     );
