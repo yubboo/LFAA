@@ -24,15 +24,10 @@ import {
 import type { WorkbenchChatSessionSummary, WorkbenchProjectItem, WorkbenchSectionItem } from "@lfaa/ui-layout";
 import type { ChatClientStore } from "../store/chat-store";
 import type { SessionAnchorRect, SessionMenuStore } from "./session-menu-store";
+import { copyTextSafe, CopySubmenu, ForkSubmenu, ProjectSubmenu, SectionSubmenu } from "./SessionSubmenu";
 import styles from "./SessionActionMenu.module.css";
 
 type SubmenuKind = "project" | "section" | "fork" | "copy" | null;
-
-async function copyTextSafe(text: string): Promise<void> {
-  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(text).catch(() => {});
-  }
-}
 
 /** 将归档、置顶、归属变更与删除等会话动作绑定到打开菜单时的会话。 */
 export function SessionActionMenu({
@@ -154,33 +149,7 @@ export function SessionActionMenu({
           <IconChevronRight className={styles.arrow} aria-hidden="true" />
         </button>
         {submenu === "project" && (
-          <div className={`${styles.submenu} ${subOnLeft ? styles.submenuLeft : ""}`} role="menu">
-            <button
-              type="button"
-              className={styles.item}
-              onClick={() => {
-                menuStore.closeAll();
-                void chatStore.updateSessionMeta(session.id, { projectId: null });
-              }}
-            >
-              <span className={styles.label}>{isZh ? "移出项目（项目外）" : "Outside project"}</span>
-              {!session.projectId && <IconCheck aria-hidden="true" />}
-            </button>
-            {projects.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                className={styles.item}
-                onClick={() => {
-                  menuStore.closeAll();
-                  void chatStore.updateSessionMeta(session.id, { projectId: p.id });
-                }}
-              >
-                <span className={styles.label}>{p.name}</span>
-                {session.projectId === p.id && <IconCheck aria-hidden="true" />}
-              </button>
-            ))}
-          </div>
+          <ProjectSubmenu isZh={isZh} session={session} projects={projects} subOnLeft={subOnLeft} chatStore={chatStore} menuStore={menuStore} />
         )}
       </div>
 
@@ -202,33 +171,7 @@ export function SessionActionMenu({
           <IconChevronRight className={styles.arrow} aria-hidden="true" />
         </button>
         {submenu === "section" && (
-          <div className={`${styles.submenu} ${subOnLeft ? styles.submenuLeft : ""}`} role="menu">
-            <button
-              type="button"
-              className={styles.item}
-              onClick={() => {
-                menuStore.closeAll();
-                void chatStore.updateSessionMeta(session.id, { sectionId: null });
-              }}
-            >
-              <span className={styles.label}>{isZh ? "移出分区" : "No section"}</span>
-              {!session.sectionId && <IconCheck aria-hidden="true" />}
-            </button>
-            {sections.map((sec) => (
-              <button
-                key={sec.id}
-                type="button"
-                className={styles.item}
-                onClick={() => {
-                  menuStore.closeAll();
-                  void chatStore.updateSessionMeta(session.id, { sectionId: sec.id });
-                }}
-              >
-                <span className={styles.label}>{sec.name}</span>
-                {session.sectionId === sec.id && <IconCheck aria-hidden="true" />}
-              </button>
-            ))}
-          </div>
+          <SectionSubmenu isZh={isZh} session={session} sections={sections} subOnLeft={subOnLeft} chatStore={chatStore} menuStore={menuStore} />
         )}
       </div>
 
@@ -255,18 +198,7 @@ export function SessionActionMenu({
           <IconChevronRight className={styles.arrow} aria-hidden="true" />
         </button>
         {submenu === "fork" && (
-          <div className={`${styles.submenu} ${subOnLeft ? styles.submenuLeft : ""}`} role="menu">
-            <button
-              type="button"
-              className={styles.item}
-              onClick={() => {
-                menuStore.closeAll();
-                void chatStore.forkSession(session.id);
-              }}
-            >
-              <span className={styles.label}>{isZh ? "分叉到新会话" : "Fork to new chat"}</span>
-            </button>
-          </div>
+          <ForkSubmenu isZh={isZh} session={session} subOnLeft={subOnLeft} chatStore={chatStore} menuStore={menuStore} />
         )}
       </div>
 
@@ -306,40 +238,7 @@ export function SessionActionMenu({
           <IconChevronRight className={styles.arrow} aria-hidden="true" />
         </button>
         {submenu === "copy" && (
-          <div className={`${styles.submenu} ${subOnLeft ? styles.submenuLeft : ""}`} role="menu">
-            <button
-              type="button"
-              className={styles.item}
-              onClick={() => {
-                void copyTextSafe(session.title);
-                menuStore.closeAll();
-              }}
-            >
-              <span className={styles.label}>{isZh ? "复制标题" : "Copy title"}</span>
-            </button>
-            <button
-              type="button"
-              className={styles.item}
-              onClick={() => {
-                void chatStore.exportSessionMarkdown(session.id).then((exp) => {
-                  if (exp) void copyTextSafe(exp.markdown);
-                });
-                menuStore.closeAll();
-              }}
-            >
-              <span className={styles.label}>{isZh ? "复制对话内容" : "Copy markdown"}</span>
-            </button>
-            <button
-              type="button"
-              className={styles.item}
-              onClick={() => {
-                void copyTextSafe(session.id);
-                menuStore.closeAll();
-              }}
-            >
-              <span className={styles.label}>{isZh ? "复制会话 ID" : "Copy ID"}</span>
-            </button>
-          </div>
+          <CopySubmenu isZh={isZh} session={session} subOnLeft={subOnLeft} chatStore={chatStore} menuStore={menuStore} />
         )}
       </div>
 
