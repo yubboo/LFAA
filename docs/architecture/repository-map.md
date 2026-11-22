@@ -3,7 +3,7 @@
 > 本文件由 `pnpm map:sync`（[scripts/gen-repository-map.mjs](../../scripts/gen-repository-map.mjs)）按真实文件系统生成，**不要手改**。
 > 骨架发生变化（新增/删除/移动文件、包或目录）后，必须在同一轮运行 `pnpm map:sync` 并提交，否则 `pnpm check` 会失败。
 
-当前快照：**47 个包、1512 个文件、251 个子目录**（不含 node_modules、构建产物与运行数据）。
+当前快照：**47 个包、1515 个文件、251 个子目录**（不含 node_modules、构建产物与运行数据）。
 
 ## 1. 快速索引
 
@@ -62,7 +62,7 @@ lfaa/
 │   ├── standards/  (1 个文件)
 │   ├── templates/  (2 个文件)
 │   └── updata-log/  (302 个文件)
-├── packages/  (976 个文件)
+├── packages/  (979 个文件)
 │   ├── api/  (7 个文件)
 │   │   └── gateway/  # @lfaa/api-gateway  (7 个文件)
 │   │       ├── src/  (1 个文件)
@@ -75,7 +75,7 @@ lfaa/
 │   │   └── web/  # @lfaa/bundle-web  (8 个文件)
 │   │       ├── src/  (2 个文件)
 │   │       └── tests/  (1 个文件)
-│   ├── chat/  (264 个文件)
+│   ├── chat/  (267 个文件)
 │   │   ├── chat/  # @lfaa/chat  (224 个文件)
 │   │   │   ├── client/  (180 个文件)
 │   │   │   │   ├── composer/  (34 个文件)
@@ -94,11 +94,11 @@ lfaa/
 │   │   │   │   └── views/  (7 个文件)
 │   │   │   ├── src/  (1 个文件)
 │   │   │   └── tests/  (3 个文件)
-│   │   └── review/  # @lfaa/review  (20 个文件)
+│   │   └── review/  # @lfaa/review  (23 个文件)
 │   │       ├── client/  (9 个文件)
 │   │       │   ├── settings/  (3 个文件)
 │   │       │   └── views/  (4 个文件)
-│   │       ├── src/  (4 个文件)
+│   │       ├── src/  (7 个文件)
 │   │       └── tests/  (2 个文件)
 │   ├── compaction/  (12 个文件)
 │   │   └── compaction/  # @lfaa/compaction  (12 个文件)
@@ -876,7 +876,10 @@ lfaa/
 
 ### packages/chat/review/src
 
+- `commit-drafts.ts` — Git 提交与 PR 草稿生成：根据仓库快照与用户偏好拼出可编辑的提交消息、PR 标题与正文。
+- `git-diff.ts` — Git 差异读取：按文件、暂存区或指定提交返回 diff/stat，并为未跟踪文件补文本预览。
 - `git-http-handler.ts` — 为本机 Web 服务提供 /api/chat/coding-settings、/api/git/* 与 /api/code-review/* 内置 Git 与审查接口。
+- `git-run.ts` — Git 命令执行与路径/分支名校验：所有 Git 操作共用的最小底座。
 - `git-service.ts` — 提供 LFAA 内置 Git 服务：仓储探测、状态与差异读取、分支切换/前缀新建、暂存与提交、PR 草案生成。
 - `index.ts` — @lfaa/review Host 侧 Cordis 服务：内置 Git 变更操作、编码设置持久化与代码审查引擎。
 - `review-service.ts` — 提供 LFAA 内置代码审查引擎：结合静态/差异规则分析与审查历史持久化（存于 ~/.lfaa/code-reviews.json）。
