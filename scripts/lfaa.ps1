@@ -148,7 +148,8 @@ function Test-PushSafety {
   return $true
 }
 
-# 读取上一次通过菜单提交（或仓库最新一次提交）的 commit 信息。
+# 读取仓库最新一次提交的信息；没有 HEAD 时才回退到菜单上次写入的记录。
+# 必须先读真实 HEAD：菜单外的 git commit 不会更新 LastMsgFile，反过来读会显示过期信息。
 function Get-LastCommitMessage {
   param(
     [Parameter(Mandatory = $true)]
@@ -157,13 +158,6 @@ function Get-LastCommitMessage {
     [bool]$HasHead
   )
 
-  if (Test-Path -LiteralPath $LastMsgFile) {
-    $saved = [System.IO.File]::ReadAllText($LastMsgFile, [System.Text.UTF8Encoding]::new($false)).Trim()
-    if (-not [string]::IsNullOrWhiteSpace($saved)) {
-      return $saved
-    }
-  }
-
   if ($HasHead) {
     $latest = (& git -c i18n.logOutputEncoding=utf-8 log -1 --pretty=%s 2>$null | Out-String).Trim()
     if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($latest)) {
@@ -171,7 +165,27 @@ function Get-LastCommitMessage {
     }
   }
 
+  if (Test-Path -LiteralPath $LastMsgFile) {
+    $saved = [System.IO.File]::ReadAllText($LastMsgFile, [System.Text.UTF8Encoding]::new($false)).Trim()
+    if (-not [string]::IsNullOrWhiteSpace($saved)) {
+      return $saved
+    }
+  }
+
   return ""
+}
+
+# 列出待推送的提交（一行一条）；远程引用不存在或没有差异时返回空数组。
+function Get-PendingCommits {
+  param(
+    [string]$Range = "origin/main..HEAD"
+  )
+
+  $output = (& git -c i18n.logOutputEncoding=utf-8 log --oneline $Range 2>$null | Out-String).Trim()
+  if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($output)) {
+    return @()
+  }
+  return @($output -split "\r?\n" | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 }
 
 # 确保 Git 可用、仓库已初始化为 main 分支，并将 origin 指向指定 GitHub 地址。
@@ -218,7 +232,8 @@ function Push-ToGitHub {
     [switch]$Force
   )
 
-  $remoteUrl = "https://github.com/yubboo/LFAA.git"
+  # GitHub 已把仓库名改为小写 lfaa；继续用大写地址每次都会收到 "repository moved" 提示。
+  $remoteUrl = "https://github.com/yubboo/lfaa.git"
   $prevErrorAction = $ErrorActionPreference
   $ErrorActionPreference = "Continue"
   try {
@@ -287,16 +302,31 @@ function Push-ToGitHub {
       [System.IO.File]::WriteAllText($lastMsgFile, $commitMsg, [System.Text.UTF8Encoding]::new($false))
     } else {
       if (-not [string]::IsNullOrWhiteSpace($lastCommitMsg)) {
-        Write-Host "上次提交的信息是：$lastCommitMsg" -ForegroundColor Yellow
+        Write-Host "当前 HEAD：$lastCommitMsg" -ForegroundColor Yellow
       }
       if ($Force) {
-        Write-Host "工作区无新改动，直接强制推送当前提交。" -ForegroundColor DarkGray
+        Write-Host "工作区无新改动；强制推送仍会覆盖远端同名分支。" -ForegroundColor DarkGray
       } else {
-        Write-Host "工作区无新改动，直接推送当前提交。" -ForegroundColor DarkGray
+        Write-Host "工作区无新改动，继续推送已有提交。" -ForegroundColor DarkGray
       }
     }
 
     if (-not (Test-PushSafety -Scope "tracked")) { return }
+
+    # 把「到底推了什么」说清楚：菜单外的 git commit 也会在这里列出，而不是只报一句「直接推送」。
+    $pendingCommits = @(Get-PendingCommits)
+    $remoteRef = (& git rev-parse --verify --quiet "refs/remotes/origin/main" 2>$null | Out-String).Trim()
+    $hasRemoteRef = -not [string]::IsNullOrWhiteSpace($remoteRef)
+    if (-not $Force -and $hasRemoteRef -and $pendingCommits.Count -eq 0) {
+      Write-Host "本地已与 origin/main 同步，没有需要推送的提交。" -ForegroundColor Green
+      return
+    }
+    if ($pendingCommits.Count -gt 0) {
+      Write-Host "将推送 $($pendingCommits.Count) 个提交：" -ForegroundColor Cyan
+      foreach ($line in $pendingCommits) {
+        Write-Host "  $line" -ForegroundColor DarkGray
+      }
+    }
 
     $currentBranch = (& git rev-parse --abbrev-ref HEAD 2>$null | Out-String).Trim()
     if ([string]::IsNullOrWhiteSpace($currentBranch) -or $currentBranch -eq "HEAD") {
@@ -331,7 +361,7 @@ function Push-ToGitHub {
 
 # 从 GitHub 远程仓库拉取 main 分支最新源码并安全更新本地工作区。
 function Pull-FromGitHub {
-  $remoteUrl = "https://github.com/yubboo/LFAA.git"
+  $remoteUrl = "https://github.com/yubboo/lfaa.git"
   $prevErrorAction = $ErrorActionPreference
   $ErrorActionPreference = "Continue"
   try {
