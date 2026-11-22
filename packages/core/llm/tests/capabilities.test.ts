@@ -43,6 +43,11 @@ test("模型用途识别：生图/生视频/语音与对话模型区分", () => 
   assert.equal(resolveModelKind("doubao-seedream-4"), "image");
   assert.equal(resolveModelKind("wan3.0-video"), "video");
   assert.equal(resolveModelKind("doubao-seedance-1.5"), "video");
+  // HappyHorse 与 t2v / i2v / r2v 缩写都是视频模型，不能误判成对话模型。
+  assert.equal(resolveModelKind("happyhorse-1.1-r2v"), "video");
+  assert.equal(resolveModelKind("happyhorse-1.1-t2v"), "video");
+  assert.equal(resolveModelKind("happyhorse-1.1-i2v"), "video");
+  assert.equal(resolveModelKind("kling-v2-t2v"), "video");
   assert.equal(resolveModelKind("qwen-audio-3.0-tts-plus"), "audio");
   assert.equal(resolveModelKind("qwen-audio-3.0-asr-flash"), "audio");
   assert.equal(resolveModelKind("qwen3.7-max"), "chat");

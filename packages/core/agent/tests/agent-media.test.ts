@@ -13,6 +13,14 @@ test("媒体指引要求产物链接只能来自工具返回", () => {
   assert.match(hint, /\/api\/media\/file/u);
 });
 
+test("视频生成跨套餐前必须征询用户，不能静默换厂商", () => {
+  const hint = buildMediaHint({ getTool: (name: string) => (name === "generate_video" ? {} : undefined) } as never);
+  assert.match(hint, /不得静默改用其他厂商或套餐/u);
+  assert.match(hint, /profileId/u);
+  assert.match(hint, /完全访问/u);
+  assert.match(hint, /询问是否切换/u);
+});
+
 test("没有媒体工具时不写媒体指引", () => {
   assert.equal(buildMediaHint({ getTool: () => undefined } as never), "");
 });

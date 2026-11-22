@@ -10,6 +10,12 @@ export function fakeRes(): { res: ServerResponse; captured: { status: number; bo
   const chunks: Buffer[] = [];
   const res = {
     setHeader(name: string, value: string) { captured.headers[name.toLowerCase()] = value; },
+    flushHeaders() {},
+    write(chunk: string | Buffer) {
+      chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+      captured.body = Buffer.concat(chunks);
+      return true;
+    },
     end(chunk?: string | Buffer) {
       if (chunk !== undefined) chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
       captured.body = Buffer.concat(chunks);

@@ -204,13 +204,13 @@ export function mediaToolsPlugin(ctx: Context): void {
       moduleName: "@lfaa/tool-media",
       name: "generate_video",
       title: "生成视频",
-      description: "调用已配置套餐里的视频模型生成短视频并保存到工作区。参数：prompt（必填）、duration（秒，2-15）、resolution（720P/1080P）、ratio、seed、watermark、negativePrompt、modelId、profileId、waitSeconds（默认 240）。结果里的 ![](...) 预览链接请原样保留在回复中。",
+      description: "调用已配置套餐里的视频模型生成短视频并保存到工作区。默认使用当前会话的模型配置；当前配置没有视频模型时会返回其他可用视频配置，必须先向用户说明并征询同意，再用 profileId 指定套餐。参数：prompt（必填）、duration（秒，2-15）、resolution（720P/1080P）、ratio、seed、watermark、negativePrompt、modelId、profileId、waitSeconds（默认 240）。结果里的 ![](...) 预览链接请原样保留在回复中。",
       permissionLevel: "read",
       parameters: {
         type: "object",
         properties: {
           prompt: { type: "string", description: "视频提示词：画面、镜头、动作、风格" },
-          duration: { type: "number", description: "时长（秒），2-15，默认 2，按秒计费" },
+          duration: { type: "number", description: "时长（秒），默认 2；HappyHorse 官方下限 3 秒，传 2 会自动提到 3" },
           resolution: { type: "string", description: "720P 或 1080P，默认 720P" },
           ratio: { type: "string", description: "16:9 / 9:16 / 1:1 / 4:3 / 3:4" },
           seed: { type: "number", description: "随机种子" },
@@ -239,28 +239,30 @@ export function mediaToolsPlugin(ctx: Context): void {
           waitMs: waitSeconds * 1000,
         });
         if (result.status === "FAILED" || result.status === "CANCELED" || result.status === "UNKNOWN") {
-          return { ok: false, output: `视频生成失败（${result.status}）：${result.message ?? "厂商未返回原因"}`, summary: "视频生成失败", metadata: { taskId: result.taskId } };
+          return { ok: false, output: `视频生成失败（${result.status}）：${result.message ?? "厂商未返回原因"}`, summary: "视频生成失败", metadata: { taskId: result.taskId, ...(result.profileId ? { profileId: result.profileId } : {}) } };
         }
+        // 跨套餐生成时必须把实际配置写出来，避免用户误以为用的是当前聊天套餐。
+        const source = result.profileName ? `${result.profileName} · ${result.model}` : result.model;
         if (!result.videoUrl) {
           return {
             ok: true,
-            output: `视频任务已提交（taskId=${result.taskId}），当前状态 ${result.status}，仍在生成中。稍后用 get_video 工具按 taskId 查询。`,
+            output: `视频任务已提交（taskId=${result.taskId}，配置：${source}），当前状态 ${result.status}，仍在生成中。稍后用 get_video 工具按 taskId 查询。`,
             summary: "视频生成中",
-            metadata: { taskId: result.taskId, status: result.status },
+            metadata: { taskId: result.taskId, status: result.status, model: result.model, ...(result.profileId ? { profileId: result.profileId } : {}), ...(result.profileName ? { profileName: result.profileName } : {}) },
           };
         }
         const dir = resolveMediaOutputDir(context.workspaceRoots, "videos");
         const downloaded = await downloadImage(result.videoUrl);
         if (!downloaded) {
-          return { ok: true, output: `视频已生成（临时链接 24 小时有效）：${result.videoUrl}`, summary: "视频生成完成（未落盘）" };
+          return { ok: true, output: `视频已生成（临时链接 24 小时有效）：${result.videoUrl}`, summary: "视频生成完成（未落盘）", metadata: { model: result.model, ...(result.profileId ? { profileId: result.profileId } : {}) } };
         }
         const saved = await saveImageBytes(dir, downloaded.bytes, "video/mp4");
         await writeMediaMetadata(saved.path, { kind: "video", prompt, model: result.model });
         return {
           ok: true,
-          output: `已用 ${result.model} 生成视频（耗时 ${Math.round(result.elapsedMs / 1000)} 秒）。\n\n![${result.model} 生成视频](${buildMediaFileUrl(saved.path)})`,
+          output: `已用 ${source} 生成视频（耗时 ${Math.round(result.elapsedMs / 1000)} 秒）。\n\n![${result.model} 生成视频](${buildMediaFileUrl(saved.path)})`,
           summary: "1 个视频",
-          metadata: { model: result.model, files: [saved.path], taskId: result.taskId },
+          metadata: { model: result.model, files: [saved.path], taskId: result.taskId, ...(result.profileId ? { profileId: result.profileId } : {}), ...(result.profileName ? { profileName: result.profileName } : {}) },
         };
       },
     });
@@ -292,18 +294,19 @@ export function mediaToolsPlugin(ctx: Context): void {
             ok: result.status !== "FAILED" && result.status !== "CANCELED" && result.status !== "UNKNOWN",
             output: `视频任务 ${taskId} 状态：${result.status}${result.message ? `（${result.message}）` : ""}`,
             summary: `状态 ${result.status}`,
-            metadata: { taskId, status: result.status },
+            metadata: { taskId, status: result.status, ...(result.profileId ? { profileId: result.profileId } : {}) },
           };
         }
+        const source = result.profileName ? `${result.profileName} · ${result.model}` : result.model;
         const downloaded = await downloadImage(result.videoUrl);
-        if (!downloaded) return { ok: true, output: `视频已生成：${result.videoUrl}`, summary: "视频生成完成（未落盘）" };
+        if (!downloaded) return { ok: true, output: `视频已生成（${source}）：${result.videoUrl}`, summary: "视频生成完成（未落盘）" };
         const dir = resolveMediaOutputDir(context.workspaceRoots, "videos");
         const saved = await saveImageBytes(dir, downloaded.bytes, "video/mp4");
         return {
           ok: true,
-          output: `视频已就绪。\n\n![生成视频](${buildMediaFileUrl(saved.path)})`,
+          output: `视频已就绪（${source}）。\n\n![生成视频](${buildMediaFileUrl(saved.path)})`,
           summary: "1 个视频",
-          metadata: { files: [saved.path], taskId },
+          metadata: { files: [saved.path], taskId, model: result.model, ...(result.profileId ? { profileId: result.profileId } : {}) },
         };
       },
     });

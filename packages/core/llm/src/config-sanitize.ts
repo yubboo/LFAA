@@ -3,7 +3,7 @@ import { normalizeModelCapability } from "./capabilities";
 import { asApiProtocol } from "./protocol-utils";
 import type { SaveLlmProfileInput } from "./index";
 import { repairMojibakeText } from "./text-repair";
-import type { LlmProfile, LlmProviderKind, ModelCapabilityInfo } from "./types";
+import type { LlmProfile, LlmProviderKind, ModelCapabilityInfo, AgentPlanTier } from "./types";
 
 export interface StoredLlmConfig {
   activeProfileId: string;
@@ -50,6 +50,11 @@ function isValidProviderKind(kind: unknown): kind is LlmProviderKind {
   return kind === "openai-compatible" || kind === "deepseek" || kind === "ollama";
 }
 
+/** 校验火山 Agent Plan 档位；未知值忽略，历史档案默认按 Medium 处理（Small/Medium 都不含视频）。 */
+export function asAgentPlanTier(value: unknown): AgentPlanTier | undefined {
+  return value === "small" || value === "medium" || value === "large" || value === "max" ? value : undefined;
+}
+
 export function sanitizeStoredConfig(raw: unknown, onRepair?: () => void): StoredLlmConfig {
   if (typeof raw !== "object" || raw === null) {
     const defaults = createDefaultProfiles();
@@ -76,12 +81,16 @@ export function sanitizeStoredConfig(raw: unknown, onRepair?: () => void): Store
             .filter((m): m is ModelCapabilityInfo => typeof m === "object" && m !== null && typeof (m as { id?: unknown }).id === "string")
             .map((m) => normalizeModelCapability(m, kind));
           const apiProtocol = asApiProtocol(item.apiProtocol);
+          const providerId = typeof item.providerId === "string" && item.providerId.trim() ? item.providerId.trim() : undefined;
+          // 历史 Agent Plan 档案没有档位时按“未设置”处理：不展示视频模型，等用户在配置卡片里选择实际档位。
+          const agentPlanTier = asAgentPlanTier(item.agentPlanTier);
           return {
             id: item.id as string,
-            ...(typeof item.providerId === "string" && item.providerId.trim() ? { providerId: item.providerId.trim() } : {}),
+            ...(providerId ? { providerId } : {}),
             name: item.name as string,
             kind,
             ...(apiProtocol ? { apiProtocol } : {}),
+            ...(agentPlanTier ? { agentPlanTier } : {}),
             baseUrl: item.baseUrl as string,
             model: modelStr,
             apiKey: apiKeyStr,

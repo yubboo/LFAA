@@ -20,7 +20,9 @@ export function resolveModelKind(rawModelId: string): ModelKind {
     return "image";
   }
   if (/(?:^|[-_/])(?:video|seedance|veo|sora|wan\d*\.?\d*-video|video\d)(?:[-_/]|$)/u.test(id)
-    || /text2video|video-generation|video-synthesis/u.test(id)) {
+    || /text2video|video-generation|video-synthesis/u.test(id)
+    // HappyHorse 与「t2v / i2v / r2v / v2v」缩写：文生视频、图生视频、参考生视频、视频生视频。
+    || /(?:^|[-_/])(?:happyhorse|t2v|i2v|r2v|v2v|vid2vid)(?:[-_/]|$)/u.test(id)) {
     return "video";
   }
   if (/(?:^|[-_/])(?:tts|asr|audio|speech|voice|realtime|whisper|cosyvoice|sambert)(?:[-_/]|$)/u.test(id)

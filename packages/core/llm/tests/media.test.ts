@@ -10,7 +10,9 @@ import {
   buildImageRequestBody,
   buildReferenceImageContent,
   buildVideoTaskBody,
+  createMediaVideoTask,
   detectLanguageType,
+  generateConfiguredVideo,
   parseAudioResponse,
   resolveAudioEndpoint,
   selectAudioProfile,
@@ -161,6 +163,44 @@ test("视频端点与请求体：百炼异步视频接口、方舟任务、时�
     model: "m",
     content: [{ type: "text", text: "p" }],
   });
+  // HappyHorse 官方时长下限是 3 秒：默认 2 秒会被提到 3，显式 2 也一样。
+  const happy = buildVideoTaskBody(profile({ model: "happyhorse-1.1-r2v" }), { prompt: "p" });
+  assert.equal((happy.parameters as Record<string, unknown>).duration, 3);
+  const happyExplicit = buildVideoTaskBody(profile({ model: "happyhorse-1.1-t2v" }), { prompt: "p", duration: 2 });
+  assert.equal((happyExplicit.parameters as Record<string, unknown>).duration, 3);
+});
+
+test("火山 Agent Plan 拒绝视频模型时给出可执行的换用建议", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response(JSON.stringify({
+    error: { code: "UnsupportedModel", message: "The requested model does not support the agent plan feature." },
+  }), { status: 404, headers: { "content-type": "application/json" } })) as typeof fetch;
+  try {
+    await assert.rejects(
+      createMediaVideoTask(profile({
+        id: "ark",
+        baseUrl: "https://ark.cn-beijing.volces.com/api/plan/v3",
+        model: "doubao-seedance-2.0-mini",
+        apiKey: "ark-key",
+      }), { prompt: "雨窗少女", duration: 5 }),
+      /Agent Plan 套餐档位不支持该视频模型.*Large \/ Max.*标准方舟 API Key/u,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("视频接口网络失败时给出可读提示，不把 fetch failed 原样抛给用户", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => { throw new TypeError("fetch failed"); }) as typeof fetch;
+  try {
+    await assert.rejects(
+      createMediaVideoTask(profile({ id: "net", baseUrl: "https://example.com/v1", model: "wan3.0-video" }), { prompt: "雨窗少女", duration: 5 }),
+      /无法连接视频接口.*fetch failed/u,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("视频任务响应解析与档案选择", () => {
@@ -170,6 +210,120 @@ test("视频任务响应解析与档案选择", () => {
   const videoProfile = profile({ id: "vid", model: "chat", availableModels: [{ id: "wan3.0-video", supportsReasoning: false, reasoningMode: "none", reasoningLevels: [] }] });
   assert.deepEqual(selectVideoProfile([videoProfile], "vid", {}), { profile: videoProfile, modelId: "wan3.0-video" });
   assert.throws(() => selectVideoProfile([profile({ model: "chat" })], "chat", {}), /还没有配置视频生成模型/u);
+});
+
+test("媒体档案选择：套餐声明的 modelKind 优先于模型 ID 推断", () => {
+  // 千问 Token Plan 的 happyhorse 由套餐目录声明为视频生成模型，选中后必须直接可用于生成。
+  const tokenPlan = profile({
+    id: "qwen",
+    model: "happyhorse-1.1-r2v",
+    availableModels: [
+      { id: "happyhorse-1.1-r2v", modelKind: "video", supportsReasoning: false, reasoningMode: "none", reasoningLevels: [] },
+      { id: "qwen3.7-max", supportsReasoning: false, reasoningMode: "none", reasoningLevels: [] },
+    ],
+  });
+  assert.deepEqual(selectVideoProfile([tokenPlan], "qwen", { profileId: "qwen", modelId: "happyhorse-1.1-r2v" }), {
+    profile: tokenPlan,
+    modelId: "happyhorse-1.1-r2v",
+  });
+  // 历史档案没有同步用途时，模型 ID 家族仍能把 happyhorse 认成视频模型。
+  const legacy = profile({
+    id: "legacy",
+    model: "happyhorse-1.1-t2v",
+    availableModels: [{ id: "happyhorse-1.1-t2v", supportsReasoning: false, reasoningMode: "none", reasoningLevels: [] }],
+  });
+  assert.equal(selectVideoProfile([legacy], "legacy", {}).modelId, "happyhorse-1.1-t2v");
+
+  // 目录声明的非对话用途即使 ID 无法推断也应接受；声明为 chat 不能覆盖明确的视频 ID。
+  const declared = profile({
+    id: "vendor",
+    model: "custom-motion-1",
+    availableModels: [
+      { id: "custom-motion-1", modelKind: "video", supportsReasoning: false, reasoningMode: "none", reasoningLevels: [] },
+      { id: "wan3.0-video", modelKind: "chat", supportsReasoning: false, reasoningMode: "none", reasoningLevels: [] },
+    ],
+  });
+  assert.equal(selectVideoProfile([declared], "vendor", { profileId: "vendor", modelId: "custom-motion-1" }).modelId, "custom-motion-1");
+  assert.equal(selectVideoProfile([declared], "vendor", { profileId: "vendor", modelId: "wan3.0-video" }).modelId, "wan3.0-video");
+
+  // 生图选择同样采信目录声明。
+  const declaredImage = profile({
+    id: "img2",
+    model: "custom-picture-1",
+    availableModels: [{ id: "custom-picture-1", modelKind: "image", supportsReasoning: false, reasoningMode: "none", reasoningLevels: [] }],
+  });
+  assert.equal(selectImageProfile([declaredImage], "img2", { profileId: "img2", modelId: "custom-picture-1" }).modelId, "custom-picture-1");
+});
+
+test("视频选型：纯文字时参考/图生视频改用可用的文字视频模型，优先 Wan 3.0", () => {
+  const happy = profile({
+    id: "happy",
+    model: "happyhorse-1.1-r2v",
+    availableModels: [
+      { id: "happyhorse-1.1-r2v", modelKind: "video", supportsReasoning: false, reasoningMode: "none", reasoningLevels: [] },
+      { id: "happyhorse-1.1-i2v", modelKind: "video", supportsReasoning: false, reasoningMode: "none", reasoningLevels: [] },
+      { id: "happyhorse-1.1-t2v", modelKind: "video", supportsReasoning: false, reasoningMode: "none", reasoningLevels: [] },
+      { id: "wan3.0-video", modelKind: "video", supportsReasoning: false, reasoningMode: "none", reasoningLevels: [] },
+    ],
+  });
+  // r2v / i2v 需要 input.media；纯文字时优先用实测画质更好的 Wan 3.0。
+  assert.equal(selectVideoProfile([happy], "happy", { profileId: "happy", modelId: "happyhorse-1.1-r2v" }).modelId, "wan3.0-video");
+  assert.equal(selectVideoProfile([happy], "happy", { profileId: "happy", modelId: "happyhorse-1.1-i2v" }).modelId, "wan3.0-video");
+  // t2v 与普通视频模型保持原选择。
+  assert.equal(selectVideoProfile([happy], "happy", { profileId: "happy", modelId: "happyhorse-1.1-t2v" }).modelId, "happyhorse-1.1-t2v");
+  assert.equal(selectVideoProfile([happy], "happy", { profileId: "happy", modelId: "wan3.0-video" }).modelId, "wan3.0-video");
+  // 未显式指定模型、当前档案停在 r2v 时同样回退到 Wan 3.0。
+  assert.equal(selectVideoProfile([happy], "happy", { profileId: "happy" }).modelId, "wan3.0-video");
+
+  // 套餐里没有 Wan 3.0 时回到同家族 t2v。
+  const happyOnly = profile({
+    id: "happy-only",
+    model: "happyhorse-1.1-r2v",
+    availableModels: [
+      { id: "happyhorse-1.1-r2v", modelKind: "video", supportsReasoning: false, reasoningMode: "none", reasoningLevels: [] },
+      { id: "happyhorse-1.1-t2v", modelKind: "video", supportsReasoning: false, reasoningMode: "none", reasoningLevels: [] },
+    ],
+  });
+  assert.equal(selectVideoProfile([happyOnly], "happy-only", { profileId: "happy-only", modelId: "happyhorse-1.1-r2v" }).modelId, "happyhorse-1.1-t2v");
+
+  // 没有 t2v 兄弟模型时保留原选择，让厂商返回真实原因而不是静默换模型。
+  const onlyR2v = profile({
+    id: "only",
+    model: "happyhorse-1.1-r2v",
+    availableModels: [{ id: "happyhorse-1.1-r2v", modelKind: "video", supportsReasoning: false, reasoningMode: "none", reasoningLevels: [] }],
+  });
+  assert.equal(selectVideoProfile([onlyR2v], "only", { profileId: "only", modelId: "happyhorse-1.1-r2v" }).modelId, "happyhorse-1.1-r2v");
+});
+
+test("视频生成请求以选型结果为准，原 modelId 不会覆盖 t2v 回退", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestBody: Record<string, unknown> | undefined;
+  globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+    requestBody = typeof init?.body === "string" ? JSON.parse(init.body) as Record<string, unknown> : undefined;
+    return new Response(JSON.stringify({
+      output: { task_id: "t1", task_status: "SUCCEEDED", video_url: "https://example.com/v.mp4" },
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  }) as typeof fetch;
+  try {
+    const happy = profile({
+      id: "happy",
+      model: "happyhorse-1.1-r2v",
+      availableModels: [
+        { id: "happyhorse-1.1-r2v", modelKind: "video", supportsReasoning: false, reasoningMode: "none", reasoningLevels: [] },
+        { id: "happyhorse-1.1-t2v", modelKind: "video", supportsReasoning: false, reasoningMode: "none", reasoningLevels: [] },
+      ],
+    });
+    const result = await generateConfiguredVideo([happy], "happy", {
+      prompt: "纯文字视频",
+      profileId: "happy",
+      modelId: "happyhorse-1.1-r2v",
+    });
+    assert.equal(requestBody?.model, "happyhorse-1.1-t2v");
+    assert.equal(result.model, "happyhorse-1.1-t2v");
+    assert.equal(result.status, "SUCCEEDED");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("语音合成：端点、语言推断、请求体与响应解析", () => {

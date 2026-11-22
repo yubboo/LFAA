@@ -8,6 +8,8 @@ export type LlmApiProtocol =
   | "gemini-generate-content";
 export type ReasoningEffortLevel = "minimal" | "low" | "medium" | "high" | "max";
 export type ModelReasoningMode = "none" | "fixed" | "effort";
+/** 火山方舟 Agent Plan 套餐档位；Small / Medium 不含视频生成，Large / Max 才展示 Seedance。 */
+export type AgentPlanTier = "small" | "medium" | "large" | "max";
 
 /** 描述可选模型公开能力，包括固定思考或可调档位。 */
 /** 模型用途：对话、生图、生视频、语音（TTS/ASR/实时语音）。 */
@@ -35,6 +37,8 @@ export interface LlmProfile {
   model: string;
   apiKey: string;
   configured?: boolean;
+  /** 火山方舟 Agent Plan 套餐档位；决定是否展示视频生成模型。 */
+  agentPlanTier?: AgentPlanTier;
   availableModels?: ModelCapabilityInfo[];
   temperature?: number;
   maxTokens?: number;
@@ -61,6 +65,8 @@ export interface PublicLlmProfile {
   hasApiKey: boolean;
   apiKeyMasked: string;
   configured: boolean;
+  /** 火山方舟 Agent Plan 套餐档位；读取方据此只展示该档位拥有的模型。 */
+  agentPlanTier?: AgentPlanTier;
   availableModels: ModelCapabilityInfo[];
   temperature?: number;
   maxTokens?: number;
@@ -82,6 +88,7 @@ export interface SaveLlmProfileInput {
   model: string;
   apiKey?: string;
   configured?: boolean;
+  agentPlanTier?: AgentPlanTier;
   availableModels?: ModelCapabilityInfo[];
   temperature?: number;
   maxTokens?: number;

@@ -5,8 +5,8 @@ import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { type Context, Service } from "@deepseek-ai/cordis";
 import { callAnthropicMessagesApi } from "./adapters/anthropic-adapter";
-import { findArkChatModel, getArkPlanCatalog, getArkPlanKind } from "./ark-plan";
-import { knownMediaModels } from "./media/media-models";
+import { ARK_AGENT_VIDEO_MODELS, findArkChatModel, getArkPlanCatalog, getArkPlanKind } from "./ark-plan";
+import { knownMediaModels, listVideoProfileOptions } from "./media/media-models";
 import { fetchOfficialModels, normalizeModelCapability, resolveModelCapabilities, resolveModelKind } from "./capabilities";
 import { isTokenPlanBaseUrl, tokenPlanCatalogModels } from "./token-plan";
 import {
@@ -26,7 +26,7 @@ export type { MediaImageInput, MediaImageResult, MediaVideoInput, MediaVideoResu
 import { callGeminiGenerateContentApi } from "./adapters/gemini-adapter";
 import { callOpenAiCompatibleChat } from "./adapters/openai-adapter";
 import { asApiProtocol, resolveEffectiveProtocol } from "./protocol-utils";
-import { priceFields, sanitizeStoredConfig, withSelectedModel, type StoredLlmConfig } from "./config-sanitize";
+import { priceFields, sanitizeStoredConfig, withSelectedModel, asAgentPlanTier, type StoredLlmConfig } from "./config-sanitize";
 import { callOpenAiResponsesApi } from "./adapters/responses-adapter";
 import type {
   LlmAdapter,
@@ -89,7 +89,10 @@ export function toPublicProfile(profile: LlmProfile): PublicLlmProfile {
     ? [
       ...getArkPlanCatalog(plan).chatModels,
       ...catalogMedia,
-      ...synced.filter((model) => model.modelKind && model.modelKind !== "chat" && !findArkChatModel(model.id)),
+      // 视频模型只在 Large / Max 档位展示；Small / Medium 不把 Seedance 塞进可用清单。
+      ...(plan === "agent" && (profile.agentPlanTier === "large" || profile.agentPlanTier === "max")
+        ? ARK_AGENT_VIDEO_MODELS.map((id) => resolveModelCapabilities(id, profile.kind))
+        : []),
     ]
     // 千问 Token Plan 的 /models 不返回视频模型（如 happyhorse），按官方套餐清单补齐，已返回的以 API 为准。
     : (isTokenPlanBaseUrl(profile.baseUrl) ? tokenPlanCatalogModels(synced) : synced);
@@ -100,8 +103,11 @@ export function toPublicProfile(profile: LlmProfile): PublicLlmProfile {
     seenModels.add(model.id);
     return true;
   });
-  if (models.length > 0 && !models.some((model) => model.id === profile.model)) {
-    models.unshift((plan && findArkChatModel(profile.model)) || resolveModelCapabilities(profile.model, profile.kind));
+  const currentModel = (plan && findArkChatModel(profile.model)) || resolveModelCapabilities(profile.model, profile.kind);
+  const currentIsUnsupportedPlanVideo = plan === "agent" && currentModel.modelKind === "video"
+    && profile.agentPlanTier !== "large" && profile.agentPlanTier !== "max";
+  if (models.length > 0 && !models.some((model) => model.id === profile.model) && !currentIsUnsupportedPlanVideo) {
+    models.unshift(currentModel);
   }
   return {
     id: profile.id,
@@ -109,6 +115,7 @@ export function toPublicProfile(profile: LlmProfile): PublicLlmProfile {
     name: profile.name,
     kind: profile.kind,
     apiProtocol,
+    ...(profile.agentPlanTier ? { agentPlanTier: profile.agentPlanTier } : {}),
     baseUrl: profile.baseUrl,
     model: profile.model,
     hasApiKey,
@@ -179,16 +186,28 @@ export class LlmService extends Service {
     return { ...await generateMediaImage({ ...profile, model: modelId }, input), profileId: profile.id };
   }
 
-  /** 生成视频：创建异步任务并轮询，超时返回 taskId 供后续查询。 */
+  /** 生成视频：默认只用当前配置，绝不静默跨套餐；跨套餐必须由调用方显式传 profileId。 */
   async generateVideo(input: MediaVideoInput): Promise<MediaVideoResult> {
     const config = await this.readConfig();
-    return generateConfiguredVideo(config.profiles, config.activeProfileId, input);
+    const explicitProfileId = input.profileId?.trim();
+    const targetProfileId = explicitProfileId || config.activeProfileId;
+    try {
+      return await generateConfiguredVideo(config.profiles, config.activeProfileId, { ...input, profileId: targetProfileId });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      const options = listVideoProfileOptions(config.profiles).filter((option) => option.profileId !== targetProfileId);
+      // 没显式指定套餐时，把其他可选视频配置交给 Agent，让它先征询用户，而不是偷偷换厂商。
+      if (explicitProfileId || options.length === 0) throw error;
+      const available = options.map((option) => `「${option.profileName}」${option.models.join("、")}`).join("；");
+      throw new Error(`${detail}\n\n其他可用视频配置：${available}。请先向用户说明当前配置没有可用视频模型，并询问是否切换；用户同意后再调用 generate_video 并传 profileId。`);
+    }
   }
 
-  /** 查询视频任务：按 taskId 取当前状态与视频地址。 */
+  /** 查询视频任务：默认沿用当前配置；跨套餐任务需显式传 profileId。 */
   async getVideoTask(input: { taskId: string; profileId?: string; modelId?: string }): Promise<MediaVideoResult> {
     const config = await this.readConfig();
-    return getConfiguredVideoTask(config.profiles, config.activeProfileId, input);
+    const targetProfileId = input.profileId?.trim() || config.activeProfileId;
+    return getConfiguredVideoTask(config.profiles, config.activeProfileId, { ...input, profileId: targetProfileId });
   }
 
   /** 语音合成：按配置调用 TTS 模型，返回可下载的音频地址。 */
@@ -233,12 +252,18 @@ export class LlmService extends Service {
     const finalApiKey = input.apiKey !== undefined ? input.apiKey.trim() : (existing?.apiKey ?? "");
     const availableModels = input.availableModels ?? existing?.availableModels;
     const configured = input.configured ?? (finalApiKey.length > 0 || input.kind === "ollama");
+    // Agent Plan 档位决定是否展示 Seedance；未选择时按 Medium 处理，避免把 Large/Max 的视频模型给 Medium。
+    const isAgentPlan = providerId === "volcengine-agent-plan" || getArkPlanKind(baseUrl) === "agent";
+    const agentPlanTier = isAgentPlan
+      ? (asAgentPlanTier(input.agentPlanTier) ?? existing?.agentPlanTier ?? "medium")
+      : undefined;
     const nextProfile: LlmProfile = {
       id: existing?.id ?? input.id?.trim() ?? randomUUID(),
       ...(providerId ? { providerId } : {}),
       name,
       kind: input.kind,
       ...(apiProtocol ? { apiProtocol } : {}),
+      ...(agentPlanTier ? { agentPlanTier } : {}),
       baseUrl: baseUrl.replace(/\/+$/u, ""),
       model,
       apiKey: finalApiKey,

@@ -61,6 +61,7 @@ function renderForm(overrides: {
   officialModels: ModelCapabilityItem[];
   provider?: ModelProviderPreset;
   statusNotice?: { tone: "loading" | "success" | "error"; title?: string; message: string } | null;
+  arkPlan?: "agent" | "coding";
 }) {
   const provider = overrides.provider ?? (overrides.subscription ? planPreset : planBase);
   const noop = () => {};
@@ -71,7 +72,7 @@ function renderForm(overrides: {
       profile: undefined,
       subscription: overrides.subscription,
       isLocal: false,
-      arkPlan: undefined,
+      arkPlan: overrides.arkPlan,
       configBaseUrl: provider.protocolBaseUrls?.["openai-chat"] ?? provider.defaultBaseUrl,
       values: {
         name: "千问 Token Plan",
@@ -84,6 +85,7 @@ function renderForm(overrides: {
         inputPrice: "",
         outputPrice: "",
         cachedInputPrice: "",
+        agentPlanTier: "medium",
       },
       setters: {
         setName: noop,
@@ -95,6 +97,7 @@ function renderForm(overrides: {
         setInputPrice: noop,
         setOutputPrice: noop,
         setCachedInputPrice: noop,
+        setAgentPlanTier: noop,
       },
       officialModels: overrides.officialModels,
       fetchingModels: false,
@@ -131,4 +134,11 @@ test("普通接口仍按首屏截断，避免超长清单刷屏", () => {
   const html = renderForm({ subscription: false, officialModels: manyModels });
   assert.ok(html.includes("qwen4-max"));
   assert.ok(!html.includes("qwen-model-22"));
+});
+
+test("Agent Plan 表单提供套餐档位，并提示视频仅 Large / Max 可用", () => {
+  const html = renderForm({ subscription: true, officialModels: [], arkPlan: "agent" });
+  assert.match(html, /套餐档位/u);
+  assert.match(html, /value="medium"/u);
+  assert.match(html, /视频生成仅 Large \/ Max 套餐可用/u);
 });

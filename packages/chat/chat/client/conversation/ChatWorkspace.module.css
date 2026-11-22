@@ -315,6 +315,15 @@
   word-break: break-word;
 }
 
+/* 媒体生成中先展示导演返回的计划句，视频跑完前不让消息区只剩骨架。 */
+.mediaPlan {
+  margin: 0 0 0.45rem;
+  color: var(--color-ink);
+  font-size: 0.95em;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
 .assistantMeta {
   color: var(--color-muted);
   font-size: 0.78em;

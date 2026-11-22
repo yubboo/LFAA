@@ -44,6 +44,7 @@ export function ModelProviderModal({
   const [inputPrice, setInputPrice] = useState("");
   const [outputPrice, setOutputPrice] = useState("");
   const [cachedInputPrice, setCachedInputPrice] = useState("");
+  const [agentPlanTier, setAgentPlanTier] = useState<"small" | "medium" | "large" | "max">("medium");
   const [officialModels, setOfficialModels] = useState<ModelCapabilityItem[]>([]);
   const [fetchingModels, setFetchingModels] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -79,6 +80,7 @@ export function ModelProviderModal({
     setInputPrice(profile?.inputPricePerMillion ? String(profile.inputPricePerMillion) : "");
     setOutputPrice(profile?.outputPricePerMillion ? String(profile.outputPricePerMillion) : "");
     setCachedInputPrice(profile?.cachedInputPricePerMillion ? String(profile.cachedInputPricePerMillion) : "");
+    setAgentPlanTier(profile?.agentPlanTier ?? "medium");
     setStatusNotice(null);
     const isOllamaDefaultPlaceholder =
       (profile?.kind ?? provider.kind) === "ollama"
@@ -185,6 +187,7 @@ export function ModelProviderModal({
         cachedInputPricePerMillion: Number(cachedInputPrice) || 0,
         ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
         ...(officialModels.length > 0 ? { availableModels: officialModels } : {}),
+        ...(arkPlan === "agent" ? { agentPlanTier } : {}),
         activate,
       });
       setApiKey("");
@@ -244,6 +247,7 @@ export function ModelProviderModal({
         cachedInputPricePerMillion: Number(cachedInputPrice) || 0,
         ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
         ...(fetched.length > 0 ? { availableModels: fetched } : {}),
+        ...(arkPlan === "agent" ? { agentPlanTier } : {}),
       });
       const targetId = saved?.id ?? profile?.id;
       if (!targetId) {
@@ -324,8 +328,8 @@ export function ModelProviderModal({
         isLocal={isLocal}
         arkPlan={arkPlan}
         configBaseUrl={configBaseUrl}
-        values={{ name, kind, apiProtocol, baseUrl, model, apiKey, contextWindow, inputPrice, outputPrice, cachedInputPrice }}
-        setters={{ setName, setApiProtocol, setBaseUrl, setModel, setApiKey, setContextWindow, setInputPrice, setOutputPrice, setCachedInputPrice }}
+        values={{ name, kind, apiProtocol, baseUrl, model, apiKey, contextWindow, inputPrice, outputPrice, cachedInputPrice, agentPlanTier }}
+        setters={{ setName, setApiProtocol, setBaseUrl, setModel, setApiKey, setContextWindow, setInputPrice, setOutputPrice, setCachedInputPrice, setAgentPlanTier }}
         officialModels={officialModels}
         fetchingModels={fetchingModels}
         busy={busy}

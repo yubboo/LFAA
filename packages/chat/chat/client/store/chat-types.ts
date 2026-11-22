@@ -165,6 +165,8 @@ export interface PublicLlmProfileItem {
   hasApiKey: boolean;
   apiKeyMasked: string;
   configured: boolean;
+  /** 火山方舟 Agent Plan 档位；Small / Medium 不展示 Seedance 视频模型。 */
+  agentPlanTier?: "small" | "medium" | "large" | "max";
   availableModels: ModelCapabilityItem[];
   temperature?: number;
   maxTokens?: number;

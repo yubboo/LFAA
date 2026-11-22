@@ -3,7 +3,7 @@
 > 本文件由 `pnpm map:sync`（[scripts/gen-repository-map.mjs](../../scripts/gen-repository-map.mjs)）按真实文件系统生成，**不要手改**。
 > 骨架发生变化（新增/删除/移动文件、包或目录）后，必须在同一轮运行 `pnpm map:sync` 并提交，否则 `pnpm check` 会失败。
 
-当前快照：**48 个包、1556 个文件、255 个子目录**（不含 node_modules、构建产物与运行数据）。
+当前快照：**48 个包、1563 个文件、255 个子目录**（不含 node_modules、构建产物与运行数据）。
 
 ## 1. 快速索引
 
@@ -56,13 +56,13 @@ lfaa/
 │   └── web/  (10 个文件)
 │       ├── public/  (2 个文件)
 │       └── src/  (3 个文件)
-├── docs/  (343 个文件)
+├── docs/  (344 个文件)
 │   ├── architecture/  (33 个文件)
 │   ├── dev-log/  (4 个文件)
 │   ├── standards/  (1 个文件)
 │   ├── templates/  (2 个文件)
-│   └── updata-log/  (302 个文件)
-├── packages/  (1016 个文件)
+│   └── updata-log/  (303 个文件)
+├── packages/  (1022 个文件)
 │   ├── api/  (7 个文件)
 │   │   └── gateway/  # @lfaa/api-gateway  (7 个文件)
 │   │       ├── src/  (1 个文件)
@@ -75,8 +75,8 @@ lfaa/
 │   │   └── web/  # @lfaa/bundle-web  (8 个文件)
 │   │       ├── src/  (2 个文件)
 │   │       └── tests/  (1 个文件)
-│   ├── chat/  (278 个文件)
-│   │   ├── chat/  # @lfaa/chat  (235 个文件)
+│   ├── chat/  (279 个文件)
+│   │   ├── chat/  # @lfaa/chat  (236 个文件)
 │   │   │   ├── client/  (186 个文件)
 │   │   │   │   ├── composer/  (34 个文件)
 │   │   │   │   ├── conversation/  (37 个文件)
@@ -87,7 +87,7 @@ lfaa/
 │   │   │   │   ├── store/  (18 个文件)
 │   │   │   │   └── workbench/  (41 个文件)
 │   │   │   ├── src/  (4 个文件)
-│   │   │   └── tests/  (40 个文件)
+│   │   │   └── tests/  (41 个文件)
 │   │   ├── library/  # @lfaa/library  (20 个文件)
 │   │   │   ├── client/  (11 个文件)
 │   │   │   │   ├── settings/  (2 个文件)
@@ -104,7 +104,7 @@ lfaa/
 │   │   └── compaction/  # @lfaa/compaction  (12 个文件)
 │   │       ├── src/  (4 个文件)
 │   │       └── tests/  (3 个文件)
-│   ├── core/  (268 个文件)
+│   ├── core/  (270 个文件)
 │   │   ├── agent/  # @lfaa/agent  (67 个文件)
 │   │   │   ├── src/  (40 个文件)
 │   │   │   │   ├── context/  (4 个文件)
@@ -134,11 +134,11 @@ lfaa/
 │   │   ├── jobs/  # @lfaa/jobs  (10 个文件)
 │   │   │   ├── src/  (4 个文件)
 │   │   │   └── tests/  (1 个文件)
-│   │   ├── llm/  # @lfaa/llm  (31 个文件)
-│   │   │   ├── src/  (17 个文件)
+│   │   ├── llm/  # @lfaa/llm  (33 个文件)
+│   │   │   ├── src/  (18 个文件)
 │   │   │   │   ├── adapters/  (4 个文件)
-│   │   │   │   └── media/  (3 个文件)
-│   │   │   └── tests/  (8 个文件)
+│   │   │   │   └── media/  (4 个文件)
+│   │   │   └── tests/  (9 个文件)
 │   │   ├── memory/  # @lfaa/memory  (10 个文件)
 │   │   │   ├── src/  (4 个文件)
 │   │   │   └── tests/  (1 个文件)
@@ -214,11 +214,11 @@ lfaa/
 │   │   └── commands/  # @lfaa/commands  (7 个文件)
 │   │       ├── src/  (1 个文件)
 │   │       └── tests/  (1 个文件)
-│   ├── media/  (42 个文件)
-│   │   └── tool-media/  # @lfaa/tool-media  (42 个文件)
+│   ├── media/  (45 个文件)
+│   │   └── tool-media/  # @lfaa/tool-media  (45 个文件)
 │   │       ├── client/  (20 个文件)
-│   │       ├── src/  (5 个文件)
-│   │       └── tests/  (12 个文件)
+│   │       ├── src/  (6 个文件)
+│   │       └── tests/  (14 个文件)
 │   ├── plan/  (8 个文件)
 │   │   └── plan-mode/  # @lfaa/plan-mode  (8 个文件)
 │   │       ├── src/  (1 个文件)
@@ -810,6 +810,7 @@ lfaa/
 - `inline-comment.test.tsx` — 验证行内批注框的结构：行号提示、输入框、取消/添加按钮，以及空草稿时禁用提交。
 - `markdown-advice.test.ts` — 验证 Markdown 建议标题判定：命中建议/下一步类标题用强调样式，普通标题不受影响。
 - `markdown-image.test.tsx` — 验证 Markdown 图片语法接入聊天渲染：本机媒体走 LocalMediaImage（SSR 阶段显示加载占位），不再输出原始 ![] 文本。
+- `media-stream.test.ts` — 验证媒体生成流式解析：计划句先回调给占位，最终结果与错误事件都能正确处理。
 - `model-groups.test.ts` — 验证配置卡片的模型分类：按用途归组，顺序固定，未知用途按对话模型处理。
 - `model-provider-form.test.tsx` — 验证套餐配置表单也提供「获取官方模型」，并把拉取到的全部模型列出可选（普通接口保留首屏截断）。
 - `notifications.test.ts` — 验证通知策略：轮次完成档位与不支持 Notification API 时的安全回退。
@@ -1187,6 +1188,7 @@ lfaa/
 
 - `media-audio.ts` — 媒体生成 · 语音合成：Qwen-TTS / 方舟语音接口适配与模型选择。
 - `media-models.ts` — 厂商媒体模型候选与档案查找，供模型发布和生成适配器共用。
+- `media-video.ts` — 视频任务的请求体组装与响应解析（纯函数），供媒体生成适配器复用；端点解析仍留在 media.ts。
 - `media.ts` — 媒体生成（生图）适配：把套餐里的图像模型调用到厂商图片接口，统一返回 base64/URL 与错误信息。
 
 ### packages/core/llm/tests
@@ -1195,6 +1197,7 @@ lfaa/
 - `capabilities.test.ts` — 验证模型能力推断：套餐同步的 /models 列表缺少 effort 元数据时，按模型家族补出真实思考能力。
 - `context-window.test.ts` — 验证上下文窗口推断：模型名里的容量标记优先，家族兜底，无法确定时返回 undefined。
 - `llm-service.test.ts` — 验证 @lfaa/llm Cordis 服务注册、API Key 脱敏持久化、活跃模型切换及流式/非流式适配器调用。
+- `media-routing.test.ts` — 验证视频生成默认只使用当前配置，跨套餐必须由调用方显式指定，避免静默调用其他厂商。
 - `media-watermark.test.ts` — 验证方舟生图默认关闭厂商水印：未显式开启时不发送 watermark:true。
 - `media.test.ts` — 验证生图适配纯函数：端点与风格解析、尺寸归一化、请求体组装、响应解析与生图档案选择。
 - `text-repair.test.ts` — 验证乱码修复：UTF-8 文本被按 GBK 解码后保存的名称能还原，正常中英文名不被误改。
@@ -1648,11 +1651,13 @@ lfaa/
 - `media-direct.ts` — 媒体直连生成接口：选中生图/生视频/语音模型时，输入描述直接生成媒体并写入会话消息。
 - `media-http.ts` — 生成素材的 HTTP 接口：文件读取/删除、素材库列表与元数据 sidecar 读写。
 - `media-thumb.ts` — 媒体缩略图磁盘缓存：浏览器生成一次 WebP 后回传给 Host 落盘，之后任何客户端只读小图，不再反复读取整份原图。
+- `video-options.ts` — 视频直连参数解析：从用户描述里读出时长，并去掉“帮我生成一个…五秒视频”这类指令词，
 
 ### packages/media/tool-media/tests
 
 - `image-ratio.test.ts` — 验证生图比例识别与尺寸映射：明确比例优先、等值换算、未指定时用常用默认比例。
 - `library-store.test.ts` — 验证资料库共享状态：选中项去重通知与清空、素材列表读取去重、删除同步移除与失败状态。
+- `media-direct-video.test.ts` — 验证视频直连：时长解析、指令清理、导演扩写与 NDJSON 计划事件。
 - `media-generating-card.test.tsx` — 生成中占位卡片：骨架宽高跟随目标比例，文案与比例标签中英文正确。
 - `media-helpers.ts` — 媒体包测试共用的 HTTP 假请求/假响应与 1×1 PNG 常量，供工具测试与接口测试复用。
 - `media-http.test.ts` — 验证媒体文件接口与素材库接口：允许根校验（含 Windows 大小写）、越界拒绝、删除与 sidecar 清理。
@@ -1663,6 +1668,7 @@ lfaa/
 - `media-thumb-cache.test.ts` — 验证缩略图缓存键随文件变化失效，语音素材不发起任何网络请求。
 - `media-thumb.test.ts` — 验证宿主缩略图缓存：GET 未生成返回 204、POST 后可按宽度命中、越界拒绝与非法内容校验。
 - `tool-media.test.ts` — 验证媒体工具：generate_image 调用模型服务、落盘文件并返回路径；缺少提示词时给出可读错误。
+- `video-options.test.ts` — 验证视频直连参数解析：从描述读取时长，并清掉指令词与时长尾巴。
 
 ### packages/plan/plan-mode
 
@@ -2210,5 +2216,5 @@ lfaa/
 | 目录 | 文件数 | 子目录数 | 说明 |
 | --- | --- | --- | --- |
 | `docs/dev-log` | 4 | 1 | 按每 200 条任务编号汇总的开发日志卷 |
-| `docs/updata-log` | 302 | 1 | 面向用户的单条更新说明 |
+| `docs/updata-log` | 303 | 1 | 面向用户的单条更新说明 |
 | `vendor` | 14 | 4 | 内嵌的上游运行时源码 |

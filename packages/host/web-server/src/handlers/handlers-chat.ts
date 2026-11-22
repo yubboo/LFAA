@@ -231,6 +231,45 @@ export function createAgentHandlers(deps: AgentHandlerDeps): AgentHandlers {
     }
   };
 
+  // 视频提示词导演：视频模型只看提示词，必须把用户写的天气、动作、氛围展开成镜头语言，否则容易生成泛化画面。
+  const enhanceVideoPrompt: NonNullable<MediaGenerateOptions["enhanceVideoPrompt"]> = async (prompt, enhancement) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10_000);
+    try {
+      const profile = await context.llm.resolveProfile(enhancement.profileId);
+      const modelId = pickChatModelId(profile);
+      if (!modelId) return null;
+      const output = await context.llm.complete({
+        profileId: profile.id,
+        modelId,
+        signal: controller.signal,
+        messages: [
+          {
+            role: "system",
+            content: "你是专业短视频提示词导演。把用户的一句话需求改写成可直接用于文生视频模型的中文提示词。要求：1) 完整保留用户明确写出的主体、人数、服装、外貌、动作、场景、天气（例如“外面下雨”）、时间、光线、氛围与镜头要求，不得删改、替换或漏掉；用户没写的不要编造冲突内容；2) 把抽象氛围词翻译成可见细节，例如“忧郁”写成低饱和冷色调、阴天柔光、人物神情低落，“氛围感”写成玻璃雨痕、窗外雨幕、室内外冷暖对比、空气水汽；3) 补充景别与构图、镜头运动（缓慢推近 / 轻微横移 / 固定机位）、光线方向、色调、材质与连续动态（雨滴滑落、呼吸、眨眼、发丝和衣料轻动），让画面真的动起来；4) 使用中文，90-160 字，不要出现“帮我生成”“视频”“时长”等指令词；5) 只输出 JSON：{\"plan\":\"给用户看的一句画面说明（第一人称，不超过40字，只描述将生成的画面主体与氛围，不要提提示词、参数或扩写过程）\",\"prompt\":\"改写后的视频提示词\"}，不要输出任何解释或 Markdown。",
+          },
+          { role: "user", content: `用户需求：${prompt}\n时长：${enhancement.duration} 秒\n画幅：${enhancement.ratio}` },
+        ],
+        temperature: 0.6,
+        // 思考型对话模型会先花 token 推理再输出 JSON；预算太小会只留下 reasoning_content、正文为空。
+        maxTokens: 1500,
+        reasoningEffort: "low",
+      });
+      const text = (output as { content?: string }).content ?? "";
+      const start = text.indexOf("{");
+      const end = text.lastIndexOf("}");
+      if (start < 0 || end <= start) return null;
+      const parsed = JSON.parse(text.slice(start, end + 1)) as { plan?: unknown; prompt?: unknown };
+      const enhanced = typeof parsed.prompt === "string" ? parsed.prompt.trim() : "";
+      const plan = typeof parsed.plan === "string" ? parsed.plan.trim() : "";
+      return enhanced ? { prompt: enhanced, ...(plan ? { plan } : {}) } : null;
+    } catch {
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
   // 由同一会话与磁盘边界约束直接生成、以及 Agent 工具使用的参考图。
   const mediaGenerate = createMediaGenerateHttpHandler({
     executeTool: (name, args, toolContext) => context.tools.executeTool(name, args, {
@@ -251,6 +290,7 @@ export function createAgentHandlers(deps: AgentHandlerDeps): AgentHandlers {
     withIdleSession: (id, task) => context.agent.withIdleSession(id, task),
     resolveImageSource: resolveSessionImage,
     enhanceImagePrompt,
+    enhanceVideoPrompt,
     findLastMediaPath: (id, kind) => kind === "image" ? resolveSessionImage(id) : Promise.resolve(undefined),
     resolveWorkspaceRoots,
     resolveSessionWorkspaceRoots: async (sessionId) => (await resolveSessionWorkspace(sessionId)).roots,

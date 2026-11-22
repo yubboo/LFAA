@@ -5,7 +5,9 @@
 import { readFile } from "node:fs/promises";
 import { ARK_PLAN_BASE_URLS, getArkPlanKind } from "../ark-plan";
 import { selectVideoProfile } from "./media-models";
+import { buildVideoTaskBody, parseVideoTask, parseVideoTaskResult } from "./media-video";
 export { selectImageProfile, selectVideoProfile } from "./media-models";
+export { buildVideoTaskBody, parseVideoTask, parseVideoTaskResult } from "./media-video";
 import type { LlmProfile } from "../types";
 
 /** 一次生图的入参。 */
@@ -42,6 +44,9 @@ export interface MediaVideoInput {
 /** 生视频结果。 */
 export interface MediaVideoResult {
   model: string;
+  /** 实际使用的模型配置；跨套餐生成时用它向用户说明，避免误以为用了当前聊天套餐。 */
+  profileId?: string;
+  profileName?: string;
   taskId: string;
   status: "SUCCEEDED" | "PENDING" | "RUNNING" | "FAILED" | "CANCELED" | "UNKNOWN";
   videoUrl?: string;
@@ -295,84 +300,6 @@ export function resolveVideoEndpoint(baseUrl: string): { url: string; style: Vid
   return { url: `${parsed.origin}/api/v1/services/aigc/video-generation/video-synthesis`, style: "dashscope-video" };
 }
 
-/** 组装创建视频任务的请求体。 */
-export function buildVideoTaskBody(
-  profile: LlmProfile,
-  input: MediaVideoInput,
-  style: VideoEndpointStyle = "dashscope-video",
-): Record<string, unknown> {
-  const model = input.modelId?.trim() || profile.model;
-  const prompt = input.prompt.trim();
-  const duration = Math.max(2, Math.min(input.duration ?? 2, 15));
-  const negativePrompt = input.negativePrompt?.trim();
-  if (style === "ark-video") {
-    return {
-      model,
-      content: [{ type: "text", text: prompt }],
-      ...(typeof input.duration === "number" ? { duration: /seedance-(?:2\.[05])/u.test(model) ? Math.max(4, duration) : duration } : {}),
-      ...(input.ratio ? { ratio: input.ratio } : {}),
-      ...(input.resolution ? { resolution: input.resolution.toLowerCase() } : {}),
-      ...(typeof input.watermark === "boolean" ? { watermark: input.watermark } : {}),
-      ...(typeof input.seed === "number" ? { seed: Math.floor(input.seed) } : {}),
-    };
-  }
-  const parameters: Record<string, unknown> = {
-    resolution: (input.resolution ?? "720P").toUpperCase(),
-    ratio: input.ratio ?? "16:9",
-    duration,
-    prompt_extend: true,
-    watermark: input.watermark ?? false,
-  };
-  if (typeof input.seed === "number") parameters.seed = Math.floor(input.seed);
-  return {
-    model,
-    input: { prompt, ...(negativePrompt ? { negative_prompt: negativePrompt } : {}) },
-    parameters,
-  };
-}
-
-/** 解析创建任务响应中的 taskId 与状态。 */
-export function parseVideoTask(payload: unknown, style: VideoEndpointStyle = "dashscope-video"): { taskId: string; status: MediaVideoResult["status"] } {
-  const response = (payload ?? {}) as Record<string, unknown>;
-  if (style === "ark-video") {
-    return { taskId: typeof response.id === "string" ? response.id : "", status: "PENDING" };
-  }
-  const output = response.output as Record<string, unknown> | undefined;
-  const taskId = typeof output?.task_id === "string" ? output.task_id : "";
-  const raw = typeof output?.task_status === "string" ? output.task_status.toUpperCase() : "PENDING";
-  const status = (["SUCCEEDED", "PENDING", "RUNNING", "FAILED", "CANCELED", "UNKNOWN"].includes(raw) ? raw : "PENDING") as MediaVideoResult["status"];
-  return { taskId, status };
-}
-
-/** 解析轮询响应中的状态与视频地址。 */
-export function parseVideoTaskResult(payload: unknown, style: VideoEndpointStyle = "dashscope-video"): { status: MediaVideoResult["status"]; videoUrl?: string; message?: string } {
-  const response = (payload ?? {}) as Record<string, unknown>;
-  if (style === "ark-video") {
-    const raw = typeof response.status === "string" ? response.status.toLowerCase() : "";
-    const statuses: Record<string, MediaVideoResult["status"]> = {
-      queued: "PENDING", running: "RUNNING", succeeded: "SUCCEEDED", failed: "FAILED", expired: "FAILED", cancelled: "CANCELED", canceled: "CANCELED",
-    };
-    const content = response.content as Record<string, unknown> | undefined;
-    const error = response.error as Record<string, unknown> | undefined;
-    return {
-      status: Object.hasOwn(statuses, raw) ? statuses[raw]! : "UNKNOWN",
-      ...(typeof content?.video_url === "string" ? { videoUrl: content.video_url } : {}),
-      ...(typeof error?.message === "string" ? { message: error.message } : {}),
-    };
-  }
-  const output = response.output as Record<string, unknown> | undefined;
-  const raw = typeof output?.task_status === "string" ? output.task_status.toUpperCase() : "UNKNOWN";
-  const status = (["SUCCEEDED", "PENDING", "RUNNING", "FAILED", "CANCELED", "UNKNOWN"].includes(raw) ? raw : "UNKNOWN") as MediaVideoResult["status"];
-  const direct = typeof output?.video_url === "string" ? output.video_url : undefined;
-  const results = Array.isArray(output?.results) ? output.results as Array<Record<string, unknown>> : [];
-  const nested = results.find((item) => typeof item.video_url === "string")?.video_url;
-  return {
-    status,
-    ...(direct ? { videoUrl: direct } : nested ? { videoUrl: nested as string } : {}),
-    ...(typeof output?.message === "string" ? { message: output.message } : {}),
-  };
-}
-
 /** 创建视频任务（异步），返回 taskId。 */
 export async function createMediaVideoTask(profile: LlmProfile, input: MediaVideoInput): Promise<{ taskId: string; status: MediaVideoResult["status"]; style: VideoEndpointStyle }> {
   const prompt = input.prompt.trim();
@@ -385,13 +312,25 @@ export async function createMediaVideoTask(profile: LlmProfile, input: MediaVide
     Authorization: `Bearer ${apiKey}`,
     ...(endpoint.style === "dashscope-video" ? { "X-DashScope-Async": "enable" } : {}),
   };
-  const response = await fetch(endpoint.url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(buildVideoTaskBody(profile, input, endpoint.style)),
-  });
+  let response: Response;
+  try {
+    response = await fetch(endpoint.url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(buildVideoTaskBody(profile, input, endpoint.style)),
+    });
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(`视频任务请求失败：无法连接视频接口（${detail}）。请检查网络或代理后重试。`);
+  }
   const text = await response.text().catch(() => "");
-  if (!response.ok) throw new Error(`视频任务创建失败（${response.status}）：${text.slice(0, 300) || response.statusText}`);
+  if (!response.ok) {
+    // 方舟 Agent Plan 的视频模型只有 Large / Max 套餐可用；档位不够时给出可执行的升级建议。
+    if (endpoint.style === "ark-video" && getArkPlanKind(profile.baseUrl) === "agent" && /UnsupportedModel|does not support (?:the agent plan feature|content generation)/u.test(text)) {
+      throw new Error("当前火山方舟 Agent Plan 套餐档位不支持该视频模型：Small / Medium 套餐不含视频生成，需升级到 Large / Max，或改用标准方舟 API Key（/api/v3）后再生成。");
+    }
+    throw new Error(`视频任务创建失败（${response.status}）：${text.slice(0, 300) || response.statusText}`);
+  }
   let payload: unknown;
   try {
     payload = JSON.parse(text) as unknown;
@@ -458,7 +397,11 @@ export async function generateConfiguredVideo(
   input: MediaVideoInput,
 ): Promise<MediaVideoResult> {
   const { profile, modelId } = selectVideoProfile(profiles, activeProfileId, input);
-  return generateMediaVideo({ ...profile, model: modelId }, input);
+  // 选型可能把 r2v / i2v 换成 t2v：请求体的 model 必须以选型结果为准，
+  // 不能被调用方原来的 modelId 覆盖，否则回退失效、厂商仍收到缺参考素材的 r2v。
+  const result = await generateMediaVideo({ ...profile, model: modelId }, { ...input, modelId });
+  // 带上实际使用的配置，Agent 跨套餐生成时必须能向用户说明用的是哪一套。
+  return { ...result, profileId: profile.id, profileName: profile.name };
 }
 
 /** 按配置查询视频任务（供 Host 服务调用）。 */
@@ -471,6 +414,8 @@ export async function getConfiguredVideoTask(
   const snapshot = await getMediaVideoTask({ ...profile, model: modelId }, input.taskId);
   return {
     model: modelId,
+    profileId: profile.id,
+    profileName: profile.name,
     taskId: input.taskId,
     status: snapshot.status,
     ...(snapshot.videoUrl ? { videoUrl: snapshot.videoUrl } : {}),

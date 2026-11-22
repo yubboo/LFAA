@@ -32,8 +32,18 @@ test("方舟官方套餐模型按能力归类，公开档案包含语言模型�
     "doubao-seedream-5.0-flash",
     "doubao-seed-tts-2.0",
     "doubao-seed-asr-2.0",
-    "doubao-seedance-2.0-mini",
   ]);
+  // Medium / 未设置档位不展示 Seedance；Large / Max 才展示 5 个视频模型。
+  assert.equal(toPublicProfile(profile).availableModels.some(({ modelKind }) => modelKind === "video"), false);
+  const large = toPublicProfile({ ...profile, agentPlanTier: "large" });
+  assert.deepEqual(large.availableModels.filter(({ modelKind }) => modelKind === "video").map(({ id }) => id), [
+    "doubao-seedance-2.0",
+    "doubao-seedance-2.0-fast",
+    "doubao-seedance-2.0-mini",
+    "doubao-seedance-2.5",
+    "doubao-seedance-2.5-flash",
+  ]);
+  assert.equal(describeArkModelCapability("doubao-seedance-2.0-mini", true), "视频生成（Large/Max 套餐）");
   assert.equal(getArkPlanKind(`${ARK_PLAN_BASE_URLS.agent}/chat/completions/`), "agent");
   assert.equal(getArkPlanKind("https://ark.cn-beijing.volces.com/api/v3"), undefined);
   assert.equal(getArkPlanKind("https://example.test/api/plan/v3"), undefined);
@@ -41,14 +51,24 @@ test("方舟官方套餐模型按能力归类，公开档案包含语言模型�
   assert.equal(findArkChatModel("doubao-seed-2.0-mini")?.defaultReasoningLevel, "medium");
 });
 
-test("模型档案保留已选与已同步媒体的用途，供输入框走生成接口", () => {
+test("Agent Plan 按档位过滤视频模型，标准方舟档案保留已同步媒体的用途", () => {
   const ark = toPublicProfile({
     ...profile,
     model: "doubao-seedream-5.0-pro",
     availableModels: [{ id: "doubao-seedance-2.0", supportsReasoning: false, reasoningMode: "none", reasoningLevels: [] }],
   });
   assert.equal(ark.availableModels.find(({ id }) => id === ark.model)?.modelKind, "image");
-  assert.equal(ark.availableModels.find(({ id }) => id === "doubao-seedance-2.0")?.modelKind, "video");
+  // Medium 档位：历史同步进来的 Seedance 也不能出现在可用清单里。
+  assert.equal(ark.availableModels.some(({ id }) => id === "doubao-seedance-2.0"), false);
+
+  // 标准方舟 API（非套餐）继续保留已同步的视频模型。
+  const standard = toPublicProfile({
+    ...profile,
+    baseUrl: "https://ark.cn-beijing.volces.com/api/v3",
+    model: "doubao-seedance-2.0",
+    availableModels: [{ id: "doubao-seedance-2.0", supportsReasoning: false, reasoningMode: "none", reasoningLevels: [] }],
+  });
+  assert.equal(standard.availableModels.find(({ id }) => id === "doubao-seedance-2.0")?.modelKind, "video");
 
   const tokenPlan = toPublicProfile({
     ...profile,
@@ -108,8 +128,10 @@ test("方舟套餐支持 Anthropic 协议识别，本地 Ollama 拉取失败给�
     apiProtocol: "anthropic-messages",
     baseUrl: ARK_PLAN_ANTHROPIC_BASE_URLS.agent,
   });
-  // 官方目录补齐视觉与语音模型：3 个生图、2 个语音，加上已同步的视频模型。
-  assert.deepEqual(antPublic.availableModels.filter(({ modelKind }) => modelKind).map(({ modelKind }) => modelKind), ["image", "image", "image", "audio", "audio", "video"]);
+  // 官方目录补齐视觉与语音模型：3 个生图、2 个语音；未设置档位时不展示 Seedance。
+  assert.deepEqual(antPublic.availableModels.filter(({ modelKind }) => modelKind).map(({ modelKind }) => modelKind),
+    ["image", "image", "image", "audio", "audio"]);
+  assert.equal(describeArkModelCapability("doubao-seedance-2.0-mini", true), "视频生成（Large/Max 套餐）");
 
   t.mock.method(globalThis, "fetch", async () => {
     throw new TypeError("fetch failed");

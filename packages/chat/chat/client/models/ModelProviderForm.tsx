@@ -35,6 +35,7 @@ export interface ModelProviderFormValues {
   inputPrice: string;
   outputPrice: string;
   cachedInputPrice: string;
+  agentPlanTier: "small" | "medium" | "large" | "max";
 }
 
 /** 表单字段写回函数，直接复用弹窗容器的 useState setter。 */
@@ -48,6 +49,7 @@ export interface ModelProviderFormSetters {
   setInputPrice: Dispatch<SetStateAction<string>>;
   setOutputPrice: Dispatch<SetStateAction<string>>;
   setCachedInputPrice: Dispatch<SetStateAction<string>>;
+  setAgentPlanTier: Dispatch<SetStateAction<"small" | "medium" | "large" | "max">>;
 }
 
 // 只为明确支持思考的模型生成档位标签，能力未知时留空。
@@ -100,8 +102,8 @@ export function ModelProviderForm({
   focusFormOnOpen: boolean;
   onFetchModels: () => void;
 }) {
-  const { name, kind, apiProtocol, baseUrl, model, apiKey, contextWindow, inputPrice, outputPrice, cachedInputPrice } = values;
-  const { setName, setApiProtocol, setBaseUrl, setModel, setApiKey, setContextWindow, setInputPrice, setOutputPrice, setCachedInputPrice } = setters;
+  const { name, kind, apiProtocol, baseUrl, model, apiKey, contextWindow, inputPrice, outputPrice, cachedInputPrice, agentPlanTier } = values;
+  const { setName, setApiProtocol, setBaseUrl, setModel, setApiKey, setContextWindow, setInputPrice, setOutputPrice, setCachedInputPrice, setAgentPlanTier } = setters;
   // 套餐列出拉取到的全部模型，普通接口沿用首屏截断避免刷屏。
   const visibleOfficialModels = (subscription ? officialModels : officialModels.slice(0, 18))
     .filter((item, index, list) => list.findIndex((other) => other.id === item.id) === index);
@@ -204,6 +206,25 @@ export function ModelProviderForm({
         {isErrorTone && statusNotice?.message && (
           <span className={styles.errorHint} role="alert">{statusNotice.message}</span>
         )}
+        {/* 方舟 Agent Plan 档位决定可用模型：Small / Medium 不含 Seedance 视频，只有 Large / Max 展示。 */}
+        {arkPlan === "agent" ? (
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>{isZh ? "套餐档位" : "Plan Tier"}</span>
+            <select
+              className={styles.input}
+              value={agentPlanTier}
+              onChange={(e) => setAgentPlanTier(e.target.value as "small" | "medium" | "large" | "max")}
+            >
+              <option value="small">Small</option>
+              <option value="medium">Medium</option>
+              <option value="large">Large</option>
+              <option value="max">Max</option>
+            </select>
+            <span className={styles.fieldHint}>
+              {isZh ? "视频生成仅 Large / Max 套餐可用；模型列表只展示所选档位拥有的模型。" : "Video generation requires Large or Max; the model list only shows models included in the selected tier."}
+            </span>
+          </label>
+        ) : null}
         {/* 方舟套餐展示公开目录；其他套餐展示拉取到的真实模型清单，未拉取时提示先同步。 */}
         {arkPlan ? (
           <ArkModels

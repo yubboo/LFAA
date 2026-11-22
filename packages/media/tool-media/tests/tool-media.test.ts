@@ -29,7 +29,7 @@ class FakeLlm extends Service {
   }
   async generateVideo(input: MediaVideoInput): Promise<MediaVideoResult> {
     this.videoCalls.push(input);
-    return { model: "wan3.0-video", taskId: "task-1", status: "SUCCEEDED", videoUrl: "https://example.com/v.mp4", elapsedMs: 5 };
+    return { model: "wan3.0-video", profileId: "qwen", profileName: "千问 Token Plan", taskId: "task-1", status: "SUCCEEDED", videoUrl: "https://example.com/v.mp4", elapsedMs: 5 };
   }
   async getVideoTask(input: { taskId: string }): Promise<MediaVideoResult> {
     return { model: "wan3.0-video", taskId: input.taskId, status: "SUCCEEDED", videoUrl: "https://example.com/v.mp4", elapsedMs: 0 };
@@ -163,7 +163,8 @@ test("generate_video 与 get_video：提交任务、下载视频并落盘到工�
     assert.equal(files.length, 1);
     assert.match(files[0]!, /\.lfaa-media[\\/]videos[\\/].+\.mp4$/u);
     assert.ok((await readFile(files[0]!)).length > 0);
-    assert.match(generated.output, /^已用 .+ 生成视频（耗时 \d+ 秒）。\n\n!\[[^\]]+\]\(\/api\/media\/file\?path=/u);
+    assert.match(generated.output, /^已用 千问 Token Plan · wan3\.0-video 生成视频（耗时 \d+ 秒）。\n\n!\[[^\]]+\]\(\/api\/media\/file\?path=/u);
+    assert.equal(generated.metadata?.profileId, "qwen");
     assert.doesNotMatch(generated.output, /本地文件：/u);
     assert.equal((ctx.get("llm") as unknown as FakeLlm).videoCalls.length, 1);
 

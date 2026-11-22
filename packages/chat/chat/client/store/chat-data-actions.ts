@@ -129,6 +129,7 @@ export class ChatDataActions {
     model: string;
     apiKey?: string;
     availableModels?: ModelCapabilityItem[];
+    agentPlanTier?: "small" | "medium" | "large" | "max";
     contextWindowTokens?: number;
     inputPricePerMillion?: number;
     outputPricePerMillion?: number;

@@ -16,9 +16,19 @@ const ARK_ROUTER: ArkText = { zh: "方舟路由", en: "Ark router" };
 const TEXT_REASONING: ArkText = { zh: "文本生成、推理", en: "Text & reasoning" };
 const EMBEDDING: ArkText = { zh: "向量化（文本/图像）", en: "Embeddings (text/image)" };
 const IMAGE: ArkText = { zh: "图片生成", en: "Image generation" };
-const VIDEO: ArkText = { zh: "视频生成", en: "Video generation" };
+// 官方套餐文档：Small / Medium 不含视频生成，只有 Large / Max 支持，文案必须带档位。
+const VIDEO_LARGE: ArkText = { zh: "视频生成（Large/Max 套餐）", en: "Video generation (Large/Max plans)" };
 const TTS: ArkText = { zh: "语音合成", en: "Speech synthesis" };
 const ASR: ArkText = { zh: "语音识别", en: "Speech recognition" };
+
+/** Agent Plan 的视频生成模型；只有 Large / Max 套餐可用，Small / Medium 会返回 UnsupportedModel。 */
+export const ARK_AGENT_VIDEO_MODELS: readonly string[] = [
+  "doubao-seedance-2.0",
+  "doubao-seedance-2.0-fast",
+  "doubao-seedance-2.0-mini",
+  "doubao-seedance-2.5",
+  "doubao-seedance-2.5-flash",
+];
 
 /** 方舟套餐模型的品牌与能力说明：按 ID 精确登记，未登记的按前缀推断品牌。 */
 const ARK_MODEL_META: Record<string, { brand: ArkText; capability?: ArkText }> = {
@@ -40,7 +50,11 @@ const ARK_MODEL_META: Record<string, { brand: ArkText; capability?: ArkText }> =
   "doubao-seedream-5-0-pro": { brand: DOUBAO, capability: IMAGE },
   "doubao-seedream-5.5": { brand: DOUBAO, capability: IMAGE },
   "doubao-seedream-5.0-flash": { brand: DOUBAO, capability: IMAGE },
-  "doubao-seedance-2.0-mini": { brand: DOUBAO, capability: VIDEO },
+  "doubao-seedance-2.0": { brand: DOUBAO, capability: VIDEO_LARGE },
+  "doubao-seedance-2.0-fast": { brand: DOUBAO, capability: VIDEO_LARGE },
+  "doubao-seedance-2.0-mini": { brand: DOUBAO, capability: VIDEO_LARGE },
+  "doubao-seedance-2.5": { brand: DOUBAO, capability: VIDEO_LARGE },
+  "doubao-seedance-2.5-flash": { brand: DOUBAO, capability: VIDEO_LARGE },
   "doubao-seed-tts-2.0": { brand: DOUBAO, capability: TTS },
   "doubao-seed-asr-2.0": { brand: DOUBAO, capability: ASR },
 };

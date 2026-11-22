@@ -167,11 +167,14 @@ export function ChatMessageList({
         return (
           <article key={msg.id} id={`chat-message-${msg.id}`} className={styles.assistantRow}>
             {msg.mediaGenerating ? (
-              <MediaGeneratingCard
-                kind={msg.mediaGenerating.kind}
-                ratio={msg.mediaGenerating.ratio}
-                isZh={locale.isZh}
-              />
+              <>
+                {msg.content.trim() ? <p className={styles.mediaPlan}>{msg.content}</p> : null}
+                <MediaGeneratingCard
+                  kind={msg.mediaGenerating.kind}
+                  ratio={msg.mediaGenerating.ratio}
+                  isZh={locale.isZh}
+                />
+              </>
             ) : (
               <MediaResultContext.Provider value={activeSessionId && msg.status !== "streaming"
                 ? { ...mediaActions, sessionId: activeSessionId, messageId: msg.id, isZh: locale.isZh, brandWatermark } : null}>

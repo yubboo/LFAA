@@ -3,6 +3,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
 import { resolveImagePlan } from "./image-ratio";
 import { readImageRecipe } from "./media-http";
+import { cleanVideoPrompt, resolveVideoDuration } from "./video-options";
 
 /** 客户端引用的是某条消息中的产物，由宿主确认来源后提供路径。 */
 export interface MediaSource { messageId: string; path: string }
@@ -31,6 +32,11 @@ export interface MediaGenerateOptions {
    * 返回改写结果与给用户看的计划句；失败返回 null 时按原文生成。
    */
   enhanceImagePrompt?: (prompt: string, options: { profileId?: string; ratio: string; style?: string }) => Promise<{ prompt: string; plan?: string } | null>;
+  /**
+   * 视频提示词导演：把用户描述扩写成带天气、光线、镜头运动与连续动作的视频提示词，
+   * 返回改写结果与给用户看的计划句；失败返回 null 时按清理后的原文生成。
+   */
+  enhanceVideoPrompt?: (prompt: string, options: { profileId?: string; duration: number; ratio: string }) => Promise<{ prompt: string; plan?: string } | null>;
   withIdleSession?: <T>(sessionId: string, task: () => Promise<T>) => Promise<T>;
   /** 追加一条会话消息（用户或助手）。 */
   appendMessage: (
@@ -190,6 +196,18 @@ export function createMediaGenerateHttpHandler(options: MediaGenerateOptions) {
       return true;
     }
     const kind = kindRaw as MediaKind;
+    // 客户端接受 NDJSON 时边生成边推送计划与结果；旧客户端仍拿到一次性 JSON。
+    const wantsStream = /application\/x-ndjson/iu.test(req.headers?.accept ?? "");
+    const emit = (event: Record<string, unknown>): void => {
+      if (wantsStream) res.write(`${JSON.stringify(event)}\n`);
+    };
+    if (wantsStream) {
+      res.statusCode = 200;
+      res.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
+      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("X-Accel-Buffering", "no");
+      res.flushHeaders?.();
+    }
     const generate = async () => {
       if (source) {
         const file = await options.resolveImageSource?.(sessionId, source);
@@ -222,6 +240,14 @@ export function createMediaGenerateHttpHandler(options: MediaGenerateOptions) {
       const now = Date.now();
       // 画幅以用户描述与输入栏选择为准；扩写后仍把比例显式传给工具，避免改写丢掉比例。
       const imagePlan = kind === "image" ? resolveImagePlan(prompt, typeof body.ratio === "string" ? body.ratio : undefined) : null;
+      // 视频时长优先取用户明确写的“五秒 / 5s”，其次请求体，最后默认 2 秒（HappyHorse 会抬到 3 秒）。
+      const videoPlan = kind === "video"
+        ? {
+            duration: typeof body.duration === "number" ? body.duration : resolveVideoDuration(prompt) ?? 2,
+            ratio: typeof body.ratio === "string" && body.ratio.trim() ? body.ratio.trim() : "16:9",
+          }
+        : null;
+      if (videoPlan) body = { ...body, duration: videoPlan.duration, ratio: videoPlan.ratio };
       let toolPrompt = prompt;
       let planLine = "";
       if (kind === "image" && !source && imagePlan) {
@@ -235,6 +261,23 @@ export function createMediaGenerateHttpHandler(options: MediaGenerateOptions) {
           planLine = enhanced.plan?.trim() ?? "";
         }
       }
+      if (kind === "video" && videoPlan) {
+        // 先去掉“帮我生成一个…五秒视频”这类指令，再交给提示词导演展开天气、光线、镜头与动作。
+        const cleaned = cleanVideoPrompt(prompt);
+        const enhanced = await options.enhanceVideoPrompt?.(cleaned, {
+          ...(typeof body.profileId === "string" && body.profileId.trim() ? { profileId: body.profileId.trim() } : {}),
+          duration: videoPlan.duration,
+          ratio: videoPlan.ratio,
+        }).catch(() => null);
+        if (enhanced?.prompt.trim()) {
+          toolPrompt = enhanced.prompt.trim();
+          planLine = enhanced.plan?.trim() ?? "";
+        } else {
+          toolPrompt = cleaned;
+        }
+      }
+      // 计划句尽早推送：客户端在视频模型跑着的 60–90 秒里就能看到“我会生成…”。
+      if (planLine) emit({ type: "plan", kind, plan: planLine });
       const userMessageId = randomUUID();
       const assistantMessageId = randomUUID();
       const projectId = await options.getSessionProjectId(sessionId);
@@ -281,9 +324,21 @@ export function createMediaGenerateHttpHandler(options: MediaGenerateOptions) {
       };
     };
     try {
-      send(200, await (options.withIdleSession ? options.withIdleSession(sessionId, generate) : generate()));
+      const payload = await (options.withIdleSession ? options.withIdleSession(sessionId, generate) : generate());
+      if (wantsStream) {
+        emit({ type: "done", ...payload });
+        res.end();
+      } else {
+        send(200, payload);
+      }
     } catch (error) {
-      send(400, { error: error instanceof Error ? error.message : String(error) });
+      const message = error instanceof Error ? error.message : String(error);
+      if (wantsStream) {
+        emit({ type: "error", error: message });
+        res.end();
+      } else {
+        send(400, { error: message });
+      }
     }
     return true;
   };
