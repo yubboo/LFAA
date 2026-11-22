@@ -28,4 +28,4 @@
 - `@lfaa/sections`（`packages/workspace/sections`）：用户自定义分区 Host 服务（`~/.lfaa/sections.json`）及新建/重命名/删除 UI 插件。
 - `@lfaa/workspace`（`packages/workspace/workspace`）：本地项目 CRUD（`~/.lfaa/projects.json`，重名拦截）、多源目录检视、项目悬停信息卡与操作菜单、`system-paths` 原生系统调用。
 
-“最近”分组严格预留给聊天会话；因聊天、Agent 与远端连接服务尚未接入，相关入口如实提示未接入，不展示伪造的账户额度、插件目录、会话记录或远端数据。
+“最近”分组严格预留给聊天会话。聊天、Agent、资料库、代码审查、内置浏览器与插件管理都已接入真实服务；**远端账号与云同步尚未接入**，相关入口如实提示未接入，不展示伪造的账户额度、插件目录、会话记录或远端数据。
