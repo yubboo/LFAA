@@ -1,6 +1,6 @@
 // 输入框上方的任务卡：渲染当前清单、递增步骤序号、各状态数量与折叠；没有清单时不占位。
 import { useState } from "react";
-import { IconChevronDown, IconChevronUp, IconListCheck } from "@tabler/icons-react";
+import { IconChevronDown, IconChevronUp, IconListCheck, IconPlayerPause } from "@tabler/icons-react";
 import { countSessionTodos, type SessionTodo, type SessionTodoCounts } from "./session-todos";
 import styles from "./TodoDock.module.css";
 
@@ -19,8 +19,18 @@ function progressText(counts: SessionTodoCounts, isZh: boolean, paused: boolean)
   return parts.join(" · ");
 }
 
+/** 单条任务的读屏状态文案；暂停态把「进行中」改成「已暂停」，与顶部摘要保持一致。 */
+function statusLabel(status: SessionTodo["status"], isZh: boolean, paused: boolean): string {
+  if (status === "completed") return isZh ? "已完成" : "done";
+  if (status === "in_progress") {
+    if (paused) return isZh ? "已暂停" : "paused";
+    return isZh ? "进行中" : "active";
+  }
+  return isZh ? "待处理" : "pending";
+}
+
 /** 任务卡：默认展开，可折叠；条目按「1. 2. 3.」递增序号排列并带状态点，超过上限时可展开全部。 */
-export function TodoDock({ todos, isZh, defaultCollapsed = false, onToggle }: {
+export function TodoDock({ todos, isZh, defaultCollapsed = false, paused = false }: {
   todos: readonly SessionTodo[];
   isZh: boolean;
   /** 轨迹视图等空间紧张处默认收起，只留摘要行。 */
@@ -56,27 +66,23 @@ export function TodoDock({ todos, isZh, defaultCollapsed = false, onToggle }: {
         <ol className={styles.list}>
           {visible.map((item, index) => {
             const step = index + 1;
+            // 状态点只靠颜色区分不够：进行中换成旋转环，暂停态换成静态暂停图标，其余保持圆点。
+            const marker = item.status === "in_progress"
+              ? (paused
+                ? <IconPlayerPause size={11} className={styles.pauseIcon} aria-hidden="true" />
+                : <span className={styles.spinner} aria-hidden="true" />)
+              : <span className={styles.dot} data-status={item.status} aria-hidden="true" />;
             const body = (
               <>
-                <span className={styles.dot} data-status={item.status} aria-hidden="true" />
+                <span className={styles.marker}>{marker}</span>
                 <span className={styles.index} data-status={item.status} data-step={step} aria-hidden="true">{step}.</span>
                 <span className={styles.content}>{item.content}</span>
+                <span className={styles.srOnly}>{statusLabel(item.status, isZh, paused)}</span>
               </>
             );
             return (
               <li key={`${item.id}-${index}`} className={styles.item} data-status={item.status}>
-                {onToggle ? (
-                  <button
-                    type="button"
-                    className={styles.toggle}
-                    role="checkbox"
-                    aria-checked={item.status === "completed"}
-                    aria-label={isZh ? `切换「${item.content}」的完成状态` : `Toggle “${item.content}”`}
-                    onClick={() => onToggle(item)}
-                  >
-                    {body}
-                  </button>
-                ) : body}
+                {body}
               </li>
             );
           })}

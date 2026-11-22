@@ -1,5 +1,5 @@
 // 会话动作：新建草稿、打开/删除/分叉/导出会话、改绑项目、会话元信息与默认模式。
-import type { ChatSearchResult, ChatSessionDetail, ChatSessionItem, ChatSessionWorktree } from "./chat-types";
+import type { ChatGoalItem, ChatSearchResult, ChatSessionDetail, ChatSessionItem, ChatSessionWorktree } from "./chat-types";
 import { fetchJson } from "./chat-http";
 import { writeStoredSessionId } from "./chat-preferences";
 import type { ChatSessionMetaPatch, ChatStorePort } from "./chat-store-port";

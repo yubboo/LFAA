@@ -1,6 +1,6 @@
 // 为本机 Web 服务提供 /api/chat/* 聊天会话 CRUD 与项目聊天数统计接口。
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { normalizeTodoList, type SessionWorktree } from "@lfaa/memory";
+import type { SessionWorktree } from "@lfaa/memory";
 import type { ChatService } from "./index";
 
 function sendJson(res: ServerResponse, statusCode: number, payload: unknown): void {

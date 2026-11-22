@@ -13,7 +13,7 @@ import { ChatComposer } from "../composer/ChatComposer";
 import { ChatDeleteDialog } from "./ChatDeleteDialog";
 import { ChatMessageList } from "./ChatMessageList";
 import { ConversationTrace } from "./Conversation-Trace";
-import { TodoDock } from "../session/TodoDock";
+import { SessionBars } from "../session/SessionBars";
 import { latestSessionTodos } from "../session/session-todos";
 import { useChatComposer } from "../composer/useChatComposer";
 import styles from "./ChatWorkspace.module.css";
@@ -331,21 +331,15 @@ export function ChatWorkspace({
             )}
           </div>
         )}
-        {/* 轨迹视图自带任务卡；对话视图只在还有未完成任务时显示，默认收起为一行摘要，全部完成后不再占位。外层与输入框共用同一列宽。 */}
-        {view === "chat" && sessionTodos && hasOpenSessionTodos(sessionTodos) && (
-          <div className={styles.composerStack}>
-            <TodoDock todos={sessionTodos} isZh={locale.isZh} defaultCollapsed paused={paused} />
-          </div>
-        )}
-        {state.activeGoal && state.activeGoal.status !== "complete" && (
-          <div className={styles.composerStack}>
-            <GoalBar
-              goal={state.activeGoal}
-              isZh={locale.isZh}
-              onEdit={(objective) => store.editGoal(objective)}
-            />
-          </div>
-        )}
+        <SessionBars
+          view={view}
+          todos={sessionTodos}
+          paused={paused}
+          goal={state.activeGoal}
+          isZh={locale.isZh}
+          className={styles.composerStack}
+          onEditGoal={(objective) => store.editGoal(objective)}
+        />
         <ChatComposer
           locale={locale}
           store={store}

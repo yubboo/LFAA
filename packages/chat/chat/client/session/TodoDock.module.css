@@ -94,13 +94,18 @@
   color: var(--color-accent);
 }
 
-/* 进行中：强调色旋转环，和静态圆点共用同一个 15px 标记列。 */
+/* 进行中：强调色旋转环，和静态圆点共用同一个 15px 标记列。
+   环色跟随文字色（color 提供），保证与进行中正文同色。 */
 .spinner {
   width: 10px;
   height: 10px;
   background: transparent;
-  border: 1.5px solid var(--color-accent);
+  color: var(--color-accent);
+  border-width: 1.5px;
+  border-style: solid;
+  border-color: currentColor;
   border-top-color: transparent;
+  border-radius: 50%;
   animation: todoSpin 0.9s linear infinite;
 }
 

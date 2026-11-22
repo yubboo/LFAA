@@ -21,7 +21,7 @@ import { ComposerScopeBar } from "./ComposerScopeBar";
 import { ComposerTriggers } from "./ComposerTriggers";
 import { ModelReasoningPicker } from "../models/ModelReasoningPicker";
 import { PermissionModePicker } from "./PermissionModePicker";
-import { SessionStatsBar } from "../session/SessionStatsBar";
+import { ComposerStats } from "./ComposerStats";
 import styles from "../conversation/ChatWorkspace.module.css";
 import composerStyles from "../conversation/ChatWorkspace.composer.module.css";
 import type { WorkbenchProjectItem } from "@lfaa/ui-layout";

@@ -1,7 +1,7 @@
 // 验证从会话步骤里取任务清单：取最近一次、跨消息回退、状态统计。
 import assert from "node:assert/strict";
 import test from "node:test";
-import { countSessionTodos, latestSessionTodos } from "../client/session/session-todos";
+import { countSessionTodos, hasOpenSessionTodos, latestSessionTodos } from "../client/session/session-todos";
 import type { ChatMessageItem } from "../client/store/chat-types";
 
 function message(id: string, todos: Array<{ id: string; content: string; status: "pending" | "in_progress" | "completed" }> | undefined): ChatMessageItem {

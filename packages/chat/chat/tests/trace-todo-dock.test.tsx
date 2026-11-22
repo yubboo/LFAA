@@ -62,7 +62,7 @@ function render(list: ChatMessageItem[]) {
 test("有清单时轨迹视图顶部也显示任务卡，且默认收起", () => {
   const html = render(messages(true));
   assert.match(html, /data-testid="todo-dock"/u);
-  assert.match(html, /进行中 1/u);
+  assert.match(html, /1 进行中/u);
   assert.match(html, /aria-expanded="false"/u);
   assert.doesNotMatch(html, /读源码/u);
 });
