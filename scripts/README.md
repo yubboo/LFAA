@@ -2,7 +2,7 @@
 
 此目录只放仓库级维护与启动辅助脚本。
 
-- `lfaa.ps1`：Windows 菜单，供根目录 `lfaa.bat` 调用；选择 `0` 退出菜单时会保留当前终端窗口（双击独立启动时停留在工作区命令行，已有终端内启动则返回原提示符）。推送（`4`/`5`）前显示「当前 HEAD」并列出待推送提交；本地已与 `origin/main` 同步时直接提示，不做空推送。远程地址固定为小写 `https://github.com/yubboo/lfaa.git`（GitHub 已把仓库名改为小写），运行时会把 `origin` 同步改写成该地址。
+- `lfaa.ps1`：Windows 菜单，供根目录 `lfaa.bat` 调用；选择 `0` 退出菜单时会保留当前终端窗口（双击独立启动时停留在工作区命令行，已有终端内启动则返回原提示符）。推送（`4`/`5`）前显示「当前 HEAD」并列出待推送提交；本地已与 `origin/main` 同步时直接提示，不做空推送。远程地址固定为 GitHub 的规范名 `https://github.com/yubboo/LFAA.git`（仓库名大写），运行时会把 `origin` 同步改写成该地址，避免每次推送收到 `repository moved` 提示。
 - `ensure-dependencies.mjs`：核对 pnpm workspace、lockfile 与已安装依赖（兼容仓库目录或盘符迁移，并忽略仓库与 pnpm 副本间 CRLF/LF 换行差异）；有差异时优先离线复用本地缓存（`--offline`），仅在本地缺少新依赖时才回退 `--prefer-offline` 增量下载缺失包，并拒绝自动确认清空 `node_modules`。换行兼容回归测试：`node --test scripts/ensure-dependencies.test.mjs`。
 - `sync-tsconfig.mjs`：按 DSH 模型生成 `tsconfig.base.json`（含 `@lfaa/*` paths 门面）、`tsconfig.json`（兼容壳）、`tsconfig.host.json`（聚合工程）与 27 个包的 `tsconfig.json`。新增或删除包后重跑。
 - `sync-manifests.mjs`：写入各包 `main` / `types` / `exports` / `files` / `publishConfig` / `repository`，并移除 `private`。出口形状固定为 `types → lib/types/index.d.ts`、`default → lib/index.js`、`"./src/*": "./src/*"`。

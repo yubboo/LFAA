@@ -235,8 +235,8 @@ function Push-ToGitHub {
     [switch]$Force
   )
 
-  # GitHub 已把仓库名改为小写 lfaa；继续用大写地址每次都会收到 "repository moved" 提示。
-  $remoteUrl = "https://github.com/yubboo/lfaa.git"
+  # GitHub 的规范仓库名是 LFAA（大写）：用小写地址推送时服务器会回 "repository moved" 提示。
+  $remoteUrl = "https://github.com/yubboo/LFAA.git"
   $prevErrorAction = $ErrorActionPreference
   $ErrorActionPreference = "Continue"
   try {
@@ -364,7 +364,7 @@ function Push-ToGitHub {
 
 # 从 GitHub 远程仓库拉取 main 分支最新源码并安全更新本地工作区。
 function Pull-FromGitHub {
-  $remoteUrl = "https://github.com/yubboo/lfaa.git"
+  $remoteUrl = "https://github.com/yubboo/LFAA.git"
   $prevErrorAction = $ErrorActionPreference
   $ErrorActionPreference = "Continue"
   try {
