@@ -61,6 +61,11 @@ export function createAgentHttpHandler(service: AgentService, options: AgentHttp
         const body = await readJsonBody(req);
         const sessionId = typeof body.sessionId === "string" ? body.sessionId : "";
         const userMessage = typeof body.userMessage === "string" ? body.userMessage : "";
+        const rawContinuation = body.continuation;
+        const continuation = typeof rawContinuation === "object" && rawContinuation !== null
+          && typeof (rawContinuation as { assistantMessageId?: unknown }).assistantMessageId === "string"
+          ? { assistantMessageId: (rawContinuation as { assistantMessageId: string }).assistantMessageId }
+          : undefined;
 
         const reasoningEffort =
           body.reasoningEffort === "minimal" ||
@@ -83,7 +88,7 @@ export function createAgentHttpHandler(service: AgentService, options: AgentHttp
           const attachments = await options.resolveAttachments?.(sessionId, body.attachmentIds) ?? [];
           started = await service.startRun({
             sessionId,
-            userMessage,
+            ...(continuation ? { continuation } : { userMessage }),
             ...(referenceImages?.length ? { referenceImages } : {}),
             ...(attachments.length ? { attachments } : {}),
             ...(references.length ? { references } : {}),

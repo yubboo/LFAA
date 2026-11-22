@@ -1,5 +1,5 @@
 ---
-description: "Host service: assembles the Cordis runtime and every HTTP API, serving Vite in development and built web assets in production."
+description: "Host service: creates the Cordis context, mounts the bundle, registers HTTP APIs, and serves Vite."
 kind: "host"
 ---
 
@@ -9,37 +9,17 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Host service: assembles the Cordis runtime and every HTTP API, serving Vite in development and built web assets in production.
+Host service: creates the Cordis context, mounts the bundle, registers HTTP APIs, and serves Vite.
 
 This host service package lives in `packages/host/web-server`.
 
 ## Exports
 
-| Export | Purpose |
-|---|---|
-| `startWeb(options)` | Development entry: starts Vite and mounts the same `/api` gateway plus token injection |
-| `startHostServer(options)` | Production entry: assembles the runtime, serves built assets, returns a local URL for `loadURL` |
-| `startStaticServer(options)` | Serves assets only (inject a fake gateway to unit-test without a runtime) |
-| `createHostRuntime(options)` | Assembles sandbox, bundle, handlers and gateway, and mints the one-shot API token |
-| `resolveLoaderBaseUrl()` | Resolves the Cordis Loader base (`@lfaa/bundle-web` manifest) |
-| `detectProjectRoot(startDir)` | Walks up to the repository root in development; production callers must pass an explicit working root |
-
-## Module layout
-
-| File | Responsibility |
-|---|---|
-| `src/runtime.ts` | Runtime assembly and the gateway route table (order is dispatch order) |
-| `src/handlers.ts` | Common API handlers plus workspace-root and media allowlist resolvers |
-| `src/handlers-chat.ts` | Chat, coding sessions, direct media generation and Agent run handlers |
-| `src/dev-server.ts` | Vite dev server (`vite` is imported dynamically; production bundles omit it) |
-| `src/static-server.ts` | Production server lifecycle and `/api` dispatch |
-| `src/static-files.ts` | MIME, path-traversal guard, Range, SPA fallback and response helpers |
-
-## Runtime boundaries
-
-- The API token is random per start: injected into `index.html` in development and into an in-memory template in production. Clients read `meta[name=lfaa-api-token]` and send `x-lfaa-token`.
-- Production hosting accepts only `GET` / `HEAD`; `/api` never falls back to HTML. `assets/` is long-cached, pages are `no-store`.
-- Single-range `Range` (206) is supported because video seeking depends on it.
+| Entry | Target | Purpose |
+|---|---|---|
+| `.` | `./lib/index.js` | Host entry (default-exports the plugin) |
+| `./src/*` | `./src/*` | Source escape hatch for this repository's tooling |
+| `./package.json` | `./package.json` | Package manifest |
 
 ## Dependencies
 
@@ -47,17 +27,24 @@ This host service package lives in `packages/host/web-server`.
 - `@lfaa/browser`
 - `@lfaa/bundle-web`
 - `@lfaa/chat`
+- `@lfaa/review`
 - `@lfaa/jobs`
 - `@lfaa/llm`
 - `@lfaa/memory`
+- `@lfaa/message-feedback`
+- `@lfaa/attachment-local`
+- `@lfaa/session-title`
+- `@lfaa/commands`
+- `@lfaa/tool-media`
 - `@lfaa/plugins`
 - `@lfaa/rules`
 - `@lfaa/sections`
 - `@lfaa/skills`
 - `@lfaa/subagent`
 - `@lfaa/workspace`
+- `@lfaa/worktree`
 - `@lfaa/api-gateway`
-- `@lfaa/sandbox-local`
+- `@lfaa/sandbox`
 
 ## Dev Note
 

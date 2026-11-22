@@ -24,6 +24,7 @@
 按包级单一职责与 Host/Client 分离原则，核心能力拆分为独立工作区包并通过 Cordis 装配：
 - `@lfaa/ui-layout`（`packages/ui/layout`）：纯粹的四栏/三栏骨架、通用列表原语（含拖拽）、右侧上下文容器与 `workbench` 注册服务；不再持有主题表单或项目业务弹窗。
 - `@lfaa/ui-theme`（`packages/ui/theme`）：主题预设、强调色、液态玻璃/字体 CSS 变量实时注入与“外观”设置页面插件。
+- `@lfaa/ui-icons`（`packages/ui/icons`）：共享彩色文件/文件夹类型图标与扩展名映射，供文件树、标签栏、面包屑与变更列表复用；字形取自 MIT 的 vscode-icons。
 - `@lfaa/sections`（`packages/workspace/sections`）：用户自定义分区 Host 服务（`~/.lfaa/sections.json`）及新建/重命名/删除 UI 插件。
 - `@lfaa/workspace`（`packages/workspace/workspace`）：本地项目 CRUD（`~/.lfaa/projects.json`，重名拦截）、多源目录检视、项目悬停信息卡与操作菜单、`system-paths` 原生系统调用。
 

@@ -16,9 +16,9 @@ registerHooks({
   },
 });
 
-const { DomainSidebarMenu } = await import("../client/components/DomainSidebarMenu");
+const { DomainSidebarMenu } = await import("../client/navigation/DomainSidebarMenu");
 const { locales } = await import("../client/locales");
-const { resolveWorkbenchDomain } = await import("../client/workbench-domains");
+const { resolveWorkbenchDomain } = await import("../client/navigation/workbench-domains");
 
 test("资料库左二菜单包含图像分类并与工作台标签同步", () => {
   const markup = renderToStaticMarkup(createElement(DomainSidebarMenu, {

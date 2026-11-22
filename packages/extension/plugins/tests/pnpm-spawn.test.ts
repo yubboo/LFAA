@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { parseInstallSpec } from "../src/install-spec";
+import { parseInstallSpec } from "../src/catalog/install-spec";
 import {
   UnsafePnpmArgumentError,
   assertSafePnpmArguments,
@@ -10,7 +10,7 @@ import {
   findUnsafeSpecCharacter,
   quoteWindowsArgument,
   resolvePnpmSpawn,
-} from "../src/pnpm-spawn";
+} from "../src/manager/pnpm-spawn";
 
 test("安装来源里的 shell 元字符被识别并拒绝", () => {
   assert.equal(findUnsafeSpecCharacter("git+https://evil.example/r&calc"), "&");

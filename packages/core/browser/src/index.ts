@@ -1,20 +1,21 @@
 // @lfaa/browser Host 侧 Cordis 服务：统一注册 DSH 风格独占驱动槽位、内置浏览器工具与生命周期清理。
 import { type Context, Service } from "@deepseek-ai/cordis";
+import "@lfaa/llm";
 import "@lfaa/tools";
-import { BrowserRuntime, detectLocalBrowserExecutable, validateBrowserUrl } from "./browser-service";
-import { registerBrowserAgentTools } from "./browser-tools";
-import { BrowserUseRegistry } from "./registry";
-import type { StreamFrameListener } from "./screencast-manager";
+import { BrowserRuntime, detectLocalBrowserExecutable, validateBrowserUrl } from "./session/browser-service";
+import { registerBrowserAgentTools } from "./tools/browser-tools";
+import { BrowserUseRegistry } from "./session/registry";
+import type { StreamFrameListener } from "./session/screencast-manager";
 import type { BrowserPluginConfig, BrowserSettingsConfig } from "./types";
 
 export * from "./types";
-export * from "./registry";
+export * from "./session/registry";
 export { createBrowserHttpHandler } from "./http-handler";
 export { detectLocalBrowserExecutable, validateBrowserUrl };
 
 /** Host 侧内置浏览器服务，挂接于 Cordis `browser` 属性。 */
 export class BrowserService extends Service {
-  static inject = ["tools"];
+  static inject = ["tools", "llm"];
 
   private readonly runtime: BrowserRuntime;
   private unregisterProvider: (() => void) | null = null;
@@ -25,7 +26,7 @@ export class BrowserService extends Service {
     this.runtime = new BrowserRuntime(config.storeFilePath);
     const registry = ctx.get("browserUse") ?? new BrowserUseRegistry(ctx);
     this.unregisterProvider = registry.register("playwright-local");
-    this.unregisterTools = registerBrowserAgentTools(ctx.tools, this.runtime);
+    this.unregisterTools = registerBrowserAgentTools(ctx.tools, ctx.llm, this.runtime);
     ctx.effect(() => () => {
       this.unregisterTools?.();
       this.unregisterTools = null;

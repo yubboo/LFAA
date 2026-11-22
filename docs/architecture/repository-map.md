@@ -33,6 +33,7 @@ lfaa/
 | Agent 任务、审批、工具和模型 | [任务循环](../../packages/core/agent/src/agent-loop.ts)、[审批策略](../../packages/core/agent/src/permission-policy.ts)、[工具服务](../../packages/core/tools/src/index.ts)、[模型服务](../../packages/core/llm/src/index.ts) |
 | 本地项目和分区 | [项目服务](../../packages/workspace/workspace/src/index.ts)、[分区服务](../../packages/workspace/sections/src/index.ts) |
 | 改主题、取共享控件 | [主题入口](../../packages/ui/theme/client/index.tsx)、[共享控件入口](../../packages/ui/primitives/client/index.tsx) |
+| 换文件/文件夹图标 | [图标组件](../../packages/ui/icons/client/index.tsx)、[扩展名映射](../../packages/ui/icons/contract/file-glyphs.ts)、[彩色字形](../../packages/ui/icons/client/glyphs.ts) |
 | 查协作规则、设计方案和历史变更 | [开发规范](../standards/AI-Agent-Development-Standards.md)、[架构索引](README.md)、[开发日志卷](../dev-log/000001-000200.md) |
 
 ### 阅读目录时常用的术语
@@ -204,7 +205,10 @@ apps/  # 启动、平台适配、Host 与 Client 插件装配
 
 ## 5. 工作区包 `packages/`
 
-当前有 **11 个**业务或共享能力包。为了方便浏览，下面按 `core`、`ui`、`workspace` 分开列出。包组和包名以实际目录及包清单为准。
+> **2026-11-22 结构变更（DEV-000375 / 000376 / 000380）**：`packages/core/chat` 已迁移到 `packages/chat/chat`，并拆出 `packages/chat/library`（资料库）与 `packages/chat/review`（代码审查 + Git/审查 Host 服务）；`core/agent`、`core/browser`、`core/llm`、`ui/layout`、`workspace/workspace`、`extension/plugins`、`host/web-server` 的源码已按职责分到子文件夹；媒体生成 UI 已从 chat 迁入 `packages/media/tool-media/client`；web/shell/sandbox/compaction/goal 五组已合并为单包（DEV-000382）。
+> 下面的逐文件清单是 2026-11-18 的快照，涉及这些包时请以 [包目录索引](../../packages/README.zh.md) 与 [包分类规范](package-taxonomy.md) 为准，本文件其余包条目仍然有效。
+
+当前有 **57 个** workspace 包（含 apps 与 vendor 后共 61 个 pnpm 项目）。为了方便浏览，下面按 `core`、`ui`、`workspace` 分开列出。包组和包名以实际目录及包清单为准。
 
 ### 包目录入口
 
@@ -455,7 +459,7 @@ packages/ui/  # 公共 Shell、主题与跨业务交互原语
 │   │   └── primitives-contract.test.ts  # 验证 @lfaa/ui-primitives 共享交互原语包导出、步进比值计算及包边界契约
 │   ├── package.json  # @lfaa/ui-primitives 包清单，定义依赖、公开导出和工作区包身份
 │   └── tsconfig.json  # primitives 的 TypeScript 工程配置，限定参与检查的文件并继承根配置
-└── theme/  # 主题预设、浅深色、强调色和外观设置
+├── theme/  # 主题预设、浅深色、强调色和外观设置
     ├── client/  # 浏览器主题变量注入、外观状态与设置页面
     │   ├── components/  # 该包拥有的界面组件与 CSS Modules
     │   │   ├── AccentSelect.module.css  # 强调色下拉菜单与苹果液态玻璃浮层样式
@@ -480,7 +484,21 @@ packages/ui/  # 公共 Shell、主题与跨业务交互原语
     ├── README.i18n.yaml  # theme 包说明的双语内容源
     ├── README.md  # theme 包的英文说明，介绍职责、入口与使用方式
     ├── README.zh.md  # theme 包的中文说明，介绍职责、入口与使用方式
-    └── tsconfig.json  # theme 的 TypeScript 工程配置，限定参与检查的文件并继承根配置
+    ├── tsconfig.json  # theme 的 TypeScript 工程配置，限定参与检查的文件并继承根配置
+└── icons/  # 共享彩色文件/文件夹类型图标与扩展名映射
+    ├── client/  # 彩色字形数据与 FileTypeIcon 组件
+    │   ├── FileTypeIcon.module.css  # 图标尺寸与极淡暗色描边，保证浅色底上的浅色文档图标可辨
+    │   ├── css-modules.d.ts  # 为图标包 Client 侧 CSS Modules 提供类型声明
+    │   ├── glyphs.ts  # 从 vscode-icons（MIT）提取的 80 个彩色字形，仅保留文件树实际使用的图标
+    │   └── index.tsx  # 导出 FileTypeIcon 组件并重导出映射函数
+    ├── contract/  # 扩展名、特殊文件名、目录职责 → 图标 key 的纯映射
+    ├── src/index.ts  # Host 入口，重导出映射契约
+    ├── tests/file-glyphs.test.tsx  # 映射结果、字形完整性与渲染回归测试
+    ├── LICENSES/vscode-icons-LICENSE.txt  # 第三方图标 MIT 许可原文
+    ├── README.i18n.yaml  # icons 包说明的双语配对记录
+    ├── README.md / README.zh.md  # icons 包的英文与中文说明
+    ├── package.json  # @lfaa/ui-icons 包清单，定义依赖、公开导出和工作区包身份
+    └── tsconfig.json / tsdown.config.ts  # icons 的类型工程与打包入口
 ```
 
 ### 工作区能力 `packages/workspace/`

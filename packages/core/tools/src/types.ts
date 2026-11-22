@@ -1,6 +1,24 @@
 // 定义 @lfaa/tools 的无 DOM 领域契约：工具权限级别、参数协议、执行上下文及结果结构。
 export type ToolPermissionLevel = "read" | "write" | "exec";
 
+/**
+ * 文件影响模式与执行前判定契约。
+ * 放在 tools 侧是为了让工具层与沙箱包保持单向依赖：沙箱实现依赖工具契约，工具不反向依赖沙箱包。
+ */
+export type SandboxMode = "read-only" | "workspace-write" | "danger-full-access";
+
+/** 一次执行使用的沙箱策略；按调用携带，不在全局固定。 */
+export interface SandboxPolicy {
+  mode: SandboxMode;
+  /** 允许写入的绝对路径根；`workspace-write` 模式必须提供。 */
+  workspaceRoots: readonly string[];
+}
+
+/** 判定结果：拒绝时给出可展示原因，绝不静默放行。 */
+export type SandboxDecision =
+  | { allowed: true }
+  | { allowed: false; reason: string };
+
 /** 子运行通过父工具上下文报告真实状态和已完成工作。 */
 export interface SubagentActivityUpdate {
   id: string;

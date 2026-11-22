@@ -1,22 +1,30 @@
+---
+description: "LFAA 目标服务：把会话目标、进度与受阻原因持久化，供目标工具与界面读取。"
+kind: "package"
+---
+
 # @lfaa/goal
 
-LFAA 的会话目标服务。目标、进度与受阻原因持久化在 `~/.lfaa/goals.json`，让 Agent 能跨多次运行记住一个长期目标。
+[English](README.md) | 中文
 
-## 接口
+## 摘要
 
-| 导出 | 作用 |
-| --- | --- |
-| `GoalService` | `ctx.goal`：新建 / 更新 / 列表 / 单条读取 / 删除 |
-| `normalizeGoalStatus` | 非法状态字符串不改变原状态 |
-| `normalizeProgress` | 把 `done`/`total` 归一到非负且不超过总数 |
-| `summarizeGoal` | 工具与日志共用的一行摘要 |
+LFAA 目标服务：把会话目标、进度与受阻原因持久化，供目标工具与界面读取。
 
-进程内的写入串行化，并发工具调用不会丢条目；每个目标保留最近 50 条进展记录。
+本包位于 `packages/goal/goal`。
 
-## 安装
+## 导出
 
-```bash
-pnpm add @lfaa/goal
-```
+| 子路径 | 目标 | 用途 |
+|---|---|---|
+| `.` | `./lib/index.js` | Host 入口（默认导出插件本体） |
+| `./src/*` | `./src/*` | 源码逃生口，仅供本仓工具链 |
+| `./package.json` | `./package.json` | 清单文件 |
 
-包默认导出 Cordis 插件，Loader 可按包名装载；搭配 `@lfaa/tool-goal` 把目标工具暴露给模型。
+## 依赖
+
+- `@lfaa/tools`
+
+## 开发说明
+
+无。

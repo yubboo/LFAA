@@ -24,7 +24,7 @@ import {
   writeActiveRoutePref,
   writeBooleanPref,
   writeStoredJson,
-} from "./ui-preferences";
+} from "./shell/ui-preferences";
 
 /** 约定资料库分类在工作台中的稳定标识；`media` 为并入资料库的图像（生成素材）分类。 */
 export type LibraryTabKey = "all" | "media" | "artifact" | "asset" | "memory";

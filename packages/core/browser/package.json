@@ -21,6 +21,8 @@
   },
   "dependencies": {
     "@deepseek-ai/cordis": "^4.1.0",
+    "@lfaa/fs": "workspace:*",
+    "@lfaa/llm": "workspace:*",
     "@lfaa/tools": "workspace:*",
     "@lfaa/ui-layout": "workspace:*",
     "@tabler/icons-react": "3.52.0",
@@ -37,8 +39,8 @@
   "files": [
     "lib",
     "src",
-    "contract",
-    "client"
+    "client",
+    "contract"
   ],
   "publishConfig": {
     "access": "public"

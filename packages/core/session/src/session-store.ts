@@ -11,6 +11,7 @@ import type {
   ChatSessionSummary,
   CreateSessionInput,
   PendingQuestion,
+  SessionWorktree,
   UpdateSessionInput,
 } from "./types";
 
@@ -22,6 +23,7 @@ function toSummary(session: ChatSessionRecord): ChatSessionSummary {
     sectionId: session.sectionId,
     pinned: session.pinned,
     archived: session.archived,
+    ...(session.worktree ? { worktree: session.worktree } : {}),
     ...(session.unread ? { unread: true } : {}),
     ...(session.muted ? { muted: true } : {}),
     messageCount: session.messages.length,
@@ -50,6 +52,22 @@ function readPendingQuestion(value: unknown): PendingQuestion | undefined {
   };
 }
 
+/** 读取绑定工作树快照；字段不完整时视为未绑定，避免坏数据进入运行目录解析。 */
+function readWorktree(value: unknown): SessionWorktree | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const raw = value as Partial<SessionWorktree>;
+  for (const field of ["id", "projectId", "path", "branch", "repositoryRoot"] as const) {
+    if (typeof raw[field] !== "string" || !raw[field]?.trim()) return undefined;
+  }
+  return {
+    id: raw.id!,
+    projectId: raw.projectId!,
+    path: raw.path!,
+    branch: raw.branch!,
+    repositoryRoot: raw.repositoryRoot!,
+  };
+}
+
 /** 管理磁盘上的会话记录和列表索引，向 Chat Host 提供统一的增删改读。 */
 export class SessionMemoryStore {
   constructor(private sessionsDir: string) {}
@@ -75,6 +93,7 @@ export class SessionMemoryStore {
       const parsed = JSON.parse(raw) as Partial<ChatSessionRecord>;
       if (!parsed || typeof parsed.id !== "string" || typeof parsed.title !== "string") return null;
       const pendingQuestion = readPendingQuestion(parsed.pendingQuestion);
+      const worktree = readWorktree(parsed.worktree);
       return {
         id: parsed.id,
         title: parsed.title,
@@ -82,6 +101,7 @@ export class SessionMemoryStore {
         sectionId: typeof parsed.sectionId === "string" ? parsed.sectionId : null,
         pinned: parsed.pinned === true,
         archived: parsed.archived === true,
+        ...(worktree ? { worktree } : {}),
         ...(parsed.unread === true ? { unread: true } : {}),
         ...(parsed.muted === true ? { muted: true } : {}),
         messageCount: Array.isArray(parsed.messages) ? parsed.messages.length : 0,
@@ -168,13 +188,18 @@ export class SessionMemoryStore {
 
   async create(input: CreateSessionInput = {}): Promise<ChatSessionRecord> {
     const now = Date.now();
+    const projectId = input.projectId ?? null;
+    if (input.worktree && input.worktree.projectId !== projectId) {
+      throw new Error("工作树不属于当前项目，无法绑定会话。");
+    }
     const record: ChatSessionRecord = {
       id: randomUUID(),
       title: input.title?.trim() || "新聊天",
-      projectId: input.projectId ?? null,
+      projectId,
       sectionId: input.sectionId ?? null,
       ...(input.sessionPreset ? { sessionPreset: input.sessionPreset } : {}),
       ...(input.sessionModules ? { sessionModules: input.sessionModules } : {}),
+      ...(input.worktree ? { worktree: input.worktree } : {}),
       pinned: false,
       archived: false,
       messageCount: 0,
@@ -213,6 +238,17 @@ export class SessionMemoryStore {
     } else if (patch.pendingQuestion !== undefined) {
       updated.pendingQuestion = { ...patch.pendingQuestion, options: [...patch.pendingQuestion.options] };
     }
+    const nextProjectId = patch.projectId !== undefined ? patch.projectId : existing.projectId;
+    if (patch.worktree === null) {
+      delete updated.worktree;
+    } else if (patch.worktree !== undefined) {
+      if (patch.worktree.projectId !== nextProjectId) {
+        throw new Error("工作树不属于会话绑定的项目，无法绑定。");
+      }
+      updated.worktree = { ...patch.worktree };
+    } else if (patch.projectId !== undefined && existing.worktree && existing.worktree.projectId !== nextProjectId) {
+      throw new Error("该会话绑定了工作树，请先解绑工作树再更换项目。");
+    }
     await this.writeSession(updated);
     return updated;
   }
@@ -229,6 +265,7 @@ export class SessionMemoryStore {
       sectionId: existing.sectionId,
       ...(existing.sessionPreset ? { sessionPreset: existing.sessionPreset } : {}),
       ...(existing.sessionModules ? { sessionModules: existing.sessionModules } : {}),
+      ...(existing.worktree ? { worktree: { ...existing.worktree } } : {}),
       pinned: false,
       archived: false,
       messageCount: existing.messages.length,

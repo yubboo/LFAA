@@ -1,10 +1,10 @@
 // 验证方舟套餐目录、官方思考档位及 OpenAI Chat 适配器发送的实际参数。
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ARK_PLAN_ANTHROPIC_BASE_URLS, ARK_PLAN_BASE_URLS, findArkChatModel, getArkPlanCatalog, getArkPlanKind } from "../src/ark-plan";
+import { ARK_PLAN_ANTHROPIC_BASE_URLS, ARK_PLAN_BASE_URLS, describeArkModelBrand, describeArkModelCapability, describeArkModelLine, findArkChatModel, getArkPlanCatalog, getArkPlanKind } from "../src/ark-plan";
 import { fetchOfficialModels } from "../src/capabilities";
 import { toPublicProfile } from "../src/index";
-import { callOpenAiCompatibleChat } from "../src/openai-adapter";
+import { callOpenAiCompatibleChat } from "../src/adapters/openai-adapter";
 import type { LlmProfile, ReasoningEffortLevel } from "../src/types";
 
 const profile: LlmProfile = {
@@ -57,6 +57,18 @@ test("模型档案保留已选与已同步媒体的用途，供输入框走生�
     availableModels: [{ id: "qwen3.7-plus", supportsReasoning: false, reasoningMode: "none", reasoningLevels: [] }],
   });
   assert.equal(tokenPlan.availableModels.find(({ id }) => id === tokenPlan.model)?.modelKind, "image");
+});
+
+test("方舟模型带品牌与能力说明（豆包 / Kimi / DeepSeek / 智谱AI / 方舟路由）", () => {
+  assert.equal(describeArkModelBrand("doubao-seedream-5.5", true), "豆包");
+  assert.equal(describeArkModelCapability("doubao-seedream-5.5", true), "图片生成");
+  assert.equal(describeArkModelBrand("kimi-k3.1-pro", true), "Kimi");
+  assert.equal(describeArkModelCapability("deepseek-v4.1-flash", true), "文本生成、推理");
+  assert.equal(describeArkModelBrand("glm-5.3-flash", true), "智谱AI");
+  assert.equal(describeArkModelBrand("doubao-seed-tts-2.0", true), "豆包");
+  assert.equal(describeArkModelCapability("doubao-seed-tts-2.0", true), "语音合成");
+  assert.equal(describeArkModelLine("ark-code-latest", true), "方舟路由 · 控制台路由");
+  assert.equal(describeArkModelBrand("unknown-model", true), undefined);
 });
 
 test("关闭思考按真实模型映射，控制台路由和未知 ID 不发送猜测的思考强度", async (t) => {

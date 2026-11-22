@@ -2,14 +2,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { WorkbenchChatSessionSummary } from "../contract/index";
-import type { LocalProject } from "../client/navigation";
+import type { LocalProject } from "../client/navigation/navigation";
 import {
   createProjectSidebarItem,
   groupNavigationProjects,
   resolveActiveGroupKey,
   sectionGroupKey,
   selectPinnedSessions,
-} from "../client/components/navigation-items";
+} from "../client/navigation/navigation-items";
 
 /** 构造最小项目对象，仅覆盖分组用到的字段。 */
 function project(id: string, extra: { pinned?: boolean; sectionId?: string } = {}): LocalProject {

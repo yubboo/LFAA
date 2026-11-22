@@ -154,6 +154,15 @@ export interface ChatMessageRecord {
   createdAt: number;
 }
 
+/** 会话绑定的 Git 工作树快照；真实状态以 Host 工作树记录与 Git 为准。 */
+export interface SessionWorktree {
+  id: string;
+  projectId: string;
+  path: string;
+  branch: string;
+  repositoryRoot: string;
+}
+
 /** 提供列表渲染所需的会话归属、标题与状态摘要。 */
 export interface ChatSessionSummary {
   id: string;
@@ -162,6 +171,8 @@ export interface ChatSessionSummary {
   sectionId: string | null;
   pinned: boolean;
   archived: boolean;
+  /** 绑定工作树时随摘要返回；旧会话缺省。 */
+  worktree?: SessionWorktree;
   unread?: boolean;
   /** 静音该会话的通知与侧栏待确认/待回答徽标。 */
   muted?: boolean;
@@ -192,6 +203,8 @@ export interface CreateSessionInput {
   sectionId?: string | null;
   sessionPreset?: string;
   sessionModules?: string[];
+  /** Host 已解析并校验的工作树快照；客户端只能提交 worktreeId 由 Host 解析。 */
+  worktree?: SessionWorktree;
 }
 
 export interface UpdateSessionInput {
@@ -200,6 +213,8 @@ export interface UpdateSessionInput {
   title?: string;
   projectId?: string | null;
   sectionId?: string | null;
+  /** 覆盖工作树绑定；传 null 表示解绑。 */
+  worktree?: SessionWorktree | null;
   pinned?: boolean;
   archived?: boolean;
   unread?: boolean;

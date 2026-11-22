@@ -2,7 +2,7 @@
 import { exec, execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { type Context, Service } from "@deepseek-ai/cordis";
-import { formatCommandOutput } from "@lfaa/shell-env";
+import { formatCommandOutput } from "./env/command-output";
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
@@ -199,5 +199,10 @@ declare module "@deepseek-ai/cordis" {
     shell: ShellService;
   }
 }
+// 与执行入口同包的本地 Shell 方言与输出解码，供 bundle / jobs 直接引用。
+export { resolveBash } from "./bash/resolve-bash";
+export { resolveCmd, resolvePowerShell } from "./pwsh/resolve-pwsh";
+export { formatCommandOutput } from "./env/command-output";
+
 /** 默认导出插件本体，供 Cordis Loader 以包名直接装载。 */
 export default shellPlugin;

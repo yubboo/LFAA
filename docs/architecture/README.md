@@ -12,6 +12,7 @@
 
 - [助手回复过程](assistant-timeline.md)：正文流、活动分组、运行状态与历史回看。
 - [Agent 会话工作区](agent-workspace.md)：项目绑定、生效目录和应用私有文件边界。
+- [Git 工作树会话隔离](worktree.md)：一个会话一个工作树的分支/目录契约、会话有效根解析、安全加固与 P0–P3 实施顺序。**P0–P3b 已实施；自动合并待决策**。
 - [右栏控制台、内置浏览器、后台任务与多 Agent 协作](right-panel-and-agents.md)：右栏重构、Playwright 本机 Edge 驱动浏览器、会话后台任务与进程内子智能体方案（已实施）。
 - [IDE 化右侧工作台、VS Code 代码查看与全视口真交互浏览器](right-workbench-ide.md)：顶部对齐 Tab 栏、最右图标菜单栏、VS Code 只读代码与行内 `+` 批注、文件树联动及全高多标签真交互内置浏览器方案（已实施）。
 - [Plan 模式](plan-mode.md)：计划模式的交互、Host/Client 契约、实施顺序与验收要求。状态以文档内说明为准。

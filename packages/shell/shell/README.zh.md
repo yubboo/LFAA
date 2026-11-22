@@ -23,7 +23,7 @@ Shell 进程执行、取消及输出收集
 
 ## 依赖
 
-- `@lfaa/shell-env`
+无 workspace 依赖。
 
 ## 开发说明
 

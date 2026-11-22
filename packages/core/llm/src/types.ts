@@ -108,6 +108,8 @@ export interface LlmToolCall {
 export interface LlmMessage {
   role: "system" | "user" | "assistant" | "tool";
   content: string;
+  /** 用户消息附带的图片：data URL（data:image/...;base64,...）或可访问的 http(s) 地址。 */
+  images?: string[];
   reasoningContent?: string;
   toolCalls?: LlmToolCall[];
   toolCallId?: string;

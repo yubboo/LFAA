@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { buildImageRequestBody } from "../src/media";
+import { buildImageRequestBody } from "../src/media/media";
 import type { LlmProfile } from "../src/types";
 
 function profile(overrides: Partial<LlmProfile> = {}): LlmProfile {

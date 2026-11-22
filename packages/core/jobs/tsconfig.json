@@ -8,7 +8,6 @@
   "include": ["src"],
   "references": [
     { "path": "../../shell/shell" },
-    { "path": "../../shell/shell-env" },
     { "path": "../tools" }
   ]
 }

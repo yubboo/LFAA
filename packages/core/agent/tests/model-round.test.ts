@@ -6,7 +6,7 @@ import {
   modelRoundLimits,
   reasoningModelRoundLimits,
   resolveModelRoundLimits,
-} from "../src/model-round";
+} from "../src/run/model-round";
 
 const reply = { model: "mock", provider: "openai-compatible", content: "收到", toolCalls: [], finishReason: "stop" } as const;
 

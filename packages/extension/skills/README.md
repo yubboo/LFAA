@@ -27,7 +27,6 @@ This package lives in `packages/extension/skills`.
 
 - `@lfaa/tools`
 - `@lfaa/ui-layout`
-- `@lfaa/ui-primitives`
 
 ## Dev Note
 

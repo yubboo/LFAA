@@ -6,7 +6,7 @@ export {
   createNotificationSoundsHttpHandler,
   type CustomNotificationSoundMeta,
   type NotificationSoundHandlerOptions,
-} from "./handlers-notifications";
+} from "./handlers/handlers-notifications";
 export {
   startHostServer,
   startStaticServer,

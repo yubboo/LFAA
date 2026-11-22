@@ -34,6 +34,8 @@
     "@lfaa/browser": "workspace:*",
     "@lfaa/bundle-web": "workspace:*",
     "@lfaa/chat": "workspace:*",
+    "@lfaa/goal": "workspace:*",
+    "@lfaa/review": "workspace:*",
     "@lfaa/jobs": "workspace:*",
     "@lfaa/llm": "workspace:*",
     "@lfaa/memory": "workspace:*",
@@ -48,9 +50,10 @@
     "@lfaa/skills": "workspace:*",
     "@lfaa/subagent": "workspace:*",
     "@lfaa/workspace": "workspace:*",
+    "@lfaa/worktree": "workspace:*",
     "vite": "^8.3.8",
     "@lfaa/api-gateway": "workspace:*",
-    "@lfaa/sandbox-local": "workspace:*"
+    "@lfaa/sandbox": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.10.0",

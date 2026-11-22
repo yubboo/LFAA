@@ -1,0 +1,41 @@
+{
+  "name": "@lfaa/compaction",
+  "description": "LFAA 上下文治理包：可替换的上下文压缩服务、单条工具结果精简与 /compact 命令。",
+  "version": "0.1.0",
+  "type": "module",
+  "dependencies": {
+    "@deepseek-ai/cordis": "^4.1.0",
+    "@lfaa/context": "workspace:*",
+    "@lfaa/llm": "workspace:*",
+    "@lfaa/tools": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "typescript": "^5.9.3"
+  },
+  "main": "./lib/index.js",
+  "types": "./lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "src"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yubboo/LFAA.git",
+    "directory": "packages/compaction/compaction"
+  },
+  "scripts": {
+    "typecheck": "tsc -b ."
+  }
+}

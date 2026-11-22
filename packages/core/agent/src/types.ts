@@ -30,10 +30,21 @@ export interface ResolvedSkillContext {
   content: string;
 }
 
+/** 会话绑定的项目范围：名称与简介，用于把项目内会话约束在本项目内。 */
+export interface ProjectScope {
+  projectId: string;
+  name: string;
+  /** 项目目标与交付范围；缺省表示项目尚未填写简介。 */
+  description?: string;
+}
+
 /** 描述创建运行接收的用户消息、会话上下文与配置。 */
 export interface StartAgentRunInput {
   sessionId: string;
-  userMessage: string;
+  /** 普通新消息；续写运行时由 continuation 替代。 */
+  userMessage?: string;
+  /** 从指定助手消息继续：不写用户消息，指令只进入模型上下文。 */
+  continuation?: { assistantMessageId: string };
   profileId?: string;
   reasoningEffort?: "minimal" | "low" | "medium" | "high" | "max";
   projectId?: string | null;

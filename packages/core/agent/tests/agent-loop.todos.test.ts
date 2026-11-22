@@ -1,4 +1,4 @@
-// 验证工具回传的任务清单会广播 todos 事件并进入运行快照，供前端任务面板订阅。
+// 验证新一轮运行先清空上一轮清单，工具回传的 todos 仍广播事件并进入运行快照。
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -69,6 +69,10 @@ test("工具 metadata.todos 触发 todos 事件，并保留在运行快照中", 
 
   try {
     const session = await ctx.memory.createSession({ title: "清单事件测试" });
+    // 上一轮留下的已完成清单不应带进新请求。
+    await ctx.memory.updateSession(session.id, {
+      todos: [{ id: "old", content: "上一轮任务", status: "completed" }],
+    });
     const started = await ctx.agent.startRun({
       sessionId: session.id,
       userMessage: "请先列出任务清单再执行",
@@ -96,6 +100,8 @@ test("工具 metadata.todos 触发 todos 事件，并保留在运行快照中", 
     // 快照：断线重连时前端拿到的运行状态里要带清单。
     const snapshot = ctx.agent.getRunStatus(started.runId);
     assert.deepEqual(snapshot?.todos, TODOS);
+    // 新一轮启动时已清空旧清单；本次工具只回传 metadata，不负责落盘。
+    assert.equal((await ctx.memory.getSession(session.id))?.todos?.length ?? 0, 0);
   } finally {
     await fs.rm(dir, { recursive: true, force: true });
   }

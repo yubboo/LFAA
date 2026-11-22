@@ -77,3 +77,8 @@ jobs:
 
       - name: Loader 按包名装载探针
         run: pnpm probe:loader
+
+      # 生产构建产物的浏览器验收：起静态宿主后用本机 Edge/Chrome 无头检查壳层、资料库、代码审查、设置页与双主题。
+      # 没有可用浏览器时脚本自行跳过并以 0 退出（见 scripts/verify-web.mts）。
+      - name: 生产构建浏览器验收
+        run: pnpm verify:web

@@ -9,7 +9,6 @@
   "references": [
     { "path": "../fs" },
     { "path": "../guard" },
-    { "path": "../../shell/shell" },
-    { "path": "../../sandbox/sandbox" }
+    { "path": "../../shell/shell" }
   ]
 }

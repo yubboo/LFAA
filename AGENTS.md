@@ -88,8 +88,9 @@
 - 保持 TypeScript 严格类型，禁止无解释 `any`、`@ts-ignore`、吞异常、伪造测试结果。
 - Bug 修复优先补回归测试；Cordis 注入/安装/卸载/重载及 Host/Client 隔离有测试依据。
 - **内置浏览器实测验收（强制）**：每次涉及 Web UI、布局、样式或前端交互的任务，交付前必须启动本地 Web 服务并使用 Agent 内置浏览器（`browser` 子代理）实际打开页面完成交互与视觉验收（确认控制台无新增报错且实际交互符合预期）；不得以静态构建或单测替代内置浏览器实测。
+- **自动化浏览器门禁**：涉及 Web UI 的交付同时执行 `pnpm verify:web`（生产构建产物 + 本机无头 Edge/Chrome 校验壳层、资料库、代码审查、设置中心、浅色主题与窄屏，失败或控制台报错即退出 1）。它兜底装配断裂与空白页，但不替代上一条的人工/子代理目视验收。
 - 所有构建命令必须实际存在于项目 scripts；失败或未运行都应如实报告。
-- **门禁位置**：克隆后执行一次 `pnpm hooks:install` 启用本地提交前检查（`.githooks/pre-commit`：空白检查 + `check` + `lint`，跳过用 `--no-verify`）；完整门禁在 `.github/workflows/ci.yml`，顺序为 `install --frozen-lockfile → check → lint → readme:pair → typecheck → test → build → probe:loader`。其中 Lint 由 `pnpm lint`（`scripts/lint-workspace.mjs`，AST 规则：未使用导入、显式 any、调试输出、宽松相等、空 catch、TS 抑制指令）执行。改完必须让这些步骤真实通过，不能只跑一部分就报告完成。
+- **门禁位置**：克隆后执行一次 `pnpm hooks:install` 启用本地提交前检查（`.githooks/pre-commit`：空白检查 + `check` + `lint`，跳过用 `--no-verify`）；完整门禁在 `.github/workflows/ci.yml`，顺序为 `install --frozen-lockfile → check → lint → readme:pair → typecheck → test → build → probe:loader → verify:web`。其中 Lint 由 `pnpm lint`（`scripts/lint-workspace.mjs`，AST 规则：未使用导入、显式 any、调试输出、宽松相等、空 catch、TS 抑制指令）执行。改完必须让这些步骤真实通过，不能只跑一部分就报告完成。
 - 未经负责人明确要求，**不得 git commit、git push、合并 PR、强制 reset、覆盖用户本地改动**。
 - 不泄漏密钥、不静默清除数据、不改动无关系统文件。高风险操作必须单独审批。
 

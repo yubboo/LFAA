@@ -30,7 +30,7 @@ import type {
 } from "./types";
 
 export * from "./types";
-export type { PendingQuestion, UserClarification } from "@lfaa/session";
+export type { PendingQuestion, SessionWorktree, UserClarification } from "@lfaa/session";
 export {
   buildRunSummaryEntry,
   collectHistoryDigest,

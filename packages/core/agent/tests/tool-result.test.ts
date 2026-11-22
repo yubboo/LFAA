@@ -1,7 +1,7 @@
 // 验证工具结果进入模型上下文前的统一限长与续读提示。
 import assert from "node:assert/strict";
 import test from "node:test";
-import { limitToolResult } from "../src/tool-result";
+import { limitToolResult } from "../src/tools/tool-result";
 
 test("只读工具按头部限长，命令按尾部限长并提示续读", () => {
   const longRead = "const value = 1;\n".repeat(2_000);

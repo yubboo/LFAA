@@ -1,5 +1,5 @@
 ---
-description: "Sandbox seam: file-effect modes, per-call policy, and fail-closed pre-execution checks."
+description: "Sandbox domain: file-effect modes, per-call policy, and the tool-layer backend with fail-closed pre-execution checks."
 kind: "sandbox"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Sandbox seam: file-effect modes, per-call policy, and fail-closed pre-execution checks.
+Sandbox domain: file-effect modes, per-call policy, and the tool-layer backend with fail-closed pre-execution checks.
 
 This package lives in `packages/sandbox/sandbox`.
 
@@ -23,7 +23,7 @@ This package lives in `packages/sandbox/sandbox`.
 
 ## Dependencies
 
-No workspace dependencies.
+- `@lfaa/tools`
 
 ## Dev Note
 

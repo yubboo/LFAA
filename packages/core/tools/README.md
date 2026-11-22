@@ -26,7 +26,6 @@ This package lives in `packages/core/tools`.
 - `@lfaa/fs`
 - `@lfaa/guard`
 - `@lfaa/shell`
-- `@lfaa/sandbox`
 
 ## Dev Note
 

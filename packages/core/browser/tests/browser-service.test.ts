@@ -81,6 +81,14 @@ test("BrowserService 驱动本机浏览器打开测试页、交互、截图并�
   assert.equal(logsRes.ok, true);
   assert.ok(logsRes.output.includes("test-console-err"));
 
+  const evalRes = await ctx.tools.executeTool("browser_evaluate", {
+    expression: "({ title: document.title, heading: document.getElementById('heading')?.textContent, color: getComputedStyle(document.getElementById('heading')).color })",
+  }, execCtx);
+  assert.equal(evalRes.ok, true);
+  assert.match(evalRes.output, /已点击/u);
+  assert.match(evalRes.output, /LFAA 浏览器测试页/u);
+  assert.match(evalRes.output, /color/u);
+
   const netRes = await ctx.tools.executeTool("browser_network", {}, execCtx);
   assert.equal(netRes.ok, true);
   assert.ok(netRes.output.includes(`http://127.0.0.1:${port}/`));

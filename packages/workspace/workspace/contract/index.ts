@@ -46,10 +46,12 @@ export interface ResolveDefaultPathResult {
   folderName: string;
 }
 
-/** 约定创建项目时提交的名称、路径与目录选择信息。 */
+/** 约定创建项目时提交的名称、路径、项目简介与目录选择信息。 */
 export interface CreateProjectInput {
   name: string;
   rootPath?: string;
+  /** 项目目标与交付范围；留空时由 Host 依据目录内容生成初稿。 */
+  description?: string;
   /** 浏览器在信任弹窗中展示的默认路径，创建时由 Host 重新核对。 */
   confirmedDefaultPath?: string;
   trusted: boolean;
@@ -59,6 +61,15 @@ export interface CreateProjectInput {
 export interface UpdateProjectInput {
   name?: string;
   rootPaths?: string[];
+  /** 项目目标与交付范围；传空字符串表示清空。 */
+  description?: string;
   pinned?: boolean;
   sectionId?: string | null;
+}
+
+/** 项目简介初稿：依据目录内 README/清单与顶层条目生成，不写文件。 */
+export interface DraftProjectBriefResult {
+  brief: string;
+  /** 实际读取到的依据，如 README.md、package.json、目录条目。 */
+  sources: string[];
 }

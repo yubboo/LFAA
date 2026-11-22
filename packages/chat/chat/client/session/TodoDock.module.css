@@ -1,0 +1,178 @@
+/* 输入框上方任务卡：浅色/深色都只用 ui-theme 语义变量，避免写死颜色。 */
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  background: var(--color-panel);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 2px 2px;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.lead {
+  color: var(--color-accent);
+  flex: none;
+}
+
+.title {
+  font-weight: 600;
+  flex: none;
+}
+
+.progress {
+  color: var(--color-muted);
+  font-size: 12px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chevron {
+  color: var(--color-muted);
+  flex: none;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0 2px;
+  padding: 0 2px 0 2px;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--color-ink);
+}
+
+/* 状态标记固定 15px 列，与标题的清单图标共用同一条左对齐线。 */
+.marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 15px;
+  height: 15px;
+}
+
+.dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-muted);
+}
+
+.dot[data-status="completed"] {
+  background: var(--color-success);
+}
+
+/* 暂停态用静态暂停图标替代旋转环，表示 Agent 已停止推进。 */
+.pauseIcon {
+  color: var(--color-accent);
+}
+
+/* 进行中：强调色旋转环，和静态圆点共用同一个 15px 标记列。 */
+.spinner {
+  width: 10px;
+  height: 10px;
+  background: transparent;
+  border: 1.5px solid var(--color-accent);
+  border-top-color: transparent;
+  animation: todoSpin 0.9s linear infinite;
+}
+
+@keyframes todoSpin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+    border-top-color: var(--color-accent);
+  }
+}
+
+/* 步骤序号：等宽数字固定列宽右对齐，单/两位数都对齐；当前步骤用强调色加粗。 */
+.index {
+  flex: none;
+  width: 18px;
+  color: var(--color-muted);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.index[data-status="in_progress"] {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.content {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.item[data-status="in_progress"] .content {
+  color: var(--color-accent);
+  font-weight: 500;
+}
+
+/* 状态点只靠颜色表达状态，给读屏补一段不可见文本。 */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.item[data-status="completed"] .content {
+  color: var(--color-muted);
+}
+
+.more {
+  color: var(--color-muted);
+  font-size: 12px;
+  /* 与任务正文左对齐：状态点 7 + 间隙 8 + 序号列 18 + 间隙 8。 */
+  padding-left: 41px;
+}
+
+.moreBtn {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-link);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.moreBtn:hover {
+  color: var(--color-link-hover);
+}

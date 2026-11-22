@@ -3,7 +3,7 @@ import type { Context } from "@deepseek-ai/cordis";
 import "@lfaa/ui-layout/client";
 import type { PluginRecord } from "../contract/index";
 import { fetchPluginsState } from "./plugins-client";
-import { PluginsView } from "./Plugins-View";
+import { PluginsView } from "./components/Plugins-View";
 
 function detectIsZh(): boolean {
   if (typeof document !== "undefined" && document.documentElement.lang) {

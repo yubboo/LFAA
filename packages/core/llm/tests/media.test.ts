@@ -23,7 +23,7 @@ import {
   resolveVideoEndpoint,
   selectImageProfile,
   selectVideoProfile,
-} from "../src/media";
+} from "../src/media/media";
 import type { LlmProfile } from "../src/types";
 
 function profile(overrides: Partial<LlmProfile>): LlmProfile {

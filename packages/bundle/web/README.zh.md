@@ -24,14 +24,13 @@ LFAA Web 装配包：按 Cordis 约定把 Host 基础能力与 Loader 组合成�
 ## 依赖
 
 - `@lfaa/agent`
-- `@lfaa/bash-local`
 - `@lfaa/browser`
 - `@lfaa/chat`
+- `@lfaa/review`
 - `@lfaa/jobs`
 - `@lfaa/llm`
 - `@lfaa/memory`
 - `@lfaa/plugins`
-- `@lfaa/pwsh-local`
 - `@lfaa/rules`
 - `@lfaa/sections`
 - `@lfaa/shell`
@@ -39,7 +38,23 @@ LFAA Web 装配包：按 Cordis 约定把 Host 基础能力与 Loader 组合成�
 - `@lfaa/subagent`
 - `@lfaa/tools`
 - `@lfaa/workspace`
+- `@lfaa/worktree`
 - `@lfaa/tool-todo`
+- `@lfaa/goal`
+- `@lfaa/web`
+- `@lfaa/timeout-policy`
+- `@lfaa/spill-local`
+- `@lfaa/plan-mode`
+- `@lfaa/fs-observation-policy`
+- `@lfaa/tool-schedule`
+- `@lfaa/message-feedback`
+- `@lfaa/attachment-local`
+- `@lfaa/session-title`
+- `@lfaa/commands`
+- `@lfaa/tool-media`
+- `@lfaa/system-prompt`
+- `@lfaa/sandbox`
+- `@lfaa/compaction`
 
 ## 开发说明
 

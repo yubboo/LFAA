@@ -37,8 +37,8 @@
   "files": [
     "lib",
     "src",
-    "contract",
-    "client"
+    "client",
+    "contract"
   ],
   "publishConfig": {
     "access": "public"

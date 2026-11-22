@@ -43,16 +43,27 @@ export function createWorkspaceHttpHandler(service: WorkspaceService) {
         return true;
       }
 
+      if (method === "POST" && pathname === "/api/workspace/projects/draft-brief") {
+        const body = await readJsonBody(req);
+        const name = typeof body.name === "string" ? body.name : "";
+        const rootPath = typeof body.rootPath === "string" ? body.rootPath : "";
+        const draft = await service.draftProjectBrief(name, rootPath);
+        sendJson(res, 200, draft);
+        return true;
+      }
+
       if (method === "POST" && pathname === "/api/workspace/projects") {
         const body = await readJsonBody(req);
         const name = typeof body.name === "string" ? body.name : "";
         const rootPath = typeof body.rootPath === "string" ? body.rootPath : undefined;
         const confirmedDefaultPath = typeof body.confirmedDefaultPath === "string" ? body.confirmedDefaultPath : undefined;
+        const description = typeof body.description === "string" ? body.description : undefined;
         const trusted = body.trusted === true;
         const project = await service.createProject({
           name,
           ...(rootPath !== undefined ? { rootPath } : {}),
           ...(confirmedDefaultPath !== undefined ? { confirmedDefaultPath } : {}),
+          ...(description !== undefined ? { description } : {}),
           trusted,
         });
         sendJson(res, 201, { project });
@@ -128,6 +139,7 @@ export function createWorkspaceHttpHandler(service: WorkspaceService) {
         const updated = await service.updateProject(decodeURIComponent(itemMatch[1]), {
           ...(typeof body.name === "string" ? { name: body.name } : {}),
           ...(rawRootPaths !== undefined ? { rootPaths: rawRootPaths } : {}),
+          ...(typeof body.description === "string" ? { description: body.description } : {}),
           ...(typeof body.pinned === "boolean" ? { pinned: body.pinned } : {}),
           ...(body.sectionId === null || typeof body.sectionId === "string" ? { sectionId: body.sectionId } : {}),
         });

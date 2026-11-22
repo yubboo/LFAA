@@ -5,9 +5,17 @@ import { lstat, mkdir, open, readdir, readFile, stat, writeFile } from "node:fs/
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { type Context, Service } from "@deepseek-ai/cordis";
+import { draftProjectBrief as buildProjectBriefDraft } from "./project-brief";
+import {
+  isValidProjectRecord,
+  normalizeProjectDescription,
+  normalizeUniquePaths,
+  resolveWithinProjectRoots,
+} from "./project-records";
 import { openFolderInExplorer, openNativeFolderPicker, resolveNamedSubfolder, resolveUserDocumentsDir, revealFileInExplorer } from "./system-paths";
 import type {
   CreateProjectInput,
+  DraftProjectBriefResult,
   FolderPickResult,
   ResolveDefaultPathResult,
   UpdateProjectInput,
@@ -31,61 +39,6 @@ const DEFAULT_STORE_PATH = join(homedir(), ".lfaa", "projects.json");
 const DEFAULT_WORKSPACE_SUBDIR = "lfaa";
 const MAX_TREE_ENTRIES = 200;
 const MAX_PREVIEW_FILE_BYTES = 256 * 1024;
-
-function isWithinRoot(candidatePath: string, rootPath: string): boolean {
-  const normalizedCandidate = resolve(candidatePath);
-  const normalizedRoot = resolve(rootPath);
-  const rel = relative(normalizedRoot, normalizedCandidate);
-  return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
-}
-
-function resolveWithinProjectRoots(
-  project: WorkspaceProjectSummary,
-  requestedPath?: string,
-): { matchedRoot: string; resolvedPath: string; relativePath: string } | null {
-  const trimmed = requestedPath?.trim();
-  if (!trimmed) {
-    const root = resolve(project.rootPath);
-    return { matchedRoot: root, resolvedPath: root, relativePath: "" };
-  }
-  const roots = project.rootPaths.length > 0 ? project.rootPaths : [project.rootPath];
-  const candidate = isAbsolute(trimmed) ? resolve(trimmed) : resolve(project.rootPath, trimmed);
-  for (const rawRoot of roots) {
-    const root = resolve(rawRoot);
-    if (isWithinRoot(candidate, root)) {
-      return {
-        matchedRoot: root,
-        resolvedPath: candidate,
-        relativePath: relative(root, candidate).replace(/\\/gu, "/"),
-      };
-    }
-  }
-  return null;
-}
-
-function isValidProjectRecord(item: unknown): item is WorkspaceProjectSummary {
-  if (typeof item !== "object" || item === null) return false;
-  const record = item as Record<string, unknown>;
-  return typeof record.id === "string"
-    && typeof record.name === "string"
-    && typeof record.rootPath === "string"
-    && typeof record.createdAt === "number";
-}
-
-function normalizeUniquePaths(rawPaths: string[]): string[] {
-  const seen = new Set<string>();
-  const result: string[] = [];
-  for (const item of rawPaths) {
-    const trimmed = item.trim();
-    if (!trimmed) continue;
-    const resolved = resolve(trimmed);
-    const key = process.platform === "win32" ? resolved.toLowerCase() : resolved;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    result.push(resolved);
-  }
-  return result;
-}
 
 // 默认路径只可复用同名的真实目录，文件和链接需要用户另行选择。
 async function defaultFolderExists(targetPath: string): Promise<boolean> {
@@ -145,7 +98,10 @@ export class WorkspaceService extends Service {
           : [];
         const rootPaths = normalizeUniquePaths(rawList.length ? rawList : [item.rootPath]);
         const primaryPath = rootPaths[0] ?? resolve(item.rootPath);
-        return {
+        const description = normalizeProjectDescription(
+          typeof storedRecord.description === "string" ? storedRecord.description : undefined,
+        );
+        const next: WorkspaceProjectSummary = {
           ...item,
           rootPath: primaryPath,
           rootPaths: rootPaths.length ? rootPaths : [primaryPath],
@@ -159,6 +115,9 @@ export class WorkspaceService extends Service {
             ? storedRecord.chatCount
             : 0,
         };
+        if (description) next.description = description;
+        else delete next.description;
+        return next;
       });
     } catch {
       return [];
@@ -189,6 +148,20 @@ export class WorkspaceService extends Service {
         exists: existsSync(item.rootPath),
       }))
       .sort((left, right) => right.createdAt - left.createdAt);
+  }
+
+  /** 按 id 读取单个项目，供 Agent 解析项目范围。 */
+  async getProject(projectId: string): Promise<WorkspaceProjectSummary | null> {
+    const projects = await this.readStoredProjects();
+    const project = projects.find((item) => item.id === projectId);
+    return project ? { ...project, exists: existsSync(project.rootPath) } : null;
+  }
+
+  /** 只读生成项目简介初稿，供创建/编辑弹窗预览；目录不存在时返回兜底文案。 */
+  async draftProjectBrief(name: string, rootPath: string): Promise<DraftProjectBriefResult> {
+    const trimmedPath = rootPath.trim();
+    if (!trimmedPath) throw new Error("请选择项目文件夹后再生成简介。");
+    return buildProjectBriefDraft(name, resolve(trimmedPath));
   }
 
   async resolveDefaultProjectPath(name: string): Promise<ResolveDefaultPathResult> {
@@ -268,6 +241,10 @@ export class WorkspaceService extends Service {
       createdAt: Date.now(),
       exists: true,
     };
+    // 用户未填写时按目录内容生成初稿，保证项目内新会话一开始就有范围依据。
+    const description = normalizeProjectDescription(input.description)
+      ?? (await this.draftProjectBrief(name, resolvedPath)).brief;
+    if (description) project.description = description;
 
     await this.writeStoredProjects([project, ...existing]);
     return project;
@@ -311,6 +288,11 @@ export class WorkspaceService extends Service {
       sectionId: input.sectionId !== undefined ? input.sectionId : current.sectionId,
       exists: true,
     };
+    if (input.description !== undefined) {
+      const description = normalizeProjectDescription(input.description);
+      if (description) updated.description = description;
+      else delete updated.description;
+    }
 
     const nextList = [...existing];
     nextList[index] = updated;

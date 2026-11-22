@@ -17,6 +17,8 @@ export interface MediaGenerateOptions {
   ) => Promise<{ ok: boolean; output: string; summary: string; metadata?: Record<string, unknown> }>;
   /** 把会话绑定项目解析成工作区根目录。 */
   resolveWorkspaceRoots: (projectId: string | null) => Promise<string[]>;
+  /** 会话绑定工作树时的输出与引用根；缺省沿用项目根。 */
+  resolveSessionWorkspaceRoots?: (sessionId: string) => Promise<string[]>;
   /** 读取会话所属项目。 */
   getSessionProjectId: (sessionId: string) => Promise<string | null>;
   /** 读取会话附件（图片）并转成 data URL，用于图生图参考。 */
@@ -236,7 +238,9 @@ export function createMediaGenerateHttpHandler(options: MediaGenerateOptions) {
       const userMessageId = randomUUID();
       const assistantMessageId = randomUUID();
       const projectId = await options.getSessionProjectId(sessionId);
-      const workspaceRoots = await options.resolveWorkspaceRoots(projectId);
+      const workspaceRoots = options.resolveSessionWorkspaceRoots
+        ? await options.resolveSessionWorkspaceRoots(sessionId)
+        : await options.resolveWorkspaceRoots(projectId);
       await options.appendMessage(sessionId, {
         id: userMessageId,
         role: "user",

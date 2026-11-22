@@ -1,0 +1,16 @@
+/* 会话行工作树分支标签样式；与侧栏主样式分开，避免单文件继续膨胀。 */
+.branchBadge {
+  min-width: 0;
+  max-width: 6.5rem;
+  flex: 0 1 auto;
+  overflow: hidden;
+  padding: 0 0.3rem;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  color: var(--color-muted);
+  font-family: var(--code-font-family, monospace);
+  font-size: 0.66em;
+  line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

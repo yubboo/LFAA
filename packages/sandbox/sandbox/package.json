@@ -29,7 +29,8 @@
     "typecheck": "tsc -b ."
   },
   "dependencies": {
-    "@deepseek-ai/cordis": "^4.1.0"
+    "@deepseek-ai/cordis": "^4.1.0",
+    "@lfaa/tools": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.10.0",

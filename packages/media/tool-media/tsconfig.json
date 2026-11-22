@@ -8,6 +8,7 @@
   "include": ["src"],
   "references": [
     { "path": "../../core/llm" },
-    { "path": "../../core/tools" }
+    { "path": "../../core/tools" },
+    { "path": "../../ui/primitives" }
   ]
 }

@@ -1,0 +1,51 @@
+/* 方舟套餐目录沿用模型表单的主题变量，为窄屏保留可换行的模型 ID。 */
+.catalog {
+  display: grid;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.group {
+  display: grid;
+  gap: 0.4rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--color-line);
+}
+
+.group h3 {
+  margin: 0;
+  color: var(--color-ink);
+  font-size: 0.78em;
+  font-weight: 600;
+}
+
+.group small {
+  color: var(--color-muted);
+  font-family: var(--font-sans);
+}
+
+/* 能力标签用强调色；状态类文案（即将下线/控制台路由）保持弱化色。
+   需要 `.group small` 的同级前缀提高优先级，否则会被上个规则覆盖。 */
+.group small.capText {
+  color: var(--color-accent);
+}
+
+.group small.statusText {
+  color: var(--color-muted);
+}
+
+/* 模型 ID 在窄屏可整词折行或在任意字符处换行，避免撑宽弹窗。 */
+.group button {
+  max-width: 100%;
+  flex-wrap: wrap;
+  overflow-wrap: anywhere;
+  text-align: start;
+}
+
+/* 只读模型（向量化）与可点击模型使用同一套 chip 外观，仅去掉手型光标。 */
+.group [data-static="true"] {
+  cursor: default;
+  max-width: 100%;
+  flex-wrap: wrap;
+  overflow-wrap: anywhere;
+}

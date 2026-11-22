@@ -24,7 +24,6 @@ This package lives in `packages/core/jobs`.
 ## Dependencies
 
 - `@lfaa/shell`
-- `@lfaa/shell-env`
 - `@lfaa/tools`
 
 ## Dev Note

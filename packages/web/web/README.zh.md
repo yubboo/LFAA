@@ -1,21 +1,30 @@
+---
+description: "LFAA 网页能力 seam：按优先级注册抓取实现，供工具与 Agent 统一取正文。"
+kind: "package"
+---
+
 # @lfaa/web
 
-LFAA 的网页能力 seam。抓取实现按优先级注册，工具与 Agent 只依赖这个服务。
+[English](README.md) | 中文
 
-## 接口
+## 摘要
 
-| 导出 | 作用 |
-| --- | --- |
-| `WebService` | `ctx.web`：注册/列出实现、按优先级取正文 |
-| `WebProvider` | 单个实现的契约（`id`、`priority`、`fetchText`） |
-| `orderProviders` | 服务与测试共用的纯排序函数 |
+LFAA 网页能力 seam：按优先级注册抓取实现，供工具与 Agent 统一取正文。
 
-`fetchText` 按优先级从高到低依次尝试，全部失败才抛错，并汇总每个实现的错误。
+本包位于 `packages/web/web`。
 
-## 安装
+## 导出
 
-```bash
-pnpm add @lfaa/web
-```
+| 子路径 | 目标 | 用途 |
+|---|---|---|
+| `.` | `./lib/index.js` | Host 入口（默认导出插件本体） |
+| `./src/*` | `./src/*` | 源码逃生口，仅供本仓工具链 |
+| `./package.json` | `./package.json` | 清单文件 |
 
-包默认导出 Cordis 插件，Loader 可按包名装载；搭配 `@lfaa/web-fetch-http` 获得默认 HTTP 实现。
+## 依赖
+
+- `@lfaa/tools`
+
+## 开发说明
+
+无。

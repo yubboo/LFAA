@@ -4,25 +4,26 @@ import "@lfaa/llm";
 import "@lfaa/memory";
 import "@lfaa/rules";
 import "@lfaa/tools";
-import { executeAgentTaskLoop } from "./agent-loop";
-import { readActivitySource } from "./activity-file";
-import { registerAgentLibraryTools } from "./builtin-agent-tools";
-import { SmartTrustStore } from "./permission-policy";
-import { beginAgentRun, type SkillCatalogProvider, type SkillResolver } from "./run-begin";
-import type { CompactionHook } from "./run-types";
-import { pendingApprovalSummary, type ActiveRunRecord } from "./run-records";
+import type { ChatSessionRecord } from "@lfaa/memory";
+import { executeAgentTaskLoop } from "./run/agent-loop";
+import { readActivitySource } from "./run/activity-file";
+import { registerAgentLibraryTools } from "./tools/builtin-agent-tools";
+import { SmartTrustStore } from "./tools/permission-policy";
+import { beginAgentRun, type SkillCatalogProvider, type SkillResolver } from "./run/run-begin";
+import type { CompactionHook } from "./run/run-types";
+import { pendingApprovalSummary, type ActiveRunRecord } from "./run/run-records";
 import {
   maskRunId,
   type AgentStreamMetrics,
   type RunChunkRecord,
 } from "./stream-journal";
-import type { AgentAttentionItem, AgentPermissionMode, AgentRunEvent, AgentRunStatus, StartAgentRunInput } from "./types";
+import type { AgentAttentionItem, AgentPermissionMode, AgentRunEvent, AgentRunStatus, ProjectScope, StartAgentRunInput } from "./types";
 
 export * from "./types";
-export * from "./permission-policy";
+export * from "./tools/permission-policy";
 export * from "./stream-journal";
 export { createAgentHttpHandler } from "./http-handler";
-export { executeAgentTaskLoop, type RunExecutionParams, type RunLoopDeps } from "./agent-loop";
+export { executeAgentTaskLoop, type RunExecutionParams, type RunLoopDeps } from "./run/agent-loop";
 
 /** 配置 Agent Host 存储及运行参数，供应用启动和隔离测试注入。 */
 export interface AgentPluginConfig {
@@ -41,6 +42,8 @@ export class AgentService extends Service {
   private unregisterBuiltinTools: (() => void) | null = null;
   private skillResolver: SkillResolver | null = null;
   private skillCatalogProvider: SkillCatalogProvider | null = null;
+  private projectScopeProvider: ((projectId: string) => Promise<ProjectScope | null>) | null = null;
+  private sessionRootsResolver: ((session: ChatSessionRecord) => Promise<string[] | null>) | null = null;
   private totalRunsCount = 0;
   private totalReconnectsCount = 0;
   private replayedChunksCount = 0;
@@ -57,6 +60,8 @@ export class AgentService extends Service {
     this.unregisterBuiltinTools = null;
     this.skillResolver = null;
     this.skillCatalogProvider = null;
+    this.projectScopeProvider = null;
+    this.sessionRootsResolver = null;
     for (const run of this.runs.values()) {
       run.controller.abort();
       for (const pending of run.pendingApprovals.values()) pending.resolve(false);
@@ -80,6 +85,28 @@ export class AgentService extends Service {
     return () => {
       if (this.skillResolver === resolver) {
         this.skillResolver = null;
+      }
+    };
+  }
+
+  /** 注册项目范围提供器：绑定项目的会话据此获得项目名与简介，用于系统提示的范围锚定。 */
+  setProjectScopeProvider(provider: ((projectId: string) => Promise<ProjectScope | null>) | null): () => void {
+    this.projectScopeProvider = provider;
+    return () => {
+      if (this.projectScopeProvider === provider) {
+        this.projectScopeProvider = null;
+      }
+    };
+  }
+
+  /** 注册会话运行根解析器：绑定工作树时以其目录为授权根；返回 null 表示沿用项目根。 */
+  setSessionRootsResolver(
+    resolver: ((session: ChatSessionRecord) => Promise<string[] | null>) | null,
+  ): () => void {
+    this.sessionRootsResolver = resolver;
+    return () => {
+      if (this.sessionRootsResolver === resolver) {
+        this.sessionRootsResolver = null;
       }
     };
   }
@@ -126,6 +153,8 @@ export class AgentService extends Service {
       ...(prompt ? { extraSystemPrompt: () => prompt.compose() } : {}),
       skillResolver: this.skillResolver,
       skillCatalogProvider: this.skillCatalogProvider,
+      ...(this.projectScopeProvider ? { resolveProjectScope: this.projectScopeProvider } : {}),
+      ...(this.sessionRootsResolver ? { resolveSessionRoots: this.sessionRootsResolver } : {}),
       ...(this.config.resolveSessionModules ? { resolveSessionModules: this.config.resolveSessionModules } : {}),
       onRunCreated: (record) => {
         this.runs.set(record.status.runId, record);

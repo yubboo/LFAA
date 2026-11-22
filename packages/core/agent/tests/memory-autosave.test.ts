@@ -1,7 +1,7 @@
 // 验证只把用户明确的偏好/约定沉淀为长期记忆，普通任务描述不命中。
 import assert from "node:assert/strict";
 import test from "node:test";
-import { extractExplicitMemory } from "../src/memory-autosave";
+import { extractExplicitMemory } from "../src/run/memory-autosave";
 
 test("只沉淀明确的偏好与约定", () => {
   assert.equal(extractExplicitMemory("记住：本项目统一使用 pnpm。"), "本项目统一使用 pnpm");

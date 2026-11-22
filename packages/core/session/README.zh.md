@@ -23,7 +23,7 @@ LFAA 会话领域：消息/步骤/指标契约、本地会话文件读写、标�
 
 ## 依赖
 
-无 workspace 依赖。
+- `@lfaa/session-title`
 
 ## 开发说明
 

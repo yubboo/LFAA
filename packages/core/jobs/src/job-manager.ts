@@ -1,7 +1,7 @@
 // 后台任务进程池：维护会话归属、有界字节缓冲、中文编码解码与跨平台进程树终止。
 import { execFile, spawn, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { formatCommandOutput } from "@lfaa/shell-env";
+import { formatCommandOutput } from "@lfaa/shell";
 import { sanitizeCommandEnv } from "@lfaa/shell";
 import type { BackgroundJobItem, JobsPluginConfig, StartBackgroundJobInput } from "./types";
 

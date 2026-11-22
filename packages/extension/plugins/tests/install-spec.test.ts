@@ -1,7 +1,7 @@
 // 验证插件安装来源解析：npm 包名、GitHub 地址、本地目录与压缩包各自归类，非法输入明确拒绝。
 import assert from "node:assert/strict";
 import test from "node:test";
-import { InvalidInstallSpecError, parseInstallSpec } from "../src/install-spec";
+import { InvalidInstallSpecError, parseInstallSpec } from "../src/catalog/install-spec";
 
 test("npm 包名与版本", () => {
   assert.deepEqual(parseInstallSpec("@lfaa/browser"), { kind: "registry", spec: "@lfaa/browser", name: "@lfaa/browser" });

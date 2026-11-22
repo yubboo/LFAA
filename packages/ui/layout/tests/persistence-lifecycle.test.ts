@@ -13,7 +13,7 @@ import {
   MIN_PANEL_WIDTH,
   SNAP_REOPEN_THRESHOLD_WIDTH,
   SNAP_THRESHOLD_WIDTH,
-} from "../client/sidebar-resize";
+} from "../client/shell/sidebar-resize";
 import {
   LEFT_SIDEBAR_WIDTH_STORAGE_KEY,
   RIGHT_PANEL_WIDTH_STORAGE_KEY,
@@ -30,9 +30,9 @@ import {
   writeRecentSortPref,
   writeSectionExpandedPref,
   writeWorkspaceModePref,
-} from "../client/ui-preferences";
+} from "../client/shell/ui-preferences";
 import { locales } from "../client/locales";
-import { resolveWorkbenchDomain } from "../client/workbench-domains";
+import { resolveWorkbenchDomain } from "../client/navigation/workbench-domains";
 import { WorkbenchClientService } from "../client/workbench-service";
 
 function installMockWindowStorage() {

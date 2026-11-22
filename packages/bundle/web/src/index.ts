@@ -3,30 +3,30 @@ import { type Context, type Plugin } from "@deepseek-ai/cordis";
 import { CORE_MODULES, OPTIONAL_MODULES, PRESETS, resolveLegacySessionModules } from "./presets";
 import Loader from "@deepseek-ai/cordis-plugin-loader";
 import { agentPlugin } from "@lfaa/agent";
-import { resolveBash } from "@lfaa/bash-local";
 import { browserPlugin } from "@lfaa/browser";
 import { chatPlugin } from "@lfaa/chat";
-import commandCompactPlugin from "@lfaa/command-compact";
-import compactionBasicPlugin from "@lfaa/compaction-basic";
+import {
+  commandCompactCore as commandCompactPlugin,
+  compactionCore as compactionBasicPlugin,
+  toolResultPrunerCore as toolResultPrunerPlugin,
+} from "@lfaa/compaction";
 import fsObservationPlugin from "@lfaa/fs-observation-policy";
-import { goalPlugin } from "@lfaa/goal";
+import { goalPlugin, toolGoalPlugin } from "@lfaa/goal";
 import { jobsPlugin } from "@lfaa/jobs";
 import { llmPlugin } from "@lfaa/llm";
 import { memoryPlugin } from "@lfaa/memory";
 import { pluginsPlugin } from "@lfaa/plugins";
 import planModePlugin from "@lfaa/plan-mode";
-import { resolveCmd, resolvePowerShell } from "@lfaa/pwsh-local";
 import { rulesPlugin } from "@lfaa/rules";
-import sandboxPolicyPlugin from "@lfaa/sandbox-policy";
+import { reviewPlugin } from "@lfaa/review";
+import { sandboxPolicyCore as sandboxPolicyPlugin } from "@lfaa/sandbox";
 import { sectionsPlugin } from "@lfaa/sections";
-import { shellPlugin } from "@lfaa/shell";
+import { resolveBash, resolveCmd, resolvePowerShell, shellPlugin } from "@lfaa/shell";
 import { skillsPlugin } from "@lfaa/skills";
 import spillLocalPlugin from "@lfaa/spill-local";
 import systemPromptPlugin from "@lfaa/system-prompt";
 import { subagentPlugin } from "@lfaa/subagent";
 import timeoutPolicyPlugin from "@lfaa/timeout-policy";
-import toolGoalPlugin from "@lfaa/tool-goal";
-import toolResultPrunerPlugin from "@lfaa/tool-result-pruner";
 import toolSchedulePlugin from "@lfaa/tool-schedule";
 import feedbackPlugin from "@lfaa/message-feedback";
 import attachmentPlugin from "@lfaa/attachment-local";
@@ -34,11 +34,10 @@ import sessionTitlePlugin from "@lfaa/session-title";
 import commandsPlugin from "@lfaa/commands";
 import mediaToolsPlugin from "@lfaa/tool-media";
 import toolTodoPlugin from "@lfaa/tool-todo";
-import toolWebPlugin from "@lfaa/tool-web";
 import { toolsPlugin } from "@lfaa/tools";
-import { webPlugin } from "@lfaa/web";
-import httpFetchPlugin from "@lfaa/web-fetch-http";
+import { httpFetchPlugin, toolWebPlugin, webPlugin } from "@lfaa/web";
 import { workspacePlugin } from "@lfaa/workspace";
+import { worktreePlugin } from "@lfaa/worktree";
 
 export { CORE_MODULES, OPTIONAL_MODULES } from "./presets";
 
@@ -96,7 +95,11 @@ export const webBundlePlugin: Plugin.Object<WebBundleConfig> = {
         return (await chat.getGeneralSettings()).defaultProjectsFolder;
       },
     });
+    // 工作树依赖已登记项目，排在 workspace 之后；本身不读写会话。
+    const worktreeFiber = ctx.plugin(worktreePlugin, {});
     const llmFiber = ctx.plugin(llmPlugin);
+    // 代码审查与 Git 服务只依赖编码设置，先于 agent/chat 挂载即可。
+    const reviewFiber = ctx.plugin(reviewPlugin, { repoRoot: config.repoRoot });
     const rulesFiber = ctx.plugin(rulesPlugin);
     const memoryFiber = ctx.plugin(memoryPlugin, {
       recommendedProjectDataRoot: `${config.repoRoot}/data`,
@@ -153,7 +156,7 @@ export const webBundlePlugin: Plugin.Object<WebBundleConfig> = {
     const promptFiber = ctx.plugin(systemPromptPlugin);
     const compactCommandFiber = ctx.plugin(commandCompactPlugin);
     const sandboxPolicyFiber = ctx.plugin(sandboxPolicyPlugin, {});
-    await Promise.all([sectionsFiber, workspaceFiber, llmFiber, rulesFiber, memoryFiber, shellFiber, toolsFiber, skillsFiber, webFiber, webFetchFiber, goalFiber, toolTodoFiber, toolWebFiber, toolGoalFiber, toolScheduleFiber, feedbackFiber, attachmentFiber, sessionTitleFiber, commandsFiber, mediaToolsFiber, observationFiber, timeoutFiber, planModeFiber, prunerFiber, spillFiber, compactionFiber, promptFiber, compactCommandFiber, sandboxPolicyFiber]);
+    await Promise.all([sectionsFiber, workspaceFiber, worktreeFiber, llmFiber, reviewFiber, rulesFiber, memoryFiber, shellFiber, toolsFiber, skillsFiber, webFiber, webFetchFiber, goalFiber, toolTodoFiber, toolWebFiber, toolGoalFiber, toolScheduleFiber, feedbackFiber, attachmentFiber, sessionTitleFiber, commandsFiber, mediaToolsFiber, observationFiber, timeoutFiber, planModeFiber, prunerFiber, spillFiber, compactionFiber, promptFiber, compactCommandFiber, sandboxPolicyFiber]);
 
     const loaderFiber = ctx.plugin(Loader, { baseUrl: config.loaderBaseUrl });
     await loaderFiber;
@@ -196,7 +199,7 @@ export const webBundlePlugin: Plugin.Object<WebBundleConfig> = {
 /** 联线插件：把插件、技能、Agent、分区与记忆之间的依赖接上。 */
 const WIRING_PLUGIN: Plugin.Object<void> = {
   name: "@lfaa/bundle-wiring",
-  inject: ["plugins", "skills", "agent", "workspace", "sections", "memory"],
+  inject: ["plugins", "skills", "agent", "workspace", "worktree", "sections", "memory"],
   async apply(ctx: Context) {
     ctx.plugins.setSkillRegistrar((pluginId, list) => ctx.skills.registerPluginSkills(pluginId, list));
     await ctx.plugins.restoreEnabledPlugins();
@@ -220,7 +223,25 @@ const WIRING_PLUGIN: Plugin.Object<void> = {
       }));
     }));
 
+    // 项目范围提供器：绑定项目的会话在系统提示里带上项目名与简介，避免会话跑题。
+    ctx.effect(() => ctx.agent.setProjectScopeProvider(async (projectId: string) => {
+      const project = await ctx.workspace.getProject(projectId);
+      if (!project) return null;
+      const description = project.description?.trim();
+      return {
+        projectId: project.id,
+        name: project.name,
+        ...(description ? { description } : {}),
+      };
+    }));
+
     ctx.effect(() => ctx.sections.onSectionRemoved((sectionId: string) => ctx.workspace.clearSection(sectionId)));
+
+    // 工作树删除保护：按会话快照统计绑定数量，工作树服务本身不依赖会话存储。
+    ctx.effect(() => ctx.worktree.setSessionCounter(async (worktreeId: string) => {
+      const sessions = await ctx.memory.listSessions({ includeArchived: true });
+      return sessions.filter((session) => session.worktree?.id === worktreeId).length;
+    }));
 
     const reconciled = await ctx.memory.reconcileInterruptedRuns().catch((error: unknown) => {
       console.warn("结算上次中断运行时出错：", error);

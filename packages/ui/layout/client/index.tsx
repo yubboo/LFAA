@@ -1,12 +1,12 @@
 // 导出浏览器工作区插件入口与服务类型，不把 React 或 DOM 引入 Host 入口。
 import { createRoot, type Root } from "react-dom/client";
 import type { Plugin } from "@deepseek-ai/cordis";
-import { WorkbenchShell } from "./components/WorkbenchShell";
+import { WorkbenchShell } from "./shell/WorkbenchShell";
 import { WorkbenchClientService } from "./workbench-service";
 
 export { WorkbenchClientService } from "./workbench-service";
 export type { LibraryTabKey, WorkbenchSnapshot } from "./workbench-service";
-export { readStoredJson, writeStoredJson } from "./ui-preferences";
+export { readStoredJson, writeStoredJson } from "./shell/ui-preferences";
 
 // Web 应用提供挂载节点与可选插件就绪信号；插件注册 workbench 服务并在释放时卸载 React。
 export interface WorkbenchPluginConfig {

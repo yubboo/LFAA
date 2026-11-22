@@ -104,6 +104,8 @@ export interface WorkbenchChatSessionSummary {
   title: string;
   projectId: string | null;
   sectionId?: string | null;
+  /** 会话绑定的 Git 工作树摘要；旧会话缺省。 */
+  worktree?: WorkbenchSessionWorktree;
   pinned?: boolean;
   archived?: boolean;
   unread?: boolean;
@@ -127,6 +129,15 @@ export interface WorkbenchChatSearchResult {
   updatedAt: number;
 }
 
+// 会话绑定的工作树摘要，供侧栏与输入框展示；路径由 Host 解析，客户端不可自行拼接。
+export interface WorkbenchSessionWorktree {
+  id: string;
+  projectId: string;
+  path: string;
+  branch: string;
+  repositoryRoot: string;
+}
+
 /** 规定工作台访问会话列表与会话动作的插件契约。 */
 export interface WorkbenchChatProvider<TContent = unknown> {
   getSessions: () => WorkbenchChatSessionSummary[];
@@ -140,7 +151,12 @@ export interface WorkbenchChatProvider<TContent = unknown> {
   /** 打开会话并可选跳转到具体消息；用于搜索结果定位。 */
   openSessionMessage?: (sessionId: string, messageId?: string) => void | Promise<void>;
   subscribe: (listener: () => void) => () => void;
-  startNewChat: (options?: { projectId?: string | null; sectionId?: string | null }) => void | Promise<void>;
+  startNewChat: (options?: {
+    projectId?: string | null;
+    sectionId?: string | null;
+    /** 新会话草稿立即显示的工作树；发送时只提交 id 由 Host 解析。 */
+    worktree?: WorkbenchSessionWorktree;
+  }) => void | Promise<void>;
   openSession: (sessionId: string) => void | Promise<void>;
   onSessionRowEnter?: (session: WorkbenchChatSessionSummary, rowElement: HTMLElement) => void;
   onSessionRowLeave?: (session: WorkbenchChatSessionSummary) => void;
@@ -158,6 +174,8 @@ export interface WorkbenchChatProvider<TContent = unknown> {
 // 项目提供方插件契约，使侧栏与 Shell 无需直接依赖具体项目 UI、弹窗或存储包。
 export interface WorkbenchProjectProvider<TContent = unknown> {
   getProjects: () => WorkbenchProjectItem[];
+  /** 打开项目详情视图；双击项目行或菜单入口使用。 */
+  openProject?: (projectId: string) => void;
   hasLoaded?: () => boolean;
   subscribe: (listener: () => void) => () => void;
   renderCreateDialog: (params: {

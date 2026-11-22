@@ -1,11 +1,12 @@
 // @lfaa/plugins Host 侧 Cordis 服务：管理插件安装、启停、卸载、二创与运行状态。
 import { type Context, type Plugin, Service } from "@deepseek-ai/cordis";
 import type { PluginCatalogItem, PluginManifest, PluginRecord, PresetSummary } from "../contract/index";
-import { PluginManager, type PluginSkillRegistrar } from "./plugin-manager";
-import type { PluginPresetDefinition } from "./plugin-catalog";
+import { PluginManager, type PluginSkillRegistrar } from "./manager/plugin-manager";
+import type { PluginPresetDefinition } from "./catalog/plugin-catalog";
 
 export * from "../contract/index";
-export { createPluginsHttpHandler } from "./plugin-routes";
+export { MODULE_ALIASES, normalizeModuleName, normalizeRecord } from "./catalog/module-aliases";
+export { createPluginsHttpHandler } from "./routes/plugin-routes";
 
 export interface PluginsPluginConfig {
   profile?: "web" | "desktop" | (string & {});

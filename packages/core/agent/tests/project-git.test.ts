@@ -5,7 +5,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { ensureProjectGitRepo, isSensitiveProjectFile } from "../src/project-git";
+import { ensureProjectGitRepo, isSensitiveProjectFile } from "../src/context/project-git";
 
 function hasHead(root: string): boolean {
   try {

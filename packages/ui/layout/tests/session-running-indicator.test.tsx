@@ -5,7 +5,7 @@ import test from "node:test";
 import React, { createElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { WorkbenchChatProvider, WorkbenchChatSessionSummary } from "../contract/index";
-import type { SessionItemDeps } from "../client/components/navigation-items";
+import type { SessionItemDeps } from "../client/navigation/navigation-items";
 
 (globalThis as { React?: typeof React }).React = React;
 
@@ -18,8 +18,8 @@ registerHooks({
   },
 });
 
-const { createRecentSidebarItems, createSessionSidebarItem } = await import("../client/components/navigation-items");
-const { SidebarSectionList } = await import("../client/components/SidebarSectionList");
+const { createRecentSidebarItems, createSessionSidebarItem } = await import("../client/navigation/navigation-items");
+const { SidebarSectionList } = await import("../client/panels/SidebarSectionList");
 
 /** 构造一条会话摘要，仅覆盖侧栏行用到的字段。 */
 function session(id: string, extra: Partial<WorkbenchChatSessionSummary> = {}): WorkbenchChatSessionSummary {

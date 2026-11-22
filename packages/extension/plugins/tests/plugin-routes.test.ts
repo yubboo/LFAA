@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import test from "node:test";
-import { createPluginsHttpHandler } from "../src/plugin-routes";
+import { createPluginsHttpHandler } from "../src/routes/plugin-routes";
 import type { PluginsService } from "../src/index";
 
 interface FakeResponse extends ServerResponse {

@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@deepseek-ai/cordis": "^4.1.0",
-    "@lfaa/shell-env": "workspace:*"
+    "iconv-lite": "^0.7.3"
   },
   "devDependencies": {
     "@types/node": "^24.10.0",

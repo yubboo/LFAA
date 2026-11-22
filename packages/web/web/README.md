@@ -1,26 +1,30 @@
 ---
-description: "Web capability seam: fetch implementations register by priority; tools and the agent depend only on this service."
+description: "Web domain: the fetch seam, the local HTTP implementation, and the fetch_url tool."
 kind: "package"
 ---
 
 # @lfaa/web
 
-Web capability seam for LFAA. Fetch implementations register by priority; tools and the agent depend only on this service.
+English | [中文](README.zh.md)
 
-## API
+## Summary
 
-| Export | Purpose |
-| --- | --- |
-| `WebService` | `ctx.web`: register providers, list them, fetch text by priority |
-| `WebProvider` | Contract for one implementation (`id`, `priority`, `fetchText`) |
-| `orderProviders` | Pure ordering helper shared by service and tests |
+Web domain: the fetch seam, the local HTTP implementation, and the fetch_url tool.
 
-`fetchText` tries providers from highest to lowest priority and only throws after every provider failed, aggregating each error.
+This package lives in `packages/web/web`.
 
-## Install
+## Exports
 
-```bash
-pnpm add @lfaa/web
-```
+| Entry | Target | Purpose |
+|---|---|---|
+| `.` | `./lib/index.js` | Host entry (default-exports the plugin) |
+| `./src/*` | `./src/*` | Source escape hatch for this repository's tooling |
+| `./package.json` | `./package.json` | Package manifest |
 
-The package default-exports the Cordis plugin, so the Loader can mount it by package name. Pair it with `@lfaa/web-fetch-http` for the default HTTP implementation.
+## Dependencies
+
+- `@lfaa/tools`
+
+## Dev Note
+
+None.

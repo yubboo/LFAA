@@ -1,14 +1,14 @@
 // 导出工作区包 Client 插件入口，通过 Cordis inject 获取 workbench 服务并贡献项目、悬停/操作卡片及右侧上下文。
 import type { Context, Plugin } from "@deepseek-ai/cordis";
 import "@lfaa/ui-layout/client";
-import { ProjectContextCard, WorkspaceContextContent } from "./components/ProjectContextPanel";
-import { ProjectDialog } from "./components/ProjectDialog";
-import { ProjectOverlays } from "./components/ProjectOverlays";
-import { ProjectRowActions } from "./components/ProjectRowActions";
-import { ProjectDetailView, ProjectsOverview } from "./components/ProjectWorkspace";
-import { LocalProjectStore } from "./local-project-store";
+import { ProjectContextCard, WorkspaceContextContent } from "./project/ProjectContextPanel";
+import { ProjectDialog } from "./project/ProjectDialog";
+import { ProjectOverlays } from "./project/ProjectOverlays";
+import { ProjectRowActions } from "./project/ProjectRowActions";
+import { ProjectDetailView, ProjectsOverview } from "./project/ProjectWorkspace";
+import { LocalProjectStore } from "./store/local-project-store";
 import { getWorkspaceLocale } from "./locales";
-import { ProjectMenuStore } from "./project-menu-store";
+import { ProjectMenuStore } from "./store/project-menu-store";
 
 declare module "@deepseek-ai/cordis" {
   interface Events {
@@ -32,6 +32,7 @@ export const workspaceClientPlugin: Plugin.Object<void> = {
     const unregisterProvider = context.workbench.registerProjectProvider({
       getProjects: store.getProjects,
       hasLoaded: store.hasLoaded,
+      openProject: (projectId) => context.workbench.openProject(projectId),
       subscribe: (listener) => {
         const offProjects = store.subscribe(listener);
         const offMenus = menuStore.subscribe(listener);
@@ -74,6 +75,13 @@ export const workspaceClientPlugin: Plugin.Object<void> = {
           onCreateSection={onCreateSection}
           onProjectUpdated={onProjectUpdated}
           onProjectRemoved={onProjectRemoved}
+          onStartWorktreeChat={(project, worktree) => {
+            const provider = context.workbench.getSnapshot().chatProvider;
+            if (!provider) return;
+            context.workbench.navigate("workspace", null);
+            void provider.startNewChat({ projectId: project.id, worktree });
+          }}
+          onOpenProject={(projectId) => context.workbench.openProject(projectId)}
         />
       ),
       renderProjectView: (project) => (

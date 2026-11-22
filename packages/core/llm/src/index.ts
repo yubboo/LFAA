@@ -4,9 +4,9 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { type Context, Service } from "@deepseek-ai/cordis";
-import { callAnthropicMessagesApi } from "./anthropic-adapter";
+import { callAnthropicMessagesApi } from "./adapters/anthropic-adapter";
 import { findArkChatModel, getArkPlanCatalog, getArkPlanKind } from "./ark-plan";
-import { knownMediaModels } from "./media-models";
+import { knownMediaModels } from "./media/media-models";
 import { fetchOfficialModels, normalizeModelCapability, resolveModelCapabilities, resolveModelKind } from "./capabilities";
 import { isTokenPlanBaseUrl, tokenPlanCatalogModels } from "./token-plan";
 import {
@@ -21,13 +21,13 @@ import {
   type MediaVideoResult,
   type MediaAudioInput,
   type MediaAudioResult,
-} from "./media";
-export type { MediaImageInput, MediaImageResult, MediaVideoInput, MediaVideoResult, MediaAudioInput, MediaAudioResult } from "./media";
-import { callGeminiGenerateContentApi } from "./gemini-adapter";
-import { callOpenAiCompatibleChat } from "./openai-adapter";
+} from "./media/media";
+export type { MediaImageInput, MediaImageResult, MediaVideoInput, MediaVideoResult, MediaAudioInput, MediaAudioResult } from "./media/media";
+import { callGeminiGenerateContentApi } from "./adapters/gemini-adapter";
+import { callOpenAiCompatibleChat } from "./adapters/openai-adapter";
 import { asApiProtocol, resolveEffectiveProtocol } from "./protocol-utils";
 import { priceFields, sanitizeStoredConfig, withSelectedModel, type StoredLlmConfig } from "./config-sanitize";
-import { callOpenAiResponsesApi } from "./responses-adapter";
+import { callOpenAiResponsesApi } from "./adapters/responses-adapter";
 import type {
   LlmAdapter,
   LlmApiProtocol,

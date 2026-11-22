@@ -51,6 +51,12 @@ export function normalizeHttpBaseUrl(rawUrl: string): string {
   return trimmed;
 }
 
+/** 解析 data:image/...;base64 图片，供各家协议转换图片块。 */
+export function splitDataUrl(value: string): { mime: string; data: string } | null {
+  const match = /^data:(image\/[a-z0-9.+-]+);base64,(.+)$/iu.exec(value.trim());
+  return match ? { mime: match[1]!.toLowerCase(), data: match[2]!.replace(/\s+/gu, "") } : null;
+}
+
 /** 识别需要 DeepSeek 专用请求兼容逻辑的配置。 */
 export function isDeepSeekEndpoint(kind: LlmProviderKind, baseUrl: string, providerId?: string): boolean {
   return kind === "deepseek" || providerId === "deepseek" || baseUrl.toLowerCase().includes("deepseek.com");

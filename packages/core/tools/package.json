@@ -18,8 +18,7 @@
     "@lfaa/fs": "workspace:*",
     "@lfaa/guard": "workspace:*",
     "@deepseek-ai/cordis": "^4.1.0",
-    "@lfaa/shell": "workspace:*",
-    "@lfaa/sandbox": "workspace:*"
+    "@lfaa/shell": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.10.0",

@@ -80,6 +80,8 @@ test("Host workspacePlugin 在确认后使用默认同名目录并保留文件",
     });
     assert.equal(createdDefault.rootPath, path.join(documentsDir, "lfaa", "app1"));
     assert.equal(createdDefault.trusted, true);
+    // 未填写简介时自动生成初稿，项目内新会话才能拿到范围依据。
+    assert.ok(createdDefault.description?.includes("app1"));
 
     const createdStat = await fs.stat(createdDefault.rootPath);
     assert.ok(createdStat.isDirectory());
@@ -125,6 +127,12 @@ test("Host workspacePlugin 在确认后使用默认同名目录并保留文件",
       rootPath: picked.path,
       trusted: true,
     });
+    assert.match(createdPicked.description ?? "", /existing-project/u);
+    assert.match(createdPicked.description ?? "", /src\//u);
+
+    const drafted = await ctx.workspace.draftProjectBrief("自定义项目", externalFolder);
+    assert.match(drafted.brief, /自定义项目/u);
+    assert.ok(drafted.sources.includes("目录条目"));
     const inspection = await ctx.workspace.inspectProject(createdPicked.id);
     assert.ok(inspection);
     assert.ok(inspection.entries.some((entry) => entry.name === "src" && entry.kind === "directory"));
@@ -151,6 +159,12 @@ test("Host workspacePlugin 在确认后使用默认同名目录并保留文件",
     assert.equal(updated.sectionId, "sec-1");
     assert.equal(updated.chatCount, 0);
     assert.deepEqual(updated.rootPaths, [externalFolder, secondFolder]);
+
+    const described = await ctx.workspace.updateProject(createdPicked.id, { description: "只做海洋图片生成" });
+    assert.equal(described?.description, "只做海洋图片生成");
+    const cleared = await ctx.workspace.updateProject(createdPicked.id, { description: "" });
+    assert.equal(cleared?.description, undefined);
+    assert.equal((await ctx.workspace.getProject(createdPicked.id))?.description, undefined);
 
     await ctx.workspace.clearSection("sec-1");
     const clearedList = await ctx.workspace.listProjects();
@@ -243,7 +257,7 @@ test("WorkbenchClientService 支持左二与右侧栏折叠，且 workspaceClien
 });
 
 test("ProjectMenuStore 支持打开与关闭移出项目二次确认状态", async () => {
-  const { ProjectMenuStore } = await import("../client/project-menu-store");
+  const { ProjectMenuStore } = await import("../client/store/project-menu-store");
   const menuStore = new ProjectMenuStore();
 
   assert.equal(menuStore.getSnapshot().removingProjectId, null);
@@ -256,7 +270,7 @@ test("ProjectMenuStore 支持打开与关闭移出项目二次确认状态", asy
 });
 
 test("LocalProjectStore 从本地缓存首屏秒开并在远端一致时静默无感校验", async () => {
-  const { LocalProjectStore } = await import("../client/local-project-store");
+  const { LocalProjectStore } = await import("../client/store/local-project-store");
   const cached = [{
     id: "p1",
     name: "app1",

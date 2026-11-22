@@ -1,7 +1,7 @@
 // @lfaa/tools Host 侧 Cordis 服务：统一管理工具注册表、内置工作区工具与权限安全执行。
 import { resolve } from "node:path";
 import { type Context, Service } from "@deepseek-ai/cordis";
-import type { SandboxDecision, SandboxPolicy } from "@lfaa/sandbox";
+import type { SandboxDecision, SandboxPolicy } from "./types";
 import type { ShellService } from "@lfaa/shell";
 import { createBuiltinWorkspaceTools } from "./builtin-tools";
 import { createEditTools } from "./edit-tools";

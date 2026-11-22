@@ -17,7 +17,6 @@
   "dependencies": {
     "@deepseek-ai/cordis": "^4.1.0",
     "@lfaa/shell": "workspace:*",
-    "@lfaa/shell-env": "workspace:*",
     "@lfaa/tools": "workspace:*"
   },
   "devDependencies": {

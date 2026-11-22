@@ -6,10 +6,11 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { Context } from "@deepseek-ai/cordis";
 import { createApiGateway, type ApiGateway } from "@lfaa/api-gateway";
 import { webBundlePlugin } from "@lfaa/bundle-web";
-import { sandboxLocalPlugin } from "@lfaa/sandbox-local";
-import { createAgentHandlers } from "./handlers-chat";
-import { createCommonHandlers } from "./handlers";
-import { createNotificationSoundsHttpHandler } from "./handlers-notifications";
+import { createGoalHttpHandler } from "@lfaa/goal";
+import { sandboxLocalPlugin } from "@lfaa/sandbox";
+import { createAgentHandlers } from "./handlers/handlers-chat";
+import { createCommonHandlers } from "./handlers/handlers";
+import { createNotificationSoundsHttpHandler } from "./handlers/handlers-notifications";
 
 /** 装配运行时所需参数。 */
 export interface HostRuntimeOptions {
@@ -57,13 +58,19 @@ export async function createHostRuntime(options: HostRuntimeOptions): Promise<Ho
 
   const chatService = hostContext.get("chat");
   if (!chatService) throw new Error("chat 服务未装配，无法提供会话接口。");
+  const goalService = hostContext.get("goal");
+  const goalHandler = goalService ? createGoalHttpHandler(goalService) : null;
+  const reviewService = hostContext.get("review");
+  if (!reviewService) throw new Error("review 服务未装配，无法提供 Git 与代码审查接口。");
 
   const common = createCommonHandlers({ context: hostContext, projectRoot: options.projectRoot, chatService });
   const sessions = createAgentHandlers({
     context: hostContext,
     projectRoot: options.projectRoot,
     chatService,
+    reviewService,
     resolveWorkspaceRoots: common.resolveWorkspaceRoots,
+    resolveSessionWorkspace: common.resolveSessionWorkspace,
   });
   const notificationSounds = createNotificationSoundsHttpHandler();
 
@@ -71,6 +78,7 @@ export async function createHostRuntime(options: HostRuntimeOptions): Promise<Ho
   const gateway = createApiGateway([
     { id: "sections", handle: common.sections },
     { id: "workspace", handle: common.workspace },
+    { id: "worktrees", handle: common.worktrees },
     { id: "skills", handle: common.skills },
     { id: "plugins", handle: common.plugins },
     { id: "llm", handle: common.llm },
@@ -87,6 +95,7 @@ export async function createHostRuntime(options: HostRuntimeOptions): Promise<Ho
     { id: "media-plan", handle: sessions.mediaPlan },
     { id: "coding", handle: sessions.coding },
     { id: "notification-sounds", handle: notificationSounds },
+    ...(goalHandler ? [{ id: "goal", handle: goalHandler }] : []),
     { id: "chat", handle: sessions.chat },
     { id: "jobs", handle: common.jobs },
     { id: "browser", handle: common.browser },

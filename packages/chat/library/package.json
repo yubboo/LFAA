@@ -1,0 +1,48 @@
+{
+  "name": "@lfaa/library",
+  "description": "LFAA 资料库功能包：图像/资产/记忆分类浏览、右栏检视器与存储位置设置。",
+  "version": "0.1.0",
+  "type": "module",
+  "dependencies": {
+    "@deepseek-ai/cordis": "^4.1.0",
+    "@lfaa/chat": "workspace:*",
+    "@lfaa/ui-layout": "workspace:*",
+    "@lfaa/tool-media": "workspace:*",
+    "@tabler/icons-react": "3.52.0",
+    "react": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "react-dom": "^19.3.1",
+    "typescript": "^5.9.3"
+  },
+  "main": "./lib/index.js",
+  "types": "./lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./src/*": "./src/*",
+    "./client": "./client/index.tsx",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "src",
+    "client"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yubboo/LFAA.git",
+    "directory": "packages/chat/library"
+  },
+  "scripts": {
+    "typecheck": "tsc -b ."
+  }
+}

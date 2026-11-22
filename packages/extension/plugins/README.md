@@ -25,7 +25,6 @@ This package lives in `packages/extension/plugins`.
 
 ## Dependencies
 
-- `@lfaa/skills`
 - `@lfaa/tools`
 - `@lfaa/ui-layout`
 - `@lfaa/ui-primitives`

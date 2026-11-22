@@ -26,7 +26,6 @@ LFAA Agent 核心手脚能力包，提供可插拔工具注册表、工作区路
 - `@lfaa/fs`
 - `@lfaa/guard`
 - `@lfaa/shell`
-- `@lfaa/sandbox`
 
 ## 开发说明
 

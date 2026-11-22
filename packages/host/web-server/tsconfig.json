@@ -10,7 +10,9 @@
     { "path": "../../core/agent" },
     { "path": "../../core/browser" },
     { "path": "../../bundle/web" },
-    { "path": "../../core/chat" },
+    { "path": "../../chat/chat" },
+    { "path": "../../goal/goal" },
+    { "path": "../../chat/review" },
     { "path": "../../core/jobs" },
     { "path": "../../core/llm" },
     { "path": "../../core/memory" },
@@ -25,7 +27,8 @@
     { "path": "../../extension/skills" },
     { "path": "../../core/subagent" },
     { "path": "../../workspace/workspace" },
+    { "path": "../../workspace/worktree" },
     { "path": "../../api/gateway" },
-    { "path": "../../sandbox/sandbox-local" }
+    { "path": "../../sandbox/sandbox" }
   ]
 }

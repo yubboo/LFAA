@@ -1,7 +1,7 @@
 // 验证任务清单策略：todo_write 排到工具首位，且提醒只在「没清单 + 已多步 + 没提醒过」时触发一次。
 import assert from "node:assert/strict";
 import test from "node:test";
-import { preferTodoFirst, shouldNudgeTodos } from "../src/todo-plan";
+import { preferTodoFirst, shouldNudgeTodos } from "../src/run/todo-plan";
 
 test("todo_write 被提到工具清单首位，其余顺序不变", () => {
   const tools = [{ name: "read_file" }, { name: "todo_write" }, { name: "write_file" }];

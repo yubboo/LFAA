@@ -27,7 +27,6 @@ kind: "package"
 
 - `@lfaa/tools`
 - `@lfaa/ui-layout`
-- `@lfaa/ui-primitives`
 
 ## 开发说明
 

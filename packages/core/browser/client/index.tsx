@@ -1,11 +1,11 @@
 // @lfaa/browser/client 浏览器端导出与设置页插件注册。
 import type { Context, Plugin } from "@deepseek-ai/cordis";
 import "@lfaa/ui-layout/client";
-import { BrowserSettingsView } from "./BrowserSettingsView";
+import { BrowserSettingsView } from "./settings/BrowserSettingsView";
 
 export * from "./browser-client";
-export { RightBrowserPane } from "./RightBrowserPane";
-export { BrowserSettingsView } from "./BrowserSettingsView";
+export { RightBrowserPane } from "./panes/RightBrowserPane";
+export { BrowserSettingsView } from "./settings/BrowserSettingsView";
 
 export const browserClientPlugin: Plugin.Object<void> = {
   name: "@lfaa/browser/client",

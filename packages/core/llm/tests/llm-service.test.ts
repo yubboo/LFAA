@@ -127,7 +127,7 @@ test("401/402 提示不写死某家控制台地址，接入地址换到别家也
 });
 
 test("DeepSeek 思考模式下多轮工具调用必须附带 thinking 与 reasoning_content", async () => {
-  const { callOpenAiCompatibleChat } = await import("../src/openai-adapter");
+  const { callOpenAiCompatibleChat } = await import("../src/adapters/openai-adapter");
   const capturedBodies: Array<Record<string, unknown>> = [];
   const originalFetch = globalThis.fetch;
   globalThis.fetch = (async (_url, init) => {
@@ -190,7 +190,7 @@ test("DeepSeek 思考模式下多轮工具调用必须附带 thinking 与 reason
 });
 
 test("OpenAI 兼容 SSE 工具 ID 和名称分片归并为同一次准备和调用", async () => {
-  const { callOpenAiCompatibleChat } = await import("../src/openai-adapter");
+  const { callOpenAiCompatibleChat } = await import("../src/adapters/openai-adapter");
   const originalFetch = globalThis.fetch;
   const deltas = [
     { index: 0, function: { name: "write_" } },
@@ -260,9 +260,9 @@ test("enrichDeepSeekReleaseNames 从官方文档提取精确版本后缀标签",
 
 test("resolveEffectiveProtocol 与四大 API 协议适配器（Responses / Anthropic / Gemini / Chat）请求分发正确", async () => {
   const { resolveEffectiveProtocol } = await import("../src/protocol-utils");
-  const { callOpenAiResponsesApi } = await import("../src/responses-adapter");
-  const { callAnthropicMessagesApi } = await import("../src/anthropic-adapter");
-  const { callGeminiGenerateContentApi } = await import("../src/gemini-adapter");
+  const { callOpenAiResponsesApi } = await import("../src/adapters/responses-adapter");
+  const { callAnthropicMessagesApi } = await import("../src/adapters/anthropic-adapter");
+  const { callGeminiGenerateContentApi } = await import("../src/adapters/gemini-adapter");
 
   assert.equal(
     resolveEffectiveProtocol({ kind: "deepseek", baseUrl: "https://api.deepseek.com/anthropic" }),
@@ -392,7 +392,7 @@ test("resolveEffectiveProtocol 与四大 API 协议适配器（Responses / Anthr
 });
 
 test("OpenAI 兼容流式请求声明 include_usage 并解析末尾用量分片", async () => {
-  const { callOpenAiCompatibleChat } = await import("../src/openai-adapter");
+  const { callOpenAiCompatibleChat } = await import("../src/adapters/openai-adapter");
   const originalFetch = globalThis.fetch;
   let body: Record<string, unknown> = {};
   globalThis.fetch = (async (_url, init) => {
@@ -418,7 +418,7 @@ test("OpenAI 兼容流式请求声明 include_usage 并解析末尾用量分片"
 });
 
 test("不识别 stream_options 的服务会自动去掉该字段重试一次", async () => {
-  const { callOpenAiCompatibleChat } = await import("../src/openai-adapter");
+  const { callOpenAiCompatibleChat } = await import("../src/adapters/openai-adapter");
   const originalFetch = globalThis.fetch;
   let calls = 0;
   globalThis.fetch = (async (_url, init) => {

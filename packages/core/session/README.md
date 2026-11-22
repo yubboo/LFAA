@@ -23,7 +23,7 @@ This package lives in `packages/core/session`.
 
 ## Dependencies
 
-No workspace dependencies.
+- `@lfaa/session-title`
 
 ## Dev Note
 

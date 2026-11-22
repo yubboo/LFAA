@@ -112,3 +112,35 @@ test("会话静音状态随摘要持久化并可取消", async () => {
     await fs.rm(root, { recursive: true, force: true });
   }
 });
+
+test("工作树绑定随会话持久化、进入摘要、分叉继承，并阻止直接换项目", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-session-worktree-"));
+  try {
+    const worktree = {
+      id: "wt-1",
+      projectId: "proj-1",
+      path: "C:\\work\\demo-worktrees\\wt-1",
+      branch: "feature/x",
+      repositoryRoot: "C:\\work\\demo",
+    };
+    const store = new SessionMemoryStore(root);
+    const session = await store.create({ projectId: "proj-1", worktree });
+    assert.deepEqual(session.worktree, worktree);
+
+    const reopened = new SessionMemoryStore(root);
+    assert.deepEqual((await reopened.get(session.id))?.worktree, worktree);
+    assert.deepEqual((await reopened.list())[0]?.worktree, worktree);
+
+    await assert.rejects(
+      () => reopened.update(session.id, { projectId: "proj-2" }),
+      /请先解绑工作树/u,
+    );
+    const forked = await reopened.fork(session.id);
+    assert.deepEqual(forked?.worktree, worktree);
+
+    await reopened.update(session.id, { worktree: null });
+    assert.equal((await reopened.get(session.id))?.worktree, undefined);
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});

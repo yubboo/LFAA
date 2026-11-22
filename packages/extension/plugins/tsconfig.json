@@ -7,7 +7,6 @@
   },
   "include": ["src", "contract"],
   "references": [
-    { "path": "../skills" },
     { "path": "../../core/tools" },
     { "path": "../../ui/layout" },
     { "path": "../../ui/primitives" }

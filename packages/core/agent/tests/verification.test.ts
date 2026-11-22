@@ -1,7 +1,7 @@
 // 验证完成前自检对代码路径与构建/测试命令的识别规则。
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isCodePath, isVerificationCommand } from "../src/verification";
+import { isCodePath, isVerificationCommand } from "../src/run/verification";
 
 test("识别需要验证的代码路径", () => {
   assert.equal(isCodePath("src/app.ts"), true);

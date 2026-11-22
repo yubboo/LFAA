@@ -1,4 +1,6 @@
 // @lfaa/bundle-web 模式预设：会话插件是从全局插件清单里挑出的子集，模式即该子集的命名组合。
+import { MODULE_ALIASES, normalizeModuleName } from "@lfaa/plugins";
+
 /** 核心模块：应用启动必须存在，始终装配，不可由插件页单独安装。 */
 export const CORE_MODULES: readonly string[] = [
   "@lfaa/sections",
@@ -9,20 +11,15 @@ export const CORE_MODULES: readonly string[] = [
   "@lfaa/shell",
   "@lfaa/tools",
   "@lfaa/tool-todo",
-  "@lfaa/tool-web",
   "@lfaa/web",
-  "@lfaa/web-fetch-http",
   "@lfaa/goal",
-  "@lfaa/tool-goal",
   "@lfaa/timeout-policy",
   "@lfaa/spill-local",
   "@lfaa/plan-mode",
   "@lfaa/fs-observation-policy",
-  "@lfaa/compaction-basic",
+  "@lfaa/compaction",
   "@lfaa/system-prompt",
-  "@lfaa/command-compact",
-  "@lfaa/sandbox-policy",
-  "@lfaa/tool-result-pruner",
+  "@lfaa/sandbox",
   "@lfaa/tool-schedule",
   "@lfaa/message-feedback",
   "@lfaa/attachment-local",
@@ -33,6 +30,7 @@ export const CORE_MODULES: readonly string[] = [
   "@lfaa/plugins",
   "@lfaa/agent",
   "@lfaa/chat",
+  "@lfaa/review",
 ];
 
 /** 可选模块：默认也装配，用户可按需停用。 */
@@ -68,7 +66,7 @@ export const PRESETS: readonly Preset[] = [
     description: { zh: "完整工作模式，支持技能、浏览器、后台任务和子智能体协作。", en: "Full workspace mode with skills, browser, jobs, and subagents." },
     sessionModules: [
       "@lfaa/agent", "@lfaa/tools", "@lfaa/llm", "@lfaa/rules",
-      "@lfaa/memory", "@lfaa/skills", "@lfaa/browser", "@lfaa/jobs", "@lfaa/subagent", "@lfaa/tool-web", "@lfaa/tool-todo", MEDIA_MODULE,
+      "@lfaa/memory", "@lfaa/skills", "@lfaa/browser", "@lfaa/jobs", "@lfaa/subagent", "@lfaa/web", "@lfaa/tool-todo", MEDIA_MODULE,
     ],
   },
   {
@@ -90,17 +88,26 @@ export const PRESETS: readonly Preset[] = [
     description: { zh: "适合生成内容与产物，包含网页、技能和后台任务。", en: "Create content and artifacts with web, skills, and background jobs." },
     sessionModules: [
       "@lfaa/agent", "@lfaa/tools", "@lfaa/llm", "@lfaa/rules",
-      "@lfaa/memory", "@lfaa/skills", "@lfaa/browser", "@lfaa/jobs", "@lfaa/tool-web", "@lfaa/tool-todo", MEDIA_MODULE,
+      "@lfaa/memory", "@lfaa/skills", "@lfaa/browser", "@lfaa/jobs", "@lfaa/web", "@lfaa/tool-todo", MEDIA_MODULE,
     ],
   },
 ];
 
-/** 只补齐媒体工具遗漏的既有标准、创造预设，保留其他已锁定组合。 */
+/** 合包后的旧模块名 → 新模块名：读取旧会话已保存的模块列表时归一化，保证工具授权不丢。 */
+export { MODULE_ALIASES };
+
+/** 归一化并去重；未知模块名原样保留（外部插件不受影响）。 */
+export function normalizeModules(modules: readonly string[]): readonly string[] {
+  return [...new Set(modules.map((name) => normalizeModuleName(name)))];
+}
+
+/** 只补齐媒体工具遗漏的既有标准、创造预设，并把旧模块名迁移到合包后的新名字。 */
 export function resolveLegacySessionModules(presetId: string | undefined, modules: readonly string[]): readonly string[] {
-  if (presetId !== "standard" && presetId !== "creative") return modules;
+  const normalized = normalizeModules(modules);
+  if (presetId !== "standard" && presetId !== "creative") return normalized;
   const previous = resolvePreset(presetId).sessionModules.filter((name) => name !== MEDIA_MODULE);
-  return modules.length === previous.length && previous.every((name) => modules.includes(name))
-    ? [...modules, MEDIA_MODULE] : modules;
+  return normalized.length === previous.length && previous.every((name) => normalized.includes(name))
+    ? [...normalized, MEDIA_MODULE] : normalized;
 }
 
 /** 按 id 取预设；未知 id 回退到标准模式。 */

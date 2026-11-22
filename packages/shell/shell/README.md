@@ -1,5 +1,5 @@
 ---
-description: "Shell process execution: invocation resolution, cancellation, and output collection."
+description: "Shell domain: process execution plus local Bash/PowerShell/CMD resolution and output decoding."
 kind: "package"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Shell process execution: invocation resolution, cancellation, and output collection.
+Shell domain: process execution plus local Bash/PowerShell/CMD resolution and output decoding.
 
 This package lives in `packages/shell/shell`.
 
@@ -23,7 +23,7 @@ This package lives in `packages/shell/shell`.
 
 ## Dependencies
 
-- `@lfaa/shell-env`
+No workspace dependencies.
 
 ## Dev Note
 

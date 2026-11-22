@@ -31,6 +31,16 @@ test("会话归属判定与预设一致", () => {
   assert.equal(isSessionModule("@lfaa/browser", minimal), false);
 });
 
+test("合包后旧模块名会迁移到新模块名并去重", () => {
+  const legacy = ["@lfaa/agent", "@lfaa/llm", "@lfaa/tool-web", "@lfaa/web-fetch-http", "@lfaa/tools"];
+  assert.deepEqual(resolveLegacySessionModules("custom", legacy), [
+    "@lfaa/agent",
+    "@lfaa/llm",
+    "@lfaa/web",
+    "@lfaa/tools",
+  ]);
+});
+
 test("生成工具兼容旧标准与创造会话，保持极简和自定义组合的限制", () => {
   for (const id of ["standard", "creative"] as const) {
     const current = resolvePreset(id).sessionModules;
@@ -40,6 +50,6 @@ test("生成工具兼容旧标准与创造会话，保持极简和自定义组�
     assert.deepEqual(resolveLegacySessionModules(id, previous.slice(1)), previous.slice(1));
   }
   const minimal = resolvePreset("minimal").sessionModules;
-  assert.equal(resolveLegacySessionModules("minimal", minimal), minimal);
+  assert.deepEqual(resolveLegacySessionModules("minimal", minimal), minimal);
   assert.ok(!minimal.includes("@lfaa/tool-media"));
 });

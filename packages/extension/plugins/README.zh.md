@@ -25,7 +25,6 @@ kind: "package"
 
 ## 依赖
 
-- `@lfaa/skills`
 - `@lfaa/tools`
 - `@lfaa/ui-layout`
 - `@lfaa/ui-primitives`

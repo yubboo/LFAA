@@ -2,21 +2,21 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { WorkbenchChatSessionSummary } from "../contract/index";
-import type { LocalProject } from "../client/navigation";
+import type { LocalProject } from "../client/navigation/navigation";
 import { locales } from "../client/locales";
-import { buildRecentGroup } from "../client/components/navigation-groups-config";
+import { buildRecentGroup } from "../client/navigation/navigation-groups-config";
 import {
   createProjectWithChatItems,
   createSessionWindowItem,
   type ProjectItemDeps,
   type SessionItemDeps,
-} from "../client/components/navigation-items";
+} from "../client/navigation/navigation-items";
 import {
   SESSION_PAGE_SIZE,
   createSessionWindowControl,
   nextSessionWindow,
   resolveSessionWindow,
-} from "../client/components/session-list-paging";
+} from "../client/navigation/session-list-paging";
 
 /** 构造一条仅覆盖侧栏行字段的会话摘要。 */
 function session(index: number, projectId: string | null = "app1"): WorkbenchChatSessionSummary {

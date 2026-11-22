@@ -24,7 +24,6 @@ LFAA 会话隔离后台任务管理器：支持后台命令启动、实时日志
 ## 依赖
 
 - `@lfaa/shell`
-- `@lfaa/shell-env`
 - `@lfaa/tools`
 
 ## 开发说明

@@ -1,0 +1,174 @@
+/* 资料库「图像」分类样式：类型筛选胶囊与全宽生成素材缩略图网格；详情面板见 LibraryInspector.module.css。 */
+
+/* 区块：面板整体，筛选行固定、网格滚动。 */
+.root {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  min-height: 0;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.filterBtn {
+  padding: 0.3rem 0.7rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: var(--color-panel);
+  color: var(--color-muted);
+  font: inherit;
+  font-size: 0.82em;
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.filterBtn:hover {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.filterBtnActive {
+  border-color: var(--color-line);
+  background: var(--color-active);
+  color: var(--color-ink);
+  font-weight: 560;
+}
+
+/* 区块：缩略图网格，随中央画布宽度排 3–5 列；行高按内容，避免定高容器把卡片压扁。 */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
+  grid-auto-rows: max-content;
+  gap: 0.75rem;
+  align-content: start;
+}
+
+.card {
+  display: grid;
+  grid-template-rows: auto auto;
+  align-self: start;
+  /* 屏幕外的卡片跳过绘制与解码，素材多时仍保持切换/滚动开销稳定。 */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 163px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: 0.85rem;
+  background: var(--glass-card-bg, var(--color-surface));
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+.card:hover {
+  background: var(--color-panel);
+}
+
+.cardActive {
+  border-color: var(--color-accent);
+  background: var(--color-active);
+}
+
+.thumb {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: var(--color-panel);
+}
+
+.media {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.thumbFallback {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: var(--color-muted);
+}
+
+.cardFooter {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.65rem 0.6rem;
+}
+
+.kindIcon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--color-muted);
+}
+
+.cardName {
+  display: -webkit-box;
+  overflow: hidden;
+  /* 固定两行高度：只有一行提示词的卡片不会比两行的矮，整行卡片高度一致。 */
+  min-height: 2.8em;
+  color: var(--color-ink);
+  font-size: 0.8em;
+  line-height: 1.4;
+  word-break: break-word;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* 区块：加载、空态与错误提示。 */
+.status {
+  margin: 0;
+  padding: 1.2rem 0;
+  color: var(--color-muted);
+  font-size: 0.86em;
+}
+
+.error {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: 0.84em;
+}
+
+.emptyState {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 0.75rem;
+  min-height: 16rem;
+  padding: 2rem 1.5rem;
+  border: 1px dashed var(--color-line);
+  border-radius: 1rem;
+  background: var(--glass-card-bg, var(--color-surface));
+  text-align: center;
+}
+
+.emptyIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.1rem;
+  height: 3.1rem;
+  border-radius: 0.85rem;
+  background: var(--color-panel);
+  color: var(--color-muted);
+}
+
+.emptyTitle {
+  margin: 0;
+  max-width: 26rem;
+  color: var(--color-muted);
+  font-size: 0.9em;
+  line-height: 1.5;
+}

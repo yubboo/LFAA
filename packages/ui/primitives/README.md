@@ -1,5 +1,5 @@
 ---
-description: "Shared UI atoms: modal dialog, popover card, step slider, and the common motion vocabulary."
+description: "Shared UI atoms: modal dialog, popover card, step slider, the common motion vocabulary, and the settings-center controls/surface."
 kind: "package"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Shared UI atoms: modal dialog, popover card, step slider, and the common motion vocabulary.
+Shared UI atoms: modal dialog, popover card, step slider, the common motion vocabulary, and the settings-center controls/surface.
 
 This package lives in `packages/ui/primitives`.
 

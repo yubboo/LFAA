@@ -1,0 +1,99 @@
+/* 代码查看器的 Diff 分栏视图：左侧修改前、右侧修改后，hunk 头横跨两栏，双主题变量适配。 */
+
+.diffBody {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  overflow: auto;
+  padding: 0.6rem 0.75rem 0.9rem;
+}
+
+.diffMeta {
+  display: flex;
+  gap: 0.75rem;
+  color: var(--color-muted);
+  font-size: 0.76rem;
+}
+
+.diffSplit {
+  border: 1px solid var(--color-line);
+  border-radius: 0.55rem;
+  overflow: hidden;
+  background: var(--color-code-bg);
+  font-family: var(--code-font-family, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: var(--code-font-size, 0.78rem);
+}
+
+.hunkHeader {
+  padding: 0.35rem 0.8rem;
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-active);
+  color: var(--color-muted);
+  font-size: 0.74em;
+  letter-spacing: 0.01em;
+}
+
+.splitRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.splitSide {
+  display: grid;
+  grid-template-columns: 2.1rem 0.8rem minmax(0, 1fr);
+  align-items: start;
+  padding-right: 0.6rem;
+  border-left: 2px solid transparent;
+}
+
+.splitSide + .splitSide {
+  border-left: 1px solid var(--color-line);
+}
+
+.splitSide[data-kind="del"] {
+  border-left-color: var(--color-danger);
+  background: rgb(var(--color-danger-rgb) / 0.14);
+}
+
+.splitSide[data-kind="add"] {
+  border-left-color: var(--color-success);
+  background: rgb(var(--color-success-rgb) / 0.14);
+}
+
+.splitSide[data-kind="empty"] {
+  background: var(--color-active);
+}
+
+.splitNo {
+  padding-right: 0.45rem;
+  color: var(--color-muted);
+  text-align: right;
+  user-select: none;
+  opacity: 0.75;
+}
+
+.splitSign {
+  color: var(--color-muted);
+  user-select: none;
+}
+
+.splitSide[data-kind="del"] .splitSign { color: var(--color-danger); }
+.splitSide[data-kind="add"] .splitSign { color: var(--color-success); }
+
+.splitCode {
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: inherit;
+  line-height: 1.75;
+  color: var(--color-code-ink);
+}
+
+.diffHint {
+  margin: 0;
+  padding: 0.65rem;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+}

@@ -13,6 +13,8 @@
                          "@deepseek-ai/cordis":  "^4.1.0",
                          "@lfaa/browser":  "workspace:*",
                          "@lfaa/chat":  "workspace:*",
+                         "@lfaa/library":  "workspace:*",
+                         "@lfaa/review":  "workspace:*",
                          "@lfaa/plugins":  "workspace:*",
                          "@lfaa/sections":  "workspace:*",
                          "@lfaa/skills":  "workspace:*",
