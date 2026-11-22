@@ -17,6 +17,7 @@
 - `check-workspace.test.mjs` / `lint-workspace.test.mjs`：两套规则的回归测试，用 `--root` 临时夹具验证「能拦住 / 豁免生效 / 过期提示 / 未知规则报错」，不往仓库写违规样本。
 - `sync-readmes.mjs`：按 DSH 结构为每个包生成 `README.md`（英文）与 `README.zh.md`（中文）；英文摘要登记在脚本的 `META` 中，中文摘要取自 `package.json` 的 `description`。新增包必须先在 `META` 登记。**生成时保留各包手写的 `Dev Note` / `开发说明` 段落**（旧版会覆盖成 `None.`/`无。`，属数据丢失缺陷，已修复）；导出表按 `package.json` 的 `exports` 生成，含 `./contract`。
 - `verify-translation-pairing.mjs`：双语配对校验。按英文标题分段计算中英段落哈希并写入 `README.i18n.yaml`；`--write` 生成记录，不带参数则校验，漂移时报错。
+- `probe-boot.mjs`：整机启动探针。把 `USERPROFILE`/`HOME` 指到临时目录后装配完整 Host 运行时（沙箱 + bundle + 全部核心服务 + 统一网关），断言接口令牌与 25 条核心路由都在，最后释放运行时并删临时目录；不启动浏览器、不监听端口。专门抓「插件 `inject` 漏声明 / 装配顺序错」这类只在真正装配时才暴露的启动期错误。对应 `pnpm probe:boot`。
 - `probe-loader.mjs`：Loader 按包名装载探针。以 `packages/bundle/web/package.json` 为解析基准（该包声明了全部可安装插件包；`apps/web` 只有前端入口依赖，作基准会导致 `@lfaa/tools` 解析失败）。覆盖装载/卸载/重装/并存/二创全链路，需先 `pnpm build`。对应 `pnpm probe:loader`。
 - `verify-web.mts`：生产构建产物的浏览器验收。用单进程启动 `@lfaa/web-server` 静态宿主（随机端口），再以本机 Edge/Chrome 无头打开页面，依次检查壳层、资料库（含「图像」分类的媒体网格）、代码审查、设置中心（常规/Git/代码审查）、浅色主题与 390px 窄屏；出现控制台错误或步骤失败即退出码 1，截图与报告写到系统临时目录 `lfaa-verify/`。Web 产物缺失时自动执行 `pnpm build:web`，也可加 `--build` 强制重建；未检测到浏览器时跳过并以 0 退出（CI 可安全调用）。对应 `pnpm verify:web`。
 - `install-hooks.mjs`：把当前克隆的 `core.hooksPath` 指向 `.githooks`，启用提交前门禁（空白检查 + `node scripts/check-workspace.mjs` + `node scripts/check-logs.mjs`，约 1-2 秒）。只改本地配置，不影响全局；撤销用 `git config --local --unset core.hooksPath`。对应 `pnpm hooks:install`。

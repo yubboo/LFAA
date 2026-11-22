@@ -75,6 +75,10 @@ jobs:
       - name: 完整构建
         run: pnpm build
 
+      # 整机启动探针：隔离用户目录装配完整 Host 运行时，抓「插件 inject 漏声明」这类启动期错误。
+      - name: 整机启动探针
+        run: pnpm probe:boot
+
       - name: Loader 按包名装载探针
         run: pnpm probe:loader
 
