@@ -45,7 +45,7 @@ jobs:
       - name: 预构建运行期 lib 产物
         run: node scripts/ensure-lib.mjs
 
-      - name: 仓库边界、规模、主题色与日志编号规则
+      - name: 仓库边界、规模、主题色、日志编号与目录说明书
         run: pnpm check
 
       - name: AST Lint（未使用导入 / any / 调试输出 / 抑制指令）

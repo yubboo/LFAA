@@ -15,3 +15,6 @@ node scripts/lint-workspace.mjs
 
 # 日志编号必须六位全局递增：同类日志内重号直接拦下（历史重号已登记基线）。
 node scripts/check-logs.mjs
+
+# 仓库目录说明书必须与真实骨架一致：新增/删除/移动文件后先跑 pnpm map:sync。
+node scripts/gen-repository-map.mjs --check

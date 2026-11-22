@@ -6,7 +6,8 @@
     "packageManager":  "pnpm@11.17.0",
     "scripts":  {
                     "lfaa":  "node scripts/ensure-lib.mjs \u0026\u0026 tsx apps/cli/src/bin.ts",
-                    "check":  "node scripts/check-workspace.mjs && node scripts/check-logs.mjs",
+                    "check":  "node scripts/check-workspace.mjs && node scripts/check-logs.mjs && node scripts/gen-repository-map.mjs --check",
+                    "map:sync":  "node scripts/gen-repository-map.mjs",
                     "lint":  "node scripts/lint-workspace.mjs",
                     "test":  "node scripts/test.mjs",
                     "test:pkg":  "node scripts/test.mjs --filter",
