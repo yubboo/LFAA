@@ -4,12 +4,12 @@ import { join, resolve } from "node:path";
 import type { Context } from "@deepseek-ai/cordis";
 import "@lfaa/tools";
 import type { PluginCatalogItem, PluginManifest, PluginRecord, PluginRunStatus, PresetSummary } from "../../contract/index";
-import { parseInstallSpec as parseSpec } from "../catalog/install-spec";
 import { buildCatalog, INSTALLABLE_PACKAGES, toRecordId, type PluginPresetDefinition } from "../catalog/plugin-catalog";
 import { normalizeRecords } from "./record-hygiene";
 import { PluginPresets } from "../catalog/plugin-presets";
 import { PluginRecordStore } from "./plugin-records";
 import { forkPluginPackage } from "./fork-plugin";
+import { installExternalPlugin } from "./install-external";
 import { ProfilePackages } from "./profile-packages";
 
 /** Loader 的最小结构化契约：避免本包反向依赖内嵌 loader 的类型。 */
@@ -292,79 +292,19 @@ export class PluginManager {
     });
   }
 
-  /** 卸载：先停用再从 profile 记录中删除。 */
-  /** 执行一条 profile 内的 pnpm 命令并回传输出尾部，供安装/回滚共用。 */
-  private async runPnpm(args: string[], onLine?: (line: string) => void): Promise<{ code: number; output: string }> {
-    return this.packages.run(args, onLine);
-  }
-
-  /** 确保 profile 有一份可安装的 manifest 与 workspace 声明。 */
-  private async ensureProfileManifest(): Promise<void> {
-    return this.packages.ensureManifest();
-  }
-
-  /** 从 profile 依赖里找出刚落盘的包名：registry 用名字，其余按值匹配。 */
-  private async resolveInstalledName(spec: string, fallbackName?: string): Promise<string> {
-    return this.packages.resolveInstalledName(spec, fallbackName);
-  }
-
-  /** 读取已安装包在 profile 中的入口文件，返回 file: URL。 */
-  private async resolvePackageEntry(name: string): Promise<string> {
-    return this.packages.resolvePackageEntry(name);
-  }
-  /**
-   * 安装外部插件：校验来源 → `pnpm add` → 识别包名 → 登记 → 自动启用。
-   * 任一环节失败都回滚（pnpm remove + 删除记录），不留半装状态。
-   */
+  /** 安装外部插件：具体流程见 install-external.ts，这里只绑定记录存储与启用回调。 */
   async addExternal(input: string, onLine?: (line: string) => void): Promise<PluginRecord> {
-    const parsed = parseSpec(input);
-    await this.ensureProfileManifest();
-    const spec = parsed.spec;
-
-    const install = await this.runPnpm(["add", spec], onLine);
-    if (install.code !== 0) {
-      throw new Error(`安装失败（退出码 ${install.code}）：${install.output.trim().slice(-400)}`);
-    }
-
-      const moduleName = await this.resolveInstalledName(spec, parsed.kind === "registry" ? parsed.name : undefined);
-      // 外部包装在 profile 的 node_modules 里：记录绝对入口 URL，
-      // 否则 Loader 会以应用目录为基准解析包名而找不到。
-      const entryFile = await this.resolvePackageEntry(moduleName);
-      const id = toRecordId(moduleName);
-
-    try {
-      const records = await this.readRecords();
-      const existing = records.find((record) => record.id === id);
-      const now = Date.now();
-      const record: PluginRecord = existing ?? {
-        id,
-        moduleName: entryFile,
-        manifest: {
-          id,
-          name: moduleName,
-          version: "0.0.0",
-          description: `外部插件：${parsed.spec}`,
-          entryType: "local-manifest",
-          capabilities: { tools: [], skills: [], views: [] },
-        },
-        source: "local",
-        kind: "external",
-        enabled: false,
-        status: "disabled",
-        installedAt: now,
-        updatedAt: now,
-      };
-      if (!existing) await this.writeRecords([...records, record]);
-      return await this.enablePlugin(id);
-    } catch (error) {
-      // 启用失败：卸载依赖并删除记录，避免半装。
-      await this.runPnpm(["remove", moduleName]).catch(() => undefined);
-      const left = await this.readRecords();
-      await this.writeRecords(left.filter((record) => record.id !== id)).catch(() => undefined);
-      throw error;
-    }
+    return installExternalPlugin({
+      input,
+      ...(onLine ? { onLine } : {}),
+      packages: this.packages,
+      readRecords: () => this.readRecords(),
+      writeRecords: (records) => this.writeRecords(records),
+      enablePlugin: (id) => this.enablePlugin(id),
+    });
   }
 
+  /** 卸载：先停用再从 profile 记录中删除。 */
   async uninstallPlugin(id: string): Promise<boolean> {
     return this.enqueue(id, async () => {
       const records = await this.readRecords();
