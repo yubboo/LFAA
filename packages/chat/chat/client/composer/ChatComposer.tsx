@@ -6,6 +6,7 @@ import { mediaChatMessages } from "@lfaa/tool-media/client";
 import type { ChatLocaleMessages } from "../locales";
 import type { ChatMessageItem, ChatSessionDetail, ChatStoreSnapshot } from "../store/chat-types";
 import { useComposerAttachInput, useComposerAutoGrow } from "./useComposerInput";
+import { handleComposerKeydown } from "./composer-keyboard";
 import type { useChatComposer } from "./useChatComposer";
 import { ClarificationCard } from "../conversation/Clarification-Card";
 import { ComposerAddMenu } from "./ComposerAddMenu";
@@ -198,99 +199,34 @@ export function ChatComposer({
             syncMentionFromText(draft, event.currentTarget.selectionStart);
           }}
           onPaste={handlePaste}
-          onKeyDown={(event) => {
-            if (mentionTrigger) {
-              if (event.key === "ArrowDown") {
-                event.preventDefault();
-                setMentionIndex((idx) => (visibleMentionEntries.length > 0 ? (idx + 1) % visibleMentionEntries.length : 0));
-                return;
-              }
-              if (event.key === "ArrowUp") {
-                event.preventDefault();
-                setMentionIndex((idx) => (visibleMentionEntries.length > 0 ? (idx - 1 + visibleMentionEntries.length) % visibleMentionEntries.length : 0));
-                return;
-              }
-              if (event.key === "Escape") {
-                event.preventDefault();
-                setMentionTrigger(null);
-                return;
-              }
-              if ((event.key === "Tab" || (event.key === "Enter" && !event.shiftKey)) && !event.nativeEvent.isComposing && visibleMentionEntries.length > 0) {
-                event.preventDefault();
-                const picked = visibleMentionEntries[mentionIndex] ?? visibleMentionEntries[0];
-                if (picked) handleSelectMentionEntry(picked);
-                return;
-              }
-            }
-            if (slashTrigger) {
-              if (event.key === "ArrowDown") {
-                event.preventDefault();
-                setSlashIndex((idx) => (visibleSlashCommands.length > 0 ? (idx + 1) % visibleSlashCommands.length : 0));
-                return;
-              }
-              if (event.key === "ArrowUp") {
-                event.preventDefault();
-                setSlashIndex((idx) => (visibleSlashCommands.length > 0 ? (idx - 1 + visibleSlashCommands.length) % visibleSlashCommands.length : 0));
-                return;
-              }
-              if (event.key === "Escape") {
-                event.preventDefault();
-                setSlashTrigger(null);
-                return;
-              }
-              if (event.key === "Tab" && !event.nativeEvent.isComposing && visibleSlashCommands.length > 0) {
-                event.preventDefault();
-                const picked = visibleSlashCommands[slashIndex] ?? visibleSlashCommands[0];
-                if (picked) handleTabCompleteSlashCommand(picked);
-                return;
-              }
-              if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && visibleSlashCommands.length > 0) {
-                event.preventDefault();
-                const picked = visibleSlashCommands[slashIndex] ?? visibleSlashCommands[0];
-                if (picked) handleSelectSlashCommand(picked);
-                return;
-              }
-            }
-            if (skillTrigger) {
-              if (event.key === "ArrowDown") {
-                event.preventDefault();
-                setSkillIndex((idx) => (visibleSkillEntries.length > 0 ? (idx + 1) % visibleSkillEntries.length : 0));
-                return;
-              }
-              if (event.key === "ArrowUp") {
-                event.preventDefault();
-                setSkillIndex((idx) => (visibleSkillEntries.length > 0 ? (idx - 1 + visibleSkillEntries.length) % visibleSkillEntries.length : 0));
-                return;
-              }
-              if (event.key === "Escape") {
-                event.preventDefault();
-                setSkillTrigger(null);
-                return;
-              }
-              if ((event.key === "Tab" || (event.key === "Enter" && !event.shiftKey)) && !event.nativeEvent.isComposing && visibleSkillEntries.length > 0) {
-                event.preventDefault();
-                const picked = visibleSkillEntries[skillIndex] ?? visibleSkillEntries[0];
-                if (picked) handleSelectSkillEntry(picked);
-                return;
-              }
-            }
-            if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && state.queuedMessages.length > 0 && !event.nativeEvent.isComposing) {
-              // 有排队消息时，Ctrl/Cmd+Enter 直接把全部排队消息作为插话发出。
-              event.preventDefault();
-              void store.flushQueuedMessages();
-              return;
-            }
-            if (event.key === "Enter" && !event.nativeEvent.isComposing) {
-              const needCtrl = state.generalSettings.sendShortcut === "ctrl_enter";
-              if (needCtrl && (event.ctrlKey || event.metaKey)) {
-                event.preventDefault();
-                void handleSubmit();
-              } else if (!needCtrl && !event.shiftKey) {
-                event.preventDefault();
-                void handleSubmit(undefined, event.ctrlKey || event.metaKey);
-              }
-            }
-          }}
+          onKeyDown={(event) => handleComposerKeydown(event, {
+            mention: mentionTrigger ? {
+              entries: visibleMentionEntries,
+              index: mentionIndex,
+              setIndex: setMentionIndex,
+              close: () => setMentionTrigger(null),
+              pick: handleSelectMentionEntry,
+            } : null,
+            slash: slashTrigger ? {
+              entries: visibleSlashCommands,
+              index: slashIndex,
+              setIndex: setSlashIndex,
+              close: () => setSlashTrigger(null),
+              complete: handleTabCompleteSlashCommand,
+              pick: handleSelectSlashCommand,
+            } : null,
+            skill: skillTrigger ? {
+              entries: visibleSkillEntries,
+              index: skillIndex,
+              setIndex: setSkillIndex,
+              close: () => setSkillTrigger(null),
+              pick: handleSelectSkillEntry,
+            } : null,
+            queuedCount: state.queuedMessages.length,
+            flushQueue: () => void store.flushQueuedMessages(),
+            sendShortcut: state.generalSettings.sendShortcut,
+            submit: (invertFollowUp) => void handleSubmit(undefined, invertFollowUp),
+          })}
         />
 
         <ComposerFollowUpHint
