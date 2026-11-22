@@ -3,19 +3,19 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactN
 import { IconArrowDown } from "@tabler/icons-react";
 import type { WorkbenchProjectItem, WorkbenchProjectProvider } from "@lfaa/ui-layout";
 import type { ChatClientStore } from "../store/chat-store";
-import type { ChatMessageItem } from "../store/chat-types";
 import type { ChatLocaleMessages } from "../locales";
 import { collectEditedFiles } from "../shared/file-activity";
 import { extractAdviceOptions } from "./advice-options";
 import { useChatScroll } from "./useChatScroll";
 import { ChatAnchorBar, buildTurnAnchors } from "./ChatAnchorBar";
 import { ChatComposer } from "../composer/ChatComposer";
-import { ChatDeleteDialog } from "./ChatDeleteDialog";
 import { ChatMessageList } from "./ChatMessageList";
 import { ConversationTrace } from "./Conversation-Trace";
 import { SessionBars } from "../session/SessionBars";
 import { latestSessionTodos } from "../session/session-todos";
 import { useChatComposer } from "../composer/useChatComposer";
+import { useMessageActions } from "./useMessageActions";
+import { WorkspaceDialogs } from "./WorkspaceDialogs";
 import styles from "./ChatWorkspace.module.css";
 import composerStyles from "./ChatWorkspace.composer.module.css";
 
@@ -198,23 +198,15 @@ export function ChatWorkspace({
     }
   };
 
-  const handleEditContent = (content: string) => {
-    composer.setDraft(content);
-    composer.textareaRef.current?.focus();
-  };
-
-  const handleBranchToNewChat = (message: ChatMessageItem) => {
-    store.startNewChatDraft({
-      projectId: activeProjectId,
-      sectionId: activeSession?.sectionId ?? null,
-    });
-    composer.setDraft(
-      locale.isZh
-        ? `基于以下前文继续探讨：\n> ${message.content.slice(0, 180).replace(/\n+/g, " ")}\n\n`
-        : `Continue from:\n> ${message.content.slice(0, 180).replace(/\n+/g, " ")}\n\n`,
-    );
-    composer.textareaRef.current?.focus();
-  };
+  // 消息区动作（编辑、分叉、继续中断、提问、审批、媒体再生成）统一由 useMessageActions 提供。
+  const messageActions = useMessageActions({
+    store,
+    composer,
+    locale,
+    activeSession,
+    activeProjectId,
+    busy: isRunning || state.submittingMessage === true || bindingProject,
+  });
 
   return (
     <section className={styles.root} aria-label={locale.workspaceTitle}>
@@ -265,29 +257,13 @@ export function ChatWorkspace({
           threadRef={threadRef}
           onOpenFilePreview={onOpenFilePreview}
           onOpenTurnChanges={onOpenTurnChanges}
-          onEditContent={handleEditContent}
+          onEditContent={messageActions.onEditContent}
           onOpenTrace={(messageId, stepId) => { setTraceTarget({ messageId, stepId }); setView("trace"); }}
-          onBranchToNewChat={handleBranchToNewChat}
-          onContinueInterrupted={(messageId) => void store.continueInterruptedMessage(messageId)}
-          onSubmitQuestion={(question) => void composer.handleSubmit(question)}
-          onResolveApproval={(approved) => void store.resolveApproval(approved)}
-          mediaActions={{
-            busy: isRunning || state.submittingMessage === true || bindingProject,
-            onQuote: (source, url, label) => {
-              if (!activeSession) return;
-              composer.appendAttachments([{
-                id: `media-${source.messageId}-${source.path}`, kind: "file", label,
-                path: source.path, mediaSource: { ...source, sessionId: activeSession.id, url },
-              }]);
-              composer.focusTextareaAt(composer.draft.length);
-            },
-            onRegenerate: (source, ratio) => {
-              // 生成中的进度由消息区占位呈现；这里只在失败时提示，不再占用输入框上方状态条。
-              void store.generateMediaFromPrompt({ regenerate: source, ...(ratio ? { ratio } : {}) }).then((result) => {
-                if (!result.ok) composer.setContextNotice(result.error ?? (locale.isZh ? "再次生图失败" : "Regenerate failed"));
-              });
-            },
-          }}
+          onBranchToNewChat={messageActions.onBranchToNewChat}
+          onContinueInterrupted={messageActions.onContinueInterrupted}
+          onSubmitQuestion={messageActions.onSubmitQuestion}
+          onResolveApproval={messageActions.onResolveApproval}
+          mediaActions={messageActions.mediaActions}
         />
       </div>
 
@@ -374,23 +350,19 @@ export function ChatWorkspace({
         />
       </div>
 
-      {createDialogOpen && projectProvider?.renderCreateDialog({
-        onCreated: (project) => {
+      <WorkspaceDialogs
+        locale={locale}
+        store={store}
+        activeSession={activeSession}
+        projectProvider={projectProvider}
+        projectDialogOpen={createDialogOpen}
+        deleteDialogOpen={deleteConfirmOpen}
+        onCreatedProject={(project) => {
           setCreateDialogOpen(false);
           void changeProjectBinding(project.id);
-        },
-        onClose: () => setCreateDialogOpen(false),
-      })}
-
-      <ChatDeleteDialog
-        locale={locale}
-        open={Boolean(deleteConfirmOpen && activeSession)}
-        subtitle={activeSession?.title ?? ""}
-        onClose={() => setDeleteConfirmOpen(false)}
-        onConfirm={() => {
-          if (activeSession) void store.deleteSession(activeSession.id);
-          setDeleteConfirmOpen(false);
         }}
+        onCloseProjectDialog={() => setCreateDialogOpen(false)}
+        onCloseDeleteDialog={() => setDeleteConfirmOpen(false)}
       />
     </section>
   );

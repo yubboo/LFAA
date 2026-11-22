@@ -3,7 +3,7 @@
 > 本文件由 `pnpm map:sync`（[scripts/gen-repository-map.mjs](../../scripts/gen-repository-map.mjs)）按真实文件系统生成，**不要手改**。
 > 骨架发生变化（新增/删除/移动文件、包或目录）后，必须在同一轮运行 `pnpm map:sync` 并提交，否则 `pnpm check` 会失败。
 
-当前快照：**47 个包、1508 个文件、251 个子目录**（不含 node_modules、构建产物与运行数据）。
+当前快照：**47 个包、1510 个文件、251 个子目录**（不含 node_modules、构建产物与运行数据）。
 
 ## 1. 快速索引
 
@@ -62,7 +62,7 @@ lfaa/
 │   ├── standards/  (1 个文件)
 │   ├── templates/  (2 个文件)
 │   └── updata-log/  (302 个文件)
-├── packages/  (972 个文件)
+├── packages/  (974 个文件)
 │   ├── api/  (7 个文件)
 │   │   └── gateway/  # @lfaa/api-gateway  (7 个文件)
 │   │       ├── src/  (1 个文件)
@@ -75,11 +75,11 @@ lfaa/
 │   │   └── web/  # @lfaa/bundle-web  (8 个文件)
 │   │       ├── src/  (2 个文件)
 │   │       └── tests/  (1 个文件)
-│   ├── chat/  (262 个文件)
-│   │   ├── chat/  # @lfaa/chat  (222 个文件)
-│   │   │   ├── client/  (178 个文件)
+│   ├── chat/  (264 个文件)
+│   │   ├── chat/  # @lfaa/chat  (224 个文件)
+│   │   │   ├── client/  (180 个文件)
 │   │   │   │   ├── composer/  (34 个文件)
-│   │   │   │   ├── conversation/  (33 个文件)
+│   │   │   │   ├── conversation/  (35 个文件)
 │   │   │   │   ├── models/  (16 个文件)
 │   │   │   │   ├── session/  (17 个文件)
 │   │   │   │   ├── settings/  (10 个文件)
@@ -633,12 +633,14 @@ lfaa/
 - `Turn-Changes.tsx` — 右工作台的本轮变更，展示已保存的工具快照及操作顺序。
 - `UserMessageAttachments.module.css` — 用户消息图片：图片即卡片，多张时按 2–3 列排开，不留气泡内边距。
 - `UserMessageAttachments.tsx` — 渲染已发送用户消息中的图片：上传附件按会话读取附件库，引用图按路径读取会话内生成媒体。
+- `WorkspaceDialogs.tsx` — 聊天工作区的会话级弹窗：新建项目对话框与删除会话确认框。
 - `activity-label.ts` — 将 Host 的工具步骤转换为聊天活动摘要，保留可区分的动作和状态。
 - `advice-options.ts` — 从助手最终回答的「建议/下一步」段落提取可选后续项，供界面编号展示、用户点选发送。
 - `code-highlight.tsx` — 为右工作台 VS Code 代码查看器提供多语言词法高亮、嵌套标签/括号彩虹配对着色、语言徽标及面包屑路径解析。
 - `markdown-parser.ts` — 轻量流式安全 Markdown 块级解析与代码语法分词器，用于渲染助手消息中的标题、列表、表格、引用与高亮代码块。
 - `trace-groups.ts` — @lfaa/chat 留痕分组：把步骤按「思考 / 读取 / 搜索 / 命令 / 文件变更 / 其他」归并，供展开区成组展示。
 - `useChatScroll.ts` — 管理聊天视口的底部跟随，监听流式正文、工具和输入栏引起的高度变化。
+- `useMessageActions.ts` — 消息区交互接线：编辑内容、分叉到新会话、继续中断消息、提问、审批，以及媒体引用的再生成。
 - `useMessageFeedback.ts` — 消息反馈 Hook：读取已保存的赞/踩状态，并在切换时立即落盘；失败回滚界面状态。
 
 ### packages/chat/chat/client/models
