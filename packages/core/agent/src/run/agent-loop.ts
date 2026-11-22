@@ -1,6 +1,5 @@
 // 实现 Agent 核心任务循环：思考（Think）-> 行动（Act）-> 检查（Check）。
 import { DEFAULT_CONTEXT_BUDGET_CHARS, isContextOverflowError } from "@lfaa/context";
-import { REPEAT_THRESHOLDS, RepeatCallTracker } from "@lfaa/guard";
 import { type LlmGenerateOutput, type LlmMessage, type LlmUsage } from "@lfaa/llm";
 import type { AgentRunCost, AgentRunMetrics, AgentStepTrace, UserClarification } from "@lfaa/memory";
 import { estimateMessageTokens, estimateSystemPromptTokens, estimateToolsTokens } from "@lfaa/metrics";
@@ -26,7 +25,7 @@ import { renderSystemContent } from "./run-system";
 import { clarificationTool } from "../context/clarification";
 import { completeAgentRound } from "./model-round";
 import type { RunExecutionParams, RunLoopDeps } from "./run-types";
-import { MAX_STEP_BUDGET } from "./step-budget";
+import { createLoopState, extendBudget, recordStep } from "./loop-state";
 import { injectSteeringMessages } from "./steering";
 import { readStreamingPath } from "../tools/tool-call-args";
 import { preferTodoFirst } from "./todo-plan";
@@ -38,18 +37,8 @@ export async function executeAgentTaskLoop(
   deps: RunLoopDeps,
   params: RunExecutionParams,
 ): Promise<{ content: string; progressText: string; reasoning: string; steps: AgentStepTrace[]; model?: string; usage?: LlmUsage; metrics: AgentRunMetrics; cost?: AgentRunCost; clarification?: UserClarification }> {
-  const steps: AgentStepTrace[] = [];
-  let accumulatedReasoning = "";
-  let progressText = "";
-  const mediaPreviews = new Map<string, string>();
-
-  const pushOrUpdateStep = (update: AgentStepTrace) => {
-    const idx = steps.findIndex((s) => s.id === update.id);
-    const step = { ...update, startedAt: steps[idx]?.startedAt ?? update.startedAt ?? update.timestamp };
-    if (idx >= 0) steps[idx] = step;
-    else steps.push(step);
-    params.emit({ type: "step_update", runId: params.runId, step });
-  };
+  const state = createLoopState(params);
+  const pushOrUpdateStep = (update: AgentStepTrace) => recordStep(state, params, update);
 
   // 1. 装配上下文：规则优先级 + 长期记忆召回 + 资料库/资产库摘要 + 短期裁剪历史
   const { systemPrompt, projectRuleNames, contextWindow, historyDigest, libraryHint } = await recallAgentContext(deps, params);
@@ -95,40 +84,29 @@ export async function executeAgentTaskLoop(
 
   let llmTools = preferTodoFirst(deps.tools.getLlmToolSchemas());
   const contextBudgetChars = Math.max(8_000, Math.floor(params.contextBudgetChars ?? DEFAULT_CONTEXT_BUDGET_CHARS));
-  let overflowRetried = false;
-  // 2. Think -> Act -> Check 任务循环
-  // 步数预算用尽时不再直接收口：只要上一轮确实执行了工具，就自动追加预算继续推进。
-  let budget = Math.max(1, Math.floor(params.maxSteps));
-  const extensionSteps = Math.max(0, Math.floor(params.autoExtendSteps ?? 0));
-  const hardBudget = extensionSteps > 0 ? Math.max(budget, MAX_STEP_BUDGET) : budget;
-  let iteration = 0;
-  let lastRoundExecutedTools = false;
-  // 空阈值数组表示用户关闭重复调用提醒。
-  const repeatTracker = params.repeatToolThresholds !== undefined && params.repeatToolThresholds.length === 0
-    ? undefined
-    : new RepeatCallTracker(params.repeatToolThresholds ?? REPEAT_THRESHOLDS);
-  let pendingRepeatReminders: string[] = [];
-  // 完成前自检：记录最后一次代码修改与最后一次验证命令所在的轮次。
-  let lastCodeEditIteration = 0;
-  let lastVerificationIteration = 0;
-  let verificationNudged = false;
+  // 2. Think -> Act -> Check 任务循环；预算、轮次与自检标记统一收在 state 里（见 loop-state.ts）。
+  const steps = state.steps;
+  const mediaPreviews = state.mediaPreviews;
+  const repeatTracker = state.repeat;
+  const pendingRepeatReminders = state.pendingReminders;
+  const verification = state.verification;
   while (true) {
-    iteration += 1;
-    if (iteration > budget) {
-      if (extensionSteps === 0 || budget >= hardBudget || !lastRoundExecutedTools) break;
-      const previousBudget = budget;
-      budget = Math.min(hardBudget, budget + extensionSteps);
+    state.iteration += 1;
+    if (state.iteration > state.budget.limit) {
+      const added = extendBudget(state);
+      if (added === null) break;
       pushOrUpdateStep({
-        id: `budget-${iteration}`,
-        iteration,
+        id: `budget-${state.iteration}`,
+        iteration: state.iteration,
         phase: "check",
         status: "done",
-        title: `步数预算已用尽：自动延长 ${budget - previousBudget} 步继续推进`,
+        title: `步数预算已用尽：自动延长 ${added} 步继续推进`,
         detail: "上一轮仍产生了有效工具结果，任务保持运行；需要停止请手动中止。",
         timestamp: Date.now(),
       });
     }
 
+    const iteration = state.iteration;
     if (params.signal.aborted) throw new Error("用户已中止本次任务。");
 
     const thinkStepId = `think-${iteration}`;
@@ -138,7 +116,7 @@ export async function executeAgentTaskLoop(
       phase: "think",
       status: "running",
       title: `第 ${iteration} 轮思考：规划与决策`,
-      textOffset: progressText.length,
+      textOffset: state.progressText.length,
       timestamp: Date.now(),
     };
     pushOrUpdateStep(thinkStep);
@@ -158,7 +136,7 @@ export async function executeAgentTaskLoop(
     if (params.enableClarification) llmTools = [...llmTools, clarificationTool];
     const roundStartedAt = Date.now();
     let firstTokenAt: number | undefined;
-    updateSystemMessage(Math.max(0, budget - iteration + 1));
+    updateSystemMessage(Math.max(0, state.budget.limit - iteration + 1));
     // 发送前按预算压缩：保留结构与最近轮次，早期工具结果压成尾部片段。
     const compaction = compactForRun(deps.compaction, conversation, { budgetChars: contextBudgetChars });
     if (compaction.compacted) {
@@ -212,7 +190,7 @@ export async function executeAgentTaskLoop(
           noteModelActivity(delta.type === "reasoning" ? "reasoning" : "replying");
         }
         if (delta.type === "reasoning" && delta.text) {
-          accumulatedReasoning += delta.text;
+          state.reasoning += delta.text;
           params.emit({ type: "delta", runId: params.runId, seq: 0, kind: "reasoning", text: delta.text });
         } else if (delta.type === "text" && delta.text) {
           iterText += delta.text;
@@ -227,7 +205,7 @@ export async function executeAgentTaskLoop(
             title: `准备工具：${delta.toolName}`,
             toolCallId: delta.toolCallId,
             toolName: delta.toolName,
-            textOffset: progressText.length + iterText.length,
+            textOffset: state.progressText.length + iterText.length,
             timestamp: Date.now(),
           };
           preparing.set(delta.toolCallId, preparation);
@@ -240,8 +218,8 @@ export async function executeAgentTaskLoop(
       output = await callModel();
     } catch (error) {
       // 供应商报“上下文超限”时不再直接失败：强制压缩一半预算后重试一次。
-      if (overflowRetried || !isContextOverflowError(error)) throw error;
-      overflowRetried = true;
+      if (state.overflowRetried || !isContextOverflowError(error)) throw error;
+      state.overflowRetried = true;
       const forced = compactForRun(deps.compaction, conversation, {
         budgetChars: Math.floor(contextBudgetChars / 2),
         toolCapChars: 600,
@@ -310,7 +288,7 @@ export async function executeAgentTaskLoop(
         ...preparation,
         status: "error",
         detail: "模型未返回完整工具请求。",
-        textOffset: output.toolCalls.length > 0 ? progressText.length + iterText.length : progressText.length,
+        textOffset: output.toolCalls.length > 0 ? state.progressText.length + iterText.length : state.progressText.length,
         timestamp: Date.now(),
       });
     }
@@ -320,9 +298,9 @@ export async function executeAgentTaskLoop(
       return finishWithClarification({
         clarificationCall,
         preparing,
-        progressText,
+        progressText: state.progressText,
         iterText,
-        accumulatedReasoning,
+        accumulatedReasoning: state.reasoning,
         steps,
         outputModel: output.model,
         tracker,
@@ -333,10 +311,10 @@ export async function executeAgentTaskLoop(
     // 无工具调用：先做完成前自检，再执行终结检查。
     if (output.toolCalls.length === 0) {
       const finalContent = roundContent.trim();
-      const needsVerification = lastCodeEditIteration > lastVerificationIteration;
+      const needsVerification = verification.lastCodeEditIteration > verification.lastVerificationIteration;
       // 改过代码却没有运行验证时，给模型一次补验证的机会（每次运行最多提示一次）。
-      if (needsVerification && !verificationNudged && budget - iteration >= 2) {
-        verificationNudged = true;
+      if (needsVerification && !verification.nudged && state.budget.limit - iteration >= 2) {
+        verification.nudged = true;
         pushOrUpdateStep({
           id: "verification-gate",
           iteration,
@@ -352,7 +330,7 @@ export async function executeAgentTaskLoop(
         });
         continue;
       }
-      if (needsVerification && verificationNudged) {
+      if (needsVerification && verification.nudged) {
         pushOrUpdateStep({
           id: "verification-result",
           iteration,
@@ -378,8 +356,8 @@ export async function executeAgentTaskLoop(
       const cost = tracker.cost();
       return {
         content: appendMediaPreviews(finalContent, mediaPreviews) || "模型返回了空内容，未能生成有效答复。",
-        progressText,
-        reasoning: accumulatedReasoning,
+        progressText: state.progressText,
+        reasoning: state.reasoning,
         steps,
         model: output.model,
         ...(usage ? { usage } : {}),
@@ -392,8 +370,8 @@ export async function executeAgentTaskLoop(
       iterText += "\n\n";
       params.emit({ type: "delta", runId: params.runId, seq: 0, kind: "text", text: "\n\n" });
     }
-    progressText += iterText;
-    const roundTextOffset = progressText.length;
+    state.progressText += iterText;
+    const roundTextOffset = state.progressText.length;
 
     // 记录模型发出的 assistant + toolCalls 轮次（保留 reasoningContent 以适配 DeepSeek 思考模式工具调用回传要求）
     conversation.push({
@@ -414,10 +392,10 @@ export async function executeAgentTaskLoop(
         const modifiedPath = outcome.fileChange?.path ?? outcome.action.toolTarget;
         const modified = Boolean(outcome.fileChange) || outcome.call.name === "write_file" || outcome.call.name === "edit_file";
         if (outcome.executed && outcome.ok && modified && isCodePath(modifiedPath)) {
-          lastCodeEditIteration = iteration;
+          verification.lastCodeEditIteration = iteration;
         }
         if (outcome.executed && outcome.command && isVerificationCommand(outcome.command)) {
-          lastVerificationIteration = iteration;
+          verification.lastVerificationIteration = iteration;
         }
         // 连续相同调用只给建议性提醒，不阻断执行；提醒在工具结果回填后再进入上下文。
         if (outcome.executed && outcome.ok) {
@@ -444,7 +422,7 @@ export async function executeAgentTaskLoop(
     for (const reminder of pendingRepeatReminders) {
       conversation.push({ role: "user", content: reminder });
     }
-    pendingRepeatReminders = [];
+    pendingRepeatReminders.length = 0;
 
     // Check 阶段：评估行动结果并驱动下一轮思考
     const checkStepId = `check-${iteration}`;
@@ -460,7 +438,7 @@ export async function executeAgentTaskLoop(
       timestamp: Date.now(),
     });
     // 只有真正执行过工具的一轮才值得继续消耗预算；全部被拒绝或解析失败时按收口处理。
-    lastRoundExecutedTools = act.executedToolCount > 0;
+    state.lastRoundExecutedTools = act.executedToolCount > 0;
   }
 
   // 达到步数预算且无自动延长空间时执行收口总结。
@@ -471,13 +449,13 @@ export async function executeAgentTaskLoop(
     systemMessage,
     updateSystemMessage: () => updateSystemMessage(),
     contextBudgetChars,
-    iteration,
-    progressTextLength: progressText.length,
+    iteration: state.iteration,
+    progressTextLength: state.progressText.length,
     pushStep: pushOrUpdateStep,
     roundLimits,
     tracker,
     emitReasoning: (text) => {
-      accumulatedReasoning += text;
+      state.reasoning += text;
       params.emit({ type: "delta", runId: params.runId, seq: 0, kind: "reasoning", text });
     },
     emitText: (text) => {
@@ -489,8 +467,8 @@ export async function executeAgentTaskLoop(
   const cost = tracker.cost();
   return {
     content: appendMediaPreviews(fallback.content, mediaPreviews),
-    progressText,
-    reasoning: accumulatedReasoning,
+    progressText: state.progressText,
+    reasoning: state.reasoning,
     steps,
     ...(lastModel ? { model: lastModel } : {}),
     ...(usage ? { usage } : {}),

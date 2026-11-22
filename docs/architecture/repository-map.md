@@ -3,7 +3,7 @@
 > 本文件由 `pnpm map:sync`（[scripts/gen-repository-map.mjs](../../scripts/gen-repository-map.mjs)）按真实文件系统生成，**不要手改**。
 > 骨架发生变化（新增/删除/移动文件、包或目录）后，必须在同一轮运行 `pnpm map:sync` 并提交，否则 `pnpm check` 会失败。
 
-当前快照：**47 个包、1518 个文件、251 个子目录**（不含 node_modules、构建产物与运行数据）。
+当前快照：**47 个包、1519 个文件、251 个子目录**（不含 node_modules、构建产物与运行数据）。
 
 ## 1. 快速索引
 
@@ -62,7 +62,7 @@ lfaa/
 │   ├── standards/  (1 个文件)
 │   ├── templates/  (2 个文件)
 │   └── updata-log/  (302 个文件)
-├── packages/  (980 个文件)
+├── packages/  (981 个文件)
 │   ├── api/  (7 个文件)
 │   │   └── gateway/  # @lfaa/api-gateway  (7 个文件)
 │   │       ├── src/  (1 个文件)
@@ -104,11 +104,11 @@ lfaa/
 │   │   └── compaction/  # @lfaa/compaction  (12 个文件)
 │   │       ├── src/  (4 个文件)
 │   │       └── tests/  (3 个文件)
-│   ├── core/  (254 个文件)
-│   │   ├── agent/  # @lfaa/agent  (53 个文件)
-│   │   │   ├── src/  (30 个文件)
+│   ├── core/  (255 个文件)
+│   │   ├── agent/  # @lfaa/agent  (54 个文件)
+│   │   │   ├── src/  (31 个文件)
 │   │   │   │   ├── context/  (4 个文件)
-│   │   │   │   ├── run/  (18 个文件)
+│   │   │   │   ├── run/  (19 个文件)
 │   │   │   │   └── tools/  (4 个文件)
 │   │   │   └── tests/  (18 个文件)
 │   │   ├── browser/  # @lfaa/browser  (34 个文件)
@@ -942,6 +942,7 @@ lfaa/
 - `agent-loop.ts` — 实现 Agent 核心任务循环：思考（Think）-> 行动（Act）-> 检查（Check）。
 - `agent-usage.ts` — 运行用量与性能统计：累计 token/缓存命中、模型与工具耗时，并组装上下文构成与成本。
 - `command-trace.ts` — 裁剪终端输出快照：步骤轨迹只保留尾部有限行数与字符，避免长日志把会话文件撑到兆字节级。
+- `loop-state.ts` — Agent 单次运行的循环状态：把预算、轮次、用量累积与完成前自检标记收进一个对象。
 - `memory-autosave.ts` — 从用户明确陈述中提取值得跨会话记住的偏好或约定，作为长期记忆的确定性沉淀来源。
 - `model-round.ts` — Agent Host 模型轮次的超时与有限重试，保留已发出的正文和工具进度。
 - `run-begin.ts` — Agent 运行启动器：校验会话与授权根、落盘用户/助手消息、登记运行记录并把执行循环交给 agent-loop。
