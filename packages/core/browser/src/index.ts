@@ -111,7 +111,7 @@ export function browserPlugin(ctx: Context, config: BrowserPluginConfig = {}): v
   new BrowserService(ctx, config);
 }
 
-browserPlugin.inject = ["tools"] as const;
+browserPlugin.inject = ["tools", "llm"] as const;
 
 declare module "@deepseek-ai/cordis" {
   interface Context {

@@ -81,3 +81,18 @@ export async function openInternalPage(state: SessionBrowserState): Promise<Page
     state.internalPageOpening -= 1;
   }
 }
+
+/** 捕获网页内 window.open 或 target="_blank" 新开窗口，忽略内部 newPage 调用。 */
+export function attachPopupHandler(state: SessionBrowserState): void {
+  state.context.on("page", (popup) => {
+    if (state.internalPageOpening > 0) return;
+    for (const item of state.tabs.values()) {
+      if (item.page === popup) return;
+    }
+    const tabId = `tab-${randomUUID().slice(0, 6)}`;
+    void popup.setViewportSize(state.viewport).catch(() => {});
+    attachTabListeners(state, popup, tabId);
+    state.activeTabId = tabId;
+    state.updatedAt = Date.now();
+  });
+}

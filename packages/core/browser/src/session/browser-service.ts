@@ -10,7 +10,7 @@ import {
   takeoverSnapshot,
   type SnapshotRuntime,
 } from "../snapshot/browser-snapshot";
-import { attachTabListeners, openInternalPage } from "./browser-tabs";
+import { attachPopupHandler, attachTabListeners, openInternalPage } from "./browser-tabs";
 import type { BrowserTabEntry, SessionBrowserState } from "./browser-session-types";
 import { ScreencastManager, type StreamFrameListener } from "./screencast-manager";
 import { clampViewport, detectLocalBrowserExecutable, validateBrowserUrl } from "../runtime-utils";
@@ -116,18 +116,8 @@ export class BrowserRuntime {
     };
     const tab = attachTabListeners(state, page, tabId);
 
-    // 捕获网页内 window.open 或 target="_blank" 新开窗口，忽略内部 newPage 调用。
-    context.on("page", (popup) => {
-      if (state.internalPageOpening > 0) return;
-      for (const item of state.tabs.values()) {
-        if (item.page === popup) return;
-      }
-      const newTabId = `tab-${randomUUID().slice(0, 6)}`;
-      void popup.setViewportSize(state.viewport).catch(() => {});
-      attachTabListeners(state, popup, newTabId);
-      state.activeTabId = newTabId;
-      state.updatedAt = Date.now();
-    });
+    // 网页内 window.open / target="_blank" 的新标签由 browser-tabs 统一接管。
+    attachPopupHandler(state);
 
     this.sessions.set(sessionId, state);
     return { state, tab };

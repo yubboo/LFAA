@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { Context } from "@deepseek-ai/cordis";
+import { llmPlugin } from "@lfaa/llm";
 import { toolsPlugin } from "@lfaa/tools";
 import { browserPlugin, BrowserUseRegistry, detectLocalBrowserExecutable, validateBrowserUrl } from "../src/index";
 
@@ -57,6 +58,8 @@ test("BrowserService 驱动本机浏览器打开测试页、交互、截图并�
 
   const ctx = new Context();
   await ctx.plugin(toolsPlugin);
+  // 浏览器工具里的截图问答依赖 LlmService；这里只装载不调用，无需真实 provider。
+  await ctx.plugin(llmPlugin);
   const fiber = ctx.plugin(browserPlugin, { storeFilePath: path.join(tempDir, "browser.json") });
   t.after(() => fiber.dispose());
   await fiber;
