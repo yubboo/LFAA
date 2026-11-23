@@ -65,36 +65,42 @@ importers:
       '@deepseek-ai/cordis':
         specifier: ^4.1.0
         version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
-      '@lfaa/browser':
+      '@lfaa/client-ui-agent-group':
         specifier: workspace:*
-        version: link:../../packages/core/browser
-      '@lfaa/chat':
+        version: link:../../packages/client/ui-agent-group
+      '@lfaa/client-ui-agent-profile':
         specifier: workspace:*
-        version: link:../../packages/chat/chat
-      '@lfaa/library':
+        version: link:../../packages/client/ui-agent-profile
+      '@lfaa/client-ui-browser':
         specifier: workspace:*
-        version: link:../../packages/chat/library
-      '@lfaa/plugins':
+        version: link:../../packages/client/ui-browser
+      '@lfaa/client-ui-chat':
         specifier: workspace:*
-        version: link:../../packages/extension/plugins
-      '@lfaa/review':
+        version: link:../../packages/client/ui-chat
+      '@lfaa/client-ui-library':
         specifier: workspace:*
-        version: link:../../packages/chat/review
-      '@lfaa/sections':
+        version: link:../../packages/client/ui-library
+      '@lfaa/client-ui-plugins':
         specifier: workspace:*
-        version: link:../../packages/workspace/sections
-      '@lfaa/skills':
+        version: link:../../packages/client/ui-plugins
+      '@lfaa/client-ui-review':
         specifier: workspace:*
-        version: link:../../packages/extension/skills
+        version: link:../../packages/client/ui-review
+      '@lfaa/client-ui-sections':
+        specifier: workspace:*
+        version: link:../../packages/client/ui-sections
+      '@lfaa/client-ui-skills':
+        specifier: workspace:*
+        version: link:../../packages/client/ui-skills
+      '@lfaa/client-ui-workspace':
+        specifier: workspace:*
+        version: link:../../packages/client/ui-workspace
       '@lfaa/ui-layout':
         specifier: workspace:*
         version: link:../../packages/ui/layout
       '@lfaa/ui-theme':
         specifier: workspace:*
         version: link:../../packages/ui/theme
-      '@lfaa/workspace':
-        specifier: workspace:*
-        version: link:../../packages/workspace/workspace
       react:
         specifier: ^19.3.1
         version: 19.3.1
@@ -145,6 +151,9 @@ importers:
       '@lfaa/agent':
         specifier: workspace:*
         version: link:../../core/agent
+      '@lfaa/agent-profile':
+        specifier: workspace:*
+        version: link:../../core/agent-profile
       '@lfaa/attachment-local':
         specifier: workspace:*
         version: link:../../attachment/attachment-local
@@ -254,42 +263,12 @@ importers:
       '@deepseek-ai/cordis':
         specifier: ^4.1.0
         version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
-      '@lfaa/browser':
-        specifier: workspace:*
-        version: link:../../core/browser
-      '@lfaa/llm':
-        specifier: workspace:*
-        version: link:../../core/llm
       '@lfaa/memory':
         specifier: workspace:*
         version: link:../../core/memory
-      '@lfaa/metrics':
-        specifier: workspace:*
-        version: link:../../core/metrics
       '@lfaa/settings':
         specifier: workspace:*
         version: link:../../core/settings
-      '@lfaa/tool-media':
-        specifier: workspace:*
-        version: link:../../media/tool-media
-      '@lfaa/ui-icons':
-        specifier: workspace:*
-        version: link:../../ui/icons
-      '@lfaa/ui-layout':
-        specifier: workspace:*
-        version: link:../../ui/layout
-      '@lfaa/ui-primitives':
-        specifier: workspace:*
-        version: link:../../ui/primitives
-      '@tabler/icons-react':
-        specifier: 3.52.0
-        version: 3.52.0(react@19.3.1)
-      react:
-        specifier: ^19.3.1
-        version: 19.3.1
-      react-dom:
-        specifier: ^19.3.1
-        version: 19.3.1(react@19.3.1)
     devDependencies:
       '@types/node':
         specifier: ^24.10.0
@@ -309,21 +288,6 @@ importers:
       '@deepseek-ai/cordis':
         specifier: ^4.1.0
         version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
-      '@lfaa/chat':
-        specifier: workspace:*
-        version: link:../chat
-      '@lfaa/tool-media':
-        specifier: workspace:*
-        version: link:../../media/tool-media
-      '@lfaa/ui-layout':
-        specifier: workspace:*
-        version: link:../../ui/layout
-      '@tabler/icons-react':
-        specifier: 3.52.0
-        version: 3.52.0(react@19.3.1)
-      react:
-        specifier: ^19.3.1
-        version: 19.3.1
     devDependencies:
       '@types/node':
         specifier: ^24.10.0
@@ -334,9 +298,6 @@ importers:
       '@types/react-dom':
         specifier: ^19.3.0
         version: 19.3.0(@types/react@19.3.0)
-      react-dom:
-        specifier: ^19.3.1
-        version: 19.3.1(react@19.3.1)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -346,24 +307,9 @@ importers:
       '@deepseek-ai/cordis':
         specifier: ^4.1.0
         version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
-      '@lfaa/chat':
-        specifier: workspace:*
-        version: link:../chat
       '@lfaa/settings':
         specifier: workspace:*
         version: link:../../core/settings
-      '@lfaa/ui-layout':
-        specifier: workspace:*
-        version: link:../../ui/layout
-      '@lfaa/ui-primitives':
-        specifier: workspace:*
-        version: link:../../ui/primitives
-      '@tabler/icons-react':
-        specifier: 3.52.0
-        version: 3.52.0(react@19.3.1)
-      react:
-        specifier: ^19.3.1
-        version: 19.3.1
     devDependencies:
       '@types/node':
         specifier: ^24.10.0
@@ -374,6 +320,320 @@ importers:
       '@types/react-dom':
         specifier: ^19.3.0
         version: 19.3.0(@types/react@19.3.0)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/client/ui-agent-group:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
+      '@lfaa/ui-layout':
+        specifier: workspace:*
+        version: link:../../ui/layout
+      '@tabler/icons-react':
+        specifier: ^3.35.0
+        version: 3.52.0(react@19.3.1)
+      react:
+        specifier: ^19.1.0
+        version: 19.3.1
+    devDependencies:
+      '@types/react':
+        specifier: ^19.3.0
+        version: 19.3.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/client/ui-agent-profile:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
+      '@lfaa/ui-layout':
+        specifier: workspace:*
+        version: link:../../ui/layout
+      '@tabler/icons-react':
+        specifier: ^3.35.0
+        version: 3.52.0(react@19.3.1)
+      react:
+        specifier: ^19.1.0
+        version: 19.3.1
+    devDependencies:
+      '@types/react':
+        specifier: ^19.3.0
+        version: 19.3.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/client/ui-browser:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
+      '@lfaa/browser':
+        specifier: workspace:*
+        version: link:../../core/browser
+      '@lfaa/ui-layout':
+        specifier: workspace:*
+        version: link:../../ui/layout
+      '@tabler/icons-react':
+        specifier: ^3.35.0
+        version: 3.52.0(react@19.3.1)
+      react:
+        specifier: ^19.1.0
+        version: 19.3.1
+    devDependencies:
+      '@types/react':
+        specifier: ^19.3.0
+        version: 19.3.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/client/ui-chat:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
+      '@lfaa/client-ui-browser':
+        specifier: workspace:*
+        version: link:../ui-browser
+      '@lfaa/client-ui-tool-media':
+        specifier: workspace:*
+        version: link:../ui-tool-media
+      '@lfaa/llm':
+        specifier: workspace:*
+        version: link:../../core/llm
+      '@lfaa/memory':
+        specifier: workspace:*
+        version: link:../../core/memory
+      '@lfaa/metrics':
+        specifier: workspace:*
+        version: link:../../core/metrics
+      '@lfaa/ui-icons':
+        specifier: workspace:*
+        version: link:../../ui/icons
+      '@lfaa/ui-layout':
+        specifier: workspace:*
+        version: link:../../ui/layout
+      '@lfaa/ui-primitives':
+        specifier: workspace:*
+        version: link:../../ui/primitives
+      '@tabler/icons-react':
+        specifier: ^3.35.0
+        version: 3.52.0(react@19.3.1)
+      react:
+        specifier: ^19.1.0
+        version: 19.3.1
+      react-dom:
+        specifier: ^19.1.0
+        version: 19.3.1(react@19.3.1)
+    devDependencies:
+      '@lfaa/chat':
+        specifier: workspace:*
+        version: link:../../chat/chat
+      '@types/react':
+        specifier: ^19.3.0
+        version: 19.3.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/client/ui-library:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
+      '@lfaa/client-ui-chat':
+        specifier: workspace:*
+        version: link:../ui-chat
+      '@lfaa/client-ui-tool-media':
+        specifier: workspace:*
+        version: link:../ui-tool-media
+      '@lfaa/ui-layout':
+        specifier: workspace:*
+        version: link:../../ui/layout
+      '@tabler/icons-react':
+        specifier: ^3.35.0
+        version: 3.52.0(react@19.3.1)
+      react:
+        specifier: ^19.1.0
+        version: 19.3.1
+      react-dom:
+        specifier: ^19.1.0
+        version: 19.3.1(react@19.3.1)
+    devDependencies:
+      '@types/react':
+        specifier: ^19.3.0
+        version: 19.3.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/client/ui-plugins:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
+      '@lfaa/plugins':
+        specifier: workspace:*
+        version: link:../../extension/plugins
+      '@lfaa/ui-layout':
+        specifier: workspace:*
+        version: link:../../ui/layout
+      '@lfaa/ui-primitives':
+        specifier: workspace:*
+        version: link:../../ui/primitives
+      '@tabler/icons-react':
+        specifier: ^3.35.0
+        version: 3.52.0(react@19.3.1)
+      react:
+        specifier: ^19.1.0
+        version: 19.3.1
+      react-dom:
+        specifier: ^19.1.0
+        version: 19.3.1(react@19.3.1)
+    devDependencies:
+      '@types/react':
+        specifier: ^19.3.0
+        version: 19.3.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/client/ui-review:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
+      '@lfaa/client-ui-chat':
+        specifier: workspace:*
+        version: link:../ui-chat
+      '@lfaa/ui-layout':
+        specifier: workspace:*
+        version: link:../../ui/layout
+      '@lfaa/ui-primitives':
+        specifier: workspace:*
+        version: link:../../ui/primitives
+      '@tabler/icons-react':
+        specifier: ^3.35.0
+        version: 3.52.0(react@19.3.1)
+      react:
+        specifier: ^19.1.0
+        version: 19.3.1
+    devDependencies:
+      '@types/react':
+        specifier: ^19.3.0
+        version: 19.3.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/client/ui-sections:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
+      '@lfaa/ui-layout':
+        specifier: workspace:*
+        version: link:../../ui/layout
+      '@tabler/icons-react':
+        specifier: ^3.35.0
+        version: 3.52.0(react@19.3.1)
+      react:
+        specifier: ^19.1.0
+        version: 19.3.1
+      react-dom:
+        specifier: ^19.1.0
+        version: 19.3.1(react@19.3.1)
+    devDependencies:
+      '@lfaa/sections':
+        specifier: workspace:*
+        version: link:../../workspace/sections
+      '@types/react':
+        specifier: ^19.3.0
+        version: 19.3.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/client/ui-skills:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
+      '@lfaa/skills':
+        specifier: workspace:*
+        version: link:../../extension/skills
+      '@lfaa/ui-layout':
+        specifier: workspace:*
+        version: link:../../ui/layout
+      '@tabler/icons-react':
+        specifier: ^3.35.0
+        version: 3.52.0(react@19.3.1)
+      react:
+        specifier: ^19.1.0
+        version: 19.3.1
+    devDependencies:
+      '@types/react':
+        specifier: ^19.3.0
+        version: 19.3.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/client/ui-tool-media:
+    dependencies:
+      '@lfaa/ui-primitives':
+        specifier: workspace:*
+        version: link:../../ui/primitives
+      '@tabler/icons-react':
+        specifier: ^3.35.0
+        version: 3.52.0(react@19.3.1)
+      react:
+        specifier: ^19.1.0
+        version: 19.3.1
+      react-dom:
+        specifier: ^19.1.0
+        version: 19.3.1(react@19.3.1)
+    devDependencies:
+      '@types/react':
+        specifier: ^19.3.0
+        version: 19.3.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/client/ui-workspace:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
+      '@lfaa/ui-layout':
+        specifier: workspace:*
+        version: link:../../ui/layout
+      '@lfaa/ui-primitives':
+        specifier: workspace:*
+        version: link:../../ui/primitives
+      '@lfaa/workspace':
+        specifier: workspace:*
+        version: link:../../workspace/workspace
+      '@tabler/icons-react':
+        specifier: ^3.35.0
+        version: 3.52.0(react@19.3.1)
+      react:
+        specifier: ^19.1.0
+        version: 19.3.1
+      react-dom:
+        specifier: ^19.1.0
+        version: 19.3.1(react@19.3.1)
+    devDependencies:
+      '@types/react':
+        specifier: ^19.3.0
+        version: 19.3.0
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -405,6 +665,9 @@ importers:
       '@deepseek-ai/cordis':
         specifier: ^4.1.0
         version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
+      '@lfaa/agent-profile':
+        specifier: workspace:*
+        version: link:../agent-profile
       '@lfaa/context':
         specifier: workspace:*
         version: link:../context
@@ -434,6 +697,37 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
+  packages/core/agent-group:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
+      '@lfaa/agent':
+        specifier: workspace:*
+        version: link:../agent
+      '@lfaa/memory':
+        specifier: workspace:*
+        version: link:../memory
+      '@lfaa/session':
+        specifier: workspace:*
+        version: link:../session
+
+  packages/core/agent-profile:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
+      '@lfaa/llm':
+        specifier: workspace:*
+        version: link:../llm
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.19.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
   packages/core/browser:
     dependencies:
       '@deepseek-ai/cordis':
@@ -448,18 +742,9 @@ importers:
       '@lfaa/tools':
         specifier: workspace:*
         version: link:../tools
-      '@lfaa/ui-layout':
-        specifier: workspace:*
-        version: link:../../ui/layout
-      '@tabler/icons-react':
-        specifier: 3.52.0
-        version: 3.52.0(react@19.3.1)
       playwright-core:
         specifier: ^1.65.1
         version: 1.65.1
-      react:
-        specifier: ^19.3.1
-        version: 19.3.1
     devDependencies:
       '@types/node':
         specifier: ^24.10.0
@@ -710,21 +995,6 @@ importers:
       '@lfaa/tools':
         specifier: workspace:*
         version: link:../../core/tools
-      '@lfaa/ui-layout':
-        specifier: workspace:*
-        version: link:../../ui/layout
-      '@lfaa/ui-primitives':
-        specifier: workspace:*
-        version: link:../../ui/primitives
-      '@tabler/icons-react':
-        specifier: ^3.35.0
-        version: 3.52.0(react@19.3.1)
-      react:
-        specifier: ^19.1.0
-        version: 19.3.1
-      react-dom:
-        specifier: ^19.3.1
-        version: 19.3.1(react@19.3.1)
     devDependencies:
       '@deepseek-ai/cordis-plugin-loader':
         specifier: workspace:*
@@ -744,15 +1014,6 @@ importers:
       '@lfaa/tools':
         specifier: workspace:*
         version: link:../../core/tools
-      '@lfaa/ui-layout':
-        specifier: workspace:*
-        version: link:../../ui/layout
-      '@tabler/icons-react':
-        specifier: ^3.35.0
-        version: 3.52.0(react@19.3.1)
-      react:
-        specifier: ^19.1.0
-        version: 19.3.1
     devDependencies:
       '@types/react':
         specifier: ^19.3.0
@@ -833,6 +1094,12 @@ importers:
       '@lfaa/agent':
         specifier: workspace:*
         version: link:../../core/agent
+      '@lfaa/agent-group':
+        specifier: workspace:*
+        version: link:../../core/agent-group
+      '@lfaa/agent-profile':
+        specifier: workspace:*
+        version: link:../../core/agent-profile
       '@lfaa/api-gateway':
         specifier: workspace:*
         version: link:../../api/gateway
@@ -937,18 +1204,6 @@ importers:
       '@lfaa/tools':
         specifier: workspace:*
         version: link:../../core/tools
-      '@lfaa/ui-primitives':
-        specifier: workspace:*
-        version: link:../../ui/primitives
-      '@tabler/icons-react':
-        specifier: 3.52.0
-        version: 3.52.0(react@19.3.1)
-      react:
-        specifier: ^19.3.1
-        version: 19.3.1
-      react-dom:
-        specifier: ^19.3.1
-        version: 19.3.1(react@19.3.1)
     devDependencies:
       '@types/node':
         specifier: ^24.10.0
@@ -1208,15 +1463,6 @@ importers:
       '@lfaa/ui-layout':
         specifier: workspace:*
         version: link:../../ui/layout
-      '@tabler/icons-react':
-        specifier: 3.52.0
-        version: 3.52.0(react@19.3.1)
-      react:
-        specifier: ^19.3.1
-        version: 19.3.1
-      react-dom:
-        specifier: ^19.3.1
-        version: 19.3.1(react@19.3.1)
     devDependencies:
       '@types/react':
         specifier: ^19.3.0
@@ -1236,18 +1482,6 @@ importers:
       '@lfaa/ui-layout':
         specifier: workspace:*
         version: link:../../ui/layout
-      '@lfaa/ui-primitives':
-        specifier: workspace:*
-        version: link:../../ui/primitives
-      '@tabler/icons-react':
-        specifier: 3.52.0
-        version: 3.52.0(react@19.3.1)
-      react:
-        specifier: ^19.3.1
-        version: 19.3.1
-      react-dom:
-        specifier: ^19.3.1
-        version: 19.3.1(react@19.3.1)
     devDependencies:
       '@types/react':
         specifier: ^19.3.0

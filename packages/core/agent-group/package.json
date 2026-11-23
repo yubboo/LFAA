@@ -1,0 +1,37 @@
+{
+  "name": "@lfaa/agent-group",
+  "description": "LFAA 群聊编排：把一条消息展开成按序的多个 agent 发言，共享同一份会话历史。",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./lib/index.js",
+  "types": "./lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "src"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yubboo/LFAA.git",
+    "directory": "packages/core/agent-group"
+  },
+  "scripts": {
+    "typecheck": "tsc -b ."
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "^4.1.0",
+    "@lfaa/agent": "workspace:*",
+    "@lfaa/memory": "workspace:*",
+    "@lfaa/session": "workspace:*"
+  }
+}

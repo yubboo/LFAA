@@ -1,8 +1,12 @@
 ﻿# LFAA Windows 菜单入口：安装当前工作区依赖，并在应用入口就绪后启动 Web。
+# 支持 `lfaa.bat`（菜单）、`lfaa.bat 2`（直接执行菜单项后退出）、`lfaa.bat --help`（用法）。
 $ErrorActionPreference = "Stop"
 # 原生命令（git / pnpm / node）在 Windows 上输出 UTF-8；Windows PowerShell 5.1 默认按本地 OEM 代码页解码，
 # 会把中文提交信息读成乱码。显式按 UTF-8 解码；PowerShell 自身输出走 WriteConsoleW，不受影响。
-try { [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false) } catch { }
+try {
+  [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+  $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+} catch { }
 $repoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $repoRoot
 
@@ -300,6 +304,15 @@ function Push-ToGitHub {
       Invoke-Git -Arguments @("commit", "-m", $commitMsg)
       if ($script:GitExitCode -ne 0) {
         Write-Host "git commit 失败，退出码：$($script:GitExitCode)" -ForegroundColor Red
+        # pre-commit 的空白检查最常见；把具体文件与行号直接打出来，省得自己去猜。
+        $whitespace = (& git diff --cached --check 2>&1 | Out-String).Trim()
+        if (-not [string]::IsNullOrWhiteSpace($whitespace)) {
+          Write-Host "暂存内容有空白问题（pre-commit 会拦下），位置：" -ForegroundColor Yellow
+          $whitespace -split "`r?`n" | Select-Object -First 10 | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkGray }
+          Write-Host "修好后重新运行菜单 4 / 5 即可；确认为误报再用 git commit --no-verify。" -ForegroundColor Yellow
+        } else {
+          Write-Host "空白检查没问题，失败原因看上面的钩子输出。" -ForegroundColor DarkGray
+        }
         return
       }
       [System.IO.File]::WriteAllText($lastMsgFile, $commitMsg, [System.Text.UTF8Encoding]::new($false))
@@ -338,8 +351,19 @@ function Push-ToGitHub {
     }
 
     if ($Force) {
+      # --force-with-lease：远端在我们上次拉取后被别人更新时先失败，避免误伤他人提交。
       Write-Host "正在强制推送到 $remoteUrl（${currentBranch} -> main）..." -ForegroundColor Yellow
-      Invoke-Git -Arguments @("push", "--force", "-u", "origin", "${currentBranch}:main")
+      Invoke-Git -Arguments @("push", "--force-with-lease", "-u", "origin", "${currentBranch}:main")
+      if ($script:GitExitCode -ne 0) {
+        Write-Host "强制推送被拒绝：远端可能已有新提交（这是 --force-with-lease 的保护）。" -ForegroundColor Yellow
+        $overwrite = Read-Host "确认丢弃远端最新提交并覆盖吗？输入 yes 继续，回车取消"
+        if ($overwrite.Trim() -eq "yes") {
+          Invoke-Git -Arguments @("push", "--force", "-u", "origin", "${currentBranch}:main")
+        } else {
+          Write-Host "已取消强制推送。" -ForegroundColor DarkGray
+          return
+        }
+      }
     } else {
       Write-Host "正在推送到 $remoteUrl（${currentBranch} -> main）..." -ForegroundColor Cyan
       Invoke-Git -Arguments @("push", "-u", "origin", "${currentBranch}:main")
@@ -572,7 +596,8 @@ function Stop-LfaaWebListeners {
   }
 }
 
-while ($true) {
+# 菜单渲染独立成函数：一次性执行带编号参数时不需要打印菜单。
+function Show-Menu {
   Write-Host ""
   Write-Host "================ LFAA ================" -ForegroundColor Cyan
   Write-Host "【开发与运行】" -ForegroundColor Cyan
@@ -589,9 +614,14 @@ while ($true) {
   Write-Host "【其他】" -ForegroundColor DarkGray
   Write-Host "  0. 退出菜单（保留终端窗口）" -ForegroundColor DarkGray
   Write-Host "======================================" -ForegroundColor Cyan
-  $choice = (Read-Host "请输入数字").Trim()
+  Write-Host "用法：lfaa.bat [0-7] 直接执行一项后退出；lfaa.bat --help 看说明。" -ForegroundColor DarkGray
+}
 
-  switch ($choice) {
+# 执行一个菜单项。所有动作都在这里收敛，异常由调用方捕获，菜单不会因为单个动作失败而退出。
+function Invoke-MenuChoice {
+  param([string]$Choice)
+
+  switch ($Choice) {
     "1" {
       Clear-StalePnpmTempDirs
       Invoke-Pnpm -Arguments @("install", "--prefer-offline")
@@ -610,12 +640,12 @@ while ($true) {
       $webEntry = Join-Path $repoRoot "apps/web/src/main.tsx"
       if (-not $manifest.scripts -or -not $manifest.scripts.lfaa -or -not (Test-Path -LiteralPath $cliEntry) -or -not (Test-Path -LiteralPath $webEntry)) {
         Write-Host "Web 启动入口尚未就绪，请检查 apps/cli、apps/web 和根 package.json。" -ForegroundColor Yellow
-        continue
+        return
       }
 
       if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
         Write-Host "未找到 Node.js，无法检查依赖。" -ForegroundColor Red
-        continue
+        return
       }
 
       # 启动前释放被占用的 5173~5177 端口，避免每次都要手动关掉旧进程。
@@ -641,7 +671,7 @@ while ($true) {
       $hostLib = Join-Path $repoRoot "packages/host/web-server/lib/index.js"
       if (-not (Test-Path -LiteralPath $desktopEntry) -or -not (Test-Path -LiteralPath $webDist) -or -not (Test-Path -LiteralPath $hostLib)) {
         Write-Host "桌面端产物不完整，请先执行菜单 7 或命令 pnpm build:desktop。" -ForegroundColor Yellow
-        continue
+        return
       }
       Invoke-Pnpm -Arguments @("desktop")
       if ($script:PnpmExitCode -ne 0) {
@@ -679,5 +709,60 @@ while ($true) {
       exit 0
     }
     default { Write-Host "无效选项，请输入 1、2、3、7、4、5、6 或 0。" -ForegroundColor Yellow }
+  }
+}
+
+# 打印用法；带参数启动时使用。
+function Show-Usage {
+  Write-Host ""
+  Write-Host "LFAA 启动器" -ForegroundColor Cyan
+  Write-Host "  lfaa.bat            打开菜单"
+  Write-Host "  lfaa.bat <0-7>      直接执行对应菜单项后退出（适合快捷方式 / 脚本调用）"
+  Write-Host "  lfaa.bat --help     显示本说明"
+  Write-Host ""
+  Write-Host "菜单项：1 安装依赖 · 2 启动 Web · 3 启动桌面端 · 4 推送 · 5 强制推送 · 6 拉取 · 7 构建安装包 · 0 退出" -ForegroundColor DarkGray
+}
+
+# 命令行参数：支持 `lfaa.bat 2` 这类一次性执行，其他参数给出用法并返回非零。
+$argument = if ($args.Count -gt 0) { ([string]$args[0]).Trim() } else { "" }
+if ($argument -in @("--help", "-h", "/?", "help")) {
+  Show-Menu
+  Show-Usage
+  exit 0
+}
+if ($argument -ne "") {
+  if ($argument -notin @("0", "1", "2", "3", "4", "5", "6", "7")) {
+    Write-Host "未知参数：$argument" -ForegroundColor Red
+    Show-Usage
+    exit 1
+  }
+  try {
+    Invoke-MenuChoice -Choice $argument
+  } catch {
+    Write-Host ""
+    Write-Host "执行失败：$($_.Exception.Message)" -ForegroundColor Red
+    exit 1
+  }
+  exit 0
+}
+
+while ($true) {
+  Show-Menu
+  $rawChoice = Read-Host "请输入数字"
+  # 管道或 CI 用完输入流时 Read-Host 返回 $null；直接退出，避免 $null.Trim() 抛错。
+  if ($null -eq $rawChoice) {
+    Write-Host ""
+    Write-Host "输入流已结束，退出菜单。" -ForegroundColor DarkGray
+    exit 0
+  }
+  $choice = ([string]$rawChoice).Trim()
+
+  # 单个动作抛异常时只报错并回到菜单，不把整个窗口带走。
+  try {
+    Invoke-MenuChoice -Choice $choice
+  } catch {
+    Write-Host ""
+    Write-Host "执行失败：$($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "已返回菜单，可重试或选 0 退出。" -ForegroundColor DarkGray
   }
 }

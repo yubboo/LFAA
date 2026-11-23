@@ -11,6 +11,7 @@ import styles from "./WorkbenchShell.module.css";
 export function ShellWorkspace({
   snapshot,
   locale,
+  view,
   mode,
   newChatSelected,
   workspaceNotice,
@@ -25,6 +26,8 @@ export function ShellWorkspace({
 }: {
   snapshot: WorkbenchSnapshot;
   locale: LocaleMessages;
+  /** 中央列要呈现的视图；设置弹窗打开时仍传入背景视图，使工作区停在原页面。 */
+  view?: string;
   mode: WorkspaceMode;
   newChatSelected: boolean;
   workspaceNotice: string;
@@ -38,18 +41,20 @@ export function ShellWorkspace({
   onToggleRight: () => void;
 }) {
   const { activeView, activeProjectId, activeChatSessionId, leftSidebarOpen, rightPanelOpen, projects, views, chatSessions, projectProvider, workspaceActions, titleActions } = snapshot;
-  const registeredView = views.find((entry) => entry.id === activeView);
+  // 设置弹窗打开时 activeView 指向设置页，中央列改按背景视图渲染。
+  const shownView = view ?? activeView;
+  const registeredView = views.find((entry) => entry.id === shownView);
   const currentProject = projects.find((project) => project.id === activeProjectId);
   const activeChatSession = activeChatSessionId
     ? chatSessions.find((session) => session.id === activeChatSessionId)
     : undefined;
-  const title = activeView === "project" && currentProject
+  const title = shownView === "project" && currentProject
     ? currentProject.name
-    : activeView === "workspace" && activeChatSession
+    : shownView === "workspace" && activeChatSession
       ? activeChatSession.title
-      : activeView === "workspace" && newChatSelected
+      : shownView === "workspace" && newChatSelected
         ? locale.newChat
-        : resolveViewLabel(activeView, locale, registeredView?.title);
+        : resolveViewLabel(shownView, locale, registeredView?.title);
 
   return (
     <main className={styles.workspace} data-region={WORKBENCH_REGIONS[2]}>
@@ -74,16 +79,16 @@ export function ShellWorkspace({
       <div className={styles.workspaceViewport}>
         {registeredView ? (
           registeredView.render()
-        ) : activeView === "project" && currentProject && projectProvider ? (
+        ) : shownView === "project" && currentProject && projectProvider ? (
           <div className={styles.projectViewHost}>
             {workspaceNotice && (
               <p className={styles.projectNotice} role="status">{workspaceNotice}</p>
             )}
             {projectProvider.renderProjectView(currentProject)}
           </div>
-        ) : activeView === "project" && projectProvider && !projectProvider.hasLoaded?.() ? (
+        ) : shownView === "project" && projectProvider && !projectProvider.hasLoaded?.() ? (
           <section className={styles.page} aria-busy="true" />
-        ) : activeView === "workspace" ? (
+        ) : shownView === "workspace" ? (
           <section className={styles.welcome} aria-labelledby="workspace-title">
             <p className={styles.welcomeLabel}>{mode === "chatgpt" ? locale.chatModeTitle : locale.codexModeTitle}</p>
             <h1 id="workspace-title">{locale.headline}</h1>

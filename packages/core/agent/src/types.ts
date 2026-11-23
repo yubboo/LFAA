@@ -48,6 +48,18 @@ export interface StartAgentRunInput {
   /** 目标自动续跑：不写用户消息，把目标指令放进模型上下文（仅由 Host 内部发起）。 */
   goalContinuation?: { goalId: string; title: string; objective: string };
   profileId?: string;
+  /** 本次运行使用的 agent 定义 id；缺省取会话绑定的 agent 或内置小鱼。 */
+  agentId?: string;
+  /** 会话级临时模型绑定覆盖，优先于 agent 自身绑定。 */
+  bindingId?: string;
+  /** 群聊发言者：写入助手消息的 authorAgentId，界面据此显示说话人。 */
+  authorAgentId?: string;
+  /** 群聊回合 id：同轮多条发言共享。 */
+  turnId?: string;
+  /** 本轮分给该成员的任务说明。 */
+  speakerTask?: string;
+  /** 群聊第 2..N 位发言者：用户消息已由本轮第一位写入，不再重复落盘。 */
+  skipUserMessage?: boolean;
   reasoningEffort?: "minimal" | "low" | "medium" | "high" | "max";
   projectId?: string | null;
   workspaceRoots?: string[];

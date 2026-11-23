@@ -33,6 +33,8 @@ export interface BeginRunDeps extends RunLoopDeps {
   /** 可选：按会话解析运行根；返回 null 表示沿用项目根（未绑定工作树）。 */
   resolveSessionRoots?: (session: ChatSessionRecord) => Promise<string[] | null>;
   resolveSessionModules?: (presetId: string | undefined, modules: readonly string[]) => readonly string[];
+  /** 解析某个 agent 的工具策略；未装配 agent 定义服务或缺省时返回 undefined（不限制）。 */
+  resolveToolPolicy?: (agentId?: string) => Promise<{ allow?: string[]; deny?: string[] } | undefined>;
   /** 把新运行登记到服务层运行表并计数。 */
   onRunCreated: (record: ActiveRunRecord) => void;
   /** 运行收口后回调：调度层用于释放工作区租约并判断目标续跑。 */
@@ -131,7 +133,11 @@ export async function beginAgentRun(
   // 旧会话没有已确认组合，沿用历史能力；新会话按已保存的组合执行。
   const storedModules = session.sessionModules;
   const modules = storedModules ? new Set(deps.resolveSessionModules?.(session.sessionPreset, storedModules) ?? storedModules) : undefined;
-  const tools = modules ? deps.tools.scope(modules, session.sessionPreset === "minimal") : deps.tools;
+  // agent 的工具策略在会话模式作用域之后再过一层：两者取交集，策略只能收窄不能放大。
+  const effectiveAgentId = input.agentId ?? session.agentId;
+  const toolPolicy = deps.resolveToolPolicy ? await deps.resolveToolPolicy(effectiveAgentId) : undefined;
+  const tools = (modules ? deps.tools.scope(modules, session.sessionPreset === "minimal") : deps.tools)
+    .withPolicy(toolPolicy);
   const skillsAllowed = !modules || modules.has("@lfaa/skills");
   const memoryAllowed = !modules || modules.has("@lfaa/memory");
   if (!skillsAllowed && input.skillIds?.length) throw new Error("当前会话模式不支持技能。");
@@ -142,7 +148,8 @@ export async function beginAgentRun(
     ? await deps.skillCatalogProvider(workspaceRoots).catch(() => [])
     : [];
 
-  if (!continuationId && !goalContinuation) {
+  // 群聊第 2..N 位发言者：用户消息已由第一位写入，这里只把指令放进上下文。
+  if (!continuationId && !goalContinuation && !input.skipUserMessage) {
     await deps.memory.appendMessage(session.id, {
       id: userMessageId,
       role: "user",
@@ -164,6 +171,9 @@ export async function beginAgentRun(
     steps: [],
     status: "streaming",
     createdAt: runStartedAt,
+    ...(input.authorAgentId ? { authorAgentId: input.authorAgentId } : {}),
+    ...(input.turnId ? { turnId: input.turnId } : {}),
+    ...(input.speakerTask ? { speakerTask: input.speakerTask } : {}),
   });
 
   const controller = new AbortController();

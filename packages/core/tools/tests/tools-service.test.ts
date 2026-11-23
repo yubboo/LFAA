@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { Context } from "@deepseek-ai/cordis";
-import { resolveSafeWorkspacePath, toolsPlugin } from "../src/index";
+import { hasToolPolicy, isToolAllowed, resolveSafeWorkspacePath, toolsPlugin } from "../src/index";
 import { appendCommandAudit, findProtectedPathInCommand } from "@lfaa/guard";
 
 // 命令审计写入临时文件，避免测试污染用户目录。
@@ -159,7 +159,8 @@ test("run_command 超时后交给后台兜底并返回任务 ID", async () => {
   }
 });
 
-test("glob/grep 覆盖按名检索与正则过滤，edit_file 拒绝多处命中", async () => {  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-tools-search-"));
+test("glob/grep 覆盖按名检索与正则过滤，edit_file 拒绝多处命中", async () => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-tools-search-"));
   const ctx = new Context();
   await ctx.plugin(toolsPlugin);
 
@@ -306,4 +307,19 @@ test("命令审计超过大小上限时轮转并保留最近记录", async () =>
     else process.env.LFAA_COMMAND_AUDIT_MAX_BYTES = previousMax;
     await fs.rm(tempRoot, { recursive: true, force: true });
   }
+});
+
+test("工具策略判定：deny 优先、allow 白名单、空策略放行一切", () => {
+  assert.equal(isToolAllowed(undefined, "write_file"), true);
+  assert.equal(isToolAllowed({}, "write_file"), true);
+  assert.equal(isToolAllowed({ deny: ["write_file"] }, "write_file"), false);
+  assert.equal(isToolAllowed({ deny: ["write_file"] }, "read_file"), true);
+  // allow 非空时只放行名单内，名单外即使没 deny 也不放行。
+  assert.equal(isToolAllowed({ allow: ["read_file"] }, "read_file"), true);
+  assert.equal(isToolAllowed({ allow: ["read_file"] }, "write_file"), false);
+  // 同时出现时 deny 优先，避免「白名单里顺手写了一个该禁的工具」这种误配放行。
+  assert.equal(isToolAllowed({ allow: ["write_file"], deny: ["write_file"] }, "write_file"), false);
+  assert.equal(hasToolPolicy(undefined), false);
+  assert.equal(hasToolPolicy({ allow: [], deny: [] }), false);
+  assert.equal(hasToolPolicy({ deny: ["edit_file"] }), true);
 });

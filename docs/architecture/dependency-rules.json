@@ -1,0 +1,69 @@
+{
+    "version":  1,
+    "description":  "依赖方向护栏：机器读本文件。新增跨包 UI 复用或装配边必须在这里登记并写清理由，否则 check:arch 失败。",
+    "sharedUiPackages":  [
+                             "@lfaa/ui-layout",
+                             "@lfaa/ui-primitives",
+                             "@lfaa/ui-theme",
+                             "@lfaa/ui-icons"
+                         ],
+    "hostOnlyPackages":  [
+                             "@lfaa/web-server",
+                             "@lfaa/api-gateway"
+                         ],
+    "crossUiImports":  [
+                           {
+                               "from":  "@lfaa/client-ui-chat",
+                               "to":  "@lfaa/client-ui-tool-media",
+                               "reason":  "输入栏与消息卡片复用媒体素材选择器、生成卡片与缩略图组件"
+                           },
+                           {
+                               "from":  "@lfaa/client-ui-chat",
+                               "to":  "@lfaa/client-ui-browser",
+                               "reason":  "右栏工作台内嵌内置浏览器面板与阶段内容"
+                           },
+                           {
+                               "from":  "@lfaa/client-ui-library",
+                               "to":  "@lfaa/client-ui-chat",
+                               "reason":  "资料库复用 chat 的 chatStore 与工作台部件（单向依赖）"
+                           },
+                           {
+                               "from":  "@lfaa/client-ui-library",
+                               "to":  "@lfaa/client-ui-tool-media",
+                               "reason":  "资料库复用媒体缩略图与素材状态"
+                           },
+                           {
+                               "from":  "@lfaa/client-ui-review",
+                               "to":  "@lfaa/client-ui-chat",
+                               "reason":  "代码审查工作台复用 chat 的工作台部件（单向依赖）"
+                           }
+                       ],
+    "assemblyEdges":  [
+                          {
+                              "from":  "@lfaa/web-server",
+                              "to":  "@lfaa/bundle-web",
+                              "reason":  "宿主装配 bundle：web-server 是唯一把 bundle 装进进程的入口"
+                          }
+                      ],
+    "upwardForbidden":  [
+                            {
+                                "group":  "core",
+                                "forbids":  [
+                                                "chat",
+                                                "ui",
+                                                "bundle"
+                                            ],
+                                "reason":  "内核不得反向依赖业务领域、通用界面与装配包"
+                            }
+                        ],
+    "clientUi":  {
+                     "allowedGroups":  [
+                                           "ui",
+                                           "client"
+                                       ],
+                     "reason":  "界面只住在 ui/*（共享界面）与 packages/client/ui-*（功能界面）；能力包只留 src/ 与契约",
+                     "legacy":  [
+
+                                ]
+                 }
+}

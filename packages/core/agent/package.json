@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@deepseek-ai/cordis": "^4.1.0",
+    "@lfaa/agent-profile": "workspace:*",
     "@lfaa/context": "workspace:*",
     "@lfaa/guard": "workspace:*",
     "@lfaa/llm": "workspace:*",

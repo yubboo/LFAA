@@ -7,8 +7,6 @@
   },
   "include": ["src", "contract"],
   "references": [
-    { "path": "../../core/tools" },
-    { "path": "../../ui/layout" },
-    { "path": "../../ui/primitives" }
+    { "path": "../../core/tools" }
   ]
 }

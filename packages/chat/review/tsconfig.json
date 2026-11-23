@@ -7,9 +7,6 @@
   },
   "include": ["src"],
   "references": [
-    { "path": "../chat" },
-    { "path": "../../core/settings" },
-    { "path": "../../ui/layout" },
-    { "path": "../../ui/primitives" }
+    { "path": "../../core/settings" }
   ]
 }

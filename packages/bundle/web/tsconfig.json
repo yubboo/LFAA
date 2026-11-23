@@ -9,6 +9,7 @@
   "references": [
     { "path": "../../../vendor/loader" },
     { "path": "../../core/agent" },
+    { "path": "../../core/agent-profile" },
     { "path": "../../core/browser" },
     { "path": "../../chat/chat" },
     { "path": "../../chat/review" },
@@ -26,6 +27,7 @@
     { "path": "../../workspace/worktree" },
     { "path": "../../core/tool-todo" },
     { "path": "../../goal/goal" },
+    { "path": "../../session/handoff" },
     { "path": "../../web/web" },
     { "path": "../../guard/timeout-policy" },
     { "path": "../../spill/spill-local" },
@@ -34,7 +36,6 @@
     { "path": "../../schedule/tool-schedule" },
     { "path": "../../feedback/message-feedback" },
     { "path": "../../attachment/attachment-local" },
-    { "path": "../../session/handoff" },
     { "path": "../../session/session-title" },
     { "path": "../../interaction/commands" },
     { "path": "../../media/tool-media" },

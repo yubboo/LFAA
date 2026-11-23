@@ -5,6 +5,8 @@
 ## 基线
 
 - [架构基线](overview.md)：项目技术栈、包边界、应用装配和已确认的总体决策。
+- [结构法则](structure.md)：分组与层级现状、依赖方向护栏（`pnpm check:arch`）、装配方式、可拆卸验收、与 DSH/参考实现的对齐结论与结构债处置顺序。**改结构前必读**。
+- [依赖规则清单](dependency-rules.json)：`check:arch` 读的机器可读例外表；新增跨包 UI 复用或装配边必须在此登记理由。
 - [本机接口鉴权](local-api-auth.md)：一次性令牌 + 同源校验挡住跨站请求，安装来源的 shell 加固与边界。
 - [仓库目录说明书](repository-map.md) · 由 `pnpm map:sync` 按真实骨架生成的目录树、逐文件职责与常见入口；**禁止手改**，骨架变动须同轮重新生成。
 
@@ -30,6 +32,8 @@
 - [插件运行时](plugin-runtime.md)：Loader 按包名装载 / 卸载 / 重装 / 二创的已验证结论、默认导出约束、插件页接入现状与仍未完成项（版本兼容、依赖图、HMR）。
 - [两个巨型循环拆分方案](loop-refactor-plan.md)：Agent Loop 与 Chat Run Actions 的状态归属、分阶段边界与验收标准。方案已实施完毕（A1–A4、B1、A5/B2），两条行数线达标。
 - [目标自动续跑与跨会话协调方案](goal-coordination-plan.md)：goal 自动续跑（轮次/暂停/停止条件）与工作区租约、工作树并行、会话可见性工具、交接协议的分阶段设计。方案已实施（P1–P5）。
+- [Agent 与模型解耦：Agent 定义、模型绑定与路由组](agent-model-routing.md)：可添加的 agent 实体、每 agent 绑定任意模型或路由组、失败切换与会话级覆盖的分阶段设计。**待评审，未开工**。
+- [会话形态：单聊 / 群聊 / Agents](agent-conversations.md)：左一三入口、代理人调度与发言计划校验、群聊消息/SSE 契约、G1–G4 分阶段设计。**待评审，未开工**。
 - [构建、测试与边界地基方案](engineering-foundation.md)：统一测试入口、包级 `dist` 构建、Host/Client 边界检查的实施顺序与验收条件。当前为待评审方案，未开工。
 
 ## 维护约定

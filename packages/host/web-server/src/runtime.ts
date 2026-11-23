@@ -5,6 +5,9 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { Context } from "@deepseek-ai/cordis";
 import { createApiGateway, type ApiGateway } from "@lfaa/api-gateway";
+import { createAgentProfileHttpHandler } from "@lfaa/agent-profile";
+import { createGroupHttpHandler, buildPlanPrompt } from "@lfaa/agent-group";
+import { createRoutedLlm } from "@lfaa/agent-profile";
 import { webBundlePlugin } from "@lfaa/bundle-web";
 import { createGoalHttpHandler } from "@lfaa/goal";
 import { createHandoffHttpHandler } from "@lfaa/handoff";
@@ -61,6 +64,9 @@ export async function createHostRuntime(options: HostRuntimeOptions): Promise<Ho
   if (!chatService) throw new Error("chat 服务未装配，无法提供会话接口。");
   const goalService = hostContext.get("goal");
   const goalHandler = goalService ? createGoalHttpHandler(goalService) : null;
+  // agent 定义与模型绑定：P1 起由 bundle 装配，接口在这里登记。
+  const agentProfileService = hostContext.get("agentProfile");
+  const agentProfileHandler = agentProfileService ? createAgentProfileHttpHandler(agentProfileService) : null;
   const handoffService = hostContext.get("handoff");
   const memoryService = hostContext.get("memory");
   const handoffHandler = handoffService && memoryService
@@ -70,6 +76,40 @@ export async function createHostRuntime(options: HostRuntimeOptions): Promise<Ho
   if (!reviewService) throw new Error("review 服务未装配，无法提供 Git 与代码审查接口。");
 
   const common = createCommonHandlers({ context: hostContext, projectRoot: options.projectRoot, chatService });
+  // 群聊回合：串行编排多个 agent，依赖 agent 服务的 startRun/waitForRun；
+  // 代理人调度走 agentProfile 的绑定派发，用一次小请求出「本轮发言计划」。
+  const agentService = hostContext.get("agent");
+  const llmService = hostContext.get("llm");
+  const groupHandler = agentService && memoryService
+    ? createGroupHttpHandler({
+        memory: memoryService,
+        agent: agentService,
+        ...(agentProfileService ? {
+          describeMembers: async (ids) => {
+            const agents = await agentProfileService.listAgents();
+            return ids.map((id) => {
+              const agent = agents.find((item) => item.id === id);
+              return {
+                id,
+                name: agent?.name ?? id,
+                ...(agent?.description ? { description: agent.description } : {}),
+              };
+            });
+          },
+          ...(llmService ? {
+            plan: async ({ hostAgentId, userMessage, members, maxSpeakers }) => {
+              const routed = createRoutedLlm({ llm: llmService, bindings: agentProfileService, agentId: hostAgentId });
+              const output = await routed.complete({
+                messages: [{ role: "user", content: buildPlanPrompt({ userMessage, members, maxSpeakers }) }],
+                maxTokens: 700,
+                temperature: 0.2,
+              });
+              return output.content;
+            },
+          } : {}),
+        } : {}),
+      })
+    : null;
   const sessions = createAgentHandlers({
     context: hostContext,
     projectRoot: options.projectRoot,
@@ -90,6 +130,7 @@ export async function createHostRuntime(options: HostRuntimeOptions): Promise<Ho
     { id: "llm", handle: common.llm },
     { id: "rules", handle: common.rules },
     { id: "memory", handle: common.memory },
+    { id: "tools", handle: common.tools },
     { id: "feedback", handle: common.feedback },
     { id: "attachments", handle: common.attachments },
     { id: "session-title", handle: common.sessionTitle },
@@ -103,6 +144,8 @@ export async function createHostRuntime(options: HostRuntimeOptions): Promise<Ho
     { id: "notification-sounds", handle: notificationSounds },
     ...(goalHandler ? [{ id: "goal", handle: goalHandler }] : []),
     ...(handoffHandler ? [{ id: "handoffs", handle: handoffHandler }] : []),
+    ...(agentProfileHandler ? [{ id: "agent-profile", handle: agentProfileHandler }] : []),
+    ...(groupHandler ? [{ id: "group", handle: groupHandler }] : []),
     { id: "chat", handle: sessions.chat },
     { id: "jobs", handle: common.jobs },
     { id: "browser", handle: common.browser },

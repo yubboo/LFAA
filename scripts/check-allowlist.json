@@ -12,9 +12,9 @@
         "note": "定义层 / 代码高亮调色板 / 主题预览：这些文件按设计需要具体色值，不属于把主题色写死在组件里。只允许减少，新增文件不得登记。",
         "files": [
             "packages/ui/theme/client/tokens.css",
-            "packages/chat/chat/client/workbench/CodeSyntax.module.css",
-            "packages/chat/chat/client/conversation/MarkdownContent.module.css",
-            "packages/chat/chat/client/workbench/FileChangePreview.module.css",
+            "packages/client/ui-chat/client/workbench/CodeSyntax.module.css",
+            "packages/client/ui-chat/client/conversation/MarkdownContent.module.css",
+            "packages/client/ui-chat/client/workbench/FileChangePreview.module.css",
             "packages/ui/theme/client/components/AppearanceSettings.module.css"
         ]
     }

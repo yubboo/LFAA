@@ -1,0 +1,185 @@
+/* 顶栏会话模式胶囊与下拉菜单：与权限模式浮层保持同一套玻璃层次与主题变量。 */
+.root {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+  max-width: min(10.5rem, 29cqi);
+}
+
+.trigger,
+.locked {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-height: 2rem;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: .75rem;
+}
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  padding: .28rem .55rem .28rem .5rem;
+  cursor: pointer;
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.trigger:hover:not(:disabled),
+.triggerOpen {
+  background: var(--color-active);
+  border-color: rgb(var(--color-accent-rgb) / 0.28);
+}
+
+.trigger:disabled {
+  opacity: .55;
+  cursor: default;
+}
+
+.trigger:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.icon {
+  flex: none;
+  color: var(--color-muted);
+}
+
+.triggerLabel {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.chevron {
+  flex: none;
+  color: var(--color-muted);
+  transition: transform 160ms ease;
+}
+
+.chevron[data-open] {
+  transform: rotate(180deg);
+}
+
+.locked {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  padding: .3rem .55rem;
+  color: var(--color-muted);
+}
+
+.locked svg {
+  flex: none;
+}
+
+.locked span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 浮层本身沿用主题玻璃材质；宽度比胶囊更宽，给模式说明留出可读行宽。 */
+.root .menu {
+  width: min(19rem, calc(100vw - 2rem));
+  padding: .35rem;
+  border-radius: 1rem;
+  background: var(--glass-popover-bg, var(--color-popover));
+  background-image: var(--glass-sheen, none);
+  backdrop-filter: blur(26px) saturate(180%);
+  -webkit-backdrop-filter: blur(26px) saturate(180%);
+  box-shadow: var(--glass-specular-shadow, none), var(--color-menu-shadow);
+}
+
+.list {
+  display: grid;
+  gap: .15rem;
+}
+
+.option {
+  display: grid;
+  gap: .16rem;
+  width: 100%;
+  padding: .5rem .55rem;
+  border: 0;
+  border-radius: .7rem;
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.option:hover:not([data-disabled]) {
+  background: var(--color-menu-hover, var(--color-active));
+}
+
+.option:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+.optionActive {
+  background: var(--color-active);
+}
+
+.option[data-disabled] {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.optionTop {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  min-width: 0;
+}
+
+.optionName {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: .82rem;
+  font-weight: 560;
+  line-height: 1.3;
+}
+
+.check {
+  flex: none;
+  margin-inline-start: auto;
+  color: var(--color-accent);
+}
+
+.badge {
+  flex: none;
+  margin-inline-start: auto;
+  padding: .1rem .38rem;
+  border-radius: 999px;
+  background: var(--color-active);
+  color: var(--color-muted);
+  font-size: .64rem;
+  line-height: 1.3;
+}
+
+.optionDesc {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--color-muted);
+  font-size: .74rem;
+  line-height: 1.4;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trigger,
+  .chevron,
+  .option {
+    transition: none;
+  }
+}

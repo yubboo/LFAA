@@ -88,10 +88,15 @@ test("WorkbenchClientService 持久化并恢复路由、项目打开状态及非
     assert.equal(restored.rightPanelOpen, true);
 
     service2.navigate("appearance");
+    // 设置中心以弹窗呈现：不写入路由偏好，刷新后回到打开设置前的视图而不是直接弹窗。
+    assert.deepEqual(readActiveRoutePref(), {
+      activeView: "project",
+      activeProjectId: "proj-123",
+    });
     const ctx3 = new Context();
     const service3 = new WorkbenchClientService(ctx3);
-    assert.equal(service3.getSnapshot().activeView, "appearance");
-    assert.equal(service3.getSnapshot().activeProjectId, null);
+    assert.equal(service3.getSnapshot().activeView, "project");
+    assert.equal(service3.getSnapshot().activeProjectId, "proj-123");
   } finally {
     mock.restore();
   }
@@ -330,6 +335,20 @@ test("旧「图像」路由恢复时归一化为资料库图像分类，并写�
     assert.equal(snapshot.activeLibraryTab, "media");
     assert.deepEqual(readActiveRoutePref(), { activeView: "library", activeProjectId: null });
     assert.equal(mock.store.get("lfaa:library-tab"), JSON.stringify("media"));
+  } finally {
+    mock.restore();
+  }
+});
+
+test("历史遗留的设置路由刷新后回退到工作区，不再自动弹出设置面板", () => {
+  const mock = installMockWindowStorage();
+  try {
+    mock.store.set("lfaa:active-route", JSON.stringify({ activeView: "settings:general", activeProjectId: null }));
+    const service = new WorkbenchClientService(new Context());
+    const snapshot = service.getSnapshot();
+    assert.equal(snapshot.activeView, "workspace");
+    assert.equal(snapshot.activeProjectId, null);
+    assert.deepEqual(readActiveRoutePref(), { activeView: "workspace", activeProjectId: null });
   } finally {
     mock.restore();
   }

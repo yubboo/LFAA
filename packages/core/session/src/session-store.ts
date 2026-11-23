@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { collectHistoryDigest, formatHistoryDigest } from "./session-digest";
+import { readGroupConfig, readPendingQuestionValue } from "./session-normalize";
 import { normalizeTodoList } from "./todos";
 import { generateConciseSessionTitle } from "@lfaa/session-title";
 import type {
@@ -10,7 +11,6 @@ import type {
   ChatSessionRecord,
   ChatSessionSummary,
   CreateSessionInput,
-  PendingQuestion,
   SessionWorktree,
   UpdateSessionInput,
 } from "./types";
@@ -30,6 +30,10 @@ function toSummary(session: ChatSessionRecord): ChatSessionSummary {
     ...(session.summary ? { summary: session.summary } : {}),
     ...(session.sessionPreset ? { sessionPreset: session.sessionPreset } : {}),
     ...(session.sessionModules ? { sessionModules: session.sessionModules } : {}),
+    ...(session.agentId ? { agentId: session.agentId } : {}),
+    ...(session.bindingOverrideId ? { bindingOverrideId: session.bindingOverrideId } : {}),
+    ...(session.kind ? { kind: session.kind } : {}),
+    ...(session.group ? { group: session.group } : {}),
     ...(session.pendingQuestion ? { pendingQuestion: session.pendingQuestion } : {}),
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,
@@ -40,17 +44,6 @@ function isSafeSessionId(sessionId: string): boolean {
   return /^[a-zA-Z0-9_-]{4,80}$/u.test(sessionId);
 }
 
-/** 读取磁盘上的待回答澄清；字段不完整时视为没有待回答问题。 */
-function readPendingQuestion(value: unknown): PendingQuestion | undefined {
-  if (!value || typeof value !== "object") return undefined;
-  const raw = value as Partial<PendingQuestion>;
-  if (typeof raw.messageId !== "string" || !raw.messageId.trim() || typeof raw.question !== "string") return undefined;
-  return {
-    messageId: raw.messageId,
-    question: raw.question,
-    options: Array.isArray(raw.options) ? raw.options.filter((option): option is string => typeof option === "string") : [],
-  };
-}
 
 /** 读取绑定工作树快照；字段不完整时视为未绑定，避免坏数据进入运行目录解析。 */
 function readWorktree(value: unknown): SessionWorktree | undefined {
@@ -92,7 +85,7 @@ export class SessionMemoryStore {
       const raw = await readFile(filePath, "utf8");
       const parsed = JSON.parse(raw) as Partial<ChatSessionRecord>;
       if (!parsed || typeof parsed.id !== "string" || typeof parsed.title !== "string") return null;
-      const pendingQuestion = readPendingQuestion(parsed.pendingQuestion);
+      const pendingQuestion = readPendingQuestionValue(parsed.pendingQuestion);
       const worktree = readWorktree(parsed.worktree);
       return {
         id: parsed.id,
@@ -108,6 +101,12 @@ export class SessionMemoryStore {
         ...(typeof parsed.summary === "string" && parsed.summary ? { summary: parsed.summary } : {}),
         ...(typeof parsed.sessionPreset === "string" && parsed.sessionPreset ? { sessionPreset: parsed.sessionPreset } : {}),
         ...(Array.isArray(parsed.sessionModules) ? { sessionModules: parsed.sessionModules.filter((module) => typeof module === "string") } : {}),
+        ...(typeof parsed.agentId === "string" && parsed.agentId.trim() ? { agentId: parsed.agentId.trim() } : {}),
+        ...(typeof parsed.bindingOverrideId === "string" && parsed.bindingOverrideId.trim()
+          ? { bindingOverrideId: parsed.bindingOverrideId.trim() }
+          : {}),
+        ...(parsed.kind === "group" ? { kind: "group" as const } : {}),
+        ...(readGroupConfig(parsed.group) ? { group: readGroupConfig(parsed.group)! } : {}),
         ...(pendingQuestion ? { pendingQuestion } : {}),
         ...(typeof parsed.contextSummary === "string" && parsed.contextSummary
           ? { contextSummary: parsed.contextSummary }
@@ -199,6 +198,9 @@ export class SessionMemoryStore {
       sectionId: input.sectionId ?? null,
       ...(input.sessionPreset ? { sessionPreset: input.sessionPreset } : {}),
       ...(input.sessionModules ? { sessionModules: input.sessionModules } : {}),
+      ...(input.agentId ? { agentId: input.agentId } : {}),
+      ...(input.bindingOverrideId ? { bindingOverrideId: input.bindingOverrideId } : {}),
+      ...(input.kind === "group" && readGroupConfig(input.group) ? { kind: "group" as const, group: readGroupConfig(input.group)! } : {}),
       ...(input.worktree ? { worktree: input.worktree } : {}),
       pinned: false,
       archived: false,
@@ -226,6 +228,8 @@ export class SessionMemoryStore {
       ...(patch.sectionId !== undefined ? { sectionId: patch.sectionId } : {}),
       ...(patch.pinned !== undefined ? { pinned: patch.pinned } : {}),
       ...(patch.archived !== undefined ? { archived: patch.archived } : {}),
+      ...(patch.agentId ? { agentId: patch.agentId } : {}),
+      ...(patch.bindingOverrideId ? { bindingOverrideId: patch.bindingOverrideId } : {}),
       ...(patch.unread !== undefined ? { unread: patch.unread } : {}),
       ...(patch.muted !== undefined ? { muted: patch.muted } : {}),
       ...(patch.summary !== undefined ? { summary: patch.summary } : {}),
@@ -237,6 +241,28 @@ export class SessionMemoryStore {
       delete updated.pendingQuestion;
     } else if (patch.pendingQuestion !== undefined) {
       updated.pendingQuestion = { ...patch.pendingQuestion, options: [...patch.pendingQuestion.options] };
+    }
+    // 传 null 表示解绑：字段真正删掉，避免留空串让运行期误判「指定了一个空 agent」。
+    if (patch.agentId === null) delete updated.agentId;
+    if (patch.bindingOverrideId === null) delete updated.bindingOverrideId;
+    if (patch.kind !== undefined) {
+      const group = patch.group !== undefined ? readGroupConfig(patch.group) : updated.group;
+      if (patch.kind === "group" && group) {
+        updated.kind = "group";
+        updated.group = group;
+      } else {
+        delete updated.kind;
+        delete updated.group;
+      }
+    } else if (patch.group !== undefined) {
+      const group = readGroupConfig(patch.group);
+      if (group) {
+        updated.kind = "group";
+        updated.group = group;
+      } else {
+        delete updated.kind;
+        delete updated.group;
+      }
     }
     const nextProjectId = patch.projectId !== undefined ? patch.projectId : existing.projectId;
     if (patch.worktree === null) {
@@ -265,6 +291,10 @@ export class SessionMemoryStore {
       sectionId: existing.sectionId,
       ...(existing.sessionPreset ? { sessionPreset: existing.sessionPreset } : {}),
       ...(existing.sessionModules ? { sessionModules: existing.sessionModules } : {}),
+      ...(existing.agentId ? { agentId: existing.agentId } : {}),
+      ...(existing.bindingOverrideId ? { bindingOverrideId: existing.bindingOverrideId } : {}),
+      ...(existing.kind ? { kind: existing.kind } : {}),
+      ...(existing.group ? { group: existing.group } : {}),
       ...(existing.worktree ? { worktree: { ...existing.worktree } } : {}),
       pinned: false,
       archived: false,

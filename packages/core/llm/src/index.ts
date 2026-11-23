@@ -257,6 +257,10 @@ export class LlmService extends Service {
     const agentPlanTier = isAgentPlan
       ? (asAgentPlanTier(input.agentPlanTier) ?? existing?.agentPlanTier ?? "medium")
       : undefined;
+    // Small / Medium 不能把 Seedance 存成当前模型，否则模型卡片会显示一个不在可用清单里的模型。
+    const finalModel = isAgentPlan && agentPlanTier !== "large" && agentPlanTier !== "max" && resolveModelKind(model) === "video"
+      ? "ark-code-latest"
+      : model;
     const nextProfile: LlmProfile = {
       id: existing?.id ?? input.id?.trim() ?? randomUUID(),
       ...(providerId ? { providerId } : {}),
@@ -265,7 +269,7 @@ export class LlmService extends Service {
       ...(apiProtocol ? { apiProtocol } : {}),
       ...(agentPlanTier ? { agentPlanTier } : {}),
       baseUrl: baseUrl.replace(/\/+$/u, ""),
-      model,
+      model: finalModel,
       apiKey: finalApiKey,
       configured,
       ...(availableModels && availableModels.length > 0 ? { availableModels } : {}),
@@ -273,7 +277,7 @@ export class LlmService extends Service {
       ...(typeof input.maxTokens === "number" ? { maxTokens: input.maxTokens } : {}),
       ...(typeof input.contextWindowTokens === "number" && input.contextWindowTokens > 0
         ? { contextWindowTokens: Math.floor(input.contextWindowTokens) }
-        : existing?.model === model && existing.contextWindowTokens !== undefined
+        : existing?.model === finalModel && existing.contextWindowTokens !== undefined
           ? { contextWindowTokens: existing.contextWindowTokens }
           : {}),
       ...priceFields(input, existing),
@@ -373,6 +377,12 @@ export class LlmService extends Service {
     const config = await this.readConfig();
     const found = config.profiles.find((p) => p.id === profileId);
     if (!found) throw new Error(`找不到模型配置：${profileId}`);
+    // Medium / Small 档位不能选视频模型；即使前端漏出 Seedance，这里也直接拒绝。
+    if (getArkPlanKind(found.baseUrl) === "agent"
+      && found.agentPlanTier !== "large" && found.agentPlanTier !== "max"
+      && resolveModelKind(cleanModel) === "video") {
+      throw new Error("当前火山方舟 Agent Plan 档位不支持视频模型：Small / Medium 需升级到 Large / Max。");
+    }
     const nextList = config.profiles.map((p) =>
       p.id === profileId ? { ...withSelectedModel(p, cleanModel), updatedAt: Date.now() } : p,
     );

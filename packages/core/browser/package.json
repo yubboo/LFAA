@@ -13,7 +13,6 @@
       "default": "./lib/types/contract/index.js"
     },
     "./src/*": "./src/*",
-    "./client": "./client/index.tsx",
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -24,10 +23,7 @@
     "@lfaa/fs": "workspace:*",
     "@lfaa/llm": "workspace:*",
     "@lfaa/tools": "workspace:*",
-    "@lfaa/ui-layout": "workspace:*",
-    "@tabler/icons-react": "3.52.0",
-    "playwright-core": "^1.65.1",
-    "react": "^19.3.1"
+    "playwright-core": "^1.65.1"
   },
   "devDependencies": {
     "@types/node": "^24.10.0",
@@ -39,7 +35,6 @@
   "files": [
     "lib",
     "src",
-    "client",
     "contract"
   ],
   "publishConfig": {

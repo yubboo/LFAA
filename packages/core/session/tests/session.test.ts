@@ -144,3 +144,26 @@ test("工作树绑定随会话持久化、进入摘要、分叉继承，并阻�
     await fs.rm(root, { recursive: true, force: true });
   }
 });
+
+test("agent 与模型绑定覆盖随会话持久化、进入摘要、分叉继承，并可解绑", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-session-agent-"));
+  try {
+    const store = new SessionMemoryStore(root);
+    const session = await store.create({ agentId: "reviewer", bindingOverrideId: "fast-group" });
+    assert.equal(session.agentId, "reviewer");
+    assert.equal(session.bindingOverrideId, "fast-group");
+
+    const reopened = new SessionMemoryStore(root);
+    assert.equal((await reopened.get(session.id))?.agentId, "reviewer");
+    assert.equal((await reopened.list())[0]?.agentId, "reviewer");
+    assert.equal((await reopened.fork(session.id))?.bindingOverrideId, "fast-group");
+
+    await reopened.update(session.id, { agentId: null, bindingOverrideId: null });
+    const cleared = await reopened.get(session.id);
+    assert.equal(cleared?.agentId, undefined);
+    assert.equal(cleared?.bindingOverrideId, undefined);
+    assert.equal("agentId" in (cleared ?? {}), false);
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});

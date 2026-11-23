@@ -20,7 +20,7 @@ const QUICK_LINKS = [
   { label: "Web 服务的 Host 装配", targets: ["packages/host/web-server/src/runtime.ts", "packages/host/web-server/src/static-server.ts", "packages/bundle/web/src/index.ts"] },
   { label: "Web 前端入口与插件装配", targets: ["apps/web/index.html", "apps/web/src/main.tsx"] },
   { label: "四栏 Shell 与工作台服务", targets: ["packages/ui/layout/client/shell/WorkbenchShell.tsx", "packages/ui/layout/client/workbench-service.ts"] },
-  { label: "聊天工作区与状态机", targets: ["packages/chat/chat/client/conversation/ChatWorkspace.tsx", "packages/chat/chat/client/store/chat-store.ts", "packages/chat/chat/client/composer/useChatComposer.ts"] },
+  { label: "聊天工作区与状态机", targets: ["packages/client/ui-chat/client/conversation/ChatWorkspace.tsx", "packages/client/ui-chat/client/store/chat-store.ts", "packages/client/ui-chat/client/composer/useChatComposer.ts"] },
   { label: "Agent 任务循环与工具", targets: ["packages/core/agent/src/run/agent-loop.ts", "packages/core/tools/src/index.ts", "packages/core/llm/src/index.ts"] },
   { label: "插件生命周期与来源安装", targets: ["packages/extension/plugins/src/manager/plugin-manager.ts", "packages/extension/plugins/src/manager/install-external.ts", "packages/extension/plugins/src/manager/fork-plugin.ts"] },
   { label: "项目、分区与工作树", targets: ["packages/workspace/workspace/src/index.ts", "packages/workspace/sections/src/index.ts", "packages/workspace/worktree/src/index.ts"] },
@@ -118,7 +118,7 @@ for (const dir of dirSet) {
   const manifestPath = join(ROOT, dir, "package.json");
   if (!existsSync(manifestPath)) continue;
   try {
-    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8").replace(/^\uFEFF/u, ""));
     packageInfo.set(dir, manifest.name ?? dir.split("/").pop());
   } catch {
     // 清单损坏由 check-workspace 报错，这里只跳过标注。
@@ -141,7 +141,7 @@ lines.push("```", "");
 lines.push("### 2.2 包清单", "");
 lines.push("| 分组 | 包名 | 路径 | 职责 |", "| --- | --- | --- | --- |");
 const packageRows = [...packageInfo.keys()].sort().map((dir) => {
-  const manifest = JSON.parse(readFileSync(join(ROOT, dir, "package.json"), "utf8"));
+  const manifest = JSON.parse(readFileSync(join(ROOT, dir, "package.json"), "utf8").replace(/^\uFEFF/u, ""));
   return {
     group: dir.split("/")[1],
     name: manifest.name ?? dir,

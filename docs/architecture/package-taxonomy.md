@@ -63,6 +63,7 @@ vendor/          内嵌上游源码（非本仓编写）
 | `core/` | Agent 内核 | agent、llm、tools、context、memory、session、rules、guard、fs、storage、settings、metrics、jobs、subagent、browser | 装配、HTTP 路由表 |
 | `chat/` | 聊天工作台领域 | chat（对话工作台）、library（资料库）、review（代码审查与 Git Host 服务） | 其它领域逻辑、通用控件 |
 | `ui/` | 通用界面 | layout、primitives、theme | 业务功能 |
+| `client/`（11） | **功能界面** | `ui-<功能>`：agent-group、agent-profile、browser、chat、library、plugins、review、sections、skills、tool-media、workspace；含 `src/index.ts`（Host 半）+ `client/`（浏览器半） | 业务服务实现、跨功能 UI 直连 |
 | `workspace/` | 工作区领域 | workspace、sections | 通用 UI 组件 |
 | `shell/` | 命令执行领域 | `shell`（执行服务 + 本地 Shell 方言解析 + 输出解码） | 工具定义（属 core/tools） |
 | `sandbox/` | 安全边界 | `sandbox`（契约 + 逐次策略 + 工具层后端） | 业务逻辑、UI |
@@ -103,9 +104,9 @@ vendor/          内嵌上游源码（非本仓编写）
 
 ## 5. 命名与包的粒度
 
-- 组内包名用 kebab-case，一个包一个职责：`api/gateway`、`core/agent`、`host/web-server`。
+- 组内包名用 kebab-case，一个包一个职责：`api/gateway`、`core/agent`、`host/web-server`、`client/ui-chat`。
 - 包名带领域前缀会重复，**优先用目录上下文减重复**：`core/session` 而不是 `core/session-manager`。
-- 一个能力若同时有"服务 + 工具 + UI"，仍放在**同一个包**内（`src/` + `client/`）；只有接口边界才单独进 `api/`。
+- **界面与能力分家**：能力包只放 `src/`（服务、工具、契约）；界面放 `packages/client/ui-<功能>/`（一个界面功能一个包）或 `packages/ui/*`（共享界面）。存量带 `client/` 的包按 [结构法则](structure.md) §7 分批迁出，`pnpm check:arch` 的 `legacy-client-grow` 保证基线只减不增。
 - **一个大功能 = 一个包，包内再分小文件夹**：功能包内部按职责建立子目录（如 `client/store/`、`client/conversation/`、`client/workbench/`、`src/run/`），子目录承载同类文件而不是再拆成独立包。跨包只允许单向依赖，同领域客户端包通过 Cordis 服务（如 `chatStore`）共享状态，禁止 `export *` 互相吞。
 - 不为 2–3 个文件的能力单独建包；确需独立时，必须能独立回答一个职责问题并具备自己的 README 三件套。
 
@@ -127,4 +128,5 @@ vendor/          内嵌上游源码（非本仓编写）
 - 已完成迁移（DEV-000375）：`core/chat` → `packages/chat/chat`，并从其中拆出 `packages/chat/library`（资料库）与 `packages/chat/review`（代码审查 + Git/审查 Host 服务）。三个包同属 `chat` 组，`chat` 对外提供 `chatStore` 客户端服务，`library` / `review` 单向依赖 `chat`。
 
 - 已完成迁移（DEV-000382）：`web`（seam + HTTP 抓取 + 抓取工具）、`shell`（执行服务 + Bash/PowerShell/CMD 解析 + 输出解码）、`sandbox`（契约 + 逐次策略 + 工具层后端）、`compaction`（压缩服务 + 结果精简 + `/compact`）、`goal`（目标服务 + 目标工具）五组各合并为单包，包内按职责分 `src/` 子目录。
+- 已完成（DEV-000438 试点 + DEV-000440 全量）：界面从能力包迁往 `packages/client/ui-*`，11 个功能界面包全部就位，能力包只剩 `src/`/`contract/` 且不再带 React；`check:arch` 的 `clientUi.legacy` 基线已清空。
 - 插件 id 迁移：合包前的旧 module 名登记在 `@lfaa/plugins` 的 `MODULE_ALIASES`。旧会话的 `sessionModules` 在 `resolveLegacySessionModules` 归一化并去重；旧 `installed.json` 记录在读取时改写 `moduleName/id/manifest.id`，同包多条记录按 id 合并（启用状态取并集）后回写。外部插件名不受影响。

@@ -32,6 +32,7 @@
     "@deepseek-ai/cordis": "^4.1.0",
     "@deepseek-ai/cordis-plugin-loader": "workspace:*",
     "@lfaa/agent": "workspace:*",
+    "@lfaa/agent-profile": "workspace:*",
     "@lfaa/browser": "workspace:*",
     "@lfaa/chat": "workspace:*",
     "@lfaa/review": "workspace:*",

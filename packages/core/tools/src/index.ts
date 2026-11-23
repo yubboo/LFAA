@@ -42,6 +42,25 @@ export interface ToolsPluginConfig {
 }
 
 // Host 侧工具服务（Agent 手脚注册表与执行调度）。
+/** agent 级工具策略：allow 非空时只放行名单内，deny 永远剔除。 */
+export interface ToolPolicy {
+  allow?: readonly string[];
+  deny?: readonly string[];
+}
+
+/** 策略是否真的收紧；空策略等于不限制。 */
+export function hasToolPolicy(policy: ToolPolicy | undefined): boolean {
+  return Boolean(policy && ((policy.allow?.length ?? 0) > 0 || (policy.deny?.length ?? 0) > 0));
+}
+
+/** 单个工具是否被策略放行；纯函数，便于单测且被视图与执行两处共用。 */
+export function isToolAllowed(policy: ToolPolicy | undefined, name: string): boolean {
+  if (!policy) return true;
+  if (policy.deny?.includes(name)) return false;
+  const allow = policy.allow ?? [];
+  return allow.length === 0 || allow.includes(name);
+}
+
 export class ToolsService extends Service {
   private readonly registry = new Map<string, AgentToolDefinition>();
   private readonly middlewares = new Map<string, ToolExecutionMiddleware>();
@@ -112,6 +131,24 @@ export class ToolsService extends Service {
       ...context,
       allowsTool: (candidate) => allowsTool(candidate) && (context.allowsTool?.(candidate) ?? true),
     });
+    return view;
+  }
+
+  /**
+   * 按 agent 的工具策略收窄可见工具：allow 非空时只放行名单内，deny 永远剔除。
+   * 返回原型视图，与 scope() 一致——模型声明、审批与执行三处看到的是同一份策略。
+   */
+  withPolicy(policy: ToolPolicy | undefined): ToolsService {
+    if (!hasToolPolicy(policy)) return this;
+    const permits = (name: string) => isToolAllowed(policy, name);
+    const view = Object.create(this) as ToolsService;
+    view.getTool = (name) => permits(name) ? this.getTool(name) : undefined;
+    view.getLlmToolSchemas = () => this.getLlmToolSchemas().filter(({ name }) => permits(name));
+    view.executeTool = (name, args, context) => {
+      // 执行时必须再拦一次：模型可能凭历史记忆调用已在策略外被藏起来的工具。
+      if (!permits(name)) throw new Error(`工具 ${name} 已被当前 agent 的工具策略禁用。`);
+      return this.executeTool(name, args, context);
+    };
     return view;
   }
 

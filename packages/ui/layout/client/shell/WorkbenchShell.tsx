@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
 import type { WorkbenchSectionItem } from "../../contract/index";
 import { locales } from "../locales";
-import type { LocalProject, NavigationView, WorkspaceMode } from "../navigation/navigation";
+import { isSettingsView, type LocalProject, type NavigationView, type WorkspaceMode } from "../navigation/navigation";
 import { usePinnedApps } from "../navigation/usePinnedApps";
 import { useSidebarResize, type ResizeSide } from "./useSidebarResize";
 import { buildSidebarWidthVars } from "./sidebar-resize";
@@ -10,6 +10,7 @@ import { readWorkspaceModePref, writeWorkspaceModePref } from "./ui-preferences"
 import { useViewportMode } from "./useViewportMode";
 import { resolveWorkbenchDomain } from "../navigation/workbench-domains";
 import type { WorkbenchClientService } from "../workbench-service";
+import { SettingsDialog } from "../panels/SettingsDialog";
 import { ShellLeftColumn } from "./ShellLeftColumn";
 import { ShellRightColumn } from "./ShellRightColumn";
 import { ShellWorkspace } from "./ShellWorkspace";
@@ -44,8 +45,16 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
   const shellRef = useRef<HTMLDivElement>(null);
   const wasCompactRef = useRef<boolean | null>(null);
   const autoCollapsedRef = useRef({ left: false, right: false });
+  // 记录最近一个非设置视图（含项目上下文）：设置中心是弹窗，关闭后要回到打开前的确切页面。
+  const lastMainRef = useRef({ view: isSettingsView(activeView) ? "workspace" : activeView, projectId: activeProjectId });
 
-  const domain = resolveWorkbenchDomain(activeView, locale);
+  const settingsOpen = isSettingsView(activeView);
+  useEffect(() => {
+    if (!settingsOpen) lastMainRef.current = { view: activeView, projectId: activeProjectId };
+  }, [activeProjectId, activeView, settingsOpen]);
+  const backgroundView = settingsOpen ? lastMainRef.current.view : activeView;
+
+  const domain = resolveWorkbenchDomain(backgroundView, locale);
   const hasRightColumn = domain.columns === 4;
   const showRightPanel = hasRightColumn && rightPanelOpen;
 
@@ -116,6 +125,14 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
     setWorkspaceNotice("");
     if (isCompact) service.setLeftSidebarOpen(false, false);
   }, [isCompact, service]);
+
+  // 关闭设置弹窗：回到打开设置前的视图与项目上下文，而不是固定回工作区首页。
+  const closeSettings = useCallback(() => {
+    const last = lastMainRef.current;
+    service.navigate(last.view, last.projectId);
+    setNewChatSelected(false);
+    setWorkspaceNotice("");
+  }, [service]);
 
   const openProject = useCallback((project: LocalProject) => {
     service.openProject(project.id);
@@ -239,17 +256,19 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
 
   const currentProject = projects.find((project) => project.id === activeProjectId);
 
-  // 若恢复的项目视图在本地列表加载完毕后已不存在，自动退回工作区首页。
+  // 若恢复的项目视图在本地列表加载完毕后已不存在，自动退回工作区首页（弹窗打开时也按背景视图判断）。
   useEffect(() => {
-    if (activeView !== "project" || !activeProjectId || !projectProvider?.hasLoaded?.()) return;
+    if (backgroundView !== "project" || !activeProjectId || !projectProvider?.hasLoaded?.()) return;
     if (!currentProject) {
       service.navigate("workspace", null);
     }
-  }, [activeProjectId, activeView, currentProject, projectProvider, service]);
-  const matchingPanels = contextPanels.filter((panel) => !panel.match || panel.match(activeView, activeProjectId));
+  }, [activeProjectId, backgroundView, currentProject, projectProvider, service]);
+  // 右侧面板与项目上下文按「背景视图」匹配：设置弹窗打开时 activeView 指向设置页，
+// 若仍用 activeView，背景工作区的右栏面板会全部失配而退化成空占位。
+  const matchingPanels = contextPanels.filter((panel) => !panel.match || panel.match(backgroundView, activeProjectId));
   const hasWorkbenchHost = matchingPanels.some((panel) => panel.chrome === "workbench");
   const isRightMaximized = showRightPanel && rightPanelMaximized && !isCompact;
-  const projectContext = activeView === "project" && currentProject && projectProvider?.renderProjectContext
+  const projectContext = backgroundView === "project" && currentProject && projectProvider?.renderProjectContext
     ? projectProvider.renderProjectContext(currentProject)
     : null;
   const openAppearance = () => navigate("appearance");
@@ -314,6 +333,7 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
       <ShellWorkspace
         snapshot={snapshot}
         locale={locale}
+        view={backgroundView}
         mode={mode}
         newChatSelected={newChatSelected}
         workspaceNotice={workspaceNotice}
@@ -341,6 +361,17 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
         onToggleMaximize={() => service.toggleRightPanelMaximized()}
         onClosePanel={() => service.setRightPanelOpen(false, !isCompact)}
       />
+
+      {/* 设置中心以弹窗覆盖在当前工作区之上：背景保留打开前的视图，关闭即回到该视图。 */}
+      {settingsOpen && (
+        <SettingsDialog
+          locale={locale}
+          activeView={activeView}
+          renderContent={() => snapshot.views.find((entry) => entry.id === activeView)?.render() ?? null}
+          onNavigate={navigate}
+          onClose={closeSettings}
+        />
+      )}
     </div>
   );
 }

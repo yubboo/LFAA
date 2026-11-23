@@ -7,8 +7,8 @@
   },
   "include": ["src"],
   "references": [
+    { "path": "../../goal/goal" },
     { "path": "../../core/memory" },
-    { "path": "../../core/tools" },
-    { "path": "../../goal/goal" }
+    { "path": "../../core/tools" }
   ]
 }

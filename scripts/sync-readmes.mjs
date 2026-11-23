@@ -8,6 +8,8 @@ const PKG_ROOT = join(ROOT, "packages");
 /** 英文摘要与分组说明：中文摘要直接取 package.json 的 description。 */
 const META = {
   "@lfaa/agent": { en: "Runs the Think → Act → Check loop: assembles the model request, executes tools, and records each step." },
+  "@lfaa/agent-group": { en: "Group chat orchestration: expands one message into ordered agent turns that share one session history." },
+  "@lfaa/agent-profile": { en: "Agent definitions and model bindings: persisted agents, routing groups, and the default fallback used by sessions." },
   "@lfaa/browser": { en: "Drives the local Edge/Chrome instance through playwright-core and exposes browser tools to the agent." },
   "@lfaa/chat": { en: "Chat workbench: sessions, streaming runs, the composer, the right-hand workbench, and the settings surfaces." },
   "@lfaa/library": { en: "Library domain: image, asset and memory browsing, the right-hand inspector, and storage location settings." },

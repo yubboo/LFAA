@@ -47,6 +47,8 @@ export interface CommonHandlers {
   mediaFile: ApiHandler;
   mediaLibrary: ApiHandler;
   mediaThumb: ApiHandler;
+  /** 工具清单：Agents 页用它渲染工具权限选择。 */
+  tools: ApiHandler;
   jobs: ApiHandler;
   browser: ApiHandler;
   subagent: ApiHandler;
@@ -125,6 +127,27 @@ export function createCommonHandlers(deps: CommonHandlerDeps): CommonHandlers {
 
   // 可选服务可能尚未装配（由插件页安装后才出现），处理器惰性创建并在缺失时放行。
   let jobsHandler: ApiHandler | null = null;
+  // 工具清单：供 Agents 页做工具权限选择，避免用户手敲工具名。
+  const tools: ApiHandler = async (req, res) => {
+    const { pathname } = new URL(req.url ?? "/", "http://127.0.0.1");
+    if (pathname !== "/api/tools") return false;
+    if (req.method !== "GET") {
+      res.statusCode = 405;
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      res.end(JSON.stringify({ error: "工具清单只支持 GET。" }));
+      return true;
+    }
+    const list = context.tools.getLlmToolSchemas().map(({ name, description }) => ({
+      name,
+      description,
+      write: /write|edit|command|background|delete|move|copy|install/iu.test(name),
+    }));
+    res.statusCode = 200;
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.end(JSON.stringify({ tools: list }));
+    return true;
+  };
+
   const jobs: ApiHandler = async (req, res) => {
     const jobsService = context.jobs;
     if (!jobsService) return false;
@@ -187,6 +210,7 @@ export function createCommonHandlers(deps: CommonHandlerDeps): CommonHandlers {
     mediaFile: createMediaHttpHandler({ resolveAllowedRoots: resolveMediaAllowedRoots }),
     mediaLibrary: createMediaLibraryHttpHandler({ resolveAllowedRoots: resolveMediaAllowedRoots }),
     mediaThumb: createMediaThumbHttpHandler({ resolveAllowedRoots: resolveMediaAllowedRoots }),
+    tools,
     jobs,
     browser,
     subagent,

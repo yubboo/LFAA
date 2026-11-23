@@ -7,9 +7,8 @@
   },
   "include": ["src", "contract"],
   "references": [
-    { "path": "../tools" },
     { "path": "../fs" },
     { "path": "../llm" },
-    { "path": "../../ui/layout" }
+    { "path": "../tools" }
   ]
 }

@@ -140,6 +140,12 @@ export interface ChatMessageRecord {
   steps?: AgentStepTrace[];
   status?: "streaming" | "done" | "error" | "aborted";
   model?: string;
+  /** 群聊里这条助手消息由哪个 agent 发出；单聊缺省。 */
+  authorAgentId?: string;
+  /** 群聊回合 id：同一轮的多条发言共享，界面据此折叠成一组。 */
+  turnId?: string;
+  /** 本轮分给该成员的子任务，显示在气泡头部。 */
+  speakerTask?: string;
   clarification?: UserClarification;
   /** 用户消息关联的附件引用；历史文本消息与助手消息可缺省。 */
   attachments?: ChatMessageAttachment[];
@@ -163,6 +169,23 @@ export interface SessionWorktree {
   repositoryRoot: string;
 }
 
+/** 会话形态：单聊（一个 agent）或群聊（多个 agent 在同一会话里依次发言）。 */
+export type SessionKind = "single" | "group";
+
+/** 群聊配置：成员、代理人（调度者）与预算护栏。 */
+export interface GroupSessionConfig {
+  /** 群成员 agent id，顺序即默认发言顺序。 */
+  agentIds: string[];
+  /** 代理人（群主）：负责决定本轮谁发言；缺省为内置小鱼。 */
+  hostAgentId?: string;
+  /** 自动续轮数（一轮结束后是否继续互审），默认 1。 */
+  autoRounds?: number;
+  /** 单轮最多发言人数，默认 3。 */
+  maxSpeakersPerRound?: number;
+  /** 每位成员的单轮步数上限，默认 12。 */
+  memberMaxSteps?: number;
+}
+
 /** 提供列表渲染所需的会话归属、标题与状态摘要。 */
 export interface ChatSessionSummary {
   id: string;
@@ -182,6 +205,14 @@ export interface ChatSessionSummary {
   sessionPreset?: string;
   /** 选择时保存的插件组合，避免后续默认值或预设调整改变旧会话。 */
   sessionModules?: string[];
+  /** 会话绑定的 agent 定义 id；缺省表示内置小鱼。 */
+  agentId?: string;
+  /** 会话级模型绑定覆盖，优先于 agent 自身绑定；缺省表示跟随 agent。 */
+  bindingOverrideId?: string;
+  /** 会话形态；缺省表示单聊，旧会话不受影响。 */
+  kind?: SessionKind;
+  /** 群聊配置；仅 kind=group 时存在。 */
+  group?: GroupSessionConfig;
   /** 等待用户回答的澄清问题；回答后清除。 */
   pendingQuestion?: PendingQuestion;
   createdAt: number;
@@ -205,6 +236,12 @@ export interface CreateSessionInput {
   sessionModules?: string[];
   /** Host 已解析并校验的工作树快照；客户端只能提交 worktreeId 由 Host 解析。 */
   worktree?: SessionWorktree;
+  /** 新建时直接指定 agent 与模型绑定覆盖；缺省使用内置小鱼与默认绑定。 */
+  agentId?: string;
+  bindingOverrideId?: string;
+  /** 建群：会话形态与成员配置；缺省为单聊。 */
+  kind?: SessionKind;
+  group?: GroupSessionConfig;
 }
 
 export interface UpdateSessionInput {
@@ -215,6 +252,14 @@ export interface UpdateSessionInput {
   sectionId?: string | null;
   /** 覆盖工作树绑定；传 null 表示解绑。 */
   worktree?: SessionWorktree | null;
+  /** 切换会话绑定的 agent；传 null 恢复内置小鱼。 */
+  agentId?: string | null;
+  /** 覆盖会话的模型绑定；传 null 表示跟随 agent 自身绑定。 */
+  bindingOverrideId?: string | null;
+  /** 切换会话形态；传 null 恢复单聊。 */
+  kind?: SessionKind | null;
+  /** 覆盖群成员配置；传 null 表示不再是群聊。 */
+  group?: GroupSessionConfig | null;
   pinned?: boolean;
   archived?: boolean;
   unread?: boolean;

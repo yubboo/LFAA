@@ -1,5 +1,6 @@
 // @lfaa/agent Host 侧 Cordis 服务：连接 llm/tools/memory/rules 四大能力并管理任务运行态、SSE 订阅与工具审批。
 import { type Context, Service } from "@deepseek-ai/cordis";
+import { createRoutedLlm, type AgentProfileService, type RunLlm } from "@lfaa/agent-profile";
 import "@lfaa/llm";
 import "@lfaa/memory";
 import "@lfaa/rules";
@@ -12,7 +13,9 @@ import { registerAgentSessionTools, type SessionGoalSnapshot } from "./tools/ses
 import { SmartTrustStore } from "./tools/permission-policy";
 import { beginAgentRun, type SkillCatalogProvider, type SkillResolver } from "./run/run-begin";
 import { GoalContinuationScheduler, type GoalServicePort } from "./run/goal-scheduler";
-import { pickRunOptions, type RunOptionCache } from "./run/run-options";
+import { pickRunOptions, resolveRunRouting, type RunOptionCache } from "./run/run-options";
+import { RunWaiterRegistry } from "./run/run-waiters";
+import { createToolPolicyResolver } from "./run/tool-policy";
 import {
   resolveWorkspaceScope,
   WorkspaceBusyError,
@@ -34,6 +37,7 @@ export * from "./stream-journal";
 export { createAgentHttpHandler } from "./http-handler";
 export { executeAgentTaskLoop, type RunExecutionParams, type RunLoopDeps } from "./run/agent-loop";
 
+
 /** 配置 Agent Host 存储及运行参数，供应用启动和隔离测试注入。 */
 export interface AgentPluginConfig {
   smartTrustFilePath?: string;
@@ -46,6 +50,8 @@ export class AgentService extends Service {
   static inject = ["llm", "tools", "memory", "rules"];
 
   private readonly runs = new Map<string, ActiveRunRecord>();
+  /** 群聊串行发言：等待某次运行收口。 */
+  private readonly runWaiters = new RunWaiterRegistry();
   private readonly sessionTransitions = new Set<string>();
   /** 目标续跑调度器：运行收尾后按停止条件决定是否自动开下一轮。 */
   private readonly goalScheduler: GoalContinuationScheduler;
@@ -203,10 +209,33 @@ export class AgentService extends Service {
     const sessionId = record.status.sessionId;
     this.workspaceLeases.release(sessionId);
     this.goalScheduler.schedule(sessionId, record.status.status === "done");
+    // 群聊编排需要「这一轮说完再接下一个」，这里在收口时唤醒等待者。
+    this.runWaiters.wake(record.status.runId);
   }
 
-  /** 拒绝用生图/生视频/语音模型发起对话运行，提示改用媒体直连或切换对话模型。 */
-  private async assertChatModel(input: StartAgentRunInput): Promise<void> {
+  /**
+   * 等待一次运行收口（成功、失败或中断都算结束）；超时返回而不抛错，
+   * 由调用方根据运行状态决定如何收尾。群聊串行编排依赖它。
+   */
+  async waitForRun(runId: string, timeoutMs = 15 * 60_000): Promise<void> {
+    if (!this.isRunActive(runId)) return;
+    await this.runWaiters.wait(runId, timeoutMs);
+  }
+
+  /** 运行是否仍在进行；已收口的运行从运行表移除。 */
+  isRunActive(runId: string): boolean {
+    return this.runs.has(runId);
+  }
+
+  /**
+   * 拒绝用生图/生视频/语音模型发起对话运行。走 agent 绑定时目标由派发层决定，
+   * 这里不做全局推断——配了媒体模型会在模型调用阶段得到「请使用相应的生成入口」的明确报错。
+   */
+  private async assertChatModel(input: StartAgentRunInput, session?: ChatSessionRecord | null): Promise<void> {
+    const agentProfile = this.ctx.get("agentProfile") as AgentProfileService | undefined;
+    const bound = Boolean(agentProfile
+      && (input.agentId ?? session?.agentId ?? input.bindingId ?? session?.bindingOverrideId));
+    if (bound) return;
     const catalog = await this.ctx.llm.listPublicProfiles().catch(() => ({ activeProfileId: "", profiles: [] }));
     const profile = catalog.profiles.find((item) => item.id === (input.profileId ?? catalog.activeProfileId)) ?? catalog.profiles[0];
     const kind = profile?.availableModels?.find((model) => model.id === profile.model)?.modelKind;
@@ -215,16 +244,35 @@ export class AgentService extends Service {
     throw new Error(`当前选中的是${label}模型，不能用于对话。请直接在输入框发送生成描述，或切换回对话模型后重试。`);
   }
 
+  /**
+   * 本次运行使用的模型入口：装配了 agent 定义与绑定服务时按绑定派发；
+   * 未装配（隔离测试、旧装配）时原样返回 LlmService，行为与改造前完全一致。
+   */
+  private createRunLlm(input: StartAgentRunInput, session?: ChatSessionRecord | null): RunLlm {
+    const agentProfile = this.ctx.get("agentProfile") as AgentProfileService | undefined;
+    if (!agentProfile) return this.ctx.llm;
+    // 会话级设置只在本次运行开始时读取一次，运行中改会话不会中途换模型。
+    const routing = resolveRunRouting(input, session);
+    return createRoutedLlm({
+      llm: this.ctx.llm,
+      bindings: agentProfile,
+      ...(routing.agentId !== undefined ? { agentId: routing.agentId } : {}),
+      ...(routing.bindingId !== undefined ? { bindingId: routing.bindingId } : {}),
+    });
+  }
+
   private async beginRun(input: StartAgentRunInput, resolveRoots?: (projectId: string | null) => Promise<string[]>) {
-    await this.assertChatModel(input);
+    const session = await this.ctx.memory.getSession(input.sessionId);
+    await this.assertChatModel(input, session);
     const compaction = this.ctx.get("compaction") as CompactionHook | undefined;
     const prompt = this.ctx.get("prompt") as { compose(): Promise<string> } | undefined;
     return beginAgentRun({
-      llm: this.ctx.llm,
+      llm: this.createRunLlm(input, session),
       tools: this.ctx.tools,
       memory: this.ctx.memory,
       rules: this.ctx.rules,
       trustStore: this.trustStore,
+      resolveToolPolicy: createToolPolicyResolver(this.ctx), // agent 工具边界：只收窄
       ...(compaction ? { compaction } : {}),
       ...(prompt ? { extraSystemPrompt: () => prompt.compose() } : {}),
       skillResolver: this.skillResolver,

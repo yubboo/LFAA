@@ -7,14 +7,7 @@
   },
   "include": ["src"],
   "references": [
-    { "path": "../../core/browser" },
-    { "path": "../../core/llm" },
-    { "path": "../../core/metrics" },
-    { "path": "../../core/settings" },
     { "path": "../../core/memory" },
-    { "path": "../../ui/icons" },
-    { "path": "../../ui/layout" },
-    { "path": "../../ui/primitives" },
-    { "path": "../../media/tool-media" }
+    { "path": "../../core/settings" }
   ]
 }

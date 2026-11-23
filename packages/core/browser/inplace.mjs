@@ -1,4 +1,4 @@
-﻿import { chromium } from "playwright-core";
+import { chromium } from "playwright-core";
 const browser = await chromium.launch({ executablePath: process.argv[2], headless: true });
 const page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
 await page.goto("http://127.0.0.1:5173/", { waitUntil: "domcontentloaded" });

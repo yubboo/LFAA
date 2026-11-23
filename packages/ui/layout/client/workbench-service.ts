@@ -25,6 +25,7 @@ import {
   writeBooleanPref,
   writeStoredJson,
 } from "./shell/ui-preferences";
+import { isSettingsView } from "./navigation/navigation";
 
 /** 约定资料库分类在工作台中的稳定标识；`media` 为并入资料库的图像（生成素材）分类。 */
 export type LibraryTabKey = "all" | "media" | "artifact" | "asset" | "memory";
@@ -102,6 +103,12 @@ export class WorkbenchClientService extends Service {
     }
     this.activeViewValue = initialRoute.activeView;
     this.activeProjectIdValue = initialRoute.activeProjectId;
+    // 设置中心已改为弹窗：刷新后不应直接弹出设置面板，旧的设置路由回退到工作区并写回偏好。
+    if (isSettingsView(initialRoute.activeView)) {
+      this.activeViewValue = "workspace";
+      this.activeProjectIdValue = null;
+      writeActiveRoutePref("workspace", null);
+    }
   }
 
   private emit(): void {
@@ -283,7 +290,8 @@ export class WorkbenchClientService extends Service {
   navigate(view: string, projectId: string | null = null): void {
     this.activeViewValue = view;
     this.activeProjectIdValue = projectId;
-    writeActiveRoutePref(view, projectId);
+    // 设置中心是压在工作区之上的弹窗，不写入路由偏好：刷新后仍停在打开设置前的页面。
+    if (!isSettingsView(view)) writeActiveRoutePref(view, projectId);
     this.emit();
   }
 

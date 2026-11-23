@@ -33,8 +33,10 @@ import {
   IconPhoto,
   IconPin,
   IconPlus,
+  IconRobot,
   IconSearch,
   IconSend,
+  IconUsers,
   IconSettings,
   IconUserCircle,
   IconX,
@@ -49,7 +51,7 @@ export type NavigationIconName =
   | "pin" | "map" | "gpt" | "codeReview" | "openai" | "canva" | "data"
   | "chevronDown" | "chevronRight" | "arrowLeft" | "close" | "settings" | "palette"
   | "copy" | "import" | "invite" | "profile" | "help" | "signOut" | "check"
-  | "sidebarLeft" | "sidebarRight" | "working";
+  | "sidebarLeft" | "sidebarRight" | "working" | "agents" | "group";
 
 const icons: Record<NavigationIconName, IconComponent> = {
   home: IconHomeFilled,
@@ -90,6 +92,8 @@ const icons: Record<NavigationIconName, IconComponent> = {
   help: IconHelpCircle,
   signOut: IconLogout,
   working: IconLoader2,
+  agents: IconRobot,
+  group: IconUsers,
 };
 
 // 所有侧栏入口使用一致的线宽和尺寸，不产生重复的无障碍朗读；旋转动画由列表样式按状态附加。

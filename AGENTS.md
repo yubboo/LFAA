@@ -1,6 +1,6 @@
 # AGENTS.md — AI Agent 新项目强制开发规则
 
-> 本文件用于新项目根目录。详细条款请阅读 `docs/standards/AI-Agent-Development-Standards.md`。本文件与完整规范冲突时，按照当前负责人指令与已批准架构决策处理，不能静默忽略。
+> 本文件用于新项目根目录。详细条款请阅读 `docs/standards/AI-Agent-Development-Standards.md`。结构判定（分组、依赖方向、可拆卸、结构债）以 `docs/architecture/structure.md` + `docs/architecture/dependency-rules.json` 为准，本文件与完整规范冲突时，按照当前负责人指令与已批准架构决策处理，不能静默忽略。
 
 ## 1. 基础技术栈
 
@@ -17,12 +17,13 @@
 - 项目本地 UI 与工程审美技能安装在 `.agent/skills/`（含 `impeccable`、`frontend-design`、`design-taste-frontend`、`antfu`）。
 - 每次启动或开展前端界面、响应式布局与组件工程任务前，须先查阅 `.agent/skills/` 对应 `SKILL.md` 及参考文档，确保视觉层次、多端适配（桌面 / 平板 / 手机）与代码品味一致。
 
-## 2. 功能与 UI 同包
+## 2. 界面与能力分家
 
-- 功能包只在需要 UI 时创建自己的 `client/`，如 `packages/workspace/workspace/client/`。
-- 同包 `src/` 作为 Host/领域入口，`client/` 作为浏览器入口；用公开 contract、RPC/事件沟通。
+- **功能界面放 `packages/client/ui-<功能>/`**，共享界面放 `packages/ui/*`；能力包只留 `src/` 与 `contract/`，不得新增 `client/`。`pnpm check:arch` 的 `ui-package-required` 会拦下放错位置的新界面。
+- 11 个功能界面包已全部迁入 `packages/client/ui-*`（agent-group、agent-profile、browser、chat、library、plugins、review、sections、skills、tool-media、workspace），`clientUi.legacy` 基线已清空：能力包不得再出现 `client/`，需要 UI 就新建 `packages/client/ui-<功能>/`。
+- 能力包 `src/` 作为 Host/领域入口，界面包 `client/` 作为浏览器入口；两者用公开 contract、HTTP/事件沟通。
 - Host 代码禁止导入 React、DOM、CSS；Client 代码禁止导入 Node 专有实现、凭据或 Host 内部模块。
-- 共享基础 UI 独立放在 `packages/ui/primitives`、`packages/ui/theme`、`packages/ui/slots` 等真正通用包。
+- 共享基础 UI 独立放在 `packages/ui/primitives`、`packages/ui/theme`、`packages/ui/layout`、`packages/ui/icons` 等真正通用包。
 - 每个插件应具有明确 Service 定义、`inject`、公开导出和生命周期清理；禁止跨包深层导入和循环依赖。
 - **插件包必须默认导出插件本体**：Host 侧 `src/index.ts` 需 `export default xxxPlugin`。Cordis Loader 按 `default` 取插件，只有具名导出会导致「装得上但拿不到插件」；`pnpm check` 的 `plugin-default-export` 规则会强制这一条。
 
@@ -69,6 +70,7 @@
 - `*.tsx` 超过 250 行、`*.ts/js/mjs` 超过 300 行、`*.module.css` 超过 250 行，必须检查是否需要按职责拆分。
 - `*.tsx` 超过 400 行、`*.ts/js/mjs` 超过 500 行、`*.module.css` 超过 400 行，必须给出保留理由并在 dev-log 记录。
 - 上述两条由 `pnpm check` 强制：`file-size` 拦硬上限，`client-host-relative` 禁止 Client 用相对路径导入同包 `src/`，`css-theme-literal` 禁止 Client 样式写死颜色。既有债务按规则登记在 `scripts/check-allowlist.json`，该清单只允许减少：拆分或修复后同轮删除条目，新增违规必须直接修掉，不得往清单里加。
+- **依赖方向由 `pnpm check:arch` 强制**（规则见 [docs/architecture/structure.md](docs/architecture/structure.md) 与 [dependency-rules.json](docs/architecture/dependency-rules.json)）：跨包引用 `/client`、`client/` 引 Node 或宿主包、包内 `.tsx` 不在 `client/`、内核反向依赖、未声明的装配边、直接深导入 `src/`、带 UTF-8 BOM 的文件都会失败。新增例外必须写进规则文件并给理由，不得放宽规则本身。
 - 不得将多个无关功能全部放在一个入口/组件中；不得用 `part1.ts` 等无语义拆分逃避规则。
 - 修改前搜索已有实现：避免复制逻辑、重复状态、死代码、无用文件、僵尸事件监听器。
 - 仅允许最小必要差异，未经授权不“顺便重构”无关模块。
@@ -89,6 +91,7 @@
 - Bug 修复优先补回归测试；Cordis 注入/安装/卸载/重载及 Host/Client 隔离有测试依据。
 - **内置浏览器实测验收（强制）**：每次涉及 Web UI、布局、样式或前端交互的任务，交付前必须启动本地 Web 服务并使用 Agent 内置浏览器（`browser` 子代理）实际打开页面完成交互与视觉验收（确认控制台无新增报错且实际交互符合预期）；不得以静态构建或单测替代内置浏览器实测。
 - **自动化浏览器门禁**：涉及 Web UI 的交付同时执行 `pnpm verify:web`（生产构建产物 + 本机无头 Edge/Chrome 校验壳层、资料库、代码审查、设置中心、浅色主题与窄屏，失败或控制台报错即退出 1）。它兜底装配断裂与空白页，但不替代上一条的人工/子代理目视验收。
+- **截图自查**：界面改完先 `pnpm ui:shot --only=<相关任务>` 出图到 `shots/` 再评价，按 [.agent/skills/ui-screenshot/SKILL.md](.agent/skills/ui-screenshot/SKILL.md) 新增任务；截图与 `shots/manifest.json` 不入库。截图发现的问题按 bug 处理，不得只改图不改代码。
 - 所有构建命令必须实际存在于项目 scripts；失败或未运行都应如实报告。
 - **门禁位置**：克隆后执行一次 `pnpm hooks:install` 启用本地提交前检查（`.githooks/pre-commit`：空白检查 + `check` + `lint` + 日志编号体检，跳过用 `--no-verify`）；完整门禁在 `.github/workflows/ci.yml`，顺序为 `install --frozen-lockfile → check → lint → readme:pair → typecheck → test → build → probe:boot → probe:loader → verify:web`。其中 Lint 由 `pnpm lint`（`scripts/lint-workspace.mjs`，AST 规则：未使用导入、显式 any、调试输出、宽松相等、空 catch、TS 抑制指令）执行；`probe:boot` 用隔离用户目录装配完整 Host 运行时，专门抓插件 `inject` 漏声明这类启动期错误。改完必须让这些步骤真实通过，不能只跑一部分就报告完成。
 - 未经负责人明确要求，**不得 git commit、git push、合并 PR、强制 reset、覆盖用户本地改动**。

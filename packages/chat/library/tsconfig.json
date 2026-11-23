@@ -5,10 +5,5 @@
     "outDir": "lib/types",
     "types": ["node"]
   },
-  "include": ["src"],
-  "references": [
-    { "path": "../chat" },
-    { "path": "../../ui/layout" },
-    { "path": "../../media/tool-media" }
-  ]
+  "include": ["src"]
 }

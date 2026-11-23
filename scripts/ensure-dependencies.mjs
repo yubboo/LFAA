@@ -22,8 +22,10 @@ const workspaceFile = resolve(repositoryRoot, "pnpm-workspace.yaml");
 const dependencySections = ["dependencies", "devDependencies", "optionalDependencies"];
 
 // 读取并解析 JSON 文件，供 package 清单和 pnpm 状态复用。
+// 某些编辑器/PowerShell 写回清单时会带上 UTF-8 BOM，JSON.parse 会直接抛错并让启动前预检失败，这里统一剥掉。
 async function readJson(path) {
-  return JSON.parse(await readFile(path, "utf8"));
+  const text = await readFile(path, "utf8");
+  return JSON.parse(text.replace(/^\uFEFF/u, ""));
 }
 
 // 判断路径是否可访问；目录扫描时用于识别 package.json。

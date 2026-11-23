@@ -72,3 +72,6 @@ Thumbs.db
 # 用户提供的规范原件，项目副本已放入根目录
 /AI-Agent-Development-Standards-v1.2/
 /AI-Agent-Development-Standards-v1.2.zip
+
+# UI 截图产物（本地排查用，不入库）
+shots/

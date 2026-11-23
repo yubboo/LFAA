@@ -120,6 +120,10 @@ export function createChatHttpHandler(service: ChatService, options: {
         const session = await service.createSession({
           ...preset,
           ...(typeof body.title === "string" ? { title: body.title } : {}),
+          ...(typeof body.agentId === "string" && body.agentId.trim() ? { agentId: body.agentId.trim() } : {}),
+          ...(typeof body.bindingOverrideId === "string" && body.bindingOverrideId.trim()
+            ? { bindingOverrideId: body.bindingOverrideId.trim() }
+            : {}),
           projectId,
           sectionId: typeof body.sectionId === "string" ? body.sectionId : null,
           ...(worktree ? { worktree } : {}),
@@ -208,6 +212,17 @@ export function createChatHttpHandler(service: ChatService, options: {
             ...(typeof body.archived === "boolean" ? { archived: body.archived } : {}),
             ...(typeof body.unread === "boolean" ? { unread: body.unread } : {}),
             ...(typeof body.muted === "boolean" ? { muted: body.muted } : {}),
+            // agent / 绑定覆盖：空串按「解绑」处理，避免存下一个查不到的 id。
+            ...(body.agentId !== undefined
+              ? { agentId: typeof body.agentId === "string" && body.agentId.trim() ? body.agentId.trim() : null }
+              : {}),
+            ...(body.bindingOverrideId !== undefined
+              ? {
+                  bindingOverrideId: typeof body.bindingOverrideId === "string" && body.bindingOverrideId.trim()
+                    ? body.bindingOverrideId.trim()
+                    : null,
+                }
+              : {}),
           });
           const session = (body.projectId !== undefined || changesPreset) && options.withIdleSession
             ? await options.withIdleSession(sessionId, write)

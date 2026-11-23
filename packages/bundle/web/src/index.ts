@@ -3,6 +3,7 @@ import { type Context, type Plugin } from "@deepseek-ai/cordis";
 import { CORE_MODULES, OPTIONAL_MODULES, PRESETS, resolveLegacySessionModules } from "./presets";
 import Loader from "@deepseek-ai/cordis-plugin-loader";
 import { agentPlugin } from "@lfaa/agent";
+import { agentProfilePlugin } from "@lfaa/agent-profile";
 import { browserPlugin } from "@lfaa/browser";
 import { chatPlugin } from "@lfaa/chat";
 import {
@@ -99,6 +100,8 @@ export const webBundlePlugin: Plugin.Object<WebBundleConfig> = {
     // 工作树依赖已登记项目，排在 workspace 之后；本身不读写会话。
     const worktreeFiber = ctx.plugin(worktreePlugin, {});
     const llmFiber = ctx.plugin(llmPlugin);
+    // agent 定义与模型绑定：本阶段只建数据层，派发（P2）与会话生效（P3）后续接入。
+    const agentProfileFiber = ctx.plugin(agentProfilePlugin);
     // 代码审查与 Git 服务只依赖编码设置，先于 agent/chat 挂载即可。
     const reviewFiber = ctx.plugin(reviewPlugin, { repoRoot: config.repoRoot });
     const rulesFiber = ctx.plugin(rulesPlugin);

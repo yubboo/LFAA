@@ -7,6 +7,8 @@ export type LocalProject = WorkbenchProjectItem;
 /** 描述工作台可以打开的中心视图名称。 */
 export type NavigationView =
   | "workspace"
+  | "group"
+  | "agents"
   | "appearance"
   | `settings:${string}`
   | "scheduled"

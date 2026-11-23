@@ -81,6 +81,30 @@ try {
   await page.waitForTimeout(3500);
   steps.push({ step: "壳层与对话", ok: (await text()).includes("我们要做什么"), screenshot: await shot("home") });
 
+  // Agents 页：左一入口 + 列表渲染 + 内置 agent 与默认绑定。
+  await page.locator('button[aria-label="Agents"]').first().click();
+  await page.waitForTimeout(2000);
+  const agentsText = await text();
+  steps.push({
+    step: "Agents 页（列表与模型列）",
+    ok: agentsText.includes("Agent 与模型") && agentsText.includes("小鱼") && agentsText.includes("默认模型"),
+    screenshot: await shot("agents"),
+  });
+  await page.locator('button[aria-label="首页"]').first().click();
+  await page.waitForTimeout(1400);
+
+  // 群聊页：入口、空态与「新建群聊」按钮。
+  await page.locator('button[aria-label="群聊"]').first().click();
+  await page.waitForTimeout(1800);
+  const groupText = await text();
+  steps.push({
+    step: "群聊页（空态与新建入口）",
+    ok: groupText.includes("群聊") && groupText.includes("新建群聊"),
+    screenshot: await shot("group"),
+  });
+  await page.locator('button[aria-label="首页"]').first().click();
+  await page.waitForTimeout(1200);
+
   await page.locator('button[aria-label="资料库"]').first().click();
   await page.waitForTimeout(2000);
   steps.push({ step: "资料库", ok: (await text()).includes("资产与记忆"), screenshot: await shot("library") });
@@ -134,7 +158,18 @@ try {
     screenshot: await shot("settings-review"),
   });
 
-  await page.evaluate(() => window.localStorage.setItem("lfaa:appearance-mode", "light"));
+  // 主题同时存在于 mode 与 config 两个键；只改 mode 会被 config 覆盖。
+  const applyTheme = async (mode: "light" | "dark"): Promise<void> => {
+    await page.evaluate((next) => {
+      window.localStorage.setItem("lfaa:appearance-mode", next);
+      const raw = window.localStorage.getItem("lfaa:appearance-config-v1");
+      if (!raw) return;
+      const config = JSON.parse(raw) as Record<string, unknown>;
+      config.mode = next;
+      window.localStorage.setItem("lfaa:appearance-config-v1", JSON.stringify(config));
+    }, mode);
+  };
+  await applyTheme("light");
   await page.reload({ waitUntil: "domcontentloaded" });
   await page.waitForTimeout(3000);
   steps.push({
@@ -146,6 +181,40 @@ try {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.waitForTimeout(1200);
   steps.push({ step: "窄屏", ok: (await text()).length > 30, screenshot: await shot("mobile") });
+
+  // 窄屏下的 Agents 页：单列布局、编辑卡不溢出。
+  await page.locator('button[aria-label="Agents"]').first().click();
+  await page.waitForTimeout(1500);
+  steps.push({
+    step: "窄屏-Agents 页",
+    ok: (await text()).includes("Agent 与模型"),
+    screenshot: await shot("agents-mobile"),
+  });
+
+  // 窄屏群聊页：单列布局，群列表与窗口不溢出。
+  await page.locator('button[aria-label="群聊"]').first().click();
+  await page.waitForTimeout(1500);
+  steps.push({
+    step: "窄屏-群聊页",
+    ok: (await text()).includes("群聊"),
+    screenshot: await shot("group-mobile"),
+  });
+
+  // 深色主题再回一次 Agents 页，确认列表、开关与编辑卡在深色下都清晰。
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await applyTheme("dark");
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(2600);
+  await page.locator('button[aria-label="Agents"]').first().click();
+  await page.waitForTimeout(1500);
+  await page.getByText("小鱼", { exact: false }).first().click();
+  await page.waitForTimeout(800);
+  steps.push({
+    step: "深色-Agents 编辑态",
+    ok: (await page.evaluate(() => document.documentElement.dataset.resolvedTheme)) === "dark"
+      && (await text()).includes("人设指令"),
+    screenshot: await shot("agents-dark"),
+  });
 
   await page.close();
 } finally {

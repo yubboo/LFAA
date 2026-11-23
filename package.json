@@ -6,7 +6,8 @@
     "packageManager":  "pnpm@11.17.0",
     "scripts":  {
                     "lfaa":  "node scripts/ensure-lib.mjs \u0026\u0026 tsx apps/cli/src/bin.ts",
-                    "check":  "node scripts/check-workspace.mjs && node scripts/check-logs.mjs && node scripts/gen-repository-map.mjs --check",
+                    "check":  "node scripts/check-workspace.mjs && node scripts/check-architecture.mjs && node scripts/check-logs.mjs && node scripts/gen-repository-map.mjs --check",
+                    "check:arch":  "node scripts/check-architecture.mjs",
                     "map:sync":  "node scripts/gen-repository-map.mjs",
                     "lint":  "node scripts/lint-workspace.mjs",
                     "test":  "node scripts/test.mjs",
@@ -14,6 +15,8 @@
                     "probe:loader":  "node scripts/probe-loader.mjs",
                     "probe:boot":  "node --import tsx scripts/probe-boot.mjs",
                     "verify:web":  "node --import tsx scripts/verify-web.mts",
+                    "ui:shot":  "node --import tsx scripts/ui-shot.mts",
+                    "ui:shot:list":  "node --import tsx scripts/ui-shot.mts --list",
                     "verify:coordination":  "node --import tsx scripts/verify-coordination.mts",
                     "build":  "node scripts/build.mjs",
                     "build:lib":  "tsc -b tsconfig.host.json",

@@ -1,12 +1,13 @@
 # 000417｜修复视频模型误判、时长/提示词不生效与低画质回退
 
-- 时间：2026-11-22 19:39–21:49（Asia/Shanghai）。
+- 时间：2026-11-22 19:39–22:38（Asia/Shanghai）。
 - 现象一：千问 Token Plan 选中 `happyhorse-1.1-r2v` / `t2v` / `i2v` 后，输入视频描述直接提示「该模型配置不是视频生成模型，请选择带视频模型的套餐。」，模型选得中却完全无法生成。
 - 现象二：修通后又出现“能生成但不听话”——要五秒只给三秒，要“窗外下雨、忧郁氛围”画面里却没有雨。
 - 现象三：和别处生成的成片对比，画质明显更平；排查发现纯文字时从 r2v 回退到了较低一档的 HappyHorse t2v。
 - 现象四：火山方舟 Agent Plan 的模型列表里能看到 Seedance，但选中后报错。官方套餐文档写明：**Small / Medium 不支持视频生成，只有 Large / Max 支持**；当前订阅是 Agent Plan Medium，所以返回 `UnsupportedModel`。
 - 现象五：在火山 `ark-code-latest` 会话里，Agent 竟然静默用了千问 Token Plan 的 Wan 3.0 生成视频，界面只显示结果，用户不知道跨了套餐。
 - 现象六：即使当前是 Medium 套餐，模型列表里仍然显示 Seedance；用户指出“我的套餐没有这些模型，加进来又用不了”。
+- 现象七：修复档位时，火山配置名被写成「???? Agent Plan」，当前模型停在 `doubao-seedance-2.0`（Medium 不可用）。
 - 原因：模型用途只按 ID 正则推断，不认识 HappyHorse 与 `t2v / i2v / r2v` 缩写，也没采信套餐声明的用途；媒体直连不经过 Agent 思考，没有解析时长，视频也没有提示词导演；r2v / i2v 缺参考素材时又回退到了低码率模型；Agent 的 `generate_video` 没有传 profileId，视频选型会遍历所有档案，当前套餐没有视频模型时静默跨到千问；Agent Plan 没有按档位过滤视频模型。
 - 修复：
   - 补齐 HappyHorse 与视频缩写识别，选型优先采信套餐声明的用途。
@@ -19,5 +20,6 @@
   - 火山视频接口的网络失败与档位不足都给出中文原因，不再只显示 `fetch failed`。
   - 视频生成默认只用当前会话的模型配置，不再静默跨套餐；当前配置没有视频模型或厂商拒绝时，工具返回其他可用视频配置，Agent 必须先征询用户，用户同意后再显式传 `profileId`。完全访问下可直接切换，但回复必须写明实际使用的套餐与模型；工具结果也会带 `profileName` / `profileId`。
   - 火山 Agent Plan 配置卡片新增「套餐档位」（Small / Medium / Large / Max）：只有 Large / Max 才展示 5 个 Seedance，Small / Medium 不展示任何视频模型；当前 Medium 档案已按实际档位保存，列表里不再出现 Seedance。
-- 验证：同一条提示词、5 秒 720P，HappyHorse t2v 2.3MB，Wan 3.0 video 5.4MB；抽帧可见 Wan 的雨滴、玻璃反光、街灯虚化、发丝细节与人物稳定性更好，实际时长 5.04 秒。全量 **636** 项测试、类型检查、Lint、构建与 Web 自动验收全部通过。
+  - 已恢复被误写成 `????` 的配置名与 `ark-code-latest` 当前模型；保存配置和选择模型时都会校验档位，Medium 选 Seedance 会被直接拒绝并提示升级 Large / Max。
+- 验证：同一条提示词、5 秒 720P，HappyHorse t2v 2.3MB，Wan 3.0 video 5.4MB；抽帧可见 Wan 的雨滴、玻璃反光、街灯虚化、发丝细节与人物稳定性更好，实际时长 5.04 秒。全量 **637** 项测试、类型检查、Lint、构建与 Web 自动验收全部通过。
 - 说明：火山 Agent Plan 没有开放“读取当前订阅档位”的 API（实测 `/models`、`/subscription` 等均 404），控制台页面用的是登录态内部接口，API Key 读不到，所以需要在模型配置卡片里选择实际档位；档位选对后，模型列表只展示该档位拥有的模型。Medium 不含视频生成；当前可直接使用千问 Token Plan 的 Wan 3.0。测试视频与抽帧在 `data/video-tests/`（已 gitignore）；视频直连暂不支持参考图/参考视频，r2v / i2v 的参考能力仍需后续接入。

@@ -5,12 +5,7 @@
   "type": "module",
   "dependencies": {
     "@deepseek-ai/cordis": "^4.1.0",
-    "@lfaa/chat": "workspace:*",
-    "@lfaa/settings": "workspace:*",
-    "@lfaa/ui-layout": "workspace:*",
-    "@lfaa/ui-primitives": "workspace:*",
-    "@tabler/icons-react": "3.52.0",
-    "react": "^19.3.1"
+    "@lfaa/settings": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.10.0",
@@ -26,13 +21,11 @@
       "default": "./lib/index.js"
     },
     "./src/*": "./src/*",
-    "./client": "./client/index.tsx",
     "./package.json": "./package.json"
   },
   "files": [
     "lib",
-    "src",
-    "client"
+    "src"
   ],
   "publishConfig": {
     "access": "public"

@@ -1,4 +1,4 @@
-﻿// 构建入口：清空 lib → tsc -b 产出 lib/types → tsdown 打包出 lib 入口 → 构建 Web 产物。
+// 构建入口：清空 lib → tsc -b 产出 lib/types → tsdown 打包出 lib 入口 → 构建 Web 产物。
 import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";

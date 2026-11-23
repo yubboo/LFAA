@@ -1,4 +1,4 @@
-﻿// 包构建配置：把 tsc 产出的 lib/types JS 打包成 lib 下的公开入口（DSH 模型）。
+// 包构建配置：把 tsc 产出的 lib/types JS 打包成 lib 下的公开入口（DSH 模型）。
 import { readdirSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { defineConfig } from "tsdown";

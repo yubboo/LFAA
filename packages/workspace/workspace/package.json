@@ -13,7 +13,6 @@
       "default": "./lib/types/contract/index.js"
     },
     "./src/*": "./src/*",
-    "./client": "./client/index.tsx",
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -21,11 +20,7 @@
   },
   "dependencies": {
     "@deepseek-ai/cordis": "^4.1.0",
-    "@lfaa/ui-layout": "workspace:*",
-    "@lfaa/ui-primitives": "workspace:*",
-    "@tabler/icons-react": "3.52.0",
-    "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "@lfaa/ui-layout": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "^19.3.0",
@@ -37,7 +32,6 @@
   "files": [
     "lib",
     "src",
-    "client",
     "contract"
   ],
   "publishConfig": {

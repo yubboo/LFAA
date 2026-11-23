@@ -1,5 +1,6 @@
 // 定义 Agent 运行循环的依赖与输入契约，供循环主体与工具执行器共用，避免循环文件继续膨胀。
-import type { LlmMessage, LlmService, LlmUsage } from "@lfaa/llm";
+import type { RunLlm } from "@lfaa/agent-profile";
+import type { LlmMessage, LlmUsage } from "@lfaa/llm";
 import type { AgentRunCost, AgentRunMetrics, AgentStepTrace, MemoryService, SessionWorktree, UserClarification } from "@lfaa/memory";
 import type { RulesService } from "@lfaa/rules";
 import type { ToolsService } from "@lfaa/tools";
@@ -29,7 +30,8 @@ export interface CompactionHook {
 
 /** 集中提供模型调用、工具执行、事件与持久化依赖，使循环可在测试中独立验证。 */
 export interface RunLoopDeps {
-  llm: LlmService;
+  /** 模型调用入口：可能是按绑定派发的包装器，也可能是原始 LlmService。 */
+  llm: RunLlm;
   tools: ToolsService;
   memory: MemoryService;
   rules: RulesService;
