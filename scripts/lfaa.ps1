@@ -379,6 +379,11 @@ function Push-ToGitHub {
         Write-Host "强制推送失败，退出码：$($script:GitExitCode)" -ForegroundColor Red
       } else {
         Write-Host "推送失败，退出码：$($script:GitExitCode)" -ForegroundColor Red
+        # 最常见的失败是「远端有本地没有的提交」，普通推送不会覆盖，直接给出三条出路。
+        Write-Host "常见原因：远端分支上还有你本地没有的提交。可以这样处理：" -ForegroundColor Yellow
+        Write-Host "  · 选 5 强制覆盖远端（会丢弃远端那些提交，先确认它们不是你要保留的）" -ForegroundColor DarkGray
+        Write-Host "  · 选 6 先拉取并整合远端改动，再回来推送" -ForegroundColor DarkGray
+        Write-Host "  · 或者保留两边历史，推成新分支：git push origin main:lfaa-app" -ForegroundColor DarkGray
       }
     }
   } finally {

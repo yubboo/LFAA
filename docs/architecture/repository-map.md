@@ -3,7 +3,7 @@
 > 本文件由 `pnpm map:sync`（[scripts/gen-repository-map.mjs](../../scripts/gen-repository-map.mjs)）按真实文件系统生成，**不要手改**。
 > 骨架发生变化（新增/删除/移动文件、包或目录）后，必须在同一轮运行 `pnpm map:sync` 并提交，否则 `pnpm check` 会失败。
 
-当前快照：**61 个包、1726 个文件、291 个子目录**（不含 node_modules、构建产物与运行数据）。
+当前快照：**61 个包、1727 个文件、291 个子目录**（不含 node_modules、构建产物与运行数据）。
 
 ## 1. 快速索引
 
@@ -57,12 +57,12 @@ lfaa/
 │   └── web/  (10 个文件)
 │       ├── public/  (2 个文件)
 │       └── src/  (3 个文件)
-├── docs/  (360 个文件)
+├── docs/  (361 个文件)
 │   ├── architecture/  (37 个文件)
 │   ├── dev-log/  (4 个文件)
 │   ├── standards/  (1 个文件)
 │   ├── templates/  (2 个文件)
-│   └── updata-log/  (315 个文件)
+│   └── updata-log/  (316 个文件)
 ├── packages/  (1146 个文件)
 │   ├── api/  (7 个文件)
 │   │   └── gateway/  # @lfaa/api-gateway  (7 个文件)
@@ -2500,5 +2500,5 @@ lfaa/
 | 目录 | 文件数 | 子目录数 | 说明 |
 | --- | --- | --- | --- |
 | `docs/dev-log` | 4 | 1 | 按每 200 条任务编号汇总的开发日志卷 |
-| `docs/updata-log` | 315 | 1 | 面向用户的单条更新说明 |
+| `docs/updata-log` | 316 | 1 | 面向用户的单条更新说明 |
 | `vendor` | 14 | 4 | 内嵌的上游运行时源码 |
