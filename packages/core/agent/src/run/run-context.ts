@@ -66,11 +66,13 @@ export async function createRunContext(input: {
   );
   const tracker = new RunUsageTracker(params, activeProfile, tokenPricing);
   const shellHint = deps.tools.getTool("run_command") ? await deps.tools.describeCommandShell() : "";
-  const extraSystemHint = [deps.extraSystemPrompt ? (await deps.extraSystemPrompt()).trim() : "", buildMediaHint(deps.tools)]
+  const baseExtraHint = [deps.extraSystemPrompt ? (await deps.extraSystemPrompt()).trim() : "", buildMediaHint(deps.tools)]
     .filter(Boolean).join("\n\n");
   const systemMessage: LlmMessage = { role: "system", content: "" };
   let truncationHint = "";
   const updateSystemMessage = (remainingSteps?: number) => {
+    const liveHint = deps.dynamicSystemHint?.().trim() ?? "";
+    const extraSystemHint = [baseExtraHint, liveHint].filter(Boolean).join("\n\n");
     systemMessage.content = renderSystemContent({
       systemPrompt, permissionHint: MODE_HINTS[params.getPermissionMode()], workspaceHint, modelHint, shellHint,
       libraryHint, progressHint: `${FORMAT_HINT}\n${buildProgressHint(deps, params)}`,

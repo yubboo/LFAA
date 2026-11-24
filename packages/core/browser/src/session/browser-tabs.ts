@@ -4,6 +4,27 @@ import type { Page } from "playwright-core";
 import { MAX_LOG_ITEMS, type BrowserTabEntry, type SessionBrowserState } from "./browser-session-types";
 import type { BrowserConsoleItem, BrowserNetworkItem } from "../types";
 
+/** 解析主文档响应头，判断目标网页是否允许被浏览器 iframe 原生嵌入。 */
+export function isHeadersEmbeddable(headers: Record<string, string>): boolean {
+  const xfo = (headers["x-frame-options"] ?? "").trim().toLowerCase();
+  if (xfo === "deny" || xfo === "sameorigin" || xfo.startsWith("allow-from")) {
+    return false;
+  }
+  const csp = headers["content-security-policy"] ?? "";
+  if (csp) {
+    const directives = csp.split(";").map((part) => part.trim()).filter(Boolean);
+    for (const directive of directives) {
+      if (!/^frame-ancestors\b/iu.test(directive)) continue;
+      const tokens = directive.replace(/^frame-ancestors\b/iu, "").trim().toLowerCase().split(/\s+/u).filter(Boolean);
+      // 只有显式放行 * 或 http:/https: 通配才视为允许跨源嵌入，其余（'none'、'self'、白名单域）统一回退 CDP。
+      if (!tokens.some((token) => token === "*" || token === "http:" || token === "https:")) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 /** 给新页面注册监听并放入会话标签表，返回可被快照读取的标签条目。 */
 export function attachTabListeners(state: SessionBrowserState, page: Page, tabId: string): BrowserTabEntry {
   const entry: BrowserTabEntry = {
@@ -39,6 +60,9 @@ export function attachTabListeners(state: SessionBrowserState, page: Page, tabId
   page.on("response", (res) => {
     const url = res.url();
     const status = res.status();
+    if (res.request().isNavigationRequest() && res.frame() === page.mainFrame()) {
+      entry.embeddable = isHeadersEmbeddable(res.headers());
+    }
     pushNetwork({
       id: randomUUID(),
       method: res.request().method(),
@@ -54,7 +78,16 @@ export function attachTabListeners(state: SessionBrowserState, page: Page, tabId
   page.on("framenavigated", (frame) => {
     if (frame === page.mainFrame()) {
       const landed = frame.url();
-      if (landed && landed !== "about:blank" && entry.history[entry.historyIndex] !== landed) {
+      if (!landed || landed === "about:blank") {
+        entry.embeddable = undefined;
+      } else if (entry.history[entry.historyIndex] === landed) {
+        // 已对齐当前历史指针，无需修改。
+      } else if (entry.historyIndex > 0 && entry.history[entry.historyIndex - 1] === landed) {
+        // 后退导航命中前一条历史：回退指针而非截断并重复追加，保证前进/后退栈完整。
+        entry.historyIndex -= 1;
+      } else if (entry.historyIndex + 1 < entry.history.length && entry.history[entry.historyIndex + 1] === landed) {
+        entry.historyIndex += 1;
+      } else {
         entry.history = entry.history.slice(0, entry.historyIndex + 1);
         entry.history.push(landed);
         entry.historyIndex = entry.history.length - 1;

@@ -50,24 +50,75 @@ export function createRunStreamHandlers({
         ...(run.cost ? { cost: run.cost } : {}),
       }));
       const firstPending = run.pendingApprovals?.[0];
-      port.patchState({ pendingApproval: firstPending ? { ...firstPending, runId } : null });
+      if (port.getState().activeSessionId === sessionId) {
+        port.patchState({ pendingApproval: firstPending ? { ...firstPending, runId } : null });
+      }
     },
     onDeltaBatch: (batch) => {
-      patchAssistant((m) => ({
-        ...m,
-        ...(batch.reasoning ? { reasoning: `${m.reasoning ?? ""}${batch.reasoning}` } : {}),
-        ...(batch.text ? { content: `${m.content}${batch.text}` } : {}),
-      }));
+      patchAssistant((m) => {
+        let nextSteps = m.steps;
+        // 同步把流式思考增量写到对应轮次的 think 步骤，支持多轮思维链实时逐字展示。
+        if (batch.reasoning) {
+          const existing = m.steps ?? [];
+          if (existing.length > 0) {
+            const iterEntries = batch.reasoningByIteration && batch.reasoningByIteration.length > 0
+              ? batch.reasoningByIteration
+              : null;
+            let mutated = false;
+            const updated = existing.slice();
+            if (iterEntries) {
+              for (const entry of iterEntries) {
+                const idx = updated.findIndex((s) => s.id === `think-${entry.iteration}`);
+                if (idx >= 0) {
+                  const prev = updated[idx]!;
+                  const detail = `${prev.detail ?? ""}${entry.text}`;
+                  updated[idx] = { ...prev, detail: detail.length > 24_000 ? detail.slice(-24_000) : detail };
+                  mutated = true;
+                }
+              }
+            } else {
+              let activeThinkIdx = -1;
+              for (let i = updated.length - 1; i >= 0; i -= 1) {
+                const candidate = updated[i];
+                if (candidate && candidate.phase === "think" && candidate.status === "running") {
+                  activeThinkIdx = i;
+                  break;
+                }
+              }
+              if (activeThinkIdx >= 0) {
+                const prev = updated[activeThinkIdx]!;
+                const detail = `${prev.detail ?? ""}${batch.reasoning}`;
+                updated[activeThinkIdx] = { ...prev, detail: detail.length > 24_000 ? detail.slice(-24_000) : detail };
+                mutated = true;
+              }
+            }
+            if (mutated) nextSteps = updated;
+          }
+        }
+        return {
+          ...m,
+          ...(batch.reasoning ? { reasoning: `${m.reasoning ?? ""}${batch.reasoning}` } : {}),
+          ...(batch.text ? { content: `${m.content}${batch.text}` } : {}),
+          ...(nextSteps !== m.steps ? { steps: nextSteps } : {}),
+        };
+      });
     },
     onStepUpdate: (step) => {
+      let effectiveStep = step;
       patchAssistant((m) => {
         const existing = m.steps ?? [];
         const idx = existing.findIndex((s) => s.id === step.id);
+        // Host 4 秒活动心跳不含 detail 时，保留浏览器端已流式累积的思考正文不被清空。
+        const mergedStep = idx >= 0 && step.phase === "think" && !step.detail && existing[idx]?.detail
+          ? { ...step, detail: existing[idx]!.detail }
+          : step;
+        effectiveStep = mergedStep;
         const nextSteps = idx >= 0
-          ? existing.map((s, i) => (i === idx ? step : s))
-          : [...existing, step];
+          ? existing.map((s, i) => (i === idx ? mergedStep : s))
+          : [...existing, mergedStep];
         return { ...m, steps: nextSteps };
       });
+      port.applyAgentStepWorkbenchAction?.(sessionId, assistantMessageId, effectiveStep);
       if (step.toolName?.startsWith("goal_") && step.status === "done") void port.refreshGoal(sessionId);
     },
     onTodos: (todos) => {
@@ -97,7 +148,7 @@ export function createRunStreamHandlers({
       if (pending?.runId === runId && pending.approvalId === approvalId) port.patchState({ pendingApproval: null });
     },
     onStatusNotice: (notice) => {
-      if (port.getState().streamStatusNotice !== notice) {
+      if (port.getState().activeSessionId === sessionId && port.getState().streamStatusNotice !== notice) {
         port.patchState({ streamStatusNotice: notice, degradedStream: null });
       }
     },
@@ -113,21 +164,22 @@ export function createRunStreamHandlers({
           body: JSON.stringify({ fps }),
         }).catch(() => {});
       }
+      const isActiveSession = port.getState().activeSessionId === sessionId;
       // 澄清问题在后台由轮询的「待回答」通知统一提示；普通结束才发轮次完成提醒。
       const hasQuestion = Boolean(message?.clarification);
-      if (!hasQuestion || port.getState().activeSessionId === sessionId) {
+      if (!hasQuestion || isActiveSession) {
         port.notifyRunFinished(sessionId);
       }
-      const { head: nextQueued, rest: restQueued } = takeQueuedHead(port.getState().queuedMessages);
-      port.patchState({
-        runningRunId: null,
-        pendingApproval: null,
-        streamStatusNotice: "",
-        degradedStream: null,
-        ...(status === "error" && error ? { errorMessage: error } : {}),
-        queuedMessages: message?.clarification ? port.getState().queuedMessages : restQueued,
-      });
-      if (port.getState().activeSessionId === sessionId) {
+      if (isActiveSession) {
+        const { head: nextQueued, rest: restQueued } = takeQueuedHead(port.getState().queuedMessages);
+        port.patchState({
+          runningRunId: null,
+          pendingApproval: null,
+          streamStatusNotice: "",
+          degradedStream: null,
+          ...(status === "error" && error ? { errorMessage: error } : {}),
+          queuedMessages: message?.clarification ? port.getState().queuedMessages : restQueued,
+        });
         void port.updateSessionMeta(sessionId, { unread: false });
         const ready = message ? Promise.resolve() : port.openSession(sessionId);
         void ready.then(() => {
@@ -143,11 +195,13 @@ export function createRunStreamHandlers({
     },
     onDegraded: (lastSeq, reason) => {
       onStreamClosed();
-      port.patchState({
-        runningRunId: null,
-        streamStatusNotice: `流式连接中断（${reason}），已加载服务端已保存内容，可手动重试恢复。`,
-        degradedStream: { runId, sessionId, assistantMessageId, lastSeq },
-      });
+      if (port.getState().activeSessionId === sessionId) {
+        port.patchState({
+          runningRunId: null,
+          streamStatusNotice: `流式连接中断（${reason}），已加载服务端已保存内容，可手动重试恢复。`,
+          degradedStream: { runId, sessionId, assistantMessageId, lastSeq },
+        });
+      }
       void fetchJson<{ session: ChatSessionDetail }>(`/api/chat/sessions/${encodeURIComponent(sessionId)}`)
         .then((res) => {
           if (port.getState().activeSessionId === sessionId) {

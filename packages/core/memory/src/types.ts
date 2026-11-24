@@ -15,6 +15,7 @@ export type {
   ChatTokenUsage,
   CreateSessionInput,
   PendingQuestion,
+  SubagentStepPreview,
   TodoItem,
   TodoStatus,
   UpdateSessionInput,

@@ -6,7 +6,41 @@
   color: var(--color-muted);
 }
 
-/* 左二列表的会话状态标记：Agent 进行中旋转圆弧与任务完成未读小圆点，两者互斥出现。 */
+/* 左二列表的会话状态标记：固定在最左侧留白槽位，绝对定位、不占行内空间，因此不会把标题往右挤。 */
+.statusMarker {
+  position: absolute;
+  left: 0.2rem;
+  top: 50%;
+  display: grid;
+  width: 0.5rem;
+  height: 0.5rem;
+  place-items: center;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+/* 运行中：强调色旋转圆弧。 */
+.statusMarker[data-state="working"] {
+  color: var(--color-accent);
+}
+
+.statusMarker[data-state="working"] > svg {
+  width: 0.62rem;
+  height: 0.62rem;
+}
+
+/* 完成未读：强调色小圆点 + 柔和外圈光晕，从圆弧位置原地淡入。 */
+.statusMarker[data-state="done"]::before {
+  content: "";
+  width: 0.46rem;
+  height: 0.46rem;
+  border-radius: 999px;
+  background: var(--color-accent);
+  box-shadow: 0 0 0 3.5px rgb(var(--color-accent-rgb) / 0.2);
+  animation: sidebarDoneDot 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 旋转圆弧沿用共享动画定义。 */
 .workingIcon {
   color: var(--color-accent);
   transform-origin: center;
@@ -17,19 +51,6 @@
   to {
     transform: rotate(1turn);
   }
-}
-
-.unreadDot {
-  flex: 0 0 auto;
-  width: 0.44rem;
-  height: 0.44rem;
-  margin-left: auto;
-  border-radius: 999px;
-  /* 跟随当前主题强调色与柔和外圈光晕 */
-  background: var(--color-accent);
-  box-shadow: 0 0 0 3.5px rgb(var(--color-accent-rgb) / 0.2);
-  /* 任务完成时由转圈切换成小圆点，轻微放大淡入让状态变化被看见。 */
-  animation: sidebarDoneDot 240ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @keyframes sidebarDoneDot {
@@ -49,7 +70,7 @@
     animation-duration: 2.4s;
   }
 
-  .unreadDot {
+  .statusMarker[data-state="done"]::before {
     animation: none;
   }
 }

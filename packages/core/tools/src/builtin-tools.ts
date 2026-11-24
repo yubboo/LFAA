@@ -123,10 +123,18 @@ export function createBuiltinWorkspaceTools(
         const start = Math.max(1, typeof args.startLine === "number" ? Math.floor(args.startLine) : 1);
         const end = Math.min(allLines.length, typeof args.endLine === "number" ? Math.floor(args.endLine) : start + 199);
         const slice = allLines.slice(start - 1, end).map((line, i) => `${start + i}: ${line}`);
+        const relPath = relative(ctx.workspaceRoots[0] ?? "", targetFile) || rawPath;
         return {
           ok: true,
           output: slice.join("\n").slice(0, 24000),
-          summary: `读取 ${relative(ctx.workspaceRoots[0] ?? "", targetFile) || rawPath} (${start}-${end}/${allLines.length})`,
+          summary: `读取 ${relPath} (${start}-${end}/${allLines.length})`,
+          metadata: {
+            filePath: rawPath,
+            resolvedPath: targetFile,
+            startLine: start,
+            endLine: end,
+            totalLines: allLines.length,
+          },
         };
       },
     },

@@ -19,8 +19,8 @@ const commandCompactCore: Plugin.Object<void> = {
       description: "当对话很长、需要腾出上下文空间时调用。压缩在下一次模型调用前生效，只保留系统提示、最近轮次与最后一条需求。",
       permissionLevel: "read",
       parameters: { type: "object", properties: {} },
-      execute: async () => {
-        ctx.compaction.requestCompaction();
+      execute: async (_args, execCtx) => {
+        ctx.compaction.requestCompaction(execCtx.sessionId);
         return {
           ok: true,
           output: compactRequestedMessage(),

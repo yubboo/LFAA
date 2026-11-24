@@ -16,13 +16,26 @@ function imageMime(filePath: string): string | null {
   return null;
 }
 
-/** 调当前模型做视觉理解；模型不支持图片输入时返回可读失败结果。 */
-async function visionAnswer(llm: LlmService, prompt: string, dataUrl: string): Promise<string> {
+/** 调当前模型做视觉理解；兼容推理型多模态模型（留足 maxTokens + low 推理档位，并兼容 reasoningContent 兜底），空响应或不支持图片时显式抛错。 */
+async function visionAnswer(
+  llm: LlmService,
+  prompt: string,
+  dataUrl: string,
+  profileId?: string,
+  signal?: AbortSignal,
+): Promise<string> {
   const output = await llm.complete({
+    ...(profileId ? { profileId } : {}),
+    ...(signal ? { signal } : {}),
     messages: [{ role: "user", content: prompt, images: [dataUrl] }],
-    maxTokens: 900,
+    reasoningEffort: "low",
+    maxTokens: 4096,
   });
-  return output.content.trim() || "（模型没有返回可读的视觉描述）";
+  const text = output.content.trim() || output.reasoningContent?.trim() || "";
+  if (!text) {
+    throw new Error("视觉模型返回空内容（当前模型可能不支持图片输入或响应被截断）");
+  }
+  return text;
 }
 
 export function registerBrowserAgentTools(tools: ToolsService, llm: LlmService, runtime: BrowserRuntime): () => void {
@@ -204,12 +217,13 @@ export function registerBrowserAgentTools(tools: ToolsService, llm: LlmService, 
       moduleName: "@lfaa/browser",
       name: "browser_visual_check",
       title: "用视觉模型检查页面截图",
-      description: "截取当前内置浏览器页面并交给当前视觉模型检查布局、对齐、颜色、溢出与可见异常；当前模型不支持图片输入时会明确失败。",
+      description: "截取当前内置浏览器页面并对照用户需求检查布局、对齐、颜色、溢出、动画与可见异常，同时附带控制台/网络报错统计；若当前模型不支持图片输入会给出改用 browser_evaluate 自检的明确指引。",
       permissionLevel: "read",
       parameters: {
         type: "object",
         properties: {
           focus: { type: "string", description: "可选：希望重点检查的区域或问题" },
+          requirements: { type: "string", description: "可选：用户原始需求或需逐条核对的验收要点" },
         },
       },
       execute: async (args, ctx) => {
@@ -220,20 +234,36 @@ export function registerBrowserAgentTools(tools: ToolsService, llm: LlmService, 
         const mime = snap.screenshotMime ?? "image/png";
         const dataUrl = `data:${mime};base64,${snap.screenshotBase64}`;
         const focus = typeof args.focus === "string" ? args.focus.trim() : "";
+        const requirements = typeof args.requirements === "string" ? args.requirements.trim() : "";
+        const failedNets = runtime.getNetwork(ctx.sessionId).filter((n) => n.failed).slice(-5);
+        const runtimeMeta = [
+          `当前页面：${snap.title || "未命名"} (${snap.url})`,
+          `控制台异常数：${snap.errorCount}（总日志 ${snap.consoleCount}）`,
+          ...(failedNets.length > 0
+            ? [`近期失败请求：${failedNets.map((n) => `${n.status} ${n.method} ${n.url}`).join("；")}`]
+            : ["近期失败请求：0"]),
+        ].join("\n");
         const prompt = [
-          "你是 UI 视觉检查员。请检查这张网页截图：",
-          "布局是否对齐、是否有溢出/遮挡/错位、颜色与文字可读性是否正常、有无明显视觉 bug。",
-          "只描述你能看到的事实，按问题清单输出；看不到或不确定的内容不要臆造。",
-          ...(focus ? [`重点检查：${focus}`] : []),
+          "你是极其挑剔、严格的 UI 与图形视觉验收员。请仔细观察这张真实网页截图，逐项排查可见缺陷（严禁敷衍夸赞）：",
+          "1. 图形/组件结构与几何关系：关键图形或部件（如人物/动物身体、四肢、车轮/踏板/连接件、图标、卡片边框）是否完整自然、连接位置是否正确、有无脱节/错位/比例怪异/穿模/变形；",
+          "2. 布局与完整性：是否居中对齐、是否完整可见、有无溢出/截断/重叠/白雾遮挡/大片异常留白；",
+          "3. 配色、文字可读性与整体完成度是否达到交付标准；",
+          "4. 只陈述截图中肉眼真实可见的事实，严禁臆造；最后必须给出明确结论 `VERDICT: PASS` 或 `VERDICT: NEEDS_FIX`，并按编号列出每一处需要修改代码修复的具体缺陷与修复建议。",
+          ...(requirements ? [`用户需求与验收要点：\n${requirements}`] : []),
+          ...(focus ? [`重点检查区域：${focus}`] : []),
         ].join("\n");
         try {
-          const answer = await visionAnswer(llm, prompt, dataUrl);
-          return { ok: true, output: answer, summary: "已完成页面视觉检查" };
+          const answer = await visionAnswer(llm, prompt, dataUrl, ctx.parentProfileId, ctx.signal);
+          return {
+            ok: true,
+            output: `${runtimeMeta}\n\n视觉验收报告：\n${answer}`,
+            summary: `视觉验收完成（错误 ${snap.errorCount}）`,
+          };
         } catch (error) {
           return {
             ok: false,
-            output: `视觉检查失败：${error instanceof Error ? error.message : String(error)}。请确认当前模型支持图片输入。`,
-            summary: "视觉检查失败",
+            output: `${runtimeMeta}\n\n视觉检查失败：${error instanceof Error ? error.message : String(error)}。当前模型可能不支持图片输入，请改用 browser_evaluate 读取关键元素的 getBoundingClientRect / getComputedStyle / DOM 状态并结合 browser_console 完成闭环验收。`,
+            summary: "视觉模型不可用，需改用 DOM 自检",
           };
         }
       },
@@ -268,7 +298,7 @@ export function registerBrowserAgentTools(tools: ToolsService, llm: LlmService, 
           const prompt = typeof args.prompt === "string" && args.prompt.trim()
             ? args.prompt.trim()
             : "请描述这张图片的内容；如果它是界面截图，请检查布局、对齐、颜色、溢出和可见异常，只描述能看到的事实。";
-          const answer = await visionAnswer(llm, prompt, `data:${mime};base64,${buffer.toString("base64")}`);
+          const answer = await visionAnswer(llm, prompt, `data:${mime};base64,${buffer.toString("base64")}`, ctx.parentProfileId, ctx.signal);
           return { ok: true, output: answer, summary: `已读取图片 ${basename(file)}` };
         } catch (error) {
           return {
@@ -317,11 +347,11 @@ export function registerBrowserAgentTools(tools: ToolsService, llm: LlmService, 
           return { ok: true, output: JSON.stringify(snap.tabs, null, 2), summary: `新建标签 ${snap.activeTabId}` };
         }
         if (action === "activate" && typeof args.tabId === "string") {
-          const snap = await runtime.activateTab(ctx.sessionId, args.tabId);
+          const snap = await runtime.activateTab(ctx.sessionId, args.tabId, true);
           return { ok: true, output: formatSnapshotOutput(snap), summary: `切到标签 ${snap.activeTabId}` };
         }
         if (action === "close" && typeof args.tabId === "string") {
-          const snap = await runtime.closeTab(ctx.sessionId, args.tabId);
+          const snap = await runtime.closeTab(ctx.sessionId, args.tabId, true);
           return { ok: true, output: JSON.stringify(snap.tabs, null, 2), summary: `已关闭标签` };
         }
         const snap = await runtime.getSnapshot(ctx.sessionId);

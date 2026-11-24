@@ -79,7 +79,7 @@ try {
 
   await page.goto(server.url, { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(3500);
-  steps.push({ step: "壳层与对话", ok: (await text()).includes("我们要做什么"), screenshot: await shot("home") });
+  steps.push({ step: "壳层与对话", ok: (await text()).includes("我们从哪里开始") || (await text()).includes("我们要做什么"), screenshot: await shot("home") });
 
   // Agents 页：左一入口 + 列表渲染 + 内置 agent 与默认绑定。
   await page.locator('button[aria-label="Agents"]').first().click();
@@ -118,7 +118,8 @@ try {
     const imageCount = await page.locator("img").count();
     steps.push({
       step: "资料库-图像分类（媒体网格）",
-      ok: imageText.includes("图像") && (imageCount > 0 || imageText.includes("暂无")),
+      // 空素材库时展示「还没有生成的图片或视频」提示，与 ui-chat locales 的 libraryMediaEmptyHint 保持一致。
+      ok: imageText.includes("图像") && (imageCount > 0 || imageText.includes("还没有生成")),
       screenshot: await shot("library-images"),
     });
   } else {
@@ -156,6 +157,24 @@ try {
     step: "设置-代码审查",
     ok: reviewSettings.includes("审查智能体") || reviewSettings.includes("代码仓库"),
     screenshot: await shot("settings-review"),
+  });
+
+  // 设置中心状态记忆：F5 后必须回到同一个设置子页，而不是掉回工作区。
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(2200);
+  const afterReload = await text();
+  steps.push({
+    step: "设置中心刷新后仍停在代码审查",
+    ok: afterReload.includes("审查智能体") || afterReload.includes("代码仓库"),
+    screenshot: await shot("settings-after-reload"),
+  });
+
+  // 关闭设置弹窗回到背景视图，后续步骤才能继续操作左一栏。
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(800);
+  steps.push({
+    step: "Esc 关闭设置中心回到背景视图",
+    ok: !(await page.locator('[role="dialog"][aria-modal="true"]').count()),
   });
 
   // 主题同时存在于 mode 与 config 两个键；只改 mode 会被 config 覆盖。
@@ -207,8 +226,12 @@ try {
   await page.waitForTimeout(2600);
   await page.locator('button[aria-label="Agents"]').first().click();
   await page.waitForTimeout(1500);
-  await page.getByText("小鱼", { exact: false }).first().click();
-  await page.waitForTimeout(800);
+  // 左二头部现在也显示「小鱼」，点列表行改用行按钮的结构类名，避免点到侧栏标题或时序抖动。
+  await page.locator("main").getByText("Agent 与模型").first().waitFor({ timeout: 10000 }).catch(() => {});
+  await page.locator('main button[class*="rowMain"]').first().click();
+  // 等待编辑卡真正挂载再断言，避免视口切换后的重排把点击挤到渲染之前。
+  await page.getByText("人设指令").first().waitFor({ timeout: 8000 }).catch(() => {});
+  await page.waitForTimeout(600);
   steps.push({
     step: "深色-Agents 编辑态",
     ok: (await page.evaluate(() => document.documentElement.dataset.resolvedTheme)) === "dark"

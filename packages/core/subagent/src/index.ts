@@ -34,24 +34,25 @@ export class SubagentService extends Service {
         moduleName: "@lfaa/subagent",
         name: "invoke_subagent",
         title: "派发子智能体",
-        description: "创建一个独立隔离的子智能体执行子任务（支持只读调研或写入修改，设 wait=false 可并发派发多个后用 list_subagents 回收）。",
+        description: "创建一个独立隔离的子智能体执行子任务：支持只读调研（read）、读写修改（write）以及专属浏览器操控与视觉验收（browser，只开放内置浏览器工具）；设 wait=false 可并发派发多个后用 list_subagents 回收。",
         permissionLevel: "read",
         parameters: {
           type: "object",
           properties: {
-            role: { type: "string", description: "子智能体角色名称，如 Code Researcher / Browser Verifier" },
+            role: { type: "string", description: "子智能体角色名称，如 浏览器验收助手 / Code Researcher" },
             prompt: { type: "string", description: "清晰具体的任务目标与交付要求" },
-            mode: { type: "string", enum: ["read", "write"], description: "read 仅只读探索（默认），write 允许读写与命令" },
+            mode: { type: "string", enum: ["read", "write", "browser"], description: "read 仅只读探索（默认），write 允许读写与命令，browser 专属浏览器操控与验收" },
             wait: { type: "boolean", description: "是否阻塞等待完成后返回，默认 true；并行派发时设为 false" },
           },
           required: ["role", "prompt"],
         },
         execute: async (args, execCtx) => {
+          const mode = args.mode === "browser" ? "browser" : args.mode === "write" ? "write" : "read";
           const item = await this.coordinator.invoke({
             sessionId: execCtx.sessionId,
-            role: typeof args.role === "string" ? args.role : "子助手",
+            role: typeof args.role === "string" ? args.role : (mode === "browser" ? "浏览器验收助手" : "子助手"),
             prompt: typeof args.prompt === "string" ? args.prompt : "",
-            mode: args.mode === "write" ? "write" : "read",
+            mode,
             workspaceRoots: execCtx.workspaceRoots,
             parentSignal: execCtx.signal,
             onSubagentActivity: execCtx.onSubagentActivity,
@@ -94,7 +95,7 @@ export class SubagentService extends Service {
           const msg = typeof args.message === "string" ? args.message : "";
           const item = await this.coordinator.message(id, execCtx.sessionId, msg, args.wait !== false, execCtx);
           return {
-            ok: item.status !== "error",
+            ok: item.status === "running" || item.status === "done",
             output: JSON.stringify({ subagentId: item.id, status: item.status, output: item.output }, null, 2),
             summary: `已协作 ${item.role}`,
           };

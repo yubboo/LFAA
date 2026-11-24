@@ -118,5 +118,5 @@ function isSameOrigin(target: string, allowedOrigin: string): boolean {
 
 /** 外部链接只放行 http(s)，其余协议（file、自定义协议）一律忽略。 */
 function openExternally(target: string): void {
-  if (/^https?:\/\//u.test(target)) void shell.openExternal(target);
+  if (/^https?:\/\//iu.test(target)) void shell.openExternal(target);
 }

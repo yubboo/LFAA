@@ -1,5 +1,5 @@
 // 文件预览与右栏舞台动作：打开/切换/关闭文件标签、右栏面板请求与文件内容读取。
-import { getActivityFilePath } from "../shared/file-activity";
+import { getActivityReadRange, getOpenableActivityFilePath } from "../shared/file-activity";
 import { fetchJson } from "./chat-http";
 import type { FilePreviewTab } from "./chat-types";
 import type { ChatStorePort } from "./chat-store-port";
@@ -7,22 +7,24 @@ import type { ChatStorePort } from "./chat-store-port";
 export class ChatFileActions {
   constructor(private readonly port: ChatStorePort) {}
 
-  /** 右栏打开会话中已有成功记录的文件步骤，并精确记录定位行号。 */
-  openFilePreview(messageId: string, stepId: string): boolean {
+  /** 右栏打开会话中已有成功记录的文件步骤（写入/编辑/读取），并精确记录定位行号；activateStage=false 时仅后台刷新标签不切走当前舞台。 */
+  openFilePreview(messageId: string, stepId: string, activateStage = true): boolean {
     const state = this.port.getState();
     const step = state.activeSession?.messages.find((message) => message.id === messageId)
       ?.steps?.find((item) => item.id === stepId);
-    const path = step && getActivityFilePath(step);
+    const path = step && getOpenableActivityFilePath(step);
     if (!step || step.status !== "done" || !path) return false;
-    const normalized = (step.fileChange?.resolvedPath ?? path).replace(/\\/gu, "/");
+    const resolvedPath = step.fileChange?.resolvedPath ?? step.readRange?.resolvedPath ?? path;
+    const normalized = resolvedPath.replace(/\\/gu, "/");
     const id = /^(?:[a-z]:\/|\/\/)/iu.test(normalized) ? normalized.toLowerCase() : normalized;
-    const targetLine = step.fileChange?.firstLine;
-    const endLine = targetLine !== undefined
-      ? targetLine + Math.max(0, (step.fileChange?.after.split("\n").length ?? 1) - 1)
-      : undefined;
+    const readRange = getActivityReadRange(step);
+    const targetLine = step.fileChange?.firstLine ?? readRange?.startLine;
+    const endLine = step.fileChange?.firstLine !== undefined
+      ? step.fileChange.firstLine + Math.max(0, (step.fileChange.after.split("\n").length ?? 1) - 1)
+      : readRange?.endLine;
     const next: FilePreviewTab = {
       id,
-      path: step.fileChange?.resolvedPath ?? path,
+      path: resolvedPath,
       relativePath: path.replace(/\\/gu, "/"),
       projectId: state.activeSession?.projectId ?? null,
       messageId,
@@ -32,8 +34,7 @@ export class ChatFileActions {
     };
     const tabs = state.filePreviewTabs;
     this.port.patchState({
-      activeFilePreviewId: id,
-      rightStageKind: "file",
+      ...(activateStage ? { activeFilePreviewId: id, rightStageKind: "file" as const } : {}),
       filePreviewTabs: tabs.some((tab) => tab.id === id)
         ? tabs.map((tab) => tab.id === id ? next : tab)
         : [...tabs, next],
@@ -97,12 +98,26 @@ export class ChatFileActions {
     this.port.patchState({ pendingComposerInsert: null });
   }
 
-  requestRightPanel(tab: string, url?: string): void {
+  private requestNonce = 0;
+
+  requestRightPanel(
+    tab: string,
+    url?: string,
+    options?: { devtoolsTab?: "console" | "network"; autoExpand?: boolean; refreshBrowser?: boolean },
+  ): void {
     const stageKind = tab === "browser" ? "browser" : tab === "file-preview" ? "file"
       : tab === "review" ? "review" : this.port.getState().rightStageKind ?? null;
+    this.requestNonce += 1;
     this.port.patchState({
       rightStageKind: stageKind,
-      rightPanelRequest: { tab, ...(url ? { url } : {}), nonce: Date.now() },
+      rightPanelRequest: {
+        tab,
+        ...(url ? { url } : {}),
+        ...(options?.devtoolsTab ? { devtoolsTab: options.devtoolsTab } : {}),
+        ...(options?.autoExpand ? { autoExpand: true } : {}),
+        ...(options?.refreshBrowser ? { refreshBrowser: true } : {}),
+        nonce: Date.now() * 1000 + (this.requestNonce % 1000),
+      },
     });
   }
 

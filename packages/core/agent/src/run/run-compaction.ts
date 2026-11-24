@@ -9,7 +9,7 @@ type Compacted = { messages: LlmMessage[]; compacted: boolean; truncatedResults:
 export function compactForRun(
   compaction: CompactionHook | undefined,
   messages: ReadonlyArray<LlmMessage>,
-  options: { budgetChars: number; toolCapChars?: number; keepRecentRounds?: number },
+  options: { budgetChars: number; toolCapChars?: number; keepRecentRounds?: number; sessionId?: string },
 ): Compacted {
   return compaction?.compact(messages, options) ?? compactConversation(messages, options);
 }

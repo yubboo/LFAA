@@ -61,9 +61,10 @@
   cursor: pointer;
 }
 
+/* 弹层 Portal 到 body，层级必须高于全屏弹窗（--z-dialog），否则设置中心里的下拉会被弹窗压住。 */
 .menu {
   position: fixed;
-  z-index: 80;
+  z-index: var(--z-popover);
   display: grid;
   width: 11.75rem;
   gap: 0.12rem;

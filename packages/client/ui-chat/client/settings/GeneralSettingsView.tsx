@@ -1,18 +1,23 @@
-// 渲染设置中心「常规」主页面：权限卡片、常规/编辑器/通知子分组装配与开源许可证弹窗。
+// 渲染设置中心「常规」页：权限、常规、编辑器、Agent 行为、弹出窗口与趣味实验分组，以及开源许可证弹窗。
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { IconX } from "@tabler/icons-react";
-import { StatusBanner } from "@lfaa/ui-primitives/client";
+import {
+  SettingGroup,
+  SettingRow,
+  SettingsPage,
+  SettingSwitch,
+  StatusBanner,
+  settingsStyles as styles,
+} from "@lfaa/ui-primitives/client";
 import type { ChatClientStore } from "../store/chat-store";
 import type { OpenSourcePackageInfo } from "../store/chat-types";
 import type { GeneralSettingsConfig } from "./general-settings-client";
 import type { ChatLocaleMessages } from "../locales";
-import { SettingGroupCard, SettingRow, SettingSwitch } from "@lfaa/ui-primitives/client";
 import { GeneralSettingsGeneralGroup } from "./GeneralSettingsGeneralGroup";
 import { GeneralSettingsSecondary } from "./GeneralSettingsSecondary";
-import { settingsStyles as styles } from "@lfaa/ui-primitives/client";
 import overlayStyles from "./GeneralSettingsView.overlays.module.css";
 
-/** 装配设置分组，加载 Host 偏好并管理开源许可证详情。 */
+/** 装配常规设置分组，加载 Host 偏好并管理开源许可证详情。 */
 export function GeneralSettingsView({
   locale,
   store,
@@ -75,9 +80,7 @@ export function GeneralSettingsView({
   const fullAccessEnabled = state.permissionMode === "full";
 
   return (
-    <section className={styles.root} aria-label={isZh ? "常规" : "General"}>
-      <h1 className={styles.pageTitle}>{isZh ? "常规" : "General"}</h1>
-
+    <SettingsPage title={isZh ? "常规" : "General"}>
       {notice && (
         <StatusBanner
           tone="info"
@@ -86,7 +89,7 @@ export function GeneralSettingsView({
         />
       )}
 
-      <SettingGroupCard title={isZh ? "权限" : "Permissions"}>
+      <SettingGroup title={isZh ? "权限" : "Permissions"}>
         <SettingRow
           title={isZh ? "默认权限" : "Default Permissions"}
           description={
@@ -111,7 +114,7 @@ export function GeneralSettingsView({
                 : "Running with Full Access lets LFAA edit any file and run commands without confirmation, increasing data-loss risks. "}
               <button
                 type="button"
-                className={styles.inlineLinkBtn}
+                className={styles.ghostBtn}
                 onClick={() => setNotice(locale.permissionLearnMoreText)}
               >
                 {locale.learnMore}
@@ -126,7 +129,7 @@ export function GeneralSettingsView({
             />
           )}
         />
-      </SettingGroupCard>
+      </SettingGroup>
 
       <GeneralSettingsGeneralGroup
         isZh={isZh}
@@ -179,6 +182,6 @@ export function GeneralSettingsView({
           </div>
         </div>
       )}
-    </section>
+    </SettingsPage>
   );
 }

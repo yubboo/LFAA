@@ -5,9 +5,11 @@ import { locales } from "../locales";
 import { isSettingsView, type LocalProject, type NavigationView, type WorkspaceMode } from "../navigation/navigation";
 import { usePinnedApps } from "../navigation/usePinnedApps";
 import { useSidebarResize, type ResizeSide } from "./useSidebarResize";
+import { usePaneMotionSuspend } from "./usePaneMotionSuspend";
+import { useShellShortcuts } from "./useShellShortcuts";
 import { buildSidebarWidthVars } from "./sidebar-resize";
-import { readWorkspaceModePref, writeWorkspaceModePref } from "./ui-preferences";
 import { useViewportMode } from "./useViewportMode";
+import { resolveNewChatProject } from "../navigation/navigation-items";
 import { resolveWorkbenchDomain } from "../navigation/workbench-domains";
 import type { WorkbenchClientService } from "../workbench-service";
 import { SettingsDialog } from "../panels/SettingsDialog";
@@ -33,10 +35,13 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
     projects,
     rightPanelMaximized,
     rightWorkbenchWide,
+    workspaceMode,
   } = snapshot;
 
+  // 「聊天 / 工作」由 workbench 服务持有：中心区分段、左二头部与插件都读同一份状态。
+  const mode = workspaceMode;
+
   const [newChatSelected, setNewChatSelected] = useState(false);
-  const [mode, setMode] = useState<WorkspaceMode>(readWorkspaceModePref);
   const [searchOpen, setSearchOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
   const [workspaceNotice, setWorkspaceNotice] = useState("");
@@ -46,7 +51,11 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
   const wasCompactRef = useRef<boolean | null>(null);
   const autoCollapsedRef = useRef({ left: false, right: false });
   // 记录最近一个非设置视图（含项目上下文）：设置中心是弹窗，关闭后要回到打开前的确切页面。
-  const lastMainRef = useRef({ view: isSettingsView(activeView) ? "workspace" : activeView, projectId: activeProjectId });
+  // 刷新恢复设置弹窗时，打开前的视图来自服务读回的背景路由，不能默认成工作区。
+  const lastMainRef = useRef({
+    view: isSettingsView(activeView) ? (snapshot.settingsReturnView ?? "workspace") : activeView,
+    projectId: activeProjectId,
+  });
 
   const settingsOpen = isSettingsView(activeView);
   useEffect(() => {
@@ -58,13 +67,18 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
   const hasRightColumn = domain.columns === 4;
   const showRightPanel = hasRightColumn && rightPanelOpen;
 
+  // 窗口缩放与拖拽吸附期间暂停轨道过渡，宽度始终跟手。
+  const suspendPaneMotion = usePaneMotionSuspend(shellRef);
+
   const handleDragCollapse = useCallback((side: ResizeSide) => {
+    // 吸附收起时宽度已跟随指针到 0，不再补播轨道过渡。
+    suspendPaneMotion();
     if (side === "left") {
       service.setLeftSidebarOpen(false, true);
     } else {
       service.setRightPanelOpen(false, true);
     }
-  }, [service]);
+  }, [service, suspendPaneMotion]);
 
   const { leftWidth, rightWidth, dragState, startResize, handleKeyResize } = useSidebarResize({
     shellRef,
@@ -95,9 +109,8 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
   }, [isCompact, service]);
 
   const handleModeChange = useCallback((nextMode: WorkspaceMode) => {
-    setMode(nextMode);
-    writeWorkspaceModePref(nextMode);
-  }, []);
+    service.setWorkspaceMode(nextMode);
+  }, [service]);
 
   const closeCompactDrawers = useCallback(() => {
     if (!isCompact) return;
@@ -107,20 +120,20 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
 
   const toggleLeftSidebar = useCallback(() => {
     if (isCompact && !leftSidebarOpen && rightPanelOpen) {
-      service.setRightPanelOpen(false);
+      service.setRightPanelOpen(false, false);
     }
-    service.toggleLeftSidebar();
+    service.setLeftSidebarOpen(!leftSidebarOpen, !isCompact);
   }, [isCompact, leftSidebarOpen, rightPanelOpen, service]);
 
   const toggleRightPanel = useCallback(() => {
     if (isCompact && !rightPanelOpen && leftSidebarOpen) {
-      service.setLeftSidebarOpen(false);
+      service.setLeftSidebarOpen(false, false);
     }
-    service.toggleRightPanel();
+    service.setRightPanelOpen(!rightPanelOpen, !isCompact);
   }, [isCompact, leftSidebarOpen, rightPanelOpen, service]);
 
   const navigate = useCallback((view: NavigationView) => {
-    service.navigate(view, null);
+    service.navigate(view, service.getSnapshot().activeProjectId);
     setNewChatSelected(false);
     setWorkspaceNotice("");
     if (isCompact) service.setLeftSidebarOpen(false, false);
@@ -141,6 +154,11 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
     if (isCompact) service.setLeftSidebarOpen(false, false);
   }, [isCompact, service]);
 
+  // 单击左二项目文件夹行仅高亮并切换当前项目上下文，不跳走或清空当前聊天。
+  const selectProjectContext = useCallback((project: LocalProject) => {
+    service.setActiveProject(project.id);
+  }, [service]);
+
   const startChatSession = useCallback((opts: {
     projectId?: string | null;
     sectionId?: string | null;
@@ -149,33 +167,45 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
   }) => {
     setSearchOpen(false);
     setActivityOpen(false);
+    const nextProjectId = opts.projectId ?? null;
     if (chatProvider) {
-      service.navigate("workspace", null);
+      service.navigate("workspace", nextProjectId);
       setNewChatSelected(true);
       setWorkspaceNotice("");
-      void chatProvider.startNewChat({
-        projectId: opts.projectId ?? null,
-        sectionId: opts.sectionId ?? null,
-      });
+      void chatProvider.startNewChat({ projectId: nextProjectId, sectionId: opts.sectionId ?? null });
     } else if (opts.fallbackProject) {
       service.openProject(opts.fallbackProject.id);
       setNewChatSelected(false);
       setWorkspaceNotice(opts.unavailableNotice);
     } else {
-      service.navigate("workspace", null);
+      service.navigate("workspace", nextProjectId);
       setNewChatSelected(true);
       setWorkspaceNotice(opts.unavailableNotice);
     }
     if (isCompact) service.setLeftSidebarOpen(false, false);
   }, [chatProvider, isCompact, service]);
 
-  // 在项目上下文里开新聊天时继承当前项目，项目起步建议才能围绕该项目生成。
-  const startNewChat = useCallback(
-    () => startChatSession({
-      projectId: service.getSnapshot().activeProjectId,
+  // 左二顶部「新聊天」始终沿用当前已选/已绑定的项目上下文，不再丢失项目绑定。
+  const startNewChat = useCallback(() => {
+    const snap = service.getSnapshot();
+    const target = resolveNewChatProject({
+      activeProjectId: snap.activeProjectId,
+      activeChatSessionId: snap.activeChatSessionId,
+      chatSessions: snap.chatSessions,
+      draftProjectId: snap.chatProvider?.getDraftProjectId?.() ?? null,
+      projects: snap.projects,
+    });
+    startChatSession({
+      projectId: target?.id ?? null,
+      sectionId: target?.sectionId ?? null,
       unavailableNotice: locale.newChatUnavailable,
-    }),
-    [locale.newChatUnavailable, service, startChatSession],
+    });
+  }, [locale.newChatUnavailable, service, startChatSession]);
+
+  // 「最近」标题右侧新会话入口：强制开一条不绑定任何项目的全新独立对话。
+  const startNewRecentChat = useCallback(
+    () => startChatSession({ projectId: null, sectionId: null, unavailableNotice: locale.newChatUnavailable }),
+    [locale.newChatUnavailable, startChatSession],
   );
 
   const startNewChatInProject = useCallback(
@@ -202,9 +232,10 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
     }
   }, [service]);
 
-  // 选中会话统一回到工作区视图并清理临时提示，供左栏最近列表与会话入口复用。
-  const handleSelectChatSession = useCallback(() => {
-    service.navigate("workspace", null);
+  // 选中历史会话时同步该会话所属项目（项目外会话为 null），供后续顶部「新聊天」沿用。
+  const handleSelectChatSession = useCallback((sessionId: string) => {
+    const target = service.getSnapshot().chatSessions.find((session) => session.id === sessionId);
+    service.navigate("workspace", target?.projectId ?? null);
     setNewChatSelected(false);
     setWorkspaceNotice("");
     if (isCompact) service.setLeftSidebarOpen(false, false);
@@ -221,48 +252,31 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
     setActivityOpen(false);
   }, []);
 
-  useEffect(() => {
-    const onShortcut = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        setSearchOpen(true);
-        setActivityOpen(false);
-      } else if (event.ctrlKey && event.altKey && event.key.toLowerCase() === "u") {
-        event.preventDefault();
-        setActivityOpen(true);
-        setSearchOpen(false);
-      } else if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "b") {
-        if (hasRightColumn) {
-          event.preventDefault();
-          toggleRightPanel();
-        }
-      } else if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "m") {
-        if (hasRightColumn && !isCompact) {
-          event.preventDefault();
-          service.toggleRightPanelMaximized();
-        }
-      } else if (event.key === "Escape") {
-        setSearchOpen(false);
-        setActivityOpen(false);
-        if (isCompact && (leftSidebarOpen || rightPanelOpen)) {
-          service.setLeftSidebarOpen(false);
-          service.setRightPanelOpen(false);
-        }
-      }
-    };
-    document.addEventListener("keydown", onShortcut);
-    return () => document.removeEventListener("keydown", onShortcut);
-  }, [hasRightColumn, isCompact, leftSidebarOpen, rightPanelOpen, service, toggleRightPanel]);
+  useShellShortcuts({
+    hasRightColumn,
+    isCompact,
+    leftSidebarOpen,
+    rightPanelOpen,
+    onOpenSearch: () => { setSearchOpen(true); setActivityOpen(false); },
+    onOpenActivity: () => { setActivityOpen(true); setSearchOpen(false); },
+    onCloseOverlays: () => { setSearchOpen(false); setActivityOpen(false); },
+    onToggleRightPanel: toggleRightPanel,
+    onToggleRightMaximized: () => service.toggleRightPanelMaximized(),
+    onCloseCompactDrawers: () => { service.setLeftSidebarOpen(false, false); service.setRightPanelOpen(false, false); },
+  });
 
   const currentProject = projects.find((project) => project.id === activeProjectId);
 
-  // 若恢复的项目视图在本地列表加载完毕后已不存在，自动退回工作区首页（弹窗打开时也按背景视图判断）。
+  // 若恢复的项目上下文在本地列表加载完毕后已不存在，自动清理，避免残留失效项目绑定。
   useEffect(() => {
-    if (backgroundView !== "project" || !activeProjectId || !projectProvider?.hasLoaded?.()) return;
+    if (!activeProjectId || !projectProvider?.hasLoaded?.()) return;
     if (!currentProject) {
-      service.navigate("workspace", null);
+      if (backgroundView === "project") service.navigate("workspace", null);
+      else service.setActiveProject(null);
     }
   }, [activeProjectId, backgroundView, currentProject, projectProvider, service]);
+  const effectiveNewChatSelected = newChatSelected
+    || (backgroundView === "workspace" && !snapshot.activeChatSessionId && Boolean(currentProject));
   // 右侧面板与项目上下文按「背景视图」匹配：设置弹窗打开时 activeView 指向设置页，
 // 若仍用 activeView，背景工作区的右栏面板会全部失配而退化成空占位。
   const matchingPanels = contextPanels.filter((panel) => !panel.match || panel.match(backgroundView, activeProjectId));
@@ -272,6 +286,8 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
     ? projectProvider.renderProjectContext(currentProject)
     : null;
   const openAppearance = () => navigate("appearance");
+  // 「设置」入口落到设置中心首屏（常规），而不是外观页。
+  const openSettings = () => navigate("settings:general");
   const leftDragCollapsed = dragState?.side === "left" && dragState.snappedCollapsed;
   const rightDragCollapsed = dragState?.side === "right" && dragState.snappedCollapsed;
   const shellStyle = buildSidebarWidthVars({
@@ -303,7 +319,7 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
         isMobile={device === "mobile"}
         isCompact={isCompact}
         mode={mode}
-        newChatSelected={newChatSelected}
+        newChatSelected={effectiveNewChatSelected}
         searchOpen={searchOpen}
         activityOpen={activityOpen}
         dragging={dragState?.side === "left"}
@@ -311,12 +327,15 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
         onNavigate={navigate}
         onTogglePinned={togglePinnedApp}
         onOpenAppearance={openAppearance}
+        onOpenSettings={openSettings}
         onBackdropClick={closeCompactDrawers}
         onCloseDrawer={() => service.setLeftSidebarOpen(false, !isCompact)}
         onModeChange={handleModeChange}
         onNewChat={startNewChat}
+        onNewRecentChat={startNewRecentChat}
         onNewChatInProject={startNewChatInProject}
         onNewChatInSection={startNewChatInSection}
+        onSelectProjectContext={selectProjectContext}
         onSelectChatSession={handleSelectChatSession}
         onSelectLibraryTab={(tab) => service.setLibraryTab(tab)}
         onSelectDomainItem={(id) => service.setDomainItem(id)}
@@ -335,7 +354,7 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
         locale={locale}
         view={backgroundView}
         mode={mode}
-        newChatSelected={newChatSelected}
+        newChatSelected={effectiveNewChatSelected}
         workspaceNotice={workspaceNotice}
         isCompact={isCompact}
         isRightMaximized={isRightMaximized}

@@ -1,0 +1,72 @@
+/* 共享展开/收起按钮样式：只用语义与动效变量，尺寸由 --panel-toggle-size 交给调用方适配各断点。 */
+.button {
+  display: inline-flex;
+  width: var(--panel-toggle-size, 2rem);
+  height: var(--panel-toggle-size, 2rem);
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--panel-toggle-radius, 0.55rem);
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-ease-standard),
+    border-color var(--motion-duration-fast) var(--motion-ease-standard),
+    color var(--motion-duration-fast) var(--motion-ease-standard),
+    transform var(--motion-duration-fast) var(--motion-ease-standard);
+}
+
+.button:hover {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+/* 按下时轻微回弹，避免只有颜色变化、没有触感。 */
+.button:active {
+  transform: scale(0.94);
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+/* 展开态用正文色强调，收起后回到次要色。 */
+.button[data-expanded="true"] {
+  color: var(--color-ink);
+}
+
+.glyph {
+  width: var(--panel-toggle-glyph-size, 1.1rem);
+  height: var(--panel-toggle-glyph-size, 1.1rem);
+  overflow: visible;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.65;
+  transform: scaleX(var(--panel-toggle-mirror, 1));
+  transition: transform var(--motion-duration-base) var(--motion-ease-emphasized);
+}
+
+/* 右栏按钮整体镜像：分栏线从右侧滑出，与左栏完全对称。 */
+.button[data-side="right"] {
+  --panel-toggle-mirror: -1;
+}
+
+/* 展开时分栏线靠内、收起时滑到框边并淡出，用位移加消失表达「栏被收起」。 */
+.divider {
+  transform: translateX(0);
+  opacity: 1;
+  transition:
+    transform var(--motion-duration-base) var(--motion-ease-emphasized),
+    opacity var(--motion-duration-base) var(--motion-ease-standard);
+}
+
+.button[data-expanded="false"] .divider {
+  transform: translateX(-2.4px);
+  opacity: 0;
+}

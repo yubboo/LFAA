@@ -10,7 +10,7 @@ import { ChatWorkspace } from "./conversation/ChatWorkspace";
 import { GeneralSettingsView } from "./settings/GeneralSettingsView";
 import { NotificationSettingsView } from "./settings/NotificationSettingsView";
 import { SessionOverlays } from "./session/SessionOverlays";
-import { SessionModeBar } from "./composer/SessionModeBar";
+import { SessionModeTitleAction } from "./composer/SessionModeBar";
 import { SessionRowActions } from "./session/SessionRowActions";
 import { getChatLocale } from "./locales";
 import { SessionMenuStore } from "./session/session-menu-store";
@@ -46,16 +46,32 @@ export const chatClientPlugin: Plugin.Object<void> = {
       const sessionId = (event as CustomEvent<{ sessionId?: string }>).detail?.sessionId;
       if (!sessionId) return;
       menuStore.closeAll();
-      context.workbench.navigate("workspace");
-      void store.openSession(sessionId);
+      const target = store.getSnapshot().sessions.find((s) => s.id === sessionId);
+      context.workbench.navigate("workspace", target?.projectId ?? null);
+      void store.openSession(sessionId).then(() => {
+        context.workbench.setActiveProject(store.getSnapshot().activeSession?.projectId ?? null);
+      });
     };
     if (typeof window !== "undefined") {
       window.addEventListener("lfaa:open-session", onOpenSessionNotification);
     }
 
+    // 当 Agent 触发自动跟随请求时，自动展开右侧工作台（仅在 workspace/project 视图下生效，避免打断设置页）。
+    let lastAutoExpandNonce = 0;
+    const unsubscribeAutopilotExpand = store.subscribe(() => {
+      const req = store.getSnapshot().rightPanelRequest;
+      if (!req?.autoExpand || req.nonce === lastAutoExpandNonce) return;
+      lastAutoExpandNonce = req.nonce;
+      const wb = context.workbench.getSnapshot();
+      if (wb.activeView !== "workspace" && wb.activeView !== "project") return;
+      context.workbench.setRightWorkbenchWide(true);
+      context.workbench.setRightPanelOpen(true, false);
+    });
+
     const unregisterProvider = context.workbench.registerChatProvider({
       getSessions: () => store.getSnapshot().sessions,
       getActiveSessionId: () => store.getSnapshot().activeSessionId,
+      getDraftProjectId: () => store.getSnapshot().draftProjectId,
       // 左二栏据此在后台仍在工作的会话上显示转圈；与当前打开了哪条会话无关。
       isSessionRunning: (sessionId: string) => store.isSessionRunning(sessionId),
       // 会话需要确认/回答时，左二栏显示对应徽标；由通知设置控制是否展示。
@@ -64,10 +80,24 @@ export const chatClientPlugin: Plugin.Object<void> = {
       openSessionMessage: async (sessionId: string, messageId?: string) => {
         menuStore.closeAll();
         await store.openSession(sessionId);
+        context.workbench.setActiveProject(store.getSnapshot().activeSession?.projectId ?? null);
         if (messageId) store.requestMessageJump(sessionId, messageId);
       },
       subscribe: (listener) => {
-        const u1 = store.subscribe(listener);
+        // 只在侧栏/工作台摘要相关字段真正变化时通知 workbench，杜绝流式正文/思考增量触发整页四栏重渲染。
+        let prev = store.getSnapshot();
+        const u1 = store.subscribe(() => {
+          const next = store.getSnapshot();
+          const sidebarChanged =
+            prev.sessions !== next.sessions
+            || prev.activeSessionId !== next.activeSessionId
+            || prev.draftProjectId !== next.draftProjectId
+            || prev.runningSessionIds !== next.runningSessionIds
+            || prev.attention !== next.attention
+            || prev.generalSettings.enableDotNotification !== next.generalSettings.enableDotNotification;
+          prev = next;
+          if (sidebarChanged) listener();
+        });
         const u2 = menuStore.subscribe(listener);
         return () => {
           u1();
@@ -121,6 +151,9 @@ export const chatClientPlugin: Plugin.Object<void> = {
             store={store}
             projects={wbSnap.projects}
             projectProvider={wbSnap.projectProvider}
+            workspaceMode={wbSnap.workspaceMode}
+            onWorkspaceModeChange={(mode) => context.workbench.setWorkspaceMode(mode)}
+            onProjectContextChange={(projectId) => context.workbench.setActiveProject(projectId)}
             onOpenSettings={() => context.workbench.navigate("settings:config")}
             onOpenTurnChanges={(messageId) => {
               store.requestRightPanel("review", messageId);
@@ -198,8 +231,14 @@ export const chatClientPlugin: Plugin.Object<void> = {
             compact={renderCtx?.compact}
             rightPanelMaximized={renderCtx?.rightPanelMaximized}
             onToggleMaximizeRightPanel={renderCtx?.onToggleMaximizeRightPanel}
-            onCollapseRightPanel={renderCtx?.onCollapseRightPanel}
-            onCloseDrawer={renderCtx?.onCloseDrawer}
+            onCollapseRightPanel={() => {
+              store.pauseAutopilotForCurrentRun();
+              renderCtx?.onCollapseRightPanel?.();
+            }}
+            onCloseDrawer={() => {
+              store.pauseAutopilotForCurrentRun();
+              renderCtx?.onCloseDrawer?.();
+            }}
             onStageWideChange={(wide) => context.workbench.setRightWorkbenchWide(wide)}
             onOpenSettings={() => context.workbench.navigate("settings:config")}
             onOpenCodeReview={() => context.workbench.navigate("codeReview")}
@@ -209,13 +248,12 @@ export const chatClientPlugin: Plugin.Object<void> = {
       },
     });
 
+    // 会话模式徽标：只有在真的进入某个会话（已有消息）时才挂到顶栏标题右侧，
+    // 空会话仍由输入栏里的胶囊承担，标题栏不出现空占位。
     const unregisterTitleAction = context.workbench.registerTitleAction({
       id: "chat-session-mode",
-      order: 10,
-      render: () => {
-        if (context.workbench.getSnapshot().activeView !== "workspace") return null;
-        return <SessionModeBar store={store} isZh={locale.isZh} />;
-      },
+      order: 5,
+      render: () => <SessionModeTitleAction store={store} isZh={locale.isZh} />,
     });
 
     const unregisterWorkspaceAction = context.workbench.registerWorkspaceAction({
@@ -246,10 +284,18 @@ export const chatClientPlugin: Plugin.Object<void> = {
     });
 
     void store.hydrate().then(() => {
+      const snap = store.getSnapshot();
+      const wb = context.workbench.getSnapshot();
+      const restoredProjectId = snap.activeSession?.projectId ?? snap.draftProjectId;
+      if (wb.activeView === "workspace" && !wb.activeProjectId && restoredProjectId) {
+        context.workbench.setActiveProject(restoredProjectId);
+      }
       if (typeof window !== "undefined") {
         const paramId = new URLSearchParams(window.location.search).get("sessionId");
         if (paramId) {
-          void store.openSession(paramId);
+          void store.openSession(paramId).then(() => {
+            context.workbench.setActiveProject(store.getSnapshot().activeSession?.projectId ?? null);
+          });
         }
       }
     });
@@ -266,6 +312,7 @@ export const chatClientPlugin: Plugin.Object<void> = {
       unregisterConfigView();
       unregisterWorkspace();
       unregisterProvider();
+      unsubscribeAutopilotExpand();
       menuStore.dispose();
       store.dispose();
       disposeChatStore();

@@ -288,6 +288,7 @@ export function useComposerTriggers({
     skillIndex,
     setSkillIndex,
     openProjectSignal,
+    requestProjectPicker: () => setOpenProjectSignal((n) => n + 1),
     visibleMentionEntries,
     visibleSlashCommands,
     visibleSkillEntries,

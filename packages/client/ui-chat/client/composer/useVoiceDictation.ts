@@ -90,6 +90,7 @@ export function useVoiceDictation({
   const localRecorderRef = useRef<LocalWavRecorder | null>(null);
   const preferLocalHostRef = useRef<boolean>(readPreferLocalSpeech());
   const localStartCancelledRef = useRef(false);
+  const startingLocalRef = useRef(false);
   const hadSpeechResultRef = useRef(false);
   const baseDraftRef = useRef(draft);
   const draftRef = useRef(draft);
@@ -123,6 +124,8 @@ export function useVoiceDictation({
 
   const startLocalHostRecording = useCallback(
     async (afterNetworkFallback: boolean) => {
+      if (startingLocalRef.current || localRecorderRef.current) return;
+      startingLocalRef.current = true;
       try {
         const recorder = await startLocalMicrophoneWavRecorder();
         if (localStartCancelledRef.current) {
@@ -135,6 +138,8 @@ export function useVoiceDictation({
       } catch (error) {
         setRecording(false);
         onNotice(formatSpeechErrorMessage(locale, error, afterNetworkFallback));
+      } finally {
+        startingLocalRef.current = false;
       }
     },
     [locale, onNotice],

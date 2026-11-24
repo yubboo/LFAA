@@ -25,7 +25,7 @@ This package lives in `packages/ui/layout`.
 
 ## Dependencies
 
-No workspace dependencies.
+- `@lfaa/ui-primitives`
 
 ## Dev Note
 

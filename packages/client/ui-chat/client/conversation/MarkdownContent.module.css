@@ -1,10 +1,10 @@
-/* 助手消息富文本 Markdown 排版样式：标题层级、列表圆点、精美表格、语法高亮代码块与行内代码胶囊。 */
+/* 助手消息富文本 Markdown 排版样式：克制清晰的标题层级、标准列表、表格、语法高亮代码块与行内代码胶囊。 */
 .root {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 0.72rem;
+  gap: 0.68rem;
   color: var(--color-ink);
-  line-height: 1.75;
+  line-height: 1.74;
   word-break: break-word;
 }
 
@@ -13,7 +13,7 @@
 }
 
 .bold {
-  font-weight: 650;
+  font-weight: 600;
   color: var(--color-ink);
 }
 
@@ -21,10 +21,15 @@
 .h2,
 .h3,
 .h4 {
-  margin: 0.35rem 0 0;
+  margin: 0.68rem 0 0.08rem;
   font-weight: 650;
   line-height: 1.38;
+  letter-spacing: -0.015em;
   color: var(--color-ink);
+}
+
+.root > :first-child {
+  margin-top: 0;
 }
 
 .h1 {
@@ -46,9 +51,9 @@
 .ul,
 .ol {
   margin: 0;
-  padding-left: 1.35rem;
+  padding-left: 1.4rem;
   display: grid;
-  gap: 0.42rem;
+  gap: 0.4rem;
 }
 
 .ul {
@@ -68,41 +73,29 @@
   font-variant-numeric: tabular-nums;
 }
 
+.ul li,
+.ol li {
+  padding-left: 0.14rem;
+}
+
 .inlineCode,
 .fileChip {
-  padding: 0.1rem 0.4rem;
-  margin: 0 0.12rem;
-  border-radius: 0.42rem;
-  border: 1px solid rgb(255 255 255 / 0.08);
-  background: rgb(255 255 255 / 0.06);
+  padding: 0.08rem 0.38rem;
+  margin: 0 0.1rem;
+  border-radius: 0.38rem;
+  border: 1px solid var(--color-line);
+  background: var(--color-code-bg);
   color: var(--color-code-ink);
   font-family: var(--code-font-family, ui-monospace, SFMono-Regular, Menlo, monospace);
-  font-size: 0.87em;
+  font-size: 0.86em;
   overflow-wrap: anywhere;
   white-space: normal;
-}
-
-.fileChip {
-  color: var(--color-code-ink);
-  background: rgb(255 255 255 / 0.055);
-}
-
-:global(:root[data-resolved-theme="light"]) .inlineCode {
-  border-color: rgb(15 23 42 / 0.08);
-  background: rgb(15 23 42 / 0.05);
-  color: var(--color-link);
-}
-
-:global(:root[data-resolved-theme="light"]) .fileChip {
-  border-color: rgb(15 23 42 / 0.08);
-  background: rgb(15 23 42 / 0.045);
-  color: var(--color-code-ink);
 }
 
 .link {
   color: var(--color-link);
   text-decoration: underline;
-  text-underline-offset: 2px;
+  text-underline-offset: 2.5px;
 }
 
 .link:hover {
@@ -111,10 +104,10 @@
 
 .blockquote {
   margin: 0;
-  padding: 0.45rem 0.85rem;
-  border-left: 3px solid var(--color-violet);
-  border-radius: 0 0.55rem 0.55rem 0;
-  background: rgb(var(--color-violet-rgb) / 0.08);
+  padding: 0.45rem 0.9rem;
+  border-left: 2px solid var(--color-line);
+  border-radius: 0 0.48rem 0.48rem 0;
+  background: var(--color-panel);
   color: var(--color-muted);
   display: grid;
   gap: 0.25rem;
@@ -128,7 +121,7 @@
   border: 0;
   height: 1px;
   background: var(--color-line);
-  margin: 0.25rem 0;
+  margin: 0.3rem 0;
 }
 
 /* 表格容器与样式 */
@@ -136,76 +129,60 @@
   width: 100%;
   overflow-x: auto;
   border: 1px solid var(--color-line);
-  border-radius: 0.78rem;
-  background: rgb(255 255 255 / 0.02);
+  border-radius: 0.72rem;
+  background: var(--color-surface);
 }
 
 .table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.9em;
-  line-height: 1.5;
+  line-height: 1.55;
+  font-variant-numeric: tabular-nums;
 }
 
 .table thead tr {
-  background: rgb(255 255 255 / 0.05);
+  background: var(--color-panel);
   border-bottom: 1px solid var(--color-line);
 }
 
-:global(:root[data-resolved-theme="light"]) .table thead tr {
-  background: rgb(0 0 0 / 0.04);
-}
-
 .table th {
-  padding: 0.58rem 0.85rem;
+  padding: 0.56rem 0.85rem;
   font-weight: 600;
   color: var(--color-ink);
   white-space: nowrap;
 }
 
 .table td {
-  padding: 0.55rem 0.85rem;
+  padding: 0.52rem 0.85rem;
   color: var(--color-ink);
-  border-top: 1px solid rgb(255 255 255 / 0.06);
-}
-
-:global(:root[data-resolved-theme="light"]) .table td {
-  border-top: 1px solid rgb(0 0 0 / 0.06);
+  border-top: 1px solid var(--color-line);
 }
 
 .table tbody tr:hover {
-  background: rgb(255 255 255 / 0.035);
+  background: var(--color-menu-hover);
 }
 
 /* 代码块卡片与语法高亮 */
 .codeCard {
   border: 1px solid var(--color-line);
-  border-radius: 0.82rem;
+  border-radius: 0.76rem;
   background: var(--color-code-bg);
   overflow: hidden;
-}
-
-:global(:root[data-resolved-theme="light"]) .codeCard {
-  background: var(--color-code-bg);
 }
 
 .codeHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.42rem 0.8rem;
-  border-bottom: 1px solid rgb(255 255 255 / 0.08);
-  background: rgb(255 255 255 / 0.03);
-}
-
-:global(:root[data-resolved-theme="light"]) .codeHeader {
-  border-bottom: 1px solid rgb(0 0 0 / 0.08);
-  background: rgb(0 0 0 / 0.03);
+  padding: 0.4rem 0.8rem;
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-code-bg-alt);
 }
 
 .codeLang {
   font-family: var(--code-font-family, ui-monospace, SFMono-Regular, Menlo, monospace);
-  font-size: 0.76em;
+  font-size: 0.75em;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--color-muted);
@@ -217,7 +194,7 @@
   gap: 0.28rem;
   padding: 0.18rem 0.5rem;
   border: 0;
-  border-radius: 0.45rem;
+  border-radius: 0.42rem;
   background: transparent;
   color: var(--color-muted);
   font: inherit;
@@ -232,15 +209,11 @@
 
 .codePre {
   margin: 0;
-  padding: 0.78rem 0.9rem;
+  padding: 0.78rem 0.92rem;
   overflow-x: auto;
   font-family: var(--code-font-family, ui-monospace, SFMono-Regular, Menlo, monospace);
-  font-size: 0.87em;
-  line-height: 1.6;
-  color: var(--color-code-ink);
-}
-
-:global(:root[data-resolved-theme="light"]) .codePre {
+  font-size: 0.86em;
+  line-height: 1.62;
   color: var(--color-code-ink);
 }
 
@@ -280,102 +253,3 @@
 :global(:root[data-resolved-theme="light"]) .tok_number { color: #ea580c; }
 :global(:root[data-resolved-theme="light"]) .tok_type { color: #0284c7; }
 :global(:root[data-resolved-theme="light"]) .tok_function { color: #2563eb; }
-
-/* 建议段落标题：只保留细色条与强调色文字，不用整块底色，避免视觉过重。 */
-.adviceHeading {
-  padding-left: 0.62rem;
-  border-left: 2px solid rgb(var(--color-accent-rgb) / 0.55);
-  border-radius: 0;
-  background: none;
-  color: var(--color-accent);
-}
-
-/* 紧随建议标题的列表用强调色标记；未接入点选回调时仍按普通列表渲染。 */
-.adviceHeading + .ol,
-.adviceHeading + .ul {
-  padding-left: 1.15rem;
-}
-
-.adviceHeading + .ol > li::marker,
-.adviceHeading + .ul > li::marker {
-  color: var(--color-accent);
-}
-
-/* 正文内联的建议选项：一个轻量列表容器 + 行分隔，不再每条都画一张卡片。 */
-.adviceOptions {
-  display: flex;
-  flex-direction: column;
-  margin: 0.45rem 0 0;
-  border: 1px solid var(--color-line);
-  border-radius: 0.7rem;
-  background: var(--glass-card-bg, var(--color-surface));
-  overflow: hidden;
-}
-
-.adviceOptionBtn {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.62rem 0.85rem;
-  border: 0;
-  background: transparent;
-  color: var(--color-ink);
-  font-size: 0.94em;
-  text-align: left;
-  cursor: pointer;
-  transition: background-color 140ms ease;
-}
-
-.adviceOptionBtn + .adviceOptionBtn {
-  border-top: 1px solid var(--color-line);
-}
-
-.adviceOptionBtn:hover {
-  background: var(--color-active);
-}
-
-.adviceOptionIndex {
-  flex: 0 0 auto;
-  width: 1.15rem;
-  height: 1.15rem;
-  display: grid;
-  place-items: center;
-  border: 1px solid rgb(var(--color-accent-rgb) / 0.45);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--color-accent);
-  font-size: 0.74em;
-  font-weight: 600;
-}
-
-.adviceOptionText {
-  flex: 1 1 auto;
-  min-width: 0;
-  line-height: 1.5;
-}
-
-.adviceOptionArrow {
-  flex: 0 0 auto;
-  color: var(--color-muted);
-  opacity: 0.55;
-  transition: color 140ms ease, opacity 140ms ease, transform 140ms ease;
-}
-
-.adviceOptionBtn:hover .adviceOptionArrow {
-  color: var(--color-accent);
-  opacity: 1;
-  transform: translateX(2px);
-}
-
-/* 最推荐选项徽章：只标首条（最正确、最能推进交付的下一步）。 */
-.adviceOptionRecommended {
-  flex: 0 0 auto;
-  padding: 0.1rem 0.44rem;
-  border-radius: 999px;
-  background: rgb(var(--color-accent-rgb) / 0.14);
-  color: var(--color-accent);
-  font-size: 0.72em;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-}

@@ -1,0 +1,39 @@
+/* 共享滚动容器：只管滚动方向、常驻槽位与滚动中的高亮反馈；
+   滚动条本体外观（尺寸、轨道、强调色胶囊滑块）由 @lfaa/ui-theme 的 scrollbars.css 统一提供。 */
+.scrollArea {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* 默认滚动方向写在 :where() 里，优先级归零：调用方用自己的类即可覆盖方向（如窄屏目录改成横向滚动）。 */
+:where(.scrollArea[data-axis="y"]) {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+:where(.scrollArea[data-axis="x"]) {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+:where(.scrollArea[data-axis="both"]) {
+  overflow: auto;
+}
+
+/* 常驻滚动条槽：同页不同内容切换时不因滚动条出现/消失而左右抖动。 */
+.scrollArea[data-gutter="stable"] {
+  scrollbar-gutter: stable;
+}
+
+/* 滚动期间滑块临时换到更饱和的强调色，松手后回到静止配色。 */
+.scrollArea[data-scrolling="true"]::-webkit-scrollbar-thumb {
+  background-color: var(--color-scrollbar-thumb-hover);
+}
+
+/* Firefox 用标准属性表达同一状态；这些属性只在没有 webkit 伪元素的引擎里启用。 */
+@supports not selector(::-webkit-scrollbar) {
+  .scrollArea[data-scrolling="true"] {
+    scrollbar-color: var(--color-scrollbar-thumb-hover) transparent;
+  }
+}

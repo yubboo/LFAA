@@ -175,6 +175,12 @@ async function handleStatic(
     return;
   }
 
+  // 直接请求 /index.html 也必须走注入了本机接口令牌的 serveIndex，避免拿到未注入令牌的原始文件导致 401。
+  if (target === join(context.webRoot, "index.html")) {
+    serveIndex(req, res, context.indexHtml);
+    return;
+  }
+
   const info = await stat(target).catch(() => null);
   if (info?.isFile()) {
     await serveFile(req, res, target, context.assetsRoot);

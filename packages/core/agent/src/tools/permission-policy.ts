@@ -42,20 +42,20 @@ export function normalizePermissionMode(mode?: unknown, autoApproveTools?: boole
 
 // 归类操作签名：写/改文件按工具名归类，命令执行按主命令（含串联标记）归类，避免不同高危命令共享计数。
 export function buildApprovalPattern(toolName: string, args: Record<string, unknown>): string {
-  if (toolName !== "run_command") return toolName;
+  if (toolName !== "run_command" && toolName !== "start_background_task") return toolName;
   const raw = typeof args.command === "string" ? args.command.trim() : "";
-  if (!raw) return "run_command";
+  if (!raw) return toolName;
   const hasChain = /&&|\|\||;|\|/u.test(raw);
   const firstToken = raw
     .split(/\s+/u)[0]
     ?.replace(/^["']|["']$/gu, "")
     .toLowerCase() || "unknown";
-  return hasChain ? `run_command:${firstToken}+chain` : `run_command:${firstToken}`;
+  return hasChain ? `${toolName}:${firstToken}+chain` : `${toolName}:${firstToken}`;
 }
 
 /** 检查写入目标和命令是否命中高风险规则，为后续审批决策提供依据。 */
 export function assessToolRisk(toolName: string, args: Record<string, unknown>): ToolRiskAssessment {
-  if (toolName === "run_command") {
+  if (toolName === "run_command" || toolName === "start_background_task") {
     const command = typeof args.command === "string" ? args.command : "";
     if (DESTRUCTIVE_COMMAND_PATTERNS.some((pattern) => pattern.test(command))) {
       return { highRisk: true, reason: "检测到高危或破坏性终端命令，必须由用户手动确认。" };

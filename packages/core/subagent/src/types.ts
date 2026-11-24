@@ -3,13 +3,16 @@ import type { AgentStepTrace } from "@lfaa/memory";
 import type { ToolExecutionContext } from "@lfaa/tools";
 
 export type SubagentStatus = "running" | "done" | "error" | "stopped";
-export type SubagentMode = "read" | "write";
+export type SubagentMode = "read" | "write" | "browser";
+export type SubagentKind = "general" | "browser";
 
 export interface SubagentSummaryItem {
   id: string;
   sessionId: string;
   parentRunId?: string | undefined;
   role: string;
+  kind?: SubagentKind;
+  browserLabel?: string;
   mode: SubagentMode;
   status: SubagentStatus;
   prompt: string;

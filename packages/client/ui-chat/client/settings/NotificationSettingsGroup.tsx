@@ -1,4 +1,4 @@
-// 通知设置分组：桌面通知权限、轮次完成/权限/问题提醒、会话状态徽标、事件提示音与自定义音频。
+// 通知设置分组：桌面通知权限、提醒项、提示音选择与自定义音频（删除动作单独成组放最后）。
 import { useEffect, useRef, useState } from "react";
 import { IconBell, IconPlayerPlay, IconTrash, IconUpload, IconVolume } from "@tabler/icons-react";
 import type { GeneralSettingsConfig } from "./general-settings-client";
@@ -11,8 +11,14 @@ import {
   type CustomNotificationSound,
 } from "../shared/notification-sound-api";
 import { BUILTIN_NOTIFICATION_SOUNDS, playNotificationSound } from "../shared/notification-sounds";
-import { SettingRow, SettingSelect, SettingSwitch } from "@lfaa/ui-primitives/client";
-import { settingsStyles as styles } from "@lfaa/ui-primitives/client";
+import {
+  SettingDangerGroup,
+  SettingGroup,
+  SettingRow,
+  SettingSelect,
+  SettingSwitch,
+  settingsStyles as styles,
+} from "@lfaa/ui-primitives/client";
 
 function formatBytes(size: number): string {
   if (size < 1024) return `${size} B`;
@@ -24,10 +30,10 @@ function formatBytes(size: number): string {
 function NotificationPermissionControl({ isZh }: { isZh: boolean }) {
   const [permission, setPermission] = useState(() => notificationPermission());
   if (permission === "unsupported") {
-    return <span className={styles.pathText}>{isZh ? "当前环境不支持系统通知" : "Not supported"}</span>;
+    return <span className={styles.valueText}>{isZh ? "当前环境不支持系统通知" : "Not supported"}</span>;
   }
   if (permission === "granted") {
-    return <span className={styles.pathText}>{isZh ? "已允许" : "Allowed"}</span>;
+    return <span className={styles.valueText}>{isZh ? "已允许" : "Allowed"}</span>;
   }
   return (
     <button
@@ -71,7 +77,7 @@ function SoundPicker({
     ? known
     : [{ value: selected, label: isZh ? "自定义提示音（缺失）" : "Custom sound (missing)" }, ...known];
   return (
-    <div className={styles.rowControl}>
+    <>
       <SettingSelect
         value={selected}
         label={label}
@@ -88,11 +94,11 @@ function SoundPicker({
       >
         <IconVolume size={14} aria-hidden="true" />
       </button>
-    </div>
+    </>
   );
 }
 
-/** 渲染通知相关行；设置持久化与提示文案由外层页面统一处理。 */
+/** 渲染通知相关分组；设置持久化与提示文案由外层页面统一处理。 */
 export function NotificationSettingsGroup({
   isZh,
   cfg,
@@ -151,192 +157,198 @@ export function NotificationSettingsGroup({
 
   return (
     <>
-      <SettingRow
-        title={isZh ? "桌面通知权限" : "Desktop notification permission"}
-        description={isZh
-          ? "系统通知需要授权；未授权时仍会在左二栏显示状态徽标并播放提示音"
-          : "System notifications need permission; badges and sounds still work without it"}
-        control={<NotificationPermissionControl isZh={isZh} />}
-      />
-      <SettingRow
-        title={isZh ? "发送测试通知" : "Send a test notification"}
-        description={isZh ? "验证桌面通知权限与当前完成提示音是否正常" : "Verify notification permission and the completion sound"}
-        control={(
-          <button
-            type="button"
-            className={styles.actionBtn}
-            onClick={() => {
-              void requestNotificationPermission().then(() => {
-                void playNotificationSound(completionSound);
-                showDesktopNotification({
-                  title: "LFAA 测试通知",
-                  body: isZh ? "如果你看到这条通知，说明桌面通知已经接通。" : "If you see this, desktop notifications are connected.",
-                  tag: "lfaa-test-notification",
-                });
-              });
-            }}
-          >
-            <IconBell size={14} aria-hidden="true" />
-            {isZh ? "测试" : "Test"}
-          </button>
-        )}
-      />
-      <SettingRow
-        title={isZh ? "轮次完成通知" : "Turn completion alerts"}
-        description={isZh ? "设置 LFAA 完成后何时提醒你" : "Choose when to alert after a turn finishes"}
-        control={(
-          <SettingSelect
-            value={cfg.turnCompleteNotification}
-            label={isZh ? "轮次完成通知" : "Turn completion alerts"}
-            options={[
-              { value: "unfocused", label: isZh ? "仅在未聚焦时" : "When unfocused" },
-              { value: "always", label: isZh ? "始终通知" : "Always" },
-              { value: "off", label: isZh ? "关闭" : "Off" },
-            ]}
-            onChange={(turnCompleteNotification) => onPatch({ turnCompleteNotification })}
-          />
-        )}
-      />
-      <SettingRow
-        title={isZh ? "启用权限通知" : "Permission notifications"}
-        description={isZh ? "当对话串需要你批准时提醒你" : "Notify when an action needs your approval"}
-        control={(
-          <SettingSwitch
-            checked={cfg.enableApprovalNotification}
-            label={isZh ? "启用权限通知" : "Permission notifications"}
-            onChange={(enableApprovalNotification) => {
-              if (enableApprovalNotification) void requestNotificationPermission();
-              onPatch({ enableApprovalNotification });
-            }}
-          />
-        )}
-      />
-      <SettingRow
-        title={isZh ? "启用问题通知" : "Question notifications"}
-        description={isZh ? "当对话串需要你回答问题时提醒你" : "Notify when a thread asks you a question"}
-        control={(
-          <SettingSwitch
-            checked={cfg.enableQuestionNotification}
-            label={isZh ? "启用问题通知" : "Question notifications"}
-            onChange={(enableQuestionNotification) => {
-              if (enableQuestionNotification) void requestNotificationPermission();
-              onPatch({ enableQuestionNotification });
-            }}
-          />
-        )}
-      />
-      <SettingRow
-        title={isZh ? "启用会话状态提醒" : "Session status badges"}
-        description={isZh ? "在左二会话列表显示待确认 / 待回答的会话" : "Show waiting approvals and questions in the chat list"}
-        control={(
-          <SettingSwitch
-            checked={cfg.enableDotNotification}
-            label={isZh ? "启用会话状态提醒" : "Session status badges"}
-            onChange={(enableDotNotification) => onPatch({ enableDotNotification })}
-          />
-        )}
-      />
-      <SettingRow
-        title={isZh ? "轮次完成提示音" : "Completion sound"}
-        description={isZh ? "一轮回复结束后的提示音" : "Played when a turn completes"}
-        control={(
-          <SoundPicker
-            isZh={isZh}
-            label={isZh ? "轮次完成提示音" : "Completion sound"}
-            value={cfg.completionSound}
-            fallback={cfg.notificationSound}
-            customSounds={customSounds}
-            onChange={(soundId) => onPatch({ completionSound: soundId })}
-          />
-        )}
-      />
-      <SettingRow
-        title={isZh ? "澄清 / 待回答提示音" : "Question sound"}
-        description={isZh ? "Agent 需要你回答澄清问题时使用" : "Played when the agent asks a clarifying question"}
-        control={(
-          <SoundPicker
-            isZh={isZh}
-            label={isZh ? "澄清 / 待回答提示音" : "Question sound"}
-            value={cfg.questionSound}
-            fallback={cfg.notificationSound}
-            customSounds={customSounds}
-            onChange={(soundId) => onPatch({ questionSound: soundId })}
-          />
-        )}
-      />
-      <SettingRow
-        title={isZh ? "待确认 / 关键决策提示音" : "Approval / decision sound"}
-        description={isZh ? "需要批准工具调用或关键决策时使用" : "Played when approval or a key decision is required"}
-        control={(
-          <SoundPicker
-            isZh={isZh}
-            label={isZh ? "待确认 / 关键决策提示音" : "Approval / decision sound"}
-            value={cfg.approvalSound}
-            fallback={cfg.notificationSound}
-            customSounds={customSounds}
-            onChange={(soundId) => onPatch({ approvalSound: soundId })}
-          />
-        )}
-      />
-      <SettingRow
-        title={isZh ? "自定义提示音" : "Custom sounds"}
-        description={isZh
-          ? `上传 WAV、MP3、OGG、M4A、WebM 或 FLAC，最大 ${formatBytes(MAX_CUSTOM_SOUND_BYTES)}`
-          : `Upload WAV, MP3, OGG, M4A, WebM or FLAC up to ${formatBytes(MAX_CUSTOM_SOUND_BYTES)}`}
-        control={(
-          <>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="audio/*"
-              hidden
-              onChange={(event) => void upload(event.target.files?.[0])}
-            />
+      <SettingGroup title={isZh ? "提醒" : "Alerts"}>
+        <SettingRow
+          title={isZh ? "桌面通知权限" : "Desktop notification permission"}
+          description={isZh
+            ? "系统通知需要授权；未授权时仍会在左二栏显示状态徽标并播放提示音"
+            : "System notifications need permission; badges and sounds still work without it"}
+          control={<NotificationPermissionControl isZh={isZh} />}
+        />
+        <SettingRow
+          title={isZh ? "发送测试通知" : "Send a test notification"}
+          description={isZh ? "验证桌面通知权限与当前完成提示音是否正常" : "Verify notification permission and the completion sound"}
+          control={(
             <button
               type="button"
               className={styles.actionBtn}
-              disabled={uploading}
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => {
+                void requestNotificationPermission().then(() => {
+                  void playNotificationSound(completionSound);
+                  showDesktopNotification({
+                    title: "LFAA 测试通知",
+                    body: isZh ? "如果你看到这条通知，说明桌面通知已经接通。" : "If you see this, desktop notifications are connected.",
+                    tag: "lfaa-test-notification",
+                  });
+                });
+              }}
             >
-              <IconUpload size={14} aria-hidden="true" />
-              {uploading ? (isZh ? "上传中…" : "Uploading…") : (isZh ? "上传音频" : "Upload audio")}
+              <IconBell size={14} aria-hidden="true" />
+              {isZh ? "测试" : "Test"}
             </button>
-          </>
-        )}
-      />
-      {soundError && <p className={styles.rowDesc}>{soundError}</p>}
-      {customSounds.length === 0 ? (
-        <p className={styles.rowDesc}>{isZh ? "还没有自定义提示音。" : "No custom sounds yet."}</p>
-      ) : (
-        customSounds.map((sound) => (
-          <SettingRow
-            key={sound.id}
-            title={sound.name}
-            description={`${formatBytes(sound.size)} · ${sound.mime}`}
-            control={(
-              <div className={styles.rowControl}>
-                <button
-                  type="button"
-                  className={styles.actionBtn}
-                  aria-label={isZh ? "试听自定义提示音" : "Preview custom sound"}
-                  title={isZh ? "试听" : "Preview"}
-                  onClick={() => void playNotificationSound(`custom:${sound.id}`)}
-                >
-                  <IconPlayerPlay size={14} aria-hidden="true" />
-                </button>
-                <button
-                  type="button"
-                  className={styles.actionBtn}
-                  aria-label={isZh ? "删除自定义提示音" : "Delete custom sound"}
-                  title={isZh ? "删除" : "Delete"}
-                  onClick={() => void remove(sound)}
-                >
-                  <IconTrash size={14} aria-hidden="true" />
-                </button>
-              </div>
-            )}
-          />
-        ))
+          )}
+        />
+        <SettingRow
+          title={isZh ? "轮次完成通知" : "Turn completion alerts"}
+          description={isZh ? "设置 LFAA 完成后何时提醒你" : "Choose when to alert after a turn finishes"}
+          control={(
+            <SettingSelect
+              value={cfg.turnCompleteNotification}
+              label={isZh ? "轮次完成通知" : "Turn completion alerts"}
+              options={[
+                { value: "unfocused", label: isZh ? "仅在未聚焦时" : "When unfocused" },
+                { value: "always", label: isZh ? "始终通知" : "Always" },
+                { value: "off", label: isZh ? "关闭" : "Off" },
+              ]}
+              onChange={(turnCompleteNotification) => onPatch({ turnCompleteNotification })}
+            />
+          )}
+        />
+        <SettingRow
+          title={isZh ? "启用权限通知" : "Permission notifications"}
+          description={isZh ? "当对话串需要你批准时提醒你" : "Notify when an action needs your approval"}
+          control={(
+            <SettingSwitch
+              checked={cfg.enableApprovalNotification}
+              label={isZh ? "启用权限通知" : "Permission notifications"}
+              onChange={(enableApprovalNotification) => {
+                if (enableApprovalNotification) void requestNotificationPermission();
+                onPatch({ enableApprovalNotification });
+              }}
+            />
+          )}
+        />
+        <SettingRow
+          title={isZh ? "启用问题通知" : "Question notifications"}
+          description={isZh ? "当对话串需要你回答问题时提醒你" : "Notify when a thread asks you a question"}
+          control={(
+            <SettingSwitch
+              checked={cfg.enableQuestionNotification}
+              label={isZh ? "启用问题通知" : "Question notifications"}
+              onChange={(enableQuestionNotification) => {
+                if (enableQuestionNotification) void requestNotificationPermission();
+                onPatch({ enableQuestionNotification });
+              }}
+            />
+          )}
+        />
+        <SettingRow
+          title={isZh ? "启用会话状态提醒" : "Session status badges"}
+          description={isZh ? "在左二会话列表显示待确认 / 待回答的会话" : "Show waiting approvals and questions in the chat list"}
+          control={(
+            <SettingSwitch
+              checked={cfg.enableDotNotification}
+              label={isZh ? "启用会话状态提醒" : "Session status badges"}
+              onChange={(enableDotNotification) => onPatch({ enableDotNotification })}
+            />
+          )}
+        />
+      </SettingGroup>
+
+      <SettingGroup title={isZh ? "提示音" : "Sounds"}>
+        <SettingRow
+          title={isZh ? "轮次完成提示音" : "Completion sound"}
+          description={isZh ? "一轮回复结束后的提示音" : "Played when a turn completes"}
+          control={(
+            <SoundPicker
+              isZh={isZh}
+              label={isZh ? "轮次完成提示音" : "Completion sound"}
+              value={cfg.completionSound}
+              fallback={cfg.notificationSound}
+              customSounds={customSounds}
+              onChange={(soundId) => onPatch({ completionSound: soundId })}
+            />
+          )}
+        />
+        <SettingRow
+          title={isZh ? "澄清 / 待回答提示音" : "Question sound"}
+          description={isZh ? "Agent 需要你回答澄清问题时使用" : "Played when the agent asks a clarifying question"}
+          control={(
+            <SoundPicker
+              isZh={isZh}
+              label={isZh ? "澄清 / 待回答提示音" : "Question sound"}
+              value={cfg.questionSound}
+              fallback={cfg.notificationSound}
+              customSounds={customSounds}
+              onChange={(soundId) => onPatch({ questionSound: soundId })}
+            />
+          )}
+        />
+        <SettingRow
+          title={isZh ? "待确认 / 关键决策提示音" : "Approval / decision sound"}
+          description={isZh ? "需要批准工具调用或关键决策时使用" : "Played when approval or a key decision is required"}
+          control={(
+            <SoundPicker
+              isZh={isZh}
+              label={isZh ? "待确认 / 关键决策提示音" : "Approval / decision sound"}
+              value={cfg.approvalSound}
+              fallback={cfg.notificationSound}
+              customSounds={customSounds}
+              onChange={(soundId) => onPatch({ approvalSound: soundId })}
+            />
+          )}
+        />
+        <SettingRow
+          title={isZh ? "上传自定义提示音" : "Upload custom sounds"}
+          description={isZh
+            ? `支持 WAV、MP3、OGG、M4A、WebM 或 FLAC，单个最大 ${formatBytes(MAX_CUSTOM_SOUND_BYTES)}`
+            : `WAV, MP3, OGG, M4A, WebM or FLAC up to ${formatBytes(MAX_CUSTOM_SOUND_BYTES)}`}
+          control={(
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="audio/*"
+                hidden
+                onChange={(event) => void upload(event.target.files?.[0])}
+              />
+              <button
+                type="button"
+                className={styles.actionBtn}
+                disabled={uploading}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <IconUpload size={14} aria-hidden="true" />
+                {uploading ? (isZh ? "上传中…" : "Uploading…") : (isZh ? "上传音频" : "Upload audio")}
+              </button>
+            </>
+          )}
+        />
+        {soundError && <p className={styles.rowDesc}>{soundError}</p>}
+      </SettingGroup>
+
+      {customSounds.length > 0 && (
+        <SettingDangerGroup title={isZh ? "删除自定义提示音" : "Delete custom sounds"}>
+          {customSounds.map((sound) => (
+            <SettingRow
+              key={sound.id}
+              title={sound.name}
+              description={`${formatBytes(sound.size)} · ${sound.mime}`}
+              control={(
+                <>
+                  <button
+                    type="button"
+                    className={styles.actionBtn}
+                    aria-label={isZh ? "试听自定义提示音" : "Preview custom sound"}
+                    title={isZh ? "试听" : "Preview"}
+                    onClick={() => void playNotificationSound(`custom:${sound.id}`)}
+                  >
+                    <IconPlayerPlay size={14} aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.dangerBtn}
+                    aria-label={isZh ? "删除自定义提示音" : "Delete custom sound"}
+                    title={isZh ? "删除" : "Delete"}
+                    onClick={() => void remove(sound)}
+                  >
+                    <IconTrash size={14} aria-hidden="true" />
+                  </button>
+                </>
+              )}
+            />
+          ))}
+        </SettingDangerGroup>
       )}
     </>
   );

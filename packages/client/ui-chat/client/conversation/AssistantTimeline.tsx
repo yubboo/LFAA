@@ -1,217 +1,99 @@
-// 以正文偏移和真实操作记录渲染流式回复及完成后的过程回看。
-import { useEffect, useId, useState } from "react";
-import {
-  IconAlertCircle, IconArrowUpRight, IconCheck, IconChevronRight, IconClock,
-  IconFileMinus, IconFilePlus, IconFileSearch, IconPencil, IconRobot, IconSparkles, IconTerminal2, IconTool,
-} from "@tabler/icons-react";
-import { getActivityKind, getActivityLabel, summarizeActivityGroup } from "./activity-label";
+// 以正文偏移、多轮思维链与工具链渲染流式回复及完成后的全程可展开回看。
+import { memo, useEffect, useId, useMemo, useState } from "react";
 import type { AgentStepItem, PendingApprovalBanner } from "../store/chat-types";
-import { getActivityFilePath, getFileActivityKind } from "../shared/file-activity";
 import { timelineMessages, type ChatLocaleMessages } from "../locales";
 import { MarkdownContent } from "./MarkdownContent";
 import { formatDuration, getLiveStage, StepTraceList, TimelineApproval } from "./StepTraceList";
+import { ThinkingBlock } from "./Thinking-Block";
+import { ToolStepRow, type FileActivityActions } from "./Tool-Step-Row";
 import styles from "./StepTraceList.module.css";
 
-interface ActivityGroup {
+interface TimelineRound {
   key: string;
-  model?: AgentStepItem;
-  live?: boolean;
+  iteration: number;
+  think?: AgentStepItem;
+  tools: AgentStepItem[];
   offset: number;
-  steps: AgentStepItem[];
+  live: boolean;
 }
 
-const activityIcons = { command: IconTerminal2, file: IconPencil, read: IconFileSearch, skill: IconSparkles, subagent: IconRobot, tool: IconTool };
+/** 按轮次还原完整思维链与工具链，保留每一轮的思考步骤及工具调用，不再丢弃历史思考。 */
+function buildTimelineRounds(steps: readonly AgentStepItem[], textLength: number, isStreaming: boolean): TimelineRound[] {
+  const rounds = new Map<string, TimelineRound>();
+  const latestThink = [...steps].reverse().find((step) => step.phase === "think");
 
-interface FileActivityActions {
-  onOpenFile: (stepId: string) => void;
-  onOpenTrace?: ((stepId: string) => void) | undefined;
-  selectedFileStepId?: string | undefined;
-}
-
-/** 轮次是活动行的身份，思考、工具事件和后续的子任务更新共用它。 */
-function groupActivities(steps: AgentStepItem[], textLength: number, isStreaming: boolean): ActivityGroup[] {
-  const groups = new Map<string, ActivityGroup>();
-  const currentModel = [...steps].reverse().find((step) => step.phase === "think");
   for (const step of steps) {
     const initialSkill = step.id === "skills-loaded";
-    if (step.phase !== "act" && step !== currentModel && !initialSkill) continue;
+    if (step.phase !== "think" && step.phase !== "act" && !initialSkill) continue;
     const key = initialSkill ? step.id : `round-${step.iteration}`;
-    const group = groups.get(key) ?? { key, offset: 0, steps: [] };
-    const offset = step.status === "preparing" ? textLength : Math.min(textLength, step.textOffset ?? 0);
-    group.offset = Math.max(group.offset, offset);
-    if (step.phase === "think") group.model = step;
-    else group.steps.push(step);
-    groups.set(key, group);
+    const round = rounds.get(key) ?? {
+      key,
+      iteration: step.iteration,
+      tools: [],
+      offset: 0,
+      live: false,
+    };
+    const rawOffset = step.status === "preparing" ? textLength : Math.min(textLength, step.textOffset ?? 0);
+    round.offset = Math.max(round.offset, rawOffset);
+    if (step.phase === "think") round.think = step;
+    else round.tools.push(step);
+    rounds.set(key, round);
   }
-  // 模型事件到来前即预留首轮行，使初始化及首个实际步骤复用同一个节点。
-  if (isStreaming && !currentModel && ![...groups.keys()].some((key) => key.startsWith("round-"))) {
-    groups.set("round-1", { key: "round-1", offset: 0, steps: [], live: true });
+
+  // 模型首个事件到来前先预留第 1 轮，让初始化与后续真实步骤原位衔接。
+  if (isStreaming && !latestThink && ![...rounds.keys()].some((key) => key.startsWith("round-"))) {
+    rounds.set("round-1", { key: "round-1", iteration: 1, tools: [], offset: 0, live: true });
   }
-  const result = [...groups.values()];
-  let offset = 0;
-  for (const group of result) {
-    group.offset = offset = Math.max(offset, group.offset);
-    if (group.model === currentModel && currentModel) group.live = isStreaming;
+
+  const result = [...rounds.values()];
+  let runningOffset = 0;
+  for (const round of result) {
+    round.offset = runningOffset = Math.max(runningOffset, round.offset);
+    if (round.think && round.think === latestThink) {
+      round.live = isStreaming;
+    }
   }
   return result;
 }
 
-function ActivityRow({ step, locale, live, onOpenFile, onOpenTrace, selectedFileStepId }: {
-  step: AgentStepItem;
+/** 单轮工具链：用左侧细竖线直接串联本轮工具调用；若已存在对应子智能体实时卡则隐藏冗余 invoke_subagent 包装行。 */
+const RoundToolChain = memo(function RoundToolChain({
+  steps,
+  locale,
+  live,
+  now,
+  fileActions,
+}: {
+  steps: AgentStepItem[];
   locale: ChatLocaleMessages;
-  /** 当前回复是否仍在流式运行：只有运行中的行才允许播放渐变动效。 */
   live: boolean;
-} & FileActivityActions) {
-  const labels = timelineMessages[locale.isZh ? "zh" : "en"];
-  const path = getActivityFilePath(step);
-  if (path && step.status === "done") {
-    const kind = getFileActivityKind(step);
-    const Icon = kind === "created" ? IconFilePlus : kind === "deleted" ? IconFileMinus : IconPencil;
-    return (
-      <button
-        type="button"
-        className={`${styles.activityRow} ${styles.fileActivity}`}
-        data-kind={kind}
-        aria-pressed={selectedFileStepId === step.id}
-        title={path}
-        onClick={() => onOpenFile(step.id)}
-      >
-        <Icon size={15} className={styles.icon} aria-hidden="true" />
-        <span>{labels.fileKinds[kind]}</span>
-        <span className={styles.separator} aria-hidden="true">·</span>
-        <span className={styles.fileName}>{path.split(/[\\/]/u).at(-1) || path}</span>
-        <span className={styles.lineCounts}>
-          {!!step.addedLines && <span data-change="add">+{step.addedLines}</span>}
-          {!!step.removedLines && <span data-change="remove">−{step.removedLines}</span>}
-        </span>
-        <IconArrowUpRight size={13} className={styles.icon} aria-hidden="true" />
-      </button>
-    );
-  }
-
-  const command = step.commandTrace;
-  const kind = getActivityKind(step);
-  const isCommand = kind === "command";
-  const active = step.status === "preparing" || step.status === "running";
-  // 只有仍在运行中的步骤才标记为活动行，结束后即使事件残留运行状态也不再渐变。
-  const liveRow = live && active;
-  const hasDetails = Boolean(onOpenTrace || active || command || step.argsPreview || step.resultPreview || step.detail || step.toolTarget || step.argumentChars !== undefined);
-  const Icon = activityIcons[kind];
-  const title = command?.command ?? getActivityLabel(step, locale.isZh, true);
-  const StatusIcon = step.status === "done" ? IconCheck : step.status === "error" ? IconAlertCircle : IconClock;
-  const statusLabel = step.status === "done" ? locale.statusDone : step.status === "error" ? locale.statusError
-    : step.status === "preparing" ? labels.preparing
-    : step.status === "waiting_approval" ? locale.statusWaitingApproval : locale.statusRunning;
-  const showLeadingStatus = isCommand && step.status === "running";
-  // 命令开始时提示紧跟类型图标，结束后在展开箭头前显示结果。
-  const status = (
-    <span key={step.status} className={styles.activityStatus} data-status={step.status} title={statusLabel}>
-      {active ? <span className={styles.liveDot} aria-hidden="true" /> : <StatusIcon size={13} aria-hidden="true" />}
-      <span className={showLeadingStatus || (command && step.status !== "done") ? undefined : styles.srOnly}>{statusLabel}</span>
-    </span>
+  now?: number | undefined;
+  fileActions: FileActivityActions;
+}) {
+  const childParentIds = new Set(
+    steps
+      .filter((s) => s.subagent && s.id.startsWith("child-"))
+      .map((s) => s.id.slice("child-".length).replace(/-sub-[^-]+$/u, "")),
   );
-  const row = (
-    <>
-      <Icon size={isCommand ? 15 : 14} className={styles.icon} aria-hidden="true" />
-      {showLeadingStatus && status}
-      <span className={styles.activityTitle} title={title}>{title}</span>
-      {!showLeadingStatus && status}
-      {(hasDetails || onOpenTrace) && <IconChevronRight size={13} className={styles.chevron} aria-hidden="true" />}
-    </>
+  const visibleSteps = steps.filter(
+    (s) => !((s.toolName === "invoke_subagent" || s.toolName === "message_subagent") && childParentIds.has(s.id)),
   );
-  if (!hasDetails) return <div className={styles.activityRow} data-kind={kind} data-status={step.status} data-live={liveRow ? "true" : undefined}>{row}</div>;
-
   return (
-    <details className={styles.activityDisclosure}>
-      <summary className={styles.activityRow} data-kind={kind} data-status={step.status} data-live={liveRow ? "true" : undefined}>{row}</summary>
-      <div className={styles.activityDetail} data-kind={isCommand ? "command" : undefined} data-status={step.status} data-live={liveRow ? "true" : undefined}>
-        {command ? (
-          <>
-            <div className={styles.terminalHeader}>
-              {step.status === "running" && <span className={styles.liveDot} aria-hidden="true" />}
-              <span className={styles.activityTitle}>{step.status === "running" ? labels.runningCommand : labels.command}</span>
-            </div>
-            <pre>{`$ ${command.command}`}</pre>
-            {command.output && <pre className={styles.output}>{command.output}</pre>}
-            {(step.status === "done" || step.status === "error") && (
-              <div className={styles.commandResult} data-status={step.status}>
-                <StatusIcon size={13} aria-hidden="true" />
-                {step.status === "done" ? labels.commandSucceeded : labels.commandFailed}
-                {command.exitCode !== undefined && <span>{labels.exitCode} {command.exitCode}</span>}
-              </div>
-            )}
-          </>
-        ) : (
-          <>
-            {step.toolTarget && <div>{step.toolTarget}</div>}
-            {step.argumentChars !== undefined && <div>{labels.receivedArgs(step.argumentChars)}</div>}
-            {step.status === "preparing" && step.argumentChars === undefined && <div>{labels.awaitingArgs}</div>}
-            {step.argsPreview && <pre>{step.argsPreview}</pre>}
-            {step.resultPreview && <pre>{step.resultPreview}</pre>}
-          </>
-        )}
-        {step.detail && <pre>{step.detail}</pre>}
-        {onOpenTrace && kind !== "read" && kind !== "file" && (
-          <button type="button" className={styles.traceLink} onClick={() => onOpenTrace(step.id)}>{locale.isZh ? "查看" : "View"}</button>
-        )}
+    <div className={styles.toolChain}>
+      <div className={styles.activityList}>
+        {visibleSteps.map((step) => (
+          <ToolStepRow key={step.id} step={step} locale={locale} live={live} now={now} {...fileActions} />
+        ))}
       </div>
-    </details>
+    </div>
   );
-}
+});
 
-function ActivityGroupRow({ group, locale, createdAt, live, ...fileActions }: {
-  group: ActivityGroup; locale: ChatLocaleMessages; createdAt: number;
-  /** 当前回复是否仍在流式运行：结束后即使步骤残留运行状态也不再渐变。 */
-  live: boolean;
-} & FileActivityActions) {
-  const labels = timelineMessages[locale.isZh ? "zh" : "en"];
-  const failed = group.steps.filter((step) => step.status === "error").length;
-  const newest = [...group.steps].reverse();
-  const active = newest.find((step) => step.status === "waiting_approval")
-    ?? newest.find((step) => step.status === "preparing" || step.status === "running");
-  const current = active ?? group.steps.at(-1);
-  const kind = current ? getActivityKind(current) : "model";
-  const Icon = kind === "model" ? IconSparkles : activityIcons[kind];
-  const [now, setNow] = useState(Date.now);
-  const modelActive = Boolean(group.live && !current);
-  useEffect(() => {
-    if (!modelActive) return;
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, [modelActive]);
-  const modelState = group.model?.status === "error" ? "modelFailed"
-    : group.model?.status === "done" || !group.live ? "thought"
-    : group.model ? getLiveStage([group.model], now) : "starting";
-  // 摘要直接说明这一轮做了什么：单步点名对象或命令行，多步按顺序并列真实动作，
-  // 失败项回退成中性动作名，不再出现「N 项操作」这种看不出内容的前缀。
-  const summary = summarizeActivityGroup(group.steps, locale.isZh) ?? labels[modelState];
-  const groupLive = live && (Boolean(active) || modelActive);
-  return (
-    <details className={styles.activityDisclosure} data-activity-segment={group.key}>
-      <summary className={styles.disclosure} data-kind={kind} data-status={active?.status ?? (modelActive ? "running" : undefined)} data-live={groupLive ? "true" : undefined}>
-        {((active && active.status !== "waiting_approval") || modelActive) && <span className={styles.liveDot} aria-hidden="true" />}
-        <Icon size={14} className={styles.icon} aria-hidden="true" />
-        <span className={styles.activityTitle} title={summary} aria-live={group.live || active ? "polite" : undefined}>{summary}</span>
-        {modelActive && <span className={styles.elapsed}>{formatDuration(now - (group.model?.startedAt ?? createdAt), locale.isZh)}</span>}
-        {active?.status === "preparing" && active.argumentChars !== undefined && (
-          <span className={styles.elapsed}>{labels.receivedArgs(active.argumentChars)}</span>
-        )}
-        {failed > 0 && <span className={styles.failed}>{labels.failures(failed)}</span>}
-        {current && <IconChevronRight size={14} className={styles.chevron} aria-hidden="true" />}
-      </summary>
-      {current && (
-        <div className={styles.activityList}>
-          {group.steps.map((step) => <ActivityRow key={step.id} step={step} locale={locale} live={live} {...fileActions} />)}
-        </div>
-      )}
-    </details>
-  );
-}
-
-/** 运行中自然展开过程，结束后用顶部用时控制回看，最终正文始终显示。 */
-export function AssistantTimeline({
+/** 运行中与完成后均默认全程展开思维链与工具链，顶部汇总条与各子块均可随时收起/展开。 */
+export const AssistantTimeline = memo(function AssistantTimeline({
   locale,
   content,
+  reasoning,
   progressText,
   steps,
   createdAt,
@@ -223,12 +105,14 @@ export function AssistantTimeline({
   onResolveApproval,
   onOpenFile,
   onOpenTrace,
+  onOpenBrowser,
   selectedFileStepId,
   bodyClassName,
-  onSelectAdvice,
 }: {
   locale: ChatLocaleMessages;
   content: string;
+  /** 兼容历史会话或单轮纯推理消息的总思考文本。 */
+  reasoning?: string | undefined;
   progressText?: string | undefined;
   steps: AgentStepItem[];
   createdAt: number;
@@ -239,20 +123,39 @@ export function AssistantTimeline({
   pendingApproval: PendingApprovalBanner | null;
   onResolveApproval: (approved: boolean) => void;
   bodyClassName?: string | undefined;
+  /** 保留可选签名兼容调用方；正文已统一还原标准排版。 */
   onSelectAdvice?: ((text: string) => void) | undefined;
 } & FileActivityActions) {
-  const [historyOpen, setHistoryOpen] = useState(true);
-  const [liveOpen, setLiveOpen] = useState<boolean>();
+  const [processOpen, setProcessOpen] = useState(true);
+  const [now, setNow] = useState(Date.now);
   const processId = useId();
+
+  // 合并为单一定时器，只在当前消息处于流式运行时每秒刷新一次实时耗时。
+  useEffect(() => {
+    if (!isStreaming) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [isStreaming]);
+
   const text = isStreaming ? content : (progressText ?? "");
-  const groups = groupActivities(steps, text.length, isStreaming);
-  const hasProcess = groups.length > 0 || (!isStreaming && Boolean(text.trim()));
+  const rounds = useMemo(() => buildTimelineRounds(steps, text.length, isStreaming), [steps, text.length, isStreaming]);
+  const totalTools = useMemo(() => rounds.reduce((acc, r) => acc + r.tools.length, 0), [rounds]);
+  const hasAnyStepReasoning = useMemo(
+    () => rounds.some((r) => Boolean(r.think?.detail?.trim())),
+    [rounds],
+  );
+  const fallbackReasoning = !hasAnyStepReasoning && reasoning?.trim() ? reasoning.trim() : undefined;
+  const hasProcess = rounds.length > 0 || Boolean(fallbackReasoning) || (!isStreaming && Boolean(text.trim()));
   const lastEvent = steps.reduce((latest, step) => Math.max(latest, step.timestamp), 0);
   const durationMs = runDurationMs ?? reasoningDurationMs ?? (lastEvent >= createdAt ? lastEvent - createdAt : undefined);
   const hasStatus = isStreaming || durationMs !== undefined || hasProcess || tokenUsage !== undefined;
-  const finalText = isStreaming ? text.slice(groups.at(-1)?.offset ?? 0) : content;
-  const processOpen = isStreaming ? (liveOpen ?? hasProcess) : (liveOpen ?? historyOpen);
+  const finalText = isStreaming ? text.slice(rounds.at(-1)?.offset ?? 0) : content;
   const hasDisclosure = isStreaming || hasProcess;
+  const labels = timelineMessages[locale.isZh ? "zh" : "en"];
+  const fileActions = useMemo<FileActivityActions>(
+    () => ({ onOpenFile, onOpenTrace, onOpenBrowser, selectedFileStepId }),
+    [onOpenBrowser, onOpenFile, onOpenTrace, selectedFileStepId],
+  );
 
   return (
     <>
@@ -260,40 +163,104 @@ export function AssistantTimeline({
         <StepTraceList
           isZh={locale.isZh}
           createdAt={createdAt}
+          now={now}
           durationMs={durationMs}
+          toolCount={totalTools}
           tokenUsage={tokenUsage}
           isStreaming={isStreaming}
           expanded={processOpen}
           processId={processId}
-          onToggle={hasDisclosure ? () => {
-            if (isStreaming) setLiveOpen(!processOpen);
-            else { setLiveOpen(undefined); setHistoryOpen(!processOpen); }
-          } : undefined}
+          onToggle={hasDisclosure ? () => setProcessOpen((prev) => !prev) : undefined}
         />
       )}
       {hasStatus && (content.trim() || hasProcess) && <hr className={styles.timelineDivider} />}
       {hasDisclosure && (
         <div id={processId} hidden={!processOpen} className={`${styles.flow} ${styles.process}`}>
-          {groups.map((group, index) => {
-            const precedingText = text.slice(groups[index - 1]?.offset ?? 0, group.offset);
-            return (
-              <div key={group.key} className={styles.flow}>
+          {rounds.length === 0 && fallbackReasoning && (
+            <ThinkingBlock
+              label={isStreaming ? (locale.isZh ? "思考中…" : "Thinking…") : (locale.isZh ? "已思考" : "Thought")}
+              durationText={reasoningDurationMs ? formatDuration(reasoningDurationMs, locale.isZh) : undefined}
+              reasoningText={fallbackReasoning}
+              live={isStreaming}
+              isZh={locale.isZh}
+            />
+          )}
+          {rounds.map((round, index) => {
+            const precedingText = text.slice(rounds[index - 1]?.offset ?? 0, round.offset);
+            const thinkStep = round.think;
+            const isLastRound = index === rounds.length - 1;
+            const thinkDetail = thinkStep?.detail?.trim() || (isLastRound ? fallbackReasoning : undefined);
+            const thinkActive = Boolean(round.live && round.tools.length === 0 && (!thinkStep || thinkStep.status === "running"));
+            const thinkStage = thinkStep?.status === "error"
+              ? "modelFailed"
+              : thinkActive
+                ? (thinkStep ? getLiveStage([thinkStep], now) : "starting")
+                : "thought";
+            // 有真实思考正文时显示「思考中… / 已思考」，无思考正文时保留语义阶段文案（如「已分析」「正在回复」）。
+            const thinkLabel = thinkDetail
+              ? (thinkActive ? (thinkStage === "reasoning" ? labels.reasoning : (locale.isZh ? "思考中…" : "Thinking…")) : (locale.isZh ? "已思考" : "Thought"))
+              : labels[thinkStage];
+            const thinkDuration = thinkActive
+              ? formatDuration(now - (thinkStep?.startedAt ?? createdAt), locale.isZh)
+              : (thinkStep?.startedAt !== undefined && thinkStep.timestamp > thinkStep.startedAt + 999
+                ? formatDuration(thinkStep.timestamp - thinkStep.startedAt, locale.isZh)
+                : undefined);
+            // 只要该轮有思考步骤/思考正文/活跃状态或无工具，即用 ThinkingBlock 统一包裹本轮思考与工具链，
+            // 点击「已思考」可一次性收起本轮的思考正文、过程说明与全部工具行。
+            const showThinkBlock = Boolean(thinkStep || thinkDetail || thinkActive || round.tools.length === 0);
+            const roundFollowContent = (precedingText.trim() || round.tools.length > 0) ? (
+              <>
                 {precedingText.trim() && (
-                  <div className={bodyClassName}><MarkdownContent content={precedingText} isZh={locale.isZh} onSelectAdvice={onSelectAdvice} /></div>
+                  <div className={bodyClassName}>
+                    <MarkdownContent content={precedingText} isZh={locale.isZh} />
+                  </div>
                 )}
-                <ActivityGroupRow group={group} locale={locale} createdAt={createdAt} live={isStreaming} onOpenFile={onOpenFile} onOpenTrace={onOpenTrace} selectedFileStepId={selectedFileStepId} />
+                {round.tools.length > 0 && (
+                  <RoundToolChain
+                    steps={round.tools}
+                    locale={locale}
+                    live={isStreaming}
+                    now={isStreaming ? now : undefined}
+                    fileActions={fileActions}
+                  />
+                )}
+              </>
+            ) : null;
+
+            return (
+              <div key={round.key} className={styles.roundBlock} data-activity-segment={round.key}>
+                {showThinkBlock ? (
+                  <ThinkingBlock
+                    label={thinkLabel}
+                    durationText={thinkDuration}
+                    reasoningText={thinkDetail}
+                    toolCount={round.tools.length}
+                    live={thinkActive}
+                    isZh={locale.isZh}
+                  >
+                    {roundFollowContent}
+                  </ThinkingBlock>
+                ) : (
+                  roundFollowContent
+                )}
               </div>
             );
           })}
-          {!isStreaming && text.slice(groups.at(-1)?.offset ?? 0).trim() && (
+          {!isStreaming && text.slice(rounds.at(-1)?.offset ?? 0).trim() && (
             <div className={bodyClassName}>
-              <MarkdownContent content={text.slice(groups.at(-1)?.offset ?? 0)} isZh={locale.isZh} onSelectAdvice={onSelectAdvice} />
+              <MarkdownContent content={text.slice(rounds.at(-1)?.offset ?? 0)} isZh={locale.isZh} />
             </div>
           )}
         </div>
       )}
-      {pendingApproval && <TimelineApproval locale={locale} pendingApproval={pendingApproval} onResolveApproval={onResolveApproval} />}
-      {finalText.trim() && <div className={bodyClassName}><MarkdownContent content={finalText} isZh={locale.isZh} onSelectAdvice={onSelectAdvice} /></div>}
+      {pendingApproval && (
+        <TimelineApproval locale={locale} pendingApproval={pendingApproval} onResolveApproval={onResolveApproval} />
+      )}
+      {finalText.trim() && (
+        <div className={bodyClassName}>
+          <MarkdownContent content={finalText} isZh={locale.isZh} />
+        </div>
+      )}
     </>
   );
-}
+});

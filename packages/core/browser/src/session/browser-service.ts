@@ -1,7 +1,7 @@
 // 基于 playwright-core 驱动本机 Edge/Chrome，支持会话多标签页、动态视口同步、真实键鼠操作及 Console/Network 采集。
 import { randomUUID } from "node:crypto";
 import { chromium, type Browser } from "playwright-core";
-import { BrowserSettingsStore, clampDpr } from "../settings/browser-settings";
+import { BrowserSettingsStore } from "../settings/browser-settings";
 import {
   applyAppearance,
   buildScreencastMeta,
@@ -13,10 +13,12 @@ import {
 import { attachPopupHandler, attachTabListeners, openInternalPage } from "./browser-tabs";
 import { SessionDriver, type SessionDriverHost } from "./session-driver";
 import type { BrowserTabEntry, SessionBrowserState } from "./browser-session-types";
+import { BrowserIdleThrottle } from "./browser-idle-throttle";
 import { ScreencastManager, type StreamFrameListener } from "./screencast-manager";
 import { clampViewport, detectLocalBrowserExecutable, validateBrowserUrl } from "../runtime-utils";
 import type {
   BrowserConsoleItem,
+  BrowserInputPayload,
   BrowserNetworkItem,
   BrowserSessionSnapshot,
   BrowserSettingsConfig,
@@ -24,6 +26,26 @@ import type {
 
 export { detectLocalBrowserExecutable, validateBrowserUrl };
 export { BrowserSettingsStore, clampDpr } from "../settings/browser-settings";
+
+/** 注入到受控页面的纯字符串初始化脚本：避免 tsdown/esbuild 插桩 __name 辅助函数导致页面报 ReferenceError。 */
+const EMBEDDED_BROWSER_INIT_SCRIPT = [
+  "window.__LFAA_EMBEDDED_BROWSER__ = true;",
+  "(function () {",
+  "  function applyOverscroll() {",
+  "    if (document.getElementById('lfaa-browser-overscroll-guard')) return;",
+  "    var style = document.createElement('style');",
+  "    style.id = 'lfaa-browser-overscroll-guard';",
+  "    style.textContent = 'html, body { overscroll-behavior: none !important; }';",
+  "    var root = document.head || document.documentElement;",
+  "    if (root) root.appendChild(style);",
+  "  }",
+  "  if (document.readyState === 'loading') {",
+  "    document.addEventListener('DOMContentLoaded', applyOverscroll, { once: true });",
+  "  } else {",
+  "    applyOverscroll();",
+  "  }",
+  "})();",
+].join("\n");
 
 export class BrowserRuntime implements SessionDriverHost {
   private readonly settings: BrowserSettingsStore;
@@ -33,6 +55,7 @@ export class BrowserRuntime implements SessionDriverHost {
   private executablePath: string | undefined;
   private readonly sessions = new Map<string, SessionBrowserState>();
   private readonly screencast = new ScreencastManager();
+  private readonly idleThrottle = new BrowserIdleThrottle();
 
   constructor(storeFilePath?: string) {
     this.settings = new BrowserSettingsStore(storeFilePath);
@@ -65,7 +88,15 @@ export class BrowserRuntime implements SessionDriverHost {
     this.browser = await chromium.launch({
       executablePath,
       headless: settings.headless,
-      args: ["--disable-gpu-sandbox", "--no-first-run", "--no-default-browser-check"],
+      // 锁定 2x 设备像素比并开启 GPU 光栅化加速（无显卡环境自动回退），确保兜底 CDP 视图同样清晰流畅。
+      args: [
+        "--disable-gpu-sandbox",
+        "--enable-gpu-rasterization",
+        "--ignore-gpu-blocklist",
+        "--no-first-run",
+        "--no-default-browser-check",
+        "--force-device-scale-factor=2",
+      ],
     });
     return this.browser;
   }
@@ -75,6 +106,7 @@ export class BrowserRuntime implements SessionDriverHost {
     sessionId: string,
     appearance?: { deviceScaleFactor?: number; colorScheme?: "dark" | "light" },
   ): Promise<{ state: SessionBrowserState; tab: BrowserTabEntry }> {
+    await this.idleThrottle.markActive(sessionId);
     const existing = this.sessions.get(sessionId);
     if (existing) {
       await applyAppearance(existing, appearance);
@@ -98,9 +130,12 @@ export class BrowserRuntime implements SessionDriverHost {
 
     const browser = await this.ensureBrowser();
     const viewport = existing?.viewport ?? { width: 1024, height: 768 };
-    const deviceScaleFactor = clampDpr(appearance?.deviceScaleFactor ?? existing?.deviceScaleFactor);
+    // 与启动参数 --force-device-scale-factor=2 对齐，避免上下文与 Screencast DPR 不一致导致重采样模糊。
+    const deviceScaleFactor = 2;
     const colorScheme: "dark" | "light" = appearance?.colorScheme ?? existing?.colorScheme ?? "dark";
     const context = await browser.newContext({ viewport, deviceScaleFactor, colorScheme });
+    // 标记当前页面运行在内置浏览器内（防自嵌套互抢视口）并抑制根滚动越界；必须传纯字符串，避免打包器插桩 __name 报错。
+    await context.addInitScript(EMBEDDED_BROWSER_INIT_SCRIPT).catch(() => {});
     const page = await context.newPage();
     const tabId = `tab-${randomUUID().slice(0, 6)}`;
     const state: SessionBrowserState = {
@@ -129,8 +164,22 @@ export class BrowserRuntime implements SessionDriverHost {
   /** @internal 由 SessionDriver 使用：Agent 操作前确认用户没有接管暂停。 */
   assertNotTakeoverPaused(state: SessionBrowserState, fromAgent: boolean): void {
     if (fromAgent && state.takeoverPaused) {
-      throw new Error("用户已在右侧浏览器面板开启「人工接管」暂停，请等待用户在面板操作后点击继续。");
+      const activeUrl = state.tabs.get(state.activeTabId)?.page.url() ?? "";
+      throw new Error(
+        `用户当前已开启「人工接管」亲自操控内置浏览器${activeUrl && activeUrl !== "about:blank" ? `（页面：${activeUrl}）` : ""}，Agent 浏览器操作已暂停。请勿重复调用浏览器工具，先向用户说明情况或等待用户点击「交还 Agent」后再继续。`,
+      );
     }
+  }
+
+  /** 向 Agent 运行上下文提供当前会话的浏览器人工接管状态，确保用户接管后 Agent 立即知情。 */
+  describeTakeoverHint(sessionId: string): string {
+    const state = this.sessions.get(sessionId);
+    if (!state || !state.takeoverPaused) return "";
+    const activeTab = state.tabs.get(state.activeTabId);
+    const url = activeTab && !activeTab.page.isClosed() ? activeTab.page.url() : "";
+    const title = activeTab?.title?.trim() ?? "";
+    const pageInfo = url && url !== "about:blank" ? `（当前页面：${title ? `${title} · ` : ""}${url}）` : "";
+    return `【内置浏览器接管通知】用户当前已主动点击「接管」亲自操控内置浏览器${pageInfo}。浏览器控制权目前归用户所有，本轮请勿调用任何 browser_* 操控工具；如需用户协助或已完成其他工作，请明确告知用户并等待用户点击「交还 Agent」后再恢复浏览器自动化。`;
   }
 
   /** 快照组装所需的运行时依赖：可执行文件、SSE 订阅查询与帧流保活。 */
@@ -152,7 +201,15 @@ export class BrowserRuntime implements SessionDriverHost {
     includeStructure = true,
   ): Promise<BrowserSessionSnapshot> {
     const { headless } = await this.getSettings();
-    return captureState(this.snapshotRuntime, state, tab, headless, withScreenshot, includeStructure);
+    const snap = await captureState(this.snapshotRuntime, state, tab, headless, withScreenshot, includeStructure);
+    if (headless && !this.screencast.hasSubscribers(state.sessionId)) {
+      this.idleThrottle.schedule(
+        state.sessionId,
+        () => this.sessions.get(state.sessionId),
+        () => this.screencast.hasSubscribers(state.sessionId),
+      );
+    }
+    return snap;
   }
 
   /** @internal 由 SessionDriver 使用：当前会话是否有串流订阅者。 */
@@ -170,6 +227,7 @@ export class BrowserRuntime implements SessionDriverHost {
     listener: StreamFrameListener,
     appearance?: { deviceScaleFactor?: number; colorScheme?: "dark" | "light" },
   ): () => void {
+    void this.idleThrottle.markActive(sessionId);
     const off = this.screencast.subscribe(sessionId, listener);
     const existing = this.sessions.get(sessionId);
     if (existing) {
@@ -177,7 +235,16 @@ export class BrowserRuntime implements SessionDriverHost {
         this.screencast.ensureRunning(sessionId, existing.context, () => buildScreencastMeta(existing), changed),
       );
     }
-    return off;
+    return () => {
+      off();
+      if (!this.screencast.hasSubscribers(sessionId) && this.launchedHeadless !== false) {
+        this.idleThrottle.schedule(
+          sessionId,
+          () => this.sessions.get(sessionId),
+          () => this.screencast.hasSubscribers(sessionId),
+        );
+      }
+    };
   }
 
   async getSnapshot(sessionId: string): Promise<BrowserSessionSnapshot> {
@@ -225,6 +292,7 @@ export class BrowserRuntime implements SessionDriverHost {
   ): Promise<BrowserSessionSnapshot> {
     const { state } = await this.ensureSession(sessionId, appearance);
     this.assertNotTakeoverPaused(state, fromAgent);
+    state.lastActor = fromAgent ? "agent" : "user";
     if (viewport) {
       state.viewport = clampViewport(viewport.width, viewport.height);
     }
@@ -241,8 +309,10 @@ export class BrowserRuntime implements SessionDriverHost {
     return this.capture(state, entry, true, fromAgent);
   }
 
-  async activateTab(sessionId: string, tabId: string): Promise<BrowserSessionSnapshot> {
+  async activateTab(sessionId: string, tabId: string, fromAgent = false): Promise<BrowserSessionSnapshot> {
     const { state } = await this.ensureSession(sessionId);
+    this.assertNotTakeoverPaused(state, fromAgent);
+    state.lastActor = fromAgent ? "agent" : "user";
     const target = state.tabs.get(tabId);
     if (!target || target.page.isClosed()) {
       throw new Error(`找不到目标标签页：${tabId}`);
@@ -254,8 +324,10 @@ export class BrowserRuntime implements SessionDriverHost {
     return this.capture(state, target, !this.screencast.hasSubscribers(sessionId) || !target.lastScreenshotBase64, false);
   }
 
-  async closeTab(sessionId: string, tabId: string): Promise<BrowserSessionSnapshot> {
+  async closeTab(sessionId: string, tabId: string, fromAgent = false): Promise<BrowserSessionSnapshot> {
     const { state } = await this.ensureSession(sessionId);
+    this.assertNotTakeoverPaused(state, fromAgent);
+    state.lastActor = fromAgent ? "agent" : "user";
     const target = state.tabs.get(tabId);
     if (target) {
       await target.page.close().catch(() => {});
@@ -290,7 +362,36 @@ export class BrowserRuntime implements SessionDriverHost {
   async hover(sessionId: string, target: { ref?: string; selector?: string; x?: number; y?: number }, fromAgent = false, fast = false): Promise<BrowserSessionSnapshot> { return this.driver.hover(sessionId, target, fromAgent, fast); }
   async typeText(sessionId: string, target: { ref?: string; selector?: string; text: string; submit?: boolean }, fromAgent = false, fast = false): Promise<BrowserSessionSnapshot> { return this.driver.typeText(sessionId, target, fromAgent, fast); }
   async pressKey(sessionId: string, key: string, fromAgent = false, fast = false): Promise<BrowserSessionSnapshot> { return this.driver.pressKey(sessionId, key, fromAgent, fast); }
-  async scroll(sessionId: string, deltaY: number, deltaX = 0, fromAgent = false, fast = false): Promise<BrowserSessionSnapshot> { return this.driver.scroll(sessionId, deltaY, deltaX, fromAgent, fast); }
+  async scroll(sessionId: string, deltaY: number, deltaX = 0, fromAgent = false, fast = false, point?: { x?: number; y?: number }): Promise<BrowserSessionSnapshot> { return this.driver.scroll(sessionId, deltaY, deltaX, fromAgent, fast, point); }
+
+  /** 超轻量键鼠输入直通：仅在用户点击「接管」后才允许转发人工键鼠输入，彻底防止误触打断 Agent。 */
+  async dispatchInput(sessionId: string, payload: BrowserInputPayload): Promise<void> {
+    const state = this.sessions.get(sessionId);
+    const activeTab = state?.tabs.get(state.activeTabId);
+    if (!state || !state.takeoverPaused || !activeTab || activeTab.page.isClosed()) return;
+    state.lastActor = "user";
+    const handled = await this.screencast.dispatchInput(sessionId, activeTab.tabId, payload);
+    if (handled) return;
+    const { page } = activeTab;
+    if (payload.kind === "wheel") {
+      await page.mouse.move(payload.x, payload.y);
+      await page.mouse.wheel(payload.deltaX, payload.deltaY);
+    } else if (payload.kind === "mousemove") {
+      await page.mouse.move(payload.x, payload.y);
+    } else if (payload.kind === "mousedown") {
+      await page.mouse.move(payload.x, payload.y);
+      await page.mouse.down({ button: payload.button ?? "left", clickCount: payload.clickCount ?? 1 });
+    } else if (payload.kind === "mouseup") {
+      await page.mouse.move(payload.x, payload.y);
+      await page.mouse.up({ button: payload.button ?? "left", clickCount: payload.clickCount ?? 1 });
+    } else if (payload.kind === "keydown") {
+      await page.keyboard.down(payload.key).catch(() => {});
+    } else if (payload.kind === "keyup") {
+      await page.keyboard.up(payload.key).catch(() => {});
+    } else if (payload.kind === "text" && payload.text) {
+      await page.keyboard.insertText(payload.text);
+    }
+  }
 
   setTakeover(sessionId: string, paused: boolean): BrowserSessionSnapshot | null {
     const state = this.sessions.get(sessionId);
@@ -335,6 +436,7 @@ export class BrowserRuntime implements SessionDriverHost {
   }
 
   async closeSession(sessionId: string): Promise<void> {
+    await this.idleThrottle.clear(sessionId);
     await this.screencast.stopSession(sessionId);
     const state = this.sessions.get(sessionId);
     if (!state) return;
@@ -343,6 +445,7 @@ export class BrowserRuntime implements SessionDriverHost {
   }
 
   async closeAll(): Promise<void> {
+    await this.idleThrottle.disposeAll();
     await this.screencast.stopAll();
     const contexts = [...this.sessions.values()];
     this.sessions.clear();

@@ -1,21 +1,37 @@
-// 统一导出 @lfaa/ui-primitives 共享交互组件（居中弹窗、浮层卡片、步进滑块）与设置中心通用控件。
+// 统一导出 @lfaa/ui-primitives 共享交互组件（折叠面板与展开按钮、居中弹窗、浮层卡片、步进滑块、滚动容器）与设置中心通用控件。
 import "./css-modules.d.ts";
 
+export { CollapsePane } from "./CollapsePane";
 export { ConfirmDialog, type ConfirmDialogProps } from "./ConfirmDialog";
 export { HoverTip } from "./HoverTip";
 export { ModalDialog, type ModalDialogProps } from "./ModalDialog";
 export { PopoverCard, type PopoverCardProps } from "./PopoverCard";
+export { ScrollArea, type ScrollAreaProps, type ScrollAxis } from "./ScrollArea";
 export { StatusBanner, type StatusBannerProps } from "./StatusBanner";
+export { PanelToggleButton, type PanelToggleSide } from "./PanelToggleButton";
 export { StepSliderPopover, type StepSliderPopoverProps } from "./StepSliderPopover";
-// 设置页通用外观与控件：分组卡片、条目行、开关、可搜索下拉；供设置中心各功能页共用。
+// 折叠面板的挂载保持：收起过渡结束前不卸载内容，展开后立即恢复。
 export {
-  SettingGroupCard,
+  PANE_TRANSITION_MS,
+  prefersReducedMotion,
+  resolvePaneTransitionMs,
+  usePanePresence,
+} from "./usePanePresence";
+// 设置页通用外观与控件：页外壳、无边框分组、条目行、表单字段、危险组、开关、分段与可搜索下拉；供设置中心各功能页共用。
+export {
+  SettingDangerGroup,
+  SettingFormActions,
+  SettingFormBlock,
+  SettingFormField,
+  SettingGroup,
   SettingRow,
-  SettingSelect,
+  SettingSegmented,
+  SettingsPage,
   SettingSwitch,
-  type SettingSelectOption,
 } from "./settings/SettingsControls";
-export { default as settingsStyles } from "./settings/SettingsSurface.module.css";
+export { SettingMultiSelect, SettingSelect, type SettingSelectOption } from "./settings/SettingSelect";
+// 设置页样式合并导出：排版层（页/分组/行）与控件层（表单/按钮/开关）分别维护，调用方仍只取一个对象。
+export { settingsStyles } from "./settings/settingsStyles";
 export {
   clampStepIndex,
   computeStepRatio,

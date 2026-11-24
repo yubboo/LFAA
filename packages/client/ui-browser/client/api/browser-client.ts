@@ -1,6 +1,7 @@
 // 封装浏览器面板与设置页共用的 HTTP API 请求辅助函数，支持多标签、动态视口、键鼠穿透与 DevTools 日志。
 import type {
   BrowserConsoleItem,
+  BrowserInputPayload,
   BrowserNetworkItem,
   BrowserSessionSnapshot,
   BrowserSettingsConfig,
@@ -10,6 +11,7 @@ import type {
 
 export type {
   BrowserConsoleItem,
+  BrowserInputPayload,
   BrowserNetworkItem,
   BrowserSessionSnapshot,
   BrowserSettingsConfig,
@@ -97,25 +99,11 @@ export function controlBrowserNav(sessionId: string, action: "back" | "forward" 
   });
 }
 
-export function performBrowserAction(
-  sessionId: string,
-  payload: {
-    kind: "click" | "hover" | "type" | "key" | "scroll";
-    ref?: string;
-    x?: number;
-    y?: number;
-    button?: "left" | "right" | "middle";
-    clickCount?: number;
-    text?: string;
-    submit?: boolean;
-    key?: string;
-    deltaY?: number;
-    deltaX?: number;
-    fast?: boolean;
-  },
-) {
-  return requestJson<{ state: BrowserSessionSnapshot }>("/api/browser/action", {
+/** 超轻量键鼠输入直通：后端直接走常驻 CDP 返回 204，不阻塞截图与 JSON 序列化。 */
+export async function sendBrowserInput(sessionId: string, payload: BrowserInputPayload): Promise<void> {
+  await fetch("/api/browser/input", {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ sessionId, ...payload }),
   });
 }

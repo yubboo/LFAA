@@ -30,6 +30,7 @@ export class SessionDriver {
     const { url } = validateBrowserUrl(rawUrl);
     const { state, tab } = await this.host.ensureSession(sessionId, appearance);
     this.host.assertNotTakeoverPaused(state, fromAgent);
+    state.lastActor = fromAgent ? "agent" : "user";
     let vpChanged = false;
     if (viewport) {
       const nextVp = clampViewport(viewport.width, viewport.height);
@@ -105,6 +106,7 @@ export class SessionDriver {
   ): Promise<BrowserSessionSnapshot> {
     const { state, tab } = await this.host.ensureSession(sessionId);
     this.host.assertNotTakeoverPaused(state, fromAgent);
+    state.lastActor = fromAgent ? "agent" : "user";
     if (typeof target.x === "number" && typeof target.y === "number") {
       await tab.page.mouse.click(target.x, target.y, {
         button: target.button ?? "left",
@@ -131,6 +133,7 @@ export class SessionDriver {
   ): Promise<BrowserSessionSnapshot> {
     const { state, tab } = await this.host.ensureSession(sessionId);
     this.host.assertNotTakeoverPaused(state, fromAgent);
+    state.lastActor = fromAgent ? "agent" : "user";
     if (typeof target.x === "number" && typeof target.y === "number") {
       await tab.page.mouse.move(target.x, target.y);
     } else if (target.ref) {
@@ -151,6 +154,7 @@ export class SessionDriver {
   ): Promise<BrowserSessionSnapshot> {
     const { state, tab } = await this.host.ensureSession(sessionId);
     this.host.assertNotTakeoverPaused(state, fromAgent);
+    state.lastActor = fromAgent ? "agent" : "user";
     const locator = target.ref
       ? tab.page.locator(`[data-lfaa-ref="${target.ref}"]`).first()
       : target.selector
@@ -168,9 +172,20 @@ export class SessionDriver {
     return this.host.capture(state, tab, needShot, fromAgent);
   }
 
-  async scroll(sessionId: string, deltaY: number, deltaX = 0, fromAgent = false, fast = false): Promise<BrowserSessionSnapshot> {
+  async scroll(
+    sessionId: string,
+    deltaY: number,
+    deltaX = 0,
+    fromAgent = false,
+    fast = false,
+    point?: { x?: number; y?: number },
+  ): Promise<BrowserSessionSnapshot> {
     const { state, tab } = await this.host.ensureSession(sessionId);
     this.host.assertNotTakeoverPaused(state, fromAgent);
+    state.lastActor = fromAgent ? "agent" : "user";
+    if (typeof point?.x === "number" && typeof point?.y === "number") {
+      await tab.page.mouse.move(point.x, point.y);
+    }
     await tab.page.mouse.wheel(deltaX, deltaY);
     if (fromAgent) await tab.page.waitForTimeout(120);
     const needShot = fromAgent || (!fast && !this.host.hasStreamSubscribers(sessionId));
@@ -180,6 +195,7 @@ export class SessionDriver {
   async pressKey(sessionId: string, key: string, fromAgent = false, fast = false): Promise<BrowserSessionSnapshot> {
     const { state, tab } = await this.host.ensureSession(sessionId);
     this.host.assertNotTakeoverPaused(state, fromAgent);
+    state.lastActor = fromAgent ? "agent" : "user";
     await tab.page.keyboard.press(key);
     if (fromAgent) await tab.page.waitForTimeout(120);
     const needShot = fromAgent || (!fast && !this.host.hasStreamSubscribers(sessionId));

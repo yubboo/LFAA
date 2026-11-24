@@ -1,5 +1,5 @@
 // 复用同一套左二菜单栏骨架，根据 WorkbenchDomainConfig 切换头部形态与业务菜单内容。
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type {
   WorkbenchChatProvider,
   WorkbenchChatSessionSummary,
@@ -9,13 +9,12 @@ import type {
   WorkbenchViewContribution,
 } from "../../contract/index";
 import type { LocaleMessages } from "../locales";
-import type { LocalProject, NavigationTarget, NavigationView, RecentItem, WorkspaceMode } from "./navigation";
-import { buildNavigationTargets, type WorkbenchDomainConfig } from "./workbench-domains";
+import type { LocalProject, NavigationView, RecentItem, WorkspaceMode } from "./navigation";
+import type { WorkbenchDomainConfig } from "./workbench-domains";
 import type { LibraryTabKey } from "../workbench-service";
 import { DomainSidebarMenu } from "./DomainSidebarMenu";
 import { NavigationIcon } from "./NavigationIcon";
 import { NavigationGroups } from "./NavigationGroups";
-import { SearchDialog } from "../panels/SearchDialog";
 import { SettingsMenu } from "../panels/SettingsMenu";
 import styles from "./NavigationSidebar.module.css";
 
@@ -44,8 +43,10 @@ export function NavigationSidebar({
   onCloseDrawer,
   onModeChange,
   onNewChat,
+  onNewRecentChat,
   onNewChatInProject,
   onNewChatInSection,
+  onSelectProjectContext,
   onSelectChatSession,
   onNavigate,
   onSelectLibraryTab,
@@ -82,8 +83,10 @@ export function NavigationSidebar({
   onCloseDrawer?: () => void;
   onModeChange: (mode: WorkspaceMode) => void;
   onNewChat: () => void;
+  onNewRecentChat?: (() => void) | undefined;
   onNewChatInProject: (project: LocalProject) => void;
   onNewChatInSection: (section: WorkbenchSectionItem) => void;
+  onSelectProjectContext?: ((project: LocalProject) => void) | undefined;
   onSelectChatSession?: ((sessionId: string) => void) | undefined;
   onNavigate: (view: NavigationView) => void;
   onSelectLibraryTab: (tab: LibraryTabKey) => void;
@@ -120,7 +123,7 @@ export function NavigationSidebar({
     const closeOnOutside = (event: PointerEvent) => {
       if (event.target instanceof Node
         && !activityPanelRef.current?.contains(event.target)
-        && event.target !== activityTriggerRef.current) onCloseActivity();
+        && !activityTriggerRef.current?.contains(event.target)) onCloseActivity();
     };
     document.addEventListener("pointerdown", closeOnOutside);
     return () => document.removeEventListener("pointerdown", closeOnOutside);
@@ -135,19 +138,6 @@ export function NavigationSidebar({
     if (wasActivityOpen.current && !activityOpen) activityTriggerRef.current?.focus();
     wasActivityOpen.current = activityOpen;
   }, [activityOpen]);
-
-  const targets = useMemo<NavigationTarget[]>(
-    () => buildNavigationTargets(locale, projects),
-    [locale, projects],
-  );
-
-  const chooseTarget = (target: NavigationTarget) => {
-    onCloseSearch();
-    if (target.projectId) {
-      const project = projects.find((item) => item.id === target.projectId);
-      if (project) onOpenProject(project);
-    } else onNavigate(target.view);
-  };
 
   const header = domain.sidebarHeader;
   const isModeSwitcher = header.kind === "modeSwitcher";
@@ -197,7 +187,7 @@ export function NavigationSidebar({
               aria-expanded={modeMenuOpen}
               onClick={() => setModeMenuOpen((open) => !open)}
             >
-              <span>{mode === "chatgpt" ? locale.chatModeTitle : locale.codexModeTitle}</span>
+              <span>{locale.agentName}</span>
               <NavigationIcon name="chevronDown" />
             </button>
             {modeMenuOpen && (
@@ -282,8 +272,10 @@ export function NavigationSidebar({
             projectProvider={projectProvider}
             sectionProvider={sectionProvider}
             onNewChat={onNewChat}
+            onNewRecentChat={onNewRecentChat}
             onNewChatInProject={onNewChatInProject}
             onNewChatInSection={onNewChatInSection}
+            onSelectProjectContext={onSelectProjectContext}
             onSelectChatSession={onSelectChatSession}
             onNavigate={onNavigate}
             onOpenProject={onOpenProject}
@@ -293,15 +285,6 @@ export function NavigationSidebar({
           />
         )}
       </div>
-      {searchOpen && (
-        <SearchDialog
-          locale={locale}
-          targets={targets}
-          chatProvider={chatProvider}
-          onClose={onCloseSearch}
-          onChoose={chooseTarget}
-        />
-      )}
     </aside>
   );
 }

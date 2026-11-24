@@ -33,6 +33,8 @@ export function WorkbenchStageContent({
   reviewMessageId,
   browserInitialUrl,
   browserExternalState,
+  agentRunning,
+  devtoolsRequest,
   showStartPage,
   activeBrowserTabId,
   jobs,
@@ -68,6 +70,8 @@ export function WorkbenchStageContent({
   reviewMessageId: string | undefined;
   browserInitialUrl: string | undefined;
   browserExternalState: { snap: BrowserSessionSnapshot; nonce: number } | undefined;
+  agentRunning: boolean;
+  devtoolsRequest?: { tab: "console" | "network"; nonce: number } | undefined;
   showStartPage: boolean;
   activeBrowserTabId: string | undefined;
   jobs: RightJobItem[];
@@ -142,11 +146,14 @@ export function WorkbenchStageContent({
           // 空白时浏览器仍订阅宿主机状态，小鱼打开页面后可直接切回实时视口。
           <div className={styles.browserView} data-covered={showStartPage || undefined} inert={showStartPage}>
             <RightBrowserPane
+              key={sessionId}
               sessionId={sessionId}
               isZh={locale.isZh}
               initialUrl={browserInitialUrl}
               hideTabStrip={true}
+              agentRunning={agentRunning}
               externalState={browserExternalState}
+              devtoolsRequest={devtoolsRequest}
               onSnapshotChange={onSnapshotChange}
               onAttachPage={onAttachPage}
             />

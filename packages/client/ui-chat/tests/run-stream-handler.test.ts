@@ -85,6 +85,20 @@ test("步骤更新按 id 覆盖而不是重复追加", () => {
   assert.equal(steps[0]!.title, "思考完成");
 });
 
+test("按轮次流式思考增量实时写入对应 think 步骤，心跳更新不冲掉已累积思考内容", () => {
+  const { port, state } = createPort();
+  const handlers = handlersFor(port);
+  handlers.onStepUpdate({ id: "think-1", iteration: 1, phase: "think", status: "running", title: "第 1 轮思考", timestamp: 1 });
+  handlers.onDeltaBatch({
+    text: "",
+    reasoning: "先看配置文件",
+    reasoningByIteration: [{ iteration: 1, text: "先看配置文件" }],
+  });
+  handlers.onStepUpdate({ id: "think-1", iteration: 1, phase: "think", status: "running", title: "第 1 轮思考", modelStage: "reasoning", timestamp: 2 });
+  const thinkStep = state.activeSession!.messages[0]!.steps?.[0];
+  assert.equal(thinkStep?.detail, "先看配置文件");
+});
+
 test("正常结束：清运行标记、落错误并自动接续排队消息", async () => {
   const { port, state, patches, calls } = createPort({
     queuedMessages: [

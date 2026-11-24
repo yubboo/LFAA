@@ -16,17 +16,19 @@ function buildGeminiContents(messages: LlmMessage[]): {
       continue;
     }
     if (msg.role === "tool") {
-      contents.push({
-        role: "user",
-        parts: [
-          {
-            functionResponse: {
-              name: msg.name || msg.toolCallId || "tool_result",
-              response: { result: msg.content },
-            },
-          },
-        ],
-      });
+      const part = {
+        functionResponse: {
+          name: msg.name || msg.toolCallId || "tool_result",
+          response: { result: msg.content },
+        },
+      };
+      // 并行工具调用会产生连续多条 role="tool"，合并进同一条 user 的 parts 数组以满足 Gemini 轮次交替协议。
+      const prev = contents.at(-1);
+      if (prev && prev.role === "user" && Array.isArray(prev.parts)) {
+        (prev.parts as Array<Record<string, unknown>>).push(part);
+      } else {
+        contents.push({ role: "user", parts: [part] });
+      }
       continue;
     }
     if (msg.role === "assistant") {

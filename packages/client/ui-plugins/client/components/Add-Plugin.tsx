@@ -29,12 +29,28 @@ export function AddPluginDialog({
 
   useEffect(() => {
     if (!open) {
+      abortRef.current?.abort();
+      abortRef.current = null;
       setSpec("");
       setLogs([]);
       setRunning(false);
       setError(null);
+      return;
     }
-  }, [open]);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !running) {
+        event.stopPropagation();
+        onClose();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [onClose, open, running]);
+
+  useEffect(() => () => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+  }, []);
 
   // 日志追加后自动滚到底部，安装输出才不会"停在上面"。
   useEffect(() => {

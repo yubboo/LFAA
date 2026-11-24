@@ -14,8 +14,7 @@
             "packages/ui/theme/client/tokens.css",
             "packages/client/ui-chat/client/workbench/CodeSyntax.module.css",
             "packages/client/ui-chat/client/conversation/MarkdownContent.module.css",
-            "packages/client/ui-chat/client/workbench/FileChangePreview.module.css",
-            "packages/ui/theme/client/components/AppearanceSettings.module.css"
+            "packages/client/ui-chat/client/workbench/FileChangePreview.module.css"
         ]
     }
 }

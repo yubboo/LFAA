@@ -8,7 +8,7 @@ const execFileAsync = promisify(execFile);
 
 /** 在指定工作目录执行 git；统一禁用交互提示并固定输出语言，便于解析。 */
 export async function runGit(cwd: string, args: string[], timeoutMs = 10000): Promise<string> {
-  const { stdout } = await execFileAsync("git", args, {
+  const { stdout } = await execFileAsync("git", ["-c", "core.quotepath=false", ...args], {
     cwd,
     timeout: timeoutMs,
     maxBuffer: 4 * 1024 * 1024,

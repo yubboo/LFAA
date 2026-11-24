@@ -101,10 +101,11 @@ export async function createHostRuntime(options: HostRuntimeOptions): Promise<Ho
               const routed = createRoutedLlm({ llm: llmService, bindings: agentProfileService, agentId: hostAgentId });
               const output = await routed.complete({
                 messages: [{ role: "user", content: buildPlanPrompt({ userMessage, members, maxSpeakers }) }],
-                maxTokens: 700,
+                maxTokens: 2048,
+                reasoningEffort: "low",
                 temperature: 0.2,
               });
-              return output.content;
+              return output.content.trim() || output.reasoningContent?.trim() || "";
             },
           } : {}),
         } : {}),

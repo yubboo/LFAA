@@ -78,9 +78,18 @@ async function createViteServer(appRoot: string, apiToken: string, gateway: ApiG
               res.end(JSON.stringify({ error: contentTypeDecision.reason }));
               return;
             }
-            // 路由表集中在运行时里，顺序即派发顺序；未命中交给 Vite 后续中间件。
+            // 路由表集中在运行时里，顺序即派发顺序；未命中的 /api/* 直接返回 404 JSON，避免落进 Vite SPA 返回 HTML。
             gateway.handle(req, res).then((handled) => {
-              if (!handled) next();
+              if (handled) return;
+              const rawPath = (req.url ?? "/").split("?")[0] ?? "/";
+              if (rawPath === "/api" || rawPath.startsWith("/api/")) {
+                res.statusCode = 404;
+                res.setHeader("Content-Type", "application/json; charset=utf-8");
+                res.setHeader("Cache-Control", "no-store");
+                res.end(JSON.stringify({ error: "未找到本机接口。" }));
+                return;
+              }
+              next();
             }, next);
           });
         },

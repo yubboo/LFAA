@@ -26,9 +26,10 @@ pnpm ui:shot --url=http://127.0.0.1:5173/                     # 直接截正在�
 
 ## 新增一个截图任务
 
-1. 在 `scripts/ui-shot-tasks.ts` 的 `TASKS` 里加一条：`name`、`group`、`description`、可选 `width/height/theme`、`steps`。
+1. 在 `scripts/ui-shot-tasks.ts` 的 `TASKS` 里加一条：`name`、`group`、`description`、可选 `width/height/theme/scrollbars`、`steps`。
 2. 步骤只能用现成的 `click` / `clickText` / `hover` / `press` / `wait`；需要新交互就往 `ShotStep` 里加一种，不要写一次性脚本。
-3. 跑 `pnpm ui:shot --only=<新名字> --build` 确认出图正确，再把图贴进交付说明。
+3. 要验收滚动条时加 `scrollbars: true`：Playwright 默认以 `--hide-scrollbars` 启动，这条任务会改用可见滚动条的浏览器实例。
+4. 跑 `pnpm ui:shot --only=<新名字> --build` 确认出图正确，再把图贴进交付说明。
 
 ## 约定
 

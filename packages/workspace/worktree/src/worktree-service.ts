@@ -1,6 +1,6 @@
 // Host 侧工作树服务：在项目仓库同级创建独立检出目录，提供状态查询与带安全校验的清理。
 import { randomUUID } from "node:crypto";
-import { mkdir, open, readdir, rm, stat } from "node:fs/promises";
+import { mkdir, open, readdir, realpath, rm, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { type Context, Service } from "@deepseek-ai/cordis";
@@ -258,6 +258,15 @@ export class WorktreeService extends Service {
     if (rel.startsWith("..") || isAbsolute(rel)) throw new Error("文件路径超出当前工作树目录边界。");
     const info = await stat(target).catch(() => null);
     if (!info || !info.isFile()) throw new Error("目标路径不存在或不是可读文件。");
+    const [realRoot, realTarget] = await Promise.all([
+      realpath(root).catch(() => root),
+      realpath(target).catch(() => null),
+    ]);
+    if (!realTarget) throw new Error("目标路径不存在或不是可读文件。");
+    const realRel = relative(realRoot, realTarget);
+    if (realRel.startsWith("..") || isAbsolute(realRel)) {
+      throw new Error("文件路径经符号链接超出当前工作树目录边界。");
+    }
     const readBytes = Math.min(info.size, MAX_PREVIEW_FILE_BYTES);
     const truncated = info.size > MAX_PREVIEW_FILE_BYTES;
     const handle = await open(target, "r");

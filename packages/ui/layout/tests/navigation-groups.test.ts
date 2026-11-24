@@ -7,6 +7,7 @@ import {
   createProjectSidebarItem,
   groupNavigationProjects,
   resolveActiveGroupKey,
+  resolveNewChatProject,
   sectionGroupKey,
   selectPinnedSessions,
 } from "../client/navigation/navigation-items";
@@ -131,4 +132,74 @@ test("同一项目的两份副本只有 showActive 的那一行高亮", () => {
 
   assert.equal(createProjectSidebarItem(pinned, "project", { ...deps, showActive: true }).active, true);
   assert.equal(createProjectSidebarItem(pinned, "pinned", { ...deps, showActive: false }).active, false);
+});
+
+test("单击项目行时同步选中项目上下文并切换展开状态", () => {
+  const app = project("app-1");
+  const selected: string[] = [];
+  const toggled: string[] = [];
+  const item = createProjectSidebarItem(app, "project", {
+    ...projectDeps,
+    onSelectProjectContext: (target) => selected.push(target.id),
+    onToggleProjectExpanded: (rowId) => toggled.push(rowId),
+  });
+
+  item.onClick?.();
+
+  assert.deepEqual(selected, ["app-1"]);
+  assert.deepEqual(toggled, ["project:app-1"]);
+});
+
+test("resolveNewChatProject 按当前项目上下文、活动会话与草稿绑定顺序继承项目", () => {
+  const app1 = project("app-1", { sectionId: "sec-1" });
+  const app2 = project("app-2");
+  const sessions: WorkbenchChatSessionSummary[] = [
+    { id: "s1", title: "在 app2", projectId: "app-2", messageCount: 1, createdAt: 0, updatedAt: 0 },
+    { id: "s2", title: "项目外", projectId: null, messageCount: 1, createdAt: 0, updatedAt: 0 },
+  ];
+
+  // 优先沿用当前选中的项目上下文（即使处于其它会话或草稿）
+  assert.equal(
+    resolveNewChatProject({
+      activeProjectId: "app-1",
+      activeChatSessionId: "s1",
+      chatSessions: sessions,
+      draftProjectId: "app-2",
+      projects: [app1, app2],
+    })?.id,
+    "app-1",
+  );
+  // 工作台未记录时兜底取活动会话所属项目
+  assert.equal(
+    resolveNewChatProject({
+      activeProjectId: null,
+      activeChatSessionId: "s1",
+      chatSessions: sessions,
+      draftProjectId: null,
+      projects: [app1, app2],
+    })?.id,
+    "app-2",
+  );
+  // 活动会话为空时兜底取草稿绑定项目
+  assert.equal(
+    resolveNewChatProject({
+      activeProjectId: null,
+      activeChatSessionId: null,
+      chatSessions: sessions,
+      draftProjectId: "app-1",
+      projects: [app1, app2],
+    })?.id,
+    "app-1",
+  );
+  // 全部为空或项目已删除时返回 null
+  assert.equal(
+    resolveNewChatProject({
+      activeProjectId: "deleted",
+      activeChatSessionId: "s2",
+      chatSessions: sessions,
+      draftProjectId: null,
+      projects: [app1, app2],
+    }),
+    null,
+  );
 });

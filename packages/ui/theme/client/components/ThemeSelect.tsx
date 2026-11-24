@@ -62,12 +62,12 @@ export function ThemeSelect<T extends string>({
     };
     syncPosition();
     document.addEventListener("pointerdown", closeOnOutside);
-    document.addEventListener("keydown", onKey);
+    document.addEventListener("keydown", onKey, true);
     window.addEventListener("resize", syncPosition);
     window.addEventListener("scroll", syncPosition, true);
     return () => {
       document.removeEventListener("pointerdown", closeOnOutside);
-      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("keydown", onKey, true);
       window.removeEventListener("resize", syncPosition);
       window.removeEventListener("scroll", syncPosition, true);
     };

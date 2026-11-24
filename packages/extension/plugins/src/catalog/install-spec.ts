@@ -52,11 +52,13 @@ export function parseInstallSpec(raw: string): ParsedInstallSpec {
   const unsafe = findUnsafeSpecCharacter(spec);
   if (unsafe) throw new InvalidInstallSpecError(spec, `包含不允许的字符「${unsafe}」`);
 
-  const withoutProtocol = spec.replace(/^(?:file|link):/u, "");
-  const looksPath = withoutProtocol !== spec || isAbsolute(withoutProtocol) || /^[A-Za-z]:[\\/]/u.test(withoutProtocol);
+  const withoutProtocol = spec.replace(/^(?:file|link):/iu, "");
+  const isAbsPath = isAbsolute(withoutProtocol) || /^[A-Za-z]:[\\/]/u.test(withoutProtocol);
+  const looksPath = withoutProtocol !== spec || isAbsPath;
   if (looksPath) {
-    const target = isAbsolute(withoutProtocol) ? withoutProtocol : resolve(withoutProtocol);
-    if (!isAbsolute(target)) throw new InvalidInstallSpecError(spec, "本地路径必须是绝对路径");
+    // 浏览器输入的 file:./foo 或 link:../bar 没有可信工作目录基准，必须在 resolve 前拒绝。
+    if (!isAbsPath) throw new InvalidInstallSpecError(spec, "本地路径必须是绝对路径");
+    const target = resolve(withoutProtocol);
     return TARBALL.test(target)
       ? { kind: "tarball", spec, target }
       : { kind: "path", spec, target };

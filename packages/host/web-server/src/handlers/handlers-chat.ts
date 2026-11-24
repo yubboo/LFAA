@@ -83,8 +83,9 @@ export function createAgentHandlers(deps: AgentHandlerDeps): AgentHandlers {
             content: `用户提问：${userPrompt.slice(0, 800)}\n\n助手回答：${assistantReply.slice(0, 2000)}`,
           },
         ],
-        // 该模型先输出推理再输出正文，200 token 会被推理吃光（finishReason=length），此处放宽。
-        maxTokens: 900,
+        // 该模型先输出推理再输出正文，预算放宽并降低思考深度避免正文被推理吃光。
+        maxTokens: 1500,
+        reasoningEffort: "low",
         temperature: 0.7,
       });
       // LlmGenerateOutput 的正文放在 content 字段（不是 text）。
@@ -133,8 +134,9 @@ export function createAgentHandlers(deps: AgentHandlerDeps): AgentHandlers {
               content: `项目名：${name}\n顶层文件：${entries.join("、") || "（无）"}\nREADME 摘要：${readme || "（无）"}`,
             },
           ],
-          // 该模型先输出推理再输出正文，预算放宽避免被推理吃光。
+          // 该模型先输出推理再输出正文，预算放宽并降低思考深度避免正文被推理吃光。
           maxTokens: 2_000,
+          reasoningEffort: "low",
           temperature: 0.4,
         });
         const text = (output as { content?: string }).content ?? "";
@@ -214,7 +216,9 @@ export function createAgentHandlers(deps: AgentHandlerDeps): AgentHandlers {
           { role: "user", content: `用户需求：${prompt}\n画幅：${enhancement.ratio}${styleLabel ? `\n风格：${styleLabel}` : ""}` },
         ],
         temperature: 0.5,
-        maxTokens: 400,
+        // 思考型模型会先输出 reasoning_content 再输出 JSON，400 token 易被思考吃光。
+        maxTokens: 1500,
+        reasoningEffort: "low",
       });
       const text = (output as { content?: string }).content ?? "";
       const start = text.indexOf("{");

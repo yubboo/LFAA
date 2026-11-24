@@ -1,6 +1,16 @@
-// 渲染“模型、规则与记忆配置”页面（注册在 settings:config）：模型管理采用多提供商卡片网格+居中配置弹窗，并支持规则与长期记忆。
+// 渲染设置中心「模型与规则」页：模型提供商网格、规则与长期记忆；表单按上下排字段组织，删除动作单独成组。
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { StatusBanner } from "@lfaa/ui-primitives/client";
+import {
+  SettingDangerGroup,
+  SettingFormActions,
+  SettingFormBlock,
+  SettingFormField,
+  SettingGroup,
+  SettingRow,
+  SettingsPage,
+  StatusBanner,
+  settingsStyles as baseStyles,
+} from "@lfaa/ui-primitives/client";
 import type { ChatClientStore } from "../store/chat-store";
 import type { ChatLocaleMessages } from "../locales";
 import { findProfileForProvider, type ModelProviderPreset } from "../models/provider-catalog";
@@ -45,12 +55,7 @@ export function AgentSettingsView({
   }, [userRuleDoc?.content]);
 
   return (
-    <section className={styles.page} aria-label={locale.settingsTitle}>
-      <header className={styles.header}>
-        <h1 className={styles.title}>{locale.settingsTitle}</h1>
-        <p className={styles.subtitle}>{locale.settingsSubtitle}</p>
-      </header>
-
+    <SettingsPage title={locale.settingsTitle} description={locale.settingsSubtitle} size="wide">
       <div className={styles.tabs} role="tablist">
         {(
           [
@@ -76,11 +81,7 @@ export function AgentSettingsView({
       </div>
 
       {statusNote && (
-        <StatusBanner
-          tone="success"
-          message={statusNote}
-          onDismiss={() => setStatusNote("")}
-        />
+        <StatusBanner tone="success" message={statusNote} onDismiss={() => setStatusNote("")} />
       )}
 
       {/* 根据当前品牌是否提供套餐，直接配置或先选择独立的接入方式。 */}
@@ -126,67 +127,79 @@ export function AgentSettingsView({
       )}
 
       {tab === "rules" && (
-        <div className={styles.panel}>
-          <div className={styles.field}>
-            <span className={styles.fieldLabel}>{locale.systemRulesTitle}</span>
-            <pre className={styles.readonlyPre}>
-              {state.rules.find((r) => r.layer === "system")?.content || ""}
-            </pre>
-          </div>
-
-          {state.rules.filter((r) => r.layer === "project").length > 0 && (
-            <div className={styles.field}>
-              <span className={styles.fieldLabel}>{locale.projectRulesTitle}</span>
-              {state.rules
-                .filter((r) => r.layer === "project")
-                .map((doc) => (
-                  <pre key={doc.id} className={styles.readonlyPre}>{`${doc.source}\n\n${doc.content}`}</pre>
-                ))}
-            </div>
+        <SettingGroup
+          title={locale.userRulesTitle}
+          description={locale.isZh
+            ? "规则按系统 → 项目 → 用户的顺序叠加；此处只编辑用户层，系统与项目层只读。"
+            : "Rules stack system → project → user. Only the user layer is editable here."}
+        >
+          {state.rules.find((r) => r.layer === "system")?.content && (
+            <SettingFormBlock label={locale.systemRulesTitle}>
+              <pre className={styles.readonlyPre}>
+                {state.rules.find((r) => r.layer === "system")?.content || ""}
+              </pre>
+            </SettingFormBlock>
           )}
 
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>{locale.userRulesTitle}</span>
+          {state.rules.filter((r) => r.layer === "project").map((doc) => (
+            <SettingFormBlock key={doc.id} label={`${locale.projectRulesTitle} · ${doc.source}`}>
+              <pre className={styles.readonlyPre}>{doc.content}</pre>
+            </SettingFormBlock>
+          ))}
+
+          <SettingFormField
+            label={locale.userRulesTitle}
+            hint={locale.isZh ? "保存后对新一轮对话立即生效。" : "Takes effect from the next turn after saving."}
+          >
             <textarea
-              className={styles.textarea}
+              className={`${baseStyles.input} ${baseStyles.textarea}`}
               value={userRulesDraft}
               onChange={(e) => setUserRulesDraft(e.target.value)}
               placeholder={locale.userRulesPlaceholder}
             />
-          </label>
-          <div className={styles.rowActions}>
+          </SettingFormField>
+          <SettingFormActions>
             <button
               type="button"
-              className={styles.btnPrimary}
+              className={baseStyles.primaryBtn}
               onClick={() => void store.saveUserRules(userRulesDraft).then(() => setStatusNote(locale.savedNotice))}
             >
               {locale.saveRules}
             </button>
-          </div>
-        </div>
+          </SettingFormActions>
+        </SettingGroup>
       )}
 
       {tab === "memory" && (
-        <div className={styles.panel}>
-          <div className={styles.formGrid}>
-            <input
-              className={styles.input}
-              value={memoryDraft}
-              onChange={(e) => setMemoryDraft(e.target.value)}
-              placeholder={locale.addMemoryPlaceholder}
-            />
-            <div className={styles.rowActions}>
+        <>
+          <SettingGroup
+            title={locale.addMemory}
+            description={locale.isZh
+              ? "长期记忆会在之后的对话中自动带入；按作用域区分全局与当前项目。"
+              : "Long-term memories are injected into later turns, scoped globally or per project."}
+          >
+            <SettingFormField label={locale.isZh ? "记忆内容" : "Memory"}>
+              <input
+                className={baseStyles.input}
+                value={memoryDraft}
+                onChange={(e) => setMemoryDraft(e.target.value)}
+                placeholder={locale.addMemoryPlaceholder}
+              />
+            </SettingFormField>
+            <SettingFormField label={locale.isZh ? "作用域" : "Scope"}>
               <select
-                className={styles.input}
+                className={baseStyles.input}
                 value={memoryScope}
                 onChange={(e) => setMemoryScope(e.target.value === "project" ? "project" : "global")}
               >
                 <option value="global">{locale.globalScope}</option>
                 {boundProjectId && <option value="project">{locale.projectScope}</option>}
               </select>
+            </SettingFormField>
+            <SettingFormActions>
               <button
                 type="button"
-                className={styles.btnPrimary}
+                className={baseStyles.primaryBtn}
                 disabled={!memoryDraft.trim()}
                 onClick={() => {
                   const text = memoryDraft.trim();
@@ -200,28 +213,33 @@ export function AgentSettingsView({
               >
                 {locale.addMemory}
               </button>
-            </div>
-          </div>
+            </SettingFormActions>
+          </SettingGroup>
 
           {state.memories.length === 0 ? (
-            <p className={styles.subtitle}>{locale.emptyMemories}</p>
+            <p className={baseStyles.pageDesc}>{locale.emptyMemories}</p>
           ) : (
-            state.memories.map((mem) => (
-              <div key={mem.id} className={styles.profileRow}>
-                <div className={styles.profileMeta}>
-                  <span className={styles.profileName}>{mem.content}</span>
-                  <span className={styles.profileDetail}>
-                    {mem.scope === "project" ? locale.projectScope : locale.globalScope}
-                  </span>
-                </div>
-                <button type="button" className={styles.btnGhost} onClick={() => void store.removeLongTermMemory(mem.id)}>
-                  {locale.deleteMemory}
-                </button>
-              </div>
-            ))
+            <SettingDangerGroup title={locale.isZh ? "删除记忆" : "Delete memories"}>
+              {state.memories.map((mem) => (
+                <SettingRow
+                  key={mem.id}
+                  title={mem.content}
+                  description={mem.scope === "project" ? locale.projectScope : locale.globalScope}
+                  control={(
+                    <button
+                      type="button"
+                      className={baseStyles.dangerBtn}
+                      onClick={() => void store.removeLongTermMemory(mem.id)}
+                    >
+                      {locale.deleteMemory}
+                    </button>
+                  )}
+                />
+              ))}
+            </SettingDangerGroup>
           )}
-        </div>
+        </>
       )}
-    </section>
+    </SettingsPage>
   );
 }

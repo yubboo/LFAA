@@ -1,11 +1,11 @@
 // 消息操作栏与文件变更汇总卡片：提供用户消息复制/编辑、助手消息复制/评价/朗读/分支与记忆引用菜单及已编辑文件折叠卡片。
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  IconArrowRight,
   IconBrain,
   IconCheck,
   IconChevronDown,
   IconChevronUp,
+  IconCircleCheck,
   IconCopy,
   IconDots,
   IconFileDiff,
@@ -131,6 +131,8 @@ export function AssistantMessageActions({
 }) {
   const [copied, setCopied] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  const speakingRef = useRef(false);
+  speakingRef.current = speaking;
   const { liked, toggleLiked } = useMessageFeedback(sessionId, messageId);
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
@@ -147,10 +149,10 @@ export function AssistantMessageActions({
   }, [moreOpen]);
 
   useEffect(() => () => {
-    if (speaking && typeof window !== "undefined" && "speechSynthesis" in window) {
+    if (speakingRef.current && typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
-  }, [speaking]);
+  }, []);
 
   const toggleSpeak = () => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
@@ -358,13 +360,12 @@ export function EditedFilesCard({
 
 /** 展示可继续发送的建议问题，将选中的文本交给调用方。 */
 
-/** 模型/回答给出的后续建议：编号后由用户自行选择，点击即作为下一条消息发送。 */
+/** 模型给出的后续追问：统一采用无边框轻量图标行，点击即作为下一条消息发送。 */
 export function FollowUpSuggestions({
-  isZh,
   suggestions,
   onSelect,
 }: {
-  isZh: boolean;
+  isZh?: boolean;
   suggestions: string[];
   onSelect: (question: string) => void;
 }) {
@@ -380,10 +381,8 @@ export function FollowUpSuggestions({
           role="listitem"
           onClick={() => onSelect(question)}
         >
-          <span className={styles.followUpIndex}>{index + 1}</span>
+          <IconCircleCheck size={15} stroke={1.6} className={styles.followUpIcon} aria-hidden="true" />
           <span className={styles.followUpText}>{question}</span>
-          {index === 0 && <span className={styles.followUpRecommended}>{isZh ? "推荐" : "Recommended"}</span>}
-          <IconArrowRight size={14} stroke={1.8} className={styles.followUpArrow} />
         </button>
       ))}
     </div>

@@ -142,6 +142,8 @@ export interface WorkbenchSessionWorktree {
 export interface WorkbenchChatProvider<TContent = unknown> {
   getSessions: () => WorkbenchChatSessionSummary[];
   getActiveSessionId: () => string | null;
+  /** 当前新会话草稿已绑定的项目 id，供顶部「新聊天」在刷新或草稿改绑后继续沿用。 */
+  getDraftProjectId?: () => string | null;
   /** 该会话是否有 Agent 正在工作；切到别的会话后仍为真，供左二栏显示工作转圈。 */
   isSessionRunning?: (sessionId: string) => boolean;
   /** 该会话是否在等待用户确认或回答；用于左二栏「待确认/待回答」徽标。 */

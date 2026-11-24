@@ -1,0 +1,216 @@
+/* 主题实时预览：迷你工作台骨架。颜色全部来自 --pv-* 变量（由组件按主题取样注入），
+   因此切换主题只改变量值，配合 transition 即可平滑过渡，组件里不出现任何写死颜色。 */
+.frame {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--pv-fg) 14%, transparent);
+  border-radius: 0.9rem;
+  background: var(--pv-bg);
+  color: var(--pv-fg);
+  transition: background-color 260ms ease, color 260ms ease, border-color 260ms ease;
+}
+
+.panel {
+  /* 固定高度区间而不是死守 16:9：预览是页面配角，不能把下方主题网格挤出屏幕。 */
+  height: clamp(9.5rem, 19vh, 13.5rem);
+  width: 100%;
+}
+
+/* 缩略图：去掉外描边重量，让内容自己说话。 */
+.tile {
+  aspect-ratio: 16 / 10;
+  width: 100%;
+  border-radius: 0.7rem;
+}
+
+/* 「跟随系统」：左右各半，中间一条细分隔线。 */
+.split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+}
+
+.half {
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--pv-bg);
+}
+
+.fill {
+  height: 100%;
+}
+
+.window {
+  display: grid;
+  grid-template-columns: 5% 21% minmax(0, 1fr);
+  height: 100%;
+}
+
+.rail,
+.sidebar,
+.canvas {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100%;
+  padding: 0.45rem 0.35rem;
+  box-sizing: border-box;
+  transition: background-color 260ms ease, border-color 260ms ease;
+}
+
+.rail {
+  align-items: center;
+  gap: 0.32rem;
+  border-right: 1px solid color-mix(in srgb, var(--pv-fg) 8%, transparent);
+  background: color-mix(in srgb, var(--pv-fg) 6%, var(--pv-bg));
+}
+
+.railDot {
+  width: 0.3rem;
+  height: 0.3rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pv-fg) 26%, transparent);
+  transition: background-color 260ms ease;
+}
+
+.railDot:first-child {
+  background: var(--pv-accent);
+}
+
+.sidebar {
+  gap: 0.3rem;
+  border-right: 1px solid color-mix(in srgb, var(--pv-fg) 8%, transparent);
+  background: color-mix(in srgb, var(--pv-fg) 3%, var(--pv-bg));
+}
+
+.sidebarTitle {
+  width: 62%;
+  height: 0.34rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pv-fg) 55%, transparent);
+  transition: background-color 260ms ease;
+}
+
+.sidebarLine,
+.sidebarLineShort {
+  height: 0.26rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pv-fg) 18%, transparent);
+  transition: background-color 260ms ease;
+}
+
+.sidebarLineShort {
+  width: 58%;
+}
+
+.sidebarGap {
+  height: 0.3rem;
+}
+
+.canvas {
+  gap: 0.4rem;
+  padding: 0.55rem 0.7rem;
+}
+
+/* 中间列收成居中的对话宽度，避免骨架被拉成整宽色块（更像真实界面）。 */
+.canvasInner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.34rem;
+  width: 100%;
+  max-width: 30rem;
+  height: 100%;
+  margin-inline: auto;
+  padding: 0.2rem 0;
+  box-sizing: border-box;
+}
+
+.canvasTitle {
+  width: 22%;
+  height: 0.42rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pv-fg) 62%, transparent);
+  transition: background-color 260ms ease;
+}
+
+/* 用户气泡：强调色淡底，和真实界面同层次。 */
+.bubble {
+  align-self: flex-end;
+  width: 38%;
+  height: 1.15rem;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--pv-accent) 26%, var(--pv-bg));
+  transition: background-color 260ms ease;
+}
+
+.agentCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.26rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--pv-fg) 10%, transparent);
+  border-radius: 0.55rem;
+  background: color-mix(in srgb, var(--pv-fg) 5%, var(--pv-bg));
+  transition: background-color 260ms ease, border-color 260ms ease;
+}
+
+.agentLine,
+.agentLineShort {
+  height: 0.24rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pv-fg) 20%, transparent);
+  transition: background-color 260ms ease;
+}
+
+.agentLineShort {
+  width: 64%;
+}
+
+/* 输入条贴底：浅色描边 + 强调色发送按钮，是"这是聊天界面"的关键识别点。 */
+.composer {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: auto;
+  padding: 0.3rem 0.35rem 0.3rem 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--pv-fg) 12%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pv-fg) 4%, var(--pv-bg));
+  transition: background-color 260ms ease, border-color 260ms ease;
+}
+
+.composerLine {
+  flex: 1 1 auto;
+  height: 0.24rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pv-fg) 16%, transparent);
+  transition: background-color 260ms ease;
+}
+
+.composerSend {
+  flex: none;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 999px;
+  background: var(--pv-accent);
+  transition: background-color 260ms ease;
+}
+
+/* 缩略图里收紧内边距，避免小尺寸下元素互相压叠。 */
+.tile .rail,
+.tile .sidebar,
+.tile .canvas {
+  padding: 0.28rem 0.22rem;
+}
+
+.tile .canvas {
+  padding: 0.35rem 0.45rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .frame,
+  .frame * {
+    transition: none;
+  }
+}

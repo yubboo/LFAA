@@ -1,7 +1,8 @@
 // IDE 化右侧工作台主壳：承接右侧栏状态持久化与请求，装配顶部标签、主体舞台与最右图标轨。
-import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { WorkbenchContextPanelContribution } from "@lfaa/ui-layout";
 import type { ChatClientStore } from "../store/chat-store";
+import { useChatSelector } from "../store/use-chat-selector";
 import type { ChatLocaleMessages } from "../locales";
 import { useAuxResize } from "./useAuxResize";
 import { patchWorkbenchSessionState, readWorkbenchSessionState } from "../store/workbench-persist";
@@ -11,6 +12,7 @@ import { WorkbenchAuxBody } from "./WorkbenchAuxBody";
 import { WorkbenchAuxPane } from "./WorkbenchAuxPane";
 import { WorkbenchStageContent } from "./WorkbenchStageContent";
 import { useWorkbenchBrowser } from "./useWorkbenchBrowser";
+import { useWorkbenchRequests } from "./useWorkbenchRequests";
 import { WorkbenchTabs } from "./WorkbenchTabs";
 import { useWorkbenchSummary } from "./useWorkbenchSummary";
 import { workbenchAuxTitles } from "./workbench-titles";
@@ -54,16 +56,43 @@ export function RightWorkbenchPane({
   onOpenExtensions?: (() => void) | undefined;
   onStageWideChange?: ((wide: boolean) => void) | undefined;
 }) {
-  const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
-  const sessionId = state.activeSession?.id ?? state.activeSessionId ?? "default";
-  const persistedInit = readWorkbenchSessionState(sessionId);
-  const [reviewTabOpen, setReviewTabOpen] = useState(persistedInit.reviewTabOpen);
-  const [reviewMessageId, setReviewMessageId] = useState(persistedInit.reviewMessageId);
+  // 首次挂载懒读取持久化右栏状态，避免在后续流式更新中重复同步读取 localStorage。
+  const [initialSaved] = useState(() => {
+    const snap = store.getSnapshot();
+    return readWorkbenchSessionState(snap.activeSession?.id ?? snap.activeSessionId ?? "default");
+  });
+  const [reviewTabOpen, setReviewTabOpen] = useState(initialSaved.reviewTabOpen);
+  const [reviewMessageId, setReviewMessageId] = useState(initialSaved.reviewMessageId);
   const [selectedJobId, setSelectedJobId] = useState<string>();
   const [selectedSubagentId, setSelectedSubagentId] = useState<string>();
   const [fileTreeOpen, setFileTreeOpen] = useState(false);
   const [auxOpen, setAuxOpen] = useState(false);
-  const [activeAux, setActiveAux] = useState<RightAuxTab>(persistedInit.activeAux);
+  const [activeAux, setActiveAux] = useState<RightAuxTab>(initialSaved.activeAux);
+  const [devtoolsRequest, setDevtoolsRequest] = useState<{ tab: "console" | "network"; nonce: number }>();
+  // 精确订阅右栏所需切片：流式正文与思考增量不会触发右栏重渲染与重复读盘。
+  const state = useChatSelector(store, (snap) => {
+    const activeTab = showFilePreview ? snap.filePreviewTabs.find((tab) => tab.id === snap.activeFilePreviewId) : undefined;
+    const msgs = snap.activeSession?.messages;
+    const selectedStep = activeTab?.messageId && activeTab?.stepId
+      ? msgs?.find((m) => m.id === activeTab.messageId)?.steps?.find((s) => s.id === activeTab.stepId)
+      : undefined;
+    return {
+      sessionId: snap.activeSession?.id ?? snap.activeSessionId ?? "default",
+      agentRunning: Boolean(snap.runningRunId),
+      filePreviewTabs: snap.filePreviewTabs,
+      activeFilePreviewId: snap.activeFilePreviewId,
+      rightStageKind: snap.rightStageKind,
+      rightPanelRequest: snap.rightPanelRequest,
+      profiles: snap.profiles,
+      activeProfileId: snap.activeProfileId,
+      rules: snap.rules,
+      memoriesCount: snap.memories.length,
+      selectedStep,
+      reviewMessage: reviewMessageId ? msgs?.find((m) => m.id === reviewMessageId) : undefined,
+    };
+  });
+  const sessionId = state.sessionId;
+  const [hydratedSessionId, setHydratedSessionId] = useState(sessionId);
   const { jobs, subagents } = useWorkbenchSummary(sessionId);
   const syncedSessionRef = useRef<string | null>(null);
   const splitAreaRef = useRef<HTMLDivElement>(null);
@@ -71,24 +100,12 @@ export function RightWorkbenchPane({
 
   const fileTabs = showFilePreview ? state.filePreviewTabs : [];
   const activeFileTab = fileTabs.find((tab) => tab.id === state.activeFilePreviewId);
-  const selectedStep = activeFileTab?.messageId && activeFileTab?.stepId
-    ? state.activeSession?.messages.find((m) => m.id === activeFileTab.messageId)?.steps?.find((s) => s.id === activeFileTab.stepId)
-    : undefined;
-
+  const selectedStep = state.selectedStep;
   const {
-    browserOpen,
-    browserTabs,
-    browserInitialUrl,
-    browserExternalState,
-    setBrowserOpen,
-    setBrowserInitialUrl,
-    handleBrowserSnapshot,
-    handleOpenNewBrowserTab,
-    handleActivateBrowserTab,
-    handleCloseBrowserTab,
-    handleOpenUrl,
-    restoreBrowser,
-  } = useWorkbenchBrowser({ sessionId, store, activeFileTab, syncedSessionRef, initialOpen: persistedInit.browserOpen, initialUrl: persistedInit.browserUrl });
+    browserOpen, browserTabs, browserInitialUrl, browserExternalState,
+    setBrowserOpen, setBrowserInitialUrl, handleBrowserSnapshot,
+    handleOpenNewBrowserTab, handleActivateBrowserTab, handleCloseBrowserTab, handleOpenUrl, restoreBrowser, syncHostBrowser,
+  } = useWorkbenchBrowser({ sessionId, store, activeFileTab, syncedSessionRef, initialOpen: initialSaved.browserOpen, initialUrl: initialSaved.browserUrl });
 
   const stageKind = auxOpen && !(activeAux === "filesTree" && state.rightStageKind === "file" && activeFileTab)
     ? "utility"
@@ -123,11 +140,13 @@ export function RightWorkbenchPane({
     setAuxOpen(false);
     setActiveAux(saved.activeAux);
     syncedSessionRef.current = sessionId;
+    setHydratedSessionId(sessionId);
     return cancelBrowserRestore;
   }, [restoreBrowser, sessionId]);
 
   useEffect(() => {
-    if (syncedSessionRef.current !== sessionId) return;
+    // 只有当前会话状态已真正恢复并提交渲染后才写回 localStorage，避免把旧会话状态写进新会话。
+    if (hydratedSessionId !== sessionId || syncedSessionRef.current !== sessionId) return;
     patchWorkbenchSessionState(sessionId, {
       browserOpen,
       ...(browserInitialUrl ? { browserUrl: browserInitialUrl } : {}),
@@ -137,46 +156,29 @@ export function RightWorkbenchPane({
       auxOpen,
       activeAux,
     });
-  }, [activeAux, auxOpen, browserInitialUrl, browserOpen, fileTreeOpen, reviewMessageId, reviewTabOpen, sessionId]);
+  }, [activeAux, auxOpen, browserInitialUrl, browserOpen, fileTreeOpen, hydratedSessionId, reviewMessageId, reviewTabOpen, sessionId]);
 
   useEffect(() => {
     onStageWideChange?.(stageKind !== "welcome" || effectiveAuxTab !== null);
   }, [effectiveAuxTab, onStageWideChange, stageKind]);
 
-  // 响应聊天消息打开文件或「浏览器」入口请求。
-  useEffect(() => {
-    if (!state.rightPanelRequest) return;
-    const req = state.rightPanelRequest;
-    if (req.tab === "browser") {
-      setAuxOpen(false);
-      setBrowserOpen(true);
-      store.setRightStageKind("browser");
-      if (req.url) setBrowserInitialUrl(req.url);
-    } else if (req.tab === "review") {
-      setAuxOpen(false);
-      setReviewMessageId(req.url);
-      setReviewTabOpen(true);
-      store.setRightStageKind("review");
-    } else if (req.tab === "file-preview") {
-      setAuxOpen(false);
-      setFileTreeOpen(false);
-    } else if (req.tab === "files") {
-      store.setRightStageKind(null);
-      setActiveAux("filesTree");
-      setAuxOpen(true);
-    } else if (req.tab === "terminal") {
-      if (req.url) setSelectedJobId(req.url);
-      setActiveAux("terminal");
-      setAuxOpen(true);
-    } else if (req.tab === "subagents") {
-      if (req.url) setSelectedSubagentId(req.url);
-      setActiveAux("subagents");
-      setAuxOpen(true);
-    } else if (req.tab === "sideAsk" || req.tab === "details") {
-      setActiveAux(req.tab);
-      setAuxOpen(true);
-    }
-  }, [state.rightPanelRequest, store]);
+  useWorkbenchRequests({
+    request: state.rightPanelRequest,
+    sessionId,
+    stageKind,
+    store,
+    syncHostBrowser,
+    setAuxOpen,
+    setActiveAux,
+    setBrowserOpen,
+    setBrowserInitialUrl,
+    setDevtoolsRequest,
+    setReviewMessageId,
+    setReviewTabOpen,
+    setFileTreeOpen,
+    setSelectedJobId,
+    setSelectedSubagentId,
+  });
 
   const openNewBrowserTab = () => {
     setAuxOpen(false);
@@ -233,7 +235,7 @@ export function RightWorkbenchPane({
       utilityPanels={utilityPanels}
       activeProfileName={activeProfile ? `${activeProfile.name} (${activeProfile.model})` : "-"}
       activeProfileId={state.activeProfileId || undefined}
-      memoriesCount={state.memories.length}
+      memoriesCount={state.memoriesCount}
       activeRulesCount={activeRulesCount}
       selectedJobId={selectedJobId}
       selectedSubagentId={selectedSubagentId}
@@ -341,10 +343,12 @@ export function RightWorkbenchPane({
           activeFileTab={activeFileTab}
           selectedStep={selectedStep}
           effectiveAuxTab={effectiveAuxTab}
-          reviewMessage={reviewMessageId ? state.activeSession?.messages.find((message) => message.id === reviewMessageId) : undefined}
+          reviewMessage={state.reviewMessage}
           reviewMessageId={reviewMessageId}
           browserInitialUrl={browserInitialUrl}
           browserExternalState={browserExternalState}
+          agentRunning={state.agentRunning}
+          devtoolsRequest={devtoolsRequest}
           showStartPage={showStartPage}
           activeBrowserTabId={activeBrowserTab?.tabId}
           jobs={jobs}

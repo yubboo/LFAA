@@ -1,0 +1,155 @@
+/* 设置中心可搜索下拉：触发器、圆角弹层、选项行与选中勾；颜色全部取自主题变量。 */
+.selectWrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.selectTrigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  max-width: 22rem;
+  padding: 0.36rem 0.7rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.62rem;
+  background: var(--color-panel);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.83em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.selectTrigger:hover {
+  background: var(--color-active);
+}
+
+.selectTrigger:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.selectValue {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chevronIcon {
+  flex: 0 0 auto;
+  color: var(--color-muted);
+}
+
+.optionIcon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 弹层：搜索输入与可滚动选项分开，避免长列表撑高设置行。 */
+.selectMenu {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  z-index: 40;
+  display: grid;
+  gap: 0.25rem;
+  min-width: 14.5rem;
+  max-width: min(22rem, 84vw);
+  padding: 0.32rem;
+  border: 1px solid var(--glass-border, var(--color-line));
+  border-radius: 0.85rem;
+  background: var(--glass-card-bg, var(--color-surface));
+  box-shadow: var(--color-menu-shadow);
+}
+
+.menuSearchWrap {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.3rem 0.5rem;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.menuSearchIcon {
+  flex: 0 0 auto;
+  color: var(--color-muted);
+}
+
+.menuSearchInput {
+  width: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.83em;
+}
+
+.menuList {
+  display: grid;
+  gap: 0.1rem;
+  max-height: 17.5rem;
+  overflow-y: auto;
+}
+
+.menuOption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem;
+  width: 100%;
+  padding: 0.45rem 0.62rem;
+  border: 0;
+  border-radius: 0.55rem;
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menuOption:hover,
+.menuOptionActive {
+  background: var(--color-active);
+}
+
+.menuOption:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+.menuOptionMain {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.menuOptionText {
+  display: grid;
+  min-width: 0;
+  gap: 0.1rem;
+}
+
+.menuOptionLabel {
+  color: var(--color-ink);
+  font-size: 0.84em;
+}
+
+.menuOptionDesc {
+  color: var(--color-muted);
+  font-size: 0.75em;
+  line-height: 1.35;
+}
+
+.checkIcon {
+  flex: 0 0 auto;
+  color: var(--color-ink);
+}
+
+.menuEmpty {
+  padding: 0.5rem 0.6rem;
+  color: var(--color-muted);
+  font-size: 0.8em;
+}

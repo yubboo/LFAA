@@ -74,8 +74,9 @@
   }
 }
 
-/* 最窄布局用处理器图标打开模型选择，完整名称与档位仍可在浮层中阅读。 */
-@container chat-composer (max-width: 19rem) {
+/* 窄输入卡片用处理器图标打开模型选择，完整名称与档位仍可在浮层中阅读；
+   与权限胶囊同阈值收起，避免模型名把整条工具栏撑出卡片。 */
+@container chat-composer (max-width: 30rem) {
   .triggerPill {
     justify-content: center;
     width: 2rem;
@@ -299,5 +300,20 @@
 
 .popoverFooterBtn:hover {
   background: var(--color-panel);
+  color: var(--color-ink);
+}
+
+/* 聊天模式：模型胶囊也收成方形图标，模型 ID 与强度走 aria-description 与悬浮提示。
+   宽屏下 .modelIcon 默认隐藏（靠模型名承担识别），紧凑形态必须把它显示出来。 */
+.triggerPill[data-compact] {
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  gap: 0;
+  justify-content: center;
+}
+
+.triggerPill[data-compact] .modelIcon {
+  display: block;
   color: var(--color-ink);
 }

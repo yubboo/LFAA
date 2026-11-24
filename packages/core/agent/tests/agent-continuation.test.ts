@@ -96,7 +96,8 @@ test("续写运行不追加用户消息，保留清单并新增助手回复", as
     assert.equal(after.messages.filter((message) => message.role === "user").length, 1);
     assert.equal(after.messages.filter((message) => message.role === "assistant").length, 2);
     assert.equal(after.messages.at(-1)?.content, "继续完成。");
-    assert.deepEqual(after.todos?.map((todo) => todo.status), ["in_progress", "pending"]);
+    // 续写收尾同样结算残留 in_progress：已完成的项目不再挂在进行中，未开始的项目保持 pending。
+    assert.deepEqual(after.todos?.map((todo) => todo.status), ["completed", "pending"]);
     assert.doesNotMatch(after.messages.map((message) => message.content).join("\n"), /完整句边界/u);
   } finally {
     await fs.rm(dir, { recursive: true, force: true });

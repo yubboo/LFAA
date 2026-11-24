@@ -4,7 +4,7 @@ import { resolveSafeWorkspacePath } from "@lfaa/tools";
 import type { AgentFileChange } from "@lfaa/memory";
 
 /** 打开校验后的实际文件并限制读取长度，同时将非文本文件交给错误反馈。 */
-export async function readActivitySource(change: AgentFileChange, roots: string[]) {
+export async function readActivitySource(change: Pick<AgentFileChange, "path" | "resolvedPath">, roots: string[]) {
   const { path } = await resolveSafeWorkspacePath(change.resolvedPath ?? change.path, roots);
   const limit = 96 * 1024;
   const file = await open(path, "r");

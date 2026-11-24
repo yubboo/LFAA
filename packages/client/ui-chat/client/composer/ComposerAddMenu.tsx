@@ -23,6 +23,7 @@ export function ComposerAddMenu({
   onTriggerMention,
   onTriggerSlash,
   onOpenBrowser,
+  onPickProject,
 }: {
   locale: ChatLocaleMessages;
   /** 当前会话 id；为空（草稿）时附件只做前端预览，不上传。 */
@@ -32,6 +33,8 @@ export function ComposerAddMenu({
   onTriggerMention: (initialQuery?: string) => void;
   onTriggerSlash: () => void;
   onOpenBrowser?: (() => void) | undefined;
+  /** 仅当界面当前无可见项目入口（如未绑定项目的聊天模式）时传入，提供选择项目入口。 */
+  onPickProject?: (() => void) | undefined;
 }) {
   const [open, setOpen] = useState(false);
   const [notice, setNotice] = useState("");
@@ -127,6 +130,23 @@ export function ComposerAddMenu({
       {open && (
         <div className={styles.popover} role="dialog" aria-label={locale.addContextMenuTitle}>
           <div className={styles.menuHeader}>{locale.addContextMenuTitle}</div>
+
+          {/* 仅在界面没有可见项目入口时提供「选择项目」，避免与上方挂载条或独立项目胶囊重复。 */}
+          {onPickProject && (
+            <button
+              type="button"
+              className={styles.menuItem}
+              onClick={() => {
+                setOpen(false);
+                onPickProject();
+              }}
+            >
+              <span className={styles.menuItemMain}>
+                <IconFolder size={15} aria-hidden="true" />
+                <span>{locale.selectProject}</span>
+              </span>
+            </button>
+          )}
 
           <button
             type="button"

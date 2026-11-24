@@ -143,12 +143,17 @@ export class BackgroundJobManager {
       }, timeoutMs);
     }
 
+    let settled = false;
     const finalize = (code: number | null, errMessage?: string) => {
+      if (settled) return;
+      settled = true;
       if (entry.timer) clearTimeout(entry.timer);
       if (entry.flushTimer) clearTimeout(entry.flushTimer);
       entry.timer = undefined;
       entry.flushTimer = undefined;
       void this.refreshOutput(entry, false).then(() => {
+        entry.stdout.length = 0;
+        entry.stderr.length = 0;
         const nextStatus = entry.stoppedByUser
           ? "killed"
           : code === 0 && !errMessage

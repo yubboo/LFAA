@@ -24,7 +24,16 @@ export interface SubagentActivityUpdate {
   id: string;
   role: string;
   status: "running" | "done" | "error" | "stopped";
-  activity?: { id: string; name: string; status: "preparing" | "running" | "waiting_approval" | "done" | "error" };
+  kind?: "general" | "browser";
+  browserLabel?: string;
+  liveAction?: string;
+  activity?: {
+    id: string;
+    name: string;
+    label?: string;
+    target?: string;
+    status: "preparing" | "running" | "waiting_approval" | "done" | "error";
+  };
   result?: string;
 }
 

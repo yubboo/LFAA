@@ -398,13 +398,14 @@ export class LlmService extends Service {
         { role: "system", content: "Reply with OK only." },
         { role: "user", content: "Ping" },
       ],
-      maxTokens: 16,
+      reasoningEffort: "low",
+      maxTokens: 256,
       temperature: 0,
     });
     return {
       ok: true,
       model: output.model,
-      replyPreview: output.content.trim().slice(0, 80) || "OK",
+      replyPreview: (output.content.trim() || output.reasoningContent?.trim() || "OK").slice(0, 80),
     };
   }
 }

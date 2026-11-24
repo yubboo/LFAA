@@ -1,7 +1,11 @@
 // 会话动作：新建草稿、打开/删除/分叉/导出会话、改绑项目、会话元信息与默认模式。
 import type { ChatGoalItem, ChatHandoffItem, ChatSearchResult, ChatSessionDetail, ChatSessionItem, ChatSessionWorktree } from "./chat-types";
 import { fetchJson } from "./chat-http";
-import { writeStoredSessionId } from "./chat-preferences";
+import {
+  writeStoredDraftProjectId,
+  writeStoredDraftSectionId,
+  writeStoredSessionId,
+} from "./chat-preferences";
 import type { ChatSessionMetaPatch, ChatStorePort } from "./chat-store-port";
 
 /** 清除会话摘要上的待回答字段；没有时原样返回，避免无谓的状态变更。 */
@@ -13,6 +17,8 @@ function clearPendingQuestion<T extends ChatSessionItem>(session: T): T {
 }
 
 export class ChatSessionActions {
+  private openSessionSeq = 0;
+
   constructor(private readonly port: ChatStorePort) {}
 
   startNewChatDraft(options: {
@@ -20,18 +26,26 @@ export class ChatSessionActions {
     sectionId?: string | null;
     worktree?: ChatSessionWorktree;
   } = {}): void {
+    this.openSessionSeq += 1;
+    const nextProjectId = options.projectId ?? null;
+    const nextSectionId = options.sectionId ?? null;
     this.port.trackLeavingActiveRun(null);
+    this.port.detachActiveStream?.();
     writeStoredSessionId(null);
+    writeStoredDraftProjectId(nextProjectId);
+    writeStoredDraftSectionId(nextSectionId);
     this.port.patchState({
       activeSessionId: null,
       activeSession: null,
       activeGoal: null,
-      draftProjectId: options.projectId ?? null,
-      draftSectionId: options.sectionId ?? null,
+      draftProjectId: nextProjectId,
+      draftSectionId: nextSectionId,
       draftWorktree: options.worktree,
       draftSessionPreset: undefined,
       runningRunId: null,
       pendingApproval: null,
+      streamStatusNotice: "",
+      degradedStream: null,
       errorMessage: "",
       workspaceConflict: false,
       handoffs: [],
@@ -43,10 +57,15 @@ export class ChatSessionActions {
   }
 
   async openSession(sessionId: string): Promise<void> {
+    const seq = ++this.openSessionSeq;
     this.port.trackLeavingActiveRun(sessionId);
+    this.port.detachActiveStream?.();
     try {
       const res = await fetchJson<{ session: ChatSessionDetail }>(`/api/chat/sessions/${encodeURIComponent(sessionId)}`);
+      if (seq !== this.openSessionSeq) return;
       writeStoredSessionId(res.session.id);
+      writeStoredDraftProjectId(res.session.projectId);
+      writeStoredDraftSectionId(res.session.sectionId);
       this.port.patchState({
         activeSessionId: res.session.id,
         activeSession: res.session,
@@ -68,6 +87,7 @@ export class ChatSessionActions {
       void this.loadHandoffs(res.session.id);
       void this.port.resumeRun(res.session.id);
     } catch (error) {
+      if (seq !== this.openSessionSeq) return;
       const msg = error instanceof Error ? error.message : String(error);
       if (msg.includes("不存在")) {
         writeStoredSessionId(null);
@@ -242,14 +262,21 @@ export class ChatSessionActions {
   async setActiveProjectBinding(projectId: string | null): Promise<void> {
     const current = this.port.getState().activeSession;
     if (!current) {
+      writeStoredDraftProjectId(projectId);
       this.port.patchState({ draftProjectId: projectId });
       return;
     }
-    if (current.projectId === projectId) return;
+    if (current.projectId === projectId) {
+      writeStoredDraftProjectId(projectId);
+      return;
+    }
     const res = await fetchJson<{ session: ChatSessionDetail }>(
       `/api/chat/sessions/${encodeURIComponent(current.id)}`,
       { method: "PATCH", body: JSON.stringify({ projectId }) },
     );
+    if (this.port.getState().activeSessionId === current.id) {
+      writeStoredDraftProjectId(res.session.projectId);
+    }
     this.port.patchState({
       ...(this.port.getState().activeSessionId === current.id ? {
         activeSession: res.session,
@@ -276,6 +303,8 @@ export class ChatSessionActions {
     if (updated && updated.archived && this.port.getState().activeSessionId === sessionId) {
       this.startNewChatDraft();
     } else if (updated && this.port.getState().activeSessionId === sessionId) {
+      writeStoredDraftProjectId(updated.projectId);
+      writeStoredDraftSectionId(updated.sectionId);
       this.port.patchState({
         activeSession: updated,
         draftProjectId: updated.projectId,
@@ -294,6 +323,8 @@ export class ChatSessionActions {
     const forked = res.session;
     if (forked) {
       writeStoredSessionId(forked.id);
+      writeStoredDraftProjectId(forked.projectId);
+      writeStoredDraftSectionId(forked.sectionId);
       this.port.patchState({
         activeSessionId: forked.id,
         activeSession: forked,

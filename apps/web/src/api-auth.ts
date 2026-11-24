@@ -40,8 +40,8 @@ function patchFetch(token: string): void {
       init?.headers ?? (input instanceof Request ? input.headers : undefined),
     );
     headers.set(TOKEN_HEADER, token);
-    // Request 输入要保持原 body，因此重建 Request 而不是丢弃它。
-    if (input instanceof Request) return nativeFetch(new Request(input, { headers }));
+    // Request 输入要保持原 body，并保留调用方通过 init 覆盖的 method/signal/body 等选项。
+    if (input instanceof Request) return nativeFetch(new Request(input, { ...init, headers }));
     return nativeFetch(input, { ...init, headers });
   };
 }

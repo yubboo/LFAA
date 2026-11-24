@@ -68,15 +68,17 @@ test("运行中的会话行使用旋转图标，切走会话不影响状态", ()
   assert.equal(item.hideIcon, undefined);
 });
 
-test("运行中的项目子会话即使原本隐藏图标也保留转圈", () => {
+test("运行中的项目子会话仍尊重隐藏图标：转圈改由行首状态位承担", () => {
   const item = createSessionSidebarItem(session("s2"), deps(provider(["s2"])), {
     nested: true,
     hideIcon: true,
   });
 
+  // 图标位保持"隐藏"，不再因为运行中而多出一个图标把标题挤开；
+  // 运行状态由行首状态位（data-state="working"）表达。
   assert.equal(item.icon, "working");
   assert.equal(item.nested, true);
-  assert.equal(item.hideIcon, undefined);
+  assert.equal(item.hideIcon, true);
 });
 
 test("未运行的会话保持铅笔图标与项目子行的隐藏图标设置", () => {
@@ -241,5 +243,9 @@ test("侧栏只为完成且未读的行渲染小圆点", () => {
 
   assert.match(markup, /已完成/u);
   assert.match(markup, /进行中/u);
-  assert.equal((markup.match(/unreadDot/gu) ?? []).length, 1);
+  // 状态位只出现在该出现的行，且位于标题之前（行首留白槽），不占行内空间。
+  assert.equal((markup.match(/data-state="done"/gu) ?? []).length, 1);
+  assert.equal((markup.match(/data-state="working"/gu) ?? []).length, 1);
+  assert.ok(markup.indexOf('data-state="done"') < markup.indexOf("已完成"));
+  assert.ok(markup.indexOf('data-state="working"') < markup.indexOf("进行中"));
 });

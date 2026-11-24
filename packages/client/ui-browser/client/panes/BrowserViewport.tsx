@@ -1,143 +1,228 @@
-// 内置浏览器实时视口：把 CDP 画面映射为可点击/滚轮/键盘直输的交互区，空白时展示就绪提示与本地快捷入口。
-import { useRef, type CompositionEvent, type KeyboardEvent, type MouseEvent, type RefObject, type WheelEvent } from "react";
-import { IconWorld } from "@tabler/icons-react";
-import { performBrowserAction, type BrowserSessionSnapshot } from "../api/browser-client";
+// 内置浏览器双引擎视口：Agent 控制态下以全透明防误触护盾锁定视口（零白雾），用户点「接管」后解锁原生直连或 2x 无损协同操作。
+import { useEffect, useRef, useState, type RefObject } from "react";
+import { IconHandStop, IconLock, IconWorld } from "@tabler/icons-react";
+import type { BrowserSessionSnapshot } from "../api/browser-client";
 import type { ViewportPreset } from "./BrowserToolbar";
-import styles from "./RightBrowserPane.module.css";
+import { BrowserCanvasViewport, type FrameDrawer } from "./BrowserCanvasViewport";
+import type { EffectiveRenderMode } from "./browser-render-mode";
+import styles from "./BrowserViewport.module.css";
 
-const QUICK_PORTS = ["http://127.0.0.1:5173/", "http://127.0.0.1:3000/"];
+const QUICK_PORTS = ["http://127.0.0.1:5174/", "http://127.0.0.1:3000/"];
+
+function presetDimensions(preset: ViewportPreset): { width: number; height: number } | null {
+  if (preset === "desktop") return { width: 1280, height: 800 };
+  if (preset === "mobile") return { width: 390, height: 844 };
+  return null;
+}
 
 export function BrowserViewport({
   sessionId,
   isZh,
   snap,
   preset,
-  streamConnected,
+  effectiveMode,
+  userControl,
+  nativeReloadNonce,
   stageRef,
-  applySnap,
-  onError,
+  frameDrawerRef,
   onOpenUrl,
+  onRequestTakeover,
 }: {
   sessionId: string;
   isZh: boolean;
   snap: BrowserSessionSnapshot | null;
   preset: ViewportPreset;
-  streamConnected: boolean;
+  effectiveMode: EffectiveRenderMode;
+  /** 仅用户手动点击「接管」后为 true；默认 false 表示由 Agent 控制，视口锁定防误触。 */
+  userControl: boolean;
+  nativeReloadNonce: number;
   stageRef: RefObject<HTMLDivElement | null>;
-  applySnap: (next: BrowserSessionSnapshot) => void;
-  onError: (message: string) => void;
+  frameDrawerRef: RefObject<FrameDrawer | null>;
   onOpenUrl: (url: string) => void;
+  onRequestTakeover: () => void;
 }) {
-  const wheelBufferRef = useRef({ dx: 0, dy: 0, timer: 0 as ReturnType<typeof setTimeout> | 0 });
-  const composingRef = useRef(false);
+  const [stageBox, setStageBox] = useState<{ width: number; height: number } | null>(null);
+  const [lockHintVisible, setLockHintVisible] = useState(false);
+  const shieldRef = useRef<HTMLDivElement>(null);
+  const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fixedPreset = presetDimensions(preset);
 
-  // 用户在视口内点击属于直接交互，不触发导航「加载中...」提示；HiDPI 下严格按 CSS viewport 映射坐标。
-  const handleStageClick = async (event: MouseEvent<HTMLImageElement>) => {
-    stageRef.current?.focus();
-    if (!snap?.active) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) return;
-    const vw = snap.viewport?.width || event.currentTarget.naturalWidth || 1024;
-    const vh = snap.viewport?.height || event.currentTarget.naturalHeight || 768;
-    const x = Math.round(((event.clientX - rect.left) / rect.width) * vw);
-    const y = Math.round(((event.clientY - rect.top) / rect.height) * vh);
-    onError("");
-    try {
-      const res = await performBrowserAction(sessionId, {
-        kind: "click",
-        x,
-        y,
-        button: event.button === 2 ? "right" : "left",
-        clickCount: event.detail >= 2 ? 2 : 1,
-        fast: streamConnected,
-      });
-      if (!streamConnected || res.state.url !== snap.url) applySnap(res.state);
-    } catch (err) {
-      onError(err instanceof Error ? err.message : String(err));
+  const hasPage = Boolean(snap?.active && snap.url && snap.url !== "about:blank");
+  const lockedByAgent = hasPage && !userControl;
+
+  // 解锁后立即收起锁定提示胶囊。
+  useEffect(() => {
+    if (!lockedByAgent) {
+      setLockHintVisible(false);
+      if (hintTimerRef.current) {
+        clearTimeout(hintTimerRef.current);
+        hintTimerRef.current = null;
+      }
     }
-  };
+  }, [lockedByAgent]);
 
-  const handleStageWheel = (event: WheelEvent<HTMLDivElement>) => {
-    if (!snap?.active) return;
-    wheelBufferRef.current.dx += event.deltaX;
-    wheelBufferRef.current.dy += event.deltaY;
-    if (wheelBufferRef.current.timer) return;
-    wheelBufferRef.current.timer = setTimeout(() => {
-      const { dx, dy } = wheelBufferRef.current;
-      wheelBufferRef.current = { dx: 0, dy: 0, timer: 0 };
-      void performBrowserAction(sessionId, {
-        kind: "scroll",
-        deltaX: Math.round(dx),
-        deltaY: Math.round(dy),
-        fast: streamConnected,
-      }).then((res) => {
-        if (!streamConnected) applySnap(res.state);
-      }).catch(() => {});
-    }, streamConnected ? 32 : 90);
-  };
+  useEffect(() => () => {
+    if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
+  }, []);
 
-  const handleStageKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (!snap?.active || composingRef.current) return;
-    if (event.ctrlKey || event.metaKey || event.altKey) return;
-    const navKeys = new Set([
-      "Enter", "Backspace", "Tab", "Escape", "Delete",
-      "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown",
-    ]);
-    if (navKeys.has(event.key)) {
+  // Agent 控制态下在透明护盾上拦截非被动 wheel，既阻断误触滚动远端，也杜绝外层工作区穿透滚动。
+  useEffect(() => {
+    const shield = shieldRef.current;
+    if (!shield || !lockedByAgent) return;
+    const blockWheel = (event: WheelEvent) => {
       event.preventDefault();
-      void performBrowserAction(sessionId, { kind: "key", key: event.key, fast: streamConnected })
-        .then((res) => { if (!streamConnected || res.state.url !== snap.url) applySnap(res.state); })
-        .catch(() => {});
-      return;
-    }
-    if (event.key.length === 1) {
-      event.preventDefault();
-      void performBrowserAction(sessionId, { kind: "type", text: event.key, fast: streamConnected })
-        .then((res) => { if (!streamConnected) applySnap(res.state); })
-        .catch(() => {});
-    }
+      event.stopPropagation();
+    };
+    shield.addEventListener("wheel", blockWheel, { passive: false });
+    return () => shield.removeEventListener("wheel", blockWheel);
+  }, [lockedByAgent]);
+
+  // 桌面/手机预设在原生直连模式下按容器尺寸等比缩放，避免外层容器出现滚动条抢滚轮。
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el || effectiveMode !== "native" || preset === "auto") return;
+    const sync = () => {
+      const rect = el.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        setStageBox((prev) => (
+          prev && Math.abs(prev.width - rect.width) < 2 && Math.abs(prev.height - rect.height) < 2
+            ? prev
+            : { width: rect.width, height: rect.height }
+        ));
+      }
+    };
+    sync();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(sync);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [effectiveMode, preset, stageRef]);
+
+  const showLockHint = () => {
+    setLockHintVisible(true);
+    if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
+    hintTimerRef.current = setTimeout(() => {
+      hintTimerRef.current = null;
+      setLockHintVisible(false);
+    }, 2800);
   };
 
-  const handleCompositionEnd = (event: CompositionEvent<HTMLDivElement>) => {
-    composingRef.current = false;
-    if (snap?.active && event.data) {
-      void performBrowserAction(sessionId, { kind: "type", text: event.data, fast: streamConnected })
-        .then((res) => { if (!streamConnected) applySnap(res.state); })
-        .catch(() => {});
+  const renderNativeFrame = () => {
+    if (!snap) return null;
+    if (!fixedPreset) {
+      return (
+        <iframe
+          key={`${snap.activeTabId}:${nativeReloadNonce}`}
+          src={snap.url}
+          title={snap.title || snap.url}
+          className={styles.nativeFrame}
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads"
+          allow="clipboard-read; clipboard-write"
+          referrerPolicy="no-referrer-when-downgrade"
+        />
+      );
     }
+    const availW = Math.max(120, (stageBox?.width ?? fixedPreset.width) - 24);
+    const availH = Math.max(120, (stageBox?.height ?? fixedPreset.height) - 24);
+    const scale = Math.min(1, availW / fixedPreset.width, availH / fixedPreset.height);
+    const scaledW = Math.round(fixedPreset.width * scale);
+    const scaledH = Math.round(fixedPreset.height * scale);
+    return (
+      <div
+        className={styles.deviceShell}
+        data-preset={preset}
+        style={{ width: `${scaledW}px`, height: `${scaledH}px` }}
+      >
+        <iframe
+          key={`${snap.activeTabId}:${nativeReloadNonce}`}
+          src={snap.url}
+          title={snap.title || snap.url}
+          className={styles.nativeFrameScaled}
+          style={{
+            width: `${fixedPreset.width}px`,
+            height: `${fixedPreset.height}px`,
+            transform: `scale(${scale})`,
+          }}
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads"
+          allow="clipboard-read; clipboard-write"
+          referrerPolicy="no-referrer-when-downgrade"
+        />
+      </div>
+    );
   };
 
   return (
     <div
       ref={stageRef}
-      tabIndex={0}
       className={styles.viewportStage}
-      aria-label={isZh ? "内置浏览器实时操作画面（可直接点击、滚轮与键入）" : "Interactive built-in browser viewport"}
-      onWheel={handleStageWheel}
-      onKeyDown={handleStageKeyDown}
-      onCompositionStart={() => { composingRef.current = true; }}
-      onCompositionEnd={handleCompositionEnd}
-      onContextMenu={(e) => {
-        if (snap?.active) e.preventDefault();
-      }}
+      data-preset={preset}
+      data-engine={hasPage ? effectiveMode : "empty"}
+      data-locked={lockedByAgent ? "true" : undefined}
+      aria-label={isZh ? "内置浏览器实时视口" : "Built-in browser viewport"}
     >
-      {snap?.screenshotBase64 && snap.url !== "about:blank" ? (
-        <img
-          src={`data:${snap.screenshotMime || "image/png"};base64,${snap.screenshotBase64}`}
-          alt={snap.title || snap.url || "Browser Preview"}
-          className={styles.viewportImg}
-          data-preset={preset}
-          draggable={false}
-          onClick={(e) => void handleStageClick(e)}
-        />
+      {hasPage && snap ? (
+        <>
+          {effectiveMode === "native" ? (
+            renderNativeFrame()
+          ) : (
+            <BrowserCanvasViewport
+              sessionId={sessionId}
+              isZh={isZh}
+              snap={snap}
+              preset={preset}
+              interactive={userControl}
+              stageRef={stageRef}
+              frameDrawerRef={frameDrawerRef}
+            />
+          )}
+          {lockedByAgent && (
+            <div
+              ref={shieldRef}
+              className={styles.agentLockShield}
+              role="presentation"
+              aria-label={isZh ? "当前由 Agent 控制，防误触已锁定" : "Controlled by Agent; interaction locked"}
+              onPointerDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                showLockHint();
+              }}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                showLockHint();
+              }}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                showLockHint();
+              }}
+            />
+          )}
+          {lockedByAgent && lockHintVisible && (
+            <div className={styles.lockToast} role="status">
+              <IconLock size={13} aria-hidden="true" />
+              <span>
+                {isZh ? "当前由 Agent 控制（防误触已锁定）" : "Controlled by Agent (interaction locked)"}
+              </span>
+              <button
+                type="button"
+                className={styles.lockToastBtn}
+                onClick={() => onRequestTakeover()}
+              >
+                <IconHandStop size={12} aria-hidden="true" />
+                <span>{isZh ? "立即接管" : "Take Over"}</span>
+              </button>
+            </div>
+          )}
+        </>
       ) : (
         <div className={styles.emptyStage}>
           <IconWorld size={34} stroke={1.4} aria-hidden="true" />
           <h4>{isZh ? "内置浏览器已就绪" : "Built-in Browser Ready"}</h4>
           <p>
             {isZh
-              ? "直接输入网址回车打开，或由小鱼 Agent 自动访问本地开发服务并在界面实时点击、滚动与排错。"
-              : "Enter a URL above or let the agent browse and inspect localhost or web apps live."}
+              ? "默认由小鱼 Agent 控制并锁定防误触；如需亲自浏览或操作，点击上方「接管」即可自由控制并同步通知 Agent。"
+              : "Controlled by Agent by default to prevent accidental touches. Click Takeover above to control manually and notify the Agent."}
           </p>
           <div className={styles.quickLinks}>
             {QUICK_PORTS.map((u) => (

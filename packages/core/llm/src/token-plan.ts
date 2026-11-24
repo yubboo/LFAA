@@ -1,6 +1,7 @@
 // 千问 Token Plan 套餐模型目录：兼容模式 /models 只返回部分模型，视频模型（如 happyhorse）需要按官方套餐清单补齐。
 // 每条同时给出品牌与能力说明，让用户一眼看出是「千问/万相/HappyHorse…」的哪种能力。
 import type { ModelCapabilityInfo, ModelKind } from "./types";
+import { resolveModelCapabilities } from "./capabilities";
 
 /** 本地化文案对：中文与英文。 */
 export interface LocalizedText {
@@ -103,13 +104,18 @@ export function tokenPlanCatalogModels(existing: readonly ModelCapabilityInfo[])
   });
   const missing = TOKEN_PLAN_MODELS
     .filter((model) => !byId.has(model.id))
-    .map((model) => ({
-      id: model.id,
-      modelKind: model.kind,
-      displayName: `${model.brand.zh} · ${model.capability.zh}`,
-      supportsReasoning: false,
-      reasoningMode: "none" as const,
-      reasoningLevels: [],
-    }));
+    .map((model) => {
+      const cap = model.kind === "chat"
+        ? resolveModelCapabilities(model.id, "openai-compatible")
+        : { supportsReasoning: false, reasoningMode: "none" as const, reasoningLevels: [] };
+      return {
+        id: model.id,
+        modelKind: model.kind,
+        displayName: `${model.brand.zh} · ${model.capability.zh}`,
+        supportsReasoning: cap.supportsReasoning,
+        reasoningMode: cap.reasoningMode,
+        reasoningLevels: cap.reasoningLevels,
+      };
+    });
   return [...decorated, ...missing];
 }

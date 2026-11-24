@@ -25,7 +25,7 @@ LFAA 应用共享四栏可折叠布局契约、侧栏导航、工作区 Shell、
 
 ## 依赖
 
-无 workspace 依赖。
+- `@lfaa/ui-primitives`
 
 ## 开发说明
 

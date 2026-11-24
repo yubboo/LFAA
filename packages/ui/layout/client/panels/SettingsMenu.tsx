@@ -35,7 +35,7 @@ export function SettingsMenu({
               label,
               icon: item.icon,
               active: activeView === item.viewId,
-              title: item.implemented ? label : `${label}（${locale.unavailable}）`,
+              title: label,
               onClick: () => onNavigate(item.viewId as NavigationView),
             };
           });
@@ -46,7 +46,7 @@ export function SettingsMenu({
         };
       })
       .filter((group) => group.items.length > 0);
-  }, [activeView, isZh, locale.unavailable, normalizedQuery, onNavigate]);
+  }, [activeView, isZh, normalizedQuery, onNavigate]);
 
   return (
     <SidebarSectionList

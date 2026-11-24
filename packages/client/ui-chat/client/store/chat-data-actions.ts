@@ -1,7 +1,7 @@
 // 数据动作：资料库与存储、常规设置、模型档案、用户规则与长期记忆的读写。
 import { fetchJson } from "./chat-http";
 import { writeStoredReasoningLevel } from "./chat-preferences";
-import { writeLocaleOverride, type GeneralSettingsConfig, type OpenSourcePackageInfo, type ReasoningLevelOption } from "../settings/general-settings-client";
+import { writeLocaleOverride, type GeneralSettingsConfig, type OpenSourcePackageInfo, type ReasoningLevelOption } from "../shared/general-settings";
 import type {
   LibraryAssetItem,
   LibraryItemCategory,

@@ -30,21 +30,17 @@
 .scrollArea[hidden] { display: none; }
 
 .scrollArea {
-  /* 消息流只纵向滚动，宽表格和代码块由各自的容器横向滚动。 */
+  /* 消息流只纵向滚动，宽表格和代码块由各自的容器横向滚动；禁用浏览器原生 scroll-anchoring 避免与流式贴底互相拉扯抖动。 */
   overflow-x: hidden;
   overflow-y: auto;
+  overflow-anchor: none;
   overscroll-behavior-y: none;
-  scrollbar-width: thin;
   /* 两侧各留一条滚动条槽：滚动条只占右侧时，正文列会比输入栏窄 6px 且居中轴左移 3px，
      用户看到的就是「输入框左边多出一截、右边更贴边」。 */
   scrollbar-gutter: stable both-edges;
   margin-inline-end: var(--pane-scroll-inset, 8px);
   padding: 1.5rem var(--chat-side-padding) 1rem;
   padding-inline-end: calc(var(--chat-side-padding) - var(--pane-scroll-inset, 8px));
-}
-
-.scrollArea::-webkit-scrollbar {
-  width: var(--pane-scrollbar-width, 6px);
 }
 
 .thread {
@@ -71,149 +67,6 @@
   to {
     background: transparent;
   }
-}
-
-.hero {
-  display: grid;
-  justify-items: center;
-  text-align: center;
-  gap: 0.75rem;
-  width: min(100%, 42rem);
-  margin: min(14vh, 7.5rem) auto 0;
-}
-
-.heroTitle {
-  margin: 0;
-  color: var(--color-ink);
-  font-size: clamp(1.55rem, 2.5vw, 2.05rem);
-  font-weight: 600;
-  letter-spacing: -0.02em;
-}
-
-.heroSubtitle {
-  margin: 0;
-  color: var(--color-muted);
-  font-size: 0.94em;
-}
-
-/* 项目内空会话的范围卡片：交代本项目做什么，并提示会话只处理相关任务。 */
-.projectScopeCard {
-  display: grid;
-  gap: 0.3rem;
-  width: min(34rem, 100%);
-  margin-top: 0.35rem;
-  padding: 0.7rem 0.95rem;
-  border: 1px solid var(--color-line);
-  border-radius: 0.85rem;
-  background: var(--color-surface);
-  text-align: left;
-}
-
-.projectScopeLabel {
-  color: var(--color-ink);
-  font-size: 0.84em;
-  font-weight: 600;
-}
-
-.projectScopeBody {
-  margin: 0;
-  color: var(--color-ink);
-  font-size: 0.85em;
-  line-height: 1.55;
-  white-space: pre-wrap;
-}
-
-.projectScopeHint {
-  color: var(--color-muted);
-  font-size: 0.76em;
-  line-height: 1.5;
-}
-
-.starters {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
-}
-
-.starterChip {
-  padding: 0.48rem 0.85rem;
-  border: 1px solid var(--color-line);
-  border-radius: 999px;
-  background: var(--glass-card-bg, var(--color-surface));
-  color: var(--color-ink);
-  font-size: 0.84em;
-  cursor: pointer;
-  transition: background-color 140ms ease, border-color 140ms ease;
-}
-
-.starterChip:hover {
-  background: var(--color-active);
-  border-color: rgb(var(--color-accent-rgb) / 0.45);
-}
-
-/* 项目起步建议：围绕当前项目的可执行请求，卡片式排列便于点击。 */
-.projectStarters {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0.5rem;
-  width: min(100%, 34rem);
-  margin-top: 0.9rem;
-}
-
-.projectStarterBtn {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.72rem 0.95rem;
-  border: 1px solid var(--color-line);
-  border-left: 3px solid rgb(var(--color-accent-rgb) / 0.55);
-  border-radius: 0.7rem;
-  background: var(--glass-card-bg, var(--color-surface));
-  color: var(--color-ink);
-  font-size: 0.9em;
-  text-align: left;
-  cursor: pointer;
-  transition: background-color 140ms ease, border-color 140ms ease, transform 140ms ease;
-}
-
-.projectStarterBtn:hover {
-  background: var(--color-active);
-  border-color: rgb(var(--color-accent-rgb) / 0.45);
-  transform: translateY(-1px);
-}
-
-.projectStarterIndex {
-  flex: 0 0 auto;
-  width: 1.35rem;
-  height: 1.35rem;
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-  background: rgb(var(--color-accent-rgb) / 0.12);
-  color: var(--color-accent);
-  font-size: 0.8em;
-  font-weight: 650;
-}
-
-.projectStarterText {
-  flex: 1 1 auto;
-  min-width: 0;
-  line-height: 1.45;
-}
-
-.projectStarterArrow {
-  flex: 0 0 auto;
-  color: var(--color-muted);
-  transition: color 140ms ease, transform 140ms ease;
-}
-
-.projectStarterBtn:hover .projectStarterArrow {
-  color: var(--color-accent);
-  transform: translateX(2px);
 }
 
 .dayDivider {
@@ -315,6 +168,12 @@
   word-break: break-word;
 }
 
+.continueRow {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
 /* 媒体生成中先展示导演返回的计划句，视频跑完前不让消息区只剩骨架。 */
 .mediaPlan {
   margin: 0 0 0.45rem;
@@ -365,16 +224,3 @@
 .turnChangesTrigger:focus-visible { outline: 2px solid var(--color-accent); }
 .turnChangesTrigger [data-change="add"] { color: var(--color-accent); }
 .turnChangesTrigger [data-change="remove"] { color: var(--color-danger); }
-
-/* 最推荐选项徽章：只标首条（最正确、最能推进交付的下一步）。 */
-.projectStarterRecommended {
-  flex: 0 0 auto;
-  padding: 0.1rem 0.44rem;
-  border-radius: 999px;
-  background: rgb(var(--color-accent-rgb) / 0.14);
-  color: var(--color-accent);
-  font-size: 0.72em;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-}

@@ -116,18 +116,21 @@ export function createCommonHandlers(deps: CommonHandlerDeps): CommonHandlers {
     ].filter((root): root is string => Boolean(root && root.trim()));
   };
 
-  // 可选服务可能尚未装配（由插件页安装后才出现），处理器惰性创建并在缺失时放行。
-  let worktreeHandler: ApiHandler | null = null;
+  // 可选服务可能尚未装配或被热重载替换，缓存按服务实例失效，避免热重载后继续调用已卸载旧实例。
+  let cachedWorktree: { service: unknown; handler: ApiHandler } | null = null;
   const worktrees: ApiHandler = async (req, res) => {
     const worktreeService = context.worktree;
-    if (!worktreeService) return false;
-    worktreeHandler ??= createWorktreeHttpHandler(worktreeService);
-    return worktreeHandler(req, res);
+    if (!worktreeService) {
+      cachedWorktree = null;
+      return false;
+    }
+    if (cachedWorktree?.service !== worktreeService) {
+      cachedWorktree = { service: worktreeService, handler: createWorktreeHttpHandler(worktreeService) };
+    }
+    return cachedWorktree.handler(req, res);
   };
 
-  // 可选服务可能尚未装配（由插件页安装后才出现），处理器惰性创建并在缺失时放行。
-  let jobsHandler: ApiHandler | null = null;
-  // 工具清单：供 Agents 页做工具权限选择，避免用户手敲工具名。
+  // 工具清单：供 Agents 页做工具权限选择，直接按注册表的 permissionLevel 标记写入/执行类工具。
   const tools: ApiHandler = async (req, res) => {
     const { pathname } = new URL(req.url ?? "/", "http://127.0.0.1");
     if (pathname !== "/api/tools") return false;
@@ -137,10 +140,10 @@ export function createCommonHandlers(deps: CommonHandlerDeps): CommonHandlers {
       res.end(JSON.stringify({ error: "工具清单只支持 GET。" }));
       return true;
     }
-    const list = context.tools.getLlmToolSchemas().map(({ name, description }) => ({
+    const list = context.tools.listDefinitions().map(({ name, description, permissionLevel }) => ({
       name,
       description,
-      write: /write|edit|command|background|delete|move|copy|install/iu.test(name),
+      write: permissionLevel !== "read",
     }));
     res.statusCode = 200;
     res.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -148,31 +151,50 @@ export function createCommonHandlers(deps: CommonHandlerDeps): CommonHandlers {
     return true;
   };
 
+  let cachedJobs: { service: unknown; handler: ApiHandler } | null = null;
   const jobs: ApiHandler = async (req, res) => {
     const jobsService = context.jobs;
-    if (!jobsService) return false;
-    jobsHandler ??= createJobsHttpHandler(jobsService, async (sessionId) => {
-      if (!sessionId || sessionId === "default") return projectRoot;
-      const resolved = await resolveSessionWorkspace(sessionId);
-      return resolved.roots[0] ?? projectRoot;
-    });
-    return jobsHandler(req, res);
+    if (!jobsService) {
+      cachedJobs = null;
+      return false;
+    }
+    if (cachedJobs?.service !== jobsService) {
+      cachedJobs = {
+        service: jobsService,
+        handler: createJobsHttpHandler(jobsService, async (sessionId) => {
+          if (!sessionId || sessionId === "default") return projectRoot;
+          const resolved = await resolveSessionWorkspace(sessionId);
+          return resolved.roots[0] ?? projectRoot;
+        }),
+      };
+    }
+    return cachedJobs.handler(req, res);
   };
 
-  let browserHandler: ApiHandler | null = null;
+  let cachedBrowser: { service: unknown; handler: ApiHandler } | null = null;
   const browser: ApiHandler = async (req, res) => {
     const browserService = context.browser;
-    if (!browserService) return false;
-    browserHandler ??= createBrowserHttpHandler(browserService);
-    return browserHandler(req, res);
+    if (!browserService) {
+      cachedBrowser = null;
+      return false;
+    }
+    if (cachedBrowser?.service !== browserService) {
+      cachedBrowser = { service: browserService, handler: createBrowserHttpHandler(browserService) };
+    }
+    return cachedBrowser.handler(req, res);
   };
 
-  let subagentHandler: ApiHandler | null = null;
+  let cachedSubagent: { service: unknown; handler: ApiHandler } | null = null;
   const subagent: ApiHandler = async (req, res) => {
     const subagentService = context.subagent;
-    if (!subagentService) return false;
-    subagentHandler ??= createSubagentHttpHandler(subagentService);
-    return subagentHandler(req, res);
+    if (!subagentService) {
+      cachedSubagent = null;
+      return false;
+    }
+    if (cachedSubagent?.service !== subagentService) {
+      cachedSubagent = { service: subagentService, handler: createSubagentHttpHandler(subagentService) };
+    }
+    return cachedSubagent.handler(req, res);
   };
 
   const skills = createSkillsHttpHandler(context.skills, {

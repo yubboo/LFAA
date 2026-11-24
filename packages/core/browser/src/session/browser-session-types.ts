@@ -10,6 +10,8 @@ export interface BrowserTabEntry {
   title: string;
   history: string[];
   historyIndex: number;
+  /** 最近一次主文档导航是否允许 iframe 嵌入（解析 X-Frame-Options 与 CSP frame-ancestors）。 */
+  embeddable?: boolean | undefined;
   lastScreenshotBase64?: string;
   lastScreenshotMime?: "image/png" | "image/jpeg";
 }
@@ -24,6 +26,8 @@ export interface SessionBrowserState {
   colorScheme: "dark" | "light";
   internalPageOpening: number;
   takeoverPaused: boolean;
+  /** 最近一次主动驱动该浏览器会话的角色，前端据此在 Agent 实操时切回协同画面。 */
+  lastActor?: "user" | "agent" | undefined;
   consoleItems: BrowserConsoleItem[];
   networkItems: BrowserNetworkItem[];
   lastError?: string;

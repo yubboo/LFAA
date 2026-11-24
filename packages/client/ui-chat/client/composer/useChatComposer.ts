@@ -244,7 +244,7 @@ export function useChatComposer({
         setDraft(prevDraft);
         setAttachments(prevAttachments);
       }
-      if (err instanceof Error && !state.errorMessage) {
+      if (err instanceof Error && !store.getSnapshot().errorMessage) {
         setContextNotice(err.message);
       }
     }

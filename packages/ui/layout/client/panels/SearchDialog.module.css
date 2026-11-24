@@ -1,7 +1,7 @@
 /* 搜索弹层为 Shell 导航提供聚焦后的快速入口。 */
 .backdrop {
   position: fixed;
-  z-index: 100;
+  z-index: var(--z-dialog);
   inset: 0;
   display: flex;
   align-items: flex-start;

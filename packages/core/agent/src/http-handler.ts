@@ -160,7 +160,14 @@ export function createAgentHttpHandler(service: AgentService, options: AgentHttp
             afterSeq,
           });
           for (const chunk of replayed) {
-            writeEvent({ type: "delta", runId, seq: chunk.seq, kind: chunk.kind, text: chunk.text }, chunk.seq);
+            writeEvent({
+              type: "delta",
+              runId,
+              seq: chunk.seq,
+              kind: chunk.kind,
+              text: chunk.text,
+              ...(chunk.iteration !== undefined ? { iteration: chunk.iteration } : {}),
+            }, chunk.seq);
           }
         } else if (run.status === "running" || !run.message) {
           writeEvent({ type: "snapshot", run, reconnect: false, afterSeq: 0 });

@@ -1,8 +1,8 @@
 // 渲染工作区顶部栏：左侧栏展开/收起按钮、当前标题、本地模式状态、插件工作区快捷入口与右侧栏展开/收起按钮。
+import { PanelToggleButton } from "@lfaa/ui-primitives/client";
 import type { ReactNode } from "react";
 import type { WorkbenchTitleActionContribution, WorkbenchWorkspaceActionContribution } from "../../contract/index";
 import type { LocaleMessages } from "../locales";
-import { NavigationIcon } from "../navigation/NavigationIcon";
 import styles from "./WorkbenchShell.module.css";
 
 /** 展示当前工作区与左右栏控制，折叠事件由四栏骨架处理。 */
@@ -41,16 +41,12 @@ export function WorkspaceBar({
   return (
     <header className={styles.workspaceBar}>
       <div className={styles.barGroup}>
-        <button
-          className={`${styles.toggleButton} ${leftOpen && !leftDragCollapsed ? styles.toggleButtonActive : ""}`}
-          type="button"
-          aria-label={leftOpen ? locale.collapseLeftSidebar : locale.expandLeftSidebar}
-          aria-expanded={leftOpen && !leftDragCollapsed}
-          title={leftOpen ? locale.collapseLeftSidebar : locale.expandLeftSidebar}
+        <PanelToggleButton
+          side="left"
+          expanded={leftOpen && !leftDragCollapsed}
+          label={leftOpen ? locale.collapseLeftSidebar : locale.expandLeftSidebar}
           onClick={onToggleLeft}
-        >
-          <NavigationIcon name="sidebarLeft" />
-        </button>
+        />
         <span className={styles.barTitle}>{title}</span>
         {titleActions.length > 0 && (
           <span className={styles.barTitleActions}>
@@ -71,16 +67,12 @@ export function WorkspaceBar({
           </span>
         ))}
         {hasRightColumn && (!hideRightToggleWhenOpen || !rightOpen || rightDragCollapsed) && (
-          <button
-            className={`${styles.toggleButton} ${rightOpen && !rightDragCollapsed ? styles.toggleButtonActive : ""}`}
-            type="button"
-            aria-label={rightOpen ? locale.collapseRightPanel : locale.expandRightPanel}
-            aria-expanded={rightOpen && !rightDragCollapsed}
-            title={rightOpen ? locale.collapseRightPanel : locale.expandRightPanel}
+          <PanelToggleButton
+            side="right"
+            expanded={rightOpen && !rightDragCollapsed}
+            label={rightOpen ? locale.collapseRightPanel : locale.expandRightPanel}
             onClick={onToggleRight}
-          >
-            <NavigationIcon name="sidebarRight" />
-          </button>
+          />
         )}
       </div>
     </header>

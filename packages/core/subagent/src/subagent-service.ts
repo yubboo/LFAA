@@ -4,7 +4,13 @@ import type { Context } from "@deepseek-ai/cordis";
 import { executeAgentTaskLoop, SmartTrustStore } from "@lfaa/agent";
 import type { ChatMessageRecord, MemoryService } from "@lfaa/memory";
 import type { ToolsService, ToolExecutionContext } from "@lfaa/tools";
-import type { InvokeSubagentInput, SubagentMode, SubagentPluginConfig, SubagentSummaryItem } from "./types";
+import type { InvokeSubagentInput, SubagentKind, SubagentMode, SubagentPluginConfig, SubagentSummaryItem } from "./types";
+import {
+  buildBrowserSubagentPrompt,
+  detectBrowserLabel,
+  formatSubagentToolLabel,
+  isBrowserSubagentTool,
+} from "./browser-subagent";
 
 const SUBAGENT_BLOCKED_TOOLS = new Set(["invoke_subagent", "message_subagent", "list_subagents", "stop_subagent"]);
 const DEFAULT_MAX_CONCURRENT = 4;
@@ -36,12 +42,13 @@ function createIsolatedMemoryView(memory: MemoryService, history: ChatMessageRec
   return view;
 }
 
-/** 构造受限的工具视图：阻断递归派发子智能体，并按只读/读写模式过滤可用工具。 */
+/** 构造受限的工具视图：阻断递归派发子智能体，并按只读/读写/浏览器专职模式过滤可用工具。 */
 function createScopedToolsView(tools: ToolsService, mode: SubagentMode, parentAllows?: ToolExecutionContext["allowsTool"]): ToolsService {
   const isAllowed = (name: string): boolean => {
     if (SUBAGENT_BLOCKED_TOOLS.has(name) || parentAllows?.(name) === false) return false;
     const def = tools.getTool(name);
     if (!def) return false;
+    if (mode === "browser") return isBrowserSubagentTool(name);
     return mode === "write" || def.permissionLevel === "read";
   };
 
@@ -80,16 +87,25 @@ export class SubagentCoordinator {
 
     const controller = new AbortController();
     const { id, role } = record.item;
+    const kind: SubagentKind = record.item.mode === "browser" ? "browser" : "general";
+    const browserLabel = record.item.browserLabel;
+    const baseMeta = {
+      id,
+      role,
+      kind,
+      ...(browserLabel ? { browserLabel } : {}),
+    };
     const report = record.onSubagentActivity;
     const abortChild = () => controller.abort();
     controller.signal.addEventListener("abort", () => {
       record.item = { ...record.item, status: "stopped", endedAt: Date.now() };
-      report?.({ id, role, status: "stopped" });
+      report?.({ ...baseMeta, status: "stopped" });
     }, { once: true });
     record.controller = controller;
     const { error: _prevErr, endedAt: _prevEnd, ...prevItem } = record.item;
     record.item = {
       ...prevItem,
+      kind,
       status: "running",
       prompt: userPrompt,
       output: "",
@@ -97,13 +113,20 @@ export class SubagentCoordinator {
       stepsCount: 0,
       startedAt: Date.now(),
     };
-    report?.({ id, role, status: "running" });
+    let lastLiveAction = "思考中";
+    report?.({ ...baseMeta, status: "running", liveAction: lastLiveAction });
     if (record.parentSignal?.aborted) controller.abort();
     else record.parentSignal?.addEventListener("abort", abortChild, { once: true });
 
     const isolatedTools = createScopedToolsView(this.ctx.tools, record.item.mode, record.allowsTool);
     const isolatedMemory = createIsolatedMemoryView(this.ctx.memory, record.history);
+    const childUserMessage = kind === "browser"
+      ? buildBrowserSubagentPrompt(record.item.role, userPrompt, browserLabel ?? "内置浏览器")
+      : `[子智能体角色：${record.item.role}]\n${userPrompt}`;
 
+    const browserSvc = kind === "browser"
+      ? ((this.ctx as { get?: (name: string) => unknown }).get?.("browser") as { describeTakeoverHint?: (sid: string) => string } | undefined)
+      : undefined;
     const task = executeAgentTaskLoop(
       {
         llm: this.ctx.llm,
@@ -111,17 +134,23 @@ export class SubagentCoordinator {
         memory: isolatedMemory,
         rules: this.ctx.rules,
         trustStore: this.trustStore,
+        ...(browserSvc?.describeTakeoverHint
+          ? { dynamicSystemHint: () => browserSvc.describeTakeoverHint!(record.item.sessionId) }
+          : {}),
       },
       {
         runId: `subrun-${randomUUID().slice(0, 8)}`,
         sessionId: record.item.sessionId,
         assistantMessageId: `submsg-${randomUUID().slice(0, 8)}`,
-        userMessage: `[子智能体角色：${record.item.role}]\n${userPrompt}`,
+        userMessage: childUserMessage,
         workspaceRoots: record.workspaceRoots,
         ...(record.parentProfileId ? { profileId: record.parentProfileId } : {}),
-        enableMemoryContext: record.allowsTool?.("list_library_assets") !== false,
+        enableMemoryContext: kind !== "browser" && record.allowsTool?.("list_library_assets") !== false,
         maxSteps,
-        getPermissionMode: () => record.item.mode === "write" ? (record.parentApproval?.getPermissionMode() ?? "ask") : "ask",
+        getPermissionMode: () => {
+          if (record.item.mode === "browser") return "full";
+          return record.item.mode === "write" ? (record.parentApproval?.getPermissionMode() ?? "ask") : "ask";
+        },
         signal: controller.signal,
         emit: (evt) => {
           if (evt.type === "step_update" && !controller.signal.aborted) {
@@ -132,9 +161,28 @@ export class SubagentCoordinator {
               : [...existing, evt.step];
             record.item = { ...record.item, steps, stepsCount: steps.length };
             const { step } = evt;
-            // 只同步用户可见的实际工具工作，不转发推理文本或参数。
+            if (step.phase === "think" && step.status === "running" && lastLiveAction !== "思考中") {
+              lastLiveAction = "思考中";
+              report?.({ ...baseMeta, status: "running", liveAction: lastLiveAction });
+              return;
+            }
+            // 只同步用户可见的实际工具工作与可读动作标签，不转发完整推理原文。
             if (step.phase === "act" && step.toolName && existing[idx]?.status !== step.status) {
-              report?.({ id, role, status: "running", activity: { id: step.id, name: step.toolName, status: step.status } });
+              const label = formatSubagentToolLabel(step.toolName);
+              const target = step.toolTarget?.trim() ? step.toolTarget.trim().slice(0, 140) : undefined;
+              lastLiveAction = step.status === "running" ? (target ? `${label} · ${target}` : label) : "思考中";
+              report?.({
+                ...baseMeta,
+                status: "running",
+                liveAction: lastLiveAction,
+                activity: {
+                  id: step.id,
+                  name: step.toolName,
+                  label,
+                  ...(target ? { target } : {}),
+                  status: step.status,
+                },
+              });
             }
           }
         },
@@ -155,14 +203,14 @@ export class SubagentCoordinator {
           stepsCount: result.steps.length,
           endedAt: Date.now(),
         };
-        report?.({ id, role, status: "done", result: result.content });
+        report?.({ ...baseMeta, status: "done", result: result.content });
         return record.item;
       })
       .catch((error) => {
         if (!controller.signal.aborted) {
           const msg = error instanceof Error ? error.message : String(error);
           record.item = { ...record.item, status: "error", error: msg, output: msg, endedAt: Date.now() };
-          report?.({ id, role, status: "error", result: msg });
+          report?.({ ...baseMeta, status: "error", result: msg });
         }
         return record.item;
       }).finally(() => {
@@ -179,18 +227,22 @@ export class SubagentCoordinator {
   }
 
   async invoke(input: InvokeSubagentInput): Promise<SubagentSummaryItem> {
-    const role = input.role.trim() || "调研助手";
+    const mode: SubagentMode = input.mode === "browser" ? "browser" : input.mode === "write" ? "write" : "read";
+    const kind: SubagentKind = mode === "browser" ? "browser" : "general";
+    const role = input.role.trim() || (kind === "browser" ? "浏览器验收助手" : "调研助手");
     const prompt = input.prompt.trim();
     if (!prompt) throw new Error("子智能体任务描述不能为空。");
     const id = `sub-${randomUUID().slice(0, 8)}`;
-    const mode: SubagentMode = input.mode === "write" ? "write" : "read";
     if (mode === "write" && !input.parentApproval) throw new Error("写入子任务缺少父运行审批上下文。");
+    const browserLabel = kind === "browser" ? await detectBrowserLabel(this.ctx) : undefined;
     const record: SubagentRecord = {
       item: {
         id,
         sessionId: input.sessionId,
         parentRunId: input.parentRunId,
         role,
+        kind,
+        ...(browserLabel ? { browserLabel } : {}),
         mode,
         status: "running",
         prompt,
@@ -231,7 +283,9 @@ export class SubagentCoordinator {
     record.onSubagentActivity = parent?.onSubagentActivity;
     if (parent) record.item = { ...record.item, parentRunId: parent.runId };
     if (parent) record.workspaceRoots = parent.workspaceRoots;
-    const promise = this.runTurn(record, prompt.trim(), this.config.defaultMaxSteps ?? DEFAULT_MAX_STEPS);
+    const trimmed = prompt.trim();
+    if (!trimmed) throw new Error("补充任务描述不能为空。");
+    const promise = this.runTurn(record, trimmed, this.config.defaultMaxSteps ?? DEFAULT_MAX_STEPS);
     return wait ? await promise : record.item;
   }
 

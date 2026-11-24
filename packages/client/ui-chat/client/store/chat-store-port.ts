@@ -1,5 +1,5 @@
 // 聊天 Store 内部端口：核心壳向各动作模块暴露的最小状态与跨模块操作，避免模块互相直接依赖实现。
-import type { AgentPermissionMode, ChatSessionDetail, ChatStoreSnapshot } from "./chat-types";
+import type { AgentPermissionMode, AgentStepItem, ChatSessionDetail, ChatStoreSnapshot } from "./chat-types";
 
 export interface ChatSessionMetaPatch {
   title?: string;
@@ -18,6 +18,8 @@ export interface ChatStorePort {
   patchState(patch: Partial<ChatStoreSnapshot>): void;
   refreshMeta(projectPath?: string): Promise<void>;
   trackLeavingActiveRun(nextSessionId: string | null): void;
+  /** 切换会话或新建草稿时断开当前活动 SSE 流，防止后台流继续跨会话写状态。 */
+  detachActiveStream?(): void;
   scheduleBackgroundRunPoll(): void;
   /** 标记会话的运行状态，用于左二栏工作转圈（开始/结束都立即反映）。 */
   markSessionRunning(sessionId: string, running: boolean): void;
@@ -32,6 +34,8 @@ export interface ChatStorePort {
   refreshGoal(sessionId: string): Promise<void>;
   startNewChatDraft(options?: { projectId?: string | null; sectionId?: string | null }): void;
   sendMessage(text: string, skillIds?: string[]): Promise<void>;
+  /** 根据本轮 Agent 工具/子智能体步骤自动联动右侧工作台（尊重跟随开关与本轮手动折叠）。 */
+  applyAgentStepWorkbenchAction?(sessionId: string, messageId: string, step: AgentStepItem): void;
 }
 
 /** 供运行模块写权限时复用。 */

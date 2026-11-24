@@ -14,6 +14,44 @@ import { TODO_NUDGE_MARK, TODO_NUDGE_TEXT, shouldNudgeTodos } from "./todo-plan"
 /** 同一轮中连续只读工具的最大并行数；写文件与命令仍保持串行。 */
 export const PARALLEL_READ_LIMIT = 4;
 
+/** 常见工具目标参数键的优先级；未命中时回退到首个短字符串参数，以动态适配任意内置或扩展工具。 */
+const TARGET_ARG_KEYS = [
+  "path",
+  "filePath",
+  "file",
+  "directory",
+  "dir",
+  "pattern",
+  "query",
+  "glob",
+  "url",
+  "command",
+  "role",
+  "title",
+  "name",
+  "skillId",
+  "target",
+] as const;
+
+/** 从已解析的工具参数中动态提取最具可读性的目标摘要，不针对工具名写死分支。 */
+function extractDynamicToolTarget(args: Record<string, unknown>): string | undefined {
+  for (const key of TARGET_ARG_KEYS) {
+    const val = args[key];
+    if (typeof val === "string" && val.trim()) {
+      return val.trim().slice(0, 500);
+    }
+  }
+  for (const val of Object.values(args)) {
+    if (typeof val === "string") {
+      const trimmed = val.trim();
+      if (trimmed && trimmed.length <= 240 && !trimmed.includes("\n")) {
+        return trimmed;
+      }
+    }
+  }
+  return undefined;
+}
+
 /** 单个工具调用的执行结果，步骤回填与自检判定都基于这份数据。 */
 export interface ActOutcome {
   call: LlmToolCall;
@@ -29,6 +67,7 @@ export interface ActOutcome {
   removedLines?: number;
   exitCode?: number;
   fileChange?: AgentStepTrace["fileChange"];
+  readRange?: AgentStepTrace["readRange"];
   /** 工具（如 todo_write）回传的最新任务清单，供运行事件与快照使用。 */
   todos?: TodoItem[];
 }
@@ -70,7 +109,7 @@ export async function runActPhase(
   const runToolCall = async (call: LlmToolCall): Promise<ActOutcome> => {
     if (params.signal.aborted) throw new Error("用户已中止本次任务。");
     const actStepId = `act-${iteration}-${call.id}`;
-    const argsPreview = (call.argumentsJson || "{}").slice(0, 200);
+    const argsPreview = (call.argumentsJson || "{}").slice(0, 2_000);
     const toolDef = deps.tools.getTool(call.name);
     const perm = toolDef?.permissionLevel ?? "read";
 
@@ -82,6 +121,8 @@ export async function runActPhase(
     const command = call.name === "run_command" && parsedArgs.ok && typeof parsedArgs.value.command === "string"
       ? parsedArgs.value.command.trim().slice(0, 16000)
       : "";
+    const dynamicTarget = parsedArgs.ok ? extractDynamicToolTarget(parsedArgs.value) : undefined;
+    const stepStartedAt = Date.now();
     const action: AgentStepTrace = {
       id: actStepId,
       iteration,
@@ -92,11 +133,11 @@ export async function runActPhase(
       toolName: call.name,
       permissionLevel: perm,
       argsPreview,
-      ...(parsedArgs.ok && typeof parsedArgs.value.path === "string"
-        ? { toolTarget: parsedArgs.value.path.slice(0, 500) } : {}),
+      ...(dynamicTarget ? { toolTarget: dynamicTarget } : {}),
       textOffset: roundTextOffset,
       ...(command ? { commandTrace: { command } } : {}),
-      timestamp: Date.now(),
+      startedAt: stepStartedAt,
+      timestamp: stepStartedAt,
     };
 
     let toolOutputText = "";
@@ -108,6 +149,7 @@ export async function runActPhase(
     let removedLines: number | undefined;
     let exitCode: number | undefined;
     let fileChange: AgentStepTrace["fileChange"];
+    let readRange: AgentStepTrace["readRange"];
     let todos: TodoItem[] | undefined;
 
     if (!parsedArgs.ok) {
@@ -183,6 +225,7 @@ export async function runActPhase(
         pushOrUpdateStep({ ...action, timestamp: Date.now() });
         const execStartedAt = Date.now();
         const childSteps = new Map<string, Map<string, NonNullable<SubagentActivityUpdate["activity"]>>>();
+        const childStartedAt = new Map<string, number>();
         const execRes = await deps.tools.executeTool(call.name, parsedArgs.value, {
           workspaceRoots: params.workspaceRoots,
           sessionId: params.sessionId,
@@ -192,19 +235,36 @@ export async function runActPhase(
           ...(params.profileId ? { parentProfileId: params.profileId } : {}),
           allowOutsideWorkspace: params.getPermissionMode() === "full",
           ...((call.name === "invoke_subagent" || call.name === "message_subagent") ? {
-            onSubagentActivity: ({ id, role, status, activity, result }) => {
+            onSubagentActivity: ({ id, role, status, kind, browserLabel, liveAction, activity, result }) => {
               const work = childSteps.get(id) ?? new Map();
               if (activity) work.set(activity.id, activity);
               childSteps.set(id, work);
+              const started = childStartedAt.get(id) ?? Date.now();
+              childStartedAt.set(id, started);
+              const stepItems = [...work.values()];
               pushOrUpdateStep({
                 id: `child-${action.id}-${id}`,
                 iteration,
                 phase: "act",
                 status: status === "stopped" ? "error" : status,
                 title: role,
-                subagent: { id, role, status },
+                subagent: {
+                  id,
+                  role,
+                  status,
+                  ...(kind ? { kind } : {}),
+                  ...(browserLabel ? { browserLabel } : {}),
+                  ...(liveAction ? { liveAction } : {}),
+                  ...(stepItems.length ? { steps: stepItems } : {}),
+                },
+                startedAt: started,
                 textOffset: roundTextOffset,
-                ...(work.size ? { detail: [...work.values()].map((item) => `${item.name} · ${item.status}`).join("\n").slice(-4000) } : {}),
+                ...(stepItems.length ? {
+                  detail: stepItems
+                    .map((item) => `${item.label ?? item.name}${item.target ? ` · ${item.target}` : ""} (${item.status})`)
+                    .join("\n")
+                    .slice(-4000),
+                } : {}),
                 ...(result ? { resultPreview: result.slice(0, 2000) } : {}),
                 timestamp: Date.now(),
               });
@@ -224,7 +284,21 @@ export async function runActPhase(
         if (typeof execRes.metadata?.exitCode === "number") exitCode = execRes.metadata.exitCode;
         // 任务清单是会话状态：工具回传后既进步骤流也广播给前端，刷新/重连都能恢复。
         todos = normalizeTodoList(execRes.metadata?.todos);
-        if (execRes.ok) fileChange = execRes.fileChange;
+        if (execRes.ok) {
+          fileChange = execRes.fileChange;
+          if (
+            call.name === "read_file"
+            && typeof execRes.metadata?.startLine === "number"
+            && typeof execRes.metadata?.endLine === "number"
+          ) {
+            readRange = {
+              startLine: execRes.metadata.startLine,
+              endLine: execRes.metadata.endLine,
+              ...(typeof execRes.metadata.totalLines === "number" ? { totalLines: execRes.metadata.totalLines } : {}),
+              ...(typeof execRes.metadata.resolvedPath === "string" ? { resolvedPath: execRes.metadata.resolvedPath } : {}),
+            };
+          }
+        }
       }
     }
 
@@ -241,6 +315,7 @@ export async function runActPhase(
       ...(removedLines !== undefined ? { removedLines } : {}),
       ...(exitCode !== undefined ? { exitCode } : {}),
       ...(fileChange ? { fileChange } : {}),
+      ...(readRange ? { readRange } : {}),
       ...(todos ? { todos } : {}),
     };
   };
@@ -257,11 +332,15 @@ export async function runActPhase(
       params.emit({ type: "todos", runId: params.runId, todos: outcome.todos });
     }
 
+    // 保留最多 8,000 字符的工具输出供原地滚动查阅，超出时明确标出截断与总长度。
+    const resultPreview = outcome.output.length > 8_000
+      ? `${outcome.output.slice(0, 8_000)}\n…（已截断，完整输出共 ${outcome.output.length.toLocaleString("zh-CN")} 字符）`
+      : outcome.output;
     pushOrUpdateStep({
       ...action,
       status: outcome.ok ? "done" : "error",
       title: `行动：${call.name} (${outcome.summary})`,
-      resultPreview: outcome.output.slice(0, 240),
+      resultPreview,
       ...(command ? { commandTrace: {
         command,
         output: tailCommandOutput(outcome.output),
@@ -271,6 +350,7 @@ export async function runActPhase(
       ...(outcome.removedLines !== undefined ? { removedLines: outcome.removedLines } : {}),
       ...(outcome.todos ? { todos: outcome.todos } : {}),
       ...(outcome.fileChange ? { fileChange: outcome.fileChange } : {}),
+      ...(outcome.readRange ? { readRange: outcome.readRange } : {}),
       timestamp: Date.now(),
     });
 

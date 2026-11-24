@@ -1,6 +1,7 @@
 // 设置中心弹窗：把原先占满工作区的设置页收敛为居中卡片（左栏目录 + 右内容区），
 // 背景保留当前工作区并压暗；关闭时回到打开设置前的视图。
 import { useCallback, useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { ScrollArea } from "@lfaa/ui-primitives/client";
 import type { LocaleMessages } from "../locales";
 import type { NavigationView } from "../navigation/navigation";
 import { NavigationIcon } from "../navigation/NavigationIcon";
@@ -96,7 +97,8 @@ export function SettingsDialog({
       >
         <aside className={styles.nav} aria-label={locale.settingsCenter}>
           <p className={styles.navHeading}>{locale.settingsCenter}</p>
-          <div className={styles.navScroll}>
+          {/* 目录本身滚动：共享滚动容器统一细滚动条，常驻槽位避免目录项左右跳。 */}
+          <ScrollArea className={styles.navScroll} stableGutter>
             {SETTINGS_CATALOG.map((group) => (
               <section key={group.id} className={styles.navGroup}>
                 <p className={styles.navGroupTitle}>{isZh ? group.titleZh : group.titleEn}</p>
@@ -109,7 +111,7 @@ export function SettingsDialog({
                       className={`${styles.navItem} ${active ? styles.navItemActive : ""}`}
                       type="button"
                       aria-current={active ? "page" : undefined}
-                      title={item.implemented ? label : `${label}（${locale.unavailable}）`}
+                      title={label}
                       onClick={() => onNavigate(item.viewId as NavigationView)}
                     >
                       {label}
@@ -118,7 +120,7 @@ export function SettingsDialog({
                 })}
               </section>
             ))}
-          </div>
+          </ScrollArea>
         </aside>
 
         <section className={styles.panel} aria-label={currentLabel}>
@@ -127,14 +129,15 @@ export function SettingsDialog({
               <NavigationIcon name="close" />
             </button>
           </div>
-          <div className={styles.panelBody} ref={bodyRef}>
+          {/* 设置页正文独立滚动：常驻槽位让各页出现/收起滚动条时中间内容不再左右抖动。 */}
+          <ScrollArea className={styles.panelBody} ref={bodyRef} stableGutter>
             {content !== null ? content : (
               <div className={styles.placeholder}>
                 <h2>{currentLabel}</h2>
                 <p>{locale.featureUnavailable}</p>
               </div>
             )}
-          </div>
+          </ScrollArea>
         </section>
       </div>
     </div>

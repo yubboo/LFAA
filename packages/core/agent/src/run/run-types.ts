@@ -24,7 +24,7 @@ export interface AgentRunResult {
 export interface CompactionHook {
   compact(
     messages: ReadonlyArray<LlmMessage>,
-    options: { budgetChars: number; toolCapChars?: number; keepRecentRounds?: number },
+    options: { budgetChars: number; toolCapChars?: number; keepRecentRounds?: number; sessionId?: string },
   ): { messages: LlmMessage[]; compacted: boolean; truncatedResults: number; droppedMessages: number };
 }
 
@@ -40,6 +40,8 @@ export interface RunLoopDeps {
   compaction?: CompactionHook;
   /** 可选：由 @lfaa/system-prompt 合成的追加段落，每轮运行取一次。 */
   extraSystemPrompt?: () => Promise<string>;
+  /** 可选：每轮思考前动态求值的实时状态提示（如用户已人工接管内置浏览器）。 */
+  dynamicSystemHint?: () => string;
   /** 可选：取出运行期间追加的用户消息（插话），在下一轮模型调用前并入对话。 */
   drainSteering?: () => string[];
 }

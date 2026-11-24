@@ -1,4 +1,4 @@
-// 渲染设置中心「编码 → 代码审查」配置页：子标签页（偏好设置 / 审查智能体）、真实代码仓库列表与个人偏好。
+// 渲染设置中心「编码 → 代码审查」页：偏好设置 / 审查智能体两个子页、仓库清单与自定义审查指令。
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { IconChevronRight, IconSearch } from "@tabler/icons-react";
 import { StatusBanner } from "@lfaa/ui-primitives/client";
@@ -16,9 +16,12 @@ import {
   type ChatLocaleMessages,
 } from "@lfaa/client-ui-chat/client";
 import {
-  SettingGroupCard,
+  SettingFormField,
+  SettingGroup,
   SettingRow,
+  SettingSegmented,
   SettingSelect,
+  SettingsPage,
   SettingSwitch,
   settingsStyles as baseStyles,
 } from "@lfaa/ui-primitives/client";
@@ -73,14 +76,11 @@ export function CodeReviewSettingsView({
 
   const filteredRepos = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return repos.filter((repo) => {
-      if (cfg.repoProvider === "github" && repo.provider !== "github") {
-        // 本地暂无 GitHub 远端时也允许搜索展示，避免列表完全空白误导
-      }
-      if (!q) return true;
-      return repo.slug.toLowerCase().includes(q) || repo.name.toLowerCase().includes(q) || repo.rootPath.toLowerCase().includes(q);
-    });
-  }, [cfg.repoProvider, repos, search]);
+    if (!q) return repos;
+    return repos.filter(
+      (repo) => repo.slug.toLowerCase().includes(q) || repo.name.toLowerCase().includes(q) || repo.rootPath.toLowerCase().includes(q),
+    );
+  }, [repos, search]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRepos.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages - 1);
@@ -99,36 +99,26 @@ export function CodeReviewSettingsView({
   };
 
   return (
-    <section className={baseStyles.root} aria-label={isZh ? "代码审查" : "Code Review"}>
-      <div className={extraStyles.headerRow}>
-        <h1 className={baseStyles.pageTitle}>{isZh ? "代码审查" : "Code Review"}</h1>
-        {onOpenCodeReviewWorkbench && (
-          <button type="button" className={baseStyles.actionBtn} onClick={onOpenCodeReviewWorkbench}>
-            {isZh ? "进入代码审查工作台" : "Open Review Workbench"}
-          </button>
-        )}
-      </div>
-
-      <div className={extraStyles.subTabs} role="tablist" aria-label={isZh ? "代码审查设置分类" : "Code Review Sections"}>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={cfg.activeSubTab === "preferences"}
-          className={`${extraStyles.subTabBtn} ${cfg.activeSubTab === "preferences" ? extraStyles.subTabBtnActive : ""}`}
-          onClick={() => void updateReviewCfg({ activeSubTab: "preferences" })}
-        >
-          {isZh ? "偏好设置" : "Preferences"}
+    <SettingsPage
+      title={isZh ? "代码审查" : "Code review"}
+      description={isZh
+        ? "配置何时审查、审查侧重，以及每个仓库的覆盖策略。"
+        : "Configure when reviews run, what they focus on, and per-repository overrides."}
+      actions={onOpenCodeReviewWorkbench ? (
+        <button type="button" className={baseStyles.actionBtn} onClick={onOpenCodeReviewWorkbench}>
+          {isZh ? "打开审查工作台" : "Open workbench"}
         </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={cfg.activeSubTab === "agent"}
-          className={`${extraStyles.subTabBtn} ${cfg.activeSubTab === "agent" ? extraStyles.subTabBtnActive : ""}`}
-          onClick={() => void updateReviewCfg({ activeSubTab: "agent" })}
-        >
-          {isZh ? "审查智能体" : "Review Agent"}
-        </button>
-      </div>
+      ) : undefined}
+    >
+      <SettingSegmented
+        value={cfg.activeSubTab}
+        label={isZh ? "代码审查设置分类" : "Code Review Sections"}
+        options={[
+          { value: "preferences", label: isZh ? "偏好设置" : "Preferences" },
+          { value: "agent", label: isZh ? "审查智能体" : "Review agent" },
+        ]}
+        onChange={(activeSubTab) => void updateReviewCfg({ activeSubTab })}
+      />
 
       {notice && (
         <StatusBanner
@@ -140,13 +130,28 @@ export function CodeReviewSettingsView({
 
       {cfg.activeSubTab === "preferences" ? (
         <>
-          <section className={baseStyles.groupSection}>
-            <div className={extraStyles.repoHeader}>
-              <div>
-                <h2 className={baseStyles.groupTitle}>{isZh ? "代码仓库" : "Repositories"}</h2>
-                <p className={extraStyles.sectionLead}>
-                  {isZh ? "选择一个代码仓库，为其配置自动审查（点击条目切换策略）" : "Select a repository to configure automatic code review"}
-                </p>
+          <section className={baseStyles.groupSection} aria-label={isZh ? "代码仓库" : "Repositories"}>
+            <h2 className={baseStyles.groupTitle}>{isZh ? "代码仓库" : "Repositories"}</h2>
+            <p className={baseStyles.groupDesc}>
+              {isZh
+                ? "点击某个仓库可在「遵循个人偏好 / 强制启用 / 关闭」之间切换它的自动审查策略。"
+                : "Click a repository to cycle its auto-review policy between inherit, enabled, and disabled."}
+            </p>
+
+            <div className={baseStyles.row}>
+              <div className={extraStyles.repoSearchWrap}>
+                <IconSearch size={14} stroke={1.8} className={extraStyles.repoSearchIcon} />
+                <input
+                  type="search"
+                  className={extraStyles.repoSearchInput}
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setPage(0);
+                  }}
+                  placeholder={isZh ? "搜索代码仓库" : "Search repositories"}
+                  aria-label={isZh ? "搜索代码仓库" : "Search repositories"}
+                />
               </div>
               <SettingSelect<RepoProviderKind>
                 value={cfg.repoProvider}
@@ -162,28 +167,11 @@ export function CodeReviewSettingsView({
               />
             </div>
 
-            <div className={extraStyles.repoSearchWrap}>
-              <IconSearch size={14} stroke={1.8} className={extraStyles.repoSearchIcon} />
-              <input
-                type="search"
-                className={extraStyles.repoSearchInput}
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPage(0);
-                }}
-                placeholder={isZh ? "搜索代码仓库" : "Search repositories"}
-                aria-label={isZh ? "搜索代码仓库" : "Search repositories"}
-              />
-            </div>
-
-            <div className={baseStyles.groupCard}>
+            <div className={baseStyles.groupList}>
               {pageRepos.length === 0 ? (
-                <div className={baseStyles.row}>
-                  <span className={baseStyles.rowDesc}>
-                    {isZh ? "当前工作区尚未探测到 Git 代码仓库，绑定本地 Git 项目后将自动显示于此。" : "No local Git repositories detected yet."}
-                  </span>
-                </div>
+                <p className={baseStyles.rowDesc}>
+                  {isZh ? "当前工作区尚未探测到 Git 代码仓库，绑定本地 Git 项目后将自动显示于此。" : "No local Git repositories detected yet."}
+                </p>
               ) : (
                 pageRepos.map((repo) => {
                   const override = cfg.repoOverrides[repo.slug] ?? "inherit";
@@ -194,10 +182,10 @@ export function CodeReviewSettingsView({
                       className={extraStyles.repoRowBtn}
                       onClick={() => cycleRepoPolicy(repo.slug)}
                     >
-                      <div className={baseStyles.rowText}>
+                      <span className={baseStyles.rowText}>
                         <span className={baseStyles.rowTitle}>{repo.slug}</span>
                         <span className={baseStyles.rowDesc}>{renderPolicyLabel(override)} · {repo.branch || "HEAD"}</span>
-                      </div>
+                      </span>
                       <span className={extraStyles.repoRight}>
                         {repo.dirtyCount > 0 && (
                           <span className={extraStyles.repoOverrideBadge}>{repo.dirtyCount} {isZh ? "变更" : "dirty"}</span>
@@ -230,7 +218,7 @@ export function CodeReviewSettingsView({
             </div>
           </section>
 
-          <SettingGroupCard title={isZh ? "个人偏好" : "Personal Preferences"}>
+          <SettingGroup title={isZh ? "个人偏好" : "Personal Preferences"}>
             <SettingRow
               title={isZh ? "自动代码审查" : "Automatic Code Review"}
               description={
@@ -284,11 +272,11 @@ export function CodeReviewSettingsView({
                 />
               )}
             />
-          </SettingGroupCard>
+          </SettingGroup>
         </>
       ) : (
         <>
-          <SettingGroupCard title={isZh ? "审查智能体策略" : "Review Agent Policy"}>
+          <SettingGroup title={isZh ? "审查智能体策略" : "Review Agent Policy"}>
             <SettingRow
               title={isZh ? "默认审查侧重" : "Default Review Focus"}
               description={isZh ? "控制内置代码审查引擎优先检出的风险类型" : "Prioritize risk categories during automated code reviews"}
@@ -317,24 +305,27 @@ export function CodeReviewSettingsView({
                 />
               )}
             />
-          </SettingGroupCard>
+          </SettingGroup>
 
-          <section className={baseStyles.groupSection}>
-            <h2 className={baseStyles.groupTitle}>{isZh ? "自定义审查指令" : "Custom Review Instructions"}</h2>
-            <p className={extraStyles.sectionLead}>
-              {isZh ? "在运行代码审查与 /review 时自动注入审查提示与报告摘要中" : "Injected into automated reviews and /review runs"}
-            </p>
-            <textarea
-              className={extraStyles.promptTextarea}
-              aria-label={isZh ? "自定义审查指令" : "Custom Review Instructions"}
-              value={cfg.customReviewInstructions}
-              placeholder={isZh ? "例如：重点检查跨包边界、未清理的事件监听、硬编码路径..." : "e.g., check package boundaries and cleanup hooks..."}
-              onChange={(e) => setCfg((prev) => ({ ...prev, customReviewInstructions: e.target.value }))}
-              onBlur={() => void updateReviewCfg({ customReviewInstructions: cfg.customReviewInstructions })}
-            />
-          </section>
+          <SettingGroup
+            title={isZh ? "自定义审查指令" : "Custom Review Instructions"}
+            description={isZh
+              ? "在运行代码审查与 /review 时自动注入审查提示与报告摘要中。"
+              : "Injected into automated reviews and /review runs."}
+          >
+            <SettingFormField label={isZh ? "审查指令" : "Instructions"}>
+              <textarea
+                className={`${baseStyles.input} ${baseStyles.textarea}`}
+                aria-label={isZh ? "自定义审查指令" : "Custom Review Instructions"}
+                value={cfg.customReviewInstructions}
+                placeholder={isZh ? "例如：重点检查跨包边界、未清理的事件监听、硬编码路径..." : "e.g., check package boundaries and cleanup hooks..."}
+                onChange={(e) => setCfg((prev) => ({ ...prev, customReviewInstructions: e.target.value }))}
+                onBlur={() => void updateReviewCfg({ customReviewInstructions: cfg.customReviewInstructions })}
+              />
+            </SettingFormField>
+          </SettingGroup>
         </>
       )}
-    </section>
+    </SettingsPage>
   );
 }

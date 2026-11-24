@@ -163,5 +163,8 @@ function streamFile(res: ServerResponse, filePath: string, range?: ByteRange): v
     if (!res.headersSent) res.statusCode = 500;
     res.destroy();
   });
+  res.on("close", () => {
+    if (!stream.destroyed) stream.destroy();
+  });
   stream.pipe(res);
 }

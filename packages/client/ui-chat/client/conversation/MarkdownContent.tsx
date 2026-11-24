@@ -1,7 +1,7 @@
-// 助手消息富文本 Markdown 渲染组件：消除原始 ** / - 等标记符，提供精美排版、表格、代码块语法高亮与一键复制。
-import { Fragment, useMemo, useState, type ReactNode } from "react";
+// 助手消息富文本 Markdown 渲染组件：提供克制优雅的文档排版、表格、代码块语法高亮与块级流式缓存。
+import { Fragment, memo, useMemo, useState, type ReactNode } from "react";
 import { IconCheck, IconCopy } from "@tabler/icons-react";
-import { isAdviceHeading, isAdviceLeadIn, normalizeLegacyMediaOutput, parseMarkdownBlocks, tokenizeCodeLines } from "./markdown-parser";
+import { normalizeLegacyMediaOutput, parseMarkdownBlocks, tokenizeCodeLines, type MarkdownBlock } from "./markdown-parser";
 import { LocalMediaImage } from "@lfaa/client-ui-tool-media/client";
 import styles from "./MarkdownContent.module.css";
 
@@ -18,17 +18,7 @@ function isSafeLink(href: string): boolean {
   return /^(https?:\/\/|mailto:|\/)/i.test(href);
 }
 
-/** 去掉行内 Markdown 标记，得到可直接发送的纯文本建议。 */
-function plainText(text: string): string {
-  return text
-    .replace(/`([^`]*)`/gu, "$1")
-    .replace(/\*\*([^*]*)\*\*/gu, "$1")
-    .replace(/__([^_]*)__/gu, "$1")
-    .replace(/\[([^\]]*)\]\([^)]*\)/gu, "$1")
-    .trim();
-}
-
-/** 将普通文本中的显式文件名（含扩展名）或连续英文目录/文件枚举渲染为清晰的行内胶囊 */
+/** 将普通文本中的显式文件名（含扩展名）或连续英文目录/文件枚举渲染为清晰的行内胶囊。 */
 function renderPlainTextWithFiles(text: string, keyPrefix: string): ReactNode[] {
   const tokens: Array<{ start: number; end: number; value: string; kind: "file" | "enum" }> = [];
   for (const m of text.matchAll(FILE_EXT_RE)) {
@@ -124,7 +114,7 @@ function renderParagraphLines(text: string, keyPrefix: string): ReactNode {
   ));
 }
 
-function CodeBlockCard({
+const CodeBlockCard = memo(function CodeBlockCard({
   language,
   code,
   isZh,
@@ -167,139 +157,138 @@ function CodeBlockCard({
       </pre>
     </div>
   );
+});
+
+/** 比较两个解析块内容是否完全等价：流式输出时跳过前面已闭合块的重渲染与正则重扫。 */
+function areBlocksEqual(a: MarkdownBlock, b: MarkdownBlock): boolean {
+  if (a === b) return true;
+  if (a.type !== b.type) return false;
+  switch (a.type) {
+    case "hr":
+      return true;
+    case "heading":
+      return b.type === "heading" && a.level === b.level && a.text === b.text;
+    case "code":
+      return b.type === "code" && a.language === b.language && a.code === b.code;
+    case "paragraph":
+      return b.type === "paragraph" && a.text === b.text;
+    case "blockquote":
+      return b.type === "blockquote"
+        && a.lines.length === b.lines.length
+        && a.lines.every((line, i) => line === b.lines[i]);
+    case "list":
+      return b.type === "list"
+        && a.ordered === b.ordered
+        && a.items.length === b.items.length
+        && a.items.every((item, i) => item === b.items[i]);
+    case "table":
+      return b.type === "table"
+        && a.headers.length === b.headers.length
+        && a.rows.length === b.rows.length
+        && a.headers.every((h, i) => h === b.headers[i])
+        && a.alignments.every((al, i) => al === b.alignments[i])
+        && a.rows.every((row, r) => row.length === b.rows[r]?.length && row.every((c, i) => c === b.rows[r]?.[i]));
+  }
 }
 
-/** 把助手消息解析成安全的 React 文档块，代码和表格由各自的渲染分支处理。 */
-export function MarkdownContent({
+const MarkdownBlockView = memo(function MarkdownBlockView({
+  block,
+  blockKey,
+  isZh,
+}: {
+  block: MarkdownBlock;
+  blockKey: string;
+  isZh: boolean;
+}) {
+  switch (block.type) {
+    case "heading": {
+      const level = Math.min(4, Math.max(1, block.level));
+      return (
+        <div role="heading" aria-level={block.level} className={styles[`h${level}`]}>
+          {renderInline(block.text, blockKey)}
+        </div>
+      );
+    }
+    case "code":
+      return <CodeBlockCard language={block.language} code={block.code} isZh={isZh} />;
+    case "table":
+      return (
+        <div className={styles.tableWrap}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                {block.headers.map((header, colIdx) => (
+                  <th key={colIdx} style={{ textAlign: block.alignments[colIdx] ?? "left" }}>
+                    {renderInline(header, `${blockKey}-th-${colIdx}`)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {block.rows.map((row, rowIdx) => (
+                <tr key={rowIdx}>
+                  {block.headers.map((_, colIdx) => (
+                    <td key={colIdx} style={{ textAlign: block.alignments[colIdx] ?? "left" }}>
+                      {renderInline(row[colIdx] ?? "", `${blockKey}-r-${rowIdx}-c-${colIdx}`)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    case "list":
+      return block.ordered ? (
+        <ol className={styles.ol}>
+          {block.items.map((item, itemIdx) => (
+            <li key={itemIdx}>{renderInline(item, `${blockKey}-li-${itemIdx}`)}</li>
+          ))}
+        </ol>
+      ) : (
+        <ul className={styles.ul}>
+          {block.items.map((item, itemIdx) => (
+            <li key={itemIdx}>{renderInline(item, `${blockKey}-li-${itemIdx}`)}</li>
+          ))}
+        </ul>
+      );
+    case "blockquote":
+      return (
+        <blockquote className={styles.blockquote}>
+          {block.lines.map((line, lIdx) => (
+            <p key={lIdx}>{renderInline(line, `${blockKey}-q-${lIdx}`)}</p>
+          ))}
+        </blockquote>
+      );
+    case "hr":
+      return <hr className={styles.hr} />;
+    case "paragraph":
+      return (
+        <p className={styles.p}>
+          {renderParagraphLines(block.text, blockKey)}
+        </p>
+      );
+  }
+}, (prev, next) => prev.isZh === next.isZh && prev.blockKey === next.blockKey && areBlocksEqual(prev.block, next.block));
+
+/** 把助手消息解析成安全的 React 文档块；正文列表保持标准阅读排版，不做卡片劫持。 */
+export const MarkdownContent = memo(function MarkdownContent({
   content,
   isZh = true,
-  onSelectAdvice,
 }: {
   content: string;
   isZh?: boolean;
-  /** 点击「建议/下一步」列表项时回调，用于把该条建议直接作为下一条消息发送。 */
+  /** 保留可选属性签名以兼容旧调用点；正文列表统一还原标准阅读排版。 */
   onSelectAdvice?: ((text: string) => void) | undefined;
 }) {
   // 先兼容旧版媒体输出（列表里的绝对路径），再解析块级结构，历史消息也按新排版显示。
   const blocks = useMemo(() => parseMarkdownBlocks(normalizeLegacyMediaOutput(content)), [content]);
-  // 标记每个块是否属于「建议/下一步」段落：属于则列表项渲染为编号可点选项。
-  const adviceFlags = useMemo(() => {
-    let active = false;
-    return blocks.map((block) => {
-      if (block.type === "heading") {
-        active = isAdviceHeading(block.text);
-        return false;
-      }
-      // 有的回答用加粗短句引出建议（如「下一步去哪些页面」），同样视为建议段落起点。
-      if (block.type === "paragraph" && isAdviceLeadIn(block.text)) {
-        active = true;
-        return false;
-      }
-      return active;
-    });
-  }, [blocks]);
 
   return (
     <div className={styles.root}>
-      {blocks.map((block, idx) => {
-        const key = `b-${idx}`;
-        switch (block.type) {
-          case "heading": {
-            const level = Math.min(4, Math.max(1, block.level));
-            const base = styles[`h${level}`];
-            // 建议/下一步类标题用强调色突出，Agent 的结论推荐一眼可见。
-            const cls = isAdviceHeading(block.text) ? `${base} ${styles.adviceHeading}` : base;
-            return (
-              <div key={key} role="heading" aria-level={block.level} className={cls} data-advice={isAdviceHeading(block.text) ? "true" : undefined}>
-                {renderInline(block.text, key)}
-              </div>
-            );
-          }
-          case "code":
-            return <CodeBlockCard key={key} language={block.language} code={block.code} isZh={isZh} />;
-          case "table":
-            return (
-              <div key={key} className={styles.tableWrap}>
-                <table className={styles.table}>
-                  <thead>
-                    <tr>
-                      {block.headers.map((header, colIdx) => (
-                        <th key={colIdx} style={{ textAlign: block.alignments[colIdx] ?? "left" }}>
-                          {renderInline(header, `${key}-th-${colIdx}`)}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {block.rows.map((row, rowIdx) => (
-                      <tr key={rowIdx}>
-                        {block.headers.map((_, colIdx) => (
-                          <td key={colIdx} style={{ textAlign: block.alignments[colIdx] ?? "left" }}>
-                            {renderInline(row[colIdx] ?? "", `${key}-r-${rowIdx}-c-${colIdx}`)}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            );
-          case "list": {
-            // 建议段落的列表项：编号 + 可点击，直接作为下一条消息发送（用户自行选择）。
-            if (adviceFlags[idx] && onSelectAdvice) {
-              return (
-                <div key={key} className={styles.adviceOptions} role="list">
-                  {block.items.map((item, itemIdx) => (
-                    <button
-                      key={itemIdx}
-                      type="button"
-                      role="listitem"
-                      className={styles.adviceOptionBtn}
-                      onClick={() => onSelectAdvice(plainText(item))}
-                    >
-                      <span className={styles.adviceOptionIndex}>{itemIdx + 1}</span>
-                      <span className={styles.adviceOptionText}>{renderInline(item, `${key}-li-${itemIdx}`)}</span>
-                      {itemIdx === 0 && (
-                        <span className={styles.adviceOptionRecommended}>{isZh ? "推荐" : "Recommended"}</span>
-                      )}
-                      <span className={styles.adviceOptionArrow} aria-hidden="true">→</span>
-                    </button>
-                  ))}
-                </div>
-              );
-            }
-            return block.ordered ? (
-              <ol key={key} className={styles.ol}>
-                {block.items.map((item, itemIdx) => (
-                  <li key={itemIdx}>{renderInline(item, `${key}-li-${itemIdx}`)}</li>
-                ))}
-              </ol>
-            ) : (
-              <ul key={key} className={styles.ul}>
-                {block.items.map((item, itemIdx) => (
-                  <li key={itemIdx}>{renderInline(item, `${key}-li-${itemIdx}`)}</li>
-                ))}
-              </ul>
-            );
-          }
-          case "blockquote":
-            return (
-              <blockquote key={key} className={styles.blockquote}>
-                {block.lines.map((line, lIdx) => (
-                  <p key={lIdx}>{renderInline(line, `${key}-q-${lIdx}`)}</p>
-                ))}
-              </blockquote>
-            );
-          case "hr":
-            return <hr key={key} className={styles.hr} />;
-          case "paragraph":
-            return (
-              <p key={key} className={styles.p}>
-                {renderParagraphLines(block.text, key)}
-              </p>
-            );
-        }
-      })}
+      {blocks.map((block, idx) => (
+        <MarkdownBlockView key={`b-${idx}`} block={block} blockKey={`b-${idx}`} isZh={isZh} />
+      ))}
     </div>
   );
-}
+});

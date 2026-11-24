@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, realpath, rename, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import type { PluginRecord } from "../../contract/index";
 import { spawnPnpm } from "./pnpm-spawn";
 
@@ -80,9 +80,34 @@ export class ProfilePackages {
     // 参数校验与平台差异都在 spawnPnpm 内处理：Windows 不再拼接裸命令行。
     const child = spawnPnpm(full, this.profileRoot);
     let output = "";
-    child.stdout?.on("data", (chunk) => { output += String(chunk); });
-    child.stderr?.on("data", (chunk) => { output += String(chunk); });
-    const code = await new Promise<number>((done) => child.on("close", (value) => done(value ?? 1)));
+    let lineBuffer = "";
+    const pushChunk = (chunk: unknown) => {
+      const text = String(chunk);
+      output += text;
+      if (!onLine) return;
+      lineBuffer += text;
+      const lines = lineBuffer.split(/\r?\n/u);
+      lineBuffer = lines.pop() ?? "";
+      for (const line of lines) {
+        if (line.trim()) onLine(line);
+      }
+    };
+    child.stdout?.on("data", pushChunk);
+    child.stderr?.on("data", pushChunk);
+    const code = await new Promise<number>((done) => {
+      let settled = false;
+      const finish = (value: number) => {
+        if (settled) return;
+        settled = true;
+        if (onLine && lineBuffer.trim()) onLine(lineBuffer);
+        done(value);
+      };
+      child.once("error", (err) => {
+        output += `\n${err.message}`;
+        finish(1);
+      });
+      child.once("close", (value) => finish(value ?? 1));
+    });
     return { code, output };
   }
 
@@ -199,7 +224,19 @@ export class ProfilePackages {
     let output = "";
     install.stdout?.on("data", (chunk) => { output += String(chunk); });
     install.stderr?.on("data", (chunk) => { output += String(chunk); });
-    const code = await new Promise<number>((done) => install.on("close", (value) => done(value ?? 1)));
+    const code = await new Promise<number>((done) => {
+      let settled = false;
+      const finish = (value: number) => {
+        if (settled) return;
+        settled = true;
+        done(value);
+      };
+      install.once("error", (err) => {
+        output += `\n${err.message}`;
+        finish(1);
+      });
+      install.once("close", (value) => finish(value ?? 1));
+    });
     if (code !== 0) {
       throw new Error(`profile 依赖安装失败（退出码 ${code}）：${output.trim().slice(-300)}`);
     }
@@ -207,7 +244,7 @@ export class ProfilePackages {
 
   /** 定位插件包目录：本仓包按清单名查找，本地插件按 file: URL 反查。 */
   async locatePackage(moduleName: string): Promise<string> {
-    if (moduleName.startsWith("file:")) return dirname(dirname(new URL(moduleName).pathname.replace(/^\//u, "")));
+    if (moduleName.startsWith("file:")) return dirname(dirname(fileURLToPath(moduleName)));
     if (!this.repoRoot) throw new Error("未配置仓库根目录，无法定位插件包。");
     const want = moduleName;
     const search = async (dir: string, depth: number): Promise<string | null> => {

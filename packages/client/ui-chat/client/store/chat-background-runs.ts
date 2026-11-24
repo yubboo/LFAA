@@ -10,6 +10,7 @@ export class ChatBackgroundRuns {
   private readonly sessionIds = new Set<string>();
   private attention = new Map<string, ChatSessionAttention>();
   private timer: ReturnType<typeof setTimeout> | null = null;
+  private disposed = false;
 
   constructor(
     private readonly getState: () => ChatStoreSnapshot,
@@ -55,7 +56,7 @@ export class ChatBackgroundRuns {
   }
 
   schedule(): void {
-    if (typeof window === "undefined") return;
+    if (this.disposed || typeof window === "undefined") return;
     if (this.timer !== null) return;
     if (this.sessionIds.size === 0 && this.attention.size === 0) return;
     const delay = this.sessionIds.size > 0 ? RUNNING_POLL_MS : ATTENTION_POLL_MS;
@@ -67,6 +68,7 @@ export class ChatBackgroundRuns {
 
   // 同时校正运行集合与待处理集合；集合变化时刷新会话列表，并只对新出现/升级的状态发通知。
   private async poll(): Promise<void> {
+    if (this.disposed) return;
     const runningBefore = new Set(this.sessionIds);
     let runningChanged = false;
     let attentionChanged = false;
@@ -75,6 +77,7 @@ export class ChatBackgroundRuns {
         fetchJson<{ sessionIds: string[] }>("/api/agent/active-sessions").catch(() => null),
         fetchJson<{ items: ChatSessionAttention[] }>("/api/agent/attention").catch(() => null),
       ]);
+      if (this.disposed) return;
       if (activeRes && Array.isArray(activeRes.sessionIds)) {
         runningChanged = this.replaceRunning(activeRes.sessionIds);
       }
@@ -131,6 +134,7 @@ export class ChatBackgroundRuns {
   }
 
   dispose(): void {
+    this.disposed = true;
     if (this.timer !== null) {
       clearTimeout(this.timer);
       this.timer = null;

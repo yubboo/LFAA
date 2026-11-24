@@ -9,6 +9,22 @@ import type { LocalProject, NavigationView, RecentItem } from "./navigation";
 import type { SessionListControl } from "./session-list-paging";
 import type { SidebarItemConfig } from "../panels/SidebarSectionList";
 
+/** 解析左二顶部「新聊天」应继承的项目：按当前项目上下文、活动会话项目、草稿绑定项目顺序兜底。 */
+export function resolveNewChatProject(input: {
+  activeProjectId: string | null;
+  activeChatSessionId: string | null;
+  chatSessions: WorkbenchChatSessionSummary[];
+  draftProjectId?: string | null | undefined;
+  projects: LocalProject[];
+}): LocalProject | null {
+  const activeSessionProjectId = input.activeChatSessionId
+    ? input.chatSessions.find((session) => session.id === input.activeChatSessionId)?.projectId ?? null
+    : null;
+  const candidateId = input.activeProjectId ?? activeSessionProjectId ?? input.draftProjectId ?? null;
+  if (!candidateId) return null;
+  return input.projects.find((project) => project.id === candidateId) ?? null;
+}
+
 /** 把会话更新时间格式化为「刚刚 / 12m / 3h / 2d」的短提示，无有效时间时不显示。 */
 export function formatRelativeSessionAge(updatedAt?: number): string | undefined {
   if (!updatedAt || !Number.isFinite(updatedAt)) return undefined;
@@ -30,6 +46,8 @@ export interface ProjectItemDeps {
   /** 展开状态按具体行 id 记录：置顶与项目两份副本各自展开/收起。 */
   isProjectExpanded: (rowId: string) => boolean;
   projectProvider?: WorkbenchProjectProvider<ReactNode> | null | undefined;
+  /** 单击项目文件夹行时同步当前项目上下文（仅高亮与记忆，不跳转会话）。 */
+  onSelectProjectContext?: ((project: LocalProject) => void) | undefined;
   onNewChatInProject: (project: LocalProject) => void;
   onToggleProjectExpanded: (rowId: string) => void;
   onExpandProject: (rowId: string) => void;
@@ -152,6 +170,7 @@ export function createProjectSidebarItem(
     onClick: () => {
       deps.onRowActivate(groupKey);
       deps.projectProvider?.closeProjectMenus?.();
+      deps.onSelectProjectContext?.(project);
       deps.onToggleProjectExpanded(rowId);
     },
     onDoubleClick: () => {
@@ -176,7 +195,7 @@ export function createSessionSidebarItem(
   const trailingHint = formatRelativeSessionAge(sessionObj.updatedAt);
   const actions = deps.chatProvider?.renderSessionRowActions?.(sessionObj);
   const rowId = `${opts?.idPrefix ?? ""}${sessionObj.id}`;
-  // Agent 还在该会话里工作时，把左侧铅笔换成转圈；切走会话后依然可见。
+  // Agent 还在该会话里工作时，行首状态槽转圈；图标位保持常态，避免转圈把标题挤开。
   const working = deps.chatProvider?.isSessionRunning?.(sessionObj.id) ?? false;
   const isActive = deps.showActive && deps.activeView === "workspace" && deps.activeChatSessionId === sessionObj.id;
   // 状态互斥：进行中只转圈，完成后才亮未读点；需要确认/回答时用徽标替代完成点。
@@ -188,7 +207,7 @@ export function createSessionSidebarItem(
     ...(sessionObj.worktree ? { branchLabel: sessionObj.worktree.branch, branchTitle: sessionObj.worktree.path } : {}),
     icon: working ? "working" : "newChat",
     ...(opts?.nested ? { nested: true } : {}),
-    ...(opts?.hideIcon && !working ? { hideIcon: true } : {}),
+    ...(opts?.hideIcon ? { hideIcon: true } : {}),
     active: isActive,
     ...(showUnread ? { unread: true } : {}),
     ...(sessionObj.muted ? { muted: true } : {}),

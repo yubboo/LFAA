@@ -56,18 +56,24 @@ export function createRoutedLlm(deps: RoutedLlmDeps): RunLlm {
   let planPromise: Promise<{ binding: ModelBinding; plan: RoutePlan } | undefined> | undefined;
 
   const loadPlan = async (): Promise<{ binding: ModelBinding; plan: RoutePlan } | undefined> => {
-    planPromise ??= (async () => {
-      const bindingId = await deps.bindings.resolveBindingId(deps.agentId, deps.bindingId);
-      const binding = await deps.bindings.getBinding(bindingId);
-      if (!binding) throw new Error(`模型绑定不存在：${bindingId}。请到 Agents 页重新选择模型。`);
-      const { profiles } = await deps.llm.listPublicProfiles();
-      const plan = planRoute(binding, {
-        availableProfileIds: new Set(profiles.map((profile) => profile.id)),
-        ...(deps.rotationIndex !== undefined ? { rotationIndex: deps.rotationIndex } : {}),
-        ...(deps.usageCounts ? { usageCounts: deps.usageCounts } : {}),
+    if (!planPromise) {
+      planPromise = (async () => {
+        const bindingId = await deps.bindings.resolveBindingId(deps.agentId, deps.bindingId);
+        const binding = await deps.bindings.getBinding(bindingId);
+        if (!binding) throw new Error(`模型绑定不存在：${bindingId}。请到 Agents 页重新选择模型。`);
+        const { profiles } = await deps.llm.listPublicProfiles();
+        const plan = planRoute(binding, {
+          availableProfileIds: new Set(profiles.map((profile) => profile.id)),
+          ...(deps.rotationIndex !== undefined ? { rotationIndex: deps.rotationIndex } : {}),
+          ...(deps.usageCounts ? { usageCounts: deps.usageCounts } : {}),
+        });
+        return { binding, plan };
+      })().catch((error) => {
+        // 瞬态 I/O 错误不永久缓存拒绝态，下次调用允许重试加载绑定。
+        planPromise = undefined;
+        throw error;
       });
-      return { binding, plan };
-    })();
+    }
     return planPromise;
   };
 
@@ -121,7 +127,10 @@ export function createRoutedLlm(deps: RoutedLlmDeps): RunLlm {
     if (profileId) return deps.llm.resolveProfile(profileId);
     const loaded = await loadPlan();
     const first = loaded?.plan.candidates[0];
-    if (loaded && first && !isInheritGlobal(loaded.binding)) return deps.llm.resolveProfile(first.profileId);
+    if (loaded && first && !isInheritGlobal(loaded.binding)) {
+      const profile = await deps.llm.resolveProfile(first.profileId);
+      return first.modelId ? { ...profile, model: first.modelId } : profile;
+    }
     return deps.llm.resolveProfile(undefined);
   };
 

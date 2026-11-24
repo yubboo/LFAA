@@ -14,11 +14,15 @@ export function UserMenu({
   active = false,
   accountActions = [],
   onOpenAppearance,
+  onOpenSettings,
 }: {
   locale: LocaleMessages;
   active?: boolean;
   accountActions?: WorkbenchAccountActionContribution<ReactNode>[];
+  /** 「个性化」入口：直接打开外观设置。 */
   onOpenAppearance: () => void;
+  /** 「设置」入口：打开设置中心首屏（常规）。 */
+  onOpenSettings: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [notice, setNotice] = useState("");
@@ -79,7 +83,7 @@ export function UserMenu({
 
   return (
     <div className={styles.root} ref={rootRef} onKeyDown={(event) => {
-      if (event.key !== "Escape") return;
+      if (!open || event.key !== "Escape") return;
       event.stopPropagation();
       setOpen(false);
       triggerRef.current?.focus();
@@ -119,7 +123,7 @@ export function UserMenu({
             <button className={styles.action} type="button" onClick={() => showNotice("profile")}>
               <NavigationIcon name="profile" /><span>{locale.personalProfile}</span><small>{locale.unavailable}</small>
             </button>
-            <button className={styles.action} type="button" onClick={() => { setOpen(false); onOpenAppearance(); }}>
+            <button className={styles.action} type="button" onClick={() => { setOpen(false); onOpenSettings(); }}>
               <NavigationIcon name="settings" /><span>{locale.settings}</span>
             </button>
           </div>

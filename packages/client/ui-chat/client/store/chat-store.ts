@@ -1,7 +1,16 @@
 // 管理 @lfaa/chat 浏览器端会话列表、流式运行 SSE 订阅、工具审批、权限模式、模型配置、规则与长期记忆状态。
-import { DEFAULT_GENERAL_SETTINGS } from "../settings/general-settings-client";
+import { DEFAULT_GENERAL_SETTINGS } from "../shared/general-settings";
 import { patchWorkbenchSessionState, readWorkbenchSessionState } from "./workbench-persist";
-import { readStoredPermissionMode, readStoredReasoningLevel, readStoredSessionId } from "./chat-preferences";
+import {
+  readStoredDraftProjectId,
+  readStoredDraftSectionId,
+  readStoredFollowAgentWorkbench,
+  readStoredPermissionMode,
+  readStoredReasoningLevel,
+  readStoredSessionId,
+  writeStoredFollowAgentWorkbench,
+} from "./chat-preferences";
+import { resolveAgentWorkbenchAction } from "../shared/agent-workbench-sync";
 import { ChatBackgroundRuns } from "./chat-background-runs";
 import { ChatSessionNotifier } from "./chat-session-notifier";
 import { ChatDataActions } from "./chat-data-actions";
@@ -13,6 +22,7 @@ import { ChatSessionActions } from "./chat-session-actions";
 import type { ChatSessionMetaPatch, ChatStorePort } from "./chat-store-port";
 import type {
   AgentPermissionMode,
+  AgentStepItem,
   ChatSearchResult,
   ChatSessionDetail,
   ChatSessionWorktree,
@@ -32,8 +42,8 @@ export class ChatClientStore extends ChatDataFacade {
     activeSessionId: this.initialSessionId,
     activeSession: null,
     activeGoal: undefined,
-    draftProjectId: null,
-    draftSectionId: null,
+    draftProjectId: readStoredDraftProjectId(),
+    draftSectionId: readStoredDraftSectionId(),
     draftWorktree: undefined,
     runningRunId: null,
     runningSessionIds: [],
@@ -45,6 +55,7 @@ export class ChatClientStore extends ChatDataFacade {
     filePreviewTabs: this.initialWorkbench.filePreviewTabs,
     activeFilePreviewId: this.initialWorkbench.activeFilePreviewId,
     rightStageKind: this.initialWorkbench.rightStageKind,
+    followAgentWorkbench: readStoredFollowAgentWorkbench(),
     rightPanelRequest: null,
     pendingComposerInsert: null,
     permissionMode: readStoredPermissionMode(),
@@ -69,6 +80,7 @@ export class ChatClientStore extends ChatDataFacade {
     patchState: (patch) => this.updateState(patch),
     refreshMeta: (projectPath) => this.refreshMeta(projectPath),
     trackLeavingActiveRun: (nextSessionId) => this.background.trackLeavingActiveRun(nextSessionId),
+    detachActiveStream: () => this.runActions.detachActiveStream(),
     scheduleBackgroundRunPoll: () => this.background.schedule(),
     markSessionRunning: (sessionId, running) => this.markSessionRunning(sessionId, running),
     markAttentionResolved: (sessionId) => this.markAttentionResolved(sessionId),
@@ -79,7 +91,12 @@ export class ChatClientStore extends ChatDataFacade {
     refreshGoal: (sessionId) => this.sessionActions.loadGoal(sessionId),
     startNewChatDraft: (options) => this.sessionActions.startNewChatDraft(options),
     sendMessage: (text, skillIds) => this.runActions.sendMessage(text, skillIds),
+    applyAgentStepWorkbenchAction: (sessionId, messageId, step) => this.applyAgentStepWorkbenchAction(sessionId, messageId, step),
   };
+  /** 本轮用户手动收起右栏时暂停自动展开，直到下一轮开始或切会话恢复。 */
+  private autopilotPausedForRun = false;
+  /** 本轮 Agent 是否已进入浏览器验收，防止顺手改文件把台前浏览器顶掉。 */
+  private browserActiveInRun = false;
 
   private readonly sessionActions = new ChatSessionActions(this.port);
   private readonly runActions = new ChatRunActions(this.port);
@@ -135,14 +152,64 @@ export class ChatClientStore extends ChatDataFacade {
   requestMessageJump(sessionId: string, messageId: string): void { this.sessionActions.requestMessageJump(sessionId, messageId); }
   consumeMessageJump(nonce: number): void { this.sessionActions.consumeMessageJump(nonce); }
 
-  /** 开始/结束运行：开始新一轮时清掉上一轮的完成提醒记录。 */
+  /** 开始/结束运行：开始新一轮时清掉上一轮的完成提醒记录与右栏自动跟随临时暂停态。 */
   markSessionRunning(sessionId: string, running: boolean): void {
-    if (running) this.notifier.markRunStarted(sessionId);
+    if (running) {
+      this.notifier.markRunStarted(sessionId);
+      if (sessionId === this.state.activeSessionId) {
+        this.autopilotPausedForRun = false;
+        this.browserActiveInRun = false;
+      }
+    }
     this.background.markRunning(sessionId, running);
+  }
+
+  /** 切换右侧工作台「跟随 Agent」开关并持久化。 */
+  setFollowAgentWorkbench(follow: boolean): void {
+    writeStoredFollowAgentWorkbench(follow);
+    if (follow) this.autopilotPausedForRun = false;
+    this.updateState({ followAgentWorkbench: follow });
+  }
+
+  /** 用户在运行中手动折叠右栏时，本轮不再自动拉起右栏；下一轮自动恢复。 */
+  pauseAutopilotForCurrentRun(): void {
+    if (this.state.runningRunId) this.autopilotPausedForRun = true;
+  }
+
+  private applyAgentStepWorkbenchAction(sessionId: string, messageId: string, step: AgentStepItem): void {
+    if (sessionId !== this.state.activeSessionId) return;
+    if (!this.state.followAgentWorkbench || this.autopilotPausedForRun) return;
+    if (typeof window !== "undefined" && (window as unknown as { __LFAA_EMBEDDED_BROWSER__?: boolean }).__LFAA_EMBEDDED_BROWSER__ === true) {
+      return;
+    }
+    const action = resolveAgentWorkbenchAction(step, {
+      messageId,
+      browserActiveInRun: this.browserActiveInRun,
+    });
+    if (!action) return;
+    if (action.kind === "browser") {
+      this.browserActiveInRun = true;
+      this.fileActions.requestRightPanel("browser", undefined, {
+        autoExpand: true,
+        refreshBrowser: action.refreshTabs,
+        ...(action.devtoolsTab ? { devtoolsTab: action.devtoolsTab } : {}),
+      });
+      return;
+    }
+    if (action.kind === "file") {
+      const opened = this.fileActions.openFilePreview(action.messageId, action.stepId, action.activateStage);
+      if (opened && action.activateStage) {
+        this.fileActions.requestRightPanel("file-preview", undefined, { autoExpand: true });
+      }
+      return;
+    }
+    this.fileActions.requestRightPanel(action.kind, undefined, { autoExpand: true });
   }
 
   private updateState(patch: Partial<ChatStoreSnapshot>): void {
     if (patch.activeSessionId !== undefined && patch.activeSessionId !== this.state.activeSessionId) {
+      this.autopilotPausedForRun = false;
+      this.browserActiveInRun = false;
       const persisted = readWorkbenchSessionState(patch.activeSessionId ?? "default");
       patch = {
         ...patch,

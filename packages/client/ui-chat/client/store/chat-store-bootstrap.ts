@@ -1,8 +1,12 @@
 // 聊天 Store 的启动与刷新编排：并发拉取会话、模型、规则、记忆、资料库与存储快照，再一次性写入状态。
 // 与 Store 类分开，保持核心壳只负责状态与动作分派。
-import type { GeneralSettingsConfig } from "../settings/general-settings-client";
+import type { GeneralSettingsConfig } from "../shared/general-settings";
 import { fetchJson } from "./chat-http";
-import { writeStoredSessionId } from "./chat-preferences";
+import {
+  writeStoredDraftProjectId,
+  writeStoredDraftSectionId,
+  writeStoredSessionId,
+} from "./chat-preferences";
 import type {
   ChatSessionAttention,
   ChatSessionDetail,
@@ -53,11 +57,16 @@ export async function hydrateChatStore(host: ChatStoreBootstrapHost): Promise<vo
         writeStoredSessionId(null);
       }
     }
+    if (activeSession) {
+      writeStoredDraftProjectId(activeSession.projectId);
+      writeStoredDraftSectionId(activeSession.sectionId);
+    }
     host.patchState({
       loaded: true,
       sessions: sessRes.sessions,
       activeSessionId: targetId,
       activeSession,
+      ...(activeSession ? { draftProjectId: activeSession.projectId, draftSectionId: activeSession.sectionId } : {}),
       smartTrustCounts: trustRes.counts,
       activeProfileId: llmRes.activeProfileId,
       profiles: llmRes.profiles,

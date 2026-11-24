@@ -26,6 +26,17 @@
   color: var(--color-ink);
 }
 
+/* 「跟随 Agent」开启态：用语义强调色轻提示当前右栏处于自动跟随状态，不喧宾夺主。 */
+.followBtnActive {
+  background: rgba(var(--color-accent-rgb), 0.14);
+  color: var(--color-accent);
+}
+
+.followBtnActive:hover {
+  background: rgba(var(--color-accent-rgb), 0.2);
+  color: var(--color-accent);
+}
+
 .popover {
   position: absolute;
   top: calc(100% + 0.35rem);

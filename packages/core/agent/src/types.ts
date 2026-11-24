@@ -82,7 +82,7 @@ export interface StartAgentRunInput {
 /** 定义流式运行可发给浏览器的事件变体。 */
 export type AgentRunEvent =
   | { type: "run_started"; runId: string; sessionId: string; assistantMessageId: string }
-  | { type: "delta"; runId: string; seq: number; kind: "reasoning" | "text"; text: string }
+  | { type: "delta"; runId: string; seq: number; kind: "reasoning" | "text"; text: string; iteration?: number }
   | { type: "step_update"; runId: string; step: AgentStepTrace }
   | { type: "todos"; runId: string; todos: TodoItem[] }
   | {

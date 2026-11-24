@@ -8,6 +8,9 @@ import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import type { PluginSkillDefinition, SaveSkillInput, SkillDetail, SkillSummary } from "../contract/index";
+import { assertSafePersonalSkillId, buildSkillMarkdown, parseSkillMarkdown, slugifySkillId } from "./skill-format";
+
+export { parseSkillMarkdown };
 
 const execFileAsync = promisify(execFile);
 
@@ -31,47 +34,11 @@ function defaultPersonalSkillsDir(): string {
 }
 
 function defaultBuiltinSkillsDir(): string {
-  return resolve(dirname(fileURLToPath(import.meta.url)), "builtin-skills");
-}
-
-function slugifySkillId(raw: string): string {
-  const cleaned = raw
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9\u4e00-\u9fa5_-]+/gu, "-")
-    .replace(/^-+|-+$/gu, "");
-  return cleaned || `skill-${randomUUID().slice(0, 8)}`;
-}
-
-// 解析 SKILL.md 顶部的 YAML frontmatter（提取 name 与 description）。
-export function parseSkillMarkdown(raw: string, fallbackName: string): { name: string; description: string; body: string } {
-  const normalized = raw.replace(/\r\n/gu, "\n");
-  const match = normalized.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/u);
-  if (!match) {
-    return { name: fallbackName, description: "", body: normalized };
-  }
-  const frontmatter = match[1] ?? "";
-  const body = (match[2] ?? "").trimStart();
-  let name = fallbackName;
-  let description = "";
-  for (const line of frontmatter.split("\n")) {
-    const sep = line.indexOf(":");
-    if (sep <= 0) continue;
-    const key = line.slice(0, sep).trim();
-    const val = line.slice(sep + 1).trim().replace(/^["']|["']$/gu, "");
-    if (key === "name" && val) name = val;
-    if (key === "description" && val) description = val;
-  }
-  return { name, description, body };
-}
-
-function buildSkillMarkdown(name: string, description: string, content: string): string {
-  const trimmed = content.replace(/\r\n/gu, "\n").trimStart();
-  if (trimmed.startsWith("---\n")) {
-    return trimmed;
-  }
-  const safeDesc = description.replace(/\n+/gu, " ").trim();
-  return `---\nname: ${name}\ndescription: ${safeDesc}\n---\n\n${trimmed}`;
+  const here = dirname(fileURLToPath(import.meta.url));
+  const local = resolve(here, "builtin-skills");
+  if (existsSync(local)) return local;
+  const fallback = resolve(here, "../src/builtin-skills");
+  return existsSync(fallback) ? fallback : local;
 }
 
 /** 技能存储与运行时查询核心实现，支持个人目录、项目目录与插件动态注册。 */
@@ -277,6 +244,7 @@ export class SkillManager {
     if (id.startsWith("builtin:") || id.startsWith("project:") || id.startsWith("plugin:")) {
       throw new Error("内置或外部来源技能不可直接覆盖，请先「复制为我的版本」后再编辑。");
     }
+    const targetDir = assertSafePersonalSkillId(id, this.personalDir);
 
     const existing = state.skills[id];
     if (existing && typeof input.expectedRevision === "number" && existing.revision !== input.expectedRevision) {
@@ -287,7 +255,6 @@ export class SkillManager {
     const description = (input.description ?? parsed.description).trim();
     const finalContent = buildSkillMarkdown(name, description, content);
 
-    const targetDir = join(this.personalDir, id);
     await mkdir(targetDir, { recursive: true });
     const skillFile = join(targetDir, "SKILL.md");
     const tmpFile = `${skillFile}.${randomUUID()}.tmp`;
@@ -350,9 +317,27 @@ export class SkillManager {
 
   async setSkillEnabled(id: string, enabled: boolean, projectRoots: string[] = []): Promise<SkillSummary> {
     const state = await this.readState();
+    const isExternal = id.startsWith("builtin:") || id.startsWith("project:") || id.startsWith("plugin:");
     if (state.skills[id]) {
       state.skills[id]!.enabled = enabled;
       state.skills[id]!.updatedAt = Date.now();
+      await this.writeState(state);
+    } else if (!isExternal) {
+      const targetDir = assertSafePersonalSkillId(id, this.personalDir);
+      const skillFile = join(targetDir, "SKILL.md");
+      if (!existsSync(skillFile)) {
+        throw new Error(`找不到技能：${id}`);
+      }
+      const raw = await readFile(skillFile, "utf8").catch(() => "");
+      const parsed = parseSkillMarkdown(raw, id);
+      state.skills[id] = {
+        id,
+        name: parsed.name,
+        description: parsed.description,
+        enabled,
+        revision: 1,
+        updatedAt: Date.now(),
+      };
       await this.writeState(state);
     } else {
       const nextDisabled = new Set(state.disabledExternalIds);
@@ -373,12 +358,13 @@ export class SkillManager {
     if (id.startsWith("builtin:") || id.startsWith("project:") || id.startsWith("plugin:")) {
       throw new Error("内置或外部来源技能不可删除，仅支持停用或二创复制。");
     }
+    const targetDir = assertSafePersonalSkillId(id, this.personalDir);
     const state = await this.readState();
-    const existed = Boolean(state.skills[id]) || existsSync(join(this.personalDir, id));
+    const existed = Boolean(state.skills[id]) || existsSync(targetDir);
     if (!existed) return false;
     delete state.skills[id];
     await this.writeState(state);
-    await rm(join(this.personalDir, id), { recursive: true, force: true });
+    await rm(targetDir, { recursive: true, force: true });
     return true;
   }
 

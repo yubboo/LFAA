@@ -1,6 +1,7 @@
 // 工作台快捷操作与概览控制：组合顶栏按钮组、“更多”与“概览”两个弹层，并持有菜单状态与任务数据。
-import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { ChatClientStore } from "../store/chat-store";
+import { useChatSelector } from "../store/use-chat-selector";
 import { fetchGitDiff, fetchGitStatus, parseDiffSummary } from "../settings/coding-settings-client";
 import { WorkbenchMoreMenu } from "./WorkbenchMoreMenu";
 import { WorkbenchOverviewMenu } from "./WorkbenchOverviewMenu";
@@ -63,16 +64,28 @@ export function RightWorkbenchActions({
   const [fetchedSubagents, setFetchedSubagents] = useState<RightSubagentItem[] | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
 
-  const snap = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
-  const activeSession = snap.activeSession;
-  const sessionId = activeSession?.id ?? "default";
+  // 精确订阅顶栏菜单所需字段：未打开弹层且无前台命令变化时，流式正文不触发重渲染。
+  const snap = useChatSelector(store, (s) => {
+    const active = s.activeSession;
+    return {
+      sessionId: active?.id ?? "default",
+      hasSession: Boolean(active),
+      sessionTitle: active?.title ?? "",
+      sessionPinned: Boolean(active?.pinned),
+      sessionArchived: Boolean(active?.archived),
+      followAgentWorkbench: s.followAgentWorkbench,
+      foreground: menuOpen === "overview" && s.runningRunId
+        ? active?.messages.at(-1)?.steps?.find((step) => step.status === "running" && step.commandTrace)
+        : undefined,
+    };
+  });
+  const activeSession = snap.hasSession ? store.getSnapshot().activeSession : null;
+  const sessionId = snap.sessionId;
   const effectiveJobs = jobs ?? fetchedJobs ?? [];
   const effectiveSubagents = subagents ?? fetchedSubagents ?? [];
   const hasJobFeed = jobs !== undefined;
   const hasSubagentFeed = subagents !== undefined;
-  const foreground = snap.runningRunId
-    ? activeSession?.messages.at(-1)?.steps?.find((step) => step.status === "running" && step.commandTrace)
-    : undefined;
+  const foreground = snap.foreground;
 
   useEffect(() => {
     if (!showSessionControls) return;
@@ -213,11 +226,13 @@ export function RightWorkbenchActions({
         isZh={isZh}
         compact={compact}
         rightPanelMaximized={rightPanelMaximized}
+        followAgentWorkbench={snap.followAgentWorkbench}
         menuOpen={menuOpen}
         showSessionControls={showSessionControls}
         showPanelControls={showPanelControls}
         onToggleMore={() => toggleMenu("more")}
         onToggleOverview={() => toggleMenu("overview")}
+        onToggleFollowAgent={() => store.setFollowAgentWorkbench(!snap.followAgentWorkbench)}
         onToggleMaximize={onToggleMaximize}
         onCollapsePanel={onCollapsePanel}
       />

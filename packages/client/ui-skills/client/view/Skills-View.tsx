@@ -31,18 +31,23 @@ export function SkillsView({ isZh }: { isZh: boolean }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const selectedIdRef = useRef<string | null>(selectedId);
+  selectedIdRef.current = selectedId;
 
-  const loadList = useCallback(async (keepSelected = true) => {
+  const loadList = useCallback(async (keepSelected = true, preferredSelectedId?: string) => {
     try {
       const list = await fetchSkillsList(true);
       setSkills(list);
-      if (!keepSelected || !list.some((s) => s.id === selectedId)) {
+      const targetId = preferredSelectedId ?? selectedIdRef.current;
+      if (!keepSelected || !targetId || !list.some((s) => s.id === targetId)) {
         setSelectedId(list[0]?.id ?? null);
+      } else if (preferredSelectedId) {
+        setSelectedId(preferredSelectedId);
       }
     } catch (err) {
       setNotice(err instanceof Error ? err.message : String(err));
     }
-  }, [selectedId]);
+  }, []);
 
   useEffect(() => {
     void loadList(true);
@@ -108,7 +113,7 @@ export function SkillsView({ isZh }: { isZh: boolean }) {
       setSelectedId(saved.id);
       setDetail(saved);
       setNotice(t.savedToast);
-      await loadList(true);
+      await loadList(true, saved.id);
     } catch (err) {
       setNotice(err instanceof Error ? err.message : String(err));
     } finally {
@@ -124,7 +129,7 @@ export function SkillsView({ isZh }: { isZh: boolean }) {
       setSelectedId(forked.id);
       setDetail(forked);
       setNotice(t.forkedToast);
-      await loadList(true);
+      await loadList(true, forked.id);
     } catch (err) {
       setNotice(err instanceof Error ? err.message : String(err));
     } finally {

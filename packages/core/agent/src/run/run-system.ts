@@ -22,11 +22,15 @@ function budgetHint(remainingSteps: number | undefined): string {
     : "";
 }
 
-/** 按既有顺序渲染 system 内容；插件段落固定追加在末尾，保持前缀稳定。 */
+/** 推理模型语言收尾强化：放在 system 末尾以提高 Qwen/DeepSeek 等思考模型的思考语言遵循度。 */
+const THINKING_LANGUAGE_TAIL =
+  "\n\n语言铁律：内部思考过程（thinking/reasoning）、工具前后过程说明与最终答复必须全程与用户提问语言一致；用户用中文提问时，内部思考也必须使用简体中文，严禁使用英文句子思考。";
+
+/** 按既有顺序渲染 system 内容；插件段落与语言收尾约束固定追加在末尾，保持前缀稳定。 */
 export function renderSystemContent(input: SystemContentInput): string {
   const digestHint = input.historyDigest
     ? `\n前序工具轨迹（来自历史步骤，可直接复用，无需重复探查）：${input.historyDigest}`
     : "";
   const extra = input.extraSystemHint ? `\n\n${input.extraSystemHint}` : "";
-  return `${input.systemPrompt}\n\n${input.permissionHint}\n${input.workspaceHint}\n${input.modelHint ? `${input.modelHint}\n` : ""}${input.shellHint ? `${input.shellHint}\n` : ""}${input.libraryHint}\n${input.progressHint}${input.skillsCatalogHint}${input.skillsSection}${digestHint}${budgetHint(input.remainingSteps)}${input.truncationHint}${extra}`;
+  return `${input.systemPrompt}\n\n${input.permissionHint}\n${input.workspaceHint}\n${input.modelHint ? `${input.modelHint}\n` : ""}${input.shellHint ? `${input.shellHint}\n` : ""}${input.libraryHint}\n${input.progressHint}${input.skillsCatalogHint}${input.skillsSection}${digestHint}${budgetHint(input.remainingSteps)}${input.truncationHint}${extra}${THINKING_LANGUAGE_TAIL}`;
 }

@@ -41,7 +41,15 @@ test("本地目录与压缩包", () => {
 });
 
 test("非法输入明确拒绝", () => {
-  for (const spec of ["", "   ", "./relative-plugin", "https://example.com/not-a-repo", "@bad name"]) {
+  for (const spec of [
+    "",
+    "   ",
+    "./relative-plugin",
+    "file:./relative-plugin",
+    "link:../escape-plugin",
+    "https://example.com/not-a-repo",
+    "@bad name",
+  ]) {
     assert.throws(() => parseInstallSpec(spec), InvalidInstallSpecError, spec);
   }
 });

@@ -1,5 +1,5 @@
-// 统一管理浏览器端 Shell 交互记忆（路由、左右栏折叠、分组展开、自定义分区折叠、排序与模式），刷新后完整保留用户操作。
-import type { WorkspaceMode } from "../navigation/navigation";
+// 统一管理浏览器端 Shell 交互记忆（路由、设置中心子页、左右栏折叠、分组展开、自定义分区折叠、排序与模式），刷新后完整保留用户操作。
+import { isSettingsView, type WorkspaceMode } from "../navigation/navigation";
 
 export type BuiltinGroupName = "pinned" | "projects" | "recent";
 export type ProjectSortMode = "created" | "name";
@@ -17,10 +17,13 @@ export const RIGHT_PANEL_STORAGE_KEY = "lfaa:right-panel-open";
 export const LEFT_SIDEBAR_WIDTH_STORAGE_KEY = "lfaa:left-sidebar-width";
 export const RIGHT_PANEL_WIDTH_STORAGE_KEY = "lfaa:right-panel-width";
 export const ACTIVE_ROUTE_STORAGE_KEY = "lfaa:active-route";
+export const SETTINGS_VIEW_STORAGE_KEY = "lfaa:settings-view";
 export const LIBRARY_TAB_STORAGE_KEY = "lfaa:library-tab";
 export const WORKSPACE_MODE_STORAGE_KEY = "lfaa:workspace-mode";
 export const NAV_GROUP_EXPANDED_KEY = "lfaa:nav-group-expanded";
 export const SECTION_EXPANDED_KEY = "lfaa:section-expanded";
+export const PROJECT_EXPANDED_KEY = "lfaa:project-expanded";
+export const ACTIVE_GROUP_STORAGE_KEY = "lfaa:active-group-key";
 export const PROJECT_SORT_STORAGE_KEY = "lfaa:project-sort";
 export const RECENT_SORT_STORAGE_KEY = "lfaa:recent-sort";
 
@@ -101,6 +104,30 @@ export function writeActiveRoutePref(activeView: string, activeProjectId: string
   });
 }
 
+/**
+ * 恢复上次停留的设置子页。
+ * 设置中心是压在工作区之上的弹窗，子页单独记在设置键里，背景路由仍保留原工作位置；
+ * F5 或强制刷新后应回到同一子页，而不是被踢回工作区。
+ */
+export function readSettingsViewPref(): string | null {
+  const stored = readStoredJson<unknown>(SETTINGS_VIEW_STORAGE_KEY, null);
+  return typeof stored === "string" && isSettingsView(stored) ? stored : null;
+}
+
+/** 记录或清除当前设置子页；传 null 表示设置中心已关闭。 */
+export function writeSettingsViewPref(viewId: string | null): void {
+  if (viewId && isSettingsView(viewId)) {
+    writeStoredJson(SETTINGS_VIEW_STORAGE_KEY, viewId);
+    return;
+  }
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(SETTINGS_VIEW_STORAGE_KEY);
+  } catch {
+    // 忽略浏览器存储删除限制。
+  }
+}
+
 /** 恢复工作模式，非法值沿用默认模式。 */
 export function readWorkspaceModePref(): WorkspaceMode {
   return readStoredJson<WorkspaceMode>(
@@ -145,6 +172,33 @@ export function readSectionExpandedPref(): Record<string, boolean> {
 /** 保存自定义分区的展开状态映射。 */
 export function writeSectionExpandedPref(prefs: Record<string, boolean>): void {
   writeStoredJson(SECTION_EXPANDED_KEY, prefs);
+}
+
+/** 恢复左二会话项目菜单栏各项目行的展开/收起状态。 */
+export function readProjectExpandedPref(): Record<string, boolean> {
+  const raw = readStoredJson<unknown>(PROJECT_EXPANDED_KEY, null);
+  if (!isPlainRecord(raw)) return {};
+  const next: Record<string, boolean> = {};
+  for (const [id, val] of Object.entries(raw)) {
+    if (typeof val === "boolean") next[id] = val;
+  }
+  return next;
+}
+
+/** 保存左二各项目行的展开/收起状态。 */
+export function writeProjectExpandedPref(prefs: Record<string, boolean>): void {
+  writeStoredJson(PROJECT_EXPANDED_KEY, prefs);
+}
+
+/** 恢复用户上次在左二点击高亮的分组键（置顶/自定义分区/项目）。 */
+export function readActiveGroupKeyPref(): string | null {
+  const raw = readStoredJson<unknown>(ACTIVE_GROUP_STORAGE_KEY, null);
+  return typeof raw === "string" && raw.trim() ? raw : null;
+}
+
+/** 保存用户最后点击高亮的分组键，刷新后保持同一副本高亮。 */
+export function writeActiveGroupKeyPref(groupKey: string | null): void {
+  writeStoredJson(ACTIVE_GROUP_STORAGE_KEY, groupKey ?? null);
 }
 
 function readSortModePref(key: string): ProjectSortMode {

@@ -21,6 +21,7 @@ registerHooks({
 });
 
 const { TodoDock, TODO_DOCK_VISIBLE_LIMIT } = await import("../client/session/TodoDock");
+const { SessionBars } = await import("../client/session/SessionBars");
 
 const LIST = [
   { id: "1", content: "读源码", status: "completed" as const },
@@ -97,4 +98,35 @@ test("任务条目只读：不渲染勾选控件，状态由隐藏文本表达",
   assert.equal((html.match(/class="srOnly"/gu) ?? []).length, LIST.length);
   assert.match(html, />进行中</u);
   assert.match(html, />待处理</u);
+});
+
+test("SessionBars 在本轮完成后自动结算残留的 in_progress 任务并收起占位", () => {
+  const onlyInProgressLeft = [
+    { id: "1", content: "梳理目录", status: "completed" as const },
+    { id: "2", content: "输出报告", status: "in_progress" as const },
+  ];
+  const noopAsync = async () => true;
+  const settledHtml = renderToStaticMarkup(createElement(SessionBars, {
+    view: "chat",
+    todos: onlyInProgressLeft,
+    paused: false,
+    settled: true,
+    goal: null,
+    isZh: true,
+    onEditGoal: noopAsync,
+    onToggleGoalAuto: noopAsync,
+  }));
+  assert.equal(settledHtml, "", "所有任务已结算完成时不再保留任务卡");
+
+  const runningHtml = renderToStaticMarkup(createElement(SessionBars, {
+    view: "chat",
+    todos: onlyInProgressLeft,
+    paused: false,
+    settled: false,
+    goal: null,
+    isZh: true,
+    onEditGoal: noopAsync,
+    onToggleGoalAuto: noopAsync,
+  }));
+  assert.match(runningHtml, /1 已完成 · 1 进行中/u);
 });

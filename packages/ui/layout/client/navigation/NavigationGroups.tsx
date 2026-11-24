@@ -9,18 +9,7 @@ import type {
 } from "../../contract/index";
 import type { LocaleMessages } from "../locales";
 import type { LocalProject, NavigationView, RecentItem } from "./navigation";
-import {
-  readNavGroupExpandedPref,
-  readProjectSortPref,
-  readRecentSortPref,
-  readSectionExpandedPref,
-  writeNavGroupExpandedPref,
-  writeProjectSortPref,
-  writeRecentSortPref,
-  writeSectionExpandedPref,
-  type BuiltinGroupName,
-  type ProjectSortMode,
-} from "../shell/ui-preferences";
+import type { ProjectSortMode } from "../shell/ui-preferences";
 import { GroupHeaderTools } from "./GroupHeaderTools";
 import { buildProjectGroups, buildRecentGroup } from "./navigation-groups-config";
 import {
@@ -32,6 +21,7 @@ import {
 } from "./navigation-items";
 import { NavigationNewChatButton } from "./NavigationNewChatButton";
 import { SidebarSectionList, type SidebarGroupConfig } from "../panels/SidebarSectionList";
+import { useNavigationPrefs } from "./use-navigation-prefs";
 import { useSessionWindow } from "./use-session-window";
 import styles from "./NavigationGroups.module.css";
 
@@ -50,8 +40,10 @@ export function NavigationGroups({
   projectProvider,
   sectionProvider,
   onNewChat,
+  onNewRecentChat,
   onNewChatInProject,
   onNewChatInSection,
+  onSelectProjectContext,
   onSelectChatSession,
   onNavigate,
   onOpenProject,
@@ -72,8 +64,12 @@ export function NavigationGroups({
   projectProvider?: WorkbenchProjectProvider<ReactNode> | null | undefined;
   sectionProvider?: WorkbenchSectionProvider<ReactNode> | null | undefined;
   onNewChat: () => void;
+  /** 从「最近」标题右侧发起的独立新会话（强制不绑定任何项目）。 */
+  onNewRecentChat?: (() => void) | undefined;
   onNewChatInProject: (project: LocalProject) => void;
   onNewChatInSection: (section: WorkbenchSectionItem) => void;
+  /** 单击项目文件夹行时切换当前项目上下文（高亮并记忆，不跳走当前聊天）。 */
+  onSelectProjectContext?: ((project: LocalProject) => void) | undefined;
   onSelectChatSession?: ((sessionId: string) => void) | undefined;
   onNavigate: (view: NavigationView) => void;
   onOpenProject: (project: LocalProject) => void;
@@ -81,36 +77,37 @@ export function NavigationGroups({
   onProjectUpdated: (project: LocalProject) => void;
   onProjectRemoved: (projectId: string) => void;
 }) {
-  const storedGroupsRef = useRef(readNavGroupExpandedPref());
-  const hasExplicitPinnedPrefRef = useRef(typeof storedGroupsRef.current.pinned === "boolean");
-  const [expanded, setExpanded] = useState<Record<BuiltinGroupName, boolean>>(() => ({
-    pinned: storedGroupsRef.current.pinned ?? false,
-    projects: storedGroupsRef.current.projects ?? true,
-    recent: storedGroupsRef.current.recent ?? false,
-  }));
-  const [sectionExpanded, setSectionExpanded] = useState<Record<string, boolean>>(readSectionExpandedPref);
-  const [projectExpanded, setProjectExpanded] = useState<Record<string, boolean>>({});
   // 项目子会话与「最近」分组的展开批次由会话窗口状态统一管理。
   const sessionWindow = useSessionWindow({
     expandLabel: locale.expandSessions,
     collapseLabel: locale.collapseSessions,
   });
-  // 展开状态按行 id 记录：同一项目在「置顶」与「项目」各有一行时互不影响。
-  const toggleProjectExpanded = (rowId: string) => {
-    const nextExpanded = !(projectExpanded[rowId] ?? true);
-    setProjectExpanded((current) => ({ ...current, [rowId]: nextExpanded }));
-    if (!nextExpanded) sessionWindow.resetProject(rowId);
-  };
-  const expandProject = (rowId: string) => {
-    setProjectExpanded((current) => ({ ...current, [rowId]: true }));
-  };
-  const [sort, setSort] = useState<ProjectSortMode>(readProjectSortPref);
-  const [recentSort, setRecentSort] = useState<ProjectSortMode>(readRecentSortPref);
   const [openToolMenu, setOpenToolMenu] = useState<"projects" | "recent" | null>(null);
   const [projectDialogOpen, setProjectDialogOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const filterTriggerRef = useRef<HTMLButtonElement>(null);
   const recentFilterTriggerRef = useRef<HTMLButtonElement>(null);
+
+  const pinnedCount = useMemo(() => projects.filter((item) => item.pinned).length, [projects]);
+  const prefs = useNavigationPrefs({
+    pinnedCount,
+    projectsLoaded: projectProvider?.hasLoaded ? projectProvider.hasLoaded() : true,
+    onProjectCollapsed: sessionWindow.resetProject,
+  });
+  const {
+    expanded,
+    sectionExpanded,
+    projectExpanded,
+    sort,
+    recentSort,
+    activeGroupKey,
+    setActiveGroupKey,
+    toggleBuiltin,
+    expandBuiltin,
+    toggleCustomSection,
+    toggleProjectExpanded,
+    expandProject,
+  } = prefs;
 
   const sortedProjects = useMemo(() => [...projects].sort((left, right) =>
     sort === "name" ? left.name.localeCompare(right.name) : right.createdAt - left.createdAt,
@@ -129,8 +126,6 @@ export function NavigationGroups({
   const pinnedProjects = projectGroups.pinned;
   const unassignedProjects = projectGroups.unassigned;
 
-  // 同一项目/会话会同时出现在「置顶」与原分组：只让用户最后点击的那一组显示选中态。
-  const [activeGroupKey, setActiveGroupKey] = useState<string | null>(null);
   const activeProject = useMemo(() => {
     const projectId = activeProjectId
       ?? chatSessions.find((session) => session.id === activeChatSessionId)?.projectId
@@ -157,6 +152,7 @@ export function NavigationGroups({
     onRowActivate: setActiveGroupKey,
     chatProvider,
     projectProvider,
+    onSelectProjectContext,
     onNewChatInProject,
     onSelectChatSession,
     attentionLabels: { approval: locale.awaitingApproval, question: locale.awaitingAnswer },
@@ -172,42 +168,6 @@ export function NavigationGroups({
     unpinProjectLabel: locale.unpinProject,
   });
 
-  const updateBuiltinExpanded = (
-    updater: (current: Record<BuiltinGroupName, boolean>) => Record<BuiltinGroupName, boolean>,
-  ) => {
-    setExpanded((current) => {
-      const next = updater(current);
-      writeNavGroupExpandedPref(
-        hasExplicitPinnedPrefRef.current
-          ? next
-          : { projects: next.projects, recent: next.recent },
-      );
-      return next;
-    });
-  };
-
-  const prevLoadedRef = useRef(Boolean(projectProvider?.hasLoaded?.()));
-  const prevPinnedCountRef = useRef(pinnedProjects.length);
-
-  useEffect(() => {
-    const isLoaded = projectProvider?.hasLoaded ? projectProvider.hasLoaded() : true;
-    const justHydrated = !prevLoadedRef.current && isLoaded;
-    const pinnedIncreased = pinnedProjects.length > prevPinnedCountRef.current;
-
-    if (justHydrated) {
-      if (!hasExplicitPinnedPrefRef.current && pinnedProjects.length > 0) {
-        hasExplicitPinnedPrefRef.current = true;
-        updateBuiltinExpanded((current) => (current.pinned ? current : { ...current, pinned: true }));
-      }
-    } else if (isLoaded && pinnedIncreased) {
-      hasExplicitPinnedPrefRef.current = true;
-      updateBuiltinExpanded((current) => (current.pinned ? current : { ...current, pinned: true }));
-    }
-
-    prevLoadedRef.current = isLoaded;
-    prevPinnedCountRef.current = pinnedProjects.length;
-  }, [pinnedProjects.length, projectProvider]);
-
   useEffect(() => {
     if (!openToolMenu) return;
     const closeOnOutside = (event: PointerEvent) => {
@@ -217,33 +177,18 @@ export function NavigationGroups({
     return () => document.removeEventListener("pointerdown", closeOnOutside);
   }, [openToolMenu]);
 
-  const toggleBuiltin = (group: BuiltinGroupName) => {
-    if (group === "pinned") hasExplicitPinnedPrefRef.current = true;
-    updateBuiltinExpanded((current) => ({ ...current, [group]: !current[group] }));
-  };
-
-  const toggleCustomSection = (sectionId: string) => {
-    setSectionExpanded((current) => {
-      const next = { ...current, [sectionId]: !(current[sectionId] ?? true) };
-      writeSectionExpandedPref(next);
-      return next;
-    });
-  };
-
   const changeSort = (nextSort: ProjectSortMode) => {
-    setSort(nextSort);
-    writeProjectSortPref(nextSort);
+    prefs.changeSort(nextSort);
     setOpenToolMenu(null);
   };
 
   const changeRecentSort = (nextSort: ProjectSortMode) => {
-    setRecentSort(nextSort);
-    writeRecentSortPref(nextSort);
+    prefs.changeRecentSort(nextSort);
     setOpenToolMenu(null);
   };
 
   const handleCreated = (project: LocalProject) => {
-    updateBuiltinExpanded((current) => ({ ...current, projects: true }));
+    expandBuiltin("projects");
     setProjectDialogOpen(false);
     onProjectCreated(project);
   };
@@ -251,8 +196,7 @@ export function NavigationGroups({
   const handleDropToPinned = (projectId: string) => {
     const project = projects.find((item) => item.id === projectId);
     if (!project || project.pinned) return;
-    hasExplicitPinnedPrefRef.current = true;
-    updateBuiltinExpanded((current) => ({ ...current, pinned: true }));
+    expandBuiltin("pinned");
     void projectProvider?.togglePinProject?.(projectId);
   };
 
@@ -296,7 +240,7 @@ export function NavigationGroups({
       currentSort={recentSort}
       onToggleMenu={() => setOpenToolMenu((value) => (value === "recent" ? null : "recent"))}
       onSelectSort={changeRecentSort}
-      action={{ label: locale.newChat, icon: "newChat", onClick: onNewChat }}
+      action={{ label: locale.newChat, icon: "newChat", onClick: onNewRecentChat ?? onNewChat }}
     />
   );
 
@@ -375,17 +319,6 @@ export function NavigationGroups({
         onCreated: handleCreated,
         onClose: () => setProjectDialogOpen(false),
       })}
-
-      {projectProvider?.renderProjectOverlays?.({
-        sections,
-        onCreateSection: (projectId) => sectionProvider?.openCreateDialog(projectId),
-        onProjectUpdated,
-        onProjectRemoved,
-      })}
-
-      {chatProvider?.renderSessionOverlays?.({ projects, sections })}
-
-      {sectionProvider?.renderOverlays()}
     </div>
   );
 }

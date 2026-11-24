@@ -1,50 +1,136 @@
-// 提供设置中心「常规」页复用的分组卡片、条目行、开关与圆角弹出式下拉选择菜单（支持图标、副标题与搜索过滤）。
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { IconCheck, IconChevronDown, IconSearch } from "@tabler/icons-react";
-import styles from "./SettingsSurface.module.css";
+// 设置中心通用结构：页外壳、无边框分组、左名称右控件的设置行、上下排表单字段、开关、分段选择与危险操作组。
+import type { ReactNode } from "react";
+import surface from "./SettingsSurface.module.css";
+import controls from "./SettingsControls.module.css";
 
-/** 描述设置下拉菜单可显示和选中的一个值。 */
-export interface SettingSelectOption<T extends string> {
-  value: T;
-  label: string;
-  description?: string;
-  icon?: ReactNode;
-}
-
-/** 将同一主题的设置行分组，作为常规设置各区块的外层容器。 */
-export function SettingGroupCard({
+/** 设置页外壳：统一标题层级、内容宽度与分组之间的留白。 */
+export function SettingsPage({
   title,
+  description,
+  label,
+  actions,
+  size = "default",
   children,
 }: {
-  title?: string;
+  title: string;
+  description?: ReactNode;
+  /** 无障碍标签；默认与标题一致。 */
+  label?: string;
+  /** 页级动作按钮，排在标题右侧。 */
+  actions?: ReactNode;
+  /** 内容宽度：默认行式页用 default，卡片网格类页面用 wide。 */
+  size?: "default" | "wide";
   children: ReactNode;
 }) {
+  const rootClass = size === "wide" ? `${surface.root} ${surface.rootWide}` : surface.root;
   return (
-    <section className={styles.groupSection} aria-label={title}>
-      {title && <h2 className={styles.groupTitle}>{title}</h2>}
-      <div className={styles.groupCard}>{children}</div>
+    <section className={rootClass} aria-label={label ?? title}>
+      <header className={surface.pageHeader}>
+        <div className={surface.pageHeaderText}>
+          <h1 className={surface.pageTitle}>{title}</h1>
+          {description && <p className={surface.pageDesc}>{description}</p>}
+        </div>
+        {actions && <div className={surface.pageActions}>{actions}</div>}
+      </header>
+      {children}
     </section>
   );
 }
 
-/** 统一设置条目的标签、说明与右侧操作区域。 */
+/** 一组相关设置：标题 + 可选说明 + 条目列表；组本身不画框，不做卡片。 */
+export function SettingGroup({
+  title,
+  description,
+  children,
+}: {
+  title?: string;
+  description?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section className={surface.groupSection} aria-label={title}>
+      {title && <h2 className={surface.groupTitle}>{title}</h2>}
+      {description && <p className={surface.groupDesc}>{description}</p>}
+      <div className={surface.groupList}>{children}</div>
+    </section>
+  );
+}
+
+/** 一行一项设置：名称与说明在左，控件在右。 */
 export function SettingRow({
   title,
   description,
   control,
 }: {
   title: string;
-  description: ReactNode;
+  /** 说明可省略：纯数值行不需要重复标题。 */
+  description?: ReactNode;
   control: ReactNode;
 }) {
   return (
-    <div className={styles.row}>
-      <div className={styles.rowText}>
-        <div className={styles.rowTitle}>{title}</div>
-        <div className={styles.rowDesc}>{description}</div>
+    <div className={surface.row}>
+      <div className={surface.rowText}>
+        <div className={surface.rowTitle}>{title}</div>
+        {description ? <div className={surface.rowDesc}>{description}</div> : null}
       </div>
-      <div className={styles.rowControl}>{control}</div>
+      <div className={surface.rowControl}>{control}</div>
     </div>
+  );
+}
+
+/** 顺序填写的表单字段：标签在上、控件在下，占满可用宽度。 */
+export function SettingFormField({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <label className={controls.formField}>
+      <span className={controls.formLabel}>{label}</span>
+      {children}
+      {hint && <span className={controls.formHint}>{hint}</span>}
+    </label>
+  );
+}
+
+/** 表单里的只读块：标题 + 内容，不绑定可编辑控件（如系统规则正文）。 */
+export function SettingFormBlock({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className={controls.formField}>
+      <span className={controls.formLabel}>{label}</span>
+      {children}
+    </div>
+  );
+}
+
+/** 表单底部的提交动作区，不跟随每一行。 */
+export function SettingFormActions({ children }: { children: ReactNode }) {
+  return <div className={controls.formActions}>{children}</div>;
+}
+
+/** 危险操作组：删除、清空、重置等单独成组，固定放在页面最末。 */
+export function SettingDangerGroup({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className={controls.dangerSection} aria-label={title}>
+      <h2 className={controls.dangerTitle}>{title}</h2>
+      <div className={surface.groupList}>{children}</div>
+    </section>
   );
 }
 
@@ -64,129 +150,41 @@ export function SettingSwitch({
       role="switch"
       aria-checked={checked}
       aria-label={label}
-      className={`${styles.switchTrack} ${checked ? styles.switchChecked : ""}`}
+      className={`${controls.switchTrack} ${checked ? controls.switchChecked : ""}`}
       onClick={() => onChange(!checked)}
     >
-      <span className={styles.switchThumb} aria-hidden="true" />
+      <span className={controls.switchThumb} aria-hidden="true" />
     </button>
   );
 }
 
-/** 为可枚举的设置项提供搜索和选项弹层，通过值回调更新当前选项。 */
-export function SettingSelect<T extends string>({
+/** 短枚举（≤ 4 项）的分段选择，避免为此弹出一层菜单。 */
+export function SettingSegmented<T extends string>({
   value,
   label,
   options,
-  searchPlaceholder,
   onChange,
 }: {
   value: T;
   label: string;
-  options: ReadonlyArray<SettingSelectOption<T>>;
-  searchPlaceholder?: string;
+  options: ReadonlyArray<{ value: T; label: string }>;
   onChange: (next: T) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  const active = options.find((item) => item.value === value) ?? options[0];
-
-  const filteredOptions = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return options;
-    return options.filter(
-      (item) =>
-        item.label.toLowerCase().includes(q)
-        || (item.description?.toLowerCase().includes(q) ?? false)
-        || item.value.toLowerCase().includes(q),
-    );
-  }, [options, query]);
-
-  useEffect(() => {
-    if (!open) {
-      setQuery("");
-      return;
-    }
-    const onPointerDown = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
-
   return (
-    <div ref={containerRef} className={styles.selectWrap}>
-      <button
-        type="button"
-        className={styles.selectTrigger}
-        aria-label={label}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        onClick={() => setOpen((prev) => !prev)}
-      >
-        {active?.icon && <span className={styles.optionIcon}>{active.icon}</span>}
-        <span>{active?.label ?? value}</span>
-        <IconChevronDown size={14} className={styles.chevronIcon} aria-hidden="true" />
-      </button>
-
-      {open && (
-        <div className={styles.selectMenu} role="listbox" aria-label={label}>
-          {searchPlaceholder && (
-            <div className={styles.menuSearchWrap}>
-              <IconSearch size={14} className={styles.menuSearchIcon} aria-hidden="true" />
-              <input
-                type="text"
-                className={styles.menuSearchInput}
-                placeholder={searchPlaceholder}
-                value={query}
-                autoFocus
-                onChange={(event) => setQuery(event.target.value)}
-              />
-            </div>
-          )}
-          <div className={styles.menuList}>
-            {filteredOptions.map((item) => {
-              const selected = item.value === value;
-              return (
-                <button
-                  key={item.value}
-                  type="button"
-                  role="option"
-                  aria-selected={selected}
-                  className={`${styles.menuOption} ${selected ? styles.menuOptionActive : ""}`}
-                  onClick={() => {
-                    setOpen(false);
-                    if (item.value !== value) {
-                      onChange(item.value);
-                    }
-                  }}
-                >
-                  <span className={styles.menuOptionMain}>
-                    {item.icon && <span className={styles.optionIcon}>{item.icon}</span>}
-                    <span className={styles.menuOptionText}>
-                      <span className={styles.menuOptionLabel}>{item.label}</span>
-                      {item.description && <span className={styles.menuOptionDesc}>{item.description}</span>}
-                    </span>
-                  </span>
-                  {selected && <IconCheck size={15} className={styles.checkIcon} aria-hidden="true" />}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+    <div className={controls.segmented} role="group" aria-label={label}>
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          aria-pressed={option.value === value}
+          className={`${controls.segBtn} ${option.value === value ? controls.segBtnActive : ""}`}
+          onClick={() => {
+            if (option.value !== value) onChange(option.value);
+          }}
+        >
+          {option.label}
+        </button>
+      ))}
     </div>
   );
 }

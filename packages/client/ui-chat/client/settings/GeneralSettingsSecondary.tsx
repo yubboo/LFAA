@@ -1,10 +1,15 @@
-// 渲染设置中心「常规」页下半部分分组：编辑器、弹出窗口、通知与趣味实验。
+// 渲染设置中心「常规」页下半部分分组：编辑器、Agent 行为、弹出窗口与趣味实验。
 import { useEffect, useState } from "react";
 import { IconPencil, IconSparkles, IconX } from "@tabler/icons-react";
 import type { GeneralSettingsConfig } from "./general-settings-client";
-import { NotificationSettingsGroup } from "./NotificationSettingsGroup";
-import { SettingGroupCard, SettingRow, SettingSelect, SettingSwitch } from "@lfaa/ui-primitives/client";
-import { settingsStyles as styles } from "@lfaa/ui-primitives/client";
+import {
+  SettingGroup,
+  SettingRow,
+  SettingSegmented,
+  SettingSelect,
+  SettingSwitch,
+  settingsStyles as styles,
+} from "@lfaa/ui-primitives/client";
 
 /** 解析“3, 5, 8”形式的阈值文本；只保留 >=2 的整数并去重升序。 */
 function parseThresholds(text: string): number[] {
@@ -15,7 +20,7 @@ function parseThresholds(text: string): number[] {
   return Array.from(new Set(values)).sort((a, b) => a - b);
 }
 
-/** 装配编辑器、弹出窗口和通知的次级设置，不单独维护持久化状态。 */
+/** 装配编辑器、Agent 行为与弹出窗口的次级设置，不单独维护持久化状态。 */
 export function GeneralSettingsSecondary({
   isZh,
   cfg,
@@ -59,7 +64,7 @@ export function GeneralSettingsSecondary({
 
   return (
     <>
-      <SettingGroupCard title={isZh ? "编辑器" : "Editor"}>
+      <SettingGroup title={isZh ? "编辑器" : "Editor"}>
         <SettingRow
           title={isZh ? "纯文本编辑器" : "Plain text editor"}
           description={isZh ? "编写消息时，将代码、Markdown 和链接保留为纯文本" : "Keep code, Markdown, and links as plain text while composing"}
@@ -99,54 +104,24 @@ export function GeneralSettingsSecondary({
         />
         <SettingRow
           title={isZh ? "后续消息处理方式" : "Follow-up message behavior"}
-          description={
-            isZh
-              ? "在 LFAA 运行时将后续消息加入队列，或引导当前运行。按 Ctrl+Enter 可对单条消息执行相反操作"
-              : "Queue messages while running or steer the current run. Hold Ctrl+Enter for the opposite."
-          }
+          description={isZh
+            ? "运行中发出的后续消息默认排队，或直接引导当前运行；Ctrl+Enter 执行相反操作。"
+            : "Messages sent while running queue up by default, or steer the current run; Ctrl+Enter does the opposite."}
           control={(
-            <div className={styles.segmented} role="group" aria-label={isZh ? "后续消息处理方式" : "Follow-up behavior"}>
-              <button
-                type="button"
-                className={`${styles.segBtn} ${cfg.followUpMode === "queue" ? styles.segBtnActive : ""}`}
-                onClick={() => onPatch({ followUpMode: "queue" })}
-              >
-                {isZh ? "排队" : "Queue"}
-              </button>
-              <button
-                type="button"
-                className={`${styles.segBtn} ${cfg.followUpMode === "steer" ? styles.segBtnActive : ""}`}
-                onClick={() => onPatch({ followUpMode: "steer" })}
-              >
-                {isZh ? "引导" : "Steer"}
-              </button>
-            </div>
+            <SettingSegmented
+              value={cfg.followUpMode}
+              label={isZh ? "后续消息处理方式" : "Follow-up behavior"}
+              options={[
+                { value: "queue", label: isZh ? "排队" : "Queue" },
+                { value: "steer", label: isZh ? "引导" : "Steer" },
+              ]}
+              onChange={(followUpMode) => onPatch({ followUpMode })}
+            />
           )}
         />
+      </SettingGroup>
 
-        {/* 行为预览：与输入框实际排队/插话逻辑保持一致，设置切换即时更新。 */}
-        <div className={styles.followUpPreview} aria-live="polite">
-          <span className={styles.followUpPreviewLabel}>
-            {isZh ? "行为预览" : "Preview"}
-          </span>
-          <span className={styles.followUpPreviewRow}>
-            <span className={styles.followUpPreviewKey}>Enter</span>
-            <span>
-              {cfg.followUpMode === "queue"
-                ? (isZh ? "→ 加入排队，当前运行结束后依次发送" : "→ queues; sends after the run finishes")
-                : (isZh ? "→ 立即插话，追加到当前生成（不打断）" : "→ steers now, appended to the running turn")}
-            </span>
-          </span>
-          <span className={styles.followUpPreviewRow}>
-            <span className={styles.followUpPreviewKey}>Ctrl+Enter</span>
-            <span>
-              {isZh ? "→ 有排队时一次性发送全部；否则按相反方式发送" : "→ flushes all when queued; otherwise uses the opposite mode"}
-            </span>
-          </span>
-        </div>
-      </SettingGroupCard>
-
-      <SettingGroupCard title={isZh ? "Agent 行为" : "Agent behavior"}>
+      <SettingGroup title={isZh ? "Agent 行为" : "Agent behavior"}>
         <SettingRow
           title={isZh ? "重复工具调用提醒" : "Repeated tool-call reminders"}
           description={
@@ -156,9 +131,9 @@ export function GeneralSettingsSecondary({
           }
           control={(
             <input
-              className={styles.thresholdInput}
+              className={`${styles.input} ${styles.inputNarrow}`}
               value={thresholdDraft}
-              placeholder={isZh ? "如 3, 5, 8（留空关闭）" : "e.g. 3, 5, 8 (empty disables)"}
+              placeholder={isZh ? "如 3, 5, 8" : "e.g. 3, 5, 8"}
               aria-label={isZh ? "重复工具调用提醒阈值" : "Repeated tool-call reminder thresholds"}
               onChange={(event) => setThresholdDraft(event.target.value)}
               onBlur={() => {
@@ -172,15 +147,15 @@ export function GeneralSettingsSecondary({
             />
           )}
         />
-      </SettingGroupCard>
+      </SettingGroup>
 
-      <SettingGroupCard title={isZh ? "弹出窗口" : "Popout window"}>
+      <SettingGroup title={isZh ? "弹出窗口" : "Popout window"}>
         <SettingRow
           title={isZh ? "弹出窗口快捷键" : "Popout shortcut"}
           description={isZh ? "为弹出窗口设置全局快捷键。不设置则保持关闭。" : "Set a shortcut for the popout window, or leave unset."}
           control={(
             <>
-              <span className={styles.pathText}>
+              <span className={styles.valueText}>
                 {recordingShortcut
                   ? (isZh ? "请按键..." : "Press key...")
                   : (cfg.popoutShortcut || (isZh ? "关闭" : "Off"))}
@@ -217,13 +192,9 @@ export function GeneralSettingsSecondary({
             />
           )}
         />
-      </SettingGroupCard>
+      </SettingGroup>
 
-      <SettingGroupCard title={isZh ? "通知" : "Notifications"}>
-        <NotificationSettingsGroup isZh={isZh} cfg={cfg} onPatch={onPatch} />
-      </SettingGroupCard>
-
-      <SettingGroupCard title={isZh ? "趣味实验" : "Experiments"}>
+      <SettingGroup title={isZh ? "趣味实验" : "Experiments"}>
         <SettingRow
           title={isZh ? "生图水印" : "Image watermark"}
           description={isZh
@@ -260,7 +231,7 @@ export function GeneralSettingsSecondary({
             </>
           )}
         />
-      </SettingGroupCard>
+      </SettingGroup>
     </>
   );
 }

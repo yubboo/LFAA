@@ -1,0 +1,15 @@
+/* 折叠容器布局与裁剪：撑满所在轨道、裁剪溢出内容；宽度动画交给调用方的容器样式。 */
+.pane {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  overflow: clip;
+}
+
+/* 右侧面板内容贴住右边缘，收起时从左侧被裁掉，视觉上跟随右边界移动。 */
+.pane[data-pane-side="right"] {
+  justify-items: end;
+}

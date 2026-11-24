@@ -1,11 +1,11 @@
 # 双语配对记录：按英文标题分段记录英文 / 中文段落哈希。
 # 修改任意一侧后，同步另一侧并重新生成：pnpm run readme:pair -- . --write
 /:
-  en: c60a2618bc515db2
-  zh: 0412de3391b32881
+  en: 3da7b5b8074e3f9f
+  zh: f5f0ad35fc8929f3
 /summary:
-  en: 1c0b87829c7a07f8
-  zh: 0350d6ac83d4cb01
+  en: 208c9fc1bfd03444
+  zh: 467e744c9cab5dac
 /exports:
   en: ff1faf529a0a8c5f
   zh: 674792a695d764fb
@@ -13,5 +13,11 @@
   en: 45dc1b2820fadf8f
   zh: 9d3554e2ad96aef0
 /dev-note:
-  en: 903ea500e7ccf842
-  zh: 969e7bb7bf0a7e1d
+  en: cc9d7d3dbe2b5d73
+  zh: 8892154ee504a00f
+/scroll-area:
+  en: 8f4154961a9f8955
+  zh: c54cbb7eb3183bfb
+/settings-surface:
+  en: 80f35ab20e83d995
+  zh: 24d122ce1df50dc9

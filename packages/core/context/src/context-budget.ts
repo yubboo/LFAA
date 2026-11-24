@@ -104,7 +104,10 @@ export function compactConversation(input: ReadonlyArray<LlmMessage>, options: C
     const removed = new Set<number>();
     for (const group of groups) {
       if (group.start >= keepFrom) break;
-      removed.add(group.start);
+      // 整组删除（含 assistant 工具调用及其对应的全部 tool 消息），避免留下孤儿 tool 触发提供商 HTTP 400。
+      for (let i = group.start; i < group.end; i += 1) {
+        removed.add(i);
+      }
     }
     const kept = messages.filter((_, index) => index === 0 || !removed.has(index));
     droppedMessages = messages.length - kept.length;

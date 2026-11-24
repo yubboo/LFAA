@@ -28,16 +28,18 @@ function buildAnthropicPayloadMessages(messages: LlmMessage[]): {
       continue;
     }
     if (msg.role === "tool") {
-      apiMessages.push({
-        role: "user",
-        content: [
-          {
-            type: "tool_result",
-            tool_use_id: msg.toolCallId ?? "",
-            content: msg.content,
-          },
-        ],
-      });
+      const toolResult = {
+        type: "tool_result",
+        tool_use_id: msg.toolCallId ?? "",
+        content: msg.content,
+      };
+      // 并行工具调用会产生连续多条 role="tool"，必须合并到同一条 user 消息的 content 数组，否则 Anthropic 返回 HTTP 400。
+      const prev = apiMessages.at(-1);
+      if (prev && prev.role === "user" && Array.isArray(prev.content)) {
+        (prev.content as Array<Record<string, unknown>>).push(toolResult);
+      } else {
+        apiMessages.push({ role: "user", content: [toolResult] });
+      }
       continue;
     }
     if (msg.role === "assistant" && msg.toolCalls && msg.toolCalls.length > 0) {
@@ -162,12 +164,14 @@ export async function callAnthropicMessagesApi(
   }
 
   const temperature = input.temperature ?? profile.temperature;
-  if (mappedEffort) {
+  const deepSeekAnthropic = isDeepSeekEndpoint(profile.kind, baseUrl, profile.providerId);
+  // Anthropic 要求 budget_tokens >= 1024 且严格小于 max_tokens；短预算调用（如连通性探测）跳过 thinking 避免 400。
+  if (mappedEffort && (deepSeekAnthropic || maxTokens > 1_024)) {
     const effortBudget = mappedEffort === "low" ? 1_024 : mappedEffort === "medium" ? 4_096 : 8_192;
-    bodyPayload.thinking = isDeepSeekEndpoint(profile.kind, baseUrl, profile.providerId)
+    bodyPayload.thinking = deepSeekAnthropic
       ? { type: "enabled" }
       : { type: "enabled", budget_tokens: Math.max(1_024, Math.min(maxTokens - 256, effortBudget)) };
-    if (isDeepSeekEndpoint(profile.kind, baseUrl, profile.providerId)) {
+    if (deepSeekAnthropic) {
       bodyPayload.reasoning_effort = mappedEffort;
     }
   } else if (typeof temperature === "number") {

@@ -8,10 +8,8 @@ import { getMediaThumbnail } from "../media/media-thumb-cache";
 export function useMediaBlob(path: string): string | null {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
-    if (!path) {
-      setUrl(null);
-      return;
-    }
+    setUrl(null);
+    if (!path) return;
     let cancelled = false;
     let objectUrl: string | null = null;
     const controller = new AbortController();

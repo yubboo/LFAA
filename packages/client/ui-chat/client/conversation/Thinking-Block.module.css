@@ -1,0 +1,203 @@
+/* 思维链块样式：脑形图标 + 状态标题 + 左侧细竖线引导的柔和思考正文，双主题自适应。 */
+.root {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.28rem;
+  min-width: 0;
+}
+
+.headerBtn,
+.headerStatic {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.44rem;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 1.7rem;
+  padding: 0.14rem 0.42rem 0.14rem 0.18rem;
+  border: 0;
+  border-radius: 0.42rem;
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.88em;
+  font-weight: 550;
+  text-align: left;
+}
+
+.headerBtn {
+  cursor: pointer;
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-ease-standard),
+    color var(--motion-duration-fast) var(--motion-ease-standard);
+}
+
+.headerBtn:hover {
+  background: var(--color-active);
+}
+
+.headerBtn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.iconWrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  color: var(--color-muted);
+}
+
+.iconWrap[data-live="true"] {
+  color: var(--color-accent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .iconWrap[data-live="true"] {
+    animation: brain-breathe 1.9s ease-in-out infinite;
+  }
+
+  .body {
+    animation: think-reveal 200ms cubic-bezier(.22, 1, .36, 1) both;
+  }
+}
+
+@keyframes brain-breathe {
+  0%, 100% { opacity: 0.68; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.06); }
+}
+
+@keyframes think-reveal {
+  from { opacity: 0; transform: translateY(-3px); }
+}
+
+.title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 运行中思维标题使用柔和流光扫过，结束后恢复静态文字色。 */
+@media (prefers-reduced-motion: no-preference) {
+  @supports (background-clip: text) {
+    .title[data-live="true"] {
+      --think-sweep: color-mix(in srgb, var(--color-accent) 42%, var(--color-ink));
+      background: linear-gradient(105deg, var(--color-ink) 20%, var(--think-sweep) 50%, var(--color-ink) 80%);
+      background-size: 220% 100%;
+      background-clip: text;
+      color: transparent;
+      animation: think-sweep 2.2s linear infinite;
+    }
+  }
+}
+
+@keyframes think-sweep {
+  from { background-position: 100% 50%; }
+  to { background-position: -60% 50%; }
+}
+
+.duration {
+  flex: none;
+  color: var(--color-muted);
+  font-size: 0.86em;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.chevron {
+  flex: none;
+  color: var(--color-muted);
+  transition: transform 170ms cubic-bezier(.22, 1, .36, 1);
+}
+
+.chevron[data-open="true"] {
+  transform: rotate(90deg);
+}
+
+/* 整轮可折叠内容（思考正文 + 关联过程说明与工具链），随思考头同步展开与收起。 */
+.roundContent {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+/* 左侧柔和引导竖线：与上方脑形图标中心视觉对齐，固定在滚动容器外侧不随正文滚动。 */
+.body {
+  margin-inline-start: 0.58rem;
+  border-inline-start: 1.5px solid var(--color-line);
+  min-width: 0;
+}
+
+/* 思考正文滚动视口：短内容自然贴合高度，超过约 8–10 行后出现统一细滚动条；留出右侧槽距避免压字。 */
+.scrollViewport {
+  max-height: 15rem;
+  padding: 0.1rem 0.55rem 0.2rem 0.92rem;
+  border-radius: 0.32rem;
+}
+
+.scrollViewport:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* 超出可滚动方向的边缘柔和渐隐提示，自动适配浅色、深色及任意自定义主题底色。 */
+.scrollViewport[data-fade-top="true"] {
+  mask-image: linear-gradient(to bottom, transparent, var(--color-ink) 18px);
+}
+
+.scrollViewport[data-fade-bottom="true"] {
+  mask-image: linear-gradient(to bottom, var(--color-ink) calc(100% - 18px), transparent);
+}
+
+.scrollViewport[data-fade-top="true"][data-fade-bottom="true"] {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    var(--color-ink) 18px,
+    var(--color-ink) calc(100% - 18px),
+    transparent
+  );
+}
+
+@media (max-width: 640px) {
+  .scrollViewport {
+    max-height: 12rem;
+  }
+}
+
+.content {
+  display: grid;
+  gap: 0.3rem;
+  color: var(--color-muted);
+  font-size: 0.87em;
+  font-style: italic;
+  line-height: 1.72;
+  overflow-wrap: anywhere;
+}
+
+.line {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.spacer {
+  height: 0.25rem;
+}
+
+.inlineCode {
+  padding: 0.04rem 0.32rem;
+  margin: 0 0.08rem;
+  border-radius: 0.32rem;
+  background: var(--color-code-bg);
+  color: var(--color-code-ink);
+  font-family: var(--code-font-family, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-style: normal;
+  font-size: 0.9em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron { transition: none; }
+}

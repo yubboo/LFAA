@@ -6,7 +6,7 @@ import { BrowserRuntime, detectLocalBrowserExecutable, validateBrowserUrl } from
 import { registerBrowserAgentTools } from "./tools/browser-tools";
 import { BrowserUseRegistry } from "./session/registry";
 import type { StreamFrameListener } from "./session/screencast-manager";
-import type { BrowserPluginConfig, BrowserSettingsConfig } from "./types";
+import type { BrowserInputPayload, BrowserPluginConfig, BrowserSettingsConfig } from "./types";
 
 export * from "./types";
 export * from "./session/registry";
@@ -97,9 +97,13 @@ export class BrowserService extends Service {
     return this.runtime.typeText(sessionId, target, false, fast);
   }
   pressKey(sessionId: string, key: string, fast = false) { return this.runtime.pressKey(sessionId, key, false, fast); }
-  scroll(sessionId: string, deltaY: number, deltaX = 0, fast = false) { return this.runtime.scroll(sessionId, deltaY, deltaX, false, fast); }
+  scroll(sessionId: string, deltaY: number, deltaX = 0, fast = false, point?: { x?: number; y?: number }) {
+    return this.runtime.scroll(sessionId, deltaY, deltaX, false, fast, point);
+  }
+  dispatchInput(sessionId: string, payload: BrowserInputPayload) { return this.runtime.dispatchInput(sessionId, payload); }
   setTakeover(sessionId: string, paused: boolean) { return this.runtime.setTakeover(sessionId, paused); }
   setTakeoverAndSnapshot(sessionId: string, paused: boolean) { return this.runtime.setTakeoverAndSnapshot(sessionId, paused); }
+  describeTakeoverHint(sessionId: string) { return this.runtime.describeTakeoverHint(sessionId); }
   openDesktopTakeoverWindow(sessionId: string) { return this.runtime.openDesktopTakeoverWindow(sessionId); }
   getConsole(sessionId: string) { return this.runtime.getConsole(sessionId); }
   getNetwork(sessionId: string) { return this.runtime.getNetwork(sessionId); }

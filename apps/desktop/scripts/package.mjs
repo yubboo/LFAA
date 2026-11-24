@@ -126,7 +126,10 @@ function copyPackage(sourceDir, targetDir, runtimeOnly) {
         // @lfaa/*：入口只有 package.json 与 lib 下的 JS（类型声明、sourcemap、src/client 都不需要）。
         const inLib = /(?:^|\/)lib(?:\/|$)/u.test(normalized);
         if (isDirectory) return inLib && name !== "types";
-        if (inLib) return /\.(?:js|json|cjs|mjs)$/u.test(name) && !/\.d\.ts$/u.test(name);
+        if (inLib) {
+          return (/\.(?:js|json|cjs|mjs)$/u.test(name) && !/\.d\.ts$/u.test(name))
+            || (/\/lib\/builtin-skills\//u.test(normalized) && name.endsWith(".md"));
+        }
         return name === "package.json";
       }
       // 第三方包：去掉类型声明、sourcemap、文档、测试与构建配置。

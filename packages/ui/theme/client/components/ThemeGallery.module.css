@@ -1,0 +1,64 @@
+/* 主题网格：缩略窗 + 名称，选中态用强调色描边；颜色全部取自主题变量。 */
+.grid {
+  display: grid;
+  /* 7 张卡在桌面宽度下排成一行（3 个明暗 + 4 套配色），窄屏自然换行。 */
+  grid-template-columns: repeat(auto-fill, minmax(6.75rem, 1fr));
+  gap: 0.7rem;
+  min-width: 0;
+}
+
+.tile {
+  display: grid;
+  gap: 0.42rem;
+  min-width: 0;
+  padding: 0.4rem;
+  border: 2px solid transparent;
+  border-radius: 0.85rem;
+  background: transparent;
+  color: var(--color-muted);
+  font: inherit;
+  font-size: 0.84em;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 180ms ease, background-color 180ms ease, color 180ms ease, transform 180ms ease;
+}
+
+.tile:hover {
+  background: var(--color-active);
+  color: var(--color-ink);
+  transform: translateY(-1px);
+}
+
+.tile:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* 选中态对齐参考设计：粗描边 + 不加底色，避免和缩略图本身的颜色打架。 */
+.tile[data-active="true"] {
+  border-color: var(--color-ink);
+  color: var(--color-ink);
+}
+
+.thumb {
+  display: block;
+  overflow: hidden;
+  border-radius: 0.7rem;
+}
+
+.tile[data-active="true"] .thumb {
+  box-shadow: var(--color-menu-shadow);
+}
+
+.label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
+    gap: 0.6rem;
+  }
+}

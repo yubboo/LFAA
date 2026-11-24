@@ -13,8 +13,8 @@ export const MODE_HINTS = {
   ask: "当前权限模式：请求批准（内置文件工具仅可访问工作区；每次修改文件或执行命令均需用户确认）。",
 } as const;
 
-/** 排版规范：多目录/文件列举必须结构化，避免长句堆叠。 */
-export const FORMAT_HINT = "排版规范：列举 3 个及以上的目录、文件、配置项或路径时，严禁挤在一段长句括号里用顿号堆叠；请使用结构化列表（如 `- \\`name/\\`：说明`）、Markdown 表格或树形代码块展示，并将文件名与目录名用反引号 `` ` `` 包裹。";
+/** 排版与语言规范：思考过程、过程说明与正文语言一致，多目录/文件列举结构化。 */
+export const FORMAT_HINT = "语言与排版规范：\n1. 无论内部思考过程（thinking/reasoning）、工具调用前后的过程说明还是最终答复，都必须严格与用户提问的语言保持一致；用户使用中文提问时，思考过程与过程说明也必须全程使用自然流畅的简体中文，严禁切换为英文。\n2. 列举 3 个及以上的目录、文件、配置项或路径时，严禁挤在一段长句括号里用顿号堆叠；请使用结构化列表（如 `- `name/`：说明`）、Markdown 表格或树形代码块展示，并将文件名与目录名用反引号 `` ` `` 包裹。";
 
 export interface RecalledContext {
   systemPrompt: string;
@@ -130,13 +130,18 @@ export function buildSkillsCatalogHint(availableSkillCatalog: RunExecutionParams
 export function buildProgressHint(deps: RunLoopDeps, params: RunExecutionParams): string {
   return [
     params.enableClarification
-      ? "需求澄清：若目标、操作对象或交付范围有多种合理解释，且会改变实施方向，先用 ask_user 提一个关键问题，必要时给出 2–4 个选项，并等待下一条用户消息；本轮不要同时修改文件、执行命令或委派。简短问候、明确请求和可安全从上下文确认的细节无需提问。"
+      ? "需求澄清（极度克制使用）：仅当缺少关键信息会彻底改变实现方向、且无法从上下文合理判断时，才调用 ask_user 提一个问题；若上一轮你刚列出了编号条目/说明/建议（如 1. … 2. …），而用户回复「1」「2」「第一项」「都做」「好」「继续」「改吧」等简短指向，视为已明确确认对应条目，严禁调用 ask_user 再次反问，必须立刻直接执行！简短问候、明确指令和可安全推断的细节也绝不反问。"
       : "",
     "较大的代码变更分成有明确文件落点的小批次。已有工具结果足以行动时，直接发出下一项必要调用。可见进度只说实际完成、正在处理的目标或当前阻塞。",
     "多步任务的进度写入用户可见的正文。首次调用工具前，简短交代准备核查或执行的事项；得到实际结果、发现异常或进入下一阶段时，再说明进展和接下来的动作。连续的小操作可共用一段，直接问答无需播报。命令和工具详情由运行时展示。",
-    "任务清单：只要任务需要新建或修改 2 个及以上文件、或需要 2 条以上命令步骤，就必须先调用 todo_write 列出可执行步骤再动手；开始某项时把该项标成 in_progress，完成立即标成 completed，同一时刻只保留一条进行中。单步问答、纯解释和小改动不必建清单。",
+    "任务清单：只要任务需要新建或修改 2 个及以上文件、或需要 2 条以上命令步骤，就必须先调用 todo_write 列出可执行步骤再动手；开始某项时把该项标成 in_progress，完成立即标成 completed，同一时刻只保留一条进行中；交付最终答复前必须把最后一项也标成 completed，禁止把已完成任务留在 in_progress。单步问答、纯解释和小改动不必建清单。",
     deps.tools.getTool("invoke_subagent")
       ? "多智能体协作：用户明确要求委派，或任务存在可独立并行的调研、实现或验证时，用 invoke_subagent 设 wait=false 派发，并用 list_subagents 的 waitForIds 收集结果再汇总。无独立分工的简单任务直接完成。子任务失败时如实说明。"
+      : "",
+    deps.tools.getTool("browser_navigate")
+      ? (deps.tools.getTool("invoke_subagent")
+        ? "右侧工作台与内置浏览器闭环验收（强制走浏览器子智能体）：右侧工作台内置浏览器就是你的实测验收现场。凡涉及打开网页、前端界面、HTML/SVG/CSS、动画或页面排错，**所有浏览器操作一律必须调用 `invoke_subagent(role=\"浏览器验收助手\", mode=\"browser\", prompt=\"...\")` 召唤专属浏览器子智能体执行**（请在 prompt 中写清目标 URL、用户原始需求与验收要点，要求子智能体完成打开页面、交互测试、`browser_console`/`browser_network` 查错，以及调用 `browser_visual_check` 真实看图验收）。拿到子智能体报告后，只要结论为 `NEEDS_FIX` 或报告中指出任何视觉错位、部件脱节、比例异常、遮挡或报错，**主 Agent 必须亲自修改源码修复每一处缺陷，并再次召唤浏览器子智能体复验**，直到视觉与控制台全部 `PASS` 后再向用户交付最终答复。"
+        : "右侧工作台与内置浏览器闭环验收：右侧工作台内置浏览器就是你的实测验收现场。凡涉及前端界面、HTML/SVG/CSS、Web 应用或页面排错，严禁仅凭改完代码就交付，必须执行完整闭环：① 启动本地服务后用 browser_navigate（需多页对照时用 browser_tabs 新建/切换标签）打开真实页面；② 实测关键点击/输入/滚动交互并调用 browser_console、browser_network 确认 0 报错；③ 调用 browser_screenshot 与 browser_visual_check（传入用户需求 requirements 逐条核对；若当前模型不支持看图则立即改用 browser_evaluate 核查关键元素几何尺寸、样式与动画状态，不要反复死磕失败的看图调用）；④ 只要发现与用户需求不符、错位、遮挡或报错，必须继续思考修复代码并刷新复验，直到完全符合需求后再向用户交付最终答复。")
       : "",
     "自主排查与编辑准则：定位问题时先用 grep（正则内容）/ glob（文件名模式）/ list_dir / read_file 检索并精读关键源码上下文再动手；修改代码或修复报错时，直接调用 edit_file / write_file 落实修改并立即通过 run_command 验证，遇到新报错继续读取对应行并修正闭环，不得停在只给建议或让用户手动改代码。edit_file 的 target 必须在文件中唯一命中，命中多处时请补充上下文行或显式传 replaceAll；新建文件用 write_file。",
     "工具效率与核验规范：创建或读取多个互相独立的文件时，请在同轮并行发起多个 read_file / write_file / edit_file 调用，避免逐个文件串行消耗步数；执行构建/测试请直接用 run_command 验证，不可将“静态自审”等价于编译或运行通过；前台命令默认 10 分钟超时，构建、安装等长命令可传 timeoutMs，服务器或监听类命令请用 start_background_task 启动并用 get_background_task 轮询；向用户提供复现命令时，必须严格匹配当前终端语法（CMD 用 `set \"VAR=...\"`，PowerShell 用 `$env:VAR=\"...\"`），严禁混写。",

@@ -8,6 +8,7 @@
 - [会话形态：单聊 / 群聊 / Agents](agent-conversations.md)：左一三入口、调度与发言计划校验、群聊消息契约。**待评审**。
 - [会话待处理提醒与通知中心](notifications.md)：待确认/待回答徽标、待处理接口、提示音与桌面通知。**已实施**。
 - [左二栏会话分批展开](session-list-paging.md)：项目子会话与最近分组的分批展开契约。**已实施**。
+- [会话项目绑定、输入区融合与操作记忆](project-session-binding.md)：工作/聊天模式项目入口融合、顶部与最近新会话绑定规则、刷新操作记忆。**实施中**。
 - [对话轨迹](conversation-trace.md)：对话 / 轨迹两个页签的分工与数据来源。
 - [聊天全文搜索](chat-search.md)：搜索范围、索引与结果定位。
 - [会话模式与协作](session-mode-collaboration.md)：标准 / 深度协作等模式的契约与切换。
@@ -20,6 +21,9 @@
 ## 右栏与工作台
 
 - [右栏控制台、内置浏览器、后台任务与多 Agent 协作](right-panel-and-agents.md)：**已实施**。
+- [内置浏览器双引擎与高清低延迟交互方案](builtin-browser.md)：原生直连 + 高清低延迟 CDP 协同视图、防滚动穿透与画质去雾。**已实施**。
+- [Agent 自主操控右侧工作台与自测验收闭环方案](agent-workbench-autopilot.md)：全能跟随、多标签同步与「修改 → 浏览器实测/截图自检 → 循环修复 → 交付」闭环。**已实施**。
+- [浏览器专属子智能体与性能根治方案](browser-subagent.md)：`mode="browser"` 隔离子智能体、思维链实时浏览器状态卡片、原生空闲后台防空跑与兜底零主线程解码。**已实施**。
 - [IDE 化右侧工作台](right-workbench-ide.md)：Tab 栏、VS Code 只读代码、行内批注、全高浏览器。**已实施**。
 - [变更审查](workbench-change-review.md)：工作台内的改动审阅流程。
 - [Git 工作树会话隔离](worktree.md)：一个会话一个工作树的分支/目录契约、有效根解析与安全加固。**P0–P3b 已实施**。

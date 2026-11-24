@@ -1,4 +1,4 @@
-// 验证四栏 Shell 与界面交互偏好的浏览器持久化记忆（导航路由、左右栏折叠、分组收起、分区折叠、排序与模式）。
+// 验证四栏 Shell 与界面交互偏好的浏览器持久化记忆（导航路由、设置子页、左右栏折叠、分组收起、分区折叠、排序与模式）。
 import assert from "node:assert/strict";
 import test from "node:test";
 import { Context } from "@deepseek-ai/cordis";
@@ -17,15 +17,20 @@ import {
 import {
   LEFT_SIDEBAR_WIDTH_STORAGE_KEY,
   RIGHT_PANEL_WIDTH_STORAGE_KEY,
+  readActiveGroupKeyPref,
   readActiveRoutePref,
   readNavGroupExpandedPref,
   readPanelWidthPref,
+  readProjectExpandedPref,
   readProjectSortPref,
   readRecentSortPref,
   readSectionExpandedPref,
+  readSettingsViewPref,
   readWorkspaceModePref,
+  writeActiveGroupKeyPref,
   writeNavGroupExpandedPref,
   writePanelWidthPref,
+  writeProjectExpandedPref,
   writeProjectSortPref,
   writeRecentSortPref,
   writeSectionExpandedPref,
@@ -88,15 +93,26 @@ test("WorkbenchClientService 持久化并恢复路由、项目打开状态及非
     assert.equal(restored.rightPanelOpen, true);
 
     service2.navigate("appearance");
-    // 设置中心以弹窗呈现：不写入路由偏好，刷新后回到打开设置前的视图而不是直接弹窗。
+    // 设置中心以弹窗呈现：只记录子页，不改写背景路由，刷新后仍停在同一个设置子页。
     assert.deepEqual(readActiveRoutePref(), {
       activeView: "project",
       activeProjectId: "proj-123",
     });
     const ctx3 = new Context();
     const service3 = new WorkbenchClientService(ctx3);
-    assert.equal(service3.getSnapshot().activeView, "project");
-    assert.equal(service3.getSnapshot().activeProjectId, "proj-123");
+    const restoredSettings = service3.getSnapshot();
+    assert.equal(restoredSettings.activeView, "appearance");
+    assert.equal(restoredSettings.activeProjectId, "proj-123");
+    assert.equal(restoredSettings.settingsReturnView, "project");
+
+    // 关闭设置中心：回到打开前的项目视图，并清掉设置子页记忆。
+    service3.navigate("project", "proj-123");
+    assert.deepEqual(readActiveRoutePref(), {
+      activeView: "project",
+      activeProjectId: "proj-123",
+    });
+    assert.equal(readSettingsViewPref(), null);
+    assert.equal(new WorkbenchClientService(new Context()).getSnapshot().activeView, "project");
   } finally {
     mock.restore();
   }
@@ -349,6 +365,62 @@ test("历史遗留的设置路由刷新后回退到工作区，不再自动弹�
     assert.equal(snapshot.activeView, "workspace");
     assert.equal(snapshot.activeProjectId, null);
     assert.deepEqual(readActiveRoutePref(), { activeView: "workspace", activeProjectId: null });
+  } finally {
+    mock.restore();
+  }
+});
+
+test("设置中心打开状态与子页写入独立记忆键，F5 后回到同一子页", () => {
+  const mock = installMockWindowStorage();
+  try {
+    const service1 = new WorkbenchClientService(new Context());
+    service1.navigate("workspace", null);
+    service1.navigate("settings:notifications");
+
+    // 设置子页不污染主路由：背景仍是工作区，刷新后靠独立键恢复。
+    assert.deepEqual(readActiveRoutePref(), { activeView: "workspace", activeProjectId: null });
+    assert.equal(readSettingsViewPref(), "settings:notifications");
+
+    // 在设置中心内部切换子页，只更新子页记忆。
+    service1.navigate("settings:git");
+    assert.equal(readSettingsViewPref(), "settings:git");
+    assert.equal(service1.getSnapshot().activeView, "settings:git");
+
+    const service2 = new WorkbenchClientService(new Context());
+    const restored = service2.getSnapshot();
+    assert.equal(restored.activeView, "settings:git");
+    assert.equal(restored.settingsReturnView, "workspace");
+
+    // 切到普通视图等于关闭设置中心：清掉子页记忆。
+    service2.navigate("library");
+    assert.equal(readSettingsViewPref(), null);
+    assert.equal(new WorkbenchClientService(new Context()).getSnapshot().activeView, "library");
+  } finally {
+    mock.restore();
+  }
+});
+
+test("setActiveProject 与项目展开/分组键记忆持久化并在重建后恢复", () => {
+  const mock = installMockWindowStorage();
+  try {
+    const service1 = new WorkbenchClientService(new Context());
+    service1.navigate("workspace", null);
+    service1.setActiveProject("proj-app1");
+    assert.equal(service1.getSnapshot().activeView, "workspace");
+    assert.equal(service1.getSnapshot().activeProjectId, "proj-app1");
+    assert.deepEqual(readActiveRoutePref(), { activeView: "workspace", activeProjectId: "proj-app1" });
+
+    const service2 = new WorkbenchClientService(new Context());
+    assert.equal(service2.getSnapshot().activeView, "workspace");
+    assert.equal(service2.getSnapshot().activeProjectId, "proj-app1");
+
+    writeProjectExpandedPref({ "project:proj-app1": false, "pinned:proj-app1": true });
+    writeActiveGroupKeyPref("pinned");
+    assert.deepEqual(readProjectExpandedPref(), { "project:proj-app1": false, "pinned:proj-app1": true });
+    assert.equal(readActiveGroupKeyPref(), "pinned");
+
+    mock.store.set("lfaa:project-expanded", "{bad-json");
+    assert.deepEqual(readProjectExpandedPref(), {});
   } finally {
     mock.restore();
   }

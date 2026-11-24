@@ -15,7 +15,11 @@ import { ensureProjectGitRepo } from "../context/project-git";
 import { extractExplicitMemory } from "./memory-autosave";
 import { normalizePermissionMode } from "../tools/permission-policy";
 import { resolveStepBudget } from "./step-budget";
-import type { ActiveRunRecord } from "./run-records";
+import {
+  appendReasoningToThinkStep,
+  settleRemainingInProgressTodos,
+  type ActiveRunRecord,
+} from "./run-records";
 import type { RunLoopDeps } from "./run-types";
 import type { AgentRunEvent, ApprovalAnswer, ProjectScope, ResolvedSkillContext, StartAgentRunInput } from "../types";
 import type { RunChunkRecord } from "../stream-journal";
@@ -199,11 +203,17 @@ export async function beginAgentRun(
   };
   deps.onRunCreated(record);
 
-  // 串行持久化增量，确保断线重连后任何已推送内容均已严格落盘
-  const scheduleStreamingPersist = (force = false) => {
-    const now = Date.now();
-    if (!force && now - record.lastPersistAt < 180) return;
-    record.lastPersistAt = now;
+  // 串行持久化增量，流式阶段按 1000ms 节流且合并排队写入，避免 Windows 高频原子重命名阻塞事件循环。
+  let persistInFlight = false;
+  let persistDirty = false;
+  const flushStreamingPersist = () => {
+    if (persistInFlight) {
+      persistDirty = true;
+      return;
+    }
+    persistInFlight = true;
+    persistDirty = false;
+    record.lastPersistAt = Date.now();
     const contentSnap = record.status.content;
     const reasoningSnap = record.status.reasoning;
     const stepsSnap = record.status.steps.slice();
@@ -216,7 +226,19 @@ export async function beginAgentRun(
           status: "streaming",
         }).then(() => undefined),
       )
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => {
+        persistInFlight = false;
+        if (persistDirty && record.status.status === "running") {
+          persistDirty = false;
+          flushStreamingPersist();
+        }
+      });
+  };
+  const scheduleStreamingPersist = (force = false) => {
+    const now = Date.now();
+    if (!force && now - record.lastPersistAt < 1000) return;
+    flushStreamingPersist();
   };
 
   const emit = (rawEvent: AgentRunEvent) => {
@@ -226,8 +248,17 @@ export async function beginAgentRun(
       record.status.lastSeq = seq;
       event = { ...rawEvent, seq };
       if (rawEvent.kind === "text") record.status.content += rawEvent.text;
-      else record.status.reasoning += rawEvent.text;
-      record.chunks.push({ seq, kind: rawEvent.kind, text: rawEvent.text, ts: Date.now() } satisfies RunChunkRecord);
+      else {
+        record.status.reasoning += rawEvent.text;
+        appendReasoningToThinkStep(record.status.steps, rawEvent.text, rawEvent.iteration);
+      }
+      record.chunks.push({
+        seq,
+        kind: rawEvent.kind,
+        text: rawEvent.text,
+        ...(rawEvent.iteration !== undefined ? { iteration: rawEvent.iteration } : {}),
+        ts: Date.now(),
+      } satisfies RunChunkRecord);
       // 保证先写入增量落盘队列再广播至 SSE 订阅者
       scheduleStreamingPersist(seq === 1);
     } else if (rawEvent.type === "run_usage") {
@@ -288,6 +319,9 @@ export async function beginAgentRun(
             memory: deps.memory,
             rules: deps.rules,
             trustStore: deps.trustStore,
+            ...(deps.compaction ? { compaction: deps.compaction } : {}),
+            ...(deps.extraSystemPrompt ? { extraSystemPrompt: deps.extraSystemPrompt } : {}),
+            ...(deps.dynamicSystemHint ? { dynamicSystemHint: deps.dynamicSystemHint } : {}),
             drainSteering: () => record.steering.splice(0),
           },
           {
@@ -373,8 +407,15 @@ export async function beginAgentRun(
           content: result.content,
           ...(digestText ? { digest: digestText } : {}),
         }));
+        const currentTodos = record.status.todos ?? (await deps.memory.getSession(session.id).catch(() => null))?.todos;
+        const settledTodos = !result.clarification ? settleRemainingInProgressTodos(currentTodos) : undefined;
+        if (settledTodos) {
+          record.status.todos = settledTodos;
+          emit({ type: "todos", runId, todos: settledTodos });
+        }
         await deps.memory.updateSession(session.id, {
           unread: true,
+          ...(settledTodos ? { todos: settledTodos } : {}),
           pendingQuestion: result.clarification
             ? ({
               messageId: assistantMessageId,

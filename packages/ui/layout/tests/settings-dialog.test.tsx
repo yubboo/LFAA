@@ -25,8 +25,10 @@ const { locales } = await import("../client/locales");
 const snapshot: WorkbenchSnapshot = {
   activeView: "settings:appearance",
   activeProjectId: null,
+  settingsReturnView: null,
   activeLibraryTab: "all",
   activeDomainItem: "",
+  workspaceMode: "chatgpt",
   leftSidebarOpen: true,
   rightPanelOpen: false,
   rightWorkbenchWide: false,
@@ -71,7 +73,7 @@ test("设置弹窗提供目录导航、当前项标记与关闭入口", () => {
   assert.match(markup, /data-testid="view-body"/u);
 });
 
-test("未注册的设置项在弹窗内显示占位说明而不是空白", () => {
+test("目录只列已接入页面，未注册视图退化为占位说明而不是空白", () => {
   const markup = renderToStaticMarkup(createElement(SettingsDialog, {
     locale: locales.zh,
     activeView: "settings:profile",
@@ -80,7 +82,8 @@ test("未注册的设置项在弹窗内显示占位说明而不是空白", () =>
     onClose: () => {},
   }));
 
-  assert.match(markup, /个人资料/u);
+  // 未接入的页面不再占目录位，也不会出现在目录里。
+  assert.doesNotMatch(markup, /个人资料/u);
   assert.match(markup, new RegExp(locales.zh.featureUnavailable.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"), "u"));
 });
 

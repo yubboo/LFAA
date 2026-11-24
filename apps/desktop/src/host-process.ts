@@ -72,6 +72,7 @@ function completesWithin(promise: Promise<void>, timeoutMs: number): Promise<boo
 export class DesktopHostProcess {
   #child: ChildProcess | undefined;
   #exit: Promise<void> | undefined;
+  #startupTimer: ReturnType<typeof setTimeout> | undefined;
   #stderr = "";
   #stopping = false;
   #readySettled = false;
@@ -109,7 +110,7 @@ export class DesktopHostProcess {
     child.stdout?.setEncoding("utf8");
     child.stdout?.on("data", (chunk: string) => process.stdout.write(chunk));
 
-    const startupTimer = setTimeout(() => {
+    this.#startupTimer = setTimeout(() => {
       this.#failReady(new Error(`桌面宿主启动超时（${READY_TIMEOUT_MS / 1000} 秒）。`));
       child.kill("SIGKILL");
     }, READY_TIMEOUT_MS);
@@ -120,24 +121,25 @@ export class DesktopHostProcess {
         return;
       }
       if (message.type === "ready") {
-        clearTimeout(startupTimer);
+        if (this.#startupTimer) { clearTimeout(this.#startupTimer); this.#startupTimer = undefined; }
         this.#readySettled = true;
         this.#resolveReady({ url: message.url, port: message.port });
         return;
       }
       if (message.type === "fatal") {
-        clearTimeout(startupTimer);
+        if (this.#startupTimer) { clearTimeout(this.#startupTimer); this.#startupTimer = undefined; }
         this.#handleUnexpected(new DesktopHostError(message.message, message.diagnostic));
       }
       // shutdown-complete 只表示宿主已停服，进程退出由 close 事件统一处理。
     });
     child.once("error", (error) => {
-      clearTimeout(startupTimer);
+      if (this.#startupTimer) { clearTimeout(this.#startupTimer); this.#startupTimer = undefined; }
       this.#handleUnexpected(error);
     });
 
     this.#exit = new Promise<void>((resolve) => {
       child.once("close", (code) => {
+        if (this.#startupTimer) { clearTimeout(this.#startupTimer); this.#startupTimer = undefined; }
         const suffix = this.#stderr.trim() === "" ? "" : `：${this.#stderr.trim()}`;
         resolve();
         if (this.#stopping) return;
@@ -150,6 +152,10 @@ export class DesktopHostProcess {
 
   /** 请求优雅退出；超时后升级为强制结束，保证不残留进程。 */
   async stop(): Promise<void> {
+    if (this.#startupTimer) {
+      clearTimeout(this.#startupTimer);
+      this.#startupTimer = undefined;
+    }
     const child = this.#child;
     if (!child) return;
     this.#stopping = true;

@@ -121,3 +121,37 @@ test("默认内置技能目录包含 minecraft-plugin-dev 与 lfaa-skill-creator
   assert.ok(detail?.content.includes("Comparator"));
   assert.ok(detail?.content.includes("run_command"));
 });
+
+test("拒绝路径穿越技能 ID 且支持无状态记录的手动个人技能启停", async (t) => {
+  const personalDir = await mkdtemp(join(tmpdir(), "lfaa-skills-sec-"));
+  t.after(async () => {
+    await rm(personalDir, { recursive: true, force: true });
+  });
+
+  await mkdir(join(personalDir, "manual-skill"), { recursive: true });
+  await writeFile(
+    join(personalDir, "manual-skill", "SKILL.md"),
+    "---\nname: 手动技能\ndescription: 人工放置的技能\n---\n\n正文",
+    "utf8",
+  );
+
+  const ctx = new Context();
+  const fiber = ctx.plugin(skillsPlugin, { personalDir });
+  await fiber;
+  t.after(async () => {
+    await fiber.dispose();
+  });
+
+  for (const badId of ["../escape", "..\\escape", "a/b", ".hidden"]) {
+    await assert.rejects(
+      () => ctx.skills.createOrUpdateSkill({ id: badId, name: "非法", content: "正文" }),
+      /不合法|越界/,
+    );
+    await assert.rejects(() => ctx.skills.deleteSkill(badId), /不合法|越界/);
+  }
+
+  const disabled = await ctx.skills.setSkillEnabled("manual-skill", false);
+  assert.equal(disabled.enabled, false);
+  const reenabled = await ctx.skills.setSkillEnabled("manual-skill", true);
+  assert.equal(reenabled.enabled, true);
+});

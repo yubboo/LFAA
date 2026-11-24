@@ -78,7 +78,7 @@ export const workspaceClientPlugin: Plugin.Object<void> = {
           onStartWorktreeChat={(project, worktree) => {
             const provider = context.workbench.getSnapshot().chatProvider;
             if (!provider) return;
-            context.workbench.navigate("workspace", null);
+            context.workbench.navigate("workspace", project.id);
             void provider.startNewChat({ projectId: project.id, worktree });
           }}
           onOpenProject={(projectId) => context.workbench.openProject(projectId)}

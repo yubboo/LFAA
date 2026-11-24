@@ -29,9 +29,7 @@
     "typecheck": "tsc -b ."
   },
   "dependencies": {
-    "@deepseek-ai/cordis": "^4.1.0",
     "@lfaa/agent": "workspace:*",
-    "@lfaa/memory": "workspace:*",
-    "@lfaa/session": "workspace:*"
+    "@lfaa/memory": "workspace:*"
   }
 }

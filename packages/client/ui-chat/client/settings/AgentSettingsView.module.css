@@ -1,41 +1,12 @@
-/* 设置中心“模型、规则与记忆配置”页面样式。 */
-.page {
-  display: grid;
-  align-content: start;
-  align-self: start;
-  gap: 1.1rem;
-  width: min(100% - 2.5rem, 66rem);
-  margin: 0 auto;
-  padding: 1.75rem 0 2.5rem;
-}
-
-.header {
-  display: grid;
-  align-content: start;
-  gap: 0.3rem;
-}
-
-.title {
-  margin: 0;
-  color: var(--color-ink);
-  font-size: 1.55em;
-  font-weight: 600;
-}
-
-.subtitle {
-  margin: 0;
-  color: var(--color-muted);
-  font-size: 0.88em;
-}
-
+/* 设置中心「模型与规则」页样式：只保留标签切换与只读规则块；页面骨架、分组与表单字段由 @lfaa/ui-primitives 提供。 */
 /* 标签切换模型、规则和记忆区，活动状态沿用工作台强调色。 */
 .tabs {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.4rem;
-  border-bottom: 1px solid var(--color-line);
   padding-bottom: 0.7rem;
+  border-bottom: 1px solid var(--color-line);
 }
 
 .tabBtn {
@@ -52,6 +23,11 @@
   cursor: pointer;
 }
 
+.tabBtn:hover {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
 .tabBtnActive {
   border-color: var(--color-line);
   background: var(--color-active);
@@ -59,118 +35,19 @@
   font-weight: 500;
 }
 
-.panel {
-  display: grid;
-  align-content: start;
-  gap: 0.9rem;
-  padding: 1rem 1.15rem;
-  border: 1px solid var(--glass-border, var(--color-line));
-  border-radius: 0.95rem;
-  background: var(--glass-card-bg, var(--color-surface));
+.tabBtn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
-.profileRow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.65rem 0.8rem;
-  border: 1px solid var(--color-line);
-  border-radius: 0.75rem;
-  background: var(--color-panel);
-}
-
-.profileMeta {
-  display: grid;
-  gap: 0.15rem;
-}
-
-.profileName {
-  color: var(--color-ink);
-  font-weight: 500;
-}
-
-.profileDetail {
-  color: var(--color-muted);
-  font-size: 0.83em;
-}
-
-.rowActions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-}
-
-/* 规则和记忆输入与档案列表分行排列，便于复用表单样式。 */
-.formGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
-  gap: 0.75rem;
-}
-
-.field {
-  display: grid;
-  gap: 0.3rem;
-}
-
-.fieldLabel {
-  color: var(--color-muted);
-  font-size: 0.84em;
-}
-
-.input,
-.textarea {
-  width: 100%;
-  padding: 0.5rem 0.7rem;
-  border: 1px solid var(--color-line);
-  border-radius: 0.6rem;
-  background: var(--color-panel);
-  color: var(--color-ink);
-  font: inherit;
-}
-
-.textarea {
-  min-height: 6.5rem;
-  resize: vertical;
-}
-
-.btnPrimary,
-.btnGhost {
-  padding: 0.42rem 0.85rem;
-  border-radius: 0.6rem;
-  font-size: 0.86em;
-  cursor: pointer;
-}
-
-.btnPrimary {
-  border: 0;
-  background: var(--color-ink);
-  color: var(--color-shell);
-  font-weight: 500;
-}
-
-.btnGhost {
-  border: 1px solid var(--color-line);
-  background: transparent;
-  color: var(--color-ink);
-}
-
+/* 系统与项目规则只读展示：等宽留白块，不加卡片边框。 */
 .readonlyPre {
   margin: 0;
-  padding: 0.7rem 0.85rem;
-  border: 1px solid var(--color-line);
-  border-radius: 0.65rem;
-  background: var(--color-panel);
+  padding: 0.6rem 0;
   color: var(--color-muted);
-  font-size: 0.85em;
-  line-height: 1.5;
+  font-family: var(--code-font-family, ui-monospace, monospace);
+  font-size: 0.82em;
+  line-height: 1.55;
   white-space: pre-wrap;
   word-break: break-word;
-}
-
-.statusText {
-  margin: 0;
-  color: var(--color-accent);
-  font-size: 0.86em;
 }

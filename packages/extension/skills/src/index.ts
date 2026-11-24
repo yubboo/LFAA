@@ -56,14 +56,14 @@ export class SkillsService extends Service {
               properties: { idOrName: { type: "string", description: "技能 ID 或名称" } },
               required: ["idOrName"],
             },
-            execute: async (args) => {
+            execute: async (args, execCtx) => {
               const key = typeof args.idOrName === "string" ? args.idOrName.trim() : "";
-              const all = await this.listSkills({ includeDisabled: false });
+              const all = await this.listSkills({ projectRoots: execCtx.workspaceRoots, includeDisabled: false });
               const matched = all.find((s) => s.id === key || s.name === key);
               if (!matched) {
                 return { ok: false, output: `未找到已启用的技能：${key}`, summary: `未找到技能 ${key}` };
               }
-              const detail = await this.getSkillDetail(matched.id);
+              const detail = await this.getSkillDetail(matched.id, execCtx.workspaceRoots);
               return {
                 ok: true,
                 output: detail?.content ?? "",

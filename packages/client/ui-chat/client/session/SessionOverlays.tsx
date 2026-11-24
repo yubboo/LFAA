@@ -3,6 +3,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import type { WorkbenchProjectItem, WorkbenchSectionItem } from "@lfaa/ui-layout";
 import { ConfirmDialog, ModalDialog } from "@lfaa/ui-primitives/client";
 import type { ChatClientStore } from "../store/chat-store";
+import { useChatSelector } from "../store/use-chat-selector";
 import type { SessionMenuStore } from "./session-menu-store";
 import { SessionActionMenu } from "./SessionActionMenu";
 import { SessionHoverCard } from "./SessionHoverCard";
@@ -23,14 +24,14 @@ export function SessionOverlays({
   sections: WorkbenchSectionItem[];
 }) {
   const menuSnap = useSyncExternalStore(menuStore.subscribe, menuStore.getSnapshot, menuStore.getSnapshot);
-  const chatSnap = useSyncExternalStore(chatStore.subscribe, chatStore.getSnapshot, chatStore.getSnapshot);
+  const sessions = useChatSelector(chatStore, (s) => s.sessions, Object.is);
   const [renameDraft, setRenameDraft] = useState("");
 
   const renameSession = menuSnap.renameTargetId
-    ? chatSnap.sessions.find((s) => s.id === menuSnap.renameTargetId)
+    ? sessions.find((s) => s.id === menuSnap.renameTargetId)
     : undefined;
   const deleteSession = menuSnap.deleteTargetId
-    ? chatSnap.sessions.find((s) => s.id === menuSnap.deleteTargetId)
+    ? sessions.find((s) => s.id === menuSnap.deleteTargetId)
     : undefined;
 
   useEffect(() => {
@@ -67,7 +68,7 @@ export function SessionOverlays({
   }, [chatStore, menuStore]);
 
   const hoverSession = menuSnap.hoverCard
-    ? chatSnap.sessions.find((s) => s.id === menuSnap.hoverCard!.sessionId)
+    ? sessions.find((s) => s.id === menuSnap.hoverCard!.sessionId)
     : undefined;
 
   // 兜底清理悬浮卡片：指针离开会话行与卡片区域、页面滚动或窗口失焦时立即关闭，防止残留在工作区
@@ -109,7 +110,7 @@ export function SessionOverlays({
     };
   }, [hoverSession?.id, menuStore]);
   const menuSession = menuSnap.actionMenu
-    ? chatSnap.sessions.find((s) => s.id === menuSnap.actionMenu!.sessionId)
+    ? sessions.find((s) => s.id === menuSnap.actionMenu!.sessionId)
     : undefined;
 
   return (

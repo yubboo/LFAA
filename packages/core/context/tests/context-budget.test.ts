@@ -51,3 +51,39 @@ test("识别供应商上下文超限错误", () => {
   assert.equal(isContextOverflowError(new Error("上下文长度超出限制")), true);
   assert.equal(isContextOverflowError(new Error("fetch failed")), false);
 });
+
+test("极低预算裁剪早期工具调用组时整组移除，不留下孤儿 tool 消息", () => {
+  const messages: LlmMessage[] = [
+    { role: "system", content: "S".repeat(200) },
+    {
+      role: "assistant",
+      content: "第一组",
+      toolCalls: [
+        { id: "c1", name: "read_file", argumentsJson: "{}" },
+        { id: "c2", name: "read_file", argumentsJson: "{}" },
+      ],
+    },
+    { role: "tool", toolCallId: "c1", name: "read_file", content: "A".repeat(4_000) },
+    { role: "tool", toolCallId: "c2", name: "read_file", content: "B".repeat(4_000) },
+    {
+      role: "assistant",
+      content: "第二组",
+      toolCalls: [{ id: "c3", name: "read_file", argumentsJson: "{}" }],
+    },
+    { role: "tool", toolCallId: "c3", name: "read_file", content: "C".repeat(4_000) },
+    { role: "user", content: "最终任务" },
+  ];
+  const result = compactConversation(messages, { budgetChars: 4_000, toolCapChars: 200, keepRecentRounds: 1 });
+  assert.equal(result.compacted, true);
+  // 校验不存在任何前置不是对应 assistant(toolCalls) 的孤儿 tool 消息
+  for (let i = 0; i < result.messages.length; i += 1) {
+    const msg = result.messages[i]!;
+    if (msg.role === "tool") {
+      let ownerIdx = i - 1;
+      while (ownerIdx >= 0 && result.messages[ownerIdx]!.role === "tool") ownerIdx -= 1;
+      const owner = ownerIdx >= 0 ? result.messages[ownerIdx] : undefined;
+      assert.equal(owner?.role, "assistant", `位置 ${i} 出现孤儿 tool 消息`);
+      assert.ok(owner?.toolCalls?.some((c) => c.id === msg.toolCallId));
+    }
+  }
+});

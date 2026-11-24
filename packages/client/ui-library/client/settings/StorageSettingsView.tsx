@@ -1,8 +1,15 @@
-// 渲染设置中心「存储」视图：支持默认目录 / 项目推荐目录 / 自定义目录切换，并执行无损数据迁移。
+// 渲染设置中心「存储」页：当前存储位置、用量统计与「默认 / 项目 / 自定义」三种位置模式的迁移表单。
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { IconFolderOpen } from "@tabler/icons-react";
 import type { ChatClientStore, StorageLocationMode } from "@lfaa/client-ui-chat/client";
 import type { ChatLocaleMessages } from "@lfaa/client-ui-chat/client";
+import {
+  SettingFormActions,
+  SettingGroup,
+  SettingRow,
+  SettingsPage,
+  settingsStyles as baseStyles,
+} from "@lfaa/ui-primitives/client";
 import styles from "./StorageSettingsView.module.css";
 
 function formatSize(bytes: number): string {
@@ -92,156 +99,152 @@ export function StorageSettingsView({
     }
   };
 
-  return (
-    <section className={styles.root} aria-label={locale.storageTitle}>
-      <div className={styles.header}>
-        <h1 className={styles.title}>{locale.storageTitle}</h1>
-        <p className={styles.subtitle}>{locale.storageSubtitle}</p>
-      </div>
+  // 三种位置模式共用的选项定义，渲染成表单内的单选项。
+  const modeOptions: Array<{ mode: StorageLocationMode; title: string; desc: string; path: string }> = [
+    {
+      mode: "default",
+      title: locale.storageModeDefaultTitle,
+      desc: locale.storageModeDefaultDesc,
+      path: storageState?.defaultDataRoot || locale.storageDetectingUserPath,
+    },
+    {
+      mode: "project",
+      title: locale.storageModeProjectTitle,
+      desc: locale.storageModeProjectDesc,
+      path: storageState?.recommendedProjectDataRoot || locale.storageDetectingProjectPath,
+    },
+    {
+      mode: "custom",
+      title: locale.storageModeCustomTitle,
+      desc: locale.storageModeCustomDesc,
+      path: "",
+    },
+  ];
 
-      <div className={styles.card}>
-        <div className={styles.pathRow}>
-          <h2 className={styles.cardTitle}>{locale.storageCurrentPath}</h2>
-          <button
-            type="button"
-            className={styles.secondaryBtn}
-            onClick={() => void store.openStorageFolderInExplorer()}
-          >
-            <IconFolderOpen size={15} aria-hidden="true" />
-            <span>{locale.openStorageDirBtn}</span>
-          </button>
-        </div>
-        <code className={styles.pathCode}>{storageState?.dataRoot || "..."}</code>
+  return (
+    <SettingsPage title={locale.storageTitle} description={locale.storageSubtitle}>
+      <SettingGroup title={locale.storageCurrentPath}>
+        <SettingRow
+          title={locale.storageCurrentPath}
+          description={<code className={styles.pathCode}>{storageState?.dataRoot || "..."}</code>}
+          control={(
+            <button
+              type="button"
+              className={baseStyles.actionBtn}
+              onClick={() => void store.openStorageFolderInExplorer()}
+            >
+              <IconFolderOpen size={15} aria-hidden="true" />
+              <span>{locale.openStorageDirBtn}</span>
+            </button>
+          )}
+        />
         {storageState?.appDataRoot && (
-          <>
-            <p className={styles.modeDesc}>{locale.isZh ? "应用数据文件夹（类似 .codex）" : "Application Data Folder"}</p>
-            <code className={styles.pathCode}>{storageState.appDataRoot}</code>
-          </>
+          <SettingRow
+            title={locale.isZh ? "应用数据文件夹" : "Application data folder"}
+            description={locale.isZh ? "类似 .codex 的应用数据目录" : "App data directory, similar to .codex"}
+            control={<code className={styles.pathCode}>{storageState.appDataRoot}</code>}
+          />
         )}
         {storageState?.sessionsRoot && (
-          <>
-            <p className={styles.modeDesc}>{locale.storageFixedSessionsLabel}</p>
-            <code className={styles.pathCode}>{storageState.sessionsRoot}</code>
-          </>
+          <SettingRow
+            title={locale.storageFixedSessionsLabel}
+            description={locale.isZh ? "所有会话历史固定存放于此，不随位置模式变化" : "Chat history always lives here regardless of mode"}
+            control={<code className={styles.pathCode}>{storageState.sessionsRoot}</code>}
+          />
         )}
-      </div>
+      </SettingGroup>
 
-      <div className={styles.card}>
-        <h2 className={styles.cardTitle}>{locale.storageStatsTitle}</h2>
-        <div className={styles.statsGrid}>
-          <div className={styles.statBox}>
-            <span className={styles.statLabel}>{locale.storageMemoriesLabel}</span>
-            <span className={styles.statValue}>{stats?.memoryCount ?? 0}</span>
-          </div>
-          <div className={styles.statBox}>
-            <span className={styles.statLabel}>{locale.storageSessionsLabel}</span>
-            <span className={styles.statValue}>{stats?.sessionCount ?? 0}</span>
-          </div>
-          <div className={styles.statBox}>
-            <span className={styles.statLabel}>{locale.storageArtifactsLabel}</span>
-            <span className={styles.statValue}>{stats?.artifactCount ?? 0}</span>
-          </div>
-          <div className={styles.statBox}>
-            <span className={styles.statLabel}>{locale.storageAssetsLabel}</span>
-            <span className={styles.statValue}>{stats?.assetCount ?? 0}</span>
-          </div>
-          <div className={styles.statBox}>
-            <span className={styles.statLabel}>{locale.storageTotalSizeLabel}</span>
-            <span className={styles.statValue}>{formatSize(stats?.totalBytes ?? 0)}</span>
-          </div>
-        </div>
-      </div>
+      <SettingGroup title={locale.storageStatsTitle}>
+        <SettingRow
+          title={locale.storageMemoriesLabel}
+          control={<span className={styles.statValue}>{stats?.memoryCount ?? 0}</span>}
+        />
+        <SettingRow
+          title={locale.storageSessionsLabel}
+          control={<span className={styles.statValue}>{stats?.sessionCount ?? 0}</span>}
+        />
+        <SettingRow
+          title={locale.storageArtifactsLabel}
+          control={<span className={styles.statValue}>{stats?.artifactCount ?? 0}</span>}
+        />
+        <SettingRow
+          title={locale.storageAssetsLabel}
+          control={<span className={styles.statValue}>{stats?.assetCount ?? 0}</span>}
+        />
+        <SettingRow
+          title={locale.storageTotalSizeLabel}
+          control={<span className={styles.statValue}>{formatSize(stats?.totalBytes ?? 0)}</span>}
+        />
+      </SettingGroup>
 
-      <div className={styles.card}>
-        <label
-          className={`${styles.modeOption} ${selectedMode === "default" ? styles.modeOptionActive : ""}`}
-          onClick={() => setSelectedMode("default")}
-        >
-          <span className={styles.modeTop}>
-            <input
-              type="radio"
-              name="storage-mode"
-              checked={selectedMode === "default"}
-              onChange={() => setSelectedMode("default")}
-            />
-            <span>{locale.storageModeDefaultTitle}</span>
-          </span>
-          <p className={styles.modeDesc}>{locale.storageModeDefaultDesc}</p>
-          <code className={styles.pathCode}>{storageState?.defaultDataRoot || locale.storageDetectingUserPath}</code>
-        </label>
-
-        <label
-          className={`${styles.modeOption} ${selectedMode === "project" ? styles.modeOptionActive : ""}`}
-          onClick={() => setSelectedMode("project")}
-        >
-          <span className={styles.modeTop}>
-            <input
-              type="radio"
-              name="storage-mode"
-              checked={selectedMode === "project"}
-              onChange={() => setSelectedMode("project")}
-            />
-            <span>{locale.storageModeProjectTitle}</span>
-          </span>
-          <p className={styles.modeDesc}>{locale.storageModeProjectDesc}</p>
-          <code className={styles.pathCode}>{storageState?.recommendedProjectDataRoot || locale.storageDetectingProjectPath}</code>
-        </label>
-
-        <div
-          className={`${styles.modeOption} ${selectedMode === "custom" ? styles.modeOptionActive : ""}`}
-          onClick={() => setSelectedMode("custom")}
-        >
-          <span className={styles.modeTop}>
-            <input
-              type="radio"
-              name="storage-mode"
-              checked={selectedMode === "custom"}
-              onChange={() => setSelectedMode("custom")}
-            />
-            <span>{locale.storageModeCustomTitle}</span>
-          </span>
-          <p className={styles.modeDesc}>{locale.storageModeCustomDesc}</p>
-          <div className={styles.customRow}>
-            <input
-              type="text"
-              className={styles.input}
-              placeholder={locale.storageCustomPlaceholder}
-              value={customInput}
-              onFocus={() => setSelectedMode("custom")}
-              onChange={(e) => {
-                setSelectedMode("custom");
-                setCustomInput(e.target.value);
-              }}
-            />
-            <button type="button" className={styles.secondaryBtn} onClick={() => void handleBrowse()}>
-              {locale.storagePickFolderBtn}
-            </button>
-          </div>
-          {selectedMode === "custom" && customPreview && (
-            <p className={styles.modeDesc}>
-              {`${locale.storageResolvedPreview} `}
-              <code className={styles.pathCode}>{customPreview}</code>
-            </p>
-          )}
+      {/* 位置模式是需要一次提交的表单：选项、自定义路径与迁移按钮上下排。 */}
+      <SettingGroup
+        title={locale.isZh ? "存储位置" : "Storage location"}
+        description={locale.isZh
+          ? "切换位置会把现有资料复制到新目录，原目录内容保留。"
+          : "Switching copies existing data into the new directory; the old one is left in place."}
+      >
+        <div className={styles.modeList} role="radiogroup" aria-label={locale.isZh ? "存储位置模式" : "Storage location mode"}>
+          {modeOptions.map((option) => (
+            <label
+              key={option.mode}
+              className={`${styles.modeOption} ${selectedMode === option.mode ? styles.modeOptionActive : ""}`}
+            >
+              <span className={styles.modeTop}>
+                <input
+                  type="radio"
+                  name="storage-mode"
+                  checked={selectedMode === option.mode}
+                  onChange={() => setSelectedMode(option.mode)}
+                />
+                <span className={styles.modeTitle}>{option.title}</span>
+              </span>
+              <span className={styles.modeDesc}>{option.desc}</span>
+              {option.path && <code className={styles.pathCode}>{option.path}</code>}
+              {option.mode === "custom" && (
+                <span className={styles.customRow}>
+                  <input
+                    type="text"
+                    className={baseStyles.input}
+                    placeholder={locale.storageCustomPlaceholder}
+                    value={customInput}
+                    onFocus={() => setSelectedMode("custom")}
+                    onChange={(e) => {
+                      setSelectedMode("custom");
+                      setCustomInput(e.target.value);
+                    }}
+                  />
+                  <button type="button" className={baseStyles.actionBtn} onClick={() => void handleBrowse()}>
+                    {locale.storagePickFolderBtn}
+                  </button>
+                </span>
+              )}
+              {option.mode === "custom" && selectedMode === "custom" && customPreview && (
+                <span className={styles.modeDesc}>
+                  {`${locale.storageResolvedPreview} `}
+                  <code className={styles.pathCode}>{customPreview}</code>
+                </span>
+              )}
+            </label>
+          ))}
         </div>
 
-        <div className={styles.actionsRow}>
+        <SettingFormActions>
           <button
             type="button"
-            className={styles.primaryBtn}
+            className={baseStyles.primaryBtn}
             disabled={migrating || (selectedMode === "custom" && !customInput.trim())}
             onClick={() => void handleMigrate()}
           >
             {migrating ? locale.storageMigratingBtn : locale.storageApplyMigrateBtn}
           </button>
-        </div>
-
-        {notice && (
-          <p className={notice.ok ? styles.noticeOk : styles.noticeErr} role="status">
-            {notice.text}
-          </p>
-        )}
-      </div>
-    </section>
+          {notice && (
+            <span className={notice.ok ? styles.noticeOk : styles.noticeErr} role="status">
+              {notice.text}
+            </span>
+          )}
+        </SettingFormActions>
+      </SettingGroup>
+    </SettingsPage>
   );
 }

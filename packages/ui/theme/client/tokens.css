@@ -46,6 +46,11 @@
   --color-teal-rgb: 15 118 110;
   --color-line: rgb(15 23 28 / calc(0.05 + var(--glass-contrast) * 0.05));
   --color-active: rgb(15 23 28 / 0.06);
+  /* 滚动条：轨道透明，滑块直接取强调色的半透明值——静止时只是一层淡淡的强调色，
+     悬停/滚动时加深；同一份定义靠使用处求值跟随 --color-accent 与明暗主题变化。 */
+  --scrollbar-size: 10px;
+  --color-scrollbar-thumb: color-mix(in srgb, var(--color-accent) 45%, transparent);
+  --color-scrollbar-thumb-hover: color-mix(in srgb, var(--color-accent) 85%, transparent);
   --color-rail-active: rgb(255 255 255 / 0.96);
   --rail-active-shadow: 0 1px 3px rgb(15 23 28 / 0.08), inset 0 0 0 1px rgb(15 23 28 / 0.05);
   --color-popover: rgb(255 255 255 / 0.96);
@@ -62,6 +67,17 @@
   --glass-sidebar-blur: 24px;
   --glass-sidebar-saturate: 170%;
   --ambient-glow: none;
+  /* 层级令牌：全屏弹窗与 Portal 浮层的先后顺序集中在这里。
+     设置中心是覆盖整个工作台的弹窗（--z-dialog），而弹窗里的下拉菜单是 Portal 到 body 的，
+     必须画在弹窗之上；否则菜单被遮罩与弹窗压住，看得见触发器却点不到选项（外观页曾整页失灵）。 */
+  --z-dialog: 120;
+  --z-popover: 200;
+  /* 动效时长与缓动令牌：供布局轨道、按钮过渡与折叠区块统一消费，避免未定义变量导致过渡失效。 */
+  --motion-duration-fast: 140ms;
+  --motion-duration-base: 200ms;
+  --motion-duration-slow: 260ms;
+  --motion-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --motion-ease-emphasized: cubic-bezier(0.22, 1, 0.36, 1);
   color-scheme: light;
 }
 

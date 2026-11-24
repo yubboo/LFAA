@@ -1,7 +1,7 @@
 /* 设置中心弹窗样式：压暗背景、居中玻璃卡片、左栏目录与右内容滚动区；颜色全部取自主题变量。 */
 .backdrop {
   position: fixed;
-  z-index: 120;
+  z-index: var(--z-dialog);
   inset: 0;
   display: flex;
   align-items: center;
@@ -13,23 +13,24 @@
   animation: settingsFadeIn 160ms ease-out;
 }
 
+/* 设置窗口：实心外壳 + 描边与投影。
+   之前是半透明玻璃底，设置页去掉卡片后正文会透出背后工作区的标题文字，浅色主题下尤其难读；
+   设置页是配置清单，可读性优先，因此窗口本体改用不透明外壳色。 */
 .dialog {
   position: relative;
   display: grid;
-  grid-template-columns: 13.5rem minmax(0, 1fr);
-  width: min(64rem, 100%);
-  height: min(46rem, 100%);
+  /* 设置内容比一般弹窗更宽更高：左目录稍宽，正文区留出最多空间。 */
+  grid-template-columns: 14.5rem minmax(0, 1fr);
+  width: min(76rem, 100%);
+  height: min(52rem, 100%);
   max-height: 100%;
   overflow: hidden;
   border: 1px solid var(--glass-border, var(--color-line));
-  border-radius: 1.05rem;
+  border-radius: 1.15rem;
   outline: 0;
-  background: var(--glass-popover-bg, var(--color-popover));
-  background-image: var(--glass-sheen, none);
-  backdrop-filter: blur(26px) saturate(180%);
-  -webkit-backdrop-filter: blur(26px) saturate(180%);
-  box-shadow: var(--glass-specular-shadow, none), var(--color-menu-shadow);
+  background: var(--color-shell);
   color: var(--color-ink);
+  box-shadow: var(--color-menu-shadow);
   animation: settingsPopIn 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -42,7 +43,7 @@
   gap: 0.55rem;
   padding: 0.95rem 0.55rem 0.9rem 0.9rem;
   border-right: 1px solid var(--color-line);
-  background: color-mix(in srgb, var(--color-panel) 62%, transparent);
+  background: var(--color-panel);
 }
 
 .navHeading {
@@ -59,9 +60,6 @@
   flex: 1 1 auto;
   flex-direction: column;
   gap: 1.05rem;
-  overflow-y: auto;
-  overflow-x: hidden;
-  scrollbar-width: thin;
   padding-right: 0.25rem;
 }
 
@@ -163,12 +161,12 @@
   stroke-width: 1.7;
 }
 
+/* 右内容区滚动与滚动条外观由共享 ScrollArea 负责，这里只管占满剩余高度；
+   右侧留出一点距离，滚动条作为悬浮胶囊停在卡片内侧，不贴着圆角边缘。 */
 .panelBody {
   min-height: 0;
   flex: 1 1 auto;
-  overflow-y: auto;
-  overflow-x: hidden;
-  scrollbar-width: thin;
+  margin-inline-end: 0.4rem;
   padding-bottom: 0.35rem;
 }
 

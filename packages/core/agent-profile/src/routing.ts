@@ -113,7 +113,8 @@ function readHttpStatus(message: string): number | undefined {
  * - 未知错误 → fatal（宁可报错，也不要静默换模型把问题藏起来）。
  */
 export function classifyError(error: unknown): ErrorClass {
-  if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) return "fatal";
+  if (error instanceof Error && error.name === "AbortError") return "fatal";
+  if (error instanceof Error && error.name === "TimeoutError") return "next-target";
   const message = error instanceof Error ? error.message : String(error);
   if (!message.trim()) return "fatal";
 

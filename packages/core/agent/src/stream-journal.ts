@@ -4,6 +4,8 @@ export interface RunChunkRecord {
   seq: number;
   kind: "reasoning" | "text";
   text: string;
+  /** 可选：所属思考轮次，供流式思维链按轮次还原。 */
+  iteration?: number;
   ts: number;
 }
 

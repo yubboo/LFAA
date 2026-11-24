@@ -83,10 +83,13 @@ export class AppearanceStore {
 
   mount(): void {
     if (typeof window === "undefined") return;
+    this.cleanupMedia?.();
+    this.cachedSnapshot = null;
     this.syncDocument();
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     const onChange = () => {
       this.systemDark = media.matches;
+      this.cachedSnapshot = null;
       this.syncDocument();
       this.emit();
     };

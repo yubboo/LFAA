@@ -1,5 +1,5 @@
 // 渲染由 @lfaa/workspace 插件贡献的项目概览页与绑定真实本地目录的文件工作区。
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { IconFile, IconFolder, IconRefresh } from "@tabler/icons-react";
 import type { WorkbenchProjectItem } from "@lfaa/ui-layout";
 import { readStoredJson, writeStoredJson } from "@lfaa/ui-layout/client";
@@ -117,6 +117,7 @@ export function ProjectDetailView({
   const [inspection, setInspection] = useState<WorkspaceInspection | null>(initialCached);
   const [loading, setLoading] = useState(!initialCached);
   const [error, setError] = useState("");
+  const inspectSeqRef = useRef(0);
 
   useEffect(() => {
     const saved = readSelectedFolderMap()[project.id];
@@ -140,6 +141,7 @@ export function ProjectDetailView({
   };
 
   const loadInspection = useCallback(async (forceSpinner = false) => {
+    const seq = ++inspectSeqRef.current;
     const cached = readCachedInspection(project.id, activeRootPath);
     if (cached) {
       setInspection((current) => current ?? cached);
@@ -150,14 +152,16 @@ export function ProjectDetailView({
     setError("");
     try {
       const next = await store.inspectProject(project.id, activeRootPath || undefined);
+      if (seq !== inspectSeqRef.current) return;
       writeCachedInspection(project.id, activeRootPath, next);
       setInspection((current) => (JSON.stringify(current) === JSON.stringify(next) ? current : next));
     } catch (err) {
+      if (seq !== inspectSeqRef.current) return;
       if (!cached) {
         setError(err instanceof Error ? err.message : locale.projectStorageError);
       }
     } finally {
-      setLoading(false);
+      if (seq === inspectSeqRef.current) setLoading(false);
     }
   }, [activeRootPath, locale.projectStorageError, project.id, store]);
 

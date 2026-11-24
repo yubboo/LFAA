@@ -1,20 +1,14 @@
-// 聊天消息区：空会话引导（标题/副标题/起步提示）与消息线程（按日分隔、用户气泡、助手时间线与完成态操作）。
-import type { RefObject } from "react";
-import { IconArrowRight } from "@tabler/icons-react";
+// 聊天消息区：空会话引导（鱼形图标 / 标题 / 聊天·工作分段 / 工作模式的项目范围提示条 / 内嵌输入栏 / 统一轻量起步建议）与隔离记忆化的消息线程。
+import type { ReactNode, RefObject } from "react";
+import { IconCircleCheck, IconFish } from "@tabler/icons-react";
+import type { WorkspaceMode } from "@lfaa/ui-layout/client";
 import type { ChatMessageItem, FilePreviewTab, PendingApprovalBanner } from "../store/chat-types";
 import type { ChatLocaleMessages } from "../locales";
-import { AssistantTimeline } from "./AssistantTimeline";
-import { MediaGeneratingCard } from "@lfaa/client-ui-tool-media/client";
-import { UserMessageAttachments } from "./UserMessageAttachments";
-import { MediaResultContext, type MediaResultContextValue } from "@lfaa/client-ui-tool-media/client";
-import {
-  AssistantMessageActions,
-  EditedFilesCard,
-  FollowUpSuggestions,
-  UserMessageActions,
-  formatDayDivider,
-} from "./MessageActionBars";
+import type { MediaResultContextValue } from "@lfaa/client-ui-tool-media/client";
+import { formatDayDivider } from "./MessageActionBars";
+import { ChatMessageRow } from "./ChatMessageRow";
 import styles from "./ChatWorkspace.module.css";
+import heroStyles from "./ChatWorkspace.hero.module.css";
 
 export function ChatMessageList({
   locale,
@@ -23,6 +17,9 @@ export function ChatMessageList({
   clarification,
   starterSuggestions,
   projectScope,
+  workspaceMode,
+  heroComposer,
+  onWorkspaceModeChange,
   suggestionsByMessage,
   selectedFile,
   pendingApproval,
@@ -35,6 +32,7 @@ export function ChatMessageList({
   noticeLinkClass,
   onOpenFilePreview,
   onOpenTurnChanges,
+  onOpenBrowser,
   onEditContent,
   onOpenTrace,
   onBranchToNewChat,
@@ -51,6 +49,11 @@ export function ChatMessageList({
   starterSuggestions: string[] | null;
   /** 项目内空会话展示的范围摘要；未绑定项目时为 null。 */
   projectScope: { name: string; description: string } | null;
+  /** 中心区的「聊天 / 工作」形态：标题、提示与输入栏密度都按它切换。 */
+  workspaceMode: WorkspaceMode;
+  /** 空会话时内嵌到中心区的输入栏；有消息时输入栏留在底部，这里为 null。 */
+  heroComposer?: ReactNode;
+  onWorkspaceModeChange: (mode: WorkspaceMode) => void;
   suggestionsByMessage: Record<string, string[]>;
   selectedFile: FilePreviewTab | undefined;
   pendingApproval: PendingApprovalBanner | null;
@@ -64,6 +67,7 @@ export function ChatMessageList({
   noticeLinkClass: string | undefined;
   onOpenFilePreview: (messageId: string, stepId: string) => void;
   onOpenTurnChanges?: ((messageId: string) => void) | undefined;
+  onOpenBrowser?: (() => void) | undefined;
   onEditContent: (content: string) => void;
   onOpenTrace: (messageId: string, stepId: string) => void;
   onBranchToNewChat: (message: ChatMessageItem) => void;
@@ -74,54 +78,68 @@ export function ChatMessageList({
   threadRef: RefObject<HTMLDivElement | null>;
 }) {
   if (messages.length === 0) {
+    const isWorkMode = workspaceMode === "codex";
+    const fallbackSuggestions = [locale.heroSuggestionPlan, locale.heroSuggestionCheck, locale.heroSuggestionWrite];
+    // 项目起步建议与通用引导统一为同一种轻量无边框图标行，保持界面视觉语言一致。
+    const activeSuggestions = starterSuggestions && starterSuggestions.length > 0
+      ? starterSuggestions
+      : fallbackSuggestions;
     return (
-      <div className={styles.hero}>
-        <h1 className={styles.heroTitle}>{locale.welcomeHeadline}</h1>
-        <p className={styles.heroSubtitle}>{locale.welcomeSubtitle}</p>
-        {projectScope && (
-          <div className={styles.projectScopeCard} role="note">
-            <span className={styles.projectScopeLabel}>
-              {locale.projectScopeCardTitle} · {projectScope.name}
-            </span>
-            <p className={styles.projectScopeBody}>
-              {projectScope.description || locale.projectScopeCardEmpty}
-            </p>
-            <small className={styles.projectScopeHint}>{locale.projectScopeCardHint}</small>
+      <div className={heroStyles.hero}>
+        <span className={heroStyles.heroIcon} aria-hidden="true">
+          <IconFish size={30} stroke={1.3} />
+        </span>
+        <h1 className={heroStyles.heroTitle}>{isWorkMode ? locale.heroHeadlineWork : locale.heroHeadlineChat}</h1>
+        {/* 聊天 / 工作分段：决定中心区形态与输入栏信息密度，和左二头部菜单共用同一份状态。 */}
+        <div className={heroStyles.heroModes} role="group" aria-label={locale.isZh ? "模式" : "Mode"}>
+          <button
+            type="button"
+            className={heroStyles.heroModeBtn}
+            aria-pressed={!isWorkMode}
+            onClick={() => onWorkspaceModeChange("chatgpt")}
+          >
+            {locale.heroModeChat}
+          </button>
+          <button
+            type="button"
+            className={heroStyles.heroModeBtn}
+            aria-pressed={isWorkMode}
+            onClick={() => onWorkspaceModeChange("codex")}
+          >
+            {locale.heroModeWork}
+          </button>
+        </div>
+        {heroComposer && (
+          <div className={heroStyles.heroComposer}>
+            {/* 项目范围只在「工作」模式提示：聊天模式是普通对话，不弹这条约束；
+                提示条贴在输入栏正上方，只占一行，完整规则收进悬停提示。 */}
+            {isWorkMode && projectScope && (
+              <p className={heroStyles.projectScopeNotice} role="note" title={locale.projectScopeCardHint}>
+                {locale.projectScopeNotice
+                  .replace("{name}", projectScope.name)
+                  .replace("{brief}", projectScope.description || locale.projectScopeCardEmpty)}
+              </p>
+            )}
+            {heroComposer}
           </div>
         )}
-        {showHomeSuggestions && (starterSuggestions && starterSuggestions.length > 0 ? (
-          <div className={styles.projectStarters} role="list">
-            {starterSuggestions.map((prompt, index) => (
+        {showHomeSuggestions && (
+          <div className={heroStyles.heroSuggestions} role="list">
+            {activeSuggestions.map((prompt) => (
               <button
                 key={prompt}
                 type="button"
                 role="listitem"
-                className={styles.projectStarterBtn}
+                className={heroStyles.heroSuggestionBtn}
                 onClick={() => onSubmitQuestion(prompt)}
               >
-                <span className={styles.projectStarterIndex}>{index + 1}</span>
-                <span className={styles.projectStarterText}>{prompt}</span>
-                {index === 0 && (
-                  <span className={styles.projectStarterRecommended}>{locale.isZh ? "推荐" : "Recommended"}</span>
-                )}
-                <IconArrowRight size={14} stroke={1.8} className={styles.projectStarterArrow} aria-hidden="true" />
+                <IconCircleCheck className={heroStyles.heroSuggestionIcon} size={15} stroke={1.6} aria-hidden="true" />
+                <span className={heroStyles.heroSuggestionText}>{prompt}</span>
               </button>
             ))}
           </div>
-        ) : (
-          <div className={styles.starters}>
-            {[locale.starterInspect, locale.starterMemory, locale.starterRules].map((prompt) => (
-              <button
-                key={prompt}
-                type="button"
-                className={styles.starterChip}
-                onClick={() => onSubmitQuestion(prompt)}
-              >
-                {prompt}
-              </button>
-            ))}
-          </div>
-        ))}
+        )}
+        <p className={heroStyles.heroHint}>{isWorkMode ? locale.heroHintWork : locale.heroHintChat}</p>
       </div>
     );
   }
@@ -133,111 +151,34 @@ export function ChatMessageList({
           {formatDayDivider(messages[0].createdAt, locale.isZh)}
         </div>
       )}
-      {messages.map((msg, msgIdx) => {
-        if (msg.role === "user") {
-          const hasMedia = Boolean(msg.attachments?.length || msg.references?.length);
-          return (
-            <div key={msg.id} id={`chat-message-${msg.id}`} className={styles.userRow} data-turn-anchor={msg.id}>
-              {/* 带图时不再套背景气泡：图片本身即卡片，文字收成一枚胶囊标签跟在图下。 */}
-              <div className={styles.userBubble} data-media={hasMedia ? "true" : undefined}>
-                {hasMedia ? (
-                  <>
-                    <UserMessageAttachments
-                      attachments={msg.attachments}
-                      references={msg.references}
-                      sessionId={activeSessionId ?? null}
-                      isZh={locale.isZh}
-                    />
-                    {msg.content.trim() ? <p className={styles.userMediaCaption}>{msg.content}</p> : null}
-                  </>
-                ) : (
-                  <div>{msg.content}</div>
-                )}
-              </div>
-              <UserMessageActions
-                isZh={locale.isZh}
-                content={msg.content}
-                createdAt={msg.createdAt}
-                persistent={hasMedia}
-                onEdit={() => onEditContent(msg.content)}
-              />
-            </div>
-          );
-        }
-        return (
-          <article key={msg.id} id={`chat-message-${msg.id}`} className={styles.assistantRow}>
-            {msg.mediaGenerating ? (
-              <>
-                {msg.content.trim() ? <p className={styles.mediaPlan}>{msg.content}</p> : null}
-                <MediaGeneratingCard
-                  kind={msg.mediaGenerating.kind}
-                  ratio={msg.mediaGenerating.ratio}
-                  isZh={locale.isZh}
-                />
-              </>
-            ) : (
-              <MediaResultContext.Provider value={activeSessionId && msg.status !== "streaming"
-                ? { ...mediaActions, sessionId: activeSessionId, messageId: msg.id, isZh: locale.isZh, brandWatermark } : null}>
-              <AssistantTimeline
-                locale={locale}
-                content={clarification && msg.id === lastMessage?.id ? "" : msg.content}
-                progressText={msg.progressText}
-                steps={msg.steps ?? []}
-                createdAt={msg.createdAt}
-                runDurationMs={msg.runDurationMs}
-                reasoningDurationMs={msg.reasoningDurationMs}
-                tokenUsage={msg.tokenUsage}
-                isStreaming={msg.status === "streaming"}
-                pendingApproval={msg.status === "streaming" ? pendingApproval : null}
-                onResolveApproval={onResolveApproval}
-                onOpenFile={(stepId) => onOpenFilePreview(msg.id, stepId)}
-                onOpenTrace={(stepId) => onOpenTrace(msg.id, stepId)}
-                selectedFileStepId={selectedFile?.messageId === msg.id ? selectedFile.stepId : undefined}
-                bodyClassName={assistantBodyClass ?? ""}
-                onSelectAdvice={(text) => onSubmitQuestion(text)}
-              />
-              </MediaResultContext.Provider>
-            )}
-            <EditedFilesCard
-              isZh={locale.isZh}
-              steps={msg.steps ?? []}
-              onViewChanges={onOpenTurnChanges ? () => onOpenTurnChanges(msg.id) : undefined}
-              onOpenFile={(stepId) => onOpenFilePreview(msg.id, stepId)}
-              selectedFileStepId={selectedFile?.messageId === msg.id ? selectedFile.stepId : undefined}
-            />
-            {msg.status !== "streaming" && msg.content.trim() && (
-              <AssistantMessageActions
-                isZh={locale.isZh}
-                sessionId={activeSessionId ?? ""}
-                messageId={msg.id}
-                content={msg.content}
-                createdAt={msg.createdAt}
-                model={msg.model}
-                memoryRefCount={memoriesCount}
-                onBranchToNewChat={() => onBranchToNewChat(msg)}
-              />
-            )}
-            {msg.status === "aborted" && !isRunning && msg.content.trim() && msgIdx === messages.length - 1 && (
-              <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
-                <button
-                  type="button"
-                  className={noticeLinkClass}
-                  onClick={() => onContinueInterrupted(msg.id)}
-                >
-                  {locale.isZh ? "继续生成（从完整句边界续写）" : "Continue from clean boundary"}
-                </button>
-              </div>
-            )}
-            {msgIdx === messages.length - 1 && !isRunning && msg.status !== "streaming" && msg.content.trim() && (
-              <FollowUpSuggestions
-                isZh={locale.isZh}
-                suggestions={suggestionsByMessage[msg.id] ?? []}
-                onSelect={(question) => onSubmitQuestion(question)}
-              />
-            )}
-          </article>
-        );
-      })}
+      {messages.map((msg, msgIdx) => (
+        <ChatMessageRow
+          key={msg.id}
+          msg={msg}
+          isLastMessage={msgIdx === messages.length - 1}
+          hideContentForClarification={Boolean(clarification && msg.id === lastMessage?.id)}
+          locale={locale}
+          activeSessionId={activeSessionId}
+          selectedFileStepId={selectedFile?.messageId === msg.id ? selectedFile.stepId : undefined}
+          pendingApproval={msg.status === "streaming" ? pendingApproval : null}
+          memoriesCount={memoriesCount}
+          isRunning={isRunning}
+          brandWatermark={brandWatermark}
+          assistantBodyClass={assistantBodyClass}
+          noticeLinkClass={noticeLinkClass}
+          followUpSuggestions={suggestionsByMessage[msg.id]}
+          mediaActions={mediaActions}
+          onOpenFilePreview={onOpenFilePreview}
+          onOpenTurnChanges={onOpenTurnChanges}
+          onOpenBrowser={onOpenBrowser}
+          onEditContent={onEditContent}
+          onOpenTrace={onOpenTrace}
+          onBranchToNewChat={onBranchToNewChat}
+          onContinueInterrupted={onContinueInterrupted}
+          onSubmitQuestion={onSubmitQuestion}
+          onResolveApproval={onResolveApproval}
+        />
+      ))}
     </div>
   );
 }

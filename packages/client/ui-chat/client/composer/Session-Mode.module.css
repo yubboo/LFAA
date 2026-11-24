@@ -183,3 +183,46 @@
     transition: none;
   }
 }
+
+/* 输入卡片变窄时工作模式也收成图标：模式名不再被右侧控件挤成「标」这样的单字，
+   完整名称仍在 aria-label、悬浮提示与弹层里。 */
+@container chat-composer (max-width: 36rem) {
+  .trigger {
+    justify-content: center;
+    width: 1.9rem;
+    min-height: 1.9rem;
+    padding: 0;
+    gap: 0;
+  }
+
+  .triggerLabel,
+  .chevron {
+    display: none;
+  }
+
+  /* 只剩图标时提高前景对比，避免浅色主题下像一枚禁用按钮。 */
+  .trigger .icon {
+    color: var(--color-ink);
+  }
+}
+
+/* 聊天模式：会话模式只留一枚图标，边长对齐输入栏其它圆形工具按钮。 */
+.trigger[data-compact],
+.locked[data-compact] {
+  display: inline-flex;
+  gap: 0;
+  width: 1.9rem;
+  min-height: 1.9rem;
+  padding: 0;
+  justify-content: center;
+}
+
+/* 与右侧模型图标胶囊同底同边，两个图标按钮在一行里看起来是同一套控件。 */
+.trigger[data-compact],
+.locked[data-compact] {
+  background: var(--color-panel);
+}
+
+.trigger[data-compact] .icon {
+  color: var(--color-ink);
+}

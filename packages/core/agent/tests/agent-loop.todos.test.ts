@@ -97,11 +97,13 @@ test("工具 metadata.todos 触发 todos 事件，并保留在运行快照中", 
     assert.ok(todoEvent, "应广播 todos 事件");
     assert.deepEqual(todoEvent.type === "todos" ? todoEvent.todos : undefined, TODOS);
 
-    // 快照：断线重连时前端拿到的运行状态里要带清单。
+    // 快照：断线重连时前端拿到的运行状态里要带清单；运行正常收尾会把残留 in_progress 结算为 completed，
+    // 避免界面一直显示「进行中」。
     const snapshot = ctx.agent.getRunStatus(started.runId);
-    assert.deepEqual(snapshot?.todos, TODOS);
-    // 新一轮启动时已清空旧清单；本次工具只回传 metadata，不负责落盘。
-    assert.equal((await ctx.memory.getSession(session.id))?.todos?.length ?? 0, 0);
+    assert.deepEqual(snapshot?.todos, [{ ...TODOS[0]!, status: "completed" }, TODOS[1]!]);
+    // 工具只回传 metadata；运行正常收尾时会把结算后的清单写回会话，断线重连仍能看到进度。
+    const persisted = await ctx.memory.getSession(session.id);
+    assert.deepEqual(persisted?.todos, [{ ...TODOS[0]!, status: "completed" }, TODOS[1]!]);
   } finally {
     await fs.rm(dir, { recursive: true, force: true });
   }

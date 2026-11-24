@@ -1,0 +1,203 @@
+/* 已完成文件活动行样式：动作语义色、彩标气泡芯片、悬停浮泡路径胶囊与柔和气泡弹性动效；全量消费 @lfaa/ui-theme 令牌。 */
+.fileRow {
+  position: relative;
+  --bubble-spring: cubic-bezier(0.22, 1.28, 0.36, 1);
+  --bubble-pop: cubic-bezier(0.34, 1.52, 0.64, 1);
+  --bubble-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  transition: background-color 240ms var(--bubble-ease), color 220ms var(--bubble-ease), transform 260ms var(--bubble-spring);
+}
+
+.fileVerb { min-width: 2.95em; transition: color 220ms var(--bubble-ease); }
+
+/* 左侧语义图标胶囊位：承接柔和气泡绽放与一次性完成光环。 */
+.actionIconWrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 999px;
+  transition: transform 300ms var(--bubble-pop), background-color 240ms var(--bubble-ease);
+}
+
+.actionIcon { position: relative; z-index: 1; transition: transform 300ms var(--bubble-pop); }
+
+/* 左侧语义图标配色：创建翠绿、编辑/写入跟随主题强调色、删除警示红、分析青玉色。 */
+.fileRow[data-kind="created"] > .actionIconWrap { color: var(--color-activity-positive); }
+.fileRow[data-kind="edited"] > .actionIconWrap,
+.fileRow[data-kind="written"] > .actionIconWrap { color: var(--color-accent); }
+.fileRow[data-kind="deleted"] > .actionIconWrap { color: var(--color-activity-negative); }
+.fileRow[data-kind="analyzed"] > .actionIconWrap { color: var(--color-teal); }
+
+.fileRow:hover > .actionIconWrap,
+.fileRow:focus-visible > .actionIconWrap {
+  background: color-mix(in srgb, currentColor 13%, transparent);
+  transform: scale(1.1);
+}
+
+.fileRow:active > .actionIconWrap { transform: scale(0.95); }
+
+.fileTargetSlot { display: flex; align-items: center; flex: 1 1 auto; min-width: 0; }
+.fileChipWrap { position: relative; display: inline-flex; align-items: center; max-width: 100%; min-width: 0; }
+
+/* 彩标文件气泡芯片：柔和圆角与弹性过渡，悬停轻盈浮起，按下有缓冲回弹感。 */
+.fileChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  max-width: 100%;
+  min-width: 0;
+  padding: 0.1rem 0.52rem 0.1rem 0.38rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  transform-origin: left center;
+  transition:
+    transform 280ms var(--bubble-spring),
+    background-color 240ms var(--bubble-ease),
+    border-color 240ms var(--bubble-ease),
+    box-shadow 260ms var(--bubble-ease);
+}
+
+.fileRow:hover .fileChip,
+.fileRow:focus-visible .fileChip,
+.fileRow[aria-pressed="true"] .fileChip {
+  background: color-mix(in srgb, var(--color-surface) 80%, var(--color-active));
+  border-color: color-mix(in srgb, var(--color-line) 85%, transparent);
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--color-ink) 7%, transparent);
+}
+
+.fileRow:hover .fileChip,
+.fileRow:focus-visible .fileChip { transform: translateY(-0.5px); }
+.fileRow:active .fileChip { transform: scale(0.975); }
+
+.fileGlyph { transition: transform 320ms var(--bubble-pop); }
+.fileRow:hover .fileGlyph,
+.fileRow:focus-visible .fileGlyph { transform: scale(1.12); }
+
+/* 保留负责人要求的下划线交互识别：常态柔和点状下划线，悬停平滑过渡为清晰实线。 */
+.fileLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-ink);
+  font-weight: 500;
+  text-decoration: underline dotted color-mix(in srgb, var(--color-muted) 70%, transparent);
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  transition: text-decoration-color 220ms var(--bubble-ease), color 220ms var(--bubble-ease);
+}
+
+.fileRow:hover .fileLabel,
+.fileRow:focus-visible .fileLabel {
+  text-decoration-style: solid;
+  text-decoration-color: var(--color-ink);
+}
+
+.fileRow[data-kind="edited"]:hover .fileLabel,
+.fileRow[data-kind="written"]:hover .fileLabel { text-decoration-color: var(--color-accent); }
+
+.fileRow[data-kind="deleted"] .fileLabel {
+  color: var(--color-muted);
+  text-decoration: line-through color-mix(in srgb, var(--color-activity-negative) 65%, transparent);
+}
+
+.lineRange {
+  flex: none;
+  color: var(--color-muted);
+  font-family: var(--code-font-family, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.86em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 悬停浮泡路径胶囊：磨砂圆润气泡造型，从芯片左下方轻盈弹性浮起，离开时顺滑收回。 */
+.pathTip {
+  position: absolute;
+  inset-inline-start: 0;
+  bottom: calc(100% + 0.44rem);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.36rem;
+  max-width: min(34rem, 72vw);
+  padding: 0.28rem 0.68rem 0.28rem 0.56rem;
+  border: 1px solid color-mix(in srgb, var(--color-line) 90%, transparent);
+  border-radius: 999px;
+  background: var(--glass-card-bg);
+  backdrop-filter: blur(14px) saturate(150%);
+  color: var(--color-ink);
+  box-shadow:
+    var(--color-menu-shadow),
+    inset 0 1px 0 color-mix(in srgb, var(--color-on-accent) 16%, transparent);
+  font-family: var(--code-font-family, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.77rem;
+  font-weight: 450;
+  line-height: 1.35;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform-origin: 18px bottom;
+  transform: translateY(7px) scale(0.92);
+  transition: opacity 220ms var(--bubble-ease), transform 300ms var(--bubble-spring);
+  z-index: var(--z-popover);
+}
+
+.pathTipGlyph { flex: none; }
+.pathTipText { overflow: hidden; text-overflow: ellipsis; }
+
+.fileChipWrap:hover .pathTip,
+.fileRow:focus-visible .pathTip { opacity: 1; transform: translateY(0) scale(1); }
+
+.openArrow { transition: transform 300ms var(--bubble-spring), color 220ms var(--bubble-ease); }
+.fileRow:hover .openArrow,
+.fileRow:focus-visible .openArrow { color: var(--color-ink); transform: translate(2px, -2px) scale(1.08); }
+
+/* 气泡式柔和入场与完成确认：弹性绽放 + 一次性柔和光环涟漪，丝滑不生硬。 */
+@media (prefers-reduced-motion: no-preference) {
+  .fileRow { animation: bubble-row-enter 340ms var(--bubble-ease) both; }
+  .actionIconWrap { animation: bubble-icon-bloom 400ms var(--bubble-pop) both; }
+  .actionIconWrap::after {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    border-radius: 999px;
+    background: currentColor;
+    opacity: 0;
+    pointer-events: none;
+    animation: bubble-ripple 560ms var(--bubble-ease) 40ms both;
+  }
+  .fileChip { animation: bubble-chip-bloom 360ms var(--bubble-spring) 20ms both; }
+  .countsReveal { animation: bubble-counts-float 380ms var(--bubble-spring) 70ms both; }
+}
+
+@keyframes bubble-row-enter {
+  from { opacity: 0; transform: translateY(5px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes bubble-icon-bloom {
+  from { opacity: 0; transform: scale(0.55); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes bubble-ripple {
+  from { opacity: 0.34; transform: scale(0.6); }
+  to { opacity: 0; transform: scale(1.85); }
+}
+
+@keyframes bubble-chip-bloom {
+  from { opacity: 0; transform: translateX(-3px) scale(0.96); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@keyframes bubble-counts-float {
+  from { opacity: 0; transform: translateX(6px) scale(0.92); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fileRow, .fileVerb, .actionIconWrap, .actionIcon,
+  .fileChip, .fileGlyph, .fileLabel, .pathTip, .openArrow { transition: none; }
+}

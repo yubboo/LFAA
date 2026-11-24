@@ -1,9 +1,10 @@
-/* 外观页高级设置区的数值输入、分段器、开关与对比度滑块样式。 */
+/* 外观页「高级」折叠区：折叠标题行、字号数值输入与对比度滑块。
+   行式排版、分组标题、开关与分段控件统一由 @lfaa/ui-primitives 提供，这里只补这两个专用控件。 */
 .advancedToggle {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  margin: 0.6rem 0 0.85rem;
+  margin: 0.6rem 0 0;
   padding: 0.35rem 0.2rem;
   border: 0;
   background: transparent;
@@ -22,12 +23,13 @@
   height: 0.95rem;
 }
 
-/* 高级区域用同一纵向容器布置设置开关和数值调节。 */
+/* 高级区内部的组间距与页面主分组一致，保证「组间松、组内紧」的同一节奏。 */
 .advancedStack {
   display: grid;
-  gap: 0.15rem;
+  gap: 2rem;
 }
 
+/* 数值行：输入框 + 单位，右对齐贴在设置行控件位。 */
 .numberControl {
   display: inline-flex;
   align-items: center;
@@ -48,70 +50,13 @@
   font-size: 0.84rem;
 }
 
-.segmented {
-  display: inline-flex;
-  padding: 0.18rem;
-  border: 1px solid var(--glass-border, var(--color-line));
-  border-radius: 999px;
-  background: var(--glass-control-bg, var(--color-surface));
-}
-
-.segmented button {
-  min-height: 1.85rem;
-  padding: 0.2rem 0.72rem;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--color-muted);
-  font-size: 0.78rem;
-  cursor: pointer;
-}
-
-.segmented .segmentedActive {
-  background: var(--color-active);
-  color: var(--color-ink);
-  font-weight: 550;
-}
-
-.switch {
-  position: relative;
-  display: inline-flex;
-  width: 2.55rem;
-  height: 1.45rem;
-  flex: 0 0 auto;
-  align-items: center;
-  padding: 0.15rem;
-  border: 1px solid var(--glass-border, var(--color-line));
-  border-radius: 999px;
-  background: var(--color-active);
-  cursor: pointer;
-  transition: background-color 150ms ease, border-color 150ms ease;
-}
-
-.switchOn {
-  border-color: var(--color-accent);
-  background: var(--color-accent);
-}
-
-.switchThumb {
-  width: 1.05rem;
-  height: 1.05rem;
-  border-radius: 50%;
-  background: var(--color-on-accent);
-  box-shadow: 0 1px 3px rgb(0 0 0 / 28%);
-  transition: transform 150ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.switchOn .switchThumb {
-  transform: translateX(1.08rem);
-}
-
+/* 对比度滑块：滑块 + 当前值。 */
 .sliderControl {
   display: inline-flex;
   align-items: center;
   gap: 0.65rem;
-  font-size: 0.8rem;
   color: var(--color-muted);
+  font-size: 0.8rem;
 }
 
 .sliderControl input[type="range"] {

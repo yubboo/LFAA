@@ -1,0 +1,222 @@
+/* 设置中心控件层：表单字段、输入框、按钮、开关、分段选择与危险操作组；全部使用主题变量，禁止写死颜色。 */
+/* 表单字段：标签在上、控件在下、占满宽度；顺序填写的表单只用这一种。 */
+.formField {
+  display: grid;
+  min-width: 0;
+  gap: 0.4rem;
+  padding: 0.55rem 0;
+}
+
+.formLabel {
+  color: var(--color-ink);
+  font-size: 0.88em;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.formHint {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.79em;
+  line-height: 1.5;
+}
+
+.formActions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding-top: 0.35rem;
+}
+
+.input,
+.textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.6rem;
+  outline: none;
+  background: var(--color-panel);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.86em;
+}
+
+.textarea {
+  min-height: 6rem;
+  resize: vertical;
+  line-height: 1.55;
+}
+
+.input::placeholder,
+.textarea::placeholder {
+  color: var(--color-muted);
+}
+
+.input:focus-visible,
+.textarea:focus-visible {
+  border-color: var(--color-accent);
+  outline: 2px solid rgb(var(--color-accent-rgb) / 0.35);
+  outline-offset: 1px;
+}
+
+/* 行内窄输入框：数值、前缀这类短值不进表单布局。 */
+.inputNarrow {
+  width: 9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 危险组：与普通设置隔开，标题和动作都用危险色，只出现在页面最末。 */
+.dangerSection {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.9rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid rgb(var(--color-danger-rgb) / 0.28);
+}
+
+.dangerTitle {
+  margin: 0;
+  color: var(--color-danger-strong);
+  font-size: 0.92em;
+  font-weight: 600;
+}
+
+/* 按钮：普通动作、主按钮、危险按钮、纯文字按钮。 */
+.actionBtn,
+.primaryBtn,
+.dangerBtn,
+.ghostBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.36rem 0.75rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.62rem;
+  background: var(--color-panel);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.83em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 130ms ease, border-color 130ms ease, color 130ms ease;
+}
+
+.actionBtn:hover:not(:disabled),
+.ghostBtn:hover:not(:disabled) {
+  background: var(--color-active);
+}
+
+.primaryBtn {
+  border-color: transparent;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.primaryBtn:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.dangerBtn {
+  border-color: rgb(var(--color-danger-rgb) / 0.42);
+  background: transparent;
+  color: var(--color-danger-strong);
+}
+
+.dangerBtn:hover:not(:disabled) {
+  background: rgb(var(--color-danger-rgb) / 0.12);
+}
+
+.ghostBtn {
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-muted);
+}
+
+.actionBtn:disabled,
+.primaryBtn:disabled,
+.dangerBtn:disabled,
+.ghostBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.actionBtn:focus-visible,
+.primaryBtn:focus-visible,
+.dangerBtn:focus-visible,
+.ghostBtn:focus-visible,
+.switchTrack:focus-visible,
+.segBtn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* 分段选择：短枚举专用，选中态靠描边 + 淡底，不用纯色块。 */
+.segmented {
+  display: inline-flex;
+  /* 直接作为页面级网格子项时（如代码审查的子页切换）不要被拉伸成整行。 */
+  justify-self: start;
+  align-self: start;
+  padding: 0.14rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.55rem;
+  background: var(--color-panel);
+}
+
+.segBtn {
+  padding: 0.22rem 0.62rem;
+  border: 0;
+  border-radius: 0.42rem;
+  background: transparent;
+  color: var(--color-muted);
+  font: inherit;
+  font-size: 0.81em;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.segBtnActive {
+  background: var(--color-active);
+  color: var(--color-ink);
+  font-weight: 550;
+}
+
+/* 开关：布尔设置唯一形态，改即生效。关闭态用淡底而不是纯白，浅色主题下仍能看出这是一条轨道。 */
+.switchTrack {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 2.3rem;
+  height: 1.3rem;
+  padding: 0.13rem;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-active);
+  cursor: pointer;
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+
+.switchChecked {
+  border-color: transparent;
+  background: var(--color-accent);
+}
+
+.switchThumb {
+  width: 0.96rem;
+  height: 0.96rem;
+  border-radius: 999px;
+  background: var(--color-on-accent);
+  transform: translateX(0);
+  transition: transform 150ms ease;
+}
+
+.switchChecked .switchThumb {
+  transform: translateX(1rem);
+}
+
+@media (max-width: 720px) {
+  .inputNarrow {
+    width: 100%;
+  }
+}

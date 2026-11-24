@@ -1,9 +1,9 @@
 // 声明 @lfaa/chat/client 浏览器端状态与 API 数据模型（无 Node 专有依赖）。
-import type { GeneralSettingsConfig, ReasoningLevelOption } from "../settings/general-settings-client";
+import type { GeneralSettingsConfig, ReasoningLevelOption } from "../shared/general-settings";
 import type { AgentRunMetrics, AgentStepTrace, ChatMessageAttachment, ChatMessageReference, PendingQuestion, UserClarification } from "@lfaa/memory";
 import type { QueuedMessage } from "./chat-queue";
 
-export type { GeneralSettingsConfig, OpenSourcePackageInfo, ReasoningLevelOption } from "../settings/general-settings-client";
+export type { GeneralSettingsConfig, OpenSourcePackageInfo, ReasoningLevelOption } from "../shared/general-settings";
 export type AgentPermissionMode = "ask" | "smart" | "full";
 /** 统一时间线上思考、操作和检查步骤的公开状态。 */
 export type AgentStepItem = AgentStepTrace;
@@ -315,7 +315,16 @@ export interface ChatStoreSnapshot {
   filePreviewTabs: FilePreviewTab[];
   activeFilePreviewId: string | null;
   rightStageKind?: "file" | "browser" | "review" | null;
-  rightPanelRequest?: { tab: string; url?: string; nonce: number } | null;
+  /** 右侧工作台是否自动跟随 Agent 的浏览器/文件/后台任务活动（默认开启）。 */
+  followAgentWorkbench: boolean;
+  rightPanelRequest?: {
+    tab: string;
+    url?: string;
+    devtoolsTab?: "console" | "network";
+    autoExpand?: boolean;
+    refreshBrowser?: boolean;
+    nonce: number;
+  } | null;
   pendingComposerInsert?: { text: string; nonce: number } | null;
   permissionMode: AgentPermissionMode;
   smartTrustCounts: Record<string, number>;

@@ -96,7 +96,7 @@
 .btnPrimary {
   background: var(--color-accent);
   border-color: var(--color-accent);
-  color: var(--color-canvas);
+  color: var(--color-on-accent);
   font-weight: 500;
 }
 
@@ -219,7 +219,7 @@
   padding: 12px;
   border-radius: 9px;
   border: 1px solid var(--color-line);
-  background: var(--color-canvas);
+  background: var(--color-code-bg);
   color: var(--color-ink);
   font-size: 0.81rem;
   line-height: 1.55;
@@ -245,7 +245,7 @@
   padding: 10px;
   border-radius: 8px;
   border: 1px solid var(--color-line);
-  background: var(--color-canvas);
+  background: var(--color-surface);
   color: var(--color-ink);
   font-family: inherit;
   font-size: 0.82rem;

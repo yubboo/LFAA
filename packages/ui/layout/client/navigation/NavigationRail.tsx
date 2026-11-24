@@ -23,6 +23,7 @@ export function NavigationRail({
   onNavigate,
   onTogglePinned,
   onOpenAppearance,
+  onOpenSettings,
 }: {
   locale: LocaleMessages;
   isMobile: boolean;
@@ -33,6 +34,7 @@ export function NavigationRail({
   onNavigate: (view: NavigationView) => void;
   onTogglePinned: (view: NavigationView) => boolean;
   onOpenAppearance: () => void;
+  onOpenSettings: () => void;
 }) {
   const [openMenu, setOpenMenu] = useState<RailMenu>(null);
   const [menuTop, setMenuTop] = useState(72);
@@ -129,7 +131,7 @@ export function NavigationRail({
           )}
           <RailButton label={locale.localMode} icon="companion" active={openMenu === "status"} expanded={openMenu === "status"} onClick={(event) => toggleMenu("status", event)} />
         </div>}
-        <UserMenu locale={locale} active={activeDomain === "settings"} accountActions={accountActions} onOpenAppearance={onOpenAppearance} />
+        <UserMenu locale={locale} active={activeDomain === "settings"} accountActions={accountActions} onOpenAppearance={onOpenAppearance} onOpenSettings={onOpenSettings} />
       </div>
 
       {openMenu === "more" && (

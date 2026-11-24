@@ -1,5 +1,6 @@
 // 搜索弹层：同时搜索会话标题/消息正文、侧栏功能与本地项目，支持键盘选择与命中片段高亮。
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { WorkbenchChatProvider, WorkbenchChatSearchResult } from "../../contract/index";
 import type { LocaleMessages } from "../locales";
 import type { NavigationTarget } from "../navigation/navigation";
@@ -94,7 +95,7 @@ export function SearchDialog({
     onChoose(entry.target);
   };
 
-  return (
+  const dialog = (
     <div className={styles.backdrop} onPointerDown={(event) => {
       if (event.target === event.currentTarget) onClose();
     }}>
@@ -194,4 +195,5 @@ export function SearchDialog({
       </section>
     </div>
   );
+  return typeof document !== "undefined" ? createPortal(dialog, document.body) : dialog;
 }

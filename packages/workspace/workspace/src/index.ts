@@ -1,13 +1,14 @@
 // 声明工作区包的 Host 侧 Cordis 服务与无 DOM 领域契约，严禁导入 React、DOM 或 CSS。
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { lstat, mkdir, open, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { lstat, mkdir, open, readdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { type Context, Service } from "@deepseek-ai/cordis";
 import { draftProjectBrief as buildProjectBriefDraft } from "./project-brief";
 import {
   isValidProjectRecord,
+  isWithinRoot,
   normalizeProjectDescription,
   normalizeUniquePaths,
   resolveWithinProjectRoots,
@@ -423,6 +424,13 @@ export class WorkspaceService extends Service {
     const info = await stat(resolved.resolvedPath).catch(() => null);
     if (!info || !info.isFile()) {
       throw new Error("目标路径不存在或不是可读文件。");
+    }
+    const [realRoot, realTarget] = await Promise.all([
+      realpath(resolved.matchedRoot).catch(() => resolved.matchedRoot),
+      realpath(resolved.resolvedPath).catch(() => null),
+    ]);
+    if (!realTarget || !isWithinRoot(realTarget, realRoot)) {
+      throw new Error("文件路径经符号链接越出当前项目授权目录边界。");
     }
 
     const readBytes = Math.min(info.size, MAX_PREVIEW_FILE_BYTES);

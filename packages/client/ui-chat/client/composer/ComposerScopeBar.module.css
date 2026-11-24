@@ -4,20 +4,14 @@
   z-index: 3;
 }
 
+/* 挂载条作为输入卡片头行的内容排布：边框、底边与圆角由卡片头行统一承担，
+   这里只负责按钮换行，避免再叠出一张「卡中卡」。 */
 .shelf {
-  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.35rem;
-  margin-inline: 0.85rem;
-  margin-bottom: -0.55rem;
-  padding: 0.38rem 0.7rem 0.78rem;
-  border: 1px solid var(--glass-border, var(--color-line));
-  border-bottom: 0;
-  border-radius: 0.95rem 0.95rem 0 0;
-  background: var(--color-panel);
-  background-image: var(--glass-sheen, none);
+  min-width: 0;
 }
 
 .anchor {
@@ -266,11 +260,10 @@
   line-height: 1.45;
 }
 
-/* 移动端将浮层宽度限制在视口内，保留项目搜索和选择。 */
+/* 移动端收紧头行内按钮间距，保留项目搜索和选择。 */
 @media (max-width: 640px) {
   .shelf {
-    margin-inline: 0.45rem;
-    padding: 0.35rem 0.5rem 0.72rem;
+    gap: 0.25rem;
   }
 
 }

@@ -299,3 +299,116 @@ test("同轮连续只读工具并行执行，结果按调用顺序回填", async
     await fs.rm(tempRoot, { recursive: true, force: true });
   }
 });
+
+test("注册 browser_navigate 工具时，系统提示自动注入右侧工作台自测验收闭环协议", async () => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-wb-protocol-"));
+  const ctx = new Context();
+  let capturedSystem = "";
+
+  await ctx.plugin(llmPlugin, {
+    storeFilePath: path.join(tempRoot, "llm.json"),
+    adapter: async (profile, input) => {
+      capturedSystem = input.messages[0]?.content ?? "";
+      return { model: profile.model, provider: profile.kind, content: "ok", toolCalls: [], finishReason: "stop" };
+    },
+  });
+  await ctx.plugin(rulesPlugin, { storeFilePath: path.join(tempRoot, "rules.json") });
+  await ctx.plugin(memoryPlugin, {
+    sessionsDir: path.join(tempRoot, "sessions"),
+    memoryFilePath: path.join(tempRoot, "memory.json"),
+  });
+  await ctx.plugin(toolsPlugin);
+  ctx.tools.registerTool({
+    name: "browser_navigate",
+    title: "打开网页",
+    description: "测试用内置浏览器导航占位",
+    permissionLevel: "read",
+    parameters: { type: "object", properties: {} },
+    execute: async () => ({ ok: true, output: "ok", summary: "ok" }),
+  });
+  await ctx.plugin(agentPlugin, { smartTrustFilePath: path.join(tempRoot, "trust.json") });
+
+  try {
+    const session = await ctx.memory.createSession({ title: "工作台自测协议" });
+    const started = await ctx.agent.startRun({
+      sessionId: session.id,
+      userMessage: "帮我检查页面",
+      workspaceRoots: [tempRoot],
+    });
+    await new Promise<void>((resolveDone, rejectDone) => {
+      const timer = setTimeout(() => rejectDone(new Error("超时")), 5000);
+      const off = ctx.agent.subscribeRun(started.runId, (evt) => {
+        if (evt.type === "run_finished") {
+          clearTimeout(timer);
+          off();
+          resolveDone();
+        }
+      });
+    });
+    assert.match(capturedSystem, /右侧工作台与内置浏览器闭环验收/u);
+    assert.match(capturedSystem, /browser_visual_check/u);
+    assert.match(capturedSystem, /browser_console/u);
+  } finally {
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("同时注册 invoke_subagent 与 browser_navigate 时，主循环隐藏原始 browser_* 工具强制走浏览器子智能体", async () => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-browser-sub-enforced-"));
+  const ctx = new Context();
+  let seenToolNames: string[] = [];
+
+  await ctx.plugin(llmPlugin, {
+    storeFilePath: path.join(tempRoot, "llm.json"),
+    adapter: async (profile, input) => {
+      seenToolNames = (input.tools ?? []).map((t) => t.name);
+      return { model: profile.model, provider: profile.kind, content: "ok", toolCalls: [], finishReason: "stop" };
+    },
+  });
+  await ctx.plugin(rulesPlugin, { storeFilePath: path.join(tempRoot, "rules.json") });
+  await ctx.plugin(memoryPlugin, {
+    sessionsDir: path.join(tempRoot, "sessions"),
+    memoryFilePath: path.join(tempRoot, "memory.json"),
+  });
+  await ctx.plugin(toolsPlugin);
+  ctx.tools.registerTool({
+    name: "invoke_subagent",
+    title: "派发子智能体",
+    description: "测试占位",
+    permissionLevel: "read",
+    parameters: { type: "object", properties: {} },
+    execute: async () => ({ ok: true, output: "ok", summary: "ok" }),
+  });
+  ctx.tools.registerTool({
+    name: "browser_navigate",
+    title: "打开网页",
+    description: "测试占位",
+    permissionLevel: "read",
+    parameters: { type: "object", properties: {} },
+    execute: async () => ({ ok: true, output: "ok", summary: "ok" }),
+  });
+  await ctx.plugin(agentPlugin, { smartTrustFilePath: path.join(tempRoot, "trust.json") });
+
+  try {
+    const session = await ctx.memory.createSession({ title: "子智能体隔离" });
+    const started = await ctx.agent.startRun({
+      sessionId: session.id,
+      userMessage: "打开浏览器检查页面",
+      workspaceRoots: [tempRoot],
+    });
+    await new Promise<void>((resolveDone, rejectDone) => {
+      const timer = setTimeout(() => rejectDone(new Error("超时")), 5000);
+      const off = ctx.agent.subscribeRun(started.runId, (evt) => {
+        if (evt.type === "run_finished") {
+          clearTimeout(timer);
+          off();
+          resolveDone();
+        }
+      });
+    });
+    assert.equal(seenToolNames.includes("invoke_subagent"), true);
+    assert.equal(seenToolNames.includes("browser_navigate"), false);
+  } finally {
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  }
+});

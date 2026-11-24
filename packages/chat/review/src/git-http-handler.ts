@@ -180,12 +180,13 @@ export function createCodingHttpHandler(service: ReviewService, options: CodingH
       if (method === "POST" && pathname === "/api/code-review/run") {
         const body = await readJsonBody(req);
         const projectId = typeof body.projectId === "string" ? body.projectId : undefined;
+        const sessionId = typeof body.sessionId === "string" ? body.sessionId : undefined;
         const scope =
           body.scope === "staged" || body.scope === "commit" || body.scope === "working_tree"
             ? body.scope
             : "working_tree";
         const commitHash = typeof body.commitHash === "string" ? body.commitHash : undefined;
-        const targetDir = await resolveRoot(projectId);
+        const targetDir = await resolveRoot(projectId, sessionId);
         const report = await service.runCodeReview({
           ...(targetDir ? { targetDir } : {}),
           scope,

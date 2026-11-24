@@ -39,7 +39,9 @@ export function formatTokenUsage(
 export function StepTraceList({
   isZh,
   createdAt,
+  now: externalNow,
   durationMs,
+  toolCount,
   tokenUsage,
   isStreaming,
   expanded,
@@ -48,27 +50,36 @@ export function StepTraceList({
 }: {
   isZh: boolean;
   createdAt: number;
+  /** 可选外部统一时钟，由 AssistantTimeline 共享以减少重复定时器。 */
+  now?: number | undefined;
   durationMs: number | undefined;
+  /** 本轮累计工具步数，用于总览条展示执行密度。 */
+  toolCount?: number | undefined;
   tokenUsage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number } | undefined;
   isStreaming: boolean;
   expanded: boolean;
   processId: string;
   onToggle?: (() => void) | undefined;
 }) {
-  const [now, setNow] = useState(Date.now);
+  const [internalNow, setInternalNow] = useState(Date.now);
   useEffect(() => {
-    if (!isStreaming) return;
-    const timer = setInterval(() => setNow(Date.now()), 1000);
+    if (!isStreaming || externalNow !== undefined) return;
+    const timer = setInterval(() => setInternalNow(Date.now()), 1000);
     return () => clearInterval(timer);
-  }, [isStreaming]);
+  }, [externalNow, isStreaming]);
+  const now = externalNow ?? internalNow;
 
   const labels = timelineMessages[isZh ? "zh" : "en"];
+  const toolSummary = toolCount && toolCount > 0
+    ? (isZh ? `${toolCount} 步工具` : `${toolCount} ${toolCount === 1 ? "tool" : "tools"}`)
+    : undefined;
   if (isStreaming) {
     const elapsed = formatDuration(now - createdAt, isZh);
     const status = (
       <>
         <span className={styles.activityTitle}>{labels.elapsed}</span>
         <span className={styles.elapsed}>{elapsed}</span>
+        {toolSummary && <span className={styles.elapsed}>{toolSummary}</span>}
       </>
     );
     return onToggle ? (
@@ -87,6 +98,7 @@ export function StepTraceList({
   return onToggle ? (
     <button type="button" className={styles.disclosure} aria-expanded={expanded} aria-controls={processId} onClick={onToggle}>
       <span>{label}</span>
+      {toolSummary && <span className={styles.elapsed}>{toolSummary}</span>}
       {usageLabel && <span className={styles.elapsed}>{usageLabel}</span>}
       <IconChevronRight size={14} className={styles.chevron} aria-hidden="true" />
     </button>

@@ -23,8 +23,10 @@ const { locales } = await import("../client/locales");
 const snapshot: WorkbenchSnapshot = {
   activeView: "settings:appearance",
   activeProjectId: null,
+  settingsReturnView: null,
   activeLibraryTab: "all",
   activeDomainItem: "",
+  workspaceMode: "chatgpt",
   leftSidebarOpen: true,
   rightPanelOpen: false,
   rightWorkbenchWide: false,

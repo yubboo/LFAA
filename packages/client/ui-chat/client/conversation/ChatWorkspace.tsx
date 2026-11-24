@@ -1,11 +1,12 @@
 // 渲染中央聊天工作区：空会话引导、流式回复、Agent 思考/行动/检查轨迹卡片与底部输入栏。
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { IconArrowDown } from "@tabler/icons-react";
+import type { WorkspaceMode } from "@lfaa/ui-layout/client";
 import type { WorkbenchProjectItem, WorkbenchProjectProvider } from "@lfaa/ui-layout";
 import type { ChatClientStore } from "../store/chat-store";
 import type { ChatLocaleMessages } from "../locales";
-import { collectEditedFiles } from "../shared/file-activity";
-import { extractAdviceOptions } from "./advice-options";
+import { summarizeTurnChanges } from "../shared/file-activity";
+import { useChatSuggestions } from "./useChatSuggestions";
 import { useChatScroll } from "./useChatScroll";
 import { ChatAnchorBar, buildTurnAnchors } from "./ChatAnchorBar";
 import { ChatComposer } from "../composer/ChatComposer";
@@ -27,6 +28,9 @@ export function ChatWorkspace({
   store,
   projects,
   projectProvider,
+  workspaceMode,
+  onWorkspaceModeChange,
+  onProjectContextChange,
   onOpenSettings,
   onOpenTurnChanges,
   onOpenFilePreview,
@@ -36,6 +40,11 @@ export function ChatWorkspace({
   store: ChatClientStore;
   projects: WorkbenchProjectItem[];
   projectProvider?: WorkbenchProjectProvider<ReactNode> | null | undefined;
+  /** 中心区「聊天 / 工作」：空会话时由中心区分段切换，决定输入栏信息密度。 */
+  workspaceMode: WorkspaceMode;
+  onWorkspaceModeChange: (mode: WorkspaceMode) => void;
+  /** 在输入框切换或解绑项目时回写工作台项目上下文，供左二高亮与顶部「新聊天」沿用。 */
+  onProjectContextChange?: ((projectId: string | null) => void) | undefined;
   onOpenSettings: () => void;
   onOpenTurnChanges?: ((messageId: string) => void) | undefined;
   onOpenFilePreview: (messageId: string, stepId: string) => void;
@@ -45,10 +54,6 @@ export function ChatWorkspace({
   const [view, setView] = useState<"chat" | "trace">("chat");
   const [traceTarget, setTraceTarget] = useState<{ messageId: string; stepId: string } | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  // 项目起步建议：空会话且绑定项目时按项目缓存一次，围绕该项目给出起步请求。
-  const [startersByProject, setStartersByProject] = useState<Record<string, string[]>>({});
-  // 追问建议由模型生成：按消息 id 缓存，失败或为空则不展示（不回退模板）。
-  const [suggestionsByMessage, setSuggestionsByMessage] = useState<Record<string, string[]>>({});
   const [bindingProject, setBindingProject] = useState(false);
   const projectBindingPending = useRef(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -58,10 +63,7 @@ export function ChatWorkspace({
   const messages = activeSession?.messages ?? [];
   const lastMessage = messages.at(-1);
   const clarification = lastMessage?.status === "done" ? lastMessage.clarification : undefined;
-  const latestFiles = collectEditedFiles(lastMessage?.role === "assistant" ? lastMessage.steps ?? [] : []);
-  const countedChanges = latestFiles.length > 0 && latestFiles.every((file) => file.hasCounts);
-  const latestAdded = latestFiles.reduce((sum, file) => sum + file.added, 0);
-  const latestRemoved = latestFiles.reduce((sum, file) => sum + file.removed, 0);
+  const turnChanges = useMemo(() => summarizeTurnChanges(lastMessage), [lastMessage]);
 
   const activeProjectId = activeSession ? activeSession.projectId : state.draftProjectId;
   // 项目内空会话展示项目范围，提醒用户与模型都围绕该项目工作。
@@ -74,65 +76,12 @@ export function ChatWorkspace({
   };
   const activeProfile = state.profiles.find((p) => p.id === state.activeProfileId) ?? state.profiles[0];
   const activeKind = activeProfile?.availableModels?.find((model) => model.id === activeProfile.model)?.modelKind;
-
-  // 空会话且绑定项目时，向 Host 请求围绕该项目的起步建议（按项目缓存，失败回退通用引导）。
-  useEffect(() => {
-    if (messages.length > 0 || !activeProjectId || !state.generalSettings.homeSuggestions || (activeKind && activeKind !== "chat")) return;
-    if (startersByProject[activeProjectId]) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch("/api/chat/starter-suggestions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ projectId: activeProjectId }),
-        });
-        if (!res.ok) return;
-        const data = (await res.json()) as { suggestions?: string[] };
-        if (cancelled || !Array.isArray(data.suggestions) || data.suggestions.length === 0) return;
-        setStartersByProject((prev) => ({ ...prev, [activeProjectId]: data.suggestions ?? [] }));
-      } catch {
-        // 生成失败时回退到通用引导。
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [messages.length, activeProjectId, activeKind, state.generalSettings.homeSuggestions, startersByProject]);
-
-  // 智能建议：回答里的「建议/下一步」清单在正文内联为编号选项（不重复出现在底部）；
-  // 底部生成式推荐只在新会话的第一轮触发，多轮后不再机械追问。
-  useEffect(() => {
-    const last = messages[messages.length - 1];
-    if (activeKind && activeKind !== "chat") return;
-    if (!last || last.role !== "assistant" || last.status === "streaming" || last.clarification || !last.content.trim()) return;
-    if (suggestionsByMessage[last.id]) return;
-    // 媒体生成结果（图片/视频/语音）不生成后续对话推荐，避免用媒体模型发聊天请求。
-    if (/!\[[^\]]*\]\(\/api\/media\/file\?/u.test(last.content)) return;
-    if (extractAdviceOptions(last.content).length >= 2) return;
-    const assistantTurns = messages.filter((message) => message.role === "assistant").length;
-    if (assistantTurns !== 1) return;
-    const prompt = messages[messages.length - 2]?.role === "user" ? (messages[messages.length - 2]?.content ?? "") : "";
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch("/api/chat/suggestions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userPrompt: prompt, assistantReply: last.content }),
-        });
-        if (!res.ok) return;
-        const data = (await res.json()) as { suggestions?: string[] };
-        if (cancelled || !Array.isArray(data.suggestions)) return;
-        const fresh = data.suggestions
-          .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
-          .slice(0, 3);
-        if (fresh.length === 0) return;
-        setSuggestionsByMessage((prev) => ({ ...prev, [last.id]: fresh }));
-      } catch {
-        // 生成失败时不出选项，不回退到模板。
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [activeKind, messages, suggestionsByMessage]);
+  const { starterSuggestions, suggestionsByMessage } = useChatSuggestions({
+    messages,
+    activeProjectId,
+    activeKind,
+    homeSuggestions: state.generalSettings.homeSuggestions,
+  });
 
   const needsApiKey = Boolean(activeProfile && activeProfile.kind !== "ollama" && !activeProfile.hasApiKey);
   const isRunning = Boolean(state.runningRunId);
@@ -148,8 +97,18 @@ export function ChatWorkspace({
     () => (activeSession?.todos && activeSession.todos.length > 0 ? activeSession.todos : latestSessionTodos(messages)),
     [activeSession?.todos, messages],
   );
-  const { scrollAreaRef, threadRef, showScrollBottom, scrollToLatest, pauseFollowing, trackScroll } =
+  const { scrollAreaRef, threadRef, showScrollBottom, scrollToLatest, pauseFollowing, trackScroll, isProgrammaticScroll } =
     useChatScroll(activeSession?.id ?? null, turnAnchors.at(-1)?.anchorMsgId, isRunning);
+  const anchorScanRafRef = useRef<number | null>(null);
+  useEffect(() => () => {
+    if (anchorScanRafRef.current !== null && typeof cancelAnimationFrame === "function") {
+      cancelAnimationFrame(anchorScanRafRef.current);
+    }
+  }, []);
+  const handleOpenTrace = useCallback((messageId: string, stepId: string) => {
+    setTraceTarget({ messageId, stepId });
+    setView("trace");
+  }, []);
 
   // 搜索结果打开会话后暂停触底跟随，滚动到命中的消息并短暂高亮；定位完成即消费请求。
   const pendingJump = state.pendingMessageJump;
@@ -184,7 +143,16 @@ export function ChatWorkspace({
     projectBindingPending,
   });
 
-  // 等待项目绑定写回，避免用户立即发送时沿用旧目录。
+  // 项目列表加载完后若记忆的草稿项目已不存在，自动清理，避免残留失效绑定。
+  useEffect(() => {
+    if (activeSession || !state.draftProjectId || !projectProvider?.hasLoaded?.()) return;
+    if (!activeProject) {
+      void store.setActiveProjectBinding(null);
+      onProjectContextChange?.(null);
+    }
+  }, [activeProject, activeSession, onProjectContextChange, projectProvider, state.draftProjectId, store]);
+
+  // 等待项目绑定写回，避免用户立即发送时沿用旧目录，并同步左二项目上下文。
   const changeProjectBinding = async (projectId: string | null) => {
     if (isRunning || projectBindingPending.current) return;
     projectBindingPending.current = true;
@@ -192,6 +160,7 @@ export function ChatWorkspace({
     composer.setContextNotice("");
     try {
       await store.setActiveProjectBinding(projectId);
+      onProjectContextChange?.(projectId);
     } catch (error) {
       composer.setContextNotice(error instanceof Error ? error.message : String(error));
     } finally {
@@ -210,6 +179,45 @@ export function ChatWorkspace({
     busy: isRunning || state.submittingMessage === true || bindingProject,
   });
 
+  // 空会话时输入栏并入中心引导区，有消息后回到底部停靠位；停靠时统一用「占位行 + 工具行」的宽卡片。
+  const composerInHero = messages.length === 0 && view === "chat";
+  const composerNode = (
+    <ChatComposer
+      locale={locale}
+      store={store}
+      state={state}
+      composer={composer}
+      projects={projects}
+      workspaceMode={workspaceMode}
+      docked={composerInHero === false}
+      canCreateProject={Boolean(projectProvider)}
+      activeProjectId={activeProjectId}
+      activeSession={activeSession}
+      messages={messages}
+      messagesCount={messages.length}
+      isRunning={isRunning}
+      needsApiKey={needsApiKey}
+      clarification={clarification}
+      lastMessageId={lastMessage?.id}
+      bindingProject={bindingProject}
+      stats={turnChanges}
+      worktree={activeWorktree ? { branch: activeWorktree.branch, path: activeWorktree.path } : null}
+      {...(activeWorktree ? { onClearWorktree: clearWorktree } : {})}
+      onSelectProject={(projectId) => void changeProjectBinding(projectId)}
+      onCreateProject={() => setCreateDialogOpen(true)}
+      onAnswerClarification={(answer) => void store.sendMessage(answer).catch((error: unknown) => composer.setContextNotice(String(error)))}
+      onSkipClarification={() => {
+        const sessionId = activeSession?.id;
+        if (!sessionId) return;
+        void store.dismissClarification(sessionId).catch((error: unknown) => composer.setContextNotice(String(error)));
+      }}
+      onOpenSettings={onOpenSettings}
+      onOpenBrowser={onOpenBrowser}
+      onDeleteRequest={() => setDeleteConfirmOpen(true)}
+      onOpenTurnChanges={onOpenTurnChanges}
+    />
+  );
+
   return (
     <section className={styles.root} aria-label={locale.workspaceTitle}>
       <nav className={styles.viewTabs} aria-label={locale.isZh ? "会话视图" : "Conversation views"}>
@@ -217,24 +225,21 @@ export function ChatWorkspace({
         <button type="button" aria-current={view === "trace" ? "page" : undefined} onClick={() => setView("trace")}>{locale.isZh ? "轨迹" : "Trace"}</button>
       </nav>
       {view === "trace" && <ConversationTrace key={activeSession?.id ?? "draft"} messages={messages} locale={locale} target={traceTarget} pendingApproval={state.pendingApproval} onResolveApproval={(approved) => void store.resolveApproval(approved)} />}
-      <div
-        ref={scrollAreaRef}
-        className={styles.scrollArea}
-        hidden={view !== "chat"}
-        onScroll={(event) => {
+      <div ref={scrollAreaRef} className={styles.scrollArea} hidden={view !== "chat"} onScroll={(event) => {
           const el = event.currentTarget;
           trackScroll(el);
-          if (turnAnchors.length > 0) {
+          // 流式自动贴底期间跳过锚点几何扫描，避免每帧同步 getBoundingClientRect 引起强制回流。
+          if (turnAnchors.length === 0 || isProgrammaticScroll() || anchorScanRafRef.current !== null) return;
+          anchorScanRafRef.current = requestAnimationFrame(() => {
+            anchorScanRafRef.current = null;
             const containerTop = el.getBoundingClientRect().top + 96;
             let bestIdx = 0;
             const nodes = el.querySelectorAll<HTMLElement>("[data-turn-anchor]");
             nodes.forEach((node, idx) => {
-              if (node.getBoundingClientRect().top <= containerTop) {
-                bestIdx = idx;
-              }
+              if (node.getBoundingClientRect().top <= containerTop) bestIdx = idx;
             });
-            setActiveTurnIndex(bestIdx);
-          }
+            setActiveTurnIndex((prev) => (prev === bestIdx ? prev : bestIdx));
+          });
         }}
       >
         <ChatMessageList
@@ -242,10 +247,13 @@ export function ChatWorkspace({
           messages={messages}
           lastMessage={lastMessage}
           clarification={clarification}
-          starterSuggestions={activeProjectId ? startersByProject[activeProjectId] ?? null : null}
+          starterSuggestions={starterSuggestions}
           projectScope={activeProject
             ? { name: activeProject.name, description: activeProject.description?.trim() ?? "" }
             : null}
+          workspaceMode={workspaceMode}
+          onWorkspaceModeChange={onWorkspaceModeChange}
+          heroComposer={composerInHero ? composerNode : null}
           suggestionsByMessage={suggestionsByMessage}
           selectedFile={selectedFile}
           pendingApproval={state.pendingApproval}
@@ -259,8 +267,9 @@ export function ChatWorkspace({
           threadRef={threadRef}
           onOpenFilePreview={onOpenFilePreview}
           onOpenTurnChanges={onOpenTurnChanges}
+          onOpenBrowser={onOpenBrowser}
           onEditContent={messageActions.onEditContent}
-          onOpenTrace={(messageId, stepId) => { setTraceTarget({ messageId, stepId }); setView("trace"); }}
+          onOpenTrace={handleOpenTrace}
           onBranchToNewChat={messageActions.onBranchToNewChat}
           onContinueInterrupted={messageActions.onContinueInterrupted}
           onSubmitQuestion={messageActions.onSubmitQuestion}
@@ -328,44 +337,14 @@ export function ChatWorkspace({
           view={view}
           todos={sessionTodos}
           paused={paused}
+          settled={!isRunning && lastMessage?.role === "assistant" && lastMessage.status === "done"}
           goal={state.activeGoal}
           isZh={locale.isZh}
           className={styles.composerStack}
           onEditGoal={(objective) => store.editGoal(objective)}
           onToggleGoalAuto={(next) => store.setGoalAutoContinue(next)}
         />
-        <ChatComposer
-          locale={locale}
-          store={store}
-          state={state}
-          composer={composer}
-          projects={projects}
-          canCreateProject={Boolean(projectProvider)}
-          activeProjectId={activeProjectId}
-          activeSession={activeSession}
-          messages={messages}
-          messagesCount={messages.length}
-          isRunning={isRunning}
-          needsApiKey={needsApiKey}
-          clarification={clarification}
-          lastMessageId={lastMessage?.id}
-          bindingProject={bindingProject}
-          stats={{ filesCount: latestFiles.length, countedChanges, added: latestAdded, removed: latestRemoved }}
-          worktree={activeWorktree ? { branch: activeWorktree.branch, path: activeWorktree.path } : null}
-          {...(activeWorktree ? { onClearWorktree: clearWorktree } : {})}
-          onSelectProject={(projectId) => void changeProjectBinding(projectId)}
-          onCreateProject={() => setCreateDialogOpen(true)}
-          onAnswerClarification={(answer) => void store.sendMessage(answer).catch((error: unknown) => composer.setContextNotice(String(error)))}
-          onSkipClarification={() => {
-            const sessionId = activeSession?.id;
-            if (!sessionId) return;
-            void store.dismissClarification(sessionId).catch((error: unknown) => composer.setContextNotice(String(error)));
-          }}
-          onOpenSettings={onOpenSettings}
-          onOpenBrowser={onOpenBrowser}
-          onDeleteRequest={() => setDeleteConfirmOpen(true)}
-          onOpenTurnChanges={onOpenTurnChanges}
-        />
+        {!composerInHero && composerNode}
       </div>
 
       <WorkspaceDialogs

@@ -33,6 +33,7 @@ export function ModelReasoningPicker({
   profiles,
   activeProfileId,
   reasoningLevel,
+  compact = false,
   onSelectProfile,
   onSelectBrandModel,
   onRefreshBrandModels,
@@ -43,6 +44,8 @@ export function ModelReasoningPicker({
   profiles: PublicLlmProfileItem[];
   activeProfileId: string;
   reasoningLevel: ReasoningLevelOption;
+  /** 聊天模式把触发胶囊压成纯图标，弹层内容与选择行为完全不变。 */
+  compact?: boolean;
   onSelectProfile: (profileId: string) => void;
   onSelectBrandModel: (profileId: string, modelId: string) => void;
   onRefreshBrandModels: (profileId: string) => Promise<void>;
@@ -124,7 +127,7 @@ export function ModelReasoningPicker({
   if (!activeProfile) {
     return (
       <div className={styles.anchor}>
-        <ConfigureModelTrigger isZh={isZh} onOpenSettings={onOpenSettings} />
+        <ConfigureModelTrigger isZh={isZh} compact={compact} onOpenSettings={onOpenSettings} />
       </div>
     );
   }
@@ -138,6 +141,7 @@ export function ModelReasoningPicker({
         activeModelId={activeModelId}
         activeLevelLabel={activeLevelLabel}
         reasoningMode={activeModelCap.reasoningMode}
+        compact={compact}
         onToggle={() => setPanelMode((prev) => (prev === "closed" ? "models" : "closed"))}
       />
 

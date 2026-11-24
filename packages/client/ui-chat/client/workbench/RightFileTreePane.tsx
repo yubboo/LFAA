@@ -1,5 +1,5 @@
 // 右辅助栏 VS Code 风格工作区文件树：展示根目录与垂直缩进指引线、文件/目录语义图标、懒加载及双向联动高亮。
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { IconChevronDown, IconChevronRight, IconRefresh } from "@tabler/icons-react";
 import type { ChatClientStore } from "../store/chat-store";
 import { readTreeExpandedState, writeTreeExpandedState } from "../store/workbench-persist";
@@ -45,6 +45,8 @@ export function RightFileTreePane({
   const [loadingDirs, setLoadingDirs] = useState<Set<string>>(() => new Set());
   const [error, setError] = useState("");
   const scopeKey = worktreeId ?? projectId ?? "";
+  const failedDirsRef = useRef<Set<string>>(new Set());
+  const hydratedScopeRef = useRef<string>("");
 
   const loadDirectory = useCallback(async (dirPath?: string) => {
     if (!projectId && !worktreeId) return;
@@ -63,6 +65,7 @@ export function RightFileTreePane({
         error?: string;
       };
       if (!res.ok) throw new Error(data.error || `加载失败 (${res.status})`);
+      failedDirsRef.current.delete(key);
       const currentRoot = (data.rootPath || dirPath || "").replace(/\\/gu, "/");
       const baseRoot = !dirPath ? currentRoot : rootPath;
       if (!dirPath) setRootPath(currentRoot);
@@ -75,6 +78,7 @@ export function RightFileTreePane({
       });
       setChildrenMap((prev) => ({ ...prev, [normalizeCmp(currentRoot)]: list }));
     } catch (err) {
+      failedDirsRef.current.add(key);
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoadingDirs((prev) => {
@@ -83,10 +87,12 @@ export function RightFileTreePane({
         return next;
       });
     }
-  }, [projectId, rootPath]);
+  }, [projectId, rootPath, worktreeId]);
 
   useEffect(() => {
     const saved = readTreeExpandedState(scopeKey);
+    failedDirsRef.current.clear();
+    hydratedScopeRef.current = scopeKey;
     setRootPath("");
     setRootExpanded(saved.rootExpanded);
     setChildrenMap({});
@@ -94,24 +100,24 @@ export function RightFileTreePane({
     if (projectId || worktreeId) void loadDirectory();
   }, [scopeKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 持久化的已展开目录在根目录加载后按需补全子列表。
+  // 持久化的已展开目录在根目录加载后按需补全子列表；已失败目录不再自动重试，避免死循环请求。
   useEffect(() => {
-    if (!projectId || !rootPath || expandedDirs.size === 0) return;
+    if ((!projectId && !worktreeId) || !rootPath || expandedDirs.size === 0) return;
     for (const dirKey of expandedDirs) {
-      if (!childrenMap[dirKey] && !loadingDirs.has(dirKey)) {
+      if (!childrenMap[dirKey] && !loadingDirs.has(dirKey) && !failedDirsRef.current.has(dirKey)) {
         void loadDirectory(dirKey);
       }
     }
-  }, [childrenMap, expandedDirs, loadDirectory, loadingDirs, projectId, rootPath]);
+  }, [childrenMap, expandedDirs, loadDirectory, loadingDirs, projectId, rootPath, worktreeId]);
 
   useEffect(() => {
-    if (!projectId && !worktreeId) return;
+    if ((!projectId && !worktreeId) || hydratedScopeRef.current !== scopeKey) return;
     writeTreeExpandedState(scopeKey, { rootExpanded, dirs: [...expandedDirs] });
   }, [expandedDirs, projectId, rootExpanded, scopeKey, worktreeId]);
 
   // 联动打开的代码文件：自动逐级展开根目录与父目录。
   useEffect(() => {
-    if (!projectId || !rootPath || !activeFilePath) return;
+    if ((!projectId && !worktreeId) || !rootPath || !activeFilePath) return;
     const normRoot = normalizeCmp(rootPath).replace(/\/+$/u, "");
     const normTarget = normalizeCmp(activeFilePath);
     const candidate = normTarget.startsWith(normRoot)
@@ -128,16 +134,24 @@ export function RightFileTreePane({
       dirsToExpand.push(cursor);
     }
     setExpandedDirs((prev) => {
+      let changed = false;
       const next = new Set(prev);
-      for (const d of dirsToExpand) next.add(normalizeCmp(d));
-      return next;
+      for (const d of dirsToExpand) {
+        const k = normalizeCmp(d);
+        if (!next.has(k)) {
+          next.add(k);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
     });
     for (const d of dirsToExpand) {
-      if (!childrenMap[normalizeCmp(d)]) {
+      const k = normalizeCmp(d);
+      if (!childrenMap[k] && !loadingDirs.has(k) && !failedDirsRef.current.has(k)) {
         void loadDirectory(d);
       }
     }
-  }, [activeFilePath, childrenMap, loadDirectory, projectId, rootPath]);
+  }, [activeFilePath, childrenMap, loadDirectory, loadingDirs, projectId, rootPath, worktreeId]);
 
   const toggleDir = (entry: TreeEntry) => {
     const key = normalizeCmp(entry.fullPath);
@@ -149,6 +163,7 @@ export function RightFileTreePane({
       return next;
     });
     if (!isExpanded && !childrenMap[key]) {
+      failedDirsRef.current.delete(key);
       void loadDirectory(entry.fullPath);
     }
   };
@@ -219,6 +234,7 @@ export function RightFileTreePane({
           className={styles.refreshBtn}
           title={isZh ? "刷新目录" : "Refresh tree"}
           onClick={() => {
+            failedDirsRef.current.clear();
             setChildrenMap({});
             void loadDirectory();
           }}

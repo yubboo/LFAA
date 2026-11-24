@@ -9,11 +9,13 @@ interface ModeCatalog {
   activePreset: string;
 }
 
-export function SessionMode({ isZh, selected, locked, busy, onSelect }: {
+export function SessionMode({ isZh, selected, locked, busy, compact = false, onSelect }: {
   isZh: boolean;
   selected: string | undefined;
   locked: boolean;
   busy: boolean;
+  /** 聊天模式只留一枚图标：模式名收进 aria-label 与悬浮提示，点开仍是完整菜单。 */
+  compact?: boolean;
   onSelect: (id: string) => void;
 }) {
   const [catalog, setCatalog] = useState<ModeCatalog | null>(null);
@@ -128,9 +130,9 @@ export function SessionMode({ isZh, selected, locked, busy, onSelect }: {
   return (
     <div className={styles.root}>
       {locked ? (
-        <span className={styles.locked} title={lockedHint} aria-label={`${modeName}. ${lockedHint}`}>
+        <span className={styles.locked} data-compact={compact || undefined} title={lockedHint} aria-label={`${modeName}. ${lockedHint}`}>
           <IconLock size={14} aria-hidden="true" />
-          <span>{modeName}</span>
+          {!compact && <span>{modeName}</span>}
         </span>
       ) : (
         <>
@@ -138,6 +140,7 @@ export function SessionMode({ isZh, selected, locked, busy, onSelect }: {
             ref={triggerRef}
             type="button"
             className={`${styles.trigger} ${open ? styles.triggerOpen : ""}`}
+            data-compact={compact || undefined}
             aria-label={`${label}: ${modeName}`}
             aria-haspopup="listbox"
             aria-expanded={open}
@@ -153,8 +156,8 @@ export function SessionMode({ isZh, selected, locked, busy, onSelect }: {
             }}
           >
             <IconSparkles className={styles.icon} size={14} aria-hidden="true" />
-            <span className={styles.triggerLabel}>{modeName}</span>
-            <IconChevronDown className={styles.chevron} size={13} aria-hidden="true" data-open={open || undefined} />
+            {!compact && <span className={styles.triggerLabel}>{modeName}</span>}
+            {!compact && <IconChevronDown className={styles.chevron} size={13} aria-hidden="true" data-open={open || undefined} />}
           </button>
 
           <PopoverCard

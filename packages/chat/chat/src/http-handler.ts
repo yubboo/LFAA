@@ -198,33 +198,51 @@ export function createChatHttpHandler(service: ChatService, options: {
             sendJson(res, 400, { error: worktreePatch.error });
             return true;
           }
-          const write = async () => service.updateSession(sessionId, {
-            ...(changesPreset ? await resolvePreset(body.sessionPreset) : {}),
-            ...(typeof body.title === "string" ? { title: body.title } : {}),
-            ...(body.projectId !== undefined
-              ? { projectId: typeof body.projectId === "string" ? body.projectId : null }
-              : {}),
-            ...(body.sectionId !== undefined
-              ? { sectionId: typeof body.sectionId === "string" ? body.sectionId : null }
-              : {}),
-            ...(worktreePatch.value ?? {}),
-            ...(typeof body.pinned === "boolean" ? { pinned: body.pinned } : {}),
-            ...(typeof body.archived === "boolean" ? { archived: body.archived } : {}),
-            ...(typeof body.unread === "boolean" ? { unread: body.unread } : {}),
-            ...(typeof body.muted === "boolean" ? { muted: body.muted } : {}),
-            // agent / 绑定覆盖：空串按「解绑」处理，避免存下一个查不到的 id。
-            ...(body.agentId !== undefined
-              ? { agentId: typeof body.agentId === "string" && body.agentId.trim() ? body.agentId.trim() : null }
-              : {}),
-            ...(body.bindingOverrideId !== undefined
-              ? {
-                  bindingOverrideId: typeof body.bindingOverrideId === "string" && body.bindingOverrideId.trim()
-                    ? body.bindingOverrideId.trim()
-                    : null,
-                }
-              : {}),
-          });
-          const session = (body.projectId !== undefined || changesPreset) && options.withIdleSession
+          const changesWorktree = Boolean(worktreePatch.value);
+          const nextProjectId = body.projectId !== undefined
+            ? (typeof body.projectId === "string" ? body.projectId : null)
+            : undefined;
+          const write = async () => {
+            // 校验工作树与目标项目一致，切换项目但未显式指定工作树时自动清空旧项目的失效工作树快照。
+            const current = (nextProjectId !== undefined || changesWorktree) && typeof service.getSession === "function"
+              ? await service.getSession(sessionId)
+              : null;
+            const effectiveProjectId = nextProjectId !== undefined ? nextProjectId : current?.projectId;
+            const resolvedWorktree = worktreePatch.value?.worktree;
+            if (resolvedWorktree && effectiveProjectId !== undefined && resolvedWorktree.projectId !== effectiveProjectId) {
+              throw new Error("所选工作树不属于当前会话绑定的项目。");
+            }
+            const clearStaleWorktree = nextProjectId !== undefined
+              && !changesWorktree
+              && current?.worktree
+              && current.worktree.projectId !== nextProjectId;
+            return service.updateSession(sessionId, {
+              ...(changesPreset ? await resolvePreset(body.sessionPreset) : {}),
+              ...(typeof body.title === "string" ? { title: body.title } : {}),
+              ...(nextProjectId !== undefined ? { projectId: nextProjectId } : {}),
+              ...(body.sectionId !== undefined
+                ? { sectionId: typeof body.sectionId === "string" ? body.sectionId : null }
+                : {}),
+              ...(clearStaleWorktree ? { worktree: null } : {}),
+              ...(worktreePatch.value ?? {}),
+              ...(typeof body.pinned === "boolean" ? { pinned: body.pinned } : {}),
+              ...(typeof body.archived === "boolean" ? { archived: body.archived } : {}),
+              ...(typeof body.unread === "boolean" ? { unread: body.unread } : {}),
+              ...(typeof body.muted === "boolean" ? { muted: body.muted } : {}),
+              // agent / 绑定覆盖：空串按「解绑」处理，避免存下一个查不到的 id。
+              ...(body.agentId !== undefined
+                ? { agentId: typeof body.agentId === "string" && body.agentId.trim() ? body.agentId.trim() : null }
+                : {}),
+              ...(body.bindingOverrideId !== undefined
+                ? {
+                    bindingOverrideId: typeof body.bindingOverrideId === "string" && body.bindingOverrideId.trim()
+                      ? body.bindingOverrideId.trim()
+                      : null,
+                  }
+                : {}),
+            });
+          };
+          const session = (body.projectId !== undefined || changesPreset || changesWorktree) && options.withIdleSession
             ? await options.withIdleSession(sessionId, write)
             : await write();
           if (!session) {

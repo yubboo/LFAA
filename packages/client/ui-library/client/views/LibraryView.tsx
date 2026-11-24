@@ -56,7 +56,9 @@ export function LibraryView({
   useEffect(() => {
     const current = librarySelectionStore.getSnapshot();
     if (!current) return;
-    const visible = current.kind === "media" ? tab === "media" : tab === "asset";
+    const visible = current.kind === "media"
+      ? tab === "media"
+      : (tab === "asset" || tab === "artifact");
     if (!visible && tab !== "all") librarySelectionStore.clear();
   }, [tab]);
 
@@ -121,38 +123,41 @@ export function LibraryView({
   const handleImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    const isText = file.type.startsWith("text/")
-      || /\.(md|txt|json|ts|tsx|js|jsx|css|html|yaml|yml|py|csv)$/iu.test(file.name);
-    if (isText) {
-      const text = await file.text();
-      const created = await store.saveLibraryAsset({
-        category: "asset",
-        title: file.name,
-        fileName: file.name,
-        content: text,
-        encoding: "utf8",
-        projectId: boundProjectId,
-      });
-      onSelectTab("asset");
-      reveal({ kind: "asset", id: created.id, title: created.title });
-    } else {
-      const buf = await file.arrayBuffer();
-      const bytes = new Uint8Array(buf);
-      let bin = "";
-      for (const b of bytes) bin += String.fromCharCode(b);
-      const created = await store.saveLibraryAsset({
-        category: "asset",
-        title: file.name,
-        fileName: file.name,
-        content: btoa(bin),
-        encoding: "base64",
-        mimeType: file.type || "application/octet-stream",
-        projectId: boundProjectId,
-      });
-      onSelectTab("asset");
-      reveal({ kind: "asset", id: created.id, title: created.title });
+    try {
+      const isText = file.type.startsWith("text/")
+        || /\.(md|txt|json|ts|tsx|js|jsx|css|html|yaml|yml|py|csv)$/iu.test(file.name);
+      if (isText) {
+        const text = await file.text();
+        const created = await store.saveLibraryAsset({
+          category: "asset",
+          title: file.name,
+          fileName: file.name,
+          content: text,
+          encoding: "utf8",
+          projectId: boundProjectId,
+        });
+        onSelectTab("asset");
+        reveal({ kind: "asset", id: created.id, title: created.title });
+      } else {
+        const buf = await file.arrayBuffer();
+        const bytes = new Uint8Array(buf);
+        let bin = "";
+        for (const b of bytes) bin += String.fromCharCode(b);
+        const created = await store.saveLibraryAsset({
+          category: "asset",
+          title: file.name,
+          fileName: file.name,
+          content: btoa(bin),
+          encoding: "base64",
+          mimeType: file.type || "application/octet-stream",
+          projectId: boundProjectId,
+        });
+        onSelectTab("asset");
+        reveal({ kind: "asset", id: created.id, title: created.title });
+      }
+    } finally {
+      event.target.value = "";
     }
-    event.target.value = "";
   };
 
   const handleAddMemory = async () => {

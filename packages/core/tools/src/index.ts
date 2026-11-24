@@ -145,9 +145,18 @@ export class ToolsService extends Service {
     view.getTool = (name) => permits(name) ? this.getTool(name) : undefined;
     view.getLlmToolSchemas = () => this.getLlmToolSchemas().filter(({ name }) => permits(name));
     view.executeTool = (name, args, context) => {
-      // 执行时必须再拦一次：模型可能凭历史记忆调用已在策略外被藏起来的工具。
-      if (!permits(name)) throw new Error(`工具 ${name} 已被当前 agent 的工具策略禁用。`);
-      return this.executeTool(name, args, context);
+      // 执行时必须再拦一次：模型可能凭历史记忆调用已在策略外被藏起来的工具，返回结构化拒绝避免崩溃整轮运行；同时组合 allowsTool 防止子智能体绕过策略。
+      if (!permits(name)) {
+        return Promise.resolve({
+          ok: false,
+          output: `工具 ${name} 已被当前 agent 的工具策略禁用。`,
+          summary: "工具不可用",
+        });
+      }
+      return this.executeTool(name, args, {
+        ...context,
+        allowsTool: (candidate) => permits(candidate) && (context.allowsTool?.(candidate) ?? true),
+      });
     };
     return view;
   }
@@ -190,7 +199,7 @@ export class ToolsService extends Service {
       const decision = this.sandbox.checkWrite(target, policy);
       return decision.allowed ? null : decision.reason;
     }
-    if (name === "run_command") {
+    if (name === "run_command" || name === "start_background_task") {
       const command = typeof args.command === "string" ? args.command : "";
       const decision = this.sandbox.checkCommand(command, policy);
       return decision.allowed ? null : decision.reason;

@@ -53,6 +53,10 @@ export function createLlmHttpHandler(service: LlmService) {
         const body = await readJsonBody(req);
         const apiProtocol = asApiProtocol(body.apiProtocol);
         const availableModels = asModelList(body.availableModels);
+        const rawTier = body.agentPlanTier;
+        const agentPlanTier = rawTier === "small" || rawTier === "medium" || rawTier === "large" || rawTier === "max"
+          ? rawTier
+          : undefined;
         const profile = await service.saveProfile({
           ...(typeof body.id === "string" ? { id: body.id } : {}),
           ...(typeof body.providerId === "string" ? { providerId: body.providerId } : {}),
@@ -61,6 +65,7 @@ export function createLlmHttpHandler(service: LlmService) {
           ...(apiProtocol ? { apiProtocol } : {}),
           baseUrl: typeof body.baseUrl === "string" ? body.baseUrl : "",
           model: typeof body.model === "string" ? body.model : "",
+          ...(agentPlanTier ? { agentPlanTier } : {}),
           ...(availableModels.length > 0 ? { availableModels } : {}),
           ...(typeof body.apiKey === "string" ? { apiKey: body.apiKey } : {}),
           ...(typeof body.temperature === "number" ? { temperature: body.temperature } : {}),

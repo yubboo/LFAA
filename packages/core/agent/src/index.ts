@@ -16,19 +16,10 @@ import { GoalContinuationScheduler, type GoalServicePort } from "./run/goal-sche
 import { pickRunOptions, resolveRunRouting, type RunOptionCache } from "./run/run-options";
 import { RunWaiterRegistry } from "./run/run-waiters";
 import { createToolPolicyResolver } from "./run/tool-policy";
-import {
-  resolveWorkspaceScope,
-  WorkspaceBusyError,
-  WorkspaceLeaseRegistry,
-  type LeaseHolder,
-} from "./run/workspace-lease";
+import { resolveWorkspaceScope, WorkspaceBusyError, WorkspaceLeaseRegistry, type LeaseHolder } from "./run/workspace-lease";
 import type { CompactionHook } from "./run/run-types";
 import { pendingApprovalSummary, type ActiveRunRecord } from "./run/run-records";
-import {
-  maskRunId,
-  type AgentStreamMetrics,
-  type RunChunkRecord,
-} from "./stream-journal";
+import { maskRunId, type AgentStreamMetrics, type RunChunkRecord } from "./stream-journal";
 import type { AgentAttentionItem, AgentPermissionMode, AgentRunEvent, AgentRunStatus, ProjectScope, StartAgentRunInput } from "./types";
 
 export * from "./types";
@@ -36,7 +27,6 @@ export * from "./tools/permission-policy";
 export * from "./stream-journal";
 export { createAgentHttpHandler } from "./http-handler";
 export { executeAgentTaskLoop, type RunExecutionParams, type RunLoopDeps } from "./run/agent-loop";
-
 
 /** 配置 Agent Host 存储及运行参数，供应用启动和隔离测试注入。 */
 export interface AgentPluginConfig {
@@ -113,6 +103,7 @@ export class AgentService extends Service {
       for (const pending of run.pendingApprovals.values()) pending.resolve(false);
     }
     this.goalScheduler.dispose();
+    this.runWaiters.clear();
     this.sessionRootsCache.clear();
     this.sessionRunOptions.clear();
     this.workspaceLeases.clear();
@@ -209,8 +200,14 @@ export class AgentService extends Service {
     const sessionId = record.status.sessionId;
     this.workspaceLeases.release(sessionId);
     this.goalScheduler.schedule(sessionId, record.status.status === "done");
-    // 群聊编排需要「这一轮说完再接下一个」，这里在收口时唤醒等待者。
+    // 群聊编排需要「这一轮说完再接下一个」，这里在收口时唤醒等待者，并在短缓冲后清理历史运行记录避免内存泄漏。
     this.runWaiters.wake(record.status.runId);
+    const finishedRunId = record.status.runId;
+    const cleanupTimer = setTimeout(() => {
+      const current = this.runs.get(finishedRunId);
+      if (current && current.status.status !== "running" && current.listeners.size === 0) this.runs.delete(finishedRunId);
+    }, 60_000);
+    cleanupTimer.unref?.();
   }
 
   /**
@@ -222,9 +219,9 @@ export class AgentService extends Service {
     await this.runWaiters.wait(runId, timeoutMs);
   }
 
-  /** 运行是否仍在进行；已收口的运行从运行表移除。 */
+  /** 运行是否仍在进行；已收口的运行立即返回 false，防止 waitForRun 死等。 */
   isRunActive(runId: string): boolean {
-    return this.runs.has(runId);
+    return this.runs.get(runId)?.status.status === "running";
   }
 
   /**
@@ -266,6 +263,7 @@ export class AgentService extends Service {
     await this.assertChatModel(input, session);
     const compaction = this.ctx.get("compaction") as CompactionHook | undefined;
     const prompt = this.ctx.get("prompt") as { compose(): Promise<string> } | undefined;
+    const browser = this.ctx.get("browser") as { describeTakeoverHint?(sessionId: string): string } | undefined;
     return beginAgentRun({
       llm: this.createRunLlm(input, session),
       tools: this.ctx.tools,
@@ -275,6 +273,7 @@ export class AgentService extends Service {
       resolveToolPolicy: createToolPolicyResolver(this.ctx), // agent 工具边界：只收窄
       ...(compaction ? { compaction } : {}),
       ...(prompt ? { extraSystemPrompt: () => prompt.compose() } : {}),
+      ...(browser?.describeTakeoverHint ? { dynamicSystemHint: () => browser.describeTakeoverHint!(input.sessionId) } : {}),
       skillResolver: this.skillResolver,
       skillCatalogProvider: this.skillCatalogProvider,
       ...(this.projectScopeProvider ? { resolveProjectScope: this.projectScopeProvider } : {}),
@@ -288,22 +287,30 @@ export class AgentService extends Service {
     }, input, resolveRoots);
   }
 
-  /** 浏览器仅提交记录标识，文件路径取自会话的真实工具结果。 */
+  /** 浏览器仅提交记录标识，文件路径取自会话的真实工具结果（支持写入/编辑与 read_file）。 */
   async readFileActivity(    sessionId: string, messageId: string, stepId: string,
     resolveRoots: (projectId: string | null) => Promise<string[]>,
   ) {
     const session = await this.ctx.memory.getSession(sessionId);
     const step = session?.messages.find((message) => message.id === messageId && message.role === "assistant")
       ?.steps?.find((item) => item.id === stepId);
-    if (!session || !step?.fileChange || step.phase !== "act" || step.status !== "done") return null;
-    return readActivitySource(step.fileChange, await resolveRoots(session.projectId));
+    if (!session || !step || step.phase !== "act" || step.status !== "done") return null;
+    const roots = await resolveRoots(session.projectId);
+    if (step.fileChange) return readActivitySource(step.fileChange, roots);
+    if (step.toolName === "read_file") {
+      const targetPath = step.readRange?.resolvedPath ?? step.toolTarget?.trim();
+      if (targetPath) {
+        return readActivitySource({ path: step.toolTarget?.trim() || targetPath, resolvedPath: targetPath }, roots);
+      }
+    }
+    return null;
   }
 
   /** 把新问题追加到正在运行的对话（插话），不打断当前生成。 */
   async steerRun(runId: string, text: string): Promise<boolean> {
     const run = this.runs.get(runId);
     const content = text.trim();
-    if (!run || !content) return false;
+    if (!run || run.status.status !== "running" || !content) return false;
     run.steering.push(content);
     // 同时落库为用户消息，刷新/断线后历史仍能看到这次插话。
     await this.ctx.memory.appendMessage(run.status.sessionId, {
@@ -409,11 +416,7 @@ export class AgentService extends Service {
       if (run.status.status !== "running" || run.pendingApprovals.size === 0) continue;
       const sessionId = run.status.sessionId;
       const pending = [...run.pendingApprovals.values()][0];
-      items.set(sessionId, {
-        sessionId,
-        kind: "approval",
-        ...(pending?.toolName ? { toolName: pending.toolName } : {}),
-      });
+      items.set(sessionId, { sessionId, kind: "approval", ...(pending?.toolName ? { toolName: pending.toolName } : {}) });
     }
     const sessions = await this.ctx.memory.listSessions().catch(() => []);
     for (const session of sessions) {
@@ -438,17 +441,13 @@ export class AgentService extends Service {
   recordReconnect(runId: string, afterSeq: number, replayed: RunChunkRecord[]): void {
     this.totalReconnectsCount += 1;
     this.replayedChunksCount += replayed.length;
-    const range = replayed.length > 0
-      ? `[${replayed[0]!.seq}..${replayed[replayed.length - 1]!.seq}]`
-      : "[]";
+    const range = replayed.length > 0 ? `[${replayed[0]!.seq}..${replayed[replayed.length - 1]!.seq}]` : "[]";
     // 仅记录脱敏 runId、起始序号与补发区间，绝不记录用户/模型原文
     console.info(`[agent-stream] reconnect runId=${maskRunId(runId)} afterSeq=${afterSeq} replayed=${range}`);
   }
 
   recordClientFps(fps: number): void {
-    if (Number.isFinite(fps) && fps > 0) {
-      this.lastClientFpsValue = Math.round(fps * 10) / 10;
-    }
+    if (Number.isFinite(fps) && fps > 0) this.lastClientFpsValue = Math.round(fps * 10) / 10;
   }
 
   getStreamMetrics(): AgentStreamMetrics {
@@ -456,16 +455,10 @@ export class AgentService extends Service {
     for (const run of this.runs.values()) {
       if (run.status.status === "running") activeStreams += 1;
     }
-    const reconnectRate = this.totalRunsCount > 0
-      ? Math.round((this.totalReconnectsCount / this.totalRunsCount) * 1000) / 1000
-      : 0;
+    const reconnectRate = this.totalRunsCount > 0 ? Math.round((this.totalReconnectsCount / this.totalRunsCount) * 1000) / 1000 : 0;
     return {
-      activeStreams,
-      totalRuns: this.totalRunsCount,
-      totalReconnects: this.totalReconnectsCount,
-      reconnectRate,
-      replayedChunks: this.replayedChunksCount,
-      lastClientFps: this.lastClientFpsValue,
+      activeStreams, totalRuns: this.totalRunsCount, totalReconnects: this.totalReconnectsCount,
+      reconnectRate, replayedChunks: this.replayedChunksCount, lastClientFps: this.lastClientFpsValue,
     };
   }
 
@@ -480,7 +473,7 @@ export class AgentService extends Service {
         { role: "user", content: question },
       ],
     });
-    return out.content.trim() || "模型未返回内容。";
+    return out.content.trim() || out.reasoningContent?.trim() || "模型未返回内容。";
   }
 }
 

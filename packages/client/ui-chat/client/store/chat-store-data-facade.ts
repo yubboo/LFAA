@@ -1,6 +1,6 @@
 // 会话数据动作门面：把资料库、存储、模型配置、规则与长期记忆的委托从主 Store 拆出，保持单一职责。
 import type { ChatDataActions } from "./chat-data-actions";
-import type { GeneralSettingsConfig, OpenSourcePackageInfo, ReasoningLevelOption } from "../settings/general-settings-client";
+import type { GeneralSettingsConfig, OpenSourcePackageInfo, ReasoningLevelOption } from "../shared/general-settings";
 import type {
   LibraryAssetItem,
   ModelCapabilityItem,

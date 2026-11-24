@@ -66,6 +66,26 @@ export interface SidebarGroupConfig {
 
 const DRAG_PROJECT_MIME = "text/lfaa-project-id";
 
+/**
+ * 行首状态标记：运行中显示旋转圆弧，完成未读显示小圆点。
+ * 绝对定位在行的最左侧留白槽位，不参与行内布局——有标记时标题不会右移；
+ * 项目行、会话行、会话子行因此共用同一条左侧标记列。
+ */
+function StatusMarker({ item }: { item: SidebarItemConfig }) {
+  const running = item.icon === "working";
+  const state = running ? "working" : item.unread ? "done" : null;
+  if (!state) return null;
+  return (
+    <span
+      className={statusStyles.statusMarker}
+      data-state={state}
+      aria-label={running ? "运行中" : "未读"}
+    >
+      {running && <NavigationIcon name="working" className={statusStyles.workingIcon} />}
+    </span>
+  );
+}
+
 /** 使用统一配置渲染侧栏分组、搜索和行项，折叠、移动与选择由调用方同步。 */
 export function SidebarSectionList({
   ariaLabel,
@@ -166,6 +186,7 @@ export function SidebarSectionList({
                           onMouseEnter={(event) => item.onMouseEnter?.(event.currentTarget)}
                           onMouseLeave={() => item.onMouseLeave?.()}
                         >
+                          <StatusMarker item={item} />
                           <button
                             type="button"
                             className={styles.itemMain}
@@ -176,7 +197,7 @@ export function SidebarSectionList({
                             onDoubleClick={item.onDoubleClick}
                           >
                             {!item.hideIcon && (
-                              <NavigationIcon name={item.icon} className={item.icon === "working" ? statusStyles.workingIcon : undefined} />
+                              <NavigationIcon name={item.icon === "working" ? "newChat" : item.icon} />
                             )}
                             <span className={styles.label}>{item.label}</span>
                             {item.branchLabel && (
@@ -185,7 +206,6 @@ export function SidebarSectionList({
                               </span>
                             )}
                             {item.muted && <NavigationIcon name="muted" className={statusStyles.mutedMarker} />}
-                            {item.unread && <span className={statusStyles.unreadDot} aria-label="未读" />}
                             {item.attention && item.attentionLabel && (
                               <span
                                 className={styles.attentionBadge}
@@ -232,8 +252,9 @@ export function SidebarSectionList({
                           data-sidebar-control={item.control ? "true" : undefined}
                           onClick={item.onClick}
                         >
+                          <StatusMarker item={item} />
                           {!item.hideIcon && (
-                            <NavigationIcon name={item.icon} className={item.icon === "working" ? statusStyles.workingIcon : undefined} />
+                            <NavigationIcon name={item.icon === "working" ? "newChat" : item.icon} />
                           )}
                           <span className={styles.label}>{item.label}</span>
                           {item.muted && <NavigationIcon name="muted" className={statusStyles.mutedMarker} />}

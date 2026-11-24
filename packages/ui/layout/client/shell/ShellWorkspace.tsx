@@ -80,7 +80,7 @@ export function ShellWorkspace({
         {registeredView ? (
           registeredView.render()
         ) : shownView === "project" && currentProject && projectProvider ? (
-          <div className={styles.projectViewHost}>
+          <div key={currentProject.id} className={styles.projectViewHost}>
             {workspaceNotice && (
               <p className={styles.projectNotice} role="status">{workspaceNotice}</p>
             )}

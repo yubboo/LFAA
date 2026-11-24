@@ -81,7 +81,7 @@
   overflow-x: auto;
   padding-block: 0.6rem;
   border-bottom: 1px solid var(--color-line);
-  background: var(--color-canvas);
+  background: var(--color-code-bg);
 }
 
 .reviewChevron {

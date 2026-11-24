@@ -39,6 +39,8 @@ export function ComposerScopeBar({
   selectedProjectId,
   canCreateProject,
   openProjectSignal = 0,
+  projectMenuOpen,
+  onProjectMenuOpenChange,
   showShelf = true,
   projectDisabled = false,
   worktree = null,
@@ -51,6 +53,9 @@ export function ComposerScopeBar({
   selectedProjectId: string | null;
   canCreateProject: boolean;
   openProjectSignal?: number;
+  /** 由上层受控时的项目选择器开关态；与独立项目胶囊共享同一浮层并避免切换弹跳。 */
+  projectMenuOpen?: boolean;
+  onProjectMenuOpenChange?: (open: boolean) => void;
   showShelf?: boolean;
   projectDisabled?: boolean;
   /** 已绑定的工作树摘要；只做展示，解绑由上层提交 worktreeId: null。 */
@@ -59,13 +64,27 @@ export function ComposerScopeBar({
   onCreateProject: () => void;
   onClearWorktree?: () => void;
 }) {
-  const [openMenu, setOpenMenu] = useState<OpenMenuKind>(null);
+  const [internalMenu, setInternalMenu] = useState<OpenMenuKind>(null);
   const [projectQuery, setProjectQuery] = useState("");
   const [locationQuery, setLocationQuery] = useState("");
   const [cloudHintVisible, setCloudHintVisible] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
   const projectSearchRef = useRef<HTMLInputElement>(null);
+  const isControlledProject = typeof projectMenuOpen === "boolean";
+  const openMenu: OpenMenuKind = isControlledProject
+    ? (projectMenuOpen ? "project" : (internalMenu === "location" ? "location" : null))
+    : internalMenu;
+
+  const setOpenMenu = (next: OpenMenuKind | ((curr: OpenMenuKind) => OpenMenuKind)) => {
+    const resolved = typeof next === "function" ? next(openMenu) : next;
+    if (isControlledProject) {
+      onProjectMenuOpenChange?.(resolved === "project");
+      setInternalMenu(resolved === "location" ? "location" : null);
+    } else {
+      setInternalMenu(resolved);
+    }
+  };
 
   const selectedProject = useMemo(
     () => (selectedProjectId ? projects.find((item) => item.id === selectedProjectId) ?? null : null),
@@ -80,13 +99,26 @@ export function ComposerScopeBar({
   useEffect(() => {
     if (!openMenu) return;
     const closeOnOutside = (event: PointerEvent) => {
+      if (event.target instanceof Element && event.target.closest("[data-project-picker-trigger]")) {
+        return;
+      }
       if (event.target instanceof Node && !rootRef.current?.contains(event.target)) {
-        setOpenMenu(null);
+        if (isControlledProject) {
+          onProjectMenuOpenChange?.(false);
+          setInternalMenu(null);
+        } else {
+          setInternalMenu(null);
+        }
       }
     };
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setOpenMenu(null);
+        if (isControlledProject) {
+          onProjectMenuOpenChange?.(false);
+          setInternalMenu(null);
+        } else {
+          setInternalMenu(null);
+        }
       }
     };
     document.addEventListener("pointerdown", closeOnOutside);
@@ -95,13 +127,13 @@ export function ComposerScopeBar({
       document.removeEventListener("pointerdown", closeOnOutside);
       document.removeEventListener("keydown", closeOnEscape);
     };
-  }, [openMenu]);
+  }, [isControlledProject, onProjectMenuOpenChange, openMenu]);
 
   useEffect(() => {
-    if (openProjectSignal > 0) {
-      setOpenMenu("project");
+    if (openProjectSignal > 0 && !isControlledProject) {
+      setInternalMenu("project");
     }
-  }, [openProjectSignal]);
+  }, [isControlledProject, openProjectSignal]);
 
   useEffect(() => {
     if (openMenu === "project") {
@@ -318,7 +350,8 @@ export function ComposerScopeBar({
             )}
           </div>
         )}
-      </div>
+
+        </div>
     </div>
   );
 }

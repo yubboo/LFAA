@@ -1,7 +1,7 @@
 /* 共享二次确认弹窗样式：居中液态玻璃卡片、柔和暗红警示按钮与高对比度文本。 */
 .backdrop {
   position: fixed;
-  z-index: 115;
+  z-index: calc(var(--z-dialog) + 10);
   inset: 0;
   display: grid;
   place-items: center;

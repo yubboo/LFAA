@@ -67,17 +67,18 @@ export async function generateSessionTitle(
   if (!userMessage) throw new Error("缺少 userMessage。");
   const fallback = generateConciseSessionTitle(userMessage);
   try {
+    const userPrompt = input.assistantReply?.trim()
+      ? `用户提问：\n${input.userMessage.slice(0, 2_000)}\n\n助手回复：\n${input.assistantReply.slice(0, 1_500)}`
+      : input.userMessage.slice(0, 2_000);
     const out = await llm.complete({
       ...(input.profileId ? { profileId: input.profileId } : {}),
+      reasoningEffort: "low",
       messages: [
         {
           role: "system",
           content: "你是会话标题生成器。请根据用户提问与助手回复，用不超过 12 个汉字或 6 个英文单词概括主题，只输出标题本身，不要引号、不要标点结尾、不要解释。",
         },
-        { role: "user", content: input.userMessage.slice(0, 2_000) },
-        ...(input.assistantReply?.trim()
-          ? [{ role: "assistant" as const, content: input.assistantReply.slice(0, 1_500) }]
-          : []),
+        { role: "user", content: userPrompt },
       ],
     });
     const title = normalizeGeneratedTitle(out.content ?? "");

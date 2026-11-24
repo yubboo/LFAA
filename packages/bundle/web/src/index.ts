@@ -162,7 +162,7 @@ export const webBundlePlugin: Plugin.Object<WebBundleConfig> = {
     const promptFiber = ctx.plugin(systemPromptPlugin);
     const compactCommandFiber = ctx.plugin(commandCompactPlugin);
     const sandboxPolicyFiber = ctx.plugin(sandboxPolicyPlugin, {});
-    await Promise.all([sectionsFiber, workspaceFiber, worktreeFiber, llmFiber, reviewFiber, rulesFiber, memoryFiber, shellFiber, toolsFiber, skillsFiber, webFiber, webFetchFiber, goalFiber, handoffFiber, toolTodoFiber, toolWebFiber, toolGoalFiber, toolScheduleFiber, feedbackFiber, attachmentFiber, sessionTitleFiber, commandsFiber, mediaToolsFiber, observationFiber, timeoutFiber, planModeFiber, prunerFiber, spillFiber, compactionFiber, promptFiber, compactCommandFiber, sandboxPolicyFiber]);
+    await Promise.all([sectionsFiber, workspaceFiber, worktreeFiber, llmFiber, agentProfileFiber, reviewFiber, rulesFiber, memoryFiber, shellFiber, toolsFiber, skillsFiber, webFiber, webFetchFiber, goalFiber, handoffFiber, toolTodoFiber, toolWebFiber, toolGoalFiber, toolScheduleFiber, feedbackFiber, attachmentFiber, sessionTitleFiber, commandsFiber, mediaToolsFiber, observationFiber, timeoutFiber, planModeFiber, prunerFiber, spillFiber, compactionFiber, promptFiber, compactCommandFiber, sandboxPolicyFiber]);
 
     const loaderFiber = ctx.plugin(Loader, { baseUrl: config.loaderBaseUrl });
     await loaderFiber;
@@ -207,7 +207,10 @@ const WIRING_PLUGIN: Plugin.Object<void> = {
   name: "@lfaa/bundle-wiring",
   inject: ["plugins", "skills", "agent", "workspace", "worktree", "sections", "memory"],
   async apply(ctx: Context) {
-    ctx.plugins.setSkillRegistrar((pluginId, list) => ctx.skills.registerPluginSkills(pluginId, list));
+    ctx.effect(() => {
+      ctx.plugins.setSkillRegistrar((pluginId, list) => ctx.skills.registerPluginSkills(pluginId, list));
+      return () => ctx.plugins.setSkillRegistrar(null);
+    });
     await ctx.plugins.restoreEnabledPlugins();
 
     ctx.effect(() => ctx.agent.setSkillResolver(async (skillIds: string[], roots: string[]) => {

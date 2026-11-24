@@ -34,6 +34,7 @@
     "@deepseek-ai/cordis": "^4.1.0",
     "@lfaa/browser": "workspace:*",
     "@lfaa/ui-layout": "workspace:*",
+    "@lfaa/ui-primitives": "workspace:*",
     "@tabler/icons-react": "^3.35.0",
     "react": "^19.1.0"
   },

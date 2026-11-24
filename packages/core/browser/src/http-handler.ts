@@ -1,6 +1,41 @@
 // 提供 /api/browser/* 导航、多标签管理、动态视口、真实键鼠、Console/Network 日志、人工接管及配置接口。
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { BrowserService } from "./index";
+import type { BrowserInputPayload } from "./types";
+
+/** 校验并归一化前端轻量输入负载，非法字段直接返回 null。 */
+function parseInputPayload(body: Record<string, unknown>): BrowserInputPayload | null {
+  const kind = typeof body.kind === "string" ? body.kind : "";
+  const modifiers = typeof body.modifiers === "number" ? body.modifiers : undefined;
+  const x = typeof body.x === "number" && Number.isFinite(body.x) ? body.x : 0;
+  const y = typeof body.y === "number" && Number.isFinite(body.y) ? body.y : 0;
+  if (kind === "wheel") {
+    const deltaX = typeof body.deltaX === "number" && Number.isFinite(body.deltaX) ? body.deltaX : 0;
+    const deltaY = typeof body.deltaY === "number" && Number.isFinite(body.deltaY) ? body.deltaY : 0;
+    return { kind, x, y, deltaX, deltaY, ...(modifiers !== undefined ? { modifiers } : {}) };
+  }
+  if (kind === "mousemove") {
+    const buttons = typeof body.buttons === "number" ? body.buttons : undefined;
+    return { kind, x, y, ...(buttons !== undefined ? { buttons } : {}), ...(modifiers !== undefined ? { modifiers } : {}) };
+  }
+  if (kind === "mousedown" || kind === "mouseup") {
+    const button = body.button === "right" || body.button === "middle" ? body.button : "left";
+    const clickCount = typeof body.clickCount === "number" ? body.clickCount : 1;
+    const buttons = typeof body.buttons === "number" ? body.buttons : undefined;
+    return { kind, x, y, button, clickCount, ...(buttons !== undefined ? { buttons } : {}), ...(modifiers !== undefined ? { modifiers } : {}) };
+  }
+  if (kind === "keydown" || kind === "keyup") {
+    if (typeof body.key !== "string" || !body.key) return null;
+    const code = typeof body.code === "string" ? body.code : undefined;
+    const text = typeof body.text === "string" ? body.text : undefined;
+    return { kind, key: body.key, ...(code ? { code } : {}), ...(text ? { text } : {}), ...(modifiers !== undefined ? { modifiers } : {}) };
+  }
+  if (kind === "text") {
+    if (typeof body.text !== "string" || !body.text) return null;
+    return { kind, text: body.text };
+  }
+  return null;
+}
 
 function sendJson(res: ServerResponse, statusCode: number, payload: unknown): void {
   res.statusCode = statusCode;
@@ -170,6 +205,20 @@ export function createBrowserHttpHandler(service: BrowserService) {
         return true;
       }
 
+      if (method === "POST" && pathname === "/api/browser/input") {
+        const body = await readJsonBody(req);
+        const sid = typeof body.sessionId === "string" && body.sessionId ? body.sessionId : sessionId;
+        const payload = parseInputPayload(body);
+        if (!payload) {
+          sendJson(res, 400, { error: "无效的浏览器输入事件负载。" });
+          return true;
+        }
+        await service.dispatchInput(sid, payload);
+        res.statusCode = 204;
+        res.end();
+        return true;
+      }
+
       if (method === "POST" && pathname === "/api/browser/action") {
         const body = await readJsonBody(req);
         const sid = typeof body.sessionId === "string" && body.sessionId ? body.sessionId : sessionId;
@@ -213,7 +262,10 @@ export function createBrowserHttpHandler(service: BrowserService) {
         if (kind === "scroll") {
           const deltaY = typeof body.deltaY === "number" ? body.deltaY : 400;
           const deltaX = typeof body.deltaX === "number" ? body.deltaX : 0;
-          const state = await service.scroll(sid, deltaY, deltaX, fast);
+          const point = typeof body.x === "number" && typeof body.y === "number"
+            ? { x: body.x, y: body.y }
+            : undefined;
+          const state = await service.scroll(sid, deltaY, deltaX, fast, point);
           sendJson(res, 200, { state });
           return true;
         }

@@ -1,10 +1,11 @@
-// 渲染右侧工作台顶栏控制按钮组：更多、概览、最大化与收起侧面板。
+// 渲染右侧工作台顶栏控制按钮组：更多、概览、跟随 Agent、最大化与收起侧面板。
 import {
   IconDotsVertical,
   IconLayoutList,
   IconLayoutSidebarRight,
   IconMaximize,
   IconMinimize,
+  IconRobot,
   IconX,
 } from "@tabler/icons-react";
 import styles from "./RightWorkbenchActions.module.css";
@@ -14,22 +15,26 @@ export function WorkbenchTopActions({
   isZh,
   compact,
   rightPanelMaximized,
+  followAgentWorkbench,
   menuOpen,
   showSessionControls,
   showPanelControls,
   onToggleMore,
   onToggleOverview,
+  onToggleFollowAgent,
   onToggleMaximize,
   onCollapsePanel,
 }: {
   isZh: boolean;
   compact: boolean;
   rightPanelMaximized: boolean;
+  followAgentWorkbench?: boolean | undefined;
   menuOpen: "more" | "overview" | null;
   showSessionControls: boolean;
   showPanelControls: boolean;
   onToggleMore: () => void;
   onToggleOverview: () => void;
+  onToggleFollowAgent?: (() => void) | undefined;
   onToggleMaximize?: (() => void) | undefined;
   onCollapsePanel?: (() => void) | undefined;
 }) {
@@ -59,6 +64,21 @@ export function WorkbenchTopActions({
             <IconLayoutList size={15} />
           </button>
         </>
+      )}
+
+      {showPanelControls && onToggleFollowAgent && (
+        <button
+          type="button"
+          className={`${styles.topIconBtn} ${followAgentWorkbench ? styles.followBtnActive : ""}`}
+          aria-label={isZh ? "跟随 Agent 自动展开右侧工作台" : "Follow Agent in right workbench"}
+          aria-pressed={Boolean(followAgentWorkbench)}
+          title={followAgentWorkbench
+            ? (isZh ? "跟随 Agent：已开启（Agent 操作浏览器/文件时自动展开与切页，点击暂停）" : "Follow Agent: ON (auto-expand & switch on browser/file actions)")
+            : (isZh ? "跟随 Agent：已关闭（点击开启自动跟随）" : "Follow Agent: OFF (click to enable)")}
+          onClick={onToggleFollowAgent}
+        >
+          <IconRobot size={15} />
+        </button>
       )}
 
       {showPanelControls && !compact && onToggleMaximize && (

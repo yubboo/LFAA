@@ -92,8 +92,8 @@ export function WorktreeSection({
     setError("");
     try {
       const result = await store.removeWorktreeWithBranch(item.id);
-      if (!result.branchDeleted && result.error) setError(result.error);
       await load();
+      if (!result.branchDeleted && result.error) setError(result.error);
     } catch (err) {
       setError(err instanceof Error ? err.message : locale.worktreeDeleteFailed);
     } finally {
@@ -141,7 +141,6 @@ export function WorktreeSection({
                     {item.dirtyCount > 0 ? ` · ${item.dirtyCount} ${locale.worktreeDirtyCount}` : ""}
                   </span>
                   {!item.exists && <span className={styles.warning}>{locale.worktreeUnavailable}</span>}
-                {!item.exists && <span className={styles.warning}>{locale.worktreeUnavailable}</span>}
                   {previews[item.id] && (
                     <span className={styles.previewResult} data-clean={previews[item.id]?.clean ? "true" : "false"}>
                       {previews[item.id]?.upToDate

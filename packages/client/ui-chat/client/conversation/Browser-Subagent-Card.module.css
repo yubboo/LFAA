@@ -1,0 +1,251 @@
+/* 思维链中的专属浏览器子智能体实时状态条与可展开步骤卡片，全量消费 @lfaa/ui-theme 语义变量。 */
+.card {
+  margin: 0.2rem 0 0.3rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.72rem;
+  background: var(--color-surface);
+  overflow: hidden;
+  transition: border-color 140ms ease;
+}
+
+.card[data-live="true"] {
+  border-color: rgb(var(--color-info-rgb) / 0.35);
+}
+
+.summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.48rem 0.65rem;
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  font-size: 0.81rem;
+  line-height: 1.4;
+  color: var(--color-ink);
+}
+
+.summary::-webkit-details-marker {
+  display: none;
+}
+
+.summary:hover {
+  background: var(--color-active);
+}
+
+/* 左侧浏览器状态方块徽标：运行中呈信息色微脉冲，直观传递“正在使用内置浏览器”。 */
+.browserBadge {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 1.15rem;
+  height: 1.15rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.32rem;
+  background: var(--color-info);
+  color: var(--color-on-accent);
+}
+
+.browserBadge[data-status="done"] {
+  background: rgb(var(--color-info-rgb) / 0.14);
+  color: var(--color-info);
+}
+
+.browserBadge[data-status="error"] {
+  background: rgb(var(--color-danger-rgb) / 0.14);
+  color: var(--color-danger);
+}
+
+.browserBadgeInner {
+  width: 0.48rem;
+  height: 0.48rem;
+  border-radius: 0.12rem;
+  background: currentColor;
+}
+
+.card[data-live="true"] .browserBadge {
+  animation: browserPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes browserPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.68; }
+}
+
+.summaryMain {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: baseline;
+  gap: 0.35rem;
+  overflow: hidden;
+}
+
+.summaryTitle {
+  flex: 0 1 auto;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.summaryMeta {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--color-muted);
+  font-size: 0.77rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stepCount {
+  flex: 0 0 auto;
+  font-size: 0.74rem;
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+
+.chevron {
+  flex: 0 0 auto;
+  color: var(--color-muted);
+  transition: transform 140ms ease;
+}
+
+.card[open] .chevron {
+  transform: rotate(90deg);
+}
+
+.body {
+  padding: 0.45rem 0.68rem 0.6rem;
+  border-top: 1px solid var(--color-line);
+  background: var(--color-panel);
+  display: grid;
+  gap: 0.42rem;
+}
+
+.bodyHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.73rem;
+  color: var(--color-muted);
+}
+
+.headerLeft {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.roleTag {
+  font-weight: 500;
+  color: var(--color-ink);
+}
+
+.envPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.22rem;
+  padding: 0.08rem 0.42rem;
+  border-radius: 999px;
+  background: rgb(var(--color-info-rgb) / 0.12);
+  color: var(--color-info);
+  font-size: 0.7rem;
+}
+
+.openBrowserBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.22rem;
+  padding: 0.14rem 0.46rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.42rem;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-size: 0.71rem;
+  cursor: pointer;
+}
+
+.openBrowserBtn:hover {
+  background: var(--color-active);
+}
+
+.stepList {
+  margin: 0;
+  padding: 0 0 0 0.55rem;
+  list-style: none;
+  border-left: 1.5px solid var(--color-line);
+  display: grid;
+  gap: 0.28rem;
+}
+
+.stepItem {
+  display: flex;
+  align-items: center;
+  gap: 0.42rem;
+  min-width: 0;
+  font-size: 0.77rem;
+  line-height: 1.4;
+  color: var(--color-ink);
+}
+
+.stepIcon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 0.92rem;
+  height: 0.92rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.22rem;
+  background: rgb(var(--color-info-rgb) / 0.16);
+  color: var(--color-info);
+}
+
+.stepIcon[data-status="done"] {
+  background: rgb(var(--color-success-rgb) / 0.14);
+  color: var(--color-success);
+}
+
+.stepIcon[data-status="error"] {
+  background: rgb(var(--color-danger-rgb) / 0.14);
+  color: var(--color-danger);
+}
+
+.stepText {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stepTarget {
+  color: var(--color-muted);
+  margin-left: 0.3rem;
+}
+
+.liveRow {
+  display: flex;
+  align-items: center;
+  gap: 0.42rem;
+  font-size: 0.77rem;
+  color: var(--color-muted);
+}
+
+.resultBox {
+  margin: 0.15rem 0 0;
+  padding: 0.42rem 0.55rem;
+  border-radius: 0.48rem;
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 11rem;
+  overflow-y: auto;
+}

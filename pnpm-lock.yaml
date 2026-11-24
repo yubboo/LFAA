@@ -379,6 +379,9 @@ importers:
       '@lfaa/ui-layout':
         specifier: workspace:*
         version: link:../../ui/layout
+      '@lfaa/ui-primitives':
+        specifier: workspace:*
+        version: link:../../ui/primitives
       '@tabler/icons-react':
         specifier: ^3.35.0
         version: 3.52.0(react@19.3.1)
@@ -456,6 +459,9 @@ importers:
       '@lfaa/ui-layout':
         specifier: workspace:*
         version: link:../../ui/layout
+      '@lfaa/ui-primitives':
+        specifier: workspace:*
+        version: link:../../ui/primitives
       '@tabler/icons-react':
         specifier: ^3.35.0
         version: 3.52.0(react@19.3.1)
@@ -699,18 +705,12 @@ importers:
 
   packages/core/agent-group:
     dependencies:
-      '@deepseek-ai/cordis':
-        specifier: ^4.1.0
-        version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
       '@lfaa/agent':
         specifier: workspace:*
         version: link:../agent
       '@lfaa/memory':
         specifier: workspace:*
         version: link:../memory
-      '@lfaa/session':
-        specifier: workspace:*
-        version: link:../session
 
   packages/core/agent-profile:
     dependencies:
@@ -1366,6 +1366,9 @@ importers:
       '@deepseek-ai/cordis':
         specifier: ^4.1.0
         version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
+      '@lfaa/ui-primitives':
+        specifier: workspace:*
+        version: link:../primitives
       '@tabler/icons-react':
         specifier: 3.52.0
         version: 3.52.0(react@19.3.1)
@@ -1419,6 +1422,9 @@ importers:
       '@lfaa/ui-layout':
         specifier: workspace:*
         version: link:../layout
+      '@lfaa/ui-primitives':
+        specifier: workspace:*
+        version: link:../primitives
       '@tabler/icons-react':
         specifier: 3.52.0
         version: 3.52.0(react@19.3.1)
@@ -2573,9 +2579,6 @@ packages:
   got@11.8.5:
     resolution: {integrity: sha512-o0Je4NvQObAuZPHLFoRSkdG2lTgtcynqymzg2Vupdx6PorhaT5MCbIyXG6d4D94kk8ZG57QeosgdiqfJWhEhlQ==}
     engines: {node: '>=10.19.0'}
-
-  graceful-fs@4.2.11:
-    resolution: {integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==}
 
   graceful-fs@4.2.12:
     resolution: {integrity: sha512-iuyGF2E4oafQfPsRrG2wtY2ILupMhvtdrhzrxB+0VcjsPpSPttpfYdjnGFGsTi5MaJFjI1jOKHPQ6UTbTj9TAw==}
@@ -4507,9 +4510,6 @@ snapshots:
       p-cancelable: 2.0.0
       responselike: 2.0.1
 
-  graceful-fs@4.2.11:
-    optional: true
-
   graceful-fs@4.2.12: {}
 
   has-flag@4.0.0: {}
@@ -4607,13 +4607,13 @@ snapshots:
 
   jsonfile@4.0.0:
     optionalDependencies:
-      graceful-fs: 4.2.11
+      graceful-fs: 4.2.12
 
   jsonfile@6.2.1:
     dependencies:
       universalify: 2.0.1
     optionalDependencies:
-      graceful-fs: 4.2.11
+      graceful-fs: 4.2.12
 
   keyv@4.0.0:
     dependencies:

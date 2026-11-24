@@ -5,9 +5,10 @@
   --right-panel-base-width: clamp(14.5rem, 18vw, 18rem);
   /* 滚动区域的末端避开分隔手柄向内覆盖的 4px；数值越小滚动条越贴近栏边界。 */
   --pane-scroll-inset: 4px;
-  --pane-scrollbar-width: 6px;
-  /* 静止、刷新和缩窗时也应用拖拽边界。按左栏实际占用计算右栏可用空间。 */
-  --content-width: calc(100% - var(--rail-width));
+  /* 静止、刷新和缩窗时也应用拖拽边界。按左栏实际占用计算右栏可用空间。
+     内容宽度按视口换算而不是 100%：同一个变量还要给折叠容器里的面板定宽，
+     而 100% 在子元素上会按「正在收窄的轨道」二次求值，把面板压成 1px；Shell 铺满视口，两者等值。 */
+  --content-width: calc(100vw - var(--rail-width));
   --center-min-width: max(var(--center-min-pixels), calc(var(--content-width) * var(--center-min-share)));
   --panel-budget: calc(var(--content-width) - var(--center-min-width));
   --right-reserved-width: var(--panel-min-pixels);
@@ -26,9 +27,14 @@
     calc(var(--content-width) * var(--right-max-share)),
     max(0px, calc(var(--panel-budget) - var(--left-occupied-width)))
   );
+  /* 四条栅格轨道始终存在：收起的一侧只把轨道宽度归零，靠轨道过渡平滑展开/收起；
+     轨道内是固定宽度的面板，收起过程只被裁剪、不被挤压重排。 */
+  --left-pane-track: var(--left-sidebar-width);
+  --right-pane-track: var(--right-panel-width);
+  --center-pane-track: minmax(var(--center-min-width), 1fr);
   position: relative;
   display: grid;
-  grid-template-columns: var(--rail-width) var(--left-sidebar-width) minmax(var(--center-min-width), 1fr) var(--right-panel-width);
+  grid-template-columns: var(--rail-width) var(--left-pane-track) var(--center-pane-track) var(--right-pane-track);
   width: 100%;
   min-width: 0;
   height: 100dvh;
@@ -37,43 +43,74 @@
   background-image: var(--ambient-glow);
   color: var(--color-ink);
   font-family: var(--content-font-family, var(--ui-font-family, inherit));
+  transition: grid-template-columns var(--motion-duration-slow, 260ms) var(--motion-ease-emphasized, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+/* 拖拽调宽与窗口缩放期间关闭轨道过渡，宽度始终跟手。 */
+.shell[data-resizing="true"],
+.shell[data-pane-resizing="true"] {
+  transition: none;
 }
 
 .shell[data-left-open="false"] {
   --left-occupied-width: 0px;
+  --left-pane-track: 0px;
 }
 
 .shell[data-right-open="false"] {
   --right-reserved-width: 0px;
+  --right-pane-track: 0px;
 }
 
 .shell[data-right-wide="true"] {
   --right-panel-base-width: clamp(30rem, 46vw, 52rem);
 }
 
-.shell[data-left-open="false"][data-right-open="true"] {
-  grid-template-columns: var(--rail-width) minmax(var(--center-min-width), 1fr) var(--right-panel-width);
-}
-
-.shell[data-left-open="true"][data-right-open="false"] {
-  grid-template-columns: var(--rail-width) var(--left-sidebar-width) minmax(var(--center-min-width), 1fr);
-}
-
-.shell[data-left-open="false"][data-right-open="false"] {
-  grid-template-columns: var(--rail-width) minmax(var(--center-min-width), 1fr);
-}
-
-/* 右工作台最大化模式（Ctrl+Shift+M）：占满中间与右侧全部可用空间，保留左侧全局导航。 */
-.shell[data-right-maximized="true"][data-left-open="true"] {
-  grid-template-columns: var(--rail-width) var(--left-sidebar-width) minmax(0, 1fr);
-}
-
-.shell[data-right-maximized="true"][data-left-open="false"] {
-  grid-template-columns: var(--rail-width) minmax(0, 1fr);
+/* 右工作台最大化模式（Ctrl+Shift+M）：中间轨道归零、右栏占满剩余空间，保留左侧全局导航。 */
+.shell[data-right-maximized="true"] {
+  --center-pane-track: 0px;
+  --right-pane-track: minmax(0, 1fr);
 }
 
 .shell[data-right-maximized="true"] .workspace {
   display: none;
+}
+
+/* 桌面四栏显式落位：收起一侧不渲染面板时，其余栏仍固定在自己的轨道上，不会串列。 */
+@media (min-width: 1024px) {
+  .shell > :global([data-region="primary-navigation"]) {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .shell > .leftPane {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .shell > .workspace {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .shell > .rightPane {
+    grid-column: 4;
+    grid-row: 1;
+  }
+
+  /* 面板保持自身宽度：轨道收窄时只被裁剪，不触发内部重排与容器查询跳变。 */
+  .leftPane > :global([data-region="section-navigation"]) {
+    width: var(--left-sidebar-width);
+  }
+
+  .rightPane > :global([data-region="context-panel"]) {
+    width: var(--right-panel-width);
+  }
+
+  /* 最大化时右栏占满剩余空间，不再保留收起前的固定宽度。 */
+  .shell[data-right-maximized="true"] .rightPane > :global([data-region="context-panel"]) {
+    width: 100%;
+  }
 }
 
 /* 中间区域承载真实页面、设置和明确的未接入说明；自身不再滚动，滚动交给下方内容区。 */
@@ -163,6 +200,7 @@
 
 /* 桌面固定栏保留主题底色与渐变，避免分数缩放下背景滤镜的合成层裁掉文字。 */
 .shell[data-device="desktop"] > :is(:global([data-region="primary-navigation"]), :global([data-region="section-navigation"]), :global([data-region="context-panel"])),
+.shell[data-device="desktop"] :is(.leftPane, .rightPane) > :is(:global([data-region="section-navigation"]), :global([data-region="context-panel"])),
 .shell[data-device="desktop"] .workspaceBar {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
@@ -173,39 +211,6 @@
   align-items: center;
   gap: 0.65rem;
   min-width: 0;
-}
-
-.toggleButton {
-  display: inline-flex;
-  width: 2rem;
-  height: 2rem;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: 0.55rem;
-  background: transparent;
-  color: var(--color-muted);
-  cursor: pointer;
-}
-
-.toggleButton:hover {
-  background: var(--color-active);
-  color: var(--color-ink);
-}
-
-.toggleButtonActive {
-  color: var(--color-ink);
-}
-
-.toggleButton svg {
-  width: 1.1rem;
-  height: 1.1rem;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.65;
 }
 
 .status {
@@ -335,13 +340,15 @@
     grid-template-columns: var(--rail-width) minmax(0, 1fr);
   }
 
-  .workspaceBar {
-    padding-inline: 0.9rem;
+  /* 抽屉模式下折叠容器只做挂载保持，不再参与栅格与裁剪，面板自身的抽屉动画接管。 */
+  .shell > .leftPane,
+  .shell > .rightPane {
+    display: contents;
   }
 
-  .toggleButton {
-    width: 2.5rem;
-    height: 2.5rem;
+  .workspaceBar {
+    padding-inline: 0.9rem;
+    --panel-toggle-size: 2.5rem;
   }
 
   .welcome,
@@ -366,11 +373,7 @@
   .workspaceBar {
     padding-inline: 0.65rem;
     gap: 0.5rem;
-  }
-
-  .toggleButton {
-    width: 2.75rem;
-    height: 2.75rem;
+    --panel-toggle-size: 2.75rem;
   }
 
   .welcome,

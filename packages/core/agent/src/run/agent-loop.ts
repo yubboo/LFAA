@@ -99,7 +99,7 @@ export async function executeAgentTaskLoop(
     tracker,
     emitReasoning: (text) => {
       state.reasoning += text;
-      params.emit({ type: "delta", runId: params.runId, seq: 0, kind: "reasoning", text });
+      params.emit({ type: "delta", runId: params.runId, seq: 0, kind: "reasoning", text, iteration: state.iteration });
     },
     emitText: (text) => {
       params.emit({ type: "delta", runId: params.runId, seq: 0, kind: "text", text });

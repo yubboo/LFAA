@@ -1,6 +1,8 @@
 // 导出主题包的 Client Cordis 插件入口：启动即同步主题 CSS 变量，并向工作台注册“外观”设置视图。
-// tokens.css 是语义变量定义层（浅色/深色/系统主题成对定义），必须随本入口副作用引入。
+// tokens.css 是语义变量定义层（浅色/深色/系统主题成对定义），必须随本入口副作用引入；
+// scrollbars.css 是全局滚动条基线，让所有滚动容器共用同一套强调色滑块。
 import "./tokens.css";
+import "./scrollbars.css";
 import { useSyncExternalStore } from "react";
 import type { Context, Plugin } from "@deepseek-ai/cordis";
 import "@lfaa/ui-layout/client";
@@ -11,6 +13,9 @@ import { getThemeLocale, type ThemeLocaleMessages } from "./locales";
 
 export { AppearanceStore } from "./appearance-store";
 export type { AppearanceSnapshot } from "./appearance-store";
+// 主题预览与主题网格：可被任何需要"选主题 / 预演主题"的界面直接复用。
+export { ThemePreview, type ThemePreviewSample } from "./components/ThemePreview";
+export { ThemeGallery, type ThemeTile } from "./components/ThemeGallery";
 
 function AppearanceView({ locale, store }: { locale: ThemeLocaleMessages; store: AppearanceStore }) {
   const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);

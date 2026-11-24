@@ -13,9 +13,13 @@
   overflow: hidden;
 }
 
-/* IDE 化右工作台模式：取消静态标题行与卡片边框，使内部 Tab 顶栏与中间栏完全齐平。 */
+/* IDE 化右工作台模式：取消静态标题行、卡片边框与白色高光遮罩，保证内置浏览器与代码画面纯净无白雾。 */
 .panelWorkbench {
   grid-template-rows: minmax(0, 1fr);
+  background: var(--color-shell);
+  background-image: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .header {

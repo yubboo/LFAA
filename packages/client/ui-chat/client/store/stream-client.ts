@@ -10,7 +10,12 @@ export const MAX_RECONNECT_ATTEMPTS = 5;
 export interface StreamDeltaBatch {
   text: string;
   reasoning: string;
+  /** 可选：按轮次归组的思考增量，用于在流式时间线中精确追加到对应思考块。 */
+  reasoningByIteration?: ReadonlyArray<{ iteration: number; text: string }>;
 }
+
+/** 合并流式增量的最小刷新间隔（约 30fps）：保持视觉顺滑的同时避免高频重算阻塞主线程。 */
+const STREAM_FLUSH_INTERVAL_MS = 32;
 
 /** 描述重连时恢复消息和步骤所需的运行快照。 */
 export interface StreamRunSnapshotPayload {
@@ -82,8 +87,10 @@ export class AgentStreamClient {
 
   private pendingText = "";
   private pendingReasoning = "";
+  private pendingReasoningByIter = new Map<number, string>();
   private rafHandle: number | null = null;
   private timerFlushHandle: ReturnType<typeof setTimeout> | null = null;
+  private lastFlushAt = 0;
   private flushCount = 0;
   private startTs = Date.now();
 
@@ -143,14 +150,28 @@ export class AgentStreamClient {
     }, HEARTBEAT_TIMEOUT_MS);
   }
 
-  // 将高频到达的 token 合并到下一帧（~16ms），避免逐字全量 setState 引发掉帧
+  // 将高频到达的 token 合并到约 32ms 节流窗口并对齐绘制帧，兼顾流式顺滑度与主线程流畅性。
   private scheduleBatchFlush(): void {
     if (this.rafHandle !== null || this.timerFlushHandle !== null) return;
-    if (typeof requestAnimationFrame === "function") {
-      this.rafHandle = requestAnimationFrame(() => {
-        this.rafHandle = null;
+    const elapsed = Date.now() - this.lastFlushAt;
+    const waitMs = Math.max(0, STREAM_FLUSH_INTERVAL_MS - elapsed);
+    const runFlush = () => {
+      if (typeof requestAnimationFrame === "function") {
+        this.rafHandle = requestAnimationFrame(() => {
+          this.rafHandle = null;
+          this.flushNow();
+        });
+      } else {
         this.flushNow();
-      });
+      }
+    };
+    if (waitMs > 0) {
+      this.timerFlushHandle = setTimeout(() => {
+        this.timerFlushHandle = null;
+        runFlush();
+      }, waitMs);
+    } else if (typeof requestAnimationFrame === "function") {
+      runFlush();
     } else {
       this.timerFlushHandle = setTimeout(() => {
         this.timerFlushHandle = null;
@@ -161,12 +182,18 @@ export class AgentStreamClient {
 
   private flushNow(): void {
     if (!this.pendingText && !this.pendingReasoning) return;
+    const reasoningByIteration = this.pendingReasoningByIter.size > 0
+      ? [...this.pendingReasoningByIter.entries()].map(([iteration, text]) => ({ iteration, text }))
+      : undefined;
     const batch: StreamDeltaBatch = {
       text: this.pendingText,
       reasoning: this.pendingReasoning,
+      ...(reasoningByIteration ? { reasoningByIteration } : {}),
     };
     this.pendingText = "";
     this.pendingReasoning = "";
+    this.pendingReasoningByIter.clear();
+    this.lastFlushAt = Date.now();
     this.flushCount += 1;
     this.handlers.onDeltaBatch(batch);
   }
@@ -195,6 +222,7 @@ export class AgentStreamClient {
         reconnect?: boolean;
         kind?: "reasoning" | "text";
         text?: string;
+        iteration?: number;
         step?: AgentStepItem;
         todos?: AgentStepItem["todos"];
         approvalId?: string;
@@ -232,8 +260,17 @@ export class AgentStreamClient {
           this.seenSeqs.add(seq);
           if (seq > this.lastSeq) this.lastSeq = seq;
         }
-        if (data.kind === "reasoning") this.pendingReasoning += data.text;
-        else this.pendingText += data.text;
+        if (data.kind === "reasoning") {
+          this.pendingReasoning += data.text;
+          if (typeof data.iteration === "number") {
+            this.pendingReasoningByIter.set(
+              data.iteration,
+              `${this.pendingReasoningByIter.get(data.iteration) ?? ""}${data.text}`,
+            );
+          }
+        } else {
+          this.pendingText += data.text;
+        }
         this.scheduleBatchFlush();
       } else if (data.type === "step_update" && data.step) {
         this.flushNow();

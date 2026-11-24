@@ -1,183 +1,33 @@
-/* 外观设置页苹果液态玻璃卡片、模式预览胶囊、色值输入、分段器与滑块样式。 */
-.page {
-  width: min(100% - 2.5rem, 48rem);
-  margin: clamp(1.5rem, 4vh, 2.75rem) auto clamp(2.5rem, 6vh, 4rem);
-  padding-bottom: 1.5rem;
-}
-
-.heading h2 {
-  margin: 0;
-  font-size: 1.55em;
-  font-weight: 650;
-  letter-spacing: -0.03em;
-}
-
-.heading p {
-  margin: 0.45rem 0 0;
-  color: var(--color-muted);
-  font-size: 0.95em;
-  line-height: 1.6;
-}
-
-.sectionHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin: 1.8rem 0 0.65rem;
-}
-
-.sectionHeader h3 {
-  margin: 0;
-  color: var(--color-muted);
-  font-size: 0.93em;
-  font-weight: 550;
-}
-
-.notice {
-  color: var(--color-accent);
-  font-size: 0.76rem;
-}
-
-.card {
-  position: relative;
-  margin-bottom: 0.85rem;
-  border: 1px solid var(--glass-border, var(--color-line));
-  border-radius: 0.95rem;
-  background: var(--glass-card-bg, var(--color-surface));
-  background-image: var(--glass-sheen, none);
-  backdrop-filter: blur(var(--glass-card-blur, 0px)) saturate(var(--glass-card-saturate, 100%));
-  -webkit-backdrop-filter: blur(var(--glass-card-blur, 0px)) saturate(var(--glass-card-saturate, 100%));
-  box-shadow: var(--glass-specular-shadow, none);
-}
-
-.row {
-  display: flex;
-  min-height: 3.45rem;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.75rem 1.05rem;
-}
-
-.row + .row {
-  border-top: 1px solid var(--color-line);
-}
-
-.rowText {
+/* 外观设置页专用控件：实时预览舞台、模式标签、色值输入与图标动作；页面骨架、分组与常规行由 @lfaa/ui-primitives 提供。
+   预览缩略图的配色由 ThemePreview 通过 --pv-* 变量注入，本文件不写具体色值。 */
+/* 预览舞台：面板 + 底部说明条。 */
+.stage {
+  display: grid;
+  gap: 0.5rem;
   min-width: 0;
 }
 
-.rowText strong {
-  display: block;
-  font-size: 0.96em;
-  font-weight: 550;
-}
-
-.rowText small {
-  display: block;
-  margin-top: 0.2rem;
-  color: var(--color-muted);
-  font-size: 0.86em;
-  line-height: 1.45;
-}
-
-.modePills {
+.stageCaption {
   display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 0.5rem;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  min-width: 0;
 }
 
-.modePill {
-  padding: 0.18rem;
-  border: 1.5px solid var(--glass-border, var(--color-line));
-  border-radius: 0.65rem;
-  background: transparent;
-  cursor: pointer;
-  transition: border-color 140ms ease, transform 140ms ease;
-}
-
-.modePill:hover {
-  border-color: var(--color-muted);
-}
-
-.modePillSelected {
-  border-color: var(--color-accent);
-  box-shadow: 0 0 0 1px var(--color-accent);
-}
-
-/* 主题卡片通过独立预览区域示意明暗模式。 */
-.preview {
-  display: flex;
-  width: 4.35rem;
-  height: 2.85rem;
+.stageName {
   overflow: hidden;
-  border-radius: 0.45rem;
-  background: #fff;
+  color: var(--color-ink);
+  font-size: 0.88em;
+  font-weight: 550;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.previewRail {
-  width: 14%;
+.stageHint {
   flex: 0 0 auto;
-  background: #edf4e4;
-}
-
-.previewSidebar {
-  width: 28%;
-  flex: 0 0 auto;
-  border-right: 1px solid #e4e7df;
-  background: #f8faf5;
-}
-
-.previewCanvas {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  justify-content: center;
-  gap: 0.3rem;
-  padding: 0.45rem;
-  background: #fff;
-}
-
-.previewCanvas span {
-  width: 72%;
-  height: 0.2rem;
-  border-radius: 1rem;
-  background: #d8ddd2;
-}
-
-.previewCanvas span:last-child {
-  width: 46%;
-}
-
-.preview[data-preview="dark"] {
-  background: #171816;
-}
-
-.preview[data-preview="dark"] .previewRail {
-  background: #20221f;
-}
-
-.preview[data-preview="dark"] .previewSidebar {
-  border-color: #30322e;
-  background: #1b1d1a;
-}
-
-.preview[data-preview="dark"] .previewCanvas {
-  background: #171816;
-}
-
-.preview[data-preview="dark"] .previewCanvas span {
-  background: #3b3d38;
-}
-
-.preview[data-preview="system"] .previewCanvas {
-  background: linear-gradient(90deg, #fff 0 28%, #171816 28%);
-}
-
-.preview[data-preview="system"] .previewCanvas span {
-  background: linear-gradient(90deg, #d8ddd2 0 28%, #3b3d38 28%);
+  color: var(--color-muted);
+  font-size: 0.78em;
 }
 
 .inlineControls {
@@ -214,6 +64,7 @@
   height: 1rem;
 }
 
+/* 色值输入：圆形取色器 + HEX 文本框合成一个胶囊控件。 */
 .colorField {
   display: inline-flex;
   min-height: 2.15rem;
@@ -245,27 +96,9 @@
   font-size: 0.78rem;
 }
 
-@container (max-width: 520px) {
-  .row {
-    flex-wrap: wrap;
-    gap: 0.65rem;
-  }
-}
-
 @media (max-width: 640px) {
-  .page {
-    width: min(100% - 1.5rem, 48rem);
-    margin-top: 1.25rem;
-  }
-
-  .row {
-    flex-wrap: wrap;
-    gap: 0.65rem;
-    padding: 0.75rem 0.85rem;
-  }
-
-  .preview {
-    width: 3.7rem;
-    height: 2.45rem;
+  .stageCaption {
+    flex-direction: column;
+    gap: 0.2rem;
   }
 }

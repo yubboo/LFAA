@@ -1,9 +1,15 @@
 // 右侧工作台内置浏览器状态与宿主操作：标签列表、初始 URL、外部快照与新建/关闭/导航处理。
 import { useCallback, useState, type RefObject } from "react";
-import { fetchBrowserState, manageBrowserTab, navigateBrowser, type BrowserSessionSnapshot, type BrowserTabItem } from "@lfaa/client-ui-browser/client";
+import { controlBrowserNav, fetchBrowserState, manageBrowserTab, navigateBrowser, type BrowserSessionSnapshot, type BrowserTabItem } from "@lfaa/client-ui-browser/client";
 import type { ChatClientStore } from "../store/chat-store";
 import type { FilePreviewTab } from "../store/chat-types";
 import { patchWorkbenchSessionState } from "../store/workbench-persist";
+
+/** 检测当前页面是否运行在内置浏览器内部，避免打开 LFAA 自身时递归恢复右栏浏览器互抢视口尺寸。 */
+function isEmbeddedBrowserGuest(): boolean {
+  return typeof window !== "undefined"
+    && (window as unknown as { __LFAA_EMBEDDED_BROWSER__?: boolean }).__LFAA_EMBEDDED_BROWSER__ === true;
+}
 
 export function useWorkbenchBrowser({
   sessionId,
@@ -20,13 +26,20 @@ export function useWorkbenchBrowser({
   initialOpen: boolean;
   initialUrl: string | undefined;
 }) {
-  const [browserOpen, setBrowserOpen] = useState(initialOpen);
+  const [browserOpen, setBrowserOpen] = useState(() => (isEmbeddedBrowserGuest() ? false : initialOpen));
   const [browserTabs, setBrowserTabs] = useState<BrowserTabItem[]>([]);
   const [browserInitialUrl, setBrowserInitialUrl] = useState<string | undefined>(initialUrl);
   const [browserExternalState, setBrowserExternalState] = useState<{ snap: BrowserSessionSnapshot; nonce: number }>();
 
-  // 会话切换或重新挂载时先清空浏览器状态，再拉取宿主机已开启的标签。
+  // 会话切换或重新挂载时先清空浏览器状态，再拉取宿主机已开启的标签（内嵌客体页跳过以避免递归嵌套）。
   const restoreBrowser = useCallback((sid: string, savedOpen: boolean, savedUrl: string | undefined) => {
+    if (isEmbeddedBrowserGuest()) {
+      setBrowserOpen(false);
+      setBrowserInitialUrl(undefined);
+      setBrowserTabs([]);
+      setBrowserExternalState(undefined);
+      return () => {};
+    }
     setBrowserOpen(savedOpen);
     setBrowserInitialUrl(savedUrl);
     setBrowserTabs([]);
@@ -81,6 +94,7 @@ export function useWorkbenchBrowser({
       setBrowserExternalState(undefined);
       patchWorkbenchSessionState(sessionId, { browserOpen: false, browserUrl: "" });
       store.setRightStageKind(activeFileTab ? "file" : null);
+      void controlBrowserNav(sessionId, "close").catch(() => {});
       return;
     }
     void manageBrowserTab(sessionId, { action: "close", tabId })
@@ -102,6 +116,19 @@ export function useWorkbenchBrowser({
     store.setRightStageKind("browser");
   };
 
+  // Agent 导航或切换多标签后主动从 Host 拉一次最新快照，确保顶部多标签栏与当前视口即时同步。
+  const syncHostBrowser = useCallback((sid: string) => {
+    if (isEmbeddedBrowserGuest()) return;
+    void fetchBrowserState(sid).then((res) => {
+      if (syncedSessionRef.current !== sid) return;
+      if (res.state.active || res.state.tabs.length > 0) {
+        setBrowserTabs(res.state.tabs);
+        setBrowserExternalState((prev) => ({ snap: res.state, nonce: (prev?.nonce ?? 0) + 1 }));
+        setBrowserOpen(true);
+      }
+    }).catch(() => {});
+  }, [syncedSessionRef]);
+
   return {
     browserOpen,
     browserTabs,
@@ -115,5 +142,6 @@ export function useWorkbenchBrowser({
     handleCloseBrowserTab,
     handleOpenUrl,
     restoreBrowser,
+    syncHostBrowser,
   };
 }

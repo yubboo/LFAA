@@ -47,10 +47,10 @@ if (!hasLock && !forceNewInstance) {
 async function startDesktop(): Promise<void> {
   app.setAppUserModelId(APP_USER_MODEL_ID);
   const paths = resolveDesktopPaths();
-  // 调试 UI 时可指向已在运行的开发服务器，此时不拉起桌面宿主。
-  const devUrl = process.env.LFAA_DESKTOP_URL?.trim();
-  const url = devUrl ? devUrl : await startLocalHost(paths);
   const devMode = !app.isPackaged;
+  // 调试 UI 时仅允许未打包开发态通过环境变量指向开发服务器，打包态始终启动内置本机宿主。
+  const devUrl = devMode ? process.env.LFAA_DESKTOP_URL?.trim() : undefined;
+  const url = devUrl ? devUrl : await startLocalHost(paths);
 
   installApplicationMenu({ dataRoot: paths.dataRoot, devMode });
   mainWindow = createMainWindow({ url, paths, devMode });

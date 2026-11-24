@@ -14,6 +14,8 @@ export interface CompactionOptions {
   budgetChars?: number;
   toolCapChars?: number;
   keepRecentRounds?: number;
+  /** 可选会话 ID：按会话隔离强制压缩请求，避免多会话并发互抢标志位。 */
+  sessionId?: string;
 }
 
 /** 服务配置：默认预算、单条工具结果上限与保留轮次。 */
@@ -41,30 +43,33 @@ export function resolveCompactionOptions(
   };
 }
 
+const GLOBAL_FORCED_KEY = "__global__";
+
 /** 上下文压缩服务：Agent 运行时可替换的实现点。 */
 export class CompactionService extends Service {
   private readonly config: CompactionConfig;
-  private pendingForced = false;
+  private readonly pendingForcedSessions = new Set<string>();
 
   constructor(ctx: Context, config: CompactionConfig = {}) {
     super(ctx, "compaction");
     this.config = config;
   }
 
-  /** 请求下一次压缩强制生效（供「立即压缩上下文」工具调用）；消费一次即清除。 */
-  requestCompaction(): void {
-    this.pendingForced = true;
+  /** 请求下一次压缩强制生效（供「立即压缩上下文」工具调用）；按会话消费一次即清除。 */
+  requestCompaction(sessionId?: string): void {
+    this.pendingForcedSessions.add(sessionId?.trim() || GLOBAL_FORCED_KEY);
   }
 
   /** 是否有待处理的强制压缩请求（诊断用，不消费）。 */
   get hasPendingRequest(): boolean {
-    return this.pendingForced;
+    return this.pendingForcedSessions.size > 0;
   }
 
   /** 按预算压缩一次运行的对话；未超预算时原样返回；有强制请求时按更小预算硬压一次。 */
   compact(messages: ReadonlyArray<LlmMessage>, options: CompactionOptions = {}): CompactResult {
-    const forced = this.pendingForced;
-    this.pendingForced = false;
+    const key = options.sessionId?.trim() || GLOBAL_FORCED_KEY;
+    const forced = this.pendingForcedSessions.delete(key)
+      || (key !== GLOBAL_FORCED_KEY && this.pendingForcedSessions.delete(GLOBAL_FORCED_KEY));
     const resolved = resolveCompactionOptions(this.config, options);
     if (!forced) return compactConversation(messages, resolved);
     const forcedBudget = Math.min(resolved.budgetChars, FORCED_BUDGET_CHARS);

@@ -23,11 +23,28 @@ export interface AgentCommandTrace {
 export interface AgentFileChange {
   path: string;
   resolvedPath?: string;
-  operation: "created" | "edited";
+  operation: "created" | "edited" | "deleted";
   firstLine: number;
   before: string;
   after: string;
   truncated: boolean;
+}
+
+/** 真实读取文件时记录的行号范围与解析路径，供时间线展示 #L起-止 并支持点击定位源码。 */
+export interface AgentFileReadRange {
+  startLine: number;
+  endLine: number;
+  totalLines?: number;
+  resolvedPath?: string;
+}
+
+/** 子智能体向父思维链上报的单步结构化摘要。 */
+export interface SubagentStepPreview {
+  id: string;
+  name: string;
+  label?: string;
+  target?: string;
+  status: AgentStepStatus;
 }
 
 export interface AgentStepTrace {
@@ -57,9 +74,18 @@ export interface AgentStepTrace {
     id: string;
     role: string;
     status: "running" | "done" | "error" | "stopped";
+    /** 子智能体专职类型；"browser" 在思维链渲染专属浏览器实时步骤卡。 */
+    kind?: "general" | "browser";
+    /** 所用浏览器类型标识（如「内置浏览器」「桌面浏览器」）。 */
+    browserLabel?: string;
+    /** 运行中实时动作或思考文案（如「思考中」「正在打开页面」）。 */
+    liveAction?: string;
+    /** 子智能体已执行的步骤清单，供思维链展开查看。 */
+    steps?: SubagentStepPreview[];
   };
   commandTrace?: AgentCommandTrace;
   fileChange?: AgentFileChange;
+  readRange?: AgentFileReadRange;
   timestamp: number;
 }
 

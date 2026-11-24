@@ -126,6 +126,14 @@
   box-shadow: var(--glass-specular-shadow, 0 8px 24px rgb(0 0 0 / 0.08));
 }
 
+/* 工作位置/项目挂载条并入输入卡片头行：抵到卡片内边距外并画一条分隔线，
+   不再单独浮一张底卡，避免两张卡的圆角与半透明底在接缝处叠出双边框。 */
+.scopeHeader {
+  margin: -0.75rem -0.9rem 0;
+  padding: 0.22rem 0.3rem;
+  border-bottom: 1px solid var(--color-line);
+}
+
 .noticeBar {
   display: flex;
   align-items: center;
@@ -220,11 +228,11 @@
   color: var(--color-ink);
 }
 
-/* 窄栏缩短次要控件并保留一行。弹层以整条工具栏为定位范围。 */
+/* 窄栏缩短次要控件；确实放不下时整组换行，绝不把发送位顶出卡片。 */
 @container chat-composer (max-width: 30rem) {
   .composerBar {
     position: relative;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     gap: 0.3rem;
   }
 
@@ -235,7 +243,7 @@
   }
 
   .rightCluster {
-    flex: 0 1 auto;
+    flex: 0 0 auto;
     gap: 0.25rem;
   }
 
@@ -280,4 +288,110 @@
 .toolButton:hover {
   background: var(--color-active);
   color: var(--color-ink);
+}
+
+/* 聊天模式：输入卡片收成「加号 + 输入框 + 发送位」一行；出现附件、排队、报错等提示行时
+   由 data-chat-row 自动回落到多行。父级 class 来自 ChatWorkspace.module.css，这里用 data 属性做 :global。 */
+:global([data-mode="chatgpt"]) .composerCard {
+  gap: 0.3rem;
+  padding: 0.5rem 0.7rem 0.45rem;
+  border-radius: 1.1rem;
+}
+
+/* 聊天模式卡片内边距更小，头行负边距同步收窄，保持与卡片边缘齐平。 */
+:global([data-mode="chatgpt"]) .scopeHeader {
+  margin: -0.5rem -0.7rem 0;
+  padding: 0.18rem 0.22rem;
+}
+
+:global([data-mode="chatgpt"]) .textarea {
+  min-height: 1.8rem;
+}
+
+/* 窄屏放不下「工具 + 输入 + 发送」同排，回落到常规多行卡片。 */
+@media (min-width: 768px) {
+  :global([data-chat-row="single"]) .composerCard {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.5rem 0.7rem 0.45rem;
+    border-radius: 1.1rem;
+  }
+
+  /* 工具条本身不占行：左右两组控件直接成为卡片栅格的一格。 */
+  :global([data-chat-row="single"]) .composerBar {
+    display: contents;
+  }
+
+  :global([data-chat-row="single"]) .composerCard > * {
+    grid-column: 1 / -1;
+  }
+
+  :global([data-chat-row="single"]) .controls {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  :global([data-chat-row="single"]) .textarea {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  :global([data-chat-row="single"]) .rightCluster {
+    grid-column: 3;
+    grid-row: 1;
+  }
+}
+
+/* 已绑定项目的独立胶囊：聊天模式与停靠态紧跟在 + 右侧，点击打开同一个项目选择器。 */
+.projectChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 11rem;
+  height: 1.85rem;
+  padding: 0 0.62rem;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-panel);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.8em;
+  flex: 0 1 auto;
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+
+.projectChip:hover,
+.projectChip[data-open="true"] {
+  background: var(--color-active);
+  border-color: var(--glass-border, var(--color-line));
+}
+
+.projectChip:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.projectChip:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+
+.projectChip svg {
+  flex: 0 0 auto;
+  color: var(--color-muted);
+}
+
+.projectChipLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@container chat-composer (max-width: 30rem) {
+  .projectChip {
+    max-width: 7.5rem;
+    padding: 0 0.5rem;
+  }
 }

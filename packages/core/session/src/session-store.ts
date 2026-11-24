@@ -123,11 +123,15 @@ export class SessionMemoryStore {
 
   private readonly writeQueues = new Map<string, Promise<void>>();
 
-  /** 同一会话的写入串行化：中止运行与立即发消息会同时落盘，并发 rename 在 Windows 上会 EPERM。 */
-  private serializeWrite(sessionId: string, task: () => Promise<void>): Promise<void> {
+  /** 同一会话的写入串行化：中止运行与立即发消息会同时落盘，并发 rename 在 Windows 上会 EPERM；队列结束后清理映射防泄漏。 */
+  private serializeWrite<T>(sessionId: string, task: () => Promise<T>): Promise<T> {
     const previous = this.writeQueues.get(sessionId) ?? Promise.resolve();
     const next = previous.then(task, task);
-    this.writeQueues.set(sessionId, next.catch(() => undefined));
+    const tail = next.then(() => undefined, () => undefined);
+    this.writeQueues.set(sessionId, tail);
+    void tail.finally(() => {
+      if (this.writeQueues.get(sessionId) === tail) this.writeQueues.delete(sessionId);
+    });
     return next;
   }
 
@@ -140,7 +144,7 @@ export class SessionMemoryStore {
     const targetPath = this.sessionFile(normalized.id);
     const payload = JSON.stringify(normalized, null, 2);
     await this.serializeWrite(normalized.id, async () => {
-      // 临时文件 + rename 保证原子性；Windows 上目标被短时占用时重试，最后回退直接覆盖。
+      // 临时文件 + rename 保证原子性；失败立即清理残留 .tmp，Windows 短时占用时重试，最后回退直接覆盖。
       for (let attempt = 0; attempt < 3; attempt += 1) {
         const tempPath = `${targetPath}.${randomUUID()}.tmp`;
         await writeFile(tempPath, payload, "utf8");
@@ -148,6 +152,7 @@ export class SessionMemoryStore {
           await rename(tempPath, targetPath);
           return;
         } catch (error) {
+          await rm(tempPath, { force: true }).catch(() => {});
           const code = (error as NodeJS.ErrnoException).code;
           if (code !== "EPERM" && code !== "EBUSY" && code !== "EACCES") throw error;
           await new Promise((resolve) => setTimeout(resolve, 40 * (attempt + 1)));

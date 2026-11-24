@@ -59,6 +59,7 @@ export async function runThinkRound({
   updateSystemMessage,
   pushStep,
 }: ThinkRoundInput): Promise<ThinkRoundResult> {
+  const roundStartedAt = Date.now();
   const thinkStep: AgentStepTrace = {
     id: `think-${iteration}`,
     iteration,
@@ -66,11 +67,13 @@ export async function runThinkRound({
     status: "running",
     title: `第 ${iteration} 轮思考：规划与决策`,
     textOffset: state.progressText.length,
-    timestamp: Date.now(),
+    startedAt: roundStartedAt,
+    timestamp: roundStartedAt,
   };
   pushStep(thinkStep);
 
   let iterText = "";
+  let iterReasoning = "";
   let modelStage: AgentStepTrace["modelStage"];
   const preparing = new Map<string, AgentStepTrace>();
   let lastActivity = thinkStep.timestamp;
@@ -79,15 +82,28 @@ export async function runThinkRound({
     if (modelStage === stage && now - lastActivity < 4_000) return;
     lastActivity = now;
     modelStage = stage;
-    pushStep({ ...thinkStep, ...(modelStage ? { modelStage } : {}), timestamp: now });
+    const partialDetail = iterReasoning ? iterReasoning.slice(0, 24_000) : undefined;
+    pushStep({
+      ...thinkStep,
+      ...(modelStage ? { modelStage } : {}),
+      ...(partialDetail ? { detail: partialDetail } : {}),
+      timestamp: now,
+    });
   };
   let llmTools = preferTodoFirst(deps.tools.getLlmToolSchemas());
+  // 当主循环同时存在 invoke_subagent 与内置浏览器工具时，将 browser_* 专职收口给浏览器子智能体（mode="browser"），
+  // 确保每次浏览与页面验收都经由独立浏览器子智能体并在思维链呈现实时状态卡，不污染主上下文。
+  if (deps.tools.getTool("invoke_subagent") && deps.tools.getTool("browser_navigate")) {
+    llmTools = llmTools.filter((tool) => !tool.name.startsWith("browser_"));
+  }
   if (params.enableClarification) llmTools = [...llmTools, clarificationTool];
-  const roundStartedAt = Date.now();
   let firstTokenAt: number | undefined;
   updateSystemMessage(Math.max(0, state.budget.limit - iteration + 1));
   // 发送前按预算压缩：保留结构与最近轮次，早期工具结果压成尾部片段。
-  const compaction = compactForRun(deps.compaction, conversation, { budgetChars: contextBudgetChars });
+  const compaction = compactForRun(deps.compaction, conversation, {
+    budgetChars: contextBudgetChars,
+    sessionId: params.sessionId,
+  });
   if (compaction.compacted) {
     conversation.splice(0, conversation.length, ...compaction.messages);
     conversation[0] = systemMessage;
@@ -139,8 +155,9 @@ export async function runThinkRound({
         noteModelActivity(delta.type === "reasoning" ? "reasoning" : "replying");
       }
       if (delta.type === "reasoning" && delta.text) {
+        iterReasoning += delta.text;
         state.reasoning += delta.text;
-        params.emit({ type: "delta", runId: params.runId, seq: 0, kind: "reasoning", text: delta.text });
+        params.emit({ type: "delta", runId: params.runId, seq: 0, kind: "reasoning", text: delta.text, iteration });
       } else if (delta.type === "text" && delta.text) {
         iterText += delta.text;
         params.emit({ type: "delta", runId: params.runId, seq: 0, kind: "text", text: delta.text });
@@ -218,7 +235,9 @@ export async function runThinkRound({
     params.emit({ type: "delta", runId: params.runId, seq: 0, kind: "text", text: iterText });
   }
 
-  const thinkDetail = output.reasoningContent?.slice(0, 240);
+  // 保留本轮完整思考文本（设安全上限 24,000 字符），供对话流实时与历史完整回看思维链。
+  const rawReasoning = (output.reasoningContent || iterReasoning).trim();
+  const thinkDetail = rawReasoning ? rawReasoning.slice(0, 24_000) : undefined;
   pushStep({
     ...thinkStep,
     status: "done",

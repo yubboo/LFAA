@@ -4,10 +4,19 @@
 export interface ChatLocaleMessages {
   isZh: boolean;
   workspaceTitle: string;
-  welcomeHeadline: string;
-  welcomeSubtitle: string;
-  /** 项目内空会话的范围卡片：标题、未填写提示与约束说明。 */
-  projectScopeCardTitle: string;
+  /** 中心区标题、模式分段与提示：聊天与工作两种形态各一套文案。 */
+  heroHeadlineChat: string;
+  heroHeadlineWork: string;
+  heroModeChat: string;
+  heroModeWork: string;
+  heroHintChat: string;
+  heroHintWork: string;
+  composerPlaceholderChat: string;
+  composerPlaceholderWork: string;
+  /** 已绑定项目时的占位文案，{name} 替换为项目名。 */
+  composerPlaceholderInProject: string;
+  /** 项目内空会话的范围提示条：标题模板（{name} 项目名、{brief} 简介或未填写提示）、未填写提示与约束说明。 */
+  projectScopeNotice: string;
   projectScopeCardEmpty: string;
   projectScopeCardHint: string;
   /** 输入框工作树 chip 的解绑按钮。 */
@@ -215,7 +224,8 @@ export interface ChatLocaleMessages {
   globalScope: string;
   projectScope: string;
   emptyMemories: string;
-  starterInspect: string;
-  starterMemory: string;
-  starterRules: string;
+  /** 中心区三条起步建议：先规划、再核对、最后成文。 */
+  heroSuggestionPlan: string;
+  heroSuggestionCheck: string;
+  heroSuggestionWrite: string;
 }

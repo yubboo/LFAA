@@ -11,6 +11,7 @@ import { generateMedia, type MediaGenerationResult } from "./run-media-actions";
 
 export class ChatRunActions {
   private streamClient: AgentStreamClient | null = null;
+  private readonly settledTimers = new Set<ReturnType<typeof setTimeout>>();
   private permissionUpdate = Promise.resolve();
 
   constructor(private readonly port: ChatStorePort) {}
@@ -245,11 +246,17 @@ export class ChatRunActions {
       },
       onSettled: () => {
         // 目标自动续跑由 Host 异步启动：两次探测，避免启动稍晚时错过重新订阅。
-        const probe = () => {
-          if (!this.port.getState().runningRunId) void this.resumeRun(sessionId);
+        const scheduleProbe = (delayMs: number) => {
+          const timer = setTimeout(() => {
+            this.settledTimers.delete(timer);
+            if (this.port.getState().activeSessionId === sessionId && !this.port.getState().runningRunId) {
+              void this.resumeRun(sessionId);
+            }
+          }, delayMs);
+          this.settledTimers.add(timer);
         };
-        setTimeout(probe, 600);
-        setTimeout(probe, 2200);
+        scheduleProbe(600);
+        scheduleProbe(2200);
       },
     });
     client = new AgentStreamClient(runId, handlers);
@@ -321,8 +328,15 @@ export class ChatRunActions {
     this.subscribeRunEvents(active.run.runId, sessionId, active.run.assistantMessageId);
   }
 
-  dispose(): void {
+  /** 断开当前活动 SSE 流并清理待探测定时器（切换会话或销毁时调用）。 */
+  detachActiveStream(): void {
     this.streamClient?.dispose();
     this.streamClient = null;
+    for (const timer of this.settledTimers) clearTimeout(timer);
+    this.settledTimers.clear();
+  }
+
+  dispose(): void {
+    this.detachActiveStream();
   }
 }

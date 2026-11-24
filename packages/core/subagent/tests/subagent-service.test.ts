@@ -113,3 +113,68 @@ test("写入子任务使用父审批，拒绝时不写入文件", async (t) => {
   await assert.rejects(fs.stat(path.join(tempRoot, "denied.txt")), { code: "ENOENT" });
   await fiber.dispose();
 });
+
+test("浏览器专属子智能体（mode=browser）仅放行浏览器工具并实时回传可读步骤与浏览器类型", async (t) => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-subagent-browser-"));
+  t.after(() => fs.rm(tempRoot, { recursive: true, force: true }));
+  const ctx = new Context();
+  let turns = 0;
+  let observedTools: string[] = [];
+
+  await ctx.plugin(llmPlugin, {
+    storeFilePath: path.join(tempRoot, "llm.json"),
+    adapter: async (profile, input) => {
+      turns += 1;
+      observedTools = (input.tools ?? []).map((tool) => tool.name);
+      if (turns === 1) {
+        return {
+          model: profile.model,
+          provider: profile.kind,
+          content: "",
+          toolCalls: [{ id: "nav-1", name: "browser_navigate", argumentsJson: JSON.stringify({ url: "http://127.0.0.1:8123/pelican-bike.html" }) }],
+          finishReason: "tool_calls",
+        };
+      }
+      return {
+        model: profile.model,
+        provider: profile.kind,
+        content: "PASS：鹈鹕骑车动画渲染正常，控制台 0 报错。",
+        toolCalls: [],
+        finishReason: "stop",
+      };
+    },
+  });
+  await ctx.plugin(rulesPlugin, { storeFilePath: path.join(tempRoot, "rules.json") });
+  await ctx.plugin(memoryPlugin, { sessionsDir: path.join(tempRoot, "sessions"), memoryFilePath: path.join(tempRoot, "memory.json") });
+  await ctx.plugin(toolsPlugin);
+  ctx.tools.registerTool({
+    name: "browser_navigate",
+    title: "打开网页",
+    description: "测试用浏览器导航工具",
+    permissionLevel: "read",
+    parameters: { type: "object", properties: { url: { type: "string" } } },
+    execute: async () => ({ ok: true, output: "已打开页面", summary: "已打开页面" }),
+  });
+  const fiber = ctx.plugin(subagentPlugin);
+  await fiber;
+
+  const updates: SubagentActivityUpdate[] = [];
+  const res = await ctx.tools.executeTool("invoke_subagent", {
+    role: "浏览器验收助手",
+    mode: "browser",
+    prompt: "检查鹈鹕骑自行车动画页面",
+  }, {
+    workspaceRoots: [tempRoot],
+    sessionId: "parent-browser-sess",
+    runId: "parent-browser-run",
+    signal: new AbortController().signal,
+    onSubagentActivity: (u) => updates.push(u),
+  });
+
+  assert.equal(res.ok, true);
+  assert.deepEqual(observedTools, ["browser_navigate"]);
+  assert.ok(updates.every((u) => u.kind === "browser" && u.browserLabel === "内置浏览器"));
+  assert.ok(updates.some((u) => u.activity?.name === "browser_navigate" && u.activity.label === "打开网页" && u.activity.target?.includes("pelican-bike.html")));
+  assert.match(updates.at(-1)?.result ?? "", /PASS/u);
+  await fiber.dispose();
+});

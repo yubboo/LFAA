@@ -4,11 +4,13 @@ import { GoalBar } from "./GoalBar";
 import { TodoDock } from "./TodoDock";
 import { hasOpenSessionTodos, type SessionTodo } from "./session-todos";
 
-/** 轨迹视图自带任务卡；对话视图只在还有未完成任务时显示，全部完成后不再占位。 */
-export function SessionBars({ view, todos, paused, goal, isZh, className, onEditGoal, onToggleGoalAuto }: {
+/** 轨迹视图自带任务卡；对话视图只在还有未完成任务时显示，本轮已结束时自动结算残留的进行中条目不再永久占位。 */
+export function SessionBars({ view, todos, paused, settled = false, goal, isZh, className, onEditGoal, onToggleGoalAuto }: {
   view: "chat" | "trace";
   todos: readonly SessionTodo[] | null;
   paused: boolean;
+  /** 当前回复已正常结束且无运行任务：用于兜底结算模型未收尾的 in_progress 条目，避免任务卡永久转圈。 */
+  settled?: boolean;
   goal: ChatGoalItem | null | undefined;
   isZh: boolean;
   /** 外层与输入框共用同一列宽，样式由调用方提供，避免跨文件取 CSS。 */
@@ -17,7 +19,10 @@ export function SessionBars({ view, todos, paused, goal, isZh, className, onEdit
   /** 暂停/恢复目标自动续跑。 */
   onToggleGoalAuto: (next: boolean) => Promise<boolean>;
 }) {
-  const todoList = view === "chat" && todos !== null && hasOpenSessionTodos(todos) ? todos : null;
+  const effectiveTodos = todos && settled
+    ? todos.map((item) => (item.status === "in_progress" ? { ...item, status: "completed" as const } : item))
+    : todos;
+  const todoList = view === "chat" && effectiveTodos !== null && hasOpenSessionTodos(effectiveTodos) ? effectiveTodos : null;
   const activeGoal = goal && goal.status !== "complete" ? goal : null;
   if (!todoList && !activeGoal) return null;
 

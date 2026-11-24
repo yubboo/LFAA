@@ -30,15 +30,17 @@ export function buildScreencastMeta(state: SessionBrowserState): ScreencastTabMe
     viewport: state.viewport,
     deviceScaleFactor: state.deviceScaleFactor,
     colorScheme: state.colorScheme,
-    onFrameStored: (data) => {
+    ...(tab.embeddable !== undefined ? { embeddable: tab.embeddable } : {}),
+    ...(state.lastActor ? { lastActor: state.lastActor } : {}),
+    onFrameStored: (data, mime) => {
       tab.lastScreenshotBase64 = data;
-      tab.lastScreenshotMime = "image/jpeg";
+      tab.lastScreenshotMime = mime;
       state.updatedAt = Date.now();
     },
   };
 }
 
-/** 同步会话主题与设备像素比；返回是否有变化。 */
+/** 同步会话主题与设备像素比；DPR 覆盖交由常驻 Screencast CDPSession 维护，不再建临时会话后立刻 detach 导致重置。 */
 export async function applyAppearance(
   state: SessionBrowserState,
   appearance?: { deviceScaleFactor?: number; colorScheme?: "dark" | "light" },
@@ -58,21 +60,6 @@ export async function applyAppearance(
     if (Math.abs(nextDpr - state.deviceScaleFactor) > 0.05) {
       state.deviceScaleFactor = nextDpr;
       changed = true;
-      const activeTab = state.tabs.get(state.activeTabId);
-      if (activeTab && !activeTab.page.isClosed()) {
-        try {
-          const cdp = await state.context.newCDPSession(activeTab.page);
-          await cdp.send("Emulation.setDeviceMetricsOverride", {
-            width: state.viewport.width,
-            height: state.viewport.height,
-            deviceScaleFactor: nextDpr,
-            mobile: false,
-          });
-          await cdp.detach().catch(() => {});
-        } catch {
-          // 忽略非 CDP 上下文
-        }
-      }
     }
   }
   return changed;
@@ -94,11 +81,10 @@ export async function captureState(
     ? await extractPageStructure(tab.page)
     : { elements: [], textExcerpt: "" };
   if (withScreenshot) {
-    const useJpeg = !includeStructure;
-    const buf = await tab.page.screenshot(useJpeg ? { type: "jpeg", quality: 90 } : { type: "png" }).catch(() => null);
+    const buf = await tab.page.screenshot({ type: "png" }).catch(() => null);
     if (buf) {
       tab.lastScreenshotBase64 = buf.toString("base64");
-      tab.lastScreenshotMime = useJpeg ? "image/jpeg" : "image/png";
+      tab.lastScreenshotMime = "image/png";
     }
   }
   if (runtime.hasStreamSubscribers(state.sessionId)) {
@@ -136,6 +122,8 @@ export async function captureState(
     consoleCount: state.consoleItems.length,
     networkCount: state.networkItems.length,
     errorCount,
+    ...(tab.embeddable !== undefined ? { embeddable: tab.embeddable } : {}),
+    ...(state.lastActor ? { lastActor: state.lastActor } : {}),
     ...(tab.lastScreenshotBase64 ? {
       screenshotBase64: tab.lastScreenshotBase64,
       screenshotMime: tab.lastScreenshotMime ?? "image/png",

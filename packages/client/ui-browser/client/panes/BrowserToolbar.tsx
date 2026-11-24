@@ -27,6 +27,7 @@ export function BrowserToolbar({
   urlInputRef,
   preset,
   onSelectPreset,
+  userControl,
   devtoolsOpen,
   onToggleDevtools,
   onNavigate,
@@ -44,6 +45,8 @@ export function BrowserToolbar({
   urlInputRef: RefObject<HTMLInputElement | null>;
   preset: ViewportPreset;
   onSelectPreset: (preset: ViewportPreset) => void;
+  /** 仅用户手动点击「接管」后才解锁地址栏与导航控制，防止误触打断 Agent。 */
+  userControl: boolean;
   devtoolsOpen: boolean;
   onToggleDevtools: () => void;
   onNavigate: (event: FormEvent) => void;
@@ -54,14 +57,18 @@ export function BrowserToolbar({
   onToggleTakeover: (paused: boolean, headed?: boolean) => void;
   onAttachPage?: ((snap: BrowserSessionSnapshot) => void) | undefined;
 }) {
+  const hasPage = Boolean(snap?.active && snap.url && snap.url !== "about:blank");
+  const navLocked = hasPage && !userControl;
+  const lockedHint = isZh ? "当前由 Agent 控制，请先点击「接管」再手动操作" : "Controlled by Agent — click Takeover to operate";
+
   return (
     <div className={styles.toolbar}>
       <div className={styles.navButtons}>
         <button
           type="button"
           className={styles.navBtn}
-          disabled={navigating || !snap?.canGoBack}
-          title={isZh ? "后退" : "Back"}
+          disabled={navigating || navLocked || !snap?.canGoBack}
+          title={navLocked ? lockedHint : (isZh ? "后退" : "Back")}
           aria-label={isZh ? "后退" : "Back"}
           onClick={() => onNavControl("back")}
         >
@@ -70,8 +77,8 @@ export function BrowserToolbar({
         <button
           type="button"
           className={styles.navBtn}
-          disabled={navigating || !snap?.canGoForward}
-          title={isZh ? "前进" : "Forward"}
+          disabled={navigating || navLocked || !snap?.canGoForward}
+          title={navLocked ? lockedHint : (isZh ? "前进" : "Forward")}
           aria-label={isZh ? "前进" : "Forward"}
           onClick={() => onNavControl("forward")}
         >
@@ -80,8 +87,8 @@ export function BrowserToolbar({
         <button
           type="button"
           className={styles.navBtn}
-          disabled={navigating || !snap?.active}
-          title={isZh ? "刷新" : "Reload"}
+          disabled={navigating || navLocked || !snap?.active}
+          title={navLocked ? lockedHint : (isZh ? "刷新" : "Reload")}
           aria-label={isZh ? "刷新" : "Reload"}
           onClick={() => onNavControl("reload")}
         >
@@ -89,17 +96,31 @@ export function BrowserToolbar({
         </button>
       </div>
 
-      <form className={styles.urlForm} onSubmit={onNavigate}>
+      <form
+        className={styles.urlForm}
+        data-locked={navLocked ? "true" : undefined}
+        onSubmit={(event) => {
+          if (navLocked) {
+            event.preventDefault();
+            return;
+          }
+          onNavigate(event);
+        }}
+      >
         <IconShieldCheck size={13} className={styles.urlIcon} aria-hidden="true" />
         <input
           ref={urlInputRef}
           className={styles.urlInput}
           value={urlInput}
-          placeholder="http://127.0.0.1:5173/"
+          readOnly={navLocked}
+          title={navLocked ? lockedHint : undefined}
+          placeholder="http://127.0.0.1:5174/"
           aria-label={isZh ? "网址输入框" : "Browser URL"}
           onFocus={onUrlFocus}
           onBlur={onUrlBlur}
-          onChange={(e) => onUrlChange(e.target.value)}
+          onChange={(e) => {
+            if (!navLocked) onUrlChange(e.target.value);
+          }}
         />
         {navigating && <span className={styles.loadingHint}>{isZh ? "加载中…" : "Loading"}</span>}
       </form>

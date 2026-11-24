@@ -46,6 +46,7 @@ test("中文顶部计时区分运行和结束，保留时分秒及展开控件",
 
 function renderTimeline(overrides: {
   content?: string;
+  reasoning?: string;
   progressText?: string;
   steps?: AgentStepItem[];
   tokenUsage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number };
@@ -57,6 +58,7 @@ function renderTimeline(overrides: {
     createElement(AssistantTimeline, {
       locale,
       content: overrides.content ?? "",
+      reasoning: overrides.reasoning,
       progressText: overrides.progressText,
       steps: overrides.steps ?? [],
       createdAt: now - 5000,
@@ -298,4 +300,81 @@ test("顶部用时行只在运行中标记渐变动效", () => {
   const done = renderToStaticMarkup(createElement(StepTraceList, { ...props, isStreaming: false }));
   assert.match(live, /data-live="true"/u);
   assert.doesNotMatch(done, /data-live/u);
+});
+
+test("多轮思维链与动态工具链全程默认展开，保留每轮思考正文与动态目标参数", () => {
+  const now = Date.now();
+  const { html } = renderTimeline({
+    isStreaming: false,
+    progressText: "先检查首页标题样式：",
+    content: "## 四、实际决策流程\n\n1. 先确认交付载体\n2. 再评估维护成本",
+    steps: [
+      {
+        id: "think-1",
+        iteration: 1,
+        phase: "think",
+        status: "done",
+        title: "第 1 轮思考",
+        detail: "先定位官网区块标题的组件文件。",
+        startedAt: now - 4_000,
+        timestamp: now - 2_000,
+      },
+      {
+        id: "act-1-grep",
+        iteration: 1,
+        phase: "act",
+        status: "done",
+        title: "检索",
+        toolName: "grep",
+        toolTarget: "一个应用，全场景",
+        textOffset: 10,
+        startedAt: now - 2_000,
+        timestamp: now - 1_500,
+      },
+      {
+        id: "act-1-custom",
+        iteration: 1,
+        phase: "act",
+        status: "done",
+        title: "调用扩展工具",
+        toolName: "mcp_custom_lookup",
+        toolTarget: "theme-tokens",
+        textOffset: 10,
+        startedAt: now - 1_500,
+        timestamp: now - 1_200,
+      },
+      {
+        id: "think-2",
+        iteration: 2,
+        phase: "think",
+        status: "done",
+        title: "第 2 轮思考",
+        detail: "已找到目标文件，可以整理最终决策。",
+        startedAt: now - 1_200,
+        timestamp: now,
+      },
+    ],
+  });
+  // 两轮思维正文全部保留且默认展开可见
+  assert.match(html, /先定位官网区块标题的组件文件。/u);
+  assert.match(html, /已找到目标文件，可以整理最终决策。/u);
+  // 内置工具与自定义扩展工具均动态展示真实目标参数
+  assert.match(html, /一个应用，全场景/u);
+  assert.match(html, /mcp_custom_lookup/u);
+  assert.match(html, /theme-tokens/u);
+  // 正文 Markdown 回归标准有序列表，不再出现「推荐」卡片劫持
+  assert.match(html, /<ol class="ol">/u);
+  assert.doesNotMatch(html, /adviceOptions|adviceOptionRecommended/u);
+});
+
+test("旧会话仅有消息级 reasoning 时仍回退渲染可展开思维链块", () => {
+  const { html } = renderTimeline({
+    isStreaming: false,
+    reasoning: "(Thinking) 这是兼容历史会话的思考记录。",
+    content: "最终结论。",
+    steps: [],
+  });
+  assert.match(html, /这是兼容历史会话的思考记录。/u);
+  assert.doesNotMatch(html, /\(Thinking\)/u);
+  assert.match(html, /aria-expanded="true"/u);
 });

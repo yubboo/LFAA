@@ -151,6 +151,14 @@
   border-color: var(--color-accent);
 }
 
+.urlForm[data-locked="true"] {
+  opacity: 0.78;
+}
+
+.urlForm[data-locked="true"] .urlInput {
+  cursor: default;
+}
+
 .urlIcon {
   flex: 0 0 auto;
   color: var(--color-muted);
@@ -208,39 +216,6 @@
   color: var(--color-danger);
 }
 
-.viewportStage {
-  position: relative;
-  display: flex;
-  flex: 1 1 0;
-  min-width: 0;
-  min-height: 0;
-  align-items: center;
-  justify-content: center;
-  background: var(--color-shell);
-  overflow: auto;
-  outline: none;
-}
-
-.viewportStage:focus-visible {
-  box-shadow: inset 0 0 0 1px var(--color-accent);
-}
-
-.viewportImg {
-  display: block;
-  max-width: 100%;
-  max-height: 100%;
-  width: auto;
-  height: auto;
-  object-fit: contain;
-  cursor: pointer;
-  user-select: none;
-}
-
-.viewportImg[data-preset="auto"] {
-  width: 100%;
-  height: 100%;
-}
-
 .takeoverBanner {
   display: flex;
   flex: 0 0 auto;
@@ -263,55 +238,4 @@
   color: var(--color-accent);
   font-size: 0.71rem;
   cursor: pointer;
-}
-
-.viewportImg[data-preset="mobile"] {
-  width: auto;
-  max-width: 100%;
-  height: 100%;
-  border-inline: 1px solid var(--color-line);
-  box-shadow: var(--color-menu-shadow);
-}
-
-.emptyStage {
-  display: grid;
-  justify-items: center;
-  gap: 0.65rem;
-  max-width: 24rem;
-  padding: 1.5rem;
-  color: var(--color-muted);
-  text-align: center;
-}
-
-.emptyStage h4 {
-  margin: 0;
-  color: var(--color-ink);
-  font-size: 0.96rem;
-}
-
-.emptyStage p {
-  margin: 0;
-  font-size: 0.79rem;
-  line-height: 1.55;
-}
-
-.quickLinks {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.45rem;
-}
-
-.quickBtn {
-  padding: 0.35rem 0.75rem;
-  border: 1px solid var(--color-line);
-  border-radius: 999px;
-  background: var(--color-surface);
-  color: var(--color-ink);
-  font-size: 0.75rem;
-  cursor: pointer;
-}
-
-.quickBtn:hover {
-  background: var(--color-active);
 }

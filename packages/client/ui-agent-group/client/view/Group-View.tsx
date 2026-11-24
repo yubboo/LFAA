@@ -35,14 +35,32 @@ export function GroupView({ isZh }: { isZh: boolean }) {
   const [newMembers, setNewMembers] = useState<string[]>([]);
   const [newHost, setNewHost] = useState("");
   const pollRef = useRef<number | undefined>(undefined);
+  const pollTokenRef = useRef(0);
+  const mountedRef = useRef(true);
+  const activeIdRef = useRef<string | null>(null);
+  activeIdRef.current = activeId;
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      pollTokenRef.current += 1;
+      if (pollRef.current !== undefined) {
+        window.clearTimeout(pollRef.current);
+        pollRef.current = undefined;
+      }
+    };
+  }, []);
 
   const report = useCallback((cause: unknown) => {
+    if (!mountedRef.current) return;
     setError(cause instanceof Error ? cause.message : String(cause));
   }, []);
 
   const loadLists = useCallback(async () => {
     try {
       const [nextGroups, nextMembers] = await Promise.all([fetchGroupSessions(), fetchMembers()]);
+      if (!mountedRef.current) return;
       setGroups(nextGroups);
       setMembers(nextMembers);
       setError("");
@@ -57,11 +75,14 @@ export function GroupView({ isZh }: { isZh: boolean }) {
 
   const refreshMessages = useCallback(async (sessionId: string) => {
     const { messages: next } = await fetchSessionMessages(sessionId);
-    setMessages(next);
+    if (mountedRef.current && activeIdRef.current === sessionId) {
+      setMessages(next);
+    }
     return next;
   }, []);
 
   const stopPolling = useCallback(() => {
+    pollTokenRef.current += 1;
     if (pollRef.current !== undefined) {
       window.clearTimeout(pollRef.current);
       pollRef.current = undefined;
@@ -71,11 +92,14 @@ export function GroupView({ isZh }: { isZh: boolean }) {
   /** 轮询到没有 streaming 消息为止；上限约 3 分钟，避免异常任务把页面挂死。 */
   const pollUntilIdle = useCallback((sessionId: string) => {
     stopPolling();
+    const token = pollTokenRef.current;
     let attempts = 0;
     const tick = async () => {
+      if (!mountedRef.current || token !== pollTokenRef.current || activeIdRef.current !== sessionId) return;
       attempts += 1;
       try {
         const next = await refreshMessages(sessionId);
+        if (!mountedRef.current || token !== pollTokenRef.current || activeIdRef.current !== sessionId) return;
         const streaming = next.some((message) => message.status === "streaming");
         if (streaming && attempts < POLL_LIMIT) {
           pollRef.current = window.setTimeout(() => void tick(), POLL_MS);
@@ -85,6 +109,7 @@ export function GroupView({ isZh }: { isZh: boolean }) {
           await loadLists();
         }
       } catch (cause) {
+        if (!mountedRef.current || token !== pollTokenRef.current) return;
         setBusy(false);
         report(cause);
       }
@@ -95,7 +120,10 @@ export function GroupView({ isZh }: { isZh: boolean }) {
   useEffect(() => stopPolling, [stopPolling]);
 
   const openGroup = async (sessionId: string) => {
+    stopPolling();
+    setBusy(false);
     setActiveId(sessionId);
+    activeIdRef.current = sessionId;
     setMentions([]);
     setError("");
     try {

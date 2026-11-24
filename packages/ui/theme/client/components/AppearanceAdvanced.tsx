@@ -1,4 +1,5 @@
-// 呈现外观设置页的可折叠“高级”分组：字号、动态效果、独立明暗、侧边栏半透明与对比度等实时调节。
+// 呈现外观设置页的「高级」折叠区：字号、字体、主题与显示、动效与光标，全部沿用设置中心的行式结构
+// （左名称右控件、分组不加框），与页面其余部分保持同一套排版与控件形态。
 import type {
   AppearanceConfig,
   CodeFontId,
@@ -7,10 +8,15 @@ import type {
   FontWeightId,
   ReducedMotionMode,
 } from "../../contract/index";
+import {
+  SettingGroup,
+  SettingRow,
+  SettingSegmented,
+  SettingSwitch,
+} from "@lfaa/ui-primitives/client";
 import type { ThemeLocaleMessages } from "../locales";
 import { ThemeSelect, type ThemeSelectOption } from "./ThemeSelect";
 import advStyles from "./AppearanceAdvanced.module.css";
-import styles from "./AppearanceSettings.module.css";
 
 /** 渲染可折叠的高级外观控制，更新当前主题变体中的显示参数。 */
 export function AppearanceAdvanced({
@@ -35,204 +41,169 @@ export function AppearanceAdvanced({
 
   return (
     <div className={advStyles.advancedStack}>
-      <div className={styles.card}>
-        <div className={styles.row}>
-          <div className={styles.rowText}>
-            <strong>{locale.uiFontSize}</strong>
-            <small>{locale.uiFontSizeDescription}</small>
-          </div>
-          <div className={advStyles.numberControl}>
-            <input
-              type="number"
-              min={12}
-              max={20}
-              value={config.uiFontSize}
-              aria-label={locale.uiFontSize}
-              onChange={(event) => onUpdateConfig({ uiFontSize: Number(event.target.value) })}
-            />
-            <span>px</span>
-          </div>
-        </div>
-        <div className={styles.row}>
-          <div className={styles.rowText}>
-            <strong>{locale.codeFontSize}</strong>
-            <small>{locale.codeFontSizeDescription}</small>
-          </div>
-          <div className={advStyles.numberControl}>
-            <input
-              type="number"
-              min={10}
-              max={18}
-              value={config.codeFontSize}
-              aria-label={locale.codeFontSize}
-              onChange={(event) => onUpdateConfig({ codeFontSize: Number(event.target.value) })}
-            />
-            <span>px</span>
-          </div>
-        </div>
-      </div>
+      <SettingGroup title={locale.advancedFontSizeGroup}>
+        <SettingRow
+          title={locale.uiFontSize}
+          description={locale.uiFontSizeDescription}
+          control={(
+            <span className={advStyles.numberControl}>
+              <input
+                type="number"
+                min={12}
+                max={20}
+                value={config.uiFontSize}
+                aria-label={locale.uiFontSize}
+                onChange={(event) => onUpdateConfig({ uiFontSize: Number(event.target.value) })}
+              />
+              <span>px</span>
+            </span>
+          )}
+        />
+        <SettingRow
+          title={locale.codeFontSize}
+          description={locale.codeFontSizeDescription}
+          control={(
+            <span className={advStyles.numberControl}>
+              <input
+                type="number"
+                min={10}
+                max={18}
+                value={config.codeFontSize}
+                aria-label={locale.codeFontSize}
+                onChange={(event) => onUpdateConfig({ codeFontSize: Number(event.target.value) })}
+              />
+              <span>px</span>
+            </span>
+          )}
+        />
+      </SettingGroup>
 
-      <div className={styles.card}>
-        <div className={styles.row}>
-          <div className={styles.rowText}>
-            <strong>{locale.reducedMotion}</strong>
-            <small>{locale.reducedMotionDescription}</small>
-          </div>
-          <div className={advStyles.segmented} role="radiogroup" aria-label={locale.reducedMotion}>
-            {motionOptions.map((item) => (
-              <button
-                key={item.value}
-                type="button"
-                role="radio"
-                aria-checked={config.reducedMotion === item.value}
-                className={config.reducedMotion === item.value ? advStyles.segmentedActive : ""}
-                onClick={() => onUpdateConfig({ reducedMotion: item.value })}
-              >{item.label}</button>
-            ))}
-          </div>
-        </div>
-        <div className={styles.row}>
-          <div className={styles.rowText}>
-            <strong>{locale.separateLightDark}</strong>
-            <small>{locale.separateLightDarkDescription}</small>
-          </div>
-          <SwitchToggle
-            label={locale.separateLightDark}
-            checked={config.separateLightDark}
-            onChange={(checked) => onUpdateConfig({ separateLightDark: checked })}
-          />
-        </div>
-      </div>
-
-      <div className={styles.card}>
-        <div className={styles.row}>
-          <div className={styles.rowText}>
-            <strong>{locale.uiFontWeight}</strong>
-          </div>
-          <ThemeSelect
-            label={locale.uiFontWeight}
-            value={config.uiFontWeight}
-            options={[
-              { value: "normal", label: locale.weightNormal },
-              { value: "medium", label: locale.weightMedium },
-              { value: "semibold", label: locale.weightSemibold },
-            ] satisfies ThemeSelectOption<FontWeightId>[]}
-            onChange={(uiFontWeight) => onUpdateConfig({ uiFontWeight })}
-          />
-        </div>
-        <div className={styles.row}>
-          <div className={styles.rowText}>
-            <strong>{locale.contentFont}</strong>
-          </div>
-          <ThemeSelect
-            label={locale.contentFont}
-            value={config.contentFont}
-            options={[
-              { value: "same", label: locale.contentFontSame },
-              { value: "system", label: locale.motionSystem },
-              { value: "serif", label: "Serif" },
-            ] satisfies ThemeSelectOption<ContentFontId>[]}
-            onChange={(contentFont) => onUpdateConfig({ contentFont })}
-          />
-        </div>
-        <div className={styles.row}>
-          <div className={styles.rowText}>
-            <strong>{locale.codeFont}</strong>
-          </div>
-          <ThemeSelect
-            label={locale.codeFont}
-            value={config.codeFont}
-            options={[
-              { value: "system", label: locale.motionSystem },
-              { value: "jetbrains", label: "JetBrains Mono" },
-              { value: "cascadia", label: "Cascadia Code" },
-              { value: "consolas", label: "Consolas" },
-            ] satisfies ThemeSelectOption<CodeFontId>[]}
-            onChange={(codeFont) => onUpdateConfig({ codeFont })}
-          />
-        </div>
-        <div className={styles.row}>
-          <div className={styles.rowText}>
-            <strong>{locale.translucentSidebar}</strong>
-          </div>
-          <SwitchToggle
-            label={locale.translucentSidebar}
-            checked={config.translucentSidebar}
-            onChange={(checked) => onUpdateConfig({ translucentSidebar: checked })}
-          />
-        </div>
-        <div className={styles.row}>
-          <div className={styles.rowText}>
-            <strong>{locale.contrastLevel}</strong>
-          </div>
-          <div className={advStyles.sliderControl}>
-            <input
-              type="range"
-              min={20}
-              max={100}
-              value={config.contrast}
-              aria-label={locale.contrastLevel}
-              onChange={(event) => onUpdateConfig({ contrast: Number(event.target.value) })}
+      <SettingGroup title={locale.advancedFontGroup}>
+        <SettingRow
+          title={locale.uiFontWeight}
+          control={(
+            <ThemeSelect
+              label={locale.uiFontWeight}
+              value={config.uiFontWeight}
+              options={[
+                { value: "normal", label: locale.weightNormal },
+                { value: "medium", label: locale.weightMedium },
+                { value: "semibold", label: locale.weightSemibold },
+              ] satisfies ThemeSelectOption<FontWeightId>[]}
+              onChange={(uiFontWeight) => onUpdateConfig({ uiFontWeight })}
             />
-            <span>{config.contrast}</span>
-          </div>
-        </div>
-      </div>
+          )}
+        />
+        <SettingRow
+          title={locale.contentFont}
+          control={(
+            <ThemeSelect
+              label={locale.contentFont}
+              value={config.contentFont}
+              options={[
+                { value: "same", label: locale.contentFontSame },
+                { value: "system", label: locale.motionSystem },
+                { value: "serif", label: "Serif" },
+              ] satisfies ThemeSelectOption<ContentFontId>[]}
+              onChange={(contentFont) => onUpdateConfig({ contentFont })}
+            />
+          )}
+        />
+        <SettingRow
+          title={locale.codeFont}
+          control={(
+            <ThemeSelect
+              label={locale.codeFont}
+              value={config.codeFont}
+              options={[
+                { value: "system", label: locale.motionSystem },
+                { value: "jetbrains", label: "JetBrains Mono" },
+                { value: "cascadia", label: "Cascadia Code" },
+                { value: "consolas", label: "Consolas" },
+              ] satisfies ThemeSelectOption<CodeFontId>[]}
+              onChange={(codeFont) => onUpdateConfig({ codeFont })}
+            />
+          )}
+        />
+      </SettingGroup>
 
-      <div className={styles.card}>
-        <div className={styles.row}>
-          <div className={styles.rowText}>
-            <strong>{locale.diffMarker}</strong>
-            <small>{locale.diffMarkerDescription}</small>
-          </div>
-          <div className={advStyles.segmented} role="radiogroup" aria-label={locale.diffMarker}>
-            {diffOptions.map((item) => (
-              <button
-                key={item.value}
-                type="button"
-                role="radio"
-                aria-checked={config.diffMarker === item.value}
-                className={config.diffMarker === item.value ? advStyles.segmentedActive : ""}
-                onClick={() => onUpdateConfig({ diffMarker: item.value })}
-              >{item.label}</button>
-            ))}
-          </div>
-        </div>
-        <div className={styles.row}>
-          <div className={styles.rowText}>
-            <strong>{locale.pointerCursor}</strong>
-            <small>{locale.pointerCursorDescription}</small>
-          </div>
-          <SwitchToggle
-            label={locale.pointerCursor}
-            checked={config.pointerCursor}
-            onChange={(checked) => onUpdateConfig({ pointerCursor: checked })}
-          />
-        </div>
-      </div>
+      <SettingGroup title={locale.advancedThemeGroup}>
+        <SettingRow
+          title={locale.separateLightDark}
+          description={locale.separateLightDarkDescription}
+          control={(
+            <SettingSwitch
+              label={locale.separateLightDark}
+              checked={config.separateLightDark}
+              onChange={(separateLightDark) => onUpdateConfig({ separateLightDark })}
+            />
+          )}
+        />
+        <SettingRow
+          title={locale.translucentSidebar}
+          control={(
+            <SettingSwitch
+              label={locale.translucentSidebar}
+              checked={config.translucentSidebar}
+              onChange={(translucentSidebar) => onUpdateConfig({ translucentSidebar })}
+            />
+          )}
+        />
+        <SettingRow
+          title={locale.contrastLevel}
+          control={(
+            <span className={advStyles.sliderControl}>
+              <input
+                type="range"
+                min={20}
+                max={100}
+                value={config.contrast}
+                aria-label={locale.contrastLevel}
+                onChange={(event) => onUpdateConfig({ contrast: Number(event.target.value) })}
+              />
+              <span>{config.contrast}</span>
+            </span>
+          )}
+        />
+        <SettingRow
+          title={locale.diffMarker}
+          description={locale.diffMarkerDescription}
+          control={(
+            <SettingSegmented
+              label={locale.diffMarker}
+              value={config.diffMarker}
+              options={diffOptions}
+              onChange={(diffMarker) => onUpdateConfig({ diffMarker })}
+            />
+          )}
+        />
+      </SettingGroup>
+
+      <SettingGroup title={locale.advancedMotionGroup}>
+        <SettingRow
+          title={locale.reducedMotion}
+          description={locale.reducedMotionDescription}
+          control={(
+            <SettingSegmented
+              label={locale.reducedMotion}
+              value={config.reducedMotion}
+              options={motionOptions}
+              onChange={(reducedMotion) => onUpdateConfig({ reducedMotion })}
+            />
+          )}
+        />
+        <SettingRow
+          title={locale.pointerCursor}
+          description={locale.pointerCursorDescription}
+          control={(
+            <SettingSwitch
+              label={locale.pointerCursor}
+              checked={config.pointerCursor}
+              onChange={(pointerCursor) => onUpdateConfig({ pointerCursor })}
+            />
+          )}
+        />
+      </SettingGroup>
     </div>
-  );
-}
-
-function SwitchToggle({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      className={`${advStyles.switch} ${checked ? advStyles.switchOn : ""}`}
-      onClick={() => onChange(!checked)}
-    >
-      <span className={advStyles.switchThumb} />
-    </button>
   );
 }

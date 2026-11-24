@@ -102,15 +102,29 @@ mkdirSync(OUT_DIR, { recursive: true });
 const server = externalUrl ? null : await startHostServer({ webRoot: WEB_DIST, projectRoot: REPO_ROOT, port: 0 });
 const baseUrl = externalUrl ?? server?.url ?? "";
 let browser: Browser | undefined;
+// 需要看到滚动条的任务另起一个不带 --hide-scrollbars 的实例；Playwright 默认会隐藏滚动条。
+let scrollbarBrowser: Browser | undefined;
 const results: Array<Record<string, unknown>> = [];
 
-try {
-  browser = await chromium.launch({ executablePath: browserPath, headless: true });
+/** 按任务要求选择浏览器实例：默认隐藏滚动条，标记了 scrollbars 的用可见滚动条实例。 */
+async function pickBrowser(task: ShotTask): Promise<Browser> {
+  if (!task.scrollbars) {
+    browser ??= await chromium.launch({ executablePath: browserPath, headless: true });
+    return browser;
+  }
+  scrollbarBrowser ??= await chromium.launch({
+    executablePath: browserPath,
+    headless: true,
+    ignoreDefaultArgs: ["--hide-scrollbars"],
+  });
+  return scrollbarBrowser;
+}
 
+try {
   for (const task of tasks) {
     const theme = forcedTheme ?? task.theme;
     const viewport = { width: task.width ?? DEFAULT_VIEWPORT.width, height: task.height ?? DEFAULT_VIEWPORT.height };
-    const context = await browser.newContext({ viewport });
+    const context = await (await pickBrowser(task)).newContext({ viewport });
     if (theme) {
       // 在应用脚本之前写入主题偏好，首帧就是目标主题（外观配置存在时同步改 mode）。
       await context.addInitScript((mode: string) => {
@@ -174,5 +188,6 @@ try {
   process.exitCode = failed.length > 0 ? 1 : 0;
 } finally {
   await browser?.close();
+  await scrollbarBrowser?.close();
   await server?.stop();
 }

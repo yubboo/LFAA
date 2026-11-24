@@ -274,6 +274,7 @@ export async function openFolderInExplorer(folderPath: string): Promise<{ opened
       stdio: "ignore",
       windowsHide: false,
     });
+    child.once("error", () => {});
     child.unref();
     return { opened: true };
   } catch (error) {
@@ -306,6 +307,7 @@ export async function revealFileInExplorer(filePath: string): Promise<{ opened: 
       stdio: "ignore",
       windowsHide: false,
     });
+    child.once("error", () => {});
     child.unref();
     return { opened: true };
   } catch (error) {
