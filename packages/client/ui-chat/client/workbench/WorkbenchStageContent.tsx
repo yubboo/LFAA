@@ -34,6 +34,8 @@ export function WorkbenchStageContent({
   browserInitialUrl,
   browserExternalState,
   agentRunning,
+  browserAutomationActive,
+  browserActivity,
   devtoolsRequest,
   showStartPage,
   activeBrowserTabId,
@@ -71,6 +73,8 @@ export function WorkbenchStageContent({
   browserInitialUrl: string | undefined;
   browserExternalState: { snap: BrowserSessionSnapshot; nonce: number } | undefined;
   agentRunning: boolean;
+  browserAutomationActive: boolean;
+  browserActivity?: string | undefined;
   devtoolsRequest?: { tab: "console" | "network"; nonce: number } | undefined;
   showStartPage: boolean;
   activeBrowserTabId: string | undefined;
@@ -152,6 +156,8 @@ export function WorkbenchStageContent({
               initialUrl={browserInitialUrl}
               hideTabStrip={true}
               agentRunning={agentRunning}
+              browserAutomationActive={browserAutomationActive}
+              browserActivity={browserActivity}
               externalState={browserExternalState}
               devtoolsRequest={devtoolsRequest}
               onSnapshotChange={onSnapshotChange}

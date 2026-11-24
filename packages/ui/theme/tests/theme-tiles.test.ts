@@ -34,6 +34,21 @@ test("「跟随系统」卡同时给出左侧浅色与右侧深色取样", () =>
   );
 });
 
+test("「樱花粉」作为独立预设卡出现在主题网格里", () => {
+  const tiles = buildThemeTiles({ mode: "light", preset: "sakura", scheme: "light", isZh: true });
+  const sakuraTile = tiles.find((tile) => tile.id === `${PRESET_TILE_PREFIX}sakura`);
+  assert.ok(sakuraTile, "主题网格缺少樱花粉配色卡");
+  assert.equal(sakuraTile.label, "樱花粉");
+  assert.equal(sakuraTile.active, true);
+  assert.equal(sakuraTile.sample.background, THEME_PRESETS.sakura.light.background);
+
+  // 英文界面用英文名，且同一预设的深色取样取深色底色。
+  const enTiles = buildThemeTiles({ mode: "dark", preset: "sakura", scheme: "dark", isZh: false });
+  const enTile = enTiles.find((tile) => tile.id === `${PRESET_TILE_PREFIX}sakura`);
+  assert.equal(enTile?.label, "Sakura");
+  assert.equal(enTile?.sample.background, THEME_PRESETS.sakura.dark.background);
+});
+
 test("预设取样解析强调色为十六进制，并标记玻璃质感", () => {
   const mist = sampleOfPreset("softMist", "light");
   assert.equal(mist.background, "#EBF0F2");

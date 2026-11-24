@@ -287,13 +287,13 @@ export class AgentService extends Service {
     }, input, resolveRoots);
   }
 
-  /** 浏览器仅提交记录标识，文件路径取自会话的真实工具结果（支持写入/编辑与 read_file）。 */
-  async readFileActivity(    sessionId: string, messageId: string, stepId: string,
-    resolveRoots: (projectId: string | null) => Promise<string[]>,
-  ) {
+  /** 浏览器仅提交记录标识，文件路径取自会话的真实工具结果（支持写入/编辑与 read_file，兼容运行中未落盘步骤）。 */
+  async readFileActivity(sessionId: string, messageId: string, stepId: string, resolveRoots: (projectId: string | null) => Promise<string[]>) {
     const session = await this.ctx.memory.getSession(sessionId);
-    const step = session?.messages.find((message) => message.id === messageId && message.role === "assistant")
-      ?.steps?.find((item) => item.id === stepId);
+    const liveSteps = [...this.runs.values()].filter((r) => r.status.sessionId === sessionId).flatMap((r) => r.status.steps);
+    const step = session?.messages.find((m) => m.id === messageId && m.role === "assistant")?.steps?.find((s) => s.id === stepId)
+      ?? liveSteps.find((s) => s.id === stepId)
+      ?? session?.messages.filter((m) => m.role === "assistant").flatMap((m) => m.steps ?? []).find((s) => s.id === stepId);
     if (!session || !step || step.phase !== "act" || step.status !== "done") return null;
     const roots = await resolveRoots(session.projectId);
     if (step.fileChange) return readActivitySource(step.fileChange, roots);

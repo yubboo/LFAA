@@ -4,6 +4,7 @@ import type { WorkbenchContextPanelContribution } from "@lfaa/ui-layout";
 import type { ChatClientStore } from "../store/chat-store";
 import { useChatSelector } from "../store/use-chat-selector";
 import type { ChatLocaleMessages } from "../locales";
+import { isBrowserAutomationStep } from "../shared/agent-workbench-sync";
 import { useAuxResize } from "./useAuxResize";
 import { patchWorkbenchSessionState, readWorkbenchSessionState } from "../store/workbench-persist";
 import { RightUtilityRail, type RightAuxTab } from "./RightUtilityRail";
@@ -73,12 +74,21 @@ export function RightWorkbenchPane({
   const state = useChatSelector(store, (snap) => {
     const activeTab = showFilePreview ? snap.filePreviewTabs.find((tab) => tab.id === snap.activeFilePreviewId) : undefined;
     const msgs = snap.activeSession?.messages;
+    const browserStep = snap.runningRunId && msgs?.at(-1)?.steps?.find((step) =>
+      step.status === "running" && isBrowserAutomationStep(step));
+    const browserAction = browserStep ? browserStep.subagent?.steps?.find((step) => step.status === "running") : undefined;
     const selectedStep = activeTab?.messageId && activeTab?.stepId
       ? msgs?.find((m) => m.id === activeTab.messageId)?.steps?.find((s) => s.id === activeTab.stepId)
       : undefined;
     return {
       sessionId: snap.activeSession?.id ?? snap.activeSessionId ?? "default",
       agentRunning: Boolean(snap.runningRunId),
+      browserAutomationActive: Boolean(browserStep),
+      browserActivity: browserAction?.label
+        ? [browserAction.label, browserAction.target].filter(Boolean).join(" · ")
+        : browserStep
+          ? (browserStep.subagent?.liveAction?.trim() || "深度思考…")
+          : undefined,
       filePreviewTabs: snap.filePreviewTabs,
       activeFilePreviewId: snap.activeFilePreviewId,
       rightStageKind: snap.rightStageKind,
@@ -105,7 +115,7 @@ export function RightWorkbenchPane({
     browserOpen, browserTabs, browserInitialUrl, browserExternalState,
     setBrowserOpen, setBrowserInitialUrl, handleBrowserSnapshot,
     handleOpenNewBrowserTab, handleActivateBrowserTab, handleCloseBrowserTab, handleOpenUrl, restoreBrowser, syncHostBrowser,
-  } = useWorkbenchBrowser({ sessionId, store, activeFileTab, syncedSessionRef, initialOpen: initialSaved.browserOpen, initialUrl: initialSaved.browserUrl });
+  } = useWorkbenchBrowser({ sessionId, store, activeFileTab, syncedSessionRef, initialOpen: initialSaved.browserOpen });
 
   const stageKind = auxOpen && !(activeAux === "filesTree" && state.rightStageKind === "file" && activeFileTab)
     ? "utility"
@@ -348,6 +358,8 @@ export function RightWorkbenchPane({
           browserInitialUrl={browserInitialUrl}
           browserExternalState={browserExternalState}
           agentRunning={state.agentRunning}
+          browserAutomationActive={state.browserAutomationActive}
+          browserActivity={state.browserActivity}
           devtoolsRequest={devtoolsRequest}
           showStartPage={showStartPage}
           activeBrowserTabId={activeBrowserTab?.tabId}

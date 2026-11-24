@@ -44,6 +44,7 @@
     "@lfaa/sections": "workspace:*",
     "@lfaa/shell": "workspace:*",
     "@lfaa/skills": "workspace:*",
+    "@lfaa/mcp": "workspace:*",
     "@lfaa/subagent": "workspace:*",
     "@lfaa/tools": "workspace:*",
     "@lfaa/workspace": "workspace:*",

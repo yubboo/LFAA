@@ -17,6 +17,7 @@ import { handoffBundlePlugin } from "@lfaa/handoff";
 import { jobsPlugin } from "@lfaa/jobs";
 import { llmPlugin } from "@lfaa/llm";
 import { memoryPlugin } from "@lfaa/memory";
+import mcpPlugin from "@lfaa/mcp";
 import { pluginsPlugin } from "@lfaa/plugins";
 import planModePlugin from "@lfaa/plan-mode";
 import { rulesPlugin } from "@lfaa/rules";
@@ -128,6 +129,7 @@ export const webBundlePlugin: Plugin.Object<WebBundleConfig> = {
       describeCommandShell: async () => `run_command 的当前 Shell 为 ${SHELL_NAMES[await currentShellKind(ctx)] ?? "Bash"}。请使用该 Shell 的原生命令语法和路径格式。`,
     });
     const skillsFiber = ctx.plugin(skillsPlugin);
+    const mcpFiber = ctx.plugin(mcpPlugin, {});
     // 网页能力 seam 先于抓取实现挂载，目标服务先于目标工具挂载。
     const webFiber = ctx.plugin(webPlugin);
     const webFetchFiber = ctx.plugin(httpFetchPlugin, {});
@@ -162,7 +164,7 @@ export const webBundlePlugin: Plugin.Object<WebBundleConfig> = {
     const promptFiber = ctx.plugin(systemPromptPlugin);
     const compactCommandFiber = ctx.plugin(commandCompactPlugin);
     const sandboxPolicyFiber = ctx.plugin(sandboxPolicyPlugin, {});
-    await Promise.all([sectionsFiber, workspaceFiber, worktreeFiber, llmFiber, agentProfileFiber, reviewFiber, rulesFiber, memoryFiber, shellFiber, toolsFiber, skillsFiber, webFiber, webFetchFiber, goalFiber, handoffFiber, toolTodoFiber, toolWebFiber, toolGoalFiber, toolScheduleFiber, feedbackFiber, attachmentFiber, sessionTitleFiber, commandsFiber, mediaToolsFiber, observationFiber, timeoutFiber, planModeFiber, prunerFiber, spillFiber, compactionFiber, promptFiber, compactCommandFiber, sandboxPolicyFiber]);
+    await Promise.all([sectionsFiber, workspaceFiber, worktreeFiber, llmFiber, agentProfileFiber, reviewFiber, rulesFiber, memoryFiber, shellFiber, toolsFiber, skillsFiber, mcpFiber, webFiber, webFetchFiber, goalFiber, handoffFiber, toolTodoFiber, toolWebFiber, toolGoalFiber, toolScheduleFiber, feedbackFiber, attachmentFiber, sessionTitleFiber, commandsFiber, mediaToolsFiber, observationFiber, timeoutFiber, planModeFiber, prunerFiber, spillFiber, compactionFiber, promptFiber, compactCommandFiber, sandboxPolicyFiber]);
 
     const loaderFiber = ctx.plugin(Loader, { baseUrl: config.loaderBaseUrl });
     await loaderFiber;

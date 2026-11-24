@@ -74,3 +74,13 @@ LFAA 共享交互基础 UI 原语包：统一封装居中弹窗（ModalDialog）
 | `SettingDangerGroup` | 删除 / 清空 / 重置类动作，固定放页面最末并用危险色。 |
 
 `settingsStyles` 合并排版层（`SettingsSurface.module.css`）与控件层（`SettingsControls.module.css`），页面仍然只导入一个 class 映射即可拿到输入框、按钮与只读值样式。
+
+## Base UI 交互原语
+
+基于无头组件库 `@base-ui/react` 与 CSS Modules + `@lfaa/ui-theme` 双主题语义变量封装（零 Tailwind）：
+
+- `DropdownMenu`（`DropdownMenuItem`、`DropdownMenuCheckboxItem`、`DropdownMenuSeparator`）：自动视口防溢出定位、键盘导航与焦点恢复的下拉菜单。
+- `UiSwitch`：双主题触感开关。
+- `UiSelect`：支持键盘导航与防溢出定位的下拉选择器。
+- `UiTabs`：带平滑指示条与方向键切换的分段标签。
+- `UiTooltip`：悬停防抖与自动避障定位的轻量提示。

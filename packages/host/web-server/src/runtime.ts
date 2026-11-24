@@ -11,6 +11,7 @@ import { createRoutedLlm } from "@lfaa/agent-profile";
 import { webBundlePlugin } from "@lfaa/bundle-web";
 import { createGoalHttpHandler } from "@lfaa/goal";
 import { createHandoffHttpHandler } from "@lfaa/handoff";
+import { createMcpHttpHandler } from "@lfaa/mcp";
 import { sandboxLocalPlugin } from "@lfaa/sandbox";
 import { createAgentHandlers } from "./handlers/handlers-chat";
 import { createCommonHandlers } from "./handlers/handlers";
@@ -127,6 +128,7 @@ export async function createHostRuntime(options: HostRuntimeOptions): Promise<Ho
     { id: "workspace", handle: common.workspace },
     { id: "worktrees", handle: common.worktrees },
     { id: "skills", handle: common.skills },
+    { id: "mcp", handle: createMcpHttpHandler(hostContext.mcp) },
     { id: "plugins", handle: common.plugins },
     { id: "llm", handle: common.llm },
     { id: "rules", handle: common.rules },

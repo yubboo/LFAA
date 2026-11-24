@@ -44,6 +44,9 @@ export interface SubagentStepPreview {
   name: string;
   label?: string;
   target?: string;
+  resultSummary?: string;
+  browserEvidence?: AgentStepTrace["browserEvidence"];
+  browserVerdict?: AgentStepTrace["browserVerdict"];
   status: AgentStepStatus;
 }
 
@@ -59,6 +62,9 @@ export interface AgentStepTrace {
   permissionLevel?: "read" | "write" | "exec";
   argsPreview?: string;
   resultPreview?: string;
+  resultSummary?: string;
+  browserEvidence?: { id: string; sessionId: string };
+  browserVerdict?: "pass" | "needs_fix" | "unverified";
   addedLines?: number;
   removedLines?: number;
   /** 任务清单类工具在本次调用后回传的完整清单，供时间线与任务面板还原。 */

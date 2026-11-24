@@ -140,7 +140,7 @@ export async function beginAgentRun(
   // agent 的工具策略在会话模式作用域之后再过一层：两者取交集，策略只能收窄不能放大。
   const effectiveAgentId = input.agentId ?? session.agentId;
   const toolPolicy = deps.resolveToolPolicy ? await deps.resolveToolPolicy(effectiveAgentId) : undefined;
-  const tools = (modules ? deps.tools.scope(modules, session.sessionPreset === "minimal") : deps.tools)
+  const tools = deps.tools.scope(modules, session.sessionPreset === "minimal", projectId ?? null)
     .withPolicy(toolPolicy);
   const skillsAllowed = !modules || modules.has("@lfaa/skills");
   const memoryAllowed = !modules || modules.has("@lfaa/memory");

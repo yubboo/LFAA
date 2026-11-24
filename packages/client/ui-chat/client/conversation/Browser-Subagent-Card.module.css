@@ -173,6 +173,50 @@
   background: var(--color-active);
 }
 
+.goalBar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.24rem 0.48rem;
+  border-radius: 0.42rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  font-size: 0.73rem;
+  color: var(--color-muted);
+  min-width: 0;
+}
+
+.goalTag {
+  flex: 0 0 auto;
+  padding: 0.04rem 0.34rem;
+  border-radius: 0.28rem;
+  background: rgb(var(--color-info-rgb) / 0.12);
+  color: var(--color-info);
+  font-weight: 500;
+  font-size: 0.68rem;
+}
+
+.goalText {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-ink);
+}
+
+/* 步骤列表超过限高后原地滚动：与思维链正文同一套上限（桌面 15rem / 窄屏 12rem），长任务不再把整张卡片越拉越长。 */
+.stepScroll {
+  max-height: 15rem;
+  padding-inline-end: 0.2rem;
+}
+
+@media (max-width: 640px) {
+  .stepScroll {
+    max-height: 12rem;
+  }
+}
+
 .stepList {
   margin: 0;
   padding: 0 0 0 0.55rem;
@@ -180,6 +224,12 @@
   border-left: 1.5px solid var(--color-line);
   display: grid;
   gap: 0.28rem;
+}
+
+.stepEntry {
+  display: grid;
+  gap: 0.24rem;
+  min-width: 0;
 }
 
 .stepItem {
@@ -190,6 +240,30 @@
   font-size: 0.77rem;
   line-height: 1.4;
   color: var(--color-ink);
+}
+
+.stepEvidenceWrap {
+  padding-inline-start: 1.34rem;
+}
+
+.inlineThumbBtn {
+  display: block;
+  padding: 0.16rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.42rem;
+  background: var(--color-surface);
+  cursor: pointer;
+  max-inline-size: 100%;
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+.inlineThumbBtn:hover {
+  background: var(--color-active);
+}
+
+.inlineThumbBtn[data-selected="true"] {
+  border-color: var(--color-info);
+  width: 100%;
 }
 
 .stepIcon {
@@ -225,6 +299,50 @@
 .stepTarget {
   color: var(--color-muted);
   margin-left: 0.3rem;
+}
+
+.stepIcon[data-status="unverified"] {
+  color: var(--color-warning);
+}
+
+.evidenceLink {
+  flex-shrink: 0;
+  padding: 0 0.22rem;
+  border: 0;
+  background: transparent;
+  color: var(--color-link);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.14em;
+  cursor: pointer;
+}
+
+.evidenceImage {
+  display: block;
+  max-inline-size: 100%;
+  border: 1px solid var(--color-line);
+  border-radius: 0.34rem;
+}
+
+.evidenceThumbImage {
+  display: block;
+  width: 8.8rem;
+  height: 4.8rem;
+  object-fit: cover;
+  object-position: top;
+  border-radius: 0.28rem;
+}
+
+.evidenceThumbPlaceholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 8.8rem;
+  height: 4.8rem;
+  border-radius: 0.28rem;
+  background: var(--color-panel);
+  color: var(--color-muted);
+  font-size: 0.68rem;
 }
 
 .liveRow {

@@ -24,16 +24,13 @@ export function canUseNativeEngine(
   return /^https?:\/\//iu.test(snap.url);
 }
 
-/**
- * 解析当前生效的渲染引擎（原生优先，零多余切换）：
- * - 凡是可嵌入页面（本地开发页、未拦截嵌入的网页），无论 Agent 是否在运行，一律直接使用原生 `<iframe>`
- *   享受宿主浏览器 GPU 硬件加速与 60/120fps 丝滑渲染，控制权由「接管 / 交还 Agent」与防误触护盾统一管理；
- * - 仅在页面未加载、被 X-Frame-Options / CSP 拒绝嵌入或与宿主同源防自嵌套时，静默自动回退到 2x CDP 画布兜底。
- */
+/** Agent 实操和人工接管阶段均展示宿主标签，完成后保留 Agent 操作留下的页面状态。 */
 export function resolveEffectiveRenderMode(
-  snap: Pick<BrowserSessionSnapshot, "url" | "embeddable"> | null,
+  snap: Pick<BrowserSessionSnapshot, "url" | "embeddable"> & Partial<Pick<BrowserSessionSnapshot, "lastActor" | "takeoverPaused">> | null,
   hostOrigin: string,
+  browserAutomationActive = false,
 ): EffectiveRenderMode {
+  if (browserAutomationActive || snap?.lastActor === "agent" || snap?.takeoverPaused) return "cdp";
   return canUseNativeEngine(snap, hostOrigin) ? "native" : "cdp";
 }
 

@@ -1,5 +1,5 @@
 // 仓库依赖状态预检与安全增量安装脚本：在 Node 环境中核对 workspace/lockfile，避免破坏性重建。
-// 提供异步流式启动 pnpm 安装子进程的能力，并支持超时/错误诊断。
+// 缺依赖时只补装缺失的包（复用 pnpm store），并自愈被删掉的依赖链接；失败原因转成可读提示。
 import { spawn } from "node:child_process";
 // 计算 lockfile 摘要，用于比对仓库与已安装目录中的副本。
 import { createHash } from "node:crypto";
@@ -209,10 +209,16 @@ function dependencyLinkExists(packageFolder, dependencyName) {
 
 // 综合核对依赖声明、lockfile、链接和 workspace 登记，决定是否需要安装。
 async function inspectInstallState() {
+  // 首次运行（全新克隆）还没有 node_modules：直接给可读原因，避免后面读 pnpm 状态文件时抛 ENOENT。
+  if (!existsSync(resolve(repositoryRoot, "node_modules"))) {
+    return { ready: false, firstRun: true, reason: "本机还没有安装依赖" };
+  }
   const rootManifest = await readJson(rootManifestPath);
   const workspaceProjects = await collectWorkspaceProjects();
   const projectPaths = [".", ...workspaceProjects];
   const projectRecords = [];
+  // 记录缺链接的工程：pnpm 认为「已是最新」时不会补建被删掉的链接，需要安装前先清掉对应 node_modules。
+  const brokenLinks = [];
   const importers = parseLockImporters(await readFile(lockfilePath, "utf8"));
 
   for (const projectPath of projectPaths) {
@@ -221,6 +227,8 @@ async function inspectInstallState() {
     const lockDependencies = importers.get(projectPath);
 
     if (!lockDependencies) return { ready: false, reason: `pnpm-lock.yaml 缺少工作区入口 ${projectPath}` };
+
+    const missingLinks = [];
 
     for (const section of dependencySections) {
       // 声明项 = 该 section 的依赖 + 非可选 peer；peer 会被 pnpm 记入同一 section，
@@ -247,12 +255,21 @@ async function inspectInstallState() {
           return { ready: false, reason: `${projectPath} 新增或更新了依赖 ${dependencyName}` };
         }
         if (section !== "optionalDependencies" && !dependencyLinkExists(folder, dependencyName)) {
-          return { ready: false, reason: `${projectPath} 缺少依赖链接 ${dependencyName}` };
+          missingLinks.push(dependencyName);
         }
       }
     }
 
+    if (missingLinks.length > 0) {
+      brokenLinks.push({ path: projectPath, folder, names: missingLinks });
+    }
     projectRecords.push({ path: projectPath, name: manifest.name, version: manifest.version });
+  }
+
+  // 链接缺失优先于后面的状态比对处理：安装阶段会先清掉对应 node_modules 再让 pnpm 重建。
+  if (brokenLinks.length > 0) {
+    const summary = brokenLinks.map((item) => `${item.path} 缺少依赖链接 ${item.names.join("、")}`).join("；");
+    return { ready: false, reason: summary, brokenLinks };
   }
 
   // 比较安装时复制的 lockfile，可识别切换分支或新增依赖后尚未同步的安装目录。
@@ -327,27 +344,43 @@ function invokePnpm(pnpmArgs) {
   });
 }
 
-// 优先纯离线复用本地 store 缓存，仅当本地缺少新依赖时才联网下载缺失包。
-async function runPnpmInstall() {
-  cleanStaleTempDirs();
-  console.info("检测到依赖未安装或有变化，优先复用本地缓存增量安装（--offline）……");
-  let result = await invokePnpm(["install", "--offline"]);
-
-  if (!result.error && result.status !== 0) {
-    const missingOfflineCache = /ERR_PNPM_NO_OFFLINE|not found in local store|NO_OFFLINE_/iu.test(result.output);
-    const abortedPurge = result.output.includes("ABORTED_REMOVE_MODULES_DIR_NO_TTY");
-    if (missingOfflineCache && !abortedPurge) {
-      console.info("本地缓存缺少新增依赖，转为 --prefer-offline 仅下载缺失包……");
-      result = await invokePnpm(["install", "--prefer-offline"]);
-    }
+// 增量安装：pnpm 自带的内容寻址 store 只会下载本地缓存里没有的包，已下载的包直接复用，
+// 所以这里不先跑一轮 --offline 试探（首装时那一轮必然失败，还会留下半成品目录），一次装到位。
+// brokenLinks 来自预检：pnpm 11 认为安装状态「已是最新」时不会补建被删掉的链接（实测 --force 也不会），
+// 因此先把缺链接的工程 node_modules 清掉，让 pnpm 在这次安装里重建链接；根工程缺链接则整体重建。
+async function runPnpmInstall(firstRun, brokenLinks = []) {
+  const rootBroken = brokenLinks.some((item) => item.path === ".");
+  const projectBroken = brokenLinks.filter((item) => item.path !== ".");
+  if (rootBroken) {
+    console.info("根工程的依赖链接缺失，正在整体重建 node_modules（复用本地缓存，不会重新下载已缓存的包）……");
+    rmSync(resolve(repositoryRoot, "node_modules"), { recursive: true, force: true });
+  } else if (projectBroken.length > 0) {
+    const names = projectBroken.map((item) => item.path).join("、");
+    console.info(`检测到 ${names} 缺少依赖链接，正在清掉对应 node_modules 让 pnpm 重建（不会重新下载已缓存的包）……`);
   }
+  for (const item of projectBroken) {
+    rmSync(resolve(item.folder, "node_modules"), { recursive: true, force: true });
+  }
+
+  cleanStaleTempDirs();
+  console.info(firstRun
+    ? "首次运行：开始安装全部依赖（已下载过的包会直接复用本地缓存）……"
+    : "检测到依赖有变化：开始增量安装（只下载本地缓存里还没有的包）……");
+  const result = await invokePnpm(["install", "--prefer-offline"]);
 
   if (result.error) {
     console.error(`无法启动 pnpm install：${result.error.message}`);
+    if (result.error.code === "ENOENT") {
+      console.error("本机似乎没有安装 pnpm。请先安装 Node.js，再执行 npm install -g pnpm，然后重新选择菜单 2。");
+    }
     return result.error.code === "ENOENT" ? 127 : 1;
   }
   if (result.status !== 0) {
-    console.error("依赖增量安装失败；安装流程未提供交互确认，pnpm 需要重建 node_modules 时会安全中止。请先运行菜单 1 或手动执行 pnpm install 确认后再启动。");
+    if (result.output.includes("ABORTED_REMOVE_MODULES_DIR_NO_TTY")) {
+      console.error("pnpm 需要重建 node_modules，但自动流程没有交互确认。请先运行菜单 1（pnpm install）确认一次，再回到菜单 2。");
+    } else {
+      console.error("依赖安装失败，请检查网络或代理后重试；也可以先运行菜单 1（pnpm install）完成安装，再回到菜单 2。");
+    }
     return result.status ?? 1;
   }
   return 0;
@@ -374,19 +407,29 @@ async function main() {
   }
 
   console.info(`依赖检查发现需要处理的项目：${state.reason}`);
-  const exitCode = await runPnpmInstall();
+  let exitCode = await runPnpmInstall(state.firstRun === true, state.brokenLinks);
   if (exitCode !== 0) {
     process.exitCode = exitCode;
     return;
   }
 
-  const installedState = await inspectInstallState();
+  let installedState = await inspectInstallState();
+  // 首轮安装可能被新增依赖/锁文件变动先行处理，链接仍缺时按工程重建后再装一次。
+  if (!installedState.ready && installedState.brokenLinks?.length) {
+    console.info(`安装后仍有 ${installedState.brokenLinks.length} 个工程缺少依赖链接，正在重建后重试……`);
+    exitCode = await runPnpmInstall(false, installedState.brokenLinks);
+    if (exitCode !== 0) {
+      process.exitCode = exitCode;
+      return;
+    }
+    installedState = await inspectInstallState();
+  }
   if (!installedState.ready) {
     console.error(`安装后依赖状态仍不完整：${installedState.reason}`);
     process.exitCode = 1;
     return;
   }
-  console.info("新增或缺失的依赖已安装完成。");
+  console.info("缺失或新增的依赖已安装完成。");
 }
 
 // 捕获预检入口未处理的异常并转换为失败退出码。

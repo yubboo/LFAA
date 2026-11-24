@@ -22,7 +22,7 @@ export async function executeAgentTaskLoop(
 
   // 1. 装配上下文：规则优先级 + 长期记忆召回 + 资料库/资产库摘要 + 短期裁剪历史（见 run-context.ts）。
   const context = await createRunContext({ deps, params, state });
-  const { tracker, systemMessage, conversation, contextBudgetChars, roundLimits, updateSystemMessage } = context;
+  const { tracker, systemMessage, conversation, contextBudgetChars, roundLimits, consumeTailHint, updateSystemMessage } = context;
 
   // 2. Think -> Act -> Check 任务循环；预算、轮次与自检标记统一收在 state 里（见 loop-state.ts）。
   const steps = state.steps;
@@ -48,7 +48,7 @@ export async function executeAgentTaskLoop(
 
     const think = await runThinkRound({
       deps, params, state, tracker, iteration, systemMessage, conversation, contextBudgetChars, roundLimits,
-      updateSystemMessage, pushStep: pushOrUpdateStep,
+      consumeTailHint, pushStep: pushOrUpdateStep,
     });
     context.setTruncationHint(think.truncationHint);
     const { output, preparing, roundContent } = think;

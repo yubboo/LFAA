@@ -28,8 +28,8 @@ export interface ThinkRoundInput {
   conversation: LlmMessage[];
   contextBudgetChars: number;
   roundLimits: RoundLimits;
-  /** 用最新状态重渲染系统消息；remainingSteps 用于写入剩余步数提示。 */
-  updateSystemMessage: (remainingSteps?: number) => void;
+  /** 消费本轮尾部动态提示（不改写首条 system 前缀，保住 KV Cache）。 */
+  consumeTailHint: (remainingSteps?: number) => string;
   pushStep: (step: AgentStepTrace) => void;
 }
 
@@ -56,7 +56,7 @@ export async function runThinkRound({
   conversation,
   contextBudgetChars,
   roundLimits,
-  updateSystemMessage,
+  consumeTailHint,
   pushStep,
 }: ThinkRoundInput): Promise<ThinkRoundResult> {
   const roundStartedAt = Date.now();
@@ -94,11 +94,14 @@ export async function runThinkRound({
   // 当主循环同时存在 invoke_subagent 与内置浏览器工具时，将 browser_* 专职收口给浏览器子智能体（mode="browser"），
   // 确保每次浏览与页面验收都经由独立浏览器子智能体并在思维链呈现实时状态卡，不污染主上下文。
   if (deps.tools.getTool("invoke_subagent") && deps.tools.getTool("browser_navigate")) {
-    llmTools = llmTools.filter((tool) => !tool.name.startsWith("browser_"));
+    llmTools = llmTools.filter((tool) => tool.name === "browser_present" || !tool.name.startsWith("browser_"));
   }
   if (params.enableClarification) llmTools = [...llmTools, clarificationTool];
   let firstTokenAt: number | undefined;
-  updateSystemMessage(Math.max(0, state.budget.limit - iteration + 1));
+  const tailHint = consumeTailHint(Math.max(0, state.budget.limit - iteration + 1));
+  if (tailHint) {
+    conversation.push({ role: "user", content: `[运行时提示]\n${tailHint}` });
+  }
   // 发送前按预算压缩：保留结构与最近轮次，早期工具结果压成尾部片段。
   const compaction = compactForRun(deps.compaction, conversation, {
     budgetChars: contextBudgetChars,

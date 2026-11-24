@@ -31,3 +31,5 @@ This package lives in `packages/core/browser`.
 ## Dev Note
 
 None.
+
+Browser previews reuse the active tab. Explicit captures produce session-scoped evidence that can be viewed while it remains in the host cache.

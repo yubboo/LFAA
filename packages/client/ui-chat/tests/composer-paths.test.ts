@@ -22,6 +22,13 @@ test("从一段文字里提取多个绝对路径并去重", () => {
   assert.ok(paths.includes("/home/x/a.ts"));
 });
 
+test("不会把 @scope/pkg、相对路径、URL 或斜杠命令误识别成绝对路径", () => {
+  const paths = extractAbsolutePaths(
+    "运行 pnpm --filter @lfaa/ui-theme test，查看 packages/ui/theme/index.ts，访问 http://127.0.0.1:5173/api/chat，执行 /plan",
+  );
+  assert.deepEqual(paths, []);
+});
+
 test("路径附件与手打路径都会进入上下文，且不重复", () => {
   const attachment: ComposerAttachment = {
     id: "path-1",

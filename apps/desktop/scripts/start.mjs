@@ -28,11 +28,20 @@ if (missing.length > 0) {
   // 它会让 electron.exe 退化成纯 Node 进程，必须剔除后再启动桌面端。
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
-  // 少数受限会话里 Chromium sandbox 初始化会直接失败（进程以 0x80000003 退出）。
-  // 默认保持沙箱开启；只在排查时用 LFAA_DESKTOP_NO_SANDBOX=1 临时关闭。
-  const args = process.env.LFAA_DESKTOP_NO_SANDBOX === "1" ? ["--no-sandbox", APP_DIR] : [APP_DIR];
-  const child = spawn(electronPath, args, { stdio: "inherit", cwd: ROOT, env });
-  child.on("exit", (code) => {
-    process.exitCode = code ?? 0;
-  });
+  // 少数受限终端/IDE 会话里 Chromium sandbox 初始化会直接失败（进程以 0x80000003 / 2147483651 退出）。
+  // 默认先启用沙箱；若命中 0x80000003 则自动以 --no-sandbox 重试一次，避免用户卡在晦涩的退出码。
+  const launchElectron = (noSandbox) => {
+    const args = noSandbox ? ["--no-sandbox", APP_DIR] : [APP_DIR];
+    const child = spawn(electronPath, args, { stdio: "inherit", cwd: ROOT, env });
+    child.on("exit", (code) => {
+      const isSandboxCrash = !noSandbox && (code === 0x80000003 || code === -2147483645);
+      if (isSandboxCrash) {
+        console.warn("检测到当前终端会话限制了 Chromium 沙箱（0x80000003），正在自动以 --no-sandbox 重试启动桌面端…");
+        launchElectron(true);
+        return;
+      }
+      process.exitCode = code ?? 0;
+    });
+  };
+  launchElectron(process.env.LFAA_DESKTOP_NO_SANDBOX === "1");
 }

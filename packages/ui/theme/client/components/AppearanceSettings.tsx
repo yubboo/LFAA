@@ -93,11 +93,21 @@ export function AppearanceSettings({
     scheme: resolvedScheme,
   };
 
-  // 网格 = 3 张明暗模式卡 + 4 张主题预设卡；「跟随系统」左右各半展示。
+  // 网格拆分：明暗模式（3 列）与主题配色预设（4 列）各自成组，避免 7 张卡混排且双黑框打架。
   const tiles = useMemo<ThemeTile[]>(
     () => buildThemeTiles({ mode, preset: config.preset, scheme: resolvedScheme, isZh }),
     [config.preset, isZh, mode, resolvedScheme],
   );
+  const modeTiles = useMemo(
+    () => tiles.filter((tile) => tile.id.startsWith(MODE_TILE_PREFIX)),
+    [tiles],
+  );
+  const presetTiles = useMemo(
+    () => tiles.filter((tile) => tile.id.startsWith(PRESET_TILE_PREFIX)),
+    [tiles],
+  );
+  // 配色卡列数跟随预设总数：一轮排满不出现落单；超出 5 张时回到 4 列折行。
+  const presetColumns: 3 | 4 | 5 = presetTiles.length === 5 ? 5 : 4;
 
   const previewSample = tiles.find((tile) => tile.id === previewId)?.sample ?? currentSample;
   const previewSecondary = tiles.find((tile) => tile.id === previewId)?.secondarySample;
@@ -153,10 +163,27 @@ export function AppearanceSettings({
         </div>
       </div>
 
-      <SettingGroup title={locale.allThemes} description={locale.allThemesDesc}>
+      <SettingGroup
+        title={isZh ? "明暗模式" : "Color Mode"}
+        description={isZh ? "选择浅色、深色或自动跟随系统外观。" : "Choose light, dark, or match your system appearance."}
+      >
         <ThemeGallery
-          label={locale.allThemes}
-          tiles={tiles}
+          label={isZh ? "明暗模式" : "Color Mode"}
+          tiles={modeTiles}
+          columns={3}
+          onPreview={setPreviewId}
+          onSelect={selectTile}
+        />
+      </SettingGroup>
+
+      <SettingGroup
+        title={isZh ? "主题风格" : "Theme Presets"}
+        description={locale.allThemesDesc}
+      >
+        <ThemeGallery
+          label={isZh ? "主题风格" : "Theme Presets"}
+          tiles={presetTiles}
+          columns={presetColumns}
           onPreview={setPreviewId}
           onSelect={selectTile}
         />

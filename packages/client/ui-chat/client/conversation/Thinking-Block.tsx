@@ -3,7 +3,7 @@
 import { memo, useState, type ReactNode } from "react";
 import { ScrollArea } from "@lfaa/ui-primitives/client";
 import { IconBrain, IconChevronRight } from "@tabler/icons-react";
-import { useThinkingScroll } from "./useThinkingScroll";
+import { useBoundedScroll } from "./useBoundedScroll";
 import styles from "./Thinking-Block.module.css";
 
 const INLINE_CODE_RE = /(`[^`\n]+`)/g;
@@ -57,7 +57,7 @@ export const ThinkingBlock = memo(function ThinkingBlock({
   const collapsedToolSummary = !open && toolCount > 0
     ? (isZh ? `${toolCount} 步工具` : `${toolCount} ${toolCount === 1 ? "tool" : "tools"}`)
     : undefined;
-  const { viewportRef, contentRef, edges, handleWheel, handleScroll, resumeFollowing } = useThinkingScroll(
+  const { viewportRef, contentRef, edges, handleWheel, handleScroll, resumeFollowing } = useBoundedScroll(
     open,
     hasBody,
     trimmed,

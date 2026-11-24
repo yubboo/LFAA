@@ -79,23 +79,18 @@
   white-space: nowrap;
 }
 
-/* 运行中思维标题使用柔和流光扫过，结束后恢复静态文字色。 */
+/* 运行中思维标题使用强调色 + 透明度呼吸，替代逐帧 background-position 扫光：
+   后者会让玻璃层内的大块区域持续重绘，长会话刷新时明显拖慢主线程。 */
 @media (prefers-reduced-motion: no-preference) {
-  @supports (background-clip: text) {
-    .title[data-live="true"] {
-      --think-sweep: color-mix(in srgb, var(--color-accent) 42%, var(--color-ink));
-      background: linear-gradient(105deg, var(--color-ink) 20%, var(--think-sweep) 50%, var(--color-ink) 80%);
-      background-size: 220% 100%;
-      background-clip: text;
-      color: transparent;
-      animation: think-sweep 2.2s linear infinite;
-    }
+  .title[data-live="true"] {
+    color: color-mix(in srgb, var(--color-accent) 55%, var(--color-ink));
+    animation: think-title-breathe 1.9s ease-in-out infinite;
   }
 }
 
-@keyframes think-sweep {
-  from { background-position: 100% 50%; }
-  to { background-position: -60% 50%; }
+@keyframes think-title-breathe {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
 }
 
 .duration {
@@ -136,30 +131,6 @@
   max-height: 15rem;
   padding: 0.1rem 0.55rem 0.2rem 0.92rem;
   border-radius: 0.32rem;
-}
-
-.scrollViewport:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-}
-
-/* 超出可滚动方向的边缘柔和渐隐提示，自动适配浅色、深色及任意自定义主题底色。 */
-.scrollViewport[data-fade-top="true"] {
-  mask-image: linear-gradient(to bottom, transparent, var(--color-ink) 18px);
-}
-
-.scrollViewport[data-fade-bottom="true"] {
-  mask-image: linear-gradient(to bottom, var(--color-ink) calc(100% - 18px), transparent);
-}
-
-.scrollViewport[data-fade-top="true"][data-fade-bottom="true"] {
-  mask-image: linear-gradient(
-    to bottom,
-    transparent,
-    var(--color-ink) 18px,
-    var(--color-ink) calc(100% - 18px),
-    transparent
-  );
 }
 
 @media (max-width: 640px) {

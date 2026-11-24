@@ -1,5 +1,5 @@
 // 右侧工作台内置浏览器状态与宿主操作：标签列表、初始 URL、外部快照与新建/关闭/导航处理。
-import { useCallback, useState, type RefObject } from "react";
+import { useCallback, useRef, useState, type RefObject } from "react";
 import { controlBrowserNav, fetchBrowserState, manageBrowserTab, navigateBrowser, type BrowserSessionSnapshot, type BrowserTabItem } from "@lfaa/client-ui-browser/client";
 import type { ChatClientStore } from "../store/chat-store";
 import type { FilePreviewTab } from "../store/chat-types";
@@ -17,22 +17,22 @@ export function useWorkbenchBrowser({
   activeFileTab,
   syncedSessionRef,
   initialOpen,
-  initialUrl,
 }: {
   sessionId: string;
   store: ChatClientStore;
   activeFileTab: FilePreviewTab | undefined;
   syncedSessionRef: RefObject<string | null>;
   initialOpen: boolean;
-  initialUrl: string | undefined;
 }) {
   const [browserOpen, setBrowserOpen] = useState(() => (isEmbeddedBrowserGuest() ? false : initialOpen));
   const [browserTabs, setBrowserTabs] = useState<BrowserTabItem[]>([]);
-  const [browserInitialUrl, setBrowserInitialUrl] = useState<string | undefined>(initialUrl);
+  const [browserInitialUrl, setBrowserInitialUrl] = useState<string>();
   const [browserExternalState, setBrowserExternalState] = useState<{ snap: BrowserSessionSnapshot; nonce: number }>();
+  const stateRequest = useRef(0);
 
   // 会话切换或重新挂载时先清空浏览器状态，再拉取宿主机已开启的标签（内嵌客体页跳过以避免递归嵌套）。
   const restoreBrowser = useCallback((sid: string, savedOpen: boolean, savedUrl: string | undefined) => {
+    const request = ++stateRequest.current;
     if (isEmbeddedBrowserGuest()) {
       setBrowserOpen(false);
       setBrowserInitialUrl(undefined);
@@ -41,16 +41,19 @@ export function useWorkbenchBrowser({
       return () => {};
     }
     setBrowserOpen(savedOpen);
-    setBrowserInitialUrl(savedUrl);
+    setBrowserInitialUrl(undefined);
     setBrowserTabs([]);
     setBrowserExternalState(undefined);
     let current = true;
     void fetchBrowserState(sid).then((res) => {
-      if (!current) return;
+      if (!current || request !== stateRequest.current) return;
       if (res.state.active && res.state.tabs.length > 0) {
         setBrowserTabs(res.state.tabs);
         setBrowserExternalState((prev) => ({ snap: res.state, nonce: (prev?.nonce ?? 0) + 1 }));
         setBrowserOpen(true);
+      } else if (savedOpen) {
+        // 有可复用的 Host 标签时沿用页面；过滤掉历史误存的 chrome-error:// 等非 http(s) 地址。
+        setBrowserInitialUrl(savedUrl && /^https?:\/\//iu.test(savedUrl) ? savedUrl : undefined);
       }
     }).catch(() => {});
     return () => { current = false; };
@@ -58,8 +61,8 @@ export function useWorkbenchBrowser({
 
   const handleBrowserSnapshot = useCallback((snap: BrowserSessionSnapshot) => {
     setBrowserTabs(snap.tabs ?? []);
-    if (snap.url && snap.url !== "about:blank") {
-      setBrowserInitialUrl(snap.url);
+    if (snap.url && /^https?:\/\//iu.test(snap.url)) {
+      setBrowserInitialUrl((pendingUrl) => pendingUrl === snap.url ? undefined : pendingUrl);
       patchWorkbenchSessionState(sessionId, { browserOpen: true, browserUrl: snap.url });
     }
   }, [sessionId]);
@@ -88,6 +91,7 @@ export function useWorkbenchBrowser({
 
   const handleCloseBrowserTab = (tabId?: string) => {
     if (!tabId || browserTabs.length <= 1) {
+      stateRequest.current += 1;
       setBrowserOpen(false);
       setBrowserTabs([]);
       setBrowserInitialUrl(undefined);
@@ -106,8 +110,10 @@ export function useWorkbenchBrowser({
   };
 
   const handleOpenUrl = async (url: string) => {
+    stateRequest.current += 1;
     const { state: snap } = await navigateBrowser(sessionId, url);
     if (syncedSessionRef.current !== sessionId) return;
+    stateRequest.current += 1;
     setBrowserInitialUrl(undefined);
     setBrowserTabs(snap.tabs);
     setBrowserExternalState((prev) => ({ snap, nonce: (prev?.nonce ?? 0) + 1 }));
@@ -119,9 +125,11 @@ export function useWorkbenchBrowser({
   // Agent 导航或切换多标签后主动从 Host 拉一次最新快照，确保顶部多标签栏与当前视口即时同步。
   const syncHostBrowser = useCallback((sid: string) => {
     if (isEmbeddedBrowserGuest()) return;
+    const request = ++stateRequest.current;
     void fetchBrowserState(sid).then((res) => {
-      if (syncedSessionRef.current !== sid) return;
+      if (syncedSessionRef.current !== sid || request !== stateRequest.current) return;
       if (res.state.active || res.state.tabs.length > 0) {
+        setBrowserInitialUrl(undefined);
         setBrowserTabs(res.state.tabs);
         setBrowserExternalState((prev) => ({ snap: res.state, nonce: (prev?.nonce ?? 0) + 1 }));
         setBrowserOpen(true);

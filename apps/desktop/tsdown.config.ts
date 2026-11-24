@@ -1,15 +1,27 @@
-// 桌面主进程构建：只打包本地源码；Electron 与 workspace 包保持外部依赖（由安装包内 node_modules 提供）。
+// 桌面主进程与 Preload 桥构建：主进程输出 ESM，Preload 输出 CJS（供 Electron sandbox: true 安全加载）。
 import { defineConfig } from "tsdown";
 
-export default defineConfig({
-  entry: ["src/main.ts"],
-  outDir: "dist",
-  platform: "node",
-  format: ["esm"],
-  target: "es2022",
-  fixedExtension: false,
-  dts: false,
-  clean: true,
-  // neverBundle：运行时从 node_modules 解析，避免把 Cordis 包与 Electron 打进单一文件。
-  deps: { neverBundle: ["electron", /^@lfaa\//u] },
-});
+export default defineConfig([
+  {
+    entry: ["src/main.ts"],
+    outDir: "dist",
+    platform: "node",
+    format: ["esm"],
+    target: "es2022",
+    fixedExtension: false,
+    dts: false,
+    clean: true,
+    deps: { neverBundle: ["electron", /^@lfaa\//u] },
+  },
+  {
+    entry: ["src/preload.ts"],
+    outDir: "dist",
+    platform: "node",
+    format: ["cjs"],
+    target: "es2022",
+    fixedExtension: true,
+    dts: false,
+    clean: false,
+    deps: { neverBundle: ["electron"] },
+  },
+]);

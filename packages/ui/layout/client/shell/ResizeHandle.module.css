@@ -4,7 +4,9 @@
   grid-row: 1;
   top: 0;
   bottom: 0;
-  z-index: 25;
+  /* 高于中间区顶栏（.workspaceBar z-index 30）：否则分隔条顶部一段被顶栏盖住，
+     悬停不到也画不出来；仍低于抽屉遮罩 40 与菜单 55+，不抢浮层。 */
+  z-index: 35;
   width: 10px;
   cursor: col-resize;
   touch-action: none;
@@ -37,9 +39,12 @@
   transition: background-color 150ms ease, width 150ms ease, box-shadow 150ms ease;
 }
 
+/* 悬停只给「1px 中性细线」的可拖提示：中性色不抢眼，1px 不会被非整数缩放摊成糊边；
+   强调色只在真正拖动、吸附时出现，避免平时一条粉线把界面劈开。 */
 .resizeHandle:hover::after,
 .resizeHandle:focus-visible::after {
-  background: rgb(var(--color-accent-rgb) / 0.65);
+  width: 1px;
+  background: color-mix(in srgb, var(--color-muted) 55%, transparent);
 }
 
 .resizeHandle[data-dragging="true"]::after {

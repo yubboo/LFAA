@@ -35,7 +35,7 @@ export interface ChatStorePort {
   startNewChatDraft(options?: { projectId?: string | null; sectionId?: string | null }): void;
   sendMessage(text: string, skillIds?: string[]): Promise<void>;
   /** 根据本轮 Agent 工具/子智能体步骤自动联动右侧工作台（尊重跟随开关与本轮手动折叠）。 */
-  applyAgentStepWorkbenchAction?(sessionId: string, messageId: string, step: AgentStepItem): void;
+  applyAgentStepWorkbenchAction?(sessionId: string, messageId: string, step: AgentStepItem, previousStep?: AgentStepItem): void;
 }
 
 /** 供运行模块写权限时复用。 */

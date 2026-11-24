@@ -116,14 +116,26 @@ export function buildSkillsSection(resolvedSkills: RunExecutionParams["resolvedS
     : "";
 }
 
+/** 压缩系统提示词中的单条技能摘要，控制每轮输入 token 开销（不影响 load_skill 读取完整正文）。 */
+function compactSkillDescription(description: string | undefined, maxChars = 120): string {
+  const normalized = (description ?? "").replace(/\s+/gu, " ").trim();
+  if (!normalized) return "";
+  return normalized.length <= maxChars ? normalized : `${normalized.slice(0, maxChars - 1).trimEnd()}…`;
+}
+
 /** 可用技能目录提示：命中技能场景时先 load_skill 再执行。 */
 export function buildSkillsCatalogHint(availableSkillCatalog: RunExecutionParams["availableSkillCatalog"]): string {
-  return availableSkillCatalog && availableSkillCatalog.length > 0
-    ? `\n\n可用技能目录（当任务命中某个技能的适用场景时，请先调用 load_skill 读取完整正文再按规范执行；若用户要求从 Git 安装技能请调用 install_skill_from_git；若用户要求创建个人技能请调用 save_user_skill 存入 ~/.lfaa/skills/）：\n${availableSkillCatalog
-        .slice(0, 30)
-        .map((s) => `- ${s.name} (id: ${s.id}, 来源: ${s.source})${s.description ? `：${s.description}` : ""}`)
-        .join("\n")}`
-    : "";
+  if (!availableSkillCatalog || availableSkillCatalog.length === 0) return "";
+  const maxCatalogSkills = 100;
+  const shown = availableSkillCatalog.slice(0, maxCatalogSkills);
+  const overflow = availableSkillCatalog.length - shown.length;
+  const overflowNote = overflow > 0 ? `\n- （另有 ${overflow} 个已启用技能未展开，需要时可调用 list_skills 查看完整列表）` : "";
+  return `\n\n可用技能目录（当任务命中某个技能的适用场景时，请先调用 load_skill 读取完整正文再按规范执行；若用户要求从 Git 安装技能请调用 install_skill_from_git；若用户要求创建个人技能请调用 save_user_skill 存入 ~/.lfaa/skills/）：\n${shown
+    .map((s) => {
+      const desc = compactSkillDescription(s.description);
+      return `- ${s.name} (id: ${s.id}, 来源: ${s.source})${desc ? `：${desc}` : ""}`;
+    })
+    .join("\n")}${overflowNote}`;
 }
 
 /** 进度播报、工具效率、记忆与澄清等行为规范提示。 */
@@ -132,16 +144,23 @@ export function buildProgressHint(deps: RunLoopDeps, params: RunExecutionParams)
     params.enableClarification
       ? "需求澄清（极度克制使用）：仅当缺少关键信息会彻底改变实现方向、且无法从上下文合理判断时，才调用 ask_user 提一个问题；若上一轮你刚列出了编号条目/说明/建议（如 1. … 2. …），而用户回复「1」「2」「第一项」「都做」「好」「继续」「改吧」等简短指向，视为已明确确认对应条目，严禁调用 ask_user 再次反问，必须立刻直接执行！简短问候、明确指令和可安全推断的细节也绝不反问。"
       : "",
+    "高效并行与精简验证：1）需要读取或检索多个已知文件时，必须在同一轮并行发起多个 read_file/grep/glob 调用，严禁逐个串行读取拖慢速度与放大 Token 消耗；2）类型检查、Lint、测试等验证命令优先合并为单条复合命令一次跑完，不要拆成多轮零碎命令；3）纯代码改动无需开浏览器，涉及前端 UI 改动最多做 1 轮聚焦验收，严禁重复派发功能重叠的子智能体或编写临时截图/计算脚本。",
     "较大的代码变更分成有明确文件落点的小批次。已有工具结果足以行动时，直接发出下一项必要调用。可见进度只说实际完成、正在处理的目标或当前阻塞。",
     "多步任务的进度写入用户可见的正文。首次调用工具前，简短交代准备核查或执行的事项；得到实际结果、发现异常或进入下一阶段时，再说明进展和接下来的动作。连续的小操作可共用一段，直接问答无需播报。命令和工具详情由运行时展示。",
     "任务清单：只要任务需要新建或修改 2 个及以上文件、或需要 2 条以上命令步骤，就必须先调用 todo_write 列出可执行步骤再动手；开始某项时把该项标成 in_progress，完成立即标成 completed，同一时刻只保留一条进行中；交付最终答复前必须把最后一项也标成 completed，禁止把已完成任务留在 in_progress。单步问答、纯解释和小改动不必建清单。",
     deps.tools.getTool("invoke_subagent")
       ? "多智能体协作：用户明确要求委派，或任务存在可独立并行的调研、实现或验证时，用 invoke_subagent 设 wait=false 派发，并用 list_subagents 的 waitForIds 收集结果再汇总。无独立分工的简单任务直接完成。子任务失败时如实说明。"
       : "",
+    deps.tools.getTool("browser_present")
+      ? "展示预览（最高优先级分流）：只要用户说「打开浏览器」「我要看效果」「展示页面」「预览一下」等纯查看诉求，只调用一次 browser_present 展开右侧浏览器并立即结束本轮，严禁派发浏览器子智能体、严禁重新验收、严禁顺手改代码。复用当前标签；仅在用户指定其他地址或还没有活动网页且已知目标地址时才传 URL。"
+      : "",
     deps.tools.getTool("browser_navigate")
       ? (deps.tools.getTool("invoke_subagent")
-        ? "右侧工作台与内置浏览器闭环验收（强制走浏览器子智能体）：右侧工作台内置浏览器就是你的实测验收现场。凡涉及打开网页、前端界面、HTML/SVG/CSS、动画或页面排错，**所有浏览器操作一律必须调用 `invoke_subagent(role=\"浏览器验收助手\", mode=\"browser\", prompt=\"...\")` 召唤专属浏览器子智能体执行**（请在 prompt 中写清目标 URL、用户原始需求与验收要点，要求子智能体完成打开页面、交互测试、`browser_console`/`browser_network` 查错，以及调用 `browser_visual_check` 真实看图验收）。拿到子智能体报告后，只要结论为 `NEEDS_FIX` 或报告中指出任何视觉错位、部件脱节、比例异常、遮挡或报错，**主 Agent 必须亲自修改源码修复每一处缺陷，并再次召唤浏览器子智能体复验**，直到视觉与控制台全部 `PASS` 后再向用户交付最终答复。"
-        : "右侧工作台与内置浏览器闭环验收：右侧工作台内置浏览器就是你的实测验收现场。凡涉及前端界面、HTML/SVG/CSS、Web 应用或页面排错，严禁仅凭改完代码就交付，必须执行完整闭环：① 启动本地服务后用 browser_navigate（需多页对照时用 browser_tabs 新建/切换标签）打开真实页面；② 实测关键点击/输入/滚动交互并调用 browser_console、browser_network 确认 0 报错；③ 调用 browser_screenshot 与 browser_visual_check（传入用户需求 requirements 逐条核对；若当前模型不支持看图则立即改用 browser_evaluate 核查关键元素几何尺寸、样式与动画状态，不要反复死磕失败的看图调用）；④ 只要发现与用户需求不符、错位、遮挡或报错，必须继续思考修复代码并刷新复验，直到完全符合需求后再向用户交付最终答复。")
+        ? "右侧工作台与内置浏览器闭环验收：仅在需要排查故障、交互测试或交付验收时调用 invoke_subagent(mode=browser)。派发时必须在 prompt 中列出 3–5 条明确可验证的检查项（目标页面、待点控件、预期变化、结束条件），禁止写「逐屏验收」这类无边界指令。收到子智能体回报的问题后，先向用户简述「发现了什么问题 → 准备修改哪些文件」，改完后仅复验受影响项，严禁无方向循环返工。"
+        : "右侧工作台与内置浏览器闭环验收：按本轮用户要求定位页面和控件，实测关键交互。按检查项选择 browser_console、browser_network 或 browser_visual_check 等证据。")
+      : "",
+    deps.tools.getTool("browser_navigate")
+      ? "浏览器任务边界：只排查时回报证据；本轮已授权修复时，只处理与需求相关且可复现的问题，再复验受影响步骤。遇到接管、无法验证或复验无新证据时，结束检查并说明阻塞。向用户同步已点过的控件、实际观察、修改位置和复验结果。"
       : "",
     "自主排查与编辑准则：定位问题时先用 grep（正则内容）/ glob（文件名模式）/ list_dir / read_file 检索并精读关键源码上下文再动手；修改代码或修复报错时，直接调用 edit_file / write_file 落实修改并立即通过 run_command 验证，遇到新报错继续读取对应行并修正闭环，不得停在只给建议或让用户手动改代码。edit_file 的 target 必须在文件中唯一命中，命中多处时请补充上下文行或显式传 replaceAll；新建文件用 write_file。",
     "工具效率与核验规范：创建或读取多个互相独立的文件时，请在同轮并行发起多个 read_file / write_file / edit_file 调用，避免逐个文件串行消耗步数；执行构建/测试请直接用 run_command 验证，不可将“静态自审”等价于编译或运行通过；前台命令默认 10 分钟超时，构建、安装等长命令可传 timeoutMs，服务器或监听类命令请用 start_background_task 启动并用 get_background_task 轮询；向用户提供复现命令时，必须严格匹配当前终端语法（CMD 用 `set \"VAR=...\"`，PowerShell 用 `$env:VAR=\"...\"`），严禁混写。",

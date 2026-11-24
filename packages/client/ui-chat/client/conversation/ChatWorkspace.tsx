@@ -179,8 +179,11 @@ export function ChatWorkspace({
     busy: isRunning || state.submittingMessage === true || bindingProject,
   });
 
+  // 刷新后已记住会话但详情尚未回来：先按会话骨架渲染，避免闪一下「我们要做什么？」再跳到历史对话。
+  // 只有确定没有活动会话（全是新会话）时才展示中心引导区，输入栏位置不会来回跳。
+  const restoringSession = !state.loaded && Boolean(state.activeSessionId);
   // 空会话时输入栏并入中心引导区，有消息后回到底部停靠位；停靠时统一用「占位行 + 工具行」的宽卡片。
-  const composerInHero = messages.length === 0 && view === "chat";
+  const composerInHero = messages.length === 0 && !restoringSession && view === "chat";
   const composerNode = (
     <ChatComposer
       locale={locale}
@@ -253,6 +256,7 @@ export function ChatWorkspace({
             : null}
           workspaceMode={workspaceMode}
           onWorkspaceModeChange={onWorkspaceModeChange}
+          restoring={restoringSession}
           heroComposer={composerInHero ? composerNode : null}
           suggestionsByMessage={suggestionsByMessage}
           selectedFile={selectedFile}

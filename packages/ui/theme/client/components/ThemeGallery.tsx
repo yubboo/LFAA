@@ -1,4 +1,5 @@
-// 主题选择网格：每个主题一格缩略窗，鼠标移入即回报预览请求，点击才应用；供外观页与任何需要选主题的界面复用。
+// 主题选择网格：支持明暗模式（3 列）与主题预设（4 列）分轴展示，悬停驱动实时预览，点击应用。
+import { IconCheck } from "@tabler/icons-react";
 import { ThemePreview, type ThemePreviewSample } from "./ThemePreview";
 import styles from "./ThemeGallery.module.css";
 
@@ -14,22 +15,29 @@ export interface ThemeTile {
 }
 
 /**
- * 渲染主题网格。悬停/聚焦只上报预览（不改真实主题），点击/回车才应用，
- * 因此调用方可以用同一个 `onPreview` 驱动任意大小的实时预览面板。
+ * 渲染主题卡片网格。悬停/聚焦只上报预览（不改真实主题），点击/回车才应用。
  */
 export function ThemeGallery({
   label,
   tiles,
+  columns = 4,
   onPreview,
   onSelect,
 }: {
   label: string;
   tiles: ReadonlyArray<ThemeTile>;
+  /** 一轮排满的列数：明暗模式 3 列，主题预设按预设总数给列数，避免最后一张被挤到下一行。 */
+  columns?: 3 | 4 | 5;
   onPreview: (tileId: string | null) => void;
   onSelect: (tileId: string) => void;
 }) {
   return (
-    <div className={styles.grid} role="group" aria-label={label}>
+    <div
+      className={styles.grid}
+      data-columns={columns}
+      role="group"
+      aria-label={label}
+    >
       {tiles.map((tile) => (
         <button
           key={tile.id}
@@ -50,6 +58,11 @@ export function ThemeGallery({
               sample={tile.sample}
               secondarySample={tile.secondarySample}
             />
+            {tile.active && (
+              <span className={styles.activeBadge} aria-hidden="true">
+                <IconCheck size={11} stroke={2.8} />
+              </span>
+            )}
           </span>
           <span className={styles.label}>{tile.label}</span>
         </button>

@@ -1,0 +1,30 @@
+{
+  "name": "@lfaa/client-ui-mcp",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./lib/index.js",
+  "types": "./lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": "./client/index.tsx",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "src",
+    "client"
+  ],
+  "scripts": {
+    "typecheck": "tsc -b ."
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "^4.1.0",
+    "@lfaa/mcp": "workspace:*",
+    "@lfaa/ui-layout": "workspace:*",
+    "@lfaa/ui-primitives": "workspace:*",
+    "react": "^19.1.0"
+  }
+}

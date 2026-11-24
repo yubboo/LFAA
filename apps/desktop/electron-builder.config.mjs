@@ -10,7 +10,7 @@ export default {
   npmRebuild: false,
   directories: {
     app: ".desktop-build/app",
-    output: ".desktop-build/release",
+    output: "../../build",
     buildResources: "resources",
   },
   files: [

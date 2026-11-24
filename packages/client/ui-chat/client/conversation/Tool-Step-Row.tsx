@@ -168,7 +168,10 @@ export const ToolStepRow = memo(function ToolStepRow({
   const fullTooltip = inlineTarget ? `${primaryLabel} · ${inlineTarget}` : primaryLabel;
   const row = (
     <>
-      <Icon size={isCommand ? 15 : 14} className={styles.icon} aria-hidden="true" />
+      {/* 图标先落在统一的 1.15rem 槽位里，与文件活动行气泡位同宽，保证同级行动词起点一致。 */}
+      <span className={styles.iconSlot} data-icon-slot="true" aria-hidden="true">
+        <Icon size={isCommand ? 15 : 14} className={styles.icon} />
+      </span>
       {showLeadingStatus && status}
       <span className={styles.activityTitle} title={fullTooltip}>
         <span className={inlineTarget ? styles.toolVerb : undefined}>{primaryLabel}</span>

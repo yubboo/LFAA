@@ -40,3 +40,5 @@ Location: `packages/client/ui-chat`.
 ## Dev note
 
 Rendering and client-side state live under `client/`; the capability package `@lfaa/chat` keeps the host side only.
+
+The workbench opens explicit browser previews and displays live browser activity, scoped verification results, and available screenshots.

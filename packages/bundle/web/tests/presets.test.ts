@@ -41,10 +41,12 @@ test("合包后旧模块名会迁移到新模块名并去重", () => {
   ]);
 });
 
-test("生成工具兼容旧标准与创造会话，保持极简和自定义组合的限制", () => {
+test("媒体与 MCP 工具兼容旧预设，保留极简和自定义组合的限制", () => {
   for (const id of ["standard", "creative"] as const) {
     const current = resolvePreset(id).sessionModules;
-    const previous = current.filter((module) => module !== "@lfaa/tool-media");
+    const previous = current.filter((module) => module !== "@lfaa/tool-media" && module !== "@lfaa/mcp");
+    assert.ok(current.includes("@lfaa/mcp"));
+    assert.deepEqual(resolveLegacySessionModules(id, [...previous, "@lfaa/tool-media"]), current);
     assert.ok(current.includes("@lfaa/tool-media"));
     assert.deepEqual(resolveLegacySessionModules(id, previous), current);
     assert.deepEqual(resolveLegacySessionModules(id, previous.slice(1)), previous.slice(1));

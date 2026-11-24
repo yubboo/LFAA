@@ -8,7 +8,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import type { PluginSkillDefinition, SaveSkillInput, SkillDetail, SkillSummary } from "../contract/index";
-import { assertSafePersonalSkillId, buildSkillMarkdown, parseSkillMarkdown, slugifySkillId } from "./skill-format";
+import { assertSafePersonalSkillId, buildSkillMarkdown, DEFAULT_DISABLED_BUILTIN_IDS, parseSkillMarkdown, slugifySkillId } from "./skill-format";
 
 export { parseSkillMarkdown };
 
@@ -27,6 +27,7 @@ interface StoredSkillMeta {
 interface StoredSkillStateFile {
   skills: Record<string, StoredSkillMeta>;
   disabledExternalIds: string[];
+  enabledExternalIds: string[];
 }
 
 function defaultPersonalSkillsDir(): string {
@@ -56,7 +57,7 @@ export class SkillManager {
 
   private async readState(): Promise<StoredSkillStateFile> {
     if (!existsSync(this.stateFilePath)) {
-      return { skills: {}, disabledExternalIds: [] };
+      return { skills: {}, disabledExternalIds: [], enabledExternalIds: [] };
     }
     try {
       const raw = await readFile(this.stateFilePath, "utf8");
@@ -64,9 +65,10 @@ export class SkillManager {
       return {
         skills: parsed.skills && typeof parsed.skills === "object" ? parsed.skills : {},
         disabledExternalIds: Array.isArray(parsed.disabledExternalIds) ? parsed.disabledExternalIds : [],
+        enabledExternalIds: Array.isArray(parsed.enabledExternalIds) ? parsed.enabledExternalIds : [],
       };
     } catch {
-      return { skills: {}, disabledExternalIds: [] };
+      return { skills: {}, disabledExternalIds: [], enabledExternalIds: [] };
     }
   }
 
@@ -127,6 +129,7 @@ export class SkillManager {
   private async scanBuiltinSkills(state: StoredSkillStateFile): Promise<SkillDetail[]> {
     if (!existsSync(this.builtinDir)) return [];
     const disabledSet = new Set(state.disabledExternalIds);
+    const enabledSet = new Set(state.enabledExternalIds);
     const entries = await readdir(this.builtinDir, { withFileTypes: true }).catch(() => []);
     const list: SkillDetail[] = [];
     for (const entry of entries) {
@@ -137,12 +140,17 @@ export class SkillManager {
       if (!raw) continue;
       const id = `builtin:${entry.name}`;
       const parsed = parseSkillMarkdown(raw, entry.name);
+      const enabled = disabledSet.has(id)
+        ? false
+        : enabledSet.has(id)
+          ? true
+          : !DEFAULT_DISABLED_BUILTIN_IDS.has(id);
       list.push({
         id,
         name: parsed.name,
         description: parsed.description,
         source: "builtin",
-        enabled: !disabledSet.has(id),
+        enabled,
         editable: false,
         revision: 1,
         updatedAt: 0,
@@ -341,9 +349,16 @@ export class SkillManager {
       await this.writeState(state);
     } else {
       const nextDisabled = new Set(state.disabledExternalIds);
-      if (enabled) nextDisabled.delete(id);
-      else nextDisabled.add(id);
+      const nextEnabled = new Set(state.enabledExternalIds);
+      if (enabled) {
+        nextDisabled.delete(id);
+        if (DEFAULT_DISABLED_BUILTIN_IDS.has(id)) nextEnabled.add(id);
+      } else {
+        nextDisabled.add(id);
+        nextEnabled.delete(id);
+      }
       state.disabledExternalIds = [...nextDisabled];
+      state.enabledExternalIds = [...nextEnabled];
       await this.writeState(state);
     }
     const detail = await this.getSkillDetail(id, projectRoots);

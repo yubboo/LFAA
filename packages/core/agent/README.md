@@ -38,3 +38,5 @@ Each run uses the session's saved tool policy for discovery and execution. Legac
 A top-level run can use ask_user to persist a clarification and end before executing other tool calls in the same round. Parent messages retain actual delegated-run activity, including cancellation before the parent result is saved.
 
 When the session makes media tools available, the chat model can use them without changing the selected model. The run passes host-validated image references to the generation tool and preserves previews in the final response.
+
+For a preview request, the main agent presents the current browser tab. Delegated verification uses the requested target, interaction, expected result, and stopping condition.

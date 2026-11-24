@@ -73,7 +73,12 @@ export function createChatHttpHandler(service: ChatService, options: {
           includeArchived,
           ...(projectId ? { projectId } : {}),
         });
-        const countsByProject = await service.countByProject(false);
+        // 项目计数直接从本次结果聚合，避免再整盘扫描并解析一遍全部会话文件（刷新时最重的一笔重复 IO）。
+        const countsByProject: Record<string, number> = {};
+        for (const session of sessions) {
+          if (!session.projectId) continue;
+          countsByProject[session.projectId] = (countsByProject[session.projectId] ?? 0) + 1;
+        }
         sendJson(res, 200, { sessions, countsByProject });
         return true;
       }

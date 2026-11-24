@@ -91,7 +91,7 @@ export async function extractPageStructure(page: Page): Promise<{
 }
 
 export function clampViewport(width: number, height: number): { width: number; height: number } {
-  const safeW = Number.isFinite(width) ? Math.max(320, Math.min(1920, Math.round(width))) : 1024;
-  const safeH = Number.isFinite(height) ? Math.max(240, Math.min(1440, Math.round(height))) : 768;
+  const safeW = Number.isFinite(width) ? Math.max(320, Math.min(2560, Math.round(width))) : 1024;
+  const safeH = Number.isFinite(height) ? Math.max(240, Math.min(2400, Math.round(height))) : 768;
   return { width: safeW, height: safeH };
 }

@@ -28,6 +28,7 @@
     { "path": "../../core/rules" },
     { "path": "../../workspace/sections" },
     { "path": "../../extension/skills" },
+    { "path": "../../extension/mcp" },
     { "path": "../../core/subagent" },
     { "path": "../../workspace/workspace" },
     { "path": "../../workspace/worktree" },

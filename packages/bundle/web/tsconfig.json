@@ -21,6 +21,7 @@
     { "path": "../../workspace/sections" },
     { "path": "../../shell/shell" },
     { "path": "../../extension/skills" },
+    { "path": "../../extension/mcp" },
     { "path": "../../core/subagent" },
     { "path": "../../core/tools" },
     { "path": "../../workspace/workspace" },

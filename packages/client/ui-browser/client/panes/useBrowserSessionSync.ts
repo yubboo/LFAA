@@ -7,7 +7,6 @@ import {
   type BrowserSessionSnapshot,
 } from "../api/browser-client";
 import type { FrameDrawer } from "./BrowserCanvasViewport";
-import type { ViewportPreset } from "./BrowserToolbar";
 import type { EffectiveRenderMode } from "./browser-render-mode";
 
 function isEmbeddedBrowserGuest(): boolean {
@@ -24,7 +23,8 @@ function isStageVisibleForViewport(el: HTMLElement): boolean {
 export function useBrowserSessionSync({
   sessionId,
   snap,
-  preset,
+  deviceBarOpen,
+  customViewport,
   effectiveMode,
   stageRef,
   urlEditingRef,
@@ -36,10 +36,12 @@ export function useBrowserSessionSync({
   setSnap,
   setUrlInput,
   setStreamConnected,
+  setZoomPercent,
 }: {
   sessionId: string;
   snap: BrowserSessionSnapshot | null;
-  preset: ViewportPreset;
+  deviceBarOpen: boolean;
+  customViewport: { width: number; height: number };
   effectiveMode: EffectiveRenderMode;
   stageRef: RefObject<HTMLDivElement | null>;
   urlEditingRef: RefObject<boolean>;
@@ -51,8 +53,10 @@ export function useBrowserSessionSync({
   setSnap: Dispatch<SetStateAction<BrowserSessionSnapshot | null>>;
   setUrlInput: Dispatch<SetStateAction<string>>;
   setStreamConnected: Dispatch<SetStateAction<boolean>>;
+  setZoomPercent: Dispatch<SetStateAction<number>>;
 }) {
   const lastViewportRef = useRef<{ width: number; height: number } | null>(null);
+  const viewportReqSeqRef = useRef(0);
   const snapVpRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
   if (snap?.viewport) {
     snapVpRef.current = snap.viewport;
@@ -73,7 +77,7 @@ export function useBrowserSessionSync({
         if (effectiveModeRef.current === "cdp") {
           frameDrawerRef.current?.(frame.data, frame.mime, frame.updatedAt);
         }
-        if (!urlEditingRef.current && frame.url && frame.url !== "about:blank") {
+        if (!urlEditingRef.current && frame.url && frame.url !== "about:blank" && !/^(?:chrome|edge)-error:/iu.test(frame.url)) {
           setUrlInput((prev) => (prev === frame.url ? prev : frame.url));
         }
         setSnap((prev) => {
@@ -140,18 +144,34 @@ export function useBrowserSessionSync({
     return () => observer.disconnect();
   }, [applySnap, measureAutoViewport, sessionId, snapActive, snapColorScheme]);
 
-  // 视口尺寸同步：不把 snap.viewport 放进依赖数组（消除回调触发重跑的抖动回环），且仅在可见的非嵌套宿主标签中同步。
+  // 视口尺寸同步：关闭设备栏时严格铺满右侧面板（零上下黑边）；打开设备栏时下发自定义设备尺寸并计算缩放百分比。
   useEffect(() => {
     const el = stageRef.current;
     if (!el || !snapActive || isEmbeddedBrowserGuest()) return;
+    lastViewportRef.current = null;
+
+    const syncZoom = (stageW: number, stageH: number) => {
+      if (!deviceBarOpen) {
+        setZoomPercent(100);
+        return;
+      }
+      const availW = Math.max(120, stageW - 24);
+      const availH = Math.max(120, stageH - 24);
+      const scale = Math.min(1, availW / Math.max(1, customViewport.width), availH / Math.max(1, customViewport.height));
+      setZoomPercent(Math.max(10, Math.round(scale * 100)));
+    };
 
     const pushViewport = (width: number, height: number) => {
       if (!isStageVisibleForViewport(el)) return;
-      const target = preset === "desktop"
-        ? { width: 1280, height: 800 }
-        : preset === "mobile"
-          ? { width: 390, height: 844 }
-          : { width: Math.max(360, Math.round(width)), height: Math.max(280, Math.round(height)) };
+      const target = deviceBarOpen
+        ? {
+            width: Math.max(320, Math.min(2560, Math.round(customViewport.width))),
+            height: Math.max(240, Math.min(2400, Math.round(customViewport.height))),
+          }
+        : {
+            width: Math.max(320, Math.min(2560, Math.round(width))),
+            height: Math.max(240, Math.min(2400, Math.round(height))),
+          };
       const prev = lastViewportRef.current;
       const curSnap = snapVpRef.current;
       if (
@@ -161,15 +181,14 @@ export function useBrowserSessionSync({
         return;
       }
       lastViewportRef.current = target;
+      const seq = ++viewportReqSeqRef.current;
       void setBrowserViewport(sessionId, target.width, target.height)
-        .then((res) => applySnap(res.state))
+        .then((res) => {
+          if (seq !== viewportReqSeqRef.current) return;
+          applySnap(res.state);
+        })
         .catch(() => {});
     };
-
-    if (preset !== "auto") {
-      pushViewport(0, 0);
-      return;
-    }
 
     let timer: ReturnType<typeof setTimeout> | null = null;
     const scheduleMeasure = (delayMs: number) => {
@@ -178,19 +197,20 @@ export function useBrowserSessionSync({
         timer = null;
         if (!isStageVisibleForViewport(el)) return;
         const rect = el.getBoundingClientRect();
-        if (rect.width >= 200 && rect.height >= 200) {
+        if (rect.width >= 120 && rect.height >= 120) {
+          syncZoom(rect.width, rect.height);
           pushViewport(rect.width, rect.height);
         }
       }, delayMs);
     };
 
-    // 等待右侧栏 260ms 展开过渡完成后再发送最终稳定尺寸，避免锁定在过渡中的窄屏宽度导致左右留白。
-    scheduleMeasure(280);
+    scheduleMeasure(deviceBarOpen ? 60 : 220);
 
     const observer = new ResizeObserver((entries) => {
       const rect = entries[0]?.contentRect;
-      if (!rect || rect.width < 200 || rect.height < 200) return;
-      scheduleMeasure(240);
+      if (!rect || rect.width < 120 || rect.height < 120) return;
+      syncZoom(rect.width, rect.height);
+      if (!deviceBarOpen) scheduleMeasure(160);
     });
     const onVisibility = () => {
       if (document.visibilityState === "visible") scheduleMeasure(120);
@@ -202,5 +222,5 @@ export function useBrowserSessionSync({
       observer.disconnect();
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [applySnap, preset, sessionId, snapActive, stageRef]);
+  }, [applySnap, customViewport.height, customViewport.width, deviceBarOpen, effectiveMode, sessionId, setZoomPercent, snapActive, stageRef]);
 }

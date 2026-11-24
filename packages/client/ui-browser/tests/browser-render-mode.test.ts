@@ -15,13 +15,15 @@ test("isSelfOriginUrl 拦住与宿主同源地址，放行其他本地端口与�
   assert.equal(isSelfOriginUrl("about:blank", "http://127.0.0.1:5173"), false);
 });
 
-test("resolveEffectiveRenderMode 原生优先：可嵌入页一律走原生 iframe，仅拦截站与同源回退 CDP", () => {
+test("可嵌入的普通预览走原生，Agent 操作与人工接管保留同一个宿主标签", () => {
   const hostOrigin = "http://127.0.0.1:5173";
 
-  // 本地开发页与普通可嵌入网页无论谁操作都直接走原生 GPU 加速直连
   const localSnap = { url: "http://127.0.0.1:5174/", embeddable: true };
   assert.equal(canUseNativeEngine(localSnap, hostOrigin), true);
   assert.equal(resolveEffectiveRenderMode(localSnap, hostOrigin), "native");
+  assert.equal(resolveEffectiveRenderMode(localSnap, hostOrigin, true), "cdp");
+  assert.equal(resolveEffectiveRenderMode({ ...localSnap, lastActor: "agent" }, hostOrigin), "cdp");
+  assert.equal(resolveEffectiveRenderMode({ ...localSnap, lastActor: "user", takeoverPaused: true }, hostOrigin), "cdp");
 
   // 被 X-Frame-Options/CSP 拦截或与宿主同源时自动静默回退到 CDP 兜底
   const blockedSnap = { url: "https://github.com/", embeddable: false };

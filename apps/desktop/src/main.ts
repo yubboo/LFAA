@@ -2,6 +2,7 @@
 import { app, dialog } from "electron";
 import type { BrowserWindow } from "electron";
 import { DesktopHostProcess } from "./host-process";
+import { attachEmbeddedBrowser } from "./embedded-browser";
 import { logDesktop, desktopLogPath } from "./log";
 import { installApplicationMenu } from "./menu";
 import { resolveDesktopPaths } from "./paths";
@@ -54,6 +55,7 @@ async function startDesktop(): Promise<void> {
 
   installApplicationMenu({ dataRoot: paths.dataRoot, devMode });
   mainWindow = createMainWindow({ url, paths, devMode });
+  attachEmbeddedBrowser(mainWindow);
   mainWindow.on("closed", () => {
     mainWindow = null;
   });

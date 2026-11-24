@@ -33,8 +33,13 @@ export interface ChatStoreBootstrapHost {
 /** 首次进入工作台时拉取初始快照；失败时只记录错误，不阻塞界面。 */
 export async function hydrateChatStore(host: ChatStoreBootstrapHost): Promise<void> {
   if (typeof window === "undefined") return;
+  const currentId = host.getState().activeSessionId;
   try {
-    const [sessRes, activeRes, attentionRes, llmRes, rulesRes, memRes, trustRes, libRes, storageRes, generalRes] = await Promise.all([
+    // 会话详情与列表并行请求：刷新时先恢复对话，不再等列表回来才发第二次请求。
+    const detailPromise = currentId
+      ? fetchJson<{ session: ChatSessionDetail }>(`/api/chat/sessions/${encodeURIComponent(currentId)}`).catch(() => null)
+      : Promise.resolve(null);
+    const [sessRes, activeRes, attentionRes, llmRes, rulesRes, memRes, trustRes, libRes, storageRes, generalRes, detailRes] = await Promise.all([
       fetchJson<{ sessions: ChatSessionItem[] }>("/api/chat/sessions"),
       fetchJson<{ sessionIds: string[] }>("/api/agent/active-sessions").catch(() => ({ sessionIds: [] })),
       fetchJson<{ items: ChatSessionAttention[] }>("/api/agent/attention").catch(() => ({ items: [] })),
@@ -45,17 +50,13 @@ export async function hydrateChatStore(host: ChatStoreBootstrapHost): Promise<vo
       fetchJson<{ assets: LibraryAssetItem[] }>("/api/library").catch(() => ({ assets: [] })),
       fetchJson<{ state: StorageConfigState; stats: StorageStats }>("/api/storage").catch(() => null),
       fetchJson<{ settings: GeneralSettingsConfig }>("/api/chat/general-settings").catch(() => null),
+      detailPromise,
     ]);
-    const currentId = host.getState().activeSessionId;
     const targetId = currentId && sessRes.sessions.some((session) => session.id === currentId) ? currentId : null;
-    let activeSession: ChatSessionDetail | null = null;
-    if (targetId) {
-      const detail = await fetchJson<{ session: ChatSessionDetail }>(`/api/chat/sessions/${encodeURIComponent(targetId)}`).catch(() => null);
-      if (detail?.session) {
-        activeSession = detail.session;
-      } else {
-        writeStoredSessionId(null);
-      }
+    const activeSession: ChatSessionDetail | null = targetId ? (detailRes?.session ?? null) : null;
+    // 记住的会话已被删除或归档时清掉本地记录，避免下次刷新继续先画恢复骨架。
+    if (currentId && (!targetId || !activeSession)) {
+      writeStoredSessionId(null);
     }
     if (activeSession) {
       writeStoredDraftProjectId(activeSession.projectId);

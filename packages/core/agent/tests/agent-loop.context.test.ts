@@ -353,7 +353,7 @@ test("注册 browser_navigate 工具时，系统提示自动注入右侧工作�
   }
 });
 
-test("同时注册 invoke_subagent 与 browser_navigate 时，主循环隐藏原始 browser_* 工具强制走浏览器子智能体", async () => {
+test("仅打开预览时主 Agent 可以展示浏览器，多步操控工具仍交给子智能体", async () => {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-browser-sub-enforced-"));
   const ctx = new Context();
   let seenToolNames: string[] = [];
@@ -387,13 +387,21 @@ test("同时注册 invoke_subagent 与 browser_navigate 时，主循环隐藏原
     parameters: { type: "object", properties: {} },
     execute: async () => ({ ok: true, output: "ok", summary: "ok" }),
   });
+  ctx.tools.registerTool({
+    name: "browser_present",
+    title: "展示网页预览",
+    description: "测试占位",
+    permissionLevel: "read",
+    parameters: { type: "object", properties: {} },
+    execute: async () => ({ ok: true, output: "ok", summary: "ok" }),
+  });
   await ctx.plugin(agentPlugin, { smartTrustFilePath: path.join(tempRoot, "trust.json") });
 
   try {
     const session = await ctx.memory.createSession({ title: "子智能体隔离" });
     const started = await ctx.agent.startRun({
       sessionId: session.id,
-      userMessage: "打开浏览器检查页面",
+      userMessage: "打开浏览器给我看",
       workspaceRoots: [tempRoot],
     });
     await new Promise<void>((resolveDone, rejectDone) => {
@@ -408,6 +416,7 @@ test("同时注册 invoke_subagent 与 browser_navigate 时，主循环隐藏原
     });
     assert.equal(seenToolNames.includes("invoke_subagent"), true);
     assert.equal(seenToolNames.includes("browser_navigate"), false);
+    assert.equal(seenToolNames.includes("browser_present"), true);
   } finally {
     await fs.rm(tempRoot, { recursive: true, force: true });
   }

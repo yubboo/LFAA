@@ -1,9 +1,11 @@
 // 全高全宽内置浏览器视图：双引擎渲染（可嵌入页默认原生直连，拦截站与 Agent 实操自动切高清 Canvas 协同）。
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { BrowserDevToolsDrawer, type DevToolsTab } from "./BrowserDevToolsDrawer";
+import { BrowserDeviceBar, BROWSER_DEVICE_PRESETS } from "./BrowserDeviceBar";
 import { BrowserTabs } from "./BrowserTabs";
-import { BrowserToolbar, type ViewportPreset } from "./BrowserToolbar";
+import { BrowserToolbar } from "./BrowserToolbar";
 import { BrowserViewport } from "./BrowserViewport";
+import { getDesktopBrowserBridge } from "../api/desktop-browser-bridge";
 import type { FrameDrawer } from "./BrowserCanvasViewport";
 import { resolveEffectiveRenderMode } from "./browser-render-mode";
 import { useBrowserSessionSync } from "./useBrowserSessionSync";
@@ -22,12 +24,28 @@ import {
 } from "../api/browser-client";
 import styles from "./RightBrowserPane.module.css";
 
+/** 过滤浏览器内部错误页地址（如 chrome-error://chromewebdata/），避免覆盖用户真实网址。 */
+function isDisplayableBrowserUrl(url: string | undefined): url is string {
+  return Boolean(url && url !== "about:blank" && !/^(?:chrome|edge)-error:/iu.test(url));
+}
+
+/** 清洗异常文本中的 ANSI 控制符与 Playwright Call log 尾巴，避免原始终端转义码直出界面。 */
+function formatBrowserUiError(err: unknown): string {
+  const raw = (err instanceof Error ? err.message : String(err))
+    .replace(/\u001b\[[0-9;]*m/gu, "")
+    .split(/\bCall log:/u)[0]!
+    .trim();
+  return raw.replace(/^page\.goto:\s*/u, "") || "页面加载失败";
+}
+
 export function RightBrowserPane({
   sessionId,
   isZh,
   initialUrl,
   hideTabStrip = false,
   agentRunning = false,
+  browserAutomationActive = false,
+  browserActivity,
   externalState,
   devtoolsRequest,
   onSnapshotChange,
@@ -37,8 +55,10 @@ export function RightBrowserPane({
   isZh: boolean;
   initialUrl?: string | undefined;
   hideTabStrip?: boolean;
-  /** 当前会话 Agent 是否正在运行：仅运行中操作可嵌入页时切协同，结束后自动回归 60fps 原生直连。 */
+  /** 会话运行状态用于空白标签轮询。 */
   agentRunning?: boolean;
+  browserAutomationActive?: boolean;
+  browserActivity?: string | undefined;
   externalState?: { snap: BrowserSessionSnapshot; nonce: number } | undefined;
   /** Agent 调用 browser_console / browser_network 时自动展开对应 DevTools 页签。 */
   devtoolsRequest?: { tab: DevToolsTab; nonce: number } | undefined;
@@ -46,10 +66,13 @@ export function RightBrowserPane({
   onAttachPage?: ((snap: BrowserSessionSnapshot) => void) | undefined;
 }) {
   const [snap, setSnap] = useState<BrowserSessionSnapshot | null>(externalState?.snap ?? null);
-  const [urlInput, setUrlInput] = useState(initialUrl ?? "");
+  const [urlInput, setUrlInput] = useState(isDisplayableBrowserUrl(initialUrl) ? initialUrl : "");
   const [navigating, setNavigating] = useState(false);
   const [error, setError] = useState("");
-  const [preset, setPreset] = useState<ViewportPreset>("auto");
+  const [deviceBarOpen, setDeviceBarOpen] = useState(false);
+  const [deviceId, setDeviceId] = useState("responsive");
+  const [customViewport, setCustomViewport] = useState<{ width: number; height: number }>({ width: 1196, height: 873 });
+  const [zoomPercent, setZoomPercent] = useState(100);
   const [nativeReloadNonce, setNativeReloadNonce] = useState(0);
   const [devtoolsOpen, setDevtoolsOpen] = useState(false);
   const [devtoolsTab, setDevtoolsTab] = useState<DevToolsTab>("console");
@@ -66,22 +89,21 @@ export function RightBrowserPane({
   const lastNavInitRef = useRef<string | undefined>(undefined);
 
   const hostOrigin = typeof window !== "undefined" ? window.location.origin : "";
-  const effectiveMode = resolveEffectiveRenderMode(snap, hostOrigin);
+  const effectiveMode = resolveEffectiveRenderMode(snap, hostOrigin, browserAutomationActive);
   const effectiveModeRef = useRef(effectiveMode);
   effectiveModeRef.current = effectiveMode;
 
   const measureAutoViewport = useCallback((): { width: number; height: number } | undefined => {
-    if (preset === "desktop") return { width: 1280, height: 800 };
-    if (preset === "mobile") return { width: 390, height: 844 };
+    if (deviceBarOpen) return customViewport;
     const rect = stageRef.current?.getBoundingClientRect();
     if (!rect || rect.width < 120 || rect.height < 120) return undefined;
-    return { width: Math.max(360, Math.round(rect.width)), height: Math.max(280, Math.round(rect.height)) };
-  }, [preset]);
+    return { width: Math.max(320, Math.round(rect.width)), height: Math.max(240, Math.round(rect.height)) };
+  }, [customViewport, deviceBarOpen]);
 
   const applySnap = useCallback((next: BrowserSessionSnapshot) => {
     setSnap(next);
-    if (!urlEditingRef.current) {
-      setUrlInput(next.url && next.url !== "about:blank" ? next.url : "");
+    if (!urlEditingRef.current && isDisplayableBrowserUrl(next.url)) {
+      setUrlInput(next.url);
     }
     onSnapshotChangeRef.current?.(next);
   }, []);
@@ -89,7 +111,8 @@ export function RightBrowserPane({
   useBrowserSessionSync({
     sessionId,
     snap,
-    preset,
+    deviceBarOpen,
+    customViewport,
     effectiveMode,
     stageRef,
     urlEditingRef,
@@ -101,6 +124,7 @@ export function RightBrowserPane({
     setSnap,
     setUrlInput,
     setStreamConnected,
+    setZoomPercent,
   });
 
   useEffect(() => {
@@ -115,26 +139,10 @@ export function RightBrowserPane({
 
   useEffect(() => {
     if (!externalState) return;
-    const next = externalState.snap;
-    setSnap((prev) => {
-      // Agent 改完代码或重新导航同 URL 时，同步触发原生 iframe 轻刷新，保持 60fps 体验的同时立即可见最新改动。
-      if (
-        prev
-        && next.lastActor === "agent"
-        && next.url
-        && next.url !== "about:blank"
-        && prev.url === next.url
-        && prev.updatedAt !== next.updatedAt
-        && effectiveModeRef.current === "native"
-      ) {
-        queueMicrotask(() => setNativeReloadNonce((n) => n + 1));
-      }
-      return next;
-    });
-    const isBlank = !next.url || next.url === "about:blank";
-    urlEditingRef.current = false;
-    setUrlInput(isBlank ? "" : next.url);
-    if (isBlank) urlInputRef.current?.focus();
+    setSnap(externalState.snap);
+    if (!urlEditingRef.current && isDisplayableBrowserUrl(externalState.snap.url)) {
+      setUrlInput(externalState.snap.url);
+    }
   }, [externalState]);
 
   const refresh = useCallback(async () => {
@@ -163,7 +171,7 @@ export function RightBrowserPane({
   }, [agentRunning, devtoolsOpen, effectiveMode, refresh, streamConnected]);
 
   useEffect(() => {
-    if (!initialUrl || initialUrl === lastNavInitRef.current) return;
+    if (snap === null || !isDisplayableBrowserUrl(initialUrl) || !/^https?:\/\//iu.test(initialUrl) || initialUrl === lastNavInitRef.current) return;
     if (snap?.url === initialUrl) {
       lastNavInitRef.current = initialUrl;
       return;
@@ -175,7 +183,7 @@ export function RightBrowserPane({
     const vp = measureAutoViewport();
     void navigateBrowser(sessionId, initialUrl, vp)
       .then((res) => applySnap(res.state))
-      .catch((err) => setError(err instanceof Error ? err.message : String(err)))
+      .catch((err) => setError(formatBrowserUiError(err)))
       .finally(() => setNavigating(false));
   }, [applySnap, initialUrl, measureAutoViewport, sessionId, snap?.url]);
 
@@ -186,10 +194,12 @@ export function RightBrowserPane({
     setError("");
     urlEditingRef.current = false;
     try {
+      const bridge = getDesktopBrowserBridge();
+      if (bridge) void bridge.navigate(trimmed).catch(() => {});
       const res = await navigateBrowser(sessionId, trimmed, measureAutoViewport());
       applySnap(res.state);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(formatBrowserUiError(err));
     } finally {
       setNavigating(false);
     }
@@ -201,6 +211,8 @@ export function RightBrowserPane({
   };
 
   const handleNavControl = (action: "back" | "forward" | "reload") => {
+    const bridge = getDesktopBrowserBridge();
+    if (bridge) void bridge.nav(action).catch(() => {});
     if (action === "reload" && effectiveMode === "native") {
       setNativeReloadNonce((n) => n + 1);
     }
@@ -208,7 +220,7 @@ export function RightBrowserPane({
     setError("");
     void controlBrowserNav(sessionId, action)
       .then((r) => applySnap(r.state))
-      .catch((err) => setError(err instanceof Error ? err.message : String(err)))
+      .catch((err) => setError(formatBrowserUiError(err)))
       .finally(() => setNavigating(false));
   };
 
@@ -252,8 +264,9 @@ export function RightBrowserPane({
         navigating={navigating}
         urlInput={urlInput}
         urlInputRef={urlInputRef}
-        preset={preset}
-        onSelectPreset={setPreset}
+        deviceBarOpen={deviceBarOpen}
+        onToggleDeviceBar={() => setDeviceBarOpen((prev) => !prev)}
+        onResetFullFill={() => setDeviceBarOpen(false)}
         userControl={Boolean(snap?.takeoverPaused)}
         devtoolsOpen={devtoolsOpen}
         onToggleDevtools={handleToggleDevtools}
@@ -265,6 +278,30 @@ export function RightBrowserPane({
         onToggleTakeover={handleToggleTakeover}
         onAttachPage={onAttachPage}
       />
+
+      {deviceBarOpen && (
+        <BrowserDeviceBar
+          isZh={isZh}
+          deviceId={deviceId}
+          width={customViewport.width}
+          height={customViewport.height}
+          zoomPercent={zoomPercent}
+          onSelectDevice={(presetItem) => {
+            setDeviceId(presetItem.id);
+            setCustomViewport({ width: presetItem.width, height: presetItem.height });
+          }}
+          onChangeSize={(width, height) => {
+            const matched = BROWSER_DEVICE_PRESETS.find((item) => item.id !== "responsive" && item.width === width && item.height === height);
+            setDeviceId(matched?.id ?? "responsive");
+            setCustomViewport({ width, height });
+          }}
+          onRotate={() => {
+            setDeviceId("responsive");
+            setCustomViewport((prev) => ({ width: prev.height, height: prev.width }));
+          }}
+          onClose={() => setDeviceBarOpen(false)}
+        />
+      )}
 
       {error && <div className={styles.errorBanner} role="alert">{error}</div>}
       {snap?.takeoverPaused && (
@@ -288,8 +325,10 @@ export function RightBrowserPane({
         sessionId={sessionId}
         isZh={isZh}
         snap={snap}
-        preset={preset}
+        customViewport={deviceBarOpen ? customViewport : null}
         effectiveMode={effectiveMode}
+        browserAutomationActive={browserAutomationActive}
+        browserActivity={browserActivity}
         userControl={Boolean(snap?.takeoverPaused)}
         nativeReloadNonce={nativeReloadNonce}
         stageRef={stageRef}

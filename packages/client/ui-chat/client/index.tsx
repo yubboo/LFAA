@@ -166,7 +166,7 @@ export const chatClientPlugin: Plugin.Object<void> = {
               }
             }}
             onOpenBrowser={() => {
-              store.requestRightPanel("browser");
+              store.requestRightPanel("browser", undefined, { refreshBrowser: true });
               context.workbench.setRightWorkbenchWide(true);
               context.workbench.setRightPanelOpen(true, false);
             }}

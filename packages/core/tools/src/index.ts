@@ -119,16 +119,18 @@ export class ToolsService extends Service {
   }
 
   /** 同一份会话策略用于模型声明、审批前查询和执行时校验。 */
-  scope(modules: ReadonlySet<string>, readOnly = false): ToolsService {
+  scope(modules: ReadonlySet<string> | undefined, readOnly = false, projectId: string | null = null): ToolsService {
     const allowsTool = (name: string) => {
       const tool = this.getTool(name);
-      return Boolean(tool?.moduleName && modules.has(tool.moduleName) && (!readOnly || tool.permissionLevel === "read"));
+      return Boolean(tool && (!modules || (tool.moduleName && modules.has(tool.moduleName)))
+        && (!readOnly || tool.permissionLevel === "read") && (!tool.projectId || tool.projectId === projectId));
     };
     const view = Object.create(this) as ToolsService;
     view.getTool = (name) => allowsTool(name) ? this.getTool(name) : undefined;
     view.getLlmToolSchemas = () => this.getLlmToolSchemas().filter(({ name }) => allowsTool(name));
     view.executeTool = (name, args, context) => this.executeTool(name, args, {
       ...context,
+      projectId,
       allowsTool: (candidate) => allowsTool(candidate) && (context.allowsTool?.(candidate) ?? true),
     });
     return view;
@@ -257,7 +259,7 @@ export class ToolsService extends Service {
       return { ok: false, output: `当前会话或子任务不能调用工具：${name}`, summary: "工具不可用" };
     }
     const tool = this.registry.get(name);
-    if (!tool) {
+    if (!tool || (tool.projectId && tool.projectId !== execContext.projectId)) {
       return {
         ok: false,
         output: `未注册的工具：${name}`,

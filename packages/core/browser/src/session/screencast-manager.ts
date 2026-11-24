@@ -88,6 +88,11 @@ export class ScreencastManager {
     for (const fn of subscribers) fn(payload);
   }
 
+  /** 向当前会话订阅者主动推送一帧新画面（例如视口尺寸或预设切换后静态页不会触发重绘时）。 */
+  pushFrame(sessionId: string, meta: ScreencastTabMeta, data: string): void {
+    this.emitFrame(sessionId, meta, data);
+  }
+
   async ensureRunning(
     sessionId: string,
     context: BrowserContext,
@@ -124,7 +129,7 @@ export class ScreencastManager {
         width: meta.viewport.width,
         height: meta.viewport.height,
         deviceScaleFactor: STREAM_DPR,
-        mobile: false,
+        mobile: meta.viewport.width <= 480,
       }).catch(() => {});
 
       cdp.on("Page.screencastFrame", (event) => {
@@ -137,8 +142,8 @@ export class ScreencastManager {
         void cdp!.send("Page.screencastFrameAck", { sessionId: event.sessionId }).catch(() => {});
       });
 
-      const maxWidth = Math.max(720, Math.min(3840, Math.round(meta.viewport.width * STREAM_DPR)));
-      const maxHeight = Math.max(560, Math.min(2880, Math.round(meta.viewport.height * STREAM_DPR)));
+      const maxWidth = Math.max(320, Math.min(3840, Math.round(meta.viewport.width * STREAM_DPR)));
+      const maxHeight = Math.max(240, Math.min(2880, Math.round(meta.viewport.height * STREAM_DPR)));
       // 恒定 2x Retina + 高质量 JPEG + 隔帧采样：比 60fps 全量 PNG 编码快约 10 倍，且永不切分辨率抖动。
       await cdp.send("Page.startScreencast", {
         format: "jpeg",

@@ -329,6 +329,15 @@ function Push-ToGitHub {
 
     if (-not (Test-PushSafety -Scope "tracked")) { return }
 
+    # refs/remotes/origin/main 可能只是本地旧记录（换机、拷贝 .git、久未拉取都会留下过期值）：
+    # 只按它判断「领先几个提交」会把已推送的提交再报一次，也会把真正落后的提交漏掉。
+    # 推送本身就必须联网，所以先按远端真实值刷新一次引用，再算待推送提交。
+    Write-Host "正在刷新远端引用 origin/main（用于判断真实待推送提交）..." -ForegroundColor Cyan
+    Invoke-Git -Arguments @("fetch", "--quiet", "origin", "+refs/heads/main:refs/remotes/origin/main")
+    if ($script:GitExitCode -ne 0) {
+      Write-Host "刷新远端引用失败（离线、认证或仓库地址问题），下面按本地记录判断待推送提交。" -ForegroundColor Yellow
+    }
+
     # 把「到底推了什么」说清楚：菜单外的 git commit 也会在这里列出，而不是只报一句「直接推送」。
     $pendingCommits = @(Get-PendingCommits)
     $remoteRef = (& git rev-parse --verify --quiet "refs/remotes/origin/main" 2>$null | Out-String).Trim()
@@ -601,6 +610,53 @@ function Stop-LfaaWebListeners {
   }
 }
 
+# 结束正在运行的 LFAA 桌面端（Electron 壳与桌面宿主），避免单实例锁与固定端口把新实例挡在外面。
+function Stop-LfaaDesktopProcesses {
+  $desktopDir = Join-Path $repoRoot "apps\desktop"
+  $hostDir = Join-Path $repoRoot "apps\desktop-host"
+  $targets = @(Get-CimInstance Win32_Process -Filter "Name='electron.exe' OR Name='LFAA.exe'" -ErrorAction SilentlyContinue | Where-Object {
+      $commandLine = $_.CommandLine
+      if (-not $commandLine) { return $false }
+      $commandLine.IndexOf($desktopDir, [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+        $commandLine.IndexOf($hostDir, [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+    })
+  if ($targets.Count -eq 0) { return }
+  foreach ($target in $targets) {
+    Write-Host "结束旧的 LFAA 桌面端进程：$($target.Name)（PID $($target.ProcessId)）..." -ForegroundColor Cyan
+    Stop-Process -Id $target.ProcessId -Force -ErrorAction SilentlyContinue
+  }
+  # 等旧进程真正退出，单实例锁与文件句柄才会释放。
+  Start-Sleep -Milliseconds 1000
+}
+
+# 桌面端固定占用 5173：启动前结束该端口的监听进程，并等端口真正释放后再交给桌面宿主。
+function Clear-DesktopHostPort {
+  param([int]$Port = 5173)
+  $listener = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
+  if (-not $listener) {
+    Write-Host "端口 $Port 空闲，桌面端将固定监听该端口。" -ForegroundColor DarkGray
+    return $true
+  }
+  $occupantId = $listener.OwningProcess
+  if (-not $occupantId -or $occupantId -le 4) {
+    Write-Host "端口 $Port 被系统进程占用（PID $occupantId），无法自动释放。" -ForegroundColor Red
+    return $false
+  }
+  $occupant = Get-CimInstance Win32_Process -Filter "ProcessId=$occupantId" -ErrorAction SilentlyContinue
+  $occupantName = if ($occupant) { $occupant.Name } else { "未知进程" }
+  Write-Host "端口 $Port 被占用：$occupantName（PID $occupantId），正在结束占用进程..." -ForegroundColor Yellow
+  Stop-Process -Id $occupantId -Force -ErrorAction SilentlyContinue
+  for ($attempt = 0; $attempt -lt 25; $attempt++) {
+    Start-Sleep -Milliseconds 200
+    if (-not (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue)) {
+      Write-Host "端口 $Port 已释放。" -ForegroundColor Green
+      return $true
+    }
+  }
+  Write-Host "端口 $Port 仍被占用，桌面端未启动。" -ForegroundColor Red
+  return $false
+}
+
 # 菜单渲染独立成函数：一次性执行带编号参数时不需要打印菜单。
 function Show-Menu {
   $branch = ''
@@ -622,7 +678,9 @@ function Show-Menu {
           }
         }
       }
-      $dirty = (& git status --porcelain | Measure-Object).Count
+      # 用 -uall 逐个文件计数：默认模式把未跟踪目录折叠成一行，一旦 git add 展开，
+      # 同一批改动会从「未提交 224 项」突然变成「未提交 861 项」，看起来像凭空多出文件。
+      $dirty = (& git status --porcelain --untracked-files=all | Measure-Object).Count
     }
   } catch {
     # 非 git 环境不显示状态行，不影响菜单使用。
@@ -642,12 +700,12 @@ function Show-Menu {
 
   Write-Host ""
   Write-Host "【依赖与运行】" -ForegroundColor Yellow
-  Write-Host "  1   安装依赖（pnpm install --prefer-offline）"
-  Write-Host "  2   启动 Web（自动结束旧进程并占用 5173 重启）"
+  Write-Host "  1   安装依赖（pnpm install，一键下载缺失依赖）"
+  Write-Host "  2   启动 Web（缺依赖才补装 → 构建 → 5173 重启并自动打开浏览器）"
   Write-Host ""
   Write-Host "【桌面端】" -ForegroundColor Yellow
-  Write-Host "  3   启动桌面端（Electron 窗口，复用已构建产物）"
-  Write-Host "  7   构建桌面端安装包（NSIS → apps/desktop/.desktop-build/release）"
+  Write-Host "  3   启动桌面端（独立随机端口，不与 Web 5173 冲突）"
+  Write-Host "  7   构建桌面端安装包（NSIS + 免安装 zip → build/）"
   Write-Host ""
   Write-Host "【GitHub 同步 · yubboo/LFAA】" -ForegroundColor Yellow
   Write-Host "  4   提交并推送（普通推送 + 安全检测）"
@@ -667,7 +725,7 @@ function Invoke-MenuChoice {
   switch ($Choice) {
     "1" {
       Clear-StalePnpmTempDirs
-      Invoke-Pnpm -Arguments @("install", "--prefer-offline")
+      Invoke-Pnpm -Arguments @("install")
       $exitCode = $script:PnpmExitCode
       if ($exitCode -eq 0) {
         Write-Host "依赖安装完成。" -ForegroundColor Green
@@ -691,14 +749,17 @@ function Invoke-MenuChoice {
         return
       }
 
-      # 启动前释放被占用的 5173~5177 端口，避免每次都要手动关掉旧进程。
+      # 启动前仅释放被 Web 占用的 5173~5177 端口；桌面端已走独立端口，互不干扰。
       Stop-LfaaWebListeners
 
       # 依赖状态检查成功后才启动，避免把依赖错误隐藏为服务启动失败。
+      # 首次运行会在这里自动装齐依赖；日常启动只补装新增/缺失的包，不会重下已装依赖。
       & node (Join-Path $PSScriptRoot "ensure-dependencies.mjs")
       $exitCode = $LASTEXITCODE
       if ($exitCode -eq 0) {
-        Invoke-Pnpm -Arguments @("lfaa", "web")
+        Write-Host "启动完成后会自动用默认浏览器打开本地地址（默认 http://127.0.0.1:5173/ ）。" -ForegroundColor DarkGray
+        # --open 由 apps/cli 透传给 @lfaa/web-server，Vite 监听成功后打开默认浏览器。
+        Invoke-Pnpm -Arguments @("lfaa", "web", "--open")
         $exitCode = $script:PnpmExitCode
       } else {
         Write-Host "依赖检查或安装失败，未启动 Web。" -ForegroundColor Red
@@ -708,26 +769,47 @@ function Invoke-MenuChoice {
       }
     }
     "3" {
-      # 桌面端依赖 packages/lib 与 Web 产物；缺产物时给出明确构建入口，不静默启动空窗口。
-      $desktopEntry = Join-Path $repoRoot "apps/desktop/dist/main.js"
-      $webDist = Join-Path $repoRoot "apps/web/dist/index.html"
-      $hostLib = Join-Path $repoRoot "packages/host/web-server/lib/index.js"
-      if (-not (Test-Path -LiteralPath $desktopEntry) -or -not (Test-Path -LiteralPath $webDist) -or -not (Test-Path -LiteralPath $hostLib)) {
-        Write-Host "桌面端产物不完整，请先执行菜单 7 或命令 pnpm build:desktop。" -ForegroundColor Yellow
+      # 桌面端依赖 packages/lib、Web 产物与桌面主进程/Preload/宿主入口；缺失时自动补全依赖并增量构建。
+      & node (Join-Path $PSScriptRoot "ensure-dependencies.mjs")
+      if ($LASTEXITCODE -ne 0) {
+        Write-Host "依赖检查或安装失败，未启动桌面端。" -ForegroundColor Red
         return
       }
+      $desktopEntry = Join-Path $repoRoot "apps/desktop/dist/main.js"
+      $desktopPreload = Join-Path $repoRoot "apps/desktop/dist/preload.cjs"
+      $desktopHostLib = Join-Path $repoRoot "apps/desktop-host/lib/index.js"
+      $webDist = Join-Path $repoRoot "apps/web/dist/index.html"
+      $hostLib = Join-Path $repoRoot "packages/host/web-server/lib/index.js"
+      if (-not (Test-Path -LiteralPath $webDist) -or -not (Test-Path -LiteralPath $hostLib)) {
+        Write-Host "正在构建工作区库与 Web 产物..." -ForegroundColor Cyan
+        Invoke-Pnpm -Arguments @("build")
+        if ($script:PnpmExitCode -ne 0) {
+          Write-Host "工作区构建失败，退出码：$($script:PnpmExitCode)" -ForegroundColor Red
+          return
+        }
+      }
+      if (-not (Test-Path -LiteralPath $desktopEntry) -or -not (Test-Path -LiteralPath $desktopPreload) -or -not (Test-Path -LiteralPath $desktopHostLib)) {
+        Write-Host "正在构建桌面端主进程与宿主入口..." -ForegroundColor Cyan
+        Invoke-Pnpm -Arguments @("build:desktop:app")
+        if ($script:PnpmExitCode -ne 0) {
+          Write-Host "桌面端构建失败，退出码：$($script:PnpmExitCode)" -ForegroundColor Red
+          return
+        }
+      }
+      # 启动前只结束旧的本仓库桌面端实例（释放单实例锁），不再抢占或误杀 Web 5173。
+      Stop-LfaaDesktopProcesses
       Invoke-Pnpm -Arguments @("desktop")
       if ($script:PnpmExitCode -ne 0) {
         Write-Host "LFAA 桌面端启动失败，退出码：$($script:PnpmExitCode)" -ForegroundColor Red
       }
     }
     "7" {
-      Write-Host "开始构建桌面端安装包（全量构建 + staging + NSIS，通常需要几分钟）..." -ForegroundColor Cyan
+      Write-Host "开始构建桌面端安装包（产物输出至 build/，全量构建 + staging + NSIS，通常需要几分钟）..." -ForegroundColor Cyan
       Invoke-Pnpm -Arguments @("build:desktop")
       if ($script:PnpmExitCode -eq 0) {
-        $releaseDir = Join-Path $repoRoot "apps/desktop/.desktop-build/release"
+        $releaseDir = Join-Path $repoRoot "build"
         Write-Host "桌面端安装包已生成：$releaseDir" -ForegroundColor Green
-        Get-ChildItem -LiteralPath $releaseDir -Filter "*.exe" -ErrorAction SilentlyContinue | ForEach-Object {
+        Get-ChildItem -LiteralPath $releaseDir -ErrorAction SilentlyContinue | Where-Object { $_.Extension -in @(".exe", ".zip") } | ForEach-Object {
           Write-Host "  · $($_.Name)" -ForegroundColor White
         }
       } else {
@@ -763,7 +845,7 @@ function Show-Usage {
   Write-Host "  lfaa.bat <0-7>      直接执行对应菜单项后退出（适合快捷方式 / 脚本调用）"
   Write-Host "  lfaa.bat --help     显示本说明"
   Write-Host ""
-  Write-Host "菜单项：1 安装依赖 · 2 启动 Web · 3 启动桌面端 · 7 构建安装包 · 4 推送 · 5 强制推送 · 6 拉取 · 0 退出" -ForegroundColor DarkGray
+  Write-Host "菜单项：1 安装依赖 · 2 启动 Web（自动补依赖/构建并打开浏览器）· 3 启动桌面端（固定 5173，占用先释放）· 7 构建安装包 · 4 推送 · 5 强制推送 · 6 拉取 · 0 退出" -ForegroundColor DarkGray
 }
 
 # 命令行参数：支持 `lfaa.bat 2` 这类一次性执行，其他参数给出用法并返回非零。

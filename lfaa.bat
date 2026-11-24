@@ -1,6 +1,8 @@
 @echo off
-rem Windows 双击入口：切到 UTF-8 代码页，定位并启动 scripts\lfaa.ps1 菜单。
-rem 关联：scripts\lfaa.ps1（菜单与动作）· package.json（脚本定义）
+rem Windows entry point: switch to the UTF-8 code page, then run scripts\lfaa.ps1.
+rem Keep every "rem" line ASCII: cmd decodes the file with the code page that was active when
+rem it opened it, so non-ASCII comments can be misread as commands when stdout is redirected.
+rem Related: scripts\lfaa.ps1 (menu and actions) and package.json (script definitions).
 chcp 65001 >nul
 setlocal
 cd /d "%~dp0"
@@ -17,11 +19,11 @@ if not exist "%~dp0package.json" (
     endlocal & exit /b 1
 )
 
-rem %* 原样透传：lfaa.bat 2 可直接执行菜单项 2 后退出，lfaa.bat --help 看用法。
+rem Pass %* through unchanged: "lfaa.bat 2" runs one menu item then exits, "--help" prints usage.
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%MENU%" %*
 set "LFAA_EXIT=%ERRORLEVEL%"
 
-rem 菜单选 0 退出时，双击打开的窗口保留下来继续敲命令（exit 88 是脚本约定的标记）。
+rem Menu item 0 keeps a standalone window open (exit 88 is the agreed marker from the PowerShell side).
 if "%LFAA_EXIT%"=="88" (
     echo %cmdcmdline% | find /i "/c" >nul
     if not errorlevel 1 (
@@ -33,6 +35,6 @@ if "%LFAA_EXIT%"=="88" (
     endlocal & exit /b 0
 )
 
-rem 失败才暂停：双击时不会闪退，能看清报错；成功路径不留空窗口。
+rem Pause only on failure so a double-clicked window stays readable; success leaves no empty window.
 if not "%LFAA_EXIT%"=="0" pause
 endlocal & exit /b %LFAA_EXIT%

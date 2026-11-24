@@ -3,7 +3,7 @@
 > 本文件由 `pnpm map:sync`（[scripts/gen-repository-map.mjs](../../scripts/gen-repository-map.mjs)）按真实文件系统生成，**不要手改**。
 > 骨架发生变化（新增/删除/移动文件、包或目录）后，必须在同一轮运行 `pnpm map:sync` 并提交，否则 `pnpm check` 会失败。
 
-当前快照：**61 个包、1825 个文件、309 个子目录**（不含 node_modules、构建产物与运行数据）。
+当前快照：**63 个包、2577 个文件、477 个子目录**（不含 node_modules、构建产物与运行数据）。
 
 ## 1. 快速索引
 
@@ -28,8 +28,8 @@
 
 ```text
 lfaa/
-├── .agent/  (107 个文件)
-│   └── skills/  (107 个文件)
+├── .agent/  (141 个文件)
+│   └── skills/  (141 个文件)
 │       ├── antfu/  (6 个文件)
 │       │   └── references/  (5 个文件)
 │       ├── design-taste-frontend/  (37 个文件)
@@ -41,31 +41,38 @@ lfaa/
 │       │   ├── reference/  (50 个文件)
 │       │   │   └── degraded/  (5 个文件)
 │       │   └── scripts/  (10 个文件)
+│       ├── taste-skill/  (34 个文件)
+│       │   ├── assets/  (6 个文件)
+│       │   │   └── scenes/  (2 个文件)
+│       │   ├── evals/  (1 个文件)
+│       │   ├── library/  (9 个文件)
+│       │   ├── references/  (11 个文件)
+│       │   └── scripts/  (5 个文件)
 │       └── ui-screenshot/  (1 个文件)
 ├── .githooks/  (1 个文件)
 ├── .github/  (1 个文件)
 │   └── workflows/  (1 个文件)
-├── apps/  (34 个文件)
+├── apps/  (36 个文件)
 │   ├── cli/  (3 个文件)
 │   │   └── src/  (1 个文件)
-│   ├── desktop/  (15 个文件)
+│   ├── desktop/  (17 个文件)
 │   │   ├── resources/  (1 个文件)
 │   │   ├── scripts/  (3 个文件)
-│   │   └── src/  (6 个文件)
+│   │   └── src/  (8 个文件)
 │   ├── desktop-host/  (5 个文件)
 │   │   └── src/  (1 个文件)
 │   └── web/  (10 个文件)
 │       ├── public/  (2 个文件)
 │       └── src/  (3 个文件)
-├── docs/  (387 个文件)
+├── docs/  (419 个文件)
 │   ├── architecture/  (11 个文件)
 │   ├── dev-log/  (4 个文件)
 │   ├── features/  (28 个文件)
-│   ├── plans/  (4 个文件)
+│   ├── plans/  (9 个文件)
 │   ├── standards/  (2 个文件)
 │   ├── templates/  (2 个文件)
-│   └── updata-log/  (334 个文件)
-├── packages/  (1201 个文件)
+│   └── updata-log/  (361 个文件)
+├── packages/  (1882 个文件)
 │   ├── api/  (7 个文件)
 │   │   └── gateway/  # @lfaa/api-gateway  (7 个文件)
 │   │       ├── src/  (1 个文件)
@@ -87,7 +94,7 @@ lfaa/
 │   │   └── review/  # @lfaa/review  (13 个文件)
 │   │       ├── src/  (7 个文件)
 │   │       └── tests/  (1 个文件)
-│   ├── client/  (456 个文件)
+│   ├── client/  (475 个文件)
 │   │   ├── ui-agent-group/  # @lfaa/client-ui-agent-group  (13 个文件)
 │   │   │   ├── client/  (7 个文件)
 │   │   │   │   ├── group/  (1 个文件)
@@ -99,17 +106,17 @@ lfaa/
 │   │   │   │   ├── editor/  (2 个文件)
 │   │   │   │   └── view/  (3 个文件)
 │   │   │   └── src/  (1 个文件)
-│   │   ├── ui-browser/  # @lfaa/client-ui-browser  (22 个文件)
-│   │   │   ├── client/  (15 个文件)
-│   │   │   │   ├── api/  (1 个文件)
-│   │   │   │   ├── panes/  (11 个文件)
+│   │   ├── ui-browser/  # @lfaa/client-ui-browser  (25 个文件)
+│   │   │   ├── client/  (18 个文件)
+│   │   │   │   ├── api/  (2 个文件)
+│   │   │   │   ├── panes/  (13 个文件)
 │   │   │   │   └── settings/  (1 个文件)
 │   │   │   ├── src/  (1 个文件)
 │   │   │   └── tests/  (1 个文件)
-│   │   ├── ui-chat/  # @lfaa/client-ui-chat  (253 个文件)
-│   │   │   ├── client/  (201 个文件)
+│   │   ├── ui-chat/  # @lfaa/client-ui-chat  (256 个文件)
+│   │   │   ├── client/  (202 个文件)
 │   │   │   │   ├── composer/  (35 个文件)
-│   │   │   │   ├── conversation/  (47 个文件)
+│   │   │   │   ├── conversation/  (48 个文件)
 │   │   │   │   ├── models/  (16 个文件)
 │   │   │   │   ├── session/  (19 个文件)
 │   │   │   │   ├── settings/  (10 个文件)
@@ -117,13 +124,18 @@ lfaa/
 │   │   │   │   ├── store/  (19 个文件)
 │   │   │   │   └── workbench/  (42 个文件)
 │   │   │   ├── src/  (1 个文件)
-│   │   │   └── tests/  (46 个文件)
+│   │   │   └── tests/  (48 个文件)
 │   │   ├── ui-library/  # @lfaa/client-ui-library  (20 个文件)
 │   │   │   ├── client/  (11 个文件)
 │   │   │   │   ├── settings/  (2 个文件)
 │   │   │   │   └── views/  (7 个文件)
 │   │   │   ├── src/  (1 个文件)
 │   │   │   └── tests/  (3 个文件)
+│   │   ├── ui-mcp/  # @lfaa/client-ui-mcp  (13 个文件)
+│   │   │   ├── client/  (7 个文件)
+│   │   │   │   ├── api/  (1 个文件)
+│   │   │   │   └── settings/  (3 个文件)
+│   │   │   └── src/  (1 个文件)
 │   │   ├── ui-plugins/  # @lfaa/client-ui-plugins  (17 个文件)
 │   │   │   ├── client/  (11 个文件)
 │   │   │   │   ├── api/  (1 个文件)
@@ -167,7 +179,7 @@ lfaa/
 │   │   └── compaction/  # @lfaa/compaction  (12 个文件)
 │   │       ├── src/  (4 个文件)
 │   │       └── tests/  (3 个文件)
-│   ├── core/  (295 个文件)
+│   ├── core/  (297 个文件)
 │   │   ├── agent/  # @lfaa/agent  (71 个文件)
 │   │   │   ├── src/  (42 个文件)
 │   │   │   │   ├── context/  (4 个文件)
@@ -180,10 +192,10 @@ lfaa/
 │   │   ├── agent-profile/  # @lfaa/agent-profile  (18 个文件)
 │   │   │   ├── src/  (9 个文件)
 │   │   │   └── tests/  (4 个文件)
-│   │   ├── browser/  # @lfaa/browser  (23 个文件)
+│   │   ├── browser/  # @lfaa/browser  (24 个文件)
 │   │   │   ├── contract/  (1 个文件)
-│   │   │   ├── src/  (15 个文件)
-│   │   │   │   ├── session/  (8 个文件)
+│   │   │   ├── src/  (16 个文件)
+│   │   │   │   ├── session/  (9 个文件)
 │   │   │   │   ├── settings/  (1 个文件)
 │   │   │   │   ├── snapshot/  (1 个文件)
 │   │   │   │   └── tools/  (1 个文件)
@@ -232,10 +244,14 @@ lfaa/
 │   │   ├── tool-todo/  # @lfaa/tool-todo  (7 个文件)
 │   │   │   ├── src/  (1 个文件)
 │   │   │   └── tests/  (1 个文件)
-│   │   └── tools/  # @lfaa/tools  (11 个文件)
+│   │   └── tools/  # @lfaa/tools  (12 个文件)
 │   │       ├── src/  (5 个文件)
-│   │       └── tests/  (1 个文件)
-│   ├── extension/  (39 个文件)
+│   │       └── tests/  (2 个文件)
+│   ├── extension/  (689 个文件)
+│   │   ├── mcp/  # @lfaa/mcp  (15 个文件)
+│   │   │   ├── contract/  (1 个文件)
+│   │   │   ├── src/  (6 个文件)
+│   │   │   └── tests/  (2 个文件)
 │   │   ├── plugins/  # @lfaa/plugins  (25 个文件)
 │   │   │   ├── contract/  (1 个文件)
 │   │   │   ├── src/  (13 个文件)
@@ -243,12 +259,164 @@ lfaa/
 │   │   │   │   ├── manager/  (7 个文件)
 │   │   │   │   └── routes/  (1 个文件)
 │   │   │   └── tests/  (5 个文件)
-│   │   └── skills/  # @lfaa/skills  (14 个文件)
+│   │   └── skills/  # @lfaa/skills  (649 个文件)
 │   │       ├── contract/  (1 个文件)
-│   │       ├── src/  (6 个文件)
-│   │       │   └── builtin-skills/  (2 个文件)
+│   │       ├── src/  (641 个文件)
+│   │       │   └── builtin-skills/  (637 个文件)
+│   │       │       ├── agent-browser/  (1 个文件)
+│   │       │       ├── animate/  (2 个文件)
+│   │       │       ├── animate-expo/  (2 个文件)
+│   │       │       ├── animation-performance/  (1 个文件)
+│   │       │       ├── animation-vocabulary/  (1 个文件)
+│   │       │       ├── apple-design/  (1 个文件)
+│   │       │       ├── ask-sonner/  (2 个文件)
+│   │       │       ├── baseline-ui/  (1 个文件)
+│   │       │       ├── break-ui/  (2 个文件)
+│   │       │       ├── choreograph/  (2 个文件)
+│   │       │       ├── code-review/  (5 个文件)
+│   │       │       │   └── references/  (4 个文件)
+│   │       │       ├── component-canvas/  (1 个文件)
+│   │       │       ├── create-canvas/  (1 个文件)
+│   │       │       ├── create-design-md/  (1 个文件)
+│   │       │       ├── device-frames/  (1 个文件)
+│   │       │       ├── dimensional-drawing/  (3 个文件)
+│   │       │       │   └── examples/  (2 个文件)
+│   │       │       ├── dimensional-drawing-motion/  (8 个文件)
+│   │       │       │   ├── adapters/  (5 个文件)
+│   │       │       │   │   └── headless/  (4 个文件)
+│   │       │       │   └── templates/  (2 个文件)
+│   │       │       ├── emil-design-eng/  (1 个文件)
+│   │       │       ├── find-animation-opportunities/  (1 个文件)
+│   │       │       ├── find-skills/  (1 个文件)
+│   │       │       ├── fixing-accessibility/  (1 个文件)
+│   │       │       ├── fixing-metadata/  (1 个文件)
+│   │       │       ├── gestures/  (1 个文件)
+│   │       │       ├── impeccable/  (67 个文件)
+│   │       │       │   ├── agents/  (6 个文件)
+│   │       │       │   ├── reference/  (50 个文件)
+│   │       │       │   │   └── degraded/  (5 个文件)
+│   │       │       │   └── scripts/  (10 个文件)
+│   │       │       ├── improve-animations/  (3 个文件)
+│   │       │       ├── improve-ui/  (3 个文件)
+│   │       │       │   ├── agents/  (1 个文件)
+│   │       │       │   └── references/  (1 个文件)
+│   │       │       ├── ios-design/  (20 个文件)
+│   │       │       │   ├── agents/  (1 个文件)
+│   │       │       │   ├── reference/  (9 个文件)
+│   │       │       │   ├── references/  (3 个文件)
+│   │       │       │   └── scripts/  (1 个文件)
+│   │       │       ├── learn-taste/  (1 个文件)
 │   │       │       ├── lfaa-skill-creator/  (1 个文件)
-│   │       │       └── minecraft-plugin-dev/  (1 个文件)
+│   │       │       ├── media-use/  (78 个文件)
+│   │       │       │   ├── audio/  (47 个文件)
+│   │       │       │   │   ├── assets/  (21 个文件)
+│   │       │       │   │   │   └── sfx/  (21 个文件)
+│   │       │       │   │   ├── references/  (10 个文件)
+│   │       │       │   │   │   └── captions/  (3 个文件)
+│   │       │       │   │   └── scripts/  (16 个文件)
+│   │       │       │   ├── luts/  (2 个文件)
+│   │       │       │   ├── references/  (13 个文件)
+│   │       │       │   └── scripts/  (14 个文件)
+│   │       │       ├── minecraft-plugin-dev/  (1 个文件)
+│   │       │       ├── mobile-native/  (1 个文件)
+│   │       │       ├── pick-ui-library/  (1 个文件)
+│   │       │       ├── prototype/  (2 个文件)
+│   │       │       ├── remove-animations/  (1 个文件)
+│   │       │       ├── review-animations/  (2 个文件)
+│   │       │       ├── stageshow/  (372 个文件)
+│   │       │       │   ├── assets/  (1 个文件)
+│   │       │       │   ├── examples/  (155 个文件)
+│   │       │       │   │   ├── ai-cards/  (2 个文件)
+│   │       │       │   │   ├── ai-chat/  (2 个文件)
+│   │       │       │   │   ├── annotations/  (4 个文件)
+│   │       │       │   │   ├── backgrounds/  (2 个文件)
+│   │       │       │   │   ├── bento/  (2 个文件)
+│   │       │       │   │   ├── brand-marks/  (2 个文件)
+│   │       │       │   │   ├── buttons/  (2 个文件)
+│   │       │       │   │   ├── calendar/  (2 个文件)
+│   │       │       │   │   ├── cards/  (2 个文件)
+│   │       │       │   │   ├── chart-scrub/  (2 个文件)
+│   │       │       │   │   ├── choreography/  (2 个文件)
+│   │       │       │   │   ├── chrome/  (2 个文件)
+│   │       │       │   │   ├── close-up/  (2 个文件)
+│   │       │       │   │   ├── controls/  (2 个文件)
+│   │       │       │   │   ├── corner-chip/  (2 个文件)
+│   │       │       │   │   ├── cursor-morph/  (4 个文件)
+│   │       │       │   │   ├── cursor-resize/  (2 个文件)
+│   │       │       │   │   ├── cursors/  (2 个文件)
+│   │       │       │   │   ├── dark-bento/  (2 个文件)
+│   │       │       │   │   ├── dark-hero/  (2 个文件)
+│   │       │       │   │   ├── device-pair/  (2 个文件)
+│   │       │       │   │   ├── dynamic-island/  (2 个文件)
+│   │       │       │   │   ├── excel/  (2 个文件)
+│   │       │       │   │   ├── fade-crop/  (2 个文件)
+│   │       │       │   │   ├── figma/  (2 个文件)
+│   │       │       │   │   ├── finder/  (2 个文件)
+│   │       │       │   │   ├── finder-glass/  (2 个文件)
+│   │       │       │   │   ├── form-error/  (2 个文件)
+│   │       │       │   │   ├── freeform-drag/  (2 个文件)
+│   │       │       │   │   ├── glass/  (2 个文件)
+│   │       │       │   │   ├── gmail/  (2 个文件)
+│   │       │       │   │   ├── google-calendar/  (2 个文件)
+│   │       │       │   │   ├── google-docs/  (2 个文件)
+│   │       │       │   │   ├── hero-demo/  (4 个文件)
+│   │       │       │   │   ├── hero-grid/  (2 个文件)
+│   │       │       │   │   ├── imessage/  (2 个文件)
+│   │       │       │   │   ├── kit-extras/  (2 个文件)
+│   │       │       │   │   ├── linear/  (2 个文件)
+│   │       │       │   │   ├── loading/  (2 个文件)
+│   │       │       │   │   ├── looks/  (7 个文件)
+│   │       │       │   │   ├── many-of-one/  (2 个文件)
+│   │       │       │   │   ├── messages/  (2 个文件)
+│   │       │       │   │   ├── monochrome/  (2 个文件)
+│   │       │       │   │   ├── notion/  (2 个文件)
+│   │       │       │   │   ├── opposite-corners/  (2 个文件)
+│   │       │       │   │   ├── overlap/  (2 个文件)
+│   │       │       │   │   ├── panel-annotation/  (2 个文件)
+│   │       │       │   │   ├── parts/  (2 个文件)
+│   │       │       │   │   ├── payout-flow/  (2 个文件)
+│   │       │       │   │   ├── phone-touch/  (2 个文件)
+│   │       │       │   │   ├── phones/  (1 个文件)
+│   │       │       │   │   ├── powerpoint/  (2 个文件)
+│   │       │       │   │   ├── presence/  (2 个文件)
+│   │       │       │   │   ├── raycast/  (2 个文件)
+│   │       │       │   │   ├── reorder/  (2 个文件)
+│   │       │       │   │   ├── ruled-bento/  (2 个文件)
+│   │       │       │   │   ├── share/  (2 个文件)
+│   │       │       │   │   ├── slack/  (2 个文件)
+│   │       │       │   │   ├── spotify/  (2 个文件)
+│   │       │       │   │   ├── stacked-cards/  (2 个文件)
+│   │       │       │   │   ├── staggered-bento/  (2 个文件)
+│   │       │       │   │   ├── static-card/  (2 个文件)
+│   │       │       │   │   ├── story/  (2 个文件)
+│   │       │       │   │   ├── subscriptions/  (2 个文件)
+│   │       │       │   │   ├── swipe/  (2 个文件)
+│   │       │       │   │   ├── table-edit/  (2 个文件)
+│   │       │       │   │   ├── telegram/  (2 个文件)
+│   │       │       │   │   ├── tilted-stack/  (2 个文件)
+│   │       │       │   │   ├── upload/  (2 个文件)
+│   │       │       │   │   ├── wikipedia/  (5 个文件)
+│   │       │       │   │   └── window-row/  (2 个文件)
+│   │       │       │   ├── kit/  (155 个文件)
+│   │       │       │   │   ├── brands/  (50 个文件)
+│   │       │       │   │   ├── controls/  (17 个文件)
+│   │       │       │   │   ├── motion/  (27 个文件)
+│   │       │       │   │   └── parts/  (33 个文件)
+│   │       │       │   ├── playground/  (10 个文件)
+│   │       │       │   ├── references/  (15 个文件)
+│   │       │       │   ├── scripts/  (12 个文件)
+│   │       │       │   └── teaching/  (18 个文件)
+│   │       │       ├── ui-taste/  (26 个文件)
+│   │       │       │   ├── agents/  (1 个文件)
+│   │       │       │   ├── reference/  (15 个文件)
+│   │       │       │   ├── references/  (3 个文件)
+│   │       │       │   └── scripts/  (1 个文件)
+│   │       │       ├── unslop/  (16 个文件)
+│   │       │       │   ├── agents/  (1 个文件)
+│   │       │       │   ├── references/  (11 个文件)
+│   │       │       │   │   └── refs/  (5 个文件)
+│   │       │       │   └── scripts/  (3 个文件)
+│   │       │       └── write-swift/  (1 个文件)
 │   │       └── tests/  (1 个文件)
 │   ├── feedback/  (7 个文件)
 │   │   └── message-feedback/  # @lfaa/message-feedback  (7 个文件)
@@ -312,7 +480,7 @@ lfaa/
 │   │   └── spill-local/  # @lfaa/spill-local  (7 个文件)
 │   │       ├── src/  (1 个文件)
 │   │       └── tests/  (1 个文件)
-│   ├── ui/  (156 个文件)
+│   ├── ui/  (164 个文件)
 │   │   ├── icons/  # @lfaa/ui-icons  (15 个文件)
 │   │   │   ├── LICENSES/  (1 个文件)
 │   │   │   ├── client/  (4 个文件)
@@ -327,24 +495,25 @@ lfaa/
 │   │   │   ├── contract/  (3 个文件)
 │   │   │   ├── src/  (1 个文件)
 │   │   │   └── tests/  (9 个文件)
-│   │   ├── primitives/  # @lfaa/ui-primitives  (38 个文件)
-│   │   │   ├── client/  (27 个文件)
+│   │   ├── primitives/  # @lfaa/ui-primitives  (45 个文件)
+│   │   │   ├── client/  (33 个文件)
+│   │   │   │   ├── base/  (6 个文件)
 │   │   │   │   └── settings/  (6 个文件)
 │   │   │   ├── contract/  (1 个文件)
 │   │   │   ├── src/  (1 个文件)
-│   │   │   └── tests/  (3 个文件)
-│   │   └── theme/  # @lfaa/ui-theme  (31 个文件)
+│   │   │   └── tests/  (4 个文件)
+│   │   └── theme/  # @lfaa/ui-theme  (32 个文件)
 │   │       ├── client/  (20 个文件)
 │   │       │   └── components/  (14 个文件)
 │   │       ├── contract/  (1 个文件)
 │   │       ├── src/  (1 个文件)
-│   │       └── tests/  (3 个文件)
-│   ├── web/  (12 个文件)
-│   │   └── web/  # @lfaa/web  (12 个文件)
-│   │       ├── src/  (4 个文件)
+│   │       └── tests/  (4 个文件)
+│   ├── web/  (14 个文件)
+│   │   └── web/  # @lfaa/web  (14 个文件)
+│   │       ├── src/  (5 个文件)
 │   │       │   ├── fetch/  (1 个文件)
-│   │       │   └── tool/  (1 个文件)
-│   │       └── tests/  (3 个文件)
+│   │       │   └── tool/  (2 个文件)
+│   │       └── tests/  (4 个文件)
 │   └── workspace/  (38 个文件)
 │       ├── sections/  # @lfaa/sections  (10 个文件)
 │       │   ├── contract/  (1 个文件)
@@ -359,7 +528,9 @@ lfaa/
 │           └── tests/  (2 个文件)
 ├── patches/  (1 个文件)
 ├── scripts/  (33 个文件)
-├── shots/  (33 个文件)
+├── shots/  (36 个文件)
+│   ├── browser-flow/  (2 个文件)
+│   └── verify/  (25 个文件)
 └── vendor/  (14 个文件)
     └── loader/  (13 个文件)
         └── src/  (9 个文件)
@@ -394,6 +565,7 @@ lfaa/
 | client | `@lfaa/client-ui-browser` | `packages/client/ui-browser` | LFAA 内置浏览器服务与可视化控制面板：遵循 DSH browser-use 独占注册契约，基于 playwright-core 复用本机 Edge/Chrome 驱动。（浏览器半，已从 @lfaa/browser 拆出）。 |
 | client | `@lfaa/client-ui-chat` | `packages/client/ui-chat` | LFAA 核心聊天与 Agent 工作台业务包，提供会话管理、流式思考/行动/检查步骤可视化与模型规则设置界面。（浏览器半，已从 @lfaa/chat 拆出）。 |
 | client | `@lfaa/client-ui-library` | `packages/client/ui-library` | LFAA 资料库功能包：图像/资产/记忆分类浏览、右栏检视器与存储位置设置。（浏览器半，已从 @lfaa/library 拆出）。 |
+| client | `@lfaa/client-ui-mcp` | `packages/client/ui-mcp` |  |
 | client | `@lfaa/client-ui-plugins` | `packages/client/ui-plugins` | plugins（浏览器半，已从 @lfaa/plugins 拆出）。 |
 | client | `@lfaa/client-ui-review` | `packages/client/ui-review` | LFAA 代码审查功能包：内置 Git 变更操作、编码设置与代码审查工作台，含审查报告 Host 服务。（浏览器半，已从 @lfaa/review 拆出）。 |
 | client | `@lfaa/client-ui-sections` | `packages/client/ui-sections` | LFAA 工作区自定义分区管理包，提供 Host 分区持久化服务、HTTP RPC 与侧栏分区交互 UI 插件。（浏览器半，已从 @lfaa/sections 拆出）。 |
@@ -420,6 +592,7 @@ lfaa/
 | core | `@lfaa/system-prompt` | `packages/core/system-prompt` | LFAA 系统提示词分段服务：插件注册段落，Agent 在组装系统提示时统一合并。 |
 | core | `@lfaa/tool-todo` | `packages/core/tool-todo` | LFAA 待办清单工具包：为智能体提供创建、更新与查询任务清单的工具。 |
 | core | `@lfaa/tools` | `packages/core/tools` | LFAA Agent 核心手脚能力包，提供可插拔工具注册表、工作区路径沙箱与内置文件/检索/命令工具。 |
+| extension | `@lfaa/mcp` | `packages/extension/mcp` |  |
 | extension | `@lfaa/plugins` | `packages/extension/plugins` |  |
 | extension | `@lfaa/skills` | `packages/extension/skills` |  |
 | feedback | `@lfaa/message-feedback` | `packages/feedback/message-feedback` | LFAA 消息反馈服务：持久化对助手回复的赞/踩与备注，供聊天界面记录与回读。 |
@@ -476,7 +649,7 @@ lfaa/
 - `electron-builder.config.mjs` — 桌面安装包配置（electron-builder）：以 apps/desktop 为工程目录，staging 在 .desktop-build/。
 - `package.json`
 - `tsconfig.json`
-- `tsdown.config.ts` — 桌面主进程构建：只打包本地源码；Electron 与 workspace 包保持外部依赖（由安装包内 node_modules 提供）。
+- `tsdown.config.ts` — 桌面主进程与 Preload 桥构建：主进程输出 ESM，Preload 输出 CJS（供 Electron sandbox: true 安全加载）。
 
 ### apps/desktop-host
 
@@ -501,11 +674,13 @@ lfaa/
 
 ### apps/desktop/src
 
+- `embedded-browser.ts` — LFAA 桌面端原生内置浏览器管理器：在主窗口右侧挂载 Electron 原生 WebContentsView（GPU 硬件合成、零截图压缩延迟）。
 - `host-process.ts` — 桌面宿主子进程：用 Electron 的 Node 模式拉起 apps/desktop-host，经 IPC 获取本机地址并负责优雅退出。
 - `log.ts` — 桌面端日志：启动失败、宿主异常与未捕获错误写入 ~/.lfaa/logs/desktop.log，便于用户回传排查。
 - `main.ts` — LFAA 桌面端主进程：单实例、拉起桌面宿主子进程、创建主窗口，并在退出时先停宿主再退出。
 - `menu.ts` — 安装中文应用菜单：Windows 上菜单缺失会连带 Ctrl+C/V/A 失效，所以编辑角色的快捷键必须显式保留。
 - `paths.ts` — 解析桌面端运行路径：开发态指向仓库内产物，安装态指向 resources/app；用户数据仍在 ~/.lfaa。
+- `preload.ts` — LFAA 桌面端安全 Preload 桥：仅向渲染进程暴露原生内置浏览器 WebContentsView 的受控 IPC 接口。
 - `window.ts` — 创建主窗口并施加导航与弹窗安全策略：只允许本机页面内导航，外部链接交给系统浏览器。
 
 ### apps/web
@@ -737,15 +912,18 @@ lfaa/
 ### packages/client/ui-browser/client/api
 
 - `browser-client.ts` — 封装浏览器面板与设置页共用的 HTTP API 请求辅助函数，支持多标签、动态视口、键鼠穿透与 DevTools 日志。
+- `desktop-browser-bridge.ts` — 桌面端原生内置浏览器（Electron WebContentsView）渲染进程桥接探测与类型声明；普通浏览器环境返回 null。
 
 ### packages/client/ui-browser/client/panes
 
 - `BrowserCanvasViewport.tsx` — 高清低延迟 CDP 画布视口：Canvas + createImageBitmap 双缓冲绘制、非被动滚轮防穿透、单在途背压与完整键鼠直通。
 - `BrowserDevToolsDrawer.tsx` — 内置浏览器底部可折叠 DevTools 抽屉：按 Console 与 Network 分页查看页面异常与请求状态。
+- `BrowserDeviceBar.module.css` — 内置浏览器响应式设备工具栏样式，全量消费 @lfaa/ui-theme 语义变量。
+- `BrowserDeviceBar.tsx` — 内置浏览器响应式设备工具栏：提供常见设备下拉预设、自定义宽高像素输入、横竖屏旋转与缩放比例展示。
 - `BrowserTabs.tsx` — 内置浏览器顶部多标签栏：标签切换、关闭与新建；标签数据与激活/关闭操作由父组件传入。
-- `BrowserToolbar.tsx` — 内置浏览器工具栏：前进/后退/刷新、网址输入、视口预设、DevTools 开关与人工接管/附带页面操作。
+- `BrowserToolbar.tsx` — 内置浏览器工具栏：精简为导航、地址栏、接管开关与「更多（...）」菜单（基于 @lfaa/ui-primitives 的 Base UI DropdownMenu）。
 - `BrowserViewport.module.css` — 内置浏览器双引擎视口、设备框、透明防误触护盾、提示胶囊与空白就绪态样式，全量消费 @lfaa/ui-theme 语义变量。
-- `BrowserViewport.tsx` — 内置浏览器双引擎视口：Agent 控制态下以全透明防误触护盾锁定视口（零白雾），用户点「接管」后解锁原生直连或 2x 无损协同操作。
+- `BrowserViewport.tsx` — 内置浏览器双引擎视口：保留原生预览，Agent 控制和人工接管时展示宿主协同画面。
 - `RightBrowserPane.devtools.module.css` — 内置浏览器 DevTools 抽屉：标签、控制台/网络列表与日志行样式，双主题变量适配。
 - `RightBrowserPane.module.css` — 全高全宽内置浏览器容器、多标签栏、工具栏、交互视口与 DevTools 样式，全量使用 @lfaa/ui-theme 语义变量。
 - `RightBrowserPane.tsx` — 全高全宽内置浏览器视图：双引擎渲染（可嵌入页默认原生直连，拦截站与 Agent 实操自动切高清 Canvas 协同）。
@@ -823,6 +1001,7 @@ lfaa/
 ### packages/client/ui-chat/client/conversation
 
 - `AssistantTimeline.tsx` — 以正文偏移、多轮思维链与工具链渲染流式回复及完成后的全程可展开回看。
+- `Browser-Evidence.tsx` — 在浏览器步骤卡中按需加载已认证的截图证据，关闭预览时释放图片资源。
 - `Browser-Subagent-Card.module.css` — 思维链中的专属浏览器子智能体实时状态条与可展开步骤卡片，全量消费 @lfaa/ui-theme 语义变量。
 - `Browser-Subagent-Card.tsx` — 思维链专属浏览器子智能体卡片：运行中实时显示「正在使用内置浏览器 · 思考中/动作 (Xs)」，支持展开逐条查看浏览器步骤并一键打开右栏。
 - `ChatAnchorBar.module.css` — 聊天区左侧导航刻度锚点条样式：Dock 波形悬停放大、液态玻璃预览浮卡与书签高亮。
@@ -864,11 +1043,11 @@ lfaa/
 - `code-highlight.tsx` — 为右工作台 VS Code 代码查看器提供多语言词法高亮、嵌套标签/括号彩虹配对着色、语言徽标及面包屑路径解析。
 - `markdown-parser.ts` — 轻量流式安全 Markdown 块级解析与代码语法分词器，用于渲染助手消息中的标题、列表、表格、引用与高亮代码块。
 - `trace-groups.ts` — @lfaa/chat 留痕分组：把步骤按「思考 / 读取 / 搜索 / 命令 / 文件变更 / 其他」归并，供展开区成组展示。
+- `useBoundedScroll.ts` — 管理任意「限高滚动视口」的滚动与边缘渐隐：内容持续追加时同步贴底，用户上滚阅读时立即暂停跟随，滚回底部自动恢复。
 - `useChatScroll.ts` — 管理聊天视口的底部跟随：在 ResizeObserver 绘制前同步贴底消除一帧跳动与闪白，用户主动上滚时立即暂停跟随。
 - `useChatSuggestions.ts` — 管理空会话项目起步建议与首轮回复追问建议的异步拉取及本地缓存。
 - `useMessageActions.ts` — 消息区交互接线：编辑内容、分叉到新会话、继续中断消息、提问、审批，以及媒体引用的再生成。
 - `useMessageFeedback.ts` — 消息反馈 Hook：读取已保存的赞/踩状态，并在切换时立即落盘；失败回滚界面状态。
-- `useThinkingScroll.ts` — 管理思维链思考正文视口的滚动与边缘渐隐：流式思考时同步贴底，用户上滚阅读时立即暂停跟随，滚回底部自动恢复。
 
 ### packages/client/ui-chat/client/models
 
@@ -1006,6 +1185,7 @@ lfaa/
 
 ### packages/client/ui-chat/tests
 
+- `activity-icon-slot.test.tsx` — 验证同级活动行（工具行 / 文件活动行）都以统一的「图标槽」开头：槽位等宽后，类型图标中心与动词起点才能对齐（开发规范 §3.5）。
 - `activity-label.test.ts` — 验证活动与阶段文案：负责人指定的 19 条中文状态短语必须逐条对应真实状态，且不暴露内部工具名。
 - `activity-summary.test.ts` — 验证多步活动摘要：用真实动作和对象说明这一轮做了什么，不再出现「N 项操作」这类空话。
 - `advice-options.test.ts` — 验证智能追问提取：只从「建议/下一步」段落的列表项生成可选项，普通列表或不足两条时不出选项。
@@ -1039,11 +1219,12 @@ lfaa/
 - `model-provider-form.test.tsx` — 验证套餐配置表单也提供「获取官方模型」，并把拉取到的全部模型列出可选（普通接口保留首屏截断）。
 - `notifications.test.ts` — 验证通知策略：轮次完成档位与不支持 Notification API 时的安全回退。
 - `provider-catalog.test.ts` — 提供商接入预设的回归测试：验证套餐凭据、计费路由和旧档案匹配保持隔离。
+- `restore-skeleton.test.tsx` — 验证刷新恢复会话时不再闪现空态引导：恢复中只渲染会话骨架，详情回来后直接进入消息线程。
 - `right-panel.test.tsx` — 验证重构后的右侧工作台面板渲染搜索/URL 栏、6 项工具入口及子智能体/后台任务区块。
 - `run-stream-handler.test.ts` — 验证运行事件归并：增量追加、步骤 upsert、结束时的队列接续与错误落盘、断流降级。
 - `session-todos.test.ts` — 验证从会话步骤里取任务清单：取最近一次、跨消息回退、状态统计。
 - `streaming-perf.test.ts` — 验证流式性能优化边界：shallowEqual 缓存命中、仅侧栏字段变化才通知外部，以及流式帧合并去重与轮次思考归并。
-- `thinking-block-scroll.test.tsx` — 验证 ThinkingBlock 思考正文滚动视口的溢出边缘计算、流式自动贴底与手动上滚暂停逻辑，以及 SSR 渲染结构。
+- `thinking-block-scroll.test.tsx` — 验证共享限高滚动视口的溢出边缘计算、实时自动贴底与手动上滚暂停逻辑，以及 ThinkingBlock 的 SSR 渲染结构。
 - `timeline-streaming.test.tsx` — 验证 AssistantTimeline 在流式轮次切换、工具执行、文本输出及完成态时始终保持连贯的活动反馈。
 - `todo-activity-label.test.ts` — 验证任务清单在活动行里的文案：完成时显示真实进度，而不是裸 JSON 或统一措辞。
 - `todo-dock.test.tsx` — 验证输入框上方任务卡：进度摘要、递增步骤序号、状态点、空清单不渲染、超过 12 条折叠余项。
@@ -1090,6 +1271,34 @@ lfaa/
 - `library-inspector.test.tsx` — 验证右栏检视器：未选中展示存储概览，选中媒体展示提示词与操作，选中资产时先显示读取态。
 - `library-media.test.tsx` — 验证资料库「图像」分类的筛选、空态/错误态与卡片渲染，界面不暴露磁盘绝对路径。
 - `plugin-lifecycle.test.ts` — 验证 @lfaa/library/client 注册资料库视图、右栏检视器与存储设置页，并在卸载时全部撤销。
+
+### packages/client/ui-mcp
+
+- `README.i18n.yaml` — 双语配对记录：按英文标题分段记录英文 / 中文段落哈希。
+- `README.md`
+- `README.zh.md`
+- `package.json`
+- `tsconfig.json`
+
+### packages/client/ui-mcp/client
+
+- `css-modules.d.ts` — 浏览器端 CSS Modules 类型声明，由 Vite 处理实际样式。
+- `index.tsx` — 浏览器 Cordis 插件：向设置中心注册 MCP 页面，卸载时撤销视图贡献。
+- `locales.ts` — MCP 设置中心中英文界面文案。
+
+### packages/client/ui-mcp/client/api
+
+- `mcp-client.ts` — 浏览器端 MCP 请求封装。宿主令牌由 Web 入口统一注入。
+
+### packages/client/ui-mcp/client/settings
+
+- `Mcp-Dialog.tsx` — 设置中心内的 MCP 录入弹窗，使用浏览器顶层避免被设置中心遮住。
+- `Mcp-Settings.module.css` — MCP 设置页的状态提示、横排操作和双主题原生弹窗。
+- `Mcp-Settings.tsx` — 设置中心 MCP 页：管理连接、项目范围、审批和工具列表。
+
+### packages/client/ui-mcp/src
+
+- `index.ts` — MCP 设置界面包的 Host 入口，无运行期副作用。
 
 ### packages/client/ui-plugins
 
@@ -1520,6 +1729,7 @@ lfaa/
 
 ### packages/core/browser/src/session
 
+- `agent-overlay.ts` — Agent 页面操控可视化指示层：极简无边框虚拟指针、柔和点击涟漪与轻量悬浮动作标签。
 - `browser-idle-throttle.ts` — 后台无头浏览器空闲省电节流器：当前端使用原生 iframe 展示且无推流订阅与 Agent 操作时，暂停后台动画渲染并在下次操作前毫秒唤醒。
 - `browser-service.ts` — 基于 playwright-core 驱动本机 Edge/Chrome，支持会话多标签页、动态视口同步、真实键鼠操作及 Console/Network 采集。
 - `browser-session-types.ts` — 浏览器运行时内部类型：单标签条目、会话状态与日志条数上限，供运行时、标签监听与快照组装共享。
@@ -1855,7 +2065,35 @@ lfaa/
 
 ### packages/core/tools/tests
 
+- `grep-file-path.test.ts` — 回归测试：验证 grep 工具既支持目录路径也支持单个文件路径（不再对单文件触发 ENOTDIR）。
 - `tools-service.test.ts` — 验证 @lfaa/tools 路径沙箱越界拦截、文件读写/搜索工具执行与 Cordis 插件注册注销。
+
+### packages/extension/mcp
+
+- `README.i18n.yaml` — 双语配对记录：按英文标题分段记录英文 / 中文段落哈希。
+- `README.md`
+- `README.zh.md`
+- `package.json`
+- `tsconfig.json`
+- `tsdown.config.ts` — MCP 能力包构建入口，源码与公开契约使用同一 TypeScript 工程。
+
+### packages/extension/mcp/contract
+
+- `index.ts` — MCP 设置接口的浏览器安全契约。连接参数只由客户端写入，Host 不回显。
+
+### packages/extension/mcp/src
+
+- `config-store.ts` — 用本机独立密钥加密所有连接字段，并以原子替换写入 MCP 配置。
+- `connection.ts` — 使用官方协议客户端管理 MCP 传输、工具分页及取消。此模块只运行在 Host。
+- `index.ts` — MCP Host 插件入口，管理连接服务并公开设置路由。
+- `mcp-routes.ts` — 接入宿主令牌网关，提供 MCP 设置接口，响应只返回安全摘要。
+- `mcp-service.ts` — Cordis MCP 服务：串行提交配置、独立管理连接，并随连接生命周期注销工具。
+- `server-config.ts` — 校验 MCP 连接设置与 Claude Desktop/Cursor 导入内容，仅在 Host 使用。
+
+### packages/extension/mcp/tests
+
+- `echo-server.fixture.mjs` — 本地 MCP Stdio 夹具，用真实 SDK 协议模拟一个回显工具。
+- `mcp-service.test.ts` — 验证原生 MCP 通过真实 Stdio/HTTP/SSE 握手、工具生命周期、审批元数据与加密持久化。
 
 ### packages/extension/plugins
 
@@ -1922,14 +2160,6 @@ lfaa/
 - `skill-format.ts` — @lfaa/skills 技能文档与标识校验工具：负责 ID 合法性校验、slug 归一化以及 SKILL.md frontmatter 解析与组装。
 - `skill-routes.ts` — 为本机 Web 服务提供 /api/skills/* HTTP 接口，支持技能列表、详情、编辑、二创、启停与删除。
 - `skill-service.ts` — @lfaa/skills Host 侧技能管理逻辑：发现内置/项目技能、管理个人技能文件、Git 安装与插件技能注册，提供原子保存与二创。
-
-### packages/extension/skills/src/builtin-skills/lfaa-skill-creator
-
-- `SKILL.md`
-
-### packages/extension/skills/src/builtin-skills/minecraft-plugin-dev
-
-- `SKILL.md`
 
 ### packages/extension/skills/tests
 
@@ -2383,6 +2613,15 @@ lfaa/
 - `index.tsx` — 统一导出 @lfaa/ui-primitives 共享交互组件（折叠面板与展开按钮、居中弹窗、浮层卡片、步进滑块、滚动容器）与设置中心通用控件。
 - `usePanePresence.ts` — 面板挂载保持：展开立即挂载，收起后保留内容等过渡结束再卸载；供 CollapsePane 及其他折叠容器复用。
 
+### packages/ui/primitives/client/base
+
+- `BasePrimitives.module.css` — Base UI 无头原语的 LFAA 双主题薄皮肤（DropdownMenu / UiSwitch / UiSelect / UiTabs / UiTooltip），全量消费 @lfaa/ui-theme 语义变量。
+- `DropdownMenu.tsx` — 基于 @base-ui/react/menu 封装的通用下拉菜单原语：自动防溢出定位、键盘导航、焦点恢复与双主题适配。
+- `UiSelect.tsx` — 基于 @base-ui/react/select 封装的通用下拉选择器：键盘导航、防溢出定位与双主题皮肤。
+- `UiSwitch.tsx` — 基于 @base-ui/react/switch 封装的双主题触感开关原语。
+- `UiTabs.tsx` — 基于 @base-ui/react/tabs 封装的平滑滑块分段标签原语。
+- `UiTooltip.tsx` — 基于 @base-ui/react/tooltip 封装的轻量悬浮提示原语：自动避障定位与悬停防抖。
+
 ### packages/ui/primitives/client/settings
 
 - `SettingSelect.tsx` — 设置中心「可搜索下拉」与「多选下拉」：带图标、副标题与搜索过滤的受控选项弹层，供所有设置页统一使用。
@@ -2402,6 +2641,7 @@ lfaa/
 
 ### packages/ui/primitives/tests
 
+- `base-primitives.test.tsx` — 验证基于 @base-ui/react 封装的 5 个通用交互原语（DropdownMenu / UiSwitch / UiSelect / UiTabs / UiTooltip）在 SSR 下渲染正常、无障碍属性完整。
 - `panel-toggle.test.tsx` — 验证共享折叠面板按钮的状态表达：动作文案、aria-expanded、左右镜像与分栏线标记都随状态变化。
 - `primitives-contract.test.ts` — 验证 @lfaa/ui-primitives 共享交互原语包导出、步进比值计算及包边界契约。
 - `scroll-area.test.tsx` — 验证共享滚动容器 ScrollArea 的 SSR 输出：方向标记、常驻槽标记、附加类名与内容包裹都正确，
@@ -2432,8 +2672,8 @@ lfaa/
 - `AppearanceAdvanced.tsx` — 呈现外观设置页的「高级」折叠区：字号、字体、主题与显示、动效与光标，全部沿用设置中心的行式结构
 - `AppearanceSettings.module.css`
 - `AppearanceSettings.tsx` — 呈现设置中心「外观」页：顶部实时预览 + 全部主题网格、主题细项与高级选项。
-- `ThemeGallery.module.css` — 主题网格：缩略窗 + 名称，选中态用强调色描边；颜色全部取自主题变量。
-- `ThemeGallery.tsx` — 主题选择网格：每个主题一格缩略窗，鼠标移入即回报预览请求，点击才应用；供外观页与任何需要选主题的界面复用。
+- `ThemeGallery.module.css` — 主题选择卡片网格：分轴排版（明暗模式 3 列、配色预设 4 列），选中态使用强调色光环与角标；全消费主题变量。
+- `ThemeGallery.tsx` — 主题选择网格：支持明暗模式（3 列）与主题预设（4 列）分轴展示，悬停驱动实时预览，点击应用。
 - `ThemeModeQuickSwitch.module.css` — 用户菜单头部右侧的外观模式快捷切换胶囊与三选一液态玻璃浮层样式。
 - `ThemeModeQuickSwitch.tsx` — 用户账户菜单头部右侧的外观模式快捷切换胶囊与“跟随系统 / 浅色模式 / 深色模式”三选一浮层菜单。
 - `ThemePreview.module.css`
@@ -2452,6 +2692,7 @@ lfaa/
 ### packages/ui/theme/tests
 
 - `appearance-layer.test.ts` — 静态层级守卫：外观页的下拉菜单 Portal 到 body，层级必须高于设置中心弹窗；
+- `sakura-preset.test.ts` — 樱花粉预设回归：契约取样、深浅令牌成对、正文与弱化文字对比度是否达标。
 - `theme-lifecycle.test.ts` — 验证主题包 Host/契约预设导出及 Client 插件在工作台注册与卸载清理。
 - `theme-tiles.test.ts` — 验证主题网格取样：模式卡与预设卡的数量、选中标记、强调色解析与「跟随系统」双取样。
 
@@ -2474,12 +2715,14 @@ lfaa/
 
 ### packages/web/web/src/tool
 
-- `fetch-url-tool.ts` — @lfaa/tool-web 插件入口：提供 fetch_url 工具，抓取公开网页并转成可读正文。
+- `fetch-url-tool.ts` — @lfaa/tool-web 插件入口：提供 web_search 全网搜索与 fetch_url 网页正文抓取两个轻量只读工具。
+- `web-search-tool.ts` — 轻量全网搜索工具（web_search）：免密钥直接抓取公开搜索结果，支持 DuckDuckGo 与 Bing 双源回退，返回精简标题、链接与摘要。
 
 ### packages/web/web/tests
 
 - `fetch-url-tool.test.ts` — 验证网页工具的安全校验与正文抽取：协议限制、内网拦截、HTML 转文本。
 - `http-fetch.test.ts` — 验证 HTTP 抓取实现的协议校验、体积截断与真实请求路径。
+- `web-search-tool.test.ts` — 验证 web_search 工具：Bing / DuckDuckGo HTML 解析、uddg 链接解包、结果格式化与 Cordis 插件注册/卸载。
 - `web-service.test.ts` — 验证网页 seam 的实现排序、注销与失败回退语义。
 
 ### packages/workspace/sections
@@ -2598,5 +2841,6 @@ lfaa/
 | 目录 | 文件数 | 子目录数 | 说明 |
 | --- | --- | --- | --- |
 | `docs/dev-log` | 4 | 1 | 按每 200 条任务编号汇总的开发日志卷 |
-| `docs/updata-log` | 334 | 1 | 面向用户的单条更新说明 |
+| `docs/updata-log` | 361 | 1 | 面向用户的单条更新说明 |
 | `vendor` | 14 | 4 | 内嵌的上游运行时源码 |
+| `packages/extension/skills/src/builtin-skills` | 637 | 151 |  |

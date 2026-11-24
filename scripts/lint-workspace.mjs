@@ -81,7 +81,7 @@ function walk(dir, suffixes, out = []) {
     return out;
   }
   for (const entry of entries) {
-    if (entry === "node_modules" || entry === "dist" || entry === "lib" || entry === ".git") continue;
+    if (entry === "node_modules" || entry === "dist" || entry === "lib" || entry === ".git" || entry === "builtin-skills") continue;
     const full = join(dir, entry);
     const info = statSync(full);
     if (info.isDirectory()) walk(full, suffixes, out);

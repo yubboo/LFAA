@@ -61,7 +61,7 @@ export const FileActivityRow = memo(function FileActivityRow({
       title={fullPath}
       onClick={() => onOpenFile(step.id)}
     >
-      <span className={`${styles.icon} ${rowStyles.actionIconWrap}`} aria-hidden="true">
+      <span className={`${styles.icon} ${rowStyles.actionIconWrap}`} data-icon-slot="true" aria-hidden="true">
         <Icon size={15} className={rowStyles.actionIcon} />
       </span>
       <span className={`${styles.toolVerb} ${rowStyles.fileVerb}`}>{labels.fileKinds[kind]}</span>

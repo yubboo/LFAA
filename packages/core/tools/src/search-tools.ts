@@ -1,5 +1,6 @@
 // 提供 glob 文件名匹配与 grep 正则内容检索两个只读工具，替代整树逐文件盲目扫描。
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
+import { basename } from "node:path";
 import { resolveSafeWorkspacePath } from "@lfaa/fs";
 import { walkWorkspaceFiles } from "@lfaa/fs";
 import type { AgentToolDefinition } from "./types";
@@ -49,7 +50,7 @@ export function createSearchTools(): AgentToolDefinition[] {
         type: "object",
         properties: {
           pattern: { type: "string", description: "glob 模式，如 **/*.ts、src/**/index.ts 或 *.json" },
-          path: { type: "string", description: "检索起始目录，默认工作区根目录 ." },
+          path: { type: "string", description: "检索起始目录或单个文件路径，默认工作区根目录 ." },
           limit: { type: "number", description: "最多返回条数，默认 200，上限 1000" },
         },
         required: ["pattern"],
@@ -86,7 +87,7 @@ export function createSearchTools(): AgentToolDefinition[] {
         type: "object",
         properties: {
           query: { type: "string", description: "JavaScript 正则表达式，如 export class \\w+Tool" },
-          path: { type: "string", description: "检索起始目录，默认工作区根目录 ." },
+          path: { type: "string", description: "检索起始目录或单个文件路径，默认工作区根目录 ." },
           include: { type: "string", description: "文件名过滤 glob，如 *.ts 或 src/**/*.ts（可选）" },
           limit: { type: "number", description: "最多命中行数，默认 60，上限 200" },
         },
@@ -102,14 +103,21 @@ export function createSearchTools(): AgentToolDefinition[] {
           const reason = error instanceof Error ? error.message : String(error);
           return { ok: false, output: `正则表达式无效：${reason}`, summary: "正则表达式无效" };
         }
-        const { path: startDir } = await resolveSafeWorkspacePath(
+        const { path: startPath } = await resolveSafeWorkspacePath(
           typeof args.path === "string" ? args.path : ".",
           ctx.workspaceRoots,
           { allowOutsideWorkspace: ctx.allowOutsideWorkspace },
         );
         const include = typeof args.include === "string" && args.include.trim() ? globToRegExp(args.include) : null;
         const limit = readLimit(args.limit, 60, 200);
-        const files = await walkWorkspaceFiles(startDir, { signal: ctx.signal, maxBytes: 1024 * 1024, maxFiles: 8000 });
+        // 兼容传入单个文件路径与目录路径，避免对文件执行 readdir 触发 ENOTDIR 迫使模型重试。
+        const targetStat = await stat(startPath).catch(() => null);
+        if (!targetStat) {
+          return { ok: false, output: `路径不存在：${typeof args.path === "string" ? args.path : "."}`, summary: "路径不存在" };
+        }
+        const files = targetStat.isFile()
+          ? [{ path: startPath, relativePath: typeof args.path === "string" && args.path.trim() ? args.path.replace(/\\/gu, "/") : basename(startPath) }]
+          : await walkWorkspaceFiles(startPath, { signal: ctx.signal, maxBytes: 1024 * 1024, maxFiles: 8000 });
         const matches: string[] = [];
         for (const file of files) {
           if (ctx.signal.aborted || matches.length >= limit) break;

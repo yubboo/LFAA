@@ -26,6 +26,32 @@
   scrollbar-gutter: stable;
 }
 
+/* 键盘聚焦到可滚视口时给出可见焦点环；只有调用方显式设置了 tabIndex 的可滚区域才会命中。 */
+.scrollArea:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* 限高滚动视口的方向渐隐：调用方按 useBoundedScroll 给出的 edges 挂 data-fade-top/bottom 即可，
+   遮罩只消费主题令牌，浅色、深色与任意强调色下都自动适配。 */
+.scrollArea[data-fade-top="true"] {
+  mask-image: linear-gradient(to bottom, transparent, var(--color-ink) 18px);
+}
+
+.scrollArea[data-fade-bottom="true"] {
+  mask-image: linear-gradient(to bottom, var(--color-ink) calc(100% - 18px), transparent);
+}
+
+.scrollArea[data-fade-top="true"][data-fade-bottom="true"] {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    var(--color-ink) 18px,
+    var(--color-ink) calc(100% - 18px),
+    transparent
+  );
+}
+
 /* 滚动期间滑块临时换到更饱和的强调色，松手后回到静止配色。 */
 .scrollArea[data-scrolling="true"]::-webkit-scrollbar-thumb {
   background-color: var(--color-scrollbar-thumb-hover);

@@ -24,6 +24,7 @@
                          "@lfaa/client-ui-review":  "workspace:*",
                          "@lfaa/client-ui-sections":  "workspace:*",
                          "@lfaa/client-ui-skills":  "workspace:*",
+                         "@lfaa/client-ui-mcp":  "workspace:*",
                          "@lfaa/client-ui-workspace":  "workspace:*"
                      },
     "devDependencies":  {

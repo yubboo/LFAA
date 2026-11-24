@@ -6,10 +6,11 @@
   color: var(--color-muted);
 }
 
-/* 左二列表的会话状态标记：固定在最左侧留白槽位，绝对定位、不占行内空间，因此不会把标题往右挤。 */
+/* 左二列表的会话状态标记：占行首图标位（与项目文件夹图标同一列），绝对定位、不占行内空间，
+   因此不会把标题往右挤；左侧起点 = 图标左内边距 0.65rem + 图标半宽 0.25rem。 */
 .statusMarker {
   position: absolute;
-  left: 0.2rem;
+  left: 0.9rem;
   top: 50%;
   display: grid;
   width: 0.5rem;
@@ -38,6 +39,11 @@
   background: var(--color-accent);
   box-shadow: 0 0 0 3.5px rgb(var(--color-accent-rgb) / 0.2);
   animation: sidebarDoneDot 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 状态标记占用图标位时，常态图标只保留占位宽度、不显示，避免两个图形叠在一起。 */
+.iconSlotTaken {
+  visibility: hidden;
 }
 
 /* 旋转圆弧沿用共享动画定义。 */

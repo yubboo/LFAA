@@ -31,3 +31,5 @@ Location: `packages/client/ui-browser`.
 ## Dev note
 
 Rendering and client-side state live under `client/`; the capability package `@lfaa/browser` keeps the host side only.
+
+During automation the viewport shows the controlled host tab. Snapshot updates preserve page state, and explicit navigation controls reload the page when requested.

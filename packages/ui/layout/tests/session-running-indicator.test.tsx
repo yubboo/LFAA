@@ -228,6 +228,23 @@ test("侧栏渲染把 working 图标输出为带旋转样式的 svg", () => {
   assert.match(markup, /class="[^"]*working[^"]*"/u);
 });
 
+test("状态标记占用行首图标列时，常态图标只留占位、不叠图形", () => {
+  const markup = renderToStaticMarkup(createElement(SidebarSectionList, {
+    ariaLabel: "导航",
+    groups: [{
+      id: "recent",
+      title: "最近",
+      items: [
+        { id: "done", label: "已完成", icon: "newChat", unread: true, actions: createElement("span", null, "操作"), onClick: () => {} },
+        { id: "idle", label: "空闲", icon: "newChat", actions: createElement("span", null, "操作"), onClick: () => {} },
+      ],
+    }],
+  }));
+  // 有状态的行走 .iconSlotTaken（visibility: hidden）占位，图标列不会让出宽度，标题也不会右移。
+  assert.equal((markup.match(/iconSlotTaken/gu) ?? []).length, 1);
+  assert.match(markup, /空闲/u);
+});
+
 test("侧栏只为完成且未读的行渲染小圆点", () => {
   const markup = renderToStaticMarkup(createElement(SidebarSectionList, {
     ariaLabel: "导航",
@@ -243,7 +260,7 @@ test("侧栏只为完成且未读的行渲染小圆点", () => {
 
   assert.match(markup, /已完成/u);
   assert.match(markup, /进行中/u);
-  // 状态位只出现在该出现的行，且位于标题之前（行首留白槽），不占行内空间。
+  // 状态位只出现在该出现的行，且位于标题之前（行首图标列），不占行内空间。
   assert.equal((markup.match(/data-state="done"/gu) ?? []).length, 1);
   assert.equal((markup.match(/data-state="working"/gu) ?? []).length, 1);
   assert.ok(markup.indexOf('data-state="done"') < markup.indexOf("已完成"));

@@ -95,6 +95,17 @@ summary.activityRow:active,
 
 .icon, .chevron { flex: none; }
 
+/* 活动行左侧图标槽：与文件行气泡位同宽（1.15rem）并居中图标，
+   保证同级工具行/文件行的类型图标中心与动词起点严格对齐（见开发规范 §3.5）。 */
+.iconSlot {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
 .disclosure,
 .activityRow,
 .chevron {
@@ -109,7 +120,10 @@ details[open] > summary > .chevron { transform: rotate(90deg); }
 
 .activityTitle {
   display: flex;
-  align-items: baseline;
+  /* 用「末基线」而不是首基线：目标参数带文件彩标时是个 inline-flex 胶囊，首项是 SVG
+     （没有文字基线，浏览器退回它的底边），按首基线对齐会把目标文本抬高约 4px；
+     末基线取胶囊里最后一个弹性项（目标文本）的基线，动词与路径因此落在同一条基线上。 */
+  align-items: last baseline;
   gap: 0.55rem;
   min-width: 0;
   overflow: hidden;
@@ -157,34 +171,29 @@ details[open] > summary > .chevron { transform: rotate(90deg); }
 }
 
 
-/* 渐变动效只属于运行中的行：子 span 继承透明色以确保流动渐变真正透出，结束后立刻回落静态色。 */
+/* 运行中标题只用强调色 + 轻微透明度呼吸：不再逐帧移动 background-position，
+   避免在玻璃层内每帧触发大区域重绘；刷新恢复长会话时这一点尤其明显。 */
 @media (prefers-reduced-motion: no-preference) {
-  @supports (background-clip: text) {
-    :is(.disclosure, .activityRow)[data-live="true"] > .activityTitle,
-    .liveStatus[data-live="true"] > .activityTitle {
-      --activity-ink: color-mix(in srgb, var(--color-accent) 42%, var(--color-ink));
-      background: linear-gradient(105deg, var(--color-ink) 18%, var(--activity-ink) 48%, var(--color-ink) 78%);
-      background-size: 230% 100%;
-      background-clip: text;
-      color: transparent;
-      animation: active-sweep 2.05s linear infinite;
-    }
-
-    :is(.disclosure, .activityRow)[data-live="true"] > .activityTitle > .toolVerb,
-    :is(.disclosure, .activityRow)[data-live="true"] > .activityTitle > .toolTarget {
-      color: inherit;
-    }
+  :is(.disclosure, .activityRow)[data-live="true"] > .activityTitle,
+  .liveStatus[data-live="true"] > .activityTitle {
+    color: color-mix(in srgb, var(--color-accent) 55%, var(--color-ink));
+    animation: live-title-breathe 1.9s ease-in-out infinite;
   }
+
+  :is(.disclosure, .activityRow)[data-live="true"] > .activityTitle > .toolVerb,
+  :is(.disclosure, .activityRow)[data-live="true"] > .activityTitle > .toolTarget {
+    color: inherit;
+  }
+}
+
+@keyframes live-title-breathe {
+  0%, 100% { opacity: 0.68; }
+  50% { opacity: 1; }
 }
 
 :is(.disclosure, .activityRow)[data-status="waiting_approval"] {
   color: var(--color-ink);
   background: var(--color-active);
-}
-
-@keyframes active-sweep {
-  from { background-position: 100% 50%; }
-  to { background-position: -60% 50%; }
 }
 
 .process:not([hidden]) {
@@ -230,14 +239,14 @@ details[open] > summary > .chevron { transform: rotate(90deg); }
   --activity-negative: var(--color-activity-negative);
 }
 
-.activityRow[data-kind="created"] > .icon:first-child,
+.activityRow[data-kind="created"] > .iconSlot:first-child,
 .lineCounts [data-change="add"],
 .activityStatus[data-status="done"] { color: var(--activity-positive); }
-.activityRow[data-kind="deleted"] > .icon:first-child,
+.activityRow[data-kind="deleted"] > .iconSlot:first-child,
 .lineCounts [data-change="remove"],
 .activityStatus[data-status="error"] { color: var(--activity-negative); }
-.activityRow[data-kind="edited"] > .icon:first-child,
-.activityRow[data-kind="skill"] > .icon:first-child { color: var(--color-accent); }
+.activityRow[data-kind="edited"] > .iconSlot:first-child,
+.activityRow[data-kind="skill"] > .iconSlot:first-child { color: var(--color-accent); }
 
 /* 工具完成后状态图标的轻盈确认动效（文件活动行已由 File-Activity-Row 独立承担气泡弹性动效）。 */
 .activityStatus[data-status="done"] > svg { animation: activity-confirm 260ms cubic-bezier(0.34, 1.48, 0.64, 1) both; }

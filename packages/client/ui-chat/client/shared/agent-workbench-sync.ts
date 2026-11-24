@@ -2,7 +2,7 @@
 import type { AgentStepTrace } from "@lfaa/memory";
 
 export type AgentWorkbenchAction =
-  | { kind: "browser"; devtoolsTab?: "console" | "network"; refreshTabs: boolean }
+  | { kind: "browser"; devtoolsTab?: "console" | "network"; refreshTabs: boolean; explicit?: true }
   | { kind: "file"; messageId: string; stepId: string; activateStage: boolean }
   | { kind: "terminal" }
   | { kind: "subagents" };
@@ -22,23 +22,39 @@ const BROWSER_STAGE_TOOLS = new Set([
 
 const FILE_MUTATION_TOOLS = new Set(["write_file", "edit_file"]);
 
+/** 只有可能改变活动标签或页面地址的动作需要重新同步标签。 */
+const BROWSER_TAB_CHANGES = new Set(["browser_navigate", "browser_tabs", "browser_click", "browser_type", "browser_press_key"]);
+
+export function isBrowserAutomationStep(step: AgentStepTrace): boolean {
+  return step.subagent?.kind === "browser"
+    || Boolean(step.subagent?.steps?.some((item) => item.name.startsWith("browser_")))
+    || Boolean(step.subagent && step.detail && /\bbrowser_[a-z_]+\b/u.test(step.detail))
+    || Boolean(step.toolName && BROWSER_STAGE_TOOLS.has(step.toolName));
+}
+
 /** 根据单条 Agent 步骤决定右侧工作台的自动跟随行为；返回 null 表示不打扰当前右栏。 */
 export function resolveAgentWorkbenchAction(
   step: AgentStepTrace,
-  options: { messageId: string; browserActiveInRun: boolean },
+  options: { messageId: string; browserActiveInRun: boolean; previousStep?: AgentStepTrace | undefined },
 ): AgentWorkbenchAction | null {
   const toolName = step.toolName;
+  const previous = options.previousStep;
+  if (toolName === "browser_present") {
+    return step.status === "done" && previous?.status !== "done"
+      ? { kind: "browser", refreshTabs: true, explicit: true }
+      : null;
+  }
   if (toolName && BROWSER_STAGE_TOOLS.has(toolName)) {
-    if (step.status !== "running" && step.status !== "done") return null;
-    return { kind: "browser", refreshTabs: step.status === "done" };
+    if (previous?.status === step.status || (step.status !== "running" && step.status !== "done")) return null;
+    return { kind: "browser", refreshTabs: step.status === "done" && BROWSER_TAB_CHANGES.has(toolName) };
   }
 
   if (toolName === "browser_console" || toolName === "browser_network") {
-    if (step.status !== "done") return null;
+    if (step.status !== "done" || previous?.status === "done") return null;
     return {
       kind: "browser",
       devtoolsTab: toolName === "browser_console" ? "console" : "network",
-      refreshTabs: true,
+      refreshTabs: false,
     };
   }
 
@@ -57,11 +73,13 @@ export function resolveAgentWorkbenchAction(
   }
 
   if (step.subagent && (step.status === "running" || step.status === "done")) {
-    const isBrowserSub = step.subagent.kind === "browser"
-      || step.subagent.steps?.some((item) => item.name.startsWith("browser_"))
-      || Boolean(step.detail && /\bbrowser_[a-z_]+\b/u.test(step.detail));
-    if (isBrowserSub) {
-      return { kind: "browser", refreshTabs: true };
+    if (isBrowserAutomationStep(step)) {
+      // 浏览器子智能体首次启动时强制自动展开右侧浏览器舞台，让用户全程可见操控过程；后续步骤尊重用户手动收起。
+      if (!previous || !isBrowserAutomationStep(previous)) return { kind: "browser", refreshTabs: true, explicit: true };
+      const previousDone = new Set(previous.subagent?.steps?.filter((item) => item.status === "done").map((item) => item.id));
+      const changed = step.subagent.steps?.some((item) => item.status === "done"
+        && BROWSER_TAB_CHANGES.has(item.name) && !previousDone.has(item.id));
+      return changed ? { kind: "browser", refreshTabs: true } : null;
     }
     if (step.status === "running") return { kind: "subagents" };
   }

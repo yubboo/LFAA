@@ -34,7 +34,12 @@ const TARGET_ARG_KEYS = [
 ] as const;
 
 /** 从已解析的工具参数中动态提取最具可读性的目标摘要，不针对工具名写死分支。 */
-function extractDynamicToolTarget(args: Record<string, unknown>): string | undefined {
+function extractDynamicToolTarget(args: Record<string, unknown>, toolName: string): string | undefined {
+  // 页面输入内容与脚本留在工具详情，实时轨迹只显示显式目标或控件定位信息。
+  if (toolName === "browser_type" || toolName === "browser_evaluate") {
+    const target = args.target ?? args.ref ?? args.selector;
+    return typeof target === "string" ? target.trim().slice(0, 140) : undefined;
+  }
   for (const key of TARGET_ARG_KEYS) {
     const val = args[key];
     if (typeof val === "string" && val.trim()) {
@@ -121,7 +126,7 @@ export async function runActPhase(
     const command = call.name === "run_command" && parsedArgs.ok && typeof parsedArgs.value.command === "string"
       ? parsedArgs.value.command.trim().slice(0, 16000)
       : "";
-    const dynamicTarget = parsedArgs.ok ? extractDynamicToolTarget(parsedArgs.value) : undefined;
+    const dynamicTarget = parsedArgs.ok ? extractDynamicToolTarget(parsedArgs.value, call.name) : undefined;
     const stepStartedAt = Date.now();
     const action: AgentStepTrace = {
       id: actStepId,
@@ -158,10 +163,11 @@ export async function runActPhase(
     } else {
       let permitted = true;
       let autoApprovalDetail = "";
-      while (toolDef && perm !== "read") {
+      while (toolDef && perm !== "read" && toolDef.approval !== "trusted") {
         params.signal.throwIfAborted();
         const mode = params.getPermissionMode();
-        const currentCount = mode === "smart"
+        const approvalMode = toolDef.approval === "always" ? "ask" : mode;
+        const currentCount = approvalMode === "smart"
           ? await deps.trustStore.getCount(
             evaluateToolApproval({
               mode: "smart",
@@ -174,7 +180,7 @@ export async function runActPhase(
           : 0;
         if (params.getPermissionMode() !== mode) continue;
         const decision = evaluateToolApproval({
-          mode,
+          mode: approvalMode,
           permissionLevel: perm,
           toolName: call.name,
           args: parsedArgs.value,
@@ -199,12 +205,12 @@ export async function runActPhase(
             approvalPattern: decision.pattern,
             ...(decision.approvalCount !== undefined ? { approvalCount: decision.approvalCount } : {}),
             ...(decision.approvalThreshold !== undefined ? { approvalThreshold: decision.approvalThreshold } : {}),
-            highRisk: decision.highRisk,
+            highRisk: toolDef.approval === "always" || decision.highRisk,
             ...(decision.reason ? { riskReason: decision.reason } : {}),
           }, params.signal);
           if (answer === "mode_changed") continue;
           permitted = answer;
-          if (mode === "smart") {
+          if (mode === "smart" && toolDef.approval !== "always") {
             await deps.trustStore.recordDecision(decision.pattern, permitted, decision.highRisk);
           }
         } else if (decision.autoApproved && decision.reason) {
@@ -213,12 +219,17 @@ export async function runActPhase(
         break;
       }
 
+      if (permitted && toolDef && perm !== "read" && deps.tools.getTool(call.name) === toolDef) {
+        params.signal.throwIfAborted();
+        await params.beforeWorkspaceMutation?.();
+      }
       if (!permitted) {
         toolOutputText = "用户拒绝执行此修改/命令工具，请改用只读核查或向用户说明替代方案。";
         summaryText = "用户已拒绝";
+      } else if (deps.tools.getTool(call.name) !== toolDef) {
+        toolOutputText = "工具在等待期间已更新，请重新发起调用。";
+        summaryText = "工具已更新";
       } else {
-        params.signal.throwIfAborted();
-        if (toolDef && perm !== "read") await params.beforeWorkspaceMutation?.();
         params.signal.throwIfAborted();
         executed = true;
         executedToolCount += 1;
@@ -279,6 +290,12 @@ export async function runActPhase(
         stepOk = execRes.ok;
         toolOutputText = execRes.output;
         summaryText = autoApprovalDetail ? `${execRes.summary} · ${autoApprovalDetail}` : execRes.summary;
+        if (call.name === "browser_screenshot" || call.name === "browser_visual_check") {
+          const evidenceId = execRes.metadata?.browserEvidenceId;
+          if (typeof evidenceId === "string") action.browserEvidence = { id: evidenceId, sessionId: params.sessionId };
+          const verdict = execRes.metadata?.browserVerdict;
+          if (verdict === "pass" || verdict === "needs_fix" || verdict === "unverified") action.browserVerdict = verdict;
+        }
         if (typeof execRes.metadata?.added === "number") addedLines = execRes.metadata.added;
         if (typeof execRes.metadata?.removed === "number") removedLines = execRes.metadata.removed;
         if (typeof execRes.metadata?.exitCode === "number") exitCode = execRes.metadata.exitCode;
@@ -341,6 +358,7 @@ export async function runActPhase(
       status: outcome.ok ? "done" : "error",
       title: `行动：${call.name} (${outcome.summary})`,
       resultPreview,
+      ...(call.name.startsWith("browser_") ? { resultSummary: outcome.summary } : {}),
       ...(command ? { commandTrace: {
         command,
         output: tailCommandOutput(outcome.output),

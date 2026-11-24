@@ -33,13 +33,33 @@ test("浏览器工具调用自动聚焦浏览器舞台，browser_console/network
     makeStep({ toolName: "browser_console", status: "done" }),
     { messageId: "m1", browserActiveInRun: true },
   );
-  assert.deepEqual(consoleDone, { kind: "browser", devtoolsTab: "console", refreshTabs: true });
+  assert.deepEqual(consoleDone, { kind: "browser", devtoolsTab: "console", refreshTabs: false });
 
   const networkDone = resolveAgentWorkbenchAction(
     makeStep({ toolName: "browser_network", status: "done" }),
     { messageId: "m1", browserActiveInRun: true },
   );
-  assert.deepEqual(networkDone, { kind: "browser", devtoolsTab: "network", refreshTabs: true });
+  assert.deepEqual(networkDone, { kind: "browser", devtoolsTab: "network", refreshTabs: false });
+});
+
+test("显式预览成功后请求展开浏览器，重复事件与失败结果不切台", () => {
+  const done = makeStep({ toolName: "browser_present" });
+  const options = { messageId: "preview", browserActiveInRun: false };
+  assert.deepEqual(resolveAgentWorkbenchAction(done, options), { kind: "browser", refreshTabs: true, explicit: true });
+  assert.equal(resolveAgentWorkbenchAction(done, { ...options, previousStep: done }), null);
+  assert.equal(resolveAgentWorkbenchAction({ ...done, status: "error" }, options), null);
+});
+
+test("子任务只在开始或新完成会改变页面的动作时同步标签", () => {
+  const initial = makeStep({ status: "running", subagent: { id: "browser", role: "browser", kind: "browser", status: "running" } });
+  const options = { messageId: "verification", browserActiveInRun: true };
+  assert.deepEqual(resolveAgentWorkbenchAction(initial, options), { kind: "browser", refreshTabs: true, explicit: true });
+  const subagent = initial.subagent!;
+  const thinking = { ...initial, subagent: { ...subagent, liveAction: "思考中" } };
+  assert.equal(resolveAgentWorkbenchAction(thinking, { ...options, previousStep: initial }), null);
+  const click = { ...thinking, subagent: { ...subagent, steps: [{ id: "click", name: "browser_click", status: "done" as const }] } };
+  assert.deepEqual(resolveAgentWorkbenchAction(click, { ...options, previousStep: thinking }), { kind: "browser", refreshTabs: true });
+  assert.equal(resolveAgentWorkbenchAction(click, { ...options, previousStep: click }), null);
 });
 
 test("写改文件在编码阶段切台前文件预览，在浏览器验收阶段仅后台刷新标签不顶掉浏览器", () => {
@@ -83,13 +103,13 @@ test("后台任务与子智能体步骤按类型分流到终端、子智能体�
       makeStep({ status: "running", detail: "正在执行 browser_visual_check", subagent: { id: "sub-2", role: "验收助手", status: "running" } }),
       { messageId: "m3", browserActiveInRun: false },
     ),
-    { kind: "browser", refreshTabs: true },
+    { kind: "browser", refreshTabs: true, explicit: true },
   );
   assert.deepEqual(
     resolveAgentWorkbenchAction(
       makeStep({ status: "running", subagent: { id: "sub-3", role: "浏览器验收助手", kind: "browser", browserLabel: "内置浏览器", status: "running" } }),
       { messageId: "m3", browserActiveInRun: false },
     ),
-    { kind: "browser", refreshTabs: true },
+    { kind: "browser", refreshTabs: true, explicit: true },
   );
 });

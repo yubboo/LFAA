@@ -1,0 +1,95 @@
+/* 内置浏览器响应式设备工具栏样式，全量消费 @lfaa/ui-theme 语义变量。 */
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  padding: 0.3rem 0.55rem;
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-topbar);
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  flex-wrap: wrap;
+}
+
+.group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.label {
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+
+.select {
+  height: 1.65rem;
+  padding: 0 0.45rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.42rem;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-size: 0.74rem;
+  outline: none;
+  cursor: pointer;
+}
+
+.select:focus {
+  border-color: var(--color-accent);
+}
+
+.dims {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.dimInput {
+  width: 3.9rem;
+  height: 1.65rem;
+  padding: 0 0.38rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.42rem;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+  outline: none;
+}
+
+.dimInput:focus {
+  border-color: var(--color-accent);
+}
+
+.times {
+  color: var(--color-muted);
+  font-size: 0.72rem;
+}
+
+.iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  border: 0;
+  border-radius: 0.4rem;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.iconBtn:hover {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.zoom {
+  color: var(--color-muted);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  min-width: 2.2rem;
+}

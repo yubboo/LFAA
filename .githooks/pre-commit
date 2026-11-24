@@ -4,7 +4,10 @@
 set -e
 
 # 已暂存内容的空白错误（行尾空格、冲突标记）直接拦下。
-git diff --cached --check
+# 内置技能目录是从上游仓库原样收录的资产（dev-log 000473/000474），与 check-workspace、
+# lint-workspace、check-architecture、tsconfig 的跳过规则保持一致：上游文档自带的行尾空格
+# 与文件尾空行不应把本项目的提交挡在门外。
+git diff --cached --check -- . ':(exclude)packages/extension/skills/src/builtin-skills'
 
 # 仓库边界、文件规模、Client 隔离与主题色规则；约 1-2 秒。
 # 直接调用 node 而不是 pnpm：Git Bash 下 pnpm 的 .cmd 包装不一定可执行。

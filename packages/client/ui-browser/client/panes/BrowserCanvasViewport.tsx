@@ -9,7 +9,6 @@ import {
   type RefObject,
 } from "react";
 import { sendBrowserInput, type BrowserSessionSnapshot } from "../api/browser-client";
-import type { ViewportPreset } from "./BrowserToolbar";
 import { computeCdpModifiers, tryDecodeBase64ToBlobNative } from "./browser-render-mode";
 import styles from "./BrowserViewport.module.css";
 
@@ -21,7 +20,7 @@ export function BrowserCanvasViewport({
   sessionId,
   isZh,
   snap,
-  preset,
+  viewMode,
   interactive,
   stageRef,
   frameDrawerRef,
@@ -29,7 +28,7 @@ export function BrowserCanvasViewport({
   sessionId: string;
   isZh: boolean;
   snap: BrowserSessionSnapshot;
-  preset: ViewportPreset;
+  viewMode: "fill" | "device";
   /** 仅用户显式点击「接管」后才允许向远端页面发送键鼠与滚轮事件。 */
   interactive: boolean;
   stageRef: RefObject<HTMLDivElement | null>;
@@ -131,12 +130,17 @@ export function BrowserCanvasViewport({
     };
   }, [drawFrame, frameDrawerRef]);
 
-  // 仅在首次上屏或快照确实比当前画面更新时绘制，防止旧 HTTP 轮询快照覆盖实时 SSE 帧引发闪跳。
+  const lastPaintedVpRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
+
+  // 首次上屏、视口尺寸变化或快照更新时立即绘制，确保切换自适应/桌面/手机后零延迟重绘。
   useEffect(() => {
     if (!snap.screenshotBase64) return;
-    if (hasPaintedRef.current && snap.updatedAt <= lastPaintedAtRef.current) return;
+    const vpChanged = lastPaintedVpRef.current.width !== snap.viewport.width
+      || lastPaintedVpRef.current.height !== snap.viewport.height;
+    if (hasPaintedRef.current && !vpChanged && snap.updatedAt <= lastPaintedAtRef.current) return;
+    lastPaintedVpRef.current = { width: snap.viewport.width, height: snap.viewport.height };
     drawFrame(snap.screenshotBase64, snap.screenshotMime ?? "image/png", snap.updatedAt);
-  }, [drawFrame, snap.screenshotBase64, snap.screenshotMime, snap.updatedAt]);
+  }, [drawFrame, snap.screenshotBase64, snap.screenshotMime, snap.updatedAt, snap.viewport.height, snap.viewport.width]);
 
   // 挂载原生非被动 wheel 监听：无条件阻断冒泡与默认滚动链，按 rAF 合并增量并以单在途背压发送给远端。
   useEffect(() => {
@@ -298,7 +302,7 @@ export function BrowserCanvasViewport({
       ref={hostRef}
       tabIndex={0}
       className={styles.canvasHost}
-      data-preset={preset}
+      data-mode={viewMode}
       onKeyDown={handleKeyDown}
       onKeyUp={handleKeyUp}
       onCompositionStart={() => { composingRef.current = true; }}
@@ -307,7 +311,7 @@ export function BrowserCanvasViewport({
       <canvas
         ref={canvasRef}
         className={styles.viewportCanvas}
-        data-preset={preset}
+        data-mode={viewMode}
         aria-label={isZh ? "内置浏览器高清协同画面" : "Built-in browser live canvas"}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}

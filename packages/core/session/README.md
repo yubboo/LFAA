@@ -31,3 +31,5 @@ Session records retain their validated preset and module list through reload and
 
 Assistant records can retain a structured clarification and child-run steps with their identity and state.
 User message records can retain session-scoped image attachment references so chat history can restore previews after reload.
+
+Browser activity can carry a result summary, visual verdict, and an optional reference to a session screenshot.

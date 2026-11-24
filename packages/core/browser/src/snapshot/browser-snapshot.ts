@@ -80,10 +80,12 @@ export async function captureState(
   const extracted = includeStructure
     ? await extractPageStructure(tab.page)
     : { elements: [], textExcerpt: "" };
+  let screenshotBase64 = tab.lastScreenshotBase64;
   if (withScreenshot) {
     const buf = await tab.page.screenshot({ type: "png" }).catch(() => null);
-    if (buf) {
-      tab.lastScreenshotBase64 = buf.toString("base64");
+    screenshotBase64 = buf?.toString("base64");
+    if (screenshotBase64) {
+      tab.lastScreenshotBase64 = screenshotBase64;
       tab.lastScreenshotMime = "image/png";
     }
   }
@@ -124,8 +126,8 @@ export async function captureState(
     errorCount,
     ...(tab.embeddable !== undefined ? { embeddable: tab.embeddable } : {}),
     ...(state.lastActor ? { lastActor: state.lastActor } : {}),
-    ...(tab.lastScreenshotBase64 ? {
-      screenshotBase64: tab.lastScreenshotBase64,
+    ...(screenshotBase64 ? {
+      screenshotBase64,
       screenshotMime: tab.lastScreenshotMime ?? "image/png",
     } : {}),
     updatedAt: state.updatedAt,

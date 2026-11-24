@@ -2,7 +2,26 @@
 // 从 BrowserRuntime 拆出：这些方法只在页面上做事，会话创建、截图与串流由宿主（BrowserRuntime）提供。
 import type { BrowserSessionSnapshot } from "../types";
 import type { BrowserTabEntry, SessionBrowserState } from "./browser-session-types";
+import { hideAgentActionOverlay, locateAgentTarget, showAgentActionOverlay, smoothScrollPage } from "./agent-overlay";
 import { clampViewport, validateBrowserUrl } from "../runtime-utils";
+
+/** 清洗 Playwright 导航异常（去掉 ANSI 终端转义码与 Call log），转为面向用户的清晰中文提示。 */
+function formatNavigationError(error: unknown, url: string): Error {
+  const raw = (error instanceof Error ? error.message : String(error))
+    .replace(/\u001b\[[0-9;]*m/gu, "")
+    .split(/\bCall log:/u)[0]!
+    .trim();
+  if (/ERR_CONNECTION_REFUSED/u.test(raw)) {
+    return new Error(`无法连接到 ${url}（连接被拒绝，请确认对应本地服务是否仍在运行）`);
+  }
+  if (/ERR_NAME_NOT_RESOLVED/u.test(raw)) {
+    return new Error(`无法解析地址 ${url}（域名不存在或网络不可达）`);
+  }
+  if (/ERR_CONNECTION_TIMED_OUT|Timeout/iu.test(raw)) {
+    return new Error(`打开 ${url} 超时，请检查服务响应或稍后重试`);
+  }
+  return new Error(raw.replace(/^page\.goto:\s*/u, "") || `无法打开 ${url}`);
+}
 
 /** 驱动所需的宿主能力：会话准备、接管暂停校验、截图与串流。 */
 export interface SessionDriverHost {
@@ -41,7 +60,11 @@ export class SessionDriver {
       }
     }
     delete state.lastError;
-    await tab.page.goto(url, { waitUntil: "domcontentloaded", timeout: 25_000 });
+    try {
+      await tab.page.goto(url, { waitUntil: "domcontentloaded", timeout: 25_000 });
+    } catch (error) {
+      throw formatNavigationError(error, url);
+    }
     await tab.page.waitForLoadState("networkidle", { timeout: fromAgent ? 2500 : 1000 }).catch(() => {});
     if (vpChanged && this.host.hasStreamSubscribers(sessionId)) {
       await this.host.refreshStream(sessionId, state);
@@ -77,6 +100,7 @@ export class SessionDriver {
 
   async snapshot(sessionId: string, withScreenshot = true): Promise<BrowserSessionSnapshot> {
     const { state, tab } = await this.host.ensureSession(sessionId);
+    if (withScreenshot) await hideAgentActionOverlay(tab.page);
     return this.host.capture(state, tab, withScreenshot, true);
   }
 
@@ -100,13 +124,21 @@ export class SessionDriver {
 
   async click(
     sessionId: string,
-    target: { ref?: string; selector?: string; x?: number; y?: number; button?: "left" | "right" | "middle"; clickCount?: number },
+    target: { ref?: string; selector?: string; x?: number; y?: number; button?: "left" | "right" | "middle"; clickCount?: number; label?: string },
     fromAgent = false,
     fast = false,
   ): Promise<BrowserSessionSnapshot> {
     const { state, tab } = await this.host.ensureSession(sessionId);
     this.host.assertNotTakeoverPaused(state, fromAgent);
     state.lastActor = fromAgent ? "agent" : "user";
+    if (fromAgent) {
+      const pos = await locateAgentTarget(tab.page, target);
+      if (pos) {
+        const badge = target.label ? `点击 · ${target.label}` : "点击元素";
+        await showAgentActionOverlay(tab.page, { kind: "click", x: pos.x, y: pos.y, label: badge, box: pos.box });
+        await tab.page.waitForTimeout(50);
+      }
+    }
     if (typeof target.x === "number" && typeof target.y === "number") {
       await tab.page.mouse.click(target.x, target.y, {
         button: target.button ?? "left",
@@ -119,7 +151,7 @@ export class SessionDriver {
     } else {
       throw new Error("请提供 ref、selector 或坐标 (x, y)。");
     }
-    if (fromAgent) await tab.page.waitForTimeout(200);
+    if (fromAgent) await tab.page.waitForTimeout(90);
     else if (!fast) await tab.page.waitForTimeout(25);
     const needShot = fromAgent || (!fast && !this.host.hasStreamSubscribers(sessionId));
     return this.host.capture(state, tab, needShot, fromAgent);
@@ -127,13 +159,21 @@ export class SessionDriver {
 
   async hover(
     sessionId: string,
-    target: { ref?: string; selector?: string; x?: number; y?: number },
+    target: { ref?: string; selector?: string; x?: number; y?: number; label?: string },
     fromAgent = false,
     fast = false,
   ): Promise<BrowserSessionSnapshot> {
     const { state, tab } = await this.host.ensureSession(sessionId);
     this.host.assertNotTakeoverPaused(state, fromAgent);
     state.lastActor = fromAgent ? "agent" : "user";
+    if (fromAgent) {
+      const pos = await locateAgentTarget(tab.page, target);
+      if (pos) {
+        const badge = target.label ? `悬停 · ${target.label}` : "悬停元素";
+        await showAgentActionOverlay(tab.page, { kind: "hover", x: pos.x, y: pos.y, label: badge, box: pos.box });
+        await tab.page.waitForTimeout(40);
+      }
+    }
     if (typeof target.x === "number" && typeof target.y === "number") {
       await tab.page.mouse.move(target.x, target.y);
     } else if (target.ref) {
@@ -141,20 +181,28 @@ export class SessionDriver {
     } else if (target.selector) {
       await tab.page.locator(target.selector).first().hover({ timeout: 8000 });
     }
-    if (fromAgent) await tab.page.waitForTimeout(120);
+    if (fromAgent) await tab.page.waitForTimeout(80);
     const needShot = fromAgent || (!fast && !this.host.hasStreamSubscribers(sessionId));
     return this.host.capture(state, tab, needShot, fromAgent);
   }
 
   async typeText(
     sessionId: string,
-    target: { ref?: string; selector?: string; text: string; submit?: boolean },
+    target: { ref?: string; selector?: string; text: string; submit?: boolean; label?: string },
     fromAgent = false,
     fast = false,
   ): Promise<BrowserSessionSnapshot> {
     const { state, tab } = await this.host.ensureSession(sessionId);
     this.host.assertNotTakeoverPaused(state, fromAgent);
     state.lastActor = fromAgent ? "agent" : "user";
+    if (fromAgent) {
+      const pos = await locateAgentTarget(tab.page, target);
+      if (pos) {
+        const badge = target.label ? `输入 · ${target.label}` : "输入内容";
+        await showAgentActionOverlay(tab.page, { kind: "type", x: pos.x, y: pos.y, label: badge, box: pos.box });
+        await tab.page.waitForTimeout(50);
+      }
+    }
     const locator = target.ref
       ? tab.page.locator(`[data-lfaa-ref="${target.ref}"]`).first()
       : target.selector
@@ -167,7 +215,7 @@ export class SessionDriver {
       await tab.page.keyboard.type(target.text);
       if (target.submit) await tab.page.keyboard.press("Enter");
     }
-    if (fromAgent) await tab.page.waitForTimeout(150);
+    if (fromAgent) await tab.page.waitForTimeout(90);
     const needShot = fromAgent || (!fast && !this.host.hasStreamSubscribers(sessionId));
     return this.host.capture(state, tab, needShot, fromAgent);
   }
@@ -178,16 +226,24 @@ export class SessionDriver {
     deltaX = 0,
     fromAgent = false,
     fast = false,
-    point?: { x?: number; y?: number },
+    point?: { x?: number; y?: number; label?: string },
   ): Promise<BrowserSessionSnapshot> {
     const { state, tab } = await this.host.ensureSession(sessionId);
     this.host.assertNotTakeoverPaused(state, fromAgent);
     state.lastActor = fromAgent ? "agent" : "user";
-    if (typeof point?.x === "number" && typeof point?.y === "number") {
-      await tab.page.mouse.move(point.x, point.y);
+    if (fromAgent) {
+      const cx = typeof point?.x === "number" ? point.x : Math.round(state.viewport.width / 2);
+      const cy = typeof point?.y === "number" ? point.y : Math.round(state.viewport.height / 2);
+      const dir = deltaY >= 0 ? "向下滚动" : "向上滚动";
+      const badge = point?.label ? `${dir} · ${point.label}` : dir;
+      await showAgentActionOverlay(tab.page, { kind: "scroll", x: cx, y: cy, label: badge });
+      await smoothScrollPage(tab.page, deltaX, deltaY);
+    } else {
+      if (typeof point?.x === "number" && typeof point?.y === "number") {
+        await tab.page.mouse.move(point.x, point.y);
+      }
+      await tab.page.mouse.wheel(deltaX, deltaY);
     }
-    await tab.page.mouse.wheel(deltaX, deltaY);
-    if (fromAgent) await tab.page.waitForTimeout(120);
     const needShot = fromAgent || (!fast && !this.host.hasStreamSubscribers(sessionId));
     return this.host.capture(state, tab, needShot, fromAgent);
   }

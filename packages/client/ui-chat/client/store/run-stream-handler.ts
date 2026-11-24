@@ -3,8 +3,9 @@
 import type { AgentStreamClientHandlers } from "./stream-client";
 import { fetchJson } from "./chat-http";
 import { playNotificationSound } from "../shared/notification-sounds";
+import { isBrowserAutomationStep } from "../shared/agent-workbench-sync";
 import { takeQueuedHead } from "./chat-queue";
-import type { ChatMessageItem, ChatSessionDetail } from "./chat-types";
+import type { AgentStepItem, ChatMessageItem, ChatSessionDetail } from "./chat-types";
 import type { ChatStorePort } from "./chat-store-port";
 
 /** 一个运行的事件上下文：会话归属、消息归属与关闭回调。 */
@@ -28,6 +29,23 @@ export function createRunStreamHandlers({
   onStreamClosed,
   onSettled,
 }: RunStreamContext): AgentStreamClientHandlers {
+  const revealedBrowserPreviews = new Set<string>();
+  const applyWorkbenchStep = (step: AgentStepItem, previousStep?: AgentStepItem) => {
+    if (step.toolName === "browser_present" && step.status === "done") {
+      if (port.getState().activeSessionId !== sessionId || revealedBrowserPreviews.has(step.id)) return;
+      revealedBrowserPreviews.add(step.id);
+      // 快速轮次可能在 SSE 连上前完成，详情已有结果也不能当成右栏已展开。
+      port.applyAgentStepWorkbenchAction?.(sessionId, assistantMessageId, step);
+      return;
+    }
+    port.applyAgentStepWorkbenchAction?.(sessionId, assistantMessageId, step, previousStep);
+  };
+
+  const revealSavedPreview = (steps: AgentStepItem[] = []) => {
+    const preview = steps.filter((step) => step.toolName === "browser_present" && step.status === "done").at(-1);
+    if (preview) applyWorkbenchStep(preview);
+  };
+
   const patchAssistant = (updater: (msg: ChatMessageItem) => ChatMessageItem) => {
     const curr = port.getState().activeSession;
     if (!curr || curr.id !== sessionId) return;
@@ -41,6 +59,7 @@ export function createRunStreamHandlers({
 
   return {
     onSnapshot: (run, reconnect) => {
+      const previous = port.getState().activeSession?.messages.find((item) => item.id === assistantMessageId)?.steps;
       patchAssistant((m) => ({
         ...m,
         ...(!reconnect ? { content: run.content, reasoning: run.reasoning } : {}),
@@ -49,6 +68,9 @@ export function createRunStreamHandlers({
         ...(run.metrics ? { metrics: run.metrics } : {}),
         ...(run.cost ? { cost: run.cost } : {}),
       }));
+      revealSavedPreview(run.steps);
+      const currentBrowser = run.steps?.find((step) => step.status === "running" && isBrowserAutomationStep(step));
+      if (currentBrowser) applyWorkbenchStep(currentBrowser, previous?.find((step) => step.id === currentBrowser.id));
       const firstPending = run.pendingApprovals?.[0];
       if (port.getState().activeSessionId === sessionId) {
         port.patchState({ pendingApproval: firstPending ? { ...firstPending, runId } : null });
@@ -105,9 +127,11 @@ export function createRunStreamHandlers({
     },
     onStepUpdate: (step) => {
       let effectiveStep = step;
+      let previousStep: AgentStepItem | undefined;
       patchAssistant((m) => {
         const existing = m.steps ?? [];
         const idx = existing.findIndex((s) => s.id === step.id);
+        previousStep = existing[idx];
         // Host 4 秒活动心跳不含 detail 时，保留浏览器端已流式累积的思考正文不被清空。
         const mergedStep = idx >= 0 && step.phase === "think" && !step.detail && existing[idx]?.detail
           ? { ...step, detail: existing[idx]!.detail }
@@ -118,7 +142,7 @@ export function createRunStreamHandlers({
           : [...existing, mergedStep];
         return { ...m, steps: nextSteps };
       });
-      port.applyAgentStepWorkbenchAction?.(sessionId, assistantMessageId, effectiveStep);
+      applyWorkbenchStep(effectiveStep, previousStep);
       if (step.toolName?.startsWith("goal_") && step.status === "done") void port.refreshGoal(sessionId);
     },
     onTodos: (todos) => {
@@ -157,7 +181,10 @@ export function createRunStreamHandlers({
       // 结束即撤掉侧栏转圈；即使已切到别的会话，后台轮询也会兜底校正。
       port.markSessionRunning(sessionId, false);
       void port.refreshGoal(sessionId);
-      if (message?.id === assistantMessageId) patchAssistant(() => message);
+      if (message?.id === assistantMessageId) {
+        patchAssistant(() => message);
+        revealSavedPreview(message.steps);
+      }
       if (fps !== undefined) {
         void fetchJson("/api/agent/metrics/render", {
           method: "POST",

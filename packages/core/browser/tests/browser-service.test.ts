@@ -141,6 +141,15 @@ test("BrowserService 驱动本机浏览器打开测试页、交互、截图并�
   assert.equal(clickRes.ok, true);
   assert.ok(clickRes.output.includes("已点击"));
 
+  const currentUrl = `http://127.0.0.1:${port}/`;
+  const preview = await ctx.tools.executeTool("browser_present", { url: currentUrl }, execCtx);
+  assert.equal(preview.ok, true);
+  const unchanged = await ctx.tools.executeTool("browser_snapshot", {}, execCtx);
+  assert.match(unchanged.output, /已点击/u);
+  const noGoal = await ctx.tools.executeTool("browser_visual_check", {}, execCtx);
+  assert.equal(noGoal.ok, false);
+  assert.equal(visionCallCount, 0);
+
   const logsRes = await ctx.tools.executeTool("browser_console", {}, execCtx);
   assert.equal(logsRes.ok, true);
   assert.ok(logsRes.output.includes("test-console-err"));
@@ -220,6 +229,11 @@ test("BrowserService 驱动本机浏览器打开测试页、交互、截图并�
   }, { ...execCtx, parentProfileId: "deepseek-chat" });
   assert.equal(visualOk.ok, true);
   assert.match(visualOk.output, /NEEDS_FIX/u);
+  assert.equal(visualOk.metadata?.browserVerdict, "needs_fix");
+  const evidenceId = visualOk.metadata?.browserEvidenceId;
+  assert.equal(typeof evidenceId, "string");
+  assert.equal(ctx.browser.getEvidence(execCtx.sessionId, String(evidenceId))?.mime, "image/png");
+  assert.equal(ctx.browser.getEvidence("another-session", String(evidenceId)), undefined);
   assert.equal(lastVisionInput?.maxTokens, 4096);
   assert.equal(lastVisionInput?.reasoningEffort, "low");
   assert.equal(lastVisionInput?.profileId, "deepseek-chat");
@@ -229,7 +243,7 @@ test("BrowserService 驱动本机浏览器打开测试页、交互、截图并�
     requirements: "标题必须显示已点击且控制台无未捕获错误",
   }, execCtx);
   assert.equal(visualFallback.ok, false);
-  assert.match(visualFallback.output, /控制台异常数/u);
+  assert.equal(visualFallback.metadata?.browserVerdict, "unverified");
   assert.match(visualFallback.output, /browser_evaluate/u);
   const blockedSnap = await ctx.browser.navigate("sess-b1", `http://127.0.0.1:${port}/blocked`);
   assert.equal(blockedSnap.embeddable, false);

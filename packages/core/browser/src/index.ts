@@ -47,6 +47,8 @@ export class BrowserService extends Service {
   getSettings() { return this.runtime.getSettings(); }
   updateSettings(patch: Partial<BrowserSettingsConfig>) { return this.runtime.updateSettings(patch); }
   getSnapshot(sessionId: string) { return this.runtime.getSnapshot(sessionId); }
+
+  getEvidence(sessionId: string, id: string) { return this.runtime.getEvidence(sessionId, id); }
   subscribeStream(
     sessionId: string,
     listener: StreamFrameListener,

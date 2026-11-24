@@ -13,11 +13,12 @@ const HOST_ENTRY = join(HOST_APP_DIR, "lib", "index.js");
 const BUILD_ROOT = join(APP_DIR, ".desktop-build");
 const STAGE_APP_DIR = join(BUILD_ROOT, "app");
 const STAGE_HOST_DIR = join(STAGE_APP_DIR, "desktop-host");
-const RELEASE_DIR = join(BUILD_ROOT, "release");
+const RELEASE_DIR = join(ROOT, "build");
 const RESOURCE_ICON = join(APP_DIR, "resources", "icon.ico");
 const TSDOWN = join(ROOT, "node_modules", "tsdown", "dist", "run.mjs");
 const BUILDER_CONFIG = join(APP_DIR, "electron-builder.config.mjs");
 const dirOnly = process.argv.includes("--dir");
+const zipOnly = process.argv.includes("--zip");
 
 /** 构建期依赖：生产运行与 Cordis 动态装载都不需要，裁掉可显著缩小安装包。 */
 const BUILD_ONLY = new Set(["vite", "esbuild", "rollup", "typescript", "tsx", "tsdown", "electron", "electron-builder"]);
@@ -243,15 +244,25 @@ function main() {
   }
   run(process.execPath, ["--input-type=module", "-e", "await import('@lfaa/web-server'); console.log('staging 依赖自检通过');"], "staging 依赖自检", { cwd: STAGE_APP_DIR });
 
-  // 5. 打包：默认出 NSIS 安装包，--dir 只出免安装目录（供快速验收）。
+  // 5. 打包前清理旧产物目录，避免残缺安装包或历史缓存残留。
+  rmSync(RELEASE_DIR, { recursive: true, force: true });
   const builderCli = join(APP_DIR, "node_modules", "electron-builder", "cli.js");
   if (!existsSync(builderCli)) {
     console.error("✖ 缺少 electron-builder，请先在仓库根执行 pnpm install。");
     process.exit(1);
   }
   const builderArgs = [builderCli, "--config", BUILDER_CONFIG, "--publish", "never"];
-  if (dirOnly) builderArgs.push("--dir");
-  run(process.execPath, builderArgs, dirOnly ? "electron-builder（仅目录）" : "electron-builder（NSIS 安装包）", { cwd: APP_DIR });
+  if (dirOnly) {
+    builderArgs.push("--dir");
+  } else if (zipOnly) {
+    builderArgs.push("--win", "zip");
+  }
+  const label = dirOnly
+    ? "electron-builder（仅目录）"
+    : zipOnly
+      ? "electron-builder（免安装 zip）"
+      : "electron-builder（NSIS + 免安装 zip）";
+  run(process.execPath, builderArgs, label, { cwd: APP_DIR });
 
   const artifacts = existsSync(RELEASE_DIR)
     ? readdirSync(RELEASE_DIR, { withFileTypes: true }).map((entry) => entry.name)

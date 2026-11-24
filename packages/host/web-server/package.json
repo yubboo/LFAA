@@ -51,6 +51,7 @@
     "@lfaa/rules": "workspace:*",
     "@lfaa/sections": "workspace:*",
     "@lfaa/skills": "workspace:*",
+    "@lfaa/mcp": "workspace:*",
     "@lfaa/subagent": "workspace:*",
     "@lfaa/workspace": "workspace:*",
     "@lfaa/worktree": "workspace:*",

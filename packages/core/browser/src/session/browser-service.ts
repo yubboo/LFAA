@@ -56,6 +56,7 @@ export class BrowserRuntime implements SessionDriverHost {
   private readonly sessions = new Map<string, SessionBrowserState>();
   private readonly screencast = new ScreencastManager();
   private readonly idleThrottle = new BrowserIdleThrottle();
+  private readonly evidence = new Map<string, { sessionId: string; data: Buffer; mime: "image/png" | "image/jpeg" }>();
 
   constructor(storeFilePath?: string) {
     this.settings = new BrowserSettingsStore(storeFilePath);
@@ -63,6 +64,25 @@ export class BrowserRuntime implements SessionDriverHost {
 
   async getSettings(): Promise<BrowserSettingsConfig> {
     return this.settings.get();
+  }
+
+  /** 只保留最近的显式截图，聊天步骤保存引用，避免把图片写进会话和模型上下文。 */
+  saveEvidence(snap: BrowserSessionSnapshot): string | undefined {
+    if (!snap.screenshotBase64 || snap.screenshotBase64.length > 6_000_000) return undefined;
+    const id = randomUUID();
+    this.evidence.set(id, {
+      sessionId: snap.sessionId,
+      data: Buffer.from(snap.screenshotBase64, "base64"),
+      mime: snap.screenshotMime ?? "image/png",
+    });
+    const oldest = this.evidence.keys().next().value;
+    if (this.evidence.size > 16 && oldest) this.evidence.delete(oldest);
+    return id;
+  }
+
+  getEvidence(sessionId: string, id: string) {
+    const item = this.evidence.get(id);
+    return item?.sessionId === sessionId ? item : undefined;
   }
 
   async updateSettings(patch: Partial<BrowserSettingsConfig>): Promise<BrowserSettingsConfig> {
@@ -278,7 +298,13 @@ export class BrowserRuntime implements SessionDriverHost {
         await activeTab.page.setViewportSize(next).catch(() => {});
       }
       await this.screencast.ensureRunning(sessionId, state.context, () => buildScreencastMeta(state), true);
-      return this.capture(state, activeTab, !this.screencast.hasSubscribers(sessionId), false);
+      // 尺寸或明暗切换后强制采一帧并推流，避免静态页不触发重绘导致画布停留在旧尺寸留黑边。
+      const snap = await this.capture(state, activeTab, true, false);
+      if (snap.screenshotBase64 && this.screencast.hasSubscribers(sessionId)) {
+        const meta = buildScreencastMeta(state);
+        if (meta) this.screencast.pushFrame(sessionId, meta, snap.screenshotBase64);
+      }
+      return snap;
     }
     return this.getSnapshot(sessionId);
   }
@@ -358,11 +384,11 @@ export class BrowserRuntime implements SessionDriverHost {
   async reload(sessionId: string): Promise<BrowserSessionSnapshot> { return this.driver.reload(sessionId); }
   async snapshot(sessionId: string, withScreenshot = true): Promise<BrowserSessionSnapshot> { return this.driver.snapshot(sessionId, withScreenshot); }
   async evaluate(sessionId: string, expression: string, awaitPromise = false, fromAgent = false): Promise<unknown> { return this.driver.evaluate(sessionId, expression, awaitPromise, fromAgent); }
-  async click(sessionId: string, target: { ref?: string; selector?: string; x?: number; y?: number; button?: "left" | "right" | "middle"; clickCount?: number }, fromAgent = false, fast = false): Promise<BrowserSessionSnapshot> { return this.driver.click(sessionId, target, fromAgent, fast); }
-  async hover(sessionId: string, target: { ref?: string; selector?: string; x?: number; y?: number }, fromAgent = false, fast = false): Promise<BrowserSessionSnapshot> { return this.driver.hover(sessionId, target, fromAgent, fast); }
-  async typeText(sessionId: string, target: { ref?: string; selector?: string; text: string; submit?: boolean }, fromAgent = false, fast = false): Promise<BrowserSessionSnapshot> { return this.driver.typeText(sessionId, target, fromAgent, fast); }
+  async click(sessionId: string, target: { ref?: string; selector?: string; x?: number; y?: number; button?: "left" | "right" | "middle"; clickCount?: number; label?: string }, fromAgent = false, fast = false): Promise<BrowserSessionSnapshot> { return this.driver.click(sessionId, target, fromAgent, fast); }
+  async hover(sessionId: string, target: { ref?: string; selector?: string; x?: number; y?: number; label?: string }, fromAgent = false, fast = false): Promise<BrowserSessionSnapshot> { return this.driver.hover(sessionId, target, fromAgent, fast); }
+  async typeText(sessionId: string, target: { ref?: string; selector?: string; text: string; submit?: boolean; label?: string }, fromAgent = false, fast = false): Promise<BrowserSessionSnapshot> { return this.driver.typeText(sessionId, target, fromAgent, fast); }
   async pressKey(sessionId: string, key: string, fromAgent = false, fast = false): Promise<BrowserSessionSnapshot> { return this.driver.pressKey(sessionId, key, fromAgent, fast); }
-  async scroll(sessionId: string, deltaY: number, deltaX = 0, fromAgent = false, fast = false, point?: { x?: number; y?: number }): Promise<BrowserSessionSnapshot> { return this.driver.scroll(sessionId, deltaY, deltaX, fromAgent, fast, point); }
+  async scroll(sessionId: string, deltaY: number, deltaX = 0, fromAgent = false, fast = false, point?: { x?: number; y?: number; label?: string }): Promise<BrowserSessionSnapshot> { return this.driver.scroll(sessionId, deltaY, deltaX, fromAgent, fast, point); }
 
   /** 超轻量键鼠输入直通：仅在用户点击「接管」后才允许转发人工键鼠输入，彻底防止误触打断 Agent。 */
   async dispatchInput(sessionId: string, payload: BrowserInputPayload): Promise<void> {

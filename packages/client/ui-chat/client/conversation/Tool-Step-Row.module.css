@@ -65,24 +65,17 @@
   color: var(--color-muted);
 }
 
-/* 运行中命令标题沿用摘要行的流动渐变。CSS Modules 的 keyframes 是模块作用域的，
-   样式拆到本文件后无法引用 StepTraceList 里的 active-sweep，因此这里自带一份同名节奏的动画。 */
+/* 运行中命令标题与活动行保持一致：强调色 + 透明度呼吸，避免逐帧背景位移带来的持续重绘。 */
 @media (prefers-reduced-motion: no-preference) {
-  @supports (background-clip: text) {
-    .activityDetail[data-live="true"] .terminalHeader > .terminalTitle {
-      --activity-ink: color-mix(in srgb, var(--color-accent) 42%, var(--color-ink));
-      background: linear-gradient(105deg, var(--color-ink) 18%, var(--activity-ink) 48%, var(--color-ink) 78%);
-      background-size: 230% 100%;
-      background-clip: text;
-      color: transparent;
-      animation: terminal-sweep 2.05s linear infinite;
-    }
+  .activityDetail[data-live="true"] .terminalHeader > .terminalTitle {
+    color: color-mix(in srgb, var(--color-accent) 55%, var(--color-ink));
+    animation: terminal-title-breathe 1.9s ease-in-out infinite;
   }
 }
 
-@keyframes terminal-sweep {
-  from { background-position: 100% 50%; }
-  to { background-position: -60% 50%; }
+@keyframes terminal-title-breathe {
+  0%, 100% { opacity: 0.68; }
+  50% { opacity: 1; }
 }
 
 .commandResult {

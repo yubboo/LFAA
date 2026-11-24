@@ -2,7 +2,12 @@
 import { AgentStreamClient } from "./stream-client";
 import { createRunStreamHandlers } from "./run-stream-handler";
 import { fetchJson } from "./chat-http";
-import { writeStoredPermissionMode } from "./chat-preferences";
+import {
+  writeStoredDraftProjectId,
+  writeStoredDraftSectionId,
+  writeStoredPermissionMode,
+  writeStoredSessionId,
+} from "./chat-preferences";
 import type { AgentPermissionMode, ChatSessionDetail } from "./chat-types";
 import { enqueueMessage, moveQueuedAt, removeQueuedAt, updateQueuedAt } from "./chat-queue";
 import type { ChatStorePort } from "./chat-store-port";
@@ -172,6 +177,10 @@ export class ChatRunActions {
         ...(this.port.getState().draftWorktree ? { worktreeId: this.port.getState().draftWorktree?.id } : {}),
       }),
     });
+    // 新会话首次落库后立即持久化活动会话 ID，避免 Vite HMR 或 F5 刷新后被踢回空白「新聊天」。
+    writeStoredSessionId(created.session.id);
+    writeStoredDraftProjectId(created.session.projectId);
+    writeStoredDraftSectionId(created.session.sectionId);
     this.port.patchState({
       activeSessionId: created.session.id,
       activeSession: created.session,

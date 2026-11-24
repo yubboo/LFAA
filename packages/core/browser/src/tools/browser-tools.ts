@@ -38,6 +38,21 @@ async function visionAnswer(
   return text;
 }
 
+const DEVICE_VIEWPORT_PRESETS: Record<string, { width: number; height: number }> = {
+  "4k": { width: 2560, height: 1440 },
+  "laptop-l": { width: 1440, height: 900 },
+  laptop: { width: 1280, height: 800 },
+  "surface-pro-7": { width: 912, height: 1368 },
+  "ipad-air": { width: 820, height: 1180 },
+  "ipad-mini": { width: 768, height: 1024 },
+  "surface-duo": { width: 540, height: 720 },
+  "iphone-15-pro-max": { width: 430, height: 932 },
+  "pixel-8": { width: 412, height: 915 },
+  "iphone-15-pro": { width: 393, height: 852 },
+  "galaxy-s24-ultra": { width: 412, height: 915 },
+  "iphone-se": { width: 375, height: 667 },
+};
+
 export function registerBrowserAgentTools(tools: ToolsService, llm: LlmService, runtime: BrowserRuntime): () => void {
   const formatSnapshotOutput = (snap: Awaited<ReturnType<BrowserRuntime["snapshot"]>>) => {
     const els = snap.elements.slice(0, 35).map((e) =>
@@ -57,6 +72,33 @@ export function registerBrowserAgentTools(tools: ToolsService, llm: LlmService, 
   const cleanups = [
     tools.registerTool({
       moduleName: "@lfaa/browser",
+      name: "browser_present",
+      title: "展示浏览器预览",
+      description: "展开右侧浏览器，展示当前标签给用户查看。仅在提供了不同目标地址时导航一次。",
+      permissionLevel: "read",
+      parameters: {
+        type: "object",
+        properties: { url: { type: "string", description: "可选目标地址；省略时复用当前标签" } },
+      },
+      execute: async (args, ctx) => {
+        const rawUrl = typeof args.url === "string" ? args.url.trim() : "";
+        const url = rawUrl ? validateBrowserUrl(rawUrl).url : undefined;
+        let snap = await runtime.getSnapshot(ctx.sessionId);
+        if (url && snap.url !== url) {
+          if (ctx.allowsTool?.("browser_navigate") === false) {
+            return { ok: false, output: "当前会话不允许导航到其他网页。", summary: "导航受限" };
+          }
+          snap = await runtime.navigate(ctx.sessionId, url, true);
+        }
+        return {
+          ok: true,
+          output: snap.active && snap.url !== "about:blank" ? `已展示 ${snap.url}` : "已展开浏览器，当前没有打开的网页。",
+          summary: "已展示浏览器",
+        };
+      },
+    }),
+    tools.registerTool({
+      moduleName: "@lfaa/browser",
       name: "browser_evaluate",
       title: "网页执行表达式",
       description: [
@@ -70,6 +112,7 @@ export function registerBrowserAgentTools(tools: ToolsService, llm: LlmService, 
         properties: {
           expression: { type: "string", description: "在页面上下文求值的 JavaScript 表达式" },
           awaitPromise: { type: "boolean", description: "表达式返回 Promise 时是否等待结果，默认 false" },
+          target: { type: "string", description: "要核查的页面区域或属性" },
         },
         required: ["expression"],
       },
@@ -112,7 +155,7 @@ export function registerBrowserAgentTools(tools: ToolsService, llm: LlmService, 
       permissionLevel: "read",
       parameters: { type: "object", properties: {} },
       execute: async (_args, ctx) => {
-        const snap = await runtime.snapshot(ctx.sessionId, true);
+        const snap = await runtime.snapshot(ctx.sessionId, false);
         return { ok: true, output: formatSnapshotOutput(snap), summary: `快照 ${snap.elements.length} 个元素` };
       },
     }),
@@ -127,12 +170,15 @@ export function registerBrowserAgentTools(tools: ToolsService, llm: LlmService, 
         properties: {
           ref: { type: "string", description: "元素引用 ID，例如 e1" },
           selector: { type: "string", description: "可选 CSS 选择器（无 ref 时使用）" },
+          target: { type: "string", description: "操作记录中的控件名称，例如下载按钮" },
         },
       },
       execute: async (args, ctx) => {
+        const label = typeof args.target === "string" && args.target.trim() ? args.target.trim() : undefined;
         const snap = await runtime.click(ctx.sessionId, {
           ...(typeof args.ref === "string" ? { ref: args.ref } : {}),
           ...(typeof args.selector === "string" ? { selector: args.selector } : {}),
+          ...(label ? { label } : {}),
         }, true);
         return { ok: true, output: formatSnapshotOutput(snap), summary: `点击完成 -> ${snap.url}` };
       },
@@ -150,15 +196,18 @@ export function registerBrowserAgentTools(tools: ToolsService, llm: LlmService, 
           selector: { type: "string", description: "可选 CSS 选择器" },
           text: { type: "string", description: "要输入的文本内容" },
           submit: { type: "boolean", description: "输入后是否按 Enter 提交" },
+          target: { type: "string", description: "操作记录中的输入框名称" },
         },
         required: ["text"],
       },
       execute: async (args, ctx) => {
+        const label = typeof args.target === "string" && args.target.trim() ? args.target.trim() : undefined;
         const snap = await runtime.typeText(ctx.sessionId, {
           ...(typeof args.ref === "string" ? { ref: args.ref } : {}),
           ...(typeof args.selector === "string" ? { selector: args.selector } : {}),
           text: typeof args.text === "string" ? args.text : "",
           submit: args.submit === true,
+          ...(label ? { label } : {}),
         }, true);
         return { ok: true, output: formatSnapshotOutput(snap), summary: "已在网页输入文本" };
       },
@@ -167,16 +216,21 @@ export function registerBrowserAgentTools(tools: ToolsService, llm: LlmService, 
       moduleName: "@lfaa/browser",
       name: "browser_scroll",
       title: "滚动网页",
-      description: "纵向滚动内置浏览器当前页面（正数向下，负数向上）。",
+      description: "平滑滚动内置浏览器当前页面（正数向下，负数向上）。",
       permissionLevel: "read",
       parameters: {
         type: "object",
-        properties: { deltaY: { type: "number", description: "滚动像素量，默认 500" } },
+        properties: {
+          deltaY: { type: "number", description: "纵向滚动像素量，默认 500" },
+          deltaX: { type: "number", description: "可选横向滚动像素量，默认 0" },
+          target: { type: "string", description: "可选：要滚动查看的区域名，例如 作品区" },
+        },
       },
       execute: async (args, ctx) => {
         const deltaY = typeof args.deltaY === "number" ? args.deltaY : 500;
         const deltaX = typeof args.deltaX === "number" ? args.deltaX : 0;
-        const snap = await runtime.scroll(ctx.sessionId, deltaY, deltaX, true);
+        const label = typeof args.target === "string" && args.target.trim() ? args.target.trim() : undefined;
+        const snap = await runtime.scroll(ctx.sessionId, deltaY, deltaX, true, false, label ? { label } : undefined);
         return { ok: true, output: formatSnapshotOutput(snap), summary: `滚动页面 ${deltaY}px` };
       },
     }),
@@ -199,17 +253,50 @@ export function registerBrowserAgentTools(tools: ToolsService, llm: LlmService, 
     }),
     tools.registerTool({
       moduleName: "@lfaa/browser",
+      name: "browser_set_viewport",
+      title: "切换内置浏览器响应式尺寸",
+      description: "调整内置浏览器视口尺寸或切换常见设备预设（如 iphone-15-pro、ipad-air、laptop、4k），用于响应式布局验收。",
+      permissionLevel: "read",
+      parameters: {
+        type: "object",
+        properties: {
+          device: { type: "string", description: "可选设备预设：4k / laptop-l / laptop / ipad-air / ipad-mini / iphone-15-pro-max / iphone-15-pro / pixel-8 / iphone-se" },
+          width: { type: "number", description: "自定义视口宽度（像素，320–2560）" },
+          height: { type: "number", description: "自定义视口高度（像素，240–2400）" },
+        },
+      },
+      execute: async (args, ctx) => {
+        const deviceKey = typeof args.device === "string" ? args.device.trim().toLowerCase() : "";
+        const preset = deviceKey ? DEVICE_VIEWPORT_PRESETS[deviceKey] : undefined;
+        const width = typeof args.width === "number" ? args.width : preset?.width;
+        const height = typeof args.height === "number" ? args.height : preset?.height;
+        if (!width || !height) {
+          return { ok: false, output: "请提供有效的 width 与 height，或指定 device 预设名。", summary: "缺少视口尺寸参数" };
+        }
+        const snap = await runtime.setViewport(ctx.sessionId, width, height);
+        return {
+          ok: true,
+          output: `已切换视口至 ${snap.viewport.width} × ${snap.viewport.height}${deviceKey ? ` (${deviceKey})` : ""}`,
+          summary: `视口 ${snap.viewport.width}×${snap.viewport.height}`,
+        };
+      },
+    }),
+    tools.registerTool({
+      moduleName: "@lfaa/browser",
       name: "browser_screenshot",
       title: "截取网页画面",
-      description: "抓取当前内置浏览器页面截图并同步刷新右栏浏览器预览。",
+      description: "截取当前内置浏览器页面作为本次操作的可查看证据。",
       permissionLevel: "read",
       parameters: { type: "object", properties: {} },
       execute: async (_args, ctx) => {
         const snap = await runtime.snapshot(ctx.sessionId, true);
+        const browserEvidenceId = runtime.saveEvidence(snap);
+        if (!browserEvidenceId) return { ok: false, output: "当前截图不可用或超过预览容量。", summary: "截图不可保存" };
         return {
           ok: true,
-          output: `已截图并更新右栏浏览器预览：${snap.url} (${snap.title})，控制台异常数：${snap.errorCount}`,
-          summary: "已更新页面截图",
+          output: `已截图：${snap.url} (${snap.title})，视口 ${snap.viewport.width} × ${snap.viewport.height}`,
+          summary: `截图 · ${snap.viewport.width} × ${snap.viewport.height}`,
+          metadata: { browserEvidenceId },
         };
       },
     }),
@@ -217,7 +304,7 @@ export function registerBrowserAgentTools(tools: ToolsService, llm: LlmService, 
       moduleName: "@lfaa/browser",
       name: "browser_visual_check",
       title: "用视觉模型检查页面截图",
-      description: "截取当前内置浏览器页面并对照用户需求检查布局、对齐、颜色、溢出、动画与可见异常，同时附带控制台/网络报错统计；若当前模型不支持图片输入会给出改用 browser_evaluate 自检的明确指引。",
+      description: "截取当前内置浏览器页面，按指定区域与验收项判断可见表现，回传结论和截图。视觉模型不可用时可改用浏览器测量，并注明局限。",
       permissionLevel: "read",
       parameters: {
         type: "object",
@@ -227,43 +314,41 @@ export function registerBrowserAgentTools(tools: ToolsService, llm: LlmService, 
         },
       },
       execute: async (args, ctx) => {
+        const focus = typeof args.focus === "string" ? args.focus.trim() : "";
+        const requirements = typeof args.requirements === "string" ? args.requirements.trim() : "";
+        if (!focus && !requirements) {
+          return { ok: false, output: "请提供本轮的验收要点或明确的页面区域。", summary: "缺少验收目标" };
+        }
         const snap = await runtime.snapshot(ctx.sessionId, true);
         if (!snap.screenshotBase64) {
           return { ok: false, output: "页面截图不可用，请先打开一个网页。", summary: "截图不可用" };
         }
         const mime = snap.screenshotMime ?? "image/png";
         const dataUrl = `data:${mime};base64,${snap.screenshotBase64}`;
-        const focus = typeof args.focus === "string" ? args.focus.trim() : "";
-        const requirements = typeof args.requirements === "string" ? args.requirements.trim() : "";
-        const failedNets = runtime.getNetwork(ctx.sessionId).filter((n) => n.failed).slice(-5);
-        const runtimeMeta = [
-          `当前页面：${snap.title || "未命名"} (${snap.url})`,
-          `控制台异常数：${snap.errorCount}（总日志 ${snap.consoleCount}）`,
-          ...(failedNets.length > 0
-            ? [`近期失败请求：${failedNets.map((n) => `${n.status} ${n.method} ${n.url}`).join("；")}`]
-            : ["近期失败请求：0"]),
-        ].join("\n");
+        const browserEvidenceId = runtime.saveEvidence(snap);
+        const runtimeMeta = `当前页面：${snap.title || "未命名"} (${snap.url}) · 视口 ${snap.viewport.width} × ${snap.viewport.height}`;
         const prompt = [
-          "你是极其挑剔、严格的 UI 与图形视觉验收员。请仔细观察这张真实网页截图，逐项排查可见缺陷（严禁敷衍夸赞）：",
-          "1. 图形/组件结构与几何关系：关键图形或部件（如人物/动物身体、四肢、车轮/踏板/连接件、图标、卡片边框）是否完整自然、连接位置是否正确、有无脱节/错位/比例怪异/穿模/变形；",
-          "2. 布局与完整性：是否居中对齐、是否完整可见、有无溢出/截断/重叠/白雾遮挡/大片异常留白；",
-          "3. 配色、文字可读性与整体完成度是否达到交付标准；",
-          "4. 只陈述截图中肉眼真实可见的事实，严禁臆造；最后必须给出明确结论 `VERDICT: PASS` 或 `VERDICT: NEEDS_FIX`，并按编号列出每一处需要修改代码修复的具体缺陷与修复建议。",
+          "仅按下面的目标核查截图。逐项写明区域、期望和可见现象，只有确实违背验收要点才判定失败。静态截图无法判断交互、动画或画面以外的内容。",
+          "末尾单独一行输出 VERDICT: PASS、VERDICT: NEEDS_FIX 或 VERDICT: UNVERIFIED。截图不足以确认目标时写 UNVERIFIED。",
           ...(requirements ? [`用户需求与验收要点：\n${requirements}`] : []),
           ...(focus ? [`重点检查区域：${focus}`] : []),
         ].join("\n");
         try {
           const answer = await visionAnswer(llm, prompt, dataUrl, ctx.parentProfileId, ctx.signal);
+          const verdict = /^VERDICT:[ \t]*(PASS|NEEDS_FIX|UNVERIFIED)[ \t]*$/imu.exec(answer)?.[1]?.toLowerCase();
+          const browserVerdict = verdict === "pass" || verdict === "needs_fix" ? verdict : "unverified";
           return {
             ok: true,
             output: `${runtimeMeta}\n\n视觉验收报告：\n${answer}`,
-            summary: `视觉验收完成（错误 ${snap.errorCount}）`,
+            summary: browserVerdict === "pass" ? "视觉项通过" : browserVerdict === "needs_fix" ? "发现不符项" : "视觉项未验证",
+            metadata: { browserEvidenceId, browserVerdict },
           };
         } catch (error) {
           return {
             ok: false,
             output: `${runtimeMeta}\n\n视觉检查失败：${error instanceof Error ? error.message : String(error)}。当前模型可能不支持图片输入，请改用 browser_evaluate 读取关键元素的 getBoundingClientRect / getComputedStyle / DOM 状态并结合 browser_console 完成闭环验收。`,
             summary: "视觉模型不可用，需改用 DOM 自检",
+            metadata: { browserEvidenceId, browserVerdict: "unverified" },
           };
         }
       },

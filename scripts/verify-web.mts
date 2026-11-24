@@ -149,6 +149,12 @@ try {
   await page.getByRole("button", { name: "Git", exact: true }).first().click();
   await page.waitForTimeout(1200);
   steps.push({ step: "设置-Git", ok: (await text()).includes("分支前缀"), screenshot: await shot("settings-git") });
+  await page.getByRole("button", { name: "MCP", exact: true }).click();
+  await page.getByRole("button", { name: "添加服务器", exact: true }).click();
+  const mcpDialog = page.getByRole("dialog", { name: "添加服务器" });
+  await mcpDialog.getByLabel("传输方式").selectOption("sse");
+  steps.push({ step: "设置-MCP", ok: await mcpDialog.getByRole("textbox", { name: "服务 URL" }).isVisible(), screenshot: await shot("settings-mcp") });
+  await page.keyboard.press("Escape");
 
   await page.getByRole("button", { name: "代码审查", exact: true }).first().click();
   await page.waitForTimeout(1200);
@@ -177,16 +183,13 @@ try {
     ok: !(await page.locator('[role="dialog"][aria-modal="true"]').count()),
   });
 
-  // 主题同时存在于 mode 与 config 两个键；只改 mode 会被 config 覆盖。
+  // 用用户菜单切换实际主题，避免页面仍挂载时直接改存储导致旧主题被写回。
   const applyTheme = async (mode: "light" | "dark"): Promise<void> => {
-    await page.evaluate((next) => {
-      window.localStorage.setItem("lfaa:appearance-mode", next);
-      const raw = window.localStorage.getItem("lfaa:appearance-config-v1");
-      if (!raw) return;
-      const config = JSON.parse(raw) as Record<string, unknown>;
-      config.mode = next;
-      window.localStorage.setItem("lfaa:appearance-config-v1", JSON.stringify(config));
-    }, mode);
+    await page.getByRole("button", { name: "用户菜单", exact: true }).click();
+    await page.getByRole("button", { name: /^切换外观模式/u }).click();
+    await page.getByRole("menuitemradio", { name: mode === "light" ? "浅色模式" : "深色模式" }).click();
+    await page.locator(`html[data-resolved-theme="${mode}"]`).waitFor();
+    await page.keyboard.press("Escape");
   };
   await applyTheme("light");
   await page.reload({ waitUntil: "domcontentloaded" });

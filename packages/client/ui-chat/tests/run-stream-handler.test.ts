@@ -2,7 +2,7 @@
 // 用假 ChatStorePort 直接触发回调，不启动 SSE、不依赖浏览器。
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { ChatMessageItem, ChatStoreSnapshot } from "../client/store/chat-types";
+import type { AgentStepItem, ChatMessageItem, ChatStoreSnapshot } from "../client/store/chat-types";
 import type { ChatStorePort } from "../client/store/chat-store-port";
 import { createRunStreamHandlers } from "../client/store/run-stream-handler";
 
@@ -83,6 +83,19 @@ test("步骤更新按 id 覆盖而不是重复追加", () => {
   assert.equal(steps.length, 1);
   assert.equal(steps[0]!.status, "done");
   assert.equal(steps[0]!.title, "思考完成");
+});
+
+test("浏览器预览在 SSE 订阅前完成时，仍从最终消息展开且只消费一次", () => {
+  const { port } = createPort();
+  const applied: string[] = [];
+  port.applyAgentStepWorkbenchAction = (_sessionId, _messageId, step) => { applied.push(step.id); };
+  const handlers = handlersFor(port);
+  const step: AgentStepItem = { id: "preview", iteration: 1, phase: "act", toolName: "browser_present", status: "done", title: "预览已打开", timestamp: 1 };
+  const message = { ...assistantMessage(), steps: [step] };
+  handlers.onFinished({ status: "done", message });
+  assert.deepEqual(applied, ["preview"]);
+  handlers.onStepUpdate(step);
+  assert.deepEqual(applied, ["preview"]);
 });
 
 test("按轮次流式思考增量实时写入对应 think 步骤，心跳更新不冲掉已累积思考内容", () => {

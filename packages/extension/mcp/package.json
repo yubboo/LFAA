@@ -1,0 +1,32 @@
+{
+  "name": "@lfaa/mcp",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./lib/index.js",
+  "types": "./lib/types/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/src/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./contract": {
+      "types": "./lib/types/contract/index.d.ts",
+      "default": "./lib/types/contract/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "src",
+    "contract"
+  ],
+  "scripts": {
+    "typecheck": "tsc -b ."
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "^4.1.0",
+    "@lfaa/storage": "workspace:*",
+    "@lfaa/tools": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.32.2"
+  }
+}

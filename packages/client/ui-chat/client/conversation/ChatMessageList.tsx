@@ -10,6 +10,28 @@ import { ChatMessageRow } from "./ChatMessageRow";
 import styles from "./ChatWorkspace.module.css";
 import heroStyles from "./ChatWorkspace.hero.module.css";
 
+/** 恢复会话时的静态消息骨架：与真实消息共用同一条宽度轴，详情回来时只替换内容、不挪动输入栏。 */
+function ConversationSkeleton({ isZh }: { isZh: boolean }) {
+  return (
+    <div className={heroStyles.restoreSkeleton} role="status" aria-busy="true" aria-live="polite">
+      <span className={heroStyles.srOnly}>{isZh ? "正在恢复对话…" : "Restoring conversation…"}</span>
+      <div className={`${heroStyles.restoreBubble}`} aria-hidden="true" />
+      {[0, 1].map((group) => (
+        <div key={group} className={heroStyles.restoreGroup} aria-hidden="true">
+          <span className={heroStyles.restoreLine} />
+          <span className={`${heroStyles.restoreLine} ${heroStyles.restoreLineShort}`} />
+          <span className={`${heroStyles.restoreLine} ${heroStyles.restoreLineTiny}`} />
+        </div>
+      ))}
+      <div className={`${heroStyles.restoreBubble} ${heroStyles.restoreBubbleSmall}`} aria-hidden="true" />
+      <div className={heroStyles.restoreGroup} aria-hidden="true">
+        <span className={heroStyles.restoreLine} />
+        <span className={`${heroStyles.restoreLine} ${heroStyles.restoreLineTiny}`} />
+      </div>
+    </div>
+  );
+}
+
 export function ChatMessageList({
   locale,
   messages,
@@ -18,6 +40,7 @@ export function ChatMessageList({
   starterSuggestions,
   projectScope,
   workspaceMode,
+  restoring,
   heroComposer,
   onWorkspaceModeChange,
   suggestionsByMessage,
@@ -51,6 +74,8 @@ export function ChatMessageList({
   projectScope: { name: string; description: string } | null;
   /** 中心区的「聊天 / 工作」形态：标题、提示与输入栏密度都按它切换。 */
   workspaceMode: WorkspaceMode;
+  /** 刷新后正在恢复已记住的会话：先渲染消息骨架，不能先把空态引导闪出来。 */
+  restoring?: boolean;
   /** 空会话时内嵌到中心区的输入栏；有消息时输入栏留在底部，这里为 null。 */
   heroComposer?: ReactNode;
   onWorkspaceModeChange: (mode: WorkspaceMode) => void;
@@ -78,6 +103,8 @@ export function ChatMessageList({
   threadRef: RefObject<HTMLDivElement | null>;
 }) {
   if (messages.length === 0) {
+    // 刷新恢复会话时先给会话骨架：空态引导在详情回来前闪一下再跳走，是最刺眼的那一下。
+    if (restoring) return <ConversationSkeleton isZh={locale.isZh} />;
     const isWorkMode = workspaceMode === "codex";
     const fallbackSuggestions = [locale.heroSuggestionPlan, locale.heroSuggestionCheck, locale.heroSuggestionWrite];
     // 项目起步建议与通用引导统一为同一种轻量无边框图标行，保持界面视觉语言一致。

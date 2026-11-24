@@ -46,6 +46,7 @@ export const SETTINGS_CATALOG: SettingsCatalogGroup[] = [
     titleEn: "Integrations",
     items: [
       { viewId: "settings:browser", labelZh: "浏览器", labelEn: "Browser", icon: "map" },
+      { viewId: "settings:mcp", labelZh: "MCP", labelEn: "MCP", icon: "settings" },
     ],
   },
 ];

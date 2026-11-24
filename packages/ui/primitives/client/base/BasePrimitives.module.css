@@ -1,0 +1,209 @@
+/* Base UI 无头原语的 LFAA 双主题薄皮肤（DropdownMenu / UiSwitch / UiSelect / UiTabs / UiTooltip），全量消费 @lfaa/ui-theme 语义变量。 */
+.positioner {
+  z-index: var(--z-popover, 60);
+  outline: none;
+}
+
+.popup {
+  min-width: 11.5rem;
+  padding: 0.28rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.62rem;
+  background: var(--color-popover);
+  color: var(--color-ink);
+  box-shadow: var(--color-menu-shadow);
+  transform-origin: var(--transform-origin);
+  transition: transform 130ms cubic-bezier(0.22, 1, 0.36, 1), opacity 130ms ease;
+  outline: none;
+}
+
+.popup[data-starting-style],
+.popup[data-ending-style] {
+  opacity: 0;
+  transform: scale(0.96);
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.38rem 0.54rem;
+  border: 0;
+  border-radius: 0.42rem;
+  background: transparent;
+  color: var(--color-ink);
+  font-size: 0.77rem;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+  outline: none;
+  white-space: nowrap;
+}
+
+.menuItem[data-highlighted] {
+  background: var(--color-active);
+}
+
+.menuItem[data-disabled] {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+.menuItemDanger {
+  color: var(--color-danger);
+}
+
+.menuItemLabel {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.menuItemCheck {
+  flex: 0 0 auto;
+  color: var(--color-accent);
+  display: inline-flex;
+  align-items: center;
+}
+
+.menuSeparator {
+  height: 1px;
+  margin: 0.22rem 0.34rem;
+  background: var(--color-line);
+}
+
+/* UiSwitch：细腻触感开关 */
+.switchRoot {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 2.15rem;
+  height: 1.24rem;
+  padding: 0.12rem;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-surface);
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+.switchRoot[data-checked] {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.switchRoot[data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.switchThumb {
+  display: block;
+  width: 0.94rem;
+  height: 0.94rem;
+  border-radius: 50%;
+  background: var(--color-ink);
+  transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1), background-color 160ms ease;
+}
+
+.switchRoot[data-checked] .switchThumb {
+  background: var(--color-on-accent);
+  transform: translateX(0.9rem);
+}
+
+/* UiSelect：统一圆角触发器与防溢出选项列表 */
+.selectTrigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  height: 1.85rem;
+  padding: 0 0.6rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.46rem;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-size: 0.77rem;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+.selectTrigger:hover {
+  background: var(--color-active);
+}
+
+.selectTrigger[data-popup-open] {
+  border-color: var(--color-accent);
+}
+
+.selectPopup {
+  min-width: var(--anchor-width);
+  max-height: 16rem;
+  overflow-y: auto;
+}
+
+/* UiTabs：带平滑指示条的分段标签 */
+.tabsList {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.16rem;
+  padding: 0.18rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.52rem;
+  background: var(--color-panel);
+}
+
+.tabBtn {
+  position: relative;
+  z-index: 1;
+  padding: 0.28rem 0.68rem;
+  border: 0;
+  border-radius: 0.38rem;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 0.77rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 140ms ease;
+}
+
+.tabBtn[data-selected] {
+  color: var(--color-ink);
+}
+
+.tabIndicator {
+  position: absolute;
+  top: 0.18rem;
+  bottom: 0.18rem;
+  left: var(--active-tab-left);
+  width: var(--active-tab-width);
+  border-radius: 0.38rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  transition: left 180ms cubic-bezier(0.22, 1, 0.36, 1), width 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* UiTooltip：轻盈悬浮提示 */
+.tooltipPopup {
+  max-width: 18rem;
+  padding: 0.28rem 0.56rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.44rem;
+  background: var(--color-popover);
+  color: var(--color-ink);
+  font-size: 0.73rem;
+  line-height: 1.4;
+  box-shadow: var(--color-menu-shadow);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.tooltipPopup[data-starting-style],
+.tooltipPopup[data-ending-style] {
+  opacity: 0;
+  transform: scale(0.96);
+}

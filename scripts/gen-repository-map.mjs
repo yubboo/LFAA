@@ -9,8 +9,8 @@ const TARGET = join(ROOT, "docs", "architecture", "repository-map.md");
 const CHECK = process.argv.includes("--check");
 
 // 构建产物、依赖与运行数据不属于骨架；日志卷只统计条数，不逐条展开。
-const SKIP_DIRS = new Set(["node_modules", ".git", "lib", "dist", ".desktop-build", ".mcdev", "data", ".agents", ".tmp"]);
-const SUMMARY_DIRS = ["docs/dev-log", "docs/updata-log", "vendor"];
+const SKIP_DIRS = new Set(["node_modules", ".git", "lib", "dist", "build", ".desktop-build", ".mcdev", "data", ".agents", ".tmp"]);
+const SUMMARY_DIRS = ["docs/dev-log", "docs/updata-log", "vendor", "packages/extension/skills/src/builtin-skills"];
 // 逐文件收录的范围；其余目录只出现在总览里。
 const DETAIL_ROOTS = ["apps", "packages", "scripts", ".githooks", ".github", "patches", "docs/architecture", "docs/standards", "docs/templates"];
 

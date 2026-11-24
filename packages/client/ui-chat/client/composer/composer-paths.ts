@@ -19,12 +19,20 @@ export function matchAbsolutePath(raw: string): string | undefined {
   return WINDOWS_PATH_RE.test(value) || POSIX_PATH_RE.test(value) ? value : undefined;
 }
 
-/** 从一段文字里提取所有绝对路径（用于发送时补充文件上下文）。 */
+/**
+ * 从一段文字里提取所有绝对路径（用于发送时补充文件上下文）。
+ * POSIX 路径要求前方为空白或起始/标点边界且至少包含两级目录段，避免把 `@lfaa/ui-theme`、`packages/ui/theme`、`http://.../api` 或 `/plan` 误识别成绝对路径。
+ */
 export function extractAbsolutePaths(raw: string): string[] {
   const found = new Set<string>();
-  const re = /(?:[A-Za-z]:[\\/]|\\\\)[^\s"'`<>|*?\n\r\t]{1,480}|\/(?:[^\s"'`<>|*?\n\r\t]+\/)*[^\s"'`<>|*?\n\r\t]{1,480}/gu;
-  for (const match of raw.matchAll(re)) {
-    const path = matchAbsolutePath(match[0]);
+  const winRe = /(?:^|[\s"'`([「（【，。；：、])((?:[A-Za-z]:[\\/]|\\\\)[^\s"'`<>|*?\n\r\t]{1,480})/gu;
+  for (const match of raw.matchAll(winRe)) {
+    const path = matchAbsolutePath(match[1] ?? "");
+    if (path && path.length > 2) found.add(path);
+  }
+  const posixRe = /(?:^|[\s"'`([「（【，。；：、])(\/(?!\/)[^\s"'`<>|*?\n\r\t/]+\/[^\s"'`<>|*?\n\r\t]{1,480})/gu;
+  for (const match of raw.matchAll(posixRe)) {
+    const path = matchAbsolutePath(match[1] ?? "");
     if (path && path.length > 2) found.add(path);
   }
   return [...found].slice(0, 8);

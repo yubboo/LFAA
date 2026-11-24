@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { Context } from "@deepseek-ai/cordis";
-import { skillsPlugin } from "../src/index";
+import { parseSkillMarkdown, skillsPlugin } from "../src/index";
 
 test("技能新增、版本冲突保护、项目技能发现、二创复制与停用校验", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "lfaa-skills-test-"));
@@ -154,4 +154,73 @@ test("拒绝路径穿越技能 ID 且支持无状态记录的手动个人技能�
   assert.equal(disabled.enabled, false);
   const reenabled = await ctx.skills.setSkillEnabled("manual-skill", true);
   assert.equal(reenabled.enabled, true);
+});
+
+test("全部 11 组新增内置技能均可被发现、描述解析完整且支持多行 YAML frontmatter", async (t) => {
+  const personalDir = await mkdtemp(join(tmpdir(), "lfaa-all-builtins-"));
+  t.after(async () => {
+    await rm(personalDir, { recursive: true, force: true });
+  });
+
+  // 校验多行 YAML 块标量解析
+  const parsedBlock = parseSkillMarkdown(
+    "---\nname: multi-line-demo\ndescription: >-\n  第一行说明\n  第二行说明\nmetadata:\n  version: 1.0.0\n---\n\n正文内容",
+    "fallback",
+  );
+  assert.equal(parsedBlock.name, "multi-line-demo");
+  assert.equal(parsedBlock.description, "第一行说明 第二行说明");
+
+  const ctx = new Context();
+  const fiber = ctx.plugin(skillsPlugin, { personalDir });
+  await fiber;
+  t.after(async () => {
+    await fiber.dispose();
+  });
+
+  const allBuiltins = (await ctx.skills.listSkills({ includeDisabled: true })).filter((s) => s.source === "builtin");
+  assert.equal(allBuiltins.length, 40, `期望 40 个内置技能（已移除空壳与重复），实际 ${allBuiltins.length}`);
+
+  const enabledBuiltins = (await ctx.skills.listSkills({ includeDisabled: false })).filter((s) => s.source === "builtin");
+  assert.equal(enabledBuiltins.length, 26, `期望默认启用 26 个核心内置技能，实际 ${enabledBuiltins.length}`);
+
+  const requiredEnabledIds = [
+    "builtin:lfaa-skill-creator",
+    "builtin:minecraft-plugin-dev",
+    "builtin:stageshow",
+    "builtin:dimensional-drawing",
+    "builtin:dimensional-drawing-motion",
+    "builtin:device-frames",
+    "builtin:fixing-accessibility",
+    "builtin:animate",
+    "builtin:review-animations",
+    "builtin:emil-design-eng",
+    "builtin:unslop",
+    "builtin:impeccable",
+    "builtin:media-use",
+    "builtin:agent-browser",
+    "builtin:find-skills",
+    "builtin:ui-taste",
+    "builtin:ios-design",
+    "builtin:code-review",
+  ];
+  const enabledById = new Map(enabledBuiltins.map((s) => [s.id, s]));
+  for (const id of requiredEnabledIds) {
+    assert.ok(enabledById.has(id), `缺少默认启用的内置技能 ${id}`);
+  }
+
+  // 默认未启用的内置技能仍可被发现，且支持一键启用并持久化
+  const defaultOff = allBuiltins.find((s) => s.id === "builtin:baseline-ui");
+  assert.ok(defaultOff && defaultOff.enabled === false, "baseline-ui 应默认未启用");
+  const turnedOn = await ctx.skills.setSkillEnabled("builtin:baseline-ui", true);
+  assert.equal(turnedOn.enabled, true);
+  const afterEnable = await ctx.skills.listSkills({ includeDisabled: false });
+  assert.ok(afterEnable.some((s) => s.id === "builtin:baseline-ui"));
+  const turnedOffAgain = await ctx.skills.setSkillEnabled("builtin:baseline-ui", false);
+  assert.equal(turnedOffAgain.enabled, false);
+
+  for (const skill of allBuiltins) {
+    assert.ok(skill.name.trim().length > 0, `${skill.id} 名称不应为空`);
+    assert.ok(skill.description.trim().length > 5, `${skill.id} 描述不应为空或过短: "${skill.description}"`);
+    assert.ok(!/^[|>][+-]?$/u.test(skill.description.trim()), `${skill.id} 描述未展开多行 YAML 块标量`);
+  }
 });

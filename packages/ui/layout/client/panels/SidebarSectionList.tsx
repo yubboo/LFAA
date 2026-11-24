@@ -66,23 +66,39 @@ export interface SidebarGroupConfig {
 
 const DRAG_PROJECT_MIME = "text/lfaa-project-id";
 
+/** 解析行首状态：运行中优先，其次完成未读；没有状态时返回 null。 */
+function statusState(item: SidebarItemConfig): "working" | "done" | null {
+  if (item.icon === "working") return "working";
+  return item.unread ? "done" : null;
+}
+
 /**
  * 行首状态标记：运行中显示旋转圆弧，完成未读显示小圆点。
- * 绝对定位在行的最左侧留白槽位，不参与行内布局——有标记时标题不会右移；
- * 项目行、会话行、会话子行因此共用同一条左侧标记列。
+ * 绝对定位在行首图标列（与项目文件夹图标同一列），不参与行内布局——有标记时标题不会右移；
+ * 项目行、会话行、会话子行因此共用同一条左侧标记列，缩进只作用于图标与标题。
  */
 function StatusMarker({ item }: { item: SidebarItemConfig }) {
-  const running = item.icon === "working";
-  const state = running ? "working" : item.unread ? "done" : null;
+  const state = statusState(item);
   if (!state) return null;
   return (
     <span
       className={statusStyles.statusMarker}
       data-state={state}
-      aria-label={running ? "运行中" : "未读"}
+      aria-label={state === "working" ? "运行中" : "未读"}
     >
-      {running && <NavigationIcon name="working" className={statusStyles.workingIcon} />}
+      {state === "working" && <NavigationIcon name="working" className={statusStyles.workingIcon} />}
     </span>
+  );
+}
+
+/** 行首图标：状态标记占用图标位时只保留占位宽度，避免转圈/圆点与常态图标叠在一起。 */
+function RowIcon({ item }: { item: SidebarItemConfig }) {
+  if (item.hideIcon) return null;
+  return (
+    <NavigationIcon
+      name={item.icon === "working" ? "newChat" : item.icon}
+      className={statusState(item) ? statusStyles.iconSlotTaken : undefined}
+    />
   );
 }
 
@@ -196,9 +212,7 @@ export function SidebarSectionList({
                             onClick={item.onClick}
                             onDoubleClick={item.onDoubleClick}
                           >
-                            {!item.hideIcon && (
-                              <NavigationIcon name={item.icon === "working" ? "newChat" : item.icon} />
-                            )}
+                            <RowIcon item={item} />
                             <span className={styles.label}>{item.label}</span>
                             {item.branchLabel && (
                               <span className={badgeStyles.branchBadge} title={item.branchTitle ?? item.branchLabel}>
@@ -253,9 +267,7 @@ export function SidebarSectionList({
                           onClick={item.onClick}
                         >
                           <StatusMarker item={item} />
-                          {!item.hideIcon && (
-                            <NavigationIcon name={item.icon === "working" ? "newChat" : item.icon} />
-                          )}
+                          <RowIcon item={item} />
                           <span className={styles.label}>{item.label}</span>
                           {item.muted && <NavigationIcon name="muted" className={statusStyles.mutedMarker} />}
                           {item.pinned && <NavigationIcon name="pin" className={styles.pinMarker} />}

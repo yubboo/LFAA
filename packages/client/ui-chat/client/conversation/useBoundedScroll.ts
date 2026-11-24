@@ -1,4 +1,5 @@
-// 管理思维链思考正文视口的滚动与边缘渐隐：流式思考时同步贴底，用户上滚阅读时立即暂停跟随，滚回底部自动恢复。
+// 管理任意「限高滚动视口」的滚动与边缘渐隐：内容持续追加时同步贴底，用户上滚阅读时立即暂停跟随，滚回底部自动恢复。
+// 思维链思考正文与浏览器子智能体步骤列表共用这一份实现，避免各自再写一套测量与跟随逻辑。
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type UIEvent, type WheelEvent } from "react";
 
 const SCROLL_EDGE_EPSILON = 2;
@@ -6,21 +7,21 @@ const FOLLOW_BOTTOM_THRESHOLD = 16;
 const PROGRAMMATIC_SCROLL_WINDOW_MS = 80;
 const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
-/** 思考正文滚动视口的溢出与边缘渐隐状态。 */
-export interface ThinkingScrollEdges {
+/** 限高滚动视口的溢出与边缘渐隐状态。 */
+export interface BoundedScrollEdges {
   fadeTop: boolean;
   fadeBottom: boolean;
   scrollable: boolean;
 }
 
-const EMPTY_EDGES: ThinkingScrollEdges = { fadeTop: false, fadeBottom: false, scrollable: false };
+const EMPTY_EDGES: BoundedScrollEdges = { fadeTop: false, fadeBottom: false, scrollable: false };
 
-/** 计算思考正文滚动视口是否超出限高以及上下边缘渐隐标记。 */
-export function measureThinkingScrollEdges(
+/** 计算内容是否超出限高，以及上下边缘是否需要渐隐。 */
+export function measureBoundedScrollEdges(
   scrollTop: number,
   scrollHeight: number,
   clientHeight: number,
-): ThinkingScrollEdges {
+): BoundedScrollEdges {
   const maxScrollTop = Math.max(0, scrollHeight - clientHeight);
   if (maxScrollTop <= SCROLL_EDGE_EPSILON) return EMPTY_EDGES;
   return {
@@ -30,8 +31,8 @@ export function measureThinkingScrollEdges(
   };
 }
 
-/** 按用户滚动方向与距底距离判定流式思考是否继续自动贴底跟随。 */
-export function resolveThinkingFollowBottom(
+/** 按用户滚动方向与距底距离判定是否继续自动贴底跟随。 */
+export function resolveBoundedScrollFollow(
   currentFollow: boolean,
   previousScrollTop: number,
   scrollTop: number,
@@ -43,9 +44,9 @@ export function resolveThinkingFollowBottom(
   return currentFollow;
 }
 
-/** 维护单个思维链块的内部滚动视口、流式自动贴底与边缘渐隐状态。 */
-export function useThinkingScroll(open: boolean, hasBody: boolean, contentKey: string, live: boolean) {
-  const [edges, setEdges] = useState<ThinkingScrollEdges>(EMPTY_EDGES);
+/** 维护单个限高滚动视口的内部滚动位置、实时贴底与边缘渐隐状态。 */
+export function useBoundedScroll(open: boolean, hasContent: boolean, contentKey: string, live: boolean) {
+  const [edges, setEdges] = useState<BoundedScrollEdges>(EMPTY_EDGES);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const followBottomRef = useRef(true);
@@ -54,7 +55,7 @@ export function useThinkingScroll(open: boolean, hasBody: boolean, contentKey: s
   const prevLiveRef = useRef(live);
 
   const syncEdges = useCallback((viewport: HTMLDivElement) => {
-    const next = measureThinkingScrollEdges(viewport.scrollTop, viewport.scrollHeight, viewport.clientHeight);
+    const next = measureBoundedScrollEdges(viewport.scrollTop, viewport.scrollHeight, viewport.clientHeight);
     setEdges((prev) => (
       prev.fadeTop === next.fadeTop && prev.fadeBottom === next.fadeBottom && prev.scrollable === next.scrollable
         ? prev
@@ -76,12 +77,12 @@ export function useThinkingScroll(open: boolean, hasBody: boolean, contentKey: s
     followBottomRef.current = true;
   }, []);
 
-  // 进入新一轮实时思考或正文流式追加时同步贴底；思考结束与历史消息保持当前位置不跳动。
+  // 进入新一轮实时输出或内容追加时同步贴底；结束与历史内容保持当前位置不跳动。
   useIsomorphicLayoutEffect(() => {
     if (live && !prevLiveRef.current) followBottomRef.current = true;
     prevLiveRef.current = live;
 
-    if (!open || !hasBody) {
+    if (!open || !hasContent) {
       setEdges(EMPTY_EDGES);
       return;
     }
@@ -89,11 +90,11 @@ export function useThinkingScroll(open: boolean, hasBody: boolean, contentKey: s
     if (!viewport) return;
     if (live && followBottomRef.current) pinToBottomSync(viewport);
     else syncEdges(viewport);
-  }, [open, hasBody, contentKey, live, pinToBottomSync, syncEdges]);
+  }, [open, hasContent, contentKey, live, pinToBottomSync, syncEdges]);
 
-  // 监听视口与内容尺寸变化（窗口缩放、侧栏切换等），及时更新渐隐提示与流式贴底。
+  // 监听视口与内容尺寸变化（窗口缩放、侧栏切换等），及时更新渐隐提示与实时贴底。
   useIsomorphicLayoutEffect(() => {
-    if (!open || !hasBody || typeof ResizeObserver === "undefined") return;
+    if (!open || !hasContent || typeof ResizeObserver === "undefined") return;
     const viewport = viewportRef.current;
     const content = contentRef.current;
     if (!viewport || !content) return;
@@ -105,9 +106,9 @@ export function useThinkingScroll(open: boolean, hasBody: boolean, contentKey: s
     observer.observe(viewport);
     observer.observe(content);
     return () => observer.disconnect();
-  }, [open, hasBody, live, pinToBottomSync, syncEdges]);
+  }, [open, hasContent, live, pinToBottomSync, syncEdges]);
 
-  // 流式高频更新期间用户向上滚轮时立即解除贴底，避免与用户抢滚动条。
+  // 高频更新期间用户向上滚轮时立即解除贴底，避免与用户抢滚动条。
   const handleWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
     if (event.deltaY < 0) followBottomRef.current = false;
   }, []);
@@ -125,7 +126,7 @@ export function useThinkingScroll(open: boolean, hasBody: boolean, contentKey: s
     const previousTop = Math.min(lastScrollTopRef.current, maxScrollTop);
     lastScrollTopRef.current = top;
     if (Math.abs(top - previousTop) < 1) return;
-    followBottomRef.current = resolveThinkingFollowBottom(followBottomRef.current, previousTop, top, maxScrollTop);
+    followBottomRef.current = resolveBoundedScrollFollow(followBottomRef.current, previousTop, top, maxScrollTop);
   }, [syncEdges]);
 
   return {

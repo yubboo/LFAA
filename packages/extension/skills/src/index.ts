@@ -1,4 +1,5 @@
 // @lfaa/skills Host 侧 Cordis 服务：统一暴露技能发现、Git 安装、编辑、二创、启停与 Agent 按需加载工具。
+import { dirname } from "node:path";
 import { type Context, Service } from "@deepseek-ai/cordis";
 import "@lfaa/tools";
 import type { PluginSkillDefinition, SaveSkillInput, SkillDetail, SkillSummary } from "../contract/index";
@@ -59,14 +60,18 @@ export class SkillsService extends Service {
             execute: async (args, execCtx) => {
               const key = typeof args.idOrName === "string" ? args.idOrName.trim() : "";
               const all = await this.listSkills({ projectRoots: execCtx.workspaceRoots, includeDisabled: false });
-              const matched = all.find((s) => s.id === key || s.name === key);
+              const matched = all.find((s) => s.id === key || s.name === key || s.id === `builtin:${key}`);
               if (!matched) {
                 return { ok: false, output: `未找到已启用的技能：${key}`, summary: `未找到技能 ${key}` };
               }
               const detail = await this.getSkillDetail(matched.id, execCtx.workspaceRoots);
+              const skillDir = detail?.filePath ? dirname(detail.filePath) : "";
+              const header = skillDir
+                ? `<!-- 技能目录：${skillDir}（若正文引用了相对路径的 references/、reference/、examples/、scripts/ 等附属文件，可用 read_file 基于该目录读取） -->\n\n`
+                : "";
               return {
                 ok: true,
-                output: detail?.content ?? "",
+                output: `${header}${detail?.content ?? ""}`,
                 summary: `已加载技能 ${matched.name} (${matched.source})`,
               };
             },

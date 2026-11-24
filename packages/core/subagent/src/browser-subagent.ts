@@ -3,12 +3,14 @@ import type { Context } from "@deepseek-ai/cordis";
 
 const BROWSER_STEP_LABELS: Record<string, string> = {
   browser_navigate: "打开网页",
+  browser_snapshot: "定位页面元素",
   browser_tabs: "管理标签页",
   browser_click: "点击元素",
   browser_hover: "悬停元素",
   browser_type: "输入内容",
   browser_press_key: "发送按键",
   browser_scroll: "滚动页面",
+  browser_set_viewport: "切换设备视口",
   browser_screenshot: "截取页面画面",
   browser_visual_check: "视觉截图验收",
   browser_evaluate: "页面脚本核查",
@@ -19,7 +21,7 @@ const BROWSER_STEP_LABELS: Record<string, string> = {
 
 /** 判定工具是否属于浏览器专属子智能体允许调用的隔离集合。 */
 export function isBrowserSubagentTool(name: string): boolean {
-  return name.startsWith("browser_") || name === "read_image";
+  return (name.startsWith("browser_") && name !== "browser_present") || name === "read_image";
 }
 
 /** 将工具名转为面向用户思维链卡片的可读动作名。 */
@@ -42,16 +44,15 @@ export async function detectBrowserLabel(ctx: Context): Promise<string> {
   }
 }
 
-/** 构造浏览器专属子智能体的聚焦指令，约束其闭环实测并回传精简结构化结论。 */
+/** 构造浏览器专属子智能体的聚焦指令，约束其按清单定向实测、禁止盲扫并在步数预算内快速回传结构化结论。 */
 export function buildBrowserSubagentPrompt(role: string, prompt: string, browserLabel: string): string {
   return [
     `[专属浏览器子智能体：${role} · 运行环境：${browserLabel}]`,
-    "你专门负责替主 Agent 操控右侧工作台的浏览器完成网页浏览、交互实测与视觉验收，严禁编造未验证的结果：",
-    "1. 先使用 browser_navigate（需要对照多页面时用 browser_tabs 新建/切换标签）打开目标地址；",
-    "2. 按任务要求执行真实的点击、输入、滚动或按键交互，并检查 browser_console 与 browser_network 确认是否存在报错或失败请求；",
-    "3. 调用 browser_screenshot 与 browser_visual_check（传入验收要点 requirements）核对页面视觉表现；若当前模型不支持看图，立即改用 browser_evaluate 读取关键元素的尺寸、样式与运行状态，不要重复失败的看图调用；",
-    "4. 若遇到用户已手动接管浏览器暂停自动化，立即如实汇报并停止继续操作；",
-    "5. 完成后向主 Agent 返回简明结构化报告：访问 URL、已执行操作、控制台/网络异常数、视觉或 DOM 验收结论（PASS / NEEDS_FIX）以及发现的具体问题列表。",
+    "步数预算：默认最多 15 步，力争 6–10 步内高效完成。只完成下方委派的检查项，绝不擅自扩大范围。",
+    "1. 定位页面：先用 browser_tabs(list) 确认活动标签，仅在目标页未打开时调一次 browser_navigate。若任务只是打开/定位页面，到达后立即返回。",
+    "2. 真人交互：先调一次 browser_snapshot 拿元素 ref，再按清单真实调用 browser_click、browser_type、browser_scroll、browser_press_key 验证核心交互，并尽量填写 target（用户认得的控件/区域名）。严禁用 browser_evaluate 修改 scrollTop / window.scrollTo 逐屏盲扫或模拟点击。",
+    "3. 精简取证：视觉核查直接调用 browser_visual_check（内部已自动截图，严禁先调 browser_screenshot 再调 browser_visual_check 双重截图），整轮视觉抽检控制在 1–3 次关键区域；控制台和网络检查各最多 1 次。",
+    "4. 立即收口：委派清单测完、发现明确需修复的缺陷、遇到用户接管或连续 2 步无新证据时立即返回。按「清单结论（通过/需修复/未验证）→ 实际操作与观察 → 具体缺陷位置与复现」精简汇报。",
     "",
     `任务目标：\n${prompt}`,
   ].join("\n");

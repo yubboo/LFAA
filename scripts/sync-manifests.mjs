@@ -82,7 +82,8 @@ for (const pkgDir of discover()) {
     files,
     publishConfig: { access: "public" },
     repository: { type: "git", url: REPO_URL, directory: relDir },
-    scripts: { typecheck: "tsc -b ." },
+    // 保留包自己声明的脚本（如带用例的包用 `test` 指向统一测试入口），只补齐 typecheck，避免同步时抹掉。
+    scripts: { ...manifest.scripts, typecheck: "tsc -b ." },
   };
   delete next.private;
 

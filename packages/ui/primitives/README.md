@@ -74,3 +74,13 @@ Every settings page is a configuration list, not a layout showcase, so the shell
 | `SettingDangerGroup` | Delete / clear / reset actions, always last on the page and coloured with the danger tokens. |
 
 `settingsStyles` merges the layout layer (`SettingsSurface.module.css`) and the control layer (`SettingsControls.module.css`), so pages still import a single class map for inputs, buttons and read-only values.
+
+## Base UI Primitives
+
+Headless `@base-ui/react` primitives wrapped with CSS Modules and `@lfaa/ui-theme` semantic tokens (zero Tailwind):
+
+- `DropdownMenu` (`DropdownMenuItem`, `DropdownMenuCheckboxItem`, `DropdownMenuSeparator`): viewport-aware popup menu with keyboard navigation and focus restoration.
+- `UiSwitch`: accessible tactile toggle switch.
+- `UiSelect`: keyboard-navigable dropdown select with collision-aware positioning.
+- `UiTabs`: segmented tab list with smooth indicator and arrow-key navigation.
+- `UiTooltip`: hover-debounced tooltip with automatic placement.

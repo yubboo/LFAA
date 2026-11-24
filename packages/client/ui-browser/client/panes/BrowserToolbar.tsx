@@ -1,10 +1,16 @@
-// 内置浏览器工具栏：前进/后退/刷新、网址输入、视口预设、DevTools 开关与人工接管/附带页面操作。
+// 内置浏览器工具栏：精简为导航、地址栏、接管开关与「更多（...）」菜单（基于 @lfaa/ui-primitives 的 Base UI DropdownMenu）。
 import type { FormEvent, RefObject } from "react";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@lfaa/ui-primitives/client";
 import {
   IconArrowLeft,
   IconArrowRight,
   IconDeviceDesktop,
-  IconDeviceMobile,
+  IconDots,
   IconExternalLink,
   IconHandStop,
   IconLayoutColumns,
@@ -17,16 +23,15 @@ import {
 import type { BrowserSessionSnapshot } from "../api/browser-client";
 import styles from "./RightBrowserPane.module.css";
 
-export type ViewportPreset = "auto" | "desktop" | "mobile";
-
 export function BrowserToolbar({
   isZh,
   snap,
   navigating,
   urlInput,
   urlInputRef,
-  preset,
-  onSelectPreset,
+  deviceBarOpen,
+  onToggleDeviceBar,
+  onResetFullFill,
   userControl,
   devtoolsOpen,
   onToggleDevtools,
@@ -43,8 +48,9 @@ export function BrowserToolbar({
   navigating: boolean;
   urlInput: string;
   urlInputRef: RefObject<HTMLInputElement | null>;
-  preset: ViewportPreset;
-  onSelectPreset: (preset: ViewportPreset) => void;
+  deviceBarOpen: boolean;
+  onToggleDeviceBar: () => void;
+  onResetFullFill: () => void;
   /** 仅用户手动点击「接管」后才解锁地址栏与导航控制，防止误触打断 Agent。 */
   userControl: boolean;
   devtoolsOpen: boolean;
@@ -128,65 +134,67 @@ export function BrowserToolbar({
       <div className={styles.toolGroup}>
         <button
           type="button"
-          className={`${styles.navBtn} ${preset === "auto" ? styles.navBtnActive : ""}`}
-          title={isZh ? "视口自适应面板宽高" : "Responsive viewport"}
-          onClick={() => onSelectPreset("auto")}
-        >
-          <IconLayoutColumns size={14} />
-        </button>
-        <button
-          type="button"
-          className={`${styles.navBtn} ${preset === "desktop" ? styles.navBtnActive : ""}`}
-          title={isZh ? "桌面视口 (1280×800)" : "Desktop viewport"}
-          onClick={() => onSelectPreset("desktop")}
-        >
-          <IconDeviceDesktop size={14} />
-        </button>
-        <button
-          type="button"
-          className={`${styles.navBtn} ${preset === "mobile" ? styles.navBtnActive : ""}`}
-          title={isZh ? "手机视口 (390×844)" : "Mobile viewport"}
-          onClick={() => onSelectPreset("mobile")}
-        >
-          <IconDeviceMobile size={14} />
-        </button>
-        <button
-          type="button"
-          className={`${styles.navBtn} ${devtoolsOpen ? styles.navBtnActive : ""}`}
-          title={isZh ? "控制台与网络检查" : "Console & Network"}
-          onClick={onToggleDevtools}
-        >
-          <IconTerminal2 size={14} />
-          {(snap?.errorCount ?? 0) > 0 && <span className={styles.badgeDot} />}
-        </button>
-        <button
-          type="button"
           className={`${styles.pillBtn} ${snap?.takeoverPaused ? styles.pillBtnActive : ""}`}
           disabled={!snap?.active}
-          title={isZh ? "开启后暂停 Agent 自动操作，改为人工接管" : "Toggle human takeover"}
+          title={snap?.takeoverPaused
+            ? (isZh ? "结束人工接管，恢复 Agent 自动协同" : "Resume Agent control")
+            : (isZh ? "暂停 Agent 浏览器动作，由你亲自操作当前页面" : "Pause Agent and take over manually")}
           onClick={() => onToggleTakeover(!snap?.takeoverPaused)}
         >
           {snap?.takeoverPaused ? <IconPlayerPlay size={13} /> : <IconHandStop size={13} />}
-          <span>{snap?.takeoverPaused ? (isZh ? "恢复" : "Resume") : (isZh ? "接管" : "Takeover")}</span>
+          <span>{snap?.takeoverPaused ? (isZh ? "交还" : "Resume") : (isZh ? "接管" : "Takeover")}</span>
         </button>
-        <button
-          type="button"
-          className={styles.navBtn}
-          title={isZh ? "弹出桌面有头 Edge 窗口人工操作" : "Open visible desktop browser"}
-          onClick={() => onToggleTakeover(true, true)}
+
+        <DropdownMenu
+          align="end"
+          side="bottom"
+          sideOffset={6}
+          trigger={
+            <button
+              type="button"
+              className={`${styles.navBtn} ${deviceBarOpen ? styles.navBtnActive : ""}`}
+              title={isZh ? "更多浏览器选项" : "More browser options"}
+              aria-label={isZh ? "更多浏览器选项" : "More browser options"}
+            >
+              <IconDots size={15} />
+              {(snap?.errorCount ?? 0) > 0 && <span className={styles.badgeDot} />}
+            </button>
+          }
         >
-          <IconExternalLink size={14} />
-        </button>
-        {onAttachPage && snap?.active && (
-          <button
-            type="button"
-            className={styles.navBtn}
-            title={isZh ? "附带当前页面到对话" : "Attach page to chat"}
-            onClick={() => onAttachPage(snap)}
-          >
-            <IconMessagePlus size={14} />
-          </button>
-        )}
+          <DropdownMenuCheckboxItem
+            icon={<IconLayoutColumns size={14} />}
+            label={isZh ? "设备工具栏（响应式）" : "Device toolbar (Responsive)"}
+            checked={deviceBarOpen}
+            onCheckedChange={() => onToggleDeviceBar()}
+          />
+          <DropdownMenuCheckboxItem
+            icon={<IconDeviceDesktop size={14} />}
+            label={isZh ? "电脑铺满显示" : "Fill viewport"}
+            checked={!deviceBarOpen}
+            onCheckedChange={() => onResetFullFill()}
+          />
+          <DropdownMenuSeparator />
+          <DropdownMenuCheckboxItem
+            icon={<IconTerminal2 size={14} />}
+            label={`${isZh ? "控制台与网络" : "Console & Network"}${(snap?.errorCount ?? 0) > 0 ? ` (${snap?.errorCount})` : ""}`}
+            checked={devtoolsOpen}
+            onCheckedChange={() => onToggleDevtools()}
+          />
+          {snap?.url && /^https?:\/\//iu.test(snap.url) && (
+            <DropdownMenuItem
+              icon={<IconExternalLink size={14} />}
+              label={isZh ? "在新窗口打开" : "Open in new window"}
+              onClick={() => window.open(snap.url, "_blank", "noopener,noreferrer")}
+            />
+          )}
+          {snap?.active && onAttachPage && (
+            <DropdownMenuItem
+              icon={<IconMessagePlus size={14} />}
+              label={isZh ? "附带当前页面到对话" : "Attach page to chat"}
+              onClick={() => onAttachPage(snap)}
+            />
+          )}
+        </DropdownMenu>
       </div>
     </div>
   );

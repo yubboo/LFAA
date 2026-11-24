@@ -91,7 +91,7 @@ export class ChatClientStore extends ChatDataFacade {
     refreshGoal: (sessionId) => this.sessionActions.loadGoal(sessionId),
     startNewChatDraft: (options) => this.sessionActions.startNewChatDraft(options),
     sendMessage: (text, skillIds) => this.runActions.sendMessage(text, skillIds),
-    applyAgentStepWorkbenchAction: (sessionId, messageId, step) => this.applyAgentStepWorkbenchAction(sessionId, messageId, step),
+    applyAgentStepWorkbenchAction: (sessionId, messageId, step, previousStep) => this.applyAgentStepWorkbenchAction(sessionId, messageId, step, previousStep),
   };
   /** 本轮用户手动收起右栏时暂停自动展开，直到下一轮开始或切会话恢复。 */
   private autopilotPausedForRun = false;
@@ -176,17 +176,19 @@ export class ChatClientStore extends ChatDataFacade {
     if (this.state.runningRunId) this.autopilotPausedForRun = true;
   }
 
-  private applyAgentStepWorkbenchAction(sessionId: string, messageId: string, step: AgentStepItem): void {
+  private applyAgentStepWorkbenchAction(sessionId: string, messageId: string, step: AgentStepItem, previousStep?: AgentStepItem): void {
     if (sessionId !== this.state.activeSessionId) return;
-    if (!this.state.followAgentWorkbench || this.autopilotPausedForRun) return;
     if (typeof window !== "undefined" && (window as unknown as { __LFAA_EMBEDDED_BROWSER__?: boolean }).__LFAA_EMBEDDED_BROWSER__ === true) {
       return;
     }
     const action = resolveAgentWorkbenchAction(step, {
       messageId,
       browserActiveInRun: this.browserActiveInRun,
+      previousStep,
     });
     if (!action) return;
+    if (!(action.kind === "browser" && action.explicit)
+      && (!this.state.followAgentWorkbench || this.autopilotPausedForRun)) return;
     if (action.kind === "browser") {
       this.browserActiveInRun = true;
       this.fileActions.requestRightPanel("browser", undefined, {
@@ -265,8 +267,8 @@ export class ChatClientStore extends ChatDataFacade {
     this.fileActions.consumeComposerInsert();
   }
 
-  requestRightPanel(tab: string, url?: string): void {
-    this.fileActions.requestRightPanel(tab, url);
+  requestRightPanel(tab: string, url?: string, options?: Parameters<ChatFileActions["requestRightPanel"]>[2]): void {
+    this.fileActions.requestRightPanel(tab, url, options);
   }
 
   closeFilePreview(id: string): void {

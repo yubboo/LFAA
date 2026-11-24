@@ -67,7 +67,7 @@ Electron main（apps/desktop）
   ├─ spawn(process.execPath, [desktop-host/index.js, webRoot, projectRoot], { ELECTRON_RUN_AS_NODE: "1", ipc })
   │    └─ apps/desktop-host（Node 模式）
   │         ├─ startHostServer({ webRoot, projectRoot })
-  │         │    ├─ 127.0.0.1:0 随机端口（只监听本机）
+  │         │    ├─ 127.0.0.1:5173 固定端口（只监听本机；菜单 3 启动前结束占用该端口的进程）
   │         │    ├─ 生成一次性 token → 注入 index.html 的 <meta name="lfaa-api-token">
   │         │    └─ /api 请求先 checkApiAuth 再 checkApiWriteContentType，与 dev 完全一致
   │         └─ IPC：{type:"ready",url,port} / {type:"fatal"} / {type:"shutdown-complete"}
@@ -140,7 +140,7 @@ export interface HostServerOptions {
   webRoot: string;
   projectRoot: string;
   host?: string; // 默认 127.0.0.1
-  port?: number; // 默认 0（随机空闲端口）
+  port?: number; // 默认 0（随机空闲端口）；桌面端固定传 5173
 }
 export interface HostServer {
   url: string;
@@ -295,7 +295,7 @@ P1 是 A1 重构（会移动 `packages/host/web-server` 内部代码），P2 新
 - `packages/host/web-server` 测试 7/7 通过；`pnpm test` 全量 386 项通过。
 - Web 回归：`pnpm lfaa web` 起在 `127.0.0.1:5173`，页面注入令牌；`/api/workspace/sections` 无令牌 401、带令牌 200 JSON。
 - 桌面端：`pnpm desktop` 打开真实窗口（标题「LFAA 工作区」），四栏 Shell 与输入框正常，**深色 / 浅色双主题**均无横向溢出；通过 CDP 采集，`Runtime.exceptionThrown` 0、`console.error` 0、失败请求 0。
-- 生产宿主：桌面窗口加载 `http://127.0.0.1:<随机端口>/`，令牌注入正常；`/api/workspace/sections` 401/200、未知 `/api` 返回 JSON 404、页面路径 SPA 回退 200。
+- 生产宿主：桌面窗口加载 `http://127.0.0.1:5173/`（固定端口），令牌注入正常；`/api/workspace/sections` 401/200、未知 `/api` 返回 JSON 404、页面路径 SPA 回退 200。
 - **宿主独立进程**：打包态 `LFAA.exe` 的子进程运行 `<app>/desktop-host/index.js` 并独占监听端口；对窗口发送 `WM_CLOSE` 后，壳与宿主进程全部退出、端口释放（dev 态同样验证）。
 - 打包：`pnpm build:desktop` 产出 `LFAA-0.1.0-setup.exe`（约 130MB）与 `win-unpacked/`；staging 自检通过（68 个依赖包、无符号链接、无 vite）。
 - **自包含**：把 `win-unpacked/` 复制到仓库外临时目录后启动，窗口与接口均正常（页面标题「LFAA 工作区」、`/api/workspace/sections` 200），证明不依赖仓库路径。

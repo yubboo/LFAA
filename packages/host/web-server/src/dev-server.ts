@@ -12,6 +12,8 @@ export interface WebServerOptions {
   webRoot: string;
   /** 用户工作根；不传则按 webRoot 向上探测（保持既有行为）。 */
   projectRoot?: string;
+  /** 启动完成后用系统默认浏览器打开开发地址；缺省关闭，避免后台任务/探针弹窗。 */
+  open?: boolean;
 }
 
 /** 启动 Web 开发服务器，返回幂等关闭函数。 */
@@ -22,7 +24,7 @@ export async function startWeb(options: WebServerOptions): Promise<() => Promise
 
   let server: ViteDevServer;
   try {
-    server = await createViteServer(appRoot, runtime.token, runtime.gateway);
+    server = await createViteServer(appRoot, runtime.token, runtime.gateway, options.open === true);
     await server.listen();
     server.printUrls();
   } catch (error) {
@@ -40,11 +42,13 @@ export async function startWeb(options: WebServerOptions): Promise<() => Promise
 }
 
 /** 创建 Vite 服务器并挂载鉴权、内容类型校验与网关派发。 */
-async function createViteServer(appRoot: string, apiToken: string, gateway: ApiGateway): Promise<ViteDevServer> {
+async function createViteServer(appRoot: string, apiToken: string, gateway: ApiGateway, open: boolean): Promise<ViteDevServer> {
   const { createServer } = await import("vite");
   return createServer({
     root: appRoot,
     configFile: resolve(appRoot, "vite.config.ts"),
+    // 交给 Vite 打开浏览器：它按本次真实监听地址（端口被占用时会自动顺延）打开，避免写死 5173。
+    server: { open },
     plugins: [
       {
         name: "lfaa-api-token",

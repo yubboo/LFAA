@@ -3,7 +3,7 @@
 .frame {
   position: relative;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--pv-fg) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pv-fg) 12%, transparent);
   border-radius: 0.9rem;
   background: var(--pv-bg);
   color: var(--pv-fg);
@@ -11,16 +11,18 @@
 }
 
 .panel {
-  /* 固定高度区间而不是死守 16:9：预览是页面配角，不能把下方主题网格挤出屏幕。 */
-  height: clamp(9.5rem, 19vh, 13.5rem);
+  /* 精致紧凑的预览舞台：呈现真实工作台层次，同时把首屏空间留给下方的分轴主题选择。 */
+  height: clamp(8.5rem, 16.5vh, 11.2rem);
   width: 100%;
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.06);
 }
 
-/* 缩略图：去掉外描边重量，让内容自己说话。 */
+/* 缩略图：外框与阴影交给 ThemeGallery .thumb 统一管理，避免双层描边。 */
 .tile {
   aspect-ratio: 16 / 10;
   width: 100%;
-  border-radius: 0.7rem;
+  border: 0;
+  border-radius: 0;
 }
 
 /* 「跟随系统」：左右各半，中间一条细分隔线。 */

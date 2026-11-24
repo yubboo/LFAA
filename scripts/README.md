@@ -2,8 +2,8 @@
 
 此目录只放仓库级维护与启动辅助脚本。
 
-- `lfaa.ps1`：Windows 菜单，供根目录 `lfaa.bat` 调用；选择 `0` 退出菜单时会保留当前终端窗口（双击独立启动时停留在工作区命令行，已有终端内启动则返回原提示符）。菜单顶部显示「分支 · 是否已同步 · 未提交改动数」，按【依赖与运行】【桌面端】【GitHub 同步】【退出】分组；推送（`4`/`5`）前显示「当前 HEAD」并列出待推送提交，本地已与 `origin/main` 同步时直接提示，不做空推送。远程地址固定为 GitHub 的规范名 `https://github.com/yubboo/LFAA.git`（仓库名大写），运行时会把 `origin` 同步改写成该地址，避免每次推送收到 `repository moved` 提示。
-- `ensure-dependencies.mjs`：核对 pnpm workspace、lockfile 与已安装依赖（兼容仓库目录或盘符迁移，并忽略仓库与 pnpm 副本间 CRLF/LF 换行差异）；有差异时优先离线复用本地缓存（`--offline`），仅在本地缺少新依赖时才回退 `--prefer-offline` 增量下载缺失包，并拒绝自动确认清空 `node_modules`。换行兼容回归测试：`node --test scripts/ensure-dependencies.test.mjs`。
+- `lfaa.ps1`：Windows 菜单，供根目录 `lfaa.bat` 调用；选择 `0` 退出菜单时会保留当前终端窗口（双击独立启动时停留在工作区命令行，已有终端内启动则返回原提示符）。菜单顶部显示「分支 · 是否已同步 · 未提交改动数」，按【依赖与运行】【桌面端】【GitHub 同步】【退出】分组；菜单 `1` 直接执行 `pnpm install` 一键下载依赖，菜单 `2` 先做依赖预检（缺才补装，不重下已装依赖）再以 `pnpm lfaa web --open` 启动，Vite 监听成功后自动打开默认浏览器；菜单 `3` 先结束旧桌面端与占用 `5173` 的进程，再以固定端口 `5173` 重启桌面端；推送（`4`/`5`）前显示「当前 HEAD」并列出待推送提交，本地已与 `origin/main` 同步时直接提示，不做空推送。远程地址固定为 GitHub 的规范名 `https://github.com/yubboo/LFAA.git`（仓库名大写），运行时会把 `origin` 同步改写成该地址，避免每次推送收到 `repository moved` 提示。
+- `ensure-dependencies.mjs`：核对 pnpm workspace、lockfile 与已安装依赖（兼容仓库目录或盘符迁移，并忽略仓库与 pnpm 副本间 CRLF/LF 换行差异）；缺依赖时用 `pnpm install --prefer-offline` 只下载本地缓存里还没有的包，已下载的直接复用；根工程或工作区工程缺少依赖链接时，先清掉对应 `node_modules` 再让 pnpm 重建（pnpm 认为「已是最新」时不会补建被删的链接，`--force` 也不补）。首次运行没有 `node_modules` 时直接给出可读原因，读不到 pnpm 状态文件不再抛 ENOENT。换行兼容回归测试：`node --test scripts/ensure-dependencies.test.mjs`。
 - `sync-tsconfig.mjs`：按 DSH 模型生成 `tsconfig.base.json`（含 `@lfaa/*` paths 门面）、`tsconfig.json`（兼容壳）、`tsconfig.host.json`（聚合工程）与 27 个包的 `tsconfig.json`。新增或删除包后重跑。
 - `sync-manifests.mjs`：写入各包 `main` / `types` / `exports` / `files` / `publishConfig` / `repository`，并移除 `private`。出口形状固定为 `types → lib/types/index.d.ts`、`default → lib/index.js`、`"./src/*": "./src/*"`。
 - `build.mjs`：完整构建。清空各包 `lib` → `tsc -b tsconfig.host.json` 产出 `lib/types` → `tsdown` 打包出 `lib/index.js` → 校验产物 → 构建 Web 产物。对应 `pnpm build`；分段可用 `pnpm build:lib` / `pnpm build:bundle` / `pnpm build:web`。
@@ -48,4 +48,4 @@ tsconfig paths 门面          →  开发/测试/编辑器解析到 src
 - `lib/` 已被 `.gitignore` 忽略。
 - 浏览器侧 `./client` 仍指向源码，等待 `client-modules` 立项后改为产物。
 
-菜单选项 `1` 使用 `pnpm install --prefer-offline` 复用本地已下载缓存并补齐缺失依赖；选项 `2` 预检通过后执行 `pnpm lfaa web`，由 `apps/cli` 启动 Web 开发服务器；选项 `4` 一键初始化/关联 `https://github.com/yubboo/LFAA.git` 并推送当前工作区到 `main` 分支，选项 `5` 执行强制推送（`git push --force`），两者提交前均会提示上次 commit 信息、支持输入自定义 commit 信息并在提交与推送前自动拦截大文件（>5MB）、依赖构建产物及敏感凭据/明文密钥；选项 `6` 从 `origin/main` 拉取最新源码到本地（拉取前显示远程最新 commit 信息并支持 `[Y/n]` 回车默认确认），同时安全处理未提交改动与历史分叉。
+菜单选项 `1` 直接执行 `pnpm install` 一键下载依赖（pnpm 只下载本地缓存里没有的包）；选项 `2` 先做依赖预检（首次运行或缺依赖时才补装）与产物构建，再执行 `pnpm lfaa web --open`，Vite 监听成功后自动打开默认浏览器；选项 `3` 会先结束已在运行的 LFAA 桌面端和占用 `5173` 的进程，再让桌面宿主固定监听 `127.0.0.1:5173`（Web 与桌面端共用该端口，同一时间只跑一个入口）；选项 `4` 一键初始化/关联 `https://github.com/yubboo/LFAA.git` 并推送当前工作区到 `main` 分支，选项 `5` 执行强制推送（`git push --force`），两者提交前均会提示上次 commit 信息、支持输入自定义 commit 信息并在提交与推送前自动拦截大文件（>5MB）、依赖构建产物及敏感凭据/明文密钥；选项 `6` 从 `origin/main` 拉取最新源码到本地（拉取前显示远程最新 commit 信息并支持 `[Y/n]` 回车默认确认），同时安全处理未提交改动与历史分叉。

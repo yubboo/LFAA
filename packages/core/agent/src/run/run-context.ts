@@ -27,9 +27,11 @@ export interface RunContext {
   readonly contextBudgetChars: number;
   readonly tracker: RunUsageTracker;
   readonly roundLimits: Awaited<ReturnType<typeof resolveModelContext>>["roundLimits"];
-  /** 记录模型输出截断提示；下一轮渲染系统消息时生效。 */
+  /** 记录模型输出截断提示；下一轮作为尾部动态提示注入，不改写首条 system 前缀。 */
   setTruncationHint(hint: string): void;
-  /** 按最新状态重渲染系统消息；remainingSteps 用于写入剩余步数提示。 */
+  /** 仅返回本轮新增的动态尾部提示（权限变化、浏览器接管状态、预算告警或截断提示），确保首条 system 前缀全程冻结以保住 KV Cache。 */
+  consumeTailHint(remainingSteps?: number): string;
+  /** 兼容保留：首条 system 消息已在初始化时冻结，本方法不再改写前缀。 */
   updateSystemMessage(remainingSteps?: number): void;
 }
 
@@ -68,18 +70,59 @@ export async function createRunContext(input: {
   const shellHint = deps.tools.getTool("run_command") ? await deps.tools.describeCommandShell() : "";
   const baseExtraHint = [deps.extraSystemPrompt ? (await deps.extraSystemPrompt()).trim() : "", buildMediaHint(deps.tools)]
     .filter(Boolean).join("\n\n");
-  const systemMessage: LlmMessage = { role: "system", content: "" };
-  let truncationHint = "";
-  const updateSystemMessage = (remainingSteps?: number) => {
-    const liveHint = deps.dynamicSystemHint?.().trim() ?? "";
-    const extraSystemHint = [baseExtraHint, liveHint].filter(Boolean).join("\n\n");
-    systemMessage.content = renderSystemContent({
-      systemPrompt, permissionHint: MODE_HINTS[params.getPermissionMode()], workspaceHint, modelHint, shellHint,
-      libraryHint, progressHint: `${FORMAT_HINT}\n${buildProgressHint(deps, params)}`,
-      skillsCatalogHint: buildSkillsCatalogHint(params.availableSkillCatalog), skillsSection,
-      historyDigest, ...(remainingSteps !== undefined ? { remainingSteps } : {}), truncationHint, extraSystemHint,
-    });
+  const initialMode = params.getPermissionMode();
+  const initialLiveHint = deps.dynamicSystemHint?.().trim() ?? "";
+  const initialExtraHint = [baseExtraHint, initialLiveHint].filter(Boolean).join("\n\n");
+  // 首条 system 消息在运行开始时一次性冻结渲染，运行中绝不原地改写，最大限度保住大模型 KV Prompt Cache 前缀命中率。
+  const systemMessage: LlmMessage = {
+    role: "system",
+    content: renderSystemContent({
+      systemPrompt,
+      permissionHint: MODE_HINTS[initialMode],
+      workspaceHint,
+      modelHint,
+      shellHint,
+      libraryHint,
+      progressHint: `${FORMAT_HINT}\n${buildProgressHint(deps, params)}`,
+      skillsCatalogHint: buildSkillsCatalogHint(params.availableSkillCatalog),
+      skillsSection,
+      historyDigest,
+      truncationHint: "",
+      extraSystemHint: initialExtraHint,
+    }),
   };
+  let truncationHint = "";
+  let lastMode = initialMode;
+  let lastLiveHint = initialLiveHint;
+  let budgetStage = 0; // 0: 充足, 1: <=8 提醒过, 2: <=3 提醒过
+  const consumeTailHint = (remainingSteps?: number): string => {
+    const parts: string[] = [];
+    const currentMode = params.getPermissionMode();
+    if (currentMode !== lastMode) {
+      lastMode = currentMode;
+      parts.push(MODE_HINTS[currentMode]);
+    }
+    const currentLiveHint = deps.dynamicSystemHint?.().trim() ?? "";
+    if (currentLiveHint !== lastLiveHint) {
+      lastLiveHint = currentLiveHint;
+      if (currentLiveHint) parts.push(currentLiveHint);
+    }
+    if (remainingSteps !== undefined) {
+      if (remainingSteps <= 3 && budgetStage < 2) {
+        budgetStage = 2;
+        parts.push(`步数预算：本轮仅剩 ${remainingSteps} 次工具步数，请立即收口并交付当前已完成结果。`);
+      } else if (remainingSteps <= 8 && budgetStage < 1) {
+        budgetStage = 1;
+        parts.push(`步数预算：本轮仅剩 ${remainingSteps} 次工具步数，已接近上限。请合并剩余检查并尽快收口。`);
+      }
+    }
+    if (truncationHint) {
+      parts.push(truncationHint.trim());
+      truncationHint = "";
+    }
+    return parts.join("\n");
+  };
+  const updateSystemMessage = () => {};
 
   return {
     systemMessage,
@@ -88,6 +131,7 @@ export async function createRunContext(input: {
     tracker,
     roundLimits,
     setTruncationHint: (hint: string) => { truncationHint = hint; },
+    consumeTailHint,
     updateSystemMessage,
   };
 }

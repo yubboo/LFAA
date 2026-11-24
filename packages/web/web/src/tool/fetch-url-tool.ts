@@ -1,6 +1,7 @@
-// @lfaa/tool-web 插件入口：提供 fetch_url 工具，抓取公开网页并转成可读正文。
+// @lfaa/tool-web 插件入口：提供 web_search 全网搜索与 fetch_url 网页正文抓取两个轻量只读工具。
 import type { Plugin } from "@deepseek-ai/cordis";
 import "@lfaa/tools";
+import { formatSearchResults, searchWeb } from "./web-search-tool";
 
 /** 单次抓取允许的最大字节数，避免把整站拉进上下文。 */
 export const MAX_BYTES = 2_000_000;
@@ -83,38 +84,79 @@ export async function fetchUrl(raw: string): Promise<FetchOutcome> {
   }
 }
 
-/** 网页 fetch 插件：注册 fetch_url 工具，卸载时自动注销。 */
+/** 网页插件：注册 web_search 与 fetch_url 两个轻量工具，卸载时自动注销。 */
 const toolWebPlugin: Plugin.Object<void> = {
   name: "lfaa-tool-web",
   inject: ["tools"],
   apply(ctx) {
-    ctx.effect(() => ctx.tools.registerTool({
-      moduleName: "@lfaa/web",
-      name: "fetch_url",
-      title: "读取网页",
-      description: "抓取公开网页并返回可读正文，用于查阅文档、博客与在线资料。",
-      permissionLevel: "read",
-      parameters: {
-        type: "object",
-        properties: {
-          url: { type: "string", description: "要抓取的 http/https 地址" },
+    ctx.effect(() => {
+      const disposeSearch = ctx.tools.registerTool({
+        moduleName: "@lfaa/web",
+        name: "web_search",
+        title: "全网搜索",
+        description: "轻量免密钥全网搜索，返回标题、URL 与摘要；查文档、报错方案或最新信息时优先使用，再按需用 fetch_url 精读正文，无需启动完整浏览器。",
+        permissionLevel: "read",
+        parameters: {
+          type: "object",
+          properties: {
+            query: { type: "string", description: "搜索关键词" },
+            limit: { type: "number", description: "返回条数，默认 6，上限 10" },
+            site: { type: "string", description: "可选域名限定，如 github.com 或 react.dev" },
+          },
+          required: ["query"],
         },
-        required: ["url"],
-      },
-      execute: async (args) => {
-        const url = typeof args.url === "string" ? args.url.trim() : "";
-        if (!url) return { ok: false, output: "URL 不能为空。", summary: "参数无效" };
-        const result = await fetchUrl(url);
-        if (!result.ok) {
-          return { ok: false, output: result.error ?? "抓取失败。", summary: "抓取失败" };
-        }
-        return {
-          ok: true,
-          output: result.text ?? "",
-          summary: `已读取 ${result.title ?? url}`,
-        };
-      },
-    }));
+        execute: async (args, execCtx) => {
+          const query = typeof args.query === "string" ? args.query.trim() : "";
+          if (!query) return { ok: false, output: "搜索关键词不能为空。", summary: "参数无效" };
+          const limit = typeof args.limit === "number" ? args.limit : undefined;
+          const site = typeof args.site === "string" ? args.site : undefined;
+          const outcome = await searchWeb(query, {
+            ...(limit !== undefined ? { limit } : {}),
+            ...(site ? { site } : {}),
+            signal: execCtx.signal,
+          });
+          if (!outcome.ok && outcome.items.length === 0) {
+            return { ok: false, output: outcome.error ?? "搜索失败。", summary: "搜索失败" };
+          }
+          return {
+            ok: true,
+            output: formatSearchResults(query, outcome),
+            summary: `搜索「${query}」命中 ${outcome.items.length} 条`,
+          };
+        },
+      });
+      const disposeFetch = ctx.tools.registerTool({
+        moduleName: "@lfaa/web",
+        name: "fetch_url",
+        title: "读取网页",
+        description: "抓取公开网页并返回可读正文，用于查阅文档、博客与在线资料（配合 web_search 使用）。",
+        permissionLevel: "read",
+        parameters: {
+          type: "object",
+          properties: {
+            url: { type: "string", description: "要抓取的 http/https 地址" },
+          },
+          required: ["url"],
+        },
+        execute: async (args) => {
+          const url = typeof args.url === "string" ? args.url.trim() : "";
+          if (!url) return { ok: false, output: "URL 不能为空。", summary: "参数无效" };
+          const result = await fetchUrl(url);
+          if (!result.ok) {
+            return { ok: false, output: result.error ?? "抓取失败。", summary: "抓取失败" };
+          }
+          return {
+            ok: true,
+            output: result.text ?? "",
+            summary: `已读取 ${result.title ?? url}`,
+          };
+        },
+      });
+      return () => {
+        disposeSearch();
+        disposeFetch();
+      };
+    });
   },
 };
 

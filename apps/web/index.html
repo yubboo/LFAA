@@ -18,11 +18,13 @@
           green: "#10B981",
           yellow: "#EAB308",
           pink: "#E66AA8",
+          sakura: "#C9558A",
           orange: "#F97316",
           purple: "#8B5CF6",
           white: "#F5F5F4",
         };
-        const PRESET_GLASS = { liquidGlass: true, classic: false, softMist: true, midnightInk: true };
+        // 必须与 contract/index.ts 的 THEME_PRESETS 保持同步：漏登记会让新预设首屏回退成旧的偏色/玻璃标记。
+        const PRESET_GLASS = { liquidGlass: true, classic: false, softMist: true, midnightInk: true, sakura: true };
         const LEGACY_HEX = {
           "#EEF2EE": "#FFFFFF",
           "#1E221F": "#171717",

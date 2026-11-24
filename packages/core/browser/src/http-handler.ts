@@ -79,6 +79,19 @@ export function createBrowserHttpHandler(service: BrowserService) {
         return true;
       }
 
+      if (method === "GET" && pathname === "/api/browser/evidence") {
+        const evidence = service.getEvidence(sessionId, urlObj.searchParams.get("id") ?? "");
+        res.setHeader("Cache-Control", "private, no-store");
+        if (!evidence) {
+          sendJson(res, 404, { error: "截图已失效或不属于当前会话。" });
+          return true;
+        }
+        res.setHeader("Content-Type", evidence.mime);
+        res.setHeader("X-Content-Type-Options", "nosniff");
+        res.end(evidence.data);
+        return true;
+      }
+
       if (method === "GET" && pathname === "/api/browser/stream") {
         const dprRaw = Number(urlObj.searchParams.get("dpr"));
         const themeRaw = urlObj.searchParams.get("theme");

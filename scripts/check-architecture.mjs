@@ -10,8 +10,8 @@ const rootArgIndex = process.argv.indexOf("--root");
 const ROOT = rootArgIndex >= 0 && process.argv[rootArgIndex + 1] ? resolve(process.argv[rootArgIndex + 1]) : DEFAULT_ROOT;
 const RULES_PATH = join(ROOT, "docs", "architecture", "dependency-rules.json");
 
-// 构建产物、依赖与上游内嵌源码不参与本仓结构判定。
-const SKIP_DIRS = new Set(["node_modules", "lib", "dist", ".git", ".desktop-build", "data", "vendor", ".mcdev", "shots", "coverage"]);
+// 构建产物、依赖与上游内嵌源码/内置技能资产不参与本仓结构判定。
+const SKIP_DIRS = new Set(["node_modules", "lib", "dist", ".git", ".desktop-build", "data", "vendor", ".mcdev", "shots", "coverage", "builtin-skills"]);
 const SOURCE_EXT = /\.(?:ts|tsx|mts|cts|js|mjs|cjs)$/u;
 // BOM 只查「人写的源码与配置」，二进制与构建信息不查。
 const BOM_EXT = /\.(?:ts|tsx|mts|cts|js|mjs|cjs|css|json|md|yml|yaml|html|bat|ps1)$/u;

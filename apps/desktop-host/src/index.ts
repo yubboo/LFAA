@@ -8,6 +8,18 @@ interface ShutdownMessage {
   readonly type: "shutdown";
 }
 
+/**
+ * 桌面端本机宿主端口：默认由操作系统自动分配本机空闲端口（port: 0），
+ * 彻底与开发态 Web 5173 隔离，避免互相抢占或重启 Web 时误杀桌面端宿主；
+ * 如需排查固定端口，可通过环境变量 LFAA_DESKTOP_PORT 指定。
+ */
+function resolveDesktopHostPort(): number {
+  const raw = process.env.LFAA_DESKTOP_PORT?.trim();
+  if (!raw) return 0;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isInteger(parsed) && parsed > 0 && parsed <= 65535 ? parsed : 0;
+}
+
 let server: HostServer | null = null;
 let stopping: Promise<void> | undefined;
 
@@ -45,7 +57,16 @@ async function main(): Promise<void> {
   const webRoot = process.argv[2];
   const projectRoot = process.argv[3];
   if (!webRoot || !projectRoot) throw new Error("缺少 webRoot / projectRoot 参数。");
-  server = await startHostServer({ webRoot, projectRoot });
+  const port = resolveDesktopHostPort();
+  try {
+    // 默认分配独立空闲端口，不与开发态 Web 5173 冲突；显式指定端口被占用时给出清晰提示。
+    server = await startHostServer({ webRoot, projectRoot, port });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EADDRINUSE") {
+      throw new Error(`桌面端指定端口 ${port} 已被其他程序占用。请更换 LFAA_DESKTOP_PORT 或关闭占用程序后重试。`, { cause: error });
+    }
+    throw error;
+  }
   send({ type: "ready", url: server.url, port: server.port });
 }
 

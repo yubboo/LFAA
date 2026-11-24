@@ -14,8 +14,21 @@ import {
 
 const SUBAGENT_BLOCKED_TOOLS = new Set(["invoke_subagent", "message_subagent", "list_subagents", "stop_subagent"]);
 const DEFAULT_MAX_CONCURRENT = 4;
-// 子智能体默认 40 步硬上限：足够覆盖多文件调研与改造，但不参与主任务的自动延长。
+// 子智能体默认 40 步硬上限；浏览器模式收紧为 15 步，强制按清单定向验证而非逐屏盲扫。
 const DEFAULT_MAX_STEPS = 40;
+const BROWSER_DEFAULT_MAX_STEPS = 15;
+
+/** 从子智能体思考详情中提取最近一句可读摘要，供前端实时展示思考方向。 */
+function summarizeSubagentThought(detail: string | undefined): string {
+  const lines = (detail ?? "")
+    .split(/\r?\n/u)
+    .map((line) => line.replace(/^[-*#>\s]+/u, "").trim())
+    .filter((line) => line.length >= 4);
+  const latest = lines.at(-1);
+  if (!latest) return "思考中";
+  const compact = latest.replace(/\s+/gu, " ");
+  return compact.length > 56 ? `${compact.slice(0, 55)}…` : compact;
+}
 
 interface SubagentRecord {
   item: SubagentSummaryItem;
@@ -161,12 +174,15 @@ export class SubagentCoordinator {
               : [...existing, evt.step];
             record.item = { ...record.item, steps, stepsCount: steps.length };
             const { step } = evt;
-            if (step.phase === "think" && step.status === "running" && lastLiveAction !== "思考中") {
-              lastLiveAction = "思考中";
-              report?.({ ...baseMeta, status: "running", liveAction: lastLiveAction });
+            if (step.phase === "think" && (step.status === "running" || step.status === "done")) {
+              const thoughtSummary = summarizeSubagentThought(step.detail);
+              if (thoughtSummary !== lastLiveAction) {
+                lastLiveAction = thoughtSummary;
+                report?.({ ...baseMeta, status: "running", liveAction: lastLiveAction });
+              }
               return;
             }
-            // 只同步用户可见的实际工具工作与可读动作标签，不转发完整推理原文。
+            // 同步用户可见的实际工具动作、目标与摘要结果。
             if (step.phase === "act" && step.toolName && existing[idx]?.status !== step.status) {
               const label = formatSubagentToolLabel(step.toolName);
               const target = step.toolTarget?.trim() ? step.toolTarget.trim().slice(0, 140) : undefined;
@@ -180,6 +196,9 @@ export class SubagentCoordinator {
                   name: step.toolName,
                   label,
                   ...(target ? { target } : {}),
+                  ...(step.resultSummary ? { resultSummary: step.resultSummary.slice(0, 220) } : {}),
+                  ...(step.browserEvidence ? { browserEvidence: step.browserEvidence } : {}),
+                  ...(step.browserVerdict ? { browserVerdict: step.browserVerdict } : {}),
                   status: step.status,
                 },
               });
@@ -261,7 +280,11 @@ export class SubagentCoordinator {
       ...(input.parentSignal ? { parentSignal: input.parentSignal } : {}),
       ...(input.parentApproval ? { parentApproval: input.parentApproval } : {}),
     };
-    const promise = this.runTurn(record, prompt, input.maxSteps ?? this.config.defaultMaxSteps ?? DEFAULT_MAX_STEPS);
+    const defaultBudget = kind === "browser" ? BROWSER_DEFAULT_MAX_STEPS : (this.config.defaultMaxSteps ?? DEFAULT_MAX_STEPS);
+    const maxSteps = kind === "browser"
+      ? Math.min(input.maxSteps ?? defaultBudget, BROWSER_DEFAULT_MAX_STEPS)
+      : (input.maxSteps ?? defaultBudget);
+    const promise = this.runTurn(record, prompt, maxSteps);
     this.records.set(id, record);
     return input.wait === false ? record.item : await promise;
   }
@@ -285,7 +308,10 @@ export class SubagentCoordinator {
     if (parent) record.workspaceRoots = parent.workspaceRoots;
     const trimmed = prompt.trim();
     if (!trimmed) throw new Error("补充任务描述不能为空。");
-    const promise = this.runTurn(record, trimmed, this.config.defaultMaxSteps ?? DEFAULT_MAX_STEPS);
+    const defaultBudget = record.item.kind === "browser"
+      ? BROWSER_DEFAULT_MAX_STEPS
+      : (this.config.defaultMaxSteps ?? DEFAULT_MAX_STEPS);
+    const promise = this.runTurn(record, trimmed, defaultBudget);
     return wait ? await promise : record.item;
   }
 

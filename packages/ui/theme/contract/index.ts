@@ -1,8 +1,8 @@
 // 定义外观与液态玻璃主题系统的数据模型、预设配置及安全序列化工具。
 export type AppearanceMode = "light" | "dark" | "system";
 /** 用稳定标识保存主题预设的选中状态。 */
-export type ThemePresetId = "liquidGlass" | "classic" | "softMist" | "midnightInk";
-export type AccentPresetId = "default" | "blue" | "green" | "yellow" | "pink" | "orange" | "purple" | "white" | "custom";
+export type ThemePresetId = "liquidGlass" | "classic" | "softMist" | "midnightInk" | "sakura";
+export type AccentPresetId = "default" | "blue" | "green" | "yellow" | "pink" | "sakura" | "orange" | "purple" | "white" | "custom";
 export type UiFontId = "system" | "sans" | "serif" | "mono";
 export type ContentFontId = "same" | "system" | "serif";
 export type CodeFontId = "system" | "jetbrains" | "cascadia" | "consolas";
@@ -82,6 +82,15 @@ export const THEME_PRESETS: Record<ThemePresetId, ThemePresetDefinition> = {
     light: { background: "#EEF0F6", foreground: "#1C1F2B", accent: "purple" },
     dark: { background: "#11141C", foreground: "#EFF1F7", accent: "purple" },
   },
+  // 樱花粉：浅色是带晨雾的樱花白，深色是夜色里的梅红酒底；两套共用一枚樱花粉强调色。
+  sakura: {
+    id: "sakura",
+    labelZh: "樱花粉",
+    labelEn: "Sakura",
+    glassEnabled: true,
+    light: { background: "#FFF6F8", foreground: "#3B2A33", accent: "sakura" },
+    dark: { background: "#1D1418", foreground: "#F4E6ED", accent: "sakura" },
+  },
 };
 
 /** 集中定义强调色的候选值和展示顺序。 */
@@ -96,6 +105,8 @@ export const ACCENT_PRESETS: Array<{
   { id: "green", color: "#10B981", labelZh: "绿色", labelEn: "Green" },
   { id: "yellow", color: "#EAB308", labelZh: "黄色", labelEn: "Yellow" },
   { id: "pink", color: "#E66AA8", labelZh: "粉色", labelEn: "Pink" },
+  // 樱花粉：比「粉色」更深一档，浅色白底与深色梅红酒底上都能达到 3:1 以上的可见度。
+  { id: "sakura", color: "#C9558A", labelZh: "樱花粉", labelEn: "Sakura" },
   { id: "orange", color: "#F97316", labelZh: "橙色", labelEn: "Orange" },
   { id: "purple", color: "#8B5CF6", labelZh: "紫色", labelEn: "Purple" },
   { id: "white", color: "#F5F5F4", labelZh: "白色", labelEn: "White" },

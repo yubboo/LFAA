@@ -7,6 +7,7 @@ import { toolWebPlugin } from "./tool/fetch-url-tool";
 export * from "./seam";
 export * from "./fetch/http-fetch";
 export * from "./tool/fetch-url-tool";
+export * from "./tool/web-search-tool";
 
 /**
  * Loader 以包名装载时的默认插件：先挂能力 seam，再挂抓取实现，最后挂工具。

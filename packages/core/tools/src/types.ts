@@ -32,6 +32,9 @@ export interface SubagentActivityUpdate {
     name: string;
     label?: string;
     target?: string;
+    resultSummary?: string;
+    browserEvidence?: { id: string; sessionId: string };
+    browserVerdict?: "pass" | "needs_fix" | "unverified";
     status: "preparing" | "running" | "waiting_approval" | "done" | "error";
   };
   result?: string;
@@ -40,6 +43,7 @@ export interface SubagentActivityUpdate {
 /** 为工具执行提供工作目录、权限和取消上下文。 */
 export interface ToolExecutionContext {
   workspaceRoots: string[];
+  projectId?: string | null;
   sessionId: string;
   runId: string;
   signal: AbortSignal;
@@ -82,6 +86,10 @@ export interface ToolFileChange {
 export interface AgentToolDefinition {
   /** 注册此工具的插件模块，供会话预设筛选。 */
   moduleName?: string;
+  /** 仅对应项目的会话可发现和调用该工具。 */
+  projectId?: string;
+  /** 外部工具可要求逐次审批，或由用户为指定工具显式授予信任。 */
+  approval?: "always" | "trusted";
   name: string;
   title: string;
   description: string;
