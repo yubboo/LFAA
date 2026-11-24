@@ -3,7 +3,7 @@
 > 本文件由 `pnpm map:sync`（[scripts/gen-repository-map.mjs](../../scripts/gen-repository-map.mjs)）按真实文件系统生成，**不要手改**。
 > 骨架发生变化（新增/删除/移动文件、包或目录）后，必须在同一轮运行 `pnpm map:sync` 并提交，否则 `pnpm check` 会失败。
 
-当前快照：**61 个包、1721 个文件、308 个子目录**（不含 node_modules、构建产物与运行数据）。
+当前快照：**61 个包、1722 个文件、308 个子目录**（不含 node_modules、构建产物与运行数据）。
 
 ## 1. 快速索引
 
@@ -358,7 +358,7 @@ lfaa/
 │           └── tests/  (2 个文件)
 ├── patches/  (1 个文件)
 ├── scripts/  (33 个文件)
-├── shots/  (5 个文件)
+├── shots/  (6 个文件)
 └── vendor/  (14 个文件)
     └── loader/  (13 个文件)
         └── src/  (9 个文件)

@@ -603,22 +603,60 @@ function Stop-LfaaWebListeners {
 
 # 菜单渲染独立成函数：一次性执行带编号参数时不需要打印菜单。
 function Show-Menu {
+  $branch = ''
+  $sync = '未设置上游'
+  $dirty = 0
+  try {
+    $current = (& git rev-parse --abbrev-ref HEAD 2>$null)
+    if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($current)) {
+      $branch = $current.Trim()
+      $upstream = (& git rev-parse --abbrev-ref "$branch@{upstream}" 2>$null)
+      if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($upstream)) {
+        $counts = (& git rev-list --left-right --count "$($upstream.Trim())...$branch" 2>$null)
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($counts)) {
+          $parts = $counts.Trim() -split '\s+'
+          if ([int]$parts[0] -eq 0 -and [int]$parts[1] -eq 0) {
+            $sync = '已同步'
+          } else {
+            $sync = "落后 $($parts[0]) / 领先 $($parts[1])"
+          }
+        }
+      }
+      $dirty = (& git status --porcelain | Measure-Object).Count
+    }
+  } catch {
+    # 非 git 环境不显示状态行，不影响菜单使用。
+  }
+
+  $line = '=' * 52
   Write-Host ""
-  Write-Host "================ LFAA ================" -ForegroundColor Cyan
-  Write-Host "【开发与运行】" -ForegroundColor Cyan
-  Write-Host "  1. 安装依赖（pnpm install --prefer-offline）" -ForegroundColor White
-  Write-Host "  2. 启动 Web（自动结束旧进程并占用 5173 重启）" -ForegroundColor Green
-  Write-Host "  3. 启动桌面端（Electron 窗口，复用已构建产物）" -ForegroundColor Green
-  Write-Host "  7. 构建桌面端安装包（NSIS → apps/desktop/.desktop-build/release）" -ForegroundColor Yellow
+  Write-Host $line -ForegroundColor DarkCyan
+  Write-Host "  LFAA 控制台" -ForegroundColor Cyan
+  Write-Host "  仓库：$repoRoot" -ForegroundColor DarkGray
+  if ($branch -ne '') {
+    $dirtyText = ""
+    if ($dirty -gt 0) { $dirtyText = " · 未提交 $dirty 项" }
+    Write-Host "  分支：$branch · $sync$dirtyText" -ForegroundColor DarkGray
+  }
+  Write-Host $line -ForegroundColor DarkCyan
+
   Write-Host ""
-  Write-Host "【GitHub 源码同步 · yubboo/LFAA】" -ForegroundColor Magenta
-  Write-Host "  4. 一键推送到 GitHub（普通推送 + 安全检测）" -ForegroundColor White
-  Write-Host "  5. 一键强制推送到 GitHub（覆盖远程，谨慎使用）" -ForegroundColor Yellow
-  Write-Host "  6. 拉取 GitHub 最新源码到本地（预览提交 + 确认）" -ForegroundColor Cyan
+  Write-Host "【依赖与运行】" -ForegroundColor Yellow
+  Write-Host "  1   安装依赖（pnpm install --prefer-offline）"
+  Write-Host "  2   启动 Web（自动结束旧进程并占用 5173 重启）"
   Write-Host ""
-  Write-Host "【其他】" -ForegroundColor DarkGray
-  Write-Host "  0. 退出菜单（保留终端窗口）" -ForegroundColor DarkGray
-  Write-Host "======================================" -ForegroundColor Cyan
+  Write-Host "【桌面端】" -ForegroundColor Yellow
+  Write-Host "  3   启动桌面端（Electron 窗口，复用已构建产物）"
+  Write-Host "  7   构建桌面端安装包（NSIS → apps/desktop/.desktop-build/release）"
+  Write-Host ""
+  Write-Host "【GitHub 同步 · yubboo/LFAA】" -ForegroundColor Yellow
+  Write-Host "  4   提交并推送（普通推送 + 安全检测）"
+  Write-Host "  5   强制推送（覆盖远端，需输入确认）"
+  Write-Host "  6   拉取远端最新源码（预览提交 + 确认）"
+  Write-Host ""
+  Write-Host "【退出】" -ForegroundColor Yellow
+  Write-Host "  0   退出菜单（保留终端窗口）"
+  Write-Host ""
   Write-Host "用法：lfaa.bat [0-7] 直接执行一项后退出；lfaa.bat --help 看说明。" -ForegroundColor DarkGray
 }
 
@@ -725,7 +763,7 @@ function Show-Usage {
   Write-Host "  lfaa.bat <0-7>      直接执行对应菜单项后退出（适合快捷方式 / 脚本调用）"
   Write-Host "  lfaa.bat --help     显示本说明"
   Write-Host ""
-  Write-Host "菜单项：1 安装依赖 · 2 启动 Web · 3 启动桌面端 · 4 推送 · 5 强制推送 · 6 拉取 · 7 构建安装包 · 0 退出" -ForegroundColor DarkGray
+  Write-Host "菜单项：1 安装依赖 · 2 启动 Web · 3 启动桌面端 · 7 构建安装包 · 4 推送 · 5 强制推送 · 6 拉取 · 0 退出" -ForegroundColor DarkGray
 }
 
 # 命令行参数：支持 `lfaa.bat 2` 这类一次性执行，其他参数给出用法并返回非零。
