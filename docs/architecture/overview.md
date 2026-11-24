@@ -6,7 +6,7 @@
 - 项目时区：`Asia/Shanghai`。
 - 技术方向：TypeScript、React、CSS Modules、pnpm Monorepo、Cordis 插件机制。
 - 首个可运行应用：Web；Vite 负责开发服务器和静态构建，`apps/cli` 统一分发 `pnpm lfaa web`。
-- 第二个运行形态：**桌面端（Electron 45）**；`apps/desktop` 只做窗口/菜单/生命周期，`apps/desktop-host` 作为独立 Node 子进程运行 `@lfaa/web-server` 的生产宿主（静态托管 + `/api`），壳通过 IPC 拿到地址后加载窗口；与 Web 共用同一套 UI 与 Host，详见 [desktop.md](desktop.md)。
+- 第二个运行形态：**桌面端（Electron 45）**；`apps/desktop` 只做窗口/菜单/生命周期，`apps/desktop-host` 作为独立 Node 子进程运行 `@lfaa/web-server` 的生产宿主（静态托管 + `/api`），壳通过 IPC 拿到地址后加载窗口；与 Web 共用同一套 UI 与 Host，详见 [desktop.md](../features/desktop.md)。
 - Cordis 版本基线：`@deepseek-ai/cordis` 4.1.x；React 19.3.x；Vite 8.3.x。
 - 包所有权：`packages/<group>/<package>`；业务包的浏览器 UI（如有）放在同包 `client/`。
 - 依赖方向：应用负责启动与装配；Host 领域代码不依赖 React/DOM；Client 通过公开 contract、RPC 或事件与 Host 交互。

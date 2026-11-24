@@ -1,5 +1,5 @@
 // 媒体生成中的消息占位：按目标画幅显示骨架卡片与进度，替换输入框上方那一行旧式状态提示。
-import { mediaChatMessages } from "./media-locales";
+import { mediaChatMessages } from "../media-locales";
 import styles from "./Media-Generating-Card.module.css";
 
 const KIND_LABEL = {

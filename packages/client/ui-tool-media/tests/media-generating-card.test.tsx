@@ -20,7 +20,7 @@ registerHooks({
   },
 });
 
-const { MediaGeneratingCard } = await import("../client/Media-Generating-Card");
+const { MediaGeneratingCard } = await import("../client/compose/Media-Generating-Card");
 
 test("竖图占位收窄、横图占位放宽，比例标签与文案可见", () => {
   const portrait = renderToStaticMarkup(createElement(MediaGeneratingCard, { kind: "image", ratio: "9:16", isZh: true }));

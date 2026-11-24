@@ -2,8 +2,8 @@
 import { useRef, useState } from "react";
 import { IconCheck, IconCrop } from "@tabler/icons-react";
 import { PopoverCard } from "@lfaa/ui-primitives/client";
-import { MEDIA_RATIO_OPTIONS, type MediaRatioChoice } from "./chat-media";
-import { mediaChatMessages } from "./media-locales";
+import { MEDIA_RATIO_OPTIONS, type MediaRatioChoice } from "../media/chat-media";
+import { mediaChatMessages } from "../media-locales";
 import styles from "./MediaRatioPicker.module.css";
 
 /** 只有选中生图模型时才显示；选择结果由输入栏状态持有并随生成请求发送。 */

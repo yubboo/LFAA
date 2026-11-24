@@ -18,7 +18,7 @@ import {
   type PluginsStatePayload,
   uninstallPluginRequest,
   updatePluginManifestRequest,
-} from "../plugins-client";
+} from "../api/plugins-client";
 import styles from "./Plugins-View.module.css";
 
 type Action = "install" | "enable" | "disable" | "uninstall";

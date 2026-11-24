@@ -2,8 +2,8 @@
 import { useRef, useState } from "react";
 import { IconCheck, IconPalette } from "@tabler/icons-react";
 import { PopoverCard } from "@lfaa/ui-primitives/client";
-import { MEDIA_STYLE_OPTIONS, type MediaStyleChoice } from "./chat-media";
-import { mediaChatMessages } from "./media-locales";
+import { MEDIA_STYLE_OPTIONS, type MediaStyleChoice } from "../media/chat-media";
+import { mediaChatMessages } from "../media-locales";
 import styles from "./MediaStylePicker.module.css";
 
 /** 只有选中生图模型时才显示；选择结果随生成请求发送，提示词导演会按它扩写。 */

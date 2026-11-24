@@ -3,16 +3,16 @@
 // 本入口不注册 Cordis 插件：组件与状态由 chat（对话）与 library（资料库）按需组合。
 import "./css-modules.d.ts";
 
-export * from "./chat-media";
-export * from "./media-library";
-export * from "./media-thumb-cache";
-export * from "./media-result-context";
+export * from "./media/chat-media";
+export * from "./media/media-library";
+export * from "./media/media-thumb-cache";
+export * from "./media/media-result-context";
 export * from "./media-locales";
-export * from "./library-store";
-export * from "./useLibraryState";
-export { LocalMediaImage } from "./LocalMediaImage";
-export { MediaGeneratingCard } from "./Media-Generating-Card";
-export { MediaLibraryDialog } from "./MediaLibraryDialog";
-export { MediaRatioPicker } from "./MediaRatioPicker";
-export { MediaStylePicker } from "./MediaStylePicker";
-export { MediaThumb, useMediaBlob } from "./MediaThumb";
+export * from "./library/library-store";
+export * from "./library/useLibraryState";
+export { LocalMediaImage } from "./thumbs/LocalMediaImage";
+export { MediaGeneratingCard } from "./compose/Media-Generating-Card";
+export { MediaLibraryDialog } from "./library/MediaLibraryDialog";
+export { MediaRatioPicker } from "./compose/MediaRatioPicker";
+export { MediaStylePicker } from "./compose/MediaStylePicker";
+export { MediaThumb, useMediaBlob } from "./thumbs/MediaThumb";

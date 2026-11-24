@@ -1,7 +1,7 @@
 // 通过同源 /api/workspace/* RPC 与 Host WorkspaceService 同步真实本地项目和目录信息，并缓存快照实现首屏秒开与静默刷新。
 import type { WorkbenchProjectItem } from "@lfaa/ui-layout";
 import { readStoredJson, writeStoredJson } from "@lfaa/ui-layout/client";
-import type { ProjectWorktreeItem, ProjectWorktreeMergePreview } from "../worktree/worktree-types";
+import type { ProjectWorktreeItem, ProjectWorktreeMergePreview } from "../shared/worktree-types";
 import type {
   CreateProjectInput,
   DraftProjectBriefResult,

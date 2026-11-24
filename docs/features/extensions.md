@@ -88,5 +88,5 @@ packages/
 
 ## 参考实现
 
-- LFAA 的 [工具注册](../../packages/core/tools/src/index.ts)、[Agent 运行循环](../../packages/core/agent/src/agent-loop.ts)、[Workbench 注册](../../packages/ui/layout/client/workbench-service.ts) 和 [Web 装配](../../apps/web/src/server.ts)。
+- LFAA 的 [工具注册](../../packages/core/tools/src/index.ts)、[Agent 运行循环](../../packages/core/agent/src/run/agent-loop.ts)、[Workbench 注册](../../packages/ui/layout/client/workbench-service.ts) 和 [Web 装配](../../packages/bundle/web/src/index.ts)。
 - DSH 本地参考位于 `E:/lfaa1/deepseek-harness`。查看 `packages/skill` 的技能分组、`packages/boot/plugin-manager` 的安装状态，以及 `packages/extensions` 下 Host/Client 的生命周期。

@@ -4,7 +4,7 @@ import { IconCopy, IconGitBranch, IconGitMerge, IconRefresh, IconTrash } from "@
 import type { WorkbenchProjectItem } from "@lfaa/ui-layout";
 import type { LocalProjectStore } from "../store/local-project-store";
 import type { WorkspaceLocaleMessages } from "../locales";
-import type { ProjectWorktreeItem, ProjectWorktreeMergePreview } from "./worktree-types";
+import type { ProjectWorktreeItem, ProjectWorktreeMergePreview } from "../shared/worktree-types";
 import styles from "./WorktreeSection.module.css";
 
 export function WorktreeSection({

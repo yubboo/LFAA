@@ -11,16 +11,10 @@ import {
 } from "@tabler/icons-react";
 import type { WorkbenchProjectItem } from "@lfaa/ui-layout";
 import type { WorkspaceLocaleMessages } from "../locales";
+import type { HoverAnchorRect } from "../shared/anchor";
 import styles from "./ProjectHoverCard.module.css";
 
 /** 保存悬浮卡片触发区域的坐标及尺寸，便于按可用空间定位。 */
-export interface HoverAnchorRect {
-  top: number;
-  right: number;
-  bottom: number;
-  left: number;
-}
-
 function getFolderName(folderPath: string): string {
   const parts = folderPath.split(/[\\/]+/).filter(Boolean);
   return parts.length ? parts[parts.length - 1]! : folderPath;

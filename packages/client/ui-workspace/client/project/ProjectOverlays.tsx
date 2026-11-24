@@ -4,7 +4,7 @@ import type { WorkbenchProjectItem, WorkbenchSectionItem } from "@lfaa/ui-layout
 import type { LocalProjectStore } from "../store/local-project-store";
 import type { WorkspaceLocaleMessages } from "../locales";
 import type { ProjectMenuStore } from "../store/project-menu-store";
-import type { ProjectWorktreeItem } from "../worktree/worktree-types";
+import type { ProjectWorktreeItem } from "../shared/worktree-types";
 import { EditProjectDialog } from "./EditProjectDialog";
 import { ProjectActionMenu } from "./ProjectActionMenu";
 import { ProjectHoverCard } from "./ProjectHoverCard";

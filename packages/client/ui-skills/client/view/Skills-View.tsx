@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconCopy, IconEdit, IconPlus, IconRefresh, IconTrash, IconUpload } from "@tabler/icons-react";
 import type { SkillDetail, SkillSourceKind, SkillSummary } from "@lfaa/skills/contract";
-import { skillsMessages } from "./locales";
+import { skillsMessages } from "../locales";
 import {
   deleteSkillRequest,
   fetchSkillDetail,
@@ -10,7 +10,7 @@ import {
   forkSkillRequest,
   saveSkillRequest,
   toggleSkillRequest,
-} from "./skills-client";
+} from "../skills/skills-client";
 import styles from "./Skills-View.module.css";
 
 type SourceFilter = "all" | SkillSourceKind;

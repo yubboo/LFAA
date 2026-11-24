@@ -1,7 +1,7 @@
 // 验证资料库共享状态：选中项去重通知与清空、素材列表读取去重、删除同步移除与失败状态。
 import assert from "node:assert/strict";
 import test from "node:test";
-import { LibraryMediaStore, LibrarySelectionStore } from "../client/library-store";
+import { LibraryMediaStore, LibrarySelectionStore } from "../client/library/library-store";
 
 test("选中存储只在目标变化时通知订阅者，清空后回到 null", () => {
   const store = new LibrarySelectionStore();

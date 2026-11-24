@@ -1,9 +1,9 @@
 // @lfaa/agent-group 浏览器端 Cordis 插件：注册群聊视图，卸载时清理贡献。
 import type { Context } from "@deepseek-ai/cordis";
 import "@lfaa/ui-layout/client";
-import { GroupView } from "./Group-View";
+import { GroupView } from "./view/Group-View";
 
-export { GroupView } from "./Group-View";
+export { GroupView } from "./view/Group-View";
 
 /** 按页面语言选择中/英文案；无 DOM 时按浏览器语言回退。 */
 function detectIsZh(): boolean {

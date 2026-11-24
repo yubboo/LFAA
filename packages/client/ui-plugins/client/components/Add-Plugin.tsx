@@ -4,7 +4,7 @@ import { IconX } from "@tabler/icons-react";
 import { createPortal } from "react-dom";
 import type { PluginRecord } from "@lfaa/plugins/contract";
 import type { PluginsMessages } from "../locales";
-import type { PluginsStatePayload } from "../plugins-client";
+import type { PluginsStatePayload } from "../api/plugins-client";
 import { addPluginStream } from "../stream/add-stream";
 import styles from "./Add-Plugin.module.css";
 

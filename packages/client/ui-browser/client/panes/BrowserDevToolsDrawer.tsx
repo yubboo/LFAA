@@ -1,6 +1,6 @@
 // 内置浏览器底部可折叠 DevTools 抽屉：按 Console 与 Network 分页查看页面异常与请求状态。
 import { IconTrash, IconX } from "@tabler/icons-react";
-import type { BrowserConsoleItem, BrowserNetworkItem } from "../browser-client";
+import type { BrowserConsoleItem, BrowserNetworkItem } from "../api/browser-client";
 import devtoolsStyles from "./RightBrowserPane.devtools.module.css";
 
 export type DevToolsTab = "console" | "network";

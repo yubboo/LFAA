@@ -3,7 +3,7 @@
 > 本文件由 `pnpm map:sync`（[scripts/gen-repository-map.mjs](../../scripts/gen-repository-map.mjs)）按真实文件系统生成，**不要手改**。
 > 骨架发生变化（新增/删除/移动文件、包或目录）后，必须在同一轮运行 `pnpm map:sync` 并提交，否则 `pnpm check` 会失败。
 
-当前快照：**61 个包、1727 个文件、291 个子目录**（不含 node_modules、构建产物与运行数据）。
+当前快照：**61 个包、1721 个文件、308 个子目录**（不含 node_modules、构建产物与运行数据）。
 
 ## 1. 快速索引
 
@@ -57,13 +57,15 @@ lfaa/
 │   └── web/  (10 个文件)
 │       ├── public/  (2 个文件)
 │       └── src/  (3 个文件)
-├── docs/  (361 个文件)
-│   ├── architecture/  (37 个文件)
+├── docs/  (365 个文件)
+│   ├── architecture/  (11 个文件)
 │   ├── dev-log/  (4 个文件)
+│   ├── features/  (24 个文件)
+│   ├── plans/  (4 个文件)
 │   ├── standards/  (1 个文件)
 │   ├── templates/  (2 个文件)
-│   └── updata-log/  (316 个文件)
-├── packages/  (1146 个文件)
+│   └── updata-log/  (317 个文件)
+├── packages/  (1147 个文件)
 │   ├── api/  (7 个文件)
 │   │   └── gateway/  # @lfaa/api-gateway  (7 个文件)
 │   │       ├── src/  (1 个文件)
@@ -85,15 +87,21 @@ lfaa/
 │   │   └── review/  # @lfaa/review  (13 个文件)
 │   │       ├── src/  (7 个文件)
 │   │       └── tests/  (1 个文件)
-│   ├── client/  (430 个文件)
+│   ├── client/  (431 个文件)
 │   │   ├── ui-agent-group/  # @lfaa/client-ui-agent-group  (13 个文件)
 │   │   │   ├── client/  (7 个文件)
+│   │   │   │   ├── group/  (1 个文件)
+│   │   │   │   └── view/  (3 个文件)
 │   │   │   └── src/  (1 个文件)
 │   │   ├── ui-agent-profile/  # @lfaa/client-ui-agent-profile  (16 个文件)
 │   │   │   ├── client/  (10 个文件)
+│   │   │   │   ├── agents/  (2 个文件)
+│   │   │   │   ├── editor/  (2 个文件)
+│   │   │   │   └── view/  (3 个文件)
 │   │   │   └── src/  (1 个文件)
 │   │   ├── ui-browser/  # @lfaa/client-ui-browser  (18 个文件)
 │   │   │   ├── client/  (12 个文件)
+│   │   │   │   ├── api/  (1 个文件)
 │   │   │   │   ├── panes/  (7 个文件)
 │   │   │   │   └── settings/  (2 个文件)
 │   │   │   └── src/  (1 个文件)
@@ -117,6 +125,7 @@ lfaa/
 │   │   │   └── tests/  (3 个文件)
 │   │   ├── ui-plugins/  # @lfaa/client-ui-plugins  (17 个文件)
 │   │   │   ├── client/  (11 个文件)
+│   │   │   │   ├── api/  (1 个文件)
 │   │   │   │   ├── components/  (6 个文件)
 │   │   │   │   └── stream/  (1 个文件)
 │   │   │   └── src/  (1 个文件)
@@ -128,21 +137,29 @@ lfaa/
 │   │   │   └── tests/  (1 个文件)
 │   │   ├── ui-sections/  # @lfaa/client-ui-sections  (15 个文件)
 │   │   │   ├── client/  (8 个文件)
-│   │   │   │   └── components/  (4 个文件)
+│   │   │   │   ├── components/  (4 个文件)
+│   │   │   │   └── store/  (1 个文件)
 │   │   │   ├── src/  (1 个文件)
 │   │   │   └── tests/  (1 个文件)
 │   │   ├── ui-skills/  # @lfaa/client-ui-skills  (12 个文件)
 │   │   │   ├── client/  (6 个文件)
+│   │   │   │   ├── skills/  (1 个文件)
+│   │   │   │   └── view/  (2 个文件)
 │   │   │   └── src/  (1 个文件)
 │   │   ├── ui-tool-media/  # @lfaa/client-ui-tool-media  (33 个文件)
 │   │   │   ├── client/  (20 个文件)
+│   │   │   │   ├── compose/  (6 个文件)
+│   │   │   │   ├── library/  (4 个文件)
+│   │   │   │   ├── media/  (4 个文件)
+│   │   │   │   └── thumbs/  (3 个文件)
 │   │   │   ├── src/  (1 个文件)
 │   │   │   └── tests/  (7 个文件)
-│   │   └── ui-workspace/  # @lfaa/client-ui-workspace  (39 个文件)
-│   │       ├── client/  (32 个文件)
+│   │   └── ui-workspace/  # @lfaa/client-ui-workspace  (40 个文件)
+│   │       ├── client/  (33 个文件)
 │   │       │   ├── project/  (22 个文件)
+│   │       │   ├── shared/  (2 个文件)
 │   │       │   ├── store/  (2 个文件)
-│   │       │   └── worktree/  (5 个文件)
+│   │       │   └── worktree/  (4 个文件)
 │   │       ├── src/  (1 个文件)
 │   │       └── tests/  (1 个文件)
 │   ├── compaction/  (12 个文件)
@@ -340,8 +357,8 @@ lfaa/
 │           ├── src/  (5 个文件)
 │           └── tests/  (2 个文件)
 ├── patches/  (1 个文件)
-├── scripts/  (31 个文件)
-├── shots/  (18 个文件)
+├── scripts/  (33 个文件)
+├── shots/  (5 个文件)
 └── vendor/  (14 个文件)
     └── loader/  (13 个文件)
         └── src/  (9 个文件)
@@ -512,42 +529,16 @@ lfaa/
 ### docs/architecture
 
 - `README.md` — 架构文档索引
-- `agent-conversations.md` — 会话形态：单聊 / 群聊 / Agents
-- `agent-model-routing.md` — Agent 与模型解耦：Agent 定义、模型绑定与路由组方案
-- `agent-workspace.md` — Agent 会话工作区
-- `assistant-timeline.md` — 助手回复过程
-- `chat-search.md` — 会话全文搜索
-- `conversation-trace.md` — 对话流与独立轨迹方案（待评审）
 - `dependency-rules.json`
-- `desktop.md` — 桌面端（Electron 薄壳）开发方案
 - `dsh-package-reuse.md` — DSH 包跨仓库复用评估
 - `engineering-foundation.md` — 构建、测试与分包地基（对齐 DSH）
-- `extensions.md` — LFAA 扩展中心开发方案
-- `goal-coordination-plan.md` — 目标自动续跑与跨会话协调方案
-- `library-media-hub.md` — 资料库合并「图像」入口（Library + Images）
-- `local-api-auth.md` — 本机接口鉴权
-- `loop-refactor-plan.md` — 两个巨型循环的拆分方案（Agent Loop / Chat Run Actions）
-- `media-generation.md` — 媒体生成能力（生图 / 生视频 / 语音）
-- `notifications.md` — 会话待处理提醒与通知中心
 - `overview.md` — 架构基线
 - `package-taxonomy.md` — 包分类规范（Package Taxonomy）
-- `plan-mode.md` — LFAA Plan 模式设计
-- `plugin-inventory.md` — 插件分层与模式预设
 - `plugin-model.md` — 插件模型：内置插件 vs 外部插件
 - `plugin-runtime.md` — 插件运行时可行性验证
-- `project-scope.md` — 项目范围锚定（Project Scope）开发方案
 - `repository-map.md` — LFAA 仓库目录说明书
-- `right-panel-and-agents.md` — 右侧工作台重构、内置浏览器、后台任务与多 Agent 协作方案
-- `right-workbench-ide.md` — IDE 化右侧工作台、VS Code 代码查看与全视口真交互浏览器方案
-- `sandbox.md` — 沙箱：契约、强制边界与路线
-- `session-list-paging.md` — 左二栏会话分批展开（会话窗口）
-- `session-mode-collaboration.md` — 会话模式与多 Agent 协作
 - `shell-runtime.md` — Shell 执行体系
 - `structure.md` — 结构法则（Structure）
-- `task-list-plan.md` — 任务清单功能开发方案（P0–P3 已实施）
-- `task-list.md` — 任务清单（计划 → 执行 → 交付）现状、实测与差距
-- `workbench-change-review.md` — 右侧工作台与会话反馈
-- `worktree.md` — Git 工作树（Worktree）会话隔离开发方案
 
 ### docs/standards
 
@@ -676,13 +667,19 @@ lfaa/
 
 ### packages/client/ui-agent-group/client
 
+- `css-modules.d.ts` — 声明 CSS Modules 类型导出，供 @lfaa/agent-group 浏览器端组件安全导入样式。
+- `index.tsx` — @lfaa/agent-group 浏览器端 Cordis 插件：注册群聊视图，卸载时清理贡献。
+- `locales.ts` — @lfaa/agent-group 浏览器端中英文文案字典（群聊页）。
+
+### packages/client/ui-agent-group/client/group
+
+- `group-api.ts` — @lfaa/agent-group 浏览器端接口封装：群会话的创建、读取与一轮群聊的启动。
+
+### packages/client/ui-agent-group/client/view
+
 - `Group-Composer.module.css` — @lfaa/agent-group 群聊发送区样式：输入框、@ 成员栏与发送按钮，只消费主题语义变量。
 - `Group-View.module.css` — @lfaa/agent-group 群聊页样式：群列表 + 消息流 + 发送区，只消费主题语义变量。
 - `Group-View.tsx` — @lfaa/agent-group 群聊页：左侧群列表与建群，右侧消息流与发送框。
-- `css-modules.d.ts` — 声明 CSS Modules 类型导出，供 @lfaa/agent-group 浏览器端组件安全导入样式。
-- `group-api.ts` — @lfaa/agent-group 浏览器端接口封装：群会话的创建、读取与一轮群聊的启动。
-- `index.tsx` — @lfaa/agent-group 浏览器端 Cordis 插件：注册群聊视图，卸载时清理贡献。
-- `locales.ts` — @lfaa/agent-group 浏览器端中英文文案字典（群聊页）。
 
 ### packages/client/ui-agent-group/src
 
@@ -698,16 +695,25 @@ lfaa/
 
 ### packages/client/ui-agent-profile/client
 
-- `Agent-Editor.module.css` — @lfaa/agent-profile Agent 编辑卡样式：表单、子卡与操作按钮，只消费主题语义变量。
-- `Agent-Editor.tsx` — @lfaa/agent-profile Agent 编辑卡：名称、用途、人设指令、模型绑定与保存/删除。
-- `Agents-Toolbar.tsx` — @lfaa/agent-profile Agents 页工具条：刷新、导出、导入与新建，避免列表页继续膨胀。
-- `Agents-View.module.css` — @lfaa/agent-profile Agents 页样式：页头 + agent 列表 + 窄屏适配，只消费主题语义变量。
-- `Agents-View.tsx` — @lfaa/agent-profile Agents 页：左侧列出 agent，右侧编辑人设、用途与模型绑定。
-- `agents-api.ts` — @lfaa/agent-profile 浏览器端接口封装：读写 agent 定义、模型绑定与可选模型清单。
-- `agents-types.ts` — @lfaa/agent-profile 浏览器端视图模型：只描述界面需要渲染的字段，不依赖 Host 内部类型。
 - `css-modules.d.ts` — 声明 CSS Modules 类型导出，供 @lfaa/agent-profile 浏览器端组件安全导入样式。
 - `index.tsx` — @lfaa/agent-profile 浏览器端 Cordis 插件：向 Workbench 注册 Agents 视图，卸载时清理贡献。
 - `locales.ts` — @lfaa/agent-profile 浏览器端中英文界面文案字典（Agents 页与会话顶栏共用）。
+
+### packages/client/ui-agent-profile/client/agents
+
+- `agents-api.ts` — @lfaa/agent-profile 浏览器端接口封装：读写 agent 定义、模型绑定与可选模型清单。
+- `agents-types.ts` — @lfaa/agent-profile 浏览器端视图模型：只描述界面需要渲染的字段，不依赖 Host 内部类型。
+
+### packages/client/ui-agent-profile/client/editor
+
+- `Agent-Editor.module.css` — @lfaa/agent-profile Agent 编辑卡样式：表单、子卡与操作按钮，只消费主题语义变量。
+- `Agent-Editor.tsx` — @lfaa/agent-profile Agent 编辑卡：名称、用途、人设指令、模型绑定与保存/删除。
+
+### packages/client/ui-agent-profile/client/view
+
+- `Agents-Toolbar.tsx` — @lfaa/agent-profile Agents 页工具条：刷新、导出、导入与新建，避免列表页继续膨胀。
+- `Agents-View.module.css` — @lfaa/agent-profile Agents 页样式：页头 + agent 列表 + 窄屏适配，只消费主题语义变量。
+- `Agents-View.tsx` — @lfaa/agent-profile Agents 页：左侧列出 agent，右侧编辑人设、用途与模型绑定。
 
 ### packages/client/ui-agent-profile/src
 
@@ -723,9 +729,12 @@ lfaa/
 
 ### packages/client/ui-browser/client
 
-- `browser-client.ts` — 封装浏览器面板与设置页共用的 HTTP API 请求辅助函数，支持多标签、动态视口、键鼠穿透与 DevTools 日志。
 - `css-modules.d.ts` — 声明 CSS Modules 模块类型供 TypeScript 检查。
 - `index.tsx` — @lfaa/browser/client 浏览器端导出与设置页插件注册。
+
+### packages/client/ui-browser/client/api
+
+- `browser-client.ts` — 封装浏览器面板与设置页共用的 HTTP API 请求辅助函数，支持多标签、动态视口、键鼠穿透与 DevTools 日志。
 
 ### packages/client/ui-browser/client/panes
 
@@ -1064,6 +1073,9 @@ lfaa/
 - `css-modules.d.ts` — 声明 CSS Modules 类型导出，供 @lfaa/plugins 浏览器端组件安全导入样式。
 - `index.tsx` — @lfaa/plugins 浏览器端 Cordis 插件：注册插件中心主视图，并随运行状态动态挂卸各扩展详情页。
 - `locales.ts` — @lfaa/plugins 浏览器端中英文界面文案字典。
+
+### packages/client/ui-plugins/client/api
+
 - `plugins-client.ts` — @lfaa/plugins 浏览器端 HTTP 请求封装，与 Host /api/plugins 接口通信。
 
 ### packages/client/ui-plugins/client/components
@@ -1130,7 +1142,6 @@ lfaa/
 - `css-modules.d.ts` — 为分区包 Client 侧 CSS Modules 提供类型声明。
 - `index.tsx` — 导出分区包 Client Cordis 插件入口，向工作台注册自定义分区提供方并在删除分区时广播事件。
 - `locales.ts` — 集中维护工作区自定义分区模块在中英文环境下的创建、重命名与管理文案。
-- `section-store.ts` — 通过 /api/workspace/sections* 与 Host SectionsService 同步分区列表，并用本地缓存实现首屏无闪烁秒开与静默校对。
 
 ### packages/client/ui-sections/client/components
 
@@ -1138,6 +1149,10 @@ lfaa/
 - `SectionDialog.tsx` — 新建或重命名分区的整页居中液态玻璃弹窗。
 - `SectionRowActions.module.css` — 自定义分区标题栏操作按钮与弹出管理菜单样式。
 - `SectionRowActions.tsx` — 渲染左二自定义分区标题行右侧操作按钮（··· 管理菜单与新聊天入口）。
+
+### packages/client/ui-sections/client/store
+
+- `section-store.ts` — 通过 /api/workspace/sections* 与 Host SectionsService 同步分区列表，并用本地缓存实现首屏无闪烁秒开与静默校对。
 
 ### packages/client/ui-sections/src
 
@@ -1157,12 +1172,18 @@ lfaa/
 
 ### packages/client/ui-skills/client
 
-- `Skills-View.module.css` — @lfaa/skills 技能中心主视图样式，完全基于 @lfaa/ui-theme 语义变量以适配深浅双主题与窄屏。
-- `Skills-View.tsx` — @lfaa/skills 技能中心主视图组件，支持按来源筛选、导入/新建、编辑、二创复制、启停与删除。
 - `css-modules.d.ts` — 声明 CSS Modules 类型导出，供 @lfaa/skills 浏览器端组件安全导入样式。
 - `index.tsx` — @lfaa/skills 浏览器端 Cordis 插件：向 Workbench 注册技能中心视图，并在卸载时清理。
 - `locales.ts` — @lfaa/skills 浏览器端中英文界面文案字典。
+
+### packages/client/ui-skills/client/skills
+
 - `skills-client.ts` — @lfaa/skills 浏览器端 HTTP 请求封装，与 Host /api/skills 接口通信。
+
+### packages/client/ui-skills/client/view
+
+- `Skills-View.module.css` — @lfaa/skills 技能中心主视图样式，完全基于 @lfaa/ui-theme 语义变量以适配深浅双主题与窄屏。
+- `Skills-View.tsx` — @lfaa/skills 技能中心主视图组件，支持按来源筛选、导入/新建、编辑、二创复制、启停与删除。
 
 ### packages/client/ui-skills/src
 
@@ -1178,26 +1199,38 @@ lfaa/
 
 ### packages/client/ui-tool-media/client
 
-- `LocalMediaImage.module.css` — 聊天内生成图片预览：圆角卡片、柔和投影，不再用硬边框把画面切成一格。
-- `LocalMediaImage.tsx` — 聊天内媒体预览：/api/media/* 需要令牌头，img 标签无法携带，改为 fetch 后转 blob URL 渲染。
+- `css-modules.d.ts` — 声明 @lfaa/tool-media/client 中 CSS Modules 的类型定义。
+- `index.tsx` — 统一导出 @lfaa/tool-media 的浏览器端媒体 UI：媒体库弹窗、生成卡片、比例/风格选择器、
+- `media-locales.ts` — 媒体生成与资料库素材的中英文文案表：随 @lfaa/tool-media 一起发布，供本包客户端组件复用，
+
+### packages/client/ui-tool-media/client/compose
+
 - `Media-Generating-Card.module.css` — 生成中的消息占位：按目标比例的骨架卡片 + 进度行，替代输入框上方的旧式状态条。
 - `Media-Generating-Card.tsx` — 媒体生成中的消息占位：按目标画幅显示骨架卡片与进度，替换输入框上方那一行旧式状态提示。
-- `MediaLibraryDialog.module.css` — 生成素材库弹窗：网格缩略图、类型筛选、提示词复用与详情条。
-- `MediaLibraryDialog.tsx` — 生成素材库弹窗：列出工作区/媒体目录里的生成图片、视频与语音，支持筛选、预览与复用提示词。
 - `MediaRatioPicker.module.css` — 图片比例选择器：与模型选择胶囊同高的轻量按钮，浮层内 4×2 比例网格。
 - `MediaRatioPicker.tsx` — 输入栏图片比例选择器：自动识别，或固定 9:16 / 2:3 / 3:4 / 1:1 / 4:3 / 3:2 / 16:9。
 - `MediaStylePicker.module.css` — 图片风格选择器：与比例选择器同款的轻量按钮 + 浮层网格。
 - `MediaStylePicker.tsx` — 输入栏图片风格选择器：自动，或写真 / 电影感 / 插画 / 二次元 / 水彩 / 3D。
-- `MediaThumb.tsx` — 生成素材缩略图：进入视口附近才按需读取，浏览器内缩到 480px 并写入缓存；完整原图仍由 useMediaBlob 供右栏使用。
-- `chat-media.ts` — 聊天素材来源和生成请求，供输入框、结果操作和发送动作共用。
-- `css-modules.d.ts` — 声明 @lfaa/tool-media/client 中 CSS Modules 的类型定义。
-- `index.tsx` — 统一导出 @lfaa/tool-media 的浏览器端媒体 UI：媒体库弹窗、生成卡片、比例/风格选择器、
+
+### packages/client/ui-tool-media/client/library
+
+- `MediaLibraryDialog.module.css` — 生成素材库弹窗：网格缩略图、类型筛选、提示词复用与详情条。
+- `MediaLibraryDialog.tsx` — 生成素材库弹窗：列出工作区/媒体目录里的生成图片、视频与语音，支持筛选、预览与复用提示词。
 - `library-store.ts` — 资料库中心页与右栏检视器共享的客户端状态：选中项与生成素材列表各只有一个所有者，避免两处重复请求和选择漂移。
+- `useLibraryState.ts` — 订阅资料库共享状态的 React 入口：中心页与右栏检视器使用同一份选中项与素材列表。
+
+### packages/client/ui-tool-media/client/media
+
+- `chat-media.ts` — 聊天素材来源和生成请求，供输入框、结果操作和发送动作共用。
 - `media-library.ts` — 生成素材（图片/视频/语音）的公开数据契约、列表读取与筛选；资料库「图像」分类与输入框素材库弹窗共用，不持有 React 状态。
-- `media-locales.ts` — 媒体生成与资料库素材的中英文文案表：随 @lfaa/tool-media 一起发布，供本包客户端组件复用，
 - `media-result-context.ts` — 将聊天消息的素材来源与操作传给 Markdown 内的预览组件。
 - `media-thumb-cache.ts` — 生成素材缩略图缓存：优先用宿主磁盘缓存，其次浏览器缓存；缺失时只取一次原图并缩成 480/960px WebP，回传宿主供所有客户端复用。
-- `useLibraryState.ts` — 订阅资料库共享状态的 React 入口：中心页与右栏检视器使用同一份选中项与素材列表。
+
+### packages/client/ui-tool-media/client/thumbs
+
+- `LocalMediaImage.module.css` — 聊天内生成图片预览：圆角卡片、柔和投影，不再用硬边框把画面切成一格。
+- `LocalMediaImage.tsx` — 聊天内媒体预览：/api/media/* 需要令牌头，img 标签无法携带，改为 fetch 后转 blob URL 渲染。
+- `MediaThumb.tsx` — 生成素材缩略图：进入视口附近才按需读取，浏览器内缩到 480px 并写入缓存；完整原图仍由 useMediaBlob 供右栏使用。
 
 ### packages/client/ui-tool-media/src
 
@@ -1252,6 +1285,11 @@ lfaa/
 - `RemoveProjectDialog.tsx` — 移出项目二次确认弹窗：复用 @lfaa/ui-primitives 的共享 ConfirmDialog，明确告知仅从应用中移出。
 - `useProjectBrief.ts` — 管理项目简介草稿：目录变化时自动生成初稿，用户编辑后不再覆盖，并暴露手动重新生成。
 
+### packages/client/ui-workspace/client/shared
+
+- `anchor.ts` — 浮层锚点矩形：项目行悬停卡、操作菜单与 store 共用的纯类型，避免 store 反向依赖组件。
+- `worktree-types.ts` — 工作树客户端展示类型：字段由 /api/worktrees 返回，Host 侧契约在 @lfaa/worktree。
+
 ### packages/client/ui-workspace/client/store
 
 - `local-project-store.ts` — 通过同源 /api/workspace/* RPC 与 Host WorkspaceService 同步真实本地项目和目录信息，并缓存快照实现首屏秒开与静默刷新。
@@ -1263,7 +1301,6 @@ lfaa/
 - `WorktreeDialog.tsx` — 新建工作树会话弹窗：填写分支与可选起点，创建同级工作树后直接打开绑定的新会话。
 - `WorktreeSection.module.css` — 项目详情的工作树区块样式：与工作树弹窗共用主题变量。
 - `WorktreeSection.tsx` — 项目详情里的工作树区块：列出分支/目录/绑定会话与未提交改动，并提供受保护的删除入口。
-- `worktree-types.ts` — 工作树客户端展示类型：字段由 /api/worktrees 返回，Host 侧契约在 @lfaa/worktree。
 
 ### packages/client/ui-workspace/src
 
@@ -2468,6 +2505,8 @@ lfaa/
 - `check-allowlist.json`
 - `check-architecture.mjs` — 依赖方向护栏：扫全仓 packages/ 的跨包导入，按 docs/architecture/dependency-rules.json 判定是否越界。
 - `check-architecture.test.mjs` — 验证依赖护栏规则本身：跨功能 UI 复用、客户端越界、.tsx 落位、内核反向依赖、装配边、BOM 与未声明依赖。
+- `check-client-layout.mjs`
+- `check-doc-links.mjs`
 - `check-logs.mjs` — 日志编号体检：dev-log 卷内标题编号与 updata-log 文件名编号必须各自唯一；同一轮两类日志共用编号是允许的。
 - `check-logs.test.mjs` — 验证日志编号体检：同类日志重号判错、基线可登记历史重号、基线外的重号仍然判错、基线条目过期提示。
 - `check-workspace.mjs` — 仓库边界检查：校验包命名、跨包子路径、Host/Client 隔离、依赖一致性、循环依赖、中文文件头与文件规模。
@@ -2500,5 +2539,5 @@ lfaa/
 | 目录 | 文件数 | 子目录数 | 说明 |
 | --- | --- | --- | --- |
 | `docs/dev-log` | 4 | 1 | 按每 200 条任务编号汇总的开发日志卷 |
-| `docs/updata-log` | 316 | 1 | 面向用户的单条更新说明 |
+| `docs/updata-log` | 317 | 1 | 面向用户的单条更新说明 |
 | `vendor` | 14 | 4 | 内嵌的上游运行时源码 |

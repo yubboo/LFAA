@@ -19,7 +19,7 @@ import {
   type BrowserConsoleItem,
   type BrowserNetworkItem,
   type BrowserSessionSnapshot,
-} from "../browser-client";
+} from "../api/browser-client";
 import styles from "./RightBrowserPane.module.css";
 
 export function RightBrowserPane({

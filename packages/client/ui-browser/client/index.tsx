@@ -3,7 +3,7 @@ import type { Context, Plugin } from "@deepseek-ai/cordis";
 import "@lfaa/ui-layout/client";
 import { BrowserSettingsView } from "./settings/BrowserSettingsView";
 
-export * from "./browser-client";
+export * from "./api/browser-client";
 export { RightBrowserPane } from "./panes/RightBrowserPane";
 export { BrowserSettingsView } from "./settings/BrowserSettingsView";
 

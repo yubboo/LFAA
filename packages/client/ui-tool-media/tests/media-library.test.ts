@@ -8,7 +8,7 @@ import {
   mediaKindLabel,
   mediaLibraryFileUrl,
   type MediaLibraryItem,
-} from "../client/media-library";
+} from "../client/media/media-library";
 
 const items: MediaLibraryItem[] = [
   {

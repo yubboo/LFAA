@@ -1,6 +1,6 @@
 // 内置浏览器顶部多标签栏：标签切换、关闭与新建；标签数据与激活/关闭操作由父组件传入。
 import { IconPlus, IconWorld, IconX } from "@tabler/icons-react";
-import type { BrowserTabItem } from "../browser-client";
+import type { BrowserTabItem } from "../api/browser-client";
 import styles from "./RightBrowserPane.module.css";
 
 export function BrowserTabs({

@@ -14,7 +14,7 @@ import {
   IconShieldCheck,
   IconTerminal2,
 } from "@tabler/icons-react";
-import type { BrowserSessionSnapshot } from "../browser-client";
+import type { BrowserSessionSnapshot } from "../api/browser-client";
 import styles from "./RightBrowserPane.module.css";
 
 export type ViewportPreset = "auto" | "desktop" | "mobile";

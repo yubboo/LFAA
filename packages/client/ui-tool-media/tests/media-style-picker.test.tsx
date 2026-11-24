@@ -20,7 +20,7 @@ registerHooks({
   },
 });
 
-const { MediaStylePicker } = await import("../client/MediaStylePicker");
+const { MediaStylePicker } = await import("../client/compose/MediaStylePicker");
 
 test("风格选择器默认显示「风格 自动」，浮层包含全部风格", () => {
   const html = renderToStaticMarkup(createElement(MediaStylePicker, {

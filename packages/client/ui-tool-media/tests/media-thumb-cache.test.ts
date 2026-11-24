@@ -1,7 +1,7 @@
 // 验证缩略图缓存键随文件变化失效，语音素材不发起任何网络请求。
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildThumbnailKey, getMediaThumbnail } from "../client/media-thumb-cache";
+import { buildThumbnailKey, getMediaThumbnail } from "../client/media/media-thumb-cache";
 
 const base = {
   path: "C:\\ws\\.lfaa-media\\images\\a.png",

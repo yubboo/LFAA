@@ -1,6 +1,6 @@
 // @lfaa/plugins 添加外部插件的流式请求封装：用 POST + fetch 流读取 SSE 安装日志与最终状态。
 import type { PluginRecord } from "@lfaa/plugins/contract";
-import type { PluginsStatePayload } from "../plugins-client";
+import type { PluginsStatePayload } from "../api/plugins-client";
 
 /** 安装过程中的回调：日志行、完成状态与失败原因。 */
 export interface AddStreamHandlers {

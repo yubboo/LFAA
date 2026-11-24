@@ -75,4 +75,4 @@
 - 修改：`packages/ui/layout/client/components/NavigationGroups.tsx`
 - 修改：`packages/ui/layout/client/components/SidebarSectionList.tsx`
 - 修改：`packages/ui/layout/client/locales.ts`
-- 文档：`docs/architecture/session-list-paging.md`、`docs/architecture/README.md`
+- 文档：`docs/features/session-list-paging.md`、`docs/architecture/README.md`

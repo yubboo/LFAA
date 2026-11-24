@@ -25,6 +25,7 @@
 - Host 代码禁止导入 React、DOM、CSS；Client 代码禁止导入 Node 专有实现、凭据或 Host 内部模块。
 - 共享基础 UI 独立放在 `packages/ui/primitives`、`packages/ui/theme`、`packages/ui/layout`、`packages/ui/icons` 等真正通用包。
 - 每个插件应具有明确 Service 定义、`inject`、公开导出和生命周期清理；禁止跨包深层导入和循环依赖。
+- **界面包内部分区**：`client/` 顶层只放入口（`index.tsx`）与文案（`locales*.ts`）；业务代码超过 10 个文件时按职责建区域目录（如 `composer/`、`media/`、`view/`），跨区域共用类型放 `shared/`。区域必须单向，不得反向 import 入口。`pnpm check:client-layout` 会报告循环并提示拆分；规范见 `docs/architecture/structure.md` §3.1。
 - **插件包必须默认导出插件本体**：Host 侧 `src/index.ts` 需 `export default xxxPlugin`。Cordis Loader 按 `default` 取插件，只有具名导出会导致「装得上但拿不到插件」；`pnpm check` 的 `plugin-default-export` 规则会强制这一条。
 
 ## 2.1 首版主界面布局约定
@@ -98,6 +99,8 @@
 - 不泄漏密钥、不静默清除数据、不改动无关系统文件。高风险操作必须单独审批。
 
 ## 7. 日志是交付门槛
+
+- **文档总入口是 `docs/README.md`**：结构与机制进 `docs/architecture/`，功能设计进 `docs/features/`，跨阶段方案进 `docs/plans/`，规范进 `docs/standards/`。移动或改名文档后同轮修链接，`pnpm check:docs` 会拦死链。
 
 - **骨架同步（强制）**：新增 / 删除 / 移动文件、包或目录后，必须在同一轮运行 `pnpm map:sync` 更新 `docs/architecture/repository-map.md` 并随源码一起提交。该文档由 `scripts/gen-repository-map.mjs` 按真实文件系统生成，**禁止手改**；`pnpm check` 会校验它与骨架一致，不一致直接判错。拆包、拆文件后还要在最终报告里列出「新文件落在哪、原文件变成什么」。
 - `docs/dev-log/`：每轮**实际发生文件变更**的开发交付必须有一条；日志按每 200 个任务编号汇总到一个卷文件（如 `000001-000200.md`），卷内逐条保留完整记录与原始文件名索引，未满 200 条时追加，满 200 条后开启下一卷。

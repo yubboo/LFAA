@@ -2,10 +2,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { IconMusic, IconPhoto, IconVideo, IconX } from "@tabler/icons-react";
-import { filterMediaItems, MEDIA_FILTER_OPTIONS, type MediaFilterKind } from "./media-library";
+import { filterMediaItems, MEDIA_FILTER_OPTIONS, type MediaFilterKind } from "../media/media-library";
 import { libraryMediaStore } from "./library-store";
 import { useLibraryMedia } from "./useLibraryState";
-import { MediaThumb } from "./MediaThumb";
+import { MediaThumb } from "../thumbs/MediaThumb";
 import styles from "./MediaLibraryDialog.module.css";
 
 /** 生成素材库：网格浏览 + 提示词复用，数据与资料库「图像」分类共用同一读取逻辑。 */

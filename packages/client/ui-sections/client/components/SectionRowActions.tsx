@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { IconDots, IconEdit, IconPencil, IconTrash } from "@tabler/icons-react";
 import type { WorkbenchSectionItem } from "@lfaa/ui-layout";
 import type { SectionsLocaleMessages } from "../locales";
-import type { SectionStore } from "../section-store";
+import type { SectionStore } from "../store/section-store";
 import styles from "./SectionRowActions.module.css";
 
 /** 为自定义分区行提供独立操作菜单和创建会话入口。 */

@@ -1,8 +1,8 @@
 // 生成素材缩略图：进入视口附近才按需读取，浏览器内缩到 480px 并写入缓存；完整原图仍由 useMediaBlob 供右栏使用。
 import { useEffect, useRef, useState } from "react";
 import { IconMusic, IconPhoto, IconVideo } from "@tabler/icons-react";
-import { mediaLibraryFileUrl, type MediaLibraryItem } from "./media-library";
-import { getMediaThumbnail } from "./media-thumb-cache";
+import { mediaLibraryFileUrl, type MediaLibraryItem } from "../media/media-library";
+import { getMediaThumbnail } from "../media/media-thumb-cache";
 
 /** 读取完整素材文件为 blob URL，供右栏大图/播放器使用；路径变化或卸载时中止请求并回收 URL。 */
 export function useMediaBlob(path: string): string | null {

@@ -1,5 +1,5 @@
 // 管理左二项目行的 Hover 信息卡、Click 操作菜单、抑制滞留悬停与“编辑项目”弹窗状态。
-import type { HoverAnchorRect } from "../project/ProjectHoverCard";
+import type { HoverAnchorRect } from "../shared/anchor";
 
 /** 记录项目菜单锚点与位置，供菜单和预览共用。 */
 export interface PopoverAnchorState {

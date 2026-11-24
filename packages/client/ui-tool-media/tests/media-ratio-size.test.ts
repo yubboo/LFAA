@@ -1,7 +1,7 @@
 // 图片尺寸换算比例：再次生图占位用（覆盖常见比例与不匹配情况）。
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ratioFromSize } from "../client/chat-media";
+import { ratioFromSize } from "../client/media/chat-media";
 
 test("常见图片尺寸能换算成对应比例", () => {
   assert.equal(ratioFromSize(2048, 1152), "16:9");

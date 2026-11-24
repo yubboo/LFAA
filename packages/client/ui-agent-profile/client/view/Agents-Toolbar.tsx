@@ -1,7 +1,7 @@
 // @lfaa/agent-profile Agents 页工具条：刷新、导出、导入与新建，避免列表页继续膨胀。
 import { useRef } from "react";
 import { IconDownload, IconPlus, IconRefresh, IconUpload } from "@tabler/icons-react";
-import type { AgentsMessages } from "./locales";
+import type { AgentsMessages } from "../locales";
 import styles from "./Agents-View.module.css";
 
 export interface AgentsToolbarProps {

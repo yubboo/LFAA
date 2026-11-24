@@ -2,7 +2,7 @@
 import type { Context } from "@deepseek-ai/cordis";
 import "@lfaa/ui-layout/client";
 import type { PluginRecord } from "@lfaa/plugins/contract";
-import { fetchPluginsState } from "./plugins-client";
+import { fetchPluginsState } from "./api/plugins-client";
 import { PluginsView } from "./components/Plugins-View";
 
 function detectIsZh(): boolean {

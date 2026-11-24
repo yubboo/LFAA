@@ -82,7 +82,7 @@ test("Client sectionsClientPlugin 在工作台注册并在 dispose 时清理", a
 });
 
 test("SectionStore 从本地缓存首屏秒开并在远端一致时静默无感校验", async () => {
-  const { SectionStore } = await import("../client/section-store");
+  const { SectionStore } = await import("../client/store/section-store");
   const cached = [{ id: "sec-1", name: "鱼", createdAt: 1000 }];
   const mem = new Map<string, string>([["lfaa:cache-sections", JSON.stringify(cached)]]);
   const prevWindow = (globalThis as { window?: unknown }).window;

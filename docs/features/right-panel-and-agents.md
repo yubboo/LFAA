@@ -10,7 +10,7 @@
 
 将 LFAA 现有的单一「工作详情」右侧栏重构为工作台控制台（对齐参考图），并按 DSH 架构模式补齐三项核心运行能力：
 
-1. **右侧菜单栏重构（`@lfaa/chat/client`）**：提供顶栏搜索/直达 URL、快捷功能入口（审查、打开文件、终端、浏览器、侧边提问、扩展）、实时「子智能体」列表与「后台任务」列表，同时保留原有工作详情与多标签页文件预览（[WorkspaceFileTabs.tsx](../../packages/core/chat/client/components/WorkspaceFileTabs.tsx)）。
+1. **右侧菜单栏重构（`@lfaa/chat/client`）**：提供顶栏搜索/直达 URL、快捷功能入口（审查、打开文件、终端、浏览器、侧边提问、扩展）、实时「子智能体」列表与「后台任务」列表，同时保留原有工作详情与多标签页文件预览（[WorkspaceFileTabs.tsx](../../packages/client/ui-chat/client/workbench/WorkspaceFileTabs.tsx)）。
 2. **后台任务系统（`@lfaa/jobs`）**：参考 DSH `jobs` / `jobs-local` / `tool-jobs`，支持会话级隔离的后台命令行进程、实时 stdout/stderr（复用 `@lfaa/shell-env` 编码解码）、状态追踪与停止清理。
 3. **内置浏览器（`@lfaa/browser`）**：参考 DSH `browser-use` 的独占服务注册模式 + `playwright-core`（方案 A：优先复用本机已安装的 Microsoft Edge / Google Chrome，不下载冗余浏览器二进制），为小鱼 Agent 提供完整的网页浏览、DOM 交互与控制台排错工具，并在右栏实时可视化呈现与支持人工接管。
 4. **子智能体与多 Agent 协作（`@lfaa/subagent`）**：参考 DSH `subagent` / `subagent-spawn-in-process` / `tool-subagent`，允许主 Agent 派发、并行执行与消息协调多个隔离的子智能体完成调研、代码审查或浏览器自测任务。

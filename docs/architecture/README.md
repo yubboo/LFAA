@@ -1,43 +1,26 @@
 # 架构文档索引
 
-本目录记录已确认的项目架构基线，以及具体能力在实施前需要评审的设计方案。方案状态以各文档开头的标记为准；草案不代表已经实现或批准。
+本目录只放**结构与机制**：分组、依赖方向、插件模型、运行时与自动生成的目录说明书。单个功能的设计在 [features/](../features/README.md)，跨阶段方案在 [plans/](../plans/README.md)。
 
-## 基线
+## 必读
 
-- [架构基线](overview.md)：项目技术栈、包边界、应用装配和已确认的总体决策。
-- [结构法则](structure.md)：分组与层级现状、依赖方向护栏（`pnpm check:arch`）、装配方式、可拆卸验收、与 DSH/参考实现的对齐结论与结构债处置顺序。**改结构前必读**。
-- [依赖规则清单](dependency-rules.json)：`check:arch` 读的机器可读例外表；新增跨包 UI 复用或装配边必须在此登记理由。
-- [本机接口鉴权](local-api-auth.md)：一次性令牌 + 同源校验挡住跨站请求，安装来源的 shell 加固与边界。
-- [仓库目录说明书](repository-map.md) · 由 `pnpm map:sync` 按真实骨架生成的目录树、逐文件职责与常见入口；**禁止手改**，骨架变动须同轮重新生成。
+- [架构基线](overview.md)：技术栈、包边界、应用装配与已确认的总体决策。
+- [结构法则](structure.md)：分组与层级现状、依赖护栏、包内分区规则（入口 + 区域 + shared）、可拆卸验收。**改结构前必读**。
+- [包分类规范](package-taxonomy.md)：分层模型、分组职责、新包归属决策与反例。**新增包前必读**。
+- [依赖规则清单](dependency-rules.json)：`check:arch` 读取的机器可读例外表；新增跨包复用或装配边必须登记理由。
+- [仓库目录说明书](repository-map.md)：由 `pnpm map:sync` 按真实骨架生成；**禁止手改**，骨架变动须同轮重新生成。
 
-## 能力设计
+## 机制
 
-- [助手回复过程](assistant-timeline.md)：正文流、活动分组、运行状态与历史回看。
-- [Agent 会话工作区](agent-workspace.md)：项目绑定、生效目录和应用私有文件边界。
-- [Git 工作树会话隔离](worktree.md)：一个会话一个工作树的分支/目录契约、会话有效根解析、安全加固与 P0–P3 实施顺序。**P0–P3b 已实施；自动合并待决策**。
-- [右栏控制台、内置浏览器、后台任务与多 Agent 协作](right-panel-and-agents.md)：右栏重构、Playwright 本机 Edge 驱动浏览器、会话后台任务与进程内子智能体方案（已实施）。
-- [IDE 化右侧工作台、VS Code 代码查看与全视口真交互浏览器](right-workbench-ide.md)：顶部对齐 Tab 栏、最右图标菜单栏、VS Code 只读代码与行内 `+` 批注、文件树联动及全高多标签真交互内置浏览器方案（已实施）。
-- [Plan 模式](plan-mode.md)：计划模式的交互、Host/Client 契约、实施顺序与验收要求。状态以文档内说明为准。
-- [任务清单（计划 → 执行 → 交付）](task-list.md)：`todo_write`/`todo_read` 现状、与 DSH 任务面板的实测对照、差距与分阶段补齐建议。当前为调研结论，代码未开工。
-- [任务清单开发方案](task-list-plan.md)：数据契约、文件级改动清单、P0–P3 实施顺序与验收标准。**待评审，未开工**。
-- [资料库合并「图像」入口](library-media-hub.md)：左一去掉独立图像域，资料库新增图像分类复用生成素材接口的方案与验收（已实施）。
-- [左二栏会话分批展开](session-list-paging.md)：项目子会话与最近分组每批 6 条的展开/收起窗口、控件契约与验收（已实施）。
-- [会话待处理提醒与通知中心](notifications.md)：待确认/待回答徽标、Host 待处理接口、提示音与桌面通知、通知设置页的实现边界（已实施）。
-- [扩展中心](extensions.md)：技能与插件的职责、公开契约、Cordis 生命周期及实施方案。当前为草案，新增包与能力需按 A1 流程确认。
-- [DSH 包跨仓库复用评估](dsh-package-reuse.md)：本地源码与 npm 版本差异、workspace 协议限制、四条复用路线与推荐切片。当前为调研结论，跨仓库改动待负责人确认。
-- [沙箱](sandbox.md)：模式语义、工具层强制边界、与 DSH 的差距与原生后端路线。**当前不是进程级沙箱**。
-- [包分类规范](package-taxonomy.md)：分层模型、已登记分组职责、新包归属决策流程与反例。**新增包前必读**。
-- [插件分层与模式预设](plugin-inventory.md)：会话插件 ⊆ 全局插件、四种模式预设、全局清单扩充规划（P0/P1/P2）。
-- [插件模型：内置 vs 外部](plugin-model.md)：内置插件只能启停、不可卸载；外部插件支持 npm / Git / 本地路径 / 压缩包四类来源。**先读这篇再改插件页**。
-- [插件运行时](plugin-runtime.md)：Loader 按包名装载 / 卸载 / 重装 / 二创的已验证结论、默认导出约束、插件页接入现状与仍未完成项（版本兼容、依赖图、HMR）。
-- [两个巨型循环拆分方案](loop-refactor-plan.md)：Agent Loop 与 Chat Run Actions 的状态归属、分阶段边界与验收标准。方案已实施完毕（A1–A4、B1、A5/B2），两条行数线达标。
-- [目标自动续跑与跨会话协调方案](goal-coordination-plan.md)：goal 自动续跑（轮次/暂停/停止条件）与工作区租约、工作树并行、会话可见性工具、交接协议的分阶段设计。方案已实施（P1–P5）。
-- [Agent 与模型解耦：Agent 定义、模型绑定与路由组](agent-model-routing.md)：可添加的 agent 实体、每 agent 绑定任意模型或路由组、失败切换与会话级覆盖的分阶段设计。**待评审，未开工**。
-- [会话形态：单聊 / 群聊 / Agents](agent-conversations.md)：左一三入口、代理人调度与发言计划校验、群聊消息/SSE 契约、G1–G4 分阶段设计。**待评审，未开工**。
-- [构建、测试与边界地基方案](engineering-foundation.md)：统一测试入口、包级 `dist` 构建、Host/Client 边界检查的实施顺序与验收条件。当前为待评审方案，未开工。
+- [插件模型：内置 vs 外部](plugin-model.md)：内置插件只能启停、不可卸载；外部插件支持 npm / Git / 本地路径 / 压缩包。
+- [插件运行时](plugin-runtime.md)：Loader 装载 / 卸载 / 重装 / 二创的已验证结论与默认导出约束。
+- [Shell 运行时](shell-runtime.md)：四栏外壳的生命周期与贡献清理。
+- [构建、测试与边界地基方案](engineering-foundation.md)：统一测试入口、包级 `dist` 构建与 Host/Client 边界检查。**待评审方案**。
+- [DSH 包跨仓库复用评估](dsh-package-reuse.md)：本地源码与 npm 版本差异、workspace 协议限制与四条复用路线。
 
 ## 维护约定
 
 - 总体开发约束见 [开发规范](../standards/AI-Agent-Development-Standards.md)。
-- 每轮实施事实见 `../dev-log/` 范围卷；面向用户的变化见 `../updata-log/`。
-- 新增架构方案时，先在对应专题文档说明状态、适用范围和待确认事项，再更新本索引。
+- 每轮实施事实见 [dev-log](../dev-log/) 范围卷；面向用户的变化见 [updata-log](../updata-log/)。
+- 结构调整：先改本目录的 `structure.md` 与 `dependency-rules.json`，再动代码，最后 `pnpm map:sync`。
+- 文档总入口见 [docs/README.md](../README.md)。

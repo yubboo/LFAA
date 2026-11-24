@@ -2,7 +2,7 @@
 // 数据全部来自 /api/agents 与 /api/bindings；保存后重新拉取，不做乐观更新以免掩盖服务端校验。
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { IconRobot } from "@tabler/icons-react";
-import { agentsMessages } from "./locales";
+import { agentsMessages } from "../locales";
 import {
   createAgent,
   createBinding,
@@ -15,9 +15,9 @@ import {
   fetchWriteToolNames,
   updateAgent,
   type ModelOption,
-} from "./agents-api";
-import type { AgentItem, BindingItem } from "./agents-types";
-import { AgentEditor, type AgentDraft, type BindingDraft } from "./Agent-Editor";
+} from "../agents/agents-api";
+import type { AgentItem, BindingItem } from "../agents/agents-types";
+import { AgentEditor, type AgentDraft, type BindingDraft } from "../editor/Agent-Editor";
 import { AgentsToolbar } from "./Agents-Toolbar";
 import styles from "./Agents-View.module.css";
 

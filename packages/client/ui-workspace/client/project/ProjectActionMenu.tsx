@@ -15,7 +15,7 @@ import {
 } from "@tabler/icons-react";
 import type { WorkbenchProjectItem, WorkbenchSectionItem } from "@lfaa/ui-layout";
 import type { WorkspaceLocaleMessages } from "../locales";
-import type { HoverAnchorRect } from "./ProjectHoverCard";
+import type { HoverAnchorRect } from "../shared/anchor";
 import styles from "./ProjectActionMenu.module.css";
 
 /** 把置顶、编辑、分区移动与移出动作绑定到当前项目。 */

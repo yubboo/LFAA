@@ -20,7 +20,7 @@ registerHooks({
   },
 });
 
-const { MediaRatioPicker } = await import("../client/MediaRatioPicker");
+const { MediaRatioPicker } = await import("../client/compose/MediaRatioPicker");
 
 test("比例选择器默认显示「比例 自动」，浮层包含全部常用比例", () => {
   const html = renderToStaticMarkup(createElement(MediaRatioPicker, {

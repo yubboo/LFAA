@@ -1,9 +1,9 @@
 // @lfaa/skills 浏览器端 Cordis 插件：向 Workbench 注册技能中心视图，并在卸载时清理。
 import type { Context } from "@deepseek-ai/cordis";
 import "@lfaa/ui-layout/client";
-import { SkillsView } from "./Skills-View";
+import { SkillsView } from "./view/Skills-View";
 
-export { fetchSkillsList } from "./skills-client";
+export { fetchSkillsList } from "./skills/skills-client";
 
 function detectIsZh(): boolean {
   if (typeof document !== "undefined" && document.documentElement.lang) {

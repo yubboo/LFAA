@@ -5,7 +5,7 @@ import "@lfaa/ui-layout/client";
 import { SectionDialog } from "./components/SectionDialog";
 import { SectionRowActions } from "./components/SectionRowActions";
 import { getSectionsLocale, type SectionsLocaleMessages } from "./locales";
-import { SectionStore } from "./section-store";
+import { SectionStore } from "./store/section-store";
 
 declare module "@deepseek-ai/cordis" {
   interface Events {

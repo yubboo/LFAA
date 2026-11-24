@@ -1,9 +1,9 @@
 // @lfaa/agent-profile Agent 编辑卡：名称、用途、人设指令、模型绑定与保存/删除。
 // 受控组件：状态由 Agents-View 持有，这里只渲染与回调，拆分目的是把列表与表单的职责分开。
 import { IconPlus, IconTrash } from "@tabler/icons-react";
-import type { AgentsMessages } from "./locales";
-import type { ModelOption } from "./agents-api";
-import type { AgentItem, BindingItem } from "./agents-types";
+import type { AgentsMessages } from "../locales";
+import type { ModelOption } from "../agents/agents-api";
+import type { AgentItem, BindingItem } from "../agents/agents-types";
 import styles from "./Agent-Editor.module.css";
 
 /** 编辑中的草稿；view 持有它，切换选中项时整体替换。 */

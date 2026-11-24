@@ -69,4 +69,4 @@ Plan 开关放在现有输入工具栏，`/plan` 和已有「计划模式」入�
 ## 参考
 
 - DSH 本地快照 `687f282e86`，`packages/plan/plan-mode` 的命令、会话恢复与用户评审设计。
-- LFAA 的 [Agent 调度](../../packages/core/agent/src/index.ts)、[工具循环](../../packages/core/agent/src/agent-loop.ts)、[会话存储](../../packages/core/memory/src/session-store.ts) 和 [聊天输入区](../../packages/core/chat/client/components/ChatWorkspace.tsx)。
+- LFAA 的 [Agent 调度](../../packages/core/agent/src/index.ts)、[工具循环](../../packages/core/agent/src/run/agent-loop.ts)、[会话存储](../../packages/core/session/src/session-store.ts) 和 [聊天输入区](../../packages/client/ui-chat/client/conversation/ChatWorkspace.tsx)。

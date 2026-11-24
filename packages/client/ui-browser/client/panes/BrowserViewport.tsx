@@ -1,7 +1,7 @@
 // 内置浏览器实时视口：把 CDP 画面映射为可点击/滚轮/键盘直输的交互区，空白时展示就绪提示与本地快捷入口。
 import { useRef, type CompositionEvent, type KeyboardEvent, type MouseEvent, type RefObject, type WheelEvent } from "react";
 import { IconWorld } from "@tabler/icons-react";
-import { performBrowserAction, type BrowserSessionSnapshot } from "../browser-client";
+import { performBrowserAction, type BrowserSessionSnapshot } from "../api/browser-client";
 import type { ViewportPreset } from "./BrowserToolbar";
 import styles from "./RightBrowserPane.module.css";
 

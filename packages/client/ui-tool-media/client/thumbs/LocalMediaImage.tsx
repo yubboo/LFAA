@@ -1,9 +1,9 @@
 // 聊天内媒体预览：/api/media/* 需要令牌头，img 标签无法携带，改为 fetch 后转 blob URL 渲染。
 import { useContext, useEffect, useRef, useState } from "react";
 import { IconDownload, IconQuote, IconRefresh } from "@tabler/icons-react";
-import { ratioFromSize, readMediaPath } from "./chat-media";
-import { mediaChatMessages } from "./media-locales";
-import { MediaResultContext } from "./media-result-context";
+import { ratioFromSize, readMediaPath } from "../media/chat-media";
+import { mediaChatMessages } from "../media-locales";
+import { MediaResultContext } from "../media/media-result-context";
 import styles from "./LocalMediaImage.module.css";
 
 /** 渲染图片；本机媒体走带鉴权的 fetch 取 blob，外链图片直接使用。 */

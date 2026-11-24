@@ -53,6 +53,29 @@
 | `ui-package-required` | 带 `client/` 的包既不在 `ui`/`client` 组，也不在存量基线里 | 新界面必须进 `packages/client/ui-*`，能力包保持无 React |
 | `legacy-client-grow` | 存量包的 `client/` 文件数超过 `clientUi.legacy` 基线 | 迁移期允许旧结构存在，但不许继续往能力包里加界面 |
 | `bom` | 源码/配置/文档带 UTF-8 BOM（`.ps1` 例外：Windows PowerShell 5.1 需要 BOM 才能正确解码中文） | BOM 曾让启动期 `JSON.parse` 失败；反过来，去掉 `.ps1` 的 BOM 会让脚本按 ANSI 解码中文而语法崩溃 |
+| `client-layout`（`pnpm check` 内） | `client/` 下区域之间成环、区域反向 import 入口、或扁平包顶层超过 10 个业务文件 | 分区后仍要有单向依赖：共用类型/常量下沉 `shared/`；扁平包超过 10 个文件就该按职责分区 |
+
+### 3.1 包内结构：入口 + 区域 + shared
+
+一个 `client/` 超过 10 个业务文件时，按职责分区，而不是继续平铺：
+
+```text
+packages/client/ui-tool-media/client/
+├── index.tsx            入口：注册与导出，可 import 任意区域
+├── css-modules.d.ts
+├── media-locales.ts     文案（跨区域共享，留在顶层）
+├── media/               数据与缓存：chat-media / media-library / media-thumb-cache / media-result-context
+├── thumbs/              缩略图原子组件
+├── library/             资料库对话框与状态
+└── compose/             比例/风格选择器与生成卡片
+```
+
+规则：
+
+- 区域之间保持单向：`compose → media`、`library → media + thumbs`，不得反向。
+- 区域不得 import 入口（`index.tsx`）。
+- 区域共用的类型/常量放 `shared/`，不要让 store 反向 import 组件（`ui-workspace` 的 `HoverAnchorRect` 已按此下沉）。
+- 检查覆盖全部 11 个界面包；存量成环先告警，新增成环会在评审时要求拆 `shared/`。
 
 当前基线：0 处越界、396 条跨包导入、5 条登记例外（client-ui-chat→tool-media、client-ui-chat→browser、client-ui-library→chat、client-ui-library→tool-media、client-ui-review→chat）与 1 条装配边（web-server→bundle-web）；界面待迁包 **0** 个。
 

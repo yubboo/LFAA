@@ -5,7 +5,7 @@ import { IconGitBranch, IconX } from "@tabler/icons-react";
 import type { WorkbenchProjectItem } from "@lfaa/ui-layout";
 import type { LocalProjectStore } from "../store/local-project-store";
 import type { WorkspaceLocaleMessages } from "../locales";
-import type { ProjectWorktreeItem } from "./worktree-types";
+import type { ProjectWorktreeItem } from "../shared/worktree-types";
 import styles from "./WorktreeDialog.module.css";
 
 /** 生成默认分支名：日期 + 4 位随机，避免同一天多次创建冲突。 */

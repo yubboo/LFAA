@@ -1,6 +1,6 @@
 // 设置中心「浏览器」视图：配置驱动通道（Edge/Chrome）、自定义路径、无头模式与本地调试免审开关。
 import { useEffect, useState } from "react";
-import { fetchBrowserConfig, saveBrowserConfig, type BrowserSettingsConfig } from "../browser-client";
+import { fetchBrowserConfig, saveBrowserConfig, type BrowserSettingsConfig } from "../api/browser-client";
 import styles from "./BrowserSettings.module.css";
 
 export function BrowserSettingsView({ isZh }: { isZh: boolean }) {

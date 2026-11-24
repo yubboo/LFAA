@@ -2,7 +2,7 @@
 // 消息渲染只做文本 + 说话人 + 模型，完整步骤仍回主会话查看；发送后按 1.2 秒轮询刷新到本轮收口。
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconSend, IconUsers, IconX } from "@tabler/icons-react";
-import { groupMessages } from "./locales";
+import { groupMessages } from "../locales";
 import {
   createGroupSession,
   fetchGroupSessions,
@@ -12,7 +12,7 @@ import {
   type GroupMessageItem,
   type GroupSessionItem,
   type MemberOption,
-} from "./group-api";
+} from "../group/group-api";
 import composerStyles from "./Group-Composer.module.css";
 import styles from "./Group-View.module.css";
 

@@ -1,5 +1,5 @@
 // 资料库中心页与右栏检视器共享的客户端状态：选中项与生成素材列表各只有一个所有者，避免两处重复请求和选择漂移。
-import { fetchMediaLibrary, mediaLibraryFileUrl, type MediaLibraryItem } from "./media-library";
+import { fetchMediaLibrary, mediaLibraryFileUrl, type MediaLibraryItem } from "../media/media-library";
 
 /** 资料库当前选中项；右栏检视器据此显示媒体或资产详情。 */
 export type LibrarySelection =
