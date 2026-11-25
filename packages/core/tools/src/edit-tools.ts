@@ -54,25 +54,45 @@ export function createEditTools(): AgentToolDefinition[] {
           allowOutsideWorkspace: ctx.allowOutsideWorkspace,
         });
         const existing = await readFile(targetFile, "utf8");
-        const positions = findOccurrences(existing, target);
+        const usesCrlf = existing.includes("\r\n");
+        let workText = existing;
+        let workTarget = target;
+        let workReplacement = replacement;
+        let positions = findOccurrences(workText, workTarget);
+        let normalizedEol = false;
+        // Windows CRLF 文件与模型输出的 LF 片段自动归一化匹配，写回时保持原文件换行风格。
+        if (positions.length === 0 && (usesCrlf || target.includes("\r\n"))) {
+          workText = existing.replace(/\r\n/gu, "\n");
+          workTarget = target.replace(/\r\n/gu, "\n");
+          workReplacement = replacement.replace(/\r\n/gu, "\n");
+          positions = findOccurrences(workText, workTarget);
+          normalizedEol = positions.length > 0;
+        }
         if (positions.length === 0) {
+          const firstLine = target.split(/\r?\n/u).map((l) => l.trim()).find((l) => l.length >= 6);
+          let hint = "";
+          if (firstLine) {
+            const idx = workText.indexOf(firstLine);
+            if (idx >= 0) hint = `（参考：首行近似内容位于第 ${lineOf(workText, idx)} 行附近）`;
+          }
           return {
             ok: false,
-            output: `文件 ${rawPath} 中未找到匹配 target 片段。请先用 read_file 或 grep 确认目标文本（含缩进与换行）。`,
+            output: `文件 ${rawPath} 中未找到匹配 target 片段${hint}。请先用 read_file 或 grep 确认目标文本（含缩进与换行）。`,
             summary: "未命中替换文本",
           };
         }
         if (positions.length > 1 && !replaceAll) {
-          const lines = positions.slice(0, 8).map((offset) => `第 ${lineOf(existing, offset)} 行`).join("、");
+          const lines = positions.slice(0, 8).map((offset) => `第 ${lineOf(workText, offset)} 行`).join("、");
           return {
             ok: false,
             output: `target 在 ${rawPath} 中命中 ${positions.length} 处（${lines}），为避免误改已取消。请在 target 中补充上下文使其唯一，或显式传 replaceAll:true 替换全部。`,
             summary: `命中 ${positions.length} 处，需要唯一匹配`,
           };
         }
-        const next = replaceAll
-          ? existing.split(target).join(replacement)
-          : `${existing.slice(0, positions[0]!)}${replacement}${existing.slice(positions[0]! + target.length)}`;
+        const replaced = replaceAll
+          ? workText.split(workTarget).join(workReplacement)
+          : `${workText.slice(0, positions[0]!)}${workReplacement}${workText.slice(positions[0]! + workTarget.length)}`;
+        const next = normalizedEol && usesCrlf ? replaced.replace(/\n/gu, "\r\n") : replaced;
         if (next === existing) {
           return { ok: true, output: `替换前后内容相同，未改动 ${rawPath}。`, summary: "内容未变化" };
         }

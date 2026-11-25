@@ -2,6 +2,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ChatMessageAttachment, ChatMessageReference } from "@lfaa/memory";
 import type { AgentService } from "./index";
+import { undoTurnChanges } from "./run/turn-snapshot";
 import { WorkspaceBusyError } from "./run/workspace-lease";
 
 /** 把客户端来源与宿主解析出的路径配对成可落库的引用图，数量或字段不符时丢弃。 */
@@ -204,6 +205,15 @@ export function createAgentHttpHandler(service: AgentService, options: AgentHttp
           clearInterval(heartbeatTimer);
           off();
         });
+        return true;
+      }
+
+      const undoTurnRoute = /^\/api\/agent\/sessions\/([^/]+)\/messages\/([^/]+)\/undo$/u.exec(pathname);
+      if (method === "POST" && undoTurnRoute) {
+        const sessionId = decodeURIComponent(undoTurnRoute[1] ?? "");
+        const messageId = decodeURIComponent(undoTurnRoute[2] ?? "");
+        const result = await undoTurnChanges(sessionId, messageId);
+        sendJson(res, 200, result);
         return true;
       }
 

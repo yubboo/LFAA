@@ -32,14 +32,14 @@ export function writeStoredFollowAgentWorkbench(follow: boolean): void {
 }
 
 export function readStoredReasoningLevel(): ReasoningLevelOption {
-  if (typeof window === "undefined") return "high";
+  if (typeof window === "undefined") return "medium";
   try {
     const val = window.localStorage.getItem(REASONING_LEVEL_KEY);
     if (val === "minimal" || val === "low" || val === "medium" || val === "high" || val === "max") return val;
   } catch {
     // 忽略存储读取限制。
   }
-  return "high";
+  return "medium";
 }
 
 export function writeStoredReasoningLevel(level: ReasoningLevelOption): void {

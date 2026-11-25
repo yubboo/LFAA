@@ -1,6 +1,6 @@
 // 管理本地短期会话记忆文件（~/.lfaa/sessions/*.json）与上下文窗口摘要裁剪。
 import { randomUUID } from "node:crypto";
-import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { collectHistoryDigest, formatHistoryDigest } from "./session-digest";
 import { readGroupConfig, readPendingQuestionValue } from "./session-normalize";
@@ -122,6 +122,8 @@ export class SessionMemoryStore {
   }
 
   private readonly writeQueues = new Map<string, Promise<void>>();
+  /** 按文件 mtimeMs + size 缓存会话摘要，避免每次 list() / attention 轮询重复全盘 JSON.parse。 */
+  private readonly summaryCache = new Map<string, { mtimeMs: number; size: number; summary: ChatSessionSummary }>();
 
   /** 同一会话的写入串行化：中止运行与立即发消息会同时落盘，并发 rename 在 Windows 上会 EPERM；队列结束后清理映射防泄漏。 */
   private serializeWrite<T>(sessionId: string, task: () => Promise<T>): Promise<T> {
@@ -170,14 +172,30 @@ export class SessionMemoryStore {
       return [];
     }
 
+    const seenFiles = new Set<string>();
     const sessions: ChatSessionSummary[] = [];
     for (const entry of entries) {
       if (!entry.endsWith(".json")) continue;
-      const loaded = await this.readSessionFile(join(this.sessionsDir, entry));
-      if (!loaded) continue;
-      if (!options.includeArchived && loaded.archived) continue;
-      if (options.projectId !== undefined && loaded.projectId !== options.projectId) continue;
-      sessions.push(toSummary(loaded));
+      seenFiles.add(entry);
+      const fullPath = join(this.sessionsDir, entry);
+      const info = await stat(fullPath).catch(() => null);
+      if (!info) continue;
+      const cached = this.summaryCache.get(entry);
+      let summary: ChatSessionSummary | null = null;
+      if (cached && cached.mtimeMs === info.mtimeMs && cached.size === info.size) {
+        summary = cached.summary;
+      } else {
+        const loaded = await this.readSessionFile(fullPath);
+        if (!loaded) continue;
+        summary = toSummary(loaded);
+        this.summaryCache.set(entry, { mtimeMs: info.mtimeMs, size: info.size, summary });
+      }
+      if (!options.includeArchived && summary.archived) continue;
+      if (options.projectId !== undefined && summary.projectId !== options.projectId) continue;
+      sessions.push(summary);
+    }
+    for (const key of this.summaryCache.keys()) {
+      if (!seenFiles.has(key)) this.summaryCache.delete(key);
     }
 
     return sessions.sort((left, right) => {
@@ -318,6 +336,7 @@ export class SessionMemoryStore {
   async delete(sessionId: string): Promise<boolean> {
     try {
       await rm(this.sessionFile(sessionId), { force: false });
+      this.summaryCache.delete(`${sessionId}.json`);
       return true;
     } catch {
       return false;

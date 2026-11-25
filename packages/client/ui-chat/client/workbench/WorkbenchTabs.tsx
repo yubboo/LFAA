@@ -1,7 +1,8 @@
-// 右侧工作台顶部标签栏：工作台/辅助面板、文件预览、内置浏览器、变更审查标签与新建浏览器标签按钮。
-import { IconFileDiff, IconLayoutGrid, IconPlus, IconWorld, IconX } from "@tabler/icons-react";
+// 右侧工作台顶部标签栏：工作台/辅助面板、文件预览、内置浏览器、子智能体舞台、变更审查标签与新建浏览器标签按钮。
+import { IconCheck, IconFileDiff, IconLayoutGrid, IconLoader2, IconPlus, IconRobot, IconWorld, IconX } from "@tabler/icons-react";
 import type { BrowserTabItem } from "@lfaa/client-ui-browser/client";
 import type { FilePreviewTab } from "../store/chat-types";
+import type { SubagentStageTab } from "./useWorkbenchSubagents";
 import { FileTypeIcon } from "@lfaa/ui-icons/client";
 import styles from "./RightWorkbenchPane.module.css";
 
@@ -10,7 +11,7 @@ function baseFileName(filePath: string): string {
   return parts[parts.length - 1] || filePath;
 }
 
-export type RightStageKind = "welcome" | "utility" | "file" | "browser" | "review";
+export type RightStageKind = "welcome" | "utility" | "file" | "browser" | "review" | "subagent";
 
 export function WorkbenchTabs({
   isZh,
@@ -23,6 +24,8 @@ export function WorkbenchTabs({
   browserIsBlank,
   reviewTabOpen,
   reviewMessageId,
+  subagentTabs,
+  activeSubagentTabId,
   onSelectFile,
   onCloseFile,
   onSelectBrowser,
@@ -31,6 +34,8 @@ export function WorkbenchTabs({
   onCloseBrowserTab,
   onSelectReview,
   onCloseReview,
+  onSelectSubagentTab,
+  onCloseSubagentTab,
   onNewBrowserTab,
 }: {
   isZh: boolean;
@@ -43,6 +48,8 @@ export function WorkbenchTabs({
   browserIsBlank: boolean;
   reviewTabOpen: boolean;
   reviewMessageId: string | undefined;
+  subagentTabs: SubagentStageTab[];
+  activeSubagentTabId: string | null;
   onSelectFile: (tabId: string) => void;
   onCloseFile: (tabId: string) => void;
   onSelectBrowser: () => void;
@@ -51,6 +58,8 @@ export function WorkbenchTabs({
   onCloseBrowserTab: (tabId: string) => void;
   onSelectReview: () => void;
   onCloseReview: () => void;
+  onSelectSubagentTab: (subagentId: string) => void;
+  onCloseSubagentTab: (subagentId: string) => void;
   onNewBrowserTab: () => void;
 }) {
   const renderBrowserTabs = () => {
@@ -143,6 +152,38 @@ export function WorkbenchTabs({
         );
       })}
       {renderBrowserTabs()}
+      {subagentTabs.map((sTab) => {
+        const active = stageKind === "subagent" && sTab.id === activeSubagentTabId;
+        return (
+          <div key={sTab.id} className={`${styles.tabItem} ${active ? styles.tabItemActive : ""}`}>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={active}
+              className={styles.tabBtn}
+              title={sTab.role}
+              onClick={() => onSelectSubagentTab(sTab.id)}
+            >
+              {sTab.status === "running" ? (
+                <IconLoader2 size={13} aria-hidden="true" />
+              ) : sTab.status === "done" ? (
+                <IconCheck size={13} aria-hidden="true" />
+              ) : (
+                <IconRobot size={13} aria-hidden="true" />
+              )}
+              <span>{sTab.role}</span>
+            </button>
+            <button
+              type="button"
+              className={styles.tabClose}
+              aria-label={isZh ? `关闭 ${sTab.role}` : `Close ${sTab.role}`}
+              onClick={() => onCloseSubagentTab(sTab.id)}
+            >
+              <IconX size={11} />
+            </button>
+          </div>
+        );
+      })}
       {reviewTabOpen && (
         <div className={`${styles.tabItem} ${stageKind === "review" ? styles.tabItemActive : ""}`}>
           <button

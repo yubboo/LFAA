@@ -5,7 +5,7 @@ import "@lfaa/memory";
 import "@lfaa/rules";
 import "@lfaa/tools";
 import { SubagentCoordinator } from "./subagent-service";
-import type { InvokeSubagentInput, SubagentPluginConfig, SubagentSummaryItem } from "./types";
+import type { InvokeSubagentInput, SubagentKind, SubagentPluginConfig, SubagentStreamEvent, SubagentSummaryItem } from "./types";
 
 export * from "./types";
 export { createSubagentHttpHandler } from "./http-handler";
@@ -34,25 +34,32 @@ export class SubagentService extends Service {
         moduleName: "@lfaa/subagent",
         name: "invoke_subagent",
         title: "派发子智能体",
-        description: "创建一个独立隔离的子智能体执行子任务：支持只读调研（read）、读写修改（write）以及专属浏览器操控与视觉验收（browser，只开放内置浏览器工具）；设 wait=false 可并发派发多个后用 list_subagents 回收。",
+        description: "创建一个独立隔离的子智能体执行子任务：支持调研（research）、代码实现（coder）、代码审查（reviewer）以及专属浏览器操控与视觉验收（browser）；设 wait=false 可并发派发多个后用 list_subagents 回收。",
         permissionLevel: "read",
         parameters: {
           type: "object",
           properties: {
-            role: { type: "string", description: "子智能体角色名称，如 浏览器验收助手 / Code Researcher" },
+            role: { type: "string", description: "子智能体角色名称，如 代码调研助手 / 浏览器验收助手 / 代码审查助手" },
             prompt: { type: "string", description: "清晰具体的任务目标与交付要求" },
-            mode: { type: "string", enum: ["read", "write", "browser"], description: "read 仅只读探索（默认），write 允许读写与命令，browser 专属浏览器操控与验收" },
+            kind: { type: "string", enum: ["research", "coder", "browser", "reviewer", "general"], description: "子智能体角色预设：research（只读调研）、coder（读写实现）、browser（浏览器操控验收）、reviewer（只读代码审查）" },
+            mode: { type: "string", enum: ["read", "write", "browser"], description: "兼容字段：未传 kind 时按 read/write/browser 决定权限边界" },
             wait: { type: "boolean", description: "是否阻塞等待完成后返回，默认 true；并行派发时设为 false" },
           },
           required: ["role", "prompt"],
         },
         execute: async (args, execCtx) => {
-          const mode = args.mode === "browser" ? "browser" : args.mode === "write" ? "write" : "read";
+          const rawKind = typeof args.kind === "string" ? args.kind : undefined;
+          const kind: SubagentKind | undefined =
+            rawKind === "research" || rawKind === "coder" || rawKind === "browser" || rawKind === "reviewer" || rawKind === "general"
+              ? rawKind
+              : undefined;
+          const mode = args.mode === "browser" ? "browser" : args.mode === "write" ? "write" : args.mode === "read" ? "read" : undefined;
           const item = await this.coordinator.invoke({
             sessionId: execCtx.sessionId,
-            role: typeof args.role === "string" ? args.role : (mode === "browser" ? "浏览器验收助手" : "子助手"),
+            role: typeof args.role === "string" ? args.role : "",
             prompt: typeof args.prompt === "string" ? args.prompt : "",
-            mode,
+            ...(kind ? { kind } : {}),
+            ...(mode ? { mode } : {}),
             workspaceRoots: execCtx.workspaceRoots,
             parentSignal: execCtx.signal,
             onSubagentActivity: execCtx.onSubagentActivity,
@@ -171,6 +178,14 @@ export class SubagentService extends Service {
 
   stopSubagent(id: string, sessionId?: string): SubagentSummaryItem | null {
     return this.coordinator.stop(id, sessionId);
+  }
+
+  subscribeSubagent(id: string, listener: (evt: SubagentStreamEvent) => void): () => void {
+    return this.coordinator.subscribe(id, listener);
+  }
+
+  messageSubagent(id: string, prompt: string): Promise<SubagentSummaryItem> {
+    return this.coordinator.messageFromUser(id, prompt);
   }
 }
 

@@ -3,7 +3,7 @@
 > 本文件由 `pnpm map:sync`（[scripts/gen-repository-map.mjs](../../scripts/gen-repository-map.mjs)）按真实文件系统生成，**不要手改**。
 > 骨架发生变化（新增/删除/移动文件、包或目录）后，必须在同一轮运行 `pnpm map:sync` 并提交，否则 `pnpm check` 会失败。
 
-当前快照：**63 个包、2562 个文件、474 个子目录**（不含 node_modules、构建产物与运行数据）。
+当前快照：**63 个包、2575 个文件、474 个子目录**（不含 node_modules、构建产物与运行数据）。
 
 ## 1. 快速索引
 
@@ -64,15 +64,15 @@ lfaa/
 │   └── web/  (10 个文件)
 │       ├── public/  (2 个文件)
 │       └── src/  (3 个文件)
-├── docs/  (436 个文件)
+├── docs/  (439 个文件)
 │   ├── architecture/  (11 个文件)
 │   ├── dev-log/  (4 个文件)
 │   ├── features/  (29 个文件)
-│   ├── plans/  (9 个文件)
+│   ├── plans/  (10 个文件)
 │   ├── standards/  (2 个文件)
 │   ├── templates/  (2 个文件)
-│   └── updata-log/  (377 个文件)
-├── packages/  (1886 个文件)
+│   └── updata-log/  (379 个文件)
+├── packages/  (1896 个文件)
 │   ├── api/  (7 个文件)
 │   │   └── gateway/  # @lfaa/api-gateway  (7 个文件)
 │   │       ├── src/  (1 个文件)
@@ -94,7 +94,7 @@ lfaa/
 │   │   └── review/  # @lfaa/review  (13 个文件)
 │   │       ├── src/  (7 个文件)
 │   │       └── tests/  (1 个文件)
-│   ├── client/  (475 个文件)
+│   ├── client/  (480 个文件)
 │   │   ├── ui-agent-group/  # @lfaa/client-ui-agent-group  (13 个文件)
 │   │   │   ├── client/  (7 个文件)
 │   │   │   │   ├── group/  (1 个文件)
@@ -113,16 +113,16 @@ lfaa/
 │   │   │   │   └── settings/  (1 个文件)
 │   │   │   ├── src/  (1 个文件)
 │   │   │   └── tests/  (1 个文件)
-│   │   ├── ui-chat/  # @lfaa/client-ui-chat  (256 个文件)
-│   │   │   ├── client/  (202 个文件)
+│   │   ├── ui-chat/  # @lfaa/client-ui-chat  (261 个文件)
+│   │   │   ├── client/  (207 个文件)
 │   │   │   │   ├── composer/  (35 个文件)
-│   │   │   │   ├── conversation/  (48 个文件)
+│   │   │   │   ├── conversation/  (50 个文件)
 │   │   │   │   ├── models/  (16 个文件)
 │   │   │   │   ├── session/  (19 个文件)
 │   │   │   │   ├── settings/  (10 个文件)
 │   │   │   │   ├── shared/  (6 个文件)
 │   │   │   │   ├── store/  (19 个文件)
-│   │   │   │   └── workbench/  (42 个文件)
+│   │   │   │   └── workbench/  (45 个文件)
 │   │   │   ├── src/  (1 个文件)
 │   │   │   └── tests/  (48 个文件)
 │   │   ├── ui-library/  # @lfaa/client-ui-library  (20 个文件)
@@ -179,11 +179,11 @@ lfaa/
 │   │   └── compaction/  # @lfaa/compaction  (12 个文件)
 │   │       ├── src/  (4 个文件)
 │   │       └── tests/  (3 个文件)
-│   ├── core/  (297 个文件)
-│   │   ├── agent/  # @lfaa/agent  (71 个文件)
-│   │   │   ├── src/  (42 个文件)
+│   ├── core/  (302 个文件)
+│   │   ├── agent/  # @lfaa/agent  (73 个文件)
+│   │   │   ├── src/  (44 个文件)
 │   │   │   │   ├── context/  (4 个文件)
-│   │   │   │   ├── run/  (29 个文件)
+│   │   │   │   ├── run/  (31 个文件)
 │   │   │   │   └── tools/  (5 个文件)
 │   │   │   └── tests/  (24 个文件)
 │   │   ├── agent-group/  # @lfaa/agent-group  (12 个文件)
@@ -235,8 +235,8 @@ lfaa/
 │   │   ├── storage/  # @lfaa/storage  (11 个文件)
 │   │   │   ├── src/  (5 个文件)
 │   │   │   └── tests/  (1 个文件)
-│   │   ├── subagent/  # @lfaa/subagent  (11 个文件)
-│   │   │   ├── src/  (5 个文件)
+│   │   ├── subagent/  # @lfaa/subagent  (12 个文件)
+│   │   │   ├── src/  (6 个文件)
 │   │   │   └── tests/  (1 个文件)
 │   │   ├── system-prompt/  # @lfaa/system-prompt  (7 个文件)
 │   │   │   ├── src/  (1 个文件)
@@ -244,8 +244,8 @@ lfaa/
 │   │   ├── tool-todo/  # @lfaa/tool-todo  (7 个文件)
 │   │   │   ├── src/  (1 个文件)
 │   │   │   └── tests/  (1 个文件)
-│   │   └── tools/  # @lfaa/tools  (12 个文件)
-│   │       ├── src/  (5 个文件)
+│   │   └── tools/  # @lfaa/tools  (14 个文件)
+│   │       ├── src/  (7 个文件)
 │   │       └── tests/  (2 个文件)
 │   ├── extension/  (689 个文件)
 │   │   ├── mcp/  # @lfaa/mcp  (15 个文件)
@@ -1027,6 +1027,8 @@ lfaa/
 - `StepTraceList.approval.module.css` — 待审批工具卡片样式：卡片容器、标题提示、参数块与批准/拒绝按钮，从 StepTraceList.module.css 拆出。
 - `StepTraceList.module.css` — 助手状态、交错式工具链、活动折叠行及终端详情样式；全部消费 @lfaa/ui-theme 语义变量。
 - `StepTraceList.tsx` — 显示 Agent 运行用时和现有的工具审批操作。
+- `Subagent-Dispatch-Row.module.css` — 主聊天中非浏览器子智能体的紧凑派发条与可折叠结果回执，全部消费 @lfaa/ui-theme 变量。
+- `Subagent-Dispatch-Row.tsx` — 主聊天区非浏览器子智能体派发行：紧凑展示 Started :: <Role>，点击直达右侧子智能体标签页，完成后可展开查看汇报回执。
 - `Thinking-Block.module.css` — 思维链块样式：脑形图标 + 状态标题 + 左侧细竖线引导的柔和思考正文，双主题自适应。
 - `Thinking-Block.tsx` — 思维链与同轮执行折叠块：以脑形图标、实时状态与左侧细竖线引导呈现本轮思考正文及关联工具链，
 - `Tool-Step-Row.module.css` — 活动行展开详情与进行态目标彩标（终端输出、参数/结果预览、轨迹入口）：只服务 Tool-Step-Row。
@@ -1158,13 +1160,15 @@ lfaa/
 - `RightWorkbenchActions.tsx` — 工作台快捷操作与概览控制：组合顶栏按钮组、“更多”与“概览”两个弹层，并持有菜单状态与任务数据。
 - `RightWorkbenchPane.module.css` — IDE 化右侧工作台样式：顶栏与中间栏齐平、全高主舞台、可折叠辅助抽屉及最右图标轨，全量消费 @lfaa/ui-theme 变量。
 - `RightWorkbenchPane.tsx` — IDE 化右侧工作台主壳：承接右侧栏状态持久化与请求，装配顶部标签、主体舞台与最右图标轨。
+- `Subagent-Stage-View.module.css` — 右侧子智能体流式工作舞台样式：复用主对话视觉层次，全部消费 @lfaa/ui-theme 语义变量。
+- `Subagent-Stage-View.tsx` — 右侧子智能体流式工作舞台：通过 /api/subagents/:id/stream 实时订阅并复用 AssistantTimeline 展示思考、工具链、回传提示与追问输入。
 - `WorkbenchAuxBody.tsx` — 右侧工作台辅助面板内容：文件树、工作区上下文、终端任务、子智能体、侧边提问与工作详情。
 - `WorkbenchAuxPane.tsx` — 右侧工作台辅助面板外壳：宽度拖拽手柄、可折叠抽屉与面板头，内容由调用方渲染。
 - `WorkbenchMoreMenu.tsx` — 渲染右侧工作台“更多”菜单：会话重命名、置顶、归档、复制与工作台入口。
 - `WorkbenchOverviewMenu.tsx` — 渲染右侧工作台“概览”弹层：变更统计、子智能体与后台任务摘要及快捷入口。
 - `WorkbenchStageContent.tsx` — 右侧工作台主体舞台：按当前标签渲染文件预览、工作区/本轮变更、内置浏览器或欢迎页，并组合辅助面板。
 - `WorkbenchStatusList.tsx` — 右侧工作台欢迎页的运行状态列表：最近子智能体与后台任务，点击可跳到对应辅助面板。
-- `WorkbenchTabs.tsx` — 右侧工作台顶部标签栏：工作台/辅助面板、文件预览、内置浏览器、变更审查标签与新建浏览器标签按钮。
+- `WorkbenchTabs.tsx` — 右侧工作台顶部标签栏：工作台/辅助面板、文件预览、内置浏览器、子智能体舞台、变更审查标签与新建浏览器标签按钮。
 - `WorkbenchTopActions.tsx` — 渲染右侧工作台顶栏控制按钮组：更多、概览、跟随 Agent、最大化与收起侧面板。
 - `WorkspaceFileTabs.module.css` — 右栏文件页签和阅读区，沿用工作区主题与操作焦点。
 - `WorkspaceFileTabs.tsx` — 在右侧上下文区域承载可切换、可关闭的源文件标签。
@@ -1173,7 +1177,8 @@ lfaa/
 - `useAuxResize.ts` — 管理右侧辅助栏（工作区文件树 / 上下文 / 任务面板）的指针拖拽调宽与本地偏好持久化。
 - `useWorkbenchBrowser.ts` — 右侧工作台内置浏览器状态与宿主操作：标签列表、初始 URL、外部快照与新建/关闭/导航处理。
 - `useWorkbenchRequests.ts` — 右侧工作台面板跳转请求处理：响应聊天消息点击与 Agent 自动跟随事件，统一调度舞台、DevTools 与辅助面板。
-- `useWorkbenchSummary.ts` — 右侧工作台后台概览轮询：按会话拉取后台任务与子智能体列表，供顶栏与欢迎页状态行展示。
+- `useWorkbenchSubagents.ts` — 管理右侧工作台的子智能体多标签页状态：按需新建、切换、关闭，并与会话汇总状态实时同步。
+- `useWorkbenchSummary.ts` — 右侧工作台后台概览轮询：按会话拉取后台任务与子智能体列表；仅在运行中或用户打开对应面板时轮询，空闲零开销。
 - `workbench-titles.ts` — 右侧工作台辅助面板标题字典：按语言返回文件树、上下文、终端、子智能体、侧边提问与工作详情标题。
 
 ### packages/client/ui-chat/src
@@ -1347,7 +1352,7 @@ lfaa/
 
 ### packages/client/ui-review/client/settings
 
-- `CodeReviewSettingsView.tsx` — 渲染设置中心「编码 → 代码审查」页：偏好设置 / 审查智能体两个子页、仓库清单与自定义审查指令。
+- `CodeReviewSettingsView.tsx` — 渲染设置中心「编码 → 代码审查」页：仅展示已真实接线的审查策略、自定义指令与已探测本地仓库。
 - `CodingSettingsExtras.module.css` — 编码设置页（Git 与代码审查）补充控件样式：仓库清单行、搜索框与翻页；页面骨架与行/表单来自 @lfaa/ui-primitives。
 - `GitSettingsView.tsx` — 渲染设置中心「编码 → Git」页：分支前缀、PR 合并策略、强制推送、草稿 PR、审查呈现方式与指令类表单。
 
@@ -1666,6 +1671,8 @@ lfaa/
 - `think-round.ts` — Agent 单轮「思考」：渲染系统提示 → 预算内压缩 → 注入 steering → 记录 token 快照 → 调模型（含超限重试）。
 - `todo-plan.ts` — 任务清单策略：把 todo_write 排到工具列表首位，并在多步任务迟迟不建清单时给一次提醒。
 - `tool-policy.ts` — @lfaa/agent 运行装配辅助：把「某个 agent 的工具策略」解析出来交给工具层。
+- `turn-snapshot.test.ts` — 回归测试：验证每轮改动快照在编辑与新建文件后可完整一键撤销。
+- `turn-snapshot.ts` — 单轮代码修改「安全气囊」：在 Agent 单轮首次写入/编辑某个文件前记录原文快照，支持按消息轮次一键无损撤销。
 - `verification.ts` — 判断一次运行是否修改了需要验证的代码，以及命令是否属于构建/测试/类型检查这类验证动作。
 - `workspace-lease.ts` — 工作区租约：以「工作树路径 / 项目 / 授权根」为 scope，保证同一工作区同时只有一个会话在跑。
 
@@ -2003,10 +2010,11 @@ lfaa/
 ### packages/core/subagent/src
 
 - `browser-subagent.ts` — 浏览器专属子智能体辅助：工具白名单判定、可读步骤标签映射、浏览器类型识别与专属系统指令拼装。
-- `http-handler.ts` — 提供 /api/subagents* 查询与中止接口，供右侧栏实时显示子智能体列表与执行详情。
+- `http-handler.ts` — 提供 /api/subagents* 查询、SSE 流式订阅、追问与中止接口，供右侧栏实时渲染子智能体工作舞台。
 - `index.ts` — @lfaa/subagent Host 侧 Cordis 服务：注册多 Agent 协作工具并托管隔离子运行生命周期。
+- `subagent-presets.ts` — 定义多角色子智能体（research / coder / browser / reviewer）的默认权限、步数预算与提示词模板。
 - `subagent-service.ts` — 进程内子智能体调度核心：为子智能体创建隔离会话上下文、过滤权限边界与并发限流。
-- `types.ts` — 定义 @lfaa/subagent 进程内子智能体状态、协作参数与配置契约。
+- `types.ts` — 定义 @lfaa/subagent 进程内子智能体状态、流式事件、协作参数与配置契约。
 
 ### packages/core/subagent/tests
 
@@ -2055,7 +2063,9 @@ lfaa/
 ### packages/core/tools/src
 
 - `builtin-tools.ts` — 提供内置核心工作区工具集（读文件、列目录、文本搜索、写文件、命令执行）。
+- `edit-tools.crlf.test.ts` — 回归测试：验证 edit_file 在 CRLF 文件与 LF target 混用时能自动匹配并保留原始行尾。
 - `edit-tools.ts` — 提供唯一命中校验的局部编辑工具：命中多处时拒绝执行，避免一次替换误改整份文件。
+- `git-tools.ts` — 为智能体提供只读 Git 检查工具（git_status / git_diff），免去调用 exec 审批即可直接感知分支与改动。
 - `index.ts` — @lfaa/tools Host 侧 Cordis 服务：统一管理工具注册表、内置工作区工具与权限安全执行。
 - `search-tools.ts` — 提供 glob 文件名匹配与 grep 正则内容检索两个只读工具，替代整树逐文件盲目扫描。
 - `types.ts` — 定义 @lfaa/tools 的无 DOM 领域契约：工具权限级别、参数协议、执行上下文及结果结构。
@@ -2842,6 +2852,6 @@ lfaa/
 | 目录 | 文件数 | 子目录数 | 说明 |
 | --- | --- | --- | --- |
 | `docs/dev-log` | 4 | 1 | 按每 200 条任务编号汇总的开发日志卷 |
-| `docs/updata-log` | 377 | 1 | 面向用户的单条更新说明 |
+| `docs/updata-log` | 379 | 1 | 面向用户的单条更新说明 |
 | `vendor` | 14 | 4 | 内嵌的上游运行时源码 |
 | `packages/extension/skills/src/builtin-skills` | 637 | 151 |  |

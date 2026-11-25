@@ -95,6 +95,16 @@ export function resolveModelCapabilities(
   }
 
   // 国产套餐常见思考模型：/models 列表通常不带 effort 元数据，按公开家族规格兜底。
+  if (lower.includes("deepseek-v4") || lower.includes("deepseek-v3")) {
+    return {
+      id,
+      supportsReasoning: true,
+      reasoningMode: "effort",
+      reasoningLevels: ["low", "medium", "high"],
+      defaultReasoningLevel: "medium",
+    };
+  }
+
   if (/^qwen3(?:[.\-]|$)/u.test(lower) || lower.includes("/qwen3") || lower.includes("qwen3-max") || lower.includes("qwen3-plus")) {
     // 百炼 Qwen3 通过 enable_thinking + thinking_budget 调节思考深度。
     return {

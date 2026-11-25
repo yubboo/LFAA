@@ -146,7 +146,7 @@ export async function callAnthropicMessagesApi(
     ? normalizeModelCapability(cachedCap, profile.kind)
     : resolveModelCapabilities(profile.model, profile.kind);
   const mappedEffort = mapEffortForModelApi(input.reasoningEffort, capability);
-  const maxTokens = input.maxTokens ?? profile.maxTokens ?? 4096;
+  const maxTokens = input.maxTokens ?? profile.maxTokens ?? 8192;
 
   const bodyPayload: Record<string, unknown> = {
     model: profile.model,

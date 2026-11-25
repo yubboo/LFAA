@@ -7,21 +7,57 @@ import { FileTypeIcon } from "@lfaa/ui-icons/client";
 import styles from "../workbench/RightWorkbenchActions.module.css";
 import reviewStyles from "../workbench/RightGitReviewPane.module.css";
 
-export function TurnChanges({ message, isZh, onOpenWorkspace }: {
+export function TurnChanges({ sessionId, message, isZh, onOpenWorkspace }: {
+  sessionId?: string;
   message: ChatMessageItem | undefined;
   isZh: boolean;
   onOpenWorkspace: () => void;
 }) {
   const [selectedPath, setSelectedPath] = useState<string>();
+  const [undoBusy, setUndoBusy] = useState(false);
+  const [undoNotice, setUndoNotice] = useState("");
   const files = collectEditedFiles(message?.steps ?? []);
+
+  const handleUndoTurn = async () => {
+    if (!sessionId || !message?.id || undoBusy) return;
+    if (typeof window !== "undefined" && !window.confirm(isZh ? "确认撤销本轮 Agent 修改和新建的文件？" : "Undo all file edits and creations from this turn?")) {
+      return;
+    }
+    setUndoBusy(true);
+    setUndoNotice("");
+    try {
+      const res = await fetch(`/api/agent/sessions/${encodeURIComponent(sessionId)}/messages/${encodeURIComponent(message.id)}/undo`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      const data = (await res.json().catch(() => ({}))) as { restored?: string[]; removed?: string[]; error?: string };
+      if (!res.ok) throw new Error(data.error || `撤销失败 (${res.status})`);
+      const count = (data.restored?.length ?? 0) + (data.removed?.length ?? 0);
+      setUndoNotice(isZh ? `已撤销本轮 ${count} 个文件的改动。` : `Undid changes across ${count} files.`);
+    } catch (err) {
+      setUndoNotice(err instanceof Error ? err.message : String(err));
+    } finally {
+      setUndoBusy(false);
+    }
+  };
+
   return (
     <section className={reviewStyles.reviewRoot}>
       <div className={reviewStyles.reviewHeader}>
         <strong>{isZh ? "本轮变更" : "Turn changes"}</strong>
-        <button className={reviewStyles.reviewChipBtn} type="button" onClick={onOpenWorkspace}>
-          {isZh ? "工作区 Git 变更" : "Workspace Git changes"}
-        </button>
+        <div className={reviewStyles.reviewActions}>
+          {sessionId && message?.id && files.length > 0 && (
+            <button className={reviewStyles.reviewChipBtn} type="button" disabled={undoBusy} onClick={() => void handleUndoTurn()}>
+              {undoBusy ? (isZh ? "撤销中…" : "Undoing...") : (isZh ? "撤销本轮改动" : "Undo turn")}
+            </button>
+          )}
+          <button className={reviewStyles.reviewChipBtn} type="button" onClick={onOpenWorkspace}>
+            {isZh ? "工作区 Git 变更" : "Workspace Git changes"}
+          </button>
+        </div>
       </div>
+      {undoNotice && <p className={reviewStyles.reviewEmptySmall} role="status">{undoNotice}</p>}
       <div className={reviewStyles.reviewFilesHead}>{isZh ? `变更文件 (${files.length})` : `Changed files (${files.length})`}</div>
       <div className={reviewStyles.reviewFilesList}>
         {files.length === 0 && <p className={reviewStyles.reviewEmpty}>{isZh ? "本轮没有文件变更。" : "No files changed this turn."}</p>}

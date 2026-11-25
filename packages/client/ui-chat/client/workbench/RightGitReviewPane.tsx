@@ -1,11 +1,12 @@
 // 右侧工作台 Git 变更列表，在文件行下方按需读取并展示真实差异。
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { IconCheck, IconChevronRight, IconCode, IconGitBranch, IconPlus, IconRefresh } from "@tabler/icons-react";
+import { IconArrowBackUp, IconCheck, IconChevronRight, IconCode, IconGitBranch, IconPlus, IconRefresh } from "@tabler/icons-react";
 import type { ChatClientStore } from "../store/chat-store";
 import {
   fetchGitDiff,
   fetchGitStatus,
   parseDiffSummary,
+  postGitRevertFiles,
   postGitStage,
   postGitUnstage,
   type GitStatusSnapshot,
@@ -18,6 +19,7 @@ export function RightGitReviewPane({
   isZh,
   projectId,
   sessionId,
+  worktreeId,
   store,
   onOpenFullCodeReview,
 }: {
@@ -25,6 +27,8 @@ export function RightGitReviewPane({
   projectId: string | null;
   /** 传入时 Host 以该会话的工作树目录作为 Git 根。 */
   sessionId?: string;
+  /** 当前会话绑定的工作树 id；打开代码文件时透传以指向工作树副本。 */
+  worktreeId?: string | undefined;
   store: ChatClientStore;
   onOpenFullCodeReview?: (() => void) | undefined;
 }) {
@@ -81,6 +85,24 @@ export function RightGitReviewPane({
         : await postGitStage(projectId, filePath, sessionId);
       setStatus(next);
       await loadGit(selectedFile);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRevertFile = async (filePath: string) => {
+    const confirmText = isZh
+      ? `确定放弃「${filePath}」的未提交更改？此操作不可撤销。`
+      : `Discard uncommitted changes to "${filePath}"? This cannot be undone.`;
+    if (typeof window !== "undefined" && !window.confirm(confirmText)) return;
+    setBusy(true);
+    try {
+      const res = await postGitRevertFiles(projectId, [filePath], sessionId);
+      setStatus(res.status);
+      if (selectedFile === filePath) setSelectedFile(null);
+      await loadGit(selectedFile === filePath ? null : selectedFile);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -160,11 +182,21 @@ export function RightGitReviewPane({
                       type="button"
                       className={reviewStyles.reviewMiniAction}
                       title={isZh ? "在代码查看器中打开" : "Open file"}
-                      onClick={() => store.openWorkspaceFile(projectId, file.path, file.path)}
+                      onClick={() => store.openWorkspaceFile(projectId, file.path, file.path, undefined, undefined, worktreeId)}
                     >
                       <IconCode size={12} />
                     </button>
                   )}
+                  <button
+                    type="button"
+                    className={reviewStyles.reviewMiniAction}
+                    disabled={busy}
+                    title={isZh ? "放弃更改" : "Discard changes"}
+                    aria-label={isZh ? `放弃 ${file.path} 的更改` : `Discard changes to ${file.path}`}
+                    onClick={() => void handleRevertFile(file.path)}
+                  >
+                    <IconArrowBackUp size={12} />
+                  </button>
                   <button
                     type="button"
                     className={reviewStyles.reviewMiniAction}

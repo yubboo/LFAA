@@ -7,6 +7,8 @@ import type { ChatLocaleMessages } from "../locales";
 import { FileChangePreview } from "./FileChangePreview";
 import { RightGitReviewPane } from "./RightGitReviewPane";
 import { RightWorkbenchStart } from "./Right-Workbench-Start";
+import { SubagentStageView } from "./Subagent-Stage-View";
+import type { SubagentStageTab } from "./useWorkbenchSubagents";
 import type { RightAuxTab } from "./RightUtilityRail";
 import { TurnChanges } from "../conversation/Turn-Changes";
 import { WorkbenchStatusList } from "./WorkbenchStatusList";
@@ -27,6 +29,7 @@ export function WorkbenchStageContent({
   activeAux,
   auxTitle,
   activeFileTab,
+  activeSubagentTab,
   selectedStep,
   effectiveAuxTab,
   reviewMessage,
@@ -66,6 +69,7 @@ export function WorkbenchStageContent({
   activeAux: RightAuxTab;
   auxTitle: string;
   activeFileTab: FilePreviewTab | undefined;
+  activeSubagentTab?: SubagentStageTab | undefined;
   selectedStep: AgentStepItem | undefined;
   effectiveAuxTab: RightAuxTab | null;
   reviewMessage: ChatMessageItem | undefined;
@@ -129,19 +133,36 @@ export function WorkbenchStageContent({
     );
   }
 
+  if (stageKind === "subagent" && activeSubagentTab) {
+    return (
+      <>
+        <div className={styles.mainStage}>
+          <SubagentStageView
+            key={activeSubagentTab.id}
+            subagentId={activeSubagentTab.id}
+            fallbackRole={activeSubagentTab.role}
+            locale={locale}
+          />
+        </div>
+        {auxPane}
+      </>
+    );
+  }
+
   return (
     <>
       <div className={styles.mainStage}>
         {stageKind === "review" && (reviewMessageId ? (
-          <TurnChanges key={reviewMessageId} isZh={locale.isZh}
+          <TurnChanges key={reviewMessageId} sessionId={sessionId} isZh={locale.isZh}
             message={reviewMessage}
             onOpenWorkspace={onOpenReview} />
         ) : (
           <RightGitReviewPane
-            key={boundProjectId}
+            key={`${boundProjectId ?? ""}:${sessionId}:${boundWorktreeId ?? ""}`}
             isZh={locale.isZh}
             projectId={boundProjectId}
             sessionId={sessionId}
+            worktreeId={boundWorktreeId}
             store={store}
             onOpenFullCodeReview={onOpenCodeReview}
           />

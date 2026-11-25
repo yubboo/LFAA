@@ -256,7 +256,7 @@ export async function callOpenAiCompatibleChat(
     headers.Authorization = `Bearer ${profile.apiKey.trim()}`;
   }
 
-  // 方舟套餐按模型映射档位。直连 DeepSeek 才附加工具调用所需的 thinking 参数和历史思考内容。
+  // 方舟套餐按模型映射档位；直连 DeepSeek、DeepSeek Reasoner 固定思考模型及方舟思考模型在多轮工具调用时均须回传历史 reasoning_content。
   const arkPlan = getArkPlanKind(profile.baseUrl);
   const isDeepSeek = !arkPlan
     && (profile.kind === "deepseek" || profile.baseUrl.toLowerCase().includes("deepseek.com"));
@@ -268,10 +268,15 @@ export async function callOpenAiCompatibleChat(
     ? getArkReasoningEffort(findArkChatModel(profile.model), input.reasoningEffort)
     : mapEffortForModelApi(input.reasoningEffort, capability);
   const enableThinking = Boolean(isDeepSeek && mappedEffort);
+  const includeReasoning = Boolean(
+    enableThinking
+    || (isDeepSeek && capability.supportsReasoning && capability.reasoningMode === "fixed")
+    || (arkPlan && Boolean(mappedEffort || (capability.supportsReasoning && capability.reasoningMode === "fixed"))),
+  );
 
   const bodyPayload: Record<string, unknown> = {
     model: profile.model,
-    messages: buildApiMessages(input.messages, enableThinking),
+    messages: buildApiMessages(input.messages, includeReasoning),
     stream: true,
     // 流式调用默认不带用量；声明后多数兼容服务会在末尾分片返回 usage，供成本核算。
     stream_options: { include_usage: true },

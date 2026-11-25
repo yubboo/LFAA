@@ -5,7 +5,8 @@ export type AgentWorkbenchAction =
   | { kind: "browser"; devtoolsTab?: "console" | "network"; refreshTabs: boolean; explicit?: true }
   | { kind: "file"; messageId: string; stepId: string; activateStage: boolean }
   | { kind: "terminal" }
-  | { kind: "subagents" };
+  | { kind: "subagents" }
+  | { kind: "subagent-tab"; subagentId: string; role: string };
 
 const BROWSER_STAGE_TOOLS = new Set([
   "browser_navigate",
@@ -81,7 +82,10 @@ export function resolveAgentWorkbenchAction(
         && BROWSER_TAB_CHANGES.has(item.name) && !previousDone.has(item.id));
       return changed ? { kind: "browser", refreshTabs: true } : null;
     }
-    if (step.status === "running") return { kind: "subagents" };
+    if (step.status === "running" && previous?.subagent?.id !== step.subagent.id) {
+      return { kind: "subagent-tab", subagentId: step.subagent.id, role: step.subagent.role };
+    }
+    if (step.status === "running") return null;
   }
 
   return null;

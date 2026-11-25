@@ -24,7 +24,7 @@ export interface SubagentActivityUpdate {
   id: string;
   role: string;
   status: "running" | "done" | "error" | "stopped";
-  kind?: "general" | "browser";
+  kind?: "general" | "research" | "coder" | "browser" | "reviewer";
   browserLabel?: string;
   liveAction?: string;
   activity?: {

@@ -14,7 +14,6 @@ import {
   SettingRow,
   SettingSegmented,
   SettingsPage,
-  SettingSwitch,
   settingsStyles as baseStyles,
 } from "@lfaa/ui-primitives/client";
 
@@ -67,7 +66,7 @@ export function GitSettingsView({
         />
       )}
 
-      <SettingGroup title={isZh ? "分支与合并" : "Branch & merge"}>
+      <SettingGroup title={isZh ? "分支与审查" : "Branch & review"}>
         <SettingRow
           title={isZh ? "分支前缀" : "Branch prefix"}
           description={isZh ? "LFAA 创建新分支时使用的前缀" : "Prefix used when LFAA creates a new branch"}
@@ -80,46 +79,6 @@ export function GitSettingsView({
               placeholder="lfaa/"
               onChange={(e) => setGitCfg((prev) => ({ ...prev, branchPrefix: e.target.value }))}
               onBlur={() => void updateGit({ branchPrefix: gitCfg.branchPrefix })}
-            />
-          )}
-        />
-
-        <SettingRow
-          title={isZh ? "Pull Request 合并方法" : "Pull Request merge method"}
-          description={isZh ? "选择 LFAA 合并 Pull Request 的方式" : "Choose how LFAA merges pull requests"}
-          control={(
-            <SettingSegmented
-              value={gitCfg.prMergeMethod}
-              label={isZh ? "Pull Request 合并方法" : "PR Merge Method"}
-              options={[
-                { value: "merge", label: isZh ? "合并" : "Merge" },
-                { value: "squash", label: isZh ? "压缩合并" : "Squash" },
-              ]}
-              onChange={(prMergeMethod) => void updateGit({ prMergeMethod })}
-            />
-          )}
-        />
-
-        <SettingRow
-          title={isZh ? "始终强制推送" : "Always force push"}
-          description={isZh ? "从 LFAA 推送时使用 --force-with-lease" : "Use --force-with-lease when pushing from LFAA"}
-          control={(
-            <SettingSwitch
-              checked={gitCfg.alwaysForcePush}
-              label={isZh ? "始终强制推送" : "Always Force Push"}
-              onChange={(alwaysForcePush) => void updateGit({ alwaysForcePush })}
-            />
-          )}
-        />
-
-        <SettingRow
-          title={isZh ? "创建草稿 Pull Request" : "Create draft Pull Request"}
-          description={isZh ? "从 LFAA 创建 PR 时默认使用草稿 Pull Request" : "Default to draft pull requests when creating PRs from LFAA"}
-          control={(
-            <SettingSwitch
-              checked={gitCfg.createDraftPr}
-              label={isZh ? "创建草稿 Pull Request" : "Create Draft Pull Request"}
-              onChange={(createDraftPr) => void updateGit({ createDraftPr })}
             />
           )}
         />
@@ -157,22 +116,6 @@ export function GitSettingsView({
             placeholder={isZh ? "添加提交信息指引..." : "Add commit message instructions..."}
             onChange={(e) => setGitCfg((prev) => ({ ...prev, commitInstructions: e.target.value }))}
             onBlur={() => void updateGit({ commitInstructions: gitCfg.commitInstructions })}
-          />
-        </SettingFormField>
-      </SettingGroup>
-
-      <SettingGroup title={isZh ? "Pull Request 指令" : "Pull request instructions"}>
-        <SettingFormField
-          label={isZh ? "PR 标题与摘要指令" : "PR title & summary instructions"}
-          hint={isZh ? "将追加到 PR 标题与摘要生成提示中。" : "Appended to PR title and summary prompts."}
-        >
-          <textarea
-            className={`${baseStyles.input} ${baseStyles.textarea}`}
-            aria-label={isZh ? "Pull Request 指令" : "Pull Request Instructions"}
-            value={gitCfg.prInstructions}
-            placeholder={isZh ? "添加 Pull Request 指引..." : "Add Pull Request instructions..."}
-            onChange={(e) => setGitCfg((prev) => ({ ...prev, prInstructions: e.target.value }))}
-            onBlur={() => void updateGit({ prInstructions: gitCfg.prInstructions })}
           />
         </SettingFormField>
       </SettingGroup>

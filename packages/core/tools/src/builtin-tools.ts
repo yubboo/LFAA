@@ -1,11 +1,13 @@
 // 提供内置核心工作区工具集（读文件、列目录、文本搜索、写文件、命令执行）。
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { executeShell, type ShellService } from "@lfaa/shell";
 import { appendCommandAudit, findProtectedPathInCommand, normalizeCommandTimeout } from "@lfaa/guard";
 import { createPrivatePathFilter, resolveSafeWorkspacePath, resolveSafeWorkspaceRoot } from "@lfaa/fs";
 import type { AgentToolDefinition, CommandTimeoutHandler, ToolFileChange } from "./types";
 import { IGNORED_DIRS, walkWorkspaceFiles } from "@lfaa/fs";
+import { createGitReadTools } from "./git-tools";
 
 /** 前台命令超时后的可选兜底（由 Jobs 服务注入，转后台任务继续执行）。 */
 export interface BuiltinToolHooks {
@@ -109,19 +111,21 @@ export function createBuiltinWorkspaceTools(
         properties: {
           path: { type: "string", description: "目标文件路径" },
           startLine: { type: "number", description: "起始行（从 1 开始，可选）" },
-          endLine: { type: "number", description: "结束行（含，可选，单次建议不超过 200 行）" },
+          endLine: { type: "number", description: "结束行（含，可选，默认读取最多 300 行）" },
         },
         required: ["path"],
       },
       async execute(args, ctx) {
         const rawPath = typeof args.path === "string" ? args.path : "";
+        const spillRoot = ctx.sessionId ? join(homedir(), ".lfaa", "spills", ctx.sessionId) : undefined;
         const { path: targetFile } = await resolveSafeWorkspacePath(rawPath, ctx.workspaceRoots, {
           allowOutsideWorkspace: ctx.allowOutsideWorkspace,
+          ...(spillRoot ? { extraAllowedRoots: [spillRoot] } : {}),
         });
         const raw = await readFile(targetFile, "utf8");
         const allLines = raw.split(/\r?\n/u);
         const start = Math.max(1, typeof args.startLine === "number" ? Math.floor(args.startLine) : 1);
-        const end = Math.min(allLines.length, typeof args.endLine === "number" ? Math.floor(args.endLine) : start + 199);
+        const end = Math.min(allLines.length, typeof args.endLine === "number" ? Math.floor(args.endLine) : start + 299);
         const slice = allLines.slice(start - 1, end).map((line, i) => `${start + i}: ${line}`);
         const relPath = relative(ctx.workspaceRoots[0] ?? "", targetFile) || rawPath;
         return {
@@ -300,5 +304,6 @@ export function createBuiltinWorkspaceTools(
         };
       },
     },
+    ...createGitReadTools(),
   ];
 }

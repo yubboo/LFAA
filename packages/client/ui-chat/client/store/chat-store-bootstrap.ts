@@ -12,12 +12,9 @@ import type {
   ChatSessionDetail,
   ChatSessionItem,
   ChatStoreSnapshot,
-  LibraryAssetItem,
   LongTermMemoryItem,
   PublicLlmProfileItem,
   RuleDocumentItem,
-  StorageConfigState,
-  StorageStats,
 } from "./chat-types";
 
 /** 启动引导需要的 Store 能力。 */
@@ -39,16 +36,14 @@ export async function hydrateChatStore(host: ChatStoreBootstrapHost): Promise<vo
     const detailPromise = currentId
       ? fetchJson<{ session: ChatSessionDetail }>(`/api/chat/sessions/${encodeURIComponent(currentId)}`).catch(() => null)
       : Promise.resolve(null);
-    const [sessRes, activeRes, attentionRes, llmRes, rulesRes, memRes, trustRes, libRes, storageRes, generalRes, detailRes] = await Promise.all([
+    // 首屏仅拉取当前工作区渲染必需数据；/api/storage、/api/library、/api/rules 延迟到进入对应视图或空闲时按需拉取，避免 F5 抢占连接。
+    const [sessRes, activeRes, attentionRes, llmRes, memRes, trustRes, generalRes, detailRes] = await Promise.all([
       fetchJson<{ sessions: ChatSessionItem[] }>("/api/chat/sessions"),
       fetchJson<{ sessionIds: string[] }>("/api/agent/active-sessions").catch(() => ({ sessionIds: [] })),
       fetchJson<{ items: ChatSessionAttention[] }>("/api/agent/attention").catch(() => ({ items: [] })),
       fetchJson<{ activeProfileId: string; profiles: PublicLlmProfileItem[] }>("/api/llm/profiles"),
-      fetchJson<{ documents: RuleDocumentItem[] }>("/api/rules"),
       fetchJson<{ memories: LongTermMemoryItem[] }>("/api/memory"),
       fetchJson<{ counts: Record<string, number> }>("/api/agent/trust").catch(() => ({ counts: {} })),
-      fetchJson<{ assets: LibraryAssetItem[] }>("/api/library").catch(() => ({ assets: [] })),
-      fetchJson<{ state: StorageConfigState; stats: StorageStats }>("/api/storage").catch(() => null),
       fetchJson<{ settings: GeneralSettingsConfig }>("/api/chat/general-settings").catch(() => null),
       detailPromise,
     ]);
@@ -71,10 +66,7 @@ export async function hydrateChatStore(host: ChatStoreBootstrapHost): Promise<vo
       smartTrustCounts: trustRes.counts,
       activeProfileId: llmRes.activeProfileId,
       profiles: llmRes.profiles,
-      rules: rulesRes.documents,
       memories: memRes.memories,
-      libraryAssets: libRes.assets,
-      ...(storageRes ? { storageState: storageRes.state, storageStats: storageRes.stats } : {}),
       ...(generalRes ? { generalSettings: generalRes.settings } : {}),
     });
     if (targetId) {
@@ -82,6 +74,10 @@ export async function hydrateChatStore(host: ChatStoreBootstrapHost): Promise<vo
     }
     // 刷新后仍有 Agent 在后台运行的会话继续显示转圈；待确认/待回答也会恢复成侧栏徽标。
     host.syncBackground(activeRes.sessionIds, attentionRes.items);
+    // 规则文档在首屏绘制完成后异步补齐，不阻塞首屏交互。
+    void fetchJson<{ documents: RuleDocumentItem[] }>("/api/rules")
+      .then((rulesRes) => host.patchState({ rules: rulesRes.documents }))
+      .catch(() => {});
   } catch (error) {
     host.patchState({
       loaded: true,
@@ -90,20 +86,18 @@ export async function hydrateChatStore(host: ChatStoreBootstrapHost): Promise<vo
   }
 }
 
-/** 重新拉取列表与配置元数据，用于项目切换或外部变更后的轻量刷新。 */
+/** 重新拉取列表与配置元数据，用于项目切换或外部变更后的轻量刷新（不扫描磁盘存储统计）。 */
 export async function refreshChatMeta(
   host: Pick<ChatStoreBootstrapHost, "patchState">,
   projectPath?: string,
 ): Promise<void> {
   const query = projectPath ? `?projectPath=${encodeURIComponent(projectPath)}` : "";
-  const [sessRes, llmRes, rulesRes, memRes, trustRes, libRes, storageRes] = await Promise.all([
+  const [sessRes, llmRes, rulesRes, memRes, trustRes] = await Promise.all([
     fetchJson<{ sessions: ChatSessionItem[] }>("/api/chat/sessions"),
     fetchJson<{ activeProfileId: string; profiles: PublicLlmProfileItem[] }>("/api/llm/profiles"),
     fetchJson<{ documents: RuleDocumentItem[] }>(`/api/rules${query}`),
     fetchJson<{ memories: LongTermMemoryItem[] }>("/api/memory"),
     fetchJson<{ counts: Record<string, number> }>("/api/agent/trust").catch(() => ({ counts: {} })),
-    fetchJson<{ assets: LibraryAssetItem[] }>("/api/library").catch(() => ({ assets: [] })),
-    fetchJson<{ state: StorageConfigState; stats: StorageStats }>("/api/storage").catch(() => null),
   ]);
   host.patchState({
     sessions: sessRes.sessions,
@@ -112,7 +106,5 @@ export async function refreshChatMeta(
     profiles: llmRes.profiles,
     rules: rulesRes.documents,
     memories: memRes.memories,
-    libraryAssets: libRes.assets,
-    ...(storageRes ? { storageState: storageRes.state, storageStats: storageRes.stats } : {}),
   });
 }

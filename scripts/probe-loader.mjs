@@ -46,7 +46,7 @@ async function main() {
   await ctx.loader.create({ id: "tools", name: "tools" in config.plugins ? config.plugins.tools.name : "" });
   await ctx.loader.await();
   const countAfterLoad = ctx.tools?.listDefinitions?.().length ?? 0;
-  check("按包名装载 @lfaa/tools", countAfterLoad === 8, `tools=${countAfterLoad}`);
+  check("按包名装载 @lfaa/tools", countAfterLoad === 10, `tools=${countAfterLoad}`);
 
   ctx.loader.remove("tools");
   await ctx.loader.await();
@@ -54,11 +54,11 @@ async function main() {
 
   await ctx.loader.create({ id: "tools", name: config.plugins.tools.name });
   await ctx.loader.await();
-  check("重新装载 @lfaa/tools", (ctx.tools?.listDefinitions?.().length ?? 0) === 8, `tools=${ctx.tools?.listDefinitions?.().length ?? 0}`);
+  check("重新装载 @lfaa/tools", (ctx.tools?.listDefinitions?.().length ?? 0) === 10, `tools=${ctx.tools?.listDefinitions?.().length ?? 0}`);
 
   await ctx.loader.create({ id: "rules", name: config.plugins.rules.name });
   await ctx.loader.await();
-  check("并存装载 @lfaa/rules", ctx.rules !== undefined && (ctx.tools?.listDefinitions?.().length ?? 0) === 8);
+  check("并存装载 @lfaa/rules", ctx.rules !== undefined && (ctx.tools?.listDefinitions?.().length ?? 0) === 10);
 
   ctx.loader.remove("tools");
   await ctx.loader.await();
@@ -125,7 +125,7 @@ export default {
   ctx.loader.remove("fork");
   await ctx.loader.await();
   const afterAll = ctx.tools.listDefinitions().map((tool) => tool.name);
-  check("二创卸载后工具回归基线", afterAll.length === 8 && !afterAll.includes("hello_fork"), `tools=${afterAll.length}`);
+  check("二创卸载后工具回归基线", afterAll.length === 10 && !afterAll.includes("hello_fork"), `tools=${afterAll.length}`);
 
   await fiber.dispose();
 }

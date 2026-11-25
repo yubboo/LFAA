@@ -296,6 +296,7 @@ export async function fetchCodeReviewReports(): Promise<CodeReviewReport[]> {
 /** 启动指定范围的差异审查，并返回新报告。 */
 export async function postRunCodeReview(options: {
   projectId?: string | null;
+  sessionId?: string | null;
   scope?: "working_tree" | "staged" | "commit";
   commitHash?: string;
 }): Promise<CodeReviewReport> {

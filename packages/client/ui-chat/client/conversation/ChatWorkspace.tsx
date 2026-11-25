@@ -272,6 +272,9 @@ export function ChatWorkspace({
           onOpenFilePreview={onOpenFilePreview}
           onOpenTurnChanges={onOpenTurnChanges}
           onOpenBrowser={onOpenBrowser}
+          onOpenSubagent={(subagentId, role) => {
+            store.requestRightPanel("subagent", subagentId, { autoExpand: true, ...(role ? { subagentRole: role } : {}) });
+          }}
           onEditContent={messageActions.onEditContent}
           onOpenTrace={handleOpenTrace}
           onBranchToNewChat={messageActions.onBranchToNewChat}

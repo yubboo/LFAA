@@ -27,15 +27,23 @@ export function hardenedGitArgs(args: string[], filterKeys: readonly string[] = 
   ];
 }
 
+const STRIPPED_GIT_ENV_KEYS = ["GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE", "GIT_PREFIX"] as const;
+
+function buildCleanGitEnv(): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...process.env, GIT_TERMINAL_PROMPT: "0", LC_ALL: "C" };
+  for (const key of STRIPPED_GIT_ENV_KEYS) delete env[key];
+  return env;
+}
+
 /** 在指定目录执行 git；非零退出交给调用方处理。 */
 export async function runGit(cwd: string, args: string[], options: GitOptions = {}): Promise<GitResult> {
-  const { stdout, stderr } = await execFileAsync("git", args, {
+  const { stdout, stderr } = await execFileAsync("git", ["-c", "core.quotepath=false", ...args], {
     cwd,
     timeout: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
     maxBuffer: MAX_BUFFER,
     windowsHide: true,
     encoding: "utf8",
-    env: { ...process.env, GIT_TERMINAL_PROMPT: "0", LC_ALL: "C" },
+    env: buildCleanGitEnv(),
   });
   return { stdout: String(stdout ?? ""), stderr: String(stderr ?? "") };
 }

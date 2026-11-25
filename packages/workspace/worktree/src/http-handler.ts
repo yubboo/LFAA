@@ -29,6 +29,17 @@ export function createWorktreeHttpHandler(service: WorktreeService) {
     const method = (req.method ?? "GET").toUpperCase();
 
     try {
+      const mergeMatch = /^\/api\/worktrees\/([^/]+)\/merge$/u.exec(pathname);
+      if (method === "POST" && mergeMatch?.[1]) {
+        const result = await service.merge(decodeURIComponent(mergeMatch[1]));
+        if (!result) {
+          sendJson(res, 404, { error: "工作树不存在。" });
+          return true;
+        }
+        sendJson(res, 200, result);
+        return true;
+      }
+
       const mergePreviewMatch = /^\/api\/worktrees\/([^/]+)\/merge-preview$/u.exec(pathname);
       if (method === "POST" && mergePreviewMatch?.[1]) {
         const preview = await service.previewMerge(decodeURIComponent(mergePreviewMatch[1]));
@@ -54,7 +65,8 @@ export function createWorktreeHttpHandler(service: WorktreeService) {
 
       const inspectMatch = /^\/api\/worktrees\/([^/]+)\/inspect$/u.exec(pathname);
       if (method === "GET" && inspectMatch?.[1]) {
-        const inspection = await service.inspect(decodeURIComponent(inspectMatch[1]));
+        const subPath = new URL(rawUrl, "http://localhost").searchParams.get("path") ?? undefined;
+        const inspection = await service.inspect(decodeURIComponent(inspectMatch[1]), subPath);
         if (!inspection) {
           sendJson(res, 404, { error: "工作树不存在。" });
           return true;

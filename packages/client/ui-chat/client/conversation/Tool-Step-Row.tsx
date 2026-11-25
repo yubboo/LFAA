@@ -19,6 +19,7 @@ import {
 import { getActivityKind, getActivityLabel } from "./activity-label";
 import { BrowserSubagentCard, isBrowserSubagentStep } from "./Browser-Subagent-Card";
 import { FileActivityRow } from "./File-Activity-Row";
+import { SubagentDispatchRow } from "./Subagent-Dispatch-Row";
 import type { AgentStepItem } from "../store/chat-types";
 import {
   fileActivityTools,
@@ -33,6 +34,7 @@ export interface FileActivityActions {
   onOpenFile: (stepId: string) => void;
   onOpenTrace?: ((stepId: string) => void) | undefined;
   onOpenBrowser?: (() => void) | undefined;
+  onOpenSubagent?: ((subagentId: string, role?: string) => void) | undefined;
   selectedFileStepId?: string | undefined;
 }
 
@@ -102,6 +104,7 @@ export const ToolStepRow = memo(function ToolStepRow({
   onOpenFile,
   onOpenTrace,
   onOpenBrowser,
+  onOpenSubagent,
   selectedFileStepId,
 }: {
   step: AgentStepItem;
@@ -119,6 +122,16 @@ export const ToolStepRow = memo(function ToolStepRow({
         live={live}
         now={now}
         onOpenBrowser={onOpenBrowser}
+      />
+    );
+  }
+  if (step.subagent) {
+    return (
+      <SubagentDispatchRow
+        step={step}
+        isZh={locale.isZh}
+        live={live}
+        onOpenSubagent={onOpenSubagent}
       />
     );
   }

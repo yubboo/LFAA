@@ -35,6 +35,7 @@ export const ChatMessageRow = memo(function ChatMessageRow({
   onOpenFilePreview,
   onOpenTurnChanges,
   onOpenBrowser,
+  onOpenSubagent,
   onEditContent,
   onOpenTrace,
   onBranchToNewChat,
@@ -59,6 +60,7 @@ export const ChatMessageRow = memo(function ChatMessageRow({
   onOpenFilePreview: (messageId: string, stepId: string) => void;
   onOpenTurnChanges?: ((messageId: string) => void) | undefined;
   onOpenBrowser?: (() => void) | undefined;
+  onOpenSubagent?: ((subagentId: string, role?: string) => void) | undefined;
   onEditContent: (content: string) => void;
   onOpenTrace: (messageId: string, stepId: string) => void;
   onBranchToNewChat: (message: ChatMessageItem) => void;
@@ -139,6 +141,7 @@ export const ChatMessageRow = memo(function ChatMessageRow({
             onOpenFile={handleOpenFile}
             onOpenTrace={handleOpenTrace}
             onOpenBrowser={onOpenBrowser}
+            onOpenSubagent={onOpenSubagent}
             selectedFileStepId={selectedFileStepId}
             bodyClassName={assistantBodyClass ?? ""}
           />

@@ -96,7 +96,7 @@ test("后台任务与子智能体步骤按类型分流到终端、子智能体�
       makeStep({ status: "running", detail: "分析架构", subagent: { id: "sub-1", role: "研究助手", status: "running" } }),
       { messageId: "m3", browserActiveInRun: false },
     ),
-    { kind: "subagents" },
+    { kind: "subagent-tab", subagentId: "sub-1", role: "研究助手" },
   );
   assert.deepEqual(
     resolveAgentWorkbenchAction(

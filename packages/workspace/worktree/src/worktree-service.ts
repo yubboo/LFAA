@@ -240,9 +240,39 @@ export class WorktreeService extends Service {
     }
   }
 
-  async inspect(worktreeId: string): Promise<WorktreeInspection | null> {
+  /** 将工作树分支干净合并回主仓库当前检出的基线分支；有脏工作区或冲突时直接拒绝。 */
+  async merge(worktreeId: string): Promise<{ merged: boolean; upToDate: boolean; branch: string; baseRef: string } | null> {
     const record = (await this.store.read()).find((item) => item.id === worktreeId);
-    return record ? inspectDirectory(record.id, record.path) : null;
+    if (!record) return null;
+    const preview = await this.previewMerge(worktreeId);
+    if (!preview) return null;
+    if (preview.upToDate) {
+      return { merged: true, upToDate: true, branch: preview.branch, baseRef: preview.baseRef };
+    }
+    if (preview.mainDirty) throw new Error("主仓库存在未提交改动，请先提交或清理后再合并工作树。");
+    if (!preview.baseBranchCheckedOut) throw new Error(`主仓库当前未检出基线分支 ${preview.baseRef}，请切换后再合并。`);
+    if (!preview.clean) throw new Error(`合并存在冲突文件：${preview.conflicts.slice(0, 5).join(", ")}`);
+    await runGit(record.repositoryRoot, ["merge", "--no-ff", record.branch, "-m", `Merge worktree branch ${record.branch}`]);
+    return { merged: true, upToDate: false, branch: preview.branch, baseRef: preview.baseRef };
+  }
+
+  async inspect(worktreeId: string, subPath?: string): Promise<WorktreeInspection | null> {
+    const record = (await this.store.read()).find((item) => item.id === worktreeId);
+    if (!record) return null;
+    const root = resolve(record.path);
+    const cleanSub = subPath?.trim();
+    if (!cleanSub) return inspectDirectory(record.id, root);
+    const target = isAbsolute(cleanSub) ? resolve(cleanSub) : resolve(root, cleanSub);
+    const rel = relative(root, target);
+    if (rel.startsWith("..") || isAbsolute(rel)) throw new Error("目录路径超出当前工作树边界。");
+    const [realRoot, realTarget] = await Promise.all([
+      realpath(root).catch(() => root),
+      realpath(target).catch(() => null),
+    ]);
+    if (!realTarget) throw new Error("目标目录不存在。");
+    const realRel = relative(realRoot, realTarget);
+    if (realRel.startsWith("..") || isAbsolute(realRel)) throw new Error("目录路径经符号链接超出当前工作树边界。");
+    return inspectDirectory(record.id, realTarget);
   }
 
   /** 读取工作树内的文本文件，边界与大小限制和项目文件预览一致。 */

@@ -350,4 +350,19 @@ export class LocalProjectStore {
     }
     return data;
   }
+
+  /** 将已预演通过的工作树分支合并回主仓库当前检出的基线分支。 */
+  async mergeWorktree(worktreeId: string): Promise<{ merged: boolean; upToDate: boolean; branch: string; baseRef: string }> {
+    const response = await fetch(`/api/worktrees/${encodeURIComponent(worktreeId)}/merge`, { method: "POST" });
+    const data = await readJsonSafe<{ merged?: boolean; upToDate?: boolean; branch?: string; baseRef?: string; error?: string }>(response);
+    if (!response.ok || !data) {
+      throw new Error(data?.error ?? `合并工作树失败（HTTP ${response.status}）。`);
+    }
+    return {
+      merged: data.merged === true,
+      upToDate: data.upToDate === true,
+      branch: data.branch ?? "",
+      baseRef: data.baseRef ?? "",
+    };
+  }
 }

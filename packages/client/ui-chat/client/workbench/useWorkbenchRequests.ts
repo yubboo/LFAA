@@ -21,6 +21,7 @@ export function useWorkbenchRequests({
   setFileTreeOpen,
   setSelectedJobId,
   setSelectedSubagentId,
+  openSubagentTab,
 }: {
   request: ChatStoreSnapshot["rightPanelRequest"];
   sessionId: string;
@@ -37,6 +38,7 @@ export function useWorkbenchRequests({
   setFileTreeOpen: (open: boolean) => void;
   setSelectedJobId: (id: string | undefined) => void;
   setSelectedSubagentId: (id: string | undefined) => void;
+  openSubagentTab: (subagentId: string, role?: string) => void;
 }) {
   const stageKindRef = useRef(stageKind);
   stageKindRef.current = stageKind;
@@ -68,6 +70,10 @@ export function useWorkbenchRequests({
       if (request.autoExpand && stageKindRef.current !== "welcome") return;
       setActiveAux("terminal");
       setAuxOpen(true);
+    } else if (request.tab === "subagent" && request.url) {
+      setAuxOpen(false);
+      setFileTreeOpen(false);
+      openSubagentTab(request.url, request.subagentRole);
     } else if (request.tab === "subagents") {
       if (request.url) setSelectedSubagentId(request.url);
       if (request.autoExpand && stageKindRef.current !== "welcome") return;
@@ -78,6 +84,7 @@ export function useWorkbenchRequests({
       setAuxOpen(true);
     }
   }, [
+    openSubagentTab,
     request,
     sessionId,
     setActiveAux,

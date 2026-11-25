@@ -1,0 +1,98 @@
+/* 主聊天中非浏览器子智能体的紧凑派发条与可折叠结果回执，全部消费 @lfaa/ui-theme 变量。 */
+
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0.12rem 0;
+}
+
+.row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.24rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+  text-align: left;
+  max-width: 100%;
+  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+
+.row:hover {
+  background: var(--color-active);
+  border-color: var(--color-line);
+  color: var(--color-ink);
+}
+
+.prefix {
+  color: var(--color-muted);
+  font-size: 0.76rem;
+  flex-shrink: 0;
+}
+
+.glyph {
+  color: var(--color-accent);
+  flex-shrink: 0;
+}
+
+.glyphDone {
+  color: var(--color-success);
+  flex-shrink: 0;
+}
+
+.glyphError {
+  color: var(--color-danger);
+  flex-shrink: 0;
+}
+
+.role {
+  color: var(--color-ink);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.liveAction {
+  color: var(--color-muted);
+  font-size: 0.74rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.openHint {
+  margin-left: auto;
+  color: var(--color-muted);
+  font-size: 0.72rem;
+  flex-shrink: 0;
+}
+
+.receipt {
+  margin-left: 1.1rem;
+  border-left: 2px solid var(--color-line);
+  padding-left: 0.6rem;
+  font-size: 0.78rem;
+  color: var(--color-muted);
+}
+
+.receiptSummary {
+  cursor: pointer;
+  user-select: none;
+  color: var(--color-muted);
+}
+
+.receiptBody {
+  margin-top: 0.3rem;
+  color: var(--color-ink);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 12rem;
+  overflow-y: auto;
+  line-height: 1.45;
+}

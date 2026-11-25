@@ -38,14 +38,37 @@ export function WorktreeSection({
   }, [load]);
 
   const handleRemove = async (item: ProjectWorktreeItem) => {
-    if (typeof window !== "undefined" && !window.confirm(locale.worktreeRemoveConfirm)) return;
+    const dirtyWarning = item.dirtyCount > 0
+      ? `${locale.worktreeRemoveConfirm}\n\n（注意：当前工作树仍有 ${item.dirtyCount} 处未提交改动，确认后将强制清理。）`
+      : locale.worktreeRemoveConfirm;
+    if (typeof window !== "undefined" && !window.confirm(dirtyWarning)) return;
     setBusyId(item.id);
     setError("");
     try {
-      await store.removeWorktree(item.id, true);
+      await store.removeWorktree(item.id, item.dirtyCount > 0);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : locale.worktreeDeleteFailed);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleMerge = async (item: ProjectWorktreeItem) => {
+    const target = item.baseRef || "main";
+    if (typeof window !== "undefined" && !window.confirm(`确定将分支 ${item.branch} 合并回 ${target}？`)) return;
+    setBusyId(item.id);
+    setError("");
+    try {
+      await store.mergeWorktree(item.id);
+      setPreviews((prev) => {
+        const next = { ...prev };
+        delete next[item.id];
+        return next;
+      });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : locale.worktreePreviewFailed);
     } finally {
       setBusyId(null);
     }
@@ -163,6 +186,19 @@ export function WorktreeSection({
                     onClick={() => { void handleRemoveWithBranch(item); }}
                   >
                     <IconGitBranch aria-hidden="true" />
+                  </button>
+                )}
+                {item.exists && item.ahead > 0 && previews[item.id]?.clean && !previews[item.id]?.mainDirty && previews[item.id]?.baseBranchCheckedOut && (
+                  <button
+                    type="button"
+                    className={styles.copy}
+                    disabled={busyId === item.id}
+                    title="合并回主分支"
+                    aria-label={`合并回主分支: ${item.branch}`}
+                    onClick={() => { void handleMerge(item); }}
+                  >
+                    <IconGitMerge aria-hidden="true" />
+                    合并
                   </button>
                 )}
                 <button

@@ -314,12 +314,13 @@ export interface ChatStoreSnapshot {
   pendingApproval: PendingApprovalBanner | null;
   filePreviewTabs: FilePreviewTab[];
   activeFilePreviewId: string | null;
-  rightStageKind?: "file" | "browser" | "review" | null;
+  rightStageKind?: "file" | "browser" | "review" | "subagent" | null;
   /** 右侧工作台是否自动跟随 Agent 的浏览器/文件/后台任务活动（默认开启）。 */
   followAgentWorkbench: boolean;
   rightPanelRequest?: {
     tab: string;
     url?: string;
+    subagentRole?: string;
     devtoolsTab?: "console" | "network";
     autoExpand?: boolean;
     refreshBrowser?: boolean;

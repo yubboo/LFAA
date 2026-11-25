@@ -142,6 +142,26 @@ export const chatClientPlugin: Plugin.Object<void> = {
       ),
     });
 
+    // 稳定回调引用：避免 WorkbenchShell 刷新时重建内联函数击穿长对话 ChatMessageRow 的 React.memo。
+    const onWorkspaceModeChange = (mode: "chatgpt" | "codex") => context.workbench.setWorkspaceMode(mode);
+    const onProjectContextChange = (projectId: string | null) => context.workbench.setActiveProject(projectId);
+    const onOpenSettings = () => context.workbench.navigate("settings:config");
+    const onOpenTurnChanges = (messageId: string) => {
+      store.requestRightPanel("review", messageId);
+      context.workbench.setRightPanelOpen(true, false);
+    };
+    const onOpenFilePreview = (messageId: string, stepId: string) => {
+      if (store.openFilePreview(messageId, stepId)) {
+        store.requestRightPanel("file-preview");
+        context.workbench.setRightPanelOpen(true, false);
+      }
+    };
+    const onOpenBrowser = () => {
+      store.requestRightPanel("browser", undefined, { refreshBrowser: true });
+      context.workbench.setRightWorkbenchWide(true);
+      context.workbench.setRightPanelOpen(true, false);
+    };
+
     const unregisterWorkspace = context.workbench.registerView({
       id: "workspace",
       title: locale.workspaceTitle,
@@ -154,24 +174,12 @@ export const chatClientPlugin: Plugin.Object<void> = {
             projects={wbSnap.projects}
             projectProvider={wbSnap.projectProvider}
             workspaceMode={wbSnap.workspaceMode}
-            onWorkspaceModeChange={(mode) => context.workbench.setWorkspaceMode(mode)}
-            onProjectContextChange={(projectId) => context.workbench.setActiveProject(projectId)}
-            onOpenSettings={() => context.workbench.navigate("settings:config")}
-            onOpenTurnChanges={(messageId) => {
-              store.requestRightPanel("review", messageId);
-              context.workbench.setRightPanelOpen(true, false);
-            }}
-            onOpenFilePreview={(messageId, stepId) => {
-              if (store.openFilePreview(messageId, stepId)) {
-                store.requestRightPanel("file-preview");
-                context.workbench.setRightPanelOpen(true, false);
-              }
-            }}
-            onOpenBrowser={() => {
-              store.requestRightPanel("browser", undefined, { refreshBrowser: true });
-              context.workbench.setRightWorkbenchWide(true);
-              context.workbench.setRightPanelOpen(true, false);
-            }}
+            onWorkspaceModeChange={onWorkspaceModeChange}
+            onProjectContextChange={onProjectContextChange}
+            onOpenSettings={onOpenSettings}
+            onOpenTurnChanges={onOpenTurnChanges}
+            onOpenFilePreview={onOpenFilePreview}
+            onOpenBrowser={onOpenBrowser}
           />
         );
       },

@@ -9,7 +9,7 @@ const VALID_AUX_TABS = new Set<RightAuxTab>(["filesTree", "workspaceContext", "t
 export interface PersistedWorkbenchSessionState {
   filePreviewTabs: FilePreviewTab[];
   activeFilePreviewId: string | null;
-  rightStageKind: "file" | "browser" | "review" | null;
+  rightStageKind: "file" | "browser" | "review" | "subagent" | null;
   browserOpen: boolean;
   browserUrl?: string;
   reviewTabOpen: boolean;

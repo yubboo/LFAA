@@ -1,7 +1,7 @@
 // @lfaa/web-server：开发模式宿主：启动 Vite 开发服务器，并把同一套 /api 网关与令牌注入挂到它上面。
 // Vite 只在开发模式使用，因此用动态导入引入：生产安装包不含 Vite，静态导入会让桌面端启动即失败。
 import { resolve } from "node:path";
-import { checkApiAuth, checkApiWriteContentType, type ApiGateway } from "@lfaa/api-gateway";
+import { checkApiAuth, checkApiWriteContentType, isApiPath, type ApiGateway } from "@lfaa/api-gateway";
 import type { ViteDevServer } from "vite";
 import { detectProjectRoot } from "./detect-root";
 import { createHostRuntime } from "./runtime";
@@ -63,8 +63,12 @@ async function createViteServer(appRoot: string, apiToken: string, gateway: ApiG
         name: "lfaa-host-apis",
         // 在 Vite 内置 SPA 回退中间件之前挂载核心 Agent/聊天、工作区与分区 Host API。
         configureServer(viteServer) {
-          // 先鉴权再派发：未通过鉴权的请求不会进入任何业务处理器。
+          // 非 /api 请求（Vite 前端模块、CSS、资源）直接短路放行，避免每个模块空跑 30 个后端 API 处理器。
           viteServer.middlewares.use((req, res, next) => {
+            if (!isApiPath(req.url ?? "/")) {
+              next();
+              return;
+            }
             const decision = checkApiAuth(req, { token: apiToken });
             if (!decision.allowed) {
               res.statusCode = decision.status;

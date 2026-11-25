@@ -9,14 +9,14 @@ export function isCodePath(path: string | undefined): boolean {
 }
 
 const VERIFY_RUNNERS =
-  /\b(?:pnpm|npm|yarn|bun|npx|mvn|mvnw|gradle|gradlew|cargo|dotnet|pytest|jest|vitest|make|cmake|msbuild|go)\b/iu;
+  /\b(?:pnpm|npm|yarn|bun|npx|tsx|node|python|python3|mvn|mvnw|gradle|gradlew|cargo|dotnet|pytest|jest|vitest|make|cmake|msbuild|go)\b/iu;
 const VERIFY_ACTIONS =
-  /\b(?:build|test|lint|check|typecheck|type-check|compile|package|verify|ci)\b/iu;
+  /\b(?:build|test|lint|check|typecheck|type-check|compile|package|verify|ci|--test|--check|-m\s+pytest)\b/iu;
 
 /** 命令是否属于构建/测试/类型检查等验证动作；用于完成前自检判断。 */
 export function isVerificationCommand(command: string): boolean {
   const normalized = command.trim();
   if (!normalized) return false;
-  if (/\btsc\b/iu.test(normalized)) return true;
+  if (/\b(?:tsc|vitest|pytest|jest)\b/iu.test(normalized)) return true;
   return VERIFY_RUNNERS.test(normalized) && VERIFY_ACTIONS.test(normalized);
 }

@@ -123,19 +123,26 @@ function compactSkillDescription(description: string | undefined, maxChars = 120
   return normalized.length <= maxChars ? normalized : `${normalized.slice(0, maxChars - 1).trimEnd()}…`;
 }
 
-/** 可用技能目录提示：命中技能场景时先 load_skill 再执行。 */
+/** 可用技能目录提示：优先内联个人/项目/插件技能，内置技能压缩为按需检索提示，避免 40 个无关内置技能每轮膨胀数千 Token。 */
 export function buildSkillsCatalogHint(availableSkillCatalog: RunExecutionParams["availableSkillCatalog"]): string {
   if (!availableSkillCatalog || availableSkillCatalog.length === 0) return "";
-  const maxCatalogSkills = 100;
-  const shown = availableSkillCatalog.slice(0, maxCatalogSkills);
-  const overflow = availableSkillCatalog.length - shown.length;
-  const overflowNote = overflow > 0 ? `\n- （另有 ${overflow} 个已启用技能未展开，需要时可调用 list_skills 查看完整列表）` : "";
-  return `\n\n可用技能目录（当任务命中某个技能的适用场景时，请先调用 load_skill 读取完整正文再按规范执行；若用户要求从 Git 安装技能请调用 install_skill_from_git；若用户要求创建个人技能请调用 save_user_skill 存入 ~/.lfaa/skills/）：\n${shown
-    .map((s) => {
-      const desc = compactSkillDescription(s.description);
-      return `- ${s.name} (id: ${s.id}, 来源: ${s.source})${desc ? `：${desc}` : ""}`;
-    })
-    .join("\n")}${overflowNote}`;
+  const prioritySkills = availableSkillCatalog.filter((s) => s.source !== "builtin");
+  const builtinSkills = availableSkillCatalog.filter((s) => s.source === "builtin");
+  const maxShown = 24;
+  const shown = prioritySkills.slice(0, maxShown);
+  const lines = shown.map((s) => {
+    const desc = compactSkillDescription(s.description, 100);
+    return `- ${s.name} (id: ${s.id}, 来源: ${s.source})${desc ? `：${desc}` : ""}`;
+  });
+  if (prioritySkills.length > maxShown) {
+    lines.push(`- （另有 ${prioritySkills.length - maxShown} 个自定义/插件技能，需要时调用 list_skills 查看）`);
+  }
+  if (builtinSkills.length > 0) {
+    const builtinNames = builtinSkills.slice(0, 8).map((s) => s.name).join("、");
+    const more = builtinSkills.length > 8 ? ` 等 ${builtinSkills.length} 个` : "";
+    lines.push(`- 内置专业技能（${builtinNames}${more}）：按需先调用 list_skills 检索再用 load_skill 读取正文`);
+  }
+  return `\n\n可用技能目录（命中技能适用场景时先调用 load_skill 读取完整正文再执行；Git 安装用 install_skill_from_git；新建个人技能用 save_user_skill）：\n${lines.join("\n")}`;
 }
 
 /** 进度播报、工具效率、记忆与澄清等行为规范提示。 */
@@ -149,7 +156,7 @@ export function buildProgressHint(deps: RunLoopDeps, params: RunExecutionParams)
     "多步任务的进度写入用户可见的正文。首次调用工具前，简短交代准备核查或执行的事项；得到实际结果、发现异常或进入下一阶段时，再说明进展和接下来的动作。连续的小操作可共用一段，直接问答无需播报。命令和工具详情由运行时展示。",
     "任务清单：只要任务需要新建或修改 2 个及以上文件、或需要 2 条以上命令步骤，就必须先调用 todo_write 列出可执行步骤再动手；开始某项时把该项标成 in_progress，完成立即标成 completed，同一时刻只保留一条进行中；交付最终答复前必须把最后一项也标成 completed，禁止把已完成任务留在 in_progress。单步问答、纯解释和小改动不必建清单。",
     deps.tools.getTool("invoke_subagent")
-      ? "多智能体协作：用户明确要求委派，或任务存在可独立并行的调研、实现或验证时，用 invoke_subagent 设 wait=false 派发，并用 list_subagents 的 waitForIds 收集结果再汇总。无独立分工的简单任务直接完成。子任务失败时如实说明。"
+      ? "多智能体协作：遇到复杂排查、跨模块代码调研、独立子模块实现或代码审查时，使用 invoke_subagent 按角色派发专职子智能体（kind=research 只读调研 / kind=coder 定向实现 / kind=reviewer 只读审查 / kind=browser 浏览器验收），可设 wait=false 并行派发多个并用 list_subagents(waitForIds) 汇总。无独立分工的简单任务直接完成；子任务失败时如实说明。"
       : "",
     deps.tools.getTool("browser_present")
       ? "展示预览（最高优先级分流）：只要用户说「打开浏览器」「我要看效果」「展示页面」「预览一下」等纯查看诉求，只调用一次 browser_present 展开右侧浏览器并立即结束本轮，严禁派发浏览器子智能体、严禁重新验收、严禁顺手改代码。复用当前标签；仅在用户指定其他地址或还没有活动网页且已知目标地址时才传 URL。"

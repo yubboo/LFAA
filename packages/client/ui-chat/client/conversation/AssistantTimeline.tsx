@@ -101,11 +101,13 @@ export const AssistantTimeline = memo(function AssistantTimeline({
   reasoningDurationMs,
   tokenUsage,
   isStreaming,
+  defaultCollapsed,
   pendingApproval,
   onResolveApproval,
   onOpenFile,
   onOpenTrace,
   onOpenBrowser,
+  onOpenSubagent,
   selectedFileStepId,
   bodyClassName,
 }: {
@@ -120,15 +122,22 @@ export const AssistantTimeline = memo(function AssistantTimeline({
   reasoningDurationMs?: number | undefined;
   tokenUsage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number } | undefined;
   isStreaming: boolean;
+  /** 完成后是否自动收起过程明细（用于右侧子智能体工作舞台）。 */
+  defaultCollapsed?: boolean | undefined;
   pendingApproval: PendingApprovalBanner | null;
   onResolveApproval: (approved: boolean) => void;
   bodyClassName?: string | undefined;
   /** 保留可选签名兼容调用方；正文已统一还原标准排版。 */
   onSelectAdvice?: ((text: string) => void) | undefined;
 } & FileActivityActions) {
-  const [processOpen, setProcessOpen] = useState(true);
+  const [processOpen, setProcessOpen] = useState(!defaultCollapsed);
   const [now, setNow] = useState(Date.now);
   const processId = useId();
+
+  useEffect(() => {
+    if (defaultCollapsed) setProcessOpen(false);
+    else if (isStreaming) setProcessOpen(true);
+  }, [defaultCollapsed, isStreaming]);
 
   // 合并为单一定时器，只在当前消息处于流式运行时每秒刷新一次实时耗时。
   useEffect(() => {
@@ -153,8 +162,8 @@ export const AssistantTimeline = memo(function AssistantTimeline({
   const hasDisclosure = isStreaming || hasProcess;
   const labels = timelineMessages[locale.isZh ? "zh" : "en"];
   const fileActions = useMemo<FileActivityActions>(
-    () => ({ onOpenFile, onOpenTrace, onOpenBrowser, selectedFileStepId }),
-    [onOpenBrowser, onOpenFile, onOpenTrace, selectedFileStepId],
+    () => ({ onOpenFile, onOpenTrace, onOpenBrowser, onOpenSubagent, selectedFileStepId }),
+    [onOpenBrowser, onOpenFile, onOpenSubagent, onOpenTrace, selectedFileStepId],
   );
 
   return (

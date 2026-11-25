@@ -203,10 +203,12 @@ export async function beginAgentRun(
   };
   deps.onRunCreated(record);
 
-  // 串行持久化增量，流式阶段按 1000ms 节流且合并排队写入，避免 Windows 高频原子重命名阻塞事件循环。
+  // 串行持久化增量，流式阶段按 1000ms 节流且合并排队写入；收尾阶段先关闭流式补写再等在途写入结束，避免覆盖定稿。
   let persistInFlight = false;
   let persistDirty = false;
+  let streamingClosed = false;
   const flushStreamingPersist = () => {
+    if (streamingClosed) return;
     if (persistInFlight) {
       persistDirty = true;
       return;
@@ -229,7 +231,7 @@ export async function beginAgentRun(
       .catch(() => undefined)
       .finally(() => {
         persistInFlight = false;
-        if (persistDirty && record.status.status === "running") {
+        if (persistDirty && !streamingClosed && record.status.status === "running") {
           persistDirty = false;
           flushStreamingPersist();
         }
@@ -377,8 +379,10 @@ export async function beginAgentRun(
           },
         );
 
-        // 同步关闭仍存活的子任务，在保存父消息之前记录真实停止状态。
+        // 同步关闭仍存活的子任务，在保存父消息之前记录真实停止状态；先停止流式补写避免覆盖定稿。
         controller.abort();
+        streamingClosed = true;
+        persistDirty = false;
         const runDurationMs = Date.now() - runStartedAt;
         await record.persistChain;
         // 用户明确陈述的偏好/约定在模型未主动保存时自动沉淀，避免“记忆”只写不读或只读不写。
@@ -449,6 +453,8 @@ export async function beginAgentRun(
         const progressText = record.status.content.slice(0, boundary);
         const content = record.status.content.slice(boundary).trim();
         const persistedContent = content || (aborted ? "（任务已手动中止）" : `执行异常：${msg}`);
+        streamingClosed = true;
+        persistDirty = false;
         await record.persistChain;
         const saved = await deps.memory.updateMessage(session.id, assistantMessageId, {
           content: persistedContent,

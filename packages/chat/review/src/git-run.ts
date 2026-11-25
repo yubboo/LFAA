@@ -6,14 +6,18 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
-/** 在指定工作目录执行 git；统一禁用交互提示并固定输出语言，便于解析。 */
+const STRIPPED_GIT_ENV_KEYS = ["GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE", "GIT_PREFIX"] as const;
+
+/** 在指定工作目录执行 git；统一禁用交互提示、剥离继承的 GIT_* 环境变量并固定输出语言，便于解析。 */
 export async function runGit(cwd: string, args: string[], timeoutMs = 10000): Promise<string> {
+  const env: NodeJS.ProcessEnv = { ...process.env, GIT_TERMINAL_PROMPT: "0", LC_ALL: "C" };
+  for (const key of STRIPPED_GIT_ENV_KEYS) delete env[key];
   const { stdout } = await execFileAsync("git", ["-c", "core.quotepath=false", ...args], {
     cwd,
     timeout: timeoutMs,
     maxBuffer: 4 * 1024 * 1024,
     windowsHide: true,
-    env: { ...process.env, GIT_TERMINAL_PROMPT: "0", LC_ALL: "C" },
+    env,
   });
   return stdout;
 }

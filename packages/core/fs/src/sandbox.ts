@@ -40,9 +40,10 @@ export async function createPrivatePathFilter(): Promise<(candidate: string) => 
   return (candidate) => protectedPaths.some((path) => isInsideRoot(candidate, path));
 }
 
-/** 描述调用方是否已允许工具访问工作区之外的路径。 */
+/** 描述调用方是否已允许工具访问工作区之外的路径，或附加受控只读根（如当前会话 spill 目录）。 */
 export interface WorkspacePathOptions {
   allowOutsideWorkspace?: boolean | undefined;
+  extraAllowedRoots?: string[] | undefined;
 }
 
 /** 以授权目录为基址解析路径，并按真实文件路径核对归属。 */
@@ -52,9 +53,10 @@ export async function resolveSafeWorkspacePath(
   options: WorkspacePathOptions = {},
 ): Promise<{ path: string; root: string }> {
   const cleanRoots = workspaceRoots.map((r) => r.trim()).filter(Boolean);
+  const extraRoots = (options.extraAllowedRoots ?? []).map((r) => r.trim()).filter(Boolean);
   const trimmedInput = rawPath.trim() || ".";
   const allowOutside = options.allowOutsideWorkspace === true;
-  if (!allowOutside && cleanRoots.length === 0) {
+  if (!allowOutside && cleanRoots.length === 0 && extraRoots.length === 0) {
     throw new Error("当前会话未绑定授权项目目录，无法访问本地文件或执行命令。");
   }
 
@@ -65,7 +67,7 @@ export async function resolveSafeWorkspacePath(
     throw new Error("应用私有文件不可由 Agent 文件工具访问。请使用相应设置或会话界面。");
   }
   if (allowOutside) return { path: realCandidate, root: await resolveNearestRealPath(primaryRoot) };
-  for (const root of cleanRoots) {
+  for (const root of [...cleanRoots, ...extraRoots]) {
     const realRoot = await resolveNearestRealPath(resolve(root));
     if (isInsideRoot(realCandidate, realRoot)) {
       return { path: realCandidate, root: realRoot };

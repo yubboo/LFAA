@@ -40,8 +40,14 @@ export function normalizePermissionMode(mode?: unknown, autoApproveTools?: boole
   return autoApproveTools === true ? "full" : "ask";
 }
 
-// 归类操作签名：写/改文件按工具名归类，命令执行按主命令（含串联标记）归类，避免不同高危命令共享计数。
+const SENSITIVE_PROJECT_PATH_PATTERN = /(?:^|[\\/])(?:package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|tsconfig[^\\/]*\.json|scripts[\\/][^\\/]+|\.github[\\/][^\\/]+)$/iu;
+
+// 归类操作签名：写/改文件区分普通文件与核心配置/锁文件/脚本，命令执行按主命令（含串联标记）归类，避免高危操作共享免审计数。
 export function buildApprovalPattern(toolName: string, args: Record<string, unknown>): string {
+  if (toolName === "write_file" || toolName === "edit_file") {
+    const targetPath = typeof args.path === "string" ? args.path.trim() : "";
+    return SENSITIVE_PROJECT_PATH_PATTERN.test(targetPath) ? `${toolName}:sensitive` : toolName;
+  }
   if (toolName !== "run_command" && toolName !== "start_background_task") return toolName;
   const raw = typeof args.command === "string" ? args.command.trim() : "";
   if (!raw) return toolName;

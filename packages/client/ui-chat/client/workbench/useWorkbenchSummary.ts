@@ -1,11 +1,13 @@
-// 右侧工作台后台概览轮询：按会话拉取后台任务与子智能体列表，供顶栏与欢迎页状态行展示。
+// 右侧工作台后台概览轮询：按会话拉取后台任务与子智能体列表；仅在运行中或用户打开对应面板时轮询，空闲零开销。
 import { useEffect, useState } from "react";
 import type { RightSubagentItem } from "./RightSubagentsPane";
 import type { RightJobItem } from "./RightTerminalPane";
 
-export function useWorkbenchSummary(sessionId: string) {
+export function useWorkbenchSummary(sessionId: string, activePolling = false) {
   const [jobs, setJobs] = useState<RightJobItem[]>([]);
   const [subagents, setSubagents] = useState<RightSubagentItem[]>([]);
+  const hasRunning = jobs.some((j) => j.status === "running") || subagents.some((s) => s.status === "running");
+  const shouldPoll = activePolling || hasRunning;
 
   useEffect(() => {
     let active = true;
@@ -23,12 +25,13 @@ export function useWorkbenchSummary(sessionId: string) {
       }
     };
     void loadSummary();
+    if (!shouldPoll) return () => { active = false; };
     const timer = setInterval(() => void loadSummary(), 2500);
     return () => {
       active = false;
       clearInterval(timer);
     };
-  }, [sessionId]);
+  }, [sessionId, shouldPoll]);
 
   return { jobs, subagents };
 }

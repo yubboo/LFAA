@@ -4,13 +4,21 @@ import type { Context } from "@deepseek-ai/cordis";
 import { executeAgentTaskLoop, SmartTrustStore } from "@lfaa/agent";
 import type { ChatMessageRecord, MemoryService } from "@lfaa/memory";
 import type { ToolsService, ToolExecutionContext } from "@lfaa/tools";
-import type { InvokeSubagentInput, SubagentKind, SubagentMode, SubagentPluginConfig, SubagentSummaryItem } from "./types";
+import type {
+  InvokeSubagentInput,
+  SubagentKind,
+  SubagentMode,
+  SubagentPluginConfig,
+  SubagentStreamEvent,
+  SubagentSummaryItem,
+} from "./types";
 import {
   buildBrowserSubagentPrompt,
   detectBrowserLabel,
   formatSubagentToolLabel,
   isBrowserSubagentTool,
 } from "./browser-subagent";
+import { resolveSubagentPreset } from "./subagent-presets";
 
 const SUBAGENT_BLOCKED_TOOLS = new Set(["invoke_subagent", "message_subagent", "list_subagents", "stop_subagent"]);
 const DEFAULT_MAX_CONCURRENT = 4;
@@ -36,11 +44,22 @@ interface SubagentRecord {
   history: ChatMessageRecord[];
   controller: AbortController | null;
   runningPromise: Promise<SubagentSummaryItem> | null;
+  listeners: Set<(evt: SubagentStreamEvent) => void>;
   parentSignal?: AbortSignal | undefined;
   parentApproval?: InvokeSubagentInput["parentApproval"];
   parentProfileId?: string | undefined;
   allowsTool?: InvokeSubagentInput["allowsTool"];
   onSubagentActivity?: InvokeSubagentInput["onSubagentActivity"];
+}
+
+function emitStream(record: SubagentRecord, event: SubagentStreamEvent): void {
+  for (const listener of record.listeners) {
+    try {
+      listener(event);
+    } catch {
+      // 忽略单个流订阅者的写入异常，避免中断子智能体主循环。
+    }
+  }
 }
 
 /** 构造隔离的记忆视图：共享长期记忆与资产库，但将对话历史隔离在子智能体私有数组中。 */
@@ -100,7 +119,8 @@ export class SubagentCoordinator {
 
     const controller = new AbortController();
     const { id, role } = record.item;
-    const kind: SubagentKind = record.item.mode === "browser" ? "browser" : "general";
+    const kind: SubagentKind = record.item.kind ?? (record.item.mode === "browser" ? "browser" : "general");
+    const preset = resolveSubagentPreset(kind, record.item.mode);
     const browserLabel = record.item.browserLabel;
     const baseMeta = {
       id,
@@ -113,6 +133,7 @@ export class SubagentCoordinator {
     controller.signal.addEventListener("abort", () => {
       record.item = { ...record.item, status: "stopped", endedAt: Date.now() };
       report?.({ ...baseMeta, status: "stopped" });
+      emitStream(record, { type: "run_finished", subagent: record.item, timestamp: Date.now() });
     }, { once: true });
     record.controller = controller;
     const { error: _prevErr, endedAt: _prevEnd, ...prevItem } = record.item;
@@ -121,11 +142,13 @@ export class SubagentCoordinator {
       kind,
       status: "running",
       prompt: userPrompt,
+      reasoning: "",
       output: "",
       steps: [],
       stepsCount: 0,
       startedAt: Date.now(),
     };
+    emitStream(record, { type: "snapshot", subagent: record.item });
     let lastLiveAction = "思考中";
     report?.({ ...baseMeta, status: "running", liveAction: lastLiveAction });
     if (record.parentSignal?.aborted) controller.abort();
@@ -135,7 +158,7 @@ export class SubagentCoordinator {
     const isolatedMemory = createIsolatedMemoryView(this.ctx.memory, record.history);
     const childUserMessage = kind === "browser"
       ? buildBrowserSubagentPrompt(record.item.role, userPrompt, browserLabel ?? "内置浏览器")
-      : `[子智能体角色：${record.item.role}]\n${userPrompt}`;
+      : preset.buildPrompt(record.item.role, userPrompt);
 
     const browserSvc = kind === "browser"
       ? ((this.ctx as { get?: (name: string) => unknown }).get?.("browser") as { describeTakeoverHint?: (sid: string) => string } | undefined)
@@ -166,13 +189,24 @@ export class SubagentCoordinator {
         },
         signal: controller.signal,
         emit: (evt) => {
-          if (evt.type === "step_update" && !controller.signal.aborted) {
+          if (controller.signal.aborted) return;
+          if (evt.type === "delta" && evt.text) {
+            if (evt.kind === "text") {
+              record.item = { ...record.item, output: `${record.item.output}${evt.text}` };
+            } else if (evt.kind === "reasoning") {
+              record.item = { ...record.item, reasoning: `${record.item.reasoning ?? ""}${evt.text}` };
+            }
+            emitStream(record, { type: "delta", channel: evt.kind, delta: evt.text, timestamp: Date.now() });
+            return;
+          }
+          if (evt.type === "step_update") {
             const existing = record.item.steps;
             const idx = existing.findIndex((s) => s.id === evt.step.id);
             const steps = idx >= 0
               ? existing.map((s, i) => (i === idx ? evt.step : s))
               : [...existing, evt.step];
             record.item = { ...record.item, steps, stepsCount: steps.length };
+            emitStream(record, { type: "step_update", step: evt.step, timestamp: Date.now() });
             const { step } = evt;
             if (step.phase === "think" && (step.status === "running" || step.status === "done")) {
               const thoughtSummary = summarizeSubagentThought(step.detail);
@@ -223,6 +257,7 @@ export class SubagentCoordinator {
           endedAt: Date.now(),
         };
         report?.({ ...baseMeta, status: "done", result: result.content });
+        emitStream(record, { type: "run_finished", subagent: record.item, timestamp: Date.now() });
         return record.item;
       })
       .catch((error) => {
@@ -230,6 +265,7 @@ export class SubagentCoordinator {
           const msg = error instanceof Error ? error.message : String(error);
           record.item = { ...record.item, status: "error", error: msg, output: msg, endedAt: Date.now() };
           report?.({ ...baseMeta, status: "error", result: msg });
+          emitStream(record, { type: "run_finished", subagent: record.item, timestamp: Date.now() });
         }
         return record.item;
       }).finally(() => {
@@ -246,9 +282,10 @@ export class SubagentCoordinator {
   }
 
   async invoke(input: InvokeSubagentInput): Promise<SubagentSummaryItem> {
-    const mode: SubagentMode = input.mode === "browser" ? "browser" : input.mode === "write" ? "write" : "read";
-    const kind: SubagentKind = mode === "browser" ? "browser" : "general";
-    const role = input.role.trim() || (kind === "browser" ? "浏览器验收助手" : "调研助手");
+    const preset = resolveSubagentPreset(input.kind, input.mode);
+    const mode: SubagentMode = preset.mode;
+    const kind: SubagentKind = preset.kind;
+    const role = input.role.trim() || preset.defaultRole;
     const prompt = input.prompt.trim();
     if (!prompt) throw new Error("子智能体任务描述不能为空。");
     const id = `sub-${randomUUID().slice(0, 8)}`;
@@ -265,6 +302,7 @@ export class SubagentCoordinator {
         mode,
         status: "running",
         prompt,
+        reasoning: "",
         output: "",
         stepsCount: 0,
         steps: [],
@@ -274,13 +312,16 @@ export class SubagentCoordinator {
       history: [],
       controller: null,
       runningPromise: null,
+      listeners: new Set(),
       parentProfileId: input.parentProfileId,
       allowsTool: input.allowsTool,
       onSubagentActivity: input.onSubagentActivity,
       ...(input.parentSignal ? { parentSignal: input.parentSignal } : {}),
       ...(input.parentApproval ? { parentApproval: input.parentApproval } : {}),
     };
-    const defaultBudget = kind === "browser" ? BROWSER_DEFAULT_MAX_STEPS : (this.config.defaultMaxSteps ?? DEFAULT_MAX_STEPS);
+    const defaultBudget = kind === "browser"
+      ? BROWSER_DEFAULT_MAX_STEPS
+      : (this.config.defaultMaxSteps ?? preset.maxSteps ?? DEFAULT_MAX_STEPS);
     const maxSteps = kind === "browser"
       ? Math.min(input.maxSteps ?? defaultBudget, BROWSER_DEFAULT_MAX_STEPS)
       : (input.maxSteps ?? defaultBudget);
@@ -347,9 +388,38 @@ export class SubagentCoordinator {
     return rec.item;
   }
 
+  /** 供右侧标签页底部输入框发起追问（非阻塞，实时输出通过 SSE 推送）。 */
+  async messageFromUser(id: string, prompt: string): Promise<SubagentSummaryItem> {
+    const record = this.records.get(id);
+    if (!record) throw new Error(`找不到子智能体：${id}`);
+    if (record.controller) throw new Error("子智能体当前仍在运行，请等待完成或先停止后再追问。");
+    const trimmed = prompt.trim();
+    if (!trimmed) throw new Error("补充任务描述不能为空。");
+    const defaultBudget = record.item.kind === "browser"
+      ? BROWSER_DEFAULT_MAX_STEPS
+      : (this.config.defaultMaxSteps ?? DEFAULT_MAX_STEPS);
+    this.runTurn(record, trimmed, defaultBudget).catch(() => {});
+    return record.item;
+  }
+
+  subscribe(id: string, listener: (evt: SubagentStreamEvent) => void): () => void {
+    const record = this.records.get(id);
+    if (!record) return () => {};
+    record.listeners.add(listener);
+    try {
+      listener({ type: "snapshot", subagent: record.item });
+    } catch {
+      // 忽略首次快照写入异常。
+    }
+    return () => {
+      record.listeners.delete(listener);
+    };
+  }
+
   disposeAll(): void {
     for (const rec of this.records.values()) {
       rec.controller?.abort();
+      rec.listeners.clear();
     }
     this.records.clear();
   }

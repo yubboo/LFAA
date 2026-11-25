@@ -86,7 +86,8 @@ export async function createRunContext(input: {
       progressHint: `${FORMAT_HINT}\n${buildProgressHint(deps, params)}`,
       skillsCatalogHint: buildSkillsCatalogHint(params.availableSkillCatalog),
       skillsSection,
-      historyDigest,
+      // 动态 historyDigest 不再拼进首条 system 消息，保证跨轮 KV Prompt Cache 前缀稳定命中。
+      historyDigest: "",
       truncationHint: "",
       extraSystemHint: initialExtraHint,
     }),
@@ -124,9 +125,17 @@ export async function createRunContext(input: {
   };
   const updateSystemMessage = () => {};
 
+  const conversation = buildRecentConversation(systemMessage, contextWindow, params.userMessage);
+  if (historyDigest) {
+    conversation.splice(1, 0, {
+      role: "user",
+      content: `【前序工具轨迹摘要（仅供参考，可直接复用避免重复探查）】\n${historyDigest}`,
+    });
+  }
+
   return {
     systemMessage,
-    conversation: buildRecentConversation(systemMessage, contextWindow, params.userMessage),
+    conversation,
     contextBudgetChars: Math.max(8_000, Math.floor(params.contextBudgetChars ?? DEFAULT_CONTEXT_BUDGET_CHARS)),
     tracker,
     roundLimits,

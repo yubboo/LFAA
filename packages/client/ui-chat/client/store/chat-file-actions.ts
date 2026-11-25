@@ -80,7 +80,7 @@ export class ChatFileActions {
     }
   }
 
-  setRightStageKind(kind: "file" | "browser" | "review" | null): void {
+  setRightStageKind(kind: "file" | "browser" | "review" | "subagent" | null): void {
     if (this.port.getState().rightStageKind === kind) return;
     this.port.patchState({ rightStageKind: kind });
   }
@@ -103,16 +103,17 @@ export class ChatFileActions {
   requestRightPanel(
     tab: string,
     url?: string,
-    options?: { devtoolsTab?: "console" | "network"; autoExpand?: boolean; refreshBrowser?: boolean },
+    options?: { devtoolsTab?: "console" | "network"; autoExpand?: boolean; refreshBrowser?: boolean; subagentRole?: string },
   ): void {
     const stageKind = tab === "browser" ? "browser" : tab === "file-preview" ? "file"
-      : tab === "review" ? "review" : this.port.getState().rightStageKind ?? null;
+      : tab === "review" ? "review" : tab === "subagent" ? "subagent" : this.port.getState().rightStageKind ?? null;
     this.requestNonce += 1;
     this.port.patchState({
       rightStageKind: stageKind,
       rightPanelRequest: {
         tab,
         ...(url ? { url } : {}),
+        ...(options?.subagentRole ? { subagentRole: options.subagentRole } : {}),
         ...(options?.devtoolsTab ? { devtoolsTab: options.devtoolsTab } : {}),
         ...(options?.autoExpand ? { autoExpand: true } : {}),
         ...(options?.refreshBrowser ? { refreshBrowser: true } : {}),

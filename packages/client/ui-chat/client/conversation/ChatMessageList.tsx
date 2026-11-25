@@ -56,6 +56,7 @@ export function ChatMessageList({
   onOpenFilePreview,
   onOpenTurnChanges,
   onOpenBrowser,
+  onOpenSubagent,
   onEditContent,
   onOpenTrace,
   onBranchToNewChat,
@@ -93,6 +94,7 @@ export function ChatMessageList({
   onOpenFilePreview: (messageId: string, stepId: string) => void;
   onOpenTurnChanges?: ((messageId: string) => void) | undefined;
   onOpenBrowser?: (() => void) | undefined;
+  onOpenSubagent?: ((subagentId: string, role?: string) => void) | undefined;
   onEditContent: (content: string) => void;
   onOpenTrace: (messageId: string, stepId: string) => void;
   onBranchToNewChat: (message: ChatMessageItem) => void;
@@ -198,6 +200,7 @@ export function ChatMessageList({
           onOpenFilePreview={onOpenFilePreview}
           onOpenTurnChanges={onOpenTurnChanges}
           onOpenBrowser={onOpenBrowser}
+          onOpenSubagent={onOpenSubagent}
           onEditContent={onEditContent}
           onOpenTrace={onOpenTrace}
           onBranchToNewChat={onBranchToNewChat}

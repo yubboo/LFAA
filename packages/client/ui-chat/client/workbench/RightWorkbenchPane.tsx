@@ -14,6 +14,7 @@ import { WorkbenchAuxPane } from "./WorkbenchAuxPane";
 import { WorkbenchStageContent } from "./WorkbenchStageContent";
 import { useWorkbenchBrowser } from "./useWorkbenchBrowser";
 import { useWorkbenchRequests } from "./useWorkbenchRequests";
+import { useWorkbenchSubagents } from "./useWorkbenchSubagents";
 import { WorkbenchTabs } from "./WorkbenchTabs";
 import { useWorkbenchSummary } from "./useWorkbenchSummary";
 import { workbenchAuxTitles } from "./workbench-titles";
@@ -103,7 +104,10 @@ export function RightWorkbenchPane({
   });
   const sessionId = state.sessionId;
   const [hydratedSessionId, setHydratedSessionId] = useState(sessionId);
-  const { jobs, subagents } = useWorkbenchSummary(sessionId);
+  const { jobs, subagents } = useWorkbenchSummary(
+    sessionId,
+    state.agentRunning || (auxOpen && (activeAux === "terminal" || activeAux === "subagents")),
+  );
   const syncedSessionRef = useRef<string | null>(null);
   const splitAreaRef = useRef<HTMLDivElement>(null);
   const { auxWidth, dragging: auxDragging, startResize: startAuxResize, handleKeyResize: handleAuxKeyResize } = useAuxResize(splitAreaRef);
@@ -116,20 +120,19 @@ export function RightWorkbenchPane({
     setBrowserOpen, setBrowserInitialUrl, handleBrowserSnapshot,
     handleOpenNewBrowserTab, handleActivateBrowserTab, handleCloseBrowserTab, handleOpenUrl, restoreBrowser, syncHostBrowser,
   } = useWorkbenchBrowser({ sessionId, store, activeFileTab, syncedSessionRef, initialOpen: initialSaved.browserOpen });
+  const {
+    subagentTabs, activeSubagentTabId, openSubagentTab, selectSubagentTab, closeSubagentTab,
+  } = useWorkbenchSubagents({ sessionId, store, subagents });
+  const activeSubagentTab = subagentTabs.find((tab) => tab.id === activeSubagentTabId);
 
-  const stageKind = auxOpen && !(activeAux === "filesTree" && state.rightStageKind === "file" && activeFileTab)
-    ? "utility"
-    : state.rightStageKind === "review" && reviewTabOpen
-    ? "review"
-    : state.rightStageKind === "browser" && browserOpen
-      ? "browser"
-      : activeFileTab
-        ? "file"
-        : browserOpen
-          ? "browser"
-          : reviewTabOpen
-            ? "review"
-            : "welcome";
+  const stageKind = auxOpen && !(activeAux === "filesTree" && state.rightStageKind === "file" && activeFileTab) ? "utility"
+    : state.rightStageKind === "subagent" && activeSubagentTab ? "subagent"
+      : state.rightStageKind === "review" && reviewTabOpen ? "review"
+        : state.rightStageKind === "browser" && browserOpen ? "browser"
+          : activeFileTab ? "file"
+            : activeSubagentTab ? "subagent"
+              : browserOpen ? "browser"
+                : reviewTabOpen ? "review" : "welcome";
 
   const activeBrowserTab = browserTabs.find((tab) => tab.active);
   const browserIsBlank = activeBrowserTab ? !activeBrowserTab.url || activeBrowserTab.url === "about:blank" : !browserInitialUrl;
@@ -188,12 +191,10 @@ export function RightWorkbenchPane({
     setFileTreeOpen,
     setSelectedJobId,
     setSelectedSubagentId,
+    openSubagentTab,
   });
 
-  const openNewBrowserTab = () => {
-    setAuxOpen(false);
-    handleOpenNewBrowserTab();
-  };
+  const openNewBrowserTab = () => { setAuxOpen(false); handleOpenNewBrowserTab(); };
 
   const handleToggleAux = (tab: RightAuxTab) => {
     if (tab === "filesTree" && stageKind === "file") {
@@ -201,13 +202,10 @@ export function RightWorkbenchPane({
       setAuxOpen(false);
       return;
     }
-    if (auxOpen && activeAux === tab) {
-      setAuxOpen(false);
-    } else {
-      if (tab === "filesTree") store.setRightStageKind(null);
-      setActiveAux(tab);
-      setAuxOpen(true);
-    }
+    if (auxOpen && activeAux === tab) { setAuxOpen(false); return; }
+    if (tab === "filesTree") store.setRightStageKind(null);
+    setActiveAux(tab);
+    setAuxOpen(true);
   };
 
   const openAux = (tab: RightAuxTab) => {
@@ -217,10 +215,8 @@ export function RightWorkbenchPane({
   };
 
   const openReview = () => {
-    setAuxOpen(false);
-    setFileTreeOpen(false);
-    setReviewMessageId(undefined);
-    setReviewTabOpen(true);
+    setAuxOpen(false); setFileTreeOpen(false);
+    setReviewMessageId(undefined); setReviewTabOpen(true);
     store.setRightStageKind("review");
   };
 
@@ -282,6 +278,8 @@ export function RightWorkbenchPane({
           browserIsBlank={browserIsBlank}
           reviewTabOpen={reviewTabOpen}
           reviewMessageId={reviewMessageId}
+          subagentTabs={subagentTabs}
+          activeSubagentTabId={activeSubagentTabId}
           onSelectFile={(tabId) => { setAuxOpen(false); setFileTreeOpen(false); store.selectFilePreview(tabId); }}
           onCloseFile={(tabId) => store.closeFilePreview(tabId)}
           onSelectBrowser={() => { setAuxOpen(false); store.setRightStageKind("browser"); }}
@@ -299,6 +297,8 @@ export function RightWorkbenchPane({
               store.setRightStageKind(activeFileTab ? "file" : browserOpen ? "browser" : null);
             }
           }}
+          onSelectSubagentTab={(subId) => { setAuxOpen(false); selectSubagentTab(subId); }}
+          onCloseSubagentTab={(subId) => closeSubagentTab(subId, () => (activeFileTab ? "file" : browserOpen ? "browser" : reviewTabOpen ? "review" : null))}
           onNewBrowserTab={openNewBrowserTab}
         />
 
@@ -315,24 +315,16 @@ export function RightWorkbenchPane({
             rightPanelMaximized={rightPanelMaximized}
             onOpenReviewTab={openReview}
             onOpenFileTree={() => openAux("filesTree")}
-            onOpenTerminal={(jobId) => {
-              setSelectedJobId(jobId);
-              setActiveAux("terminal");
-              setAuxOpen(true);
-            }}
+            onOpenTerminal={(jobId) => { setSelectedJobId(jobId); openAux("terminal"); }}
             onOpenSubagents={(subId) => {
-              setSelectedSubagentId(subId);
-              setActiveAux("subagents");
-              setAuxOpen(true);
+              if (subId) { setAuxOpen(false); openSubagentTab(subId); }
+              else { openAux("subagents"); }
             }}
             onNewBrowserTab={openNewBrowserTab}
             onOpenExtensions={onOpenExtensions}
             onToggleMaximize={onToggleMaximizeRightPanel}
             onCollapsePanel={() => {
-              if (compact && onCloseDrawer) {
-                onCloseDrawer();
-                return;
-              }
+              if (compact && onCloseDrawer) { onCloseDrawer(); return; }
               onCollapseRightPanel?.();
             }}
           />
@@ -351,6 +343,7 @@ export function RightWorkbenchPane({
           activeAux={activeAux}
           auxTitle={auxTitles[activeAux]}
           activeFileTab={activeFileTab}
+          activeSubagentTab={activeSubagentTab}
           selectedStep={selectedStep}
           effectiveAuxTab={effectiveAuxTab}
           reviewMessage={state.reviewMessage}
@@ -379,7 +372,7 @@ export function RightWorkbenchPane({
             store.enqueueComposerInsert(`当前内置浏览器页面：${snap.title || "未命名"} (${snap.url})，控制台异常数：${snap.errorCount}`);
           }}
           onOpenCodeReview={onOpenCodeReview}
-          onSelectSubagent={(subId) => { setSelectedSubagentId(subId); openAux("subagents"); }}
+          onSelectSubagent={(subId) => { setAuxOpen(false); openSubagentTab(subId); }}
           onSelectJob={(jobId) => { setSelectedJobId(jobId); openAux("terminal"); }}
         />
 

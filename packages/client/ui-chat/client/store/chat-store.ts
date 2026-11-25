@@ -205,6 +205,13 @@ export class ChatClientStore extends ChatDataFacade {
       }
       return;
     }
+    if (action.kind === "subagent-tab") {
+      this.fileActions.requestRightPanel("subagent", action.subagentId, {
+        autoExpand: true,
+        subagentRole: action.role,
+      });
+      return;
+    }
     this.fileActions.requestRightPanel(action.kind, undefined, { autoExpand: true });
   }
 
@@ -255,7 +262,7 @@ export class ChatClientStore extends ChatDataFacade {
     this.fileActions.selectFilePreview(id);
   }
 
-  setRightStageKind(kind: "file" | "browser" | "review" | null): void {
+  setRightStageKind(kind: "file" | "browser" | "review" | "subagent" | null): void {
     this.fileActions.setRightStageKind(kind);
   }
 

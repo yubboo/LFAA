@@ -9,6 +9,27 @@ interface ModeCatalog {
   activePreset: string;
 }
 
+/** 共享模式目录缓存，避免首屏挂载与会话锁定切换重复请求 /api/plugins。 */
+let sharedModeCatalog: ModeCatalog | null = null;
+let inflightModeCatalog: Promise<ModeCatalog> | null = null;
+
+function loadModeCatalog(): Promise<ModeCatalog> {
+  if (sharedModeCatalog) return Promise.resolve(sharedModeCatalog);
+  if (!inflightModeCatalog) {
+    inflightModeCatalog = fetch("/api/plugins")
+      .then(async (response) => {
+        if (!response.ok) throw new Error("模式目录读取失败。");
+        const data = (await response.json()) as ModeCatalog;
+        sharedModeCatalog = data;
+        return data;
+      })
+      .finally(() => {
+        inflightModeCatalog = null;
+      });
+  }
+  return inflightModeCatalog;
+}
+
 export function SessionMode({ isZh, selected, locked, busy, compact = false, onSelect }: {
   isZh: boolean;
   selected: string | undefined;
@@ -18,7 +39,7 @@ export function SessionMode({ isZh, selected, locked, busy, compact = false, onS
   compact?: boolean;
   onSelect: (id: string) => void;
 }) {
-  const [catalog, setCatalog] = useState<ModeCatalog | null>(null);
+  const [catalog, setCatalog] = useState<ModeCatalog | null>(sharedModeCatalog);
   const [failed, setFailed] = useState(false);
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -26,16 +47,16 @@ export function SessionMode({ isZh, selected, locked, busy, compact = false, onS
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const listboxId = useId();
   useEffect(() => {
-    const controller = new AbortController();
-    void fetch("/api/plugins", { signal: controller.signal }).then(async (response) => {
-      if (!response.ok) throw new Error("模式目录读取失败。");
-      setCatalog(await response.json() as ModeCatalog);
+    let active = true;
+    void loadModeCatalog().then((data) => {
+      if (!active) return;
+      setCatalog(data);
       setFailed(false);
     }).catch(() => {
-      if (!controller.signal.aborted) setFailed(true);
+      if (active) setFailed(true);
     });
-    return () => controller.abort();
-  }, [locked]);
+    return () => { active = false; };
+  }, []);
 
   const label = isZh ? "会话模式" : "Session mode";
   // 早期会话没有记录预设，实际按当时的默认预设运行：展示当前默认预设名，而不是「旧会话」。

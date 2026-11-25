@@ -80,8 +80,8 @@ export interface AgentStepTrace {
     id: string;
     role: string;
     status: "running" | "done" | "error" | "stopped";
-    /** 子智能体专职类型；"browser" 在思维链渲染专属浏览器实时步骤卡。 */
-    kind?: "general" | "browser";
+    /** 子智能体专职类型；"browser" 在思维链渲染专属浏览器实时步骤卡，其余类型在右侧栏新建流式工作标签。 */
+    kind?: "general" | "research" | "coder" | "browser" | "reviewer";
     /** 所用浏览器类型标识（如「内置浏览器」「桌面浏览器」）。 */
     browserLabel?: string;
     /** 运行中实时动作或思考文案（如「思考中」「正在打开页面」）。 */

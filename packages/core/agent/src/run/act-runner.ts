@@ -9,6 +9,7 @@ import { evaluateToolApproval } from "../tools/permission-policy";
 import type { RunExecutionParams, RunLoopDeps } from "./run-types";
 import { safeParseArgs } from "../tools/tool-call-args";
 import { limitToolResult } from "../tools/tool-result";
+import { captureBeforeMutation } from "./turn-snapshot";
 import { TODO_NUDGE_MARK, TODO_NUDGE_TEXT, shouldNudgeTodos } from "./todo-plan";
 
 /** 同一轮中连续只读工具的最大并行数；写文件与命令仍保持串行。 */
@@ -222,6 +223,9 @@ export async function runActPhase(
       if (permitted && toolDef && perm !== "read" && deps.tools.getTool(call.name) === toolDef) {
         params.signal.throwIfAborted();
         await params.beforeWorkspaceMutation?.();
+        if ((call.name === "write_file" || call.name === "edit_file") && typeof parsedArgs.value.path === "string") {
+          await captureBeforeMutation(params.sessionId, params.assistantMessageId, parsedArgs.value.path, params.workspaceRoots).catch(() => {});
+        }
       }
       if (!permitted) {
         toolOutputText = "用户拒绝执行此修改/命令工具，请改用只读核查或向用户说明替代方案。";
