@@ -19,6 +19,7 @@ import {
 import { getActivityKind, getActivityLabel } from "./activity-label";
 import { BrowserSubagentCard, isBrowserSubagentStep } from "./Browser-Subagent-Card";
 import { FileActivityRow } from "./File-Activity-Row";
+import { ActivityPathTip } from "./Activity-Path-Tip";
 import { SubagentDispatchRow } from "./Subagent-Dispatch-Row";
 import type { AgentStepItem } from "../store/chat-types";
 import {
@@ -170,38 +171,41 @@ export const ToolStepRow = memo(function ToolStepRow({
     : step.status === "error" ? locale.statusError
       : step.status === "preparing" ? labels.preparing
         : step.status === "waiting_approval" ? locale.statusWaitingApproval : locale.statusRunning;
-  // 命令运行时提示紧跟类型图标，与同级文件行「已编辑」对齐；结束后在展开箭头前显示结果（对勾/错误）。
-  const showLeadingStatus = isCommand && step.status === "running";
+  // 状态标记统一放在行尾：运行中是圆环，完成后是强调色对勾，避免前后位置不一致。
   const status = (
     <span key={step.status} className={styles.activityStatus} data-status={step.status} title={statusLabel}>
       {active ? <span className={styles.liveDot} aria-hidden="true" /> : <StatusIcon size={13} aria-hidden="true" />}
-      <span className={showLeadingStatus || (command && step.status !== "done") ? undefined : styles.srOnly}>{statusLabel}</span>
+      <span className={active ? undefined : styles.srOnly}>{statusLabel}</span>
     </span>
   );
-  const fullTooltip = inlineTarget ? `${primaryLabel} · ${inlineTarget}` : primaryLabel;
   const row = (
     <>
       {/* 图标先落在统一的 1.15rem 槽位里，与文件活动行气泡位同宽，保证同级行动词起点一致。 */}
       <span className={styles.iconSlot} data-icon-slot="true" aria-hidden="true">
         <Icon size={isCommand ? 15 : 14} className={styles.icon} />
       </span>
-      {showLeadingStatus && status}
-      <span className={styles.activityTitle} title={fullTooltip}>
+      <span className={inlineGlyphKind ? `${styles.activityTitle} ${styles.activityTitleTip}` : styles.activityTitle}>
         <span className={inlineTarget ? styles.toolVerb : undefined} data-activity-verb="true">{primaryLabel}</span>
         {inlineTarget && (
-          <span className={`${styles.toolTarget} ${inlineGlyphKind ? detailStyles.inlineTargetWithGlyph : ""}`}>
-            {inlineGlyphKind && (
-              <FileTypeIcon name={inlineTarget} kind={inlineGlyphKind} size={14} className={detailStyles.inlineFileGlyph ?? ""} />
-            )}
-            <span className={detailStyles.inlineTargetText}>{inlineTarget}</span>
-          </span>
+          inlineGlyphKind ? (
+            <ActivityPathTip path={inlineTarget} text={inlineTarget} kind={inlineGlyphKind} className={detailStyles.inlineTargetAnchor}>
+              <span className={`${styles.toolTarget} ${detailStyles.inlineTargetWithGlyph}`}>
+                <span className={detailStyles.inlineGlyphSlot}>
+                  <FileTypeIcon name={inlineTarget} kind={inlineGlyphKind} size={14} className={detailStyles.inlineFileGlyph ?? ""} />
+                </span>
+                <span className={detailStyles.inlineTargetText}>{inlineTarget}</span>
+              </span>
+            </ActivityPathTip>
+          ) : (
+            <span className={styles.toolTarget}>{inlineTarget}</span>
+          )
         )}
       </span>
       {step.status === "preparing" && step.argumentChars !== undefined && (
         <span className={styles.stepElapsed}>{labels.receivedArgs(step.argumentChars)}</span>
       )}
       {elapsed && <span className={styles.stepElapsed}>{elapsed}</span>}
-      {!showLeadingStatus && status}
+      {status}
       {(hasDetails || onOpenTrace) && <IconChevronRight size={13} className={styles.chevron} aria-hidden="true" />}
     </>
   );

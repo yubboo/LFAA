@@ -17,6 +17,10 @@ import { useWorkbenchRequests } from "./useWorkbenchRequests";
 import { useWorkbenchSubagents } from "./useWorkbenchSubagents";
 import { WorkbenchTabs } from "./WorkbenchTabs";
 import { useWorkbenchSummary } from "./useWorkbenchSummary";
+import { useWorkbenchTabClose } from "./useWorkbenchTabClose";
+import { useWorkbenchAuxTabs } from "./useWorkbenchAuxTabs";
+import { useWorkbenchBlankTab } from "./useWorkbenchBlankTab";
+import { useWorkbenchOpeners } from "./useWorkbenchOpeners";
 import { workbenchAuxTitles } from "./workbench-titles";
 import styles from "./RightWorkbenchPane.module.css";
 
@@ -68,8 +72,8 @@ export function RightWorkbenchPane({
   const [selectedJobId, setSelectedJobId] = useState<string>();
   const [selectedSubagentId, setSelectedSubagentId] = useState<string>();
   const [fileTreeOpen, setFileTreeOpen] = useState(false);
-  const [auxOpen, setAuxOpen] = useState(false);
-  const [activeAux, setActiveAux] = useState<RightAuxTab>(initialSaved.activeAux);
+  const { tabs: auxTabs, active: activeAuxTab, openAuxTab, closeAuxTab, toggleAuxTab, hideAuxTab, restoreAuxTab } = useWorkbenchAuxTabs();
+  const auxOpen = auxTabs.length > 0;
   const [devtoolsRequest, setDevtoolsRequest] = useState<{ tab: "console" | "network"; nonce: number }>();
   // 精确订阅右栏所需切片：流式正文与思考增量不会触发右栏重渲染与重复读盘。
   const state = useChatSelector(store, (snap) => {
@@ -106,7 +110,7 @@ export function RightWorkbenchPane({
   const [hydratedSessionId, setHydratedSessionId] = useState(sessionId);
   const { jobs, subagents } = useWorkbenchSummary(
     sessionId,
-    state.agentRunning || (auxOpen && (activeAux === "terminal" || activeAux === "subagents")),
+    state.agentRunning || (activeAuxTab === "terminal" || activeAuxTab === "subagents"),
   );
   const syncedSessionRef = useRef<string | null>(null);
   const splitAreaRef = useRef<HTMLDivElement>(null);
@@ -125,7 +129,7 @@ export function RightWorkbenchPane({
   } = useWorkbenchSubagents({ sessionId, store, subagents });
   const activeSubagentTab = subagentTabs.find((tab) => tab.id === activeSubagentTabId);
 
-  const stageKind = auxOpen && !(activeAux === "filesTree" && state.rightStageKind === "file" && activeFileTab) ? "utility"
+  const stageKind = activeAuxTab && !(activeAuxTab === "filesTree" && state.rightStageKind === "file" && activeFileTab) ? "utility"
     : state.rightStageKind === "subagent" && activeSubagentTab ? "subagent"
       : state.rightStageKind === "review" && reviewTabOpen ? "review"
         : state.rightStageKind === "browser" && browserOpen ? "browser"
@@ -139,8 +143,8 @@ export function RightWorkbenchPane({
   const showStartPage = stageKind === "welcome" || (stageKind === "browser" && browserIsBlank);
 
   // 只有用户主动打开的文件树可与文件共用舞台。
-  const effectiveAuxTab = stageKind === "utility" ? activeAux
-    : stageKind === "file" && (fileTreeOpen || (auxOpen && activeAux === "filesTree")) ? "filesTree" : null;
+  const effectiveAuxTab = stageKind === "utility" ? activeAuxTab
+    : stageKind === "file" && (fileTreeOpen || (auxOpen && activeAuxTab === "filesTree")) ? "filesTree" : null;
 
   // 切换会话或刷新挂载时恢复已持久化的右侧栏状态，并拉取宿主机已开启的浏览器标签。
   useEffect(() => {
@@ -150,8 +154,7 @@ export function RightWorkbenchPane({
     setReviewTabOpen(saved.reviewTabOpen);
     setReviewMessageId(saved.reviewMessageId);
     setFileTreeOpen(false);
-    setAuxOpen(false);
-    setActiveAux(saved.activeAux);
+    restoreAuxTab(saved.auxOpen, saved.activeAux);
     syncedSessionRef.current = sessionId;
     setHydratedSessionId(sessionId);
     return cancelBrowserRestore;
@@ -167,9 +170,9 @@ export function RightWorkbenchPane({
       reviewMessageId,
       fileTreeOpen,
       auxOpen,
-      activeAux,
+      activeAux: activeAuxTab ?? auxTabs[0] ?? initialSaved.activeAux,
     });
-  }, [activeAux, auxOpen, browserInitialUrl, browserOpen, fileTreeOpen, hydratedSessionId, reviewMessageId, reviewTabOpen, sessionId]);
+  }, [activeAuxTab, auxOpen, auxTabs, browserInitialUrl, browserOpen, fileTreeOpen, hydratedSessionId, reviewMessageId, reviewTabOpen, sessionId]);
 
   useEffect(() => {
     onStageWideChange?.(stageKind !== "welcome" || effectiveAuxTab !== null);
@@ -181,8 +184,8 @@ export function RightWorkbenchPane({
     stageKind,
     store,
     syncHostBrowser,
-    setAuxOpen,
-    setActiveAux,
+    setAuxOpen: (open: boolean) => { if (!open) hideAuxTab(); },
+    setActiveAux: openAuxTab,
     setBrowserOpen,
     setBrowserInitialUrl,
     setDevtoolsRequest,
@@ -194,31 +197,22 @@ export function RightWorkbenchPane({
     openSubagentTab,
   });
 
-  const openNewBrowserTab = () => { setAuxOpen(false); handleOpenNewBrowserTab(); };
+  const blankTabActive = stageKind === "browser" && browserIsBlank;
+  const openNewBrowserTab = () => { hideAuxTab(); if (!blankTabActive) handleOpenNewBrowserTab(); };
 
-  const handleToggleAux = (tab: RightAuxTab) => {
-    if (tab === "filesTree" && stageKind === "file") {
-      setFileTreeOpen(effectiveAuxTab !== "filesTree");
-      setAuxOpen(false);
-      return;
-    }
-    if (auxOpen && activeAux === tab) { setAuxOpen(false); return; }
-    if (tab === "filesTree") store.setRightStageKind(null);
-    setActiveAux(tab);
-    setAuxOpen(true);
-  };
+  // 当前是空白标签时，点击终端/变更/文件等直接把它变成对应标签，而不是再开一个。
+  const dismissBlankTab = () => { if (blankTabActive) handleCloseBrowserTab(); };
 
-  const openAux = (tab: RightAuxTab) => {
-    if (tab === "filesTree") store.setRightStageKind(null);
-    setActiveAux(tab);
-    setAuxOpen(true);
-  };
+  // 面板展开但一个标签都没有时，自动补一个「新标签页」。
+  useWorkbenchBlankTab({
+    shouldBootstrap: hydratedSessionId === sessionId && !browserOpen && auxTabs.length === 0 && fileTabs.length === 0 && !reviewTabOpen && subagentTabs.length === 0,
+    bootstrap: handleOpenNewBrowserTab,
+  });
 
-  const openReview = () => {
-    setAuxOpen(false); setFileTreeOpen(false);
-    setReviewMessageId(undefined); setReviewTabOpen(true);
-    store.setRightStageKind("review");
-  };
+  const { handleToggleAux, openAux, openReview } = useWorkbenchOpeners({
+    store, stageKind, effectiveAuxTab, setFileTreeOpen, hideAuxTab, toggleAuxTab, openAuxTab, dismissBlankTab,
+    setReviewMessageId, setReviewTabOpen,
+  });
 
   const activeProfile = state.profiles.find((p) => p.id === state.activeProfileId) ?? state.profiles[0];
   const activeRulesCount = state.rules.filter((r) => r.content.trim().length > 0).length;
@@ -260,9 +254,20 @@ export function RightWorkbenchPane({
       body={renderAuxBody(effectiveAuxTab)}
       onResizeStart={startAuxResize}
       onKeyResize={handleAuxKeyResize}
-      onClose={() => setAuxOpen(false)}
+      onClose={() => { if (activeAuxTab) closeAuxTabAndMaybeCollapse(activeAuxTab); }}
     />
   ) : null;
+
+  // 关闭标签后，若右栏已没有任何内容标签则整体收起。
+  const { closeBrowserTab, closeFileTab, closeReviewTab, closeAuxTab: closeAuxTabAndMaybeCollapse } = useWorkbenchTabClose({
+    browserTabs: browserTabs.length, fileTabs: fileTabs.length, browserOpen, activeFileTab: Boolean(activeFileTab),
+    reviewTabOpen, subagentTabs: subagentTabs.length, auxTabs: auxTabs.length,
+    closeBrowserTab: (tabId) => handleCloseBrowserTab(tabId),
+    closeFileTab: (tabId) => store.closeFilePreview(tabId),
+    closeReviewTab: () => { setReviewTabOpen(false); if (state.rightStageKind === "review") store.setRightStageKind(activeFileTab ? "file" : browserOpen ? "browser" : null); },
+    closeAuxTab,
+    collapse: onCollapseRightPanel,
+  });
 
   return (
     <div className={styles.workbench}>
@@ -270,7 +275,10 @@ export function RightWorkbenchPane({
         <WorkbenchTabs
           isZh={locale.isZh}
           stageKind={stageKind}
-          auxTitle={auxTitles[activeAux]}
+          auxTabs={auxTabs.map((id) => ({ id, title: auxTitles[id] }))}
+          activeAuxTab={activeAuxTab}
+          onSelectAuxTab={(tab) => { setFileTreeOpen(false); openAuxTab(tab); }}
+          onCloseAuxTab={closeAuxTabAndMaybeCollapse}
           fileTabs={fileTabs}
           activeFileTab={activeFileTab}
           browserOpen={browserOpen}
@@ -280,24 +288,19 @@ export function RightWorkbenchPane({
           reviewMessageId={reviewMessageId}
           subagentTabs={subagentTabs}
           activeSubagentTabId={activeSubagentTabId}
-          onSelectFile={(tabId) => { setAuxOpen(false); setFileTreeOpen(false); store.selectFilePreview(tabId); }}
-          onCloseFile={(tabId) => store.closeFilePreview(tabId)}
-          onSelectBrowser={() => { setAuxOpen(false); store.setRightStageKind("browser"); }}
-          onCloseBrowser={() => handleCloseBrowserTab()}
+          onSelectFile={(tabId) => { hideAuxTab(); setFileTreeOpen(false); store.selectFilePreview(tabId); }}
+          onCloseFile={closeFileTab}
+          onSelectBrowser={() => { hideAuxTab(); store.setRightStageKind("browser"); }}
+          onCloseBrowser={() => closeBrowserTab()}
           onActivateBrowserTab={(bTab) => {
-            setAuxOpen(false);
+            hideAuxTab();
             store.setRightStageKind("browser");
             if (!bTab.active) handleActivateBrowserTab(bTab.tabId);
           }}
-          onCloseBrowserTab={(tabId) => handleCloseBrowserTab(tabId)}
-          onSelectReview={() => { setAuxOpen(false); store.setRightStageKind("review"); }}
-          onCloseReview={() => {
-            setReviewTabOpen(false);
-            if (state.rightStageKind === "review") {
-              store.setRightStageKind(activeFileTab ? "file" : browserOpen ? "browser" : null);
-            }
-          }}
-          onSelectSubagentTab={(subId) => { setAuxOpen(false); selectSubagentTab(subId); }}
+          onCloseBrowserTab={closeBrowserTab}
+          onSelectReview={() => { hideAuxTab(); store.setRightStageKind("review"); }}
+          onCloseReview={closeReviewTab}
+          onSelectSubagentTab={(subId) => { hideAuxTab(); selectSubagentTab(subId); }}
           onCloseSubagentTab={(subId) => closeSubagentTab(subId, () => (activeFileTab ? "file" : browserOpen ? "browser" : reviewTabOpen ? "review" : null))}
           onNewBrowserTab={openNewBrowserTab}
         />
@@ -317,7 +320,7 @@ export function RightWorkbenchPane({
             onOpenFileTree={() => openAux("filesTree")}
             onOpenTerminal={(jobId) => { setSelectedJobId(jobId); openAux("terminal"); }}
             onOpenSubagents={(subId) => {
-              if (subId) { setAuxOpen(false); openSubagentTab(subId); }
+              if (subId) { hideAuxTab(); openSubagentTab(subId); }
               else { openAux("subagents"); }
             }}
             onNewBrowserTab={openNewBrowserTab}
@@ -340,8 +343,8 @@ export function RightWorkbenchPane({
           boundProjectName={boundProjectName}
           boundWorktreeId={boundWorktreeId}
           stageKind={stageKind}
-          activeAux={activeAux}
-          auxTitle={auxTitles[activeAux]}
+          activeAux={activeAuxTab ?? "terminal"}
+          auxTitle={auxTitles[activeAuxTab ?? "terminal"]}
           activeFileTab={activeFileTab}
           activeSubagentTab={activeSubagentTab}
           selectedStep={selectedStep}
@@ -360,8 +363,8 @@ export function RightWorkbenchPane({
           subagents={subagents}
           auxPane={auxPane}
           renderAuxBody={renderAuxBody}
-          onCloseAux={() => setAuxOpen(false)}
-          onToggleFileSidebar={() => { setAuxOpen(false); setFileTreeOpen(effectiveAuxTab !== "filesTree"); }}
+          onCloseAux={() => hideAuxTab()}
+          onToggleFileSidebar={() => { hideAuxTab(); setFileTreeOpen(effectiveAuxTab !== "filesTree"); }}
           onOpenUrl={handleOpenUrl}
           onOpenTerminal={() => openAux("terminal")}
           onOpenReview={openReview}
@@ -372,13 +375,13 @@ export function RightWorkbenchPane({
             store.enqueueComposerInsert(`当前内置浏览器页面：${snap.title || "未命名"} (${snap.url})，控制台异常数：${snap.errorCount}`);
           }}
           onOpenCodeReview={onOpenCodeReview}
-          onSelectSubagent={(subId) => { setAuxOpen(false); openSubagentTab(subId); }}
+          onSelectSubagent={(subId) => { hideAuxTab(); openSubagentTab(subId); }}
           onSelectJob={(jobId) => { setSelectedJobId(jobId); openAux("terminal"); }}
         />
 
         <RightUtilityRail
           isZh={locale.isZh}
-          activeAux={effectiveAuxTab ?? activeAux}
+          activeAux={effectiveAuxTab ?? activeAuxTab ?? "terminal"}
           auxOpen={effectiveAuxTab !== null}
           runningJobsCount={runningJobsCount}
           runningSubagentsCount={runningSubsCount}

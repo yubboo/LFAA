@@ -21,3 +21,5 @@ pnpm typecheck   # 类型检查
 ```
 
 打包时 `apps/desktop/scripts/package.mjs` 会把本进程的 `lib/index.js` 复制到安装包的 `desktop-host/` 目录，与 `node_modules` 一起分发。
+
+内置浏览器通过桌面壳的私有 IPC 接收 Electron 下载事件，再由浏览器服务统一执行策略与历史持久化。

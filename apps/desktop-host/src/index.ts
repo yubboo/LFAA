@@ -3,11 +3,6 @@
 import { inspect } from "node:util";
 import { startHostServer, type HostServer } from "@lfaa/web-server";
 
-/** 壳发来的控制消息：目前只有优雅退出。 */
-interface ShutdownMessage {
-  readonly type: "shutdown";
-}
-
 /**
  * 桌面端本机宿主端口：默认由操作系统自动分配本机空闲端口（port: 0），
  * 彻底与开发态 Web 5173 隔离，避免互相抢占或重启 Web 时误杀桌面端宿主；
@@ -48,6 +43,7 @@ function stop(): Promise<void> {
 process.on("message", (message: unknown) => {
   if (typeof message !== "object" || message === null) return;
   if ((message as { type?: unknown }).type === "shutdown") void stop();
+  else server?.receiveDesktopDownload?.(message, send);
 });
 process.once("disconnect", () => {
   void stop();
@@ -56,11 +52,12 @@ process.once("disconnect", () => {
 async function main(): Promise<void> {
   const webRoot = process.argv[2];
   const projectRoot = process.argv[3];
+  const desktopDownloadDirectory = process.argv[4];
   if (!webRoot || !projectRoot) throw new Error("缺少 webRoot / projectRoot 参数。");
   const port = resolveDesktopHostPort();
   try {
     // 默认分配独立空闲端口，不与开发态 Web 5173 冲突；显式指定端口被占用时给出清晰提示。
-    server = await startHostServer({ webRoot, projectRoot, port });
+    server = await startHostServer({ webRoot, projectRoot, port, ...(desktopDownloadDirectory ? { desktopDownloadDirectory } : {}) });
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "EADDRINUSE") {
       throw new Error(`桌面端指定端口 ${port} 已被其他程序占用。请更换 LFAA_DESKTOP_PORT 或关闭占用程序后重试。`, { cause: error });

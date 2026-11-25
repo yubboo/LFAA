@@ -8,6 +8,7 @@ export interface DesktopBrowserSyncPayload {
   width: number;
   height: number;
   url?: string;
+  sessionId?: string;
   zoomFactor?: number;
 }
 
@@ -24,6 +25,7 @@ contextBridge.exposeInMainWorld("__LFAA_DESKTOP_DIALOG__", {
 });
 
 contextBridge.exposeInMainWorld("__LFAA_DESKTOP_BROWSER__", {
+  supportsManagedDownloads: (): Promise<boolean> => ipcRenderer.invoke("lfaa:browser:managed"),
   syncBounds: (payload: DesktopBrowserSyncPayload): Promise<DesktopBrowserNavState | null> =>
     ipcRenderer.invoke("lfaa:browser:sync", payload),
   navigate: (url: string): Promise<DesktopBrowserNavState | null> =>

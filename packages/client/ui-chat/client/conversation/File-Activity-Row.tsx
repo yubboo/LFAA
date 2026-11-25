@@ -1,6 +1,7 @@
 // 已完成文件活动行：以左侧语义图标与动词（已创建/已编辑/已删除/已分析）、彩色文件类型图标芯片、悬停精准路径与真实行号呈现，点击后在右栏展开对应源码。
 import { memo } from "react";
 import { FileTypeIcon } from "@lfaa/ui-icons/client";
+import { ActivityPathTip } from "./Activity-Path-Tip";
 import {
   IconArrowUpRight,
   IconFileMinus,
@@ -58,7 +59,6 @@ export const FileActivityRow = memo(function FileActivityRow({
       className={`${styles.activityRow} ${styles.fileActivity} ${rowStyles.fileRow}`}
       data-kind={kind}
       aria-pressed={selected}
-      title={fullPath}
       onClick={() => onOpenFile(step.id)}
     >
       <span className={`${styles.icon} ${rowStyles.actionIconWrap}`} data-icon-slot="true" aria-hidden="true">
@@ -66,17 +66,15 @@ export const FileActivityRow = memo(function FileActivityRow({
       </span>
       <span className={`${styles.toolVerb} ${rowStyles.fileVerb}`} data-activity-verb="true">{labels.fileKinds[kind]}</span>
       <span className={rowStyles.fileTargetSlot}>
-        <span className={rowStyles.fileChipWrap}>
+        <ActivityPathTip path={fullPath} text={hoverPathText}>
           <span className={rowStyles.fileChip}>
-            <FileTypeIcon name={fullPath} kind="file" size={15} className={rowStyles.fileGlyph ?? ""} />
+            <span className={rowStyles.fileChipIcon}>
+              <FileTypeIcon name={fullPath} kind="file" size={15} className={rowStyles.fileGlyph ?? ""} />
+            </span>
             <span className={rowStyles.fileLabel}>{displayName}</span>
             {lineRangeText && <span className={rowStyles.lineRange}>{lineRangeText}</span>}
           </span>
-          <span className={rowStyles.pathTip} role="tooltip">
-            <FileTypeIcon name={fullPath} kind="file" size={13} className={rowStyles.pathTipGlyph ?? ""} />
-            <span className={rowStyles.pathTipText}>{hoverPathText}</span>
-          </span>
-        </span>
+        </ActivityPathTip>
       </span>
       <span className={`${styles.lineCounts} ${rowStyles.countsReveal}`}>
         {!!step.addedLines && <span data-change="add">+{step.addedLines}</span>}

@@ -3,7 +3,7 @@
 > 本文件由 `pnpm map:sync`（[scripts/gen-repository-map.mjs](../../scripts/gen-repository-map.mjs)）按真实文件系统生成，**不要手改**。
 > 骨架发生变化（新增/删除/移动文件、包或目录）后，必须在同一轮运行 `pnpm map:sync` 并提交，否则 `pnpm check` 会失败。
 
-当前快照：**63 个包、2589 个文件、474 个子目录**（不含 node_modules、构建产物与运行数据）。
+当前快照：**63 个包、2617 个文件、476 个子目录**（不含 node_modules、构建产物与运行数据）。
 
 ## 1. 快速索引
 
@@ -52,27 +52,27 @@ lfaa/
 ├── .githooks/  (1 个文件)
 ├── .github/  (1 个文件)
 │   └── workflows/  (1 个文件)
-├── apps/  (36 个文件)
+├── apps/  (37 个文件)
 │   ├── cli/  (3 个文件)
 │   │   └── src/  (1 个文件)
-│   ├── desktop/  (17 个文件)
+│   ├── desktop/  (18 个文件)
 │   │   ├── resources/  (1 个文件)
 │   │   ├── scripts/  (3 个文件)
-│   │   └── src/  (8 个文件)
+│   │   └── src/  (9 个文件)
 │   ├── desktop-host/  (5 个文件)
 │   │   └── src/  (1 个文件)
 │   └── web/  (10 个文件)
 │       ├── public/  (2 个文件)
 │       └── src/  (3 个文件)
-├── docs/  (444 个文件)
+├── docs/  (453 个文件)
 │   ├── architecture/  (11 个文件)
 │   ├── dev-log/  (4 个文件)
 │   ├── features/  (29 个文件)
-│   ├── plans/  (11 个文件)
+│   ├── plans/  (12 个文件)
 │   ├── standards/  (2 个文件)
 │   ├── templates/  (2 个文件)
-│   └── updata-log/  (383 个文件)
-├── packages/  (1905 个文件)
+│   └── updata-log/  (391 个文件)
+├── packages/  (1923 个文件)
 │   ├── api/  (7 个文件)
 │   │   └── gateway/  # @lfaa/api-gateway  (7 个文件)
 │   │       ├── src/  (1 个文件)
@@ -94,7 +94,7 @@ lfaa/
 │   │   └── review/  # @lfaa/review  (13 个文件)
 │   │       ├── src/  (7 个文件)
 │   │       └── tests/  (1 个文件)
-│   ├── client/  (486 个文件)
+│   ├── client/  (495 个文件)
 │   │   ├── ui-agent-group/  # @lfaa/client-ui-agent-group  (13 个文件)
 │   │   │   ├── client/  (7 个文件)
 │   │   │   │   ├── group/  (1 个文件)
@@ -106,23 +106,24 @@ lfaa/
 │   │   │   │   ├── editor/  (2 个文件)
 │   │   │   │   └── view/  (3 个文件)
 │   │   │   └── src/  (1 个文件)
-│   │   ├── ui-browser/  # @lfaa/client-ui-browser  (31 个文件)
-│   │   │   ├── client/  (24 个文件)
+│   │   ├── ui-browser/  # @lfaa/client-ui-browser  (33 个文件)
+│   │   │   ├── client/  (26 个文件)
 │   │   │   │   ├── api/  (3 个文件)
+│   │   │   │   ├── downloads/  (2 个文件)
 │   │   │   │   ├── panes/  (13 个文件)
 │   │   │   │   └── settings/  (6 个文件)
 │   │   │   ├── src/  (1 个文件)
 │   │   │   └── tests/  (1 个文件)
-│   │   ├── ui-chat/  # @lfaa/client-ui-chat  (261 个文件)
-│   │   │   ├── client/  (207 个文件)
+│   │   ├── ui-chat/  # @lfaa/client-ui-chat  (268 个文件)
+│   │   │   ├── client/  (214 个文件)
 │   │   │   │   ├── composer/  (35 个文件)
-│   │   │   │   ├── conversation/  (50 个文件)
+│   │   │   │   ├── conversation/  (53 个文件)
 │   │   │   │   ├── models/  (16 个文件)
 │   │   │   │   ├── session/  (19 个文件)
 │   │   │   │   ├── settings/  (10 个文件)
 │   │   │   │   ├── shared/  (6 个文件)
 │   │   │   │   ├── store/  (19 个文件)
-│   │   │   │   └── workbench/  (45 个文件)
+│   │   │   │   └── workbench/  (49 个文件)
 │   │   │   ├── src/  (1 个文件)
 │   │   │   └── tests/  (48 个文件)
 │   │   ├── ui-library/  # @lfaa/client-ui-library  (20 个文件)
@@ -179,11 +180,11 @@ lfaa/
 │   │   └── compaction/  # @lfaa/compaction  (12 个文件)
 │   │       ├── src/  (4 个文件)
 │   │       └── tests/  (3 个文件)
-│   ├── core/  (305 个文件)
-│   │   ├── agent/  # @lfaa/agent  (73 个文件)
-│   │   │   ├── src/  (44 个文件)
+│   ├── core/  (313 个文件)
+│   │   ├── agent/  # @lfaa/agent  (75 个文件)
+│   │   │   ├── src/  (46 个文件)
 │   │   │   │   ├── context/  (4 个文件)
-│   │   │   │   ├── run/  (31 个文件)
+│   │   │   │   ├── run/  (33 个文件)
 │   │   │   │   └── tools/  (5 个文件)
 │   │   │   └── tests/  (24 个文件)
 │   │   ├── agent-group/  # @lfaa/agent-group  (12 个文件)
@@ -192,10 +193,11 @@ lfaa/
 │   │   ├── agent-profile/  # @lfaa/agent-profile  (18 个文件)
 │   │   │   ├── src/  (9 个文件)
 │   │   │   └── tests/  (4 个文件)
-│   │   ├── browser/  # @lfaa/browser  (27 个文件)
+│   │   ├── browser/  # @lfaa/browser  (33 个文件)
 │   │   │   ├── contract/  (1 个文件)
-│   │   │   ├── src/  (19 个文件)
-│   │   │   │   ├── session/  (9 个文件)
+│   │   │   ├── src/  (25 个文件)
+│   │   │   │   ├── downloads/  (5 个文件)
+│   │   │   │   ├── session/  (10 个文件)
 │   │   │   │   ├── settings/  (4 个文件)
 │   │   │   │   ├── snapshot/  (1 个文件)
 │   │   │   │   └── tools/  (1 个文件)
@@ -435,9 +437,9 @@ lfaa/
 │   │   └── timeout-policy/  # @lfaa/timeout-policy  (7 个文件)
 │   │       ├── src/  (1 个文件)
 │   │       └── tests/  (1 个文件)
-│   ├── host/  (16 个文件)
-│   │   └── web-server/  # @lfaa/web-server  (16 个文件)
-│   │       ├── src/  (9 个文件)
+│   ├── host/  (17 个文件)
+│   │   └── web-server/  # @lfaa/web-server  (17 个文件)
+│   │       ├── src/  (10 个文件)
 │   │       │   └── handlers/  (3 个文件)
 │   │       └── tests/  (2 个文件)
 │   ├── interaction/  (7 个文件)
@@ -676,6 +678,7 @@ lfaa/
 - `log.ts` — 桌面端日志：启动失败、宿主异常与未捕获错误写入 ~/.lfaa/logs/desktop.log，便于用户回传排查。
 - `main.ts` — LFAA 桌面端主进程：单实例、拉起桌面宿主子进程、创建主窗口，并在退出时先停宿主再退出。
 - `menu.ts` — 安装中文应用菜单：Windows 上菜单缺失会连带 Ctrl+C/V/A 失效，所以编辑角色的快捷键必须显式保留。
+- `native-downloads.ts` — Electron 主进程下载适配：暂存来自内置视图的文件，并用桌面宿主私有 IPC 报告下载事件。
 - `paths.ts` — 解析桌面端运行路径：开发态指向仓库内产物，安装态指向 resources/app；用户数据仍在 ~/.lfaa。
 - `preload.ts` — LFAA 桌面端安全 Preload 桥：仅向渲染进程暴露原生内置浏览器 WebContentsView 的受控 IPC 接口。
 - `window.ts` — 创建主窗口并施加导航与弹窗安全策略：只允许本机页面内导航，外部链接交给系统浏览器。
@@ -912,6 +915,11 @@ lfaa/
 - `browser-data-client.ts` — 封装浏览器历史、下载记录、密码管理器、联系信息与系统目录选择器的前端 HTTP 客户端。
 - `desktop-browser-bridge.ts` — 桌面端原生内置浏览器（Electron WebContentsView）渲染进程桥接探测与类型声明；普通浏览器环境返回 null。
 
+### packages/client/ui-browser/client/downloads
+
+- `DownloadActivity.module.css` — 下载确认沿用 Shell 的颜色与字号，文件名、保存状态和可执行操作按顺序排列。
+- `DownloadActivity.tsx` — 右栏与设置共用的下载确认和结果。Host 保留请求状态，视图切换后可继续处理。
+
 ### packages/client/ui-browser/client/panes
 
 - `BrowserCanvasViewport.tsx` — 高清低延迟 CDP 画布视口：Canvas + createImageBitmap 双缓冲绘制、非被动滚轮防穿透、单在途背压与完整键鼠直通。
@@ -1003,6 +1011,8 @@ lfaa/
 
 ### packages/client/ui-chat/client/conversation
 
+- `Activity-Path-Tip.module.css` — 活动行路径气泡：文件行、目录行与工具目标共用一套定位、磨砂与浮起动效。
+- `Activity-Path-Tip.tsx` — 活动行路径气泡：文件行与目录/工具行共用的唯一实现，悬停时在目标上方浮出完整路径。
 - `AssistantTimeline.tsx` — 以正文偏移、多轮思维链与工具链渲染流式回复及完成后的全程可展开回看。
 - `Browser-Evidence.tsx` — 在浏览器步骤卡中按需加载已认证的截图证据，关闭预览时释放图片资源。
 - `Browser-Subagent-Card.module.css` — 思维链中的专属浏览器子智能体实时状态条与可展开步骤卡片，全量消费 @lfaa/ui-theme 语义变量。
@@ -1033,8 +1043,8 @@ lfaa/
 - `StepTraceList.approval.module.css` — 待审批工具卡片样式：卡片容器、标题提示、参数块与批准/拒绝按钮，从 StepTraceList.module.css 拆出。
 - `StepTraceList.module.css` — 助手状态、交错式工具链、活动折叠行及终端详情样式；全部消费 @lfaa/ui-theme 语义变量。
 - `StepTraceList.tsx` — 显示 Agent 运行用时和现有的工具审批操作。
-- `Subagent-Dispatch-Row.module.css` — 主聊天中非浏览器子智能体的紧凑派发条与可折叠结果回执，全部消费 @lfaa/ui-theme 变量。
-- `Subagent-Dispatch-Row.tsx` — 主聊天区非浏览器子智能体派发行：紧凑展示 Started :: <Role>，点击直达右侧子智能体标签页，完成后可展开查看汇报回执。
+- `Subagent-Dispatch-Row.module.css` — 主聊天区子智能体突出派发提示与连续细竖线子事件流样式，全部消费 @lfaa/ui-theme 语义变量。
+- `Subagent-Dispatch-Row.tsx` — 主聊天区子智能体突出派发提示卡：以机器人图标 +「<Role> 开始工作 / 正在工作中」状态条呈现，点击即自动展开右侧对应子智能体工作过程标签。
 - `Thinking-Block.module.css` — 思维链块样式：脑形图标 + 状态标题 + 左侧细竖线引导的柔和思考正文，双主题自适应。
 - `Thinking-Block.tsx` — 思维链与同轮执行折叠块：以脑形图标、实时状态与左侧细竖线引导呈现本轮思考正文及关联工具链，
 - `Tool-Step-Row.module.css` — 活动行展开详情与进行态目标彩标（终端输出、参数/结果预览、轨迹入口）：只服务 Tool-Step-Row。
@@ -1047,6 +1057,7 @@ lfaa/
 - `advice-options.ts` — 从助手最终回答的「建议/下一步」段落提取可选后续项，供界面编号展示、用户点选发送。
 - `code-highlight.tsx` — 为右工作台 VS Code 代码查看器提供多语言词法高亮、嵌套标签/括号彩虹配对着色、语言徽标及面包屑路径解析。
 - `markdown-parser.ts` — 轻量流式安全 Markdown 块级解析与代码语法分词器，用于渲染助手消息中的标题、列表、表格、引用与高亮代码块。
+- `round-title.ts` — 为思维链每轮折叠块生成动态语义标题与图标类型：跟随本轮最新操作灵活变化，告别写死的「已思考」。
 - `trace-groups.ts` — @lfaa/chat 留痕分组：把步骤按「思考 / 读取 / 搜索 / 命令 / 文件变更 / 其他」归并，供展开区成组展示。
 - `useBoundedScroll.ts` — 管理任意「限高滚动视口」的滚动与边缘渐隐：内容持续追加时同步贴底，用户上滚阅读时立即暂停跟随，滚回底部自动恢复。
 - `useChatScroll.ts` — 管理聊天视口的底部跟随：在 ResizeObserver 绘制前同步贴底消除一帧跳动与闪白，用户主动上滚时立即暂停跟随。
@@ -1152,7 +1163,7 @@ lfaa/
 - `FileChangePreview.search.module.css` — 代码查看器的内嵌搜索栏、输入框、结果计数与命中高亮样式，双主题变量适配。
 - `FileChangePreview.tsx` — VS Code 风格只读代码与 Diff 查看器：支持可点击面包屑、更多菜单 5 项、内嵌搜索、刷新、切换侧栏、精确行定位及行内 + 批注；代码区支持自动换行开关。
 - `InlineComment.tsx` — 行内批注框：输入建议并提交到对话输入框；Esc 取消、Ctrl/Cmd+Enter 提交，挂载即聚焦。
-- `Right-Workbench-Start.module.css` — 浏览器与空白工作台共用的启动页，按实际窗格宽度排列快捷操作。
+- `Right-Workbench-Start.module.css` — 右栏启动页：参考 ChatGPT 的空态排版，搜索框 + 分区标题 + 自适应快捷卡片。
 - `Right-Workbench-Start.tsx` — 右工作台启动页，复用项目文件、浏览器和辅助面板入口，适用于空白浏览器标签。
 - `RightFileTreePane.module.css` — 右辅助栏 VS Code 风格工作区文件树样式：含树形缩进线、文件类型着色与明暗双主题适配。
 - `RightFileTreePane.tsx` — 右辅助栏 VS Code 风格工作区文件树：展示根目录与垂直缩进指引线、文件/目录语义图标、懒加载及双向联动高亮。
@@ -1174,17 +1185,21 @@ lfaa/
 - `WorkbenchOverviewMenu.tsx` — 渲染右侧工作台“概览”弹层：变更统计、子智能体与后台任务摘要及快捷入口。
 - `WorkbenchStageContent.tsx` — 右侧工作台主体舞台：按当前标签渲染文件预览、工作区/本轮变更、内置浏览器或欢迎页，并组合辅助面板。
 - `WorkbenchStatusList.tsx` — 右侧工作台欢迎页的运行状态列表：最近子智能体与后台任务，点击可跳到对应辅助面板。
-- `WorkbenchTabs.tsx` — 右侧工作台顶部标签栏：工作台/辅助面板、文件预览、内置浏览器、子智能体舞台、变更审查标签与新建浏览器标签按钮。
+- `WorkbenchTabs.tsx` — 右侧工作台顶部标签栏：辅助面板、文件预览、子智能体、变更审查与内置浏览器标签，新建按钮固定在行尾。
 - `WorkbenchTopActions.tsx` — 渲染右侧工作台顶栏控制按钮组：更多、概览、跟随 Agent、最大化与收起侧面板。
 - `WorkspaceFileTabs.module.css` — 右栏文件页签和阅读区，沿用工作区主题与操作焦点。
 - `WorkspaceFileTabs.tsx` — 在右侧上下文区域承载可切换、可关闭的源文件标签。
 - `diff-view.ts` — 文件预览 Diff 视图的数据层：把 git 统一 diff 或「修改前/后」片段整理成左右分栏的行模型。
 - `file-search-highlight.tsx` — 行内搜索高亮：把一行文本按查询切分并输出带 <mark> 的 React 节点，供文件预览复用。
 - `useAuxResize.ts` — 管理右侧辅助栏（工作区文件树 / 上下文 / 任务面板）的指针拖拽调宽与本地偏好持久化。
+- `useWorkbenchAuxTabs.ts` — 右侧工作台的辅助面板标签：终端、文件树、侧边提问等各自成为可独立关闭、切换的标签。
+- `useWorkbenchBlankTab.ts` — 右栏空态引导：面板展开且一个标签都没有时，自动补一个「新标签页」，避免只剩一个孤零零的加号。
 - `useWorkbenchBrowser.ts` — 右侧工作台内置浏览器状态与宿主操作：标签列表、初始 URL、外部快照与新建/关闭/导航处理。
+- `useWorkbenchOpeners.ts` — 右栏打开动作：终端/文件树/侧边提问与变更审查标签的统一入口，负责替换空白标签与落位。
 - `useWorkbenchRequests.ts` — 右侧工作台面板跳转请求处理：响应聊天消息点击与 Agent 自动跟随事件，统一调度舞台、DevTools 与辅助面板。
 - `useWorkbenchSubagents.ts` — 管理右侧工作台的子智能体多标签页状态：按需新建、切换、关闭，并与会话汇总状态实时同步。
 - `useWorkbenchSummary.ts` — 右侧工作台后台概览轮询：按会话拉取后台任务与子智能体列表；仅在运行中或用户打开对应面板时轮询，空闲零开销。
+- `useWorkbenchTabClose.ts` — 右侧工作台标签关闭：最后一个内容标签关闭且没有其它标签时，收起整个右栏。
 - `workbench-titles.ts` — 右侧工作台辅助面板标题字典：按语言返回文件树、上下文、终端、子智能体、侧边提问与工作详情标题。
 
 ### packages/client/ui-chat/src
@@ -1664,6 +1679,8 @@ lfaa/
 - `loop-state.ts` — Agent 单次运行的循环状态：把预算、轮次、用量累积与完成前自检标记收进一个对象。
 - `memory-autosave.ts` — 从用户明确陈述中提取值得跨会话记住的偏好或约定，作为长期记忆的确定性沉淀来源。
 - `model-round.ts` — Agent Host 模型轮次的超时与有限重试，保留已发出的正文和工具进度。
+- `peer-sessions.test.ts` — 回归测试：验证同项目多会话可并行登记且彼此能生成准确的实时感知提示。
+- `peer-sessions.ts` — 多会话并行协调器：允许同一工作区下多个会话并发运行，并向每个活跃会话动态注入同工作区其他并发会话的实时动作摘要，避免互相踩踏。
 - `run-begin.ts` — Agent 运行启动器：校验会话与授权根、落盘用户/助手消息、登记运行记录并把执行循环交给 agent-loop。
 - `run-compaction.ts` — 运行期压缩入口：优先使用挂载的压缩服务，未挂载时回落到 @lfaa/context 的内置实现。
 - `run-context.ts` — 运行上下文装配：召回规则/记忆/资料库，拼装工作区与技能提示，创建用量跟踪、系统消息与初始对话。
@@ -1713,7 +1730,7 @@ lfaa/
 - `todo-plan.test.ts` — 验证任务清单策略：todo_write 排到工具首位，且提醒只在「没清单 + 已多步 + 没提醒过」时触发一次。
 - `tool-result.test.ts` — 验证工具结果进入模型上下文前的统一限长与续读提示。
 - `verification.test.ts` — 验证完成前自检对代码路径与构建/测试命令的识别规则。
-- `workspace-lease-run.test.ts` — 验证运行级工作区租约：同工作区第二个会话被拒绝，首个运行收尾后可以接手，租约随运行释放。
+- `workspace-lease-run.test.ts` — 验证同工作区多会话并行与并发感知：第二个会话可并发启动，收到同工作区活跃会话提示，运行结束后自动释放登记。
 - `workspace-lease.test.ts` — 验证工作区租约：scope 解析、跨会话冲突拒绝、释放后接手与同会话重入。
 - `worktree-roots.test.ts` — 验证绑定工作树的会话使用工作树根运行，并在工作树失效时明确失败而不是回退项目主目录。
 
@@ -1737,6 +1754,14 @@ lfaa/
 - `runtime-utils.ts` — 浏览器运行时公共校验、可执行路径探测与 DOM 快照提取辅助函数。
 - `types.ts` — @lfaa/browser 类型入口：契约已下沉到 contract/，这里保留原路径重导出以免改动全部内部引用。
 
+### packages/core/browser/src/downloads
+
+- `browser-downloads.test.ts` — 浏览器下载回归：验证规则、同名并发落盘、确认归属及真实 Chromium 附件导航。
+- `browser-downloads.ts` — 统一管理内置浏览器下载的确认、传输、落盘与终态，供 Playwright 和桌面 Host 共用。
+- `download-file.ts` — 安全命名并提交浏览器下载文件，避免网页文件名越界或并发下载覆盖已有文件。
+- `download-policy.ts` — 下载域名匹配与策略裁决。运行在 Host，独立于已有的浏览规则匹配。
+- `playwright-download.ts` — 适配 Playwright 下载与附件导航。会话负责把上下文事件接入下载协调器。
+
 ### packages/core/browser/src/session
 
 - `agent-overlay.ts` — Agent 页面操控可视化指示层：极简无边框虚拟指针、柔和点击涟漪与轻量悬浮动作标签。
@@ -1745,6 +1770,7 @@ lfaa/
 - `browser-session-types.ts` — 浏览器运行时内部类型：单标签条目、会话状态与日志条数上限，供运行时、标签监听与快照组装共享。
 - `browser-tabs.ts` — 浏览器标签监听：为新建 Page 挂 Console/网络/导航/关闭事件并维护会话状态里的标签表。
 - `cdp-input.ts` — 将前端轻量输入负载映射为 Chromium CDP Input 协议命令，绕过 Playwright 定位与截图往返实现毫秒级键鼠响应。
+- `page-init.ts` — 内置浏览器页面初始化脚本，标记受控页面并关闭根滚动越界。
 - `registry.ts` — 参考 DSH @deepseek-ai/dsh-browser-use 的独占命名注册槽位，确保同一时刻仅有一个浏览器实现注册并受 Cordis 生命周期托管。
 - `screencast-manager.ts` — 管理基于 Playwright 常驻 CDPSession 的 2x 无损 PNG Screencast 实时推流与毫秒级输入直通。
 - `session-driver.ts` — 浏览器页面驱动：导航、前进后退、刷新、快照、求值，以及点击/悬停/输入/按键/滚动等页面交互。
@@ -2263,6 +2289,7 @@ lfaa/
 
 ### packages/host/web-server/src
 
+- `desktop-downloads.ts` — 桌面宿主的私有下载 IPC。校验消息并把 Electron 暂存文件交给浏览器服务，HTTP 客户端无法发布该消息。
 - `detect-root.ts` — @lfaa/web-server：从起始目录向上定位 LFAA 工程根目录，供开发模式回退使用。
 - `dev-server.ts` — @lfaa/web-server：开发模式宿主：启动 Vite 开发服务器，并把同一套 /api 网关与令牌注入挂到它上面。
 - `index.ts` — @lfaa/web-server：公开入口：开发宿主（Vite）、生产宿主（静态托管）与共用运行时装配。
@@ -2861,6 +2888,6 @@ lfaa/
 | 目录 | 文件数 | 子目录数 | 说明 |
 | --- | --- | --- | --- |
 | `docs/dev-log` | 4 | 1 | 按每 200 条任务编号汇总的开发日志卷 |
-| `docs/updata-log` | 383 | 1 | 面向用户的单条更新说明 |
+| `docs/updata-log` | 391 | 1 | 面向用户的单条更新说明 |
 | `vendor` | 14 | 4 | 内嵌的上游运行时源码 |
 | `packages/extension/skills/src/builtin-skills` | 637 | 151 |  |

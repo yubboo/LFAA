@@ -3,6 +3,7 @@ import { memo, useEffect, useId, useMemo, useState } from "react";
 import type { AgentStepItem, PendingApprovalBanner } from "../store/chat-types";
 import { timelineMessages, type ChatLocaleMessages } from "../locales";
 import { MarkdownContent } from "./MarkdownContent";
+import { resolveDynamicRoundHeader } from "./round-title";
 import { formatDuration, getLiveStage, StepTraceList, TimelineApproval } from "./StepTraceList";
 import { ThinkingBlock } from "./Thinking-Block";
 import { ToolStepRow, type FileActivityActions } from "./Tool-Step-Row";
@@ -62,12 +63,15 @@ const RoundToolChain = memo(function RoundToolChain({
   locale,
   live,
   now,
+  nested = false,
   fileActions,
 }: {
   steps: AgentStepItem[];
   locale: ChatLocaleMessages;
   live: boolean;
   now?: number | undefined;
+  /** 嵌套在 ThinkingBlock 内时复用外层连续竖线，避免双线与断口。 */
+  nested?: boolean | undefined;
   fileActions: FileActivityActions;
 }) {
   const childParentIds = new Set(
@@ -80,7 +84,7 @@ const RoundToolChain = memo(function RoundToolChain({
   );
   return (
     <div className={styles.toolChain}>
-      <div className={styles.activityList}>
+      <div className={nested ? styles.activityListNested : styles.activityList}>
         {visibleSteps.map((step) => (
           <ToolStepRow key={step.id} step={step} locale={locale} live={live} now={now} {...fileActions} />
         ))}
@@ -187,7 +191,14 @@ export const AssistantTimeline = memo(function AssistantTimeline({
         <div id={processId} hidden={!processOpen} className={`${styles.flow} ${styles.process}`}>
           {rounds.length === 0 && fallbackReasoning && (
             <ThinkingBlock
-              label={isStreaming ? (locale.isZh ? "思考中…" : "Thinking…") : (locale.isZh ? "已思考" : "Thought")}
+              label={resolveDynamicRoundHeader({
+                thinkDetail: fallbackReasoning,
+                tools: [],
+                thinkActive: isStreaming,
+                isStreaming,
+                isZh: locale.isZh,
+                fallbackLabel: locale.isZh ? "已完成分析" : "Analysis complete",
+              }).label}
               durationText={reasoningDurationMs ? formatDuration(reasoningDurationMs, locale.isZh) : undefined}
               reasoningText={fallbackReasoning}
               live={isStreaming}
@@ -205,52 +216,56 @@ export const AssistantTimeline = memo(function AssistantTimeline({
               : thinkActive
                 ? (thinkStep ? getLiveStage([thinkStep], now) : "starting")
                 : "thought";
-            // 有真实思考正文时显示「思考中… / 已思考」，无思考正文时保留语义阶段文案（如「已分析」「正在回复」）。
-            const thinkLabel = thinkDetail
-              ? (thinkActive ? (thinkStage === "reasoning" ? labels.reasoning : (locale.isZh ? "思考中…" : "Thinking…")) : (locale.isZh ? "已思考" : "Thought"))
-              : labels[thinkStage];
+            // 动态生成本轮标题与图标：运行中紧跟当前操作，完成后按实际动作汇总，告别写死的「已思考」。
+            const dynamicHeader = resolveDynamicRoundHeader({
+              thinkStep,
+              thinkDetail,
+              tools: round.tools,
+              thinkActive,
+              isStreaming,
+              isZh: locale.isZh,
+              fallbackLabel: labels[thinkStage],
+            });
             const thinkDuration = thinkActive
               ? formatDuration(now - (thinkStep?.startedAt ?? createdAt), locale.isZh)
               : (thinkStep?.startedAt !== undefined && thinkStep.timestamp > thinkStep.startedAt + 999
                 ? formatDuration(thinkStep.timestamp - thinkStep.startedAt, locale.isZh)
                 : undefined);
             // 只要该轮有思考步骤/思考正文/活跃状态或无工具，即用 ThinkingBlock 统一包裹本轮思考与工具链，
-            // 点击「已思考」可一次性收起本轮的思考正文、过程说明与全部工具行。
+            // 轮与轮之间的正文总结（precedingText）独立顶格流式渲染在折叠块外部，不混入竖线缩进内。
             const showThinkBlock = Boolean(thinkStep || thinkDetail || thinkActive || round.tools.length === 0);
-            const roundFollowContent = (precedingText.trim() || round.tools.length > 0) ? (
-              <>
+            const roundToolsNode = round.tools.length > 0 ? (
+              <RoundToolChain
+                steps={round.tools}
+                locale={locale}
+                live={isStreaming}
+                now={isStreaming ? now : undefined}
+                nested={showThinkBlock}
+                fileActions={fileActions}
+              />
+            ) : null;
+
+            return (
+              <div key={round.key} className={styles.roundBlock} data-activity-segment={round.key}>
                 {precedingText.trim() && (
                   <div className={bodyClassName}>
                     <MarkdownContent content={precedingText} isZh={locale.isZh} />
                   </div>
                 )}
-                {round.tools.length > 0 && (
-                  <RoundToolChain
-                    steps={round.tools}
-                    locale={locale}
-                    live={isStreaming}
-                    now={isStreaming ? now : undefined}
-                    fileActions={fileActions}
-                  />
-                )}
-              </>
-            ) : null;
-
-            return (
-              <div key={round.key} className={styles.roundBlock} data-activity-segment={round.key}>
                 {showThinkBlock ? (
                   <ThinkingBlock
-                    label={thinkLabel}
+                    label={dynamicHeader.label}
+                    iconKind={dynamicHeader.iconKind}
                     durationText={thinkDuration}
                     reasoningText={thinkDetail}
                     toolCount={round.tools.length}
-                    live={thinkActive}
+                    live={dynamicHeader.active}
                     isZh={locale.isZh}
                   >
-                    {roundFollowContent}
+                    {roundToolsNode}
                   </ThinkingBlock>
                 ) : (
-                  roundFollowContent
+                  roundToolsNode
                 )}
               </div>
             );

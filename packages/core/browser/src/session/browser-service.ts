@@ -2,6 +2,8 @@
 import { randomUUID } from "node:crypto";
 import { chromium, type Browser } from "playwright-core";
 import { BrowserSettingsStore } from "../settings/browser-settings";
+import { BrowserDownloads } from "../downloads/browser-downloads";
+import { attachPlaywrightDownloads, navigateOrDownload } from "../downloads/playwright-download";
 import { BrowserDataStore, evaluateSitePolicy } from "../settings/browser-data-store";
 import {
   applyAppearance,
@@ -13,6 +15,7 @@ import {
 } from "../snapshot/browser-snapshot";
 import { attachPopupHandler, attachTabListeners, openInternalPage } from "./browser-tabs";
 import { SessionDriver, type SessionDriverHost } from "./session-driver";
+import { EMBEDDED_BROWSER_INIT_SCRIPT } from "./page-init";
 import type { BrowserTabEntry, SessionBrowserState } from "./browser-session-types";
 import { BrowserIdleThrottle } from "./browser-idle-throttle";
 import { ScreencastManager, type StreamFrameListener } from "./screencast-manager";
@@ -28,29 +31,10 @@ import type {
 export { detectLocalBrowserExecutable, validateBrowserUrl };
 export { BrowserSettingsStore, clampDpr } from "../settings/browser-settings";
 
-/** 注入到受控页面的纯字符串初始化脚本：避免 tsdown/esbuild 插桩 __name 辅助函数导致页面报 ReferenceError。 */
-const EMBEDDED_BROWSER_INIT_SCRIPT = [
-  "window.__LFAA_EMBEDDED_BROWSER__ = true;",
-  "(function () {",
-  "  function applyOverscroll() {",
-  "    if (document.getElementById('lfaa-browser-overscroll-guard')) return;",
-  "    var style = document.createElement('style');",
-  "    style.id = 'lfaa-browser-overscroll-guard';",
-  "    style.textContent = 'html, body { overscroll-behavior: none !important; }';",
-  "    var root = document.head || document.documentElement;",
-  "    if (root) root.appendChild(style);",
-  "  }",
-  "  if (document.readyState === 'loading') {",
-  "    document.addEventListener('DOMContentLoaded', applyOverscroll, { once: true });",
-  "  } else {",
-  "    applyOverscroll();",
-  "  }",
-  "})();",
-].join("\n");
-
 export class BrowserRuntime implements SessionDriverHost {
   private readonly settings: BrowserSettingsStore;
   readonly dataStore = new BrowserDataStore();
+  readonly downloads = new BrowserDownloads(() => this.settings.readForDownload(), this.dataStore);
   private readonly driver = new SessionDriver(this);
   private browser: Browser | null = null;
   private launchedHeadless: boolean | null = null;
@@ -100,7 +84,7 @@ export class BrowserRuntime implements SessionDriverHost {
     if (this.browser && this.browser.isConnected() && this.launchedHeadless === settings.headless) {
       return this.browser;
     }
-    await this.closeAll();
+    if (this.browser) await this.closeAll();
     const executablePath = detectLocalBrowserExecutable(settings);
     if (!executablePath) {
       throw new Error("未检测到本机 Microsoft Edge 或 Chrome，请在「设置 → 浏览器」填写浏览器可执行文件路径。");
@@ -155,7 +139,8 @@ export class BrowserRuntime implements SessionDriverHost {
     // 与启动参数 --force-device-scale-factor=2 对齐，避免上下文与 Screencast DPR 不一致导致重采样模糊。
     const deviceScaleFactor = 2;
     const colorScheme: "dark" | "light" = appearance?.colorScheme ?? existing?.colorScheme ?? "dark";
-    const context = await browser.newContext({ viewport, deviceScaleFactor, colorScheme });
+    const context = await browser.newContext({ viewport, deviceScaleFactor, colorScheme, acceptDownloads: true });
+    attachPlaywrightDownloads(context, sessionId, this.downloads);
     // 标记当前页面运行在内置浏览器内（防自嵌套互抢视口）并抑制根滚动越界；必须传纯字符串，避免打包器插桩 __name 报错。
     await context.addInitScript(EMBEDDED_BROWSER_INIT_SCRIPT).catch(() => {});
     const page = await context.newPage();
@@ -331,7 +316,9 @@ export class BrowserRuntime implements SessionDriverHost {
     state.activeTabId = tabId;
     if (rawUrl?.trim()) {
       const { url } = validateBrowserUrl(rawUrl);
-      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 25_000 });
+      if (await navigateOrDownload(page, url)) {
+        return { ...await this.capture(state, entry, true, fromAgent), downloadStarted: true };
+      }
       await page.waitForLoadState("networkidle", { timeout: 2500 }).catch(() => {});
     }
     return this.capture(state, entry, true, fromAgent);
@@ -384,7 +371,7 @@ export class BrowserRuntime implements SessionDriverHost {
       throw new Error(`该网站已被浏览器访问控制规则屏蔽：${rawUrl}`);
     }
     const snap = await this.driver.navigate(sessionId, rawUrl, fromAgent, viewport, appearance);
-    if (snap.url && snap.url !== "about:blank") void this.dataStore.recordHistory(snap.url, snap.title || snap.url, fromAgent).catch(() => {});
+    if (!snap.downloadStarted && snap.url && snap.url !== "about:blank") void this.dataStore.recordHistory(snap.url, snap.title || snap.url, fromAgent).catch(() => {});
     return snap;
   }
 
@@ -471,6 +458,7 @@ export class BrowserRuntime implements SessionDriverHost {
   }
 
   async closeSession(sessionId: string): Promise<void> {
+    await this.downloads.close(sessionId);
     await this.idleThrottle.clear(sessionId);
     await this.screencast.stopSession(sessionId);
     const state = this.sessions.get(sessionId);
@@ -480,6 +468,7 @@ export class BrowserRuntime implements SessionDriverHost {
   }
 
   async closeAll(): Promise<void> {
+    await this.downloads.close();
     await this.idleThrottle.disposeAll();
     await this.screencast.stopAll();
     const contexts = [...this.sessions.values()];

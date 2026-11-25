@@ -39,7 +39,6 @@
 .fileRow:active > .actionIconWrap { transform: scale(0.95); }
 
 .fileTargetSlot { display: flex; align-items: center; flex: 1 1 auto; min-width: 0; }
-.fileChipWrap { position: relative; display: inline-flex; align-items: center; max-width: 100%; min-width: 0; }
 
 /* 彩标文件气泡芯片：柔和圆角与弹性过渡，悬停轻盈浮起，按下有缓冲回弹感。 */
 .fileChip {
@@ -58,6 +57,15 @@
     background-color 240ms var(--bubble-ease),
     border-color 240ms var(--bubble-ease),
     box-shadow 260ms var(--bubble-ease);
+}
+
+/* 文件类型徽标与文件夹图标宽度不同，固定图标列宽度，让所有行的文件名起点对齐。 */
+.fileChipIcon {
+  display: inline-flex;
+  flex: none;
+  width: 1.15rem;
+  align-items: center;
+  justify-content: center;
 }
 
 .fileRow:hover .fileChip,
@@ -113,43 +121,6 @@
   white-space: nowrap;
 }
 
-/* 悬停浮泡路径胶囊：磨砂圆润气泡造型，从芯片左下方轻盈弹性浮起，离开时顺滑收回。 */
-.pathTip {
-  position: absolute;
-  inset-inline-start: 0;
-  bottom: calc(100% + 0.44rem);
-  display: inline-flex;
-  align-items: center;
-  gap: 0.36rem;
-  max-width: min(34rem, 72vw);
-  padding: 0.28rem 0.68rem 0.28rem 0.56rem;
-  border: 1px solid color-mix(in srgb, var(--color-line) 90%, transparent);
-  border-radius: 999px;
-  background: var(--glass-card-bg);
-  backdrop-filter: blur(14px) saturate(150%);
-  color: var(--color-ink);
-  box-shadow:
-    var(--color-menu-shadow),
-    inset 0 1px 0 color-mix(in srgb, var(--color-on-accent) 16%, transparent);
-  font-family: var(--code-font-family, ui-monospace, SFMono-Regular, Menlo, monospace);
-  font-size: 0.77rem;
-  font-weight: 450;
-  line-height: 1.35;
-  white-space: nowrap;
-  pointer-events: none;
-  opacity: 0;
-  transform-origin: 18px bottom;
-  transform: translateY(7px) scale(0.92);
-  transition: opacity 220ms var(--bubble-ease), transform 300ms var(--bubble-spring);
-  z-index: var(--z-popover);
-}
-
-.pathTipGlyph { flex: none; }
-.pathTipText { overflow: hidden; text-overflow: ellipsis; }
-
-.fileChipWrap:hover .pathTip,
-.fileRow:focus-visible .pathTip { opacity: 1; transform: translateY(0) scale(1); }
-
 .openArrow { transition: transform 300ms var(--bubble-spring), color 220ms var(--bubble-ease); }
 .fileRow:hover .openArrow,
 .fileRow:focus-visible .openArrow { color: var(--color-ink); transform: translate(2px, -2px) scale(1.08); }
@@ -199,5 +170,5 @@
 
 @media (prefers-reduced-motion: reduce) {
   .fileRow, .fileVerb, .actionIconWrap, .actionIcon,
-  .fileChip, .fileGlyph, .fileLabel, .pathTip, .openArrow { transition: none; }
+  .fileChip, .fileGlyph, .fileLabel, .openArrow { transition: none; }
 }

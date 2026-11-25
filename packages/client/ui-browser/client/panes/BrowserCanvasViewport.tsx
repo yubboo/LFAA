@@ -58,16 +58,23 @@ export function BrowserCanvasViewport({
     inFlight: false,
   });
 
-  const mapPoint = useCallback((clientX: number, clientY: number): { x: number; y: number } => {
+  const mapPoint = useCallback((clientX: number, clientY: number) => {
     const canvas = canvasRef.current;
-    if (!canvas) return { x: 0, y: 0 };
+    if (!canvas || !canvas.clientWidth || !canvas.clientHeight) return { x: 0, y: 0, inside: false };
     const rect = canvas.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) return { x: 0, y: 0 };
     const vw = viewportRef.current?.width || 1024;
     const vh = viewportRef.current?.height || 768;
-    const x = Math.max(0, Math.min(vw, Math.round(((clientX - rect.left) / rect.width) * vw)));
-    const y = Math.max(0, Math.min(vh, Math.round(((clientY - rect.top) / rect.height) * vh)));
-    return { x, y };
+    // 对齐 object-fit: contain 绘制区域，接管时黑边不属于网页。
+    const frameRatio = hasPaintedRef.current ? canvas.width / canvas.height : vw / vh;
+    const width = Math.min(canvas.clientWidth, canvas.clientHeight * frameRatio);
+    const height = width / frameRatio;
+    const dx = clientX - rect.left - canvas.clientLeft - (canvas.clientWidth - width) / 2;
+    const dy = clientY - rect.top - canvas.clientTop - (canvas.clientHeight - height) / 2;
+    return {
+      x: Math.max(0, Math.min(vw - 1, Math.round(dx / width * vw))),
+      y: Math.max(0, Math.min(vh - 1, Math.round(dy / height * vh))),
+      inside: dx >= 0 && dx < width && dy >= 0 && dy < height,
+    };
   }, []);
 
   /** 双缓冲绘制帧到 Canvas；恒定 2x 像素时原地覆盖不重置画布尺寸，彻底杜绝闪白与抖动。 */
@@ -175,6 +182,7 @@ export function BrowserCanvasViewport({
       if (!interactiveRef.current) return;
       const scale = event.deltaMode === 1 ? 40 : event.deltaMode === 2 ? (viewportRef.current?.height || 600) : 1;
       const point = mapPoint(event.clientX, event.clientY);
+      if (!point.inside) return;
       const st = wheelStateRef.current;
       st.dx += event.deltaX * scale;
       st.dy += event.deltaY * scale;
@@ -200,6 +208,8 @@ export function BrowserCanvasViewport({
 
   const handlePointerDown = (event: PointerEvent<HTMLCanvasElement>) => {
     if (!interactiveRef.current) return;
+    const { x, y, inside } = mapPoint(event.clientX, event.clientY);
+    if (!inside) return;
     hostRef.current?.focus();
     pointerDownRef.current = true;
     try {
@@ -207,7 +217,6 @@ export function BrowserCanvasViewport({
     } catch {
       // 合成事件不支持 pointer capture 时忽略
     }
-    const { x, y } = mapPoint(event.clientX, event.clientY);
     const button = BUTTON_NAMES[event.button] ?? "left";
     void sendBrowserInput(sessionId, {
       kind: "mousedown",
@@ -226,7 +235,8 @@ export function BrowserCanvasViewport({
     const minGap = pointerDownRef.current ? 16 : 36;
     if (now - lastMoveSentAtRef.current < minGap) return;
     lastMoveSentAtRef.current = now;
-    const { x, y } = mapPoint(event.clientX, event.clientY);
+    const { x, y, inside } = mapPoint(event.clientX, event.clientY);
+    if (!inside && !pointerDownRef.current) return;
     void sendBrowserInput(sessionId, {
       kind: "mousemove",
       x,

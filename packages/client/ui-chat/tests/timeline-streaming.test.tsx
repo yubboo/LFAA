@@ -72,7 +72,7 @@ function renderTimeline(overrides: {
   return { html, lang: (locale.isZh ? "zh" : "en") as "zh" | "en" };
 }
 
-test("命令行的运行提示在命令前，结果图标在命令后和展开箭头前", () => {
+test("命令行的运行提示与结果图标都固定在行尾、展开箭头前", () => {
   const command = "status-layout-fixture";
   const locale = getChatLocale();
   const statuses = ["running", "done", "error"] as const;
@@ -87,15 +87,35 @@ test("命令行的运行提示在命令前，结果图标在命令后和展开�
     const titleAt = row.indexOf('class="activityTitle"');
     const statusAt = row.indexOf('class="activityStatus"');
     assert.ok(titleAt >= 0 && statusAt >= 0);
+    // 运行中与结束态统一放在命令正文之后、展开箭头之前。
+    assert.ok(titleAt < statusAt && statusAt < row.indexOf("tabler-icon-chevron-right"));
     if (status === "running") {
-      assert.ok(statusAt < titleAt);
       assert.ok(row.includes(`>${locale.statusRunning}</span>`));
       assert.match(row, /class="liveDot"/u);
     } else {
-      assert.ok(titleAt < statusAt && statusAt < row.indexOf("tabler-icon-chevron-right"));
       assert.ok(row.includes(status === "done" ? "tabler-icon-check" : "tabler-icon-alert-circle"));
     }
   }
+});
+
+test("目录行与文件行一样带完整路径悬停气泡", () => {
+  const { html } = renderTimeline({
+    isStreaming: true,
+    steps: [{
+      id: "dir",
+      iteration: 1,
+      phase: "act",
+      status: "done",
+      title: "查看目录",
+      toolName: "list_dir",
+      toolTarget: "docs",
+      timestamp: Date.now(),
+    }],
+  });
+  // 目录行由工具行渲染：目标同样有固定图标列与路径气泡。
+  assert.match(html, /class="anchor[ "]/u);
+  assert.match(html, /class="tip" role="tooltip"/u);
+  assert.match(html, /class="text">docs</u);
 });
 
 test("完成态展示本轮 token 用量，没有用量时不显示", () => {
@@ -129,7 +149,7 @@ test("文件活动保留文件入口，命令活动提供轨迹入口", () => {
       { id: "cmd", iteration: 1, phase: "act", status: "done", title: "运行", toolName: "run_command", commandTrace: { command: "test-command" }, timestamp: 2 },
     ],
   }));
-  assert.match(html, /title="src\/a\.ts"/u);
+  assert.match(html, /class="text">src\/a\.ts</u);
   assert.match(html, /<summary class="activityRow" data-kind="command"/u);
   // 轨迹入口文案随语言切换，使用同一 locale 断言避免本机中文环境误报。
   assert.ok(html.includes(`class="traceLink">${locale.isZh ? "查看" : "View"}</button>`));

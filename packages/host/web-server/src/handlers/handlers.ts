@@ -179,7 +179,12 @@ export function createCommonHandlers(deps: CommonHandlerDeps): CommonHandlers {
       return false;
     }
     if (cachedBrowser?.service !== browserService) {
-      cachedBrowser = { service: browserService, handler: createBrowserHttpHandler(browserService) };
+      cachedBrowser = {
+        service: browserService,
+        handler: createBrowserHttpHandler(browserService, {
+          pickDownloadFolder: (title, initialDir) => context.workspace.pickLocalFolder(title, initialDir),
+        }),
+      };
     }
     return cachedBrowser.handler(req, res);
   };

@@ -34,6 +34,8 @@ export interface BrowserTabItem {
 }
 
 export interface BrowserSessionSnapshot {
+  /** 本次导航触发了附件下载，文件保存由下载任务状态单独反映。 */
+  downloadStarted?: boolean;
   sessionId: string;
   active: boolean;
   providerName?: string;
@@ -152,6 +154,20 @@ export interface BrowserDownloadItem {
   sizeBytes?: number;
   downloadedAt: number;
   deleted?: boolean;
+}
+
+/** 下载任务的临时状态；成功文件仍由下载历史接口持久化读取。 */
+export interface BrowserDownloadStatus {
+  id: string;
+  sessionId: string;
+  filename: string;
+  url: string;
+  directory: string;
+  chooseLocation: boolean;
+  state: "checking" | "awaiting" | "transferring" | "saved" | "blocked" | "cancelled" | "failed";
+  startedAt: number;
+  reason?: "busy" | "closed" | "policy" | "timeout" | "settings" | "transfer" | "destination" | "history";
+  savePath?: string;
 }
 
 export interface BrowserPasswordItem {

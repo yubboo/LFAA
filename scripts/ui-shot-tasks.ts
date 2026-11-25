@@ -157,6 +157,15 @@ export const TASKS: ShotTask[] = [
     { click: 'button[aria-label="主题预设"]' },
     { wait: 500 },
   ], { theme: "dark" }),
+  ...([
+    { name: "browser-download-history-light", theme: "light" },
+    { name: "browser-download-history-dark", theme: "dark" },
+    { name: "browser-download-history-mobile", theme: "dark", width: 390, height: 844 },
+  ] as const).map(({ name, ...options }) => settingsTask(name, "设置中心 · 浏览器下载历史与待确认", [
+    { clickText: "浏览器" },
+    { click: 'button[aria-label="管理下载历史记录"]' },
+    { wait: 850 },
+  ], options)),
   settingsTask("settings-general", "设置中心 · 常规", [{ clickText: "常规" }, { wait: 800 }], { theme: "dark" }),
   settingsTask("settings-models", "设置中心 · 模型与规则", [{ clickText: "模型与规则" }, { wait: 900 }], { theme: "dark" }),
   settingsTask("settings-mcp-light", "设置中心 · MCP（浅色）", [{ clickText: "MCP" }, { wait: 600 }], { theme: "light" }),

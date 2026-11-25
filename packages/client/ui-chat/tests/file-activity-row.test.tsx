@@ -124,7 +124,7 @@ test("已完成的文件创建、编辑、删除与分析行均渲染真实语�
     assert.match(html, new RegExp(`data-kind="${item.kind}"`, "u"));
     assert.match(html, /data-glyph="/u);
     assert.ok(html.includes(item.name));
-    assert.ok(html.includes(`title="${item.fullPath}"`));
+    assert.doesNotMatch(html, /title="[^"]*"/u);
     assert.match(html, /role="tooltip"/u);
     assert.ok(html.includes(item.fullPath));
     if (item.lineTag) {

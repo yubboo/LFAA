@@ -60,11 +60,22 @@
 .toolChain { gap: 0.16rem; }
 .flow[hidden] { display: none; }
 
-.disclosure,
-.activityRow {
+.disclosure {
   width: fit-content;
   max-width: 100%;
   padding: 0.14rem 0.38rem;
+  border: 0;
+  border-radius: 0.4rem;
+  background: transparent;
+  list-style: none;
+}
+
+/* 活动行统一撑满行宽，左侧固定图标槽 + 弹性标题截断 + 右侧状态/耗时/箭头严格垂直成列，彻底消除并行行参差错乱。 */
+.activityRow {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 0.16rem 0.38rem;
   border: 0;
   border-radius: 0.4rem;
   background: transparent;
@@ -120,6 +131,7 @@ details[open] > summary > .chevron { transform: rotate(90deg); }
 
 .activityTitle {
   display: flex;
+  flex: 1 1 auto;
   /* 用「末基线」而不是首基线：目标参数带文件彩标时是个 inline-flex 胶囊，首项是 SVG
      （没有文字基线，浏览器退回它的底边），按首基线对齐会把目标文本抬高约 4px；
      末基线取胶囊里最后一个弹性项（目标文本）的基线，动词与路径因此落在同一条基线上。 */
@@ -148,7 +160,7 @@ details[open] > summary > .chevron { transform: rotate(90deg); }
   font-size: 0.92em;
 }
 
-/* 左侧竖向引导线：与思维链块竖线对齐，串联同轮工具调用。 */
+/* 左侧竖向引导线：独立工具链自带竖线；嵌套在 ThinkingBlock 内时复用外层连续竖线，避免双线与断口。 */
 .activityList {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -156,6 +168,15 @@ details[open] > summary > .chevron { transform: rotate(90deg); }
   margin: 0.08rem 0 0 0.58rem;
   padding-inline-start: 0.85rem;
   border-inline-start: 1.5px solid var(--color-line);
+}
+
+.activityListNested {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.14rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
 /* 同级工具/文件/命令活动行占满轨道，左侧图标与动词起点一致，右侧状态勾与展开箭头垂直对齐。 */
@@ -241,7 +262,7 @@ details[open] > summary > .chevron { transform: rotate(90deg); }
 
 .activityRow[data-kind="created"] > .iconSlot:first-child,
 .lineCounts [data-change="add"],
-.activityStatus[data-status="done"] { color: var(--activity-positive); }
+.activityStatus[data-status="done"] { color: var(--color-accent); }
 .activityRow[data-kind="deleted"] > .iconSlot:first-child,
 .lineCounts [data-change="remove"],
 .activityStatus[data-status="error"] { color: var(--activity-negative); }
@@ -272,7 +293,9 @@ details[open] > summary > .chevron { transform: rotate(90deg); }
 }
 
 .activityRow[data-kind="command"] > .activityTitle { flex: 1; display: block; }
-.activityRow[data-kind="command"][data-status="running"] > .activityStatus { font-size: inherit; }
+
+/* 带内联路径气泡时允许气泡溢出标题容器，否则会被 overflow:hidden 裁掉。 */
+.activityTitleTip { overflow: visible; }
 
 
 .srOnly {

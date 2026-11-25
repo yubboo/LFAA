@@ -1,6 +1,7 @@
 // 浏览器页面驱动：导航、前进后退、刷新、快照、求值，以及点击/悬停/输入/按键/滚动等页面交互。
 // 从 BrowserRuntime 拆出：这些方法只在页面上做事，会话创建、截图与串流由宿主（BrowserRuntime）提供。
 import type { BrowserSessionSnapshot } from "../types";
+import { navigateOrDownload } from "../downloads/playwright-download";
 import type { BrowserTabEntry, SessionBrowserState } from "./browser-session-types";
 import { hideAgentActionOverlay, locateAgentTarget, showAgentActionOverlay, smoothScrollPage } from "./agent-overlay";
 import { clampViewport, validateBrowserUrl } from "../runtime-utils";
@@ -61,7 +62,9 @@ export class SessionDriver {
     }
     delete state.lastError;
     try {
-      await tab.page.goto(url, { waitUntil: "domcontentloaded", timeout: 25_000 });
+      if (await navigateOrDownload(tab.page, url)) {
+        return { ...await this.host.capture(state, tab, true, fromAgent), downloadStarted: true };
+      }
     } catch (error) {
       throw formatNavigationError(error, url);
     }

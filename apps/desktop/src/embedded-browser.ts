@@ -1,6 +1,7 @@
 // LFAA 桌面端原生内置浏览器管理器：在主窗口右侧挂载 Electron 原生 WebContentsView（GPU 硬件合成、零截图压缩延迟）。
 import { ipcMain, shell, WebContentsView, type BrowserWindow } from "electron";
 import type { DesktopBrowserNavState, DesktopBrowserSyncPayload } from "./preload";
+import { attachNativeDownloads, type DesktopDownloadChannel } from "./native-downloads";
 
 function isAllowedHttpUrl(rawUrl: string | undefined): rawUrl is string {
   if (!rawUrl) return false;
@@ -13,9 +14,11 @@ function isAllowedHttpUrl(rawUrl: string | undefined): rawUrl is string {
 }
 
 /** 为主窗口注册原生 WebContentsView 内置浏览器 IPC，并在窗口关闭时自动释放视图与监听器。 */
-export function attachEmbeddedBrowser(mainWindow: BrowserWindow): () => void {
+export function attachEmbeddedBrowser(mainWindow: BrowserWindow, downloads?: DesktopDownloadChannel): () => void {
   let view: WebContentsView | null = null;
   let lastRequestedUrl = "";
+  let sessionId: string | undefined;
+  let disposeDownloads: (() => void) | undefined;
 
   const readState = (): DesktopBrowserNavState | null => {
     if (!view || view.webContents.isDestroyed()) return null;
@@ -49,6 +52,7 @@ export function attachEmbeddedBrowser(mainWindow: BrowserWindow): () => void {
     view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
 
     const wc = view.webContents;
+    if (downloads) disposeDownloads = attachNativeDownloads(wc, () => sessionId, downloads);
     wc.on("did-navigate", emitState);
     wc.on("did-navigate-in-page", emitState);
     wc.on("page-title-updated", emitState);
@@ -65,12 +69,15 @@ export function attachEmbeddedBrowser(mainWindow: BrowserWindow): () => void {
     view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
   };
 
-  ipcMain.handle("lfaa:browser:sync", (_event, payload: DesktopBrowserSyncPayload) => {
-    if (mainWindow.isDestroyed()) return null;
+  ipcMain.handle("lfaa:browser:managed", (event) => event.sender === mainWindow.webContents && Boolean(downloads));
+  ipcMain.handle("lfaa:browser:sync", (event, payload: DesktopBrowserSyncPayload) => {
+    if (mainWindow.isDestroyed() || event.sender !== mainWindow.webContents || !downloads) return null;
     if (!payload?.visible || payload.width < 40 || payload.height < 40) {
       hideView();
       return readState();
     }
+    sessionId = typeof payload.sessionId === "string" && payload.sessionId.length <= 256 ? payload.sessionId : undefined;
+    if (!sessionId) { hideView(); return null; }
     const targetView = ensureView();
     const bounds = {
       x: Math.max(0, Math.round(payload.x)),
@@ -95,16 +102,16 @@ export function attachEmbeddedBrowser(mainWindow: BrowserWindow): () => void {
     return readState();
   });
 
-  ipcMain.handle("lfaa:browser:navigate", (_event, rawUrl: string) => {
-    if (mainWindow.isDestroyed() || !isAllowedHttpUrl(rawUrl)) return readState();
+  ipcMain.handle("lfaa:browser:navigate", (event, rawUrl: string) => {
+    if (mainWindow.isDestroyed() || event.sender !== mainWindow.webContents || !downloads || !sessionId || !isAllowedHttpUrl(rawUrl)) return readState();
     const targetView = ensureView();
     lastRequestedUrl = rawUrl;
     void targetView.webContents.loadURL(rawUrl).catch(() => {});
     return readState();
   });
 
-  ipcMain.handle("lfaa:browser:nav", (_event, action: "back" | "forward" | "reload") => {
-    if (!view || view.webContents.isDestroyed()) return null;
+  ipcMain.handle("lfaa:browser:nav", (event, action: "back" | "forward" | "reload") => {
+    if (event.sender !== mainWindow.webContents || !view || view.webContents.isDestroyed()) return null;
     const wc = view.webContents;
     if (action === "back" && wc.navigationHistory.canGoBack()) wc.navigationHistory.goBack();
     else if (action === "forward" && wc.navigationHistory.canGoForward()) wc.navigationHistory.goForward();
@@ -113,6 +120,8 @@ export function attachEmbeddedBrowser(mainWindow: BrowserWindow): () => void {
   });
 
   const dispose = () => {
+    disposeDownloads?.();
+    ipcMain.removeHandler("lfaa:browser:managed");
     ipcMain.removeHandler("lfaa:browser:sync");
     ipcMain.removeHandler("lfaa:browser:navigate");
     ipcMain.removeHandler("lfaa:browser:nav");

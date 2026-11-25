@@ -1,59 +1,50 @@
-/* 浏览器与空白工作台共用的启动页，按实际窗格宽度排列快捷操作。 */
+/* 右栏启动页：参考 ChatGPT 的空态排版，搜索框 + 分区标题 + 自适应快捷卡片。 */
 .stage {
   container-type: inline-size;
   flex: 1 1 0;
   min-height: 0;
   display: grid;
   justify-items: center;
-  align-content: start;
+  align-content: center;
   overflow: auto;
-  padding: clamp(1rem, 21vh, 16rem) clamp(0.6rem, 4%, 2.4rem) 1.25rem;
+  padding: clamp(1.5rem, 9vh, 6rem) clamp(1rem, 7%, 3.5rem);
   background: var(--color-shell);
 }
 
 .content {
   display: grid;
-  gap: 0.8rem;
-  width: min(100%, 38rem);
+  gap: 1.5rem;
+  width: min(100%, 40rem);
   min-width: 0;
 }
 
-.heading {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.7rem;
-  min-width: 0;
-}
-
-.heading h2 {
-  margin: 0;
-  color: var(--color-ink);
-  font-size: 1.05rem;
-  font-weight: 650;
-}
-
-.heading span {
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  clip-path: inset(50%);
   overflow: hidden;
-  color: var(--color-muted);
-  font-size: 0.75rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
+/* 搜索框：白色胶囊、极淡描边、轻微投影；聚焦时不加粉色描边或外发光。 */
 .field {
   display: flex;
   align-items: center;
-  gap: 0.55rem;
+  gap: 0.65rem;
+  min-height: 3.1rem;
   min-width: 0;
-  padding: 0.25rem 0.3rem 0.25rem 0.7rem;
-  border: 1px solid var(--color-line);
-  border-radius: 0.76rem;
+  padding: 0 1.1rem;
+  border: 1px solid color-mix(in srgb, var(--color-line) 55%, transparent);
+  border-radius: 999px;
   background: var(--color-surface);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--color-ink) 5%, transparent);
   color: var(--color-muted);
 }
 
-.field:focus-within { border-color: var(--color-accent); }
+.field:focus-within {
+  border-color: color-mix(in srgb, var(--color-line) 85%, var(--color-muted));
+}
+
 .field > svg { flex: none; }
 
 .field input {
@@ -65,77 +56,97 @@
   background: transparent;
   color: var(--color-ink);
   font: inherit;
-  font-size: 0.84rem;
+  font-size: 0.95rem;
 }
+
+.field input:focus-visible { outline: none; }
 
 .field input::placeholder { color: var(--color-muted); opacity: 1; }
 
-.field button {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 2.15rem;
-  height: 2.15rem;
-  padding: 0;
-  border: 0;
-  border-radius: 0.5rem;
-  background: var(--color-active);
-  color: var(--color-ink);
-  cursor: pointer;
-}
-
-.field button:disabled {
-  background: transparent;
-  color: var(--color-muted);
-  cursor: default;
-}
-
 .feedback {
-  margin: 0;
+  margin: -0.7rem 0 0;
   color: var(--color-ink);
   font-size: 0.8rem;
   overflow-wrap: anywhere;
 }
 
+/* 分区：标题行与卡片之间留出明显距离。 */
+.section {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.sectionRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0 0.15rem;
+}
+
+.sectionLabel {
+  color: var(--color-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.sectionMeta {
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 快捷卡片：图标在上、文字在下；窄栏也能排成两列，宽栏一行四个。 */
 .shortcuts {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.45rem;
+  grid-template-columns: repeat(auto-fit, minmax(5rem, 1fr));
+  gap: 0.75rem;
 }
 
 .shortcuts button {
   display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 0.52rem;
-  min-height: 3.2rem;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.6rem;
+  min-height: 5.2rem;
   min-width: 0;
-  padding: 0.48rem 0.65rem;
-  border: 1px solid var(--color-line);
-  border-radius: 0.52rem;
-  background: var(--color-panel);
+  padding: 0.85rem 0.9rem;
+  border: 0;
+  border-radius: 0.9rem;
+  background: var(--color-active);
   color: var(--color-ink);
   font: inherit;
-  font-size: 0.79rem;
+  font-size: 0.82rem;
   text-align: left;
   overflow-wrap: anywhere;
   cursor: pointer;
+  transition: background-color 160ms ease, transform 160ms ease;
 }
 
 .shortcuts button > svg { flex: none; color: var(--color-muted); }
-.shortcuts button:hover { background: var(--color-active); }
+.shortcuts button:hover {
+  background: color-mix(in srgb, var(--color-active) 72%, var(--color-line));
+  transform: translateY(-1px);
+}
 .shortcuts button:hover > svg { color: var(--color-ink); }
-.field button:focus-visible,
-.shortcuts button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 
-@container (min-width: 30rem) {
-  .shortcuts { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.field input:focus-visible,
+.shortcuts button:focus-visible {
+  outline: none;
 }
 
-@container (max-width: 12rem) {
-  .shortcuts button { gap: 0.3rem; padding-inline: 0.35rem; }
+.shortcuts button:focus-visible {
+  background: color-mix(in srgb, var(--color-active) 72%, var(--color-line));
 }
 
 @media (max-height: 520px) {
-  .stage { padding-block-start: 1rem; }
+  .stage { padding-block: 1rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .field, .shortcuts button { transition: none; }
+  .shortcuts button:hover { transform: none; }
 }

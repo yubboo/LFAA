@@ -6,6 +6,7 @@ export interface DesktopBrowserSyncPayload {
   width: number;
   height: number;
   url?: string;
+  sessionId?: string;
   zoomFactor?: number;
 }
 
@@ -17,6 +18,7 @@ export interface DesktopBrowserNavState {
 }
 
 export interface DesktopBrowserBridge {
+  supportsManagedDownloads?: () => Promise<boolean>;
   syncBounds: (payload: DesktopBrowserSyncPayload) => Promise<DesktopBrowserNavState | null>;
   navigate: (url: string) => Promise<DesktopBrowserNavState | null>;
   nav: (action: "back" | "forward" | "reload") => Promise<DesktopBrowserNavState | null>;

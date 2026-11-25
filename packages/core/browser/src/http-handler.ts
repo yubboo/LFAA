@@ -65,7 +65,11 @@ async function readJsonBody(req: IncomingMessage): Promise<Record<string, unknow
   return typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : {};
 }
 
-export function createBrowserHttpHandler(service: BrowserService) {
+export interface BrowserHttpOptions {
+  pickDownloadFolder?: (title: string, initialDir: string) => Promise<{ cancelled: boolean; path?: string; error?: string }>;
+}
+
+export function createBrowserHttpHandler(service: BrowserService, options: BrowserHttpOptions = {}) {
   return async (req: IncomingMessage, res: ServerResponse): Promise<boolean> => {
     const urlObj = new URL(req.url ?? "/", "http://127.0.0.1");
     const pathname = urlObj.pathname;
@@ -308,7 +312,7 @@ export function createBrowserHttpHandler(service: BrowserService) {
         return true;
       }
 
-      if (await handleBrowserDataRequest(service, req, res, urlObj, method)) {
+      if (await handleBrowserDataRequest(service, req, res, urlObj, method, options)) {
         return true;
       }
 

@@ -16,7 +16,8 @@ import { GoalContinuationScheduler, type GoalServicePort } from "./run/goal-sche
 import { pickRunOptions, resolveRunRouting, type RunOptionCache } from "./run/run-options";
 import { RunWaiterRegistry } from "./run/run-waiters";
 import { createToolPolicyResolver } from "./run/tool-policy";
-import { resolveWorkspaceScope, WorkspaceBusyError, WorkspaceLeaseRegistry, type LeaseHolder } from "./run/workspace-lease";
+import { resolveWorkspaceScope, type LeaseHolder } from "./run/workspace-lease";
+import { PeerSessionRegistry } from "./run/peer-sessions";
 import type { CompactionHook } from "./run/run-types";
 import { pendingApprovalSummary, type ActiveRunRecord } from "./run/run-records";
 import { maskRunId, type AgentStreamMetrics, type RunChunkRecord } from "./stream-journal";
@@ -49,8 +50,8 @@ export class AgentService extends Service {
   private readonly sessionRootsCache = new Map<string, string[]>();
   /** 缓存每个会话最近一次的运行选项，供续跑沿用模型、预算与权限。 */
   private readonly sessionRunOptions = new Map<string, RunOptionCache>();
-  /** 工作区租约：同一工作区同时只允许一个会话运行。 */
-  private readonly workspaceLeases = new WorkspaceLeaseRegistry();
+  /** 同工作区活跃会话登记表：支持多会话并行，并为各会话提供并发感知。 */
+  private readonly workspaceLeases = new PeerSessionRegistry();
   private readonly trustStore: SmartTrustStore;
   private unregisterBuiltinTools: (() => void) | null = null;
   private unregisterSessionTools: (() => void) | null = null;
@@ -176,10 +177,9 @@ export class AgentService extends Service {
       roots,
     });
     const started = await this.withIdleSession(input.sessionId, async () => {
-      const acquired = this.workspaceLeases.acquire(scope, session.id, session.title);
-      if (!acquired.ok) throw new WorkspaceBusyError(scope, acquired.holder);
+      this.workspaceLeases.register(scope, session.id, session.title);
       try {
-        return await this.beginRun(input, resolveRoots);
+        return await this.beginRun(input, resolveRoots, scope);
       } catch (error) {
         this.workspaceLeases.release(session.id);
         throw error;
@@ -258,12 +258,16 @@ export class AgentService extends Service {
     });
   }
 
-  private async beginRun(input: StartAgentRunInput, resolveRoots?: (projectId: string | null) => Promise<string[]>) {
+  private async beginRun(input: StartAgentRunInput, resolveRoots?: (projectId: string | null) => Promise<string[]>, scope?: string) {
     const session = await this.ctx.memory.getSession(input.sessionId);
     await this.assertChatModel(input, session);
     const compaction = this.ctx.get("compaction") as CompactionHook | undefined;
     const prompt = this.ctx.get("prompt") as { compose(): Promise<string> } | undefined;
     const browser = this.ctx.get("browser") as { describeTakeoverHint?(sessionId: string): string } | undefined;
+    const dynamicSystemHint = () => [
+      browser?.describeTakeoverHint?.(input.sessionId) ?? "",
+      scope ? this.workspaceLeases.describePeers(input.sessionId, scope, this.runs) : "",
+    ].filter(Boolean).join("\n\n");
     return beginAgentRun({
       llm: this.createRunLlm(input, session),
       tools: this.ctx.tools,
@@ -273,7 +277,7 @@ export class AgentService extends Service {
       resolveToolPolicy: createToolPolicyResolver(this.ctx), // agent 工具边界：只收窄
       ...(compaction ? { compaction } : {}),
       ...(prompt ? { extraSystemPrompt: () => prompt.compose() } : {}),
-      ...(browser?.describeTakeoverHint ? { dynamicSystemHint: () => browser.describeTakeoverHint!(input.sessionId) } : {}),
+      dynamicSystemHint,
       skillResolver: this.skillResolver,
       skillCatalogProvider: this.skillCatalogProvider,
       ...(this.projectScopeProvider ? { resolveProjectScope: this.projectScopeProvider } : {}),

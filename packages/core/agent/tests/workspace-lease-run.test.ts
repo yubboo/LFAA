@@ -1,4 +1,4 @@
-// 验证运行级工作区租约：同工作区第二个会话被拒绝，首个运行收尾后可以接手，租约随运行释放。
+// 验证同工作区多会话并行与并发感知：第二个会话可并发启动，收到同工作区活跃会话提示，运行结束后自动释放登记。
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -11,24 +11,28 @@ import { rulesPlugin } from "@lfaa/rules";
 import { toolsPlugin } from "@lfaa/tools";
 import { agentPlugin } from "../src/index";
 
-/** 轮询到会话没有运行中的任务且租约已释放；运行记录在 startRun 返回前已登记。 */
-async function waitSettled(ctx: Context, sessionId: string): Promise<void> {
+/** 轮询到会话没有运行中的任务且所有并行登记均已释放。 */
+async function waitAllSettled(ctx: Context, sessionIds: string[]): Promise<void> {
   const deadline = Date.now() + 8000;
   while (Date.now() < deadline) {
-    if (!ctx.agent.getActiveRunForSession(sessionId) && ctx.agent.listWorkspaceLeases().length === 0) return;
+    const anyRunning = sessionIds.some((id) => Boolean(ctx.agent.getActiveRunForSession(id)));
+    if (!anyRunning && ctx.agent.listWorkspaceLeases().length === 0) return;
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
   throw new Error("等待运行结束超时");
 }
 
-test("同工作区的第二个会话被租约拒绝，首个运行结束后可以接手", async () => {
+test("同工作区的多个会话支持并行运行，并向并发会话注入同工作区感知提示", async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-agent-lease-"));
   let release!: () => void;
   const gate = new Promise<void>((resolve) => { release = resolve; });
+  const capturedSystems: string[] = [];
   const ctx = new Context();
   await ctx.plugin(llmPlugin, {
     storeFilePath: path.join(dir, "llm.json"),
-    adapter: async (profile) => {
+    adapter: async (profile, request) => {
+      const systemText = request.messages.filter((m) => m.role === "system").map((m) => m.content).join("\n");
+      capturedSystems.push(systemText);
       await gate;
       return {
         model: profile.model,
@@ -51,36 +55,35 @@ test("同工作区的第二个会话被租约拒绝，首个运行结束后可�
   try {
     const first = await ctx.memory.createSession({ title: "会话一" });
     const second = await ctx.memory.createSession({ title: "会话二" });
-    const started = await ctx.agent.startRun({
+    const startedFirst = await ctx.agent.startRun({
       sessionId: first.id,
       userMessage: "开始",
       workspaceRoots: [dir],
       permissionMode: "full",
     });
-    assert.equal(ctx.agent.getActiveRunForSession(first.id)?.runId, started.runId);
+    assert.equal(ctx.agent.getActiveRunForSession(first.id)?.runId, startedFirst.runId);
     assert.equal(ctx.agent.listWorkspaceLeases().length, 1);
 
-    await assert.rejects(
-      () => ctx.agent.startRun({
-        sessionId: second.id,
-        userMessage: "开始",
-        workspaceRoots: [dir],
-        permissionMode: "full",
-      }),
-      /工作区正被/u,
-    );
-
-    release();
-    await waitSettled(ctx, first.id);
-    assert.equal(ctx.agent.listWorkspaceLeases().length, 0);
-
-    await ctx.agent.startRun({
+    const startedSecond = await ctx.agent.startRun({
       sessionId: second.id,
-      userMessage: "开始",
+      userMessage: "并发任务",
       workspaceRoots: [dir],
       permissionMode: "full",
     });
-    await waitSettled(ctx, second.id);
+    assert.equal(ctx.agent.getActiveRunForSession(second.id)?.runId, startedSecond.runId);
+    assert.equal(ctx.agent.listWorkspaceLeases().length, 2);
+
+    // 等两个并发运行都进入 LLM 调用后再放行，确保采集到第二个会话的动态系统提示。
+    const waitCallDeadline = Date.now() + 4000;
+    while (capturedSystems.length < 2 && Date.now() < waitCallDeadline) {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    assert.equal(capturedSystems.length, 2);
+    assert.match(capturedSystems[1]!, /同工作区多会话并行感知/);
+    assert.match(capturedSystems[1]!, /会话一/);
+
+    release();
+    await waitAllSettled(ctx, [first.id, second.id]);
     assert.equal(ctx.agent.listWorkspaceLeases().length, 0);
   } finally {
     await fs.rm(dir, { recursive: true, force: true });

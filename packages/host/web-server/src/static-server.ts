@@ -5,7 +5,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net";
 import { join, resolve } from "node:path";
 import { checkApiAuth, checkApiWriteContentType, isApiPath, type ApiGateway } from "@lfaa/api-gateway";
-import { createHostRuntime } from "./runtime";
+import { createHostRuntime, type HostRuntime } from "./runtime";
 import {
   firstHeader,
   injectToken,
@@ -44,9 +44,12 @@ export interface HostServerOptions {
   port?: number;
   profile?: string;
   loaderBaseUrl?: string;
+  desktopDownloadDirectory?: string;
 }
 
-export interface HostServer extends StaticServer {}
+export interface HostServer extends StaticServer {
+  receiveDesktopDownload?: HostRuntime["receiveDesktopDownload"];
+}
 
 /** 启动生产宿主：先装配运行时，再起静态服务器；任一环节失败都不留半启动状态。 */
 export async function startHostServer(options: HostServerOptions): Promise<HostServer> {
@@ -54,9 +57,10 @@ export async function startHostServer(options: HostServerOptions): Promise<HostS
     projectRoot: options.projectRoot,
     ...(options.loaderBaseUrl ? { loaderBaseUrl: options.loaderBaseUrl } : {}),
     ...(options.profile ? { profile: options.profile } : {}),
+    ...(options.desktopDownloadDirectory ? { desktopDownloadDirectory: options.desktopDownloadDirectory } : {}),
   });
   try {
-    return await startStaticServer({
+    const server = await startStaticServer({
       webRoot: options.webRoot,
       token: runtime.token,
       gateway: runtime.gateway,
@@ -64,6 +68,7 @@ export async function startHostServer(options: HostServerOptions): Promise<HostS
       ...(options.port !== undefined ? { port: options.port } : {}),
       onStop: () => runtime.dispose(),
     });
+    return { ...server, receiveDesktopDownload: runtime.receiveDesktopDownload };
   } catch (error) {
     await runtime.dispose();
     throw error;

@@ -1,6 +1,7 @@
 // 桌面宿主子进程：用 Electron 的 Node 模式拉起 apps/desktop-host，经 IPC 获取本机地址并负责优雅退出。
 // 与 DSH 一致，壳与宿主之间只通过 IPC 事件通信，壳不直接装配业务运行时。
 import { spawn, type ChildProcess } from "node:child_process";
+import type { DesktopDownloadChannel, DesktopDownloadMessage } from "./native-downloads";
 
 /** 宿主就绪后壳需要的信息。 */
 export interface DesktopHostReady {
@@ -26,6 +27,7 @@ export interface DesktopHostOptions {
   webRoot: string;
   /** 用户工作根：项目未绑定时的回退，绝不传安装目录。 */
   projectRoot: string;
+  downloadDirectory: string;
   /** 就绪后宿主意外退出时回调；壳负责提示并退出，避免留下空白窗口。 */
   onUnexpectedExit?: (error: Error) => void;
 }
@@ -40,7 +42,8 @@ const MAX_DIAGNOSTIC_CHARS = 64 * 1024;
 type HostMessage =
   | { type: "ready"; url: string; port: number }
   | { type: "fatal"; message: string; diagnostic?: string }
-  | { type: "shutdown-complete" };
+  | { type: "shutdown-complete" }
+  | { type: "download:cancel" | "download:release"; id: string };
 
 /** 校验 IPC 事件形状：未知事件按协议错误处理，不静默忽略。 */
 function isHostMessage(message: unknown): message is HostMessage {
@@ -53,6 +56,9 @@ function isHostMessage(message: unknown): message is HostMessage {
       return typeof candidate.message === "string";
     case "shutdown-complete":
       return true;
+    case "download:cancel":
+    case "download:release":
+      return typeof candidate.id === "string";
     default:
       return false;
   }
@@ -81,6 +87,7 @@ export class DesktopHostProcess {
   #rejectReady!: (error: Error) => void;
   readonly #ready: Promise<DesktopHostReady>;
   readonly #options: DesktopHostOptions;
+  #downloadControl: Parameters<DesktopDownloadChannel["onControl"]>[0] | undefined;
 
   constructor(options: DesktopHostOptions) {
     this.#options = options;
@@ -93,7 +100,7 @@ export class DesktopHostProcess {
   /** 启动宿主并等待 ready；启动失败抛出带诊断的错误。 */
   async start(): Promise<DesktopHostReady> {
     const { entry, webRoot, projectRoot, onUnexpectedExit } = this.#options;
-    const child = spawn(process.execPath, [entry, webRoot, projectRoot], {
+    const child = spawn(process.execPath, [entry, webRoot, projectRoot, this.#options.downloadDirectory], {
       cwd: projectRoot,
       // 用 Electron 自带 Node 运行宿主：安装包无需再分发一份 node.exe。
       env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
@@ -118,6 +125,10 @@ export class DesktopHostProcess {
     child.on("message", (message: unknown) => {
       if (!isHostMessage(message)) {
         this.#handleUnexpected(new Error("桌面宿主发来无法识别的 IPC 事件。"));
+        return;
+      }
+      if (message.type === "download:cancel" || message.type === "download:release") {
+        this.#downloadControl?.(message.type === "download:cancel" ? "cancel" : "release", message.id);
         return;
       }
       if (message.type === "ready") {
@@ -148,6 +159,26 @@ export class DesktopHostProcess {
     });
 
     return this.#ready;
+  }
+
+  get downloadChannel(): DesktopDownloadChannel {
+    return {
+      directory: this.#options.downloadDirectory,
+      send: (message: DesktopDownloadMessage) => {
+        const child = this.#child;
+        if (!child?.connected || this.#stopping) return false;
+        child.send(message, (error) => {
+          if (error) this.#downloadControl?.("cancel", message.id);
+        });
+        return true;
+      },
+      onControl: (listener) => {
+        this.#downloadControl = listener;
+        return () => {
+          if (this.#downloadControl === listener) this.#downloadControl = undefined;
+        };
+      },
+    };
   }
 
   /** 请求优雅退出；超时后升级为强制结束，保证不残留进程。 */

@@ -67,7 +67,7 @@ export class WorkspaceService extends Service {
     this.documentsOverride = config.documentsDir;
     this.defaultProjectsDirResolver = config.defaultProjectsDirResolver;
     this.outsideProjectDirResolver = config.outsideProjectDirResolver;
-    this.folderPicker = config.folderPicker ?? (() => openNativeFolderPicker("选择项目文件夹"));
+    this.folderPicker = config.folderPicker ?? openNativeFolderPicker;
   }
 
   getStorageMode(): "host-fs" { return "host-fs"; }

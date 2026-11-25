@@ -144,6 +144,7 @@ export function registerBrowserAgentTools(tools: ToolsService, llm: LlmService, 
         const rawUrl = typeof args.url === "string" ? args.url : "";
         validateBrowserUrl(rawUrl);
         const snap = await runtime.navigate(ctx.sessionId, rawUrl, true);
+        if (snap.downloadStarted) return { ok: true, output: "页面触发了下载。保存结果在内置浏览器的下载面板查看；如需审批，请由用户确认。", summary: "触发下载" };
         return { ok: true, output: formatSnapshotOutput(snap), summary: `打开 ${snap.title || snap.url}` };
       },
     }),
@@ -156,7 +157,9 @@ export function registerBrowserAgentTools(tools: ToolsService, llm: LlmService, 
       parameters: { type: "object", properties: {} },
       execute: async (_args, ctx) => {
         const snap = await runtime.snapshot(ctx.sessionId, false);
-        return { ok: true, output: formatSnapshotOutput(snap), summary: `快照 ${snap.elements.length} 个元素` };
+        const waiting = runtime.downloads.list(ctx.sessionId).some((item) => item.state === "awaiting");
+        const output = waiting ? `有文件等待用户确认下载。\n${formatSnapshotOutput(snap)}` : formatSnapshotOutput(snap);
+        return { ok: true, output, summary: `快照 ${snap.elements.length} 个元素` };
       },
     }),
     tools.registerTool({

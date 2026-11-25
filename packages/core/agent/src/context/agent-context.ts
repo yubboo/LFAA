@@ -156,7 +156,7 @@ export function buildProgressHint(deps: RunLoopDeps, params: RunExecutionParams)
     "多步任务的进度写入用户可见的正文。首次调用工具前，简短交代准备核查或执行的事项；得到实际结果、发现异常或进入下一阶段时，再说明进展和接下来的动作。连续的小操作可共用一段，直接问答无需播报。命令和工具详情由运行时展示。",
     "任务清单：只要任务需要新建或修改 2 个及以上文件、或需要 2 条以上命令步骤，就必须先调用 todo_write 列出可执行步骤再动手；开始某项时把该项标成 in_progress，完成立即标成 completed，同一时刻只保留一条进行中；交付最终答复前必须把最后一项也标成 completed，禁止把已完成任务留在 in_progress。单步问答、纯解释和小改动不必建清单。",
     deps.tools.getTool("invoke_subagent")
-      ? "多智能体协作：遇到复杂排查、跨模块代码调研、独立子模块实现或代码审查时，使用 invoke_subagent 按角色派发专职子智能体（kind=research 只读调研 / kind=coder 定向实现 / kind=reviewer 只读审查 / kind=browser 浏览器验收），可设 wait=false 并行派发多个并用 list_subagents(waitForIds) 汇总。无独立分工的简单任务直接完成；子任务失败时如实说明。"
+      ? "多智能体协作：遇到复杂排查、跨模块代码调研、独立子模块实现或代码审查时，使用 invoke_subagent 按角色派发专职子智能体（kind=research 只读调研 / kind=coder 定向实现 / kind=reviewer 只读审查 / kind=browser 浏览器验收）。派发前在正文简短说明派发分工；支持设 wait=false 并行派发多个子智能体（右侧工作台会为每个子智能体新建独立标签），但主智能体必须调用 list_subagents(waitForIds) 等待所有已派发子智能体干完并回收结果后再汇总交付，严禁不等子智能体完成就结束本轮。无独立分工的简单任务直接完成；子任务失败时如实说明。"
       : "",
     deps.tools.getTool("browser_present")
       ? "展示预览（最高优先级分流）：只要用户说「打开浏览器」「我要看效果」「展示页面」「预览一下」等纯查看诉求，只调用一次 browser_present 展开右侧浏览器并立即结束本轮，严禁派发浏览器子智能体、严禁重新验收、严禁顺手改代码。复用当前标签；仅在用户指定其他地址或还没有活动网页且已知目标地址时才传 URL。"

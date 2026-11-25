@@ -1,8 +1,9 @@
-// 右侧工作台顶部标签栏：工作台/辅助面板、文件预览、内置浏览器、子智能体舞台、变更审查标签与新建浏览器标签按钮。
+// 右侧工作台顶部标签栏：辅助面板、文件预览、子智能体、变更审查与内置浏览器标签，新建按钮固定在行尾。
 import { IconCheck, IconFileDiff, IconLayoutGrid, IconLoader2, IconPlus, IconRobot, IconWorld, IconX } from "@tabler/icons-react";
 import type { BrowserTabItem } from "@lfaa/client-ui-browser/client";
 import type { FilePreviewTab } from "../store/chat-types";
 import type { SubagentStageTab } from "./useWorkbenchSubagents";
+import type { RightAuxTab } from "./RightUtilityRail";
 import { FileTypeIcon } from "@lfaa/ui-icons/client";
 import styles from "./RightWorkbenchPane.module.css";
 
@@ -16,9 +17,12 @@ export type RightStageKind = "welcome" | "utility" | "file" | "browser" | "revie
 export function WorkbenchTabs({
   isZh,
   stageKind,
-  auxTitle,
   fileTabs,
   activeFileTab,
+  auxTabs,
+  activeAuxTab,
+  onSelectAuxTab,
+  onCloseAuxTab,
   browserOpen,
   browserTabs,
   browserIsBlank,
@@ -40,9 +44,13 @@ export function WorkbenchTabs({
 }: {
   isZh: boolean;
   stageKind: RightStageKind;
-  auxTitle: string;
   fileTabs: FilePreviewTab[];
   activeFileTab: FilePreviewTab | undefined;
+  /** 终端、文件树、侧边提问等辅助面板，各自作为独立标签。 */
+  auxTabs: Array<{ id: RightAuxTab; title: string }>;
+  activeAuxTab: RightAuxTab | null;
+  onSelectAuxTab: (tab: RightAuxTab) => void;
+  onCloseAuxTab: (tab: RightAuxTab) => void;
   browserOpen: boolean;
   browserTabs: BrowserTabItem[];
   browserIsBlank: boolean;
@@ -62,6 +70,7 @@ export function WorkbenchTabs({
   onCloseSubagentTab: (subagentId: string) => void;
   onNewBrowserTab: () => void;
 }) {
+  // 浏览器标签始终排在所有标签之后、新建按钮之前，保证新开标签紧挨「+」。
   const renderBrowserTabs = () => {
     if (!browserOpen) return null;
     if (browserTabs.length === 0) {
@@ -116,14 +125,6 @@ export function WorkbenchTabs({
 
   return (
     <div className={styles.tabBar} role="tablist" aria-label={isZh ? "右侧打开标签" : "Right workbench tabs"}>
-      {(stageKind === "welcome" || stageKind === "utility") && (
-        <div className={`${styles.tabItem} ${styles.tabItemActive}`}>
-          <span className={styles.tabBtn} role="tab" aria-selected="true">
-            <IconLayoutGrid size={14} aria-hidden="true" />
-            <span>{stageKind === "utility" ? auxTitle : isZh ? "工作台" : "Workbench"}</span>
-          </span>
-        </div>
-      )}
       {fileTabs.map((tab) => {
         const active = stageKind === "file" && tab.id === activeFileTab?.id;
         const fileName = baseFileName(tab.path);
@@ -151,7 +152,31 @@ export function WorkbenchTabs({
           </div>
         );
       })}
-      {renderBrowserTabs()}
+      {auxTabs.map(({ id, title }) => {
+        const active = stageKind === "utility" && activeAuxTab === id;
+        return (
+          <div key={id} className={`${styles.tabItem} ${active ? styles.tabItemActive : ""}`}>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={active}
+              className={styles.tabBtn}
+              onClick={() => onSelectAuxTab(id)}
+            >
+              <IconLayoutGrid size={13} aria-hidden="true" />
+              <span>{title}</span>
+            </button>
+            <button
+              type="button"
+              className={styles.tabClose}
+              aria-label={isZh ? `关闭 ${title}` : `Close ${title}`}
+              onClick={() => onCloseAuxTab(id)}
+            >
+              <IconX size={11} />
+            </button>
+          </div>
+        );
+      })}
       {subagentTabs.map((sTab) => {
         const active = stageKind === "subagent" && sTab.id === activeSubagentTabId;
         return (
@@ -206,6 +231,7 @@ export function WorkbenchTabs({
           </button>
         </div>
       )}
+      {renderBrowserTabs()}
       <button
         type="button"
         className={styles.addTabBtn}

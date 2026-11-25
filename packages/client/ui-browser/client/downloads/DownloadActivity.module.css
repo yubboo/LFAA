@@ -1,0 +1,81 @@
+/* 下载确认沿用 Shell 的颜色与字号，文件名、保存状态和可执行操作按顺序排列。 */
+.activity {
+  min-width: 0;
+  flex: 0 0 auto;
+  max-height: min(34vh, 19rem);
+  overflow: auto;
+  padding-inline: 0.75rem;
+  color: var(--color-ink);
+  background: var(--color-panel);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.55rem;
+  border-bottom: 1px solid var(--color-line);
+  padding: 0.55rem 0;
+  font-size: 0.8rem;
+}
+
+.icon {
+  color: var(--color-muted);
+  margin-top: 0.12rem;
+}
+
+.details {
+  display: grid;
+  min-width: 0;
+  gap: 0.2rem;
+}
+
+.filename,
+.path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.state,
+.path {
+  color: var(--color-muted);
+}
+
+.row[data-download-state="failed"] .state,
+.error {
+  color: var(--color-danger);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.3rem;
+}
+
+.actions button {
+  font: inherit;
+  padding: 0.24rem 0.5rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.35rem;
+  color: var(--color-ink);
+  background: var(--color-surface);
+  cursor: pointer;
+}
+
+.actions button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.actions button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.actions .primary {
+  color: var(--color-on-accent);
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}

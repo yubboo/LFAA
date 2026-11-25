@@ -49,3 +49,5 @@ This host service package lives in `packages/host/web-server`.
 ## Dev Note
 
 The host validates generated-image references against the current conversation and its media directories. Direct generation and regeneration share the session lock with Agent runs.
+
+Browser downloads use the authenticated browser routes for approval and the existing workspace folder picker for destination selection. The desktop shell delivers download events over its private parent-child channel.

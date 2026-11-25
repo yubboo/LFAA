@@ -33,3 +33,5 @@ Location: `packages/client/ui-browser`.
 Rendering and client-side state live under `client/`; the capability package `@lfaa/browser` keeps the host side only.
 
 During automation the viewport shows the controlled host tab. Snapshot updates preserve page state, and explicit navigation controls reload the page when requested.
+
+Review pending downloads in the browser pane or in Settings → Browser → Download history. In Web previews, choose Take over to download through the managed browser.

@@ -37,11 +37,25 @@
 .detailSection { display: grid; gap: 0.24rem; }
 .detailLabel { color: var(--color-muted); font-size: 0.84em; font-weight: 550; }
 
-/* 进行态或目录行的内联彩标。 */
+/* 内联目标：共用活动行路径气泡的锚点，仅在需要占满剩余空间时拉伸。 */
+.inlineTargetAnchor {
+  flex: 1 1 auto;
+}
+
+/* 内联彩标：图标列固定宽度，与文件活动行的芯片起点对齐。 */
 .inlineTargetWithGlyph {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: 0.38rem;
+  padding-inline-start: 0.38rem;
+}
+
+.inlineGlyphSlot {
+  display: inline-flex;
+  flex: none;
+  width: 1.15rem;
+  align-items: center;
+  justify-content: center;
 }
 
 .inlineFileGlyph {

@@ -106,8 +106,8 @@ test("RightWorkbenchPane 启动页提供文件路径、网址及四个快捷入�
 
   assert.ok(html.includes('role="search"'));
   assert.ok(html.includes("fixture-project"));
-  assert.ok(html.includes(locale.isZh ? "文件路径或 https:// 网址" : "File path or https:// URL"));
-  const groupLabel = locale.isZh ? "快捷操作" : "Shortcuts";
+  assert.ok(html.includes(locale.isZh ? "搜索文件或输入 URL" : "Search files or enter a URL"));
+  const groupLabel = locale.isZh ? "打开" : "Open";
   const group = html.split(`role="group" aria-label="${groupLabel}"`)[1]?.split("</div>")[0] ?? "";
   assert.equal((group.match(/<button\b/gu) ?? []).length, 4);
   for (const label of locale.isZh ? ["终端", "变更", "文件", "侧边提问"] : ["Terminal", "Changes", "Files", "Side chat"]) {

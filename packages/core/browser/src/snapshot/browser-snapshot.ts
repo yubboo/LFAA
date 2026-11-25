@@ -1,5 +1,6 @@
 // 浏览器快照组装：外观/DPR 同步、CDP 帧元数据、活动会话快照、空闲快照与人工接管快照。
 import type { ScreencastTabMeta } from "../session/screencast-manager";
+import { isBrowserChrome } from "../session/browser-tabs";
 import { clampDpr } from "../settings/browser-settings";
 import type { BrowserTabEntry, SessionBrowserState } from "../session/browser-session-types";
 import type { BrowserSessionSnapshot, BrowserTabItem } from "../types";
@@ -94,7 +95,7 @@ export async function captureState(
   }
   state.updatedAt = Date.now();
   const tabs: BrowserTabItem[] = [...state.tabs.values()]
-    .filter((t) => !t.page.isClosed())
+    .filter((t) => !t.page.isClosed() && !isBrowserChrome(t.page.url()))
     .map((t) => ({
       tabId: t.tabId,
       title: t.title || t.page.url() || "新标签页",
@@ -164,7 +165,7 @@ export function inactiveSnapshot(sessionId: string, state: SessionBrowserState |
 export function takeoverSnapshot(state: SessionBrowserState, executablePath: string | undefined, headless: boolean): BrowserSessionSnapshot {
   const activeTab = state.tabs.get(state.activeTabId);
   const tabs: BrowserTabItem[] = [...state.tabs.values()]
-    .filter((t) => !t.page.isClosed())
+    .filter((t) => !t.page.isClosed() && !isBrowserChrome(t.page.url()))
     .map((t) => ({
       tabId: t.tabId,
       title: t.title || t.page.url() || "新标签页",

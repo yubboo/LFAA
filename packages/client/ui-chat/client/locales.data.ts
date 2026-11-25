@@ -309,11 +309,11 @@ export const arkModelMessages = {
 /** 右侧启动页入口与当前项目文件路径的提示。 */
 export const rightWorkbenchStartLabels = {
   zh: {
-    title: "快速打开", url: "输入网址", fileOrUrl: "文件路径或 https:// 网址", open: "打开", opening: "正在打开…",
-    shortcuts: "快捷操作", terminal: "终端", changes: "变更", files: "文件", sideAsk: "侧边提问",
+    title: "快速打开", url: "搜索文件或输入 URL", fileOrUrl: "搜索文件或输入 URL", open: "打开", opening: "正在打开…",
+    shortcuts: "打开", terminal: "终端", changes: "变更", files: "文件", sideAsk: "侧边提问",
   },
   en: {
-    title: "Quick open", url: "Enter a URL", fileOrUrl: "File path or https:// URL", open: "Open", opening: "Opening…",
-    shortcuts: "Shortcuts", terminal: "Terminal", changes: "Changes", files: "Files", sideAsk: "Side chat",
+    title: "Quick open", url: "Search files or enter a URL", fileOrUrl: "Search files or enter a URL", open: "Open", opening: "Opening…",
+    shortcuts: "Open", terminal: "Terminal", changes: "Changes", files: "Files", sideAsk: "Side chat",
   },
 };

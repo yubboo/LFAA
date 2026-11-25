@@ -2,6 +2,7 @@
 import type {
   BrowserContactItem,
   BrowserDownloadItem,
+  BrowserDownloadStatus,
   BrowserHistoryItem,
   BrowserPasswordItem,
 } from "@lfaa/browser/contract";
@@ -9,6 +10,7 @@ import type {
 export type {
   BrowserContactItem,
   BrowserDownloadItem,
+  BrowserDownloadStatus,
   BrowserHistoryItem,
   BrowserPasswordItem,
 };
@@ -60,6 +62,29 @@ export function clearBrowserHistory() {
 export function fetchBrowserDownloads(q?: string) {
   const qs = q?.trim() ? `?q=${encodeURIComponent(q.trim())}` : "";
   return reqJson<{ items: BrowserDownloadItem[] }>(`/api/browser/downloads${qs}`);
+}
+
+/** 状态请求可按浏览会话筛选，设置页可以查看全局待确认记录。 */
+export function fetchDownloadActivity(sessionId?: string) {
+  const query = sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : "";
+  return reqJson<{ items: BrowserDownloadStatus[] }>(`/api/browser/downloads/pending${query}`);
+}
+
+function downloadAction(item: BrowserDownloadStatus, action: "location" | "decision", body: object) {
+  const id = encodeURIComponent(item.id);
+  const session = encodeURIComponent(item.sessionId);
+  return reqJson<{ item: BrowserDownloadStatus }>(`/api/browser/downloads/${id}/${action}?sessionId=${session}`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function pickDownloadLocation(item: BrowserDownloadStatus, isZh: boolean) {
+  return downloadAction(item, "location", { locale: isZh ? "zh" : "en" });
+}
+
+export function decideDownload(item: BrowserDownloadStatus, decision: "save" | "cancel") {
+  return downloadAction(item, "decision", { decision });
 }
 
 export function deleteBrowserDownloadItem(id: string) {

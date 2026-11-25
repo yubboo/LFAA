@@ -13,6 +13,7 @@ import {
   type BrowserDownloadItem,
   type BrowserHistoryItem,
 } from "../api/browser-data-client";
+import { DownloadActivity } from "../downloads/DownloadActivity";
 import styles from "./Browser-Settings.module.css";
 
 function formatDateKey(ts: number, isZh: boolean): string {
@@ -119,13 +120,23 @@ export function BrowserHistorySubpage({ isZh, onBack }: { isZh: boolean; onBack:
 export function BrowserDownloadsSubpage({ isZh, onBack }: { isZh: boolean; onBack: () => void }) {
   const [items, setItems] = useState<BrowserDownloadItem[]>([]);
   const [query, setQuery] = useState("");
+  const [error, setError] = useState("");
+  const [refresh, setRefresh] = useState(0);
 
-  const load = useCallback(async (q?: string) => {
-    const res = await fetchBrowserDownloads(q).catch(() => ({ items: [] }));
-    setItems(res.items);
-  }, []);
+  const reload = useCallback(() => setRefresh((value) => value + 1), []);
+  useEffect(() => {
+    let active = true;
+    void fetchBrowserDownloads(query).then((res) => {
+      if (!active) return;
+      setItems(res.items);
+      setError("");
+    }).catch((reason: Error) => { if (active) setError(reason.message); });
+    return () => { active = false; };
+  }, [query, refresh]);
 
-  useEffect(() => { void load(query); }, [load, query]);
+  const change = (operation: Promise<unknown>) => {
+    void operation.then(reload).catch((reason: Error) => setError(reason.message));
+  };
 
   const grouped = useMemo(() => {
     const map = new Map<string, BrowserDownloadItem[]>();
@@ -147,7 +158,7 @@ export function BrowserDownloadsSubpage({ isZh, onBack }: { isZh: boolean; onBac
           type="button"
           className={baseStyles.actionBtn}
           disabled={items.length === 0}
-          onClick={() => void clearBrowserDownloads().then(() => load(query))}
+          onClick={() => change(clearBrowserDownloads())}
         >
           {isZh ? "清除全部" : "Clear all"}
         </button>
@@ -175,8 +186,10 @@ export function BrowserDownloadsSubpage({ isZh, onBack }: { isZh: boolean; onBac
         </div>
       </div>
 
+      <DownloadActivity isZh={isZh} onSaved={reload} />
+      {error && <p role="alert">{error}</p>}
       {grouped.length === 0 ? (
-        <p className={styles.emptyText}>{isZh ? "暂无下载记录。" : "No downloads yet."}</p>
+        !error && <p className={styles.emptyText}>{isZh ? "暂无下载记录。" : "No downloads yet."}</p>
       ) : grouped.map(([dateLabel, list]) => (
         <div key={dateLabel}>
           <h3 className={styles.dateHeading}>{dateLabel}</h3>
@@ -194,7 +207,7 @@ export function BrowserDownloadsSubpage({ isZh, onBack }: { isZh: boolean; onBac
                     type="button"
                     className={styles.iconBtn}
                     title={isZh ? "在资源管理器中显示" : "Show in Explorer"}
-                    onClick={() => void revealBrowserDownload(item.id)}
+                    onClick={() => void revealBrowserDownload(item.id).catch((reason: Error) => setError(reason.message))}
                   >
                     <IconFolder size={14} />
                   </button>
@@ -203,7 +216,7 @@ export function BrowserDownloadsSubpage({ isZh, onBack }: { isZh: boolean; onBac
                   type="button"
                   className={styles.iconBtn}
                   aria-label={isZh ? "移除记录" : "Remove"}
-                  onClick={() => void deleteBrowserDownloadItem(item.id).then(() => load(query))}
+                  onClick={() => change(deleteBrowserDownloadItem(item.id))}
                 >
                   <IconTrash size={14} />
                 </button>

@@ -115,16 +115,32 @@ export async function openInternalPage(state: SessionBrowserState): Promise<Page
   }
 }
 
-/** 捕获网页内 window.open 或 target="_blank" 新开窗口，忽略内部 newPage 调用。 */
+/** Edge 下载浮层等浏览器内部页面没有可交互的网页内容。 */
+export function isBrowserChrome(url: string): boolean {
+  return /^(?:edge|chrome|chrome-extension|chrome-untrusted|devtools):/iu.test(url);
+}
+
+/** 捕获网页内 window.open 或 target="_blank" 新开窗口。 */
 export function attachPopupHandler(state: SessionBrowserState): void {
   state.context.on("page", (popup) => {
     if (state.internalPageOpening > 0) return;
+    if (isBrowserChrome(popup.url())) {
+      void popup.close().catch(() => {});
+      return;
+    }
     for (const item of state.tabs.values()) {
       if (item.page === popup) return;
     }
+    const previousTab = state.activeTabId;
     const tabId = `tab-${randomUUID().slice(0, 6)}`;
     void popup.setViewportSize(state.viewport).catch(() => {});
     attachTabListeners(state, popup, tabId);
+    popup.on("framenavigated", (frame) => {
+      if (frame !== popup.mainFrame() || !isBrowserChrome(frame.url())) return;
+      if (state.activeTabId === tabId && state.tabs.has(previousTab)) state.activeTabId = previousTab;
+      state.tabs.delete(tabId);
+      void popup.close().catch(() => {});
+    });
     state.activeTabId = tabId;
     state.updatedAt = Date.now();
   });

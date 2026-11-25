@@ -102,6 +102,11 @@
   cursor: pointer;
 }
 
+/* 新建按钮紧跟最后一个标签，不额外拉开距离。 */
+.addTabBtn {
+  flex: none;
+}
+
 .tabClose {
   flex: none;
   width: 1.25rem;

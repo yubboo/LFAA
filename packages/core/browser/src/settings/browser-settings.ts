@@ -1,5 +1,6 @@
 // 内置浏览器设置读写：归一化完整偏好（常规、下载、权限规则、站点权限、密码偏好、扩展与完整 CDP）并落盘缓存。
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import type {
@@ -166,14 +167,31 @@ export class BrowserSettingsStore {
     return this.cache;
   }
 
+  /** 下载授权读取磁盘最新值，避免独立 Web 与桌面宿主使用旧规则。 */
+  async readForDownload(): Promise<Required<BrowserSettingsConfig>> {
+    try {
+      const raw = await readFile(this.storeFilePath, "utf8");
+      return normalizeConfig(JSON.parse(raw) as Partial<BrowserSettingsConfig>, DEFAULT_SETTINGS);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return DEFAULT_SETTINGS;
+      throw error;
+    }
+  }
+
   /** 合并并落盘设置；`headlessChanged` 供调用方决定是否重启浏览器。 */
   async update(patch: Partial<BrowserSettingsConfig>): Promise<{ config: Required<BrowserSettingsConfig>; headlessChanged: boolean }> {
     const current = await this.get();
     const next = normalizeConfig(patch, current);
     const headlessChanged = current.headless !== next.headless;
-    this.cache = next;
     await mkdir(dirname(this.storeFilePath), { recursive: true });
-    await writeFile(this.storeFilePath, JSON.stringify(next, null, 2), "utf8");
+    const temporary = `${this.storeFilePath}.${randomUUID()}.tmp`;
+    try {
+      await writeFile(temporary, JSON.stringify(next, null, 2), { encoding: "utf8", flag: "wx" });
+      await rename(temporary, this.storeFilePath);
+      this.cache = next;
+    } finally {
+      await rm(temporary, { force: true });
+    }
     return { config: next, headlessChanged };
   }
 }

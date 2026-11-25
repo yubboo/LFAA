@@ -5,6 +5,7 @@ import { BrowserDeviceBar, BROWSER_DEVICE_PRESETS } from "./BrowserDeviceBar";
 import { BrowserTabs } from "./BrowserTabs";
 import { BrowserToolbar } from "./BrowserToolbar";
 import { BrowserViewport } from "./BrowserViewport";
+import { DownloadActivity } from "../downloads/DownloadActivity";
 import { getDesktopBrowserBridge } from "../api/desktop-browser-bridge";
 import type { FrameDrawer } from "./BrowserCanvasViewport";
 import { resolveEffectiveRenderMode } from "./browser-render-mode";
@@ -194,8 +195,6 @@ export function RightBrowserPane({
     setError("");
     urlEditingRef.current = false;
     try {
-      const bridge = getDesktopBrowserBridge();
-      if (bridge) void bridge.navigate(trimmed).catch(() => {});
       const res = await navigateBrowser(sessionId, trimmed, measureAutoViewport());
       applySnap(res.state);
     } catch (err) {
@@ -243,6 +242,12 @@ export function RightBrowserPane({
       .then((r) => applySnap(r.state))
       .catch((err) => setError(err instanceof Error ? err.message : String(err)));
   };
+
+  const refreshTabsAfterDownload = useCallback(() => {
+    void fetchBrowserState(sessionId).then(({ state }) => applySnap(state)).catch((reason: unknown) => {
+      setError(formatBrowserUiError(reason));
+    });
+  }, [applySnap, sessionId]);
 
   const tabs = snap?.tabs ?? [];
 
@@ -320,6 +325,8 @@ export function RightBrowserPane({
           </button>
         </div>
       )}
+
+      <DownloadActivity key={sessionId} sessionId={sessionId} isZh={isZh} onNewDownload={refreshTabsAfterDownload} />
 
       <BrowserViewport
         sessionId={sessionId}

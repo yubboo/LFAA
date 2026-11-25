@@ -1,6 +1,6 @@
 // 右工作台启动页，复用项目文件、浏览器和辅助面板入口，适用于空白浏览器标签。
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { IconArrowRight, IconFileDiff, IconFolder, IconMessageCircle, IconSearch, IconTerminal2 } from "@tabler/icons-react";
+import { IconFileDiff, IconFolder, IconMessageCircle, IconSearch, IconTerminal2 } from "@tabler/icons-react";
 import type { ChatClientStore } from "../store/chat-store";
 import { rightWorkbenchStartLabels } from "../locales";
 import styles from "./Right-Workbench-Start.module.css";
@@ -63,10 +63,7 @@ export function RightWorkbenchStart({
   return (
     <div className={styles.stage}>
       <div className={styles.content}>
-        <div className={styles.heading}>
-          <h2>{labels.title}</h2>
-          {projectName && <span title={projectName}>{projectName}</span>}
-        </div>
+        <h2 className={styles.srOnly}>{labels.title}</h2>
         <form className={styles.field} role="search" onSubmit={openInput}>
           <IconSearch size={17} aria-hidden="true" />
           <input
@@ -78,20 +75,24 @@ export function RightWorkbenchStart({
             aria-label={projectId ? labels.fileOrUrl : labels.url}
             onChange={(event) => { setValue(event.currentTarget.value); setError(""); }}
           />
-          <button type="submit" aria-label={labels.open} title={labels.open} disabled={!value.trim() || opening}>
-            <IconArrowRight size={16} aria-hidden="true" />
-          </button>
+          <button type="submit" className={styles.srOnly} aria-label={labels.open} disabled={!value.trim() || opening} />
         </form>
         {opening && <p className={styles.feedback} role="status">{labels.opening}</p>}
         {error && <p className={styles.feedback} role="alert">{error}</p>}
-        <div className={styles.shortcuts} role="group" aria-label={labels.shortcuts}>
-          {shortcuts.map(({ label, icon: Icon, action }) => (
-            <button key={label} type="button" onClick={action}>
-              <Icon size={18} stroke={1.7} aria-hidden="true" />
-              <span>{label}</span>
-            </button>
-          ))}
-        </div>
+        <section className={styles.section} aria-label={labels.shortcuts}>
+          <div className={styles.sectionRow}>
+            <span className={styles.sectionLabel}>{labels.shortcuts}</span>
+            {projectName && <span className={styles.sectionMeta} title={projectName}>{projectName}</span>}
+          </div>
+          <div className={styles.shortcuts} role="group" aria-label={labels.shortcuts}>
+            {shortcuts.map(({ label, icon: Icon, action }) => (
+              <button key={label} type="button" onClick={action}>
+                <Icon size={19} stroke={1.7} aria-hidden="true" />
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
+        </section>
         {children}
       </div>
     </div>

@@ -1,6 +1,7 @@
 // 设置中心「浏览器」主页面：涵盖总控开关、常规与链接打开方式、自动填充与密码、扩展程序、下载、浏览器权限、驱动与开发者完整 CDP 设置。
 import { useEffect, useRef, useState } from "react";
 import { IconAlertTriangle, IconBrowserCheck } from "@tabler/icons-react";
+import { readStoredJson, writeStoredJson } from "@lfaa/ui-layout/client";
 import {
   SettingFormField,
   SettingGroup,
@@ -20,7 +21,9 @@ import { BrowserContactsSubpage, BrowserExtensionsSubpage, BrowserSiteSettingsSu
 import { BrowserOperationRulesSubpage, BrowserSiteRulesTable } from "./Browser-Site-Rules";
 import styles from "./Browser-Settings.module.css";
 
-type BrowserSubpage = "main" | "history" | "downloads" | "passwords" | "contacts" | "site-settings" | "extensions" | "operation-rules";
+const SUBPAGES = ["main", "history", "downloads", "passwords", "contacts", "site-settings", "extensions", "operation-rules"] as const;
+type BrowserSubpage = typeof SUBPAGES[number];
+const SUBPAGE_KEY = "lfaa:settings-browser-subpage";
 
 const FALLBACK_SITE_PERMS: BrowserSitePermissions = {
   location: "ask", camera: "ask", microphone: "ask", notifications: "ask",
@@ -58,7 +61,14 @@ const INITIAL_CONFIG: BrowserSettingsConfig = {
 /** 内置浏览器配置主视图与 6 个二级管理子页入口。 */
 export function BrowserSettingsView({ isZh }: { isZh: boolean }) {
   const [cfg, setCfg] = useState<BrowserSettingsConfig>(INITIAL_CONFIG);
-  const [subpage, setSubpage] = useState<BrowserSubpage>("main");
+  const [subpage, updateSubpage] = useState<BrowserSubpage>(() => {
+    const saved = readStoredJson<BrowserSubpage>(SUBPAGE_KEY, "main");
+    return SUBPAGES.includes(saved) ? saved : "main";
+  });
+  const setSubpage = (value: BrowserSubpage) => {
+    updateSubpage(value);
+    writeStoredJson(SUBPAGE_KEY, value);
+  };
   const [notice, setNotice] = useState("");
   const [pickingDir, setPickingDir] = useState(false);
   const cfgRef = useRef(cfg);
@@ -281,7 +291,7 @@ export function BrowserSettingsView({ isZh }: { isZh: boolean }) {
         <SettingRow
           title={isZh ? "下载历史记录" : "Download history"}
           description={isZh ? "查看和管理从内置浏览器下载的文件" : "View and manage downloaded files"}
-          control={<button type="button" className={baseStyles.actionBtn} onClick={() => setSubpage("downloads")}>{isZh ? "管理" : "Manage"}</button>}
+          control={<button type="button" className={baseStyles.actionBtn} aria-label={isZh ? "管理下载历史记录" : "Manage download history"} onClick={() => setSubpage("downloads")}>{isZh ? "管理" : "Manage"}</button>}
         />
       </SettingGroup>
 

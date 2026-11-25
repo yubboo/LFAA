@@ -2,6 +2,7 @@
 import { spawn } from "node:child_process";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { BrowserService } from "../index";
+import type { BrowserHttpOptions } from "../http-handler";
 
 function sendJson(res: ServerResponse, statusCode: number, payload: unknown): void {
   res.statusCode = statusCode;
@@ -26,6 +27,7 @@ export async function handleBrowserDataRequest(
   res: ServerResponse,
   urlObj: URL,
   method: string,
+  options: BrowserHttpOptions,
 ): Promise<boolean> {
   const { pathname } = urlObj;
   const data = service.dataStore;
@@ -54,7 +56,40 @@ export async function handleBrowserDataRequest(
     return true;
   }
 
-  // ---- 下载历史 ----
+  // ---- 下载确认与历史 ----
+  if (method === "GET" && pathname === "/api/browser/downloads/pending") {
+    res.setHeader("Cache-Control", "private, no-store");
+    sendJson(res, 200, { items: service.downloads.list(urlObj.searchParams.get("sessionId") ?? undefined) });
+    return true;
+  }
+  const decisionMatch = /^\/api\/browser\/downloads\/([\w-]+)\/(location|decision)$/u.exec(pathname);
+  if (method === "POST" && decisionMatch?.[1]) {
+    const sessionId = urlObj.searchParams.get("sessionId");
+    if (!sessionId) {
+      sendJson(res, 400, { error: "缺少下载请求所属会话。" });
+      return true;
+    }
+    const itemId = decisionMatch[1];
+    if (decisionMatch[2] === "location") {
+      const pick = options.pickDownloadFolder;
+      if (!pick) {
+        sendJson(res, 503, { error: "当前宿主未连接本机目录选择器。" });
+        return true;
+      }
+      const body = await readJsonBody(req);
+      const title = body.locale === "zh" ? "选择下载保存位置" : "Choose download folder";
+      const result = await service.downloads.chooseLocation(sessionId, itemId, (directory) => pick(title, directory));
+      sendJson(res, 200, result);
+      return true;
+    }
+    const { decision } = await readJsonBody(req);
+    if (decision !== "save" && decision !== "cancel") {
+      sendJson(res, 400, { error: "无效的下载操作。" });
+      return true;
+    }
+    sendJson(res, 200, { item: service.downloads.decide(sessionId, itemId, decision) });
+    return true;
+  }
   if (method === "GET" && pathname === "/api/browser/downloads") {
     const q = urlObj.searchParams.get("q") ?? undefined;
     sendJson(res, 200, { items: await data.listDownloads(q) });
@@ -70,13 +105,24 @@ export async function handleBrowserDataRequest(
     const id = decodeURIComponent(dlRevealMatch[1]);
     const list = await data.listDownloads();
     const target = list.find((item) => item.id === id);
-    if (!target || !target.savePath) {
+    if (!target || !target.savePath || target.deleted) {
       sendJson(res, 404, { error: "未找到下载记录。" });
       return true;
     }
-    if (process.platform === "win32") {
-      spawn("explorer.exe", [`/select,${target.savePath}`], { detached: true, stdio: "ignore", windowsHide: true }).unref();
+    if (process.platform !== "win32") {
+      sendJson(res, 501, { error: "当前平台未接入文件定位。" });
+      return true;
     }
+    const explorer = spawn("explorer.exe", [`/select,"${target.savePath}"`], {
+      detached: true,
+      stdio: "ignore",
+      windowsVerbatimArguments: true,
+    });
+    await new Promise<void>((resolve, reject) => {
+      explorer.once("spawn", resolve);
+      explorer.once("error", reject);
+    });
+    explorer.unref();
     sendJson(res, 200, { opened: true });
     return true;
   }

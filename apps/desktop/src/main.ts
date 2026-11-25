@@ -1,6 +1,8 @@
 // LFAA 桌面端主进程：单实例、拉起桌面宿主子进程、创建主窗口，并在退出时先停宿主再退出。
 import { app, dialog, ipcMain } from "electron";
-import { basename, resolve } from "node:path";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { basename, join, resolve } from "node:path";
 import type { BrowserWindow } from "electron";
 import { DesktopHostProcess } from "./host-process";
 import { attachEmbeddedBrowser } from "./embedded-browser";
@@ -13,6 +15,7 @@ import { createMainWindow } from "./window";
 const APP_USER_MODEL_ID = "com.lfaa.desktop";
 
 let desktopHost: DesktopHostProcess | null = null;
+let desktopDownloadDirectory: string | undefined;
 let mainWindow: BrowserWindow | null = null;
 let isStopping = false;
 
@@ -39,6 +42,7 @@ if (!hasLock && !forceNewInstance) {
     const host = desktopHost;
     desktopHost = null;
     void host.stop()
+      .then(clearDownloadDirectory)
       .catch((error: unknown) => console.error("LFAA 关闭桌面宿主失败：", error))
       .finally(() => app.quit());
   });
@@ -56,7 +60,7 @@ async function startDesktop(): Promise<void> {
 
   installApplicationMenu({ dataRoot: paths.dataRoot, devMode });
   mainWindow = createMainWindow({ url, paths, devMode });
-  attachEmbeddedBrowser(mainWindow);
+  attachEmbeddedBrowser(mainWindow, desktopHost?.downloadChannel);
   ipcMain.removeHandler("lfaa:dialog:pickFolder");
   ipcMain.handle("lfaa:dialog:pickFolder", async (_event, opts?: { title?: string; defaultPath?: string }) => {
     const win = mainWindow;
@@ -76,7 +80,9 @@ async function startDesktop(): Promise<void> {
 
 /** 拉起独立宿主进程并返回其地址。 */
 async function startLocalHost(paths: ReturnType<typeof resolveDesktopPaths>): Promise<string> {
+  desktopDownloadDirectory = await mkdtemp(join(tmpdir(), "lfaa-desktop-downloads-"));
   desktopHost = new DesktopHostProcess({
+    downloadDirectory: desktopDownloadDirectory,
     entry: paths.hostEntry,
     webRoot: paths.webRoot,
     projectRoot: paths.projectRoot,
@@ -86,6 +92,13 @@ async function startLocalHost(paths: ReturnType<typeof resolveDesktopPaths>): Pr
   // 打印真实地址：排查「窗口空白」时先确认宿主是否起在预期端口。
   console.info(`[LFAA] 桌面宿主已启动：${ready.url}`);
   return ready.url;
+}
+
+/** 清理本次启动独占的桌面下载暂存目录。 */
+async function clearDownloadDirectory(): Promise<void> {
+  const directory = desktopDownloadDirectory;
+  desktopDownloadDirectory = undefined;
+  if (directory) await rm(directory, { recursive: true, force: true, maxRetries: 3 });
 }
 
 /** 聚焦已有窗口：还原最小化并置前。 */

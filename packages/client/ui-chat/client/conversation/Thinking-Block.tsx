@@ -2,9 +2,31 @@
 // 思考正文超过预设高度后自动启用统一细滚动条并在流式思考时智能跟随底部，默认展开且点击标题一次收起或展开整轮过程。
 import { memo, useState, type ReactNode } from "react";
 import { ScrollArea } from "@lfaa/ui-primitives/client";
-import { IconBrain, IconChevronRight } from "@tabler/icons-react";
+import {
+  IconBrain,
+  IconChevronRight,
+  IconFileSearch,
+  IconPencil,
+  IconRobot,
+  IconTerminal2,
+  IconTool,
+  IconWorld,
+} from "@tabler/icons-react";
+import type { RoundHeaderIconKind } from "./round-title";
 import { useBoundedScroll } from "./useBoundedScroll";
 import styles from "./Thinking-Block.module.css";
+
+function renderRoundIcon(kind: RoundHeaderIconKind) {
+  switch (kind) {
+    case "command": return <IconTerminal2 size={15} stroke={1.7} />;
+    case "file": return <IconPencil size={15} stroke={1.7} />;
+    case "read": return <IconFileSearch size={15} stroke={1.7} />;
+    case "subagent": return <IconRobot size={15} stroke={1.7} />;
+    case "browser": return <IconWorld size={15} stroke={1.7} />;
+    case "tool": return <IconTool size={15} stroke={1.7} />;
+    default: return <IconBrain size={15} stroke={1.7} />;
+  }
+}
 
 const INLINE_CODE_RE = /(`[^`\n]+`)/g;
 
@@ -26,6 +48,7 @@ function renderThinkingLine(line: string, lineIdx: number): ReactNode[] {
 /** 单轮思维链块：思考正文在限高内可滚动并自动跟随流式输出，与本轮工具链作为一个整体默认展开，点击标题可一次性收起或展开。 */
 export const ThinkingBlock = memo(function ThinkingBlock({
   label,
+  iconKind = "brain",
   durationText,
   reasoningText,
   toolCount = 0,
@@ -33,15 +56,17 @@ export const ThinkingBlock = memo(function ThinkingBlock({
   isZh,
   children,
 }: {
-  /** 标题文案（如「思考中…」「深度思考」「已思考」「已分析」）。 */
+  /** 标题文案（动态跟随本轮最新操作或思考意图，不再固定写死「已思考」）。 */
   label: string;
+  /** 左侧图标语义类型，默认脑形图标，有工具操作时动态切换。 */
+  iconKind?: RoundHeaderIconKind | undefined;
   /** 可选耗时文案（如「3 秒」）。 */
   durationText?: string | undefined;
   /** 本轮思考正文，支持流式逐段追加。 */
   reasoningText?: string | undefined;
   /** 本轮包含的工具调用数：收起后在标题行提示，便于感知折叠内容。 */
   toolCount?: number | undefined;
-  /** 本轮是否仍在实时思考中：用于开启微光呼吸动效与流式贴底跟随。 */
+  /** 本轮是否仍在实时运行中：用于开启微光呼吸动效与流式贴底跟随。 */
   live: boolean;
   isZh: boolean;
   /** 本轮关联的过程说明与工具链，随本轮思考块同步收起/展开。 */
@@ -67,7 +92,7 @@ export const ThinkingBlock = memo(function ThinkingBlock({
   const headerContent = (
     <>
       <span className={styles.iconWrap} data-live={live ? "true" : undefined} aria-hidden="true">
-        <IconBrain size={15} stroke={1.7} />
+        {renderRoundIcon(iconKind)}
       </span>
       <span className={styles.title} data-live={live ? "true" : undefined}>
         {label}

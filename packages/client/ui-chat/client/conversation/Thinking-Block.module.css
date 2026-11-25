@@ -111,25 +111,26 @@
   transform: rotate(90deg);
 }
 
-/* 整轮可折叠内容（思考正文 + 关联过程说明与工具链），随思考头同步展开与收起。 */
+/* 整轮可折叠内容：由唯一一条从头连到尾的左侧细竖线串联思考正文与本轮工具链，彻底消除竖线断口。 */
 .roundContent {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 0.35rem;
   min-width: 0;
+  margin-inline-start: 0.58rem;
+  padding-inline-start: 0.88rem;
+  border-inline-start: 1.5px solid var(--color-line);
 }
 
-/* 左侧柔和引导竖线：与上方脑形图标中心视觉对齐，固定在滚动容器外侧不随正文滚动。 */
+/* 思考正文容器：复用外层 .roundContent 的连续竖线，不再重复画第二条边框。 */
 .body {
-  margin-inline-start: 0.58rem;
-  border-inline-start: 1.5px solid var(--color-line);
   min-width: 0;
 }
 
 /* 思考正文滚动视口：短内容自然贴合高度，超过约 8–10 行后出现统一细滚动条；留出右侧槽距避免压字。 */
 .scrollViewport {
   max-height: 15rem;
-  padding: 0.1rem 0.55rem 0.2rem 0.92rem;
+  padding: 0.1rem 0.55rem 0.2rem 0.04rem;
   border-radius: 0.32rem;
 }
 

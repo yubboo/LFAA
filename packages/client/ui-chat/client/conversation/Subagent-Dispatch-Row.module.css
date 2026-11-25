@@ -1,83 +1,130 @@
-/* 主聊天中非浏览器子智能体的紧凑派发条与可折叠结果回执，全部消费 @lfaa/ui-theme 变量。 */
+/* 主聊天区子智能体突出派发提示与连续细竖线子事件流样式，全部消费 @lfaa/ui-theme 语义变量。 */
 
 .wrapper {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  margin: 0.12rem 0;
+  gap: 0.28rem;
+  margin: 0.25rem 0;
 }
 
-.row {
+.headerLine {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.toggleBtn {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.24rem 0.5rem;
+  gap: 0.45rem;
+  padding: 0.22rem 0.48rem 0.22rem 0.2rem;
   border-radius: 6px;
-  border: 1px solid transparent;
+  border: 0;
   background: transparent;
-  color: var(--color-muted);
-  font-size: 0.8rem;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.88em;
+  font-weight: 550;
   cursor: pointer;
+  min-width: 0;
   text-align: left;
-  max-width: 100%;
-  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+  transition: background-color 0.14s ease;
 }
 
-.row:hover {
+.toggleBtn:hover {
   background: var(--color-active);
-  border-color: var(--color-line);
-  color: var(--color-ink);
 }
 
-.prefix {
-  color: var(--color-muted);
-  font-size: 0.76rem;
-  flex-shrink: 0;
+.emblem {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  color: var(--color-violet);
 }
 
-.glyph {
-  color: var(--color-accent);
-  flex-shrink: 0;
-}
-
-.glyphDone {
+.emblemDone {
   color: var(--color-success);
-  flex-shrink: 0;
 }
 
-.glyphError {
+.emblemError {
   color: var(--color-danger);
-  flex-shrink: 0;
 }
 
-.role {
-  color: var(--color-ink);
-  font-weight: 500;
+.titleText {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.liveAction {
+.chevron {
+  flex: none;
+  color: var(--color-muted);
+  transition: transform 160ms ease;
+}
+
+.chevron[data-open="true"] {
+  transform: rotate(90deg);
+}
+
+.openTabBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  margin-left: 0.25rem;
+  padding: 0.14rem 0.48rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  background: var(--color-panel);
   color: var(--color-muted);
   font-size: 0.74rem;
+  cursor: pointer;
+  flex: none;
+  transition: border-color 0.14s ease, color 0.14s ease, background-color 0.14s ease;
+}
+
+.openTabBtn:hover {
+  border-color: var(--color-accent);
+  color: var(--color-ink);
+  background: var(--color-active);
+}
+
+.openTabBtnLive {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+/* 子智能体事件明细：只用清爽缩进，不再重复画第二层竖线，保持最外层唯一竖线的简洁观感。 */
+.subThread {
+  display: flex;
+  flex-direction: column;
+  gap: 0.34rem;
+  padding: 0.14rem 0 0.16rem 1.35rem;
+}
+
+.eventRow {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.83rem;
+  color: var(--color-muted);
+  min-width: 0;
+}
+
+.eventRowActive {
+  color: var(--color-ink);
+}
+
+.eventText {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.openHint {
-  margin-left: auto;
-  color: var(--color-muted);
-  font-size: 0.72rem;
-  flex-shrink: 0;
 }
 
 .receipt {
-  margin-left: 1.1rem;
-  border-left: 2px solid var(--color-line);
-  padding-left: 0.6rem;
-  font-size: 0.78rem;
+  margin-top: 0.1rem;
+  font-size: 0.8rem;
   color: var(--color-muted);
 }
 
@@ -87,12 +134,20 @@
   color: var(--color-muted);
 }
 
+.receiptSummary:hover {
+  color: var(--color-ink);
+}
+
 .receiptBody {
-  margin-top: 0.3rem;
+  margin-top: 0.35rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid var(--color-line);
+  background: var(--color-panel);
   color: var(--color-ink);
   white-space: pre-wrap;
   word-break: break-word;
-  max-height: 12rem;
+  max-height: 14rem;
   overflow-y: auto;
-  line-height: 1.45;
+  line-height: 1.5;
 }

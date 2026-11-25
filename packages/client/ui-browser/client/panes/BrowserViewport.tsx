@@ -48,10 +48,20 @@ export function BrowserViewport({
 
   const hasPage = Boolean(snap?.active && snap.url && snap.url !== "about:blank");
   const desktopBridge = getDesktopBrowserBridge();
+  const [desktopDownloads, setDesktopDownloads] = useState(false);
+  useEffect(() => {
+    let active = true;
+    void desktopBridge?.supportsManagedDownloads?.()
+      .then((supported) => { if (active) setDesktopDownloads(supported); })
+      .catch(() => { if (active) setDesktopDownloads(false); });
+    return () => { active = false; };
+  }, [desktopBridge]);
   // 桌面端非 Agent 实操阶段直接使用 Electron 原生 WebContentsView（GPU 硬件合成 60/120fps，零截图压缩延迟）。
   const useDesktopNativeView = Boolean(
     desktopBridge
+    && desktopDownloads
     && hasPage
+    && !userControl
     && !browserAutomationActive
     && snap?.url
     && /^https?:\/\//iu.test(snap.url),
@@ -83,6 +93,7 @@ export function BrowserViewport({
           width: rect.width,
           height: rect.height,
           url: snap.url,
+          sessionId,
           zoomFactor: 1,
         }).catch(() => {});
         return;
@@ -101,6 +112,7 @@ export function BrowserViewport({
         width: boxW,
         height: boxH,
         url: snap.url,
+        sessionId,
         zoomFactor: scale,
       }).catch(() => {});
     };
@@ -118,7 +130,7 @@ export function BrowserViewport({
       document.removeEventListener("visibilitychange", sync);
       void desktopBridge.syncBounds({ visible: false, x: 0, y: 0, width: 0, height: 0 }).catch(() => {});
     };
-  }, [customViewport, desktopBridge, snap?.url, stageRef, useDesktopNativeView]);
+  }, [customViewport, desktopBridge, sessionId, snap?.url, stageRef, useDesktopNativeView]);
 
   // 解锁后立即收起锁定提示胶囊。
   useEffect(() => {
@@ -186,7 +198,7 @@ export function BrowserViewport({
           src={snap.url}
           title={snap.title || snap.url}
           className={styles.nativeFrame}
-          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
           allow="clipboard-read; clipboard-write"
           referrerPolicy="no-referrer-when-downgrade"
         />
@@ -213,7 +225,7 @@ export function BrowserViewport({
             height: `${customViewport.height}px`,
             transform: `scale(${scale})`,
           }}
-          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
           allow="clipboard-read; clipboard-write"
           referrerPolicy="no-referrer-when-downgrade"
         />
@@ -267,6 +279,11 @@ export function BrowserViewport({
                 showLockHint();
               }}
             />
+          )}
+          {effectiveMode === "native" && !useDesktopNativeView && !lockHintVisible && (
+            <button type="button" className={styles.downloadTakeover} onClick={onRequestTakeover}>
+              {isZh ? "接管后下载" : "Take over to download"}
+            </button>
           )}
           {browserActivity && lockedByAgent && (
             <div className={styles.agentStatusDock} role="status" title={browserActivity}>

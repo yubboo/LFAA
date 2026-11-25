@@ -1,7 +1,8 @@
 // 管理内置浏览器的浏览历史、下载历史、本地加密密码库（AES-256-GCM）与联系信息自动填充数据。
 import { createCipheriv, createDecipheriv, randomBytes, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { lock } from "proper-lockfile";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import type {
@@ -15,6 +16,7 @@ import type {
 
 const MAX_HISTORY_ITEMS = 1000;
 const MAX_DOWNLOAD_ITEMS = 300;
+const DOWNLOADS_FILE = "browser-downloads.json";
 
 interface EncryptedVaultFile {
   iv: string;
@@ -107,7 +109,7 @@ export class BrowserDataStore {
 
   // ---- 下载历史 ----
   async listDownloads(query?: string): Promise<BrowserDownloadItem[]> {
-    const items = await this.readJson<BrowserDownloadItem[]>("browser-downloads.json", []);
+    const items = await this.readDownloads();
     const q = query?.trim().toLowerCase();
     const enriched: BrowserDownloadItem[] = items.map((item) => {
       const deleted = item.savePath ? !existsSync(item.savePath) : item.deleted;
@@ -119,27 +121,71 @@ export class BrowserDataStore {
     return filtered.sort((a, b) => b.downloadedAt - a.downloadedAt);
   }
 
-  async recordDownload(input: Omit<BrowserDownloadItem, "id" | "downloadedAt">): Promise<BrowserDownloadItem> {
-    const items = await this.readJson<BrowserDownloadItem[]>("browser-downloads.json", []);
-    const created: BrowserDownloadItem = {
-      ...input,
-      id: `dl-${randomUUID().slice(0, 8)}`,
-      downloadedAt: Date.now(),
-    };
-    await this.writeJson("browser-downloads.json", [created, ...items].slice(0, MAX_DOWNLOAD_ITEMS));
-    return created;
+  async recordDownload(
+    input: Omit<BrowserDownloadItem, "id" | "downloadedAt">,
+    id = `dl-${randomUUID().slice(0, 8)}`,
+  ): Promise<BrowserDownloadItem> {
+    return this.withDownloadsLock(async () => {
+      const items = await this.readDownloads();
+      const existing = items.find((item) => item.id === id);
+      if (existing) return existing;
+      const created = { ...input, id, downloadedAt: Date.now() };
+      await this.writeDownloads([created, ...items].slice(0, MAX_DOWNLOAD_ITEMS));
+      return created;
+    });
   }
 
   async removeDownload(id: string): Promise<boolean> {
-    const items = await this.readJson<BrowserDownloadItem[]>("browser-downloads.json", []);
-    const next = items.filter((item) => item.id !== id);
-    if (next.length === items.length) return false;
-    await this.writeJson("browser-downloads.json", next);
-    return true;
+    return this.withDownloadsLock(async () => {
+      const items = await this.readDownloads();
+      const next = items.filter((item) => item.id !== id);
+      if (next.length === items.length) return false;
+      await this.writeDownloads(next);
+      return true;
+    });
   }
 
   async clearDownloads(): Promise<void> {
-    await this.writeJson("browser-downloads.json", []);
+    await this.withDownloadsLock(() => this.writeDownloads([]));
+  }
+
+  /** 仅在历史文件首次使用时返回空列表，其他错误由调用方显示。 */
+  private async readDownloads(): Promise<BrowserDownloadItem[]> {
+    try {
+      const items: unknown = JSON.parse(await readFile(this.filePath(DOWNLOADS_FILE), "utf8"));
+      if (!Array.isArray(items)) throw new Error("下载历史格式无效。");
+      return items as BrowserDownloadItem[];
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+      throw error;
+    }
+  }
+
+  /** Web 与桌面宿主可能同时写入同一份历史，锁住整个读改写。 */
+  private async withDownloadsLock<T>(action: () => Promise<T>): Promise<T> {
+    const target = this.filePath(DOWNLOADS_FILE);
+    await mkdir(dirname(target), { recursive: true });
+    const release = await lock(target, {
+      realpath: false,
+      stale: 10_000,
+      retries: { retries: 36, minTimeout: 25, maxTimeout: 350, randomize: true },
+    });
+    try {
+      return await action();
+    } finally {
+      await release();
+    }
+  }
+
+  private async writeDownloads(items: BrowserDownloadItem[]): Promise<void> {
+    const target = this.filePath(DOWNLOADS_FILE);
+    const temporary = `${target}.${randomUUID()}.tmp`;
+    try {
+      await writeFile(temporary, JSON.stringify(items, null, 2), { encoding: "utf8", flag: "wx" });
+      await rename(temporary, target);
+    } finally {
+      await rm(temporary, { force: true });
+    }
   }
 
   // ---- 本地加密密码库（AES-256-GCM） ----

@@ -33,3 +33,5 @@ This package lives in `packages/core/browser`.
 None.
 
 Browser previews reuse the active tab. Explicit captures produce session-scoped evidence that can be viewed while it remains in the host cache.
+
+Managed Playwright and Electron downloads share the host policy, destination confirmation, and download history. History records only successfully saved files, and removing a record leaves the file on disk.

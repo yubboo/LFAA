@@ -16,6 +16,7 @@ import { sandboxLocalPlugin } from "@lfaa/sandbox";
 import { createAgentHandlers } from "./handlers/handlers-chat";
 import { createCommonHandlers } from "./handlers/handlers";
 import { createNotificationSoundsHttpHandler } from "./handlers/handlers-notifications";
+import { createDesktopDownloadReceiver } from "./desktop-downloads";
 
 /** 装配运行时所需参数。 */
 export interface HostRuntimeOptions {
@@ -25,6 +26,7 @@ export interface HostRuntimeOptions {
   loaderBaseUrl?: string;
   /** 插件 profile 名称，默认 web。 */
   profile?: string;
+  desktopDownloadDirectory?: string;
 }
 
 /** 已装配的 Host 运行时；`dispose` 幂等，关闭顺序与装配顺序相反。 */
@@ -32,6 +34,7 @@ export interface HostRuntime {
   /** 本进程启动时生成的一次性接口令牌。 */
   token: string;
   gateway: ApiGateway;
+  receiveDesktopDownload?: ReturnType<typeof createDesktopDownloadReceiver>;
   dispose(): Promise<void>;
 }
 
@@ -160,6 +163,9 @@ export async function createHostRuntime(options: HostRuntimeOptions): Promise<Ho
   return {
     token,
     gateway,
+    ...(options.desktopDownloadDirectory ? {
+      receiveDesktopDownload: createDesktopDownloadReceiver(options.desktopDownloadDirectory, () => hostContext.get("browser")),
+    } : {}),
     async dispose() {
       if (disposed) return;
       disposed = true;
