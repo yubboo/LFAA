@@ -1,0 +1,366 @@
+/* 浏览器设置页与各管理子页样式：全部消费 @lfaa/ui-theme 语义变量，严禁写死颜色。 */
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  color: var(--color-muted);
+  margin-bottom: 0.75rem;
+}
+
+.backBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-line);
+  background: transparent;
+  color: var(--color-ink);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.backBtn:hover {
+  background: var(--color-active);
+}
+
+.searchBar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.85rem;
+}
+
+.searchInputWrap {
+  position: relative;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 0.65rem;
+  color: var(--color-muted);
+  pointer-events: none;
+}
+
+.searchInput {
+  width: 100%;
+  height: 2.1rem;
+  padding: 0 0.7rem 0 2rem;
+  border-radius: 8px;
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-size: 0.84rem;
+}
+
+.searchInput:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.dateHeading {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-muted);
+  margin: 0.9rem 0 0.35rem;
+}
+
+.itemList {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--color-line);
+}
+
+.itemRow {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.25rem;
+  border-bottom: 1px solid var(--color-line);
+  font-size: 0.84rem;
+}
+
+.itemMain {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.itemTitle {
+  color: var(--color-ink);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.itemSub {
+  color: var(--color-muted);
+  font-size: 0.76rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agentTag {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  background: var(--color-active);
+  color: var(--color-muted);
+  flex-shrink: 0;
+}
+
+.timeText {
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  flex-shrink: 0;
+}
+
+.iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.iconBtn:hover {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.rulesHeaderRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.65rem;
+}
+
+.rulesHeaderText {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.rulesHeaderTitle {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-ink);
+}
+
+.rulesHeaderDesc {
+  font-size: 0.78rem;
+  color: var(--color-muted);
+}
+
+.rulesTable {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  background: var(--color-surface);
+  overflow: visible;
+}
+
+.rulesHead,
+.rulesRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) 8.2rem 8.2rem 2rem;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.65rem 1rem;
+  font-size: 0.84rem;
+}
+
+.rulesHead {
+  color: var(--color-muted);
+  font-size: 0.76rem;
+  font-weight: 500;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.rulesRow {
+  border-bottom: 1px solid var(--color-line);
+}
+
+.rulesRow:last-child {
+  border-bottom: none;
+}
+
+.rulesFootNote {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--color-muted);
+}
+
+.addRuleBar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid var(--color-line);
+  background: var(--color-panel);
+}
+
+/* 浏览器操作权限子页卡片（执行 URL / 下载文件），对齐图 2–3 简洁圆角卡片层次。 */
+.opCardList {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.opCard {
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  background: var(--color-panel);
+  padding: 1rem 1.15rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.opCardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.opCardTitle {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.opCardDesc {
+  font-size: 0.8rem;
+  color: var(--color-muted);
+  margin-top: 0.15rem;
+}
+
+.opRuleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--color-line);
+}
+
+.riskHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--color-warning);
+  font-size: 0.76rem;
+  font-weight: 600;
+  margin-bottom: 0.2rem;
+}
+
+.dangerBtn {
+  padding: 0.35rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--color-danger);
+  background: transparent;
+  color: var(--color-danger);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.dangerBtn:hover {
+  background: var(--color-active);
+}
+
+.inlineForm {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  background: var(--color-panel);
+  margin-bottom: 0.85rem;
+}
+
+.emptyText {
+  color: var(--color-muted);
+  font-size: 0.82rem;
+  padding: 1rem 0;
+}
+
+.pathValue {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  color: var(--color-muted);
+  word-break: break-all;
+}
+
+/* 顶部独立「浏览器总控」行：带大图标并以下方大留白与「常规」分组拉开层次。 */
+.heroControlRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 0 1.4rem;
+  margin-bottom: 0.75rem;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.heroLeft {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  min-width: 0;
+}
+
+.heroIconWrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 10px;
+  background: var(--color-panel);
+  border: 1px solid var(--color-line);
+  color: var(--color-ink);
+  flex-shrink: 0;
+}
+
+.heroText {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+  min-width: 0;
+}
+
+.heroTitle {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  line-height: 1.3;
+}
+
+.heroDesc {
+  font-size: 0.8rem;
+  color: var(--color-muted);
+  line-height: 1.4;
+}

@@ -3,6 +3,7 @@ import { type Context, Service } from "@deepseek-ai/cordis";
 import "@lfaa/llm";
 import "@lfaa/tools";
 import { BrowserRuntime, detectLocalBrowserExecutable, validateBrowserUrl } from "./session/browser-service";
+import { BrowserDataStore } from "./settings/browser-data-store";
 import { registerBrowserAgentTools } from "./tools/browser-tools";
 import { BrowserUseRegistry } from "./session/registry";
 import type { StreamFrameListener } from "./session/screencast-manager";
@@ -18,12 +19,14 @@ export class BrowserService extends Service {
   static inject = ["tools", "llm"];
 
   private readonly runtime: BrowserRuntime;
+  readonly dataStore: BrowserDataStore;
   private unregisterProvider: (() => void) | null = null;
   private unregisterTools: (() => void) | null = null;
 
   constructor(ctx: Context, config: BrowserPluginConfig = {}) {
     super(ctx, "browser");
     this.runtime = new BrowserRuntime(config.storeFilePath);
+    this.dataStore = this.runtime.dataStore;
     const registry = ctx.get("browserUse") ?? new BrowserUseRegistry(ctx);
     this.unregisterProvider = registry.register("playwright-local");
     this.unregisterTools = registerBrowserAgentTools(ctx.tools, ctx.llm, this.runtime);

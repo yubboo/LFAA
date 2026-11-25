@@ -2,6 +2,7 @@
 import { randomUUID } from "node:crypto";
 import { chromium, type Browser } from "playwright-core";
 import { BrowserSettingsStore } from "../settings/browser-settings";
+import { BrowserDataStore, evaluateSitePolicy } from "../settings/browser-data-store";
 import {
   applyAppearance,
   buildScreencastMeta,
@@ -49,6 +50,7 @@ const EMBEDDED_BROWSER_INIT_SCRIPT = [
 
 export class BrowserRuntime implements SessionDriverHost {
   private readonly settings: BrowserSettingsStore;
+  readonly dataStore = new BrowserDataStore();
   private readonly driver = new SessionDriver(this);
   private browser: Browser | null = null;
   private launchedHeadless: boolean | null = null;
@@ -376,7 +378,14 @@ export class BrowserRuntime implements SessionDriverHost {
 
   // 页面交互方法统一委托给 SessionDriver；host 只需提供会话准备、截图与串流能力。
   async navigate(sessionId: string, rawUrl: string, fromAgent = false, viewport?: { width: number; height: number }, appearance?: { deviceScaleFactor?: number; colorScheme?: "dark" | "light" }): Promise<BrowserSessionSnapshot> {
-    return this.driver.navigate(sessionId, rawUrl, fromAgent, viewport, appearance);
+    const cfg = await this.settings.get();
+    if (fromAgent && cfg.enabled === false) throw new Error("内置浏览器智能体控制已在设置中关闭。");
+    if (fromAgent && evaluateSitePolicy(rawUrl, cfg.siteRules, cfg.defaultBrowsePolicy, "browse") === "block") {
+      throw new Error(`该网站已被浏览器访问控制规则屏蔽：${rawUrl}`);
+    }
+    const snap = await this.driver.navigate(sessionId, rawUrl, fromAgent, viewport, appearance);
+    if (snap.url && snap.url !== "about:blank") void this.dataStore.recordHistory(snap.url, snap.title || snap.url, fromAgent).catch(() => {});
+    return snap;
   }
 
   async goBack(sessionId: string): Promise<BrowserSessionSnapshot> { return this.driver.goBack(sessionId); }

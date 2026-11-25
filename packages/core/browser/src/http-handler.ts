@@ -2,6 +2,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { BrowserService } from "./index";
 import type { BrowserInputPayload } from "./types";
+import { handleBrowserDataRequest } from "./settings/browser-data-http";
 
 /** 校验并归一化前端轻量输入负载，非法字段直接返回 null。 */
 function parseInputPayload(body: Record<string, unknown>): BrowserInputPayload | null {
@@ -304,6 +305,10 @@ export function createBrowserHttpHandler(service: BrowserService) {
         const sid = typeof body.sessionId === "string" && body.sessionId ? body.sessionId : sessionId;
         await service.closeSession(sid);
         sendJson(res, 200, { state: await service.getSnapshot(sid) });
+        return true;
+      }
+
+      if (await handleBrowserDataRequest(service, req, res, urlObj, method)) {
         return true;
       }
 

@@ -3,7 +3,7 @@
 > 本文件由 `pnpm map:sync`（[scripts/gen-repository-map.mjs](../../scripts/gen-repository-map.mjs)）按真实文件系统生成，**不要手改**。
 > 骨架发生变化（新增/删除/移动文件、包或目录）后，必须在同一轮运行 `pnpm map:sync` 并提交，否则 `pnpm check` 会失败。
 
-当前快照：**63 个包、2575 个文件、474 个子目录**（不含 node_modules、构建产物与运行数据）。
+当前快照：**63 个包、2589 个文件、474 个子目录**（不含 node_modules、构建产物与运行数据）。
 
 ## 1. 快速索引
 
@@ -64,15 +64,15 @@ lfaa/
 │   └── web/  (10 个文件)
 │       ├── public/  (2 个文件)
 │       └── src/  (3 个文件)
-├── docs/  (439 个文件)
+├── docs/  (444 个文件)
 │   ├── architecture/  (11 个文件)
 │   ├── dev-log/  (4 个文件)
 │   ├── features/  (29 个文件)
-│   ├── plans/  (10 个文件)
+│   ├── plans/  (11 个文件)
 │   ├── standards/  (2 个文件)
 │   ├── templates/  (2 个文件)
-│   └── updata-log/  (379 个文件)
-├── packages/  (1896 个文件)
+│   └── updata-log/  (383 个文件)
+├── packages/  (1905 个文件)
 │   ├── api/  (7 个文件)
 │   │   └── gateway/  # @lfaa/api-gateway  (7 个文件)
 │   │       ├── src/  (1 个文件)
@@ -94,7 +94,7 @@ lfaa/
 │   │   └── review/  # @lfaa/review  (13 个文件)
 │   │       ├── src/  (7 个文件)
 │   │       └── tests/  (1 个文件)
-│   ├── client/  (480 个文件)
+│   ├── client/  (486 个文件)
 │   │   ├── ui-agent-group/  # @lfaa/client-ui-agent-group  (13 个文件)
 │   │   │   ├── client/  (7 个文件)
 │   │   │   │   ├── group/  (1 个文件)
@@ -106,11 +106,11 @@ lfaa/
 │   │   │   │   ├── editor/  (2 个文件)
 │   │   │   │   └── view/  (3 个文件)
 │   │   │   └── src/  (1 个文件)
-│   │   ├── ui-browser/  # @lfaa/client-ui-browser  (25 个文件)
-│   │   │   ├── client/  (18 个文件)
-│   │   │   │   ├── api/  (2 个文件)
+│   │   ├── ui-browser/  # @lfaa/client-ui-browser  (31 个文件)
+│   │   │   ├── client/  (24 个文件)
+│   │   │   │   ├── api/  (3 个文件)
 │   │   │   │   ├── panes/  (13 个文件)
-│   │   │   │   └── settings/  (1 个文件)
+│   │   │   │   └── settings/  (6 个文件)
 │   │   │   ├── src/  (1 个文件)
 │   │   │   └── tests/  (1 个文件)
 │   │   ├── ui-chat/  # @lfaa/client-ui-chat  (261 个文件)
@@ -179,7 +179,7 @@ lfaa/
 │   │   └── compaction/  # @lfaa/compaction  (12 个文件)
 │   │       ├── src/  (4 个文件)
 │   │       └── tests/  (3 个文件)
-│   ├── core/  (302 个文件)
+│   ├── core/  (305 个文件)
 │   │   ├── agent/  # @lfaa/agent  (73 个文件)
 │   │   │   ├── src/  (44 个文件)
 │   │   │   │   ├── context/  (4 个文件)
@@ -192,11 +192,11 @@ lfaa/
 │   │   ├── agent-profile/  # @lfaa/agent-profile  (18 个文件)
 │   │   │   ├── src/  (9 个文件)
 │   │   │   └── tests/  (4 个文件)
-│   │   ├── browser/  # @lfaa/browser  (24 个文件)
+│   │   ├── browser/  # @lfaa/browser  (27 个文件)
 │   │   │   ├── contract/  (1 个文件)
-│   │   │   ├── src/  (16 个文件)
+│   │   │   ├── src/  (19 个文件)
 │   │   │   │   ├── session/  (9 个文件)
-│   │   │   │   ├── settings/  (1 个文件)
+│   │   │   │   ├── settings/  (4 个文件)
 │   │   │   │   ├── snapshot/  (1 个文件)
 │   │   │   │   └── tools/  (1 个文件)
 │   │   │   └── tests/  (1 个文件)
@@ -909,6 +909,7 @@ lfaa/
 ### packages/client/ui-browser/client/api
 
 - `browser-client.ts` — 封装浏览器面板与设置页共用的 HTTP API 请求辅助函数，支持多标签、动态视口、键鼠穿透与 DevTools 日志。
+- `browser-data-client.ts` — 封装浏览器历史、下载记录、密码管理器、联系信息与系统目录选择器的前端 HTTP 客户端。
 - `desktop-browser-bridge.ts` — 桌面端原生内置浏览器（Electron WebContentsView）渲染进程桥接探测与类型声明；普通浏览器环境返回 null。
 
 ### packages/client/ui-browser/client/panes
@@ -929,7 +930,12 @@ lfaa/
 
 ### packages/client/ui-browser/client/settings
 
-- `BrowserSettingsView.tsx` — 设置中心「浏览器」页：驱动通道、自定义可执行文件路径、无头模式与本地调试免审；改动即时保存。
+- `Browser-History-Downloads.tsx` — 浏览器「浏览历史」与「下载历史记录」管理子页：按日期分组、搜索、智能体标识、定位文件与一键清空。
+- `Browser-Passwords-Subpage.tsx` — 浏览器「密码管理器」子页：支持密码列表（搜索/添加/查看/删除）与设置页（保存提示、通行密钥、自动登录、CSV 导入导出与清空）。
+- `Browser-Settings.module.css` — 浏览器设置页与各管理子页样式：全部消费 @lfaa/ui-theme 语义变量，严禁写死颜色。
+- `Browser-Site-Ext-Subpages.tsx` — 浏览器「站点设置」「联系信息」与「扩展程序管理器」三个二级管理子页。
+- `Browser-Site-Rules.tsx` — 网站访问与下载权限规则表 + 「浏览器操作权限」独立子页（执行 URL / 下载文件），共享同一份持久化规则。
+- `BrowserSettingsView.tsx` — 设置中心「浏览器」主页面：涵盖总控开关、常规与链接打开方式、自动填充与密码、扩展程序、下载、浏览器权限、驱动与开发者完整 CDP 设置。
 
 ### packages/client/ui-browser/src
 
@@ -1745,7 +1751,10 @@ lfaa/
 
 ### packages/core/browser/src/settings
 
-- `browser-settings.ts` — 内置浏览器设置读写：设置文件路径、偏好归一化与缓存，更新时报告 headless 变化以便运行时重建浏览器。
+- `browser-data-http.ts` — 处理 /api/browser/{history,downloads,passwords,contacts,clear-data} 数据管理路由，保持主 http-handler 精简。
+- `browser-data-store.test.ts` — 回归测试：验证网站访问规则匹配、浏览历史读写及本地 AES-256-GCM 加密密码库与 CSV 导入导出。
+- `browser-data-store.ts` — 管理内置浏览器的浏览历史、下载历史、本地加密密码库（AES-256-GCM）与联系信息自动填充数据。
+- `browser-settings.ts` — 内置浏览器设置读写：归一化完整偏好（常规、下载、权限规则、站点权限、密码偏好、扩展与完整 CDP）并落盘缓存。
 
 ### packages/core/browser/src/snapshot
 
@@ -2852,6 +2861,6 @@ lfaa/
 | 目录 | 文件数 | 子目录数 | 说明 |
 | --- | --- | --- | --- |
 | `docs/dev-log` | 4 | 1 | 按每 200 条任务编号汇总的开发日志卷 |
-| `docs/updata-log` | 379 | 1 | 面向用户的单条更新说明 |
+| `docs/updata-log` | 383 | 1 | 面向用户的单条更新说明 |
 | `vendor` | 14 | 4 | 内嵌的上游运行时源码 |
 | `packages/extension/skills/src/builtin-skills` | 637 | 151 |  |

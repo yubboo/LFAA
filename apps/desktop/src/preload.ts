@@ -18,6 +18,11 @@ export interface DesktopBrowserNavState {
   canGoForward: boolean;
 }
 
+contextBridge.exposeInMainWorld("__LFAA_DESKTOP_DIALOG__", {
+  pickFolder: (options?: { title?: string; defaultPath?: string }): Promise<{ cancelled: boolean; path?: string; name?: string; error?: string }> =>
+    ipcRenderer.invoke("lfaa:dialog:pickFolder", options ?? {}),
+});
+
 contextBridge.exposeInMainWorld("__LFAA_DESKTOP_BROWSER__", {
   syncBounds: (payload: DesktopBrowserSyncPayload): Promise<DesktopBrowserNavState | null> =>
     ipcRenderer.invoke("lfaa:browser:sync", payload),

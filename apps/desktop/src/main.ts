@@ -1,5 +1,6 @@
 // LFAA 桌面端主进程：单实例、拉起桌面宿主子进程、创建主窗口，并在退出时先停宿主再退出。
-import { app, dialog } from "electron";
+import { app, dialog, ipcMain } from "electron";
+import { basename, resolve } from "node:path";
 import type { BrowserWindow } from "electron";
 import { DesktopHostProcess } from "./host-process";
 import { attachEmbeddedBrowser } from "./embedded-browser";
@@ -56,6 +57,18 @@ async function startDesktop(): Promise<void> {
   installApplicationMenu({ dataRoot: paths.dataRoot, devMode });
   mainWindow = createMainWindow({ url, paths, devMode });
   attachEmbeddedBrowser(mainWindow);
+  ipcMain.removeHandler("lfaa:dialog:pickFolder");
+  ipcMain.handle("lfaa:dialog:pickFolder", async (_event, opts?: { title?: string; defaultPath?: string }) => {
+    const win = mainWindow;
+    const res = await dialog.showOpenDialog(win ?? undefined as never, {
+      title: opts?.title?.trim() || "选择文件夹",
+      ...(opts?.defaultPath?.trim() ? { defaultPath: opts.defaultPath.trim() } : {}),
+      properties: ["openDirectory", "createDirectory"],
+    });
+    if (res.canceled || !res.filePaths[0]) return { cancelled: true };
+    const picked = resolve(res.filePaths[0]);
+    return { cancelled: false, path: picked, name: basename(picked) || picked };
+  });
   mainWindow.on("closed", () => {
     mainWindow = null;
   });

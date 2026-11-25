@@ -100,11 +100,97 @@ export type BrowserInputPayload =
   | { kind: "keydown" | "keyup"; key: string; code?: string; text?: string; modifiers?: number }
   | { kind: "text"; text: string };
 
+export type BrowserPolicyDecision = "ask" | "allow" | "block";
+export type BrowserPermissionSetting = "ask" | "allow" | "block";
+
+export interface BrowserSiteRule {
+  id: string;
+  pattern: string;
+  browse: BrowserPolicyDecision;
+  download: BrowserPolicyDecision;
+}
+
+export interface BrowserSitePermissions {
+  location: BrowserPermissionSetting;
+  camera: BrowserPermissionSetting;
+  microphone: BrowserPermissionSetting;
+  notifications: BrowserPermissionSetting;
+  embeddedContent: BrowserPermissionSetting;
+  thirdPartyCookies: "allow" | "block_incognito" | "block";
+  javascript: "allow" | "block";
+  images: "allow" | "block";
+  popups: "allow" | "block";
+  autoRevokeUnused: boolean;
+}
+
+export interface BrowserPasswordSettings {
+  offerToSave: boolean;
+  autoCreatePasskey: boolean;
+  autoSignIn: boolean;
+}
+
+export interface BrowserExtensionItem {
+  id: string;
+  name: string;
+  path: string;
+  enabled: boolean;
+}
+
+export interface BrowserHistoryItem {
+  id: string;
+  url: string;
+  title: string;
+  visitedAt: number;
+  byAgent: boolean;
+}
+
+export interface BrowserDownloadItem {
+  id: string;
+  filename: string;
+  url: string;
+  savePath: string;
+  sizeBytes?: number;
+  downloadedAt: number;
+  deleted?: boolean;
+}
+
+export interface BrowserPasswordItem {
+  id: string;
+  origin: string;
+  username: string;
+  password: string;
+  updatedAt: number;
+}
+
+export interface BrowserContactItem {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+}
+
 export interface BrowserSettingsConfig {
+  enabled?: boolean;
   preferredChannel: "auto" | "msedge" | "chrome";
   customExecutablePath: string;
   headless: boolean;
   autoApproveLocalhost: boolean;
+  webLinkOpenMode?: "external" | "builtin";
+  localUrlOpenMode?: "builtin" | "external";
+  showFullUrl?: boolean;
+  annotationScreenshotMode?: "always" | "selection_only";
+  downloadDir?: string;
+  askBeforeDownload?: boolean;
+  historyAccessPolicy?: "ask" | "allow" | "deny";
+  enableWebsiteTools?: boolean;
+  defaultBrowsePolicy?: BrowserPolicyDecision;
+  defaultDownloadPolicy?: BrowserPolicyDecision;
+  siteRules?: BrowserSiteRule[];
+  enableFullCdp?: boolean;
+  sitePermissions?: BrowserSitePermissions;
+  passwordSettings?: BrowserPasswordSettings;
+  extensions?: BrowserExtensionItem[];
 }
 
 export interface BrowserPluginConfig {

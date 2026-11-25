@@ -145,8 +145,21 @@ export class LocalProjectStore {
     }
   }
 
-  async pickLocalFolder(): Promise<FolderPickResult> {
-    const response = await fetch("/api/workspace/pick-folder", { method: "POST" });
+  async pickLocalFolder(options?: { title?: string; initialDir?: string }): Promise<FolderPickResult> {
+    const desktopDialog = typeof window !== "undefined"
+      ? (window as unknown as { __LFAA_DESKTOP_DIALOG__?: { pickFolder: (opts?: { title?: string; defaultPath?: string }) => Promise<FolderPickResult> } }).__LFAA_DESKTOP_DIALOG__
+      : undefined;
+    if (desktopDialog) {
+      return desktopDialog.pickFolder({
+        ...(options?.title ? { title: options.title } : {}),
+        ...(options?.initialDir ? { defaultPath: options.initialDir } : {}),
+      });
+    }
+    const response = await fetch("/api/workspace/pick-folder", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(options ?? {}),
+    });
     const data = await readJsonSafe<FolderPickResult>(response);
     if (!response.ok || !data) {
       return { cancelled: true, error: data?.error ?? `打开资源管理器失败（HTTP ${response.status}）。` };

@@ -45,7 +45,7 @@ export interface WorkspacePluginConfig {
   defaultProjectsDirResolver?: () => Promise<string | undefined>;
   /** 「项目外聊天」的工作目录；扫描默认项目目录时要跳过它，避免把它当成项目。 */
   outsideProjectDirResolver?: () => Promise<string | undefined>;
-  folderPicker?: () => Promise<FolderPickResult>;
+  folderPicker?: (title?: string, initialDir?: string) => Promise<FolderPickResult>;
 }
 
 const DEFAULT_STORE_PATH = join(homedir(), ".lfaa", "projects.json");
@@ -58,7 +58,7 @@ export class WorkspaceService extends Service {
   private readonly documentsOverride: string | undefined;
   private readonly defaultProjectsDirResolver: (() => Promise<string | undefined>) | undefined;
   private readonly outsideProjectDirResolver: (() => Promise<string | undefined>) | undefined;
-  private readonly folderPicker: () => Promise<FolderPickResult>;
+  private readonly folderPicker: (title?: string, initialDir?: string) => Promise<FolderPickResult>;
   private cachedDocumentsDir: string | null = null;
 
   constructor(ctx: Context, config: WorkspacePluginConfig = {}) {
@@ -178,8 +178,8 @@ export class WorkspaceService extends Service {
     return { targetPath, documentsDir, folderName: trimmed };
   }
 
-  async pickLocalFolder(): Promise<FolderPickResult> {
-    return this.folderPicker();
+  async pickLocalFolder(title?: string, initialDir?: string): Promise<FolderPickResult> {
+    return this.folderPicker(title, initialDir);
   }
 
   async validateLocalFolder(folderPath: string): Promise<{ path: string; name: string }> {

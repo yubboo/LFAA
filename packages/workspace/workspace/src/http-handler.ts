@@ -71,7 +71,10 @@ export function createWorkspaceHttpHandler(service: WorkspaceService) {
       }
 
       if (method === "POST" && pathname === "/api/workspace/pick-folder") {
-        const result = await service.pickLocalFolder();
+        const body = await readJsonBody(req);
+        const title = typeof body.title === "string" && body.title.trim() ? body.title.trim() : undefined;
+        const initialDir = typeof body.initialDir === "string" && body.initialDir.trim() ? body.initialDir.trim() : undefined;
+        const result = await service.pickLocalFolder(title, initialDir);
         sendJson(res, 200, result);
         return true;
       }

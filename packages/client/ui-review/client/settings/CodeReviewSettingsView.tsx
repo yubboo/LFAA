@@ -141,8 +141,8 @@ export function CodeReviewSettingsView({
         </SettingFormField>
       </SettingGroup>
 
-      <section className={baseStyles.groupSection} aria-label={isZh ? "已探测本地仓库" : "Detected Local Repositories"}>
-        <h2 className={baseStyles.groupTitle}>{isZh ? "已探测本地仓库" : "Detected Local Repositories"}</h2>
+      <section className={baseStyles.groupSection} aria-label={isZh ? "代码仓库" : "Detected Local Repositories"}>
+        <h2 className={baseStyles.groupTitle}>{isZh ? "代码仓库" : "Detected Local Repositories"}</h2>
         <div className={baseStyles.row}>
           <div className={extraStyles.repoSearchWrap}>
             <IconSearch size={14} stroke={1.8} className={extraStyles.repoSearchIcon} />

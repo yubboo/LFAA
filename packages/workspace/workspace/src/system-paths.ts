@@ -65,6 +65,16 @@ public static class LfaaNativeFolderPicker {
   private static extern bool SetForegroundWindow(IntPtr hWnd);
 
   [DllImport("user32.dll")]
+  private static extern bool SetProcessDpiAwarenessContext(IntPtr value);
+
+  [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+  private static extern int SHCreateItemFromParsingName(string pszPath, IntPtr pbc, ref Guid riid, out IShellItem ppv);
+
+  public static void EnableHiDpi() {
+    try { SetProcessDpiAwarenessContext(new IntPtr(-4)); } catch {}
+  }
+
+  [DllImport("user32.dll")]
   private static extern IntPtr GetThreadDesktop(uint threadId);
 
   [DllImport("kernel32.dll")]
@@ -127,7 +137,8 @@ public static class LfaaNativeFolderPicker {
     SetForegroundWindow(hwnd);
   }
 
-  public static string PickFolder(IntPtr ownerHwnd, string title, bool dryRunOnly) {
+  public static string PickFolder(IntPtr ownerHwnd, string title, string initialDir, bool dryRunOnly) {
+    EnableHiDpi();
     if (!dryRunOnly) {
       string desktop = GetCurrentDesktopName();
       if (!string.IsNullOrEmpty(desktop) && !string.Equals(desktop, "Default", StringComparison.OrdinalIgnoreCase)) {
@@ -141,6 +152,14 @@ public static class LfaaNativeFolderPicker {
       dialog.GetOptions(out options);
       dialog.SetOptions(options | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST);
       dialog.SetTitle(title);
+      dialog.SetOkButtonLabel("选择文件夹");
+      if (!string.IsNullOrWhiteSpace(initialDir)) {
+        Guid shellItemGuid = new Guid("43826d1e-e718-42ee-bc55-a1e261c37bfe");
+        IShellItem folderItem;
+        if (SHCreateItemFromParsingName(initialDir, IntPtr.Zero, ref shellItemGuid, out folderItem) == 0 && folderItem != null) {
+          try { dialog.SetFolder(folderItem); } finally { Marshal.ReleaseComObject(folderItem); }
+        }
+      }
       if (dryRunOnly) return "COM_READY";
 
       uint hr = dialog.Show(ownerHwnd);
@@ -168,18 +187,27 @@ public static class LfaaNativeFolderPicker {
 }
 `;
 
-/** 生成 Host 调用 Windows 原生目录选择器的 PowerShell 脚本。 */
-export function buildFolderPickerPowerShell(description: string, dryRunOnly = false): string {
+/** 生成 Host 调用 Windows 原生目录选择器的 PowerShell 脚本；首次编译后缓存 DLL 到 ~/.lfaa/cache，大幅消除后续打开延迟。 */
+export function buildFolderPickerPowerShell(description: string, dryRunOnly = false, initialDir = ""): string {
   const escapedDescription = description.replaceAll("'", "''");
+  const escapedInitialDir = initialDir.replaceAll("'", "''");
+  const cacheDir = join(homedir(), ".lfaa", "cache").replaceAll("'", "''");
+  const dllPath = join(homedir(), ".lfaa", "cache", "lfaa-folder-picker-v2.dll").replaceAll("'", "''");
   const script = [
     "$ErrorActionPreference = 'Stop'",
     "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8",
     "Add-Type -AssemblyName System.Windows.Forms",
     "Add-Type -AssemblyName System.Drawing",
     "[System.Windows.Forms.Application]::EnableVisualStyles()",
-    "Add-Type -TypeDefinition @'",
+    `$dllPath = '${dllPath}'`,
+    `if (Test-Path -LiteralPath $dllPath) { Add-Type -Path $dllPath } else {`,
+    `  New-Item -ItemType Directory -Force -Path '${cacheDir}' | Out-Null`,
+    "  $src = @'",
     FOLDER_PICKER_CSHARP.trim(),
     "'@",
+    "  try { Add-Type -TypeDefinition $src -OutputAssembly $dllPath -OutputType Library; Add-Type -Path $dllPath } catch { Add-Type -TypeDefinition $src }",
+    "}",
+    "[LfaaNativeFolderPicker]::EnableHiDpi()",
     "$owner = New-Object System.Windows.Forms.Form",
     "$owner.Text = ''",
     "$owner.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::None",
@@ -191,7 +219,7 @@ export function buildFolderPickerPowerShell(description: string, dryRunOnly = fa
     "try {",
     "  $owner.Show()",
     "  [LfaaNativeFolderPicker]::PrepareOwner($owner.Handle)",
-    `  $selected = [LfaaNativeFolderPicker]::PickFolder($owner.Handle, '${escapedDescription}', $${dryRunOnly ? "true" : "false"})`,
+    `  $selected = [LfaaNativeFolderPicker]::PickFolder($owner.Handle, '${escapedDescription}', '${escapedInitialDir}', $${dryRunOnly ? "true" : "false"})`,
     "  if ($selected) { Write-Output $selected }",
     "} finally {",
     "  $owner.Close()",
@@ -202,13 +230,13 @@ export function buildFolderPickerPowerShell(description: string, dryRunOnly = fa
 }
 
 // 在 Windows 桌面会话下呼出系统现代资源管理器文件夹选择对话框（IFileOpenDialog + FOS_PICKFOLDERS）。
-export async function openNativeFolderPicker(description = "选择项目文件夹"): Promise<FolderPickResult> {
+export async function openNativeFolderPicker(description = "选择项目文件夹", initialDir?: string): Promise<FolderPickResult> {
   if (process.platform !== "win32") {
     return { cancelled: true, error: "当前仅支持在 Windows 本地环境呼出资源管理器。" };
   }
 
   try {
-    const encodedCommand = buildFolderPickerPowerShell(description, false);
+    const encodedCommand = buildFolderPickerPowerShell(description, false, initialDir?.trim() ?? "");
     const { stdout } = await execFileAsync(
       "powershell.exe",
       ["-NoLogo", "-NoProfile", "-STA", "-EncodedCommand", encodedCommand],
