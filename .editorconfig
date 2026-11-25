@@ -10,3 +10,8 @@ trim_trailing_whitespace = true
 
 [*.md]
 trim_trailing_whitespace = false
+
+# Windows PowerShell 5.1 读无 BOM 的 .ps1 会按系统 ANSI 解码，中文注释会被拆坏（解析直接失败）。
+# PowerShell 脚本必须保留 UTF-8 BOM；其余文件仍按无 BOM 的 UTF-8 存盘。
+[*.ps1]
+charset = utf-8-bom

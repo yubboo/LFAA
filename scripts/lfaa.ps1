@@ -1,5 +1,7 @@
 ﻿# LFAA Windows 菜单入口：安装当前工作区依赖，并在应用入口就绪后启动 Web。
 # 支持 `lfaa.bat`（菜单）、`lfaa.bat 2`（直接执行菜单项后退出）、`lfaa.bat --help`（用法）。
+# 本文件必须保存为 UTF-8 with BOM：Windows PowerShell 5.1 读无 BOM 的 .ps1 会按系统 ANSI 解码，
+# 中文注释可能被拆成会吞掉花括号的字节序列，导致整个脚本解析失败（.editorconfig 已按 .ps1 固定 BOM）。
 $ErrorActionPreference = "Stop"
 # 原生命令（git / pnpm / node）在 Windows 上输出 UTF-8；Windows PowerShell 5.1 默认按本地 OEM 代码页解码，
 # 会把中文提交信息读成乱码。显式按 UTF-8 解码；PowerShell 自身输出走 WriteConsoleW，不受影响。
@@ -182,17 +184,164 @@ function Get-LastCommitMessage {
   return ""
 }
 
-# 列出待推送的提交（一行一条）；远程引用不存在或没有差异时返回空数组。
-function Get-PendingCommits {
+# 计算字符串在控制台的显示宽度：中文/全角字符占两格，按字符数对齐会错位。
+function Get-DisplayWidth {
+  param(
+    [string]$Text
+  )
+
+  $width = 0
+  foreach ($ch in $Text.ToCharArray()) {
+    if ([int]$ch -ge 0x1100) { $width += 2 } else { $width += 1 }
+  }
+  return $width
+}
+
+# 按显示宽度右侧补空格，让中英文混排的目录名/字段对齐。
+function Format-Padded {
+  param(
+    [string]$Text,
+    [int]$Width
+  )
+
+  $pad = $Width - (Get-DisplayWidth -Text $Text)
+  if ($pad -lt 0) { $pad = 0 }
+  return $Text + (" " * $pad)
+}
+
+# 打印带分隔线的阶段标题，让长流程的每一步都能一眼定位。
+function Write-Section {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Title
+  )
+
+  $ruleLength = [Math]::Max(4, 52 - (Get-DisplayWidth -Text $Title))
+  Write-Host ""
+  Write-Host "── $Title " -ForegroundColor Cyan -NoNewline
+  Write-Host ("─" * $ruleLength) -ForegroundColor DarkGray
+}
+
+# 按展示粒度归组路径：packages/ 与 apps/ 精确到包目录，其余按第一段归档。
+function Get-DisplayGroup {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Path
+  )
+
+  $parts = @($Path.Replace('\', '/').Split('/') | Where-Object { $_ })
+  if ($parts.Count -ge 3 -and ($parts[0] -eq 'packages' -or $parts[0] -eq 'apps')) {
+    return "$($parts[0])/$($parts[1])/$($parts[2])"
+  }
+  if ($parts.Count -ge 2) { return $parts[0] }
+  return "(仓库根)"
+}
+
+# 汇总本次暂存：文件数、增删行、按目录分组与改动最大的文件，供提交前预览。
+function Get-StagedSummary {
+  $numstat = @(& git diff --cached --numstat 2>$null)
+  $statusLines = @(& git diff --cached --name-status 2>$null)
+
+  $files = [System.Collections.Generic.List[object]]::new()
+  foreach ($line in $numstat) {
+    if ([string]::IsNullOrWhiteSpace($line)) { continue }
+    $cols = @($line.Split("`t"))
+    if ($cols.Count -lt 3) { continue }
+    $isBinary = ($cols[0] -eq '-')
+    $added = if ($isBinary) { 0 } else { [int]$cols[0] }
+    $removed = if ($isBinary) { 0 } else { [int]$cols[1] }
+    $files.Add([pscustomobject]@{ Path = $cols[2]; Added = $added; Removed = $removed; Binary = $isBinary })
+  }
+
+  $counts = @{ Added = 0; Modified = 0; Deleted = 0; Renamed = 0; Other = 0 }
+  foreach ($line in $statusLines) {
+    if ([string]::IsNullOrWhiteSpace($line)) { continue }
+    $status = [string]$line.Substring(0, 1)
+    switch ($status) {
+      "A" { $counts.Added++ }
+      "M" { $counts.Modified++ }
+      "D" { $counts.Deleted++ }
+      "R" { $counts.Renamed++ }
+      "C" { $counts.Renamed++ }
+      default { $counts.Other++ }
+    }
+  }
+
+  $groupMap = @{}
+  foreach ($file in $files) {
+    $name = Get-DisplayGroup -Path $file.Path
+    if (-not $groupMap.ContainsKey($name)) {
+      $groupMap[$name] = [pscustomobject]@{ Name = $name; Files = 0; Added = 0; Removed = 0 }
+    }
+    $entry = $groupMap[$name]
+    $entry.Files++
+    $entry.Added += $file.Added
+    $entry.Removed += $file.Removed
+  }
+  $groups = @($groupMap.Values | Sort-Object -Property @{ Expression = { $_.Files }; Descending = $true }, Name)
+
+  $topFiles = @($files | Sort-Object -Property @{ Expression = { $_.Added + $_.Removed }; Descending = $true } | Select-Object -First 3)
+
+  # 空暂存时 Measure-Object 的 Sum 是 $null，直接格式化会打印空白，这里显式累加。
+  $addedTotal = 0
+  $removedTotal = 0
+  foreach ($file in $files) {
+    $addedTotal += $file.Added
+    $removedTotal += $file.Removed
+  }
+
+  return [pscustomobject]@{
+    Files = @($files)
+    Counts = $counts
+    Groups = $groups
+    TopFiles = $topFiles
+    Added = $addedTotal
+    Removed = $removedTotal
+  }
+}
+
+# 逐条列出待推送提交的哈希/标题/作者/时间；比一行 oneline 更适合推送前确认。
+function Get-PendingCommitDetails {
   param(
     [string]$Range = "origin/main..HEAD"
   )
 
-  $output = (& git -c i18n.logOutputEncoding=utf-8 log --oneline $Range 2>$null | Out-String).Trim()
-  if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($output)) {
-    return @()
+  $lines = @(& git -c i18n.logOutputEncoding=utf-8 log --pretty="%h|%s|%an|%ad" --date=format:"%Y-%m-%d %H:%M" $Range 2>$null)
+  $details = @()
+  foreach ($line in $lines) {
+    if ([string]::IsNullOrWhiteSpace($line)) { continue }
+    $cols = @($line.Split("|"))
+    if ($cols.Count -lt 4) { continue }
+    $details += [pscustomobject]@{ Hash = $cols[0]; Subject = $cols[1]; Author = $cols[2]; Date = $cols[3] }
   }
-  return @($output -split "\r?\n" | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+  return $details
+}
+
+# 读取某个提交引用的短哈希；引用不存在时返回空串。
+function Get-ShortRef {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Ref
+  )
+
+  $value = (& git rev-parse --short --verify --quiet $Ref 2>$null | Out-String).Trim()
+  if ([string]::IsNullOrWhiteSpace($value)) { return "" }
+  return $value
+}
+
+# 解析「领先 / 落后」提交数：origin/main...HEAD 左侧是落后、右侧是领先。
+function Get-SyncCounts {
+  $output = (& git rev-list --left-right --count "origin/main...HEAD" 2>$null | Out-String).Trim()
+  if ([string]::IsNullOrWhiteSpace($output)) { return $null }
+  $cols = @($output -split "\s+" | Where-Object { $_ })
+  if ($cols.Count -lt 2) { return $null }
+  return [pscustomobject]@{ Behind = [int]$cols[0]; Ahead = [int]$cols[1] }
+}
+
+# 统计工作区未提交项（含未跟踪文件），用于推送后确认是否干净。
+function Get-WorktreeChangeCount {
+  $lines = @(& git status --porcelain 2>$null | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+  return $lines.Count
 }
 
 # 确保 Git 可用、仓库已初始化为 main 分支，并将 origin 指向指定 GitHub 地址。
@@ -263,26 +412,71 @@ function Push-ToGitHub {
       if ($script:GitExitCode -ne 0) { return }
     }
 
-    Write-Host "正在暂存工作区变更（遵循 .gitignore）..." -ForegroundColor Cyan
+    $totalStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    Write-Section "1/6 暂存变更（遵循 .gitignore）"
+    Write-Host "  正在暂存工作区变更..." -ForegroundColor DarkGray
     Invoke-Git -Arguments @("add", "-A")
     if ($script:GitExitCode -ne 0) {
-      Write-Host "git add 失败，退出码：$($script:GitExitCode)" -ForegroundColor Red
+      Write-Host "  git add 失败，退出码：$($script:GitExitCode)" -ForegroundColor Red
       return
     }
 
-    if (-not (Test-PushSafety -Scope "staged")) { return }
+    # 提交前先让用户看清「这次到底要提交什么」，而不是只靠 git 那一行汇总。
+    $staged = Get-StagedSummary
+    $stagedCount = $staged.Files.Count
+    if ($stagedCount -eq 0) {
+      Write-Host "  暂存区没有新文件（工作区无改动，或改动全部被 .gitignore 忽略）" -ForegroundColor DarkGray
+    } else {
+      Write-Host ("  暂存 {0} 个文件：新增 {1} · 修改 {2} · 删除 {3} · 重命名 {4} · 其他 {5}" -f `
+        $stagedCount, $staged.Counts.Added, $staged.Counts.Modified, $staged.Counts.Deleted, $staged.Counts.Renamed, $staged.Counts.Other)
+      Write-Host ("  行数变化：+{0} −{1}" -f $staged.Added, $staged.Removed)
+
+      if ($staged.Groups.Count -gt 0) {
+        $nameWidth = 12
+        foreach ($group in $staged.Groups) {
+          $groupWidth = Get-DisplayWidth -Text $group.Name
+          if ($groupWidth -gt $nameWidth) { $nameWidth = $groupWidth }
+        }
+        Write-Host "  按目录（最多列 6 组）：" -ForegroundColor DarkGray
+        $shown = 0
+        foreach ($group in $staged.Groups) {
+          if ($shown -ge 6) { break }
+          Write-Host ("    {0}  {1,3} 个文件   +{2} −{3}" -f (Format-Padded -Text $group.Name -Width $nameWidth), $group.Files, $group.Added, $group.Removed) -ForegroundColor DarkGray
+          $shown++
+        }
+        if ($staged.Groups.Count -gt $shown) {
+          Write-Host ("    …另有 {0} 个目录未展开" -f ($staged.Groups.Count - $shown)) -ForegroundColor DarkGray
+        }
+      }
+
+      if ($staged.TopFiles.Count -gt 0) {
+        Write-Host "  改动最大的文件：" -ForegroundColor DarkGray
+        foreach ($file in $staged.TopFiles) {
+          $size = if ($file.Binary) { "（二进制）" } else { "+{0} −{1}" -f $file.Added, $file.Removed }
+          Write-Host ("    {0}  {1}" -f $file.Path, $size) -ForegroundColor DarkGray
+        }
+      }
+    }
+
+    Write-Section "2/6 安全检测"
+    $safetyStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    $safe = Test-PushSafety -Scope "staged"
+    $safetyStopwatch.Stop()
+    if (-not $safe) { return }
+    Write-Host ("  扫描 {0} 个暂存文件（依赖/构建产物、敏感文件、>5MB 大文件、疑似明文密钥）：通过，0 命中（{1:0.0}s）" -f `
+      $stagedCount, $safetyStopwatch.Elapsed.TotalSeconds) -ForegroundColor Green
 
     & git rev-parse --verify HEAD *> $null
     $hasHead = ($LASTEXITCODE -eq 0)
-    & git diff --cached --quiet *> $null
-    $hasStagedChanges = ($LASTEXITCODE -ne 0)
+    $willCommit = (-not $hasHead) -or ($stagedCount -gt 0)
 
     $lastMsgFile = Join-Path $gitDir "lfaa-last-commit-msg.txt"
     $lastCommitMsg = Get-LastCommitMessage -LastMsgFile $lastMsgFile -HasHead $hasHead
 
-    if (-not $hasHead -or $hasStagedChanges) {
+    Write-Section "3/6 创建提交"
+    if ($willCommit) {
       if (-not [string]::IsNullOrWhiteSpace($lastCommitMsg)) {
-        Write-Host "上次提交的信息是：$lastCommitMsg" -ForegroundColor Yellow
+        Write-Host "  上次提交：$lastCommitMsg" -ForegroundColor Yellow
         $inputMsg = Read-Host "请输入本次 commit 提交信息（直接回车沿用上次信息，输入 q 取消）"
         if ($inputMsg.Trim().ToLowerInvariant() -eq "q") {
           Write-Host "已取消本次提交与推送。" -ForegroundColor DarkGray
@@ -300,57 +494,72 @@ function Push-ToGitHub {
         $commitMsg = if ([string]::IsNullOrWhiteSpace($inputMsg)) { $defaultMsg } else { $inputMsg.Trim() }
       }
 
-      Write-Host "正在创建提交：$commitMsg" -ForegroundColor Cyan
+      Write-Host "  正在创建提交：$commitMsg" -ForegroundColor DarkGray
       Invoke-Git -Arguments @("commit", "-m", $commitMsg)
       if ($script:GitExitCode -ne 0) {
-        Write-Host "git commit 失败，退出码：$($script:GitExitCode)" -ForegroundColor Red
+        Write-Host "  git commit 失败，退出码：$($script:GitExitCode)" -ForegroundColor Red
         # pre-commit 的空白检查最常见；把具体文件与行号直接打出来，省得自己去猜。
         $whitespace = (& git diff --cached --check 2>&1 | Out-String).Trim()
         if (-not [string]::IsNullOrWhiteSpace($whitespace)) {
-          Write-Host "暂存内容有空白问题（pre-commit 会拦下），位置：" -ForegroundColor Yellow
-          $whitespace -split "`r?`n" | Select-Object -First 10 | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkGray }
-          Write-Host "修好后重新运行菜单 4 / 5 即可；确认为误报再用 git commit --no-verify。" -ForegroundColor Yellow
+          Write-Host "  暂存内容有空白问题（pre-commit 会拦下），位置：" -ForegroundColor Yellow
+          $whitespace -split "`r?`n" | Select-Object -First 10 | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
+          Write-Host "  修好后重新运行菜单 4 / 5 即可；确认为误报再用 git commit --no-verify。" -ForegroundColor Yellow
         } else {
-          Write-Host "空白检查没问题，失败原因看上面的钩子输出。" -ForegroundColor DarkGray
+          Write-Host "  空白检查没问题，失败原因看上面的钩子输出。" -ForegroundColor DarkGray
         }
         return
       }
       [System.IO.File]::WriteAllText($lastMsgFile, $commitMsg, [System.Text.UTF8Encoding]::new($false))
+
+      # 把刚创建的提交讲清楚：哈希、作者、时间、文件数与增删行。
+      $commitInfo = (& git show -s --format="%H|%an|%ae|%cd" --date=format:"%Y-%m-%d %H:%M:%S" HEAD 2>$null | Out-String).Trim()
+      $commitCols = @($commitInfo.Split("|"))
+      if ($commitCols.Count -ge 4) {
+        $shortHash = $commitCols[0].Substring(0, 7)
+        Write-Host ("  ✔ 已创建提交 {0}「{1}」" -f $shortHash, $commitMsg) -ForegroundColor Green
+        Write-Host ("    作者 {0} <{1}> · 时间 {2}" -f $commitCols[1], $commitCols[2], $commitCols[3]) -ForegroundColor DarkGray
+        Write-Host ("    文件 {0} 个 · 行数 +{1} −{2}" -f $stagedCount, $staged.Added, $staged.Removed) -ForegroundColor DarkGray
+      } else {
+        Write-Host ("  ✔ 已创建提交：{0}" -f $commitMsg) -ForegroundColor Green
+      }
     } else {
       if (-not [string]::IsNullOrWhiteSpace($lastCommitMsg)) {
-        Write-Host "当前 HEAD：$lastCommitMsg" -ForegroundColor Yellow
-      }
-      if ($Force) {
-        Write-Host "工作区无新改动；强制推送仍会覆盖远端同名分支。" -ForegroundColor DarkGray
+        Write-Host "  跳过提交：当前 HEAD 已是「$lastCommitMsg」" -ForegroundColor DarkGray
       } else {
-        Write-Host "工作区无新改动，继续推送已有提交。" -ForegroundColor DarkGray
+        Write-Host "  跳过提交：工作区没有可提交的改动" -ForegroundColor DarkGray
       }
     }
 
-    if (-not (Test-PushSafety -Scope "tracked")) { return }
+    Write-Section "4/6 复检与刷新远端"
+    $trackedStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    $trackedSafe = Test-PushSafety -Scope "tracked"
+    $trackedStopwatch.Stop()
+    if (-not $trackedSafe) { return }
+    $trackedCount = @(& git ls-files 2>$null).Count
+    Write-Host ("  复检 {0} 个已跟踪文件（防历史遗留的产物/密钥）：通过，0 命中（{1:0.0}s）" -f $trackedCount, $trackedStopwatch.Elapsed.TotalSeconds) -ForegroundColor Green
 
     # refs/remotes/origin/main 可能只是本地旧记录（换机、拷贝 .git、久未拉取都会留下过期值）：
     # 只按它判断「领先几个提交」会把已推送的提交再报一次，也会把真正落后的提交漏掉。
     # 推送本身就必须联网，所以先按远端真实值刷新一次引用，再算待推送提交。
-    Write-Host "正在刷新远端引用 origin/main（用于判断真实待推送提交）..." -ForegroundColor Cyan
+    Write-Host "  正在刷新远端引用 origin/main..." -ForegroundColor DarkGray
     Invoke-Git -Arguments @("fetch", "--quiet", "origin", "+refs/heads/main:refs/remotes/origin/main")
     if ($script:GitExitCode -ne 0) {
-      Write-Host "刷新远端引用失败（离线、认证或仓库地址问题），下面按本地记录判断待推送提交。" -ForegroundColor Yellow
+      Write-Host "  刷新远端引用失败（离线、认证或仓库地址问题），下面按本地记录判断待推送提交。" -ForegroundColor Yellow
+    }
+    $remoteHeadBefore = Get-ShortRef "origin/main"
+    if ([string]::IsNullOrWhiteSpace($remoteHeadBefore)) {
+      Write-Host "  远端 origin/main：尚无记录（首次推送）" -ForegroundColor DarkGray
+    } else {
+      Write-Host ("  远端 origin/main：{0}" -f $remoteHeadBefore) -ForegroundColor DarkGray
     }
 
-    # 把「到底推了什么」说清楚：菜单外的 git commit 也会在这里列出，而不是只报一句「直接推送」。
-    $pendingCommits = @(Get-PendingCommits)
+    # 把「到底推了什么」说清楚：菜单外的 git commit 也会在这里逐条列出，而不是只报一句「直接推送」。
+    $pendingDetails = @(Get-PendingCommitDetails)
     $remoteRef = (& git rev-parse --verify --quiet "refs/remotes/origin/main" 2>$null | Out-String).Trim()
     $hasRemoteRef = -not [string]::IsNullOrWhiteSpace($remoteRef)
-    if (-not $Force -and $hasRemoteRef -and $pendingCommits.Count -eq 0) {
-      Write-Host "本地已与 origin/main 同步，没有需要推送的提交。" -ForegroundColor Green
+    if (-not $Force -and $hasRemoteRef -and $pendingDetails.Count -eq 0) {
+      Write-Host "  本地已与 origin/main 同步，没有需要推送的提交。" -ForegroundColor Green
       return
-    }
-    if ($pendingCommits.Count -gt 0) {
-      Write-Host "将推送 $($pendingCommits.Count) 个提交：" -ForegroundColor Cyan
-      foreach ($line in $pendingCommits) {
-        Write-Host "  $line" -ForegroundColor DarkGray
-      }
     }
 
     $currentBranch = (& git rev-parse --abbrev-ref HEAD 2>$null | Out-String).Trim()
@@ -359,12 +568,25 @@ function Push-ToGitHub {
       & git branch -M main | Out-Null
     }
 
+    Write-Section "5/6 推送"
+    Write-Host ("  仓库：{0}" -f $remoteUrl) -ForegroundColor DarkGray
+    Write-Host ("  分支：{0} -> main" -f $currentBranch) -ForegroundColor DarkGray
+    if ($pendingDetails.Count -gt 0) {
+      Write-Host ("  待推送 {0} 个提交：" -f $pendingDetails.Count) -ForegroundColor DarkGray
+      foreach ($commit in $pendingDetails) {
+        Write-Host ("    {0}  {1}" -f $commit.Hash, $commit.Subject)
+        Write-Host ("           {0} · {1}" -f $commit.Author, $commit.Date) -ForegroundColor DarkGray
+      }
+    } elseif (-not $hasRemoteRef) {
+      Write-Host "  远端还没有 main 分支，将推送当前分支的全部提交。" -ForegroundColor DarkGray
+    }
+
     if ($Force) {
       # --force-with-lease：远端在我们上次拉取后被别人更新时先失败，避免误伤他人提交。
-      Write-Host "正在强制推送到 $remoteUrl（${currentBranch} -> main）..." -ForegroundColor Yellow
+      Write-Host "  正在强制推送..." -ForegroundColor Yellow
       Invoke-Git -Arguments @("push", "--force-with-lease", "-u", "origin", "${currentBranch}:main")
       if ($script:GitExitCode -ne 0) {
-        Write-Host "强制推送被拒绝：远端可能已有新提交（这是 --force-with-lease 的保护）。" -ForegroundColor Yellow
+        Write-Host "  强制推送被拒绝：远端可能已有新提交（这是 --force-with-lease 的保护）。" -ForegroundColor Yellow
         $overwrite = Read-Host "确认丢弃远端最新提交并覆盖吗？输入 yes 继续，回车取消"
         if ($overwrite.Trim() -eq "yes") {
           Invoke-Git -Arguments @("push", "--force", "-u", "origin", "${currentBranch}:main")
@@ -374,25 +596,44 @@ function Push-ToGitHub {
         }
       }
     } else {
-      Write-Host "正在推送到 $remoteUrl（${currentBranch} -> main）..." -ForegroundColor Cyan
+      Write-Host "  正在推送..." -ForegroundColor DarkGray
       Invoke-Git -Arguments @("push", "-u", "origin", "${currentBranch}:main")
     }
     if ($script:GitExitCode -eq 0) {
-      if ($Force) {
-        Write-Host "强制推送成功：$remoteUrl (main)" -ForegroundColor Green
-      } else {
-        Write-Host "推送成功：$remoteUrl (main)" -ForegroundColor Green
+      Write-Section "6/6 结果"
+      $remoteHeadAfter = Get-ShortRef "origin/main"
+      if (-not [string]::IsNullOrWhiteSpace($remoteHeadBefore) -and -not [string]::IsNullOrWhiteSpace($remoteHeadAfter)) {
+        Write-Host ("  origin/main：{0} → {1}" -f $remoteHeadBefore, $remoteHeadAfter) -ForegroundColor Green
+      } elseif (-not [string]::IsNullOrWhiteSpace($remoteHeadAfter)) {
+        Write-Host ("  origin/main：{0}" -f $remoteHeadAfter) -ForegroundColor Green
       }
+      $sync = Get-SyncCounts
+      if ($null -ne $sync) {
+        Write-Host ("  同步状态：领先 {0} 个提交 / 落后 {1} 个提交" -f $sync.Ahead, $sync.Behind) -ForegroundColor Green
+      }
+      $worktreeChanges = Get-WorktreeChangeCount
+      if ($worktreeChanges -eq 0) {
+        Write-Host "  工作区：干净" -ForegroundColor Green
+      } else {
+        Write-Host ("  工作区：仍有 {0} 项未提交（多为构建产物或本地配置）" -f $worktreeChanges) -ForegroundColor Yellow
+      }
+      if ($Force) {
+        Write-Host "  ✔ 强制推送成功：$remoteUrl (main)" -ForegroundColor Green
+      } else {
+        Write-Host "  ✔ 推送成功：$remoteUrl (main)" -ForegroundColor Green
+      }
+      $totalStopwatch.Stop()
+      Write-Host ("  总用时：{0:0.0}s" -f $totalStopwatch.Elapsed.TotalSeconds) -ForegroundColor DarkGray
     } else {
       if ($Force) {
-        Write-Host "强制推送失败，退出码：$($script:GitExitCode)" -ForegroundColor Red
+        Write-Host "  强制推送失败，退出码：$($script:GitExitCode)" -ForegroundColor Red
       } else {
-        Write-Host "推送失败，退出码：$($script:GitExitCode)" -ForegroundColor Red
+        Write-Host "  推送失败，退出码：$($script:GitExitCode)" -ForegroundColor Red
         # 最常见的失败是「远端有本地没有的提交」，普通推送不会覆盖，直接给出三条出路。
-        Write-Host "常见原因：远端分支上还有你本地没有的提交。可以这样处理：" -ForegroundColor Yellow
-        Write-Host "  · 选 5 强制覆盖远端（会丢弃远端那些提交，先确认它们不是你要保留的）" -ForegroundColor DarkGray
-        Write-Host "  · 选 6 先拉取并整合远端改动，再回来推送" -ForegroundColor DarkGray
-        Write-Host "  · 或者保留两边历史，推成新分支：git push origin main:lfaa-app" -ForegroundColor DarkGray
+        Write-Host "  常见原因：远端分支上还有你本地没有的提交。可以这样处理：" -ForegroundColor Yellow
+        Write-Host "    · 选 5 强制覆盖远端（会丢弃远端那些提交，先确认它们不是你要保留的）" -ForegroundColor DarkGray
+        Write-Host "    · 选 6 先拉取并整合远端改动，再回来推送" -ForegroundColor DarkGray
+        Write-Host "    · 或者保留两边历史，推成新分支：git push origin main:lfaa-app" -ForegroundColor DarkGray
       }
     }
   } finally {
@@ -845,7 +1086,16 @@ function Show-Usage {
   Write-Host "  lfaa.bat <0-7>      直接执行对应菜单项后退出（适合快捷方式 / 脚本调用）"
   Write-Host "  lfaa.bat --help     显示本说明"
   Write-Host ""
-  Write-Host "菜单项：1 安装依赖 · 2 启动 Web（自动补依赖/构建并打开浏览器）· 3 启动桌面端（固定 5173，占用先释放）· 7 构建安装包 · 4 推送 · 5 强制推送 · 6 拉取 · 0 退出" -ForegroundColor DarkGray
+  Write-Host ""
+  Write-Host "菜单项说明：" -ForegroundColor Yellow
+  Write-Host "  1  安装依赖：在仓库根执行 pnpm install，只补缺失的包"
+  Write-Host "  2  启动 Web：缺依赖才补装 → 构建 → 5173 重启并自动打开浏览器"
+  Write-Host "  3  启动桌面端：独立随机端口，不占用 Web 的 5173"
+  Write-Host "  7  构建桌面端安装包：NSIS 安装包 + 免安装 zip 输出到 build/"
+  Write-Host "  4  提交并推送：暂存明细 → 安全检测（产物/敏感文件/大文件/密钥）→ 创建提交 → 刷新远端 → 推送 → 结果摘要"
+  Write-Host "  5  强制推送：覆盖远端 main（--force-with-lease 先保护，确认后要求输入 yes）"
+  Write-Host "  6  拉取远端：预览远端提交并确认后快进合并，必要时用 stash 暂存本地改动"
+  Write-Host "  0  退出菜单（保留终端窗口）"
 }
 
 # 命令行参数：支持 `lfaa.bat 2` 这类一次性执行，其他参数给出用法并返回非零。
