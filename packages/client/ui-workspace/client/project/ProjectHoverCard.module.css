@@ -6,13 +6,53 @@
   gap: 0.25rem;
   padding: 0.72rem 0.78rem;
   border: 1px solid var(--glass-border, var(--color-line));
-  border-radius: 1rem;
+  /* 连续曲率圆角（方 + 圆的 squircle）：Chrome/Edge 139+ 生效，其余浏览器保留普通圆角。 */
+  border-radius: 1.15rem;
+  corner-shape: squircle;
+  transform-origin: center top;
+  will-change: opacity, transform;
   background: var(--glass-popover-bg, var(--color-popover));
   background-image: var(--glass-sheen, none);
   backdrop-filter: blur(28px) saturate(180%);
   -webkit-backdrop-filter: blur(28px) saturate(180%);
   box-shadow: var(--glass-specular-shadow, none), var(--color-menu-shadow);
   color: var(--color-ink);
+}
+
+/* 只有真正新出现时才播入场动画；关闭后快速重开不重播，避免闪烁。 */
+.cardEntering {
+  animation: card-in 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* 入场：轻微下移 + 缩放淡入，避免卡片“啪”地出现。 */
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* 关闭：保留在 DOM 160ms 做淡出；期间仍接收指针，鼠标移回卡片会取消关闭，避免闪烁循环。 */
+.cardClosing {
+  animation: card-out 160ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+@keyframes card-out {
+  to {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .cardClosing {
+    animation: none;
+  }
 }
 
 .headerRow {
@@ -51,6 +91,7 @@
   background: transparent;
   color: var(--color-muted);
   cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease;
 }
 
 .pinButton:hover {
@@ -69,10 +110,11 @@
   height: 1rem;
 }
 
+/* 每一行共用同一套网格：左内边距、图标列宽与文字起点完全一致，避免行间错位。 */
 .metaRow {
   display: flex;
   min-width: 0;
-  align-items: flex-start;
+  align-items: center;
   gap: 0.55rem;
   padding: 0.24rem 0.25rem;
   color: var(--color-ink);
@@ -83,8 +125,7 @@
 .icon {
   width: 1rem;
   height: 1rem;
-  flex: 0 0 auto;
-  margin-top: 0.14rem;
+  flex: 0 0 1rem;
   color: var(--color-muted);
 }
 
@@ -115,19 +156,20 @@
   white-space: nowrap;
 }
 
+/* 路径行与名称行同字号同列，只靠颜色区分层级，避免字号差异造成视觉错位。 */
 .folderPath {
   color: var(--color-muted);
-  font-size: 0.92em;
   word-break: break-all;
 }
 
+/* 与 .metaRow 保持一致的内边距，图标列与文字列才对得齐。 */
 .editButton {
   display: flex;
   width: 100%;
   min-height: 2.15rem;
   align-items: center;
   gap: 0.55rem;
-  padding: 0.25rem 0.35rem;
+  padding: 0.24rem 0.25rem;
   border: 0;
   border-radius: 0.6rem;
   background: transparent;
@@ -136,6 +178,7 @@
   font-size: 0.9em;
   text-align: left;
   cursor: pointer;
+  transition: background-color 140ms ease;
 }
 
 .editButton:hover {

@@ -16,6 +16,7 @@
 ## Agent 与模型
 
 - [Agent 会话工作区](agent-workspace.md)：项目绑定、生效目录与应用私有文件边界。
+- [默认项目目录同步](project-folder-sync.md)：`<文档>/lfaa` 下新建/删除项目文件夹自动纳入或移出项目列表。**已实施**。
 - [Agent 与模型解耦](agent-model-routing.md)：agent 实体、模型绑定与路由组。**待评审**。
 
 ## 右栏与工作台

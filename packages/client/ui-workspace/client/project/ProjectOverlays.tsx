@@ -1,5 +1,5 @@
 // 宿主工作区项目悬浮卡片、操作下拉菜单与“编辑项目”整页弹窗的统一挂载宿主。
-import { useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { WorkbenchProjectItem, WorkbenchSectionItem } from "@lfaa/ui-layout";
 import type { LocalProjectStore } from "../store/local-project-store";
 import type { WorkspaceLocaleMessages } from "../locales";
@@ -62,25 +62,55 @@ export function ProjectOverlays({
     ? projects.find((item) => item.id === snapshot.worktreeProjectId) ?? null
     : null;
 
+  // 悬浮卡关闭时保留 160ms 做淡出，避免卡片瞬间消失的生硬感。
+  const liveHover = activeHoverProject && snapshot.hoverCard
+    && (!snapshot.actionMenu || snapshot.actionMenu.projectId !== activeHoverProject.id)
+    ? { project: activeHoverProject, anchorRect: snapshot.hoverCard.anchorRect }
+    : null;
+  const lastHoverRef = useRef<typeof liveHover>(null);
+  const [, forceRender] = useState(0);
+  const [entering, setEntering] = useState(false);
+  useEffect(() => {
+    if (liveHover) {
+      // 只有从“没有卡片”变成“有卡片”才播入场；关闭后快速重开沿用旧卡片，不重播。
+      if (!lastHoverRef.current) setEntering(true);
+      lastHoverRef.current = liveHover;
+      return;
+    }
+    if (!lastHoverRef.current) return;
+    const timer = window.setTimeout(() => {
+      lastHoverRef.current = null;
+      forceRender((value) => value + 1);
+    }, 160);
+    return () => window.clearTimeout(timer);
+  }, [liveHover]);
+  useEffect(() => {
+    if (!entering) return;
+    const timer = window.setTimeout(() => setEntering(false), 220);
+    return () => window.clearTimeout(timer);
+  }, [entering]);
+  // 关闭阶段继续渲染上一帧数据，避免中间出现空帧造成闪烁。
+  const shownHover = liveHover ?? lastHoverRef.current;
+
   return (
     <>
-      {activeHoverProject
-        && snapshot.hoverCard
-        && (!snapshot.actionMenu || snapshot.actionMenu.projectId !== activeHoverProject.id) && (
+      {shownHover && (
         <ProjectHoverCard
           locale={locale}
-          project={activeHoverProject}
-          anchorRect={snapshot.hoverCard.anchorRect}
+          project={shownHover.project}
+          anchorRect={shownHover.anchorRect}
           pinnedMode={false}
           canPin
           canEdit
+          closing={!liveHover}
+          entering={entering}
           onMouseEnter={menuStore.clearHoverTimer}
           onMouseLeave={menuStore.scheduleHoverClose}
           onTogglePin={() => {
             menuStore.clearHoverTimer();
-            void projectStore.togglePinProject(activeHoverProject.id);
+            void projectStore.togglePinProject(shownHover.project.id);
           }}
-          onEdit={() => menuStore.openEdit(activeHoverProject.id)}
+          onEdit={() => menuStore.openEdit(shownHover.project.id)}
           onClose={menuStore.closeHoverCard}
         />
       )}

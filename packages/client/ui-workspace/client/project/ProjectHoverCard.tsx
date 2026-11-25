@@ -28,6 +28,8 @@ export function ProjectHoverCard({
   pinnedMode,
   canPin,
   canEdit,
+  closing = false,
+  entering = true,
   onMouseEnter,
   onMouseLeave,
   onTogglePin,
@@ -40,6 +42,10 @@ export function ProjectHoverCard({
   pinnedMode: boolean;
   canPin: boolean;
   canEdit: boolean;
+  /** 关闭淡出阶段：禁用交互，仅播动画。 */
+  closing?: boolean | undefined;
+  /** 是否播放入场动画；关闭后快速重开时传 false，避免闪烁。 */
+  entering?: boolean | undefined;
   onMouseEnter: () => void;
   onMouseLeave: () => void;
   onTogglePin: () => void;
@@ -89,7 +95,7 @@ export function ProjectHoverCard({
   const cardNode = (
     <div
       ref={cardRef}
-      className={styles.card}
+      className={`${styles.card} ${entering && !closing ? styles.cardEntering : ""} ${closing ? styles.cardClosing : ""}`}
       role={pinnedMode ? "dialog" : "tooltip"}
       aria-label={project.name}
       data-project-hover-card={project.id}

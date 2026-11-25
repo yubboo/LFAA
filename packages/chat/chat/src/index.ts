@@ -57,6 +57,14 @@ export class ChatService extends Service {
     super(ctx, "chat");
     this.generalSettingsStore = new GeneralSettingsStore(config.generalSettingsFilePath);
     this.repoRoot = config.repoRoot ?? process.cwd();
+    // 启动即确保默认工作区（<系统文档>/lfaa/default-workspace）与默认项目目录存在：
+    // 首次「项目外新聊天」和「按名称新建项目」都有明确落点；创建失败不影响后续使用。
+    void this.generalSettingsStore.get()
+      .then(async (settings) => {
+        await mkdir(settings.outsideProjectFolder, { recursive: true }).catch(() => {});
+        await mkdir(settings.defaultProjectsFolder, { recursive: true }).catch(() => {});
+      })
+      .catch(() => {});
   }
 
   listSessions(options?: { includeArchived?: boolean; projectId?: string | null }): Promise<ChatSessionSummary[]> {

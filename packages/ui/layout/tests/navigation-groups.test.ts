@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { WorkbenchChatSessionSummary } from "../contract/index";
 import type { LocalProject } from "../client/navigation/navigation";
+import { locales } from "../client/locales";
+import { buildProjectGroups } from "../client/navigation/navigation-groups-config";
 import {
   createProjectSidebarItem,
   groupNavigationProjects,
@@ -202,4 +204,41 @@ test("resolveNewChatProject 按当前项目上下文、活动会话与草稿绑�
     }),
     null,
   );
+});
+
+test("只有默认工作区时，项目列表末尾显示弱化的「创建新项目」而不是空态按钮", () => {
+  const defaultProject: LocalProject = {
+    id: "default-workspace",
+    name: "默认工作区",
+    createdAt: 1,
+    isDefault: true,
+  };
+  const groups = buildProjectGroups({
+    locale: locales.zh,
+    pinnedProjects: [],
+    unassignedProjects: [defaultProject],
+    sections: [],
+    sectionProjects: () => [],
+    chatSessions: [],
+    expanded: { pinned: true, projects: true, recent: true },
+    sectionExpanded: {},
+    resolvedActiveGroupKey: null,
+    createItemDeps: () => ({ ...projectDeps }) as never,
+    projectTools: null,
+    sectionTools: () => null,
+    canCreateProject: true,
+    projectCount: 0,
+    onCreateProject: () => {},
+    onToggleSection: () => {},
+    onToggleBuiltin: () => {},
+    onDropProjectToSection: () => {},
+    onDropProjectToPinned: () => {},
+    onDropProjectToProjects: () => {},
+  });
+
+  const projectsGroup = groups.find((group) => group.id === "projects");
+  assert.ok(projectsGroup);
+  assert.equal(projectsGroup.items.length, 1);
+  assert.equal(projectsGroup.trailingAction?.label, locales.zh.createNewProject);
+  assert.equal(projectsGroup.emptyAction, undefined);
 });

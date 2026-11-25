@@ -22,6 +22,8 @@ export function SessionHoverCard({
   session,
   projects,
   anchorRect,
+  closing = false,
+  entering = true,
   onMouseEnter,
   onMouseLeave,
 }: {
@@ -29,6 +31,10 @@ export function SessionHoverCard({
   session: WorkbenchChatSessionSummary;
   projects: WorkbenchProjectItem[];
   anchorRect: SessionAnchorRect;
+  /** 关闭淡出阶段：禁用交互，仅播动画。 */
+  closing?: boolean | undefined;
+  /** 是否播放入场动画；关闭后快速重开时传 false，避免闪烁。 */
+  entering?: boolean | undefined;
   onMouseEnter: () => void;
   onMouseLeave: () => void;
 }) {
@@ -46,7 +52,7 @@ export function SessionHoverCard({
 
   const cardNode = (
     <div
-      className={styles.card}
+      className={`${styles.card} ${entering && !closing ? styles.cardEntering : ""} ${closing ? styles.cardClosing : ""}`}
       role="tooltip"
       aria-label={session.title}
       data-session-hover-card={session.id}

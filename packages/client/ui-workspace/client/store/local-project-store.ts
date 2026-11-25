@@ -48,11 +48,43 @@ export class LocalProjectStore {
   private projects: WorkspaceProjectSummary[] = readStoredJson(PROJECTS_CACHE_KEY, [], isProjectArray);
   private loaded = hasCachedKey(PROJECTS_CACHE_KEY);
   private disposed = false;
+  private detachWindowRefresh: (() => void) | null = null;
 
   constructor() {
     if (typeof window !== "undefined") {
       void this.refreshProjects();
+      this.attachWindowRefresh();
     }
+  }
+
+  /**
+   * 窗口重新获得焦点时静默刷新：用户在资源管理器里新建或删除项目文件夹后，
+   * 切回应用即可看到列表变化，不必手动刷新页面。
+   */
+  private attachWindowRefresh(): void {
+    if (typeof window.addEventListener !== "function") return;
+    let lastRefreshAt = 0;
+    const refreshSoon = () => {
+      const now = Date.now();
+      // 拖动窗口或连续切换焦点时避免重复请求。
+      if (now - lastRefreshAt < 800) return;
+      lastRefreshAt = now;
+      void this.refreshProjects();
+    };
+    const onVisibilityChange = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") refreshSoon();
+    };
+    window.addEventListener("focus", refreshSoon);
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", onVisibilityChange);
+    }
+    this.detachWindowRefresh = () => {
+      window.removeEventListener("focus", refreshSoon);
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", onVisibilityChange);
+      }
+      this.detachWindowRefresh = null;
+    };
   }
 
   private commitProjects(nextProjects: WorkspaceProjectSummary[]): boolean {
@@ -64,6 +96,8 @@ export class LocalProjectStore {
 
   dispose(): void {
     this.disposed = true;
+    this.detachWindowRefresh?.();
+    this.detachWindowRefresh = null;
     this.listeners.clear();
   }
 

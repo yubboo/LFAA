@@ -16,6 +16,7 @@ import { DomainSidebarMenu } from "./DomainSidebarMenu";
 import { NavigationIcon } from "./NavigationIcon";
 import { NavigationGroups } from "./NavigationGroups";
 import { SettingsMenu } from "../panels/SettingsMenu";
+import { ToolbarTip } from "./Toolbar-Tip";
 import styles from "./NavigationSidebar.module.css";
 
 /** 根据业务域装配左栏头部及列表，将设置页和聊天页复用同一栏位。 */
@@ -59,6 +60,7 @@ export function NavigationSidebar({
   onCloseSearch,
   onToggleActivity,
   onCloseActivity,
+  onToggleSidebar,
 }: {
   locale: LocaleMessages;
   domain: WorkbenchDomainConfig;
@@ -99,6 +101,8 @@ export function NavigationSidebar({
   onCloseSearch: () => void;
   onToggleActivity: () => void;
   onCloseActivity: () => void;
+  /** 收起左二栏；工作区头部工具栏的折叠按钮使用，收起后由左侧 WorkspaceBar 重新展开。 */
+  onToggleSidebar: () => void;
 }) {
   const [modeMenuOpen, setModeMenuOpen] = useState(false);
   const rootRef = useRef<HTMLElement>(null);
@@ -159,7 +163,7 @@ export function NavigationSidebar({
         }
       }}
     >
-      <header className={styles.header}>
+      <header className={styles.header} data-variant={isModeSwitcher ? "toolbar" : undefined}>
         {header.kind === "backTitle" ? (
           <div className={styles.settingsHeader}>
             <button
@@ -178,58 +182,86 @@ export function NavigationSidebar({
             <span>{header.title}</span>
           </div>
         ) : (
-          <div className={styles.modeRoot}>
-            <button
-              ref={modeTriggerRef}
-              className={`${styles.modeTrigger} ${modeMenuOpen ? styles.modeTriggerOpen : ""}`}
-              type="button"
-              aria-haspopup="menu"
-              aria-expanded={modeMenuOpen}
-              onClick={() => setModeMenuOpen((open) => !open)}
-            >
-              <span>{locale.agentName}</span>
-              <NavigationIcon name="chevronDown" />
-            </button>
-            {modeMenuOpen && (
-              <div className={styles.modeMenu} role="menu" aria-label={locale.workspaceMode}>
-                <ModeOption selected={mode === "chatgpt"} title={locale.chatModeTitle} description={locale.chatModeDescription} onClick={() => { onModeChange("chatgpt"); setModeMenuOpen(false); }} />
-                <ModeOption selected={mode === "codex"} title={locale.codexModeTitle} description={locale.codexModeDescription} onClick={() => { onModeChange("codex"); setModeMenuOpen(false); }} />
+          // 工作区头部改为悬浮工具栏：左侧「模式菜单 / 新聊天 / 收起侧栏」，右侧胶囊放「活动 / 搜索」。
+          <div className={styles.toolbar}>
+            <div className={styles.toolbarGroup}>
+              <div className={styles.modeRoot}>
+                <ToolbarTip label={`${locale.agentName} · ${locale.workspaceMode}`}>
+                  <button
+                    ref={modeTriggerRef}
+                    className={`${styles.headerButton} ${styles.toolbarButton} ${modeMenuOpen ? styles.headerButtonActive : ""}`}
+                    type="button"
+                    aria-haspopup="menu"
+                    aria-expanded={modeMenuOpen}
+                    aria-label={locale.workspaceMode}
+                    onClick={() => setModeMenuOpen((open) => !open)}
+                  >
+                    <NavigationIcon name="menu" />
+                  </button>
+                </ToolbarTip>
+                {modeMenuOpen && (
+                  <div className={styles.modeMenu} role="menu" aria-label={locale.workspaceMode}>
+                    <ModeOption selected={mode === "chatgpt"} title={locale.chatModeTitle} description={locale.chatModeDescription} onClick={() => { onModeChange("chatgpt"); setModeMenuOpen(false); }} />
+                    <ModeOption selected={mode === "codex"} title={locale.codexModeTitle} description={locale.codexModeDescription} onClick={() => { onModeChange("codex"); setModeMenuOpen(false); }} />
+                  </div>
+                )}
               </div>
-            )}
+              <ToolbarTip label={locale.newChat}>
+                <button
+                  className={`${styles.headerButton} ${styles.toolbarButton}`}
+                  type="button"
+                  aria-label={locale.newChat}
+                  data-selected={newChatSelected ? "true" : undefined}
+                  onClick={onNewChat}
+                >
+                  <NavigationIcon name="plus" />
+                </button>
+              </ToolbarTip>
+              <ToolbarTip label={locale.collapseLeftSidebar} className={styles.toolbarCollapse}>
+                <button
+                  className={`${styles.headerButton} ${styles.toolbarButton}`}
+                  type="button"
+                  aria-label={locale.collapseLeftSidebar}
+                  onClick={onToggleSidebar}
+                >
+                  <NavigationIcon name="sidebarLeft" />
+                </button>
+              </ToolbarTip>
+            </div>
+            <div className={styles.toolbarPill}>
+              <ToolbarTip label={`${locale.viewActivity} · Ctrl+Alt+U`}>
+                <button
+                  ref={activityTriggerRef}
+                  className={`${styles.headerButton} ${styles.toolbarButton} ${activityOpen ? styles.headerButtonActive : ""}`}
+                  type="button"
+                  aria-label={`${locale.activity} (Ctrl+Alt+U)`}
+                  aria-expanded={activityOpen}
+                  onClick={onToggleActivity}
+                ><NavigationIcon name="bell" /></button>
+              </ToolbarTip>
+              <ToolbarTip label={`${locale.search} · Ctrl+K`}>
+                <button
+                  ref={searchTriggerRef}
+                  className={`${styles.headerButton} ${styles.toolbarButton}`}
+                  type="button"
+                  aria-label={`${locale.search} (Ctrl+K)`}
+                  aria-expanded={searchOpen}
+                  onClick={onToggleSearch}
+                ><NavigationIcon name="search" /></button>
+              </ToolbarTip>
+              {compact && onCloseDrawer && (
+                <ToolbarTip label={locale.close}>
+                  <button
+                    className={`${styles.headerButton} ${styles.toolbarButton}`}
+                    type="button"
+                    aria-label={locale.close}
+                    onClick={onCloseDrawer}
+                  ><NavigationIcon name="close" /></button>
+                </ToolbarTip>
+              )}
+            </div>
           </div>
         )}
-        <div className={styles.headerActions}>
-          {isModeSwitcher && (
-            <>
-              <button
-                ref={activityTriggerRef}
-                className={`${styles.headerButton} ${activityOpen ? styles.headerButtonActive : ""}`}
-                type="button"
-                aria-label={`${locale.activity} (Ctrl+Alt+U)`}
-                aria-expanded={activityOpen}
-                data-tooltip={`${locale.viewActivity} · Ctrl+Alt+U`}
-                onClick={onToggleActivity}
-              ><NavigationIcon name="bell" /></button>
-              <button
-                ref={searchTriggerRef}
-                className={styles.headerButton}
-                type="button"
-                aria-label={`${locale.search} (Ctrl+K)`}
-                aria-expanded={searchOpen}
-                data-tooltip={`${locale.search} · Ctrl+K`}
-                onClick={onToggleSearch}
-              ><NavigationIcon name="search" /></button>
-            </>
-          )}
-          {compact && onCloseDrawer && (
-            <button
-              className={`${styles.headerButton} ${styles.drawerClose}`}
-              type="button"
-              aria-label={locale.close}
-              onClick={onCloseDrawer}
-            ><NavigationIcon name="close" /></button>
-          )}
-        </div>
       </header>
 
       {activityOpen && isModeSwitcher && (

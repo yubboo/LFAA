@@ -258,7 +258,7 @@ export function NavigationGroups({
     projectTools,
     sectionTools: (section) => sectionProvider?.renderSectionTools?.({ section, onNewChatInSection }),
     canCreateProject: Boolean(renderCreateDialog),
-    projectCount: sortedProjects.length,
+    projectCount: sortedProjects.filter((project) => !project.isDefault).length,
     onCreateProject: () => setProjectDialogOpen(true),
     onToggleSection: toggleCustomSection,
     onToggleBuiltin: toggleBuiltin,

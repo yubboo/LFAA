@@ -1,0 +1,31 @@
+/* 左二列表末尾弱化操作行的样式（如「+ 创建新项目」），与主列表样式分文件以控制单文件行数。 */
+.createRow {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 1.9rem;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0 0.65rem;
+  border: 0;
+  border-radius: 0.6rem;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 0.88em;
+  text-align: left;
+  cursor: pointer;
+  opacity: 0.72;
+  transition: opacity 140ms ease, background-color 140ms ease, color 140ms ease;
+}
+
+.createRow:hover {
+  background: var(--color-active);
+  color: var(--color-ink);
+  opacity: 1;
+}
+
+.createRow > svg {
+  width: 0.9rem;
+  height: 0.9rem;
+  flex: 0 0 auto;
+}

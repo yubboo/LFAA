@@ -30,4 +30,4 @@ LFAA 工作区与本地项目插件包，提供 Host 服务契约与 Client 侧�
 
 ## 开发说明
 
-无。
+`listProjects()` 每次读取前会把项目索引与 `<文档>/lfaa` 对齐：该目录下新建或删除的文件夹会被自动发现或移出（`src/project-store.ts`），绑定在其它位置的项目仍走手动绑定流程。用户主动移出的项目记在 `~/.lfaa/projects-dismissed.json`，只有文件夹真的被删掉并重建后才会重新纳入。

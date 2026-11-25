@@ -47,6 +47,7 @@ export function ShellLeftColumn({
   onCloseSearch,
   onToggleActivity,
   onCloseActivity,
+  onToggleSidebar,
   onStartResize,
   onKeyResize,
 }: {
@@ -83,6 +84,8 @@ export function ShellLeftColumn({
   onCloseSearch: () => void;
   onToggleActivity: () => void;
   onCloseActivity: () => void;
+  /** 左二栏头部的折叠按钮：收起后由中央 WorkspaceBar 的左栏按钮重新展开。 */
+  onToggleSidebar: () => void;
   onStartResize: (side: ResizeSide, event: PointerEvent<HTMLDivElement>) => void;
   onKeyResize: (side: ResizeSide, event: KeyboardEvent<HTMLDivElement>) => void;
 }) {
@@ -184,13 +187,14 @@ export function ShellLeftColumn({
           onSelectLibraryTab={onSelectLibraryTab}
           onSelectDomainItem={onSelectDomainItem}
           onOpenProject={onOpenProject}
-          onProjectCreated={onOpenProject}
+          onProjectCreated={(project) => onNewChatInProject(project)}
           onProjectUpdated={() => {}}
           onProjectRemoved={onProjectRemoved}
           onToggleSearch={onToggleSearch}
           onCloseSearch={onCloseSearch}
           onToggleActivity={onToggleActivity}
           onCloseActivity={onCloseActivity}
+          onToggleSidebar={onToggleSidebar}
         />
       )}
 

@@ -69,6 +69,20 @@ export function buildProjectGroups(source: ProjectGroupSource): SidebarGroupConf
     };
   });
 
+  const projectItems = createProjectWithChatItems(
+    source.unassignedProjects,
+    "project",
+    source.chatSessions,
+    source.createItemDeps(source.resolvedActiveGroupKey === "project"),
+  );
+  const createAction = {
+    label: source.locale.createNewProject,
+    icon: "plus" as const,
+    onClick: source.onCreateProject,
+  };
+  // 只有默认工作区时列表非空：把「创建新项目」放在末尾弱化显示，而不是空态大按钮。
+  const showCreateEntry = source.canCreateProject && source.projectCount === 0;
+
   return [
     {
       id: "pinned",
@@ -99,26 +113,14 @@ export function buildProjectGroups(source: ProjectGroupSource): SidebarGroupConf
       expanded: source.expanded.projects,
       onToggle: () => source.onToggleBuiltin("projects"),
       tools: source.projectTools,
-      items: createProjectWithChatItems(
-        source.unassignedProjects,
-        "project",
-        source.chatSessions,
-        source.createItemDeps(source.resolvedActiveGroupKey === "project"),
-      ),
+      items: projectItems,
       emptyText: !source.canCreateProject
         ? source.locale.projectsPluginMissing
         : source.projectCount === 0
           ? source.locale.noProjects
           : source.locale.allProjectsInSections,
-      ...(source.canCreateProject && source.projectCount === 0
-        ? {
-            emptyAction: {
-              label: source.locale.createNewProject,
-              icon: "plus" as const,
-              onClick: source.onCreateProject,
-            },
-          }
-        : {}),
+      ...(showCreateEntry && projectItems.length > 0 ? { trailingAction: createAction } : {}),
+      ...(showCreateEntry && projectItems.length === 0 ? { emptyAction: createAction } : {}),
       onDropProject: source.onDropProjectToProjects,
     },
   ];

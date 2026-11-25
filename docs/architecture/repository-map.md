@@ -3,7 +3,7 @@
 > 本文件由 `pnpm map:sync`（[scripts/gen-repository-map.mjs](../../scripts/gen-repository-map.mjs)）按真实文件系统生成，**不要手改**。
 > 骨架发生变化（新增/删除/移动文件、包或目录）后，必须在同一轮运行 `pnpm map:sync` 并提交，否则 `pnpm check` 会失败。
 
-当前快照：**63 个包、2543 个文件、474 个子目录**（不含 node_modules、构建产物与运行数据）。
+当前快照：**63 个包、2562 个文件、474 个子目录**（不含 node_modules、构建产物与运行数据）。
 
 ## 1. 快速索引
 
@@ -64,15 +64,15 @@ lfaa/
 │   └── web/  (10 个文件)
 │       ├── public/  (2 个文件)
 │       └── src/  (3 个文件)
-├── docs/  (421 个文件)
+├── docs/  (436 个文件)
 │   ├── architecture/  (11 个文件)
 │   ├── dev-log/  (4 个文件)
-│   ├── features/  (28 个文件)
+│   ├── features/  (29 个文件)
 │   ├── plans/  (9 个文件)
 │   ├── standards/  (2 个文件)
 │   ├── templates/  (2 个文件)
-│   └── updata-log/  (363 个文件)
-├── packages/  (1882 个文件)
+│   └── updata-log/  (377 个文件)
+├── packages/  (1886 个文件)
 │   ├── api/  (7 个文件)
 │   │   └── gateway/  # @lfaa/api-gateway  (7 个文件)
 │   │       ├── src/  (1 个文件)
@@ -480,17 +480,17 @@ lfaa/
 │   │   └── spill-local/  # @lfaa/spill-local  (7 个文件)
 │   │       ├── src/  (1 个文件)
 │   │       └── tests/  (1 个文件)
-│   ├── ui/  (164 个文件)
+│   ├── ui/  (166 个文件)
 │   │   ├── icons/  # @lfaa/ui-icons  (15 个文件)
 │   │   │   ├── LICENSES/  (1 个文件)
 │   │   │   ├── client/  (4 个文件)
 │   │   │   ├── contract/  (2 个文件)
 │   │   │   ├── src/  (1 个文件)
 │   │   │   └── tests/  (1 个文件)
-│   │   ├── layout/  # @lfaa/ui-layout  (72 个文件)
-│   │   │   ├── client/  (53 个文件)
-│   │   │   │   ├── navigation/  (22 个文件)
-│   │   │   │   ├── panels/  (13 个文件)
+│   │   ├── layout/  # @lfaa/ui-layout  (74 个文件)
+│   │   │   ├── client/  (55 个文件)
+│   │   │   │   ├── navigation/  (23 个文件)
+│   │   │   │   ├── panels/  (14 个文件)
 │   │   │   │   └── shell/  (14 个文件)
 │   │   │   ├── contract/  (3 个文件)
 │   │   │   ├── src/  (1 个文件)
@@ -514,13 +514,13 @@ lfaa/
 │   │       │   ├── fetch/  (1 个文件)
 │   │       │   └── tool/  (2 个文件)
 │   │       └── tests/  (4 个文件)
-│   └── workspace/  (38 个文件)
+│   └── workspace/  (40 个文件)
 │       ├── sections/  # @lfaa/sections  (10 个文件)
 │       │   ├── contract/  (1 个文件)
 │       │   └── src/  (3 个文件)
-│       ├── workspace/  # @lfaa/workspace  (14 个文件)
+│       ├── workspace/  # @lfaa/workspace  (16 个文件)
 │       │   ├── contract/  (1 个文件)
-│       │   ├── src/  (6 个文件)
+│       │   ├── src/  (8 个文件)
 │       │   └── tests/  (1 个文件)
 │       └── worktree/  # @lfaa/worktree  (14 个文件)
 │           ├── contract/  (1 个文件)
@@ -2511,6 +2511,7 @@ lfaa/
 - `NavigationRail.tsx` — 呈现工作台一级图标栏，负责直接导航、更多菜单及本地工作区状态。
 - `NavigationSidebar.module.css` — 左二导航栏顶部工具、模式切换与设置菜单容器。
 - `NavigationSidebar.tsx` — 复用同一套左二菜单栏骨架，根据 WorkbenchDomainConfig 切换头部形态与业务菜单内容。
+- `Toolbar-Tip.tsx` — 左二栏工具栏与列表行的浮层提示：用 portal 渲染到 body，避免被左栏层叠上下文与胶囊裁切。
 - `UserMenu.module.css` — 用户菜单固定在一级图标栏左下角，并跟随 Shell 主题变量。
 - `UserMenu.tsx` — 展示本地用户菜单，并复用现有外观设置入口与主题插件提供的头部快捷操作。
 - `navigation-groups-config.ts` — 组装左二栏「置顶 / 自定义分区 / 项目」三个分组配置，不持有 React 状态，选中态与拖放事件由调用方注入。
@@ -2533,6 +2534,7 @@ lfaa/
 - `SettingsMenu.tsx` — 将设置中心目录映射为通用 SidebarSectionList 配置，复用同一套左二菜单栏组件与样式。
 - `SidebarSectionList.badge.module.css` — 会话行工作树分支标签样式；与侧栏主样式分开，避免单文件继续膨胀。
 - `SidebarSectionList.controls.module.css`
+- `SidebarSectionList.create.module.css` — 左二列表末尾弱化操作行的样式（如「+ 创建新项目」），与主列表样式分文件以控制单文件行数。
 - `SidebarSectionList.module.css` — 统一的左二菜单栏分组、列表、搜索框与空态样式，供工作区与设置中心共用。
 - `SidebarSectionList.tsx` — 统一的左二菜单栏列表原语：复用搜索框、分组标题、折叠能力、拖拽分区、空态与液态玻璃交互样式。
 - `SidebarStatus.module.css` — 静音会话的小铃铛关闭标记：只表达通知状态，不抢主标签。
@@ -2756,10 +2758,12 @@ lfaa/
 
 ### packages/workspace/workspace/src
 
+- `default-workspace.ts` — 内置「默认工作区」项目条目的常量与构造函数：不写入 projects.json，由列表与查询时动态合成。
 - `http-handler.ts` — 为仅监听本机 127.0.0.1 的 Web 开发服务提供 /api/workspace/* HTTP 中间件桥接。
 - `index.ts` — 声明工作区包的 Host 侧 Cordis 服务与无 DOM 领域契约，严禁导入 React、DOM 或 CSS。
 - `project-brief.ts` — 依据项目目录生成项目简介初稿：只读 README/清单与顶层条目，结果确定、可离线测试，不写文件也不调用模型。
 - `project-records.ts` — 项目记录归一化与路径边界：解析存储记录、去重根目录、校验目标是否落在项目授权目录内。
+- `project-store.ts` — 项目存储与默认项目目录同步：读写 ~/.lfaa/projects.json，并让项目列表跟随 <文档>/lfaa 下的真实文件夹。
 - `system-paths.ts` — 负责动态解析本机文档目录（含 Windows 重定向路径）、安全目录名及原生文件夹选择器；严禁导入 React 或 DOM。
 - `types.ts` — @lfaa/workspace 类型入口：契约已下沉到 contract/，这里保留原路径重导出以免改动全部内部引用。
 
@@ -2838,6 +2842,6 @@ lfaa/
 | 目录 | 文件数 | 子目录数 | 说明 |
 | --- | --- | --- | --- |
 | `docs/dev-log` | 4 | 1 | 按每 200 条任务编号汇总的开发日志卷 |
-| `docs/updata-log` | 363 | 1 | 面向用户的单条更新说明 |
+| `docs/updata-log` | 377 | 1 | 面向用户的单条更新说明 |
 | `vendor` | 14 | 4 | 内嵌的上游运行时源码 |
 | `packages/extension/skills/src/builtin-skills` | 637 | 151 |  |

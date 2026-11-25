@@ -30,4 +30,4 @@ This package lives in `packages/workspace/workspace`.
 
 ## Dev Note
 
-None.
+`listProjects()` reconciles the project index with `<Documents>/lfaa` on every read: folders created or deleted there are discovered or pruned automatically (`src/project-store.ts`), while projects bound to other locations keep the manual flow. Projects the user removed are remembered in `~/.lfaa/projects-dismissed.json`, so they are not re-added until the folder is really gone and recreated.

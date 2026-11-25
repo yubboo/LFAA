@@ -22,6 +22,8 @@ export interface WorkbenchProjectItem {
   pinned?: boolean;
   sectionId?: string | null;
   chatCount?: number;
+  /** 内置「默认工作区」：不可重命名/删除，目录取设置里的项目外工作目录。 */
+  isDefault?: boolean;
 }
 
 // 业务插件注册的自定义分区摘要结构。
@@ -150,6 +152,8 @@ export interface WorkbenchChatProvider<TContent = unknown> {
   getSessionAttention?: (sessionId: string) => "approval" | "question" | null;
   /** 搜索会话标题与消息正文；未提供时搜索框只展示功能与项目。 */
   searchChat?: (query: string) => Promise<WorkbenchChatSearchResult[]>;
+  /** 没有活动会话时，把新聊天草稿的项目绑定切到指定项目；已打开的会话不受影响。 */
+  setActiveProjectBinding?: (projectId: string | null) => void | Promise<void>;
   /** 打开会话并可选跳转到具体消息；用于搜索结果定位。 */
   openSessionMessage?: (sessionId: string, messageId?: string) => void | Promise<void>;
   subscribe: (listener: () => void) => () => void;

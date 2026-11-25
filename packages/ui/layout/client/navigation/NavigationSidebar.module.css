@@ -60,46 +60,6 @@
   min-width: 0;
 }
 
-.modeTrigger {
-  display: inline-flex;
-  max-width: 100%;
-  min-height: 2.2rem;
-  align-items: center;
-  gap: 0.45rem;
-  padding: 0.25rem 0.5rem;
-  white-space: nowrap;
-  border: 0;
-  border-radius: 0.6rem;
-  background: transparent;
-  color: inherit;
-  font-size: 1.07em;
-  font-weight: 620;
-  letter-spacing: -0.02em;
-  cursor: pointer;
-}
-
-.modeTrigger:hover,
-.modeTriggerOpen {
-  background: var(--color-active);
-}
-
-.modeTrigger svg {
-  width: 0.9rem;
-  height: 0.9rem;
-  flex: 0 0 auto;
-  fill: none;
-  stroke: var(--color-muted);
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.7;
-}
-
-.headerActions {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
 .headerButton,
 .activityHeading button {
   position: relative;
@@ -134,6 +94,67 @@
   stroke-width: 1.7;
 }
 
+/* 工作区头部工具栏：外层圆角卡片，左侧动作组 + 右侧胶囊动作组（对齐参考图的悬浮工具条）。 */
+.header[data-variant="toolbar"] {
+  padding: 0.4rem 0.55rem;
+  border-bottom: 0;
+}
+
+.toolbar {
+  display: flex;
+  width: 100%;
+  height: 2.7rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  padding: 0.2rem 0.25rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.9rem;
+  background: var(--color-surface);
+  box-shadow: var(--rail-active-shadow);
+}
+
+.toolbarGroup {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.1rem;
+}
+
+.toolbarPill {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.05rem;
+  padding: 0.12rem;
+  border-radius: 999px;
+  background: var(--color-active);
+}
+
+/* 工具栏按钮沿用 headerButton 的悬停与提示规则，只收紧尺寸与圆角。 */
+.toolbarButton {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.55rem;
+}
+
+.toolbarPill .toolbarButton {
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 999px;
+}
+
+.toolbarPill .toolbarButton:hover,
+.toolbarPill .toolbarButtonActive,
+.toolbarPill .toolbarButton[aria-expanded="true"] {
+  background: var(--color-surface);
+}
+
+.toolbarButton[data-selected="true"] {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
 /* 左栏收至 15% 时，标题可省略，活动与搜索按钮仍完整留在栏内。 */
 @container section-sidebar (max-width: 12rem) {
   .header {
@@ -141,54 +162,67 @@
     padding-inline: 0.45rem;
   }
 
-  .modeTrigger {
-    gap: 0.25rem;
-    padding-inline: 0.25rem;
+  .toolbar {
+    gap: 0.2rem;
+    padding-inline: 0.15rem;
   }
 
-  .modeTrigger span {
-    overflow: hidden;
-    text-overflow: ellipsis;
+  .toolbarButton {
+    width: 1.75rem;
+    height: 1.75rem;
   }
 
-  .headerActions {
-    gap: 0.15rem;
+  .toolbarPill .toolbarButton {
+    width: 1.7rem;
+    height: 1.7rem;
   }
 
-  .headerButton {
-    width: 1.8rem;
+  /* 窄栏里优先保留新建与搜索，折叠入口交给中间的 WorkspaceBar。 */
+  .toolbarCollapse {
+    display: none;
   }
 }
 
-.headerButton[data-tooltip]::after {
-  position: absolute;
-  top: calc(100% + 0.4rem);
-  right: 0;
-  z-index: 80;
-  width: max-content;
-  max-width: 18rem;
+/* 工具栏提示：portal 渲染到 body，居中在按钮下方；不参与左栏层叠，所以不会被列表或胶囊裁切。 */
+.tipAnchor {
+  display: inline-flex;
+}
+
+.tip {
+  position: fixed;
+  z-index: 95;
   padding: 0.42rem 0.65rem;
   border: 1px solid var(--color-line);
   border-radius: 0.65rem;
   background: var(--color-popover);
   box-shadow: var(--color-menu-shadow);
   color: var(--color-ink);
-  content: attr(data-tooltip);
   font-size: 0.76rem;
-  opacity: 0;
+  line-height: 1.2;
+  max-width: min(22rem, calc(100vw - 1rem));
+  white-space: normal;
+  overflow-wrap: anywhere;
   pointer-events: none;
-  transform: translateY(-0.15rem);
-  transition: opacity 120ms ease, transform 120ms ease;
+  transform: translateX(-50%);
+  animation: tipIn 120ms ease-out;
 }
 
-.headerButton:hover::after,
-.headerButton:focus-visible::after {
-  opacity: 1;
-  transform: translateY(0);
+@keyframes tipIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 0.15rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
 }
 
-.headerButton[aria-expanded="true"]::after {
-  opacity: 0;
+@media (prefers-reduced-motion: reduce) {
+  .tip {
+    animation: none;
+  }
 }
 
 .modeMenu {
@@ -317,13 +351,24 @@
     padding-inline: 0;
   }
 
+  .toolbar {
+    height: 2.9rem;
+  }
+
   .headerButton {
     width: 2.5rem;
     height: 2.5rem;
   }
 
-  .modeTrigger {
-    font-size: 1.07em;
+  /* 抽屉里的工具栏按钮略小于触控目标上限，避免把 46px 的胶囊撑破。 */
+  .toolbarButton {
+    width: 2.1rem;
+    height: 2.1rem;
+  }
+
+  .toolbarPill .toolbarButton {
+    width: 2rem;
+    height: 2rem;
   }
 }
 

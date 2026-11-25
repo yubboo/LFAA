@@ -1,5 +1,5 @@
 // 聚合渲染左二聊天会话行的右侧悬浮卡片、操作菜单、重命名/删除确认弹窗与全局快捷键。
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { WorkbenchProjectItem, WorkbenchSectionItem } from "@lfaa/ui-layout";
 import { ConfirmDialog, ModalDialog } from "@lfaa/ui-primitives/client";
 import type { ChatClientStore } from "../store/chat-store";
@@ -113,14 +113,45 @@ export function SessionOverlays({
     ? sessions.find((s) => s.id === menuSnap.actionMenu!.sessionId)
     : undefined;
 
+  // 会话悬浮卡关闭时保留 140ms 做淡出，避免瞬间消失。
+  const liveHover = hoverSession && menuSnap.hoverCard && !menuSession
+    ? { session: hoverSession, rect: menuSnap.hoverCard.rect }
+    : null;
+  const lastHoverRef = useRef<typeof liveHover>(null);
+  const [, forceRender] = useState(0);
+  const [entering, setEntering] = useState(false);
+  useEffect(() => {
+    if (liveHover) {
+      // 只有从“没有卡片”变成“有卡片”才播入场；关闭后快速重开沿用旧卡片，不重播。
+      if (!lastHoverRef.current) setEntering(true);
+      lastHoverRef.current = liveHover;
+      return;
+    }
+    if (!lastHoverRef.current) return;
+    const timer = window.setTimeout(() => {
+      lastHoverRef.current = null;
+      forceRender((value) => value + 1);
+    }, 140);
+    return () => window.clearTimeout(timer);
+  }, [liveHover]);
+  useEffect(() => {
+    if (!entering) return;
+    const timer = window.setTimeout(() => setEntering(false), 200);
+    return () => window.clearTimeout(timer);
+  }, [entering]);
+  // 关闭阶段继续渲染上一帧数据，避免中间出现空帧造成闪烁。
+  const shownHover = liveHover ?? lastHoverRef.current;
+
   return (
     <>
-      {hoverSession && menuSnap.hoverCard && !menuSession && (
+      {shownHover && (
         <SessionHoverCard
           isZh={isZh}
-          session={hoverSession}
+          session={shownHover.session}
           projects={projects}
-          anchorRect={menuSnap.hoverCard.rect}
+          anchorRect={shownHover.rect}
+          closing={!liveHover}
+          entering={entering}
           onMouseEnter={() => menuStore.onCardEnter()}
           onMouseLeave={() => menuStore.onCardLeave()}
         />

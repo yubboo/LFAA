@@ -154,11 +154,6 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
     if (isCompact) service.setLeftSidebarOpen(false, false);
   }, [isCompact, service]);
 
-  // 单击左二项目文件夹行仅高亮并切换当前项目上下文，不跳走或清空当前聊天。
-  const selectProjectContext = useCallback((project: LocalProject) => {
-    service.setActiveProject(project.id);
-  }, [service]);
-
   const startChatSession = useCallback((opts: {
     projectId?: string | null;
     sectionId?: string | null;
@@ -184,6 +179,14 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
     }
     if (isCompact) service.setLeftSidebarOpen(false, false);
   }, [chatProvider, isCompact, service]);
+
+  // 单击左二项目行：展开/收起 + 高亮；没有打开中的会话时，把新聊天草稿真实改绑到该项目。
+  const selectProjectContext = useCallback((project: LocalProject) => {
+    service.setActiveProject(project.id);
+    const snapshot = service.getSnapshot();
+    // 已打开的会话不改绑，避免污染历史聊天的项目归属。
+    if (!snapshot.activeChatSessionId) void snapshot.chatProvider?.setActiveProjectBinding?.(project.id);
+  }, [service]);
 
   // 左二顶部「新聊天」始终沿用当前已选/已绑定的项目上下文，不再丢失项目绑定。
   const startNewChat = useCallback(() => {
@@ -345,6 +348,7 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
         onCloseSearch={closeSearch}
         onToggleActivity={toggleActivity}
         onCloseActivity={closeActivity}
+        onToggleSidebar={toggleLeftSidebar}
         onStartResize={startResize}
         onKeyResize={handleKeyResize}
       />

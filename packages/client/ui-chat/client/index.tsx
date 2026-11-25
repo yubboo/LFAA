@@ -77,6 +77,8 @@ export const chatClientPlugin: Plugin.Object<void> = {
       // 会话需要确认/回答时，左二栏显示对应徽标；由通知设置控制是否展示。
       getSessionAttention: (sessionId: string) => store.getSessionAttention(sessionId),
       searchChat: (query: string) => store.searchChat(query),
+      // 左二单击项目行时把未发送的草稿改绑到该项目，避免输入区绑定与高亮项目不一致。
+      setActiveProjectBinding: (projectId: string | null) => store.setActiveProjectBinding(projectId),
       openSessionMessage: async (sessionId: string, messageId?: string) => {
         menuStore.closeAll();
         await store.openSession(sessionId);

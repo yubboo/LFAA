@@ -164,6 +164,10 @@
   color: var(--color-ink);
 }
 
+/* 左二列表行用底色而不是描边表示焦点：刷新后浏览器恢复焦点时不会再冒出粉色 outline。 */
+.item:focus-visible, .itemMain:focus-visible { outline: none; }
+.item:focus-visible, .itemRow:has(.itemMain:focus-visible) { background: var(--color-active); color: var(--color-ink); }
+
 /* 子级行（项目内会话、展开控件）与项目行共用同一条标题列：左内边距 = 行边框 1px + 图标左内边距 0.65rem
    + 图标宽 1rem + 图标与标题间距 0.6rem，标题因此与项目名左端逐像素对齐，缩进不再把标题挤到父级左侧。 */
 .itemNested.item {

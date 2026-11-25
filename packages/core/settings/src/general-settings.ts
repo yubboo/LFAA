@@ -73,28 +73,24 @@ function resolveUserHome(): string {
   return resolve(homedir() || process.env.USERPROFILE || process.env.HOME || ".");
 }
 
-/** 为常规设置读取和写入解析路径，测试可提供独立档案。 */
-export function getGeneralSettingsFilePath(overridePath?: string): string {
-  if (overridePath) return resolve(overridePath);
-  return join(resolveUserHome(), ".lfaa", "general-settings.json");
+/** 归一化路径键：小写 + 正斜杠，用于识别“仍是旧默认值”的历史配置。 */
+function normalizePathKey(input: string | undefined): string {
+  if (!input) return "";
+  return input.replaceAll("\\", "/").replace(/\/+$/u, "").toLowerCase();
 }
 
-/** 解析未绑定项目会话的默认目录，供 Agent 工作区初始化使用。 */
-export function resolveDefaultOutsideProjectFolder(): string {
-  return join(resolveUserHome(), ".lfaa", "workspace");
+// 缓存「文档」目录探测结果：Windows 走系统已知文件夹（用户可能把文档挪到 D 盘等），其他平台用 ~/Documents。
+let documentsFolderPromise: Promise<string> | undefined;
+
+/** 解析当前登录用户的“文档”目录，跟随系统设置而不是写死盘符或用户名。 */
+export function resolveDocumentsFolder(overrideBaseDocs?: string): Promise<string> {
+  if (overrideBaseDocs) return Promise.resolve(resolve(overrideBaseDocs));
+  documentsFolderPromise ??= detectDocumentsFolder();
+  return documentsFolderPromise;
 }
 
-/** 兼容旧版使用应用数据根作为默认值，项目外产物写入专用目录。 */
-function normalizeOutsideProjectFolder(input: string): string {
-  const path = resolve(input.trim());
-  const legacy = join(resolveUserHome(), ".lfaa");
-  const same = process.platform === "win32" ? path.toLowerCase() === legacy.toLowerCase() : path === legacy;
-  return same ? resolveDefaultOutsideProjectFolder() : path;
-}
-
-// 动态解析当前登录 Windows/POSIX 用户的“文档\lfaa”路径，供未添加源文件夹直接按名称新建项目时存放项目目录（不存会话）。
-export async function resolveDefaultProjectsFolder(overrideBaseDocs?: string): Promise<string> {
-  if (overrideBaseDocs) return join(resolve(overrideBaseDocs), "lfaa");
+/** 探测系统文档目录；探测失败时回退到用户主目录下的 Documents。 */
+async function detectDocumentsFolder(): Promise<string> {
   if (process.platform === "win32") {
     try {
       const { stdout } = await execFileAsync(
@@ -109,17 +105,41 @@ export async function resolveDefaultProjectsFolder(overrideBaseDocs?: string): P
         { timeout: 5000, windowsHide: true },
       );
       const detected = stdout.trim();
-      if (detected) return join(resolve(detected), "lfaa");
+      if (detected) return resolve(detected);
     } catch {
-      // 回退到用户主目录下的 Documents\lfaa。
+      // 回退到用户主目录下的 Documents。
     }
   }
-  return join(resolveUserHome(), "Documents", "lfaa");
+  return join(resolveUserHome(), "Documents");
+}
+
+/** 为常规设置读取和写入解析路径，测试可提供独立档案。 */
+export function getGeneralSettingsFilePath(overridePath?: string): string {
+  if (overridePath) return resolve(overridePath);
+  return join(resolveUserHome(), ".lfaa", "general-settings.json");
+}
+
+/** 默认项目外工作区：<系统文档>/lfaa/default-workspace，跟随用户的文档目录设置。 */
+export async function resolveDefaultOutsideProjectFolder(overrideBaseDocs?: string): Promise<string> {
+  return join(await resolveDocumentsFolder(overrideBaseDocs), "lfaa", "default-workspace");
+}
+
+/** 兼容旧版使用应用数据根作为默认值，项目外产物写入专用目录。 */
+function normalizeOutsideProjectFolder(input: string, fallbackOutside: string): string {
+  const path = resolve(input.trim());
+  const legacy = join(resolveUserHome(), ".lfaa");
+  const same = process.platform === "win32" ? path.toLowerCase() === legacy.toLowerCase() : path === legacy;
+  return same ? fallbackOutside : path;
+}
+
+// 动态解析当前登录 Windows/POSIX 用户的“文档\lfaa”路径，供未添加源文件夹直接按名称新建项目时存放项目目录（不存会话）。
+export async function resolveDefaultProjectsFolder(overrideBaseDocs?: string): Promise<string> {
+  return join(await resolveDocumentsFolder(overrideBaseDocs), "lfaa");
 }
 
 function createDefaultSettings(outsideProjectFolder: string, defaultProjectsFolder: string): GeneralSettingsConfig {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     outsideProjectFolder,
     defaultProjectsFolder,
     defaultFileOpener: "explorer",
@@ -181,29 +201,35 @@ export class GeneralSettingsStore {
 
   async get(): Promise<GeneralSettingsConfig> {
     if (this.cached) return this.cached;
-    const defaultOutside = resolveDefaultOutsideProjectFolder();
+    const defaultOutside = await resolveDefaultOutsideProjectFolder();
     const defaultProjects = await resolveDefaultProjectsFolder();
     const defaults = createDefaultSettings(defaultOutside, defaultProjects);
     try {
       const raw = await readFile(this.filePath, "utf8");
       const parsed = JSON.parse(raw) as Partial<GeneralSettingsConfig>;
-      let merged = this.mergePatch(defaults, parsed);
-      // 兼容旧 v1 的文档目录默认值，项目外任务与应用数据使用独立位置。
-      if ((parsed.schemaVersion ?? 1) < 2) {
-        const legacyDocsTail = parsed.outsideProjectFolder?.replaceAll("/", "\\").toLowerCase();
-        if (legacyDocsTail && legacyDocsTail.endsWith("\\documents\\lfaa")) {
-          merged = {
-            ...merged,
-            schemaVersion: 2,
-            outsideProjectFolder: defaultOutside,
-            defaultProjectsFolder: defaultProjects,
-            updatedAt: Date.now(),
-          };
-          await mkdir(dirname(this.filePath), { recursive: true });
-          await writeFile(this.filePath, JSON.stringify(merged, null, 2), "utf8");
-        }
+      const parsedVersion = parsed.schemaVersion ?? 1;
+      let merged = this.mergePatch(defaults, parsed, defaultOutside);
+      // v3：项目外工作区默认值从 ~/.lfaa/workspace 迁到 <系统文档>/lfaa/default-workspace。
+      // 只改写「仍是旧默认值」的配置，用户显式选过的目录保持不动。
+      if (parsedVersion < 3) {
+        const storedKey = normalizePathKey(parsed.outsideProjectFolder);
+        const legacyKeys = new Set([
+          normalizePathKey(join(resolveUserHome(), ".lfaa", "workspace")),
+          normalizePathKey(join(resolveUserHome(), ".lfaa")),
+        ]);
+        const looksLikeOldDefault = !storedKey || legacyKeys.has(storedKey) || storedKey.endsWith("/documents/lfaa");
+        merged = {
+          ...merged,
+          schemaVersion: 3,
+          outsideProjectFolder: looksLikeOldDefault ? defaultOutside : merged.outsideProjectFolder,
+          // v2 已经给过一次默认项目目录，保留用户改过的值；v1 沿用旧文档默认值时纠正。
+          defaultProjectsFolder: parsedVersion < 2 ? defaultProjects : merged.defaultProjectsFolder,
+          updatedAt: Date.now(),
+        };
+        await mkdir(dirname(this.filePath), { recursive: true });
+        await writeFile(this.filePath, JSON.stringify(merged, null, 2), "utf8");
       }
-      this.cached = { ...merged, schemaVersion: 2 };
+      this.cached = { ...merged, schemaVersion: 3 };
     } catch {
       this.cached = defaults;
     }
@@ -212,7 +238,7 @@ export class GeneralSettingsStore {
 
   async update(patch: Partial<GeneralSettingsConfig>): Promise<GeneralSettingsConfig> {
     const current = await this.get();
-    const next = this.mergePatch(current, patch);
+    const next = this.mergePatch(current, patch, current.outsideProjectFolder);
     next.updatedAt = Date.now();
     this.cached = next;
     await mkdir(dirname(this.filePath), { recursive: true });
@@ -220,10 +246,10 @@ export class GeneralSettingsStore {
     return next;
   }
 
-  private mergePatch(base: GeneralSettingsConfig, patch: Partial<GeneralSettingsConfig>): GeneralSettingsConfig {
+  private mergePatch(base: GeneralSettingsConfig, patch: Partial<GeneralSettingsConfig>, fallbackOutside: string): GeneralSettingsConfig {
     const next: GeneralSettingsConfig = { ...base };
     if (typeof patch.outsideProjectFolder === "string" && patch.outsideProjectFolder.trim()) {
-      next.outsideProjectFolder = normalizeOutsideProjectFolder(patch.outsideProjectFolder);
+      next.outsideProjectFolder = normalizeOutsideProjectFolder(patch.outsideProjectFolder, fallbackOutside);
     }
     if (typeof patch.defaultProjectsFolder === "string" && patch.defaultProjectsFolder.trim()) {
       next.defaultProjectsFolder = resolve(patch.defaultProjectsFolder.trim());

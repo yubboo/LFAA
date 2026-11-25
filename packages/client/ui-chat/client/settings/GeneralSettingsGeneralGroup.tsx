@@ -1,7 +1,7 @@
 // 渲染设置中心「常规」页的主体分组：位置、运行环境、界面、历史与性能、启动与扩展；每组只放同类设置。
 import { IconAppWindow, IconCode, IconFolderFilled, IconTerminal2 } from "@tabler/icons-react";
 import { middleTruncatePath, type GeneralSettingsConfig, type ReasoningLevelOption } from "./general-settings-client";
-import { SettingGroup, SettingMultiSelect, SettingRow, SettingSelect, SettingSwitch } from "@lfaa/ui-primitives/client";
+import { HoverTip, SettingGroup, SettingMultiSelect, SettingRow, SettingSelect, SettingSwitch } from "@lfaa/ui-primitives/client";
 import { settingsStyles as styles } from "@lfaa/ui-primitives/client";
 
 const REASONING_OPTIONS: ReadonlyArray<{ value: ReasoningLevelOption; zh: string; en: string }> = [
@@ -30,24 +30,24 @@ export function GeneralSettingsGeneralGroup({
   onOpenLicenses: () => void;
   onShowNotice: (msg: string) => void;
 }) {
-  const outsidePath = cfg.outsideProjectFolder || (isZh ? "正在检测 .lfaa 目录..." : "Detecting .lfaa folder...");
+  const outsidePath = cfg.outsideProjectFolder || (isZh ? "正在检测默认工作区…" : "Detecting default workspace…");
   const projectsBasePath = cfg.defaultProjectsFolder || (isZh ? "正在检测文档/lfaa 目录..." : "Detecting Documents/lfaa...");
 
   return (
     <>
       <SettingGroup title={isZh ? "位置" : "Locations"}>
         <SettingRow
-          title={isZh ? "项目外聊天文件夹" : "Out-of-project chat folder"}
+          title={isZh ? "默认工作区" : "Default workspace"}
           description={
             isZh
-              ? "未关联项目直接发起「新聊天」时的默认存储位置（默认 ~/.lfaa；项目内与项目外对话历史统一存于 ~/.lfaa\\sessions）。"
-              : "Default location for chats outside any project (~/.lfaa; all chat histories stay in ~/.lfaa/sessions)."
+              ? "未关联项目时，默认使用这个工作区。"
+              : "Used by default when no project is attached."
           }
           control={(
             <>
-              <span className={styles.valueText} title={outsidePath}>
-                {middleTruncatePath(outsidePath, 30)}
-              </span>
+              <HoverTip label={outsidePath} multiline>
+                <span className={styles.valueText}>{middleTruncatePath(outsidePath, 30)}</span>
+              </HoverTip>
               <button type="button" className={styles.actionBtn} onClick={onPickOutsideFolder}>
                 {isZh ? "更改" : "Change"}
               </button>
@@ -58,14 +58,14 @@ export function GeneralSettingsGeneralGroup({
           title={isZh ? "默认新建项目目录" : "Default new-project folder"}
           description={
             isZh
-              ? "通过名称创建项目且不添加源文件夹时，将自动在此目录下新建同名项目文件夹（仅存项目本身，不存会话）。"
-              : "When creating a named project without picking a folder, a subfolder is created here (projects only, no chat history)."
+              ? "按名称新建项目且未选择文件夹时，会在这里创建同名目录。"
+              : "Named projects created without picking a folder get a subfolder here."
           }
           control={(
             <>
-              <span className={styles.valueText} title={projectsBasePath}>
-                {middleTruncatePath(projectsBasePath, 30)}
-              </span>
+              <HoverTip label={projectsBasePath} multiline>
+                <span className={styles.valueText}>{middleTruncatePath(projectsBasePath, 30)}</span>
+              </HoverTip>
               <button type="button" className={styles.actionBtn} onClick={onPickDefaultProjectsFolder}>
                 {isZh ? "更改" : "Change"}
               </button>

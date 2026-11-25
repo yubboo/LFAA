@@ -97,6 +97,12 @@ export const webBundlePlugin: Plugin.Object<WebBundleConfig> = {
         if (!chat) return undefined;
         return (await chat.getGeneralSettings()).defaultProjectsFolder;
       },
+      // 项目外聊天目录与项目并排（<文档>/lfaa/default-workspace），扫描默认项目目录时要跳过它。
+      outsideProjectDirResolver: async () => {
+        const chat = ctx.get("chat") as { getGeneralSettings: () => Promise<{ outsideProjectFolder: string }> } | undefined;
+        if (!chat) return undefined;
+        return (await chat.getGeneralSettings()).outsideProjectFolder;
+      },
     });
     // 工作树依赖已登记项目，排在 workspace 之后；本身不读写会话。
     const worktreeFiber = ctx.plugin(worktreePlugin, {});

@@ -30,6 +30,21 @@
   z-index: 80;
 }
 
+/* 长文案（完整路径等）：按内容取宽、上限受视口约束，超出时断词换行。 */
+.tipMultiline {
+  width: max-content;
+  max-width: min(30rem, calc(100vw - 2rem));
+  border-radius: 0.8rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+/* 长文案在 flex 布局里要允许收缩，否则仍会把气泡撑宽。 */
+.tipMultiline > span:first-child {
+  min-width: 0;
+}
+
 .wrap:hover:not(.disabled) .tip,
 .wrap:focus-within:not(.disabled) .tip {
   opacity: 1;

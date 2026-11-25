@@ -109,7 +109,7 @@ Electron 在 Windows 上**没有菜单就没有 Ctrl+C / Ctrl+V / Ctrl+A / Ctrl+
 | 前端资源 | 开发态 `apps/web/dist`；打包态 `<resources>/app/web` |
 | 主进程代码 | 打包态 `<resources>/app/dist/main.js` |
 | 宿主体 | 开发态 `apps/desktop-host/lib/index.js`；打包态 `<resources>/app/desktop-host/index.js` |
-| 默认工作根 | `~/.lfaa/workspace`（不存在则创建）；**不**使用安装目录 |
+| 默认工作根 | `<系统文档>\lfaa\default-workspace`（跟随系统「文档」位置，不存在则创建）；**不**使用安装目录 |
 | 项目/会话/记忆数据 | 沿用 `~/.lfaa`（与 Web 共享） |
 | Electron 自身存储（localStorage、缓存） | `%APPDATA%\LFAA`，与浏览器不共享（预期差异，写入文档） |
 
@@ -273,7 +273,7 @@ P1 是 A1 重构（会移动 `packages/host/web-server` 内部代码），P2 新
 
 ## 11. 需要负责人顺手确认的小项（已给默认值，不反对即按默认实施）
 
-1. 默认工作根：`~/.lfaa/workspace`（首次自动创建）。
+1. 默认工作根：`<系统文档>\lfaa\default-workspace`（跟随系统文档位置，首次自动创建）。
 2. 应用显示名 `LFAA`、`appId: com.lfaa.desktop`、安装范围「仅当前用户（免管理员）」。
 3. 图标：首版用脚本生成的简约图标（深色圆角 + 白色字标），正式品牌图到位后替换 `apps/desktop/resources/icon.ico`。
 4. 启动器菜单：`3. 启动桌面端`、`7. 构建桌面端安装包`。

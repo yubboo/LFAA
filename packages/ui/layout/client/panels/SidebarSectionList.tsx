@@ -1,7 +1,9 @@
 // 统一的左二菜单栏列表原语：复用搜索框、分组标题、折叠能力、拖拽分区、空态与液态玻璃交互样式。
 import { useState, type ReactNode } from "react";
 import { NavigationIcon, type NavigationIconName } from "../navigation/NavigationIcon";
+import { ToolbarTip } from "../navigation/Toolbar-Tip";
 import controlStyles from "./SidebarSectionList.controls.module.css";
+import createStyles from "./SidebarSectionList.create.module.css";
 import styles from "./SidebarSectionList.module.css";
 import statusStyles from "./SidebarStatus.module.css";
 import badgeStyles from "./SidebarSectionList.badge.module.css";
@@ -35,6 +37,8 @@ export interface SidebarItemConfig {
   branchLabel?: string;
   branchTitle?: string;
   title?: string;
+  /** 行标签的悬停气泡（如默认工作区的完整路径）；设置后不再使用原生 title。 */
+  labelTip?: string;
   onClick: () => void;
   actions?: ReactNode;
   actionsVisible?: boolean;
@@ -54,7 +58,15 @@ export interface SidebarGroupConfig {
   onToggle?: () => void;
   tools?: ReactNode;
   items: SidebarItemConfig[];
+  /** 固定显示在列表最前、但不参与空态判断的常驻行（如「默认工作区」）。 */
+  leadingItems?: SidebarItemConfig[] | undefined;
   emptyText?: string;
+  /** 列表末尾的弱化操作行（如「+ 创建新项目」），有项目时常驻显示但存在感很低。 */
+  trailingAction?: {
+    label: string;
+    icon: NavigationIconName;
+    onClick: () => void;
+  } | undefined;
   emptyAction?: {
     label: string;
     icon: NavigationIconName;
@@ -99,6 +111,118 @@ function RowIcon({ item }: { item: SidebarItemConfig }) {
       name={item.icon === "working" ? "newChat" : item.icon}
       className={statusState(item) ? statusStyles.iconSlotTaken : undefined}
     />
+  );
+}
+
+/**
+ * 渲染单行：带行内动作或置顶按钮的行用容器行，其余用按钮行。
+ * 行标签支持统一气泡提示（labelTip），有提示时不再挂原生 title，避免两套悬浮层并存。
+ */
+function SidebarRow({ item }: { item: SidebarItemConfig }) {
+  const label = item.labelTip ? (
+    <ToolbarTip label={item.labelTip}>
+      <span className={styles.label}>{item.label}</span>
+    </ToolbarTip>
+  ) : (
+    <span className={styles.label}>{item.label}</span>
+  );
+  const nativeTitle = item.labelTip || item.onMouseEnter ? undefined : (item.title ?? item.label);
+
+  if (item.actions || item.onTogglePin) {
+    return (
+      <div
+        className={`${styles.itemRow} ${item.nested ? styles.itemNested : ""} ${item.active ? styles.itemActive : ""}`}
+        data-sidebar-item={item.id}
+        data-actions-visible={item.actionsVisible ? "true" : undefined}
+        draggable={Boolean(item.draggableProjectId)}
+        onDragStart={item.draggableProjectId ? (event) => {
+          event.dataTransfer.setData(DRAG_PROJECT_MIME, item.draggableProjectId!);
+          event.dataTransfer.effectAllowed = "move";
+        } : undefined}
+        onMouseEnter={(event) => item.onMouseEnter?.(event.currentTarget)}
+        onMouseLeave={() => item.onMouseLeave?.()}
+      >
+        <StatusMarker item={item} />
+        <button
+          type="button"
+          className={styles.itemMain}
+          aria-current={item.active ? "page" : undefined}
+          aria-expanded={item.expanded}
+          title={nativeTitle}
+          onClick={item.onClick}
+          onDoubleClick={item.onDoubleClick}
+        >
+          <RowIcon item={item} />
+          {label}
+          {item.branchLabel && (
+            <span className={badgeStyles.branchBadge} title={item.branchTitle ?? item.branchLabel}>
+              {item.branchLabel}
+            </span>
+          )}
+          {item.muted && <NavigationIcon name="muted" className={statusStyles.mutedMarker} />}
+          {item.attention && item.attentionLabel && (
+            <span
+              className={styles.attentionBadge}
+              data-attention={item.attention}
+              title={item.attentionLabel}
+            >
+              {item.attentionLabel}
+            </span>
+          )}
+        </button>
+        {!item.attention && item.trailingHint && (
+          <span className={styles.trailingHint}>{item.trailingHint}</span>
+        )}
+        <div className={styles.rowActions}>
+          {item.actions}
+        </div>
+        {item.onTogglePin ? (
+          <button
+            type="button"
+            className={`${styles.pinButton} ${item.pinned ? styles.pinButtonActive : ""}`}
+            aria-label={item.pinLabel}
+            aria-pressed={Boolean(item.pinned)}
+            title={item.pinLabel}
+            onClick={(event) => {
+              event.stopPropagation();
+              item.onTogglePin?.();
+            }}
+          >
+            <NavigationIcon name="pin" />
+          </button>
+        ) : item.pinned ? (
+          <NavigationIcon name="pin" className={styles.pinMarker} />
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      className={`${styles.item} ${item.nested ? styles.itemNested : ""} ${item.active ? styles.itemActive : ""} ${item.control ? controlStyles.moreButton : ""}`}
+      aria-current={item.active ? "page" : undefined}
+      aria-expanded={item.expanded}
+      title={nativeTitle}
+      data-sidebar-item={item.id}
+      data-sidebar-control={item.control ? "true" : undefined}
+      onClick={item.onClick}
+    >
+      <StatusMarker item={item} />
+      <RowIcon item={item} />
+      {label}
+      {item.muted && <NavigationIcon name="muted" className={statusStyles.mutedMarker} />}
+      {item.pinned && <NavigationIcon name="pin" className={styles.pinMarker} />}
+      {item.attention && item.attentionLabel && (
+        <span
+          className={styles.attentionBadge}
+          data-attention={item.attention}
+          title={item.attentionLabel}
+        >
+          {item.attentionLabel}
+        </span>
+      )}
+    </button>
   );
 }
 
@@ -186,102 +310,12 @@ export function SidebarSectionList({
 
               {isOpen && (
                 <div className={styles.list}>
+                  {group.leadingItems?.map((item) => (
+                    <SidebarRow key={item.id} item={item} />
+                  ))}
                   {group.items.length > 0 ? (
                     group.items.map((item) => (
-                      item.actions || item.onTogglePin ? (
-                        <div
-                          key={item.id}
-                          className={`${styles.itemRow} ${item.nested ? styles.itemNested : ""} ${item.active ? styles.itemActive : ""}`}
-                          data-sidebar-item={item.id}
-                          data-actions-visible={item.actionsVisible ? "true" : undefined}
-                          draggable={Boolean(item.draggableProjectId)}
-                          onDragStart={item.draggableProjectId ? (event) => {
-                            event.dataTransfer.setData(DRAG_PROJECT_MIME, item.draggableProjectId!);
-                            event.dataTransfer.effectAllowed = "move";
-                          } : undefined}
-                          onMouseEnter={(event) => item.onMouseEnter?.(event.currentTarget)}
-                          onMouseLeave={() => item.onMouseLeave?.()}
-                        >
-                          <StatusMarker item={item} />
-                          <button
-                            type="button"
-                            className={styles.itemMain}
-                            aria-current={item.active ? "page" : undefined}
-                            aria-expanded={item.expanded}
-                            title={item.onMouseEnter ? undefined : (item.title ?? item.label)}
-                            onClick={item.onClick}
-                            onDoubleClick={item.onDoubleClick}
-                          >
-                            <RowIcon item={item} />
-                            <span className={styles.label}>{item.label}</span>
-                            {item.branchLabel && (
-                              <span className={badgeStyles.branchBadge} title={item.branchTitle ?? item.branchLabel}>
-                                {item.branchLabel}
-                              </span>
-                            )}
-                            {item.muted && <NavigationIcon name="muted" className={statusStyles.mutedMarker} />}
-                            {item.attention && item.attentionLabel && (
-                              <span
-                                className={styles.attentionBadge}
-                                data-attention={item.attention}
-                                title={item.attentionLabel}
-                              >
-                                {item.attentionLabel}
-                              </span>
-                            )}
-                          </button>
-                          {!item.attention && item.trailingHint && (
-                            <span className={styles.trailingHint}>{item.trailingHint}</span>
-                          )}
-                          <div className={styles.rowActions}>
-                            {item.actions}
-                          </div>
-                          {item.onTogglePin ? (
-                            <button
-                              type="button"
-                              className={`${styles.pinButton} ${item.pinned ? styles.pinButtonActive : ""}`}
-                              aria-label={item.pinLabel}
-                              aria-pressed={Boolean(item.pinned)}
-                              title={item.pinLabel}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                item.onTogglePin?.();
-                              }}
-                            >
-                              <NavigationIcon name="pin" />
-                            </button>
-                          ) : item.pinned ? (
-                            <NavigationIcon name="pin" className={styles.pinMarker} />
-                          ) : null}
-                        </div>
-                      ) : (
-                        <button
-                          key={item.id}
-                          type="button"
-                          className={`${styles.item} ${item.nested ? styles.itemNested : ""} ${item.active ? styles.itemActive : ""} ${item.control ? controlStyles.moreButton : ""}`}
-                          aria-current={item.active ? "page" : undefined}
-                          aria-expanded={item.expanded}
-                          title={item.onMouseEnter ? undefined : (item.title ?? item.label)}
-                          data-sidebar-item={item.id}
-                          data-sidebar-control={item.control ? "true" : undefined}
-                          onClick={item.onClick}
-                        >
-                          <StatusMarker item={item} />
-                          <RowIcon item={item} />
-                          <span className={styles.label}>{item.label}</span>
-                          {item.muted && <NavigationIcon name="muted" className={statusStyles.mutedMarker} />}
-                          {item.pinned && <NavigationIcon name="pin" className={styles.pinMarker} />}
-                          {item.attention && item.attentionLabel && (
-                            <span
-                              className={styles.attentionBadge}
-                              data-attention={item.attention}
-                              title={item.attentionLabel}
-                            >
-                              {item.attentionLabel}
-                            </span>
-                          )}
-                        </button>
-                      )
+                      <SidebarRow key={item.id} item={item} />
                     ))
                   ) : group.emptyAction ? (
                     <button
@@ -297,6 +331,16 @@ export function SidebarSectionList({
                       {group.emptyText}
                     </p>
                   ) : null}
+                  {group.trailingAction && (
+                    <button
+                      type="button"
+                      className={createStyles.createRow}
+                      onClick={group.trailingAction.onClick}
+                    >
+                      <NavigationIcon name={group.trailingAction.icon} />
+                      <span className={styles.label}>{group.trailingAction.label}</span>
+                    </button>
+                  )}
                   {group.footerNote && <p className={styles.localNote}>{group.footerNote}</p>}
                 </div>
               )}

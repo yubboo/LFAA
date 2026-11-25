@@ -196,15 +196,21 @@ test("Host workspacePlugin 在确认后使用默认同名目录并保留文件",
     assert.equal(revealBlocked.opened, false);
     assert.match(revealBlocked.error ?? "", /边界/);
 
-    const listed = await ctx.workspace.listProjects();
+    const listed = (await ctx.workspace.listProjects()).filter((item) => !item.isDefault);
     assert.equal(listed.length, 2);
 
     const removed = await ctx.workspace.removeProject(createdPicked.id);
     assert.equal(removed, true);
-    assert.equal((await ctx.workspace.listProjects()).length, 1);
+    assert.equal((await ctx.workspace.listProjects()).filter((item) => !item.isDefault).length, 1);
 
     const diskStillExists = await fs.stat(externalFolder);
     assert.ok(diskStillExists.isDirectory());
+
+    // 默认工作区是首次启动登记的真实项目：可移除，移除后不会再被自动重建。
+    const defaultProject = (await ctx.workspace.listProjects()).find((item) => item.isDefault);
+    assert.ok(defaultProject);
+    assert.equal(await ctx.workspace.removeProject(defaultProject.id), true);
+    assert.equal((await ctx.workspace.listProjects()).some((item) => item.isDefault), false);
   } finally {
     await fiber.dispose();
     await fs.rm(tempRoot, { recursive: true, force: true });
@@ -283,14 +289,27 @@ test("LocalProjectStore 从本地缓存首屏秒开并在远端一致时静默�
   const mem = new Map<string, string>([["lfaa:cache-projects", JSON.stringify(cached)]]);
   const prevWindow = (globalThis as { window?: unknown }).window;
   const prevFetch = globalThis.fetch;
+  const windowListeners = new Map<string, Set<() => void>>();
+  let fetchCount = 0;
 
   (globalThis as { window: unknown }).window = {
     localStorage: {
       getItem: (k: string) => mem.get(k) ?? null,
       setItem: (k: string, v: string) => { mem.set(k, v); },
     },
+    addEventListener: (type: string, listener: () => void) => {
+      const bucket = windowListeners.get(type) ?? new Set<() => void>();
+      bucket.add(listener);
+      windowListeners.set(type, bucket);
+    },
+    removeEventListener: (type: string, listener: () => void) => {
+      windowListeners.get(type)?.delete(listener);
+    },
   };
-  globalThis.fetch = (async () => new Response(JSON.stringify({ projects: cached }), { status: 200 })) as typeof fetch;
+  globalThis.fetch = (async () => {
+    fetchCount += 1;
+    return new Response(JSON.stringify({ projects: cached }), { status: 200 });
+  }) as typeof fetch;
 
   try {
     const store = new LocalProjectStore();
@@ -302,8 +321,16 @@ test("LocalProjectStore 从本地缓存首屏秒开并在远端一致时静默�
     const unsub = store.subscribe(() => { emitCount += 1; });
     await store.refreshProjects();
     assert.equal(emitCount, 0, "数据未变化时不应重复触发 UI 重绘");
+
+    // 从资源管理器切回应用时静默刷新，用户在磁盘上删/建项目文件夹后无需手动刷新。
+    const beforeFocus = fetchCount;
+    for (const listener of windowListeners.get("focus") ?? []) listener();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.equal(fetchCount, beforeFocus + 1, "窗口聚焦应触发一次静默刷新");
+
     unsub();
     store.dispose();
+    assert.equal(windowListeners.get("focus")?.size ?? 0, 0, "dispose 时应解绑窗口事件");
   } finally {
     globalThis.fetch = prevFetch;
     if (prevWindow === undefined) {
@@ -336,6 +363,97 @@ test("Host workspacePlugin 支持通过 defaultProjectsDirResolver 使用自定�
     currentBase = customProjectsBase;
     const created = await ctx.workspace.createProject({ name: "demo-app", trusted: true, confirmedDefaultPath: resolved.targetPath });
     assert.equal(created.rootPath, path.join(customProjectsBase, "demo-app"));
+  } finally {
+    await fiber.dispose();
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+// 负责人要求：默认项目目录（<文档>/lfaa）里手动新建的项目文件夹要被自动纳入，删掉文件夹要让项目同步消失。
+test("Host workspace 与默认项目目录同步：手建文件夹自动纳入、删目录自动移出", async () => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-ws-sync-"));
+  const documentsDir = path.join(tempRoot, "Documents");
+  const baseDir = path.join(documentsDir, "lfaa");
+  const outsideDir = path.join(baseDir, "default-workspace");
+  const handmadeDir = path.join(baseDir, "handmade");
+  const worktreeContainer = path.join(baseDir, "handmade-worktrees");
+  await fs.mkdir(outsideDir, { recursive: true });
+  await fs.mkdir(handmadeDir, { recursive: true });
+  await fs.mkdir(path.join(worktreeContainer, "00000000-feature"), { recursive: true });
+  await fs.writeFile(path.join(baseDir, "notes.txt"), "文件不是项目\n", "utf8");
+
+  const ctx = new Context();
+  const fiber = ctx.plugin(workspacePlugin, { storeFilePath: path.join(tempRoot, "projects.json"), documentsDir });
+  await fiber;
+
+  try {
+    // 只纳入真实子文件夹：项目外工作区、工作树容器与普通文件都跳过；默认工作区始终置顶合成。
+    const initial = await ctx.workspace.listProjects();
+    assert.equal(initial[0]?.isDefault, true);
+    assert.deepEqual(initial.filter((item) => !item.isDefault).map((item) => item.name), ["handmade"]);
+    const handmade = initial.find((item) => !item.isDefault)!;
+    assert.equal(handmade.rootPath, handmadeDir);
+    assert.equal(handmade.trusted, true);
+    assert.equal(handmade.exists, true);
+
+    // 用户在资源管理器里新建文件夹后，下一次刷新即被发现。
+    const laterDir = path.join(baseDir, "later");
+    await fs.mkdir(laterDir, { recursive: true });
+    const afterCreate = await ctx.workspace.listProjects();
+    assert.equal(afterCreate.filter((item) => !item.isDefault).length, 2);
+    assert.ok(afterCreate.some((item) => item.rootPath === laterDir));
+
+    // 默认项目目录之外的项目仍要用户自己绑定：磁盘删除不自动移出（既有逻辑不变）。
+    const externalDir = path.join(tempRoot, "external-project");
+    await fs.mkdir(externalDir, { recursive: true });
+    const external = await ctx.workspace.createProject({
+      name: "external-project", rootPath: externalDir, trusted: true,
+    });
+    await fs.rm(externalDir, { recursive: true, force: true });
+    const afterExternal = await ctx.workspace.listProjects();
+    assert.ok(afterExternal.some((item) => item.id === external.id && item.exists === false));
+
+    // 删掉默认项目目录下的文件夹 → 对应项目自动移出。
+    await fs.rm(laterDir, { recursive: true, force: true });
+    const afterDelete = await ctx.workspace.listProjects();
+    assert.equal(afterDelete.some((item) => item.rootPath === laterDir), false);
+    assert.ok(afterDelete.some((item) => item.id === handmade.id));
+
+    // 用户主动「移出」的手建项目不会被下一次刷新重新纳入。
+    assert.equal(await ctx.workspace.removeProject(handmade.id), true);
+    assert.equal((await ctx.workspace.listProjects()).some((item) => item.rootPath === handmadeDir), false);
+
+    // 文件夹真的被删掉后移出记录失效：同名文件夹再建出来会重新纳入。
+    await fs.rm(handmadeDir, { recursive: true, force: true });
+    await ctx.workspace.listProjects();
+    await fs.mkdir(handmadeDir, { recursive: true });
+    const afterRecreate = await ctx.workspace.listProjects();
+    assert.ok(afterRecreate.some((item) => item.rootPath === handmadeDir));
+  } finally {
+    await fiber.dispose();
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("Host workspace 跳过自定义位置的项目外聊天目录", async () => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-ws-outside-"));
+  const baseDir = path.join(tempRoot, "projects-base");
+  const customOutside = path.join(baseDir, "chat-tmp");
+  await fs.mkdir(path.join(baseDir, "real-project"), { recursive: true });
+  await fs.mkdir(customOutside, { recursive: true });
+  // 旧默认位置残留的 default-workspace 同样按项目外工作区处理，不纳入项目。
+  await fs.mkdir(path.join(baseDir, "default-workspace"), { recursive: true });
+  const ctx = new Context();
+  const fiber = ctx.plugin(workspacePlugin, {
+    storeFilePath: path.join(tempRoot, "projects.json"),
+    defaultProjectsDirResolver: async () => baseDir,
+    outsideProjectDirResolver: async () => customOutside,
+  });
+  await fiber;
+
+  try {
+    const listed = (await ctx.workspace.listProjects()).filter((item) => !item.isDefault);
+    assert.deepEqual(listed.map((item) => item.name), ["real-project"]);
   } finally {
     await fiber.dispose();
     await fs.rm(tempRoot, { recursive: true, force: true });

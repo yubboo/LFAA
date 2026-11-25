@@ -2,23 +2,25 @@
 import type { ReactNode } from "react";
 import styles from "./HoverTip.module.css";
 
-/** 为触发元素提供悬停提示与快捷键标签，并测量触发元素用于定位。 */
+/** 为触发元素提供悬停提示与快捷键标签；multiline 用于完整路径这类可能很长的文案。 */
 export function HoverTip({
   label,
   shortcut,
   disabled = false,
+  multiline = false,
   children,
 }: {
   label: string;
   shortcut?: string | undefined;
   disabled?: boolean | undefined;
+  multiline?: boolean | undefined;
   children: ReactNode;
 }) {
   return (
     <span className={`${styles.wrap} ${disabled ? styles.disabled : ""}`}>
       {children}
       {!disabled && label && (
-        <span className={styles.tip} role="tooltip">
+        <span className={`${styles.tip} ${multiline ? styles.tipMultiline : ""}`} role="tooltip">
           <span>{label}</span>
           {shortcut && <span className={styles.kbd}>{shortcut}</span>}
         </span>
