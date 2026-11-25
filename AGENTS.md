@@ -108,6 +108,7 @@
 - **自动化浏览器门禁**：涉及 Web UI 的交付同时执行 `pnpm verify:web`（生产构建产物 + 本机无头 Edge/Chrome 校验壳层、资料库、代码审查、设置中心、浅色主题与窄屏，失败或控制台报错即退出 1）。它兜底装配断裂与空白页，但不替代上一条的人工/子代理目视验收。
 - **截图自查**：界面改完先 `pnpm ui:shot --only=<相关任务>` 出图到 `shots/` 再评价，按 [.agent/skills/ui-screenshot/SKILL.md](.agent/skills/ui-screenshot/SKILL.md) 新增任务；截图与 `shots/manifest.json` 不入库。截图发现的问题按 bug 处理，不得只改图不改代码。
 - 所有构建命令必须实际存在于项目 scripts；失败或未运行都应如实报告。
+- **`pnpm-lock.yaml` 只能由 pnpm 写出**：加依赖只走 `pnpm add` / `pnpm install`，禁止手改或用脚本补条款。手改会留下非规范顺序——pnpm 判定「已是最新」时不会重写仓库锁文件，却会把 `node_modules/.pnpm/lock.yaml` 重写成有序形态，导致启动器比对永久失败（`pnpm check` 的 `lockfile-order` 会拦下；`scripts/ensure-dependencies.mjs` 现按 YAML 语义比较，并把顺序差异自动回写成规范形态）。
 - **门禁位置**：克隆后执行一次 `pnpm hooks:install` 启用本地提交前检查（`.githooks/pre-commit`：空白检查 + `check` + `lint` + 日志编号体检，跳过用 `--no-verify`）；完整门禁在 `.github/workflows/ci.yml`，顺序为 `install --frozen-lockfile → check → lint → readme:pair → typecheck → test → build → probe:boot → probe:loader → verify:web`。其中 Lint 由 `pnpm lint`（`scripts/lint-workspace.mjs`，AST 规则：未使用导入、显式 any、调试输出、宽松相等、空 catch、TS 抑制指令）执行；`probe:boot` 用隔离用户目录装配完整 Host 运行时，专门抓插件 `inject` 漏声明这类启动期错误。改完必须让这些步骤真实通过，不能只跑一部分就报告完成。
 - 未经负责人明确要求，**不得 git commit、git push、合并 PR、强制 reset、覆盖用户本地改动**。
 - 不泄漏密钥、不静默清除数据、不改动无关系统文件。高风险操作必须单独审批。

@@ -59,14 +59,13 @@ test("工具行与文件活动行都以统一图标槽起头，动词紧随其�
     timestamp: 2000,
   };
 
-  const cases = [
-    { html: renderRow(toolStep), verb: "已检索内容" },
-    { html: renderRow(fileStep), verb: "已分析" },
-  ];
+  const rows = [renderRow(toolStep), renderRow(fileStep)];
 
   // 第一层就是图标槽，且槽内直接是图标；动词在槽之后，两行的动词起点才能落在同一像素。
-  for (const item of cases) {
-    assert.match(item.html, /data-icon-slot="true"[^>]*>\s*<svg/u);
-    assert.ok(item.html.indexOf("data-icon-slot") < item.html.indexOf(item.verb));
+  // 断言用结构标记而不是文案：界面语言可能是中文或英文，按文本比对会在英文环境误报。
+  for (const html of rows) {
+    assert.notEqual(html.indexOf("data-activity-verb"), -1, "行的动词元素必须带 data-activity-verb 标记");
+    assert.match(html, /data-icon-slot="true"[^>]*>\s*<svg/u);
+    assert.ok(html.indexOf("data-icon-slot") < html.indexOf("data-activity-verb"));
   }
 });

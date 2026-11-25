@@ -3,7 +3,7 @@
 > 本文件由 `pnpm map:sync`（[scripts/gen-repository-map.mjs](../../scripts/gen-repository-map.mjs)）按真实文件系统生成，**不要手改**。
 > 骨架发生变化（新增/删除/移动文件、包或目录）后，必须在同一轮运行 `pnpm map:sync` 并提交，否则 `pnpm check` 会失败。
 
-当前快照：**63 个包、2577 个文件、477 个子目录**（不含 node_modules、构建产物与运行数据）。
+当前快照：**63 个包、2542 个文件、474 个子目录**（不含 node_modules、构建产物与运行数据）。
 
 ## 1. 快速索引
 
@@ -64,14 +64,14 @@ lfaa/
 │   └── web/  (10 个文件)
 │       ├── public/  (2 个文件)
 │       └── src/  (3 个文件)
-├── docs/  (419 个文件)
+├── docs/  (420 个文件)
 │   ├── architecture/  (11 个文件)
 │   ├── dev-log/  (4 个文件)
 │   ├── features/  (28 个文件)
 │   ├── plans/  (9 个文件)
 │   ├── standards/  (2 个文件)
 │   ├── templates/  (2 个文件)
-│   └── updata-log/  (361 个文件)
+│   └── updata-log/  (362 个文件)
 ├── packages/  (1882 个文件)
 │   ├── api/  (7 个文件)
 │   │   └── gateway/  # @lfaa/api-gateway  (7 个文件)
@@ -528,9 +528,6 @@ lfaa/
 │           └── tests/  (2 个文件)
 ├── patches/  (1 个文件)
 ├── scripts/  (33 个文件)
-├── shots/  (36 个文件)
-│   ├── browser-flow/  (2 个文件)
-│   └── verify/  (25 个文件)
 └── vendor/  (14 个文件)
     └── loader/  (13 个文件)
         └── src/  (9 个文件)
@@ -2811,10 +2808,10 @@ lfaa/
 - `check-doc-links.mjs`
 - `check-logs.mjs` — 日志编号体检：dev-log 卷内标题编号与 updata-log 文件名编号必须各自唯一；同一轮两类日志共用编号是允许的。
 - `check-logs.test.mjs` — 验证日志编号体检：同类日志重号判错、基线可登记历史重号、基线外的重号仍然判错、基线条目过期提示。
-- `check-workspace.mjs` — 仓库边界检查：校验包命名、跨包子路径、Host/Client 隔离、依赖一致性、循环依赖、中文文件头与文件规模。
+- `check-workspace.mjs` — 仓库边界检查：校验包命名、跨包子路径、Host/Client 隔离、依赖一致性、锁文件顺序、循环依赖、中文文件头与文件规模。
 - `check-workspace.test.mjs` — 验证 check-workspace 的新增规则本身：文件规模、client 越界相对导入、写死颜色与豁免清单棘轮。
-- `ensure-dependencies.mjs` — 仓库依赖状态预检与安全增量安装脚本：在 Node 环境中核对 workspace/lockfile，避免破坏性重建。
-- `ensure-dependencies.test.mjs` — 依赖预检脚本的回归测试：覆盖 Windows 换行与 pnpm 规范化副本的兼容性。
+- `ensure-dependencies.mjs` — 仓库依赖状态预检与安全增量安装脚本：核对 workspace/lockfile，缺依赖时只补装缺失的包并自愈依赖链接。
+- `ensure-dependencies.test.mjs` — 依赖预检脚本的回归测试：覆盖 Windows 换行、BOM 与「仅包块顺序不同」的锁文件兼容性。
 - `ensure-lib.mjs` — 开发启动前产物自检：关键包 lib 缺失时自动重建，避免“tsbuildinfo 还在但产物没了”导致的启动失败。
 - `gen-repository-map.mjs` — 生成仓库目录说明书：按真实文件系统输出骨架与每个源码文件的中文职责首行。
 - `install-hooks.mjs` — 安装仓库级 Git 钩子：把 core.hooksPath 指向 .githooks，并确保钩子可执行。
@@ -2841,6 +2838,6 @@ lfaa/
 | 目录 | 文件数 | 子目录数 | 说明 |
 | --- | --- | --- | --- |
 | `docs/dev-log` | 4 | 1 | 按每 200 条任务编号汇总的开发日志卷 |
-| `docs/updata-log` | 361 | 1 | 面向用户的单条更新说明 |
+| `docs/updata-log` | 362 | 1 | 面向用户的单条更新说明 |
 | `vendor` | 14 | 4 | 内嵌的上游运行时源码 |
 | `packages/extension/skills/src/builtin-skills` | 637 | 151 |  |

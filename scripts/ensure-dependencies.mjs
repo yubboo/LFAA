@@ -1,12 +1,10 @@
-// 仓库依赖状态预检与安全增量安装脚本：在 Node 环境中核对 workspace/lockfile，避免破坏性重建。
-// 缺依赖时只补装缺失的包（复用 pnpm store），并自愈被删掉的依赖链接；失败原因转成可读提示。
+// 仓库依赖状态预检与安全增量安装脚本：核对 workspace/lockfile，缺依赖时只补装缺失的包并自愈依赖链接。
+// 锁文件按 YAML 语义比较（pnpm 只在写盘时排序，逐字节比较会把「仅顺序不同」误判成依赖不一致）。
 import { spawn } from "node:child_process";
-// 计算 lockfile 摘要，用于比对仓库与已安装目录中的副本。
-import { createHash } from "node:crypto";
 // 快速判断 package 依赖链接是否存在，并在安装前清理中断残留临时目录。
 import { existsSync, readdirSync, rmSync } from "node:fs";
-// 读取工作区清单、lockfile 和 pnpm 状态文件。
-import { readFile, readdir, stat } from "node:fs/promises";
+// 读取工作区清单、lockfile 和 pnpm 状态文件；顺序差异自愈时需要回写仓库锁文件。
+import { readFile, readdir, stat, writeFile } from "node:fs/promises";
 // 解析工作区相对路径并生成跨平台路径标识。
 import { relative, resolve, sep } from "node:path";
 // 从当前脚本地址定位仓库根目录。
@@ -180,19 +178,50 @@ function parseLockImporters(lockfile) {
   return importers;
 }
 
-// 生成内容摘要，避免把较大的 lockfile 逐字段比较。
-function digest(value) {
-  return createHash("sha256").update(value).digest("hex");
+// 按需加载 js-yaml：首启（node_modules 还没装）时预检也要能跑，不能在模块顶层导入依赖。
+let yamlModule;
+async function loadYaml() {
+  if (yamlModule === undefined) {
+    try {
+      yamlModule = await import("js-yaml");
+    } catch {
+      yamlModule = null;
+    }
+  }
+  return yamlModule;
 }
 
-// pnpm 会把 CRLF 仓库 lockfile 规范化为 LF 虚拟副本；摘要前统一换行。
+// pnpm 会把 CRLF 仓库 lockfile 规范化为 LF 虚拟副本；比较前统一换行。
 function normalizeLockfile(value) {
   return value.replaceAll("\r\n", "\n");
 }
 
-// 判断两份 lockfile 是否只有平台换行差异，供预检与回归测试共用。
-export function lockfilesMatch(repositoryLockfile, installedLockfile) {
-  return digest(normalizeLockfile(repositoryLockfile)) === digest(normalizeLockfile(installedLockfile));
+// 递归按键排序，把两份 lockfile 变成稳定形态；数组顺序有语义，保持原样。
+function canonicalize(value) {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonicalize(value[key])]));
+  }
+  return value;
+}
+
+// 把锁文件文本转成可比较的规范字符串；js-yaml 不可用或文件无法解析时退回「原文 + 换行归一化」。
+async function canonicalLockfile(text) {
+  const source = text.replace(/^\uFEFF/u, "");
+  const yaml = await loadYaml();
+  if (!yaml) return `raw\n${normalizeLockfile(source)}`;
+  try {
+    return `yaml\n${JSON.stringify(canonicalize(yaml.load(source)))}`;
+  } catch {
+    // 解析失败说明锁文件本身有问题，按原文比较，交给后面的报错路径处理。
+    return `raw\n${normalizeLockfile(source)}`;
+  }
+}
+
+/** 判断两份锁文件是否表达同一份依赖（顺序、换行、BOM 不同都算一致），供预检与回归测试共用。 */
+export async function lockfilesMatch(repositoryLockfile, installedLockfile) {
+  const [left, right] = await Promise.all([canonicalLockfile(repositoryLockfile), canonicalLockfile(installedLockfile)]);
+  return left === right;
 }
 
 // 将路径分隔符统一，并在 Windows 上消除大小写差异。
@@ -273,11 +302,15 @@ async function inspectInstallState() {
   }
 
   // 比较安装时复制的 lockfile，可识别切换分支或新增依赖后尚未同步的安装目录。
+  // 语义一致但字节不同只可能来自序列化形态（包块顺序 / 换行 / BOM），不能当成依赖不一致。
   const rootLock = await readFile(lockfilePath);
   const installedLock = await readFile(installedLockfilePath).catch(() => undefined);
-  if (!installedLock || !lockfilesMatch(rootLock.toString("utf8"), installedLock.toString("utf8"))) {
-    return { ready: false, reason: "已安装依赖与 pnpm-lock.yaml 不一致" };
+  const rootLockText = rootLock.toString("utf8");
+  const installedLockText = installedLock?.toString("utf8");
+  if (!installedLockText || !(await lockfilesMatch(rootLockText, installedLockText))) {
+    return { ready: false, reason: "已安装依赖与 pnpm-lock.yaml 不一致（安装副本与仓库锁文件的依赖内容不同）" };
   }
+  const serializationOnly = rootLockText !== installedLockText;
   const modulesText = await readFile(modulesMetadataPath, "utf8").catch(() => "");
   if (!modulesText) return { ready: false, reason: "pnpm 安装状态文件缺失" };
   let modulesMetadata;
@@ -306,7 +339,20 @@ async function inspectInstallState() {
     }
   }
 
-  return { ready: true, reason: "" };
+  return { ready: true, reason: "", serializationOnly };
+}
+
+// 把仓库锁文件回写成 pnpm 的规范序列化（依赖内容不变），写前再确认语义一致，避免覆盖真实改动。
+async function alignLockfileSerialization() {
+  try {
+    const installedLock = await readFile(installedLockfilePath, "utf8");
+    const rootLock = await readFile(lockfilePath, "utf8");
+    if (!(await lockfilesMatch(rootLock, installedLock))) return false;
+    await writeFile(lockfilePath, installedLock, "utf8");
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // 清理上次中断残留在 .pnpm 包目录中的 *_tmp_* 临时文件夹（最多深入 scope 一层）。
@@ -388,6 +434,7 @@ async function runPnpmInstall(firstRun, brokenLinks = []) {
 
 // 执行预检；需要补装时安装并复查，全部通过后才允许菜单启动 Web。
 async function main() {
+  const checkOnly = process.argv.includes("--check-only");
   let state;
   try {
     state = await inspectInstallState();
@@ -396,11 +443,22 @@ async function main() {
   }
 
   if (state.ready) {
-    console.info("依赖已安装且与工作区一致，跳过安装。");
+    if (!state.serializationOnly) {
+      console.info("依赖已安装且与工作区一致，跳过安装。");
+      return;
+    }
+    // 只差序列化顺序：check-only 只报告不落盘，正常启动回写成规范顺序，免得启动器放行而门禁一直红。
+    if (checkOnly) {
+      console.info("依赖已安装且与工作区一致；pnpm-lock.yaml 与安装副本仅排列顺序不同（依赖内容一致）。");
+      return;
+    }
+    console.info(await alignLockfileSerialization()
+      ? "依赖已安装且与工作区一致；已把 pnpm-lock.yaml 回写成 pnpm 的规范顺序（依赖内容未变）。"
+      : "依赖已安装且与工作区一致；pnpm-lock.yaml 与安装副本仅排列顺序不同，可忽略。");
     return;
   }
 
-  if (process.argv.includes("--check-only")) {
+  if (checkOnly) {
     console.error(`依赖尚未就绪：${state.reason}`);
     process.exitCode = 2;
     return;

@@ -174,7 +174,7 @@ export const ToolStepRow = memo(function ToolStepRow({
       </span>
       {showLeadingStatus && status}
       <span className={styles.activityTitle} title={fullTooltip}>
-        <span className={inlineTarget ? styles.toolVerb : undefined}>{primaryLabel}</span>
+        <span className={inlineTarget ? styles.toolVerb : undefined} data-activity-verb="true">{primaryLabel}</span>
         {inlineTarget && (
           <span className={`${styles.toolTarget} ${inlineGlyphKind ? detailStyles.inlineTargetWithGlyph : ""}`}>
             {inlineGlyphKind && (

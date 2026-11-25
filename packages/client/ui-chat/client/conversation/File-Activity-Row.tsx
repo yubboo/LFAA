@@ -64,7 +64,7 @@ export const FileActivityRow = memo(function FileActivityRow({
       <span className={`${styles.icon} ${rowStyles.actionIconWrap}`} data-icon-slot="true" aria-hidden="true">
         <Icon size={15} className={rowStyles.actionIcon} />
       </span>
-      <span className={`${styles.toolVerb} ${rowStyles.fileVerb}`}>{labels.fileKinds[kind]}</span>
+      <span className={`${styles.toolVerb} ${rowStyles.fileVerb}`} data-activity-verb="true">{labels.fileKinds[kind]}</span>
       <span className={rowStyles.fileTargetSlot}>
         <span className={rowStyles.fileChipWrap}>
           <span className={rowStyles.fileChip}>

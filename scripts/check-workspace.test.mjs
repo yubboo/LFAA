@@ -202,3 +202,49 @@ test("插件 inject 覆盖全部访问的服务时通过", () => {
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+/** 造一个只含锁文件的夹具；packages/ 留空即可，规则本身与包内容无关。 */
+function makeLockfileFixture(blocks) {
+  const root = mkdtempSync(join(tmpdir(), "lfaa-check-lockfile-"));
+  mkdirSync(join(root, "packages"), { recursive: true });
+  mkdirSync(join(root, "scripts"), { recursive: true });
+  writeFileSync(
+    join(root, "pnpm-lock.yaml"),
+    ["lockfileVersion: '9.0'", "packages:", ...blocks, ""].join("\n"),
+  );
+  return root;
+}
+
+// 顺序错乱回归：历史 bug 里手改过的锁文件让启动器比对永久失败，这里必须提前拦下。
+test("锁文件包块顺序错乱会被拦下", () => {
+  const root = makeLockfileFixture([
+    "  agent-base@7.0.2:",
+    "    resolution: {integrity: sha512-b}",
+    "  accepts@2.0.0:",
+    "    resolution: {integrity: sha512-a}",
+  ]);
+  try {
+    const { status, output } = runCheck(root);
+    assert.equal(status, 1, `乱序锁文件必须失败：${output}`);
+    assert.match(output, /\[lockfile-order\].*顺序错乱/u);
+    assert.match(output, /agent-base@7\.0\.2.*accepts@2\.0\.0/u);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// pnpm 自己写出的锁文件是按字节有序的，正常仓库不能误报。
+test("锁文件包块有序时通过", () => {
+  const root = makeLockfileFixture([
+    "  accepts@2.0.0:",
+    "    resolution: {integrity: sha512-a}",
+    "  agent-base@7.0.2:",
+    "    resolution: {integrity: sha512-b}",
+  ]);
+  try {
+    const { status, output } = runCheck(root);
+    assert.equal(status, 0, `有序锁文件不应失败：${output}`);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

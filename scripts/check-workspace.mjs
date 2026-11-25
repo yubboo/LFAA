@@ -1,6 +1,7 @@
-// 仓库边界检查：校验包命名、跨包子路径、Host/Client 隔离、依赖一致性、循环依赖、中文文件头与文件规模。
+// 仓库边界检查：校验包命名、跨包子路径、Host/Client 隔离、依赖一致性、锁文件顺序、循环依赖、中文文件头与文件规模。
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, join, posix, relative, resolve, sep } from "node:path";
+import yaml from "js-yaml";
 import ts from "typescript";
 
 // 支持 --root <dir> 指向任意仓库根，便于用临时夹具验证检查规则本身。
@@ -9,6 +10,7 @@ const ROOT = rootFlag === -1
   ? resolve(import.meta.dirname, "..")
   : resolve(process.argv[rootFlag + 1] ?? ".");
 const PACKAGES_DIR = join(ROOT, "packages");
+const LOCKFILE_PATH = join(ROOT, "pnpm-lock.yaml");
 
 /** 各检查级别；error 影响退出码，warn 只提示。 */
 const LEVELS = { error: "error", warn: "warn" };
@@ -544,6 +546,42 @@ function checkCycles(graph) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// 锁文件顺序：pnpm 只会写出按键排序的锁文件，乱序说明条款被人手改或用工具补丁插过。
+// 这种文件在 pnpm 眼里「已是最新」，安装时不会重写仓库锁文件，却会把 node_modules/.pnpm/lock.yaml
+// 重写成有序形态，于是「仓库锁文件 vs 安装副本」的比对永远不等（历史 bug：菜单 2 启动死锁）。
+// ---------------------------------------------------------------------------
+function compareLockKeys(left, right) {
+  return left > right ? 1 : left < right ? -1 : 0;
+}
+
+/** 校验锁文件 packages / snapshots 段的键是否按 pnpm 的逐字节顺序排列。 */
+function checkLockfileOrder() {
+  if (!existsSync(LOCKFILE_PATH)) return;
+  let document;
+  try {
+    document = yaml.load(readFileSync(LOCKFILE_PATH, "utf8").replace(/^\uFEFF/u, ""));
+  } catch (error) {
+    report(LEVELS.error, "lockfile-order", LOCKFILE_PATH, `锁文件无法解析：${error.message}`);
+    return;
+  }
+  for (const section of ["packages", "snapshots"]) {
+    const keys = Object.keys(document?.[section] ?? {});
+    for (let index = 1; index < keys.length; index += 1) {
+      if (compareLockKeys(keys[index - 1], keys[index]) > 0) {
+        // 每个段只报第一处：一次重排会牵动几十行，逐条刷屏没有意义。
+        report(
+          LEVELS.error,
+          "lockfile-order",
+          LOCKFILE_PATH,
+          `${section} 段顺序错乱：「${keys[index - 1]}」应排在「${keys[index]}」之后；请让 pnpm 重新生成锁文件，不要手改`,
+        );
+        break;
+      }
+    }
+  }
+}
+
 function main() {
   const pkgDirs = discoverPackages();
   const graph = new Map();
@@ -592,6 +630,7 @@ function main() {
 
   checkCycles(graph);
   const appFiles = checkApps();
+  checkLockfileOrder();
   fileCount += appFiles;
   reportStaleAllowlist();
   // 软阈值只汇总成一条提示：逐文件刷屏会淹没真正的错误与新警告，需要明细时加 --verbose。
