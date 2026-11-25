@@ -77,6 +77,8 @@ export interface StartAgentRunInput {
   repeatToolThresholds?: number[];
   permissionMode?: AgentPermissionMode;
   autoApproveTools?: boolean;
+  /** 让模型在最终答复末尾附带可点击的追问建议块（仅聊天入口开启）。 */
+  withSuggestions?: boolean;
 }
 
 /** 定义流式运行可发给浏览器的事件变体。 */

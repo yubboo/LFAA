@@ -6,6 +6,7 @@ export interface SystemContentInput {
   modelHint: string;
   shellHint: string;
   libraryHint: string;
+  backgroundHint: string;
   progressHint: string;
   skillsCatalogHint: string;
   skillsSection: string;
@@ -32,5 +33,5 @@ export function renderSystemContent(input: SystemContentInput): string {
     ? `\n前序工具轨迹（来自历史步骤，可直接复用，无需重复探查）：${input.historyDigest}`
     : "";
   const extra = input.extraSystemHint ? `\n\n${input.extraSystemHint}` : "";
-  return `${input.systemPrompt}\n\n${input.permissionHint}\n${input.workspaceHint}\n${input.modelHint ? `${input.modelHint}\n` : ""}${input.shellHint ? `${input.shellHint}\n` : ""}${input.libraryHint}\n${input.progressHint}${input.skillsCatalogHint}${input.skillsSection}${digestHint}${budgetHint(input.remainingSteps)}${input.truncationHint}${extra}${THINKING_LANGUAGE_TAIL}`;
+  return `${input.systemPrompt}\n\n${input.permissionHint}\n${input.workspaceHint}\n${input.modelHint ? `${input.modelHint}\n` : ""}${input.shellHint ? `${input.shellHint}\n` : ""}${input.libraryHint}\n${input.backgroundHint}\n${input.progressHint}${input.skillsCatalogHint}${input.skillsSection}${digestHint}${budgetHint(input.remainingSteps)}${input.truncationHint}${extra}${THINKING_LANGUAGE_TAIL}`;
 }

@@ -35,6 +35,20 @@ export interface RunContext {
   updateSystemMessage(remainingSteps?: number): void;
 }
 
+/** 聊天入口开启时追加：让模型在最终答复末尾给出可点击的追问建议隐藏块。
+    放在 extraSystemHint（系统消息末尾）而不是基础提示词开头，模型更容易在收尾时遵守。 */
+const SUGGESTIONS_HINT = [
+  "【追问建议（隐藏块）】",
+  "在最终答复的最后另起一段，严格输出：<!--suggestions:[\"短句1\",\"短句2\",\"短句3\"]-->",
+  "规则：",
+  "1. 2–3 条，每条不超过 30 字，必须紧扣本轮回答的具体内容与下一步，不要泛泛问「你能做什么」；",
+  "2. 第一人称、可直接作为下一条消息发送；优先指向回答里提到的文件、命令、数字、结论或尚未完成的事；",
+  "3. 块内只放 JSON 数组，不要解释这个块，也不要在正文其它位置出现；工具调用的中间消息不要附加；",
+  "4. 正文不要重复列出与隐藏块相同的建议，建议只出现在块内；",
+  "5. 使用与用户相同的语言。",
+  "示例：<!--suggestions:[\"把刚才的改动补一个回归测试\",\"继续修剩下的两个失败用例\"]-->",
+].join("\n");
+
 /** 装配一次运行的上下文：规则优先级 + 记忆召回 + 资料库摘要 + 短期裁剪历史 + 模型能力。 */
 export async function createRunContext(input: {
   deps: RunLoopDeps;
@@ -42,7 +56,7 @@ export async function createRunContext(input: {
   state: LoopState;
 }): Promise<RunContext> {
   const { deps, params, state } = input;
-  const { systemPrompt, projectRuleNames, contextWindow, historyDigest, libraryHint } = await recallAgentContext(deps, params);
+  const { systemPrompt, projectRuleNames, contextWindow, historyDigest, libraryHint, backgroundHint } = await recallAgentContext(deps, params);
   const workspaceHint = [
     buildWorkspaceHint(params.projectId, params.workspaceRoots, projectRuleNames, params.worktree),
     params.projectScope ? buildProjectScopeHint(params.projectScope) : "",
@@ -68,7 +82,7 @@ export async function createRunContext(input: {
   );
   const tracker = new RunUsageTracker(params, activeProfile, tokenPricing);
   const shellHint = deps.tools.getTool("run_command") ? await deps.tools.describeCommandShell() : "";
-  const baseExtraHint = [deps.extraSystemPrompt ? (await deps.extraSystemPrompt()).trim() : "", buildMediaHint(deps.tools)]
+  const baseExtraHint = [deps.extraSystemPrompt ? (await deps.extraSystemPrompt()).trim() : "", buildMediaHint(deps.tools), params.withSuggestions ? SUGGESTIONS_HINT : ""]
     .filter(Boolean).join("\n\n");
   const initialMode = params.getPermissionMode();
   const initialLiveHint = deps.dynamicSystemHint?.().trim() ?? "";
@@ -83,6 +97,7 @@ export async function createRunContext(input: {
       modelHint,
       shellHint,
       libraryHint,
+      backgroundHint,
       progressHint: `${FORMAT_HINT}\n${buildProgressHint(deps, params)}`,
       skillsCatalogHint: buildSkillsCatalogHint(params.availableSkillCatalog),
       skillsSection,

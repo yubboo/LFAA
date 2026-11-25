@@ -108,6 +108,7 @@ export function createAgentHttpHandler(service: AgentService, options: AgentHttp
             ...(body.permissionMode === "ask" || body.permissionMode === "smart" || body.permissionMode === "full"
               ? { permissionMode: body.permissionMode }
               : {}),
+            withSuggestions: body.withSuggestions === true,
             autoApproveTools: body.autoApproveTools === true,
           }, options.resolveWorkspaceRoots ?? (async () => []));
         } catch (error) {

@@ -13,6 +13,13 @@
   animation: settingsFadeIn 160ms ease-out;
 }
 
+/* 设置中心有自己的背景图时，遮罩减淡，让用户能看到选中的图；弹窗本体仍不透明。 */
+:global(html[data-settings-open="true"][data-app-bg-settings="image"]) .backdrop {
+  background: color-mix(in srgb, var(--color-scrim) 40%, transparent);
+  backdrop-filter: blur(1px);
+  -webkit-backdrop-filter: blur(1px);
+}
+
 /* 设置窗口：实心外壳 + 描边与投影。
    之前是半透明玻璃底，设置页去掉卡片后正文会透出背后工作区的标题文字，浅色主题下尤其难读；
    设置页是配置清单，可读性优先，因此窗口本体改用不透明外壳色。 */

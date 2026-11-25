@@ -6,10 +6,16 @@
   --chat-column-width: min(100%, 48rem);
   /* 会话区两侧各收 0.5rem，再叠加滚动条槽差，输入卡片比正文左右各宽约 16px。 */
   --chat-thread-inset: 0.5rem;
+  /* 滚动条右缘与中间栏分隔线之间的空隙：贴到边但留一点，避免拖滚动条时误触调宽手柄；
+     口径由 Shell 的 --pane-scrollbar-gap 统一（左二栏与会话栏都是 2px）。 */
+  --chat-scrollbar-gap: var(--pane-scrollbar-gap, 2px);
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr) auto;
+  /* 外层视口常驻预留的滚动条槽由 ChatWorkspace 量出后收回（见 --chat-gutter-reclaim），
+     否则消息滚动条会被挤到离分隔线 14px 处、正文列也会相对栏宽偏左。 */
+  margin-inline-end: var(--chat-gutter-reclaim, 0px);
   height: 100%;
   min-width: 0;
   min-height: 0;
@@ -35,12 +41,19 @@
   overflow-y: auto;
   overflow-anchor: none;
   overscroll-behavior-y: none;
+  /* 跨越输入区所在的那一行：滚动条才画得到面板最底部，输入区叠在它上面。
+     必须显式写列号，否则自动排布会把输入区挤到隐式第二列去。 */
+  grid-row: 2 / -1;
+  grid-column: 1;
   /* 两侧各留一条滚动条槽：滚动条只占右侧时，正文列会比输入栏窄 6px 且居中轴左移 3px，
      用户看到的就是「输入框左边多出一截、右边更贴边」。 */
   scrollbar-gutter: stable both-edges;
-  margin-inline-end: var(--pane-scroll-inset, 8px);
+  /* 右端只避让 2px：滚动条贴着中间栏分隔线，又不会压到调宽手柄。 */
+  margin-inline-end: var(--chat-scrollbar-gap, 2px);
   padding: 1.5rem var(--chat-side-padding) 1rem;
-  padding-inline-end: calc(var(--chat-side-padding) - var(--pane-scroll-inset, 8px));
+  padding-inline-end: calc(var(--chat-side-padding) - var(--chat-scrollbar-gap, 2px));
+  /* 输入区叠在上方，正文末端让出它的高度（由 ChatWorkspace 实测量出）。 */
+  padding-block-end: calc(1rem + var(--chat-composer-height, 0px));
 }
 
 .thread {
@@ -189,8 +202,26 @@
 }
 
 .composerDock {
+  /* 叠在消息滚动区之上：滚动条因此能一路画到面板最底部；消息区用等高的底部内边距让位。 */
   position: relative;
+  z-index: 2;
+  grid-row: -2 / -1;
+  grid-column: 1;
+  align-self: end;
   padding: 0.5rem var(--chat-side-padding) 1.15rem;
+  background: transparent;
+}
+
+/* 输入区下方垫一层「由透明渐变到面板底色」的遮挡：往上滚时消息只会淡出，
+   不会从磨砂输入卡片里透出来（卡片本身仍是半透明玻璃）。
+   右侧留出滚动条槽不让遮挡覆盖，否则滚动条滑到这里就被这层底色盖掉了。 */
+.composerDock::before {
+  content: "";
+  position: absolute;
+  inset: -1.4rem calc(var(--scrollbar-size, 10px) + var(--chat-scrollbar-gap, 2px)) 0 0;
+  z-index: -1;
+  background: linear-gradient(to bottom, transparent 0, var(--color-shell) 30%);
+  pointer-events: none;
 }
 
 .composerStack {

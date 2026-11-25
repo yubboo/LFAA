@@ -49,6 +49,8 @@ export interface RunLoopDeps {
 /** 描述启动一次运行所需的会话信息与工具权限上下文。 */
 export interface RunExecutionParams {
   enableClarification?: boolean;
+  /** 让模型在最终答复末尾附带追问建议块；由聊天入口按需开启。 */
+  withSuggestions?: boolean;
   beforeWorkspaceMutation?: () => Promise<void>;
   runId: string;
   sessionId: string;

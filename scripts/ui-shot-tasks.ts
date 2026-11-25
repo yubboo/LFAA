@@ -11,8 +11,8 @@ export type ShotStep =
   | { wait: number }
   /** 把指针移到匹配滚动容器的滚动条上，验证滑块悬停态。 */
   | { hoverScrollbar: string }
-  /** 让匹配的滚动容器滚一段，验证滚动中的滑块高亮。 */
-  | { scroll: string }
+  /** 让匹配的滚动容器滚一段（默认 160px），用于滚动条高亮与滚到长页面下方。 */
+  | { scroll: string; by?: number }
   /** 把匹配元素的水平中线拖到视口 x 坐标，用于复现中间栏收窄后的布局。 */
   | { drag: string; toX: number };
 
@@ -150,12 +150,83 @@ export const TASKS: ShotTask[] = [
   // 设置中心弹窗：外观、常规、模型、Git、代码审查、手机布局。
   settingsTask("settings-appearance-light", "设置中心 · 外观（浅色）", [{ clickText: "外观" }, { wait: 800 }], { theme: "light" }),
   settingsTask("settings-appearance-dark", "设置中心 · 外观（深色）", [{ clickText: "外观" }, { wait: 800 }], { theme: "dark" }),
-  // 外观页下拉菜单必须画在设置弹窗之上：之前菜单被弹窗遮罩压住，触发器看得见、选项点不到。
+  // 外观页下拉菜单必须画在设置弹窗之上：配色细项在「高级设置」分区，先切过去，触发器看得见、选项点得到。
   settingsTask("settings-appearance-menu", "设置中心 · 外观下拉菜单（层级高于弹窗）", [
     { clickText: "外观" },
     { wait: 700 },
+    { clickText: "高级设置" },
+    { wait: 400 },
     { click: 'button[aria-label="主题预设"]' },
     { wait: 500 },
+  ], { theme: "dark" }),
+  // 高级设置分区：主题细项与字号/字体/主题与显示/动效与光标同处一个面板，预设分区只剩主题卡与背景图墙。
+  settingsTask("settings-appearance-advanced-dark", "设置中心 · 外观「高级设置」分区（深色）", [
+    { clickText: "外观" },
+    { wait: 700 },
+    { clickText: "高级设置" },
+    { wait: 500 },
+  ], { theme: "dark" }),
+  settingsTask("settings-appearance-advanced-light", "设置中心 · 外观「高级设置」分区（浅色）", [
+    { clickText: "外观" },
+    { wait: 700 },
+    { clickText: "高级设置" },
+    { wait: 500 },
+  ], { theme: "light" }),
+  // 窄屏：选项卡与主题细项控件不能溢出（≤760px 时设置行改上下排）。
+  settingsTask("settings-appearance-advanced-narrow", "设置中心 · 外观「高级设置」分区（窄屏）", [
+    { clickText: "外观" },
+    { wait: 700 },
+    { clickText: "高级设置" },
+    { wait: 500 },
+  ], { theme: "dark", width: 720, height: 900 }),
+  // 背景图片：外观页预设分区向下滚动后的内置图墙，以及应用后的整壳效果。
+  settingsTask("settings-appearance-backgrounds-dark", "设置中心 · 背景图片图墙（深色）", [
+    { clickText: "外观" },
+    { wait: 700 },
+    { scroll: 'section [data-axis="y"]', by: 760 },
+    { wait: 500 },
+  ], { theme: "dark" }),
+  settingsTask("settings-appearance-backgrounds-light", "设置中心 · 背景图片图墙（浅色）", [
+    { clickText: "外观" },
+    { wait: 700 },
+    { scroll: 'section [data-axis="y"]', by: 760 },
+    { wait: 500 },
+  ], { theme: "light" }),
+  settingsTask("settings-appearance-backgrounds-narrow", "设置中心 · 背景图片图墙（窄屏）", [
+    { clickText: "外观" },
+    { wait: 700 },
+    { scroll: 'section [data-axis="y"]', by: 760 },
+    { wait: 500 },
+  ], { theme: "dark", width: 720, height: 900 }),
+  settingsTask("app-home-background-dark", "工作区应用背景图（深色）", [
+    { clickText: "外观" },
+    { wait: 700 },
+    { scroll: 'section [data-axis="y"]', by: 760 },
+    { wait: 400 },
+    { clickText: "樱花水岸" },
+    { press: "Escape" },
+    { wait: 900 },
+  ], { theme: "dark" }),
+  settingsTask("app-home-background-light", "工作区应用背景图（浅色）", [
+    { clickText: "外观" },
+    { wait: 700 },
+    { scroll: 'section [data-axis="y"]', by: 760 },
+    { wait: 400 },
+    { clickText: "方块日落" },
+    { press: "Escape" },
+    { wait: 900 },
+  ], { theme: "light" }),
+  settingsTask("settings-center-background-dark", "设置中心应用独立背景（深色）", [
+    { clickText: "外观" },
+    { wait: 700 },
+    { scroll: 'section [data-axis="y"]', by: 760 },
+    { wait: 400 },
+    { click: 'button[aria-label="设置位置"]' },
+    { wait: 300 },
+    { click: '[role="option"]:has-text("设置中心")' },
+    { wait: 300 },
+    { clickText: "雪夜木屋" },
+    { wait: 600 },
   ], { theme: "dark" }),
   ...([
     { name: "browser-download-history-light", theme: "light" },
@@ -232,9 +303,9 @@ async function applyStep(page: Page, step: ShotStep): Promise<void> {
     return;
   }
   if ("scroll" in step) {
-    await page.locator(step.scroll).first().evaluate((element) => {
-      (element as HTMLElement).scrollBy({ top: 160 });
-    });
+    await page.locator(step.scroll).first().evaluate((element, amount) => {
+      (element as HTMLElement).scrollBy({ top: amount });
+    }, step.by ?? 160);
     return;
   }
   if ("drag" in step) {

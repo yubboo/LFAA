@@ -1,0 +1,150 @@
+/* 背景卡网格：纯色卡与图片卡统一 16:9 缩略图，名称压在左下、选中勾在右下；全部消费主题变量。 */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.tile {
+  position: relative;
+  min-width: 0;
+}
+
+.pick {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0.78rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pick:focus-visible {
+  outline: none;
+}
+
+.pick:focus-visible .thumb {
+  box-shadow: 0 0 0 2px var(--color-shell), 0 0 0 4px var(--color-accent);
+}
+
+.thumb {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  border: 1px solid var(--color-line);
+  border-radius: 0.78rem;
+  background: var(--color-active);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.05);
+  transition: border-color 180ms ease, box-shadow 200ms ease;
+}
+
+.thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.tile:hover .thumb {
+  border-color: color-mix(in srgb, var(--color-ink) 28%, transparent);
+  box-shadow: 0 6px 16px rgb(0 0 0 / 0.09);
+}
+
+.tile[data-active="true"] .thumb {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 28%, transparent), 0 6px 16px rgb(0 0 0 / 0.1);
+}
+
+/* 纯色卡：用当前主题的前景色画一条小样，提示这是「跟随主题」而不是某张图片。 */
+.solidSample {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2.8rem;
+  height: 0.32rem;
+  border-radius: 999px;
+  opacity: 0.85;
+  transform: translate(-50%, -50%);
+}
+
+/* 名称胶囊：压在缩略图左下，长名称截断。 */
+.namePill {
+  position: absolute;
+  bottom: 0.42rem;
+  left: 0.42rem;
+  max-width: calc(100% - 2.6rem);
+  overflow: hidden;
+  padding: 0.14rem 0.5rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-popover) 84%, transparent);
+  color: var(--color-ink);
+  font-size: 0.72rem;
+  font-weight: 550;
+  line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badge {
+  position: absolute;
+  right: 0.42rem;
+  bottom: 0.42rem;
+  display: inline-flex;
+  width: 1.15rem;
+  height: 1.15rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.2);
+}
+
+/* 删除：仅个人图片出现，二次点击才真正删除。 */
+.remove {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  display: inline-flex;
+  width: 1.5rem;
+  height: 1.5rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-popover);
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.remove:hover {
+  border-color: rgb(var(--color-danger-rgb) / 0.4);
+  color: var(--color-danger-strong);
+}
+
+.remove[data-confirm="true"] {
+  width: auto;
+  padding: 0 0.45rem;
+  color: var(--color-danger-strong);
+  font-size: 0.68rem;
+}
+
+@media (max-width: 1180px) {
+  .grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.7rem;
+  }
+}

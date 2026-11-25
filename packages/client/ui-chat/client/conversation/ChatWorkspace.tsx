@@ -6,7 +6,8 @@ import type { WorkbenchProjectItem, WorkbenchProjectProvider } from "@lfaa/ui-la
 import type { ChatClientStore } from "../store/chat-store";
 import type { ChatLocaleMessages } from "../locales";
 import { summarizeTurnChanges } from "../shared/file-activity";
-import { useChatSuggestions } from "./useChatSuggestions";
+import { useStarterSuggestions } from "./useStarterSuggestions";
+import { useChatComposerHeight, useChatGutterReclaim } from "./useChatLayoutInsets";
 import { useChatScroll } from "./useChatScroll";
 import { ChatAnchorBar, buildTurnAnchors } from "./ChatAnchorBar";
 import { ChatComposer } from "../composer/ChatComposer";
@@ -76,7 +77,7 @@ export function ChatWorkspace({
   };
   const activeProfile = state.profiles.find((p) => p.id === state.activeProfileId) ?? state.profiles[0];
   const activeKind = activeProfile?.availableModels?.find((model) => model.id === activeProfile.model)?.modelKind;
-  const { starterSuggestions, suggestionsByMessage } = useChatSuggestions({
+  const starterSuggestions = useStarterSuggestions({
     messages,
     activeProjectId,
     activeKind,
@@ -100,11 +101,18 @@ export function ChatWorkspace({
   const { scrollAreaRef, threadRef, showScrollBottom, scrollToLatest, pauseFollowing, trackScroll, isProgrammaticScroll } =
     useChatScroll(activeSession?.id ?? null, turnAnchors.at(-1)?.anchorMsgId, isRunning);
   const anchorScanRafRef = useRef<number | null>(null);
+  const rootRef = useRef<HTMLElement>(null);
+  const composerDockRef = useRef<HTMLDivElement>(null);
   useEffect(() => () => {
     if (anchorScanRafRef.current !== null && typeof cancelAnimationFrame === "function") {
       cancelAnimationFrame(anchorScanRafRef.current);
     }
   }, []);
+
+  // 外层工作区视口给「长页面」常驻预留的滚动条槽与输入区高度都由下面两个 hook 实测，
+// 会话页自己收回槽位、正文末端让出输入区高度。
+  useChatGutterReclaim(rootRef);
+  useChatComposerHeight(rootRef, composerDockRef);
   const handleOpenTrace = useCallback((messageId: string, stepId: string) => {
     setTraceTarget({ messageId, stepId });
     setView("trace");
@@ -222,7 +230,7 @@ export function ChatWorkspace({
   );
 
   return (
-    <section className={styles.root} aria-label={locale.workspaceTitle}>
+    <section ref={rootRef} className={styles.root} aria-label={locale.workspaceTitle}>
       <nav className={styles.viewTabs} aria-label={locale.isZh ? "会话视图" : "Conversation views"}>
         <button type="button" aria-current={view === "chat" ? "page" : undefined} onClick={() => setView("chat")}>{locale.isZh ? "对话" : "Chat"}</button>
         <button type="button" aria-current={view === "trace" ? "page" : undefined} onClick={() => setView("trace")}>{locale.isZh ? "轨迹" : "Trace"}</button>
@@ -258,7 +266,6 @@ export function ChatWorkspace({
           onWorkspaceModeChange={onWorkspaceModeChange}
           restoring={restoringSession}
           heroComposer={composerInHero ? composerNode : null}
-          suggestionsByMessage={suggestionsByMessage}
           selectedFile={selectedFile}
           pendingApproval={state.pendingApproval}
           memoriesCount={state.memories.length}
@@ -301,7 +308,7 @@ export function ChatWorkspace({
         }}
       />}
 
-      <div className={styles.composerDock}>
+      <div ref={composerDockRef} className={styles.composerDock}>
         {showScrollBottom && messages.length > 0 && (
           <button
             type="button"

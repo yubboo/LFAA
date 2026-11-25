@@ -8,13 +8,14 @@ import { UserMessageAttachments } from "./UserMessageAttachments";
 import {
   AssistantMessageActions,
   EditedFilesCard,
-  FollowUpSuggestions,
   UserMessageActions,
 } from "./MessageActionBars";
+import { SuggestionChips } from "./SuggestionChips";
+import { dedupeSuggestions, splitSuggestionBlock } from "./suggestion-block";
 import styles from "./ChatWorkspace.module.css";
 
-const EMPTY_SUGGESTIONS: string[] = [];
 const EMPTY_STEPS: AgentStepItem[] = [];
+const EMPTY_PRIOR_SUGGESTIONS: readonly string[] = [];
 
 /** 渲染单条用户或助手消息，并通过 memo 阻止历史消息在流式增量帧陪跑重渲染。 */
 export const ChatMessageRow = memo(function ChatMessageRow({
@@ -30,7 +31,7 @@ export const ChatMessageRow = memo(function ChatMessageRow({
   brandWatermark,
   assistantBodyClass,
   noticeLinkClass,
-  followUpSuggestions,
+  previousSuggestions = EMPTY_PRIOR_SUGGESTIONS,
   mediaActions,
   onOpenFilePreview,
   onOpenTurnChanges,
@@ -55,7 +56,8 @@ export const ChatMessageRow = memo(function ChatMessageRow({
   brandWatermark: boolean;
   assistantBodyClass: string | undefined;
   noticeLinkClass: string | undefined;
-  followUpSuggestions: string[] | undefined;
+  /** 前面所有助手回复已给过的建议，用于去重；本轮重复的建议不再显示。 */
+  previousSuggestions: ReadonlyArray<string>;
   mediaActions: Pick<MediaResultContextValue, "busy" | "onQuote" | "onRegenerate">;
   onOpenFilePreview: (messageId: string, stepId: string) => void;
   onOpenTurnChanges?: ((messageId: string) => void) | undefined;
@@ -79,6 +81,15 @@ export const ChatMessageRow = memo(function ChatMessageRow({
       ? { ...mediaActions, sessionId: activeSessionId, messageId: msg.id, isZh: locale.isZh, brandWatermark }
       : null),
     [activeSessionId, brandWatermark, locale.isZh, mediaActions, msg.id, msg.status],
+  );
+  // 建议块由模型随回复一起给出：这里剥掉隐藏标记，正文照常渲染，建议转成可点击胶囊。
+  const { content: visibleContent, suggestions } = useMemo(
+    () => (msg.role === "assistant" ? splitSuggestionBlock(msg.content) : { content: msg.content, suggestions: [] }),
+    [msg.content, msg.role],
+  );
+  const freshSuggestions = useMemo(
+    () => dedupeSuggestions(suggestions, previousSuggestions),
+    [previousSuggestions, suggestions],
   );
 
   if (msg.role === "user") {
@@ -127,7 +138,7 @@ export const ChatMessageRow = memo(function ChatMessageRow({
         <MediaResultContext.Provider value={mediaContextValue}>
           <AssistantTimeline
             locale={locale}
-            content={hideContentForClarification ? "" : msg.content}
+            content={hideContentForClarification ? "" : visibleContent}
             reasoning={msg.reasoning}
             progressText={msg.progressText}
             steps={msg.steps ?? EMPTY_STEPS}
@@ -154,19 +165,19 @@ export const ChatMessageRow = memo(function ChatMessageRow({
         onOpenFile={handleOpenFile}
         selectedFileStepId={selectedFileStepId}
       />
-      {msg.status !== "streaming" && msg.content.trim() && (
+      {msg.status !== "streaming" && visibleContent.trim() && (
         <AssistantMessageActions
           isZh={locale.isZh}
           sessionId={activeSessionId ?? ""}
           messageId={msg.id}
-          content={msg.content}
+          content={visibleContent}
           createdAt={msg.createdAt}
           model={msg.model}
           memoryRefCount={memoriesCount}
           onBranchToNewChat={() => onBranchToNewChat(msg)}
         />
       )}
-      {msg.status === "aborted" && !isRunning && msg.content.trim() && isLastMessage && (
+      {msg.status === "aborted" && !isRunning && visibleContent.trim() && isLastMessage && (
         <div className={styles.continueRow}>
           <button
             type="button"
@@ -177,12 +188,8 @@ export const ChatMessageRow = memo(function ChatMessageRow({
           </button>
         </div>
       )}
-      {isLastMessage && !isRunning && msg.status !== "streaming" && msg.content.trim() && (
-        <FollowUpSuggestions
-          isZh={locale.isZh}
-          suggestions={followUpSuggestions ?? EMPTY_SUGGESTIONS}
-          onSelect={onSubmitQuestion}
-        />
+      {freshSuggestions.length > 0 && (
+        <SuggestionChips suggestions={freshSuggestions} onSelect={onSubmitQuestion} />
       )}
     </article>
   );

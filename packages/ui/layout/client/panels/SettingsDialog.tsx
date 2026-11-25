@@ -41,13 +41,16 @@ export function SettingsDialog({
   const content = renderContent();
 
   // 打开时把焦点移入弹窗，并锁住背景滚动；关闭后恢复原来的焦点与滚动。
+  // 同时在根元素标记设置中心已打开，让壳层切到「设置中心」自己的背景图（由主题插件按选择输出）。
   useEffect(() => {
     const previousActive = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    document.documentElement.dataset.settingsOpen = "true";
     dialogRef.current?.focus({ preventScroll: true });
     return () => {
       document.body.style.overflow = previousOverflow;
+      delete document.documentElement.dataset.settingsOpen;
       previousActive?.focus({ preventScroll: true });
     };
   }, []);

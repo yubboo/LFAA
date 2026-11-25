@@ -170,6 +170,10 @@
 
 @container (max-width: 880px) {
   .rail {
+    /* 窄栏下刻度条变成输入区上方的胶囊：显式占第 3 行，
+       否则自动排布会把它挤到会话网格的隐式末行，在面板最底部留出一条空档。 */
+    grid-row: 3;
+    grid-column: 1;
     position: relative;
     left: auto;
     top: auto;

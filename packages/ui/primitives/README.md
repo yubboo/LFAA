@@ -84,3 +84,4 @@ Headless `@base-ui/react` primitives wrapped with CSS Modules and `@lfaa/ui-them
 - `UiSelect`: keyboard-navigable dropdown select with collision-aware positioning.
 - `UiTabs`: segmented tab list with smooth indicator and arrow-key navigation.
 - `UiTooltip`: hover-debounced tooltip with automatic placement.
+- `HoverTip`: compact toolbar hint that fades in without positional movement, preventing subpixel jitter around dense action rows.

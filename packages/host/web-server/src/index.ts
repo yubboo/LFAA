@@ -3,6 +3,11 @@ export { detectProjectRoot } from "./detect-root";
 export { startWeb, type WebServerOptions } from "./dev-server";
 export { createHostRuntime, resolveLoaderBaseUrl, type HostRuntime, type HostRuntimeOptions } from "./runtime";
 export {
+  createBackgroundsHttpHandler,
+  type BackgroundHandlerOptions,
+  type CustomBackgroundMeta,
+} from "./handlers/handlers-backgrounds";
+export {
   createNotificationSoundsHttpHandler,
   type CustomNotificationSoundMeta,
   type NotificationSoundHandlerOptions,

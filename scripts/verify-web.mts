@@ -222,6 +222,19 @@ try {
     screenshot: await shot("group-mobile"),
   });
 
+  // 平板宽度（768–1023px）左二栏是抽屉：展开后必须渲染出会话列表，不能白屏。
+  // 回归背景：提示气泡的贴边补偿曾在这里无限 setState，整棵树被卸载成空白页。
+  await page.setViewportSize({ width: 900, height: 800 });
+  await page.waitForTimeout(800);
+  await page.locator('button[aria-label="展开左二会话项目菜单栏"]').first().click();
+  await page.waitForTimeout(1200);
+  const drawerText = await text();
+  steps.push({
+    step: "平板-展开左二会话抽屉",
+    ok: drawerText.includes("项目") && drawerText.includes("最近") && drawerText.length > 60,
+    screenshot: await shot("tablet-sidebar-drawer"),
+  });
+
   // 深色主题再回一次 Agents 页，确认列表、开关与编辑卡在深色下都清晰。
   await page.setViewportSize({ width: 1440, height: 900 });
   await applyTheme("dark");

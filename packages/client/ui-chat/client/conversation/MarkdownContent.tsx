@@ -19,6 +19,13 @@ function isSafeLink(href: string): boolean {
 }
 
 /** 将普通文本中的显式文件名（含扩展名）或连续英文目录/文件枚举渲染为清晰的行内胶囊。 */
+/** 中文行首的开括号（全角）本身带半个字宽空隙：一旦被排到行首，视觉左缘就比其它行缩进半格。
+    这里在这些括号前插入零宽不换行符（U+2060），让换行不会落在括号前面，行首因此始终与正文左缘对齐。 */
+const OPEN_BRACKET_RE = /([「『（《【〈“‘])/gu;
+function keepBracketWithPrevious(text: string): string {
+  return text.replace(OPEN_BRACKET_RE, "\u2060$1");
+}
+
 function renderPlainTextWithFiles(text: string, keyPrefix: string): ReactNode[] {
   const tokens: Array<{ start: number; end: number; value: string; kind: "file" | "enum" }> = [];
   for (const m of text.matchAll(FILE_EXT_RE)) {
@@ -32,13 +39,13 @@ function renderPlainTextWithFiles(text: string, keyPrefix: string): ReactNode[] 
       tokens.push({ start, end, value: m[0], kind: "enum" });
     }
   }
-  if (tokens.length === 0) return [text];
+  if (tokens.length === 0) return [keepBracketWithPrevious(text)];
   tokens.sort((a, b) => a.start - b.start);
 
   const out: ReactNode[] = [];
   let cursor = 0;
   tokens.forEach((tok, idx) => {
-    if (tok.start > cursor) out.push(text.slice(cursor, tok.start));
+    if (tok.start > cursor) out.push(keepBracketWithPrevious(text.slice(cursor, tok.start)));
     if (tok.kind === "file") {
       out.push(<code key={`${keyPrefix}-f-${idx}`} className={styles.fileChip}>{tok.value}</code>);
     } else {
@@ -53,7 +60,7 @@ function renderPlainTextWithFiles(text: string, keyPrefix: string): ReactNode[] 
     }
     cursor = tok.end;
   });
-  if (cursor < text.length) out.push(text.slice(cursor));
+  if (cursor < text.length) out.push(keepBracketWithPrevious(text.slice(cursor)));
   return out;
 }
 

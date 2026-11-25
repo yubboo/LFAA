@@ -7,23 +7,28 @@
   /* 高于中间区顶栏（.workspaceBar z-index 30）：否则分隔条顶部一段被顶栏盖住，
      悬停不到也画不出来；仍低于抽屉遮罩 40 与菜单 55+，不抢浮层。 */
   z-index: 35;
-  width: 10px;
+  width: var(--resize-handle-width);
+  /* 两侧滚动条都贴着分隔线放：手柄在「有滚动条的那一侧」只覆盖 2px
+     （左二栏的滚动条在分隔线左侧，会话栏的滚动条在右侧分隔线左侧），
+     其余 8px 落在没有滚动条的一侧，拖拽热区仍然够大。 */
+  --resize-handle-width: 10px;
+  --resize-handle-inner: 2px;
   cursor: col-resize;
   touch-action: none;
   outline: none;
 }
 
 /* 手柄直接锚定侧栏所在的栅格列，和内容复用同一条边界。 */
+/* 左侧手柄：向分隔线左侧（左二滚动条那侧）只压 2px，其余 8px 落在中间栏。 */
 .resizeHandleLeft {
   grid-column: 2 / 3;
-  right: 0;
-  transform: translateX(50%);
+  right: calc(var(--resize-handle-inner) - var(--resize-handle-width));
 }
 
+/* 右侧手柄：向分隔线左侧（会话滚动条那侧）只压 2px，其余 8px 落在右栏。 */
 .resizeHandleRight {
   grid-column: -2 / -1;
-  left: 0;
-  transform: translateX(-50%);
+  left: calc(-1 * var(--resize-handle-inner));
 }
 
 /* 交互热区和可见分隔线分开，拖动、键盘焦点和吸附只改变反馈样式。 */
@@ -32,11 +37,20 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 50%;
   width: 2px;
-  transform: translateX(-50%);
   background: transparent;
   transition: background-color 150ms ease, width 150ms ease, box-shadow 150ms ease;
+}
+
+/* 可见分隔线始终压在栏边界上：热区向内只让出 2px，线本身仍居中在边界。 */
+.resizeHandleLeft::after {
+  left: var(--resize-handle-inner);
+  transform: translateX(-50%);
+}
+
+.resizeHandleRight::after {
+  left: var(--resize-handle-inner);
+  transform: translateX(-50%);
 }
 
 /* 悬停只给「1px 中性细线」的可拖提示：中性色不抢眼，1px 不会被非整数缩放摊成糊边；

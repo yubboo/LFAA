@@ -9,9 +9,13 @@ import {
   sanitizeAppearanceConfig,
   type AppearanceConfig,
   type AppearanceMode,
+  type BackgroundChoice,
+  type BackgroundTarget,
   type ThemePresetId,
   type ThemeVariantSettings,
 } from "../contract/index";
+import { findBuiltinBackground } from "./assets/backgrounds/index";
+import { customBackgroundUrl } from "./background-api";
 
 const MODE_STORAGE_KEY = "lfaa:appearance-mode";
 const CONFIG_STORAGE_KEY = "lfaa:appearance-config-v1";
@@ -71,6 +75,13 @@ function hexToRgbTuple(hex: string): string {
   return Number.isFinite(r) && Number.isFinite(g) && Number.isFinite(b)
     ? `${r} ${g} ${b}`
     : "230 106 168";
+}
+
+/** 把背景选择解析成 CSS 可用的 URL；纯色或已被删除的内置图返回 null（回退主题背景色）。 */
+export function resolveBackgroundUrl(choice: BackgroundChoice): string | null {
+  if (choice.kind === "builtin") return findBuiltinBackground(choice.id)?.src ?? null;
+  if (choice.kind === "custom") return customBackgroundUrl(choice.id);
+  return null;
 }
 
 /** 管理主题偏好、派生界面状态和订阅，向设置页提供统一的更新入口。 */
@@ -137,6 +148,8 @@ export class AppearanceStore {
     const uiFontStack = UI_FONT_STACKS[activeVariant.font];
     const contentFontStack = config.contentFont === "same" ? uiFontStack : UI_FONT_STACKS[config.contentFont];
     const codeFontStack = CODE_FONT_STACKS[config.codeFont];
+    const workspaceBackground = resolveBackgroundUrl(config.backgrounds.workspace);
+    const settingsBackground = resolveBackgroundUrl(config.backgrounds.settings);
 
     root.dataset.theme = config.mode;
     root.dataset.resolvedTheme = resolvedScheme;
@@ -146,6 +159,9 @@ export class AppearanceStore {
     root.dataset.reducedMotion = config.reducedMotion;
     root.dataset.pointerCursor = String(config.pointerCursor);
     root.dataset.diffMarker = config.diffMarker;
+    // 两个目标各自输出图片与状态：壳层按当前是否打开设置中心选择其一，纯色时不发图片请求。
+    root.dataset.appBgWorkspace = workspaceBackground ? "image" : "none";
+    root.dataset.appBgSettings = settingsBackground ? "image" : "none";
 
     root.style.setProperty("--color-accent", accentColor);
     root.style.setProperty("--color-accent-rgb", hexToRgbTuple(accentColor));
@@ -159,6 +175,8 @@ export class AppearanceStore {
     root.style.setProperty("--code-font-size", `${config.codeFontSize}px`);
     root.style.setProperty("--ui-font-weight", FONT_WEIGHT_VALUES[config.uiFontWeight]);
     root.style.setProperty("--glass-contrast", (config.contrast / 100).toFixed(2));
+    root.style.setProperty("--app-bg-workspace", workspaceBackground ? `url("${workspaceBackground}")` : "none");
+    root.style.setProperty("--app-bg-settings", settingsBackground ? `url("${settingsBackground}")` : "none");
 
     try {
       window.localStorage.setItem(MODE_STORAGE_KEY, config.mode);
@@ -197,6 +215,14 @@ export class AppearanceStore {
         foreground: preset.dark.foreground,
         accent: preset.dark.accent,
       },
+    });
+  };
+
+  /** 为指定位置保存背景选择；只改当前 target，另一处保持原样。 */
+  setBackground = (target: BackgroundTarget, choice: BackgroundChoice): void => {
+    this.commit({
+      ...this.config,
+      backgrounds: { ...this.config.backgrounds, [target]: choice },
     });
   };
 

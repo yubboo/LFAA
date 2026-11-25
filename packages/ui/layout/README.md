@@ -29,4 +29,4 @@ This package lives in `packages/ui/layout`.
 
 ## Dev Note
 
-None.
+The second-column project and conversation list keeps a stable inline-end scrollbar gutter. Long lists can start scrolling without narrowing or shifting the shared project/session title columns.

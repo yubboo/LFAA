@@ -1,5 +1,55 @@
-/* 外观设置页专用控件：实时预览舞台、模式标签、色值输入与图标动作；页面骨架、分组与常规行由 @lfaa/ui-primitives 提供。
+/* 外观设置页专用样式：顶部分区选项卡、实时预览舞台与模式说明条；页面骨架、分组与常规行由 @lfaa/ui-primitives 提供，
+   高级设置分区里的主题细项控件样式在 AppearanceThemeDetail.module.css。
    预览缩略图的配色由 ThemePreview 通过 --pv-* 变量注入，本文件不写具体色值。 */
+/* 分区选项卡：两段胶囊左对齐页内容列，选中段用淡底强调，不画整页边框。 */
+.tabBar {
+  display: inline-flex;
+  justify-self: start;
+  padding: 0.18rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.55rem;
+  background: var(--color-panel);
+}
+
+.tabBtn {
+  min-width: 6.2rem;
+  padding: 0.26rem 1.1rem;
+  border: 0;
+  border-radius: 0.42rem;
+  background: transparent;
+  color: var(--color-muted);
+  font: inherit;
+  font-size: 0.84em;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tabBtn:hover {
+  color: var(--color-ink);
+}
+
+.tabBtnActive {
+  background: var(--color-active);
+  color: var(--color-ink);
+  font-weight: 550;
+}
+
+.tabBtn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* 分区面板：沿用页面「组间松」的节奏，只负责分组间距；未选中的面板用 hidden 隐藏但保持挂载。 */
+.panel {
+  display: grid;
+  min-width: 0;
+  gap: 2.1rem;
+}
+
+.panel[hidden] {
+  display: none;
+}
+
 /* 预览舞台：面板 + 底部说明条。 */
 .stage {
   display: grid;
@@ -28,72 +78,6 @@
   flex: 0 0 auto;
   color: var(--color-muted);
   font-size: 0.78em;
-}
-
-.inlineControls {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.hiddenFile {
-  display: none;
-}
-
-.iconAction {
-  display: grid;
-  width: 2.1rem;
-  height: 2.1rem;
-  place-items: center;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: 0.55rem;
-  background: transparent;
-  color: var(--color-muted);
-  cursor: pointer;
-}
-
-.iconAction:hover {
-  border-color: var(--glass-border, var(--color-line));
-  background: var(--color-active);
-  color: var(--color-ink);
-}
-
-.iconAction svg {
-  width: 1rem;
-  height: 1rem;
-}
-
-/* 色值输入：圆形取色器 + HEX 文本框合成一个胶囊控件。 */
-.colorField {
-  display: inline-flex;
-  min-height: 2.15rem;
-  align-items: center;
-  gap: 0.45rem;
-  padding: 0.2rem 0.65rem 0.2rem 0.45rem;
-  border: 1px solid var(--glass-border, var(--color-line));
-  border-radius: 999px;
-  background: var(--glass-control-bg, var(--color-surface));
-}
-
-.colorField input[type="color"] {
-  width: 1.05rem;
-  height: 1.05rem;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  cursor: pointer;
-}
-
-.hexInput {
-  width: 4.9rem;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--color-ink);
-  font-family: var(--code-font-family, monospace);
-  font-size: 0.78rem;
 }
 
 @media (max-width: 640px) {

@@ -1,0 +1,56 @@
+/* 追问建议胶囊：圆角浮起、左侧短句、右侧箭头；背景与正文色全部取自主题变量。 */
+.list {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.chip {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.55rem 0.9rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--color-active);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.88em;
+  line-height: 1.45;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) var(--motion-ease-standard);
+}
+
+.chip:hover {
+  background: color-mix(in srgb, var(--color-ink) 13%, transparent);
+}
+
+/* 已点击：立即置灰并禁用，避免同一句被重复发送；hover 不再提亮。 */
+.chip:disabled,
+.chip[data-used="true"] {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.chip:disabled:hover {
+  background: var(--color-active);
+}
+
+.chip:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.arrow {
+  flex: 0 0 auto;
+  color: var(--color-muted);
+}

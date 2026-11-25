@@ -3,6 +3,31 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNo
 import { createPortal } from "react-dom";
 import styles from "./NavigationSidebar.module.css";
 
+/** 气泡与视口边缘之间的最小留白（px）。 */
+const TIP_VIEWPORT_MARGIN = 8;
+
+/**
+ * 计算气泡为了留在视口内需要的水平位移。
+ * 只以「未位移时的居中左边缘 + 气泡宽度 + 视口宽度」为输入，不读已位移的实测矩形：
+ * 否则位移量会被下一次测量当成新的溢出量再修一次，在贴边场景下无限来回，最终把整棵树打崩。
+ */
+export function resolveTipShift({
+  center,
+  width,
+  viewportWidth,
+  margin = TIP_VIEWPORT_MARGIN,
+}: {
+  center: number;
+  width: number;
+  viewportWidth: number;
+  margin?: number;
+}): number {
+  const baseLeft = center - width / 2;
+  const maxLeft = Math.max(margin, viewportWidth - margin - width);
+  const clampedLeft = Math.min(Math.max(baseLeft, margin), maxLeft);
+  return clampedLeft - baseLeft;
+}
+
 /** 悬停/聚焦时在触发元素下方居中显示提示；贴边时按实际宽度收拢，滚动或缩放时立即隐藏。 */
 export function ToolbarTip({ label, className, children }: { label: string; className?: string | undefined; children: ReactNode }) {
   const anchorRef = useRef<HTMLSpanElement>(null);
@@ -24,19 +49,25 @@ export function ToolbarTip({ label, className, children }: { label: string; clas
     if (!position) return;
     const element = tipRef.current;
     if (!element) return;
-    const rect = element.getBoundingClientRect();
-    const margin = 8;
-    let next = 0;
-    if (rect.left < margin) next = margin - rect.left;
-    else if (rect.right > window.innerWidth - margin) next = window.innerWidth - margin - rect.right;
+    const next = resolveTipShift({
+      center: position.left,
+      width: element.offsetWidth,
+      viewportWidth: window.innerWidth,
+    });
     if (Math.abs(next - shift) > 0.5) setShift(next);
   }, [position, shift]);
 
   useEffect(() => {
     if (!position) return;
     const close = (): void => hide();
+    // 抽屉滑入、栏轨道展开这类祖先动画结束时，按悬停瞬间量到的位置已经失真，直接收起气泡。
+    const onAncestorAnimationEnd = (event: AnimationEvent): void => {
+      const anchor = anchorRef.current;
+      if (anchor && event.target instanceof Element && event.target.contains(anchor)) hide();
+    };
     window.addEventListener("scroll", close, true);
     window.addEventListener("resize", close);
+    window.addEventListener("animationend", onAncestorAnimationEnd, true);
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === "Escape") hide();
     };
@@ -44,6 +75,7 @@ export function ToolbarTip({ label, className, children }: { label: string; clas
     return () => {
       window.removeEventListener("scroll", close, true);
       window.removeEventListener("resize", close);
+      window.removeEventListener("animationend", onAncestorAnimationEnd, true);
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [position, hide]);

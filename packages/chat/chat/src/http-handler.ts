@@ -48,8 +48,6 @@ export function createChatHttpHandler(service: ChatService, options: {
   resolveSessionPreset?: (id?: string) => Promise<{ sessionPreset: string; sessionModules: string[] }>;
   /** 由 Host 生成项目起步建议；未提供或无项目时返回空数组，客户端回退通用引导。 */
   suggestStarters?: (input: { projectId: string | null }) => Promise<string[]>;
-  /** 由模型生成追问建议；未提供时该接口返回空数组，客户端不展示。 */
-  suggestFollowUps?: (input: { userPrompt: string; assistantReply: string }) => Promise<string[]>;
   /** 由 Host 把工作树 id 解析为快照；客户端只能提交 id，不能提交路径。 */
   resolveWorktree?: (worktreeId: string) => Promise<SessionWorktree | null>;
 } = {}) {
@@ -80,19 +78,6 @@ export function createChatHttpHandler(service: ChatService, options: {
           countsByProject[session.projectId] = (countsByProject[session.projectId] ?? 0) + 1;
         }
         sendJson(res, 200, { sessions, countsByProject });
-        return true;
-      }
-
-      if (method === "POST" && pathname === "/api/chat/suggestions") {
-        const body = await readJsonBody(req);
-        const userPrompt = typeof body.userPrompt === "string" ? body.userPrompt : "";
-        const assistantReply = typeof body.assistantReply === "string" ? body.assistantReply : "";
-        if (!options.suggestFollowUps || !assistantReply.trim()) {
-          sendJson(res, 200, { suggestions: [] });
-          return true;
-        }
-        const suggestions = await options.suggestFollowUps({ userPrompt, assistantReply }).catch(() => []);
-        sendJson(res, 200, { suggestions: suggestions.slice(0, 3) });
         return true;
       }
 

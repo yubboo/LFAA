@@ -203,6 +203,8 @@ export class ChatRunActions {
       ...(this.port.getState().activeProfileId ? { profileId: this.port.getState().activeProfileId } : {}),
       reasoningEffort: this.port.getState().reasoningLevel,
       permissionMode: startingMode,
+      // 追问建议跟本轮回复一起生成，避免回复后再发一次请求造成迟到挂载与滚动跳动。
+      withSuggestions: true,
       repeatToolThresholds: this.port.getState().generalSettings.repeatToolThresholds,
       ...(skillIds && skillIds.length > 0 ? { skillIds } : {}),
       ...(referenceSources?.length ? { referenceSources } : {}),

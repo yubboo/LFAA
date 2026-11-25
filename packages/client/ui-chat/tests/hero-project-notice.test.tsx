@@ -41,7 +41,6 @@ function renderEmptyHero(options: {
     workspaceMode: options.mode,
     heroComposer: createElement("div", null, "composer"),
     onWorkspaceModeChange: noop,
-    suggestionsByMessage: {},
     selectedFile: undefined,
     pendingApproval: null,
     memoriesCount: 0,

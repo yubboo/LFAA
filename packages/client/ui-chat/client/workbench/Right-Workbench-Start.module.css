@@ -11,6 +11,12 @@
   background: var(--color-shell);
 }
 
+/* 背景图生效时启动页也透出壳层背景；搜索框与快捷卡片自带底色，不牺牲可读性。 */
+:global(html[data-app-bg-workspace="image"]) .stage,
+:global(html[data-settings-open="true"][data-app-bg-settings="image"]) .stage {
+  background: color-mix(in srgb, var(--color-shell) 78%, transparent);
+}
+
 .content {
   display: grid;
   gap: 1.5rem;

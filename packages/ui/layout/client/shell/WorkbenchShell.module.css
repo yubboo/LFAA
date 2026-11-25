@@ -1,10 +1,12 @@
 /* 四栏可折叠工作区主结构，消费 @lfaa/ui-theme 提供的明暗与玻璃配色变量。 */
 .shell {
+  /* 背景图片层单独成文件（ShellBackground.module.css），composes 把它的类名也挂到壳层上。 */
+  composes: layer from "./ShellBackground.module.css";
   --topbar-height: 3.5rem;
   --rail-width: 3.125rem;
   --right-panel-base-width: clamp(14.5rem, 18vw, 18rem);
-  /* 滚动区域的末端避开分隔手柄向内覆盖的 4px；数值越小滚动条越贴近栏边界。 */
-  --pane-scroll-inset: 4px;
+  /* 各栏滚动条与所在栏分隔线之间的统一间隙：滚动条贴边但不压手柄，左右栏与会话栏同口径。 */
+  --pane-scrollbar-gap: 2px;
   /* 静止、刷新和缩窗时也应用拖拽边界。按左栏实际占用计算右栏可用空间。
      内容宽度按视口换算而不是 100%：同一个变量还要给折叠容器里的面板定宽，
      而 100% 在子元素上会按「正在收窄的轨道」二次求值，把面板压成 1px；Shell 铺满视口，两者等值。 */
@@ -50,6 +52,13 @@
 .shell[data-resizing="true"],
 .shell[data-pane-resizing="true"] {
   transition: none;
+}
+
+/* 背景图：壳层图片层在 ShellBackground.module.css（按职责拆出，避免本文件超行数上限）；
+   中间工作区再加一层主题色薄纱：图片仍可见，但会话正文、输入框与顶栏保持足够对比度。 */
+:global(html[data-app-bg-workspace="image"]) .workspace,
+:global(html[data-settings-open="true"][data-app-bg-settings="image"]) .workspace {
+  background: color-mix(in srgb, var(--color-shell) 52%, transparent);
 }
 
 .shell[data-left-open="false"] {

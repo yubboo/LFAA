@@ -37,7 +37,16 @@ This package lives in `packages/ui/theme`.
 - `ThemePreview` renders a miniature workspace (rail, session sidebar, chat column, composer) from a `ThemePreviewSample` — background, foreground, accent, glass flag. Colors are injected as `--pv-*` CSS variables and every element transitions on `background-color` / `color` (260ms), so switching samples morphs smoothly instead of cross-fading a screenshot. Pass `secondarySample` to render two halves (used for "System" = light | dark). `variant="tile"` produces the compact thumbnail used in the grid.
 - `ThemeGallery` renders the picker grid: hovering or focusing a tile only reports `onPreview(id)`, clicking reports `onSelect(id)`. The caller owns the preview state, so the same gallery can drive a big panel, a side panel, or nothing at all.
 
-The appearance page composes them as: preview stage at the top, `全部主题` grid below, fine-tuning rows after. Hover previews never touch the real theme, so leaving a tile returns to the applied theme.
+The appearance page puts two tabs at the top: `预设` (Presets) and `高级设置` (Advanced settings); the selected tab is stored under `lfaa:appearance-tab`. The presets tab holds the colour-mode grid, theme-style grid and background images; the advanced tab holds theme details (preset with import/copy, accent, background/foreground, UI font) plus font size, typography, theme & display and motion & cursor. Both share the live preview above: hover previews never touch the real theme, so leaving a tile returns to the applied theme.
+
+### Background images (built-in and personal)
+
+The "Background images" group at the bottom of the presets tab offers Solid (follow the theme), built-in images and personal images. The workspace and the settings center store separate choices, and the chosen image fills the whole four-column shell.
+
+- **Built-in images** live in `client/assets/backgrounds/`: `index.ts` uses `import.meta.glob` for discovery, so adding an image never requires touching component code. Chinese names and display order go in `manifest.json`; unregistered files fall back to a humanised filename and sort last. Ship WebP, 16:9, ≤400KB each.
+- **Personal images** live in `~/.lfaa/backgrounds/` (or are uploaded in Settings): the Host scans the directory, so dropping in a PNG/JPG/WebP also lists it under "My images" on the next settings refresh, with no rebuild. Upload/delete use `/api/backgrounds`.
+- **Agent rule**: when the current workspace is the LFAA source repo and the owner wants the image shipped, add it to the built-in folder and register it in `manifest.json`; in any other project, with no source, or for local-only use, put it in the personal folder. Both accept png/jpg/webp directly; the built-in folder should be WebP to keep the bundle small. The same rule is injected into the agent system prompt.
+- Config stores only `default | builtin | custom` plus the image id — never the hashed Vite URL; deleting a personal image falls back to Solid for whichever target used it.
 
 ### Theme presets and Sakura
 

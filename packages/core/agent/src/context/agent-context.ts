@@ -1,4 +1,7 @@
-// Agent 运行上下文装配：记忆召回、规则提示词、资料库摘要、技能/进度提示与模型能力价格解析。
+// Agent 运行上下文装配：记忆召回、规则提示词、资料库摘要、背景图目录、技能/进度提示与模型能力价格解析。
+import { existsSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { resolveModelCapabilities, type LlmMessage, type LlmProfile } from "@lfaa/llm";
 import type { TokenPricing } from "@lfaa/metrics";
 import { formatHistoryDigest, collectHistoryDigest, type SessionWorktree } from "@lfaa/memory";
@@ -22,6 +25,19 @@ export interface RecalledContext {
   contextWindow: Awaited<ReturnType<RunLoopDeps["memory"]["buildContextMessages"]>>;
   historyDigest: string;
   libraryHint: string;
+  backgroundHint: string;
+}
+
+/** 背景图落点提示：个人目录始终可用；只有工作区确实是 LFAA 源码仓库时才提内置目录。 */
+function buildBackgroundHint(workspaceRoots: string[]): string {
+  const personalDir = join(homedir(), ".lfaa", "backgrounds");
+  const builtinDir = workspaceRoots
+    .map((root) => join(root, "packages", "ui", "theme", "client", "assets", "backgrounds"))
+    .find((candidate) => existsSync(candidate));
+  const base = `LFAA 背景图个人目录：${personalDir}。把 PNG/JPG/WebP 直接放进去（文件名用小写英文 kebab-case）就会出现在「外观 → 预设 → 背景图片 → 我的图片」，刷新设置即生效、无需重新构建；任何项目下都走这个目录。`;
+  return builtinDir
+    ? `${base} 当前工作区同时是 LFAA 源码仓库：负责人要「内置/跟版本走」时，把图片转成 WebP 后放进 ${builtinDir}，需要中文名再补 manifest.json 的 labels/order；只要本机临时用就仍走个人目录。`
+    : `${base} 当前工作区没有 LFAA 源码，不要尝试修改内置目录。`;
 }
 
 /** 装入已保存的上下文并补齐尚未写入的新消息。 */
@@ -72,7 +88,8 @@ export async function recallAgentContext(
   const libraryHint = storageState
     ? `LFAA 资料库/资产库本地目录：${storageState.dataRoot}（当前已有 ${recentAssets.length} 项资产/产物${assetPreview ? `：${assetPreview}` : ""}）。你可通过 list_library_assets / read_library_asset 查看资料库内容，产出的报告、文档或成品请优先调用 save_library_artifact 存入资产库以便用户在「资料库」界面统一查看。`
     : "";
-  return { systemPrompt, projectRuleNames, contextWindow, historyDigest, libraryHint };
+  const backgroundHint = buildBackgroundHint(params.workspaceRoots);
+  return { systemPrompt, projectRuleNames, contextWindow, historyDigest, libraryHint, backgroundHint };
 }
 
 /** 会话工作位置与授权目录提示，附带权限边界说明。 */

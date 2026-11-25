@@ -15,6 +15,7 @@ import { createMcpHttpHandler } from "@lfaa/mcp";
 import { sandboxLocalPlugin } from "@lfaa/sandbox";
 import { createAgentHandlers } from "./handlers/handlers-chat";
 import { createCommonHandlers } from "./handlers/handlers";
+import { createBackgroundsHttpHandler } from "./handlers/handlers-backgrounds";
 import { createNotificationSoundsHttpHandler } from "./handlers/handlers-notifications";
 import { createDesktopDownloadReceiver } from "./desktop-downloads";
 
@@ -124,6 +125,7 @@ export async function createHostRuntime(options: HostRuntimeOptions): Promise<Ho
     resolveSessionWorkspace: common.resolveSessionWorkspace,
   });
   const notificationSounds = createNotificationSoundsHttpHandler();
+  const backgrounds = createBackgroundsHttpHandler();
 
   // 接口边界：所有 Host API 在此集中登记，顺序有语义（具体路由先于宽泛路由）。
   const gateway = createApiGateway([
@@ -148,6 +150,7 @@ export async function createHostRuntime(options: HostRuntimeOptions): Promise<Ho
     { id: "media-plan", handle: sessions.mediaPlan },
     { id: "coding", handle: sessions.coding },
     { id: "notification-sounds", handle: notificationSounds },
+    { id: "backgrounds", handle: backgrounds },
     ...(goalHandler ? [{ id: "goal", handle: goalHandler }] : []),
     ...(handoffHandler ? [{ id: "handoffs", handle: handoffHandler }] : []),
     ...(agentProfileHandler ? [{ id: "agent-profile", handle: agentProfileHandler }] : []),

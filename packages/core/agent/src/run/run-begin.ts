@@ -339,6 +339,7 @@ export async function beginAgentRun(
             ...(session.worktree ? { worktree: session.worktree } : {}),
             workspaceRoots,
             enableClarification: true,
+            ...(input.withSuggestions ? { withSuggestions: true } : {}),
             beforeWorkspaceMutation,
             enableMemoryContext: memoryAllowed,
             ...(resolvedSkills.length > 0 ? { resolvedSkills } : {}),

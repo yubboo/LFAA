@@ -39,7 +39,6 @@ function renderList(options: { restoring?: boolean; messages?: ChatMessageItem[]
     restoring: options.restoring ?? false,
     heroComposer: createElement("div", null, "composer"),
     onWorkspaceModeChange: noop,
-    suggestionsByMessage: {},
     selectedFile: undefined,
     pendingApproval: null,
     memoriesCount: 0,

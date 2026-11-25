@@ -70,39 +70,6 @@ export function createAgentHandlers(deps: AgentHandlerDeps): AgentHandlers {
         repositoryRoot: status.repositoryRoot,
       };
     },
-    // 追问建议由模型根据本轮问答生成，保留既有能力，仅调整前端展示样式。
-    suggestFollowUps: async ({ userPrompt, assistantReply }) => {
-      const output = await context.llm.complete({
-        messages: [
-          {
-            role: "system",
-            content: "你是追问建议生成器。根据用户提问与助手回答，给出 3 条用户最可能继续追问的简短问题。只输出 JSON 字符串数组，不要任何解释。",
-          },
-          {
-            role: "user",
-            content: `用户提问：${userPrompt.slice(0, 800)}\n\n助手回答：${assistantReply.slice(0, 2000)}`,
-          },
-        ],
-        // 该模型先输出推理再输出正文，预算放宽并降低思考深度避免正文被推理吃光。
-        maxTokens: 1500,
-        reasoningEffort: "low",
-        temperature: 0.7,
-      });
-      // LlmGenerateOutput 的正文放在 content 字段（不是 text）。
-      const text = (output as { content?: string }).content ?? "";
-      const start = text.indexOf("[");
-      const end = text.lastIndexOf("]");
-      if (start < 0 || end <= start) return [];
-      let parsed: unknown = [];
-      try {
-        parsed = JSON.parse(text.slice(start, end + 1));
-      } catch {
-        return [];
-      }
-      return Array.isArray(parsed)
-        ? parsed.filter((item): item is string => typeof item === "string" && item.trim().length > 0).slice(0, 3)
-        : [];
-    },
     // 项目起步建议：新会话绑定项目且尚无消息时，围绕该项目生成 3 条起步请求。
     suggestStarters: async ({ projectId }) => {
       const projects = await context.workspace.listProjects();

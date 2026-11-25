@@ -7,6 +7,7 @@ import type { ChatLocaleMessages } from "../locales";
 import type { MediaResultContextValue } from "@lfaa/client-ui-tool-media/client";
 import { formatDayDivider } from "./MessageActionBars";
 import { ChatMessageRow } from "./ChatMessageRow";
+import { splitSuggestionBlock } from "./suggestion-block";
 import styles from "./ChatWorkspace.module.css";
 import heroStyles from "./ChatWorkspace.hero.module.css";
 
@@ -43,7 +44,6 @@ export function ChatMessageList({
   restoring,
   heroComposer,
   onWorkspaceModeChange,
-  suggestionsByMessage,
   selectedFile,
   pendingApproval,
   memoriesCount,
@@ -80,7 +80,6 @@ export function ChatMessageList({
   /** 空会话时内嵌到中心区的输入栏；有消息时输入栏留在底部，这里为 null。 */
   heroComposer?: ReactNode;
   onWorkspaceModeChange: (mode: WorkspaceMode) => void;
-  suggestionsByMessage: Record<string, string[]>;
   selectedFile: FilePreviewTab | undefined;
   pendingApproval: PendingApprovalBanner | null;
   memoriesCount: number;
@@ -173,6 +172,45 @@ export function ChatMessageList({
     );
   }
 
+  // 逐条累积历史建议：本轮与历史重复的建议不再展示，避免连续两轮给同一句。
+  let seenSuggestions: string[] = [];
+  const rows = messages.map((msg, msgIdx) => {
+    const priorSuggestions = seenSuggestions;
+    if (msg.role === "assistant") {
+      const { suggestions } = splitSuggestionBlock(msg.content);
+      if (suggestions.length > 0) seenSuggestions = [...seenSuggestions, ...suggestions];
+    }
+    return (
+      <ChatMessageRow
+        key={msg.id}
+        msg={msg}
+        isLastMessage={msgIdx === messages.length - 1}
+        hideContentForClarification={Boolean(clarification && msg.id === lastMessage?.id)}
+        locale={locale}
+        activeSessionId={activeSessionId}
+        selectedFileStepId={selectedFile?.messageId === msg.id ? selectedFile.stepId : undefined}
+        pendingApproval={msg.status === "streaming" ? pendingApproval : null}
+        memoriesCount={memoriesCount}
+        isRunning={isRunning}
+        brandWatermark={brandWatermark}
+        assistantBodyClass={assistantBodyClass}
+        noticeLinkClass={noticeLinkClass}
+        previousSuggestions={priorSuggestions}
+        mediaActions={mediaActions}
+        onOpenFilePreview={onOpenFilePreview}
+        onOpenTurnChanges={onOpenTurnChanges}
+        onOpenBrowser={onOpenBrowser}
+        onOpenSubagent={onOpenSubagent}
+        onEditContent={onEditContent}
+        onOpenTrace={onOpenTrace}
+        onBranchToNewChat={onBranchToNewChat}
+        onContinueInterrupted={onContinueInterrupted}
+        onSubmitQuestion={onSubmitQuestion}
+        onResolveApproval={onResolveApproval}
+      />
+    );
+  });
+
   return (
     <div ref={threadRef} className={styles.thread}>
       {messages[0] && (
@@ -180,35 +218,7 @@ export function ChatMessageList({
           {formatDayDivider(messages[0].createdAt, locale.isZh)}
         </div>
       )}
-      {messages.map((msg, msgIdx) => (
-        <ChatMessageRow
-          key={msg.id}
-          msg={msg}
-          isLastMessage={msgIdx === messages.length - 1}
-          hideContentForClarification={Boolean(clarification && msg.id === lastMessage?.id)}
-          locale={locale}
-          activeSessionId={activeSessionId}
-          selectedFileStepId={selectedFile?.messageId === msg.id ? selectedFile.stepId : undefined}
-          pendingApproval={msg.status === "streaming" ? pendingApproval : null}
-          memoriesCount={memoriesCount}
-          isRunning={isRunning}
-          brandWatermark={brandWatermark}
-          assistantBodyClass={assistantBodyClass}
-          noticeLinkClass={noticeLinkClass}
-          followUpSuggestions={suggestionsByMessage[msg.id]}
-          mediaActions={mediaActions}
-          onOpenFilePreview={onOpenFilePreview}
-          onOpenTurnChanges={onOpenTurnChanges}
-          onOpenBrowser={onOpenBrowser}
-          onOpenSubagent={onOpenSubagent}
-          onEditContent={onEditContent}
-          onOpenTrace={onOpenTrace}
-          onBranchToNewChat={onBranchToNewChat}
-          onContinueInterrupted={onContinueInterrupted}
-          onSubmitQuestion={onSubmitQuestion}
-          onResolveApproval={onResolveApproval}
-        />
-      ))}
+      {rows}
     </div>
   );
 }

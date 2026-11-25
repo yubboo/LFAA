@@ -1,34 +1,5 @@
-/* 外观页「高级」折叠区：折叠标题行、字号数值输入与对比度滑块。
+/* 外观页「高级设置」分区的专用控件：字号数值输入与对比度滑块。
    行式排版、分组标题、开关与分段控件统一由 @lfaa/ui-primitives 提供，这里只补这两个专用控件。 */
-.advancedToggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  margin: 0.6rem 0 0;
-  padding: 0.35rem 0.2rem;
-  border: 0;
-  background: transparent;
-  color: var(--color-muted);
-  font-size: 0.84rem;
-  font-weight: 550;
-  cursor: pointer;
-}
-
-.advancedToggle:hover {
-  color: var(--color-ink);
-}
-
-.advancedToggle svg {
-  width: 0.95rem;
-  height: 0.95rem;
-}
-
-/* 高级区内部的组间距与页面主分组一致，保证「组间松、组内紧」的同一节奏。 */
-.advancedStack {
-  display: grid;
-  gap: 2rem;
-}
-
 /* 数值行：输入框 + 单位，右对齐贴在设置行控件位。 */
 .numberControl {
   display: inline-flex;

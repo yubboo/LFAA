@@ -33,3 +33,19 @@ test("ui-primitives client 入口完整导出 ModalDialog / PopoverCard / StepSl
   assert.match(clientEntry, /StatusBanner/);
   assert.match(clientEntry, /StepSliderPopover/);
 });
+
+test("HoverTip 悬停显示不改变纵向位置", async () => {
+  const pkgRoot = fileURLToPath(new URL("..", import.meta.url));
+  const css = await readFile(resolve(pkgRoot, "client/HoverTip.module.css"), "utf8");
+  const baseRule = css.match(/\.tip\s*\{(?<body>[\s\S]*?)\}/u)?.groups?.body ?? "";
+  const visibleRule = css.match(/\.wrap:hover[\s\S]*?\.tip\s*\{(?<body>[\s\S]*?)\}/u)?.groups?.body ?? "";
+
+  assert.ok(baseRule, "应能找到 HoverTip 默认样式");
+  assert.ok(visibleRule, "应能找到 HoverTip 悬停可见样式");
+  assert.doesNotMatch(baseRule, /translateY\s*\(/u);
+  assert.doesNotMatch(visibleRule, /translateY\s*\(/u);
+  // 悬停只允许改透明度：过渡里带 transform 会让气泡滑动，看起来像正文在跳。
+  assert.doesNotMatch(baseRule, /transition:[^;]*transform/u);
+  // 合成层必须提前持有，否则气泡出现那一帧会在滚动容器里新建图层并重栅格化消息区。
+  assert.match(baseRule, /will-change:\s*opacity/u);
+});

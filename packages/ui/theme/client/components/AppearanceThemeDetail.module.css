@@ -1,0 +1,68 @@
+/* 外观页「高级」里的主题细项专用控件：预设行内的导入/复制动作与色值输入胶囊。
+   行式排版、分组与常规行由 @lfaa/ui-primitives 提供，本文件不写具体色值。 */
+/* 预设行：动作按钮紧贴下拉选择器左侧。 */
+.inlineControls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.hiddenFile {
+  display: none;
+}
+
+.iconAction {
+  display: grid;
+  width: 2.1rem;
+  height: 2.1rem;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 0.55rem;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.iconAction:hover {
+  border-color: var(--glass-border, var(--color-line));
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.iconAction svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* 色值输入：圆形取色器 + HEX 文本框合成一个胶囊控件。 */
+.colorField {
+  display: inline-flex;
+  min-height: 2.15rem;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.2rem 0.65rem 0.2rem 0.45rem;
+  border: 1px solid var(--glass-border, var(--color-line));
+  border-radius: 999px;
+  background: var(--glass-control-bg, var(--color-surface));
+}
+
+.colorField input[type="color"] {
+  width: 1.05rem;
+  height: 1.05rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+
+.hexInput {
+  width: 4.9rem;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--color-ink);
+  font-family: var(--code-font-family, monospace);
+  font-size: 0.78rem;
+}

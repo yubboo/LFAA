@@ -5,7 +5,6 @@ import {
   IconCheck,
   IconChevronDown,
   IconChevronUp,
-  IconCircleCheck,
   IconCopy,
   IconDots,
   IconFileDiff,
@@ -354,37 +353,6 @@ export function EditedFilesCard({
           {expanded ? <IconChevronUp size={13} /> : <IconChevronDown size={13} />}
         </button>
       )}
-    </div>
-  );
-}
-
-/** 展示可继续发送的建议问题，将选中的文本交给调用方。 */
-
-/** 模型给出的后续追问：统一采用无边框轻量图标行，点击即作为下一条消息发送。 */
-export function FollowUpSuggestions({
-  suggestions,
-  onSelect,
-}: {
-  isZh?: boolean;
-  suggestions: string[];
-  onSelect: (question: string) => void;
-}) {
-  if (suggestions.length === 0) return null;
-
-  return (
-    <div className={styles.followUpList} role="list">
-      {suggestions.map((question, index) => (
-        <button
-          key={`${index}-${question}`}
-          type="button"
-          className={styles.followUpBtn}
-          role="listitem"
-          onClick={() => onSelect(question)}
-        >
-          <IconCircleCheck size={15} stroke={1.6} className={styles.followUpIcon} aria-hidden="true" />
-          <span className={styles.followUpText}>{question}</span>
-        </button>
-      ))}
     </div>
   );
 }

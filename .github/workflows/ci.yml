@@ -87,6 +87,11 @@ jobs:
       - name: 生产构建浏览器验收
         run: pnpm verify:web
 
+      # 悬停抖动反馈环：滚到最底部后逐个悬停消息动作按钮并向下滚轮，
+      # 断言可滚终点不增加、scrollTop 不变、到底后滚轮推不动。
+      - name: 悬停抖动反馈环
+        run: pnpm verify:hover-scroll
+
       # 交接条与目标条的隔离浏览器验收：临时 HOME + seed 交接，真实点击接手与暂停/恢复。
       # 没有可用浏览器时同样自行跳过并以 0 退出（见 scripts/verify-coordination.mts）。
       - name: 交接与目标浏览器验收

@@ -227,6 +227,7 @@ test("AgentService 完成 Think -> Act(读写工具+人工审批) -> Check 闭�
     assert.ok(capturedSystemPrompt.includes("保持输出简明"));
     assert.ok(capturedSystemPrompt.includes("REPORT.md 用于存放项目检查摘要"));
     assert.ok(capturedSystemPrompt.includes("LFAA 资料库/资产库本地目录"));
+    assert.ok(capturedSystemPrompt.includes("LFAA 背景图个人目录"));
     assert.ok(ctx.tools.getTool("list_library_assets"));
     assert.ok(ctx.tools.getTool("save_library_artifact"));
 

@@ -22,6 +22,12 @@
   -webkit-backdrop-filter: none;
 }
 
+/* 背景图生效时，右工作台让出底色让启动页的半透明层透出图片；代码、浏览器等内容面板自带底色。 */
+:global(html[data-app-bg-workspace="image"]) .panelWorkbench,
+:global(html[data-settings-open="true"][data-app-bg-settings="image"]) .panelWorkbench {
+  background: transparent;
+}
+
 .header {
   display: flex;
   height: var(--topbar-height, 3.5rem);

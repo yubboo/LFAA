@@ -1,5 +1,5 @@
-// 呈现外观设置页的「高级」折叠区：字号、字体、主题与显示、动效与光标，全部沿用设置中心的行式结构
-// （左名称右控件、分组不加框），与页面其余部分保持同一套排版与控件形态。
+// 呈现外观设置「高级设置」分区里的字号、字体、主题与显示、动效与光标分组，全部沿用设置中心的行式结构
+// （左名称右控件、分组不加框）；分区切换与面板间距由页面统一维护。
 import type {
   AppearanceConfig,
   CodeFontId,
@@ -40,7 +40,7 @@ export function AppearanceAdvanced({
   ];
 
   return (
-    <div className={advStyles.advancedStack}>
+    <>
       <SettingGroup title={locale.advancedFontSizeGroup}>
         <SettingRow
           title={locale.uiFontSize}
@@ -204,6 +204,6 @@ export function AppearanceAdvanced({
           )}
         />
       </SettingGroup>
-    </div>
+    </>
   );
 }

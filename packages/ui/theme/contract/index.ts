@@ -10,6 +10,18 @@ export type FontWeightId = "normal" | "medium" | "semibold";
 export type ReducedMotionMode = "system" | "on" | "off";
 export type DiffMarkerMode = "color" | "markers";
 
+/** 背景图作用位置：工作区与设置中心各自保存一份选择，后续可扩展项目/分页。 */
+export type BackgroundTarget = "workspace" | "settings";
+
+/** 背景选择：跟随主题纯色、内置图片或个人图片。 */
+export type BackgroundChoice =
+  | { kind: "default" }
+  | { kind: "builtin"; id: string }
+  | { kind: "custom"; id: string };
+
+/** 背景位置的稳定顺序，供设置页与测试共用。 */
+export const BACKGROUND_TARGETS: readonly BackgroundTarget[] = ["workspace", "settings"];
+
 /** 描述一种明暗主题下可单独配置的颜色与呈现设置。 */
 export interface ThemeVariantSettings {
   accent: AccentPresetId;
@@ -36,6 +48,7 @@ export interface AppearanceConfig {
   contrast: number;
   diffMarker: DiffMarkerMode;
   pointerCursor: boolean;
+  backgrounds: Record<BackgroundTarget, BackgroundChoice>;
 }
 
 /** 定义主题选择器可展示并应用的预设内容。 */
@@ -164,6 +177,10 @@ export const DEFAULT_APPEARANCE_CONFIG: AppearanceConfig = {
   contrast: 60,
   diffMarker: "color",
   pointerCursor: true,
+  backgrounds: {
+    workspace: { kind: "default" },
+    settings: { kind: "default" },
+  },
 };
 
 /** 整理外部或导入的颜色值，丢弃不符合主题契约的输入。 */
@@ -213,6 +230,33 @@ function sanitizeVariant(raw: unknown, fallback: ThemeVariantSettings): ThemeVar
   };
 }
 
+const BACKGROUND_ID_PATTERN = /^[a-z0-9-]{1,64}$/u;
+
+/** 校验单个背景选择；未知类型或非法 id 一律回退，避免坏配置留下死引用。 */
+function sanitizeBackgroundChoice(raw: unknown, fallback: BackgroundChoice): BackgroundChoice {
+  if (!raw || typeof raw !== "object") return fallback;
+  const record = raw as Record<string, unknown>;
+  if (record.kind === "default") return { kind: "default" };
+  if (record.kind === "builtin" || record.kind === "custom") {
+    const id = typeof record.id === "string" ? record.id.trim().toLowerCase() : "";
+    if (!BACKGROUND_ID_PATTERN.test(id)) return fallback;
+    return record.kind === "builtin" ? { kind: "builtin", id } : { kind: "custom", id };
+  }
+  return fallback;
+}
+
+/** 校验两个背景位置的选择，缺字段时沿用默认纯色。 */
+function sanitizeBackgrounds(
+  raw: unknown,
+  fallback: Record<BackgroundTarget, BackgroundChoice>,
+): Record<BackgroundTarget, BackgroundChoice> {
+  const record = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  return {
+    workspace: sanitizeBackgroundChoice(record.workspace, fallback.workspace),
+    settings: sanitizeBackgroundChoice(record.settings, fallback.settings),
+  };
+}
+
 // 校验并合并外部导入或本地持久化的配置，防止异常字段破坏界面主题。
 export function sanitizeAppearanceConfig(raw: unknown): AppearanceConfig {
   if (!raw || typeof raw !== "object") return DEFAULT_APPEARANCE_CONFIG;
@@ -255,5 +299,6 @@ export function sanitizeAppearanceConfig(raw: unknown): AppearanceConfig {
     contrast: clampNumber(record.contrast, 0, 100, DEFAULT_APPEARANCE_CONFIG.contrast),
     diffMarker,
     pointerCursor: typeof record.pointerCursor === "boolean" ? record.pointerCursor : DEFAULT_APPEARANCE_CONFIG.pointerCursor,
+    backgrounds: sanitizeBackgrounds(record.backgrounds, DEFAULT_APPEARANCE_CONFIG.backgrounds),
   };
 }

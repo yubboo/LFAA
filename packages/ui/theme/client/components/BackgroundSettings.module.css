@@ -1,0 +1,15 @@
+/* 背景图片分组：图墙区块与「我的图片」小标题的排版；卡片样式在 BackgroundGallery.module.css。 */
+.gallerySection {
+  display: grid;
+  gap: 0.6rem;
+  min-width: 0;
+  padding: 0.55rem 0 0.35rem;
+}
+
+.sectionTitle {
+  margin: 0;
+  color: var(--color-ink);
+  font-size: 0.86em;
+  font-weight: 600;
+  line-height: 1.4;
+}
