@@ -10,6 +10,7 @@ import { useAuxResize } from "./useAuxResize";
 import { readWorkbenchSessionState } from "../store/workbench-persist";
 import { RightUtilityRail, type RightAuxTab } from "./RightUtilityRail";
 import { renderPaneAuxBody, type PaneAuxBodyProps } from "./pane/PaneAuxBody";
+import { buildPaneTabProps } from "./pane/PaneTabProps";
 import { WorkbenchAuxPane } from "./WorkbenchAuxPane";
 import { WorkbenchStageContent } from "./WorkbenchStageContent";
 import { useWorkbenchBrowser } from "./useWorkbenchBrowser";
@@ -261,45 +262,14 @@ export function RightWorkbenchPane({
   return (
     <div className={styles.workbench} data-layout={layoutMode}>
 <WorkbenchTopBar
-        tabProps={{
-          isZh: locale.isZh,
-          stageKind,
-          auxTabs: auxTabs.map((id) => ({ id, title: auxTitles[id] })),
-          activeAuxTab,
-          onSelectAuxTab: (tab) => { openAuxTab(tab); },
-          onCloseAuxTab: closeAuxTabAndMaybeCollapse,
-          fileTabs,
-          activeFileTab,
-          browserOpen,
-          browserTabs,
-          browserIsBlank,
-          reviewTabOpen,
-          reviewMessageId,
-          subagentTabs,
-          activeSubagentTabId,
-          onSelectFile: (tabId) => { hideAuxTab(); store.selectFilePreview(tabId); },
-          onCloseFile: closeFileTab,
-          onSelectBrowser: () => { hideAuxTab(); store.setRightStageKind("browser"); },
-          onCloseBrowser: () => closeBrowserTab(),
-          onActivateBrowserTab: (bTab) => {
-            hideAuxTab();
-            store.setRightStageKind("browser");
-            if (!bTab.active) handleActivateBrowserTab(bTab.tabId);
-          },
-          onCloseBrowserTab: closeBrowserTab,
-          onSelectReview: () => { hideAuxTab(); store.setRightStageKind("review"); },
-          onCloseReview: closeReviewTab,
-          onSelectSubagentTab: (subId) => { hideAuxTab(); selectSubagentTab(subId); },
-          onCloseSubagentTab: (subId) => closeSubagentTab(subId, () => (activeFileTab ? "file" : browserOpen ? "browser" : reviewTabOpen ? "review" : null)),
-          onNewBrowserTab: openNewBrowserTab,
-          onCloseBrowserTabAny: (tabId) => closeBrowserTab(tabId),
-          onCloseFileRaw: (id) => store.closeFilePreview(id),
-          onCloseAuxRaw: closeAuxTab,
-          onCloseSubagentRaw: (id) => closeSubagentTab(id, () => null),
-          onCloseReviewRaw: () => { setReviewTabOpen(false); if (state.rightStageKind === "review") store.setRightStageKind(null); },
-          closeBrowserTabsExcept: (keepTabId) => { void closeBrowserTabsExcept(keepTabId); },
-          workbench,
-        }}
+        tabProps={buildPaneTabProps({
+          isZh: locale.isZh, stageKind, auxTabs, auxTitles, activeAuxTab, fileTabs, activeFileTab,
+          browserOpen, browserTabs, browserIsBlank, reviewTabOpen, reviewMessageId,
+          subagentTabs, activeSubagentTabId, rightStageKind: state.rightStageKind,
+          store, workbench, hideAuxTab, openAuxTab, closeAuxTab, closeAuxTabAndMaybeCollapse,
+          closeFileTab, closeBrowserTab, handleActivateBrowserTab, closeReviewTab,
+          setReviewTabOpen, selectSubagentTab, closeSubagentTab, openNewBrowserTab, closeBrowserTabsExcept,
+        })}
         actionProps={{
           variant: compact || rightPanelMaximized ? "full" : "workbenchOnly",
           isZh: locale.isZh,
