@@ -12,8 +12,8 @@ import { RightUtilityRail, type RightAuxTab } from "./RightUtilityRail";
 import { renderPaneAuxBody, type PaneAuxBodyProps } from "./pane/PaneAuxBody";
 import { buildPaneTabProps } from "./pane/PaneTabProps";
 import { buildPaneActionProps } from "./pane/PaneActionProps";
+import { PaneStage, type PaneStageProps } from "./pane/PaneStage";
 import { WorkbenchAuxPane } from "./WorkbenchAuxPane";
-import { WorkbenchStageContent } from "./WorkbenchStageContent";
 import { useWorkbenchBrowser } from "./useWorkbenchBrowser";
 import { TerminalDockPane } from "./TerminalDockPane";
 import { useWorkbenchRequests } from "./useWorkbenchRequests";
@@ -260,9 +260,47 @@ export function RightWorkbenchPane({
     collapse: onLastTabClose ?? onCollapseRightPanel,
   });
 
+  // 舞台内容 props 一次性组装；分割区、图标轨与终端坞的排版交给 pane/PaneStage。
+  const stageProps: PaneStageProps["stageProps"] = {
+    locale, store, sessionId, boundProjectId, boundProjectName, boundWorktreeId,
+    stageKind, activeAux: activeAuxTab ?? "terminal", auxTitle: auxTitles[activeAuxTab ?? "terminal"],
+    activeFileTab, activeSubagentTab, selectedStep, effectiveAuxTab,
+    reviewMessage: state.reviewMessage, reviewMessageId,
+    browserInitialUrl, browserExternalState,
+    agentRunning: state.agentRunning, browserAutomationActive: state.browserAutomationActive,
+    browserActivity: state.browserActivity, devtoolsRequest, showStartPage,
+    activeBrowserTabId: activeBrowserTab?.tabId, jobs, subagents, auxPane, renderAuxBody,
+    onCloseAux: () => hideAuxTab(),
+    onOpenUrl: handleOpenUrl,
+    onOpenTerminal: () => openAux("shell"),
+    onOpenReview: openReview,
+    onOpenSideAsk: () => openAux("sideAsk"),
+    onSnapshotChange: handleBrowserSnapshot,
+    onAttachPage: (snap) => {
+      store.enqueueComposerInsert(`当前内置浏览器页面：${snap.title || "未命名"} (${snap.url})，控制台异常数：${snap.errorCount}`);
+    },
+    onOpenCodeReview,
+    onSelectSubagent: (subId) => { hideAuxTab(); openSubagentTab(subId); },
+    onSelectJob: (jobId) => { setSelectedJobId(jobId); openAux("terminal"); },
+  };
+
+  const rail = (
+    <RightUtilityRail
+      isZh={locale.isZh}
+      activeAux={effectiveAuxTab ?? activeAuxTab ?? "terminal"}
+      auxOpen={effectiveAuxTab !== null}
+      runningJobsCount={runningJobsCount}
+      runningSubagentsCount={runningSubsCount}
+      onToggleAux={handleToggleAux}
+      onOpenCodeReview={onOpenCodeReview}
+      onOpenExtensions={onOpenExtensions}
+      onOpenSettings={onOpenSettings}
+    />
+  );
+
   return (
     <div className={styles.workbench} data-layout={layoutMode}>
-<WorkbenchTopBar
+      <WorkbenchTopBar
         tabProps={buildPaneTabProps({
           isZh: locale.isZh, stageKind, auxTabs, auxTitles, activeAuxTab, fileTabs, activeFileTab,
           browserOpen, browserTabs, browserIsBlank, reviewTabOpen, reviewMessageId,
@@ -279,62 +317,12 @@ export function RightWorkbenchPane({
         })}
       />
 
-      <div ref={splitAreaRef} className={styles.bodySplit}>
-        <WorkbenchStageContent
-          locale={locale}
-          store={store}
-          sessionId={sessionId}
-          boundProjectId={boundProjectId}
-          boundProjectName={boundProjectName}
-          boundWorktreeId={boundWorktreeId}
-          stageKind={stageKind}
-          activeAux={activeAuxTab ?? "terminal"}
-          auxTitle={auxTitles[activeAuxTab ?? "terminal"]}
-          activeFileTab={activeFileTab}
-          activeSubagentTab={activeSubagentTab}
-          selectedStep={selectedStep}
-          effectiveAuxTab={effectiveAuxTab}
-          reviewMessage={state.reviewMessage}
-          reviewMessageId={reviewMessageId}
-          browserInitialUrl={browserInitialUrl}
-          browserExternalState={browserExternalState}
-          agentRunning={state.agentRunning}
-          browserAutomationActive={state.browserAutomationActive}
-          browserActivity={state.browserActivity}
-          devtoolsRequest={devtoolsRequest}
-          showStartPage={showStartPage}
-          activeBrowserTabId={activeBrowserTab?.tabId}
-          jobs={jobs}
-          subagents={subagents}
-          auxPane={auxPane}
-          renderAuxBody={renderAuxBody}
-          onCloseAux={() => hideAuxTab()}
-          onOpenUrl={handleOpenUrl}
-          onOpenTerminal={() => openAux("shell")}
-          onOpenReview={openReview}
-          onOpenSideAsk={() => openAux("sideAsk")}
-          onSnapshotChange={handleBrowserSnapshot}
-          onAttachPage={(snap) => {
-            store.enqueueComposerInsert(`当前内置浏览器页面：${snap.title || "未命名"} (${snap.url})，控制台异常数：${snap.errorCount}`);
-          }}
-          onOpenCodeReview={onOpenCodeReview}
-          onSelectSubagent={(subId) => { hideAuxTab(); openSubagentTab(subId); }}
-          onSelectJob={(jobId) => { setSelectedJobId(jobId); openAux("terminal"); }}
-        />
-
-        <RightUtilityRail
-          isZh={locale.isZh}
-          activeAux={effectiveAuxTab ?? activeAuxTab ?? "terminal"}
-          auxOpen={effectiveAuxTab !== null}
-          runningJobsCount={runningJobsCount}
-          runningSubagentsCount={runningSubsCount}
-          onToggleAux={handleToggleAux}
-          onOpenCodeReview={onOpenCodeReview}
-          onOpenExtensions={onOpenExtensions}
-          onOpenSettings={onOpenSettings}
-        />
-      </div>
-      {workbench && <TerminalDockPane sessionId={sessionId} isZh={locale.isZh} workbench={workbench} />}
+      <PaneStage
+        splitAreaRef={splitAreaRef}
+        stageProps={stageProps}
+        rail={rail}
+        dock={workbench && <TerminalDockPane sessionId={sessionId} isZh={locale.isZh} workbench={workbench} />}
+      />
     </div>
   );
 }
