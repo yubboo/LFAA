@@ -1,0 +1,30 @@
+/* 真实终端面板容器：撑满所在面板，xterm 自己滚自己的内容。 */
+.wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--color-code-bg);
+}
+
+.host {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 6px 8px 8px;
+  overflow: hidden;
+}
+
+/* 终端里的 xterm 视口要撑满，避免只占一行高。 */
+.host :global(.xterm) {
+  height: 100%;
+}
+
+.notice {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 6px 10px;
+  border-top: 1px solid var(--color-line);
+  color: var(--color-muted);
+  font-size: 12px;
+}

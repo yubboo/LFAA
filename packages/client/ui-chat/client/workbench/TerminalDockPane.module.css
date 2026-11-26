@@ -1,0 +1,37 @@
+/* 工作台列内的底部终端：上沿 8px 热区，与左右栏分割线同一套视觉（1px 线 + 悬停强调）。 */
+.dock {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  min-height: 0;
+  border-top: 1px solid var(--color-line);
+  background: var(--color-panel);
+}
+
+.handle {
+  position: absolute;
+  inset: -3px 0 auto;
+  height: 8px;
+  cursor: row-resize;
+}
+
+.handle::after {
+  content: "";
+  position: absolute;
+  inset: 3px 0 auto;
+  height: 1px;
+  background: transparent;
+  transition: background var(--motion-duration-fast, 120ms) ease;
+}
+
+.handle:hover::after {
+  background: var(--color-accent);
+}
+
+.body {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
