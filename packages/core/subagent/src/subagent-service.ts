@@ -52,6 +52,50 @@ interface SubagentRecord {
   onSubagentActivity?: InvokeSubagentInput["onSubagentActivity"];
 }
 
+/** 子智能体写入团队记忆所需的最小身份信息。 */
+export interface SubagentMemoryIdentity {
+  role: string;
+  kind?: SubagentKind;
+  sessionId: string;
+  parentRunId?: string;
+}
+
+/** 把子智能体的结论与失败点写成团队记忆：父级与兄弟子智能体下一轮即可召回，不必等父级转述。 */
+export async function persistSubagentMemory(
+  memory: MemoryService,
+  identity: SubagentMemoryIdentity,
+  result: { content: string; steps: ReadonlyArray<{ toolName?: string; status: string; detail?: string; title: string }> },
+): Promise<void> {
+  const { sessionId } = identity;
+  const kindLabel = identity.kind ?? "general";
+  const source = { sessionId, ...(identity.parentRunId ? { runId: identity.parentRunId } : {}) };
+  const summary = result.content.replace(/\s+/gu, " ").trim();
+  if (summary.length >= 20) {
+    await memory.addMemory({
+      kind: "fact",
+      scope: "team",
+      ownerId: sessionId,
+      agentId: `subagent:${kindLabel}`,
+      content: `[子智能体 ${identity.role}] ${summary.slice(0, 200)}`,
+      tags: ["subagent", kindLabel],
+      confidence: 0.7,
+      source,
+    }).catch(() => undefined);
+  }
+  const failure = result.steps.find((step) => step.status === "error" && step.toolName);
+  if (!failure) return;
+  await memory.addMemory({
+    kind: "pitfall",
+    scope: "team",
+    ownerId: sessionId,
+    agentId: `subagent:${kindLabel}`,
+    content: `[子智能体 ${identity.role}] 调用 ${failure.toolName} 失败：${(failure.detail ?? failure.title).slice(0, 160)}`,
+    tags: ["subagent", "failure", ...(failure.toolName ? [failure.toolName] : [])],
+    confidence: 0.6,
+    source,
+  }).catch(() => undefined);
+}
+
 function emitStream(record: SubagentRecord, event: SubagentStreamEvent): void {
   for (const listener of record.listeners) {
     try {
@@ -242,12 +286,13 @@ export class SubagentCoordinator {
         requestApproval: (request) => record.parentApproval?.requestApproval(request, controller.signal) ?? Promise.resolve(false),
       },
     )
-      .then((result) => {
+      .then(async (result) => {
         controller.signal.throwIfAborted();
         record.history.push(
           { id: randomUUID(), role: "user", content: userPrompt, createdAt: Date.now() },
           { id: randomUUID(), role: "assistant", content: result.content, createdAt: Date.now() },
         );
+        await persistSubagentMemory(this.ctx.memory, { role: record.item.role, sessionId: record.item.sessionId, ...(record.item.kind ? { kind: record.item.kind } : {}), ...(record.item.parentRunId ? { parentRunId: record.item.parentRunId } : {}) }, result);
         record.item = {
           ...record.item,
           status: "done",

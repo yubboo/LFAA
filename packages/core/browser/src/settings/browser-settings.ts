@@ -1,8 +1,9 @@
 // 内置浏览器设置读写：归一化完整偏好（常规、下载、权限规则、站点权限、密码偏好、扩展与完整 CDP）并落盘缓存。
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import type {
   BrowserExtensionItem,
   BrowserPasswordSettings,
@@ -12,8 +13,18 @@ import type {
   BrowserSitePermissions,
   BrowserSiteRule,
 } from "../types";
+import { getSystemDownloadsDir } from "./system-downloads";
 
 export const DEFAULT_SETTINGS_PATH = join(homedir(), ".lfaa", "browser-settings.json");
+
+/** 下载位置来源：system 表示跟随本机系统「下载」目录，custom 表示用户自己指定。 */
+export type DownloadDirSource = "system" | "custom";
+
+/** 生效的下载目录与其来源，供设置页显示路径并决定是否提供「恢复默认」。 */
+export interface DownloadDirState {
+  path: string;
+  source: DownloadDirSource;
+}
 
 /** 把设备像素比收敛到 1–2.5（保留两位小数），非法值退回 2。 */
 export function clampDpr(raw?: number): number {
@@ -50,8 +61,10 @@ export const DEFAULT_SETTINGS: Required<BrowserSettingsConfig> = {
   localUrlOpenMode: "builtin",
   showFullUrl: false,
   annotationScreenshotMode: "always",
-  downloadDir: join(homedir(), "Downloads"),
-  askBeforeDownload: false,
+  // 空串表示跟随系统「下载」目录；用户选定自定义目录后才写入绝对路径。
+  downloadDir: "",
+  // 默认在下载前询问保存位置，避免文件悄悄落到某个目录；用户显式关闭后会保持关闭。
+  askBeforeDownload: true,
   historyAccessPolicy: "ask",
   enableWebsiteTools: true,
   defaultBrowsePolicy: "ask",
@@ -62,6 +75,24 @@ export const DEFAULT_SETTINGS: Required<BrowserSettingsConfig> = {
   passwordSettings: DEFAULT_PASSWORD_SETTINGS,
   extensions: [],
 };
+
+/** 设置文件结构版本：v2 起「下载前询问保存位置」默认开启。 */
+const SETTINGS_FILE_VERSION = 2;
+
+/** 设置文件正文：配置字段 + 结构版本；版本只在落盘时写入，不进公开配置契约。 */
+interface SettingsFile extends Partial<BrowserSettingsConfig> {
+  settingsVersion?: number;
+}
+
+/**
+ * 旧版本默认「不询问保存位置」，且任何一次保存都会把这个默认值写进文件，无法区分「用户显式关闭」；
+ * 升级到 v2 时统一打开，之后用户手动关闭会正常保持。
+ */
+function migrateSettingsFile(parsed: SettingsFile): Partial<BrowserSettingsConfig> {
+  const version = typeof parsed.settingsVersion === "number" && Number.isFinite(parsed.settingsVersion) ? parsed.settingsVersion : 1;
+  if (version >= SETTINGS_FILE_VERSION) return parsed;
+  return { ...parsed, askBeforeDownload: true };
+}
 
 function normDecision(raw: unknown, fallback: BrowserPolicyDecision): BrowserPolicyDecision {
   return raw === "allow" || raw === "block" || raw === "ask" ? raw : fallback;
@@ -114,7 +145,9 @@ function normalizeConfig(parsed: Partial<BrowserSettingsConfig>, base: Required<
     annotationScreenshotMode: parsed.annotationScreenshotMode === "selection_only" || parsed.annotationScreenshotMode === "always"
       ? parsed.annotationScreenshotMode
       : base.annotationScreenshotMode,
-    downloadDir: typeof parsed.downloadDir === "string" && parsed.downloadDir.trim() ? parsed.downloadDir.trim() : base.downloadDir,
+    downloadDir: parsed.downloadDir === undefined
+      ? base.downloadDir
+      : typeof parsed.downloadDir === "string" ? parsed.downloadDir.trim() : base.downloadDir,
     askBeforeDownload: typeof parsed.askBeforeDownload === "boolean" ? parsed.askBeforeDownload : base.askBeforeDownload,
     historyAccessPolicy: parsed.historyAccessPolicy === "allow" || parsed.historyAccessPolicy === "deny" || parsed.historyAccessPolicy === "ask"
       ? parsed.historyAccessPolicy
@@ -147,51 +180,116 @@ function normalizeConfig(parsed: Partial<BrowserSettingsConfig>, base: Required<
   };
 }
 
+/** 按平台规则比较两个绝对路径是否指向同一目录（Windows 不区分大小写）。 */
+function sameDirectory(left: string, right: string): boolean {
+  const normalize = (value: string) => {
+    const absolute = resolve(value);
+    return process.platform === "win32" ? absolute.toLowerCase() : absolute;
+  };
+  return normalize(left) === normalize(right);
+}
+
+/** 形如 <用户目录>/Downloads 的路径：旧版本把它写死成默认值，换机后必须回落到系统目录。 */
+function looksLikeProfileDownloads(value: string): boolean {
+  return /(?:^[a-z]:\\users\\[^\\/]+\\downloads|^\/(?:home|Users)\/[^\\/]+\/Downloads)\/?$/iu.test(resolve(value));
+}
+
+/** 解析生效下载目录：空串、本机系统目录或旧版本写死的默认路径都回落到系统「下载」目录。 */
+async function resolveDownloadDir(configured: string, systemDownloadsDir: () => Promise<string>): Promise<DownloadDirState> {
+  const systemDir = await systemDownloadsDir();
+  const value = configured.trim();
+  if (!value || !isAbsolute(value)) return { path: systemDir, source: "system" };
+  if (sameDirectory(value, systemDir) || sameDirectory(value, join(homedir(), "Downloads"))) {
+    return { path: systemDir, source: "system" };
+  }
+  // 其他机器留下的 <用户>/Downloads 在本机不存在时同样是旧默认值，不能继续写回归属别人的目录。
+  if (looksLikeProfileDownloads(value) && !existsSync(value)) return { path: systemDir, source: "system" };
+  return { path: value, source: "custom" };
+}
+
+/** 系统「下载」目录探测的可替换入口，默认走真实平台探测，测试可注入临时目录。 */
+export interface BrowserSettingsStoreOptions {
+  systemDownloadsDir?: () => Promise<string>;
+}
+
 export class BrowserSettingsStore {
   private readonly storeFilePath: string;
-  private cache: Required<BrowserSettingsConfig> | null = null;
+  private readonly systemDownloadsDir: () => Promise<string>;
+  private stored: Required<BrowserSettingsConfig> | null = null;
+  private effective: Required<BrowserSettingsConfig> | null = null;
+  private downloadDirSource: DownloadDirSource = "system";
 
-  constructor(storeFilePath?: string) {
+  constructor(storeFilePath?: string, options: BrowserSettingsStoreOptions = {}) {
     this.storeFilePath = storeFilePath ? resolve(storeFilePath) : DEFAULT_SETTINGS_PATH;
+    this.systemDownloadsDir = options.systemDownloadsDir ?? getSystemDownloadsDir;
   }
 
+  /** 生效配置：`downloadDir` 已是真实目录，跟随系统时即本机「下载」目录。 */
   async get(): Promise<Required<BrowserSettingsConfig>> {
-    if (this.cache) return this.cache;
-    try {
-      const raw = await readFile(this.storeFilePath, "utf8");
-      const parsed = JSON.parse(raw) as Partial<BrowserSettingsConfig>;
-      this.cache = normalizeConfig(parsed, DEFAULT_SETTINGS);
-    } catch {
-      this.cache = normalizeConfig({}, DEFAULT_SETTINGS);
-    }
-    return this.cache;
+    if (this.effective) return this.effective;
+    const stored = await this.readStored();
+    const downloadDir = await this.resolveDownloadDir(stored.downloadDir);
+    this.effective = { ...stored, downloadDir: downloadDir.path };
+    this.downloadDirSource = downloadDir.source;
+    return this.effective;
+  }
+
+  /** 当前下载目录是否为用户自定义，设置页据此决定是否显示「恢复默认」。 */
+  async getDownloadDirSource(): Promise<DownloadDirSource> {
+    await this.get();
+    return this.downloadDirSource;
   }
 
   /** 下载授权读取磁盘最新值，避免独立 Web 与桌面宿主使用旧规则。 */
   async readForDownload(): Promise<Required<BrowserSettingsConfig>> {
+    let stored: Required<BrowserSettingsConfig>;
     try {
       const raw = await readFile(this.storeFilePath, "utf8");
-      return normalizeConfig(JSON.parse(raw) as Partial<BrowserSettingsConfig>, DEFAULT_SETTINGS);
+      stored = normalizeConfig(migrateSettingsFile(JSON.parse(raw) as SettingsFile), DEFAULT_SETTINGS);
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return DEFAULT_SETTINGS;
-      throw error;
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") stored = normalizeConfig({}, DEFAULT_SETTINGS);
+      else throw error;
     }
+    return { ...stored, downloadDir: (await this.resolveDownloadDir(stored.downloadDir)).path };
   }
 
-  /** 合并并落盘设置；`headlessChanged` 供调用方决定是否重启浏览器。 */
+  /** 合并并落盘设置；下载目录只存「空串或自定义绝对路径」，本机默认路径不落盘。 */
   async update(patch: Partial<BrowserSettingsConfig>): Promise<{ config: Required<BrowserSettingsConfig>; headlessChanged: boolean }> {
-    const current = await this.get();
+    const current = await this.readStored();
     const next = normalizeConfig(patch, current);
-    const headlessChanged = current.headless !== next.headless;
+    const downloadDir = await this.resolveDownloadDir(next.downloadDir);
+    const stored: Required<BrowserSettingsConfig> = {
+      ...next,
+      downloadDir: downloadDir.source === "custom" ? downloadDir.path : "",
+    };
+    const headlessChanged = current.headless !== stored.headless;
     await mkdir(dirname(this.storeFilePath), { recursive: true });
     const temporary = `${this.storeFilePath}.${randomUUID()}.tmp`;
     try {
-      await writeFile(temporary, JSON.stringify(next, null, 2), { encoding: "utf8", flag: "wx" });
+      await writeFile(temporary, JSON.stringify({ ...stored, settingsVersion: SETTINGS_FILE_VERSION }, null, 2), { encoding: "utf8", flag: "wx" });
       await rename(temporary, this.storeFilePath);
-      this.cache = next;
+      const effective: Required<BrowserSettingsConfig> = { ...stored, downloadDir: downloadDir.path };
+      this.stored = stored;
+      this.effective = effective;
+      this.downloadDirSource = downloadDir.source;
+      return { config: effective, headlessChanged };
     } finally {
       await rm(temporary, { force: true });
     }
-    return { config: next, headlessChanged };
+  }
+
+  private async readStored(): Promise<Required<BrowserSettingsConfig>> {
+    if (this.stored) return this.stored;
+    try {
+      const raw = await readFile(this.storeFilePath, "utf8");
+      this.stored = normalizeConfig(migrateSettingsFile(JSON.parse(raw) as SettingsFile), DEFAULT_SETTINGS);
+    } catch {
+      this.stored = normalizeConfig({}, DEFAULT_SETTINGS);
+    }
+    return this.stored;
+  }
+
+  private resolveDownloadDir(configured: string): Promise<DownloadDirState> {
+    return resolveDownloadDir(configured, this.systemDownloadsDir);
   }
 }

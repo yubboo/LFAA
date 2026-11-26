@@ -210,7 +210,7 @@ test("明确偏好自动沉淀并在下次运行召回，模型用量随消息�
       workspaceRoots: [tempRoot],
     });
     await waitRun(second.runId);
-    assert.match(secondSystemPrompt, /项目记忆/u);
+    assert.match(secondSystemPrompt, /项目事实/u);
     assert.match(secondSystemPrompt, /pnpm/u);
     const secondMessage = (await ctx.memory.getSession(session.id))?.messages
       .find((item) => item.id === second.assistantMessageId);

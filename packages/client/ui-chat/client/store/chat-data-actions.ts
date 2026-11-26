@@ -6,6 +6,7 @@ import type {
   LibraryAssetItem,
   LibraryItemCategory,
   LongTermMemoryItem,
+  MemoryKindItem,
   LlmApiProtocolOption,
   ModelCapabilityItem,
   PublicLlmProfileItem,
@@ -198,8 +199,22 @@ export class ChatDataActions {
     this.port.patchState({ rules: res.documents });
   }
 
-  async addLongTermMemory(input: { content: string; scope: "global" | "project"; projectId?: string | null }): Promise<void> {
+  async addLongTermMemory(input: {
+    content: string;
+    scope: "global" | "project";
+    projectId?: string | null;
+    kind?: MemoryKindItem;
+  }): Promise<void> {
     await fetchJson("/api/memory", { method: "POST", body: JSON.stringify(input) });
+    await this.port.refreshMeta();
+  }
+
+  /** 编辑既有记忆：只改内容、类型与标签，来源与生命周期字段由 Host 保留。 */
+  async updateLongTermMemory(
+    memoryId: string,
+    patch: { content?: string; kind?: MemoryKindItem; tags?: string[] },
+  ): Promise<void> {
+    await fetchJson(`/api/memory/${encodeURIComponent(memoryId)}`, { method: "PATCH", body: JSON.stringify(patch) });
     await this.port.refreshMeta();
   }
 

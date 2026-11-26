@@ -1,10 +1,16 @@
 // 右侧工作台顶部标签栏：辅助面板、文件预览、子智能体、变更审查与内置浏览器标签，新建按钮固定在行尾。
+import type { MouseEvent } from "react";
 import { IconCheck, IconFileDiff, IconLayoutGrid, IconLoader2, IconPlus, IconRobot, IconWorld, IconX } from "@tabler/icons-react";
 import type { BrowserTabItem } from "@lfaa/client-ui-browser/client";
+import type { WorkbenchClientService } from "@lfaa/ui-layout/client";
+import { shortcutHint } from "@lfaa/ui-layout/client";
+import { HoverTip } from "@lfaa/ui-primitives/client";
 import type { FilePreviewTab } from "../store/chat-types";
 import type { SubagentStageTab } from "./useWorkbenchSubagents";
 import type { RightAuxTab } from "./RightUtilityRail";
 import { FileTypeIcon } from "@lfaa/ui-icons/client";
+import { useWorkbenchTabMenu } from "./useWorkbenchTabMenu";
+import { WorkbenchTabMenu } from "./WorkbenchTabMenu";
 import styles from "./RightWorkbenchPane.module.css";
 
 function baseFileName(filePath: string): string {
@@ -41,6 +47,13 @@ export function WorkbenchTabs({
   onSelectSubagentTab,
   onCloseSubagentTab,
   onNewBrowserTab,
+  onCloseBrowserTabAny,
+  onCloseFileRaw,
+  onCloseAuxRaw,
+  onCloseSubagentRaw,
+  onCloseReviewRaw,
+  closeBrowserTabsExcept,
+  workbench,
 }: {
   isZh: boolean;
   stageKind: RightStageKind;
@@ -69,13 +82,67 @@ export function WorkbenchTabs({
   onSelectSubagentTab: (subagentId: string) => void;
   onCloseSubagentTab: (subagentId: string) => void;
   onNewBrowserTab: () => void;
+  /** 关闭任意浏览器标签（含空标签时整体关闭）；右键菜单批量关闭也走它。 */
+  onCloseBrowserTabAny: (tabId?: string) => void;
+  /** 批量关闭用的非收起版本。 */
+  onCloseFileRaw: (id: string) => void;
+  onCloseAuxRaw: (tab: RightAuxTab) => void;
+  onCloseSubagentRaw: (id: string) => void;
+  onCloseReviewRaw: () => void;
+  /** 关闭除保留标签外的所有浏览器标签；没有可保留项时整体关闭。 */
+  closeBrowserTabsExcept: (keepTabId?: string) => void;
+  /** 关闭全部标签后的收尾（右栏收起）。 */
+  /** 工作台服务：标签级快捷键注册与菜单键位提示。 */
+  workbench?: WorkbenchClientService | undefined;
 }) {
+  const auxTitleMap = Object.fromEntries(auxTabs.map((tab) => [tab.id, tab.title])) as Record<RightAuxTab, string>;
+  // 标签栏自己拥有右键菜单与标签级动作：有序列表与关闭语义都在这里统一，父组件只提供数据与关闭入口。
+  const tabMenu = useWorkbenchTabMenu({
+    isZh,
+    stageKind,
+    fileTabs,
+    activeFileTab,
+    auxTabs: auxTabs.map((tab) => tab.id),
+    auxTitles: auxTitleMap,
+    activeAuxTab,
+    subagentTabs,
+    activeSubagentTabId,
+    reviewOpen: reviewTabOpen,
+    reviewLabel: reviewMessageId ? (isZh ? "本轮变更" : "Turn changes") : (isZh ? "工作区变更" : "Workspace changes"),
+    browserOpen,
+    browserTabs,
+    activeBrowserTabId: browserTabs.find((tab) => tab.active)?.tabId,
+    closeFile: onCloseFile,
+    closeAux: onCloseAuxTab,
+    closeSubagent: onCloseSubagentTab,
+    closeReview: onCloseReview,
+    closeFileRaw: onCloseFileRaw,
+    closeAuxRaw: onCloseAuxRaw,
+    closeSubagentRaw: onCloseSubagentRaw,
+    closeReviewRaw: onCloseReviewRaw,
+    closeBrowser: onCloseBrowserTabAny,
+    closeBrowserTabsExcept,
+    selectFile: onSelectFile,
+    selectAux: onSelectAuxTab,
+    selectSubagent: onSelectSubagentTab,
+    selectReview: onSelectReview,
+    selectBrowser: (tabId) => {
+      if (!tabId) { onSelectBrowser(); return; }
+      const target = browserTabs.find((tab) => tab.tabId === tabId);
+      if (target) onActivateBrowserTab(target);
+    },
+  }, workbench);
+  const newTabHint = shortcutHint("workbench.new-tab");
+  const handleContextMenu = (key: string) => (event: MouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    tabMenu.openMenu(key, event.clientX, event.clientY);
+  };
   // 浏览器标签始终排在所有标签之后、新建按钮之前，保证新开标签紧挨「+」。
   const renderBrowserTabs = () => {
     if (!browserOpen) return null;
     if (browserTabs.length === 0) {
       return (
-        <div className={`${styles.tabItem} ${stageKind === "browser" ? styles.tabItemActive : ""}`}>
+        <div className={`${styles.tabItem} ${stageKind === "browser" ? styles.tabItemActive : ""}`} onContextMenu={handleContextMenu("browser:blank")}>
           <button
             type="button"
             role="tab"
@@ -98,7 +165,7 @@ export function WorkbenchTabs({
         ? bTab.title
         : (bTab.url && bTab.url !== "about:blank" ? bTab.url : (isZh ? "新标签页" : "New Tab"));
       return (
-        <div key={bTab.tabId} className={`${styles.tabItem} ${active ? styles.tabItemActive : ""}`}>
+        <div key={bTab.tabId} className={`${styles.tabItem} ${active ? styles.tabItemActive : ""}`} onContextMenu={handleContextMenu(`browser:${bTab.tabId}`)}>
           <button
             type="button"
             role="tab"
@@ -129,7 +196,7 @@ export function WorkbenchTabs({
         const active = stageKind === "file" && tab.id === activeFileTab?.id;
         const fileName = baseFileName(tab.path);
         return (
-          <div key={tab.id} className={`${styles.tabItem} ${active ? styles.tabItemActive : ""}`}>
+          <div key={tab.id} className={`${styles.tabItem} ${active ? styles.tabItemActive : ""}`} onContextMenu={handleContextMenu(`file:${tab.id}`)}>
             <button
               type="button"
               role="tab"
@@ -155,7 +222,7 @@ export function WorkbenchTabs({
       {auxTabs.map(({ id, title }) => {
         const active = stageKind === "utility" && activeAuxTab === id;
         return (
-          <div key={id} className={`${styles.tabItem} ${active ? styles.tabItemActive : ""}`}>
+          <div key={id} className={`${styles.tabItem} ${active ? styles.tabItemActive : ""}`} onContextMenu={handleContextMenu(`aux:${id}`)}>
             <button
               type="button"
               role="tab"
@@ -180,7 +247,7 @@ export function WorkbenchTabs({
       {subagentTabs.map((sTab) => {
         const active = stageKind === "subagent" && sTab.id === activeSubagentTabId;
         return (
-          <div key={sTab.id} className={`${styles.tabItem} ${active ? styles.tabItemActive : ""}`}>
+          <div key={sTab.id} className={`${styles.tabItem} ${active ? styles.tabItemActive : ""}`} onContextMenu={handleContextMenu(`subagent:${sTab.id}`)}>
             <button
               type="button"
               role="tab"
@@ -210,7 +277,7 @@ export function WorkbenchTabs({
         );
       })}
       {reviewTabOpen && (
-        <div className={`${styles.tabItem} ${stageKind === "review" ? styles.tabItemActive : ""}`}>
+        <div className={`${styles.tabItem} ${stageKind === "review" ? styles.tabItemActive : ""}`} onContextMenu={handleContextMenu("review")}>
           <button
             type="button"
             role="tab"
@@ -232,15 +299,33 @@ export function WorkbenchTabs({
         </div>
       )}
       {renderBrowserTabs()}
-      <button
-        type="button"
-        className={styles.addTabBtn}
-        title={isZh ? "新建浏览器标签页" : "New browser tab"}
-        aria-label={isZh ? "新建浏览器标签页" : "New browser tab"}
-        onClick={onNewBrowserTab}
-      >
-        <IconPlus size={16} aria-hidden="true" />
-      </button>
+      <HoverTip label={isZh ? "新建浏览器标签页" : "New browser tab"} shortcut={newTabHint}>
+        <button
+          type="button"
+          className={styles.addTabBtn}
+          aria-label={isZh ? "新建浏览器标签页" : "New browser tab"}
+          onClick={onNewBrowserTab}
+        >
+          <IconPlus size={16} aria-hidden="true" />
+        </button>
+      </HoverTip>
+      {workbench && tabMenu.menu && (
+        <WorkbenchTabMenu
+          isZh={isZh}
+          x={tabMenu.menu.x}
+          y={tabMenu.menu.y}
+          tab={tabMenu.menu.tab}
+          tabs={tabMenu.tabs}
+          shortcuts={workbench.getSnapshot().shortcuts}
+          onClose={tabMenu.closeMenu}
+          onCloseTab={tabMenu.closeTab}
+          onCloseOthers={tabMenu.closeOthers}
+          onCloseRight={tabMenu.closeRightOf}
+          onCloseAll={tabMenu.closeAll}
+          onNewTab={onNewBrowserTab}
+        />
+      )}
     </div>
   );
 }
+

@@ -3,24 +3,40 @@
   container-type: inline-size;
   position: relative;
   display: grid;
-  grid-template-rows: var(--topbar-height, 3.5rem) minmax(0, 1fr);
+  /* 第三行给底部终端：没有终端时 auto 为 0，不占高度。 */
+  grid-template-rows: var(--topbar-height, 3.5rem) minmax(0, 1fr) auto;
   height: 100%;
   min-height: 0;
   min-width: 0;
+  /* 图片模式下的薄纱由外层 ContextPanel 统一铺，这里不再叠第二层。 */
   background: var(--color-panel);
   color: var(--color-ink);
 }
 
+/* 「预览区在左」时工作台位于中间列：图标轨挪到左缘，贴近 VS Code 活动栏的习惯。 */
+.workbench[data-layout="preview-center"] .bodySplit { flex-direction: row-reverse; }
+
+/* 背景图模式下工作台让出底色，整列统一由外层 ContextPanel 的薄纱透出图片；
+   否则列内会出现「一段有薄纱、一段是原图」的窄缝。 */
+:global(html[data-app-bg-workspace="image"]) .workbench,
+:global(html[data-settings-open="true"][data-app-bg-settings="image"]) .workbench {
+  background: transparent;
+}
+
+/* 顶栏与左二栏/中间区同构：外层只负责高度与 0.4rem 外边距，内容装进共享胶囊。 */
 .topHeader {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.4rem;
   height: var(--topbar-height, 3.5rem);
   min-width: 0;
-  padding: 0 0.55rem 0 0.55rem;
-  border-bottom: 1px solid var(--color-line);
-  background: var(--color-topbar, var(--color-panel));
+  padding: 0.4rem 0.55rem;
+  border-bottom: 0;
+  background: transparent;
+}
+
+/* 胶囊内部留白：标签页紧贴左侧，动作组贴右侧。 */
+.headerCapsule {
+  --capsule-padding: 0 0.25rem 0 0.2rem;
 }
 
 .tabBar {
@@ -145,7 +161,6 @@
 .tabBtn:focus-visible,
 .tabClose:focus-visible,
 .addTabBtn:focus-visible,
-.railBtn:focus-visible,
 .statusRow:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 1px;
@@ -166,6 +181,13 @@
   display: flex;
   flex-direction: column;
   background: var(--color-shell);
+}
+
+/* 背景图模式下主舞台与工作台都让出底色，整列由外层 ContextPanel 的薄纱透出图片；
+   代码、浏览器、文件预览等内容面板自带底，不受影响。 */
+:global(html[data-app-bg-workspace="image"]) .mainStage,
+:global(html[data-settings-open="true"][data-app-bg-settings="image"]) .mainStage {
+  background: transparent;
 }
 
 .browserView {
@@ -284,65 +306,6 @@
 
 .auxActionBtn:hover {
   background: var(--color-active);
-}
-
-.utilityRail {
-  display: flex;
-  flex: 0 0 2.65rem;
-  flex-direction: column;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.65rem;
-  padding: 0.55rem 0.25rem;
-  overflow-y: auto;
-  scrollbar-width: none;
-  border-left: 1px solid var(--color-line);
-  background: var(--color-rail, var(--color-panel));
-}
-
-.railGroup {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.railBtn {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 2rem;
-  height: 2rem;
-  border: 0;
-  border-radius: 0.5rem;
-  background: transparent;
-  color: var(--color-muted);
-  cursor: pointer;
-}
-
-.railBtn:hover {
-  background: var(--color-active);
-  color: var(--color-ink);
-}
-
-.railBtnActive {
-  background: var(--color-rail-active, var(--color-active));
-  color: var(--color-ink);
-}
-
-.railBadge {
-  position: absolute;
-  top: 0.15rem;
-  right: 0.15rem;
-  min-width: 0.85rem;
-  height: 0.85rem;
-  padding: 0 0.2rem;
-  border-radius: 999px;
-  background: var(--color-active);
-  color: var(--color-ink);
-  font-size: 0.62rem;
-  line-height: 0.85rem;
-  text-align: center;
 }
 
 .welcomeStatusList {

@@ -3,7 +3,7 @@
 > 本文件由 `pnpm map:sync`（[scripts/gen-repository-map.mjs](../../scripts/gen-repository-map.mjs)）按真实文件系统生成，**不要手改**。
 > 骨架发生变化（新增/删除/移动文件、包或目录）后，必须在同一轮运行 `pnpm map:sync` 并提交，否则 `pnpm check` 会失败。
 
-当前快照：**63 个包、2667 个文件、477 个子目录**（不含 node_modules、构建产物与运行数据）。
+当前快照：**67 个包、2908 个文件、493 个子目录**（不含 node_modules、构建产物与运行数据）。
 
 ## 1. 快速索引
 
@@ -64,15 +64,15 @@ lfaa/
 │   └── web/  (10 个文件)
 │       ├── public/  (2 个文件)
 │       └── src/  (3 个文件)
-├── docs/  (466 个文件)
+├── docs/  (542 个文件)
 │   ├── architecture/  (11 个文件)
-│   ├── dev-log/  (4 个文件)
-│   ├── features/  (29 个文件)
-│   ├── plans/  (13 个文件)
-│   ├── standards/  (2 个文件)
+│   ├── dev-log/  (5 个文件)
+│   ├── features/  (33 个文件)
+│   ├── plans/  (24 个文件)
+│   ├── standards/  (3 个文件)
 │   ├── templates/  (2 个文件)
-│   └── updata-log/  (403 个文件)
-├── packages/  (1959 个文件)
+│   └── updata-log/  (462 个文件)
+├── packages/  (2119 个文件)
 │   ├── api/  (7 个文件)
 │   │   └── gateway/  # @lfaa/api-gateway  (7 个文件)
 │   │       ├── src/  (1 个文件)
@@ -94,7 +94,7 @@ lfaa/
 │   │   └── review/  # @lfaa/review  (13 个文件)
 │   │       ├── src/  (7 个文件)
 │   │       └── tests/  (1 个文件)
-│   ├── client/  (501 个文件)
+│   ├── client/  (575 个文件)
 │   │   ├── ui-agent-group/  # @lfaa/client-ui-agent-group  (13 个文件)
 │   │   │   ├── client/  (7 个文件)
 │   │   │   │   ├── group/  (1 个文件)
@@ -106,37 +106,39 @@ lfaa/
 │   │   │   │   ├── editor/  (2 个文件)
 │   │   │   │   └── view/  (3 个文件)
 │   │   │   └── src/  (1 个文件)
-│   │   ├── ui-browser/  # @lfaa/client-ui-browser  (33 个文件)
-│   │   │   ├── client/  (26 个文件)
+│   │   ├── ui-browser/  # @lfaa/client-ui-browser  (34 个文件)
+│   │   │   ├── client/  (27 个文件)
 │   │   │   │   ├── api/  (3 个文件)
 │   │   │   │   ├── downloads/  (2 个文件)
 │   │   │   │   ├── panes/  (13 个文件)
-│   │   │   │   └── settings/  (6 个文件)
+│   │   │   │   └── settings/  (7 个文件)
 │   │   │   ├── src/  (1 个文件)
 │   │   │   └── tests/  (1 个文件)
-│   │   ├── ui-chat/  # @lfaa/client-ui-chat  (274 个文件)
-│   │   │   ├── client/  (218 个文件)
-│   │   │   │   ├── composer/  (35 个文件)
-│   │   │   │   ├── conversation/  (57 个文件)
+│   │   ├── ui-chat/  # @lfaa/client-ui-chat  (323 个文件)
+│   │   │   ├── client/  (259 个文件)
+│   │   │   │   ├── composer/  (36 个文件)
+│   │   │   │   ├── conversation/  (69 个文件)
 │   │   │   │   ├── models/  (16 个文件)
 │   │   │   │   ├── session/  (19 个文件)
-│   │   │   │   ├── settings/  (10 个文件)
+│   │   │   │   ├── settings/  (17 个文件)
 │   │   │   │   ├── shared/  (6 个文件)
 │   │   │   │   ├── store/  (19 个文件)
-│   │   │   │   └── workbench/  (49 个文件)
+│   │   │   │   └── workbench/  (69 个文件)
+│   │   │   │       └── pane/  (4 个文件)
 │   │   │   ├── src/  (1 个文件)
-│   │   │   └── tests/  (50 个文件)
+│   │   │   └── tests/  (58 个文件)
+│   │   ├── ui-connectors/  # @lfaa/client-ui-connectors  (26 个文件)
+│   │   │   ├── client/  (20 个文件)
+│   │   │   │   ├── api/  (2 个文件)
+│   │   │   │   ├── connectors/  (12 个文件)
+│   │   │   │   └── mcp/  (3 个文件)
+│   │   │   └── src/  (1 个文件)
 │   │   ├── ui-library/  # @lfaa/client-ui-library  (20 个文件)
 │   │   │   ├── client/  (11 个文件)
 │   │   │   │   ├── settings/  (2 个文件)
 │   │   │   │   └── views/  (7 个文件)
 │   │   │   ├── src/  (1 个文件)
 │   │   │   └── tests/  (3 个文件)
-│   │   ├── ui-mcp/  # @lfaa/client-ui-mcp  (13 个文件)
-│   │   │   ├── client/  (7 个文件)
-│   │   │   │   ├── api/  (1 个文件)
-│   │   │   │   └── settings/  (3 个文件)
-│   │   │   └── src/  (1 个文件)
 │   │   ├── ui-plugins/  # @lfaa/client-ui-plugins  (17 个文件)
 │   │   │   ├── client/  (11 个文件)
 │   │   │   │   ├── api/  (1 个文件)
@@ -160,6 +162,9 @@ lfaa/
 │   │   │   │   ├── skills/  (1 个文件)
 │   │   │   │   └── view/  (2 个文件)
 │   │   │   └── src/  (1 个文件)
+│   │   ├── ui-terminal/  # @lfaa/client-ui-terminal  (11 个文件)
+│   │   │   ├── client/  (5 个文件)
+│   │   │   └── src/  (1 个文件)
 │   │   ├── ui-tool-media/  # @lfaa/client-ui-tool-media  (33 个文件)
 │   │   │   ├── client/  (20 个文件)
 │   │   │   │   ├── compose/  (6 个文件)
@@ -180,31 +185,34 @@ lfaa/
 │   │   └── compaction/  # @lfaa/compaction  (12 个文件)
 │   │       ├── src/  (4 个文件)
 │   │       └── tests/  (3 个文件)
-│   ├── core/  (313 个文件)
-│   │   ├── agent/  # @lfaa/agent  (75 个文件)
-│   │   │   ├── src/  (46 个文件)
+│   ├── core/  (339 个文件)
+│   │   ├── agent/  # @lfaa/agent  (78 个文件)
+│   │   │   ├── src/  (48 个文件)
 │   │   │   │   ├── context/  (4 个文件)
-│   │   │   │   ├── run/  (33 个文件)
+│   │   │   │   ├── run/  (35 个文件)
 │   │   │   │   └── tools/  (5 个文件)
-│   │   │   └── tests/  (24 个文件)
+│   │   │   └── tests/  (25 个文件)
 │   │   ├── agent-group/  # @lfaa/agent-group  (12 个文件)
 │   │   │   ├── src/  (4 个文件)
 │   │   │   └── tests/  (3 个文件)
 │   │   ├── agent-profile/  # @lfaa/agent-profile  (18 个文件)
 │   │   │   ├── src/  (9 个文件)
 │   │   │   └── tests/  (4 个文件)
-│   │   ├── browser/  # @lfaa/browser  (33 个文件)
+│   │   ├── browser/  # @lfaa/browser  (35 个文件)
 │   │   │   ├── contract/  (1 个文件)
-│   │   │   ├── src/  (25 个文件)
+│   │   │   ├── src/  (27 个文件)
 │   │   │   │   ├── downloads/  (5 个文件)
 │   │   │   │   ├── session/  (10 个文件)
-│   │   │   │   ├── settings/  (4 个文件)
+│   │   │   │   ├── settings/  (6 个文件)
 │   │   │   │   ├── snapshot/  (1 个文件)
 │   │   │   │   └── tools/  (1 个文件)
 │   │   │   └── tests/  (1 个文件)
 │   │   ├── context/  # @lfaa/context  (8 个文件)
 │   │   │   ├── src/  (2 个文件)
 │   │   │   └── tests/  (1 个文件)
+│   │   ├── crew/  # @lfaa/crew  (14 个文件)
+│   │   │   ├── src/  (5 个文件)
+│   │   │   └── tests/  (4 个文件)
 │   │   ├── fs/  # @lfaa/fs  (9 个文件)
 │   │   │   ├── src/  (3 个文件)
 │   │   │   └── tests/  (1 个文件)
@@ -219,9 +227,9 @@ lfaa/
 │   │   │   │   ├── adapters/  (4 个文件)
 │   │   │   │   └── media/  (4 个文件)
 │   │   │   └── tests/  (9 个文件)
-│   │   ├── memory/  # @lfaa/memory  (10 个文件)
-│   │   │   ├── src/  (4 个文件)
-│   │   │   └── tests/  (1 个文件)
+│   │   ├── memory/  # @lfaa/memory  (16 个文件)
+│   │   │   ├── src/  (8 个文件)
+│   │   │   └── tests/  (3 个文件)
 │   │   ├── metrics/  # @lfaa/metrics  (12 个文件)
 │   │   │   ├── src/  (4 个文件)
 │   │   │   └── tests/  (3 个文件)
@@ -237,9 +245,9 @@ lfaa/
 │   │   ├── storage/  # @lfaa/storage  (11 个文件)
 │   │   │   ├── src/  (5 个文件)
 │   │   │   └── tests/  (1 个文件)
-│   │   ├── subagent/  # @lfaa/subagent  (12 个文件)
+│   │   ├── subagent/  # @lfaa/subagent  (13 个文件)
 │   │   │   ├── src/  (6 个文件)
-│   │   │   └── tests/  (1 个文件)
+│   │   │   └── tests/  (2 个文件)
 │   │   ├── system-prompt/  # @lfaa/system-prompt  (7 个文件)
 │   │   │   ├── src/  (1 个文件)
 │   │   │   └── tests/  (1 个文件)
@@ -249,7 +257,12 @@ lfaa/
 │   │   └── tools/  # @lfaa/tools  (14 个文件)
 │   │       ├── src/  (7 个文件)
 │   │       └── tests/  (2 个文件)
-│   ├── extension/  (689 个文件)
+│   ├── extension/  (710 个文件)
+│   │   ├── connectors/  # @lfaa/connectors  (21 个文件)
+│   │   │   ├── contract/  (1 个文件)
+│   │   │   ├── src/  (13 个文件)
+│   │   │   │   └── catalog/  (4 个文件)
+│   │   │   └── tests/  (1 个文件)
 │   │   ├── mcp/  # @lfaa/mcp  (15 个文件)
 │   │   │   ├── contract/  (1 个文件)
 │   │   │   ├── src/  (6 个文件)
@@ -437,7 +450,10 @@ lfaa/
 │   │   └── timeout-policy/  # @lfaa/timeout-policy  (7 个文件)
 │   │       ├── src/  (1 个文件)
 │   │       └── tests/  (1 个文件)
-│   ├── host/  (19 个文件)
+│   ├── host/  (29 个文件)
+│   │   ├── terminal/  # @lfaa/terminal  (10 个文件)
+│   │   │   ├── src/  (4 个文件)
+│   │   │   └── tests/  (1 个文件)
 │   │   └── web-server/  # @lfaa/web-server  (19 个文件)
 │   │       ├── src/  (11 个文件)
 │   │       │   └── handlers/  (4 个文件)
@@ -482,36 +498,36 @@ lfaa/
 │   │   └── spill-local/  # @lfaa/spill-local  (7 个文件)
 │   │       ├── src/  (1 个文件)
 │   │       └── tests/  (1 个文件)
-│   ├── ui/  (194 个文件)
+│   ├── ui/  (223 个文件)
 │   │   ├── icons/  # @lfaa/ui-icons  (15 个文件)
 │   │   │   ├── LICENSES/  (1 个文件)
 │   │   │   ├── client/  (4 个文件)
 │   │   │   ├── contract/  (2 个文件)
 │   │   │   ├── src/  (1 个文件)
 │   │   │   └── tests/  (1 个文件)
-│   │   ├── layout/  # @lfaa/ui-layout  (76 个文件)
-│   │   │   ├── client/  (56 个文件)
-│   │   │   │   ├── navigation/  (23 个文件)
+│   │   ├── layout/  # @lfaa/ui-layout  (95 个文件)
+│   │   │   ├── client/  (71 个文件)
+│   │   │   │   ├── navigation/  (24 个文件)
 │   │   │   │   ├── panels/  (14 个文件)
-│   │   │   │   └── shell/  (15 个文件)
+│   │   │   │   └── shell/  (26 个文件)
 │   │   │   ├── contract/  (3 个文件)
 │   │   │   ├── src/  (1 个文件)
-│   │   │   └── tests/  (10 个文件)
-│   │   ├── primitives/  # @lfaa/ui-primitives  (45 个文件)
-│   │   │   ├── client/  (33 个文件)
+│   │   │   └── tests/  (14 个文件)
+│   │   ├── primitives/  # @lfaa/ui-primitives  (49 个文件)
+│   │   │   ├── client/  (36 个文件)
 │   │   │   │   ├── base/  (6 个文件)
 │   │   │   │   └── settings/  (6 个文件)
 │   │   │   ├── contract/  (1 个文件)
 │   │   │   ├── src/  (1 个文件)
-│   │   │   └── tests/  (4 个文件)
-│   │   └── theme/  # @lfaa/ui-theme  (58 个文件)
-│   │       ├── client/  (46 个文件)
+│   │   │   └── tests/  (5 个文件)
+│   │   └── theme/  # @lfaa/ui-theme  (64 个文件)
+│   │       ├── client/  (48 个文件)
 │   │       │   ├── assets/  (18 个文件)
 │   │       │   │   └── backgrounds/  (18 个文件)
-│   │       │   └── components/  (21 个文件)
+│   │       │   └── components/  (23 个文件)
 │   │       ├── contract/  (1 个文件)
 │   │       ├── src/  (1 个文件)
-│   │       └── tests/  (4 个文件)
+│   │       └── tests/  (8 个文件)
 │   ├── web/  (14 个文件)
 │   │   └── web/  # @lfaa/web  (14 个文件)
 │   │       ├── src/  (5 个文件)
@@ -531,7 +547,7 @@ lfaa/
 │           ├── src/  (5 个文件)
 │           └── tests/  (2 个文件)
 ├── patches/  (1 个文件)
-├── scripts/  (34 个文件)
+├── scripts/  (35 个文件)
 └── vendor/  (14 个文件)
     └── loader/  (13 个文件)
         └── src/  (9 个文件)
@@ -539,6 +555,10 @@ lfaa/
 # .editorconfig
 # .gitattributes
 # .gitignore
+# .tmp-tsc8.log
+# .tmp-verify4.log
+# .tmp-verify6.log
+# .tmp-verify7.log
 # AGENTS.md
 # README.md
 # lfaa.bat
@@ -565,12 +585,13 @@ lfaa/
 | client | `@lfaa/client-ui-agent-profile` | `packages/client/ui-agent-profile` | LFAA agent 定义与模型绑定：持久化可添加的 agent、路由组与其默认绑定，供会话与派发层读取。（浏览器半，已从 @lfaa/agent-profile 拆出）。 |
 | client | `@lfaa/client-ui-browser` | `packages/client/ui-browser` | LFAA 内置浏览器服务与可视化控制面板：遵循 DSH browser-use 独占注册契约，基于 playwright-core 复用本机 Edge/Chrome 驱动。（浏览器半，已从 @lfaa/browser 拆出）。 |
 | client | `@lfaa/client-ui-chat` | `packages/client/ui-chat` | LFAA 核心聊天与 Agent 工作台业务包，提供会话管理、流式思考/行动/检查步骤可视化与模型规则设置界面。（浏览器半，已从 @lfaa/chat 拆出）。 |
+| client | `@lfaa/client-ui-connectors` | `packages/client/ui-connectors` |  |
 | client | `@lfaa/client-ui-library` | `packages/client/ui-library` | LFAA 资料库功能包：图像/资产/记忆分类浏览、右栏检视器与存储位置设置。（浏览器半，已从 @lfaa/library 拆出）。 |
-| client | `@lfaa/client-ui-mcp` | `packages/client/ui-mcp` |  |
 | client | `@lfaa/client-ui-plugins` | `packages/client/ui-plugins` | plugins（浏览器半，已从 @lfaa/plugins 拆出）。 |
 | client | `@lfaa/client-ui-review` | `packages/client/ui-review` | LFAA 代码审查功能包：内置 Git 变更操作、编码设置与代码审查工作台，含审查报告 Host 服务。（浏览器半，已从 @lfaa/review 拆出）。 |
 | client | `@lfaa/client-ui-sections` | `packages/client/ui-sections` | LFAA 工作区自定义分区管理包，提供 Host 分区持久化服务、HTTP RPC 与侧栏分区交互 UI 插件。（浏览器半，已从 @lfaa/sections 拆出）。 |
 | client | `@lfaa/client-ui-skills` | `packages/client/ui-skills` | skills（浏览器半，已从 @lfaa/skills 拆出）。 |
+| client | `@lfaa/client-ui-terminal` | `packages/client/ui-terminal` | LFAA 真实终端界面：xterm.js 渲染、WebSocket 输入输出、尺寸自适应与主题适配。 |
 | client | `@lfaa/client-ui-tool-media` | `packages/client/ui-tool-media` | LFAA 媒体生成工具：调用套餐里的生图模型生成图片，保存到工作区并返回文件路径。（浏览器半，已从 @lfaa/tool-media 拆出）。 |
 | client | `@lfaa/client-ui-workspace` | `packages/client/ui-workspace` | LFAA 工作区与本地项目插件包，提供 Host 服务契约与 Client 侧栏/工作区/右侧上下文面板贡献。（浏览器半，已从 @lfaa/workspace 拆出）。 |
 | compaction | `@lfaa/compaction` | `packages/compaction/compaction` | LFAA 上下文治理包：可替换的上下文压缩服务、单条工具结果精简与 /compact 命令。 |
@@ -579,6 +600,7 @@ lfaa/
 | core | `@lfaa/agent-profile` | `packages/core/agent-profile` | LFAA agent 定义与模型绑定：持久化可添加的 agent、路由组与其默认绑定，供会话与派发层读取。 |
 | core | `@lfaa/browser` | `packages/core/browser` | LFAA 内置浏览器服务与可视化控制面板：遵循 DSH browser-use 独占注册契约，基于 playwright-core 复用本机 Edge/Chrome 驱动。 |
 | core | `@lfaa/context` | `packages/core/context` | LFAA 上下文预算与压缩：按字符预算压缩早期工具结果、保留最近轮次，并识别上下文超限错误（参考 DSH context 包的独立职责）。 |
+| core | `@lfaa/crew` | `packages/core/crew` | LFAA 多 Agent 任务编排包：按 Task 契约串行接力子智能体，交接前做结构验收并沉淀运行期记忆。 |
 | core | `@lfaa/fs` | `packages/core/fs` | LFAA 工作区文件系统边界：安全路径解析、私有路径过滤与忽略目录遍历，供工具与运行时复用。 |
 | core | `@lfaa/guard` | `packages/core/guard` | LFAA 命令安全与超时策略：拦截引用应用私有文件的命令、记录命令审计、归一化前台命令时限（参考 DSH guard 包的独立职责）。 |
 | core | `@lfaa/jobs` | `packages/core/jobs` | LFAA 会话隔离后台任务管理器：支持后台命令启动、实时日志流解码、状态查询与进程树终止。 |
@@ -593,6 +615,7 @@ lfaa/
 | core | `@lfaa/system-prompt` | `packages/core/system-prompt` | LFAA 系统提示词分段服务：插件注册段落，Agent 在组装系统提示时统一合并。 |
 | core | `@lfaa/tool-todo` | `packages/core/tool-todo` | LFAA 待办清单工具包：为智能体提供创建、更新与查询任务清单的工具。 |
 | core | `@lfaa/tools` | `packages/core/tools` | LFAA Agent 核心手脚能力包，提供可插拔工具注册表、工作区路径沙箱与内置文件/检索/命令工具。 |
+| extension | `@lfaa/connectors` | `packages/extension/connectors` |  |
 | extension | `@lfaa/mcp` | `packages/extension/mcp` |  |
 | extension | `@lfaa/plugins` | `packages/extension/plugins` |  |
 | extension | `@lfaa/skills` | `packages/extension/skills` |  |
@@ -600,6 +623,7 @@ lfaa/
 | fs | `@lfaa/fs-observation-policy` | `packages/fs/fs-observation-policy` | LFAA 写前必读策略：写文件或改文件之前，同一会话必须先读取过该文件。 |
 | goal | `@lfaa/goal` | `packages/goal/goal` | LFAA 目标服务：把会话目标、进度与受阻原因持久化，供目标工具与界面读取。 |
 | guard | `@lfaa/timeout-policy` | `packages/guard/timeout-policy` | LFAA 工具超时策略：为每次工具执行套统一超时，超时中止信号并返回可读结果。 |
+| host | `@lfaa/terminal` | `packages/host/terminal` | LFAA Host 真实终端服务：基于 node-pty 的会话管理、窗口尺寸同步与 WebSocket 双向流。 |
 | host | `@lfaa/web-server` | `packages/host/web-server` | LFAA Web 宿主服务：装配运行时与全部 HTTP 接口，开发态托管 Vite、生产态托管 Web 产物。 |
 | interaction | `@lfaa/commands` | `packages/interaction/commands` | LFAA 斜杠命令注册 seam：插件注册命令，聊天输入栏通过 /api/commands 发现并执行。 |
 | media | `@lfaa/tool-media` | `packages/media/tool-media` | LFAA 媒体生成工具：调用套餐里的生图模型生成图片，保存到工作区并返回文件路径。 |
@@ -721,6 +745,7 @@ lfaa/
 ### docs/standards
 
 - `AI-Agent-Development-Standards.md` — AI Agent 项目工程开发规范
+- `floating-cards.md` — 悬浮卡片规范（强制）
 - `settings-ui.md` — 设置中心界面规范（强制）
 
 ### docs/templates
@@ -940,6 +965,7 @@ lfaa/
 
 ### packages/client/ui-browser/client/settings
 
+- `Browser-Downloads-Group.tsx` — 设置中心「浏览器」的下载分组：显示生效的下载位置（跟随系统或自定义）、更改目录、恢复默认与下载历史入口。
 - `Browser-History-Downloads.tsx` — 浏览器「浏览历史」与「下载历史记录」管理子页：按日期分组、搜索、智能体标识、定位文件与一键清空。
 - `Browser-Passwords-Subpage.tsx` — 浏览器「密码管理器」子页：支持密码列表（搜索/添加/查看/删除）与设置页（保存提示、通行密钥、自动登录、CSV 导入导出与清空）。
 - `Browser-Settings.module.css` — 浏览器设置页与各管理子页样式：全部消费 @lfaa/ui-theme 语义变量，严禁写死颜色。
@@ -972,6 +998,7 @@ lfaa/
 - `locales.ts` — 管理 @lfaa/chat 浏览器端界面中英文文案字典：聚合数据表与双语字典，并提供按语言取字典的入口。
 - `locales.types.ts` — 定义 @lfaa/chat 浏览器端中英文文案字典的共享键集合，供各语言字典与视图索引。
 - `locales.zh.ts` — 管理 @lfaa/chat 浏览器端的简体中文文案字典。
+- `shortcut-actions.ts` — 会话与右栏的快捷键动作注册：只登记真实可执行的功能；动作与界面按钮共用同一实现，键位由设置中心改写。
 
 ### packages/client/ui-chat/client/composer
 
@@ -986,7 +1013,7 @@ lfaa/
 - `ComposerQueuePanel.tsx` — 输入区排队消息面板：显示排队条数，支持编辑、删除、上移、立即插话发送与清空；并提供运行中提示。
 - `ComposerQueueSection.tsx` — 输入栏排队消息区块：集中绑定 store 的排队操作，避免 ChatComposer 继续膨胀。
 - `ComposerRightActions.module.css` — 输入栏右下角语音输入（Ctrl+M）、三竖条录音波形、发送与停止（Ctrl+D）按钮及快捷键提示样式。
-- `ComposerRightActions.tsx` — 渲染输入栏右下角语音输入（Ctrl+M 波形状态）、发送与运行中取消（Ctrl+D）按钮及快捷键提示。
+- `ComposerRightActions.tsx` — 渲染输入栏右下角语音听写、发送与运行中取消按钮及其快捷键提示；组合键由工作台快捷键注册表提供。
 - `ComposerScopeBar.module.css` — 聊天输入框上方挂载的工作位置与项目选择条及弹出浮层样式，消费 @lfaa/ui-theme 语义变量兼容明暗主题。
 - `ComposerScopeBar.tsx` — 渲染聊天输入框上方的工作位置（此计算机/云端）与项目选择挂载条及搜索弹出浮层。
 - `ComposerStats.tsx` — 输入栏底部统计条：上下文用量与本轮文件变更入口，独立于输入框主体。
@@ -1000,6 +1027,7 @@ lfaa/
 - `SessionModeBar.module.css` — 顶栏模式徽标容器：失败时只加一圈提示色，不挤占标题。
 - `SessionModeBar.tsx` — 顶栏标题右侧的会话模式徽标：精确切片订阅聊天快照，避免流式正文输出期间随每帧重绘。
 - `composer-attachments.ts` — 输入区附件整理：把粘贴的图片、拖入的文件与绝对路径统一转成 ComposerAttachment，文件会存入会话附件库。
+- `composer-commands.ts` — 输入栏动作命令总线：语音听写、中止回复与推理强度选择由输入栏组件持有，
 - `composer-context.ts` — 管理输入栏附件上下文芯片、@ 提及指令检索提取以及发送前上下文拼装的纯函数（无 DOM 依赖）。
 - `composer-keyboard.ts` — 输入框键盘导航：@ / 斜杠 / 技能三种候选的方向键、Tab/Enter 选中、Esc 关闭，以及回车发送与 Ctrl+Enter 清空排队。
 - `composer-paths.ts` — 输入区绝对路径识别：把粘贴或输入的本机绝对路径（Windows 盘符 / UNC / POSIX）识别成文件上下文。
@@ -1024,14 +1052,21 @@ lfaa/
 - `ChatDeleteDialog.tsx` — 删除当前对话的二次确认弹窗：说明删除不可恢复，并由调用方执行真正的删除。
 - `ChatErrorBanner.module.css` — 输入区上方的错误条：单行文案 + 可选的「用工作树并行」动作；只用 ui-theme 语义变量。
 - `ChatErrorBanner.tsx` — 输入区上方的错误条：展示启动失败文案；工作区被占用时提供「用工作树并行」入口。
+- `ChatFlowArea.module.css`
+- `ChatFlowArea.tsx` — 中间对话会话区盒子：整个工作区唯一的滚动视口，底部渐隐画在视口内部，只淡出正文，不外溢到输入区。
 - `ChatMessageList.tsx` — 聊天消息区：空会话引导（鱼形图标 / 标题 / 聊天·工作分段 / 工作模式的项目范围提示条 / 内嵌输入栏 / 统一轻量起步建议）与隔离记忆化的消息线程。
 - `ChatMessageRow.tsx` — 单条消息隔离渲染单元：用 React.memo 保护历史消息，在末尾流式输出期间避免整条消息线程重复重绘。
+- `ChatSuggestions.tsx` — 三条建议盒子：空会话引导区下方那一行建议，独立成件，改动它不会牵动会话区与输入区。
+- `ChatTopBar.module.css` — 中间区域顶栏盒子：对话 / 轨迹切换条。只负责自己这一行的排版，不参与会话区与输入区的布局。
+- `ChatTopBar.tsx` — 中间区域顶栏盒子：只管「对话 / 轨迹」两个视图入口与它自己的外壳，位置与会话区、输入区互不影响。
 - `ChatWorkspace.composer.module.css` — 聊天输入区（附件、上下文提示、输入卡片与工具栏）样式，双主题变量适配。
 - `ChatWorkspace.hero.module.css` — 聊天中心引导区：鱼形图标、标题、聊天/工作分段、内嵌输入栏、统一轻量起步建议与提示。
 - `ChatWorkspace.module.css` — 中央核心聊天与 Agent 任务工作区样式，对齐深色炭黑与浅色纯白画布层次。
 - `ChatWorkspace.tsx` — 渲染中央聊天工作区：空会话引导、流式回复、Agent 思考/行动/检查轨迹卡片与底部输入栏。
 - `Clarification-Card.module.css` — 输入区澄清卡：问题、选项和操作分层，窄栏时输入框独占一行。
 - `Clarification-Card.tsx` — 在输入框上方收集 Agent 的澄清答复。
+- `ComposerDock.module.css` — 输入框大盒子：独立占一行，排在会话区下方；不再叠在滚动视口上，所以没有遮罩层。
+- `ComposerDock.tsx` — 输入框大盒子：提示条、回到底部、交接条、任务盒子、目标盒子与输入卡片都在这一行里，不再叠在正文上。
 - `Conversation-Trace.module.css` — 独立轨迹使用紧凑列表与可关闭详情，适配主题和窄屏。
 - `Conversation-Trace.tsx` — 独立展示当前会话的真实消息与 Agent 步骤，实时复用聊天 Store 中的快照。
 - `File-Activity-Row.module.css` — 已完成文件活动行样式：动作语义色、彩标气泡芯片、悬停浮泡路径胶囊与柔和气泡弹性动效；全量消费 @lfaa/ui-theme 令牌。
@@ -1059,17 +1094,22 @@ lfaa/
 - `WorkspaceDialogs.tsx` — 聊天工作区的会话级弹窗：新建项目对话框与删除会话确认框。
 - `activity-label.ts` — 将 Host 的工具步骤转换为聊天活动摘要，保留可区分的动作和状态。
 - `advice-options.ts` — 从助手最终回答的「建议/下一步」段落提取可选后续项，供界面编号展示、用户点选发送。
+- `chat-scroll-model.ts` — 会话滚动的纯逻辑：贴底判定、scroll 来源分类、跟随开关与滚动记忆存取。
 - `code-highlight.tsx` — 为右工作台 VS Code 代码查看器提供多语言词法高亮、嵌套标签/括号彩虹配对着色、语言徽标及面包屑路径解析。
 - `markdown-parser.ts` — 轻量流式安全 Markdown 块级解析与代码语法分词器，用于渲染助手消息中的标题、列表、表格、引用与高亮代码块。
+- `prior-suggestions.ts` — 历史追问建议前缀：算出「每条消息之前已经出现过哪些建议」，供消息行去重。
 - `round-title.ts` — 为思维链每轮折叠块生成动态语义标题与图标类型：跟随本轮最新操作灵活变化，告别写死的「已思考」。
 - `suggestion-block.ts` — 解析模型最终答复末尾的追问建议隐藏块：正文照常展示，建议交给按钮卡片渲染。
+- `thread-window.ts` — 消息列窗口化的常量与纯计算：阈值、行高估算、开关判定。与 DOM 无关，便于单测。
 - `trace-groups.ts` — @lfaa/chat 留痕分组：把步骤按「思考 / 读取 / 搜索 / 命令 / 文件变更 / 其他」归并，供展开区成组展示。
+- `use-thread-window.ts` — 消息列窗口化 Hook：封装虚拟化器，只回答「渲染哪一段、每行多高、占位多高」。
 - `useBoundedScroll.ts` — 管理任意「限高滚动视口」的滚动与边缘渐隐：内容持续追加时同步贴底，用户上滚阅读时立即暂停跟随，滚回底部自动恢复。
 - `useChatLayoutInsets.ts` — 维护会话页两个布局测量值：外层视口预留的滚动条槽（收回）与输入区实际高度（正文让位）。
-- `useChatScroll.ts` — 管理聊天视口的底部跟随：在 ResizeObserver 绘制前同步贴底消除一帧跳动与闪白，用户主动上滚时立即暂停跟随。
+- `useChatScroll.ts` — 管理聊天视口的贴底跟随与滚动记忆：跟随只在「跟底态」发生，用户一有上滚意图立即交出滚动所有权，
 - `useMessageActions.ts` — 消息区交互接线：编辑内容、分叉到新会话、继续中断消息、提问、审批，以及媒体引用的再生成。
 - `useMessageFeedback.ts` — 消息反馈 Hook：读取已保存的赞/踩状态，并在切换时立即落盘；失败回滚界面状态。
 - `useStarterSuggestions.ts` — 按项目拉取并缓存空会话的起步建议；追问建议不再单独请求，由模型在回复末尾随答案一起给出。
+- `workspace-slice.ts` — 聊天区状态切片：只挑中央会话区真正用到的字段，会话列表、提醒、规则等变化不再带动整块聊天区重渲染。
 
 ### packages/client/ui-chat/client/models
 
@@ -1120,10 +1160,17 @@ lfaa/
 - `GeneralSettingsSecondary.tsx` — 渲染设置中心「常规」页下半部分分组：编辑器、Agent 行为、弹出窗口与趣味实验。
 - `GeneralSettingsView.overlays.module.css` — 设置中心「常规」页的浮层样式：许可证详情弹窗与庆祝叠层，页面外观由 @lfaa/ui-primitives 的 SettingsSurface 提供。
 - `GeneralSettingsView.tsx` — 渲染设置中心「常规」页：权限、常规、编辑器、Agent 行为、弹出窗口与趣味实验分组，以及开源许可证弹窗。
+- `MemoryPanel.module.css` — 设置中心记忆面板的局部样式：只补筛选控件宽度，其余沿用设置中心的行式布局与主题变量。
+- `MemoryPanel.tsx` — 设置中心「长期记忆」面板：新增、检索筛选、编辑与删除分组，删除固定落在页面最末的危险组。
 - `NotificationSettingsGroup.tsx` — 通知设置分组：桌面通知权限、提醒项、提示音选择与自定义音频（删除动作单独成组放最后）。
 - `NotificationSettingsView.tsx` — 设置中心「通知」页：装配桌面通知权限、轮次完成/权限/问题提醒、会话状态徽标与提示音。
+- `ShortcutsSettingsView.module.css` — 键盘快捷键设置页：搜索框、键位芯片、冲突提示与页级重置按钮的局部样式；颜色一律取主题变量。
+- `ShortcutsSettingsView.tsx` — 设置中心「键盘快捷键」页：列出所有已注册的真实动作，支持搜索、录制改键、清除与恢复默认，并提示冲突。
+- `TerminalSettingsView.module.css` — 设置中心「终端」页：分组无外框，一行一项，控件右对齐。
+- `TerminalSettingsView.tsx` — 设置中心「终端」页：一行展示位置（右侧标签 / 底部面板），切换后立即生效并记住。
 - `coding-settings-client.ts` — 客户端访问「设置 → 编码（Git 与代码审查）」与内置 Git / 审查接口的类型与请求函数。
 - `general-settings-client.ts` — 兼容重导出通用设置契约与辅助函数，实体定义统一收敛于 shared/general-settings.ts。
+- `memory-view.ts` — 记忆库的纯筛选与展示辅助：供设置中心记忆页与单测共用，不触碰 DOM 与网络。
 
 ### packages/client/ui-chat/client/shared
 
@@ -1169,6 +1216,8 @@ lfaa/
 - `FileChangePreview.search.module.css` — 代码查看器的内嵌搜索栏、输入框、结果计数与命中高亮样式，双主题变量适配。
 - `FileChangePreview.tsx` — VS Code 风格只读代码与 Diff 查看器：支持可点击面包屑、更多菜单 5 项、内嵌搜索、刷新、切换侧栏、精确行定位及行内 + 批注；代码区支持自动换行开关。
 - `InlineComment.tsx` — 行内批注框：输入建议并提交到对话输入框；Esc 取消、Ctrl/Cmd+Enter 提交，挂载即聚焦。
+- `ProjectWorkspacePane.module.css` — 左二「项目工作区」容器：让文件树填满栏位并自行滚动，外壳不额外加内边距。
+- `ProjectWorkspacePane.tsx` — 左二「项目工作区」内容：复用右栏同款工作区文件树，点文件仍由聊天 store 打开到中间工作台。
 - `Right-Workbench-Start.module.css` — 右栏启动页：参考 ChatGPT 的空态排版，搜索框 + 分区标题 + 自适应快捷卡片。
 - `Right-Workbench-Start.tsx` — 右工作台启动页，复用项目文件、浏览器和辅助面板入口，适用于空白浏览器标签。
 - `RightFileTreePane.module.css` — 右辅助栏 VS Code 风格工作区文件树样式：含树形缩进线、文件类型着色与明暗双主题适配。
@@ -1178,6 +1227,7 @@ lfaa/
 - `RightSideAskPane.tsx` — 右栏「侧边提问」面板：在不打断主聊天长流的前提下进行轻量上下文问答。
 - `RightSubagentsPane.tsx` — 右栏「子智能体与多 Agent 协作」面板：实时展示子智能体角色、状态、步骤数与输出结论。
 - `RightTerminalPane.tsx` — 右栏「终端与后台任务」面板：支持快速发起后台命令、查看实时 stdout/stderr 输出与一键停止进程。
+- `RightUtilityRail.module.css` — 最右侧图标轨：从 RightWorkbenchPane.module.css 拆出，独立维护。
 - `RightUtilityRail.tsx` — 最右侧垂直图标菜单栏：收纳工作区文件树、工作区上下文、后台任务、子智能体、侧边提问、工作详情与审查/扩展入口。
 - `RightWorkbenchActions.module.css` — 右工作台右上角操作按钮组、⋮/概览浮层菜单与嵌入式 Git 审查 Tab 样式，双主题变量适配。
 - `RightWorkbenchActions.tsx` — 工作台快捷操作与概览控制：组合顶栏按钮组、“更多”与“概览”两个弹层，并持有菜单状态与任务数据。
@@ -1185,28 +1235,48 @@ lfaa/
 - `RightWorkbenchPane.tsx` — IDE 化右侧工作台主壳：承接右侧栏状态持久化与请求，装配顶部标签、主体舞台与最右图标轨。
 - `Subagent-Stage-View.module.css` — 右侧子智能体流式工作舞台样式：复用主对话视觉层次，全部消费 @lfaa/ui-theme 语义变量。
 - `Subagent-Stage-View.tsx` — 右侧子智能体流式工作舞台：通过 /api/subagents/:id/stream 实时订阅并复用 AssistantTimeline 展示思考、工具链、回传提示与追问输入。
+- `TerminalDockPane.module.css` — 工作台列内的底部终端：上沿 8px 热区，与左右栏分割线同一套视觉（1px 线 + 悬停强调）。
+- `TerminalDockPane.tsx` — 底部终端面板：渲染在工作台列内部（不参与 Shell 栅格），位置跟随预览区，上沿可拖高。
+- `TerminalSurface.module.css` — 终端外壳：一行标题栏 + 撑满的终端正文，配色全部走主题变量。
+- `TerminalSurface.tsx` — 终端外壳：标题栏带「移到下方 / 移到右栏」切换，正文是真实终端面板；两处位置复用同一组件、同一个 PTY。
 - `WorkbenchAuxBody.tsx` — 右侧工作台辅助面板内容：文件树、工作区上下文、终端任务、子智能体、侧边提问与工作详情。
 - `WorkbenchAuxPane.tsx` — 右侧工作台辅助面板外壳：宽度拖拽手柄、可折叠抽屉与面板头，内容由调用方渲染。
 - `WorkbenchMoreMenu.tsx` — 渲染右侧工作台“更多”菜单：会话重命名、置顶、归档、复制与工作台入口。
 - `WorkbenchOverviewMenu.tsx` — 渲染右侧工作台“概览”弹层：变更统计、子智能体与后台任务摘要及快捷入口。
 - `WorkbenchStageContent.tsx` — 右侧工作台主体舞台：按当前标签渲染文件预览、工作区/本轮变更、内置浏览器或欢迎页，并组合辅助面板。
 - `WorkbenchStatusList.tsx` — 右侧工作台欢迎页的运行状态列表：最近子智能体与后台任务，点击可跳到对应辅助面板。
+- `WorkbenchTabMenu.module.css` — 标签右键菜单：固定定位浮层、单项行、键位提示与分隔线；颜色一律走主题变量。
+- `WorkbenchTabMenu.tsx` — 右栏标签右键菜单：关闭系列、复制路径/网址与新建标签；快捷键提示取自工作台注册表，不写死。
 - `WorkbenchTabs.tsx` — 右侧工作台顶部标签栏：辅助面板、文件预览、子智能体、变更审查与内置浏览器标签，新建按钮固定在行尾。
-- `WorkbenchTopActions.tsx` — 渲染右侧工作台顶栏控制按钮组：更多、概览、跟随 Agent、最大化与收起侧面板。
+- `WorkbenchTopActions.tsx` — 渲染右侧工作台顶栏控制按钮组：更多、概览、跟随 Agent、最大化与收起侧面板；提示气泡统一带快捷键徽章。
+- `WorkbenchTopBar.tsx` — 右栏工作台顶栏：标签区与动作组装进左二栏、中间区同款胶囊，外观只由 @lfaa/ui-primitives 的 CapsuleBar 定义。
 - `WorkspaceFileTabs.module.css` — 右栏文件页签和阅读区，沿用工作区主题与操作焦点。
 - `WorkspaceFileTabs.tsx` — 在右侧上下文区域承载可切换、可关闭的源文件标签。
+- `blank-tab-policy.ts` — 右侧工作台空白标签策略：空态占位「新标签页」何时自动补齐、何时必须让位给真实内容标签。
 - `diff-view.ts` — 文件预览 Diff 视图的数据层：把 git 统一 diff 或「修改前/后」片段整理成左右分栏的行模型。
 - `file-search-highlight.tsx` — 行内搜索高亮：把一行文本按查询切分并输出带 <mark> 的 React 节点，供文件预览复用。
+- `new-tab.ts` — 工作台「新建标签页」动作：快捷键与「+」共用同一份展开 + 建标签语义。
+- `terminal-dock.tsx` — 底部终端面板注册：把位置偏好、Shell 底部面板与右栏「终端」标签串起来；失败不连累聊天视图。
+- `terminal-placement.ts` — 终端展示位置偏好：右侧工作台标签（默认）或 Shell 底部面板，写入 localStorage 并广播给同页组件。
 - `useAuxResize.ts` — 管理右侧辅助栏（工作区文件树 / 上下文 / 任务面板）的指针拖拽调宽与本地偏好持久化。
 - `useWorkbenchAuxTabs.ts` — 右侧工作台的辅助面板标签：终端、文件树、侧边提问等各自成为可独立关闭、切换的标签。
-- `useWorkbenchBlankTab.ts` — 右栏空态引导：面板展开且一个标签都没有时，自动补一个「新标签页」，避免只剩一个孤零零的加号。
+- `useWorkbenchBlankTab.ts` — 右栏空态占位标签的生命周期：面板一个标签都没有时补一个「新标签页」，出现真实内容标签后自动让位。
 - `useWorkbenchBrowser.ts` — 右侧工作台内置浏览器状态与宿主操作：标签列表、初始 URL、外部快照与新建/关闭/导航处理。
-- `useWorkbenchOpeners.ts` — 右栏打开动作：终端/文件树/侧边提问与变更审查标签的统一入口，负责替换空白标签与落位。
+- `useWorkbenchOpeners.ts` — 右栏打开动作：终端、侧边提问与变更审查标签的统一入口，负责替换空白标签与落位。
 - `useWorkbenchRequests.ts` — 右侧工作台面板跳转请求处理：响应聊天消息点击与 Agent 自动跟随事件，统一调度舞台、DevTools 与辅助面板。
+- `useWorkbenchSessionState.ts` — 右栏会话状态恢复与持久化：切换会话/刷新挂载时读回浏览器、审查与辅助标签，恢复完成后再写回本地偏好。
 - `useWorkbenchSubagents.ts` — 管理右侧工作台的子智能体多标签页状态：按需新建、切换、关闭，并与会话汇总状态实时同步。
 - `useWorkbenchSummary.ts` — 右侧工作台后台概览轮询：按会话拉取后台任务与子智能体列表；仅在运行中或用户打开对应面板时轮询，空闲零开销。
 - `useWorkbenchTabClose.ts` — 右侧工作台标签关闭：最后一个内容标签关闭且没有其它标签时，收起整个右栏。
+- `useWorkbenchTabMenu.ts` — 右栏标签右键菜单与标签级快捷键：统一有序标签列表、当前舞台识别、单个/其他/右侧/全部关闭与前后切换。
 - `workbench-titles.ts` — 右侧工作台辅助面板标题字典：按语言返回文件树、上下文、终端、子智能体、侧边提问与工作详情标题。
+
+### packages/client/ui-chat/client/workbench/pane
+
+- `PaneActionProps.ts` — 舞台顶栏「动作区」对象装配：把 RightWorkbenchPane 里的 actionProps 大对象搬出来，
+- `PaneAuxBody.tsx` — 舞台辅助面板内容入口：把 RightWorkbenchPane 里「组装 WorkbenchAuxBody 的那堆 props」搬出来，
+- `PaneStage.tsx` — 舞台主体布局：把 RightWorkbenchPane 里「分割区 + 最右图标轨 + 底部终端坞」这段 JSX 整体搬出，
+- `PaneTabProps.ts` — 舞台顶栏「标签区」对象装配：把 RightWorkbenchPane 里的 tabProps 大对象搬出来，
 
 ### packages/client/ui-chat/src
 
@@ -1220,6 +1290,7 @@ lfaa/
 - `advice-options.test.ts` — 验证智能追问提取：只从「建议/下一步」段落的列表项生成可选项，普通列表或不足两条时不出选项。
 - `agent-workbench-sync.test.ts` — 验证 Agent 步骤到右侧工作台自动跟随动作的映射规则（浏览器、DevTools、文件、后台任务与子智能体）。
 - `ark-models.test.tsx` — 验证方舟套餐目录：未配置凭据不显示模型；配置后四类模型统一用 chip，并标记非接口返回的「目录」条目。
+- `blank-tab-policy.test.ts` — 右栏空白占位标签策略单测：空面板才补「新标签页」，切到真实内容标签后必须让位。
 - `browser-subagent-card.test.tsx` — 验证思维链中专属浏览器子智能体卡片的运行中提示、步骤列表与完成态摘要渲染。
 - `chat-anchor-bar.test.ts` — 验证轮次导航刻度滑动窗口：最多 20 根，以当前轮次居中并夹紧边界，保证所有轮次都能通过滚动/点击到达。
 - `chat-bottom-hover.test.ts` — 验证会话贴底判定与消息动作栏悬停契约：悬停只换配色，不改变盒模型，也不留半像素滚动缝隙。
@@ -1227,6 +1298,7 @@ lfaa/
 - `chat-lifecycle.test.ts` — 验证 @lfaa/chat Host/Client 双端 Cordis 生命周期、最近会话注入与项目聊天计数统计。
 - `chat-queue.test.ts` — 验证排队消息纯操作：新增去空、删除、编辑（空文本删除）、上下移动与队首取出。
 - `chat-running-sessions.test.ts` — 验证后台状态机：运行集合去重、待处理徽标增减，以及首屏同步不补发历史通知。
+- `chat-scroll-follow.test.ts` — 验证会话滚动所有权：流式贴底写入不得被误判成用户滚动，用户上滚必须立刻拿到控制权。
 - `chat-store-actions.test.ts` — 验证聊天 Store 拆分后的动作模块：文件预览/右栏状态、会话草稿与打开、排队追问、偏好与记忆数据写入。
 - `composer-paths.test.ts` — 验证输入框绝对路径识别与上下文拼装：粘贴/手打路径都能进入消息上下文。
 - `composer-project-binding.test.tsx` — 验证输入区项目入口融合（工作模式不重复显示项目、聊天模式紧跟 + 展示独立胶囊）及草稿项目记忆持久化。
@@ -1244,18 +1316,23 @@ lfaa/
 - `markdown-advice.test.ts` — 验证 Markdown 建议标题判定：命中建议/下一步类标题用强调样式，普通标题不受影响。
 - `markdown-image.test.tsx` — 验证 Markdown 图片语法接入聊天渲染：本机媒体走 LocalMediaImage（SSR 阶段显示加载占位），不再输出原始 ![] 文本。
 - `media-stream.test.ts` — 验证媒体生成流式解析：计划句先回调给占位，最终结果与错误事件都能正确处理。
+- `memory-filter.test.ts` — 验证记忆库筛选纯函数：类型过滤、关键词匹配正文与标签、更新时间倒序。
 - `model-groups.test.ts` — 验证配置卡片的模型分类：按用途归组，顺序固定，未知用途按对话模型处理。
 - `model-option-row.test.tsx` — 验证模型选择行：方舟「控制台路由」已在副标题里时不再单独占一行，额外状态仍保留。
 - `model-provider-form.test.tsx` — 验证套餐配置表单也提供「获取官方模型」，并把拉取到的全部模型列出可选（普通接口保留首屏截断）。
+- `new-tab-shortcut.test.ts` — 验证「新建标签页」快捷键在工作台收起时也能生效：先把工作台展开，再切到浏览器标签舞台。
 - `notifications.test.ts` — 验证通知策略：轮次完成档位与不支持 Notification API 时的安全回退。
 - `provider-catalog.test.ts` — 提供商接入预设的回归测试：验证套餐凭据、计费路由和旧档案匹配保持隔离。
 - `restore-skeleton.test.tsx` — 验证刷新恢复会话时不再闪现空态引导：恢复中只渲染会话骨架，详情回来后直接进入消息线程。
+- `right-panel-blank-tab.test.tsx` — 回归：历史持久化里残留的空白浏览器状态，在文件标签已打开时不得再渲染出一个「新标签页」。
 - `right-panel.test.tsx` — 验证重构后的右侧工作台面板渲染搜索/URL 栏、6 项工具入口及子智能体/后台任务区块。
 - `run-stream-handler.test.ts` — 验证运行事件归并：增量追加、步骤 upsert、结束时的队列接续与错误落盘、断流降级。
 - `session-todos.test.ts` — 验证从会话步骤里取任务清单：取最近一次、跨消息回退、状态统计。
-- `streaming-perf.test.ts` — 验证流式性能优化边界：shallowEqual 缓存命中、仅侧栏字段变化才通知外部，以及流式帧合并去重与轮次思考归并。
+- `shortcuts-settings.test.tsx` — 设置中心「键盘快捷键」页回归：只渲染已注册的真实动作，键位与动作标题来自工作台注册表。
+- `streaming-perf.test.ts` — 验证流式性能优化边界：shallowEqual 缓存命中、仅侧栏字段变化才通知外部、流式帧合并去重与轮次思考归并、
 - `suggestion-block.test.tsx` — 验证追问建议解析：正文与隐藏块拆分、流式半截标记不外泄、容错与建议胶囊渲染。
 - `thinking-block-scroll.test.tsx` — 验证共享限高滚动视口的溢出边缘计算、实时自动贴底与手动上滚暂停逻辑，以及 ThinkingBlock 的 SSR 渲染结构。
+- `thread-window.test.ts` — 验证窗口化的纯计算与阈值分支：短会话不启用、长会话启用、估算取均值、按会话挑高度。
 - `timeline-streaming.test.tsx` — 验证 AssistantTimeline 在流式轮次切换、工具执行、文本输出及完成态时始终保持连贯的活动反馈。
 - `todo-activity-label.test.ts` — 验证任务清单在活动行里的文案：完成时显示真实进度，而不是裸 JSON 或统一措辞。
 - `todo-dock.test.tsx` — 验证输入框上方任务卡：进度摘要、递增步骤序号、状态点、空清单不渲染、超过 12 条折叠余项。
@@ -1263,7 +1340,52 @@ lfaa/
 - `trace-groups.test.ts` — 验证留痕分组：按动作类型归并、保持出现顺序、统计数量并标记失败。
 - `trace-todo-dock.test.tsx` — 验证轨迹视图顶部复用任务卡：有清单时渲染，没有清单时不渲染。
 - `user-message-attachments.test.tsx` — 验证用户消息附件能进入对话气泡并提供可理解的图片加载状态。
+- `workbench-header-capsule.test.ts` — 验证右侧工作台顶栏复用左二栏/中间区同一个胶囊：不再是一条自带底分割线的平栏。
 - `workspace-isolate.test.ts` — 验证工作区占用后的「用工作树并行」：创建 worktree → 绑定会话 → 清掉冲突提示；未绑定项目时不发请求。
+
+### packages/client/ui-connectors
+
+- `README.i18n.yaml` — 双语配对记录：按英文标题分段记录英文 / 中文段落哈希。
+- `README.md`
+- `README.zh.md`
+- `package.json`
+- `tsconfig.json`
+
+### packages/client/ui-connectors/client
+
+- `css-modules.d.ts` — 浏览器端 CSS Modules 类型声明，由 Vite 处理实际样式。
+- `index.tsx` — 浏览器 Cordis 插件：向设置中心注册「连接器」页面（MCP 服务器 + 命令行工具），卸载时撤销视图贡献。
+- `locales.ts` — 设置中心「连接器」的中英文文案：MCP 分组与命令行工具共用一份字典。
+
+### packages/client/ui-connectors/client/api
+
+- `connectors-client.ts` — 浏览器端连接器请求封装：列表、目录、CLI 增删改、探测与测试；宿主令牌由 Web 入口统一注入。
+- `mcp-client.ts` — 浏览器端 MCP 请求封装。宿主令牌由 Web 入口统一注入。
+
+### packages/client/ui-connectors/client/connectors
+
+- `Cli-Action-Editor.tsx` — CLI 动作编辑器：编辑动作 id、标题、说明、只读、超时与 argv（每行一个参数，对象行写 JSON），以及参数表。
+- `Cli-Connector-Dialog.tsx` — CLI 连接器编辑弹窗：模板预填、可执行文件探测、工作目录、环境变量、审批与动作列表。
+- `Cli-Export-Dialog.tsx` — 导出连接器弹窗：展示可复制的 JSON（含环境变量字面值，界面明确提示）并提供下载。
+- `Cli-Import-Dialog.tsx` — 导入连接器弹窗：粘贴导出的 JSON（单个对象 / 数组 / connectors 数组），由宿主校验并以停用状态导入。
+- `Cli-Tools-Section.tsx` — 「连接器」页的命令行工具分区：列表、启停、测试、编辑与删除；每个连接器对应一组 cli__ 工具。
+- `Connector-Card.tsx` — 目录卡片：图标、名称、两行说明与类型标签，右下角是「+」或已连接状态。
+- `Connector-Connect-Dialog.tsx` — 目录连接弹窗：只渲染条目声明的输入项（目录 / 令牌 / 连接串），提交后由宿主后台任务安装并连接。
+- `Connector-Detail-Dialog.tsx` — 目录条目详情：连接状态、示例提示、使用的应用与关于信息，卸载放在底部危险操作。
+- `Connectors-Directory.module.css` — 连接器目录样式：搜索栏、筛选 chips、卡片网格、卡片状态与详情浮层；只消费 @lfaa/ui-theme 语义变量。
+- `Connectors-Directory.tsx` — 连接器目录：搜索、类型 / 分类筛选、卡片网格、连接任务进度与详情弹窗。
+- `Connectors-Settings.module.css` — 连接器页与 CLI 编辑弹窗样式：只消费 @lfaa/ui-theme 语义变量，深浅色成对生效。
+- `Connectors-Settings.tsx` — 设置中心「连接器」页：目录（卡片）在前，MCP 服务器与命令行工具作为管理页签在后。
+
+### packages/client/ui-connectors/client/mcp
+
+- `Mcp-Dialog.tsx` — 设置中心内的 MCP 录入弹窗，使用浏览器顶层避免被设置中心遮住。
+- `Mcp-Servers-Section.tsx` — 「连接器」页的 MCP 分组：管理连接、项目范围、审批和工具列表（原独立 MCP 页，现并入连接器分区）。
+- `Mcp-Settings.module.css` — MCP 设置页的状态提示、横排操作和双主题原生弹窗。
+
+### packages/client/ui-connectors/src
+
+- `index.ts` — 连接器设置界面包的 Host 入口，无运行期副作用。
 
 ### packages/client/ui-library
 
@@ -1302,34 +1424,6 @@ lfaa/
 - `library-inspector.test.tsx` — 验证右栏检视器：未选中展示存储概览，选中媒体展示提示词与操作，选中资产时先显示读取态。
 - `library-media.test.tsx` — 验证资料库「图像」分类的筛选、空态/错误态与卡片渲染，界面不暴露磁盘绝对路径。
 - `plugin-lifecycle.test.ts` — 验证 @lfaa/library/client 注册资料库视图、右栏检视器与存储设置页，并在卸载时全部撤销。
-
-### packages/client/ui-mcp
-
-- `README.i18n.yaml` — 双语配对记录：按英文标题分段记录英文 / 中文段落哈希。
-- `README.md`
-- `README.zh.md`
-- `package.json`
-- `tsconfig.json`
-
-### packages/client/ui-mcp/client
-
-- `css-modules.d.ts` — 浏览器端 CSS Modules 类型声明，由 Vite 处理实际样式。
-- `index.tsx` — 浏览器 Cordis 插件：向设置中心注册 MCP 页面，卸载时撤销视图贡献。
-- `locales.ts` — MCP 设置中心中英文界面文案。
-
-### packages/client/ui-mcp/client/api
-
-- `mcp-client.ts` — 浏览器端 MCP 请求封装。宿主令牌由 Web 入口统一注入。
-
-### packages/client/ui-mcp/client/settings
-
-- `Mcp-Dialog.tsx` — 设置中心内的 MCP 录入弹窗，使用浏览器顶层避免被设置中心遮住。
-- `Mcp-Settings.module.css` — MCP 设置页的状态提示、横排操作和双主题原生弹窗。
-- `Mcp-Settings.tsx` — 设置中心 MCP 页：管理连接、项目范围、审批和工具列表。
-
-### packages/client/ui-mcp/src
-
-- `index.ts` — MCP 设置界面包的 Host 入口，无运行期副作用。
 
 ### packages/client/ui-plugins
 
@@ -1459,6 +1553,26 @@ lfaa/
 ### packages/client/ui-skills/src
 
 - `index.ts` — @lfaa/client-ui-skills 的 Host 半：只放可被两端共享的稳定标识，界面实现见 ./client。
+
+### packages/client/ui-terminal
+
+- `README.i18n.yaml` — 双语配对记录：按英文标题分段记录英文 / 中文段落哈希。
+- `README.md`
+- `README.zh.md`
+- `package.json`
+- `tsconfig.json`
+
+### packages/client/ui-terminal/client
+
+- `TerminalPane.module.css` — 真实终端面板容器：撑满所在面板，xterm 自己滚自己的内容。
+- `TerminalPane.tsx` — 真实终端面板：xterm.js 负责 ANSI/光标渲染，WebSocket 负责输入输出，尺寸随容器自适应。
+- `index.tsx` — @lfaa/client-ui-terminal 浏览器入口：导出真实终端面板组件与连接客户端。
+- `terminal-client.ts` — 终端 WebSocket 客户端：负责握手（带一次性令牌）、重连、增开/关闭会话与发送输入。
+- `terminal-types.ts` — 浏览器侧终端消息契约：与 @lfaa/terminal 的 Host 协议保持一致（结构相同，独立声明避免前端引 Host 依赖）。
+
+### packages/client/ui-terminal/src
+
+- `index.ts` — @lfaa/client-ui-terminal 包入口：只放与浏览器无关的常量；界面组件在 ./client（浏览器入口）。
 
 ### packages/client/ui-tool-media
 
@@ -1686,12 +1800,14 @@ lfaa/
 - `goal-scheduler.ts` — 目标续跑调度：运行正常收尾后延迟判断并自动开下一轮；停止条件由 goal-continuation 纯函数决定。
 - `loop-state.ts` — Agent 单次运行的循环状态：把预算、轮次、用量累积与完成前自检标记收进一个对象。
 - `memory-autosave.ts` — 从用户明确陈述中提取值得跨会话记住的偏好或约定，作为长期记忆的确定性沉淀来源。
+- `memory-writer.ts` — 每轮运行收口时的长期记忆提炼器：把本轮结论、决策与踩坑压成结构化记忆，做去重与冲突替代后写入。
 - `model-round.ts` — Agent Host 模型轮次的超时与有限重试，保留已发出的正文和工具进度。
 - `peer-sessions.test.ts` — 回归测试：验证同项目多会话可并行登记且彼此能生成准确的实时感知提示。
 - `peer-sessions.ts` — 多会话并行协调器：允许同一工作区下多个会话并发运行，并向每个活跃会话动态注入同工作区其他并发会话的实时动作摘要，避免互相踩踏。
 - `run-begin.ts` — Agent 运行启动器：校验会话与授权根、落盘用户/助手消息、登记运行记录并把执行循环交给 agent-loop。
 - `run-compaction.ts` — 运行期压缩入口：优先使用挂载的压缩服务，未挂载时回落到 @lfaa/context 的内置实现。
 - `run-context.ts` — 运行上下文装配：召回规则/记忆/资料库，拼装工作区与技能提示，创建用量跟踪、系统消息与初始对话。
+- `run-memory.ts` — 运行收口后的长期记忆沉淀：显式偏好正则与每轮模型提炼并行推进，统一返回追加到轨迹的步骤。
 - `run-options.ts` — 续跑复用的运行选项：延续用户上一轮选的模型、预算与权限模式，避免续跑悄悄退回默认值。
 - `run-records.ts` — Agent 运行记录类型：活动运行、待审批请求与步骤增量/任务结算辅助，供服务层与运行启动器共用。
 - `run-system.ts` — 系统提示词渲染：把各段提示按固定顺序拼成一条 system 消息内容，供运行循环每轮复用。
@@ -1728,6 +1844,7 @@ lfaa/
 - `agent-media.test.ts` — 验证媒体指引包含「禁止编造链接」约束：Agent 未调用工具时不能声称图片已生成。
 - `goal-continuation.test.ts` — 验证目标自动续跑的停止条件矩阵与续跑指令内容（纯函数，不启动真实运行）。
 - `memory-autosave.test.ts` — 验证只把用户明确的偏好/约定沉淀为长期记忆，普通任务描述不命中。
+- `memory-writer.test.ts` — 验证每轮长期记忆提炼器：JSON 容错解析、字段校验、开关与触发条件、写入作用域。
 - `model-round.test.ts` — 验证模型请求静默退出、长推理限制及工具参数增量。
 - `project-git.test.ts` — 验证自动 Git 基线会跳过疑似密钥文件，并仍尊重 .gitignore。
 - `project-scope.test.ts` — 验证项目范围锚定：提示词内容，以及绑定项目的运行确实把项目名与简介送入系统提示。
@@ -1788,7 +1905,9 @@ lfaa/
 - `browser-data-http.ts` — 处理 /api/browser/{history,downloads,passwords,contacts,clear-data} 数据管理路由，保持主 http-handler 精简。
 - `browser-data-store.test.ts` — 回归测试：验证网站访问规则匹配、浏览历史读写及本地 AES-256-GCM 加密密码库与 CSV 导入导出。
 - `browser-data-store.ts` — 管理内置浏览器的浏览历史、下载历史、本地加密密码库（AES-256-GCM）与联系信息自动填充数据。
+- `browser-settings.test.ts` — 内置浏览器设置回归：下载位置跟随系统「下载」目录、旧默认值迁移、自定义与恢复默认。
 - `browser-settings.ts` — 内置浏览器设置读写：归一化完整偏好（常规、下载、权限规则、站点权限、密码偏好、扩展与完整 CDP）并落盘缓存。
+- `system-downloads.ts` — 解析本机系统「下载」目录：Windows 走已知文件夹注册表项（支持用户重定向到其它盘），Linux 走 XDG，其余回退 ~/Downloads。
 
 ### packages/core/browser/src/snapshot
 
@@ -1818,6 +1937,29 @@ lfaa/
 ### packages/core/context/tests
 
 - `context-budget.test.ts` — 验证运行内上下文压缩：保留首条 system、最近轮次与工具调用配对，并识别上下文超限错误。
+
+### packages/core/crew
+
+- `README.i18n.yaml` — 双语配对记录：按英文标题分段记录英文 / 中文段落哈希。
+- `README.md`
+- `README.zh.md`
+- `package.json`
+- `tsconfig.json`
+
+### packages/core/crew/src
+
+- `crew-runner.ts` — crew 串行执行器：按任务拓扑序接力子智能体，交接前验收，结束后归档运行期记忆。
+- `guardrail.ts` — 交接前的结构验收：从 expectedOutput 里解析 JSON 与必含字段要求，输出不合格时给出可回传的原因。
+- `index.ts` — @lfaa/crew Host 侧 Cordis 服务：注册 run_crew 工具，把任务图交给串行执行器并汇总交付。
+- `task-graph.ts` — 任务图的纯函数校验与拓扑排序：id 唯一、依赖存在、无环，排序保持声明顺序的稳定。
+- `types.ts` — @lfaa/crew 契约：任务定义、运行结果与验收结论；只放类型，不依赖运行时。
+
+### packages/core/crew/tests
+
+- `crew-plugin.test.ts` — 验证 crew 插件装配：run_crew 工具注册成功，未装配子智能体时给出可读错误而不是崩溃。
+- `crew-runner.test.ts` — 验证 crew 串行执行器：依赖顺序、上游交付注入、验收重试、失败跳过与运行期记忆归档。
+- `guardrail.test.ts` — 验证交接验收：最短长度、JSON 可解析、必含字段与重试提示的构造。
+- `task-graph.test.ts` — 验证任务图校验与拓扑排序：重复 id、缺失依赖、自依赖、环与稳定顺序。
 
 ### packages/core/fs
 
@@ -1936,11 +2078,17 @@ lfaa/
 
 - `http-handler.ts` — 为本机 Web 服务提供 /api/memory*、/api/library* 与 /api/storage* HTTP 接口，支持记忆、资产库与无损存储迁移。
 - `index.ts` — @lfaa/memory Host 侧 Cordis 服务：统一对外提供短期会话记忆、长期事实记忆、资料库资产/产物及存储迁移服务。
-- `longterm-store.ts` — 管理长期事实记忆存储（~/.lfaa/memory.json），支持按项目/全局写入、列表管理与关键词召回。
+- `longterm-store.ts` — 管理长期事实记忆存储（<dataRoot>/long-term-memory.json）：结构化条目、去重合并、冲突替代、上限归档与关键词召回。
+- `memory-entry.ts` — 长期记忆条目的读取归一化与生命周期辅助函数：旧格式兼容、归档路径推导与淘汰打分。
+- `memory-ranking.ts` — 长期记忆的纯函数检索与去重工具：中文 bi-gram 分词、BM25 打分、时间衰减、作用域加权与预算截断。
+- `memory-settings.ts` — 记忆行为设置：自动提炼、条目上限与召回预算，存于 ~/.lfaa/memory-settings.json，与资料库数据分离。
+- `memory-write-queue.ts` — 长期记忆文件的安全读写层：进程内串行写队列、临时文件原子替换、按 mtime 热重载，避免并发写互相覆盖。
 - `types.ts` — @lfaa/memory 的领域契约：会话类型由 @lfaa/session 提供，资料库/存储类型由 @lfaa/storage 提供；本文件保留长期记忆条目。
 
 ### packages/core/memory/tests
 
+- `longterm-store.test.ts` — 验证长期记忆存储：并发写入不丢条目、旧格式兼容、去重、冲突替代、上限归档与命中回写。
+- `memory-ranking.test.ts` — 验证记忆检索的纯函数：中文 bi-gram 分词、BM25 排序、作用域可见性、时间衰减与预算截断。
 - `memory-service.test.ts` — 验证 @lfaa/memory 短期会话持久化、项目聊天计数（不含归档）、窗口裁剪及长期记忆召回。
 
 ### packages/core/metrics
@@ -2061,6 +2209,7 @@ lfaa/
 
 ### packages/core/subagent/tests
 
+- `subagent-memory.test.ts` — 验证子智能体收口把结论与失败点写成团队记忆：作用域、归属会话与写入者标记。
 - `subagent-service.test.ts` — 验证 @lfaa/subagent 并发派发、上下文隔离、递归深度防护、权限隔离与停止清理。
 
 ### packages/core/system-prompt
@@ -2117,6 +2266,42 @@ lfaa/
 
 - `grep-file-path.test.ts` — 回归测试：验证 grep 工具既支持目录路径也支持单个文件路径（不再对单文件触发 ENOTDIR）。
 - `tools-service.test.ts` — 验证 @lfaa/tools 路径沙箱越界拦截、文件读写/搜索工具执行与 Cordis 插件注册注销。
+
+### packages/extension/connectors
+
+- `README.i18n.yaml` — 双语配对记录：按英文标题分段记录英文 / 中文段落哈希。
+- `README.md`
+- `README.zh.md`
+- `package.json`
+- `tsconfig.json`
+- `tsdown.config.ts` — @lfaa/connectors 构建入口：主入口在 lib/types/src 下（契约与源码同一 TypeScript 工程）。
+
+### packages/extension/connectors/contract
+
+- `index.ts` — 定义连接器（MCP / CLI）列表、CLI 动作模板与参数 schema 的浏览器安全契约；不回流可执行文件细节以外的敏感值。
+
+### packages/extension/connectors/src
+
+- `catalog-runner.ts` — 目录连接任务：MCP 走「写配置 → 等连接」，CLI 走「缺命令就静默安装 → 写连接器」，进度写回任务对象。
+- `cli-config.ts` — 校验 CLI 连接器配置与动作模板：占位符、参数 schema、argv 结构与危险字符都在这里拦住，执行层不再兜底。
+- `cli-exec.ts` — CLI 连接器的进程层：解析可执行文件、按 argv 直接启动（不经过 shell）、超时或取消时回收进程树并截断输出。
+- `cli-templates.ts` — 三个内置 CLI 连接器模板（gh / docker / pnpm）：只预填可执行文件、动作与参数 schema，不安装二进制、不写入密钥。
+- `config-store.ts` — 用本机独立密钥加密 CLI 连接器配置（环境变量可能带凭据），以原子替换写入 ~/.lfaa/connectors.json。
+- `connector-routes.ts` — 接入宿主令牌网关，提供连接器列表、CLI 增删改、探测与测试接口；响应只返回摘要与可编辑配置。
+- `connector-service.ts` — 连接器聚合服务：把 MCP 服务器与 CLI 工具统一成一份列表，并把每个 CLI 动作注册成受审批约束的工具。
+- `index.ts` — 连接器 Host 插件入口：装配聚合服务（MCP 只读展示 + CLI 工具）并公开 /api/connectors 路由。
+- `installer.ts` — 静默安装：只执行内置目录声明的固定参数，按可用安装器选择 winget / choco / scoop / npm。
+
+### packages/extension/connectors/src/catalog
+
+- `cli.ts` — 内置目录的 CLI 条目：声明式动作复用模板，安装方式按 winget / choco / scoop / npm 依次尝试。
+- `entry.ts` — 目录条目构造辅助：收敛重复字段，内置目录只关心差异部分。
+- `index.ts` — 内置连接器目录：MCP 与 CLI 条目交错排列，首屏同时出现两类，避免整屏都是同一种连接器。
+- `mcp.ts` — 内置目录的 MCP 条目：全部对应 npm 上真实存在的服务器包，首次连接由 npx 完成下载。
+
+### packages/extension/connectors/tests
+
+- `connectors.test.ts` — 验证 CLI 连接器：工具注册与启停、参数按 argv 传递不经 shell、超时回收、探测与 HTTP 接口。
 
 ### packages/extension/mcp
 
@@ -2286,6 +2471,25 @@ lfaa/
 ### packages/guard/timeout-policy/tests
 
 - `timeout-policy.test.ts` — 验证超时策略：超时返回可读结果并中止信号，快工具原样通过，父级取消向内传递。
+
+### packages/host/terminal
+
+- `README.i18n.yaml` — 双语配对记录：按英文标题分段记录英文 / 中文段落哈希。
+- `README.md`
+- `README.zh.md`
+- `package.json`
+- `tsconfig.json`
+
+### packages/host/terminal/src
+
+- `index.ts` — @lfaa/terminal Host 插件入口：注册 terminal 服务，并导出 WebSocket 升级处理器给 web-server 挂载。
+- `terminal-service.ts` — @lfaa/terminal Host 服务：按聊天会话维护一个真实 PTY（node-pty），负责输入、窗口尺寸与进程回收。
+- `types.ts` — @lfaa/terminal 契约：会话描述、启动参数与 WebSocket 消息格式。
+- `ws-handler.ts` — @lfaa/terminal WebSocket 升级处理：/api/terminal 走一次性令牌校验，再把双向帧转给 TerminalService。
+
+### packages/host/terminal/tests
+
+- `terminal-service.test.ts` — 真实终端 Host 服务单测：起 PTY、写输入拿到回显、改尺寸、杀掉进程后池子里不再有它。
 
 ### packages/host/web-server
 
@@ -2551,6 +2755,9 @@ lfaa/
 - `css-modules.d.ts` — 为 Client 中的 CSS Modules 提供静态类名类型。
 - `index.tsx` — 导出浏览器工作区插件入口与服务类型，不把 React 或 DOM 引入 Host 入口。
 - `locales.ts` — 集中维护 Shell、导航和本地项目界面的中英文文案。
+- `shortcut-defaults.ts` — 快捷键默认键位总表（唯一来源）：动作注册与悬停提示都从这里取，避免两处漂移。
+- `shortcut-state.ts` — 快捷键状态：动作注册表 + 用户键位覆盖，从 workbench-service 抽出，控制服务文件体量。
+- `shortcuts.ts` — 工作台快捷键基础设施：真实动作注册表元数据、键位标准化与匹配、冲突检测，以及浏览器本地键位持久化。
 - `workbench-service.ts` — 在浏览器 Cordis 上下文中注册并管理四栏工作台服务与插件贡献生命周期。
 
 ### packages/ui/layout/client/navigation
@@ -2577,6 +2784,7 @@ lfaa/
 - `use-navigation-prefs.ts` — 集中管理左二会话项目菜单栏的展开/收起、排序与活跃分组记忆，刷新页面后完整恢复用户操作。
 - `use-session-window.ts` — 左二栏会话窗口状态：项目子会话按行记录展开批次，「最近」分组共享一条窗口；折叠项目时重置。
 - `usePinnedApps.ts` — 读取并持久化侧栏固定的应用入口，默认固定参考图中的站点。
+- `user-menu-geometry.ts` — 用户菜单浮层几何：让账号卡片贴着左二会话栏内侧展开，宽度跟随该栏而不压到中间会话区。
 - `workbench-domains.ts` — 集中定义四栏/三栏工作台域配置、共用导航目标与视图标题解析，避免各组件分散硬编码。
 
 ### packages/ui/layout/client/panels
@@ -2598,19 +2806,30 @@ lfaa/
 
 ### packages/ui/layout/client/shell
 
+- `BottomDock.module.css` — 底部面板：固定在中间+右栏下方，高度固定、内容撑满，边框与配色走主题变量。
+- `BottomDock.tsx` — Shell 底部面板容器：标签条 + 收起按钮，内容由插件通过 workbench.registerBottomPanel 贡献。
+- `PaneAnim.module.css`
 - `ResizeHandle.module.css` — 浏览器工作台的左右栏分隔手柄、高亮反馈及拖拽裁剪。
 - `ShellBackground.module.css`
+- `ShellBottomDock.module.css` — 底部面板宿主：竖向排布手柄与内容，高度由内联 style 控制。
+- `ShellBottomDock.tsx` — Shell 底部面板宿主：有贡献且展开时占第二行（跨中间+右侧两列），顶部 6px 手柄可拖动改高度。
 - `ShellLeftColumn.tsx` — 组合四栏 Shell 左栏：一级图标栏、窄屏抽屉遮罩、左二导航侧栏与宽度拖拽手柄。
 - `ShellRightColumn.tsx` — 组合四栏 Shell 右栏：拖拽宽度手柄与插件上下文面板。
+- `ShellSettingsDialog.tsx` — 设置中心弹窗宿主：以覆盖层形式盖在当前工作区之上，关闭即回到打开前的视图。
 - `ShellWorkspace.tsx` — 渲染四栏 Shell 中央工作区：顶部栏、插件视图、项目视图、欢迎页与功能占位页。
 - `SidebarResizeHandle.tsx` — 渲染桌面端左二栏或右侧栏边缘的垂直拖拽调宽手柄。
 - `WorkbenchShell.module.css` — 四栏可折叠工作区主结构，消费 @lfaa/ui-theme 提供的明暗与玻璃配色变量。
 - `WorkbenchShell.tsx` — 装配主题、四栏可折叠骨架，并通过 Cordis workbench 服务响应业务插件贡献。
 - `WorkspaceBar.tsx` — 渲染工作区顶部栏：左侧栏展开/收起按钮、当前标题、本地模式状态、插件工作区快捷入口与右侧栏展开/收起按钮。
+- `bottom-panel-state.ts` — 底部面板状态：展开标志 + 贡献表，从 workbench-service 抽出来，避免服务文件继续膨胀。
+- `library-tabs.ts` — 资料库分类标识与校验：从 workbench-service 抽出，控制服务文件体量。
+- `pane-anim.ts` — Shell 布局编排动画原语：最大化/还原时让会话列与工作台在同一时间轴上互补变形——
 - `sidebar-resize.ts` — 计算左二栏与右侧栏拖拽调宽、弹性阻尼压缩、中心区保护与 50% 阈值磁吸折叠纯函数。
 - `ui-preferences.ts` — 统一管理浏览器端 Shell 交互记忆（路由、设置中心子页、左右栏折叠、分组展开、自定义分区折叠、排序与模式），刷新后完整保留用户操作。
+- `use-pane-anim.ts` — Shell 布局编排动画的编排入口：把一次布局变更包成「先定格 → 切换排版 → 补间 → 归位」，
+- `use-sidebar-mode.ts` — 左二内容模式（会话列表 / 项目工作区）的本地状态与持久化，避免 Shell 主组件继续膨胀。
 - `usePaneMotionSuspend.ts` — 面板轨道过渡的暂停开关：窗口缩放与拖拽吸附由指针／视口直接驱动宽度，这期间暂停轨道过渡，
-- `useShellShortcuts.ts` — 注册四栏 Shell 全局键盘快捷键（搜索 Ctrl+K、活动 Ctrl+Alt+U、右栏开关/最大化与 Esc 收起）。
+- `useShellShortcuts.ts` — 四栏 Shell 的全局快捷键：注册壳层/导航动作，并按注册表键位分发；Esc 保持固定语义。
 - `useSidebarResize.ts` — 管理浏览器工作台的左右栏调宽、弹性吸附和本地宽度偏好。
 - `useViewportMode.ts` — 监听桌面、平板与手机断点，供四栏 Shell 切换侧栏抽屉与移动底栏模式。
 
@@ -2630,10 +2849,14 @@ lfaa/
 - `domain-sidebar.test.tsx` — 验证资料库左二菜单已把「图像」并入分类，旧图像域的 热门/模板/我的图像 占位菜单不再出现。
 - `navigation-groups.test.ts` — 验证左二导航的项目分组语义：置顶只在顶部增加快捷入口，项目本身仍留在「项目」或所属自定义分区里。
 - `persistence-lifecycle.test.ts` — 验证四栏 Shell 与界面交互偏好的浏览器持久化记忆（导航路由、设置子页、左右栏折叠、分组收起、分区折叠、排序与模式）。
+- `preview-pane.test.tsx` — 验证「预览区在左」下两列的收起/展开语义：关掉最后一个标签只收预览列，展开时补回分屏。
 - `session-list-paging.test.ts` — 验证会话列表分页：每批 6 条、逐批展开、全部展开后收起，以及项目行与「最近」分组的控件接线。
 - `session-running-indicator.test.tsx` — 验证左二会话行的任务状态联动：进行中显示转圈，完成且未读显示小圆点，两者互斥；正在查看的会话不显示完成点。
 - `settings-dialog.test.tsx` — 验证设置中心改为弹窗呈现：目录/关闭入口可访问，未接入设置项退化为占位说明，
+- `shortcut-defaults.test.ts` — 默认快捷键表守护：键位不重复，且不落在浏览器 / 系统会截走的组合上（避免「设了没反应」）。
+- `shortcuts.test.ts` — 快捷键基础设施单测：键位标准化、展示、默认值与用户覆盖合并、冲突检测。
 - `toolbar-tip.test.ts` — 验证左二栏工具提示的贴边位移：位移量只由锚点中心与气泡宽度决定，重复计算不再变化。
+- `user-menu-geometry.test.ts` — 用户菜单浮层几何单测：卡片宽度必须跟着左二栏走，不能盖到中间会话区。
 - `workspace-bar-toggle.test.tsx` — 验证工作区顶栏的展开/收起入口统一由共享 PanelToggleButton 渲染：文案、展开状态与右栏隐藏规则保持一致。
 - `workspace-scroll-viewport.test.tsx` — 验证工作区中央与左二滚动视口预留稳定槽位，长内容出现滚动条时不挤动标题与列表内容。
 
@@ -2648,12 +2871,14 @@ lfaa/
 
 ### packages/ui/primitives/client
 
+- `CapsuleBar.module.css`
+- `CapsuleBar.tsx` — 工作台头部胶囊条：左二菜单栏头部与中间区域顶栏共用同一份「圆角卡片 + 一排动作」外观，
 - `CollapsePane.module.css` — 折叠容器布局与裁剪：撑满所在轨道、裁剪溢出内容；宽度动画交给调用方的容器样式。
 - `CollapsePane.tsx` — 共享折叠面板容器：展开即挂载、收起后等过渡结束再卸载，并裁剪溢出的固定宽度内容，
 - `ConfirmDialog.module.css` — 共享二次确认弹窗样式：居中液态玻璃卡片、柔和暗红警示按钮与高对比度文本。
 - `ConfirmDialog.tsx` — 共享二次确认弹窗组件：采用居中液态玻璃卡片、柔和暗红警示按钮与高对比度文本，供删除/移除等高风险操作复用。
 - `HoverTip.module.css` — 共享悬停提示胶囊样式：正上方居中对齐、暗色半透明磨砂胶囊与快捷键徽章。
-- `HoverTip.tsx` — 共享悬停提示胶囊组件：统一在触发按钮正上方居中展示暗色圆角提示与快捷键徽章。
+- `HoverTip.tsx` — 共享悬停提示胶囊：portal 到 body 渲染，按触发元素位置自动落在上方或下方，并在视口边缘内收避让。
 - `ModalDialog.module.css` — @lfaa/ui-primitives 居中弹窗通用样式：遮罩、弹窗尺寸与统一进场动效预设（scale / fade / slide-up）。
 - `ModalDialog.tsx` — 提供全局统一的居中弹窗组件：支持 Escape 与遮罩关闭、自定义尺寸、图标头与集中可调进场动画预设。
 - `PanelToggleButton.module.css` — 共享展开/收起按钮样式：只用语义与动效变量，尺寸由 --panel-toggle-size 交给调用方适配各断点。
@@ -2669,6 +2894,7 @@ lfaa/
 - `css-modules.d.ts` — 浏览器组件使用的 CSS Modules 声明，将导入的局部类名暴露为字符串映射。
 - `index.tsx` — 统一导出 @lfaa/ui-primitives 共享交互组件（折叠面板与展开按钮、居中弹窗、浮层卡片、步进滑块、滚动容器）与设置中心通用控件。
 - `usePanePresence.ts` — 面板挂载保持：展开立即挂载，收起后保留内容等过渡结束再卸载；供 CollapsePane 及其他折叠容器复用。
+- `useVisibleInterval.ts` — 可见性感知的轮询 Hook：标签页在后台时停表、回到前台立即补一次再恢复，供工作台各面板共用。
 
 ### packages/ui/primitives/client/base
 
@@ -2699,6 +2925,7 @@ lfaa/
 ### packages/ui/primitives/tests
 
 - `base-primitives.test.tsx` — 验证基于 @base-ui/react 封装的 5 个通用交互原语（DropdownMenu / UiSwitch / UiSelect / UiTabs / UiTooltip）在 SSR 下渲染正常、无障碍属性完整。
+- `capsule-bar.test.tsx` — 验证共享胶囊外壳：子内容、类名合并与属性透传，确保左二栏与中间区顶栏消费的是同一份外观。
 - `panel-toggle.test.tsx` — 验证共享折叠面板按钮的状态表达：动作文案、aria-expanded、左右镜像与分栏线标记都随状态变化。
 - `primitives-contract.test.ts` — 验证 @lfaa/ui-primitives 共享交互原语包导出、步进比值计算及包边界契约。
 - `scroll-area.test.tsx` — 验证共享滚动容器 ScrollArea 的 SSR 输出：方向标记、常驻槽标记、附加类名与内容包裹都正确，
@@ -2750,22 +2977,24 @@ lfaa/
 - `AppearanceAdvanced.module.css`
 - `AppearanceAdvanced.tsx` — 呈现外观设置「高级设置」分区里的字号、字体、主题与显示、动效与光标分组，全部沿用设置中心的行式结构
 - `AppearanceSettings.module.css`
-- `AppearanceSettings.tsx` — 呈现设置中心「外观」页：顶部实时预览与「预设 / 高级设置」两个分区；
+- `AppearanceSettings.tsx` — 呈现设置中心「外观」页：顶部是分区选项卡，没有常驻预览舞台。
 - `AppearanceTabs.tsx` — 外观页顶部的「预设 / 高级设置」选项卡：受控组件，支持左右方向键与 Home/End 在两项间切换。
 - `AppearanceThemeDetail.module.css`
 - `AppearanceThemeDetail.tsx` — 外观设置「高级」里的主题细项：主题预设（含导入/复制）、强调色、背景、前景与界面字体。
-- `BackgroundGallery.module.css` — 背景卡网格：纯色卡与图片卡统一 16:9 缩略图，名称压在左下、选中勾在右下；全部消费主题变量。
-- `BackgroundGallery.tsx` — 背景图片卡片网格：纯色卡 + 图片卡，支持选中标记与个人图片删除；供外观页预设分区使用。
-- `BackgroundSettings.module.css` — 背景图片分组：图墙区块与「我的图片」小标题的排版；卡片样式在 BackgroundGallery.module.css。
-- `BackgroundSettings.tsx` — 背景图片分组：位置下拉、内置图墙、个人图上传与删除；选择结果写回外观 store，由 store 输出 CSS 变量。
-- `ThemeGallery.module.css` — 主题选择卡片网格：分轴排版（明暗模式 3 列、配色预设 4 列），选中态使用强调色光环与角标；全消费主题变量。
-- `ThemeGallery.tsx` — 主题选择网格：支持明暗模式（3 列）与主题预设（4 列）分轴展示，悬停驱动实时预览，点击应用。
-- `ThemeModeQuickSwitch.module.css` — 用户菜单头部右侧的外观模式快捷切换胶囊与三选一液态玻璃浮层样式。
-- `ThemeModeQuickSwitch.tsx` — 用户账户菜单头部右侧的外观模式快捷切换胶囊与“跟随系统 / 浅色模式 / 深色模式”三选一浮层菜单。
+- `ThemeGallery.module.css` — 主题选择卡片网格：分轴排版（明暗模式 3 列、主题方案 5 列），选中态使用强调色光环与角标；全消费主题变量。
+- `ThemeGallery.tsx` — 主题选择网格：支持明暗模式（3 列）与主题方案（5 列）分轴展示，悬停驱动实时预览，点击应用；
+- `ThemeHoverPreview.module.css`
+- `ThemeHoverPreview.tsx` — 主题悬停预览：鼠标移入主题卡时在光标旁浮出实时预览，并用「预览」光标替代系统指针；
+- `ThemeModeQuickSwitch.module.css` — 三档外观开关：玻璃轨道 + 带辉光的圆角方块滑块 + 像素太阳/月亮；深色档冷光、浅色档暖光。
+- `ThemeModeQuickSwitch.tsx` — 用户菜单头部的三档外观开关：左=深色、中=跟随系统、右=浅色。
 - `ThemePreview.module.css`
 - `ThemePreview.tsx` — 主题实时预览面板：用真实主题色渲染一枚迷你工作台窗口，切换主题时颜色平滑过渡；供外观页与主题库共用。
 - `ThemeSelect.tsx` — 通用外观设置页液态玻璃下拉选择器：复用强调色菜单视觉规范，替代原生浏览器 <select> 弹窗。
+- `hover-preview-position.ts` — 悬停预览卡的贴边翻转：纯函数，便于单测；组件只负责把结果写成 transform。
+- `pixel-glyph.ts` — 外观开关的像素图标：9×9 点阵上的月亮与太阳，按参考图的方块颗粒感手工排布。
+- `theme-looks.ts` — 主题方案取样：一套主题 = 一套配色 + 一张背景（或纯色）。
 - `theme-tiles.ts` — 主题网格取样：把「明暗模式 + 主题预设」拼成主题卡列表，供外观页与复用方共用（纯函数，便于单测）。
+- `use-theme-backgrounds.ts` — 个人背景主题的列表与动作：启动加载、上传、二次确认删除；删除正在使用的图时回退到纯色主题。
 
 ### packages/ui/theme/contract
 
@@ -2778,8 +3007,12 @@ lfaa/
 ### packages/ui/theme/tests
 
 - `appearance-layer.test.ts` — 静态层级守卫：外观页的下拉菜单 Portal 到 body，层级必须高于设置中心弹窗；
+- `background-columns.test.ts` — 静态护栏：背景图模式下四栏必须统一走同一档薄纱（--color-column / --column-wash），
 - `sakura-preset.test.ts` — 樱花粉预设回归：契约取样、深浅令牌成对、正文与弱化文字对比度是否达标。
+- `theme-hover.test.ts` — 验证悬停预览卡的贴边翻转：默认落在光标右下，靠近视口右/下边缘时翻到另一侧。
 - `theme-lifecycle.test.ts` — 验证主题包 Host/契约预设导出及 Client 插件在工作台注册与卸载清理。
+- `theme-looks.test.ts` — 验证主题墙取样：主题 = 配色 + 背景；纯色、内置背景与个人背景排在同一面墙上，只有配色与背景都对上才算当前主题。
+- `theme-mode-switch.test.tsx` — 验证账号菜单里的三档外观开关：档位顺序、当前选中项、图标随解析出的明暗切换。
 - `theme-tiles.test.ts` — 验证主题网格取样：模式卡与预设卡的数量、选中标记、强调色解析与「跟随系统」双取样。
 
 ### packages/web/web
@@ -2897,8 +3130,8 @@ lfaa/
 - `check-architecture.test.mjs` — 验证依赖护栏规则本身：跨功能 UI 复用、客户端越界、.tsx 落位、内核反向依赖、装配边、BOM 与未声明依赖。
 - `check-client-layout.mjs`
 - `check-doc-links.mjs`
-- `check-logs.mjs` — 日志编号体检：dev-log 卷内标题编号与 updata-log 文件名编号必须各自唯一；同一轮两类日志共用编号是允许的。
-- `check-logs.test.mjs` — 验证日志编号体检：同类日志重号判错、基线可登记历史重号、基线外的重号仍然判错、基线条目过期提示。
+- `check-logs.mjs` — 日志体检：dev-log 卷内标题编号与 updata-log 文件名编号必须各自唯一；同一轮两类日志共用编号是允许的。
+- `check-logs.test.mjs` — 验证日志体检：同类日志重号判错、基线可登记历史重号、基线外的重号仍然判错、基线条目过期提示，
 - `check-workspace.mjs` — 仓库边界检查：校验包命名、跨包子路径、Host/Client 隔离、依赖一致性、锁文件顺序、循环依赖、中文文件头与文件规模。
 - `check-workspace.test.mjs` — 验证 check-workspace 的新增规则本身：文件规模、client 越界相对导入、写死颜色与豁免清单棘轮。
 - `ensure-dependencies.mjs` — 仓库依赖状态预检与安全增量安装脚本：核对 workspace/lockfile，缺依赖时只补装缺失的包并自愈依赖链接。
@@ -2921,6 +3154,7 @@ lfaa/
 - `ui-shot.mts` — UI 截图工具：起生产宿主 → 无头 Edge/Chrome 按任务表逐项操作 → 出图到 shots/ 并写 manifest.json。
 - `verify-coordination.mts` — 交接条与目标条真实浏览器验收：在隔离 HOME 中启动 Host，创建两个会话并 seed 一条交接，
 - `verify-hover-scroll.mts` — 悬停抖动的红/绿反馈环：把会话滚到最底部，逐个悬停动作按钮并向下滚轮，
+- `verify-stream-scroll.mts` — 会话滚动的红/绿反馈环：内容持续增长（流式输出）时，用户上滚必须真的停住、不能被贴底写回；
 - `verify-translation-pairing.mjs` — 包 README 双语配对校验：按英文标题分段哈希，记录到 README.i18n.yaml，并在校验模式下报告漂移。
 - `verify-translation-pairing.test.mjs` — 回归测试：README 双语配对脚本必须在 Windows CRLF 检出下判定一致，避免 CI 因换行差异误报过期。
 - `verify-web.mts` — 生产构建产物浏览器验收：用本机 Edge/Chrome 无头打开工作台，依次检查壳层、资料库、代码审查、
@@ -2929,7 +3163,7 @@ lfaa/
 
 | 目录 | 文件数 | 子目录数 | 说明 |
 | --- | --- | --- | --- |
-| `docs/dev-log` | 4 | 1 | 按每 200 条任务编号汇总的开发日志卷 |
-| `docs/updata-log` | 403 | 1 | 面向用户的单条更新说明 |
+| `docs/dev-log` | 5 | 1 | 按每 200 条任务编号汇总的开发日志卷 |
+| `docs/updata-log` | 462 | 1 | 面向用户的单条更新说明 |
 | `vendor` | 14 | 4 | 内嵌的上游运行时源码 |
 | `packages/extension/skills/src/builtin-skills` | 637 | 151 |  |

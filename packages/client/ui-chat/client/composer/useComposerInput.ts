@@ -4,7 +4,17 @@ import type { ComposerAttachment } from "./composer-context";
 import { filesToAttachments, pathToAttachment } from "./composer-attachments";
 import { matchAbsolutePath } from "./composer-paths";
 
-/** 输入框高度随内容变化：Shift+Enter 换行后跟着长高，超过 max-height 才内部滚动。 */
+/** 样式层是否已用 CSS field-sizing 接管自适应高度：支持时不再逐字测量，彻底避免强制重排。 */
+const SUPPORTS_FIELD_SIZING = (() => {
+  if (typeof CSS === "undefined" || typeof CSS.supports !== "function") return false;
+  try {
+    return CSS.supports("field-sizing", "content");
+  } catch {
+    return false;
+  }
+})();
+
+/** 输入框高度随内容变化：优先交给 CSS field-sizing，其余浏览器用逐帧测量兜底。 */
 export function useComposerAutoGrow(
   textareaRef: { current: HTMLTextAreaElement | null },
   draft: string,
@@ -12,10 +22,22 @@ export function useComposerAutoGrow(
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
-    el.style.height = "auto";
-    const maxHeight = parseFloat(getComputedStyle(el).maxHeight) || 160;
-    el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
-    el.style.overflowY = el.scrollHeight > maxHeight ? "auto" : "hidden";
+    if (SUPPORTS_FIELD_SIZING) {
+      // 支持 field-sizing 时高度由浏览器按内容算：只声明一次，不再逐字读写 scrollHeight 触发强制重排。
+      el.style.setProperty("field-sizing", "content");
+      el.style.setProperty("overflow-y", "auto");
+      el.style.removeProperty("height");
+      return;
+    }
+    // 合并到下一帧：同一帧内的多次输入只做一次「写高度 → 读 scrollHeight」，避免每个按键都让整页重排。
+    const frame = requestAnimationFrame(() => {
+      const maxHeight = Number.parseFloat(getComputedStyle(el).maxHeight) || 160;
+      el.style.height = "auto";
+      const contentHeight = el.scrollHeight;
+      el.style.height = `${Math.min(contentHeight, maxHeight)}px`;
+      el.style.overflowY = contentHeight > maxHeight ? "auto" : "hidden";
+    });
+    return () => cancelAnimationFrame(frame);
   }, [draft, textareaRef]);
 }
 

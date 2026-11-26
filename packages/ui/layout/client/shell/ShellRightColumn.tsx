@@ -16,6 +16,7 @@ export function ShellRightColumn({
   compact,
   showPanel,
   rightPanelMaximized,
+  layoutMode = "chat-center",
   dragging,
   snapped,
   onStartResize,
@@ -29,6 +30,8 @@ export function ShellRightColumn({
   compact: boolean;
   showPanel: boolean;
   rightPanelMaximized: boolean;
+  /** 页面排版：预览区在左时工作台居中间列。 */
+  layoutMode?: "chat-center" | "preview-center";
   dragging: boolean;
   snapped: boolean;
   onStartResize: (side: ResizeSide, event: PointerEvent<HTMLDivElement>) => void;
@@ -41,7 +44,7 @@ export function ShellRightColumn({
       {!compact && showPanel && !rightPanelMaximized && (
         <SidebarResizeHandle
           side="right"
-          label={locale.resizeRightPanel}
+          label={layoutMode === "preview-center" ? locale.resizeChatPane : locale.resizeRightPanel}
           dragging={dragging}
           snapped={snapped}
           onStartResize={onStartResize}
@@ -62,6 +65,7 @@ export function ShellRightColumn({
           projectContext={projectContext}
           compact={compact}
           rightPanelMaximized={rightPanelMaximized}
+          layoutMode={layoutMode}
           onToggleMaximizeRightPanel={onToggleMaximize}
           onCollapseRightPanel={onClosePanel}
           onCloseDrawer={onClosePanel}

@@ -24,7 +24,14 @@ function AppearanceView({ locale, store }: { locale: ThemeLocaleMessages; store:
 
 function AccountThemeSwitcher({ locale, store }: { locale: ThemeLocaleMessages; store: AppearanceStore }) {
   const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
-  return <ThemeModeQuickSwitch locale={locale} store={store} mode={snapshot.config.mode} />;
+  return (
+    <ThemeModeQuickSwitch
+      locale={locale}
+      store={store}
+      mode={snapshot.config.mode}
+      resolvedScheme={snapshot.resolvedScheme}
+    />
+  );
 }
 
 /** 向工作台注册外观设置与快捷切换入口，按插件生命周期移除贡献。 */

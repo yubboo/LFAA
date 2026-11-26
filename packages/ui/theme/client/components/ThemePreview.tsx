@@ -11,6 +11,8 @@ export interface ThemePreviewSample {
   glass?: boolean;
   /** 深/浅底标记，供缩略图判断是否需要更轻的边框。 */
   scheme?: "light" | "dark";
+  /** 已解析的背景图 URL；有图时铺在取样底色上，并让面板变成半透明玻璃。 */
+  image?: string | null;
 }
 
 /**
@@ -38,14 +40,17 @@ export function ThemePreview({
     secondarySample ? styles.split : "",
     className ?? "",
   ].filter(Boolean).join(" ");
+  const hasImage = Boolean(sample.image || secondarySample?.image);
 
   return (
-    <div className={rootClass} style={style} aria-hidden="true">
+    <div className={rootClass} style={style} data-image={hasImage ? "true" : undefined} aria-hidden="true">
       <div className={secondarySample ? styles.half : styles.fill} style={secondarySample ? toStyle(sample) : undefined}>
+        <Backdrop sample={sample} />
         <MiniWindow compact={variant === "tile"} />
       </div>
       {secondarySample && (
         <div className={styles.half} style={toStyle(secondarySample)}>
+          <Backdrop sample={secondarySample} />
           <MiniWindow compact={variant === "tile"} />
         </div>
       )}
@@ -62,6 +67,15 @@ function toStyle(sample: ThemePreviewSample): CSSProperties {
     "--pv-accent": sample.accent,
     "--pv-glass": sample.glass ? "1" : "0",
   } as CSSProperties;
+}
+
+/** 背景图层：图片上叠一层取样底色的薄纱，图片层与面板之间不再垫实色。 */
+function Backdrop({ sample }: { sample: ThemePreviewSample }) {
+  return sample.image ? (
+    <span className={styles.backdrop}>
+      <img key={sample.image} className={styles.photo} src={sample.image} alt="" decoding="async" loading="lazy" />
+    </span>
+  ) : null;
 }
 
 /** 迷你窗口骨架：纯装饰，不承载交互与文案。 */

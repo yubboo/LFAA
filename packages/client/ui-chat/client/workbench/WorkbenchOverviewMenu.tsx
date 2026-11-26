@@ -3,7 +3,6 @@ import {
   IconCheck,
   IconChevronRight,
   IconCircleX,
-  IconFile,
   IconFileDiff,
   IconFolder,
   IconLoader2,
@@ -52,7 +51,6 @@ export function WorkbenchOverviewMenu({
   onToggleShowAllJobs,
   onToggleShowAllSubs,
   onTriggerReview,
-  onTriggerFiles,
   onTriggerTerminal,
   onTriggerSubagents,
   onStopJob,
@@ -75,7 +73,6 @@ export function WorkbenchOverviewMenu({
   onToggleShowAllJobs: () => void;
   onToggleShowAllSubs: () => void;
   onTriggerReview: () => void;
-  onTriggerFiles: () => void;
   onTriggerTerminal: (jobId?: string) => void;
   onTriggerSubagents: (subagentId?: string) => void;
   onStopJob: (jobId: string) => void;
@@ -175,10 +172,6 @@ export function WorkbenchOverviewMenu({
         </button>
       )}
       <div className={styles.overviewShortcuts} aria-label={isZh ? "工作台快捷操作" : "Workbench shortcuts"}>
-        <button type="button" className={styles.menuItem} onClick={onTriggerFiles}>
-          <IconFile size={15} aria-hidden="true" />
-          <span>{isZh ? "文件" : "Files"}</span>
-        </button>
         <button type="button" className={styles.menuItem} onClick={() => onTriggerTerminal()}>
           <IconTerminal2 size={15} aria-hidden="true" />
           <span>{isZh ? "终端" : "Terminal"}</span>

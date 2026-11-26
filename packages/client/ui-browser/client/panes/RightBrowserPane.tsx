@@ -1,5 +1,6 @@
 // 全高全宽内置浏览器视图：双引擎渲染（可嵌入页默认原生直连，拦截站与 Agent 实操自动切高清 Canvas 协同）。
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useVisibleInterval } from "@lfaa/ui-primitives/client";
 import { BrowserDevToolsDrawer, type DevToolsTab } from "./BrowserDevToolsDrawer";
 import { BrowserDeviceBar, BROWSER_DEVICE_PRESETS } from "./BrowserDeviceBar";
 import { BrowserTabs } from "./BrowserTabs";
@@ -163,13 +164,13 @@ export function RightBrowserPane({
     }
   }, [applySnap, devtoolsOpen, sessionId]);
 
+  // 原生直连且无 DevTools 打开且 Agent 未运行时无需每 2.2s 轮询，减少无谓请求与状态抖动。
+  // 轮询本身交给可见性 Hook：面板被起始页盖住或标签页在后台时不再触发。
+  const needsPolling = !((streamConnected || (effectiveMode === "native" && !agentRunning)) && !devtoolsOpen);
   useEffect(() => {
     void refresh();
-    // 原生直连且无 DevTools 打开且 Agent 未运行时无需每 2.2s 轮询，减少无谓请求与状态抖动。
-    if ((streamConnected || (effectiveMode === "native" && !agentRunning)) && !devtoolsOpen) return;
-    const timer = setInterval(() => void refresh(), 2200);
-    return () => clearInterval(timer);
-  }, [agentRunning, devtoolsOpen, effectiveMode, refresh, streamConnected]);
+  }, [refresh]);
+  useVisibleInterval(refresh, needsPolling ? 2200 : null);
 
   useEffect(() => {
     if (snap === null || !isDisplayableBrowserUrl(initialUrl) || !/^https?:\/\//iu.test(initialUrl) || initialUrl === lastNavInitRef.current) return;

@@ -1,0 +1,263 @@
+/* 连接器目录样式：搜索栏、筛选 chips、卡片网格、卡片状态与详情浮层；只消费 @lfaa/ui-theme 语义变量。 */
+
+.directoryBar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.7rem;
+}
+
+.search {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+.customMenu { position: relative; }
+
+.customMenu > summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.customMenu > summary::-webkit-details-marker { display: none; }
+
+.customList {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.35rem);
+  z-index: var(--z-popover);
+  display: grid;
+  gap: 0.1rem;
+  min-inline-size: 11rem;
+  padding: 0.35rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.8rem;
+  background: var(--color-popover);
+}
+
+.customList button {
+  padding: 0.45rem 0.6rem;
+  border: 0;
+  border-radius: 0.55rem;
+  background: none;
+  color: var(--color-ink);
+  font-size: 0.82rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.customList button:hover { background: var(--color-active); }
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.9rem;
+}
+
+.chip {
+  padding: 0.26rem 0.7rem;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.chip[data-active="true"] {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  background: var(--color-active);
+}
+
+.chipDivider {
+  inline-size: 1px;
+  block-size: 1rem;
+  margin: 0 0.2rem;
+  background: var(--color-line);
+}
+
+.cardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16.5rem, 1fr));
+  gap: 0.75rem;
+}
+
+.card {
+  position: relative;
+  padding: 0.95rem 1rem 0.85rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.9rem;
+  background: var(--color-panel);
+}
+
+.card[data-connected="true"] { border-color: var(--color-accent); }
+
+.cardBody {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cardGlyph {
+  display: grid;
+  place-items: center;
+  inline-size: 2.2rem;
+  block-size: 2.2rem;
+  border-radius: 0.65rem;
+  background: var(--color-active);
+  font-size: 1.15rem;
+}
+
+.cardName { font-size: 0.95rem; font-weight: 650; }
+
+.cardDesc {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.cardKind {
+  justify-self: start;
+  margin-top: 0.15rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 0.35rem;
+  background: var(--color-active);
+  color: var(--color-muted);
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+}
+
+.cardActions {
+  position: absolute;
+  right: 0.75rem;
+  bottom: 0.7rem;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.cardAdd {
+  inline-size: 1.9rem;
+  block-size: 1.9rem;
+  border: 1px solid var(--color-line);
+  border-radius: 50%;
+  background: var(--color-shell);
+  color: var(--color-ink);
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.cardAdd:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.cardMenu {
+  border: 0;
+  background: none;
+  color: var(--color-muted);
+  font-size: 0.95rem;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+}
+
+.cardSpin {
+  inline-size: 0.9rem;
+  block-size: 0.9rem;
+  border: 2px solid var(--color-line);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: connector-spin 0.8s linear infinite;
+}
+
+@keyframes connector-spin {
+  to { transform: rotate(360deg); }
+}
+
+.detail { inline-size: min(38rem, 100% - 2rem); }
+
+.detailHead {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+}
+
+.detailGlyph {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  inline-size: 2.8rem;
+  block-size: 2.8rem;
+  border-radius: 0.8rem;
+  background: var(--color-active);
+  font-size: 1.5rem;
+}
+
+.detailHead h2 { margin: 0 0 0.2rem; font-size: 1.1rem; }
+
+.dangerAction {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.detailSection {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.detailSection h3 {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.detailList {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.example {
+  display: block;
+  inline-size: 100%;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.55rem;
+  background: var(--color-panel);
+  color: var(--color-ink);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  text-align: left;
+  cursor: pointer;
+}
+
+.aboutGrid {
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr);
+  gap: 0.3rem 0.8rem;
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.aboutGrid dt { color: var(--color-muted); }
+
+.aboutGrid dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}

@@ -23,6 +23,7 @@ export function ShellWorkspace({
   rightDragCollapsed,
   onToggleLeft,
   onToggleRight,
+  showRightToggleAlways = false,
 }: {
   snapshot: WorkbenchSnapshot;
   locale: LocaleMessages;
@@ -39,8 +40,14 @@ export function ShellWorkspace({
   rightDragCollapsed: boolean;
   onToggleLeft: () => void;
   onToggleRight: () => void;
+/** 右侧收起/展开按钮是否常显：「预览区在左」时会话列在最右，需要始终可见。 */
+  showRightToggleAlways?: boolean;
 }) {
   const { activeView, activeProjectId, activeChatSessionId, leftSidebarOpen, rightPanelOpen, projects, views, chatSessions, projectProvider, workspaceActions, titleActions } = snapshot;
+  // 「预览区在左」下分屏才算展开：预览列收起时那枚开关应显示「展开」，点它先把分屏补回来。
+  const rightExpanded = snapshot.layoutMode === "preview-center"
+    ? rightPanelOpen && snapshot.previewPaneOpen
+    : rightPanelOpen;
   // 设置弹窗打开时 activeView 指向设置页，中央列改按背景视图渲染。
   const shownView = view ?? activeView;
   const registeredView = views.find((entry) => entry.id === shownView);
@@ -57,15 +64,15 @@ export function ShellWorkspace({
         : resolveViewLabel(shownView, locale, registeredView?.title);
 
   return (
-    <main className={styles.workspace} data-region={WORKBENCH_REGIONS[2]}>
+    <main className={styles.workspace} data-region={WORKBENCH_REGIONS[2]} data-pane="right">
       <WorkspaceBar
         locale={locale}
         title={title}
         leftOpen={leftSidebarOpen}
         leftDragCollapsed={leftDragCollapsed}
         hasRightColumn={hasRightColumn}
-        rightOpen={rightPanelOpen}
-        hideRightToggleWhenOpen={hasWorkbenchHost}
+        rightOpen={rightExpanded}
+        hideRightToggleWhenOpen={showRightToggleAlways ? false : hasWorkbenchHost}
         rightDragCollapsed={rightDragCollapsed}
         compact={isCompact}
         rightPanelMaximized={isRightMaximized}

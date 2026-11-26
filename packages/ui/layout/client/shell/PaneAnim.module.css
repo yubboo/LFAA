@@ -1,0 +1,25 @@
+/* 布局编排动画层：覆盖层只负责锁交互，两块面板就地固化后由 pane-anim.ts 补 transform。
+   颜色只消费 @lfaa/ui-theme 的语义变量，明暗主题共用。 */
+/* 覆盖层压在面板之下、其余界面之上：动画期间锁住不参与编排的区域（左一左二）。 */
+.layer {
+  position: absolute;
+  z-index: 50;
+  inset: 0;
+  touch-action: none;
+}
+
+/* 固化期的面板：脱离栅格流后仍保持旧几何，过渡与合成提示集中写在这里。
+   指针事件保持默认：transform 会带着命中区一起走，点到的就是看到的位置。 */
+.pane {
+  z-index: 51;
+  will-change: transform, opacity;
+}
+
+/* 铺满的那一块在变形期间只留底色：scaleX 会把文字与图标拉扁，内容等归位后再出现。 */
+.pane[data-anim-veil="true"] {
+  background: var(--color-panel);
+}
+
+.pane[data-anim-veil="true"] > * {
+  visibility: hidden;
+}

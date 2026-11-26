@@ -12,6 +12,7 @@ export function ContextPanel({
   projectContext,
   compact = false,
   rightPanelMaximized = false,
+  layoutMode = "chat-center",
   onToggleMaximizeRightPanel,
   onCollapseRightPanel,
   onCloseDrawer,
@@ -21,6 +22,8 @@ export function ContextPanel({
   projectContext: ReactNode | null;
   compact?: boolean;
   rightPanelMaximized?: boolean;
+  /** 页面排版：决定工作台在中间列（预览区在左）还是右侧列。 */
+  layoutMode?: "chat-center" | "preview-center";
   onToggleMaximizeRightPanel?: () => void;
   onCollapseRightPanel?: () => void;
   onCloseDrawer?: () => void;
@@ -39,6 +42,7 @@ export function ContextPanel({
           projectContext,
           compact,
           rightPanelMaximized,
+          layoutMode,
           onToggleMaximizeRightPanel: onToggleMaximizeRightPanel ?? (() => {}),
           onCollapseRightPanel: onCollapseRightPanel ?? onCloseDrawer ?? (() => {}),
           onCloseDrawer: onCloseDrawer ?? (() => {}),

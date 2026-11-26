@@ -16,6 +16,7 @@
     "probe:boot": "node --import tsx scripts/probe-boot.mjs",
     "verify:web": "node --import tsx scripts/verify-web.mts",
     "verify:hover-scroll": "node --import tsx scripts/verify-hover-scroll.mts",
+    "verify:stream-scroll": "node --import tsx scripts/verify-stream-scroll.mts",
     "ui:shot": "node --import tsx scripts/ui-shot.mts",
     "ui:shot:list": "node --import tsx scripts/ui-shot.mts --list",
     "verify:coordination": "node --import tsx scripts/verify-coordination.mts",

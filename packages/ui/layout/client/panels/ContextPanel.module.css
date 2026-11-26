@@ -5,7 +5,7 @@
   min-height: 0;
   grid-template-rows: var(--topbar-height, 3.5rem) minmax(0, 1fr);
   border-left: 1px solid var(--color-line);
-  background: var(--color-panel);
+  background: var(--color-column, var(--color-panel));
   background-image: var(--glass-sheen, none);
   backdrop-filter: blur(var(--glass-sidebar-blur, 0px)) saturate(var(--glass-sidebar-saturate));
   -webkit-backdrop-filter: blur(var(--glass-sidebar-blur, 0px)) saturate(var(--glass-sidebar-saturate));
@@ -22,10 +22,11 @@
   -webkit-backdrop-filter: none;
 }
 
-/* 背景图生效时，右工作台让出底色让启动页的半透明层透出图片；代码、浏览器等内容面板自带底色。 */
+/* 背景图生效时整列只在这里铺一层薄纱；右工作台与主舞台自身改为透明，
+   避免叠两层把图吃掉，也避免列内出现没铺到薄纱的窄缝。 */
 :global(html[data-app-bg-workspace="image"]) .panelWorkbench,
 :global(html[data-settings-open="true"][data-app-bg-settings="image"]) .panelWorkbench {
-  background: transparent;
+  background: var(--color-column, transparent);
 }
 
 .header {

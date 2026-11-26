@@ -4,6 +4,10 @@ import { isSettingsView, type WorkspaceMode } from "../navigation/navigation";
 export type BuiltinGroupName = "pinned" | "projects" | "recent";
 export type ProjectSortMode = "created" | "name";
 export type NavGroupExpandedPrefs = Partial<Record<BuiltinGroupName, boolean>>;
+/** 左二内容模式：会话列表，或项目工作区（文件树）。 */
+export type SidebarMode = "chats" | "project";
+/** 页面排版：聊天区在左（默认，中间会话 / 右侧预览），或预览区在左（中间预览 / 右侧会话）。 */
+export type LayoutMode = "chat-center" | "preview-center";
 
 /** 描述重新打开工作台时可恢复的最近视图和项目。 */
 export interface ActiveRoutePref {
@@ -14,6 +18,8 @@ export interface ActiveRoutePref {
 /** 这一组键持久化本机工作台的侧栏、路由、折叠和排序偏好。 */
 export const LEFT_SIDEBAR_STORAGE_KEY = "lfaa:left-sidebar-open";
 export const RIGHT_PANEL_STORAGE_KEY = "lfaa:right-panel-open";
+export const BOTTOM_PANEL_STORAGE_KEY = "lfaa:bottom-panel-open";
+export const PREVIEW_PANE_STORAGE_KEY = "lfaa:preview-pane-open";
 export const LEFT_SIDEBAR_WIDTH_STORAGE_KEY = "lfaa:left-sidebar-width";
 export const RIGHT_PANEL_WIDTH_STORAGE_KEY = "lfaa:right-panel-width";
 export const ACTIVE_ROUTE_STORAGE_KEY = "lfaa:active-route";
@@ -26,6 +32,9 @@ export const PROJECT_EXPANDED_KEY = "lfaa:project-expanded";
 export const ACTIVE_GROUP_STORAGE_KEY = "lfaa:active-group-key";
 export const PROJECT_SORT_STORAGE_KEY = "lfaa:project-sort";
 export const RECENT_SORT_STORAGE_KEY = "lfaa:recent-sort";
+export const SIDEBAR_MODE_STORAGE_KEY = "lfaa:sidebar-mode";
+export const LAYOUT_MODE_STORAGE_KEY = "lfaa:layout-mode";
+
 
 /** 读取并校验浏览器偏好，存储不可用或值无效时回退到给定默认值。 */
 export function readStoredJson<T>(
@@ -227,6 +236,34 @@ export function readRecentSortPref(): ProjectSortMode {
 /** 记录最近会话的排序偏好。 */
 export function writeRecentSortPref(sort: ProjectSortMode): void {
   writeStoredJson(RECENT_SORT_STORAGE_KEY, sort);
+}
+
+/** 恢复左二内容模式：会话列表或项目工作区；非法值回退为会话列表。 */
+export function readSidebarModePref(): SidebarMode {
+  return readStoredJson<SidebarMode>(
+    SIDEBAR_MODE_STORAGE_KEY,
+    "chats",
+    (val): val is SidebarMode => val === "chats" || val === "project",
+  );
+}
+
+/** 记录左二内容模式，刷新后仍停留在同一模式。 */
+export function writeSidebarModePref(mode: SidebarMode): void {
+  writeStoredJson(SIDEBAR_MODE_STORAGE_KEY, mode);
+}
+
+/** 恢复页面排版；非法值回退为聊天区在左（现状）。 */
+export function readLayoutModePref(): LayoutMode {
+  return readStoredJson<LayoutMode>(
+    LAYOUT_MODE_STORAGE_KEY,
+    "chat-center",
+    (val): val is LayoutMode => val === "chat-center" || val === "preview-center",
+  );
+}
+
+/** 记录页面排版，刷新后保持。 */
+export function writeLayoutModePref(mode: LayoutMode): void {
+  writeStoredJson(LAYOUT_MODE_STORAGE_KEY, mode);
 }
 
 /** 保留有效的侧栏宽度偏好，实际显示由当前桌面布局按比例约束。 */

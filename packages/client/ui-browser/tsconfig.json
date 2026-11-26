@@ -8,6 +8,7 @@
   "include": ["src"],
   "references": [
     { "path": "../../core/browser" },
-    { "path": "../../ui/layout" }
+    { "path": "../../ui/layout" },
+    { "path": "../../ui/primitives" }
   ]
 }

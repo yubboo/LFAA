@@ -1,5 +1,7 @@
 // 渲染工作区顶部栏：左侧栏展开/收起按钮、当前标题、本地模式状态、插件工作区快捷入口与右侧栏展开/收起按钮。
-import { PanelToggleButton } from "@lfaa/ui-primitives/client";
+import { CapsuleBar, PanelToggleButton } from "@lfaa/ui-primitives/client";
+import { formatShortcutKeys, readShortcutKeysFor } from "../shortcuts";
+import { defaultShortcutKeys } from "../shortcut-defaults";
 import type { ReactNode } from "react";
 import type { WorkbenchTitleActionContribution, WorkbenchWorkspaceActionContribution } from "../../contract/index";
 import type { LocaleMessages } from "../locales";
@@ -38,43 +40,51 @@ export function WorkspaceBar({
   onToggleLeft: () => void;
   onToggleRight: () => void;
 }) {
+  const leftHint = formatShortcutKeys(readShortcutKeysFor("global.toggle-left-sidebar", defaultShortcutKeys("global.toggle-left-sidebar"))) || undefined;
+  const rightHint = formatShortcutKeys(readShortcutKeysFor("global.toggle-right-panel", defaultShortcutKeys("global.toggle-right-panel"))) || undefined;
   return (
     <header className={styles.workspaceBar}>
-      <div className={styles.barGroup}>
-        <PanelToggleButton
-          side="left"
-          expanded={leftOpen && !leftDragCollapsed}
-          label={leftOpen ? locale.collapseLeftSidebar : locale.expandLeftSidebar}
-          onClick={onToggleLeft}
-        />
-        <span className={styles.barTitle}>{title}</span>
-        {titleActions.length > 0 && (
-          <span className={styles.barTitleActions}>
-            {titleActions.map((action) => (
-              <span key={action.id}>{action.render({ compact })}</span>
-            ))}
-          </span>
-        )}
-      </div>
-      <div className={styles.barGroup}>
-        <span className={styles.status} title={locale.ready}>
-          <span className={styles.statusDot} aria-hidden="true" />
-          <span className={styles.statusText}>{locale.ready}</span>
-        </span>
-        {workspaceActions.map((action) => (
-          <span key={action.id} className={styles.barActionSlot}>
-            {action.render({ compact, rightPanelOpen: rightOpen && !rightDragCollapsed, rightPanelMaximized })}
-          </span>
-        ))}
-        {hasRightColumn && (!hideRightToggleWhenOpen || !rightOpen || rightDragCollapsed) && (
+      {/* 与左二栏头部同一个胶囊外壳：中间区不再是一整条带底分割线的平栏。 */}
+      <CapsuleBar className={styles.barCapsule}>
+        <div className={styles.barGroup}>
           <PanelToggleButton
-            side="right"
-            expanded={rightOpen && !rightDragCollapsed}
-            label={rightOpen ? locale.collapseRightPanel : locale.expandRightPanel}
-            onClick={onToggleRight}
+            side="left"
+            expanded={leftOpen && !leftDragCollapsed}
+            label={leftOpen ? locale.collapseLeftSidebar : locale.expandLeftSidebar}
+            shortcut={leftHint}
+            onClick={onToggleLeft}
           />
-        )}
-      </div>
+          <span className={styles.barTitle}>{title}</span>
+          {titleActions.length > 0 && (
+            <span className={styles.barTitleActions}>
+              {titleActions.map((action) => (
+                <span key={action.id}>{action.render({ compact })}</span>
+              ))}
+            </span>
+          )}
+        </div>
+        <div className={styles.barGroup}>
+          <span className={styles.status} title={locale.ready}>
+            <span className={styles.statusDot} aria-hidden="true" />
+            <span className={styles.statusText}>{locale.ready}</span>
+          </span>
+          {workspaceActions.map((action) => (
+            <span key={action.id} className={styles.barActionSlot}>
+              {action.render({ compact, rightPanelOpen: rightOpen && !rightDragCollapsed, rightPanelMaximized })}
+            </span>
+          ))}
+          {hasRightColumn && (!hideRightToggleWhenOpen || !rightOpen || rightDragCollapsed) && (
+            <PanelToggleButton
+              side="right"
+              expanded={rightOpen && !rightDragCollapsed}
+              label={rightOpen ? locale.collapseRightPanel : locale.expandRightPanel}
+              shortcut={rightHint}
+              onClick={onToggleRight}
+            />
+          )}
+        </div>
+      </CapsuleBar>
     </header>
   );
 }
+

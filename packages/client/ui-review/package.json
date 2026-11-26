@@ -1,45 +1,45 @@
 {
-    "name":  "@lfaa/client-ui-review",
-    "description":  "LFAA 代码审查功能包：内置 Git 变更操作、编码设置与代码审查工作台，含审查报告 Host 服务。（浏览器半，已从 @lfaa/review 拆出）。",
-    "version":  "0.1.0",
-    "type":  "module",
-    "main":  "./lib/index.js",
-    "types":  "./lib/types/index.d.ts",
-    "exports":  {
-                    ".":  {
-                              "types":  "./lib/types/index.d.ts",
-                              "default":  "./lib/index.js"
-                          },
-                    "./src/*":  "./src/*",
-                    "./client":  "./client/index.tsx",
-                    "./package.json":  "./package.json"
-                },
-    "files":  [
-                  "lib",
-                  "src",
-                  "client"
-              ],
-    "publishConfig":  {
-                          "access":  "public"
-                      },
-    "repository":  {
-                       "type":  "git",
-                       "url":  "git+https://github.com/yubboo/LFAA.git",
-                       "directory":  "packages/client/ui-review"
-                   },
-    "scripts":  {
-                    "typecheck":  "tsc -b ."
-                },
-    "dependencies":  {
-                         "@deepseek-ai/cordis":  "^4.1.0",
-                         "@lfaa/client-ui-chat":  "workspace:*",
-                         "@lfaa/ui-layout":  "workspace:*",
-                         "@lfaa/ui-primitives":  "workspace:*",
-                         "@tabler/icons-react":  "^3.35.0",
-                         "react":  "^19.1.0"
-                     },
-    "devDependencies":  {
-                            "@types/react":  "^19.3.0",
-                            "typescript":  "^5.9.3"
-                        }
+  "name": "@lfaa/client-ui-review",
+  "description": "LFAA 代码审查功能包：内置 Git 变更操作、编码设置与代码审查工作台，含审查报告 Host 服务。（浏览器半，已从 @lfaa/review 拆出）。",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./lib/index.js",
+  "types": "./lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./src/*": "./src/*",
+    "./client": "./client/index.tsx",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "src",
+    "client"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yubboo/LFAA.git",
+    "directory": "packages/client/ui-review"
+  },
+  "scripts": {
+    "typecheck": "tsc -b ."
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "^4.1.0",
+    "@lfaa/client-ui-chat": "workspace:*",
+    "@lfaa/ui-layout": "workspace:*",
+    "@lfaa/ui-primitives": "workspace:*",
+    "@tabler/icons-react": "^3.35.0",
+    "react": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "typescript": "^5.9.3"
+  }
 }

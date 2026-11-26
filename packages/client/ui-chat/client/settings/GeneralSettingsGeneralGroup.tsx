@@ -1,7 +1,7 @@
 // 渲染设置中心「常规」页的主体分组：位置、运行环境、界面、历史与性能、启动与扩展；每组只放同类设置。
 import { IconAppWindow, IconCode, IconFolderFilled, IconTerminal2 } from "@tabler/icons-react";
 import { middleTruncatePath, type GeneralSettingsConfig, type ReasoningLevelOption } from "./general-settings-client";
-import { HoverTip, SettingGroup, SettingMultiSelect, SettingRow, SettingSelect, SettingSwitch } from "@lfaa/ui-primitives/client";
+import { HoverTip, SettingGroup, SettingMultiSelect, SettingRow, SettingSegmented, SettingSelect, SettingSwitch } from "@lfaa/ui-primitives/client";
 import { settingsStyles as styles } from "@lfaa/ui-primitives/client";
 
 const REASONING_OPTIONS: ReadonlyArray<{ value: ReasoningLevelOption; zh: string; en: string }> = [
@@ -16,6 +16,8 @@ const REASONING_OPTIONS: ReadonlyArray<{ value: ReasoningLevelOption; zh: string
 export function GeneralSettingsGeneralGroup({
   isZh,
   cfg,
+  layoutMode,
+  onLayoutModeChange,
   onPatch,
   onPickOutsideFolder,
   onPickDefaultProjectsFolder,
@@ -24,6 +26,9 @@ export function GeneralSettingsGeneralGroup({
 }: {
   isZh: boolean;
   cfg: GeneralSettingsConfig;
+  /** 页面排版：聊天区在左（默认）或预览区在左。 */
+  layoutMode: "chat-center" | "preview-center";
+  onLayoutModeChange: (mode: "chat-center" | "preview-center") => void;
   onPatch: (patch: Partial<GeneralSettingsConfig>) => void;
   onPickOutsideFolder: () => void;
   onPickDefaultProjectsFolder: () => void;
@@ -35,6 +40,28 @@ export function GeneralSettingsGeneralGroup({
 
   return (
     <>
+      <SettingGroup title={isZh ? "页面排版" : "Page layout"}>
+        <SettingRow
+          title={isZh ? "布局方向" : "Layout direction"}
+          description={
+            isZh
+              ? "预览区在左：中间显示代码，右侧是 AI 会话（类似 VS Code / Cursor）；聊天区在左：中间是 AI 会话，右侧是预览区。"
+              : "Preview left: code in the center, AI chat on the right (VS Code / Cursor style). Chat left: chat in the center, preview on the right."
+          }
+          control={(
+            <SettingSegmented
+              value={layoutMode}
+              label={isZh ? "页面排版" : "Page layout"}
+              options={[
+                { value: "preview-center", label: isZh ? "预览区在左" : "Preview left" },
+                { value: "chat-center", label: isZh ? "聊天区在左" : "Chat left" },
+              ]}
+              onChange={onLayoutModeChange}
+            />
+          )}
+        />
+      </SettingGroup>
+
       <SettingGroup title={isZh ? "位置" : "Locations"}>
         <SettingRow
           title={isZh ? "默认工作区" : "Default workspace"}

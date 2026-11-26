@@ -25,6 +25,7 @@ import type { WorkbenchChatSessionSummary, WorkbenchProjectItem, WorkbenchSectio
 import type { ChatClientStore } from "../store/chat-store";
 import type { SessionAnchorRect, SessionMenuStore } from "./session-menu-store";
 import { copyTextSafe, CopySubmenu, ForkSubmenu, ProjectSubmenu, SectionSubmenu } from "./SessionSubmenu";
+import { shortcutHint } from "@lfaa/ui-layout/client";
 import styles from "./SessionActionMenu.module.css";
 
 type SubmenuKind = "project" | "section" | "fork" | "copy" | null;
@@ -120,7 +121,7 @@ export function SessionActionMenu({
         <span className={styles.label}>
           {session.unread ? (isZh ? "标为已读" : "Mark read") : (isZh ? "标记为未读" : "Mark unread")}
         </span>
-        <span className={styles.shortcut}>Ctrl+Shift+U</span>
+        {shortcutHint("session.mark-unread") && <span className={styles.shortcut}>{shortcutHint("session.mark-unread")}</span>}
       </button>
 
       <button type="button" className={styles.item} role="menuitem" onClick={() => {
@@ -274,7 +275,7 @@ export function SessionActionMenu({
       >
         {session.archived ? <IconArchiveOff aria-hidden="true" /> : <IconArchive aria-hidden="true" />}
         <span className={styles.label}>{session.archived ? (isZh ? "取消归档" : "Unarchive") : (isZh ? "归档" : "Archive")}</span>
-        <span className={styles.shortcut}>Ctrl+Shift+A</span>
+        {shortcutHint("session.archive") && <span className={styles.shortcut}>{shortcutHint("session.archive")}</span>}
       </button>
 
       <button

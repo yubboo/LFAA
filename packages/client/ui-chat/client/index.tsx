@@ -5,14 +5,20 @@ import "@lfaa/ui-layout/client";
 import { ChatClientStore } from "./store/chat-store";
 import { RightWorkbenchActions } from "./workbench/RightWorkbenchActions";
 import { RightWorkbenchPane } from "./workbench/RightWorkbenchPane";
+import { ProjectWorkspacePane } from "./workbench/ProjectWorkspacePane";
 import { AgentSettingsView } from "./settings/AgentSettingsView";
 import { ChatWorkspace } from "./conversation/ChatWorkspace";
+import { registerTerminalDock } from "./workbench/terminal-dock";
+
 import { GeneralSettingsView } from "./settings/GeneralSettingsView";
 import { NotificationSettingsView } from "./settings/NotificationSettingsView";
+import { ShortcutsSettingsView } from "./settings/ShortcutsSettingsView";
+import { TerminalSettingsView } from "./settings/TerminalSettingsView";
 import { SessionOverlays } from "./session/SessionOverlays";
 import { SessionModeTitleAction } from "./composer/SessionModeBar";
 import { SessionRowActions } from "./session/SessionRowActions";
 import { getChatLocale } from "./locales";
+import { registerChatShortcuts } from "./shortcut-actions";
 import { SessionMenuStore } from "./session/session-menu-store";
 
 export { ChatClientStore } from "./store/chat-store";
@@ -36,8 +42,13 @@ export const chatClientPlugin: Plugin.Object<void> = {
   inject: ["workbench"],
   apply(context: Context) {
     const store = new ChatClientStore();
+    // 稳定持有工作台服务引用：Cordis 服务访问器每次取值可能返回新的代理，传进组件会击穿 effect 依赖。
+    const workbench = context.workbench;
     const menuStore = new SessionMenuStore();
     const locale = getChatLocale();
+    // 底部终端面板：注册失败不影响聊天视图，注销由 effect 兜底。
+    const unregisterBottomTerminal = registerTerminalDock(workbench, store, locale);
+    context.effect(() => () => unregisterBottomTerminal());
     // 同领域客户端包通过服务拿到同一份会话状态，避免各自再建一份。
     const disposeChatStore = context.provide("chatStore", store);
 
@@ -140,6 +151,30 @@ export const chatClientPlugin: Plugin.Object<void> = {
           sections={sections}
         />
       ),
+      // 左二「项目工作区」：把同一棵工作区文件树注入左栏，避免布局包直接依赖聊天 store。
+      renderProjectWorkspace: ({ projectId }) => {
+        const chatSnap = store.getSnapshot();
+        const wbSnap = context.workbench.getSnapshot();
+        const boundId = projectId ?? chatSnap.activeSession?.projectId ?? chatSnap.draftProjectId ?? null;
+        const boundName = boundId ? (wbSnap.projects.find((item) => item.id === boundId)?.name ?? null) : null;
+        return (
+          <ProjectWorkspacePane
+            store={store}
+            projectId={boundId}
+            projectName={boundName}
+            worktreeId={chatSnap.activeSession?.worktree?.id ?? chatSnap.draftWorktree?.id}
+            isZh={locale.isZh}
+            ensurePanelOpen={() => context.workbench.setRightPanelOpen(true, false)}
+          />
+        );
+      },
+    });
+
+    // 会话与右栏动作注册：只登记真实可执行的功能，键位由设置中心统一改写。
+    const unregisterShortcuts = registerChatShortcuts({
+      workbench,
+      store,
+      closeSessionMenus: () => menuStore.closeAll(),
     });
 
     // 稳定回调引用：避免 WorkbenchShell 刷新时重建内联函数击穿长对话 ChatMessageRow 的 React.memo。
@@ -204,13 +239,32 @@ export const chatClientPlugin: Plugin.Object<void> = {
     const unregisterGeneralView = context.workbench.registerView({
       id: "settings:general",
       title: locale.isZh ? "常规" : "General",
-      render: () => <GeneralSettingsView locale={getChatLocale()} store={store} />,
+      render: () => {
+        const wbSnap = context.workbench.getSnapshot();
+        return (
+          <GeneralSettingsView
+            locale={getChatLocale()}
+            store={store}
+            layoutMode={wbSnap.layoutMode}
+            onLayoutModeChange={(mode) => context.workbench.setLayoutMode(mode)}
+          />
+        );
+      },
     });
 
     const unregisterNotificationView = context.workbench.registerView({
       id: "settings:notifications",
       title: locale.isZh ? "通知" : "Notifications",
       render: () => <NotificationSettingsView locale={getChatLocale()} store={store} />,
+    });
+
+
+    const unregisterTerminalView = context.workbench.registerView({ id: "settings:terminal", title: locale.isZh ? "终端" : "Terminal", render: () => <TerminalSettingsView isZh={locale.isZh} workbench={workbench} /> });
+
+    const unregisterShortcutsView = context.workbench.registerView({
+      id: "settings:shortcuts",
+      title: locale.isZh ? "键盘快捷键" : "Keyboard shortcuts",
+      render: () => <ShortcutsSettingsView locale={getChatLocale()} workbench={workbench} />,
     });
 
     const unregisterContextPanel = context.workbench.registerContextPanel({
@@ -228,10 +282,16 @@ export const chatClientPlugin: Plugin.Object<void> = {
         const boundId = chatSnap.activeSession?.projectId ?? chatSnap.draftProjectId ?? wbSnap.activeProjectId;
         const boundName = boundId ? (wbSnap.projects.find((p) => p.id === boundId)?.name ?? null) : null;
         const boundWorktreeId = chatSnap.activeSession?.worktree?.id ?? chatSnap.draftWorktree?.id;
+        const previewCenter = renderCtx?.layoutMode === "preview-center";
+        const collapseWorkbench = () => {
+          store.pauseAutopilotForCurrentRun();
+          renderCtx?.onCollapseRightPanel?.();
+        };
         return (
           <RightWorkbenchPane
             locale={locale}
             store={store}
+            workbench={workbench}
             boundProjectId={boundId}
             boundProjectName={boundName}
             boundWorktreeId={boundWorktreeId}
@@ -239,12 +299,14 @@ export const chatClientPlugin: Plugin.Object<void> = {
             utilityPanels={renderCtx?.utilityPanels}
             projectContext={renderCtx?.projectContext}
             compact={renderCtx?.compact}
+            layoutMode={renderCtx?.layoutMode ?? "chat-center"}
             rightPanelMaximized={renderCtx?.rightPanelMaximized}
             onToggleMaximizeRightPanel={renderCtx?.onToggleMaximizeRightPanel}
-            onCollapseRightPanel={() => {
-              store.pauseAutopilotForCurrentRun();
-              renderCtx?.onCollapseRightPanel?.();
-            }}
+            hideCollapse={previewCenter && wbSnap.rightPanelOpen}
+            // 预览区在左时最右一列是会话列：这枚按钮仍按「谁在最右就管谁」切换它。
+            onCollapseRightPanel={previewCenter ? () => context.workbench.toggleRightPanel() : collapseWorkbench}
+            // 关掉预览列最后一个标签：收起预览列，把整片宽度让给会话列。
+            onLastTabClose={previewCenter ? () => context.workbench.setPreviewPaneOpen(false) : collapseWorkbench}
             onCloseDrawer={() => {
               store.pauseAutopilotForCurrentRun();
               renderCtx?.onCloseDrawer?.();
@@ -279,15 +341,18 @@ export const chatClientPlugin: Plugin.Object<void> = {
         if (!showHere || actionCtx.compact || actionCtx.rightPanelMaximized) return null;
         const chatSnap = store.getSnapshot();
         const boundId = chatSnap.activeSession?.projectId ?? chatSnap.draftProjectId ?? wbSnap.activeProjectId;
+        // 预览区在左时顶栏只留一枚侧面板开关（由 WorkspaceBar 的最右端那颗承担），这里不再重复。
+        const previewCenter = wbSnap.layoutMode === "preview-center";
         return (
           <RightWorkbenchActions
-            variant="sessionOnly"
+            variant={previewCenter ? "full" : "sessionOnly"}
             isZh={locale.isZh}
             store={store}
             projectId={boundId}
             projectName={wbSnap.projects.find((project) => project.id === boundId)?.name}
             onEnsureRightPanelOpen={() => context.workbench.setRightPanelOpen(true)}
             onOpenExtensions={() => context.workbench.navigate("plugins")}
+            onToggleMaximize={() => context.workbench.toggleRightPanelMaximized()}
           />
         );
       },
@@ -318,10 +383,12 @@ export const chatClientPlugin: Plugin.Object<void> = {
       unregisterTitleAction();
       unregisterContextPanel();
       unregisterNotificationView();
+      unregisterShortcutsView();
       unregisterGeneralView();
       unregisterConfigView();
       unregisterWorkspace();
       unregisterProvider();
+      for (const dispose of unregisterShortcuts) dispose();
       unsubscribeAutopilotExpand();
       menuStore.dispose();
       store.dispose();
@@ -329,3 +396,4 @@ export const chatClientPlugin: Plugin.Object<void> = {
     });
   },
 };
+

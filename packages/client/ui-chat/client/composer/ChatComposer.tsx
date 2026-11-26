@@ -5,10 +5,10 @@ import { HoverTip } from "@lfaa/ui-primitives/client";
 import type { ChatClientStore } from "../store/chat-store";
 import { mediaChatMessages } from "@lfaa/client-ui-tool-media/client";
 import type { ChatLocaleMessages } from "../locales";
-import type { ChatMessageItem, ChatSessionDetail, ChatStoreSnapshot } from "../store/chat-types";
+import type { ChatMessageItem, ChatSessionDetail } from "../store/chat-types";
 import { useComposerAttachInput, useComposerAutoGrow } from "./useComposerInput";
 import { handleComposerKeydown } from "./composer-keyboard";
-import type { useChatComposer } from "./useChatComposer";
+import type { ComposerStoreSlice, useChatComposer } from "./useChatComposer";
 import { ClarificationCard } from "../conversation/Clarification-Card";
 import { ComposerAddMenu } from "./ComposerAddMenu";
 import { ComposerAttachmentChip } from "./ComposerAttachmentChip";
@@ -63,7 +63,7 @@ export function ChatComposer({
 }: {
   locale: ChatLocaleMessages;
   store: ChatClientStore;
-  state: ChatStoreSnapshot;
+  state: ComposerStoreSlice;
   composer: ReturnType<typeof useChatComposer>;
   projects: WorkbenchProjectItem[];
   /** 「聊天」只留对话入口；「工作」才展开项目、文件、权限与会话模式。 */

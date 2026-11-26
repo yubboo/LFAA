@@ -1,9 +1,9 @@
-/* 左二栏会话窗口控件：整行弱边框按钮，与真实会话行区分；悬停沿用列表激活底色。
-   `button.` 前缀提高选择器权重，确保拆到独立模块后仍覆盖列表行的透明边框与默认行高。 */
+/* 左二栏会话窗口控件（展开其余 / 收起）：与真实会话行同高同内缘的弱化行，
+   不描边、不抬高，避免在列表中间切出一条"另一种盒子"。悬停沿用列表激活底色。 */
 button.moreButton {
-  min-height: 2rem;
-  margin-top: 0.1rem;
-  border-color: var(--color-line);
+  min-height: 2.2rem;
+  margin-top: 0;
+  border-color: transparent;
   color: var(--color-muted);
-  font-size: 0.85em;
+  font-size: 0.9em;
 }

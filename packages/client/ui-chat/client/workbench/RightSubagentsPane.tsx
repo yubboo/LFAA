@@ -1,6 +1,7 @@
 // 右栏「子智能体与多 Agent 协作」面板：实时展示子智能体角色、状态、步骤数与输出结论。
 import { useCallback, useEffect, useState } from "react";
 import { IconCheck, IconCircleX, IconClock, IconPlayerStop, IconRobot } from "@tabler/icons-react";
+import { useVisibleInterval } from "@lfaa/ui-primitives/client";
 import styles from "./AgentContextPanel.module.css";
 
 export interface RightSubagentItem {
@@ -48,9 +49,9 @@ export function RightSubagentsPane({
 
   useEffect(() => {
     void loadSubagents();
-    const timer = setInterval(() => void loadSubagents(), 1600);
-    return () => clearInterval(timer);
   }, [loadSubagents]);
+  // 后台标签页不轮询子智能体列表，回前台立即补一次。
+  useVisibleInterval(loadSubagents, 1600);
 
   const handleStop = async (id: string) => {
     await fetch(`/api/subagents/${encodeURIComponent(id)}/stop`, { method: "POST" }).catch(() => {});

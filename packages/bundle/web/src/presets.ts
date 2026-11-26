@@ -26,8 +26,10 @@ export const CORE_MODULES: readonly string[] = [
   "@lfaa/session-title",
   "@lfaa/commands",
   "@lfaa/tool-media",
+  "@lfaa/terminal",
   "@lfaa/skills",
   "@lfaa/mcp",
+  "@lfaa/connectors",
   "@lfaa/plugins",
   "@lfaa/agent",
   "@lfaa/chat",
@@ -39,6 +41,7 @@ export const OPTIONAL_MODULES: readonly string[] = [
   "@lfaa/browser",
   "@lfaa/jobs",
   "@lfaa/subagent",
+  "@lfaa/crew",
 ];
 
 /** 可选模式标识。 */
@@ -67,7 +70,7 @@ export const PRESETS: readonly Preset[] = [
     description: { zh: "完整工作模式，支持技能、浏览器、后台任务和子智能体协作。", en: "Full workspace mode with skills, browser, jobs, and subagents." },
     sessionModules: [
       "@lfaa/agent", "@lfaa/tools", "@lfaa/llm", "@lfaa/rules",
-      "@lfaa/memory", "@lfaa/skills", "@lfaa/browser", "@lfaa/jobs", "@lfaa/subagent", "@lfaa/web", "@lfaa/tool-todo", MEDIA_MODULE, "@lfaa/mcp",
+      "@lfaa/memory", "@lfaa/skills", "@lfaa/browser", "@lfaa/jobs", "@lfaa/subagent", "@lfaa/crew", "@lfaa/web", "@lfaa/tool-todo", MEDIA_MODULE, "@lfaa/mcp", "@lfaa/connectors",
     ],
   },
   {
@@ -89,7 +92,7 @@ export const PRESETS: readonly Preset[] = [
     description: { zh: "适合生成内容与产物，包含网页、技能和后台任务。", en: "Create content and artifacts with web, skills, and background jobs." },
     sessionModules: [
       "@lfaa/agent", "@lfaa/tools", "@lfaa/llm", "@lfaa/rules",
-      "@lfaa/memory", "@lfaa/skills", "@lfaa/browser", "@lfaa/jobs", "@lfaa/web", "@lfaa/tool-todo", MEDIA_MODULE, "@lfaa/mcp",
+      "@lfaa/memory", "@lfaa/skills", "@lfaa/browser", "@lfaa/jobs", "@lfaa/web", "@lfaa/tool-todo", MEDIA_MODULE, "@lfaa/mcp", "@lfaa/connectors",
     ],
   },
 ];
@@ -102,14 +105,19 @@ export function normalizeModules(modules: readonly string[]): readonly string[] 
   return [...new Set(modules.map((name) => normalizeModuleName(name)))];
 }
 
-/** 为沿用默认标准或创造预设的旧会话补齐新内置模块，保留自定义列表。 */
+/** 连接与媒体模块：旧会话保存的清单里可能还没有它们，读取时补齐，保证设置里连上的连接器在旧会话也能用。 */
+const ADDITIVE_MODULES = [MEDIA_MODULE, "@lfaa/mcp", "@lfaa/connectors"] as const;
+
+/** 为沿用默认标准或创造预设的旧会话补齐后加模块，保留自定义列表与用户去掉的其它模块。 */
 export function resolveLegacySessionModules(presetId: string | undefined, modules: readonly string[]): readonly string[] {
   const normalized = normalizeModules(modules);
   if (presetId !== "standard" && presetId !== "creative") return normalized;
   const defaults = resolvePreset(presetId).sessionModules;
-  const original = defaults.filter((name) => name !== MEDIA_MODULE && name !== "@lfaa/mcp");
-  return original.every((name) => normalized.includes(name)) && normalized.every((name) => defaults.includes(name))
-    ? defaults : normalized;
+  // 含自定义模块的列表原样保留；只处理完全由内置模块组成的旧会话。
+  if (!normalized.every((name) => defaults.includes(name))) return normalized;
+  const upgraded = new Set(normalized);
+  for (const name of ADDITIVE_MODULES) if (defaults.includes(name)) upgraded.add(name);
+  return defaults.filter((name) => upgraded.has(name));
 }
 
 /** 按 id 取预设；未知 id 回退到标准模式。 */

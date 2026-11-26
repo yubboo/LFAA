@@ -50,3 +50,11 @@ test("三栏视图不渲染右栏切换按钮", () => {
   const markup = renderToStaticMarkup(createElement(WorkspaceBar, { ...baseProps, hasRightColumn: false }));
   assert.doesNotMatch(markup, /data-side="right"/u);
 });
+
+test("顶栏复用共享胶囊外壳，不再是一条自带底分割线的平栏", () => {
+  const markup = renderToStaticMarkup(createElement(WorkspaceBar, baseProps));
+  // 胶囊本体来自 @lfaa/ui-primitives 的 CapsuleBar，这里只挂栏位专用的内边距类。
+  assert.match(markup, /<header class="workspaceBar"><div class="capsule barCapsule">/u);
+  // 左右两组动作仍各自成组，胶囊负责两端分布。
+  assert.equal(markup.match(/class="barGroup"/gu)?.length, 2);
+});

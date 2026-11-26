@@ -1,12 +1,10 @@
 // 渲染设置中心「模型与规则」页：模型提供商网格、规则与长期记忆；表单按上下排字段组织，删除动作单独成组。
 import { useEffect, useState, useSyncExternalStore } from "react";
 import {
-  SettingDangerGroup,
   SettingFormActions,
   SettingFormBlock,
   SettingFormField,
   SettingGroup,
-  SettingRow,
   SettingsPage,
   StatusBanner,
   settingsStyles as baseStyles,
@@ -18,6 +16,7 @@ import { getProviderPlans } from "../models/provider-plans";
 import { ModelProviderGrid } from "../models/ModelProviderGrid";
 import { ModelProviderModal } from "../models/ModelProviderModal";
 import { ProviderAccess } from "../models/Provider-Access";
+import { MemoryPanel } from "./MemoryPanel";
 import styles from "./AgentSettingsView.module.css";
 
 type SettingsTab = "models" | "rules" | "memory";
@@ -47,8 +46,7 @@ export function AgentSettingsView({
   // 规则与记忆表单
   const userRuleDoc = state.rules.find((r) => r.layer === "user");
   const [userRulesDraft, setUserRulesDraft] = useState(userRuleDoc?.content ?? "");
-  const [memoryDraft, setMemoryDraft] = useState("");
-  const [memoryScope, setMemoryScope] = useState<"global" | "project">("global");
+
 
   useEffect(() => {
     setUserRulesDraft(userRuleDoc?.content ?? "");
@@ -171,74 +169,14 @@ export function AgentSettingsView({
       )}
 
       {tab === "memory" && (
-        <>
-          <SettingGroup
-            title={locale.addMemory}
-            description={locale.isZh
-              ? "长期记忆会在之后的对话中自动带入；按作用域区分全局与当前项目。"
-              : "Long-term memories are injected into later turns, scoped globally or per project."}
-          >
-            <SettingFormField label={locale.isZh ? "记忆内容" : "Memory"}>
-              <input
-                className={baseStyles.input}
-                value={memoryDraft}
-                onChange={(e) => setMemoryDraft(e.target.value)}
-                placeholder={locale.addMemoryPlaceholder}
-              />
-            </SettingFormField>
-            <SettingFormField label={locale.isZh ? "作用域" : "Scope"}>
-              <select
-                className={baseStyles.input}
-                value={memoryScope}
-                onChange={(e) => setMemoryScope(e.target.value === "project" ? "project" : "global")}
-              >
-                <option value="global">{locale.globalScope}</option>
-                {boundProjectId && <option value="project">{locale.projectScope}</option>}
-              </select>
-            </SettingFormField>
-            <SettingFormActions>
-              <button
-                type="button"
-                className={baseStyles.primaryBtn}
-                disabled={!memoryDraft.trim()}
-                onClick={() => {
-                  const text = memoryDraft.trim();
-                  setMemoryDraft("");
-                  void store.addLongTermMemory({
-                    content: text,
-                    scope: memoryScope,
-                    projectId: memoryScope === "project" ? boundProjectId : null,
-                  });
-                }}
-              >
-                {locale.addMemory}
-              </button>
-            </SettingFormActions>
-          </SettingGroup>
-
-          {state.memories.length === 0 ? (
-            <p className={baseStyles.pageDesc}>{locale.emptyMemories}</p>
-          ) : (
-            <SettingDangerGroup title={locale.isZh ? "删除记忆" : "Delete memories"}>
-              {state.memories.map((mem) => (
-                <SettingRow
-                  key={mem.id}
-                  title={mem.content}
-                  description={mem.scope === "project" ? locale.projectScope : locale.globalScope}
-                  control={(
-                    <button
-                      type="button"
-                      className={baseStyles.dangerBtn}
-                      onClick={() => void store.removeLongTermMemory(mem.id)}
-                    >
-                      {locale.deleteMemory}
-                    </button>
-                  )}
-                />
-              ))}
-            </SettingDangerGroup>
-          )}
-        </>
+        <MemoryPanel
+          locale={locale}
+          store={store}
+          memories={state.memories}
+          stats={state.memoryStats}
+          boundProjectId={boundProjectId}
+          onNotice={setStatusNote}
+        />
       )}
     </SettingsPage>
   );

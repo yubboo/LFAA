@@ -5,7 +5,8 @@
   min-height: 0;
   flex: 1 1 auto;
   flex-direction: column;
-  gap: 0.75rem;
+  /* 顶部「新聊天」与第一个分组之间也走组距，左二栏只保留行距与组距两种节奏。 */
+  gap: 1.15rem;
   overflow: hidden;
 }
 
@@ -59,11 +60,11 @@
   flex: 1 1 auto;
   overflow-y: auto;
   overflow-x: hidden;
-  /* 右侧常驻滚动条槽；滚动条与分隔线留 --pane-scrollbar-gap（2px，与会话栏同口径），
-     让位量用等量右内边距补回，列表内容右缘不动。 */
+  /* 右侧常驻滚动条槽；滚动条与分隔线只留 --pane-scrollbar-gap（2px），不再叠加右内边距，
+     列表内容右缘因此与顶部「新聊天」落在同一内缘。 */
   scrollbar-gutter: stable;
   margin-inline-end: var(--pane-scrollbar-gap, 2px);
-  padding: 0.1rem var(--pane-scrollbar-gap, 2px) 0.65rem 0.55rem;
+  padding: 0 0 0.65rem 0.55rem;
 }
 
 .group {
@@ -106,7 +107,7 @@
   flex: 1 1 auto;
   align-items: center;
   gap: 0.45rem;
-  padding: 0 0.6rem;
+  padding: 0 0.65rem;
   border: 0;
   border-radius: 0.6rem;
   background: transparent;
@@ -128,7 +129,7 @@
 
 .sectionTitle {
   margin: 0;
-  padding: 0.15rem 0.6rem;
+  padding: 0.15rem 0.65rem;
   color: var(--color-muted);
   font-size: 0.85em;
   font-weight: 500;
@@ -150,7 +151,7 @@
   align-items: center;
   gap: 0.6rem;
   padding: 0 0.65rem;
-  border: 1px solid transparent;
+  border: 0;
   border-radius: 0.6rem;
   background: transparent;
   color: var(--color-muted);
@@ -170,8 +171,8 @@
 .item:focus-visible, .itemMain:focus-visible { outline: none; }
 .item:focus-visible, .itemRow:has(.itemMain:focus-visible) { background: var(--color-active); color: var(--color-ink); }
 
-/* 子级行（项目内会话、展开控件）与项目行共用同一条标题列：左内边距 = 行边框 1px + 图标左内边距 0.65rem
-   + 图标宽 1rem + 图标与标题间距 0.6rem，标题因此与项目名左端逐像素对齐，缩进不再把标题挤到父级左侧。 */
+/* 子级行（项目内会话、展开控件）与项目行共用同一条标题列：左内边距 = 行内边距 0.65rem + 图标 1rem + 间距 0.6rem，
+   标题因此与项目名左端逐像素对齐，缩进不会把标题挤到父级左侧。 */
 .itemNested.item {
   padding-left: 2.25rem;
 }
@@ -189,7 +190,7 @@
   align-items: center;
   gap: 0.25rem;
   padding-right: 0.3rem;
-  border: 1px solid transparent;
+  border: 0;
   border-radius: 0.6rem;
   background: transparent;
   color: var(--color-muted);
@@ -356,7 +357,7 @@
   align-items: center;
   gap: 0.6rem;
   padding: 0 0.65rem;
-  border: 1px solid transparent;
+  border: 0;
   border-radius: 0.6rem;
   background: transparent;
   color: var(--color-muted);

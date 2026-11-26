@@ -28,6 +28,11 @@ export class SubagentService extends Service {
     });
   }
 
+  /** 供编排层（如 @lfaa/crew）按任务直接调用，与 invoke_subagent 工具共用同一执行路径。 */
+  async invoke(input: InvokeSubagentInput): Promise<SubagentSummaryItem> {
+    return this.coordinator.invoke(input);
+  }
+
   private registerAgentTools(): () => void {
     const cleanups = [
       this.ctx.tools.registerTool({
@@ -54,7 +59,7 @@ export class SubagentService extends Service {
               ? rawKind
               : undefined;
           const mode = args.mode === "browser" ? "browser" : args.mode === "write" ? "write" : args.mode === "read" ? "read" : undefined;
-          const item = await this.coordinator.invoke({
+          const item = await this.invoke({
             sessionId: execCtx.sessionId,
             role: typeof args.role === "string" ? args.role : "",
             prompt: typeof args.prompt === "string" ? args.prompt : "",

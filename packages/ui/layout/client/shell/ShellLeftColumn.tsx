@@ -4,6 +4,7 @@ import type { WorkbenchSectionItem } from "../../contract/index";
 import type { LocaleMessages } from "../locales";
 import type { LocalProject, NavigationTarget, NavigationView, RecentItem, WorkspaceMode } from "../navigation/navigation";
 import type { ResizeSide } from "./useSidebarResize";
+import type { SidebarMode } from "./ui-preferences";
 import { buildChatRecentItems, buildNavigationTargets, type WorkbenchDomainConfig } from "../navigation/workbench-domains";
 import type { LibraryTabKey, WorkbenchSnapshot } from "../workbench-service";
 import { NavigationRail } from "../navigation/NavigationRail";
@@ -47,7 +48,8 @@ export function ShellLeftColumn({
   onCloseSearch,
   onToggleActivity,
   onCloseActivity,
-  onToggleSidebar,
+  sidebarMode,
+  onChangeSidebarMode,
   onStartResize,
   onKeyResize,
 }: {
@@ -84,8 +86,9 @@ export function ShellLeftColumn({
   onCloseSearch: () => void;
   onToggleActivity: () => void;
   onCloseActivity: () => void;
-  /** 左二栏头部的折叠按钮：收起后由中央 WorkspaceBar 的左栏按钮重新展开。 */
-  onToggleSidebar: () => void;
+  /** 左二内容模式：会话列表或项目工作区。 */
+  sidebarMode: SidebarMode;
+  onChangeSidebarMode: (mode: SidebarMode) => void;
   onStartResize: (side: ResizeSide, event: PointerEvent<HTMLDivElement>) => void;
   onKeyResize: (side: ResizeSide, event: KeyboardEvent<HTMLDivElement>) => void;
 }) {
@@ -194,7 +197,8 @@ export function ShellLeftColumn({
           onCloseSearch={onCloseSearch}
           onToggleActivity={onToggleActivity}
           onCloseActivity={onCloseActivity}
-          onToggleSidebar={onToggleSidebar}
+          sidebarMode={sidebarMode}
+          onChangeSidebarMode={onChangeSidebarMode}
         />
       )}
 

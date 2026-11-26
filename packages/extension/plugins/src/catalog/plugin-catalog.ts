@@ -24,6 +24,7 @@ export const INSTALLABLE_PACKAGES: ReadonlyArray<{ moduleName: string; name: str
   { moduleName: "@lfaa/llm", name: "模型接入", description: "多提供商大模型接入与流式推理。" },
   { moduleName: "@lfaa/memory", name: "记忆", description: "会话轨迹持久化与长期记忆检索。" },
   { moduleName: "@lfaa/subagent", name: "子智能体", description: "进程内子智能体与并发协作。" },
+  { moduleName: "@lfaa/crew", name: "任务流水线", description: "按任务依赖串行接力子智能体，交付通过验收才交接。" },
   { moduleName: "@lfaa/jobs", name: "后台任务", description: "会话隔离的后台命令与日志流。" },
   { moduleName: "@lfaa/browser", name: "内置浏览器", description: "本机 Edge/Chrome 驱动的浏览器工具。" },
   { moduleName: "@lfaa/agent", name: "Agent 循环", description: "Think → Act → Check 任务闭环。" },

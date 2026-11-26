@@ -16,7 +16,10 @@ import { DomainSidebarMenu } from "./DomainSidebarMenu";
 import { NavigationIcon } from "./NavigationIcon";
 import { NavigationGroups } from "./NavigationGroups";
 import { SettingsMenu } from "../panels/SettingsMenu";
+import { CapsuleBar } from "@lfaa/ui-primitives/client";
 import { ToolbarTip } from "./Toolbar-Tip";
+import { formatShortcutKeys, readShortcutKeysFor } from "../shortcuts";
+import { defaultShortcutKeys } from "../shortcut-defaults";
 import styles from "./NavigationSidebar.module.css";
 
 /** 根据业务域装配左栏头部及列表，将设置页和聊天页复用同一栏位。 */
@@ -60,7 +63,8 @@ export function NavigationSidebar({
   onCloseSearch,
   onToggleActivity,
   onCloseActivity,
-  onToggleSidebar,
+  sidebarMode,
+  onChangeSidebarMode,
 }: {
   locale: LocaleMessages;
   domain: WorkbenchDomainConfig;
@@ -82,6 +86,8 @@ export function NavigationSidebar({
   searchOpen: boolean;
   activityOpen: boolean;
   compact?: boolean;
+  /** 左二当前内容：会话列表或项目工作区文件树。 */
+  sidebarMode: "chats" | "project";
   onCloseDrawer?: () => void;
   onModeChange: (mode: WorkspaceMode) => void;
   onNewChat: () => void;
@@ -101,9 +107,11 @@ export function NavigationSidebar({
   onCloseSearch: () => void;
   onToggleActivity: () => void;
   onCloseActivity: () => void;
-  /** 收起左二栏；工作区头部工具栏的折叠按钮使用，收起后由左侧 WorkspaceBar 重新展开。 */
-  onToggleSidebar: () => void;
+  /** 切换左二内容；两个工具栏按钮互斥切换，收起左二由中间栏按钮负责。 */
+  onChangeSidebarMode: (mode: "chats" | "project") => void;
 }) {
+  const activityHint = formatShortcutKeys(readShortcutKeysFor("global.activity", defaultShortcutKeys("global.activity")));
+  const searchHint = formatShortcutKeys(readShortcutKeysFor("global.search", defaultShortcutKeys("global.search")));
   const [modeMenuOpen, setModeMenuOpen] = useState(false);
   const rootRef = useRef<HTMLElement>(null);
   const modeTriggerRef = useRef<HTMLButtonElement>(null);
@@ -145,6 +153,10 @@ export function NavigationSidebar({
 
   const header = domain.sidebarHeader;
   const isModeSwitcher = header.kind === "modeSwitcher";
+  // 项目工作区跟随当前项目上下文：优先左二高亮项目，其次当前会话所属项目，最后草稿绑定。
+  const workspaceProjectId = activeProjectId
+    ?? chatSessions?.find((session) => session.id === activeChatSessionId)?.projectId
+    ?? null;
 
   return (
     <aside
@@ -182,8 +194,8 @@ export function NavigationSidebar({
             <span>{header.title}</span>
           </div>
         ) : (
-          // 工作区头部改为悬浮工具栏：左侧「模式菜单 / 新聊天 / 收起侧栏」，右侧胶囊放「活动 / 搜索」。
-          <div className={styles.toolbar}>
+          // 工作区头部改为悬浮工具栏：左侧「模式菜单 / 新聊天 / 收起侧栏」，右侧放「活动 / 搜索」。
+          <CapsuleBar className={styles.toolbar}>
             <div className={styles.toolbarGroup}>
               <div className={styles.modeRoot}>
                 <ToolbarTip label={`${locale.agentName} · ${locale.workspaceMode}`}>
@@ -206,45 +218,46 @@ export function NavigationSidebar({
                   </div>
                 )}
               </div>
-              <ToolbarTip label={locale.newChat}>
+              <ToolbarTip label={locale.projectWorkspace}>
                 <button
-                  className={`${styles.headerButton} ${styles.toolbarButton}`}
+                  className={`${styles.headerButton} ${styles.toolbarButton} ${sidebarMode === "project" ? styles.headerButtonActive : ""}`}
                   type="button"
-                  aria-label={locale.newChat}
-                  data-selected={newChatSelected ? "true" : undefined}
-                  onClick={onNewChat}
+                  aria-label={locale.projectWorkspace}
+                  aria-pressed={sidebarMode === "project"}
+                  onClick={() => onChangeSidebarMode("project")}
                 >
-                  <NavigationIcon name="plus" />
+                  <NavigationIcon name="project" />
                 </button>
               </ToolbarTip>
-              <ToolbarTip label={locale.collapseLeftSidebar} className={styles.toolbarCollapse}>
+              <ToolbarTip label={locale.chatList}>
                 <button
-                  className={`${styles.headerButton} ${styles.toolbarButton}`}
+                  className={`${styles.headerButton} ${styles.toolbarButton} ${sidebarMode === "chats" ? styles.headerButtonActive : ""}`}
                   type="button"
-                  aria-label={locale.collapseLeftSidebar}
-                  onClick={onToggleSidebar}
+                  aria-label={locale.chatList}
+                  aria-pressed={sidebarMode === "chats"}
+                  onClick={() => onChangeSidebarMode("chats")}
                 >
                   <NavigationIcon name="sidebarLeft" />
                 </button>
               </ToolbarTip>
             </div>
-            <div className={styles.toolbarPill}>
-              <ToolbarTip label={`${locale.viewActivity} · Ctrl+Alt+U`}>
+            <div className={styles.toolbarUtility}>
+              <ToolbarTip label={`${locale.viewActivity}${activityHint ? ` · ${activityHint}` : ""}`}>
                 <button
                   ref={activityTriggerRef}
                   className={`${styles.headerButton} ${styles.toolbarButton} ${activityOpen ? styles.headerButtonActive : ""}`}
                   type="button"
-                  aria-label={`${locale.activity} (Ctrl+Alt+U)`}
+                  aria-label={activityHint ? `${locale.activity} (${activityHint})` : locale.activity}
                   aria-expanded={activityOpen}
                   onClick={onToggleActivity}
                 ><NavigationIcon name="bell" /></button>
               </ToolbarTip>
-              <ToolbarTip label={`${locale.search} · Ctrl+K`}>
+              <ToolbarTip label={`${locale.search}${searchHint ? ` · ${searchHint}` : ""}`}>
                 <button
                   ref={searchTriggerRef}
                   className={`${styles.headerButton} ${styles.toolbarButton}`}
                   type="button"
-                  aria-label={`${locale.search} (Ctrl+K)`}
+                  aria-label={searchHint ? `${locale.search} (${searchHint})` : locale.search}
                   aria-expanded={searchOpen}
                   onClick={onToggleSearch}
                 ><NavigationIcon name="search" /></button>
@@ -260,7 +273,7 @@ export function NavigationSidebar({
                 </ToolbarTip>
               )}
             </div>
-          </div>
+          </CapsuleBar>
         )}
       </header>
 
@@ -289,6 +302,13 @@ export function NavigationSidebar({
             onSelectDomainItem={onSelectDomainItem}
             onNavigate={onNavigate}
           />
+        ) : sidebarMode === "project" ? (
+          // 项目工作区：文件树由聊天插件经契约注入，左二只负责切换与容器。
+          <div className={styles.projectWorkspace}>
+            {chatProvider?.renderProjectWorkspace
+              ? chatProvider.renderProjectWorkspace({ projectId: workspaceProjectId, compact })
+              : <p className={styles.projectWorkspaceEmpty}>{locale.projectWorkspaceEmpty}</p>}
+          </div>
         ) : (
           <NavigationGroups
             locale={locale}
@@ -329,3 +349,4 @@ function ModeOption({ selected, title, description, onClick }: { selected: boole
     </button>
   );
 }
+

@@ -29,6 +29,7 @@ export function RightFileTreePane({
   activeFilePath,
   isZh,
   store,
+  ensurePanelOpen,
 }: {
   projectId: string | null;
   /** 绑定工作树时改为读取工作树目录；缺省仍读项目根。 */
@@ -37,6 +38,8 @@ export function RightFileTreePane({
   activeFilePath?: string | undefined;
   isZh: boolean;
   store: ChatClientStore;
+  /** 打开文件后确保右侧工作台展开（左二文件树用它）。 */
+  ensurePanelOpen?: (() => void) | undefined;
 }) {
   const [rootPath, setRootPath] = useState<string>("");
   const [rootExpanded, setRootExpanded] = useState(true);
@@ -186,7 +189,11 @@ export function RightFileTreePane({
             title={entry.relativePath}
             onClick={() => {
               if (isDir) toggleDir(entry);
-              else if (projectId) store.openWorkspaceFile(projectId, entry.fullPath, entry.relativePath, undefined, undefined, worktreeId);
+              else if (projectId) {
+                store.openWorkspaceFile(projectId, entry.fullPath, entry.relativePath, undefined, undefined, worktreeId);
+                // 从左二文件树打开文件后要能看到结果：确保右侧工作台展开。
+                ensurePanelOpen?.();
+              }
             }}
           >
             <span className={styles.treeChevron}>

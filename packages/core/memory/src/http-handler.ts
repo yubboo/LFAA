@@ -147,28 +147,90 @@ export function createMemoryHttpHandler(service: MemoryService, options: MemoryH
           return true;
         }
       }
+      if (method === "GET" && pathname === "/api/memory/stats") {
+        const stats = await service.getMemoryStats();
+        sendJson(res, 200, { stats });
+        return true;
+      }
+
+      if (method === "GET" && pathname === "/api/memory/settings") {
+        const settings = await service.getMemorySettings();
+        sendJson(res, 200, { settings });
+        return true;
+      }
+
+      if (method === "PATCH" && pathname === "/api/memory/settings") {
+        const body = await readJsonBody(req);
+        const settings = await service.updateMemorySettings({
+          ...(typeof body.autoExtract === "boolean" ? { autoExtract: body.autoExtract } : {}),
+          ...(typeof body.maxEntries === "number" ? { maxEntries: body.maxEntries } : {}),
+          ...(typeof body.recallLimit === "number" ? { recallLimit: body.recallLimit } : {}),
+          ...(typeof body.recallBudgetChars === "number" ? { recallBudgetChars: body.recallBudgetChars } : {}),
+        });
+        sendJson(res, 200, { settings });
+        return true;
+      }
+
       if (method === "GET" && pathname === "/api/memory") {
         const projectId = urlObj.searchParams.get("projectId");
+        const sessionId = urlObj.searchParams.get("sessionId");
         const query = urlObj.searchParams.get("q") ?? undefined;
-        const memories = await service.listLongTermMemories({
-          ...(projectId ? { projectId } : {}),
-          ...(query ? { query } : {}),
-        });
-        sendJson(res, 200, { memories });
+        const kindRaw = urlObj.searchParams.get("kind");
+        const kind = kindRaw === "preference" || kindRaw === "fact" || kindRaw === "decision" || kindRaw === "pitfall" || kindRaw === "convention"
+          ? kindRaw
+          : undefined;
+        const [memories, stats] = await Promise.all([
+          service.listLongTermMemories({
+            ...(projectId ? { projectId } : {}),
+            ...(sessionId ? { sessionId } : {}),
+            ...(query ? { query } : {}),
+            ...(kind ? { kind } : {}),
+            ...(urlObj.searchParams.get("includeSuperseded") === "1" ? { includeSuperseded: true } : {}),
+          }),
+          service.getMemoryStats(),
+        ]);
+        sendJson(res, 200, { memories, stats });
         return true;
       }
 
       if (method === "POST" && pathname === "/api/memory") {
         const body = await readJsonBody(req);
+        const scopeRaw = body.scope;
+        const scope = scopeRaw === "project" || scopeRaw === "team" || scopeRaw === "session" ? scopeRaw : "global";
+        const kindRaw = body.kind;
+        const kind = kindRaw === "preference" || kindRaw === "fact" || kindRaw === "decision" || kindRaw === "pitfall" || kindRaw === "convention"
+          ? kindRaw
+          : undefined;
         const entry = await service.addMemory({
-          scope: body.scope === "project" ? "project" : "global",
+          ...(kind ? { kind } : {}),
+          scope,
           projectId: typeof body.projectId === "string" ? body.projectId : null,
+          ...(typeof body.ownerId === "string" ? { ownerId: body.ownerId } : {}),
           content: typeof body.content === "string" ? body.content : "",
           ...(Array.isArray(body.tags)
             ? { tags: body.tags.filter((t): t is string => typeof t === "string") }
             : {}),
         });
         sendJson(res, 201, { entry });
+        return true;
+      }
+
+      if (method === "PATCH" && pathname.startsWith("/api/memory/")) {
+        const memoryId = decodeURIComponent(pathname.slice("/api/memory/".length));
+        const body = await readJsonBody(req);
+        const kindRaw = body.kind;
+        const entry = await service.updateMemory(memoryId, {
+          ...(typeof body.content === "string" ? { content: body.content } : {}),
+          ...(kindRaw === "preference" || kindRaw === "fact" || kindRaw === "decision" || kindRaw === "pitfall" || kindRaw === "convention"
+            ? { kind: kindRaw }
+            : {}),
+          ...(Array.isArray(body.tags) ? { tags: body.tags.filter((t): t is string => typeof t === "string") } : {}),
+        });
+        if (!entry) {
+          sendJson(res, 404, { error: "记忆条目不存在。" });
+          return true;
+        }
+        sendJson(res, 200, { entry });
         return true;
       }
 

@@ -18,21 +18,21 @@
     "tropical-coast-day"
   ],
   "labels": {
-    "cherry-blossom-waterfront": { "zh": "樱花水岸", "en": "Cherry Blossom Waterfront" },
-    "minecraft-world": { "zh": "方块日落", "en": "Block Sunset" },
-    "service-room": { "zh": "服务机房", "en": "Server Room" },
-    "steamcmd-world": { "zh": "城堡之夜", "en": "Castle Night" },
-    "writing-desk": { "zh": "写作桌面", "en": "Writing Desk" },
-    "writing-yunjian": { "zh": "云涧书苑", "en": "Cloud Ravine Study" },
-    "cherry-blossom-shore": { "zh": "樱花海岸", "en": "Cherry Blossom Shore" },
-    "cherry-blossom-village": { "zh": "樱花村庄", "en": "Cherry Blossom Village" },
-    "flower-meadow-castle": { "zh": "花野城堡", "en": "Flower Meadow Castle" },
-    "forest-bridge-evening": { "zh": "林间桥影", "en": "Forest Bridge at Dusk" },
-    "golden-wheat-field": { "zh": "金色麦田", "en": "Golden Wheat Field" },
-    "lakeside-pagoda-morning": { "zh": "湖畔晨光", "en": "Lakeside Pagoda Morning" },
-    "ocean-cliff-sunset": { "zh": "海崖日落", "en": "Ocean Cliff Sunset" },
-    "rainy-grassland": { "zh": "雨后草原", "en": "Rainy Grassland" },
-    "snowy-cabin-interior": { "zh": "雪夜木屋", "en": "Snowy Cabin" },
-    "tropical-coast-day": { "zh": "热带海岸", "en": "Tropical Coast" }
+    "cherry-blossom-waterfront": { "preset": "sakura", "zh": "樱花水岸", "en": "Cherry Blossom Waterfront" },
+    "minecraft-world": { "preset": "liquidGlass", "zh": "方块日落", "en": "Block Sunset" },
+    "service-room": { "preset": "midnightInk", "zh": "服务机房", "en": "Server Room" },
+    "steamcmd-world": { "preset": "midnightInk", "zh": "城堡之夜", "en": "Castle Night" },
+    "writing-desk": { "preset": "classic", "zh": "写作桌面", "en": "Writing Desk" },
+    "writing-yunjian": { "preset": "classic", "zh": "云涧书苑", "en": "Cloud Ravine Study" },
+    "cherry-blossom-shore": { "preset": "sakura", "zh": "樱花海岸", "en": "Cherry Blossom Shore" },
+    "cherry-blossom-village": { "preset": "sakura", "zh": "樱花村庄", "en": "Cherry Blossom Village" },
+    "flower-meadow-castle": { "preset": "softMist", "zh": "花野城堡", "en": "Flower Meadow Castle" },
+    "forest-bridge-evening": { "preset": "softMist", "zh": "林间桥影", "en": "Forest Bridge at Dusk" },
+    "golden-wheat-field": { "preset": "liquidGlass", "zh": "金色麦田", "en": "Golden Wheat Field" },
+    "lakeside-pagoda-morning": { "preset": "softMist", "zh": "湖畔晨光", "en": "Lakeside Pagoda Morning" },
+    "ocean-cliff-sunset": { "preset": "liquidGlass", "zh": "海崖日落", "en": "Ocean Cliff Sunset" },
+    "rainy-grassland": { "preset": "softMist", "zh": "雨后草原", "en": "Rainy Grassland" },
+    "snowy-cabin-interior": { "preset": "midnightInk", "zh": "雪夜木屋", "en": "Snowy Cabin" },
+    "tropical-coast-day": { "preset": "liquidGlass", "zh": "热带海岸", "en": "Tropical Coast" }
   }
 }

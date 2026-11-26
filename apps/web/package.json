@@ -1,34 +1,34 @@
 {
-    "name":  "@lfaa/app-web",
-    "description":  "LFAA Web 应用入口，负责装配并挂载工作台界面。",
-    "version":  "0.1.0",
-    "private":  true,
-    "type":  "module",
-    "scripts":  {
-                    "dev":  "vite --host 127.0.0.1",
-                    "build":  "vite build",
-                    "typecheck":  "tsc --noEmit"
-                },
-    "dependencies":  {
-                         "@deepseek-ai/cordis":  "^4.1.0",
-                         "@lfaa/ui-layout":  "workspace:*",
-                         "@lfaa/ui-theme":  "workspace:*",
-                         "react":  "^19.3.1",
-                         "react-dom":  "^19.3.1",
-                         "@lfaa/client-ui-agent-group":  "workspace:*",
-                         "@lfaa/client-ui-agent-profile":  "workspace:*",
-                         "@lfaa/client-ui-browser":  "workspace:*",
-                         "@lfaa/client-ui-chat":  "workspace:*",
-                         "@lfaa/client-ui-library":  "workspace:*",
-                         "@lfaa/client-ui-plugins":  "workspace:*",
-                         "@lfaa/client-ui-review":  "workspace:*",
-                         "@lfaa/client-ui-sections":  "workspace:*",
-                         "@lfaa/client-ui-skills":  "workspace:*",
-                         "@lfaa/client-ui-mcp":  "workspace:*",
-                         "@lfaa/client-ui-workspace":  "workspace:*"
-                     },
-    "devDependencies":  {
-                            "@vitejs/plugin-react":  "^6.3.0",
-                            "vite":  "^8.3.8"
-                        }
+    "name": "@lfaa/app-web",
+    "description": "LFAA Web 应用入口，负责装配并挂载工作台界面。",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "vite --host 127.0.0.1",
+        "build": "vite build",
+        "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {
+        "@deepseek-ai/cordis": "^4.1.0",
+        "@lfaa/client-ui-agent-group": "workspace:*",
+        "@lfaa/client-ui-agent-profile": "workspace:*",
+        "@lfaa/client-ui-browser": "workspace:*",
+        "@lfaa/client-ui-chat": "workspace:*",
+        "@lfaa/client-ui-connectors": "workspace:*",
+        "@lfaa/client-ui-library": "workspace:*",
+        "@lfaa/client-ui-plugins": "workspace:*",
+        "@lfaa/client-ui-review": "workspace:*",
+        "@lfaa/client-ui-sections": "workspace:*",
+        "@lfaa/client-ui-skills": "workspace:*",
+        "@lfaa/client-ui-workspace": "workspace:*",
+        "@lfaa/ui-layout": "workspace:*",
+        "@lfaa/ui-theme": "workspace:*",
+        "react": "^19.3.1",
+        "react-dom": "^19.3.1"
+    },
+    "devDependencies": {
+        "@vitejs/plugin-react": "^6.3.0",
+        "vite": "^8.3.8"
+    }
 }

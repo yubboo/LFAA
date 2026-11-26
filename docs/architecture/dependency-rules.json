@@ -23,6 +23,11 @@
                                "reason":  "右栏工作台内嵌内置浏览器面板与阶段内容"
                            },
                            {
+                               "from":  "@lfaa/client-ui-chat",
+                               "to":  "@lfaa/client-ui-terminal",
+                               "reason":  "右栏终端标签与底部面板复用真实终端组件（xterm 渲染 + WebSocket 连接）"
+                           },
+                           {
                                "from":  "@lfaa/client-ui-library",
                                "to":  "@lfaa/client-ui-chat",
                                "reason":  "资料库复用 chat 的 chatStore 与工作台部件（单向依赖）"

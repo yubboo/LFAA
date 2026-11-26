@@ -40,6 +40,19 @@ function buildBackgroundHint(workspaceRoots: string[]): string {
     : `${base} 当前工作区没有 LFAA 源码，不要尝试修改内置目录。`;
 }
 
+/** 把作用域与类型压成提示词里的短标签，避免每条记忆占太多元数据。 */
+function memoryLabel(scope: string, kind: string): string {
+  const scopeLabel: Record<string, string> = { global: "全局", project: "项目", team: "团队", session: "会话" };
+  const kindLabel: Record<string, string> = {
+    preference: "偏好",
+    fact: "事实",
+    decision: "决策",
+    pitfall: "踩坑",
+    convention: "约定",
+  };
+  return `${scopeLabel[scope] ?? "记忆"}${kindLabel[kind] ?? ""}`;
+}
+
 /** 装入已保存的上下文并补齐尚未写入的新消息。 */
 export function buildRecentConversation(system: LlmMessage, window: RecalledContext["contextWindow"], prompt: string): LlmMessage[] {
   const messages: LlmMessage[] = [system];
@@ -63,14 +76,14 @@ export async function recallAgentContext(
     deps.memory.recallRelevantMemories({
       query: params.userMessage,
       ...(params.projectId !== undefined ? { projectId: params.projectId } : {}),
-      limit: 6,
+      sessionId: params.sessionId,
     }),
     deps.memory.getStorageState(),
     deps.memory.listLibraryAssets({
       ...(params.projectId !== undefined ? { projectId: params.projectId } : {}),
     }),
   ]);
-  const memoryHints = memories.map((m) => `[${m.scope === "project" ? "项目记忆" : "全局记忆"}] ${m.content}`);
+  const memoryHints = memories.map((m) => `[${memoryLabel(m.scope, m.kind)}] ${m.content}`);
   const { systemPrompt, documents } = await deps.rules.composeSystemPrompt({
     projectPaths: params.workspaceRoots,
     memoryHints,
@@ -188,7 +201,7 @@ export function buildProgressHint(deps: RunLoopDeps, params: RunExecutionParams)
       : "",
     "自主排查与编辑准则：定位问题时先用 grep（正则内容）/ glob（文件名模式）/ list_dir / read_file 检索并精读关键源码上下文再动手；修改代码或修复报错时，直接调用 edit_file / write_file 落实修改并立即通过 run_command 验证，遇到新报错继续读取对应行并修正闭环，不得停在只给建议或让用户手动改代码。edit_file 的 target 必须在文件中唯一命中，命中多处时请补充上下文行或显式传 replaceAll；新建文件用 write_file。",
     "工具效率与核验规范：创建或读取多个互相独立的文件时，请在同轮并行发起多个 read_file / write_file / edit_file 调用，避免逐个文件串行消耗步数；执行构建/测试请直接用 run_command 验证，不可将“静态自审”等价于编译或运行通过；前台命令默认 10 分钟超时，构建、安装等长命令可传 timeoutMs，服务器或监听类命令请用 start_background_task 启动并用 get_background_task 轮询；向用户提供复现命令时，必须严格匹配当前终端语法（CMD 用 `set \"VAR=...\"`，PowerShell 用 `$env:VAR=\"...\"`），严禁混写。",
-    "长期记忆：当用户明确陈述跨会话仍需记住的偏好、约定或项目约束（如“以后统一用 pnpm”“这个项目不要改 X”），调用 save_memory 保存，一次只记一条可独立复述的事实；临时进度与本次任务的中间结果不要写入长期记忆。",
+    "长期记忆：系统已注入相关记忆（标注来源与类型）。当需要确认既有约定、决策或踩过的坑时，先用 recall_memory 按关键词检索，不要凭印象假设；用户明确陈述跨会话仍需记住的偏好、约定或项目约束（如“以后统一用 pnpm”“这个项目不要改 X”）时调用 save_memory 保存并选对 kind，一次只记一条可独立复述的事实；临时进度与本次任务的中间结果不要写入长期记忆；确认某条记忆已失效时才用 forget_memory 删除。",
   ].join("\n");
 }
 

@@ -148,14 +148,15 @@ export function createBrowserHttpHandler(service: BrowserService, options: Brows
       }
 
       if (method === "GET" && pathname === "/api/browser/config") {
-        sendJson(res, 200, { config: await service.getSettings() });
+        // downloadDirSource 与 config 分开返回：前者是只读派生状态，不参与设置落盘。
+        sendJson(res, 200, { config: await service.getSettings(), downloadDirSource: await service.getDownloadDirSource() });
         return true;
       }
 
       if (method === "PUT" && pathname === "/api/browser/config") {
         const body = await readJsonBody(req);
         const config = await service.updateSettings(body);
-        sendJson(res, 200, { config });
+        sendJson(res, 200, { config, downloadDirSource: await service.getDownloadDirSource() });
         return true;
       }
 

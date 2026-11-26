@@ -3,6 +3,7 @@ import type { ChatDataActions } from "./chat-data-actions";
 import type { GeneralSettingsConfig, OpenSourcePackageInfo, ReasoningLevelOption } from "../shared/general-settings";
 import type {
   LibraryAssetItem,
+  MemoryKindItem,
   ModelCapabilityItem,
   PublicLlmProfileItem,
   StorageLocationMode,
@@ -89,8 +90,20 @@ export abstract class ChatDataFacade {
     return this.dataActions.saveUserRules(content);
   }
 
-  addLongTermMemory(input: { content: string; scope: "global" | "project"; projectId?: string | null }): Promise<void> {
+  addLongTermMemory(input: {
+    content: string;
+    scope: "global" | "project";
+    projectId?: string | null;
+    kind?: MemoryKindItem;
+  }): Promise<void> {
     return this.dataActions.addLongTermMemory(input);
+  }
+
+  updateLongTermMemory(
+    memoryId: string,
+    patch: { content?: string; kind?: MemoryKindItem; tags?: string[] },
+  ): Promise<void> {
+    return this.dataActions.updateLongTermMemory(memoryId, patch);
   }
 
   removeLongTermMemory(memoryId: string): Promise<void> {

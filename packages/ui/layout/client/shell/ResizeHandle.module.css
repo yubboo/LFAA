@@ -53,12 +53,16 @@
   transform: translateX(-50%);
 }
 
-/* 悬停只给「1px 中性细线」的可拖提示：中性色不抢眼，1px 不会被非整数缩放摊成糊边；
-   强调色只在真正拖动、吸附时出现，避免平时一条粉线把界面劈开。 */
-.resizeHandle:hover::after,
+/* 悬停只把线加粗到 2px，颜色仍用分割线本身：左右两条边永远同一套线，
+   不会因为鼠标停在上面就出现一条偏白的粗线；键盘聚焦才改用强调色（键盘需要明确焦点）。 */
+.resizeHandle:hover::after {
+  width: 2px;
+  background: var(--color-line);
+}
+
 .resizeHandle:focus-visible::after {
-  width: 1px;
-  background: color-mix(in srgb, var(--color-muted) 55%, transparent);
+  width: 2px;
+  background: var(--color-accent);
 }
 
 .resizeHandle[data-dragging="true"]::after {

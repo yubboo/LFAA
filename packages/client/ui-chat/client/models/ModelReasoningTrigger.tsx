@@ -2,6 +2,7 @@
 import { IconChevronDown, IconChevronRight, IconCpu } from "@tabler/icons-react";
 import type { ModelCapabilityItem } from "../store/chat-types";
 import { HoverTip } from "@lfaa/ui-primitives/client";
+import { shortcutHint } from "@lfaa/ui-layout/client";
 import styles from "./ModelReasoningPicker.module.css";
 
 /** 渲染未配置模型时的引导胶囊，点击跳转设置中心完成首次配置。 */
@@ -16,8 +17,9 @@ export function ConfigureModelTrigger({
   onOpenSettings: () => void;
 }) {
   const configureLabel = isZh ? "未配置模型 · 去配置卡片" : "Configure Model";
+  const reasoningHint = shortcutHint("composer.reasoning");
   return (
-    <HoverTip label={configureLabel}>
+    <HoverTip label={configureLabel} shortcut={reasoningHint}>
       <button
         type="button"
         className={styles.triggerPill}
@@ -53,7 +55,7 @@ export function ModelReasoningTrigger({
   onToggle: () => void;
 }) {
   return (
-    <HoverTip label={isZh ? "选择模型" : "Select model"} disabled={isOpen}>
+    <HoverTip label={isZh ? "选择模型与推理强度" : "Model and reasoning"} shortcut={shortcutHint("composer.reasoning")} disabled={isOpen}>
       <button
         type="button"
         className={styles.triggerPill}
@@ -76,3 +78,4 @@ export function ModelReasoningTrigger({
     </HoverTip>
   );
 }
+

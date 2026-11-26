@@ -30,7 +30,7 @@ export function AppearanceThemeDetail({
   snapshot: AppearanceSnapshot;
 }) {
   const { config, resolvedScheme, activeVariant } = snapshot;
-  const { applyPreset, updateVariant, exportThemeJson, importThemeJson } = store;
+  const { applyThemeLook, updateVariant, exportThemeJson, importThemeJson } = store;
 
   const [notice, setNotice] = useState("");
   const [bgInput, setBgInput] = useState(activeVariant.background);
@@ -115,7 +115,7 @@ export function AppearanceThemeDetail({
                 label: isZh ? preset.labelZh : preset.labelEn,
               })) satisfies ThemeSelectOption<ThemePresetId>[]}
               onChange={(nextPreset) => {
-                applyPreset(nextPreset);
+                applyThemeLook(nextPreset, { kind: "default" });
                 const variant = THEME_PRESETS[nextPreset][resolvedScheme];
                 setBgInput(variant.background);
                 setFgInput(variant.foreground);

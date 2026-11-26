@@ -47,11 +47,9 @@ export function WorkbenchStageContent({
   auxPane,
   renderAuxBody,
   onCloseAux,
-  onToggleFileSidebar,
   onOpenUrl,
   onOpenTerminal,
   onOpenReview,
-  onOpenFiles,
   onOpenSideAsk,
   onSnapshotChange,
   onAttachPage,
@@ -87,11 +85,9 @@ export function WorkbenchStageContent({
   auxPane: ReactNode;
   renderAuxBody: (tab: RightAuxTab) => ReactNode;
   onCloseAux: () => void;
-  onToggleFileSidebar: () => void;
   onOpenUrl: (url: string) => Promise<void>;
   onOpenTerminal: () => void;
   onOpenReview: () => void;
-  onOpenFiles: () => void;
   onOpenSideAsk: () => void;
   onSnapshotChange: (snap: BrowserSessionSnapshot) => void;
   onAttachPage: (snap: BrowserSessionSnapshot) => void;
@@ -123,11 +119,9 @@ export function WorkbenchStageContent({
           projectId={boundProjectId}
           worktreeId={boundWorktreeId}
           boundProjectName={boundProjectName}
-          sidebarOpen={effectiveAuxTab === "filesTree"}
           auxPane={auxPane}
           isZh={locale.isZh}
           store={store}
-          onToggleSidebar={onToggleFileSidebar}
         />
       </div>
     );
@@ -197,7 +191,6 @@ export function WorkbenchStageContent({
             onOpenUrl={onOpenUrl}
             onOpenTerminal={onOpenTerminal}
             onOpenReview={onOpenReview}
-            onOpenFiles={onOpenFiles}
             onOpenSideAsk={onOpenSideAsk}
           >
             {(jobs.length > 0 || subagents.length > 0) && (

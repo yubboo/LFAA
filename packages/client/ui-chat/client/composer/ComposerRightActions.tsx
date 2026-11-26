@@ -1,9 +1,11 @@
-// 渲染输入栏右下角语音输入（Ctrl+M 波形状态）、发送与运行中取消（Ctrl+D）按钮及快捷键提示。
+// 渲染输入栏右下角语音听写、发送与运行中取消按钮及其快捷键提示；组合键由工作台快捷键注册表提供。
 import { useEffect } from "react";
 import { IconArrowUp, IconMicrophone, IconPlayerPauseFilled, IconPlayerPlayFilled } from "@tabler/icons-react";
 import { HoverTip } from "@lfaa/ui-primitives/client";
+import { shortcutHint } from "@lfaa/ui-layout/client";
 import type { ChatLocaleMessages } from "../locales";
 import { useVoiceDictation } from "./useVoiceDictation";
+import { provideComposerCommand } from "./composer-commands";
 import styles from "./ComposerRightActions.module.css";
 
 export { mergeDictationTranscript } from "./useVoiceDictation";
@@ -33,6 +35,8 @@ export function ComposerRightActions({
   onContinue: () => void;
   onNotice: (message: string) => void;
 }) {
+  const dictationHint = shortcutHint("composer.dictation");
+  const stopHint = shortcutHint("session.abort");
   const { recording, transcribing, toggleRecording } = useVoiceDictation({
     locale,
     draft,
@@ -40,27 +44,18 @@ export function ComposerRightActions({
     onNotice,
   });
 
+  // 听写与中止交给快捷键注册表统一分发；这里只登记命令处理，提示键位也从注册表读。
   useEffect(() => {
-    const onGlobalKey = (event: KeyboardEvent) => {
-      if (!event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
-      const key = event.key.toLowerCase();
-      if (key === "m") {
-        event.preventDefault();
-        toggleRecording();
-      } else if (key === "d" && isRunning) {
-        event.preventDefault();
-        onStop();
-      }
-    };
-    window.addEventListener("keydown", onGlobalKey);
-    return () => window.removeEventListener("keydown", onGlobalKey);
+    const disposers = [provideComposerCommand("dictation", () => toggleRecording())];
+    if (isRunning) disposers.push(provideComposerCommand("stop", () => onStop()));
+    return () => { for (const dispose of disposers) dispose(); };
   }, [isRunning, onStop, toggleRecording]);
 
   return (
     <div className={styles.actions}>
       <HoverTip
         label={transcribing ? locale.speechTranscribingNotice : recording ? locale.stopRecording : locale.recordAudio}
-        shortcut={transcribing ? undefined : "Ctrl+M"}
+        shortcut={transcribing ? undefined : dictationHint}
       >
         <button
           type="button"
@@ -83,7 +78,7 @@ export function ComposerRightActions({
       </HoverTip>
 
       {isRunning ? (
-        <HoverTip label={locale.pauseRunTooltip}>
+        <HoverTip label={locale.pauseRunTooltip} shortcut={stopHint}>
           <button
             type="button"
             className={styles.pauseBtn}
@@ -120,3 +115,5 @@ export function ComposerRightActions({
     </div>
   );
 }
+
+

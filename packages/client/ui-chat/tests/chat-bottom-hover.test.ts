@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { isOffBottom } from "../client/conversation/useChatScroll";
+import { isOffBottom } from "../client/conversation/chat-scroll-model";
 
 test("贴底判定补齐取整尺寸留下的半像素缝隙", () => {
   // 真实底边 117.69，取整尺寸算出 118：已经在最底部，不需要再写 scrollTop。
@@ -47,4 +47,35 @@ test("会话滚动条贴到中间栏分隔线旁，并与调宽手柄错开", as
   assert.match(rootRule, /margin-inline-end:\s*var\(--chat-gutter-reclaim,\s*0px\)/u);
   assert.match(scrollRule, /margin-inline-end:\s*var\(--chat-scrollbar-gap,\s*2px\)/u);
   assert.match(scrollRule, /padding-inline-end:\s*calc\(var\(--chat-side-padding\)\s*-\s*var\(--chat-scrollbar-gap,\s*2px\)\)/u);
+});
+
+test("输入区叠层不吃滚动条命中：dock 本体透明，只有控件接指针", async () => {
+  const packageRoot = fileURLToPath(new URL("..", import.meta.url));
+  const workspaceCss = await readFile(resolve(packageRoot, "client/conversation/ChatWorkspace.module.css"), "utf8");
+  const dockRule = workspaceCss.match(/\.composerDock\s*\{(?<body>[\s\S]*?)\n\}/u)?.groups?.body ?? "";
+  const childRule = workspaceCss.match(/\.composerDock\s*>\s*\*\s*\{(?<body>[\s\S]*?)\n\}/u)?.groups?.body ?? "";
+  const overlayRule = workspaceCss.match(/\.composerDock::before\s*\{(?<body>[\s\S]*?)\n\}/u)?.groups?.body ?? "";
+
+  assert.ok(dockRule && childRule, "应能找到输入区叠层与其子控件规则");
+  // dock 横跨整栏并叠在滚动区之上：本体不接指针，否则贴底时滑块正好落在它下面的一条里，看得见却拖不动。
+  assert.match(dockRule, /pointer-events:\s*none/u);
+  // 控件必须自己捡回命中，输入框、回底按钮、提示条都还能点。
+  assert.match(childRule, /pointer-events:\s*auto/u);
+  // 渐变遮挡只是观感层，同样不吃指针。
+  assert.match(overlayRule, /pointer-events:\s*none/u);
+});
+
+test("图片主题下输入区不再叠成一块白：遮挡层让位给整栏薄纱", async () => {
+  const packageRoot = fileURLToPath(new URL("..", import.meta.url));
+  const workspaceCss = await readFile(resolve(packageRoot, "client/conversation/ChatWorkspace.module.css"), "utf8");
+  const overlayRule = workspaceCss.match(/\.composerDock::before\s*\{(?<body>[\s\S]*?)\n\}/u)?.groups?.body ?? "";
+  // 纯色主题：遮挡渐变到 --color-shell，和栏底色一致。
+  assert.match(overlayRule, /linear-gradient\(to bottom, transparent 0, var\(--color-shell\) 30%\)/u);
+  // 图片主题：四栏已是同一档薄纱，再叠一层不透明底色会白成一大块（62% + 62% ≈ 86%），必须关掉。
+  const imageOverride = workspaceCss.match(
+    /:global\(html\[data-app-bg-workspace="image"\]\) \.composerDock::before,[\s\S]*?\n\}/u,
+  )?.[0] ?? "";
+  assert.ok(imageOverride, "应有图片主题下的输入区遮挡覆盖规则");
+  assert.match(imageOverride, /background:\s*none/u);
+  assert.match(imageOverride, /data-app-bg-settings="image"/u);
 });

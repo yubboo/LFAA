@@ -1,0 +1,53 @@
+/* 输入框大盒子：独立占一行，排在会话区下方；不再叠在滚动视口上，所以没有遮罩层。 */
+.dock {
+  grid-row: 3;
+  grid-column: 1;
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.5rem var(--chat-side-padding) 1.15rem;
+  background: transparent;
+}
+
+/* 任务盒子与目标盒子沿用正文列宽，和输入卡片同一条中轴。 */
+.stack {
+  position: relative;
+  width: var(--chat-column-width);
+  margin: 0 auto;
+}
+
+/* 回到底部浮在会话区底缘之上：贴住盒子顶边，不占布局高度。 */
+.scrollBottomBtn {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 0.55rem);
+  transform: translateX(-50%);
+  z-index: 25;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--glass-border, var(--color-line));
+  border-radius: 999px;
+  background: var(--glass-popover-bg, var(--color-popover));
+  backdrop-filter: blur(18px);
+  color: var(--color-ink);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.35);
+  cursor: pointer;
+}
+
+.scrollBottomBtn:hover {
+  background: var(--color-active);
+}
+
+@container (max-width: 880px) {
+  .scrollBottomBtn {
+    left: auto;
+    right: max(1.6rem, calc((100% - 48rem) / 2 + 0.35rem));
+    bottom: calc(100% - 0.1rem);
+    transform: none;
+  }
+}

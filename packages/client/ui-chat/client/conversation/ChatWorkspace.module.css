@@ -12,6 +12,7 @@
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  /* 四块盒子各占一行：顶部切换条 / 会话区 / 输入框大盒子；轨迹视图复用会话区那一行。 */
   grid-template-rows: auto minmax(0, 1fr) auto;
   /* 外层视口常驻预留的滚动条槽由 ChatWorkspace 量出后收回（见 --chat-gutter-reclaim），
      否则消息滚动条会被挤到离分隔线 14px 处、正文列也会相对栏宽偏左。 */
@@ -22,46 +23,42 @@
   overflow: hidden;
 }
 
-@container (max-width: 880px) {
-  .root {
-    grid-template-rows: auto minmax(0, 1fr) auto auto;
-  }
-}
-
-/* 对话与轨迹共享中央工作区，输入栏始终保留。 */
-.viewTabs { display: flex; gap: 1.4rem; padding: 0 var(--chat-side-padding); border-bottom: 1px solid var(--color-line); }
-.viewTabs button { padding: .75rem 0; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--color-muted); cursor: pointer; }
-.viewTabs button[aria-current="page"] { border-bottom-color: var(--color-accent); color: var(--color-ink); }
-.viewTabs button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
-.scrollArea[hidden] { display: none; }
-
-.scrollArea {
-  /* 消息流只纵向滚动，宽表格和代码块由各自的容器横向滚动；禁用浏览器原生 scroll-anchoring 避免与流式贴底互相拉扯抖动。 */
-  overflow-x: hidden;
-  overflow-y: auto;
-  overflow-anchor: none;
-  overscroll-behavior-y: none;
-  /* 跨越输入区所在的那一行：滚动条才画得到面板最底部，输入区叠在它上面。
-     必须显式写列号，否则自动排布会把输入区挤到隐式第二列去。 */
-  grid-row: 2 / -1;
+/* 轨迹视图与会话区共用第二行：两者互斥显示，切换时不改变其余两行的位置。 */
+.traceBox {
+  grid-row: 2;
   grid-column: 1;
-  /* 两侧各留一条滚动条槽：滚动条只占右侧时，正文列会比输入栏窄 6px 且居中轴左移 3px，
-     用户看到的就是「输入框左边多出一截、右边更贴边」。 */
-  scrollbar-gutter: stable both-edges;
-  /* 右端只避让 2px：滚动条贴着中间栏分隔线，又不会压到调宽手柄。 */
-  margin-inline-end: var(--chat-scrollbar-gap, 2px);
-  padding: 1.5rem var(--chat-side-padding) 1rem;
-  padding-inline-end: calc(var(--chat-side-padding) - var(--chat-scrollbar-gap, 2px));
-  /* 输入区叠在上方，正文末端让出它的高度（由 ChatWorkspace 实测量出）。 */
-  padding-block-end: calc(1rem + var(--chat-composer-height, 0px));
+  min-height: 0;
+  overflow: hidden;
 }
 
 .thread {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 1.25rem;
+  gap: var(--thread-row-gap, 1.25rem);
   width: calc(var(--chat-column-width) - 2 * var(--chat-thread-inset));
   margin: 0 auto;
+}
+
+/* 窗口化：行改由绝对定位摆放，行距交给行槽下内边距（会被行高测量计入，
+   因此虚拟化器的偏移天然包含间距）。总高度由窗口轨道撑开。 */
+.thread[data-virtualized="true"] {
+  display: block;
+}
+
+.threadTrack {
+  position: relative;
+  width: 100%;
+}
+
+.threadSlot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+}
+
+.threadSlot:not(:last-child) {
+  padding-bottom: var(--thread-row-gap, 1.25rem);
 }
 
 /* 搜索结果定位到消息时短暂描边并淡入高亮，帮助用户快速找到命中项。 */
@@ -135,44 +132,19 @@
   word-break: break-word;
 }
 
-.scrollBottomBtn {
-  position: absolute;
-  left: 50%;
-  bottom: calc(100% + 0.55rem);
-  transform: translateX(-50%);
-  z-index: 25;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  border: 1px solid var(--glass-border, var(--color-line));
-  border-radius: 999px;
-  background: var(--glass-popover-bg, var(--color-popover));
-  backdrop-filter: blur(18px);
-  color: var(--color-ink);
-  box-shadow: 0 6px 18px rgb(0 0 0 / 0.35);
-  cursor: pointer;
-}
-
-.scrollBottomBtn:hover {
-  background: var(--color-active);
-}
-
-@container (max-width: 880px) {
-  .scrollBottomBtn {
-    left: auto;
-    right: max(1.6rem, calc((100% - 48rem) / 2 + 0.35rem));
-    bottom: calc(100% - 0.1rem);
-    transform: none;
-  }
-}
-
 .assistantRow {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 0.25rem;
   padding: 0.25rem 0;
+}
+
+/* 长会话的离屏消息跳过布局与绘制：滚动、切换会话只算视口附近的行。
+   contain-intrinsic-size 用「auto + 估算高度」占位并记住实测值，避免滚动条与滚动位置跳动。 */
+.assistantRow,
+.userRow {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 420px;
 }
 
 .assistantBody {
@@ -199,29 +171,6 @@
 .assistantMeta {
   color: var(--color-muted);
   font-size: 0.78em;
-}
-
-.composerDock {
-  /* 叠在消息滚动区之上：滚动条因此能一路画到面板最底部；消息区用等高的底部内边距让位。 */
-  position: relative;
-  z-index: 2;
-  grid-row: -2 / -1;
-  grid-column: 1;
-  align-self: end;
-  padding: 0.5rem var(--chat-side-padding) 1.15rem;
-  background: transparent;
-}
-
-/* 输入区下方垫一层「由透明渐变到面板底色」的遮挡：往上滚时消息只会淡出，
-   不会从磨砂输入卡片里透出来（卡片本身仍是半透明玻璃）。
-   右侧留出滚动条槽不让遮挡覆盖，否则滚动条滑到这里就被这层底色盖掉了。 */
-.composerDock::before {
-  content: "";
-  position: absolute;
-  inset: -1.4rem calc(var(--scrollbar-size, 10px) + var(--chat-scrollbar-gap, 2px)) 0 0;
-  z-index: -1;
-  background: linear-gradient(to bottom, transparent 0, var(--color-shell) 30%);
-  pointer-events: none;
 }
 
 .composerStack {

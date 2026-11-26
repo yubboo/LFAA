@@ -48,7 +48,8 @@ test("下载仅由所属会话确认，同名并发不覆盖，历史写入幂�
   const staging = join(root, "stage");
   await writeFile(staging, "fixture");
   const store = new BrowserDataStore(root);
-  const downloads = new BrowserDownloads(async () => ({ ...DEFAULT_SETTINGS, downloadDir: destination }), store);
+  // 本条用例只验证「规则要求确认」的路径：显式关闭下载前询问，避免依赖设置默认值。
+  const downloads = new BrowserDownloads(async () => ({ ...DEFAULT_SETTINGS, downloadDir: destination, askBeforeDownload: false }), store);
   const source = {
     url: "https://files.test/file",
     filename: "report.txt",

@@ -1,15 +1,36 @@
 // 聊天消息区：空会话引导（鱼形图标 / 标题 / 聊天·工作分段 / 工作模式的项目范围提示条 / 内嵌输入栏 / 统一轻量起步建议）与隔离记忆化的消息线程。
 import type { ReactNode, RefObject } from "react";
-import { IconCircleCheck, IconFish } from "@tabler/icons-react";
+import { useMemo, useRef, useState, useLayoutEffect } from "react";
+import { IconFish } from "@tabler/icons-react";
 import type { WorkspaceMode } from "@lfaa/ui-layout/client";
 import type { ChatMessageItem, FilePreviewTab, PendingApprovalBanner } from "../store/chat-types";
 import type { ChatLocaleMessages } from "../locales";
 import type { MediaResultContextValue } from "@lfaa/client-ui-tool-media/client";
 import { formatDayDivider } from "./MessageActionBars";
 import { ChatMessageRow } from "./ChatMessageRow";
-import { splitSuggestionBlock } from "./suggestion-block";
+import { ChatSuggestions } from "./ChatSuggestions";
+import { collectPriorSuggestions, EMPTY_PRIOR_SUGGESTIONS, stabilizePriorSuggestions } from "./prior-suggestions";
+import { readStoredThreadVirtualization } from "../store/chat-preferences";
+import { shouldVirtualizeThread } from "./thread-window";
+import { useThreadWindow, type ThreadWindowHandle } from "./use-thread-window";
 import styles from "./ChatWorkspace.module.css";
 import heroStyles from "./ChatWorkspace.hero.module.css";
+
+/**
+ * 计算每条消息渲染时的「历史建议前缀」，并在内容没变时复用上一次的数组引用。
+ * messages 数组在流式输出里每帧都会换引用：按内容而不是按引用缓存，ChatMessageRow 的 memo 才不会失效。
+ */
+function useStablePriorSuggestions(messages: ChatMessageItem[]): string[][] {
+  const prefixesRef = useRef<string[][]>([]);
+  const parsedRef = useRef(new Map<string, { content: string; suggestions: string[] }>());
+
+  return useMemo(() => {
+    const next = collectPriorSuggestions(messages, parsedRef.current);
+    const stable = stabilizePriorSuggestions(prefixesRef.current, next);
+    prefixesRef.current = stable;
+    return stable;
+  }, [messages]);
+}
 
 /** 恢复会话时的静态消息骨架：与真实消息共用同一条宽度轴，详情回来时只替换内容、不挪动输入栏。 */
 function ConversationSkeleton({ isZh }: { isZh: boolean }) {
@@ -65,6 +86,8 @@ export function ChatMessageList({
   onResolveApproval,
   mediaActions,
   threadRef,
+  scrollElementRef,
+  windowHandleRef,
 }: {
   locale: ChatLocaleMessages;
   messages: ChatMessageItem[];
@@ -102,7 +125,38 @@ export function ChatMessageList({
   onResolveApproval: (approved: boolean) => void;
   mediaActions: Pick<MediaResultContextValue, "busy" | "onQuote" | "onRegenerate">;
   threadRef: RefObject<HTMLDivElement | null>;
+  /** 消息滚动容器；窗口化要把它交给虚拟化器计算可视范围。 */
+  scrollElementRef: RefObject<HTMLDivElement | null>;
+  /** 窗口化句柄：锚点跳转与搜索定位经它把目标消息先滚进窗口。 */
+  windowHandleRef?: RefObject<ThreadWindowHandle | null> | undefined;
 }) {
+  // 历史建议前缀必须在 Hooks 阶段算好：messages 在流式增量里每次都换引用，
+  // 若在渲染里现造数组传给行组件，ChatMessageRow 的 memo 会被新引用全部打穿。
+  const priorSuggestions = useStablePriorSuggestions(messages);
+  // 窗口化开关只读一次 localStorage，避免每次渲染都访问存储。
+  const [virtualizeEnabled] = useState(readStoredThreadVirtualization);
+  const windowed = shouldVirtualizeThread(messages.length, virtualizeEnabled);
+  // 日期分隔条在轨道之上：把轨道相对滚动内容顶部的偏移交给虚拟化器，行位置才与滚动坐标一致。
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const [scrollMargin, setScrollMargin] = useState(0);
+  useLayoutEffect(() => {
+    if (!windowed) return;
+    const track = trackRef.current;
+    const viewport = scrollElementRef.current;
+    if (!track || !viewport) return;
+    const offset = track.getBoundingClientRect().top - viewport.getBoundingClientRect().top + viewport.scrollTop;
+    const next = Math.max(0, Math.round(offset));
+    setScrollMargin((prev) => (prev === next ? prev : next));
+  }, [windowed, scrollElementRef, messages.length]);
+  const { virtualizer, virtualItems, totalSize } = useThreadWindow({
+    enabled: windowed,
+    sessionId: activeSessionId || null,
+    messages,
+    scrollElementRef,
+    handleRef: windowHandleRef,
+    scrollMargin,
+  });
+
   if (messages.length === 0) {
     // 刷新恢复会话时先给会话骨架：空态引导在详情回来前闪一下再跳走，是最刺眼的那一下。
     if (restoring) return <ConversationSkeleton isZh={locale.isZh} />;
@@ -152,20 +206,7 @@ export function ChatMessageList({
           </div>
         )}
         {showHomeSuggestions && (
-          <div className={heroStyles.heroSuggestions} role="list">
-            {activeSuggestions.map((prompt) => (
-              <button
-                key={prompt}
-                type="button"
-                role="listitem"
-                className={heroStyles.heroSuggestionBtn}
-                onClick={() => onSubmitQuestion(prompt)}
-              >
-                <IconCircleCheck className={heroStyles.heroSuggestionIcon} size={15} stroke={1.6} aria-hidden="true" />
-                <span className={heroStyles.heroSuggestionText}>{prompt}</span>
-              </button>
-            ))}
-          </div>
+          <ChatSuggestions suggestions={activeSuggestions} onPick={onSubmitQuestion} />
         )}
         <p className={heroStyles.heroHint}>{isWorkMode ? locale.heroHintWork : locale.heroHintChat}</p>
       </div>
@@ -173,43 +214,67 @@ export function ChatMessageList({
   }
 
   // 逐条累积历史建议：本轮与历史重复的建议不再展示，避免连续两轮给同一句。
-  let seenSuggestions: string[] = [];
-  const rows = messages.map((msg, msgIdx) => {
-    const priorSuggestions = seenSuggestions;
-    if (msg.role === "assistant") {
-      const { suggestions } = splitSuggestionBlock(msg.content);
-      if (suggestions.length > 0) seenSuggestions = [...seenSuggestions, ...suggestions];
-    }
+  // 行渲染抽成函数：全量路径与窗口化路径共用同一份 props，保证两条路径渲染结果一致。
+  const renderRow = (msg: ChatMessageItem, msgIdx: number) => (
+    <ChatMessageRow
+      key={msg.id}
+      msg={msg}
+      isLastMessage={msgIdx === messages.length - 1}
+      hideContentForClarification={Boolean(clarification && msg.id === lastMessage?.id)}
+      locale={locale}
+      activeSessionId={activeSessionId}
+      selectedFileStepId={selectedFile?.messageId === msg.id ? selectedFile.stepId : undefined}
+      pendingApproval={msg.status === "streaming" ? pendingApproval : null}
+      memoriesCount={memoriesCount}
+      isRunning={isRunning}
+      brandWatermark={brandWatermark}
+      assistantBodyClass={assistantBodyClass}
+      noticeLinkClass={noticeLinkClass}
+      previousSuggestions={priorSuggestions[msgIdx] ?? EMPTY_PRIOR_SUGGESTIONS}
+      mediaActions={mediaActions}
+      onOpenFilePreview={onOpenFilePreview}
+      onOpenTurnChanges={onOpenTurnChanges}
+      onOpenBrowser={onOpenBrowser}
+      onOpenSubagent={onOpenSubagent}
+      onEditContent={onEditContent}
+      onOpenTrace={onOpenTrace}
+      onBranchToNewChat={onBranchToNewChat}
+      onContinueInterrupted={onContinueInterrupted}
+      onSubmitQuestion={onSubmitQuestion}
+      onResolveApproval={onResolveApproval}
+    />
+  );
+
+  // 长会话只渲染可视窗口附近的行；短会话仍一次性渲染，避免窗口边缘的取整误差影响观感。
+  if (windowed) {
     return (
-      <ChatMessageRow
-        key={msg.id}
-        msg={msg}
-        isLastMessage={msgIdx === messages.length - 1}
-        hideContentForClarification={Boolean(clarification && msg.id === lastMessage?.id)}
-        locale={locale}
-        activeSessionId={activeSessionId}
-        selectedFileStepId={selectedFile?.messageId === msg.id ? selectedFile.stepId : undefined}
-        pendingApproval={msg.status === "streaming" ? pendingApproval : null}
-        memoriesCount={memoriesCount}
-        isRunning={isRunning}
-        brandWatermark={brandWatermark}
-        assistantBodyClass={assistantBodyClass}
-        noticeLinkClass={noticeLinkClass}
-        previousSuggestions={priorSuggestions}
-        mediaActions={mediaActions}
-        onOpenFilePreview={onOpenFilePreview}
-        onOpenTurnChanges={onOpenTurnChanges}
-        onOpenBrowser={onOpenBrowser}
-        onOpenSubagent={onOpenSubagent}
-        onEditContent={onEditContent}
-        onOpenTrace={onOpenTrace}
-        onBranchToNewChat={onBranchToNewChat}
-        onContinueInterrupted={onContinueInterrupted}
-        onSubmitQuestion={onSubmitQuestion}
-        onResolveApproval={onResolveApproval}
-      />
+      <div ref={threadRef} className={styles.thread} data-virtualized="true">
+        {messages[0] && (
+          <div className={styles.dayDivider}>
+            {formatDayDivider(messages[0].createdAt, locale.isZh)}
+          </div>
+        )}
+        {/* 虚拟化器的总高度含 scrollMargin（轨道上方还有日期分隔条），这里只保留行本身的高度。 */}
+        <div ref={trackRef} className={styles.threadTrack} style={{ height: Math.max(0, totalSize - scrollMargin) }}>
+          {virtualItems.map((item) => {
+            const msg = messages[item.index];
+            if (!msg) return null;
+            return (
+              <div
+                key={msg.id}
+                data-index={item.index}
+                ref={(node) => virtualizer.measureElement(node)}
+                className={styles.threadSlot}
+                style={{ transform: `translateY(${item.start - scrollMargin}px)` }}
+              >
+                {renderRow(msg, item.index)}
+              </div>
+            );
+          })}
+        </div>
+      </div>
     );
-  });
+  }
 
   return (
     <div ref={threadRef} className={styles.thread}>
@@ -218,7 +283,7 @@ export function ChatMessageList({
           {formatDayDivider(messages[0].createdAt, locale.isZh)}
         </div>
       )}
-      {rows}
+      {messages.map((msg, msgIdx) => renderRow(msg, msgIdx))}
     </div>
   );
 }

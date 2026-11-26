@@ -314,6 +314,20 @@
   word-break: break-all;
 }
 
+/* 下载位置来源标记：当前目录跟随系统「下载」目录，而不是用户自选。 */
+.dirTag {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.45rem;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-active);
+  color: var(--color-muted);
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
 /* 顶部独立「浏览器总控」行：带大图标并以下方大留白与「常规」分组拉开层次。 */
 .heroControlRow {
   display: flex;

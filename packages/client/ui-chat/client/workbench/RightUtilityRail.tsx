@@ -8,11 +8,14 @@ import {
   IconPuzzle,
   IconRobot,
   IconSettings,
+  IconTerminal,
   IconTerminal2,
 } from "@tabler/icons-react";
-import styles from "./RightWorkbenchPane.module.css";
+import { useEffect, useState } from "react";
+import styles from "./RightUtilityRail.module.css";
+import { readTerminalPlacement, subscribeTerminalPlacement, type TerminalPlacement } from "./terminal-placement";
 
-export type RightAuxTab = "filesTree" | "workspaceContext" | "terminal" | "subagents" | "sideAsk" | "details";
+export type RightAuxTab = "filesTree" | "workspaceContext" | "shell" | "terminal" | "subagents" | "sideAsk" | "details";
 
 export function RightUtilityRail({
   isZh,
@@ -35,14 +38,19 @@ export function RightUtilityRail({
   onOpenExtensions?: (() => void) | undefined;
   onOpenSettings: () => void;
 }) {
-  const items: Array<{ id: RightAuxTab; label: string; icon: typeof IconFolder; badge?: number }> = [
-    { id: "filesTree", label: isZh ? "工作区文件树" : "Files", icon: IconFolder },
+  // 终端在底部时不再显示右栏「终端」入口：那里没有对应标签，点了也只会聚焦底部面板。
+  const [placement, setPlacement] = useState<TerminalPlacement>(() => readTerminalPlacement());
+  useEffect(() => subscribeTerminalPlacement(() => setPlacement(readTerminalPlacement())), []);
+
+  const allItems: Array<{ id: RightAuxTab; label: string; icon: typeof IconFolder; badge?: number }> = [
     { id: "workspaceContext", label: isZh ? "工作区上下文" : "Workspace context", icon: IconInfoCircle },
-    { id: "terminal", label: isZh ? "终端与后台任务" : "Terminal & tasks", icon: IconTerminal2, badge: runningJobsCount },
+    { id: "shell", label: isZh ? "终端" : "Terminal", icon: IconTerminal },
+    { id: "terminal", label: isZh ? "后台任务" : "Background tasks", icon: IconTerminal2, badge: runningJobsCount },
     { id: "subagents", label: isZh ? "子智能体团队" : "Subagents", icon: IconRobot, badge: runningSubagentsCount },
     { id: "sideAsk", label: isZh ? "侧边提问" : "Side ask", icon: IconMessageCircle },
     { id: "details", label: isZh ? "工作详情（模型/权限/记忆）" : "Work details", icon: IconAdjustments },
   ];
+  const items = allItems.filter((item) => !(item.id === "shell" && placement === "bottom"));
 
   return (
     <nav className={styles.utilityRail} aria-label={isZh ? "右侧辅助工具栏" : "Right utility rail"}>

@@ -1,9 +1,12 @@
 // 展示本地用户菜单，并复用现有外观设置入口与主题插件提供的头部快捷操作。
-import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { WorkbenchAccountActionContribution } from "../../contract/index";
 import type { LocaleMessages } from "../locales";
 import { NavigationIcon } from "./NavigationIcon";
+import { resolveUserMenuGeometry, type UserMenuGeometry } from "./user-menu-geometry";
+import { formatShortcutKeys, readShortcutKeysFor } from "../shortcuts";
+import { defaultShortcutKeys } from "../shortcut-defaults";
 import styles from "./UserMenu.module.css";
 
 type UserAction = "companion" | "invite" | "profile" | "help" | "signOut";
@@ -24,36 +27,43 @@ export function UserMenu({
   /** 「设置」入口：打开设置中心首屏（常规）。 */
   onOpenSettings: () => void;
 }) {
+  const settingsHint = formatShortcutKeys(readShortcutKeysFor("navigation.settings", defaultShortcutKeys("navigation.settings")));
   const [open, setOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const rootRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const [panelPos, setPanelPos] = useState<{ left: number; bottom: number; width: number } | null>(null);
+  const [panelPos, setPanelPos] = useState<UserMenuGeometry | null>(null);
+
+  /**
+   * 量取菜单卡片位置：卡片跟着左二会话栏走，宽度取该栏内宽，
+   * 不再以固定 344px 盖住会话区；窄屏（≤767px）交给 CSS 底部抽屉布局。
+   */
+  const measurePanel = useCallback(() => {
+    const trigger = triggerRef.current?.getBoundingClientRect();
+    const compact = window.matchMedia("(max-width: 767px)").matches;
+    if (!trigger || compact) {
+      setPanelPos(null);
+      return;
+    }
+    // 左二栏是壳层公开区域，收起时该节点不存在，退回贴着图标栏的独立浮层。
+    const column = document.querySelector<HTMLElement>('[data-region="section-navigation"]')?.getBoundingClientRect();
+    setPanelPos(resolveUserMenuGeometry({
+      trigger,
+      column: column && column.width > 0 ? column : null,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+    }));
+  }, []);
 
   useEffect(() => {
     if (!open) return;
-    const computePosition = () => {
-      const rect = triggerRef.current?.getBoundingClientRect();
-      const compact = window.matchMedia("(max-width: 767px)").matches;
-      if (!rect || compact) {
-        setPanelPos(null);
-        return;
-      }
-      const gap = 8;
-      setPanelPos({
-        left: rect.right + gap,
-        bottom: Math.max(8, window.innerHeight - rect.bottom),
-        width: Math.min(344, window.innerWidth - rect.right - gap * 2),
-      });
-    };
-    computePosition();
-    window.addEventListener("resize", computePosition);
+    measurePanel();
+    window.addEventListener("resize", measurePanel);
     const closeOnOutside = (event: PointerEvent) => {
       const target = event.target;
       if (!(target instanceof Node)) return;
       if (rootRef.current?.contains(target) || panelRef.current?.contains(target)) return;
-      if (target instanceof Element && target.closest("[data-theme-quick-menu]")) return;
       setOpen(false);
     };
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -64,11 +74,11 @@ export function UserMenu({
     document.addEventListener("pointerdown", closeOnOutside);
     document.addEventListener("keydown", closeOnEscape);
     return () => {
-      window.removeEventListener("resize", computePosition);
+      window.removeEventListener("resize", measurePanel);
       document.removeEventListener("pointerdown", closeOnOutside);
       document.removeEventListener("keydown", closeOnEscape);
     };
-  }, [open]);
+  }, [measurePanel, open]);
 
   const showNotice = (action: UserAction) => {
     const messages: Record<UserAction, string> = {
@@ -125,6 +135,7 @@ export function UserMenu({
             </button>
             <button className={styles.action} type="button" onClick={() => { setOpen(false); onOpenSettings(); }}>
               <NavigationIcon name="settings" /><span>{locale.settings}</span>
+              {settingsHint && <kbd className={styles.kbd}>{settingsHint}</kbd>}
             </button>
           </div>
           <div className={styles.separator} />
@@ -149,10 +160,20 @@ export function UserMenu({
         aria-expanded={open}
         aria-controls="lfaa-user-menu"
         data-tooltip={locale.accountMenu}
-        onClick={() => { setNotice(""); setOpen((value) => !value); }}
+        onClick={() => {
+          setNotice("");
+          if (open) {
+            setOpen(false);
+            return;
+          }
+          // 打开前先量尺寸：首帧就是贴着左二栏的宽度，避免先按固定宽度闪一下再跳。
+          measurePanel();
+          setOpen(true);
+        }}
       >
         <span className={styles.avatar} aria-hidden="true">LF</span>
       </button>
     </div>
   );
 }
+

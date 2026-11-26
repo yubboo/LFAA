@@ -2,6 +2,7 @@
 // 文件细节（MIME/穿越防护/Range/缓存）在 static-files 中，这里只负责服务器生命周期与路由。
 import { readFile, stat } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import type { Duplex } from "node:stream";
 import type { AddressInfo } from "node:net";
 import { join, resolve } from "node:path";
 import { checkApiAuth, checkApiWriteContentType, isApiPath, type ApiGateway } from "@lfaa/api-gateway";
@@ -27,6 +28,8 @@ export interface StaticServerOptions {
   port?: number;
   /** 关闭服务器后的清理回调（由 startHostServer 用来释放运行时）。 */
   onStop?: () => Promise<void>;
+  /** WebSocket 升级处理器；返回 false 时由宿主断开（静态服务没有其它升级用途）。 */
+  onUpgrade?: (req: IncomingMessage, socket: Duplex, head: Buffer) => boolean;
 }
 
 export interface StaticServer {
@@ -67,6 +70,7 @@ export async function startHostServer(options: HostServerOptions): Promise<HostS
       ...(options.host ? { host: options.host } : {}),
       ...(options.port !== undefined ? { port: options.port } : {}),
       onStop: () => runtime.dispose(),
+      onUpgrade: (req, socket, head) => runtime.upgrade(req, socket, head),
     });
     return { ...server, receiveDesktopDownload: runtime.receiveDesktopDownload };
   } catch (error) {
@@ -93,6 +97,13 @@ export async function startStaticServer(options: StaticServerOptions): Promise<S
         sendJson(res, 500, { error: isApiPath(req.url) ? "本机接口处理失败。" : "静态资源读取失败。" });
       });
   });
+
+  if (options.onUpgrade) {
+    const handleUpgrade = options.onUpgrade;
+    server.on("upgrade", (req, socket, head) => {
+      if (!handleUpgrade(req, socket, head)) socket.destroy();
+    });
+  }
 
   await new Promise<void>((resolveListen, rejectListen) => {
     server.once("error", rejectListen);

@@ -16,7 +16,8 @@ node scripts/check-workspace.mjs
 # AST 规则：未使用导入、显式 any、调试输出、宽松相等、空 catch、TS 抑制指令。
 node scripts/lint-workspace.mjs
 
-# 日志编号必须六位全局递增：同类日志内重号直接拦下（历史重号已登记基线）。
+# 日志体检：编号必须六位全局递增（同类日志内重号直接拦下，历史重号已登记基线），
+# 且自 DEV-000541 起每条 dev-log 必须含「## 调研与参考」（外链或「无外部参考」说明）。
 node scripts/check-logs.mjs
 
 # 仓库目录说明书必须与真实骨架一致：新增/删除/移动文件后先跑 pnpm map:sync。

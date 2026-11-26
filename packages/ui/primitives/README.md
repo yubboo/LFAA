@@ -43,6 +43,12 @@ Shared collapse interaction, reused by any panel (evidence: `packages/ui/layout`
   <CollapsePane open={open} side="left" className={styles.leftPane}>{children}</CollapsePane>
   ```
 
+- `CapsuleBar`: the shared header capsule. The section sidebar header and the center workspace top bar put their own action groups inside the same shell, so border, radius, surface, shadow and the `--capsule-*` sizing are defined once; callers only override per-column knobs such as `--capsule-height`, `--capsule-gap` and `--capsule-padding`.
+
+  ```tsx
+  <CapsuleBar className={styles.barCapsule}>{leftGroup}{rightGroup}</CapsuleBar>
+  ```
+
 Breakpoints can override `--panel-toggle-size` and `--panel-toggle-radius`; the default is a 2rem square.
 
 ## Scroll area

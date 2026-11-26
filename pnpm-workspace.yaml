@@ -9,3 +9,5 @@ allowBuilds:
   # 仅构建脚本会用到，桌面端运行与 NSIS 打包不需要它执行安装脚本。
   electron-winstaller: false
   esbuild: true
+  # 真实终端：PTY 需要编译原生模块（Windows 走 ConPTY），否则只能退化成无 TTY 的 spawn。
+  node-pty: true

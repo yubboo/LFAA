@@ -5,7 +5,8 @@ export function workbenchAuxTitles(isZh: boolean): Record<RightAuxTab, string> {
   return {
     filesTree: isZh ? "工作区文件" : "Workspace Files",
     workspaceContext: isZh ? "工作区上下文" : "Workspace Context",
-    terminal: isZh ? "终端与后台任务" : "Terminal & Tasks",
+    shell: isZh ? "终端" : "Terminal",
+    terminal: isZh ? "后台任务" : "Background tasks",
     subagents: isZh ? "子智能体团队" : "Subagents",
     sideAsk: isZh ? "侧边提问" : "Side Ask",
     details: isZh ? "工作详情" : "Work Details",

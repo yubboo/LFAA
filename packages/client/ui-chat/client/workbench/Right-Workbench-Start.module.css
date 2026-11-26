@@ -14,7 +14,8 @@
 /* 背景图生效时启动页也透出壳层背景；搜索框与快捷卡片自带底色，不牺牲可读性。 */
 :global(html[data-app-bg-workspace="image"]) .stage,
 :global(html[data-settings-open="true"][data-app-bg-settings="image"]) .stage {
-  background: color-mix(in srgb, var(--color-shell) 78%, transparent);
+  /* 栏底色已经是同一档薄纱，启动页不再叠第二层，否则两层叠起来图片会被吃掉。 */
+  background: transparent;
 }
 
 .content {

@@ -1,12 +1,12 @@
 // 右工作台启动页，复用项目文件、浏览器和辅助面板入口，适用于空白浏览器标签。
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { IconFileDiff, IconFolder, IconMessageCircle, IconSearch, IconTerminal2 } from "@tabler/icons-react";
+import { IconFileDiff, IconMessageCircle, IconSearch, IconTerminal2 } from "@tabler/icons-react";
 import type { ChatClientStore } from "../store/chat-store";
 import { rightWorkbenchStartLabels } from "../locales";
 import styles from "./Right-Workbench-Start.module.css";
 
 export function RightWorkbenchStart({
-  isZh, store, projectId, worktreeId, projectName, onOpenUrl, onOpenTerminal, onOpenReview, onOpenFiles, onOpenSideAsk, children,
+  isZh, store, projectId, worktreeId, projectName, onOpenUrl, onOpenTerminal, onOpenReview, onOpenSideAsk, children,
 }: {
   isZh: boolean;
   store: ChatClientStore;
@@ -17,7 +17,6 @@ export function RightWorkbenchStart({
   onOpenUrl: (url: string) => Promise<void>;
   onOpenTerminal: () => void;
   onOpenReview: () => void;
-  onOpenFiles: () => void;
   onOpenSideAsk: () => void;
   children?: ReactNode;
 }) {
@@ -56,7 +55,6 @@ export function RightWorkbenchStart({
   const shortcuts = [
     { label: labels.terminal, icon: IconTerminal2, action: onOpenTerminal },
     { label: labels.changes, icon: IconFileDiff, action: onOpenReview },
-    { label: labels.files, icon: IconFolder, action: onOpenFiles },
     { label: labels.sideAsk, icon: IconMessageCircle, action: onOpenSideAsk },
   ];
 

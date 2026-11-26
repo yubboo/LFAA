@@ -1,19 +1,20 @@
 // 内置背景图清单：backgrounds/ 目录下放入图片即被自动发现，新增图片不需要改这里；
-// 中文名与展示顺序写在 manifest.json 的 labels / order 里，没登记的按文件名兜底并排在后面。
-// 添加流程见 packages/ui/theme/README.zh.md「背景图片」；个人背景不放这里，走 ~/.lfaa/backgrounds。
+// 中文名、展示顺序与配套配色写在 manifest.json 里，没登记的按文件名兜底并排在后面。
+// 添加流程见 packages/ui/theme/README.zh.md「主题与背景」；个人背景不放这里，走 ~/.lfaa/backgrounds。
 import manifest from "./manifest.json";
 
-/** 一张内置背景图的展示信息；src 是 Vite 处理后的带哈希 URL。 */
+/** 一张内置背景图的展示信息；src 是 Vite 处理后的带哈希 URL，preset 是它作为主题时使用的配色 id。 */
 export interface BuiltinBackground {
   id: string;
   src: string;
   labelZh: string;
   labelEn: string;
+  preset?: string;
 }
 
 interface BackgroundManifest {
   order?: string[];
-  labels?: Record<string, { zh?: string; en?: string }>;
+  labels?: Record<string, { zh?: string; en?: string; preset?: string }>;
 }
 
 /** Vite 的 import.meta.glob 只在本文件用到，局部描述签名，避免把 vite/client 引入 Host 类型检查。 */
@@ -59,6 +60,7 @@ export const BUILTIN_BACKGROUNDS: BuiltinBackground[] = Object.entries(files)
       src,
       labelZh: label?.zh ?? humanize(id),
       labelEn: label?.en ?? humanize(id),
+      ...(label?.preset ? { preset: label.preset } : {}),
     };
   })
   .sort((left, right) => {

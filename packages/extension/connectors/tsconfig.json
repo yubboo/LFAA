@@ -1,0 +1,14 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "lib/types",
+    "types": ["node"]
+  },
+  "include": ["src", "contract"],
+  "references": [
+    { "path": "../mcp" },
+    { "path": "../../core/storage" },
+    { "path": "../../core/tools" }
+  ]
+}

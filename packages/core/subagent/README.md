@@ -36,3 +36,5 @@ Child runs inherit the parent's session tool policy, model profile, and project 
 Invocations and follow-ups report start, tool-state changes and settlement to the parent tool context. The parent saves these events in assistant-message activity.
 
 Browser subtasks follow the delegated scope and report observable actions, results, and screenshot references when available.
+
+When a subagent finishes, its conclusion summary and failed steps are written as `team`-scoped long-term memories owned by the current session, so the parent and sibling subagents can recall them on their next turn without waiting for the parent to relay.

@@ -14,7 +14,9 @@ import {
 } from "@lfaa/ui-primitives/client";
 import type { BrowserPasswordSettings, BrowserSettingsConfig, BrowserSitePermissions } from "@lfaa/browser/contract";
 import { fetchBrowserConfig, saveBrowserConfig } from "../api/browser-client";
-import { clearBrowserData, pickBrowserFolder } from "../api/browser-data-client";
+import type { DownloadDirSource } from "../api/browser-client";
+import { clearBrowserData } from "../api/browser-data-client";
+import { BrowserDownloadsGroup } from "./Browser-Downloads-Group";
 import { BrowserDownloadsSubpage, BrowserHistorySubpage } from "./Browser-History-Downloads";
 import { BrowserPasswordsSubpage } from "./Browser-Passwords-Subpage";
 import { BrowserContactsSubpage, BrowserExtensionsSubpage, BrowserSiteSettingsSubpage } from "./Browser-Site-Ext-Subpages";
@@ -46,7 +48,7 @@ const INITIAL_CONFIG: BrowserSettingsConfig = {
   showFullUrl: false,
   annotationScreenshotMode: "always",
   downloadDir: "",
-  askBeforeDownload: false,
+  askBeforeDownload: true,
   historyAccessPolicy: "ask",
   enableWebsiteTools: true,
   defaultBrowsePolicy: "ask",
@@ -70,15 +72,19 @@ export function BrowserSettingsView({ isZh }: { isZh: boolean }) {
     writeStoredJson(SUBPAGE_KEY, value);
   };
   const [notice, setNotice] = useState("");
-  const [pickingDir, setPickingDir] = useState(false);
+  // 下载位置来源由宿主判定：跟随系统「下载」目录时路径会随系统重定向自动变化。
+  const [dirSource, setDirSource] = useState<DownloadDirSource>("system");
   const cfgRef = useRef(cfg);
   cfgRef.current = cfg;
 
+  const syncConfig = (res: { config: BrowserSettingsConfig; downloadDirSource?: DownloadDirSource }) => {
+    cfgRef.current = { ...INITIAL_CONFIG, ...res.config };
+    setCfg(cfgRef.current);
+    setDirSource(res.downloadDirSource ?? "system");
+  };
+
   useEffect(() => {
-    void fetchBrowserConfig().then((res) => {
-      cfgRef.current = { ...INITIAL_CONFIG, ...res.config };
-      setCfg(cfgRef.current);
-    }).catch(() => {});
+    void fetchBrowserConfig().then(syncConfig).catch(() => {});
   }, []);
 
   const apply = async (patch: Partial<BrowserSettingsConfig>, doneText = isZh ? "已保存" : "Saved") => {
@@ -88,9 +94,7 @@ export function BrowserSettingsView({ isZh }: { isZh: boolean }) {
     setCfg(next);
     setNotice("");
     try {
-      const res = await saveBrowserConfig(next);
-      cfgRef.current = { ...INITIAL_CONFIG, ...res.config };
-      setCfg(cfgRef.current);
+      syncConfig(await saveBrowserConfig(next));
       setNotice(doneText);
     } catch (err) {
       cfgRef.current = previous;
@@ -142,22 +146,6 @@ export function BrowserSettingsView({ isZh }: { isZh: boolean }) {
       />
     );
   }
-
-  const handleChangeDownloadDir = async () => {
-    if (pickingDir) return;
-    setPickingDir(true);
-    setNotice("");
-    try {
-      const picked = await pickBrowserFolder({
-        title: isZh ? "选择下载位置" : "Choose Downloads Folder",
-        ...(cfg.downloadDir ? { initialDir: cfg.downloadDir } : {}),
-      });
-      if (picked.error) setNotice(picked.error);
-      else if (!picked.cancelled && picked.path) await apply({ downloadDir: picked.path });
-    } finally {
-      setPickingDir(false);
-    }
-  };
 
   const handleClearData = async () => {
     if (typeof window !== "undefined" && !window.confirm(isZh ? "确定清除内置浏览器的浏览历史与下载记录？" : "Clear browsing and download history?")) return;
@@ -273,27 +261,15 @@ export function BrowserSettingsView({ isZh }: { isZh: boolean }) {
         />
       </SettingGroup>
 
-      <SettingGroup title={isZh ? "下载" : "Downloads"}>
-        <SettingRow
-          title={isZh ? "下载位置" : "Download location"}
-          description={<span className={styles.pathValue}>{cfg.downloadDir || (isZh ? "系统默认下载文件夹" : "System Downloads folder")}</span>}
-          control={(
-            <button type="button" className={baseStyles.actionBtn} disabled={pickingDir} onClick={() => void handleChangeDownloadDir()}>
-              {pickingDir ? (isZh ? "打开中…" : "Opening…") : (isZh ? "更改…" : "Change…")}
-            </button>
-          )}
-        />
-        <SettingRow
-          title={isZh ? "下载前询问保存位置" : "Ask where to save before downloading"}
-          description={isZh ? "对在内置浏览器中发起的下载显示保存对话框" : "Prompt for destination on each download"}
-          control={<SettingSwitch checked={cfg.askBeforeDownload === true} label="Ask before download" onChange={(askBeforeDownload) => void apply({ askBeforeDownload })} />}
-        />
-        <SettingRow
-          title={isZh ? "下载历史记录" : "Download history"}
-          description={isZh ? "查看和管理从内置浏览器下载的文件" : "View and manage downloaded files"}
-          control={<button type="button" className={baseStyles.actionBtn} aria-label={isZh ? "管理下载历史记录" : "Manage download history"} onClick={() => setSubpage("downloads")}>{isZh ? "管理" : "Manage"}</button>}
-        />
-      </SettingGroup>
+      <BrowserDownloadsGroup
+        isZh={isZh}
+        downloadDir={cfg.downloadDir ?? ""}
+        dirSource={dirSource}
+        askBeforeDownload={cfg.askBeforeDownload === true}
+        onApply={apply}
+        onOpenHistory={() => setSubpage("downloads")}
+        onNotify={setNotice}
+      />
 
       <SettingGroup title={isZh ? "浏览器权限" : "Browser Permissions"}>
         <SettingRow

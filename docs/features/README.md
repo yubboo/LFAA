@@ -18,6 +18,8 @@
 - [Agent 会话工作区](agent-workspace.md)：项目绑定、生效目录与应用私有文件边界。
 - [默认项目目录同步](project-folder-sync.md)：`<文档>/lfaa` 下新建/删除项目文件夹自动纳入或移出项目列表。**已实施**。
 - [Agent 与模型解耦](agent-model-routing.md)：agent 实体、模型绑定与路由组。**待评审**。
+- [Agent 记忆系统](agent-memory.md)
+- [多 Agent 任务流水线](crew-tasks.md)：Task 契约、依赖顺序接力、交接验收与 run 级记忆。**C1–C4 已实施**。：结构化长期记忆、每轮模型提炼、BM25 召回与多 Agent 团队记忆。**P1–P2 已实施**。
 
 ## 右栏与工作台
 
@@ -28,6 +30,7 @@
 - [IDE 化右侧工作台](right-workbench-ide.md)：Tab 栏、VS Code 只读代码、行内批注、全高浏览器。**已实施**。
 - [变更审查](workbench-change-review.md)：工作台内的改动审阅流程。
 - [Git 工作树会话隔离](worktree.md)：一个会话一个工作树的分支/目录契约、有效根解析与安全加固。**P0–P3b 已实施**。
+- [键盘快捷键与右栏标签右键菜单](keyboard-shortcuts.md)：18 个真实动作的可改键注册表、设置中心快捷键页与标签关闭系列菜单。**已实施**。
 
 ## 内容与媒体
 
@@ -36,6 +39,7 @@
 
 ## 平台与扩展
 
+- [连接器（MCP + CLI）](connectors.md)：设置中心「集成 → 连接器」一页管理 MCP 服务器与声明式 CLI 工具；动作参数 schema、argv 执行、审批与超时边界。**P0 已实施**。
 - [扩展中心](extensions.md)：技能与插件职责、公开契约、Cordis 生命周期。**草案**。
 - [插件清单](plugin-inventory.md)：会话插件 ⊆ 全局插件、模式预设与扩充规划。
 - [沙箱](sandbox.md)：模式语义、工具层强制边界。**当前不是进程级沙箱**。

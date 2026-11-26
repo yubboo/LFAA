@@ -27,7 +27,7 @@ export function sampleOfPreset(presetId: ThemePresetId, scheme: "light" | "dark"
 
 /**
  * 构建主题网格：3 张明暗模式卡（「跟随系统」左右各半）+ 每个预设一张配色卡。
- * 当前模式与当前预设在各自轴上分别标记为选中。
+ * 当前模式与当前预设在各自轴上分别标记为选中；缩略卡只画配色，背景由顶部舞台负责合成。
  */
 export function buildThemeTiles({
   mode,

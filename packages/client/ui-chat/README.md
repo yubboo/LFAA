@@ -42,3 +42,5 @@ Location: `packages/client/ui-chat`.
 Rendering and client-side state live under `client/`; the capability package `@lfaa/chat` keeps the host side only.
 
 The workbench opens explicit browser previews and displays live browser activity, scoped verification results, and available screenshots.
+
+The memory settings tab filters by kind and keyword, edits content and kind in place, and reports active / superseded / archived counts; deletion lives in its own danger group at the end of the page.

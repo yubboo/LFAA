@@ -186,14 +186,32 @@ export interface RuleDocumentItem {
   readOnly: boolean;
 }
 
+export type MemoryKindItem = "preference" | "fact" | "decision" | "pitfall" | "convention";
+
 export interface LongTermMemoryItem {
   id: string;
-  scope: "global" | "project";
+  kind: MemoryKindItem;
+  scope: "global" | "project" | "team" | "session";
   projectId: string | null;
   content: string;
   tags: string[];
+  confidence: number;
+  hits: number;
+  lastUsedAt: number;
+  source?: { sessionId?: string; toolName?: string; runId?: string };
+  agentId?: string;
+  supersededBy?: string;
   createdAt: number;
   updatedAt: number;
+}
+
+/** 记忆库统计：活跃/已替代/归档条数与各类型分布。 */
+export interface MemoryStatsItem {
+  total: number;
+  active: number;
+  superseded: number;
+  archived: number;
+  byKind: Record<MemoryKindItem, number>;
 }
 
 /** 承载正在等待用户决策的工具请求及其提示。 */
@@ -333,6 +351,7 @@ export interface ChatStoreSnapshot {
   profiles: PublicLlmProfileItem[];
   rules: RuleDocumentItem[];
   memories: LongTermMemoryItem[];
+  memoryStats: MemoryStatsItem | null;
   libraryAssets: LibraryAssetItem[];
   storageState: StorageConfigState | null;
   storageStats: StorageStats | null;

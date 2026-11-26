@@ -64,6 +64,7 @@ export class ChatClientStore extends ChatDataFacade {
     profiles: [],
     rules: [],
     memories: [],
+    memoryStats: null,
     libraryAssets: [],
     storageState: null,
     storageStats: null,
@@ -264,6 +265,12 @@ export class ChatClientStore extends ChatDataFacade {
 
   setRightStageKind(kind: "file" | "browser" | "review" | "subagent" | null): void {
     this.fileActions.setRightStageKind(kind);
+  }
+
+  /** 消费跳转请求后清空：避免任何一次状态更新把它重放，把用户刚关掉的标签又打开。 */
+  clearRightPanelRequest(): void {
+    if (!this.state.rightPanelRequest) return;
+    this.updateState({ rightPanelRequest: null });
   }
 
   enqueueComposerInsert(text: string): void {

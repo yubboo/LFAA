@@ -47,83 +47,108 @@
   font-family: var(--content-font-family, var(--ui-font-family, inherit));
   transition: grid-template-columns var(--motion-duration-slow, 260ms) var(--motion-ease-emphasized, cubic-bezier(0.22, 1, 0.36, 1));
 }
-
 /* 拖拽调宽与窗口缩放期间关闭轨道过渡，宽度始终跟手。 */
 .shell[data-resizing="true"],
 .shell[data-pane-resizing="true"] {
   transition: none;
 }
-
 /* 背景图：壳层图片层在 ShellBackground.module.css（按职责拆出，避免本文件超行数上限）；
-   中间工作区再加一层主题色薄纱：图片仍可见，但会话正文、输入框与顶栏保持足够对比度。 */
+   中间工作区再加一层主题色薄纱：图片仍可见，但会话正文、输入框与顶栏保持足够对比度。
+   薄纱比例与四栏共用 --column-wash，浅色档更厚（亮图下保正文对比度）。 */
 :global(html[data-app-bg-workspace="image"]) .workspace,
 :global(html[data-settings-open="true"][data-app-bg-settings="image"]) .workspace {
-  background: color-mix(in srgb, var(--color-shell) 52%, transparent);
+  background: color-mix(in srgb, var(--color-shell) var(--column-wash, 52%), transparent);
 }
-
 .shell[data-left-open="false"] {
   --left-occupied-width: 0px;
   --left-pane-track: 0px;
 }
-
 .shell[data-right-open="false"] {
   --right-reserved-width: 0px;
   --right-pane-track: 0px;
 }
-
 .shell[data-right-wide="true"] {
   --right-panel-base-width: clamp(30rem, 46vw, 52rem);
 }
-
 /* 右工作台最大化模式（Ctrl+Shift+M）：中间轨道归零、右栏占满剩余空间，保留左侧全局导航。 */
 .shell[data-right-maximized="true"] {
   --center-pane-track: 0px;
   --right-pane-track: minmax(0, 1fr);
 }
-
+/* 最大化：不再瞬间 display:none（会让中间先空一帧再补），改为随轨道收缩被裁掉。 */
 .shell[data-right-maximized="true"] .workspace {
-  display: none;
+  overflow: hidden;
 }
-
 /* 桌面四栏显式落位：收起一侧不渲染面板时，其余栏仍固定在自己的轨道上，不会串列。 */
 @media (min-width: 1024px) {
   .shell > :global([data-region="primary-navigation"]) {
     grid-column: 1;
     grid-row: 1;
   }
-
   .shell > .leftPane {
     grid-column: 2;
     grid-row: 1;
   }
-
   .shell > .workspace {
     grid-column: 3;
     grid-row: 1;
   }
-
   .shell > .rightPane {
     grid-column: 4;
     grid-row: 1;
   }
-
   /* 面板保持自身宽度：轨道收窄时只被裁剪，不触发内部重排与容器查询跳变。 */
   .leftPane > :global([data-region="section-navigation"]) {
     width: var(--left-sidebar-width);
   }
-
   .rightPane > :global([data-region="context-panel"]) {
     width: var(--right-panel-width);
   }
-
   /* 最大化时右栏占满剩余空间，不再保留收起前的固定宽度。 */
   .shell[data-right-maximized="true"] .rightPane > :global([data-region="context-panel"]) {
     width: 100%;
   }
+  /* 预览区在左：两列内容互换落位（工作台进中间、会话进右侧），左一左二不动；
+     会话列固定 26rem，工作台吃剩余；窄屏与三栏域不进入该布局。 */
+  .shell[data-layout="preview-center"] { --right-pane-track: var(--right-panel-width); }
+  .shell[data-layout="preview-center"] > .workspace { grid-column: 4; grid-row: 1; }
+  .shell[data-layout="preview-center"] > .rightPane { grid-column: 3; grid-row: 1; }
+  /* 收起右侧会话列后：会话列让位，工作台横跨中间与右侧两条轨道，避免中间出现空白。 */
+  .shell[data-layout="preview-center"][data-right-open="false"] > .workspace { display: none; }
+  .shell[data-layout="preview-center"][data-right-open="false"] > .rightPane { grid-column: 3 / span 2; }
+  /* 预览区在左 + 最大化：工作台留在第 3 列，只把中间轨道恢复为 1fr、右轨压到 0；
+     会话列保持挂载并被裁到 0 宽，过渡期间只有轨道宽度在变，还原瞬间不会先满宽再回弹。 */
+  .shell[data-layout="preview-center"][data-right-maximized="true"] {
+    --center-pane-track: minmax(0, 1fr);
+    --right-pane-track: 0px;
+  }
+  /* 会话列保持自身渲染宽度（最小宽度锁定），轨道变 0 时只是被裁到视口外，
+     内容不再重排，滚动位置在最大化/还原前后保持不变。 */
+  .shell[data-layout="preview-center"][data-right-maximized="true"] > .workspace {
+    display: block;
+    min-width: var(--right-panel-width);
+  }
+  .shell[data-layout="preview-center"] .rightPane > :global([data-region="context-panel"]) { width: 100%; }
+  /* 工作台进中间列后，列背景与分隔线要跟着换：中间列铺 panel 底色，
+     与右侧会话列之间补一条 line，避免两列之间没有边、中间露出页面底色。 */
+  .shell[data-layout="preview-center"] > .rightPane { background: var(--color-panel); }
+  .shell[data-layout="preview-center"] > .workspace { border-left: 1px solid var(--color-line); }
+  .shell[data-layout="preview-center"] .rightPane > :global([data-region="context-panel"]) { border-left: 0; }
+  /* 预览列收起（关掉最后一个标签页）：中间轨道归零，AI 会话列独占剩余宽度。 */
+  .shell[data-layout="preview-center"][data-preview-open="false"] { --center-pane-track: 0px; --right-pane-track: minmax(0, 1fr); }
+  .shell[data-layout="preview-center"][data-preview-open="false"] > .workspace { border-left: 0; }
 }
-
+/* 预览区在左：工作台进入中间列后，图标轨挪到左缘（VS Code 活动栏习惯），边框随之换边。 */
+.shell[data-layout="preview-center"] :global([class*="bodySplit"]) {
+  flex-direction: row-reverse;
+}
+.shell[data-layout="preview-center"] :global([class*="utilityRail"]) {
+  border-left: 0;
+  border-right: 1px solid var(--color-line);
+}
 /* 中间区域承载真实页面、设置和明确的未接入说明；自身不再滚动，滚动交给下方内容区。 */
 .workspace {
+  position: relative;
   container-type: inline-size;
   display: grid;
   min-width: 0;
@@ -134,7 +159,6 @@
   overflow: hidden;
   background: transparent;
 }
-
 /* 内容滚动区：顶栏不参与滚动，横向滚动条只在内容区右侧出现；
    scrollbar-gutter 常驻预留滚动条槽位，设置中心各页出现或收起滚动条时中间区域不再左右抖动。 */
 .workspaceViewport {
@@ -147,7 +171,6 @@
   overflow-x: hidden;
   scrollbar-gutter: stable;
 }
-
 .barTitle {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -155,7 +178,6 @@
   color: var(--color-ink);
   font-weight: 500;
 }
-
 /* 标题右侧的状态控件（会话模式等）：自身不压缩，宽度让给标题省略。 */
 .barTitleActions {
   display: inline-flex;
@@ -164,7 +186,6 @@
   align-items: center;
   gap: 0.4rem;
 }
-
 .drawerBackdrop {
   position: fixed;
   z-index: 40;
@@ -173,7 +194,6 @@
   backdrop-filter: blur(2px);
   animation: fadeIn 160ms ease-out;
 }
-
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -182,7 +202,7 @@
     opacity: 1;
   }
 }
-
+/* 中间区顶栏与左二栏头部同构：外层只负责高度与 0.4rem 的外边距，实际是一条悬浮胶囊。 */
 .workspaceBar {
   position: sticky;
   z-index: 30;
@@ -191,37 +211,32 @@
   height: var(--topbar-height);
   min-height: var(--topbar-height);
   align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0 0.75rem 0 1.25rem;
-  border-bottom: 1px solid var(--color-line);
-  background: var(--color-topbar, var(--color-panel));
-  backdrop-filter: blur(var(--glass-sidebar-blur)) saturate(var(--glass-sidebar-saturate));
-  -webkit-backdrop-filter: blur(var(--glass-sidebar-blur)) saturate(var(--glass-sidebar-saturate));
+  padding: 0.4rem 0.55rem;
+  border-bottom: 0;
+  background: transparent;
   color: var(--color-muted);
   font-size: 0.93em;
 }
-
+/* 胶囊内部留白：左侧给面板按钮一点呼吸位，右侧收窄让两端贴住胶囊边缘。 */
+.barCapsule {
+  --capsule-padding: 0 0.55rem 0 0.3rem;
+}
 .barActionSlot {
   display: inline-flex;
   align-items: center;
 }
-
 /* 桌面固定栏保留主题底色与渐变，避免分数缩放下背景滤镜的合成层裁掉文字。 */
 .shell[data-device="desktop"] > :is(:global([data-region="primary-navigation"]), :global([data-region="section-navigation"]), :global([data-region="context-panel"])),
-.shell[data-device="desktop"] :is(.leftPane, .rightPane) > :is(:global([data-region="section-navigation"]), :global([data-region="context-panel"])),
-.shell[data-device="desktop"] .workspaceBar {
+.shell[data-device="desktop"] :is(.leftPane, .rightPane) > :is(:global([data-region="section-navigation"]), :global([data-region="context-panel"])) {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
-
 .barGroup {
   display: inline-flex;
   align-items: center;
   gap: 0.65rem;
   min-width: 0;
 }
-
 .status {
   display: inline-flex;
   align-items: center;
@@ -229,7 +244,6 @@
   font-size: 0.92em;
   white-space: nowrap;
 }
-
 .statusDot {
   width: 0.4rem;
   height: 0.4rem;
@@ -237,7 +251,6 @@
   border-radius: 50%;
   background: var(--color-success);
 }
-
 .welcome,
 .page {
   align-self: center;
@@ -245,13 +258,11 @@
   width: min(calc(100% - 3rem), 40rem);
   padding: 2rem 0;
 }
-
 .welcomeLabel {
   margin: 0 0 0.55rem;
   color: var(--color-muted);
   font-size: 0.88em;
 }
-
 .welcome h1,
 .page h1 {
   margin: 0;
@@ -261,7 +272,6 @@
   letter-spacing: -0.04em;
   line-height: 1.2;
 }
-
 .introduction,
 .page > p:not(.welcomeLabel) {
   max-width: 34rem;
@@ -270,13 +280,11 @@
   font-size: 1em;
   line-height: 1.65;
 }
-
 .projectViewHost {
   display: grid;
   align-content: start;
   gap: 0.75rem;
 }
-
 .projectNotice {
   width: min(calc(100% - 3rem), 46rem);
   justify-self: center;
@@ -288,18 +296,15 @@
   color: var(--color-ink);
   font-size: 0.86em;
 }
-
 .emptyPage {
   margin-top: 1.2rem !important;
 }
-
 .projectGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(12rem, 100%), 1fr));
   gap: 0.75rem;
   margin-top: 1.4rem;
 }
-
 .projectGrid button {
   display: flex;
   min-height: 3.5rem;
@@ -313,11 +318,9 @@
   text-align: left;
   cursor: pointer;
 }
-
 .projectGrid button:hover {
   background: var(--color-active);
 }
-
 .projectGrid svg {
   width: 1.2rem;
   height: 1.2rem;
@@ -328,20 +331,17 @@
   stroke-linejoin: round;
   stroke-width: 1.6;
 }
-
 .projectGrid span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 /* 触屏的竖栏给 44px 点击区留出两侧间距。 */
 @media (pointer: coarse) and (min-width: 768px) {
   .shell {
     --rail-width: 3.375rem;
   }
 }
-
 /* 平板端（768px–1023px）：保留左一图标栏与宽裕主工作区，左二与右侧栏转为抽屉层。 */
 @media (max-width: 1023px) {
   .shell,
@@ -392,8 +392,8 @@
   }
 }
 
-@media (max-width: 420px) {
-  .statusText {
-    display: none;
-  }
-}
+@media (max-width: 420px) { .statusText { display: none; } }
+
+
+
+

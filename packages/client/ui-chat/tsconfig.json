@@ -8,6 +8,7 @@
   "include": ["src"],
   "references": [
     { "path": "../ui-browser" },
+    { "path": "../ui-terminal" },
     { "path": "../ui-tool-media" },
     { "path": "../../core/llm" },
     { "path": "../../core/memory" },

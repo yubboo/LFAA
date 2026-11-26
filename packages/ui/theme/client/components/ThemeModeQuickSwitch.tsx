@@ -1,171 +1,101 @@
-// 用户账户菜单头部右侧的外观模式快捷切换胶囊与“跟随系统 / 浅色模式 / 深色模式”三选一浮层菜单。
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { IconCheck, IconChevronDown, IconDeviceDesktop, IconMoon, IconSun } from "@tabler/icons-react";
+// 用户菜单头部的三档外观开关：左=深色、中=跟随系统、右=浅色。
+// 外观按参考图还原：玻璃轨道 + 带光晕的方块滑块 + 像素月亮/太阳；点轨道哪一段就切到哪一档。
+import { useRef, type KeyboardEvent } from "react";
 import type { AppearanceMode } from "../../contract/index";
 import type { AppearanceStore } from "../appearance-store";
 import type { ThemeLocaleMessages } from "../locales";
+import { pixelCells, type PixelGlyphKind } from "./pixel-glyph";
 import styles from "./ThemeModeQuickSwitch.module.css";
 
-interface PopoverCoords {
-  left: number;
-  top: number;
+/** 轨道从左到右的三档，顺序即滑块位置。 */
+const STOPS: Array<{ mode: AppearanceMode; key: "darkModeLabel" | "system" | "lightModeLabel" }> = [
+  { mode: "dark", key: "darkModeLabel" },
+  { mode: "system", key: "system" },
+  { mode: "light", key: "lightModeLabel" },
+];
+
+/** 像素点阵图标：9×9 网格上的圆角方块，按当前档位换月亮 / 太阳。 */
+function PixelGlyph({ kind, className }: { kind: PixelGlyphKind; className?: string | undefined }) {
+  return (
+    <svg className={className} viewBox="0 0 9 9" aria-hidden="true" focusable="false">
+      {pixelCells(kind).map(({ x, y }) => (
+        <rect key={`${x}-${y}`} x={x + 0.07} y={y + 0.07} width={0.86} height={0.86} rx={0.2} />
+      ))}
+    </svg>
+  );
 }
 
-function getModeLabel(mode: AppearanceMode, locale: ThemeLocaleMessages): string {
-  if (mode === "light") return locale.lightModeLabel;
-  if (mode === "dark") return locale.darkModeLabel;
-  return locale.system;
-}
-
-function ModeIcon({ mode, className }: { mode: AppearanceMode; className?: string | undefined }) {
-  if (mode === "light") return <IconSun className={className} aria-hidden="true" />;
-  if (mode === "dark") return <IconMoon className={className} aria-hidden="true" />;
-  return <IconDeviceDesktop className={className} aria-hidden="true" />;
-}
-
-/** 在账号入口就地切换跟随系统、浅色或深色模式。 */
+/** 三档拨动开关：轨道点击选档，方向键 / Home / End 在档位间移动。 */
 export function ThemeModeQuickSwitch({
   locale,
   store,
   mode,
+  resolvedScheme,
 }: {
   locale: ThemeLocaleMessages;
   store: AppearanceStore;
   mode: AppearanceMode;
+  /** 「跟随系统」档显示哪个图标，取决于系统实际解析出的明暗。 */
+  resolvedScheme: "light" | "dark";
 }) {
-  const [coords, setCoords] = useState<PopoverCoords | null>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const isOpen = coords !== null;
-  const activeLabel = getModeLabel(mode, locale);
+  const stops = STOPS.map((stop) => ({ mode: stop.mode, label: locale[stop.key] }));
+  const activeIndex = Math.max(0, stops.findIndex((stop) => stop.mode === mode));
+  const stopRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const glyph: PixelGlyphKind = resolvedScheme === "light" ? "sun" : "moon";
 
-  const computeCoords = useCallback((): PopoverCoords | null => {
-    const button = triggerRef.current;
-    if (!button) return null;
-    const rect = button.getBoundingClientRect();
-    const panelRect = button.closest("#lfaa-user-menu")?.getBoundingClientRect() ?? rect;
-    const measured = menuRef.current?.getBoundingClientRect();
-    const menuWidth = measured?.width && measured.width > 0 ? measured.width : 172;
-    const menuHeight = measured?.height && measured.height > 0 ? measured.height : 132;
-    const fitsRight = panelRect.right + 8 + menuWidth <= window.innerWidth - 12;
-    const left = fitsRight
-      ? panelRect.right + 8
-      : Math.max(12, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 12));
-    const minTop = Math.max(12, panelRect.top);
-    const maxTop = Math.max(minTop, window.innerHeight - menuHeight - 12);
-    const top = fitsRight
-      ? Math.max(minTop, Math.min(panelRect.top, maxTop))
-      : Math.max(12, Math.min(rect.bottom + 8, window.innerHeight - menuHeight - 12));
-    return { left, top };
-  }, []);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (!(target instanceof Node)) return;
-      if (triggerRef.current?.contains(target) || menuRef.current?.contains(target)) return;
-      setCoords(null);
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.stopPropagation();
-        setCoords(null);
-        triggerRef.current?.focus();
-      }
-    };
-    const syncPosition = () => {
-      const next = computeCoords();
-      if (next) setCoords(next);
-    };
-    document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown, true);
-    window.addEventListener("resize", syncPosition);
-    window.addEventListener("scroll", syncPosition, true);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown, true);
-      window.removeEventListener("resize", syncPosition);
-      window.removeEventListener("scroll", syncPosition, true);
-    };
-  }, [computeCoords, isOpen]);
-
-  useLayoutEffect(() => {
-    if (!isOpen) return;
-    const next = computeCoords();
-    if (next && (next.left !== coords.left || next.top !== coords.top)) {
-      setCoords(next);
-    }
-  }, [computeCoords, coords, isOpen]);
-
-  const toggleMenu = () => {
-    if (isOpen) {
-      setCoords(null);
-      return;
-    }
-    setCoords(computeCoords());
+  const select = (index: number) => {
+    const stop = stops[index];
+    if (!stop) return;
+    store.setMode(stop.mode);
+    stopRefs.current[index]?.focus();
   };
 
-  const options: Array<{ mode: AppearanceMode; label: string }> = [
-    { mode: "system", label: locale.system },
-    { mode: "light", label: locale.lightModeLabel },
-    { mode: "dark", label: locale.darkModeLabel },
-  ];
-
-  const menuNode = coords && (
-    <div
-      ref={menuRef}
-      role="menu"
-      aria-label={locale.quickThemeSwitch}
-      data-theme-quick-menu="true"
-      className={styles.menu}
-      style={{ left: coords.left, top: coords.top }}
-    >
-      {options.map((item) => {
-        const selected = mode === item.mode;
-        return (
-          <button
-            key={item.mode}
-            type="button"
-            role="menuitemradio"
-            aria-checked={selected}
-            className={`${styles.option} ${selected ? styles.optionActive : ""}`}
-            onClick={() => {
-              store.setMode(item.mode);
-              setCoords(null);
-            }}
-          >
-            <ModeIcon mode={item.mode} className={styles.optionIcon} />
-            <span className={styles.optionText}>{item.label}</span>
-            {selected && <IconCheck className={styles.checkIcon} aria-hidden="true" />}
-          </button>
-        );
-      })}
-    </div>
-  );
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const step = event.key === "ArrowRight" || event.key === "ArrowDown"
+      ? 1
+      : event.key === "ArrowLeft" || event.key === "ArrowUp"
+        ? -1
+        : 0;
+    if (step !== 0) {
+      event.preventDefault();
+      select((activeIndex + step + stops.length) % stops.length);
+      return;
+    }
+    if (event.key === "Home" || event.key === "End") {
+      event.preventDefault();
+      select(event.key === "Home" ? 0 : stops.length - 1);
+    }
+  };
 
   return (
-    <>
-      <button
-        ref={triggerRef}
-        type="button"
-        className={`${styles.trigger} ${isOpen ? styles.triggerActive : ""}`}
-        aria-label={`${locale.quickThemeSwitch}（${activeLabel}）`}
-        aria-haspopup="menu"
-        aria-expanded={isOpen}
-        title={activeLabel}
-        onClick={toggleMenu}
-      >
-        <ModeIcon mode={mode} className={styles.triggerIcon} />
-        <span className={styles.triggerLabel}>{activeLabel}</span>
-        <IconChevronDown className={styles.triggerChevron} aria-hidden="true" />
-      </button>
-
-      {/* 挂到 body：账号面板与其遮罩都在 body 级层叠，挂在应用容器里会被遮罩盖住导致点不动。 */}
-      {menuNode && typeof document !== "undefined"
-        ? createPortal(menuNode, document.body)
-        : menuNode}
-    </>
+    <div
+      className={styles.switch}
+      role="radiogroup"
+      aria-label={locale.quickThemeSwitch}
+      data-stop={activeIndex}
+      data-scheme={resolvedScheme}
+      data-glyph={glyph}
+      onKeyDown={onKeyDown}
+    >
+      <span className={styles.track} aria-hidden="true">
+        <span className={styles.thumb}>
+          <PixelGlyph kind={glyph} className={styles.glyph} />
+        </span>
+      </span>
+      {stops.map((stop, index) => (
+        <button
+          key={stop.mode}
+          ref={(element) => { stopRefs.current[index] = element; }}
+          className={styles.stop}
+          type="button"
+          role="radio"
+          aria-checked={mode === stop.mode}
+          aria-label={stop.label}
+          title={stop.label}
+          tabIndex={index === activeIndex ? 0 : -1}
+          onClick={() => store.setMode(stop.mode)}
+        />
+      ))}
+    </div>
   );
 }

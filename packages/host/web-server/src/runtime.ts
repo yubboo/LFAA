@@ -1,6 +1,8 @@
 // @lfaa/web-server：装配 Host 运行时（沙箱、bundle、各能力处理器与统一网关），并生成一次性接口令牌。
 // dev（Vite）与生产（静态托管）都复用同一个运行时，保证两边的接口面与行为完全一致。
 import { randomBytes } from "node:crypto";
+import type { IncomingMessage } from "node:http";
+import type { Duplex } from "node:stream";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { Context } from "@deepseek-ai/cordis";
@@ -12,11 +14,13 @@ import { webBundlePlugin } from "@lfaa/bundle-web";
 import { createGoalHttpHandler } from "@lfaa/goal";
 import { createHandoffHttpHandler } from "@lfaa/handoff";
 import { createMcpHttpHandler } from "@lfaa/mcp";
+import { createConnectorsHttpHandler } from "@lfaa/connectors";
 import { sandboxLocalPlugin } from "@lfaa/sandbox";
 import { createAgentHandlers } from "./handlers/handlers-chat";
 import { createCommonHandlers } from "./handlers/handlers";
 import { createBackgroundsHttpHandler } from "./handlers/handlers-backgrounds";
 import { createNotificationSoundsHttpHandler } from "./handlers/handlers-notifications";
+import { createTerminalUpgradeHandler } from "@lfaa/terminal";
 import { createDesktopDownloadReceiver } from "./desktop-downloads";
 
 /** 装配运行时所需参数。 */
@@ -36,6 +40,8 @@ export interface HostRuntime {
   token: string;
   gateway: ApiGateway;
   receiveDesktopDownload?: ReturnType<typeof createDesktopDownloadReceiver>;
+  /** WebSocket 升级：目前只有真实终端用；非终端路径返回 false，交回其它升级处理器。 */
+  upgrade(req: IncomingMessage, socket: Duplex, head: Buffer): boolean;
   dispose(): Promise<void>;
 }
 
@@ -134,6 +140,7 @@ export async function createHostRuntime(options: HostRuntimeOptions): Promise<Ho
     { id: "worktrees", handle: common.worktrees },
     { id: "skills", handle: common.skills },
     { id: "mcp", handle: createMcpHttpHandler(hostContext.mcp) },
+    { id: "connectors", handle: createConnectorsHttpHandler(hostContext.connectors) },
     { id: "plugins", handle: common.plugins },
     { id: "llm", handle: common.llm },
     { id: "rules", handle: common.rules },
@@ -163,9 +170,24 @@ export async function createHostRuntime(options: HostRuntimeOptions): Promise<Ho
   ]);
 
   let disposed = false;
+  // 真实终端：PTY 会话由 bundle 里的 terminal 服务持有，这里只负责把升级请求交给它。
+  const terminalUpgrade = createTerminalUpgradeHandler({
+    getService: () => hostContext.get("terminal") ?? null,
+    token,
+    resolveCwd: async (sessionId: string) => {
+      // 没有活跃会话（新聊天草稿 / 刚启动）时回退到项目根，不能让终端因为「找不到会话」起不来。
+      try {
+        const resolved = await common.resolveSessionWorkspace(sessionId);
+        return resolved.roots[0] ?? options.projectRoot;
+      } catch {
+        return options.projectRoot;
+      }
+    },
+  });
   return {
     token,
     gateway,
+    upgrade: terminalUpgrade,
     ...(options.desktopDownloadDirectory ? {
       receiveDesktopDownload: createDesktopDownloadReceiver(options.desktopDownloadDirectory, () => hostContext.get("browser")),
     } : {}),

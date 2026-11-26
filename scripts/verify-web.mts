@@ -149,11 +149,49 @@ try {
   await page.getByRole("button", { name: "Git", exact: true }).first().click();
   await page.waitForTimeout(1200);
   steps.push({ step: "设置-Git", ok: (await text()).includes("分支前缀"), screenshot: await shot("settings-git") });
-  await page.getByRole("button", { name: "MCP", exact: true }).click();
+  // 长期记忆页：新增 → 搜索 → 编辑 → 删除，覆盖记忆管理的完整交互。
+  await page.getByRole("button", { name: "模型与规则", exact: true }).first().click();
+  await page.waitForTimeout(900);
+  await page.getByRole("tab", { name: "长期记忆库", exact: true }).first().click();
+  await page.waitForTimeout(900);
+  const memoryAddRegion = page.getByRole("region", { name: "写入记忆" });
+  const memoryLibraryRegion = page.getByRole("region", { name: "记忆库" });
+  await memoryAddRegion.getByLabel("记忆内容", { exact: true }).fill("验证用记忆：统一使用 pnpm 管理依赖");
+  await memoryAddRegion.getByRole("button", { name: "写入记忆", exact: true }).click();
+  await page.waitForTimeout(1200);
+  steps.push({ step: "设置-记忆写入", ok: (await text()).includes("验证用记忆"), screenshot: await shot("settings-memory-write") });
+
+  const memorySearch = memoryLibraryRegion.getByLabel("搜索记忆", { exact: true });
+  await memorySearch.fill("pnpm 管理");
+  await page.waitForTimeout(500);
+  steps.push({ step: "设置-记忆搜索", ok: (await text()).includes("验证用记忆") });
+  await memorySearch.fill("不存在的关键词zzz");
+  await page.waitForTimeout(500);
+  steps.push({ step: "设置-记忆搜索空态", ok: (await text()).includes("没有匹配") });
+  await memorySearch.fill("");
+  await page.waitForTimeout(400);
+
+  await memoryLibraryRegion.getByRole("button", { name: "编辑", exact: true }).first().click();
+  await page.waitForTimeout(500);
+  const memoryEditRegion = page.getByRole("region", { name: "编辑记忆" });
+  await memoryEditRegion.getByRole("textbox").first().fill("验证用记忆：统一使用 pnpm 管理依赖（已编辑）");
+  await memoryEditRegion.getByRole("button", { name: "保存修改", exact: true }).click();
+  await page.waitForTimeout(1200);
+  const afterEdit = await text();
+  steps.push({ step: "设置-记忆编辑", ok: afterEdit.includes("已编辑"), screenshot: await shot("settings-memory-edit") });
+
+  const dangerGroup = page.getByRole("region", { name: "删除记忆" });
+  await dangerGroup.getByLabel("选择要删除的记忆").selectOption({ index: 1 });
+  await page.waitForTimeout(300);
+  await dangerGroup.getByRole("button", { name: "删除", exact: true }).click();
+  await page.waitForTimeout(1200);
+  steps.push({ step: "设置-记忆删除", ok: !(await text()).includes("（已编辑）"), screenshot: await shot("settings-memory-after-delete") });
+  await page.getByRole("button", { name: "连接器", exact: true }).click();
+  await page.getByRole("button", { name: "MCP 服务器", exact: true }).first().click();
   await page.getByRole("button", { name: "添加服务器", exact: true }).click();
   const mcpDialog = page.getByRole("dialog", { name: "添加服务器" });
   await mcpDialog.getByLabel("传输方式").selectOption("sse");
-  steps.push({ step: "设置-MCP", ok: await mcpDialog.getByRole("textbox", { name: "服务 URL" }).isVisible(), screenshot: await shot("settings-mcp") });
+  steps.push({ step: "设置-连接器", ok: await mcpDialog.getByRole("textbox", { name: "服务 URL" }).isVisible(), screenshot: await shot("settings-connectors") });
   await page.keyboard.press("Escape");
 
   await page.getByRole("button", { name: "代码审查", exact: true }).first().click();
@@ -183,11 +221,10 @@ try {
     ok: !(await page.locator('[role="dialog"][aria-modal="true"]').count()),
   });
 
-  // 用用户菜单切换实际主题，避免页面仍挂载时直接改存储导致旧主题被写回。
+  // 用用户菜单里的三档外观开关切换实际主题，避免页面仍挂载时直接改存储导致旧主题被写回。
   const applyTheme = async (mode: "light" | "dark"): Promise<void> => {
     await page.getByRole("button", { name: "用户菜单", exact: true }).click();
-    await page.getByRole("button", { name: /^切换外观模式/u }).click();
-    await page.getByRole("menuitemradio", { name: mode === "light" ? "浅色模式" : "深色模式" }).click();
+    await page.getByRole("radio", { name: mode === "light" ? "浅色模式" : "深色模式" }).click();
     await page.locator(`html[data-resolved-theme="${mode}"]`).waitFor();
     await page.keyboard.press("Escape");
   };

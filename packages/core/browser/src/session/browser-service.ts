@@ -52,6 +52,11 @@ export class BrowserRuntime implements SessionDriverHost {
     return this.settings.get();
   }
 
+  /** 下载位置是否跟随系统默认目录，供设置页显示来源与「恢复默认」。 */
+  getDownloadDirSource(): Promise<"system" | "custom"> {
+    return this.settings.getDownloadDirSource();
+  }
+
   /** 只保留最近的显式截图，聊天步骤保存引用，避免把图片写进会话和模型上下文。 */
   saveEvidence(snap: BrowserSessionSnapshot): string | undefined {
     if (!snap.screenshotBase64 || snap.screenshotBase64.length > 6_000_000) return undefined;

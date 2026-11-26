@@ -1,6 +1,10 @@
 /* 主题实时预览：迷你工作台骨架。颜色全部来自 --pv-* 变量（由组件按主题取样注入），
    因此切换主题只改变量值，配合 transition 即可平滑过渡，组件里不出现任何写死颜色。 */
 .frame {
+  --pv-scrim: linear-gradient(
+    color-mix(in srgb, var(--pv-bg) 36%, transparent),
+    color-mix(in srgb, var(--pv-bg) 56%, transparent)
+  );
   position: relative;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--pv-fg) 12%, transparent);
@@ -33,6 +37,7 @@
 }
 
 .half {
+  position: relative;
   min-width: 0;
   height: 100%;
   overflow: hidden;
@@ -40,10 +45,46 @@
 }
 
 .fill {
+  position: relative;
   height: 100%;
 }
 
+/* 背景图 + 取样底色薄纱：img 走异步解码（避免悬停换图时同步解码卡帧），薄纱压在上面。 */
+.backdrop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.photo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  animation: photo-in 220ms ease both;
+}
+
+/* 换主题/换背景时新图淡入，避免预览里的照片硬切。 */
+@keyframes photo-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--pv-scrim);
+}
+
 .window {
+  position: relative;
+  z-index: 1;
   display: grid;
   grid-template-columns: 5% 21% minmax(0, 1fr);
   height: 100%;
@@ -199,6 +240,27 @@
   transition: background-color 260ms ease;
 }
 
+/* 图片态：栏与浮层切成半透明玻璃，让背景从面板后透出来，同时保住主题底色；面板越靠里越透。 */
+.frame[data-image] .rail {
+  background: color-mix(in srgb, var(--pv-bg) 80%, transparent);
+}
+
+.frame[data-image] .sidebar {
+  background: color-mix(in srgb, var(--pv-bg) 70%, transparent);
+}
+
+.frame[data-image] .canvas {
+  background: color-mix(in srgb, var(--pv-bg) 24%, transparent);
+}
+
+.frame[data-image] .agentCard {
+  background: color-mix(in srgb, var(--pv-bg) 82%, transparent);
+}
+
+.frame[data-image] .composer {
+  background: color-mix(in srgb, var(--pv-bg) 84%, transparent);
+}
+
 /* 缩略图里收紧内边距，避免小尺寸下元素互相压叠。 */
 .tile .rail,
 .tile .sidebar,
@@ -214,5 +276,9 @@
   .frame,
   .frame * {
     transition: none;
+  }
+
+  .photo {
+    animation: none;
   }
 }

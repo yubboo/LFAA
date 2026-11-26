@@ -23,6 +23,7 @@ import {
   IconGitBranch,
   IconHelpCircle,
   IconHomeFilled,
+  IconKeyboard,
   IconLayoutGrid,
   IconLayoutSidebar,
   IconLayoutSidebarRight,
@@ -50,7 +51,7 @@ export type NavigationIconName =
   | "home" | "images" | "scheduled" | "library" | "plugins" | "more" | "sites"
   | "companion" | "bell" | "muted" | "search" | "newChat" | "project" | "filter" | "plus"
   | "pin" | "map" | "gpt" | "codeReview" | "openai" | "canva" | "data"
-  | "chevronDown" | "chevronRight" | "arrowLeft" | "close" | "settings" | "palette"
+  | "chevronDown" | "chevronRight" | "arrowLeft" | "close" | "settings" | "palette" | "keyboard"
   | "copy" | "import" | "invite" | "profile" | "help" | "signOut" | "check"
   | "sidebarLeft" | "sidebarRight" | "working" | "agents" | "group" | "menu";
 
@@ -85,6 +86,7 @@ const icons: Record<NavigationIconName, IconComponent> = {
   arrowLeft: IconArrowLeft,
   close: IconX,
   settings: IconSettings,
+  keyboard: IconKeyboard,
   palette: IconPalette,
   copy: IconCopy,
   import: IconDownload,

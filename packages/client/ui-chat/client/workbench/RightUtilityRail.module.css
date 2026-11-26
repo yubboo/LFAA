@@ -1,0 +1,66 @@
+/* 最右侧图标轨：从 RightWorkbenchPane.module.css 拆出，独立维护。 */
+
+.railBtn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.utilityRail {
+  display: flex;
+  flex: 0 0 2.65rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  padding: 0.55rem 0.25rem;
+  overflow-y: auto;
+  scrollbar-width: none;
+  border-left: 1px solid var(--color-line);
+  background: var(--color-rail, var(--color-panel));
+}
+
+.railGroup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.railBtn {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.railBtn:hover {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.railBtnActive {
+  background: var(--color-rail-active, var(--color-active));
+  color: var(--color-ink);
+}
+
+.railBadge {
+  position: absolute;
+  top: 0.15rem;
+  right: 0.15rem;
+  min-width: 0.85rem;
+  height: 0.85rem;
+  padding: 0 0.2rem;
+  border-radius: 999px;
+  background: var(--color-active);
+  color: var(--color-ink);
+  font-size: 0.62rem;
+  line-height: 0.85rem;
+  text-align: center;
+}
+

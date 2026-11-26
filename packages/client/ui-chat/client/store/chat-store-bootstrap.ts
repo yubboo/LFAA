@@ -13,6 +13,7 @@ import type {
   ChatSessionItem,
   ChatStoreSnapshot,
   LongTermMemoryItem,
+  MemoryStatsItem,
   PublicLlmProfileItem,
   RuleDocumentItem,
 } from "./chat-types";
@@ -42,7 +43,7 @@ export async function hydrateChatStore(host: ChatStoreBootstrapHost): Promise<vo
       fetchJson<{ sessionIds: string[] }>("/api/agent/active-sessions").catch(() => ({ sessionIds: [] })),
       fetchJson<{ items: ChatSessionAttention[] }>("/api/agent/attention").catch(() => ({ items: [] })),
       fetchJson<{ activeProfileId: string; profiles: PublicLlmProfileItem[] }>("/api/llm/profiles"),
-      fetchJson<{ memories: LongTermMemoryItem[] }>("/api/memory"),
+      fetchJson<{ memories: LongTermMemoryItem[]; stats?: MemoryStatsItem }>("/api/memory"),
       fetchJson<{ counts: Record<string, number> }>("/api/agent/trust").catch(() => ({ counts: {} })),
       fetchJson<{ settings: GeneralSettingsConfig }>("/api/chat/general-settings").catch(() => null),
       detailPromise,
@@ -67,6 +68,7 @@ export async function hydrateChatStore(host: ChatStoreBootstrapHost): Promise<vo
       activeProfileId: llmRes.activeProfileId,
       profiles: llmRes.profiles,
       memories: memRes.memories,
+      memoryStats: memRes.stats ?? null,
       ...(generalRes ? { generalSettings: generalRes.settings } : {}),
     });
     if (targetId) {
@@ -96,7 +98,7 @@ export async function refreshChatMeta(
     fetchJson<{ sessions: ChatSessionItem[] }>("/api/chat/sessions"),
     fetchJson<{ activeProfileId: string; profiles: PublicLlmProfileItem[] }>("/api/llm/profiles"),
     fetchJson<{ documents: RuleDocumentItem[] }>(`/api/rules${query}`),
-    fetchJson<{ memories: LongTermMemoryItem[] }>("/api/memory"),
+    fetchJson<{ memories: LongTermMemoryItem[]; stats?: MemoryStatsItem }>("/api/memory"),
     fetchJson<{ counts: Record<string, number> }>("/api/agent/trust").catch(() => ({ counts: {} })),
   ]);
   host.patchState({
@@ -106,5 +108,6 @@ export async function refreshChatMeta(
     profiles: llmRes.profiles,
     rules: rulesRes.documents,
     memories: memRes.memories,
+    memoryStats: memRes.stats ?? null,
   });
 }

@@ -5,19 +5,21 @@ import { locales } from "../locales";
 import { isSettingsView, type LocalProject, type NavigationView, type WorkspaceMode } from "../navigation/navigation";
 import { usePinnedApps } from "../navigation/usePinnedApps";
 import { useSidebarResize, type ResizeSide } from "./useSidebarResize";
+import { useSidebarMode } from "./use-sidebar-mode";
 import { usePaneMotionSuspend } from "./usePaneMotionSuspend";
+import { usePaneAnimHost } from "./use-pane-anim";
 import { useShellShortcuts } from "./useShellShortcuts";
 import { buildSidebarWidthVars } from "./sidebar-resize";
 import { useViewportMode } from "./useViewportMode";
 import { resolveNewChatProject } from "../navigation/navigation-items";
 import { resolveWorkbenchDomain } from "../navigation/workbench-domains";
 import type { WorkbenchClientService } from "../workbench-service";
-import { SettingsDialog } from "../panels/SettingsDialog";
+
 import { ShellLeftColumn } from "./ShellLeftColumn";
 import { ShellRightColumn } from "./ShellRightColumn";
+import { ShellSettingsDialog } from "./ShellSettingsDialog";
 import { ShellWorkspace } from "./ShellWorkspace";
 import styles from "./WorkbenchShell.module.css";
-
 // Shell 是四栏/三栏统一复用骨架与折叠状态的唯一所有者；根据域配置决定是否启用右侧栏。
 export function WorkbenchShell({ service }: { service: WorkbenchClientService }) {
   const locale = typeof navigator !== "undefined" && navigator.language.toLowerCase().startsWith("zh")
@@ -36,40 +38,38 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
     rightPanelMaximized,
     rightWorkbenchWide,
     workspaceMode,
+    shortcuts,
   } = snapshot;
-
   // 「聊天 / 工作」由 workbench 服务持有：中心区分段、左二头部与插件都读同一份状态。
   const mode = workspaceMode;
-
   const [newChatSelected, setNewChatSelected] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
   const [workspaceNotice, setWorkspaceNotice] = useState("");
+  // 左二内容模式与会话无关：会话列表 / 项目工作区，刷新后沿用上次选择。
+  const [sidebarMode, changeSidebarMode] = useSidebarMode();
   const { pinnedApps, togglePinnedApp } = usePinnedApps();
   const { device, isCompact } = useViewportMode();
   const shellRef = useRef<HTMLDivElement>(null);
+  // 最大化/还原的编排动画按活跃 Shell 取两块面板，卸载时由它收尾。
+  usePaneAnimHost(shellRef);
   const wasCompactRef = useRef<boolean | null>(null);
   const autoCollapsedRef = useRef({ left: false, right: false });
-  // 记录最近一个非设置视图（含项目上下文）：设置中心是弹窗，关闭后要回到打开前的确切页面。
-  // 刷新恢复设置弹窗时，打开前的视图来自服务读回的背景路由，不能默认成工作区。
+  // 记录最近一个非设置视图（含项目上下文）：设置中心是弹窗，关闭后回到打开前的确切页面；刷新恢复时取服务读回的背景路由。
   const lastMainRef = useRef({
     view: isSettingsView(activeView) ? (snapshot.settingsReturnView ?? "workspace") : activeView,
     projectId: activeProjectId,
   });
-
   const settingsOpen = isSettingsView(activeView);
   useEffect(() => {
     if (!settingsOpen) lastMainRef.current = { view: activeView, projectId: activeProjectId };
   }, [activeProjectId, activeView, settingsOpen]);
   const backgroundView = settingsOpen ? lastMainRef.current.view : activeView;
-
   const domain = resolveWorkbenchDomain(backgroundView, locale);
   const hasRightColumn = domain.columns === 4;
   const showRightPanel = hasRightColumn && rightPanelOpen;
-
   // 窗口缩放与拖拽吸附期间暂停轨道过渡，宽度始终跟手。
   const suspendPaneMotion = usePaneMotionSuspend(shellRef);
-
   const handleDragCollapse = useCallback((side: ResizeSide) => {
     // 吸附收起时宽度已跟随指针到 0，不再补播轨道过渡。
     suspendPaneMotion();
@@ -79,7 +79,6 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
       service.setRightPanelOpen(false, true);
     }
   }, [service, suspendPaneMotion]);
-
   const { leftWidth, rightWidth, dragState, startResize, handleKeyResize } = useSidebarResize({
     shellRef,
     isCompact,
@@ -126,10 +125,9 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
   }, [isCompact, leftSidebarOpen, rightPanelOpen, service]);
 
   const toggleRightPanel = useCallback(() => {
-    if (isCompact && !rightPanelOpen && leftSidebarOpen) {
-      service.setLeftSidebarOpen(false, false);
-    }
-    service.setRightPanelOpen(!rightPanelOpen, !isCompact);
+    if (!isCompact) { service.toggleRightPanel(); return; }
+    if (!rightPanelOpen && leftSidebarOpen) service.setLeftSidebarOpen(false, false);
+    service.setRightPanelOpen(!rightPanelOpen, false);
   }, [isCompact, leftSidebarOpen, rightPanelOpen, service]);
 
   const navigate = useCallback((view: NavigationView) => {
@@ -210,7 +208,6 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
     () => startChatSession({ projectId: null, sectionId: null, unavailableNotice: locale.newChatUnavailable }),
     [locale.newChatUnavailable, startChatSession],
   );
-
   const startNewChatInProject = useCallback(
     (project: LocalProject) => startChatSession({
       projectId: project.id,
@@ -255,21 +252,19 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
     setActivityOpen(false);
   }, []);
 
+  // Esc 固定语义：关浮层并收起移动端抽屉，不参与改键。
+  const closeShellOverlays = useCallback(() => {
+    setSearchOpen(false);
+    setActivityOpen(false);
+    closeCompactDrawers();
+  }, [closeCompactDrawers]);
+
+  // 快捷键动作与按键分发都收在 hook 里，布局变化不会重复注册。
   useShellShortcuts({
-    hasRightColumn,
-    isCompact,
-    leftSidebarOpen,
-    rightPanelOpen,
-    onOpenSearch: () => { setSearchOpen(true); setActivityOpen(false); },
-    onOpenActivity: () => { setActivityOpen(true); setSearchOpen(false); },
-    onCloseOverlays: () => { setSearchOpen(false); setActivityOpen(false); },
-    onToggleRightPanel: toggleRightPanel,
-    onToggleRightMaximized: () => service.toggleRightPanelMaximized(),
-    onCloseCompactDrawers: () => { service.setLeftSidebarOpen(false, false); service.setRightPanelOpen(false, false); },
+    service, shortcuts, hasRightColumn, isCompact, toggleRightPanel, toggleLeftSidebar, navigate,
+    setSearchOpen, setActivityOpen, onEscape: closeShellOverlays,
   });
-
   const currentProject = projects.find((project) => project.id === activeProjectId);
-
   // 若恢复的项目上下文在本地列表加载完毕后已不存在，自动清理，避免残留失效项目绑定。
   useEffect(() => {
     if (!activeProjectId || !projectProvider?.hasLoaded?.()) return;
@@ -280,8 +275,7 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
   }, [activeProjectId, backgroundView, currentProject, projectProvider, service]);
   const effectiveNewChatSelected = newChatSelected
     || (backgroundView === "workspace" && !snapshot.activeChatSessionId && Boolean(currentProject));
-  // 右侧面板与项目上下文按「背景视图」匹配：设置弹窗打开时 activeView 指向设置页，
-// 若仍用 activeView，背景工作区的右栏面板会全部失配而退化成空占位。
+  // 右侧面板与项目上下文按「背景视图」匹配：设置弹窗打开时 activeView 指向设置页，照用会让右栏面板全部失配成空占位。
   const matchingPanels = contextPanels.filter((panel) => !panel.match || panel.match(backgroundView, activeProjectId));
   const hasWorkbenchHost = matchingPanels.some((panel) => panel.chrome === "workbench");
   const isRightMaximized = showRightPanel && rightPanelMaximized && !isCompact;
@@ -293,13 +287,13 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
   const openSettings = () => navigate("settings:general");
   const leftDragCollapsed = dragState?.side === "left" && dragState.snappedCollapsed;
   const rightDragCollapsed = dragState?.side === "right" && dragState.snappedCollapsed;
+  const previewCenter = snapshot.layoutMode === "preview-center" && !isCompact && hasRightColumn && hasWorkbenchHost;
   const shellStyle = buildSidebarWidthVars({
     isCompact,
     leftWidth,
     rightWidth,
     rightWide: rightWorkbenchWide,
   }) as CSSProperties;
-
   return (
     <div
       ref={shellRef}
@@ -307,12 +301,10 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
       style={shellStyle}
       data-device={device}
       data-columns={String(domain.columns)}
-      data-left-open={String(leftSidebarOpen)}
-      data-right-open={String(showRightPanel)}
-      data-right-wide={rightWorkbenchWide ? "true" : undefined}
-      data-right-maximized={isRightMaximized ? "true" : undefined}
-      data-left-drag-collapsed={leftDragCollapsed ? "true" : undefined}
-      data-right-drag-collapsed={rightDragCollapsed ? "true" : undefined}
+      data-left-open={String(leftSidebarOpen)} data-right-open={String(showRightPanel)}
+      data-layout={previewCenter ? "preview-center" : undefined} data-preview-open={previewCenter ? String(snapshot.previewPaneOpen) : undefined}
+      data-right-wide={rightWorkbenchWide ? "true" : undefined} data-right-maximized={isRightMaximized ? "true" : undefined}
+      data-left-drag-collapsed={leftDragCollapsed ? "true" : undefined} data-right-drag-collapsed={rightDragCollapsed ? "true" : undefined}
     >
       <ShellLeftColumn
         snapshot={snapshot}
@@ -348,11 +340,11 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
         onCloseSearch={closeSearch}
         onToggleActivity={toggleActivity}
         onCloseActivity={closeActivity}
-        onToggleSidebar={toggleLeftSidebar}
+        sidebarMode={sidebarMode}
+        onChangeSidebarMode={changeSidebarMode}
         onStartResize={startResize}
         onKeyResize={handleKeyResize}
       />
-
       <ShellWorkspace
         snapshot={snapshot}
         locale={locale}
@@ -368,33 +360,35 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
         rightDragCollapsed={rightDragCollapsed}
         onToggleLeft={toggleLeftSidebar}
         onToggleRight={toggleRightPanel}
+        showRightToggleAlways={previewCenter}
       />
-
       <ShellRightColumn
         locale={locale}
         panels={matchingPanels}
         projectContext={projectContext}
         compact={isCompact}
-        showPanel={showRightPanel}
+        showPanel={previewCenter ? snapshot.previewPaneOpen : showRightPanel}
         rightPanelMaximized={isRightMaximized}
+        layoutMode={previewCenter ? "preview-center" : "chat-center"}
         dragging={dragState?.side === "right"}
         snapped={rightDragCollapsed}
         onStartResize={startResize}
         onKeyResize={handleKeyResize}
         onToggleMaximize={() => service.toggleRightPanelMaximized()}
-        onClosePanel={() => service.setRightPanelOpen(false, !isCompact)}
+        // 预览区在左时中间列就是工作台：收起的是预览列，把宽度让给右侧 AI 会话列。
+        onClosePanel={previewCenter
+          ? () => service.setPreviewPaneOpen(false, !isCompact)
+          : () => service.setRightPanelOpen(false, !isCompact)}
       />
-
       {/* 设置中心以弹窗覆盖在当前工作区之上：背景保留打开前的视图，关闭即回到该视图。 */}
-      {settingsOpen && (
-        <SettingsDialog
-          locale={locale}
-          activeView={activeView}
-          renderContent={() => snapshot.views.find((entry) => entry.id === activeView)?.render() ?? null}
-          onNavigate={navigate}
-          onClose={closeSettings}
-        />
-      )}
+      <ShellSettingsDialog
+        open={settingsOpen}
+        locale={locale}
+        activeView={activeView}
+        renderContent={() => snapshot.views.find((entry) => entry.id === activeView)?.render() ?? null}
+        onNavigate={navigate}
+        onClose={closeSettings}
+      />
     </div>
   );
 }

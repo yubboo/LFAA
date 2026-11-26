@@ -37,19 +37,27 @@ export function SettingsPage({
   );
 }
 
-/** 一组相关设置：标题 + 可选说明 + 条目列表；组本身不画框，不做卡片。 */
+/** 一组相关设置：标题 + 可行内动作 + 可选说明 + 条目列表；组本身不画框，不做卡片。 */
 export function SettingGroup({
   title,
   description,
+  actions,
   children,
 }: {
   title?: string;
   description?: ReactNode;
+  /** 标题右侧的轻量动作（如「上传」），不单独占一行。 */
+  actions?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <section className={surface.groupSection} aria-label={title}>
-      {title && <h2 className={surface.groupTitle}>{title}</h2>}
+      {title && (
+        <div className={surface.groupHeader}>
+          <h2 className={surface.groupTitle}>{title}</h2>
+          {actions && <div className={surface.groupActions}>{actions}</div>}
+        </div>
+      )}
       {description && <p className={surface.groupDesc}>{description}</p>}
       <div className={surface.groupList}>{children}</div>
     </section>

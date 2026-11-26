@@ -7,12 +7,11 @@ import {
   rollSessionSummary,
   type AgentStepTrace,
   type ChatSessionRecord,
-  type MemoryService,
 } from "@lfaa/memory";
 import { executeAgentTaskLoop } from "./agent-loop";
 import { buildGoalContinuationMessage } from "./goal-continuation";
 import { ensureProjectGitRepo } from "../context/project-git";
-import { extractExplicitMemory } from "./memory-autosave";
+import { settleRunMemories } from "./run-memory";
 import { normalizePermissionMode } from "../tools/permission-policy";
 import { resolveStepBudget } from "./step-budget";
 import {
@@ -43,42 +42,6 @@ export interface BeginRunDeps extends RunLoopDeps {
   onRunCreated: (record: ActiveRunRecord) => void;
   /** 运行收口后回调：调度层用于释放工作区租约并判断目标续跑。 */
   onRunFinished?: (record: ActiveRunRecord) => void;
-}
-
-// 用户明确陈述的偏好/约定在模型未主动保存时自动写入长期记忆，并在轨迹中留痕。
-async function sedimentExplicitMemory(
-  memory: MemoryService,
-  sessionId: string,
-  projectId: string | null | undefined,
-  userMessage: string,
-  steps: AgentStepTrace[],
-): Promise<AgentStepTrace | null> {
-  const content = extractExplicitMemory(userMessage);
-  if (!content) return null;
-  if (steps.some((step) => step.toolName === "save_memory" && step.status === "done")) return null;
-  const scope = projectId ? "project" : "global";
-  try {
-    await memory.addMemory({
-      scope,
-      ...(projectId ? { projectId } : {}),
-      content,
-      tags: ["auto"],
-      sourceSessionId: sessionId,
-    });
-  } catch {
-    return null;
-  }
-  return {
-    id: "memory-autosave",
-    iteration: steps.reduce((max, step) => Math.max(max, step.iteration), 0) + 1,
-    phase: "act",
-    status: "done",
-    title: "已自动沉淀长期记忆",
-    detail: content,
-    toolName: "save_memory",
-    permissionLevel: "read",
-    timestamp: Date.now(),
-  };
 }
 
 /** 启动一次运行：校验、落盘、登记运行记录，然后在微任务里驱动执行循环并收口结果。 */
@@ -386,11 +349,18 @@ export async function beginAgentRun(
         persistDirty = false;
         const runDurationMs = Date.now() - runStartedAt;
         await record.persistChain;
-        // 用户明确陈述的偏好/约定在模型未主动保存时自动沉淀，避免“记忆”只写不读或只读不写。
-        const autoMemory = memoryAllowed && !continuationId && !result.clarification
-          ? await sedimentExplicitMemory(deps.memory, session.id, projectId, trimmedInput, result.steps)
-          : null;
-        const resultSteps = autoMemory ? [...result.steps, autoMemory] : result.steps;
+        // 收口时落一次长期记忆：显式偏好兜底 + 每轮模型提炼，失败不影响答复。
+        const memorySteps = memoryAllowed && !continuationId && !result.clarification
+          ? await settleRunMemories({ memory: deps.memory, llm: deps.llm }, {
+            sessionId: session.id,
+            projectId,
+            userMessage: trimmedInput,
+            answer: result.content,
+            steps: result.steps,
+            signal: controller.signal,
+          })
+          : [];
+        const resultSteps = [...result.steps, ...memorySteps];
         const saved = await deps.memory.updateMessage(session.id, assistantMessageId, {
           content: result.content,
           ...(result.progressText ? { progressText: result.progressText } : {}),

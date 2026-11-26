@@ -8,6 +8,32 @@ export { WorkbenchClientService } from "./workbench-service";
 export type { LibraryTabKey, WorkbenchSnapshot } from "./workbench-service";
 export type { WorkspaceMode } from "./navigation/navigation";
 export { readStoredJson, writeStoredJson } from "./shell/ui-preferences";
+export {
+  SHORTCUT_BINDINGS_KEY,
+  findShortcutConflict,
+  formatShortcutKeys,
+  isEditableShortcutTarget,
+  matchesShortcut,
+  normalizeShortcutEvent,
+  readShortcutBindings,
+  readShortcutKeysFor,
+  resolveShortcutBindings,
+  writeShortcutBindings,
+} from "./shortcuts";
+export type {
+  ShortcutBindingMap,
+  ShortcutGroup,
+  ShortcutKeyEvent,
+  ShortcutText,
+  WorkbenchShortcutAction,
+  WorkbenchShortcutBinding,
+} from "./shortcuts";
+export {
+  DEFAULT_SHORTCUT_KEYS,
+  defaultShortcutKeys,
+  shortcutHint,
+  type ShortcutActionId,
+} from "./shortcut-defaults";
 
 // Web 应用提供挂载节点与可选插件就绪信号；插件注册 workbench 服务并在释放时卸载 React。
 export interface WorkbenchPluginConfig {
@@ -39,3 +65,4 @@ export const workbenchPlugin: Plugin<WorkbenchPluginConfig> = (context, config) 
     root = null;
   });
 };
+

@@ -9,6 +9,7 @@ import { arkModelMessages, providerAccessMessages } from "../locales";
 import { getProtocolShortLabel } from "./provider-catalog";
 import { findProviderPlan } from "./provider-plans";
 import { ModelOptionRow, ProfileSlotRow } from "./ModelReasoningList";
+import { provideComposerCommand } from "../composer/composer-commands";
 import {
   buildBrandModels,
   buildLevelOptions,
@@ -123,6 +124,14 @@ export function ModelReasoningPicker({
   // 切换模型后优先保留仍受支持的档位，否则用该模型的默认档。
   const effectiveReasoning = resolveEffectiveReasoning(levelOptions, reasoningLevel, activeModelCap);
   const activeLevelLabel = levelOptions.find((o) => o.id === effectiveReasoning)?.label ?? "";
+
+  // 快捷键「选择推理强度」：支持档位时直接打开强度面板，否则落到模型列表。
+  useEffect(() => {
+    if (!activeProfile) return;
+    return provideComposerCommand("reasoning", () => {
+      setPanelMode(activeModelCap.reasoningMode === "effort" ? "reasoning" : "models");
+    });
+  }, [activeModelCap.reasoningMode, activeProfile]);
 
   if (!activeProfile) {
     return (

@@ -1,12 +1,15 @@
 // 右侧工作台辅助面板内容：文件树、工作区上下文、终端任务、子智能体、侧边提问与工作详情。
 import type { ReactNode } from "react";
 import type { WorkbenchContextPanelContribution } from "@lfaa/ui-layout";
+import type { WorkbenchClientService } from "@lfaa/ui-layout/client";
 import type { ChatClientStore } from "../store/chat-store";
 import type { ChatLocaleMessages } from "../locales";
 import { RightFileTreePane } from "./RightFileTreePane";
 import { RightSideAskPane } from "./RightSideAskPane";
 import { RightSubagentsPane } from "./RightSubagentsPane";
 import { RightTerminalPane } from "./RightTerminalPane";
+import { TerminalSurface } from "./TerminalSurface";
+import { readTerminalPlacement } from "./terminal-placement";
 import type { RightAuxTab } from "./RightUtilityRail";
 import styles from "./RightWorkbenchPane.module.css";
 
@@ -28,6 +31,7 @@ export function WorkbenchAuxBody({
   selectedJobId,
   selectedSubagentId,
   onOpenSettings,
+  workbench,
 }: {
   tab: RightAuxTab;
   locale: ChatLocaleMessages;
@@ -46,7 +50,24 @@ export function WorkbenchAuxBody({
   selectedJobId: string | undefined;
   selectedSubagentId: string | undefined;
   onOpenSettings: () => void;
+  workbench?: WorkbenchClientService | undefined;
 }) {
+  if (tab === "shell" && readTerminalPlacement() === "bottom") {
+    // 终端已在底部面板：右栏不再渲染第二份，避免同一个 PTY 双开拖慢拖拽。
+    return <div className={styles.auxPad}>{locale.isZh ? "终端已在底部面板" : "Terminal is docked below"}</div>;
+  }
+  if (tab === "shell") {
+    // 真实终端：xterm + WebSocket，PTY 在宿主里按聊天会话复用。
+    return (
+      <TerminalSurface
+        sessionId={sessionId}
+        isZh={locale.isZh}
+        placement="right"
+        workbench={workbench}
+        onRequestRightTab={() => {}}
+      />
+    );
+  }
   if (tab === "filesTree") {
     return (
       <RightFileTreePane

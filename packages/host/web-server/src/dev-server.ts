@@ -26,6 +26,10 @@ export async function startWeb(options: WebServerOptions): Promise<() => Promise
   try {
     server = await createViteServer(appRoot, runtime.token, runtime.gateway, options.open === true);
     await server.listen();
+    // 真实终端的 WebSocket：挂在与 Vite HMR 同一个 http server 上；非终端路径返回 false，交回 Vite。
+    server.httpServer?.on("upgrade", (req, socket, head) => {
+      runtime.upgrade(req, socket, head);
+    });
     server.printUrls();
   } catch (error) {
     await runtime.dispose();

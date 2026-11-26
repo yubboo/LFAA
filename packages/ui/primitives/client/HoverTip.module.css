@@ -5,11 +5,9 @@
   align-items: center;
 }
 
-/* 提示相对触发元素定位，悬停和键盘聚焦共用显示规则。 */
+/* 提示由 JS 定位到 body 上，left/top 与翻转由组件按触发元素位置计算。 */
 .tip {
-  position: absolute;
-  bottom: calc(100% + 0.45rem);
-  left: 50%;
+  position: fixed;
   transform: translateX(-50%);
   display: inline-flex;
   align-items: center;
@@ -49,8 +47,7 @@
   min-width: 0;
 }
 
-.wrap:hover:not(.disabled) .tip,
-.wrap:focus-within:not(.disabled) .tip {
+.tipOpen {
   opacity: 1;
 }
 
@@ -62,3 +59,4 @@
   font-family: var(--code-font-family, monospace);
   font-size: 0.9em;
 }
+

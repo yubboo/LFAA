@@ -1,8 +1,13 @@
 // 右栏与设置共用的下载确认和结果。Host 保留请求状态，视图切换后可继续处理。
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { IconDownload } from "@tabler/icons-react";
+import { useVisibleInterval } from "@lfaa/ui-primitives/client";
 import { decideDownload, fetchDownloadActivity, pickDownloadLocation, type BrowserDownloadStatus } from "../api/browser-data-client";
 import styles from "./DownloadActivity.module.css";
+
+/** 有任务在跑时保持 1 秒刷新；全部落地后放慢到 15 秒，避免空转请求。 */
+const ACTIVE_POLL_MS = 1000;
+const IDLE_POLL_MS = 15_000;
 
 function statusText(item: BrowserDownloadStatus, isZh: boolean) {
   const labels = {
@@ -80,27 +85,31 @@ export function DownloadActivity({ sessionId, isZh, onSaved, onNewDownload }: {
   const [items, setItems] = useState<BrowserDownloadStatus[]>([]);
   const [revision, setRevision] = useState(0);
   const [failed, setFailed] = useState(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => () => {
+    mountedRef.current = false;
+  }, []);
+
+  // 拉一次下载状态：卸载后不再写回，避免面板切换时的无效 setState。
+  const load = useCallback(async () => {
+    try {
+      const result = await fetchDownloadActivity(sessionId);
+      if (!mountedRef.current) return;
+      setItems(result.items);
+      setFailed(false);
+    } catch {
+      if (mountedRef.current) setFailed(true);
+    }
+  }, [sessionId]);
+
   useEffect(() => {
-    let disposed = false;
-    let timer: ReturnType<typeof setTimeout>;
-    const load = async () => {
-      try {
-        const result = await fetchDownloadActivity(sessionId);
-        if (disposed) return;
-        setItems(result.items);
-        setFailed(false);
-      } catch {
-        if (!disposed) setFailed(true);
-      } finally {
-        if (!disposed) timer = setTimeout(() => void load(), 1000);
-      }
-    };
     void load();
-    return () => {
-      disposed = true;
-      clearTimeout(timer);
-    };
-  }, [sessionId, revision]);
+  }, [load, revision]);
+
+  // 只有存在待确认/传输中的任务才高频轮询；空闲与后台标签页都不再打接口。
+  const polling = items.some((item) => item.state === "awaiting" || item.state === "transferring" || item.state === "checking");
+  useVisibleInterval(load, polling ? ACTIVE_POLL_MS : IDLE_POLL_MS);
   const newestId = items.reduce<BrowserDownloadStatus | undefined>((latest, item) => (
     !latest || item.startedAt > latest.startedAt ? item : latest
   ), undefined)?.id;

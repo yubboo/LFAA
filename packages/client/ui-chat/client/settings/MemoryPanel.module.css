@@ -1,0 +1,16 @@
+/* 设置中心记忆面板的局部样式：只补筛选控件宽度，其余沿用设置中心的行式布局与主题变量。 */
+.filterInput {
+  width: 16rem;
+}
+
+.filterSelect {
+  width: 12rem;
+}
+
+/* 窄屏：筛选控件占满行宽，避免固定宽度把右侧按钮挤出可视区。 */
+@media (max-width: 720px) {
+  .filterInput,
+  .filterSelect {
+    width: 100%;
+  }
+}

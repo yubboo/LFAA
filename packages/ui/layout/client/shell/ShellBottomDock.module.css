@@ -1,0 +1,17 @@
+/* 底部面板宿主：竖向排布手柄与内容，高度由内联 style 控制。 */
+.host {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.handle {
+  flex: 0 0 auto;
+  background: transparent;
+}
+
+.handle:hover,
+.handle:active {
+  background: var(--color-accent);
+}

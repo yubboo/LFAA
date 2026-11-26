@@ -1,19 +1,23 @@
 // 渲染中央聊天工作区：空会话引导、流式回复、Agent 思考/行动/检查轨迹卡片与底部输入栏。
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { IconArrowDown } from "@tabler/icons-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { WorkspaceMode } from "@lfaa/ui-layout/client";
 import type { WorkbenchProjectItem, WorkbenchProjectProvider } from "@lfaa/ui-layout";
 import type { ChatClientStore } from "../store/chat-store";
+import { useChatSelector } from "../store/use-chat-selector";
 import type { ChatLocaleMessages } from "../locales";
 import { summarizeTurnChanges } from "../shared/file-activity";
 import { useStarterSuggestions } from "./useStarterSuggestions";
-import { useChatComposerHeight, useChatGutterReclaim } from "./useChatLayoutInsets";
+import { useChatGutterReclaim } from "./useChatLayoutInsets";
 import { useChatScroll } from "./useChatScroll";
 import { ChatAnchorBar, buildTurnAnchors } from "./ChatAnchorBar";
+import { ChatTopBar } from "./ChatTopBar";
+import { ChatFlowArea } from "./ChatFlowArea";
+import { ComposerDock } from "./ComposerDock";
+import { selectWorkspaceSlice } from "./workspace-slice";
+import type { ThreadWindowHandle } from "./use-thread-window";
 import { ChatComposer } from "../composer/ChatComposer";
 import { ChatMessageList } from "./ChatMessageList";
 import { ConversationTrace } from "./Conversation-Trace";
-import { SessionBars } from "../session/SessionBars";
 import { HandoffBar } from "../session/HandoffBar";
 import { latestSessionTodos } from "../session/session-todos";
 import { useChatComposer } from "../composer/useChatComposer";
@@ -51,7 +55,7 @@ export function ChatWorkspace({
   onOpenFilePreview: (messageId: string, stepId: string) => void;
   onOpenBrowser?: (() => void) | undefined;
 }) {
-  const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+  const state = useChatSelector(store, selectWorkspaceSlice);
   const [view, setView] = useState<"chat" | "trace">("chat");
   const [traceTarget, setTraceTarget] = useState<{ messageId: string; stepId: string } | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -98,11 +102,13 @@ export function ChatWorkspace({
     () => (activeSession?.todos && activeSession.todos.length > 0 ? activeSession.todos : latestSessionTodos(messages)),
     [activeSession?.todos, messages],
   );
-  const { scrollAreaRef, threadRef, showScrollBottom, scrollToLatest, pauseFollowing, trackScroll, isProgrammaticScroll } =
+  const { scrollAreaRef, threadRef, showScrollBottom, scrollToLatest, pauseFollowing, trackScroll, handleWheel } =
     useChatScroll(activeSession?.id ?? null, turnAnchors.at(-1)?.anchorMsgId, isRunning);
   const anchorScanRafRef = useRef<number | null>(null);
   const rootRef = useRef<HTMLElement>(null);
   const composerDockRef = useRef<HTMLDivElement>(null);
+  /** 消息列窗口化句柄：长会话里目标消息可能还没渲染，跳转要先经它滚进窗口。 */
+  const threadWindowRef = useRef<ThreadWindowHandle | null>(null);
   useEffect(() => () => {
     if (anchorScanRafRef.current !== null && typeof cancelAnimationFrame === "function") {
       cancelAnimationFrame(anchorScanRafRef.current);
@@ -112,11 +118,14 @@ export function ChatWorkspace({
   // 外层工作区视口给「长页面」常驻预留的滚动条槽与输入区高度都由下面两个 hook 实测，
 // 会话页自己收回槽位、正文末端让出输入区高度。
   useChatGutterReclaim(rootRef);
-  useChatComposerHeight(rootRef, composerDockRef);
   const handleOpenTrace = useCallback((messageId: string, stepId: string) => {
     setTraceTarget({ messageId, stepId });
     setView("trace");
   }, []);
+  // 子智能体入口必须是稳定引用：行组件用 memo 隔离历史消息，内联箭头会让每次输入/滚动都重渲染全部消息行。
+  const handleOpenSubagent = useCallback((subagentId: string, role?: string) => {
+    store.requestRightPanel("subagent", subagentId, { autoExpand: true, ...(role ? { subagentRole: role } : {}) });
+  }, [store]);
 
   // 搜索结果打开会话后暂停触底跟随，滚动到命中的消息并短暂高亮；定位完成即消费请求。
   const pendingJump = state.pendingMessageJump;
@@ -125,6 +134,8 @@ export function ChatWorkspace({
     if (!activeSession?.messages.some((message) => message.id === pendingJump.messageId)) return;
     pauseFollowing();
     const highlight = (attempt: number) => {
+      // 窗口化时目标消息可能不在窗口里：先把它滚进窗口，再按 DOM 精调并高亮。
+      threadWindowRef.current?.scrollToMessage(pendingJump.messageId);
       const element = document.getElementById(`chat-message-${pendingJump.messageId}`);
       if (!element) {
         if (attempt < 3) window.setTimeout(() => highlight(attempt + 1), 180);
@@ -231,16 +242,22 @@ export function ChatWorkspace({
 
   return (
     <section ref={rootRef} className={styles.root} aria-label={locale.workspaceTitle}>
-      <nav className={styles.viewTabs} aria-label={locale.isZh ? "会话视图" : "Conversation views"}>
-        <button type="button" aria-current={view === "chat" ? "page" : undefined} onClick={() => setView("chat")}>{locale.isZh ? "对话" : "Chat"}</button>
-        <button type="button" aria-current={view === "trace" ? "page" : undefined} onClick={() => setView("trace")}>{locale.isZh ? "轨迹" : "Trace"}</button>
-      </nav>
-      {view === "trace" && <ConversationTrace key={activeSession?.id ?? "draft"} messages={messages} locale={locale} target={traceTarget} pendingApproval={state.pendingApproval} onResolveApproval={(approved) => void store.resolveApproval(approved)} />}
-      <div ref={scrollAreaRef} className={styles.scrollArea} hidden={view !== "chat"} onScroll={(event) => {
+      <ChatTopBar view={view} onChange={setView} isZh={locale.isZh} />
+      {view === "trace" && (
+        <div className={styles.traceBox}>
+          <ConversationTrace key={activeSession?.id ?? "draft"} messages={messages} locale={locale} target={traceTarget} pendingApproval={state.pendingApproval} onResolveApproval={(approved) => void store.resolveApproval(approved)} />
+        </div>
+      )}
+      <ChatFlowArea
+        scrollAreaRef={scrollAreaRef}
+        hidden={view !== "chat"}
+        onWheel={handleWheel}
+        fade={messages.length > 0}
+        onScroll={(event) => {
           const el = event.currentTarget;
-          trackScroll(el);
-          // 流式自动贴底期间跳过锚点几何扫描，避免每帧同步 getBoundingClientRect 引起强制回流。
-          if (turnAnchors.length === 0 || isProgrammaticScroll() || anchorScanRafRef.current !== null) return;
+          // 自己写的贴底滚动不参与锚点扫描，避免流式每帧同步 getBoundingClientRect 引起强制回流。
+          const selfScrolled = trackScroll(el);
+          if (turnAnchors.length === 0 || selfScrolled || anchorScanRafRef.current !== null) return;
           anchorScanRafRef.current = requestAnimationFrame(() => {
             anchorScanRafRef.current = null;
             const containerTop = el.getBoundingClientRect().top + 96;
@@ -268,7 +285,7 @@ export function ChatWorkspace({
           heroComposer={composerInHero ? composerNode : null}
           selectedFile={selectedFile}
           pendingApproval={state.pendingApproval}
-          memoriesCount={state.memories.length}
+          memoriesCount={state.memoriesCount}
           isRunning={isRunning}
           showHomeSuggestions={state.generalSettings.homeSuggestions}
           brandWatermark={state.generalSettings.imageWatermark}
@@ -276,12 +293,12 @@ export function ChatWorkspace({
           assistantBodyClass={styles.assistantBody}
           noticeLinkClass={composerStyles.noticeLink}
           threadRef={threadRef}
+          scrollElementRef={scrollAreaRef}
+          windowHandleRef={threadWindowRef}
           onOpenFilePreview={onOpenFilePreview}
           onOpenTurnChanges={onOpenTurnChanges}
           onOpenBrowser={onOpenBrowser}
-          onOpenSubagent={(subagentId, role) => {
-            store.requestRightPanel("subagent", subagentId, { autoExpand: true, ...(role ? { subagentRole: role } : {}) });
-          }}
+          onOpenSubagent={handleOpenSubagent}
           onEditContent={messageActions.onEditContent}
           onOpenTrace={handleOpenTrace}
           onBranchToNewChat={messageActions.onBranchToNewChat}
@@ -290,17 +307,19 @@ export function ChatWorkspace({
           onResolveApproval={messageActions.onResolveApproval}
           mediaActions={messageActions.mediaActions}
         />
-      </div>
+      </ChatFlowArea>
 
       {view === "chat" && <ChatAnchorBar
         turns={turnAnchors}
         activeTurnIndex={activeTurnIndex}
         onJumpToTurn={(anchorMsgId, idx) => {
           setActiveTurnIndex(idx);
+          pauseFollowing();
+          // 长会话窗口化后目标行可能尚未渲染：先按索引滚进窗口，再由下面的 DOM 分支精调落点。
+          threadWindowRef.current?.scrollToMessage(anchorMsgId);
           const viewport = scrollAreaRef.current;
           const target = viewport?.querySelector<HTMLElement>(`[data-turn-anchor="${anchorMsgId}"]`);
           if (!viewport || !target) return;
-          pauseFollowing();
           viewport.scrollTo({
             top: viewport.scrollTop + target.getBoundingClientRect().top - viewport.getBoundingClientRect().top,
             behavior: isRunning ? "instant" : "smooth",
@@ -308,58 +327,53 @@ export function ChatWorkspace({
         }}
       />}
 
-      <div ref={composerDockRef} className={styles.composerDock}>
-        {showScrollBottom && messages.length > 0 && (
-          <button
-            type="button"
-            className={styles.scrollBottomBtn}
-            aria-label={locale.isZh ? "回到底部" : "Scroll to bottom"}
-            onClick={scrollToLatest}
-          >
-            <IconArrowDown size={15} stroke={2} />
-          </button>
-        )}
-        {state.errorMessage && (
-          <ChatErrorBanner
-            message={state.errorMessage}
-            isZh={locale.isZh}
-            showIsolate={state.workspaceConflict === true}
-            onIsolate={() => void store.isolateWorkspace()}
-          />
-        )}
-        {state.streamStatusNotice && (
-          <div className={composerStyles.noticeBar} role="status">
-            <span>{state.streamStatusNotice}</span>
-            {state.degradedStream && (
-              <button type="button" className={composerStyles.noticeLink} onClick={() => store.retryDegradedStream()}>
-                {locale.isZh ? "立即重试恢复" : "Retry now"}
-              </button>
+      <ComposerDock
+        dockRef={composerDockRef}
+        isZh={locale.isZh}
+        view={view}
+        todos={sessionTodos}
+        paused={paused}
+        settled={!isRunning && lastMessage?.role === "assistant" && lastMessage.status === "done"}
+        goal={state.activeGoal}
+        showScrollBottom={showScrollBottom && messages.length > 0}
+        onScrollToLatest={scrollToLatest}
+        onEditGoal={(objective) => store.editGoal(objective)}
+        onToggleGoalAuto={(next) => store.setGoalAutoContinue(next)}
+        notices={(
+          <>
+            {state.errorMessage && (
+              <ChatErrorBanner
+                message={state.errorMessage}
+                isZh={locale.isZh}
+                showIsolate={state.workspaceConflict === true}
+                onIsolate={() => void store.isolateWorkspace()}
+              />
             )}
-          </div>
+            {state.streamStatusNotice && (
+              <div className={composerStyles.noticeBar} role="status">
+                <span>{state.streamStatusNotice}</span>
+                {state.degradedStream && (
+                  <button type="button" className={composerStyles.noticeLink} onClick={() => store.retryDegradedStream()}>
+                    {locale.isZh ? "立即重试恢复" : "Retry now"}
+                  </button>
+                )}
+              </div>
+            )}
+            {state.handoffs.length > 0 && (
+              <div className={styles.composerStack}>
+                <HandoffBar
+                  handoff={state.handoffs[0]!}
+                  isZh={locale.isZh}
+                  onAccept={() => void store.acceptHandoff(state.handoffs[0]!.id)}
+                  onDismiss={() => store.dismissHandoff(state.handoffs[0]!.id)}
+                />
+              </div>
+            )}
+          </>
         )}
-        {state.handoffs.length > 0 && (
-          <div className={styles.composerStack}>
-            <HandoffBar
-              handoff={state.handoffs[0]!}
-              isZh={locale.isZh}
-              onAccept={() => void store.acceptHandoff(state.handoffs[0]!.id)}
-              onDismiss={() => store.dismissHandoff(state.handoffs[0]!.id)}
-            />
-          </div>
-        )}
-        <SessionBars
-          view={view}
-          todos={sessionTodos}
-          paused={paused}
-          settled={!isRunning && lastMessage?.role === "assistant" && lastMessage.status === "done"}
-          goal={state.activeGoal}
-          isZh={locale.isZh}
-          className={styles.composerStack}
-          onEditGoal={(objective) => store.editGoal(objective)}
-          onToggleGoalAuto={(next) => store.setGoalAutoContinue(next)}
-        />
+      >
         {!composerInHero && composerNode}
-      </div>
+      </ComposerDock>
 
       <WorkspaceDialogs
         locale={locale}

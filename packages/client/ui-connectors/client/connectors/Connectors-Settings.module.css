@@ -1,0 +1,228 @@
+/* 连接器页与 CLI 编辑弹窗样式：只消费 @lfaa/ui-theme 语义变量，深浅色成对生效。 */
+
+.tabs {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 0.6rem;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  min-inline-size: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+
+.active {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  font-weight: 650;
+}
+
+.message,
+.error {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.message { color: var(--color-muted); }
+.error { color: var(--color-danger); }
+
+.hint {
+  color: var(--color-muted);
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
+/* 状态点：与 MCP 分组保持同一视觉语言。 */
+.status {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.status::before {
+  content: "";
+  flex: 0 0 0.4rem;
+  inline-size: 0.4rem;
+  block-size: 0.4rem;
+  border-radius: 50%;
+  background: var(--color-muted);
+  align-self: center;
+}
+
+.status[data-status="ready"]::before { background: var(--color-success); }
+.status[data-status="error"]::before { background: var(--color-danger); }
+.status[data-status="connecting"]::before { background: var(--color-accent); }
+
+/* 弹窗：与 MCP 编辑弹窗同一尺寸与层级，超出内容在表单内滚动。 */
+.dialog {
+  box-sizing: border-box;
+  width: min(46rem, 100% - 2rem);
+  max-height: min(48rem, 100% - 2rem);
+  padding: 0;
+  border: 1px solid var(--color-line);
+  border-radius: 1rem;
+  color: var(--color-ink);
+  background: var(--color-shell);
+  overflow: hidden;
+}
+
+.dialog::backdrop { background: var(--color-scrim); }
+
+.form {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+  gap: 0.9rem;
+  max-height: min(48rem, 100dvh - 2rem);
+  padding: 1.25rem;
+}
+
+.form h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  overflow-wrap: anywhere;
+}
+
+.fields {
+  display: grid;
+  gap: 0.8rem;
+  overflow-y: auto;
+  padding: 0.2rem;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.75rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.3rem;
+  min-inline-size: 0;
+}
+
+.field span,
+.inlineLabel {
+  color: var(--color-muted);
+  font-size: 0.78rem;
+}
+
+.fieldInline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-inline-start: auto;
+}
+
+.fieldInline input {
+  inline-size: 7.5rem;
+}
+
+.inlineRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.templateRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.probeRow {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.probeRow input { flex: 1 1 auto; }
+
+.actionList {
+  display: grid;
+  gap: 0.6rem;
+}
+
+/* 「添加动作」贴着左缘，不铺满整行。 */
+.actionList > button {
+  justify-self: start;
+}
+
+.actionCard {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.7rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.7rem;
+  background: var(--color-panel);
+}
+
+.actionHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+}
+
+.args {
+  min-block-size: 3.5rem;
+  resize: vertical;
+  font-family: var(--code-font-family, ui-monospace, monospace);
+  font-size: 0.8rem;
+}
+
+.paramBlock {
+  display: grid;
+  gap: 0.35rem;
+}
+
+/* 「添加参数」贴着左缘，不铺满整行。 */
+.paramBlock > button {
+  justify-self: start;
+}
+
+.paramRow {
+  display: grid;
+  grid-template-columns: minmax(6rem, 1fr) 6rem minmax(8rem, 1.6fr) minmax(7rem, 1.2fr) auto 2rem;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.paramRow input,
+.paramRow select {
+  min-inline-size: 0;
+  font-size: 0.8rem;
+}
+
+.required {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--color-muted);
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
+.form footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+@media (max-width: 760px) {
+  .dialog { width: calc(100% - 1rem); }
+  .paramRow { grid-template-columns: 1fr 1fr; }
+  .paramRow .required { grid-column: span 2; }
+}

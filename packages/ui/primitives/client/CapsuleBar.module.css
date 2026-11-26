@@ -1,0 +1,16 @@
+/* 头部胶囊条：与 @lfaa/ui-primitives 的 PanelToggleButton 同层，只负责外壳。
+   尺寸全部可由调用方用 --capsule-* 覆盖，避免同一份圆角/描边在各栏各写一遍。 */
+.capsule {
+  display: flex;
+  width: 100%;
+  height: var(--capsule-height, 2.7rem);
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--capsule-gap, 0.4rem);
+  padding: var(--capsule-padding, 0.2rem 0.25rem);
+  border: 1px solid var(--color-line);
+  border-radius: var(--capsule-radius, 0.9rem);
+  background: var(--color-surface);
+  box-shadow: var(--rail-active-shadow);
+}

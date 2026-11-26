@@ -18,7 +18,6 @@ export function useWorkbenchRequests({
   setDevtoolsRequest,
   setReviewMessageId,
   setReviewTabOpen,
-  setFileTreeOpen,
   setSelectedJobId,
   setSelectedSubagentId,
   openSubagentTab,
@@ -35,7 +34,6 @@ export function useWorkbenchRequests({
   setDevtoolsRequest: (req: { tab: "console" | "network"; nonce: number } | undefined) => void;
   setReviewMessageId: (id: string | undefined) => void;
   setReviewTabOpen: (open: boolean) => void;
-  setFileTreeOpen: (open: boolean) => void;
   setSelectedJobId: (id: string | undefined) => void;
   setSelectedSubagentId: (id: string | undefined) => void;
   openSubagentTab: (subagentId: string, role?: string) => void;
@@ -59,10 +57,12 @@ export function useWorkbenchRequests({
       store.setRightStageKind("review");
     } else if (request.tab === "file-preview") {
       setAuxOpen(false);
-      setFileTreeOpen(false);
     } else if (request.tab === "files") {
-      store.setRightStageKind(null);
-      setActiveAux("filesTree");
+      // 文件树已移到左二「项目工作区」，这里不再打开右侧文件树舞台。
+      setAuxOpen(false);
+    } else if (request.tab === "shell") {
+      // 真实终端：与后台任务共用辅助面板，但打的是「终端」标签。
+      setActiveAux("shell");
       setAuxOpen(true);
     } else if (request.tab === "terminal") {
       if (request.url) setSelectedJobId(request.url);
@@ -72,7 +72,6 @@ export function useWorkbenchRequests({
       setAuxOpen(true);
     } else if (request.tab === "subagent" && request.url) {
       setAuxOpen(false);
-      setFileTreeOpen(false);
       openSubagentTab(request.url, request.subagentRole);
     } else if (request.tab === "subagents") {
       if (request.url) setSelectedSubagentId(request.url);
@@ -83,6 +82,8 @@ export function useWorkbenchRequests({
       setActiveAux(request.tab);
       setAuxOpen(true);
     }
+    // 一个请求只消费一次：清空后即使 store 再 patch，也不会把用户刚关掉的标签重新打开。
+    store.clearRightPanelRequest();
   }, [
     openSubagentTab,
     request,
@@ -92,7 +93,6 @@ export function useWorkbenchRequests({
     setBrowserInitialUrl,
     setBrowserOpen,
     setDevtoolsRequest,
-    setFileTreeOpen,
     setReviewMessageId,
     setReviewTabOpen,
     setSelectedJobId,

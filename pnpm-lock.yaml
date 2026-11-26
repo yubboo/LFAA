@@ -77,12 +77,12 @@ importers:
       '@lfaa/client-ui-chat':
         specifier: workspace:*
         version: link:../../packages/client/ui-chat
+      '@lfaa/client-ui-connectors':
+        specifier: workspace:*
+        version: link:../../packages/client/ui-connectors
       '@lfaa/client-ui-library':
         specifier: workspace:*
         version: link:../../packages/client/ui-library
-      '@lfaa/client-ui-mcp':
-        specifier: workspace:*
-        version: link:../../packages/client/ui-mcp
       '@lfaa/client-ui-plugins':
         specifier: workspace:*
         version: link:../../packages/client/ui-plugins
@@ -172,6 +172,12 @@ importers:
       '@lfaa/compaction':
         specifier: workspace:*
         version: link:../../compaction/compaction
+      '@lfaa/connectors':
+        specifier: workspace:*
+        version: link:../../extension/connectors
+      '@lfaa/crew':
+        specifier: workspace:*
+        version: link:../../core/crew
       '@lfaa/fs-observation-policy':
         specifier: workspace:*
         version: link:../../fs/fs-observation-policy
@@ -232,6 +238,9 @@ importers:
       '@lfaa/system-prompt':
         specifier: workspace:*
         version: link:../../core/system-prompt
+      '@lfaa/terminal':
+        specifier: workspace:*
+        version: link:../../host/terminal
       '@lfaa/timeout-policy':
         specifier: workspace:*
         version: link:../../guard/timeout-policy
@@ -410,6 +419,9 @@ importers:
       '@lfaa/client-ui-browser':
         specifier: workspace:*
         version: link:../ui-browser
+      '@lfaa/client-ui-terminal':
+        specifier: workspace:*
+        version: link:../ui-terminal
       '@lfaa/client-ui-tool-media':
         specifier: workspace:*
         version: link:../ui-tool-media
@@ -434,6 +446,9 @@ importers:
       '@tabler/icons-react':
         specifier: ^3.35.0
         version: 3.52.0(react@19.3.1)
+      '@tanstack/react-virtual':
+        specifier: ^3.14.28
+        version: 3.14.28(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       react:
         specifier: ^19.1.0
         version: 19.3.1
@@ -450,6 +465,27 @@ importers:
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
+
+  packages/client/ui-connectors:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
+      '@lfaa/connectors':
+        specifier: workspace:*
+        version: link:../../extension/connectors
+      '@lfaa/mcp':
+        specifier: workspace:*
+        version: link:../../extension/mcp
+      '@lfaa/ui-layout':
+        specifier: workspace:*
+        version: link:../../ui/layout
+      '@lfaa/ui-primitives':
+        specifier: workspace:*
+        version: link:../../ui/primitives
+      react:
+        specifier: ^19.1.0
+        version: 19.3.1
 
   packages/client/ui-library:
     dependencies:
@@ -484,24 +520,6 @@ importers:
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
-
-  packages/client/ui-mcp:
-    dependencies:
-      '@deepseek-ai/cordis':
-        specifier: ^4.1.0
-        version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
-      '@lfaa/mcp':
-        specifier: workspace:*
-        version: link:../../extension/mcp
-      '@lfaa/ui-layout':
-        specifier: workspace:*
-        version: link:../../ui/layout
-      '@lfaa/ui-primitives':
-        specifier: workspace:*
-        version: link:../../ui/primitives
-      react:
-        specifier: ^19.1.0
-        version: 19.3.1
 
   packages/client/ui-plugins:
     dependencies:
@@ -611,6 +629,31 @@ importers:
       '@types/react':
         specifier: ^19.3.0
         version: 19.3.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/client/ui-terminal:
+    dependencies:
+      '@xterm/addon-fit':
+        specifier: ^0.11.0
+        version: 0.11.0
+      '@xterm/xterm':
+        specifier: ^6.0.0
+        version: 6.0.0
+      react:
+        specifier: ^19.3.1
+        version: 19.3.1
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.19.2
+      '@types/react':
+        specifier: ^19.3.0
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: ^19.3.0
+        version: 19.3.0(@types/react@19.3.0)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -791,6 +834,28 @@ importers:
       '@lfaa/llm':
         specifier: workspace:*
         version: link:../llm
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.19.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/core/crew:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
+      '@lfaa/memory':
+        specifier: workspace:*
+        version: link:../memory
+      '@lfaa/subagent':
+        specifier: workspace:*
+        version: link:../subagent
+      '@lfaa/tools':
+        specifier: workspace:*
+        version: link:../tools
     devDependencies:
       '@types/node':
         specifier: ^24.10.0
@@ -1017,6 +1082,21 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
+  packages/extension/connectors:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
+      '@lfaa/mcp':
+        specifier: workspace:*
+        version: link:../mcp
+      '@lfaa/storage':
+        specifier: workspace:*
+        version: link:../../core/storage
+      '@lfaa/tools':
+        specifier: workspace:*
+        version: link:../../core/tools
+
   packages/extension/mcp:
     dependencies:
       '@deepseek-ai/cordis':
@@ -1131,6 +1211,31 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
+  packages/host/terminal:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.1.0
+        version: 4.1.0(@deepseek-ai/cordis-plugin-loader@1.1.0)
+      '@lfaa/api-gateway':
+        specifier: workspace:*
+        version: link:../../api/gateway
+      node-pty:
+        specifier: ^1.1.0
+        version: 1.1.0
+      ws:
+        specifier: ^8.23.0
+        version: 8.23.0
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.19.2
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.2
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
   packages/host/web-server:
     dependencies:
       '@deepseek-ai/cordis':
@@ -1163,6 +1268,9 @@ importers:
       '@lfaa/commands':
         specifier: workspace:*
         version: link:../../interaction/commands
+      '@lfaa/connectors':
+        specifier: workspace:*
+        version: link:../../extension/connectors
       '@lfaa/goal':
         specifier: workspace:*
         version: link:../../goal/goal
@@ -1208,6 +1316,9 @@ importers:
       '@lfaa/subagent':
         specifier: workspace:*
         version: link:../../core/subagent
+      '@lfaa/terminal':
+        specifier: workspace:*
+        version: link:../terminal
       '@lfaa/tool-media':
         specifier: workspace:*
         version: link:../../media/tool-media
@@ -2153,6 +2264,15 @@ packages:
   '@tabler/icons@3.52.0':
     resolution: {integrity: sha512-dldKlJNfO/gZnGLcIY0X2EFFKIMGwL/rEvTqglvBgAPFiwj9pZOCN5V3Sf0Gyjq6foX4VQmLdOmsS4w5FdWKAw==}
 
+  '@tanstack/react-virtual@3.14.28':
+    resolution: {integrity: sha512-zoM4eddIVUsOsunOe26ur+h6YJQbvdzU10a2tKzIovThu5P4SvEyQ+cRx0mbeKfgnR0Mz7KR/NwrZ3GzVnUF/g==}
+    peerDependencies:
+      react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+      react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+
+  '@tanstack/virtual-core@3.19.13':
+    resolution: {integrity: sha512-CyCvMm7m5JuvPW6eMPZkZBZk6diySrlUQNNRpQPiEnh2vakyghx82Hw3wW2THFUsl6xJ6uM4lSUaiA2T0oYW8w==}
+
   '@tybys/wasm-util@0.10.4':
     resolution: {integrity: sha512-W3c4gRigFS0T/Ma4qIYF3GDAc5AQdHb1yL5znJT1Zv1YaD9Kitx656wBjvr19qbiosmZT8lWDM5BEMynUqX65A==}
 
@@ -2204,6 +2324,9 @@ packages:
   '@types/retry@0.12.5':
     resolution: {integrity: sha512-3xSjTp3v03X/lSQLkczaN9UIEwJMoMCA1+Nb5HfbJEQWogdeQIyVtTvxPXDQjZ5zws8rFQfVfRdz03ARihPJgw==}
 
+  '@types/ws@8.18.2':
+    resolution: {integrity: sha512-67MQl+fpWKVTT1NYdnmo3U4sc/xPo/zQBncVnI74qmQa0z/b+1g6iYqNmGCPbxO+zz2aklb08a0oHfegiVd0/w==}
+
   '@vitejs/plugin-react@6.3.0':
     resolution: {integrity: sha512-H9E955aVvD2F4zNHCw4eIZbIfF6xKldlh7MNu+hSU7xwQzh65lI/N+CJWqmfhi0PEjDXIt/H7T7J/4wU63KJiw==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -2227,6 +2350,12 @@ packages:
   '@xmldom/xmldom@0.9.12':
     resolution: {integrity: sha512-5AXjrcMClTryPe9LgZrygpB1lj7s0S9E0+W+AHaVKAVyHanafK86iPSvG5xHVSp/jC+VH1UXu0TAEmY279xH7A==}
     engines: {node: '>=14.6'}
+
+  '@xterm/addon-fit@0.11.0':
+    resolution: {integrity: sha512-jYcgT6xtVYhnhgxh3QgYDnnNMYTcf8ElbxxFzX0IZo+vabQqSPAjC3c1wJrKB5E19VwQei89QCiZZP86DCPF7g==}
+
+  '@xterm/xterm@6.0.0':
+    resolution: {integrity: sha512-TQwDdQGtwwDt+2cgKDLn0IRaSxYu1tSUjgKarSDkUM0ZNiSRXFpjxEsvc/Zgc5kq5omJ+V0a8/kIM2WD3sMOYg==}
 
   '@yuku-toolchain/darwin-arm64@0.28.1':
     resolution: {integrity: sha512-xMtZUwiGvJH90ogLjRrnG5+YEhinKti8qMPF18bd5z0ahSoaHWyBoe16evT7cSUxid0JEaZvh6H3daDPwDw4+g==}
@@ -3127,6 +3256,10 @@ packages:
     resolution: {integrity: sha512-GuvqvtrOk+AC27RidBxBsMzVNkwNl7PjHgc4NXbmdvSVLgIUjpaqcG1FjNRYnt2Yn9Ytq+Ln37XsBaglUcte/w==}
     engines: {node: '>=22.12.0'}
 
+  node-addon-api@7.1.0:
+    resolution: {integrity: sha512-mNcltoe1R8o7STTegSOHdnJNN7s5EUvhoS7ShnTHDyOSd+8H+UdWODq6qSv67PjC8Zc5JRT8+oLAMCr0SIXw7g==}
+    engines: {node: ^16 || ^18 || >= 20}
+
   node-addon-native-custom-loader@0.1.9:
     resolution: {integrity: sha512-Zh87aubSc1UF8CzZsRws1KtSwXiPDH0tbcg8V/2OA8Tcq9yGJRESFcEOC5NGLFama5IGfC3aJhubZbrj9Un2qA==}
     engines: {node: '>=20'}
@@ -3203,6 +3336,9 @@ packages:
 
   node-int64@0.4.0:
     resolution: {integrity: sha512-O5lz91xSOeoXP6DulyHfllpq+Eg00MWitZIbtPfoSEvqIHdl5gfcY6hYzDWnj0qD5tz52PI08u9qUvSVeUBeHw==}
+
+  node-pty@1.1.0:
+    resolution: {integrity: sha512-20JqtutY6JPXTUnL0ij1uad7Qe1baT46lyolh2sSENDd4sTzKZ4nmAFkeAARDKwmlLjPx6XKRlwRUxwjOy+lUg==}
 
   nopt@9.0.0:
     resolution: {integrity: sha512-Zhq3a+yFKrYwSBluL4H9XP3m3y5uvQkB/09CwDruCiRmR/UJYnn9W4R48ry0uGC70aeTPKLynBtscP9efFFcPw==}
@@ -3783,6 +3919,18 @@ packages:
   wrappy@1.0.2:
     resolution: {integrity: sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==}
 
+  ws@8.23.0:
+    resolution: {integrity: sha512-wCkmX8QMOrKjgO8HW2WyDbTSGeqkocxgDzS9iR79rEAexty6/2qzilx3Ag8Tqf9ykop3irLKle0MtVn5qjVnoQ==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
+
   xmlbuilder@15.1.1:
     resolution: {integrity: sha512-yMqGBqtXyeN1e3TGYvgNgDVZ3j84W4cwkOXQswghol6APgZWaff9lnbvN7MHYJOiXsvGPXtjTYJEiC9J2wv9Eg==}
     engines: {node: '>=8.0'}
@@ -4301,6 +4449,14 @@ snapshots:
 
   '@tabler/icons@3.52.0': {}
 
+  '@tanstack/react-virtual@3.14.28(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
+    dependencies:
+      '@tanstack/virtual-core': 3.19.13
+      react: 19.3.1
+      react-dom: 19.3.1(react@19.3.1)
+
+  '@tanstack/virtual-core@3.19.13': {}
+
   '@tybys/wasm-util@0.10.4':
     dependencies:
       tslib: 2.9.1
@@ -4364,6 +4520,10 @@ snapshots:
 
   '@types/retry@0.12.5': {}
 
+  '@types/ws@8.18.2':
+    dependencies:
+      '@types/node': 24.19.2
+
   '@vitejs/plugin-react@6.3.0(vite@8.3.8(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))':
     dependencies:
       '@rolldown/pluginutils': 1.1.1
@@ -4372,6 +4532,10 @@ snapshots:
   '@xmldom/xmldom@0.8.15': {}
 
   '@xmldom/xmldom@0.9.12': {}
+
+  '@xterm/addon-fit@0.11.0': {}
+
+  '@xterm/xterm@6.0.0': {}
 
   '@yuku-toolchain/darwin-arm64@0.28.1':
     optional: true
@@ -5351,6 +5515,8 @@ snapshots:
     dependencies:
       semver: 7.8.6
 
+  node-addon-api@7.1.0: {}
+
   node-addon-native-custom-loader@0.1.9: {}
 
   node-addon-require-builtin-darwin-arm64@0.1.9:
@@ -5430,6 +5596,10 @@ snapshots:
       which: 6.0.1
 
   node-int64@0.4.0: {}
+
+  node-pty@1.1.0:
+    dependencies:
+      node-addon-api: 7.1.0
 
   nopt@9.0.0:
     dependencies:
@@ -5994,6 +6164,8 @@ snapshots:
       strip-ansi: 6.0.1
 
   wrappy@1.0.2: {}
+
+  ws@8.23.0: {}
 
   xmlbuilder@15.1.1: {}
 

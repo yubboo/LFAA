@@ -23,7 +23,6 @@ export function RightWorkbenchActions({
   rightPanelMaximized = false,
   onEnsureRightPanelOpen,
   onOpenReviewTab,
-  onOpenFileTree,
   onOpenTerminal,
   onOpenSubagents,
   onNewBrowserTab,
@@ -42,7 +41,6 @@ export function RightWorkbenchActions({
   rightPanelMaximized?: boolean | undefined;
   onEnsureRightPanelOpen?: (() => void) | undefined;
   onOpenReviewTab?: (() => void) | undefined;
-  onOpenFileTree?: (() => void) | undefined;
   onOpenTerminal?: ((jobId?: string) => void) | undefined;
   onOpenSubagents?: ((subagentId?: string) => void) | undefined;
   onNewBrowserTab?: (() => void) | undefined;
@@ -165,13 +163,6 @@ export function RightWorkbenchActions({
     setMenuOpen(null);
   };
 
-  const triggerFiles = () => {
-    onEnsureRightPanelOpen?.();
-    if (onOpenFileTree) onOpenFileTree();
-    else store.requestRightPanel("files");
-    setMenuOpen(null);
-  };
-
   const triggerTerminal = (jobId?: string) => {
     onEnsureRightPanelOpen?.();
     if (onOpenTerminal) onOpenTerminal(jobId);
@@ -249,7 +240,6 @@ export function RightWorkbenchActions({
           onTogglePinned={handleTogglePinned}
           onToggleArchived={handleToggleArchived}
           onTriggerBrowser={triggerBrowser}
-          onTriggerFiles={triggerFiles}
           onCopy={handleCopySession}
           onOpenExtensions={onOpenExtensions}
           onCloseMenu={() => setMenuOpen(null)}
@@ -274,7 +264,6 @@ export function RightWorkbenchActions({
           onToggleShowAllJobs={() => setShowAllJobs((value) => !value)}
           onToggleShowAllSubs={() => setShowAllSubs((value) => !value)}
           onTriggerReview={triggerReview}
-          onTriggerFiles={triggerFiles}
           onTriggerTerminal={triggerTerminal}
           onTriggerSubagents={triggerSubagents}
           onStopJob={handleStopJob}

@@ -88,10 +88,15 @@ export function useSidebarResize({
     const railEl = shellEl.querySelector(`[data-region="${WORKBENCH_REGIONS[0]}"]`);
     const leftEl = shellEl.querySelector(`[data-region="${WORKBENCH_REGIONS[1]}"]`);
     const rightEl = shellEl.querySelector(`[data-region="${WORKBENCH_REGIONS[3]}"]`);
+    // 「预览区在左」时最右一列是会话列（workspace），它带 data-pane="right" 标记；
+    // 仅在该布局下优先取它，避免把中间列的工作台宽度当成右栏起始宽度。
+    const rightPaneEl = shellEl.dataset.layout === "preview-center"
+      ? (shellEl.querySelector('[data-pane="right"]') ?? rightEl)
+      : rightEl;
     const railRight = railEl ? railEl.getBoundingClientRect().right : shellRect.left + 69.6;
     const railWidth = Math.max(0, railRight - shellRect.left);
     const currentLeftWidth = leftEl ? leftEl.getBoundingClientRect().width : (leftWidth ?? 260);
-    const currentRightWidth = rightEl ? rightEl.getBoundingClientRect().width : (rightWidth ?? 260);
+    const currentRightWidth = rightPaneEl ? rightPaneEl.getBoundingClientRect().width : (rightWidth ?? 260);
     return { shellEl, shellRect, railWidth, currentLeftWidth, currentRightWidth };
   }, [leftWidth, rightWidth, shellRef]);
 

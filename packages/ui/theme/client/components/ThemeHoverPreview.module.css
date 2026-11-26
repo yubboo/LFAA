@@ -1,0 +1,103 @@
+/* 悬停预览浮层：跟手的「预览」光标 + 迷你工作台卡片；不拦截鼠标事件。
+   尺寸、圆角、阴影与字体取 @lfaa/ui-theme 的 --popover-* / 玻璃令牌（见 docs/standards/floating-cards.md）。 */
+.layer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: var(--z-popover);
+  pointer-events: none;
+  opacity: 0;
+  will-change: transform;
+  transition: opacity 150ms ease;
+}
+
+.layer[data-open="true"] {
+  opacity: 1;
+}
+
+/* 自定义光标：跟随指针的小胶囊，替代系统箭头。 */
+.cursor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 0.16rem 0.5rem;
+  border-radius: 999px;
+  background: var(--color-ink);
+  color: var(--color-shell);
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  box-shadow: var(--color-menu-shadow);
+  opacity: 0;
+  transform: translate(10px, 10px) scale(0.9);
+  transform-origin: top left;
+  transition: opacity 140ms ease, transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.layer[data-open="true"] .cursor {
+  opacity: 1;
+  transform: translate(10px, 10px) scale(1);
+}
+
+/* 预览卡：主题取样 + 名称，尺寸固定，贴边时由脚本翻转。
+   先垫一层不透明的壳层底，再叠 popover 色与玻璃高光，避免卡片半透明透出下层内容。 */
+.card {
+  --preview-card-radius: calc(0.9rem + var(--popover-padding));
+  position: absolute;
+  top: 0;
+  left: 0;
+  box-sizing: border-box;
+  width: min(21.25rem, calc(100vw - 1rem));
+  padding: var(--popover-padding);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--preview-card-radius);
+  background-color: var(--color-shell);
+  background-image: var(--glass-sheen), linear-gradient(var(--color-popover), var(--color-popover));
+  box-shadow: var(--color-menu-shadow);
+  will-change: transform;
+}
+
+/* 内容层负责淡入与轻微上浮，外层卡片只负责跟随位移，两者互不抢 transform。 */
+.cardBody {
+  opacity: 0;
+  transform: translateY(5px) scale(0.982);
+  transform-origin: top left;
+  transition: opacity 160ms ease, transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.layer[data-open="true"] .cardBody {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.caption {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.4rem 0.3rem 0.12rem;
+}
+
+.name {
+  overflow: hidden;
+  color: var(--color-ink);
+  font-size: var(--popover-title-font);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hint {
+  flex: 0 0 auto;
+  color: var(--color-muted);
+  font-size: var(--popover-subtitle-font);
+}
+@media (prefers-reduced-motion: reduce) {
+  .layer,
+  .cursor,
+  .cardBody {
+    transition: none;
+  }
+}

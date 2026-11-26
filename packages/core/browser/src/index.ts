@@ -49,6 +49,7 @@ export class BrowserService extends Service {
 
   get downloads() { return this.runtime.downloads; }
   getSettings() { return this.runtime.getSettings(); }
+  getDownloadDirSource() { return this.runtime.getDownloadDirSource(); }
   updateSettings(patch: Partial<BrowserSettingsConfig>) { return this.runtime.updateSettings(patch); }
   getSnapshot(sessionId: string) { return this.runtime.getSnapshot(sessionId); }
 

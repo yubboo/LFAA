@@ -196,6 +196,7 @@ export interface BrowserSettingsConfig {
   localUrlOpenMode?: "builtin" | "external";
   showFullUrl?: boolean;
   annotationScreenshotMode?: "always" | "selection_only";
+  /** 下载目录：空串表示跟随系统「下载」目录，服务端读取时解析为本机真实路径。 */
   downloadDir?: string;
   askBeforeDownload?: boolean;
   historyAccessPolicy?: "ask" | "allow" | "deny";

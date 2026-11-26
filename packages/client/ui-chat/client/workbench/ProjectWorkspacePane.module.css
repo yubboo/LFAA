@@ -1,0 +1,9 @@
+/* 左二「项目工作区」容器：让文件树填满栏位并自行滚动，外壳不额外加内边距。 */
+.pane {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  overflow: hidden;
+}

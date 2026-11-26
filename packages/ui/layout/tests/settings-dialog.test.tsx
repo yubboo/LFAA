@@ -29,8 +29,12 @@ const snapshot: WorkbenchSnapshot = {
   activeLibraryTab: "all",
   activeDomainItem: "",
   workspaceMode: "chatgpt",
+    layoutMode: "chat-center",
   leftSidebarOpen: true,
   rightPanelOpen: false,
+  previewPaneOpen: true,
+    bottomPanelOpen: false,
+    bottomPanels: [],
   rightWorkbenchWide: false,
   rightPanelMaximized: false,
   views: [{
@@ -49,6 +53,7 @@ const snapshot: WorkbenchSnapshot = {
   chatProvider: null,
   chatSessions: [],
   activeChatSessionId: null,
+  shortcuts: [],
 };
 
 test("设置弹窗提供目录导航、当前项标记与关闭入口", () => {

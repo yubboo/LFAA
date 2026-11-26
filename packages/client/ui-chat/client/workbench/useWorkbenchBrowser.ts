@@ -4,6 +4,7 @@ import { controlBrowserNav, fetchBrowserState, manageBrowserTab, navigateBrowser
 import type { ChatClientStore } from "../store/chat-store";
 import type { FilePreviewTab } from "../store/chat-types";
 import { patchWorkbenchSessionState } from "../store/workbench-persist";
+import { shouldCreateHostTab } from "./blank-tab-policy";
 
 /** 检测当前页面是否运行在内置浏览器内部，避免打开 LFAA 自身时递归恢复右栏浏览器互抢视口尺寸。 */
 function isEmbeddedBrowserGuest(): boolean {
@@ -33,6 +34,8 @@ export function useWorkbenchBrowser({
   // 会话切换或重新挂载时先清空浏览器状态，再拉取宿主机已开启的标签（内嵌客体页跳过以避免递归嵌套）。
   const restoreBrowser = useCallback((sid: string, savedOpen: boolean, savedUrl: string | undefined) => {
     const request = ++stateRequest.current;
+    // 过滤掉历史误存的 chrome-error:// 等非 http(s) 地址；空态占位「新标签页」没有地址，也没有宿主页面，不参与恢复。
+    const savedHttp = savedUrl && /^https?:\/\//iu.test(savedUrl) ? savedUrl : undefined;
     if (isEmbeddedBrowserGuest()) {
       setBrowserOpen(false);
       setBrowserInitialUrl(undefined);
@@ -40,7 +43,7 @@ export function useWorkbenchBrowser({
       setBrowserExternalState(undefined);
       return () => {};
     }
-    setBrowserOpen(savedOpen);
+    setBrowserOpen(Boolean(savedOpen && savedHttp));
     setBrowserInitialUrl(undefined);
     setBrowserTabs([]);
     setBrowserExternalState(undefined);
@@ -51,9 +54,9 @@ export function useWorkbenchBrowser({
         setBrowserTabs(res.state.tabs);
         setBrowserExternalState((prev) => ({ snap: res.state, nonce: (prev?.nonce ?? 0) + 1 }));
         setBrowserOpen(true);
-      } else if (savedOpen) {
-        // 有可复用的 Host 标签时沿用页面；过滤掉历史误存的 chrome-error:// 等非 http(s) 地址。
-        setBrowserInitialUrl(savedUrl && /^https?:\/\//iu.test(savedUrl) ? savedUrl : undefined);
+      } else if (savedOpen && savedHttp) {
+        // 有可复用的 Host 标签时沿用页面。
+        setBrowserInitialUrl(savedHttp);
       }
     }).catch(() => {});
     return () => { current = false; };
@@ -71,7 +74,8 @@ export function useWorkbenchBrowser({
     const wasOpen = browserOpen;
     setBrowserOpen(true);
     store.setRightStageKind("browser");
-    if (!wasOpen && browserTabs.length === 0) return;
+    // 已经打开过就每次都给一个新标签页；首次打开时只露出空态占位。
+    if (!shouldCreateHostTab({ browserOpen: wasOpen, browserTabs: browserTabs.length })) return;
     void manageBrowserTab(sessionId, { action: "new" })
       .then((r) => {
         setBrowserTabs(r.state.tabs ?? []);
@@ -89,7 +93,8 @@ export function useWorkbenchBrowser({
       .catch(() => {});
   };
 
-  const handleCloseBrowserTab = (tabId?: string) => {
+  // fallbackStage：关掉浏览器后舞台回退到哪；缺省按是否还有文件标签推断。
+  const handleCloseBrowserTab = (tabId?: string, fallbackStage?: "file" | "review" | "subagent" | null) => {
     if (!tabId || browserTabs.length <= 1) {
       stateRequest.current += 1;
       setBrowserOpen(false);
@@ -97,7 +102,7 @@ export function useWorkbenchBrowser({
       setBrowserInitialUrl(undefined);
       setBrowserExternalState(undefined);
       patchWorkbenchSessionState(sessionId, { browserOpen: false, browserUrl: "" });
-      store.setRightStageKind(activeFileTab ? "file" : null);
+      store.setRightStageKind(fallbackStage === undefined ? (activeFileTab ? "file" : null) : fallbackStage);
       void controlBrowserNav(sessionId, "close").catch(() => {});
       return;
     }
@@ -107,6 +112,25 @@ export function useWorkbenchBrowser({
         setBrowserExternalState((prev) => ({ snap: r.state, nonce: (prev?.nonce ?? 0) + 1 }));
       })
       .catch(() => {});
+  };
+
+  // 关闭除 keepTabId 之外的浏览器标签；没有要保留的标签时直接关掉整个浏览器。
+  const closeBrowserTabsExcept = async (keepTabId?: string) => {
+    if (!keepTabId || browserTabs.length === 0) {
+      handleCloseBrowserTab();
+      return;
+    }
+    for (const tab of browserTabs) {
+      if (tab.tabId === keepTabId) continue;
+      try {
+        const result = await manageBrowserTab(sessionId, { action: "close", tabId: tab.tabId });
+        setBrowserTabs(result.state.tabs ?? []);
+        setBrowserExternalState((prev) => ({ snap: result.state, nonce: (prev?.nonce ?? 0) + 1 }));
+      } catch {
+        // 单个标签关闭失败不阻塞其它标签，下一次快照会校正列表。
+      }
+    }
+    store.setRightStageKind("browser");
   };
 
   const handleOpenUrl = async (url: string) => {
@@ -148,6 +172,7 @@ export function useWorkbenchBrowser({
     handleOpenNewBrowserTab,
     handleActivateBrowserTab,
     handleCloseBrowserTab,
+    closeBrowserTabsExcept,
     handleOpenUrl,
     restoreBrowser,
     syncHostBrowser,

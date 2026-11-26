@@ -48,7 +48,10 @@ export function readWorkbenchSessionState(sessionId: string | null | undefined):
     const rightStageKind = parsed.rightStageKind === "file" || parsed.rightStageKind === "browser" || parsed.rightStageKind === "review"
       ? parsed.rightStageKind
       : null;
-    const activeAux = typeof parsed.activeAux === "string" && VALID_AUX_TABS.has(parsed.activeAux as RightAuxTab)
+    // 文件树已移到左二「项目工作区」，旧的 filesTree 记录不再恢复成右侧面板。
+    const activeAux = typeof parsed.activeAux === "string"
+      && parsed.activeAux !== "filesTree"
+      && VALID_AUX_TABS.has(parsed.activeAux as RightAuxTab)
       ? (parsed.activeAux as RightAuxTab)
       : "terminal";
     return {

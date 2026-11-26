@@ -1,6 +1,7 @@
 // 右栏「终端与后台任务」面板：支持快速发起后台命令、查看实时 stdout/stderr 输出与一键停止进程。
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { IconCheck, IconCircleX, IconClock, IconPlayerStop, IconTerminal2 } from "@tabler/icons-react";
+import { useVisibleInterval } from "@lfaa/ui-primitives/client";
 import styles from "./AgentContextPanel.module.css";
 
 export interface RightJobItem {
@@ -51,9 +52,9 @@ export function RightTerminalPane({
 
   useEffect(() => {
     void loadJobs();
-    const timer = setInterval(() => void loadJobs(), 1600);
-    return () => clearInterval(timer);
   }, [loadJobs]);
+  // 后台标签页不轮询任务列表，回前台立即补一次。
+  useVisibleInterval(loadJobs, 1600);
 
   const handleRun = async (e: FormEvent) => {
     e.preventDefault();

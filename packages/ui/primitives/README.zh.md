@@ -43,6 +43,12 @@ LFAA 共享交互基础 UI 原语包：统一封装居中弹窗（ModalDialog）
   <CollapsePane open={open} side="left" className={styles.leftPane}>{children}</CollapsePane>
   ```
 
+- `CapsuleBar`：共享的头部胶囊外壳。左二栏头部与中间区顶栏都把各自的动作组放进同一个壳里，圆角、描边、底色、阴影与 `--capsule-*` 尺寸只在这里定义一次；调用方只覆盖 `--capsule-height` / `--capsule-gap` / `--capsule-padding` 这类栏位差异。
+
+  ```tsx
+  <CapsuleBar className={styles.barCapsule}>{leftGroup}{rightGroup}</CapsuleBar>
+  ```
+
 各断点可用 `--panel-toggle-size`、`--panel-toggle-radius` 覆盖尺寸，默认是 2rem 方块。
 
 ## 滚动容器

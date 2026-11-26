@@ -49,9 +49,19 @@ export interface WorkbenchContextPanelRenderContext<TContent = unknown> {
   projectContext: TContent | null;
   compact: boolean;
   rightPanelMaximized: boolean;
+  /** 当前页面排版；「预览区在左」时工作台居中间列，图标轨与收起语义随之调整。 */
+  layoutMode: "chat-center" | "preview-center";
   onToggleMaximizeRightPanel: () => void;
   onCollapseRightPanel: () => void;
   onCloseDrawer: () => void;
+}
+
+// 业务插件向 Shell 底部面板贡献的内容契约：v1 只有真实终端，标题由贡献方给。
+export interface WorkbenchBottomPanelContribution<TContent = unknown> {
+  id: string;
+  title: string;
+  /** 面板内容；契约层不引 React，由 Client 侧按 ReactNode 消费。 */
+  render: () => TContent;
 }
 
 // 业务插件向右侧菜单栏贡献的上下文面板契约。
@@ -175,6 +185,11 @@ export interface WorkbenchChatProvider<TContent = unknown> {
     projects: WorkbenchProjectItem[];
     sections: WorkbenchSectionItem[];
   }) => TContent;
+  /**
+   * 左二「项目工作区」内容：工作区文件树由聊天插件提供，
+   * 布局包因此不必依赖其 store、HTTP 接口与展开状态持久化实现。
+   */
+  renderProjectWorkspace?: (params: { projectId: string | null; compact: boolean }) => TContent;
 }
 
 // 项目提供方插件契约，使侧栏与 Shell 无需直接依赖具体项目 UI、弹窗或存储包。
@@ -207,4 +222,34 @@ export interface WorkbenchProjectProvider<TContent = unknown> {
   }) => TContent;
   renderProjectView: (project: WorkbenchProjectItem) => TContent;
   renderProjectContext?: (project: WorkbenchProjectItem) => TContent;
+}
+
+/** 快捷键动作分组：全局壳层、导航、会话、右栏工作台。 */
+export type WorkbenchShortcutGroup = "global" | "navigation" | "session" | "workbench";
+
+/** 快捷键文案：注册方同时给出中英文，设置页与菜单按当前语言取用。 */
+export interface WorkbenchShortcutText {
+  zh: string;
+  en: string;
+}
+
+/** 插件注册的真实快捷键动作；run 与界面按钮共用同一实现，不注册不存在的功能。 */
+export interface WorkbenchShortcutContribution {
+  id: string;
+  group: WorkbenchShortcutGroup;
+  title: WorkbenchShortcutText;
+  description: WorkbenchShortcutText;
+  /** 默认键位；null 表示默认不分配。 */
+  defaultKeys: string | null;
+  run: () => void;
+}
+
+/** 设置页与右键菜单共用的快捷键快照：动作元数据 + 当前生效键位。 */
+export interface WorkbenchShortcutState {
+  id: string;
+  group: WorkbenchShortcutGroup;
+  title: WorkbenchShortcutText;
+  description: WorkbenchShortcutText;
+  keys: string | null;
+  defaultKeys: string | null;
 }

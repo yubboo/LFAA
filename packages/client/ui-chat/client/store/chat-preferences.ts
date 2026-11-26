@@ -8,6 +8,28 @@ const DRAFT_SECTION_KEY = "lfaa:draft-section-id";
 const PERMISSION_MODE_KEY = "lfaa:permission-mode";
 const REASONING_LEVEL_KEY = "lfaa:reasoning-level";
 const FOLLOW_AGENT_WORKBENCH_KEY = "lfaa:workbench-follow-agent";
+const THREAD_VIRTUALIZATION_KEY = "lfaa:thread-virtualization";
+
+/** 读取消息列是否启用窗口化：默认开启，显式写 "off" 即回滚到一次性渲染。 */
+export function readStoredThreadVirtualization(): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    return window.localStorage.getItem(THREAD_VIRTUALIZATION_KEY) !== "off";
+  } catch {
+    return true;
+  }
+}
+
+/** 写入窗口化开关，供排查问题时临时回滚。 */
+export function writeStoredThreadVirtualization(enabled: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (enabled) window.localStorage.removeItem(THREAD_VIRTUALIZATION_KEY);
+    else window.localStorage.setItem(THREAD_VIRTUALIZATION_KEY, "off");
+  } catch {
+    // 忽略存储配额限制。
+  }
+}
 
 /** 读取右栏是否自动跟随 Agent 活动；默认开启，用户显式关闭后跨刷新记住。 */
 export function readStoredFollowAgentWorkbench(): boolean {

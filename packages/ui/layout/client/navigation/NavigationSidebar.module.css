@@ -11,7 +11,8 @@
   overflow: visible;
   padding: 0;
   border-right: 1px solid var(--color-line);
-  background: var(--color-panel);
+  /* 图片模式下栏底色退成统一薄纱，图片整壳可见（见 tokens.css 的 --color-column）。 */
+  background: var(--color-column, var(--color-panel));
   background-image: var(--glass-sheen, none);
   backdrop-filter: blur(var(--glass-sidebar-blur, 0px)) saturate(var(--glass-sidebar-saturate));
   -webkit-backdrop-filter: blur(var(--glass-sidebar-blur, 0px)) saturate(var(--glass-sidebar-saturate));
@@ -37,6 +38,24 @@
   flex-direction: column;
   overflow: hidden;
   padding: 0.85rem 0 0;
+}
+
+/* 项目工作区：文件树直接填满左二内容区，滚动交给树自己，外壳不额外加间距。 */
+.projectWorkspace {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0 0.55rem;
+}
+
+.projectWorkspaceEmpty {
+  margin: 0.4rem 0.65rem;
+  color: var(--color-muted);
+  font-size: 0.86em;
+  line-height: 1.5;
 }
 
 .settingsHeader {
@@ -94,24 +113,18 @@
   stroke-width: 1.7;
 }
 
-/* 工作区头部工具栏：外层圆角卡片，左侧动作组 + 右侧胶囊动作组（对齐参考图的悬浮工具条）。 */
+/* 工作区头部工具栏：外观与尺寸由 @lfaa/ui-primitives 的 CapsuleBar 提供，
+   这里只补「占满整栏、两端分布」的布局与窄栏收紧值。 */
 .header[data-variant="toolbar"] {
   padding: 0.4rem 0.55rem;
   border-bottom: 0;
 }
 
 .toolbar {
-  display: flex;
-  width: 100%;
-  height: 2.7rem;
-  align-items: center;
+  --capsule-gap: 0.4rem;
+  --capsule-padding: 0.2rem 0.25rem;
+
   justify-content: space-between;
-  gap: 0.4rem;
-  padding: 0.2rem 0.25rem;
-  border: 1px solid var(--color-line);
-  border-radius: 0.9rem;
-  background: var(--color-surface);
-  box-shadow: var(--rail-active-shadow);
 }
 
 .toolbarGroup {
@@ -121,14 +134,13 @@
   gap: 0.1rem;
 }
 
-.toolbarPill {
+/* 右侧「活动 / 搜索 / 关闭抽屉」与左侧按钮同平面：只做分组与对齐，不再垫胶囊底色，
+   卡片内因此没有"盒子里的盒子"。 */
+.toolbarUtility {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: 0.05rem;
-  padding: 0.12rem;
-  border-radius: 999px;
-  background: var(--color-active);
+  gap: 0.1rem;
 }
 
 /* 工具栏按钮沿用 headerButton 的悬停与提示规则，只收紧尺寸与圆角。 */
@@ -136,18 +148,6 @@
   width: 2rem;
   height: 2rem;
   border-radius: 0.55rem;
-}
-
-.toolbarPill .toolbarButton {
-  width: 1.85rem;
-  height: 1.85rem;
-  border-radius: 999px;
-}
-
-.toolbarPill .toolbarButton:hover,
-.toolbarPill .toolbarButtonActive,
-.toolbarPill .toolbarButton[aria-expanded="true"] {
-  background: var(--color-surface);
 }
 
 .toolbarButton[data-selected="true"] {
@@ -163,23 +163,13 @@
   }
 
   .toolbar {
-    gap: 0.2rem;
-    padding-inline: 0.15rem;
+    --capsule-gap: 0.2rem;
+    --capsule-padding: 0.2rem 0.15rem;
   }
 
   .toolbarButton {
     width: 1.75rem;
     height: 1.75rem;
-  }
-
-  .toolbarPill .toolbarButton {
-    width: 1.7rem;
-    height: 1.7rem;
-  }
-
-  /* 窄栏里优先保留新建与搜索，折叠入口交给中间的 WorkspaceBar。 */
-  .toolbarCollapse {
-    display: none;
   }
 }
 
@@ -360,15 +350,10 @@
     height: 2.5rem;
   }
 
-  /* 抽屉里的工具栏按钮略小于触控目标上限，避免把 46px 的胶囊撑破。 */
+  /* 抽屉里的工具栏按钮略小于触控目标上限，避免把 46px 的卡片撑破。 */
   .toolbarButton {
     width: 2.1rem;
     height: 2.1rem;
-  }
-
-  .toolbarPill .toolbarButton {
-    width: 2rem;
-    height: 2rem;
   }
 }
 

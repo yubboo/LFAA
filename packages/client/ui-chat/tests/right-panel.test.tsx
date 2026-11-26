@@ -86,14 +86,15 @@ test("RightWorkbenchPane 渲染顶部标签栏、最右图标轨与工作区文�
   assert.ok(normalizedHtml.includes("L42"));
   assert.ok(normalizedHtml.includes(isZh ? "更多操作" : "More actions"));
   assert.ok(normalizedHtml.includes(isZh ? "刷新" : "Refresh"));
-  assert.ok(normalizedHtml.includes(isZh ? "切换侧边栏" : "Toggle sidebar"));
-  assert.ok(normalizedHtml.includes(isZh ? "工作区文件树" : "Files"));
+  // 文件树已移到左二「项目工作区」：右栏不再有文件树入口与舞台侧边栏开关。
+  assert.ok(!normalizedHtml.includes(isZh ? "切换侧边栏" : "Toggle sidebar"));
+  assert.ok(!normalizedHtml.includes(isZh ? "工作区文件树" : ">Files<"));
   assert.ok(normalizedHtml.includes(isZh ? "工作区上下文" : "Workspace context"));
   assert.ok(normalizedHtml.includes(isZh ? "终端与后台任务" : "Terminal & tasks"));
   assert.ok(normalizedHtml.includes(isZh ? "子智能体团队" : "Subagents"));
 });
 
-test("RightWorkbenchPane 启动页提供文件路径、网址及四个快捷入口", () => {
+test("RightWorkbenchPane 启动页提供文件路径、网址及三个快捷入口", () => {
   const locale = getChatLocale();
   const html = renderToStaticMarkup(createElement(RightWorkbenchPane, {
     locale,
@@ -109,8 +110,8 @@ test("RightWorkbenchPane 启动页提供文件路径、网址及四个快捷入�
   assert.ok(html.includes(locale.isZh ? "搜索文件或输入 URL" : "Search files or enter a URL"));
   const groupLabel = locale.isZh ? "打开" : "Open";
   const group = html.split(`role="group" aria-label="${groupLabel}"`)[1]?.split("</div>")[0] ?? "";
-  assert.equal((group.match(/<button\b/gu) ?? []).length, 4);
-  for (const label of locale.isZh ? ["终端", "变更", "文件", "侧边提问"] : ["Terminal", "Changes", "Files", "Side chat"]) {
+  assert.equal((group.match(/<button\b/gu) ?? []).length, 3);
+  for (const label of locale.isZh ? ["终端", "变更", "侧边提问"] : ["Terminal", "Changes", "Side chat"]) {
     assert.ok(group.includes(`>${label}</span>`));
   }
 });
@@ -150,7 +151,6 @@ test("RightWorkbenchActions 渲染右侧顶栏 4 项去重控制，WorkbenchClie
       compact: false,
       rightPanelMaximized: false,
       onOpenReviewTab: () => {},
-      onOpenFileTree: () => {},
       onOpenTerminal: () => {},
       onOpenSubagents: () => {},
       onNewBrowserTab: () => {},
@@ -161,8 +161,8 @@ test("RightWorkbenchActions 渲染右侧顶栏 4 项去重控制，WorkbenchClie
 
   assert.ok(html.includes(locale.isZh ? "工作台更多选项" : "More workbench options"));
   assert.ok(html.includes(locale.isZh ? "切换概览面板 Ctrl+Alt+O" : "Toggle overview Ctrl+Alt+O"));
-  assert.ok(html.includes(locale.isZh ? "最大化窗格 Ctrl+Shift+M" : "Maximize pane"));
-  assert.ok(html.includes(locale.isZh ? "切换侧面板 Ctrl+Shift+B" : "Toggle right panel"));
+  assert.ok(html.includes(locale.isZh ? "最大化窗格 Ctrl+Alt+M" : "Maximize pane"));
+  assert.ok(html.includes(locale.isZh ? "切换侧面板 Ctrl+Alt+2" : "Toggle right panel"));
   assert.ok(!html.includes("收起辅助栏"));
 
   const sessionOnlyHtml = renderToStaticMarkup(
@@ -175,7 +175,7 @@ test("RightWorkbenchActions 渲染右侧顶栏 4 项去重控制，WorkbenchClie
   );
   assert.ok(sessionOnlyHtml.includes(locale.isZh ? "工作台更多选项" : "More workbench options"));
   assert.ok(sessionOnlyHtml.includes(locale.isZh ? "切换概览面板 Ctrl+Alt+O" : "Toggle overview Ctrl+Alt+O"));
-  assert.ok(!sessionOnlyHtml.includes(locale.isZh ? "最大化窗格 Ctrl+Shift+M" : "Maximize pane"));
+  assert.ok(!sessionOnlyHtml.includes(locale.isZh ? "最大化窗格 Ctrl+Alt+M" : "Maximize pane"));
 
   const workbenchOnlyHtml = renderToStaticMarkup(
     createElement(RightWorkbenchActions, {
@@ -188,8 +188,8 @@ test("RightWorkbenchActions 渲染右侧顶栏 4 项去重控制，WorkbenchClie
     }),
   );
   assert.ok(!workbenchOnlyHtml.includes(locale.isZh ? "工作台更多选项" : "More workbench options"));
-  assert.ok(workbenchOnlyHtml.includes(locale.isZh ? "最大化窗格 Ctrl+Shift+M" : "Maximize pane"));
-  assert.ok(workbenchOnlyHtml.includes(locale.isZh ? "切换侧面板 Ctrl+Shift+B" : "Toggle right panel"));
+  assert.ok(workbenchOnlyHtml.includes(locale.isZh ? "最大化窗格 Ctrl+Alt+M" : "Maximize pane"));
+  assert.ok(workbenchOnlyHtml.includes(locale.isZh ? "切换侧面板 Ctrl+Alt+2" : "Toggle right panel"));
 
   const reviewHtml = renderToStaticMarkup(
     createElement(RightGitReviewPane, {

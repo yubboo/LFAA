@@ -1,8 +1,9 @@
 // @lfaa/memory Host 侧 Cordis 服务：统一对外提供短期会话记忆、长期事实记忆、资料库资产/产物及存储迁移服务。
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { type Context, Service } from "@deepseek-ai/cordis";
 import { AssetLibraryStore } from "@lfaa/storage";
 import { LongTermMemoryStore } from "./longterm-store";
+import { MemorySettingsStore } from "./memory-settings";
 import { SessionMemoryStore } from "@lfaa/session";
 import {
   getDefaultDataRoot,
@@ -20,7 +21,12 @@ import type {
   CreateSessionInput,
   LibraryAssetItem,
   LibraryItemCategory,
+  ListMemoriesOptions,
   MemoryEntry,
+  MemoryKind,
+  MemorySettings,
+  MemoryStats,
+  RecallMemoriesOptions,
   SaveLibraryAssetInput,
   StorageConfigState,
   StorageLocationMode,
@@ -30,6 +36,9 @@ import type {
 } from "./types";
 
 export * from "./types";
+export { normalizeMemoryEntry, resolveArchivePath } from "./longterm-store";
+export { DEFAULT_MEMORY_SETTINGS, normalizeMemorySettings } from "./memory-settings";
+export { contentKey, textSimilarity, tokenize } from "./memory-ranking";
 export type { PendingQuestion, SessionWorktree, UserClarification } from "@lfaa/session";
 export {
   buildRunSummaryEntry,
@@ -55,6 +64,7 @@ export {
 export interface MemoryPluginConfig {
   sessionsDir?: string;
   memoryFilePath?: string;
+  memorySettingsFilePath?: string;
   dataRoot?: string;
   storageConfigFilePath?: string;
   recommendedProjectDataRoot?: string;
@@ -65,10 +75,12 @@ export interface MemoryPluginConfig {
 export class MemoryService extends Service {
   private readonly sessionStore: SessionMemoryStore;
   private readonly longTermStore: LongTermMemoryStore;
+  private readonly settingsStore: MemorySettingsStore;
   private readonly assetStore: AssetLibraryStore;
   private readonly storageManager: StorageManager;
   private readonly isolatedMode: boolean;
   private readyPromise: Promise<void> | null = null;
+  private memorySettings: MemorySettings | null = null;
 
   constructor(ctx: Context, config: MemoryPluginConfig = {}) {
     super(ctx, "memory");
@@ -89,10 +101,18 @@ export class MemoryService extends Service {
     const memoryFilePath = config.memoryFilePath ? resolve(config.memoryFilePath) : join(fallbackRoot, VAULT_FILES.longTermMemory);
     this.sessionStore = new SessionMemoryStore(fixedSessionsDir);
     this.longTermStore = new LongTermMemoryStore(memoryFilePath);
+    // 隔离模式（测试/子进程）把设置放在临时资料目录，避免写入真实用户主目录。
+    const settingsPath = config.memorySettingsFilePath
+      ?? (this.isolatedMode ? join(dirname(memoryFilePath), "memory-settings.json") : undefined);
+    this.settingsStore = new MemorySettingsStore(settingsPath);
     this.assetStore = new AssetLibraryStore(fallbackRoot);
   }
 
   private async ensureReady(): Promise<void> {
+    if (!this.memorySettings) {
+      this.memorySettings = await this.settingsStore.get();
+      this.longTermStore.setMaxEntries(this.memorySettings.maxEntries);
+    }
     if (this.isolatedMode) return;
     if (!this.readyPromise) {
       this.readyPromise = this.storageManager.ensureInitialized().then((state) => {
@@ -177,7 +197,7 @@ export class MemoryService extends Service {
     return this.sessionStore.buildContextMessages(sessionId, options);
   }
 
-  async listLongTermMemories(options?: { projectId?: string | null; query?: string }): Promise<MemoryEntry[]> {
+  async listLongTermMemories(options?: ListMemoriesOptions): Promise<MemoryEntry[]> {
     await this.ensureReady();
     return this.longTermStore.list(options);
   }
@@ -187,14 +207,50 @@ export class MemoryService extends Service {
     return this.longTermStore.add(input);
   }
 
+  async updateMemory(
+    memoryId: string,
+    patch: { content?: string; kind?: MemoryKind; tags?: string[] },
+  ): Promise<MemoryEntry | null> {
+    await this.ensureReady();
+    return this.longTermStore.updateEntry(memoryId, patch);
+  }
+
   async removeMemory(memoryId: string): Promise<boolean> {
     await this.ensureReady();
     return this.longTermStore.remove(memoryId);
   }
 
-  async recallRelevantMemories(options: { query: string; projectId?: string | null; limit?: number }): Promise<MemoryEntry[]> {
+  async recallRelevantMemories(options: RecallMemoriesOptions): Promise<MemoryEntry[]> {
     await this.ensureReady();
-    return this.longTermStore.recall(options);
+    const settings = await this.getMemorySettings();
+    return this.longTermStore.recall({
+      ...options,
+      limit: options.limit ?? settings.recallLimit,
+      budgetChars: options.budgetChars ?? settings.recallBudgetChars,
+    });
+  }
+
+  /** 结束一次 crew 运行时归档 run 记忆：提炼一条 team 记忆后清空 run 条目。 */
+  async archiveRunMemories(runId: string, sessionId: string): Promise<number> {
+    await this.ensureReady();
+    return this.longTermStore.archiveRunMemories(runId, sessionId);
+  }
+  async getMemoryStats(): Promise<MemoryStats> {
+    await this.ensureReady();
+    return this.longTermStore.stats();
+  }
+
+  async getMemorySettings(): Promise<MemorySettings> {
+    await this.ensureReady();
+    return this.memorySettings ?? this.settingsStore.get();
+  }
+
+  async updateMemorySettings(patch: Partial<MemorySettings>): Promise<MemorySettings> {
+    await this.ensureReady();
+    const next = await this.settingsStore.update(patch);
+    this.memorySettings = next;
+    this.longTermStore.setMaxEntries(next.maxEntries);
+    return next;
   }
 
   async listLibraryAssets(options?: {

@@ -5,6 +5,7 @@ import Loader from "@deepseek-ai/cordis-plugin-loader";
 import { agentPlugin } from "@lfaa/agent";
 import { agentProfilePlugin } from "@lfaa/agent-profile";
 import { browserPlugin } from "@lfaa/browser";
+import { crewPlugin } from "@lfaa/crew";
 import { chatPlugin } from "@lfaa/chat";
 import {
   commandCompactCore as commandCompactPlugin,
@@ -18,6 +19,7 @@ import { jobsPlugin } from "@lfaa/jobs";
 import { llmPlugin } from "@lfaa/llm";
 import { memoryPlugin } from "@lfaa/memory";
 import mcpPlugin from "@lfaa/mcp";
+import connectorsPlugin from "@lfaa/connectors";
 import { pluginsPlugin } from "@lfaa/plugins";
 import planModePlugin from "@lfaa/plan-mode";
 import { rulesPlugin } from "@lfaa/rules";
@@ -26,6 +28,7 @@ import { sandboxPolicyCore as sandboxPolicyPlugin } from "@lfaa/sandbox";
 import { sectionsPlugin } from "@lfaa/sections";
 import { resolveBash, resolveCmd, resolvePowerShell, shellPlugin } from "@lfaa/shell";
 import { skillsPlugin } from "@lfaa/skills";
+import { terminalPlugin } from "@lfaa/terminal";
 import spillLocalPlugin from "@lfaa/spill-local";
 import systemPromptPlugin from "@lfaa/system-prompt";
 import { subagentPlugin } from "@lfaa/subagent";
@@ -135,7 +138,11 @@ export const webBundlePlugin: Plugin.Object<WebBundleConfig> = {
       describeCommandShell: async () => `run_command 的当前 Shell 为 ${SHELL_NAMES[await currentShellKind(ctx)] ?? "Bash"}。请使用该 Shell 的原生命令语法和路径格式。`,
     });
     const skillsFiber = ctx.plugin(skillsPlugin);
+    // 真实终端：PTY 会话池，浏览器侧经 /api/terminal 的 WebSocket 接入。
+    const terminalFiber = ctx.plugin(terminalPlugin, { projectRoot: config.repoRoot });
     const mcpFiber = ctx.plugin(mcpPlugin, {});
+    // 连接器聚合服务依赖 MCP 服务：CLI 工具与 MCP 服务器在同一页面管理。
+    const connectorsFiber = ctx.plugin(connectorsPlugin, {});
     // 网页能力 seam 先于抓取实现挂载，目标服务先于目标工具挂载。
     const webFiber = ctx.plugin(webPlugin);
     const webFetchFiber = ctx.plugin(httpFetchPlugin, {});
@@ -170,7 +177,7 @@ export const webBundlePlugin: Plugin.Object<WebBundleConfig> = {
     const promptFiber = ctx.plugin(systemPromptPlugin);
     const compactCommandFiber = ctx.plugin(commandCompactPlugin);
     const sandboxPolicyFiber = ctx.plugin(sandboxPolicyPlugin, {});
-    await Promise.all([sectionsFiber, workspaceFiber, worktreeFiber, llmFiber, agentProfileFiber, reviewFiber, rulesFiber, memoryFiber, shellFiber, toolsFiber, skillsFiber, mcpFiber, webFiber, webFetchFiber, goalFiber, handoffFiber, toolTodoFiber, toolWebFiber, toolGoalFiber, toolScheduleFiber, feedbackFiber, attachmentFiber, sessionTitleFiber, commandsFiber, mediaToolsFiber, observationFiber, timeoutFiber, planModeFiber, prunerFiber, spillFiber, compactionFiber, promptFiber, compactCommandFiber, sandboxPolicyFiber]);
+    await Promise.all([sectionsFiber, workspaceFiber, worktreeFiber, llmFiber, agentProfileFiber, reviewFiber, rulesFiber, memoryFiber, shellFiber, toolsFiber, skillsFiber, mcpFiber, connectorsFiber, webFiber, webFetchFiber, goalFiber, handoffFiber, toolTodoFiber, toolWebFiber, toolGoalFiber, toolScheduleFiber, feedbackFiber, attachmentFiber, sessionTitleFiber, commandsFiber, mediaToolsFiber, observationFiber, timeoutFiber, planModeFiber, prunerFiber, spillFiber, compactionFiber, promptFiber, compactCommandFiber, sandboxPolicyFiber, terminalFiber]);
 
     const loaderFiber = ctx.plugin(Loader, { baseUrl: config.loaderBaseUrl });
     await loaderFiber;
@@ -196,6 +203,11 @@ export const webBundlePlugin: Plugin.Object<WebBundleConfig> = {
     if (OPTIONAL_MODULES.includes("@lfaa/subagent")) {
       mountedOptional.push("@lfaa/subagent");
       optionalFibers.push(ctx.plugin(subagentPlugin));
+    }
+    // 任务流水线依赖子智能体运行时；未装子智能体时工具会返回可读错误，不影响启动。
+    if (OPTIONAL_MODULES.includes("@lfaa/crew")) {
+      mountedOptional.push("@lfaa/crew");
+      optionalFibers.push(ctx.plugin(crewPlugin));
     }
 
     const providedModules = [...CORE_MODULES, ...mountedOptional];

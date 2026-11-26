@@ -9,6 +9,7 @@
   "references": [
     { "path": "../ui-chat" },
     { "path": "../ui-tool-media" },
-    { "path": "../../ui/layout" }
+    { "path": "../../ui/layout" },
+    { "path": "../../ui/primitives" }
   ]
 }

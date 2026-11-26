@@ -11,6 +11,21 @@ import { useComposerTriggers } from "./useComposerTriggers";
 import { fetchCodingSettings, postRunCodeReview } from "../settings/coding-settings-client";
 import { filterConfiguredProfiles, resolveActiveProfile } from "../models/model-reasoning-options";
 
+/** 输入栏（含其状态机）只读取这些字段：调用方按切片订阅透传，其余状态变化不再连带重建输入栏。 */
+export type ComposerStoreSlice = Pick<
+  ChatStoreSnapshot,
+  | "profiles"
+  | "activeProfileId"
+  | "pendingComposerInsert"
+  | "sessions"
+  | "activeSessionId"
+  | "submittingMessage"
+  | "queuedMessages"
+  | "generalSettings"
+  | "permissionMode"
+  | "reasoningLevel"
+>;
+
 export function useChatComposer({
   store,
   locale,
@@ -24,7 +39,7 @@ export function useChatComposer({
 }: {
   store: ChatClientStore;
   locale: ChatLocaleMessages;
-  state: ChatStoreSnapshot;
+  state: ComposerStoreSlice;
   activeSession: ChatSessionDetail | null | undefined;
   activeProjectId: string | null | undefined;
   isRunning: boolean;

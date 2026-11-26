@@ -30,8 +30,12 @@ const snapshot: WorkbenchSnapshot = {
   activeLibraryTab: "all",
   activeDomainItem: "",
   workspaceMode: "chatgpt",
+    layoutMode: "chat-center",
   leftSidebarOpen: true,
   rightPanelOpen: false,
+  previewPaneOpen: true,
+    bottomPanelOpen: false,
+    bottomPanels: [],
   rightWorkbenchWide: false,
   rightPanelMaximized: false,
   views: [{
@@ -50,6 +54,7 @@ const snapshot: WorkbenchSnapshot = {
   chatProvider: null,
   chatSessions: [],
   activeChatSessionId: null,
+  shortcuts: [],
 };
 
 test("中间区域把顶栏与内容滚动区拆开，正文位于滚动区内", () => {

@@ -1,11 +1,13 @@
 // 重构后的右侧工作台面板：对齐参考图布局（搜索/URL、6 项入口、子智能体、后台任务）并保留文件标签与工作详情。
-import { useEffect, useState, useSyncExternalStore, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import {
   IconArrowLeft, IconCheck, IconChevronRight, IconCircleX, IconClock, IconDotsVertical,
   IconFile, IconFileSearch, IconMessageCircle, IconPuzzle, IconSearch, IconTerminal2, IconWorld,
 } from "@tabler/icons-react";
+import { useVisibleInterval } from "@lfaa/ui-primitives/client";
 import { RightBrowserPane } from "@lfaa/client-ui-browser/client";
 import type { ChatClientStore } from "../store/chat-store";
+import { useChatSelector } from "../store/use-chat-selector";
 import type { ChatLocaleMessages } from "../locales";
 import { RightSideAskPane } from "./RightSideAskPane";
 import { RightSubagentsPane, type RightSubagentItem } from "./RightSubagentsPane";
@@ -14,6 +16,22 @@ import { WorkspaceFileTabs } from "./WorkspaceFileTabs";
 import styles from "./AgentContextPanel.module.css";
 
 type RightSubview = "overview" | "files" | "terminal" | "browser" | "sideAsk" | "subagents" | "details";
+
+/** 右栏只订阅它渲染用到的字段：流式正文等变化不再带着整块右栏重渲染。 */
+function selectContextSlice(s: ChatStoreSnapshot) {
+  return {
+    activeSession: s.activeSession,
+    filePreviewTabs: s.filePreviewTabs,
+    activeFilePreviewId: s.activeFilePreviewId,
+    rightPanelRequest: s.rightPanelRequest,
+    profiles: s.profiles,
+    activeProfileId: s.activeProfileId,
+    rules: s.rules,
+    smartTrustCounts: s.smartTrustCounts,
+    permissionMode: s.permissionMode,
+    memoriesCount: s.memories.length,
+  };
+}
 
 export function AgentContextPanel({
   locale,
@@ -32,7 +50,7 @@ export function AgentContextPanel({
   onOpenCodeReview?: (() => void) | undefined;
   onOpenExtensions?: (() => void) | undefined;
 }) {
-  const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+  const state = useChatSelector(store, selectContextSlice);
   const [subview, setSubview] = useState<RightSubview>("overview");
   const [query, setQuery] = useState("");
   const [moreOpen, setMoreOpen] = useState(false);
@@ -62,28 +80,25 @@ export function AgentContextPanel({
     }
   }, [selection, selectedStep, showFilePreview]);
 
-  useEffect(() => {
-    let active = true;
-    const loadSummary = async () => {
-      try {
-        const [jobsRes, subsRes] = await Promise.all([
-          fetch(`/api/jobs?sessionId=${encodeURIComponent(sessionId)}`).then((r) => (r.ok ? r.json() : { jobs: [] })),
-          fetch(`/api/subagents?sessionId=${encodeURIComponent(sessionId)}`).then((r) => (r.ok ? r.json() : { subagents: [] })),
-        ]);
-        if (!active) return;
-        if (Array.isArray(jobsRes.jobs)) setJobs(jobsRes.jobs);
-        if (Array.isArray(subsRes.subagents)) setSubagents(subsRes.subagents);
-      } catch {
-        // 忽略后台概览轮询偶发失败
-      }
-    };
-    void loadSummary();
-    const timer = setInterval(() => void loadSummary(), 2000);
-    return () => {
-      active = false;
-      clearInterval(timer);
-    };
+  // 后台任务与子智能体概览：面板挂载时拉一次，之后交给可见性 Hook 定时校正。
+  const loadSummary = useCallback(async () => {
+    try {
+      const [jobsRes, subsRes] = await Promise.all([
+        fetch(`/api/jobs?sessionId=${encodeURIComponent(sessionId)}`).then((r) => (r.ok ? r.json() : { jobs: [] })),
+        fetch(`/api/subagents?sessionId=${encodeURIComponent(sessionId)}`).then((r) => (r.ok ? r.json() : { subagents: [] })),
+      ]);
+      if (Array.isArray(jobsRes.jobs)) setJobs(jobsRes.jobs);
+      if (Array.isArray(subsRes.subagents)) setSubagents(subsRes.subagents);
+    } catch {
+      // 忽略后台概览轮询偶发失败
+    }
   }, [sessionId]);
+
+  useEffect(() => {
+    void loadSummary();
+  }, [loadSummary]);
+  // 概览改由可见性 Hook 驱动：后台标签页不轮询任务与子智能体数量。
+  useVisibleInterval(() => void loadSummary(), 2000);
 
   const activeProfile = state.profiles.find((p) => p.id === state.activeProfileId) ?? state.profiles[0];
   const activeRulesCount = state.rules.filter((r) => r.content.trim().length > 0).length;
@@ -129,7 +144,7 @@ export function AgentContextPanel({
         </div>
         <div className={styles.item}>
           <span className={styles.label}>{locale.memoryLabel}</span>
-          <span className={styles.value}>{`${state.memories.length} ${locale.memoryCountSuffix}`}</span>
+          <span className={styles.value}>{`${state.memoriesCount} ${locale.memoryCountSuffix}`}</span>
         </div>
         <div className={styles.item}>
           <span className={styles.label}>{locale.rulesLabel}</span>

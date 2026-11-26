@@ -3,6 +3,7 @@ import { type Context, Service } from "@deepseek-ai/cordis";
 import type { ReactNode } from "react";
 import type {
   WorkbenchAccountActionContribution,
+  WorkbenchBottomPanelContribution,
   WorkbenchChatProvider,
   WorkbenchChatSessionSummary,
   WorkbenchContextPanelContribution,
@@ -10,52 +11,58 @@ import type {
   WorkbenchProjectProvider,
   WorkbenchSectionItem,
   WorkbenchSectionProvider,
+  WorkbenchShortcutContribution,
+  WorkbenchShortcutState,
   WorkbenchTitleActionContribution,
   WorkbenchViewContribution,
   WorkbenchWorkspaceActionContribution,
 } from "../contract/index";
+import { BottomPanelState } from "./shell/bottom-panel-state";
+import { ShortcutState } from "./shortcut-state";
 import {
   LEFT_SIDEBAR_STORAGE_KEY,
   LIBRARY_TAB_STORAGE_KEY,
+  PREVIEW_PANE_STORAGE_KEY,
   RIGHT_PANEL_STORAGE_KEY,
   readActiveRoutePref,
   readBooleanPref,
+  readLayoutModePref,
   readSettingsViewPref,
   readStoredJson,
   readWorkspaceModePref,
   writeActiveRoutePref,
   writeBooleanPref,
+  writeLayoutModePref,
   writeSettingsViewPref,
   writeStoredJson,
   writeWorkspaceModePref,
+  type LayoutMode,
 } from "./shell/ui-preferences";
 import { isSettingsView, type WorkspaceMode } from "./navigation/navigation";
+import { runPaneAnimation } from "./shell/use-pane-anim";
+import { isLibraryTabKey, type LibraryTabKey } from "./shell/library-tabs";
 
-/** 约定资料库分类在工作台中的稳定标识；`media` 为并入资料库的图像（生成素材）分类。 */
-export type LibraryTabKey = "all" | "media" | "artifact" | "asset" | "memory";
-
-const LIBRARY_TABS: readonly LibraryTabKey[] = ["all", "media", "artifact", "asset", "memory"];
-
-/** 校验浏览器记忆里的资料库分类，非法值回退到全部。 */
-function isLibraryTabKey(value: unknown): value is LibraryTabKey {
-  return typeof value === "string" && (LIBRARY_TABS as readonly string[]).includes(value);
-}
+export type { LibraryTabKey } from "./shell/library-tabs";
 
 /** 约定视图树从工作台服务订阅的状态快照。 */
 export interface WorkbenchSnapshot {
   activeView: string;
   activeProjectId: string | null;
-  /**
-   * 设置中心打开时，关闭后要回到的主视图（背景视图）。
-   * 刷新恢复设置弹窗时背景路由取自本地偏好，因此需要显式带给 Shell。
-   */
+  /** 设置中心打开时，关闭后要回到的主视图（背景视图）。 */
   settingsReturnView: string | null;
   activeLibraryTab: LibraryTabKey;
   activeDomainItem: string;
   /** 聊天中心区的「聊天 / 工作」：决定中心区形态与输入栏信息密度，由 service 统一持有。 */
   workspaceMode: WorkspaceMode;
+  /** 页面排版：聊天区在左（默认）或预览区在左。 */
+  layoutMode: LayoutMode;
   leftSidebarOpen: boolean;
   rightPanelOpen: boolean;
+  /** 预览列（工作台所在列）是否展开：仅「预览区在左」下生效，收起时把宽度让给 AI 会话列。 */
+  previewPaneOpen: boolean;
+  /** 底部面板是否展开；面板内容由插件通过 registerBottomPanel 贡献。 */
+  bottomPanelOpen: boolean;
+  bottomPanels: WorkbenchBottomPanelContribution<ReactNode>[];
   rightWorkbenchWide: boolean;
   rightPanelMaximized: boolean;
   views: WorkbenchViewContribution<ReactNode>[];
@@ -70,6 +77,8 @@ export interface WorkbenchSnapshot {
   chatProvider: WorkbenchChatProvider<ReactNode> | null;
   chatSessions: WorkbenchChatSessionSummary[];
   activeChatSessionId: string | null;
+  /** 已注册的真实快捷键动作与当前生效键位；未注册的动作不会出现在这里。 */
+  shortcuts: WorkbenchShortcutState[];
 }
 
 // 统一持有四栏导航、折叠状态及插件注册表；注册项随返回的清理函数撤销。
@@ -81,6 +90,7 @@ export class WorkbenchClientService extends Service {
   private readonly accountActionMap = new Map<string, WorkbenchAccountActionContribution<ReactNode>>();
   private readonly titleActionMap = new Map<string, WorkbenchTitleActionContribution<ReactNode>>();
   private readonly workspaceActionMap = new Map<string, WorkbenchWorkspaceActionContribution<ReactNode>>();
+  private readonly shortcutState = new ShortcutState();
   private projectProviderValue: WorkbenchProjectProvider<ReactNode> | null = null;
   private unsubscribeProjects: (() => void) | null = null;
   private sectionProviderValue: WorkbenchSectionProvider<ReactNode> | null = null;
@@ -93,8 +103,11 @@ export class WorkbenchClientService extends Service {
   private activeLibraryTabValue: LibraryTabKey = "all";
   private activeDomainItemValue = "";
   private workspaceModeValue: WorkspaceMode = readWorkspaceModePref();
+  private layoutModeValue: LayoutMode = readLayoutModePref();
   private leftSidebarOpenValue = readBooleanPref(LEFT_SIDEBAR_STORAGE_KEY, true);
   private rightPanelOpenValue = readBooleanPref(RIGHT_PANEL_STORAGE_KEY, true);
+  private previewPaneOpenValue = readBooleanPref(PREVIEW_PANE_STORAGE_KEY, true);
+  private readonly bottomPanel = new BottomPanelState();
   private rightWorkbenchWideValue = false;
   private rightPanelMaximizedValue = false;
   private cachedSnapshot: WorkbenchSnapshot | null = null;
@@ -175,8 +188,12 @@ export class WorkbenchClientService extends Service {
       activeLibraryTab: this.activeLibraryTabValue,
       activeDomainItem: this.activeDomainItemValue,
       workspaceMode: this.workspaceModeValue,
+      layoutMode: this.layoutModeValue,
       leftSidebarOpen: this.leftSidebarOpenValue,
       rightPanelOpen: this.rightPanelOpenValue,
+      previewPaneOpen: this.previewPaneOpenValue,
+      bottomPanelOpen: this.bottomPanel.open,
+      bottomPanels: this.bottomPanel.list,
       rightWorkbenchWide: this.rightWorkbenchWideValue,
       rightPanelMaximized: this.rightPanelMaximizedValue,
       views: [...this.viewMap.values()],
@@ -191,64 +208,86 @@ export class WorkbenchClientService extends Service {
       chatProvider: this.chatProviderValue,
       chatSessions,
       activeChatSessionId,
+      shortcuts: this.shortcutState.list(),
     };
     return this.cachedSnapshot;
   };
 
-  registerView(contribution: WorkbenchViewContribution<ReactNode>): () => void {
-    this.viewMap.set(contribution.id, contribution);
+  /** 登记一项工作台贡献：按 id 覆盖，撤销时只在自己仍是当前项时删除，热重载不会误删后注册的同名项。 */
+  private registerContribution<T extends { id: string }>(map: Map<string, T>, contribution: T): () => void {
+    map.set(contribution.id, contribution);
     this.emit();
     return () => {
-      if (this.viewMap.get(contribution.id) === contribution) {
-        this.viewMap.delete(contribution.id);
+      if (map.get(contribution.id) === contribution) {
+        map.delete(contribution.id);
         this.emit();
       }
     };
+  }
+
+  registerView(contribution: WorkbenchViewContribution<ReactNode>): () => void {
+    return this.registerContribution(this.viewMap, contribution);
   }
 
   registerContextPanel(contribution: WorkbenchContextPanelContribution<ReactNode>): () => void {
-    this.panelMap.set(contribution.id, contribution);
+    return this.registerContribution(this.panelMap, contribution);
+  }
+
+  registerBottomPanel(contribution: WorkbenchBottomPanelContribution<ReactNode>): () => void {
+    this.bottomPanel.register(contribution);
     this.emit();
     return () => {
-      if (this.panelMap.get(contribution.id) === contribution) {
-        this.panelMap.delete(contribution.id);
-        this.emit();
-      }
+      this.bottomPanel.unregister(contribution.id);
+      this.emit();
     };
   }
 
-  registerAccountAction(contribution: WorkbenchAccountActionContribution<ReactNode>): () => void {
-    this.accountActionMap.set(contribution.id, contribution);
+  setBottomPanelOpen(open: boolean, persist = true): void {
+    if (this.bottomPanel.open === open) return;
+    this.bottomPanel.setOpen(open, persist);
     this.emit();
-    return () => {
-      if (this.accountActionMap.get(contribution.id) === contribution) {
-        this.accountActionMap.delete(contribution.id);
-        this.emit();
-      }
-    };
+  }
+
+  registerAccountAction(contribution: WorkbenchAccountActionContribution<ReactNode>): () => void {
+    return this.registerContribution(this.accountActionMap, contribution);
   }
 
   // 标题右侧的状态控件（如会话模式）与右侧动作分开登记，避免挤占工作台按钮位。
   registerTitleAction(contribution: WorkbenchTitleActionContribution<ReactNode>): () => void {
-    this.titleActionMap.set(contribution.id, contribution);
-    this.emit();
-    return () => {
-      if (this.titleActionMap.get(contribution.id) === contribution) {
-        this.titleActionMap.delete(contribution.id);
-        this.emit();
-      }
-    };
+    return this.registerContribution(this.titleActionMap, contribution);
   }
 
   registerWorkspaceAction(contribution: WorkbenchWorkspaceActionContribution<ReactNode>): () => void {
-    this.workspaceActionMap.set(contribution.id, contribution);
+    return this.registerContribution(this.workspaceActionMap, contribution);
+  }
+
+  // 快捷键注册：动作与当前生效键位一起进入快照，设置页与右键菜单据此展示与改键。
+  registerShortcut(contribution: WorkbenchShortcutContribution): () => void {
+    return this.registerContribution(this.shortcutState.map, contribution);
+  }
+  /** 改写某个动作的键位；null 表示清除绑定（该动作暂时没有快捷键）。 */
+  setShortcutKeys(id: string, keys: string | null): void {
+    this.shortcutState.setKeys(id, keys);
     this.emit();
-    return () => {
-      if (this.workspaceActionMap.get(contribution.id) === contribution) {
-        this.workspaceActionMap.delete(contribution.id);
-        this.emit();
-      }
-    };
+  }
+
+  /** 恢复某个动作的默认键位。 */
+  resetShortcutKeys(id: string): void {
+    this.shortcutState.resetKeys(id);
+    this.emit();
+  }
+
+  /** 已注册动作的当前键位；动作不存在时返回 null。 */
+  getShortcutKeys(id: string): string | null {
+    return this.getSnapshot().shortcuts.find((item) => item.id === id)?.keys ?? null;
+  }
+
+  /** 执行已注册动作；全局按键与设置页试运行共用这一入口。 */
+  runShortcut(id: string): boolean {
+    const action = this.shortcutState.map.get(id);
+    if (!action) return false;
+    action.run();
+    return true;
   }
 
   // 项目来源发生变化时重算工作台快照，卸载后解除原有订阅。
@@ -366,11 +405,28 @@ export class WorkbenchClientService extends Service {
     this.emit();
   }
 
+  /** 切换页面排版：聊天区在左（默认）或预览区在左；偏好写入浏览器记忆。 */
+  setLayoutMode(mode: LayoutMode): void {
+    if (this.layoutModeValue === mode) return;
+    this.layoutModeValue = mode;
+    writeLayoutModePref(mode);
+    // 切到「预览区在左」时预览列必须重新展开：否则用户看到的只有会话列，没有打开的落点。
+    if (mode === "preview-center" && !this.previewPaneOpenValue) {
+      this.previewPaneOpenValue = true;
+      writeBooleanPref(PREVIEW_PANE_STORAGE_KEY, true);
+    }
+    this.emit();
+  }
+
   toggleLeftSidebar(): void {
     this.setLeftSidebarOpen(!this.leftSidebarOpenValue);
   }
 
   setRightPanelOpen(open: boolean, persist = true): void {
+    // 「预览区在左」下右栏位置渲染的是 AI 会话列，工作台在中间列：改动会话列前先保证预览列在场。
+    if (this.layoutModeValue === "preview-center" && !this.previewPaneOpenValue) {
+      this.setPreviewPaneOpen(true, persist);
+    }
     if (this.rightPanelOpenValue === open) return;
     this.rightPanelOpenValue = open;
     if (!open) this.rightPanelMaximizedValue = false;
@@ -378,18 +434,39 @@ export class WorkbenchClientService extends Service {
     this.emit();
   }
 
+  /** 展开/收起预览列（「预览区在左」下承载工作台的那一列）：收起即把宽度全部让给 AI 会话列。 */
+  setPreviewPaneOpen(open: boolean, persist = true): void {
+    if (this.previewPaneOpenValue === open) return;
+    this.previewPaneOpenValue = open;
+    if (persist) writeBooleanPref(PREVIEW_PANE_STORAGE_KEY, open);
+    // 预览列收起时若会话列也收着，先把会话列放出来，避免只剩背景色。
+    if (!open && this.layoutModeValue === "preview-center" && !this.rightPanelOpenValue) {
+      this.rightPanelOpenValue = true;
+      if (persist) writeBooleanPref(RIGHT_PANEL_STORAGE_KEY, true);
+    }
+    this.emit();
+  }
+
+  /** 收起/展开最右侧的列。预览区在左时分屏才算「展开」：预览列收着时先把分屏补回来。 */
   toggleRightPanel(): void {
+    if (this.layoutModeValue === "preview-center" && !this.previewPaneOpenValue) {
+      this.setPreviewPaneOpen(true);
+      return;
+    }
     this.setRightPanelOpen(!this.rightPanelOpenValue);
   }
 
   setRightPanelMaximized(maximized: boolean): void {
     if (this.rightPanelMaximizedValue === maximized && (!maximized || this.rightPanelOpenValue)) return;
+    // 最大化针对的是工作台：预览列收起时先把它放出来，否则只会得到一条 0 宽的会话列。
+    if (maximized && this.layoutModeValue === "preview-center" && !this.previewPaneOpenValue) this.setPreviewPaneOpen(true);
     this.rightPanelMaximizedValue = maximized;
     if (maximized && !this.rightPanelOpenValue) {
       this.rightPanelOpenValue = true;
       writeBooleanPref(RIGHT_PANEL_STORAGE_KEY, true);
     }
-    this.emit();
+    // 最大化/还原是整片排版切换：交给编排动画先定格再补间，失败时内部自动退回本次 emit。
+    runPaneAnimation(() => this.emit());
   }
 
   toggleRightPanelMaximized(): void {

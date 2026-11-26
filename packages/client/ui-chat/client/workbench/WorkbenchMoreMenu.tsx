@@ -4,7 +4,6 @@ import {
   IconArchive,
   IconChevronRight,
   IconCopy,
-  IconFolder,
   IconLayoutColumns,
   IconPencil,
   IconPin,
@@ -26,7 +25,6 @@ export function WorkbenchMoreMenu({
   onTogglePinned,
   onToggleArchived,
   onTriggerBrowser,
-  onTriggerFiles,
   onCopy,
   onOpenExtensions,
   onCloseMenu,
@@ -41,7 +39,6 @@ export function WorkbenchMoreMenu({
   onTogglePinned: () => void;
   onToggleArchived: () => void;
   onTriggerBrowser: () => void;
-  onTriggerFiles: () => void;
   onCopy: () => void;
   onOpenExtensions?: (() => void) | undefined;
   onCloseMenu: () => void;
@@ -95,10 +92,6 @@ export function WorkbenchMoreMenu({
         <IconLayoutColumns size={14} />
         <span>{isZh ? "分屏打开内置浏览器" : "Split browser tab"}</span>
         <IconWorld size={13} className={styles.trailingIcon} />
-      </button>
-      <button type="button" role="menuitem" className={styles.menuItem} onClick={onTriggerFiles}>
-        <IconFolder size={14} />
-        <span>{isZh ? "切换工作区文件树" : "Toggle file tree"}</span>
       </button>
       <button
         type="button"

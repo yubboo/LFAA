@@ -1,0 +1,32 @@
+/* 中间对话会话区盒子：唯一滚动视口 + 贴在视口内的底部渐隐。
+   输入区不再叠在它上面，所以这里不需要为输入区预留内边距，正文也不会从输入卡片里透出来。 */
+.scroller {
+  grid-row: 2;
+  grid-column: 1;
+  position: relative;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  /* 流式输出时禁用浏览器原生 scroll-anchoring，避免和贴底跟随互相拉扯。 */
+  overflow-anchor: none;
+  overscroll-behavior-y: none;
+  /* 两侧各留一条滚动条槽：滚动条只占右侧时，正文列会比输入栏窄 6px 且居中轴左移 3px。 */
+  scrollbar-gutter: stable both-edges;
+  margin-inline-end: var(--chat-scrollbar-gap, 2px);
+  padding: 1.5rem var(--chat-side-padding) 1rem;
+  padding-inline-end: calc(var(--chat-side-padding) - var(--chat-scrollbar-gap, 2px));
+}
+
+.scroller[hidden] {
+  display: none;
+}
+
+/* 渐隐只在正文末端生效：sticky 贴在滚动视口底缘，负外边距让它不占滚动高度。 */
+.fade {
+  position: sticky;
+  bottom: 0;
+  height: 2.4rem;
+  margin-top: -2.4rem;
+  pointer-events: none;
+  background: linear-gradient(to bottom, transparent, var(--color-column, var(--color-shell)));
+}

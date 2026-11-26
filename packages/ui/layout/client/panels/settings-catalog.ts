@@ -27,6 +27,8 @@ export const SETTINGS_CATALOG: SettingsCatalogGroup[] = [
       { viewId: "settings:general", labelZh: "常规", labelEn: "General", icon: "settings" },
       { viewId: "appearance", labelZh: "外观", labelEn: "Appearance", icon: "palette" },
       { viewId: "settings:notifications", labelZh: "通知", labelEn: "Notifications", icon: "bell" },
+      { viewId: "settings:shortcuts", labelZh: "键盘快捷键", labelEn: "Keyboard shortcuts", icon: "keyboard" },
+      { viewId: "settings:terminal", labelZh: "终端", labelEn: "Terminal", icon: "sidebarRight" },
       { viewId: "settings:storage", labelZh: "存储", labelEn: "Storage", icon: "project" },
     ],
   },
@@ -46,7 +48,7 @@ export const SETTINGS_CATALOG: SettingsCatalogGroup[] = [
     titleEn: "Integrations",
     items: [
       { viewId: "settings:browser", labelZh: "浏览器", labelEn: "Browser", icon: "map" },
-      { viewId: "settings:mcp", labelZh: "MCP", labelEn: "MCP", icon: "settings" },
+      { viewId: "settings:connectors", labelZh: "连接器", labelEn: "Connectors", icon: "settings" },
     ],
   },
 ];

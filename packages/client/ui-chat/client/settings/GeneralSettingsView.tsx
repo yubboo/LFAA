@@ -21,9 +21,14 @@ import overlayStyles from "./GeneralSettingsView.overlays.module.css";
 export function GeneralSettingsView({
   locale,
   store,
+  layoutMode,
+  onLayoutModeChange,
 }: {
   locale: ChatLocaleMessages;
   store: ChatClientStore;
+  /** 页面排版由工作台服务持有，设置页只负责展示与转交。 */
+  layoutMode: "chat-center" | "preview-center";
+  onLayoutModeChange: (mode: "chat-center" | "preview-center") => void;
 }) {
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
   const cfg = state.generalSettings;
@@ -134,6 +139,8 @@ export function GeneralSettingsView({
       <GeneralSettingsGeneralGroup
         isZh={isZh}
         cfg={cfg}
+        layoutMode={layoutMode}
+        onLayoutModeChange={onLayoutModeChange}
         onPatch={(patch) => void patchSetting(patch)}
         onPickOutsideFolder={() => void pickAndSaveFolder("outsideProjectFolder", "项目外聊天目录", "out-of-project folder")}
         onPickDefaultProjectsFolder={() => void pickAndSaveFolder("defaultProjectsFolder", "默认新建项目目录", "default project folder")}

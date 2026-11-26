@@ -130,12 +130,15 @@ export function clearBrowserLogs(sessionId: string) {
   });
 }
 
+/** 下载位置来源：system 跟随本机系统「下载」目录，custom 为用户自选目录。 */
+export type DownloadDirSource = "system" | "custom";
+
 export function fetchBrowserConfig() {
-  return requestJson<{ config: BrowserSettingsConfig }>("/api/browser/config");
+  return requestJson<{ config: BrowserSettingsConfig; downloadDirSource?: DownloadDirSource }>("/api/browser/config");
 }
 
 export function saveBrowserConfig(patch: Partial<BrowserSettingsConfig>) {
-  return requestJson<{ config: BrowserSettingsConfig }>("/api/browser/config", {
+  return requestJson<{ config: BrowserSettingsConfig; downloadDirSource?: DownloadDirSource }>("/api/browser/config", {
     method: "PUT",
     body: JSON.stringify(patch),
   });

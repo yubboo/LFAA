@@ -10,7 +10,6 @@ import {
   type AppearanceConfig,
   type AppearanceMode,
   type BackgroundChoice,
-  type BackgroundTarget,
   type ThemePresetId,
   type ThemeVariantSettings,
 } from "../contract/index";
@@ -197,9 +196,10 @@ export class AppearanceStore {
     this.commit({ ...this.config, mode });
   };
 
-  applyPreset = (presetId: ThemePresetId): void => {
+  /** 把「预设」套进当前配置：配色、玻璃与强调色一起换，背景保持不动。 */
+  private withPreset(presetId: ThemePresetId): AppearanceConfig {
     const preset = THEME_PRESETS[presetId];
-    this.commit({
+    return {
       ...this.config,
       preset: presetId,
       translucentSidebar: preset.glassEnabled ? true : this.config.translucentSidebar,
@@ -215,14 +215,14 @@ export class AppearanceStore {
         foreground: preset.dark.foreground,
         accent: preset.dark.accent,
       },
-    });
-  };
+    };
+  }
 
-  /** 为指定位置保存背景选择；只改当前 target，另一处保持原样。 */
-  setBackground = (target: BackgroundTarget, choice: BackgroundChoice): void => {
+  /** 应用一整套主题方案：配色与背景一次落盘，工作区与设置中心共用同一套。 */
+  applyThemeLook = (presetId: ThemePresetId, background: BackgroundChoice): void => {
     this.commit({
-      ...this.config,
-      backgrounds: { ...this.config.backgrounds, [target]: choice },
+      ...this.withPreset(presetId),
+      backgrounds: { workspace: background, settings: background },
     });
   };
 

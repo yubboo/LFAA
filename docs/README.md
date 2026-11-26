@@ -6,11 +6,13 @@
 
 | 文档 | 解决什么问题 |
 |---|---|
-| [开发规范](standards/AI-Agent-Development-Standards.md) | 本项目的强制规范：命名、边界、注释、日志、提交流程 |
+| [开发规范](standards/AI-Agent-Development-Standards.md) | 本项目的强制规范：先调研再适配（§1.1）、命名、边界、注释、日志、提交流程 |
 | [结构法则](architecture/structure.md) | 包分组、依赖方向、包内分区与检查命令 |
 | [架构基线](architecture/overview.md) | 技术栈、四栏布局、装配与已确认决策 |
 
 做设置中心或任何设置页之前，另读 [设置中心界面规范](standards/settings-ui.md)（行式布局、去卡片、分组留白、表单例外、状态记忆）。
+
+做任何悬浮卡片（账号菜单、更多菜单、操作菜单、下拉、气泡）之前，另读 [悬浮卡片规范](standards/floating-cards.md)（宽度与锚点、密度基线、圆角同心、窄宽度降级、交付自检）。
 
 ## 目录职责
 
